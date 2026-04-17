@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testtypenamealiasonaliasednamespace.js:5:25: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : undefined
+required: Foo.E<number>
+  5| /** @type {E} */ let e = undefined;
+                              ^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

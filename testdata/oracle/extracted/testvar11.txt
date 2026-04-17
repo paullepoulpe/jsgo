@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testvar11.js:1:30: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : string
+required: Date
+  1| var /** @type {!Date} */foo = 'abc';
+                                   ^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1
