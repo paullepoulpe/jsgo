@@ -59,15 +59,37 @@ func (booleanType) IsSubtypeOf(o JSType) bool {
 	return isAll(o) || isUnknown(o)
 }
 
+type nullType struct{}
+
+func (nullType) TypeName() string { return "null" }
+func (nullType) IsSubtypeOf(o JSType) bool {
+	if _, ok := o.(nullType); ok {
+		return true
+	}
+	return isAll(o) || isUnknown(o)
+}
+
+type voidType struct{}
+
+func (voidType) TypeName() string { return "undefined" }
+func (voidType) IsSubtypeOf(o JSType) bool {
+	if _, ok := o.(voidType); ok {
+		return true
+	}
+	return isAll(o) || isUnknown(o)
+}
+
 func isAll(t JSType) bool     { _, ok := t.(allType); return ok }
 func isUnknown(t JSType) bool { _, ok := t.(unknownType); return ok }
 
 // Canonical interned instances. Java JSTypeRegistry returns the same
 // instance for each primitive; we mirror that with package-level vars.
 var (
-	All     JSType = allType{}
-	Unknown JSType = unknownType{}
-	Number  JSType = numberType{}
-	String  JSType = stringType{}
-	Boolean JSType = booleanType{}
+	All      JSType = allType{}
+	Unknown  JSType = unknownType{}
+	Number   JSType = numberType{}
+	String   JSType = stringType{}
+	Boolean  JSType = booleanType{}
+	Null     JSType = nullType{}
+	Void     JSType = voidType{}
 )

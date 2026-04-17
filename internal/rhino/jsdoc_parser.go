@@ -10,7 +10,10 @@ package rhino
 
 import "regexp"
 
-var typeTagRe = regexp.MustCompile(`@type\s*\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}`)
+// Matches `@type { !? Name }` — the leading `!` / `?` nullability modifier
+// is handled explicitly so we can distinguish non-null (safe to resolve
+// to the base type) from nullable (too imprecise for Tier-0).
+var typeTagRe = regexp.MustCompile(`@type\s*\{\s*([!?]?)\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}`)
 
 // ParseJSDoc returns a JSDocInfo for the given block-comment body (the
 // text between /** and */, without the delimiters), or nil if the comment
@@ -20,7 +23,13 @@ func ParseJSDoc(body string) *JSDocInfo {
 	if m == nil {
 		return nil
 	}
+	// Nullable-prefix (`?Foo`) is out of scope for Tier-0; leave the
+	// type unrecorded so the checker is conservative instead of warning
+	// on legitimate null assignments.
+	if m[1] == "?" {
+		return nil
+	}
 	info := &JSDocInfo{}
-	info.SetType(NewJSTypeExpression(m[1]))
+	info.SetType(NewJSTypeExpression(m[2]))
 	return info
 }

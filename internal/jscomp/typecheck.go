@@ -29,10 +29,14 @@ func NewTypeCheck(path string, scope *TypedScope, infer *TypeInference) *TypeChe
 func (c *TypeCheck) Check(script *rhino.Node) []diag.Diagnostic {
 	var out []diag.Diagnostic
 	for _, child := range script.Children() {
-		if !isDeclToken(child.Token()) {
-			continue
+		switch {
+		case isDeclToken(child.Token()):
+			out = append(out, c.checkVar(child)...)
+		case child.Token() == rhino.EXPR_RESULT:
+			if a := child.FirstChild(); a != nil && a.Token() == rhino.ASSIGN {
+				out = append(out, c.checkAssign(a)...)
+			}
 		}
-		out = append(out, c.checkVar(child)...)
 	}
 	return out
 }
@@ -61,6 +65,43 @@ func (c *TypeCheck) checkVar(v *rhino.Node) []diag.Diagnostic {
 		Path:    c.path,
 		Line:    init.Lineno(),
 		Col:     init.Charno(),
+		Code:    diag.JSC_TYPE_MISMATCH,
+		Level:   diag.Error,
+		Message: msg,
+	}}
+}
+
+// checkAssign handles bare `IDENT = LITERAL;` statements. Matches
+// TypeCheck.java's "assignment" JSC_TYPE_MISMATCH case.
+func (c *TypeCheck) checkAssign(a *rhino.Node) []diag.Diagnostic {
+	name := a.FirstChild()
+	if name == nil || name.Token() != rhino.NAME {
+		return nil
+	}
+	rhs := name
+	// ASSIGN has two children: lhs NAME, rhs literal. NAME is first; rhs
+	// is the second child — access via Children().
+	kids := a.Children()
+	if len(kids) < 2 {
+		return nil
+	}
+	rhs = kids[1]
+	declared := c.scope.GetDeclaredType(name.String_())
+	if declared == nil {
+		return nil
+	}
+	found := c.infer.InferType(rhs)
+	if found.IsSubtypeOf(declared) {
+		return nil
+	}
+	// TypeCheck.java reports the "assignment" variant at the LHS
+	// position, not the RHS (unlike "initializing variable").
+	msg := fmt.Sprintf("assignment\nfound   : %s\nrequired: %s",
+		found.TypeName(), declared.TypeName())
+	return []diag.Diagnostic{{
+		Path:    c.path,
+		Line:    name.Lineno(),
+		Col:     name.Charno(),
 		Code:    diag.JSC_TYPE_MISMATCH,
 		Level:   diag.Error,
 		Message: msg,

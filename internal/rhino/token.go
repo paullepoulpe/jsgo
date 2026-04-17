@@ -18,6 +18,10 @@ const (
 	NUMBER
 	TRUE
 	FALSE
+	NULL
+	UNDEFINED
+	ASSIGN
+	EXPR_RESULT
 )
 
 func (t Token) String() string {
@@ -40,6 +44,14 @@ func (t Token) String() string {
 		return "TRUE"
 	case FALSE:
 		return "FALSE"
+	case NULL:
+		return "NULL"
+	case UNDEFINED:
+		return "UNDEFINED"
+	case ASSIGN:
+		return "ASSIGN"
+	case EXPR_RESULT:
+		return "EXPR_RESULT"
 	}
 	return "ERROR"
 }
