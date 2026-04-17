@@ -22,7 +22,8 @@ func CheckSource(path, src string) ([]diag.Diagnostic, error) {
 		return nil, err
 	}
 	reg := jstype.NewRegistry()
-	scope := NewTypedScopeCreator(reg).CreateScope(script)
-	check := NewTypeCheck(path, scope, NewTypeInference(scope))
+	creator := NewTypedScopeCreator(reg)
+	scope := creator.CreateScope(script)
+	check := NewTypeCheck(path, creator, scope)
 	return check.Check(script), nil
 }

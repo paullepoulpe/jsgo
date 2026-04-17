@@ -19,6 +19,16 @@ type JSType interface {
 	IsSubtypeOf(other JSType) bool
 }
 
+// IsSubtype is the package-level entry point; callers should prefer this
+// over t.IsSubtypeOf so union-type handling stays in one place. Mirrors
+// how JSType.isSubtype in Java dispatches through the registry.
+func IsSubtype(x, y JSType) bool {
+	if x == nil || y == nil {
+		return true
+	}
+	return x.IsSubtypeOf(y)
+}
+
 type allType struct{}
 
 func (allType) TypeName() string            { return "*" }

@@ -109,12 +109,23 @@ func tupleDump(label string, ts []tuple) string {
 	return b.String()
 }
 
-func runFixture(t *testing.T, repoRoot, fix string) error {
+// repoRoot is resolved once at package init, and the test process
+// chdirs there so every fixture's repo-relative path resolves from the
+// same place. Later tests never touch the cwd again.
+var repoRoot = func() string {
+	p, err := filepath.Abs("..")
+	if err != nil {
+		panic(err)
+	}
+	if err := os.Chdir(p); err != nil {
+		panic(err)
+	}
+	return p
+}()
+
+func runFixture(t *testing.T, _, fix string) error {
 	fixRel, err := filepath.Rel(repoRoot, fix)
 	if err != nil {
-		return err
-	}
-	if err := os.Chdir(repoRoot); err != nil {
 		return err
 	}
 	oraclePath := filepath.Join(repoRoot, "testdata", "oracle",
@@ -124,10 +135,15 @@ func runFixture(t *testing.T, repoRoot, fix string) error {
 		return err
 	}
 	expected := parseTuples(string(oracleBytes))
+	// Java recorded its diagnostics against the repo-relative path
+	// (that's what the oracle shows). Pass the same string to jsgo.
 	actual, exit, err := jsgoTuples(fixRel)
 	if err != nil {
 		return err
 	}
+	// Tuples from jsgo use the raw fixRel path; from the oracle they
+	// embed the same repo-relative path (e.g.
+	// `testdata/fixtures/tier0/...`). They match directly.
 	if diff := diffTuples(expected, actual); diff != "" {
 		return &fixtureError{msg: "tuple mismatch:\n" + diff}
 	}
@@ -154,17 +170,12 @@ func walkFixtures(root string) []string {
 	return out
 }
 
-// TestTier0 is the authoritative MVP conformance test. Every Tier-0
-// fixture must tuple-match the cached Java oracle — no exceptions.
-func TestTier0(t *testing.T) {
-	repoRoot, err := filepath.Abs("..")
-	if err != nil {
-		t.Fatal(err)
-	}
-	root := filepath.Join(repoRoot, "testdata", "fixtures", "tier0")
+func runTier(t *testing.T, dir string) {
+	t.Helper()
+	root := filepath.Join(repoRoot, "testdata", "fixtures", dir)
 	fixtures := walkFixtures(root)
 	if len(fixtures) == 0 {
-		t.Fatal("no Tier-0 fixtures")
+		t.Fatalf("no %s fixtures", dir)
 	}
 	for _, fix := range fixtures {
 		rel, _ := filepath.Rel(root, fix)
@@ -176,6 +187,13 @@ func TestTier0(t *testing.T) {
 	}
 }
 
+// TestTier0 is the authoritative primitive-scope conformance test.
+func TestTier0(t *testing.T) { runTier(t, "tier0") }
+
+// TestTier1 covers function signatures: @param/@return, call-site arg
+// checks, and return-type consistency.
+func TestTier1(t *testing.T) { runTier(t, "tier1") }
+
 // TestExtractedCorpus is a reporting benchmark — it runs every
 // extracted TypeCheckTest fixture and prints a pass-rate summary. It is
 // intentionally lenient: failures here reflect the difference between
@@ -183,10 +201,6 @@ func TestTier0(t *testing.T) {
 // CI fails only if the pass rate regresses below the floor set here.
 func TestExtractedCorpus(t *testing.T) {
 	const floorPercent = 40 // regression floor; raise as we ship more checks.
-	repoRoot, err := filepath.Abs("..")
-	if err != nil {
-		t.Fatal(err)
-	}
 	root := filepath.Join(repoRoot, "testdata", "fixtures", "extracted")
 	fixtures := walkFixtures(root)
 	if len(fixtures) == 0 {

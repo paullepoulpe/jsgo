@@ -22,6 +22,11 @@ const (
 	UNDEFINED
 	ASSIGN
 	EXPR_RESULT
+	FUNCTION
+	PARAM_LIST
+	BLOCK
+	CALL
+	RETURN
 )
 
 func (t Token) String() string {
@@ -52,6 +57,16 @@ func (t Token) String() string {
 		return "ASSIGN"
 	case EXPR_RESULT:
 		return "EXPR_RESULT"
+	case FUNCTION:
+		return "FUNCTION"
+	case PARAM_LIST:
+		return "PARAM_LIST"
+	case BLOCK:
+		return "BLOCK"
+	case CALL:
+		return "CALL"
+	case RETURN:
+		return "RETURN"
 	}
 	return "ERROR"
 }
