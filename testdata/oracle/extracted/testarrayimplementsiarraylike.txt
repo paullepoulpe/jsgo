@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testarrayimplementsiarraylike.js:2:20: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : number
+required: null
+  2| var /** null */ n = arr[0];
+                         ^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

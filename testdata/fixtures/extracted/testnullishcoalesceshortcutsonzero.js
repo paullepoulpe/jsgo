@@ -1,0 +1,1 @@
+/**@type {number} */var x; x = 0 ?? "a";

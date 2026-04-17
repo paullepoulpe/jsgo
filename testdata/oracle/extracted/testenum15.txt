@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testenum15.js:3:10: ERROR - [JSC_INEXISTENT_ENUM_ELEMENT] element BAR does not exist on this enum
+  3| var c = b.BAR;
+               ^^^
+
+1 error(s), 0 warning(s), 80.0% typed
+---EXIT---
+1

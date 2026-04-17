@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testduplicatevariabledefinition8_5.js:8:35: ERROR - [JSC_DUP_VAR_DECLARATION_TYPE_MISMATCH] variable ns.x redefined with type {prop: (I<number>|null)}, original definition at testdata/fixtures/extracted/testduplicatevariabledefinition8_5.js:7 with type rec
+  8| /** @type {{prop:I<number>}} */ ns.x;
+                                        ^
+
+1 error(s), 0 warning(s), 92.3% typed
+---EXIT---
+1

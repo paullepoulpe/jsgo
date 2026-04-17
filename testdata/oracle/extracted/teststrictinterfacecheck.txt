@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/teststrictinterfacecheck.js:2:9: ERROR - [JSC_VAR_MULTIPLY_DECLARED_ERROR] Variable EventTarget declared more than once. First occurrence: externs.zip//w3c_event.js:31:9
+  2| function EventTarget() {}
+              ^^^^^^^^^^^
+
+testdata/fixtures/extracted/teststrictinterfacecheck.js:5:9: ERROR - [JSC_VAR_MULTIPLY_DECLARED_ERROR] Variable Node declared more than once. First occurrence: externs.zip//w3c_dom1.js:120:9
+  5| function Node() {}
+              ^^^^
+
+2 error(s), 0 warning(s)
+---EXIT---
+2

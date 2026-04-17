@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testmissingproperty4a.js:2:45: ERROR - [JSC_INEXISTENT_PROPERTY] Property a never defined on Foo
+  2| Foo.prototype.bar = function() { return this.a; };
+                                                  ^
+
+1 error(s), 0 warning(s), 88.9% typed
+---EXIT---
+1

@@ -1,0 +1,1 @@
+/**@param {!RegExp} a*/var foo = function bar(a){ bar('abc'); }

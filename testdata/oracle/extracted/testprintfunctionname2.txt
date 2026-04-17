@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testprintfunctionname2.js:3:0: ERROR - [JSC_WRONG_ARGUMENT_COUNT] Function Foo.prototype.run: called with 0 argument(s). Function requires at least 1 argument(s) and no more than 1 argument(s).
+  3| (new Foo).run();
+     ^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

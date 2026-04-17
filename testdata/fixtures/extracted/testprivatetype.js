@@ -1,0 +1,1 @@
+/** @private {number} */ var x = false;

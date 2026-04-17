@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testenum3.js:1:17: WARNING - [JSC_DUPLICATE_MEMBER] Class or object literal contains duplicate member "BB". In non-strict code, the last duplicate will overwrite the others.
+  1| /**@enum*/var a={BB:1,BB:2}
+                      ^^
+
+testdata/fixtures/extracted/testenum3.js:1:22: ERROR - [JSC_DUP_VAR_DECLARATION] variable a.BB redefined, original definition at testdata/fixtures/extracted/testenum3.js:1
+  1| /**@enum*/var a={BB:1,BB:2}
+                           ^^
+
+1 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+1

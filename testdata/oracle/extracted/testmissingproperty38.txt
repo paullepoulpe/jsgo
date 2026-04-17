@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testmissingproperty38.js:4:4: WARNING - [JSC_USELESS_CODE] Suspicious code. The result of the 'getprop' operator is not being used.
+  4| f().missing;
+         ^^^^^^^
+
+testdata/fixtures/extracted/testmissingproperty38.js:4:4: ERROR - [JSC_INEXISTENT_PROPERTY] Property missing never defined on (Foo|Bar)
+  4| f().missing;
+         ^^^^^^^
+
+1 error(s), 1 warning(s), 87.5% typed
+---EXIT---
+1

@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testinterfacepropertynotimplemented3.js:5:49: ERROR - [JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH] mismatch of the foo property on type Foo and the type of the property it overrides from interface Int
+original: function(this:Int): string
+override: function(this:Foo): number
+  5| /** @return {number}  @override */ Foo.prototype.foo = function() {};
+                                                      ^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

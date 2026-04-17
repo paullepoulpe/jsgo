@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testextendedinterfacepropertiescompatibility8.js:21:0: ERROR - [JSC_INCOMPATIBLE_EXTENDED_PROPERTY_TYPE] Interface Int5 has a property bar with incompatible types in its super interfaces Int1 and Int4
+  21| function Int5() {};
+      ^^^^^^^^^^^^^^^^^^
+
+testdata/fixtures/extracted/testextendedinterfacepropertiescompatibility8.js:21:0: ERROR - [JSC_INCOMPATIBLE_EXTENDED_PROPERTY_TYPE] Interface Int5 has a property foo with incompatible types in its super interfaces Int0 and Int4
+  21| function Int5() {};
+      ^^^^^^^^^^^^^^^^^^
+
+2 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+2

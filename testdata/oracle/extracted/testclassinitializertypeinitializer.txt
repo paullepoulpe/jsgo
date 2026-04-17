@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testclassinitializertypeinitializer.js:3:32: ERROR - [JSC_TYPE_MISMATCH] assignment to property x of C
+found   : number
+required: string
+  3| class C { /** @type {string} */ x = y ?? 0; }
+                                     ^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

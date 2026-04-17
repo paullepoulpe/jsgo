@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testenum38.js:1:11: ERROR - [JSC_CYCLIC_INHERITANCE_ERROR] Cycle detected in inheritance chain of type MyEnum
+  1| /** @enum {MyEnum} */ var MyEnum = {};
+                ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

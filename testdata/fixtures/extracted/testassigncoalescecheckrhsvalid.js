@@ -1,0 +1,1 @@
+/** @type {string|undefined} */ var a; a ??= 0;

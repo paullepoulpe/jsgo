@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testobjlitdef7.js:1:25: ERROR - [JSC_ILLEGAL_OBJLIT_KEY] Illegal key, the object literal is a dict
+  1| var lit = /** @dict */ { x: 1 };
+                              ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

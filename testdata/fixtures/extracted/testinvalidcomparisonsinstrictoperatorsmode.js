@@ -1,0 +1,1 @@
+function f(/** (void|string) */ x, /** void */ y) { return x < y; }

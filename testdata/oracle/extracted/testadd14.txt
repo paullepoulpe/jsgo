@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testadd14.js:1:37: ERROR - [JSC_UNDEFINED_VARIABLE] variable unknown is undeclared
+  1| /** @type {(null|string)} */ var a = unknown;
+                                          ^^^^^^^
+
+1 error(s), 0 warning(s)
+---EXIT---
+1

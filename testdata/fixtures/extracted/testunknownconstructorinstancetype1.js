@@ -1,0 +1,1 @@
+/** @return {Array} */ function g(f) { return new f(); }

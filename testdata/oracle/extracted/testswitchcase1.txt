@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testswitchcase1.js:3:15: ERROR - [JSC_TYPE_MISMATCH] case expression doesn't match switch
+found   : string
+required: number
+  3| switch(a){case b:;}
+                    ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

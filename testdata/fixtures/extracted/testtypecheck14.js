@@ -1,0 +1,1 @@
+/**@param {?} opt_a*/function foo(opt_a){}
