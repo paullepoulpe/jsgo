@@ -12,13 +12,15 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino/jstype"
 )
 
-type TypeInference struct{}
+type TypeInference struct {
+	scope *TypedScope
+}
 
-func NewTypeInference() *TypeInference { return &TypeInference{} }
+func NewTypeInference(scope *TypedScope) *TypeInference { return &TypeInference{scope: scope} }
 
 // InferType mirrors the result of TypeInference for expression nodes.
 // Returns Unknown for tokens this scaffold doesn't handle yet.
-func (TypeInference) InferType(n *rhino.Node) jstype.JSType {
+func (t *TypeInference) InferType(n *rhino.Node) jstype.JSType {
 	switch n.Token() {
 	case rhino.STRINGLIT:
 		return jstype.String
@@ -30,6 +32,15 @@ func (TypeInference) InferType(n *rhino.Node) jstype.JSType {
 		return jstype.Null
 	case rhino.UNDEFINED:
 		return jstype.Void
+	case rhino.NAME:
+		// Port of TypeInference.java's "N_NAME" case: a bare identifier
+		// resolves to the declared type of its binding. If the binding
+		// isn't declared or has no @type JSDoc, fall back to Unknown
+		// (conservative — no warning).
+		if declared := t.scope.GetDeclaredType(n.String_()); declared != nil {
+			return declared
+		}
+		return jstype.Unknown
 	}
 	return jstype.Unknown
 }

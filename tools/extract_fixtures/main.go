@@ -156,12 +156,9 @@ func matchBrace(src string, open int) int {
 }
 
 // hasForbidden skips tests that rely on features we don't mirror:
-// externs, source accumulation, concatenation, and the lines() helper.
+// externs and source accumulation (multiple addSource calls).
 func hasForbidden(body string) bool {
 	if strings.Contains(body, "addExterns") {
-		return true
-	}
-	if strings.Contains(body, "lines(") {
 		return true
 	}
 	if strings.Count(body, "addSource(") > 1 {
@@ -183,6 +180,10 @@ func extractAddSource(body string) (string, bool) {
 	for i < len(body) && (body[i] == ' ' || body[i] == '\n' || body[i] == '\t' || body[i] == '\r') {
 		i++
 	}
+	// lines("line1", "line2", ...) is a test helper that joins with '\n'.
+	if strings.HasPrefix(body[i:], "lines(") {
+		return decodeLinesCall(body, i+len("lines("))
+	}
 	if i+2 < len(body) && body[i] == '"' && body[i+1] == '"' && body[i+2] == '"' {
 		return decodeTextBlock(body, i)
 	}
@@ -190,6 +191,73 @@ func extractAddSource(body string) (string, bool) {
 		return decodeStringLiteral(body, i)
 	}
 	return "", false
+}
+
+// decodeLinesCall reads `"l1", "l2", ...)` after `lines(` and joins the
+// strings with '\n' — mirroring the closure-compiler test helper of the
+// same name.
+func decodeLinesCall(body string, i int) (string, bool) {
+	var parts []string
+	for {
+		for i < len(body) && (body[i] == ' ' || body[i] == '\n' || body[i] == '\t' || body[i] == '\r' || body[i] == ',') {
+			i++
+		}
+		if i >= len(body) {
+			return "", false
+		}
+		if body[i] == ')' {
+			return strings.Join(parts, "\n"), true
+		}
+		if i+2 < len(body) && body[i] == '"' && body[i+1] == '"' && body[i+2] == '"' {
+			s, ok := decodeTextBlock(body, i)
+			if !ok {
+				return "", false
+			}
+			parts = append(parts, s)
+			// advance i past the closing """
+			j := strings.Index(body[i+3:], `"""`)
+			if j < 0 {
+				return "", false
+			}
+			i = i + 3 + j + 3
+			continue
+		}
+		if body[i] == '"' {
+			// Reuse decodeStringLiteral but without the trailing `)` check.
+			s, ok, next := decodeStringLiteralList(body, i)
+			if !ok {
+				return "", false
+			}
+			parts = append(parts, s)
+			i = next
+			continue
+		}
+		return "", false
+	}
+}
+
+// decodeStringLiteralList reads ONE "..." at position i, returns the
+// decoded content and the index just past the closing quote. Unlike
+// decodeStringLiteral, it does not expect the next non-ws byte to be ')'.
+func decodeStringLiteralList(body string, i int) (string, bool, int) {
+	if body[i] != '"' {
+		return "", false, i
+	}
+	i++
+	var b strings.Builder
+	for i < len(body) && body[i] != '"' {
+		if body[i] == '\\' && i+1 < len(body) {
+			b.WriteByte(unescape(body[i+1]))
+			i += 2
+			continue
+		}
+		b.WriteByte(body[i])
+		i++
+	}
+	if i >= len(body) {
+		return "", false, i
+	}
+	return b.String(), true, i + 1
 }
 
 func decodeStringLiteral(body string, i int) (string, bool) {

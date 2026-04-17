@@ -23,6 +23,6 @@ func CheckSource(path, src string) ([]diag.Diagnostic, error) {
 	}
 	reg := jstype.NewRegistry()
 	scope := NewTypedScopeCreator(reg).CreateScope(script)
-	check := NewTypeCheck(path, scope, NewTypeInference())
+	check := NewTypeCheck(path, scope, NewTypeInference(scope))
 	return check.Check(script), nil
 }

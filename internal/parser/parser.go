@@ -217,6 +217,16 @@ func (p *Parser) tryLiteral() (*rhino.Node, bool) {
 			return rhino.New(rhino.UNDEFINED), true
 		}
 	}
+	// Bare identifier reference: a NAME node whose inferred type comes
+	// from the scope at check time.
+	if (unicode.IsLetter(c) || c == '_' || c == '$') {
+		nameLine, nameCol := p.line, p.col()
+		if ident, ok := p.consumeIdent(); ok {
+			n := rhino.NewString(rhino.NAME, ident)
+			n.SetPos(nameLine, nameCol)
+			return n, true
+		}
+	}
 	return nil, false
 }
 
