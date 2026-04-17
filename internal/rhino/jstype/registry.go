@@ -19,6 +19,8 @@ func (r *Registry) ResolveName(name string) JSType {
 		return Number
 	case "string":
 		return String
+	case "boolean":
+		return Boolean
 	case "*":
 		return All
 	}

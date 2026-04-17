@@ -24,6 +24,8 @@ func (TypeInference) InferType(n *rhino.Node) jstype.JSType {
 		return jstype.String
 	case rhino.NUMBER:
 		return jstype.Number
+	case rhino.TRUE, rhino.FALSE:
+		return jstype.Boolean
 	}
 	return jstype.Unknown
 }

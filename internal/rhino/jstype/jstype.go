@@ -49,6 +49,16 @@ func (stringType) IsSubtypeOf(o JSType) bool {
 	return isAll(o) || isUnknown(o)
 }
 
+type booleanType struct{}
+
+func (booleanType) TypeName() string { return "boolean" }
+func (booleanType) IsSubtypeOf(o JSType) bool {
+	if _, ok := o.(booleanType); ok {
+		return true
+	}
+	return isAll(o) || isUnknown(o)
+}
+
 func isAll(t JSType) bool     { _, ok := t.(allType); return ok }
 func isUnknown(t JSType) bool { _, ok := t.(unknownType); return ok }
 
@@ -59,4 +69,5 @@ var (
 	Unknown JSType = unknownType{}
 	Number  JSType = numberType{}
 	String  JSType = stringType{}
+	Boolean JSType = booleanType{}
 )

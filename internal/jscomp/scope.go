@@ -38,7 +38,7 @@ func NewTypedScopeCreator(r *jstype.Registry) *TypedScopeCreator {
 func (c *TypedScopeCreator) CreateScope(script *rhino.Node) *TypedScope {
 	scope := &TypedScope{declared: make(map[string]jstype.JSType)}
 	for _, child := range script.Children() {
-		if child.Token() != rhino.VAR {
+		if !isDeclToken(child.Token()) {
 			continue
 		}
 		info := child.JSDocInfo()
@@ -52,4 +52,8 @@ func (c *TypedScopeCreator) CreateScope(script *rhino.Node) *TypedScope {
 		scope.declared[name.String_()] = c.registry.ResolveName(info.Type().TypeName)
 	}
 	return scope
+}
+
+func isDeclToken(t rhino.Token) bool {
+	return t == rhino.VAR || t == rhino.LET || t == rhino.CONST
 }

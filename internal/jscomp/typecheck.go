@@ -29,7 +29,7 @@ func NewTypeCheck(path string, scope *TypedScope, infer *TypeInference) *TypeChe
 func (c *TypeCheck) Check(script *rhino.Node) []diag.Diagnostic {
 	var out []diag.Diagnostic
 	for _, child := range script.Children() {
-		if child.Token() != rhino.VAR {
+		if !isDeclToken(child.Token()) {
 			continue
 		}
 		out = append(out, c.checkVar(child)...)

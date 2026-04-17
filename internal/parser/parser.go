@@ -3,10 +3,11 @@
 // Tier-0 stub. Recognises only:
 //
 //     /** @type {<name>} */
-//     var IDENT = STRING_LIT | NUMBER_LIT ;
+//     (var|let|const) IDENT [= LITERAL] ;
 //
-// Anything else returns a parse error without panicking (guardrail #6).
-// The grammar grows incrementally as corpus tiers require it.
+// where LITERAL is a string, number, or boolean literal. Anything else
+// returns a parse error without panicking (guardrail #6). The grammar
+// grows incrementally as corpus tiers require it.
 
 package parser
 
@@ -37,15 +38,16 @@ func Parse(src string) (*rhino.Node, error) {
 	}
 
 	p.skipWhitespaceOnly()
-	if !p.consumeKeyword("var") {
-		return nil, p.errorf("expected 'var'")
+	declToken, ok := p.consumeDeclKeyword()
+	if !ok {
+		return nil, p.errorf("expected 'var', 'let' or 'const'")
 	}
 
-	varNode := rhino.New(rhino.VAR)
+	declNode := rhino.New(declToken)
 	if jsdoc != nil {
-		varNode.SetJSDocInfo(jsdoc)
+		declNode.SetJSDocInfo(jsdoc)
 	}
-	script.AddChildToBack(varNode)
+	script.AddChildToBack(declNode)
 
 	p.skipWhitespaceOnly()
 	nameLine, nameCol := p.line, p.col()
@@ -55,23 +57,21 @@ func Parse(src string) (*rhino.Node, error) {
 	}
 	nameNode := rhino.NewString(rhino.NAME, ident)
 	nameNode.SetPos(nameLine, nameCol)
-	varNode.AddChildToBack(nameNode)
+	declNode.AddChildToBack(nameNode)
 
 	p.skipWhitespaceOnly()
-	if !p.consumeByte('=') {
-		return nil, p.errorf("expected '='")
+	if p.consumeByte('=') {
+		p.skipWhitespaceOnly()
+		initLine, initCol := p.line, p.col()
+		init, err := p.parseLiteral()
+		if err != nil {
+			return nil, err
+		}
+		init.SetPos(initLine, initCol)
+		nameNode.AddChildToBack(init)
+		p.skipWhitespaceOnly()
 	}
 
-	p.skipWhitespaceOnly()
-	initLine, initCol := p.line, p.col()
-	init, err := p.parseLiteral()
-	if err != nil {
-		return nil, err
-	}
-	init.SetPos(initLine, initCol)
-	nameNode.AddChildToBack(init)
-
-	p.skipWhitespaceOnly()
 	if !p.consumeByte(';') {
 		return nil, p.errorf("expected ';'")
 	}
@@ -89,8 +89,22 @@ func (p *Parser) parseLiteral() (*rhino.Node, error) {
 		return p.parseStringLiteral(c)
 	case unicode.IsDigit(c):
 		return p.parseNumberLiteral()
+	case c == 't' || c == 'f':
+		if n, ok := p.parseBooleanLiteral(); ok {
+			return n, nil
+		}
 	}
 	return nil, p.errorf("unsupported literal starting with %q", c)
+}
+
+func (p *Parser) parseBooleanLiteral() (*rhino.Node, bool) {
+	if p.consumeKeyword("true") {
+		return rhino.New(rhino.TRUE), true
+	}
+	if p.consumeKeyword("false") {
+		return rhino.New(rhino.FALSE), true
+	}
+	return nil, false
 }
 
 func (p *Parser) parseStringLiteral(quote rune) (*rhino.Node, error) {
@@ -139,6 +153,19 @@ func (p *Parser) consumeBlockComment() (string, bool) {
 	p.advance()
 	p.advance()
 	return body, true
+}
+
+func (p *Parser) consumeDeclKeyword() (rhino.Token, bool) {
+	if p.consumeKeyword("var") {
+		return rhino.VAR, true
+	}
+	if p.consumeKeyword("let") {
+		return rhino.LET, true
+	}
+	if p.consumeKeyword("const") {
+		return rhino.CONST, true
+	}
+	return rhino.ERROR, false
 }
 
 func (p *Parser) consumeKeyword(kw string) bool {

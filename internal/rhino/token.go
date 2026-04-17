@@ -11,9 +11,13 @@ const (
 	ERROR Token = iota
 	SCRIPT
 	VAR
+	LET
+	CONST
 	NAME
 	STRINGLIT
 	NUMBER
+	TRUE
+	FALSE
 )
 
 func (t Token) String() string {
@@ -22,12 +26,20 @@ func (t Token) String() string {
 		return "SCRIPT"
 	case VAR:
 		return "VAR"
+	case LET:
+		return "LET"
+	case CONST:
+		return "CONST"
 	case NAME:
 		return "NAME"
 	case STRINGLIT:
 		return "STRINGLIT"
 	case NUMBER:
 		return "NUMBER"
+	case TRUE:
+		return "TRUE"
+	case FALSE:
+		return "FALSE"
 	}
 	return "ERROR"
 }
