@@ -41,5 +41,6 @@ func CheckSource(path, src string) ([]diag.Diagnostic, error) {
 	all = append(all, NewVariableReferenceCheck(path, externScope).Check(script)...)
 	all = append(all, NewTypeCheck(path, creator, scope).Check(script)...)
 	all = append(all, NewMissingReturnCheck(path, scope).Check(script)...)
+	all = append(all, NewCheckSideEffects(path).Check(script)...)
 	return all, nil
 }

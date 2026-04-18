@@ -131,6 +131,11 @@ func (p *Parser) tryStatement() (*rhino.Node, bool) {
 	if p.scanner.ConsumeKeyword("continue") {
 		return p.finishBreakContinue(rhino.CONTINUE), true
 	}
+	// Labeled statement: `IDENT : STMT`. Speculative — rewinds if the
+	// cursor doesn't end up at a label colon.
+	if stmt, ok := p.tryLabeledStatement(jsdoc); ok {
+		return stmt, true
+	}
 
 	// JSDoc may also annotate an expression statement (most commonly
 	// `/** @type {T} */ this.x = …;`). Try the same statement forms,
@@ -815,6 +820,43 @@ func (p *Parser) finishBreakContinue(tok rhino.Token) *rhino.Node {
 	return n
 }
 
+// tryLabeledStatement speculatively parses `IDENT : STMT` into
+// LABEL(NAME, inner). Rewinds when the cursor doesn't form a label
+// (so the same position can fall through to the call/assign/expr
+// statement parsers).
+func (p *Parser) tryLabeledStatement(jsdoc *rhino.JSDocInfo) (*rhino.Node, bool) {
+	save := p.scanner.Save()
+	line, col := p.scanner.Line(), p.scanner.Col()
+	ident, ok := p.scanner.ConsumeIdent()
+	if !ok {
+		p.scanner.Restore(save)
+		return nil, false
+	}
+	p.scanner.SkipTrivia()
+	if p.scanner.Peek() != ':' || p.scanner.PeekAt(1) == ':' || p.scanner.PeekAt(1) == '=' {
+		p.scanner.Restore(save)
+		return nil, false
+	}
+	p.scanner.Advance() // ':'
+	inner, ok := p.tryStatement()
+	if !ok {
+		p.scanner.Restore(save)
+		return nil, false
+	}
+	label := rhino.New(rhino.LABEL)
+	label.SetPos(line, col)
+	if jsdoc != nil {
+		label.SetJSDocInfo(jsdoc)
+	}
+	nameNode := rhino.NewString(rhino.NAME, ident)
+	nameNode.SetPos(line, col)
+	label.AddChildToBack(nameNode)
+	if inner != nil {
+		label.AddChildToBack(inner)
+	}
+	return label, true
+}
+
 // consumeParenExpression reads `( expr )` at the cursor, returning
 // the inner expression (or nil if malformed). Used by while / do /
 // switch header parsers.
@@ -920,6 +962,17 @@ func (p *Parser) tryCallOrAssignStatement() (*rhino.Node, bool) {
 			}
 		}
 		p.scanner.SkipTrivia()
+		// Call-as-statement must end with `;` (or `}` / EOF). If we
+		// instead see another postfix continuation — `.prop` or
+		// `(args)` — this isn't a bare call; rewind so
+		// tryExpressionStatement picks up the full chained form.
+		if !p.scanner.AtEnd() {
+			switch p.scanner.Peek() {
+			case '.', '(', '[':
+				rewind()
+				return nil, false
+			}
+		}
 		p.scanner.ConsumeByte(';')
 		stmt := rhino.New(rhino.EXPR_RESULT)
 		stmt.SetPos(startLine, startCol)

@@ -42,13 +42,15 @@ func BuildControlFlowGraph(root *rhino.Node) *ControlFlowGraph {
 	return b.cfg
 }
 
-// breakTarget pairs a loop / switch's post-loop join node with its
-// continue-target (for loops, the update or condition node). The
-// stack threads through nested loops / switches so `break;` and
-// `continue;` always know where to jump.
+// breakTarget pairs a loop / switch / labeled block's post join node
+// with its continue-target (for loops, the update or condition
+// node) and its label (empty for unlabeled forms). The stack threads
+// through nested constructs so `break;` / `continue;` — labeled or
+// not — always know where to jump.
 type breakTarget struct {
+	label      string
 	breakTo    *CfgNode
-	continueTo *CfgNode // nil for switch (switch has no continue target)
+	continueTo *CfgNode // nil for switch / pure-label (no continue target)
 }
 
 // catchTarget records the nearest enclosing try's catch entry so
@@ -58,22 +60,58 @@ type catchTarget struct {
 	to *CfgNode
 }
 
+// finallyFrame records a currently-open finally block. Non-local
+// jumps (return / break / continue / throw) passing through it must
+// flow via the finally's entry before reaching their logical target.
+// Matches Java ControlFlowAnalysis's FinallyKeyword bookkeeping.
+type finallyFrame struct {
+	entry *CfgNode
+}
+
 // cfgBuilder carries the mutable state of a single CFG build: the
-// graph under construction plus the break / continue / catch
-// stacks threaded through nested loops / switches / trys.
+// graph under construction plus the break / continue / catch /
+// finally stacks threaded through nested constructs.
 type cfgBuilder struct {
-	cfg      *ControlFlowGraph
-	loops    []breakTarget
-	catches  []catchTarget
+	cfg       *ControlFlowGraph
+	loops     []breakTarget
+	catches   []catchTarget
+	finallies []finallyFrame
+	// pendingLabel is set by visitStatement when it enters a LABEL
+	// and consumed by the labeled inner statement (loop / switch /
+	// block) so its breakTarget stack entry carries the label name.
+	pendingLabel string
 }
 
 func (b *cfgBuilder) pushLoop(breakTo, continueTo *CfgNode) {
-	b.loops = append(b.loops, breakTarget{breakTo: breakTo, continueTo: continueTo})
+	b.loops = append(b.loops, breakTarget{
+		label:      b.takePendingLabel(),
+		breakTo:    breakTo,
+		continueTo: continueTo,
+	})
 }
 func (b *cfgBuilder) popLoop() { b.loops = b.loops[:len(b.loops)-1] }
 
 func (b *cfgBuilder) pushSwitch(breakTo *CfgNode) {
-	b.loops = append(b.loops, breakTarget{breakTo: breakTo})
+	b.loops = append(b.loops, breakTarget{
+		label:   b.takePendingLabel(),
+		breakTo: breakTo,
+	})
+}
+
+func (b *cfgBuilder) pushLabel(breakTo *CfgNode, label string) {
+	b.loops = append(b.loops, breakTarget{
+		label:   label,
+		breakTo: breakTo,
+	})
+}
+
+// takePendingLabel returns and clears any pending label that a
+// surrounding LABEL statement attached. The loop / switch consumes
+// it so its breakTarget stack entry is labeled correctly.
+func (b *cfgBuilder) takePendingLabel() string {
+	l := b.pendingLabel
+	b.pendingLabel = ""
+	return l
 }
 
 func (b *cfgBuilder) pushCatch(to *CfgNode)    { b.catches = append(b.catches, catchTarget{to: to}) }
@@ -83,6 +121,24 @@ func (b *cfgBuilder) topCatch() *CfgNode {
 		return nil
 	}
 	return b.catches[len(b.catches)-1].to
+}
+
+func (b *cfgBuilder) pushFinally(entry *CfgNode) {
+	b.finallies = append(b.finallies, finallyFrame{entry: entry})
+}
+func (b *cfgBuilder) popFinally() { b.finallies = b.finallies[:len(b.finallies)-1] }
+
+// routeJumpThroughFinally returns the node that a non-local jump
+// (return / break / continue / throw-to-EXIT) should actually target
+// when one or more finally blocks are open. Jumps route through the
+// innermost finally; that finally's fall-through logic handles the
+// rest of the cleanup chain implicitly once its own successors are
+// walked. Returns `target` unchanged when no finally is open.
+func (b *cfgBuilder) routeJumpThroughFinally(target *CfgNode) *CfgNode {
+	if len(b.finallies) == 0 {
+		return target
+	}
+	return b.finallies[len(b.finallies)-1].entry
 }
 
 // visitStatements walks a sequence of statements, chaining them with
@@ -130,29 +186,35 @@ func (b *cfgBuilder) visitStatement(stmt *rhino.Node, prev *CfgNode) *CfgNode {
 	case rhino.TRY:
 		return b.visitTry(stmt, n)
 	case rhino.THROW:
+		// Throws route to the innermost catch; if none, to EXIT. An
+		// enclosing finally still runs first, via routeJumpThroughFinally.
+		var target *CfgNode
 		if c := b.topCatch(); c != nil {
-			b.cfg.addEdge(n, c, BranchException)
+			target = c
 		} else {
-			b.cfg.addEdge(n, b.cfg.Exit, BranchException)
+			target = b.cfg.Exit
 		}
+		b.cfg.addEdge(n, b.routeJumpThroughFinally(target), BranchException)
 		return nil
 	case rhino.BREAK:
-		if t := b.breakTarget(); t != nil {
-			b.cfg.addEdge(n, t, BranchUnconditional)
-		} else {
-			b.cfg.addEdge(n, b.cfg.Exit, BranchUnconditional)
+		target := b.breakTargetFor(labelOf(stmt))
+		if target == nil {
+			target = b.cfg.Exit
 		}
+		b.cfg.addEdge(n, b.routeJumpThroughFinally(target), BranchUnconditional)
 		return nil
 	case rhino.CONTINUE:
-		if t := b.continueTarget(); t != nil {
-			b.cfg.addEdge(n, t, BranchUnconditional)
-		} else {
-			b.cfg.addEdge(n, b.cfg.Exit, BranchUnconditional)
+		target := b.continueTargetFor(labelOf(stmt))
+		if target == nil {
+			target = b.cfg.Exit
 		}
+		b.cfg.addEdge(n, b.routeJumpThroughFinally(target), BranchUnconditional)
 		return nil
 	case rhino.RETURN:
-		b.cfg.addEdge(n, b.cfg.Exit, BranchUnconditional)
+		b.cfg.addEdge(n, b.routeJumpThroughFinally(b.cfg.Exit), BranchUnconditional)
 		return nil
+	case rhino.LABEL:
+		return b.visitLabel(stmt, n)
 	case rhino.BLOCK:
 		if kids := stmt.Children(); len(kids) > 0 {
 			after := &CfgNode{Kind: "BLOCK_JOIN"}
@@ -165,25 +227,77 @@ func (b *cfgBuilder) visitStatement(stmt *rhino.Node, prev *CfgNode) *CfgNode {
 	return n
 }
 
-// breakTarget returns the break target of the innermost loop /
-// switch, or nil if no loop / switch is enclosing. Labeled breaks
-// are deferred — `break;` unadorned is what the corpus uses.
-func (b *cfgBuilder) breakTarget() *CfgNode {
-	if len(b.loops) == 0 {
-		return nil
+// breakTargetFor returns the break target for a `break label;` or
+// bare `break;` — the innermost matching entry on the break stack.
+// `label == ""` means "innermost of any kind"; a non-empty label
+// walks outward looking for the matching entry.
+func (b *cfgBuilder) breakTargetFor(label string) *CfgNode {
+	for i := len(b.loops) - 1; i >= 0; i-- {
+		if label == "" || b.loops[i].label == label {
+			return b.loops[i].breakTo
+		}
 	}
-	return b.loops[len(b.loops)-1].breakTo
+	return nil
 }
 
-// continueTarget returns the continue target of the innermost loop,
-// skipping pure switches (which can't host `continue`).
-func (b *cfgBuilder) continueTarget() *CfgNode {
+// continueTargetFor returns the continue target for a
+// `continue label;` or bare `continue;` — innermost continue-capable
+// entry, filtered by label when given. Pure switches (continueTo ==
+// nil) are skipped.
+func (b *cfgBuilder) continueTargetFor(label string) *CfgNode {
 	for i := len(b.loops) - 1; i >= 0; i-- {
-		if b.loops[i].continueTo != nil {
+		if b.loops[i].continueTo == nil {
+			continue
+		}
+		if label == "" || b.loops[i].label == label {
 			return b.loops[i].continueTo
 		}
 	}
 	return nil
+}
+
+// labelOf returns the label name of a BREAK / CONTINUE statement or
+// "" when the statement is unlabeled.
+func labelOf(stmt *rhino.Node) string {
+	if stmt == nil {
+		return ""
+	}
+	if kid := stmt.FirstChild(); kid != nil && kid.Token() == rhino.NAME {
+		return kid.String_()
+	}
+	return ""
+}
+
+// visitLabel handles `label: stmt`. Stashes the label name so the
+// inner loop / switch / block picks it up when pushing its
+// breakTarget stack entry. Non-loop labeled statements (e.g.
+// `lbl: { break lbl; }`) get a dedicated stack entry tied to a
+// synthetic LABEL_AFTER join.
+func (b *cfgBuilder) visitLabel(stmt *rhino.Node, n *CfgNode) *CfgNode {
+	kids := stmt.Children()
+	if len(kids) < 2 {
+		return n
+	}
+	label := kids[0].String_()
+	inner := kids[1]
+	switch inner.Token() {
+	case rhino.WHILE, rhino.DO_WHILE, rhino.FOR, rhino.FOR_IN, rhino.FOR_OF, rhino.SWITCH:
+		b.pendingLabel = label
+		innerNode := b.cfg.node(inner)
+		b.cfg.addEdge(n, innerNode, BranchUnconditional)
+		return b.visitStatement(inner, nil)
+	}
+	after := &CfgNode{Kind: "LABEL_AFTER"}
+	b.cfg.Nodes = append(b.cfg.Nodes, after)
+	b.pushLabel(after, label)
+	defer b.popLoop()
+	innerNode := b.cfg.node(inner)
+	b.cfg.addEdge(n, innerNode, BranchUnconditional)
+	next := b.visitStatement(inner, nil)
+	if next != nil {
+		b.cfg.addEdge(next, after, BranchUnconditional)
+	}
+	return after
 }
 
 // visitIf handles an `if (cond) then [else]` statement.
@@ -456,6 +570,14 @@ func (b *cfgBuilder) visitTry(stmt *rhino.Node, n *CfgNode) *CfgNode {
 	if catchEntry != nil {
 		b.pushCatch(catchEntry)
 	}
+	// With a finally in scope, non-local jumps (return / break /
+	// continue / throw-to-exit) contained in the try / catch blocks
+	// must pass through the finally's entry first. Pushing the
+	// frame while we walk those bodies wires that rerouting through
+	// routeJumpThroughFinally.
+	if finallyClause != nil {
+		b.pushFinally(b.cfg.node(finallyClause))
+	}
 	bodyStmts := flattenBlock(body)
 	if len(bodyStmts) > 0 {
 		b.cfg.addEdge(n, b.cfg.node(bodyStmts[0]), BranchUnconditional)
@@ -471,6 +593,9 @@ func (b *cfgBuilder) visitTry(stmt *rhino.Node, n *CfgNode) *CfgNode {
 	if catchEntry != nil {
 		b.popCatch()
 	}
+	// The finally frame stays active while we wire the catch clause
+	// (so a `return` inside catch still routes through finally) and
+	// is popped before emitting the finally block's own body.
 	// Wire the catch-handler body.
 	if catchClause != nil {
 		handler := catchClause.Children()[len(catchClause.Children())-1]
@@ -486,6 +611,12 @@ func (b *cfgBuilder) visitTry(stmt *rhino.Node, n *CfgNode) *CfgNode {
 		} else {
 			b.cfg.addEdge(catchEntry, bodyFall, BranchUnconditional)
 		}
+	}
+	// Pop the finally frame before emitting the finally's own body,
+	// so nested non-local jumps inside the finally don't loop back
+	// to the same frame.
+	if finallyClause != nil {
+		b.popFinally()
 	}
 	// Wire the finally block (if any). Its fall-through goes to
 	// `after`.
