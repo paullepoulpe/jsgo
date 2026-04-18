@@ -7,11 +7,17 @@
 package rhino
 
 type JSDocInfo struct {
-	typeExpr   *JSTypeExpression
-	paramNames []string                     // insertion order (matches Java)
-	params     map[string]*JSTypeExpression // name → type
-	returnExpr *JSTypeExpression
+	typeExpr      *JSTypeExpression
+	paramNames    []string                     // insertion order (matches Java)
+	params        map[string]*JSTypeExpression // name → type
+	returnExpr    *JSTypeExpression
+	isConstructor bool
 }
+
+// IsConstructor mirrors JSDocInfo.isConstructor().
+func (i *JSDocInfo) IsConstructor() bool { return i != nil && i.isConstructor }
+
+func (i *JSDocInfo) SetConstructor(b bool) { i.isConstructor = b }
 
 func (i *JSDocInfo) Type() *JSTypeExpression     { return i.typeExpr }
 func (i *JSDocInfo) SetType(t *JSTypeExpression) { i.typeExpr = t }

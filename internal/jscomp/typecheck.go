@@ -1,14 +1,16 @@
 // Port of com/google/javascript/jscomp/TypeCheck.java @ closure-compiler v20260415
 //
 // TypeCheck walks the AST after TypedScopeCreator + TypeInference and
-// emits JSErrors. Tier-0 implemented the "initializing variable" and
-// "assignment" variants of JSC_TYPE_MISMATCH. Tier-1 adds:
-//   - "actual parameter N of F does not match formal parameter" at call
-//     sites (JSC_TYPE_MISMATCH)
-//   - "inconsistent return type" inside function bodies whose @return
-//     disagrees with the returned expression (JSC_TYPE_MISMATCH)
-// Messages mirror Java's phrasing so dogfooding the CLI feels right,
-// but only (path, line, col, code) is part of the conformance check.
+// emits JSErrors. It handles:
+//   - "initializing variable" JSC_TYPE_MISMATCH on var/let/const
+//   - "assignment" JSC_TYPE_MISMATCH on bare reassignment
+//   - "actual parameter N of F does not match formal parameter"
+//     JSC_TYPE_MISMATCH on call + `new` sites
+//   - "inconsistent return type" JSC_TYPE_MISMATCH on return statements
+//
+// The walk mirrors TypeCheck.java's NodeTraversal: every statement is
+// checked, then we descend into child expressions so call/new arg
+// checks fire even inside initializers.
 
 package jscomp
 
@@ -38,12 +40,9 @@ func NewTypeCheck(path string, creator *TypedScopeCreator, global *TypedScope) *
 
 // Check walks the SCRIPT and returns accumulated diagnostics.
 func (c *TypeCheck) Check(script *rhino.Node) []diag.Diagnostic {
-	var out []diag.Diagnostic
-	out = append(out, c.checkBlock(script, c.global)...)
-	return out
+	return c.checkBlock(script, c.global)
 }
 
-// checkBlock walks a SCRIPT or BLOCK with the given active scope.
 func (c *TypeCheck) checkBlock(block *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	var out []diag.Diagnostic
 	for _, child := range block.Children() {
@@ -53,25 +52,74 @@ func (c *TypeCheck) checkBlock(block *rhino.Node, scope *TypedScope) []diag.Diag
 }
 
 func (c *TypeCheck) checkStatement(stmt *rhino.Node, scope *TypedScope) []diag.Diagnostic {
-	switch {
-	case isDeclToken(stmt.Token()):
-		return c.checkVar(stmt, scope)
-	case stmt.Token() == rhino.EXPR_RESULT:
+	var out []diag.Diagnostic
+	switch stmt.Token() {
+	case rhino.VAR, rhino.LET, rhino.CONST:
+		out = append(out, c.checkVar(stmt, scope)...)
+		// Init expressions may contain nested calls whose args should
+		// still be validated.
+		if name := stmt.FirstChild(); name != nil {
+			if init := name.FirstChild(); init != nil {
+				out = append(out, c.walkExpr(init, scope)...)
+			}
+		}
+	case rhino.EXPR_RESULT:
 		if a := stmt.FirstChild(); a != nil {
 			switch a.Token() {
 			case rhino.ASSIGN:
-				return c.checkAssign(a, scope)
+				out = append(out, c.checkAssign(a, scope)...)
+				if kids := a.Children(); len(kids) >= 2 {
+					out = append(out, c.walkExpr(kids[1], scope)...)
+				}
 			case rhino.CALL:
-				return c.checkCall(a, scope)
+				out = append(out, c.checkCall(a, scope)...)
+				out = append(out, c.walkExprChildren(a, scope)...)
+			case rhino.NEW:
+				out = append(out, c.checkNew(a, scope)...)
+				out = append(out, c.walkExprChildren(a, scope)...)
+			default:
+				out = append(out, c.walkExpr(a, scope)...)
 			}
 		}
-	case stmt.Token() == rhino.FUNCTION:
-		return c.checkFunction(stmt)
-	case stmt.Token() == rhino.RETURN:
-		// RETURN at script level is nonsense; ignore. Inside a function
-		// body, the enclosing checkFunction drives return-type checks.
+	case rhino.FUNCTION:
+		out = append(out, c.checkFunction(stmt)...)
+	case rhino.RETURN:
+		// Inside function bodies, return is handled by checkFunction's
+		// per-statement loop. At script level, ignore.
+	case rhino.BLOCK:
+		out = append(out, c.checkBlock(stmt, scope)...)
 	}
-	return nil
+	return out
+}
+
+// walkExpr recursively visits an expression subtree, checking any
+// CALL / NEW nodes it finds along the way.
+func (c *TypeCheck) walkExpr(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	if n == nil {
+		return nil
+	}
+	var out []diag.Diagnostic
+	switch n.Token() {
+	case rhino.CALL:
+		out = append(out, c.checkCall(n, scope)...)
+	case rhino.NEW:
+		out = append(out, c.checkNew(n, scope)...)
+	case rhino.FUNCTION:
+		// Arrow or function-expression: descend into its body via
+		// checkFunction so return-type checks fire.
+		out = append(out, c.checkFunction(n)...)
+		return out
+	}
+	out = append(out, c.walkExprChildren(n, scope)...)
+	return out
+}
+
+func (c *TypeCheck) walkExprChildren(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	var out []diag.Diagnostic
+	for _, k := range n.Children() {
+		out = append(out, c.walkExpr(k, scope)...)
+	}
+	return out
 }
 
 func (c *TypeCheck) checkVar(v *rhino.Node, scope *TypedScope) []diag.Diagnostic {
@@ -104,8 +152,6 @@ func (c *TypeCheck) checkVar(v *rhino.Node, scope *TypedScope) []diag.Diagnostic
 	}}
 }
 
-// checkAssign handles bare `IDENT = LITERAL;` statements. Reports at
-// the LHS position to match Java's "assignment" variant.
 func (c *TypeCheck) checkAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := a.Children()
 	if len(kids) < 2 {
@@ -136,11 +182,19 @@ func (c *TypeCheck) checkAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 	}}
 }
 
-// checkCall handles `CALL(callee, arg...)`. Reports per-argument
-// JSC_TYPE_MISMATCH diagnostics at each argument's position, matching
-// TypeCheck.java's visitCall.
+// checkCall and checkNew share arg-list machinery; NEW reports under
+// the function's name-shape even though the call comes through the new
+// keyword, matching TypeCheck.java's behaviour.
 func (c *TypeCheck) checkCall(call *rhino.Node, scope *TypedScope) []diag.Diagnostic {
-	kids := call.Children()
+	return c.checkArgList(call, scope)
+}
+
+func (c *TypeCheck) checkNew(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	return c.checkArgList(n, scope)
+}
+
+func (c *TypeCheck) checkArgList(node *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	kids := node.Children()
 	if len(kids) < 1 {
 		return nil
 	}
@@ -149,15 +203,12 @@ func (c *TypeCheck) checkCall(call *rhino.Node, scope *TypedScope) []diag.Diagno
 	if callee.Token() != rhino.NAME {
 		return nil
 	}
-	declared := scope.GetDeclaredType(callee.String_())
-	fn, ok := declared.(*jstype.FunctionType)
+	fn, ok := scope.GetDeclaredType(callee.String_()).(*jstype.FunctionType)
 	if !ok {
 		return nil
 	}
-	// Arity mismatch is a structural issue jsgo treats as out-of-scope
-	// for Tier-1 (Java's diagnostic depends on @param optional/variadic
-	// annotations we don't yet parse). Skip checks when arity differs
-	// rather than risk false positives.
+	// Arity mismatch is out of Tier-1 scope (needs @param optional /
+	// variadic parsing). Skip to avoid false positives.
 	if len(args) != len(fn.Params) {
 		return nil
 	}
@@ -183,9 +234,8 @@ func (c *TypeCheck) checkCall(call *rhino.Node, scope *TypedScope) []diag.Diagno
 	return out
 }
 
-// checkFunction validates the body of a function declaration: @return
-// consistency with every `return EXPR;`, and recursively checks nested
-// statements.
+// checkFunction validates @return consistency and recurses into the
+// body with the function's local scope.
 func (c *TypeCheck) checkFunction(fn *rhino.Node) []diag.Diagnostic {
 	kids := fn.Children()
 	if len(kids) < 3 {
@@ -199,28 +249,34 @@ func (c *TypeCheck) checkFunction(fn *rhino.Node) []diag.Diagnostic {
 
 	var declaredReturn jstype.JSType
 	if info := fn.JSDocInfo(); info != nil && info.ReturnType() != nil {
-		// Re-resolve through the same registry the scope creator used.
 		declaredReturn = c.global.resolveRegistry(info.ReturnType().TypeName)
 	}
 
 	var out []diag.Diagnostic
 	for _, stmt := range body.Children() {
-		if stmt.Token() == rhino.RETURN && declaredReturn != nil {
-			if retExpr := stmt.FirstChild(); retExpr != nil {
-				infer := NewTypeInference(localScope)
-				found := infer.InferType(retExpr)
-				if !jstype.IsSubtype(found, declaredReturn) {
-					msg := fmt.Sprintf("inconsistent return type\nfound   : %s\nrequired: %s",
-						found.TypeName(), declaredReturn.TypeName())
-					out = append(out, diag.Diagnostic{
-						Path:    c.path,
-						Line:    retExpr.Lineno(),
-						Col:     retExpr.Charno(),
-						Code:    diag.JSC_TYPE_MISMATCH,
-						Level:   diag.Error,
-						Message: msg,
-					})
+		if stmt.Token() == rhino.RETURN {
+			if declaredReturn != nil {
+				if retExpr := stmt.FirstChild(); retExpr != nil {
+					infer := NewTypeInference(localScope)
+					found := infer.InferType(retExpr)
+					if !jstype.IsSubtype(found, declaredReturn) {
+						msg := fmt.Sprintf("inconsistent return type\nfound   : %s\nrequired: %s",
+							found.TypeName(), declaredReturn.TypeName())
+						out = append(out, diag.Diagnostic{
+							Path:    c.path,
+							Line:    retExpr.Lineno(),
+							Col:     retExpr.Charno(),
+							Code:    diag.JSC_TYPE_MISMATCH,
+							Level:   diag.Error,
+							Message: msg,
+						})
+					}
 				}
+			}
+			// Still recurse into the returned expression for call-arg
+			// checks.
+			if retExpr := stmt.FirstChild(); retExpr != nil {
+				out = append(out, c.walkExpr(retExpr, localScope)...)
 			}
 			continue
 		}
@@ -229,9 +285,7 @@ func (c *TypeCheck) checkFunction(fn *rhino.Node) []diag.Diagnostic {
 	return out
 }
 
-// resolveRegistry looks up a type name through the same registry the
-// scope creator used. Wired on the global scope for simplicity — all
-// primitive names resolve identically everywhere.
-func (s *TypedScope) resolveRegistry(name string) jstype.JSType {
-	return jstype.NewRegistry().ResolveName(name)
+// resolveRegistry looks up a type expression through a fresh registry.
+func (s *TypedScope) resolveRegistry(expr string) jstype.JSType {
+	return jstype.NewRegistry().ResolveExpr(expr)
 }

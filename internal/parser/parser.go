@@ -89,7 +89,39 @@ func (p *Parser) tryStatement() (*rhino.Node, bool) {
 	if stmt, ok := p.tryCallOrAssignStatement(); ok {
 		return stmt, true
 	}
+	if stmt, ok := p.tryExpressionStatement(); ok {
+		return stmt, true
+	}
 	return nil, false
+}
+
+// tryExpressionStatement wraps any expression followed by `;` into an
+// EXPR_RESULT. Covers forms the IDENT-first speculative
+// tryCallOrAssignStatement can't see — notably `new Foo(args);`.
+func (p *Parser) tryExpressionStatement() (*rhino.Node, bool) {
+	save := p.pos
+	saveLine := p.line
+	saveBOL := p.lineBOL
+	rewind := func() {
+		p.pos = save
+		p.line = saveLine
+		p.lineBOL = saveBOL
+	}
+	exprLine, exprCol := p.line, p.col()
+	expr, ok := p.tryExpression()
+	if !ok {
+		rewind()
+		return nil, false
+	}
+	p.skipTrivia()
+	if !p.consumeByte(';') {
+		rewind()
+		return nil, false
+	}
+	stmt := rhino.New(rhino.EXPR_RESULT)
+	stmt.SetPos(exprLine, exprCol)
+	stmt.AddChildToBack(expr)
+	return stmt, true
 }
 
 func (p *Parser) finishDeclStatement(declToken rhino.Token, jsdoc *rhino.JSDocInfo) (*rhino.Node, bool) {
@@ -317,11 +349,14 @@ func (p *Parser) tryCallOrAssignStatement() (*rhino.Node, bool) {
 	return nil, false
 }
 
-// tryExpression parses one expression: a literal, an identifier
-// reference, or a call. Anything else returns (nil, false).
+// tryExpression parses one expression: an arrow function, literal,
+// identifier reference, or call. Anything else returns (nil, false).
 func (p *Parser) tryExpression() (*rhino.Node, bool) {
 	if p.atEnd() {
 		return nil, false
+	}
+	if arrow, ok := p.tryArrow(); ok {
+		return arrow, true
 	}
 	c := p.src[p.pos]
 	switch {
@@ -334,6 +369,9 @@ func (p *Parser) tryExpression() (*rhino.Node, bool) {
 			return n, true
 		}
 	case c == 'n':
+		if p.consumeKeyword("new") {
+			return p.finishNew()
+		}
 		if p.consumeKeyword("null") {
 			return rhino.New(rhino.NULL), true
 		}
@@ -346,6 +384,145 @@ func (p *Parser) tryExpression() (*rhino.Node, bool) {
 		return p.parseNameOrCall()
 	}
 	return nil, false
+}
+
+// tryArrow speculatively parses `(params) => body` or `ident => body`.
+// Rewinds on failure so the caller can fall back to other expression
+// forms. Arrow functions surface as FUNCTION nodes so the same
+// scope/typecheck machinery applies to them.
+func (p *Parser) tryArrow() (*rhino.Node, bool) {
+	save := p.pos
+	saveLine := p.line
+	saveBOL := p.lineBOL
+	rewind := func() {
+		p.pos = save
+		p.line = saveLine
+		p.lineBOL = saveBOL
+	}
+
+	startLine, startCol := p.line, p.col()
+	var params []string
+
+	if p.consumeByte('(') {
+		p.skipTrivia()
+		if !p.consumeByte(')') {
+			for {
+				ident, ok := p.consumeIdent()
+				if !ok {
+					rewind()
+					return nil, false
+				}
+				params = append(params, ident)
+				p.skipTrivia()
+				if p.consumeByte(',') {
+					p.skipTrivia()
+					continue
+				}
+				if p.consumeByte(')') {
+					break
+				}
+				rewind()
+				return nil, false
+			}
+		}
+	} else {
+		c := p.src[p.pos]
+		if !(unicode.IsLetter(c) || c == '_' || c == '$') {
+			return nil, false
+		}
+		ident, ok := p.consumeIdent()
+		if !ok {
+			rewind()
+			return nil, false
+		}
+		params = []string{ident}
+	}
+
+	p.skipTrivia()
+	if !p.consumeByte('=') || !p.consumeByte('>') {
+		rewind()
+		return nil, false
+	}
+	p.skipTrivia()
+
+	fn := rhino.New(rhino.FUNCTION)
+	fn.SetPos(startLine, startCol)
+	nameNode := rhino.NewString(rhino.NAME, "")
+	nameNode.SetPos(startLine, startCol)
+	fn.AddChildToBack(nameNode)
+
+	paramList := rhino.New(rhino.PARAM_LIST)
+	for _, pn := range params {
+		pNode := rhino.NewString(rhino.NAME, pn)
+		paramList.AddChildToBack(pNode)
+	}
+	fn.AddChildToBack(paramList)
+
+	body := rhino.New(rhino.BLOCK)
+	if p.consumeByte('{') {
+		p.parseStatements(body, '}')
+		p.consumeByte('}')
+	} else {
+		// Single-expression body: wrap as implicit `return EXPR`.
+		eline, ecol := p.line, p.col()
+		expr, ok := p.tryExpression()
+		if !ok {
+			rewind()
+			return nil, false
+		}
+		expr.SetPos(eline, ecol)
+		ret := rhino.New(rhino.RETURN)
+		ret.AddChildToBack(expr)
+		body.AddChildToBack(ret)
+	}
+	fn.AddChildToBack(body)
+	return fn, true
+}
+
+// finishNew parses `IDENT ( args )` after the `new` keyword is consumed.
+// Mirrors com.google.javascript.jscomp.parsing.parser.Parser's
+// parseMemberExpressionNoNew path that produces a NEW node.
+func (p *Parser) finishNew() (*rhino.Node, bool) {
+	p.skipTrivia()
+	nameLine, nameCol := p.line, p.col()
+	ident, ok := p.consumeIdent()
+	if !ok {
+		return nil, false
+	}
+	p.skipTrivia()
+	if !p.consumeByte('(') {
+		// `new Foo` without args isn't supported yet; treat as a plain
+		// name reference so callers aren't blocked.
+		name := rhino.NewString(rhino.NAME, ident)
+		name.SetPos(nameLine, nameCol)
+		return name, true
+	}
+	n := rhino.New(rhino.NEW)
+	n.SetPos(nameLine, nameCol)
+	callee := rhino.NewString(rhino.NAME, ident)
+	callee.SetPos(nameLine, nameCol)
+	n.AddChildToBack(callee)
+	for {
+		p.skipTrivia()
+		if p.atEnd() {
+			return nil, false
+		}
+		if p.src[p.pos] == ')' {
+			p.advance()
+			return n, true
+		}
+		argLine, argCol := p.line, p.col()
+		arg, ok := p.tryExpression()
+		if !ok {
+			return nil, false
+		}
+		arg.SetPos(argLine, argCol)
+		n.AddChildToBack(arg)
+		p.skipTrivia()
+		if p.consumeByte(',') {
+			continue
+		}
+	}
 }
 
 // parseNameOrCall parses `IDENT` or `IDENT(args)`.

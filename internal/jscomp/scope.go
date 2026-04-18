@@ -72,7 +72,7 @@ func (c *TypedScopeCreator) recordDecl(v *rhino.Node, scope *TypedScope) {
 	if !info.HasType() {
 		return
 	}
-	scope.declared[name.String_()] = c.registry.ResolveName(info.Type().TypeName)
+	scope.declared[name.String_()] = c.registry.ResolveExpr(info.Type().TypeName)
 }
 
 func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
@@ -90,13 +90,13 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 	for _, p := range params.Children() {
 		var t jstype.JSType = jstype.Unknown
 		if pexpr := info.ParameterType(p.String_()); pexpr != nil {
-			t = c.registry.ResolveName(pexpr.TypeName)
+			t = c.registry.ResolveExpr(pexpr.TypeName)
 		}
 		paramTypes = append(paramTypes, t)
 	}
 	var retType jstype.JSType = jstype.Unknown
 	if r := info.ReturnType(); r != nil {
-		retType = c.registry.ResolveName(r.TypeName)
+		retType = c.registry.ResolveExpr(r.TypeName)
 	}
 	fnType := jstype.NewFunctionType(paramTypes, retType)
 	if name.String_() != "" {

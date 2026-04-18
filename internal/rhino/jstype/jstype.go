@@ -26,6 +26,19 @@ func IsSubtype(x, y JSType) bool {
 	if x == nil || y == nil {
 		return true
 	}
+	// When the target is a union, X matches if it's a subtype of any
+	// member. Left-side unions stay in UnionType.IsSubtypeOf.
+	if u, ok := y.(*UnionType); ok {
+		if _, isUnion := x.(*UnionType); isUnion {
+			return x.IsSubtypeOf(u)
+		}
+		for _, m := range u.members {
+			if IsSubtype(x, m) {
+				return true
+			}
+		}
+		return false
+	}
 	return x.IsSubtypeOf(y)
 }
 

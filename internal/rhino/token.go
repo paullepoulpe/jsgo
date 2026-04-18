@@ -27,6 +27,8 @@ const (
 	BLOCK
 	CALL
 	RETURN
+	NEW
+	GETPROP
 )
 
 func (t Token) String() string {
@@ -67,6 +69,10 @@ func (t Token) String() string {
 		return "CALL"
 	case RETURN:
 		return "RETURN"
+	case NEW:
+		return "NEW"
+	case GETPROP:
+		return "GETPROP"
 	}
 	return "ERROR"
 }

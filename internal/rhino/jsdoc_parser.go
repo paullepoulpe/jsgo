@@ -10,13 +10,16 @@ package rhino
 
 import "regexp"
 
-// Captures `!?` modifier + primitive/ident name inside `{...}`.
-var typeExprRe = `([!?]?)\s*([A-Za-z_][A-Za-z0-9_]*)`
+// Captures everything inside `{...}` so the registry can handle the
+// full type expression (primitives, `!` non-null prefix, `?` nullable,
+// `|` unions).
+var typeExprRe = `([^}]+?)`
 
 var (
-	typeTagRe   = regexp.MustCompile(`@type\s*\{\s*` + typeExprRe + `\s*\}`)
-	paramTagRe  = regexp.MustCompile(`@param\s*\{\s*` + typeExprRe + `\s*\}\s*([A-Za-z_][A-Za-z0-9_]*)`)
-	returnTagRe = regexp.MustCompile(`@return\s*\{\s*` + typeExprRe + `\s*\}`)
+	typeTagRe        = regexp.MustCompile(`@type\s*\{\s*` + typeExprRe + `\s*\}`)
+	paramTagRe       = regexp.MustCompile(`@param\s*\{\s*` + typeExprRe + `\s*\}\s*([A-Za-z_][A-Za-z0-9_]*)`)
+	returnTagRe      = regexp.MustCompile(`@return\s*\{\s*` + typeExprRe + `\s*\}`)
+	constructorTagRe = regexp.MustCompile(`@constructor\b`)
 )
 
 // ParseJSDoc returns a JSDocInfo for the given block-comment body (the
@@ -27,26 +30,20 @@ func ParseJSDoc(body string) *JSDocInfo {
 	any := false
 
 	if m := typeTagRe.FindStringSubmatch(body); m != nil {
-		// Nullable `?Foo` is out of scope for Tier-0/1; skip to stay
-		// conservative.
-		if m[1] != "?" {
-			info.SetType(NewJSTypeExpression(m[2]))
-			any = true
-		}
+		info.SetType(NewJSTypeExpression(m[1]))
+		any = true
 	}
 	for _, m := range paramTagRe.FindAllStringSubmatch(body, -1) {
-		if m[1] == "?" {
-			// Nullable param type → leave unrecorded (conservative).
-			continue
-		}
-		info.AddParam(m[3], NewJSTypeExpression(m[2]))
+		info.AddParam(m[2], NewJSTypeExpression(m[1]))
 		any = true
 	}
 	if m := returnTagRe.FindStringSubmatch(body); m != nil {
-		if m[1] != "?" {
-			info.SetReturnType(NewJSTypeExpression(m[2]))
-			any = true
-		}
+		info.SetReturnType(NewJSTypeExpression(m[1]))
+		any = true
+	}
+	if constructorTagRe.MatchString(body) {
+		info.SetConstructor(true)
+		any = true
 	}
 
 	if !any {
