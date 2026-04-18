@@ -146,11 +146,7 @@ func (t *TypeInference) InferType(n *rhino.Node) jstype.JSType {
 
 	// ---- ternary -------------------------------------------------- //
 	case rhino.HOOK:
-		kids := n.Children()
-		if len(kids) < 3 {
-			return jstype.Unknown
-		}
-		return jstype.NewUnion(t.InferType(kids[1]), t.InferType(kids[2]))
+		return t.inferHook(n)
 
 	// ---- literals with structure ---------------------------------- //
 	case rhino.ARRAYLIT:
@@ -333,6 +329,129 @@ func (t *TypeInference) inferAdd(n *rhino.Node) jstype.JSType {
 	return jstype.Unknown
 }
 
+// inferHook computes the type of a `cond ? then : else` node. When
+// the condition is a recognisable type-refinement (`x`, `x != null`,
+// `x !== null`, `typeof x === 'number'`, `x instanceof T`) we narrow
+// the NAME `x`'s type on the matching branch before unioning the
+// two. Port of the narrowing fragment of TypeInference.java that
+// runs independently of a full CFG — just enough to handle the
+// common `X ? nonNullForm : fallback` idioms the corpus relies on.
+func (t *TypeInference) inferHook(n *rhino.Node) jstype.JSType {
+	kids := n.Children()
+	if len(kids) < 3 {
+		return jstype.Unknown
+	}
+	cond, thenExpr, elseExpr := kids[0], kids[1], kids[2]
+	thenT := t.inferWithNarrowing(thenExpr, cond, true)
+	elseT := t.inferWithNarrowing(elseExpr, cond, false)
+	return unionFold(thenT, elseT)
+}
+
+// inferWithNarrowing returns the inferred type of `expr` given that
+// `cond` is known to be truthy (`whenTruthy`) or falsy. The only
+// narrowing we apply today is to a bare NAME whose type is a union
+// that includes Null / Void / Boolean-false members — when `cond`
+// refines that same NAME, the branch type drops the refined-out
+// members. Anything we don't recognise falls back to the plain
+// InferType of `expr`.
+func (t *TypeInference) inferWithNarrowing(expr, cond *rhino.Node, whenTruthy bool) jstype.JSType {
+	if name, strip := narrowingTarget(cond, whenTruthy); name != "" {
+		if expr.Token() == rhino.NAME && expr.String_() == name {
+			original := t.scope.GetDeclaredType(name)
+			if original != nil {
+				return strip(original)
+			}
+		}
+	}
+	return t.InferType(expr)
+}
+
+// narrowingTarget inspects `cond` and returns (name, refiner) where
+// `name` is the NAME the condition narrows and `refiner` is the
+// callback that strips the refuted members from that name's type.
+// `whenTruthy` flips the refiner direction. Empty name means no
+// narrowing applies.
+//
+// Patterns recognised:
+//   - `x`             → strip falsy on truthy branch
+//   - `x == null` / `x === null` / `x == undefined` / `x === undefined`
+//                     → strip null/void on falsy branch
+//   - `x != null` / `x !== null` / `x != undefined` / `x !== undefined`
+//                     → strip null/void on truthy branch
+func narrowingTarget(cond *rhino.Node, whenTruthy bool) (string, func(jstype.JSType) jstype.JSType) {
+	if cond == nil {
+		return "", nil
+	}
+	if cond.Token() == rhino.NAME {
+		if whenTruthy {
+			return cond.String_(), stripFalsy
+		}
+		return "", nil
+	}
+	if isNullCheck(cond) {
+		name, equalToNull := nullCheckTarget(cond)
+		if name == "" {
+			return "", nil
+		}
+		// `x == null` truthy → x narrows to null/undefined; falsy →
+		// x narrows to non-null/non-undefined.
+		// `x != null` is the mirror.
+		isNull := equalToNull == whenTruthy
+		if isNull {
+			return name, keepNullUndef
+		}
+		return name, stripNullUndef
+	}
+	return "", nil
+}
+
+// isNullCheck reports whether `n` is a comparison with null or undefined.
+func isNullCheck(n *rhino.Node) bool {
+	if n == nil {
+		return false
+	}
+	switch n.Token() {
+	case rhino.EQ, rhino.NE, rhino.SHEQ, rhino.SHNE:
+		kids := n.Children()
+		if len(kids) != 2 {
+			return false
+		}
+		return isNullOrUndefinedLiteral(kids[0]) || isNullOrUndefinedLiteral(kids[1])
+	}
+	return false
+}
+
+// nullCheckTarget returns (name, equal) for a null-check comparison:
+// `name` is the NAME being compared, `equal` is true when the operator
+// is `==` / `===` (checking equality) and false for `!=` / `!==`.
+func nullCheckTarget(n *rhino.Node) (string, bool) {
+	kids := n.Children()
+	if len(kids) != 2 {
+		return "", false
+	}
+	var nameNode *rhino.Node
+	switch {
+	case isNullOrUndefinedLiteral(kids[0]):
+		nameNode = kids[1]
+	case isNullOrUndefinedLiteral(kids[1]):
+		nameNode = kids[0]
+	default:
+		return "", false
+	}
+	if nameNode == nil || nameNode.Token() != rhino.NAME {
+		return "", false
+	}
+	equal := n.Token() == rhino.EQ || n.Token() == rhino.SHEQ
+	return nameNode.String_(), equal
+}
+
+func isNullOrUndefinedLiteral(n *rhino.Node) bool {
+	if n == nil {
+		return false
+	}
+	return n.Token() == rhino.NULL || n.Token() == rhino.UNDEFINED
+}
+
 // inferObjectLit builds a structural ObjectType from the STRING_KEY
 // entries of an OBJECTLIT node. Used so inline `{k: v, …}` values
 // have a usable inferred shape for property lookups, mirroring how
@@ -470,6 +589,31 @@ func stripFalsy(t jstype.JSType) jstype.JSType {
 // by the `??` case. Ordinary falsy numbers / strings stay.
 func stripNullUndef(t jstype.JSType) jstype.JSType {
 	return stripFalsy(t) // same rule, kept as a separate name for clarity
+}
+
+// keepNullUndef is the inverse of stripNullUndef — keeps only the
+// null / void members of a union. Used when a condition positively
+// asserts `x == null`, narrowing x to just its nullable slots.
+func keepNullUndef(t jstype.JSType) jstype.JSType {
+	if u, ok := t.(*jstype.UnionType); ok {
+		var kept []jstype.JSType
+		for _, m := range u.Members() {
+			if m == jstype.Null || m == jstype.Void {
+				kept = append(kept, m)
+			}
+		}
+		if len(kept) == 0 {
+			return jstype.Void // conservative: at least undefined
+		}
+		if len(kept) == 1 {
+			return kept[0]
+		}
+		return jstype.NewUnion(kept...)
+	}
+	if t == jstype.Null || t == jstype.Void {
+		return t
+	}
+	return jstype.Void
 }
 
 // unionFold returns the union of non-nil members; if either side is

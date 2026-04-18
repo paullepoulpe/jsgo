@@ -464,12 +464,13 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 		typeAliases: make(map[string]jstype.JSType),
 		registry:    c.registry,
 	}
+	hoisted := hoistDeclarations(block)
 	// Pass 1: register every constructor-like binding (`@constructor`
 	// functions + `class` declarations + `@record`/`@interface`
 	// declarations) under its name so later `@type {Foo}` references
 	// resolve nominally even when they appear textually before the
 	// declaration.
-	for _, child := range block.Children() {
+	for _, child := range hoisted {
 		switch child.Token() {
 		case rhino.FUNCTION:
 			c.preregisterConstructor(child, scope)
@@ -480,13 +481,13 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 	// Pass 1b: record @typedef aliases. Typedefs resolve against the
 	// scope that now has nominal types pre-registered, so
 	// `@typedef {Foo|null}` can reference a Foo declared later.
-	for _, child := range block.Children() {
+	for _, child := range hoisted {
 		if isDeclToken(child.Token()) {
 			c.recordTypedef(child, scope)
 		}
 	}
 	// Pass 2: record declarations + functions properly.
-	for _, child := range block.Children() {
+	for _, child := range hoisted {
 		switch {
 		case isDeclToken(child.Token()):
 			c.recordDecl(child, scope)
@@ -505,6 +506,38 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 		}
 	}
 	return scope
+}
+
+// hoistDeclarations walks `block` collecting every VAR/LET/CONST /
+// FUNCTION / CLASS / EXPR_RESULT it and its nested BLOCKs / IF
+// branches / loop bodies contain. FUNCTION / CLASS subtrees are not
+// descended into — they own their own scope, built separately via
+// recordFunction / recordClass. Matches Java's hoistVars pass on
+// AbstractScopeBuilder.
+func hoistDeclarations(block *rhino.Node) []*rhino.Node {
+	var out []*rhino.Node
+	var walk func(n *rhino.Node)
+	walk = func(n *rhino.Node) {
+		if n == nil {
+			return
+		}
+		for _, child := range n.Children() {
+			switch child.Token() {
+			case rhino.VAR, rhino.LET, rhino.CONST, rhino.FUNCTION, rhino.CLASS, rhino.EXPR_RESULT:
+				out = append(out, child)
+				// Keep descending into non-function forms so e.g. an
+				// IF branch `if (c) { var x = …; }` contributes x.
+				if child.Token() == rhino.FUNCTION || child.Token() == rhino.CLASS {
+					continue
+				}
+				walk(child)
+			case rhino.BLOCK, rhino.IF, rhino.HOOK:
+				walk(child)
+			}
+		}
+	}
+	walk(block)
+	return out
 }
 
 // recordPrototypeAssign detects the `Foo.prototype.<name> = <expr>`
