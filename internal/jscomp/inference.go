@@ -219,7 +219,12 @@ func (t *TypeInference) inferGetProp(n *rhino.Node) jstype.JSType {
 
 // inferCall mirrors TypeInference's CALL branch. Plain name calls pick
 // up the callee's @return; property calls (x.y(...)) type through the
-// property's FunctionType; all other shapes return Unknown.
+// property's FunctionType. When the callee carries @template vars,
+// we walk each positional (param, arg) pair, record the TemplateType
+// → arg-type binding, then substitute into Return. Port of the
+// TemplateTypeReplacer + TypeInference.java unification loop (narrow:
+// positional args only, no rest/spread, no return-type inference
+// when the expected return is contextually typed).
 func (t *TypeInference) inferCall(n *rhino.Node) jstype.JSType {
 	callee := n.FirstChild()
 	if callee == nil {
@@ -236,10 +241,45 @@ func (t *TypeInference) inferCall(n *rhino.Node) jstype.JSType {
 			fn = f
 		}
 	}
-	if fn != nil {
+	if fn == nil {
+		return jstype.Unknown
+	}
+	if len(fn.TemplateTypes) == 0 {
 		return fn.Return
 	}
-	return jstype.Unknown
+	// Build TemplateType → arg type map by walking the param slots.
+	subs := jstype.NewTemplateTypeMap()
+	args := n.Children()[1:]
+	for i := 0; i < len(fn.Params) && i < len(args); i++ {
+		argType := t.InferType(args[i])
+		unifyTemplates(subs, fn.Params[i], argType)
+	}
+	return subs.Substitute(fn.Return)
+}
+
+// unifyTemplates walks two type trees in parallel, pairing every
+// TemplateType position on the "param" side with the concrete "arg"
+// side and binding the substitution. Straight port of the structural
+// recursion in Java's TemplateTypeReplacer#replace.
+func unifyTemplates(subs *jstype.TemplateTypeMap, param, arg jstype.JSType) {
+	if param == nil || arg == nil {
+		return
+	}
+	if tt, ok := param.(*jstype.TemplateType); ok {
+		subs.Bind(tt, arg)
+		return
+	}
+	if pu, ok := param.(*jstype.UnionType); ok {
+		for _, m := range pu.Members() {
+			unifyTemplates(subs, m, arg)
+		}
+		return
+	}
+	// FunctionType / ObjectType param shapes are uncommon at this
+	// tier — we skip their internal recursion to keep the unification
+	// surface conservative. A later pass extends to `(T) => U`,
+	// `Array<T>`, etc., once the registry tracks those as structured
+	// TemplateType carriers.
 }
 
 // inferAdd is the narrow `+` helper. Port of TypeValidator.java's ADD

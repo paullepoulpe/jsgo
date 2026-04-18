@@ -26,6 +26,16 @@ func IsSubtype(x, y JSType) bool {
 	if x == nil || y == nil {
 		return true
 	}
+	// Unresolved template vars accept any value — mirrors Java's
+	// "open type" rule during unification. Once the substitution
+	// resolves at a CALL site, the concrete type is used instead,
+	// and this branch stops applying.
+	if _, ok := y.(*TemplateType); ok {
+		return true
+	}
+	if _, ok := x.(*TemplateType); ok {
+		return true
+	}
 	// When the target is a union, X matches if it's a subtype of any
 	// member. Left-side unions stay in UnionType.IsSubtypeOf.
 	if u, ok := y.(*UnionType); ok {

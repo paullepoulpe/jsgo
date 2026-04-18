@@ -781,19 +781,23 @@ func (c *TypedScopeCreator) buildMethodScope(fn *rhino.Node, inst *jstype.Object
 	return local
 }
 
-// templateResolver returns a closure that resolves a type expression
-// under a shim scope pre-populated with the function's @template
-// names bound to Unknown. Used by recordFunction so `@param {T}` /
-// `@return {T}` don't collapse to a false-positive-producing
-// misresolution. A future tier will swap Unknown for a real
-// TemplateType and add call-site unification.
-func (c *TypedScopeCreator) templateResolver(parent *TypedScope, info *rhino.JSDocInfo) func(string) jstype.JSType {
+// templateResolver returns (resolver, templateMap) — the resolver is
+// a closure that resolves a type expression against a shim scope
+// where each of the function's @template names is bound to a fresh
+// TemplateType. The templateMap lets the caller stash those
+// TemplateTypes on the resulting FunctionType so call-site
+// unification can refer to them later. Port of the per-function
+// TemplateTypeMap construction in TypedScopeCreator.java.
+func (c *TypedScopeCreator) templateResolver(parent *TypedScope, info *rhino.JSDocInfo) (func(string) jstype.JSType, map[string]*jstype.TemplateType) {
 	if info == nil || len(info.TemplateNames()) == 0 {
-		return parent.ResolveExpr
+		return parent.ResolveExpr, nil
 	}
+	tmpls := make(map[string]*jstype.TemplateType, len(info.TemplateNames()))
 	aliases := make(map[string]jstype.JSType, len(info.TemplateNames()))
 	for _, tn := range info.TemplateNames() {
-		aliases[tn] = jstype.Unknown
+		tt := jstype.NewTemplateType(tn)
+		tmpls[tn] = tt
+		aliases[tn] = tt
 	}
 	shim := &TypedScope{
 		parent:      parent,
@@ -801,7 +805,7 @@ func (c *TypedScopeCreator) templateResolver(parent *TypedScope, info *rhino.JSD
 		typeAliases: aliases,
 		registry:    c.registry,
 	}
-	return shim.ResolveExpr
+	return shim.ResolveExpr, tmpls
 }
 
 // bindSuper resolves the named superclass into its constructor's
@@ -884,12 +888,12 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 	params := kids[1]
 	body := kids[2]
 
-	// @template names become type aliases bound to Unknown inside a
-	// shim scope. Proper unification (Tier-3+) lands later; for now
-	// we just stay conservative so generic params/returns don't
-	// false-positive. Mirrors how Java's JSTypeRegistry builds a
+	// @template names bind to fresh TemplateType values inside a shim
+	// scope; the same TemplateType pointers are recorded on the
+	// resulting FunctionType so call-site unification can refer to
+	// them. Mirrors how Java's JSTypeRegistry builds a
 	// TemplateTypeMap before resolving per-function annotations.
-	resolve := c.templateResolver(scope, info)
+	resolve, templateMap := c.templateResolver(scope, info)
 	var paramTypes []jstype.JSType
 	for _, p := range params.Children() {
 		var t jstype.JSType = jstype.Unknown
@@ -930,6 +934,14 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 		}
 	} else {
 		fnType = jstype.NewFunctionType(paramTypes, retType)
+	}
+	if templateMap != nil {
+		fnType.TemplateTypes = make([]*jstype.TemplateType, 0, len(templateMap))
+		for _, tn := range info.TemplateNames() {
+			if tt := templateMap[tn]; tt != nil {
+				fnType.TemplateTypes = append(fnType.TemplateTypes, tt)
+			}
+		}
 	}
 	if name.String_() != "" {
 		scope.declared[name.String_()] = fnType
