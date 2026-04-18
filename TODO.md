@@ -4,10 +4,22 @@ Living list of what's left to port, with rough effort estimates, in
 order of expected pass-rate lift for the `testdata/fixtures/extracted`
 benchmark. Updated whenever a milestone commits.
 
-**Current state:** 599/1444 = **41.48%** extracted pass rate. Tier-0
+**Current state:** 640/1444 = **44.32%** extracted pass rate. Tier-0
 through Tier-3 hand-authored corpora all 100%.
 
-**Goal:** 80%+ = ~1155 extracted passes. Gap: **+556**.
+**Goal:** 80%+ = ~1155 extracted passes. Gap: **+515**.
+
+**Recent progress (P0 sweep):**
+- P0-1 ✅ Parser precedence-climbing + expression-level TypeInference
+  (binary / unary / ternary / array / object literals).
+- P0-2 ✅ VarCheck (JSC_UNDEFINED_VARIABLE), narrow externs stub.
+- P0-3 ✅ VariableReferenceCheck (JSC_VAR_MULTIPLY_DECLARED_ERROR)
+  for intra-file duplicates.
+- P0-4 ✅ TemplateType + call-site unification scaffolding.
+- P0-5 ✅ HOOK-scoped narrowing (`x ? x : …`, `x != null ? x : …`)
+  plus if / while / for / for-of / switch / try statement parsing
+  with body-level declaration hoisting. Full CFG / FlowScope still
+  outstanding.
 
 ## Methodology note
 
