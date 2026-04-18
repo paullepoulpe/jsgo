@@ -29,6 +29,7 @@ const (
 	RETURN
 	NEW
 	GETPROP
+	THIS
 )
 
 func (t Token) String() string {
@@ -73,6 +74,8 @@ func (t Token) String() string {
 		return "NEW"
 	case GETPROP:
 		return "GETPROP"
+	case THIS:
+		return "THIS"
 	}
 	return "ERROR"
 }

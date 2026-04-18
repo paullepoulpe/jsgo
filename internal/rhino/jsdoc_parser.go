@@ -19,6 +19,7 @@ var (
 	typeTagRe        = regexp.MustCompile(`@type\s*\{\s*` + typeExprRe + `\s*\}`)
 	paramTagRe       = regexp.MustCompile(`@param\s*\{\s*` + typeExprRe + `\s*\}\s*([A-Za-z_][A-Za-z0-9_]*)`)
 	returnTagRe      = regexp.MustCompile(`@return\s*\{\s*` + typeExprRe + `\s*\}`)
+	extendsTagRe     = regexp.MustCompile(`@extends\s*\{\s*` + typeExprRe + `\s*\}`)
 	constructorTagRe = regexp.MustCompile(`@constructor\b`)
 )
 
@@ -39,6 +40,10 @@ func ParseJSDoc(body string) *JSDocInfo {
 	}
 	if m := returnTagRe.FindStringSubmatch(body); m != nil {
 		info.SetReturnType(NewJSTypeExpression(m[1]))
+		any = true
+	}
+	if m := extendsTagRe.FindStringSubmatch(body); m != nil {
+		info.SetBaseType(NewJSTypeExpression(m[1]))
 		any = true
 	}
 	if constructorTagRe.MatchString(body) {

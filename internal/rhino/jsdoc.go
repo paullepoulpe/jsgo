@@ -12,7 +12,19 @@ type JSDocInfo struct {
 	params        map[string]*JSTypeExpression // name → type
 	returnExpr    *JSTypeExpression
 	isConstructor bool
+	extendsExpr   *JSTypeExpression
 }
+
+// BaseType mirrors JSDocInfo.getBaseType() — the type expression
+// captured from `@extends {Name}` on a constructor or interface.
+func (i *JSDocInfo) BaseType() *JSTypeExpression {
+	if i == nil {
+		return nil
+	}
+	return i.extendsExpr
+}
+
+func (i *JSDocInfo) SetBaseType(t *JSTypeExpression) { i.extendsExpr = t }
 
 // IsConstructor mirrors JSDocInfo.isConstructor().
 func (i *JSDocInfo) IsConstructor() bool { return i != nil && i.isConstructor }

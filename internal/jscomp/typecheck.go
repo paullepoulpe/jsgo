@@ -157,29 +157,67 @@ func (c *TypeCheck) checkAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 	if len(kids) < 2 {
 		return nil
 	}
-	name, rhs := kids[0], kids[1]
-	if name.Token() != rhino.NAME {
-		return nil
-	}
-	declared := scope.GetDeclaredType(name.String_())
-	if declared == nil {
-		return nil
-	}
+	lhs, rhs := kids[0], kids[1]
 	infer := NewTypeInference(scope)
-	found := infer.InferType(rhs)
-	if jstype.IsSubtype(found, declared) {
-		return nil
+	switch lhs.Token() {
+	case rhino.NAME:
+		declared := scope.GetDeclaredType(lhs.String_())
+		if declared == nil {
+			return nil
+		}
+		found := infer.InferType(rhs)
+		// Conservative: dataflow narrowing on union-typed sources isn't
+		// implemented; suppress the check to avoid false positives.
+		if _, isUnion := found.(*jstype.UnionType); isUnion {
+			return nil
+		}
+		if jstype.IsSubtype(found, declared) {
+			return nil
+		}
+		msg := fmt.Sprintf("assignment\nfound   : %s\nrequired: %s",
+			found.TypeName(), declared.TypeName())
+		return []diag.Diagnostic{{
+			Path:    c.path,
+			Line:    lhs.Lineno(),
+			Col:     lhs.Charno(),
+			Code:    diag.JSC_TYPE_MISMATCH,
+			Level:   diag.Error,
+			Message: msg,
+		}}
+	case rhino.GETPROP:
+		// Check `obj.prop = rhs` against obj's declared property type.
+		propKids := lhs.Children()
+		if len(propKids) < 2 {
+			return nil
+		}
+		obj, ok := infer.InferType(propKids[0]).(*jstype.ObjectType)
+		if !ok {
+			return nil
+		}
+		propName := propKids[1].String_()
+		declared := obj.GetPropertyType(propName)
+		if declared == nil {
+			return nil
+		}
+		found := infer.InferType(rhs)
+		if _, isUnion := found.(*jstype.UnionType); isUnion {
+			return nil
+		}
+		if jstype.IsSubtype(found, declared) {
+			return nil
+		}
+		msg := fmt.Sprintf("assignment to property %s of %s\nfound   : %s\nrequired: %s",
+			propName, obj.TypeName(), found.TypeName(), declared.TypeName())
+		return []diag.Diagnostic{{
+			Path:    c.path,
+			Line:    lhs.Lineno(),
+			Col:     lhs.Charno(),
+			Code:    diag.JSC_TYPE_MISMATCH,
+			Level:   diag.Error,
+			Message: msg,
+		}}
 	}
-	msg := fmt.Sprintf("assignment\nfound   : %s\nrequired: %s",
-		found.TypeName(), declared.TypeName())
-	return []diag.Diagnostic{{
-		Path:    c.path,
-		Line:    name.Lineno(),
-		Col:     name.Charno(),
-		Code:    diag.JSC_TYPE_MISMATCH,
-		Level:   diag.Error,
-		Message: msg,
-	}}
+	return nil
 }
 
 // checkCall and checkNew share arg-list machinery; NEW reports under

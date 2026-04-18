@@ -16,6 +16,16 @@ type FunctionType struct {
 	// stays conservative.
 	Params []JSType
 	Return JSType // Unknown when @return was absent / unrecognised.
+
+	// IsConstructor mirrors FunctionType.isConstructor() — set when the
+	// owning function carried `@constructor`. Influences both call-site
+	// shape checking and the nominal type produced by `new`.
+	IsConstructor bool
+
+	// Instance is the InstanceType created for `new ThisFunction()`
+	// when IsConstructor is true. Unset for plain functions; the scope
+	// creator wires this when it processes the @constructor JSDoc.
+	Instance *ObjectType
 }
 
 func NewFunctionType(params []JSType, ret JSType) *FunctionType {
@@ -23,6 +33,19 @@ func NewFunctionType(params []JSType, ret JSType) *FunctionType {
 		ret = Unknown
 	}
 	return &FunctionType{Params: params, Return: ret}
+}
+
+// NewConstructorType is the variant used when @constructor is present.
+// Returns a FunctionType whose Instance is a freshly-named ObjectType
+// — the type assigned to `new ThisCtor(args)` expressions.
+func NewConstructorType(name string, params []JSType) *FunctionType {
+	inst := NewObjectType(name)
+	return &FunctionType{
+		Params:        params,
+		Return:        inst,
+		IsConstructor: true,
+		Instance:      inst,
+	}
 }
 
 func (f *FunctionType) TypeName() string {

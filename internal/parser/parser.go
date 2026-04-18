@@ -80,19 +80,40 @@ func (p *Parser) tryStatement() (*rhino.Node, bool) {
 		return p.finishReturn(), true
 	}
 
-	// JSDoc found but not attached to a supported declaration; skip.
+	// JSDoc may also annotate an expression statement (most commonly
+	// `/** @type {T} */ this.x = …;`). Try the same statement forms,
+	// attaching the comment to the inner ASSIGN/CALL/NEW so the scope
+	// creator can pick it up.
+	if stmt, ok := p.tryCallOrAssignStatement(); ok {
+		if jsdoc != nil {
+			attachJSDocToInner(stmt, jsdoc)
+		}
+		return stmt, true
+	}
+	if stmt, ok := p.tryExpressionStatement(); ok {
+		if jsdoc != nil {
+			attachJSDocToInner(stmt, jsdoc)
+		}
+		return stmt, true
+	}
 	if jsdoc != nil {
 		p.skipToStatementBoundary()
 		return nil, false
 	}
-
-	if stmt, ok := p.tryCallOrAssignStatement(); ok {
-		return stmt, true
-	}
-	if stmt, ok := p.tryExpressionStatement(); ok {
-		return stmt, true
-	}
 	return nil, false
+}
+
+// attachJSDocToInner places the JSDocInfo on the immediately wrapped
+// ASSIGN/CALL/NEW, matching how Closure attaches JSDoc to the operative
+// node rather than the EXPR_RESULT wrapper.
+func attachJSDocToInner(stmt *rhino.Node, info *rhino.JSDocInfo) {
+	if stmt.Token() == rhino.EXPR_RESULT {
+		if inner := stmt.FirstChild(); inner != nil {
+			inner.SetJSDocInfo(info)
+			return
+		}
+	}
+	stmt.SetJSDocInfo(info)
 }
 
 // tryExpressionStatement wraps any expression followed by `;` into an
@@ -249,8 +270,14 @@ func (p *Parser) finishReturn() *rhino.Node {
 	return ret
 }
 
-// tryCallOrAssignStatement parses either `IDENT(args);` or
-// `IDENT = LITERAL;` — both speculative, rewinding on mismatch.
+// tryCallOrAssignStatement parses one of:
+//
+//   <lhs> = <expr>;    // ASSIGN, where lhs is NAME or GETPROP chain
+//   <lhs>(args);       // CALL on a NAME/GETPROP chain
+//   this.x = <expr>;   // bare-this assign — same shape as the GETPROP case
+//
+// Speculative: rewinds on mismatch so the caller can fall back to other
+// statement forms.
 func (p *Parser) tryCallOrAssignStatement() (*rhino.Node, bool) {
 	save := p.pos
 	saveLine := p.line
@@ -261,8 +288,8 @@ func (p *Parser) tryCallOrAssignStatement() (*rhino.Node, bool) {
 		p.lineBOL = saveBOL
 	}
 
-	nameLine, nameCol := p.line, p.col()
-	ident, ok := p.consumeIdent()
+	startLine, startCol := p.line, p.col()
+	lhs, ok := p.tryLHSExpression()
 	if !ok {
 		rewind()
 		return nil, false
@@ -275,12 +302,11 @@ func (p *Parser) tryCallOrAssignStatement() (*rhino.Node, bool) {
 
 	switch p.src[p.pos] {
 	case '(':
+		// Call-as-statement on the whole LHS (handles foo.bar.baz(...)).
 		p.advance()
 		call := rhino.New(rhino.CALL)
-		call.SetPos(nameLine, nameCol)
-		callee := rhino.NewString(rhino.NAME, ident)
-		callee.SetPos(nameLine, nameCol)
-		call.AddChildToBack(callee)
+		call.SetPos(startLine, startCol)
+		call.AddChildToBack(lhs)
 		for {
 			p.skipTrivia()
 			if p.atEnd() {
@@ -305,12 +331,9 @@ func (p *Parser) tryCallOrAssignStatement() (*rhino.Node, bool) {
 			}
 		}
 		p.skipTrivia()
-		if !p.consumeByte(';') {
-			// Call without trailing `;` (e.g. last statement in block)
-			// — still keep the node; its position is already set.
-		}
+		p.consumeByte(';')
 		stmt := rhino.New(rhino.EXPR_RESULT)
-		stmt.SetPos(nameLine, nameCol)
+		stmt.SetPos(startLine, startCol)
 		stmt.AddChildToBack(call)
 		return stmt, true
 
@@ -333,20 +356,46 @@ func (p *Parser) tryCallOrAssignStatement() (*rhino.Node, bool) {
 			return nil, false
 		}
 		p.advance()
-		nameNode := rhino.NewString(rhino.NAME, ident)
-		nameNode.SetPos(nameLine, nameCol)
 		rhs.SetPos(rhsLine, rhsCol)
 		assign := rhino.New(rhino.ASSIGN)
-		assign.SetPos(nameLine, nameCol)
-		assign.AddChildToBack(nameNode)
+		assign.SetPos(startLine, startCol)
+		assign.AddChildToBack(lhs)
 		assign.AddChildToBack(rhs)
 		stmt := rhino.New(rhino.EXPR_RESULT)
-		stmt.SetPos(nameLine, nameCol)
+		stmt.SetPos(startLine, startCol)
 		stmt.AddChildToBack(assign)
 		return stmt, true
 	}
 	rewind()
 	return nil, false
+}
+
+// tryLHSExpression parses a NAME or GETPROP chain starting at the
+// current position. Used by tryCallOrAssignStatement to support
+// `obj.x = …` and `this.x = …` shapes uniformly. Does NOT consume a
+// trailing `(args)` — the caller decides whether the LHS is being
+// called or assigned to.
+func (p *Parser) tryLHSExpression() (*rhino.Node, bool) {
+	if p.atEnd() {
+		return nil, false
+	}
+	startLine, startCol := p.line, p.col()
+	c := p.src[p.pos]
+	if c == 't' && p.consumeKeyword("this") {
+		base := rhino.New(rhino.THIS)
+		base.SetPos(startLine, startCol)
+		return p.extendWithProperty(base), true
+	}
+	if !(unicode.IsLetter(c) || c == '_' || c == '$') {
+		return nil, false
+	}
+	ident, ok := p.consumeIdent()
+	if !ok {
+		return nil, false
+	}
+	base := rhino.NewString(rhino.NAME, ident)
+	base.SetPos(startLine, startCol)
+	return p.extendWithProperty(base), true
 }
 
 // tryExpression parses one expression: an arrow function, literal,
@@ -379,11 +428,44 @@ func (p *Parser) tryExpression() (*rhino.Node, bool) {
 		if p.consumeKeyword("undefined") {
 			return rhino.New(rhino.UNDEFINED), true
 		}
+	case c == 't':
+		if p.consumeKeyword("this") {
+			return p.extendWithProperty(rhino.New(rhino.THIS)), true
+		}
+		if n, ok := p.parseBooleanLiteral(); ok {
+			return n, true
+		}
 	}
 	if unicode.IsLetter(c) || c == '_' || c == '$' {
 		return p.parseNameOrCall()
 	}
 	return nil, false
+}
+
+// extendWithProperty consumes any trailing `.IDENT` chain after the
+// given base, building GETPROP(base, STRINGLIT) nodes as in Closure.
+// Used by the `this` and NAME paths so member access is uniform.
+func (p *Parser) extendWithProperty(base *rhino.Node) *rhino.Node {
+	for {
+		p.skipTrivia()
+		if p.atEnd() || p.src[p.pos] != '.' {
+			return base
+		}
+		p.advance() // '.'
+		p.skipTrivia()
+		propLine, propCol := p.line, p.col()
+		ident, ok := p.consumeIdent()
+		if !ok {
+			return base
+		}
+		gp := rhino.New(rhino.GETPROP)
+		gp.SetPos(base.Lineno(), base.Charno())
+		gp.AddChildToBack(base)
+		propNode := rhino.NewString(rhino.STRINGLIT, ident)
+		propNode.SetPos(propLine, propCol)
+		gp.AddChildToBack(propNode)
+		base = gp
+	}
 }
 
 // tryArrow speculatively parses `(params) => body` or `ident => body`.
@@ -525,23 +607,27 @@ func (p *Parser) finishNew() (*rhino.Node, bool) {
 	}
 }
 
-// parseNameOrCall parses `IDENT` or `IDENT(args)`.
+// parseNameOrCall parses `IDENT [ .IDENT ]* [ ( args ) ]`. The chain of
+// `.IDENT` becomes GETPROP nodes; a trailing `(...)` becomes CALL on
+// whatever expression came before. Mirrors Parser.java's
+// parseLeftHandSideExpressionAllowCall.
 func (p *Parser) parseNameOrCall() (*rhino.Node, bool) {
 	nameLine, nameCol := p.line, p.col()
 	ident, ok := p.consumeIdent()
 	if !ok {
 		return nil, false
 	}
-	name := rhino.NewString(rhino.NAME, ident)
-	name.SetPos(nameLine, nameCol)
+	expr := rhino.NewString(rhino.NAME, ident)
+	expr.SetPos(nameLine, nameCol)
+	expr = p.extendWithProperty(expr)
 	p.skipTrivia()
 	if p.atEnd() || p.src[p.pos] != '(' {
-		return name, true
+		return expr, true
 	}
 	p.advance()
 	call := rhino.New(rhino.CALL)
 	call.SetPos(nameLine, nameCol)
-	call.AddChildToBack(name)
+	call.AddChildToBack(expr)
 	for {
 		p.skipTrivia()
 		if p.atEnd() {

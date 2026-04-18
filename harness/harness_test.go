@@ -194,6 +194,10 @@ func TestTier0(t *testing.T) { runTier(t, "tier0") }
 // checks, and return-type consistency.
 func TestTier1(t *testing.T) { runTier(t, "tier1") }
 
+// TestTier2 covers the nominal object model: @constructor + new Foo(),
+// `this.x = …` member tracking, and property-typed assignments.
+func TestTier2(t *testing.T) { runTier(t, "tier2") }
+
 // TestExtractedCorpus is a reporting benchmark — it runs every
 // extracted TypeCheckTest fixture and prints a pass-rate summary. It is
 // intentionally lenient: failures here reflect the difference between
