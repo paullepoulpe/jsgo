@@ -52,6 +52,23 @@ const (
 	IF
 	HOOK // ternary `cond ? a : b`
 
+	// Loops / switch / try / jump
+	WHILE
+	DO_WHILE
+	FOR
+	FOR_IN
+	FOR_OF
+	SWITCH
+	CASE
+	DEFAULT_CASE
+	TRY
+	CATCH
+	FINALLY
+	THROW
+	BREAK
+	CONTINUE
+	LABEL
+
 	// Calls / new / member access
 	CALL
 	NEW
@@ -171,6 +188,36 @@ func (t Token) String() string {
 		return "IF"
 	case HOOK:
 		return "HOOK"
+	case WHILE:
+		return "WHILE"
+	case DO_WHILE:
+		return "DO_WHILE"
+	case FOR:
+		return "FOR"
+	case FOR_IN:
+		return "FOR_IN"
+	case FOR_OF:
+		return "FOR_OF"
+	case SWITCH:
+		return "SWITCH"
+	case CASE:
+		return "CASE"
+	case DEFAULT_CASE:
+		return "DEFAULT_CASE"
+	case TRY:
+		return "TRY"
+	case CATCH:
+		return "CATCH"
+	case FINALLY:
+		return "FINALLY"
+	case THROW:
+		return "THROW"
+	case BREAK:
+		return "BREAK"
+	case CONTINUE:
+		return "CONTINUE"
+	case LABEL:
+		return "LABEL"
 	case CALL:
 		return "CALL"
 	case NEW:

@@ -619,10 +619,10 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 
 // hoistDeclarations walks `block` collecting every VAR/LET/CONST /
 // FUNCTION / CLASS / EXPR_RESULT it and its nested BLOCKs / IF
-// branches / loop bodies contain. FUNCTION / CLASS subtrees are not
-// descended into — they own their own scope, built separately via
-// recordFunction / recordClass. Matches Java's hoistVars pass on
-// AbstractScopeBuilder.
+// branches / loop bodies / try handlers contain. FUNCTION / CLASS
+// subtrees are not descended into — they own their own scope, built
+// separately via recordFunction / recordClass. Matches Java's
+// hoistVars pass on AbstractScopeBuilder.
 func hoistDeclarations(block *rhino.Node) []*rhino.Node {
 	var out []*rhino.Node
 	var walk func(n *rhino.Node)
@@ -634,13 +634,35 @@ func hoistDeclarations(block *rhino.Node) []*rhino.Node {
 			switch child.Token() {
 			case rhino.VAR, rhino.LET, rhino.CONST, rhino.FUNCTION, rhino.CLASS, rhino.EXPR_RESULT:
 				out = append(out, child)
-				// Keep descending into non-function forms so e.g. an
-				// IF branch `if (c) { var x = …; }` contributes x.
 				if child.Token() == rhino.FUNCTION || child.Token() == rhino.CLASS {
 					continue
 				}
 				walk(child)
-			case rhino.BLOCK, rhino.IF, rhino.HOOK:
+			case rhino.FOR, rhino.FOR_IN, rhino.FOR_OF:
+				// The init / lhs child may be a VAR/LET/CONST — surface it.
+				if first := child.FirstChild(); first != nil {
+					t := first.Token()
+					if t == rhino.VAR || t == rhino.LET || t == rhino.CONST {
+						out = append(out, first)
+					}
+				}
+				walk(child)
+			case rhino.CATCH:
+				// First child is the NAME of the catch parameter.
+				if first := child.FirstChild(); first != nil && first.Token() == rhino.NAME && first.String_() != "" {
+					synth := rhino.New(rhino.LET)
+					synth.SetPos(first.Lineno(), first.Charno())
+					nm := rhino.NewString(rhino.NAME, first.String_())
+					nm.SetPos(first.Lineno(), first.Charno())
+					synth.AddChildToBack(nm)
+					out = append(out, synth)
+				}
+				walk(child)
+			case rhino.BLOCK, rhino.IF, rhino.HOOK,
+				rhino.WHILE, rhino.DO_WHILE,
+				rhino.SWITCH, rhino.CASE, rhino.DEFAULT_CASE,
+				rhino.TRY, rhino.FINALLY,
+				rhino.LABEL:
 				walk(child)
 			}
 		}

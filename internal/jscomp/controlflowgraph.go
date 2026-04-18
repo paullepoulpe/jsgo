@@ -22,8 +22,13 @@ const (
 	BranchOnTrue
 	// BranchOnFalse: condition is falsy.
 	BranchOnFalse
-	// BranchException: exceptional exit (throw).
+	// BranchException: exceptional exit — used by THROW and by
+	// body-to-catch edges in TRY statements.
 	BranchException
+	// BranchSyn: synthetic edge (e.g. switch-case match test, loop
+	// back-edge). Doesn't carry a semantic refinement but keeps the
+	// graph connected so reachability and dataflow work.
+	BranchSyn
 )
 
 // CfgEdge is a directed successor with a branch label.

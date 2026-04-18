@@ -107,14 +107,29 @@ func (p *Parser) tryStatement() (*rhino.Node, bool) {
 	if p.scanner.ConsumeKeyword("if") {
 		return p.finishIf(), true
 	}
-	// `while (cond) stmt` / `for (init; cond; upd) stmt` / `do stmt
-	// while (cond)` / `switch (e) { … }` / `try { … } catch (e) { … }`
-	// / `throw e` are consumed coarsely: advance past the immediate
-	// header and let parseStatements descend into the body. Enough so
-	// nested expressions get checked; full porting lands with the
-	// real statement-grammar port (TODO.md P1-1).
-	if p.consumeLoopHeader() {
-		return p.finishLoopBody()
+	if p.scanner.ConsumeKeyword("while") {
+		return p.finishWhile(), true
+	}
+	if p.scanner.ConsumeKeyword("do") {
+		return p.finishDoWhile(), true
+	}
+	if p.scanner.ConsumeKeyword("for") {
+		return p.finishFor(), true
+	}
+	if p.scanner.ConsumeKeyword("switch") {
+		return p.finishSwitch(), true
+	}
+	if p.scanner.ConsumeKeyword("try") {
+		return p.finishTry(), true
+	}
+	if p.scanner.ConsumeKeyword("throw") {
+		return p.finishThrow(), true
+	}
+	if p.scanner.ConsumeKeyword("break") {
+		return p.finishBreakContinue(rhino.BREAK), true
+	}
+	if p.scanner.ConsumeKeyword("continue") {
+		return p.finishBreakContinue(rhino.CONTINUE), true
 	}
 
 	// JSDoc may also annotate an expression statement (most commonly
@@ -508,190 +523,326 @@ func (p *Parser) parseControlBody() *rhino.Node {
 	return body
 }
 
-// consumeLoopHeader handles the `while (…)` / `for (…)` / `do` /
-// `switch (…)` / `try` / `throw` keywords at the front of a
-// statement. Returns true if any was recognised and the cursor is
-// now positioned just after the header (but before the body). Does
-// NOT build AST nodes — used only so parseStatements can walk into
-// the body block via finishLoopBody.
-func (p *Parser) consumeLoopHeader() bool {
-	if p.scanner.ConsumeKeyword("while") {
-		p.swallowParens()
-		return true
+// finishWhile parses `while (cond) stmt` into WHILE(cond, body).
+func (p *Parser) finishWhile() *rhino.Node {
+	n := rhino.New(rhino.WHILE)
+	n.SetPos(p.scanner.Line(), p.scanner.Col())
+	p.scanner.SkipTrivia()
+	cond := p.consumeParenExpression()
+	if cond == nil {
+		cond = rhino.New(rhino.TRUE)
 	}
-	if p.scanner.ConsumeKeyword("for") {
-		p.scanner.SkipTrivia()
-		p.swallowForHead()
-		return true
-	}
-	if p.scanner.ConsumeKeyword("switch") {
-		p.swallowParens()
-		return true
-	}
-	if p.scanner.ConsumeKeyword("do") {
-		return true
-	}
-	if p.scanner.ConsumeKeyword("try") {
-		return true
-	}
-	if p.scanner.ConsumeKeyword("throw") {
-		// `throw expr;` — discard the expr and keep parsing.
-		p.scanner.SkipTrivia()
-		_, _ = p.tryExpression()
-		p.scanner.SkipTrivia()
-		p.scanner.ConsumeByte(';')
-		return true
-	}
-	return false
+	n.AddChildToBack(cond)
+	n.AddChildToBack(p.parseControlBody())
+	return n
 }
 
-// swallowForHead reads the `(…)` head of a for/for-in/for-of loop,
-// extracting any `let` / `const` / `var` iteration binding and
-// registering a synthetic VAR decl on the enclosing block so
-// downstream scope building picks up the loop variable. Anything
-// else inside the parens is discarded.
-func (p *Parser) swallowForHead() {
+// finishDoWhile parses `do stmt while (cond);` into
+// DO_WHILE(body, cond).
+func (p *Parser) finishDoWhile() *rhino.Node {
+	n := rhino.New(rhino.DO_WHILE)
+	n.SetPos(p.scanner.Line(), p.scanner.Col())
+	body := p.parseControlBody()
+	p.scanner.SkipTrivia()
+	p.scanner.ConsumeKeyword("while")
+	cond := p.consumeParenExpression()
+	if cond == nil {
+		cond = rhino.New(rhino.TRUE)
+	}
+	n.AddChildToBack(body)
+	n.AddChildToBack(cond)
+	p.scanner.SkipTrivia()
+	p.scanner.ConsumeByte(';')
+	return n
+}
+
+// finishFor parses `for (init; cond; upd) stmt` / `for (X of Y) stmt`
+// / `for (X in Y) stmt`. Returns FOR / FOR_OF / FOR_IN with the
+// appropriate child layout.
+//
+// FOR children: (initOrEmpty, condOrEmpty, updOrEmpty, body)
+// FOR_IN / FOR_OF: (declOrLhs, iterableExpr, body)
+func (p *Parser) finishFor() *rhino.Node {
+	startLine, startCol := p.scanner.Line(), p.scanner.Col()
+	p.scanner.SkipTrivia()
 	if !p.scanner.ConsumeByte('(') {
-		return
+		n := rhino.New(rhino.FOR)
+		n.SetPos(startLine, startCol)
+		return n
 	}
 	p.scanner.SkipTrivia()
-	// Leading `let x` / `var x` / `const x` — emit a synthetic decl
-	// so the scope creator registers the loop variable.
+	// Parse the init piece — either a var/let/const binding or an
+	// expression or empty.
+	var init *rhino.Node
 	if declTok, ok := p.consumeDeclKeyword(); ok {
 		p.scanner.SkipTrivia()
 		nameLine, nameCol := p.scanner.Line(), p.scanner.Col()
-		if ident, ok := p.scanner.ConsumeIdent(); ok {
-			decl := rhino.New(declTok)
-			decl.SetPos(nameLine, nameCol)
+		ident, ok := p.scanner.ConsumeIdent()
+		if ok {
 			nameNode := rhino.NewString(rhino.NAME, ident)
 			nameNode.SetPos(nameLine, nameCol)
+			decl := rhino.New(declTok)
+			decl.SetPos(nameLine, nameCol)
 			decl.AddChildToBack(nameNode)
-			p.pendingStatements = append(p.pendingStatements, decl)
+			p.scanner.SkipTrivia()
+			// Optional `= expr` initializer.
+			if p.scanner.ConsumeByte('=') {
+				p.scanner.SkipTrivia()
+				if expr, ok := p.tryExpression(); ok {
+					nameNode.AddChildToBack(expr)
+				}
+			}
+			init = decl
 		}
+	} else if p.scanner.Peek() != ';' {
+		init, _ = p.tryExpression()
 	}
-	// Swallow the remainder of the header.
-	depth := 1
-	for depth > 0 && !p.scanner.AtEnd() {
-		c := p.scanner.Peek()
-		switch c {
-		case '(':
-			depth++
-		case ')':
-			depth--
+	p.scanner.SkipTrivia()
+	// Disambiguate for-in / for-of / classic for.
+	if init != nil && p.scanner.AtKeyword("in") {
+		p.scanner.ConsumeKeywordRaw("in")
+		return p.finishForInOf(rhino.FOR_IN, init, startLine, startCol)
+	}
+	if init != nil && p.scanner.AtKeyword("of") {
+		p.scanner.ConsumeKeywordRaw("of")
+		return p.finishForInOf(rhino.FOR_OF, init, startLine, startCol)
+	}
+	// Classic `for (init; cond; upd) body`.
+	p.scanner.ConsumeByte(';')
+	p.scanner.SkipTrivia()
+	var cond *rhino.Node
+	if p.scanner.Peek() != ';' {
+		cond, _ = p.tryExpression()
+	}
+	p.scanner.SkipTrivia()
+	p.scanner.ConsumeByte(';')
+	p.scanner.SkipTrivia()
+	var upd *rhino.Node
+	if p.scanner.Peek() != ')' {
+		upd, _ = p.tryExpression()
+	}
+	p.scanner.SkipTrivia()
+	p.scanner.ConsumeByte(')')
+	n := rhino.New(rhino.FOR)
+	n.SetPos(startLine, startCol)
+	if init == nil {
+		init = rhino.New(rhino.BLOCK)
+	}
+	if cond == nil {
+		cond = rhino.New(rhino.TRUE)
+	}
+	if upd == nil {
+		upd = rhino.New(rhino.BLOCK)
+	}
+	n.AddChildToBack(init)
+	n.AddChildToBack(cond)
+	n.AddChildToBack(upd)
+	n.AddChildToBack(p.parseControlBody())
+	return n
+}
+
+// finishForInOf parses the `of EXPR) body` or `in EXPR) body` tail
+// of a for-in/for-of loop after the keyword has been consumed.
+func (p *Parser) finishForInOf(tok rhino.Token, lhs *rhino.Node, line, col int) *rhino.Node {
+	p.scanner.SkipTrivia()
+	rhs, _ := p.tryExpression()
+	p.scanner.SkipTrivia()
+	p.scanner.ConsumeByte(')')
+	n := rhino.New(tok)
+	n.SetPos(line, col)
+	n.AddChildToBack(lhs)
+	if rhs == nil {
+		rhs = rhino.New(rhino.UNDEFINED)
+	}
+	n.AddChildToBack(rhs)
+	n.AddChildToBack(p.parseControlBody())
+	return n
+}
+
+// finishSwitch parses `switch (e) { case v1: stmts... case v2: stmts...
+// default: stmts... }` into
+//   SWITCH(discriminant, CASE(val, BLOCK), CASE(val, BLOCK), DEFAULT_CASE(BLOCK))
+func (p *Parser) finishSwitch() *rhino.Node {
+	n := rhino.New(rhino.SWITCH)
+	n.SetPos(p.scanner.Line(), p.scanner.Col())
+	disc := p.consumeParenExpression()
+	if disc == nil {
+		disc = rhino.New(rhino.UNDEFINED)
+	}
+	n.AddChildToBack(disc)
+	p.scanner.SkipTrivia()
+	if !p.scanner.ConsumeByte('{') {
+		return n
+	}
+	for {
+		p.scanner.SkipTrivia()
+		if p.scanner.AtEnd() || p.scanner.Peek() == '}' {
+			break
 		}
+		caseLine, caseCol := p.scanner.Line(), p.scanner.Col()
+		if p.scanner.ConsumeKeyword("case") {
+			p.scanner.SkipTrivia()
+			val, _ := p.tryExpression()
+			p.scanner.SkipTrivia()
+			p.scanner.ConsumeByte(':')
+			body := p.parseCaseBody()
+			c := rhino.New(rhino.CASE)
+			c.SetPos(caseLine, caseCol)
+			if val == nil {
+				val = rhino.New(rhino.UNDEFINED)
+			}
+			c.AddChildToBack(val)
+			c.AddChildToBack(body)
+			n.AddChildToBack(c)
+			continue
+		}
+		if p.scanner.ConsumeKeyword("default") {
+			p.scanner.SkipTrivia()
+			p.scanner.ConsumeByte(':')
+			body := p.parseCaseBody()
+			d := rhino.New(rhino.DEFAULT_CASE)
+			d.SetPos(caseLine, caseCol)
+			d.AddChildToBack(body)
+			n.AddChildToBack(d)
+			continue
+		}
+		// Unrecognised tokens inside the switch — advance one rune
+		// so we don't infinite-loop.
 		p.scanner.Advance()
+	}
+	p.scanner.ConsumeByte('}')
+	return n
+}
+
+// parseCaseBody reads statements up to the next `case` / `default` /
+// `}`. Returned as a BLOCK so the CFG builder can chain them.
+func (p *Parser) parseCaseBody() *rhino.Node {
+	body := rhino.New(rhino.BLOCK)
+	for {
+		p.scanner.SkipTrivia()
+		if p.scanner.AtEnd() || p.scanner.Peek() == '}' {
+			return body
+		}
+		if p.scanner.AtKeyword("case") || p.scanner.AtKeyword("default") {
+			return body
+		}
+		start := p.scanner.Pos()
+		stmt, ok := p.tryStatement()
+		if ok && stmt != nil {
+			body.AddChildToBack(stmt)
+			continue
+		}
+		if p.scanner.Pos() == start {
+			p.scanner.Advance()
+		}
 	}
 }
 
-// swallowParens discards a balanced `(…)` group starting at the
-// cursor, preserving line/col tracking. Used by consumeLoopHeader to
-// skip loop conditions that the narrow grammar can't model as proper
-// AST children.
-func (p *Parser) swallowParens() {
+// finishTry parses `try { … } catch (e) { … } [finally { … }]` into
+// TRY(body, CATCH(name, handler), FINALLY(block)). Catch clause is
+// optional (modern JS allows `try { } finally { }` without catch).
+func (p *Parser) finishTry() *rhino.Node {
+	n := rhino.New(rhino.TRY)
+	n.SetPos(p.scanner.Line(), p.scanner.Col())
+	body := p.parseControlBody()
+	n.AddChildToBack(body)
+	p.scanner.SkipTrivia()
+	if p.scanner.ConsumeKeyword("catch") {
+		p.scanner.SkipTrivia()
+		var param *rhino.Node
+		if p.scanner.ConsumeByte('(') {
+			p.scanner.SkipTrivia()
+			_, _ = p.scanner.ConsumeBlockComment()
+			p.scanner.SkipTrivia()
+			nl, nc := p.scanner.Line(), p.scanner.Col()
+			if ident, ok := p.scanner.ConsumeIdent(); ok {
+				param = rhino.NewString(rhino.NAME, ident)
+				param.SetPos(nl, nc)
+			}
+			p.scanner.SkipTrivia()
+			p.scanner.ConsumeByte(')')
+		}
+		handler := p.parseControlBody()
+		c := rhino.New(rhino.CATCH)
+		c.SetPos(p.scanner.Line(), p.scanner.Col())
+		if param == nil {
+			param = rhino.NewString(rhino.NAME, "")
+		}
+		c.AddChildToBack(param)
+		c.AddChildToBack(handler)
+		n.AddChildToBack(c)
+	}
+	p.scanner.SkipTrivia()
+	if p.scanner.ConsumeKeyword("finally") {
+		finallyBlock := p.parseControlBody()
+		f := rhino.New(rhino.FINALLY)
+		f.AddChildToBack(finallyBlock)
+		n.AddChildToBack(f)
+	}
+	return n
+}
+
+// finishThrow parses `throw expr;` → THROW(expr).
+func (p *Parser) finishThrow() *rhino.Node {
+	n := rhino.New(rhino.THROW)
+	n.SetPos(p.scanner.Line(), p.scanner.Col())
+	p.scanner.SkipTrivia()
+	expr, _ := p.tryExpression()
+	if expr == nil {
+		expr = rhino.New(rhino.UNDEFINED)
+	}
+	n.AddChildToBack(expr)
+	p.scanner.SkipTrivia()
+	p.scanner.ConsumeByte(';')
+	return n
+}
+
+// finishBreakContinue parses `break [label];` / `continue [label];`.
+// Emits BREAK / CONTINUE with an optional NAME child carrying the
+// label.
+func (p *Parser) finishBreakContinue(tok rhino.Token) *rhino.Node {
+	n := rhino.New(tok)
+	n.SetPos(p.scanner.Line(), p.scanner.Col())
+	p.scanner.SkipTrivia()
+	if !p.scanner.AtEnd() && p.scanner.Peek() != ';' && p.scanner.Peek() != '}' && p.scanner.Peek() != '\n' {
+		if ident, ok := p.scanner.ConsumeIdent(); ok {
+			label := rhino.NewString(rhino.NAME, ident)
+			n.AddChildToBack(label)
+		}
+	}
+	p.scanner.SkipTrivia()
+	p.scanner.ConsumeByte(';')
+	return n
+}
+
+// consumeParenExpression reads `( expr )` at the cursor, returning
+// the inner expression (or nil if malformed). Used by while / do /
+// switch header parsers.
+func (p *Parser) consumeParenExpression() *rhino.Node {
 	p.scanner.SkipTrivia()
 	if !p.scanner.ConsumeByte('(') {
-		return
+		return nil
 	}
-	depth := 1
-	for depth > 0 && !p.scanner.AtEnd() {
-		c := p.scanner.Peek()
-		switch c {
-		case '(':
-			depth++
-		case ')':
-			depth--
-		}
-		p.scanner.Advance()
-	}
-}
-
-// finishLoopBody reads the body of a loop / switch / try and returns
-// a BLOCK-wrapped statement so expression checks run on it. Returns
-// (nil, false) when the body is unrecognisable so parseStatements
-// can recover.
-func (p *Parser) finishLoopBody() (*rhino.Node, bool) {
 	p.scanner.SkipTrivia()
-	if p.scanner.AtEnd() {
-		return nil, false
-	}
-	if p.scanner.Peek() == '{' {
-		p.scanner.Advance()
-		body := rhino.New(rhino.BLOCK)
-		body.SetPos(p.scanner.Line(), p.scanner.Col())
-		// Prepend any synthetic loop-var decls so they live inside the
-		// loop body's scope. swallowForHead writes to p.pendingStatements
-		// so `for (let x of it)` produces a `let x;` at the start of
-		// the body block and VarCheck / TypeInference can see x.
-		for _, s := range p.pendingStatements {
-			body.AddChildToBack(s)
-		}
-		p.pendingStatements = nil
-		p.parseStatements(body, '}')
-		p.scanner.ConsumeByte('}')
-		// Loops like `do { … } while(cond);` — swallow a trailing
-		// while/catch/finally header so the outer parseStatements
-		// doesn't stall.
-		p.scanner.SkipTrivia()
-		if p.scanner.ConsumeKeyword("while") {
-			p.swallowParens()
-			p.scanner.SkipTrivia()
-			p.scanner.ConsumeByte(';')
-		}
-		for p.scanner.ConsumeKeyword("catch") || p.scanner.ConsumeKeyword("finally") {
-			p.scanner.SkipTrivia()
-			// `catch (e) { … }` — emit a synthetic `let e;` so the
-			// catch parameter is reachable during scope creation /
-			// VarCheck. Plain `catch {}` (no binding) is also valid;
-			// in that case we still consume the parens.
-			if p.scanner.Peek() == '(' {
-				p.scanner.Advance() // '('
-				p.scanner.SkipTrivia()
-				_, _ = p.scanner.ConsumeBlockComment() // inline JSDoc on the param
-				p.scanner.SkipTrivia()
-				cl, cc := p.scanner.Line(), p.scanner.Col()
-				if ident, ok := p.scanner.ConsumeIdent(); ok {
-					decl := rhino.New(rhino.LET)
-					decl.SetPos(cl, cc)
-					nameNode := rhino.NewString(rhino.NAME, ident)
-					nameNode.SetPos(cl, cc)
-					decl.AddChildToBack(nameNode)
-					p.pendingStatements = append(p.pendingStatements, decl)
-				}
-				// Skip the rest of the parens.
-				depth := 1
-				for depth > 0 && !p.scanner.AtEnd() {
-					switch p.scanner.Peek() {
-					case '(':
-						depth++
-					case ')':
-						depth--
-					}
-					p.scanner.Advance()
-				}
+	expr, ok := p.tryExpression()
+	if !ok {
+		// Recover: skip to the matching close.
+		depth := 1
+		for depth > 0 && !p.scanner.AtEnd() {
+			c := p.scanner.Peek()
+			switch c {
+			case '(':
+				depth++
+			case ')':
+				depth--
 			}
-			p.scanner.SkipTrivia()
-			if p.scanner.ConsumeByte('{') {
-				sub := rhino.New(rhino.BLOCK)
-				// Surface any synthetic catch-param decl as the first
-				// statement of the catch body.
-				for _, s := range p.pendingStatements {
-					sub.AddChildToBack(s)
-				}
-				p.pendingStatements = nil
-				p.parseStatements(sub, '}')
-				p.scanner.ConsumeByte('}')
-				for _, ch := range sub.Children() {
-					body.AddChildToBack(ch)
-				}
-			}
+			p.scanner.Advance()
 		}
-		return body, true
+		return nil
 	}
-	// Single-statement body.
-	if stmt, ok := p.tryStatement(); ok && stmt != nil {
-		return stmt, true
-	}
-	return nil, false
+	p.scanner.SkipTrivia()
+	p.scanner.ConsumeByte(')')
+	return expr
 }
 
 func (p *Parser) finishReturn() *rhino.Node {
