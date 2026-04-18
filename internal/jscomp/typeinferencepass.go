@@ -74,6 +74,17 @@ func (p *TypeInferencePass) transferDecl(decl *rhino.Node, in *FlowScope) map[Br
 	if t == nil {
 		return map[Branch]*FlowScope{BranchUnconditional: in}
 	}
+	// Don't overwrite a constructor/interface binding created by the
+	// scope-creator's `/** @constructor */ var Foo = function(){}`
+	// branch — the init (a bare FUNCTION) infers to a plain
+	// FunctionType that would otherwise shadow the richer
+	// ConstructorType. Java's TypeInference keeps the declared slot
+	// when the declaration is a named constructor / interface.
+	if declared := p.scope.GetRawDeclaredType(name.String_()); declared != nil {
+		if fn, ok := declared.(*jstype.FunctionType); ok && fn.IsConstructor {
+			return map[Branch]*FlowScope{BranchUnconditional: in}
+		}
+	}
 	return map[Branch]*FlowScope{BranchUnconditional: in.Bind(name.String_(), t)}
 }
 

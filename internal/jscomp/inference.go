@@ -60,6 +60,8 @@ func (t *TypeInference) InferType(n *rhino.Node) jstype.JSType {
 		return jstype.Unknown
 	case rhino.GETPROP:
 		return t.inferGetProp(n)
+	case rhino.GETELEM:
+		return t.inferGetElem(n)
 	case rhino.NEW:
 		if callee := n.FirstChild(); callee != nil && callee.Token() == rhino.NAME {
 			if fn, ok := t.scope.GetDeclaredType(callee.String_()).(*jstype.FunctionType); ok && fn.Instance != nil {
@@ -71,19 +73,26 @@ func (t *TypeInference) InferType(n *rhino.Node) jstype.JSType {
 		return t.inferCall(n)
 
 	// ---- assignment --------------------------------------------- //
-	case rhino.ASSIGN,
-		rhino.ASSIGN_ADD, rhino.ASSIGN_SUB, rhino.ASSIGN_MUL, rhino.ASSIGN_DIV, rhino.ASSIGN_MOD,
-		rhino.ASSIGN_BITAND, rhino.ASSIGN_BITOR, rhino.ASSIGN_BITXOR,
-		rhino.ASSIGN_LSH, rhino.ASSIGN_RSH, rhino.ASSIGN_URSH:
-		// Assignment expressions evaluate to the RHS (for bare `=`) or
-		// to the arithmetic result (for compound). Conservative Tier-0:
-		// use the RHS type directly — compound assigns pick up the
-		// sharper result in the binary-op case below once desugared.
+	case rhino.ASSIGN:
+		// Bare `=` — the expression value is the RHS type. Matches
+		// TypeInference.java's ASSIGN branch.
 		kids := n.Children()
 		if len(kids) >= 2 {
 			return t.InferType(kids[1])
 		}
 		return jstype.Unknown
+	case rhino.ASSIGN_ADD:
+		// `x += y` has the same result type as `x + y`; delegate to
+		// inferAdd so string-coercion is tracked. Mirrors how Java's
+		// TypeInference sharpens compound-assign result types via the
+		// underlying binary-op helper (getOpResultType in ADD path).
+		return t.inferAddChildren(n)
+	case rhino.ASSIGN_SUB, rhino.ASSIGN_MUL, rhino.ASSIGN_DIV, rhino.ASSIGN_MOD,
+		rhino.ASSIGN_BITAND, rhino.ASSIGN_BITOR, rhino.ASSIGN_BITXOR,
+		rhino.ASSIGN_LSH, rhino.ASSIGN_RSH, rhino.ASSIGN_URSH:
+		// Arithmetic / bitwise compound assigns always produce Number.
+		// Port of the corresponding TypeInference.java branches.
+		return jstype.Number
 
 	// ---- binary arithmetic / comparison / logical ----------------- //
 	case rhino.ADD:
@@ -323,6 +332,14 @@ func unifyTemplates(subs *jstype.TemplateTypeMap, param, arg jstype.JSType) {
 //   mixed string/num  → (number|string)
 //   anything else     → Unknown
 func (t *TypeInference) inferAdd(n *rhino.Node) jstype.JSType {
+	return t.inferAddChildren(n)
+}
+
+// inferAddChildren shares the result-type computation between ADD
+// (`+`) and ASSIGN_ADD (`+=`). Both operators carry two child
+// sub-expressions; compound-assign behaves identically to the binary
+// form for the purpose of the synthesised result type.
+func (t *TypeInference) inferAddChildren(n *rhino.Node) jstype.JSType {
 	kids := n.Children()
 	if len(kids) < 2 {
 		return jstype.Unknown
@@ -793,6 +810,34 @@ func keepNullUndef(t jstype.JSType) jstype.JSType {
 		return t
 	}
 	return jstype.Void
+}
+
+// inferGetElem mirrors TypeInference.java's GETELEM branch. `x[i]`
+// produces:
+//   - the template-arg element type when the receiver is
+//     `Array<T>` / `Object<K,V>` / any templatized type with one arg,
+//   - Unknown when the receiver is a plain Array instance (no element
+//     tracking), an untyped object, or anything else.
+//
+// We do NOT diagnose type mismatches here — the checker raises those
+// in TypeCheck.visitGetElem.
+func (t *TypeInference) inferGetElem(n *rhino.Node) jstype.JSType {
+	kids := n.Children()
+	if len(kids) < 2 {
+		return jstype.Unknown
+	}
+	recvType := t.InferType(kids[0])
+	recvType = stripNullUndef(recvType)
+	if tt, ok := recvType.(*jstype.TemplatizedType); ok {
+		switch len(tt.Args) {
+		case 1:
+			return tt.Args[0]
+		case 2:
+			// Object<K,V> / Map<K,V>: index access yields the value type.
+			return tt.Args[1]
+		}
+	}
+	return jstype.Unknown
 }
 
 // unionFold returns the union of non-nil members; if either side is

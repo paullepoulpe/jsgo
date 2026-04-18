@@ -188,9 +188,15 @@ func (p *Parser) tryExpressionStatement() (*rhino.Node, bool) {
 		return nil, false
 	}
 	p.scanner.SkipTrivia()
+	// Normal form: `expr;`. Java's Parser also handles ASI — a newline
+	// or EOF / `}` closes the statement without a literal semicolon.
+	// We accept the same lax terminators so single-line fixtures like
+	// `'foo' in Object` surface as statements.
 	if !p.scanner.ConsumeByte(';') {
-		rewind()
-		return nil, false
+		if !p.scanner.AtEnd() && p.scanner.Peek() != '}' {
+			rewind()
+			return nil, false
+		}
 	}
 	stmt := rhino.New(rhino.EXPR_RESULT)
 	stmt.SetPos(exprLine, exprCol)
@@ -389,7 +395,12 @@ func (p *Parser) parseClassMember(body *rhino.Node) {
 	// `static` toggles the JSDoc's isStatic flag so the scope creator
 	// lands the member on the class's static slot rather than the
 	// instance prototype. Synthesises a JSDocInfo when none was
-	// present on the source.
+	// present on the source. The member's start position is captured
+	// BEFORE consuming `static` so downstream diagnostics point at the
+	// whole member declaration (Java's Node.getLineno() for a
+	// CLASS_FIELD_DEF is the keyword / name column, inclusive of
+	// `static`).
+	memberLine, memberCol := p.scanner.Line(), p.scanner.Col()
 	isStatic := false
 	if p.scanner.ConsumeKeyword("static") {
 		isStatic = true
@@ -401,7 +412,7 @@ func (p *Parser) parseClassMember(body *rhino.Node) {
 		}
 		jsdoc.SetStatic(true)
 	}
-	memberLine, memberCol := p.scanner.Line(), p.scanner.Col()
+	nameLine, nameCol := p.scanner.Line(), p.scanner.Col()
 	name, ok := p.scanner.ConsumeIdent()
 	if !ok {
 		p.scanner.SkipToStatementBoundary()
@@ -418,7 +429,7 @@ func (p *Parser) parseClassMember(body *rhino.Node) {
 		}
 		fn.SetPos(memberLine, memberCol)
 		nameNode := rhino.NewString(rhino.NAME, name)
-		nameNode.SetPos(memberLine, memberCol)
+		nameNode.SetPos(nameLine, nameCol)
 		fn.AddChildToBack(nameNode)
 		params := rhino.New(rhino.PARAM_LIST)
 		for {
@@ -462,7 +473,7 @@ func (p *Parser) parseClassMember(body *rhino.Node) {
 		}
 		field.SetPos(memberLine, memberCol)
 		nameNode := rhino.NewString(rhino.NAME, name)
-		nameNode.SetPos(memberLine, memberCol)
+		nameNode.SetPos(nameLine, nameCol)
 		field.AddChildToBack(nameNode)
 		if p.scanner.ConsumeByte('=') {
 			p.scanner.SkipTrivia()
@@ -1300,8 +1311,10 @@ func (p *Parser) tryPostfix() (*rhino.Node, bool) {
 		}
 		expr = prim
 	}
-	// Postfix chain: property access and call. Array-index access
-	// (`x[i]`) is deferred to a later port.
+	// Postfix chain: property access (`.ident`), computed index access
+	// (`[expr]`) and call (`(args)`). Mirrors how Parser.java's
+	// parseMemberExpression flattens postfix operators into a left-leaning
+	// chain.
 	for {
 		p.scanner.SkipTrivia()
 		if p.scanner.AtEnd() {
@@ -1323,6 +1336,28 @@ func (p *Parser) tryPostfix() (*rhino.Node, bool) {
 			propNode.SetPos(propLine, propCol)
 			gp.AddChildToBack(propNode)
 			expr = gp
+			continue
+		}
+		if c == '[' {
+			// `x[y]` → GETELEM(x, y). Matches Parser.java's
+			// parseMemberExpression case for `[`.
+			p.scanner.Advance()
+			p.scanner.SkipTrivia()
+			idxLine, idxCol := p.scanner.Line(), p.scanner.Col()
+			idx, ok := p.tryExpression()
+			if !ok {
+				return nil, false
+			}
+			idx.SetPos(idxLine, idxCol)
+			p.scanner.SkipTrivia()
+			if !p.scanner.ConsumeByte(']') {
+				return nil, false
+			}
+			ge := rhino.New(rhino.GETELEM)
+			ge.SetPos(expr.Lineno(), expr.Charno())
+			ge.AddChildToBack(expr)
+			ge.AddChildToBack(idx)
+			expr = ge
 			continue
 		}
 		if c == '(' {
@@ -1839,29 +1874,55 @@ func (p *Parser) consumeRunes(n int) {
 	}
 }
 
-// extendWithProperty consumes any trailing `.IDENT` chain after the
-// given base, building GETPROP(base, STRINGLIT) nodes as in Closure.
-// Used by the `this` and NAME paths so member access is uniform.
+// extendWithProperty consumes any trailing `.IDENT` or `[expr]` chain
+// after the given base, building GETPROP / GETELEM nodes as in Closure.
+// Used by the `this` and NAME paths so member access is uniform with
+// the postfix chain in tryPostfix.
 func (p *Parser) extendWithProperty(base *rhino.Node) *rhino.Node {
 	for {
 		p.scanner.SkipTrivia()
-		if p.scanner.AtEnd() || p.scanner.Peek() != '.' {
+		if p.scanner.AtEnd() {
 			return base
 		}
-		p.scanner.Advance() // '.'
-		p.scanner.SkipTrivia()
-		propLine, propCol := p.scanner.Line(), p.scanner.Col()
-		ident, ok := p.scanner.ConsumeIdent()
-		if !ok {
-			return base
+		c := p.scanner.Peek()
+		if c == '.' {
+			p.scanner.Advance()
+			p.scanner.SkipTrivia()
+			propLine, propCol := p.scanner.Line(), p.scanner.Col()
+			ident, ok := p.scanner.ConsumeIdent()
+			if !ok {
+				return base
+			}
+			gp := rhino.New(rhino.GETPROP)
+			gp.SetPos(base.Lineno(), base.Charno())
+			gp.AddChildToBack(base)
+			propNode := rhino.NewString(rhino.STRINGLIT, ident)
+			propNode.SetPos(propLine, propCol)
+			gp.AddChildToBack(propNode)
+			base = gp
+			continue
 		}
-		gp := rhino.New(rhino.GETPROP)
-		gp.SetPos(base.Lineno(), base.Charno())
-		gp.AddChildToBack(base)
-		propNode := rhino.NewString(rhino.STRINGLIT, ident)
-		propNode.SetPos(propLine, propCol)
-		gp.AddChildToBack(propNode)
-		base = gp
+		if c == '[' {
+			p.scanner.Advance()
+			p.scanner.SkipTrivia()
+			idxLine, idxCol := p.scanner.Line(), p.scanner.Col()
+			idx, ok := p.tryExpression()
+			if !ok {
+				return base
+			}
+			idx.SetPos(idxLine, idxCol)
+			p.scanner.SkipTrivia()
+			if !p.scanner.ConsumeByte(']') {
+				return base
+			}
+			ge := rhino.New(rhino.GETELEM)
+			ge.SetPos(base.Lineno(), base.Charno())
+			ge.AddChildToBack(base)
+			ge.AddChildToBack(idx)
+			base = ge
+			continue
+		}
+		return base
 	}
 }
 

@@ -42,6 +42,14 @@ type ObjectType struct {
 	// of type S is assignable to a structural T iff S has every
 	// property T declares with a compatible type — no nominal check.
 	IsStructural bool
+
+	// IsStruct / IsDict mirror ObjectType.isStruct() / isDict() in Java —
+	// flags set from `@struct` / `@dict` on the constructor JSDoc.
+	// A @struct instance forbids `x['k']` computed access; a @dict
+	// instance forbids `x.k` dotted access. Both flags surface via
+	// JSC_ILLEGAL_PROPERTY_ACCESS at the TypeCheck visitor.
+	IsStruct bool
+	IsDict   bool
 }
 
 func NewObjectType(name string) *ObjectType {
@@ -108,6 +116,14 @@ func (o *ObjectType) IsSubtypeOf(other JSType) bool {
 				return false
 			}
 		}
+		return true
+	}
+	// Every ObjectType is a subtype of the global `Object` constructor's
+	// instance type — Java's ObjectType treats Object as the root of the
+	// nominal hierarchy. Without explicit super-wiring for every anon
+	// literal, compare by name: the externs-registered `Object` instance
+	// has Name == "Object".
+	if target.Name == "Object" {
 		return true
 	}
 	// Nominal: same type identity, or target is an ancestor.

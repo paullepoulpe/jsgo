@@ -878,6 +878,14 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 	if info := cls.JSDocInfo(); info != nil && (info.IsRecord() || info.IsInterface()) {
 		inst.IsStructural = true
 	}
+	if info := cls.JSDocInfo(); info != nil {
+		if info.IsStruct() {
+			inst.IsStruct = true
+		}
+		if info.IsDict() {
+			inst.IsDict = true
+		}
+	}
 
 	// Locate the `constructor` method; otherwise the class has an
 	// implicit zero-arg constructor.
@@ -903,10 +911,18 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 	}
 	preStub.Params = ctorParams
 
-	// Wire @extends if present.
+	// Wire @extends if present. Struct/dict flags propagate down the
+	// inheritance chain — Java's FunctionType carries them as sticky
+	// traits on the whole ancestry.
 	if superNode.String_() != "" {
 		if super := scope.LookupNominalType(superNode.String_()); super != nil {
 			inst.SetSuper(super)
+			if super.IsStruct {
+				inst.IsStruct = true
+			}
+			if super.IsDict {
+				inst.IsDict = true
+			}
 		}
 	}
 
@@ -1093,6 +1109,40 @@ func (c *TypedScopeCreator) recordDecl(v *rhino.Node, scope *TypedScope) {
 		scope.declared[name.String_()] = jstype.Unknown
 		return
 	}
+	// `/** @constructor */ var Foo = function() {}` — Closure-library
+	// form of a constructor declaration. Builds a ConstructorType so
+	// `new Foo()` and `@type {Foo}` both resolve to the same instance.
+	// Mirrors TypedScopeCreator's function-expression-as-constructor
+	// path in AbstractScopeBuilder.
+	if (info.IsConstructor() || info.IsInterface() || info.IsRecord()) && name.String_() != "" {
+		init := name.FirstChild()
+		if init != nil && init.Token() == rhino.FUNCTION {
+			fnType := c.buildDeclaredFunctionConstructor(init, info, name.String_(), scope)
+			if info.IsInterface() || info.IsRecord() {
+				fnType.Instance.IsStructural = true
+			}
+			if info.IsStruct() {
+				fnType.Instance.IsStruct = true
+			}
+			if info.IsDict() {
+				fnType.Instance.IsDict = true
+			}
+			if base := info.BaseType(); base != nil {
+				if super := scope.LookupNominalType(base.TypeName); super != nil {
+					fnType.Instance.SetSuper(super)
+					if super.IsStruct {
+						fnType.Instance.IsStruct = true
+					}
+					if super.IsDict {
+						fnType.Instance.IsDict = true
+					}
+				}
+			}
+			scope.declared[name.String_()] = fnType
+			c.collectThisProperties(init.Children()[2], fnType.Instance)
+			return
+		}
+	}
 	// `@type {T}` pins the binding's declared type precisely. Java's
 	// VarCheck treats variables whose initializer references an
 	// undeclared NAME as Unknown — the @type annotation is silently
@@ -1125,6 +1175,28 @@ func (c *TypedScopeCreator) recordDecl(v *rhino.Node, scope *TypedScope) {
 	if _, exists := scope.declared[name.String_()]; !exists {
 		scope.declared[name.String_()] = jstype.Unknown
 	}
+}
+
+// buildDeclaredFunctionConstructor turns a `var Foo = function(a,b){…}`
+// node into a FunctionType whose params are resolved from the
+// @param JSDoc on the surrounding VAR declaration and which carries
+// a fresh InstanceType named after the variable. Mirrors how Java's
+// TypedScopeCreator promotes a plain `function(){}` on the RHS of
+// a constructor-annotated `var`.
+func (c *TypedScopeCreator) buildDeclaredFunctionConstructor(fn *rhino.Node, info *rhino.JSDocInfo, name string, scope *TypedScope) *jstype.FunctionType {
+	kids := fn.Children()
+	var paramTypes []jstype.JSType
+	if len(kids) >= 2 {
+		params := kids[1]
+		for _, p := range params.Children() {
+			var t jstype.JSType = jstype.Unknown
+			if expr := info.ParameterType(p.String_()); expr != nil {
+				t = scope.ResolveExpr(expr.TypeName)
+			}
+			paramTypes = append(paramTypes, t)
+		}
+	}
+	return jstype.NewConstructorType(name, paramTypes)
 }
 
 func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
@@ -1180,15 +1252,30 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 		}
 		// Wire @extends: look up the base ctor's Instance and set as
 		// super on this ctor's Instance, mirroring
-		// FunctionType.setExtendedClass in Java.
+		// FunctionType.setExtendedClass in Java. @struct / @dict flags
+		// inherit down the super chain.
 		if base := info.BaseType(); base != nil {
 			if super := scope.LookupNominalType(base.TypeName); super != nil {
 				fnType.Instance.SetSuper(super)
+				if super.IsStruct {
+					fnType.Instance.IsStruct = true
+				}
+				if super.IsDict {
+					fnType.Instance.IsDict = true
+				}
 			}
 		}
 		// Mark structural when annotated @record / @interface.
 		if info.IsInterface() || info.IsRecord() {
 			fnType.Instance.IsStructural = true
+		}
+		// Propagate @struct / @dict onto the instance so TypeCheck can
+		// gate JSC_ILLEGAL_PROPERTY_ACCESS at GETPROP / GETELEM sites.
+		if info.IsStruct() {
+			fnType.Instance.IsStruct = true
+		}
+		if info.IsDict() {
+			fnType.Instance.IsDict = true
 		}
 	} else {
 		fnType = jstype.NewFunctionType(paramTypes, retType)

@@ -309,14 +309,23 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 	case rhino.CALL:
 		c.emit(c.visitCall(n, scope))
 	case rhino.NEW:
-		c.emit(c.visitCall(n, scope)) // share arg-list machinery
+		c.emit(c.visitNew(n, scope))
 	case rhino.GETPROP:
 		c.emit(c.visitGetProp(n, scope))
+	case rhino.GETELEM:
+		c.emit(c.visitGetElem(n, scope))
 	case rhino.CLASS_FIELD_DEF:
 		c.emit(c.visitClassField(n, parent, scope))
 	case rhino.RETURN:
 		c.emit(c.visitReturn(n, scope))
 	}
+	// NOTE: ADD / SUB / MUL / DIV / MOD / BITWISE / comparison operand
+	// checks live in Java's TypeValidator under "strict" diagnostic
+	// groups (STRICT_CHECK_TYPES, etc.) — they're *off* in the
+	// default --checks_only pass that builds our oracle, so porting
+	// them unconditionally here produces false positives across the
+	// extracted corpus. They'll arrive with the strict-mode slice when
+	// we also wire the DiagnosticGroup registry.
 }
 
 // pushEnclosingFlow looks up the CFG / FlowScope active for `n`'s
@@ -468,6 +477,60 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 	return nil
 }
 
+// visitNew — port of TypeCheck.java's visitNew. Reports
+// JSC_NOT_A_CONSTRUCTOR when the callee's type isn't a constructor
+// function; otherwise delegates to visitCall for the same per-arg
+// check.
+func (c *TypeCheck) visitNew(node *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	kids := node.Children()
+	if len(kids) < 1 {
+		return nil
+	}
+	callee := kids[0]
+	infer := NewTypeInference(scope)
+	t := infer.InferType(callee)
+	// Only fire on a definitely non-constructor callee. Unknown /
+	// union-with-constructor / All stay quiet to avoid
+	// false-positives on incomplete JSDoc.
+	if notCtor, found := isDefinitelyNonConstructor(t); notCtor {
+		return []diag.Diagnostic{{
+			Path: c.path, Line: node.Lineno(), Col: node.Charno(),
+			Code: diag.JSC_NOT_A_CONSTRUCTOR, Level: diag.Error,
+			Message: "cannot instantiate non-constructor, found type: " + found.TypeName(),
+		}}
+	}
+	return c.visitCall(node, scope)
+}
+
+// isDefinitelyNonConstructor reports whether `t` is guaranteed not
+// to be a constructor. Returns the offending type so the diagnostic
+// can show what was found. A FunctionType without IsConstructor
+// counts (plain functions); non-function primitives count; Unknown
+// / All / unions stay quiet.
+func isDefinitelyNonConstructor(t jstype.JSType) (bool, jstype.JSType) {
+	if t == nil {
+		return false, nil
+	}
+	if isUnknownOrNil(t) {
+		return false, nil
+	}
+	if _, ok := t.(*jstype.UnionType); ok {
+		return false, nil
+	}
+	if fn, ok := t.(*jstype.FunctionType); ok {
+		if fn.IsConstructor {
+			return false, nil
+		}
+		return true, fn
+	}
+	// Primitives are obviously not constructors.
+	switch t {
+	case jstype.Number, jstype.String, jstype.Boolean, jstype.Null, jstype.Void:
+		return true, t
+	}
+	return false, nil
+}
+
 // visitCall handles both CALL and NEW nodes. Reports per-argument
 // JSC_TYPE_MISMATCH at the argument's position, matching
 // TypeCheck.java's visitCall / visitNew.
@@ -510,9 +573,14 @@ func (c *TypeCheck) visitCall(node *rhino.Node, scope *TypedScope) []diag.Diagno
 	return out
 }
 
-// visitGetProp — port of TypeCheck.java's visitGetProp. Fires
-// JSC_INEXISTENT_PROPERTY only on NAMED structural receivers;
-// anonymous inline records are widened through unions in Java and
+// visitGetProp — port of TypeCheck.java's visitGetProp. Fires:
+//
+//  1. JSC_ILLEGAL_PROPERTY_ACCESS when the receiver is a `@dict`
+//     (dot-access on a dict is forbidden),
+//  2. JSC_INEXISTENT_PROPERTY on NAMED structural receivers whose
+//     member map doesn't declare propName.
+//
+// Anonymous inline records are widened through unions in Java and
 // firing on them false-positives.
 func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := n.Children()
@@ -526,14 +594,18 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 	// Closure's legacy-mode default makes `Foo` nullable — so a
 	// receiver of type `Foo|null` should still be property-checked
 	// against Foo. Strip the null/void members of a union so the
-	// INEXISTENT_PROPERTY check still fires.
+	// INEXISTENT_PROPERTY / ILLEGAL_PROPERTY_ACCESS checks still fire.
 	recvType = stripNullUndef(recvType)
-	if tt, ok := recvType.(*jstype.TemplatizedType); ok {
-		recvType = tt.Base
-	}
-	obj, ok := recvType.(*jstype.ObjectType)
-	if !ok {
+	obj := dereferencedObject(recvType)
+	if obj == nil {
 		return nil
+	}
+	if obj.IsDict {
+		return []diag.Diagnostic{{
+			Path: c.path, Line: propNode.Lineno(), Col: propNode.Charno(),
+			Code: diag.JSC_ILLEGAL_PROPERTY_ACCESS, Level: diag.Error,
+			Message: "Cannot do '.' access on a dict",
+		}}
 	}
 	if !obj.IsStructural {
 		return nil
@@ -612,8 +684,11 @@ func (c *TypeCheck) visitClassField(field *rhino.Node, parent *rhino.Node, scope
 	}
 	msg := fmt.Sprintf("assignment to property %s of %s\nfound   : %s\nrequired: %s",
 		name.String_(), className, found.TypeName(), declared.TypeName())
+	// Java reports at the CLASS_FIELD_DEF node's position — the
+	// `static`/name column, not the bare IDENT — so we use field's
+	// pos rather than name's.
 	return []diag.Diagnostic{{
-		Path: c.path, Line: name.Lineno(), Col: name.Charno(),
+		Path: c.path, Line: field.Lineno(), Col: field.Charno(),
 		Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error, Message: msg,
 	}}
 }
@@ -647,4 +722,133 @@ func findEnclosingFunction(n *rhino.Node) *rhino.Node {
 		}
 	}
 	return nil
+}
+
+// ---- GETELEM + struct/dict access checks ------------------------ //
+
+// visitGetElem — port of TypeCheck.java's visitGetElem (the
+// diagnostics half). Emits:
+//
+//  1. JSC_ILLEGAL_PROPERTY_ACCESS on a `@struct` receiver,
+//  2. JSC_TYPE_MISMATCH "restricted index type" when the receiver is
+//     an Array (or Array<T>) and the index is not number-compatible.
+//
+// The "only arrays or objects can be accessed" diagnostic from Java
+// lives under STRICT_CHECK_TYPES and is off by default — skipped
+// here to match the oracle.
+func (c *TypeCheck) visitGetElem(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	kids := n.Children()
+	if len(kids) < 2 {
+		return nil
+	}
+	recv := kids[0]
+	idx := kids[1]
+	infer := NewTypeInference(scope)
+	rawRecv := infer.InferType(recv)
+	// `null[…]` / `undefined[…]` are runtime TypeErrors — Java fires
+	// "only arrays or objects can be accessed" at the whole GETELEM
+	// position (not at the index). Mirrors the expectNotNullOrUndefined
+	// branch of TypeCheck.visitGetElem.
+	if rawRecv == jstype.Null || rawRecv == jstype.Void {
+		return []diag.Diagnostic{{
+			Path: c.path, Line: n.Lineno(), Col: n.Charno(),
+			Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
+			Message: "only arrays or objects can be accessed\nfound   : " +
+				rawRecv.TypeName() + "\nrequired: Object",
+		}}
+	}
+	recvType := stripNullUndef(rawRecv)
+	if isStructReceiver(recvType) {
+		return []diag.Diagnostic{{
+			Path: c.path, Line: idx.Lineno(), Col: idx.Charno(),
+			Code: diag.JSC_ILLEGAL_PROPERTY_ACCESS, Level: diag.Error,
+			Message: "Cannot do '[]' access on a struct",
+		}}
+	}
+	if isArrayReceiver(recvType) {
+		idxType := infer.InferType(idx)
+		if !isNumberIndexOk(idxType) {
+			return []diag.Diagnostic{{
+				Path: c.path, Line: idx.Lineno(), Col: idx.Charno(),
+				Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
+				Message: "restricted index type\nfound   : " + idxType.TypeName() +
+					"\nrequired: number",
+			}}
+		}
+	}
+	return nil
+}
+
+// isArrayReceiver reports whether `t` dereferences to the builtin
+// `Array` instance (or Array<T>). Mirrors the Array-test branch in
+// TypeValidator.expectIndexMatch.
+func isArrayReceiver(t jstype.JSType) bool {
+	obj := dereferencedObject(t)
+	return obj != nil && obj.Name == "Array"
+}
+
+// isNumberIndexOk reports whether `t` is acceptable as an Array
+// index. Java accepts number / unknown / union-with-number; any
+// definite non-number fires.
+func isNumberIndexOk(t jstype.JSType) bool {
+	if t == nil {
+		return true
+	}
+	if isUnknownOrNil(t) {
+		return true
+	}
+	if u, ok := t.(*jstype.UnionType); ok {
+		for _, m := range u.Members() {
+			if !isNumberIndexOk(m) {
+				return false
+			}
+		}
+		return true
+	}
+	return t == jstype.Number
+}
+
+// dereferencedObject returns the ObjectType behind a templatized
+// receiver type. Returns nil for primitives / Unknown / unions /
+// anonymous types. Used by the property-access diagnostics to
+// reach the underlying nominal slot (IsStruct / IsDict /
+// IsStructural). Mirrors JSType.toObjectType in Java.
+func dereferencedObject(t jstype.JSType) *jstype.ObjectType {
+	if t == nil {
+		return nil
+	}
+	if tt, ok := t.(*jstype.TemplatizedType); ok {
+		t = tt.Base
+	}
+	if obj, ok := t.(*jstype.ObjectType); ok {
+		return obj
+	}
+	return nil
+}
+
+// isStructReceiver reports whether `t` is @struct — either a bare
+// ObjectType with IsStruct set, or a union whose every member
+// satisfies the same predicate. Java's JSType.allMatchesStruct
+// computes this the same way for the `x['prop']` access check:
+// firing on a union of structs is desired, firing on a union with
+// a non-struct member isn't.
+func isStructReceiver(t jstype.JSType) bool {
+	if t == nil {
+		return false
+	}
+	if obj := dereferencedObject(t); obj != nil {
+		return obj.IsStruct
+	}
+	if u, ok := t.(*jstype.UnionType); ok {
+		if len(u.Members()) == 0 {
+			return false
+		}
+		for _, m := range u.Members() {
+			if !isStructReceiver(m) {
+				return false
+			}
+		}
+		return true
+	}
+	return false
 }

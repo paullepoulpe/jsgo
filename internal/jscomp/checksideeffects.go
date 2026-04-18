@@ -55,39 +55,37 @@ func (c *CheckSideEffects) walk(n *rhino.Node) {
 }
 
 // reportUseless fires JSC_USELESS_CODE at `expr`'s position when the
-// expression is pure. When the expression is a short-circuit
-// operator with an impure LHS but pure RHS, Java emits TWO
-// diagnostics: the outer expression-statement and the pure RHS
-// sub-expression. We mirror that by recursing.
+// expression is pure. Mirrors the double-dispatch in Java's
+// CheckSideEffects — when the outer form is a short-circuit
+// operator or HOOK, the pure sub-expressions are ALSO reported
+// individually, in addition to the whole-statement diagnostic when
+// the outer form is fully pure.
 func (c *CheckSideEffects) reportUseless(stmt, expr *rhino.Node, top bool) {
-	if hasSideEffects(expr) {
-		// Even when the whole thing has side effects, a short-
-		// circuit operator's pure RHS is still a useless sub-
-		// expression that Java reports separately.
-		switch expr.Token() {
-		case rhino.AND, rhino.OR, rhino.COALESCE:
-			kids := expr.Children()
-			if len(kids) == 2 && !hasSideEffects(kids[1]) {
+	pure := !hasSideEffects(expr)
+	if pure && top {
+		c.emitAt(stmt)
+	} else if pure {
+		c.emitAt(expr)
+	}
+	// Recurse into short-circuit / ternary branches so Java's
+	// per-branch pure-RHS warnings still fire even when the outer
+	// statement was already flagged.
+	switch expr.Token() {
+	case rhino.AND, rhino.OR, rhino.COALESCE:
+		kids := expr.Children()
+		if len(kids) == 2 && !hasSideEffects(kids[1]) {
+			c.emitAt(kids[1])
+		}
+	case rhino.HOOK:
+		kids := expr.Children()
+		if len(kids) == 3 {
+			if !hasSideEffects(kids[1]) {
 				c.emitAt(kids[1])
 			}
-		case rhino.HOOK:
-			kids := expr.Children()
-			if len(kids) == 3 {
-				// Java flags either branch if it's pure.
-				if !hasSideEffects(kids[1]) {
-					c.emitAt(kids[1])
-				}
-				if !hasSideEffects(kids[2]) {
-					c.emitAt(kids[2])
-				}
+			if !hasSideEffects(kids[2]) {
+				c.emitAt(kids[2])
 			}
 		}
-		return
-	}
-	if top {
-		c.emitAt(stmt)
-	} else {
-		c.emitAt(expr)
 	}
 }
 

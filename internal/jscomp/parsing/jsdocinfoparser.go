@@ -114,6 +114,14 @@ func (p *JsDocInfoParser) parseAnnotation(_ JsDocToken) JsDocToken {
 		p.info.SetRecord(true)
 		p.anyRecorded = true
 		return p.eatUntilEOLIfNotAnnotation()
+	case "struct":
+		p.info.SetStruct(true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "dict":
+		p.info.SetDict(true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
 	case "suppress":
 		return p.parseSuppressTag()
 	}

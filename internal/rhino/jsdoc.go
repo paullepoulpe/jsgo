@@ -15,6 +15,8 @@ type JSDocInfo struct {
 	isInterface   bool
 	isRecord      bool
 	isStatic      bool
+	isStruct      bool
+	isDict        bool
 	extendsExpr   *JSTypeExpression
 	implementsAll []*JSTypeExpression
 	typedefExpr   *JSTypeExpression
@@ -73,6 +75,17 @@ func (i *JSDocInfo) IsInterface() bool   { return i != nil && i.isInterface }
 func (i *JSDocInfo) IsRecord() bool      { return i != nil && i.isRecord }
 func (i *JSDocInfo) SetInterface(b bool) { i.isInterface = b }
 func (i *JSDocInfo) SetRecord(b bool)    { i.isRecord = b }
+
+// IsStruct / IsDict mirror JSDocInfo.makesStructs() / makesDicts() —
+// annotations on a constructor that restrict property-access shape.
+// `@struct` forbids `x['prop']` computed access; `@dict` forbids
+// `x.prop` dotted access. Propagated onto the resulting InstanceType
+// by TypedScopeCreator so TypeCheck can emit
+// JSC_ILLEGAL_PROPERTY_ACCESS at receiver sites.
+func (i *JSDocInfo) IsStruct() bool   { return i != nil && i.isStruct }
+func (i *JSDocInfo) IsDict() bool     { return i != nil && i.isDict }
+func (i *JSDocInfo) SetStruct(b bool) { i.isStruct = b }
+func (i *JSDocInfo) SetDict(b bool)   { i.isDict = b }
 
 // Implementations mirrors JSDocInfo.getImplementedInterfaces().
 func (i *JSDocInfo) Implementations() []*JSTypeExpression {
