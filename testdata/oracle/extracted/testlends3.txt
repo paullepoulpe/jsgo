@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testlends3.js:4:10: ERROR - [JSC_INEXISTENT_PROPERTY] Property bar never defined on Foo
+  4| alert(Foo.bar);
+               ^^^
+
+1 error(s), 0 warning(s), 88.9% typed
+---EXIT---
+1

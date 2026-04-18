@@ -1,0 +1,1 @@
+/** @type {null} */var x; if (x && x) {}

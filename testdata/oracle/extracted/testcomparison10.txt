@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testcomparison10.js:2:0: WARNING - [JSC_USELESS_CODE] Suspicious code. The result of the 'sheq' operator is not being used.
+  2| a[0] === null
+     ^^^^^^^^^^^^^
+
+0 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+0

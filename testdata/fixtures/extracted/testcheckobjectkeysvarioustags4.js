@@ -1,0 +1,1 @@
+/** @typedef {!Object<!Object, number>} */ var MyType;

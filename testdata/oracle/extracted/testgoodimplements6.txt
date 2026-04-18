@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testgoodimplements6.js:3:0: ERROR - [JSC_UNDEFINED_VARIABLE] variable goog is undeclared
+  3| goog.Disposable = function() {};
+     ^^^^
+
+1 error(s), 0 warning(s)
+---EXIT---
+1

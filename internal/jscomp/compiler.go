@@ -1,9 +1,12 @@
-// Port of com/google/javascript/jscomp/Compiler.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/Compiler.java
+// @ closure-compiler v20260415 (shim; pipeline wrapper only).
 //
-// The real Compiler is a large orchestrator running many passes; this
-// scaffold wires only the three pieces Tier-0 needs (parse → scope →
-// check) and returns diagnostics. Kept intentionally narrow so we don't
-// bake design decisions before the corpus demands them.
+// Closure's Compiler is a ~3000-line orchestrator (PhaseOptimizer,
+// pass registry, Result, module graph, warning manager, …). This
+// file is a ~30-line adapter that wires our three independent
+// passes (parse → TypedScopeCreator → TypeCheck) for the CLI +
+// harness. A real Compiler port — pass registry, phase ordering,
+// Results — lands when we have more than these three passes.
 
 package jscomp
 
@@ -22,7 +25,8 @@ func CheckSource(path, src string) ([]diag.Diagnostic, error) {
 		return nil, err
 	}
 	reg := jstype.NewRegistry()
-	scope := NewTypedScopeCreator(reg).CreateScope(script)
-	check := NewTypeCheck(path, scope, NewTypeInference())
+	creator := NewTypedScopeCreator(reg)
+	scope := creator.CreateScope(script)
+	check := NewTypeCheck(path, creator, scope)
 	return check.Check(script), nil
 }

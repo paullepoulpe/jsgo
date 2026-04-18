@@ -1,0 +1,1 @@
+/** @constructor */function A(){}; new A();

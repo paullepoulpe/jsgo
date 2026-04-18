@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testenum10.js:2:0: ERROR - [JSC_UNDEFINED_VARIABLE] variable goog is undeclared
+  2| goog.K = { A : 3 };
+     ^^^^
+
+1 error(s), 0 warning(s)
+---EXIT---
+1

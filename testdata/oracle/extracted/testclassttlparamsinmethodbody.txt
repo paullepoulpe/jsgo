@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testclassttlparamsinmethodbody.js:2:0: ERROR - [JSC_TEMPLATE_TRANSFORMATION_ON_CLASS] Template type transformation T not allowed on classes or interfaces
+  2| function Foo() {}
+     ^^^^^^^^^^^^^^^^^
+
+testdata/fixtures/extracted/testclassttlparamsinmethodbody.js:4:10: ERROR - [JSC_UNRECOGNIZED_TYPE_ERROR] Bad type annotation. Unknown type T
+  4|   var /** T */ x;
+               ^
+
+2 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+2

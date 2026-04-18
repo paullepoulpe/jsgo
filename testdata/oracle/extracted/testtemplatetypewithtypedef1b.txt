@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testtemplatetypewithtypedef1b.js:18:29: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : (Generic<Foo>|null)
+required: null
+  18| /** @type {null} */ var z1 = x;
+                                   ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

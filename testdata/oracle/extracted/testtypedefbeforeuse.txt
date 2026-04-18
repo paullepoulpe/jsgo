@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testtypedefbeforeuse.js:6:8: WARNING - [JSC_USELESS_CODE] Suspicious code. The result of the 'getelem' operator is not being used.
+  6|         isResult['t'];
+             ^^^^^^^^^^^^^
+
+0 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+0

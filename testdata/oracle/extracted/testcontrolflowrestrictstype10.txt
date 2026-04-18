@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testcontrolflowrestrictstype10.js:5:6: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of f does not match formal parameter
+found   : (null|{})
+required: number
+  5|     f(y);
+           ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

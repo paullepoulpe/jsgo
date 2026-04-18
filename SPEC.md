@@ -79,8 +79,26 @@ curated.
 - All 7 guardrails green.
 - Performance in `[0.1×, 2×]` on Tier-1.
 
-The current scaffold milestone is much smaller: **one Tier-0 fixture
-passing end-to-end** (`testdata/fixtures/tier0/001_type_mismatch_var.js`).
+## Current status
+
+| Corpus                               | Size  | Status |
+|--------------------------------------|-------|--------|
+| Tier-0 (hand-authored, required)     | 13    | **13/13 = 100%** |
+| Tier-1 (hand-authored, required)     | 14    | **14/14 = 100%** |
+| Tier-2 (hand-authored, required)     | 12    | **12/12 = 100%** |
+| Tier-3 (hand-authored, required)     | 5     | **5/5 = 100%**   |
+| Extracted from `TypeCheckTest.java`  | 1444  | **599/1444 = 41.48%** (latest measurement) |
+
+The extracted corpus is a stretch benchmark, not an MVP exit criterion.
+It exists to measure how far a Tier-0 implementation lands against the
+full breadth of Closure's type-check tests — most of which exercise
+Tier-1+ features (function param/return, classes, interfaces, generic
+types, property access, control-flow-sensitive types, etc.). The gap
+between the Tier-0 100% and the extracted ~40% is the implementation
+work still ahead of us.
+
+CI fails on any Tier-0 regression and on any drop in extracted pass
+rate below a 40% floor (see `harness/harness_test.go`).
 
 ## Port Style
 

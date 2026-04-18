@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testnumericcomparison6.js:1:47: ERROR - [JSC_TYPE_MISMATCH] right side of numeric comparison
+found   : undefined
+required: (bigint|number)
+  1| /**@return {void} */ function foo() { if (3 >= foo()) return; }
+                                                    ^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

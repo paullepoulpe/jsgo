@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testtypeofthis_instaticmethod_ones5ctor_isunknown.js:3:52: ERROR - [JSC_USED_GLOBAL_THIS] dangerous use of the global this object
+  3| /** @return {string} */ A.bar = function() { return this.foo; };
+                                                         ^^^^
+
+1 error(s), 0 warning(s), 71.4% typed
+---EXIT---
+1

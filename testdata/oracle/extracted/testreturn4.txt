@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testreturn4.js:3:21: ERROR - [JSC_TYPE_MISMATCH] inconsistent return type
+found   : Array<?>
+required: Number
+  3|  function a(){return new Array();}
+                          ^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

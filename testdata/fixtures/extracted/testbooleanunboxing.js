@@ -1,0 +1,1 @@
+/** @type {boolean} */var a = new Boolean(false);

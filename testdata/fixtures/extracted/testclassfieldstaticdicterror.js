@@ -1,0 +1,1 @@
+/** @dict */ class C { static x=2; }

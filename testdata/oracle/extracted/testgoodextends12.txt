@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testgoodextends12.js:10:44: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of f does not match formal parameter
+found   : E
+required: number
+  10| /** @param {number} x */ function f(x) {} f(new E());
+                                                  ^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

@@ -1,12 +1,16 @@
-// Port of com/google/javascript/jscomp/parsing/parser/Parser.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/parsing/parser/Parser.java
+// @ closure-compiler v20260415 (narrow grammar; structure tracks Java).
 //
-// Tier-0 stub. Recognises only:
-//
-//     /** @type {<name>} */
-//     var IDENT = STRING_LIT | NUMBER_LIT ;
-//
-// Anything else returns a parse error without panicking (guardrail #6).
-// The grammar grows incrementally as corpus tiers require it.
+// The Java class is ~10k lines of a full ES parser. This file carries
+// the recursive-descent shape — a Parser that owns a Scanner, with
+// speculative parse paths implemented via Scanner.Save/Restore — but
+// handles only the grammar jsgo's checker currently consumes
+// (var/let/const + class/function decl, call/new/assign/return
+// statements, arrow/function expressions, basic literals). The
+// character-level primitives live in scanner.go, matching Java's
+// Scanner.java → Parser.java split. Token-stream-driven parsing
+// (proper TokenType enum) lands when we port the grammar further —
+// for now the Parser still peeks at runes via p.scanner.Peek().
 
 package parser
 
@@ -15,202 +19,873 @@ import (
 	"strconv"
 	"unicode"
 
+	"github.com/paullepoulpe/jsgo/internal/jscomp/parsing"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
+// Parser wraps a Scanner and produces a SCRIPT-rooted rhino.Node.
+// Structure mirrors Java's Parser class: a Parser field of type
+// Scanner (com.google.javascript.jscomp.parsing.parser.Scanner),
+// recursive-descent methods on the parse path, and speculative
+// branches implemented via Scanner.Save / Restore.
 type Parser struct {
-	src     []rune
-	pos     int
-	line    int // 1-indexed
-	lineBOL int // absolute pos of start of current line, for column calc
+	scanner *Scanner
 }
 
-func Parse(src string) (*rhino.Node, error) {
-	p := &Parser{src: []rune(src), line: 1}
+func Parse(src string) (n *rhino.Node, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("parse panic recovered: %v", r)
+		}
+	}()
+	p := &Parser{scanner: NewScanner(src)}
 	script := rhino.New(rhino.SCRIPT)
 	script.SetPos(1, 0)
-
-	p.skipWhitespaceOnly()
-	var jsdoc *rhino.JSDocInfo
-	if body, ok := p.consumeBlockComment(); ok {
-		jsdoc = rhino.ParseJSDoc(body)
-	}
-
-	p.skipWhitespaceOnly()
-	if !p.consumeKeyword("var") {
-		return nil, p.errorf("expected 'var'")
-	}
-
-	varNode := rhino.New(rhino.VAR)
-	if jsdoc != nil {
-		varNode.SetJSDocInfo(jsdoc)
-	}
-	script.AddChildToBack(varNode)
-
-	p.skipWhitespaceOnly()
-	nameLine, nameCol := p.line, p.col()
-	ident, ok := p.consumeIdent()
-	if !ok {
-		return nil, p.errorf("expected identifier")
-	}
-	nameNode := rhino.NewString(rhino.NAME, ident)
-	nameNode.SetPos(nameLine, nameCol)
-	varNode.AddChildToBack(nameNode)
-
-	p.skipWhitespaceOnly()
-	if !p.consumeByte('=') {
-		return nil, p.errorf("expected '='")
-	}
-
-	p.skipWhitespaceOnly()
-	initLine, initCol := p.line, p.col()
-	init, err := p.parseLiteral()
-	if err != nil {
-		return nil, err
-	}
-	init.SetPos(initLine, initCol)
-	nameNode.AddChildToBack(init)
-
-	p.skipWhitespaceOnly()
-	if !p.consumeByte(';') {
-		return nil, p.errorf("expected ';'")
-	}
-
+	p.parseStatements(script, 0)
 	return script, nil
 }
 
-func (p *Parser) parseLiteral() (*rhino.Node, error) {
-	if p.atEnd() {
-		return nil, p.errorf("expected literal")
+// parseStatements fills parent with top-level / block statements until
+// EOF (if endTok == 0) or until a '}' is hit at the current depth.
+func (p *Parser) parseStatements(parent *rhino.Node, endTok rune) {
+	for {
+		p.scanner.SkipTrivia()
+		if p.scanner.AtEnd() {
+			return
+		}
+		if endTok != 0 && p.scanner.Peek() == endTok {
+			return
+		}
+		start := p.scanner.Pos()
+		stmt, ok := p.tryStatement()
+		if ok && stmt != nil {
+			parent.AddChildToBack(stmt)
+			continue
+		}
+		if p.scanner.Pos() == start {
+			p.scanner.SkipToStatementBoundary()
+		}
 	}
-	c := p.src[p.pos]
+}
+
+// tryStatement attempts one statement. Returns (stmt, true) on success
+// or (nil, false) otherwise; in either case p.scanner.Pos() is left past the
+// consumed input (or rewound on speculative failures).
+func (p *Parser) tryStatement() (*rhino.Node, bool) {
+	var jsdoc *rhino.JSDocInfo
+	if body, ok := p.scanner.ConsumeBlockComment(); ok {
+		jsdoc = parsing.ParseJSDocInfo(body)
+		p.scanner.SkipTrivia()
+	}
+
+	if p.scanner.ConsumeKeyword("function") {
+		return p.finishFunction(jsdoc)
+	}
+	if p.scanner.ConsumeKeyword("class") {
+		return p.finishClass(jsdoc)
+	}
+	if declToken, ok := p.consumeDeclKeyword(); ok {
+		return p.finishDeclStatement(declToken, jsdoc)
+	}
+	if p.scanner.ConsumeKeyword("return") {
+		return p.finishReturn(), true
+	}
+
+	// JSDoc may also annotate an expression statement (most commonly
+	// `/** @type {T} */ this.x = …;`). Try the same statement forms,
+	// attaching the comment to the inner ASSIGN/CALL/NEW so the scope
+	// creator can pick it up.
+	if stmt, ok := p.tryCallOrAssignStatement(); ok {
+		if jsdoc != nil {
+			attachJSDocToInner(stmt, jsdoc)
+		}
+		return stmt, true
+	}
+	if stmt, ok := p.tryExpressionStatement(); ok {
+		if jsdoc != nil {
+			attachJSDocToInner(stmt, jsdoc)
+		}
+		return stmt, true
+	}
+	if jsdoc != nil {
+		p.scanner.SkipToStatementBoundary()
+		return nil, false
+	}
+	return nil, false
+}
+
+// attachJSDocToInner places the JSDocInfo on the immediately wrapped
+// ASSIGN/CALL/NEW, matching how Closure attaches JSDoc to the operative
+// node rather than the EXPR_RESULT wrapper.
+func attachJSDocToInner(stmt *rhino.Node, info *rhino.JSDocInfo) {
+	if stmt.Token() == rhino.EXPR_RESULT {
+		if inner := stmt.FirstChild(); inner != nil {
+			inner.SetJSDocInfo(info)
+			return
+		}
+	}
+	stmt.SetJSDocInfo(info)
+}
+
+// tryExpressionStatement wraps any expression followed by `;` into an
+// EXPR_RESULT. Covers forms the IDENT-first speculative
+// tryCallOrAssignStatement can't see — notably `new Foo(args);`.
+func (p *Parser) tryExpressionStatement() (*rhino.Node, bool) {
+	save := p.scanner.Save()
+	rewind := func() {
+		p.scanner.Restore(save)
+	}
+	exprLine, exprCol := p.scanner.Line(), p.scanner.Col()
+	expr, ok := p.tryExpression()
+	if !ok {
+		rewind()
+		return nil, false
+	}
+	p.scanner.SkipTrivia()
+	if !p.scanner.ConsumeByte(';') {
+		rewind()
+		return nil, false
+	}
+	stmt := rhino.New(rhino.EXPR_RESULT)
+	stmt.SetPos(exprLine, exprCol)
+	stmt.AddChildToBack(expr)
+	return stmt, true
+}
+
+func (p *Parser) finishDeclStatement(declToken rhino.Token, jsdoc *rhino.JSDocInfo) (*rhino.Node, bool) {
+	declNode := rhino.New(declToken)
+	if jsdoc != nil {
+		declNode.SetJSDocInfo(jsdoc)
+	}
+
+	p.scanner.SkipTrivia()
+	nameLine, nameCol := p.scanner.Line(), p.scanner.Col()
+	ident, ok := p.scanner.ConsumeIdent()
+	if !ok {
+		p.scanner.SkipToStatementBoundary()
+		return nil, false
+	}
+	nameNode := rhino.NewString(rhino.NAME, ident)
+	nameNode.SetPos(nameLine, nameCol)
+	declNode.AddChildToBack(nameNode)
+
+	p.scanner.SkipTrivia()
+	if p.scanner.ConsumeByte('=') {
+		if !p.scanner.AtEnd() && p.scanner.Peek() == '=' {
+			p.scanner.SkipToStatementBoundary()
+			return declNode, true
+		}
+		p.scanner.SkipTrivia()
+		initLine, initCol := p.scanner.Line(), p.scanner.Col()
+		init, ok := p.tryExpression()
+		if !ok {
+			p.scanner.SkipToStatementBoundary()
+			return declNode, true
+		}
+		p.scanner.SkipTrivia()
+		if p.scanner.AtEnd() || p.scanner.Peek() != ';' {
+			p.scanner.SkipToStatementBoundary()
+			return declNode, true
+		}
+		init.SetPos(initLine, initCol)
+		nameNode.AddChildToBack(init)
+	}
+	p.scanner.SkipTrivia()
+	if !p.scanner.ConsumeByte(';') {
+		p.scanner.SkipToStatementBoundary()
+	}
+	return declNode, true
+}
+
+// finishFunction parses `function NAME(params) { body }` after the
+// `function` keyword is consumed. Attaches the caller-provided JSDoc
+// (carrying @param / @return).
+func (p *Parser) finishFunction(jsdoc *rhino.JSDocInfo) (*rhino.Node, bool) {
+	fn := rhino.New(rhino.FUNCTION)
+	if jsdoc != nil {
+		fn.SetJSDocInfo(jsdoc)
+	}
+
+	p.scanner.SkipTrivia()
+	nameLine, nameCol := p.scanner.Line(), p.scanner.Col()
+	name, ok := p.scanner.ConsumeIdent()
+	nameNode := rhino.NewString(rhino.NAME, "")
+	if ok {
+		nameNode = rhino.NewString(rhino.NAME, name)
+	}
+	nameNode.SetPos(nameLine, nameCol)
+	fn.AddChildToBack(nameNode)
+
+	p.scanner.SkipTrivia()
+	if !p.scanner.ConsumeByte('(') {
+		p.scanner.SkipToStatementBoundary()
+		return fn, true
+	}
+	params := rhino.New(rhino.PARAM_LIST)
+	for {
+		p.scanner.SkipTrivia()
+		if p.scanner.AtEnd() {
+			return fn, true
+		}
+		if p.scanner.Peek() == ')' {
+			p.scanner.Advance()
+			break
+		}
+		pLine, pCol := p.scanner.Line(), p.scanner.Col()
+		pname, ok := p.scanner.ConsumeIdent()
+		if !ok {
+			p.scanner.SkipToStatementBoundary()
+			return fn, true
+		}
+		pNode := rhino.NewString(rhino.NAME, pname)
+		pNode.SetPos(pLine, pCol)
+		params.AddChildToBack(pNode)
+		p.scanner.SkipTrivia()
+		if p.scanner.ConsumeByte(',') {
+			continue
+		}
+	}
+	fn.AddChildToBack(params)
+
+	p.scanner.SkipTrivia()
+	if !p.scanner.ConsumeByte('{') {
+		p.scanner.SkipToStatementBoundary()
+		return fn, true
+	}
+	block := rhino.New(rhino.BLOCK)
+	p.parseStatements(block, '}')
+	p.scanner.ConsumeByte('}')
+	fn.AddChildToBack(block)
+	return fn, true
+}
+
+// finishClass parses `class NAME [extends BASE] { body }` after the
+// `class` keyword has been consumed. Produces a CLASS node whose
+// children are:
+//
+//   [0] NAME — class name (empty string when anonymous)
+//   [1] NAME — super name (empty string when there's no `extends`)
+//   [2] BLOCK — class body; each child is either a FUNCTION
+//       (constructor or method) or a CLASS_FIELD_DEF.
+//
+// Mirrors Parser.java's parseClassDeclaration / parseClassBody output
+// shape closely enough for TypedScopeCreator to process classes with
+// the same two-pass pre-registration it already uses for @constructor
+// functions.
+func (p *Parser) finishClass(jsdoc *rhino.JSDocInfo) (*rhino.Node, bool) {
+	class := rhino.New(rhino.CLASS)
+	if jsdoc != nil {
+		class.SetJSDocInfo(jsdoc)
+	}
+
+	p.scanner.SkipTrivia()
+	nameLine, nameCol := p.scanner.Line(), p.scanner.Col()
+	name, _ := p.scanner.ConsumeIdent() // anonymous class allowed
+	nameNode := rhino.NewString(rhino.NAME, name)
+	nameNode.SetPos(nameLine, nameCol)
+	class.AddChildToBack(nameNode)
+
+	p.scanner.SkipTrivia()
+	superNode := rhino.NewString(rhino.NAME, "")
+	if p.scanner.ConsumeKeyword("extends") {
+		p.scanner.SkipTrivia()
+		sLine, sCol := p.scanner.Line(), p.scanner.Col()
+		sname, ok := p.scanner.ConsumeIdent()
+		if ok {
+			superNode = rhino.NewString(rhino.NAME, sname)
+			superNode.SetPos(sLine, sCol)
+		}
+		p.scanner.SkipTrivia()
+	}
+	class.AddChildToBack(superNode)
+
+	body := rhino.New(rhino.BLOCK)
+	if !p.scanner.ConsumeByte('{') {
+		p.scanner.SkipToStatementBoundary()
+		return class, true
+	}
+	for {
+		p.scanner.SkipTrivia()
+		if p.scanner.AtEnd() {
+			break
+		}
+		if p.scanner.Peek() == '}' {
+			p.scanner.Advance()
+			break
+		}
+		p.parseClassMember(body)
+	}
+	class.AddChildToBack(body)
+	return class, true
+}
+
+// parseClassMember parses a single entry inside a class body: an
+// optional JSDoc comment, then either a method (IDENT(params) {body})
+// or a field (IDENT [= expr];). Unknown shapes advance to the next
+// boundary so the whole body doesn't get lost.
+func (p *Parser) parseClassMember(body *rhino.Node) {
+	var jsdoc *rhino.JSDocInfo
+	if b, ok := p.scanner.ConsumeBlockComment(); ok {
+		jsdoc = parsing.ParseJSDocInfo(b)
+		p.scanner.SkipTrivia()
+	}
+	if p.scanner.AtEnd() || p.scanner.Peek() == '}' {
+		return
+	}
+	// `static` toggles the JSDoc's isStatic flag so the scope creator
+	// lands the member on the class's static slot rather than the
+	// instance prototype. Synthesises a JSDocInfo when none was
+	// present on the source.
+	isStatic := false
+	if p.scanner.ConsumeKeyword("static") {
+		isStatic = true
+		p.scanner.SkipTrivia()
+	}
+	if isStatic {
+		if jsdoc == nil {
+			jsdoc = &rhino.JSDocInfo{}
+		}
+		jsdoc.SetStatic(true)
+	}
+	memberLine, memberCol := p.scanner.Line(), p.scanner.Col()
+	name, ok := p.scanner.ConsumeIdent()
+	if !ok {
+		p.scanner.SkipToStatementBoundary()
+		return
+	}
+	p.scanner.SkipTrivia()
+	switch {
+	case !p.scanner.AtEnd() && p.scanner.Peek() == '(':
+		// Method: `name(params) { body }`.
+		p.scanner.Advance()
+		fn := rhino.New(rhino.FUNCTION)
+		if jsdoc != nil {
+			fn.SetJSDocInfo(jsdoc)
+		}
+		fn.SetPos(memberLine, memberCol)
+		nameNode := rhino.NewString(rhino.NAME, name)
+		nameNode.SetPos(memberLine, memberCol)
+		fn.AddChildToBack(nameNode)
+		params := rhino.New(rhino.PARAM_LIST)
+		for {
+			p.scanner.SkipTrivia()
+			if p.scanner.AtEnd() {
+				return
+			}
+			if p.scanner.Peek() == ')' {
+				p.scanner.Advance()
+				break
+			}
+			pLine, pCol := p.scanner.Line(), p.scanner.Col()
+			pname, ok := p.scanner.ConsumeIdent()
+			if !ok {
+				p.scanner.SkipToStatementBoundary()
+				return
+			}
+			pNode := rhino.NewString(rhino.NAME, pname)
+			pNode.SetPos(pLine, pCol)
+			params.AddChildToBack(pNode)
+			p.scanner.SkipTrivia()
+			if p.scanner.ConsumeByte(',') {
+				continue
+			}
+		}
+		fn.AddChildToBack(params)
+		p.scanner.SkipTrivia()
+		methodBody := rhino.New(rhino.BLOCK)
+		if p.scanner.ConsumeByte('{') {
+			p.parseStatements(methodBody, '}')
+			p.scanner.ConsumeByte('}')
+		}
+		fn.AddChildToBack(methodBody)
+		body.AddChildToBack(fn)
+	default:
+		// Field: `name [= expr];` — captures both typed-only declarations
+		// and typed-with-initializer class properties.
+		field := rhino.New(rhino.CLASS_FIELD_DEF)
+		if jsdoc != nil {
+			field.SetJSDocInfo(jsdoc)
+		}
+		field.SetPos(memberLine, memberCol)
+		nameNode := rhino.NewString(rhino.NAME, name)
+		nameNode.SetPos(memberLine, memberCol)
+		field.AddChildToBack(nameNode)
+		if p.scanner.ConsumeByte('=') {
+			p.scanner.SkipTrivia()
+			initLine, initCol := p.scanner.Line(), p.scanner.Col()
+			init, ok := p.tryExpression()
+			if ok {
+				init.SetPos(initLine, initCol)
+				field.AddChildToBack(init)
+			}
+		}
+		p.scanner.SkipTrivia()
+		p.scanner.ConsumeByte(';')
+		body.AddChildToBack(field)
+	}
+}
+
+func (p *Parser) finishReturn() *rhino.Node {
+	ret := rhino.New(rhino.RETURN)
+	p.scanner.SkipTrivia()
+	if !p.scanner.AtEnd() && p.scanner.Peek() != ';' {
+		eline, ecol := p.scanner.Line(), p.scanner.Col()
+		if expr, ok := p.tryExpression(); ok {
+			expr.SetPos(eline, ecol)
+			ret.AddChildToBack(expr)
+		} else {
+			p.scanner.SkipToStatementBoundary()
+			return ret
+		}
+	}
+	p.scanner.SkipTrivia()
+	p.scanner.ConsumeByte(';')
+	return ret
+}
+
+// tryCallOrAssignStatement parses one of:
+//
+//   <lhs> = <expr>;    // ASSIGN, where lhs is NAME or GETPROP chain
+//   <lhs>(args);       // CALL on a NAME/GETPROP chain
+//   this.x = <expr>;   // bare-this assign — same shape as the GETPROP case
+//
+// Speculative: rewinds on mismatch so the caller can fall back to other
+// statement forms.
+func (p *Parser) tryCallOrAssignStatement() (*rhino.Node, bool) {
+	save := p.scanner.Save()
+	rewind := func() {
+		p.scanner.Restore(save)
+	}
+
+	startLine, startCol := p.scanner.Line(), p.scanner.Col()
+	lhs, ok := p.tryLHSExpression()
+	if !ok {
+		rewind()
+		return nil, false
+	}
+	p.scanner.SkipTrivia()
+	if p.scanner.AtEnd() {
+		rewind()
+		return nil, false
+	}
+
+	switch p.scanner.Peek() {
+	case '(':
+		// Call-as-statement on the whole LHS (handles foo.bar.baz(...)).
+		p.scanner.Advance()
+		call := rhino.New(rhino.CALL)
+		call.SetPos(startLine, startCol)
+		call.AddChildToBack(lhs)
+		for {
+			p.scanner.SkipTrivia()
+			if p.scanner.AtEnd() {
+				rewind()
+				return nil, false
+			}
+			if p.scanner.Peek() == ')' {
+				p.scanner.Advance()
+				break
+			}
+			argLine, argCol := p.scanner.Line(), p.scanner.Col()
+			arg, ok := p.tryExpression()
+			if !ok {
+				rewind()
+				return nil, false
+			}
+			arg.SetPos(argLine, argCol)
+			call.AddChildToBack(arg)
+			p.scanner.SkipTrivia()
+			if p.scanner.ConsumeByte(',') {
+				continue
+			}
+		}
+		p.scanner.SkipTrivia()
+		p.scanner.ConsumeByte(';')
+		stmt := rhino.New(rhino.EXPR_RESULT)
+		stmt.SetPos(startLine, startCol)
+		stmt.AddChildToBack(call)
+		return stmt, true
+
+	case '=':
+		p.scanner.Advance()
+		if !p.scanner.AtEnd() && (p.scanner.Peek() == '=' || p.scanner.Peek() == '>') {
+			rewind()
+			return nil, false
+		}
+		p.scanner.SkipTrivia()
+		rhsLine, rhsCol := p.scanner.Line(), p.scanner.Col()
+		rhs, ok := p.tryExpression()
+		if !ok {
+			rewind()
+			return nil, false
+		}
+		p.scanner.SkipTrivia()
+		if p.scanner.AtEnd() || p.scanner.Peek() != ';' {
+			rewind()
+			return nil, false
+		}
+		p.scanner.Advance()
+		rhs.SetPos(rhsLine, rhsCol)
+		assign := rhino.New(rhino.ASSIGN)
+		assign.SetPos(startLine, startCol)
+		assign.AddChildToBack(lhs)
+		assign.AddChildToBack(rhs)
+		stmt := rhino.New(rhino.EXPR_RESULT)
+		stmt.SetPos(startLine, startCol)
+		stmt.AddChildToBack(assign)
+		return stmt, true
+	}
+	rewind()
+	return nil, false
+}
+
+// tryLHSExpression parses a NAME or GETPROP chain starting at the
+// current position. Used by tryCallOrAssignStatement to support
+// `obj.x = …` and `this.x = …` shapes uniformly. Does NOT consume a
+// trailing `(args)` — the caller decides whether the LHS is being
+// called or assigned to.
+func (p *Parser) tryLHSExpression() (*rhino.Node, bool) {
+	if p.scanner.AtEnd() {
+		return nil, false
+	}
+	startLine, startCol := p.scanner.Line(), p.scanner.Col()
+	c := p.scanner.Peek()
+	if c == 't' && p.scanner.ConsumeKeyword("this") {
+		base := rhino.New(rhino.THIS)
+		base.SetPos(startLine, startCol)
+		return p.extendWithProperty(base), true
+	}
+	if !(unicode.IsLetter(c) || c == '_' || c == '$') {
+		return nil, false
+	}
+	ident, ok := p.scanner.ConsumeIdent()
+	if !ok {
+		return nil, false
+	}
+	base := rhino.NewString(rhino.NAME, ident)
+	base.SetPos(startLine, startCol)
+	return p.extendWithProperty(base), true
+}
+
+// tryExpression parses one expression: an arrow function, function
+// expression, literal, identifier/property-access chain, call, or new.
+// Anything else returns (nil, false).
+func (p *Parser) tryExpression() (*rhino.Node, bool) {
+	if p.scanner.AtEnd() {
+		return nil, false
+	}
+	if arrow, ok := p.tryArrow(); ok {
+		return arrow, true
+	}
+	if p.scanner.ConsumeKeyword("function") {
+		// Function expression — `function [name] (params) { body }`.
+		// Shares the body-parse path with statement-level function
+		// declarations; the caller never sees the difference.
+		if fn, ok := p.finishFunction(nil); ok {
+			return fn, true
+		}
+		return nil, false
+	}
+	c := p.scanner.Peek()
 	switch {
 	case c == '\'' || c == '"':
 		return p.parseStringLiteral(c)
 	case unicode.IsDigit(c):
 		return p.parseNumberLiteral()
-	}
-	return nil, p.errorf("unsupported literal starting with %q", c)
-}
-
-func (p *Parser) parseStringLiteral(quote rune) (*rhino.Node, error) {
-	p.advance() // opening quote
-	start := p.pos
-	for !p.atEnd() && p.src[p.pos] != quote {
-		if p.src[p.pos] == '\n' {
-			return nil, p.errorf("unterminated string literal")
+	case c == 't' || c == 'f':
+		if n, ok := p.parseBooleanLiteral(); ok {
+			return n, true
 		}
-		p.advance()
+	case c == 'n':
+		if p.scanner.ConsumeKeyword("new") {
+			return p.finishNew()
+		}
+		if p.scanner.ConsumeKeyword("null") {
+			return rhino.New(rhino.NULL), true
+		}
+	case c == 'u':
+		if p.scanner.ConsumeKeyword("undefined") {
+			return rhino.New(rhino.UNDEFINED), true
+		}
+	case c == 't':
+		if p.scanner.ConsumeKeyword("this") {
+			return p.extendWithProperty(rhino.New(rhino.THIS)), true
+		}
+		if n, ok := p.parseBooleanLiteral(); ok {
+			return n, true
+		}
 	}
-	if p.atEnd() {
-		return nil, p.errorf("unterminated string literal")
+	if unicode.IsLetter(c) || c == '_' || c == '$' {
+		return p.parseNameOrCall()
 	}
-	val := string(p.src[start:p.pos])
-	p.advance() // closing quote
-	return rhino.NewString(rhino.STRINGLIT, val), nil
+	return nil, false
 }
 
-func (p *Parser) parseNumberLiteral() (*rhino.Node, error) {
-	start := p.pos
-	for !p.atEnd() && (unicode.IsDigit(p.src[p.pos]) || p.src[p.pos] == '.') {
-		p.advance()
+// extendWithProperty consumes any trailing `.IDENT` chain after the
+// given base, building GETPROP(base, STRINGLIT) nodes as in Closure.
+// Used by the `this` and NAME paths so member access is uniform.
+func (p *Parser) extendWithProperty(base *rhino.Node) *rhino.Node {
+	for {
+		p.scanner.SkipTrivia()
+		if p.scanner.AtEnd() || p.scanner.Peek() != '.' {
+			return base
+		}
+		p.scanner.Advance() // '.'
+		p.scanner.SkipTrivia()
+		propLine, propCol := p.scanner.Line(), p.scanner.Col()
+		ident, ok := p.scanner.ConsumeIdent()
+		if !ok {
+			return base
+		}
+		gp := rhino.New(rhino.GETPROP)
+		gp.SetPos(base.Lineno(), base.Charno())
+		gp.AddChildToBack(base)
+		propNode := rhino.NewString(rhino.STRINGLIT, ident)
+		propNode.SetPos(propLine, propCol)
+		gp.AddChildToBack(propNode)
+		base = gp
 	}
-	v, err := strconv.ParseFloat(string(p.src[start:p.pos]), 64)
+}
+
+// tryArrow speculatively parses `(params) => body` or `ident => body`.
+// Rewinds on failure so the caller can fall back to other expression
+// forms. Arrow functions surface as FUNCTION nodes so the same
+// scope/typecheck machinery applies to them.
+func (p *Parser) tryArrow() (*rhino.Node, bool) {
+	save := p.scanner.Save()
+	rewind := func() {
+		p.scanner.Restore(save)
+	}
+
+	startLine, startCol := p.scanner.Line(), p.scanner.Col()
+	var params []string
+
+	if p.scanner.ConsumeByte('(') {
+		p.scanner.SkipTrivia()
+		if !p.scanner.ConsumeByte(')') {
+			for {
+				ident, ok := p.scanner.ConsumeIdent()
+				if !ok {
+					rewind()
+					return nil, false
+				}
+				params = append(params, ident)
+				p.scanner.SkipTrivia()
+				if p.scanner.ConsumeByte(',') {
+					p.scanner.SkipTrivia()
+					continue
+				}
+				if p.scanner.ConsumeByte(')') {
+					break
+				}
+				rewind()
+				return nil, false
+			}
+		}
+	} else {
+		c := p.scanner.Peek()
+		if !(unicode.IsLetter(c) || c == '_' || c == '$') {
+			return nil, false
+		}
+		ident, ok := p.scanner.ConsumeIdent()
+		if !ok {
+			rewind()
+			return nil, false
+		}
+		params = []string{ident}
+	}
+
+	p.scanner.SkipTrivia()
+	if !p.scanner.ConsumeByte('=') || !p.scanner.ConsumeByte('>') {
+		rewind()
+		return nil, false
+	}
+	p.scanner.SkipTrivia()
+
+	fn := rhino.New(rhino.FUNCTION)
+	fn.SetPos(startLine, startCol)
+	nameNode := rhino.NewString(rhino.NAME, "")
+	nameNode.SetPos(startLine, startCol)
+	fn.AddChildToBack(nameNode)
+
+	paramList := rhino.New(rhino.PARAM_LIST)
+	for _, pn := range params {
+		pNode := rhino.NewString(rhino.NAME, pn)
+		paramList.AddChildToBack(pNode)
+	}
+	fn.AddChildToBack(paramList)
+
+	body := rhino.New(rhino.BLOCK)
+	if p.scanner.ConsumeByte('{') {
+		p.parseStatements(body, '}')
+		p.scanner.ConsumeByte('}')
+	} else {
+		// Single-expression body: wrap as implicit `return EXPR`.
+		eline, ecol := p.scanner.Line(), p.scanner.Col()
+		expr, ok := p.tryExpression()
+		if !ok {
+			rewind()
+			return nil, false
+		}
+		expr.SetPos(eline, ecol)
+		ret := rhino.New(rhino.RETURN)
+		ret.AddChildToBack(expr)
+		body.AddChildToBack(ret)
+	}
+	fn.AddChildToBack(body)
+	return fn, true
+}
+
+// finishNew parses `IDENT ( args )` after the `new` keyword is consumed.
+// Mirrors com.google.javascript.jscomp.parsing.parser.Parser's
+// parseMemberExpressionNoNew path that produces a NEW node.
+func (p *Parser) finishNew() (*rhino.Node, bool) {
+	p.scanner.SkipTrivia()
+	nameLine, nameCol := p.scanner.Line(), p.scanner.Col()
+	ident, ok := p.scanner.ConsumeIdent()
+	if !ok {
+		return nil, false
+	}
+	p.scanner.SkipTrivia()
+	if !p.scanner.ConsumeByte('(') {
+		// `new Foo` without args isn't supported yet; treat as a plain
+		// name reference so callers aren't blocked.
+		name := rhino.NewString(rhino.NAME, ident)
+		name.SetPos(nameLine, nameCol)
+		return name, true
+	}
+	n := rhino.New(rhino.NEW)
+	n.SetPos(nameLine, nameCol)
+	callee := rhino.NewString(rhino.NAME, ident)
+	callee.SetPos(nameLine, nameCol)
+	n.AddChildToBack(callee)
+	for {
+		p.scanner.SkipTrivia()
+		if p.scanner.AtEnd() {
+			return nil, false
+		}
+		if p.scanner.Peek() == ')' {
+			p.scanner.Advance()
+			return n, true
+		}
+		argLine, argCol := p.scanner.Line(), p.scanner.Col()
+		arg, ok := p.tryExpression()
+		if !ok {
+			return nil, false
+		}
+		arg.SetPos(argLine, argCol)
+		n.AddChildToBack(arg)
+		p.scanner.SkipTrivia()
+		if p.scanner.ConsumeByte(',') {
+			continue
+		}
+	}
+}
+
+// parseNameOrCall parses `IDENT [ .IDENT ]* [ ( args ) ]`. The chain of
+// `.IDENT` becomes GETPROP nodes; a trailing `(...)` becomes CALL on
+// whatever expression came before. Mirrors Parser.java's
+// parseLeftHandSideExpressionAllowCall.
+func (p *Parser) parseNameOrCall() (*rhino.Node, bool) {
+	nameLine, nameCol := p.scanner.Line(), p.scanner.Col()
+	ident, ok := p.scanner.ConsumeIdent()
+	if !ok {
+		return nil, false
+	}
+	expr := rhino.NewString(rhino.NAME, ident)
+	expr.SetPos(nameLine, nameCol)
+	expr = p.extendWithProperty(expr)
+	p.scanner.SkipTrivia()
+	if p.scanner.AtEnd() || p.scanner.Peek() != '(' {
+		return expr, true
+	}
+	p.scanner.Advance()
+	call := rhino.New(rhino.CALL)
+	call.SetPos(nameLine, nameCol)
+	call.AddChildToBack(expr)
+	for {
+		p.scanner.SkipTrivia()
+		if p.scanner.AtEnd() {
+			return nil, false
+		}
+		if p.scanner.Peek() == ')' {
+			p.scanner.Advance()
+			return call, true
+		}
+		argLine, argCol := p.scanner.Line(), p.scanner.Col()
+		arg, ok := p.tryExpression()
+		if !ok {
+			return nil, false
+		}
+		arg.SetPos(argLine, argCol)
+		call.AddChildToBack(arg)
+		p.scanner.SkipTrivia()
+		if p.scanner.ConsumeByte(',') {
+			continue
+		}
+	}
+}
+
+func (p *Parser) parseBooleanLiteral() (*rhino.Node, bool) {
+	if p.scanner.ConsumeKeyword("true") {
+		return rhino.New(rhino.TRUE), true
+	}
+	if p.scanner.ConsumeKeyword("false") {
+		return rhino.New(rhino.FALSE), true
+	}
+	return nil, false
+}
+
+func (p *Parser) parseStringLiteral(quote rune) (*rhino.Node, bool) {
+	p.scanner.Advance() // opening quote
+	start := p.scanner.Pos()
+	for !p.scanner.AtEnd() && p.scanner.Peek() != quote {
+		if p.scanner.Peek() == '\n' {
+			return nil, false
+		}
+		if p.scanner.Peek() == '\\' && p.scanner.PeekAt(1) != 0 {
+			p.scanner.Advance()
+			p.scanner.Advance()
+			continue
+		}
+		p.scanner.Advance()
+	}
+	if p.scanner.AtEnd() {
+		return nil, false
+	}
+	val := p.scanner.Text(start, p.scanner.Pos())
+	p.scanner.Advance() // closing quote
+	return rhino.NewString(rhino.STRINGLIT, val), true
+}
+
+func (p *Parser) parseNumberLiteral() (*rhino.Node, bool) {
+	start := p.scanner.Pos()
+	for !p.scanner.AtEnd() && (unicode.IsDigit(p.scanner.Peek()) || p.scanner.Peek() == '.') {
+		p.scanner.Advance()
+	}
+	if p.scanner.Pos() == start {
+		return nil, false
+	}
+	v, err := strconv.ParseFloat(p.scanner.Text(start, p.scanner.Pos()), 64)
 	if err != nil {
-		return nil, p.errorf("invalid number literal: %v", err)
+		return nil, false
 	}
-	return rhino.NewNumber(v), nil
+	return rhino.NewNumber(v), true
 }
 
-func (p *Parser) consumeBlockComment() (string, bool) {
-	if p.pos+1 >= len(p.src) || p.src[p.pos] != '/' || p.src[p.pos+1] != '*' {
-		return "", false
+// consumeDeclKeyword reads `var` / `let` / `const` and returns the
+// matching AST Token. Mirrors the three checkKeywordAndConsume
+// dispatches Closure's parseVariableStatement does in Java.
+func (p *Parser) consumeDeclKeyword() (rhino.Token, bool) {
+	if p.scanner.ConsumeKeyword("var") {
+		return rhino.VAR, true
 	}
-	p.advance()
-	p.advance()
-	start := p.pos
-	for p.pos+1 < len(p.src) && !(p.src[p.pos] == '*' && p.src[p.pos+1] == '/') {
-		p.advance()
+	if p.scanner.ConsumeKeyword("let") {
+		return rhino.LET, true
 	}
-	if p.pos+1 >= len(p.src) {
-		return "", false
+	if p.scanner.ConsumeKeyword("const") {
+		return rhino.CONST, true
 	}
-	body := string(p.src[start:p.pos])
-	p.advance()
-	p.advance()
-	return body, true
+	return rhino.ERROR, false
 }
 
-func (p *Parser) consumeKeyword(kw string) bool {
-	rs := []rune(kw)
-	if p.pos+len(rs) > len(p.src) {
-		return false
-	}
-	for i, r := range rs {
-		if p.src[p.pos+i] != r {
-			return false
-		}
-	}
-	// require non-ident char after keyword
-	if p.pos+len(rs) < len(p.src) {
-		nxt := p.src[p.pos+len(rs)]
-		if unicode.IsLetter(nxt) || unicode.IsDigit(nxt) || nxt == '_' {
-			return false
-		}
-	}
-	for i := 0; i < len(rs); i++ {
-		p.advance()
-	}
-	return true
-}
-
-func (p *Parser) consumeIdent() (string, bool) {
-	if p.atEnd() {
-		return "", false
-	}
-	c := p.src[p.pos]
-	if !(unicode.IsLetter(c) || c == '_' || c == '$') {
-		return "", false
-	}
-	start := p.pos
-	for !p.atEnd() {
-		c := p.src[p.pos]
-		if !(unicode.IsLetter(c) || unicode.IsDigit(c) || c == '_' || c == '$') {
-			break
-		}
-		p.advance()
-	}
-	return string(p.src[start:p.pos]), true
-}
-
-func (p *Parser) consumeByte(b byte) bool {
-	if p.atEnd() || byte(p.src[p.pos]) != b {
-		return false
-	}
-	p.advance()
-	return true
-}
-
-func (p *Parser) skipWhitespaceOnly() {
-	for !p.atEnd() && unicode.IsSpace(p.src[p.pos]) {
-		p.advance()
-	}
-}
-
-func (p *Parser) advance() {
-	if p.atEnd() {
-		return
-	}
-	if p.src[p.pos] == '\n' {
-		p.line++
-		p.lineBOL = p.pos + 1
-	}
-	p.pos++
-}
-
-func (p *Parser) col() int    { return p.pos - p.lineBOL }
-func (p *Parser) atEnd() bool { return p.pos >= len(p.src) }
-
-func (p *Parser) errorf(f string, a ...any) error {
-	return fmt.Errorf("parse error at line %d col %d: %s", p.line, p.col(), fmt.Sprintf(f, a...))
-}

@@ -19,6 +19,29 @@ type JSType interface {
 	IsSubtypeOf(other JSType) bool
 }
 
+// IsSubtype is the package-level entry point; callers should prefer this
+// over t.IsSubtypeOf so union-type handling stays in one place. Mirrors
+// how JSType.isSubtype in Java dispatches through the registry.
+func IsSubtype(x, y JSType) bool {
+	if x == nil || y == nil {
+		return true
+	}
+	// When the target is a union, X matches if it's a subtype of any
+	// member. Left-side unions stay in UnionType.IsSubtypeOf.
+	if u, ok := y.(*UnionType); ok {
+		if _, isUnion := x.(*UnionType); isUnion {
+			return x.IsSubtypeOf(u)
+		}
+		for _, m := range u.members {
+			if IsSubtype(x, m) {
+				return true
+			}
+		}
+		return false
+	}
+	return x.IsSubtypeOf(y)
+}
+
 type allType struct{}
 
 func (allType) TypeName() string            { return "*" }
@@ -49,14 +72,47 @@ func (stringType) IsSubtypeOf(o JSType) bool {
 	return isAll(o) || isUnknown(o)
 }
 
+type booleanType struct{}
+
+func (booleanType) TypeName() string { return "boolean" }
+func (booleanType) IsSubtypeOf(o JSType) bool {
+	if _, ok := o.(booleanType); ok {
+		return true
+	}
+	return isAll(o) || isUnknown(o)
+}
+
+type nullType struct{}
+
+func (nullType) TypeName() string { return "null" }
+func (nullType) IsSubtypeOf(o JSType) bool {
+	if _, ok := o.(nullType); ok {
+		return true
+	}
+	return isAll(o) || isUnknown(o)
+}
+
+type voidType struct{}
+
+func (voidType) TypeName() string { return "undefined" }
+func (voidType) IsSubtypeOf(o JSType) bool {
+	if _, ok := o.(voidType); ok {
+		return true
+	}
+	return isAll(o) || isUnknown(o)
+}
+
 func isAll(t JSType) bool     { _, ok := t.(allType); return ok }
 func isUnknown(t JSType) bool { _, ok := t.(unknownType); return ok }
 
 // Canonical interned instances. Java JSTypeRegistry returns the same
 // instance for each primitive; we mirror that with package-level vars.
 var (
-	All     JSType = allType{}
-	Unknown JSType = unknownType{}
-	Number  JSType = numberType{}
-	String  JSType = stringType{}
+	All      JSType = allType{}
+	Unknown  JSType = unknownType{}
+	Number   JSType = numberType{}
+	String   JSType = stringType{}
+	Boolean  JSType = booleanType{}
+	Null     JSType = nullType{}
+	Void     JSType = voidType{}
 )

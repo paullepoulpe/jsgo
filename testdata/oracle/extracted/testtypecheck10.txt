@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testtypecheck10.js:3:15: WARNING - [JSC_SUSPICIOUS_SEMICOLON] If this if/for/while really shouldn't have a body, use {}
+  3|   for (;foo(););
+                    ^
+
+0 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+0

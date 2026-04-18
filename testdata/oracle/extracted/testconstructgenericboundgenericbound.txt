@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testconstructgenericboundgenericbound.js:4:3: ERROR - [JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES] Bounded generic semantics are currently still in development
+  4|  * @template {boolean|string} T
+        ^
+
+testdata/fixtures/extracted/testconstructgenericboundgenericbound.js:5:3: ERROR - [JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES] Bounded generic semantics are currently still in development
+  5|  * @template {T} U
+        ^
+
+2 error(s), 0 warning(s)
+---EXIT---
+2

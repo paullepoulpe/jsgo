@@ -1,0 +1,13 @@
+testdata/fixtures/extracted/testquotedpropertywithdotincode.js:6:14: ERROR - [JSC_INEXISTENT_PROPERTY] Property y never defined on x
+  6| var a = new x.y.A();
+                   ^
+
+testdata/fixtures/extracted/testquotedpropertywithdotincode.js:6:16: ERROR - [JSC_POSSIBLE_INEXISTENT_PROPERTY] Property A never defined on x.y
+
+This property is accessed on a "loose" type, but is not defined anywhere in the program, so it must not exist.
+  6| var a = new x.y.A();
+                     ^
+
+2 error(s), 0 warning(s), 50.0% typed
+---EXIT---
+2

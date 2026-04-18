@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testinterfaceinheritancecheck8.js:2:14: ERROR - [JSC_UNRECOGNIZED_TYPE_ERROR] Bad type annotation. Unknown type Super
+  2|  @implements {Super} */function Sub() {};
+                   ^
+
+testdata/fixtures/extracted/testinterfaceinheritancecheck8.js:3:16: ERROR - [JSC_UNKNOWN_OVERRIDE] property foo not defined on any superclass of Sub
+  3| /** @override */Sub.prototype.foo = function() {};
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+2 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+2

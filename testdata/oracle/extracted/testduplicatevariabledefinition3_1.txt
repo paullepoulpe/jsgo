@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testduplicatevariabledefinition3_1.js:3:29: ERROR - [JSC_DUP_VAR_DECLARATION_TYPE_MISMATCH] variable ns.x redefined with type {x: string}, original definition at testdata/fixtures/extracted/testduplicatevariabledefinition3_1.js:2 with type {x: number}
+  3| /** @type {{x:string}} */ ns.x;
+                                  ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1
