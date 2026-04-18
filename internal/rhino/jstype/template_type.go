@@ -75,10 +75,10 @@ func (m *TemplateTypeMap) Lookup(tmpl *TemplateType) JSType {
 }
 
 // Substitute walks `t` replacing every TemplateType with its mapped
-// concrete type. ObjectType / FunctionType / UnionType are handled
-// structurally. Unmapped template vars stay as TemplateType so a
-// downstream caller can still decide how to degrade them (our
-// convention is to treat them as Unknown).
+// concrete type. ObjectType / FunctionType / UnionType / Templatized
+// are handled structurally. Unmapped template vars stay as
+// TemplateType so a downstream caller can still decide how to
+// degrade them (our convention is to treat them as Unknown).
 func (m *TemplateTypeMap) Substitute(t JSType) JSType {
 	if m == nil || t == nil {
 		return t
@@ -103,6 +103,45 @@ func (m *TemplateTypeMap) Substitute(t JSType) JSType {
 			return t
 		}
 		return NewUnion(out...)
+	case *TemplatizedType:
+		var args []JSType
+		changed := false
+		for _, a := range v.Args {
+			s := m.Substitute(a)
+			args = append(args, s)
+			if s != a {
+				changed = true
+			}
+		}
+		if !changed {
+			return t
+		}
+		return NewTemplatizedType(v.Base, args)
+	case *FunctionType:
+		var params []JSType
+		changed := false
+		for _, p := range v.Params {
+			s := m.Substitute(p)
+			params = append(params, s)
+			if s != p {
+				changed = true
+			}
+		}
+		ret := m.Substitute(v.Return)
+		if ret != v.Return {
+			changed = true
+		}
+		if !changed {
+			return t
+		}
+		out := &FunctionType{
+			Params:        params,
+			Return:        ret,
+			IsConstructor: v.IsConstructor,
+			Instance:      v.Instance,
+			TemplateTypes: v.TemplateTypes,
+		}
+		return out
 	}
 	return t
 }

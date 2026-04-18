@@ -28,19 +28,12 @@ import (
 // identifier references. Mirrors VarCheck.java's post-order Callback
 // shape — ShouldTraverse always descends, Visit inspects NAME uses.
 type VarCheck struct {
-	path       string
-	creator    *TypedScopeCreator
-	global     *TypedScope
-	externs    map[string]bool
-	reported   map[nameSite]bool
-	diags      []diag.Diagnostic
-	reachable  []*rhino.Node // stack of IF branches — unused today, reserved for scope-aware checks
-}
-
-type nameSite struct {
-	line int
-	col  int
-	name string
+	path     string
+	creator  *TypedScopeCreator
+	global   *TypedScope
+	externs  map[string]bool
+	reported map[string]bool // name → already-reported (Java reports once per file)
+	diags    []diag.Diagnostic
 }
 
 // NewVarCheck mirrors VarCheck.java's constructor shape — it binds to
@@ -52,7 +45,7 @@ func NewVarCheck(path string, creator *TypedScopeCreator, global *TypedScope) *V
 		creator:  creator,
 		global:   global,
 		externs:  defaultExternNames(),
-		reported: map[nameSite]bool{},
+		reported: map[string]bool{},
 	}
 }
 
@@ -112,11 +105,10 @@ func (v *VarCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 	if v.externs[name] {
 		return
 	}
-	site := nameSite{line: n.Lineno(), col: n.Charno(), name: name}
-	if v.reported[site] {
+	if v.reported[name] {
 		return
 	}
-	v.reported[site] = true
+	v.reported[name] = true
 	v.diags = append(v.diags, diag.Diagnostic{
 		Path:    v.path,
 		Line:    n.Lineno(),

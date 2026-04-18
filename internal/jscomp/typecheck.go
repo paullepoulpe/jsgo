@@ -279,9 +279,6 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 			return nil
 		}
 		found := infer.InferType(rhs)
-		if _, isUnion := found.(*jstype.UnionType); isUnion {
-			return nil
-		}
 		if jstype.IsSubtype(found, declared) {
 			return nil
 		}
@@ -320,9 +317,6 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 			ownerName = obj.TypeName()
 		}
 		found := infer.InferType(rhs)
-		if _, isUnion := found.(*jstype.UnionType); isUnion {
-			return nil
-		}
 		if jstype.IsSubtype(found, declared) {
 			return nil
 		}
@@ -351,17 +345,20 @@ func (c *TypeCheck) visitCall(node *rhino.Node, scope *TypedScope) []diag.Diagno
 	if !ok {
 		return nil
 	}
-	if len(args) != len(fn.Params) {
-		return nil
+	// Arity-mismatch: still type-check the overlapping prefix so a
+	// `f(0)` against `function f(s: string)` reports the type error
+	// even when other params are dropped. Java fires both
+	// JSC_WRONG_ARGUMENT_COUNT and the per-arg JSC_TYPE_MISMATCH.
+	n := len(args)
+	if len(fn.Params) < n {
+		n = len(fn.Params)
 	}
 	var out []diag.Diagnostic
 	calleeName := describeCallee(callee)
-	for i, arg := range args {
+	for i := 0; i < n; i++ {
+		arg := args[i]
 		param := fn.Params[i]
 		found := infer.InferType(arg)
-		if _, isUnion := found.(*jstype.UnionType); isUnion {
-			continue
-		}
 		if jstype.IsSubtype(found, param) {
 			continue
 		}
@@ -428,9 +425,6 @@ func (c *TypeCheck) visitReturn(ret *rhino.Node, scope *TypedScope) []diag.Diagn
 	}
 	infer := NewTypeInference(scope)
 	found := infer.InferType(retExpr)
-	if _, isUnion := found.(*jstype.UnionType); isUnion {
-		return nil
-	}
 	if jstype.IsSubtype(found, declared) {
 		return nil
 	}
@@ -460,9 +454,6 @@ func (c *TypeCheck) visitClassField(field *rhino.Node, parent *rhino.Node, scope
 	declared := scope.ResolveExpr(info.Type().TypeName)
 	infer := NewTypeInference(scope)
 	found := infer.InferType(init)
-	if _, isUnion := found.(*jstype.UnionType); isUnion {
-		return nil
-	}
 	if jstype.IsSubtype(found, declared) {
 		return nil
 	}

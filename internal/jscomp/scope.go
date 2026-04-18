@@ -166,11 +166,19 @@ func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 	for _, p := range parts {
 		p = trimSpace(p)
 		p = trimPrefix(p, "!")
-		// Strip generic brackets: `Array<string>` → `Array`. Proper
-		// template resolution is a Tier-3 port; for now we at least
-		// recover the nominal head so `@type {Array<T>}` resolves to
-		// Array instead of collapsing the whole expression to Unknown.
+		// Generic brackets: `Array<string>` → TemplatizedType backed
+		// by Array's instance type, with `string` resolved as the
+		// type argument. Mirrors how JSTypeRegistry instantiates a
+		// templated nominal at JSDoc-resolution time.
+		var tplArgs []jstype.JSType
 		if i := indexOfByte(p, '<'); i >= 0 {
+			closing := indexLastByte(p, '>')
+			if closing > i {
+				inner := trimSpace(p[i+1 : closing])
+				for _, a := range splitTopLevelComma(inner) {
+					tplArgs = append(tplArgs, s.ResolveExpr(a))
+				}
+			}
 			p = trimSpace(p[:i])
 		}
 		if p == "" {
@@ -184,7 +192,11 @@ func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 		}
 		// Try nominal (constructor → instance), then primitive.
 		if inst := s.LookupNominalType(p); inst != nil {
-			members = append(members, inst)
+			if len(tplArgs) > 0 {
+				members = append(members, jstype.NewTemplatizedType(inst, tplArgs))
+			} else {
+				members = append(members, inst)
+			}
 			continue
 		}
 		m := s.registry.ResolveName(p)
@@ -233,6 +245,38 @@ func indexOfByte(s string, b byte) int {
 		}
 	}
 	return -1
+}
+
+func indexLastByte(s string, b byte) int {
+	for i := len(s) - 1; i >= 0; i-- {
+		if s[i] == b {
+			return i
+		}
+	}
+	return -1
+}
+
+// splitTopLevelComma splits `s` on `,` at depth 0 of {} () <>. Used
+// for template-arg lists like `Map<string, Array<number>>`.
+func splitTopLevelComma(s string) []string {
+	var out []string
+	depth := 0
+	start := 0
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '{', '(', '<':
+			depth++
+		case '}', ')', '>':
+			depth--
+		case ',':
+			if depth == 0 {
+				out = append(out, trimSpace(s[start:i]))
+				start = i + 1
+			}
+		}
+	}
+	out = append(out, trimSpace(s[start:]))
+	return out
 }
 
 // splitTopLevelUnion splits `A|B|C` on `|` but respects nesting depth
@@ -921,9 +965,18 @@ func (c *TypedScopeCreator) recordDecl(v *rhino.Node, scope *TypedScope) {
 		scope.declared[name.String_()] = jstype.Unknown
 		return
 	}
-	// `@type {T}` pins the binding's declared type precisely.
+	// `@type {T}` pins the binding's declared type precisely. Java's
+	// VarCheck treats variables whose initializer references an
+	// undeclared NAME as Unknown — the @type annotation is silently
+	// discarded so subsequent uses don't double-report. We follow
+	// the same rule by downgrading to Unknown when the initializer
+	// is a bare reference we can't resolve.
 	if info.HasType() {
-		scope.declared[name.String_()] = scope.ResolveExpr(info.Type().TypeName)
+		declared := scope.ResolveExpr(info.Type().TypeName)
+		if init := name.FirstChild(); init != nil && initIsUndeclaredRef(init, scope) {
+			declared = jstype.Unknown
+		}
+		scope.declared[name.String_()] = declared
 		return
 	}
 	// No @type: try to recover a sharper type from a simple initializer
@@ -1091,6 +1144,23 @@ func (c *TypedScopeCreator) collectThisProperties(node *rhino.Node, inst *jstype
 
 func isDeclToken(t rhino.Token) bool {
 	return t == rhino.VAR || t == rhino.LET || t == rhino.CONST
+}
+
+// initIsUndeclaredRef reports whether `init` is a bare NAME node that
+// resolves to no value-namespace binding in `scope` — used so
+// recordDecl can downgrade `var x = unknown;` to Unknown when
+// `unknown` itself isn't reachable.
+func initIsUndeclaredRef(init *rhino.Node, scope *TypedScope) bool {
+	if init == nil || init.Token() != rhino.NAME {
+		return false
+	}
+	if scope.GetDeclaredType(init.String_()) != nil {
+		return false
+	}
+	if defaultExternNames()[init.String_()] {
+		return false
+	}
+	return true
 }
 
 // functionReturnsExplicitly reports whether a FUNCTION body contains

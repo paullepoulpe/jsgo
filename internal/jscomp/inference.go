@@ -189,6 +189,13 @@ func (t *TypeInference) inferGetProp(n *rhino.Node) jstype.JSType {
 		}
 	}
 	recvType := t.InferType(recv)
+	if tplt, ok := recvType.(*jstype.TemplatizedType); ok {
+		// Dereference to the underlying ObjectType for property
+		// lookup. The template args don't influence which properties
+		// exist; they only matter when the property's own type
+		// references a TemplateType.
+		recvType = tplt.Base
+	}
 	if obj, ok := recvType.(*jstype.ObjectType); ok {
 		if pt := obj.GetPropertyType(propName); pt != nil {
 			return pt
@@ -272,11 +279,37 @@ func unifyTemplates(subs *jstype.TemplateTypeMap, param, arg jstype.JSType) {
 		}
 		return
 	}
-	// FunctionType / ObjectType param shapes are uncommon at this
-	// tier — we skip their internal recursion to keep the unification
-	// surface conservative. A later pass extends to `(T) => U`,
-	// `Array<T>`, etc., once the registry tracks those as structured
-	// TemplateType carriers.
+	if pt, ok := param.(*jstype.TemplatizedType); ok {
+		// `Array<T>` param vs `Array<number>` arg → unify T with
+		// number. When the arg side isn't itself templatized (e.g.
+		// arg is plain Array because we haven't tracked the element
+		// type), fall back to no binding.
+		var argArgs []jstype.JSType
+		if at, ok := arg.(*jstype.TemplatizedType); ok && at.Base == pt.Base {
+			argArgs = at.Args
+		}
+		for i, p := range pt.Args {
+			var a jstype.JSType
+			if i < len(argArgs) {
+				a = argArgs[i]
+			}
+			unifyTemplates(subs, p, a)
+		}
+		return
+	}
+	if pf, ok := param.(*jstype.FunctionType); ok {
+		// `function(T): U` param vs `function(X): Y` arg — unify the
+		// positional parameter list and the return type.
+		af, ok := arg.(*jstype.FunctionType)
+		if !ok {
+			return
+		}
+		for i := 0; i < len(pf.Params) && i < len(af.Params); i++ {
+			unifyTemplates(subs, pf.Params[i], af.Params[i])
+		}
+		unifyTemplates(subs, pf.Return, af.Return)
+		return
+	}
 }
 
 // inferAdd is the narrow `+` helper. Port of TypeValidator.java's ADD
