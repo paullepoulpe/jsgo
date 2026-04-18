@@ -59,7 +59,11 @@ func (m *MissingReturnCheck) walk(n *rhino.Node) {
 }
 
 func (m *MissingReturnCheck) checkFunction(fn *rhino.Node) {
-	info := fn.JSDocInfo()
+	// Function expressions used as prototype-assign RHS carry their
+	// JSDoc on the surrounding ASSIGN (e.g. `F.prototype.bar =
+	// function() { … }` with `@return {T}` above the ASSIGN). Walk
+	// up until we find a JSDoc with an explicit @return.
+	info := returnJSDocFor(fn)
 	if info == nil || info.ReturnType() == nil {
 		return
 	}
@@ -75,16 +79,24 @@ func (m *MissingReturnCheck) checkFunction(fn *rhino.Node) {
 	if body.Token() != rhino.BLOCK {
 		return
 	}
-	// Java only fires when the body contains at least one
-	// `return EXPR` — both empty stubs and bodies whose only returns
-	// lack expressions are treated as intentional. (jsgo's parser
-	// occasionally produces a bare `return;` when it can't model the
-	// returned expression — `/** @type {T} */ (e)` casts among others
-	// — so this guard also cuts a class of parser-induced FPs.)
+	// Empty-body stubs (`function f() {}` with a non-void @return)
+	// are treated as intentional by Java — skip. Same for bodies
+	// whose only returns lack expressions (jsgo's parser degrades a
+	// failed cast `/** @type {T} */ (e)` to a bare `return;`, so
+	// this guard also prevents parser-induced FPs).
+	if len(body.Children()) == 0 {
+		return
+	}
 	if !hasValueReturn(body) {
 		return
 	}
-	if definitelyReturns(body) {
+	// CFG reachability: if the synthetic EXIT node has any predecessor
+	// reachable through a non-`return EXPR` fall-through, the function
+	// has a path that doesn't return a value. Port of Java's
+	// CheckMissingReturn behaviour over the real CFG — replaces the
+	// AST-walk `definitelyReturns` approximation for functions.
+	cfg := BuildControlFlowGraph(fn)
+	if allExitsReturnValue(cfg) {
 		return
 	}
 	// Java reports at the FUNCTION node's position; we mirror that by
@@ -148,6 +160,83 @@ func hasValueReturn(n *rhino.Node) bool {
 		}
 	}
 	return false
+}
+
+// returnJSDocFor returns the first JSDocInfo carrying @return on
+// `fn` or any ancestor up to EXPR_RESULT. Catches the
+// `F.prototype.bar = function() {…}` pattern where JSDoc lives on
+// the ASSIGN rather than the FUNCTION itself.
+func returnJSDocFor(fn *rhino.Node) *rhino.JSDocInfo {
+	for cur := fn; cur != nil; cur = cur.Parent() {
+		if info := cur.JSDocInfo(); info != nil && info.ReturnType() != nil {
+			return info
+		}
+		if cur.Token() == rhino.EXPR_RESULT {
+			break
+		}
+	}
+	return nil
+}
+
+// allExitsReturnValue reports whether every CFG predecessor of the
+// synthetic EXIT node is a RETURN with an expression. If any
+// *reachable* predecessor is a fall-through (no return), or a bare
+// `return;`, or reaches EXIT via any other path, the function is
+// missing a return on at least one branch. Port of Java's
+// CheckMissingReturn over the real CFG.
+//
+// Reachability is computed from the ENTRY node — unreachable
+// synthetic joins (e.g. an IF whose branches both return) must be
+// ignored, otherwise they'd falsely imply a fall-through.
+func allExitsReturnValue(cfg *ControlFlowGraph) bool {
+	if cfg == nil || cfg.Exit == nil {
+		return true
+	}
+	reachable := reachableFromEntry(cfg)
+	anyReachable := false
+	for _, p := range cfg.Exit.Predecessors {
+		if !reachable[p] {
+			continue
+		}
+		anyReachable = true
+		if p.AST == nil {
+			return false
+		}
+		if p.AST.Token() != rhino.RETURN {
+			return false
+		}
+		if p.AST.FirstChild() == nil {
+			return false
+		}
+	}
+	if !anyReachable {
+		// No flow reaches EXIT — function is infinite-loop or fully
+		// throws. Java treats these as satisfying the check.
+		return true
+	}
+	return true
+}
+
+// reachableFromEntry returns the set of CfgNodes reachable from
+// cfg.Entry via forward edges. Used so unreachable joins don't
+// trigger false "missing return" warnings.
+func reachableFromEntry(cfg *ControlFlowGraph) map[*CfgNode]bool {
+	out := map[*CfgNode]bool{}
+	stack := []*CfgNode{cfg.Entry}
+	for len(stack) > 0 {
+		n := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		if out[n] {
+			continue
+		}
+		out[n] = true
+		for _, e := range n.Successors {
+			if !out[e.To] {
+				stack = append(stack, e.To)
+			}
+		}
+	}
+	return out
 }
 
 // definitelyReturns reports whether every execution path through `n`

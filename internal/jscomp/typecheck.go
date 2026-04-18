@@ -33,6 +33,19 @@ type TypeCheck struct {
 	global  *TypedScope
 	path    string
 	diags   []diag.Diagnostic
+
+	// flows maps each function / script root to its computed
+	// DataFlowAnalysis, built lazily as the traversal enters the
+	// function. statementAtNode maps a CFG-statement AST node to its
+	// owning flow so TypeCheck can consult the IN FlowScope when
+	// checking expressions inside it.
+	flows         map[*rhino.Node]*DataFlowAnalysis
+	currentFlow   *DataFlowAnalysis
+	currentCfg    *ControlFlowGraph
+	flowStack     []*DataFlowAnalysis
+	cfgStack      []*ControlFlowGraph
+	currentStmt   *rhino.Node
+	stmtStack     []*rhino.Node
 }
 
 func NewTypeCheck(path string, creator *TypedScopeCreator, global *TypedScope) *TypeCheck {
@@ -40,17 +53,53 @@ func NewTypeCheck(path string, creator *TypedScopeCreator, global *TypedScope) *
 		creator: creator,
 		global:  global,
 		path:    path,
+		flows:   map[*rhino.Node]*DataFlowAnalysis{},
 	}
 }
 
 // Check drives a NodeTraversal over the script and returns every
 // diagnostic collected during Visit. Matches Java's
 // TypeCheck#process(…) entry-point shape at a narrow scope.
+//
+// Before walking, we run ControlFlowAnalysis + DataFlowAnalysis on
+// the top-level SCRIPT to produce per-statement FlowScopes. Nested
+// FUNCTION bodies get their own flow built on demand.
 func (c *TypeCheck) Check(script *rhino.Node) []diag.Diagnostic {
 	c.diags = nil
+	c.installFlow(script, c.global)
 	trav := NewNodeTraversal(c, c.creator, c.global)
 	trav.Traverse(script)
 	return c.diags
+}
+
+// installFlow builds the CFG + DataFlowAnalysis for `root` (a
+// FUNCTION or SCRIPT) and stores it on the TypeCheck instance so
+// Visit can look up IN FlowScopes for each statement.
+func (c *TypeCheck) installFlow(root *rhino.Node, scope *TypedScope) *DataFlowAnalysis {
+	if existing, ok := c.flows[root]; ok {
+		return existing
+	}
+	cfg := BuildControlFlowGraph(root)
+	pass := NewTypeInferencePass(scope)
+	d := NewDataFlowAnalysis(cfg, EmptyFlowScope(), pass.Transfer)
+	d.Run()
+	c.flows[root] = d
+	return d
+}
+
+// enclosingStmt returns the nearest ancestor of `n` that's a CFG
+// statement (matches the Token set visited by BuildControlFlowGraph).
+// Used so an expression node can find its owning statement's IN
+// FlowScope.
+func enclosingStmt(n *rhino.Node) *rhino.Node {
+	for cur := n; cur != nil; cur = cur.Parent() {
+		switch cur.Token() {
+		case rhino.VAR, rhino.LET, rhino.CONST, rhino.EXPR_RESULT,
+			rhino.IF, rhino.RETURN:
+			return cur
+		}
+	}
+	return nil
 }
 
 // ShouldTraverse is the pre-order hook. For BLOCK / IF / HOOK nodes
@@ -205,9 +254,13 @@ func (c *TypeCheck) traverseHook(t *NodeTraversal, n *rhino.Node) {
 
 // Visit is the post-order dispatch. Matches Java's visit(t,n,parent)
 // override on AbstractPostOrderCallback; each branch mirrors a
-// TypeCheck.java visitXxx helper.
+// TypeCheck.java visitXxx helper. Before per-node dispatch, we push
+// the IN FlowScope of the enclosing statement onto the scope so
+// expression-level inference sees the flow-narrowed types.
 func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 	scope := t.CurrentScope()
+	popFlow := c.pushEnclosingFlow(n, scope)
+	defer popFlow()
 	switch n.Token() {
 	case rhino.VAR, rhino.LET, rhino.CONST:
 		c.emit(c.visitVar(n, scope))
@@ -223,7 +276,56 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitClassField(n, parent, scope))
 	case rhino.RETURN:
 		c.emit(c.visitReturn(n, scope))
+	case rhino.FUNCTION:
+		// A nested function declaration needs its own FlowScope for
+		// its body — build it lazily the first time we see the
+		// FUNCTION node, and keep it on `c.flows` for the rest of
+		// the traversal. The scope creator has already produced the
+		// local scope (via c.creator.Functions[fn]).
+		if local, ok := c.creator.Functions[n]; ok && local != nil {
+			c.installFlow(n, local)
+		}
 	}
+}
+
+// pushEnclosingFlow looks up the CFG / FlowScope active for `n`'s
+// enclosing statement and pushes it as a refinement on the current
+// scope. Returns a pop function the caller defers. Safe no-op if
+// the node isn't inside a tracked CFG.
+func (c *TypeCheck) pushEnclosingFlow(n *rhino.Node, scope *TypedScope) func() {
+	stmt := enclosingStmt(n)
+	if stmt == nil {
+		return func() {}
+	}
+	// Look up the closest FUNCTION / SCRIPT ancestor so we know
+	// which flow analysis owns this statement.
+	fn := enclosingFlowRoot(n)
+	d := c.flows[fn]
+	if d == nil {
+		return func() {}
+	}
+	cfgNode := d.Cfg.Get(stmt)
+	if cfgNode == nil {
+		return func() {}
+	}
+	in := d.InOfAst(cfgNode)
+	if in == nil || len(in.types) == 0 {
+		return func() {}
+	}
+	scope.PushRefinement(in.types)
+	return scope.PopRefinement
+}
+
+// enclosingFlowRoot returns the nearest FUNCTION or SCRIPT ancestor
+// of `n` — the CFG owner for that subtree.
+func enclosingFlowRoot(n *rhino.Node) *rhino.Node {
+	for cur := n; cur != nil; cur = cur.Parent() {
+		switch cur.Token() {
+		case rhino.FUNCTION, rhino.SCRIPT:
+			return cur
+		}
+	}
+	return nil
 }
 
 func (c *TypeCheck) emit(d []diag.Diagnostic) {

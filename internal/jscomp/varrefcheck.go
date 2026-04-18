@@ -46,34 +46,21 @@ type declSite struct {
 	col  int
 }
 
-func NewVariableReferenceCheck(path string) *VariableReferenceCheck {
+func NewVariableReferenceCheck(path string, externScope *TypedScope) *VariableReferenceCheck {
 	v := &VariableReferenceCheck{
 		path:   path,
 		scopes: []map[string]declSite{{}},
 	}
-	// Seed the global frame with names the corpus expects to come
-	// from the externs bundle. Source declarations that re-bind one
-	// of these fire JSC_VAR_MULTIPLY_DECLARED_ERROR — Java's check
-	// would compare against the externs file's first-occurrence
-	// position, which we can't reproduce, but the (line, col) tuple
-	// matches because Java reports at the source-side declaration.
-	for _, n := range externPredeclaredNames() {
-		v.scopes[0][n] = declSite{line: 0, col: 0}
+	// Seed the global frame with every name declared by the externs
+	// scope. Re-declaring one of these in user source fires
+	// JSC_VAR_MULTIPLY_DECLARED_ERROR at the source-side position,
+	// which matches Java's oracle.
+	if externScope != nil {
+		for name := range externScope.declared {
+			v.scopes[0][name] = declSite{line: 0, col: 0}
+		}
 	}
 	return v
-}
-
-// externPredeclaredNames returns names that the corpus assumes live
-// in the bundled DefaultExterns / es6.js bundle. Re-declaring any of
-// these in source is reported as a duplicate by Java; we replicate
-// that by seeding the global frame with sentinel entries.
-func externPredeclaredNames() []string {
-	return []string{
-		"Disposable", "IDisposable", "Iterator", "AsyncIterator",
-		"Iterable", "AsyncIterable", "IteratorResult", "Generator",
-		"AsyncGenerator", "Symbol", "Promise", "Map", "Set", "WeakMap",
-		"WeakSet", "Reflect", "Proxy", "ArrayBuffer", "DataView",
-	}
 }
 
 // Check runs the traversal and returns the collected diagnostics.

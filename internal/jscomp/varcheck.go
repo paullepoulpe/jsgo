@@ -31,7 +31,6 @@ type VarCheck struct {
 	path     string
 	creator  *TypedScopeCreator
 	global   *TypedScope
-	externs  map[string]bool
 	reported map[string]bool // name → already-reported (Java reports once per file)
 	diags    []diag.Diagnostic
 }
@@ -44,7 +43,6 @@ func NewVarCheck(path string, creator *TypedScopeCreator, global *TypedScope) *V
 		path:     path,
 		creator:  creator,
 		global:   global,
-		externs:  defaultExternNames(),
 		reported: map[string]bool{},
 	}
 }
@@ -102,9 +100,6 @@ func (v *VarCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 	if scope.GetDeclaredType(name) != nil {
 		return
 	}
-	if v.externs[name] {
-		return
-	}
 	if v.reported[name] {
 		return
 	}
@@ -148,11 +143,12 @@ func (v *VarCheck) isBindingSite(n, parent *rhino.Node) bool {
 	return false
 }
 
-// defaultExternNames returns the set of identifiers jsgo treats as
-// pre-declared globals. Keeps the check conservative so we don't
-// false-positive on common browser / DOM / ES built-ins before the
-// real DefaultExterns.js loader lands. The set matches the names that
-// appear most often in TypeCheckTest corpus.
+// defaultExternNames is the small fallback set used only by
+// initIsUndeclaredRef (to decide whether a bare-ref initializer
+// should downgrade the binding to Unknown). The primary extern
+// lookup goes through the externs scope parsed from
+// defaultExternsSrc — this list is just the names that can appear
+// as initializer-only refs without a proper @type annotation.
 func defaultExternNames() map[string]bool {
 	names := []string{
 		// Primitive / language intrinsics

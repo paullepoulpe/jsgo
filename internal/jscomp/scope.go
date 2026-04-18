@@ -437,6 +437,36 @@ func (c *TypedScopeCreator) CreateScope(script *rhino.Node) *TypedScope {
 	return global
 }
 
+// createScopeInWithParent is the externs-aware entry point used by
+// Compiler#compile's two-phase build: first the externs script has
+// its scope constructed, then the user source's scope is built with
+// the externs scope as its parent. Mirrors Compiler.getTypeRegistry
+// chaining in Java.
+func (c *TypedScopeCreator) createScopeInWithParent(script *rhino.Node, parent *TypedScope) *TypedScope {
+	scope := c.createScopeIn(script, parent)
+	c.registerNestedFunctions(script, scope)
+	return scope
+}
+
+// createExternScope parses defaultExternsSrc and builds a scope from
+// the resulting SCRIPT. The returned scope's parent is c.builtins(),
+// so primitives still flow in via the sparse Array stub. The
+// resulting scope carries names like Disposable / Promise / Iterator
+// that the user source is expected to reference as predeclared.
+//
+// Parse errors in the externs source are not reachable in practice
+// (the source is vendored), but they surface as a scope containing
+// only the builtins — never as a panic.
+func (c *TypedScopeCreator) createExternScope() *TypedScope {
+	externScript, err := parseExternsSource(defaultExternsSrc)
+	if err != nil || externScript == nil {
+		return c.builtins()
+	}
+	scope := c.createScopeIn(externScript, c.builtins())
+	c.registerNestedFunctions(externScript, scope)
+	return scope
+}
+
 // registerNestedFunctions recursively visits every FUNCTION node that
 // isn't already associated with a local scope (top-level functions
 // were handled by recordFunction) and builds a parameter scope for
