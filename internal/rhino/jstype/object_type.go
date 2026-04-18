@@ -155,6 +155,10 @@ func (o *ObjectType) MemberCount() int { return len(o.members) }
 // it processes `@extends {Base}` on a constructor.
 func (o *ObjectType) SetSuper(s *ObjectType) { o.super = s }
 
+// Super returns the immediate superclass instance type (as wired by
+// SetSuper) or nil at the root of the chain.
+func (o *ObjectType) Super() *ObjectType { return o.super }
+
 // String is for diagnostics; matches Java's PrototypeObjectType.toString
 // shape closely enough that the message column of jsgo output is
 // recognisable to Closure users.
