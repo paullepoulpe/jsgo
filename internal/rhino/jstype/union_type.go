@@ -17,32 +17,57 @@ type UnionType struct {
 	members []JSType
 }
 
-// NewUnion flattens nested unions and drops duplicates. Returns a bare
-// member when the union collapses to one element (matches Java's
-// `JSTypeRegistry.createUnionType` behaviour).
+// NewUnion flattens nested unions and drops duplicates. Returns a
+// bare member when the union collapses to one element. Dedup keys
+// combine TypeName with pointer identity so two anonymous structural
+// records (both TypeName "{...}") stay distinct. Mirrors
+// JSTypeRegistry.createUnionType interning semantics.
 func NewUnion(members ...JSType) JSType {
-	seen := map[string]JSType{}
+	type key struct {
+		name string
+		ptr  any
+	}
+	seen := map[key]JSType{}
+	var order []key
+	add := func(m JSType) {
+		var k key
+		switch v := m.(type) {
+		case *ObjectType:
+			k = key{name: v.TypeName(), ptr: v}
+		case *TemplatizedType:
+			k = key{name: v.TypeName(), ptr: v}
+		case *FunctionType:
+			k = key{name: v.TypeName(), ptr: v}
+		default:
+			k = key{name: m.TypeName()}
+		}
+		if _, ok := seen[k]; ok {
+			return
+		}
+		seen[k] = m
+		order = append(order, k)
+	}
 	for _, m := range members {
 		if u, ok := m.(*UnionType); ok {
 			for _, n := range u.members {
-				seen[n.TypeName()] = n
+				add(n)
 			}
 			continue
 		}
-		seen[m.TypeName()] = m
+		add(m)
 	}
 	if len(seen) == 1 {
 		for _, v := range seen {
 			return v
 		}
 	}
-	var out []JSType
-	for _, v := range seen {
-		out = append(out, v)
-	}
-	sort.Slice(out, func(i, j int) bool {
-		return out[i].TypeName() < out[j].TypeName()
+	sort.Slice(order, func(i, j int) bool {
+		return order[i].name < order[j].name
 	})
+	out := make([]JSType, 0, len(order))
+	for _, k := range order {
+		out = append(out, seen[k])
+	}
 	return &UnionType{members: out}
 }
 

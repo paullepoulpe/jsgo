@@ -165,10 +165,13 @@ func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 		nullable = true
 		expr = trimSpace(expr[1:])
 	}
-	// Inline structural: `{k1: T1, k2: T2}`. Covers the common
-	// anonymous record shape that Closure tests use as @param /
-	// @return types.
-	if startsWith(expr, "{") {
+	// Inline structural: `{k1: T1, k2: T2}`. Only take the early
+	// structural branch when the outer braces truly wrap the whole
+	// expression (i.e. the opening `{` is matched by the trailing
+	// `}` with no higher-level operator in between). Otherwise a
+	// union like `{a:number}|{b:string}` would be misparsed as a
+	// malformed record.
+	if startsWith(expr, "{") && balancedOuterBraces(expr) {
 		if obj, ok := s.resolveObjectLiteralType(expr); ok {
 			if nullable {
 				return jstype.NewUnion(obj, jstype.Null)
@@ -195,6 +198,17 @@ func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 		} else if startsWith(p, "?") {
 			explicitNullable = true
 			p = trimSpace(p[1:])
+		}
+		// Inline structural member: `{…}` inside a union.
+		if startsWith(p, "{") && balancedOuterBraces(p) {
+			if obj, ok := s.resolveObjectLiteralType(p); ok {
+				if !explicitNonNull {
+					impliedNullable = true
+				}
+				members = append(members, obj)
+				continue
+			}
+			return jstype.Unknown
 		}
 		// Generic brackets: `Array<string>` → TemplatizedType backed
 		// by Array's instance type, with `string` resolved as the
@@ -407,6 +421,28 @@ func indexOfTopLevel(s string, b byte) int {
 
 func endsWith(s, suffix string) bool {
 	return len(s) >= len(suffix) && s[len(s)-len(suffix):] == suffix
+}
+
+// balancedOuterBraces reports whether the outermost `{…}` in `s`
+// wraps the entire string. Returns false for shapes like
+// `{a}|{b}` where the first `{...}` closes before the end.
+func balancedOuterBraces(s string) bool {
+	if len(s) < 2 || s[0] != '{' || s[len(s)-1] != '}' {
+		return false
+	}
+	depth := 0
+	for i := 0; i < len(s)-1; i++ {
+		switch s[i] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 && i < len(s)-1 {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // balancedOuter reports whether the outermost `(...)` in `s` is a
