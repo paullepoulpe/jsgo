@@ -87,7 +87,7 @@ curated.
 | Tier-1 (hand-authored, required)     | 14    | **14/14 = 100%** |
 | Tier-2 (hand-authored, required)     | 12    | **12/12 = 100%** |
 | Tier-3 (hand-authored, required)     | 5     | **5/5 = 100%**   |
-| Extracted from `TypeCheckTest.java`  | 1444  | **690/1444 = 47.78%** (latest measurement) |
+| Extracted from `TypeCheckTest.java`  | 1444  | **722/1444 = 50.00%** (latest measurement) |
 
 The extracted corpus is a stretch benchmark, not an MVP exit criterion.
 It exists to measure how far a Tier-0 implementation lands against the

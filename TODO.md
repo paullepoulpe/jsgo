@@ -4,10 +4,15 @@ Living list of what's left to port, with rough effort estimates, in
 order of expected pass-rate lift for the `testdata/fixtures/extracted`
 benchmark. Updated whenever a milestone commits.
 
-**Current state:** 690/1444 = **47.78%** extracted pass rate. Tier-0
+**Current state:** 722/1444 = **50.00%** extracted pass rate. Tier-0
 through Tier-3 hand-authored corpora all 100%.
 
-**Goal:** 80%+ = ~1155 extracted passes. Gap: **+465**.
+**Goal:** 80%+ = ~1155 extracted passes. Gap: **+433**.
+
+Since the last revision, the CFG, dataflow, externs, P1-2
+(JSC_USELESS_CODE) and P1-4 (JSC_HIDDEN_SUPERCLASS / INTERFACE
+PROPERTY MISMATCH) ports have all landed, plus a
+nominal-nullability default matching Java's legacy mode.
 
 **P0 sweep — completed (with the listed scope caveats):**
 - P0-1 ✅ Parser precedence-climbing + expression-level TypeInference
