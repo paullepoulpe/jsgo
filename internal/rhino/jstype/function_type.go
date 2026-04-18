@@ -78,5 +78,13 @@ func (f *FunctionType) IsSubtypeOf(o JSType) bool {
 		}
 		return IsSubtype(f.Return, g.Return)
 	}
+	// Any FunctionType is assignment-compatible with the
+	// built-in `Function` instance (Java's subtype relationship
+	// for callable-vs-Function). Matches how
+	// FunctionType.isSubtype returns true against the top
+	// Function type.
+	if obj, ok := o.(*ObjectType); ok && obj.Name == "Function" {
+		return true
+	}
 	return isAll(o) || isUnknown(o)
 }
