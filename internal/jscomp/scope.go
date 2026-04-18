@@ -348,7 +348,84 @@ func NewTypedScopeCreator(r *jstype.Registry) *TypedScopeCreator {
 // Walks top-level declarations and records their types; recurses into
 // function bodies to build their parameter scopes.
 func (c *TypedScopeCreator) CreateScope(script *rhino.Node) *TypedScope {
-	return c.createScopeIn(script, c.builtins())
+	global := c.createScopeIn(script, c.builtins())
+	// Walk the full tree after the top-level pass so function
+	// expressions / arrow functions nested inside initializers,
+	// returns, and argument lists also get their local scopes. Matches
+	// how TypedScopeCreator's AbstractScopeBuilder descends into every
+	// syntactic child rather than the first-level only.
+	c.registerNestedFunctions(script, global)
+	return global
+}
+
+// registerNestedFunctions recursively visits every FUNCTION node that
+// isn't already associated with a local scope (top-level functions
+// were handled by recordFunction) and builds a parameter scope for
+// it. Used so arrow / function-expression parameters are reachable to
+// VarCheck and TypeCheck.
+func (c *TypedScopeCreator) registerNestedFunctions(n *rhino.Node, enclosing *TypedScope) {
+	if n == nil {
+		return
+	}
+	if n.Token() == rhino.FUNCTION {
+		if _, seen := c.Functions[n]; !seen {
+			c.buildExpressionFunctionScope(n, enclosing)
+		}
+	}
+	next := enclosing
+	if local, ok := c.Functions[n]; ok && local != nil {
+		next = local
+	}
+	for _, child := range n.Children() {
+		c.registerNestedFunctions(child, next)
+	}
+}
+
+// buildExpressionFunctionScope creates a local scope for a FUNCTION
+// node that was discovered outside the top-level statement walk
+// (arrow bodies, anonymous function expressions, object-literal
+// method shorthands). Parameters are bound to @param types when
+// JSDoc is present, else Unknown. The function body is then walked
+// via createScopeIn so nested declarations — `var foo = …`,
+// `function bar(){}`, `class Baz{}` — populate the same local slot,
+// matching how recordFunction handles top-level functions.
+func (c *TypedScopeCreator) buildExpressionFunctionScope(fn *rhino.Node, parent *TypedScope) {
+	kids := fn.Children()
+	if len(kids) < 2 {
+		return
+	}
+	info := fn.JSDocInfo()
+	params := kids[1]
+	local := &TypedScope{
+		parent:      parent,
+		declared:    make(map[string]jstype.JSType),
+		typeAliases: make(map[string]jstype.JSType),
+		registry:    c.registry,
+	}
+	for _, p := range params.Children() {
+		var t jstype.JSType = jstype.Unknown
+		if info != nil {
+			if expr := info.ParameterType(p.String_()); expr != nil {
+				t = parent.ResolveExpr(expr.TypeName)
+			}
+		}
+		local.declared[p.String_()] = t
+	}
+	c.Functions[fn] = local
+	if len(kids) >= 3 {
+		body := kids[2]
+		nested := c.createScopeIn(body, local)
+		for k, v := range nested.declared {
+			if _, exists := local.declared[k]; !exists {
+				local.declared[k] = v
+			}
+		}
+		for k, v := range nested.typeAliases {
+			if _, exists := local.typeAliases[k]; !exists {
+				local.typeAliases[k] = v
+			}
+		}
+	}
 }
 
 // builtins returns the synthetic parent scope carrying a minimal set
@@ -763,29 +840,37 @@ func (c *TypedScopeCreator) recordDecl(v *rhino.Node, scope *TypedScope) {
 	if name == nil || name.Token() != rhino.NAME {
 		return
 	}
-	// Skip var bindings that are really typedef declarations — they
-	// live in the typeAliases namespace and don't add value slots.
+	// Typedef declarations primarily populate the typeAliases
+	// namespace, but we still record the NAME at Unknown in the
+	// value namespace so later `var alias = original;` references
+	// don't fire UNDEFINED_VARIABLE. Java's VarCheck treats
+	// `var original` (with @typedef) as a normal declaration slot.
 	if info != nil && info.TypedefType() != nil {
+		scope.declared[name.String_()] = jstype.Unknown
 		return
 	}
+	// `@type {T}` pins the binding's declared type precisely.
 	if info.HasType() {
 		scope.declared[name.String_()] = scope.ResolveExpr(info.Type().TypeName)
 		return
 	}
-	// No @type: try to infer the binding's type from a simple
-	// initializer. Mirrors TypedScopeCreator's "implicit declaration"
-	// branch — only the shape `var x = new Foo();` is needed for
-	// Tier-2.
+	// No @type: try to recover a sharper type from a simple initializer
+	// (`var x = new Foo()` → Foo instance). For everything else, we
+	// still record the name at Unknown so VarCheck doesn't flag later
+	// references to it as undeclared. Mirrors how TypedScopeCreator
+	// always adds a slot for every `var` even when its type stays
+	// inferred.
 	init := name.FirstChild()
-	if init == nil || init.Token() != rhino.NEW {
-		return
+	if init != nil && init.Token() == rhino.NEW {
+		if callee := init.FirstChild(); callee != nil && callee.Token() == rhino.NAME {
+			if fn, ok := scope.declared[callee.String_()].(*jstype.FunctionType); ok && fn.Instance != nil {
+				scope.declared[name.String_()] = fn.Instance
+				return
+			}
+		}
 	}
-	callee := init.FirstChild()
-	if callee == nil || callee.Token() != rhino.NAME {
-		return
-	}
-	if fn, ok := scope.declared[callee.String_()].(*jstype.FunctionType); ok && fn.Instance != nil {
-		scope.declared[name.String_()] = fn.Instance
+	if _, exists := scope.declared[name.String_()]; !exists {
+		scope.declared[name.String_()] = jstype.Unknown
 	}
 }
 

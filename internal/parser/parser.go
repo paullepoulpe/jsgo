@@ -233,6 +233,14 @@ func (p *Parser) finishFunction(jsdoc *rhino.JSDocInfo) (*rhino.Node, bool) {
 	params := rhino.New(rhino.PARAM_LIST)
 	for {
 		p.scanner.SkipTrivia()
+		// Inline JSDoc on parameters: `function f(/** T */ x)` — ignore
+		// the type hint and keep scanning. Java's Parser does the same
+		// via a ParamToken path that attaches the comment to the param
+		// node; we drop it for now since the parameter's type flows
+		// through the function's outer @param JSDoc anyway.
+		if _, ok := p.scanner.ConsumeBlockComment(); ok {
+			p.scanner.SkipTrivia()
+		}
 		if p.scanner.AtEnd() {
 			return fn, true
 		}
@@ -1469,19 +1477,40 @@ func (p *Parser) finishNew() (*rhino.Node, bool) {
 	if !ok {
 		return nil, false
 	}
-	p.scanner.SkipTrivia()
-	if !p.scanner.ConsumeByte('(') {
-		// `new Foo` without args isn't supported yet; treat as a plain
-		// name reference so callers aren't blocked.
-		name := rhino.NewString(rhino.NAME, ident)
-		name.SetPos(nameLine, nameCol)
-		return name, true
+	// `new Foo.Bar(args)` — pick up any `.prop` chain on the callee
+	// before the optional `(args)`. Matches Parser.java's
+	// parseNewExpression where the MemberExpression can itself be a
+	// property chain.
+	callee := rhino.NewString(rhino.NAME, ident)
+	callee.SetPos(nameLine, nameCol)
+	for {
+		p.scanner.SkipTrivia()
+		if p.scanner.AtEnd() || p.scanner.Peek() != '.' {
+			break
+		}
+		p.scanner.Advance()
+		p.scanner.SkipTrivia()
+		pl, pc := p.scanner.Line(), p.scanner.Col()
+		pi, ok := p.scanner.ConsumeIdent()
+		if !ok {
+			break
+		}
+		gp := rhino.New(rhino.GETPROP)
+		gp.SetPos(nameLine, nameCol)
+		gp.AddChildToBack(callee)
+		pn := rhino.NewString(rhino.STRINGLIT, pi)
+		pn.SetPos(pl, pc)
+		gp.AddChildToBack(pn)
+		callee = gp
 	}
 	n := rhino.New(rhino.NEW)
 	n.SetPos(nameLine, nameCol)
-	callee := rhino.NewString(rhino.NAME, ident)
-	callee.SetPos(nameLine, nameCol)
 	n.AddChildToBack(callee)
+	p.scanner.SkipTrivia()
+	if !p.scanner.ConsumeByte('(') {
+		// `new Foo` without arg-list is a zero-arg construction.
+		return n, true
+	}
 	for {
 		p.scanner.SkipTrivia()
 		if p.scanner.AtEnd() {

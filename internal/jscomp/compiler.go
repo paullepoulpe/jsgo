@@ -19,6 +19,10 @@ import (
 // CheckSource runs the Tier-0 pipeline on one source file and returns
 // accumulated diagnostics. A parse error is returned as err; the caller
 // decides whether to surface it as a diagnostic or as a fatal.
+//
+// Pass order mirrors Java's DefaultPassConfig: VarCheck first (so
+// UNDEFINED_VARIABLE fires before downstream passes inspect an
+// undeclared NAME), then TypeCheck.
 func CheckSource(path, src string) ([]diag.Diagnostic, error) {
 	script, err := parser.Parse(src)
 	if err != nil {
@@ -27,6 +31,8 @@ func CheckSource(path, src string) ([]diag.Diagnostic, error) {
 	reg := jstype.NewRegistry()
 	creator := NewTypedScopeCreator(reg)
 	scope := creator.CreateScope(script)
-	check := NewTypeCheck(path, creator, scope)
-	return check.Check(script), nil
+	var all []diag.Diagnostic
+	all = append(all, NewVarCheck(path, creator, scope).Check(script)...)
+	all = append(all, NewTypeCheck(path, creator, scope).Check(script)...)
+	return all, nil
 }
