@@ -31,6 +31,11 @@ type ObjectType struct {
 	// super is the @extends superclass instance type. nil at top of
 	// hierarchy. (Inheritance lookup walks this chain.)
 	super *ObjectType
+
+	// IsStructural is true for `@record` / `@interface` types. A value
+	// of type S is assignable to a structural T iff S has every
+	// property T declares with a compatible type — no nominal check.
+	IsStructural bool
 }
 
 func NewObjectType(name string) *ObjectType {
@@ -44,9 +49,10 @@ func (o *ObjectType) TypeName() string {
 	return o.Name
 }
 
-// IsSubtypeOf is nominal for Tier-2: an object type is a subtype only
-// of itself, of a super in its @extends chain, of AllType, or of
-// Unknown. Structural matching for @record / @interface is deferred.
+// IsSubtypeOf handles three cases: nominal subtyping via the @extends
+// chain (default), structural subtyping when the target is
+// `@record`/`@interface`, and the two top-of-lattice sinks (AllType,
+// Unknown). Mirrors ObjectType.isSubtype in Java.
 func (o *ObjectType) IsSubtypeOf(other JSType) bool {
 	if other == nil {
 		return true
@@ -58,6 +64,22 @@ func (o *ObjectType) IsSubtypeOf(other JSType) bool {
 	if !ok {
 		return false
 	}
+	if target.IsStructural {
+		// Structural: self must have each of target's declared
+		// properties with a compatible type. Walks the super chain so
+		// inherited members count.
+		for pname, ptype := range target.members {
+			srcType := o.GetPropertyType(pname)
+			if srcType == nil {
+				return false
+			}
+			if !IsSubtype(srcType, ptype) {
+				return false
+			}
+		}
+		return true
+	}
+	// Nominal: same type identity, or target is an ancestor.
 	for cur := o; cur != nil; cur = cur.super {
 		if cur == target {
 			return true

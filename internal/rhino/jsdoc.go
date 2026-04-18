@@ -12,7 +12,29 @@ type JSDocInfo struct {
 	params        map[string]*JSTypeExpression // name → type
 	returnExpr    *JSTypeExpression
 	isConstructor bool
+	isInterface   bool
+	isRecord      bool
 	extendsExpr   *JSTypeExpression
+	implementsAll []*JSTypeExpression
+}
+
+// IsInterface / IsRecord mirror JSDocInfo.isInterface() /
+// JSDocInfo.usesImplicitMatch() — together they mark a class as a
+// structural type.
+func (i *JSDocInfo) IsInterface() bool   { return i != nil && i.isInterface }
+func (i *JSDocInfo) IsRecord() bool      { return i != nil && i.isRecord }
+func (i *JSDocInfo) SetInterface(b bool) { i.isInterface = b }
+func (i *JSDocInfo) SetRecord(b bool)    { i.isRecord = b }
+
+// Implementations mirrors JSDocInfo.getImplementedInterfaces().
+func (i *JSDocInfo) Implementations() []*JSTypeExpression {
+	if i == nil {
+		return nil
+	}
+	return i.implementsAll
+}
+func (i *JSDocInfo) AddImplementation(t *JSTypeExpression) {
+	i.implementsAll = append(i.implementsAll, t)
 }
 
 // BaseType mirrors JSDocInfo.getBaseType() — the type expression

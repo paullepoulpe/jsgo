@@ -83,6 +83,13 @@ func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 	for _, p := range parts {
 		p = trimSpace(p)
 		p = trimPrefix(p, "!")
+		// Strip generic brackets: `Array<string>` → `Array`. Proper
+		// template resolution is a Tier-3 port; for now we at least
+		// recover the nominal head so `@type {Array<T>}` resolves to
+		// Array instead of collapsing the whole expression to Unknown.
+		if i := indexOfByte(p, '<'); i >= 0 {
+			p = trimSpace(p[:i])
+		}
 		if p == "" {
 			return jstype.Unknown
 		}
@@ -130,6 +137,15 @@ func trimPrefix(s, prefix string) string {
 	return s
 }
 
+func indexOfByte(s string, b byte) int {
+	for i := 0; i < len(s); i++ {
+		if s[i] == b {
+			return i
+		}
+	}
+	return -1
+}
+
 func splitOn(s string, sep byte) []string {
 	var out []string
 	start := 0
@@ -166,7 +182,36 @@ func NewTypedScopeCreator(r *jstype.Registry) *TypedScopeCreator {
 // Walks top-level declarations and records their types; recurses into
 // function bodies to build their parameter scopes.
 func (c *TypedScopeCreator) CreateScope(script *rhino.Node) *TypedScope {
-	return c.createScopeIn(script, nil)
+	return c.createScopeIn(script, c.builtins())
+}
+
+// builtins returns the synthetic parent scope carrying a minimal set
+// of externs. Mirrors how Java's TypedScopeCreator pre-populates the
+// scope from DefaultExterns.js — we can't load real externs yet, so
+// each builtin is narrowly scoped to what jsgo can actually reason
+// about without regressing on the long tail of tests that rely on
+// the real (much richer) spec type.
+func (c *TypedScopeCreator) builtins() *TypedScope {
+	s := &TypedScope{
+		declared: make(map[string]jstype.JSType),
+		registry: c.registry,
+	}
+	// Array: minimal surface so tests that reference `@type {Array}`
+	// or touch `.length` / `.push` on an array variable don't
+	// collapse to Unknown. We intentionally don't register Object /
+	// Function / Number / Boolean / String stubs: Java's handling of
+	// their boxed vs primitive vs object forms is subtle and any
+	// narrow stub we ship would false-positive more than it fixes.
+	arr := jstype.NewConstructorType("Array", nil)
+	arr.Instance.DefineProperty("length", jstype.Number)
+	arr.Instance.DefineProperty("push", jstype.NewFunctionType([]jstype.JSType{jstype.Unknown}, jstype.Number))
+	arr.Instance.DefineProperty("pop", jstype.NewFunctionType(nil, jstype.Unknown))
+	arr.Instance.DefineProperty("shift", jstype.NewFunctionType(nil, jstype.Unknown))
+	arr.Instance.DefineProperty("indexOf", jstype.NewFunctionType([]jstype.JSType{jstype.Unknown}, jstype.Number))
+	arr.Instance.DefineProperty("slice", jstype.NewFunctionType(nil, arr.Instance))
+	arr.Instance.DefineProperty("concat", jstype.NewFunctionType([]jstype.JSType{jstype.Unknown}, arr.Instance))
+	s.declared["Array"] = arr
+	return s
 }
 
 func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope) *TypedScope {
@@ -176,9 +221,10 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 		registry: c.registry,
 	}
 	// Pass 1: register every constructor-like binding (`@constructor`
-	// functions + `class` declarations) under its name so later
-	// `@type {Foo}` references resolve nominally even when they
-	// appear textually before the declaration.
+	// functions + `class` declarations + `@record`/`@interface`
+	// declarations) under its name so later `@type {Foo}` references
+	// resolve nominally even when they appear textually before the
+	// declaration.
 	for _, child := range block.Children() {
 		switch child.Token() {
 		case rhino.FUNCTION:
@@ -281,12 +327,13 @@ func (c *TypedScopeCreator) inferPrototypeValueType(info *rhino.JSDocInfo, rhs *
 }
 
 // preregisterConstructor reserves a slot in `scope` for any function
-// carrying `@constructor`, so forward `@type {Foo}` references resolve
-// to the real InstanceType rather than collapsing to Unknown. The
-// param/return types stay Unknown until pass 2 fills them in.
+// carrying `@constructor`, `@interface`, or `@record`, so later
+// `@type {Foo}` references resolve to the real InstanceType rather
+// than collapsing to Unknown. The param/return types stay Unknown
+// until pass 2 fills them in.
 func (c *TypedScopeCreator) preregisterConstructor(fn *rhino.Node, scope *TypedScope) {
 	info := fn.JSDocInfo()
-	if !info.IsConstructor() {
+	if !info.IsConstructor() && !info.IsInterface() && !info.IsRecord() {
 		return
 	}
 	kids := fn.Children()
@@ -335,6 +382,10 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 		return
 	}
 	inst := preStub.Instance
+	// Mark as structural when the class carries @record or @interface.
+	if info := cls.JSDocInfo(); info != nil && (info.IsRecord() || info.IsInterface()) {
+		inst.IsStructural = true
+	}
 
 	// Locate the `constructor` method; otherwise the class has an
 	// implicit zero-arg constructor.
@@ -513,7 +564,8 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 	}
 
 	var fnType *jstype.FunctionType
-	if info.IsConstructor() && name.String_() != "" {
+	// @record / @interface functions are also InstanceType carriers.
+	if (info.IsConstructor() || info.IsInterface() || info.IsRecord()) && name.String_() != "" {
 		// Pass 1 stub already registered the InstanceType under this
 		// name; reuse the same Instance pointer so forward
 		// `@type {Foo}` refs resolve to the same object as `new Foo()`.
@@ -531,6 +583,10 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 			if super := scope.LookupNominalType(base.TypeName); super != nil {
 				fnType.Instance.SetSuper(super)
 			}
+		}
+		// Mark structural when annotated @record / @interface.
+		if info.IsInterface() || info.IsRecord() {
+			fnType.Instance.IsStructural = true
 		}
 	} else {
 		fnType = jstype.NewFunctionType(paramTypes, retType)

@@ -402,15 +402,16 @@ func describeCallee(n *rhino.Node) string {
 }
 
 // checkGetProp mirrors TypeCheck.java's visitGetProp: if the receiver
-// type is a declared ObjectType with a populated member map but the
-// accessed property isn't present anywhere up the @extends chain,
-// emit JSC_INEXISTENT_PROPERTY.
+// type is a declared structural ObjectType (a @record or @interface)
+// whose property set is closed and the accessed property isn't
+// present anywhere up the @extends chain, emit
+// JSC_INEXISTENT_PROPERTY.
 //
-// Conservative: we require the receiver ObjectType to have at least
-// one declared member, so stub types (constructors we haven't
-// processed enough of) don't generate false positives. Assignments
-// through GETPROP are handled by checkAssign, not here — Closure
-// allows writing new properties on untyped objects.
+// Gated strictly to structural types because Closure's default
+// ObjectType is open (extra properties can be attached dynamically
+// unless @struct is set). Firing on nominal types would produce many
+// false positives on valid late-bound-property code like
+// `f().a = 3; g(y.a);`.
 func (c *TypeCheck) checkGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := n.Children()
 	if len(kids) < 2 {
@@ -424,8 +425,7 @@ func (c *TypeCheck) checkGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 	if !ok {
 		return nil
 	}
-	if obj.MemberCount() == 0 {
-		// Stub / empty type — we don't know what's on it.
+	if !obj.IsStructural {
 		return nil
 	}
 	if obj.HasProperty(propName) {
