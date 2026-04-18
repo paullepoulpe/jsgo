@@ -179,9 +179,23 @@ func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 	}
 	parts := splitTopLevelUnion(expr)
 	var members []jstype.JSType
+	// In Closure's legacy mode (the one the corpus tests run in),
+	// nominal (non-primitive) types are nullable by default — `Foo`
+	// means `Foo|null`, and `!Foo` strips the null. Primitives stay
+	// non-nullable. This flag accumulates across union members so a
+	// single nominal piece nullifies the whole expression.
+	impliedNullable := false
 	for _, p := range parts {
 		p = trimSpace(p)
-		p = trimPrefix(p, "!")
+		explicitNonNull := false
+		explicitNullable := false
+		if startsWith(p, "!") {
+			explicitNonNull = true
+			p = trimSpace(p[1:])
+		} else if startsWith(p, "?") {
+			explicitNullable = true
+			p = trimSpace(p[1:])
+		}
 		// Generic brackets: `Array<string>` → TemplatizedType backed
 		// by Array's instance type, with `string` resolved as the
 		// type argument. Mirrors how JSTypeRegistry instantiates a
@@ -208,12 +222,22 @@ func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 		}
 		// Try nominal (constructor → instance), then primitive.
 		if inst := s.LookupNominalType(p); inst != nil {
+			var member jstype.JSType = inst
 			if len(tplArgs) > 0 {
-				members = append(members, jstype.NewTemplatizedType(inst, tplArgs))
-			} else {
-				members = append(members, inst)
+				member = jstype.NewTemplatizedType(inst, tplArgs)
 			}
+			if !explicitNonNull {
+				impliedNullable = true
+			}
+			if explicitNullable {
+				impliedNullable = true
+			}
+			members = append(members, member)
 			continue
+		}
+		// Primitive fallback.
+		if explicitNullable {
+			impliedNullable = true
 		}
 		m := s.registry.ResolveName(p)
 		if isJSUnknown(m) {
@@ -221,7 +245,7 @@ func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 		}
 		members = append(members, m)
 	}
-	if nullable {
+	if nullable || impliedNullable {
 		members = append(members, jstype.Null)
 	}
 	if len(members) == 1 {

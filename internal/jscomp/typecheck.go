@@ -523,6 +523,14 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 	propName := propNode.String_()
 	infer := NewTypeInference(scope)
 	recvType := infer.InferType(kids[0])
+	// Closure's legacy-mode default makes `Foo` nullable — so a
+	// receiver of type `Foo|null` should still be property-checked
+	// against Foo. Strip the null/void members of a union so the
+	// INEXISTENT_PROPERTY check still fires.
+	recvType = stripNullUndef(recvType)
+	if tt, ok := recvType.(*jstype.TemplatizedType); ok {
+		recvType = tt.Base
+	}
 	obj, ok := recvType.(*jstype.ObjectType)
 	if !ok {
 		return nil
