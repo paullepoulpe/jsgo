@@ -33,6 +33,7 @@ func CheckSource(path, src string) ([]diag.Diagnostic, error) {
 	scope := creator.CreateScope(script)
 	var all []diag.Diagnostic
 	all = append(all, NewVarCheck(path, creator, scope).Check(script)...)
+	all = append(all, NewVariableReferenceCheck(path).Check(script)...)
 	all = append(all, NewTypeCheck(path, creator, scope).Check(script)...)
 	return all, nil
 }
