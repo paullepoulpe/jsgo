@@ -4,10 +4,10 @@ Living list of what's left to port, with rough effort estimates, in
 order of expected pass-rate lift for the `testdata/fixtures/extracted`
 benchmark. Updated whenever a milestone commits.
 
-**Current state:** 674/1444 = **46.68%** extracted pass rate. Tier-0
+**Current state:** 690/1444 = **47.78%** extracted pass rate. Tier-0
 through Tier-3 hand-authored corpora all 100%.
 
-**Goal:** 80%+ = ~1155 extracted passes. Gap: **+481**.
+**Goal:** 80%+ = ~1155 extracted passes. Gap: **+465**.
 
 **P0 sweep — completed (with the listed scope caveats):**
 - P0-1 ✅ Parser precedence-climbing + expression-level TypeInference
@@ -29,20 +29,36 @@ through Tier-3 hand-authored corpora all 100%.
   generics (`@template T extends Base`) still produce
   JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES on the Java side and
   remain unported (Java itself defers — see P3-1).
-- P0-5 ✅ Scope-stack flow refinement (replaces the HOOK-only
-  narrowing): TypedScope.PushRefinement / PopRefinement layered on
-  GetDeclaredType. TypeCheck intercepts BLOCK / IF / HOOK and
-  pushes branch-specific refinements. Recognised patterns:
-  `x` (truthy strips falsy), `x == null` / `!=`, `typeof x ===
-  'prim'`, `x instanceof Ctor`, `!cond`, `cond1 && cond2`,
-  `cond1 || cond2` (falsy branch). Post-guard refinement:
-  `if (cond) return;` pushes negated-cond on subsequent siblings.
-  JSC_MISSING_RETURN_STATEMENT via the AST-walk
-  `definitelyReturns` predicate. Scope: still no real
-  DataFlowAnalysis fixed-point — loops don't widen, assignment
-  inside a loop body doesn't refine post-loop, and joining
-  flow scopes after if/else still uses the simple
-  drop-on-pop semantics.
+- P0-5 ✅ **Real CFG + forward DataFlowAnalysis + TypeInferencePass**
+  ported end-to-end:
+  * `ControlFlowGraph` (controlflowgraph.go) with synthetic
+    ENTRY/EXIT and branch-labeled edges.
+  * `ControlFlowAnalysis` (controlflowanalysis.go) builds the CFG
+    per FUNCTION / SCRIPT — proper IF with BranchOnTrue / OnFalse
+    arms, RETURN edges straight to EXIT, reachability-aware joins.
+  * `FlowScope` (flowscope.go) — persistent name→JSType map with
+    Bind / BindAll / Equal and the lattice-join used at confluence
+    points.
+  * `DataFlowAnalysis` (dataflow.go) — forward-worklist runner that
+    supports per-branch transfer outputs.
+  * `TypeInferencePass` (typeinferencepass.go) — concrete transfer
+    function: VAR/LET/CONST/ASSIGN refine the LHS NAME in the OUT
+    scope; IF emits branch-specific scopes via `buildRefinements`
+    (which itself recognises truthy, null-check, typeof, instanceof,
+    `!cond`, `&&` / `||` falsy-branch). Expression inference in
+    TypeCheck consults the IN FlowScope of the enclosing statement
+    via `pushEnclosingFlow`.
+  * `MissingReturnCheck` is now CFG-driven: walks `EXIT.Predecessors`
+    restricted to reachable-from-ENTRY nodes and fires
+    `JSC_MISSING_RETURN_STATEMENT` unless every one is a
+    `return EXPR`. Replaces the AST-walk `definitelyReturns`
+    approximation.
+
+  Scope caveats still open: the CFG doesn't yet model loops (no
+  BranchLoop / back-edge), try/catch/finally flow, labeled
+  break/continue, or assignment-in-expression refinement (e.g.
+  `if ((x = f())) { … }`). Those match the Java pass as the next
+  wave of CFG edges.
 
 ## Methodology note
 
