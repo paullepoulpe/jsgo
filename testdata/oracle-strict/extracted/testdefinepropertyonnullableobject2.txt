@@ -1,0 +1,13 @@
+testdata/fixtures/extracted/testdefinepropertyonnullableobject2.js:4:2: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property x never defined on T
+  4| t.x = 1; return t.x; }
+       ^
+
+testdata/fixtures/extracted/testdefinepropertyonnullableobject2.js:4:18: ERROR - [JSC_TYPE_MISMATCH] inconsistent return type
+found   : number
+required: boolean
+  4| t.x = 1; return t.x; }
+                       ^
+
+1 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+1

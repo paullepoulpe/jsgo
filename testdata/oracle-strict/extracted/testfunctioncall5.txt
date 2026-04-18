@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testfunctioncall5.js:3:49: ERROR - [JSC_UNDEFINED_VARIABLE] variable x is undeclared
+  3| var Foo = function(handler) { handler.call(this, x); };
+                                                      ^
+
+1 error(s), 0 warning(s)
+---EXIT---
+1

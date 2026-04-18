@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testassignandcheckrhsvalid.js:2:7: ERROR - [JSC_TYPE_MISMATCH] assignment
+found   : number
+required: (string|undefined)
+  2| var a; a &&= 0;
+            ^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

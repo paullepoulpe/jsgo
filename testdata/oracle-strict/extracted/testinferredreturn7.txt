@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testinferredreturn7.js:3:41: ERROR - [JSC_TYPE_MISMATCH] inconsistent return type
+found   : number
+required: undefined
+  3| Foo.prototype.bar = function(x) { return 3; };
+                                              ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

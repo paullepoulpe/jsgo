@@ -60,12 +60,13 @@ var (
 	}
 	// GroupStrictCheckTypes is OFF by default. Enabling it turns on
 	// the stricter per-operand checks in TypeValidator — the
-	// arithmetic / bitwise / relative-comparison rules that would
-	// otherwise produce false-positives in default mode.
+	// arithmetic / bitwise / relative-comparison rules that fire as
+	// JSC_INVALID_OPERAND_TYPE (WARNING) under Java's
+	// `--jscomp_warning=strictCheckTypes`.
 	GroupStrictCheckTypes = &DiagnosticGroup{
 		Name: "strictCheckTypes",
 		Codes: []string{
-			"JSC_TYPE_MISMATCH", // (re-coded under the strict gate)
+			"JSC_INVALID_OPERAND_TYPE",
 		},
 	}
 )

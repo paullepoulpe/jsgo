@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testcheckrecursivetypedefsubclassofnominalclass.js:15:22: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : {self: {...}}
+required: Baz
+  15| const /** !Baz */ x = foo;
+                            ^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

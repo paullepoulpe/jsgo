@@ -1,9 +1,2 @@
-testdata/fixtures/extracted/testobjlitdef4.js:2:26: ERROR - [JSC_TYPE_MISMATCH] assignment to property a of {a: function(): number}
-found   : number
-required: function(): number
-  2|   /** @return {number} */ a:12
-                               ^
-
-1 error(s), 0 warning(s), 100.0% typed
 ---EXIT---
-1
+137

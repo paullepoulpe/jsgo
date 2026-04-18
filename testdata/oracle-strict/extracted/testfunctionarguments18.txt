@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testfunctionarguments18.js:2:28: ERROR - [JSC_INEXISTENT_PARAM] parameter y does not appear in <anonymous>'s parameter list
+  2| f(/** @param {number} y */ (function() {}));
+                                 ^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

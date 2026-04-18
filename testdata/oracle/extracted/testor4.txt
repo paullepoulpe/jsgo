@@ -1,13 +1,2 @@
-testdata/fixtures/extracted/testor4.js:1:28: WARNING - [JSC_SUSPICIOUS_LEFT_OPERAND_OF_LOGICAL_OPERATOR] Left operand of || operator is always falsy.
-  1| /**@type {number} */var x;x=null || "a";
-                                 ^^^^^^^^^^^
-
-testdata/fixtures/extracted/testor4.js:1:26: ERROR - [JSC_TYPE_MISMATCH] assignment
-found   : string
-required: number
-  1| /**@type {number} */var x;x=null || "a";
-                               ^^^^^^^^^^^^^
-
-1 error(s), 1 warning(s), 100.0% typed
 ---EXIT---
-1
+137

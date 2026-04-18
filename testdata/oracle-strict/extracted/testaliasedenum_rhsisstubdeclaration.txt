@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testaliasedenum_rhsisstubdeclaration.js:2:28: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : undefined
+required: enum{MyEnum}
+  2| /** @enum */ const MyEnum = YourEnum;
+                                 ^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

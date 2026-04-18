@@ -901,7 +901,7 @@ func (c *TypeCheck) visitAdd(n *rhino.Node, scope *TypedScope) []diag.Diagnostic
 	if !isAddOperandOk(l) {
 		out = append(out, diag.Diagnostic{
 			Path: c.path, Line: kids[0].Lineno(), Col: kids[0].Charno(),
-			Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
+			Code: diag.JSC_INVALID_OPERAND_TYPE, Level: diag.Warning,
 			Message: "left operand\nfound   : " + l.TypeName() +
 				"\nrequired: (number|string)",
 		})
@@ -909,7 +909,7 @@ func (c *TypeCheck) visitAdd(n *rhino.Node, scope *TypedScope) []diag.Diagnostic
 	if !isAddOperandOk(r) {
 		out = append(out, diag.Diagnostic{
 			Path: c.path, Line: kids[1].Lineno(), Col: kids[1].Charno(),
-			Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
+			Code: diag.JSC_INVALID_OPERAND_TYPE, Level: diag.Warning,
 			Message: "right operand\nfound   : " + r.TypeName() +
 				"\nrequired: (number|string)",
 		})
@@ -975,10 +975,22 @@ func (c *TypeCheck) visitNumericBinaryOp(n *rhino.Node, scope *TypedScope) []dia
 		if isNumericOperandOk(t) {
 			continue
 		}
+		label := "operator " + n.Token().String()
+		if n.Token() == rhino.SUB || n.Token() == rhino.MUL ||
+			n.Token() == rhino.DIV || n.Token() == rhino.MOD {
+			// Java uses "left operand" / "right operand" on the
+			// arithmetic branches and "operator X" on bitwise. Infer
+			// side from child index so the diagnostic message matches.
+			if k == kids[0] {
+				label = "left operand"
+			} else {
+				label = "right operand"
+			}
+		}
 		out = append(out, diag.Diagnostic{
 			Path: c.path, Line: k.Lineno(), Col: k.Charno(),
-			Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
-			Message: "found   : " + t.TypeName() + "\nrequired: number",
+			Code: diag.JSC_INVALID_OPERAND_TYPE, Level: diag.Warning,
+			Message: label + "\nfound   : " + t.TypeName() + "\nrequired: number",
 		})
 	}
 	return out
@@ -1027,9 +1039,9 @@ func (c *TypeCheck) visitRelativeComparison(n *rhino.Node, scope *TypedScope) []
 	}
 	return []diag.Diagnostic{{
 		Path: c.path, Line: kids[1].Lineno(), Col: kids[1].Charno(),
-		Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
-		Message: "right side of comparison\nfound   : " + r.TypeName() +
-			"\nrequired: " + l.TypeName(),
+		Code: diag.JSC_INVALID_OPERAND_TYPE, Level: diag.Warning,
+		Message: "expected matching types in comparison\nfound   : " +
+			r.TypeName() + "\nrequired: " + l.TypeName(),
 	}}
 }
 

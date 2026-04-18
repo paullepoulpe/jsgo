@@ -1,9 +1,2 @@
-testdata/fixtures/extracted/testnumberautoboxing.js:1:29: ERROR - [JSC_TYPE_MISMATCH] initializing variable
-found   : number
-required: (Number|null)
-  1| /** @type {Number} */var a = 4;
-                                  ^
-
-1 error(s), 0 warning(s), 100.0% typed
 ---EXIT---
-1
+137

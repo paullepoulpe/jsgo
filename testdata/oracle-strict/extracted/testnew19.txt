@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testnew19.js:1:65: ERROR - [JSC_INSTANTIATE_ABSTRACT_CLASS] cannot instantiate abstract class
+  1| /** @constructor @abstract */ var Foo = function() {}; var foo = new Foo();
+                                                                      ^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

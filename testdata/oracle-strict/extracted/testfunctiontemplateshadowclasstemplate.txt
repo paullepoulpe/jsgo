@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testfunctiontemplateshadowclasstemplate.js:12:6: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of Foo.prototype.foo does not match formal parameter
+found   : number
+required: string
+  12| f.foo(3);
+            ^
+
+1 error(s), 0 warning(s), 88.9% typed
+---EXIT---
+1

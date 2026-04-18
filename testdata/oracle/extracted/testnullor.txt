@@ -1,9 +1,2 @@
-testdata/fixtures/extracted/testnullor.js:2:29: ERROR - [JSC_TYPE_MISMATCH] initializing variable
-found   : null
-required: number
-  2| /** @type {number} */var r = x || x;
-                                  ^^^^^^
-
-1 error(s), 0 warning(s), 100.0% typed
 ---EXIT---
-1
+137

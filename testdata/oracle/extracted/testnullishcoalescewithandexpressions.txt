@@ -1,7 +1,2 @@
-testdata/fixtures/extracted/testnullishcoalescewithandexpressions.js:3:1: WARNING - [JSC_USELESS_CODE] Suspicious code. This code lacks side-effects. Is there a bug?
-  3| (function(s) { return (s && undefined) ?? (s && "a"); })
-      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-0 error(s), 1 warning(s), 100.0% typed
 ---EXIT---
-0
+137

@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testes5classextendinges6class.js:2:45: ERROR - [JSC_ES5_CLASS_EXTENDING_ES6_CLASS] ES5 class Bar cannot extend ES6 class Foo
+  2| /** @constructor @extends {Foo} */ var Bar = function() {};
+                                                  ^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

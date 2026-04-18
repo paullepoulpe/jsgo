@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testbadextends4.js:2:13: ERROR - [JSC_UNRECOGNIZED_TYPE_ERROR] Bad type annotation. Unknown type bad
+  2|  * @extends {bad} */ function Sub() {}
+                  ^
+
+1 error(s), 0 warning(s), 83.3% typed
+---EXIT---
+1

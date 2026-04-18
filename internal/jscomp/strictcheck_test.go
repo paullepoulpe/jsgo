@@ -32,8 +32,8 @@ func TestStrictChecksOffByDefault(t *testing.T) {
 			t.Fatalf("parse: %v (%q)", err, src)
 		}
 		for _, d := range diags {
-			if d.Code == diag.JSC_TYPE_MISMATCH {
-				t.Errorf("%q: unexpected default-mode TYPE_MISMATCH at %d:%d: %s",
+			if d.Code == diag.JSC_INVALID_OPERAND_TYPE {
+				t.Errorf("%q: unexpected default-mode INVALID_OPERAND_TYPE at %d:%d: %s",
 					src, d.Line, d.Col, d.Message)
 			}
 		}
@@ -42,7 +42,7 @@ func TestStrictChecksOffByDefault(t *testing.T) {
 
 func TestStrictChecksFireWhenEnabled(t *testing.T) {
 	opts := NewCompilerOptions()
-	opts.SetWarningLevel(GroupStrictCheckTypes, LevelError)
+	opts.SetWarningLevel(GroupStrictCheckTypes, LevelWarning)
 	cases := []string{
 		"var x = 'abc' - 1;",
 		"var x = 'abc' * 2;",
@@ -55,13 +55,13 @@ func TestStrictChecksFireWhenEnabled(t *testing.T) {
 		}
 		found := false
 		for _, d := range diags {
-			if d.Code == diag.JSC_TYPE_MISMATCH {
+			if d.Code == diag.JSC_INVALID_OPERAND_TYPE {
 				found = true
 				break
 			}
 		}
 		if !found {
-			t.Errorf("%q: expected strict JSC_TYPE_MISMATCH under strictCheckTypes", src)
+			t.Errorf("%q: expected JSC_INVALID_OPERAND_TYPE under strictCheckTypes", src)
 		}
 	}
 }
