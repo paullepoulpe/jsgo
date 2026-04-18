@@ -639,12 +639,45 @@ func (p *Parser) finishLoopBody() (*rhino.Node, bool) {
 		}
 		for p.scanner.ConsumeKeyword("catch") || p.scanner.ConsumeKeyword("finally") {
 			p.scanner.SkipTrivia()
+			// `catch (e) { … }` — emit a synthetic `let e;` so the
+			// catch parameter is reachable during scope creation /
+			// VarCheck. Plain `catch {}` (no binding) is also valid;
+			// in that case we still consume the parens.
 			if p.scanner.Peek() == '(' {
-				p.swallowParens()
+				p.scanner.Advance() // '('
+				p.scanner.SkipTrivia()
+				_, _ = p.scanner.ConsumeBlockComment() // inline JSDoc on the param
+				p.scanner.SkipTrivia()
+				cl, cc := p.scanner.Line(), p.scanner.Col()
+				if ident, ok := p.scanner.ConsumeIdent(); ok {
+					decl := rhino.New(rhino.LET)
+					decl.SetPos(cl, cc)
+					nameNode := rhino.NewString(rhino.NAME, ident)
+					nameNode.SetPos(cl, cc)
+					decl.AddChildToBack(nameNode)
+					p.pendingStatements = append(p.pendingStatements, decl)
+				}
+				// Skip the rest of the parens.
+				depth := 1
+				for depth > 0 && !p.scanner.AtEnd() {
+					switch p.scanner.Peek() {
+					case '(':
+						depth++
+					case ')':
+						depth--
+					}
+					p.scanner.Advance()
+				}
 			}
 			p.scanner.SkipTrivia()
 			if p.scanner.ConsumeByte('{') {
 				sub := rhino.New(rhino.BLOCK)
+				// Surface any synthetic catch-param decl as the first
+				// statement of the catch body.
+				for _, s := range p.pendingStatements {
+					sub.AddChildToBack(s)
+				}
+				p.pendingStatements = nil
 				p.parseStatements(sub, '}')
 				p.scanner.ConsumeByte('}')
 				for _, ch := range sub.Children() {

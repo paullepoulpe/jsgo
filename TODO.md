@@ -4,22 +4,45 @@ Living list of what's left to port, with rough effort estimates, in
 order of expected pass-rate lift for the `testdata/fixtures/extracted`
 benchmark. Updated whenever a milestone commits.
 
-**Current state:** 640/1444 = **44.32%** extracted pass rate. Tier-0
+**Current state:** 674/1444 = **46.68%** extracted pass rate. Tier-0
 through Tier-3 hand-authored corpora all 100%.
 
-**Goal:** 80%+ = ~1155 extracted passes. Gap: **+515**.
+**Goal:** 80%+ = ~1155 extracted passes. Gap: **+481**.
 
-**Recent progress (P0 sweep):**
+**P0 sweep — completed (with the listed scope caveats):**
 - P0-1 ✅ Parser precedence-climbing + expression-level TypeInference
-  (binary / unary / ternary / array / object literals).
-- P0-2 ✅ VarCheck (JSC_UNDEFINED_VARIABLE), narrow externs stub.
+  (binary / unary / ternary / array / object literals); `+` follows
+  the JS string-bias rule; functions without @return default to
+  Void; compound-assigns parse as ASSIGN_*. Scope: rest args /
+  spread still skipped — testtemplatetype4/5 patterns stay
+  unmatched.
+- P0-2 ✅ VarCheck (JSC_UNDEFINED_VARIABLE), reports once per file,
+  narrow extern-name stub. Scope: real DefaultExterns.js loader is
+  still P2-1 — names not in the stub will FP if referenced bare.
 - P0-3 ✅ VariableReferenceCheck (JSC_VAR_MULTIPLY_DECLARED_ERROR)
-  for intra-file duplicates.
-- P0-4 ✅ TemplateType + call-site unification scaffolding.
-- P0-5 ✅ HOOK-scoped narrowing (`x ? x : …`, `x != null ? x : …`)
-  plus if / while / for / for-of / switch / try statement parsing
-  with body-level declaration hoisting. Full CFG / FlowScope still
-  outstanding.
+  for intra-file duplicates; honours `@suppress {duplicate}`;
+  global frame seeded with extern-predeclared names so
+  `Disposable`-style collisions match the oracle.
+- P0-4 ✅ TemplateType + TemplateTypeMap + call-site unification;
+  TemplatizedType (Array<T>, Map<K,V>, …) participates in subtype
+  / property-lookup / unification / substitution. Scope: bounded
+  generics (`@template T extends Base`) still produce
+  JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES on the Java side and
+  remain unported (Java itself defers — see P3-1).
+- P0-5 ✅ Scope-stack flow refinement (replaces the HOOK-only
+  narrowing): TypedScope.PushRefinement / PopRefinement layered on
+  GetDeclaredType. TypeCheck intercepts BLOCK / IF / HOOK and
+  pushes branch-specific refinements. Recognised patterns:
+  `x` (truthy strips falsy), `x == null` / `!=`, `typeof x ===
+  'prim'`, `x instanceof Ctor`, `!cond`, `cond1 && cond2`,
+  `cond1 || cond2` (falsy branch). Post-guard refinement:
+  `if (cond) return;` pushes negated-cond on subsequent siblings.
+  JSC_MISSING_RETURN_STATEMENT via the AST-walk
+  `definitelyReturns` predicate. Scope: still no real
+  DataFlowAnalysis fixed-point — loops don't widen, assignment
+  inside a loop body doesn't refine post-loop, and joining
+  flow scopes after if/else still uses the simple
+  drop-on-pop semantics.
 
 ## Methodology note
 
