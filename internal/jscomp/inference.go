@@ -49,15 +49,24 @@ func (t *TypeInference) InferType(n *rhino.Node) jstype.JSType {
 		}
 		return jstype.Unknown
 	case rhino.GETPROP:
-		// GETPROP(receiver, STRINGLIT propName). The receiver's type
-		// must expose the property, otherwise we stay Unknown rather
-		// than emit (TypeCheck.visitGetProp owns the diagnostic).
+		// GETPROP(receiver, STRINGLIT propName). When the receiver is
+		// a constructor reference (NAME → FunctionType), look up the
+		// static slot; otherwise look up the instance map.
 		kids := n.Children()
 		if len(kids) < 2 {
 			return jstype.Unknown
 		}
-		if obj, ok := t.InferType(kids[0]).(*jstype.ObjectType); ok {
-			if pt := obj.GetPropertyType(kids[1].String_()); pt != nil {
+		recv := kids[0]
+		propName := kids[1].String_()
+		if recv.Token() == rhino.NAME {
+			if fn, ok := t.scope.GetDeclaredType(recv.String_()).(*jstype.FunctionType); ok && fn.Instance != nil {
+				if pt := fn.Instance.GetStaticPropertyType(propName); pt != nil {
+					return pt
+				}
+			}
+		}
+		if obj, ok := t.InferType(recv).(*jstype.ObjectType); ok {
+			if pt := obj.GetPropertyType(propName); pt != nil {
 				return pt
 			}
 		}

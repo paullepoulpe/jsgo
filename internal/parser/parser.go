@@ -328,10 +328,20 @@ func (p *Parser) parseClassMember(body *rhino.Node) {
 	if p.atEnd() || p.src[p.pos] == '}' {
 		return
 	}
-	// Skip `static` modifier (we don't distinguish static vs instance
-	// methods for Tier-2 yet).
+	// `static` toggles the JSDoc's isStatic flag so the scope creator
+	// lands the member on the class's static slot rather than the
+	// instance prototype. Synthesises a JSDocInfo when none was
+	// present on the source.
+	isStatic := false
 	if p.consumeKeyword("static") {
+		isStatic = true
 		p.skipTrivia()
+	}
+	if isStatic {
+		if jsdoc == nil {
+			jsdoc = &rhino.JSDocInfo{}
+		}
+		jsdoc.SetStatic(true)
 	}
 	memberLine, memberCol := p.line, p.col()
 	name, ok := p.consumeIdent()

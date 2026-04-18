@@ -25,8 +25,14 @@ type ObjectType struct {
 
 	// members is the declared property map, populated by
 	// TypedScopeCreator as it walks `this.x = …`, `Foo.prototype.x = …`,
-	// and class field declarations.
+	// and instance class field declarations.
 	members map[string]JSType
+
+	// staticMembers is the separate slot for `static` class members.
+	// Accessed via the constructor name (`C.foo`) rather than an
+	// instance (`(new C).foo`). Mirrors FunctionType.getOwnerFunction's
+	// own-property map in Java.
+	staticMembers map[string]JSType
 
 	// super is the @extends superclass instance type. nil at top of
 	// hierarchy. (Inheritance lookup walks this chain.)
@@ -39,7 +45,32 @@ type ObjectType struct {
 }
 
 func NewObjectType(name string) *ObjectType {
-	return &ObjectType{Name: name, members: map[string]JSType{}}
+	return &ObjectType{
+		Name:          name,
+		members:       map[string]JSType{},
+		staticMembers: map[string]JSType{},
+	}
+}
+
+// DefineStaticProperty mirrors ObjectType.defineStaticProperty — puts
+// the property on the constructor-owned slot rather than the instance
+// map. Used for `static x = …` class fields and `static method(){…}`.
+func (o *ObjectType) DefineStaticProperty(name string, t JSType) {
+	o.staticMembers[name] = t
+}
+
+// GetStaticPropertyType looks up a member on the static slot only —
+// does not walk the instance map or the @extends chain.
+func (o *ObjectType) GetStaticPropertyType(name string) JSType {
+	if t, ok := o.staticMembers[name]; ok {
+		return t
+	}
+	return nil
+}
+
+// HasStaticProperty is the existence check for the static slot.
+func (o *ObjectType) HasStaticProperty(name string) bool {
+	return o.GetStaticPropertyType(name) != nil
 }
 
 func (o *ObjectType) TypeName() string {

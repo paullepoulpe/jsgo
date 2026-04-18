@@ -14,8 +14,39 @@ type JSDocInfo struct {
 	isConstructor bool
 	isInterface   bool
 	isRecord      bool
+	isStatic      bool
 	extendsExpr   *JSTypeExpression
 	implementsAll []*JSTypeExpression
+	typedefExpr   *JSTypeExpression
+	templateNames []string
+}
+
+// IsStatic marks a class member as belonging to the constructor's
+// static slot rather than its instance slot. Mirrors Java's
+// MemberFunctionDef.isStaticMember and the analogous field flag.
+func (i *JSDocInfo) IsStatic() bool   { return i != nil && i.isStatic }
+func (i *JSDocInfo) SetStatic(b bool) { i.isStatic = b }
+
+// TypedefType mirrors JSDocInfo.getTypedefType() — returns the aliased
+// type expression captured from `/** @typedef {X} */`.
+func (i *JSDocInfo) TypedefType() *JSTypeExpression {
+	if i == nil {
+		return nil
+	}
+	return i.typedefExpr
+}
+func (i *JSDocInfo) SetTypedefType(t *JSTypeExpression) { i.typedefExpr = t }
+
+// TemplateNames mirrors JSDocInfo.getTemplateTypeNames() — the in-order
+// list of names captured from `@template T` tags.
+func (i *JSDocInfo) TemplateNames() []string {
+	if i == nil {
+		return nil
+	}
+	return i.templateNames
+}
+func (i *JSDocInfo) AddTemplateName(n string) {
+	i.templateNames = append(i.templateNames, n)
 }
 
 // IsInterface / IsRecord mirror JSDocInfo.isInterface() /

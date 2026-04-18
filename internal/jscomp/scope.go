@@ -19,6 +19,10 @@ import (
 type TypedScope struct {
 	parent   *TypedScope
 	declared map[string]jstype.JSType
+	// typeAliases carry `@typedef` declarations — a parallel namespace
+	// to value bindings. ResolveExpr checks this before the nominal
+	// / primitive registry.
+	typeAliases map[string]jstype.JSType
 	// thisType is the instance bound to `this` inside this scope. nil
 	// at the global / function scope; populated when entering a
 	// constructor body so `this.x = …` lands on the right ObjectType.
@@ -48,6 +52,20 @@ func (s *TypedScope) ThisType() *jstype.ObjectType {
 	return s.parent.ThisType()
 }
 
+// LookupTypeAlias walks the scope chain returning the resolved JSType
+// for a @typedef'd name, or nil if none. Lives in a namespace parallel
+// to `declared` so `var X;` + `@typedef {Y}` doesn't clash with a
+// value binding named X.
+func (s *TypedScope) LookupTypeAlias(name string) jstype.JSType {
+	if s == nil {
+		return nil
+	}
+	if t, ok := s.typeAliases[name]; ok {
+		return t
+	}
+	return s.parent.LookupTypeAlias(name)
+}
+
 // LookupNominalType returns the InstanceType associated with a name
 // that refers to a known constructor in this scope chain. Used when
 // resolving `@type {Foo}` to the instance type rather than the
@@ -65,9 +83,9 @@ func (s *TypedScope) LookupNominalType(name string) *jstype.ObjectType {
 }
 
 // ResolveExpr is the scope-aware version of Registry.ResolveExpr: it
-// looks up nominal names (constructor → instance type) in the scope
-// chain, falling back to the primitive registry. Mirrors how
-// JSTypeRegistry.getType(StaticScope, String) dispatches in Java.
+// looks up nominal names (constructor → instance type), @typedef
+// aliases, inline structural `{k: T}` types, and primitives. Mirrors
+// how JSTypeRegistry.getType(StaticScope, String) dispatches in Java.
 func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 	expr = trimSpace(expr)
 	if expr == "" || expr == "?" {
@@ -78,7 +96,19 @@ func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 		nullable = true
 		expr = trimSpace(expr[1:])
 	}
-	parts := splitOn(expr, '|')
+	// Inline structural: `{k1: T1, k2: T2}`. Covers the common
+	// anonymous record shape that Closure tests use as @param /
+	// @return types.
+	if startsWith(expr, "{") {
+		if obj, ok := s.resolveObjectLiteralType(expr); ok {
+			if nullable {
+				return jstype.NewUnion(obj, jstype.Null)
+			}
+			return obj
+		}
+		return jstype.Unknown
+	}
+	parts := splitTopLevelUnion(expr)
 	var members []jstype.JSType
 	for _, p := range parts {
 		p = trimSpace(p)
@@ -93,7 +123,13 @@ func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 		if p == "" {
 			return jstype.Unknown
 		}
-		// Try nominal first (constructor → instance), then primitive.
+		// @typedef aliases take priority over nominal constructors
+		// and primitives (matches Java's StaticSourceFile resolution).
+		if alias := s.LookupTypeAlias(p); alias != nil {
+			members = append(members, alias)
+			continue
+		}
+		// Try nominal (constructor → instance), then primitive.
 		if inst := s.LookupNominalType(p); inst != nil {
 			members = append(members, inst)
 			continue
@@ -144,6 +180,96 @@ func indexOfByte(s string, b byte) int {
 		}
 	}
 	return -1
+}
+
+// splitTopLevelUnion splits `A|B|C` on `|` but respects nesting depth
+// of `{}`, `()`, `<>` so `{a: number|string}|boolean` doesn't
+// accidentally split inside the object literal.
+func splitTopLevelUnion(s string) []string {
+	var out []string
+	depth := 0
+	start := 0
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '{', '(', '<':
+			depth++
+		case '}', ')', '>':
+			depth--
+		case '|':
+			if depth == 0 {
+				out = append(out, s[start:i])
+				start = i + 1
+			}
+		}
+	}
+	out = append(out, s[start:])
+	return out
+}
+
+// resolveObjectLiteralType parses a `{k1: T1, k2: T2}` expression
+// into a structural ObjectType (nil name, IsStructural=true) whose
+// members are resolved against this scope. Returns false on malformed
+// input so the caller can fall back to Unknown.
+func (s *TypedScope) resolveObjectLiteralType(expr string) (*jstype.ObjectType, bool) {
+	if !startsWith(expr, "{") || !endsWith(expr, "}") {
+		return nil, false
+	}
+	body := expr[1 : len(expr)-1]
+	obj := jstype.NewObjectType("")
+	obj.IsStructural = true
+	// Split on top-level commas; each piece is `key: expr`.
+	depth := 0
+	start := 0
+	parts := []string{}
+	for i := 0; i < len(body); i++ {
+		switch body[i] {
+		case '{', '(', '<':
+			depth++
+		case '}', ')', '>':
+			depth--
+		case ',':
+			if depth == 0 {
+				parts = append(parts, body[start:i])
+				start = i + 1
+			}
+		}
+	}
+	parts = append(parts, body[start:])
+	for _, p := range parts {
+		p = trimSpace(p)
+		if p == "" {
+			continue
+		}
+		colon := indexOfTopLevel(p, ':')
+		if colon < 0 {
+			return nil, false
+		}
+		key := trimSpace(p[:colon])
+		typ := s.ResolveExpr(p[colon+1:])
+		obj.DefineProperty(key, typ)
+	}
+	return obj, true
+}
+
+func indexOfTopLevel(s string, b byte) int {
+	depth := 0
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '{', '(', '<':
+			depth++
+		case '}', ')', '>':
+			depth--
+		default:
+			if depth == 0 && s[i] == b {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+func endsWith(s, suffix string) bool {
+	return len(s) >= len(suffix) && s[len(s)-len(suffix):] == suffix
 }
 
 func splitOn(s string, sep byte) []string {
@@ -216,9 +342,10 @@ func (c *TypedScopeCreator) builtins() *TypedScope {
 
 func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope) *TypedScope {
 	scope := &TypedScope{
-		parent:   parent,
-		declared: make(map[string]jstype.JSType),
-		registry: c.registry,
+		parent:      parent,
+		declared:    make(map[string]jstype.JSType),
+		typeAliases: make(map[string]jstype.JSType),
+		registry:    c.registry,
 	}
 	// Pass 1: register every constructor-like binding (`@constructor`
 	// functions + `class` declarations + `@record`/`@interface`
@@ -231,6 +358,14 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 			c.preregisterConstructor(child, scope)
 		case rhino.CLASS:
 			c.preregisterClass(child, scope)
+		}
+	}
+	// Pass 1b: record @typedef aliases. Typedefs resolve against the
+	// scope that now has nominal types pre-registered, so
+	// `@typedef {Foo|null}` can reference a Foo declared later.
+	for _, child := range block.Children() {
+		if isDeclToken(child.Token()) {
+			c.recordTypedef(child, scope)
 		}
 	}
 	// Pass 2: record declarations + functions properly.
@@ -418,8 +553,9 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 		}
 	}
 
-	// Walk body: methods attach to the InstanceType; fields attach with
-	// their declared @type.
+	// Walk body: methods attach to the InstanceType (or the static
+	// slot when tagged `static`); fields attach with their declared
+	// @type to the same slot.
 	for _, m := range body.Children() {
 		switch m.Token() {
 		case rhino.FUNCTION:
@@ -446,7 +582,12 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 			if info != nil && info.ReturnType() != nil {
 				ret = scope.ResolveExpr(info.ReturnType().TypeName)
 			}
-			inst.DefineProperty(methodName, jstype.NewFunctionType(paramTypes, ret))
+			fnT := jstype.NewFunctionType(paramTypes, ret)
+			if info.IsStatic() {
+				inst.DefineStaticProperty(methodName, fnT)
+			} else {
+				inst.DefineProperty(methodName, fnT)
+			}
 		case rhino.CLASS_FIELD_DEF:
 			info := m.JSDocInfo()
 			fieldName := m.FirstChild().String_()
@@ -454,7 +595,11 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 			if info != nil && info.HasType() {
 				t = scope.ResolveExpr(info.Type().TypeName)
 			}
-			inst.DefineProperty(fieldName, t)
+			if info.IsStatic() {
+				inst.DefineStaticProperty(fieldName, t)
+			} else {
+				inst.DefineProperty(fieldName, t)
+			}
 		}
 	}
 
@@ -467,7 +612,12 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 		thisType: inst,
 	}
 	if ctor != nil {
-		c.Functions[ctor] = c.buildMethodScope(ctor, inst, scope, ctorParams)
+		ctorScope := c.buildMethodScope(ctor, inst, scope, ctorParams)
+		// Bind `super` inside the derived-class ctor to the base's
+		// FunctionType so `super(args)` + `super.method(args)` flow
+		// through the normal checkCall / checkGetProp paths.
+		c.bindSuper(ctorScope, superNode.String_(), scope)
+		c.Functions[ctor] = ctorScope
 		// Also collect `this.x = …` property writes inside the
 		// constructor body.
 		if ctorBody := ctor.Children()[2]; ctorBody != nil {
@@ -499,10 +649,11 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 // top-level @constructor functions.
 func (c *TypedScopeCreator) buildMethodScope(fn *rhino.Node, inst *jstype.ObjectType, parent *TypedScope, ptypes []jstype.JSType) *TypedScope {
 	local := &TypedScope{
-		parent:   parent,
-		declared: make(map[string]jstype.JSType),
-		registry: c.registry,
-		thisType: inst,
+		parent:      parent,
+		declared:    make(map[string]jstype.JSType),
+		typeAliases: make(map[string]jstype.JSType),
+		registry:    c.registry,
+		thisType:    inst,
 	}
 	params := fn.Children()[1]
 	for i, p := range params.Children() {
@@ -513,10 +664,68 @@ func (c *TypedScopeCreator) buildMethodScope(fn *rhino.Node, inst *jstype.Object
 	return local
 }
 
+// templateResolver returns a closure that resolves a type expression
+// under a shim scope pre-populated with the function's @template
+// names bound to Unknown. Used by recordFunction so `@param {T}` /
+// `@return {T}` don't collapse to a false-positive-producing
+// misresolution. A future tier will swap Unknown for a real
+// TemplateType and add call-site unification.
+func (c *TypedScopeCreator) templateResolver(parent *TypedScope, info *rhino.JSDocInfo) func(string) jstype.JSType {
+	if info == nil || len(info.TemplateNames()) == 0 {
+		return parent.ResolveExpr
+	}
+	aliases := make(map[string]jstype.JSType, len(info.TemplateNames()))
+	for _, tn := range info.TemplateNames() {
+		aliases[tn] = jstype.Unknown
+	}
+	shim := &TypedScope{
+		parent:      parent,
+		declared:    map[string]jstype.JSType{},
+		typeAliases: aliases,
+		registry:    c.registry,
+	}
+	return shim.ResolveExpr
+}
+
+// bindSuper resolves the named superclass into its constructor's
+// FunctionType and stores it under `super` in the given (ctor-local)
+// scope. Harmless no-op when the class has no base.
+func (c *TypedScopeCreator) bindSuper(local *TypedScope, superName string, outer *TypedScope) {
+	if superName == "" {
+		return
+	}
+	baseCtor, ok := outer.declared[superName].(*jstype.FunctionType)
+	if !ok {
+		return
+	}
+	local.declared["super"] = baseCtor
+}
+
+// recordTypedef stores a `@typedef {T}`-annotated `var NAME;` under
+// the scope's typeAliases map. Mirrors how Java's TypedScopeCreator
+// registers typedefs ahead of the normal scope-building passes so
+// `@type {NAME}` lookups resolve to the aliased type.
+func (c *TypedScopeCreator) recordTypedef(v *rhino.Node, scope *TypedScope) {
+	info := v.JSDocInfo()
+	if info == nil || info.TypedefType() == nil {
+		return
+	}
+	name := v.FirstChild()
+	if name == nil || name.Token() != rhino.NAME {
+		return
+	}
+	scope.typeAliases[name.String_()] = scope.ResolveExpr(info.TypedefType().TypeName)
+}
+
 func (c *TypedScopeCreator) recordDecl(v *rhino.Node, scope *TypedScope) {
 	info := v.JSDocInfo()
 	name := v.FirstChild()
 	if name == nil || name.Token() != rhino.NAME {
+		return
+	}
+	// Skip var bindings that are really typedef declarations — they
+	// live in the typeAliases namespace and don't add value slots.
+	if info != nil && info.TypedefType() != nil {
 		return
 	}
 	if info.HasType() {
@@ -550,17 +759,23 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 	params := kids[1]
 	body := kids[2]
 
+	// @template names become type aliases bound to Unknown inside a
+	// shim scope. Proper unification (Tier-3+) lands later; for now
+	// we just stay conservative so generic params/returns don't
+	// false-positive. Mirrors how Java's JSTypeRegistry builds a
+	// TemplateTypeMap before resolving per-function annotations.
+	resolve := c.templateResolver(scope, info)
 	var paramTypes []jstype.JSType
 	for _, p := range params.Children() {
 		var t jstype.JSType = jstype.Unknown
 		if pexpr := info.ParameterType(p.String_()); pexpr != nil {
-			t = scope.ResolveExpr(pexpr.TypeName)
+			t = resolve(pexpr.TypeName)
 		}
 		paramTypes = append(paramTypes, t)
 	}
 	var retType jstype.JSType = jstype.Unknown
 	if r := info.ReturnType(); r != nil {
-		retType = scope.ResolveExpr(r.TypeName)
+		retType = resolve(r.TypeName)
 	}
 
 	var fnType *jstype.FunctionType

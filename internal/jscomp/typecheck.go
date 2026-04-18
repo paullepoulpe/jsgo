@@ -204,19 +204,40 @@ func (c *TypeCheck) checkAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 		}}
 	case rhino.GETPROP:
 		// Check `obj.prop = rhs` against obj's declared property type.
+		// If the receiver is a NAME referring to a constructor, the
+		// assignment targets the static slot; otherwise we're writing
+		// an instance property and walk the regular member map.
 		propKids := lhs.Children()
 		if len(propKids) < 2 {
 			return nil
 		}
-		obj, ok := infer.InferType(propKids[0]).(*jstype.ObjectType)
-		if !ok {
-			return nil
-		}
 		propName := propKids[1].String_()
-		declared := obj.GetPropertyType(propName)
-		if declared == nil {
-			return nil
+		recv := propKids[0]
+		var obj *jstype.ObjectType
+		var declared jstype.JSType
+		var ownerName string
+		if recv.Token() == rhino.NAME {
+			if fn, ok := scope.GetDeclaredType(recv.String_()).(*jstype.FunctionType); ok && fn.Instance != nil {
+				if t := fn.Instance.GetStaticPropertyType(propName); t != nil {
+					obj = fn.Instance
+					declared = t
+					ownerName = recv.String_()
+				}
+			}
 		}
+		if declared == nil {
+			var ok bool
+			obj, ok = infer.InferType(recv).(*jstype.ObjectType)
+			if !ok {
+				return nil
+			}
+			declared = obj.GetPropertyType(propName)
+			if declared == nil {
+				return nil
+			}
+			ownerName = obj.TypeName()
+		}
+		_ = ownerName // used below for diagnostic message
 		found := infer.InferType(rhs)
 		if _, isUnion := found.(*jstype.UnionType); isUnion {
 			return nil
@@ -225,7 +246,7 @@ func (c *TypeCheck) checkAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 			return nil
 		}
 		msg := fmt.Sprintf("assignment to property %s of %s\nfound   : %s\nrequired: %s",
-			propName, obj.TypeName(), found.TypeName(), declared.TypeName())
+			propName, ownerName, found.TypeName(), declared.TypeName())
 		return []diag.Diagnostic{{
 			Path:    c.path,
 			Line:    lhs.Lineno(),
@@ -426,6 +447,14 @@ func (c *TypeCheck) checkGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 		return nil
 	}
 	if !obj.IsStructural {
+		return nil
+	}
+	// Anonymous inline records (from `{k: T}` literals) are not
+	// considered closed — Java widens their property set across
+	// unions, so firing JSC_INEXISTENT_PROPERTY on them false-
+	// positives. Restrict the diagnostic to *named* structural
+	// types (`@record` / `@interface` with a source identifier).
+	if obj.Name == "" {
 		return nil
 	}
 	if obj.HasProperty(propName) {

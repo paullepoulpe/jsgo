@@ -198,6 +198,10 @@ func TestTier1(t *testing.T) { runTier(t, "tier1") }
 // `this.x = …` member tracking, and property-typed assignments.
 func TestTier2(t *testing.T) { runTier(t, "tier2") }
 
+// TestTier3 covers typedefs, inline structural `{k:T}` types, super
+// call checks, static class members, and @template parameters.
+func TestTier3(t *testing.T) { runTier(t, "tier3") }
+
 // TestExtractedCorpus is a reporting benchmark — it runs every
 // extracted TypeCheckTest fixture and prints a pass-rate summary. It is
 // intentionally lenient: failures here reflect the difference between
