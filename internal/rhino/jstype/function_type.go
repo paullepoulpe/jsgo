@@ -26,6 +26,12 @@ type FunctionType struct {
 	// when IsConstructor is true. Unset for plain functions; the scope
 	// creator wires this when it processes the @constructor JSDoc.
 	Instance *ObjectType
+
+	// TemplateTypes are the function's @template parameters, in the
+	// order they were declared. Call-site unification uses these to
+	// build a TemplateTypeMap from arg types before substituting into
+	// Return. Empty for non-generic functions.
+	TemplateTypes []*TemplateType
 }
 
 func NewFunctionType(params []JSType, ret JSType) *FunctionType {
@@ -71,6 +77,14 @@ func (f *FunctionType) IsSubtypeOf(o JSType) bool {
 			}
 		}
 		return IsSubtype(f.Return, g.Return)
+	}
+	// Any FunctionType is assignment-compatible with the
+	// built-in `Function` instance (Java's subtype relationship
+	// for callable-vs-Function). Matches how
+	// FunctionType.isSubtype returns true against the top
+	// Function type.
+	if obj, ok := o.(*ObjectType); ok && obj.Name == "Function" {
+		return true
 	}
 	return isAll(o) || isUnknown(o)
 }

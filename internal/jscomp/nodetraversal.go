@@ -49,6 +49,15 @@ func (t *NodeTraversal) Traverse(root *rhino.Node) {
 	t.traverse(root, nil)
 }
 
+// TraverseInto exposes the recursive walker so callbacks can drive
+// custom child orderings — e.g. TypeCheck visits an IF's condition,
+// then descends into the then-branch under one refinement frame and
+// the else-branch under another. Mirrors NodeTraversal#traverse on
+// the Java side.
+func (t *NodeTraversal) TraverseInto(n, parent *rhino.Node) {
+	t.traverse(n, parent)
+}
+
 func (t *NodeTraversal) traverse(n, parent *rhino.Node) {
 	if n == nil {
 		return

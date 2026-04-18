@@ -33,6 +33,19 @@ type TypeCheck struct {
 	global  *TypedScope
 	path    string
 	diags   []diag.Diagnostic
+
+	// flows maps each function / script root to its computed
+	// DataFlowAnalysis, built lazily as the traversal enters the
+	// function. statementAtNode maps a CFG-statement AST node to its
+	// owning flow so TypeCheck can consult the IN FlowScope when
+	// checking expressions inside it.
+	flows         map[*rhino.Node]*DataFlowAnalysis
+	currentFlow   *DataFlowAnalysis
+	currentCfg    *ControlFlowGraph
+	flowStack     []*DataFlowAnalysis
+	cfgStack      []*ControlFlowGraph
+	currentStmt   *rhino.Node
+	stmtStack     []*rhino.Node
 }
 
 func NewTypeCheck(path string, creator *TypedScopeCreator, global *TypedScope) *TypeCheck {
@@ -40,30 +53,254 @@ func NewTypeCheck(path string, creator *TypedScopeCreator, global *TypedScope) *
 		creator: creator,
 		global:  global,
 		path:    path,
+		flows:   map[*rhino.Node]*DataFlowAnalysis{},
 	}
 }
 
 // Check drives a NodeTraversal over the script and returns every
 // diagnostic collected during Visit. Matches Java's
 // TypeCheck#process(…) entry-point shape at a narrow scope.
+//
+// Before walking, we run ControlFlowAnalysis + DataFlowAnalysis on
+// the top-level SCRIPT to produce per-statement FlowScopes. Nested
+// FUNCTION bodies get their own flow built on demand.
 func (c *TypeCheck) Check(script *rhino.Node) []diag.Diagnostic {
 	c.diags = nil
+	c.installFlow(script, c.global)
 	trav := NewNodeTraversal(c, c.creator, c.global)
 	trav.Traverse(script)
 	return c.diags
 }
 
-// ShouldTraverse is the pre-order hook. TypeCheck always descends —
-// diagnostic emission happens in Visit.
-func (c *TypeCheck) ShouldTraverse(_ *NodeTraversal, _, _ *rhino.Node) bool {
+// installFlow builds the CFG + DataFlowAnalysis for `root` (a
+// FUNCTION or SCRIPT) and stores it on the TypeCheck instance so
+// Visit can look up IN FlowScopes for each statement.
+func (c *TypeCheck) installFlow(root *rhino.Node, scope *TypedScope) *DataFlowAnalysis {
+	if existing, ok := c.flows[root]; ok {
+		return existing
+	}
+	cfg := BuildControlFlowGraph(root)
+	pass := NewTypeInferencePass(scope)
+	d := NewDataFlowAnalysis(cfg, EmptyFlowScope(), pass.Transfer)
+	d.Run()
+	c.flows[root] = d
+	return d
+}
+
+// enclosingStmt returns the nearest ancestor of `n` that's a CFG
+// statement (matches the Token set visited by BuildControlFlowGraph).
+// Used so an expression node can find its owning statement's IN
+// FlowScope.
+func enclosingStmt(n *rhino.Node) *rhino.Node {
+	for cur := n; cur != nil; cur = cur.Parent() {
+		switch cur.Token() {
+		case rhino.VAR, rhino.LET, rhino.CONST, rhino.EXPR_RESULT,
+			rhino.IF, rhino.RETURN:
+			return cur
+		}
+	}
+	return nil
+}
+
+// ShouldTraverse is the pre-order hook. For BLOCK / IF / HOOK nodes
+// we intercept the default depth-first descent so we can push
+// branch-specific (and post-guard) refinements onto the active scope
+// before walking. The rest of the AST is walked normally and emits
+// diagnostics in Visit.
+func (c *TypeCheck) ShouldTraverse(t *NodeTraversal, n, parent *rhino.Node) bool {
+	if n == nil {
+		return true
+	}
+	// Nested function bodies need their own CFG + FlowScope built
+	// BEFORE descent so Visit() callbacks inside the body can
+	// consult the pre-computed IN scopes. Must live here (pre-order)
+	// rather than in Visit (post-order) — by the time Visit fires
+	// for the FUNCTION, the children have already been walked.
+	if n.Token() == rhino.FUNCTION {
+		if local, ok := c.creator.Functions[n]; ok && local != nil {
+			c.installFlow(n, local)
+		}
+	}
+	switch n.Token() {
+	case rhino.BLOCK, rhino.SCRIPT:
+		c.traverseBlock(t, n)
+		return false
+	case rhino.IF:
+		c.traverseIf(t, n)
+		return false
+	case rhino.HOOK:
+		c.traverseHook(t, n)
+		return false
+	case rhino.AND, rhino.OR, rhino.COALESCE:
+		c.traverseShortCircuit(t, n)
+		return false
+	}
 	return true
+}
+
+// traverseShortCircuit handles the AND / OR / COALESCE binary
+// operators. The RHS is evaluated only when the LHS is truthy
+// (for &&) or falsy (for || / ??), so we walk the RHS under a
+// refinement derived from the LHS. Matches Java's
+// SemanticReverseAbstractInterpreter behaviour at the expression
+// level.
+func (c *TypeCheck) traverseShortCircuit(t *NodeTraversal, n *rhino.Node) {
+	kids := n.Children()
+	if len(kids) != 2 {
+		for _, k := range kids {
+			t.TraverseInto(k, n)
+		}
+		return
+	}
+	left, right := kids[0], kids[1]
+	t.TraverseInto(left, n)
+	scope := t.CurrentScope()
+	whenTruthy := n.Token() == rhino.AND
+	if refs := buildRefinements(scope, left, whenTruthy); len(refs) > 0 {
+		scope.PushRefinement(refs)
+		t.TraverseInto(right, n)
+		scope.PopRefinement()
+	} else {
+		t.TraverseInto(right, n)
+	}
+}
+
+// traverseBlock walks a block's statements in order, threading
+// post-guard refinements forward — when a statement is an `if (cond)
+// { return; }` (or `throw`), the negated cond's refinement is pushed
+// for the remainder of the block. Mirrors how Java's TypeInference
+// applies a refined FlowScope to siblings after an early-exit guard.
+func (c *TypeCheck) traverseBlock(t *NodeTraversal, block *rhino.Node) {
+	scope := t.CurrentScope()
+	pushed := 0
+	for _, child := range block.Children() {
+		t.TraverseInto(child, block)
+		if guard, ok := earlyExitGuard(child); ok {
+			if refs := buildRefinements(scope, guard, false); len(refs) > 0 {
+				scope.PushRefinement(refs)
+				pushed++
+			}
+		}
+	}
+	for i := 0; i < pushed; i++ {
+		scope.PopRefinement()
+	}
+	// Block / Script don't emit diagnostics in Visit themselves, but
+	// the contract is to call Visit so callbacks downstream that care
+	// see the node. Calling here is a no-op for TypeCheck.
+	c.Visit(t, block, block.Parent())
+}
+
+// earlyExitGuard reports whether `n` is `if (cond) { return | throw
+// | break | continue }` with no else, returning the cond expression
+// for use in negated refinement of the remaining siblings.
+func earlyExitGuard(n *rhino.Node) (*rhino.Node, bool) {
+	if n == nil || n.Token() != rhino.IF {
+		return nil, false
+	}
+	kids := n.Children()
+	if len(kids) != 2 {
+		return nil, false // has an else branch — no guarantee siblings refine
+	}
+	if !blockExits(kids[1]) {
+		return nil, false
+	}
+	return kids[0], true
+}
+
+// blockExits reports whether `n` (a single statement or a BLOCK)
+// definitely terminates execution of the enclosing function via
+// return / throw on every path.
+func blockExits(n *rhino.Node) bool {
+	if n == nil {
+		return false
+	}
+	if definitelyReturns(n) {
+		return true
+	}
+	// THROW — our parser doesn't currently surface a THROW token, but
+	// finishLoopBody swallows `throw expr;`. The presence of "throw"
+	// at AST time is rare; leaving the conservative no-throw check.
+	return false
+}
+
+// traverseIf walks `if (cond) thenBlock [else elseBlock]` with a
+// refinement overlay active on the current scope while descending
+// into each branch. Mirrors how Java's TypeInferencePass refines a
+// FlowScope at branch points.
+func (c *TypeCheck) traverseIf(t *NodeTraversal, n *rhino.Node) {
+	kids := n.Children()
+	if len(kids) < 2 {
+		for _, k := range kids {
+			t.TraverseInto(k, n)
+		}
+		return
+	}
+	cond := kids[0]
+	thenBlock := kids[1]
+	var elseBlock *rhino.Node
+	if len(kids) >= 3 {
+		elseBlock = kids[2]
+	}
+	t.TraverseInto(cond, n)
+	scope := t.CurrentScope()
+	if refs := buildRefinements(scope, cond, true); len(refs) > 0 {
+		scope.PushRefinement(refs)
+		t.TraverseInto(thenBlock, n)
+		scope.PopRefinement()
+	} else {
+		t.TraverseInto(thenBlock, n)
+	}
+	if elseBlock != nil {
+		if refs := buildRefinements(scope, cond, false); len(refs) > 0 {
+			scope.PushRefinement(refs)
+			t.TraverseInto(elseBlock, n)
+			scope.PopRefinement()
+		} else {
+			t.TraverseInto(elseBlock, n)
+		}
+	}
+}
+
+// traverseHook is the HOOK analogue of traverseIf — refines per
+// branch so `cond ? cond.foo() : fallback` resolves cond.foo()
+// against the truthy form of cond.
+func (c *TypeCheck) traverseHook(t *NodeTraversal, n *rhino.Node) {
+	kids := n.Children()
+	if len(kids) < 3 {
+		for _, k := range kids {
+			t.TraverseInto(k, n)
+		}
+		return
+	}
+	cond, thenE, elseE := kids[0], kids[1], kids[2]
+	t.TraverseInto(cond, n)
+	scope := t.CurrentScope()
+	if refs := buildRefinements(scope, cond, true); len(refs) > 0 {
+		scope.PushRefinement(refs)
+		t.TraverseInto(thenE, n)
+		scope.PopRefinement()
+	} else {
+		t.TraverseInto(thenE, n)
+	}
+	if refs := buildRefinements(scope, cond, false); len(refs) > 0 {
+		scope.PushRefinement(refs)
+		t.TraverseInto(elseE, n)
+		scope.PopRefinement()
+	} else {
+		t.TraverseInto(elseE, n)
+	}
 }
 
 // Visit is the post-order dispatch. Matches Java's visit(t,n,parent)
 // override on AbstractPostOrderCallback; each branch mirrors a
-// TypeCheck.java visitXxx helper.
+// TypeCheck.java visitXxx helper. Before per-node dispatch, we push
+// the IN FlowScope of the enclosing statement onto the scope so
+// expression-level inference sees the flow-narrowed types.
 func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 	scope := t.CurrentScope()
+	popFlow := c.pushEnclosingFlow(n, scope)
+	defer popFlow()
 	switch n.Token() {
 	case rhino.VAR, rhino.LET, rhino.CONST:
 		c.emit(c.visitVar(n, scope))
@@ -80,6 +317,46 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 	case rhino.RETURN:
 		c.emit(c.visitReturn(n, scope))
 	}
+}
+
+// pushEnclosingFlow looks up the CFG / FlowScope active for `n`'s
+// enclosing statement and pushes it as a refinement on the current
+// scope. Returns a pop function the caller defers. Safe no-op if
+// the node isn't inside a tracked CFG.
+func (c *TypeCheck) pushEnclosingFlow(n *rhino.Node, scope *TypedScope) func() {
+	stmt := enclosingStmt(n)
+	if stmt == nil {
+		return func() {}
+	}
+	// Look up the closest FUNCTION / SCRIPT ancestor so we know
+	// which flow analysis owns this statement.
+	fn := enclosingFlowRoot(n)
+	d := c.flows[fn]
+	if d == nil {
+		return func() {}
+	}
+	cfgNode := d.Cfg.Get(stmt)
+	if cfgNode == nil {
+		return func() {}
+	}
+	in := d.InOfAst(cfgNode)
+	if in == nil || len(in.types) == 0 {
+		return func() {}
+	}
+	scope.PushRefinement(in.types)
+	return scope.PopRefinement
+}
+
+// enclosingFlowRoot returns the nearest FUNCTION or SCRIPT ancestor
+// of `n` — the CFG owner for that subtree.
+func enclosingFlowRoot(n *rhino.Node) *rhino.Node {
+	for cur := n; cur != nil; cur = cur.Parent() {
+		switch cur.Token() {
+		case rhino.FUNCTION, rhino.SCRIPT:
+			return cur
+		}
+	}
+	return nil
 }
 
 func (c *TypeCheck) emit(d []diag.Diagnostic) {
@@ -130,14 +407,16 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 	infer := NewTypeInference(scope)
 	switch lhs.Token() {
 	case rhino.NAME:
-		declared := scope.GetDeclaredType(lhs.String_())
+		// Assignment-target lookup must use the raw declared type,
+		// not the flow-refined one — otherwise a prior
+		// `var x = null;` narrows x's declared type to null and
+		// every subsequent assignment false-positives. The refined
+		// type is still correct for reads (RHS inference).
+		declared := scope.GetRawDeclaredType(lhs.String_())
 		if declared == nil {
 			return nil
 		}
 		found := infer.InferType(rhs)
-		if _, isUnion := found.(*jstype.UnionType); isUnion {
-			return nil
-		}
 		if jstype.IsSubtype(found, declared) {
 			return nil
 		}
@@ -176,9 +455,6 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 			ownerName = obj.TypeName()
 		}
 		found := infer.InferType(rhs)
-		if _, isUnion := found.(*jstype.UnionType); isUnion {
-			return nil
-		}
 		if jstype.IsSubtype(found, declared) {
 			return nil
 		}
@@ -207,17 +483,20 @@ func (c *TypeCheck) visitCall(node *rhino.Node, scope *TypedScope) []diag.Diagno
 	if !ok {
 		return nil
 	}
-	if len(args) != len(fn.Params) {
-		return nil
+	// Arity-mismatch: still type-check the overlapping prefix so a
+	// `f(0)` against `function f(s: string)` reports the type error
+	// even when other params are dropped. Java fires both
+	// JSC_WRONG_ARGUMENT_COUNT and the per-arg JSC_TYPE_MISMATCH.
+	n := len(args)
+	if len(fn.Params) < n {
+		n = len(fn.Params)
 	}
 	var out []diag.Diagnostic
 	calleeName := describeCallee(callee)
-	for i, arg := range args {
+	for i := 0; i < n; i++ {
+		arg := args[i]
 		param := fn.Params[i]
 		found := infer.InferType(arg)
-		if _, isUnion := found.(*jstype.UnionType); isUnion {
-			continue
-		}
 		if jstype.IsSubtype(found, param) {
 			continue
 		}
@@ -244,6 +523,14 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 	propName := propNode.String_()
 	infer := NewTypeInference(scope)
 	recvType := infer.InferType(kids[0])
+	// Closure's legacy-mode default makes `Foo` nullable — so a
+	// receiver of type `Foo|null` should still be property-checked
+	// against Foo. Strip the null/void members of a union so the
+	// INEXISTENT_PROPERTY check still fires.
+	recvType = stripNullUndef(recvType)
+	if tt, ok := recvType.(*jstype.TemplatizedType); ok {
+		recvType = tt.Base
+	}
 	obj, ok := recvType.(*jstype.ObjectType)
 	if !ok {
 		return nil
@@ -284,9 +571,6 @@ func (c *TypeCheck) visitReturn(ret *rhino.Node, scope *TypedScope) []diag.Diagn
 	}
 	infer := NewTypeInference(scope)
 	found := infer.InferType(retExpr)
-	if _, isUnion := found.(*jstype.UnionType); isUnion {
-		return nil
-	}
 	if jstype.IsSubtype(found, declared) {
 		return nil
 	}
@@ -316,9 +600,6 @@ func (c *TypeCheck) visitClassField(field *rhino.Node, parent *rhino.Node, scope
 	declared := scope.ResolveExpr(info.Type().TypeName)
 	infer := NewTypeInference(scope)
 	found := infer.InferType(init)
-	if _, isUnion := found.(*jstype.UnionType); isUnion {
-		return nil
-	}
 	if jstype.IsSubtype(found, declared) {
 		return nil
 	}

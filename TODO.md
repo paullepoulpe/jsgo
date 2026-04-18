@@ -4,10 +4,66 @@ Living list of what's left to port, with rough effort estimates, in
 order of expected pass-rate lift for the `testdata/fixtures/extracted`
 benchmark. Updated whenever a milestone commits.
 
-**Current state:** 599/1444 = **41.48%** extracted pass rate. Tier-0
+**Current state:** 722/1444 = **50.00%** extracted pass rate. Tier-0
 through Tier-3 hand-authored corpora all 100%.
 
-**Goal:** 80%+ = ~1155 extracted passes. Gap: **+556**.
+**Goal:** 80%+ = ~1155 extracted passes. Gap: **+433**.
+
+Since the last revision, the CFG, dataflow, externs, P1-2
+(JSC_USELESS_CODE) and P1-4 (JSC_HIDDEN_SUPERCLASS / INTERFACE
+PROPERTY MISMATCH) ports have all landed, plus a
+nominal-nullability default matching Java's legacy mode.
+
+**P0 sweep — completed (with the listed scope caveats):**
+- P0-1 ✅ Parser precedence-climbing + expression-level TypeInference
+  (binary / unary / ternary / array / object literals); `+` follows
+  the JS string-bias rule; functions without @return default to
+  Void; compound-assigns parse as ASSIGN_*. Scope: rest args /
+  spread still skipped — testtemplatetype4/5 patterns stay
+  unmatched.
+- P0-2 ✅ VarCheck (JSC_UNDEFINED_VARIABLE), reports once per file,
+  narrow extern-name stub. Scope: real DefaultExterns.js loader is
+  still P2-1 — names not in the stub will FP if referenced bare.
+- P0-3 ✅ VariableReferenceCheck (JSC_VAR_MULTIPLY_DECLARED_ERROR)
+  for intra-file duplicates; honours `@suppress {duplicate}`;
+  global frame seeded with extern-predeclared names so
+  `Disposable`-style collisions match the oracle.
+- P0-4 ✅ TemplateType + TemplateTypeMap + call-site unification;
+  TemplatizedType (Array<T>, Map<K,V>, …) participates in subtype
+  / property-lookup / unification / substitution. Scope: bounded
+  generics (`@template T extends Base`) still produce
+  JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES on the Java side and
+  remain unported (Java itself defers — see P3-1).
+- P0-5 ✅ **Real CFG + forward DataFlowAnalysis + TypeInferencePass**
+  ported end-to-end:
+  * `ControlFlowGraph` (controlflowgraph.go) with synthetic
+    ENTRY/EXIT and branch-labeled edges.
+  * `ControlFlowAnalysis` (controlflowanalysis.go) builds the CFG
+    per FUNCTION / SCRIPT — proper IF with BranchOnTrue / OnFalse
+    arms, RETURN edges straight to EXIT, reachability-aware joins.
+  * `FlowScope` (flowscope.go) — persistent name→JSType map with
+    Bind / BindAll / Equal and the lattice-join used at confluence
+    points.
+  * `DataFlowAnalysis` (dataflow.go) — forward-worklist runner that
+    supports per-branch transfer outputs.
+  * `TypeInferencePass` (typeinferencepass.go) — concrete transfer
+    function: VAR/LET/CONST/ASSIGN refine the LHS NAME in the OUT
+    scope; IF emits branch-specific scopes via `buildRefinements`
+    (which itself recognises truthy, null-check, typeof, instanceof,
+    `!cond`, `&&` / `||` falsy-branch). Expression inference in
+    TypeCheck consults the IN FlowScope of the enclosing statement
+    via `pushEnclosingFlow`.
+  * `MissingReturnCheck` is now CFG-driven: walks `EXIT.Predecessors`
+    restricted to reachable-from-ENTRY nodes and fires
+    `JSC_MISSING_RETURN_STATEMENT` unless every one is a
+    `return EXPR`. Replaces the AST-walk `definitelyReturns`
+    approximation.
+
+  Scope caveats still open: the CFG doesn't yet model loops (no
+  BranchLoop / back-edge), try/catch/finally flow, labeled
+  break/continue, or assignment-in-expression refinement (e.g.
+  `if ((x = f())) { … }`). Those match the Java pass as the next
+  wave of CFG edges.
 
 ## Methodology note
 

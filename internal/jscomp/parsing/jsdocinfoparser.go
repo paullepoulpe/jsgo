@@ -114,8 +114,35 @@ func (p *JsDocInfoParser) parseAnnotation(_ JsDocToken) JsDocToken {
 		p.info.SetRecord(true)
 		p.anyRecorded = true
 		return p.eatUntilEOLIfNotAnnotation()
+	case "suppress":
+		return p.parseSuppressTag()
 	}
 	return p.eatUntilEOLIfNotAnnotation()
+}
+
+// parseSuppressTag captures the parenthesised list of suppression
+// names from `@suppress {name1, name2, …}` (or the brace-only form
+// `@suppress {name}`). Mirrors Java's parseSuppressTag — names are
+// added to the JSDocInfo's suppression set so downstream passes
+// (VariableReferenceCheck etc.) can skip diagnostics gated on them.
+func (p *JsDocInfoParser) parseSuppressTag() JsDocToken {
+	p.skipEOLs()
+	t := p.next()
+	if t != JsDocTokenLeftCurly {
+		return p.eatUntilEOLIfNotAnnotation()
+	}
+	for {
+		t = p.next()
+		switch t {
+		case JsDocTokenString:
+			p.info.AddSuppression(p.stream.String_())
+			p.anyRecorded = true
+		case JsDocTokenComma:
+			continue
+		case JsDocTokenRightCurly, JsDocTokenEOF, JsDocTokenEOC:
+			return p.eatUntilEOLIfNotAnnotation()
+		}
+	}
 }
 
 // parseTypeTag ports the @type branch of the Java parseAnnotation
