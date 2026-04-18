@@ -1,11 +1,19 @@
-// Port of com/google/javascript/jscomp/TypedScopeCreator.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/TypedScopeCreator.java
+// @ closure-compiler v20260415 (subset).
 //
-// TypedScopeCreator walks the AST and builds a tree of TypedScopes
-// (one per function plus the global scope) annotated with declared
-// JSTypes. Tier-0 needed only the global scope's `var`/`let`/`const`
-// bindings; Tier-1 adds top-level function declarations (with
-// FunctionType signatures built from @param/@return) plus a per-function
-// local scope holding the parameters.
+// Java's TypedScopeCreator is ~3000 lines spread across the outer
+// class + AbstractScopeBuilder / ClassScopeBuilder /
+// FunctionScopeBuilder inner classes, with callbacks that walk the
+// AST in two passes and interact with the global registry. This file
+// mirrors the overall shape (TypedScope tree with `this` binding +
+// type-alias namespace; two-pass createScopeIn; pre-registration of
+// constructor-like bindings) but collapses the inner-builder
+// hierarchy into free functions on TypedScopeCreator
+// (recordDecl / recordFunction / recordClass / recordTypedef /
+// recordPrototypeAssign / collectThisProperties). Method names match
+// Java where they exist (CreateScope, LookupNominalType,
+// ResolveExpr). The inner-builder port lands when we need per-block
+// hoisting or closure-captured scope nuances.
 
 package jscomp
 

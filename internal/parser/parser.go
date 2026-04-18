@@ -1,11 +1,18 @@
-// Port of com/google/javascript/jscomp/parsing/parser/Parser.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/parsing/parser/Parser.java
+// @ closure-compiler v20260415 (narrow; not a faithful grammar port).
 //
-// Statement-loop parser. The grammar is still narrow — enough for
-// Tier-0 (primitive @type decls + primitive literal assigns) and
-// Tier-1 (function decls with @param/@return + simple call sites).
-// Unrecognised statements are skipped to the next boundary so a single
-// unsupported construct doesn't poison neighbouring statements we can
-// handle. Parse never panics (guardrail #6).
+// The Java class is ~10k lines of a full ES parser built on a
+// Scanner + token stream (parseSourceElement / parseStatement /
+// parseExpression / parseAssignmentExpression /
+// parsePrimaryExpression / …). This file is NOT a port of that
+// structure — it's a hand-rolled statement-loop scanner that handles
+// the grammar jsgo's checker currently uses (var/let/const +
+// class/function decl, call/new/assign/return statements,
+// arrow/function expressions, basic literals). Parse never panics
+// (guardrail #6); unrecognised constructs skip to the next statement
+// boundary. A real Parser.java port is a separate multi-session
+// undertaking and will land at internal/jscomp/parsing/parser/
+// alongside the JsDocInfoParser port.
 
 package parser
 
@@ -14,6 +21,7 @@ import (
 	"strconv"
 	"unicode"
 
+	"github.com/paullepoulpe/jsgo/internal/jscomp/parsing"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -66,7 +74,7 @@ func (p *Parser) parseStatements(parent *rhino.Node, endTok rune) {
 func (p *Parser) tryStatement() (*rhino.Node, bool) {
 	var jsdoc *rhino.JSDocInfo
 	if body, ok := p.consumeBlockComment(); ok {
-		jsdoc = rhino.ParseJSDoc(body)
+		jsdoc = parsing.ParseJSDocInfo(body)
 		p.skipTrivia()
 	}
 
@@ -322,7 +330,7 @@ func (p *Parser) finishClass(jsdoc *rhino.JSDocInfo) (*rhino.Node, bool) {
 func (p *Parser) parseClassMember(body *rhino.Node) {
 	var jsdoc *rhino.JSDocInfo
 	if b, ok := p.consumeBlockComment(); ok {
-		jsdoc = rhino.ParseJSDoc(b)
+		jsdoc = parsing.ParseJSDocInfo(b)
 		p.skipTrivia()
 	}
 	if p.atEnd() || p.src[p.pos] == '}' {

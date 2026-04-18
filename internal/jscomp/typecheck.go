@@ -1,16 +1,23 @@
-// Port of com/google/javascript/jscomp/TypeCheck.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/TypeCheck.java
+// @ closure-compiler v20260415 (subset).
 //
-// TypeCheck walks the AST after TypedScopeCreator + TypeInference and
-// emits JSErrors. It handles:
+// Java's TypeCheck is a ~2500-line NodeTraversal.Callback with ~100
+// dispatch points (visitGetProp, visitCall, visitNew, visitFunction,
+// visitAssign, visitBinaryOp, visitGetElem, visitName, …). This file
+// carries the diagnostic emitters jsgo currently uses:
+//
 //   - "initializing variable" JSC_TYPE_MISMATCH on var/let/const
-//   - "assignment" JSC_TYPE_MISMATCH on bare reassignment
+//   - "assignment" / "assignment to property X of Y" JSC_TYPE_MISMATCH
 //   - "actual parameter N of F does not match formal parameter"
-//     JSC_TYPE_MISMATCH on call + `new` sites
+//     JSC_TYPE_MISMATCH on call + `new` sites (via inferred callee type)
 //   - "inconsistent return type" JSC_TYPE_MISMATCH on return statements
+//   - JSC_INEXISTENT_PROPERTY on structural receivers with closed
+//     property sets
 //
-// The walk mirrors TypeCheck.java's NodeTraversal: every statement is
-// checked, then we descend into child expressions so call/new arg
-// checks fire even inside initializers.
+// The traversal is not a faithful NodeTraversal port — we call
+// checkStatement per script child and walkExpr to descend into call
+// / new / function subtrees. A NodeTraversal-shaped refactor lands
+// when we need the full pre/post visitor contract.
 
 package jscomp
 

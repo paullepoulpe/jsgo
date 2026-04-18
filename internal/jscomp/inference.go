@@ -1,9 +1,14 @@
-// Port of com/google/javascript/jscomp/TypeInference.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/TypeInference.java
+// @ closure-compiler v20260415 (stub; dataflow intentionally omitted).
 //
-// The Java pass does forward dataflow analysis assigning a JSType to every
-// expression node. Tier-0 only needs inference for the initializer of a
-// single var-decl, which is always a literal — so we implement the one
-// case that matters.
+// Java's TypeInference is a ~2500-line control-flow-sensitive
+// dataflow analysis (extends DataFlowAnalysis<Node, FlowScope>, uses
+// JoinOp + a per-statement TypeInferencePass). This file does NOT
+// port that structure — it's a flat node-kind → JSType switch that
+// covers the static cases the checker currently needs (literals,
+// NAME lookup, THIS, GETPROP, NEW, CALL). A real port lands when
+// we need dataflow narrowing; in the meantime, treat this file as
+// a scaffold bearing the name.
 
 package jscomp
 

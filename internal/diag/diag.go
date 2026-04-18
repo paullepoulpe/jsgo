@@ -1,11 +1,15 @@
-// Port of com/google/javascript/jscomp/JSError.java and
-// com/google/javascript/jscomp/DiagnosticType.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/JSError.java +
+// com/google/javascript/jscomp/DiagnosticType.java
+// @ closure-compiler v20260415 (subset).
 //
-// JSError in Java carries source position, diagnostic type (code +
-// default-level), and format-substituted arguments. For Tier-0 we track
-// only the minimum needed for tuple-level conformance (path, line, col,
-// code) plus a human-readable message shaped like Java's output so
-// dogfooding the CLI feels right.
+// Java's JSError carries position, a DiagnosticType (code +
+// default-level + format template), substituted args, and links to
+// the source file. DiagnosticType is a full registry with
+// per-category warning levels. This file tracks only the minimum
+// the tuple-level conformance check consumes: (path, line, col,
+// code) plus a Java-shaped message so CLI output reads the same.
+// A proper DiagnosticType registry lands when we want to honour
+// `--jscomp_warning=<group>` style flags.
 
 package diag
 
