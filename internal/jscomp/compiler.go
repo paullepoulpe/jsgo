@@ -27,7 +27,22 @@ import (
 // An externs scope is built from defaultExternsSrc and used as the
 // parent scope of the user source — matches Compiler#compile which
 // accepts both externs and sources.
+//
+// Options default to NewCompilerOptions() (checkTypes=ERROR,
+// strictCheckTypes=OFF) so the oracle's default-mode diagnostics
+// still match. Callers wanting strict behaviour use
+// CheckSourceWithOptions.
 func CheckSource(path, src string) ([]diag.Diagnostic, error) {
+	return CheckSourceWithOptions(path, src, NewCompilerOptions())
+}
+
+// CheckSourceWithOptions is the per-options variant. Mirrors how
+// Compiler#compile accepts a CompilerOptions instance and threads
+// it into each pass's constructor.
+func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Diagnostic, error) {
+	if opts == nil {
+		opts = NewCompilerOptions()
+	}
 	script, err := parser.Parse(src)
 	if err != nil {
 		return nil, err
@@ -39,7 +54,7 @@ func CheckSource(path, src string) ([]diag.Diagnostic, error) {
 	var all []diag.Diagnostic
 	all = append(all, NewVarCheck(path, creator, scope).Check(script)...)
 	all = append(all, NewVariableReferenceCheck(path, externScope).Check(script)...)
-	all = append(all, NewTypeCheck(path, creator, scope).Check(script)...)
+	all = append(all, NewTypeCheckWithOptions(path, creator, scope, opts).Check(script)...)
 	all = append(all, NewMissingReturnCheck(path, scope).Check(script)...)
 	all = append(all, NewSuperclassCheck(path, creator, scope).Check(script)...)
 	all = append(all, NewCheckSideEffects(path).Check(script)...)

@@ -32,6 +32,7 @@ type TypeCheck struct {
 	creator *TypedScopeCreator
 	global  *TypedScope
 	path    string
+	opts    *CompilerOptions
 	diags   []diag.Diagnostic
 
 	// flows maps each function / script root to its computed
@@ -49,10 +50,22 @@ type TypeCheck struct {
 }
 
 func NewTypeCheck(path string, creator *TypedScopeCreator, global *TypedScope) *TypeCheck {
+	return NewTypeCheckWithOptions(path, creator, global, NewCompilerOptions())
+}
+
+// NewTypeCheckWithOptions is the per-options constructor, mirroring
+// Java's TypeCheck(AbstractCompiler, …). The options bag routes
+// per-DiagnosticGroup CheckLevel so strict-only validators stay
+// silent unless `strictCheckTypes` is set to WARNING / ERROR.
+func NewTypeCheckWithOptions(path string, creator *TypedScopeCreator, global *TypedScope, opts *CompilerOptions) *TypeCheck {
+	if opts == nil {
+		opts = NewCompilerOptions()
+	}
 	return &TypeCheck{
 		creator: creator,
 		global:  global,
 		path:    path,
+		opts:    opts,
 		flows:   map[*rhino.Node]*DataFlowAnalysis{},
 	}
 }
@@ -319,13 +332,21 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 	case rhino.RETURN:
 		c.emit(c.visitReturn(n, scope))
 	}
-	// NOTE: ADD / SUB / MUL / DIV / MOD / BITWISE / comparison operand
-	// checks live in Java's TypeValidator under "strict" diagnostic
-	// groups (STRICT_CHECK_TYPES, etc.) — they're *off* in the
-	// default --checks_only pass that builds our oracle, so porting
-	// them unconditionally here produces false positives across the
-	// extracted corpus. They'll arrive with the strict-mode slice when
-	// we also wire the DiagnosticGroup registry.
+	// Strict-mode operand checks — OFF by default, matching Java.
+	// These fire only when `--jscomp_warning=strictCheckTypes` is set.
+	if c.opts.IsOn(GroupStrictCheckTypes) {
+		switch n.Token() {
+		case rhino.ADD:
+			c.emit(c.visitAdd(n, scope))
+		case rhino.SUB, rhino.MUL, rhino.DIV, rhino.MOD:
+			c.emit(c.visitArithmetic(n, scope))
+		case rhino.BITAND, rhino.BITOR, rhino.BITXOR,
+			rhino.LSH, rhino.RSH, rhino.URSH:
+			c.emit(c.visitBitwise(n, scope))
+		case rhino.LT, rhino.LE, rhino.GT, rhino.GE:
+			c.emit(c.visitRelativeComparison(n, scope))
+		}
+	}
 }
 
 // pushEnclosingFlow looks up the CFG / FlowScope active for `n`'s
@@ -851,4 +872,203 @@ func isStructReceiver(t jstype.JSType) bool {
 		return true
 	}
 	return false
+}
+
+// ---- strict operand validators ---------------------------------- //
+//
+// The methods below implement the Java `TypeValidator`
+// expectNumber / expectNumberOrString / expectMatchingTypes helpers
+// for binary operators. They fire only when the caller gated them
+// behind `GroupStrictCheckTypes` — matching how Java's
+// `DiagnosticGroups.STRICT_CHECK_TYPES` elevates the relevant
+// DiagnosticTypes from OFF to WARNING / ERROR.
+
+// visitAdd ports TypeValidator.expectNumberOrString on the ADD
+// operator. JS `+` coerces to string whenever either side is
+// string-typed; a mismatch is reported only when BOTH sides are
+// incompatible (neither number nor string nor Unknown nor a union
+// whose members all satisfy the predicate). Matches Java's
+// conservative TypeValidator — Unknown / All silence.
+func (c *TypeCheck) visitAdd(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	kids := n.Children()
+	if len(kids) < 2 {
+		return nil
+	}
+	infer := NewTypeInference(scope)
+	l := infer.InferType(kids[0])
+	r := infer.InferType(kids[1])
+	var out []diag.Diagnostic
+	if !isAddOperandOk(l) {
+		out = append(out, diag.Diagnostic{
+			Path: c.path, Line: kids[0].Lineno(), Col: kids[0].Charno(),
+			Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
+			Message: "left operand\nfound   : " + l.TypeName() +
+				"\nrequired: (number|string)",
+		})
+	}
+	if !isAddOperandOk(r) {
+		out = append(out, diag.Diagnostic{
+			Path: c.path, Line: kids[1].Lineno(), Col: kids[1].Charno(),
+			Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
+			Message: "right operand\nfound   : " + r.TypeName() +
+				"\nrequired: (number|string)",
+		})
+	}
+	return out
+}
+
+// isAddOperandOk reports whether `t` is acceptable to JS `+`. Java's
+// TypeValidator rule: number, string, boolean (ToNumber coercion),
+// null / undefined (coerce to 0 / "undefined"), Unknown / All, or
+// any union whose members all pass the predicate. Object-ish types
+// implicitly coerce via ToPrimitive and Java doesn't flag them; we
+// do the same.
+func isAddOperandOk(t jstype.JSType) bool {
+	if t == nil {
+		return true
+	}
+	if isUnknownOrNil(t) {
+		return true
+	}
+	if u, ok := t.(*jstype.UnionType); ok {
+		for _, m := range u.Members() {
+			if !isAddOperandOk(m) {
+				return false
+			}
+		}
+		return true
+	}
+	switch t {
+	case jstype.Number, jstype.String, jstype.Boolean,
+		jstype.Null, jstype.Void, jstype.All:
+		return true
+	}
+	return true
+}
+
+// visitArithmetic ports TypeValidator.expectNumber for SUB / MUL /
+// DIV / MOD. Both operands must be numeric-compatible; mismatch
+// reports JSC_TYPE_MISMATCH at the offending operand.
+func (c *TypeCheck) visitArithmetic(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	return c.visitNumericBinaryOp(n, scope)
+}
+
+// visitBitwise ports the BITAND/BITOR/BITXOR/LSH/RSH/URSH branch —
+// same predicate as expectNumber.
+func (c *TypeCheck) visitBitwise(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	return c.visitNumericBinaryOp(n, scope)
+}
+
+// visitNumericBinaryOp walks both operands and emits
+// JSC_TYPE_MISMATCH "found: T\nrequired: number" when either side
+// is definitely non-numeric. Stays quiet for Unknown / All /
+// unions-with-number, matching Java's conservative default.
+func (c *TypeCheck) visitNumericBinaryOp(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	kids := n.Children()
+	if len(kids) < 2 {
+		return nil
+	}
+	infer := NewTypeInference(scope)
+	var out []diag.Diagnostic
+	for _, k := range kids {
+		t := infer.InferType(k)
+		if isNumericOperandOk(t) {
+			continue
+		}
+		out = append(out, diag.Diagnostic{
+			Path: c.path, Line: k.Lineno(), Col: k.Charno(),
+			Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
+			Message: "found   : " + t.TypeName() + "\nrequired: number",
+		})
+	}
+	return out
+}
+
+// isNumericOperandOk reports whether `t` is arithmetic-compatible.
+// Java's TypeValidator treats null / undefined as coercible-to-0
+// and silences diagnostics for them; we do the same to keep
+// `var x; x + 1` quiet when x was declared but uninitialised.
+func isNumericOperandOk(t jstype.JSType) bool {
+	if t == nil {
+		return true
+	}
+	if isUnknownOrNil(t) {
+		return true
+	}
+	if u, ok := t.(*jstype.UnionType); ok {
+		for _, m := range u.Members() {
+			if !isNumericOperandOk(m) {
+				return false
+			}
+		}
+		return true
+	}
+	switch t {
+	case jstype.Number, jstype.Boolean, jstype.Null, jstype.Void, jstype.All:
+		return true
+	}
+	return false
+}
+
+// visitRelativeComparison ports TypeValidator.expectMatchingTypes
+// for LT / LE / GT / GE: both operands must be number-compatible
+// OR both string-compatible. Mismatch fires at the right-hand side
+// (Java's arbitrary-but-stable choice).
+func (c *TypeCheck) visitRelativeComparison(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	kids := n.Children()
+	if len(kids) < 2 {
+		return nil
+	}
+	infer := NewTypeInference(scope)
+	l := infer.InferType(kids[0])
+	r := infer.InferType(kids[1])
+	if canCompareStrict(l, r) {
+		return nil
+	}
+	return []diag.Diagnostic{{
+		Path: c.path, Line: kids[1].Lineno(), Col: kids[1].Charno(),
+		Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
+		Message: "right side of comparison\nfound   : " + r.TypeName() +
+			"\nrequired: " + l.TypeName(),
+	}}
+}
+
+// canCompareStrict reports whether two types may participate in a
+// relative comparison. Java narrows to "both number-compatible OR
+// both string-compatible", with Unknown / null / undefined always
+// accepted to avoid false-positives on partially-annotated code.
+func canCompareStrict(a, b jstype.JSType) bool {
+	if a == nil || b == nil {
+		return true
+	}
+	if isUnknownOrNil(a) || isUnknownOrNil(b) {
+		return true
+	}
+	if isNumericOperandOk(a) && isNumericOperandOk(b) {
+		return true
+	}
+	if isStringOperandOk(a) && isStringOperandOk(b) {
+		return true
+	}
+	return false
+}
+
+// isStringOperandOk is the string-mirror of isNumericOperandOk —
+// used by canCompareStrict when the LHS is string-shaped.
+func isStringOperandOk(t jstype.JSType) bool {
+	if t == nil {
+		return true
+	}
+	if isUnknownOrNil(t) {
+		return true
+	}
+	if u, ok := t.(*jstype.UnionType); ok {
+		for _, m := range u.Members() {
+			if !isStringOperandOk(m) {
+				return false
+			}
+		}
+		return true
+	}
+	return t == jstype.String || t == jstype.Null || t == jstype.Void || t == jstype.All
 }
