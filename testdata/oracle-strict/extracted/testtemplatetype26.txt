@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testtemplatetype26.js:24:20: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : Array<Object>
+required: null
+  24| var /** null */ n = new Foo(new Object).getBar();
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 82.4% typed
+---EXIT---
+1

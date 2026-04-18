@@ -1,2 +1,11 @@
+testdata/fixtures/extracted/testnullishcoalescenumber.js:3:0: WARNING - [JSC_USELESS_CODE] Suspicious code. This code lacks side-effects. Is there a bug?
+  3| a + b ?? undefined;
+     ^^^^^^^^^^^^^^^^^^
+
+testdata/fixtures/extracted/testnullishcoalescenumber.js:3:9: WARNING - [JSC_USELESS_CODE] Suspicious code. This code lacks side-effects. Is there a bug?
+  3| a + b ?? undefined;
+              ^^^^^^^^^
+
+0 error(s), 2 warning(s), 100.0% typed
 ---EXIT---
-137
+0

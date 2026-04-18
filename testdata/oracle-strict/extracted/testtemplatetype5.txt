@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testtemplatetype5.js:13:2: ERROR - [JSC_TYPE_MISMATCH] assignment
+found   : (number|string)
+required: Object
+  13|   x = fn(CGI_PARAM_RETRY_COUNT, 1);
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 88.9% typed
+---EXIT---
+1

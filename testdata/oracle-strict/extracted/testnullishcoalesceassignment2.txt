@@ -1,2 +1,9 @@
+testdata/fixtures/extracted/testnullishcoalesceassignment2.js:1:26: ERROR - [JSC_TYPE_MISMATCH] assignment
+found   : string
+required: number
+  1| /**@type {number} */var x;x=undefined ?? "a";
+                               ^^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
 ---EXIT---
-137
+1

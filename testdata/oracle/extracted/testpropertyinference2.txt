@@ -1,2 +1,13 @@
+testdata/fixtures/extracted/testpropertyinference2.js:4:18: WARNING - [JSC_MISSING_RETURN_STATEMENT] Missing return statement. Function expected to return string.
+  4| F.prototype.bar = function() { if (this.x_) return this.x_; };
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+testdata/fixtures/extracted/testpropertyinference2.js:4:56: ERROR - [JSC_TYPE_MISMATCH] inconsistent return type
+found   : boolean
+required: string
+  4| F.prototype.bar = function() { if (this.x_) return this.x_; };
+                                                             ^^
+
+1 error(s), 1 warning(s), 100.0% typed
 ---EXIT---
-137
+1

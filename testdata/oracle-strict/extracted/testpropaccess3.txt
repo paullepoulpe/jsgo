@@ -1,2 +1,17 @@
+testdata/fixtures/extracted/testpropaccess3.js:1:22: WARNING - [JSC_USELESS_CODE] Suspicious code. The result of the 'getprop' operator is not being used.
+  1| var bar = void 0; bar.baz; bar.bax;
+                           ^^^
+
+testdata/fixtures/extracted/testpropaccess3.js:1:31: WARNING - [JSC_USELESS_CODE] Suspicious code. The result of the 'getprop' operator is not being used.
+  1| var bar = void 0; bar.baz; bar.bax;
+                                    ^^^
+
+testdata/fixtures/extracted/testpropaccess3.js:1:22: ERROR - [JSC_TYPE_MISMATCH] No properties on this expression
+found   : undefined
+required: Object
+  1| var bar = void 0; bar.baz; bar.bax;
+                           ^^^
+
+1 error(s), 2 warning(s), 83.3% typed
 ---EXIT---
-137
+1

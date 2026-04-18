@@ -1,2 +1,7 @@
+testdata/fixtures/extracted/testobjlitdef6.js:1:27: ERROR - [JSC_ILLEGAL_OBJLIT_KEY] Illegal key, the object literal is a struct
+  1| var lit = /** @struct */ { 'x': 1 };
+                                ^^^
+
+1 error(s), 0 warning(s), 100.0% typed
 ---EXIT---
-137
+1

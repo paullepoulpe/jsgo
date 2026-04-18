@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testtypecheck26.js:2:4: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of foo does not match formal parameter
+found   : {a: (number|string)}
+required: {a: number}
+missing : []
+mismatch: [a]
+  2| foo({a: 'abc'});
+         ^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

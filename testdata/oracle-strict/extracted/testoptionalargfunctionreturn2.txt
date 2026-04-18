@@ -1,2 +1,9 @@
+testdata/fixtures/extracted/testoptionalargfunctionreturn2.js:2:22: ERROR - [JSC_TYPE_MISMATCH] inconsistent return type
+found   : function(?): undefined
+required: function((Object|null)=): ?
+  2| function f() { return function(opt_x) { }; };
+                           ^^^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
 ---EXIT---
-137
+1

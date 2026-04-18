@@ -1,0 +1,13 @@
+testdata/fixtures/extracted/testtypeoftype_namespacetypeisanaliasnotacopy.js:4:54: WARNING - [JSC_REFERENCE_BEFORE_DECLARE] Variable referenced before declaration: x
+  4| /** @const {typeof ns1} */ var ns = /** @type {?} */ (x);
+                                                           ^
+
+testdata/fixtures/extracted/testtypeoftype_namespacetypeisanaliasnotacopy.js:8:31: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : string
+required: null
+  8| /** @type {null} */ var x = ns.bar;
+                                    ^^^
+
+1 error(s), 1 warning(s), 88.9% typed
+---EXIT---
+1

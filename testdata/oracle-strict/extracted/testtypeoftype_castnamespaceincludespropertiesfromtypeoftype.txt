@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testtypeoftype_castnamespaceincludespropertiesfromtypeoftype.js:7:31: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : number
+required: null
+  7| /** @type {null} */ var x = ns.bar;
+                                    ^^^
+
+1 error(s), 0 warning(s), 90.0% typed
+---EXIT---
+1

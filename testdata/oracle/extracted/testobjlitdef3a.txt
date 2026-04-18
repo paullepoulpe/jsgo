@@ -1,2 +1,9 @@
+testdata/fixtures/extracted/testobjlitdef3a.js:3:0: ERROR - [JSC_TYPE_MISMATCH] assignment
+found   : number
+required: string
+  3| y = x.a;
+     ^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
 ---EXIT---
-137
+1
