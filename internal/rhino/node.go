@@ -1,49 +1,180 @@
 // Port of com/google/javascript/rhino/Node.java
 // @ closure-compiler v20260415 (subset).
 //
-// Java's Node is a ~3000-line AST carrier with hundreds of methods
-// (parent / sibling pointers, property bag, static factories, many
-// traversal helpers). This file carries only the fields + accessors
-// jsgo's downstream passes currently consult: token kind, children,
-// string/number payload, attached JSDocInfo, 1-indexed line / 0-
-// indexed col. API names mirror Java (Token, FirstChild, AddChildToBack,
-// JSDocInfo/SetJSDocInfo, Lineno/Charno/SetPos) so a later expansion
-// slots in without source-level churn. Bits we skip for now:
-// parent/next/prev links, prop bag (JSDOC_INFO_PROP …),
-// side-effect flags, Token annotations, clone helpers.
+// Retains the Java API shape callers from other passes rely on —
+// parent/sibling links, Detach/DetachChildren, newString/newNumber
+// factories, a small Prop property bag — while keeping the child
+// storage as a plain slice for readability. The Java side uses an
+// intrusive singly-linked list (Node.first + child.next), but the
+// slice + explicit parent/next/previous maintenance below produces
+// the same observable API. Bits still not ported: cloneNode,
+// SideEffectFlags, the full ~50-entry Prop enum, JSTypeNative
+// annotation slot.
 
 package rhino
+
+// Prop mirrors Node.Prop in Java. Only entries the checker currently
+// consults are listed; new props extend this enum as callers need them.
+type Prop int
+
+const (
+	PropJSDocInfo Prop = iota
+	PropStaticMember
+	PropIsConstantName
+	PropArrowFn
+)
 
 type Node struct {
 	token    Token
 	str      string
 	num      float64
-	children []*Node
-	jsdoc    *JSDocInfo
-	lineno   int // 1-indexed, matches Node.getLineno()
-	charno   int // 0-indexed, matches Node.getCharno()
+	children []*Node // slice view; Java uses Node.first linked-list
+
+	parent   *Node
+	next     *Node
+	previous *Node
+
+	jsdoc  *JSDocInfo
+	lineno int // 1-indexed, matches Node.getLineno()
+	charno int // 0-indexed, matches Node.getCharno()
+
+	props map[Prop]any
 }
 
+// ---------------- factories ---------------------------------------- //
+
+// New is the token-only constructor, matching `new Node(Token)` in Java.
 func New(tok Token) *Node { return &Node{token: tok} }
 
+// NewString ports `Node.newString(Token, String)`.
 func NewString(tok Token, s string) *Node { return &Node{token: tok, str: s} }
 
+// NewNumber ports `Node.newNumber(double)`.
 func NewNumber(v float64) *Node { return &Node{token: NUMBER, num: v} }
 
-func (n *Node) Token() Token  { return n.token }
-func (n *Node) String_() string { return n.str }
-func (n *Node) Number() float64 { return n.num }
-func (n *Node) JSDocInfo() *JSDocInfo { return n.jsdoc }
-func (n *Node) SetJSDocInfo(info *JSDocInfo) { n.jsdoc = info }
-func (n *Node) Lineno() int { return n.lineno }
-func (n *Node) Charno() int { return n.charno }
-func (n *Node) SetPos(line, col int) { n.lineno, n.charno = line, col }
+// ---------------- basic accessors (Java getters) ------------------- //
 
-func (n *Node) AddChildToBack(c *Node) { n.children = append(n.children, c) }
+func (n *Node) Token() Token             { return n.token }
+func (n *Node) String_() string          { return n.str }
+func (n *Node) Number() float64          { return n.num }
+func (n *Node) JSDocInfo() *JSDocInfo    { return n.jsdoc }
+func (n *Node) SetJSDocInfo(i *JSDocInfo) { n.jsdoc = i }
+func (n *Node) Lineno() int              { return n.lineno }
+func (n *Node) Charno() int              { return n.charno }
+func (n *Node) SetPos(line, col int)     { n.lineno, n.charno = line, col }
+
+// Parent mirrors Java's getParent(). Nil for detached / root nodes.
+func (n *Node) Parent() *Node { return n.parent }
+
+// Next / Previous mirror getNext / getPrevious.
+func (n *Node) Next() *Node     { return n.next }
+func (n *Node) Previous() *Node { return n.previous }
+
+// ---------------- tree building ------------------------------------ //
+
+// AddChildToBack appends `c` and keeps parent/next/previous in sync.
+// Matches the observable behaviour of Java's addChildToBack.
+func (n *Node) AddChildToBack(c *Node) {
+	if c == nil {
+		return
+	}
+	c.parent = n
+	if len(n.children) > 0 {
+		last := n.children[len(n.children)-1]
+		last.next = c
+		c.previous = last
+	} else {
+		c.previous = nil
+	}
+	c.next = nil
+	n.children = append(n.children, c)
+}
+
+// AddChildToFront ports Node.addChildToFront.
+func (n *Node) AddChildToFront(c *Node) {
+	if c == nil {
+		return
+	}
+	c.parent = n
+	c.previous = nil
+	if len(n.children) > 0 {
+		first := n.children[0]
+		first.previous = c
+		c.next = first
+	} else {
+		c.next = nil
+	}
+	n.children = append([]*Node{c}, n.children...)
+}
+
+// FirstChild mirrors Java's getFirstChild.
 func (n *Node) FirstChild() *Node {
 	if len(n.children) == 0 {
 		return nil
 	}
 	return n.children[0]
 }
+
+// Children exposes the child slice — not in Java (which iterates
+// first.next), but jsgo callers prefer range loops. Treat the returned
+// slice as read-only.
 func (n *Node) Children() []*Node { return n.children }
+
+// Detach removes `n` from its parent. Mirrors Node.detach (Java returns
+// `this`; Go doesn't need the fluent API so we return nothing). No-op
+// when already detached.
+func (n *Node) Detach() {
+	if n.parent == nil {
+		return
+	}
+	p := n.parent
+	for i, c := range p.children {
+		if c == n {
+			p.children = append(p.children[:i], p.children[i+1:]...)
+			break
+		}
+	}
+	if n.previous != nil {
+		n.previous.next = n.next
+	}
+	if n.next != nil {
+		n.next.previous = n.previous
+	}
+	n.parent, n.next, n.previous = nil, nil, nil
+}
+
+// DetachChildren mirrors Node.detachChildren — remove every child and
+// null out its links.
+func (n *Node) DetachChildren() {
+	for _, c := range n.children {
+		c.parent, c.next, c.previous = nil, nil, nil
+	}
+	n.children = nil
+}
+
+// ---------------- property bag ------------------------------------- //
+
+// GetBooleanProp ports Node.getBooleanProp. Absent props are false.
+func (n *Node) GetBooleanProp(p Prop) bool {
+	if n.props == nil {
+		return false
+	}
+	v, ok := n.props[p]
+	if !ok {
+		return false
+	}
+	b, _ := v.(bool)
+	return b
+}
+
+// PutBooleanProp ports Node.putBooleanProp.
+func (n *Node) PutBooleanProp(p Prop, b bool) {
+	if !b {
+		delete(n.props, p)
+		return
+	}
+	if n.props == nil {
+		n.props = map[Prop]any{}
+	}
+	n.props[p] = true
+}
