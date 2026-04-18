@@ -99,6 +99,16 @@ func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 	if expr == "" || expr == "?" {
 		return jstype.Unknown
 	}
+	// Strip balanced outer grouping parens. Closure's JsDocInfoParser
+	// produces expressions like `(number|string)` when the union is
+	// grouped with explicit parens — the Java TypeAST drops them
+	// structurally; we do it textually here.
+	for startsWith(expr, "(") && endsWith(expr, ")") && balancedOuter(expr) {
+		expr = trimSpace(expr[1 : len(expr)-1])
+		if expr == "" {
+			return jstype.Unknown
+		}
+	}
 	nullable := false
 	if startsWith(expr, "?") {
 		nullable = true
@@ -278,6 +288,28 @@ func indexOfTopLevel(s string, b byte) int {
 
 func endsWith(s, suffix string) bool {
 	return len(s) >= len(suffix) && s[len(s)-len(suffix):] == suffix
+}
+
+// balancedOuter reports whether the outermost `(...)` in `s` is a
+// complete paren group (the closing `)` is at `len(s)-1`). Tracks
+// depth so `(a)|(b)` isn't misread as one big group.
+func balancedOuter(s string) bool {
+	if len(s) < 2 || s[0] != '(' || s[len(s)-1] != ')' {
+		return false
+	}
+	depth := 0
+	for i := 0; i < len(s)-1; i++ {
+		switch s[i] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 && i < len(s)-1 {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func splitOn(s string, sep byte) []string {
