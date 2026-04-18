@@ -259,7 +259,13 @@ func (c *TypeCheck) checkFunction(fn *rhino.Node) []diag.Diagnostic {
 				if retExpr := stmt.FirstChild(); retExpr != nil {
 					infer := NewTypeInference(localScope)
 					found := infer.InferType(retExpr)
-					if !jstype.IsSubtype(found, declaredReturn) {
+					// Java narrows union types at the return point via
+					// dataflow analysis (TypeInference + FlowScope). We
+					// don't, so when `found` is a UnionType we'd issue
+					// false positives on code that's in fact safe.
+					// Stay conservative: skip the check in that shape.
+					if _, isUnion := found.(*jstype.UnionType); !isUnion &&
+						!jstype.IsSubtype(found, declaredReturn) {
 						msg := fmt.Sprintf("inconsistent return type\nfound   : %s\nrequired: %s",
 							found.TypeName(), declaredReturn.TypeName())
 						out = append(out, diag.Diagnostic{

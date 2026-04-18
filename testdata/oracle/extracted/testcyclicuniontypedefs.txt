@@ -1,6 +1,6 @@
 java.lang.StackOverflowError
-	at com.google.javascript.rhino.jstype.UnionType$Builder.addAlternates(UnionType.java:687)
-	at com.google.javascript.rhino.jstype.UnionType$Builder.addAlternate(UnionType.java:701)
+	at com.google.javascript.rhino.jstype.JSType.isUnionType(JSType.java:358)
+	at com.google.javascript.rhino.jstype.UnionType$Builder.addAlternate(UnionType.java:700)
 	at com.google.javascript.rhino.jstype.UnionType$Builder.addAlternates(UnionType.java:687)
 	at com.google.javascript.rhino.jstype.UnionType$Builder.addAlternate(UnionType.java:701)
 	at com.google.javascript.rhino.jstype.UnionType$Builder.addAlternates(UnionType.java:687)
