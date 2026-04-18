@@ -398,14 +398,24 @@ func (p *Parser) tryLHSExpression() (*rhino.Node, bool) {
 	return p.extendWithProperty(base), true
 }
 
-// tryExpression parses one expression: an arrow function, literal,
-// identifier reference, or call. Anything else returns (nil, false).
+// tryExpression parses one expression: an arrow function, function
+// expression, literal, identifier/property-access chain, call, or new.
+// Anything else returns (nil, false).
 func (p *Parser) tryExpression() (*rhino.Node, bool) {
 	if p.atEnd() {
 		return nil, false
 	}
 	if arrow, ok := p.tryArrow(); ok {
 		return arrow, true
+	}
+	if p.consumeKeyword("function") {
+		// Function expression — `function [name] (params) { body }`.
+		// Shares the body-parse path with statement-level function
+		// declarations; the caller never sees the difference.
+		if fn, ok := p.finishFunction(nil); ok {
+			return fn, true
+		}
+		return nil, false
 	}
 	c := p.src[p.pos]
 	switch {

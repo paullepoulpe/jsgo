@@ -92,6 +92,12 @@ func (o *ObjectType) HasProperty(name string) bool {
 	return o.GetPropertyType(name) != nil
 }
 
+// MemberCount returns the number of directly-declared members on this
+// type (not including the super chain). Used by the checker to skip
+// inexistent-property diagnostics on stub types whose member map is
+// still empty.
+func (o *ObjectType) MemberCount() int { return len(o.members) }
+
 // SetSuper wires the @extends chain. Called by TypedScopeCreator when
 // it processes `@extends {Base}` on a constructor.
 func (o *ObjectType) SetSuper(s *ObjectType) { o.super = s }

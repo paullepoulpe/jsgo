@@ -190,9 +190,88 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 			c.recordDecl(child, scope)
 		case child.Token() == rhino.FUNCTION:
 			c.recordFunction(child, scope)
+		case child.Token() == rhino.EXPR_RESULT:
+			// Closure-library-style prototype method attachment:
+			//   Foo.prototype.bar = function(…) {…};
+			// Register `bar` on Foo's InstanceType so later property
+			// access + call-site checks can see it.
+			if a := child.FirstChild(); a != nil && a.Token() == rhino.ASSIGN {
+				c.recordPrototypeAssign(a, scope)
+			}
 		}
 	}
 	return scope
+}
+
+// recordPrototypeAssign detects the `Foo.prototype.<name> = <expr>`
+// pattern and adds `<name>` to Foo's InstanceType member map, mirroring
+// how TypedScopeCreator in Java inspects StaticSlot assignments that
+// write to `X.prototype.*`.
+func (c *TypedScopeCreator) recordPrototypeAssign(a *rhino.Node, scope *TypedScope) {
+	kids := a.Children()
+	if len(kids) < 2 {
+		return
+	}
+	lhs, rhs := kids[0], kids[1]
+	if lhs.Token() != rhino.GETPROP {
+		return
+	}
+	lhsKids := lhs.Children()
+	if len(lhsKids) < 2 {
+		return
+	}
+	inner := lhsKids[0]
+	propName := lhsKids[1].String_()
+	if inner.Token() != rhino.GETPROP {
+		return
+	}
+	innerKids := inner.Children()
+	if len(innerKids) < 2 {
+		return
+	}
+	if innerKids[0].Token() != rhino.NAME || innerKids[1].String_() != "prototype" {
+		return
+	}
+	ownerName := innerKids[0].String_()
+	fn, ok := scope.declared[ownerName].(*jstype.FunctionType)
+	if !ok || fn.Instance == nil {
+		return
+	}
+	memberType := c.inferPrototypeValueType(a.JSDocInfo(), rhs, scope)
+	fn.Instance.DefineProperty(propName, memberType)
+}
+
+// inferPrototypeValueType computes the member type for a
+// `X.prototype.m = value` assignment. Function expressions yield a
+// FunctionType derived from the ASSIGN's @param/@return JSDoc; other
+// values fall back to @type if present, otherwise Unknown.
+func (c *TypedScopeCreator) inferPrototypeValueType(info *rhino.JSDocInfo, rhs *rhino.Node, scope *TypedScope) jstype.JSType {
+	if rhs.Token() == rhino.FUNCTION {
+		kids := rhs.Children()
+		if len(kids) < 2 {
+			return jstype.Unknown
+		}
+		params := kids[1]
+		var paramTypes []jstype.JSType
+		for _, p := range params.Children() {
+			var t jstype.JSType = jstype.Unknown
+			if info != nil {
+				if expr := info.ParameterType(p.String_()); expr != nil {
+					t = scope.ResolveExpr(expr.TypeName)
+				}
+			}
+			paramTypes = append(paramTypes, t)
+		}
+		var ret jstype.JSType = jstype.Unknown
+		if info != nil && info.ReturnType() != nil {
+			ret = scope.ResolveExpr(info.ReturnType().TypeName)
+		}
+		return jstype.NewFunctionType(paramTypes, ret)
+	}
+	if info != nil && info.HasType() {
+		return scope.ResolveExpr(info.Type().TypeName)
+	}
+	return jstype.Unknown
 }
 
 // preregisterConstructor reserves a slot in `scope` for any function

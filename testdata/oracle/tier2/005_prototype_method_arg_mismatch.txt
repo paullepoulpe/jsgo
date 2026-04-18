@@ -1,0 +1,9 @@
+testdata/fixtures/tier2/005_prototype_method_arg_mismatch.js:6:6: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of Foo.prototype.bar does not match formal parameter
+found   : string
+required: number
+  6| f.bar('hi');
+           ^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

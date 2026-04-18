@@ -104,6 +104,8 @@ func (c *TypeCheck) walkExpr(n *rhino.Node, scope *TypedScope) []diag.Diagnostic
 		out = append(out, c.checkCall(n, scope)...)
 	case rhino.NEW:
 		out = append(out, c.checkNew(n, scope)...)
+	case rhino.GETPROP:
+		out = append(out, c.checkGetProp(n, scope)...)
 	case rhino.FUNCTION:
 		// Arrow or function-expression: descend into its body via
 		// checkFunction so return-type checks fire.
@@ -238,10 +240,8 @@ func (c *TypeCheck) checkArgList(node *rhino.Node, scope *TypedScope) []diag.Dia
 	}
 	callee := kids[0]
 	args := kids[1:]
-	if callee.Token() != rhino.NAME {
-		return nil
-	}
-	fn, ok := scope.GetDeclaredType(callee.String_()).(*jstype.FunctionType)
+	infer := NewTypeInference(scope)
+	fn, ok := infer.InferType(callee).(*jstype.FunctionType)
 	if !ok {
 		return nil
 	}
@@ -251,15 +251,18 @@ func (c *TypeCheck) checkArgList(node *rhino.Node, scope *TypedScope) []diag.Dia
 		return nil
 	}
 	var out []diag.Diagnostic
-	infer := NewTypeInference(scope)
+	calleeName := describeCallee(callee)
 	for i, arg := range args {
 		param := fn.Params[i]
 		found := infer.InferType(arg)
+		if _, isUnion := found.(*jstype.UnionType); isUnion {
+			continue
+		}
 		if jstype.IsSubtype(found, param) {
 			continue
 		}
 		msg := fmt.Sprintf("actual parameter %d of %s does not match formal parameter\nfound   : %s\nrequired: %s",
-			i+1, callee.String_(), found.TypeName(), param.TypeName())
+			i+1, calleeName, found.TypeName(), param.TypeName())
 		out = append(out, diag.Diagnostic{
 			Path:    c.path,
 			Line:    arg.Lineno(),
@@ -327,6 +330,65 @@ func (c *TypeCheck) checkFunction(fn *rhino.Node) []diag.Diagnostic {
 		out = append(out, c.checkStatement(stmt, localScope)...)
 	}
 	return out
+}
+
+// describeCallee renders a NAME or GETPROP chain as a dotted string
+// for the "actual parameter N of X" diagnostic, matching how Java
+// formats the callee in TypeCheck.java's visitCall message.
+func describeCallee(n *rhino.Node) string {
+	switch n.Token() {
+	case rhino.NAME:
+		return n.String_()
+	case rhino.GETPROP:
+		kids := n.Children()
+		if len(kids) >= 2 {
+			return describeCallee(kids[0]) + "." + kids[1].String_()
+		}
+	case rhino.THIS:
+		return "this"
+	}
+	return "<fn>"
+}
+
+// checkGetProp mirrors TypeCheck.java's visitGetProp: if the receiver
+// type is a declared ObjectType with a populated member map but the
+// accessed property isn't present anywhere up the @extends chain,
+// emit JSC_INEXISTENT_PROPERTY.
+//
+// Conservative: we require the receiver ObjectType to have at least
+// one declared member, so stub types (constructors we haven't
+// processed enough of) don't generate false positives. Assignments
+// through GETPROP are handled by checkAssign, not here — Closure
+// allows writing new properties on untyped objects.
+func (c *TypeCheck) checkGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	kids := n.Children()
+	if len(kids) < 2 {
+		return nil
+	}
+	propNode := kids[1]
+	propName := propNode.String_()
+	infer := NewTypeInference(scope)
+	recvType := infer.InferType(kids[0])
+	obj, ok := recvType.(*jstype.ObjectType)
+	if !ok {
+		return nil
+	}
+	if obj.MemberCount() == 0 {
+		// Stub / empty type — we don't know what's on it.
+		return nil
+	}
+	if obj.HasProperty(propName) {
+		return nil
+	}
+	msg := fmt.Sprintf("Property %s never defined on %s", propName, obj.TypeName())
+	return []diag.Diagnostic{{
+		Path:    c.path,
+		Line:    propNode.Lineno(),
+		Col:     propNode.Charno(),
+		Code:    diag.JSC_INEXISTENT_PROPERTY,
+		Level:   diag.Error,
+		Message: msg,
+	}}
 }
 
 // resolveRegistry looks up a type expression through a fresh registry.
