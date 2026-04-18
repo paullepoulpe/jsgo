@@ -30,6 +30,8 @@ const (
 	NEW
 	GETPROP
 	THIS
+	CLASS
+	CLASS_FIELD_DEF
 )
 
 func (t Token) String() string {
@@ -76,6 +78,10 @@ func (t Token) String() string {
 		return "GETPROP"
 	case THIS:
 		return "THIS"
+	case CLASS:
+		return "CLASS"
+	case CLASS_FIELD_DEF:
+		return "CLASS_FIELD_DEF"
 	}
 	return "ERROR"
 }

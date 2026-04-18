@@ -83,6 +83,22 @@ func (c *TypeCheck) checkStatement(stmt *rhino.Node, scope *TypedScope) []diag.D
 		}
 	case rhino.FUNCTION:
 		out = append(out, c.checkFunction(stmt)...)
+	case rhino.CLASS:
+		// Descend into class body: methods check via checkFunction
+		// (they run in a this-bound local scope), fields get a
+		// JSC_TYPE_MISMATCH when their initializer doesn't match the
+		// @type declaration. Mirrors TypeCheck.java's visitClass.
+		if kids := stmt.Children(); len(kids) >= 3 {
+			className := kids[0].String_()
+			for _, m := range kids[2].Children() {
+				switch m.Token() {
+				case rhino.FUNCTION:
+					out = append(out, c.checkFunction(m)...)
+				case rhino.CLASS_FIELD_DEF:
+					out = append(out, c.checkClassField(m, scope, className)...)
+				}
+			}
+		}
 	case rhino.RETURN:
 		// Inside function bodies, return is handled by checkFunction's
 		// per-statement loop. At script level, ignore.
@@ -330,6 +346,41 @@ func (c *TypeCheck) checkFunction(fn *rhino.Node) []diag.Diagnostic {
 		out = append(out, c.checkStatement(stmt, localScope)...)
 	}
 	return out
+}
+
+// checkClassField validates that a class field's initializer matches
+// its @type annotation, reporting at the NAME position to match Java's
+// "assignment to property X of C" shape.
+func (c *TypeCheck) checkClassField(field *rhino.Node, scope *TypedScope, className string) []diag.Diagnostic {
+	kids := field.Children()
+	if len(kids) < 2 {
+		return nil
+	}
+	name := kids[0]
+	init := kids[1]
+	info := field.JSDocInfo()
+	if info == nil || !info.HasType() {
+		return nil
+	}
+	declared := scope.ResolveExpr(info.Type().TypeName)
+	infer := NewTypeInference(scope)
+	found := infer.InferType(init)
+	if _, isUnion := found.(*jstype.UnionType); isUnion {
+		return nil
+	}
+	if jstype.IsSubtype(found, declared) {
+		return nil
+	}
+	msg := fmt.Sprintf("assignment to property %s of %s\nfound   : %s\nrequired: %s",
+		name.String_(), className, found.TypeName(), declared.TypeName())
+	return []diag.Diagnostic{{
+		Path:    c.path,
+		Line:    name.Lineno(),
+		Col:     name.Charno(),
+		Code:    diag.JSC_TYPE_MISMATCH,
+		Level:   diag.Error,
+		Message: msg,
+	}}
 }
 
 // describeCallee renders a NAME or GETPROP chain as a dotted string

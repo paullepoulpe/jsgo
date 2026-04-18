@@ -73,6 +73,9 @@ func (p *Parser) tryStatement() (*rhino.Node, bool) {
 	if p.consumeKeyword("function") {
 		return p.finishFunction(jsdoc)
 	}
+	if p.consumeKeyword("class") {
+		return p.finishClass(jsdoc)
+	}
 	if declToken, ok := p.consumeDeclKeyword(); ok {
 		return p.finishDeclStatement(declToken, jsdoc)
 	}
@@ -250,6 +253,162 @@ func (p *Parser) finishFunction(jsdoc *rhino.JSDocInfo) (*rhino.Node, bool) {
 	p.consumeByte('}')
 	fn.AddChildToBack(block)
 	return fn, true
+}
+
+// finishClass parses `class NAME [extends BASE] { body }` after the
+// `class` keyword has been consumed. Produces a CLASS node whose
+// children are:
+//
+//   [0] NAME — class name (empty string when anonymous)
+//   [1] NAME — super name (empty string when there's no `extends`)
+//   [2] BLOCK — class body; each child is either a FUNCTION
+//       (constructor or method) or a CLASS_FIELD_DEF.
+//
+// Mirrors Parser.java's parseClassDeclaration / parseClassBody output
+// shape closely enough for TypedScopeCreator to process classes with
+// the same two-pass pre-registration it already uses for @constructor
+// functions.
+func (p *Parser) finishClass(jsdoc *rhino.JSDocInfo) (*rhino.Node, bool) {
+	class := rhino.New(rhino.CLASS)
+	if jsdoc != nil {
+		class.SetJSDocInfo(jsdoc)
+	}
+
+	p.skipTrivia()
+	nameLine, nameCol := p.line, p.col()
+	name, _ := p.consumeIdent() // anonymous class allowed
+	nameNode := rhino.NewString(rhino.NAME, name)
+	nameNode.SetPos(nameLine, nameCol)
+	class.AddChildToBack(nameNode)
+
+	p.skipTrivia()
+	superNode := rhino.NewString(rhino.NAME, "")
+	if p.consumeKeyword("extends") {
+		p.skipTrivia()
+		sLine, sCol := p.line, p.col()
+		sname, ok := p.consumeIdent()
+		if ok {
+			superNode = rhino.NewString(rhino.NAME, sname)
+			superNode.SetPos(sLine, sCol)
+		}
+		p.skipTrivia()
+	}
+	class.AddChildToBack(superNode)
+
+	body := rhino.New(rhino.BLOCK)
+	if !p.consumeByte('{') {
+		p.skipToStatementBoundary()
+		return class, true
+	}
+	for {
+		p.skipTrivia()
+		if p.atEnd() {
+			break
+		}
+		if p.src[p.pos] == '}' {
+			p.advance()
+			break
+		}
+		p.parseClassMember(body)
+	}
+	class.AddChildToBack(body)
+	return class, true
+}
+
+// parseClassMember parses a single entry inside a class body: an
+// optional JSDoc comment, then either a method (IDENT(params) {body})
+// or a field (IDENT [= expr];). Unknown shapes advance to the next
+// boundary so the whole body doesn't get lost.
+func (p *Parser) parseClassMember(body *rhino.Node) {
+	var jsdoc *rhino.JSDocInfo
+	if b, ok := p.consumeBlockComment(); ok {
+		jsdoc = rhino.ParseJSDoc(b)
+		p.skipTrivia()
+	}
+	if p.atEnd() || p.src[p.pos] == '}' {
+		return
+	}
+	// Skip `static` modifier (we don't distinguish static vs instance
+	// methods for Tier-2 yet).
+	if p.consumeKeyword("static") {
+		p.skipTrivia()
+	}
+	memberLine, memberCol := p.line, p.col()
+	name, ok := p.consumeIdent()
+	if !ok {
+		p.skipToStatementBoundary()
+		return
+	}
+	p.skipTrivia()
+	switch {
+	case !p.atEnd() && p.src[p.pos] == '(':
+		// Method: `name(params) { body }`.
+		p.advance()
+		fn := rhino.New(rhino.FUNCTION)
+		if jsdoc != nil {
+			fn.SetJSDocInfo(jsdoc)
+		}
+		fn.SetPos(memberLine, memberCol)
+		nameNode := rhino.NewString(rhino.NAME, name)
+		nameNode.SetPos(memberLine, memberCol)
+		fn.AddChildToBack(nameNode)
+		params := rhino.New(rhino.PARAM_LIST)
+		for {
+			p.skipTrivia()
+			if p.atEnd() {
+				return
+			}
+			if p.src[p.pos] == ')' {
+				p.advance()
+				break
+			}
+			pLine, pCol := p.line, p.col()
+			pname, ok := p.consumeIdent()
+			if !ok {
+				p.skipToStatementBoundary()
+				return
+			}
+			pNode := rhino.NewString(rhino.NAME, pname)
+			pNode.SetPos(pLine, pCol)
+			params.AddChildToBack(pNode)
+			p.skipTrivia()
+			if p.consumeByte(',') {
+				continue
+			}
+		}
+		fn.AddChildToBack(params)
+		p.skipTrivia()
+		methodBody := rhino.New(rhino.BLOCK)
+		if p.consumeByte('{') {
+			p.parseStatements(methodBody, '}')
+			p.consumeByte('}')
+		}
+		fn.AddChildToBack(methodBody)
+		body.AddChildToBack(fn)
+	default:
+		// Field: `name [= expr];` — captures both typed-only declarations
+		// and typed-with-initializer class properties.
+		field := rhino.New(rhino.CLASS_FIELD_DEF)
+		if jsdoc != nil {
+			field.SetJSDocInfo(jsdoc)
+		}
+		field.SetPos(memberLine, memberCol)
+		nameNode := rhino.NewString(rhino.NAME, name)
+		nameNode.SetPos(memberLine, memberCol)
+		field.AddChildToBack(nameNode)
+		if p.consumeByte('=') {
+			p.skipTrivia()
+			initLine, initCol := p.line, p.col()
+			init, ok := p.tryExpression()
+			if ok {
+				init.SetPos(initLine, initCol)
+				field.AddChildToBack(init)
+			}
+		}
+		p.skipTrivia()
+		p.consumeByte(';')
+		body.AddChildToBack(field)
+	}
 }
 
 func (p *Parser) finishReturn() *rhino.Node {

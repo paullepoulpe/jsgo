@@ -175,12 +175,16 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 		declared: make(map[string]jstype.JSType),
 		registry: c.registry,
 	}
-	// Pass 1: register every constructor under its name so later
+	// Pass 1: register every constructor-like binding (`@constructor`
+	// functions + `class` declarations) under its name so later
 	// `@type {Foo}` references resolve nominally even when they
-	// appear textually before `function Foo() {}`.
+	// appear textually before the declaration.
 	for _, child := range block.Children() {
-		if child.Token() == rhino.FUNCTION {
+		switch child.Token() {
+		case rhino.FUNCTION:
 			c.preregisterConstructor(child, scope)
+		case rhino.CLASS:
+			c.preregisterClass(child, scope)
 		}
 	}
 	// Pass 2: record declarations + functions properly.
@@ -190,6 +194,8 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 			c.recordDecl(child, scope)
 		case child.Token() == rhino.FUNCTION:
 			c.recordFunction(child, scope)
+		case child.Token() == rhino.CLASS:
+			c.recordClass(child, scope)
 		case child.Token() == rhino.EXPR_RESULT:
 			// Closure-library-style prototype method attachment:
 			//   Foo.prototype.bar = function(…) {…};
@@ -293,6 +299,167 @@ func (c *TypedScopeCreator) preregisterConstructor(fn *rhino.Node, scope *TypedS
 	}
 	// Stub: real param/return types are computed in recordFunction.
 	scope.declared[name.String_()] = jstype.NewConstructorType(name.String_(), nil)
+}
+
+// preregisterClass reserves a slot for a `class` declaration, mirroring
+// the @constructor pre-registration path so forward `@type {C}`
+// references resolve to C's InstanceType.
+func (c *TypedScopeCreator) preregisterClass(cls *rhino.Node, scope *TypedScope) {
+	kids := cls.Children()
+	if len(kids) < 3 {
+		return
+	}
+	name := kids[0]
+	if name.String_() == "" {
+		return
+	}
+	scope.declared[name.String_()] = jstype.NewConstructorType(name.String_(), nil)
+}
+
+// recordClass fills in a class's constructor params, methods, fields,
+// and super link. Mirrors how TypedScopeCreator processes a CLASS node
+// in Java (TypedScopeCreator.java, visitClass).
+func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
+	kids := cls.Children()
+	if len(kids) < 3 {
+		return
+	}
+	nameNode := kids[0]
+	superNode := kids[1]
+	body := kids[2]
+	if nameNode.String_() == "" {
+		return // anonymous classes — skip for Tier-2
+	}
+	preStub, ok := scope.declared[nameNode.String_()].(*jstype.FunctionType)
+	if !ok || preStub.Instance == nil {
+		return
+	}
+	inst := preStub.Instance
+
+	// Locate the `constructor` method; otherwise the class has an
+	// implicit zero-arg constructor.
+	var ctor *rhino.Node
+	for _, m := range body.Children() {
+		if m.Token() == rhino.FUNCTION && len(m.Children()) >= 1 && m.FirstChild().String_() == "constructor" {
+			ctor = m
+			break
+		}
+	}
+	var ctorParams []jstype.JSType
+	if ctor != nil {
+		ctorInfo := ctor.JSDocInfo()
+		for _, p := range ctor.Children()[1].Children() {
+			var t jstype.JSType = jstype.Unknown
+			if ctorInfo != nil {
+				if expr := ctorInfo.ParameterType(p.String_()); expr != nil {
+					t = scope.ResolveExpr(expr.TypeName)
+				}
+			}
+			ctorParams = append(ctorParams, t)
+		}
+	}
+	preStub.Params = ctorParams
+
+	// Wire @extends if present.
+	if superNode.String_() != "" {
+		if super := scope.LookupNominalType(superNode.String_()); super != nil {
+			inst.SetSuper(super)
+		}
+	}
+
+	// Walk body: methods attach to the InstanceType; fields attach with
+	// their declared @type.
+	for _, m := range body.Children() {
+		switch m.Token() {
+		case rhino.FUNCTION:
+			if len(m.Children()) < 2 {
+				continue
+			}
+			methodName := m.FirstChild().String_()
+			if methodName == "constructor" {
+				continue // handled above
+			}
+			info := m.JSDocInfo()
+			params := m.Children()[1]
+			var paramTypes []jstype.JSType
+			for _, p := range params.Children() {
+				var t jstype.JSType = jstype.Unknown
+				if info != nil {
+					if expr := info.ParameterType(p.String_()); expr != nil {
+						t = scope.ResolveExpr(expr.TypeName)
+					}
+				}
+				paramTypes = append(paramTypes, t)
+			}
+			var ret jstype.JSType = jstype.Unknown
+			if info != nil && info.ReturnType() != nil {
+				ret = scope.ResolveExpr(info.ReturnType().TypeName)
+			}
+			inst.DefineProperty(methodName, jstype.NewFunctionType(paramTypes, ret))
+		case rhino.CLASS_FIELD_DEF:
+			info := m.JSDocInfo()
+			fieldName := m.FirstChild().String_()
+			var t jstype.JSType = jstype.Unknown
+			if info != nil && info.HasType() {
+				t = scope.ResolveExpr(info.Type().TypeName)
+			}
+			inst.DefineProperty(fieldName, t)
+		}
+	}
+
+	// Build local scopes for the constructor and each method so
+	// TypeCheck can walk their bodies with `this` bound.
+	c.Functions[cls] = &TypedScope{
+		parent:   scope,
+		declared: make(map[string]jstype.JSType),
+		registry: c.registry,
+		thisType: inst,
+	}
+	if ctor != nil {
+		c.Functions[ctor] = c.buildMethodScope(ctor, inst, scope, ctorParams)
+		// Also collect `this.x = …` property writes inside the
+		// constructor body.
+		if ctorBody := ctor.Children()[2]; ctorBody != nil {
+			c.collectThisProperties(ctorBody, inst)
+		}
+	}
+	for _, m := range body.Children() {
+		if m.Token() != rhino.FUNCTION || m.FirstChild().String_() == "constructor" {
+			continue
+		}
+		params := m.Children()[1]
+		var ptypes []jstype.JSType
+		info := m.JSDocInfo()
+		for _, p := range params.Children() {
+			var t jstype.JSType = jstype.Unknown
+			if info != nil {
+				if expr := info.ParameterType(p.String_()); expr != nil {
+					t = scope.ResolveExpr(expr.TypeName)
+				}
+			}
+			ptypes = append(ptypes, t)
+		}
+		c.Functions[m] = c.buildMethodScope(m, inst, scope, ptypes)
+	}
+}
+
+// buildMethodScope wraps the parameter + this binding needed for a
+// method body to type-check under the same local-scope model as
+// top-level @constructor functions.
+func (c *TypedScopeCreator) buildMethodScope(fn *rhino.Node, inst *jstype.ObjectType, parent *TypedScope, ptypes []jstype.JSType) *TypedScope {
+	local := &TypedScope{
+		parent:   parent,
+		declared: make(map[string]jstype.JSType),
+		registry: c.registry,
+		thisType: inst,
+	}
+	params := fn.Children()[1]
+	for i, p := range params.Children() {
+		if i < len(ptypes) {
+			local.declared[p.String_()] = ptypes[i]
+		}
+	}
+	return local
 }
 
 func (c *TypedScopeCreator) recordDecl(v *rhino.Node, scope *TypedScope) {
