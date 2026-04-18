@@ -53,10 +53,154 @@ func (c *TypeCheck) Check(script *rhino.Node) []diag.Diagnostic {
 	return c.diags
 }
 
-// ShouldTraverse is the pre-order hook. TypeCheck always descends —
-// diagnostic emission happens in Visit.
-func (c *TypeCheck) ShouldTraverse(_ *NodeTraversal, _, _ *rhino.Node) bool {
+// ShouldTraverse is the pre-order hook. For BLOCK / IF / HOOK nodes
+// we intercept the default depth-first descent so we can push
+// branch-specific (and post-guard) refinements onto the active scope
+// before walking. The rest of the AST is walked normally and emits
+// diagnostics in Visit.
+func (c *TypeCheck) ShouldTraverse(t *NodeTraversal, n, parent *rhino.Node) bool {
+	if n == nil {
+		return true
+	}
+	switch n.Token() {
+	case rhino.BLOCK, rhino.SCRIPT:
+		c.traverseBlock(t, n)
+		return false
+	case rhino.IF:
+		c.traverseIf(t, n)
+		return false
+	case rhino.HOOK:
+		c.traverseHook(t, n)
+		return false
+	}
 	return true
+}
+
+// traverseBlock walks a block's statements in order, threading
+// post-guard refinements forward — when a statement is an `if (cond)
+// { return; }` (or `throw`), the negated cond's refinement is pushed
+// for the remainder of the block. Mirrors how Java's TypeInference
+// applies a refined FlowScope to siblings after an early-exit guard.
+func (c *TypeCheck) traverseBlock(t *NodeTraversal, block *rhino.Node) {
+	scope := t.CurrentScope()
+	pushed := 0
+	for _, child := range block.Children() {
+		t.TraverseInto(child, block)
+		if guard, ok := earlyExitGuard(child); ok {
+			if refs := buildRefinements(scope, guard, false); len(refs) > 0 {
+				scope.PushRefinement(refs)
+				pushed++
+			}
+		}
+	}
+	for i := 0; i < pushed; i++ {
+		scope.PopRefinement()
+	}
+	// Block / Script don't emit diagnostics in Visit themselves, but
+	// the contract is to call Visit so callbacks downstream that care
+	// see the node. Calling here is a no-op for TypeCheck.
+	c.Visit(t, block, block.Parent())
+}
+
+// earlyExitGuard reports whether `n` is `if (cond) { return | throw
+// | break | continue }` with no else, returning the cond expression
+// for use in negated refinement of the remaining siblings.
+func earlyExitGuard(n *rhino.Node) (*rhino.Node, bool) {
+	if n == nil || n.Token() != rhino.IF {
+		return nil, false
+	}
+	kids := n.Children()
+	if len(kids) != 2 {
+		return nil, false // has an else branch — no guarantee siblings refine
+	}
+	if !blockExits(kids[1]) {
+		return nil, false
+	}
+	return kids[0], true
+}
+
+// blockExits reports whether `n` (a single statement or a BLOCK)
+// definitely terminates execution of the enclosing function via
+// return / throw on every path.
+func blockExits(n *rhino.Node) bool {
+	if n == nil {
+		return false
+	}
+	if definitelyReturns(n) {
+		return true
+	}
+	// THROW — our parser doesn't currently surface a THROW token, but
+	// finishLoopBody swallows `throw expr;`. The presence of "throw"
+	// at AST time is rare; leaving the conservative no-throw check.
+	return false
+}
+
+// traverseIf walks `if (cond) thenBlock [else elseBlock]` with a
+// refinement overlay active on the current scope while descending
+// into each branch. Mirrors how Java's TypeInferencePass refines a
+// FlowScope at branch points.
+func (c *TypeCheck) traverseIf(t *NodeTraversal, n *rhino.Node) {
+	kids := n.Children()
+	if len(kids) < 2 {
+		for _, k := range kids {
+			t.TraverseInto(k, n)
+		}
+		return
+	}
+	cond := kids[0]
+	thenBlock := kids[1]
+	var elseBlock *rhino.Node
+	if len(kids) >= 3 {
+		elseBlock = kids[2]
+	}
+	t.TraverseInto(cond, n)
+	scope := t.CurrentScope()
+	if refs := buildRefinements(scope, cond, true); len(refs) > 0 {
+		scope.PushRefinement(refs)
+		t.TraverseInto(thenBlock, n)
+		scope.PopRefinement()
+	} else {
+		t.TraverseInto(thenBlock, n)
+	}
+	if elseBlock != nil {
+		if refs := buildRefinements(scope, cond, false); len(refs) > 0 {
+			scope.PushRefinement(refs)
+			t.TraverseInto(elseBlock, n)
+			scope.PopRefinement()
+		} else {
+			t.TraverseInto(elseBlock, n)
+		}
+	}
+}
+
+// traverseHook is the HOOK analogue of traverseIf — refines per
+// branch so `cond ? cond.foo() : fallback` resolves cond.foo()
+// against the truthy form of cond.
+func (c *TypeCheck) traverseHook(t *NodeTraversal, n *rhino.Node) {
+	kids := n.Children()
+	if len(kids) < 3 {
+		for _, k := range kids {
+			t.TraverseInto(k, n)
+		}
+		return
+	}
+	cond, thenE, elseE := kids[0], kids[1], kids[2]
+	t.TraverseInto(cond, n)
+	scope := t.CurrentScope()
+	if refs := buildRefinements(scope, cond, true); len(refs) > 0 {
+		scope.PushRefinement(refs)
+		t.TraverseInto(thenE, n)
+		scope.PopRefinement()
+	} else {
+		t.TraverseInto(thenE, n)
+	}
+	if refs := buildRefinements(scope, cond, false); len(refs) > 0 {
+		scope.PushRefinement(refs)
+		t.TraverseInto(elseE, n)
+		scope.PopRefinement()
+	} else {
+		t.TraverseInto(elseE, n)
+	}
 }
 
 // Visit is the post-order dispatch. Matches Java's visit(t,n,parent)

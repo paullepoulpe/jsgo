@@ -169,6 +169,36 @@ func isReservedWord(s string) bool {
 	return false
 }
 
+// AtKeyword reports whether `kw` is the next keyword (followed by a
+// non-ident boundary) at the cursor — non-consuming. Used by the
+// binary-op parser to decide whether to consume `instanceof` / `in`
+// without advancing the scanner.
+func (s *Scanner) AtKeyword(kw string) bool {
+	rs := []rune(kw)
+	if s.pos+len(rs) > len(s.src) {
+		return false
+	}
+	for i, r := range rs {
+		if s.src[s.pos+i] != r {
+			return false
+		}
+	}
+	if s.pos+len(rs) < len(s.src) && isIdentCont(s.src[s.pos+len(rs)]) {
+		return false
+	}
+	return true
+}
+
+// ConsumeKeywordRaw advances past a keyword that the caller has
+// already verified via AtKeyword. Skips the reserved-word filter that
+// ConsumeIdent applies, so keywords known to the binary-op parser
+// (instanceof, in) can still be consumed.
+func (s *Scanner) ConsumeKeywordRaw(kw string) {
+	for i := 0; i < len([]rune(kw)); i++ {
+		s.Advance()
+	}
+}
+
 // ConsumeKeyword matches an exact keyword followed by a non-ident
 // boundary. Returns whether the keyword was consumed.
 func (s *Scanner) ConsumeKeyword(kw string) bool {

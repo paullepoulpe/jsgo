@@ -92,7 +92,8 @@ func (t *TypeInference) InferType(n *rhino.Node) jstype.JSType {
 		rhino.BITAND, rhino.BITOR, rhino.BITXOR, rhino.LSH, rhino.RSH, rhino.URSH:
 		return jstype.Number
 	case rhino.LT, rhino.LE, rhino.GT, rhino.GE,
-		rhino.EQ, rhino.NE, rhino.SHEQ, rhino.SHNE:
+		rhino.EQ, rhino.NE, rhino.SHEQ, rhino.SHNE,
+		rhino.INSTANCEOF, rhino.IN:
 		return jstype.Boolean
 	case rhino.OR:
 		// `a || b` evaluates to `a` when truthy, else `b`. The static
@@ -282,15 +283,12 @@ func unifyTemplates(subs *jstype.TemplateTypeMap, param, arg jstype.JSType) {
 // semantics: the JS `+` operator coerces to string whenever either
 // operand is string-typed, otherwise to number when both sides are
 // number-typed. Unions containing string propagate the string bias.
-// The decision table:
 //
-//   string + anything → string
-//   anything + string → string
+// Decision table:
+//   any-side string   → string (coerces the other side)
 //   number + number   → number
-//   (number|string) + number → (number|string) (either branch possible)
-//
-// Unknown operands keep the result Unknown so we don't false-positive
-// on partially-typed code.
+//   mixed string/num  → (number|string)
+//   anything else     → Unknown
 func (t *TypeInference) inferAdd(n *rhino.Node) jstype.JSType {
 	kids := n.Children()
 	if len(kids) < 2 {
@@ -298,21 +296,22 @@ func (t *TypeInference) inferAdd(n *rhino.Node) jstype.JSType {
 	}
 	l := t.InferType(kids[0])
 	r := t.InferType(kids[1])
+	lAllString := onlyContains(l, jstype.String)
+	rAllString := onlyContains(r, jstype.String)
+	// Definite-string path runs even when the other side is Unknown:
+	// `string + anything` always coerces to string in JS.
+	if lAllString || rAllString {
+		return jstype.String
+	}
 	if isUnknownOrNil(l) || isUnknownOrNil(r) {
 		return jstype.Unknown
 	}
-	lAllString := onlyContains(l, jstype.String)
-	rAllString := onlyContains(r, jstype.String)
 	lAllNumber := onlyContains(l, jstype.Number)
 	rAllNumber := onlyContains(r, jstype.Number)
 	lHasString := containsType(l, jstype.String)
 	rHasString := containsType(r, jstype.String)
 	lHasNumber := containsType(l, jstype.Number)
 	rHasNumber := containsType(r, jstype.Number)
-	// Definite-string path: either operand is outright string-typed.
-	if lAllString || rAllString {
-		return jstype.String
-	}
 	// Definite-number path.
 	if lAllNumber && rAllNumber {
 		return jstype.Number
@@ -402,6 +401,19 @@ func narrowingTarget(cond *rhino.Node, whenTruthy bool) (string, func(jstype.JST
 		}
 		return name, stripNullUndef
 	}
+	if name, primName, equal := typeofCheckTarget(cond); name != "" {
+		// `typeof x === 'string'` truthy → x is string; falsy →
+		// x is the union without string.
+		matchesPositive := equal == whenTruthy
+		prim := primitiveByName(primName)
+		if prim == nil {
+			return "", nil
+		}
+		if matchesPositive {
+			return name, func(t jstype.JSType) jstype.JSType { return keepMember(t, prim) }
+		}
+		return name, func(t jstype.JSType) jstype.JSType { return removeMember(t, prim) }
+	}
 	return "", nil
 }
 
@@ -450,6 +462,111 @@ func isNullOrUndefinedLiteral(n *rhino.Node) bool {
 		return false
 	}
 	return n.Token() == rhino.NULL || n.Token() == rhino.UNDEFINED
+}
+
+// typeofCheckTarget returns (name, primitiveName, equal) when `cond` is
+// `typeof X === 'prim'` / `'prim' === typeof X` / `typeof X == 'prim'`
+// or the != / !== mirrors. `equal` is true for == / ===; false for
+// != / !==. Otherwise returns ("", "", false).
+func typeofCheckTarget(cond *rhino.Node) (string, string, bool) {
+	if cond == nil {
+		return "", "", false
+	}
+	switch cond.Token() {
+	case rhino.EQ, rhino.NE, rhino.SHEQ, rhino.SHNE:
+	default:
+		return "", "", false
+	}
+	kids := cond.Children()
+	if len(kids) != 2 {
+		return "", "", false
+	}
+	var typeofNode, strNode *rhino.Node
+	switch {
+	case kids[0].Token() == rhino.TYPEOF && kids[1].Token() == rhino.STRINGLIT:
+		typeofNode, strNode = kids[0], kids[1]
+	case kids[1].Token() == rhino.TYPEOF && kids[0].Token() == rhino.STRINGLIT:
+		typeofNode, strNode = kids[1], kids[0]
+	default:
+		return "", "", false
+	}
+	target := typeofNode.FirstChild()
+	if target == nil || target.Token() != rhino.NAME {
+		return "", "", false
+	}
+	equal := cond.Token() == rhino.EQ || cond.Token() == rhino.SHEQ
+	return target.String_(), strNode.String_(), equal
+}
+
+// primitiveByName maps the result of `typeof` to the matching jstype
+// primitive instance. Unknown / non-primitive type tags return nil so
+// the caller can decline to narrow.
+func primitiveByName(name string) jstype.JSType {
+	switch name {
+	case "string":
+		return jstype.String
+	case "number":
+		return jstype.Number
+	case "boolean":
+		return jstype.Boolean
+	case "undefined":
+		return jstype.Void
+	case "object":
+		return nil // too coarse to narrow precisely
+	case "function":
+		return nil // would need to walk for FunctionType members
+	}
+	return nil
+}
+
+// keepMember returns the subset of `t` that equals `target`. For a
+// non-union it returns t itself (when t == target) or target (a safe
+// fallback when t is broader / Unknown).
+func keepMember(t, target jstype.JSType) jstype.JSType {
+	if u, ok := t.(*jstype.UnionType); ok {
+		var kept []jstype.JSType
+		for _, m := range u.Members() {
+			if m == target {
+				kept = append(kept, m)
+			}
+		}
+		if len(kept) == 0 {
+			return target
+		}
+		if len(kept) == 1 {
+			return kept[0]
+		}
+		return jstype.NewUnion(kept...)
+	}
+	if t == target {
+		return t
+	}
+	return target
+}
+
+// removeMember returns `t` minus `target`. Returns nil when nothing
+// remains so unionFold can pick the other branch.
+func removeMember(t, target jstype.JSType) jstype.JSType {
+	if u, ok := t.(*jstype.UnionType); ok {
+		var kept []jstype.JSType
+		for _, m := range u.Members() {
+			if m == target {
+				continue
+			}
+			kept = append(kept, m)
+		}
+		if len(kept) == 0 {
+			return nil
+		}
+		if len(kept) == 1 {
+			return kept[0]
+		}
+		return jstype.NewUnion(kept...)
+	}
+	if t == target {
+		return nil
+	}
+	return t
 }
 
 // inferObjectLit builds a structural ObjectType from the STRING_KEY

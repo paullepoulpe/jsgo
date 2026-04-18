@@ -897,6 +897,37 @@ func (p *Parser) tryBinary(minPrec int) (*rhino.Node, bool) {
 	}
 	for {
 		p.scanner.SkipTrivia()
+		// Keyword binary ops (`instanceof`, `in`) are handled by name
+		// lookup since the symbolic peekBinOp can only see characters.
+		// Both live at the relational precedence level (8).
+		if minPrec <= 8 && p.scanner.AtKeyword("instanceof") {
+			p.scanner.ConsumeKeywordRaw("instanceof")
+			p.scanner.SkipTrivia()
+			right, ok := p.tryBinary(9)
+			if !ok {
+				return nil, false
+			}
+			n := rhino.New(rhino.INSTANCEOF)
+			n.SetPos(left.Lineno(), left.Charno())
+			n.AddChildToBack(left)
+			n.AddChildToBack(right)
+			left = n
+			continue
+		}
+		if minPrec <= 8 && p.scanner.AtKeyword("in") {
+			p.scanner.ConsumeKeywordRaw("in")
+			p.scanner.SkipTrivia()
+			right, ok := p.tryBinary(9)
+			if !ok {
+				return nil, false
+			}
+			n := rhino.New(rhino.IN)
+			n.SetPos(left.Lineno(), left.Charno())
+			n.AddChildToBack(left)
+			n.AddChildToBack(right)
+			left = n
+			continue
+		}
 		tok, runes, prec := p.peekBinOp()
 		if runes == 0 || prec < minPrec {
 			return left, true

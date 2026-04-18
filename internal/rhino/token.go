@@ -76,8 +76,10 @@ const (
 	GE
 	EQ
 	NE
-	SHEQ // ===
-	SHNE // !==
+	SHEQ       // ===
+	SHNE       // !==
+	INSTANCEOF // instanceof
+	IN         // in
 
 	// Logical
 	AND      // &&
@@ -207,6 +209,10 @@ func (t Token) String() string {
 		return "SHEQ"
 	case SHNE:
 		return "SHNE"
+	case INSTANCEOF:
+		return "INSTANCEOF"
+	case IN:
+		return "IN"
 	case AND:
 		return "AND"
 	case OR:

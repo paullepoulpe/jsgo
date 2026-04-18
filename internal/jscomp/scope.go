@@ -36,11 +36,46 @@ type TypedScope struct {
 	// constructor body so `this.x = …` lands on the right ObjectType.
 	thisType *jstype.ObjectType
 	registry *jstype.Registry
+	// refinements is a stack of overlays applied on top of `declared`
+	// when GetDeclaredType is called. TypeCheck pushes a frame when
+	// entering an if-true / if-false / hook-branch region so name
+	// references inside the region see the narrowed type. The stack
+	// is shared with parent scopes via the parent pointer (we walk
+	// outward when looking up a name, applying every frame on the
+	// way). Mirrors the FlowScope refinement shim Java's
+	// TypeInference threads through its dataflow.
+	refinements []map[string]jstype.JSType
+}
+
+// PushRefinement records a narrowing overlay for the duration of one
+// block. Mirrors FlowScope's "refine and restore" pattern used by
+// TypeInference when entering an if-true / if-false branch.
+func (s *TypedScope) PushRefinement(refs map[string]jstype.JSType) {
+	if s == nil || len(refs) == 0 {
+		return
+	}
+	s.refinements = append(s.refinements, refs)
+}
+
+// PopRefinement removes the topmost overlay. Safe no-op if the stack
+// is empty (matches the FlowScope.popInto contract).
+func (s *TypedScope) PopRefinement() {
+	if s == nil || len(s.refinements) == 0 {
+		return
+	}
+	s.refinements = s.refinements[:len(s.refinements)-1]
 }
 
 func (s *TypedScope) GetDeclaredType(name string) jstype.JSType {
 	if s == nil {
 		return nil
+	}
+	// Refinement overlays take precedence — TypeCheck pushes them
+	// when narrowing inside an if/hook branch.
+	for i := len(s.refinements) - 1; i >= 0; i-- {
+		if t, ok := s.refinements[i][name]; ok {
+			return t
+		}
 	}
 	if t, ok := s.declared[name]; ok {
 		return t
@@ -935,9 +970,18 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 		}
 		paramTypes = append(paramTypes, t)
 	}
-	var retType jstype.JSType = jstype.Unknown
+	// JS semantics for a function without `return expr` is to return
+	// `undefined`. When @return is absent we default to Void instead
+	// of Unknown so a `+` / assignment chain that consumes the return
+	// value (`a + f()`) still type-checks against `string` /
+	// `number`. Constructors keep the existing Instance return.
+	var retType jstype.JSType = jstype.Void
 	if r := info.ReturnType(); r != nil {
 		retType = resolve(r.TypeName)
+	} else if functionReturnsExplicitly(fn) {
+		// Body has at least one `return expr;` — without dataflow we
+		// can't infer the return type cheaply, so stay Unknown.
+		retType = jstype.Unknown
 	}
 
 	var fnType *jstype.FunctionType
@@ -1047,4 +1091,36 @@ func (c *TypedScopeCreator) collectThisProperties(node *rhino.Node, inst *jstype
 
 func isDeclToken(t rhino.Token) bool {
 	return t == rhino.VAR || t == rhino.LET || t == rhino.CONST
+}
+
+// functionReturnsExplicitly reports whether a FUNCTION body contains
+// any `return EXPR` statement. Used so `function f(){}` is treated as
+// returning Void while `function g(){return x;}` stays Unknown when
+// no @return JSDoc is present. Mirrors the body-walk at the start of
+// TypedScopeCreator's recordFunction.
+func functionReturnsExplicitly(fn *rhino.Node) bool {
+	kids := fn.Children()
+	if len(kids) < 3 {
+		return false
+	}
+	body := kids[2]
+	return hasReturnExpr(body)
+}
+
+func hasReturnExpr(n *rhino.Node) bool {
+	if n == nil {
+		return false
+	}
+	if n.Token() == rhino.FUNCTION {
+		return false // don't descend into nested functions
+	}
+	if n.Token() == rhino.RETURN && n.FirstChild() != nil {
+		return true
+	}
+	for _, c := range n.Children() {
+		if hasReturnExpr(c) {
+			return true
+		}
+	}
+	return false
 }

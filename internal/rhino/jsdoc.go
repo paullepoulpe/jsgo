@@ -19,6 +19,23 @@ type JSDocInfo struct {
 	implementsAll []*JSTypeExpression
 	typedefExpr   *JSTypeExpression
 	templateNames []string
+	suppressions  map[string]bool
+}
+
+// AddSuppression records a `@suppress {name}` entry. Mirrors
+// JSDocInfo.addSuppression in Java.
+func (i *JSDocInfo) AddSuppression(name string) {
+	if i.suppressions == nil {
+		i.suppressions = map[string]bool{}
+	}
+	i.suppressions[name] = true
+}
+
+// HasSuppression reports whether the named suppression was attached
+// to this comment. Used by the per-pass diagnostic gates (e.g.
+// VariableReferenceCheck honours `@suppress {duplicate}`).
+func (i *JSDocInfo) HasSuppression(name string) bool {
+	return i != nil && i.suppressions != nil && i.suppressions[name]
 }
 
 // IsStatic marks a class member as belonging to the constructor's

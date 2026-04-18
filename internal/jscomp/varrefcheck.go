@@ -33,6 +33,12 @@ type VariableReferenceCheck struct {
 	// first occurrence's source position, used to build the "First
 	// occurrence: <path>:<line>:<col>" message.
 	scopes []map[string]declSite
+
+	// suppressDepth is non-zero whenever we're inside a function
+	// whose JSDoc carries `@suppress {duplicate}`. While > 0,
+	// recordDecl skips emitting the duplicate diagnostic. Mirrors
+	// Java's per-pass suppression-stack behaviour.
+	suppressDepth int
 }
 
 type declSite struct {
@@ -65,7 +71,20 @@ func (v *VariableReferenceCheck) walk(n, parent *rhino.Node) {
 	// in the Java model, so we don't push one here.
 	if n.Token() == rhino.FUNCTION {
 		v.scopes = append(v.scopes, map[string]declSite{})
-		defer func() { v.scopes = v.scopes[:len(v.scopes)-1] }()
+		// `@suppress {duplicate}` on the enclosing function silences
+		// duplicate-declaration diagnostics for everything inside its
+		// body — matches the Java pass's gate.
+		suppressed := false
+		if info := n.JSDocInfo(); info != nil && info.HasSuppression("duplicate") {
+			v.suppressDepth++
+			suppressed = true
+		}
+		defer func() {
+			v.scopes = v.scopes[:len(v.scopes)-1]
+			if suppressed {
+				v.suppressDepth--
+			}
+		}()
 		// Function parameters are declarations in the new scope.
 		kids := n.Children()
 		if len(kids) >= 2 {
@@ -137,6 +156,9 @@ func (v *VariableReferenceCheck) recordDeclInto(scope map[string]declSite, nameN
 		return
 	}
 	if prev, seen := scope[name]; seen {
+		if v.suppressDepth > 0 {
+			return
+		}
 		v.diags = append(v.diags, diag.Diagnostic{
 			Path:  v.path,
 			Line:  nameNode.Lineno(),
