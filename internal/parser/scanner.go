@@ -109,7 +109,12 @@ func (s *Scanner) ConsumeByte(b byte) bool {
 // ---- identifier / keyword --------------------------------------- //
 
 // ConsumeIdent reads a JS identifier starting at the cursor.
-// Returns ("", false) if the cursor isn't on an ident start.
+// Returns ("", false) if the cursor isn't on an ident start or if the
+// identifier matches a reserved word (Java's Scanner keeps keyword +
+// identifier disjoint via its TokenType enum; we emulate that by
+// refusing to return reserved names, which prevents `if`, `return`,
+// etc. from being wrongly consumed as identifiers in speculative
+// statement parses).
 func (s *Scanner) ConsumeIdent() (string, bool) {
 	if s.AtEnd() {
 		return "", false
@@ -119,10 +124,79 @@ func (s *Scanner) ConsumeIdent() (string, bool) {
 		return "", false
 	}
 	start := s.pos
-	for !s.AtEnd() && isIdentCont(s.src[s.pos]) {
+	end := s.pos
+	for end < len(s.src) && isIdentCont(s.src[end]) {
+		end++
+	}
+	ident := string(s.src[start:end])
+	if isReservedWord(ident) {
+		return "", false
+	}
+	for s.pos < end {
 		s.Advance()
 	}
-	return string(s.src[start:s.pos]), true
+	return ident, true
+}
+
+// isReservedWord returns true for JS reserved words + the subset of
+// contextual keywords we must not misread as identifiers. Keeping the
+// list in sync with Parser.java's ReservedWord handling is important
+// for parser correctness; anything missing here risks a bad AST (see
+// `if (x) { … }` being parsed as `if(x) { … };`).
+func isReservedWord(s string) bool {
+	switch s {
+	// Control flow / declarations the parser might speculatively
+	// treat as identifiers in the LHS slot.
+	case "break", "case", "catch", "class", "const", "continue",
+		"debugger", "default", "do", "else", "export",
+		"extends", "finally", "for", "function", "if", "import",
+		"return", "switch", "throw", "try", "var", "while",
+		"let":
+		return true
+	// Literal-shaped keywords that are parsed in specific
+	// expression branches (tryPrimary consumes them before the
+	// identifier fallback runs).
+	case "true", "false", "null", "undefined", "this":
+		return true
+	// Operator-shaped keywords handled by tryUnary / peekBinOp.
+	case "new", "typeof", "void", "delete", "in", "instanceof":
+		return true
+	}
+	// Contextual keywords (`super`, `yield`, `async`, `await`,
+	// `static`, `enum`, `with`) intentionally pass through as
+	// identifiers — the scope / checker layers give them meaning,
+	// and some corpus fixtures use them unadorned.
+	return false
+}
+
+// AtKeyword reports whether `kw` is the next keyword (followed by a
+// non-ident boundary) at the cursor — non-consuming. Used by the
+// binary-op parser to decide whether to consume `instanceof` / `in`
+// without advancing the scanner.
+func (s *Scanner) AtKeyword(kw string) bool {
+	rs := []rune(kw)
+	if s.pos+len(rs) > len(s.src) {
+		return false
+	}
+	for i, r := range rs {
+		if s.src[s.pos+i] != r {
+			return false
+		}
+	}
+	if s.pos+len(rs) < len(s.src) && isIdentCont(s.src[s.pos+len(rs)]) {
+		return false
+	}
+	return true
+}
+
+// ConsumeKeywordRaw advances past a keyword that the caller has
+// already verified via AtKeyword. Skips the reserved-word filter that
+// ConsumeIdent applies, so keywords known to the binary-op parser
+// (instanceof, in) can still be consumed.
+func (s *Scanner) ConsumeKeywordRaw(kw string) {
+	for i := 0; i < len([]rune(kw)); i++ {
+		s.Advance()
+	}
 }
 
 // ConsumeKeyword matches an exact keyword followed by a non-ident

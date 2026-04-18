@@ -48,8 +48,15 @@ func (d Diagnostic) FormatJavaLike() string {
 
 // Well-known diagnostic codes. Add new ones as the corpus grows. Codes
 // must match the JSC_* identifiers used by Java Closure Compiler (see
-// DiagnosticType registrations in TypeCheck.java).
+// DiagnosticType registrations in TypeCheck.java / VarCheck.java /
+// VariableReferenceCheck.java).
 const (
-	JSC_TYPE_MISMATCH        = "JSC_TYPE_MISMATCH"
-	JSC_INEXISTENT_PROPERTY  = "JSC_INEXISTENT_PROPERTY"
+	JSC_TYPE_MISMATCH               = "JSC_TYPE_MISMATCH"
+	JSC_INEXISTENT_PROPERTY         = "JSC_INEXISTENT_PROPERTY"
+	JSC_UNDEFINED_VARIABLE          = "JSC_UNDEFINED_VARIABLE"
+	JSC_VAR_MULTIPLY_DECLARED_ERROR = "JSC_VAR_MULTIPLY_DECLARED_ERROR"
+	JSC_MISSING_RETURN_STATEMENT    = "JSC_MISSING_RETURN_STATEMENT"
+	JSC_USELESS_CODE                = "JSC_USELESS_CODE"
+	JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH = "JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH"
+	JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH  = "JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH"
 )
