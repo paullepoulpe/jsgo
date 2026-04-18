@@ -73,9 +73,19 @@ func collectRefinements(scope *TypedScope, cond *rhino.Node, whenTruthy bool, ou
 		collectRefinements(scope, kids[1], false, out)
 		return
 	case rhino.NAME:
-		if whenTruthy {
-			if t := scope.GetDeclaredType(cond.String_()); t != nil {
+		if t := scope.GetDeclaredType(cond.String_()); t != nil {
+			if whenTruthy {
 				if narrowed := stripFalsy(t); narrowed != nil {
+					out[cond.String_()] = narrowed
+				}
+			} else {
+				// On the falsy branch of `if (a)` with a : T|null,
+				// the value must be one of the "falsy" members —
+				// null / undefined / false. Non-union and
+				// primitive-only types can't be precisely narrowed
+				// here (an unknown `number` could be 0 or not), so
+				// we only refine unions that contain null / void.
+				if narrowed := keepFalsyRefined(t); narrowed != nil {
 					out[cond.String_()] = narrowed
 				}
 			}

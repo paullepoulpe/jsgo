@@ -111,6 +111,16 @@ func (c *TypeCheck) ShouldTraverse(t *NodeTraversal, n, parent *rhino.Node) bool
 	if n == nil {
 		return true
 	}
+	// Nested function bodies need their own CFG + FlowScope built
+	// BEFORE descent so Visit() callbacks inside the body can
+	// consult the pre-computed IN scopes. Must live here (pre-order)
+	// rather than in Visit (post-order) — by the time Visit fires
+	// for the FUNCTION, the children have already been walked.
+	if n.Token() == rhino.FUNCTION {
+		if local, ok := c.creator.Functions[n]; ok && local != nil {
+			c.installFlow(n, local)
+		}
+	}
 	switch n.Token() {
 	case rhino.BLOCK, rhino.SCRIPT:
 		c.traverseBlock(t, n)
@@ -121,8 +131,38 @@ func (c *TypeCheck) ShouldTraverse(t *NodeTraversal, n, parent *rhino.Node) bool
 	case rhino.HOOK:
 		c.traverseHook(t, n)
 		return false
+	case rhino.AND, rhino.OR, rhino.COALESCE:
+		c.traverseShortCircuit(t, n)
+		return false
 	}
 	return true
+}
+
+// traverseShortCircuit handles the AND / OR / COALESCE binary
+// operators. The RHS is evaluated only when the LHS is truthy
+// (for &&) or falsy (for || / ??), so we walk the RHS under a
+// refinement derived from the LHS. Matches Java's
+// SemanticReverseAbstractInterpreter behaviour at the expression
+// level.
+func (c *TypeCheck) traverseShortCircuit(t *NodeTraversal, n *rhino.Node) {
+	kids := n.Children()
+	if len(kids) != 2 {
+		for _, k := range kids {
+			t.TraverseInto(k, n)
+		}
+		return
+	}
+	left, right := kids[0], kids[1]
+	t.TraverseInto(left, n)
+	scope := t.CurrentScope()
+	whenTruthy := n.Token() == rhino.AND
+	if refs := buildRefinements(scope, left, whenTruthy); len(refs) > 0 {
+		scope.PushRefinement(refs)
+		t.TraverseInto(right, n)
+		scope.PopRefinement()
+	} else {
+		t.TraverseInto(right, n)
+	}
 }
 
 // traverseBlock walks a block's statements in order, threading
@@ -276,15 +316,6 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitClassField(n, parent, scope))
 	case rhino.RETURN:
 		c.emit(c.visitReturn(n, scope))
-	case rhino.FUNCTION:
-		// A nested function declaration needs its own FlowScope for
-		// its body — build it lazily the first time we see the
-		// FUNCTION node, and keep it on `c.flows` for the rest of
-		// the traversal. The scope creator has already produced the
-		// local scope (via c.creator.Functions[fn]).
-		if local, ok := c.creator.Functions[n]; ok && local != nil {
-			c.installFlow(n, local)
-		}
 	}
 }
 
@@ -376,7 +407,12 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 	infer := NewTypeInference(scope)
 	switch lhs.Token() {
 	case rhino.NAME:
-		declared := scope.GetDeclaredType(lhs.String_())
+		// Assignment-target lookup must use the raw declared type,
+		// not the flow-refined one — otherwise a prior
+		// `var x = null;` narrows x's declared type to null and
+		// every subsequent assignment false-positives. The refined
+		// type is still correct for reads (RHS inference).
+		declared := scope.GetRawDeclaredType(lhs.String_())
 		if declared == nil {
 			return nil
 		}

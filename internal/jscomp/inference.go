@@ -741,6 +741,35 @@ func stripNullUndef(t jstype.JSType) jstype.JSType {
 	return stripFalsy(t) // same rule, kept as a separate name for clarity
 }
 
+// keepFalsyRefined keeps only the definitively-falsy members of a
+// union (null / void), returning nil when nothing remains. Used by
+// if (x) / while (x) / cond ? ... : ... falsy-branch narrowing on a
+// bare NAME, where we can confidently prune non-null / non-undef
+// members but the primitive side (0 / '' / false) still permits any
+// value.
+func keepFalsyRefined(t jstype.JSType) jstype.JSType {
+	u, ok := t.(*jstype.UnionType)
+	if !ok {
+		if t == jstype.Null || t == jstype.Void {
+			return t
+		}
+		return nil
+	}
+	var kept []jstype.JSType
+	for _, m := range u.Members() {
+		if m == jstype.Null || m == jstype.Void {
+			kept = append(kept, m)
+		}
+	}
+	if len(kept) == 0 {
+		return nil
+	}
+	if len(kept) == 1 {
+		return kept[0]
+	}
+	return jstype.NewUnion(kept...)
+}
+
 // keepNullUndef is the inverse of stripNullUndef — keeps only the
 // null / void members of a union. Used when a condition positively
 // asserts `x == null`, narrowing x to just its nullable slots.

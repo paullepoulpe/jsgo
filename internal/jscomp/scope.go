@@ -83,6 +83,22 @@ func (s *TypedScope) GetDeclaredType(name string) jstype.JSType {
 	return s.parent.GetDeclaredType(name)
 }
 
+// GetRawDeclaredType skips the refinement overlay and returns only
+// the binding's declared type from the scope chain. Used by the
+// assignment-target lookup in visitAssign so `x = 1` compares the
+// RHS against the original declaration, not the flow-narrowed type
+// (otherwise a prior `var x = null;` would make x's type null and
+// every subsequent assignment would false-positive).
+func (s *TypedScope) GetRawDeclaredType(name string) jstype.JSType {
+	if s == nil {
+		return nil
+	}
+	if t, ok := s.declared[name]; ok {
+		return t
+	}
+	return s.parent.GetRawDeclaredType(name)
+}
+
 // ThisType returns the InstanceType `this` refers to in the lexically
 // nearest constructor scope, or nil if `this` is unbound.
 func (s *TypedScope) ThisType() *jstype.ObjectType {
