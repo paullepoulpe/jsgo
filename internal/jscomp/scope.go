@@ -1404,8 +1404,23 @@ func (c *TypedScopeCreator) recordTypedef(v *rhino.Node, scope *TypedScope) {
 }
 
 func (c *TypedScopeCreator) recordDecl(v *rhino.Node, scope *TypedScope) {
+	// Multi-binding forms (`var a, b = 1, c`) each declare their own
+	// slot. Run the full recordOneDecl per NAME child so the scope
+	// sees every name; inner helpers still use the first child as
+	// the primary (matches Java's visitDeclarationsOrList loop).
+	for _, child := range v.Children() {
+		if child.Token() != rhino.NAME {
+			continue
+		}
+		c.recordOneDecl(v, child, scope)
+	}
+}
+
+// recordOneDecl processes a single declaration binding. Split out
+// from recordDecl so the multi-binding loop can reuse the same
+// @type / @enum / @constructor handling per name.
+func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope *TypedScope) {
 	info := v.JSDocInfo()
-	name := v.FirstChild()
 	if name == nil || name.Token() != rhino.NAME {
 		return
 	}

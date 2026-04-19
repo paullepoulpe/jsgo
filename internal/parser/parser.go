@@ -284,37 +284,48 @@ func (p *Parser) finishDeclStatement(declToken rhino.Token, jsdoc *rhino.JSDocIn
 		}
 		p.scanner.SkipTrivia()
 	}
-	nameLine, nameCol := p.scanner.Line(), p.scanner.Col()
-	ident, ok := p.scanner.ConsumeIdent()
-	if !ok {
-		p.scanner.SkipToStatementBoundary()
-		return nil, false
-	}
-	nameNode := rhino.NewString(rhino.NAME, ident)
-	nameNode.SetPos(nameLine, nameCol)
-	declNode.AddChildToBack(nameNode)
-
-	p.scanner.SkipTrivia()
-	if p.scanner.ConsumeByte('=') {
-		if !p.scanner.AtEnd() && p.scanner.Peek() == '=' {
-			p.scanner.SkipToStatementBoundary()
-			return declNode, true
-		}
-		p.scanner.SkipTrivia()
-		initLine, initCol := p.scanner.Line(), p.scanner.Col()
-		init, ok := p.tryExpression()
+	// One iteration per comma-separated binding. Matches Java's
+	// parseVariableDeclarationList loop.
+	for {
+		nameLine, nameCol := p.scanner.Line(), p.scanner.Col()
+		ident, ok := p.scanner.ConsumeIdent()
 		if !ok {
 			p.scanner.SkipToStatementBoundary()
-			return declNode, true
+			return nil, false
 		}
-		// Attach the initializer regardless of what follows —
-		// EOF / newline / `}` all implicitly terminate the VAR via
-		// ASI. Matches Java's Parser.parseVariableDeclaration
-		// tolerance for missing `;` at statement boundaries.
-		init.SetPos(initLine, initCol)
-		nameNode.AddChildToBack(init)
+		nameNode := rhino.NewString(rhino.NAME, ident)
+		nameNode.SetPos(nameLine, nameCol)
+		declNode.AddChildToBack(nameNode)
+
+		p.scanner.SkipTrivia()
+		if p.scanner.ConsumeByte('=') {
+			if !p.scanner.AtEnd() && p.scanner.Peek() == '=' {
+				p.scanner.SkipToStatementBoundary()
+				return declNode, true
+			}
+			p.scanner.SkipTrivia()
+			initLine, initCol := p.scanner.Line(), p.scanner.Col()
+			init, ok := p.tryExpression()
+			if !ok {
+				p.scanner.SkipToStatementBoundary()
+				return declNode, true
+			}
+			init.SetPos(initLine, initCol)
+			nameNode.AddChildToBack(init)
+		}
+		p.scanner.SkipTrivia()
+		if !p.scanner.ConsumeByte(',') {
+			break
+		}
+		p.scanner.SkipTrivia()
+		// Allow an inline JSDoc per-binding (`var a, /** @type T */ b`).
+		if body, ok := p.scanner.ConsumeBlockComment(); ok {
+			if inline := parseInlineTypeJSDoc(body); inline != nil {
+				_ = inline // discarded — Java drops per-binding type hints in this pos
+			}
+			p.scanner.SkipTrivia()
+		}
 	}
-	p.scanner.SkipTrivia()
 	sawNewline := p.scanner.Line() != p.scanner.LastTokenLine()
 	if !p.scanner.ConsumeByte(';') {
 		// ASI (ES5 §7.9): if we're at EOF / `}` / saw a newline

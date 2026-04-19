@@ -105,8 +105,13 @@ func (v *VariableReferenceCheck) walk(n, parent *rhino.Node) {
 	}
 	switch n.Token() {
 	case rhino.VAR, rhino.LET, rhino.CONST:
-		if name := n.FirstChild(); name != nil && name.Token() == rhino.NAME {
-			v.recordDecl(name, name.String_())
+		// Multi-binding forms like `var a, b, c` each fire their own
+		// duplicate check. Java treats every NAME child as a
+		// declaration site.
+		for _, name := range n.Children() {
+			if name.Token() == rhino.NAME {
+				v.recordDecl(name, name.String_())
+			}
 		}
 	case rhino.FUNCTION, rhino.CLASS:
 		// Named function / class declarations create a binding in the
