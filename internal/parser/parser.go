@@ -1355,11 +1355,16 @@ func (p *Parser) tryPostfix() (*rhino.Node, bool) {
 		return nil, false
 	}
 	var expr *rhino.Node
+	newLine, newCol := p.scanner.Line(), p.scanner.Col()
 	if p.scanner.ConsumeKeyword("new") {
 		n, ok := p.finishNew()
 		if !ok {
 			return nil, false
 		}
+		// Position the NEW node at the `new` keyword, not at the
+		// callee identifier — Java's TypeCheck reports at the
+		// expression's start column.
+		n.SetPos(newLine, newCol)
 		expr = n
 	} else {
 		prim, ok := p.tryPrimary()

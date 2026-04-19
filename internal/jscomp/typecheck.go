@@ -355,6 +355,10 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitReturn(n, scope))
 	case rhino.EQ, rhino.NE, rhino.SHEQ, rhino.SHNE:
 		c.emit(c.visitEquality(n, scope))
+	case rhino.IN:
+		c.emit(c.visitIn(n, scope))
+	case rhino.FOR_IN:
+		c.emit(c.visitForIn(n, scope))
 	}
 	// Strict-mode operand checks — OFF by default, matching Java.
 	// These fire only when `--jscomp_warning=strictCheckTypes` is set.
@@ -1240,6 +1244,47 @@ func (c *TypeCheck) visitThis(n *rhino.Node, scope *TypedScope) []diag.Diagnosti
 // the comparison always yields a known value and Java emits at
 // the whole expression's column. `===` / `!==` use a separate
 // code (not yet ported).
+// visitIn fires JSC_IN_USED_WITH_STRUCT on `key in struct` — Java's
+// TypeCheck rejects the `in` operator on @struct receivers because
+// the surface is sealed and membership is a compile-time concept.
+func (c *TypeCheck) visitIn(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	kids := n.Children()
+	if len(kids) < 2 {
+		return nil
+	}
+	rhs := kids[1]
+	infer := NewTypeInference(scope)
+	recv := stripNullUndef(infer.InferType(rhs))
+	if !isStructReceiver(recv) {
+		return nil
+	}
+	return []diag.Diagnostic{{
+		Path: c.path, Line: rhs.Lineno(), Col: rhs.Charno(),
+		Code: diag.JSC_IN_USED_WITH_STRUCT, Level: diag.Error,
+		Message: "Cannot use the IN operator with structs",
+	}}
+}
+
+// visitForIn fires JSC_IN_USED_WITH_STRUCT on `for (var k in struct)`.
+// Same rule as visitIn, but the AST shape is FOR_IN(var, iterable, body).
+func (c *TypeCheck) visitForIn(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	kids := n.Children()
+	if len(kids) < 2 {
+		return nil
+	}
+	iter := kids[1]
+	infer := NewTypeInference(scope)
+	recv := stripNullUndef(infer.InferType(iter))
+	if !isStructReceiver(recv) {
+		return nil
+	}
+	return []diag.Diagnostic{{
+		Path: c.path, Line: iter.Lineno(), Col: iter.Charno(),
+		Code: diag.JSC_IN_USED_WITH_STRUCT, Level: diag.Error,
+		Message: "Cannot use the IN operator with structs",
+	}}
+}
+
 func (c *TypeCheck) visitEquality(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := n.Children()
 	if len(kids) < 2 {
