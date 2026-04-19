@@ -240,7 +240,64 @@ func (c *CheckJsDocTypes) Check() []diag.Diagnostic {
 		}
 		end += start
 		out = append(out, c.checkComment(s, start, end)...)
+		out = append(out, c.checkBareTypeof(s, start, end)...)
 		i = end + 2
+	}
+	return out
+}
+
+// checkBareTypeof fires JSC_UNRECOGNIZED_TYPEOF_ERROR on inline
+// JSDoc blocks of the form `/** typeof X */` where X isn't a
+// declared name. Java treats these as @type annotations and
+// validates the `typeof` operand the same way.
+func (c *CheckJsDocTypes) checkBareTypeof(s string, start, end int) []diag.Diagnostic {
+	body := s[start:end]
+	var out []diag.Diagnostic
+	i := 0
+	for i < len(body) {
+		idx := strings.Index(body[i:], "typeof")
+		if idx < 0 {
+			return out
+		}
+		idx += i
+		// Word boundary checks so `typeof` inside `@typeof` or an
+		// identifier doesn't match.
+		if idx > 0 && isIdentChar(body[idx-1]) {
+			i = idx + len("typeof")
+			continue
+		}
+		after := idx + len("typeof")
+		if after < len(body) && isIdentChar(body[after]) {
+			i = after
+			continue
+		}
+		// Skip whitespace, find the target name.
+		k := after
+		for k < len(body) && (body[k] == ' ' || body[k] == '\t') {
+			k++
+		}
+		xstart := k
+		for k < len(body) && (isIdentChar(body[k]) || body[k] == '.') {
+			k++
+		}
+		name := body[xstart:k]
+		i = k
+		if name == "" {
+			continue
+		}
+		base := name
+		if dot := strings.IndexByte(base, '.'); dot >= 0 {
+			base = base[:dot]
+		}
+		if c.allNames[base] {
+			continue
+		}
+		line, col := c.positionOf(s, start+xstart)
+		out = append(out, diag.Diagnostic{
+			Path: c.path, Line: line, Col: col,
+			Code: diag.JSC_UNRECOGNIZED_TYPEOF_ERROR, Level: diag.Warning,
+			Message: "Missing type for `typeof` value. The value must be declared and const.",
+		})
 	}
 	return out
 }
