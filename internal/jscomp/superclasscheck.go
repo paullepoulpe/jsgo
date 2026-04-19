@@ -58,6 +58,7 @@ func (s *SuperclassCheck) walk(n *rhino.Node) {
 	case rhino.FUNCTION:
 		s.checkFunctionImplements(n)
 		s.checkInterfaceExtendsConflicts(n)
+		s.checkExtendsKindMismatch(n)
 	case rhino.VAR, rhino.LET, rhino.CONST:
 		s.checkDeclaredConstructorImplements(n)
 	case rhino.EXPR_RESULT:
@@ -67,6 +68,69 @@ func (s *SuperclassCheck) walk(n *rhino.Node) {
 	}
 	for _, c := range n.Children() {
 		s.walk(c)
+	}
+}
+
+// checkExtendsKindMismatch fires JSC_CONFLICTING_EXTENDED_TYPE
+// when an @interface extends a non-interface, or a @constructor
+// extends a non-constructor. Mirrors TypeCheck.java's
+// checkConstructor / checkInterface-extends kind guard.
+func (s *SuperclassCheck) checkExtendsKindMismatch(fn *rhino.Node) {
+	info := fn.JSDocInfo()
+	if info == nil {
+		return
+	}
+	isIface := info.IsInterface() || info.IsRecord()
+	isCtor := info.IsConstructor()
+	if !isIface && !isCtor {
+		return
+	}
+	kids := fn.Children()
+	if len(kids) < 1 {
+		return
+	}
+	name := kids[0].String_()
+	if name == "" {
+		return
+	}
+	// Walk every @extends — fires once for the first parent whose
+	// kind conflicts with the child's. Matches Java's behaviour of
+	// reporting one conflicting-extends diagnostic per declaration.
+	bases := info.BaseTypes()
+	if len(bases) == 0 {
+		if b := info.BaseType(); b != nil {
+			bases = []*rhino.JSTypeExpression{b}
+		}
+	}
+	reported := false
+	for _, b := range bases {
+		if reported {
+			break
+		}
+		super := s.scope.LookupNominalType(b.TypeName)
+		if super == nil {
+			continue
+		}
+		if isIface && !super.IsStructural {
+			s.diags = append(s.diags, diag.Diagnostic{
+				Path: s.path, Line: fn.Lineno(), Col: fn.Charno(),
+				Code: diag.JSC_CONFLICTING_EXTENDED_TYPE, Level: diag.Error,
+				Message: fmt.Sprintf(
+					"%s cannot extend this type; interfaces can only extend interfaces",
+					name),
+			})
+			reported = true
+		}
+		if isCtor && super.IsStructural {
+			s.diags = append(s.diags, diag.Diagnostic{
+				Path: s.path, Line: fn.Lineno(), Col: fn.Charno(),
+				Code: diag.JSC_CONFLICTING_EXTENDED_TYPE, Level: diag.Error,
+				Message: fmt.Sprintf(
+					"%s cannot extend this type; constructors can only extend constructors",
+					name),
+			})
+			reported = true
+		}
 	}
 }
 

@@ -82,13 +82,40 @@ func (p *Parser) parseStatements(parent *rhino.Node, endTok rune) {
 	}
 }
 
+// jsdocCarriesMoreInfo reports whether `b` should displace `a` as the
+// JSDoc attached to the next statement. Priority: declaration-shaped
+// tags (@interface, @constructor, @record, @extends) beat plain
+// type / param tags. Matches Closure's "the last declaration comment
+// wins" heuristic when multiple JSDoc blocks precede a single decl.
+func jsdocCarriesMoreInfo(b, a *rhino.JSDocInfo) bool {
+	decl := func(i *rhino.JSDocInfo) bool {
+		return i.IsConstructor() || i.IsInterface() || i.IsRecord() || i.BaseType() != nil
+	}
+	if decl(b) && !decl(a) {
+		return true
+	}
+	return false
+}
+
 // tryStatement attempts one statement. Returns (stmt, true) on success
 // or (nil, false) otherwise; in either case p.scanner.Pos() is left past the
 // consumed input (or rewound on speculative failures).
 func (p *Parser) tryStatement() (*rhino.Node, bool) {
 	var jsdoc *rhino.JSDocInfo
-	if body, ok := p.scanner.ConsumeBlockComment(); ok {
-		jsdoc = parsing.ParseJSDocInfo(body)
+	// Consume any number of back-to-back block comments. When a
+	// JSDoc carries declaration-shaped tags (@interface, @extends,
+	// @constructor, @param, @return), that's the one that attaches
+	// to the following statement — ignore earlier stray JSDocs
+	// which Java silently drops in the same scenario.
+	for {
+		body, ok := p.scanner.ConsumeBlockComment()
+		if !ok {
+			break
+		}
+		parsed := parsing.ParseJSDocInfo(body)
+		if parsed != nil && (jsdoc == nil || jsdocCarriesMoreInfo(parsed, jsdoc)) {
+			jsdoc = parsed
+		}
 		p.scanner.SkipTrivia()
 	}
 
