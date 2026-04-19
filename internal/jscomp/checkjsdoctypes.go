@@ -1,0 +1,542 @@
+// Port of com/google/javascript/jscomp/TypeValidator.java's
+// "Bad type annotation" branch + JsDocInfoParser's type-name
+// resolution errors @ closure-compiler v20260415 (narrow; regex-
+// scanned positions).
+//
+// Java's JsDocInfoParser records source positions inside each
+// JSDoc type expression so it can emit
+// JSC_UNRECOGNIZED_TYPE_ERROR at the exact column of a bad type
+// name. jsgo's JSDoc parser discards positions (it reuses the
+// bracketed source as an opaque string); this pass rebuilds the
+// positions by re-scanning the source after scope-creation has
+// populated every type binding. One walker per script:
+//
+//   1. Scan for `/** ... */` comment blocks.
+//   2. Inside each block, find `@type|@param|@return|@extends|
+//      @implements|@typedef {TYPE}` occurrences.
+//   3. Split each TYPE into top-level name components (strip
+//      `!`/`?`/`...`, split on `|`, take base before `<`).
+//   4. For each component that looks like a nominal reference
+//      (starts with a letter, not a known primitive), consult
+//      the provided TypedScope. Bindings resolve via
+//      LookupNominalType / LookupEnum / LookupTypeAlias or fall
+//      into the builtin-externs set.
+//   5. Emit JSC_UNRECOGNIZED_TYPE_ERROR at the name's computed
+//      column when the lookup fails.
+
+package jscomp
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/paullepoulpe/jsgo/internal/diag"
+	"github.com/paullepoulpe/jsgo/internal/rhino/jstype"
+)
+
+// CheckJsDocTypes emits JSC_UNRECOGNIZED_TYPE_ERROR for every bad
+// type reference in JSDoc annotations. Takes the raw source so
+// per-name positions match Java's column-level reporting.
+type CheckJsDocTypes struct {
+	path          string
+	src           string
+	scope         *TypedScope
+	allNames      map[string]bool // every identifier declared anywhere in src
+	allTemplates  map[string]bool // every @template name across the whole source
+}
+
+func NewCheckJsDocTypes(path, src string, scope *TypedScope) *CheckJsDocTypes {
+	return &CheckJsDocTypes{
+		path:         path,
+		src:          src,
+		scope:        scope,
+		allNames:     collectDeclaredNames(src),
+		allTemplates: collectAllTemplateNames(src),
+	}
+}
+
+// collectAllTemplateNames fans out over every JSDoc block in the
+// source pulling out every @template name. Names are scope-wide
+// in Java's implementation (a derived interface's @template binds
+// through its own JSDoc but the supertype reference carries it)
+// — we widen to "valid as a type anywhere in this source" to
+// avoid FPs on interface-inheritance chains where the template
+// name leaks across comment boundaries.
+func collectAllTemplateNames(src string) map[string]bool {
+	out := map[string]bool{}
+	i := 0
+	for i < len(src) {
+		start := strings.Index(src[i:], "/**")
+		if start < 0 {
+			return out
+		}
+		start += i
+		end := strings.Index(src[start:], "*/")
+		if end < 0 {
+			return out
+		}
+		end += start
+		for k, v := range collectTemplateNames(src[start:end]) {
+			out[k] = v
+		}
+		i = end + 2
+	}
+	return out
+}
+
+// collectDeclaredNames scans the source for every identifier
+// appearing in non-JSDoc code — `var`/`let`/`const`/`function`/
+// `class` bindings, function parameters, and any free-form
+// reference. Used by nameResolves so `@type {X}` references to
+// bindings the TypedScopeCreator's narrow scope chain doesn't
+// reach (IIFE locals, function parameters, const-aliased enums)
+// stay quiet. Broader than Java's exact check but strictly less
+// prone to FPs.
+func collectDeclaredNames(s string) map[string]bool {
+	out := map[string]bool{}
+	i := 0
+	for i < len(s) {
+		// Skip strings and comments verbatim.
+		if i+2 < len(s) && s[i] == '/' && s[i+1] == '*' && s[i+2] == '*' {
+			if n := strings.Index(s[i+3:], "*/"); n >= 0 {
+				i += n + 5
+				continue
+			}
+			return out
+		}
+		if i+1 < len(s) && s[i] == '/' && s[i+1] == '/' {
+			if n := strings.Index(s[i:], "\n"); n >= 0 {
+				i += n + 1
+			} else {
+				return out
+			}
+			continue
+		}
+		if i+1 < len(s) && s[i] == '/' && s[i+1] == '*' {
+			if n := strings.Index(s[i+2:], "*/"); n >= 0 {
+				i += n + 4
+			} else {
+				return out
+			}
+			continue
+		}
+		if s[i] == '"' || s[i] == '\'' {
+			i = skipQuotedLiteral(s, i)
+			continue
+		}
+		if isIdentStart(s[i]) {
+			start := i
+			for i < len(s) && isIdentChar(s[i]) {
+				i++
+			}
+			out[s[start:i]] = true
+			continue
+		}
+		i++
+	}
+	return out
+}
+
+// collectDeclaredNamesOld (unused — keep as reference for the
+// stricter declaration-only variant).
+func collectDeclaredNamesOld(s string) map[string]bool {
+	out := map[string]bool{}
+	i := 0
+	for i < len(s) {
+		// Skip strings and comments — never search through them.
+		if i+1 < len(s) && s[i] == '/' && s[i+1] == '/' {
+			if n := strings.Index(s[i:], "\n"); n >= 0 {
+				i += n + 1
+			} else {
+				return out
+			}
+			continue
+		}
+		if i+1 < len(s) && s[i] == '/' && s[i+1] == '*' {
+			if n := strings.Index(s[i+2:], "*/"); n >= 0 {
+				i += n + 4
+			} else {
+				return out
+			}
+			continue
+		}
+		if s[i] == '"' || s[i] == '\'' {
+			i = skipQuotedLiteral(s, i)
+			continue
+		}
+		// Match `var`/`let`/`const`/`function`/`class` at a word
+		// boundary.
+		for _, kw := range [...]string{"var", "let", "const", "function", "class"} {
+			if matchKeyword(s, i, kw) {
+				j := i + len(kw)
+				// Skip whitespace and then capture the identifier.
+				for j < len(s) && (s[j] == ' ' || s[j] == '\t' || s[j] == '\n' || s[j] == '\r') {
+					j++
+				}
+				if j < len(s) && isIdentStart(s[j]) {
+					start := j
+					for j < len(s) && isIdentChar(s[j]) {
+						j++
+					}
+					out[s[start:j]] = true
+				}
+				i = j
+				goto next
+			}
+		}
+		i++
+	next:
+	}
+	return out
+}
+
+func matchKeyword(s string, i int, kw string) bool {
+	if i+len(kw) > len(s) {
+		return false
+	}
+	if s[i:i+len(kw)] != kw {
+		return false
+	}
+	// Must be at a word boundary on both sides.
+	if i > 0 && isIdentChar(s[i-1]) {
+		return false
+	}
+	if i+len(kw) < len(s) && isIdentChar(s[i+len(kw)]) {
+		return false
+	}
+	return true
+}
+
+func skipQuotedLiteral(s string, i int) int {
+	quote := s[i]
+	i++
+	for i < len(s) {
+		if s[i] == '\\' {
+			i += 2
+			continue
+		}
+		if s[i] == quote {
+			return i + 1
+		}
+		i++
+	}
+	return len(s)
+}
+
+// Check scans the source for JSDoc comments and validates every
+// type-annotation brace pair. Returns the collected diagnostics.
+func (c *CheckJsDocTypes) Check() []diag.Diagnostic {
+	var out []diag.Diagnostic
+	s := c.src
+	for i := 0; i < len(s); {
+		start := strings.Index(s[i:], "/**")
+		if start < 0 {
+			break
+		}
+		start += i
+		end := strings.Index(s[start:], "*/")
+		if end < 0 {
+			break
+		}
+		end += start
+		out = append(out, c.checkComment(s, start, end)...)
+		i = end + 2
+	}
+	return out
+}
+
+// checkComment walks one `/** … */` block, finding every
+// annotation of the form `@tag {…}` where `tag` is a type-
+// bearing JSDoc tag, and validating each type component against
+// the scope. `@template X, Y, Z` names are collected first and
+// threaded into checkTypeExpr so they resolve as types inside
+// the same comment.
+func (c *CheckJsDocTypes) checkComment(s string, start, end int) []diag.Diagnostic {
+	var out []diag.Diagnostic
+	body := s[start:end]
+	tmpls := collectTemplateNames(body)
+	i := 0
+	for i < len(body) {
+		at := strings.Index(body[i:], "@")
+		if at < 0 {
+			return out
+		}
+		at += i
+		// Match a type-bearing tag name.
+		j := at + 1
+		for j < len(body) && isTagChar(body[j]) {
+			j++
+		}
+		tag := body[at+1 : j]
+		if !isTypeTag(tag) {
+			i = j
+			continue
+		}
+		// Skip whitespace + EOL to the opening `{`.
+		k := j
+		for k < len(body) && (body[k] == ' ' || body[k] == '\t' || body[k] == '\n' || body[k] == '\r' || body[k] == '*') {
+			k++
+		}
+		if k >= len(body) || body[k] != '{' {
+			i = j
+			continue
+		}
+		braceStart := k
+		braceEnd := findMatchingBrace(body, braceStart)
+		if braceEnd < 0 {
+			return out
+		}
+		inner := body[braceStart+1 : braceEnd]
+		out = append(out, c.checkTypeExpr(s, start+braceStart+1, inner, tmpls)...)
+		i = braceEnd + 1
+	}
+	return out
+}
+
+// collectTemplateNames extracts every `@template` name from a
+// JSDoc block. Names declared here are valid as types only
+// within the same comment.
+func collectTemplateNames(body string) map[string]bool {
+	out := map[string]bool{}
+	for i := 0; i < len(body); {
+		idx := strings.Index(body[i:], "@template")
+		if idx < 0 {
+			return out
+		}
+		idx += i
+		// Read the rest of the line.
+		nl := strings.Index(body[idx:], "\n")
+		if nl < 0 {
+			nl = len(body) - idx
+		}
+		rest := body[idx+len("@template") : idx+nl]
+		// `@template {B} T` bounded-generic form — strip the
+		// bracketed bound first. We don't honour the bound
+		// semantically; it just needs to not leak a type-name.
+		if lb := strings.Index(rest, "{"); lb >= 0 {
+			if rb := strings.Index(rest[lb:], "}"); rb > 0 {
+				rest = rest[:lb] + rest[lb+rb+1:]
+			}
+		}
+		for _, part := range strings.Split(rest, ",") {
+			part = strings.TrimSpace(part)
+			// Sometimes the line ends with `X description` — take
+			// the first token only.
+			if sp := strings.IndexAny(part, " \t*"); sp >= 0 {
+				part = part[:sp]
+			}
+			if part != "" && isIdentStart(part[0]) {
+				out[part] = true
+			}
+		}
+		i = idx + nl
+	}
+	return out
+}
+
+// checkTypeExpr walks the text inside a `{…}` annotation value,
+// walking nested `<…>` / `(…)` / `{…}` groups and checking each
+// top-level name component that's in a TYPE position (as opposed
+// to a field-name or param-name slot). `base` is the absolute
+// offset of `inner` in the source — used to compute per-name
+// positions.
+//
+// Position tracking: we maintain a stack of "contexts" — record
+// (`{`), function-params (`(`), generic-args (`<`) — and a
+// per-context flag saying whether the next identifier is a
+// key/param name (to be skipped) or a type name (to validate).
+// Key / param slots turn into type slots after a `:`. After a
+// `,` at the top of the current context, we flip back to the
+// key slot.
+func (c *CheckJsDocTypes) checkTypeExpr(src string, base int, inner string, tmpls map[string]bool) []diag.Diagnostic {
+	type frame struct {
+		kind        byte // '{' record, '(' params, '<' generic
+		expectType  bool // true when the next IDENT is a type name
+	}
+	// Top-level (outside any frame) is always a type slot.
+	stack := []frame{{kind: 0, expectType: true}}
+	top := func() *frame { return &stack[len(stack)-1] }
+
+	var out []diag.Diagnostic
+	for i := 0; i < len(inner); {
+		ch := inner[i]
+		switch {
+		case ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' || ch == '*':
+			i++
+		case ch == '!' || ch == '?':
+			i++
+		case ch == '|':
+			// Another union arm — next IDENT is a type.
+			top().expectType = true
+			i++
+		case ch == ',':
+			// New entry in the current context. In records /
+			// params, we go back to the key/name slot; in
+			// generic-args we're still at a type slot.
+			switch top().kind {
+			case '{', '(':
+				top().expectType = false
+			default:
+				top().expectType = true
+			}
+			i++
+		case ch == ':':
+			// Leaving the key slot — the next IDENT is a type.
+			top().expectType = true
+			i++
+		case ch == '=':
+			i++
+		case ch == '{':
+			stack = append(stack, frame{kind: '{', expectType: false})
+			i++
+		case ch == '(':
+			stack = append(stack, frame{kind: '(', expectType: false})
+			i++
+		case ch == '<':
+			stack = append(stack, frame{kind: '<', expectType: true})
+			i++
+		case ch == '}' || ch == ')' || ch == '>':
+			if len(stack) > 1 {
+				stack = stack[:len(stack)-1]
+			}
+			i++
+		case ch == '.' && i+2 < len(inner) && inner[i+1] == '.' && inner[i+2] == '.':
+			i += 3 // `...T` rest marker
+		case isIdentStart(ch):
+			start := i
+			for i < len(inner) && (isIdentChar(inner[i]) || inner[i] == '.') {
+				i++
+			}
+			name := inner[start:i]
+			if !top().expectType {
+				// Key / param name — don't resolve as a type.
+				continue
+			}
+			if !tmpls[name] && !c.allTemplates[name] && !c.nameResolves(name) {
+				line, col := c.positionOf(src, base+start)
+				out = append(out, diag.Diagnostic{
+					Path: c.path, Line: line, Col: col,
+					Code: diag.JSC_UNRECOGNIZED_TYPE_ERROR, Level: diag.Error,
+					Message: fmt.Sprintf("Bad type annotation. Unknown type %s", name),
+				})
+			}
+			// After a type expression, the next token at this
+			// context must be a `|` / `,` / `:` / close — stay
+			// at expectType=true so a `|B` continuation still
+			// resolves.
+		default:
+			// Unknown / quoted — skip.
+			i++
+		}
+	}
+	return out
+}
+
+// nameResolves reports whether the dotted name is a known
+// primitive, nominal, enum, typedef, or a builtin we ship as an
+// extern. Dotted chains (`foo.bar`) take the first segment for
+// lookup since our scope doesn't track object-property type
+// namespaces yet — so `goog.foo` resolves when `goog` does.
+func (c *CheckJsDocTypes) nameResolves(name string) bool {
+	// Ignore structural keywords that can appear inside a JSDoc
+	// type expression but aren't type names in themselves.
+	if name == "function" || name == "this" || name == "new" ||
+		name == "typeof" {
+		return true
+	}
+	// Primitive / sentinel names. Java also accepts the capitalised
+	// forms as aliases (`Null`, `Undefined`, `Void`).
+	switch name {
+	case "number", "string", "boolean", "null", "undefined", "void",
+		"symbol", "bigint", "any",
+		"Null", "Undefined", "Void", "Any":
+		return true
+	}
+	// Built-in externs jsgo doesn't yet ship but Java treats as
+	// always-declared. Accepting them unconditionally avoids FPs
+	// on corpus code that references the standard Closure library
+	// surface.
+	switch name {
+	case "IObject", "IArrayLike", "IThenable", "IIterable",
+		"IterableIterator", "Iterator", "Iterable",
+		"Generator", "AsyncIterator", "AsyncIterable", "AsyncGenerator",
+		"Disposable", "IDisposable",
+		"ReadonlyArray", "ReadonlyMap", "ReadonlySet":
+		return true
+	}
+	if strings.Contains(name, ".") {
+		// Dotted chains aren't supported — silently accept. Java
+		// flags these specifically; we stay quiet to avoid FPs on
+		// real closure-library namespaces we don't model.
+		return true
+	}
+	if c.scope.ResolveExpr(name) != jstype.Unknown {
+		return true
+	}
+	if defaultExternNames()[name] {
+		return true
+	}
+	if c.allNames[name] {
+		return true
+	}
+	return false
+}
+
+// positionOf returns (line, col) for the absolute offset `off` in
+// `src`. Lines are 1-indexed, columns 0-indexed (matching Java
+// Node.getLineno / getCharno).
+func (c *CheckJsDocTypes) positionOf(src string, off int) (int, int) {
+	if off > len(src) {
+		off = len(src)
+	}
+	line := 1
+	col := 0
+	for i := 0; i < off; i++ {
+		if src[i] == '\n' {
+			line++
+			col = 0
+			continue
+		}
+		col++
+	}
+	return line, col
+}
+
+// findMatchingBrace returns the offset of the `}` matching the
+// `{` at `open`. Tracks nested `{…}` pairs. Returns -1 when no
+// matching close is found.
+func findMatchingBrace(s string, open int) int {
+	depth := 0
+	for i := open; i < len(s); i++ {
+		switch s[i] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+func isTagChar(b byte) bool {
+	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
+}
+
+func isTypeTag(s string) bool {
+	switch s {
+	case "type", "param", "return", "returns", "extends", "implements", "typedef":
+		return true
+	}
+	return false
+}
+
+func isIdentStart(b byte) bool {
+	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || b == '_' || b == '$'
+}
+
+func isIdentChar(b byte) bool {
+	return isIdentStart(b) || (b >= '0' && b <= '9')
+}
