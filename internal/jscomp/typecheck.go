@@ -1219,6 +1219,20 @@ func (c *TypeCheck) visitGetElem(n *rhino.Node, scope *TypedScope) []diag.Diagno
 	// position (not at the index). Mirrors the expectNotNullOrUndefined
 	// branch of TypeCheck.visitGetElem.
 	if rawRecv == jstype.Null || rawRecv == jstype.Void {
+		// Dedup per (receiver-name, void/null type) so a sequence of
+		// `bar[0]; bar[1]; bar[2];` fires the diagnostic once at the
+		// first occurrence, matching Java's TypeCheck behaviour.
+		key := "<null-recv>"
+		if recv.Token() == rhino.NAME {
+			key = recv.String_() + "." + rawRecv.TypeName()
+		}
+		if c.inexistentReported == nil {
+			c.inexistentReported = map[string]bool{}
+		}
+		if c.inexistentReported[key] {
+			return nil
+		}
+		c.inexistentReported[key] = true
 		return []diag.Diagnostic{{
 			Path: c.path, Line: n.Lineno(), Col: n.Charno(),
 			Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
