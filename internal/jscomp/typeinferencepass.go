@@ -87,6 +87,11 @@ func (p *TypeInferencePass) transferDecl(decl *rhino.Node, in *FlowScope) map[Br
 			}
 		case *jstype.EnumType:
 			return map[Branch]*FlowScope{BranchUnconditional: in}
+		case *jstype.TemplatizedType:
+			// Preserve the declared generic binding — the init's
+			// bare Array / Map type would drop the template args,
+			// breaking `arr[0]`-style reads that rely on them.
+			return map[Branch]*FlowScope{BranchUnconditional: in}
 		}
 	}
 	return map[Branch]*FlowScope{BranchUnconditional: in.Bind(name.String_(), t)}
