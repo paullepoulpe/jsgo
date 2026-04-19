@@ -196,6 +196,17 @@ func (t *TypeInference) inferGetProp(n *rhino.Node) jstype.JSType {
 				return pt
 			}
 		}
+		// Enum member access: `MyEnum.FOO` → EnumElementType,
+		// matching Java's EnumType.getPropertyType which always
+		// returns the paired EnumElementType for member reads.
+		if enum, ok := t.scope.GetDeclaredType(recv.String_()).(*jstype.EnumType); ok {
+			if enum.Members[propName] {
+				return enum.Element
+			}
+			// Falling through to Unknown keeps un-declared-member
+			// references quiet here; the INEXISTENT_ENUM_ELEMENT
+			// diagnostic fires in TypeCheck.visitGetProp.
+		}
 	}
 	recvType := t.InferType(recv)
 	if tplt, ok := recvType.(*jstype.TemplatizedType); ok {

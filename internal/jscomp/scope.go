@@ -125,6 +125,22 @@ func (s *TypedScope) LookupTypeAlias(name string) jstype.JSType {
 	return s.parent.LookupTypeAlias(name)
 }
 
+// LookupEnum returns the EnumType associated with `name` in this
+// scope chain, or nil when the binding isn't an enum. Used by
+// ResolveExpr to route `@type {MyEnum}` to the matching
+// EnumElementType.
+func (s *TypedScope) LookupEnum(name string) *jstype.EnumType {
+	if s == nil {
+		return nil
+	}
+	if t, ok := s.declared[name]; ok {
+		if e, ok := t.(*jstype.EnumType); ok {
+			return e
+		}
+	}
+	return s.parent.LookupEnum(name)
+}
+
 // LookupNominalType returns the InstanceType associated with a name
 // that refers to a known constructor in this scope chain. Used when
 // resolving `@type {Foo}` to the instance type rather than the
@@ -232,6 +248,14 @@ func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 		// and primitives (matches Java's StaticSourceFile resolution).
 		if alias := s.LookupTypeAlias(p); alias != nil {
 			members = append(members, alias)
+			continue
+		}
+		// `@type {MyEnum}` resolves to the EnumElementType (so it
+		// means "any element of MyEnum"), not the bare EnumType.
+		// Matches how Java's JSTypeRegistry.getType dispatches
+		// a bare enum name to its EnumElementType.
+		if enum := s.LookupEnum(p); enum != nil {
+			members = append(members, enum.Element)
 			continue
 		}
 		// Try nominal (constructor → instance), then primitive.
@@ -662,6 +686,14 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 		case rhino.CLASS:
 			c.preregisterClass(child, scope)
 		}
+		// Pre-register @enum bindings too so forward `@type {MyEnum}`
+		// references can resolve against the EnumType even when the
+		// `/** @enum */ var MyEnum = …` decl appears later in the
+		// source. Matches how Java's TypedScopeCreator hoists enum
+		// slots during its first scope-building pass.
+		if isDeclToken(child.Token()) {
+			c.preregisterEnum(child, scope)
+		}
 	}
 	// Pass 1b: record @typedef aliases. Typedefs resolve against the
 	// scope that now has nominal types pre-registered, so
@@ -838,6 +870,28 @@ func (c *TypedScopeCreator) preregisterConstructor(fn *rhino.Node, scope *TypedS
 	}
 	// Stub: real param/return types are computed in recordFunction.
 	scope.declared[name.String_()] = jstype.NewConstructorType(name.String_(), nil)
+}
+
+// preregisterEnum reserves a slot for an `@enum`-annotated var /
+// let / const so forward `@type {MyEnum}` references resolve to
+// the shared EnumType. The Underlying primitive is computed from
+// the `@enum {T}` argument (Number when omitted); aliased enums
+// (`/** @enum */ var Alias = Source`) are handled in recordDecl's
+// second pass, where we can see the RHS type.
+func (c *TypedScopeCreator) preregisterEnum(v *rhino.Node, scope *TypedScope) {
+	info := v.JSDocInfo()
+	if !info.IsEnum() {
+		return
+	}
+	name := v.FirstChild()
+	if name == nil || name.Token() != rhino.NAME || name.String_() == "" {
+		return
+	}
+	var underlying jstype.JSType = jstype.Number
+	if expr := info.EnumParameterType(); expr != nil {
+		underlying = scope.ResolveExpr(expr.TypeName)
+	}
+	scope.declared[name.String_()] = jstype.NewEnumType(name.String_(), underlying)
 }
 
 // preregisterClass reserves a slot for a `class` declaration, mirroring
@@ -1109,6 +1163,18 @@ func (c *TypedScopeCreator) recordDecl(v *rhino.Node, scope *TypedScope) {
 		scope.declared[name.String_()] = jstype.Unknown
 		return
 	}
+	// `/** @enum [{T}] */ var MyEnum = {FOO: 1, BAR: 2}` — the
+	// preregister pass already allocated an EnumType for MyEnum;
+	// the second-pass job is (a) scanning the initializer
+	// OBJECTLIT to populate the Members set, (b) emitting a
+	// TYPE_MISMATCH at the initializer when the RHS isn't an
+	// object literal / matching enum. Aliased form
+	// (`/** @enum */ var A = B`) reuses B's EnumType pointer so
+	// `A.FOO` and `B.FOO` share the same static type.
+	if info.IsEnum() && name.String_() != "" {
+		c.finishEnumDecl(name, info, scope)
+		return
+	}
 	// `/** @constructor */ var Foo = function() {}` — Closure-library
 	// form of a constructor declaration. Builds a ConstructorType so
 	// `new Foo()` and `@type {Foo}` both resolve to the same instance.
@@ -1174,6 +1240,50 @@ func (c *TypedScopeCreator) recordDecl(v *rhino.Node, scope *TypedScope) {
 	}
 	if _, exists := scope.declared[name.String_()]; !exists {
 		scope.declared[name.String_()] = jstype.Unknown
+	}
+}
+
+// finishEnumDecl resolves `/** @enum */ var MyEnum = …` by
+// completing the pre-registered EnumType: aliasing replaces the
+// slot's EnumType with the RHS enum's pointer, object-literal
+// initialisers populate the Members map. Matches how Java's
+// TypedScopeCreator.EnumBuilder hoists the enum slot in pass 1
+// and fills its members in pass 2.
+func (c *TypedScopeCreator) finishEnumDecl(nameNode *rhino.Node, info *rhino.JSDocInfo, scope *TypedScope) {
+	name := nameNode.String_()
+	enum, ok := scope.declared[name].(*jstype.EnumType)
+	if !ok {
+		// Pre-register missed this binding (e.g. nested inside a
+		// block and the hoist pass didn't pick it up). Create one.
+		var underlying jstype.JSType = jstype.Number
+		if expr := info.EnumParameterType(); expr != nil {
+			underlying = scope.ResolveExpr(expr.TypeName)
+		}
+		enum = jstype.NewEnumType(name, underlying)
+		scope.declared[name] = enum
+	}
+	init := nameNode.FirstChild()
+	if init == nil {
+		return
+	}
+	// Alias form: the RHS is another enum NAME reference. Replace
+	// this enum's slot with the source enum so `Alias.FOO` and
+	// `Source.FOO` share their EnumElementType pointer (matches
+	// how Java treats `/** @enum */ var A = B`).
+	if init.Token() == rhino.NAME {
+		if other, ok := scope.declared[init.String_()].(*jstype.EnumType); ok {
+			scope.declared[name] = other
+			return
+		}
+	}
+	// Literal form: scan the OBJECTLIT entries and record each
+	// STRING_KEY child on the enum's Members set.
+	if init.Token() == rhino.OBJECTLIT {
+		for _, kv := range init.Children() {
+			if kv.Token() == rhino.STRING_KEY {
+				enum.Members[kv.String_()] = true
+			}
+		}
 	}
 }
 

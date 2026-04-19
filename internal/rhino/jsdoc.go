@@ -17,6 +17,8 @@ type JSDocInfo struct {
 	isStatic      bool
 	isStruct      bool
 	isDict        bool
+	enumExpr      *JSTypeExpression // non-nil when @enum was present
+	enumMarked    bool              // true when @enum appeared (even with no type)
 	extendsExpr   *JSTypeExpression
 	implementsAll []*JSTypeExpression
 	typedefExpr   *JSTypeExpression
@@ -86,6 +88,27 @@ func (i *JSDocInfo) IsStruct() bool   { return i != nil && i.isStruct }
 func (i *JSDocInfo) IsDict() bool     { return i != nil && i.isDict }
 func (i *JSDocInfo) SetStruct(b bool) { i.isStruct = b }
 func (i *JSDocInfo) SetDict(b bool)   { i.isDict = b }
+
+// IsEnum mirrors JSDocInfo.hasEnumParameterType() — true whenever
+// the comment carried an `@enum` tag (with or without an explicit
+// type argument).
+func (i *JSDocInfo) IsEnum() bool { return i != nil && i.enumMarked }
+
+// EnumParameterType mirrors JSDocInfo.getEnumParameterType() —
+// returns the bracketed type argument from `@enum {T}`, or nil when
+// `@enum` was used without one (Java defaults to Number in that
+// case; jsgo matches by materialising Number in the scope creator).
+func (i *JSDocInfo) EnumParameterType() *JSTypeExpression {
+	if i == nil {
+		return nil
+	}
+	return i.enumExpr
+}
+func (i *JSDocInfo) SetEnumParameterType(t *JSTypeExpression) {
+	i.enumExpr = t
+	i.enumMarked = true
+}
+func (i *JSDocInfo) MarkEnum() { i.enumMarked = true }
 
 // Implementations mirrors JSDocInfo.getImplementedInterfaces().
 func (i *JSDocInfo) Implementations() []*JSTypeExpression {

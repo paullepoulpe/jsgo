@@ -408,6 +408,17 @@ func (c *TypeCheck) visitVar(v *rhino.Node, scope *TypedScope) []diag.Diagnostic
 	if init == nil {
 		return nil
 	}
+	// `/** @enum */ var E = {FOO: 1, ...}` — the VAR's declared
+	// type is the EnumType, but the init is an OBJECTLIT that
+	// infers to a structural {...}. Skip the normal subtype
+	// check (the RHS is the enum's *source of truth*, not a
+	// value being assigned into it) and run the enum-specific
+	// diagnostics below instead. Mirrors how Java's TypeCheck
+	// routes `@enum` initializers through EnumType's own
+	// validateEnumInit helper rather than the assignment rule.
+	if info := v.JSDocInfo(); info.IsEnum() {
+		return c.visitEnumInit(name, init, scope)
+	}
 	declared := scope.GetDeclaredType(name.String_())
 	if declared == nil {
 		return nil
@@ -422,6 +433,93 @@ func (c *TypeCheck) visitVar(v *rhino.Node, scope *TypedScope) []diag.Diagnostic
 	return []diag.Diagnostic{{
 		Path: c.path, Line: init.Lineno(), Col: init.Charno(),
 		Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error, Message: msg,
+	}}
+}
+
+// visitEnumInit validates a `/** @enum [{T}] */ var E = init`
+// declaration. Three cases mirror Java's EnumType initialisation:
+//
+//  1. init is an OBJECTLIT — per-entry subtype check against the
+//     declared Underlying; mismatch emits JSC_TYPE_MISMATCH at
+//     the entry value with "assignment to property <k> of enum{E}".
+//  2. init is a NAME referring to another enum — alias; already
+//     folded in scope.go. No diagnostic here.
+//  3. init is anything else — emit "initializing variable" with
+//     the enum's EnumType as required. Matches how Java's
+//     TypeCheck handles a non-enum RHS under an @enum decl.
+func (c *TypeCheck) visitEnumInit(name, init *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	enum, ok := scope.GetDeclaredType(name.String_()).(*jstype.EnumType)
+	if !ok {
+		return nil
+	}
+	// Recover the DECLARED underlying from the @enum JSDoc (defaults
+	// to Number when `@enum` has no brace). Aliasing may have
+	// replaced the slot's pointer with the source enum, whose own
+	// Underlying can differ — we need the original-site declaration
+	// to diagnose mismatched-alias correctly.
+	declaredUnderlying := jstype.JSType(jstype.Number)
+	if info := name.Parent().JSDocInfo(); info != nil {
+		if expr := info.EnumParameterType(); expr != nil {
+			declaredUnderlying = scope.ResolveExpr(expr.TypeName)
+		}
+	}
+	_ = declaredUnderlying // referenced below when the alias branch fires
+	infer := NewTypeInference(scope)
+	if init.Token() == rhino.OBJECTLIT {
+		var out []diag.Diagnostic
+		for _, kv := range init.Children() {
+			if kv.Token() != rhino.STRING_KEY {
+				continue
+			}
+			value := kv.FirstChild()
+			if value == nil {
+				continue
+			}
+			found := infer.InferType(value)
+			if jstype.IsSubtype(found, enum.Underlying) {
+				continue
+			}
+			// Report at the STRING_KEY's column — Java's enum
+			// validator points at the property name, not the
+			// initializer's RHS value.
+			out = append(out, diag.Diagnostic{
+				Path: c.path, Line: kv.Lineno(), Col: kv.Charno(),
+				Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
+				Message: fmt.Sprintf(
+					"assignment to property %s of enum{%s}\nfound   : %s\nrequired: %s",
+					kv.String_(), enum.Name, found.TypeName(), enum.Underlying.TypeName()),
+			})
+		}
+		return out
+	}
+	if init.Token() == rhino.NAME {
+		if other, ok := scope.GetDeclaredType(init.String_()).(*jstype.EnumType); ok {
+			// Aliased enum — Java emits JSC_TYPE_MISMATCH
+			// "incompatible enum element types" when the alias's
+			// explicit `@enum {T}` underlying disagrees with the
+			// source enum's. Use the declared underlying captured
+			// above (the scope-creator has already redirected
+			// scope[name] to the source enum, so enum.Underlying
+			// reflects the source, not the alias declaration).
+			if !jstype.IsSubtype(other.Underlying, declaredUnderlying) {
+				return []diag.Diagnostic{{
+					Path: c.path, Line: init.Lineno(), Col: init.Charno(),
+					Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
+					Message: fmt.Sprintf(
+						"incompatible enum element types\nfound   : %s\nrequired: %s",
+						other.Underlying.TypeName(), declaredUnderlying.TypeName()),
+				}}
+			}
+			_ = enum
+			return nil
+		}
+	}
+	found := infer.InferType(init)
+	return []diag.Diagnostic{{
+		Path: c.path, Line: init.Lineno(), Col: init.Charno(),
+		Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
+		Message: fmt.Sprintf("initializing variable\nfound   : %s\nrequired: enum{%s}",
+			found.TypeName(), enum.Name),
 	}}
 }
 
@@ -617,6 +715,19 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 	// against Foo. Strip the null/void members of a union so the
 	// INEXISTENT_PROPERTY / ILLEGAL_PROPERTY_ACCESS checks still fire.
 	recvType = stripNullUndef(recvType)
+	// Enum member access: `E.FOO` with FOO absent from E's member
+	// set fires JSC_INEXISTENT_ENUM_ELEMENT. Runs before the
+	// ObjectType branch because an EnumType isn't an ObjectType.
+	if enum, ok := recvType.(*jstype.EnumType); ok {
+		if enum.Members[propName] {
+			return nil
+		}
+		return []diag.Diagnostic{{
+			Path: c.path, Line: propNode.Lineno(), Col: propNode.Charno(),
+			Code: diag.JSC_INEXISTENT_ENUM_ELEMENT, Level: diag.Error,
+			Message: fmt.Sprintf("element %s does not exist on this enum", propName),
+		}}
+	}
 	obj := dereferencedObject(recvType)
 	if obj == nil {
 		return nil
@@ -810,7 +921,9 @@ func isArrayReceiver(t jstype.JSType) bool {
 
 // isNumberIndexOk reports whether `t` is acceptable as an Array
 // index. Java accepts number / unknown / union-with-number; any
-// definite non-number fires.
+// definite non-number fires. Uses jstype.IsSubtype so
+// EnumElementType<number> (which is a subtype of Number via its
+// Underlying rule) still passes.
 func isNumberIndexOk(t jstype.JSType) bool {
 	if t == nil {
 		return true
@@ -818,15 +931,7 @@ func isNumberIndexOk(t jstype.JSType) bool {
 	if isUnknownOrNil(t) {
 		return true
 	}
-	if u, ok := t.(*jstype.UnionType); ok {
-		for _, m := range u.Members() {
-			if !isNumberIndexOk(m) {
-				return false
-			}
-		}
-		return true
-	}
-	return t == jstype.Number
+	return jstype.IsSubtype(t, jstype.Number)
 }
 
 // dereferencedObject returns the ObjectType behind a templatized

@@ -122,6 +122,8 @@ func (p *JsDocInfoParser) parseAnnotation(_ JsDocToken) JsDocToken {
 		p.info.SetDict(true)
 		p.anyRecorded = true
 		return p.eatUntilEOLIfNotAnnotation()
+	case "enum":
+		return p.parseEnumTag()
 	case "suppress":
 		return p.parseSuppressTag()
 	}
@@ -232,6 +234,34 @@ func (p *JsDocInfoParser) parseImplementsTag() JsDocToken {
 		return p.eatUntilEOLIfNotAnnotation()
 	}
 	p.info.AddImplementation(rhino.NewJSTypeExpression(expr))
+	p.anyRecorded = true
+	return next
+}
+
+// parseEnumTag handles `@enum [{T}]`. The braced type argument is
+// optional — bare `@enum` implies an `@enum {number}` in Java's
+// EnumType defaulting path. Either way we flip the `enumMarked`
+// flag on the JSDocInfo so TypedScopeCreator's enum branch fires.
+func (p *JsDocInfoParser) parseEnumTag() JsDocToken {
+	p.skipEOLs()
+	t := p.next()
+	// If the next token isn't `{`, no type argument — still mark
+	// the enum and keep parsing the rest of the annotation block.
+	if t != JsDocTokenLeftCurly {
+		p.info.MarkEnum()
+		p.anyRecorded = true
+		// Put the token back and let the outer loop re-dispatch.
+		p.unread = t
+		p.hasUnread = true
+		return p.eatUntilEOLIfNotAnnotation()
+	}
+	expr, next, ok := p.parseTypeExpressionAnnotation(t)
+	if !ok {
+		p.info.MarkEnum()
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	}
+	p.info.SetEnumParameterType(rhino.NewJSTypeExpression(expr))
 	p.anyRecorded = true
 	return next
 }

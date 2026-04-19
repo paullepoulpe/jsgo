@@ -234,13 +234,13 @@ func (p *Parser) finishDeclStatement(declToken rhino.Token, jsdoc *rhino.JSDocIn
 			p.scanner.SkipToStatementBoundary()
 			return declNode, true
 		}
-		p.scanner.SkipTrivia()
-		if p.scanner.AtEnd() || p.scanner.Peek() != ';' {
-			p.scanner.SkipToStatementBoundary()
-			return declNode, true
-		}
+		// Attach the initializer regardless of what follows —
+		// EOF / newline / `}` all implicitly terminate the VAR via
+		// ASI. Matches Java's Parser.parseVariableDeclaration
+		// tolerance for missing `;` at statement boundaries.
 		init.SetPos(initLine, initCol)
 		nameNode.AddChildToBack(init)
+		p.scanner.SkipTrivia()
 	}
 	p.scanner.SkipTrivia()
 	if !p.scanner.ConsumeByte(';') {
