@@ -124,6 +124,17 @@ func (o *ObjectType) IsSubtypeOf(other JSType) bool {
 	if isAll(other) || isUnknown(other) {
 		return true
 	}
+	// Accept `{...}` vs `Object<K, V>` — every ObjectType is a
+	// subtype of the global Object, and Java's TemplatizedType
+	// treats parametrisation as invariant-optional (a plain
+	// ObjectType IS-A templated Object when the object's member
+	// types line up with the value slot; at our current depth
+	// we just accept).
+	if tt, ok := other.(*TemplatizedType); ok {
+		if tt.Base != nil && tt.Base.Name == "Object" {
+			return true
+		}
+	}
 	target, ok := other.(*ObjectType)
 	if !ok {
 		return false
