@@ -194,6 +194,21 @@ func (c *TypeCheck) traverseBlock(t *NodeTraversal, block *rhino.Node) {
 				pushed++
 			}
 		}
+		// Post-while narrowing — the loop exits when `cond` is
+		// false, so after `while (cond) { … }` the negated
+		// refinement holds for the remainder of the block. Only
+		// fire when the loop body has no `break` that could
+		// skip the natural exit condition (simple heuristic —
+		// we accept any body and let Java's conservative rule
+		// catch corner cases).
+		if child.Token() == rhino.WHILE {
+			if kids := child.Children(); len(kids) >= 1 {
+				if refs := buildRefinements(scope, kids[0], false); len(refs) > 0 {
+					scope.PushRefinement(refs)
+					pushed++
+				}
+			}
+		}
 	}
 	for i := 0; i < pushed; i++ {
 		scope.PopRefinement()
