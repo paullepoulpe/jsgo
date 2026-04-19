@@ -830,6 +830,16 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 	if obj.HasProperty(propName) {
 		return nil
 	}
+	// Writing a new property to a @struct instance outside its own
+	// constructor is JSC_ILLEGAL_PROPERTY_CREATION — Java flags the
+	// sealed-surface violation distinctly from plain reads.
+	if obj.IsStruct && isAssignLHS(n) && !insideOwnConstructor(n, obj) {
+		return []diag.Diagnostic{{
+			Path: c.path, Line: propNode.Lineno(), Col: propNode.Charno(),
+			Code: diag.JSC_ILLEGAL_PROPERTY_CREATION, Level: diag.Error,
+			Message: "Cannot add a property to a struct instance after it is constructed. (If you already declared the property, make sure to give it a type.)",
+		}}
+	}
 	// Dedup across the script.
 	key := obj.TypeName() + "." + propName
 	if c.inexistentReported[key] {
@@ -854,6 +864,44 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 		Path: c.path, Line: propNode.Lineno(), Col: propNode.Charno(),
 		Code: diag.JSC_INEXISTENT_PROPERTY, Level: diag.Error, Message: msg,
 	}}
+}
+
+// isAssignLHS reports whether `n` (typically a GETPROP) sits on the
+// LHS of an enclosing ASSIGN. The ILLEGAL_PROPERTY_CREATION check
+// only fires for struct-instance writes, not reads.
+func isAssignLHS(n *rhino.Node) bool {
+	p := n.Parent()
+	if p == nil {
+		return false
+	}
+	if p.Token() != rhino.ASSIGN {
+		return false
+	}
+	return p.FirstChild() == n
+}
+
+// insideOwnConstructor reports whether `n` is lexically inside a
+// @constructor function whose Instance matches `obj`. Java allows
+// `this.newProp = x` inside the struct's own ctor body even though
+// the surface is otherwise sealed.
+func insideOwnConstructor(n *rhino.Node, obj *jstype.ObjectType) bool {
+	for cur := n.Parent(); cur != nil; cur = cur.Parent() {
+		if cur.Token() != rhino.FUNCTION {
+			continue
+		}
+		info := cur.JSDocInfo()
+		if info == nil || !info.IsConstructor() {
+			continue
+		}
+		nameKid := cur.FirstChild()
+		if nameKid == nil || nameKid.String_() == "" {
+			continue
+		}
+		if nameKid.String_() == obj.Name {
+			return true
+		}
+	}
+	return false
 }
 
 // visitReturn validates `return <expr>;` against the enclosing
