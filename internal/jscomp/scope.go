@@ -885,6 +885,34 @@ func (c *TypedScopeCreator) recordPrototypeAssign(a *rhino.Node, scope *TypedSco
 	}
 	memberType := c.inferPrototypeValueType(a.JSDocInfo(), rhs, scope)
 	fn.Instance.DefineProperty(propName, memberType)
+	// Bind `this` = Instance inside the method body so `this.x`
+	// resolves to a slot lookup on Foo. Java's TypedScopeCreator
+	// hooks the same thisType onto the method's FunctionType;
+	// we stamp it on the expression-function's scope directly.
+	if rhs.Token() == rhino.FUNCTION {
+		info := a.JSDocInfo()
+		var ptypes []jstype.JSType
+		params := rhs.Children()
+		if len(params) >= 2 {
+			for _, p := range params[1].Children() {
+				var t jstype.JSType = jstype.Unknown
+				if info != nil {
+					if expr := info.ParameterType(p.String_()); expr != nil {
+						t = scope.ResolveExpr(expr.TypeName)
+					}
+				}
+				ptypes = append(ptypes, t)
+			}
+		}
+		c.Functions[rhs] = c.buildMethodScope(rhs, fn.Instance, scope, ptypes)
+		// Sweep the body for additional `this.<slot> = …` writes.
+		// Matches how Java's TypedScopeCreator walks every prototype
+		// method, not just the constructor — any `this.X = V` inside
+		// a proto method also defines `X` on the Instance.
+		if len(params) >= 3 {
+			c.collectThisProperties(params[2], fn.Instance)
+		}
+	}
 }
 
 // recordNamespaceAssign handles `/** @type {T} */ owner.prop = …`

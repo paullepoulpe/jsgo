@@ -87,9 +87,42 @@ func NewTypeCheckWithOptions(path string, creator *TypedScopeCreator, global *Ty
 func (c *TypeCheck) Check(script *rhino.Node) []diag.Diagnostic {
 	c.diags = nil
 	c.installFlow(script, c.global)
+	c.collectPropertyWrites(script)
 	trav := NewNodeTraversal(c, c.creator, c.global)
 	trav.Traverse(script)
 	return c.diags
+}
+
+// collectPropertyWrites walks the script once before TypeCheck
+// runs, registering every `X.prop = …` where X resolves to a
+// nominal ObjectType. Java's TypedScopeCreator does this during
+// its own traversal; jsgo runs it here so every later
+// visitGetProp read has the full property surface available.
+// Only extends open (non-struct / non-structural) types — sealed
+// receivers keep their declared surface so the INEXISTENT /
+// ILLEGAL checks stay accurate.
+func (c *TypeCheck) collectPropertyWrites(n *rhino.Node) {
+	if n == nil {
+		return
+	}
+	if n.Token() == rhino.ASSIGN {
+		kids := n.Children()
+		if len(kids) >= 2 && kids[0].Token() == rhino.GETPROP {
+			propKids := kids[0].Children()
+			if len(propKids) >= 2 {
+				recv := propKids[0]
+				if recv.Token() != rhino.THIS {
+					infer := NewTypeInference(c.global)
+					recvType := stripNullUndef(infer.InferType(recv))
+					propName := propKids[1].String_()
+					defineOnOpenObject(recvType, propName)
+				}
+			}
+		}
+	}
+	for _, ch := range n.Children() {
+		c.collectPropertyWrites(ch)
+	}
 }
 
 // installFlow builds the CFG + DataFlowAnalysis for `root` (a
@@ -852,12 +885,16 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 	// Broader INEXISTENT_PROPERTY: fire on structural (@record /
 	// @interface) receivers, on @struct nominal classes (sealed
 	// property surface by design), and on the known-surface
-	// builtin types we ship concrete slot maps for. Other
-	// nominal types stay quiet — Java allows
-	// `(new Foo).newProp = 1;` to implicitly extend the
-	// instance map.
+	// builtin types we ship concrete slot maps for. For plain
+	// @constructor types without @struct, Java still fires on
+	// `this.prop` READS inside a prototype method — the
+	// missing-this-slot case — but allows writes on instance
+	// values outside the constructor to implicitly extend the
+	// surface.
 	if !obj.IsStructural && !obj.IsStruct && !isKnownSurfaceBuiltin(obj.Name) {
-		return nil
+		if !isThisReceiverRead(n) {
+			return nil
+		}
 	}
 	msg := fmt.Sprintf("Property %s never defined on %s", propName, obj.TypeName())
 	if c.inexistentReported == nil {
@@ -868,6 +905,21 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 		Path: c.path, Line: propNode.Lineno(), Col: propNode.Charno(),
 		Code: diag.JSC_INEXISTENT_PROPERTY, Level: diag.Error, Message: msg,
 	}}
+}
+
+// isThisReceiverRead reports whether `n` is a `this.prop` READ —
+// i.e. the GETPROP's receiver is `this` and the parent isn't an
+// ASSIGN with `n` as LHS. Java fires INEXISTENT_PROPERTY on this
+// pattern even for bare @constructor classes (non-struct).
+func isThisReceiverRead(n *rhino.Node) bool {
+	kids := n.Children()
+	if len(kids) < 1 {
+		return false
+	}
+	if kids[0].Token() != rhino.THIS {
+		return false
+	}
+	return !isAssignLHS(n)
 }
 
 // isAssignLHS reports whether `n` (typically a GETPROP) sits on the
@@ -1142,6 +1194,34 @@ func isKnownSurfaceBuiltin(name string) bool {
 		return true
 	}
 	return false
+}
+
+// defineOnOpenObject registers `prop` on every non-struct,
+// non-structural ObjectType reachable through `t` (direct,
+// Templatized, or union member). Used so `X.prop = …` assignments
+// extend the instance's property surface, matching Java's
+// "add to slot map on assign" behaviour.
+func defineOnOpenObject(t jstype.JSType, prop string) {
+	if t == nil {
+		return
+	}
+	if u, ok := t.(*jstype.UnionType); ok {
+		for _, m := range u.Members() {
+			defineOnOpenObject(m, prop)
+		}
+		return
+	}
+	obj := dereferencedObject(t)
+	if obj == nil || obj.Name == "" {
+		return
+	}
+	if obj.IsStruct || obj.IsStructural {
+		return
+	}
+	if obj.HasProperty(prop) {
+		return
+	}
+	obj.DefineProperty(prop, jstype.Unknown)
 }
 
 // dereferencedObject returns the ObjectType behind a templatized
