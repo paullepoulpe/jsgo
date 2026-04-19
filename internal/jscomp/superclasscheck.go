@@ -22,6 +22,7 @@ package jscomp
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/diag"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -186,6 +187,28 @@ func (s *SuperclassCheck) validateImplements(reportAt *rhino.Node, ctorName stri
 		return
 	}
 	inst := ctor.Instance
+	// Detect duplicate @implements — Java fires
+	// JSC_SAME_INTERFACE_MULTIPLE_IMPLEMENTS when the same
+	// interface name appears twice (ignoring template args).
+	seenIface := map[string]bool{}
+	for _, expr := range impls {
+		base := expr.TypeName
+		// Strip template-arg suffix when present.
+		if lt := strings.Index(base, "<"); lt > 0 {
+			base = base[:lt]
+		}
+		// Strip `!` / `?` nullability markers.
+		base = strings.TrimLeft(base, "!?")
+		if seenIface[base] {
+			s.diags = append(s.diags, diag.Diagnostic{
+				Path: s.path, Line: reportAt.Lineno(), Col: reportAt.Charno(),
+				Code: diag.JSC_SAME_INTERFACE_MULTIPLE_IMPLEMENTS, Level: diag.Error,
+				Message: "Cannot @implement the same interface more than once\nRepeated interface: " + base,
+			})
+			continue
+		}
+		seenIface[base] = true
+	}
 	for _, expr := range impls {
 		iface := s.scope.LookupNominalType(expr.TypeName)
 		if iface == nil {
