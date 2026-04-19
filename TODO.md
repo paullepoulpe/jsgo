@@ -4,12 +4,12 @@ Living list of remaining work, grounded in (a) per-file audit of jsgo
 against the corresponding Java sources, and (b) bucket-by-oracle-code
 triage of the 698 failing fixtures in the extracted corpus.
 
-**Current state:** 760 / 1444 = **52.63 %** extracted pass rate under
-the default diagnostic set, 684 / 1444 = **47.37 %** under
+**Current state:** 768 / 1444 = **53.19 %** extracted pass rate under
+the default diagnostic set, 692 / 1444 = **47.92 %** under
 `strictCheckTypes`. Tier-0 through Tier-3 hand-authored corpora all
 100 %.
 
-**Goal:** 80 %+ ≈ 1155 extracted passes. Gap: **+395** on default
+**Goal:** 80 %+ ≈ 1155 extracted passes. Gap: **+387** on default
 (≈ 27 % of the corpus).
 
 ## Triage snapshot (current failing buckets)
