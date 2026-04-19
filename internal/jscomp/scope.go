@@ -663,13 +663,37 @@ func (c *TypedScopeCreator) buildExpressionFunctionScope(fn *rhino.Node, parent 
 		return
 	}
 	info := fn.JSDocInfo()
+	nameNode := kids[0]
 	params := kids[1]
+	// Named function expression with a VAR parent — promote the
+	// VAR's @param / @return JSDoc so the named binding carries
+	// the declared signature inside its own body. Anonymous FEEs
+	// stay JSDoc-less to avoid flow-insensitive return-type FPs
+	// on corpus code that relies on narrowing. Matches Java's
+	// NodeUtil.getBestJSDocInfo for the `var foo = function bar()`
+	// pattern specifically.
+	if info == nil && nameNode != nil && nameNode.String_() != "" {
+		if p := fn.Parent(); p != nil && p.Token() == rhino.NAME {
+			if gp := p.Parent(); gp != nil {
+				switch gp.Token() {
+				case rhino.VAR, rhino.LET, rhino.CONST, rhino.ASSIGN:
+					info = gp.JSDocInfo()
+				}
+			}
+		}
+	}
 	local := &TypedScope{
 		parent:      parent,
 		declared:    make(map[string]jstype.JSType),
 		typeAliases: make(map[string]jstype.JSType),
 		registry:    c.registry,
 	}
+	// Named function expression: `var foo = function bar(){ bar() }`
+	// binds `bar` inside the body so recursion + self-reference
+	// works. Matches Java's AbstractScope.declareFunction. Build a
+	// FunctionType carrying the declared @param / @return so bar's
+	// call-sites type-check.
+	var paramTypes []jstype.JSType
 	for _, p := range params.Children() {
 		var t jstype.JSType = jstype.Unknown
 		if info != nil {
@@ -677,7 +701,17 @@ func (c *TypedScopeCreator) buildExpressionFunctionScope(fn *rhino.Node, parent 
 				t = parent.ResolveExpr(expr.TypeName)
 			}
 		}
+		paramTypes = append(paramTypes, t)
 		local.declared[p.String_()] = t
+	}
+	if nameNode != nil && nameNode.String_() != "" {
+		var retType jstype.JSType = jstype.Void
+		if info != nil {
+			if r := info.ReturnType(); r != nil {
+				retType = parent.ResolveExpr(r.TypeName)
+			}
+		}
+		local.declared[nameNode.String_()] = jstype.NewFunctionType(paramTypes, retType)
 	}
 	c.Functions[fn] = local
 	if len(kids) >= 3 {
