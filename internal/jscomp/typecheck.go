@@ -740,12 +740,27 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 	propNode := kids[1]
 	propName := propNode.String_()
 	infer := NewTypeInference(scope)
-	recvType := infer.InferType(kids[0])
+	rawRecv := infer.InferType(kids[0])
+	// `null.X` / `undefined.X` are runtime TypeErrors — Java's
+	// TypeCheck fires "No properties on this expression" at the
+	// property name. Report before stripNullUndef so a union
+	// with a non-null member (the ordinary nullable receiver
+	// case) still flows through the INEXISTENT_PROPERTY rules
+	// below.
+	if rawRecv == jstype.Null || rawRecv == jstype.Void {
+		return []diag.Diagnostic{{
+			Path: c.path, Line: propNode.Lineno(), Col: propNode.Charno(),
+			Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
+			Message: fmt.Sprintf(
+				"No properties on this expression\nfound   : %s\nrequired: Object",
+				rawRecv.TypeName()),
+		}}
+	}
 	// Closure's legacy-mode default makes `Foo` nullable — so a
 	// receiver of type `Foo|null` should still be property-checked
 	// against Foo. Strip the null/void members of a union so the
 	// INEXISTENT_PROPERTY / ILLEGAL_PROPERTY_ACCESS checks still fire.
-	recvType = stripNullUndef(recvType)
+	recvType := stripNullUndef(rawRecv)
 	// Enum member access: `E.FOO` with FOO absent from E's member
 	// set fires JSC_INEXISTENT_ENUM_ELEMENT. Runs before the
 	// ObjectType branch because an EnumType isn't an ObjectType.
