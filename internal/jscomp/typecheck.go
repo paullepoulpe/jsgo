@@ -791,16 +791,16 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 			Message: fmt.Sprintf("element %s does not exist on this enum", propName),
 		}}
 	}
-	obj := dereferencedObject(recvType)
-	if obj == nil {
-		return nil
-	}
-	if obj.IsDict {
+	if isDictReceiver(recvType) {
 		return []diag.Diagnostic{{
 			Path: c.path, Line: propNode.Lineno(), Col: propNode.Charno(),
 			Code: diag.JSC_ILLEGAL_PROPERTY_ACCESS, Level: diag.Error,
 			Message: "Cannot do '.' access on a dict",
 		}}
+	}
+	obj := dereferencedObject(recvType)
+	if obj == nil {
+		return nil
 	}
 	if obj.Name == "" {
 		return nil
@@ -1036,12 +1036,11 @@ func dereferencedObject(t jstype.JSType) *jstype.ObjectType {
 	return nil
 }
 
-// isStructReceiver reports whether `t` is @struct — either a bare
-// ObjectType with IsStruct set, or a union whose every member
-// satisfies the same predicate. Java's JSType.allMatchesStruct
-// computes this the same way for the `x['prop']` access check:
-// firing on a union of structs is desired, firing on a union with
-// a non-struct member isn't.
+// isStructReceiver reports whether `t` is (or contains) a @struct
+// ObjectType. Java's `x['prop']` check fires whenever ANY member
+// of a union is @struct — the union promises a struct is possible
+// at runtime, and bypassing the access check there would let the
+// program sneak in a bad lookup via the union's other arm.
 func isStructReceiver(t jstype.JSType) bool {
 	if t == nil {
 		return false
@@ -1050,15 +1049,29 @@ func isStructReceiver(t jstype.JSType) bool {
 		return obj.IsStruct
 	}
 	if u, ok := t.(*jstype.UnionType); ok {
-		if len(u.Members()) == 0 {
-			return false
-		}
 		for _, m := range u.Members() {
-			if !isStructReceiver(m) {
-				return false
+			if isStructReceiver(m) {
+				return true
 			}
 		}
-		return true
+	}
+	return false
+}
+
+// isDictReceiver is the @dict mirror of isStructReceiver.
+func isDictReceiver(t jstype.JSType) bool {
+	if t == nil {
+		return false
+	}
+	if obj := dereferencedObject(t); obj != nil {
+		return obj.IsDict
+	}
+	if u, ok := t.(*jstype.UnionType); ok {
+		for _, m := range u.Members() {
+			if isDictReceiver(m) {
+				return true
+			}
+		}
 	}
 	return false
 }
