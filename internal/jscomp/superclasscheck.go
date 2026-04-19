@@ -68,6 +68,9 @@ func (s *SuperclassCheck) walk(n *rhino.Node) {
 		if a := n.FirstChild(); a != nil && a.Token() == rhino.ASSIGN {
 			s.checkPrototypeAssign(n, a)
 		}
+		if gp := n.FirstChild(); gp != nil && gp.Token() == rhino.GETPROP {
+			s.checkPrototypeStub(n, gp)
+		}
 	}
 	for _, c := range n.Children() {
 		s.walk(c)
@@ -429,6 +432,111 @@ func allInterfaceProperties(iface *jstype.ObjectType) []string {
 			out = append(out, name)
 		}
 	}
+	return out
+}
+
+// checkPrototypeStub handles the stub form `X.prototype.name;` with
+// a `/** @type {T} */` JSDoc. Fires JSC_HIDDEN_SUPERCLASS /
+// INTERFACE_PROPERTY_MISMATCH when the stub's declared type
+// conflicts with a super / @implements slot of the same name.
+func (s *SuperclassCheck) checkPrototypeStub(stmt *rhino.Node, gp *rhino.Node) {
+	kids := gp.Children()
+	if len(kids) < 2 {
+		return
+	}
+	inner := kids[0]
+	propName := kids[1].String_()
+	propNode := kids[1]
+	if inner.Token() != rhino.GETPROP {
+		return
+	}
+	innerKids := inner.Children()
+	if len(innerKids) < 2 {
+		return
+	}
+	if innerKids[0].Token() != rhino.NAME || innerKids[1].String_() != "prototype" {
+		return
+	}
+	ownerName := innerKids[0].String_()
+	fn, ok := s.scope.GetRawDeclaredType(ownerName).(*jstype.FunctionType)
+	if !ok || fn.Instance == nil {
+		return
+	}
+	info := stmt.JSDocInfo()
+	if info == nil {
+		info = gp.JSDocInfo()
+	}
+	if info == nil || !info.HasType() {
+		return
+	}
+	overrideType := s.scope.ResolveExpr(info.Type().TypeName)
+	if overrideType == nil {
+		return
+	}
+	// Superclass slot. Use HIDDEN_INTERFACE when the owner itself is
+	// an interface (so the super chain is all interfaces) or when
+	// the super is structural.
+	if super := fn.Instance.Super(); super != nil {
+		if slot := super.GetPropertyType(propName); slot != nil && !jstype.IsSubtype(overrideType, slot) {
+			if fn.Instance.IsStructural || super.IsStructural {
+				s.diags = append(s.diags, diag.Diagnostic{
+					Path: s.path, Line: propNode.Lineno(), Col: propNode.Charno(),
+					Code: diag.JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH, Level: diag.Error,
+					Message: fmt.Sprintf(
+						"mismatch of the %s property on type %s and the type of the property it overrides from interface %s\noriginal: %s\noverride: %s",
+						propName, ownerName, super.TypeName(), slot.TypeName(), overrideType.TypeName()),
+				})
+			} else {
+				s.diags = append(s.diags, diag.Diagnostic{
+					Path: s.path, Line: propNode.Lineno(), Col: propNode.Charno(),
+					Code: diag.JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH, Level: diag.Error,
+					Message: fmt.Sprintf(
+						"mismatch of the %s property type and the type of the property it overrides from superclass %s\noriginal: %s\noverride: %s",
+						propName, super.TypeName(), slot.TypeName(), overrideType.TypeName()),
+				})
+			}
+			return
+		}
+	}
+	// Transitive base interfaces — only when the owner is a class /
+	// @constructor @implements some iface, OR the owner is an
+	// interface with additional @extends parents beyond the direct
+	// Super chain.
+	bases := baseInterfaceInstances(fn.Instance)
+	for _, iface := range bases {
+		slot := iface.GetPropertyType(propName)
+		if slot == nil || jstype.IsSubtype(overrideType, slot) {
+			continue
+		}
+		s.diags = append(s.diags, diag.Diagnostic{
+			Path: s.path, Line: propNode.Lineno(), Col: propNode.Charno(),
+			Code: diag.JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH, Level: diag.Error,
+			Message: fmt.Sprintf(
+				"mismatch of the %s property on type %s and the type of the property it overrides from interface %s\noriginal: %s\noverride: %s",
+				propName, ownerName, iface.TypeName(), slot.TypeName(), overrideType.TypeName()),
+		})
+		return
+	}
+}
+
+// baseInterfaceInstances returns every super InstanceType reachable
+// through `obj`'s @extends chain (for interfaces, a single chain is
+// typical; for multi-extends interfaces we return each parent).
+func baseInterfaceInstances(obj *jstype.ObjectType) []*jstype.ObjectType {
+	var out []*jstype.ObjectType
+	seen := map[*jstype.ObjectType]bool{}
+	var walk func(o *jstype.ObjectType)
+	walk = func(o *jstype.ObjectType) {
+		if o == nil || seen[o] {
+			return
+		}
+		seen[o] = true
+		if s := o.Super(); s != nil && s.IsStructural {
+			out = append(out, s)
+			walk(s)
+		}
+	}
+	walk(obj)
 	return out
 }
 
