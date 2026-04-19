@@ -592,8 +592,17 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 		}
 		msg := fmt.Sprintf("assignment to property %s of %s\nfound   : %s\nrequired: %s",
 			propName, ownerName, found.TypeName(), declared.TypeName())
+		// Report at the enclosing EXPR_RESULT's column — Java
+		// points at the statement's start, so parenthesized
+		// receivers line up (`(new F).x_ = 3` → col 0 not the
+		// `.x_` column). Falls back to the LHS when the ASSIGN
+		// is nested inside a larger expression.
+		line, col := lhs.Lineno(), lhs.Charno()
+		if p := a.Parent(); p != nil && p.Token() == rhino.EXPR_RESULT {
+			line, col = p.Lineno(), p.Charno()
+		}
 		return []diag.Diagnostic{{
-			Path: c.path, Line: lhs.Lineno(), Col: lhs.Charno(),
+			Path: c.path, Line: line, Col: col,
 			Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error, Message: msg,
 		}}
 	}
