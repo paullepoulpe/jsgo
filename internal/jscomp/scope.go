@@ -1820,6 +1820,17 @@ func (c *TypedScopeCreator) collectThisProperties(node *rhino.Node, inst *jstype
 						if !isJSUnknown(declared) {
 							t = declared
 						}
+					} else {
+						// No @type — infer from the RHS literal when we
+						// can. Only upgrade when the slot doesn't already
+						// have a real type (keeps @type-declared slots
+						// authoritative).
+						existing := inst.GetPropertyType(prop.String_())
+						if existing == nil || isJSUnknown(existing) {
+							t = literalType(kids[1])
+						} else {
+							t = existing
+						}
 					}
 					inst.DefineProperty(prop.String_(), t)
 				}
@@ -1851,6 +1862,28 @@ func (c *TypedScopeCreator) collectThisProperties(node *rhino.Node, inst *jstype
 	for _, k := range node.Children() {
 		c.collectThisProperties(k, inst)
 	}
+}
+
+// literalType returns the JSType of a literal or simple RHS node.
+// Used by collectThisProperties to sharpen `this.x = <lit>` slot
+// types when no @type JSDoc is present.
+func literalType(n *rhino.Node) jstype.JSType {
+	if n == nil {
+		return jstype.Unknown
+	}
+	switch n.Token() {
+	case rhino.NUMBER:
+		return jstype.Number
+	case rhino.STRINGLIT:
+		return jstype.String
+	case rhino.TRUE, rhino.FALSE:
+		return jstype.Boolean
+	case rhino.NULL:
+		return jstype.Null
+	case rhino.UNDEFINED:
+		return jstype.Void
+	}
+	return jstype.Unknown
 }
 
 func isDeclToken(t rhino.Token) bool {
