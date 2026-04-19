@@ -1439,7 +1439,7 @@ func isDefinitelyNotNumber(t jstype.JSType) bool {
 		return false
 	}
 	switch t {
-	case jstype.Void, jstype.Null, jstype.Boolean, jstype.String:
+	case jstype.Void, jstype.Null, jstype.Boolean:
 		return true
 	}
 	return false
