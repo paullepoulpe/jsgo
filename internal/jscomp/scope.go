@@ -37,6 +37,11 @@ type TypedScope struct {
 	// carries AssignmentInferrer-discovered slot declarations on
 	// a parallel map.
 	namespaceProps map[string]map[string]jstype.JSType
+	// namespacePropNodes mirrors namespaceProps with the AST node
+	// that carried the declaring JSDoc, used to produce the
+	// cross-referencing position on JSC_DUP_VAR_DECLARATION_TYPE
+	// _MISMATCH diagnostics.
+	namespacePropNodes map[string]map[string]*rhino.Node
 	// typeAliases carry `@typedef` declarations — a parallel namespace
 	// to value bindings. ResolveExpr checks this before the nominal
 	// / primitive registry.
@@ -151,14 +156,32 @@ func (s *TypedScope) LookupNamespaceProp(owner, prop string) jstype.JSType {
 }
 
 // recordNamespaceProp remembers `owner.prop : t` on this scope.
-func (s *TypedScope) recordNamespaceProp(owner, prop string, t jstype.JSType) {
+// Returns the first-declaration node when this call overrides an
+// existing entry — callers use that node to emit the "original
+// definition at …" cross-reference on
+// JSC_DUP_VAR_DECLARATION_TYPE_MISMATCH diagnostics.
+func (s *TypedScope) recordNamespaceProp(owner, prop string, t jstype.JSType, at *rhino.Node) *rhino.Node {
 	if s.namespaceProps == nil {
 		s.namespaceProps = map[string]map[string]jstype.JSType{}
 	}
 	if s.namespaceProps[owner] == nil {
 		s.namespaceProps[owner] = map[string]jstype.JSType{}
 	}
+	var firstNode *rhino.Node
+	if s.namespacePropNodes != nil && s.namespacePropNodes[owner] != nil {
+		firstNode = s.namespacePropNodes[owner][prop]
+	}
 	s.namespaceProps[owner][prop] = t
+	if s.namespacePropNodes == nil {
+		s.namespacePropNodes = map[string]map[string]*rhino.Node{}
+	}
+	if s.namespacePropNodes[owner] == nil {
+		s.namespacePropNodes[owner] = map[string]*rhino.Node{}
+	}
+	if firstNode == nil {
+		s.namespacePropNodes[owner][prop] = at
+	}
+	return firstNode
 }
 
 // LookupEnum returns the EnumType associated with `name` in this
@@ -765,6 +788,7 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 			// stub-declared interface methods.
 			if inner != nil && inner.Token() == rhino.GETPROP {
 				c.recordPrototypeStub(child, inner, scope)
+				c.recordNamespaceStub(child, inner, scope)
 			}
 		}
 	}
@@ -905,7 +929,52 @@ func (c *TypedScopeCreator) recordNamespaceAssign(a *rhino.Node, scope *TypedSco
 		return
 	}
 	declared := scope.ResolveExpr(info.Type().TypeName)
-	scope.recordNamespaceProp(ownerName, propName, declared)
+	scope.recordNamespaceProp(ownerName, propName, declared, lhsKids[1])
+}
+
+// namespacePropNode returns the AST node (typically the property
+// STRING_KEY) that carried the first `/** @type {T} */` namespace
+// declaration for `owner.prop`. Nil when none exists. Consumed by
+// the DUP_VAR_DECLARATION_TYPE_MISMATCH diagnostic.
+func (s *TypedScope) namespacePropNode(owner, prop string) *rhino.Node {
+	if s == nil {
+		return nil
+	}
+	if m, ok := s.namespacePropNodes[owner]; ok {
+		if n, ok := m[prop]; ok {
+			return n
+		}
+	}
+	return s.parent.namespacePropNode(owner, prop)
+}
+
+// recordNamespaceStub handles the `owner.prop;` stub form — an
+// EXPR_RESULT carrying a bare two-segment GETPROP with a @type
+// JSDoc. Matches the assignment form's behaviour, used for Closure
+// library-style type declarations that don't assign a value.
+func (c *TypedScopeCreator) recordNamespaceStub(stmt *rhino.Node, getprop *rhino.Node, scope *TypedScope) {
+	info := stmt.JSDocInfo()
+	if info == nil {
+		info = getprop.JSDocInfo()
+	}
+	if info == nil || !info.HasType() {
+		return
+	}
+	kids := getprop.Children()
+	if len(kids) < 2 {
+		return
+	}
+	recv := kids[0]
+	if recv.Token() != rhino.NAME {
+		return
+	}
+	ownerName := recv.String_()
+	if _, ok := scope.GetDeclaredType(ownerName).(*jstype.FunctionType); ok {
+		return
+	}
+	propName := kids[1].String_()
+	declared := scope.ResolveExpr(info.Type().TypeName)
+	scope.recordNamespaceProp(ownerName, propName, declared, kids[1])
 }
 
 // recordPrototypeStub handles the `X.prototype.name;` stub-
