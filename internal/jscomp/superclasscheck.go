@@ -475,9 +475,12 @@ func (s *SuperclassCheck) checkPrototypeStub(stmt *rhino.Node, gp *rhino.Node) {
 	}
 	// Superclass slot. Use HIDDEN_INTERFACE when the owner itself is
 	// an interface (so the super chain is all interfaces) or when
-	// the super is structural.
+	// the super is structural. Data-field overrides on concrete
+	// classes pass through without complaint — Java defers type-
+	// mismatch to use-site checks for non-function slots.
 	if super := fn.Instance.Super(); super != nil {
-		if slot := super.GetPropertyType(propName); slot != nil && !jstype.IsSubtype(overrideType, slot) {
+		slot := super.GetPropertyType(propName)
+		if slot != nil && !jstype.IsSubtype(overrideType, slot) && isFunctionTypeSlot(slot) {
 			if fn.Instance.IsStructural || super.IsStructural {
 				s.diags = append(s.diags, diag.Diagnostic{
 					Path: s.path, Line: propNode.Lineno(), Col: propNode.Charno(),
@@ -517,6 +520,20 @@ func (s *SuperclassCheck) checkPrototypeStub(stmt *rhino.Node, gp *rhino.Node) {
 		})
 		return
 	}
+}
+
+// isFunctionTypeSlot reports whether the slot's declared type is
+// itself a function. Used to narrow the override-type-mismatch
+// check to method slots; data-field overrides are accepted by
+// Java in default mode.
+func isFunctionTypeSlot(t jstype.JSType) bool {
+	if t == nil {
+		return false
+	}
+	if _, ok := t.(*jstype.FunctionType); ok {
+		return true
+	}
+	return false
 }
 
 // baseInterfaceInstances returns every super InstanceType reachable
@@ -583,7 +600,7 @@ func (s *SuperclassCheck) checkPrototypeAssign(stmt *rhino.Node, assign *rhino.N
 	// Superclass slot (via @extends chain).
 	if super := fn.Instance.Super(); super != nil {
 		if slot := super.GetPropertyType(propName); slot != nil {
-			if !jstype.IsSubtype(overrideType, slot) {
+			if !overrideCompatible(overrideType, slot) {
 				s.diags = append(s.diags, diag.Diagnostic{
 					Path:  s.path,
 					Line:  stmt.Lineno(),
@@ -603,7 +620,7 @@ func (s *SuperclassCheck) checkPrototypeAssign(stmt *rhino.Node, assign *rhino.N
 		if slot == nil {
 			continue
 		}
-		if jstype.IsSubtype(overrideType, slot) {
+		if overrideCompatible(overrideType, slot) {
 			continue
 		}
 		s.diags = append(s.diags, diag.Diagnostic{
@@ -617,6 +634,44 @@ func (s *SuperclassCheck) checkPrototypeAssign(stmt *rhino.Node, assign *rhino.N
 		})
 		return
 	}
+}
+
+// overrideCompatible reports whether `override` is a valid
+// Java-style override of `slot`. Delegates to IsSubtype, but
+// relaxes the check for FunctionTypes so an override with
+// *fewer* parameters (Java's "extra params are OK to drop")
+// still matches. Java's actual compatibility logic is more
+// nuanced — we approximate by accepting any overlapping
+// param-prefix whose types match.
+func overrideCompatible(override, slot jstype.JSType) bool {
+	if jstype.IsSubtype(override, slot) {
+		return true
+	}
+	of, ok := override.(*jstype.FunctionType)
+	if !ok {
+		return false
+	}
+	sf, ok := slot.(*jstype.FunctionType)
+	if !ok {
+		return false
+	}
+	// Override with fewer params is acceptable to Java so long
+	// as every overlapping param has a compatible type. Return
+	// type must still be a subtype.
+	if len(of.Params) > len(sf.Params) {
+		return false
+	}
+	for i := range of.Params {
+		if !jstype.IsSubtype(of.Params[i], sf.Params[i]) {
+			return false
+		}
+	}
+	if sf.Return != nil && of.Return != nil {
+		if !jstype.IsSubtype(of.Return, sf.Return) {
+			return false
+		}
+	}
+	return true
 }
 
 // implementedInstances returns the interface instance types declared
