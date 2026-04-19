@@ -769,13 +769,18 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 			Message: "Cannot do '.' access on a dict",
 		}}
 	}
-	if !obj.IsStructural {
-		return nil
-	}
 	if obj.Name == "" {
 		return nil
 	}
 	if obj.HasProperty(propName) {
+		return nil
+	}
+	// Broader INEXISTENT_PROPERTY: fire on structural (@record /
+	// @interface) receivers, and on @struct nominal classes
+	// (sealed property surface by design). Other nominal types
+	// stay quiet — Java allows `(new Foo).newProp = 1;` to
+	// implicitly extend the instance map.
+	if !obj.IsStructural && !obj.IsStruct {
 		return nil
 	}
 	msg := fmt.Sprintf("Property %s never defined on %s", propName, obj.TypeName())
