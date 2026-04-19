@@ -27,6 +27,16 @@ import (
 type TypedScope struct {
 	parent   *TypedScope
 	declared map[string]jstype.JSType
+	// namespaceProps tracks `/** @type {T} */ obj.prop = …`
+	// declarations on plain-object bindings (`var goog = {}`).
+	// Keyed by owner-name → property-name → declared type. Kept
+	// separate from `declared` so the binding's own slot stays
+	// Unknown (avoiding FPs on the original `{}` initializer),
+	// while downstream assignments / reads can still honour the
+	// declared property type. Mirrors how Java's TypedScopeCreator
+	// carries AssignmentInferrer-discovered slot declarations on
+	// a parallel map.
+	namespaceProps map[string]map[string]jstype.JSType
 	// typeAliases carry `@typedef` declarations — a parallel namespace
 	// to value bindings. ResolveExpr checks this before the nominal
 	// / primitive registry.
@@ -123,6 +133,32 @@ func (s *TypedScope) LookupTypeAlias(name string) jstype.JSType {
 		return t
 	}
 	return s.parent.LookupTypeAlias(name)
+}
+
+// LookupNamespaceProp returns the type declared for `owner.prop`
+// via a `/** @type {T} */ owner.prop = …` statement earlier in
+// the scope chain. Returns nil when no such declaration exists.
+func (s *TypedScope) LookupNamespaceProp(owner, prop string) jstype.JSType {
+	if s == nil {
+		return nil
+	}
+	if m, ok := s.namespaceProps[owner]; ok {
+		if t, ok := m[prop]; ok {
+			return t
+		}
+	}
+	return s.parent.LookupNamespaceProp(owner, prop)
+}
+
+// recordNamespaceProp remembers `owner.prop : t` on this scope.
+func (s *TypedScope) recordNamespaceProp(owner, prop string, t jstype.JSType) {
+	if s.namespaceProps == nil {
+		s.namespaceProps = map[string]map[string]jstype.JSType{}
+	}
+	if s.namespaceProps[owner] == nil {
+		s.namespaceProps[owner] = map[string]jstype.JSType{}
+	}
+	s.namespaceProps[owner][prop] = t
 }
 
 // LookupEnum returns the EnumType associated with `name` in this
@@ -720,6 +756,7 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 			inner := child.FirstChild()
 			if inner != nil && inner.Token() == rhino.ASSIGN {
 				c.recordPrototypeAssign(inner, scope)
+				c.recordNamespaceAssign(inner, scope)
 			}
 			// `Foo.prototype.bar;` stub-declaration — Java treats
 			// this as declaring `bar` on Foo's instance (type
@@ -824,6 +861,51 @@ func (c *TypedScopeCreator) recordPrototypeAssign(a *rhino.Node, scope *TypedSco
 	}
 	memberType := c.inferPrototypeValueType(a.JSDocInfo(), rhs, scope)
 	fn.Instance.DefineProperty(propName, memberType)
+}
+
+// recordNamespaceAssign handles `/** @type {T} */ owner.prop = …`
+// declarations — bare two-segment GETPROP assignments whose
+// receiver is a known binding in this scope chain. Records `T`
+// as owner.prop in the scope's namespaceProps map so later reads
+// and assigns can consult it. Skips the prototype-assign form
+// (already handled by recordPrototypeAssign) and static class
+// properties (handled by their owning FunctionType's Instance
+// slots).
+func (c *TypedScopeCreator) recordNamespaceAssign(a *rhino.Node, scope *TypedScope) {
+	info := a.JSDocInfo()
+	if info == nil || !info.HasType() {
+		return
+	}
+	kids := a.Children()
+	if len(kids) < 2 {
+		return
+	}
+	lhs := kids[0]
+	if lhs.Token() != rhino.GETPROP {
+		return
+	}
+	lhsKids := lhs.Children()
+	if len(lhsKids) < 2 {
+		return
+	}
+	recv := lhsKids[0]
+	if recv.Token() != rhino.NAME {
+		return
+	}
+	// Skip the `X.prototype.Y` form — recordPrototypeAssign owns it.
+	if recv.Token() == rhino.GETPROP {
+		return
+	}
+	propName := lhsKids[1].String_()
+	ownerName := recv.String_()
+	// Skip when the owner is a known constructor (FunctionType) —
+	// that's a static-property assignment and Java routes those
+	// through the constructor's Instance.defineStaticProperty.
+	if _, ok := scope.GetDeclaredType(ownerName).(*jstype.FunctionType); ok {
+		return
+	}
+	declared := scope.ResolveExpr(info.Type().TypeName)
+	scope.recordNamespaceProp(ownerName, propName, declared)
 }
 
 // recordPrototypeStub handles the `X.prototype.name;` stub-

@@ -207,6 +207,11 @@ func (t *TypeInference) inferGetProp(n *rhino.Node) jstype.JSType {
 			// references quiet here; the INEXISTENT_ENUM_ELEMENT
 			// diagnostic fires in TypeCheck.visitGetProp.
 		}
+		// Namespace property declared via
+		// `/** @type {T} */ owner.prop = …`.
+		if np := t.scope.LookupNamespaceProp(recv.String_(), propName); np != nil {
+			return np
+		}
 	}
 	recvType := t.InferType(recv)
 	if tplt, ok := recvType.(*jstype.TemplatizedType); ok {

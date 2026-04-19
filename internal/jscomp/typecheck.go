@@ -575,6 +575,14 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 				}
 			}
 		}
+		if declared == nil && recv.Token() == rhino.NAME {
+			// `/** @type {T} */ goog.foo = …` namespace-property
+			// declaration made via recordNamespaceAssign.
+			if t := scope.LookupNamespaceProp(recv.String_(), propName); t != nil {
+				declared = t
+				ownerName = recv.String_()
+			}
+		}
 		if declared == nil {
 			obj, ok := infer.InferType(recv).(*jstype.ObjectType)
 			if !ok {
