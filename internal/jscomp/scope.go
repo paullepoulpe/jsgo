@@ -919,6 +919,15 @@ func (c *TypedScopeCreator) recordPrototypeAssign(a *rhino.Node, scope *TypedSco
 	}
 	memberType := c.inferPrototypeValueType(a.JSDocInfo(), rhs, scope)
 	fn.Instance.DefineProperty(propName, memberType)
+	// Literal-inferred prototype slots (no @type) don't participate
+	// in the subclass-override type-match check — Java treats them
+	// as open surface in default mode.
+	info := a.JSDocInfo()
+	if (info == nil || !info.HasType()) && rhs.Token() != rhino.FUNCTION {
+		if t := literalType(rhs); !isJSUnknown(t) {
+			fn.Instance.MarkInferred(propName)
+		}
+	}
 	// Bind `this` = Instance inside the method body so `this.x`
 	// resolves to a slot lookup on Foo. Java's TypedScopeCreator
 	// hooks the same thisType onto the method's FunctionType;
@@ -1181,6 +1190,12 @@ func (c *TypedScopeCreator) inferPrototypeValueType(info *rhino.JSDocInfo, rhs *
 	}
 	if info != nil && info.HasType() {
 		return scope.ResolveExpr(info.Type().TypeName)
+	}
+	// Data slot without @type — infer from the RHS literal if we
+	// can. Java's AssignmentInferrer flows the primitive type onto
+	// the prototype's slot for later @return-style checks.
+	if t := literalType(rhs); !isJSUnknown(t) {
+		return t
 	}
 	return jstype.Unknown
 }

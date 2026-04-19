@@ -599,6 +599,9 @@ func (s *SuperclassCheck) checkPrototypeAssign(stmt *rhino.Node, assign *rhino.N
 	}
 	// Superclass slot (via @extends chain).
 	if super := fn.Instance.Super(); super != nil {
+		if super.IsPropertyInferred(propName) {
+			return
+		}
 		if slot := super.GetPropertyType(propName); slot != nil {
 			if !overrideCompatible(overrideType, slot) {
 				s.diags = append(s.diags, diag.Diagnostic{
