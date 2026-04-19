@@ -110,15 +110,27 @@ func collectRefinements(scope *TypedScope, cond *rhino.Node, whenTruthy bool, ou
 		return
 	}
 	if name, primName, equal := typeofCheckTarget(cond); name != "" {
-		prim := primitiveByName(primName)
-		if prim == nil {
-			return
-		}
 		t := scope.GetDeclaredType(name)
 		if t == nil {
 			return
 		}
 		matchesPositive := equal == whenTruthy
+		// `typeof x == 'object'` is a special case — narrows to
+		// null plus object-ish members on the truthy branch, and
+		// strips those on the falsy branch. Matches Java's
+		// SemanticReverseAbstractInterpreter's 'object' case.
+		if primName == "object" {
+			if matchesPositive {
+				out[name] = keepObjectish(t)
+			} else if narrowed := stripObjectish(t); narrowed != nil {
+				out[name] = narrowed
+			}
+			return
+		}
+		prim := primitiveByName(primName)
+		if prim == nil {
+			return
+		}
 		if matchesPositive {
 			out[name] = keepMember(t, prim)
 		} else if narrowed := removeMember(t, prim); narrowed != nil {

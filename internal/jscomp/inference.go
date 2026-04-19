@@ -481,9 +481,13 @@ func narrowingTarget(cond *rhino.Node, whenTruthy bool) (string, func(jstype.JST
 		return name, stripNullUndef
 	}
 	if name, primName, equal := typeofCheckTarget(cond); name != "" {
-		// `typeof x === 'string'` truthy → x is string; falsy →
-		// x is the union without string.
 		matchesPositive := equal == whenTruthy
+		if primName == "object" {
+			if matchesPositive {
+				return name, keepObjectish
+			}
+			return name, stripObjectish
+		}
 		prim := primitiveByName(primName)
 		if prim == nil {
 			return "", nil
@@ -621,6 +625,71 @@ func keepMember(t, target jstype.JSType) jstype.JSType {
 		return t
 	}
 	return target
+}
+
+// keepObjectish narrows `t` to the members whose `typeof` would
+// return 'object' — null and every ObjectType / TemplatizedType /
+// UnionType member. Used by the `typeof x == 'object'` refinement.
+func keepObjectish(t jstype.JSType) jstype.JSType {
+	if u, ok := t.(*jstype.UnionType); ok {
+		var kept []jstype.JSType
+		for _, m := range u.Members() {
+			if isObjectishMember(m) {
+				kept = append(kept, m)
+			}
+		}
+		if len(kept) == 0 {
+			return nil
+		}
+		if len(kept) == 1 {
+			return kept[0]
+		}
+		return jstype.NewUnion(kept...)
+	}
+	if isObjectishMember(t) {
+		return t
+	}
+	return nil
+}
+
+// stripObjectish returns `t` with all object-ish members removed.
+// Used by the `typeof x != 'object'` falsy-branch refinement.
+func stripObjectish(t jstype.JSType) jstype.JSType {
+	if u, ok := t.(*jstype.UnionType); ok {
+		var kept []jstype.JSType
+		for _, m := range u.Members() {
+			if !isObjectishMember(m) {
+				kept = append(kept, m)
+			}
+		}
+		if len(kept) == 0 {
+			return nil
+		}
+		if len(kept) == 1 {
+			return kept[0]
+		}
+		return jstype.NewUnion(kept...)
+	}
+	if isObjectishMember(t) {
+		return nil
+	}
+	return t
+}
+
+// isObjectishMember reports whether `t` would evaluate `typeof t ==
+// 'object'` to true — null, any ObjectType, any TemplatizedType,
+// any EnumElementType over an object underlying.
+func isObjectishMember(t jstype.JSType) bool {
+	if t == jstype.Null {
+		return true
+	}
+	if _, ok := t.(*jstype.ObjectType); ok {
+		return true
+	}
+	if _, ok := t.(*jstype.TemplatizedType); ok {
+		return true
+	}
+	return false
 }
 
 // removeMember returns `t` minus `target`. Returns nil when nothing
