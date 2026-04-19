@@ -712,10 +712,11 @@ func (c *TypeCheck) visitCall(node *rhino.Node, scope *TypedScope) []diag.Diagno
 		if jstype.IsSubtype(found, param) {
 			continue
 		}
+		line, col := diagPosForArg(arg)
 		msg := fmt.Sprintf("actual parameter %d of %s does not match formal parameter\nfound   : %s\nrequired: %s",
 			i+1, calleeName, found.TypeName(), param.TypeName())
 		out = append(out, diag.Diagnostic{
-			Path: c.path, Line: arg.Lineno(), Col: arg.Charno(),
+			Path: c.path, Line: line, Col: col,
 			Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error, Message: msg,
 		})
 	}
@@ -815,8 +816,9 @@ func (c *TypeCheck) visitReturn(ret *rhino.Node, scope *TypedScope) []diag.Diagn
 	}
 	msg := fmt.Sprintf("inconsistent return type\nfound   : %s\nrequired: %s",
 		found.TypeName(), declared.TypeName())
+	line, col := diagPosForArg(retExpr)
 	return []diag.Diagnostic{{
-		Path: c.path, Line: retExpr.Lineno(), Col: retExpr.Charno(),
+		Path: c.path, Line: line, Col: col,
 		Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error, Message: msg,
 	}}
 }
@@ -878,6 +880,21 @@ func describeCallee(n *rhino.Node) string {
 		return "this"
 	}
 	return "<fn>"
+}
+
+// diagPosForArg returns the (line, col) pair jsgo reports for a
+// call-site argument diagnostic. Java's TypeCheck uses the
+// rightmost segment of a GETPROP chain (`a.b.c` reports at `c`);
+// for everything else the node's own position is used.
+func diagPosForArg(n *rhino.Node) (int, int) {
+	if n != nil && n.Token() == rhino.GETPROP {
+		kids := n.Children()
+		if len(kids) >= 2 {
+			prop := kids[1]
+			return prop.Lineno(), prop.Charno()
+		}
+	}
+	return n.Lineno(), n.Charno()
 }
 
 // findEnclosingFunction walks Node parent links to the nearest
