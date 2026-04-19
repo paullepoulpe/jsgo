@@ -35,6 +35,13 @@ type TypeCheck struct {
 	opts    *CompilerOptions
 	diags   []diag.Diagnostic
 
+	// inexistentReported dedups JSC_INEXISTENT_PROPERTY emissions
+	// across the script — Java fires the diagnostic only once per
+	// (receiver, property) pair even when the program references
+	// the missing slot multiple times. Keeps message quality high
+	// without tracking per-guard refinement state.
+	inexistentReported map[string]bool
+
 	// flows maps each function / script root to its computed
 	// DataFlowAnalysis, built lazily as the traversal enters the
 	// function. statementAtNode maps a CFG-statement AST node to its
@@ -823,6 +830,11 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 	if obj.HasProperty(propName) {
 		return nil
 	}
+	// Dedup across the script.
+	key := obj.TypeName() + "." + propName
+	if c.inexistentReported[key] {
+		return nil
+	}
 	// Broader INEXISTENT_PROPERTY: fire on structural (@record /
 	// @interface) receivers, on @struct nominal classes (sealed
 	// property surface by design), and on the known-surface
@@ -834,6 +846,10 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 		return nil
 	}
 	msg := fmt.Sprintf("Property %s never defined on %s", propName, obj.TypeName())
+	if c.inexistentReported == nil {
+		c.inexistentReported = map[string]bool{}
+	}
+	c.inexistentReported[key] = true
 	return []diag.Diagnostic{{
 		Path: c.path, Line: propNode.Lineno(), Col: propNode.Charno(),
 		Code: diag.JSC_INEXISTENT_PROPERTY, Level: diag.Error, Message: msg,
