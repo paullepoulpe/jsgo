@@ -1442,8 +1442,13 @@ func (p *Parser) tryPrimary() (*rhino.Node, bool) {
 		}
 		return p.tryParen()
 	}
+	fnLine, fnCol := p.scanner.Line(), p.scanner.Col()
 	if p.scanner.ConsumeKeyword("function") {
-		return p.finishFunction(nil)
+		fn, ok := p.finishFunction(nil)
+		if fn != nil {
+			fn.SetPos(fnLine, fnCol)
+		}
+		return fn, ok
 	}
 	c := p.scanner.Peek()
 	switch {

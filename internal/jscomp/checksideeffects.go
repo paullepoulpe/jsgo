@@ -62,11 +62,14 @@ func (c *CheckSideEffects) walk(n *rhino.Node) {
 // the outer form is fully pure.
 func (c *CheckSideEffects) reportUseless(stmt, expr *rhino.Node, top bool) {
 	pure := !hasSideEffects(expr)
-	if pure && top {
-		c.emitAt(stmt)
-	} else if pure {
+	if pure {
+		// Report at the expression's own position (the `function`
+		// keyword for a paren-wrapped FUNCTION, the operator for a
+		// binary/unary form) — matches how Java's CheckSideEffects
+		// derives the reporting node from NodeUtil.findLhs.
 		c.emitAt(expr)
 	}
+	_ = stmt
 	// Recurse into short-circuit / ternary branches so Java's
 	// per-branch pure-RHS warnings still fire even when the outer
 	// statement was already flagged.
@@ -123,9 +126,14 @@ func isDeclarationStatement(stmt *rhino.Node) bool {
 	// `/** @param {T} x */ obj.prop;` / `/** @return {T} */
 	// obj.prop;` declare the callable signature of a prototype
 	// slot without an explicit value. Java's CheckSideEffects
-	// treats these as declarations too.
+	// treats these as declarations too — but only when the inner
+	// expression is a property access. A top-level FUNCTION /
+	// paren-wrapped FUNCTION with the same JSDoc is still a
+	// useless-expression statement (the function is never called).
 	if info.ReturnType() != nil || len(info.ParameterNames()) > 0 {
-		return true
+		if inner := stmt.FirstChild(); inner != nil && inner.Token() == rhino.GETPROP {
+			return true
+		}
 	}
 	return false
 }
