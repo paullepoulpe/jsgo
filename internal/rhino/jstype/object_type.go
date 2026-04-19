@@ -167,6 +167,18 @@ func (o *ObjectType) HasProperty(name string) bool {
 // still empty.
 func (o *ObjectType) MemberCount() int { return len(o.members) }
 
+// MemberNames returns the set of directly-declared member names on
+// this type. Caller owns the slice; iteration order is undefined.
+// Used by passes that need to fan out over an interface's properties
+// (e.g. JSC_INTERFACE_METHOD_NOT_IMPLEMENTED).
+func (o *ObjectType) MemberNames() []string {
+	out := make([]string, 0, len(o.members))
+	for k := range o.members {
+		out = append(out, k)
+	}
+	return out
+}
+
 // SetSuper wires the @extends chain. Called by TypedScopeCreator when
 // it processes `@extends {Base}` on a constructor.
 func (o *ObjectType) SetSuper(s *ObjectType) { o.super = s }

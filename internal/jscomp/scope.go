@@ -717,8 +717,17 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 			//   Foo.prototype.bar = function(…) {…};
 			// Register `bar` on Foo's InstanceType so later property
 			// access + call-site checks can see it.
-			if a := child.FirstChild(); a != nil && a.Token() == rhino.ASSIGN {
-				c.recordPrototypeAssign(a, scope)
+			inner := child.FirstChild()
+			if inner != nil && inner.Token() == rhino.ASSIGN {
+				c.recordPrototypeAssign(inner, scope)
+			}
+			// `Foo.prototype.bar;` stub-declaration — Java treats
+			// this as declaring `bar` on Foo's instance (type
+			// inferred from @type JSDoc when present, else
+			// Unknown). Used so `@implements` checks pick up
+			// stub-declared interface methods.
+			if inner != nil && inner.Token() == rhino.GETPROP {
+				c.recordPrototypeStub(child, inner, scope)
 			}
 		}
 	}
@@ -815,6 +824,59 @@ func (c *TypedScopeCreator) recordPrototypeAssign(a *rhino.Node, scope *TypedSco
 	}
 	memberType := c.inferPrototypeValueType(a.JSDocInfo(), rhs, scope)
 	fn.Instance.DefineProperty(propName, memberType)
+}
+
+// recordPrototypeStub handles the `X.prototype.name;` stub-
+// declaration form: an EXPR_RESULT whose child is a GETPROP
+// walking `X.prototype.name`. Registers `name` on X's InstanceType
+// at the @type-annotated slot (or Unknown when no JSDoc), matching
+// how Java's TypedScopeCreator lifts these stubs into the scope so
+// `@implements` + property-existence checks see them.
+func (c *TypedScopeCreator) recordPrototypeStub(stmt *rhino.Node, getprop *rhino.Node, scope *TypedScope) {
+	kids := getprop.Children()
+	if len(kids) < 2 {
+		return
+	}
+	inner := kids[0]
+	propName := kids[1].String_()
+	if inner.Token() != rhino.GETPROP {
+		return
+	}
+	innerKids := inner.Children()
+	if len(innerKids) < 2 {
+		return
+	}
+	if innerKids[0].Token() != rhino.NAME || innerKids[1].String_() != "prototype" {
+		return
+	}
+	ownerName := innerKids[0].String_()
+	fn, ok := scope.declared[ownerName].(*jstype.FunctionType)
+	if !ok || fn.Instance == nil {
+		return
+	}
+	if fn.Instance.GetPropertyType(propName) != nil {
+		return // already declared by a prior assign
+	}
+	var t jstype.JSType = jstype.Unknown
+	if info := stmt.JSDocInfo(); info != nil {
+		if info.HasType() {
+			t = scope.ResolveExpr(info.Type().TypeName)
+		} else if info.ReturnType() != nil || len(info.ParameterNames()) > 0 {
+			// `/** @return {T} */ X.prototype.m;` — stubbed method.
+			var paramTypes []jstype.JSType
+			for _, n := range info.ParameterNames() {
+				if expr := info.ParameterType(n); expr != nil {
+					paramTypes = append(paramTypes, scope.ResolveExpr(expr.TypeName))
+				}
+			}
+			var ret jstype.JSType = jstype.Unknown
+			if info.ReturnType() != nil {
+				ret = scope.ResolveExpr(info.ReturnType().TypeName)
+			}
+			t = jstype.NewFunctionType(paramTypes, ret)
+		}
+	}
+	fn.Instance.DefineProperty(propName, t)
 }
 
 // inferPrototypeValueType computes the member type for a

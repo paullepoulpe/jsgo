@@ -54,6 +54,10 @@ func (s *SuperclassCheck) walk(n *rhino.Node) {
 	switch n.Token() {
 	case rhino.CLASS:
 		s.checkClass(n)
+	case rhino.FUNCTION:
+		s.checkFunctionImplements(n)
+	case rhino.VAR, rhino.LET, rhino.CONST:
+		s.checkDeclaredConstructorImplements(n)
 	case rhino.EXPR_RESULT:
 		if a := n.FirstChild(); a != nil && a.Token() == rhino.ASSIGN {
 			s.checkPrototypeAssign(n, a)
@@ -62,6 +66,97 @@ func (s *SuperclassCheck) walk(n *rhino.Node) {
 	for _, c := range n.Children() {
 		s.walk(c)
 	}
+}
+
+// checkFunctionImplements walks an AST FUNCTION declaration and,
+// when it carries @constructor + @implements {Foo, Bar, …}, emits
+// JSC_INTERFACE_METHOD_NOT_IMPLEMENTED for each interface property
+// the constructor's instance doesn't implement (directly or
+// through its @extends chain). Mirrors TypeCheck's
+// validateImplements loop.
+func (s *SuperclassCheck) checkFunctionImplements(fn *rhino.Node) {
+	info := fn.JSDocInfo()
+	if !info.IsConstructor() {
+		return
+	}
+	kids := fn.Children()
+	if len(kids) < 1 {
+		return
+	}
+	nameNode := kids[0]
+	if nameNode.String_() == "" {
+		return
+	}
+	s.validateImplements(fn, nameNode.String_(), info)
+}
+
+// checkDeclaredConstructorImplements handles the
+// `/** @constructor @implements {Foo} */ var Bar = function(){}`
+// form — JSDoc is on the VAR, not on the inner FUNCTION.
+func (s *SuperclassCheck) checkDeclaredConstructorImplements(v *rhino.Node) {
+	info := v.JSDocInfo()
+	if !info.IsConstructor() {
+		return
+	}
+	nameNode := v.FirstChild()
+	if nameNode == nil || nameNode.Token() != rhino.NAME || nameNode.String_() == "" {
+		return
+	}
+	s.validateImplements(v, nameNode.String_(), info)
+}
+
+// validateImplements verifies `ctorName` implements every property
+// each of its @implements interfaces declares. Emits one
+// JSC_INTERFACE_METHOD_NOT_IMPLEMENTED per missing property. The
+// diagnostic position matches Java's — at the constructor
+// declaration node's starting column.
+func (s *SuperclassCheck) validateImplements(reportAt *rhino.Node, ctorName string, info *rhino.JSDocInfo) {
+	impls := info.Implementations()
+	if len(impls) == 0 {
+		return
+	}
+	ctor, ok := s.scope.GetRawDeclaredType(ctorName).(*jstype.FunctionType)
+	if !ok || ctor.Instance == nil {
+		return
+	}
+	inst := ctor.Instance
+	for _, expr := range impls {
+		iface := s.scope.LookupNominalType(expr.TypeName)
+		if iface == nil {
+			continue
+		}
+		// Walk the interface's full property set (its own members
+		// plus any inherited via @extends {Other}).
+		for _, propName := range allInterfaceProperties(iface) {
+			if inst.GetPropertyType(propName) != nil {
+				continue
+			}
+			s.diags = append(s.diags, diag.Diagnostic{
+				Path: s.path, Line: reportAt.Lineno(), Col: reportAt.Charno(),
+				Code: diag.JSC_INTERFACE_METHOD_NOT_IMPLEMENTED, Level: diag.Error,
+				Message: fmt.Sprintf(
+					"property %s on interface %s is not implemented by type %s",
+					propName, iface.TypeName(), ctorName),
+			})
+		}
+	}
+}
+
+// allInterfaceProperties returns every property name declared on
+// `iface` or reachable through its super chain, deduplicated.
+func allInterfaceProperties(iface *jstype.ObjectType) []string {
+	seen := map[string]bool{}
+	var out []string
+	for cur := iface; cur != nil; cur = cur.Super() {
+		for _, name := range cur.MemberNames() {
+			if seen[name] {
+				continue
+			}
+			seen[name] = true
+			out = append(out, name)
+		}
+	}
+	return out
 }
 
 // checkPrototypeAssign handles `X.prototype.name = rhs;`. When X has

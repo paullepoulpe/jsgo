@@ -92,11 +92,24 @@ func (p *Parser) tryStatement() (*rhino.Node, bool) {
 		p.scanner.SkipTrivia()
 	}
 
+	// Capture the `function` / `class` keyword's position so the
+	// resulting FUNCTION / CLASS node has a stable lineno/charno
+	// matching Java (passes like SuperclassCheck report at the
+	// declaration's start column).
+	kwLine, kwCol := p.scanner.Line(), p.scanner.Col()
 	if p.scanner.ConsumeKeyword("function") {
-		return p.finishFunction(jsdoc)
+		fn, ok := p.finishFunction(jsdoc)
+		if fn != nil {
+			fn.SetPos(kwLine, kwCol)
+		}
+		return fn, ok
 	}
 	if p.scanner.ConsumeKeyword("class") {
-		return p.finishClass(jsdoc)
+		cls, ok := p.finishClass(jsdoc)
+		if cls != nil {
+			cls.SetPos(kwLine, kwCol)
+		}
+		return cls, ok
 	}
 	if declToken, ok := p.consumeDeclKeyword(); ok {
 		return p.finishDeclStatement(declToken, jsdoc)

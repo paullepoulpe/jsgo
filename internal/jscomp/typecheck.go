@@ -404,9 +404,10 @@ func (c *TypeCheck) visitVar(v *rhino.Node, scope *TypedScope) []diag.Diagnostic
 	if name == nil || name.Token() != rhino.NAME {
 		return nil
 	}
+	var out []diag.Diagnostic
 	init := name.FirstChild()
 	if init == nil {
-		return nil
+		return out
 	}
 	// `/** @enum */ var E = {FOO: 1, ...}` — the VAR's declared
 	// type is the EnumType, but the init is an OBJECTLIT that
@@ -417,24 +418,25 @@ func (c *TypeCheck) visitVar(v *rhino.Node, scope *TypedScope) []diag.Diagnostic
 	// routes `@enum` initializers through EnumType's own
 	// validateEnumInit helper rather than the assignment rule.
 	if info := v.JSDocInfo(); info.IsEnum() {
-		return c.visitEnumInit(name, init, scope)
+		return append(out, c.visitEnumInit(name, init, scope)...)
 	}
 	declared := scope.GetDeclaredType(name.String_())
 	if declared == nil {
-		return nil
+		return out
 	}
 	infer := NewTypeInference(scope)
 	found := infer.InferType(init)
 	if jstype.IsSubtype(found, declared) {
-		return nil
+		return out
 	}
 	msg := fmt.Sprintf("initializing variable\nfound   : %s\nrequired: %s",
 		found.TypeName(), declared.TypeName())
-	return []diag.Diagnostic{{
+	return append(out, diag.Diagnostic{
 		Path: c.path, Line: init.Lineno(), Col: init.Charno(),
 		Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error, Message: msg,
-	}}
+	})
 }
+
 
 // visitEnumInit validates a `/** @enum [{T}] */ var E = init`
 // declaration. Three cases mirror Java's EnumType initialisation:
