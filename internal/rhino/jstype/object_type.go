@@ -142,10 +142,15 @@ func (o *ObjectType) IsSubtypeOf(other JSType) bool {
 	if target.IsStructural {
 		// Structural: self must have each of target's declared
 		// properties with a compatible type. Walks the super chain so
-		// inherited members count.
+		// inherited members count. A target property whose type
+		// includes undefined is optional — the source is allowed to
+		// omit it entirely.
 		for pname, ptype := range target.members {
 			srcType := o.GetPropertyType(pname)
 			if srcType == nil {
+				if containsVoid(ptype) {
+					continue
+				}
 				return false
 			}
 			if !IsSubtype(srcType, ptype) {
@@ -222,6 +227,24 @@ func (o *ObjectType) SetSuper(s *ObjectType) { o.super = s }
 // Super returns the immediate superclass instance type (as wired by
 // SetSuper) or nil at the root of the chain.
 func (o *ObjectType) Super() *ObjectType { return o.super }
+
+// containsVoid reports whether `t` is (or is a union containing)
+// the Void primitive. Used by the structural-subtype check to
+// treat record-type properties with `{…: (T|undefined)}` as
+// optional on the source side. Java's JSType.isExplicitlyVoidable.
+func containsVoid(t JSType) bool {
+	if t == Void {
+		return true
+	}
+	if u, ok := t.(*UnionType); ok {
+		for _, m := range u.members {
+			if containsVoid(m) {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 // String is for diagnostics; matches Java's PrototypeObjectType.toString
 // shape closely enough that the message column of jsgo output is
