@@ -759,8 +759,16 @@ func (c *TypeCheck) visitCall(node *rhino.Node, scope *TypedScope) []diag.Diagno
 	callee := kids[0]
 	args := kids[1:]
 	infer := NewTypeInference(scope)
-	fn, ok := infer.InferType(callee).(*jstype.FunctionType)
+	calleeType := infer.InferType(callee)
+	fn, ok := calleeType.(*jstype.FunctionType)
 	if !ok {
+		if node.Token() == rhino.CALL && isDefinitelyNotCallable(calleeType) {
+			return []diag.Diagnostic{{
+				Path: c.path, Line: node.Lineno(), Col: node.Charno(),
+				Code: diag.JSC_NOT_FUNCTION_TYPE, Level: diag.Error,
+				Message: fmt.Sprintf("%s expressions are not callable", calleeType.TypeName()),
+			}}
+		}
 		return nil
 	}
 	var out []diag.Diagnostic
@@ -1386,6 +1394,35 @@ func bitOpSymbol(t rhino.Token) string {
 		return "^"
 	}
 	return "?"
+}
+
+// isDefinitelyNotCallable reports whether `t` is a type that can
+// never be a function at runtime. Primitives (number, string,
+// boolean, null, void) qualify; a union does iff every member is
+// non-callable. Unknown / All stay callable-ambiguous.
+func isDefinitelyNotCallable(t jstype.JSType) bool {
+	if t == nil {
+		return false
+	}
+	if t == jstype.Unknown || t == jstype.All {
+		return false
+	}
+	switch t {
+	case jstype.Number, jstype.String, jstype.Boolean, jstype.Null, jstype.Void:
+		return true
+	}
+	if u, ok := t.(*jstype.UnionType); ok {
+		for _, m := range u.Members() {
+			if _, isFn := m.(*jstype.FunctionType); isFn {
+				return false
+			}
+			if obj := dereferencedObject(m); obj != nil && obj.Name == "Function" {
+				return false
+			}
+		}
+		return true
+	}
+	return false
 }
 
 // isDefinitelyNotNumber reports whether `t` is a primitive type
