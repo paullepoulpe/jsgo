@@ -394,6 +394,8 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitForIn(n, scope))
 	case rhino.LSH, rhino.RSH, rhino.URSH, rhino.BITAND, rhino.BITOR, rhino.BITXOR:
 		c.emit(c.visitBitOp(n, scope))
+	case rhino.FUNCTION:
+		c.emit(c.visitFunctionParams(n, scope))
 	}
 	// Strict-mode operand checks — OFF by default, matching Java.
 	// These fire only when `--jscomp_warning=strictCheckTypes` is set.
@@ -1355,6 +1357,46 @@ func (c *TypeCheck) visitThis(n *rhino.Node, scope *TypedScope) []diag.Diagnosti
 // the comparison always yields a known value and Java emits at
 // the whole expression's column. `===` / `!==` use a separate
 // code (not yet ported).
+// visitFunctionParams fires JSC_INEXISTENT_PARAM when a @param
+// JSDoc names a parameter that doesn't appear in the function's
+// actual parameter list. Java reports at the FUNCTION keyword's
+// column.
+func (c *TypeCheck) visitFunctionParams(fn *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	info := fn.JSDocInfo()
+	if info == nil {
+		return nil
+	}
+	names := info.ParameterNames()
+	if len(names) == 0 {
+		return nil
+	}
+	kids := fn.Children()
+	if len(kids) < 2 {
+		return nil
+	}
+	params := kids[1]
+	paramSet := map[string]bool{}
+	for _, p := range params.Children() {
+		paramSet[p.String_()] = true
+	}
+	fnName := kids[0].String_()
+	if fnName == "" {
+		fnName = "<anonymous>"
+	}
+	var out []diag.Diagnostic
+	for _, name := range names {
+		if paramSet[name] {
+			continue
+		}
+		out = append(out, diag.Diagnostic{
+			Path: c.path, Line: fn.Lineno(), Col: fn.Charno(),
+			Code: diag.JSC_INEXISTENT_PARAM, Level: diag.Error,
+			Message: fmt.Sprintf("parameter %s does not appear in %s's parameter list", name, fnName),
+		})
+	}
+	return out
+}
+
 // visitBitOp fires JSC_BAD_TYPE_FOR_BIT_OPERATION when either
 // operand of a bitwise operator (`<<`, `>>`, `>>>`, `&`, `|`,
 // `^`) is definitely not a number. Java's TypeCheck rejects
