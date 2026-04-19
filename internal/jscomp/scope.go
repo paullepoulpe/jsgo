@@ -1791,6 +1791,28 @@ func (c *TypedScopeCreator) collectThisProperties(node *rhino.Node, inst *jstype
 				}
 			}
 		}
+		// Stub form: `/** @type {T} */ this.prop;` (no RHS). Java's
+		// TypedScopeCreator records this as a property declaration on
+		// the enclosing instance. Matches how @record / @interface
+		// classes define their surface via constructor-body stubs.
+		if gp := node.FirstChild(); gp != nil && gp.Token() == rhino.GETPROP {
+			gpKids := gp.Children()
+			if len(gpKids) >= 2 && gpKids[0].Token() == rhino.THIS {
+				propName := gpKids[1].String_()
+				var t jstype.JSType = jstype.Unknown
+				info := node.JSDocInfo()
+				if info == nil {
+					info = gp.JSDocInfo()
+				}
+				if info != nil && info.HasType() {
+					declared := jstype.NewRegistry().ResolveExpr(info.Type().TypeName)
+					if !isJSUnknown(declared) {
+						t = declared
+					}
+				}
+				inst.DefineProperty(propName, t)
+			}
+		}
 	}
 	for _, k := range node.Children() {
 		c.collectThisProperties(k, inst)
