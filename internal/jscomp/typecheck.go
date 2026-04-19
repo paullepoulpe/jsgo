@@ -1113,61 +1113,79 @@ func (c *TypeCheck) visitEquality(n *rhino.Node, scope *TypedScope) []diag.Diagn
 	infer := NewTypeInference(scope)
 	l := infer.InferType(kids[0])
 	r := infer.InferType(kids[1])
-	if !disjointForEquality(l, r) {
+	det, equalValue := disjointForEquality(l, r)
+	if !det {
 		return nil
 	}
-	// For `!==` / `!=` disjoint operands the comparison is always
-	// TRUE; everything else flips to FALSE.
-	value := "false"
+	// Compute the final boolean for this operator. `equalValue`
+	// is the result under `==` / `===`; `!=` / `!==` flip it.
+	value := equalValue
 	if n.Token() == rhino.NE || n.Token() == rhino.SHNE {
-		value = "true"
+		value = !value
+	}
+	valueStr := "false"
+	if value {
+		valueStr = "true"
 	}
 	return []diag.Diagnostic{{
 		Path: c.path, Line: n.Lineno(), Col: n.Charno(),
 		Code: diag.JSC_DETERMINISTIC_TEST, Level: diag.Error,
 		Message: fmt.Sprintf(
 			"condition always evaluates to %s\nleft : %s\nright: %s",
-			value, l.TypeName(), r.TypeName()),
+			valueStr, l.TypeName(), r.TypeName()),
 	}}
 }
 
-// disjointForEquality reports whether types `a` and `b` can never
-// be `==`-equal. JS's `==` coerces across number / string / boolean,
-// but function ↔ string / number, symbol ↔ anything-else, etc. are
-// always-false. Conservative: stay silent on Unknown / All / unions
-// that might overlap.
-func disjointForEquality(a, b jstype.JSType) bool {
+// disjointForEquality reports whether types `a` and `b` always
+// produce the same result under `==` / `===` / `!=` / `!==`. JS's
+// `==` coerces across number / string / boolean; function ↔
+// string / number, symbol ↔ anything-else etc. are always-false.
+// Single-inhabitant types (null, undefined) compared against
+// themselves always succeed. Conservative: stay silent on
+// Unknown / All / unions that might overlap.
+//
+// Returns (deterministic, valueIfEqualOperator):
+//   - `deterministic` true when the pair is disjoint OR both
+//     sides are the same single-inhabitant type.
+//   - `valueIfEqualOperator` is the comparison result assuming
+//     the operator is `==` or `===` (`true` for same-singleton,
+//     `false` for disjoint). Callers flip for `!=` / `!==`.
+func disjointForEquality(a, b jstype.JSType) (bool, bool) {
 	if a == nil || b == nil {
-		return false
+		return false, false
 	}
 	if isUnknownOrNil(a) || isUnknownOrNil(b) {
-		return false
+		return false, false
 	}
 	if _, ok := a.(*jstype.UnionType); ok {
-		return false
+		return false, false
 	}
 	if _, ok := b.(*jstype.UnionType); ok {
-		return false
+		return false, false
 	}
 	ka := classifyEquality(a)
 	kb := classifyEquality(b)
 	if ka == eqUnknown || kb == eqUnknown {
-		return false
+		return false, false
 	}
 	if ka == kb {
-		return false
+		// Same single-inhabitant kind → always equal.
+		if ka == eqNull || ka == eqVoid {
+			return true, true
+		}
+		return false, false
 	}
 	// `null == undefined` is true; keep them quiet.
 	if (ka == eqNull && kb == eqVoid) || (ka == eqVoid && kb == eqNull) {
-		return false
+		return false, false
 	}
 	// number / string / boolean coerce to each other under `==`.
 	if isPrimitiveKind(ka) && isPrimitiveKind(kb) {
-		return false
+		return false, false
 	}
 	// Everything else — function/object vs primitive, or distinct
-	// function-vs-object — is always false.
-	return true
+	// function-vs-object — is always false under `==`.
+	return true, false
 }
 
 func isPrimitiveKind(k equalityKind) bool {
