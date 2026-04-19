@@ -67,7 +67,18 @@ func (c *CheckSideEffects) reportUseless(stmt, expr *rhino.Node, top bool) {
 		// keyword for a paren-wrapped FUNCTION, the operator for a
 		// binary/unary form) — matches how Java's CheckSideEffects
 		// derives the reporting node from NodeUtil.findLhs.
-		c.emitAt(expr)
+		if expr.Token() == rhino.GETPROP {
+			// `T.x;` — Java emits a per-operator message at the
+			// property name's column.
+			kids := expr.Children()
+			if len(kids) >= 2 {
+				c.emitOp(kids[1], "getprop")
+			} else {
+				c.emitAt(expr)
+			}
+		} else {
+			c.emitAt(expr)
+		}
 	}
 	_ = stmt
 	// Recurse into short-circuit / ternary branches so Java's
@@ -100,6 +111,20 @@ func (c *CheckSideEffects) emitAt(n *rhino.Node) {
 		Code:    diag.JSC_USELESS_CODE,
 		Level:   diag.Warning,
 		Message: "Suspicious code. This code lacks side-effects. Is there a bug?",
+	})
+}
+
+// emitOp emits the operator-specific "The result of the 'foo'
+// operator is not being used." variant that Java uses for
+// getprop / in / not / etc. top-level expressions.
+func (c *CheckSideEffects) emitOp(n *rhino.Node, op string) {
+	c.diags = append(c.diags, diag.Diagnostic{
+		Path:    c.path,
+		Line:    n.Lineno(),
+		Col:     n.Charno(),
+		Code:    diag.JSC_USELESS_CODE,
+		Level:   diag.Warning,
+		Message: "Suspicious code. The result of the '" + op + "' operator is not being used.",
 	})
 }
 
