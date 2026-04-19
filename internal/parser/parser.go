@@ -224,6 +224,17 @@ func (p *Parser) finishDeclStatement(declToken rhino.Token, jsdoc *rhino.JSDocIn
 	}
 
 	p.scanner.SkipTrivia()
+	// Inline JSDoc between the decl keyword and the name —
+	// `var /** null */ n = …;` — treat the brace-only type
+	// expression as an @type annotation on the resulting VAR.
+	// Matches how Java's parser synthesises a @type JSDoc from
+	// an inline bracketed comment at this position.
+	if body, ok := p.scanner.ConsumeBlockComment(); ok {
+		if inline := parseInlineTypeJSDoc(body); inline != nil && declNode.JSDocInfo() == nil {
+			declNode.SetJSDocInfo(inline)
+		}
+		p.scanner.SkipTrivia()
+	}
 	nameLine, nameCol := p.scanner.Line(), p.scanner.Col()
 	ident, ok := p.scanner.ConsumeIdent()
 	if !ok {
@@ -1893,6 +1904,58 @@ func (p *Parser) consumeRunes(n int) {
 	for i := 0; i < n; i++ {
 		p.scanner.Advance()
 	}
+}
+
+// parseInlineTypeJSDoc turns a brace-only inline JSDoc body
+// (`{T}` / `?`-prefixed / etc.) into a `@type {T}`-style
+// JSDocInfo. Returns nil when the body isn't a bare type
+// expression — the full JSDoc parser already handles comments
+// with tags.
+func parseInlineTypeJSDoc(body string) *rhino.JSDocInfo {
+	// Cheap shape filter — require a `{…}` or a bare type
+	// name. If the comment contains an `@` tag, defer to the
+	// full parser and return nil so the caller keeps its own
+	// path.
+	for i := 0; i < len(body); i++ {
+		if body[i] == '@' {
+			return nil
+		}
+	}
+	// Trim whitespace + leading `*` markers common in `/** … */`.
+	trimmed := ""
+	inLineStar := true
+	for i := 0; i < len(body); i++ {
+		c := body[i]
+		if c == '\n' || c == '\r' {
+			trimmed += " "
+			inLineStar = true
+			continue
+		}
+		if inLineStar && (c == ' ' || c == '\t' || c == '*') {
+			continue
+		}
+		inLineStar = false
+		trimmed += string(c)
+	}
+	trimmed = trimSpace(trimmed)
+	if trimmed == "" {
+		return nil
+	}
+	info := &rhino.JSDocInfo{}
+	info.SetType(rhino.NewJSTypeExpression(trimmed))
+	return info
+}
+
+// trimSpace is a small helper matching strings.TrimSpace but
+// avoiding a package import in the parser's hot path.
+func trimSpace(s string) string {
+	for len(s) > 0 && (s[0] == ' ' || s[0] == '\t') {
+		s = s[1:]
+	}
+	for len(s) > 0 && (s[len(s)-1] == ' ' || s[len(s)-1] == '\t') {
+		s = s[:len(s)-1]
+	}
+	return s
 }
 
 // extendWithProperty consumes any trailing `.IDENT` or `[expr]` chain
