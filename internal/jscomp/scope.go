@@ -1822,12 +1822,13 @@ func (c *TypedScopeCreator) collectThisProperties(node *rhino.Node, inst *jstype
 						}
 					} else {
 						// No @type — infer from the RHS literal when we
-						// can. Only upgrade when the slot doesn't already
-						// have a real type (keeps @type-declared slots
-						// authoritative).
+						// can. Flag as inferred so visitAssign knows to
+						// skip the subtype check on later writes (Java
+						// treats inference-only slots as open).
 						existing := inst.GetPropertyType(prop.String_())
 						if existing == nil || isJSUnknown(existing) {
 							t = literalType(kids[1])
+							inst.MarkInferred(prop.String_())
 						} else {
 							t = existing
 						}

@@ -54,6 +54,13 @@ type ObjectType struct {
 	// JSC_ILLEGAL_PROPERTY_ACCESS at the TypeCheck visitor.
 	IsStruct bool
 	IsDict   bool
+
+	// inferredProps carries property names whose type came from an
+	// RHS literal inference (e.g. `this.x = true`) rather than a
+	// declared @type. TypeCheck's assignment-type mismatch guard
+	// skips inferred properties — Java's default-mode behaviour
+	// allows open reassignment when the slot wasn't @type'd.
+	inferredProps map[string]bool
 }
 
 func NewObjectType(name string) *ObjectType {
@@ -61,7 +68,25 @@ func NewObjectType(name string) *ObjectType {
 		Name:          name,
 		members:       map[string]JSType{},
 		staticMembers: map[string]JSType{},
+		inferredProps: map[string]bool{},
 	}
+}
+
+// MarkInferred flags property `name` as literal-inferred. Callers
+// that register a property type from an RHS literal (rather than
+// an explicit @type annotation) mark it so visitAssign can skip
+// the subtype enforcement on later writes.
+func (o *ObjectType) MarkInferred(name string) {
+	if o.inferredProps == nil {
+		o.inferredProps = map[string]bool{}
+	}
+	o.inferredProps[name] = true
+}
+
+// IsPropertyInferred reports whether `name` was registered via
+// literal inference.
+func (o *ObjectType) IsPropertyInferred(name string) bool {
+	return o.inferredProps[name]
 }
 
 // DefineStaticProperty mirrors ObjectType.defineStaticProperty — puts

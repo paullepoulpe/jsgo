@@ -723,6 +723,12 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 			if declared == nil {
 				return nil
 			}
+			if obj.IsPropertyInferred(propName) {
+				// Slot was inferred from an RHS literal rather than
+				// declared via @type — Java allows open reassignment
+				// for inference-only property surfaces.
+				return nil
+			}
 			ownerName = obj.TypeName()
 		}
 		found := infer.InferType(rhs)
