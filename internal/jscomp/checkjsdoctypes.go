@@ -493,10 +493,18 @@ func (c *CheckJsDocTypes) nameResolves(name string) bool {
 		return true
 	}
 	if strings.Contains(name, ".") {
-		// Dotted chains aren't supported — silently accept. Java
-		// flags these specifically; we stay quiet to avoid FPs on
-		// real closure-library namespaces we don't model.
-		return true
+		// Dotted chain — Java validates that the first segment is a
+		// known namespace binding. We approximate: accept when the
+		// first segment is declared anywhere in source or resolves
+		// as a type / extern. Missing prefix → treat as unknown.
+		first := name[:strings.IndexByte(name, '.')]
+		if first == "" {
+			return true
+		}
+		if c.allNames[first] || c.scope.ResolveExpr(first) != jstype.Unknown || defaultExternNames()[first] {
+			return true
+		}
+		return false
 	}
 	if c.scope.ResolveExpr(name) != jstype.Unknown {
 		return true
