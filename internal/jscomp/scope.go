@@ -1486,6 +1486,26 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 	// path in AbstractScopeBuilder.
 	if (info.IsConstructor() || info.IsInterface() || info.IsRecord()) && name.String_() != "" {
 		init := name.FirstChild()
+		// Constructor alias: `@constructor var Alias = ExistingCtor`.
+		// Java shares the existing ConstructorType so Alias and the
+		// source are interchangeable.
+		if init != nil && init.Token() == rhino.NAME {
+			if src, ok := scope.GetDeclaredType(init.String_()).(*jstype.FunctionType); ok && src.Instance != nil {
+				scope.declared[name.String_()] = src
+				return
+			}
+		}
+		// Non-function init (OBJECTLIT / NUMBER / …) — create a
+		// ConstructorType slot anyway so visitVar's subtype check
+		// fires JSC_TYPE_MISMATCH, and the name stays declared.
+		if init != nil && init.Token() != rhino.FUNCTION {
+			ct := jstype.NewConstructorType(name.String_(), nil)
+			if info.IsInterface() || info.IsRecord() {
+				ct.Instance.IsStructural = true
+			}
+			scope.declared[name.String_()] = ct
+			return
+		}
 		if init != nil && init.Token() == rhino.FUNCTION {
 			fnType := c.buildDeclaredFunctionConstructor(init, info, name.String_(), scope)
 			if info.IsInterface() || info.IsRecord() {
