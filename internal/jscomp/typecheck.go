@@ -1055,6 +1055,33 @@ func isStructReceiver(t jstype.JSType) bool {
 // `DiagnosticGroups.STRICT_CHECK_TYPES` elevates the relevant
 // DiagnosticTypes from OFF to WARNING / ERROR.
 
+// visitThis fires JSC_USED_GLOBAL_THIS when a `this` keyword
+// appears outside a method / constructor / class context (i.e.
+// the global object). Mirrors TypeCheck.java's visitThis branch.
+func (c *TypeCheck) visitThis(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	if scope.ThisType() != nil {
+		return nil
+	}
+	// Walk ancestors looking for a FUNCTION / CLASS that would
+	// bind `this` at runtime. Arrow functions don't bind this,
+	// but @this JSDoc does — both checked via the enclosing
+	// function's JSDocInfo.
+	for cur := n.Parent(); cur != nil; cur = cur.Parent() {
+		if cur.Token() == rhino.FUNCTION {
+			// Non-arrow FUNCTION binds this implicitly; we stay
+			// quiet even when we don't know the bound type.
+			if !cur.GetBooleanProp(rhino.PropArrowFn) {
+				return nil
+			}
+		}
+	}
+	return []diag.Diagnostic{{
+		Path: c.path, Line: n.Lineno(), Col: n.Charno(),
+		Code: diag.JSC_USED_GLOBAL_THIS, Level: diag.Error,
+		Message: "dangerous use of the global this object",
+	}}
+}
+
 // visitEquality ports the JSC_DETERMINISTIC_TEST branch of
 // TypeCheck.visitBinaryOp: when the two operands of `==` / `!=`
 // can never compare equal — disjoint primitive slot types —
