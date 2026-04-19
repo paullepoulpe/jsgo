@@ -42,6 +42,12 @@ type TypeCheck struct {
 	// without tracking per-guard refinement state.
 	inexistentReported map[string]bool
 
+	// fileSuppressions carries any @fileoverview @suppress {...}
+	// names captured pre-traversal. visitGetProp / visitReturn /
+	// etc. consult it to skip diagnostics the author opted out
+	// of file-wide.
+	fileSuppressions map[string]bool
+
 	// flows maps each function / script root to its computed
 	// DataFlowAnalysis, built lazily as the traversal enters the
 	// function. statementAtNode maps a CFG-statement AST node to its
@@ -88,9 +94,37 @@ func (c *TypeCheck) Check(script *rhino.Node) []diag.Diagnostic {
 	c.diags = nil
 	c.installFlow(script, c.global)
 	c.collectPropertyWrites(script)
+	c.fileSuppressions = collectFileSuppressions(script)
 	trav := NewNodeTraversal(c, c.creator, c.global)
 	trav.Traverse(script)
 	return c.diags
+}
+
+// collectFileSuppressions walks the script's JSDoc blocks for any
+// @fileoverview / stand-alone @suppress declarations and returns
+// the union of their suppression names. Mirrors Java's
+// CompilerPass.skipForSuppressedPath filter — diagnostics whose
+// code matches a file-level suppression are dropped silently.
+func collectFileSuppressions(script *rhino.Node) map[string]bool {
+	out := map[string]bool{}
+	var walk func(n *rhino.Node)
+	walk = func(n *rhino.Node) {
+		if n == nil {
+			return
+		}
+		if info := n.JSDocInfo(); info != nil {
+			for _, name := range []string{"missingProperties", "checkTypes", "duplicate", "undefinedVars"} {
+				if info.HasSuppression(name) {
+					out[name] = true
+				}
+			}
+		}
+		for _, c := range n.Children() {
+			walk(c)
+		}
+	}
+	walk(script)
+	return out
 }
 
 // collectPropertyWrites walks the script once before TypeCheck
@@ -111,10 +145,27 @@ func (c *TypeCheck) collectPropertyWrites(n *rhino.Node) {
 			propKids := kids[0].Children()
 			if len(propKids) >= 2 {
 				recv := propKids[0]
-				if recv.Token() != rhino.THIS {
+				propName := propKids[1].String_()
+				if recv.Token() == rhino.THIS {
+					// Subclass constructor body: `this.X = V` inside
+					// a `@constructor @extends {Foo}` function adds
+					// X to Foo's surface too. Java's type-inference
+					// propagates the write up the extends chain for
+					// read-site validation.
+					if enc := findEnclosingFunction(n); enc != nil {
+						if info := enc.JSDocInfo(); info != nil && info.IsConstructor() {
+							if base := info.BaseType(); base != nil {
+								if super := c.global.LookupNominalType(base.TypeName); super != nil {
+									if !super.HasProperty(propName) {
+										super.DefineProperty(propName, jstype.Unknown)
+									}
+								}
+							}
+						}
+					}
+				} else {
 					infer := NewTypeInference(c.global)
 					recvType := stripNullUndef(infer.InferType(recv))
-					propName := propKids[1].String_()
 					defineOnOpenObject(recvType, propName)
 				}
 			}
@@ -898,6 +949,9 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 		return nil
 	}
 	if obj.HasProperty(propName) {
+		return nil
+	}
+	if c.fileSuppressions["missingProperties"] {
 		return nil
 	}
 	// Writing a new property to a @struct instance outside its own

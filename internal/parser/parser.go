@@ -82,6 +82,18 @@ func (p *Parser) parseStatements(parent *rhino.Node, endTok rune) {
 	}
 }
 
+// mergeSuppressions copies every @suppress name from `src` into
+// `dst`. Used to propagate stacked-JSDoc suppressions onto the
+// statement that ultimately owns them, even when another block
+// in the stack "wins" the primary attachment.
+func mergeSuppressions(dst, src *rhino.JSDocInfo) {
+	for _, name := range []string{"missingProperties", "checkTypes", "duplicate", "undefinedVars", "missingReturn"} {
+		if src.HasSuppression(name) && !dst.HasSuppression(name) {
+			dst.AddSuppression(name)
+		}
+	}
+}
+
 // jsdocCarriesMoreInfo reports whether `b` should displace `a` as the
 // JSDoc attached to the next statement. Priority: declaration-shaped
 // tags (@interface, @constructor, @record, @extends) beat plain
@@ -113,8 +125,18 @@ func (p *Parser) tryStatement() (*rhino.Node, bool) {
 			break
 		}
 		parsed := parsing.ParseJSDocInfo(body)
-		if parsed != nil && (jsdoc == nil || jsdocCarriesMoreInfo(parsed, jsdoc)) {
-			jsdoc = parsed
+		if parsed != nil {
+			if jsdoc == nil {
+				jsdoc = parsed
+			} else if jsdocCarriesMoreInfo(parsed, jsdoc) {
+				mergeSuppressions(parsed, jsdoc)
+				jsdoc = parsed
+			} else {
+				// Losing block still contributes its @suppress
+				// entries — @fileoverview comments typically carry
+				// these and must not be dropped silently.
+				mergeSuppressions(jsdoc, parsed)
+			}
 		}
 		p.scanner.SkipTrivia()
 	}
