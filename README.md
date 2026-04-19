@@ -6,8 +6,8 @@ as `closure-compiler --checks_only` on the same source — modulo
 message strings; only `(path, line, col, code)` tuples are part of
 the conformance check.
 
-Currently at **913/1444 = 63.23%** on an extracted benchmark of
-`TypeCheckTest.java` cases (829/1444 = 57.41% under
+Currently at **920/1444 = 63.71%** on an extracted benchmark of
+`TypeCheckTest.java` cases (838/1444 = 58.03% under
 `--jscomp_warning=strictCheckTypes`); Tier-0..Tier-3 hand-authored
 corpora are all at 100%.
 
