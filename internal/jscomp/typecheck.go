@@ -809,11 +809,13 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 		return nil
 	}
 	// Broader INEXISTENT_PROPERTY: fire on structural (@record /
-	// @interface) receivers, and on @struct nominal classes
-	// (sealed property surface by design). Other nominal types
-	// stay quiet — Java allows `(new Foo).newProp = 1;` to
-	// implicitly extend the instance map.
-	if !obj.IsStructural && !obj.IsStruct {
+	// @interface) receivers, on @struct nominal classes (sealed
+	// property surface by design), and on the known-surface
+	// builtin types we ship concrete slot maps for. Other
+	// nominal types stay quiet — Java allows
+	// `(new Foo).newProp = 1;` to implicitly extend the
+	// instance map.
+	if !obj.IsStructural && !obj.IsStruct && !isKnownSurfaceBuiltin(obj.Name) {
 		return nil
 	}
 	msg := fmt.Sprintf("Property %s never defined on %s", propName, obj.TypeName())
@@ -1016,6 +1018,19 @@ func isNumberIndexOk(t jstype.JSType) bool {
 		return true
 	}
 	return jstype.IsSubtype(t, jstype.Number)
+}
+
+// isKnownSurfaceBuiltin reports whether `name` is one of the
+// built-in constructors whose property surface jsgo ships
+// concretely enough to fire JSC_INEXISTENT_PROPERTY on missing
+// members. Array is the canonical case — our default scope
+// populates length/push/pop/…, so `[].foo` cleanly fires.
+func isKnownSurfaceBuiltin(name string) bool {
+	switch name {
+	case "Array":
+		return true
+	}
+	return false
 }
 
 // dereferencedObject returns the ObjectType behind a templatized
