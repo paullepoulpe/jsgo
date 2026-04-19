@@ -1227,7 +1227,7 @@ func (c *TypeCheck) visitGetElem(n *rhino.Node, scope *TypedScope) []diag.Diagno
 		}}
 	}
 	recvType := stripNullUndef(rawRecv)
-	if isStructReceiver(recvType) {
+	if isStructReceiver(recvType) && !isWellKnownSymbolIndex(idx) {
 		return []diag.Diagnostic{{
 			Path: c.path, Line: idx.Lineno(), Col: idx.Charno(),
 			Code: diag.JSC_ILLEGAL_PROPERTY_ACCESS, Level: diag.Error,
@@ -1496,6 +1496,22 @@ func bitOpSymbol(t rhino.Token) string {
 		return "^"
 	}
 	return "?"
+}
+
+// isWellKnownSymbolIndex reports whether `idx` is a GETPROP on the
+// \`Symbol\` builtin (e.g. \`Symbol.iterator\`, \`Symbol.asyncIterator\`).
+// Java's TypeCheck allows well-known symbols to index a @struct
+// receiver since they're the canonical protocol entry points.
+func isWellKnownSymbolIndex(idx *rhino.Node) bool {
+	if idx == nil || idx.Token() != rhino.GETPROP {
+		return false
+	}
+	kids := idx.Children()
+	if len(kids) < 2 {
+		return false
+	}
+	recv := kids[0]
+	return recv.Token() == rhino.NAME && recv.String_() == "Symbol"
 }
 
 // isDefinitelyNotCallable reports whether `t` is a type that can
