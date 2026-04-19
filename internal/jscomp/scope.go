@@ -1153,7 +1153,9 @@ func (c *TypedScopeCreator) preregisterClass(cls *rhino.Node, scope *TypedScope)
 	if name.String_() == "" {
 		return
 	}
-	scope.declared[name.String_()] = jstype.NewConstructorType(name.String_(), nil)
+	ct := jstype.NewConstructorType(name.String_(), nil)
+	ct.IsES6Class = true
+	scope.declared[name.String_()] = ct
 }
 
 // recordClass fills in a class's constructor params, methods, fields,

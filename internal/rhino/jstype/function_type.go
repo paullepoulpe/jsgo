@@ -43,6 +43,12 @@ type FunctionType struct {
 	// build a TemplateTypeMap from arg types before substituting into
 	// Return. Empty for non-generic functions.
 	TemplateTypes []*TemplateType
+
+	// IsES6Class is set when this FunctionType came from an ES6
+	// `class` declaration (as opposed to a `@constructor` function).
+	// Java's TypeCheck uses the distinction to forbid
+	// `ClassName.prototype = …` reassignments.
+	IsES6Class bool
 }
 
 // MaxArgsUnlimited is the sentinel MaxArity for rest-parameter

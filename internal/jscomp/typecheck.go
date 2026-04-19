@@ -624,6 +624,22 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 		}
 		propName := propKids[1].String_()
 		recv := propKids[0]
+		// ES6 classes reject `ClassName.prototype = …` reassignments.
+		// Java fires at the outer ASSIGN's (or wrapping EXPR_RESULT's)
+		// column, so we report at the statement's position.
+		if propName == "prototype" && recv.Token() == rhino.NAME {
+			if fn, ok := scope.GetDeclaredType(recv.String_()).(*jstype.FunctionType); ok && fn.IsES6Class {
+				line, col := lhs.Lineno(), lhs.Charno()
+				if p := a.Parent(); p != nil && p.Token() == rhino.EXPR_RESULT {
+					line, col = p.Lineno(), p.Charno()
+				}
+				return []diag.Diagnostic{{
+					Path: c.path, Line: line, Col: col,
+					Code: diag.JSC_REASSIGN_CLASS_PROTOTYPE, Level: diag.Error,
+					Message: "Reassigning a class prototype is not allowed",
+				}}
+			}
+		}
 		var declared jstype.JSType
 		var ownerName string
 		if recv.Token() == rhino.NAME {
