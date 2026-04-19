@@ -858,7 +858,11 @@ func (c *TypedScopeCreator) recordPrototypeStub(stmt *rhino.Node, getprop *rhino
 		return // already declared by a prior assign
 	}
 	var t jstype.JSType = jstype.Unknown
-	if info := stmt.JSDocInfo(); info != nil {
+	info := stmt.JSDocInfo()
+	if info == nil {
+		info = getprop.JSDocInfo()
+	}
+	if info != nil {
 		if info.HasType() {
 			t = scope.ResolveExpr(info.Type().TypeName)
 		} else if info.ReturnType() != nil || len(info.ParameterNames()) > 0 {

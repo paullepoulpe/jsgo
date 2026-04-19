@@ -16,7 +16,11 @@
 
 package jstype
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+	"strings"
+)
 
 type ObjectType struct {
 	// Name is the source-level identifier (e.g. "Foo" for `function
@@ -82,10 +86,31 @@ func (o *ObjectType) HasStaticProperty(name string) bool {
 }
 
 func (o *ObjectType) TypeName() string {
-	if o.Name == "" {
-		return "{...}"
+	if o.Name != "" {
+		return o.Name
 	}
-	return o.Name
+	// Anonymous structural type: render `{k: T, …}` so diagnostics
+	// carry useful surface. Sorted keys give deterministic output.
+	if len(o.members) == 0 {
+		return "{}"
+	}
+	keys := make([]string, 0, len(o.members))
+	for k := range o.members {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var b strings.Builder
+	b.WriteString("{")
+	for i, k := range keys {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString(k)
+		b.WriteString(": ")
+		b.WriteString(o.members[k].TypeName())
+	}
+	b.WriteString("}")
+	return b.String()
 }
 
 // IsSubtypeOf handles three cases: nominal subtyping via the @extends

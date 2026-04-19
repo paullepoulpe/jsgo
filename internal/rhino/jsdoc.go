@@ -22,6 +22,7 @@ type JSDocInfo struct {
 	enumExpr      *JSTypeExpression // non-nil when @enum was present
 	enumMarked    bool              // true when @enum appeared (even with no type)
 	extendsExpr   *JSTypeExpression
+	extendsAll    []*JSTypeExpression // every @extends encountered (interfaces can list many)
 	implementsAll []*JSTypeExpression
 	typedefExpr   *JSTypeExpression
 	templateNames []string
@@ -125,6 +126,9 @@ func (i *JSDocInfo) AddImplementation(t *JSTypeExpression) {
 
 // BaseType mirrors JSDocInfo.getBaseType() — the type expression
 // captured from `@extends {Name}` on a constructor or interface.
+// Returns the FIRST extends tag when the comment has multiple (an
+// interface extending multiple supers); callers that need every
+// parent use BaseTypes.
 func (i *JSDocInfo) BaseType() *JSTypeExpression {
 	if i == nil {
 		return nil
@@ -132,7 +136,23 @@ func (i *JSDocInfo) BaseType() *JSTypeExpression {
 	return i.extendsExpr
 }
 
-func (i *JSDocInfo) SetBaseType(t *JSTypeExpression) { i.extendsExpr = t }
+// BaseTypes returns every @extends expression on the comment, in
+// declaration order. Interfaces permit multi-inheritance so this
+// may carry more than one entry; regular constructors carry at
+// most one.
+func (i *JSDocInfo) BaseTypes() []*JSTypeExpression {
+	if i == nil {
+		return nil
+	}
+	return i.extendsAll
+}
+
+func (i *JSDocInfo) SetBaseType(t *JSTypeExpression) {
+	if i.extendsExpr == nil {
+		i.extendsExpr = t
+	}
+	i.extendsAll = append(i.extendsAll, t)
+}
 
 // IsConstructor mirrors JSDocInfo.isConstructor().
 func (i *JSDocInfo) IsConstructor() bool { return i != nil && i.isConstructor }

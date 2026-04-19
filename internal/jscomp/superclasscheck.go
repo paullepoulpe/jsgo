@@ -56,6 +56,7 @@ func (s *SuperclassCheck) walk(n *rhino.Node) {
 		s.checkClass(n)
 	case rhino.FUNCTION:
 		s.checkFunctionImplements(n)
+		s.checkInterfaceExtendsConflicts(n)
 	case rhino.VAR, rhino.LET, rhino.CONST:
 		s.checkDeclaredConstructorImplements(n)
 	case rhino.EXPR_RESULT:
@@ -65,6 +66,71 @@ func (s *SuperclassCheck) walk(n *rhino.Node) {
 	}
 	for _, c := range n.Children() {
 		s.walk(c)
+	}
+}
+
+// checkInterfaceExtendsConflicts fires
+// JSC_INCOMPATIBLE_EXTENDED_PROPERTY_TYPE when an @interface
+// @extends multiple other interfaces and two of those parents
+// declare the same property with incompatible types. One
+// diagnostic per pair of conflicting parents, reported at the
+// interface declaration's position. Mirrors TypeCheck.java's
+// checkConflictingExtendedInterfaces loop.
+func (s *SuperclassCheck) checkInterfaceExtendsConflicts(fn *rhino.Node) {
+	info := fn.JSDocInfo()
+	if info == nil || !info.IsInterface() {
+		return
+	}
+	bases := info.BaseTypes()
+if len(bases) < 2 {
+		return
+	}
+	kids := fn.Children()
+	if len(kids) < 1 {
+		return
+	}
+	name := kids[0].String_()
+	if name == "" {
+		return
+	}
+	// Resolve each parent interface to its InstanceType.
+	var parents []*jstype.ObjectType
+	var parentNames []string
+	for _, b := range bases {
+		inst := s.scope.LookupNominalType(b.TypeName)
+		if inst == nil {
+			continue
+		}
+		parents = append(parents, inst)
+		parentNames = append(parentNames, b.TypeName)
+	}
+	// For each pair of parents, compare the full property set and
+	// flag the first property whose declared types don't match.
+	seen := map[string]bool{}
+	for i := 0; i < len(parents); i++ {
+		for j := i + 1; j < len(parents); j++ {
+			for _, pname := range allInterfaceProperties(parents[i]) {
+				if seen[pname] {
+					continue
+				}
+				ti := parents[i].GetPropertyType(pname)
+				tj := parents[j].GetPropertyType(pname)
+				if ti == nil || tj == nil {
+					continue
+				}
+				if jstype.IsSubtype(ti, tj) || jstype.IsSubtype(tj, ti) {
+					continue
+				}
+				seen[pname] = true
+				s.diags = append(s.diags, diag.Diagnostic{
+					Path: s.path, Line: fn.Lineno(), Col: fn.Charno(),
+					Code: diag.JSC_INCOMPATIBLE_EXTENDED_PROPERTY_TYPE, Level: diag.Error,
+					Message: fmt.Sprintf(
+						"Interface %s has a property %s with incompatible types in its super interfaces %s and %s",
+						name, pname, parentNames[i], parentNames[j]),
+				})
+			}
+		}
 	}
 }
 
