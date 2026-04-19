@@ -331,7 +331,7 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitClassField(n, parent, scope))
 	case rhino.RETURN:
 		c.emit(c.visitReturn(n, scope))
-	case rhino.EQ, rhino.NE:
+	case rhino.EQ, rhino.NE, rhino.SHEQ, rhino.SHNE:
 		c.emit(c.visitEquality(n, scope))
 	}
 	// Strict-mode operand checks — OFF by default, matching Java.
@@ -1116,12 +1116,18 @@ func (c *TypeCheck) visitEquality(n *rhino.Node, scope *TypedScope) []diag.Diagn
 	if !disjointForEquality(l, r) {
 		return nil
 	}
+	// For `!==` / `!=` disjoint operands the comparison is always
+	// TRUE; everything else flips to FALSE.
+	value := "false"
+	if n.Token() == rhino.NE || n.Token() == rhino.SHNE {
+		value = "true"
+	}
 	return []diag.Diagnostic{{
 		Path: c.path, Line: n.Lineno(), Col: n.Charno(),
 		Code: diag.JSC_DETERMINISTIC_TEST, Level: diag.Error,
 		Message: fmt.Sprintf(
-			"condition always evaluates to false\nleft : %s\nright: %s",
-			l.TypeName(), r.TypeName()),
+			"condition always evaluates to %s\nleft : %s\nright: %s",
+			value, l.TypeName(), r.TypeName()),
 	}}
 }
 
@@ -1151,12 +1157,22 @@ func disjointForEquality(a, b jstype.JSType) bool {
 	if ka == kb {
 		return false
 	}
-	// Primitives that coerce to each other under `==` still compare.
-	// JS: number == string is equal via ToNumber; boolean == number
-	// coerces; null == undefined is true. We only fire when one side
-	// is a function / object and the other is a primitive.
-	if (ka == eqFunction && kb != eqFunction) ||
-		(kb == eqFunction && ka != eqFunction) {
+	// `null == undefined` is true; keep them quiet.
+	if (ka == eqNull && kb == eqVoid) || (ka == eqVoid && kb == eqNull) {
+		return false
+	}
+	// number / string / boolean coerce to each other under `==`.
+	if isPrimitiveKind(ka) && isPrimitiveKind(kb) {
+		return false
+	}
+	// Everything else — function/object vs primitive, or distinct
+	// function-vs-object — is always false.
+	return true
+}
+
+func isPrimitiveKind(k equalityKind) bool {
+	switch k {
+	case eqNumber, eqString, eqBoolean:
 		return true
 	}
 	return false
@@ -1172,6 +1188,7 @@ const (
 	eqNull
 	eqVoid
 	eqFunction
+	eqObject
 )
 
 func classifyEquality(t jstype.JSType) equalityKind {
@@ -1190,8 +1207,25 @@ func classifyEquality(t jstype.JSType) equalityKind {
 	if _, ok := t.(*jstype.FunctionType); ok {
 		return eqFunction
 	}
+	if obj, ok := t.(*jstype.ObjectType); ok {
+		// Nominal object types compare with each other, not with
+		// the primitive slots. Includes externs-declared Function /
+		// Date / Array / etc. and user-declared @constructor
+		// instances.
+		return eqObjectKind(obj)
+	}
+	if tt, ok := t.(*jstype.TemplatizedType); ok && tt.Base != nil {
+		return eqObjectKind(tt.Base)
+	}
 	return eqUnknown
 }
+
+// eqObjectKind collapses every distinct nominal ObjectType to a
+// single `eqObject` bucket for coarse disjointness checks — good
+// enough for `number == Date` / `Function == string`-style
+// always-false comparisons without having to enumerate every
+// extern.
+func eqObjectKind(_ *jstype.ObjectType) equalityKind { return eqObject }
 
 // visitAdd ports TypeValidator.expectNumberOrString on the ADD
 // operator. JS `+` coerces to string whenever either side is
