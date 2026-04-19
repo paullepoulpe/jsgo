@@ -1578,25 +1578,51 @@ func isDefinitelyNotNumber(t jstype.JSType) bool {
 	return false
 }
 
-// visitIn fires JSC_IN_USED_WITH_STRUCT on `key in struct` — Java's
-// TypeCheck rejects the `in` operator on @struct receivers because
-// the surface is sealed and membership is a compile-time concept.
+// visitIn fires diagnostics for the IN operator:
+//  1. JSC_IN_USED_WITH_STRUCT when the RHS is a @struct receiver.
+//  2. JSC_TYPE_MISMATCH when the LHS is definitely not string /
+//     symbol / number (Java's requirement for the 'in' operand).
 func (c *TypeCheck) visitIn(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := n.Children()
 	if len(kids) < 2 {
 		return nil
 	}
-	rhs := kids[1]
+	lhs, rhs := kids[0], kids[1]
 	infer := NewTypeInference(scope)
 	recv := stripNullUndef(infer.InferType(rhs))
-	if !isStructReceiver(recv) {
-		return nil
+	var out []diag.Diagnostic
+	lt := infer.InferType(lhs)
+	if isDefinitelyNotInKey(lt) {
+		out = append(out, diag.Diagnostic{
+			Path: c.path, Line: n.Lineno(), Col: n.Charno(),
+			Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
+			Message: fmt.Sprintf(
+				"left side of 'in'\nfound   : %s\nrequired: (string|symbol)",
+				lt.TypeName()),
+		})
 	}
-	return []diag.Diagnostic{{
-		Path: c.path, Line: rhs.Lineno(), Col: rhs.Charno(),
-		Code: diag.JSC_IN_USED_WITH_STRUCT, Level: diag.Error,
-		Message: "Cannot use the IN operator with structs",
-	}}
+	if isStructReceiver(recv) {
+		out = append(out, diag.Diagnostic{
+			Path: c.path, Line: rhs.Lineno(), Col: rhs.Charno(),
+			Code: diag.JSC_IN_USED_WITH_STRUCT, Level: diag.Error,
+			Message: "Cannot use the IN operator with structs",
+		})
+	}
+	return out
+}
+
+// isDefinitelyNotInKey reports whether `t` is a type that's
+// definitely not a valid `X in Y` LHS. Java's TypeCheck accepts
+// String / Number / Symbol / Unknown / All / Null / Undefined;
+// only firmly-nominal FunctionType / ObjectType references fail.
+func isDefinitelyNotInKey(t jstype.JSType) bool {
+	if t == nil {
+		return false
+	}
+	if _, ok := t.(*jstype.FunctionType); ok {
+		return true
+	}
+	return false
 }
 
 // visitForIn fires JSC_IN_USED_WITH_STRUCT on `for (var k in struct)`.
