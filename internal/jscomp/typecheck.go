@@ -547,8 +547,9 @@ func (c *TypeCheck) visitVar(v *rhino.Node, scope *TypedScope) []diag.Diagnostic
 	}
 	msg := fmt.Sprintf("initializing variable\nfound   : %s\nrequired: %s",
 		found.TypeName(), declared.TypeName())
+	line, col := diagPosForArg(init)
 	return append(out, diag.Diagnostic{
-		Path: c.path, Line: init.Lineno(), Col: init.Charno(),
+		Path: c.path, Line: line, Col: col,
 		Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error, Message: msg,
 	})
 }
