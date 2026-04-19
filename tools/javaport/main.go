@@ -49,9 +49,10 @@ func main() {
 	inPath := flag.String("in", "", "java source file (required)")
 	outPath := flag.String("out", "", "go output file (required)")
 	pkg := flag.String("pkg", "jscomp", "go package name")
+	buildTag := flag.String("build-tag", "", "add a //go:build <tag> constraint so the file is excluded from the default build")
 	flag.Parse()
 	if *inPath == "" || *outPath == "" {
-		fmt.Fprintln(os.Stderr, "usage: javaport -in <foo.java> -out <foo.go> [-pkg <name>]")
+		fmt.Fprintln(os.Stderr, "usage: javaport -in <foo.java> -out <foo.go> [-pkg <name>] [-build-tag <tag>]")
 		os.Exit(2)
 	}
 	src, err := os.ReadFile(*inPath)
@@ -64,7 +65,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
-	out := generateSkeleton(string(src), javaPath, *pkg)
+	out := generateSkeleton(string(src), javaPath, *pkg, *buildTag)
+	if err := os.MkdirAll(filepath.Dir(*outPath), 0o755); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
 	if err := os.WriteFile(*outPath, []byte(out), 0o644); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
@@ -92,8 +97,11 @@ func relToSrcRoot(p string) (string, error) {
 // generateSkeleton drives the pipeline: strip comments, detect the
 // class declaration, emit the Port-of header, translate fields +
 // method signatures, write // TODO: port-body bodies.
-func generateSkeleton(src, javaPath, pkg string) string {
+func generateSkeleton(src, javaPath, pkg, buildTag string) string {
 	var b strings.Builder
+	if buildTag != "" {
+		b.WriteString("//go:build " + buildTag + "\n\n")
+	}
 	b.WriteString(headerFor(javaPath))
 	b.WriteString("\npackage " + pkg + "\n\n")
 	b.WriteString(importBlockFor(src))

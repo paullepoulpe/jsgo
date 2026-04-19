@@ -50,9 +50,11 @@ fi
 # -- Guard #3: traceability header --------------------------------------
 # Every .go file under internal/ must open with "// Port of " in the
 # first non-empty line. (cmd/ is exempt since it's not a port.)
+# A leading `//go:build` constraint is allowed to precede the header
+# so a file can be gated behind a build tag.
 note "#3 traceability header on every file under internal/"
 while IFS= read -r f; do
-    first="$(awk 'NF { print; exit }' "$f")"
+    first="$(awk 'NF && $0 !~ /^\/\/go:build/ { print; exit }' "$f")"
     case "$first" in
         "// Port of "*) ;;
         *) violate "missing '// Port of …' header: $f" ;;
