@@ -73,7 +73,96 @@ func (c *CheckDupVarDecl) Check(script *rhino.Node) []diag.Diagnostic {
 				c.path, first.at.Lineno(), first.t.TypeName()),
 		})
 	})
+	// Pass 2: function-assign-to-namespace — fires
+	// JSC_DUP_VAR_DECLARATION for the
+	// `ns.foo = function(){}; ns.foo = function(){}` shape when
+	// any subsequent assign carries a declaration JSDoc (@param,
+	// @return, @constructor, @interface, @record) and isn't
+	// @suppress {duplicate}.
+	type decl2 struct{ at *rhino.Node }
+	fnSeen := map[string]map[string]*decl2{}
+	c.walkFunctionAssigns(script, func(owner, prop string, at *rhino.Node, fresh bool) {
+		if fnSeen[owner] == nil {
+			fnSeen[owner] = map[string]*decl2{}
+		}
+		first := fnSeen[owner][prop]
+		if first == nil {
+			fnSeen[owner][prop] = &decl2{at: at}
+			return
+		}
+		if !fresh {
+			return
+		}
+		c.diags = append(c.diags, diag.Diagnostic{
+			Path: c.path, Line: at.Lineno(), Col: at.Charno(),
+			Code: diag.JSC_DUP_VAR_DECLARATION, Level: diag.Error,
+			Message: fmt.Sprintf(
+				"variable %s.%s redefined, original definition at %s:%d",
+				owner, prop, c.path, first.at.Lineno()),
+		})
+	})
 	return c.diags
+}
+
+// walkFunctionAssigns collects every `owner.prop = function(){…}`
+// assignment whose JSDoc signals a fresh function declaration
+// (@param / @return / @constructor / @interface / @record),
+// skipping @suppress {duplicate}. Mirrors Java's
+// TypeCheck.checkDuplicateVarDeclaration firing shape.
+func (c *CheckDupVarDecl) walkFunctionAssigns(n *rhino.Node, emit func(owner, prop string, at *rhino.Node, fresh bool)) {
+	if n == nil {
+		return
+	}
+	if n.Token() == rhino.EXPR_RESULT {
+		if inner := n.FirstChild(); inner != nil && inner.Token() == rhino.ASSIGN {
+			kids := inner.Children()
+			if len(kids) >= 2 {
+				lhs, rhs := kids[0], kids[1]
+				if rhs.Token() == rhino.FUNCTION && lhs.Token() == rhino.GETPROP {
+					lhsKids := lhs.Children()
+					if len(lhsKids) >= 2 {
+						recv := lhsKids[0]
+						if recv.Token() == rhino.NAME {
+							if _, ok := c.scope.GetDeclaredType(recv.String_()).(*jstype.FunctionType); !ok {
+								propNode := lhsKids[1]
+								emit(recv.String_(), propNode.String_(), propNode, isFreshFunctionDecl(n, inner))
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	for _, ch := range n.Children() {
+		c.walkFunctionAssigns(ch, emit)
+	}
+}
+
+// isFreshFunctionDecl reports whether the ASSIGN carries JSDoc
+// Java considers a function-declaration marker (as opposed to a
+// mere type annotation). Also returns false when the author
+// explicitly suppressed `duplicate`.
+func isFreshFunctionDecl(stmt, a *rhino.Node) bool {
+	info := a.JSDocInfo()
+	if info == nil {
+		info = stmt.JSDocInfo()
+	}
+	if info == nil {
+		return false
+	}
+	if info.HasSuppression("duplicate") {
+		return false
+	}
+	if info.IsConstructor() || info.IsInterface() || info.IsRecord() {
+		return true
+	}
+	if info.ReturnType() != nil {
+		return true
+	}
+	if len(info.ParameterNames()) > 0 {
+		return true
+	}
+	return false
 }
 
 // walk recurses over the AST calling `emit` for every namespace-
