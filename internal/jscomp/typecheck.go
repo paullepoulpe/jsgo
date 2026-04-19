@@ -969,11 +969,17 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 	// INEXISTENT_PROPERTY / ILLEGAL_PROPERTY_ACCESS checks still fire.
 	recvType := stripNullUndef(rawRecv)
 	// Enum member access: `E.FOO` with FOO absent from E's member
-	// set fires JSC_INEXISTENT_ENUM_ELEMENT. Runs before the
-	// ObjectType branch because an EnumType isn't an ObjectType.
+	// set fires JSC_INEXISTENT_ENUM_ELEMENT — unless the name is a
+	// static property attached via `E.method = function(){…}`
+	// (tracked on the scope's namespace-prop map).
 	if enum, ok := recvType.(*jstype.EnumType); ok {
 		if enum.Members[propName] {
 			return nil
+		}
+		if kids[0].Token() == rhino.NAME {
+			if scope.LookupNamespaceProp(kids[0].String_(), propName) != nil {
+				return nil
+			}
 		}
 		return []diag.Diagnostic{{
 			Path: c.path, Line: propNode.Lineno(), Col: propNode.Charno(),
