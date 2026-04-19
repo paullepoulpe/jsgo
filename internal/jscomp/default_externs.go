@@ -62,9 +62,9 @@ const defaultExternsSrc = `
 /** @constructor */ function Object(opt_v) {}
 /** @constructor */ function Function(var_args) {}
 /** @constructor */ function Array(var_args) {}
-/** @constructor @param {*=} arg */ function String(arg) {}
-/** @constructor @param {*=} arg */ function Number(arg) {}
-/** @constructor @param {*=} arg */ function Boolean(arg) {}
+/** @constructor @param {*=} arg @return {string} */ function String(arg) {}
+/** @constructor @param {*=} arg @return {number} */ function Number(arg) {}
+/** @constructor @param {*=} arg @return {boolean} */ function Boolean(arg) {}
 /** @constructor */ function Date(opt_year, opt_month, opt_day) {}
 /** @constructor */ function RegExp(pattern, opt_flags) {}
 /** @constructor */ function Error(opt_msg) {}

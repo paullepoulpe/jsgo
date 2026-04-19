@@ -262,6 +262,19 @@ func (t *TypeInference) inferCall(n *rhino.Node) jstype.JSType {
 	var fn *jstype.FunctionType
 	switch callee.Token() {
 	case rhino.NAME:
+		// Bare-name calls to the String / Number / Boolean
+		// coercion constructors resolve to the matching
+		// primitive — `String(n)` is a string, not a String
+		// instance. Matches Java's special-cased coercion path
+		// in TypeInference.visitCall.
+		switch callee.String_() {
+		case "String":
+			return jstype.String
+		case "Number":
+			return jstype.Number
+		case "Boolean":
+			return jstype.Boolean
+		}
 		if f, ok := t.scope.GetDeclaredType(callee.String_()).(*jstype.FunctionType); ok {
 			fn = f
 		}
