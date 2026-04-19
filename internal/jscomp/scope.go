@@ -959,7 +959,12 @@ func (c *TypedScopeCreator) recordPrototypeAssign(a *rhino.Node, scope *TypedSco
 // slots).
 func (c *TypedScopeCreator) recordNamespaceAssign(a *rhino.Node, scope *TypedScope) {
 	info := a.JSDocInfo()
+	// No @type JSDoc — but if the RHS is a FUNCTION, infer a
+	// FunctionType from the JSDoc's @param / @return so arity
+	// checks work at call sites. Matches how Java's
+	// TypedScopeCreator handles `ns.foo = function(x) {…}`.
 	if info == nil || !info.HasType() {
+		c.recordNamespaceAssignFromFunction(a, scope)
 		return
 	}
 	kids := a.Children()
@@ -992,6 +997,55 @@ func (c *TypedScopeCreator) recordNamespaceAssign(a *rhino.Node, scope *TypedSco
 	}
 	declared := scope.ResolveExpr(info.Type().TypeName)
 	scope.recordNamespaceProp(ownerName, propName, declared, lhsKids[1])
+}
+
+// recordNamespaceAssignFromFunction handles `ns.foo = function(x){…}`
+// (no @type JSDoc). Builds a FunctionType from the JSDoc @param /
+// @return so later CALL sites can consult arity + param types.
+func (c *TypedScopeCreator) recordNamespaceAssignFromFunction(a *rhino.Node, scope *TypedScope) {
+	kids := a.Children()
+	if len(kids) < 2 {
+		return
+	}
+	lhs, rhs := kids[0], kids[1]
+	if rhs.Token() != rhino.FUNCTION || lhs.Token() != rhino.GETPROP {
+		return
+	}
+	lhsKids := lhs.Children()
+	if len(lhsKids) < 2 {
+		return
+	}
+	recv := lhsKids[0]
+	if recv.Token() != rhino.NAME {
+		return
+	}
+	if _, ok := scope.GetDeclaredType(recv.String_()).(*jstype.FunctionType); ok {
+		return
+	}
+	info := a.JSDocInfo()
+	params := rhs.Children()
+	if len(params) < 2 {
+		return
+	}
+	var paramTypes []jstype.JSType
+	for _, p := range params[1].Children() {
+		var t jstype.JSType = jstype.Unknown
+		if info != nil {
+			if pexpr := info.ParameterType(p.String_()); pexpr != nil {
+				t = scope.ResolveExpr(pexpr.TypeName)
+			}
+		}
+		paramTypes = append(paramTypes, t)
+	}
+	var retType jstype.JSType = jstype.Void
+	if info != nil {
+		if r := info.ReturnType(); r != nil {
+			retType = scope.ResolveExpr(r.TypeName)
+		}
+	}
+	fnType := jstype.NewFunctionType(paramTypes, retType)
+	setArityFromParams(fnType, params[1], info)
+	scope.recordNamespaceProp(recv.String_(), lhsKids[1].String_(), fnType, lhsKids[1])
 }
 
 // namespacePropNode returns the AST node (typically the property

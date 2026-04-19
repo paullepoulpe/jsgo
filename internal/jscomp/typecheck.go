@@ -779,6 +779,46 @@ func (c *TypeCheck) visitNew(node *rhino.Node, scope *TypedScope) []diag.Diagnos
 	return c.visitCall(node, scope)
 }
 
+// isSafeCalleeForArity reports whether a CALL's callee shape lets
+// us confidently enforce JSC_WRONG_ARGUMENT_COUNT. Java fires on
+// every call-site; jsgo narrows to patterns where our FunctionType
+// carries accurate arity info — bare identifiers, namespace
+// properties (via LookupNamespaceProp), and static-method GETPROPs
+// on a known constructor. Prototype-method calls stay silent
+// because override-aware arity isn't ported yet.
+func isSafeCalleeForArity(callee *rhino.Node, scope *TypedScope) bool {
+	if callee == nil {
+		return false
+	}
+	if callee.Token() == rhino.NAME {
+		return true
+	}
+	if callee.Token() == rhino.GETPROP {
+		kids := callee.Children()
+		if len(kids) < 2 {
+			return false
+		}
+		recv := kids[0]
+		prop := kids[1]
+		if recv.Token() != rhino.NAME {
+			return false
+		}
+		// Namespace-property case: `ns.foo()` with ns declared as a
+		// plain VAR object literal and foo registered via
+		// recordNamespaceAssign.
+		if scope.LookupNamespaceProp(recv.String_(), prop.String_()) != nil {
+			return true
+		}
+		// Static-method case: `C.foo()` where C is a FunctionType.
+		if fn, ok := scope.GetDeclaredType(recv.String_()).(*jstype.FunctionType); ok && fn.Instance != nil {
+			if fn.Instance.GetStaticPropertyType(prop.String_()) != nil {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // isDefinitelyNonConstructor reports whether `t` is guaranteed not
 // to be a constructor. Returns the offending type so the diagnostic
 // can show what was found. A FunctionType without IsConstructor
@@ -849,7 +889,7 @@ func (c *TypeCheck) visitCall(node *rhino.Node, scope *TypedScope) []diag.Diagno
 	// a subclass's @override-only JSDoc drops the parent's
 	// optional-param markers. Firing there produces more FPs
 	// than wins until the override-aware inference lands.
-	if node.Token() == rhino.CALL && len(fn.Params) > 0 && callee.Token() == rhino.NAME {
+	if node.Token() == rhino.CALL && len(fn.Params) > 0 && isSafeCalleeForArity(callee, scope) {
 		if got := len(args); got < fn.MinArity || got > fn.MaxArity {
 			maxStr := fmt.Sprintf("%d", fn.MaxArity)
 			if fn.MaxArity >= jstype.MaxArgsUnlimited {
