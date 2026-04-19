@@ -849,7 +849,7 @@ func (c *TypeCheck) visitReturn(ret *rhino.Node, scope *TypedScope) []diag.Diagn
 	if enclosing == nil {
 		return nil
 	}
-	info := enclosing.JSDocInfo()
+	info := functionJSDoc(enclosing)
 	if info == nil || info.ReturnType() == nil {
 		return nil
 	}
@@ -953,6 +953,34 @@ func findEnclosingFunction(n *rhino.Node) *rhino.Node {
 		if cur.Token() == rhino.FUNCTION {
 			return cur
 		}
+	}
+	return nil
+}
+
+// functionJSDoc returns the JSDocInfo attached to `fn`, or — for
+// anonymous function-expression forms like
+// `/** @return {T} */ X.prototype.m = function(){…}` — the JSDoc
+// attached to the enclosing VAR / ASSIGN / EXPR_RESULT statement.
+// Mirrors how Java's NodeUtil.getBestJSDocInfo hops up the tree
+// looking for the nearest declaration-level comment.
+func functionJSDoc(fn *rhino.Node) *rhino.JSDocInfo {
+	if fn == nil {
+		return nil
+	}
+	if info := fn.JSDocInfo(); info != nil {
+		return info
+	}
+	// Nested inside `X.prototype.m = fn` — climb via ASSIGN → EXPR_RESULT.
+	for cur := fn.Parent(); cur != nil; cur = cur.Parent() {
+		if info := cur.JSDocInfo(); info != nil {
+			return info
+		}
+		switch cur.Token() {
+		case rhino.ASSIGN, rhino.EXPR_RESULT, rhino.VAR, rhino.LET, rhino.CONST,
+			rhino.NAME:
+			continue
+		}
+		break
 	}
 	return nil
 }
