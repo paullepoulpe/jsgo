@@ -59,6 +59,7 @@ func (s *SuperclassCheck) walk(n *rhino.Node) {
 		s.checkFunctionImplements(n)
 		s.checkInterfaceExtendsConflicts(n)
 		s.checkExtendsKindMismatch(n)
+		s.checkStructDictRequireConstructor(n)
 	case rhino.VAR, rhino.LET, rhino.CONST:
 		s.checkDeclaredConstructorImplements(n)
 	case rhino.EXPR_RESULT:
@@ -69,6 +70,40 @@ func (s *SuperclassCheck) walk(n *rhino.Node) {
 	for _, c := range n.Children() {
 		s.walk(c)
 	}
+}
+
+// checkStructDictRequireConstructor fires JSC_CONSTRUCTOR_REQUIRED
+// when a FUNCTION carries @struct or @dict but no @constructor /
+// @interface / @record. The struct/dict flag only has meaning on
+// a class-shaped declaration — Java rejects it on plain functions.
+func (s *SuperclassCheck) checkStructDictRequireConstructor(fn *rhino.Node) {
+	info := fn.JSDocInfo()
+	if info == nil {
+		return
+	}
+	if !info.IsStruct() && !info.IsDict() {
+		return
+	}
+	if info.IsConstructor() || info.IsInterface() || info.IsRecord() {
+		return
+	}
+	kids := fn.Children()
+	if len(kids) < 1 {
+		return
+	}
+	name := kids[0].String_()
+	if name == "" {
+		return
+	}
+	tag := "@struct"
+	if info.IsDict() {
+		tag = "@dict"
+	}
+	s.diags = append(s.diags, diag.Diagnostic{
+		Path: s.path, Line: fn.Lineno(), Col: fn.Charno(),
+		Code: diag.JSC_CONSTRUCTOR_REQUIRED, Level: diag.Error,
+		Message: fmt.Sprintf("%s used without @constructor for %s", tag, name),
+	})
 }
 
 // checkExtendsKindMismatch fires JSC_CONFLICTING_EXTENDED_TYPE
