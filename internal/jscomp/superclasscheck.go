@@ -191,6 +191,19 @@ func (s *SuperclassCheck) validateImplements(reportAt *rhino.Node, ctorName stri
 		if iface == nil {
 			continue
 		}
+		// Java's TypeCheck fires JSC_IMPLEMENTS_NON_INTERFACE
+		// when @implements references a non-interface constructor
+		// (e.g. `@implements {Boolean}` or a plain user-defined
+		// @constructor). Gated on the target not being
+		// @record / @interface.
+		if !iface.IsStructural {
+			s.diags = append(s.diags, diag.Diagnostic{
+				Path: s.path, Line: reportAt.Lineno(), Col: reportAt.Charno(),
+				Code: diag.JSC_IMPLEMENTS_NON_INTERFACE, Level: diag.Error,
+				Message: "can only implement interfaces",
+			})
+			continue
+		}
 		// Walk the interface's full property set (its own members
 		// plus any inherited via @extends {Other}).
 		for _, propName := range allInterfaceProperties(iface) {
