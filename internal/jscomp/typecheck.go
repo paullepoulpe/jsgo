@@ -762,7 +762,12 @@ func (c *TypeCheck) visitCall(node *rhino.Node, scope *TypedScope) []diag.Diagno
 	calleeType := infer.InferType(callee)
 	fn, ok := calleeType.(*jstype.FunctionType)
 	if !ok {
-		if node.Token() == rhino.CALL && isDefinitelyNotCallable(calleeType) {
+		// Only fire on bare NAME / literal callees so GETELEM
+		// (well-known symbol access, element reads) doesn't
+		// false-positive. Java's visitCall also considers the
+		// callee's declared type rather than the element-read
+		// fallback result.
+		if node.Token() == rhino.CALL && isDefinitelyNotCallable(calleeType) && callee.Token() != rhino.GETELEM {
 			return []diag.Diagnostic{{
 				Path: c.path, Line: node.Lineno(), Col: node.Charno(),
 				Code: diag.JSC_NOT_FUNCTION_TYPE, Level: diag.Error,
