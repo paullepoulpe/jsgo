@@ -55,11 +55,13 @@ func (s *SuperclassCheck) walk(n *rhino.Node) {
 	switch n.Token() {
 	case rhino.CLASS:
 		s.checkClass(n)
+		s.checkClassDictExtendsStruct(n)
 	case rhino.FUNCTION:
 		s.checkFunctionImplements(n)
 		s.checkInterfaceExtendsConflicts(n)
 		s.checkExtendsKindMismatch(n)
 		s.checkStructDictRequireConstructor(n)
+		s.checkFunctionDictExtendsStruct(n)
 	case rhino.VAR, rhino.LET, rhino.CONST:
 		s.checkDeclaredConstructorImplements(n)
 	case rhino.EXPR_RESULT:
@@ -70,6 +72,76 @@ func (s *SuperclassCheck) walk(n *rhino.Node) {
 	for _, c := range n.Children() {
 		s.walk(c)
 	}
+}
+
+// checkFunctionDictExtendsStruct fires JSC_DICT_EXTEND_STRUCT_TYPE
+// when a @constructor @dict function extends a @struct parent.
+// Mirrors TypeCheck.java's struct/dict hierarchy guard.
+func (s *SuperclassCheck) checkFunctionDictExtendsStruct(fn *rhino.Node) {
+	info := fn.JSDocInfo()
+	if info == nil || !info.IsDict() || !info.IsConstructor() {
+		return
+	}
+	base := info.BaseType()
+	if base == nil {
+		return
+	}
+	super := s.scope.LookupNominalType(base.TypeName)
+	if super == nil || !super.IsStruct {
+		return
+	}
+	kids := fn.Children()
+	if len(kids) < 1 {
+		return
+	}
+	name := kids[0].String_()
+	if name == "" {
+		return
+	}
+	s.diags = append(s.diags, diag.Diagnostic{
+		Path: s.path, Line: fn.Lineno(), Col: fn.Charno(),
+		Code: diag.JSC_DICT_EXTEND_STRUCT_TYPE, Level: diag.Error,
+		Message: fmt.Sprintf("@dict class %s cannot extend @struct class %s", name, base.TypeName),
+	})
+}
+
+// checkClassDictExtendsStruct is the ES6-class variant of
+// checkFunctionDictExtendsStruct. ES6 classes are @struct by
+// default — a @dict-tagged class extending any normal class
+// (struct-implicit) triggers the same diagnostic.
+func (s *SuperclassCheck) checkClassDictExtendsStruct(cls *rhino.Node) {
+	info := cls.JSDocInfo()
+	if info == nil || !info.IsDict() {
+		return
+	}
+	kids := cls.Children()
+	if len(kids) < 2 {
+		return
+	}
+	nameNode, superNode := kids[0], kids[1]
+	name := nameNode.String_()
+	if name == "" {
+		return
+	}
+	if superNode == nil || superNode.String_() == "" {
+		return
+	}
+	// ES6 classes are @struct by default (unless explicitly @dict).
+	superName := superNode.String_()
+	super := s.scope.LookupNominalType(superName)
+	isSuperStruct := super != nil && super.IsStruct
+	// Treat a plain ES6-class parent (no JSDoc) as struct-by-default.
+	if super != nil && !super.IsStruct && !super.IsDict && !super.IsStructural {
+		isSuperStruct = true
+	}
+	if !isSuperStruct {
+		return
+	}
+	s.diags = append(s.diags, diag.Diagnostic{
+		Path: s.path, Line: cls.Lineno(), Col: cls.Charno(),
+		Code: diag.JSC_DICT_EXTEND_STRUCT_TYPE, Level: diag.Error,
+		Message: fmt.Sprintf("@dict class %s cannot extend @struct class %s", name, superName),
+	})
 }
 
 // checkStructDictRequireConstructor fires JSC_CONSTRUCTOR_REQUIRED
