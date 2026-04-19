@@ -412,6 +412,34 @@ func (c *CheckJsDocTypes) checkTypeExpr(src string, base int, inner string, tmpl
 				// Key / param name — don't resolve as a type.
 				continue
 			}
+			if name == "typeof" {
+				// `typeof X` — X must be a declared value (not a
+				// type). Fire JSC_UNRECOGNIZED_TYPEOF_ERROR when
+				// the value binding isn't present in the source.
+				k := i
+				for k < len(inner) && (inner[k] == ' ' || inner[k] == '\t') {
+					k++
+				}
+				xstart := k
+				for k < len(inner) && (isIdentChar(inner[k]) || inner[k] == '.') {
+					k++
+				}
+				xname := inner[xstart:k]
+				dotBase := xname
+				if dot := strings.IndexByte(dotBase, '.'); dot >= 0 {
+					dotBase = dotBase[:dot]
+				}
+				if xname != "" && !c.allNames[dotBase] {
+					line, col := c.positionOf(src, base+xstart)
+					out = append(out, diag.Diagnostic{
+						Path: c.path, Line: line, Col: col,
+						Code: diag.JSC_UNRECOGNIZED_TYPEOF_ERROR, Level: diag.Warning,
+						Message: "Missing type for `typeof` value. The value must be declared and const.",
+					})
+				}
+				i = k
+				continue
+			}
 			if !tmpls[name] && !c.allTemplates[name] && !c.nameResolves(name) {
 				line, col := c.positionOf(src, base+start)
 				out = append(out, diag.Diagnostic{
