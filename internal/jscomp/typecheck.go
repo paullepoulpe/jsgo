@@ -665,6 +665,34 @@ func (c *TypeCheck) visitCall(node *rhino.Node, scope *TypedScope) []diag.Diagno
 	if !ok {
 		return nil
 	}
+	var out []diag.Diagnostic
+	calleeName := describeCallee(callee)
+	// Arity check — fire JSC_WRONG_ARGUMENT_COUNT when the call
+	// site's arg count falls outside [MinArity, MaxArity] as
+	// computed from the function's @param annotations and closure
+	// naming conventions (opt_<name>, var_args). Mirrors
+	// TypeCheck.visitCall's arity branch in Java.
+	//
+	// Scoped to NAME callees — GETPROP callees (e.g.
+	// `obj.method()`) often resolve through override chains where
+	// a subclass's @override-only JSDoc drops the parent's
+	// optional-param markers. Firing there produces more FPs
+	// than wins until the override-aware inference lands.
+	if node.Token() == rhino.CALL && len(fn.Params) > 0 && callee.Token() == rhino.NAME {
+		if got := len(args); got < fn.MinArity || got > fn.MaxArity {
+			maxStr := fmt.Sprintf("%d", fn.MaxArity)
+			if fn.MaxArity >= jstype.MaxArgsUnlimited {
+				maxStr = "unlimited"
+			}
+			out = append(out, diag.Diagnostic{
+				Path: c.path, Line: node.Lineno(), Col: node.Charno(),
+				Code: diag.JSC_WRONG_ARGUMENT_COUNT, Level: diag.Error,
+				Message: fmt.Sprintf(
+					"Function %s: called with %d argument(s). Function requires at least %d argument(s) and no more than %s argument(s).",
+					calleeName, got, fn.MinArity, maxStr),
+			})
+		}
+	}
 	// Arity-mismatch: still type-check the overlapping prefix so a
 	// `f(0)` against `function f(s: string)` reports the type error
 	// even when other params are dropped. Java fires both
@@ -673,8 +701,6 @@ func (c *TypeCheck) visitCall(node *rhino.Node, scope *TypedScope) []diag.Diagno
 	if len(fn.Params) < n {
 		n = len(fn.Params)
 	}
-	var out []diag.Diagnostic
-	calleeName := describeCallee(callee)
 	for i := 0; i < n; i++ {
 		arg := args[i]
 		param := fn.Params[i]

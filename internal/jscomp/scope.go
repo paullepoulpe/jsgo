@@ -842,7 +842,9 @@ func (c *TypedScopeCreator) inferPrototypeValueType(info *rhino.JSDocInfo, rhs *
 		if info != nil && info.ReturnType() != nil {
 			ret = scope.ResolveExpr(info.ReturnType().TypeName)
 		}
-		return jstype.NewFunctionType(paramTypes, ret)
+		fnT := jstype.NewFunctionType(paramTypes, ret)
+		setArityFromParams(fnT, params, info)
+		return fnT
 	}
 	if info != nil && info.HasType() {
 		return scope.ResolveExpr(info.Type().TypeName)
@@ -964,6 +966,11 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 		}
 	}
 	preStub.Params = ctorParams
+	preStub.MinArity = len(ctorParams)
+	preStub.MaxArity = len(ctorParams)
+	if ctor != nil {
+		setArityFromParamNames(preStub, ctor.Children()[1])
+	}
 
 	// Wire @extends if present. Struct/dict flags propagate down the
 	// inheritance chain — Java's FunctionType carries them as sticky
@@ -1010,6 +1017,7 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 				ret = scope.ResolveExpr(info.ReturnType().TypeName)
 			}
 			fnT := jstype.NewFunctionType(paramTypes, ret)
+			setArityFromParams(fnT, params, info)
 			if info.IsStatic() {
 				inst.DefineStaticProperty(methodName, fnT)
 			} else {
@@ -1287,6 +1295,65 @@ func (c *TypedScopeCreator) finishEnumDecl(nameNode *rhino.Node, info *rhino.JSD
 	}
 }
 
+// setArityFromParamNames computes MinArity / MaxArity on `fn` from
+// the param-name prefixes of its PARAM_LIST and the JSDoc on
+// `info` (optional). Closure-convention:
+//
+//   - `opt_<name>` — optional; MinArity stops counting at the
+//     first opt_ param.
+//   - `var_args`    — rest; MaxArity becomes MaxArgsUnlimited.
+//
+// JSDoc takes precedence when present:
+//
+//   - `@param {...T} x`  — rest; same effect as var_args.
+//
+// Matches FunctionParamBuilder's prefix detection path in Java.
+// Called for every FunctionType we build from a PARAM_LIST node.
+func setArityFromParamNames(fn *jstype.FunctionType, params *rhino.Node) {
+	setArityFromParams(fn, params, nil)
+}
+
+// setArityFromParams is the doc-aware variant of
+// setArityFromParamNames; callers pass the owning @param-bearing
+// JSDocInfo so the `{...T}` rest marker can widen MaxArity.
+func setArityFromParams(fn *jstype.FunctionType, params *rhino.Node, info *rhino.JSDocInfo) {
+	if params == nil {
+		return
+	}
+	kids := params.Children()
+	fn.MinArity = 0
+	fn.MaxArity = len(kids)
+	sawOptional := false
+	for i, p := range kids {
+		name := p.String_()
+		switch {
+		case name == "var_args" || (len(name) > 8 && name[:8] == "var_args"):
+			fn.MaxArity = jstype.MaxArgsUnlimited
+			if !sawOptional {
+				fn.MinArity = i
+			}
+			return
+		case info != nil && info.IsRestParam(name):
+			fn.MaxArity = jstype.MaxArgsUnlimited
+			if !sawOptional {
+				fn.MinArity = i
+			}
+			return
+		case len(name) >= 4 && name[:4] == "opt_":
+			sawOptional = true
+		case info != nil && info.IsOptionalParam(name):
+			sawOptional = true
+		default:
+			if !sawOptional {
+				fn.MinArity = i + 1
+			}
+		}
+	}
+	if !sawOptional {
+		fn.MinArity = len(kids)
+	}
+}
+
 // buildDeclaredFunctionConstructor turns a `var Foo = function(a,b){…}`
 // node into a FunctionType whose params are resolved from the
 // @param JSDoc on the surrounding VAR declaration and which carries
@@ -1390,6 +1457,7 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 	} else {
 		fnType = jstype.NewFunctionType(paramTypes, retType)
 	}
+	setArityFromParams(fnType, params, info)
 	if templateMap != nil {
 		fnType.TemplateTypes = make([]*jstype.TemplateType, 0, len(templateMap))
 		for _, tn := range info.TemplateNames() {

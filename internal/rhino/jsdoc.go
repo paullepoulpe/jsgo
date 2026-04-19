@@ -10,6 +10,8 @@ type JSDocInfo struct {
 	typeExpr      *JSTypeExpression
 	paramNames    []string                     // insertion order (matches Java)
 	params        map[string]*JSTypeExpression // name → type
+	restParams    map[string]bool              // param names with `{...T}` rest marker
+	optionalParams map[string]bool             // param names with `{T=}` optional marker
 	returnExpr    *JSTypeExpression
 	isConstructor bool
 	isInterface   bool
@@ -166,6 +168,39 @@ func (i *JSDocInfo) AddParam(name string, t *JSTypeExpression) {
 		i.paramNames = append(i.paramNames, name)
 	}
 	i.params[name] = t
+}
+
+// IsRestParam reports whether the named @param carried the rest
+// marker (`@param {...T} x`). Mirrors JSDocInfo.hasRestParameter()
+// + isRestParameter(name) in Java.
+func (i *JSDocInfo) IsRestParam(name string) bool {
+	return i != nil && i.restParams[name]
+}
+
+// MarkRestParam records that the named @param carries the `{...T}`
+// rest marker. Called from JsDocInfoParser when the annotation
+// has IterRest at the top of the brace.
+func (i *JSDocInfo) MarkRestParam(name string) {
+	if i.restParams == nil {
+		i.restParams = map[string]bool{}
+	}
+	i.restParams[name] = true
+}
+
+// IsOptionalParam reports whether the named @param carried the
+// `{T=}` optional marker — callers may omit this argument without
+// a WRONG_ARGUMENT_COUNT diagnostic. Mirrors
+// JSDocInfo.isOptionalParameter(name) in Java.
+func (i *JSDocInfo) IsOptionalParam(name string) bool {
+	return i != nil && i.optionalParams[name]
+}
+
+// MarkOptionalParam records that the named @param carries `{T=}`.
+func (i *JSDocInfo) MarkOptionalParam(name string) {
+	if i.optionalParams == nil {
+		i.optionalParams = map[string]bool{}
+	}
+	i.optionalParams[name] = true
 }
 
 // ReturnType matches JSDocInfo.getReturnType().
