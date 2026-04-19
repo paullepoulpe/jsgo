@@ -264,10 +264,16 @@ func (p *Parser) finishDeclStatement(declToken rhino.Token, jsdoc *rhino.JSDocIn
 		// tolerance for missing `;` at statement boundaries.
 		init.SetPos(initLine, initCol)
 		nameNode.AddChildToBack(init)
-		p.scanner.SkipTrivia()
 	}
 	p.scanner.SkipTrivia()
+	sawNewline := p.scanner.Line() != p.scanner.LastTokenLine()
 	if !p.scanner.ConsumeByte(';') {
+		// ASI (ES5 §7.9): if we're at EOF / `}` / saw a newline
+		// before the next token, treat the VAR as terminated.
+		// Otherwise we're mid-statement and recovery is needed.
+		if sawNewline || p.scanner.AtEnd() || p.scanner.Peek() == '}' {
+			return declNode, true
+		}
 		p.scanner.SkipToStatementBoundary()
 	}
 	return declNode, true
@@ -1881,6 +1887,12 @@ func (p *Parser) peekBinOp() (rhino.Token, int, int) {
 	case '/':
 		// `/` could start a regex literal; without regex support we
 		// still treat it as divide, which is what the corpus expects.
+		// A `/*` / `//` pair is a comment, not division — guard so a
+		// trailing JSDoc (`/**`) after an expression doesn't get
+		// parsed as the start of a division op.
+		if c1 == '*' || c1 == '/' {
+			return rhino.ERROR, 0, -1
+		}
 		return rhino.DIV, 1, 11
 	case '%':
 		return rhino.MOD, 1, 11
@@ -2195,6 +2207,7 @@ func (p *Parser) parseStringLiteral(quote rune) (*rhino.Node, bool) {
 	}
 	val := p.scanner.Text(start, p.scanner.Pos())
 	p.scanner.Advance() // closing quote
+	p.scanner.MarkTokenConsumed()
 	return rhino.NewString(rhino.STRINGLIT, val), true
 }
 
@@ -2210,6 +2223,7 @@ func (p *Parser) parseNumberLiteral() (*rhino.Node, bool) {
 	if err != nil {
 		return nil, false
 	}
+	p.scanner.MarkTokenConsumed()
 	return rhino.NewNumber(v), true
 }
 
