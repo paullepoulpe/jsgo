@@ -331,6 +331,8 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitClassField(n, parent, scope))
 	case rhino.RETURN:
 		c.emit(c.visitReturn(n, scope))
+	case rhino.EQ, rhino.NE:
+		c.emit(c.visitEquality(n, scope))
 	}
 	// Strict-mode operand checks — OFF by default, matching Java.
 	// These fire only when `--jscomp_warning=strictCheckTypes` is set.
@@ -1015,6 +1017,100 @@ func isStructReceiver(t jstype.JSType) bool {
 // behind `GroupStrictCheckTypes` — matching how Java's
 // `DiagnosticGroups.STRICT_CHECK_TYPES` elevates the relevant
 // DiagnosticTypes from OFF to WARNING / ERROR.
+
+// visitEquality ports the JSC_DETERMINISTIC_TEST branch of
+// TypeCheck.visitBinaryOp: when the two operands of `==` / `!=`
+// can never compare equal — disjoint primitive slot types —
+// the comparison always yields a known value and Java emits at
+// the whole expression's column. `===` / `!==` use a separate
+// code (not yet ported).
+func (c *TypeCheck) visitEquality(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	kids := n.Children()
+	if len(kids) < 2 {
+		return nil
+	}
+	infer := NewTypeInference(scope)
+	l := infer.InferType(kids[0])
+	r := infer.InferType(kids[1])
+	if !disjointForEquality(l, r) {
+		return nil
+	}
+	return []diag.Diagnostic{{
+		Path: c.path, Line: n.Lineno(), Col: n.Charno(),
+		Code: diag.JSC_DETERMINISTIC_TEST, Level: diag.Error,
+		Message: fmt.Sprintf(
+			"condition always evaluates to false\nleft : %s\nright: %s",
+			l.TypeName(), r.TypeName()),
+	}}
+}
+
+// disjointForEquality reports whether types `a` and `b` can never
+// be `==`-equal. JS's `==` coerces across number / string / boolean,
+// but function ↔ string / number, symbol ↔ anything-else, etc. are
+// always-false. Conservative: stay silent on Unknown / All / unions
+// that might overlap.
+func disjointForEquality(a, b jstype.JSType) bool {
+	if a == nil || b == nil {
+		return false
+	}
+	if isUnknownOrNil(a) || isUnknownOrNil(b) {
+		return false
+	}
+	if _, ok := a.(*jstype.UnionType); ok {
+		return false
+	}
+	if _, ok := b.(*jstype.UnionType); ok {
+		return false
+	}
+	ka := classifyEquality(a)
+	kb := classifyEquality(b)
+	if ka == eqUnknown || kb == eqUnknown {
+		return false
+	}
+	if ka == kb {
+		return false
+	}
+	// Primitives that coerce to each other under `==` still compare.
+	// JS: number == string is equal via ToNumber; boolean == number
+	// coerces; null == undefined is true. We only fire when one side
+	// is a function / object and the other is a primitive.
+	if (ka == eqFunction && kb != eqFunction) ||
+		(kb == eqFunction && ka != eqFunction) {
+		return true
+	}
+	return false
+}
+
+type equalityKind int
+
+const (
+	eqUnknown equalityKind = iota
+	eqNumber
+	eqString
+	eqBoolean
+	eqNull
+	eqVoid
+	eqFunction
+)
+
+func classifyEquality(t jstype.JSType) equalityKind {
+	switch t {
+	case jstype.Number:
+		return eqNumber
+	case jstype.String:
+		return eqString
+	case jstype.Boolean:
+		return eqBoolean
+	case jstype.Null:
+		return eqNull
+	case jstype.Void:
+		return eqVoid
+	}
+	if _, ok := t.(*jstype.FunctionType); ok {
+		return eqFunction
+	}
+	return eqUnknown
+}
 
 // visitAdd ports TypeValidator.expectNumberOrString on the ADD
 // operator. JS `+` coerces to string whenever either side is

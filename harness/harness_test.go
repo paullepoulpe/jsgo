@@ -68,7 +68,10 @@ func parseTuples(text string) []tuple {
 		if out[i].line != out[j].line {
 			return out[i].line < out[j].line
 		}
-		return out[i].col < out[j].col
+		if out[i].col != out[j].col {
+			return out[i].col < out[j].col
+		}
+		return out[i].code < out[j].code
 	})
 	return out
 }
@@ -109,7 +112,10 @@ func jsgoTuplesWithOptions(path string, opts *jscomp.CompilerOptions) ([]tuple, 
 		if out[i].line != out[j].line {
 			return out[i].line < out[j].line
 		}
-		return out[i].col < out[j].col
+		if out[i].col != out[j].col {
+			return out[i].col < out[j].col
+		}
+		return out[i].code < out[j].code
 	})
 	return out, exit, nil
 }

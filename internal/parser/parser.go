@@ -1488,6 +1488,7 @@ func (p *Parser) tryPrimary() (*rhino.Node, bool) {
 // don't exist at any lower layer.
 func (p *Parser) tryParen() (*rhino.Node, bool) {
 	save := p.scanner.Save()
+	openLine, openCol := p.scanner.Line(), p.scanner.Col()
 	if !p.scanner.ConsumeByte('(') {
 		p.scanner.Restore(save)
 		return nil, false
@@ -1502,6 +1503,13 @@ func (p *Parser) tryParen() (*rhino.Node, bool) {
 	if !p.scanner.ConsumeByte(')') {
 		p.scanner.Restore(save)
 		return nil, false
+	}
+	// If the inner expression didn't get a position (e.g. an
+	// anonymous function-expression wrapped in parens), use the
+	// opening `(` to give it one. Java uses the `(`-column for the
+	// whole paren group at diagnostic time.
+	if inner.Lineno() == 0 && inner.Charno() == 0 {
+		inner.SetPos(openLine, openCol)
 	}
 	return inner, true
 }
