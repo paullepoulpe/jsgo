@@ -62,17 +62,30 @@ func (c *CheckSideEffects) walk(n *rhino.Node) {
 // the outer form is fully pure.
 func (c *CheckSideEffects) reportUseless(stmt, expr *rhino.Node, top bool) {
 	pure := !hasSideEffects(expr)
+	// Per-operator "result not used" diagnostics fire even when the
+	// operand has side effects — the operator itself is dropped.
+	// Java emits at specific positions for each operator kind.
+	if top {
+		switch expr.Token() {
+		case rhino.IN:
+			c.emitOpAt(stmt, "in")
+			return
+		case rhino.NOT:
+			c.emitOpAt(expr, "not")
+			return
+		case rhino.GETELEM:
+			c.emitOpAt(stmt, "getelem")
+			if pure {
+				return
+			}
+			// fall through to recursion for ternary/and/or branches
+		}
+	}
 	if pure {
-		// Report at the expression's own position (the `function`
-		// keyword for a paren-wrapped FUNCTION, the operator for a
-		// binary/unary form) — matches how Java's CheckSideEffects
-		// derives the reporting node from NodeUtil.findLhs.
 		if expr.Token() == rhino.GETPROP {
-			// `T.x;` — Java emits a per-operator message at the
-			// property name's column.
 			kids := expr.Children()
 			if len(kids) >= 2 {
-				c.emitOp(kids[1], "getprop")
+				c.emitOpAt(kids[1], "getprop")
 			} else {
 				c.emitAt(expr)
 			}
@@ -114,10 +127,10 @@ func (c *CheckSideEffects) emitAt(n *rhino.Node) {
 	})
 }
 
-// emitOp emits the operator-specific "The result of the 'foo'
+// emitOpAt emits the operator-specific "The result of the 'foo'
 // operator is not being used." variant that Java uses for
-// getprop / in / not / etc. top-level expressions.
-func (c *CheckSideEffects) emitOp(n *rhino.Node, op string) {
+// getprop / in / not / getelem top-level expressions.
+func (c *CheckSideEffects) emitOpAt(n *rhino.Node, op string) {
 	c.diags = append(c.diags, diag.Diagnostic{
 		Path:    c.path,
 		Line:    n.Lineno(),

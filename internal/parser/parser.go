@@ -1064,12 +1064,23 @@ func (p *Parser) tryCallOrAssignStatement() (*rhino.Node, bool) {
 		}
 		p.scanner.SkipTrivia()
 		// Call-as-statement must end with `;` (or `}` / EOF). If we
-		// instead see another postfix continuation — `.prop` or
-		// `(args)` — this isn't a bare call; rewind so
-		// tryExpressionStatement picks up the full chained form.
+		// see a postfix continuation — `.prop` / `(args)` / `[i]` —
+		// or a binary-op keyword (`in`, `instanceof`) the CALL is a
+		// sub-expression; rewind so tryExpressionStatement picks up
+		// the full form.
 		if !p.scanner.AtEnd() {
 			switch p.scanner.Peek() {
 			case '.', '(', '[':
+				rewind()
+				return nil, false
+			}
+			if p.scanner.AtKeyword("in") || p.scanner.AtKeyword("instanceof") {
+				rewind()
+				return nil, false
+			}
+			// Binary-op character that isn't a statement terminator
+			// (e.g. `+`, `-`, `*`, `<`, `==`) — same story.
+			if tok, _, _ := p.peekBinOp(); tok != rhino.ERROR {
 				rewind()
 				return nil, false
 			}
