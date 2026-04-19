@@ -61,7 +61,7 @@ func (c *CheckDupVarDecl) Check(script *rhino.Node) []diag.Diagnostic {
 			seen[owner][prop] = &decl{at: at, t: t}
 			return
 		}
-		if jstype.IsSubtype(t, first.t) && jstype.IsSubtype(first.t, t) {
+		if sameDeclaredType(t, first.t) {
 			return
 		}
 		c.diags = append(c.diags, diag.Diagnostic{
@@ -102,6 +102,33 @@ func (c *CheckDupVarDecl) Check(script *rhino.Node) []diag.Diagnostic {
 		})
 	})
 	return c.diags
+}
+
+// sameDeclaredType reports whether two JSTypes declared on the
+// same slot should be treated as equal by TypeCheck's duplicate-
+// declaration check. Java compares by nominal identity: two
+// @record-backed ObjectTypes with the same structural surface
+// are still different types. Primitives compare by value.
+func sameDeclaredType(a, b jstype.JSType) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	// Nominal types (ObjectType / FunctionType / EnumType /
+	// TemplatizedType) compare by pointer identity.
+	if _, ok := a.(*jstype.ObjectType); ok {
+		return a == b
+	}
+	if _, ok := a.(*jstype.FunctionType); ok {
+		return a == b
+	}
+	if _, ok := a.(*jstype.EnumType); ok {
+		return a == b
+	}
+	if _, ok := a.(*jstype.TemplatizedType); ok {
+		return a == b
+	}
+	// Primitives / unions: round-trip subtype test is sufficient.
+	return jstype.IsSubtype(a, b) && jstype.IsSubtype(b, a)
 }
 
 // walkFunctionAssigns collects every `owner.prop = function(){…}`
