@@ -392,6 +392,8 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitIn(n, scope))
 	case rhino.FOR_IN:
 		c.emit(c.visitForIn(n, scope))
+	case rhino.LSH, rhino.RSH, rhino.URSH, rhino.BITAND, rhino.BITOR, rhino.BITXOR:
+		c.emit(c.visitBitOp(n, scope))
 	}
 	// Strict-mode operand checks — OFF by default, matching Java.
 	// These fire only when `--jscomp_warning=strictCheckTypes` is set.
@@ -1340,6 +1342,67 @@ func (c *TypeCheck) visitThis(n *rhino.Node, scope *TypedScope) []diag.Diagnosti
 // the comparison always yields a known value and Java emits at
 // the whole expression's column. `===` / `!==` use a separate
 // code (not yet ported).
+// visitBitOp fires JSC_BAD_TYPE_FOR_BIT_OPERATION when either
+// operand of a bitwise operator (`<<`, `>>`, `>>>`, `&`, `|`,
+// `^`) is definitely not a number. Java's TypeCheck rejects
+// void / null / boolean / object operands statically.
+func (c *TypeCheck) visitBitOp(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	kids := n.Children()
+	if len(kids) < 2 {
+		return nil
+	}
+	infer := NewTypeInference(scope)
+	var out []diag.Diagnostic
+	op := bitOpSymbol(n.Token())
+	for _, k := range kids {
+		t := infer.InferType(k)
+		if !isDefinitelyNotNumber(t) {
+			continue
+		}
+		out = append(out, diag.Diagnostic{
+			Path: c.path, Line: k.Lineno(), Col: k.Charno(),
+			Code: diag.JSC_BAD_TYPE_FOR_BIT_OPERATION, Level: diag.Error,
+			Message: fmt.Sprintf("operator %s cannot be applied to %s", op, t.TypeName()),
+		})
+		break // report the first bad operand only, matching Java
+	}
+	return out
+}
+
+// bitOpSymbol returns the textual operator for a bit-op token.
+func bitOpSymbol(t rhino.Token) string {
+	switch t {
+	case rhino.LSH:
+		return "<<"
+	case rhino.RSH:
+		return ">>"
+	case rhino.URSH:
+		return ">>>"
+	case rhino.BITAND:
+		return "&"
+	case rhino.BITOR:
+		return "|"
+	case rhino.BITXOR:
+		return "^"
+	}
+	return "?"
+}
+
+// isDefinitelyNotNumber reports whether `t` is a primitive type
+// known to not be a number at runtime. Void, Null, Boolean, and
+// String are the non-numeric primitives; Unknown/All still allow
+// numeric values so they don't trigger.
+func isDefinitelyNotNumber(t jstype.JSType) bool {
+	if t == nil {
+		return false
+	}
+	switch t {
+	case jstype.Void, jstype.Null, jstype.Boolean, jstype.String:
+		return true
+	}
+	return false
+}
+
 // visitIn fires JSC_IN_USED_WITH_STRUCT on `key in struct` — Java's
 // TypeCheck rejects the `in` operator on @struct receivers because
 // the surface is sealed and membership is a compile-time concept.
