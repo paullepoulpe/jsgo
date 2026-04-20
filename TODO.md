@@ -4,13 +4,25 @@ Living list of remaining work, grounded in (a) per-file audit of jsgo
 against the corresponding Java sources, and (b) bucket-by-oracle-code
 triage of the 698 failing fixtures in the extracted corpus.
 
-**Current state:** 964 / 1444 = **66.76 %** extracted pass rate under
-the default diagnostic set, 883 / 1444 = **61.15 %** under
+**Current state:** 1014 / 1444 = **70.22 %** extracted pass rate under
+the default diagnostic set, 932 / 1444 = **64.54 %** under
 `strictCheckTypes`. Tier-0 through Tier-3 hand-authored corpora all
 100 %.
 
-**Goal:** 80 %+ ≈ 1155 extracted passes. Gap: **+191** on default
-(≈ 13 % of the corpus).
+**Goal:** 80 %+ ≈ 1155 extracted passes. Gap: **+141** on default
+(≈ 10 % of the corpus).
+
+**Batch-merge state (Apr 2026):** 8 parallel ports landed (union-flatten,
+templatized inheritance, NamedType position-tracked resolver,
+`@nosideeffects`, `@private`/`@protected` visibility, optional/rest
+param modifiers, `DUP_VAR_DECLARATION_TYPE_MISMATCH`, arity +
+`NOT_A_CONSTRUCTOR`). Five of the new check passes — `JSTypeResolver`,
+`CheckImplements`, `CheckAccessControls`, `CheckArity`,
+`CheckDupVarDeclMismatch` — compile and have full fixture coverage but
+are **not yet wired into the pipeline** (see `compiler.go` deferral
+comments) pending false-positive cleanup on transitively-inherited
+methods, varargs arity edge cases, and `@dict`/`@struct` bracket-access
+patterns.
 
 ## Triage snapshot (current failing buckets)
 
