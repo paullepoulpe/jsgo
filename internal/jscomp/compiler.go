@@ -76,6 +76,11 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	varRefDiags := NewVariableReferenceCheck(path, externScope).Check(script)
 	all = append(all, varRefDiags...)
 	all = append(all, NewCheckJsDocTypes(path, src, scope).Check()...)
+	// Late-resolve JSDoc NamedType wrappers before TypeCheck so any
+	// JSC_UNRECOGNIZED_TYPE_ERROR / JSC_TYPE_PARSE_ERROR fires at the
+	// JSDoc comment location rather than at the annotated AST node.
+	// Mirrors Java's JSTypeRegistry.resolveTypes pass slot.
+	all = append(all, NewJSTypeResolver(path, src, creator, scope, externScope).Check(script)...)
 	all = append(all, NewTypeCheckWithOptions(path, creator, scope, opts).Check(script)...)
 	all = append(all, NewCheckArity(path, creator, scope).Check(script)...)
 	all = append(all, NewCheckDupVarDeclMismatch(path, scope).Check(script)...)

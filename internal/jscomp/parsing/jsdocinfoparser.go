@@ -27,6 +27,21 @@ type JsDocInfoParser struct {
 	unread      JsDocToken
 	hasUnread   bool
 	anyRecorded bool
+
+	// collectedNames accumulates every identifier token seen while
+	// parsing the current type expression, tagged with its (line, col)
+	// inside the comment body. Reset at the top of each
+	// parseTypeExpressionAnnotation call. Mirrors how Java's
+	// JSDocInfoParser carries the positions along on the Node tree it
+	// produces for each type expression.
+	collectedNames []rhino.NamedType
+
+	// typeExprStartLine / typeExprStartCol snapshot the position where
+	// parseTypeExpressionAnnotation began (just inside the opening
+	// `{`). Used when recording a JSDoc parse error so the diagnostic
+	// points at the top of the expression.
+	typeExprStartLine int
+	typeExprStartCol  int
 }
 
 // NewJsDocInfoParser mirrors Java's constructor. sourceString is the
@@ -210,16 +225,54 @@ func (p *JsDocInfoParser) parseSuppressTag() JsDocToken {
 	}
 }
 
+// pushBack un-consumes the given token so the next call to next() /
+// match() returns it. Used by tag parsers that peek past the expected
+// `{` to let the fallback path re-scan the same characters.
+func (p *JsDocInfoParser) pushBack(t JsDocToken) {
+	p.unread = t
+	p.hasUnread = true
+}
+
+// bareIdentExpr constructs a JSTypeExpression from a single STRING token
+// already produced by the stream. Used by `@extends Foo` / `@implements
+// Foo` without braces, which Closure parses silently as a nominal
+// reference.
+func (p *JsDocInfoParser) bareIdentExpr() *rhino.JSTypeExpression {
+	name := p.stream.String_()
+	line, col := p.stream.TokenStartLine(), p.stream.TokenStartCol()
+	return &rhino.JSTypeExpression{
+		TypeName:   name,
+		SourceLine: line,
+		SourceCol:  col,
+		Names: []rhino.NamedType{{
+			UnresolvedName: name,
+			SourceLine:     line,
+			SourceCol:      col,
+		}},
+	}
+}
+
 // parseTypeTag ports the @type branch of the Java parseAnnotation
 // switch: parseTypeExpressionAnnotation, record on the builder.
 func (p *JsDocInfoParser) parseTypeTag() JsDocToken {
 	p.skipEOLs()
 	t := p.next()
-	expr, next, ok := p.parseTypeExpressionAnnotation(t)
-	if !ok {
+	// `@type` with no following `{` isn't a parse error in Closure's
+	// lenient mode — it just omits the type binding. Swallow the rest of
+	// the line without recording a diagnostic.
+	if t != JsDocTokenLeftCurly {
+		p.pushBack(t)
 		return p.eatUntilEOLIfNotAnnotation()
 	}
-	p.info.SetType(rhino.NewJSTypeExpression(expr))
+	expr, next, ok := p.parseTypeExpressionAnnotation(t)
+	if !ok {
+		// Record a type-parse error anchored at the `{` so the resolver
+		// can emit JSC_TYPE_PARSE_ERROR at the right JSDoc location.
+		p.info.SetType(p.buildParseErrorExpr())
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	}
+	p.info.SetType(p.buildTypeExpr(expr))
 	p.anyRecorded = true
 	return next
 }
@@ -237,6 +290,7 @@ func (p *JsDocInfoParser) parseParamTag() JsDocToken {
 	if !ok {
 		return p.eatUntilEOLIfNotAnnotation()
 	}
+	typeExpr := p.buildTypeExpr(expr)
 	// parseParamTypeExpressionAnnotation already advanced to the
 	// token immediately following `}`. Java's parser expects that to
 	// be the parameter name (STRING), possibly wrapped in optional-
@@ -255,7 +309,7 @@ func (p *JsDocInfoParser) parseParamTag() JsDocToken {
 			name = name[:i]
 		}
 		if isJsIdent(name) {
-			p.info.AddParam(name, rhino.NewJSTypeExpression(expr))
+			p.info.AddParam(name, typeExpr)
 			if isRest {
 				p.info.MarkRestParam(name)
 			}
@@ -271,11 +325,19 @@ func (p *JsDocInfoParser) parseParamTag() JsDocToken {
 func (p *JsDocInfoParser) parseReturnTag() JsDocToken {
 	p.skipEOLs()
 	t := p.next()
-	expr, next, ok := p.parseTypeExpressionAnnotation(t)
-	if !ok {
+	// `@return` without a `{TYPE}` is legal in Closure and simply omits
+	// the return-type entry. Don't fire a parse error.
+	if t != JsDocTokenLeftCurly {
+		p.pushBack(t)
 		return p.eatUntilEOLIfNotAnnotation()
 	}
-	p.info.SetReturnType(rhino.NewJSTypeExpression(expr))
+	expr, next, ok := p.parseTypeExpressionAnnotation(t)
+	if !ok {
+		p.info.SetReturnType(p.buildParseErrorExpr())
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	}
+	p.info.SetReturnType(p.buildTypeExpr(expr))
 	p.anyRecorded = true
 	return next
 }
@@ -283,11 +345,25 @@ func (p *JsDocInfoParser) parseReturnTag() JsDocToken {
 func (p *JsDocInfoParser) parseExtendsTag() JsDocToken {
 	p.skipEOLs()
 	t := p.next()
-	expr, next, ok := p.parseTypeExpressionAnnotation(t)
-	if !ok {
+	if t == JsDocTokenString {
+		// `@extends Foo` without braces — Closure parses the bare name
+		// silently. Capture the identifier as the base type without a
+		// parse error.
+		p.info.SetBaseType(p.bareIdentExpr())
+		p.anyRecorded = true
 		return p.eatUntilEOLIfNotAnnotation()
 	}
-	p.info.SetBaseType(rhino.NewJSTypeExpression(expr))
+	if t != JsDocTokenLeftCurly {
+		p.pushBack(t)
+		return p.eatUntilEOLIfNotAnnotation()
+	}
+	expr, next, ok := p.parseTypeExpressionAnnotation(t)
+	if !ok {
+		p.info.SetBaseType(p.buildParseErrorExpr())
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	}
+	p.info.SetBaseType(p.buildTypeExpr(expr))
 	p.anyRecorded = true
 	return next
 }
@@ -295,11 +371,22 @@ func (p *JsDocInfoParser) parseExtendsTag() JsDocToken {
 func (p *JsDocInfoParser) parseImplementsTag() JsDocToken {
 	p.skipEOLs()
 	t := p.next()
-	expr, next, ok := p.parseTypeExpressionAnnotation(t)
-	if !ok {
+	if t == JsDocTokenString {
+		p.info.AddImplementation(p.bareIdentExpr())
+		p.anyRecorded = true
 		return p.eatUntilEOLIfNotAnnotation()
 	}
-	p.info.AddImplementation(rhino.NewJSTypeExpression(expr))
+	if t != JsDocTokenLeftCurly {
+		p.pushBack(t)
+		return p.eatUntilEOLIfNotAnnotation()
+	}
+	expr, next, ok := p.parseTypeExpressionAnnotation(t)
+	if !ok {
+		p.info.AddImplementation(p.buildParseErrorExpr())
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	}
+	p.info.AddImplementation(p.buildTypeExpr(expr))
 	p.anyRecorded = true
 	return next
 }
@@ -337,11 +424,38 @@ func (p *JsDocInfoParser) parseTypedefTag() JsDocToken {
 	t := p.next()
 	expr, next, ok := p.parseTypeExpressionAnnotation(t)
 	if !ok {
+		p.info.SetTypedefType(p.buildParseErrorExpr())
+		p.anyRecorded = true
 		return p.eatUntilEOLIfNotAnnotation()
 	}
-	p.info.SetTypedefType(rhino.NewJSTypeExpression(expr))
+	p.info.SetTypedefType(p.buildTypeExpr(expr))
 	p.anyRecorded = true
 	return next
+}
+
+// buildTypeExpr constructs a JSTypeExpression carrying the captured
+// name-position list and the start of the expression inside the JSDoc
+// comment body. Mirrors the Java JSDocInfoBuilder that stashes a
+// Node.TypeAST root with its position metadata before resolution.
+func (p *JsDocInfoParser) buildTypeExpr(expr string) *rhino.JSTypeExpression {
+	names := p.collectedNames
+	p.collectedNames = nil
+	return rhino.NewJSTypeExpressionAt(expr, p.typeExprStartLine, p.typeExprStartCol, names)
+}
+
+// buildParseErrorExpr produces a JSTypeExpression flagged as a parse
+// failure. The resolver emits JSC_TYPE_PARSE_ERROR at ParseError's
+// recorded position. Mirrors the `report(…, TYPE_PARSE_ERROR, …)` path
+// in Java's JSDocInfoParser.parseTypeExpressionAnnotation.
+func (p *JsDocInfoParser) buildParseErrorExpr() *rhino.JSTypeExpression {
+	pe := &rhino.NamedType{SourceLine: p.typeExprStartLine, SourceCol: p.typeExprStartCol}
+	p.collectedNames = nil
+	return &rhino.JSTypeExpression{
+		TypeName:   "",
+		SourceLine: p.typeExprStartLine,
+		SourceCol:  p.typeExprStartCol,
+		ParseError: pe,
+	}
 }
 
 // parseTemplateTag mirrors the Java method: read the remainder of the
@@ -374,6 +488,12 @@ func (p *JsDocInfoParser) parseTypeExpressionAnnotation(token JsDocToken) (strin
 	if token != JsDocTokenLeftCurly {
 		return "", token, false
 	}
+	// Record the position of the first character AFTER `{` as the
+	// expression origin. Java's JSDocInfoParser uses the same anchor
+	// when reporting type-expression parse errors.
+	openLine, openCol := p.stream.TokenStartLine(), p.stream.TokenStartCol()
+	p.typeExprStartLine, p.typeExprStartCol = openLine, openCol+1
+	p.collectedNames = nil
 	p.skipEOLs()
 	expr, ok := p.parseTopLevelTypeExpression(p.next())
 	if !ok {
@@ -412,6 +532,9 @@ func (p *JsDocInfoParser) parseParamTypeAnnotationFull(token JsDocToken) (string
 	if token != JsDocTokenLeftCurly {
 		return "", false, false, token, false
 	}
+	openLine, openCol := p.stream.TokenStartLine(), p.stream.TokenStartCol()
+	p.typeExprStartLine, p.typeExprStartCol = openLine, openCol+1
+	p.collectedNames = nil
 	p.skipEOLs()
 	isRest := false
 	isOptional := false
@@ -522,10 +645,40 @@ func (p *JsDocInfoParser) parseBasicTypeExpression(token JsDocToken) (string, bo
 		return "(" + inner + ")", true
 	case JsDocTokenString:
 		name := p.stream.String_()
+		// Snapshot position BEFORE consuming further tokens (e.g.
+		// template-arg brackets); parseTypeName advances.
+		nameLine := p.stream.TokenStartLine()
+		nameCol := p.stream.TokenStartCol()
 		if name == "function" {
 			return p.parseFunctionType()
 		}
-		return p.parseTypeName(name)
+		if name == "typeof" {
+			// typeof NAME — Closure's TypeOf form. The value-name isn't a
+			// type name, so we swallow the following STRING without
+			// recording it as a NamedType (avoids false-positive
+			// UNRECOGNIZED_TYPE_ERROR). Mirrors Java's JsDocInfoParser
+			// behaviour of returning a TypeOf node without registering a
+			// NamedType.
+			p.skipEOLs()
+			tok := p.next()
+			if tok != JsDocTokenString {
+				return "", false
+			}
+			return "typeof " + p.stream.String_(), true
+		}
+		out, ok := p.parseTypeName(name)
+		if !ok {
+			return "", false
+		}
+		// Record the leading identifier for post-parse resolution.
+		// Template-arg pieces inside `Foo<Bar>` are harvested recursively
+		// when parseTypeName descends into parseTopLevelTypeExpression.
+		p.collectedNames = append(p.collectedNames, rhino.NamedType{
+			UnresolvedName: name,
+			SourceLine:     nameLine,
+			SourceCol:      nameCol,
+		})
+		return out, true
 	}
 	return "", false
 }
