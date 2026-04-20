@@ -349,6 +349,48 @@ func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 			members = append(members, member)
 			continue
 		}
+		// Dotted name: `goog.Foo` / `ns.Class.Inner`. Resolve the
+		// first segment as a namespace binding and consult its
+		// namespace-prop map for the property's type. A single-step
+		// chain that resolves to a constructor's Instance yields a
+		// nominal member, matching how Java walks dotted type names
+		// through StaticSlot.getInstanceType().
+		if idx := indexOfByte(p, '.'); idx > 0 {
+			first := p[:idx]
+			rest := p[idx+1:]
+			if t := s.LookupNamespaceProp(first, rest); t != nil {
+				if fn, ok := t.(*jstype.FunctionType); ok && fn.Instance != nil {
+					var member jstype.JSType = fn.Instance
+					if len(tplArgs) > 0 {
+						member = jstype.NewTemplatizedType(fn.Instance, tplArgs)
+					}
+					if !explicitNonNull {
+						impliedNullable = true
+					}
+					if explicitNullable {
+						impliedNullable = true
+					}
+					members = append(members, member)
+					continue
+				}
+				members = append(members, t)
+				continue
+			}
+			// Static nominal under a known constructor: `C.Inner`.
+			if fn, ok := s.GetDeclaredType(first).(*jstype.FunctionType); ok && fn.Instance != nil {
+				if t := fn.Instance.GetStaticPropertyType(rest); t != nil {
+					if fnT, ok := t.(*jstype.FunctionType); ok && fnT.Instance != nil {
+						members = append(members, fnT.Instance)
+						if !explicitNonNull {
+							impliedNullable = true
+						}
+						continue
+					}
+					members = append(members, t)
+					continue
+				}
+			}
+		}
 		// Primitive fallback.
 		if explicitNullable {
 			impliedNullable = true
@@ -1040,6 +1082,39 @@ func (c *TypedScopeCreator) recordNamespaceAssignFromFunction(a *rhino.Node, sco
 	info := a.JSDocInfo()
 	params := rhs.Children()
 	if len(params) < 2 {
+		return
+	}
+	// @constructor on a \`ns.Foo = function(){…}\` assignment builds
+	// a ConstructorType whose Instance is reachable under the
+	// qualified name. scope.ResolveExpr consults namespaceProps for
+	// dotted references so \`@type {!ns.Foo}\` resolves nominally.
+	if info != nil && (info.IsConstructor() || info.IsInterface() || info.IsRecord()) {
+		qname := recv.String_() + "." + lhsKids[1].String_()
+		var paramTypes []jstype.JSType
+		for _, p := range params[1].Children() {
+			paramTypes = append(paramTypes, resolveParamType(info, p, scope))
+		}
+		ctor := jstype.NewConstructorType(qname, paramTypes)
+		if info.IsInterface() || info.IsRecord() {
+			ctor.Instance.IsStructural = true
+		}
+		if info.IsStruct() {
+			ctor.Instance.IsStruct = true
+		}
+		if info.IsDict() {
+			ctor.Instance.IsDict = true
+		}
+		if base := info.BaseType(); base != nil {
+			if super := scope.LookupNominalType(base.TypeName); super != nil {
+				ctor.Instance.SetSuper(super)
+			}
+		}
+		setArityFromParams(ctor, params[1], info)
+		scope.recordNamespaceProp(recv.String_(), lhsKids[1].String_(), ctor, lhsKids[1])
+		// Also collect \`this.X = …\` writes inside the ctor body.
+		if len(params) >= 3 {
+			c.collectThisPropertiesIn(params[2], ctor.Instance, scope)
+		}
 		return
 	}
 	var paramTypes []jstype.JSType

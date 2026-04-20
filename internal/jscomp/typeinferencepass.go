@@ -85,16 +85,41 @@ func (p *TypeInferencePass) transferDecl(decl *rhino.Node, in *FlowScope) map[Br
 			if d.IsConstructor {
 				return map[Branch]*FlowScope{BranchUnconditional: in}
 			}
+			// FunctionType whose params or return carry a declared
+			// shape (not all-Unknown) — preserve it. Covers \`var
+			// bar = function(a){}\` with @param on the VAR.
+			if functionHasDeclaredShape(d) {
+				return map[Branch]*FlowScope{BranchUnconditional: in}
+			}
 		case *jstype.EnumType:
 			return map[Branch]*FlowScope{BranchUnconditional: in}
 		case *jstype.TemplatizedType:
 			// Preserve the declared generic binding — the init's
 			// bare Array / Map type would drop the template args,
-			// breaking `arr[0]`-style reads that rely on them.
+			// breaking \`arr[0]\`-style reads that rely on them.
 			return map[Branch]*FlowScope{BranchUnconditional: in}
 		}
 	}
 	return map[Branch]*FlowScope{BranchUnconditional: in.Bind(name.String_(), t)}
+}
+
+// functionHasDeclaredShape reports whether any of \`fn\`'s params
+// or return carry a non-Unknown type. Used to avoid clobbering a
+// VAR-declared FunctionType whose signature comes from outer
+// @param/@return JSDoc.
+func functionHasDeclaredShape(fn *jstype.FunctionType) bool {
+	if fn == nil {
+		return false
+	}
+	for _, p := range fn.Params {
+		if p != nil && p != jstype.Unknown {
+			return true
+		}
+	}
+	if fn.Return != nil && fn.Return != jstype.Unknown && fn.Return != jstype.Void {
+		return true
+	}
+	return false
 }
 
 // transferAssign handles ASSIGN (and compound-assign variants) where
