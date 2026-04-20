@@ -4,36 +4,53 @@ Living list of remaining work, grounded in (a) per-file audit of jsgo
 against the corresponding Java sources, and (b) bucket-by-oracle-code
 triage of the 698 failing fixtures in the extracted corpus.
 
-**Current state:** 833 / 1444 = **57.69 %** extracted pass rate under
-the default diagnostic set, 754 / 1444 = **52.22 %** under
+**Current state:** 964 / 1444 = **66.76 %** extracted pass rate under
+the default diagnostic set, 883 / 1444 = **61.15 %** under
 `strictCheckTypes`. Tier-0 through Tier-3 hand-authored corpora all
 100 %.
 
-**Goal:** 80 %+ ≈ 1155 extracted passes. Gap: **+322** on default
-(≈ 22 % of the corpus).
+**Goal:** 80 %+ ≈ 1155 extracted passes. Gap: **+191** on default
+(≈ 13 % of the corpus).
 
 ## Triage snapshot (current failing buckets)
 
+Regenerate with `go run ./tools/fbucket`. Snapshot below taken against
+the default diagnostic set at the 964-pass baseline.
+
 ```
-274  want=[JSC_TYPE_MISMATCH]                     got=[]
- 32  want=[JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES] got=[]   [Java's TODO]
- 25  want=[JSC_UNRECOGNIZED_TYPE_ERROR]           got=[]
- 20  want=[JSC_INEXISTENT_PROPERTY]               got=[]
+193  want=[JSC_TYPE_MISMATCH]                     got=[]
+ 37  want=[JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES] got=[]   [Java's TODO]
  17  want=[]                                      got=[JSC_TYPE_MISMATCH]   [our FPs]
- 14  want=[JSC_USELESS_CODE]                      got=[]
- 14  want=[JSC_NON_STRINGIFIABLE_OBJECT_KEY]      got=[]
-  9  want=[JSC_INCOMPATIBLE_EXTENDED_PROPERTY_TYPE] got=[]
-  9  want=[JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH] got=[]
-  8  want=[JSC_TYPE_MISMATCH,JSC_USELESS_CODE]    got=[JSC_USELESS_CODE]
-  8  want=[JSC_DUP_VAR_DECLARATION_TYPE_MISMATCH] got=[]
-  8  want=[JSC_DETERMINISTIC_TEST]                got=[]
-  7  want=[JSC_NOT_A_CONSTRUCTOR]                 got=[]
-  7  want=[JSC_WRONG_ARGUMENT_COUNT]              got=[]
-  7  want=[JSC_ILLEGAL_PROPERTY_ACCESS]           got=[]
-  7  want=[JSC_DETERMINISTIC_TEST,JSC_USELESS_CODE] got=[]
-  6  want=[JSC_UNDEFINED_VARIABLE]                got=[]
-  6  want=[JSC_UNRECOGNIZED_TYPEOF_ERROR]         got=[]
+ 15  want=[JSC_NON_STRINGIFIABLE_OBJECT_KEY]      got=[]
+ 11  want=[JSC_UNRECOGNIZED_TYPE_ERROR]           got=[]
+ 11  want=[JSC_INEXISTENT_PROPERTY]               got=[]
+  7  want=[JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH] got=[]
+  6  want=[JSC_WRONG_ARGUMENT_COUNT]              got=[]
+  6  want=[JSC_TYPE_MISMATCH]                     got=[JSC_TYPE_MISMATCH]   [wrong line/col]
+  5  want=[JSC_NOT_A_CONSTRUCTOR]                 got=[]
+  5  want=[JSC_UNRECOGNIZED_TYPEOF_ERROR]         got=[]
+  5  want=[JSC_UNDEFINED_VARIABLE]                got=[]
+  5  want=[JSC_TYPE_MISMATCH,JSC_USELESS_CODE]    got=[JSC_USELESS_CODE]
+  5  want=[JSC_INVALID_CAST]                      got=[]
+  5  want=[JSC_TYPE_PARSE_ERROR]                  got=[]
+  4  want=[JSC_TYPE_MISMATCH,JSC_USED_GLOBAL_THIS] got=[]
+  4  want=[JSC_INCOMPATIBLE_EXTENDED_PROPERTY_TYPE] got=[JSC_INCOMPATIBLE_EXTENDED_PROPERTY_TYPE]  [wrong pos]
+  4  want=[JSC_POSSIBLE_INEXISTENT_PROPERTY]      got=[]
+  4  want=[JSC_VAR_MULTIPLY_DECLARED_ERROR]       got=[]
+  4  want=[JSC_DETERMINISTIC_TEST]                got=[]
 ```
+
+Since the last full refresh (833-pass baseline), the following buckets
+have materially shrunk — thanks to the flow-narrowing push,
+`checkdupvardecl.go`, and `checkjsdoctypes.go`:
+
+- `JSC_TYPE_MISMATCH` (miss): 274 → 193  (−81)
+- `JSC_UNRECOGNIZED_TYPE_ERROR`: 25 → 11  (−14)
+- `JSC_INEXISTENT_PROPERTY`: 20 → 11  (−9)
+- `JSC_INCOMPATIBLE_EXTENDED_PROPERTY_TYPE`: 9 → 0 missed (4 now emit but at wrong position)
+- `JSC_DUP_VAR_DECLARATION_TYPE_MISMATCH`: 8 → out of top-20 (mostly fixed)
+- `JSC_DETERMINISTIC_TEST`: 8 → 4
+- `JSC_USELESS_CODE` standalone: 14 → out of top-20
 
 ## Audit snapshot (per-file completeness)
 
@@ -230,7 +247,7 @@ COMPUTED_PROP).
 
 ### P3 — Lower-leverage / out-of-scope items
 
-* `JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES` — 32 fixtures, **skip**:
+* `JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES` — 37 fixtures, **skip**:
   Java itself flags this as still-in-development.
 * `with`-statement modeling — rare; deferred.
 * Generator / async suspend CFG edges — rare in checker corpus.
@@ -244,27 +261,32 @@ COMPUTED_PROP).
 
 ## Putting it together — fastest path to 80 %
 
-| # | Item | Effort | Cumulative impact |
-|---|------|--------|-------------------|
-| 1 | P0-A expression inference completeness | 1–2 w | +80 to +120 |
-| 2 | P0-A2 `@nosideeffects` + sub-expr useless | 2–3 d | +100 to +150 |
-| 3 | P0-A3 `@enum` | 4–5 d | +125 to +190 |
-| 4 | P0-A4 multi-`@extends` interface diamond | 1 d | +134 to +199 |
-| 5 | P0-A5 `JSC_INEXISTENT_PROPERTY` broadening | 3–5 d | +144 to +217 |
-| 6 | P0-A6 TYPE_MISMATCH FP reduction | 4–5 d | +159 to +242 |
-| 7 | P1-C `JSC_UNRECOGNIZED_TYPE_ERROR` | 4–5 d | +184 to +272 |
-| 8 | P1-D arity / not-a-constructor | 3–4 d | +196 to +287 |
-| 9 | P1-E `DUP_VAR_DECLARATION_TYPE_MISMATCH` | 1 d | +206 to +297 |
-| 10 | P1-B parser breadth (cast / GETELEM / template) | 2–3 w | +246 to +357 |
-| 11 | P2-E `NON_STRINGIFIABLE_OBJECT_KEY` (after P1-B) | 2–3 d | +260 to +371 |
-| 12 | P2-D `DETERMINISTIC_TEST` | 3 d | +275 to +386 |
-| 13 | P2-C real externs loader | 1 w | +285 to +406 |
-| 14 | P2-B `INTERFACE_METHOD_NOT_IMPLEMENTED` | 3 d | +293 to +418 |
-| 15 | P2-A `CheckAccessControls` | 1 w | +301 to +430 |
+Baseline is 964 / 1444. Cumulative columns show the pass total after
+each item lands. Impact per-item is capped by the bucket size, which
+has already shrunk since the previous revision of this list.
 
-Doing items 1–9 puts us at roughly **920–1020 / 1444 ≈ 64–71 %**.
-Items 10–15 push past 80 %, with item 10 (full parser breadth) being
-the single largest individual lift.
+| # | Item | Effort | Item impact | Cumulative |
+|---|------|--------|-------------|------------|
+| 1 | P0-A expression inference completeness | 1–2 w | +60 to +90 (cap 193) | 1024–1054 |
+| 2 | P0-A6 TYPE_MISMATCH FP reduction | 4–5 d | +12 to +17 (cap 17) | 1036–1071 |
+| 3 | P2-E `NON_STRINGIFIABLE_OBJECT_KEY` (after P1-B) | 2–3 d | +12 to +15 (cap 15) | 1048–1086 |
+| 4 | P1-C `JSC_UNRECOGNIZED_TYPE_ERROR` | 3–4 d | +8 to +11 (cap 11) | 1056–1097 |
+| 5 | P0-A5 `JSC_INEXISTENT_PROPERTY` broadening | 3–5 d | +8 to +11 (cap 11) | 1064–1108 |
+| 6 | P2-B `INTERFACE_METHOD_NOT_IMPLEMENTED` + hidden-superclass fixes | 3 d | +5 to +7 (cap 7) | 1069–1115 |
+| 7 | P1-D arity / not-a-constructor | 3–4 d | +8 to +11 (cap 11 across 2 buckets) | 1077–1126 |
+| 8 | P1-B parser breadth (cast / GETELEM / template) | 2–3 w | +30 to +50 (unblocks #3 + #7) | 1107–1176 |
+| 9 | P2-D `DETERMINISTIC_TEST` | 3 d | +3 to +4 (cap 4) | 1110–1180 |
+| 10 | P2-C real externs loader | 1 w | +5 to +15 (UNDEFINED_VARIABLE + TYPE_MISMATCH) | 1115–1195 |
+| 11 | P2-A `CheckAccessControls` | 1 w | +3 to +5 | 1118–1200 |
+
+Doing items 1–5 puts us at roughly **1064–1108 / 1444 ≈ 74–77 %**.
+Items 1–8 cross the 80 % line (1155), with item 8 (parser breadth)
+the single largest individual lift and a prereq for items 3 and 7.
+Items 9–11 are gravy once the leverage from 1–8 is captured.
+
+The remaining ~30–60 fixtures past that point need destructuring,
+async/await, modules, and the longer-tail JSDoc tags — multi-week
+ports each.
 
 The remaining ~80–100 fixtures past that point need destructuring,
 async/await, modules, and the longer-tail JSDoc tags — multi-week
