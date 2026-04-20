@@ -1,8 +1,8 @@
-// Port of com/google/javascript/jscomp/parsing/JsDocInfoParser.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/parsing/JsDocInfoParser.java @ closure-compiler v20260415 (subset)
 //
 // Scope: Tier-0 through Tier-3 tags only (@type, @param, @return,
 // @extends, @implements, @typedef, @template, @constructor, @interface,
-// @record). Tag dispatch + type-expression recursive descent mirror the
+// @record, @abstract). Tag dispatch + type-expression recursive descent mirror the
 // Java class exactly: parseAnnotation → parseTypeExpressionAnnotation
 // → parseTopLevelTypeExpression → parseTypeExpression →
 // parseBasicTypeExpression → parseTypeName / parseRecordType /
@@ -124,6 +124,10 @@ func (p *JsDocInfoParser) parseAnnotation(_ JsDocToken) JsDocToken {
 		return p.eatUntilEOLIfNotAnnotation()
 	case "enum":
 		return p.parseEnumTag()
+	case "abstract":
+		p.info.SetAbstract(true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
 	case "suppress":
 		return p.parseSuppressTag()
 	}
