@@ -61,16 +61,41 @@ func collectRefinements(scope *TypedScope, cond *rhino.Node, whenTruthy bool, ou
 		collectRefinements(scope, kids[1], true, out)
 		return
 	case rhino.OR:
-		// On the falsy branch BOTH sides are falsy.
-		if whenTruthy {
-			return
-		}
 		kids := cond.Children()
 		if len(kids) != 2 {
 			return
 		}
-		collectRefinements(scope, kids[0], false, out)
-		collectRefinements(scope, kids[1], false, out)
+		if !whenTruthy {
+			// Falsy branch of `a || b` — both sides falsy. Intersection
+			// by taking sequential refinements (later overwrites earlier).
+			collectRefinements(scope, kids[0], false, out)
+			collectRefinements(scope, kids[1], false, out)
+			return
+		}
+		// Truthy branch of `a || b` — EITHER side could be truthy.
+		// Union the per-side truthy refinements for each common name.
+		leftRefs := buildRefinements(scope, kids[0], true)
+		rightRefs := buildRefinements(scope, kids[1], true)
+		for name, lt := range leftRefs {
+			if rt, ok := rightRefs[name]; ok {
+				out[name] = jstype.NewUnion(lt, rt)
+				continue
+			}
+			// Right side didn't refine `name` — on that branch `name`
+			// keeps its declared type, so the overall union widens to
+			// (lt | declared).
+			if declared := scope.GetDeclaredType(name); declared != nil {
+				out[name] = jstype.NewUnion(lt, declared)
+			}
+		}
+		for name, rt := range rightRefs {
+			if _, seen := leftRefs[name]; seen {
+				continue
+			}
+			if declared := scope.GetDeclaredType(name); declared != nil {
+				out[name] = jstype.NewUnion(rt, declared)
+			}
+		}
 		return
 	case rhino.NAME:
 		if t := scope.GetDeclaredType(cond.String_()); t != nil {
