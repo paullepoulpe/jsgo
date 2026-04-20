@@ -14,6 +14,8 @@
 package jscomp
 
 import (
+	"strings"
+
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/rhino/jstype"
 )
@@ -190,6 +192,15 @@ func (t *TypeInference) inferGetProp(n *rhino.Node) jstype.JSType {
 	}
 	recv := kids[0]
 	propName := kids[1].String_()
+	// Flow refinement for qualified names: `if (obj.prop) { … }`
+	// narrows obj.prop inside the then-branch. The narrowed type
+	// is keyed on the dotted name "obj.prop" in the refinement
+	// stack and takes priority over the declared property type.
+	if qname := qualifiedName(n); qname != "" && strings.Contains(qname, ".") {
+		if r := t.scope.GetQualifiedRefinement(qname); r != nil {
+			return r
+		}
+	}
 	if recv.Token() == rhino.NAME {
 		if fn, ok := t.scope.GetDeclaredType(recv.String_()).(*jstype.FunctionType); ok && fn.Instance != nil {
 			if pt := fn.Instance.GetStaticPropertyType(propName); pt != nil {

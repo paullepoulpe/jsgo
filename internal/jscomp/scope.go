@@ -98,6 +98,23 @@ func (s *TypedScope) GetDeclaredType(name string) jstype.JSType {
 	return s.parent.GetDeclaredType(name)
 }
 
+// GetQualifiedRefinement walks the refinement stack for a dotted
+// qualified name (e.g. "obj.prop", "this.x.y"). Returns the flow-
+// narrowed type or nil when the name isn't refined. Distinct from
+// GetDeclaredType: qualified names aren't tracked in declared
+// (only refinements), so the lookup never falls through to the
+// parent scope's declared map.
+func (s *TypedScope) GetQualifiedRefinement(qname string) jstype.JSType {
+	for cur := s; cur != nil; cur = cur.parent {
+		for i := len(cur.refinements) - 1; i >= 0; i-- {
+			if t, ok := cur.refinements[i][qname]; ok {
+				return t
+			}
+		}
+	}
+	return nil
+}
+
 // GetRawDeclaredType skips the refinement overlay and returns only
 // the binding's declared type from the scope chain. Used by the
 // assignment-target lookup in visitAssign so `x = 1` compares the

@@ -116,6 +116,29 @@ func collectRefinements(scope *TypedScope, cond *rhino.Node, whenTruthy bool, ou
 			}
 		}
 		return
+	case rhino.GETPROP:
+		// `if (obj.prop)` narrows obj.prop to its truthy form
+		// inside the then-branch (and falsy on the else). Keyed
+		// by the qualified-name string "obj.prop" so inferGetProp
+		// can consult the refinement.
+		qname := qualifiedName(cond)
+		if qname == "" {
+			return
+		}
+		t := resolveQualifiedType(scope, cond)
+		if t == nil {
+			return
+		}
+		if whenTruthy {
+			if narrowed := stripFalsy(t); narrowed != nil {
+				out[qname] = narrowed
+			}
+		} else {
+			if narrowed := keepFalsyRefined(t); narrowed != nil {
+				out[qname] = narrowed
+			}
+		}
+		return
 	}
 	if isNullCheck(cond) {
 		name, equalToNull := nullCheckTarget(cond)
@@ -172,6 +195,64 @@ func collectRefinements(scope *TypedScope, cond *rhino.Node, whenTruthy bool, ou
 		}
 		return
 	}
+}
+
+// qualifiedName returns a dotted string for a GETPROP chain rooted
+// at a NAME or THIS, e.g. \`t.x.y\` → "t.x.y", \`this.x\` → "this.x".
+// Returns "" for any chain that doesn't resolve to a pure
+// name/this-rooted access (GETELEM, CALL receivers, etc.).
+func qualifiedName(n *rhino.Node) string {
+	if n == nil {
+		return ""
+	}
+	switch n.Token() {
+	case rhino.NAME:
+		return n.String_()
+	case rhino.THIS:
+		return "this"
+	case rhino.GETPROP:
+		kids := n.Children()
+		if len(kids) < 2 {
+			return ""
+		}
+		left := qualifiedName(kids[0])
+		if left == "" {
+			return ""
+		}
+		return left + "." + kids[1].String_()
+	}
+	return ""
+}
+
+// resolveQualifiedType looks up the declared type for a GETPROP
+// chain — walks from the NAME / THIS root through each property
+// step. Returns nil if any step is unknown.
+func resolveQualifiedType(scope *TypedScope, n *rhino.Node) jstype.JSType {
+	if n == nil {
+		return nil
+	}
+	switch n.Token() {
+	case rhino.NAME:
+		return scope.GetDeclaredType(n.String_())
+	case rhino.THIS:
+		if inst := scope.ThisType(); inst != nil {
+			return inst
+		}
+		return nil
+	case rhino.GETPROP:
+		kids := n.Children()
+		if len(kids) < 2 {
+			return nil
+		}
+		recv := resolveQualifiedType(scope, kids[0])
+		if recv == nil {
+			return nil
+		}
+		if obj, ok := recv.(*jstype.ObjectType); ok {
+			return obj.GetPropertyType(kids[1].String_())
+		}
+	}
+	return nil
 }
 
 // instanceofCheckTarget recognises `NAME instanceof Ctor`. Returns
