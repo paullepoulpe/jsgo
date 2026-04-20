@@ -15,12 +15,61 @@ type JSDocInfo struct {
 	isInterface   bool
 	isRecord      bool
 	isStatic      bool
+	// makesDicts / makesStructs mirror JSDocInfo.makesDicts() /
+	// makesStructs() — set from `@dict` / `@struct` on a constructor
+	// or class. CheckAccessControls reads them to enforce `.`-vs-`[]`
+	// access on instances of the tagged type.
+	makesDicts    bool
+	makesStructs  bool
+	// visibility mirrors JSDocInfo.getVisibility() — the parsed value
+	// of an `@private` / `@protected` / `@public` tag. Defaults to
+	// Inherited (no explicit tag), matching Java's semantics.
+	visibility    Visibility
 	extendsExpr   *JSTypeExpression
 	implementsAll []*JSTypeExpression
 	typedefExpr   *JSTypeExpression
 	templateNames []string
 	suppressions  map[string]bool
 }
+
+// Visibility mirrors com/google/javascript/rhino/JSDocInfo$Visibility.
+// INHERITED is the zero value; it means no explicit visibility tag
+// appeared and access-control rules fall back to the declaring type's
+// default.
+type Visibility int
+
+const (
+	VisibilityInherited Visibility = iota
+	VisibilityPrivate
+	VisibilityProtected
+	VisibilityPublic
+	VisibilityPackage
+)
+
+// Visibility reports the parsed `@private` / `@protected` / `@public`
+// tag (or INHERITED if none was present). Mirrors
+// JSDocInfo.getVisibility in Java.
+func (i *JSDocInfo) Visibility() Visibility {
+	if i == nil {
+		return VisibilityInherited
+	}
+	return i.visibility
+}
+
+// SetVisibility records an explicit `@private` / `@protected` /
+// `@public` / `@package` tag. Java's JSDocInfo enforces at-most-one;
+// we keep the last value written, matching how the parser races in
+// Java (it records the first match and ignores later duplicates).
+func (i *JSDocInfo) SetVisibility(v Visibility) { i.visibility = v }
+
+// MakesDicts / MakesStructs mirror JSDocInfo.makesDicts /
+// JSDocInfo.makesStructs — true when `@dict` / `@struct` appears on a
+// constructor or class annotation. Read by CheckAccessControls and
+// (future) TypeCheck to enforce property-access shape.
+func (i *JSDocInfo) MakesDicts() bool       { return i != nil && i.makesDicts }
+func (i *JSDocInfo) MakesStructs() bool     { return i != nil && i.makesStructs }
+func (i *JSDocInfo) SetMakesDicts(b bool)   { i.makesDicts = b }
+func (i *JSDocInfo) SetMakesStructs(b bool) { i.makesStructs = b }
 
 // AddSuppression records a `@suppress {name}` entry. Mirrors
 // JSDocInfo.addSuppression in Java.
