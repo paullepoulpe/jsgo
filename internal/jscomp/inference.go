@@ -65,9 +65,11 @@ func (t *TypeInference) InferType(n *rhino.Node) jstype.JSType {
 	case rhino.GETELEM:
 		return t.inferGetElem(n)
 	case rhino.NEW:
-		if callee := n.FirstChild(); callee != nil && callee.Token() == rhino.NAME {
-			if fn, ok := t.scope.GetDeclaredType(callee.String_()).(*jstype.FunctionType); ok && fn.Instance != nil {
-				return fn.Instance
+		if callee := n.FirstChild(); callee != nil {
+			if ct := t.InferType(callee); ct != nil {
+				if fn, ok := ct.(*jstype.FunctionType); ok && fn.Instance != nil {
+					return fn.Instance
+				}
 			}
 		}
 		return jstype.Unknown

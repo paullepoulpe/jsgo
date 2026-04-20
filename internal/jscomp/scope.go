@@ -1070,6 +1070,19 @@ func (c *TypedScopeCreator) recordNamespaceAssignFromFunction(a *rhino.Node, sco
 		return
 	}
 	lhs, rhs := kids[0], kids[1]
+	// Namespace-to-namespace ctor alias: \`ns.A = ns.B\` or \`ns.A =
+	// existingName\`. Share the resolved constructor so both refer
+	// to the same Instance.
+	if lhs.Token() == rhino.GETPROP && (rhs.Token() == rhino.NAME || rhs.Token() == rhino.GETPROP) {
+		lhsKids := lhs.Children()
+		if len(lhsKids) >= 2 && lhsKids[0].Token() == rhino.NAME {
+			src := resolveQualifiedType(scope, rhs)
+			if fn, ok := src.(*jstype.FunctionType); ok && fn.Instance != nil {
+				scope.recordNamespaceProp(lhsKids[0].String_(), lhsKids[1].String_(), fn, lhsKids[1])
+				return
+			}
+		}
+	}
 	if rhs.Token() != rhino.FUNCTION || lhs.Token() != rhino.GETPROP {
 		return
 	}
