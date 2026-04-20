@@ -26,6 +26,11 @@ func (r *Registry) ResolveName(name string) JSType {
 		return Null
 	case "undefined", "void":
 		return Void
+	case "symbol":
+		// Primitive `symbol`. The `Symbol` constructor extern is a
+		// distinct ObjectType; keeping them separate matches Java's
+		// SYMBOL_TYPE (primitive) vs SYMBOL_OBJECT_TYPE (wrapper).
+		return Symbol
 	case "*":
 		return All
 	}

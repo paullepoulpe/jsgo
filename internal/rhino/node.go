@@ -22,6 +22,13 @@ const (
 	PropStaticMember
 	PropIsConstantName
 	PropArrowFn
+	// PropGetter / PropSetter mark a STRING_KEY child of an
+	// OBJECTLIT whose value was spelled as `get foo()` / `set
+	// foo(v)`. Mirrors Java's Node.IS_GETTER_KEY / IS_SETTER_KEY
+	// bits used by TypeInference to peel the call off when reading
+	// `x.foo` from an object literal.
+	PropGetter
+	PropSetter
 )
 
 type Node struct {
@@ -113,6 +120,15 @@ func (n *Node) FirstChild() *Node {
 		return nil
 	}
 	return n.children[0]
+}
+
+// LastChild mirrors Java's getLastChild. Nil when the node has no
+// children.
+func (n *Node) LastChild() *Node {
+	if len(n.children) == 0 {
+		return nil
+	}
+	return n.children[len(n.children)-1]
 }
 
 // Children exposes the child slice — not in Java (which iterates

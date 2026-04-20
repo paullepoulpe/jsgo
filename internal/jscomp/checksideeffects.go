@@ -193,6 +193,7 @@ func hasSideEffects(n *rhino.Node) bool {
 		rhino.ASSIGN_DIV, rhino.ASSIGN_MOD, rhino.ASSIGN_BITAND,
 		rhino.ASSIGN_BITOR, rhino.ASSIGN_BITXOR, rhino.ASSIGN_LSH,
 		rhino.ASSIGN_RSH, rhino.ASSIGN_URSH,
+		rhino.ASSIGN_AND, rhino.ASSIGN_OR, rhino.ASSIGN_COALESCE,
 		rhino.THROW:
 		return true
 	// Pure leaves.

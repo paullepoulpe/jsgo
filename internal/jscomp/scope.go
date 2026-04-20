@@ -254,8 +254,46 @@ func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 	}
 	nullable := false
 	if startsWith(expr, "?") {
+		// `?` alone means Unknown (not nullable-nothing). `?|T` /
+		// `?|undefined` / `?|null` are unions of Unknown with the
+		// other members; Java preserves the Unknown arm instead of
+		// stripping the `?` as a nullability marker. Only a `?`
+		// followed by a concrete type name acts as "nullable T".
+		rest := trimSpace(expr[1:])
+		if rest == "" || rest[0] == '|' {
+			// `?` or `?|...` — treat the `?` as the Unknown member.
+			parts := splitTopLevelUnion(expr)
+			var members []jstype.JSType
+			for _, p := range parts {
+				p = trimSpace(p)
+				if p == "?" {
+					members = append(members, jstype.Unknown)
+					continue
+				}
+				if p == "" {
+					continue
+				}
+				members = append(members, s.ResolveExpr(p))
+			}
+			if len(members) == 1 {
+				return members[0]
+			}
+			return jstype.NewUnion(members...)
+		}
 		nullable = true
-		expr = trimSpace(expr[1:])
+		expr = rest
+	}
+	// Callable-expression JSDoc form: `function(A,B):R`, `function()`,
+	// `function(new:T, …)`, `function(this:T, …)`. Mirrors how Java's
+	// JsDocInfoParser.parseFunctionType builds a FunctionType node.
+	if startsWith(expr, "function(") || expr == "function" {
+		if ft, ok := s.resolveFunctionExprType(expr); ok {
+			if nullable {
+				return jstype.NewUnion(ft, jstype.Null)
+			}
+			return ft
+		}
+		return jstype.Unknown
 	}
 	// Inline structural: `{k1: T1, k2: T2}`. Only take the early
 	// structural branch when the outer braces truly wrap the whole
@@ -301,6 +339,25 @@ func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 				continue
 			}
 			return jstype.Unknown
+		}
+		// Callable-type member: `function(A,B):R` / `function(...T):R`
+		// / bare `function`. Mirrors Java's JSTypeRegistry.getType
+		// dispatch on FUNCTION tokens in the TypeAST. The text form
+		// comes straight from JsDocInfoParser.parseFunctionType and
+		// carries `...` / `=` per-param modifiers so arity resolves
+		// correctly. Function-literal types are NOT implied nullable
+		// — Java's legacy-mode only widens nominal ObjectTypes to
+		// `T|null`.
+		if p == "function" || startsWith(p, "function(") {
+			ft, ok := s.resolveFunctionExprType(p)
+			if !ok {
+				return jstype.Unknown
+			}
+			if explicitNullable {
+				impliedNullable = true
+			}
+			members = append(members, ft)
+			continue
 		}
 		// Generic brackets: `Array<string>` → TemplatizedType backed
 		// by Array's instance type, with `string` resolved as the
@@ -457,6 +514,23 @@ func indexLastByte(s string, b byte) int {
 	return -1
 }
 
+// stripTemplateArgs trims a `<...>` template-arg suffix from a type
+// name so `Foo<number>` / `Bar<string, T>` resolve to the bare
+// nominal `Foo` / `Bar` via LookupNominalType. Also trims `!` / `?`
+// nullability markers on the front. Matches Java's behavior where
+// JSTypeExpression.evaluate returns the raw ObjectType for nominal
+// lookups and template substitution happens separately.
+func stripTemplateArgs(name string) string {
+	name = trimSpace(name)
+	for len(name) > 0 && (name[0] == '!' || name[0] == '?') {
+		name = name[1:]
+	}
+	if i := indexOfByte(name, '<'); i > 0 {
+		name = name[:i]
+	}
+	return trimSpace(name)
+}
+
 // splitTopLevelComma splits `s` on `,` at depth 0 of {} () <>. Used
 // for template-arg lists like `Map<string, Array<number>>`.
 func splitTopLevelComma(s string) []string {
@@ -502,6 +576,120 @@ func splitTopLevelUnion(s string) []string {
 	}
 	out = append(out, s[start:])
 	return out
+}
+
+// resolveFunctionExprType parses the JSDoc callable-expression forms
+// `function(A,B)`, `function(A,B):R`, `function()`, and the special
+// `new:T` / `this:T` / `...T` / `T=` per-param modifiers. Returns a
+// FunctionType whose Params / Return / MinArity / MaxArity mirror the
+// declared arity, plus Instance when the expression starts with
+// `new:T`. Returns false when the shape doesn't match a callable,
+// letting the caller fall through to Unknown.
+func (s *TypedScope) resolveFunctionExprType(expr string) (*jstype.FunctionType, bool) {
+	expr = trimSpace(expr)
+	if expr == "function" || expr == "Function" {
+		// Bare `function` — unspecified arity, unknown return.
+		ft := jstype.NewFunctionType(nil, jstype.Unknown)
+		ft.MinArity = 0
+		ft.MaxArity = jstype.MaxArgsUnlimited
+		return ft, true
+	}
+	if !startsWith(expr, "function(") {
+		return nil, false
+	}
+	open := indexOfByte(expr, '(')
+	if open < 0 {
+		return nil, false
+	}
+	// Find the matching `)` that closes the opening `(`, tracking
+	// nested `(`/`<`/`{` groupings so `Array<(number|string)>` stays
+	// balanced.
+	depth := 0
+	closeIdx := -1
+	for i := open; i < len(expr); i++ {
+		switch expr[i] {
+		case '(', '<', '{':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				closeIdx = i
+			}
+		case '>', '}':
+			depth--
+		}
+		if closeIdx >= 0 {
+			break
+		}
+	}
+	if closeIdx < 0 {
+		return nil, false
+	}
+	body := trimSpace(expr[open+1 : closeIdx])
+	rest := trimSpace(expr[closeIdx+1:])
+	// Optional `:R` return-type suffix.
+	var retType jstype.JSType = jstype.Unknown
+	if startsWith(rest, ":") {
+		retExpr := trimSpace(rest[1:])
+		if retExpr != "" {
+			retType = s.ResolveExpr(retExpr)
+		}
+	}
+	var params []jstype.JSType
+	minArity := 0
+	maxArity := 0
+	unlimited := false
+	var instance *jstype.ObjectType
+	if body != "" {
+		for _, p := range splitTopLevelComma(body) {
+			p = trimSpace(p)
+			if p == "" {
+				continue
+			}
+			// `new:T` — drop from param list, record the instance so
+			// `new` on this callable yields T.
+			if startsWith(p, "new:") {
+				if inst, ok := s.ResolveExpr(trimSpace(p[4:])).(*jstype.ObjectType); ok {
+					instance = inst
+				}
+				continue
+			}
+			// `this:T` — drop from param list (this-binding type,
+			// not a positional parameter).
+			if startsWith(p, "this:") {
+				continue
+			}
+			// `...T` — variadic rest param.
+			if startsWith(p, "...") {
+				elem := trimSpace(p[3:])
+				params = append(params, s.ResolveExpr(elem))
+				unlimited = true
+				continue
+			}
+			// `T=` — trailing optional param.
+			optional := false
+			if endsWith(p, "=") {
+				optional = true
+				p = trimSpace(p[:len(p)-1])
+			}
+			params = append(params, s.ResolveExpr(p))
+			if !optional {
+				minArity++
+			}
+			maxArity++
+		}
+	}
+	if unlimited {
+		maxArity = jstype.MaxArgsUnlimited
+	}
+	ft := jstype.NewFunctionType(params, retType)
+	ft.MinArity = minArity
+	ft.MaxArity = maxArity
+	if instance != nil {
+		ft.Instance = instance
+		ft.IsConstructor = true
+	}
+	return ft, true
 }
 
 // resolveObjectLiteralType parses a `{k1: T1, k2: T2}` expression
@@ -776,8 +964,19 @@ func (c *TypedScopeCreator) buildExpressionFunctionScope(fn *rhino.Node, parent 
 	if len(kids) >= 3 {
 		body := kids[2]
 		nested := c.createScopeIn(body, local)
+		// Body var/let/const decls must shadow the named-function-
+		// expression binding: `var foo = function x() { var x; … }`
+		// has two Xs, the inner `var x` wins inside the body. Matches
+		// Java's AbstractScope.declare which overwrites when a local
+		// decl re-declares a bleeding name. We detect the FE-name
+		// slot by pointer-comparing the nested decl's name against
+		// nameNode and override only in that case.
+		feeName := ""
+		if nameNode != nil {
+			feeName = nameNode.String_()
+		}
 		for k, v := range nested.declared {
-			if _, exists := local.declared[k]; !exists {
+			if _, exists := local.declared[k]; !exists || k == feeName {
 				local.declared[k] = v
 			}
 		}
@@ -872,6 +1071,7 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 			inner := child.FirstChild()
 			if inner != nil && inner.Token() == rhino.ASSIGN {
 				c.recordPrototypeAssign(inner, scope)
+				c.recordPrototypeObjectLit(inner, scope)
 				c.recordNamespaceAssign(inner, scope)
 			}
 			// `Foo.prototype.bar;` stub-declaration — Java treats
@@ -968,12 +1168,37 @@ func (c *TypedScopeCreator) recordPrototypeAssign(a *rhino.Node, scope *TypedSco
 	if len(innerKids) < 2 {
 		return
 	}
-	if innerKids[0].Token() != rhino.NAME || innerKids[1].String_() != "prototype" {
+	if innerKids[1].String_() != "prototype" {
 		return
 	}
-	ownerName := innerKids[0].String_()
-	fn, ok := scope.declared[ownerName].(*jstype.FunctionType)
-	if !ok || fn.Instance == nil {
+	// `Foo.prototype.X` (NAME owner) and `ns.Foo.prototype.X`
+	// (GETPROP owner). The second form is Closure-library style
+	// `goog.A.prototype.m = …`; we resolve it via the namespace-prop
+	// table populated earlier in pass 2.
+	var fn *jstype.FunctionType
+	switch innerKids[0].Token() {
+	case rhino.NAME:
+		ownerName := innerKids[0].String_()
+		f, ok := scope.declared[ownerName].(*jstype.FunctionType)
+		if !ok {
+			return
+		}
+		fn = f
+	case rhino.GETPROP:
+		outer := innerKids[0].Children()
+		if len(outer) < 2 || outer[0].Token() != rhino.NAME {
+			return
+		}
+		t := scope.LookupNamespaceProp(outer[0].String_(), outer[1].String_())
+		f, ok := t.(*jstype.FunctionType)
+		if !ok {
+			return
+		}
+		fn = f
+	default:
+		return
+	}
+	if fn == nil || fn.Instance == nil {
 		return
 	}
 	memberType := c.inferPrototypeValueType(a.JSDocInfo(), rhs, scope)
@@ -1007,6 +1232,74 @@ func (c *TypedScopeCreator) recordPrototypeAssign(a *rhino.Node, scope *TypedSco
 		// a proto method also defines `X` on the Instance.
 		if len(params) >= 3 {
 			c.collectThisPropertiesIn(params[2], fn.Instance, scope)
+		}
+	}
+}
+
+// recordPrototypeObjectLit detects the wholesale-prototype form
+// `Foo.prototype = { k: v, … }` — an ASSIGN whose LHS is
+// `Foo.prototype` and whose RHS is an OBJECTLIT. Each STRING_KEY
+// entry becomes a property on Foo's InstanceType, matching Java's
+// TypedScopeCreator which walks every key of the OBJECTLIT and
+// registers it on the owner's prototype slot set. Used by
+// `@implements` / `@interface` checks that need to see methods
+// attached via the bulk-prototype idiom.
+func (c *TypedScopeCreator) recordPrototypeObjectLit(a *rhino.Node, scope *TypedScope) {
+	kids := a.Children()
+	if len(kids) < 2 {
+		return
+	}
+	lhs, rhs := kids[0], kids[1]
+	if lhs.Token() != rhino.GETPROP || rhs.Token() != rhino.OBJECTLIT {
+		return
+	}
+	lhsKids := lhs.Children()
+	if len(lhsKids) < 2 {
+		return
+	}
+	if lhsKids[0].Token() != rhino.NAME || lhsKids[1].String_() != "prototype" {
+		return
+	}
+	ownerName := lhsKids[0].String_()
+	fn, ok := scope.declared[ownerName].(*jstype.FunctionType)
+	if !ok || fn.Instance == nil {
+		return
+	}
+	for _, kv := range rhs.Children() {
+		if kv.Token() != rhino.STRING_KEY {
+			continue
+		}
+		propName := kv.String_()
+		if propName == "" {
+			continue
+		}
+		valKids := kv.Children()
+		if len(valKids) == 0 {
+			continue
+		}
+		val := valKids[0]
+		info := kv.JSDocInfo()
+		memberType := c.inferPrototypeValueType(info, val, scope)
+		fn.Instance.DefineProperty(propName, memberType)
+		if (info == nil || !info.HasType()) && val.Token() != rhino.FUNCTION {
+			if t := literalType(val); !isJSUnknown(t) {
+				fn.Instance.MarkInferred(propName)
+			}
+		}
+		// Bind `this` inside method bodies so `this.x` resolves to
+		// a slot lookup on Foo, mirroring recordPrototypeAssign.
+		if val.Token() == rhino.FUNCTION {
+			var ptypes []jstype.JSType
+			params := val.Children()
+			if len(params) >= 2 {
+				for _, p := range params[1].Children() {
+					ptypes = append(ptypes, resolveParamType(info, p, scope))
+				}
+			}
+			c.Functions[val] = c.buildMethodScope(val, fn.Instance, scope, ptypes)
+			if len(params) >= 3 {
+				c.collectThisPropertiesIn(params[2], fn.Instance, scope)
+			}
 		}
 	}
 }
@@ -1175,7 +1468,7 @@ func (c *TypedScopeCreator) recordNamespaceStub(stmt *rhino.Node, getprop *rhino
 	if info == nil {
 		info = getprop.JSDocInfo()
 	}
-	if info == nil || !info.HasType() {
+	if info == nil {
 		return
 	}
 	kids := getprop.Children()
@@ -1187,10 +1480,21 @@ func (c *TypedScopeCreator) recordNamespaceStub(stmt *rhino.Node, getprop *rhino
 		return
 	}
 	ownerName := recv.String_()
+	propName := kids[1].String_()
+	// `@typedef {T} ns.Alias;` — register under the typeAliases map
+	// keyed by the qualified name so later `@type {ns.Alias}` lookups
+	// resolve. Mirrors how Java's TypedScopeCreator stores qualified
+	// typedefs in the JSDocInfoParser + registry.
+	if info.TypedefType() != nil {
+		scope.typeAliases[ownerName+"."+propName] = scope.ResolveExpr(info.TypedefType().TypeName)
+		return
+	}
+	if !info.HasType() {
+		return
+	}
 	if _, ok := scope.GetDeclaredType(ownerName).(*jstype.FunctionType); ok {
 		return
 	}
-	propName := kids[1].String_()
 	declared := scope.ResolveExpr(info.Type().TypeName)
 	scope.recordNamespaceProp(ownerName, propName, declared, kids[1])
 }
@@ -1215,12 +1519,34 @@ func (c *TypedScopeCreator) recordPrototypeStub(stmt *rhino.Node, getprop *rhino
 	if len(innerKids) < 2 {
 		return
 	}
-	if innerKids[0].Token() != rhino.NAME || innerKids[1].String_() != "prototype" {
+	if innerKids[1].String_() != "prototype" {
 		return
 	}
-	ownerName := innerKids[0].String_()
-	fn, ok := scope.declared[ownerName].(*jstype.FunctionType)
-	if !ok || fn.Instance == nil {
+	// NAME owner or GETPROP owner (ns.Foo); mirror the lookup
+	// strategy used by recordPrototypeAssign above.
+	var fn *jstype.FunctionType
+	switch innerKids[0].Token() {
+	case rhino.NAME:
+		f, ok := scope.declared[innerKids[0].String_()].(*jstype.FunctionType)
+		if !ok {
+			return
+		}
+		fn = f
+	case rhino.GETPROP:
+		outer := innerKids[0].Children()
+		if len(outer) < 2 || outer[0].Token() != rhino.NAME {
+			return
+		}
+		t := scope.LookupNamespaceProp(outer[0].String_(), outer[1].String_())
+		f, ok := t.(*jstype.FunctionType)
+		if !ok {
+			return
+		}
+		fn = f
+	default:
+		return
+	}
+	if fn == nil || fn.Instance == nil {
 		return
 	}
 	if fn.Instance.GetPropertyType(propName) != nil {
@@ -1270,6 +1596,11 @@ func (c *TypedScopeCreator) inferPrototypeValueType(info *rhino.JSDocInfo, rhs *
 		var ret jstype.JSType = jstype.Unknown
 		if info != nil && info.ReturnType() != nil {
 			ret = scope.ResolveExpr(info.ReturnType().TypeName)
+		} else if !functionReturnsExplicitly(rhs) {
+			// `function(){}` with no @return infers undefined, matching
+			// how Java's FunctionTypeBuilder flows Void onto functions
+			// whose body has no `return` statement.
+			ret = jstype.Void
 		}
 		fnT := jstype.NewFunctionType(paramTypes, ret)
 		setArityFromParams(fnT, params, info)
@@ -1576,6 +1907,39 @@ func (c *TypedScopeCreator) recordTypedef(v *rhino.Node, scope *TypedScope) {
 }
 
 func (c *TypedScopeCreator) recordDecl(v *rhino.Node, scope *TypedScope) {
+	// `for (var k in obj)` binds `k` to string on every iteration —
+	// ES spec + Java's TypeInference visitForIn. `for (var k of xs)`
+	// binds `k` to the iterable's element type, extracted from
+	// `Array<T>` / `Iterable<T>` / `Iterator<T>` / `IArrayLike<T>`
+	// templates via resolveIterableElementType below. When we can't
+	// resolve it (literal / unbound), fall back to Unknown.
+	if p := v.Parent(); p != nil {
+		switch p.Token() {
+		case rhino.FOR_IN:
+			for _, child := range v.Children() {
+				if child.Token() != rhino.NAME {
+					continue
+				}
+				scope.declared[child.String_()] = jstype.String
+			}
+			return
+		case rhino.FOR_OF:
+			elem := jstype.JSType(jstype.Unknown)
+			pkids := p.Children()
+			if len(pkids) >= 2 {
+				if et := c.resolveIterableElementType(pkids[1], scope); et != nil {
+					elem = et
+				}
+			}
+			for _, child := range v.Children() {
+				if child.Token() != rhino.NAME {
+					continue
+				}
+				scope.declared[child.String_()] = elem
+			}
+			return
+		}
+	}
 	// Multi-binding forms (`var a, b = 1, c`) each declare their own
 	// slot. Run the full recordOneDecl per NAME child so the scope
 	// sees every name; inner helpers still use the first child as
@@ -1588,6 +1952,102 @@ func (c *TypedScopeCreator) recordDecl(v *rhino.Node, scope *TypedScope) {
 	}
 }
 
+// resolveIterableElementType returns the element type of an iterable
+// expression appearing in `for (x of iter)`. Supports:
+//   - NAME references: look up the declared type in scope.
+//   - Templatized Array / Iterable / Iterator / IterableIterator /
+//     IArrayLike / ReadonlyArray: return the first template argument.
+//   - Union: fold element types of each member (nulls / undefined
+//     stripped first, matching Java's getTypeRestrictedByNotNullOrUndefined).
+//
+// Returns nil when we can't classify the receiver; the caller falls
+// back to Unknown. We deliberately avoid running TypeInference here —
+// scope building runs before the check pass and the Infer machinery
+// needs a built scope.
+func (c *TypedScopeCreator) resolveIterableElementType(iter *rhino.Node, scope *TypedScope) jstype.JSType {
+	if iter == nil {
+		return nil
+	}
+	switch iter.Token() {
+	case rhino.NAME:
+		t := scope.GetDeclaredType(iter.String_())
+		return iterableElementOf(t)
+	case rhino.ARRAYLIT:
+		// `for (x of [1, 2, 3])` — element type is the union of the
+		// literal's members. Rare in practice but cheap to compute.
+		var members []jstype.JSType
+		for _, kid := range iter.Children() {
+			members = append(members, literalTypeOf(kid))
+		}
+		if len(members) == 0 {
+			return jstype.Unknown
+		}
+		out := members[0]
+		for _, m := range members[1:] {
+			out = jstype.NewUnion(out, m)
+		}
+		return out
+	}
+	return nil
+}
+
+// iterableElementOf extracts the element type from an iterable type.
+// Strips null/undefined first, then peels Array<T> / Iterable<T> / …
+// and folds union members. Returns nil when we can't recognize it.
+func iterableElementOf(t jstype.JSType) jstype.JSType {
+	if t == nil {
+		return nil
+	}
+	// ?Iterable<T> / Iterable<T>|undefined → strip to the templatized.
+	t = stripNullUndef(t)
+	if t == nil {
+		return nil
+	}
+	if u, ok := t.(*jstype.UnionType); ok {
+		var out jstype.JSType
+		for _, m := range u.Members() {
+			e := iterableElementOf(m)
+			if e == nil {
+				return nil
+			}
+			if out == nil {
+				out = e
+			} else {
+				out = jstype.NewUnion(out, e)
+			}
+		}
+		return out
+	}
+	if tt, ok := t.(*jstype.TemplatizedType); ok && tt.Base != nil && len(tt.Args) >= 1 {
+		switch tt.Base.Name {
+		case "Array", "Iterable", "Iterator", "IterableIterator",
+			"IArrayLike", "ReadonlyArray", "Generator", "Set":
+			return tt.Args[0]
+		}
+	}
+	return nil
+}
+
+// literalTypeOf approximates a literal's static type for ARRAYLIT
+// element folding. Keep it narrow — only the cases the FOR_OF
+// fallback needs. Non-literals fall back to Unknown.
+func literalTypeOf(n *rhino.Node) jstype.JSType {
+	if n == nil {
+		return jstype.Unknown
+	}
+	switch n.Token() {
+	case rhino.NUMBER:
+		return jstype.Number
+	case rhino.STRINGLIT:
+		return jstype.String
+	case rhino.TRUE, rhino.FALSE:
+		return jstype.Boolean
+	case rhino.NULL:
+		return jstype.Null
+	}
+	return jstype.Unknown
+}
+
 // recordOneDecl processes a single declaration binding. Split out
 // from recordDecl so the multi-binding loop can reuse the same
 // @type / @enum / @constructor handling per name.
@@ -1595,6 +2055,15 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 	info := v.JSDocInfo()
 	if name == nil || name.Token() != rhino.NAME {
 		return
+	}
+	// Per-binding inline JSDoc wins over the VAR-wide JSDoc for this
+	// slot (`var a = 1, /** @type {T} */ b = …`). The parser
+	// attaches such annotations directly on the NAME so each binding
+	// can have its own declared type. Mirrors Java's
+	// NodeUtil.getBestJSDocInfo which prefers the nearest-enclosing
+	// annotation.
+	if pi := name.JSDocInfo(); pi != nil {
+		info = pi
 	}
 	// Typedef declarations primarily populate the typeAliases
 	// namespace, but we still record the NAME at Unknown in the
@@ -1836,22 +2305,29 @@ func setArityFromParams(fn *jstype.FunctionType, params *rhino.Node, info *rhino
 	sawOptional := false
 	for i, p := range kids {
 		name := p.String_()
+		// hasTypedDoc is true when the owning @param JSDoc explicitly
+		// typed this parameter. When JSDoc is present and didn't mark
+		// the param rest/optional, it wins over the closure-convention
+		// name prefixes (`var_args` / `opt_`). Matches Java's
+		// FunctionTypeBuilder.inferParameterTypes which prefers JSDoc
+		// over name heuristics.
+		hasTypedDoc := info != nil && info.ParameterType(name) != nil
 		switch {
-		case name == "var_args" || (len(name) > 8 && name[:8] == "var_args"):
-			fn.MaxArity = jstype.MaxArgsUnlimited
-			if !sawOptional {
-				fn.MinArity = i
-			}
-			return
 		case info != nil && info.IsRestParam(name):
 			fn.MaxArity = jstype.MaxArgsUnlimited
 			if !sawOptional {
 				fn.MinArity = i
 			}
 			return
-		case len(name) >= 4 && name[:4] == "opt_":
-			sawOptional = true
+		case !hasTypedDoc && (name == "var_args" || (len(name) > 8 && name[:8] == "var_args")):
+			fn.MaxArity = jstype.MaxArgsUnlimited
+			if !sawOptional {
+				fn.MinArity = i
+			}
+			return
 		case info != nil && info.IsOptionalParam(name):
+			sawOptional = true
+		case !hasTypedDoc && len(name) >= 4 && name[:4] == "opt_":
 			sawOptional = true
 		default:
 			if !sawOptional {
@@ -1942,13 +2418,24 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 		// FunctionType.setExtendedClass in Java. @struct / @dict flags
 		// inherit down the super chain.
 		if base := info.BaseType(); base != nil {
-			if super := scope.LookupNominalType(base.TypeName); super != nil {
+			if super := scope.LookupNominalType(stripTemplateArgs(base.TypeName)); super != nil {
 				fnType.Instance.SetSuper(super)
 				if super.IsStruct {
 					fnType.Instance.IsStruct = true
 				}
 				if super.IsDict {
 					fnType.Instance.IsDict = true
+				}
+			}
+		}
+		// Multi-extends: an @interface can carry `@extends {A} @extends
+		// {B}`. Store the full list on the instance so
+		// INCOMPATIBLE_EXTENDED_PROPERTY_TYPE / interface-property walks
+		// see every parent, not just the first.
+		if info.IsInterface() || info.IsRecord() {
+			for _, b := range info.BaseTypes() {
+				if super := scope.LookupNominalType(stripTemplateArgs(b.TypeName)); super != nil {
+					fnType.Instance.AddExtendedInterface(super)
 				}
 			}
 		}

@@ -11,10 +11,27 @@
 package jscomp
 
 import (
+	"strings"
+
 	"github.com/paullepoulpe/jsgo/internal/diag"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino/jstype"
 )
+
+// extractMultiDeclName scrapes the variable name out of a
+// JSC_VAR_MULTIPLY_DECLARED_ERROR message. The formatter writes
+// `Variable <name> declared more than once. First occurrence: …`.
+func extractMultiDeclName(msg string) string {
+	const prefix = "Variable "
+	if !strings.HasPrefix(msg, prefix) {
+		return ""
+	}
+	rest := msg[len(prefix):]
+	if i := strings.Index(rest, " declared more than once"); i >= 0 {
+		return rest[:i]
+	}
+	return ""
+}
 
 // CheckSource runs the Tier-0 pipeline on one source file and returns
 // accumulated diagnostics. A parse error is returned as err; the caller
@@ -53,13 +70,35 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	scope := creator.createScopeInWithParent(script, externScope)
 	var all []diag.Diagnostic
 	all = append(all, NewVarCheck(path, creator, scope).Check(script)...)
-	all = append(all, NewVariableReferenceCheck(path, externScope).Check(script)...)
+	varRefDiags := NewVariableReferenceCheck(path, externScope).Check(script)
+	all = append(all, varRefDiags...)
 	all = append(all, NewCheckJsDocTypes(path, src, scope).Check()...)
 	all = append(all, NewTypeCheckWithOptions(path, creator, scope, opts).Check(script)...)
 	all = append(all, NewMissingReturnCheck(path, scope).Check(script)...)
-	all = append(all, NewSuperclassCheck(path, creator, scope).Check(script)...)
+	// Names that already triggered JSC_VAR_MULTIPLY_DECLARED_ERROR
+	// (e.g. a script-local @interface that shadows an extern of the
+	// same name) get suppressed downstream so we don't double-report
+	// derived diagnostics like JSC_INTERFACE_METHOD_NOT_IMPLEMENTED —
+	// Java's TypeCheck skips those when the interface slot was
+	// rejected by the earlier VarCheck pass.
+	multiDecl := map[string]bool{}
+	for _, d := range varRefDiags {
+		if d.Code == diag.JSC_VAR_MULTIPLY_DECLARED_ERROR {
+			if name := extractMultiDeclName(d.Message); name != "" {
+				multiDecl[name] = true
+			}
+		}
+	}
+	sc := NewSuperclassCheck(path, creator, scope)
+	sc.SuppressedNames = multiDecl
+	all = append(all, sc.Check(script)...)
 	all = append(all, NewCheckDupVarDecl(path, scope).Check(script)...)
 	all = append(all, NewCheckDuplicateMember(path).Check(script)...)
 	all = append(all, NewCheckSideEffects(path).Check(script)...)
+	// CheckDeterministicTest's diagnostics are produced from inside
+	// TypeCheck's traversal (see typecheck.go's EQ / NE / SHEQ / SHNE
+	// case) so that control-flow refinement frames are visible. We
+	// still expose the pass via its own file to mirror how other
+	// check-only diagnostics are factored out of TypeCheck.
 	return all, nil
 }

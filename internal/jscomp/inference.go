@@ -97,6 +97,43 @@ func (t *TypeInference) InferType(n *rhino.Node) jstype.JSType {
 		// Arithmetic / bitwise compound assigns always produce Number.
 		// Port of the corresponding TypeInference.java branches.
 		return jstype.Number
+	case rhino.ASSIGN_AND:
+		// `x &&= y` is equivalent to `x && (x = y)` — the result type
+		// is (falsy-x) ∪ y. Mirror the AND branch so flow refinements
+		// through the compound form behave the same as the spelled-out
+		// form. Port of TypeInference.java's ASSIGN_AND branch.
+		kids := n.Children()
+		if len(kids) < 2 {
+			return jstype.Unknown
+		}
+		left := t.InferType(kids[0])
+		refs := buildRefinements(t.scope, kids[0], true)
+		right := t.inferUnder(kids[1], refs)
+		falsy := keepFalsyRefined(left)
+		if falsy == nil {
+			return right
+		}
+		return unionFold(falsy, right)
+	case rhino.ASSIGN_OR:
+		// `x ||= y` is `x || (x = y)` — (truthy-x) ∪ y, same as OR.
+		kids := n.Children()
+		if len(kids) < 2 {
+			return jstype.Unknown
+		}
+		return unionFold(stripFalsy(t.InferType(kids[0])), t.InferType(kids[1]))
+	case rhino.ASSIGN_COALESCE:
+		// `x ??= y` is `x ?? (x = y)` — (non-nullish-x) ∪ y. Mirrors
+		// TypeInference.java's ASSIGN_COALESCE branch.
+		kids := n.Children()
+		if len(kids) < 2 {
+			return jstype.Unknown
+		}
+		left := t.InferType(kids[0])
+		stripped := stripNullUndef(left)
+		if stripped != nil && sameType(stripped, left) {
+			return left
+		}
+		return unionFold(stripped, t.InferType(kids[1]))
 
 	// ---- binary arithmetic / comparison / logical ----------------- //
 	case rhino.ADD:
@@ -293,6 +330,10 @@ func (t *TypeInference) inferCall(n *rhino.Node) jstype.JSType {
 			return jstype.Number
 		case "Boolean":
 			return jstype.Boolean
+		case "Symbol":
+			// `Symbol('x')` produces a primitive symbol, matching
+			// ES spec and Java's coercion-path handling.
+			return jstype.Symbol
 		}
 		if f, ok := t.scope.GetDeclaredType(callee.String_()).(*jstype.FunctionType); ok {
 			fn = f
@@ -769,9 +810,81 @@ func (t *TypeInference) inferObjectLit(n *rhino.Node) jstype.JSType {
 		if value == nil {
 			continue
 		}
-		obj.DefineProperty(kv.String_(), t.InferType(value))
+		valType := t.InferType(value)
+		// `get foo(){ return T; }` defines a slot whose read type is
+		// the getter's return (from a STRING_KEY-level @return or the
+		// function-expression's Return slot), not the function
+		// itself. Mirrors Java's TypeInference accessor handling.
+		// Un-annotated getters stay as the raw function type — Java
+		// doesn't body-infer in default mode, and preserving the
+		// FunctionType surface keeps Tier-2 fixtures that rely on
+		// `obj.method` being callable still working.
+		if kv.GetBooleanProp(rhino.PropGetter) {
+			if info := kv.JSDocInfo(); info != nil && info.ReturnType() != nil {
+				valType = t.scope.ResolveExpr(info.ReturnType().TypeName)
+			} else if fn, ok := valType.(*jstype.FunctionType); ok {
+				// No JSDoc: read the function's Return slot. Un-annotated
+				// function expressions often carry Return == nil, which
+				// we surface as Unknown — matching Java's default-mode
+				// behaviour of not body-inferring accessors but still
+				// presenting the property as some value (never the
+				// function itself — reading `x.a` must not leak the
+				// getter function to callers).
+				if fn.Return != nil {
+					valType = fn.Return
+				} else {
+					valType = jstype.Unknown
+				}
+			}
+		}
+		obj.DefineProperty(kv.String_(), valType)
 	}
 	return obj
+}
+
+// inferFunctionBodyReturnType walks the function-expression's body
+// looking for RETURN statements and unions their expression types.
+// Returns nil when the function has no RETURN with a value — the
+// caller treats that as Unknown. Mirrors Java's
+// TypeInference.inferFunctionReturnType default path used for
+// un-annotated accessors / arrows.
+func (t *TypeInference) inferFunctionBodyReturnType(fn *rhino.Node) jstype.JSType {
+	if fn == nil || fn.Token() != rhino.FUNCTION {
+		return nil
+	}
+	kids := fn.Children()
+	if len(kids) < 3 {
+		return nil
+	}
+	body := kids[2]
+	var result jstype.JSType
+	var walk func(n *rhino.Node)
+	walk = func(n *rhino.Node) {
+		if n == nil {
+			return
+		}
+		// Don't descend into nested FUNCTION bodies — their returns
+		// belong to them, not us.
+		if n.Token() == rhino.FUNCTION && n != fn {
+			return
+		}
+		if n.Token() == rhino.RETURN {
+			if v := n.FirstChild(); v != nil {
+				rt := t.InferType(v)
+				if result == nil {
+					result = rt
+				} else {
+					result = unionFold(result, rt)
+				}
+			}
+			return
+		}
+		for _, c := range n.Children() {
+			walk(c)
+		}
+	}
+	walk(body)
+	return result
 }
 
 // inferFunctionExpr builds a FunctionType from a function-expression

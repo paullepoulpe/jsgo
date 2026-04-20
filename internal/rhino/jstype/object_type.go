@@ -42,6 +42,15 @@ type ObjectType struct {
 	// hierarchy. (Inheritance lookup walks this chain.)
 	super *ObjectType
 
+	// extendedInterfaces carries every @extends expression for a
+	// multi-inherited interface (e.g. `@extends {A} @extends {B}`).
+	// Mirrors FunctionType.getExtendedInterfaces() in Java. Empty for
+	// concrete classes (which use `super` for their single base) and
+	// for interfaces with at most one @extends. Callers that need the
+	// full supertype graph (INCOMPATIBLE_EXTENDED_PROPERTY_TYPE,
+	// INTERFACE_METHOD_NOT_IMPLEMENTED) walk this list.
+	extendedInterfaces []*ObjectType
+
 	// IsStructural is true for `@record` / `@interface` types. A value
 	// of type S is assignable to a structural T iff S has every
 	// property T declares with a compatible type — no nominal check.
@@ -159,6 +168,18 @@ func (o *ObjectType) IsSubtypeOf(other JSType) bool {
 		if tt.Base != nil && tt.Base.Name == "Object" {
 			return true
 		}
+		// Array IS-A Iterable<T> / IArrayLike<T> / Iterator<T> in
+		// Closure's built-in type graph. Without explicit super-
+		// wiring for these templatised stubs we accept the
+		// canonical subtype relations by name. Mirrors Java's
+		// NativeType pre-registration in JSTypeRegistry.
+		if o.Name == "Array" && tt.Base != nil {
+			switch tt.Base.Name {
+			case "Iterable", "IArrayLike", "Iterator", "IterableIterator",
+				"ReadonlyArray":
+				return true
+			}
+		}
 	}
 	target, ok := other.(*ObjectType)
 	if !ok {
@@ -252,6 +273,23 @@ func (o *ObjectType) SetSuper(s *ObjectType) { o.super = s }
 // Super returns the immediate superclass instance type (as wired by
 // SetSuper) or nil at the root of the chain.
 func (o *ObjectType) Super() *ObjectType { return o.super }
+
+// AddExtendedInterface appends an entry to the multi-extends list used
+// by interfaces that declare more than one `@extends`. Matches Java's
+// FunctionType.extendInterface.
+func (o *ObjectType) AddExtendedInterface(s *ObjectType) {
+	if s == nil {
+		return
+	}
+	o.extendedInterfaces = append(o.extendedInterfaces, s)
+}
+
+// ExtendedInterfaces returns the slice of multi-inherited interface
+// parents registered via AddExtendedInterface. Matches Java's
+// FunctionType.getExtendedInterfaces().
+func (o *ObjectType) ExtendedInterfaces() []*ObjectType {
+	return o.extendedInterfaces
+}
 
 // containsVoid reports whether `t` is (or is a union containing)
 // the Void primitive. Used by the structural-subtype check to

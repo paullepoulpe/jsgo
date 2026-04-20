@@ -125,6 +125,21 @@ func (voidType) IsSubtypeOf(o JSType) bool {
 	return isAll(o) || isUnknown(o)
 }
 
+// symbolType mirrors Java's SYMBOL_TYPE — the distinct primitive
+// `symbol`. It's disjoint from every other primitive and from every
+// ObjectType (including the externs-declared `Symbol` constructor's
+// Instance), matching the Tri.FALSE result Java's testForEquality
+// returns when one side is a symbol and the other isn't.
+type symbolType struct{}
+
+func (symbolType) TypeName() string { return "symbol" }
+func (symbolType) IsSubtypeOf(o JSType) bool {
+	if _, ok := o.(symbolType); ok {
+		return true
+	}
+	return isAll(o) || isUnknown(o)
+}
+
 func isAll(t JSType) bool     { _, ok := t.(allType); return ok }
 func isUnknown(t JSType) bool { _, ok := t.(unknownType); return ok }
 
@@ -138,4 +153,5 @@ var (
 	Boolean  JSType = booleanType{}
 	Null     JSType = nullType{}
 	Void     JSType = voidType{}
+	Symbol   JSType = symbolType{}
 )

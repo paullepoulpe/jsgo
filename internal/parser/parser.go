@@ -274,18 +274,30 @@ func (p *Parser) finishDeclStatement(declToken rhino.Token, jsdoc *rhino.JSDocIn
 
 	p.scanner.SkipTrivia()
 	// Inline JSDoc between the decl keyword and the name —
-	// `var /** null */ n = …;` — treat the brace-only type
-	// expression as an @type annotation on the resulting VAR.
-	// Matches how Java's parser synthesises a @type JSDoc from
-	// an inline bracketed comment at this position.
+	// `var /** null */ n = …;` or `var /** @type {T} */ n = …;` —
+	// treat it as the VAR's JSDoc when none was attached by the
+	// outer statement dispatch. Matches how Java's parser reads
+	// the block comment after the decl keyword and promotes it
+	// to the resulting Node.
 	if body, ok := p.scanner.ConsumeBlockComment(); ok {
-		if inline := parseInlineTypeJSDoc(body); inline != nil && declNode.JSDocInfo() == nil {
-			declNode.SetJSDocInfo(inline)
+		if declNode.JSDocInfo() == nil {
+			if inline := parseInlineTypeJSDoc(body); inline != nil {
+				declNode.SetJSDocInfo(inline)
+			} else if full := parsing.ParseJSDocInfo(body); full != nil {
+				// Full JSDoc shape (contains `@type` or similar) —
+				// surface it onto the VAR so scope-building sees
+				// the declared type.
+				declNode.SetJSDocInfo(full)
+			}
 		}
 		p.scanner.SkipTrivia()
 	}
 	// One iteration per comma-separated binding. Matches Java's
-	// parseVariableDeclarationList loop.
+	// parseVariableDeclarationList loop. The first iteration uses
+	// any JSDoc already consumed above (stored on declNode); later
+	// iterations may see their own inline JSDoc before the next
+	// IDENT (see pendingBindingJSDoc below).
+	var pendingBindingJSDoc *rhino.JSDocInfo
 	for {
 		nameLine, nameCol := p.scanner.Line(), p.scanner.Col()
 		ident, ok := p.scanner.ConsumeIdent()
@@ -295,6 +307,10 @@ func (p *Parser) finishDeclStatement(declToken rhino.Token, jsdoc *rhino.JSDocIn
 		}
 		nameNode := rhino.NewString(rhino.NAME, ident)
 		nameNode.SetPos(nameLine, nameCol)
+		if pendingBindingJSDoc != nil {
+			nameNode.SetJSDocInfo(pendingBindingJSDoc)
+			pendingBindingJSDoc = nil
+		}
 		declNode.AddChildToBack(nameNode)
 
 		p.scanner.SkipTrivia()
@@ -318,10 +334,15 @@ func (p *Parser) finishDeclStatement(declToken rhino.Token, jsdoc *rhino.JSDocIn
 			break
 		}
 		p.scanner.SkipTrivia()
-		// Allow an inline JSDoc per-binding (`var a, /** @type T */ b`).
+		// Inline JSDoc per-binding (`var a, /** @type T */ b`).
+		// Attach to the next NAME via pendingBindingJSDoc so
+		// TypedScopeCreator's recordOneDecl picks it up when
+		// resolving the declaration slot.
 		if body, ok := p.scanner.ConsumeBlockComment(); ok {
 			if inline := parseInlineTypeJSDoc(body); inline != nil {
-				_ = inline // discarded — Java drops per-binding type hints in this pos
+				pendingBindingJSDoc = inline
+			} else if full := parsing.ParseJSDocInfo(body); full != nil {
+				pendingBindingJSDoc = full
 			}
 			p.scanner.SkipTrivia()
 		}
@@ -1690,9 +1711,15 @@ func (p *Parser) tryObjectLit() (*rhino.Node, bool) {
 			p.scanner.Advance()
 			return obj, true
 		}
-		// Optional JSDoc on the property value — ignored for now, since
-		// record-literal element typing doesn't consult it at Tier-3.
-		_, _ = p.scanner.ConsumeBlockComment()
+		// Optional JSDoc on the property value — captured and
+		// forwarded onto the STRING_KEY so downstream checks
+		// (override / @type) can consult it. Mirrors Java's
+		// JsDocInfoParser, which attaches an object-literal key's
+		// leading comment to the key node.
+		var pendingJSDoc *rhino.JSDocInfo
+		if text, ok := p.scanner.ConsumeBlockComment(); ok {
+			pendingJSDoc = parsing.ParseJSDocInfo(text)
+		}
 		p.scanner.SkipTrivia()
 		// Accessor / method shorthand — `get foo(){…}`, `set foo(x){…}`,
 		// `foo(args){…}`. Fully consume the member (params + body) and
@@ -1704,6 +1731,17 @@ func (p *Parser) tryObjectLit() (*rhino.Node, bool) {
 		if p.looksLikeObjectMethod() {
 			if !p.consumeObjectMethod(obj) {
 				return nil, false
+			}
+			// Attach the pending JSDoc to the freshly-appended
+			// STRING_KEY. Mirrors JsDocInfoParser's behaviour of
+			// binding a leading comment to the first key of the
+			// member (used for `@return` / `@param` on accessor
+			// entries).
+			if pendingJSDoc != nil {
+				last := obj.LastChild()
+				if last != nil {
+					last.SetJSDocInfo(pendingJSDoc)
+				}
 			}
 			p.scanner.SkipTrivia()
 			if p.scanner.ConsumeByte(',') {
@@ -1769,6 +1807,9 @@ func (p *Parser) tryObjectLit() (*rhino.Node, bool) {
 		val.SetPos(valLine, valCol)
 		key := rhino.NewString(rhino.STRING_KEY, keyName)
 		key.SetPos(keyLine, keyCol)
+		if pendingJSDoc != nil {
+			key.SetJSDocInfo(pendingJSDoc)
+		}
 		key.AddChildToBack(val)
 		obj.AddChildToBack(key)
 		p.scanner.SkipTrivia()
@@ -1810,9 +1851,14 @@ func (p *Parser) looksLikeObjectMethod() bool {
 // entire object literal.
 func (p *Parser) consumeObjectMethod(obj *rhino.Node) bool {
 	keyLine, keyCol := p.scanner.Line(), p.scanner.Col()
-	// Swallow the `get` / `set` prefix if present; we don't mark the
-	// kind today, matching our coarse method-shorthand handling.
-	_ = p.scanner.ConsumeKeyword("get") || p.scanner.ConsumeKeyword("set")
+	// Record whether the method shorthand was spelled as `get foo()`
+	// or `set foo(v)` — the kind surfaces on the STRING_KEY so that
+	// GETPROP can peel the wrapping function when reading the slot.
+	isGetter := p.scanner.ConsumeKeyword("get")
+	isSetter := false
+	if !isGetter {
+		isSetter = p.scanner.ConsumeKeyword("set")
+	}
 	p.scanner.SkipTrivia()
 	name, ok := p.scanner.ConsumeIdent()
 	if !ok {
@@ -1860,6 +1906,12 @@ func (p *Parser) consumeObjectMethod(obj *rhino.Node) bool {
 	fn.AddChildToBack(body)
 	key := rhino.NewString(rhino.STRING_KEY, name)
 	key.SetPos(keyLine, keyCol)
+	if isGetter {
+		key.PutBooleanProp(rhino.PropGetter, true)
+	}
+	if isSetter {
+		key.PutBooleanProp(rhino.PropSetter, true)
+	}
 	key.AddChildToBack(fn)
 	obj.AddChildToBack(key)
 	return true
@@ -1887,6 +1939,18 @@ func (p *Parser) peekAssignOp() (rhino.Token, int) {
 	}
 	if c0 == '<' && c1 == '<' && c2 == '=' {
 		return rhino.ASSIGN_LSH, 3
+	}
+	// Short-circuit compound assigns: `&&=`, `||=`, `??=` — ES2021.
+	// Mirrors Java's `Token` enum additions
+	// (AssignAndAssignOp / AssignOrAssignOp / AssignNullishCoalesceOp).
+	if c0 == '&' && c1 == '&' && c2 == '=' {
+		return rhino.ASSIGN_AND, 3
+	}
+	if c0 == '|' && c1 == '|' && c2 == '=' {
+		return rhino.ASSIGN_OR, 3
+	}
+	if c0 == '?' && c1 == '?' && c2 == '=' {
+		return rhino.ASSIGN_COALESCE, 3
 	}
 	// Two-rune forms.
 	if c1 == '=' {
@@ -1960,13 +2024,13 @@ func (p *Parser) peekBinOp() (rhino.Token, int, int) {
 	if c0 == '>' && c1 == '>' {
 		return rhino.RSH, 2, 9
 	}
-	if c0 == '&' && c1 == '&' {
+	if c0 == '&' && c1 == '&' && p.scanner.PeekAt(2) != '=' {
 		return rhino.AND, 2, 3
 	}
-	if c0 == '|' && c1 == '|' {
+	if c0 == '|' && c1 == '|' && p.scanner.PeekAt(2) != '=' {
 		return rhino.OR, 2, 2
 	}
-	if c0 == '?' && c1 == '?' {
+	if c0 == '?' && c1 == '?' && p.scanner.PeekAt(2) != '=' {
 		return rhino.COALESCE, 2, 2
 	}
 	// One-char forms. Skip when followed by `=` (compound assign) or
@@ -2000,8 +2064,16 @@ func (p *Parser) peekBinOp() (rhino.Token, int, int) {
 	case '>':
 		return rhino.GT, 1, 8
 	case '&':
+		// `&&` / `&&=` would have matched the two-char branch above;
+		// a bare `&` never starts one of those, so BITAND is safe.
+		if c1 == '&' {
+			return rhino.ERROR, 0, -1
+		}
 		return rhino.BITAND, 1, 6
 	case '|':
+		if c1 == '|' {
+			return rhino.ERROR, 0, -1
+		}
 		return rhino.BITOR, 1, 4
 	case '^':
 		return rhino.BITXOR, 1, 5

@@ -544,36 +544,96 @@ func (p *JsDocInfoParser) parseRecordType() (string, bool) {
 	return "{" + strings.Join(parts, ",") + "}", true
 }
 
-// parseFunctionType: `function(params): returnType`. Shrunk from
-// Java's more complete version: we skip `this:` / `new:` prefixes and
-// treat every param as a positional type.
+// parseFunctionType: `function(params): returnType`. Mirrors Java's
+// `parseParametersType` branch: supports `this:T` / `new:T` qualifier
+// on the first param, `...T` leading-rest on the last param, and
+// `T=` trailing-optional per-param. The textual shape is preserved
+// — rest params gain a leading `...` and optional params a trailing
+// `=` in the serialised form — so `scope.ResolveExpr` can round-trip
+// the string back into a *jstype.FunctionType with accurate arity.
 func (p *JsDocInfoParser) parseFunctionType() (string, bool) {
 	if !p.match(JsDocTokenLeftParen) {
 		return "Function", true // bare `function`
 	}
 	p.next()
 	var params []string
+	first := true
+	sawRest := false
+	isCtorShape := false
 	for {
 		p.skipEOLs()
 		if p.match(JsDocTokenRightParen) {
 			break
 		}
+		// Leading `...T` rest marker inside the paren list. Mirrors
+		// Java's `parseParametersType` ITER_REST branch.
+		isRest := false
+		if p.match(JsDocTokenIterRest) {
+			p.next()
+			p.skipEOLs()
+			isRest = true
+			sawRest = true
+		}
 		tok := p.next()
-		// Allow leading `this:` / `new:` qualifier; swallow it.
-		if tok == JsDocTokenString {
+		// Allow leading `this:` / `new:` qualifier on the first param
+		// slot. Java tracks each separately on the ArrowType; for our
+		// textual form we swallow `this:` and propagate `new:` so the
+		// resolved FunctionType can flip its IsConstructor bit.
+		skipFirstParam := false
+		if first && !isRest && tok == JsDocTokenString {
 			name := p.stream.String_()
 			if (name == "this" || name == "new") && p.match(JsDocTokenColon) {
 				p.next()
 				p.skipEOLs()
-				tok = p.next()
+				if name == "new" {
+					isCtorShape = true
+					// `new:T` is not a real parameter — swallow the
+					// type that follows and move on to the next slot.
+					_, ok := p.parseTypeExpression(p.next())
+					if !ok {
+						return "", false
+					}
+					p.skipEOLs()
+					skipFirstParam = true
+				} else {
+					tok = p.next()
+				}
 			}
+		}
+		first = false
+		if skipFirstParam {
+			if p.match(JsDocTokenComma) {
+				p.next()
+			}
+			continue
 		}
 		expr, ok := p.parseTypeExpression(tok)
 		if !ok {
 			return "", false
 		}
-		params = append(params, expr)
 		p.skipEOLs()
+		// Per-param trailing `=` marks the param optional. Java's
+		// parser wraps the type in Token.EQUALS; we keep the `=`
+		// suffix in the text form.
+		isOptional := false
+		if p.match(JsDocTokenEquals) {
+			p.next()
+			p.skipEOLs()
+			isOptional = true
+		}
+		switch {
+		case isRest:
+			params = append(params, "..."+expr)
+		case isOptional:
+			params = append(params, expr+"=")
+		default:
+			params = append(params, expr)
+		}
+		p.skipEOLs()
+		if sawRest {
+			// After a rest param, no more params are allowed.
+			break
+		}
 		if p.match(JsDocTokenComma) {
 			p.next()
 		}
@@ -590,7 +650,19 @@ func (p *JsDocInfoParser) parseFunctionType() (string, bool) {
 		}
 		result = res
 	}
-	out := "function(" + strings.Join(params, ",") + ")"
+	inner := strings.Join(params, ",")
+	if isCtorShape {
+		// Preserve the `new:` marker in the textual form so scope
+		// resolution can flip IsConstructor on the resulting
+		// FunctionType. Mirrors how Java's ArrowType tracks the
+		// bound `new` this-type separately from the param list.
+		if inner != "" {
+			inner = "new:," + inner
+		} else {
+			inner = "new:"
+		}
+	}
+	out := "function(" + inner + ")"
 	if result != "" {
 		out += ":" + result
 	}

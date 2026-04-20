@@ -42,6 +42,9 @@ const (
 	ASSIGN_LSH
 	ASSIGN_RSH
 	ASSIGN_URSH
+	ASSIGN_AND      // &&=
+	ASSIGN_OR       // ||=
+	ASSIGN_COALESCE // ??=
 
 	// Block / script shells
 	EXPR_RESULT
@@ -175,6 +178,12 @@ func (t Token) String() string {
 		return "ASSIGN_RSH"
 	case ASSIGN_URSH:
 		return "ASSIGN_URSH"
+	case ASSIGN_AND:
+		return "ASSIGN_AND"
+	case ASSIGN_OR:
+		return "ASSIGN_OR"
+	case ASSIGN_COALESCE:
+		return "ASSIGN_COALESCE"
 	case EXPR_RESULT:
 		return "EXPR_RESULT"
 	case FUNCTION:
@@ -310,7 +319,8 @@ func (t Token) String() string {
 func (t Token) IsAssign() bool {
 	switch t {
 	case ASSIGN, ASSIGN_ADD, ASSIGN_SUB, ASSIGN_MUL, ASSIGN_DIV, ASSIGN_MOD,
-		ASSIGN_BITAND, ASSIGN_BITOR, ASSIGN_BITXOR, ASSIGN_LSH, ASSIGN_RSH, ASSIGN_URSH:
+		ASSIGN_BITAND, ASSIGN_BITOR, ASSIGN_BITXOR, ASSIGN_LSH, ASSIGN_RSH, ASSIGN_URSH,
+		ASSIGN_AND, ASSIGN_OR, ASSIGN_COALESCE:
 		return true
 	}
 	return false

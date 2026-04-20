@@ -453,6 +453,13 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitVar(n, scope))
 	case rhino.ASSIGN:
 		c.emit(c.visitAssign(n, scope))
+	case rhino.ASSIGN_AND, rhino.ASSIGN_OR, rhino.ASSIGN_COALESCE:
+		// Logical compound assigns (`&&=` / `||=` / `??=`) enforce the
+		// same LHS-declared-vs-RHS-value contract as bare `=`. Java's
+		// TypeValidator routes them through the same
+		// expectCanAssignToWithMessage path — we reuse visitAssign so
+		// both the NAME and GETPROP arms fire.
+		c.emit(c.visitAssign(n, scope))
 	case rhino.CALL:
 		c.emit(c.visitCall(n, scope))
 	case rhino.NEW:
@@ -466,7 +473,13 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 	case rhino.RETURN:
 		c.emit(c.visitReturn(n, scope))
 	case rhino.EQ, rhino.NE, rhino.SHEQ, rhino.SHNE:
-		c.emit(c.visitEquality(n, scope))
+		// The DETERMINISTIC_TEST diagnostic lives in its own pass file
+		// (checkdeterministictest.go). We call into it here during the
+		// TypeCheck walk so the refinement frames pushed around
+		// if/else/&&/|| branches are visible to the operand-type
+		// lookup — running the pass as a separate traversal would
+		// lose those narrowings.
+		c.emit(NewCheckDeterministicTest(c.path, scope).VisitComparison(n))
 	case rhino.IN:
 		c.emit(c.visitIn(n, scope))
 	case rhino.FOR_IN:
@@ -546,42 +559,45 @@ func (c *TypeCheck) emit(d []diag.Diagnostic) {
 // declaration. Reports at the initializer's position to match Java's
 // "initializing variable" variant.
 func (c *TypeCheck) visitVar(v *rhino.Node, scope *TypedScope) []diag.Diagnostic {
-	name := v.FirstChild()
-	if name == nil || name.Token() != rhino.NAME {
-		return nil
-	}
 	var out []diag.Diagnostic
-	init := name.FirstChild()
-	if init == nil {
-		return out
-	}
-	// `/** @enum */ var E = {FOO: 1, ...}` — the VAR's declared
-	// type is the EnumType, but the init is an OBJECTLIT that
-	// infers to a structural {...}. Skip the normal subtype
-	// check (the RHS is the enum's *source of truth*, not a
-	// value being assigned into it) and run the enum-specific
-	// diagnostics below instead. Mirrors how Java's TypeCheck
-	// routes `@enum` initializers through EnumType's own
-	// validateEnumInit helper rather than the assignment rule.
-	if info := v.JSDocInfo(); info.IsEnum() {
-		return append(out, c.visitEnumInit(name, init, scope)...)
-	}
-	declared := scope.GetDeclaredType(name.String_())
-	if declared == nil {
-		return out
-	}
 	infer := NewTypeInference(scope)
-	found := infer.InferType(init)
-	if jstype.IsSubtype(found, declared) {
-		return out
+	// Walk every NAME child so multi-binding forms
+	// `var a = 1, /** @type {T} */ b = 2` each get their own
+	// initializer subtype check. Java's TypeCheck iterates via
+	// Node.getFirstChild + getNext which we model through the slice.
+	for _, name := range v.Children() {
+		if name.Token() != rhino.NAME {
+			continue
+		}
+		init := name.FirstChild()
+		if init == nil {
+			continue
+		}
+		// `/** @enum */ var E = {FOO: 1, ...}` — the VAR's declared
+		// type is the EnumType, but the init is an OBJECTLIT that
+		// infers to a structural {...}. Skip the normal subtype
+		// check and run the enum-specific diagnostics instead.
+		if info := v.JSDocInfo(); info.IsEnum() {
+			out = append(out, c.visitEnumInit(name, init, scope)...)
+			continue
+		}
+		declared := scope.GetDeclaredType(name.String_())
+		if declared == nil {
+			continue
+		}
+		found := infer.InferType(init)
+		if jstype.IsSubtype(found, declared) {
+			continue
+		}
+		msg := fmt.Sprintf("initializing variable\nfound   : %s\nrequired: %s",
+			found.TypeName(), declared.TypeName())
+		line, col := diagPosForArg(init)
+		out = append(out, diag.Diagnostic{
+			Path: c.path, Line: line, Col: col,
+			Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error, Message: msg,
+		})
 	}
-	msg := fmt.Sprintf("initializing variable\nfound   : %s\nrequired: %s",
-		found.TypeName(), declared.TypeName())
-	line, col := diagPosForArg(init)
-	return append(out, diag.Diagnostic{
-		Path: c.path, Line: line, Col: col,
-		Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error, Message: msg,
-	})
+	return out
 }
 
 
@@ -849,11 +865,42 @@ func isSafeCalleeForArity(callee *rhino.Node, scope *TypedScope) bool {
 	return false
 }
 
+// isCallableBuiltinCtor reports whether `callee` names one of the
+// ECMAScript built-in constructors that double as coercion functions
+// (`String(x)`, `Number(x)`, etc.). Java's type registry marks these
+// as callable-without-new; firing JSC_CONSTRUCTOR_NOT_CALLABLE on
+// them would be a false positive. Scoped to bare NAME references so
+// user code that shadows the global still trips the real check.
+func isCallableBuiltinCtor(callee *rhino.Node) bool {
+	if callee == nil || callee.Token() != rhino.NAME {
+		return false
+	}
+	switch callee.String_() {
+	case "String", "Number", "Boolean", "Symbol", "Error",
+		"Array", "Object", "RegExp", "Date",
+		"TypeError", "RangeError", "SyntaxError", "ReferenceError",
+		"EvalError", "URIError":
+		return true
+	}
+	return false
+}
+
+// isSuperCall reports whether `callee` is a `super(...)` reference
+// inside a derived-class constructor body. The rhino parser emits
+// `super` as a NAME node with the literal identifier "super" — Java
+// handles super-calls through a dedicated visitSuper branch rather
+// than the constructor-callability check, so we mirror that here.
+func isSuperCall(callee *rhino.Node) bool {
+	return callee != nil && callee.Token() == rhino.NAME && callee.String_() == "super"
+}
+
 // isDefinitelyNonConstructor reports whether `t` is guaranteed not
 // to be a constructor. Returns the offending type so the diagnostic
 // can show what was found. A FunctionType without IsConstructor
-// counts (plain functions); non-function primitives count; Unknown
-// / All / unions stay quiet.
+// counts (plain functions); a FunctionType marked as @interface /
+// @record (Instance.IsStructural) counts too, because Java forbids
+// instantiating an interface. Non-function primitives count;
+// Unknown / All / unions stay quiet.
 func isDefinitelyNonConstructor(t jstype.JSType) (bool, jstype.JSType) {
 	if t == nil {
 		return false, nil
@@ -861,10 +908,22 @@ func isDefinitelyNonConstructor(t jstype.JSType) (bool, jstype.JSType) {
 	if isUnknownOrNil(t) {
 		return false, nil
 	}
-	if _, ok := t.(*jstype.UnionType); ok {
+	// Strip `T | null / undefined` on the callee so a nullable
+	// callable doesn't skip the check entirely. Mirrors Java's
+	// restrictByNotNullOrUndefined before visitNew's isConstructor
+	// probe.
+	if fn, ok := unwrapCallableUnion(t); ok {
+		t = fn
+	} else if _, ok := t.(*jstype.UnionType); ok {
 		return false, nil
 	}
 	if fn, ok := t.(*jstype.FunctionType); ok {
+		// @interface / @record produces a structural Instance — Java
+		// tracks this separately from IsConstructor and uses the
+		// structural bit to reject `new`.
+		if fn.Instance != nil && fn.Instance.IsStructural {
+			return true, fn
+		}
 		if fn.IsConstructor {
 			return false, nil
 		}
@@ -892,6 +951,17 @@ func (c *TypeCheck) visitCall(node *rhino.Node, scope *TypedScope) []diag.Diagno
 	calleeType := infer.InferType(callee)
 	fn, ok := calleeType.(*jstype.FunctionType)
 	if !ok {
+		// Unwrap `FunctionType|null` unions so a nullable callable
+		// parameter (`/** @param {?function(T)} */`) still matches
+		// the arity-check branch. Java's TypeCheck.validateCall
+		// strips null from the callee's resolved type before the
+		// isFunctionType check.
+		if stripped, ok2 := unwrapCallableUnion(calleeType); ok2 {
+			fn = stripped
+			ok = true
+		}
+	}
+	if !ok {
 		// Only fire on bare NAME / literal callees so GETELEM
 		// (well-known symbol access, element reads) doesn't
 		// false-positive. Java's visitCall also considers the
@@ -908,6 +978,31 @@ func (c *TypeCheck) visitCall(node *rhino.Node, scope *TypedScope) []diag.Diagno
 	}
 	var out []diag.Diagnostic
 	calleeName := describeCallee(callee)
+	// `@constructor` functions cannot be called without `new` —
+	// Java's TypeCheck.visitCall fires JSC_CONSTRUCTOR_NOT_CALLABLE
+	// when the callee is constructor-shaped and the call-site is a
+	// CALL (not NEW). Interfaces / records are structural and their
+	// FunctionType has IsConstructor=false, so this branch is
+	// limited to genuine class ctors.
+	//
+	// Exclusions: the ECMAScript "callable constructors"
+	// (`String`, `Number`, `Boolean`, `Symbol`, `Error`, `Array`,
+	// `Object`, `RegExp`, `Date`) legally double as coercion
+	// functions; Java's registry marks them callable-without-new
+	// and jsgo's inference.go intercepts these names at the call
+	// level to return the primitive result. `super(...)` inside a
+	// derived ctor body also resolves through the parent class's
+	// FunctionType but is structurally always a CALL — Java handles
+	// it through a separate visitSuper branch.
+	if node.Token() == rhino.CALL && fn.IsConstructor && fn.Instance != nil && !fn.Instance.IsStructural &&
+		!isCallableBuiltinCtor(callee) && !isSuperCall(callee) {
+		out = append(out, diag.Diagnostic{
+			Path: c.path, Line: node.Lineno(), Col: node.Charno(),
+			Code: diag.JSC_CONSTRUCTOR_NOT_CALLABLE, Level: diag.Error,
+			Message: fmt.Sprintf(`Constructor (typeof %s) should be called with the "new" keyword`,
+				fn.Instance.TypeName()),
+		})
+	}
 	// Arity check — fire JSC_WRONG_ARGUMENT_COUNT when the call
 	// site's arg count falls outside [MinArity, MaxArity] as
 	// computed from the function's @param annotations and closure
@@ -946,6 +1041,17 @@ func (c *TypeCheck) visitCall(node *rhino.Node, scope *TypedScope) []diag.Diagno
 		arg := args[i]
 		param := fn.Params[i]
 		found := infer.InferType(arg)
+		// Optional params (`T=`) admit `undefined` as a legal argument.
+		// In Java the FunctionType stores the pipe-widened
+		// `T|undefined`; our resolver keeps `T` and flags the slot
+		// via MinArity (vs MaxArity for the optional range). Variadic
+		// params (`...T`) also live past MinArity but must still
+		// reject undefined — those callers should send at least one
+		// concrete element — so we only widen when the slot is
+		// non-variadic (MaxArity finite).
+		if i >= fn.MinArity && fn.MaxArity < jstype.MaxArgsUnlimited && found == jstype.Void {
+			continue
+		}
 		if jstype.IsSubtype(found, param) {
 			continue
 		}
@@ -1140,10 +1246,25 @@ func (c *TypeCheck) visitReturn(ret *rhino.Node, scope *TypedScope) []diag.Diagn
 		return nil
 	}
 	info := functionJSDoc(enclosing)
-	if info == nil || info.ReturnType() == nil {
+	if info == nil {
 		return nil
 	}
-	declared := scope.ResolveExpr(info.ReturnType().TypeName)
+	var declared jstype.JSType
+	if info.ReturnType() != nil {
+		declared = scope.ResolveExpr(info.ReturnType().TypeName)
+	} else if info.HasType() && info.Type() != nil {
+		// No explicit `@return`, but a `@type {function(...):R}` on
+		// the function declaration carries the return type. Resolve
+		// the callable-expression form and read its Return slot —
+		// mirrors how Java's TypeInference unpacks the declared
+		// FunctionType for a function declared via @type.
+		if ft, ok := scope.ResolveExpr(info.Type().TypeName).(*jstype.FunctionType); ok {
+			declared = ft.Return
+		}
+	}
+	if declared == nil {
+		return nil
+	}
 	retExpr := ret.FirstChild()
 	if retExpr == nil {
 		return nil
@@ -1502,12 +1623,6 @@ func (c *TypeCheck) visitThis(n *rhino.Node, scope *TypedScope) []diag.Diagnosti
 	}}
 }
 
-// visitEquality ports the JSC_DETERMINISTIC_TEST branch of
-// TypeCheck.visitBinaryOp: when the two operands of `==` / `!=`
-// can never compare equal — disjoint primitive slot types —
-// the comparison always yields a known value and Java emits at
-// the whole expression's column. `===` / `!==` use a separate
-// code (not yet ported).
 // visitFunctionParams fires JSC_INEXISTENT_PARAM when a @param
 // JSDoc names a parameter that doesn't appear in the function's
 // actual parameter list. Java reports at the FUNCTION keyword's
@@ -1608,6 +1723,40 @@ func isWellKnownSymbolIndex(idx *rhino.Node) bool {
 	}
 	recv := kids[0]
 	return recv.Token() == rhino.NAME && recv.String_() == "Symbol"
+}
+
+// unwrapCallableUnion extracts the single FunctionType member of a
+// `FunctionType | null | undefined` union. Returns (nil, false) when
+// the union mixes multiple functions, non-null non-function members,
+// or isn't a union at all. Used by visitCall / visitNew to thread a
+// nullable-callable parameter (/** @param {?function(...)} */)
+// through the arity-check branch. Mirrors Java's
+// TypeCheck.validateCall, which calls `JSType.restrictByNotNullOrUndefined`
+// before the isFunctionType branch.
+func unwrapCallableUnion(t jstype.JSType) (*jstype.FunctionType, bool) {
+	u, ok := t.(*jstype.UnionType)
+	if !ok {
+		return nil, false
+	}
+	var fn *jstype.FunctionType
+	for _, m := range u.Members() {
+		switch x := m.(type) {
+		case *jstype.FunctionType:
+			if fn != nil {
+				return nil, false
+			}
+			fn = x
+		default:
+			if m == jstype.Null || m == jstype.Void {
+				continue
+			}
+			return nil, false
+		}
+	}
+	if fn == nil {
+		return nil, false
+	}
+	return fn, true
 }
 
 // isDefinitelyNotCallable reports whether `t` is a type that can
@@ -1721,145 +1870,12 @@ func (c *TypeCheck) visitForIn(n *rhino.Node, scope *TypedScope) []diag.Diagnost
 	}}
 }
 
-func (c *TypeCheck) visitEquality(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
-	kids := n.Children()
-	if len(kids) < 2 {
-		return nil
-	}
-	infer := NewTypeInference(scope)
-	l := infer.InferType(kids[0])
-	r := infer.InferType(kids[1])
-	det, equalValue := disjointForEquality(l, r)
-	if !det {
-		return nil
-	}
-	// Compute the final boolean for this operator. `equalValue`
-	// is the result under `==` / `===`; `!=` / `!==` flip it.
-	value := equalValue
-	if n.Token() == rhino.NE || n.Token() == rhino.SHNE {
-		value = !value
-	}
-	valueStr := "false"
-	if value {
-		valueStr = "true"
-	}
-	return []diag.Diagnostic{{
-		Path: c.path, Line: n.Lineno(), Col: n.Charno(),
-		Code: diag.JSC_DETERMINISTIC_TEST, Level: diag.Error,
-		Message: fmt.Sprintf(
-			"condition always evaluates to %s\nleft : %s\nright: %s",
-			valueStr, l.TypeName(), r.TypeName()),
-	}}
-}
-
-// disjointForEquality reports whether types `a` and `b` always
-// produce the same result under `==` / `===` / `!=` / `!==`. JS's
-// `==` coerces across number / string / boolean; function ↔
-// string / number, symbol ↔ anything-else etc. are always-false.
-// Single-inhabitant types (null, undefined) compared against
-// themselves always succeed. Conservative: stay silent on
-// Unknown / All / unions that might overlap.
-//
-// Returns (deterministic, valueIfEqualOperator):
-//   - `deterministic` true when the pair is disjoint OR both
-//     sides are the same single-inhabitant type.
-//   - `valueIfEqualOperator` is the comparison result assuming
-//     the operator is `==` or `===` (`true` for same-singleton,
-//     `false` for disjoint). Callers flip for `!=` / `!==`.
-func disjointForEquality(a, b jstype.JSType) (bool, bool) {
-	if a == nil || b == nil {
-		return false, false
-	}
-	if isUnknownOrNil(a) || isUnknownOrNil(b) {
-		return false, false
-	}
-	if _, ok := a.(*jstype.UnionType); ok {
-		return false, false
-	}
-	if _, ok := b.(*jstype.UnionType); ok {
-		return false, false
-	}
-	ka := classifyEquality(a)
-	kb := classifyEquality(b)
-	if ka == eqUnknown || kb == eqUnknown {
-		return false, false
-	}
-	if ka == kb {
-		// Same single-inhabitant kind → always equal.
-		if ka == eqNull || ka == eqVoid {
-			return true, true
-		}
-		return false, false
-	}
-	// `null == undefined` is true; keep them quiet.
-	if (ka == eqNull && kb == eqVoid) || (ka == eqVoid && kb == eqNull) {
-		return false, false
-	}
-	// number / string / boolean coerce to each other under `==`.
-	if isPrimitiveKind(ka) && isPrimitiveKind(kb) {
-		return false, false
-	}
-	// Everything else — function/object vs primitive, or distinct
-	// function-vs-object — is always false under `==`.
-	return true, false
-}
-
-func isPrimitiveKind(k equalityKind) bool {
-	switch k {
-	case eqNumber, eqString, eqBoolean:
-		return true
-	}
-	return false
-}
-
-type equalityKind int
-
-const (
-	eqUnknown equalityKind = iota
-	eqNumber
-	eqString
-	eqBoolean
-	eqNull
-	eqVoid
-	eqFunction
-	eqObject
-)
-
-func classifyEquality(t jstype.JSType) equalityKind {
-	switch t {
-	case jstype.Number:
-		return eqNumber
-	case jstype.String:
-		return eqString
-	case jstype.Boolean:
-		return eqBoolean
-	case jstype.Null:
-		return eqNull
-	case jstype.Void:
-		return eqVoid
-	}
-	if _, ok := t.(*jstype.FunctionType); ok {
-		return eqFunction
-	}
-	if obj, ok := t.(*jstype.ObjectType); ok {
-		// Nominal object types compare with each other, not with
-		// the primitive slots. Includes externs-declared Function /
-		// Date / Array / etc. and user-declared @constructor
-		// instances.
-		return eqObjectKind(obj)
-	}
-	if tt, ok := t.(*jstype.TemplatizedType); ok && tt.Base != nil {
-		return eqObjectKind(tt.Base)
-	}
-	return eqUnknown
-}
-
-// eqObjectKind collapses every distinct nominal ObjectType to a
-// single `eqObject` bucket for coarse disjointness checks — good
-// enough for `number == Date` / `Function == string`-style
-// always-false comparisons without having to enumerate every
-// extern.
-func eqObjectKind(_ *jstype.ObjectType) equalityKind { return eqObject }
+// visitEquality used to live here and fired JSC_DETERMINISTIC_TEST
+// directly from TypeCheck. It's been hoisted to its own pass in
+// checkdeterministictest.go, which keeps the always-true / always-
+// false logic co-located with the rest of the static-comparison
+// reasoning. TypeCheck's binary-op switch skips EQ / NE / SHEQ / SHNE
+// so the two passes don't double-fire.
 
 // visitAdd ports TypeValidator.expectNumberOrString on the ADD
 // operator. JS `+` coerces to string whenever either side is
@@ -2033,8 +2049,9 @@ func (c *TypeCheck) visitRelationalDefault(n *rhino.Node, scope *TypedScope) []d
 
 // isDefinitelyNotComparable reports whether \`t\` is a type that
 // definitely can't participate in a relational comparison. Objects
-// / functions / booleans are rejected; primitives and unknowns
-// stay quiet.
+// and functions are rejected; primitives (including boolean —
+// Java default mode permits true<0, coercing via ToNumber) and
+// unknowns stay quiet.
 func isDefinitelyNotComparable(t jstype.JSType) bool {
 	if t == nil {
 		return false
@@ -2043,10 +2060,8 @@ func isDefinitelyNotComparable(t jstype.JSType) bool {
 		return false
 	}
 	switch t {
-	case jstype.Number, jstype.String, jstype.Null, jstype.Void:
+	case jstype.Number, jstype.String, jstype.Null, jstype.Void, jstype.Boolean:
 		return false
-	case jstype.Boolean:
-		return true
 	}
 	if _, ok := t.(*jstype.FunctionType); ok {
 		return true

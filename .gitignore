@@ -2,3 +2,5 @@ javaport
 .cache/
 bin/
 .claude/
+bench/results.json
+bench/results-*.json

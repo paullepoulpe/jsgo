@@ -35,6 +35,12 @@ type SuperclassCheck struct {
 	scope      *TypedScope
 	scriptRoot *rhino.Node
 	diags      []diag.Diagnostic
+	// SuppressedNames lists variable names whose declaration already
+	// triggered JSC_VAR_MULTIPLY_DECLARED_ERROR. @implements /
+	// @interface-derived diagnostics keyed on those names are
+	// suppressed — Java's TypeCheck skips them when the symbol slot
+	// was rejected by an earlier VarCheck pass.
+	SuppressedNames map[string]bool
 }
 
 func NewSuperclassCheck(path string, creator *TypedScopeCreator, scope *TypedScope) *SuperclassCheck {
@@ -67,6 +73,7 @@ func (s *SuperclassCheck) walk(n *rhino.Node) {
 	case rhino.EXPR_RESULT:
 		if a := n.FirstChild(); a != nil && a.Token() == rhino.ASSIGN {
 			s.checkPrototypeAssign(n, a)
+			s.checkPrototypeObjectLitAssign(n, a)
 		}
 		if gp := n.FirstChild(); gp != nil && gp.Token() == rhino.GETPROP {
 			s.checkPrototypeStub(n, gp)
@@ -257,7 +264,7 @@ func (s *SuperclassCheck) checkInterfaceExtendsConflicts(fn *rhino.Node) {
 		return
 	}
 	bases := info.BaseTypes()
-if len(bases) < 2 {
+	if len(bases) < 2 {
 		return
 	}
 	kids := fn.Children()
@@ -268,43 +275,84 @@ if len(bases) < 2 {
 	if name == "" {
 		return
 	}
-	// Resolve each parent interface to its InstanceType.
-	var parents []*jstype.ObjectType
-	var parentNames []string
+	// Resolve each direct parent interface to its InstanceType,
+	// tracking the declared name (including template args, e.g.
+	// `Int0<number>`) for diagnostic messages.
+	type parentEnt struct {
+		inst *jstype.ObjectType
+		name string
+	}
+	var directParents []parentEnt
 	for _, b := range bases {
-		inst := s.scope.LookupNominalType(b.TypeName)
+		inst := s.scope.LookupNominalType(stripTemplateArgs(b.TypeName))
 		if inst == nil {
 			continue
 		}
-		parents = append(parents, inst)
-		parentNames = append(parentNames, b.TypeName)
+		directParents = append(directParents, parentEnt{inst: inst, name: b.TypeName})
 	}
-	// For each pair of parents, compare the full property set and
-	// flag the first property whose declared types don't match.
-	seen := map[string]bool{}
-	for i := 0; i < len(parents); i++ {
-		for j := i + 1; j < len(parents); j++ {
-			for _, pname := range allInterfaceProperties(parents[i]) {
-				if seen[pname] {
-					continue
-				}
-				ti := parents[i].GetPropertyType(pname)
-				tj := parents[j].GetPropertyType(pname)
-				if ti == nil || tj == nil {
-					continue
-				}
-				if jstype.IsSubtype(ti, tj) || jstype.IsSubtype(tj, ti) {
-					continue
-				}
-				seen[pname] = true
-				s.diags = append(s.diags, diag.Diagnostic{
-					Path: s.path, Line: fn.Lineno(), Col: fn.Charno(),
-					Code: diag.JSC_INCOMPATIBLE_EXTENDED_PROPERTY_TYPE, Level: diag.Error,
-					Message: fmt.Sprintf(
-						"Interface %s has a property %s with incompatible types in its super interfaces %s and %s",
-						name, pname, parentNames[i], parentNames[j]),
-				})
+	if len(directParents) < 2 {
+		return
+	}
+	// Port of TypeCheck.java's checkInterfaceConflictProperties loop.
+	// `properties` carries property → owning-interface-name for every
+	// parent-subtree processed so far; `current` carries the same
+	// data for the parent currently being walked. A conflict is
+	// reported each time a parent declares a property whose type
+	// disagrees with an earlier-recorded parent's declared type.
+	properties := map[string]string{}
+	reported := map[string]bool{}
+	var walk func(ownerName string, inst *jstype.ObjectType, current map[string]string)
+	walk = func(ownerName string, inst *jstype.ObjectType, current map[string]string) {
+		if inst == nil {
+			return
+		}
+		for _, pname := range inst.MemberNames() {
+			tj := inst.GetPropertyType(pname)
+			if tj == nil {
+				continue
 			}
+			otherOwner, ok := properties[pname]
+			current[pname] = ownerName
+			if !ok {
+				continue
+			}
+			otherInst := s.scope.LookupNominalType(stripTemplateArgs(otherOwner))
+			var ti jstype.JSType
+			if otherInst != nil {
+				ti = otherInst.GetPropertyType(pname)
+			}
+			if ti == nil {
+				continue
+			}
+			if jstype.IsSubtype(ti, tj) || jstype.IsSubtype(tj, ti) {
+				continue
+			}
+			key := pname + "\x00" + otherOwner + "\x00" + ownerName
+			if reported[key] {
+				continue
+			}
+			reported[key] = true
+			s.diags = append(s.diags, diag.Diagnostic{
+				Path: s.path, Line: fn.Lineno(), Col: fn.Charno(),
+				Code: diag.JSC_INCOMPATIBLE_EXTENDED_PROPERTY_TYPE, Level: diag.Error,
+				Message: fmt.Sprintf(
+					"Interface %s has a property %s with incompatible types in its super interfaces %s and %s",
+					name, pname, otherOwner, ownerName),
+			})
+		}
+		if exts := inst.ExtendedInterfaces(); len(exts) > 0 {
+			for _, sup := range exts {
+				walk(sup.TypeName(), sup, current)
+			}
+		} else if sup := inst.Super(); sup != nil {
+			walk(sup.TypeName(), sup, current)
+		}
+	}
+	for _, pe := range directParents {
+		current := map[string]string{}
+		walk(pe.name, pe.inst, current)
+		for k, v := range current {
+			properties[k] = v
 		}
 	}
 }
@@ -343,7 +391,15 @@ func (s *SuperclassCheck) checkDeclaredConstructorImplements(v *rhino.Node) {
 	if nameNode == nil || nameNode.Token() != rhino.NAME || nameNode.String_() == "" {
 		return
 	}
-	s.validateImplements(v, nameNode.String_(), info)
+	// Report at the FUNCTION initialiser's position when present —
+	// Java's TypeCheck fires INTERFACE_METHOD_NOT_IMPLEMENTED at the
+	// function-expression keyword column, not the VAR's (which is
+	// 0:0 for synthetic VARs emitted by the parser).
+	reportAt := v
+	if init := nameNode.FirstChild(); init != nil && init.Token() == rhino.FUNCTION {
+		reportAt = init
+	}
+	s.validateImplements(reportAt, nameNode.String_(), info)
 }
 
 // validateImplements verifies `ctorName` implements every property
@@ -388,6 +444,14 @@ func (s *SuperclassCheck) validateImplements(reportAt *rhino.Node, ctorName stri
 		if iface == nil {
 			continue
 		}
+		// Skip when the interface name was flagged by a prior
+		// VAR_MULTIPLY_DECLARED_ERROR — the script's @interface
+		// declaration was rejected, so its property set should not
+		// drive INTERFACE_METHOD_NOT_IMPLEMENTED diagnostics.
+		ifaceName := stripTemplateArgs(expr.TypeName)
+		if s.SuppressedNames[ifaceName] {
+			continue
+		}
 		// Java's TypeCheck fires JSC_IMPLEMENTS_NON_INTERFACE
 		// when @implements references a non-interface constructor
 		// (e.g. `@implements {Boolean}` or a plain user-defined
@@ -402,9 +466,12 @@ func (s *SuperclassCheck) validateImplements(reportAt *rhino.Node, ctorName stri
 			continue
 		}
 		// Walk the interface's full property set (its own members
-		// plus any inherited via @extends {Other}).
-		for _, propName := range allInterfaceProperties(iface) {
-			if inst.GetPropertyType(propName) != nil {
+		// plus any inherited via @extends {Other}). The reported
+		// owner is the interface that actually declares the property,
+		// not the @implements'd root — matches Java's
+		// TypeCheck.validateInterfaceMethodImplemented.
+		for _, pe := range allInterfacePropertyOwners(iface) {
+			if inst.GetPropertyType(pe.name) != nil {
 				continue
 			}
 			s.diags = append(s.diags, diag.Diagnostic{
@@ -412,26 +479,64 @@ func (s *SuperclassCheck) validateImplements(reportAt *rhino.Node, ctorName stri
 				Code: diag.JSC_INTERFACE_METHOD_NOT_IMPLEMENTED, Level: diag.Error,
 				Message: fmt.Sprintf(
 					"property %s on interface %s is not implemented by type %s",
-					propName, iface.TypeName(), ctorName),
+					pe.name, pe.owner, ctorName),
 			})
 		}
 	}
 }
 
 // allInterfaceProperties returns every property name declared on
-// `iface` or reachable through its super chain, deduplicated.
+// `iface` or reachable through its super chain — either the single
+// @extends (via Super()) or the multi-extends list
+// (ExtendedInterfaces, used by interfaces that declare more than
+// one parent). Deduplicated. Mirrors Java's
+// FunctionType.getAllImplementedInterfaces walk.
 func allInterfaceProperties(iface *jstype.ObjectType) []string {
-	seen := map[string]bool{}
 	var out []string
-	for cur := iface; cur != nil; cur = cur.Super() {
+	for _, pe := range allInterfacePropertyOwners(iface) {
+		out = append(out, pe.name)
+	}
+	return out
+}
+
+// propOwner pairs a property name with the interface in the super
+// chain that actually declares it.
+type propOwner struct {
+	name  string
+	owner string
+}
+
+// allInterfacePropertyOwners returns every property on `iface`'s
+// transitive supertype graph alongside the name of the interface
+// that directly declares each property. First-seen wins (matching
+// Java's interfaceToImplementingClasses walk where a child's
+// declaration shadows the grandparent's).
+func allInterfacePropertyOwners(iface *jstype.ObjectType) []propOwner {
+	seen := map[string]bool{}
+	var out []propOwner
+	visited := map[*jstype.ObjectType]bool{}
+	var walk func(cur *jstype.ObjectType)
+	walk = func(cur *jstype.ObjectType) {
+		if cur == nil || visited[cur] {
+			return
+		}
+		visited[cur] = true
 		for _, name := range cur.MemberNames() {
 			if seen[name] {
 				continue
 			}
 			seen[name] = true
-			out = append(out, name)
+			out = append(out, propOwner{name: name, owner: cur.TypeName()})
+		}
+		if exts := cur.ExtendedInterfaces(); len(exts) > 0 {
+			for _, sup := range exts {
+				walk(sup)
+			}
+		} else {
+			walk(cur.Super())
 		}
 	}
+	walk(iface)
 	return out
 }
 
@@ -636,6 +741,107 @@ func (s *SuperclassCheck) checkPrototypeAssign(stmt *rhino.Node, assign *rhino.N
 				propName, ownerName, iface.TypeName(), slot.TypeName(), overrideType.TypeName()),
 		})
 		return
+	}
+}
+
+// checkPrototypeObjectLitAssign handles the wholesale-prototype
+// form `Foo.prototype = { k: v, … }`. Each STRING_KEY's value is
+// compared against the superclass's slot of the same name, firing
+// JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH on type mismatch. Mirrors
+// TypeCheck.java's validateMethodOverride when the override is
+// attached via an OBJECTLIT rather than a dotted ASSIGN.
+func (s *SuperclassCheck) checkPrototypeObjectLitAssign(stmt *rhino.Node, assign *rhino.Node) {
+	kids := assign.Children()
+	if len(kids) < 2 {
+		return
+	}
+	lhs, rhs := kids[0], kids[1]
+	if lhs.Token() != rhino.GETPROP || rhs.Token() != rhino.OBJECTLIT {
+		return
+	}
+	lhsKids := lhs.Children()
+	if len(lhsKids) < 2 {
+		return
+	}
+	if lhsKids[0].Token() != rhino.NAME || lhsKids[1].String_() != "prototype" {
+		return
+	}
+	ownerName := lhsKids[0].String_()
+	fn, ok := s.scope.GetRawDeclaredType(ownerName).(*jstype.FunctionType)
+	if !ok || fn.Instance == nil {
+		return
+	}
+	super := fn.Instance.Super()
+	ifaces := s.implementedInstances(ownerName)
+	if super == nil && len(ifaces) == 0 {
+		return
+	}
+	for _, kv := range rhs.Children() {
+		if kv.Token() != rhino.STRING_KEY {
+			continue
+		}
+		propName := kv.String_()
+		if propName == "" {
+			continue
+		}
+		valKids := kv.Children()
+		if len(valKids) == 0 {
+			continue
+		}
+		val := valKids[0]
+		info := kv.JSDocInfo()
+		var overrideType jstype.JSType
+		if info != nil && info.HasType() {
+			overrideType = s.scope.ResolveExpr(info.Type().TypeName)
+		} else if val.Token() == rhino.FUNCTION {
+			overrideType = functionTypeFromJSDoc(info, val, s.scope)
+		} else {
+			ti := NewTypeInference(s.scope)
+			overrideType = ti.InferType(val)
+		}
+		if overrideType == nil {
+			continue
+		}
+		// Superclass slot.
+		if super != nil {
+			if super.IsPropertyInferred(propName) {
+				continue
+			}
+			if slot := super.GetPropertyType(propName); slot != nil {
+				if !overrideCompatible(overrideType, slot) {
+					s.diags = append(s.diags, diag.Diagnostic{
+						Path:  s.path,
+						Line:  kv.Lineno(),
+						Col:   kv.Charno(),
+						Code:  diag.JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH,
+						Level: diag.Error,
+						Message: fmt.Sprintf("mismatch of the %s property type and the type of the property it overrides from superclass %s\noriginal: %s\noverride: %s",
+							propName, super.TypeName(), slot.TypeName(), overrideType.TypeName()),
+					})
+					continue
+				}
+			}
+		}
+		// @implements interfaces.
+		for _, iface := range ifaces {
+			slot := iface.GetPropertyType(propName)
+			if slot == nil {
+				continue
+			}
+			if overrideCompatible(overrideType, slot) {
+				continue
+			}
+			s.diags = append(s.diags, diag.Diagnostic{
+				Path:  s.path,
+				Line:  kv.Lineno(),
+				Col:   kv.Charno(),
+				Code:  diag.JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH,
+				Level: diag.Error,
+				Message: fmt.Sprintf("mismatch of the %s property on type %s and the type of the property it overrides from interface %s\noriginal: %s\noverride: %s",
+					propName, ownerName, iface.TypeName(), slot.TypeName(), overrideType.TypeName()),
+			})
+			break
+		}
 	}
 }
 
