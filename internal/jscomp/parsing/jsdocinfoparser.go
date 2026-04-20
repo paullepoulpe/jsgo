@@ -1,14 +1,15 @@
 // Port of com/google/javascript/jscomp/parsing/JsDocInfoParser.java @ closure-compiler v20260415 (subset)
 //
-// Scope: Tier-0 through Tier-3 tags only (@type, @param, @return,
-// @extends, @implements, @typedef, @template, @constructor, @interface,
-// @record, @abstract). Tag dispatch + type-expression recursive descent mirror the
-// Java class exactly: parseAnnotation → parseTypeExpressionAnnotation
-// → parseTopLevelTypeExpression → parseTypeExpression →
-// parseBasicTypeExpression → parseTypeName / parseRecordType /
-// parseFunctionType. Type expressions are serialised back to text so
-// the existing TypedScope.ResolveExpr continues to work; the richer
-// TypeAST → JSType resolution lands in a later slice.
+// Scope: Tier-0 through Tier-3 tags (@type, @param, @return, @extends,
+// @implements, @typedef, @template, @constructor, @interface, @record,
+// @abstract) plus the side-effect markers CheckSideEffects consults
+// (@nosideeffects / @noside). Tag dispatch + type-expression recursive
+// descent mirror the Java class exactly: parseAnnotation →
+// parseTypeExpressionAnnotation → parseTopLevelTypeExpression →
+// parseTypeExpression → parseBasicTypeExpression → parseTypeName /
+// parseRecordType / parseFunctionType. Type expressions are serialised
+// back to text so the existing TypedScope.ResolveExpr continues to
+// work; the richer TypeAST → JSType resolution lands in a later slice.
 
 package parsing
 
@@ -130,6 +131,13 @@ func (p *JsDocInfoParser) parseAnnotation(_ JsDocToken) JsDocToken {
 		return p.eatUntilEOLIfNotAnnotation()
 	case "suppress":
 		return p.parseSuppressTag()
+	case "nosideeffects", "noside":
+		// `@nosideeffects` / `@noside` mark the function as
+		// observably pure. Mirrors the equivalent branch in Java's
+		// JsDocInfoParser.parseAnnotation.
+		p.info.SetNoSideEffects(true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
 	}
 	return p.eatUntilEOLIfNotAnnotation()
 }

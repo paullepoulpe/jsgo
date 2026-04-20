@@ -1,17 +1,27 @@
-// Port of com/google/javascript/jscomp/CheckSideEffects.java
-// @ closure-compiler v20260415 (narrow; no useless-getelem sub-expr
-// reporting, no @nosideeffects function annotation).
+// Port of com/google/javascript/jscomp/CheckSideEffects.java @ closure-compiler v20260415 (P0-A2 expansion)
 //
-// Walks every EXPR_RESULT statement and fires
-// JSC_USELESS_CODE whenever the contained expression has no
-// observable side effect. Side-effect-free expressions are the
-// pure / read-only ones: literals, bare identifiers, property
-// access, arithmetic / comparison / logical / ternary / typeof /
-// unary-negate of pure operands. Calls, `new`, assignment,
-// increment / decrement, and `delete` are treated as side-
-// effecting. AND / OR / COALESCE / HOOK with a pure RHS recurse so
-// we report the inner useless piece at its own location (matches
-// Java).
+// Walks every EXPR_RESULT statement and fires JSC_USELESS_CODE whenever
+// the contained expression's value is observably discarded. Behaviour
+// mirrors the Java class:
+//
+//   - Side-effect-free roots at statement level (literals, NAMEs,
+//     GETPROP reads, arithmetic / comparison / logical / unary / in /
+//     instanceof / typeof / void) are reported.
+//   - GETPROP reads at statement level are always reported, even when
+//     the base has side effects (`foo().bar;` → emit on `.bar`); Java's
+//     diagnostic lands on the property-name token, so we emit at the
+//     second child's position.
+//   - AND / OR / COALESCE / HOOK with a pure RHS (or pure branches for
+//     HOOK) yield a second diagnostic on the pure operand — matching
+//     Java's "useless && value" / "useless ?? value" double-report.
+//   - CALL is treated as effectful by default, but a CALL whose callee
+//     resolves to a named function annotated `@nosideeffects` (or its
+//     alias `@noside`) is reported when its result is discarded and no
+//     argument has its own side effect. Mirrors Java's reliance on
+//     FunctionType.isNoSideEffects().
+//
+// Shortcuts for `++` / `--` / ASSIGN family / `throw` / `new` / plain
+// CALL are kept from the earlier narrow port.
 
 package jscomp
 
@@ -24,6 +34,13 @@ import (
 type CheckSideEffects struct {
 	path  string
 	diags []diag.Diagnostic
+	// pureCallees maps a function-declaration NAME to the JSDocInfo
+	// attached to that function's declaration. Populated in a pre-walk
+	// so call-site classification can look up @nosideeffects on a
+	// simple-name callee without a scope handle. Mirrors how Java
+	// CheckSideEffects consults FunctionType.isNoSideEffects() on the
+	// resolved callee.
+	pureCallees map[string]bool
 }
 
 func NewCheckSideEffects(path string) *CheckSideEffects {
@@ -34,19 +51,40 @@ func NewCheckSideEffects(path string) *CheckSideEffects {
 // whose contained expression is observably pure.
 func (c *CheckSideEffects) Check(script *rhino.Node) []diag.Diagnostic {
 	c.diags = nil
+	c.pureCallees = map[string]bool{}
+	c.collectPureFunctions(script)
 	c.walk(script)
 	return c.diags
+}
+
+// collectPureFunctions pre-walks the script and records every named
+// function declaration whose JSDocInfo carries @nosideeffects. Mirrors
+// the subset of TypedScopeCreator.recordFunction Java uses to stamp the
+// FunctionType's NoSideEffects bit. Closure's FUNCTION layout puts the
+// binding name in the first child (empty string when anonymous).
+func (c *CheckSideEffects) collectPureFunctions(n *rhino.Node) {
+	if n == nil {
+		return
+	}
+	if n.Token() == rhino.FUNCTION {
+		if info := n.JSDocInfo(); info != nil && info.IsNoSideEffects() {
+			if name := n.FirstChild(); name != nil && name.String_() != "" {
+				c.pureCallees[name.String_()] = true
+			}
+		}
+	}
+	for _, child := range n.Children() {
+		c.collectPureFunctions(child)
+	}
 }
 
 func (c *CheckSideEffects) walk(n *rhino.Node) {
 	if n == nil {
 		return
 	}
-	if n.Token() == rhino.EXPR_RESULT {
-		if !isDeclarationStatement(n) {
-			if inner := n.FirstChild(); inner != nil {
-				c.reportUseless(n, inner, true /*top-level*/)
-			}
+	if n.Token() == rhino.EXPR_RESULT && !isDeclarationStatement(n) {
+		if inner := n.FirstChild(); inner != nil {
+			c.reportUseless(n, inner)
 		}
 	}
 	for _, child := range n.Children() {
@@ -56,55 +94,55 @@ func (c *CheckSideEffects) walk(n *rhino.Node) {
 
 // reportUseless fires JSC_USELESS_CODE at `expr`'s position when the
 // expression is pure. Mirrors the double-dispatch in Java's
-// CheckSideEffects — when the outer form is a short-circuit
-// operator or HOOK, the pure sub-expressions are ALSO reported
-// individually, in addition to the whole-statement diagnostic when
-// the outer form is fully pure.
-func (c *CheckSideEffects) reportUseless(stmt, expr *rhino.Node, top bool) {
+// CheckSideEffects — per-operator positions for IN / NOT / GETELEM /
+// GETPROP, @nosideeffects-call classification for CALL, and short-
+// circuit / HOOK branches get a second pass so Java's "useless &&
+// value" / "useless ?? value" double-report still fires.
+func (c *CheckSideEffects) reportUseless(stmt, expr *rhino.Node) {
 	pure := !hasSideEffects(expr)
-	// Per-operator "result not used" diagnostics fire even when the
-	// operand has side effects — the operator itself is dropped.
-	// Java emits at specific positions for each operator kind.
-	if top {
-		switch expr.Token() {
-		case rhino.IN:
-			c.emitOpAt(stmt, "in")
+	switch expr.Token() {
+	case rhino.IN:
+		c.emitOpAt(stmt, "in")
+		return
+	case rhino.NOT:
+		c.emitOpAt(expr, "not")
+		return
+	case rhino.GETELEM:
+		c.emitOpAt(stmt, "getelem")
+		if pure {
 			return
-		case rhino.NOT:
-			c.emitOpAt(expr, "not")
-			return
-		case rhino.GETELEM:
-			c.emitOpAt(stmt, "getelem")
-			if pure {
-				return
-			}
-			// fall through to recursion for ternary/and/or branches
 		}
-	}
-	if pure {
-		if expr.Token() == rhino.GETPROP {
-			kids := expr.Children()
-			if len(kids) >= 2 {
-				c.emitOpAt(kids[1], "getprop")
-			} else {
-				c.emitAt(expr)
-			}
+	case rhino.GETPROP:
+		if kids := expr.Children(); len(kids) >= 2 {
+			c.emitOpAt(kids[1], "getprop")
 		} else {
 			c.emitAt(expr)
 		}
+		return
+	case rhino.CALL:
+		if c.isPureCall(expr) {
+			c.emitAt(stmt)
+		}
+		c.reportShortCircuitRHS(expr)
+		return
 	}
-	_ = stmt
-	// Recurse into short-circuit / ternary branches so Java's
-	// per-branch pure-RHS warnings still fire even when the outer
-	// statement was already flagged.
+	if pure {
+		c.emitAt(expr)
+	}
+	c.reportShortCircuitRHS(expr)
+}
+
+// reportShortCircuitRHS implements the Java "useless && value"
+// double-report: for AND / OR / COALESCE / HOOK, when a non-first
+// operand is side-effect-free, emit on that operand.
+func (c *CheckSideEffects) reportShortCircuitRHS(expr *rhino.Node) {
+	kids := expr.Children()
 	switch expr.Token() {
 	case rhino.AND, rhino.OR, rhino.COALESCE:
-		kids := expr.Children()
 		if len(kids) == 2 && !hasSideEffects(kids[1]) {
 			c.emitAt(kids[1])
 		}
 	case rhino.HOOK:
-		kids := expr.Children()
 		if len(kids) == 3 {
 			if !hasSideEffects(kids[1]) {
 				c.emitAt(kids[1])
@@ -114,6 +152,34 @@ func (c *CheckSideEffects) reportUseless(stmt, expr *rhino.Node, top bool) {
 			}
 		}
 	}
+}
+
+// isPureCall reports whether `call` is a call to a function resolved to
+// @nosideeffects with no effectful arguments. Matches the Java fast
+// path in NodeUtil.functionCallHasSideEffects: a CALL is pure iff the
+// callee has NoSideEffects on its FunctionType / JSDocInfo AND none of
+// the arguments individually have side effects.
+//
+// Guard: only classify on named callees; dynamic / anonymous callees
+// can't be traced back to a JSDoc declaration.
+func (c *CheckSideEffects) isPureCall(call *rhino.Node) bool {
+	kids := call.Children()
+	if len(kids) == 0 {
+		return false
+	}
+	callee := kids[0]
+	if callee.Token() != rhino.NAME {
+		return false
+	}
+	if !c.pureCallees[callee.String_()] {
+		return false
+	}
+	for _, arg := range kids[1:] {
+		if hasSideEffects(arg) {
+			return false
+		}
+	}
+	return true
 }
 
 func (c *CheckSideEffects) emitAt(n *rhino.Node) {
@@ -176,10 +242,11 @@ func isDeclarationStatement(stmt *rhino.Node) bool {
 	return false
 }
 
-// hasSideEffects returns true for expression nodes that Closure
-// considers observably effectful. The classification is the same
-// the Java NodeUtil.mayHaveSideEffects uses at the narrow scope
-// (pre-nosideeffects JSDoc support).
+// hasSideEffects mirrors NodeUtil.mayHaveSideEffects: a node is
+// effectful iff its own operator writes / calls / throws, or any
+// child is. GETPROP is pure at its own level but recurses into its
+// base (so `foo().bar` still reports as effectful because of the
+// CALL).
 func hasSideEffects(n *rhino.Node) bool {
 	if n == nil {
 		return false
@@ -198,11 +265,11 @@ func hasSideEffects(n *rhino.Node) bool {
 		return true
 	// Pure leaves.
 	case rhino.NAME, rhino.STRINGLIT, rhino.NUMBER, rhino.TRUE, rhino.FALSE,
-		rhino.NULL, rhino.UNDEFINED, rhino.THIS, rhino.GETPROP,
+		rhino.NULL, rhino.UNDEFINED, rhino.THIS,
 		rhino.ARRAYLIT, rhino.OBJECTLIT, rhino.FUNCTION:
 		return false
 	}
-	// Compound: side-effecting iff any child is.
+	// Compound (including GETPROP): effectful iff any child is.
 	for _, c := range n.Children() {
 		if hasSideEffects(c) {
 			return true

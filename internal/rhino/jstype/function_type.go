@@ -1,10 +1,11 @@
-// Port of com/google/javascript/rhino/jstype/FunctionType.java @ closure-compiler v20260415
+// Port of com/google/javascript/rhino/jstype/FunctionType.java @ closure-compiler v20260415 (subset)
 //
 // FunctionType in Java is a rich node: it carries parameters, return
 // type, this-type, supers, template info, constructor/interface flag,
 // and more. Tier-1 only exercises the ordered parameter list + return
 // type, so that's all we record here; the Java class's extra fields
-// will be added as later tiers require them.
+// will be added as later tiers require them. The NoSideEffects bit
+// mirrors FunctionType.isNoSideEffects() (P0-A2: CheckSideEffects).
 
 package jstype
 
@@ -65,6 +66,12 @@ type FunctionType struct {
 	// Java's TypeCheck uses the distinction to forbid
 	// `ClassName.prototype = …` reassignments.
 	IsES6Class bool
+
+	// NoSideEffects mirrors FunctionType.isNoSideEffects() — set when
+	// the owning function carried `@nosideeffects` (or its alias
+	// `@noside`). Consulted by CheckSideEffects to flag a discarded
+	// call `f();` as useless code.
+	NoSideEffects bool
 }
 
 // MaxArgsUnlimited is the sentinel MaxArity for rest-parameter
