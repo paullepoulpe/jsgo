@@ -431,9 +431,27 @@ func (t *TypeInference) inferHook(n *rhino.Node) jstype.JSType {
 		return jstype.Unknown
 	}
 	cond, thenExpr, elseExpr := kids[0], kids[1], kids[2]
-	thenT := t.inferWithNarrowing(thenExpr, cond, true)
-	elseT := t.inferWithNarrowing(elseExpr, cond, false)
+	// Build per-branch refinements for the full condition shape
+	// (NAME / GETPROP / AND / OR / typeof / instanceof / null
+	// checks). Push them temporarily while inferring each branch so
+	// qualified names like `obj.prop` see the narrowed type.
+	thenRefs := buildRefinements(t.scope, cond, true)
+	elseRefs := buildRefinements(t.scope, cond, false)
+	thenT := t.inferUnder(thenExpr, thenRefs)
+	elseT := t.inferUnder(elseExpr, elseRefs)
 	return unionFold(thenT, elseT)
+}
+
+// inferUnder evaluates `expr` with `refs` temporarily pushed as a
+// refinement overlay — used by inferHook and AND/OR short-circuit
+// inference so each branch sees the narrowed flow.
+func (t *TypeInference) inferUnder(expr *rhino.Node, refs map[string]jstype.JSType) jstype.JSType {
+	if len(refs) == 0 {
+		return t.InferType(expr)
+	}
+	t.scope.PushRefinement(refs)
+	defer t.scope.PopRefinement()
+	return t.InferType(expr)
 }
 
 // inferWithNarrowing returns the inferred type of `expr` given that

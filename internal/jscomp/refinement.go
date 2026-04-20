@@ -226,7 +226,8 @@ func qualifiedName(n *rhino.Node) string {
 
 // resolveQualifiedType looks up the declared type for a GETPROP
 // chain — walks from the NAME / THIS root through each property
-// step. Returns nil if any step is unknown.
+// step, consulting scope's namespace-prop map for flat two-segment
+// chains. Returns nil if any step is unknown.
 func resolveQualifiedType(scope *TypedScope, n *rhino.Node) jstype.JSType {
 	if n == nil {
 		return nil
@@ -243,6 +244,15 @@ func resolveQualifiedType(scope *TypedScope, n *rhino.Node) jstype.JSType {
 		kids := n.Children()
 		if len(kids) < 2 {
 			return nil
+		}
+		// Two-segment GETPROP rooted at a NAME that's been
+		// registered as a namespace (via recordNamespaceAssign or
+		// recordNamespaceStub) — consult the namespace-prop map
+		// before descending into ObjectType properties.
+		if kids[0].Token() == rhino.NAME {
+			if t := scope.LookupNamespaceProp(kids[0].String_(), kids[1].String_()); t != nil {
+				return t
+			}
 		}
 		recv := resolveQualifiedType(scope, kids[0])
 		if recv == nil {
