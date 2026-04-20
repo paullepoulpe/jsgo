@@ -171,9 +171,10 @@ func (p *JsDocInfoParser) parseTypeTag() JsDocToken {
 
 // parseParamTag is the direct port of Java's parseParamTag: a type
 // expression in braces, then a parameter name on the same logical
-// line. The Java side has additional optional / rest / default-value
-// handling; we ignore those (the Tier-0 checker treats them as plain
-// names).
+// line. Modifier handling (`{T=}` optional / `{...T}` rest) matches
+// JSDocInfoParser.java#parseParamTag — the flags are attached to the
+// stored JSTypeExpression so downstream passes (CheckArity) can see
+// them per-parameter.
 func (p *JsDocInfoParser) parseParamTag() JsDocToken {
 	p.skipEOLs()
 	t := p.next()
@@ -188,8 +189,12 @@ func (p *JsDocInfoParser) parseParamTag() JsDocToken {
 	// the follower is a STRING, otherwise skip to end-of-line.
 	if next == JsDocTokenString {
 		name := p.stream.String_()
-		// Optional-param wrappers arrive as raw identifiers; strip a
-		// leading `[` if the tokenizer merged it into the name.
+		// Optional-param `[name]` / `[name=default]` wrappers mark the
+		// param as optional independently of the `{T=}` form — mirrors
+		// JSDocInfoParser's handling of the bracketed name syntax.
+		if strings.HasPrefix(name, "[") {
+			isOptional = true
+		}
 		name = strings.TrimLeft(name, "[")
 		if i := strings.IndexAny(name, "=]"); i >= 0 {
 			name = name[:i]

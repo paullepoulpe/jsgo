@@ -77,6 +77,7 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	all = append(all, varRefDiags...)
 	all = append(all, NewCheckJsDocTypes(path, src, scope).Check()...)
 	all = append(all, NewTypeCheckWithOptions(path, creator, scope, opts).Check(script)...)
+	all = append(all, NewCheckArity(path, creator, scope).Check(script)...)
 	all = append(all, NewCheckDupVarDeclMismatch(path, scope).Check(script)...)
 	all = append(all, NewMissingReturnCheck(path, scope).Check(script)...)
 	// Names that already triggered JSC_VAR_MULTIPLY_DECLARED_ERROR
