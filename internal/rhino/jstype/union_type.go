@@ -5,6 +5,13 @@
 // refinements and intersection checks); this Tier-1/2 port covers
 // primitive and function members only, which is what TypeCheckTest's
 // `@type {A|B}` / `@param {A|B}` cases exercise.
+//
+// Three builder-time invariants, lifted from UnionType$Builder in Java:
+// flatten nested unions, de-dup alternates, and sort alphabetically by
+// TypeName so diagnostics spell `(A|B)` the same way every run. The
+// canonical order was confirmed against oracle outputs (primitives
+// alphabetical, nominal names alphabetical, anonymous records and
+// functions last via their `{...}` / `function(...)` ASCII prefix).
 
 package jstype
 
@@ -17,58 +24,74 @@ type UnionType struct {
 	members []JSType
 }
 
-// NewUnion flattens nested unions and drops duplicates. Returns a
-// bare member when the union collapses to one element. Dedup keys
-// combine TypeName with pointer identity so two anonymous structural
-// records (both TypeName "{...}") stay distinct. Mirrors
-// JSTypeRegistry.createUnionType interning semantics.
+// NewUnion flattens nested unions, drops duplicates, and sorts alternates
+// deterministically. Returns a bare member when the union collapses to
+// one element. Mirrors JSTypeRegistry.createUnionType + UnionType$Builder.
 func NewUnion(members ...JSType) JSType {
-	type key struct {
-		name string
-		ptr  any
-	}
-	seen := map[key]JSType{}
-	var order []key
-	add := func(m JSType) {
-		var k key
-		switch v := m.(type) {
-		case *ObjectType:
-			k = key{name: v.TypeName(), ptr: v}
-		case *TemplatizedType:
-			k = key{name: v.TypeName(), ptr: v}
-		case *FunctionType:
-			k = key{name: v.TypeName(), ptr: v}
-		default:
-			k = key{name: m.TypeName()}
-		}
-		if _, ok := seen[k]; ok {
-			return
-		}
-		seen[k] = m
-		order = append(order, k)
-	}
+	var flat []JSType
 	for _, m := range members {
-		if u, ok := m.(*UnionType); ok {
-			for _, n := range u.members {
-				add(n)
-			}
+		if m == nil {
 			continue
 		}
-		add(m)
+		if u, ok := m.(*UnionType); ok {
+			flat = append(flat, u.members...)
+			continue
+		}
+		flat = append(flat, m)
 	}
-	if len(seen) == 1 {
-		for _, v := range seen {
-			return v
+
+	unique := make([]JSType, 0, len(flat))
+	for _, m := range flat {
+		dup := false
+		for _, k := range unique {
+			if sameAlternate(k, m) {
+				dup = true
+				break
+			}
+		}
+		if !dup {
+			unique = append(unique, m)
 		}
 	}
-	sort.Slice(order, func(i, j int) bool {
-		return order[i].name < order[j].name
-	})
-	out := make([]JSType, 0, len(order))
-	for _, k := range order {
-		out = append(out, seen[k])
+
+	if len(unique) == 1 {
+		return unique[0]
 	}
-	return &UnionType{members: out}
+
+	sort.SliceStable(unique, func(i, j int) bool {
+		return unique[i].TypeName() < unique[j].TypeName()
+	})
+	return &UnionType{members: unique}
+}
+
+// sameAlternate is the dedup predicate. Nominal kinds (ObjectType,
+// FunctionType, TemplateType) compare by pointer identity via the
+// interface `a == b` check — matching Java's reference-equality on
+// interned types. TemplatizedType needs a structural compare so two
+// independently-built `Array<number>` values collapse. Everything else
+// (primitives with value receivers) compares by TypeName.
+func sameAlternate(a, b JSType) bool {
+	if a == b {
+		return true
+	}
+	if x, ok := a.(*TemplatizedType); ok {
+		y, ok := b.(*TemplatizedType)
+		if !ok || x.Base != y.Base || len(x.Args) != len(y.Args) {
+			return false
+		}
+		for i := range x.Args {
+			if !sameAlternate(x.Args[i], y.Args[i]) {
+				return false
+			}
+		}
+		return true
+	}
+	switch a.(type) {
+	case *ObjectType, *FunctionType, *TemplateType:
+		// Pointer identity already failed above; these are nominal.
+		return false
+	}
+	return a.TypeName() == b.TypeName()
 }
 
 func (u *UnionType) Members() []JSType { return u.members }
