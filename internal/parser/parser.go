@@ -1117,7 +1117,9 @@ func (p *Parser) tryCallOrAssignStatement() (*rhino.Node, bool) {
 			return nil, false
 		}
 		p.scanner.Advance()
-		rhs.SetPos(rhsLine, rhsCol)
+		if rhs.Lineno() == 0 && rhs.Charno() == 0 {
+			rhs.SetPos(rhsLine, rhsCol)
+		}
 		assign := rhino.New(rhino.ASSIGN)
 		assign.SetPos(startLine, startCol)
 		assign.AddChildToBack(lhs)
@@ -1191,7 +1193,9 @@ func (p *Parser) tryAssignment() (*rhino.Node, bool) {
 	if !ok {
 		return nil, false
 	}
-	rhs.SetPos(rhsLine, rhsCol)
+	if rhs.Lineno() == 0 && rhs.Charno() == 0 {
+		rhs.SetPos(rhsLine, rhsCol)
+	}
 	n := rhino.New(tok)
 	n.SetPos(lhs.Lineno(), lhs.Charno())
 	n.AddChildToBack(lhs)
@@ -1295,7 +1299,14 @@ func (p *Parser) tryBinary(minPrec int) (*rhino.Node, bool) {
 		if !ok {
 			return nil, false
 		}
-		right.SetPos(rhsLine, rhsCol)
+		// Only backfill when tryBinary produced an unpositioned
+		// node (e.g. a bare NAME literal). A paren-wrapped
+		// expression like \`(new Bar)\` already has a precise
+		// position from its inner tryPostfix, and shouldn't be
+		// overwritten with the \`(\` column.
+		if right.Lineno() == 0 && right.Charno() == 0 {
+			right.SetPos(rhsLine, rhsCol)
+		}
 		n := rhino.New(tok)
 		n.SetPos(left.Lineno(), left.Charno())
 		n.AddChildToBack(left)

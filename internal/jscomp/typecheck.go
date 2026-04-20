@@ -473,6 +473,8 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitForIn(n, scope))
 	case rhino.LSH, rhino.RSH, rhino.URSH, rhino.BITAND, rhino.BITOR, rhino.BITXOR:
 		c.emit(c.visitBitOp(n, scope))
+	case rhino.LT, rhino.LE, rhino.GT, rhino.GE:
+		c.emit(c.visitRelationalDefault(n, scope))
 	case rhino.FUNCTION:
 		c.emit(c.visitFunctionParams(n, scope))
 	}
@@ -1993,6 +1995,63 @@ func isNumericOperandOk(t jstype.JSType) bool {
 	}
 	switch t {
 	case jstype.Number, jstype.Boolean, jstype.Null, jstype.Void, jstype.All:
+		return true
+	}
+	return false
+}
+
+// visitRelationalDefault fires JSC_TYPE_MISMATCH on the default-
+// mode relational check: both \`<\` operands must be bigint-, number-
+// or string-compatible. Non-primitives (Object / FunctionType) are
+// definitively invalid. Matches Java's TypeCheck.visitBinaryOp
+// default-mode relational branch.
+func (c *TypeCheck) visitRelationalDefault(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	kids := n.Children()
+	if len(kids) < 2 {
+		return nil
+	}
+	infer := NewTypeInference(scope)
+	l := infer.InferType(kids[0])
+	r := infer.InferType(kids[1])
+	var out []diag.Diagnostic
+	if isDefinitelyNotComparable(l) {
+		out = append(out, diag.Diagnostic{
+			Path: c.path, Line: kids[0].Lineno(), Col: kids[0].Charno(),
+			Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
+			Message: "left side of comparison\nfound   : " + l.TypeName() + "\nrequired: (bigint|number|string)",
+		})
+	}
+	if isDefinitelyNotComparable(r) {
+		out = append(out, diag.Diagnostic{
+			Path: c.path, Line: kids[1].Lineno(), Col: kids[1].Charno(),
+			Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
+			Message: "right side of comparison\nfound   : " + r.TypeName() + "\nrequired: (bigint|number|string)",
+		})
+	}
+	return out
+}
+
+// isDefinitelyNotComparable reports whether \`t\` is a type that
+// definitely can't participate in a relational comparison. Objects
+// / functions / booleans are rejected; primitives and unknowns
+// stay quiet.
+func isDefinitelyNotComparable(t jstype.JSType) bool {
+	if t == nil {
+		return false
+	}
+	if t == jstype.Unknown || t == jstype.All {
+		return false
+	}
+	switch t {
+	case jstype.Number, jstype.String, jstype.Null, jstype.Void:
+		return false
+	case jstype.Boolean:
+		return true
+	}
+	if _, ok := t.(*jstype.FunctionType); ok {
+		return true
+	}
+	if _, ok := t.(*jstype.ObjectType); ok {
 		return true
 	}
 	return false
