@@ -24,6 +24,15 @@ type JsDocTokenStream struct {
 
 	string_ string // the most recently-scanned STRING/ANNOTATION payload
 
+	// tokenStartLine / tokenStartCol capture the (line, col) at which
+	// the last emitted non-EOL / non-EOF token began — the first
+	// non-whitespace char after the previous token was consumed.
+	// Mirrors JsDocTokenStream.getStartLineno / getStartCharno — not
+	// part of the Java API we previously ported, but added for
+	// position-aware type diagnostics (see jstype_resolver).
+	tokenStartLine int
+	tokenStartCol  int
+
 	// unget buffer. Closure uses a small fixed stack; we use a slice
 	// with the same LIFO semantics.
 	ungetBuf []rune
@@ -64,6 +73,10 @@ func (s *JsDocTokenStream) GetJsDocToken() JsDocToken {
 	s.stringBufferReset()
 	for {
 		s.charno = -1
+		// Snapshot the absolute body offset BEFORE consuming a char so
+		// the saved (line, col) points at the first char of the next
+		// token. Whitespace skipped below loops back to refresh it.
+		s.tokenStartLine, s.tokenStartCol = s.computeAbsoluteLineCol(s.peekAbsolutePos())
 		c := s.getChar()
 		if c == eofChar {
 			return JsDocTokenEOF
@@ -75,6 +88,47 @@ func (s *JsDocTokenStream) GetJsDocToken() JsDocToken {
 			return s.dispatch(c)
 		}
 	}
+}
+
+// TokenStartLine returns the absolute line (0-indexed from comment
+// start) of the most recently emitted non-EOL token. Used by the JSDoc
+// parser to tag parsed type names with their origin position.
+func (s *JsDocTokenStream) TokenStartLine() int { return s.tokenStartLine }
+
+// TokenStartCol returns the column offset of the most recently emitted
+// non-EOL token. Combined with TokenStartLine, this lets the resolver
+// project a JSDoc-internal position onto the surrounding source file.
+func (s *JsDocTokenStream) TokenStartCol() int { return s.tokenStartCol }
+
+// peekAbsolutePos returns the absolute offset of the next character
+// that would be returned by getChar, accounting for the unget buffer.
+func (s *JsDocTokenStream) peekAbsolutePos() int {
+	// Characters in the unget buffer were consumed from positions
+	// before s.pos; conceptually the next absolute pos is s.pos -
+	// len(ungetBuf). The body offset maps 1:1 onto the rune slice so
+	// this is accurate as long as we don't skip any runes.
+	return s.pos - len(s.ungetBuf)
+}
+
+// computeAbsoluteLineCol walks `source` from the start through `pos`
+// counting newlines to derive a (line, col) pair. O(pos) per call; the
+// body length is bounded by the enclosing comment so this is fine in
+// practice. Mirrors how Java's JsDocTokenStream recomputes position on
+// demand for diagnostics.
+func (s *JsDocTokenStream) computeAbsoluteLineCol(pos int) (int, int) {
+	line, col := 0, 0
+	if pos > len(s.source) {
+		pos = len(s.source)
+	}
+	for i := 0; i < pos; i++ {
+		if s.source[i] == '\n' {
+			line++
+			col = 0
+			continue
+		}
+		col++
+	}
+	return line, col
 }
 
 func (s *JsDocTokenStream) dispatch(c rune) JsDocToken {

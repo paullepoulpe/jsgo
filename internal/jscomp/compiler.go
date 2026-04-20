@@ -39,6 +39,11 @@ func CheckSource(path, src string) ([]diag.Diagnostic, error) {
 	var all []diag.Diagnostic
 	all = append(all, NewVarCheck(path, creator, scope).Check(script)...)
 	all = append(all, NewVariableReferenceCheck(path, externScope).Check(script)...)
+	// Late-resolve JSDoc NamedType wrappers before TypeCheck so any
+	// JSC_UNRECOGNIZED_TYPE_ERROR / JSC_TYPE_PARSE_ERROR fires at the
+	// JSDoc comment location rather than at the annotated AST node.
+	// Mirrors Java's JSTypeRegistry.resolveTypes pass slot.
+	all = append(all, NewJSTypeResolver(path, src, creator, scope, externScope).Check(script)...)
 	all = append(all, NewTypeCheck(path, creator, scope).Check(script)...)
 	all = append(all, NewMissingReturnCheck(path, scope).Check(script)...)
 	all = append(all, NewSuperclassCheck(path, creator, scope).Check(script)...)
