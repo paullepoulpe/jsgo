@@ -136,15 +136,21 @@ func (t *TypeInference) InferType(n *rhino.Node) jstype.JSType {
 		}
 		return unionFold(stripped, t.InferType(kids[1]))
 	case rhino.AND:
-		// `a && b` returns `b` when `a` is truthy, else `a`. When we
-		// can't statically tell, favour the right operand — Java does
-		// this too when the left side includes truthy members — since
-		// the vast majority of corpus uses target the `b` case.
+		// \`a && b\` returns \`b\` when \`a\` is truthy, else \`a\`. Result
+		// is \`(a − truthy) ∪ b\` — the falsy members of \`a\` plus
+		// whatever \`b\` evaluates to under the truthy-a refinement.
 		kids := n.Children()
 		if len(kids) < 2 {
 			return jstype.Unknown
 		}
-		return t.InferType(kids[1])
+		left := t.InferType(kids[0])
+		refs := buildRefinements(t.scope, kids[0], true)
+		right := t.inferUnder(kids[1], refs)
+		falsy := keepFalsyRefined(left)
+		if falsy == nil {
+			return right
+		}
+		return unionFold(falsy, right)
 
 	// ---- unary ---------------------------------------------------- //
 	case rhino.NOT:
