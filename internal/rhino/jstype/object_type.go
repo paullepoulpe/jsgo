@@ -51,6 +51,21 @@ type ObjectType struct {
 	// INTERFACE_METHOD_NOT_IMPLEMENTED) walk this list.
 	extendedInterfaces []*ObjectType
 
+	// templatizedSuper is the @extends supertype expression when it
+	// carried template arguments (e.g. `@extends {Bar<!Array<T>>}`).
+	// Mirrors ObjectType.getImplicitPrototype() returning a
+	// TemplatizedType in Java. `super` still points at the underlying
+	// Bar instance so nominal subtype walks work; this slot adds the
+	// substitution map used when resolving inherited property types.
+	templatizedSuper *TemplatizedType
+
+	// TemplateParams are the class-level @template parameters in the
+	// order declared. Used when a TemplatizedType pairs this ObjectType
+	// with concrete Args to build the substitution map for inherited
+	// property lookup. Empty for non-generic classes. Mirrors Java's
+	// ObjectType.getTemplateTypeMap keys.
+	TemplateParams []*TemplateType
+
 	// IsStructural is true for `@record` / `@interface` types. A value
 	// of type S is assignable to a structural T iff S has every
 	// property T declares with a compatible type — no nominal check.
@@ -158,28 +173,33 @@ func (o *ObjectType) IsSubtypeOf(other JSType) bool {
 	if isAll(other) || isUnknown(other) {
 		return true
 	}
-	// Accept `{...}` vs `Object<K, V>` — every ObjectType is a
-	// subtype of the global Object, and Java's TemplatizedType
-	// treats parametrisation as invariant-optional (a plain
-	// ObjectType IS-A templated Object when the object's member
-	// types line up with the value slot; at our current depth
-	// we just accept).
-	if tt, ok := other.(*TemplatizedType); ok {
-		if tt.Base != nil && tt.Base.Name == "Object" {
+	if tt, ok := other.(*TemplatizedType); ok && tt.Base != nil {
+		// Accept `{...}` vs `Object<K, V>` — every ObjectType is a
+		// subtype of the global Object.
+		if tt.Base.Name == "Object" {
 			return true
 		}
 		// Array IS-A Iterable<T> / IArrayLike<T> / Iterator<T> in
-		// Closure's built-in type graph. Without explicit super-
-		// wiring for these templatised stubs we accept the
-		// canonical subtype relations by name. Mirrors Java's
-		// NativeType pre-registration in JSTypeRegistry.
-		if o.Name == "Array" && tt.Base != nil {
+		// Closure's built-in type graph. Mirrors NativeType
+		// pre-registration in JSTypeRegistry.
+		if o.Name == "Array" {
 			switch tt.Base.Name {
-			case "Iterable", "IArrayLike", "Iterator", "IterableIterator",
-				"ReadonlyArray":
+			case "Iterable", "IArrayLike", "Iterator", "IterableIterator", "ReadonlyArray":
 				return true
 			}
 		}
+		// Nominal @extends of a templatized target: walk our nominal super
+		// chain looking for the target's Base, then check the matching
+		// templatized-super link's args against the target's args.
+		for cur := o; cur != nil; cur = cur.super {
+			if cur.templatizedSuper != nil && cur.templatizedSuper.Base == tt.Base {
+				return cur.templatizedSuper.IsSubtypeOf(tt)
+			}
+			if cur == tt.Base {
+				return true
+			}
+		}
+		return false
 	}
 	target, ok := other.(*ObjectType)
 	if !ok {
@@ -232,12 +252,27 @@ func (o *ObjectType) DefineProperty(name string, t JSType) {
 
 // GetPropertyType walks the @extends chain looking for the named
 // property. Returns nil if the property is undeclared anywhere in the
-// chain — distinct from declared-as-Unknown.
+// chain — distinct from declared-as-Unknown. When a link in the chain
+// was wired as a TemplatizedType (`@extends {Bar<T>}`), the property
+// type is rewritten via that link's substitution map — mirroring
+// Java's ObjectType.getPropertyType which threads the substitution
+// through getImplicitPrototype() at each step.
 func (o *ObjectType) GetPropertyType(name string) JSType {
-	for cur := o; cur != nil; cur = cur.super {
-		if t, ok := cur.members[name]; ok {
+	if t, ok := o.members[name]; ok {
+		return t
+	}
+	// Walk the templatized super first when present — the substitution
+	// must be applied at every step for nested generic inheritance
+	// (`Foo<T> extends Bar<Array<T>>` resolving a Bar-declared property
+	// that mentions Bar's template parameter).
+	if o.templatizedSuper != nil {
+		if t := o.templatizedSuper.GetPropertyType(name); t != nil {
 			return t
 		}
+		return nil
+	}
+	if o.super != nil {
+		return o.super.GetPropertyType(name)
 	}
 	return nil
 }
@@ -308,6 +343,18 @@ func containsVoid(t JSType) bool {
 	}
 	return false
 }
+// SetTemplatizedSuper records the templatized form of the @extends
+// link — e.g. `@extends {Bar<Array<T>>}` on a `@template T` class.
+// The underlying nominal super is still expected to be wired through
+// SetSuper; this slot carries only the extra substitution bindings.
+// Mirrors ObjectType.setImplicitPrototype when Java sees a
+// TemplatizedType on the @extends position.
+func (o *ObjectType) SetTemplatizedSuper(t *TemplatizedType) { o.templatizedSuper = t }
+
+// TemplatizedSuper returns the templatized @extends link (or nil if
+// the super was wired as a bare ObjectType). Callers that need the
+// substitution-aware property walk should prefer this over Super().
+func (o *ObjectType) TemplatizedSuper() *TemplatizedType { return o.templatizedSuper }
 
 // String is for diagnostics; matches Java's PrototypeObjectType.toString
 // shape closely enough that the message column of jsgo output is
