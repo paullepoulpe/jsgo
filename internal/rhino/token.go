@@ -73,6 +73,7 @@ const (
 	CALL
 	NEW
 	GETPROP
+	GETELEM // computed member access: `x[y]`
 	THIS
 
 	// Classes
@@ -224,6 +225,8 @@ func (t Token) String() string {
 		return "NEW"
 	case GETPROP:
 		return "GETPROP"
+	case GETELEM:
+		return "GETELEM"
 	case THIS:
 		return "THIS"
 	case CLASS:

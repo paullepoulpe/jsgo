@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testinheritancecheck17.js:6:35: ERROR - [JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH] mismatch of the foo property type and the type of the property it overrides from superclass goog.Super
+original: function(this:goog.Super, number): undefined
+override: function(this:goog.Sub, string): undefined
+  6| /** @override @param {string} x */ goog.Sub.prototype.foo = function(x) {};
+                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

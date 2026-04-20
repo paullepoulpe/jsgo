@@ -99,14 +99,10 @@ func (m *MissingReturnCheck) checkFunction(fn *rhino.Node) {
 	if allExitsReturnValue(cfg) {
 		return
 	}
-	// Java reports at the FUNCTION node's position; we mirror that by
-	// using the function NAME's position (where the source has the
-	// function keyword's caret on a typical line).
-	name := fn.FirstChild()
+	// Java reports at the FUNCTION node's position — the
+	// `function` keyword's column. The parser sets it there via
+	// the tryStatement / tryPrimary SetPos(kwLine, kwCol) paths.
 	line, col := fn.Lineno(), fn.Charno()
-	if name != nil {
-		line, col = name.Lineno(), name.Charno()
-	}
 	m.diags = append(m.diags, diag.Diagnostic{
 		Path:    m.path,
 		Line:    line,

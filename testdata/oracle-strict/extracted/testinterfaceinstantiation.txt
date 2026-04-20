@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testinterfaceinstantiation.js:1:39: ERROR - [JSC_NOT_A_CONSTRUCTOR] cannot instantiate non-constructor, found type: (typeof f)
+  1| /** @interface */var f = function(){}; new f
+                                            ^^^^^
+
+1 error(s), 0 warning(s), 66.7% typed
+---EXIT---
+1

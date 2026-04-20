@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testtypeoftype_castnamespacedoesnotincludeownproperties.js:7:31: ERROR - [JSC_INEXISTENT_PROPERTY] Property foo never defined on ns
+  7| /** @type {null} */ var x = ns.foo;
+                                    ^^^
+
+1 error(s), 0 warning(s), 80.0% typed
+---EXIT---
+1

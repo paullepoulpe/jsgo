@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testtypeof2.js:1:32: ERROR - [JSC_UNKNOWN_TYPEOF_VALUE] unknown type: numbr
+  1| function f(){ if (typeof 123 == 'numbr') return 321; }
+                                     ^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

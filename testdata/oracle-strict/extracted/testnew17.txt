@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testnew17.js:1:27: ERROR - [JSC_NOT_A_CONSTRUCTOR] cannot instantiate non-constructor, found type: number
+  1| var goog = {}; goog.x = 3; new goog.x
+                                ^^^^^^^^^^
+
+1 error(s), 0 warning(s), 83.3% typed
+---EXIT---
+1

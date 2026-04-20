@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testassign2.js:3:0: ERROR - [JSC_TYPE_MISMATCH] assignment to property foo of goog
+found   : string
+required: number
+  3| goog.foo = 'hello';
+     ^^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

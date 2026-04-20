@@ -1,0 +1,8 @@
+testdata/fixtures/extracted/testinheritancecheck13.js:3:11: ERROR - [JSC_UNRECOGNIZED_TYPE_ERROR] Bad type annotation. Unknown type goog.Missing
+It's possible that 'goog.Missing' refers to a value, not a type.
+  3|  @extends {goog.Missing} */function Sub() {};
+                ^
+
+1 error(s), 0 warning(s), 80.0% typed
+---EXIT---
+1

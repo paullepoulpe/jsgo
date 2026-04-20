@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testinferredparam7.js:3:29: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of f does not match formal parameter
+found   : (number|undefined)
+required: string
+  3| var bar = function(x, y) { f(y); };
+                                  ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testcheckobjectkeysbadkey11.js:8:0: ERROR - [JSC_NON_STRINGIFIABLE_OBJECT_KEY] Object type "Object<(X2|XE<X>),string>" contains non-stringifiable key and it may lead to an error. Please use ES6 Map instead or implement your own Map structure.
+  8| var Y = {};
+     ^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

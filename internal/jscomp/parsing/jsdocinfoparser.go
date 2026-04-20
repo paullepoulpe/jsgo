@@ -114,6 +114,16 @@ func (p *JsDocInfoParser) parseAnnotation(_ JsDocToken) JsDocToken {
 		p.info.SetRecord(true)
 		p.anyRecorded = true
 		return p.eatUntilEOLIfNotAnnotation()
+	case "struct":
+		p.info.SetStruct(true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "dict":
+		p.info.SetDict(true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "enum":
+		return p.parseEnumTag()
 	case "suppress":
 		return p.parseSuppressTag()
 	}
@@ -167,7 +177,7 @@ func (p *JsDocInfoParser) parseTypeTag() JsDocToken {
 func (p *JsDocInfoParser) parseParamTag() JsDocToken {
 	p.skipEOLs()
 	t := p.next()
-	expr, next, ok := p.parseParamTypeExpressionAnnotation(t)
+	expr, isRest, isOptional, next, ok := p.parseParamTypeAnnotationFull(t)
 	if !ok {
 		return p.eatUntilEOLIfNotAnnotation()
 	}
@@ -186,6 +196,12 @@ func (p *JsDocInfoParser) parseParamTag() JsDocToken {
 		}
 		if isJsIdent(name) {
 			p.info.AddParam(name, rhino.NewJSTypeExpression(expr))
+			if isRest {
+				p.info.MarkRestParam(name)
+			}
+			if isOptional {
+				p.info.MarkOptionalParam(name)
+			}
 			p.anyRecorded = true
 		}
 	}
@@ -224,6 +240,34 @@ func (p *JsDocInfoParser) parseImplementsTag() JsDocToken {
 		return p.eatUntilEOLIfNotAnnotation()
 	}
 	p.info.AddImplementation(rhino.NewJSTypeExpression(expr))
+	p.anyRecorded = true
+	return next
+}
+
+// parseEnumTag handles `@enum [{T}]`. The braced type argument is
+// optional — bare `@enum` implies an `@enum {number}` in Java's
+// EnumType defaulting path. Either way we flip the `enumMarked`
+// flag on the JSDocInfo so TypedScopeCreator's enum branch fires.
+func (p *JsDocInfoParser) parseEnumTag() JsDocToken {
+	p.skipEOLs()
+	t := p.next()
+	// If the next token isn't `{`, no type argument — still mark
+	// the enum and keep parsing the rest of the annotation block.
+	if t != JsDocTokenLeftCurly {
+		p.info.MarkEnum()
+		p.anyRecorded = true
+		// Put the token back and let the outer loop re-dispatch.
+		p.unread = t
+		p.hasUnread = true
+		return p.eatUntilEOLIfNotAnnotation()
+	}
+	expr, next, ok := p.parseTypeExpressionAnnotation(t)
+	if !ok {
+		p.info.MarkEnum()
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	}
+	p.info.SetEnumParameterType(rhino.NewJSTypeExpression(expr))
 	p.anyRecorded = true
 	return next
 }
@@ -285,32 +329,52 @@ func (p *JsDocInfoParser) parseTypeExpressionAnnotation(token JsDocToken) (strin
 
 // parseParamTypeExpressionAnnotation: same as
 // parseTypeExpressionAnnotation with optional `=` / `...` modifiers;
-// we drop those as a Tier-0 simplification.
+// we drop those as a Tier-0 simplification. Returns the expr + the
+// post-annotation token.
 func (p *JsDocInfoParser) parseParamTypeExpressionAnnotation(token JsDocToken) (string, JsDocToken, bool) {
+	expr, _, next, ok := p.parseParamTypeExpressionAnnotationWithRest(token)
+	return expr, next, ok
+}
+
+// parseParamTypeExpressionAnnotationWithRest is the modifier-aware
+// variant — callers who need to know whether the brace carried
+// `{...T}` (rest) or `{T=}` (optional) use this so the param's
+// flags thread through to the JSDocInfo.
+func (p *JsDocInfoParser) parseParamTypeExpressionAnnotationWithRest(token JsDocToken) (string, bool, JsDocToken, bool) {
+	expr, isRest, _, next, ok := p.parseParamTypeAnnotationFull(token)
+	return expr, isRest, next, ok
+}
+
+// parseParamTypeAnnotationFull returns (expr, isRest, isOptional,
+// nextToken, ok). Splits the two brace-position modifiers Java's
+// JsDocInfoParser tracks.
+func (p *JsDocInfoParser) parseParamTypeAnnotationFull(token JsDocToken) (string, bool, bool, JsDocToken, bool) {
 	if token != JsDocTokenLeftCurly {
-		return "", token, false
+		return "", false, false, token, false
 	}
 	p.skipEOLs()
-	// `{...T}` rest + `{=T}` default. Consume and ignore the modifier.
+	isRest := false
+	isOptional := false
 	if p.match(JsDocTokenIterRest) {
 		p.next()
 		p.skipEOLs()
+		isRest = true
 	}
 	expr, ok := p.parseTopLevelTypeExpression(p.next())
 	if !ok {
-		return "", p.next(), false
+		return "", isRest, isOptional, p.next(), false
 	}
 	p.skipEOLs()
-	// Optional trailing `=` for default-value params.
 	if p.match(JsDocTokenEquals) {
 		p.next()
 		p.skipEOLs()
+		isOptional = true
 	}
 	if !p.match(JsDocTokenRightCurly) {
-		return "", p.next(), false
+		return "", isRest, isOptional, p.next(), false
 	}
 	p.next()
-	return expr, p.next(), true
+	return expr, isRest, isOptional, p.next(), true
 }
 
 // parseTopLevelTypeExpression: TypeExpression | TypeExpression '|' ...

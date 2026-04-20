@@ -1,0 +1,14 @@
+testdata/fixtures/extracted/testrecordwithtopproperty.js:4:37: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : Foo
+required: {
+  str: string,
+  top: *
+}
+missing : [top]
+mismatch: []
+  4| var /** {str: string, top: *} */ x = new Foo;
+                                          ^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

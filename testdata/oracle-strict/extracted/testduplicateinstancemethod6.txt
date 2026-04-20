@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testduplicateinstancemethod6.js:9:0: ERROR - [JSC_TYPE_MISMATCH] assignment to property bar of F.prototype
+found   : function(this:F): string
+required: function(this:F): number
+   9| F.prototype.bar = function() { return ''; };
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

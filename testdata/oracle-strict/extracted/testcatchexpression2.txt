@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testcatchexpression2.js:7:4: ERROR - [JSC_UNDEFINED_VARIABLE] variable foo is undeclared
+  7|     foo();
+         ^^^
+
+1 error(s), 0 warning(s)
+---EXIT---
+1

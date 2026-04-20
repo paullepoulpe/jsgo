@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/teststrictnumericoperators6.js:1:16: WARNING - [JSC_INVALID_OPERAND_TYPE] left operand
+found   : string
+required: number
+  1| var x = 'asdf'; x *= 2;
+                     ^
+
+0 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+0

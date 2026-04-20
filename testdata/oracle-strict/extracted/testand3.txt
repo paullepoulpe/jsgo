@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testand3.js:2:30: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : undefined
+required: number
+  2| /** @type {number}  */var c = a && undefined;
+                                   ^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

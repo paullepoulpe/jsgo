@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testunknownextends2.js:6:2: ERROR - [JSC_RESOLVED_TAG_EMPTY] Could not resolve type in @extends tag of Foo
+  6|   function Foo() {}
+       ^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

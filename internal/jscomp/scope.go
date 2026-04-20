@@ -27,6 +27,21 @@ import (
 type TypedScope struct {
 	parent   *TypedScope
 	declared map[string]jstype.JSType
+	// namespaceProps tracks `/** @type {T} */ obj.prop = …`
+	// declarations on plain-object bindings (`var goog = {}`).
+	// Keyed by owner-name → property-name → declared type. Kept
+	// separate from `declared` so the binding's own slot stays
+	// Unknown (avoiding FPs on the original `{}` initializer),
+	// while downstream assignments / reads can still honour the
+	// declared property type. Mirrors how Java's TypedScopeCreator
+	// carries AssignmentInferrer-discovered slot declarations on
+	// a parallel map.
+	namespaceProps map[string]map[string]jstype.JSType
+	// namespacePropNodes mirrors namespaceProps with the AST node
+	// that carried the declaring JSDoc, used to produce the
+	// cross-referencing position on JSC_DUP_VAR_DECLARATION_TYPE
+	// _MISMATCH diagnostics.
+	namespacePropNodes map[string]map[string]*rhino.Node
 	// typeAliases carry `@typedef` declarations — a parallel namespace
 	// to value bindings. ResolveExpr checks this before the nominal
 	// / primitive registry.
@@ -83,6 +98,23 @@ func (s *TypedScope) GetDeclaredType(name string) jstype.JSType {
 	return s.parent.GetDeclaredType(name)
 }
 
+// GetQualifiedRefinement walks the refinement stack for a dotted
+// qualified name (e.g. "obj.prop", "this.x.y"). Returns the flow-
+// narrowed type or nil when the name isn't refined. Distinct from
+// GetDeclaredType: qualified names aren't tracked in declared
+// (only refinements), so the lookup never falls through to the
+// parent scope's declared map.
+func (s *TypedScope) GetQualifiedRefinement(qname string) jstype.JSType {
+	for cur := s; cur != nil; cur = cur.parent {
+		for i := len(cur.refinements) - 1; i >= 0; i-- {
+			if t, ok := cur.refinements[i][qname]; ok {
+				return t
+			}
+		}
+	}
+	return nil
+}
+
 // GetRawDeclaredType skips the refinement overlay and returns only
 // the binding's declared type from the scope chain. Used by the
 // assignment-target lookup in visitAssign so `x = 1` compares the
@@ -123,6 +155,66 @@ func (s *TypedScope) LookupTypeAlias(name string) jstype.JSType {
 		return t
 	}
 	return s.parent.LookupTypeAlias(name)
+}
+
+// LookupNamespaceProp returns the type declared for `owner.prop`
+// via a `/** @type {T} */ owner.prop = …` statement earlier in
+// the scope chain. Returns nil when no such declaration exists.
+func (s *TypedScope) LookupNamespaceProp(owner, prop string) jstype.JSType {
+	if s == nil {
+		return nil
+	}
+	if m, ok := s.namespaceProps[owner]; ok {
+		if t, ok := m[prop]; ok {
+			return t
+		}
+	}
+	return s.parent.LookupNamespaceProp(owner, prop)
+}
+
+// recordNamespaceProp remembers `owner.prop : t` on this scope.
+// Returns the first-declaration node when this call overrides an
+// existing entry — callers use that node to emit the "original
+// definition at …" cross-reference on
+// JSC_DUP_VAR_DECLARATION_TYPE_MISMATCH diagnostics.
+func (s *TypedScope) recordNamespaceProp(owner, prop string, t jstype.JSType, at *rhino.Node) *rhino.Node {
+	if s.namespaceProps == nil {
+		s.namespaceProps = map[string]map[string]jstype.JSType{}
+	}
+	if s.namespaceProps[owner] == nil {
+		s.namespaceProps[owner] = map[string]jstype.JSType{}
+	}
+	var firstNode *rhino.Node
+	if s.namespacePropNodes != nil && s.namespacePropNodes[owner] != nil {
+		firstNode = s.namespacePropNodes[owner][prop]
+	}
+	s.namespaceProps[owner][prop] = t
+	if s.namespacePropNodes == nil {
+		s.namespacePropNodes = map[string]map[string]*rhino.Node{}
+	}
+	if s.namespacePropNodes[owner] == nil {
+		s.namespacePropNodes[owner] = map[string]*rhino.Node{}
+	}
+	if firstNode == nil {
+		s.namespacePropNodes[owner][prop] = at
+	}
+	return firstNode
+}
+
+// LookupEnum returns the EnumType associated with `name` in this
+// scope chain, or nil when the binding isn't an enum. Used by
+// ResolveExpr to route `@type {MyEnum}` to the matching
+// EnumElementType.
+func (s *TypedScope) LookupEnum(name string) *jstype.EnumType {
+	if s == nil {
+		return nil
+	}
+	if t, ok := s.declared[name]; ok {
+		if e, ok := t.(*jstype.EnumType); ok {
+			return e
+		}
+	}
+	return s.parent.LookupEnum(name)
 }
 
 // LookupNominalType returns the InstanceType associated with a name
@@ -230,8 +322,21 @@ func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 		}
 		// @typedef aliases take priority over nominal constructors
 		// and primitives (matches Java's StaticSourceFile resolution).
+		// \`!Foo\` strips nullable members from the resolved alias so
+		// \`!?number\` → number.
 		if alias := s.LookupTypeAlias(p); alias != nil {
+			if explicitNonNull {
+				alias = stripNullUndef(alias)
+			}
 			members = append(members, alias)
+			continue
+		}
+		// `@type {MyEnum}` resolves to the EnumElementType (so it
+		// means "any element of MyEnum"), not the bare EnumType.
+		// Matches how Java's JSTypeRegistry.getType dispatches
+		// a bare enum name to its EnumElementType.
+		if enum := s.LookupEnum(p); enum != nil {
+			members = append(members, enum.Element)
 			continue
 		}
 		// Try nominal (constructor → instance), then primitive.
@@ -248,6 +353,48 @@ func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 			}
 			members = append(members, member)
 			continue
+		}
+		// Dotted name: `goog.Foo` / `ns.Class.Inner`. Resolve the
+		// first segment as a namespace binding and consult its
+		// namespace-prop map for the property's type. A single-step
+		// chain that resolves to a constructor's Instance yields a
+		// nominal member, matching how Java walks dotted type names
+		// through StaticSlot.getInstanceType().
+		if idx := indexOfByte(p, '.'); idx > 0 {
+			first := p[:idx]
+			rest := p[idx+1:]
+			if t := s.LookupNamespaceProp(first, rest); t != nil {
+				if fn, ok := t.(*jstype.FunctionType); ok && fn.Instance != nil {
+					var member jstype.JSType = fn.Instance
+					if len(tplArgs) > 0 {
+						member = jstype.NewTemplatizedType(fn.Instance, tplArgs)
+					}
+					if !explicitNonNull {
+						impliedNullable = true
+					}
+					if explicitNullable {
+						impliedNullable = true
+					}
+					members = append(members, member)
+					continue
+				}
+				members = append(members, t)
+				continue
+			}
+			// Static nominal under a known constructor: `C.Inner`.
+			if fn, ok := s.GetDeclaredType(first).(*jstype.FunctionType); ok && fn.Instance != nil {
+				if t := fn.Instance.GetStaticPropertyType(rest); t != nil {
+					if fnT, ok := t.(*jstype.FunctionType); ok && fnT.Instance != nil {
+						members = append(members, fnT.Instance)
+						if !explicitNonNull {
+							impliedNullable = true
+						}
+						continue
+					}
+					members = append(members, t)
+					continue
+				}
+			}
 		}
 		// Primitive fallback.
 		if explicitNullable {
@@ -580,21 +727,50 @@ func (c *TypedScopeCreator) buildExpressionFunctionScope(fn *rhino.Node, parent 
 		return
 	}
 	info := fn.JSDocInfo()
+	nameNode := kids[0]
 	params := kids[1]
+	// Named function expression with a VAR parent — promote the
+	// VAR's @param / @return JSDoc so the named binding carries
+	// the declared signature inside its own body. Anonymous FEEs
+	// stay JSDoc-less to avoid flow-insensitive return-type FPs
+	// on corpus code that relies on narrowing. Matches Java's
+	// NodeUtil.getBestJSDocInfo for the `var foo = function bar()`
+	// pattern specifically.
+	if info == nil && nameNode != nil && nameNode.String_() != "" {
+		if p := fn.Parent(); p != nil && p.Token() == rhino.NAME {
+			if gp := p.Parent(); gp != nil {
+				switch gp.Token() {
+				case rhino.VAR, rhino.LET, rhino.CONST, rhino.ASSIGN:
+					info = gp.JSDocInfo()
+				}
+			}
+		}
+	}
 	local := &TypedScope{
 		parent:      parent,
 		declared:    make(map[string]jstype.JSType),
 		typeAliases: make(map[string]jstype.JSType),
 		registry:    c.registry,
 	}
+	// Named function expression: `var foo = function bar(){ bar() }`
+	// binds `bar` inside the body so recursion + self-reference
+	// works. Matches Java's AbstractScope.declareFunction. Build a
+	// FunctionType carrying the declared @param / @return so bar's
+	// call-sites type-check.
+	var paramTypes []jstype.JSType
 	for _, p := range params.Children() {
-		var t jstype.JSType = jstype.Unknown
+		t := resolveParamType(info, p, parent)
+		paramTypes = append(paramTypes, t)
+		local.declared[p.String_()] = t
+	}
+	if nameNode != nil && nameNode.String_() != "" {
+		var retType jstype.JSType = jstype.Void
 		if info != nil {
-			if expr := info.ParameterType(p.String_()); expr != nil {
-				t = parent.ResolveExpr(expr.TypeName)
+			if r := info.ReturnType(); r != nil {
+				retType = parent.ResolveExpr(r.TypeName)
 			}
 		}
-		local.declared[p.String_()] = t
+		local.declared[nameNode.String_()] = jstype.NewFunctionType(paramTypes, retType)
 	}
 	c.Functions[fn] = local
 	if len(kids) >= 3 {
@@ -662,6 +838,14 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 		case rhino.CLASS:
 			c.preregisterClass(child, scope)
 		}
+		// Pre-register @enum bindings too so forward `@type {MyEnum}`
+		// references can resolve against the EnumType even when the
+		// `/** @enum */ var MyEnum = …` decl appears later in the
+		// source. Matches how Java's TypedScopeCreator hoists enum
+		// slots during its first scope-building pass.
+		if isDeclToken(child.Token()) {
+			c.preregisterEnum(child, scope)
+		}
 	}
 	// Pass 1b: record @typedef aliases. Typedefs resolve against the
 	// scope that now has nominal types pre-registered, so
@@ -685,8 +869,19 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 			//   Foo.prototype.bar = function(…) {…};
 			// Register `bar` on Foo's InstanceType so later property
 			// access + call-site checks can see it.
-			if a := child.FirstChild(); a != nil && a.Token() == rhino.ASSIGN {
-				c.recordPrototypeAssign(a, scope)
+			inner := child.FirstChild()
+			if inner != nil && inner.Token() == rhino.ASSIGN {
+				c.recordPrototypeAssign(inner, scope)
+				c.recordNamespaceAssign(inner, scope)
+			}
+			// `Foo.prototype.bar;` stub-declaration — Java treats
+			// this as declaring `bar` on Foo's instance (type
+			// inferred from @type JSDoc when present, else
+			// Unknown). Used so `@implements` checks pick up
+			// stub-declared interface methods.
+			if inner != nil && inner.Token() == rhino.GETPROP {
+				c.recordPrototypeStub(child, inner, scope)
+				c.recordNamespaceStub(child, inner, scope)
 			}
 		}
 	}
@@ -783,6 +978,278 @@ func (c *TypedScopeCreator) recordPrototypeAssign(a *rhino.Node, scope *TypedSco
 	}
 	memberType := c.inferPrototypeValueType(a.JSDocInfo(), rhs, scope)
 	fn.Instance.DefineProperty(propName, memberType)
+	// Literal-inferred prototype slots (no @type) don't participate
+	// in the subclass-override type-match check — Java treats them
+	// as open surface in default mode.
+	info := a.JSDocInfo()
+	if (info == nil || !info.HasType()) && rhs.Token() != rhino.FUNCTION {
+		if t := literalType(rhs); !isJSUnknown(t) {
+			fn.Instance.MarkInferred(propName)
+		}
+	}
+	// Bind `this` = Instance inside the method body so `this.x`
+	// resolves to a slot lookup on Foo. Java's TypedScopeCreator
+	// hooks the same thisType onto the method's FunctionType;
+	// we stamp it on the expression-function's scope directly.
+	if rhs.Token() == rhino.FUNCTION {
+		info := a.JSDocInfo()
+		var ptypes []jstype.JSType
+		params := rhs.Children()
+		if len(params) >= 2 {
+			for _, p := range params[1].Children() {
+				ptypes = append(ptypes, resolveParamType(info, p, scope))
+			}
+		}
+		c.Functions[rhs] = c.buildMethodScope(rhs, fn.Instance, scope, ptypes)
+		// Sweep the body for additional `this.<slot> = …` writes.
+		// Matches how Java's TypedScopeCreator walks every prototype
+		// method, not just the constructor — any `this.X = V` inside
+		// a proto method also defines `X` on the Instance.
+		if len(params) >= 3 {
+			c.collectThisPropertiesIn(params[2], fn.Instance, scope)
+		}
+	}
+}
+
+// recordNamespaceAssign handles `/** @type {T} */ owner.prop = …`
+// declarations — bare two-segment GETPROP assignments whose
+// receiver is a known binding in this scope chain. Records `T`
+// as owner.prop in the scope's namespaceProps map so later reads
+// and assigns can consult it. Skips the prototype-assign form
+// (already handled by recordPrototypeAssign) and static class
+// properties (handled by their owning FunctionType's Instance
+// slots).
+func (c *TypedScopeCreator) recordNamespaceAssign(a *rhino.Node, scope *TypedScope) {
+	info := a.JSDocInfo()
+	// No @type JSDoc — but if the RHS is a FUNCTION, infer a
+	// FunctionType from the JSDoc's @param / @return so arity
+	// checks work at call sites. Matches how Java's
+	// TypedScopeCreator handles `ns.foo = function(x) {…}`.
+	if info == nil || !info.HasType() {
+		c.recordNamespaceAssignFromFunction(a, scope)
+		return
+	}
+	kids := a.Children()
+	if len(kids) < 2 {
+		return
+	}
+	lhs := kids[0]
+	if lhs.Token() != rhino.GETPROP {
+		return
+	}
+	lhsKids := lhs.Children()
+	if len(lhsKids) < 2 {
+		return
+	}
+	recv := lhsKids[0]
+	if recv.Token() != rhino.NAME {
+		return
+	}
+	// Skip the `X.prototype.Y` form — recordPrototypeAssign owns it.
+	if recv.Token() == rhino.GETPROP {
+		return
+	}
+	propName := lhsKids[1].String_()
+	ownerName := recv.String_()
+	// Skip when the owner is a known constructor (FunctionType) —
+	// that's a static-property assignment and Java routes those
+	// through the constructor's Instance.defineStaticProperty.
+	if _, ok := scope.GetDeclaredType(ownerName).(*jstype.FunctionType); ok {
+		return
+	}
+	declared := scope.ResolveExpr(info.Type().TypeName)
+	scope.recordNamespaceProp(ownerName, propName, declared, lhsKids[1])
+}
+
+// recordNamespaceAssignFromFunction handles `ns.foo = function(x){…}`
+// (no @type JSDoc). Builds a FunctionType from the JSDoc @param /
+// @return so later CALL sites can consult arity + param types.
+func (c *TypedScopeCreator) recordNamespaceAssignFromFunction(a *rhino.Node, scope *TypedScope) {
+	kids := a.Children()
+	if len(kids) < 2 {
+		return
+	}
+	lhs, rhs := kids[0], kids[1]
+	// Namespace-to-namespace ctor alias: \`ns.A = ns.B\` or \`ns.A =
+	// existingName\`. Share the resolved constructor so both refer
+	// to the same Instance.
+	if lhs.Token() == rhino.GETPROP && (rhs.Token() == rhino.NAME || rhs.Token() == rhino.GETPROP) {
+		lhsKids := lhs.Children()
+		if len(lhsKids) >= 2 && lhsKids[0].Token() == rhino.NAME {
+			src := resolveQualifiedType(scope, rhs)
+			if fn, ok := src.(*jstype.FunctionType); ok && fn.Instance != nil {
+				scope.recordNamespaceProp(lhsKids[0].String_(), lhsKids[1].String_(), fn, lhsKids[1])
+				return
+			}
+		}
+	}
+	if rhs.Token() != rhino.FUNCTION || lhs.Token() != rhino.GETPROP {
+		return
+	}
+	lhsKids := lhs.Children()
+	if len(lhsKids) < 2 {
+		return
+	}
+	recv := lhsKids[0]
+	if recv.Token() != rhino.NAME {
+		return
+	}
+	if _, ok := scope.GetDeclaredType(recv.String_()).(*jstype.FunctionType); ok {
+		return
+	}
+	info := a.JSDocInfo()
+	params := rhs.Children()
+	if len(params) < 2 {
+		return
+	}
+	// @constructor on a \`ns.Foo = function(){…}\` assignment builds
+	// a ConstructorType whose Instance is reachable under the
+	// qualified name. scope.ResolveExpr consults namespaceProps for
+	// dotted references so \`@type {!ns.Foo}\` resolves nominally.
+	if info != nil && (info.IsConstructor() || info.IsInterface() || info.IsRecord()) {
+		qname := recv.String_() + "." + lhsKids[1].String_()
+		var paramTypes []jstype.JSType
+		for _, p := range params[1].Children() {
+			paramTypes = append(paramTypes, resolveParamType(info, p, scope))
+		}
+		ctor := jstype.NewConstructorType(qname, paramTypes)
+		if info.IsInterface() || info.IsRecord() {
+			ctor.Instance.IsStructural = true
+		}
+		if info.IsStruct() {
+			ctor.Instance.IsStruct = true
+		}
+		if info.IsDict() {
+			ctor.Instance.IsDict = true
+		}
+		if base := info.BaseType(); base != nil {
+			if super := scope.LookupNominalType(base.TypeName); super != nil {
+				ctor.Instance.SetSuper(super)
+			}
+		}
+		setArityFromParams(ctor, params[1], info)
+		scope.recordNamespaceProp(recv.String_(), lhsKids[1].String_(), ctor, lhsKids[1])
+		// Also collect \`this.X = …\` writes inside the ctor body.
+		if len(params) >= 3 {
+			c.collectThisPropertiesIn(params[2], ctor.Instance, scope)
+		}
+		return
+	}
+	var paramTypes []jstype.JSType
+	for _, p := range params[1].Children() {
+		paramTypes = append(paramTypes, resolveParamType(info, p, scope))
+	}
+	var retType jstype.JSType = jstype.Void
+	if info != nil {
+		if r := info.ReturnType(); r != nil {
+			retType = scope.ResolveExpr(r.TypeName)
+		}
+	}
+	fnType := jstype.NewFunctionType(paramTypes, retType)
+	setArityFromParams(fnType, params[1], info)
+	scope.recordNamespaceProp(recv.String_(), lhsKids[1].String_(), fnType, lhsKids[1])
+}
+
+// namespacePropNode returns the AST node (typically the property
+// STRING_KEY) that carried the first `/** @type {T} */` namespace
+// declaration for `owner.prop`. Nil when none exists. Consumed by
+// the DUP_VAR_DECLARATION_TYPE_MISMATCH diagnostic.
+func (s *TypedScope) namespacePropNode(owner, prop string) *rhino.Node {
+	if s == nil {
+		return nil
+	}
+	if m, ok := s.namespacePropNodes[owner]; ok {
+		if n, ok := m[prop]; ok {
+			return n
+		}
+	}
+	return s.parent.namespacePropNode(owner, prop)
+}
+
+// recordNamespaceStub handles the `owner.prop;` stub form — an
+// EXPR_RESULT carrying a bare two-segment GETPROP with a @type
+// JSDoc. Matches the assignment form's behaviour, used for Closure
+// library-style type declarations that don't assign a value.
+func (c *TypedScopeCreator) recordNamespaceStub(stmt *rhino.Node, getprop *rhino.Node, scope *TypedScope) {
+	info := stmt.JSDocInfo()
+	if info == nil {
+		info = getprop.JSDocInfo()
+	}
+	if info == nil || !info.HasType() {
+		return
+	}
+	kids := getprop.Children()
+	if len(kids) < 2 {
+		return
+	}
+	recv := kids[0]
+	if recv.Token() != rhino.NAME {
+		return
+	}
+	ownerName := recv.String_()
+	if _, ok := scope.GetDeclaredType(ownerName).(*jstype.FunctionType); ok {
+		return
+	}
+	propName := kids[1].String_()
+	declared := scope.ResolveExpr(info.Type().TypeName)
+	scope.recordNamespaceProp(ownerName, propName, declared, kids[1])
+}
+
+// recordPrototypeStub handles the `X.prototype.name;` stub-
+// declaration form: an EXPR_RESULT whose child is a GETPROP
+// walking `X.prototype.name`. Registers `name` on X's InstanceType
+// at the @type-annotated slot (or Unknown when no JSDoc), matching
+// how Java's TypedScopeCreator lifts these stubs into the scope so
+// `@implements` + property-existence checks see them.
+func (c *TypedScopeCreator) recordPrototypeStub(stmt *rhino.Node, getprop *rhino.Node, scope *TypedScope) {
+	kids := getprop.Children()
+	if len(kids) < 2 {
+		return
+	}
+	inner := kids[0]
+	propName := kids[1].String_()
+	if inner.Token() != rhino.GETPROP {
+		return
+	}
+	innerKids := inner.Children()
+	if len(innerKids) < 2 {
+		return
+	}
+	if innerKids[0].Token() != rhino.NAME || innerKids[1].String_() != "prototype" {
+		return
+	}
+	ownerName := innerKids[0].String_()
+	fn, ok := scope.declared[ownerName].(*jstype.FunctionType)
+	if !ok || fn.Instance == nil {
+		return
+	}
+	if fn.Instance.GetPropertyType(propName) != nil {
+		return // already declared by a prior assign
+	}
+	var t jstype.JSType = jstype.Unknown
+	info := stmt.JSDocInfo()
+	if info == nil {
+		info = getprop.JSDocInfo()
+	}
+	if info != nil {
+		if info.HasType() {
+			t = scope.ResolveExpr(info.Type().TypeName)
+		} else if info.ReturnType() != nil || len(info.ParameterNames()) > 0 {
+			// `/** @return {T} */ X.prototype.m;` — stubbed method.
+			var paramTypes []jstype.JSType
+			for _, n := range info.ParameterNames() {
+				if expr := info.ParameterType(n); expr != nil {
+					paramTypes = append(paramTypes, scope.ResolveExpr(expr.TypeName))
+				}
+			}
+			var ret jstype.JSType = jstype.Unknown
+			if info.ReturnType() != nil {
+				ret = scope.ResolveExpr(info.ReturnType().TypeName)
+			}
+			t = jstype.NewFunctionType(paramTypes, ret)
+		}
+	}
+	fn.Instance.DefineProperty(propName, t)
 }
 
 // inferPrototypeValueType computes the member type for a
@@ -798,22 +1265,24 @@ func (c *TypedScopeCreator) inferPrototypeValueType(info *rhino.JSDocInfo, rhs *
 		params := kids[1]
 		var paramTypes []jstype.JSType
 		for _, p := range params.Children() {
-			var t jstype.JSType = jstype.Unknown
-			if info != nil {
-				if expr := info.ParameterType(p.String_()); expr != nil {
-					t = scope.ResolveExpr(expr.TypeName)
-				}
-			}
-			paramTypes = append(paramTypes, t)
+			paramTypes = append(paramTypes, resolveParamType(info, p, scope))
 		}
 		var ret jstype.JSType = jstype.Unknown
 		if info != nil && info.ReturnType() != nil {
 			ret = scope.ResolveExpr(info.ReturnType().TypeName)
 		}
-		return jstype.NewFunctionType(paramTypes, ret)
+		fnT := jstype.NewFunctionType(paramTypes, ret)
+		setArityFromParams(fnT, params, info)
+		return fnT
 	}
 	if info != nil && info.HasType() {
 		return scope.ResolveExpr(info.Type().TypeName)
+	}
+	// Data slot without @type — infer from the RHS literal if we
+	// can. Java's AssignmentInferrer flows the primitive type onto
+	// the prototype's slot for later @return-style checks.
+	if t := literalType(rhs); !isJSUnknown(t) {
+		return t
 	}
 	return jstype.Unknown
 }
@@ -840,6 +1309,28 @@ func (c *TypedScopeCreator) preregisterConstructor(fn *rhino.Node, scope *TypedS
 	scope.declared[name.String_()] = jstype.NewConstructorType(name.String_(), nil)
 }
 
+// preregisterEnum reserves a slot for an `@enum`-annotated var /
+// let / const so forward `@type {MyEnum}` references resolve to
+// the shared EnumType. The Underlying primitive is computed from
+// the `@enum {T}` argument (Number when omitted); aliased enums
+// (`/** @enum */ var Alias = Source`) are handled in recordDecl's
+// second pass, where we can see the RHS type.
+func (c *TypedScopeCreator) preregisterEnum(v *rhino.Node, scope *TypedScope) {
+	info := v.JSDocInfo()
+	if !info.IsEnum() {
+		return
+	}
+	name := v.FirstChild()
+	if name == nil || name.Token() != rhino.NAME || name.String_() == "" {
+		return
+	}
+	var underlying jstype.JSType = jstype.Number
+	if expr := info.EnumParameterType(); expr != nil {
+		underlying = scope.ResolveExpr(expr.TypeName)
+	}
+	scope.declared[name.String_()] = jstype.NewEnumType(name.String_(), underlying)
+}
+
 // preregisterClass reserves a slot for a `class` declaration, mirroring
 // the @constructor pre-registration path so forward `@type {C}`
 // references resolve to C's InstanceType.
@@ -852,7 +1343,9 @@ func (c *TypedScopeCreator) preregisterClass(cls *rhino.Node, scope *TypedScope)
 	if name.String_() == "" {
 		return
 	}
-	scope.declared[name.String_()] = jstype.NewConstructorType(name.String_(), nil)
+	ct := jstype.NewConstructorType(name.String_(), nil)
+	ct.IsES6Class = true
+	scope.declared[name.String_()] = ct
 }
 
 // recordClass fills in a class's constructor params, methods, fields,
@@ -878,6 +1371,14 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 	if info := cls.JSDocInfo(); info != nil && (info.IsRecord() || info.IsInterface()) {
 		inst.IsStructural = true
 	}
+	if info := cls.JSDocInfo(); info != nil {
+		if info.IsStruct() {
+			inst.IsStruct = true
+		}
+		if info.IsDict() {
+			inst.IsDict = true
+		}
+	}
 
 	// Locate the `constructor` method; otherwise the class has an
 	// implicit zero-arg constructor.
@@ -892,21 +1393,28 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 	if ctor != nil {
 		ctorInfo := ctor.JSDocInfo()
 		for _, p := range ctor.Children()[1].Children() {
-			var t jstype.JSType = jstype.Unknown
-			if ctorInfo != nil {
-				if expr := ctorInfo.ParameterType(p.String_()); expr != nil {
-					t = scope.ResolveExpr(expr.TypeName)
-				}
-			}
-			ctorParams = append(ctorParams, t)
+			ctorParams = append(ctorParams, resolveParamType(ctorInfo, p, scope))
 		}
 	}
 	preStub.Params = ctorParams
+	preStub.MinArity = len(ctorParams)
+	preStub.MaxArity = len(ctorParams)
+	if ctor != nil {
+		setArityFromParamNames(preStub, ctor.Children()[1])
+	}
 
-	// Wire @extends if present.
+	// Wire @extends if present. Struct/dict flags propagate down the
+	// inheritance chain — Java's FunctionType carries them as sticky
+	// traits on the whole ancestry.
 	if superNode.String_() != "" {
 		if super := scope.LookupNominalType(superNode.String_()); super != nil {
 			inst.SetSuper(super)
+			if super.IsStruct {
+				inst.IsStruct = true
+			}
+			if super.IsDict {
+				inst.IsDict = true
+			}
 		}
 	}
 
@@ -927,19 +1435,14 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 			params := m.Children()[1]
 			var paramTypes []jstype.JSType
 			for _, p := range params.Children() {
-				var t jstype.JSType = jstype.Unknown
-				if info != nil {
-					if expr := info.ParameterType(p.String_()); expr != nil {
-						t = scope.ResolveExpr(expr.TypeName)
-					}
-				}
-				paramTypes = append(paramTypes, t)
+				paramTypes = append(paramTypes, resolveParamType(info, p, scope))
 			}
 			var ret jstype.JSType = jstype.Unknown
 			if info != nil && info.ReturnType() != nil {
 				ret = scope.ResolveExpr(info.ReturnType().TypeName)
 			}
 			fnT := jstype.NewFunctionType(paramTypes, ret)
+			setArityFromParams(fnT, params, info)
 			if info.IsStatic() {
 				inst.DefineStaticProperty(methodName, fnT)
 			} else {
@@ -978,7 +1481,7 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 		// Also collect `this.x = …` property writes inside the
 		// constructor body.
 		if ctorBody := ctor.Children()[2]; ctorBody != nil {
-			c.collectThisProperties(ctorBody, inst)
+			c.collectThisPropertiesIn(ctorBody, inst, scope)
 		}
 	}
 	for _, m := range body.Children() {
@@ -989,13 +1492,7 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 		var ptypes []jstype.JSType
 		info := m.JSDocInfo()
 		for _, p := range params.Children() {
-			var t jstype.JSType = jstype.Unknown
-			if info != nil {
-				if expr := info.ParameterType(p.String_()); expr != nil {
-					t = scope.ResolveExpr(expr.TypeName)
-				}
-			}
-			ptypes = append(ptypes, t)
+			ptypes = append(ptypes, resolveParamType(info, p, scope))
 		}
 		c.Functions[m] = c.buildMethodScope(m, inst, scope, ptypes)
 	}
@@ -1079,8 +1576,23 @@ func (c *TypedScopeCreator) recordTypedef(v *rhino.Node, scope *TypedScope) {
 }
 
 func (c *TypedScopeCreator) recordDecl(v *rhino.Node, scope *TypedScope) {
+	// Multi-binding forms (`var a, b = 1, c`) each declare their own
+	// slot. Run the full recordOneDecl per NAME child so the scope
+	// sees every name; inner helpers still use the first child as
+	// the primary (matches Java's visitDeclarationsOrList loop).
+	for _, child := range v.Children() {
+		if child.Token() != rhino.NAME {
+			continue
+		}
+		c.recordOneDecl(v, child, scope)
+	}
+}
+
+// recordOneDecl processes a single declaration binding. Split out
+// from recordDecl so the multi-binding loop can reuse the same
+// @type / @enum / @constructor handling per name.
+func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope *TypedScope) {
 	info := v.JSDocInfo()
-	name := v.FirstChild()
 	if name == nil || name.Token() != rhino.NAME {
 		return
 	}
@@ -1092,6 +1604,72 @@ func (c *TypedScopeCreator) recordDecl(v *rhino.Node, scope *TypedScope) {
 	if info != nil && info.TypedefType() != nil {
 		scope.declared[name.String_()] = jstype.Unknown
 		return
+	}
+	// `/** @enum [{T}] */ var MyEnum = {FOO: 1, BAR: 2}` — the
+	// preregister pass already allocated an EnumType for MyEnum;
+	// the second-pass job is (a) scanning the initializer
+	// OBJECTLIT to populate the Members set, (b) emitting a
+	// TYPE_MISMATCH at the initializer when the RHS isn't an
+	// object literal / matching enum. Aliased form
+	// (`/** @enum */ var A = B`) reuses B's EnumType pointer so
+	// `A.FOO` and `B.FOO` share the same static type.
+	if info.IsEnum() && name.String_() != "" {
+		c.finishEnumDecl(name, info, scope)
+		return
+	}
+	// `/** @constructor */ var Foo = function() {}` — Closure-library
+	// form of a constructor declaration. Builds a ConstructorType so
+	// `new Foo()` and `@type {Foo}` both resolve to the same instance.
+	// Mirrors TypedScopeCreator's function-expression-as-constructor
+	// path in AbstractScopeBuilder.
+	if (info.IsConstructor() || info.IsInterface() || info.IsRecord()) && name.String_() != "" {
+		init := name.FirstChild()
+		// Constructor alias: `@constructor var Alias = ExistingCtor`.
+		// Java shares the existing ConstructorType so Alias and the
+		// source are interchangeable.
+		if init != nil && init.Token() == rhino.NAME {
+			if src, ok := scope.GetDeclaredType(init.String_()).(*jstype.FunctionType); ok && src.Instance != nil {
+				scope.declared[name.String_()] = src
+				return
+			}
+		}
+		// Non-function init (OBJECTLIT / NUMBER / …) — create a
+		// ConstructorType slot anyway so visitVar's subtype check
+		// fires JSC_TYPE_MISMATCH, and the name stays declared.
+		if init != nil && init.Token() != rhino.FUNCTION {
+			ct := jstype.NewConstructorType(name.String_(), nil)
+			if info.IsInterface() || info.IsRecord() {
+				ct.Instance.IsStructural = true
+			}
+			scope.declared[name.String_()] = ct
+			return
+		}
+		if init != nil && init.Token() == rhino.FUNCTION {
+			fnType := c.buildDeclaredFunctionConstructor(init, info, name.String_(), scope)
+			if info.IsInterface() || info.IsRecord() {
+				fnType.Instance.IsStructural = true
+			}
+			if info.IsStruct() {
+				fnType.Instance.IsStruct = true
+			}
+			if info.IsDict() {
+				fnType.Instance.IsDict = true
+			}
+			if base := info.BaseType(); base != nil {
+				if super := scope.LookupNominalType(base.TypeName); super != nil {
+					fnType.Instance.SetSuper(super)
+					if super.IsStruct {
+						fnType.Instance.IsStruct = true
+					}
+					if super.IsDict {
+						fnType.Instance.IsDict = true
+					}
+				}
+			}
+			scope.declared[name.String_()] = fnType
+			c.collectThisPropertiesIn(init.Children()[2], fnType.Instance, scope)
+			return
+		}
 	}
 	// `@type {T}` pins the binding's declared type precisely. Java's
 	// VarCheck treats variables whose initializer references an
@@ -1122,9 +1700,186 @@ func (c *TypedScopeCreator) recordDecl(v *rhino.Node, scope *TypedScope) {
 			}
 		}
 	}
+	// Bare constructor alias: \`var FooAlias = Foo\` / \`const FooAlias = Foo\`
+	// — when the RHS is a known constructor NAME, share the same
+	// FunctionType pointer so FooAlias.prototype / \`new FooAlias()\`
+	// reach Foo's Instance. Java tracks this through @const-aliased
+	// nominal types.
+	if init != nil && init.Token() == rhino.NAME {
+		if src, ok := scope.GetDeclaredType(init.String_()).(*jstype.FunctionType); ok && src.Instance != nil {
+			scope.declared[name.String_()] = src
+			return
+		}
+	}
+	// `var foo = function bar(…){…}` with @param/@return on the VAR —
+	// build a FunctionType so call-site arity / arg checks see the
+	// declared signature. Matches how Java's TypedScopeCreator
+	// NodeUtil.getBestJSDocInfo inherits the VAR's JSDoc onto the
+	// function expression.
+	if init != nil && init.Token() == rhino.FUNCTION && info != nil &&
+		(info.ReturnType() != nil || len(info.ParameterNames()) > 0) {
+		kids := init.Children()
+		if len(kids) >= 2 {
+			params := kids[1]
+			var paramTypes []jstype.JSType
+			for _, p := range params.Children() {
+				paramTypes = append(paramTypes, resolveParamType(info, p, scope))
+			}
+			var retType jstype.JSType = jstype.Void
+			if r := info.ReturnType(); r != nil {
+				retType = scope.ResolveExpr(r.TypeName)
+			} else if functionReturnsExplicitly(init) {
+				retType = jstype.Unknown
+			}
+			fnType := jstype.NewFunctionType(paramTypes, retType)
+			setArityFromParams(fnType, params, info)
+			scope.declared[name.String_()] = fnType
+			return
+		}
+	}
 	if _, exists := scope.declared[name.String_()]; !exists {
 		scope.declared[name.String_()] = jstype.Unknown
 	}
+}
+
+// finishEnumDecl resolves `/** @enum */ var MyEnum = …` by
+// completing the pre-registered EnumType: aliasing replaces the
+// slot's EnumType with the RHS enum's pointer, object-literal
+// initialisers populate the Members map. Matches how Java's
+// TypedScopeCreator.EnumBuilder hoists the enum slot in pass 1
+// and fills its members in pass 2.
+func (c *TypedScopeCreator) finishEnumDecl(nameNode *rhino.Node, info *rhino.JSDocInfo, scope *TypedScope) {
+	name := nameNode.String_()
+	enum, ok := scope.declared[name].(*jstype.EnumType)
+	if !ok {
+		// Pre-register missed this binding (e.g. nested inside a
+		// block and the hoist pass didn't pick it up). Create one.
+		var underlying jstype.JSType = jstype.Number
+		if expr := info.EnumParameterType(); expr != nil {
+			underlying = scope.ResolveExpr(expr.TypeName)
+		}
+		enum = jstype.NewEnumType(name, underlying)
+		scope.declared[name] = enum
+	}
+	init := nameNode.FirstChild()
+	if init == nil {
+		return
+	}
+	// Alias form: the RHS is another enum NAME reference. Replace
+	// this enum's slot with the source enum so `Alias.FOO` and
+	// `Source.FOO` share their EnumElementType pointer (matches
+	// how Java treats `/** @enum */ var A = B`).
+	if init.Token() == rhino.NAME {
+		if other, ok := scope.declared[init.String_()].(*jstype.EnumType); ok {
+			scope.declared[name] = other
+			return
+		}
+	}
+	// Literal form: scan the OBJECTLIT entries and record each
+	// STRING_KEY child on the enum's Members set.
+	if init.Token() == rhino.OBJECTLIT {
+		for _, kv := range init.Children() {
+			if kv.Token() == rhino.STRING_KEY {
+				enum.Members[kv.String_()] = true
+			}
+		}
+	}
+}
+
+// setArityFromParamNames computes MinArity / MaxArity on `fn` from
+// the param-name prefixes of its PARAM_LIST and the JSDoc on
+// `info` (optional). Closure-convention:
+//
+//   - `opt_<name>` — optional; MinArity stops counting at the
+//     first opt_ param.
+//   - `var_args`    — rest; MaxArity becomes MaxArgsUnlimited.
+//
+// JSDoc takes precedence when present:
+//
+//   - `@param {...T} x`  — rest; same effect as var_args.
+//
+// Matches FunctionParamBuilder's prefix detection path in Java.
+// Called for every FunctionType we build from a PARAM_LIST node.
+func setArityFromParamNames(fn *jstype.FunctionType, params *rhino.Node) {
+	setArityFromParams(fn, params, nil)
+}
+
+// setArityFromParams is the doc-aware variant of
+// setArityFromParamNames; callers pass the owning @param-bearing
+// JSDocInfo so the `{...T}` rest marker can widen MaxArity.
+// resolveParamType returns the declared type for a FUNCTION's
+// parameter node, honoring (in order):
+//  1. Inline JSDoc on the param itself: `function f(/** T */ x)`.
+//  2. Outer function @param {T} x JSDoc on `info`.
+//  3. Unknown (unannotated).
+func resolveParamType(info *rhino.JSDocInfo, p *rhino.Node, scope *TypedScope) jstype.JSType {
+	if p != nil {
+		if pj := p.JSDocInfo(); pj != nil && pj.HasType() {
+			return scope.ResolveExpr(pj.Type().TypeName)
+		}
+	}
+	if info != nil {
+		if expr := info.ParameterType(p.String_()); expr != nil {
+			return scope.ResolveExpr(expr.TypeName)
+		}
+	}
+	return jstype.Unknown
+}
+
+func setArityFromParams(fn *jstype.FunctionType, params *rhino.Node, info *rhino.JSDocInfo) {
+	if params == nil {
+		return
+	}
+	kids := params.Children()
+	fn.MinArity = 0
+	fn.MaxArity = len(kids)
+	sawOptional := false
+	for i, p := range kids {
+		name := p.String_()
+		switch {
+		case name == "var_args" || (len(name) > 8 && name[:8] == "var_args"):
+			fn.MaxArity = jstype.MaxArgsUnlimited
+			if !sawOptional {
+				fn.MinArity = i
+			}
+			return
+		case info != nil && info.IsRestParam(name):
+			fn.MaxArity = jstype.MaxArgsUnlimited
+			if !sawOptional {
+				fn.MinArity = i
+			}
+			return
+		case len(name) >= 4 && name[:4] == "opt_":
+			sawOptional = true
+		case info != nil && info.IsOptionalParam(name):
+			sawOptional = true
+		default:
+			if !sawOptional {
+				fn.MinArity = i + 1
+			}
+		}
+	}
+	if !sawOptional {
+		fn.MinArity = len(kids)
+	}
+}
+
+// buildDeclaredFunctionConstructor turns a `var Foo = function(a,b){…}`
+// node into a FunctionType whose params are resolved from the
+// @param JSDoc on the surrounding VAR declaration and which carries
+// a fresh InstanceType named after the variable. Mirrors how Java's
+// TypedScopeCreator promotes a plain `function(){}` on the RHS of
+// a constructor-annotated `var`.
+func (c *TypedScopeCreator) buildDeclaredFunctionConstructor(fn *rhino.Node, info *rhino.JSDocInfo, name string, scope *TypedScope) *jstype.FunctionType {
+	kids := fn.Children()
+	var paramTypes []jstype.JSType
+	if len(kids) >= 2 {
+		params := kids[1]
+		for _, p := range params.Children() {
+			paramTypes = append(paramTypes, resolveParamType(info, p, scope))
+		}
+	}
+	return jstype.NewConstructorType(name, paramTypes)
 }
 
 func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
@@ -1146,7 +1901,11 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 	var paramTypes []jstype.JSType
 	for _, p := range params.Children() {
 		var t jstype.JSType = jstype.Unknown
-		if pexpr := info.ParameterType(p.String_()); pexpr != nil {
+		// Inline param JSDoc (`function f(/** T */ x)`) wins over
+		// absence of an outer @param on the function.
+		if pj := p.JSDocInfo(); pj != nil && pj.HasType() {
+			t = scope.ResolveExpr(pj.Type().TypeName)
+		} else if pexpr := info.ParameterType(p.String_()); pexpr != nil {
 			t = resolve(pexpr.TypeName)
 		}
 		paramTypes = append(paramTypes, t)
@@ -1180,19 +1939,35 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 		}
 		// Wire @extends: look up the base ctor's Instance and set as
 		// super on this ctor's Instance, mirroring
-		// FunctionType.setExtendedClass in Java.
+		// FunctionType.setExtendedClass in Java. @struct / @dict flags
+		// inherit down the super chain.
 		if base := info.BaseType(); base != nil {
 			if super := scope.LookupNominalType(base.TypeName); super != nil {
 				fnType.Instance.SetSuper(super)
+				if super.IsStruct {
+					fnType.Instance.IsStruct = true
+				}
+				if super.IsDict {
+					fnType.Instance.IsDict = true
+				}
 			}
 		}
 		// Mark structural when annotated @record / @interface.
 		if info.IsInterface() || info.IsRecord() {
 			fnType.Instance.IsStructural = true
 		}
+		// Propagate @struct / @dict onto the instance so TypeCheck can
+		// gate JSC_ILLEGAL_PROPERTY_ACCESS at GETPROP / GETELEM sites.
+		if info.IsStruct() {
+			fnType.Instance.IsStruct = true
+		}
+		if info.IsDict() {
+			fnType.Instance.IsDict = true
+		}
 	} else {
 		fnType = jstype.NewFunctionType(paramTypes, retType)
 	}
+	setArityFromParams(fnType, params, info)
 	if templateMap != nil {
 		fnType.TemplateTypes = make([]*jstype.TemplateType, 0, len(templateMap))
 		for _, tn := range info.TemplateNames() {
@@ -1222,7 +1997,7 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 	// instance type's member map. Mirrors TypedScopeCreator's
 	// AbstractScopeBuilder.attachLiteralTypes path.
 	if fnType.Instance != nil {
-		c.collectThisProperties(body, fnType.Instance)
+		c.collectThisPropertiesIn(body, fnType.Instance, scope)
 	}
 	nestedScope := c.createScopeIn(body, localScope)
 	for k, v := range nestedScope.declared {
@@ -1239,6 +2014,28 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 // TypedScopeCreator's AssignmentInferrer attaches inferred property
 // types to `this`.
 func (c *TypedScopeCreator) collectThisProperties(node *rhino.Node, inst *jstype.ObjectType) {
+	c.collectThisPropertiesIn(node, inst, nil)
+}
+
+// resolveTypeExpr resolves `expr` against `scope` when non-nil,
+// falling back to the primitive-only registry. Used by the this-
+// property collector so inline \`@type {Name}\` JSDocs see the
+// scope's nominal bindings (Number, user classes, etc.).
+func resolveTypeExpr(scope *TypedScope, reg *jstype.Registry, expr string) jstype.JSType {
+	if scope != nil {
+		return scope.ResolveExpr(expr)
+	}
+	return reg.ResolveExpr(expr)
+}
+
+// collectThisPropertiesIn is the scope-aware variant. When a scope
+// is passed, \`@type {Name}\` references inside \`this.X = …\` JSDocs
+// resolve through the scope chain (which knows about \`Number\`,
+// user-defined classes, etc.) — not through a bare primitive-only
+// registry. Callers without a scope reference use the plain
+// collectThisProperties overload above, whose behaviour is the
+// primitive-registry fallback.
+func (c *TypedScopeCreator) collectThisPropertiesIn(node *rhino.Node, inst *jstype.ObjectType, scope *TypedScope) {
 	if node == nil {
 		return
 	}
@@ -1249,25 +2046,90 @@ func (c *TypedScopeCreator) collectThisProperties(node *rhino.Node, inst *jstype
 				obj := kids[0].FirstChild()
 				if obj != nil && obj.Token() == rhino.THIS {
 					prop := kids[0].Children()[1]
-					var t jstype.JSType = jstype.Unknown
-					if info := a.JSDocInfo(); info != nil && info.HasType() {
-						t = inst.GetPropertyType(prop.String_()) // keep prior decl if any
-						if t == nil {
-							t = jstype.Unknown
+					existing := inst.GetPropertyType(prop.String_())
+					alreadyDeclared := existing != nil && !isJSUnknown(existing) && !inst.IsPropertyInferred(prop.String_())
+					info := a.JSDocInfo()
+					hasInfoType := info != nil && info.HasType()
+					// A class-field \`/** @type {T} */ x = …\` (declared,
+					// not inferred) wins over any \`this.x = …\`
+					// inside the ctor body. Leaves the existing slot
+					// untouched so visitAssign fires on incompatible
+					// writes. Matches Java's class-field authority rule.
+					if alreadyDeclared {
+						// fall through: don't overwrite
+						_ = hasInfoType
+					} else {
+						var t jstype.JSType = jstype.Unknown
+						if hasInfoType {
+							t = existing
+							if t == nil {
+								t = jstype.Unknown
+							}
+							declared := resolveTypeExpr(scope, c.registry, info.Type().TypeName)
+							if !isJSUnknown(declared) {
+								t = declared
+							}
+						} else {
+							if existing == nil || isJSUnknown(existing) {
+								t = literalType(kids[1])
+								inst.MarkInferred(prop.String_())
+							} else {
+								t = existing
+							}
 						}
-						declared := jstype.NewRegistry().ResolveExpr(info.Type().TypeName)
-						if !isJSUnknown(declared) {
-							t = declared
-						}
+						inst.DefineProperty(prop.String_(), t)
 					}
-					inst.DefineProperty(prop.String_(), t)
 				}
+			}
+		}
+		// Stub form: `/** @type {T} */ this.prop;` (no RHS). Java's
+		// TypedScopeCreator records this as a property declaration on
+		// the enclosing instance. Matches how @record / @interface
+		// classes define their surface via constructor-body stubs.
+		if gp := node.FirstChild(); gp != nil && gp.Token() == rhino.GETPROP {
+			gpKids := gp.Children()
+			if len(gpKids) >= 2 && gpKids[0].Token() == rhino.THIS {
+				propName := gpKids[1].String_()
+				var t jstype.JSType = jstype.Unknown
+				info := node.JSDocInfo()
+				if info == nil {
+					info = gp.JSDocInfo()
+				}
+				if info != nil && info.HasType() {
+					declared := resolveTypeExpr(scope, c.registry, info.Type().TypeName)
+					if !isJSUnknown(declared) {
+						t = declared
+					}
+				}
+				inst.DefineProperty(propName, t)
 			}
 		}
 	}
 	for _, k := range node.Children() {
-		c.collectThisProperties(k, inst)
+		c.collectThisPropertiesIn(k, inst, scope)
 	}
+}
+
+// literalType returns the JSType of a literal or simple RHS node.
+// Used by collectThisProperties to sharpen `this.x = <lit>` slot
+// types when no @type JSDoc is present.
+func literalType(n *rhino.Node) jstype.JSType {
+	if n == nil {
+		return jstype.Unknown
+	}
+	switch n.Token() {
+	case rhino.NUMBER:
+		return jstype.Number
+	case rhino.STRINGLIT:
+		return jstype.String
+	case rhino.TRUE, rhino.FALSE:
+		return jstype.Boolean
+	case rhino.NULL:
+		return jstype.Null
+	case rhino.UNDEFINED:
+		return jstype.Void
+	}
+	return jstype.Unknown
 }
 
 func isDeclToken(t rhino.Token) bool {

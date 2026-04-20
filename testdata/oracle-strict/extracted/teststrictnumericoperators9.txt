@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/teststrictnumericoperators9.js:1:8: WARNING - [JSC_INVALID_OPERAND_TYPE] operator <<
+found   : string
+required: number
+  1| var x = 'asdf' << 1;
+             ^^^^^^^^^^^
+
+0 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+0

@@ -74,7 +74,52 @@ func (p *TypeInferencePass) transferDecl(decl *rhino.Node, in *FlowScope) map[Br
 	if t == nil {
 		return map[Branch]*FlowScope{BranchUnconditional: in}
 	}
+	// Don't overwrite a richer declared type with a weaker inferred
+	// type: constructor / interface bindings shadow their FUNCTION
+	// init's bare FunctionType, and `@enum` bindings shadow their
+	// OBJECTLIT init's structural {...}. Matches how Java's
+	// TypeInference keeps the declared slot for these.
+	if declared := p.scope.GetRawDeclaredType(name.String_()); declared != nil {
+		switch d := declared.(type) {
+		case *jstype.FunctionType:
+			if d.IsConstructor {
+				return map[Branch]*FlowScope{BranchUnconditional: in}
+			}
+			// FunctionType whose params or return carry a declared
+			// shape (not all-Unknown) — preserve it. Covers \`var
+			// bar = function(a){}\` with @param on the VAR.
+			if functionHasDeclaredShape(d) {
+				return map[Branch]*FlowScope{BranchUnconditional: in}
+			}
+		case *jstype.EnumType:
+			return map[Branch]*FlowScope{BranchUnconditional: in}
+		case *jstype.TemplatizedType:
+			// Preserve the declared generic binding — the init's
+			// bare Array / Map type would drop the template args,
+			// breaking \`arr[0]\`-style reads that rely on them.
+			return map[Branch]*FlowScope{BranchUnconditional: in}
+		}
+	}
 	return map[Branch]*FlowScope{BranchUnconditional: in.Bind(name.String_(), t)}
+}
+
+// functionHasDeclaredShape reports whether any of \`fn\`'s params
+// or return carry a non-Unknown type. Used to avoid clobbering a
+// VAR-declared FunctionType whose signature comes from outer
+// @param/@return JSDoc.
+func functionHasDeclaredShape(fn *jstype.FunctionType) bool {
+	if fn == nil {
+		return false
+	}
+	for _, p := range fn.Params {
+		if p != nil && p != jstype.Unknown {
+			return true
+		}
+	}
+	if fn.Return != nil && fn.Return != jstype.Unknown && fn.Return != jstype.Void {
+		return true
+	}
+	return false
 }
 
 // transferAssign handles ASSIGN (and compound-assign variants) where
@@ -92,6 +137,17 @@ func (p *TypeInferencePass) transferAssign(a *rhino.Node, in *FlowScope) map[Bra
 	t := p.inferExpr(rhs, in)
 	if t == nil {
 		return map[Branch]*FlowScope{BranchUnconditional: in}
+	}
+	// Don't widen past the declared type. If the RHS-inferred type
+	// is a proper superset of the declared slot (e.g. declared
+	// `number` being fed `null|number`), the declared type wins —
+	// TypeCheck's subtype check on the ASSIGN itself would fire if
+	// the RHS truly couldn't fit. Matches Java's refuse-to-widen
+	// rule on named-slot assignments.
+	if declared := p.scope.GetRawDeclaredType(lhs.String_()); declared != nil {
+		if !jstype.IsSubtype(t, declared) {
+			return map[Branch]*FlowScope{BranchUnconditional: in}
+		}
 	}
 	return map[Branch]*FlowScope{BranchUnconditional: in.Bind(lhs.String_(), t)}
 }

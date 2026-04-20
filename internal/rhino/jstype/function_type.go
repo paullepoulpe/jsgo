@@ -17,6 +17,17 @@ type FunctionType struct {
 	Params []JSType
 	Return JSType // Unknown when @return was absent / unrecognised.
 
+	// MinArity is the minimum number of arguments callers must pass.
+	// Equals len(Params) when every param is required; decreases when
+	// closure-convention `opt_<name>` or `var_args` prefixes mark
+	// params optional. Mirrors FunctionType.getMinArity() in Java.
+	MinArity int
+	// MaxArity is the maximum number of arguments callers may pass.
+	// Equals len(Params) normally; MaxArgsUnlimited (math.MaxInt32)
+	// when the function has a rest param (`var_args`). Mirrors
+	// FunctionType.getMaxArity().
+	MaxArity int
+
 	// IsConstructor mirrors FunctionType.isConstructor() — set when the
 	// owning function carried `@constructor`. Influences both call-site
 	// shape checking and the nominal type produced by `new`.
@@ -32,13 +43,28 @@ type FunctionType struct {
 	// build a TemplateTypeMap from arg types before substituting into
 	// Return. Empty for non-generic functions.
 	TemplateTypes []*TemplateType
+
+	// IsES6Class is set when this FunctionType came from an ES6
+	// `class` declaration (as opposed to a `@constructor` function).
+	// Java's TypeCheck uses the distinction to forbid
+	// `ClassName.prototype = …` reassignments.
+	IsES6Class bool
 }
+
+// MaxArgsUnlimited is the sentinel MaxArity for rest-parameter
+// functions — callers may pass arbitrarily many arguments.
+const MaxArgsUnlimited = 1 << 30
 
 func NewFunctionType(params []JSType, ret JSType) *FunctionType {
 	if ret == nil {
 		ret = Unknown
 	}
-	return &FunctionType{Params: params, Return: ret}
+	return &FunctionType{
+		Params:   params,
+		Return:   ret,
+		MinArity: len(params),
+		MaxArity: len(params),
+	}
 }
 
 // NewConstructorType is the variant used when @constructor is present.
@@ -49,6 +75,8 @@ func NewConstructorType(name string, params []JSType) *FunctionType {
 	return &FunctionType{
 		Params:        params,
 		Return:        inst,
+		MinArity:      len(params),
+		MaxArity:      len(params),
 		IsConstructor: true,
 		Instance:      inst,
 	}

@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testlocaltype2.js:5:38: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : number
+required: null
+  5|   /** @type {null} */ var x = new C().a;
+                                           ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

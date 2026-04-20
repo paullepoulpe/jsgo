@@ -1,0 +1,27 @@
+testdata/fixtures/extracted/testbitoperation7.js:1:14: WARNING - [JSC_INVALID_OPERAND_TYPE] bad left operand to bitwise operator
+found   : null
+required: number
+  1| var x = null; x |= undefined; x &= 3; x ^= '3'; x |= true;
+                   ^
+
+testdata/fixtures/extracted/testbitoperation7.js:1:19: WARNING - [JSC_INVALID_OPERAND_TYPE] bad right operand to bitwise operator
+found   : undefined
+required: number
+  1| var x = null; x |= undefined; x &= 3; x ^= '3'; x |= true;
+                        ^^^^^^^^^
+
+testdata/fixtures/extracted/testbitoperation7.js:1:43: WARNING - [JSC_INVALID_OPERAND_TYPE] bad right operand to bitwise operator
+found   : string
+required: number
+  1| var x = null; x |= undefined; x &= 3; x ^= '3'; x |= true;
+                                                ^^^
+
+testdata/fixtures/extracted/testbitoperation7.js:1:53: WARNING - [JSC_INVALID_OPERAND_TYPE] bad right operand to bitwise operator
+found   : boolean
+required: number
+  1| var x = null; x |= undefined; x &= 3; x ^= '3'; x |= true;
+                                                          ^^^^
+
+0 error(s), 4 warning(s), 100.0% typed
+---EXIT---
+0

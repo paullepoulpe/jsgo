@@ -1,337 +1,271 @@
 # jsgo port TODO
 
-Living list of what's left to port, with rough effort estimates, in
-order of expected pass-rate lift for the `testdata/fixtures/extracted`
-benchmark. Updated whenever a milestone commits.
+Living list of remaining work, grounded in (a) per-file audit of jsgo
+against the corresponding Java sources, and (b) bucket-by-oracle-code
+triage of the 698 failing fixtures in the extracted corpus.
 
-**Current state:** 722/1444 = **50.00%** extracted pass rate. Tier-0
-through Tier-3 hand-authored corpora all 100%.
+**Current state:** 833 / 1444 = **57.69 %** extracted pass rate under
+the default diagnostic set, 754 / 1444 = **52.22 %** under
+`strictCheckTypes`. Tier-0 through Tier-3 hand-authored corpora all
+100 %.
 
-**Goal:** 80%+ = ~1155 extracted passes. Gap: **+433**.
+**Goal:** 80 %+ ≈ 1155 extracted passes. Gap: **+322** on default
+(≈ 22 % of the corpus).
 
-Since the last revision, the CFG, dataflow, externs, P1-2
-(JSC_USELESS_CODE) and P1-4 (JSC_HIDDEN_SUPERCLASS / INTERFACE
-PROPERTY MISMATCH) ports have all landed, plus a
-nominal-nullability default matching Java's legacy mode.
+## Triage snapshot (current failing buckets)
 
-**P0 sweep — completed (with the listed scope caveats):**
-- P0-1 ✅ Parser precedence-climbing + expression-level TypeInference
-  (binary / unary / ternary / array / object literals); `+` follows
-  the JS string-bias rule; functions without @return default to
-  Void; compound-assigns parse as ASSIGN_*. Scope: rest args /
-  spread still skipped — testtemplatetype4/5 patterns stay
-  unmatched.
-- P0-2 ✅ VarCheck (JSC_UNDEFINED_VARIABLE), reports once per file,
-  narrow extern-name stub. Scope: real DefaultExterns.js loader is
-  still P2-1 — names not in the stub will FP if referenced bare.
-- P0-3 ✅ VariableReferenceCheck (JSC_VAR_MULTIPLY_DECLARED_ERROR)
-  for intra-file duplicates; honours `@suppress {duplicate}`;
-  global frame seeded with extern-predeclared names so
-  `Disposable`-style collisions match the oracle.
-- P0-4 ✅ TemplateType + TemplateTypeMap + call-site unification;
-  TemplatizedType (Array<T>, Map<K,V>, …) participates in subtype
-  / property-lookup / unification / substitution. Scope: bounded
-  generics (`@template T extends Base`) still produce
-  JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES on the Java side and
-  remain unported (Java itself defers — see P3-1).
-- P0-5 ✅ **Real CFG + forward DataFlowAnalysis + TypeInferencePass**
-  ported end-to-end:
-  * `ControlFlowGraph` (controlflowgraph.go) with synthetic
-    ENTRY/EXIT and branch-labeled edges.
-  * `ControlFlowAnalysis` (controlflowanalysis.go) builds the CFG
-    per FUNCTION / SCRIPT — proper IF with BranchOnTrue / OnFalse
-    arms, RETURN edges straight to EXIT, reachability-aware joins.
-  * `FlowScope` (flowscope.go) — persistent name→JSType map with
-    Bind / BindAll / Equal and the lattice-join used at confluence
-    points.
-  * `DataFlowAnalysis` (dataflow.go) — forward-worklist runner that
-    supports per-branch transfer outputs.
-  * `TypeInferencePass` (typeinferencepass.go) — concrete transfer
-    function: VAR/LET/CONST/ASSIGN refine the LHS NAME in the OUT
-    scope; IF emits branch-specific scopes via `buildRefinements`
-    (which itself recognises truthy, null-check, typeof, instanceof,
-    `!cond`, `&&` / `||` falsy-branch). Expression inference in
-    TypeCheck consults the IN FlowScope of the enclosing statement
-    via `pushEnclosingFlow`.
-  * `MissingReturnCheck` is now CFG-driven: walks `EXIT.Predecessors`
-    restricted to reachable-from-ENTRY nodes and fires
-    `JSC_MISSING_RETURN_STATEMENT` unless every one is a
-    `return EXPR`. Replaces the AST-walk `definitelyReturns`
-    approximation.
+```
+274  want=[JSC_TYPE_MISMATCH]                     got=[]
+ 32  want=[JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES] got=[]   [Java's TODO]
+ 25  want=[JSC_UNRECOGNIZED_TYPE_ERROR]           got=[]
+ 20  want=[JSC_INEXISTENT_PROPERTY]               got=[]
+ 17  want=[]                                      got=[JSC_TYPE_MISMATCH]   [our FPs]
+ 14  want=[JSC_USELESS_CODE]                      got=[]
+ 14  want=[JSC_NON_STRINGIFIABLE_OBJECT_KEY]      got=[]
+  9  want=[JSC_INCOMPATIBLE_EXTENDED_PROPERTY_TYPE] got=[]
+  9  want=[JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH] got=[]
+  8  want=[JSC_TYPE_MISMATCH,JSC_USELESS_CODE]    got=[JSC_USELESS_CODE]
+  8  want=[JSC_DUP_VAR_DECLARATION_TYPE_MISMATCH] got=[]
+  8  want=[JSC_DETERMINISTIC_TEST]                got=[]
+  7  want=[JSC_NOT_A_CONSTRUCTOR]                 got=[]
+  7  want=[JSC_WRONG_ARGUMENT_COUNT]              got=[]
+  7  want=[JSC_ILLEGAL_PROPERTY_ACCESS]           got=[]
+  7  want=[JSC_DETERMINISTIC_TEST,JSC_USELESS_CODE] got=[]
+  6  want=[JSC_UNDEFINED_VARIABLE]                got=[]
+  6  want=[JSC_UNRECOGNIZED_TYPEOF_ERROR]         got=[]
+```
 
-  Scope caveats still open: the CFG doesn't yet model loops (no
-  BranchLoop / back-edge), try/catch/finally flow, labeled
-  break/continue, or assignment-in-expression refinement (e.g.
-  `if ((x = f())) { … }`). Those match the Java pass as the next
-  wave of CFG edges.
+## Audit snapshot (per-file completeness)
 
-## Methodology note
-
-The buckets below are derived from grouping the 845 currently-failing
-fixtures by the Java oracle's first diagnostic code (see
-`scripts/gap-analysis` if you want to re-run the count). Each bucket
-lists the Java files that port would touch. Item counts are upper
-bounds — many fixtures fail for multiple reasons, so individual fixes
-may move more.
+| File | Header | Gap | Effort | Impact |
+|------|--------|-----|--------|--------|
+| `internal/parser/parser.go` | narrow grammar | array/object literals at expression level, destructuring, spread/rest, template literals, regex, GETELEM, optional chaining, async/await, generators, full computed-property | 2–3 w | High |
+| `internal/parser/scanner.go` | subset | Char-level only — no full TokenType enum, no string-literal/number-literal/regex tokenizers | 1–2 w | Medium (blocks parser) |
+| `internal/jscomp/parsing/jsdocinfoparser.go` | scope-limited | @enum, @const, @dict/@struct, @nosideeffects, @abstract, @protected/@private, @param modifiers (`{=T}`/`{...T}`/`{T=}`), `function(A,B):C` callable expressions, type-error reporting | 3 d | Medium–High |
+| `internal/jscomp/inference.go` | narrow | binary ops (ADD/SUB/MUL/DIV/MOD/BITWISE/COMPARISON), GETELEM, compound-assign result-type sharpening, missing literal cases | 1–2 w | High (~80–120 fixtures) |
+| `internal/jscomp/typecheck.go` | subset | visitArrayLit / visitObjectLit, visitGetElem, visitFunctionExpression body, regex / template literal visit, ASSIGN-with-cast | 1–2 w | High |
+| `internal/jscomp/typeinferencepass.go` | narrow | GETPROP refinement (`if (x.foo) { … x.foo … }`), assignment-with-union-LHS, falsy-on-union-with-literal-false | 3–5 d | Medium |
+| `internal/jscomp/refinement.go` | narrow | nested AND/OR sub-expression refinement, GETPROP narrowing | 2 d | Medium |
+| `internal/jscomp/scope.go` | subset | destructuring patterns, per-block hoisting, @enum slot type, Object.defineProperty, module imports | 1–2 w (blocked on parser) | Low–Medium |
+| `internal/jscomp/controlflowanalysis.go` | narrow | labeled break/continue to **nested** loops, exception-edge fan-out from each call/throw to nearest catch, `with`, generator suspend, assignment-in-condition | 1 w | Low–Medium |
+| `internal/jscomp/dataflow.go` | narrow forward-only | backward direction, lattice-annotation side table, fixed-point heuristic | N/A | None for current scope |
+| `internal/jscomp/compiler.go` | shim | PhaseOptimizer, CompilerInput / SourceFile, multi-file Result, CompilerOptions | 1 w | Low |
+| `internal/jscomp/varcheck.go` | narrow | per-scope unreached-NAME check, EARLY_REFERENCE for var hoisting | 3 d | Low |
+| `internal/jscomp/checksideeffects.go` | narrow | @nosideeffects-aware CALL classification, sub-expression `a[b].c;` reporting | 2–3 d | Medium |
+| `internal/jscomp/superclasscheck.go` | narrow | constructor-arg compatibility, multi-`@extends` interface diamond check (P0-A4) | 3–5 d | Medium |
+| `internal/rhino/jstype/jstype.go` | subset | EnumType, NoResolvedType, NamedType (forward refs), distinct RecordType vs anon ObjectType | 1–2 w | Medium |
+| `internal/rhino/jstype/object_type.go` | subset | @protected/@private/@public access bits, @struct vs @dict semantics, sealed-for-inference flag | 3 d | Low–Medium |
+| `internal/rhino/jstype/function_type.go` | subset | optional/rest/default-value param tracking, THIS binding type, closure-capture environment | 3 d | Low–Medium |
+| `internal/rhino/jstype/templatized_type.go` | narrow | inheritance through templatized supertypes, recursive substitution at nested generic positions | 3 d | Medium (template tests) |
+| `internal/rhino/jstype/union_type.go` | narrow | union-over-union flattening optimisation, deterministic diagnostic ordering | 1 d | Low |
+| `internal/rhino/node.go` | subset | `SideEffectFlags` cache, full ~50-entry Prop enum, cloneNode, intrusive linked-list children | 2–3 d | Cosmetic |
+| **Java passes not started at all** | — | CheckMissingOverrides, CheckAccessControls (@private/@protected), CheckJSDoc (bad @typedef / @enum), SymbolTable, ConformancePass | weeks each | Mixed |
 
 ---
 
-## P0: biggest levers
+## Prioritised work list
 
-### [P0-1] Expression-level type inference (`TypeInference.java`, narrow)
-**Impact:** ~120–180 fixtures. **Effort:** 1 week.
+Each item gives the relevant Java source(s), the audit gaps it
+closes, the triage buckets it unblocks, an effort guess, and an
+estimated fixture-rate lift on the extracted corpus. Items are listed
+in expected ROI order — finishing the top half should clear the path
+to ~75 %.
 
-Closure's `TypeInference` computes a JSType for every expression
-node. jsgo currently handles only literals, NAME, THIS, GETPROP, NEW,
-and direct CALL. Missing:
+### P0-A — Expression inference completeness  *(highest ROI)*
+**Java:** `TypeInference.java` (binary-op / GETELEM / compound-assign
+branches), `TypeValidator.java` (ADD / BITWISE / COMPARISON helpers).
+**Files:** `internal/jscomp/inference.go`, `internal/jscomp/typecheck.go`.
+**Audit gaps closed:** binary ops in `inference.go`, GETELEM,
+compound-assign sharpening, `visitArrayLit` / `visitObjectLit`,
+ASSIGN-with-cast.
+**Triage buckets unblocked:** ~120 of the 274 `JSC_TYPE_MISMATCH`
+misses (the ones blocked on missing operator inference) plus most of
+the 8 `[TYPE_MISMATCH,USELESS_CODE]` and 6 `[TYPE_MISMATCH][USELESS_CODE]`
+mixed buckets.
+**Effort:** 1–2 weeks. **Impact:** **+80 to +120 fixtures**.
 
-- Binary arithmetic: `+` (number+number → number, string+any → string),
-  `-`/`*`/`/`/`%` → number.
-- Comparison: `<`/`>`/`<=`/`>=`/`==`/`!=`/`===`/`!==` → boolean.
-- Logical: `&&`/`||`/`??` → left | right union (with narrowing).
-- Bitwise: `&`/`|`/`^`/`~`/`<<`/`>>`/`>>>` → number.
-- Unary: `!` → boolean, `-`/`+`/`~` → number, `typeof` → string.
-- Ternary `? :` → left | right union.
-- Compound assignment `+=`/`-=`/`*=`/etc.
-- Array literal `[…]` → `Array`.
-- Object literal `{a: …}` → anonymous structural `ObjectType`.
-- Function expression → `FunctionType` from @param/@return.
+### P0-A2 — `@nosideeffects` + better `CheckSideEffects`
+**Java:** `CheckSideEffects.java` (full), `JsDocInfoParser.java`'s
+`@nosideeffects` branch.
+**Files:** `internal/jscomp/parsing/jsdocinfoparser.go`,
+`internal/jscomp/checksideeffects.go`,
+`internal/jscomp/superclasscheck.go` (call-effect classification).
+**Audit gaps closed:** parser-level `@nosideeffects` + `@noside`,
+sub-expression useless reporting (`a[b].c;`), call effect awareness.
+**Triage buckets unblocked:** 14 `[USELESS_CODE]`-only +
+8 `[TYPE_MISMATCH,USELESS_CODE]` + 7 `[DETERMINISTIC_TEST,USELESS_CODE]`.
+**Effort:** 2–3 days. **Impact:** **+20 to +30 fixtures**.
 
-Ports: `TypeInference.java` (the non-dataflow part) plus
-`TypeValidator.java`'s ADD / BITWISE / COMPARISON helpers.
+### P0-A3 — `@enum` support
+**Java:** `JSDocInfoParser.java` (@enum tag), `JSTypeRegistry.java`
+(EnumType + EnumElementType creation), `TypeCheck.java` (enum-element
+mismatch).
+**Files:** `internal/jscomp/parsing/jsdocinfoparser.go`,
+`internal/rhino/jstype/jstype.go` (EnumType + EnumElementType),
+`internal/jscomp/scope.go` (recordEnum).
+**Audit gaps closed:** `@enum`, EnumType class, enum-element subtype.
+**Triage buckets unblocked:** ~25 of the `JSC_TYPE_MISMATCH` pool that
+involve `@enum` declarations + the
+`testaliasedenum*` / `testenumof*` clusters.
+**Effort:** 4–5 days. **Impact:** **+25 to +40 fixtures**.
 
-### [P0-2] Undeclared-identifier check (`VarCheck.java`)
-**Impact:** ~53 fixtures (all expecting `JSC_UNDEFINED_VARIABLE`).
-**Effort:** 2 days.
+### P0-A4 — Multi-`@extends` on interfaces
+**Java:** `JSDocInfoParser.java` (`@extends` accumulator),
+`TypeCheck.java` (`JSC_INCOMPATIBLE_EXTENDED_PROPERTY_TYPE`).
+**Files:** `internal/rhino/jsdoc.go` (extendsExpr → list),
+`internal/jscomp/parsing/jsdocinfoparser.go` (parse multiple),
+`internal/jscomp/superclasscheck.go` (diamond-check loop).
+**Triage buckets unblocked:** 9 `[INCOMPATIBLE_EXTENDED_PROPERTY_TYPE]`.
+**Effort:** 1 day. **Impact:** **+9 fixtures**.
 
-Port of `VarCheck.java`: walk every NAME, confirm it's declared in
-some scope (var/let/const, @param, function name, class name, imported
-global). Straightforward; the hard part is populating the default
-globals (`undefined`, `Infinity`, `NaN`, `globalThis`, etc.) from
-externs.
+### P0-A5 — `JSC_INEXISTENT_PROPERTY` broadening (without FP regression)
+**Java:** `TypeCheck.java`'s `visitGetProp` non-structural branch.
+**Files:** `internal/jscomp/typecheck.go`.
+**Audit gaps closed:** non-structural property-existence check; needs
+guarded broadening (the naive enable cost us 43 fixtures last attempt
+— the win is conditional on an opt-out for builtins-with-empty-member
+maps).
+**Triage buckets unblocked:** 20 `[INEXISTENT_PROPERTY]`.
+**Effort:** 3–5 days (most of the work is FP avoidance). **Impact:**
+**+10 to +18 fixtures** (after FP balancing).
 
-### [P0-3] Duplicate-declaration check (`VarCheck.java` → `VariableReferenceCheck.java`)
-**Impact:** ~26 fixtures (`JSC_VAR_MULTIPLY_DECLARED_ERROR`).
-**Effort:** 1 day.
+### P0-A6 — TYPE_MISMATCH FP reduction
+**Files:** `internal/jscomp/inference.go`, `internal/jscomp/typecheck.go`,
+`internal/jscomp/scope.go`.
+**Audit gaps closed:** loop-aware dataflow (currently `while (!x) { x =
+u(); }` doesn't refine `x` after the loop), GETPROP-refinement, narrow
+assignment-with-union, missing function expression THIS-binding.
+**Triage buckets unblocked:** 17 `want=[] got=[JSC_TYPE_MISMATCH]`
+plus 8 of the 8 `[TYPE_MISMATCH,USELESS_CODE]` mixed bucket where we
+also emit the right `USELESS_CODE`.
+**Effort:** 4–5 days. **Impact:** **+15 to +25 fixtures**.
 
-Walk declarations; flag a second declaration in the same scope or
-across a scope-chain conflict. Small diagnostic port with large
-dedicated Java test coverage.
+### P1-B — Cast expressions + parser breadth
+**Java:** `Parser.java` (cast / array / spread / template grammar),
+`Scanner.java` (full TokenType enum), `IRFactory.java`.
+**Files:** `internal/parser/parser.go`, `internal/parser/scanner.go`.
+**Audit gaps closed:** cast `(/** @type {T} */ (e))`, GETELEM
+(`x[0]`), template literals (`` `text ${x}` ``), regex literals,
+spread / rest, optional chaining.
+**Triage buckets unblocked:** ~30 of the remaining
+`JSC_TYPE_MISMATCH` pool (cast-blocked), 5 `[INVALID_CAST]`, parser
+silent-failures across the corpus.
+**Effort:** 2–3 weeks. **Impact:** **+40 to +60 fixtures**.
 
-### [P0-4] Real `@template` with call-site unification
-**Impact:** ~30–60 fixtures. **Effort:** 1 week.
+### P1-C — `JSC_UNRECOGNIZED_TYPE_ERROR` / `JSC_TYPE_PARSE_ERROR`
+**Java:** `JsDocInfoParser.java` (warning paths in
+`parseTypeExpressionAnnotation`), `TypeRegistry.java` (NamedType
+late-resolve diagnostic).
+**Files:** `internal/jscomp/parsing/jsdocinfoparser.go` (need
+position-tracked warnings), `internal/rhino/jstype_expr.go`,
+`internal/jscomp/scope.go` (resolve-time error emission).
+**Audit gaps closed:** position-tracked errors inside JSDoc comments;
+NamedType (forward-reference unresolved nominal).
+**Triage buckets unblocked:** 25 `[UNRECOGNIZED_TYPE_ERROR]` +
+5 `[TYPE_PARSE_ERROR]`.
+**Effort:** 4–5 days. **Impact:** **+25 to +30 fixtures**.
 
-Current stand-in binds `@template T` names to `Unknown` so we don't
-false-positive. A real port:
+### P1-D — Function arity + overload checks
+**Java:** `TypeCheck.java`'s `JSC_WRONG_ARGUMENT_COUNT`, `JSC_NOT_A_CONSTRUCTOR`,
+optional/rest/default-value `@param` modifiers in
+`JsDocInfoParser.java`.
+**Files:** `internal/jscomp/typecheck.go`,
+`internal/rhino/jstype/function_type.go` (optional / rest / minArity),
+`internal/jscomp/parsing/jsdocinfoparser.go`.
+**Triage buckets unblocked:** 7 `[WRONG_ARGUMENT_COUNT]` +
+7 `[NOT_A_CONSTRUCTOR]`.
+**Effort:** 3–4 days. **Impact:** **+12 to +15 fixtures**.
 
-- `TemplateType` in `jstype` (port of
-  `com/google/javascript/rhino/jstype/TemplateType.java`).
-- `TemplateTypeMap` (substitutions).
-- Unification at CALL / NEW sites:
-  `visitCall` infers arg types, unifies against param `TemplateType`s,
-  builds a substitution, applies to `@return`.
-- `JSTypeResolver.resolveTemplates` port.
+### P1-E — `JSC_DUP_VAR_DECLARATION_TYPE_MISMATCH`
+**Java:** `TypeCheck.java`'s `checkDuplicateVarDeclaration`.
+**Files:** `internal/jscomp/varrefcheck.go` (extend with type-mismatch
+arm) or new pass.
+**Triage buckets unblocked:** 8 `[DUP_VAR_DECLARATION_TYPE_MISMATCH]` +
+6 `[DUP_VAR_DECLARATION_TYPE_MISMATCH][UNDEFINED_VARIABLE]`.
+**Effort:** 1 day. **Impact:** **+10 fixtures**.
 
-### [P0-5] Dataflow narrowing (real port of `TypeInference.java`'s control flow)
-**Impact:** ~80–120 fixtures (many currently-suppressed
-"found is union" cases). **Effort:** 2 weeks.
+### P2-A — `CheckAccessControls` (`@private` / `@protected`)
+**Java:** `AccessControls.java` (full), `JSDocInfoParser.java` (visibility
+tags), `TypeCheck.java`'s `@struct`/`@dict` branches.
+**Files:** new `internal/jscomp/accesscontrols.go`,
+`internal/rhino/jstype/object_type.go` (visibility bits),
+`internal/jscomp/parsing/jsdocinfoparser.go`.
+**Triage buckets unblocked:** 7 `[ILLEGAL_PROPERTY_ACCESS]`.
+**Effort:** 1 week. **Impact:** **+8 to +12 fixtures**.
 
-The big one. Java's `TypeInference` is a proper forward dataflow
-analysis over the CFG, with `FlowScope` + `JoinOp`. Needed for:
+### P2-B — `JSC_INTERFACE_METHOD_NOT_IMPLEMENTED`
+**Java:** `TypeCheck.java`'s `validateImplements` loop.
+**Files:** `internal/jscomp/superclasscheck.go` (extend), or new
+`internal/jscomp/checkimplements.go`.
+**Triage buckets unblocked:** 5 `[INTERFACE_METHOD_NOT_IMPLEMENTED]` +
+the rest of the 9 `[HIDDEN_SUPERCLASS_PROPERTY_MISMATCH]` we still
+miss (class-style fixtures).
+**Effort:** 3 days. **Impact:** **+8 to +12 fixtures**.
 
-- `if (x === null) { … }` narrowing `x` to non-null in the else branch.
-- `typeof x === 'number'` narrowing.
-- `instanceof Foo` narrowing.
-- `if (!x)` narrowing unions.
-- `JSC_MISSING_RETURN_STATEMENT` (exit-CFG reachability).
-- `JSC_POSSIBLE_INEXISTENT_PROPERTY`.
+### P2-C — Real externs loader (`DefaultExterns.js` superset)
+**Java:** `Compiler.java`'s extern bundle wiring,
+`com.google.javascript.jscomp.resources.DefaultExterns.js`.
+**Files:** `internal/jscomp/default_externs.go` (extend embedded
+source), or load from `testdata/externs/`.
+**Audit gaps closed:** `goog.*`, `Window.*`, `HTMLElement.*` deeply,
+typed-array prototype methods, `String.prototype.*` complete signatures.
+**Triage buckets unblocked:** 6 `[UNDEFINED_VARIABLE]` (`goog`, etc.) +
+indirectly improves the false-positive rate on TYPE_MISMATCH.
+**Effort:** 1 week (mostly content). **Impact:** **+10 to +20 fixtures**.
 
-Requires a control-flow-graph port (`ControlFlowGraph.java`,
-`ControlFlowAnalysis.java`, `DataFlowAnalysis.java`). Biggest single
-architectural piece still missing.
+### P2-D — `JSC_DETERMINISTIC_TEST`
+**Java:** `CheckDeterministicTest.java`.
+**Files:** new `internal/jscomp/checkdeterministictest.go`.
+**Triage buckets unblocked:** 8 `[DETERMINISTIC_TEST]` +
+7 `[DETERMINISTIC_TEST,USELESS_CODE]`.
+**Effort:** 3 days. **Impact:** **+15 fixtures**.
 
----
+### P2-E — `JSC_NON_STRINGIFIABLE_OBJECT_KEY`
+**Java:** `TypeCheck.java`'s `validateNonStringifiableKey` branch.
+**Files:** `internal/jscomp/typecheck.go` (visit GETELEM /
+COMPUTED_PROP).
+**Triage buckets unblocked:** 14 `[NON_STRINGIFIABLE_OBJECT_KEY]`.
+**Effort:** 2–3 days (gated on GETELEM parser support — P1-B).
+**Impact:** **+14 fixtures**.
 
-## P1: structural ports that enable checks
+### P3 — Lower-leverage / out-of-scope items
 
-### [P1-1] Real `Parser.java` token stream
-**Impact:** ~50 fixtures (parse-error + constructs we skip).
-**Effort:** 1–2 weeks.
-
-jsgo's parser is char-level; Java's is token-driven. Missing JS
-constructs:
-
-- Destructuring: `var {a, b} = obj`, `var [x, y] = arr`.
-- Rest/spread: `f(...args)`, `function f(...args) {}`.
-- Object literals at the expression level (only in `@type {…}` today).
-- Template literals (`` `hello ${x}` ``).
-- Regex literals `/.../flags`.
-- `for`/`for-in`/`for-of`/`while`/`do`/`switch`/`try`/`throw`.
-- `async`/`await`, generators.
-- Optional chaining `a?.b`.
-- Nullish coalescing already parses.
-- ES modules (`import`/`export`).
-
-Ports: `parser/TokenType.java`, `parser/Token.java`,
-`parser/Scanner.java` (full), `parser/Parser.java` (full).
-
-### [P1-2] Expression-statement side-effect check (`JSC_USELESS_CODE`)
-**Impact:** ~57 fixtures. **Effort:** 3 days.
-
-Port of `CheckSideEffects.java`. Detects expression statements with
-no observable effect (`a + b;`, `x.y;`, `foo ? bar : baz;` in
-statement position). Requires side-effect classification on CALL
-(which needs an @nosideeffects scan).
-
-### [P1-3] Nominal `@implements` check
-**Impact:** ~15 fixtures (`JSC_INTERFACE_METHOD_NOT_IMPLEMENTED` +
-subset of `JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH`).
-**Effort:** 2 days.
-
-When a class carries `@implements {I}`, walk I's structural member
-set and verify the class has each member with a matching type. Ports
-the interface-verification part of `TypeCheck.java:visitClass`.
-
-### [P1-4] `@constructor` subclass property-mismatch check
-**Impact:** ~16 fixtures (`JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH`).
-**Effort:** 2 days.
-
-When a subclass overrides a property inherited via `@extends`, check
-the new type is a subtype of the inherited one. Ports the corresponding
-branch of `TypeCheck.java:visitClass`.
-
-### [P1-5] Property-access permission (`JSC_ILLEGAL_PROPERTY_ACCESS` + `ILLEGAL_PROPERTY_CREATION`)
-**Impact:** ~17 fixtures. **Effort:** 3 days.
-
-Ports `AccessControls.java` + the `@struct`/`@dict` / `@private` /
-`@protected` check branches in `TypeCheck.java`.
-
-### [P1-6] Function arity check (`JSC_WRONG_ARGUMENT_COUNT`)
-**Impact:** ~7 fixtures. **Effort:** 1 day.
-
-Requires parsing `@param` modifiers (`{=T}` optional, `{...T}` rest,
-`{T=}` default) and comparing against the call-site arg count. Today
-jsgo skips the arity check entirely to avoid false positives when a
-param is optional.
-
-### [P1-7] `@record` duck-typing over externs + inline records
-**Impact:** ~10–20 fixtures. **Effort:** 3 days.
-
-Currently we only match structural types against other named object
-types. Extend to include: (a) anonymous object literal values, (b)
-`Object` externs with extra ad-hoc properties. Requires literal-type
-inference (P0-1) + extern population (P2-1).
-
----
-
-## P2: infrastructure + correctness
-
-### [P2-1] Real externs loader
-**Impact:** ~40–80 fixtures (tests that assume `document.*`,
-`window.*`, `Array.prototype.*` beyond our tiny stub).
-**Effort:** 1 week.
-
-Closure ships `DefaultExterns.js` + lots of additional extern files.
-A real port:
-
-- Wire `tools/extract_fixtures` to ALSO support `addExterns` tests
-  (currently skipped — 270 tests).
-- A `Compiler.compile` variant that accepts both externs and source.
-- Extern type resolution: walk `@constructor` / `@interface` /
-  prototype assignments in externs the same way we do in source.
-- A minimal `Object.prototype` / `Array.prototype` / `String.prototype`
-  built-in wired into the global scope.
-
-### [P2-2] `ScopedCallback` + `enterScope` / `exitScope`
-**Impact:** small. **Effort:** 2 days.
-
-Port of the `ScopedCallback` sub-interface on `NodeTraversal`.
-Enables cleaner scope handling in checkers that care (not strictly
-blocking P0s but prerequisite for a cleaner scope-creator port).
-
-### [P2-3] Inner `ScopeBuilder` classes in `TypedScopeCreator`
-**Impact:** small. **Effort:** 1 week.
-
-Java uses `AbstractScopeBuilder` / `FunctionScopeBuilder` /
-`ClassScopeBuilder` inner classes that walk the tree via
-`ScopedCallback`. jsgo collapses them into free methods on
-`TypedScopeCreator`. Porting the inner-builder structure makes
-closure-captured and per-block hoisting semantics easier to match.
-
-### [P2-4] `Compiler.java` pass pipeline
-**Impact:** 0 directly; unlocks multi-pass work.
-**Effort:** 3 days.
-
-Current `internal/jscomp/compiler.go` is a 30-line glue. A real
-`Compiler` port gives us:
-
-- `PhaseOptimizer` — pass registry + ordering.
-- `CompilerInput` / `SourceFile` — so we can load multiple files and
-  real externs.
-- `Result` — a structured compilation report.
-- `CompilerOptions` — parameterise checker behaviour.
-
-### [P2-5] `Msg.java` + `DiagnosticType` registry
-**Impact:** small. **Effort:** 2 days.
-
-Replace the flat `const` diagnostic codes in `diag/diag.go` with a
-registry that mirrors Java's `DiagnosticType.create(id, msgTemplate,
-defaultLevel)`. Required for honouring `--jscomp_warning=<group>`
-flags and lets us emit diagnostic messages that are
-byte-for-byte identical to Java's.
-
-### [P2-6] Intrusive linked-list children in `Node`
-**Impact:** 0 (cosmetic). **Effort:** 2 days.
-
-Replace the slice-backed `Node.children` with a `first` / `child.next`
-intrusive list to match `Node.java` exactly. Zero behavioural impact;
-matters for faithful port only.
+* `JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES` — 32 fixtures, **skip**:
+  Java itself flags this as still-in-development.
+* `with`-statement modeling — rare; deferred.
+* Generator / async suspend CFG edges — rare in checker corpus.
+* SymbolTable / module graph — needs multi-file support first.
+* PhaseOptimizer + CompilerOptions / Result — architectural debt;
+  no direct fixture impact.
+* Source-position tracking inside JSDoc type expressions — needed by
+  P1-C; would also benefit suggestion-style diagnostics.
 
 ---
 
-## P3: lower-priority or out-of-scope buckets
+## Putting it together — fastest path to 80 %
 
-### [P3-1] `JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES`
-**Impact:** 38 fixtures. **Effort:** N/A.
+| # | Item | Effort | Cumulative impact |
+|---|------|--------|-------------------|
+| 1 | P0-A expression inference completeness | 1–2 w | +80 to +120 |
+| 2 | P0-A2 `@nosideeffects` + sub-expr useless | 2–3 d | +100 to +150 |
+| 3 | P0-A3 `@enum` | 4–5 d | +125 to +190 |
+| 4 | P0-A4 multi-`@extends` interface diamond | 1 d | +134 to +199 |
+| 5 | P0-A5 `JSC_INEXISTENT_PROPERTY` broadening | 3–5 d | +144 to +217 |
+| 6 | P0-A6 TYPE_MISMATCH FP reduction | 4–5 d | +159 to +242 |
+| 7 | P1-C `JSC_UNRECOGNIZED_TYPE_ERROR` | 4–5 d | +184 to +272 |
+| 8 | P1-D arity / not-a-constructor | 3–4 d | +196 to +287 |
+| 9 | P1-E `DUP_VAR_DECLARATION_TYPE_MISMATCH` | 1 d | +206 to +297 |
+| 10 | P1-B parser breadth (cast / GETELEM / template) | 2–3 w | +246 to +357 |
+| 11 | P2-E `NON_STRINGIFIABLE_OBJECT_KEY` (after P1-B) | 2–3 d | +260 to +371 |
+| 12 | P2-D `DETERMINISTIC_TEST` | 3 d | +275 to +386 |
+| 13 | P2-C real externs loader | 1 w | +285 to +406 |
+| 14 | P2-B `INTERFACE_METHOD_NOT_IMPLEMENTED` | 3 d | +293 to +418 |
+| 15 | P2-A `CheckAccessControls` | 1 w | +301 to +430 |
 
-Java itself says "currently still in development". Skip — matches
-Java's own TODO.
+Doing items 1–9 puts us at roughly **920–1020 / 1444 ≈ 64–71 %**.
+Items 10–15 push past 80 %, with item 10 (full parser breadth) being
+the single largest individual lift.
 
-### [P3-2] `JSC_NON_STRINGIFIABLE_OBJECT_KEY`
-**Impact:** 15 fixtures. **Effort:** 2 days.
-
-Specific to computed-property access on maps. Narrow.
-
-### [P3-3] `JSC_DETERMINISTIC_TEST`
-**Impact:** 9 fixtures. **Effort:** 3 days.
-
-Dataflow-dependent lint — probably falls out once P0-5 lands.
-
-### [P3-4] `JSC_USED_GLOBAL_THIS`
-**Impact:** 5 fixtures. **Effort:** 1 day.
-
-Scoped `this` lint; narrow.
-
-### [P3-5] `JSC_TYPE_PARSE_ERROR` / `JSC_UNRECOGNIZED_TYPE_ERROR`
-**Impact:** ~33 fixtures. **Effort:** 3 days.
-
-Need error reporting on bad `@type` / `@param` annotations — port of
-`JsDocInfoParser.java`'s warning paths (we currently silently drop
-bad type expressions).
-
----
-
-## Putting it together
-
-Estimated fastest path to 80%+:
-
-1. P0-1 (expression inference) → +120–180 fixtures
-2. P0-2 + P0-3 (undefined / duplicate-decl) → +79
-3. P1-2 (`JSC_USELESS_CODE`) → +57
-4. P0-4 (@template) → +30–60
-5. P1-4 (superclass property mismatch) → +16
-6. P0-5 (dataflow narrowing) → +80–120
-
-Cumulative: ~380–510 fixtures added → ~75%–85%. The dataflow port
-(P0-5) is the single biggest lift and the last piece needed to
-reliably clear 80%.
+The remaining ~80–100 fixtures past that point need destructuring,
+async/await, modules, and the longer-tail JSDoc tags — multi-week
+ports each.

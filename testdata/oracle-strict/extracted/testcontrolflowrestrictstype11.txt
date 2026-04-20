@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testcontrolflowrestrictstype11.js:4:6: ERROR - [JSC_DETERMINISTIC_TEST] condition always evaluates to false
+left : null
+right: null
+  4|   if (y != null) {
+           ^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

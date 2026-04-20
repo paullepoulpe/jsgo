@@ -55,39 +55,64 @@ func (c *CheckSideEffects) walk(n *rhino.Node) {
 }
 
 // reportUseless fires JSC_USELESS_CODE at `expr`'s position when the
-// expression is pure. When the expression is a short-circuit
-// operator with an impure LHS but pure RHS, Java emits TWO
-// diagnostics: the outer expression-statement and the pure RHS
-// sub-expression. We mirror that by recursing.
+// expression is pure. Mirrors the double-dispatch in Java's
+// CheckSideEffects — when the outer form is a short-circuit
+// operator or HOOK, the pure sub-expressions are ALSO reported
+// individually, in addition to the whole-statement diagnostic when
+// the outer form is fully pure.
 func (c *CheckSideEffects) reportUseless(stmt, expr *rhino.Node, top bool) {
-	if hasSideEffects(expr) {
-		// Even when the whole thing has side effects, a short-
-		// circuit operator's pure RHS is still a useless sub-
-		// expression that Java reports separately.
+	pure := !hasSideEffects(expr)
+	// Per-operator "result not used" diagnostics fire even when the
+	// operand has side effects — the operator itself is dropped.
+	// Java emits at specific positions for each operator kind.
+	if top {
 		switch expr.Token() {
-		case rhino.AND, rhino.OR, rhino.COALESCE:
+		case rhino.IN:
+			c.emitOpAt(stmt, "in")
+			return
+		case rhino.NOT:
+			c.emitOpAt(expr, "not")
+			return
+		case rhino.GETELEM:
+			c.emitOpAt(stmt, "getelem")
+			if pure {
+				return
+			}
+			// fall through to recursion for ternary/and/or branches
+		}
+	}
+	if pure {
+		if expr.Token() == rhino.GETPROP {
 			kids := expr.Children()
-			if len(kids) == 2 && !hasSideEffects(kids[1]) {
+			if len(kids) >= 2 {
+				c.emitOpAt(kids[1], "getprop")
+			} else {
+				c.emitAt(expr)
+			}
+		} else {
+			c.emitAt(expr)
+		}
+	}
+	_ = stmt
+	// Recurse into short-circuit / ternary branches so Java's
+	// per-branch pure-RHS warnings still fire even when the outer
+	// statement was already flagged.
+	switch expr.Token() {
+	case rhino.AND, rhino.OR, rhino.COALESCE:
+		kids := expr.Children()
+		if len(kids) == 2 && !hasSideEffects(kids[1]) {
+			c.emitAt(kids[1])
+		}
+	case rhino.HOOK:
+		kids := expr.Children()
+		if len(kids) == 3 {
+			if !hasSideEffects(kids[1]) {
 				c.emitAt(kids[1])
 			}
-		case rhino.HOOK:
-			kids := expr.Children()
-			if len(kids) == 3 {
-				// Java flags either branch if it's pure.
-				if !hasSideEffects(kids[1]) {
-					c.emitAt(kids[1])
-				}
-				if !hasSideEffects(kids[2]) {
-					c.emitAt(kids[2])
-				}
+			if !hasSideEffects(kids[2]) {
+				c.emitAt(kids[2])
 			}
 		}
-		return
-	}
-	if top {
-		c.emitAt(stmt)
-	} else {
-		c.emitAt(expr)
 	}
 }
 
@@ -99,6 +124,20 @@ func (c *CheckSideEffects) emitAt(n *rhino.Node) {
 		Code:    diag.JSC_USELESS_CODE,
 		Level:   diag.Warning,
 		Message: "Suspicious code. This code lacks side-effects. Is there a bug?",
+	})
+}
+
+// emitOpAt emits the operator-specific "The result of the 'foo'
+// operator is not being used." variant that Java uses for
+// getprop / in / not / getelem top-level expressions.
+func (c *CheckSideEffects) emitOpAt(n *rhino.Node, op string) {
+	c.diags = append(c.diags, diag.Diagnostic{
+		Path:    c.path,
+		Line:    n.Lineno(),
+		Col:     n.Charno(),
+		Code:    diag.JSC_USELESS_CODE,
+		Level:   diag.Warning,
+		Message: "Suspicious code. The result of the '" + op + "' operator is not being used.",
 	})
 }
 
@@ -125,9 +164,14 @@ func isDeclarationStatement(stmt *rhino.Node) bool {
 	// `/** @param {T} x */ obj.prop;` / `/** @return {T} */
 	// obj.prop;` declare the callable signature of a prototype
 	// slot without an explicit value. Java's CheckSideEffects
-	// treats these as declarations too.
+	// treats these as declarations too — but only when the inner
+	// expression is a property access. A top-level FUNCTION /
+	// paren-wrapped FUNCTION with the same JSDoc is still a
+	// useless-expression statement (the function is never called).
 	if info.ReturnType() != nil || len(info.ParameterNames()) > 0 {
-		return true
+		if inner := stmt.FirstChild(); inner != nil && inner.Token() == rhino.GETPROP {
+			return true
+		}
 	}
 	return false
 }

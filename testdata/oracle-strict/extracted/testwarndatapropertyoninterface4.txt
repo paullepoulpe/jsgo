@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testwarndatapropertyoninterface4.js:2:23: ERROR - [JSC_INVALID_INTERFACE_MEMBER_DECLARATION] interface members can only be empty property declarations, empty functions, or goog.abstractMethod
+  2| /** @type {number} */T.prototype.x = 1;
+                            ^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

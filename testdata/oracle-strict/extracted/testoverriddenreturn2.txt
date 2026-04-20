@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testoverriddenreturn2.js:7:16: ERROR - [JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH] mismatch of the bar property type and the type of the property it overrides from superclass Foo
+original: function(this:Foo): (SubFoo|null)
+override: function(this:SubFoo): (Foo|null)
+  7|  * @override */ SubFoo.prototype.bar =
+                     ^^^^^^^^^^^^^^^^^^^^^^
+  8|     function() { return new SubFoo(); }
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

@@ -10,12 +10,19 @@ type JSDocInfo struct {
 	typeExpr      *JSTypeExpression
 	paramNames    []string                     // insertion order (matches Java)
 	params        map[string]*JSTypeExpression // name → type
+	restParams    map[string]bool              // param names with `{...T}` rest marker
+	optionalParams map[string]bool             // param names with `{T=}` optional marker
 	returnExpr    *JSTypeExpression
 	isConstructor bool
 	isInterface   bool
 	isRecord      bool
 	isStatic      bool
+	isStruct      bool
+	isDict        bool
+	enumExpr      *JSTypeExpression // non-nil when @enum was present
+	enumMarked    bool              // true when @enum appeared (even with no type)
 	extendsExpr   *JSTypeExpression
+	extendsAll    []*JSTypeExpression // every @extends encountered (interfaces can list many)
 	implementsAll []*JSTypeExpression
 	typedefExpr   *JSTypeExpression
 	templateNames []string
@@ -74,6 +81,38 @@ func (i *JSDocInfo) IsRecord() bool      { return i != nil && i.isRecord }
 func (i *JSDocInfo) SetInterface(b bool) { i.isInterface = b }
 func (i *JSDocInfo) SetRecord(b bool)    { i.isRecord = b }
 
+// IsStruct / IsDict mirror JSDocInfo.makesStructs() / makesDicts() —
+// annotations on a constructor that restrict property-access shape.
+// `@struct` forbids `x['prop']` computed access; `@dict` forbids
+// `x.prop` dotted access. Propagated onto the resulting InstanceType
+// by TypedScopeCreator so TypeCheck can emit
+// JSC_ILLEGAL_PROPERTY_ACCESS at receiver sites.
+func (i *JSDocInfo) IsStruct() bool   { return i != nil && i.isStruct }
+func (i *JSDocInfo) IsDict() bool     { return i != nil && i.isDict }
+func (i *JSDocInfo) SetStruct(b bool) { i.isStruct = b }
+func (i *JSDocInfo) SetDict(b bool)   { i.isDict = b }
+
+// IsEnum mirrors JSDocInfo.hasEnumParameterType() — true whenever
+// the comment carried an `@enum` tag (with or without an explicit
+// type argument).
+func (i *JSDocInfo) IsEnum() bool { return i != nil && i.enumMarked }
+
+// EnumParameterType mirrors JSDocInfo.getEnumParameterType() —
+// returns the bracketed type argument from `@enum {T}`, or nil when
+// `@enum` was used without one (Java defaults to Number in that
+// case; jsgo matches by materialising Number in the scope creator).
+func (i *JSDocInfo) EnumParameterType() *JSTypeExpression {
+	if i == nil {
+		return nil
+	}
+	return i.enumExpr
+}
+func (i *JSDocInfo) SetEnumParameterType(t *JSTypeExpression) {
+	i.enumExpr = t
+	i.enumMarked = true
+}
+func (i *JSDocInfo) MarkEnum() { i.enumMarked = true }
+
 // Implementations mirrors JSDocInfo.getImplementedInterfaces().
 func (i *JSDocInfo) Implementations() []*JSTypeExpression {
 	if i == nil {
@@ -87,6 +126,9 @@ func (i *JSDocInfo) AddImplementation(t *JSTypeExpression) {
 
 // BaseType mirrors JSDocInfo.getBaseType() — the type expression
 // captured from `@extends {Name}` on a constructor or interface.
+// Returns the FIRST extends tag when the comment has multiple (an
+// interface extending multiple supers); callers that need every
+// parent use BaseTypes.
 func (i *JSDocInfo) BaseType() *JSTypeExpression {
 	if i == nil {
 		return nil
@@ -94,7 +136,23 @@ func (i *JSDocInfo) BaseType() *JSTypeExpression {
 	return i.extendsExpr
 }
 
-func (i *JSDocInfo) SetBaseType(t *JSTypeExpression) { i.extendsExpr = t }
+// BaseTypes returns every @extends expression on the comment, in
+// declaration order. Interfaces permit multi-inheritance so this
+// may carry more than one entry; regular constructors carry at
+// most one.
+func (i *JSDocInfo) BaseTypes() []*JSTypeExpression {
+	if i == nil {
+		return nil
+	}
+	return i.extendsAll
+}
+
+func (i *JSDocInfo) SetBaseType(t *JSTypeExpression) {
+	if i.extendsExpr == nil {
+		i.extendsExpr = t
+	}
+	i.extendsAll = append(i.extendsAll, t)
+}
 
 // IsConstructor mirrors JSDocInfo.isConstructor().
 func (i *JSDocInfo) IsConstructor() bool { return i != nil && i.isConstructor }
@@ -130,6 +188,39 @@ func (i *JSDocInfo) AddParam(name string, t *JSTypeExpression) {
 		i.paramNames = append(i.paramNames, name)
 	}
 	i.params[name] = t
+}
+
+// IsRestParam reports whether the named @param carried the rest
+// marker (`@param {...T} x`). Mirrors JSDocInfo.hasRestParameter()
+// + isRestParameter(name) in Java.
+func (i *JSDocInfo) IsRestParam(name string) bool {
+	return i != nil && i.restParams[name]
+}
+
+// MarkRestParam records that the named @param carries the `{...T}`
+// rest marker. Called from JsDocInfoParser when the annotation
+// has IterRest at the top of the brace.
+func (i *JSDocInfo) MarkRestParam(name string) {
+	if i.restParams == nil {
+		i.restParams = map[string]bool{}
+	}
+	i.restParams[name] = true
+}
+
+// IsOptionalParam reports whether the named @param carried the
+// `{T=}` optional marker — callers may omit this argument without
+// a WRONG_ARGUMENT_COUNT diagnostic. Mirrors
+// JSDocInfo.isOptionalParameter(name) in Java.
+func (i *JSDocInfo) IsOptionalParam(name string) bool {
+	return i != nil && i.optionalParams[name]
+}
+
+// MarkOptionalParam records that the named @param carries `{T=}`.
+func (i *JSDocInfo) MarkOptionalParam(name string) {
+	if i.optionalParams == nil {
+		i.optionalParams = map[string]bool{}
+	}
+	i.optionalParams[name] = true
 }
 
 // ReturnType matches JSDocInfo.getReturnType().
