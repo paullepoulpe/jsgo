@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/JSDocInfo.java @ closure-compiler v20260415
+// Port of com/google/javascript/rhino/JSDocInfo.java @ closure-compiler v20260415 (subset)
 //
 // The Java class is large; this port carries the annotations Tier-0 and
 // Tier-1 need: @type, @param, @return. Further tags are added as later
@@ -15,7 +15,9 @@ type JSDocInfo struct {
 	isInterface   bool
 	isRecord      bool
 	isStatic      bool
+	isAbstract    bool
 	extendsExpr   *JSTypeExpression
+	extendsAll    []*JSTypeExpression
 	implementsAll []*JSTypeExpression
 	typedefExpr   *JSTypeExpression
 	templateNames []string
@@ -94,7 +96,29 @@ func (i *JSDocInfo) BaseType() *JSTypeExpression {
 	return i.extendsExpr
 }
 
-func (i *JSDocInfo) SetBaseType(t *JSTypeExpression) { i.extendsExpr = t }
+func (i *JSDocInfo) SetBaseType(t *JSTypeExpression) {
+	i.extendsExpr = t
+	i.extendsAll = append(i.extendsAll, t)
+}
+
+// ExtendedInterfaces mirrors JSDocInfo.getExtendedInterfaces() — the
+// full list of type expressions captured from `@extends {Name}` tags.
+// Interfaces in Closure may carry multiple `@extends` annotations
+// (multiple-inheritance for method-slot merging); BaseType() returns
+// only the last. Constructors never have more than one valid
+// `@extends`; callers keep using BaseType for that case.
+func (i *JSDocInfo) ExtendedInterfaces() []*JSTypeExpression {
+	if i == nil {
+		return nil
+	}
+	return i.extendsAll
+}
+
+// IsAbstract mirrors JSDocInfo.isAbstract() — set when the comment
+// carried `@abstract`. A class marked abstract may omit
+// interface-method implementations.
+func (i *JSDocInfo) IsAbstract() bool      { return i != nil && i.isAbstract }
+func (i *JSDocInfo) SetAbstract(b bool)    { i.isAbstract = b }
 
 // IsConstructor mirrors JSDocInfo.isConstructor().
 func (i *JSDocInfo) IsConstructor() bool { return i != nil && i.isConstructor }

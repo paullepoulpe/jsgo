@@ -151,6 +151,13 @@ func (o *ObjectType) HasProperty(name string) bool {
 // still empty.
 func (o *ObjectType) MemberCount() int { return len(o.members) }
 
+// OwnMembers returns the directly-declared member map (name → type),
+// excluding anything inherited via the super chain. Mirrors
+// ObjectType.getOwnPropertyNames iterated with getOwnPropertyType.
+// The returned map aliases the internal slot — callers must treat it
+// as read-only.
+func (o *ObjectType) OwnMembers() map[string]JSType { return o.members }
+
 // SetSuper wires the @extends chain. Called by TypedScopeCreator when
 // it processes `@extends {Base}` on a constructor.
 func (o *ObjectType) SetSuper(s *ObjectType) { o.super = s }
