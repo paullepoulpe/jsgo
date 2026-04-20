@@ -322,7 +322,12 @@ func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 		}
 		// @typedef aliases take priority over nominal constructors
 		// and primitives (matches Java's StaticSourceFile resolution).
+		// \`!Foo\` strips nullable members from the resolved alias so
+		// \`!?number\` → number.
 		if alias := s.LookupTypeAlias(p); alias != nil {
+			if explicitNonNull {
+				alias = stripNullUndef(alias)
+			}
 			members = append(members, alias)
 			continue
 		}
