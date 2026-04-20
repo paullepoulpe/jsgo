@@ -366,12 +366,16 @@ func (p *Parser) finishFunction(jsdoc *rhino.JSDocInfo) (*rhino.Node, bool) {
 	params := rhino.New(rhino.PARAM_LIST)
 	for {
 		p.scanner.SkipTrivia()
-		// Inline JSDoc on parameters: `function f(/** T */ x)` — ignore
-		// the type hint and keep scanning. Java's Parser does the same
-		// via a ParamToken path that attaches the comment to the param
-		// node; we drop it for now since the parameter's type flows
-		// through the function's outer @param JSDoc anyway.
-		if _, ok := p.scanner.ConsumeBlockComment(); ok {
+		// Inline JSDoc on parameters: `function f(/** T */ x)` — parse
+		// the brace body as an @type annotation and attach to the
+		// resulting param NAME node. Matches Java's Parser which stores
+		// the inline type on the param's JSDocInfo so the scope builder
+		// can pick it up even without an outer @param.
+		var inlineInfo *rhino.JSDocInfo
+		if body, ok := p.scanner.ConsumeBlockComment(); ok {
+			if parsed := parseInlineTypeJSDoc(body); parsed != nil {
+				inlineInfo = parsed
+			}
 			p.scanner.SkipTrivia()
 		}
 		if p.scanner.AtEnd() {
@@ -389,6 +393,9 @@ func (p *Parser) finishFunction(jsdoc *rhino.JSDocInfo) (*rhino.Node, bool) {
 		}
 		pNode := rhino.NewString(rhino.NAME, pname)
 		pNode.SetPos(pLine, pCol)
+		if inlineInfo != nil {
+			pNode.SetJSDocInfo(inlineInfo)
+		}
 		params.AddChildToBack(pNode)
 		p.scanner.SkipTrivia()
 		if p.scanner.ConsumeByte(',') {

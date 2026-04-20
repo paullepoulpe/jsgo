@@ -695,12 +695,7 @@ func (c *TypedScopeCreator) buildExpressionFunctionScope(fn *rhino.Node, parent 
 	// call-sites type-check.
 	var paramTypes []jstype.JSType
 	for _, p := range params.Children() {
-		var t jstype.JSType = jstype.Unknown
-		if info != nil {
-			if expr := info.ParameterType(p.String_()); expr != nil {
-				t = parent.ResolveExpr(expr.TypeName)
-			}
-		}
+		t := resolveParamType(info, p, parent)
 		paramTypes = append(paramTypes, t)
 		local.declared[p.String_()] = t
 	}
@@ -938,13 +933,7 @@ func (c *TypedScopeCreator) recordPrototypeAssign(a *rhino.Node, scope *TypedSco
 		params := rhs.Children()
 		if len(params) >= 2 {
 			for _, p := range params[1].Children() {
-				var t jstype.JSType = jstype.Unknown
-				if info != nil {
-					if expr := info.ParameterType(p.String_()); expr != nil {
-						t = scope.ResolveExpr(expr.TypeName)
-					}
-				}
-				ptypes = append(ptypes, t)
+				ptypes = append(ptypes, resolveParamType(info, p, scope))
 			}
 		}
 		c.Functions[rhs] = c.buildMethodScope(rhs, fn.Instance, scope, ptypes)
@@ -1038,13 +1027,7 @@ func (c *TypedScopeCreator) recordNamespaceAssignFromFunction(a *rhino.Node, sco
 	}
 	var paramTypes []jstype.JSType
 	for _, p := range params[1].Children() {
-		var t jstype.JSType = jstype.Unknown
-		if info != nil {
-			if pexpr := info.ParameterType(p.String_()); pexpr != nil {
-				t = scope.ResolveExpr(pexpr.TypeName)
-			}
-		}
-		paramTypes = append(paramTypes, t)
+		paramTypes = append(paramTypes, resolveParamType(info, p, scope))
 	}
 	var retType jstype.JSType = jstype.Void
 	if info != nil {
@@ -1172,13 +1155,7 @@ func (c *TypedScopeCreator) inferPrototypeValueType(info *rhino.JSDocInfo, rhs *
 		params := kids[1]
 		var paramTypes []jstype.JSType
 		for _, p := range params.Children() {
-			var t jstype.JSType = jstype.Unknown
-			if info != nil {
-				if expr := info.ParameterType(p.String_()); expr != nil {
-					t = scope.ResolveExpr(expr.TypeName)
-				}
-			}
-			paramTypes = append(paramTypes, t)
+			paramTypes = append(paramTypes, resolveParamType(info, p, scope))
 		}
 		var ret jstype.JSType = jstype.Unknown
 		if info != nil && info.ReturnType() != nil {
@@ -1306,13 +1283,7 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 	if ctor != nil {
 		ctorInfo := ctor.JSDocInfo()
 		for _, p := range ctor.Children()[1].Children() {
-			var t jstype.JSType = jstype.Unknown
-			if ctorInfo != nil {
-				if expr := ctorInfo.ParameterType(p.String_()); expr != nil {
-					t = scope.ResolveExpr(expr.TypeName)
-				}
-			}
-			ctorParams = append(ctorParams, t)
+			ctorParams = append(ctorParams, resolveParamType(ctorInfo, p, scope))
 		}
 	}
 	preStub.Params = ctorParams
@@ -1354,13 +1325,7 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 			params := m.Children()[1]
 			var paramTypes []jstype.JSType
 			for _, p := range params.Children() {
-				var t jstype.JSType = jstype.Unknown
-				if info != nil {
-					if expr := info.ParameterType(p.String_()); expr != nil {
-						t = scope.ResolveExpr(expr.TypeName)
-					}
-				}
-				paramTypes = append(paramTypes, t)
+				paramTypes = append(paramTypes, resolveParamType(info, p, scope))
 			}
 			var ret jstype.JSType = jstype.Unknown
 			if info != nil && info.ReturnType() != nil {
@@ -1417,13 +1382,7 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 		var ptypes []jstype.JSType
 		info := m.JSDocInfo()
 		for _, p := range params.Children() {
-			var t jstype.JSType = jstype.Unknown
-			if info != nil {
-				if expr := info.ParameterType(p.String_()); expr != nil {
-					t = scope.ResolveExpr(expr.TypeName)
-				}
-			}
-			ptypes = append(ptypes, t)
+			ptypes = append(ptypes, resolveParamType(info, p, scope))
 		}
 		c.Functions[m] = c.buildMethodScope(m, inst, scope, ptypes)
 	}
@@ -1701,6 +1660,25 @@ func setArityFromParamNames(fn *jstype.FunctionType, params *rhino.Node) {
 // setArityFromParams is the doc-aware variant of
 // setArityFromParamNames; callers pass the owning @param-bearing
 // JSDocInfo so the `{...T}` rest marker can widen MaxArity.
+// resolveParamType returns the declared type for a FUNCTION's
+// parameter node, honoring (in order):
+//  1. Inline JSDoc on the param itself: `function f(/** T */ x)`.
+//  2. Outer function @param {T} x JSDoc on `info`.
+//  3. Unknown (unannotated).
+func resolveParamType(info *rhino.JSDocInfo, p *rhino.Node, scope *TypedScope) jstype.JSType {
+	if p != nil {
+		if pj := p.JSDocInfo(); pj != nil && pj.HasType() {
+			return scope.ResolveExpr(pj.Type().TypeName)
+		}
+	}
+	if info != nil {
+		if expr := info.ParameterType(p.String_()); expr != nil {
+			return scope.ResolveExpr(expr.TypeName)
+		}
+	}
+	return jstype.Unknown
+}
+
 func setArityFromParams(fn *jstype.FunctionType, params *rhino.Node, info *rhino.JSDocInfo) {
 	if params == nil {
 		return
@@ -1751,11 +1729,7 @@ func (c *TypedScopeCreator) buildDeclaredFunctionConstructor(fn *rhino.Node, inf
 	if len(kids) >= 2 {
 		params := kids[1]
 		for _, p := range params.Children() {
-			var t jstype.JSType = jstype.Unknown
-			if expr := info.ParameterType(p.String_()); expr != nil {
-				t = scope.ResolveExpr(expr.TypeName)
-			}
-			paramTypes = append(paramTypes, t)
+			paramTypes = append(paramTypes, resolveParamType(info, p, scope))
 		}
 	}
 	return jstype.NewConstructorType(name, paramTypes)
@@ -1780,7 +1754,11 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 	var paramTypes []jstype.JSType
 	for _, p := range params.Children() {
 		var t jstype.JSType = jstype.Unknown
-		if pexpr := info.ParameterType(p.String_()); pexpr != nil {
+		// Inline param JSDoc (`function f(/** T */ x)`) wins over
+		// absence of an outer @param on the function.
+		if pj := p.JSDocInfo(); pj != nil && pj.HasType() {
+			t = scope.ResolveExpr(pj.Type().TypeName)
+		} else if pexpr := info.ParameterType(p.String_()); pexpr != nil {
 			t = resolve(pexpr.TypeName)
 		}
 		paramTypes = append(paramTypes, t)
