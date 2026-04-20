@@ -141,7 +141,7 @@ func (c *CheckDupVarDeclMismatch) collectExpr(inner *rhino.Node, out map[string]
 	if lhs.Token() != rhino.GETPROP {
 		return
 	}
-	qname, prop := qualifiedName(lhs)
+	qname, prop := dottedName(lhs)
 	if qname == "" || prop == nil || !c.rootDeclared(lhs) {
 		return
 	}
@@ -246,13 +246,13 @@ func nominalName(t jstype.JSType) string {
 	return ""
 }
 
-// qualifiedName flattens a GETPROP chain rooted at a NAME into its
+// dottedName flattens a GETPROP chain rooted at a NAME into its
 // dotted source form (e.g. `goog.labs.a11y`). Returns ("", nil) when
 // the chain doesn't end in a plain NAME — computed keys (`x[0].foo`)
 // or bracketed members are outside this pass's scope. The second
 // return is the STRINGLIT of the final property, whose position is
 // what the oracle points at.
-func qualifiedName(n *rhino.Node) (string, *rhino.Node) {
+func dottedName(n *rhino.Node) (string, *rhino.Node) {
 	if n == nil || n.Token() != rhino.GETPROP {
 		return "", nil
 	}
@@ -269,7 +269,7 @@ func qualifiedName(n *rhino.Node) (string, *rhino.Node) {
 	case rhino.NAME:
 		return base.String_() + "." + prop.String_(), prop
 	case rhino.GETPROP:
-		parent, _ := qualifiedName(base)
+		parent, _ := dottedName(base)
 		if parent == "" {
 			return "", nil
 		}
