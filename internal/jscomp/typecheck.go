@@ -238,8 +238,36 @@ func (c *TypeCheck) ShouldTraverse(t *NodeTraversal, n, parent *rhino.Node) bool
 	case rhino.AND, rhino.OR, rhino.COALESCE:
 		c.traverseShortCircuit(t, n)
 		return false
+	case rhino.WHILE, rhino.DO_WHILE:
+		c.traverseLoop(t, n)
+		return false
 	}
 	return true
+}
+
+// traverseLoop walks a WHILE / DO_WHILE loop. The loop body runs
+// only when the condition is truthy, so we push the truthy
+// refinement before descending into the body. Matches how Java's
+// TypeInference refines a FlowScope at the loop header's true
+// back-edge.
+func (c *TypeCheck) traverseLoop(t *NodeTraversal, n *rhino.Node) {
+	kids := n.Children()
+	if len(kids) < 2 {
+		for _, k := range kids {
+			t.TraverseInto(k, n)
+		}
+		return
+	}
+	cond, body := kids[0], kids[1]
+	t.TraverseInto(cond, n)
+	scope := t.CurrentScope()
+	if refs := buildRefinements(scope, cond, true); len(refs) > 0 {
+		scope.PushRefinement(refs)
+		t.TraverseInto(body, n)
+		scope.PopRefinement()
+	} else {
+		t.TraverseInto(body, n)
+	}
 }
 
 // traverseShortCircuit handles the AND / OR / COALESCE binary

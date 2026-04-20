@@ -113,6 +113,17 @@ func (p *TypeInferencePass) transferAssign(a *rhino.Node, in *FlowScope) map[Bra
 	if t == nil {
 		return map[Branch]*FlowScope{BranchUnconditional: in}
 	}
+	// Don't widen past the declared type. If the RHS-inferred type
+	// is a proper superset of the declared slot (e.g. declared
+	// `number` being fed `null|number`), the declared type wins —
+	// TypeCheck's subtype check on the ASSIGN itself would fire if
+	// the RHS truly couldn't fit. Matches Java's refuse-to-widen
+	// rule on named-slot assignments.
+	if declared := p.scope.GetRawDeclaredType(lhs.String_()); declared != nil {
+		if !jstype.IsSubtype(t, declared) {
+			return map[Branch]*FlowScope{BranchUnconditional: in}
+		}
+	}
 	return map[Branch]*FlowScope{BranchUnconditional: in.Bind(lhs.String_(), t)}
 }
 
