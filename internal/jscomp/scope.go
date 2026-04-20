@@ -959,7 +959,7 @@ func (c *TypedScopeCreator) recordPrototypeAssign(a *rhino.Node, scope *TypedSco
 		// method, not just the constructor — any `this.X = V` inside
 		// a proto method also defines `X` on the Instance.
 		if len(params) >= 3 {
-			c.collectThisProperties(params[2], fn.Instance)
+			c.collectThisPropertiesIn(params[2], fn.Instance, scope)
 		}
 	}
 }
@@ -1388,7 +1388,7 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 		// Also collect `this.x = …` property writes inside the
 		// constructor body.
 		if ctorBody := ctor.Children()[2]; ctorBody != nil {
-			c.collectThisProperties(ctorBody, inst)
+			c.collectThisPropertiesIn(ctorBody, inst, scope)
 		}
 	}
 	for _, m := range body.Children() {
@@ -1574,7 +1574,7 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 				}
 			}
 			scope.declared[name.String_()] = fnType
-			c.collectThisProperties(init.Children()[2], fnType.Instance)
+			c.collectThisPropertiesIn(init.Children()[2], fnType.Instance, scope)
 			return
 		}
 	}
@@ -1893,7 +1893,7 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 	// instance type's member map. Mirrors TypedScopeCreator's
 	// AbstractScopeBuilder.attachLiteralTypes path.
 	if fnType.Instance != nil {
-		c.collectThisProperties(body, fnType.Instance)
+		c.collectThisPropertiesIn(body, fnType.Instance, scope)
 	}
 	nestedScope := c.createScopeIn(body, localScope)
 	for k, v := range nestedScope.declared {
@@ -1910,6 +1910,28 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 // TypedScopeCreator's AssignmentInferrer attaches inferred property
 // types to `this`.
 func (c *TypedScopeCreator) collectThisProperties(node *rhino.Node, inst *jstype.ObjectType) {
+	c.collectThisPropertiesIn(node, inst, nil)
+}
+
+// resolveTypeExpr resolves `expr` against `scope` when non-nil,
+// falling back to the primitive-only registry. Used by the this-
+// property collector so inline \`@type {Name}\` JSDocs see the
+// scope's nominal bindings (Number, user classes, etc.).
+func resolveTypeExpr(scope *TypedScope, reg *jstype.Registry, expr string) jstype.JSType {
+	if scope != nil {
+		return scope.ResolveExpr(expr)
+	}
+	return reg.ResolveExpr(expr)
+}
+
+// collectThisPropertiesIn is the scope-aware variant. When a scope
+// is passed, \`@type {Name}\` references inside \`this.X = …\` JSDocs
+// resolve through the scope chain (which knows about \`Number\`,
+// user-defined classes, etc.) — not through a bare primitive-only
+// registry. Callers without a scope reference use the plain
+// collectThisProperties overload above, whose behaviour is the
+// primitive-registry fallback.
+func (c *TypedScopeCreator) collectThisPropertiesIn(node *rhino.Node, inst *jstype.ObjectType, scope *TypedScope) {
 	if node == nil {
 		return
 	}
@@ -1939,7 +1961,7 @@ func (c *TypedScopeCreator) collectThisProperties(node *rhino.Node, inst *jstype
 							if t == nil {
 								t = jstype.Unknown
 							}
-							declared := jstype.NewRegistry().ResolveExpr(info.Type().TypeName)
+							declared := resolveTypeExpr(scope, c.registry, info.Type().TypeName)
 							if !isJSUnknown(declared) {
 								t = declared
 							}
@@ -1970,7 +1992,7 @@ func (c *TypedScopeCreator) collectThisProperties(node *rhino.Node, inst *jstype
 					info = gp.JSDocInfo()
 				}
 				if info != nil && info.HasType() {
-					declared := jstype.NewRegistry().ResolveExpr(info.Type().TypeName)
+					declared := resolveTypeExpr(scope, c.registry, info.Type().TypeName)
 					if !isJSUnknown(declared) {
 						t = declared
 					}
@@ -1980,7 +2002,7 @@ func (c *TypedScopeCreator) collectThisProperties(node *rhino.Node, inst *jstype
 		}
 	}
 	for _, k := range node.Children() {
-		c.collectThisProperties(k, inst)
+		c.collectThisPropertiesIn(k, inst, scope)
 	}
 }
 
