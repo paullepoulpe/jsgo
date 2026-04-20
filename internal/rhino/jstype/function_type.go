@@ -10,12 +10,28 @@ package jstype
 
 import "strings"
 
+// ParamSpec mirrors FunctionType.Parameter in Java — a per-param
+// descriptor carrying the declared type and the Optional / Rest
+// modifiers captured from JSDoc. Arity checking (CheckArity pass)
+// consults MinArity / MaxArity computed from the slice.
+type ParamSpec struct {
+	Type     JSType
+	Optional bool // `@param {T=} name` or `function(T=)`
+	Rest     bool // `@param {...T} name` or `function(...T)` — last slot only
+}
+
 type FunctionType struct {
 	// Ordered positional parameters. Unknown params (e.g. JSDoc left a
 	// name unannotated) carry the Unknown JSType so call-site checking
 	// stays conservative.
 	Params []JSType
 	Return JSType // Unknown when @return was absent / unrecognised.
+
+	// ParamSpecs is a per-param Optional/Rest side-table. When non-nil
+	// its length matches Params; when nil every slot is treated as a
+	// plain required parameter. Populated by the JSDoc parser for
+	// `{T=}` / `{...T}` modifiers.
+	ParamSpecs []ParamSpec
 
 	// IsConstructor mirrors FunctionType.isConstructor() — set when the
 	// owning function carried `@constructor`. Influences both call-site
@@ -32,6 +48,46 @@ type FunctionType struct {
 	// build a TemplateTypeMap from arg types before substituting into
 	// Return. Empty for non-generic functions.
 	TemplateTypes []*TemplateType
+}
+
+// MinArity mirrors FunctionType.getMinArity(): the number of params
+// that are neither Optional nor Rest. When ParamSpecs is nil, every
+// slot counts as required.
+func (f *FunctionType) MinArity() int {
+	if f == nil {
+		return 0
+	}
+	if f.ParamSpecs == nil {
+		return len(f.Params)
+	}
+	n := 0
+	for _, p := range f.ParamSpecs {
+		if !p.Optional && !p.Rest {
+			n++
+		}
+	}
+	return n
+}
+
+// MaxArity mirrors FunctionType.getMaxArity(): len(Params) unless the
+// last slot is Rest, in which case arity is unbounded (returns -1).
+func (f *FunctionType) MaxArity() int {
+	if f == nil {
+		return 0
+	}
+	if f.HasRestParam() {
+		return -1 // ∞
+	}
+	return len(f.Params)
+}
+
+// HasRestParam reports whether the trailing slot is a rest-param.
+// Mirrors FunctionType.hasRestParam() in Java.
+func (f *FunctionType) HasRestParam() bool {
+	if f == nil || len(f.ParamSpecs) == 0 {
+		return false
+	}
+	return f.ParamSpecs[len(f.ParamSpecs)-1].Rest
 }
 
 func NewFunctionType(params []JSType, ret JSType) *FunctionType {

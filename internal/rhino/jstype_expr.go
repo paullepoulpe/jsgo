@@ -12,6 +12,16 @@ type JSTypeExpression struct {
 	// Tier-0 stores just the primitive name. Tier-1+ will replace this
 	// with a Node-rooted parse tree, matching the Java structure.
 	TypeName string
+
+	// Optional mirrors the trailing `=` on a parameter type
+	// (`@param {T=} name`) — marks the param as legally omittable
+	// at call sites.
+	Optional bool
+
+	// Rest mirrors the leading `...` on a parameter type
+	// (`@param {...T} name`) — marks the param as a
+	// variadic rest-slot at call sites.
+	Rest bool
 }
 
 func NewJSTypeExpression(name string) *JSTypeExpression {

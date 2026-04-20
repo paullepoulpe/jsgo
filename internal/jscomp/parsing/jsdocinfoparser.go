@@ -161,13 +161,14 @@ func (p *JsDocInfoParser) parseTypeTag() JsDocToken {
 
 // parseParamTag is the direct port of Java's parseParamTag: a type
 // expression in braces, then a parameter name on the same logical
-// line. The Java side has additional optional / rest / default-value
-// handling; we ignore those (the Tier-0 checker treats them as plain
-// names).
+// line. Modifier handling (`{T=}` optional / `{...T}` rest) matches
+// JSDocInfoParser.java#parseParamTag — the flags are attached to the
+// stored JSTypeExpression so downstream passes (CheckArity) can see
+// them per-parameter.
 func (p *JsDocInfoParser) parseParamTag() JsDocToken {
 	p.skipEOLs()
 	t := p.next()
-	expr, next, ok := p.parseParamTypeExpressionAnnotation(t)
+	expr, optional, rest, next, ok := p.parseParamTypeExpressionAnnotation(t)
 	if !ok {
 		return p.eatUntilEOLIfNotAnnotation()
 	}
@@ -178,14 +179,21 @@ func (p *JsDocInfoParser) parseParamTag() JsDocToken {
 	// the follower is a STRING, otherwise skip to end-of-line.
 	if next == JsDocTokenString {
 		name := p.stream.String_()
-		// Optional-param wrappers arrive as raw identifiers; strip a
-		// leading `[` if the tokenizer merged it into the name.
+		// Optional-param `[name]` / `[name=default]` wrappers mark the
+		// param as optional independently of the `{T=}` form — mirrors
+		// JSDocInfoParser's handling of the bracketed name syntax.
+		if strings.HasPrefix(name, "[") {
+			optional = true
+		}
 		name = strings.TrimLeft(name, "[")
 		if i := strings.IndexAny(name, "=]"); i >= 0 {
 			name = name[:i]
 		}
 		if isJsIdent(name) {
-			p.info.AddParam(name, rhino.NewJSTypeExpression(expr))
+			te := rhino.NewJSTypeExpression(expr)
+			te.Optional = optional
+			te.Rest = rest
+			p.info.AddParam(name, te)
 			p.anyRecorded = true
 		}
 	}
@@ -284,33 +292,39 @@ func (p *JsDocInfoParser) parseTypeExpressionAnnotation(token JsDocToken) (strin
 }
 
 // parseParamTypeExpressionAnnotation: same as
-// parseTypeExpressionAnnotation with optional `=` / `...` modifiers;
-// we drop those as a Tier-0 simplification.
-func (p *JsDocInfoParser) parseParamTypeExpressionAnnotation(token JsDocToken) (string, JsDocToken, bool) {
+// parseTypeExpressionAnnotation with leading `...` (rest) / trailing
+// `=` (optional) modifiers. Mirrors JSDocInfoParser.java — returns
+// the modifiers so the caller can stamp them onto the stored
+// JSTypeExpression.
+func (p *JsDocInfoParser) parseParamTypeExpressionAnnotation(token JsDocToken) (string, bool, bool, JsDocToken, bool) {
 	if token != JsDocTokenLeftCurly {
-		return "", token, false
+		return "", false, false, token, false
 	}
 	p.skipEOLs()
-	// `{...T}` rest + `{=T}` default. Consume and ignore the modifier.
+	rest := false
+	// `{...T}` rest: consume the `...` modifier and mark the param.
 	if p.match(JsDocTokenIterRest) {
 		p.next()
+		rest = true
 		p.skipEOLs()
 	}
 	expr, ok := p.parseTopLevelTypeExpression(p.next())
 	if !ok {
-		return "", p.next(), false
+		return "", false, false, p.next(), false
 	}
 	p.skipEOLs()
-	// Optional trailing `=` for default-value params.
+	optional := false
+	// Trailing `=` marks the param as optional (default-value form).
 	if p.match(JsDocTokenEquals) {
 		p.next()
+		optional = true
 		p.skipEOLs()
 	}
 	if !p.match(JsDocTokenRightCurly) {
-		return "", p.next(), false
+		return "", false, false, p.next(), false
 	}
 	p.next()
-	return expr, p.next(), true
+	return expr, optional, rest, p.next(), true
 }
 
 // parseTopLevelTypeExpression: TypeExpression | TypeExpression '|' ...
