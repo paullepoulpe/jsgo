@@ -16,7 +16,10 @@
 // The check is scope-driven: it walks class / prototype-assign AST
 // nodes, resolves the override's type via TypeInference, and
 // compares against the superclass's slot via ObjectType's super
-// chain.
+// chain. When @extends carries template arguments
+// (`@extends {Foo<string>}`), the super slot is read through
+// TemplatizedType.GetPropertyType so the inherited type mentions
+// `string` instead of the abstract `T`.
 
 package jscomp
 
@@ -104,21 +107,22 @@ func (s *SuperclassCheck) checkPrototypeAssign(stmt *rhino.Node, assign *rhino.N
 	if overrideType == nil {
 		return
 	}
-	// Superclass slot (via @extends chain).
-	if super := fn.Instance.Super(); super != nil {
-		if slot := super.GetPropertyType(propName); slot != nil {
-			if !jstype.IsSubtype(overrideType, slot) {
-				s.diags = append(s.diags, diag.Diagnostic{
-					Path:  s.path,
-					Line:  stmt.Lineno(),
-					Col:   stmt.Charno(),
-					Code:  diag.JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH,
-					Level: diag.Error,
-					Message: fmt.Sprintf("mismatch of the %s property type and the type of the property it overrides from superclass %s\noriginal: %s\noverride: %s",
-						propName, super.TypeName(), slot.TypeName(), overrideType.TypeName()),
-				})
-				return
-			}
+	// Superclass slot (via @extends chain). When @extends carries
+	// template args (`@extends {Foo<string>}`), prefer the templatized
+	// supertype so the inherited slot is read with substitution.
+	superName, superSlot := s.superSlotFor(fn, propName)
+	if superSlot != nil {
+		if !jstype.IsSubtype(overrideType, superSlot) {
+			s.diags = append(s.diags, diag.Diagnostic{
+				Path:  s.path,
+				Line:  stmt.Lineno(),
+				Col:   stmt.Charno(),
+				Code:  diag.JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH,
+				Level: diag.Error,
+				Message: fmt.Sprintf("mismatch of the %s property type and the type of the property it overrides from superclass %s\noriginal: %s\noverride: %s",
+					propName, superName, superSlot.TypeName(), overrideType.TypeName()),
+			})
+			return
 		}
 	}
 	// @implements interfaces.
@@ -227,10 +231,13 @@ func (s *SuperclassCheck) checkClass(cls *rhino.Node) {
 	nameNode := kids[0]
 	body := kids[2]
 	preStub, ok := s.scope.GetRawDeclaredType(nameNode.String_()).(*jstype.FunctionType)
-	if !ok || preStub.Instance == nil || preStub.Instance.Super() == nil {
+	if !ok || preStub.Instance == nil {
 		return
 	}
-	super := preStub.Instance.Super()
+	// Either a nominal or templatized super is enough to warrant the walk.
+	if preStub.Instance.Super() == nil && preStub.Instance.TemplatizedSuper() == nil {
+		return
+	}
 	for _, m := range body.Children() {
 		switch m.Token() {
 		case rhino.FUNCTION:
@@ -241,7 +248,7 @@ func (s *SuperclassCheck) checkClass(cls *rhino.Node) {
 			if methodName == "" || methodName == "constructor" {
 				continue
 			}
-			superSlot := super.GetPropertyType(methodName)
+			superName, superSlot := s.superSlotFor(preStub, methodName)
 			if superSlot == nil {
 				continue
 			}
@@ -260,7 +267,7 @@ func (s *SuperclassCheck) checkClass(cls *rhino.Node) {
 				Code:  diag.JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH,
 				Level: diag.Error,
 				Message: fmt.Sprintf("mismatch of the %s property type and the type of the property it overrides from superclass %s\noriginal: %s\noverride: %s",
-					methodName, super.TypeName(), superSlot.TypeName(), ownSlot.TypeName()),
+					methodName, superName, superSlot.TypeName(), ownSlot.TypeName()),
 			})
 		case rhino.CLASS_FIELD_DEF:
 			if len(m.Children()) < 1 {
@@ -270,7 +277,7 @@ func (s *SuperclassCheck) checkClass(cls *rhino.Node) {
 			if fieldName == "" {
 				continue
 			}
-			superSlot := super.GetPropertyType(fieldName)
+			superName, superSlot := s.superSlotFor(preStub, fieldName)
 			if superSlot == nil {
 				continue
 			}
@@ -289,10 +296,36 @@ func (s *SuperclassCheck) checkClass(cls *rhino.Node) {
 				Code:  diag.JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH,
 				Level: diag.Error,
 				Message: fmt.Sprintf("mismatch of the %s property type and the type of the property it overrides from superclass %s\noriginal: %s\noverride: %s",
-					fieldName, super.TypeName(), superSlot.TypeName(), ownType.TypeName()),
+					fieldName, superName, superSlot.TypeName(), ownType.TypeName()),
 			})
 		}
 	}
+}
+
+// superSlotFor returns the inherited property-slot type for the given
+// constructor's super chain. When @extends supplied template arguments
+// the lookup is routed through TemplatizedType.GetPropertyType so the
+// slot type is substituted against the extend clause's concrete args.
+// Returns the super's displayable name alongside the slot so
+// diagnostics mirror Java's phrasing.
+func (s *SuperclassCheck) superSlotFor(fn *jstype.FunctionType, propName string) (string, jstype.JSType) {
+	// Prefer the templatized super wired on the Instance when scope
+	// creation already populated it.
+	if tpl := fn.Instance.TemplatizedSuper(); tpl != nil {
+		if slot := tpl.GetPropertyType(propName); slot != nil {
+			return tpl.Base.TypeName(), slot
+		}
+	}
+	// Fall back to the nominal super chain wired via SetSuper. The
+	// templatized @extends form has already been materialised on the
+	// Instance by WireTemplatizedInheritance (runs pre-check), so we
+	// don't need a JSDoc-derived fallback here.
+	if super := fn.Instance.Super(); super != nil {
+		if slot := super.GetPropertyType(propName); slot != nil {
+			return super.TypeName(), slot
+		}
+	}
+	return "", nil
 }
 
 // functionTypeFromJSDoc builds a FunctionType from a FUNCTION node's

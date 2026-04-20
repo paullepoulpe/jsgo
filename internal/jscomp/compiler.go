@@ -36,6 +36,9 @@ func CheckSource(path, src string) ([]diag.Diagnostic, error) {
 	creator := NewTypedScopeCreator(reg)
 	externScope := creator.createExternScope()
 	scope := creator.createScopeInWithParent(script, externScope)
+	// Post-scope wiring: fill in templatized @extends links that
+	// scope.go's LookupNominalType-based path can't see.
+	WireTemplatizedInheritance(script, scope)
 	var all []diag.Diagnostic
 	all = append(all, NewVarCheck(path, creator, scope).Check(script)...)
 	all = append(all, NewVariableReferenceCheck(path, externScope).Check(script)...)
