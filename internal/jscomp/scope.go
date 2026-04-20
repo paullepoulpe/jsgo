@@ -1687,6 +1687,17 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 			}
 		}
 	}
+	// Bare constructor alias: \`var FooAlias = Foo\` / \`const FooAlias = Foo\`
+	// — when the RHS is a known constructor NAME, share the same
+	// FunctionType pointer so FooAlias.prototype / \`new FooAlias()\`
+	// reach Foo's Instance. Java tracks this through @const-aliased
+	// nominal types.
+	if init != nil && init.Token() == rhino.NAME {
+		if src, ok := scope.GetDeclaredType(init.String_()).(*jstype.FunctionType); ok && src.Instance != nil {
+			scope.declared[name.String_()] = src
+			return
+		}
+	}
 	// `var foo = function bar(…){…}` with @param/@return on the VAR —
 	// build a FunctionType so call-site arity / arg checks see the
 	// declared signature. Matches how Java's TypedScopeCreator
