@@ -887,12 +887,12 @@ func stripNullUndef(t jstype.JSType) jstype.JSType {
 	return stripFalsy(t) // same rule, kept as a separate name for clarity
 }
 
-// keepFalsyRefined keeps only the definitively-falsy members of a
-// union (null / void), returning nil when nothing remains. Used by
-// if (x) / while (x) / cond ? ... : ... falsy-branch narrowing on a
-// bare NAME, where we can confidently prune non-null / non-undef
-// members but the primitive side (0 / '' / false) still permits any
-// value.
+// keepFalsyRefined keeps the union members that can hold a falsy
+// value on the else branch of \`if (x)\`. Java's conservative rule:
+// null / undefined / boolean / string / number all admit falsy
+// values (null, undefined, false, "", 0), so they stay. Object /
+// FunctionType can't be falsy — drop those. Used by if / while /
+// ternary falsy-branch narrowing on a bare NAME.
 func keepFalsyRefined(t jstype.JSType) jstype.JSType {
 	u, ok := t.(*jstype.UnionType)
 	if !ok {
@@ -903,7 +903,8 @@ func keepFalsyRefined(t jstype.JSType) jstype.JSType {
 	}
 	var kept []jstype.JSType
 	for _, m := range u.Members() {
-		if m == jstype.Null || m == jstype.Void {
+		switch m {
+		case jstype.Null, jstype.Void, jstype.Boolean, jstype.String, jstype.Number:
 			kept = append(kept, m)
 		}
 	}
