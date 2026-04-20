@@ -1,7 +1,8 @@
 // Port of com/google/javascript/rhino/JSDocInfo.java @ closure-compiler v20260415
 //
 // The Java class is large; this port carries the annotations Tier-0 and
-// Tier-1 need: @type, @param, @return. Further tags are added as later
+// Tier-1 need: @type, @param, @return, and the side-effect markers used
+// by CheckSideEffects (@nosideeffects). Further tags are added as later
 // tiers require them.
 
 package rhino
@@ -15,6 +16,7 @@ type JSDocInfo struct {
 	isInterface   bool
 	isRecord      bool
 	isStatic      bool
+	noSideEffects bool
 	extendsExpr   *JSTypeExpression
 	implementsAll []*JSTypeExpression
 	typedefExpr   *JSTypeExpression
@@ -43,6 +45,13 @@ func (i *JSDocInfo) HasSuppression(name string) bool {
 // MemberFunctionDef.isStaticMember and the analogous field flag.
 func (i *JSDocInfo) IsStatic() bool   { return i != nil && i.isStatic }
 func (i *JSDocInfo) SetStatic(b bool) { i.isStatic = b }
+
+// IsNoSideEffects mirrors JSDocInfo.isNoSideEffects() in Java — the
+// function was annotated with `@nosideeffects` (or its alias
+// `@noside`). CheckSideEffects uses this to flag discarded calls to
+// such a function as useless code.
+func (i *JSDocInfo) IsNoSideEffects() bool   { return i != nil && i.noSideEffects }
+func (i *JSDocInfo) SetNoSideEffects(b bool) { i.noSideEffects = b }
 
 // TypedefType mirrors JSDocInfo.getTypedefType() — returns the aliased
 // type expression captured from `/** @typedef {X} */`.
