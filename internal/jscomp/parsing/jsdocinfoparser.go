@@ -129,6 +129,28 @@ func (p *JsDocInfoParser) parseAnnotation(_ JsDocToken) JsDocToken {
 		p.info.SetAbstract(true)
 		p.anyRecorded = true
 		return p.eatUntilEOLIfNotAnnotation()
+	case "unrestricted":
+		// `@unrestricted` opts out of both dict and struct discipline.
+		// No explicit flag today; just record that we saw a tag so the
+		// parser doesn't discard the info.
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "private":
+		p.info.SetVisibility(rhino.VisibilityPrivate)
+		p.anyRecorded = true
+		return p.parseVisibilityRest()
+	case "protected":
+		p.info.SetVisibility(rhino.VisibilityProtected)
+		p.anyRecorded = true
+		return p.parseVisibilityRest()
+	case "public":
+		p.info.SetVisibility(rhino.VisibilityPublic)
+		p.anyRecorded = true
+		return p.parseVisibilityRest()
+	case "package":
+		p.info.SetVisibility(rhino.VisibilityPackage)
+		p.anyRecorded = true
+		return p.parseVisibilityRest()
 	case "suppress":
 		return p.parseSuppressTag()
 	case "nosideeffects", "noside":
@@ -140,6 +162,27 @@ func (p *JsDocInfoParser) parseAnnotation(_ JsDocToken) JsDocToken {
 		return p.eatUntilEOLIfNotAnnotation()
 	}
 	return p.eatUntilEOLIfNotAnnotation()
+}
+
+// parseVisibilityRest mirrors Java's parseAnnotation branch for
+// `@private`/`@protected`/`@public`/`@package`: an optional inline
+// type expression `{T}` may follow (e.g. `@private {number}`), which
+// we capture into `@type` so the downstream checker sees the variable
+// declaration's type.
+func (p *JsDocInfoParser) parseVisibilityRest() JsDocToken {
+	p.skipEOLs()
+	if !p.match(JsDocTokenLeftCurly) {
+		return p.eatUntilEOLIfNotAnnotation()
+	}
+	t := p.next()
+	expr, next, ok := p.parseTypeExpressionAnnotation(t)
+	if !ok {
+		return p.eatUntilEOLIfNotAnnotation()
+	}
+	if !p.info.HasType() {
+		p.info.SetType(rhino.NewJSTypeExpression(expr))
+	}
+	return next
 }
 
 // parseSuppressTag captures the parenthesised list of suppression

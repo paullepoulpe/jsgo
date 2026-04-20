@@ -32,6 +32,13 @@ type ObjectType struct {
 	// and instance class field declarations.
 	members map[string]JSType
 
+	// visibilities tracks per-property visibility parsed from
+	// `@private` / `@protected` / `@public` JSDoc. Populated by
+	// CheckAccessControls (and, when present, TypedScopeCreator).
+	// Entries default to Inherited when absent — matching Java's
+	// ObjectType property-slot flags.
+	visibilities map[string]Visibility
+
 	// staticMembers is the separate slot for `static` class members.
 	// Accessed via the constructor name (`C.foo`) rather than an
 	// instance (`(new C).foo`). Mirrors FunctionType.getOwnerFunction's
@@ -75,7 +82,8 @@ type ObjectType struct {
 	// flags set from `@struct` / `@dict` on the constructor JSDoc.
 	// A @struct instance forbids `x['k']` computed access; a @dict
 	// instance forbids `x.k` dotted access. Both flags surface via
-	// JSC_ILLEGAL_PROPERTY_ACCESS at the TypeCheck visitor.
+	// JSC_ILLEGAL_PROPERTY_ACCESS at the TypeCheck visitor and
+	// CheckAccessControls's `.`-vs-`[]` discipline.
 	IsStruct bool
 	IsDict   bool
 
@@ -87,10 +95,23 @@ type ObjectType struct {
 	inferredProps map[string]bool
 }
 
+// Visibility mirrors com/google/javascript/rhino/JSDocInfo$Visibility
+// as exposed through ObjectType's per-property slot flags.
+type Visibility int
+
+const (
+	VisibilityInherited Visibility = iota
+	VisibilityPrivate
+	VisibilityProtected
+	VisibilityPublic
+	VisibilityPackage
+)
+
 func NewObjectType(name string) *ObjectType {
 	return &ObjectType{
 		Name:          name,
 		members:       map[string]JSType{},
+		visibilities:  map[string]Visibility{},
 		staticMembers: map[string]JSType{},
 		inferredProps: map[string]bool{},
 	}
@@ -111,6 +132,27 @@ func (o *ObjectType) MarkInferred(name string) {
 // literal inference.
 func (o *ObjectType) IsPropertyInferred(name string) bool {
 	return o.inferredProps[name]
+}
+
+// SetPropertyVisibility tags a member slot with its visibility. Mirrors
+// ObjectType.setPropertyJSDocInfo + JSDocInfo.getVisibility in Java.
+func (o *ObjectType) SetPropertyVisibility(name string, v Visibility) {
+	if o.visibilities == nil {
+		o.visibilities = map[string]Visibility{}
+	}
+	o.visibilities[name] = v
+}
+
+// GetPropertyVisibility returns the visibility recorded for `name`,
+// walking the @extends chain. Returns VisibilityInherited when the
+// property is absent or carries no explicit tag.
+func (o *ObjectType) GetPropertyVisibility(name string) Visibility {
+	for cur := o; cur != nil; cur = cur.super {
+		if v, ok := cur.visibilities[name]; ok {
+			return v
+		}
+	}
+	return VisibilityInherited
 }
 
 // DefineStaticProperty mirrors ObjectType.defineStaticProperty — puts

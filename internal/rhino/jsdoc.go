@@ -24,6 +24,10 @@ type JSDocInfo struct {
 	noSideEffects bool
 	enumExpr      *JSTypeExpression // non-nil when @enum was present
 	enumMarked    bool              // true when @enum appeared (even with no type)
+	// visibility mirrors JSDocInfo.getVisibility() — the parsed value
+	// of an `@private` / `@protected` / `@public` tag. Defaults to
+	// Inherited (no explicit tag), matching Java's semantics.
+	visibility    Visibility
 	extendsExpr   *JSTypeExpression
 	extendsAll    []*JSTypeExpression // every @extends encountered (interfaces can list many)
 	implementsAll []*JSTypeExpression
@@ -31,6 +35,42 @@ type JSDocInfo struct {
 	templateNames []string
 	suppressions  map[string]bool
 }
+
+// Visibility mirrors com/google/javascript/rhino/JSDocInfo$Visibility.
+// INHERITED is the zero value; it means no explicit visibility tag
+// appeared and access-control rules fall back to the declaring type's
+// default.
+type Visibility int
+
+const (
+	VisibilityInherited Visibility = iota
+	VisibilityPrivate
+	VisibilityProtected
+	VisibilityPublic
+	VisibilityPackage
+)
+
+// Visibility reports the parsed `@private` / `@protected` / `@public`
+// tag (or INHERITED if none was present). Mirrors
+// JSDocInfo.getVisibility in Java.
+func (i *JSDocInfo) Visibility() Visibility {
+	if i == nil {
+		return VisibilityInherited
+	}
+	return i.visibility
+}
+
+// SetVisibility records an explicit `@private` / `@protected` /
+// `@public` / `@package` tag. Java's JSDocInfo enforces at-most-one;
+// we keep the last value written, matching how the parser races in
+// Java (it records the first match and ignores later duplicates).
+func (i *JSDocInfo) SetVisibility(v Visibility) { i.visibility = v }
+
+// MakesDicts / MakesStructs are Java-compatible aliases for IsDict /
+// IsStruct — Java's JSDocInfo exposes the dict/struct flags under both
+// naming conventions. CheckAccessControls uses these names.
+func (i *JSDocInfo) MakesDicts() bool   { return i.IsDict() }
+func (i *JSDocInfo) MakesStructs() bool { return i.IsStruct() }
 
 // AddSuppression records a `@suppress {name}` entry. Mirrors
 // JSDocInfo.addSuppression in Java.
