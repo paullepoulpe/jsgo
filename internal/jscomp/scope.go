@@ -1607,6 +1607,32 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 			}
 		}
 	}
+	// `var foo = function bar(…){…}` with @param/@return on the VAR —
+	// build a FunctionType so call-site arity / arg checks see the
+	// declared signature. Matches how Java's TypedScopeCreator
+	// NodeUtil.getBestJSDocInfo inherits the VAR's JSDoc onto the
+	// function expression.
+	if init != nil && init.Token() == rhino.FUNCTION && info != nil &&
+		(info.ReturnType() != nil || len(info.ParameterNames()) > 0) {
+		kids := init.Children()
+		if len(kids) >= 2 {
+			params := kids[1]
+			var paramTypes []jstype.JSType
+			for _, p := range params.Children() {
+				paramTypes = append(paramTypes, resolveParamType(info, p, scope))
+			}
+			var retType jstype.JSType = jstype.Void
+			if r := info.ReturnType(); r != nil {
+				retType = scope.ResolveExpr(r.TypeName)
+			} else if functionReturnsExplicitly(init) {
+				retType = jstype.Unknown
+			}
+			fnType := jstype.NewFunctionType(paramTypes, retType)
+			setArityFromParams(fnType, params, info)
+			scope.declared[name.String_()] = fnType
+			return
+		}
+	}
 	if _, exists := scope.declared[name.String_()]; !exists {
 		scope.declared[name.String_()] = jstype.Unknown
 	}
