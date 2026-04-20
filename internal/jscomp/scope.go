@@ -1920,30 +1920,39 @@ func (c *TypedScopeCreator) collectThisProperties(node *rhino.Node, inst *jstype
 				obj := kids[0].FirstChild()
 				if obj != nil && obj.Token() == rhino.THIS {
 					prop := kids[0].Children()[1]
-					var t jstype.JSType = jstype.Unknown
-					if info := a.JSDocInfo(); info != nil && info.HasType() {
-						t = inst.GetPropertyType(prop.String_()) // keep prior decl if any
-						if t == nil {
-							t = jstype.Unknown
-						}
-						declared := jstype.NewRegistry().ResolveExpr(info.Type().TypeName)
-						if !isJSUnknown(declared) {
-							t = declared
-						}
+					existing := inst.GetPropertyType(prop.String_())
+					alreadyDeclared := existing != nil && !isJSUnknown(existing) && !inst.IsPropertyInferred(prop.String_())
+					info := a.JSDocInfo()
+					hasInfoType := info != nil && info.HasType()
+					// A class-field \`/** @type {T} */ x = …\` (declared,
+					// not inferred) wins over any \`this.x = …\`
+					// inside the ctor body. Leaves the existing slot
+					// untouched so visitAssign fires on incompatible
+					// writes. Matches Java's class-field authority rule.
+					if alreadyDeclared {
+						// fall through: don't overwrite
+						_ = hasInfoType
 					} else {
-						// No @type — infer from the RHS literal when we
-						// can. Flag as inferred so visitAssign knows to
-						// skip the subtype check on later writes (Java
-						// treats inference-only slots as open).
-						existing := inst.GetPropertyType(prop.String_())
-						if existing == nil || isJSUnknown(existing) {
-							t = literalType(kids[1])
-							inst.MarkInferred(prop.String_())
-						} else {
+						var t jstype.JSType = jstype.Unknown
+						if hasInfoType {
 							t = existing
+							if t == nil {
+								t = jstype.Unknown
+							}
+							declared := jstype.NewRegistry().ResolveExpr(info.Type().TypeName)
+							if !isJSUnknown(declared) {
+								t = declared
+							}
+						} else {
+							if existing == nil || isJSUnknown(existing) {
+								t = literalType(kids[1])
+								inst.MarkInferred(prop.String_())
+							} else {
+								t = existing
+							}
 						}
+						inst.DefineProperty(prop.String_(), t)
 					}
-					inst.DefineProperty(prop.String_(), t)
 				}
 			}
 		}
