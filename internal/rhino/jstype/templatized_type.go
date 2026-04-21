@@ -9,6 +9,11 @@
 // `<…>` slots; at call-site unification we recurse into its
 // arguments so a `(Array<T>) → T` parameter binds T from the actual
 // element type.
+//
+// Recursive substitution through nested generics (class Foo<T>
+// extends Bar<List<T>> — substituting T → string should descend into
+// Bar<List<string>>) is handled by TemplateTypeMap.Substitute, which
+// recurses into each Arg.
 
 package jstype
 
@@ -19,10 +24,11 @@ import "strings"
 // to the underlying type for property lookup when the args don't
 // affect a particular property.
 type TemplatizedType struct {
-	Base    *ObjectType
-	Args    []JSType
+	Base *ObjectType
+	Args []JSType
 }
 
+// NewTemplatizedType pairs a base ObjectType with concrete type arguments.
 func NewTemplatizedType(base *ObjectType, args []JSType) *TemplatizedType {
 	return &TemplatizedType{Base: base, Args: args}
 }

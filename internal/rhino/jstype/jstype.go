@@ -1,5 +1,6 @@
 // Port of com/google/javascript/rhino/jstype/JSType.java (plus
-// NumberType.java, StringType.java, AllType.java, UnknownType.java) @
+// NumberType.java, StringType.java, AllType.java, UnknownType.java,
+// NoType.java, NoResolvedType.java, NoObjectType.java) @
 // closure-compiler v20260415
 //
 // The Java hierarchy is an abstract class `JSType` with many subclasses.
@@ -24,6 +25,12 @@ type JSType interface {
 // how JSType.isSubtype in Java dispatches through the registry.
 func IsSubtype(x, y JSType) bool {
 	if x == nil || y == nil {
+		return true
+	}
+	// Bottom types (NoType, NoObjectType, NoResolvedType) are subtypes of
+	// everything — mirrors Java's NoType.isSubtype returning true
+	// unconditionally. Placed ahead of TemplateType so "no" dominates.
+	if isBottom(x) {
 		return true
 	}
 	// Unresolved template vars accept any value — mirrors Java's
@@ -67,8 +74,8 @@ func IsSubtype(x, y JSType) bool {
 
 type allType struct{}
 
-func (allType) TypeName() string            { return "*" }
-func (allType) IsSubtypeOf(o JSType) bool   { _, ok := o.(allType); return ok || isUnknown(o) }
+func (allType) TypeName() string          { return "*" }
+func (allType) IsSubtypeOf(o JSType) bool { _, ok := o.(allType); return ok || isUnknown(o) }
 
 type unknownType struct{}
 
@@ -125,17 +132,58 @@ func (voidType) IsSubtypeOf(o JSType) bool {
 	return isAll(o) || isUnknown(o)
 }
 
+// noType is Closure's NoType — the bottom of the lattice. A subtype of
+// every type; nothing (except itself) is a subtype of it. Produced by
+// impossible-type refinements (e.g. `x` known to be both string and
+// number). Java's JSType.NoType.
+type noType struct{}
+
+func (noType) TypeName() string          { return "None" }
+func (noType) IsSubtypeOf(o JSType) bool { return true }
+
+// noObjectType is Closure's NoObjectType — the bottom of the object
+// lattice. Subtype of every ObjectType; used for things like the
+// inferred type of `{}` before any property adds. Java's
+// JSType.NoObjectType.
+type noObjectType struct{}
+
+func (noObjectType) TypeName() string          { return "NoObject" }
+func (noObjectType) IsSubtypeOf(o JSType) bool { return true }
+
+// noResolvedType is Closure's NoResolvedType — the type assigned to a
+// NamedType reference whose target never resolved (typo'd `@type
+// {Fooo}`). Behaves like NoType for subtype purposes but carries a
+// distinct diagnostic name. Java's JSType.NoResolvedType.
+type noResolvedType struct{}
+
+func (noResolvedType) TypeName() string          { return "NoResolvedType" }
+func (noResolvedType) IsSubtypeOf(o JSType) bool { return true }
+
 func isAll(t JSType) bool     { _, ok := t.(allType); return ok }
 func isUnknown(t JSType) bool { _, ok := t.(unknownType); return ok }
+
+// isBottom returns true for any of the three Java "no" types. Used by
+// IsSubtype so a bottom on the left passes before the TemplateType
+// shortcut kicks in.
+func isBottom(t JSType) bool {
+	switch t.(type) {
+	case noType, noObjectType, noResolvedType:
+		return true
+	}
+	return false
+}
 
 // Canonical interned instances. Java JSTypeRegistry returns the same
 // instance for each primitive; we mirror that with package-level vars.
 var (
-	All      JSType = allType{}
-	Unknown  JSType = unknownType{}
-	Number   JSType = numberType{}
-	String   JSType = stringType{}
-	Boolean  JSType = booleanType{}
-	Null     JSType = nullType{}
-	Void     JSType = voidType{}
+	All            JSType = allType{}
+	Unknown        JSType = unknownType{}
+	Number         JSType = numberType{}
+	String         JSType = stringType{}
+	Boolean        JSType = booleanType{}
+	Null           JSType = nullType{}
+	Void           JSType = voidType{}
+	NoType         JSType = noType{}
+	NoObjectType   JSType = noObjectType{}
+	NoResolvedType JSType = noResolvedType{}
 )

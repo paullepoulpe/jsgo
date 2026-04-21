@@ -18,6 +18,32 @@ package jstype
 
 import "fmt"
 
+// Visibility mirrors JSDocInfo.Visibility — the declared access
+// level of a member as captured from `@public` / `@protected` /
+// `@private` / `@package`. Defaults to Inherited when the JSDoc
+// didn't specify one, matching Java's PACKAGE default being read as
+// "unspecified".
+type Visibility int
+
+const (
+	VisibilityInherited Visibility = iota // no explicit modifier
+	VisibilityPublic
+	VisibilityProtected
+	VisibilityPrivate
+	VisibilityPackage
+)
+
+// Property carries the per-slot metadata Closure attaches to each
+// member of an ObjectType. The declared type lives in Type, with
+// Visibility tracking JSDoc @public / @protected / @private /
+// @package, and IsConst tracking `@const`. Mirrors the shape of
+// rhino/jstype/Property.java (member-map entries).
+type Property struct {
+	Type       JSType
+	Visibility Visibility
+	IsConst    bool
+}
+
 type ObjectType struct {
 	// Name is the source-level identifier (e.g. "Foo" for `function
 	// Foo(){}`). Empty for anonymous object literals.
@@ -26,13 +52,13 @@ type ObjectType struct {
 	// members is the declared property map, populated by
 	// TypedScopeCreator as it walks `this.x = …`, `Foo.prototype.x = …`,
 	// and instance class field declarations.
-	members map[string]JSType
+	members map[string]*Property
 
 	// staticMembers is the separate slot for `static` class members.
 	// Accessed via the constructor name (`C.foo`) rather than an
 	// instance (`(new C).foo`). Mirrors FunctionType.getOwnerFunction's
 	// own-property map in Java.
-	staticMembers map[string]JSType
+	staticMembers map[string]*Property
 
 	// super is the @extends superclass instance type. nil at top of
 	// hierarchy. (Inheritance lookup walks this chain.)
@@ -42,28 +68,56 @@ type ObjectType struct {
 	// of type S is assignable to a structural T iff S has every
 	// property T declares with a compatible type — no nominal check.
 	IsStructural bool
+
+	// IsRecord distinguishes `@record` (a duck-typed interface) from
+	// `@interface` (a nominal interface that classes must @implement).
+	// Both set IsStructural; only records pass this flag. Mirrors
+	// FunctionType.isStructuralInterface minus the nominal pieces.
+	IsRecord bool
+
+	// IsStruct is set by `@struct` JSDoc: forbids bracket access and
+	// late property adds. Mirrors ObjectType.isStruct.
+	IsStruct bool
+
+	// IsDict is set by `@dict` JSDoc: forbids dot access, permits any
+	// bracket key. Mutually exclusive with IsStruct. Mirrors
+	// ObjectType.isDict.
+	IsDict bool
+
+	// resolved is Closure's `isResolved()` gate: once true, the type
+	// is sealed for further inference — DefineProperty still
+	// physically writes, but callers can use Sealed() to suppress
+	// speculative adds during a flow-sensitive pass. Mirrors
+	// ObjectType.isResolved / the internal `unknown` flag inverted.
+	resolved bool
 }
 
 func NewObjectType(name string) *ObjectType {
 	return &ObjectType{
 		Name:          name,
-		members:       map[string]JSType{},
-		staticMembers: map[string]JSType{},
+		members:       map[string]*Property{},
+		staticMembers: map[string]*Property{},
 	}
 }
+
+// IsAnonymous reports whether this type lacks a source-level name
+// (`{foo: 1}` style object literals). Two anonymous types never
+// compare equal by name — they compare nominally via pointer.
+// Mirrors ObjectType.hasReferenceName (inverted).
+func (o *ObjectType) IsAnonymous() bool { return o.Name == "" }
 
 // DefineStaticProperty mirrors ObjectType.defineStaticProperty — puts
 // the property on the constructor-owned slot rather than the instance
 // map. Used for `static x = …` class fields and `static method(){…}`.
 func (o *ObjectType) DefineStaticProperty(name string, t JSType) {
-	o.staticMembers[name] = t
+	o.staticMembers[name] = &Property{Type: t}
 }
 
 // GetStaticPropertyType looks up a member on the static slot only —
 // does not walk the instance map or the @extends chain.
 func (o *ObjectType) GetStaticPropertyType(name string) JSType {
-	if t, ok := o.staticMembers[name]; ok {
-		return t
+	if p, ok := o.staticMembers[name]; ok {
+		return p.Type
 	}
 	return nil
 }
@@ -104,7 +158,7 @@ func (o *ObjectType) IsSubtypeOf(other JSType) bool {
 			if srcType == nil {
 				return false
 			}
-			if !IsSubtype(srcType, ptype) {
+			if !IsSubtype(srcType, ptype.Type) {
 				return false
 			}
 		}
@@ -124,17 +178,39 @@ func (o *ObjectType) IsSubtypeOf(other JSType) bool {
 // behaviour (declared-vs-inferred + duplicate warnings), which we'll
 // add when Tier-2 fixtures need them.
 func (o *ObjectType) DefineProperty(name string, t JSType) {
-	o.members[name] = t
+	if existing, ok := o.members[name]; ok {
+		existing.Type = t
+		return
+	}
+	o.members[name] = &Property{Type: t}
 }
 
-// GetPropertyType walks the @extends chain looking for the named
-// property. Returns nil if the property is undeclared anywhere in the
-// chain — distinct from declared-as-Unknown.
-func (o *ObjectType) GetPropertyType(name string) JSType {
+// DefinePropertyWithVisibility is the extended form used when the
+// caller has parsed a `@public` / `@protected` / `@private` / `@package`
+// JSDoc modifier. Overwrites any existing slot's metadata. Mirrors
+// PrototypeObjectType.defineProperty(name, type, visibility, const).
+func (o *ObjectType) DefinePropertyWithVisibility(name string, t JSType, vis Visibility, isConst bool) {
+	o.members[name] = &Property{Type: t, Visibility: vis, IsConst: isConst}
+}
+
+// GetProperty returns the full Property record for a member (type +
+// visibility + const), walking the @extends chain. nil when the name
+// is undeclared anywhere on the chain — distinct from declared-as-
+// Unknown. Mirrors ObjectType.getSlot.
+func (o *ObjectType) GetProperty(name string) *Property {
 	for cur := o; cur != nil; cur = cur.super {
-		if t, ok := cur.members[name]; ok {
-			return t
+		if p, ok := cur.members[name]; ok {
+			return p
 		}
+	}
+	return nil
+}
+
+// GetPropertyType is the type-only convenience over GetProperty,
+// kept because the checker overwhelmingly wants just the type slot.
+func (o *ObjectType) GetPropertyType(name string) JSType {
+	if p := o.GetProperty(name); p != nil {
+		return p.Type
 	}
 	return nil
 }
@@ -142,7 +218,14 @@ func (o *ObjectType) GetPropertyType(name string) JSType {
 // HasProperty is the existence check used by TypeCheck.visitGetProp to
 // decide whether to emit JSC_INEXISTENT_PROPERTY.
 func (o *ObjectType) HasProperty(name string) bool {
-	return o.GetPropertyType(name) != nil
+	return o.GetProperty(name) != nil
+}
+
+// HasOwnProperty reports whether the property is declared on *this*
+// type, not any ancestor. Mirrors ObjectType.hasOwnProperty.
+func (o *ObjectType) HasOwnProperty(name string) bool {
+	_, ok := o.members[name]
+	return ok
 }
 
 // MemberCount returns the number of directly-declared members on this
@@ -158,6 +241,17 @@ func (o *ObjectType) SetSuper(s *ObjectType) { o.super = s }
 // Super returns the immediate superclass instance type (as wired by
 // SetSuper) or nil at the root of the chain.
 func (o *ObjectType) Super() *ObjectType { return o.super }
+
+// Seal mirrors ObjectType.setResolved(): flip the flag to true so the
+// inference pass stops adding speculative properties. DefineProperty
+// still works (the Java side resolves resolved types through the
+// PropertyMap), but Sealed() can gate callers that want to treat the
+// type as read-only at this point.
+func (o *ObjectType) Seal() { o.resolved = true }
+
+// Sealed reports whether Seal has been called. Corresponds to
+// ObjectType.isResolved in the Java side.
+func (o *ObjectType) Sealed() bool { return o.resolved }
 
 // String is for diagnostics; matches Java's PrototypeObjectType.toString
 // shape closely enough that the message column of jsgo output is

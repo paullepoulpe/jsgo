@@ -17,10 +17,12 @@ type UnionType struct {
 	members []JSType
 }
 
-// NewUnion flattens nested unions and drops duplicates. Returns a
-// bare member when the union collapses to one element. Dedup keys
-// combine TypeName with pointer identity so two anonymous structural
-// records (both TypeName "{...}") stay distinct. Mirrors
+// NewUnion flattens nested unions (A | (B | C) → A | B | C, including
+// deeper nestings), drops duplicates, and returns a bare member when
+// the union collapses to one element. Members are sorted by TypeName
+// so diagnostics are deterministic regardless of construction order.
+// Dedup keys combine TypeName with pointer identity so two anonymous
+// structural records (both TypeName "{...}") stay distinct. Mirrors
 // JSTypeRegistry.createUnionType interning semantics.
 func NewUnion(members ...JSType) JSType {
 	type key struct {
@@ -47,14 +49,21 @@ func NewUnion(members ...JSType) JSType {
 		seen[k] = m
 		order = append(order, k)
 	}
-	for _, m := range members {
+	// Recursive flatten: unions nested arbitrarily deep all collapse
+	// to a single level. Matches UnionType.Builder.addAlternate, which
+	// re-enters the builder for each member.
+	var visit func(JSType)
+	visit = func(m JSType) {
 		if u, ok := m.(*UnionType); ok {
 			for _, n := range u.members {
-				add(n)
+				visit(n)
 			}
-			continue
+			return
 		}
 		add(m)
+	}
+	for _, m := range members {
+		visit(m)
 	}
 	if len(seen) == 1 {
 		for _, v := range seen {

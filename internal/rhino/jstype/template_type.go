@@ -131,15 +131,25 @@ func (m *TemplateTypeMap) Substitute(t JSType) JSType {
 		if ret != v.Return {
 			changed = true
 		}
+		thisT := m.Substitute(v.This)
+		if thisT != v.This {
+			changed = true
+		}
 		if !changed {
 			return t
 		}
 		out := &FunctionType{
-			Params:        params,
-			Return:        ret,
-			IsConstructor: v.IsConstructor,
-			Instance:      v.Instance,
-			TemplateTypes: v.TemplateTypes,
+			Name:           v.Name,
+			Kind:           v.Kind,
+			Params:         params,
+			OptionalParams: v.OptionalParams,
+			RestParam:      v.RestParam,
+			Return:         ret,
+			This:           thisT,
+			IsConstructor:  v.IsConstructor,
+			Instance:       v.Instance,
+			TemplateTypes:  v.TemplateTypes,
+			ClosureEnv:     v.ClosureEnv,
 		}
 		return out
 	}
