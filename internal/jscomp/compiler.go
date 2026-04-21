@@ -93,6 +93,11 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	tc := NewTypeCheckWithOptions(path, creator, scope, opts)
 	tc.SuppressedNames = multiDecl
 	all = append(all, tc.Check(script)...)
+	// CheckGlobalThis runs after TypeCheck, matching the Java
+	// DefaultPassConfig order. It reports `this` references that
+	// resolve to the global object and is structurally independent
+	// of the inference pipeline.
+	all = append(all, NewCheckGlobalThis(path).Check(script)...)
 	all = append(all, NewMissingReturnCheck(path, scope).Check(script)...)
 	all = append(all, NewCheckDuplicateMember(path).Check(script)...)
 	all = append(all, NewCheckSideEffects(path).Check(script)...)
