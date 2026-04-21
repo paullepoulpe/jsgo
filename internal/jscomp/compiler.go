@@ -96,5 +96,6 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	all = append(all, NewMissingReturnCheck(path, scope).Check(script)...)
 	all = append(all, NewCheckDuplicateMember(path).Check(script)...)
 	all = append(all, NewCheckSideEffects(path).Check(script)...)
+	all = append(all, NewCheckSuspiciousCode(path).Check(script)...)
 	return all, nil
 }
