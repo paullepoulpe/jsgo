@@ -96,5 +96,10 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	all = append(all, NewMissingReturnCheck(path, scope).Check(script)...)
 	all = append(all, NewCheckDuplicateMember(path).Check(script)...)
 	all = append(all, NewCheckSideEffects(path).Check(script)...)
+	// Java runs CheckAccessControls after TypeInference + InferJSDocInfo
+	// stamp per-property visibility. Ordering here matches: TypeCheck has
+	// already populated InstanceType property slots; CheckAccessControls
+	// reads them + the AST's JSDoc in a single extra walk.
+	all = append(all, NewCheckAccessControls(path, creator, scope).Check(script)...)
 	return all, nil
 }
