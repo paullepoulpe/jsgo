@@ -1586,7 +1586,48 @@ func (c *TypeCheck) visitGetElem(n *rhino.Node, scope *TypedScope) []diag.Diagno
 				Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
 				Message: "restricted index type\nfound   : " + idxType.TypeName() +
 					"\nrequired: number",
-			}}
+				}}
+		}
+	}
+	// Object<K,V> receiver with a non-stringifiable K — CheckObjectKeys
+	// also scans GETELEM/COMPUTED_PROP accesses where the receiver's
+	// declared type is an `Object<…>` instantiation whose key type
+	// won't coerce cleanly through Object.prototype.toString. Mirrors
+	// TypeCheck.java's validateNonStringifiableKey call from
+	// visitGetElem / visitGetProp.
+	if keyT := objectTemplateKey(recvType); keyT != nil && !isStringifiableJSType(keyT) {
+		return []diag.Diagnostic{{
+			Path: c.path, Line: n.Lineno(), Col: n.Charno(),
+			Code: diag.JSC_NON_STRINGIFIABLE_OBJECT_KEY, Level: diag.Error,
+			Message: "Object type \"" + recvType.TypeName() +
+				"\" contains non-stringifiable key and it may lead to an error. " +
+				"Please use ES6 Map instead or implement your own Map structure.",
+		}}
+	}
+	return nil
+}
+
+// objectTemplateKey returns the K argument of an `Object<K,V>`-style
+// templatized receiver, or nil if `t` isn't such a type. Unions
+// collapse via a single-member probe: if every non-null/undef member
+// of the union names the same Object<K,_>, the first K is returned.
+// Mirrors the shape TypeValidator.getObjectKeyType reads in Java.
+func objectTemplateKey(t jstype.JSType) jstype.JSType {
+	if t == nil {
+		return nil
+	}
+	if tt, ok := t.(*jstype.TemplatizedType); ok && tt.Base != nil &&
+		tt.Base.Name == "Object" && len(tt.Args) >= 1 {
+		return tt.Args[0]
+	}
+	if u, ok := t.(*jstype.UnionType); ok {
+		for _, m := range u.Members() {
+			if m == jstype.Null || m == jstype.Void {
+				continue
+			}
+			if k := objectTemplateKey(m); k != nil {
+				return k
+			}
 		}
 	}
 	return nil
@@ -1780,13 +1821,18 @@ func (c *TypeCheck) visitFunctionParams(fn *rhino.Node, scope *TypedScope) []dia
 	if info == nil {
 		return nil
 	}
+	// CheckObjectKeys also scans @param / @return types on the
+	// function's JSDoc. A signature like
+	// `@param {!Object<Foo, number>} m` fires at the FUNCTION
+	// position just like a VAR-level non-stringifiable key does.
+	out := c.visitFunctionSigObjectKeys(fn, info, scope)
 	names := info.ParameterNames()
 	if len(names) == 0 {
-		return nil
+		return out
 	}
 	kids := fn.Children()
 	if len(kids) < 2 {
-		return nil
+		return out
 	}
 	params := kids[1]
 	paramSet := map[string]bool{}
@@ -1797,7 +1843,6 @@ func (c *TypeCheck) visitFunctionParams(fn *rhino.Node, scope *TypedScope) []dia
 	if fnName == "" {
 		fnName = "<anonymous>"
 	}
-	var out []diag.Diagnostic
 	for _, name := range names {
 		if paramSet[name] {
 			continue
@@ -1807,6 +1852,36 @@ func (c *TypeCheck) visitFunctionParams(fn *rhino.Node, scope *TypedScope) []dia
 			Code: diag.JSC_INEXISTENT_PARAM, Level: diag.Error,
 			Message: fmt.Sprintf("parameter %s does not appear in %s's parameter list", name, fnName),
 		})
+	}
+	return out
+}
+
+// visitFunctionSigObjectKeys scans the @param / @return type
+// expressions on `fn`'s JSDoc and fires
+// JSC_NON_STRINGIFIABLE_OBJECT_KEY for any embedded
+// `Object<K,…>` whose K isn't stringifiable. Mirrors the
+// CheckObjectKeys walk over Java's JSDocInfo.getParameterType /
+// getReturnType — the per-declaration scan in visitObjectKeyTypes
+// handles @type only, which misses function signatures entirely.
+func (c *TypeCheck) visitFunctionSigObjectKeys(fn *rhino.Node, info *rhino.JSDocInfo, scope *TypedScope) []diag.Diagnostic {
+	var out []diag.Diagnostic
+	line, col := fn.Lineno(), fn.Charno()
+	fire := func(keyExpr string) {
+		out = append(out, diag.Diagnostic{
+			Path: c.path, Line: line, Col: col,
+			Code: diag.JSC_NON_STRINGIFIABLE_OBJECT_KEY, Level: diag.Error,
+			Message: fmt.Sprintf("Object type %q contains non-stringifiable key "+
+				"and it may lead to an error. Please use ES6 Map instead or "+
+				"implement your own Map structure.", "Object<"+keyExpr+",?>"),
+		})
+	}
+	for _, name := range info.ParameterNames() {
+		if pt := info.ParameterType(name); pt != nil {
+			walkObjectKeyExpr(pt.TypeName, scope, fire)
+		}
+	}
+	if rt := info.ReturnType(); rt != nil {
+		walkObjectKeyExpr(rt.TypeName, scope, fire)
 	}
 	return out
 }
