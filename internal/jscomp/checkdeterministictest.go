@@ -1,4 +1,4 @@
-// TypeCheck helper: JSC_DETERMINISTIC_TEST emission.
+// Port of com/google/javascript/jscomp/TypeCheck.java @ closure-compiler v20260415 (JSC_DETERMINISTIC_TEST helpers)
 //
 // Upstream Closure does NOT ship a standalone `CheckDeterministicTest`
 // class — the diagnostic is emitted inline from TypeCheck.java's

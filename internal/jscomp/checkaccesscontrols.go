@@ -355,11 +355,11 @@ func (c *CheckAccessControls) checkPropertyVisibility(n, parent *rhino.Node, sco
 	switch v {
 	case jstype.VisibilityPrivate:
 		if !c.insideDeclaringClass(declClass) {
-			c.emitPrivate(propNode, propName, declClass)
+			c.emit(propNode, diag.JSC_BAD_PRIVATE_PROPERTY_ACCESS, "private", propName, declClass)
 		}
 	case jstype.VisibilityProtected:
 		if !c.insideClassOrSubclass(declClass) {
-			c.emitProtected(propNode, propName, declClass)
+			c.emit(propNode, diag.JSC_BAD_PROTECTED_PROPERTY_ACCESS, "protected", propName, declClass)
 		}
 	}
 }
@@ -407,30 +407,17 @@ func (c *CheckAccessControls) insideClassOrSubclass(declClass *jstype.ObjectType
 	return false
 }
 
-// emitPrivate records a JSC_BAD_PRIVATE_PROPERTY_ACCESS diagnostic.
-// Message shape matches Java's format string
-// "Access to private property {0} of {1} not allowed here." so CLI
+// emit records a visibility diagnostic. `kind` is the lowercase word
+// ("private" / "protected") that slots into Java's format string
+// "Access to {kind} property {0} of {1} not allowed here." so CLI
 // output remains recognisable.
-func (c *CheckAccessControls) emitPrivate(propNode *rhino.Node, propName string, declClass *jstype.ObjectType) {
+func (c *CheckAccessControls) emit(propNode *rhino.Node, code, kind, propName string, declClass *jstype.ObjectType) {
 	c.diags = append(c.diags, diag.Diagnostic{
 		Path:    c.path,
 		Line:    propNode.Lineno(),
 		Col:     propNode.Charno(),
-		Code:    diag.JSC_BAD_PRIVATE_PROPERTY_ACCESS,
+		Code:    code,
 		Level:   diag.Warning,
-		Message: fmt.Sprintf("Access to private property %s of %s not allowed here.", propName, declClass.TypeName()),
-	})
-}
-
-// emitProtected records a JSC_BAD_PROTECTED_PROPERTY_ACCESS
-// diagnostic. Message shape matches Java's format string.
-func (c *CheckAccessControls) emitProtected(propNode *rhino.Node, propName string, declClass *jstype.ObjectType) {
-	c.diags = append(c.diags, diag.Diagnostic{
-		Path:    c.path,
-		Line:    propNode.Lineno(),
-		Col:     propNode.Charno(),
-		Code:    diag.JSC_BAD_PROTECTED_PROPERTY_ACCESS,
-		Level:   diag.Warning,
-		Message: fmt.Sprintf("Access to protected property %s of %s not allowed here.", propName, declClass.TypeName()),
+		Message: fmt.Sprintf("Access to %s property %s of %s not allowed here.", kind, propName, declClass.TypeName()),
 	})
 }
