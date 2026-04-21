@@ -1,0 +1,17 @@
+testdata/fixtures/extracted/testqualifiednameinference14.js:5:6: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property onload never defined on Foo
+  5|     x.onload = function() {};
+           ^^^^^^
+
+testdata/fixtures/extracted/testqualifiednameinference14.js:8:6: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property onload never defined on Foo
+  8|     x.onload = null;
+           ^^^^^^
+
+testdata/fixtures/extracted/testqualifiednameinference14.js:8:4: ERROR - [JSC_TYPE_MISMATCH] assignment
+found   : null
+required: function(): undefined
+  8|     x.onload = null;
+         ^^^^^^^^^^^^^^^
+
+1 error(s), 2 warning(s), 100.0% typed
+---EXIT---
+1

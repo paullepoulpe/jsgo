@@ -1,0 +1,13 @@
+testdata/fixtures/extracted/testtypecheck12.js:1:22: WARNING - [JSC_MISSING_RETURN_STATEMENT] Missing return statement. Function expected to return Object.
+  1| /**@return {!Object}*/function foo(){var a = 3^foo();}
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+testdata/fixtures/extracted/testtypecheck12.js:1:47: ERROR - [JSC_TYPE_MISMATCH] bad right operand to bitwise operator
+found   : Object
+required: (boolean|null|number|string|undefined)
+  1| /**@return {!Object}*/function foo(){var a = 3^foo();}
+                                                    ^^^^^
+
+1 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+1

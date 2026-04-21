@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testmissingproperty_notreportedinpropertyabsencecheck.js:2:8: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property y never defined on Object
+  2|   if (x.y == null) throw new Error();
+             ^
+
+0 error(s), 1 warning(s), 85.7% typed
+---EXIT---
+0

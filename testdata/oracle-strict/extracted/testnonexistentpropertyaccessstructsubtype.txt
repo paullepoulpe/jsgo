@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testnonexistentpropertyaccessstructsubtype.js:14:8: ERROR - [JSC_INEXISTENT_PROPERTY] Property bar never defined on A
+  14|   if (a.bar) { a.bar(); }
+              ^^^
+
+1 error(s), 0 warning(s), 77.8% typed
+---EXIT---
+1

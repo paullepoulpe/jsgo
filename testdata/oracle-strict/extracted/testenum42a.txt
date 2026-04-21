@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testenum42a.js:3:13: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property a never defined on MyEnum<Object>
+  3| f(MyEnum.FOO.a);
+                  ^
+
+0 error(s), 1 warning(s), 88.9% typed
+---EXIT---
+0

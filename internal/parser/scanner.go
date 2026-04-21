@@ -22,12 +22,30 @@ type Scanner struct {
 	pos     int
 	line    int
 	lineBOL int
+	// lastTokenLine is the line of the most recently consumed
+	// non-trivia character. Used by the parser's ASI path to decide
+	// whether the next token sits on a later line. Trivia-only
+	// consumption (SkipTrivia, ConsumeLineComment, non-JSDoc block
+	// comments) does not touch this field.
+	lastTokenLine int
 }
 
 // NewScanner mirrors Java's `new Scanner(source)` constructor.
 func NewScanner(src string) *Scanner {
-	return &Scanner{src: []rune(src), line: 1}
+	return &Scanner{src: []rune(src), line: 1, lastTokenLine: 1}
 }
+
+// LastTokenLine returns the line of the most recently consumed
+// non-trivia character. The parser compares this to Line() to
+// decide whether ES5 §7.9 ASI should fire after a statement that's
+// missing its terminating `;`.
+func (s *Scanner) LastTokenLine() int { return s.lastTokenLine }
+
+// MarkTokenConsumed updates lastTokenLine to the current scanner
+// line. The Parser calls this after any Advance-based token
+// consumption that doesn't go through one of Scanner's Consume*
+// helpers (e.g. parseNumberLiteral / parseStringLiteral loops).
+func (s *Scanner) MarkTokenConsumed() { s.lastTokenLine = s.line }
 
 // ---- basic position / peek / advance ----------------------------- //
 
@@ -88,11 +106,15 @@ func (s *Scanner) Advance() rune {
 // speculative parse paths. Mirrors how Java's Scanner is coupled with
 // the parser via Token-level markSavePoint / resetTo methods.
 type ScannerMark struct {
-	pos, line, lineBOL int
+	pos, line, lineBOL, lastTokenLine int
 }
 
-func (s *Scanner) Save() ScannerMark     { return ScannerMark{s.pos, s.line, s.lineBOL} }
-func (s *Scanner) Restore(m ScannerMark) { s.pos, s.line, s.lineBOL = m.pos, m.line, m.lineBOL }
+func (s *Scanner) Save() ScannerMark {
+	return ScannerMark{s.pos, s.line, s.lineBOL, s.lastTokenLine}
+}
+func (s *Scanner) Restore(m ScannerMark) {
+	s.pos, s.line, s.lineBOL, s.lastTokenLine = m.pos, m.line, m.lineBOL, m.lastTokenLine
+}
 
 // ---- byte-level conditionals ------------------------------------- //
 
@@ -103,6 +125,7 @@ func (s *Scanner) ConsumeByte(b byte) bool {
 		return false
 	}
 	s.Advance()
+	s.lastTokenLine = s.line
 	return true
 }
 
@@ -135,6 +158,7 @@ func (s *Scanner) ConsumeIdent() (string, bool) {
 	for s.pos < end {
 		s.Advance()
 	}
+	s.lastTokenLine = s.line
 	return ident, true
 }
 
@@ -197,6 +221,7 @@ func (s *Scanner) ConsumeKeywordRaw(kw string) {
 	for i := 0; i < len([]rune(kw)); i++ {
 		s.Advance()
 	}
+	s.lastTokenLine = s.line
 }
 
 // ConsumeKeyword matches an exact keyword followed by a non-ident
@@ -220,6 +245,7 @@ func (s *Scanner) ConsumeKeyword(kw string) bool {
 	for i := 0; i < len(rs); i++ {
 		s.Advance()
 	}
+	s.lastTokenLine = s.line
 	return true
 }
 
@@ -244,6 +270,7 @@ func (s *Scanner) ConsumeBlockComment() (string, bool) {
 	body := string(s.src[start:s.pos])
 	s.Advance()
 	s.Advance()
+	s.lastTokenLine = s.line
 	return body, true
 }
 
@@ -263,6 +290,19 @@ func (s *Scanner) ConsumeLineComment() bool {
 // comments. JSDoc block comments (`/**`) are left for the parser to
 // attach to the following declaration.
 func (s *Scanner) SkipTrivia() {
+	s.skipTriviaTracked()
+}
+
+// SkipTriviaSeenNewline is SkipTrivia but reports whether the skipped
+// region crossed a line boundary. Used by the parser's ASI path —
+// when a statement isn't terminated by `;` but the next token sits on
+// a later line, ES5 §7.9 says to insert a semicolon.
+func (s *Scanner) SkipTriviaSeenNewline() bool {
+	return s.skipTriviaTracked()
+}
+
+func (s *Scanner) skipTriviaTracked() bool {
+	startLine := s.line
 	for !s.AtEnd() {
 		c := s.src[s.pos]
 		if unicode.IsSpace(c) {
@@ -286,6 +326,7 @@ func (s *Scanner) SkipTrivia() {
 		}
 		break
 	}
+	return s.line != startLine
 }
 
 // SkipToStatementBoundary walks forward until just past the next `;`

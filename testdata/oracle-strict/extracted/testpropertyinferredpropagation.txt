@@ -1,0 +1,19 @@
+testdata/fixtures/extracted/testpropertyinferredpropagation.js:3:34: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property p never defined on Object
+  3| function g() { var x = f(); if (x.p) x.a = 'a'; else x.a = 'b'; }
+                                       ^
+
+testdata/fixtures/extracted/testpropertyinferredpropagation.js:3:39: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property a never defined on Object
+  3| function g() { var x = f(); if (x.p) x.a = 'a'; else x.a = 'b'; }
+                                            ^
+
+testdata/fixtures/extracted/testpropertyinferredpropagation.js:3:55: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property a never defined on Object
+  3| function g() { var x = f(); if (x.p) x.a = 'a'; else x.a = 'b'; }
+                                                            ^
+
+testdata/fixtures/extracted/testpropertyinferredpropagation.js:4:30: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property a never defined on Object
+  4| function h() { var x = f(); x.a = false; }
+                                   ^
+
+0 error(s), 4 warning(s), 93.8% typed
+---EXIT---
+0

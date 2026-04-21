@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/teststringcomparison2.js:1:45: WARNING - [JSC_INVALID_OPERAND_TYPE] expected matching types in comparison
+found   : string
+required: (Object|null)
+  1| /**@param {Object} a*/ function f(a) {return a < 'x';}
+                                                  ^^^^^^^
+
+0 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+0

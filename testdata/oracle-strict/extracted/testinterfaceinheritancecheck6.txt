@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testinterfaceinheritancecheck6.js:4:34: ERROR - [JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH] mismatch of the foo property on type Sub and the type of the property it overrides from interface Root
+original: function(this:Root): string
+override: function(this:Sub): number
+  4|  @return {number} */Sub.prototype.foo = function() { return 1; };
+                                       ^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

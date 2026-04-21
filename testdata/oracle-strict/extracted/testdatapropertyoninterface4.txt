@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testdatapropertyoninterface4.js:6:38: ERROR - [JSC_PARSE_ERROR] Parse error. Invalid escape sequence
+  6| function C() { /** @type {string} */\s
+                                           ^
+
+1 error(s), 0 warning(s)
+---EXIT---
+1

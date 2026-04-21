@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testfunctionbind7.js:7:15: ERROR - [JSC_TYPE_MISMATCH] assignment to property x of MyType
+found   : string
+required: number
+  7| (function f() {this.x = 'str';}).bind(m);
+                    ^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

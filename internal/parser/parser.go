@@ -82,21 +82,83 @@ func (p *Parser) parseStatements(parent *rhino.Node, endTok rune) {
 	}
 }
 
+// mergeSuppressions copies every @suppress name from `src` into
+// `dst`. Used to propagate stacked-JSDoc suppressions onto the
+// statement that ultimately owns them, even when another block
+// in the stack "wins" the primary attachment.
+func mergeSuppressions(dst, src *rhino.JSDocInfo) {
+	for _, name := range []string{"missingProperties", "checkTypes", "duplicate", "undefinedVars", "missingReturn"} {
+		if src.HasSuppression(name) && !dst.HasSuppression(name) {
+			dst.AddSuppression(name)
+		}
+	}
+}
+
+// jsdocCarriesMoreInfo reports whether `b` should displace `a` as the
+// JSDoc attached to the next statement. Priority: declaration-shaped
+// tags (@interface, @constructor, @record, @extends) beat plain
+// type / param tags. Matches Closure's "the last declaration comment
+// wins" heuristic when multiple JSDoc blocks precede a single decl.
+func jsdocCarriesMoreInfo(b, a *rhino.JSDocInfo) bool {
+	decl := func(i *rhino.JSDocInfo) bool {
+		return i.IsConstructor() || i.IsInterface() || i.IsRecord() || i.BaseType() != nil
+	}
+	if decl(b) && !decl(a) {
+		return true
+	}
+	return false
+}
+
 // tryStatement attempts one statement. Returns (stmt, true) on success
 // or (nil, false) otherwise; in either case p.scanner.Pos() is left past the
 // consumed input (or rewound on speculative failures).
 func (p *Parser) tryStatement() (*rhino.Node, bool) {
 	var jsdoc *rhino.JSDocInfo
-	if body, ok := p.scanner.ConsumeBlockComment(); ok {
-		jsdoc = parsing.ParseJSDocInfo(body)
+	// Consume any number of back-to-back block comments. When a
+	// JSDoc carries declaration-shaped tags (@interface, @extends,
+	// @constructor, @param, @return), that's the one that attaches
+	// to the following statement — ignore earlier stray JSDocs
+	// which Java silently drops in the same scenario.
+	for {
+		body, ok := p.scanner.ConsumeBlockComment()
+		if !ok {
+			break
+		}
+		parsed := parsing.ParseJSDocInfo(body)
+		if parsed != nil {
+			if jsdoc == nil {
+				jsdoc = parsed
+			} else if jsdocCarriesMoreInfo(parsed, jsdoc) {
+				mergeSuppressions(parsed, jsdoc)
+				jsdoc = parsed
+			} else {
+				// Losing block still contributes its @suppress
+				// entries — @fileoverview comments typically carry
+				// these and must not be dropped silently.
+				mergeSuppressions(jsdoc, parsed)
+			}
+		}
 		p.scanner.SkipTrivia()
 	}
 
+	// Capture the `function` / `class` keyword's position so the
+	// resulting FUNCTION / CLASS node has a stable lineno/charno
+	// matching Java (passes like SuperclassCheck report at the
+	// declaration's start column).
+	kwLine, kwCol := p.scanner.Line(), p.scanner.Col()
 	if p.scanner.ConsumeKeyword("function") {
-		return p.finishFunction(jsdoc)
+		fn, ok := p.finishFunction(jsdoc)
+		if fn != nil {
+			fn.SetPos(kwLine, kwCol)
+		}
+		return fn, ok
 	}
 	if p.scanner.ConsumeKeyword("class") {
-		return p.finishClass(jsdoc)
+		cls, ok := p.finishClass(jsdoc)
+		if cls != nil {
+			cls.SetPos(kwLine, kwCol)
+		}
+		return cls, ok
 	}
 	if declToken, ok := p.consumeDeclKeyword(); ok {
 		return p.finishDeclStatement(declToken, jsdoc)
@@ -188,9 +250,15 @@ func (p *Parser) tryExpressionStatement() (*rhino.Node, bool) {
 		return nil, false
 	}
 	p.scanner.SkipTrivia()
+	// Normal form: `expr;`. Java's Parser also handles ASI — a newline
+	// or EOF / `}` closes the statement without a literal semicolon.
+	// We accept the same lax terminators so single-line fixtures like
+	// `'foo' in Object` surface as statements.
 	if !p.scanner.ConsumeByte(';') {
-		rewind()
-		return nil, false
+		if !p.scanner.AtEnd() && p.scanner.Peek() != '}' {
+			rewind()
+			return nil, false
+		}
 	}
 	stmt := rhino.New(rhino.EXPR_RESULT)
 	stmt.SetPos(exprLine, exprCol)
@@ -205,39 +273,67 @@ func (p *Parser) finishDeclStatement(declToken rhino.Token, jsdoc *rhino.JSDocIn
 	}
 
 	p.scanner.SkipTrivia()
-	nameLine, nameCol := p.scanner.Line(), p.scanner.Col()
-	ident, ok := p.scanner.ConsumeIdent()
-	if !ok {
-		p.scanner.SkipToStatementBoundary()
-		return nil, false
-	}
-	nameNode := rhino.NewString(rhino.NAME, ident)
-	nameNode.SetPos(nameLine, nameCol)
-	declNode.AddChildToBack(nameNode)
-
-	p.scanner.SkipTrivia()
-	if p.scanner.ConsumeByte('=') {
-		if !p.scanner.AtEnd() && p.scanner.Peek() == '=' {
-			p.scanner.SkipToStatementBoundary()
-			return declNode, true
+	// Inline JSDoc between the decl keyword and the name —
+	// `var /** null */ n = …;` — treat the brace-only type
+	// expression as an @type annotation on the resulting VAR.
+	// Matches how Java's parser synthesises a @type JSDoc from
+	// an inline bracketed comment at this position.
+	if body, ok := p.scanner.ConsumeBlockComment(); ok {
+		if inline := parseInlineTypeJSDoc(body); inline != nil && declNode.JSDocInfo() == nil {
+			declNode.SetJSDocInfo(inline)
 		}
 		p.scanner.SkipTrivia()
-		initLine, initCol := p.scanner.Line(), p.scanner.Col()
-		init, ok := p.tryExpression()
+	}
+	// One iteration per comma-separated binding. Matches Java's
+	// parseVariableDeclarationList loop.
+	for {
+		nameLine, nameCol := p.scanner.Line(), p.scanner.Col()
+		ident, ok := p.scanner.ConsumeIdent()
 		if !ok {
 			p.scanner.SkipToStatementBoundary()
-			return declNode, true
+			return nil, false
+		}
+		nameNode := rhino.NewString(rhino.NAME, ident)
+		nameNode.SetPos(nameLine, nameCol)
+		declNode.AddChildToBack(nameNode)
+
+		p.scanner.SkipTrivia()
+		if p.scanner.ConsumeByte('=') {
+			if !p.scanner.AtEnd() && p.scanner.Peek() == '=' {
+				p.scanner.SkipToStatementBoundary()
+				return declNode, true
+			}
+			p.scanner.SkipTrivia()
+			initLine, initCol := p.scanner.Line(), p.scanner.Col()
+			init, ok := p.tryExpression()
+			if !ok {
+				p.scanner.SkipToStatementBoundary()
+				return declNode, true
+			}
+			init.SetPos(initLine, initCol)
+			nameNode.AddChildToBack(init)
 		}
 		p.scanner.SkipTrivia()
-		if p.scanner.AtEnd() || p.scanner.Peek() != ';' {
-			p.scanner.SkipToStatementBoundary()
+		if !p.scanner.ConsumeByte(',') {
+			break
+		}
+		p.scanner.SkipTrivia()
+		// Allow an inline JSDoc per-binding (`var a, /** @type T */ b`).
+		if body, ok := p.scanner.ConsumeBlockComment(); ok {
+			if inline := parseInlineTypeJSDoc(body); inline != nil {
+				_ = inline // discarded — Java drops per-binding type hints in this pos
+			}
+			p.scanner.SkipTrivia()
+		}
+	}
+	sawNewline := p.scanner.Line() != p.scanner.LastTokenLine()
+	if !p.scanner.ConsumeByte(';') {
+		// ASI (ES5 §7.9): if we're at EOF / `}` / saw a newline
+		// before the next token, treat the VAR as terminated.
+		// Otherwise we're mid-statement and recovery is needed.
+		if sawNewline || p.scanner.AtEnd() || p.scanner.Peek() == '}' {
 			return declNode, true
 		}
-		init.SetPos(initLine, initCol)
-		nameNode.AddChildToBack(init)
-	}
-	p.scanner.SkipTrivia()
-	if !p.scanner.ConsumeByte(';') {
 		p.scanner.SkipToStatementBoundary()
 	}
 	return declNode, true
@@ -270,12 +366,16 @@ func (p *Parser) finishFunction(jsdoc *rhino.JSDocInfo) (*rhino.Node, bool) {
 	params := rhino.New(rhino.PARAM_LIST)
 	for {
 		p.scanner.SkipTrivia()
-		// Inline JSDoc on parameters: `function f(/** T */ x)` — ignore
-		// the type hint and keep scanning. Java's Parser does the same
-		// via a ParamToken path that attaches the comment to the param
-		// node; we drop it for now since the parameter's type flows
-		// through the function's outer @param JSDoc anyway.
-		if _, ok := p.scanner.ConsumeBlockComment(); ok {
+		// Inline JSDoc on parameters: `function f(/** T */ x)` — parse
+		// the brace body as an @type annotation and attach to the
+		// resulting param NAME node. Matches Java's Parser which stores
+		// the inline type on the param's JSDocInfo so the scope builder
+		// can pick it up even without an outer @param.
+		var inlineInfo *rhino.JSDocInfo
+		if body, ok := p.scanner.ConsumeBlockComment(); ok {
+			if parsed := parseInlineTypeJSDoc(body); parsed != nil {
+				inlineInfo = parsed
+			}
 			p.scanner.SkipTrivia()
 		}
 		if p.scanner.AtEnd() {
@@ -293,6 +393,9 @@ func (p *Parser) finishFunction(jsdoc *rhino.JSDocInfo) (*rhino.Node, bool) {
 		}
 		pNode := rhino.NewString(rhino.NAME, pname)
 		pNode.SetPos(pLine, pCol)
+		if inlineInfo != nil {
+			pNode.SetJSDocInfo(inlineInfo)
+		}
 		params.AddChildToBack(pNode)
 		p.scanner.SkipTrivia()
 		if p.scanner.ConsumeByte(',') {
@@ -389,7 +492,12 @@ func (p *Parser) parseClassMember(body *rhino.Node) {
 	// `static` toggles the JSDoc's isStatic flag so the scope creator
 	// lands the member on the class's static slot rather than the
 	// instance prototype. Synthesises a JSDocInfo when none was
-	// present on the source.
+	// present on the source. The member's start position is captured
+	// BEFORE consuming `static` so downstream diagnostics point at the
+	// whole member declaration (Java's Node.getLineno() for a
+	// CLASS_FIELD_DEF is the keyword / name column, inclusive of
+	// `static`).
+	memberLine, memberCol := p.scanner.Line(), p.scanner.Col()
 	isStatic := false
 	if p.scanner.ConsumeKeyword("static") {
 		isStatic = true
@@ -401,7 +509,7 @@ func (p *Parser) parseClassMember(body *rhino.Node) {
 		}
 		jsdoc.SetStatic(true)
 	}
-	memberLine, memberCol := p.scanner.Line(), p.scanner.Col()
+	nameLine, nameCol := p.scanner.Line(), p.scanner.Col()
 	name, ok := p.scanner.ConsumeIdent()
 	if !ok {
 		p.scanner.SkipToStatementBoundary()
@@ -418,7 +526,7 @@ func (p *Parser) parseClassMember(body *rhino.Node) {
 		}
 		fn.SetPos(memberLine, memberCol)
 		nameNode := rhino.NewString(rhino.NAME, name)
-		nameNode.SetPos(memberLine, memberCol)
+		nameNode.SetPos(nameLine, nameCol)
 		fn.AddChildToBack(nameNode)
 		params := rhino.New(rhino.PARAM_LIST)
 		for {
@@ -462,7 +570,7 @@ func (p *Parser) parseClassMember(body *rhino.Node) {
 		}
 		field.SetPos(memberLine, memberCol)
 		nameNode := rhino.NewString(rhino.NAME, name)
-		nameNode.SetPos(memberLine, memberCol)
+		nameNode.SetPos(nameLine, nameCol)
 		field.AddChildToBack(nameNode)
 		if p.scanner.ConsumeByte('=') {
 			p.scanner.SkipTrivia()
@@ -963,12 +1071,23 @@ func (p *Parser) tryCallOrAssignStatement() (*rhino.Node, bool) {
 		}
 		p.scanner.SkipTrivia()
 		// Call-as-statement must end with `;` (or `}` / EOF). If we
-		// instead see another postfix continuation — `.prop` or
-		// `(args)` — this isn't a bare call; rewind so
-		// tryExpressionStatement picks up the full chained form.
+		// see a postfix continuation — `.prop` / `(args)` / `[i]` —
+		// or a binary-op keyword (`in`, `instanceof`) the CALL is a
+		// sub-expression; rewind so tryExpressionStatement picks up
+		// the full form.
 		if !p.scanner.AtEnd() {
 			switch p.scanner.Peek() {
 			case '.', '(', '[':
+				rewind()
+				return nil, false
+			}
+			if p.scanner.AtKeyword("in") || p.scanner.AtKeyword("instanceof") {
+				rewind()
+				return nil, false
+			}
+			// Binary-op character that isn't a statement terminator
+			// (e.g. `+`, `-`, `*`, `<`, `==`) — same story.
+			if tok, _, _ := p.peekBinOp(); tok != rhino.ERROR {
 				rewind()
 				return nil, false
 			}
@@ -998,7 +1117,9 @@ func (p *Parser) tryCallOrAssignStatement() (*rhino.Node, bool) {
 			return nil, false
 		}
 		p.scanner.Advance()
-		rhs.SetPos(rhsLine, rhsCol)
+		if rhs.Lineno() == 0 && rhs.Charno() == 0 {
+			rhs.SetPos(rhsLine, rhsCol)
+		}
 		assign := rhino.New(rhino.ASSIGN)
 		assign.SetPos(startLine, startCol)
 		assign.AddChildToBack(lhs)
@@ -1072,7 +1193,9 @@ func (p *Parser) tryAssignment() (*rhino.Node, bool) {
 	if !ok {
 		return nil, false
 	}
-	rhs.SetPos(rhsLine, rhsCol)
+	if rhs.Lineno() == 0 && rhs.Charno() == 0 {
+		rhs.SetPos(rhsLine, rhsCol)
+	}
 	n := rhino.New(tok)
 	n.SetPos(lhs.Lineno(), lhs.Charno())
 	n.AddChildToBack(lhs)
@@ -1176,7 +1299,14 @@ func (p *Parser) tryBinary(minPrec int) (*rhino.Node, bool) {
 		if !ok {
 			return nil, false
 		}
-		right.SetPos(rhsLine, rhsCol)
+		// Only backfill when tryBinary produced an unpositioned
+		// node (e.g. a bare NAME literal). A paren-wrapped
+		// expression like \`(new Bar)\` already has a precise
+		// position from its inner tryPostfix, and shouldn't be
+		// overwritten with the \`(\` column.
+		if right.Lineno() == 0 && right.Charno() == 0 {
+			right.SetPos(rhsLine, rhsCol)
+		}
 		n := rhino.New(tok)
 		n.SetPos(left.Lineno(), left.Charno())
 		n.AddChildToBack(left)
@@ -1287,11 +1417,16 @@ func (p *Parser) tryPostfix() (*rhino.Node, bool) {
 		return nil, false
 	}
 	var expr *rhino.Node
+	newLine, newCol := p.scanner.Line(), p.scanner.Col()
 	if p.scanner.ConsumeKeyword("new") {
 		n, ok := p.finishNew()
 		if !ok {
 			return nil, false
 		}
+		// Position the NEW node at the `new` keyword, not at the
+		// callee identifier — Java's TypeCheck reports at the
+		// expression's start column.
+		n.SetPos(newLine, newCol)
 		expr = n
 	} else {
 		prim, ok := p.tryPrimary()
@@ -1300,8 +1435,10 @@ func (p *Parser) tryPostfix() (*rhino.Node, bool) {
 		}
 		expr = prim
 	}
-	// Postfix chain: property access and call. Array-index access
-	// (`x[i]`) is deferred to a later port.
+	// Postfix chain: property access (`.ident`), computed index access
+	// (`[expr]`) and call (`(args)`). Mirrors how Parser.java's
+	// parseMemberExpression flattens postfix operators into a left-leaning
+	// chain.
 	for {
 		p.scanner.SkipTrivia()
 		if p.scanner.AtEnd() {
@@ -1323,6 +1460,28 @@ func (p *Parser) tryPostfix() (*rhino.Node, bool) {
 			propNode.SetPos(propLine, propCol)
 			gp.AddChildToBack(propNode)
 			expr = gp
+			continue
+		}
+		if c == '[' {
+			// `x[y]` → GETELEM(x, y). Matches Parser.java's
+			// parseMemberExpression case for `[`.
+			p.scanner.Advance()
+			p.scanner.SkipTrivia()
+			idxLine, idxCol := p.scanner.Line(), p.scanner.Col()
+			idx, ok := p.tryExpression()
+			if !ok {
+				return nil, false
+			}
+			idx.SetPos(idxLine, idxCol)
+			p.scanner.SkipTrivia()
+			if !p.scanner.ConsumeByte(']') {
+				return nil, false
+			}
+			ge := rhino.New(rhino.GETELEM)
+			ge.SetPos(expr.Lineno(), expr.Charno())
+			ge.AddChildToBack(expr)
+			ge.AddChildToBack(idx)
+			expr = ge
 			continue
 		}
 		if c == '(' {
@@ -1377,8 +1536,13 @@ func (p *Parser) tryPrimary() (*rhino.Node, bool) {
 		}
 		return p.tryParen()
 	}
+	fnLine, fnCol := p.scanner.Line(), p.scanner.Col()
 	if p.scanner.ConsumeKeyword("function") {
-		return p.finishFunction(nil)
+		fn, ok := p.finishFunction(nil)
+		if fn != nil {
+			fn.SetPos(fnLine, fnCol)
+		}
+		return fn, ok
 	}
 	c := p.scanner.Peek()
 	switch {
@@ -1440,6 +1604,7 @@ func (p *Parser) tryPrimary() (*rhino.Node, bool) {
 // don't exist at any lower layer.
 func (p *Parser) tryParen() (*rhino.Node, bool) {
 	save := p.scanner.Save()
+	openLine, openCol := p.scanner.Line(), p.scanner.Col()
 	if !p.scanner.ConsumeByte('(') {
 		p.scanner.Restore(save)
 		return nil, false
@@ -1454,6 +1619,13 @@ func (p *Parser) tryParen() (*rhino.Node, bool) {
 	if !p.scanner.ConsumeByte(')') {
 		p.scanner.Restore(save)
 		return nil, false
+	}
+	// If the inner expression didn't get a position (e.g. an
+	// anonymous function-expression wrapped in parens), use the
+	// opening `(` to give it one. Java uses the `(`-column for the
+	// whole paren group at diagnostic time.
+	if inner.Lineno() == 0 && inner.Charno() == 0 {
+		inner.SetPos(openLine, openCol)
 	}
 	return inner, true
 }
@@ -1814,6 +1986,12 @@ func (p *Parser) peekBinOp() (rhino.Token, int, int) {
 	case '/':
 		// `/` could start a regex literal; without regex support we
 		// still treat it as divide, which is what the corpus expects.
+		// A `/*` / `//` pair is a comment, not division — guard so a
+		// trailing JSDoc (`/**`) after an expression doesn't get
+		// parsed as the start of a division op.
+		if c1 == '*' || c1 == '/' {
+			return rhino.ERROR, 0, -1
+		}
 		return rhino.DIV, 1, 11
 	case '%':
 		return rhino.MOD, 1, 11
@@ -1839,29 +2017,107 @@ func (p *Parser) consumeRunes(n int) {
 	}
 }
 
-// extendWithProperty consumes any trailing `.IDENT` chain after the
-// given base, building GETPROP(base, STRINGLIT) nodes as in Closure.
-// Used by the `this` and NAME paths so member access is uniform.
+// parseInlineTypeJSDoc turns a brace-only inline JSDoc body
+// (`{T}` / `?`-prefixed / etc.) into a `@type {T}`-style
+// JSDocInfo. Returns nil when the body isn't a bare type
+// expression — the full JSDoc parser already handles comments
+// with tags.
+func parseInlineTypeJSDoc(body string) *rhino.JSDocInfo {
+	// Cheap shape filter — require a `{…}` or a bare type
+	// name. If the comment contains an `@` tag, defer to the
+	// full parser and return nil so the caller keeps its own
+	// path.
+	for i := 0; i < len(body); i++ {
+		if body[i] == '@' {
+			return nil
+		}
+	}
+	// Trim whitespace + leading `*` markers common in `/** … */`.
+	trimmed := ""
+	inLineStar := true
+	for i := 0; i < len(body); i++ {
+		c := body[i]
+		if c == '\n' || c == '\r' {
+			trimmed += " "
+			inLineStar = true
+			continue
+		}
+		if inLineStar && (c == ' ' || c == '\t' || c == '*') {
+			continue
+		}
+		inLineStar = false
+		trimmed += string(c)
+	}
+	trimmed = trimSpace(trimmed)
+	if trimmed == "" {
+		return nil
+	}
+	info := &rhino.JSDocInfo{}
+	info.SetType(rhino.NewJSTypeExpression(trimmed))
+	return info
+}
+
+// trimSpace is a small helper matching strings.TrimSpace but
+// avoiding a package import in the parser's hot path.
+func trimSpace(s string) string {
+	for len(s) > 0 && (s[0] == ' ' || s[0] == '\t') {
+		s = s[1:]
+	}
+	for len(s) > 0 && (s[len(s)-1] == ' ' || s[len(s)-1] == '\t') {
+		s = s[:len(s)-1]
+	}
+	return s
+}
+
+// extendWithProperty consumes any trailing `.IDENT` or `[expr]` chain
+// after the given base, building GETPROP / GETELEM nodes as in Closure.
+// Used by the `this` and NAME paths so member access is uniform with
+// the postfix chain in tryPostfix.
 func (p *Parser) extendWithProperty(base *rhino.Node) *rhino.Node {
 	for {
 		p.scanner.SkipTrivia()
-		if p.scanner.AtEnd() || p.scanner.Peek() != '.' {
+		if p.scanner.AtEnd() {
 			return base
 		}
-		p.scanner.Advance() // '.'
-		p.scanner.SkipTrivia()
-		propLine, propCol := p.scanner.Line(), p.scanner.Col()
-		ident, ok := p.scanner.ConsumeIdent()
-		if !ok {
-			return base
+		c := p.scanner.Peek()
+		if c == '.' {
+			p.scanner.Advance()
+			p.scanner.SkipTrivia()
+			propLine, propCol := p.scanner.Line(), p.scanner.Col()
+			ident, ok := p.scanner.ConsumeIdent()
+			if !ok {
+				return base
+			}
+			gp := rhino.New(rhino.GETPROP)
+			gp.SetPos(base.Lineno(), base.Charno())
+			gp.AddChildToBack(base)
+			propNode := rhino.NewString(rhino.STRINGLIT, ident)
+			propNode.SetPos(propLine, propCol)
+			gp.AddChildToBack(propNode)
+			base = gp
+			continue
 		}
-		gp := rhino.New(rhino.GETPROP)
-		gp.SetPos(base.Lineno(), base.Charno())
-		gp.AddChildToBack(base)
-		propNode := rhino.NewString(rhino.STRINGLIT, ident)
-		propNode.SetPos(propLine, propCol)
-		gp.AddChildToBack(propNode)
-		base = gp
+		if c == '[' {
+			p.scanner.Advance()
+			p.scanner.SkipTrivia()
+			idxLine, idxCol := p.scanner.Line(), p.scanner.Col()
+			idx, ok := p.tryExpression()
+			if !ok {
+				return base
+			}
+			idx.SetPos(idxLine, idxCol)
+			p.scanner.SkipTrivia()
+			if !p.scanner.ConsumeByte(']') {
+				return base
+			}
+			ge := rhino.New(rhino.GETELEM)
+			ge.SetPos(base.Lineno(), base.Charno())
+			ge.AddChildToBack(base)
+			ge.AddChildToBack(idx)
+			base = ge
+			continue
+		}
+		return base
 	}
 }
 
@@ -2050,6 +2306,7 @@ func (p *Parser) parseStringLiteral(quote rune) (*rhino.Node, bool) {
 	}
 	val := p.scanner.Text(start, p.scanner.Pos())
 	p.scanner.Advance() // closing quote
+	p.scanner.MarkTokenConsumed()
 	return rhino.NewString(rhino.STRINGLIT, val), true
 }
 
@@ -2065,6 +2322,7 @@ func (p *Parser) parseNumberLiteral() (*rhino.Node, bool) {
 	if err != nil {
 		return nil, false
 	}
+	p.scanner.MarkTokenConsumed()
 	return rhino.NewNumber(v), true
 }
 

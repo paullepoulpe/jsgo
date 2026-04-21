@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testnopersistenttypeinferenceforobjectproperties.js:3:21: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property x never defined on Object
+  3| function s1(o,x) { o.x = x; }
+                          ^
+
+testdata/fixtures/extracted/testnopersistenttypeinferenceforobjectproperties.js:9:21: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property x never defined on Object
+   9| function s2(o,x) { o.x = x; }
+                           ^
+
+0 error(s), 2 warning(s), 76.9% typed
+---EXIT---
+0

@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testconstructoraliaswithbadannotation2.js:2:22: WARNING - [JSC_INCOMPATIBLE_ALIAS_ANNOTATION] Annotation @interface on Bar incompatible with aliased type.
+  2| /** @interface */ var Bar = Foo;
+                           ^^^^^^^^^
+
+0 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+0

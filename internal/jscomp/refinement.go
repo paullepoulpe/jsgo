@@ -61,16 +61,41 @@ func collectRefinements(scope *TypedScope, cond *rhino.Node, whenTruthy bool, ou
 		collectRefinements(scope, kids[1], true, out)
 		return
 	case rhino.OR:
-		// On the falsy branch BOTH sides are falsy.
-		if whenTruthy {
-			return
-		}
 		kids := cond.Children()
 		if len(kids) != 2 {
 			return
 		}
-		collectRefinements(scope, kids[0], false, out)
-		collectRefinements(scope, kids[1], false, out)
+		if !whenTruthy {
+			// Falsy branch of `a || b` — both sides falsy. Intersection
+			// by taking sequential refinements (later overwrites earlier).
+			collectRefinements(scope, kids[0], false, out)
+			collectRefinements(scope, kids[1], false, out)
+			return
+		}
+		// Truthy branch of `a || b` — EITHER side could be truthy.
+		// Union the per-side truthy refinements for each common name.
+		leftRefs := buildRefinements(scope, kids[0], true)
+		rightRefs := buildRefinements(scope, kids[1], true)
+		for name, lt := range leftRefs {
+			if rt, ok := rightRefs[name]; ok {
+				out[name] = jstype.NewUnion(lt, rt)
+				continue
+			}
+			// Right side didn't refine `name` — on that branch `name`
+			// keeps its declared type, so the overall union widens to
+			// (lt | declared).
+			if declared := scope.GetDeclaredType(name); declared != nil {
+				out[name] = jstype.NewUnion(lt, declared)
+			}
+		}
+		for name, rt := range rightRefs {
+			if _, seen := leftRefs[name]; seen {
+				continue
+			}
+			if declared := scope.GetDeclaredType(name); declared != nil {
+				out[name] = jstype.NewUnion(rt, declared)
+			}
+		}
 		return
 	case rhino.NAME:
 		if t := scope.GetDeclaredType(cond.String_()); t != nil {
@@ -88,6 +113,29 @@ func collectRefinements(scope *TypedScope, cond *rhino.Node, whenTruthy bool, ou
 				if narrowed := keepFalsyRefined(t); narrowed != nil {
 					out[cond.String_()] = narrowed
 				}
+			}
+		}
+		return
+	case rhino.GETPROP:
+		// `if (obj.prop)` narrows obj.prop to its truthy form
+		// inside the then-branch (and falsy on the else). Keyed
+		// by the qualified-name string "obj.prop" so inferGetProp
+		// can consult the refinement.
+		qname := qualifiedName(cond)
+		if qname == "" {
+			return
+		}
+		t := resolveQualifiedType(scope, cond)
+		if t == nil {
+			return
+		}
+		if whenTruthy {
+			if narrowed := stripFalsy(t); narrowed != nil {
+				out[qname] = narrowed
+			}
+		} else {
+			if narrowed := keepFalsyRefined(t); narrowed != nil {
+				out[qname] = narrowed
 			}
 		}
 		return
@@ -110,15 +158,27 @@ func collectRefinements(scope *TypedScope, cond *rhino.Node, whenTruthy bool, ou
 		return
 	}
 	if name, primName, equal := typeofCheckTarget(cond); name != "" {
-		prim := primitiveByName(primName)
-		if prim == nil {
-			return
-		}
 		t := scope.GetDeclaredType(name)
 		if t == nil {
 			return
 		}
 		matchesPositive := equal == whenTruthy
+		// `typeof x == 'object'` is a special case — narrows to
+		// null plus object-ish members on the truthy branch, and
+		// strips those on the falsy branch. Matches Java's
+		// SemanticReverseAbstractInterpreter's 'object' case.
+		if primName == "object" {
+			if matchesPositive {
+				out[name] = keepObjectish(t)
+			} else if narrowed := stripObjectish(t); narrowed != nil {
+				out[name] = narrowed
+			}
+			return
+		}
+		prim := primitiveByName(primName)
+		if prim == nil {
+			return
+		}
 		if matchesPositive {
 			out[name] = keepMember(t, prim)
 		} else if narrowed := removeMember(t, prim); narrowed != nil {
@@ -135,6 +195,74 @@ func collectRefinements(scope *TypedScope, cond *rhino.Node, whenTruthy bool, ou
 		}
 		return
 	}
+}
+
+// qualifiedName returns a dotted string for a GETPROP chain rooted
+// at a NAME or THIS, e.g. \`t.x.y\` → "t.x.y", \`this.x\` → "this.x".
+// Returns "" for any chain that doesn't resolve to a pure
+// name/this-rooted access (GETELEM, CALL receivers, etc.).
+func qualifiedName(n *rhino.Node) string {
+	if n == nil {
+		return ""
+	}
+	switch n.Token() {
+	case rhino.NAME:
+		return n.String_()
+	case rhino.THIS:
+		return "this"
+	case rhino.GETPROP:
+		kids := n.Children()
+		if len(kids) < 2 {
+			return ""
+		}
+		left := qualifiedName(kids[0])
+		if left == "" {
+			return ""
+		}
+		return left + "." + kids[1].String_()
+	}
+	return ""
+}
+
+// resolveQualifiedType looks up the declared type for a GETPROP
+// chain — walks from the NAME / THIS root through each property
+// step, consulting scope's namespace-prop map for flat two-segment
+// chains. Returns nil if any step is unknown.
+func resolveQualifiedType(scope *TypedScope, n *rhino.Node) jstype.JSType {
+	if n == nil {
+		return nil
+	}
+	switch n.Token() {
+	case rhino.NAME:
+		return scope.GetDeclaredType(n.String_())
+	case rhino.THIS:
+		if inst := scope.ThisType(); inst != nil {
+			return inst
+		}
+		return nil
+	case rhino.GETPROP:
+		kids := n.Children()
+		if len(kids) < 2 {
+			return nil
+		}
+		// Two-segment GETPROP rooted at a NAME that's been
+		// registered as a namespace (via recordNamespaceAssign or
+		// recordNamespaceStub) — consult the namespace-prop map
+		// before descending into ObjectType properties.
+		if kids[0].Token() == rhino.NAME {
+			if t := scope.LookupNamespaceProp(kids[0].String_(), kids[1].String_()); t != nil {
+				return t
+			}
+		}
+		recv := resolveQualifiedType(scope, kids[0])
+		if recv == nil {
+			return nil
+		}
+		if obj, ok := recv.(*jstype.ObjectType); ok {
+			return obj.GetPropertyType(kids[1].String_())
+		}
+	}
+	return nil
 }
 
 // instanceofCheckTarget recognises `NAME instanceof Ctor`. Returns

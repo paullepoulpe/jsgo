@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testoptimizepropertymap5.js:6:11: ERROR - [JSC_INEXISTENT_PROPERTY] Property a never defined on x
+  6|   return x.a + 1;
+                ^
+
+1 error(s), 0 warning(s), 81.8% typed
+---EXIT---
+1

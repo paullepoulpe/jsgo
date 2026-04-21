@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testunioncollapse_recordwithonlyoptionalpropertiesdoesnotsupercedearrayorfunction.js:10:8: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : (Array<function(new:Foo): ?>|function(new:Foo): ?|{x: (string|undefined)})
+required: null
+  10| var y = x;
+              ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

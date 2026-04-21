@@ -13,6 +13,35 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 )
 
+// oracleMode pairs an on-disk oracle tree with the CompilerOptions
+// jsgo should use to match it. Mirrors how closure-compiler runs the
+// same fixture under both the default TypeCheck surface and the
+// stricter TypeValidator surface gated behind STRICT_CHECK_TYPES.
+type oracleMode struct {
+	name    string
+	dir     string
+	optsFn  func() *jscomp.CompilerOptions
+}
+
+var oracleModes = []oracleMode{
+	{
+		name: "default",
+		dir:  "oracle",
+		optsFn: func() *jscomp.CompilerOptions {
+			return jscomp.NewCompilerOptions()
+		},
+	},
+	{
+		name: "strict",
+		dir:  "oracle-strict",
+		optsFn: func() *jscomp.CompilerOptions {
+			o := jscomp.NewCompilerOptions()
+			o.SetWarningLevel(jscomp.GroupStrictCheckTypes, jscomp.LevelWarning)
+			return o
+		},
+	},
+}
+
 // tuple is (path, line, col, code) as specified in SPEC.md. Message
 // strings are deliberately excluded.
 type tuple struct {
@@ -39,7 +68,10 @@ func parseTuples(text string) []tuple {
 		if out[i].line != out[j].line {
 			return out[i].line < out[j].line
 		}
-		return out[i].col < out[j].col
+		if out[i].col != out[j].col {
+			return out[i].col < out[j].col
+		}
+		return out[i].code < out[j].code
 	})
 	return out
 }
@@ -56,11 +88,15 @@ func parseOracleExit(text string) int {
 }
 
 func jsgoTuples(path string) ([]tuple, int, error) {
+	return jsgoTuplesWithOptions(path, jscomp.NewCompilerOptions())
+}
+
+func jsgoTuplesWithOptions(path string, opts *jscomp.CompilerOptions) ([]tuple, int, error) {
 	src, err := os.ReadFile(path)
 	if err != nil {
 		return nil, 0, err
 	}
-	diags, err := jscomp.CheckSource(path, string(src))
+	diags, err := jscomp.CheckSourceWithOptions(path, string(src), opts)
 	if err != nil {
 		return nil, 0, nil
 	}
@@ -76,7 +112,10 @@ func jsgoTuples(path string) ([]tuple, int, error) {
 		if out[i].line != out[j].line {
 			return out[i].line < out[j].line
 		}
-		return out[i].col < out[j].col
+		if out[i].col != out[j].col {
+			return out[i].col < out[j].col
+		}
+		return out[i].code < out[j].code
 	})
 	return out, exit, nil
 }
@@ -124,20 +163,31 @@ var repoRoot = func() string {
 }()
 
 func runFixture(t *testing.T, _, fix string) error {
+	return runFixtureMode(fix, oracleModes[0])
+}
+
+// runFixtureMode runs a fixture against a specific oracle tree + the
+// CompilerOptions that tree corresponds to. The strict tree is
+// optional: fixtures without a strict-oracle counterpart are skipped
+// (returns nil) so gradual regeneration doesn't break the harness.
+func runFixtureMode(fix string, mode oracleMode) error {
 	fixRel, err := filepath.Rel(repoRoot, fix)
 	if err != nil {
 		return err
 	}
-	oraclePath := filepath.Join(repoRoot, "testdata", "oracle",
+	oraclePath := filepath.Join(repoRoot, "testdata", mode.dir,
 		strings.TrimSuffix(fixRel[len("testdata/fixtures/"):], ".js")+".txt")
 	oracleBytes, err := os.ReadFile(oraclePath)
 	if err != nil {
+		if os.IsNotExist(err) && mode.dir != "oracle" {
+			return nil // strict oracle missing → skip, don't fail
+		}
 		return err
 	}
 	expected := parseTuples(string(oracleBytes))
 	// Java recorded its diagnostics against the repo-relative path
 	// (that's what the oracle shows). Pass the same string to jsgo.
-	actual, exit, err := jsgoTuples(fixRel)
+	actual, exit, err := jsgoTuplesWithOptions(fixRel, mode.optsFn())
 	if err != nil {
 		return err
 	}
@@ -177,11 +227,16 @@ func runTier(t *testing.T, dir string) {
 	if len(fixtures) == 0 {
 		t.Fatalf("no %s fixtures", dir)
 	}
-	for _, fix := range fixtures {
-		rel, _ := filepath.Rel(root, fix)
-		t.Run(rel, func(t *testing.T) {
-			if err := runFixture(t, repoRoot, fix); err != nil {
-				t.Fatalf("%v", err)
+	for _, mode := range oracleModes {
+		mode := mode
+		t.Run(mode.name, func(t *testing.T) {
+			for _, fix := range fixtures {
+				rel, _ := filepath.Rel(root, fix)
+				t.Run(rel, func(t *testing.T) {
+					if err := runFixtureMode(fix, mode); err != nil {
+						t.Fatalf("%v", err)
+					}
+				})
 			}
 		})
 	}
@@ -214,18 +269,36 @@ func TestExtractedCorpus(t *testing.T) {
 	if len(fixtures) == 0 {
 		t.Skip("extracted corpus not present")
 	}
-	pass, fail := 0, 0
-	for _, fix := range fixtures {
-		if err := runFixture(t, repoRoot, fix); err != nil {
-			fail++
-		} else {
-			pass++
-		}
-	}
-	total := pass + fail
-	rate := 100.0 * float64(pass) / float64(total)
-	t.Logf("extracted: pass=%d fail=%d total=%d rate=%.2f%%", pass, fail, total, rate)
-	if rate < floorPercent {
-		t.Fatalf("pass rate %.2f%% below floor %d%%", rate, floorPercent)
+	for _, mode := range oracleModes {
+		mode := mode
+		t.Run(mode.name, func(t *testing.T) {
+			pass, fail, skipped := 0, 0, 0
+			for _, fix := range fixtures {
+				// Skip fixtures without an oracle for this mode.
+				fixRel, _ := filepath.Rel(repoRoot, fix)
+				oraclePath := filepath.Join(repoRoot, "testdata", mode.dir,
+					strings.TrimSuffix(fixRel[len("testdata/fixtures/"):], ".js")+".txt")
+				if _, err := os.Stat(oraclePath); err != nil {
+					skipped++
+					continue
+				}
+				if err := runFixtureMode(fix, mode); err != nil {
+					fail++
+				} else {
+					pass++
+				}
+			}
+			total := pass + fail
+			if total == 0 {
+				t.Skipf("no %s oracles present", mode.name)
+				return
+			}
+			rate := 100.0 * float64(pass) / float64(total)
+			t.Logf("extracted/%s: pass=%d fail=%d skipped=%d total=%d rate=%.2f%%",
+				mode.name, pass, fail, skipped, total, rate)
+			if mode.name == "default" && rate < floorPercent {
+				t.Fatalf("default pass rate %.2f%% below floor %d%%", rate, floorPercent)
+			}
+		})
 	}
 }

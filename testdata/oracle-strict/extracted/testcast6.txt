@@ -1,0 +1,31 @@
+testdata/fixtures/extracted/testcast6.js:5:4: ERROR - [JSC_VAR_MULTIPLY_DECLARED_ERROR] Variable baz declared more than once. First occurrence: testdata/fixtures/extracted/testcast6.js:4:4
+  5| var baz = /** @type {!foo} */(new foo);
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+testdata/fixtures/extracted/testcast6.js:6:4: ERROR - [JSC_VAR_MULTIPLY_DECLARED_ERROR] Variable baz declared more than once. First occurrence: testdata/fixtures/extracted/testcast6.js:4:4
+  6| var baz = /** @type {bar} */(new bar);
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+testdata/fixtures/extracted/testcast6.js:7:4: ERROR - [JSC_VAR_MULTIPLY_DECLARED_ERROR] Variable baz declared more than once. First occurrence: testdata/fixtures/extracted/testcast6.js:4:4
+  7| var baz = /** @type {foo} */(new foo);
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+testdata/fixtures/extracted/testcast6.js:8:4: ERROR - [JSC_VAR_MULTIPLY_DECLARED_ERROR] Variable baz declared more than once. First occurrence: testdata/fixtures/extracted/testcast6.js:4:4
+  8| var baz = /** @type {!foo} */(new bar);
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+testdata/fixtures/extracted/testcast6.js:9:4: ERROR - [JSC_VAR_MULTIPLY_DECLARED_ERROR] Variable baz declared more than once. First occurrence: testdata/fixtures/extracted/testcast6.js:4:4
+   9| var baz = /** @type {!bar} */(new foo);
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+testdata/fixtures/extracted/testcast6.js:10:4: ERROR - [JSC_VAR_MULTIPLY_DECLARED_ERROR] Variable baz declared more than once. First occurrence: testdata/fixtures/extracted/testcast6.js:4:4
+  10| var baz = /** @type {foo} */(new bar);
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+testdata/fixtures/extracted/testcast6.js:11:4: ERROR - [JSC_VAR_MULTIPLY_DECLARED_ERROR] Variable baz declared more than once. First occurrence: testdata/fixtures/extracted/testcast6.js:4:4
+  11| var baz = /** @type {bar} */(new foo);
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+7 error(s), 0 warning(s)
+---EXIT---
+7

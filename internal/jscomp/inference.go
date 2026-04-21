@@ -14,6 +14,8 @@
 package jscomp
 
 import (
+	"strings"
+
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/rhino/jstype"
 )
@@ -60,10 +62,14 @@ func (t *TypeInference) InferType(n *rhino.Node) jstype.JSType {
 		return jstype.Unknown
 	case rhino.GETPROP:
 		return t.inferGetProp(n)
+	case rhino.GETELEM:
+		return t.inferGetElem(n)
 	case rhino.NEW:
-		if callee := n.FirstChild(); callee != nil && callee.Token() == rhino.NAME {
-			if fn, ok := t.scope.GetDeclaredType(callee.String_()).(*jstype.FunctionType); ok && fn.Instance != nil {
-				return fn.Instance
+		if callee := n.FirstChild(); callee != nil {
+			if ct := t.InferType(callee); ct != nil {
+				if fn, ok := ct.(*jstype.FunctionType); ok && fn.Instance != nil {
+					return fn.Instance
+				}
 			}
 		}
 		return jstype.Unknown
@@ -71,19 +77,26 @@ func (t *TypeInference) InferType(n *rhino.Node) jstype.JSType {
 		return t.inferCall(n)
 
 	// ---- assignment --------------------------------------------- //
-	case rhino.ASSIGN,
-		rhino.ASSIGN_ADD, rhino.ASSIGN_SUB, rhino.ASSIGN_MUL, rhino.ASSIGN_DIV, rhino.ASSIGN_MOD,
-		rhino.ASSIGN_BITAND, rhino.ASSIGN_BITOR, rhino.ASSIGN_BITXOR,
-		rhino.ASSIGN_LSH, rhino.ASSIGN_RSH, rhino.ASSIGN_URSH:
-		// Assignment expressions evaluate to the RHS (for bare `=`) or
-		// to the arithmetic result (for compound). Conservative Tier-0:
-		// use the RHS type directly — compound assigns pick up the
-		// sharper result in the binary-op case below once desugared.
+	case rhino.ASSIGN:
+		// Bare `=` — the expression value is the RHS type. Matches
+		// TypeInference.java's ASSIGN branch.
 		kids := n.Children()
 		if len(kids) >= 2 {
 			return t.InferType(kids[1])
 		}
 		return jstype.Unknown
+	case rhino.ASSIGN_ADD:
+		// `x += y` has the same result type as `x + y`; delegate to
+		// inferAdd so string-coercion is tracked. Mirrors how Java's
+		// TypeInference sharpens compound-assign result types via the
+		// underlying binary-op helper (getOpResultType in ADD path).
+		return t.inferAddChildren(n)
+	case rhino.ASSIGN_SUB, rhino.ASSIGN_MUL, rhino.ASSIGN_DIV, rhino.ASSIGN_MOD,
+		rhino.ASSIGN_BITAND, rhino.ASSIGN_BITOR, rhino.ASSIGN_BITXOR,
+		rhino.ASSIGN_LSH, rhino.ASSIGN_RSH, rhino.ASSIGN_URSH:
+		// Arithmetic / bitwise compound assigns always produce Number.
+		// Port of the corresponding TypeInference.java branches.
+		return jstype.Number
 
 	// ---- binary arithmetic / comparison / logical ----------------- //
 	case rhino.ADD:
@@ -123,15 +136,21 @@ func (t *TypeInference) InferType(n *rhino.Node) jstype.JSType {
 		}
 		return unionFold(stripped, t.InferType(kids[1]))
 	case rhino.AND:
-		// `a && b` returns `b` when `a` is truthy, else `a`. When we
-		// can't statically tell, favour the right operand — Java does
-		// this too when the left side includes truthy members — since
-		// the vast majority of corpus uses target the `b` case.
+		// \`a && b\` returns \`b\` when \`a\` is truthy, else \`a\`. Result
+		// is \`(a − truthy) ∪ b\` — the falsy members of \`a\` plus
+		// whatever \`b\` evaluates to under the truthy-a refinement.
 		kids := n.Children()
 		if len(kids) < 2 {
 			return jstype.Unknown
 		}
-		return t.InferType(kids[1])
+		left := t.InferType(kids[0])
+		refs := buildRefinements(t.scope, kids[0], true)
+		right := t.inferUnder(kids[1], refs)
+		falsy := keepFalsyRefined(left)
+		if falsy == nil {
+			return right
+		}
+		return unionFold(falsy, right)
 
 	// ---- unary ---------------------------------------------------- //
 	case rhino.NOT:
@@ -181,11 +200,36 @@ func (t *TypeInference) inferGetProp(n *rhino.Node) jstype.JSType {
 	}
 	recv := kids[0]
 	propName := kids[1].String_()
+	// Flow refinement for qualified names: `if (obj.prop) { … }`
+	// narrows obj.prop inside the then-branch. The narrowed type
+	// is keyed on the dotted name "obj.prop" in the refinement
+	// stack and takes priority over the declared property type.
+	if qname := qualifiedName(n); qname != "" && strings.Contains(qname, ".") {
+		if r := t.scope.GetQualifiedRefinement(qname); r != nil {
+			return r
+		}
+	}
 	if recv.Token() == rhino.NAME {
 		if fn, ok := t.scope.GetDeclaredType(recv.String_()).(*jstype.FunctionType); ok && fn.Instance != nil {
 			if pt := fn.Instance.GetStaticPropertyType(propName); pt != nil {
 				return pt
 			}
+		}
+		// Enum member access: `MyEnum.FOO` → EnumElementType,
+		// matching Java's EnumType.getPropertyType which always
+		// returns the paired EnumElementType for member reads.
+		if enum, ok := t.scope.GetDeclaredType(recv.String_()).(*jstype.EnumType); ok {
+			if enum.Members[propName] {
+				return enum.Element
+			}
+			// Falling through to Unknown keeps un-declared-member
+			// references quiet here; the INEXISTENT_ENUM_ELEMENT
+			// diagnostic fires in TypeCheck.visitGetProp.
+		}
+		// Namespace property declared via
+		// `/** @type {T} */ owner.prop = …`.
+		if np := t.scope.LookupNamespaceProp(recv.String_(), propName); np != nil {
+			return np
 		}
 	}
 	recvType := t.InferType(recv)
@@ -237,6 +281,19 @@ func (t *TypeInference) inferCall(n *rhino.Node) jstype.JSType {
 	var fn *jstype.FunctionType
 	switch callee.Token() {
 	case rhino.NAME:
+		// Bare-name calls to the String / Number / Boolean
+		// coercion constructors resolve to the matching
+		// primitive — `String(n)` is a string, not a String
+		// instance. Matches Java's special-cased coercion path
+		// in TypeInference.visitCall.
+		switch callee.String_() {
+		case "String":
+			return jstype.String
+		case "Number":
+			return jstype.Number
+		case "Boolean":
+			return jstype.Boolean
+		}
 		if f, ok := t.scope.GetDeclaredType(callee.String_()).(*jstype.FunctionType); ok {
 			fn = f
 		}
@@ -323,6 +380,14 @@ func unifyTemplates(subs *jstype.TemplateTypeMap, param, arg jstype.JSType) {
 //   mixed string/num  → (number|string)
 //   anything else     → Unknown
 func (t *TypeInference) inferAdd(n *rhino.Node) jstype.JSType {
+	return t.inferAddChildren(n)
+}
+
+// inferAddChildren shares the result-type computation between ADD
+// (`+`) and ASSIGN_ADD (`+=`). Both operators carry two child
+// sub-expressions; compound-assign behaves identically to the binary
+// form for the purpose of the synthesised result type.
+func (t *TypeInference) inferAddChildren(n *rhino.Node) jstype.JSType {
 	kids := n.Children()
 	if len(kids) < 2 {
 		return jstype.Unknown
@@ -374,9 +439,27 @@ func (t *TypeInference) inferHook(n *rhino.Node) jstype.JSType {
 		return jstype.Unknown
 	}
 	cond, thenExpr, elseExpr := kids[0], kids[1], kids[2]
-	thenT := t.inferWithNarrowing(thenExpr, cond, true)
-	elseT := t.inferWithNarrowing(elseExpr, cond, false)
+	// Build per-branch refinements for the full condition shape
+	// (NAME / GETPROP / AND / OR / typeof / instanceof / null
+	// checks). Push them temporarily while inferring each branch so
+	// qualified names like `obj.prop` see the narrowed type.
+	thenRefs := buildRefinements(t.scope, cond, true)
+	elseRefs := buildRefinements(t.scope, cond, false)
+	thenT := t.inferUnder(thenExpr, thenRefs)
+	elseT := t.inferUnder(elseExpr, elseRefs)
 	return unionFold(thenT, elseT)
+}
+
+// inferUnder evaluates `expr` with `refs` temporarily pushed as a
+// refinement overlay — used by inferHook and AND/OR short-circuit
+// inference so each branch sees the narrowed flow.
+func (t *TypeInference) inferUnder(expr *rhino.Node, refs map[string]jstype.JSType) jstype.JSType {
+	if len(refs) == 0 {
+		return t.InferType(expr)
+	}
+	t.scope.PushRefinement(refs)
+	defer t.scope.PopRefinement()
+	return t.InferType(expr)
 }
 
 // inferWithNarrowing returns the inferred type of `expr` given that
@@ -435,9 +518,13 @@ func narrowingTarget(cond *rhino.Node, whenTruthy bool) (string, func(jstype.JST
 		return name, stripNullUndef
 	}
 	if name, primName, equal := typeofCheckTarget(cond); name != "" {
-		// `typeof x === 'string'` truthy → x is string; falsy →
-		// x is the union without string.
 		matchesPositive := equal == whenTruthy
+		if primName == "object" {
+			if matchesPositive {
+				return name, keepObjectish
+			}
+			return name, stripObjectish
+		}
 		prim := primitiveByName(primName)
 		if prim == nil {
 			return "", nil
@@ -575,6 +662,71 @@ func keepMember(t, target jstype.JSType) jstype.JSType {
 		return t
 	}
 	return target
+}
+
+// keepObjectish narrows `t` to the members whose `typeof` would
+// return 'object' — null and every ObjectType / TemplatizedType /
+// UnionType member. Used by the `typeof x == 'object'` refinement.
+func keepObjectish(t jstype.JSType) jstype.JSType {
+	if u, ok := t.(*jstype.UnionType); ok {
+		var kept []jstype.JSType
+		for _, m := range u.Members() {
+			if isObjectishMember(m) {
+				kept = append(kept, m)
+			}
+		}
+		if len(kept) == 0 {
+			return nil
+		}
+		if len(kept) == 1 {
+			return kept[0]
+		}
+		return jstype.NewUnion(kept...)
+	}
+	if isObjectishMember(t) {
+		return t
+	}
+	return nil
+}
+
+// stripObjectish returns `t` with all object-ish members removed.
+// Used by the `typeof x != 'object'` falsy-branch refinement.
+func stripObjectish(t jstype.JSType) jstype.JSType {
+	if u, ok := t.(*jstype.UnionType); ok {
+		var kept []jstype.JSType
+		for _, m := range u.Members() {
+			if !isObjectishMember(m) {
+				kept = append(kept, m)
+			}
+		}
+		if len(kept) == 0 {
+			return nil
+		}
+		if len(kept) == 1 {
+			return kept[0]
+		}
+		return jstype.NewUnion(kept...)
+	}
+	if isObjectishMember(t) {
+		return nil
+	}
+	return t
+}
+
+// isObjectishMember reports whether `t` would evaluate `typeof t ==
+// 'object'` to true — null, any ObjectType, any TemplatizedType,
+// any EnumElementType over an object underlying.
+func isObjectishMember(t jstype.JSType) bool {
+	if t == jstype.Null {
+		return true
+	}
+	if _, ok := t.(*jstype.ObjectType); ok {
+		return true
+	}
+	if _, ok := t.(*jstype.TemplatizedType); ok {
+		return true
+	}
+	return false
 }
 
 // removeMember returns `t` minus `target`. Returns nil when nothing
@@ -741,12 +893,12 @@ func stripNullUndef(t jstype.JSType) jstype.JSType {
 	return stripFalsy(t) // same rule, kept as a separate name for clarity
 }
 
-// keepFalsyRefined keeps only the definitively-falsy members of a
-// union (null / void), returning nil when nothing remains. Used by
-// if (x) / while (x) / cond ? ... : ... falsy-branch narrowing on a
-// bare NAME, where we can confidently prune non-null / non-undef
-// members but the primitive side (0 / '' / false) still permits any
-// value.
+// keepFalsyRefined keeps the union members that can hold a falsy
+// value on the else branch of \`if (x)\`. Java's conservative rule:
+// null / undefined / boolean / string / number all admit falsy
+// values (null, undefined, false, "", 0), so they stay. Object /
+// FunctionType can't be falsy — drop those. Used by if / while /
+// ternary falsy-branch narrowing on a bare NAME.
 func keepFalsyRefined(t jstype.JSType) jstype.JSType {
 	u, ok := t.(*jstype.UnionType)
 	if !ok {
@@ -757,7 +909,8 @@ func keepFalsyRefined(t jstype.JSType) jstype.JSType {
 	}
 	var kept []jstype.JSType
 	for _, m := range u.Members() {
-		if m == jstype.Null || m == jstype.Void {
+		switch m {
+		case jstype.Null, jstype.Void, jstype.Boolean, jstype.String, jstype.Number:
 			kept = append(kept, m)
 		}
 	}
@@ -793,6 +946,34 @@ func keepNullUndef(t jstype.JSType) jstype.JSType {
 		return t
 	}
 	return jstype.Void
+}
+
+// inferGetElem mirrors TypeInference.java's GETELEM branch. `x[i]`
+// produces:
+//   - the template-arg element type when the receiver is
+//     `Array<T>` / `Object<K,V>` / any templatized type with one arg,
+//   - Unknown when the receiver is a plain Array instance (no element
+//     tracking), an untyped object, or anything else.
+//
+// We do NOT diagnose type mismatches here — the checker raises those
+// in TypeCheck.visitGetElem.
+func (t *TypeInference) inferGetElem(n *rhino.Node) jstype.JSType {
+	kids := n.Children()
+	if len(kids) < 2 {
+		return jstype.Unknown
+	}
+	recvType := t.InferType(kids[0])
+	recvType = stripNullUndef(recvType)
+	if tt, ok := recvType.(*jstype.TemplatizedType); ok {
+		switch len(tt.Args) {
+		case 1:
+			return tt.Args[0]
+		case 2:
+			// Object<K,V> / Map<K,V>: index access yields the value type.
+			return tt.Args[1]
+		}
+	}
+	return jstype.Unknown
 }
 
 // unionFold returns the union of non-nil members; if either side is

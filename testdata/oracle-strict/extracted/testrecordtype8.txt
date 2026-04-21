@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testrecordtype8.js:2:38: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of g does not match formal parameter
+found   : number
+required: string
+  2| function f() { var x = {prop: 3}; g(x.prop); return x; }
+                                           ^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

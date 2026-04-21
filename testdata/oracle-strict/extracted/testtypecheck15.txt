@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testtypecheck15.js:1:38: ERROR - [JSC_TYPE_MISMATCH] assignment
+found   : number
+required: (Number|null)
+  1| /**@type {Number|null} */var x;x=null;x=10;
+                                           ^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

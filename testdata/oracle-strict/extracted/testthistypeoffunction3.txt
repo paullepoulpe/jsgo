@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testthistypeoffunction3.js:3:23: ERROR - [JSC_EXPECTED_THIS_TYPE] "function(this:F): undefined" must be called with a "this" type
+  3| var f = (new F()).bar; f();
+                            ^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

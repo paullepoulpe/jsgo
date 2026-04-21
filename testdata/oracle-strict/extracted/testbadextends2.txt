@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testbadextends2.js:10:6: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of foo does not match formal parameter
+found   : Number
+required: String
+  10| foo(y.baseMember);
+            ^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

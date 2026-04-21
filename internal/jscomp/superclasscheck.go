@@ -22,6 +22,7 @@ package jscomp
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/diag"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -54,14 +55,506 @@ func (s *SuperclassCheck) walk(n *rhino.Node) {
 	switch n.Token() {
 	case rhino.CLASS:
 		s.checkClass(n)
+		s.checkClassDictExtendsStruct(n)
+	case rhino.FUNCTION:
+		s.checkFunctionImplements(n)
+		s.checkInterfaceExtendsConflicts(n)
+		s.checkExtendsKindMismatch(n)
+		s.checkStructDictRequireConstructor(n)
+		s.checkFunctionDictExtendsStruct(n)
+	case rhino.VAR, rhino.LET, rhino.CONST:
+		s.checkDeclaredConstructorImplements(n)
 	case rhino.EXPR_RESULT:
 		if a := n.FirstChild(); a != nil && a.Token() == rhino.ASSIGN {
 			s.checkPrototypeAssign(n, a)
+		}
+		if gp := n.FirstChild(); gp != nil && gp.Token() == rhino.GETPROP {
+			s.checkPrototypeStub(n, gp)
 		}
 	}
 	for _, c := range n.Children() {
 		s.walk(c)
 	}
+}
+
+// checkFunctionDictExtendsStruct fires JSC_DICT_EXTEND_STRUCT_TYPE
+// when a @constructor @dict function extends a @struct parent.
+// Mirrors TypeCheck.java's struct/dict hierarchy guard.
+func (s *SuperclassCheck) checkFunctionDictExtendsStruct(fn *rhino.Node) {
+	info := fn.JSDocInfo()
+	if info == nil || !info.IsDict() || !info.IsConstructor() {
+		return
+	}
+	base := info.BaseType()
+	if base == nil {
+		return
+	}
+	super := s.scope.LookupNominalType(base.TypeName)
+	if super == nil || !super.IsStruct {
+		return
+	}
+	kids := fn.Children()
+	if len(kids) < 1 {
+		return
+	}
+	name := kids[0].String_()
+	if name == "" {
+		return
+	}
+	s.diags = append(s.diags, diag.Diagnostic{
+		Path: s.path, Line: fn.Lineno(), Col: fn.Charno(),
+		Code: diag.JSC_DICT_EXTEND_STRUCT_TYPE, Level: diag.Error,
+		Message: fmt.Sprintf("@dict class %s cannot extend @struct class %s", name, base.TypeName),
+	})
+}
+
+// checkClassDictExtendsStruct is the ES6-class variant of
+// checkFunctionDictExtendsStruct. ES6 classes are @struct by
+// default — a @dict-tagged class extending any normal class
+// (struct-implicit) triggers the same diagnostic.
+func (s *SuperclassCheck) checkClassDictExtendsStruct(cls *rhino.Node) {
+	info := cls.JSDocInfo()
+	if info == nil || !info.IsDict() {
+		return
+	}
+	kids := cls.Children()
+	if len(kids) < 2 {
+		return
+	}
+	nameNode, superNode := kids[0], kids[1]
+	name := nameNode.String_()
+	if name == "" {
+		return
+	}
+	if superNode == nil || superNode.String_() == "" {
+		return
+	}
+	// ES6 classes are @struct by default (unless explicitly @dict).
+	superName := superNode.String_()
+	super := s.scope.LookupNominalType(superName)
+	isSuperStruct := super != nil && super.IsStruct
+	// Treat a plain ES6-class parent (no JSDoc) as struct-by-default.
+	if super != nil && !super.IsStruct && !super.IsDict && !super.IsStructural {
+		isSuperStruct = true
+	}
+	if !isSuperStruct {
+		return
+	}
+	s.diags = append(s.diags, diag.Diagnostic{
+		Path: s.path, Line: cls.Lineno(), Col: cls.Charno(),
+		Code: diag.JSC_DICT_EXTEND_STRUCT_TYPE, Level: diag.Error,
+		Message: fmt.Sprintf("@dict class %s cannot extend @struct class %s", name, superName),
+	})
+}
+
+// checkStructDictRequireConstructor fires JSC_CONSTRUCTOR_REQUIRED
+// when a FUNCTION carries @struct or @dict but no @constructor /
+// @interface / @record. The struct/dict flag only has meaning on
+// a class-shaped declaration — Java rejects it on plain functions.
+func (s *SuperclassCheck) checkStructDictRequireConstructor(fn *rhino.Node) {
+	info := fn.JSDocInfo()
+	if info == nil {
+		return
+	}
+	if !info.IsStruct() && !info.IsDict() {
+		return
+	}
+	if info.IsConstructor() || info.IsInterface() || info.IsRecord() {
+		return
+	}
+	kids := fn.Children()
+	if len(kids) < 1 {
+		return
+	}
+	name := kids[0].String_()
+	if name == "" {
+		return
+	}
+	tag := "@struct"
+	if info.IsDict() {
+		tag = "@dict"
+	}
+	s.diags = append(s.diags, diag.Diagnostic{
+		Path: s.path, Line: fn.Lineno(), Col: fn.Charno(),
+		Code: diag.JSC_CONSTRUCTOR_REQUIRED, Level: diag.Error,
+		Message: fmt.Sprintf("%s used without @constructor for %s", tag, name),
+	})
+}
+
+// checkExtendsKindMismatch fires JSC_CONFLICTING_EXTENDED_TYPE
+// when an @interface extends a non-interface, or a @constructor
+// extends a non-constructor. Mirrors TypeCheck.java's
+// checkConstructor / checkInterface-extends kind guard.
+func (s *SuperclassCheck) checkExtendsKindMismatch(fn *rhino.Node) {
+	info := fn.JSDocInfo()
+	if info == nil {
+		return
+	}
+	isIface := info.IsInterface() || info.IsRecord()
+	isCtor := info.IsConstructor()
+	if !isIface && !isCtor {
+		return
+	}
+	kids := fn.Children()
+	if len(kids) < 1 {
+		return
+	}
+	name := kids[0].String_()
+	if name == "" {
+		return
+	}
+	// Walk every @extends — fires once for the first parent whose
+	// kind conflicts with the child's. Matches Java's behaviour of
+	// reporting one conflicting-extends diagnostic per declaration.
+	bases := info.BaseTypes()
+	if len(bases) == 0 {
+		if b := info.BaseType(); b != nil {
+			bases = []*rhino.JSTypeExpression{b}
+		}
+	}
+	reported := false
+	for _, b := range bases {
+		if reported {
+			break
+		}
+		super := s.scope.LookupNominalType(b.TypeName)
+		if super == nil {
+			continue
+		}
+		if isIface && !super.IsStructural {
+			s.diags = append(s.diags, diag.Diagnostic{
+				Path: s.path, Line: fn.Lineno(), Col: fn.Charno(),
+				Code: diag.JSC_CONFLICTING_EXTENDED_TYPE, Level: diag.Error,
+				Message: fmt.Sprintf(
+					"%s cannot extend this type; interfaces can only extend interfaces",
+					name),
+			})
+			reported = true
+		}
+		if isCtor && super.IsStructural {
+			s.diags = append(s.diags, diag.Diagnostic{
+				Path: s.path, Line: fn.Lineno(), Col: fn.Charno(),
+				Code: diag.JSC_CONFLICTING_EXTENDED_TYPE, Level: diag.Error,
+				Message: fmt.Sprintf(
+					"%s cannot extend this type; constructors can only extend constructors",
+					name),
+			})
+			reported = true
+		}
+	}
+}
+
+// checkInterfaceExtendsConflicts fires
+// JSC_INCOMPATIBLE_EXTENDED_PROPERTY_TYPE when an @interface
+// @extends multiple other interfaces and two of those parents
+// declare the same property with incompatible types. One
+// diagnostic per pair of conflicting parents, reported at the
+// interface declaration's position. Mirrors TypeCheck.java's
+// checkConflictingExtendedInterfaces loop.
+func (s *SuperclassCheck) checkInterfaceExtendsConflicts(fn *rhino.Node) {
+	info := fn.JSDocInfo()
+	if info == nil || !info.IsInterface() {
+		return
+	}
+	bases := info.BaseTypes()
+if len(bases) < 2 {
+		return
+	}
+	kids := fn.Children()
+	if len(kids) < 1 {
+		return
+	}
+	name := kids[0].String_()
+	if name == "" {
+		return
+	}
+	// Resolve each parent interface to its InstanceType.
+	var parents []*jstype.ObjectType
+	var parentNames []string
+	for _, b := range bases {
+		inst := s.scope.LookupNominalType(b.TypeName)
+		if inst == nil {
+			continue
+		}
+		parents = append(parents, inst)
+		parentNames = append(parentNames, b.TypeName)
+	}
+	// For each pair of parents, compare the full property set and
+	// flag the first property whose declared types don't match.
+	seen := map[string]bool{}
+	for i := 0; i < len(parents); i++ {
+		for j := i + 1; j < len(parents); j++ {
+			for _, pname := range allInterfaceProperties(parents[i]) {
+				if seen[pname] {
+					continue
+				}
+				ti := parents[i].GetPropertyType(pname)
+				tj := parents[j].GetPropertyType(pname)
+				if ti == nil || tj == nil {
+					continue
+				}
+				if jstype.IsSubtype(ti, tj) || jstype.IsSubtype(tj, ti) {
+					continue
+				}
+				seen[pname] = true
+				s.diags = append(s.diags, diag.Diagnostic{
+					Path: s.path, Line: fn.Lineno(), Col: fn.Charno(),
+					Code: diag.JSC_INCOMPATIBLE_EXTENDED_PROPERTY_TYPE, Level: diag.Error,
+					Message: fmt.Sprintf(
+						"Interface %s has a property %s with incompatible types in its super interfaces %s and %s",
+						name, pname, parentNames[i], parentNames[j]),
+				})
+			}
+		}
+	}
+}
+
+// checkFunctionImplements walks an AST FUNCTION declaration and,
+// when it carries @constructor + @implements {Foo, Bar, …}, emits
+// JSC_INTERFACE_METHOD_NOT_IMPLEMENTED for each interface property
+// the constructor's instance doesn't implement (directly or
+// through its @extends chain). Mirrors TypeCheck's
+// validateImplements loop.
+func (s *SuperclassCheck) checkFunctionImplements(fn *rhino.Node) {
+	info := fn.JSDocInfo()
+	if !info.IsConstructor() {
+		return
+	}
+	kids := fn.Children()
+	if len(kids) < 1 {
+		return
+	}
+	nameNode := kids[0]
+	if nameNode.String_() == "" {
+		return
+	}
+	s.validateImplements(fn, nameNode.String_(), info)
+}
+
+// checkDeclaredConstructorImplements handles the
+// `/** @constructor @implements {Foo} */ var Bar = function(){}`
+// form — JSDoc is on the VAR, not on the inner FUNCTION.
+func (s *SuperclassCheck) checkDeclaredConstructorImplements(v *rhino.Node) {
+	info := v.JSDocInfo()
+	if !info.IsConstructor() {
+		return
+	}
+	nameNode := v.FirstChild()
+	if nameNode == nil || nameNode.Token() != rhino.NAME || nameNode.String_() == "" {
+		return
+	}
+	s.validateImplements(v, nameNode.String_(), info)
+}
+
+// validateImplements verifies `ctorName` implements every property
+// each of its @implements interfaces declares. Emits one
+// JSC_INTERFACE_METHOD_NOT_IMPLEMENTED per missing property. The
+// diagnostic position matches Java's — at the constructor
+// declaration node's starting column.
+func (s *SuperclassCheck) validateImplements(reportAt *rhino.Node, ctorName string, info *rhino.JSDocInfo) {
+	impls := info.Implementations()
+	if len(impls) == 0 {
+		return
+	}
+	ctor, ok := s.scope.GetRawDeclaredType(ctorName).(*jstype.FunctionType)
+	if !ok || ctor.Instance == nil {
+		return
+	}
+	inst := ctor.Instance
+	// Detect duplicate @implements — Java fires
+	// JSC_SAME_INTERFACE_MULTIPLE_IMPLEMENTS when the same
+	// interface name appears twice (ignoring template args).
+	seenIface := map[string]bool{}
+	for _, expr := range impls {
+		base := expr.TypeName
+		// Strip template-arg suffix when present.
+		if lt := strings.Index(base, "<"); lt > 0 {
+			base = base[:lt]
+		}
+		// Strip `!` / `?` nullability markers.
+		base = strings.TrimLeft(base, "!?")
+		if seenIface[base] {
+			s.diags = append(s.diags, diag.Diagnostic{
+				Path: s.path, Line: reportAt.Lineno(), Col: reportAt.Charno(),
+				Code: diag.JSC_SAME_INTERFACE_MULTIPLE_IMPLEMENTS, Level: diag.Error,
+				Message: "Cannot @implement the same interface more than once\nRepeated interface: " + base,
+			})
+			continue
+		}
+		seenIface[base] = true
+	}
+	for _, expr := range impls {
+		iface := s.scope.LookupNominalType(expr.TypeName)
+		if iface == nil {
+			continue
+		}
+		// Java's TypeCheck fires JSC_IMPLEMENTS_NON_INTERFACE
+		// when @implements references a non-interface constructor
+		// (e.g. `@implements {Boolean}` or a plain user-defined
+		// @constructor). Gated on the target not being
+		// @record / @interface.
+		if !iface.IsStructural {
+			s.diags = append(s.diags, diag.Diagnostic{
+				Path: s.path, Line: reportAt.Lineno(), Col: reportAt.Charno(),
+				Code: diag.JSC_IMPLEMENTS_NON_INTERFACE, Level: diag.Error,
+				Message: "can only implement interfaces",
+			})
+			continue
+		}
+		// Walk the interface's full property set (its own members
+		// plus any inherited via @extends {Other}).
+		for _, propName := range allInterfaceProperties(iface) {
+			if inst.GetPropertyType(propName) != nil {
+				continue
+			}
+			s.diags = append(s.diags, diag.Diagnostic{
+				Path: s.path, Line: reportAt.Lineno(), Col: reportAt.Charno(),
+				Code: diag.JSC_INTERFACE_METHOD_NOT_IMPLEMENTED, Level: diag.Error,
+				Message: fmt.Sprintf(
+					"property %s on interface %s is not implemented by type %s",
+					propName, iface.TypeName(), ctorName),
+			})
+		}
+	}
+}
+
+// allInterfaceProperties returns every property name declared on
+// `iface` or reachable through its super chain, deduplicated.
+func allInterfaceProperties(iface *jstype.ObjectType) []string {
+	seen := map[string]bool{}
+	var out []string
+	for cur := iface; cur != nil; cur = cur.Super() {
+		for _, name := range cur.MemberNames() {
+			if seen[name] {
+				continue
+			}
+			seen[name] = true
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+// checkPrototypeStub handles the stub form `X.prototype.name;` with
+// a `/** @type {T} */` JSDoc. Fires JSC_HIDDEN_SUPERCLASS /
+// INTERFACE_PROPERTY_MISMATCH when the stub's declared type
+// conflicts with a super / @implements slot of the same name.
+func (s *SuperclassCheck) checkPrototypeStub(stmt *rhino.Node, gp *rhino.Node) {
+	kids := gp.Children()
+	if len(kids) < 2 {
+		return
+	}
+	inner := kids[0]
+	propName := kids[1].String_()
+	propNode := kids[1]
+	if inner.Token() != rhino.GETPROP {
+		return
+	}
+	innerKids := inner.Children()
+	if len(innerKids) < 2 {
+		return
+	}
+	if innerKids[0].Token() != rhino.NAME || innerKids[1].String_() != "prototype" {
+		return
+	}
+	ownerName := innerKids[0].String_()
+	fn, ok := s.scope.GetRawDeclaredType(ownerName).(*jstype.FunctionType)
+	if !ok || fn.Instance == nil {
+		return
+	}
+	info := stmt.JSDocInfo()
+	if info == nil {
+		info = gp.JSDocInfo()
+	}
+	if info == nil || !info.HasType() {
+		return
+	}
+	overrideType := s.scope.ResolveExpr(info.Type().TypeName)
+	if overrideType == nil {
+		return
+	}
+	// Superclass slot. Use HIDDEN_INTERFACE when the owner itself is
+	// an interface (so the super chain is all interfaces) or when
+	// the super is structural. Data-field overrides on concrete
+	// classes pass through without complaint — Java defers type-
+	// mismatch to use-site checks for non-function slots.
+	if super := fn.Instance.Super(); super != nil {
+		slot := super.GetPropertyType(propName)
+		if slot != nil && !jstype.IsSubtype(overrideType, slot) && isFunctionTypeSlot(slot) {
+			if fn.Instance.IsStructural || super.IsStructural {
+				s.diags = append(s.diags, diag.Diagnostic{
+					Path: s.path, Line: propNode.Lineno(), Col: propNode.Charno(),
+					Code: diag.JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH, Level: diag.Error,
+					Message: fmt.Sprintf(
+						"mismatch of the %s property on type %s and the type of the property it overrides from interface %s\noriginal: %s\noverride: %s",
+						propName, ownerName, super.TypeName(), slot.TypeName(), overrideType.TypeName()),
+				})
+			} else {
+				s.diags = append(s.diags, diag.Diagnostic{
+					Path: s.path, Line: propNode.Lineno(), Col: propNode.Charno(),
+					Code: diag.JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH, Level: diag.Error,
+					Message: fmt.Sprintf(
+						"mismatch of the %s property type and the type of the property it overrides from superclass %s\noriginal: %s\noverride: %s",
+						propName, super.TypeName(), slot.TypeName(), overrideType.TypeName()),
+				})
+			}
+			return
+		}
+	}
+	// Transitive base interfaces — only when the owner is a class /
+	// @constructor @implements some iface, OR the owner is an
+	// interface with additional @extends parents beyond the direct
+	// Super chain.
+	bases := baseInterfaceInstances(fn.Instance)
+	for _, iface := range bases {
+		slot := iface.GetPropertyType(propName)
+		if slot == nil || jstype.IsSubtype(overrideType, slot) {
+			continue
+		}
+		s.diags = append(s.diags, diag.Diagnostic{
+			Path: s.path, Line: propNode.Lineno(), Col: propNode.Charno(),
+			Code: diag.JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH, Level: diag.Error,
+			Message: fmt.Sprintf(
+				"mismatch of the %s property on type %s and the type of the property it overrides from interface %s\noriginal: %s\noverride: %s",
+				propName, ownerName, iface.TypeName(), slot.TypeName(), overrideType.TypeName()),
+		})
+		return
+	}
+}
+
+// isFunctionTypeSlot reports whether the slot's declared type is
+// itself a function. Used to narrow the override-type-mismatch
+// check to method slots; data-field overrides are accepted by
+// Java in default mode.
+func isFunctionTypeSlot(t jstype.JSType) bool {
+	if t == nil {
+		return false
+	}
+	if _, ok := t.(*jstype.FunctionType); ok {
+		return true
+	}
+	return false
+}
+
+// baseInterfaceInstances returns every super InstanceType reachable
+// through `obj`'s @extends chain (for interfaces, a single chain is
+// typical; for multi-extends interfaces we return each parent).
+func baseInterfaceInstances(obj *jstype.ObjectType) []*jstype.ObjectType {
+	var out []*jstype.ObjectType
+	seen := map[*jstype.ObjectType]bool{}
+	var walk func(o *jstype.ObjectType)
+	walk = func(o *jstype.ObjectType) {
+		if o == nil || seen[o] {
+			return
+		}
+		seen[o] = true
+		if s := o.Super(); s != nil && s.IsStructural {
+			out = append(out, s)
+			walk(s)
+		}
+	}
+	walk(obj)
+	return out
 }
 
 // checkPrototypeAssign handles `X.prototype.name = rhs;`. When X has
@@ -106,8 +599,11 @@ func (s *SuperclassCheck) checkPrototypeAssign(stmt *rhino.Node, assign *rhino.N
 	}
 	// Superclass slot (via @extends chain).
 	if super := fn.Instance.Super(); super != nil {
+		if super.IsPropertyInferred(propName) {
+			return
+		}
 		if slot := super.GetPropertyType(propName); slot != nil {
-			if !jstype.IsSubtype(overrideType, slot) {
+			if !overrideCompatible(overrideType, slot) {
 				s.diags = append(s.diags, diag.Diagnostic{
 					Path:  s.path,
 					Line:  stmt.Lineno(),
@@ -127,7 +623,7 @@ func (s *SuperclassCheck) checkPrototypeAssign(stmt *rhino.Node, assign *rhino.N
 		if slot == nil {
 			continue
 		}
-		if jstype.IsSubtype(overrideType, slot) {
+		if overrideCompatible(overrideType, slot) {
 			continue
 		}
 		s.diags = append(s.diags, diag.Diagnostic{
@@ -141,6 +637,44 @@ func (s *SuperclassCheck) checkPrototypeAssign(stmt *rhino.Node, assign *rhino.N
 		})
 		return
 	}
+}
+
+// overrideCompatible reports whether `override` is a valid
+// Java-style override of `slot`. Delegates to IsSubtype, but
+// relaxes the check for FunctionTypes so an override with
+// *fewer* parameters (Java's "extra params are OK to drop")
+// still matches. Java's actual compatibility logic is more
+// nuanced — we approximate by accepting any overlapping
+// param-prefix whose types match.
+func overrideCompatible(override, slot jstype.JSType) bool {
+	if jstype.IsSubtype(override, slot) {
+		return true
+	}
+	of, ok := override.(*jstype.FunctionType)
+	if !ok {
+		return false
+	}
+	sf, ok := slot.(*jstype.FunctionType)
+	if !ok {
+		return false
+	}
+	// Override with fewer params is acceptable to Java so long
+	// as every overlapping param has a compatible type. Return
+	// type must still be a subtype.
+	if len(of.Params) > len(sf.Params) {
+		return false
+	}
+	for i := range of.Params {
+		if !jstype.IsSubtype(of.Params[i], sf.Params[i]) {
+			return false
+		}
+	}
+	if sf.Return != nil && of.Return != nil {
+		if !jstype.IsSubtype(of.Return, sf.Return) {
+			return false
+		}
+	}
+	return true
 }
 
 // implementedInstances returns the interface instance types declared
