@@ -1327,42 +1327,92 @@ func (c *TypedScopeCreator) inferFunctionTypeForDescriptor(fn *rhino.Node, scope
 // separately via recordFunction / recordClass. Matches Java's
 // hoistVars pass on AbstractScopeBuilder.
 //
-// NOTE on per-block hoisting: strictly, ES6 `let`/`const`/`class`
-// are block-scoped, not function-scoped. Java's AbstractScopeBuilder
-// builds a fresh Scope for each BLOCK. We currently flatten every
-// inner-block binding into the surrounding function scope — a
-// conscious trade-off given we don't yet construct per-BLOCK
-// TypedScope objects. The corpus we cover doesn't shadow names
-// across blocks, so the difference is invisible at the diagnostic
-// level. Lifting this limitation requires teaching createScopeIn
-// to recurse into nested BLOCK / IF / loop bodies with their own
-// child TypedScope; tracked as future TypedScopeCreator work.
+// Per-block hoisting: ES6 `let` / `const` / `class` are block-scoped
+// (§13.3.1), so bindings declared inside a nested BLOCK / IF / loop
+// / try / switch must NOT leak to the enclosing function scope.
+// `var` + function declarations stay function-scoped per §13.2.1 and
+// are always surfaced. The walker threads an `inBlock` flag that
+// flips to true the first time we descend through a block-like
+// construct. We still don't construct per-BLOCK TypedScope objects —
+// that requires matching TypeCheck / TypeInference changes — so
+// block-scoped bindings are simply dropped (conservative: a later
+// reference resolves via the parent scope or emits UNDEFINED_VAR).
+// Full per-block scope support is tracked under future
+// TypedScopeCreator work.
 func hoistDeclarations(block *rhino.Node) []*rhino.Node {
 	var out []*rhino.Node
-	var walk func(n *rhino.Node)
-	walk = func(n *rhino.Node) {
+	// inBlock tracks whether we're currently descending through a
+	// nested BLOCK (or block-like: IF / loop body / SWITCH / etc.)
+	// that is *not* the top function body. Per ES6 §13.3.1,
+	// `let` / `const` / `class` declarations are block-scoped:
+	// they must NOT leak out to the enclosing function scope. `var`
+	// and function declarations remain function-scoped per §13.2.1
+	// so they're always surfaced. Matches Java's
+	// AbstractScopeBuilder which builds a fresh Scope for each BLOCK
+	// and only promotes var / function decls to the outer one.
+	var walk func(n *rhino.Node, inBlock bool)
+	walk = func(n *rhino.Node, inBlock bool) {
 		if n == nil {
 			return
 		}
 		for _, child := range n.Children() {
 			switch child.Token() {
-			case rhino.VAR, rhino.LET, rhino.CONST, rhino.FUNCTION, rhino.CLASS, rhino.EXPR_RESULT:
+			case rhino.VAR, rhino.FUNCTION:
+				// var + function-declaration: always function-scoped.
 				out = append(out, child)
-				if child.Token() == rhino.FUNCTION || child.Token() == rhino.CLASS {
+				if child.Token() == rhino.FUNCTION {
+					// FUNCTION owns its own scope; don't recurse.
 					continue
 				}
-				walk(child)
+				walk(child, inBlock)
+			case rhino.LET, rhino.CONST, rhino.CLASS:
+				// Block-scoped. Only surface when we're at the
+				// function body's top level (inBlock == false).
+				if !inBlock {
+					out = append(out, child)
+				}
+				if child.Token() == rhino.CLASS {
+					continue
+				}
+				walk(child, inBlock)
+			case rhino.EXPR_RESULT:
+				// EXPR_RESULT statements (typedef stubs, prototype
+				// assigns, Object.defineProperty, namespace assigns)
+				// can appear at function-top-level *or* inside a
+				// nested block. Surface from either; the ensuing
+				// recordDecl / recordNamespace… passes are idempotent
+				// and namespace assigns resemble `var`-like
+				// declarations anyway (Foo.X = 1 behaves as a global
+				// property regardless of textual location).
+				out = append(out, child)
+				walk(child, inBlock)
 			case rhino.FOR, rhino.FOR_IN, rhino.FOR_OF:
-				// The init / lhs child may be a VAR/LET/CONST — surface it.
+				// `for (let i = 0; …)` — the `let` binds inside the
+				// loop's implicit block; flag inBlock for the init's
+				// descent so block-scoped bindings stay local to
+				// the loop. `for (var i = 0; …)` is still function-
+				// scoped and surfaces.
 				if first := child.FirstChild(); first != nil {
 					t := first.Token()
-					if t == rhino.VAR || t == rhino.LET || t == rhino.CONST {
+					if t == rhino.VAR {
 						out = append(out, first)
+					} else if t == rhino.LET || t == rhino.CONST {
+						// Loop-local binding: surface only when the
+						// for-loop itself sits at function top level.
+						if !inBlock {
+							out = append(out, first)
+						}
 					}
 				}
-				walk(child)
+				walk(child, true)
 			case rhino.CATCH:
 				// First child is the NAME of the catch parameter.
+				// Strictly block-scoped per ES6 §13.15.5, but
+				// without per-BLOCK TypedScope infrastructure we
+				// still synthesise it as a LET in the enclosing
+				// function scope so uses inside the catch resolve.
+				// Over-visibility is harmless: nothing outside the
+				// catch should reference the identifier textually.
 				if first := child.FirstChild(); first != nil && first.Token() == rhino.NAME && first.String_() != "" {
 					synth := rhino.New(rhino.LET)
 					synth.SetPos(first.Lineno(), first.Charno())
@@ -1371,17 +1421,19 @@ func hoistDeclarations(block *rhino.Node) []*rhino.Node {
 					synth.AddChildToBack(nm)
 					out = append(out, synth)
 				}
-				walk(child)
+				walk(child, true)
 			case rhino.BLOCK, rhino.IF, rhino.HOOK,
 				rhino.WHILE, rhino.DO_WHILE,
 				rhino.SWITCH, rhino.CASE, rhino.DEFAULT_CASE,
 				rhino.TRY, rhino.FINALLY,
 				rhino.LABEL:
-				walk(child)
+				// Descending into a nested block — any let / const /
+				// class we find below is block-scoped.
+				walk(child, true)
 			}
 		}
 	}
-	walk(block)
+	walk(block, false)
 	return out
 }
 
@@ -2281,32 +2333,27 @@ func (c *TypedScopeCreator) recordDecl(v *rhino.Node, scope *TypedScope) {
 
 // isDestructuringPatternToken reports whether `t` is one of the
 // rhino destructuring tokens (ARRAY_PATTERN / OBJECT_PATTERN /
-// DESTRUCTURING_LHS). Detected by String() so this compiles on
-// builds whose Token enum doesn't yet carry the constants — the
-// enum grows in lockstep with the parser (Unit 7). When the
-// parser starts emitting these tokens the check kicks in; until
-// then it's an always-false guard.
+// DESTRUCTURING_LHS). Parser unit 7 added these tokens to rhino's
+// enum; this check dispatches directly on the enum constants now
+// that both sides are in lockstep.
 func isDestructuringPatternToken(t rhino.Token) bool {
-	switch t.String() {
-	case "ARRAY_PATTERN", "OBJECT_PATTERN", "DESTRUCTURING_LHS":
+	switch t {
+	case rhino.ARRAY_PATTERN, rhino.OBJECT_PATTERN, rhino.DESTRUCTURING_LHS:
 		return true
 	}
 	return false
 }
 
 // isDefaultValueToken / isRestToken / isEmptyToken / isObjectRestToken
-// are the same parser-feature guards for the inner pattern element
-// tokens. Each returns true only when the corresponding Token ID
-// is already part of rhino's enum and has a String() that matches.
-// Lets the destructuring walker compile while the parser ports roll
-// in.
-func isDefaultValueToken(t rhino.Token) bool      { return t.String() == "DEFAULT_VALUE" }
-func isIterRestToken(t rhino.Token) bool          { return t.String() == "ITER_REST" }
-func isObjectRestToken(t rhino.Token) bool        { return t.String() == "OBJECT_REST" }
-func isEmptyToken(t rhino.Token) bool             { return t.String() == "EMPTY" }
-func isArrayPatternToken(t rhino.Token) bool      { return t.String() == "ARRAY_PATTERN" }
-func isObjectPatternToken(t rhino.Token) bool     { return t.String() == "OBJECT_PATTERN" }
-func isDestructuringLHSToken(t rhino.Token) bool  { return t.String() == "DESTRUCTURING_LHS" }
+// are the matching direct-enum guards for the inner pattern element
+// tokens.
+func isDefaultValueToken(t rhino.Token) bool     { return t == rhino.DEFAULT_VALUE }
+func isIterRestToken(t rhino.Token) bool         { return t == rhino.ITER_REST }
+func isObjectRestToken(t rhino.Token) bool       { return t == rhino.OBJECT_REST }
+func isEmptyToken(t rhino.Token) bool            { return t == rhino.EMPTY }
+func isArrayPatternToken(t rhino.Token) bool     { return t == rhino.ARRAY_PATTERN }
+func isObjectPatternToken(t rhino.Token) bool    { return t == rhino.OBJECT_PATTERN }
+func isDestructuringLHSToken(t rhino.Token) bool { return t == rhino.DESTRUCTURING_LHS }
 
 // recordDestructuring walks a destructuring pattern binding
 // declaring a slot for every NAME leaf it finds. Element types
@@ -2360,9 +2407,32 @@ func (c *TypedScopeCreator) inferDestructuringRhsType(rhs *rhino.Node, scope *Ty
 			return t
 		}
 	case rhino.OBJECTLIT:
-		if obj, ok := scope.resolveObjectLiteralType(""); ok {
-			_ = obj
+		// Inline `const {a} = {a: 1, b: 2}` — the OBJECTLIT node
+		// exposes its STRING_KEY children directly. Build a
+		// structural ObjectType from the literal so each pattern
+		// member can look up its declared type via objectMemberType.
+		// Mirrors Java's TypedScopeCreator.getObjectLitType which
+		// produces an anonymous record for the RHS.
+		obj := jstype.NewObjectType("")
+		obj.IsStructural = true
+		for _, kv := range rhs.Children() {
+			if kv.Token() != rhino.STRING_KEY {
+				continue
+			}
+			val := kv.FirstChild()
+			if val == nil {
+				continue
+			}
+			info := kv.JSDocInfo()
+			var memberType jstype.JSType = jstype.Unknown
+			if info != nil && info.HasType() {
+				memberType = scope.ResolveExpr(info.Type().TypeName)
+			} else if t := literalType(val); !isJSUnknown(t) {
+				memberType = t
+			}
+			obj.DefineProperty(kv.String_(), memberType)
 		}
+		return obj
 	case rhino.ARRAYLIT:
 		// Array literal: element type is the union of member
 		// literal types. Matches how
