@@ -207,14 +207,7 @@ func (t *TypeInference) InferType(n *rhino.Node) jstype.JSType {
 
 	// ---- literals with structure ---------------------------------- //
 	case rhino.ARRAYLIT:
-		// Without a real Array<T> instantiation we return the bare
-		// Array instance type from the global scope, so downstream
-		// property access still resolves against the Array prototype
-		// stub. See TypedScopeCreator.builtins.
-		if inst := t.scope.LookupNominalType("Array"); inst != nil {
-			return inst
-		}
-		return jstype.Unknown
+		return t.inferArrayLit(n)
 	case rhino.OBJECTLIT:
 		return t.inferObjectLit(n)
 
@@ -795,6 +788,46 @@ func removeMember(t, target jstype.JSType) jstype.JSType {
 	return t
 }
 
+// inferArrayLit aggregates the element types of an ARRAYLIT node into
+// an `Array<T>` instantiation. When the elements share a single type
+// we instantiate with that; when they span multiple types we union
+// them; when the literal is empty we fall back to `Array<?>` so
+// downstream property access still resolves against the Array
+// prototype stub. Mirrors how Java's TypeInference builds an
+// Array<T> via the registry at each visitArrayLit.
+func (t *TypeInference) inferArrayLit(n *rhino.Node) jstype.JSType {
+	base := t.scope.LookupNominalType("Array")
+	if base == nil {
+		return jstype.Unknown
+	}
+	if len(base.TemplateParams) == 0 {
+		// No template slot on the builtin (shouldn't happen in practice
+		// since the default externs declare Array<T>). Return the bare
+		// instance so downstream property access still resolves.
+		return base
+	}
+	kids := n.Children()
+	if len(kids) == 0 {
+		return jstype.NewTemplatizedType(base, []jstype.JSType{jstype.Unknown})
+	}
+	var elem jstype.JSType
+	for _, kid := range kids {
+		kt := t.InferType(kid)
+		if kt == nil {
+			kt = jstype.Unknown
+		}
+		if elem == nil {
+			elem = kt
+		} else if !sameType(elem, kt) {
+			elem = unionFold(elem, kt)
+		}
+	}
+	if elem == nil {
+		elem = jstype.Unknown
+	}
+	return jstype.NewTemplatizedType(base, []jstype.JSType{elem})
+}
+
 // inferObjectLit builds a structural ObjectType from the STRING_KEY
 // entries of an OBJECTLIT node. Used so inline `{k: v, …}` values
 // have a usable inferred shape for property lookups, mirroring how
@@ -1065,6 +1098,9 @@ func keepNullUndef(t jstype.JSType) jstype.JSType {
 // produces:
 //   - the template-arg element type when the receiver is
 //     `Array<T>` / `Object<K,V>` / any templatized type with one arg,
+//   - the corresponding property type when the receiver is a
+//     structural ObjectType and the index is a string literal (Java
+//     normalises `obj["k"]` → `obj.k` in that case),
 //   - Unknown when the receiver is a plain Array instance (no element
 //     tracking), an untyped object, or anything else.
 //
@@ -1084,6 +1120,17 @@ func (t *TypeInference) inferGetElem(n *rhino.Node) jstype.JSType {
 		case 2:
 			// Object<K,V> / Map<K,V>: index access yields the value type.
 			return tt.Args[1]
+		}
+	}
+	// String-literal index on a structural ObjectType reads through
+	// like a GETPROP. Mirrors Java's TypeInference.getElemNonArray
+	// which normalises `obj["k"]` → `obj.k` when the key is a
+	// computable string constant and the receiver is an object.
+	if obj, ok := recvType.(*jstype.ObjectType); ok {
+		if kids[1].Token() == rhino.STRINGLIT {
+			if pt := obj.GetPropertyType(kids[1].String_()); pt != nil {
+				return pt
+			}
 		}
 	}
 	return jstype.Unknown

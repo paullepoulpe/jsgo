@@ -194,6 +194,12 @@ func allExitsReturnValue(cfg *ControlFlowGraph) bool {
 		if !reachable[p] {
 			continue
 		}
+		// Uncaught-exception edges represent abnormal termination,
+		// not a missing return — Java's CheckMissingReturn filters
+		// these out before the per-predecessor RETURN check.
+		if edgeKind(p, cfg.Exit) == BranchException {
+			continue
+		}
 		anyReachable = true
 		if p.AST == nil {
 			return false
@@ -211,6 +217,17 @@ func allExitsReturnValue(cfg *ControlFlowGraph) bool {
 		return true
 	}
 	return true
+}
+
+// edgeKind returns the branch label of the (first) edge from `from`
+// to `to`, or BranchUnconditional if no such edge exists.
+func edgeKind(from, to *CfgNode) Branch {
+	for _, e := range from.Successors {
+		if e.To == to {
+			return e.Branch
+		}
+	}
+	return BranchUnconditional
 }
 
 // reachableFromEntry returns the set of CfgNodes reachable from
