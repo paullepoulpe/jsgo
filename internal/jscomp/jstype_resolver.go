@@ -33,6 +33,7 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/diag"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/rhino/jstype"
 )
 
 // JSTypeResolver is the NamedType resolution pass. It walks the AST,
@@ -64,6 +65,14 @@ type JSTypeResolver struct {
 	// a superset of the legal bindings, but the corpus fires no fixture
 	// that relies on rejecting a reused single-letter name.
 	fileTemplates map[string]bool
+	// namedTypes accumulates one *jstype.NamedType per JSDoc reference
+	// walked during Check. Mirrors the per-registry list Java's
+	// JSTypeRegistry maintains for NamedType wrappers. Resolved entries
+	// carry a non-nil ReferencedType; unresolved ones were the ones that
+	// fired JSC_UNRECOGNIZED_TYPE_ERROR. Callers (and tests) can inspect
+	// this via NamedTypes() to audit the late-resolve bookkeeping
+	// without re-scanning diagnostics.
+	namedTypes []*jstype.NamedType
 }
 
 type diagKey struct {
@@ -219,6 +228,12 @@ func (r *JSTypeResolver) checkInfo(n *rhino.Node, info *rhino.JSDocInfo, scope *
 // this expression as malformed, and JSC_UNRECOGNIZED_TYPE_ERROR for
 // every name that still fails to resolve against the current scope,
 // template bindings, and extern name set.
+//
+// For every name walked here a *jstype.NamedType wrapper is allocated
+// so the registry-style late-resolve bookkeeping (Java's
+// NamedType.resolveInternal) survives the pass: resolved wrappers
+// carry a non-nil ReferencedType; unresolved ones are the ones that
+// fired the diagnostic.
 func (r *JSTypeResolver) checkExpr(n *rhino.Node, expr *rhino.JSTypeExpression, scope *TypedScope, tmpls []string) {
 	if expr == nil {
 		return
@@ -235,13 +250,82 @@ func (r *JSTypeResolver) checkExpr(n *rhino.Node, expr *rhino.JSTypeExpression, 
 		if r.fileTemplates[nm.UnresolvedName] {
 			continue
 		}
-		if r.nameResolves(nm.UnresolvedName, scope) {
+		line, col := r.absolutePos(n, nm.SourceLine, nm.SourceCol)
+		named := jstype.NewNamedType(nm.UnresolvedName, r.path, line, col)
+		if t := r.resolveName(nm.UnresolvedName, scope); t != nil {
+			named.Resolve(t)
+			r.namedTypes = append(r.namedTypes, named)
 			continue
 		}
-		line, col := r.absolutePos(n, nm.SourceLine, nm.SourceCol)
+		r.namedTypes = append(r.namedTypes, named)
 		r.emit(line, col, diag.JSC_UNRECOGNIZED_TYPE_ERROR, nm.UnresolvedName,
 			"Bad type annotation. Unknown type "+nm.UnresolvedName)
 	}
+}
+
+// NamedTypes returns every forward-reference wrapper seen during the
+// resolve pass. Callers inspect IsResolved to distinguish the wrappers
+// that got bound from the ones that fired a diagnostic. Mirrors
+// JSTypeRegistry.getResolvedTypesModuloResolving() in Java.
+func (r *JSTypeResolver) NamedTypes() []*jstype.NamedType { return r.namedTypes }
+
+// resolveName mirrors JSTypeRegistry.getType(StaticScope, String) — the
+// registry's post-scope lookup used by NamedType.resolveInternal. Returns
+// the resolved JSType (possibly a lenient marker like jstype.Unknown for
+// recognised-but-unmodelled keywords) or nil for a name Java would fire
+// JSC_UNRECOGNIZED_TYPE_ERROR on.
+//
+// nameResolves is the boolean sibling of this helper; they share the
+// same resolution rules so the two views (did-resolve / resolved-to-what)
+// stay in sync.
+func (r *JSTypeResolver) resolveName(name string, scope *TypedScope) jstype.JSType {
+	if name == "" {
+		return jstype.Unknown
+	}
+	switch name {
+	case "number", "string", "boolean", "null", "undefined", "void", "symbol", "bigint",
+		"Null", "Undefined", "Void",
+		"Object", "Function", "Array", "?", "*", "this",
+		"Arguments", "IArrayLike", "IObject", "IThenable", "Iterable",
+		"Generator", "AsyncIterable", "AsyncGenerator", "AsyncIterator",
+		"Iterator", "IteratorIterable", "ReadonlyArray", "ReadonlyMap", "ReadonlySet",
+		"Symbol", "Promise", "Map", "Set", "WeakMap", "WeakSet",
+		"Date", "RegExp", "Error", "Number", "String", "Boolean":
+		return jstype.Unknown
+	}
+	head := name
+	if dot := strings.IndexByte(name, '.'); dot > 0 {
+		head = name[:dot]
+	}
+	if scope != nil {
+		if t := scope.LookupNominalType(name); t != nil {
+			return t
+		}
+		if t := scope.LookupTypeAlias(name); t != nil {
+			return t
+		}
+		if t := scope.GetRawDeclaredType(head); t != nil {
+			return t
+		}
+	}
+	if r.externs != nil && r.externs != scope {
+		if t := r.externs.LookupNominalType(name); t != nil {
+			return t
+		}
+		if t := r.externs.LookupTypeAlias(name); t != nil {
+			return t
+		}
+		if t := r.externs.GetRawDeclaredType(head); t != nil {
+			return t
+		}
+	}
+	if defaultExternNames()[head] {
+		return jstype.Unknown
+	}
+	if r.sourceIdents[name] || r.sourceIdents[head] {
+		return jstype.Unknown
+	}
+	return nil
 }
 
 // nameResolves mirrors the predicate Java's registry uses to decide

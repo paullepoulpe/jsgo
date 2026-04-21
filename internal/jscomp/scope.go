@@ -233,6 +233,39 @@ func (s *TypedScope) LookupNominalType(name string) *jstype.ObjectType {
 	return s.parent.LookupNominalType(name)
 }
 
+// ResolveOrNamed wraps ResolveExpr for the forward-reference case. When
+// the expression is a simple name that can't be resolved in the current
+// scope chain, returns a *jstype.NamedType carrying the JSDoc source
+// position so a later resolution pass (JSTypeResolver) can either
+// substitute the resolved referent or emit JSC_UNRECOGNIZED_TYPE_ERROR
+// at the recorded position.
+//
+// Mirrors the Java JSTypeRegistry.createNamedType path: when a type
+// expression names a slot that hasn't been declared yet, the registry
+// hands back a NamedType placeholder whose late-resolve step either
+// fills ReferencedType or warns. Structural / union / callable forms
+// already decompose into a concrete shape and aren't wrapped — there's
+// nothing to defer for them, matching Java's behaviour of only using
+// NamedType for bare-identifier TypeAST nodes.
+func (s *TypedScope) ResolveOrNamed(expr string, sourceName string, line, col int) jstype.JSType {
+	t := s.ResolveExpr(expr)
+	if t != nil && !isJSUnknown(t) {
+		return t
+	}
+	name := trimSpace(expr)
+	if name == "" || name == "?" || name == "*" {
+		return t
+	}
+	if startsWith(name, "{") || startsWith(name, "function") || startsWith(name, "(") ||
+		startsWith(name, "!") || startsWith(name, "?") {
+		return t
+	}
+	if indexOfByte(name, '|') >= 0 {
+		return t
+	}
+	return jstype.NewNamedType(name, sourceName, line, col)
+}
+
 // ResolveExpr is the scope-aware version of Registry.ResolveExpr: it
 // looks up nominal names (constructor → instance type), @typedef
 // aliases, inline structural `{k: T}` types, and primitives. Mirrors
