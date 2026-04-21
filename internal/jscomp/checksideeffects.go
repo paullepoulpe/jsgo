@@ -152,6 +152,31 @@ func (c *CheckSideEffects) visit(n, parent, grandparent *rhino.Node) {
 		// suspicious.
 		return
 	}
+	// `for (k in obj) …` is parsed by jsgo's grammar as a classic FOR
+	// whose init is an IN expression (the parser lacks the ES "no-in"
+	// mode used during for-init). Java's Parser produces a FOR_IN node
+	// directly, so CheckSideEffects.java never sees IN at for-init
+	// position. Treat this shape as the iteration keyword it really is
+	// — no diagnostic.
+	if n.Token() == rhino.IN && parent.Token() == rhino.FOR {
+		if kids := parent.Children(); len(kids) > 0 && kids[0] == n {
+			return
+		}
+	}
+	// FUNCTION declaration: a FUNCTION directly under a BLOCK / SCRIPT
+	// hoists a named binding, so Java's AstAnalyzer.mayHaveSideEffects
+	// returns true for the declaration shape and the report branch is
+	// skipped. FUNCTION expressions (wrapped in EXPR_RESULT, or as an
+	// initializer / argument) never reach here because
+	// isExpressionResultUsed already returns true for a consumer
+	// parent; when a FUNCTION is parenthesised at statement level the
+	// parser emits an EXPR_RESULT wrapper and the fall-through flags
+	// it, matching Java's "useless function expression" warning.
+	if n.Token() == rhino.FUNCTION {
+		if parent.Token() == rhino.BLOCK || parent.Token() == rhino.SCRIPT {
+			return
+		}
+	}
 	simple := isSimpleOperator(n.Token())
 	if simple || !mayHaveSideEffects(n) {
 		c.report(n, simple)
