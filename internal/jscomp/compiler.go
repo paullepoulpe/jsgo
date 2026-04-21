@@ -75,6 +75,14 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	all = append(all, NewVarCheck(path, creator, scope).Check(script)...)
 	varRefDiags := NewVariableReferenceCheck(path, externScope).Check(script)
 	all = append(all, varRefDiags...)
+	// TODO: this slot should hold JSTypeResolver (jstype_resolver.go) —
+	// that's the faithful port of Java's JSTypeRegistry.resolveTypes +
+	// JsDocInfoParser error branch. CheckJsDocTypes is a regex-based
+	// pre-scan that we kept while the faithful pass is missing
+	// coverage for JSDoc casts, @template TTL transformation errors,
+	// and a handful of property-typedef paths. Switching produces a
+	// -3/-3 regression today; once JSTypeResolver covers those cases
+	// we replace the call below and delete checkjsdoctypes.go.
 	all = append(all, NewCheckJsDocTypes(path, src, scope).Check()...)
 	all = append(all, NewTypeCheckWithOptions(path, creator, scope, opts).Check(script)...)
 	all = append(all, NewMissingReturnCheck(path, scope).Check(script)...)
