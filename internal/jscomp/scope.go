@@ -377,6 +377,33 @@ func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 		if p == "" {
 			return jstype.Unknown
 		}
+		// `typeof NAME` — resolves to the declared type of the value
+		// binding itself, not its instance. For enums, that's the
+		// `EnumType` (i.e. `enum{Foo}`) rather than the
+		// EnumElementType. Matches Java's TypeOfType resolution in
+		// JSTypeRegistry.getType.
+		if startsWith(p, "typeof ") {
+			nm := trimSpace(p[len("typeof "):])
+			if enum := s.LookupEnum(nm); enum != nil {
+				members = append(members, enum)
+				continue
+			}
+			if t := s.GetDeclaredType(nm); t != nil && !isJSUnknown(t) {
+				members = append(members, t)
+				continue
+			}
+			// Qualified `typeof ns.x` lookup.
+			if idx := indexOfByte(nm, '.'); idx > 0 {
+				first := nm[:idx]
+				rest := nm[idx+1:]
+				if t := s.LookupNamespaceProp(first, rest); t != nil {
+					members = append(members, t)
+					continue
+				}
+			}
+			members = append(members, jstype.Unknown)
+			continue
+		}
 		// @typedef aliases take priority over nominal constructors
 		// and primitives (matches Java's StaticSourceFile resolution).
 		// \`!Foo\` strips nullable members from the resolved alias so
@@ -433,6 +460,13 @@ func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 						impliedNullable = true
 					}
 					members = append(members, member)
+					continue
+				}
+				// `@type {ns.a}` where ns.a is a namespace-form enum
+				// resolves to the paired EnumElementType, matching
+				// how bare-name enums unwrap at line 398.
+				if enum, ok := t.(*jstype.EnumType); ok {
+					members = append(members, enum.Element)
 					continue
 				}
 				members = append(members, t)
@@ -1045,6 +1079,14 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 		if isDeclToken(child.Token()) {
 			c.preregisterEnum(child, scope)
 		}
+		// Namespace-form enums: `/** @enum */ ns.a = {…}`. Bind an
+		// EnumType as a namespace prop so property accesses and
+		// aliases pick up the same pointer as VAR-form enums.
+		if child.Token() == rhino.EXPR_RESULT {
+			if inner := child.FirstChild(); inner != nil && inner.Token() == rhino.ASSIGN {
+				c.preregisterNamespaceEnum(inner, scope)
+			}
+		}
 	}
 	// Pass 1b: record @typedef aliases. Typedefs resolve against the
 	// scope that now has nominal types pre-registered, so
@@ -1072,6 +1114,7 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 			if inner != nil && inner.Token() == rhino.ASSIGN {
 				c.recordPrototypeAssign(inner, scope)
 				c.recordPrototypeObjectLit(inner, scope)
+				c.recordNamespaceEnum(inner, scope)
 				c.recordNamespaceAssign(inner, scope)
 			}
 			// `Foo.prototype.bar;` stub-declaration — Java treats
@@ -1662,6 +1705,43 @@ func (c *TypedScopeCreator) preregisterEnum(v *rhino.Node, scope *TypedScope) {
 	scope.declared[name.String_()] = jstype.NewEnumType(name.String_(), underlying)
 }
 
+// preregisterNamespaceEnum reserves a namespace-prop slot for an
+// `@enum`-annotated `ns.a = {…}` assignment. The EnumType is bound
+// on the owner namespace so `ns.a.FOO` reads and `var b = ns.a`
+// aliases see the same pointer as VAR-form enums. Mirrors how
+// Java's TypedScopeCreator defines an enum for any qualified-name
+// target of an @enum assignment (see defineEnumElements branch).
+func (c *TypedScopeCreator) preregisterNamespaceEnum(a *rhino.Node, scope *TypedScope) {
+	info := a.JSDocInfo()
+	if !info.IsEnum() {
+		return
+	}
+	kids := a.Children()
+	if len(kids) < 2 {
+		return
+	}
+	lhs := kids[0]
+	if lhs.Token() != rhino.GETPROP {
+		return
+	}
+	lhsKids := lhs.Children()
+	if len(lhsKids) < 2 {
+		return
+	}
+	recv := lhsKids[0]
+	if recv.Token() != rhino.NAME {
+		return
+	}
+	owner := recv.String_()
+	prop := lhsKids[1].String_()
+	qname := owner + "." + prop
+	var underlying jstype.JSType = jstype.Number
+	if expr := info.EnumParameterType(); expr != nil {
+		underlying = scope.ResolveExpr(expr.TypeName)
+	}
+	scope.recordNamespaceProp(owner, prop, jstype.NewEnumType(qname, underlying), lhsKids[1])
+}
+
 // preregisterClass reserves a slot for a `class` declaration, mirroring
 // the @constructor pre-registration path so forward `@type {C}`
 // references resolve to C's InstanceType.
@@ -2211,6 +2291,72 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 	}
 }
 
+// recordNamespaceEnum fills the Members set of a namespace-form
+// `/** @enum */ ns.a = {…}` declaration. Mirrors finishEnumDecl's
+// second-pass job for the VAR form: aliasing redirects the
+// namespace slot to the source enum's pointer; OBJECTLIT init
+// populates the Members map. The pre-registration pass already
+// allocated the EnumType slot under (owner, prop).
+func (c *TypedScopeCreator) recordNamespaceEnum(a *rhino.Node, scope *TypedScope) {
+	info := a.JSDocInfo()
+	if !info.IsEnum() {
+		return
+	}
+	kids := a.Children()
+	if len(kids) < 2 {
+		return
+	}
+	lhs, rhs := kids[0], kids[1]
+	if lhs.Token() != rhino.GETPROP {
+		return
+	}
+	lhsKids := lhs.Children()
+	if len(lhsKids) < 2 {
+		return
+	}
+	recv := lhsKids[0]
+	if recv.Token() != rhino.NAME {
+		return
+	}
+	owner := recv.String_()
+	prop := lhsKids[1].String_()
+	enum, ok := scope.LookupNamespaceProp(owner, prop).(*jstype.EnumType)
+	if !ok {
+		// No pre-registered slot — allocate now so downstream
+		// reads still see an EnumType.
+		var underlying jstype.JSType = jstype.Number
+		if expr := info.EnumParameterType(); expr != nil {
+			underlying = scope.ResolveExpr(expr.TypeName)
+		}
+		enum = jstype.NewEnumType(owner+"."+prop, underlying)
+		scope.recordNamespaceProp(owner, prop, enum, lhsKids[1])
+	}
+	// Alias: RHS is another enum (NAME or qualified GETPROP).
+	if rhs.Token() == rhino.NAME {
+		if other, ok := scope.GetDeclaredType(rhs.String_()).(*jstype.EnumType); ok {
+			scope.recordNamespaceProp(owner, prop, other, lhsKids[1])
+			return
+		}
+	}
+	if rhs.Token() == rhino.GETPROP {
+		rhsKids := rhs.Children()
+		if len(rhsKids) >= 2 && rhsKids[0].Token() == rhino.NAME {
+			if other, ok := scope.LookupNamespaceProp(rhsKids[0].String_(), rhsKids[1].String_()).(*jstype.EnumType); ok {
+				scope.recordNamespaceProp(owner, prop, other, lhsKids[1])
+				return
+			}
+		}
+	}
+	// OBJECTLIT init: populate Members set on the enum.
+	if rhs.Token() == rhino.OBJECTLIT {
+		for _, kv := range rhs.Children() {
+			if kv.Token() == rhino.STRING_KEY {
+				enum.Members[kv.String_()] = true
+			}
+		}
+	}
+}
+
 // finishEnumDecl resolves `/** @enum */ var MyEnum = …` by
 // completing the pre-registered EnumType: aliasing replaces the
 // slot's EnumType with the RHS enum's pointer, object-literal
@@ -2242,6 +2388,18 @@ func (c *TypedScopeCreator) finishEnumDecl(nameNode *rhino.Node, info *rhino.JSD
 		if other, ok := scope.declared[init.String_()].(*jstype.EnumType); ok {
 			scope.declared[name] = other
 			return
+		}
+	}
+	// Qualified alias form: `var b = ns.a` where `ns.a` is a
+	// namespace-form enum. Redirect the slot to the source enum
+	// so `b.FOO` and `ns.a.FOO` share the same EnumElementType.
+	if init.Token() == rhino.GETPROP {
+		initKids := init.Children()
+		if len(initKids) >= 2 && initKids[0].Token() == rhino.NAME {
+			if other, ok := scope.LookupNamespaceProp(initKids[0].String_(), initKids[1].String_()).(*jstype.EnumType); ok {
+				scope.declared[name] = other
+				return
+			}
 		}
 	}
 	// Literal form: scan the OBJECTLIT entries and record each

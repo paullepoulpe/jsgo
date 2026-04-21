@@ -277,6 +277,14 @@ func (t *TypeInference) inferGetProp(n *rhino.Node) jstype.JSType {
 		// references a TemplateType.
 		recvType = tplt.Base
 	}
+	// Enum member access on a qualified-name enum: `goog.a.FOO`
+	// where `goog.a` is an EnumType reached via namespace-prop
+	// lookup. Mirrors the bare-NAME branch above.
+	if enum, ok := recvType.(*jstype.EnumType); ok {
+		if enum.Members[propName] {
+			return enum.Element
+		}
+	}
 	if obj, ok := recvType.(*jstype.ObjectType); ok {
 		if pt := obj.GetPropertyType(propName); pt != nil {
 			return pt

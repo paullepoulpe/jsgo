@@ -1,3 +1,7 @@
+// Port of com/google/javascript/jscomp/TypeCheck.java's
+// binary-comparison branches (EQ / NE / SHEQ / SHNE) @
+// closure-compiler v20260415 (split helper).
+//
 // TypeCheck helper: JSC_DETERMINISTIC_TEST emission.
 //
 // Upstream Closure does NOT ship a standalone `CheckDeterministicTest`

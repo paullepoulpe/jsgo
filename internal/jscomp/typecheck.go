@@ -673,27 +673,32 @@ func (c *TypeCheck) visitEnumInit(name, init *rhino.Node, scope *TypedScope) []d
 		}
 		return out
 	}
+	// Aliased enum: RHS is a NAME bound to another EnumType, or a
+	// qualified GETPROP reaching a namespace-form enum. Java emits
+	// JSC_TYPE_MISMATCH "incompatible enum element types" when the
+	// alias's `@enum {T}` underlying disagrees with the source's;
+	// otherwise the aliased slot quietly shares the source pointer.
+	var other *jstype.EnumType
 	if init.Token() == rhino.NAME {
-		if other, ok := scope.GetDeclaredType(init.String_()).(*jstype.EnumType); ok {
-			// Aliased enum — Java emits JSC_TYPE_MISMATCH
-			// "incompatible enum element types" when the alias's
-			// explicit `@enum {T}` underlying disagrees with the
-			// source enum's. Use the declared underlying captured
-			// above (the scope-creator has already redirected
-			// scope[name] to the source enum, so enum.Underlying
-			// reflects the source, not the alias declaration).
-			if !jstype.IsSubtype(other.Underlying, declaredUnderlying) {
-				return []diag.Diagnostic{{
-					Path: c.path, Line: init.Lineno(), Col: init.Charno(),
-					Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
-					Message: fmt.Sprintf(
-						"incompatible enum element types\nfound   : %s\nrequired: %s",
-						other.Underlying.TypeName(), declaredUnderlying.TypeName()),
-				}}
-			}
-			_ = enum
-			return nil
+		other, _ = scope.GetDeclaredType(init.String_()).(*jstype.EnumType)
+	} else if init.Token() == rhino.GETPROP {
+		initKids := init.Children()
+		if len(initKids) >= 2 && initKids[0].Token() == rhino.NAME {
+			other, _ = scope.LookupNamespaceProp(initKids[0].String_(), initKids[1].String_()).(*jstype.EnumType)
 		}
+	}
+	if other != nil {
+		if !jstype.IsSubtype(other.Underlying, declaredUnderlying) {
+			return []diag.Diagnostic{{
+				Path: c.path, Line: init.Lineno(), Col: init.Charno(),
+				Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
+				Message: fmt.Sprintf(
+					"incompatible enum element types\nfound   : %s\nrequired: %s",
+					other.Underlying.TypeName(), declaredUnderlying.TypeName()),
+			}}
+		}
+		_ = enum
+		return nil
 	}
 	found := infer.InferType(init)
 	return []diag.Diagnostic{{
@@ -713,6 +718,13 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 		return nil
 	}
 	lhs, rhs := kids[0], kids[1]
+	// `/** @enum [{T}] */ ns.a = {…}` — namespace-form enum
+	// declaration. The preregister/recordNamespaceEnum pass bound
+	// the EnumType under (owner, prop); here we validate the
+	// initialiser just as the VAR form does.
+	if info := a.JSDocInfo(); info.IsEnum() && lhs.Token() == rhino.GETPROP {
+		return c.visitNamespaceEnumInit(lhs, rhs, info, scope)
+	}
 	infer := NewTypeInference(scope)
 	switch lhs.Token() {
 	case rhino.NAME:
@@ -1296,6 +1308,85 @@ func (c *TypeCheck) visitReturn(ret *rhino.Node, scope *TypedScope) []diag.Diagn
 	return []diag.Diagnostic{{
 		Path: c.path, Line: line, Col: col,
 		Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error, Message: msg,
+	}}
+}
+
+// visitNamespaceEnumInit validates an `/** @enum [{T}] */ ns.a = …`
+// assignment — the namespace-form enum declaration. Mirrors
+// visitEnumInit for the VAR form: per-entry subtype check on
+// OBJECTLIT init, incompatible-underlying diagnostic on aliased
+// RHS, "initializing variable" on anything else.
+func (c *TypeCheck) visitNamespaceEnumInit(lhs, init *rhino.Node, info *rhino.JSDocInfo, scope *TypedScope) []diag.Diagnostic {
+	lhsKids := lhs.Children()
+	if len(lhsKids) < 2 || lhsKids[0].Token() != rhino.NAME {
+		return nil
+	}
+	owner := lhsKids[0].String_()
+	prop := lhsKids[1].String_()
+	enum, ok := scope.LookupNamespaceProp(owner, prop).(*jstype.EnumType)
+	if !ok {
+		return nil
+	}
+	declaredUnderlying := jstype.JSType(jstype.Number)
+	if expr := info.EnumParameterType(); expr != nil {
+		declaredUnderlying = scope.ResolveExpr(expr.TypeName)
+	}
+	infer := NewTypeInference(scope)
+	if init.Token() == rhino.OBJECTLIT {
+		var out []diag.Diagnostic
+		for _, kv := range init.Children() {
+			if kv.Token() != rhino.STRING_KEY {
+				continue
+			}
+			value := kv.FirstChild()
+			if value == nil {
+				continue
+			}
+			found := infer.InferType(value)
+			if jstype.IsSubtype(found, enum.Underlying) {
+				continue
+			}
+			out = append(out, diag.Diagnostic{
+				Path: c.path, Line: kv.Lineno(), Col: kv.Charno(),
+				Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
+				Message: fmt.Sprintf(
+					"assignment to property %s of enum{%s}\nfound   : %s\nrequired: %s",
+					kv.String_(), enum.Name, found.TypeName(), enum.Underlying.TypeName()),
+			})
+		}
+		return out
+	}
+	// Alias form on namespace LHS: `ns.a = Other` or `ns.a = other.source`.
+	// Emit incompatible-enum-element-types when the declared-site
+	// underlying disagrees with the source's.
+	var other *jstype.EnumType
+	if init.Token() == rhino.NAME {
+		other, _ = scope.GetDeclaredType(init.String_()).(*jstype.EnumType)
+	} else if init.Token() == rhino.GETPROP {
+		initKids := init.Children()
+		if len(initKids) >= 2 && initKids[0].Token() == rhino.NAME {
+			other, _ = scope.LookupNamespaceProp(initKids[0].String_(), initKids[1].String_()).(*jstype.EnumType)
+		}
+	}
+	if other != nil {
+		if !jstype.IsSubtype(other.Underlying, declaredUnderlying) {
+			line, col := lhs.Lineno(), lhs.Charno()
+			return []diag.Diagnostic{{
+				Path: c.path, Line: line, Col: col,
+				Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
+				Message: fmt.Sprintf(
+					"incompatible enum element types\nfound   : %s\nrequired: %s",
+					other.Underlying.TypeName(), declaredUnderlying.TypeName()),
+			}}
+		}
+		return nil
+	}
+	found := infer.InferType(init)
+	return []diag.Diagnostic{{
+		Path: c.path, Line: init.Lineno(), Col: init.Charno(),
+		Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
+		Message: fmt.Sprintf("initializing variable\nfound   : %s\nrequired: enum{%s}",
+			found.TypeName(), enum.Name),
 	}}
 }
 

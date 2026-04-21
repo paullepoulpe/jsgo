@@ -208,9 +208,50 @@ func (r *JSTypeResolver) checkInfo(n *rhino.Node, info *rhino.JSDocInfo, scope *
 	if info.TypedefType() != nil {
 		r.checkExpr(n, info.TypedefType(), scope, tmpls)
 	}
+	if ee := info.EnumParameterType(); ee != nil {
+		r.checkExpr(n, ee, scope, tmpls)
+		r.checkEnumCycle(n, info, ee)
+	}
 	for _, name := range info.ParameterNames() {
 		if pe := info.ParameterType(name); pe != nil {
 			r.checkExpr(n, pe, scope, tmpls)
+		}
+	}
+}
+
+// checkEnumCycle fires JSC_CYCLIC_INHERITANCE_ERROR when the
+// `@enum {T}` annotation's T names the enum being declared itself
+// (e.g. `/** @enum {MyEnum} */ var MyEnum = {}`). Mirrors the
+// enum-cycle detection Java's TypedScopeCreator runs when binding
+// an EnumType's underlying type.
+func (r *JSTypeResolver) checkEnumCycle(n *rhino.Node, info *rhino.JSDocInfo, ee *rhino.JSTypeExpression) {
+	// Recover the declared name from the host node. VAR / LET / CONST
+	// form: first NAME child. Namespace form: the GETPROP's second
+	// segment prefixed by the owner. The cycle check compares the
+	// @enum argument's UnresolvedName against these identifiers.
+	var declared string
+	switch n.Token() {
+	case rhino.VAR, rhino.LET, rhino.CONST:
+		if name := n.FirstChild(); name != nil && name.Token() == rhino.NAME {
+			declared = name.String_()
+		}
+	case rhino.ASSIGN:
+		if lhs := n.FirstChild(); lhs != nil && lhs.Token() == rhino.GETPROP {
+			lhsKids := lhs.Children()
+			if len(lhsKids) >= 2 && lhsKids[0].Token() == rhino.NAME {
+				declared = lhsKids[0].String_() + "." + lhsKids[1].String_()
+			}
+		}
+	}
+	if declared == "" {
+		return
+	}
+	for _, nm := range ee.Names {
+		if nm.UnresolvedName == declared {
+			line, col := r.absolutePos(n, nm.SourceLine, nm.SourceCol)
+			r.emit(line, col, diag.JSC_CYCLIC_INHERITANCE_ERROR, declared,
+				"Cycle detected in inheritance chain of type "+declared)
+			return
 		}
 	}
 }

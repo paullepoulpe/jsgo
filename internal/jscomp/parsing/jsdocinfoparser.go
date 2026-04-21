@@ -414,7 +414,10 @@ func (p *JsDocInfoParser) parseEnumTag() JsDocToken {
 		p.anyRecorded = true
 		return p.eatUntilEOLIfNotAnnotation()
 	}
-	p.info.SetEnumParameterType(rhino.NewJSTypeExpression(expr))
+	// Use buildTypeExpr so the collected NamedType positions flow
+	// through to the JSTypeExpression — the resolver consults
+	// them for cycle-detection + UNRECOGNIZED_TYPE_ERROR reporting.
+	p.info.SetEnumParameterType(p.buildTypeExpr(expr))
 	p.anyRecorded = true
 	return next
 }

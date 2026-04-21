@@ -1,3 +1,8 @@
+// Port of com/google/javascript/jscomp/TypeCheck.java's
+// validateMethodOverride + checkInterfaceMethodsImplemented +
+// dict/struct extends helpers @ closure-compiler v20260415 (split
+// helper).
+//
 // TypeCheck helper: JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH +
 // @implements / @extends validation.
 //
