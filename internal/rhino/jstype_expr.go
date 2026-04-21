@@ -60,10 +60,16 @@ type JSTypeExpression struct {
 // a wrapper around an unresolved reference name plus the position at
 // which it appeared. The resolver walks these after all scope bindings
 // exist; still-unresolved names turn into diagnostics.
+//
+// Message is set only when the wrapper is repurposed as a JSDoc
+// parse-error marker (see JSTypeExpression.ParseError) — it carries the
+// specific diagnostic body Closure's report() call would have passed to
+// TYPE_PARSE_ERROR. Empty for regular name references.
 type NamedType struct {
 	UnresolvedName string
 	SourceLine     int
 	SourceCol      int
+	Message        string
 }
 
 // Name returns the wrapped name. Mirrors NamedType.getReferenceName().

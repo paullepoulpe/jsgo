@@ -240,8 +240,18 @@ func (r *JSTypeResolver) checkExpr(n *rhino.Node, expr *rhino.JSTypeExpression, 
 	}
 	if expr.ParseError != nil {
 		line, col := r.absolutePos(n, expr.ParseError.SourceLine, expr.ParseError.SourceCol)
-		r.emit(line, col, diag.JSC_TYPE_PARSE_ERROR, "", "Bad type annotation. type annotation incompatible with other annotations")
-		return
+		msg := expr.ParseError.Message
+		if msg == "" {
+			msg = "Bad type annotation. type annotation incompatible with other annotations"
+		}
+		r.emit(line, col, diag.JSC_TYPE_PARSE_ERROR, "", msg)
+		// Only abort name emission when the parse error was fatal — the
+		// expression has no Names to walk in that case. When the parser
+		// kept a partial shape (e.g. duplicate-field record), the Names
+		// list survives and feeds UNRECOGNIZED_TYPE_ERROR emission below.
+		if len(expr.Names) == 0 {
+			return
+		}
 	}
 	for _, nm := range expr.Names {
 		if slices.Contains(tmpls, nm.UnresolvedName) {

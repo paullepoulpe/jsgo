@@ -42,6 +42,20 @@ type JsDocInfoParser struct {
 	// points at the top of the expression.
 	typeExprStartLine int
 	typeExprStartCol  int
+
+	// pendingDupField* is the parallel channel for deferred parse
+	// errors that survive a successful parse. parseRecordType
+	// populates these when a record body contains a duplicate field —
+	// the record itself still parses so downstream
+	// UNRECOGNIZED_TYPE_ERROR emission for unknown field types
+	// continues to fire; buildTypeExpr reads the pending fields after
+	// receiving the ok==true return and stamps them onto the built
+	// JSTypeExpression as a ParseError marker. Mirrors Java's
+	// parseFieldTypeList which emits a report() alongside the
+	// resolved TypeAST instead of aborting the whole parse.
+	pendingDupFieldLine int
+	pendingDupFieldCol  int
+	pendingDupFieldMsg  string
 }
 
 // NewJsDocInfoParser mirrors Java's constructor. sourceString is the
@@ -440,7 +454,21 @@ func (p *JsDocInfoParser) parseTypedefTag() JsDocToken {
 func (p *JsDocInfoParser) buildTypeExpr(expr string) *rhino.JSTypeExpression {
 	names := p.collectedNames
 	p.collectedNames = nil
-	return rhino.NewJSTypeExpressionAt(expr, p.typeExprStartLine, p.typeExprStartCol, names)
+	te := rhino.NewJSTypeExpressionAt(expr, p.typeExprStartLine, p.typeExprStartCol, names)
+	// Surface any deferred duplicate-record-field error captured during
+	// parseRecordType. The expression keeps its Names (so downstream
+	// UNRECOGNIZED_TYPE_ERROR emission continues for preceding fields)
+	// and simultaneously carries a ParseError with the Java-matching
+	// message + position.
+	if p.pendingDupFieldMsg != "" {
+		te.ParseError = &rhino.NamedType{
+			SourceLine: p.pendingDupFieldLine,
+			SourceCol:  p.pendingDupFieldCol,
+			Message:    p.pendingDupFieldMsg,
+		}
+		p.pendingDupFieldMsg = ""
+	}
+	return te
 }
 
 // buildParseErrorExpr produces a JSTypeExpression flagged as a parse
@@ -719,8 +747,18 @@ func (p *JsDocInfoParser) parseTypeName(first string) (string, bool) {
 
 // parseRecordType: `{` fieldName (`:` TypeExpression)? (`,` …)* `}`.
 // LEFT_CURLY already consumed by the caller.
+//
+// Duplicate field names surface as a deferred JSC_TYPE_PARSE_ERROR
+// anchored at the closing `}` position — mirrors Java's
+// parseFieldTypeList report() for `Duplicate record field <name>`.
+// The duplicate's body (and anything after it) is swallowed without
+// contributing to collectedNames so the resolver only emits unknown-
+// type errors for names Java would also report.
 func (p *JsDocInfoParser) parseRecordType() (string, bool) {
 	var parts []string
+	seen := map[string]bool{}
+	dupField := ""
+	dupLine, dupCol := 0, 0
 	for {
 		p.skipEOLs()
 		if p.match(JsDocTokenRightCurly) {
@@ -731,6 +769,50 @@ func (p *JsDocInfoParser) parseRecordType() (string, bool) {
 			return "", false
 		}
 		field := p.stream.String_()
+		isDup := seen[field] && dupField == ""
+		seen[field] = true
+		if isDup {
+			dupField = field
+			// Discard the duplicate's body (and any trailing fields)
+			// without contributing Names to collectedNames — Java's
+			// parseFieldTypeList aborts on duplicate detection, so the
+			// resolver should only flag unknown types from fields that
+			// appeared *before* the duplicate.
+			saved := append([]rhino.NamedType(nil), p.collectedNames...)
+			p.skipEOLs()
+			if p.match(JsDocTokenColon) {
+				p.next()
+				p.skipEOLs()
+				_, _ = p.parseTypeExpression(p.next())
+			}
+			p.skipEOLs()
+			for p.match(JsDocTokenComma) {
+				p.next()
+				p.skipEOLs()
+				if p.match(JsDocTokenRightCurly) {
+					break
+				}
+				if p.next() != JsDocTokenString {
+					break
+				}
+				p.skipEOLs()
+				if p.match(JsDocTokenColon) {
+					p.next()
+					p.skipEOLs()
+					_, _ = p.parseTypeExpression(p.next())
+				}
+				p.skipEOLs()
+			}
+			p.collectedNames = saved
+			// Peek at the closing `}` so its (line, col) becomes the
+			// most recent TokenStart — that's where Java's report()
+			// anchors the Duplicate record field diagnostic.
+			if p.match(JsDocTokenRightCurly) {
+				dupLine = p.stream.TokenStartLine()
+				dupCol = p.stream.TokenStartCol()
+			}
+			break
+		}
 		p.skipEOLs()
 		if p.match(JsDocTokenColon) {
 			p.next()
@@ -754,6 +836,11 @@ func (p *JsDocInfoParser) parseRecordType() (string, bool) {
 		return "", false
 	}
 	p.next()
+	if dupField != "" {
+		p.pendingDupFieldLine = dupLine
+		p.pendingDupFieldCol = dupCol
+		p.pendingDupFieldMsg = "Bad type annotation. Duplicate record field " + dupField + ". See https://github.com/google/closure-compiler/wiki/Annotating-JavaScript-for-the-Closure-Compiler for more information."
+	}
 	return "{" + strings.Join(parts, ",") + "}", true
 }
 
