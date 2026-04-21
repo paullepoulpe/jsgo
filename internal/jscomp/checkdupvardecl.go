@@ -1,4 +1,5 @@
-// Port of com/google/javascript/jscomp/TypeCheck.java @ closure-compiler v20260415 (subset: checkDuplicateVarDeclaration)
+// Port of com/google/javascript/jscomp/TypeCheck.java
+// @ closure-compiler v20260415 (checkDuplicateVarDeclaration helper).
 //
 // TypeCheck helper: JSC_DUP_VAR_DECLARATION_TYPE_MISMATCH +
 // JSC_DUP_VAR_DECLARATION on namespace-property slots.

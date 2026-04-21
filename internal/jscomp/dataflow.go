@@ -1,12 +1,12 @@
 // Port of com/google/javascript/jscomp/DataFlowAnalysis.java
-// @ closure-compiler v20260415 (narrow; forward only, no lattice-
-// annotation side table, no fixed-point limit heuristic).
+// @ closure-compiler v20260415 (forward + backward worklists; no
+// lattice-annotation side table, no fixed-point limit heuristic).
 //
 // The Java framework is abstract over the lattice type and direction
 // of analysis. jsgo's use case is a single concrete analysis — the
-// TypeInferencePass — so the port inlines the forward-worklist loop
-// against FlowScope directly. Backward / max-fix-point variants land
-// with the next caller that needs them.
+// TypeInferencePass (forward) — but the backward worklist is also
+// provided so live-variable / liveness analyses have a direct entry
+// point when they land.
 
 package jscomp
 
@@ -17,15 +17,26 @@ package jscomp
 // the value is the FlowScope to attach to that outgoing edge.
 type TransferFunction func(node *CfgNode, in *FlowScope) map[Branch]*FlowScope
 
-// DataFlowAnalysis is the forward-worklist runner. It stores the
-// computed IN scope for each CfgNode keyed by pointer — callers
-// consume this after Run returns.
+// Direction mirrors DataFlowAnalysis.Direction in Java — forward
+// analyses propagate IN → OUT along successor edges; backward analyses
+// propagate OUT → IN along predecessor edges.
+type Direction int
+
+const (
+	DirectionForward Direction = iota
+	DirectionBackward
+)
+
+// DataFlowAnalysis is the worklist runner. It stores the computed IN
+// scope for each CfgNode keyed by pointer — callers consume this after
+// Run returns.
 type DataFlowAnalysis struct {
 	Cfg       *ControlFlowGraph
 	In        map[*CfgNode]*FlowScope
 	edgeOut   map[edgeKey]*FlowScope
 	transfer  TransferFunction
 	initial   *FlowScope
+	direction Direction
 }
 
 type edgeKey struct {
@@ -34,25 +45,51 @@ type edgeKey struct {
 	branch Branch
 }
 
-// NewDataFlowAnalysis wires a DataFlowAnalysis over `cfg` with the
-// given transfer function. `initial` is the IN scope attached to the
-// entry node (typically an empty FlowScope).
+// NewDataFlowAnalysis wires a forward DataFlowAnalysis over `cfg`
+// with the given transfer function. `initial` is the IN scope attached
+// to the entry node (typically an empty FlowScope).
 func NewDataFlowAnalysis(cfg *ControlFlowGraph, initial *FlowScope, transfer TransferFunction) *DataFlowAnalysis {
 	return &DataFlowAnalysis{
-		Cfg:      cfg,
-		In:       map[*CfgNode]*FlowScope{},
-		edgeOut:  map[edgeKey]*FlowScope{},
-		transfer: transfer,
-		initial:  initial,
+		Cfg:       cfg,
+		In:        map[*CfgNode]*FlowScope{},
+		edgeOut:   map[edgeKey]*FlowScope{},
+		transfer:  transfer,
+		initial:   initial,
+		direction: DirectionForward,
 	}
 }
 
-// Run executes the forward-worklist fixed-point loop. Termination is
-// guaranteed because FlowScope entries only widen (each name either
-// keeps its refined type or joins to a union that subsumes it), and
-// NewUnion deduplicates by name — so the number of distinct union
-// shapes per name is bounded by the type lattice.
+// NewBackwardDataFlowAnalysis wires a backward DataFlowAnalysis —
+// `initial` is the OUT scope attached to the exit node. Transfer
+// functions see the node's OUT scope via `in` (the name is kept for
+// symmetry with the forward API) and produce the node's IN scope
+// which is then propagated along predecessor edges.
+func NewBackwardDataFlowAnalysis(cfg *ControlFlowGraph, initial *FlowScope, transfer TransferFunction) *DataFlowAnalysis {
+	return &DataFlowAnalysis{
+		Cfg:       cfg,
+		In:        map[*CfgNode]*FlowScope{},
+		edgeOut:   map[edgeKey]*FlowScope{},
+		transfer:  transfer,
+		initial:   initial,
+		direction: DirectionBackward,
+	}
+}
+
+// Run executes the worklist fixed-point loop in whichever direction
+// was chosen at construction. Termination is guaranteed because
+// FlowScope entries only widen (each name either keeps its refined
+// type or joins to a union that subsumes it), and NewUnion
+// deduplicates by name — so the number of distinct union shapes per
+// name is bounded by the type lattice.
 func (d *DataFlowAnalysis) Run() {
+	if d.direction == DirectionBackward {
+		d.runBackward()
+		return
+	}
+	d.runForward()
+}
+
+func (d *DataFlowAnalysis) runForward() {
 	d.In[d.Cfg.Entry] = d.initial
 	worklist := []*CfgNode{d.Cfg.Entry}
 	// Each visit bounds is mostly a safety belt — the lattice itself
@@ -119,6 +156,81 @@ func (d *DataFlowAnalysis) Run() {
 			if !inWorklist[e.To] {
 				worklist = append(worklist, e.To)
 				inWorklist[e.To] = true
+			}
+		}
+	}
+}
+
+// runBackward propagates the OUT lattice from EXIT to ENTRY along
+// predecessor edges. For a node N, OUT = join(IN of successors) via
+// edgeOut (interpreted as "OUT attached to the successor edge that
+// flows back to N"). The transfer function's returned map[Branch] is
+// keyed by the incoming-edge branch as seen from the predecessor's
+// perspective — matching Java's BackwardAnalysis.flowThrough contract.
+func (d *DataFlowAnalysis) runBackward() {
+	d.In[d.Cfg.Exit] = d.initial
+	worklist := []*CfgNode{d.Cfg.Exit}
+	const maxIterations = 20000
+	iterations := 0
+	inWorklist := map[*CfgNode]bool{d.Cfg.Exit: true}
+	for len(worklist) > 0 && iterations < maxIterations {
+		iterations++
+		n := worklist[0]
+		worklist = worklist[1:]
+		delete(inWorklist, n)
+		in := d.In[n]
+		// For backward flow, the node's OUT is computed by joining
+		// the edge-contributions from each of its *successors* (since
+		// edgeOut maps from→to→IN-of-to). We skip this step on the
+		// exit node.
+		if n != d.Cfg.Exit {
+			var merged *FlowScope
+			for _, e := range n.Successors {
+				edgeIn := d.edgeOut[edgeKey{from: n, to: e.To, branch: e.Branch}]
+				if edgeIn == nil {
+					continue
+				}
+				if merged == nil {
+					merged = edgeIn
+				} else {
+					merged = JoinFlowScopes(merged, edgeIn)
+				}
+			}
+			if merged == nil {
+				merged = EmptyFlowScope()
+			}
+			if in != nil && in.Equal(merged) {
+				continue
+			}
+			in = merged
+			d.In[n] = in
+		}
+		outs := d.transfer(n, in)
+		defaultOut, hasDefault := outs[BranchUnconditional]
+		// Push the transfer result back along predecessor edges.
+		for _, p := range n.Predecessors {
+			for _, e := range p.Successors {
+				if e.To != n {
+					continue
+				}
+				key := edgeKey{from: p, to: n, branch: e.Branch}
+				newOut, ok := outs[e.Branch]
+				if !ok {
+					if hasDefault {
+						newOut = defaultOut
+					} else {
+						newOut = in
+					}
+				}
+				prevOut := d.edgeOut[key]
+				if prevOut != nil && prevOut.Equal(newOut) {
+					continue
+				}
+				d.edgeOut[key] = newOut
+				if !inWorklist[p] {
+					worklist = append(worklist, p)
+					inWorklist[p] = true
+				}
 			}
 		}
 	}

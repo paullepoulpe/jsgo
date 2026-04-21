@@ -331,6 +331,27 @@ func (o *ObjectType) HasProperty(name string) bool {
 // still empty.
 func (o *ObjectType) MemberCount() int { return len(o.members) }
 
+// HasEmptyMemberMap reports whether this type AND every ancestor in
+// its @extends chain have no declared instance members. Mirrors the
+// false-positive guard in TypeCheck's INEXISTENT_PROPERTY surface:
+// builtin-with-narrow-stub types (e.g. the minimal DOM `Window` /
+// `HTMLElement` externs we ship) lack their real property surface,
+// so emitting "Property X never defined on Window" for every access
+// is noise. A non-empty chain anywhere unlocks the check.
+func (o *ObjectType) HasEmptyMemberMap() bool {
+	for cur := o; cur != nil; cur = cur.super {
+		if len(cur.members) > 0 {
+			return false
+		}
+		if cur.templatizedSuper != nil && cur.templatizedSuper.Base != nil {
+			if !cur.templatizedSuper.Base.HasEmptyMemberMap() {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 // MemberNames returns the set of directly-declared member names on
 // this type. Caller owns the slice; iteration order is undefined.
 // Used by passes that need to fan out over an interface's properties
@@ -392,6 +413,7 @@ func containsVoid(t JSType) bool {
 	}
 	return false
 }
+
 // SetTemplatizedSuper records the templatized form of the @extends
 // link — e.g. `@extends {Bar<Array<T>>}` on a `@template T` class.
 // The underlying nominal super is still expected to be wired through
