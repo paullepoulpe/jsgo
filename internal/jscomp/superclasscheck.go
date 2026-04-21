@@ -308,9 +308,10 @@ func (s *SuperclassCheck) checkInterfaceExtendsConflicts(fn *rhino.Node) {
 		}
 		pe := parentEnt{obj: inst, name: b.TypeName}
 		if bare != b.TypeName {
-			if t, ok := s.scope.ResolveExpr(b.TypeName).(*jstype.TemplatizedType); ok {
-				pe.tpl = t
-			}
+			// ResolveExpr returns (Foo<X>|null) for a nominal — unwrap
+			// the TemplatizedType arm so GetPropertyType substitutes
+			// the concrete template args.
+			pe.tpl = unwrapTemplatizedSuper(s.scope.ResolveExpr(b.TypeName))
 		}
 		directParents = append(directParents, pe)
 	}
