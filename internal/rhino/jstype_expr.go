@@ -64,6 +64,13 @@ type NamedType struct {
 	UnresolvedName string
 	SourceLine     int
 	SourceCol      int
+	// IsTypeof distinguishes `typeof x` value-references from ordinary
+	// type-name references. Java stores these as a separate TypeOfExpr
+	// AST node; we tag them inline so the late resolver can emit
+	// JSC_UNRECOGNIZED_TYPEOF_ERROR when the referenced value is
+	// missing or lacks a declared-const type, instead of the default
+	// JSC_UNRECOGNIZED_TYPE_ERROR for unknown nominal types.
+	IsTypeof bool
 }
 
 // Name returns the wrapped name. Mirrors NamedType.getReferenceName().

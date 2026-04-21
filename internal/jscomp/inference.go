@@ -221,6 +221,23 @@ func (t *TypeInference) InferType(n *rhino.Node) jstype.JSType {
 	// ---- function expression -------------------------------------- //
 	case rhino.FUNCTION:
 		return t.inferFunctionExpr(n)
+
+	// ---- type cast ------------------------------------------------ //
+	case rhino.CAST:
+		// After TypeCheck has validated the cast-from/to relation, the
+		// resulting expression carries the *target* type — mirrors
+		// Java's TypeInference where CAST_VALUE_ACCEPTED swaps the
+		// operand's type for the annotation. Falls back to the
+		// operand's own type if the @type is missing or unresolvable.
+		if info := n.JSDocInfo(); info != nil && info.Type() != nil {
+			if to := t.scope.ResolveExpr(info.Type().TypeName); to != nil {
+				return to
+			}
+		}
+		if kid := n.FirstChild(); kid != nil {
+			return t.InferType(kid)
+		}
+		return jstype.Unknown
 	}
 	return jstype.Unknown
 }

@@ -128,6 +128,12 @@ const (
 	ARRAYLIT
 	OBJECTLIT
 	STRING_KEY
+
+	// Type cast — Closure's `/** @type {T} */(expr)` form. The cast
+	// target type lives on the node's JSDocInfo; the only child is
+	// the expression being cast. Java maps this to Token.CAST after
+	// the JSDoc parser recognises the annotated paren group.
+	CAST
 )
 
 func (t Token) String() string {
@@ -310,6 +316,8 @@ func (t Token) String() string {
 		return "OBJECTLIT"
 	case STRING_KEY:
 		return "STRING_KEY"
+	case CAST:
+		return "CAST"
 	}
 	return "ERROR"
 }

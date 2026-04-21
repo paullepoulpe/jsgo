@@ -33,6 +33,7 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/diag"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/rhino/jstype"
 )
 
 // JSTypeResolver is the NamedType resolution pass. It walks the AST,
@@ -235,6 +236,21 @@ func (r *JSTypeResolver) checkExpr(n *rhino.Node, expr *rhino.JSTypeExpression, 
 		if r.fileTemplates[nm.UnresolvedName] {
 			continue
 		}
+		if nm.IsTypeof {
+			// Java's TypeOfType resolves via the referenced value's
+			// declared type (must be declared AND const). We require
+			// the value slot to exist in scope and to have a
+			// non-Unknown declared type. Mirrors the surface area
+			// of JSC_UNRECOGNIZED_TYPEOF_ERROR, which is a warning
+			// (level=Warning) in Java's DiagnosticType registry.
+			if !r.typeofNameResolves(nm.UnresolvedName, scope) {
+				line, col := r.absolutePos(n, nm.SourceLine, nm.SourceCol)
+				r.emitWithLevel(line, col, diag.JSC_UNRECOGNIZED_TYPEOF_ERROR, diag.Warning,
+					nm.UnresolvedName,
+					"Missing type for `typeof` value. The value must be declared and const.")
+			}
+			continue
+		}
 		if r.nameResolves(nm.UnresolvedName, scope) {
 			continue
 		}
@@ -242,6 +258,26 @@ func (r *JSTypeResolver) checkExpr(n *rhino.Node, expr *rhino.JSTypeExpression, 
 		r.emit(line, col, diag.JSC_UNRECOGNIZED_TYPE_ERROR, nm.UnresolvedName,
 			"Bad type annotation. Unknown type "+nm.UnresolvedName)
 	}
+}
+
+// typeofNameResolves reports whether a JSDoc `typeof x` reference
+// points at a declared, non-inferred value. Java's TypeOfType goes
+// through the value-scope (Var.getType) and requires the slot to
+// carry a declared type — untyped / inferred-only slots fire
+// JSC_UNRECOGNIZED_TYPEOF_ERROR. We approximate that by requiring
+// a non-Unknown declared type in the scope chain.
+func (r *JSTypeResolver) typeofNameResolves(name string, scope *TypedScope) bool {
+	if name == "" || scope == nil {
+		return false
+	}
+	t := scope.GetRawDeclaredType(name)
+	if t == nil {
+		return false
+	}
+	if t == jstype.Unknown {
+		return false
+	}
+	return true
 }
 
 // nameResolves mirrors the predicate Java's registry uses to decide
@@ -337,6 +373,16 @@ func (r *JSTypeResolver) absolutePos(n *rhino.Node, bodyLine, bodyCol int) (int,
 	endOff := lineColToOffset(r.src, line, col)
 	bodyStartLine, bodyStartCol, ok := findJSDocBodyStart(r.src, endOff)
 	if !ok {
+		// Inline JSDoc (`var /** T */ x`) sits AFTER the annotated node's
+		// declaration keyword, so the backward scan misses it. Try a
+		// forward scan on the same line for the nearest `/**` — gives
+		// the correct anchor for JSC_UNRECOGNIZED_TYPEOF_ERROR on
+		// `var /** typeof ns */ x;`.
+		if fwdLine, fwdCol, fok := findJSDocBodyStartForward(r.src, endOff); fok {
+			bodyStartLine, bodyStartCol, ok = fwdLine, fwdCol, true
+		}
+	}
+	if !ok {
 		// Fall back to the annotated node's own position — better than
 		// pointing at column 0, and mirrors Java's fallback when the
 		// ScriptSourceFile can't resolve a charno.
@@ -346,6 +392,27 @@ func (r *JSTypeResolver) absolutePos(n *rhino.Node, bodyLine, bodyCol int) (int,
 		return bodyStartLine, bodyStartCol + bodyCol
 	}
 	return bodyStartLine + bodyLine, bodyCol
+}
+
+// findJSDocBodyStartForward is the inline-JSDoc variant of
+// findJSDocBodyStart: scans src[startOff:] forward for the first
+// `/**` on the same line and returns the body origin. Used when
+// the backward scan fails because the JSDoc is attached to an
+// inline-commented declaration (`var /** T */ x;`).
+func findJSDocBodyStartForward(src string, startOff int) (int, int, bool) {
+	for i := startOff; i+2 < len(src); i++ {
+		if src[i] == '\n' {
+			return 0, 0, false
+		}
+		if src[i] == '/' && src[i+1] == '*' && src[i+2] == '*' {
+			line, col := offsetToLineCol(src, i)
+			// Body starts at the second `*` of `/**`, matching the
+			// ConsumeBlockComment offset semantics used by the backward
+			// scan.
+			return line, col + 2, true
+		}
+	}
+	return 0, 0, false
 }
 
 // nodeStartPos returns a (line, col) for `n`. FUNCTION / CLASS nodes
@@ -589,6 +656,13 @@ func isIdentByte(b byte) bool {
 // late-resolve warning exactly once per (position, name) pair; the seen
 // map mirrors that invariant.
 func (r *JSTypeResolver) emit(line, col int, code, name, msg string) {
+	r.emitWithLevel(line, col, code, diag.Error, name, msg)
+}
+
+// emitWithLevel is the level-parameterised emit. Used when the Java
+// DiagnosticType registers the code at WARNING (not the default
+// ERROR) — JSC_UNRECOGNIZED_TYPEOF_ERROR is the canonical example.
+func (r *JSTypeResolver) emitWithLevel(line, col int, code string, level diag.Level, name, msg string) {
 	k := diagKey{line: line, col: col, code: code, name: name}
 	if r.seen[k] {
 		return
@@ -599,7 +673,7 @@ func (r *JSTypeResolver) emit(line, col int, code, name, msg string) {
 		Line:    line,
 		Col:     col,
 		Code:    code,
-		Level:   diag.Error,
+		Level:   level,
 		Message: msg,
 	})
 }

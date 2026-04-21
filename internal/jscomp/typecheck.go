@@ -487,6 +487,8 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitGetProp(n, scope))
 	case rhino.GETELEM:
 		c.emit(c.visitGetElem(n, scope))
+	case rhino.CAST:
+		c.emit(c.visitCast(n, scope))
 	case rhino.CLASS_FIELD_DEF:
 		c.emit(c.visitClassField(n, parent, scope))
 	case rhino.RETURN:
@@ -576,6 +578,11 @@ func (c *TypeCheck) emit(d []diag.Diagnostic) {
 // "initializing variable" variant.
 func (c *TypeCheck) visitVar(v *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	var out []diag.Diagnostic
+	// CheckObjectKeys.java (folded in): scan @type expressions for
+	// Object<K,V> entries with non-stringifiable keys before the
+	// regular init-subtype check. Applies even when the decl has no
+	// initializer.
+	out = append(out, c.visitObjectKeyTypes(v, scope)...)
 	infer := NewTypeInference(scope)
 	// Walk every NAME child so multi-binding forms
 	// `var a = 1, /** @type {T} */ b = 2` each get their own
@@ -1677,6 +1684,365 @@ func (c *TypeCheck) visitFunctionParams(fn *rhino.Node, scope *TypedScope) []dia
 		})
 	}
 	return out
+}
+
+// visitObjectKeyTypes walks every `Object<K, V>` occurrence inside
+// the @type/@param/@return expression attached to `v` and fires
+// JSC_NON_STRINGIFIABLE_OBJECT_KEY when K isn't a stringifiable
+// primitive (string / number / boolean / symbol / void / null, or
+// unions / nullable variants thereof).
+//
+// Ports com/google/javascript/jscomp/CheckObjectKeys.java: Java walks
+// the resolved JSType tree; jsgo walks the raw JSDoc text since the
+// checker operates against TypeName strings. The diagnostic surfaces
+// at the declaring node's position (the VAR / LET / CONST keyword).
+//
+// Only the on-by-default TypeCheck pathway is ported; Java's
+// separate CheckObjectKeys traversal is folded in here because its
+// sole emission path is JSC_NON_STRINGIFIABLE_OBJECT_KEY and the
+// scope-aware resolution logic already lives in this pass.
+func (c *TypeCheck) visitObjectKeyTypes(v *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	info := v.JSDocInfo()
+	if info == nil || info.Type() == nil {
+		return nil
+	}
+	line, col := v.Lineno(), v.Charno()
+	// Fall back to the first NAME child for position when the decl
+	// node itself has no pos (parser only tags names, not the VAR
+	// shell). Matches where Java anchors the warning — at the
+	// "name-of-variable" token.
+	if line == 0 && col == 0 {
+		for _, name := range v.Children() {
+			if name.Token() == rhino.NAME {
+				line, col = name.Lineno(), name.Charno()
+				break
+			}
+		}
+	}
+	var out []diag.Diagnostic
+	walkObjectKeyExpr(info.Type().TypeName, scope, func(keyExpr string) {
+		out = append(out, diag.Diagnostic{
+			Path: c.path, Line: line, Col: col,
+			Code: diag.JSC_NON_STRINGIFIABLE_OBJECT_KEY, Level: diag.Error,
+			Message: fmt.Sprintf("Object type %q contains non-stringifiable key "+
+				"and it may lead to an error. Please use ES6 Map instead or "+
+				"implement your own Map structure.", "Object<"+keyExpr+",?>"),
+		})
+	})
+	return out
+}
+
+// walkObjectKeyExpr scans `expr` for every `Object<K, V>` occurrence
+// (including nested under nullable / unions / function / templatized
+// wrappers) and invokes `emit` with the raw K expression when K is
+// *not* a stringifiable type. Mirrors Java's
+// CheckObjectKeys.checkType / JSType.isStringifiable recursion.
+func walkObjectKeyExpr(expr string, scope *TypedScope, emit func(string)) {
+	for {
+		idx := findTopLevelObjectLt(expr)
+		if idx < 0 {
+			return
+		}
+		close := matchingAngleClose(expr, idx)
+		if close < 0 {
+			return
+		}
+		inside := expr[idx+1 : close]
+		// Split into K, V (comma at nesting depth 0). Walk K for
+		// nested Object<…> too.
+		k, v := splitFirstTopLevelComma(inside)
+		if k != "" && !isStringifiableTypeExpr(k, scope) {
+			emit(k)
+		}
+		// Recurse into both args so `Object<string, Object<!Foo, T>>`
+		// fires on the inner Object as well (Java's recursive walk).
+		walkObjectKeyExpr(k, scope, emit)
+		walkObjectKeyExpr(v, scope, emit)
+		expr = expr[close+1:]
+	}
+}
+
+// findTopLevelObjectLt returns the index of the `<` in an
+// `Object<...>` occurrence — scanning for the bare name `Object`
+// (not a qualified name suffix) followed immediately by `<`.
+// Returns -1 if none found.
+func findTopLevelObjectLt(expr string) int {
+	for i := 0; i < len(expr); i++ {
+		if i+6 > len(expr) {
+			return -1
+		}
+		if expr[i] != 'O' {
+			continue
+		}
+		// Match "Object" as a whole word.
+		if expr[i:i+6] != "Object" {
+			continue
+		}
+		// Preceding char must not be part of an identifier or dot.
+		if i > 0 {
+			p := expr[i-1]
+			if p == '.' || p == '_' || p == '$' ||
+				(p >= 'a' && p <= 'z') || (p >= 'A' && p <= 'Z') ||
+				(p >= '0' && p <= '9') {
+				continue
+			}
+		}
+		// Must be followed by `<` — allow whitespace between.
+		j := i + 6
+		for j < len(expr) && (expr[j] == ' ' || expr[j] == '\t') {
+			j++
+		}
+		if j < len(expr) && expr[j] == '<' {
+			return j
+		}
+	}
+	return -1
+}
+
+// matchingAngleClose returns the index of the `>` that matches the
+// `<` at position `open` in `expr`, or -1 if unbalanced.
+func matchingAngleClose(expr string, open int) int {
+	depth := 0
+	paren := 0
+	curly := 0
+	for i := open; i < len(expr); i++ {
+		switch expr[i] {
+		case '<':
+			depth++
+		case '>':
+			depth--
+			if depth == 0 {
+				return i
+			}
+		case '(':
+			paren++
+		case ')':
+			paren--
+		case '{':
+			curly++
+		case '}':
+			curly--
+		}
+		_ = paren
+		_ = curly
+	}
+	return -1
+}
+
+// splitFirstTopLevelComma returns the prefix up to the first comma
+// at nesting depth 0 and the suffix after it. Used to peel K off
+// `Object<K, V>`.
+func splitFirstTopLevelComma(s string) (string, string) {
+	depth := 0
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '<', '(', '{', '[':
+			depth++
+		case '>', ')', '}', ']':
+			depth--
+		case ',':
+			if depth == 0 {
+				return trimSpaces(s[:i]), trimSpaces(s[i+1:])
+			}
+		}
+	}
+	return trimSpaces(s), ""
+}
+
+// trimSpaces is a byte-level strings.TrimSpace; the file avoids
+// importing strings per the parser's local style.
+func trimSpaces(s string) string {
+	for len(s) > 0 && (s[0] == ' ' || s[0] == '\t' || s[0] == '\n' || s[0] == '\r') {
+		s = s[1:]
+	}
+	for len(s) > 0 {
+		c := s[len(s)-1]
+		if c != ' ' && c != '\t' && c != '\n' && c != '\r' {
+			break
+		}
+		s = s[:len(s)-1]
+	}
+	return s
+}
+
+// isStringifiableTypeExpr reports whether the resolved form of `expr`
+// is safe to coerce to a string (i.e. a legal `Object<…>` key).
+// Java's JSType.isStringifiable: primitives (string, number, boolean,
+// symbol), plus unions where every member is stringifiable, plus
+// `?`/`*` (unknown/all accept). Nullable (`?T`) and non-null (`!T`)
+// prefixes are transparent. Anything else — Object, Array, function,
+// enum-of-object, user class — is NON stringifiable.
+func isStringifiableTypeExpr(expr string, scope *TypedScope) bool {
+	expr = trimSpaces(expr)
+	if expr == "" {
+		return true
+	}
+	// `?` / `*` (unknown / all) — Java's CheckObjectKeys skips.
+	if expr == "?" || expr == "*" {
+		return true
+	}
+	// Strip nullable / non-null prefix.
+	if expr[0] == '?' || expr[0] == '!' {
+		return isStringifiableTypeExpr(expr[1:], scope)
+	}
+	// Strip outer parens.
+	if expr[0] == '(' && expr[len(expr)-1] == ')' && balancedOuterExpr(expr) {
+		return isStringifiableTypeExpr(expr[1:len(expr)-1], scope)
+	}
+	// Union — every member must be stringifiable.
+	if parts := splitTopLevelUnionExpr(expr); len(parts) > 1 {
+		for _, p := range parts {
+			if !isStringifiableTypeExpr(p, scope) {
+				return false
+			}
+		}
+		return true
+	}
+	// Primitive name — Java's allowlist.
+	switch expr {
+	case "string", "number", "boolean", "symbol", "void", "undefined", "null":
+		return true
+	}
+	// Templatized types like `Array<T>` / `Object<K,V>` — the outer
+	// constructor itself is never stringifiable (Java's rule: the
+	// instance coerces via Object.prototype.toString which returns
+	// `[object Object]` and collides across keys).
+	if findTopLevelObjectLt(expr) >= 0 {
+		return false
+	}
+	// Named type lookup via the scope. An EnumType over a
+	// stringifiable primitive underlying is itself stringifiable
+	// (Java's EnumType.isStringifiable). Anything else — nominal
+	// object, interface, class, function — is not.
+	resolved := scope.ResolveExpr(expr)
+	if resolved == nil {
+		return false
+	}
+	return isStringifiableJSType(resolved)
+}
+
+// balancedOuterExpr reports whether `expr` is wrapped in a single
+// matched pair of outer parens. Local helper so TypeCheck doesn't
+// pull in scope.go's internal implementation.
+func balancedOuterExpr(expr string) bool {
+	if len(expr) < 2 || expr[0] != '(' || expr[len(expr)-1] != ')' {
+		return false
+	}
+	depth := 0
+	for i := 0; i < len(expr); i++ {
+		switch expr[i] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 && i != len(expr)-1 {
+				return false
+			}
+		}
+	}
+	return depth == 0
+}
+
+// splitTopLevelUnionExpr returns the `|`-separated members of a
+// top-level union expression. Parens / angles / braces raise the
+// depth so `(A|B)|C` splits into two parts, not three.
+func splitTopLevelUnionExpr(expr string) []string {
+	var out []string
+	depth := 0
+	last := 0
+	for i := 0; i < len(expr); i++ {
+		switch expr[i] {
+		case '<', '(', '{', '[':
+			depth++
+		case '>', ')', '}', ']':
+			depth--
+		case '|':
+			if depth == 0 {
+				out = append(out, trimSpaces(expr[last:i]))
+				last = i + 1
+			}
+		}
+	}
+	out = append(out, trimSpaces(expr[last:]))
+	if len(out) == 1 {
+		return nil
+	}
+	return out
+}
+
+// isStringifiableJSType walks a resolved JSType and reports whether
+// every alternative coerces cleanly to a string key. Mirrors Java's
+// JSType.isStringifiable dispatch.
+func isStringifiableJSType(t jstype.JSType) bool {
+	if t == nil {
+		return true
+	}
+	switch v := t.(type) {
+	case *jstype.UnionType:
+		for _, m := range v.Members() {
+			if !isStringifiableJSType(m) {
+				return false
+			}
+		}
+		return true
+	case *jstype.EnumType:
+		return isStringifiableJSType(v.Underlying)
+	}
+	if t == jstype.Unknown {
+		return true
+	}
+	switch t.TypeName() {
+	case "string", "number", "boolean", "symbol", "null", "undefined", "void":
+		return true
+	}
+	return false
+}
+
+// visitCast fires JSC_INVALID_CAST when a `/** @type {T} */(expr)`
+// annotation casts between two types that have no subtype / supertype
+// relationship. Mirrors Java's TypeValidator.expectCanCast, which
+// rejects casts where neither `sourceType.isSubtypeOf(targetType)`
+// nor `targetType.isSubtypeOf(sourceType)` holds. Unknown on either
+// side is always accepted (Java treats `?` as "anything permitted").
+func (c *TypeCheck) visitCast(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	info := n.JSDocInfo()
+	if info == nil || info.Type() == nil {
+		return nil
+	}
+	kid := n.FirstChild()
+	if kid == nil {
+		return nil
+	}
+	to := scope.ResolveExpr(info.Type().TypeName)
+	if to == nil {
+		return nil
+	}
+	from := NewTypeInference(scope).InferType(kid)
+	if from == nil {
+		return nil
+	}
+	if isUnknownLike(to) || isUnknownLike(from) {
+		return nil
+	}
+	if jstype.IsSubtype(from, to) || jstype.IsSubtype(to, from) {
+		return nil
+	}
+	return []diag.Diagnostic{{
+		Path: c.path, Line: n.Lineno(), Col: n.Charno(),
+		Code: diag.JSC_INVALID_CAST, Level: diag.Error,
+		Message: fmt.Sprintf("invalid cast - must be a subtype or supertype\nfrom: %s\nto  : %s",
+			from.TypeName(), to.TypeName()),
+	}}
+}
+
+// isUnknownLike reports whether `t` is the Unknown or all (`*`) type.
+// Java's TypeValidator bypasses cast checks whenever either side is
+// one of these wildcards, since they subsume every concrete type.
+func isUnknownLike(t jstype.JSType) bool {
+	if t == nil {
+		return true
+	}
+	return t == jstype.Unknown || t.TypeName() == "*" || t.TypeName() == "?"
 }
 
 // visitBitOp fires JSC_BAD_TYPE_FOR_BIT_OPERATION when either

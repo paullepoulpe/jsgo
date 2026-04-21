@@ -160,8 +160,18 @@ func (p *Parser) tryStatement() (*rhino.Node, bool) {
 		}
 		return cls, ok
 	}
+	declLine, declCol := p.scanner.Line(), p.scanner.Col()
 	if declToken, ok := p.consumeDeclKeyword(); ok {
-		return p.finishDeclStatement(declToken, jsdoc)
+		decl, declOk := p.finishDeclStatement(declToken, jsdoc)
+		if decl != nil && decl.Lineno() == 0 && decl.Charno() == 0 {
+			// Anchor VAR / LET / CONST at the keyword column — Java
+			// does the same in its parser so later diagnostics
+			// (JSC_NON_STRINGIFIABLE_OBJECT_KEY, etc.) surface at
+			// the declaration's start rather than the declared
+			// name.
+			decl.SetPos(declLine, declCol)
+		}
+		return decl, declOk
 	}
 	if p.scanner.ConsumeKeyword("return") {
 		return p.finishReturn(), true
@@ -326,7 +336,15 @@ func (p *Parser) finishDeclStatement(declToken rhino.Token, jsdoc *rhino.JSDocIn
 				p.scanner.SkipToStatementBoundary()
 				return declNode, true
 			}
-			init.SetPos(initLine, initCol)
+			// Only override a missing position. An init expression
+			// like `/** @type {T} */(expr)` is a CAST node whose
+			// position was deliberately set to the opening `(` — the
+			// pre-expression `initLine/initCol` points at `/**`, which
+			// would mis-report diagnostics like JSC_INVALID_CAST at
+			// the comment's column instead of Java's `(`-column.
+			if init.Lineno() == 0 && init.Charno() == 0 {
+				init.SetPos(initLine, initCol)
+			}
 			nameNode.AddChildToBack(init)
 		}
 		p.scanner.SkipTrivia()
@@ -1548,6 +1566,41 @@ func (p *Parser) tryPrimary() (*rhino.Node, bool) {
 	}
 	startLine, startCol := p.scanner.Line(), p.scanner.Col()
 
+	// Type cast — Closure's `/** @type {T} */(expr)` form. A JSDoc
+	// immediately followed by `(` is the only place a `/**` comment
+	// can legally appear inside an expression. Mirrors Java's
+	// IRFactory.processCast, which wraps the inner expression in a
+	// CAST node carrying the JSDoc's @type annotation.
+	if p.scanner.Peek() == '/' && p.scanner.PeekAt(1) == '*' && p.scanner.PeekAt(2) == '*' {
+		save := p.scanner.Save()
+		body, ok := p.scanner.ConsumeBlockComment()
+		if ok {
+			p.scanner.SkipTrivia()
+			if p.scanner.Peek() == '(' {
+				info := parsing.ParseJSDocInfo(body)
+				if info == nil {
+					info = parseInlineTypeJSDoc(body)
+				}
+				if info != nil && info.Type() != nil {
+					// Report CAST at the opening `(` position — Java's
+					// IRFactory.processCast attaches the CAST node to
+					// the paren-group's lineno/charno, which is where
+					// `invalid cast` diagnostics surface.
+					parenLine, parenCol := p.scanner.Line(), p.scanner.Col()
+					inner, parenOk := p.tryParen()
+					if parenOk {
+						cast := rhino.New(rhino.CAST)
+						cast.SetPos(parenLine, parenCol)
+						cast.SetJSDocInfo(info)
+						cast.AddChildToBack(inner)
+						return cast, true
+					}
+				}
+			}
+		}
+		p.scanner.Restore(save)
+	}
+
 	// Arrow and parenthesized expressions both start with '('. Try the
 	// arrow speculatively; on failure the Save/Restore in tryArrow
 	// leaves the scanner ready for a paren parse.
@@ -2125,8 +2178,46 @@ func parseInlineTypeJSDoc(body string) *rhino.JSDocInfo {
 		return nil
 	}
 	info := &rhino.JSDocInfo{}
-	info.SetType(rhino.NewJSTypeExpression(trimmed))
+	expr := rhino.NewJSTypeExpression(trimmed)
+	// Inline `typeof NAME` — record the value-name with IsTypeof so
+	// the late resolver can emit JSC_UNRECOGNIZED_TYPEOF_ERROR. Mirrors
+	// the full-JSDoc parser's TypeOf branch in
+	// JsDocInfoParser.parseBasicTypeExpression.
+	if len(trimmed) > 7 && trimmed[:7] == "typeof " {
+		valLine, valCol := locateInBody(body, trimmed[7:])
+		expr.Names = append(expr.Names, rhino.NamedType{
+			UnresolvedName: trimmed[7:],
+			SourceLine:     valLine,
+			SourceCol:      valCol,
+			IsTypeof:       true,
+		})
+	}
+	info.SetType(expr)
 	return info
+}
+
+// locateInBody returns the (line, col) of the first occurrence of
+// `needle` inside `body`. Used by parseInlineTypeJSDoc to anchor a
+// `typeof NAME` diagnostic at the NAME identifier. 0-based indices
+// relative to the comment body's start, matching how the full JSDoc
+// parser tracks comment-relative token positions.
+func locateInBody(body, needle string) (int, int) {
+	line, col := 0, 0
+	for i := 0; i+len(needle) <= len(body); i++ {
+		if body[i:i+len(needle)] == needle {
+			// Preceded-by-identifier-char check so `xtypeof` doesn't
+			// mask `typeof`. Here `needle` is already the post-`typeof `
+			// value-name, so we only need the outer context.
+			return line, col
+		}
+		if body[i] == '\n' {
+			line++
+			col = 0
+		} else {
+			col++
+		}
+	}
+	return 0, 0
 }
 
 // trimSpace is a small helper matching strings.TrimSpace but

@@ -654,17 +654,25 @@ func (p *JsDocInfoParser) parseBasicTypeExpression(token JsDocToken) (string, bo
 		}
 		if name == "typeof" {
 			// typeof NAME — Closure's TypeOf form. The value-name isn't a
-			// type name, so we swallow the following STRING without
-			// recording it as a NamedType (avoids false-positive
-			// UNRECOGNIZED_TYPE_ERROR). Mirrors Java's JsDocInfoParser
-			// behaviour of returning a TypeOf node without registering a
-			// NamedType.
+			// type name, so we record it under IsTypeof so the resolver
+			// can emit JSC_UNRECOGNIZED_TYPEOF_ERROR (not the default
+			// JSC_UNRECOGNIZED_TYPE_ERROR) if the referenced value is
+			// missing or non-const. Mirrors Java's JsDocInfoParser
+			// behaviour of returning a TypeOf node with the value-name
+			// linked to the global scope for post-parse resolution.
 			p.skipEOLs()
 			tok := p.next()
 			if tok != JsDocTokenString {
 				return "", false
 			}
-			return "typeof " + p.stream.String_(), true
+			valName := p.stream.String_()
+			p.collectedNames = append(p.collectedNames, rhino.NamedType{
+				UnresolvedName: valName,
+				SourceLine:     p.stream.TokenStartLine(),
+				SourceCol:      p.stream.TokenStartCol(),
+				IsTypeof:       true,
+			})
+			return "typeof " + valName, true
 		}
 		out, ok := p.parseTypeName(name)
 		if !ok {
