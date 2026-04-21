@@ -1,3 +1,5 @@
+// Port of com/google/javascript/jscomp/TypeCheck.java @ closure-compiler v20260415 (subset: deterministic-test operator branch)
+//
 // TypeCheck helper: JSC_DETERMINISTIC_TEST emission.
 //
 // Upstream Closure does NOT ship a standalone `CheckDeterministicTest`

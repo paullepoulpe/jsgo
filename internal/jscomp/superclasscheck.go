@@ -1,3 +1,5 @@
+// Port of com/google/javascript/jscomp/TypeCheck.java @ closure-compiler v20260415 (subset: validateMethodOverride + validateImplements + struct/dict-extends)
+//
 // TypeCheck helper: JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH +
 // @implements / @extends validation.
 //
@@ -71,6 +73,7 @@ func (s *SuperclassCheck) walk(n *rhino.Node) {
 	case rhino.CLASS:
 		s.checkClass(n)
 		s.checkClassDictExtendsStruct(n)
+		s.checkClassImplements(n)
 	case rhino.FUNCTION:
 		s.checkFunctionImplements(n)
 		s.checkInterfaceExtendsConflicts(n)
@@ -284,59 +287,75 @@ func (s *SuperclassCheck) checkInterfaceExtendsConflicts(fn *rhino.Node) {
 	if name == "" {
 		return
 	}
-	// Resolve each direct parent interface to its InstanceType,
-	// tracking the declared name (including template args, e.g.
-	// `Int0<number>`) for diagnostic messages.
+	// Resolve each direct parent interface. When @extends carries
+	// template args (`@extends {Int0<number>}`), prefer the
+	// TemplatizedType view so property lookups substitute the
+	// concrete args instead of returning the abstract T. Falls back
+	// to the bare ObjectType when no template args are present or
+	// the lookup fails.
 	type parentEnt struct {
-		inst *jstype.ObjectType
+		obj  *jstype.ObjectType    // raw instance (for MemberNames + ExtendedInterfaces walk)
+		tpl  *jstype.TemplatizedType // when @extends had <...>; nil otherwise
 		name string
 	}
 	var directParents []parentEnt
 	for _, b := range bases {
-		inst := s.scope.LookupNominalType(stripTemplateArgs(b.TypeName))
+		bare := stripTemplateArgs(b.TypeName)
+		inst := s.scope.LookupNominalType(bare)
 		if inst == nil {
 			continue
 		}
-		directParents = append(directParents, parentEnt{inst: inst, name: b.TypeName})
+		pe := parentEnt{obj: inst, name: b.TypeName}
+		if bare != b.TypeName {
+			if t, ok := s.scope.ResolveExpr(b.TypeName).(*jstype.TemplatizedType); ok {
+				pe.tpl = t
+			}
+		}
+		directParents = append(directParents, pe)
 	}
 	if len(directParents) < 2 {
 		return
 	}
 	// Port of TypeCheck.java's checkInterfaceConflictProperties loop.
-	// `properties` carries property → owning-interface-name for every
+	// `properties` carries property → owning-interface entry for every
 	// parent-subtree processed so far; `current` carries the same
 	// data for the parent currently being walked. A conflict is
 	// reported each time a parent declares a property whose type
 	// disagrees with an earlier-recorded parent's declared type.
-	properties := map[string]string{}
+	type slotEnt struct {
+		owner string
+		typ   jstype.JSType
+	}
+	properties := map[string]slotEnt{}
 	reported := map[string]bool{}
-	var walk func(ownerName string, inst *jstype.ObjectType, current map[string]string)
-	walk = func(ownerName string, inst *jstype.ObjectType, current map[string]string) {
-		if inst == nil {
+	var walk func(ownerName string, obj *jstype.ObjectType, tpl *jstype.TemplatizedType, current map[string]slotEnt)
+	walk = func(ownerName string, obj *jstype.ObjectType, tpl *jstype.TemplatizedType, current map[string]slotEnt) {
+		if obj == nil {
 			return
 		}
-		for _, pname := range inst.MemberNames() {
-			tj := inst.GetPropertyType(pname)
+		for _, pname := range obj.MemberNames() {
+			var tj jstype.JSType
+			if tpl != nil {
+				tj = tpl.GetPropertyType(pname)
+			} else {
+				tj = obj.GetPropertyType(pname)
+			}
 			if tj == nil {
 				continue
 			}
-			otherOwner, ok := properties[pname]
-			current[pname] = ownerName
+			prior, ok := properties[pname]
+			current[pname] = slotEnt{owner: ownerName, typ: tj}
 			if !ok {
 				continue
 			}
-			otherInst := s.scope.LookupNominalType(stripTemplateArgs(otherOwner))
-			var ti jstype.JSType
-			if otherInst != nil {
-				ti = otherInst.GetPropertyType(pname)
-			}
+			ti := prior.typ
 			if ti == nil {
 				continue
 			}
 			if jstype.IsSubtype(ti, tj) || jstype.IsSubtype(tj, ti) {
 				continue
 			}
-			key := pname + "\x00" + otherOwner + "\x00" + ownerName
+			key := pname + "\x00" + prior.owner + "\x00" + ownerName
 			if reported[key] {
 				continue
 			}
@@ -346,24 +365,65 @@ func (s *SuperclassCheck) checkInterfaceExtendsConflicts(fn *rhino.Node) {
 				Code: diag.JSC_INCOMPATIBLE_EXTENDED_PROPERTY_TYPE, Level: diag.Error,
 				Message: fmt.Sprintf(
 					"Interface %s has a property %s with incompatible types in its super interfaces %s and %s",
-					name, pname, otherOwner, ownerName),
+					name, pname, prior.owner, ownerName),
 			})
 		}
-		if exts := inst.ExtendedInterfaces(); len(exts) > 0 {
+		// Climb the super chain. When the current level has a
+		// templatized view, propagate the substitution into parents via
+		// SubstitutedSupertype (for the single-super chain) or by
+		// resolving each ExtendedInterfaces link through the scope.
+		if exts := obj.ExtendedInterfaces(); len(exts) > 0 {
 			for _, sup := range exts {
-				walk(sup.TypeName(), sup, current)
+				walk(sup.TypeName(), sup, nil, current)
 			}
-		} else if sup := inst.Super(); sup != nil {
-			walk(sup.TypeName(), sup, current)
+			return
+		}
+		if tpl != nil {
+			if parentTpl := tpl.SubstitutedSupertype(); parentTpl != nil {
+				walk(parentTpl.TypeName(), parentTpl.Base, parentTpl, current)
+				return
+			}
+		}
+		if sup := obj.Super(); sup != nil {
+			walk(sup.TypeName(), sup, nil, current)
 		}
 	}
 	for _, pe := range directParents {
-		current := map[string]string{}
-		walk(pe.name, pe.inst, current)
+		current := map[string]slotEnt{}
+		walk(pe.name, pe.obj, pe.tpl, current)
+		// Overwrite with this parent's view — Java's loop lets the
+		// most recent parent's owner drive subsequent diagnostics so
+		// a three-way conflict reports both adjacent pairs.
 		for k, v := range current {
 			properties[k] = v
 		}
 	}
+}
+
+// checkClassImplements is the ES6-class analogue of
+// checkFunctionImplements. When a `class Foo { … }` declaration carries
+// `@implements {Iface}`, verify every interface method is declared on
+// the class (directly or via its super chain). Emits
+// JSC_INTERFACE_METHOD_NOT_IMPLEMENTED for each missing method, plus
+// JSC_IMPLEMENTS_NON_INTERFACE / JSC_SAME_INTERFACE_MULTIPLE_IMPLEMENTS
+// as validateImplements does for the constructor form. Mirrors
+// Java TypeCheck.validateClassImplements (same predicate, different
+// AST shape).
+func (s *SuperclassCheck) checkClassImplements(cls *rhino.Node) {
+	info := cls.JSDocInfo()
+	if info == nil || len(info.Implementations()) == 0 {
+		return
+	}
+	kids := cls.Children()
+	if len(kids) < 1 {
+		return
+	}
+	nameNode := kids[0]
+	name := nameNode.String_()
+	if name == "" {
+		return
+	}
+	s.validateImplements(cls, name, info)
 }
 
 // checkFunctionImplements walks an AST FUNCTION declaration and,
