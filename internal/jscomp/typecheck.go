@@ -506,17 +506,27 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitRelationalDefault(n, scope))
 	case rhino.FUNCTION:
 		c.emit(c.visitFunctionParams(n, scope))
+	case rhino.ARRAYLIT:
+		c.emit(c.visitArrayLit(n, scope))
+	case rhino.OBJECTLIT:
+		c.emit(c.visitObjectLit(n, scope))
 	}
 	// Strict-mode operand checks — OFF by default, matching Java.
 	// These fire only when `--jscomp_warning=strictCheckTypes` is set.
+	// Compound assigns (`+=`, `-=`, …) route to the same validator as
+	// their bare counterparts; Java's TypeValidator uses one predicate
+	// per operator family regardless of the assignment variant.
 	if c.opts.IsOn(GroupStrictCheckTypes) {
 		switch n.Token() {
-		case rhino.ADD:
+		case rhino.ADD, rhino.ASSIGN_ADD:
 			c.emit(c.visitAdd(n, scope))
-		case rhino.SUB, rhino.MUL, rhino.DIV, rhino.MOD:
+		case rhino.SUB, rhino.MUL, rhino.DIV, rhino.MOD,
+			rhino.ASSIGN_SUB, rhino.ASSIGN_MUL, rhino.ASSIGN_DIV, rhino.ASSIGN_MOD:
 			c.emit(c.visitArithmetic(n, scope))
 		case rhino.BITAND, rhino.BITOR, rhino.BITXOR,
-			rhino.LSH, rhino.RSH, rhino.URSH:
+			rhino.LSH, rhino.RSH, rhino.URSH,
+			rhino.ASSIGN_BITAND, rhino.ASSIGN_BITOR, rhino.ASSIGN_BITXOR,
+			rhino.ASSIGN_LSH, rhino.ASSIGN_RSH, rhino.ASSIGN_URSH:
 			c.emit(c.visitBitwise(n, scope))
 		case rhino.LT, rhino.LE, rhino.GT, rhino.GE:
 			c.emit(c.visitRelativeComparison(n, scope))
@@ -1478,6 +1488,27 @@ func (c *TypeCheck) visitGetElem(n *rhino.Node, scope *TypedScope) []diag.Diagno
 			}}
 		}
 	}
+	return nil
+}
+
+// visitArrayLit is the call-through hook for ARRAYLIT nodes — port
+// of TypeCheck.java's visitArrayLit, which does nothing for untyped
+// literals and defers per-element subtype validation to the
+// initializer / assignment path. Kept as a seam so future strict-
+// mode extensions (tuple types, spread-element checks) can hang off
+// the same dispatch site without another Visit switch edit.
+func (c *TypeCheck) visitArrayLit(_ *rhino.Node, _ *TypedScope) []diag.Diagnostic {
+	return nil
+}
+
+// visitObjectLit is the call-through hook for OBJECTLIT nodes — port
+// of TypeCheck.java's visitObjectLit, which validates computed keys
+// against any declared index signature and defers per-value subtype
+// checks to the surrounding assignment. The structural-shape
+// inference happens in TypeInference.inferObjectLit; this method
+// exists so Visit has an OBJECTLIT seam mirroring Java's dispatch
+// surface.
+func (c *TypeCheck) visitObjectLit(_ *rhino.Node, _ *TypedScope) []diag.Diagnostic {
 	return nil
 }
 
