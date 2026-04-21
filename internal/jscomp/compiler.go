@@ -76,18 +76,6 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	varRefDiags := NewVariableReferenceCheck(path, externScope).Check(script)
 	all = append(all, varRefDiags...)
 	all = append(all, NewCheckJsDocTypes(path, src, scope).Check()...)
-	// Five ports from the batch merge collide with logic Java keeps in
-	// TypeCheck/TypeValidator but jsgo historically consolidated into
-	// typecheck.go / superclasscheck.go / checkjsdoctypes.go /
-	// checkdupvardecl.go. Enabling them produces duplicate diagnostics.
-	// Reconciling will require either lifting the shared logic out of
-	// the consolidated files (faithful port) or deleting these five
-	// files (pragmatic). The affected ports are:
-	//   jstype_resolver.go      vs checkjsdoctypes.go
-	//   checkarity.go           vs typecheck.go visitCall
-	//   checkimplements.go      vs superclasscheck.go
-	//   checkaccesscontrols.go  vs typecheck.go visitGetProp
-	//   checkdupvardeclmismatch.go vs checkdupvardecl.go
 	all = append(all, NewTypeCheckWithOptions(path, creator, scope, opts).Check(script)...)
 	all = append(all, NewMissingReturnCheck(path, scope).Check(script)...)
 	// Names that already triggered JSC_VAR_MULTIPLY_DECLARED_ERROR

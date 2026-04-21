@@ -11,16 +11,6 @@ package jstype
 
 import "strings"
 
-// ParamSpec mirrors FunctionType.Parameter in Java — a per-param
-// descriptor carrying the declared type and the Optional / Rest
-// modifiers captured from JSDoc. Arity checking (CheckArity pass)
-// consults MinArity / MaxArity computed from the slice.
-type ParamSpec struct {
-	Type     JSType
-	Optional bool // `@param {T=} name` or `function(T=)`
-	Rest     bool // `@param {...T} name` or `function(...T)` — last slot only
-}
-
 type FunctionType struct {
 	// Ordered positional parameters. Unknown params (e.g. JSDoc left a
 	// name unannotated) carry the Unknown JSType so call-site checking
@@ -37,13 +27,6 @@ type FunctionType struct {
 	// Equals len(Params) normally; MaxArgsUnlimited when the function
 	// has a rest param. Mirrors FunctionType.getMaxArity().
 	MaxArity int
-
-	// ParamSpecs is a per-param Optional/Rest side-table. When non-nil
-	// its length matches Params; when nil every slot is treated as a
-	// plain required parameter. Populated by the JSDoc parser for
-	// `{T=}` / `{...T}` modifiers; CheckArity recomputes MinArity /
-	// MaxArity from it via RecomputeArity.
-	ParamSpecs []ParamSpec
 
 	// IsConstructor mirrors FunctionType.isConstructor() — set when the
 	// owning function carried `@constructor`. Influences both call-site
@@ -77,41 +60,6 @@ type FunctionType struct {
 // MaxArgsUnlimited is the sentinel MaxArity for rest-parameter
 // functions — callers may pass arbitrarily many arguments.
 const MaxArgsUnlimited = 1 << 30
-
-// HasRestParam reports whether the trailing slot is a rest-param.
-// Mirrors FunctionType.hasRestParam() in Java.
-func (f *FunctionType) HasRestParam() bool {
-	if f == nil || len(f.ParamSpecs) == 0 {
-		return false
-	}
-	return f.ParamSpecs[len(f.ParamSpecs)-1].Rest
-}
-
-// RecomputeArity refreshes MinArity/MaxArity from ParamSpecs. Called
-// after the JSDoc parser or CheckArity pre-pass sets ParamSpecs so
-// arity checks and diagnostics use the new Optional/Rest bits.
-func (f *FunctionType) RecomputeArity() {
-	if f == nil {
-		return
-	}
-	if len(f.ParamSpecs) == 0 {
-		f.MinArity = len(f.Params)
-		f.MaxArity = len(f.Params)
-		return
-	}
-	min := 0
-	for _, p := range f.ParamSpecs {
-		if !p.Optional && !p.Rest {
-			min++
-		}
-	}
-	f.MinArity = min
-	if f.HasRestParam() {
-		f.MaxArity = MaxArgsUnlimited
-	} else {
-		f.MaxArity = len(f.Params)
-	}
-}
 
 func NewFunctionType(params []JSType, ret JSType) *FunctionType {
 	if ret == nil {
