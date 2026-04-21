@@ -76,13 +76,18 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	varRefDiags := NewVariableReferenceCheck(path, externScope).Check(script)
 	all = append(all, varRefDiags...)
 	all = append(all, NewCheckJsDocTypes(path, src, scope).Check()...)
-	// JSTypeResolver / CheckArity / CheckDupVarDeclMismatch are ported
-	// (see jstype_resolver.go, checkarity.go, checkdupvardeclmismatch.go)
-	// but not wired in: current fixtures show they over-fire relative to
-	// Java (positional UNRECOGNIZED_TYPE at wrong JSDoc offsets,
-	// WRONG_ARGUMENT_COUNT on inherited varargs, DUP_VAR mismatch on
-	// typedef-forward-refs). Re-enable once the regressions are
-	// addressed upstream.
+	// Five ports from the batch merge collide with logic Java keeps in
+	// TypeCheck/TypeValidator but jsgo historically consolidated into
+	// typecheck.go / superclasscheck.go / checkjsdoctypes.go /
+	// checkdupvardecl.go. Enabling them produces duplicate diagnostics.
+	// Reconciling will require either lifting the shared logic out of
+	// the consolidated files (faithful port) or deleting these five
+	// files (pragmatic). The affected ports are:
+	//   jstype_resolver.go      vs checkjsdoctypes.go
+	//   checkarity.go           vs typecheck.go visitCall
+	//   checkimplements.go      vs superclasscheck.go
+	//   checkaccesscontrols.go  vs typecheck.go visitGetProp
+	//   checkdupvardeclmismatch.go vs checkdupvardecl.go
 	all = append(all, NewTypeCheckWithOptions(path, creator, scope, opts).Check(script)...)
 	all = append(all, NewMissingReturnCheck(path, scope).Check(script)...)
 	// Names that already triggered JSC_VAR_MULTIPLY_DECLARED_ERROR
@@ -102,11 +107,6 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	sc := NewSuperclassCheck(path, creator, scope)
 	sc.SuppressedNames = multiDecl
 	all = append(all, sc.Check(script)...)
-	// CheckImplements / CheckAccessControls are ported (see
-	// checkimplements.go, checkaccesscontrols.go) but deferred for the
-	// same reason: @implements method-presence false-positives on
-	// transitively-inherited methods, and @dict access-control
-	// false-positives on bracket access to prototype props.
 	all = append(all, NewCheckDupVarDecl(path, scope).Check(script)...)
 	all = append(all, NewCheckDuplicateMember(path).Check(script)...)
 	all = append(all, NewCheckSideEffects(path).Check(script)...)
