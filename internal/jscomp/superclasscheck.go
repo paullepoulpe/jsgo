@@ -1,3 +1,6 @@
+// Port of com/google/javascript/jscomp/TypeCheck.java
+// @ closure-compiler v20260415 (superclass/interface override helpers).
+//
 // TypeCheck helper: JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH +
 // @implements / @extends validation.
 //

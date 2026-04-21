@@ -29,6 +29,26 @@ const (
 	// `x.foo` from an object literal.
 	PropGetter
 	PropSetter
+	// PropYieldAll marks a YIELD node as a `yield*` delegation
+	// (Java: Node.setYieldAll). The YIELD's sole child is the
+	// delegated iterable; without this prop it's a regular yield.
+	PropYieldAll
+	// PropAsync marks a FUNCTION node as an async function
+	// (Java: Node.IS_ASYNC_FUNCTION). Applies to declarations,
+	// expressions, methods, and arrow functions.
+	PropAsync
+	// PropGenerator marks a FUNCTION node as a generator
+	// (Java: Node.IS_GENERATOR_FUNCTION), i.e. `function* g()`.
+	PropGenerator
+	// PropOptChainStart marks the START node of an optional-chain
+	// expression (Java: IS_OPTIONAL_CHAIN_START). The chain continues
+	// through subsequent OPTCHAIN_* nodes but only the first one bears
+	// this mark — it's what distinguishes `(a?.b).c` from `a?.b.c`.
+	PropOptChainStart
+	// PropRegexpFlags stores the flag string of a REGEXP literal
+	// (e.g. "gi"). String-valued prop; Java stores flags as the
+	// second child STRING, but jsgo finds a prop simpler.
+	PropRegexpFlags
 )
 
 type Node struct {
@@ -193,4 +213,29 @@ func (n *Node) PutBooleanProp(p Prop, b bool) {
 		n.props = map[Prop]any{}
 	}
 	n.props[p] = true
+}
+
+// GetStringProp ports Node.getStringProp — empty string if absent.
+func (n *Node) GetStringProp(p Prop) string {
+	if n.props == nil {
+		return ""
+	}
+	v, ok := n.props[p]
+	if !ok {
+		return ""
+	}
+	s, _ := v.(string)
+	return s
+}
+
+// PutStringProp ports Node.putStringProp. Empty string removes.
+func (n *Node) PutStringProp(p Prop, s string) {
+	if s == "" {
+		delete(n.props, p)
+		return
+	}
+	if n.props == nil {
+		n.props = map[Prop]any{}
+	}
+	n.props[p] = s
 }
