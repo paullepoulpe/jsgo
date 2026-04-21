@@ -1,4 +1,8 @@
-// Port of com/google/javascript/jscomp/TypeCheck.java @ closure-compiler v20260415 (JSC_DUP_VAR_DECLARATION helpers)
+// Port of com/google/javascript/jscomp/TypeCheck.java
+// @ closure-compiler v20260415 (checkDuplicateVarDeclaration helper).
+//
+// TypeCheck helper: JSC_DUP_VAR_DECLARATION_TYPE_MISMATCH +
+// JSC_DUP_VAR_DECLARATION on namespace-property slots.
 //
 // In Java these live inside TypeCheck.checkDuplicateVarDeclaration,
 // called during the visit walk. This file hosts the Go-port logic

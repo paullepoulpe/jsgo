@@ -542,15 +542,6 @@ func (p *JsDocInfoParser) parseParamTypeAnnotationFull(token JsDocToken) (string
 		p.next()
 		p.skipEOLs()
 		isRest = true
-	} else if p.match(JsDocTokenEquals) {
-		// Legacy-optional `{=T}` form — pre-modern Closure accepted a
-		// leading `=` before the type as a synonym for the trailing
-		// `{T=}`. Java's current JsDocInfoParser no longer emits this
-		// branch, but the corpus still contains the older syntax;
-		// treat it as equivalent to setting isOptional.
-		p.next()
-		p.skipEOLs()
-		isOptional = true
 	}
 	expr, ok := p.parseTopLevelTypeExpression(p.next())
 	if !ok {
