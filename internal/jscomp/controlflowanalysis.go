@@ -1,6 +1,6 @@
 // Port of com/google/javascript/jscomp/ControlFlowAnalysis.java
-// @ closure-compiler v20260415 (narrow; no labeled break/continue,
-// no generator suspend edges, no with-statement).
+// @ closure-compiler v20260415 (completion of labeled break/continue,
+// exception fan-out, and assignment-in-condition branches).
 //
 // Builds a ControlFlowGraph for a FUNCTION body or top-level SCRIPT.
 // Walks the AST producing one CfgNode per statement, then connects
@@ -8,6 +8,21 @@
 // FOR / FOR_IN / FOR_OF / SWITCH / TRY / THROW / BREAK / CONTINUE /
 // RETURN. Matches the edge set Java produces so DataFlowAnalysis sees
 // every path the real pass would see.
+//
+// Exception fan-out: every statement that contains a CALL / NEW /
+// THROW gets an additional BranchException edge to the nearest
+// enclosing catch-block entry (or to the function exit if none). This
+// matches Java's ControlFlowAnalysis.createEdge behaviour where
+// potentially-throwing nodes receive syntactic exception edges.
+//
+// Labeled break/continue targets walk the loop / switch / labeled-
+// block stack outward, not just the innermost entry — matches Java's
+// label-matching loop in ControlFlowAnalysis.handleBreak /
+// handleContinue.
+//
+// Generator `yield` and `with` statements remain unimplemented here
+// because the parser does not surface their tokens. The dispatch is a
+// no-op until YIELD / WITH land.
 
 package jscomp
 
@@ -172,16 +187,23 @@ func (b *cfgBuilder) visitStatement(stmt *rhino.Node, prev *CfgNode) *CfgNode {
 	}
 	switch stmt.Token() {
 	case rhino.IF:
+		b.addExceptionEdge(n, headerChildren(stmt, 1)...) // cond
 		return b.visitIf(stmt, n)
 	case rhino.WHILE:
+		b.addExceptionEdge(n, headerChildren(stmt, 1)...) // cond
 		return b.visitWhile(stmt, n)
 	case rhino.DO_WHILE:
+		// Children are (body, cond); body has its own CFG nodes.
+		b.addExceptionEdge(n, childAt(stmt, 1))
 		return b.visitDoWhile(stmt, n)
 	case rhino.FOR:
+		b.addExceptionEdge(n, headerChildren(stmt, 3)...) // init, cond, update
 		return b.visitFor(stmt, n)
 	case rhino.FOR_IN, rhino.FOR_OF:
+		b.addExceptionEdge(n, headerChildren(stmt, 2)...) // lhs, iter
 		return b.visitForInOf(stmt, n)
 	case rhino.SWITCH:
+		b.addExceptionEdge(n, headerChildren(stmt, 1)...) // discriminant
 		return b.visitSwitch(stmt, n)
 	case rhino.TRY:
 		return b.visitTry(stmt, n)
@@ -211,6 +233,7 @@ func (b *cfgBuilder) visitStatement(stmt *rhino.Node, prev *CfgNode) *CfgNode {
 		b.cfg.addEdge(n, b.routeJumpThroughFinally(target), BranchUnconditional)
 		return nil
 	case rhino.RETURN:
+		b.addExceptionEdge(n, childAt(stmt, 0)) // returned expr may throw
 		b.cfg.addEdge(n, b.routeJumpThroughFinally(b.cfg.Exit), BranchUnconditional)
 		return nil
 	case rhino.LABEL:
@@ -224,7 +247,76 @@ func (b *cfgBuilder) visitStatement(stmt *rhino.Node, prev *CfgNode) *CfgNode {
 		}
 		return n
 	}
+	// Default (EXPR_RESULT / VAR / LET / CONST / …) — any statement
+	// whose expression can throw gets a BranchException edge so the
+	// dataflow sees the catch path.
+	b.addExceptionEdge(n, stmt)
 	return n
+}
+
+// addExceptionEdge emits a BranchException edge from `n` to the
+// nearest enclosing catch-block entry (or to the function exit when
+// no catch is active) when any node in `roots` contains a
+// potentially-throwing subtree (CALL / NEW / THROW). Matches Java's
+// ControlFlowAnalysis.createEdge handling where every syntactic
+// throw-site receives an exception edge to its handler. Finally
+// blocks intercept the jump via routeJumpThroughFinally — Java's
+// FinallyKeyword bookkeeping.
+func (b *cfgBuilder) addExceptionEdge(n *CfgNode, roots ...*rhino.Node) {
+	for _, r := range roots {
+		if mayThrow(r) {
+			target := b.topCatch()
+			if target == nil {
+				target = b.cfg.Exit
+			}
+			b.cfg.addEdge(n, b.routeJumpThroughFinally(target), BranchException)
+			return
+		}
+	}
+}
+
+// headerChildren returns the prefix of `stmt`'s children that
+// represent header expressions (init / cond / update / discriminant /
+// lhs / iter / …). The loop/switch/if body is always a later child
+// walked as its own CFG node, so it must not appear here.
+func headerChildren(stmt *rhino.Node, headerCount int) []*rhino.Node {
+	kids := stmt.Children()
+	if headerCount > len(kids) {
+		headerCount = len(kids)
+	}
+	return kids[:headerCount]
+}
+
+// childAt returns `stmt.Children()[idx]` or nil when out of range.
+func childAt(stmt *rhino.Node, idx int) *rhino.Node {
+	kids := stmt.Children()
+	if idx < 0 || idx >= len(kids) {
+		return nil
+	}
+	return kids[idx]
+}
+
+// mayThrow reports whether `n`'s subtree contains a node that can
+// raise an exception at runtime (CALL / NEW / THROW). Does NOT descend
+// into nested FUNCTION / CLASS nodes — those have their own CFGs and
+// their bodies run only when invoked from elsewhere. Mirrors Java's
+// NodeUtil.mayBeReferencingSomethingThatCanThrow / canThrow helper.
+func mayThrow(n *rhino.Node) bool {
+	if n == nil {
+		return false
+	}
+	switch n.Token() {
+	case rhino.CALL, rhino.NEW, rhino.THROW:
+		return true
+	case rhino.FUNCTION, rhino.CLASS:
+		return false
+	}
+	for _, c := range n.Children() {
+		if mayThrow(c) {
+			return true
+		}
+	}
+	return false
 }
 
 // breakTargetFor returns the break target for a `break label;` or
