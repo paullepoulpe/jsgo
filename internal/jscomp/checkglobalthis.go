@@ -170,7 +170,7 @@ func (c *CheckGlobalThis) visit(n *rhino.Node) {
 			Line:    n.Lineno(),
 			Col:     n.Charno(),
 			Code:    diag.JSC_USED_GLOBAL_THIS,
-			Level:   diag.Warning,
+			Level:   diag.Error,
 			Message: "dangerous use of the global this object",
 		})
 	}

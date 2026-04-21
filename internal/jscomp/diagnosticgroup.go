@@ -56,6 +56,7 @@ var (
 			"JSC_ILLEGAL_PROPERTY_ACCESS",
 			"JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH",
 			"JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH",
+			"JSC_USED_GLOBAL_THIS",
 		},
 	}
 	// GroupStrictCheckTypes is OFF by default. Enabling it turns on
