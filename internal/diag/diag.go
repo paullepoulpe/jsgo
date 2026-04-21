@@ -89,4 +89,15 @@ const (
 	JSC_BAD_TYPE_FOR_BIT_OPERATION          = "JSC_BAD_TYPE_FOR_BIT_OPERATION"
 	JSC_NOT_FUNCTION_TYPE                   = "JSC_NOT_FUNCTION_TYPE"
 	JSC_INEXISTENT_PARAM                    = "JSC_INEXISTENT_PARAM"
+	// JSC_INCOMPATIBLE_ALIAS_ANNOTATION — emitted by TypedScopeCreator
+	// when a `/** @typedef */` alias is re-declared with a different
+	// body (e.g. `/** @typedef {number} */ A; /** @typedef {string} */ A;`).
+	// Matches the Java TypedScopeCreator INCOMPATIBLE_ALIAS_ANNOTATION
+	// registration.
+	JSC_INCOMPATIBLE_ALIAS_ANNOTATION  = "JSC_INCOMPATIBLE_ALIAS_ANNOTATION"
+	// JSC_CONFLICTING_GETTER_SETTER_TYPE — emitted when a paired get /
+	// set accessor pair has incompatible declared read-vs-write types.
+	// Mirrors the Java TypedScopeCreator CONFLICTING_GETTER_SETTER_TYPE
+	// diagnostic.
+	JSC_CONFLICTING_GETTER_SETTER_TYPE = "JSC_CONFLICTING_GETTER_SETTER_TYPE"
 )

@@ -72,6 +72,19 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	// scope.go's LookupNominalType-based path can't see.
 	WireTemplatizedInheritance(script, scope)
 	var all []diag.Diagnostic
+	// Drain diagnostics emitted by TypedScopeCreator during scope
+	// construction (JSC_INCOMPATIBLE_ALIAS_ANNOTATION when a @typedef
+	// is re-declared with a different body, JSC_CONFLICTING_GETTER_SETTER_TYPE
+	// when paired get/set declared types disagree). Each diagnostic carries
+	// its own (line, col) but lacks a path, so stamp the current source path
+	// before passing them on. Mirrors how Java's TypedScopeCreator funnels
+	// JSError instances through the shared AbstractCompiler reporter.
+	for _, d := range creator.Diags {
+		if d.Path == "" {
+			d.Path = path
+		}
+		all = append(all, d)
+	}
 	all = append(all, NewVarCheck(path, creator, scope).Check(script)...)
 	varRefDiags := NewVariableReferenceCheck(path, externScope).Check(script)
 	all = append(all, varRefDiags...)

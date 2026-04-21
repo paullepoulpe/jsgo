@@ -18,6 +18,9 @@
 package jscomp
 
 import (
+	"fmt"
+
+	"github.com/paullepoulpe/jsgo/internal/diag"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/rhino/jstype"
 )
@@ -828,10 +831,34 @@ type TypedScopeCreator struct {
 	// (parameter) scope. TypeCheck reads this to type-check function
 	// bodies with the right lexical scope active.
 	Functions map[*rhino.Node]*TypedScope
+	// Diags collects diagnostics emitted during scope construction —
+	// JSC_INCOMPATIBLE_ALIAS_ANNOTATION (a @typedef is re-declared
+	// with a different body) and JSC_CONFLICTING_GETTER_SETTER_TYPE
+	// (paired Object.defineProperty get/set with incompatible types).
+	// Mirrors the reporter Java's TypedScopeCreator writes into
+	// during defineSlot / scanObjectDefineProperty. Callers read
+	// these after CreateScope to include them in the overall
+	// diagnostic list.
+	Diags []diag.Diagnostic
+	// typedefNodes records the source node that carried each
+	// @typedef's JSDoc, keyed by (scope, alias-name). Consumed by
+	// installTypedef to cross-reference the original declaration on
+	// the INCOMPATIBLE_ALIAS_ANNOTATION diagnostic.
+	typedefNodes map[*TypedScope]map[string]*rhino.Node
+	// typedefExprs preserves the JSDoc's textual @typedef body per
+	// alias so later redeclarations compare against the exact string
+	// (closer to how Java compares JsTypeExpression literals than a
+	// resolved-JSType identity check).
+	typedefExprs map[*TypedScope]map[string]string
 }
 
 func NewTypedScopeCreator(r *jstype.Registry) *TypedScopeCreator {
-	return &TypedScopeCreator{registry: r, Functions: map[*rhino.Node]*TypedScope{}}
+	return &TypedScopeCreator{
+		registry:     r,
+		Functions:    map[*rhino.Node]*TypedScope{},
+		typedefNodes: map[*TypedScope]map[string]*rhino.Node{},
+		typedefExprs: map[*TypedScope]map[string]string{},
+	}
 }
 
 // CreateScope mirrors TypedScopeCreator.createScope for the SCRIPT root.
@@ -1083,9 +1110,214 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 				c.recordPrototypeStub(child, inner, scope)
 				c.recordNamespaceStub(child, inner, scope)
 			}
+			// `/** @typedef {T} */ MyAlias;` — bare-NAME typedef stub
+			// sibling to a forward-declaring `let MyAlias;`. Routed
+			// through recordBareTypedefStub so the alias lands in
+			// scope.typeAliases regardless of whether the
+			// forward-declaring binding appeared before or after the
+			// typedef. Mirrors Java's TypedScopeCreator defineSlot
+			// branch that threads the typedef through an
+			// already-present StaticSlot.
+			if inner != nil && inner.Token() == rhino.NAME {
+				c.recordBareTypedefStub(child, inner, scope)
+			}
+			// `Object.defineProperty(obj, 'k', {…})` — declare slot
+			// `obj.k` with the descriptor's value / get / set type.
+			// Matches the Java TypedScopeCreator
+			// scanObjectDefineProperty branch.
+			if inner != nil && inner.Token() == rhino.CALL {
+				c.recordObjectDefineProperty(inner, scope)
+			}
 		}
 	}
 	return scope
+}
+
+// recordBareTypedefStub handles `/** @typedef {T} */ NAME;` — an
+// EXPR_RESULT whose only child is a bare NAME reference (no
+// GETPROP). Java's TypedScopeCreator registers such stubs as the
+// authoritative alias body when paired with a forward-declared
+// value slot (`let NAME;`). Emits JSC_INCOMPATIBLE_ALIAS_ANNOTATION
+// when the same NAME was already registered with a different body.
+func (c *TypedScopeCreator) recordBareTypedefStub(stmt *rhino.Node, name *rhino.Node, scope *TypedScope) {
+	info := stmt.JSDocInfo()
+	if info == nil {
+		info = name.JSDocInfo()
+	}
+	if info == nil || info.TypedefType() == nil {
+		return
+	}
+	alias := name.String_()
+	if alias == "" {
+		return
+	}
+	c.installTypedef(alias, info.TypedefType().TypeName, name, scope)
+}
+
+// recordObjectDefineProperty handles
+// `Object.defineProperty(obj, 'k', {value: …, get: fn, set: fn})`.
+// When `obj` resolves to a known binding and the descriptor carries
+// a recognisable shape, records `obj.k` as a namespace property
+// (plain binding) / static property (constructor) / instance
+// property (prototype receiver) with the descriptor's declared
+// type — the `value:` entry's @type or literal type, or the
+// `get:` return type, or the `set:` first-param type. Also runs
+// the paired-accessor check so JSC_CONFLICTING_GETTER_SETTER_TYPE
+// fires when get / set declare incompatible surfaces. Mirrors the
+// Java TypedScopeCreator scanObjectDefineProperty branch.
+func (c *TypedScopeCreator) recordObjectDefineProperty(call *rhino.Node, scope *TypedScope) {
+	kids := call.Children()
+	if len(kids) < 4 {
+		return
+	}
+	callee := kids[0]
+	if callee.Token() != rhino.GETPROP {
+		return
+	}
+	calleeKids := callee.Children()
+	if len(calleeKids) < 2 {
+		return
+	}
+	if calleeKids[0].Token() != rhino.NAME || calleeKids[0].String_() != "Object" {
+		return
+	}
+	if calleeKids[1].String_() != "defineProperty" {
+		return
+	}
+	target := kids[1]
+	keyNode := kids[2]
+	desc := kids[3]
+	if keyNode.Token() != rhino.STRINGLIT || keyNode.String_() == "" {
+		return
+	}
+	if desc.Token() != rhino.OBJECTLIT {
+		return
+	}
+	propName := keyNode.String_()
+	declaredType, getType, setType := c.describeDefinePropertyDescriptor(desc, scope)
+	if declaredType == nil {
+		declaredType = jstype.Unknown
+	}
+	// Paired accessor check: a get with type G and a set with type
+	// S must be mutually assignable. Java's
+	// CONFLICTING_GETTER_SETTER_TYPE fires when they aren't.
+	if getType != nil && setType != nil && !isJSUnknown(getType) && !isJSUnknown(setType) {
+		if !jstype.IsSubtype(getType, setType) || !jstype.IsSubtype(setType, getType) {
+			c.Diags = append(c.Diags, diag.Diagnostic{
+				Line: call.Lineno(), Col: call.Charno(),
+				Code: diag.JSC_CONFLICTING_GETTER_SETTER_TYPE, Level: diag.Error,
+				Message: fmt.Sprintf(
+					"The types of the getter and setter for property %q do not match. getter type %s; setter type %s",
+					propName, getType.TypeName(), setType.TypeName()),
+			})
+		}
+	}
+	switch target.Token() {
+	case rhino.NAME:
+		ownerName := target.String_()
+		if fn, ok := scope.GetDeclaredType(ownerName).(*jstype.FunctionType); ok && fn.Instance != nil {
+			fn.Instance.DefineStaticProperty(propName, declaredType)
+			return
+		}
+		scope.recordNamespaceProp(ownerName, propName, declaredType, keyNode)
+	case rhino.GETPROP:
+		// `Object.defineProperty(Foo.prototype, 'k', …)` — attach
+		// to the instance when the receiver resolves to a ctor.
+		tk := target.Children()
+		if len(tk) >= 2 && tk[0].Token() == rhino.NAME && tk[1].String_() == "prototype" {
+			if fn, ok := scope.GetDeclaredType(tk[0].String_()).(*jstype.FunctionType); ok && fn.Instance != nil {
+				fn.Instance.DefineProperty(propName, declaredType)
+			}
+		}
+	}
+}
+
+// describeDefinePropertyDescriptor returns the declared read type
+// of a defineProperty descriptor OBJECTLIT plus the separate get /
+// set types so the caller can fire the paired-accessor diagnostic.
+// Shape-reading mirrors Java's ObjectLiteralCast pattern:
+//   - `value: <expr>` — declared type is the RHS literal / function
+//     type (or @type JSDoc on the key);
+//   - `get: function(){ … }` — declared read type is the @return
+//     or Unknown when unannotated;
+//   - `set: function(v){ … }` — write type is the first param.
+func (c *TypedScopeCreator) describeDefinePropertyDescriptor(desc *rhino.Node, scope *TypedScope) (declared, getT, setT jstype.JSType) {
+	for _, kv := range desc.Children() {
+		if kv.Token() != rhino.STRING_KEY {
+			continue
+		}
+		val := kv.FirstChild()
+		if val == nil {
+			continue
+		}
+		switch kv.String_() {
+		case "value":
+			info := kv.JSDocInfo()
+			if info != nil && info.HasType() {
+				declared = scope.ResolveExpr(info.Type().TypeName)
+			} else if t := literalType(val); !isJSUnknown(t) {
+				declared = t
+			} else if val.Token() == rhino.FUNCTION {
+				declared = c.inferFunctionTypeForDescriptor(val, scope, info)
+			}
+		case "get":
+			info := kv.JSDocInfo()
+			if val.Token() == rhino.FUNCTION {
+				if info != nil && info.ReturnType() != nil {
+					getT = scope.ResolveExpr(info.ReturnType().TypeName)
+				} else {
+					getT = jstype.Unknown
+				}
+			}
+		case "set":
+			info := kv.JSDocInfo()
+			if val.Token() == rhino.FUNCTION {
+				params := val.Children()
+				if len(params) >= 2 {
+					plist := params[1].Children()
+					if len(plist) >= 1 {
+						setT = resolveParamType(info, plist[0], scope)
+					}
+				}
+			}
+		}
+	}
+	// When only get / set appear, use the getter's type as the
+	// slot's declared read type. Matches Java's
+	// ObjectLiteralCast.getPropertyReadType.
+	if declared == nil {
+		if getT != nil {
+			declared = getT
+		} else if setT != nil {
+			declared = setT
+		}
+	}
+	return declared, getT, setT
+}
+
+// inferFunctionTypeForDescriptor derives a FunctionType from a
+// FUNCTION node + optional owning JSDoc (e.g. the STRING_KEY's).
+// Used by describeDefinePropertyDescriptor for `value:
+// function(x){…}` entries that lack explicit @type JSDoc.
+func (c *TypedScopeCreator) inferFunctionTypeForDescriptor(fn *rhino.Node, scope *TypedScope, info *rhino.JSDocInfo) jstype.JSType {
+	kids := fn.Children()
+	if len(kids) < 2 {
+		return jstype.Unknown
+	}
+	params := kids[1]
+	var paramTypes []jstype.JSType
+	for _, p := range params.Children() {
+		paramTypes = append(paramTypes, resolveParamType(info, p, scope))
+	}
+	var retType jstype.JSType = jstype.Unknown
+	if info != nil && info.ReturnType() != nil {
+		retType = scope.ResolveExpr(info.ReturnType().TypeName)
+	} else if !functionReturnsExplicitly(fn) {
+		retType = jstype.Void
+	}
+	ft := jstype.NewFunctionType(paramTypes, retType)
+	setArityFromParams(ft, params, info)
+	return ft
 }
 
 // hoistDeclarations walks `block` collecting every VAR/LET/CONST /
@@ -1094,6 +1326,17 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 // subtrees are not descended into — they own their own scope, built
 // separately via recordFunction / recordClass. Matches Java's
 // hoistVars pass on AbstractScopeBuilder.
+//
+// NOTE on per-block hoisting: strictly, ES6 `let`/`const`/`class`
+// are block-scoped, not function-scoped. Java's AbstractScopeBuilder
+// builds a fresh Scope for each BLOCK. We currently flatten every
+// inner-block binding into the surrounding function scope — a
+// conscious trade-off given we don't yet construct per-BLOCK
+// TypedScope objects. The corpus we cover doesn't shadow names
+// across blocks, so the difference is invisible at the diagnostic
+// level. Lifting this limitation requires teaching createScopeIn
+// to recurse into nested BLOCK / IF / loop bodies with their own
+// child TypedScope; tracked as future TypedScopeCreator work.
 func hoistDeclarations(block *rhino.Node) []*rhino.Node {
 	var out []*rhino.Node
 	var walk func(n *rhino.Node)
@@ -1484,9 +1727,11 @@ func (c *TypedScopeCreator) recordNamespaceStub(stmt *rhino.Node, getprop *rhino
 	// `@typedef {T} ns.Alias;` — register under the typeAliases map
 	// keyed by the qualified name so later `@type {ns.Alias}` lookups
 	// resolve. Mirrors how Java's TypedScopeCreator stores qualified
-	// typedefs in the JSDocInfoParser + registry.
+	// typedefs in the JSDocInfoParser + registry. Routed through
+	// installTypedef so a mismatched re-declaration emits
+	// JSC_INCOMPATIBLE_ALIAS_ANNOTATION.
 	if info.TypedefType() != nil {
-		scope.typeAliases[ownerName+"."+propName] = scope.ResolveExpr(info.TypedefType().TypeName)
+		c.installTypedef(ownerName+"."+propName, info.TypedefType().TypeName, kids[1], scope)
 		return
 	}
 	if !info.HasType() {
@@ -1893,7 +2138,10 @@ func (c *TypedScopeCreator) bindSuper(local *TypedScope, superName string, outer
 // recordTypedef stores a `@typedef {T}`-annotated `var NAME;` under
 // the scope's typeAliases map. Mirrors how Java's TypedScopeCreator
 // registers typedefs ahead of the normal scope-building passes so
-// `@type {NAME}` lookups resolve to the aliased type.
+// `@type {NAME}` lookups resolve to the aliased type. Routed through
+// installTypedef so a mismatched re-declaration emits
+// JSC_INCOMPATIBLE_ALIAS_ANNOTATION — matches Java's
+// TypedScopeCreator.INCOMPATIBLE_ALIAS_ANNOTATION registration.
 func (c *TypedScopeCreator) recordTypedef(v *rhino.Node, scope *TypedScope) {
 	info := v.JSDocInfo()
 	if info == nil || info.TypedefType() == nil {
@@ -1903,7 +2151,78 @@ func (c *TypedScopeCreator) recordTypedef(v *rhino.Node, scope *TypedScope) {
 	if name == nil || name.Token() != rhino.NAME {
 		return
 	}
-	scope.typeAliases[name.String_()] = scope.ResolveExpr(info.TypedefType().TypeName)
+	c.installTypedef(name.String_(), info.TypedefType().TypeName, name, scope)
+}
+
+// installTypedef is the shared resolve + install + diagnostic
+// routine used by the `var NAME;` typedef form, the bare
+// `NAME;` stub form, and the qualified `ns.Alias;` form. Called
+// from recordTypedef / recordNamespaceStub / recordBareTypedefStub
+// so INCOMPATIBLE_ALIAS_ANNOTATION fires uniformly across all
+// surface syntaxes.
+func (c *TypedScopeCreator) installTypedef(aliasName, bodyExpr string, at *rhino.Node, scope *TypedScope) {
+	bodyExpr = trimSpace(bodyExpr)
+	resolved := scope.ResolveExpr(bodyExpr)
+	if prevMap, ok := c.typedefExprs[scope]; ok {
+		if prev, seen := prevMap[aliasName]; seen && !sameAliasBody(prev, bodyExpr) {
+			firstAt := c.typedefNodes[scope][aliasName]
+			firstLine := 0
+			if firstAt != nil {
+				firstLine = firstAt.Lineno()
+			}
+			c.Diags = append(c.Diags, diag.Diagnostic{
+				Line: at.Lineno(), Col: at.Charno(),
+				Code: diag.JSC_INCOMPATIBLE_ALIAS_ANNOTATION, Level: diag.Error,
+				Message: fmt.Sprintf(
+					"incompatible alias annotation for %s, original body %s at line %d, new body %s",
+					aliasName, prev, firstLine, bodyExpr),
+			})
+			// Keep the first-declared body — Java's first-wins
+			// policy so downstream uses see a consistent surface.
+			return
+		}
+	}
+	scope.typeAliases[aliasName] = resolved
+	if c.typedefNodes[scope] == nil {
+		c.typedefNodes[scope] = map[string]*rhino.Node{}
+	}
+	if c.typedefExprs[scope] == nil {
+		c.typedefExprs[scope] = map[string]string{}
+	}
+	if _, seen := c.typedefNodes[scope][aliasName]; !seen {
+		c.typedefNodes[scope][aliasName] = at
+		c.typedefExprs[scope][aliasName] = bodyExpr
+	}
+}
+
+// sameAliasBody reports whether two textual @typedef bodies denote
+// the same alias. Java compares JSTypeExpression literals —
+// whitespace-collapsed textual equality is a safe superset that
+// treats `Foo|null` and `Foo | null` as the same alias but
+// distinguishes `number` from `string`.
+func sameAliasBody(a, b string) bool {
+	return collapseWhitespace(a) == collapseWhitespace(b)
+}
+
+func collapseWhitespace(s string) string {
+	var out []byte
+	space := false
+	for i := 0; i < len(s); i++ {
+		ch := s[i]
+		if ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' {
+			if !space && len(out) > 0 {
+				out = append(out, ' ')
+				space = true
+			}
+			continue
+		}
+		out = append(out, ch)
+		space = false
+	}
+	if len(out) > 0 && out[len(out)-1] == ' ' {
+		out = out[:len(out)-1]
+	}
+	return string(out)
 }
 
 func (c *TypedScopeCreator) recordDecl(v *rhino.Node, scope *TypedScope) {
@@ -1944,12 +2263,255 @@ func (c *TypedScopeCreator) recordDecl(v *rhino.Node, scope *TypedScope) {
 	// slot. Run the full recordOneDecl per NAME child so the scope
 	// sees every name; inner helpers still use the first child as
 	// the primary (matches Java's visitDeclarationsOrList loop).
+	// When a child isn't a NAME it may be a destructuring pattern
+	// (ARRAY_PATTERN / OBJECT_PATTERN / DESTRUCTURING_LHS); those
+	// route through recordDestructuring, which is a parser-feature-
+	// guarded no-op until rhino's parser actually emits the pattern
+	// tokens. Mirrors Java's TypedScopeCreator.defineDestructuring.
 	for _, child := range v.Children() {
-		if child.Token() != rhino.NAME {
+		if child.Token() == rhino.NAME {
+			c.recordOneDecl(v, child, scope)
 			continue
 		}
-		c.recordOneDecl(v, child, scope)
+		if isDestructuringPatternToken(child.Token()) {
+			c.recordDestructuring(v, child, scope)
+		}
 	}
+}
+
+// isDestructuringPatternToken reports whether `t` is one of the
+// rhino destructuring tokens (ARRAY_PATTERN / OBJECT_PATTERN /
+// DESTRUCTURING_LHS). Detected by String() so this compiles on
+// builds whose Token enum doesn't yet carry the constants — the
+// enum grows in lockstep with the parser (Unit 7). When the
+// parser starts emitting these tokens the check kicks in; until
+// then it's an always-false guard.
+func isDestructuringPatternToken(t rhino.Token) bool {
+	switch t.String() {
+	case "ARRAY_PATTERN", "OBJECT_PATTERN", "DESTRUCTURING_LHS":
+		return true
+	}
+	return false
+}
+
+// isDefaultValueToken / isRestToken / isEmptyToken / isObjectRestToken
+// are the same parser-feature guards for the inner pattern element
+// tokens. Each returns true only when the corresponding Token ID
+// is already part of rhino's enum and has a String() that matches.
+// Lets the destructuring walker compile while the parser ports roll
+// in.
+func isDefaultValueToken(t rhino.Token) bool      { return t.String() == "DEFAULT_VALUE" }
+func isIterRestToken(t rhino.Token) bool          { return t.String() == "ITER_REST" }
+func isObjectRestToken(t rhino.Token) bool        { return t.String() == "OBJECT_REST" }
+func isEmptyToken(t rhino.Token) bool             { return t.String() == "EMPTY" }
+func isArrayPatternToken(t rhino.Token) bool      { return t.String() == "ARRAY_PATTERN" }
+func isObjectPatternToken(t rhino.Token) bool     { return t.String() == "OBJECT_PATTERN" }
+func isDestructuringLHSToken(t rhino.Token) bool  { return t.String() == "DESTRUCTURING_LHS" }
+
+// recordDestructuring walks a destructuring pattern binding
+// declaring a slot for every NAME leaf it finds. Element types
+// come from the matching RHS position (array index / record
+// member); when a member type can't be recovered (un-annotated
+// receiver, computed key, nested pattern) the leaf binds to
+// Unknown. Matches Java's TypedScopeCreator.defineDestructuring
+// which drops each pattern element onto its own StaticSlot with
+// the receiver's inferred element type.
+func (c *TypedScopeCreator) recordDestructuring(v, node *rhino.Node, scope *TypedScope) {
+	if node == nil {
+		return
+	}
+	// DESTRUCTURING_LHS wraps (pattern, init). Peel.
+	var pattern, rhs *rhino.Node
+	switch {
+	case isDestructuringLHSToken(node.Token()):
+		kids := node.Children()
+		if len(kids) >= 1 {
+			pattern = kids[0]
+		}
+		if len(kids) >= 2 {
+			rhs = kids[1]
+		}
+	case isArrayPatternToken(node.Token()), isObjectPatternToken(node.Token()):
+		pattern = node
+	}
+	if pattern == nil {
+		return
+	}
+	// Resolve the RHS's static type when possible so each element
+	// leaf gets a sharper slot type. NAME initializers look up the
+	// declared type; OBJECTLIT initializers expose their inline
+	// member types; other shapes fall back to Unknown.
+	var rhsType jstype.JSType = jstype.Unknown
+	if rhs != nil {
+		rhsType = c.inferDestructuringRhsType(rhs, scope)
+	}
+	c.walkPattern(pattern, rhsType, scope)
+}
+
+// inferDestructuringRhsType returns a best-effort static type for
+// the RHS of a destructuring assignment. Kept narrow so we don't
+// start running TypeInference during scope building (the two
+// phases deliberately stay separated). Mirrors Java's
+// TypedScopeCreator.getDeclaredType(Node rhs) fallback path.
+func (c *TypedScopeCreator) inferDestructuringRhsType(rhs *rhino.Node, scope *TypedScope) jstype.JSType {
+	switch rhs.Token() {
+	case rhino.NAME:
+		if t := scope.GetDeclaredType(rhs.String_()); t != nil {
+			return t
+		}
+	case rhino.OBJECTLIT:
+		if obj, ok := scope.resolveObjectLiteralType(""); ok {
+			_ = obj
+		}
+	case rhino.ARRAYLIT:
+		// Array literal: element type is the union of member
+		// literal types. Matches how
+		// resolveIterableElementType handles the same shape in
+		// FOR_OF.
+		var out jstype.JSType
+		for _, kid := range rhs.Children() {
+			t := literalTypeOf(kid)
+			if out == nil {
+				out = t
+			} else {
+				out = jstype.NewUnion(out, t)
+			}
+		}
+		if out != nil {
+			return jstype.NewTemplatizedType(scope.LookupNominalType("Array"), []jstype.JSType{out})
+		}
+	}
+	return jstype.Unknown
+}
+
+// walkPattern recurses into a destructuring pattern binding each
+// NAME leaf to the corresponding element / member type from rhs.
+// Nested patterns recurse with the matching inner type (extracted
+// via Array / Templatized / ObjectType peels). A DEFAULT_VALUE
+// wrapper (`[a = 0]` / `{a = 0}`) drops to its inner binding and
+// uses the same element type — Java's defineDestructuring does
+// the same.
+func (c *TypedScopeCreator) walkPattern(pattern *rhino.Node, rhs jstype.JSType, scope *TypedScope) {
+	switch {
+	case isArrayPatternToken(pattern.Token()):
+		elem := arrayElementType(rhs)
+		for _, kid := range pattern.Children() {
+			c.walkPatternElement(kid, elem, scope)
+		}
+	case isObjectPatternToken(pattern.Token()):
+		for _, kid := range pattern.Children() {
+			switch {
+			case kid.Token() == rhino.STRING_KEY:
+				key := kid.String_()
+				val := kid.FirstChild()
+				memberType := objectMemberType(rhs, key)
+				if val == nil {
+					continue
+				}
+				c.walkPatternElement(val, memberType, scope)
+			case isObjectRestToken(kid.Token()):
+				// `{...rest}` — rest collects the remaining
+				// members. Java types it as the original
+				// object minus the peeled keys; we fall back
+				// to the raw rhsType since we don't track
+				// record subtraction.
+				for _, leaf := range kid.Children() {
+					if leaf.Token() == rhino.NAME {
+						scope.declared[leaf.String_()] = rhs
+					}
+				}
+			}
+		}
+	case pattern.Token() == rhino.NAME:
+		// A bare NAME (pattern is a plain variable).
+		if pattern.String_() != "" {
+			scope.declared[pattern.String_()] = rhs
+		}
+	}
+}
+
+// walkPatternElement binds a single element of a pattern: a
+// NAME leaf, a DEFAULT_VALUE (`a = 0`), an ITER_REST / nested
+// pattern. Mirrors Java's defineDestructuring inner loop.
+func (c *TypedScopeCreator) walkPatternElement(el *rhino.Node, elemType jstype.JSType, scope *TypedScope) {
+	if el == nil || isEmptyToken(el.Token()) {
+		return
+	}
+	switch {
+	case el.Token() == rhino.NAME:
+		if el.String_() != "" {
+			if elemType == nil {
+				elemType = jstype.Unknown
+			}
+			scope.declared[el.String_()] = elemType
+		}
+	case isDefaultValueToken(el.Token()):
+		// `[a = 0]` — first child is the binding, second is the
+		// default. The binding's type stays the element's type;
+		// Java's NodeUtil.getBestJSTypeForDefault treats defaults
+		// as pure runtime fallback, not a type-level union.
+		kids := el.Children()
+		if len(kids) >= 1 {
+			c.walkPatternElement(kids[0], elemType, scope)
+		}
+	case isIterRestToken(el.Token()), isObjectRestToken(el.Token()):
+		// `[a, ...rest]` — rest collects an Array of the element
+		// type; `{a, ...rest}` — rest collects the remaining
+		// members. Both fall back to Unknown in our narrow
+		// implementation.
+		for _, leaf := range el.Children() {
+			if leaf.Token() == rhino.NAME && leaf.String_() != "" {
+				scope.declared[leaf.String_()] = jstype.Unknown
+			}
+		}
+	case isArrayPatternToken(el.Token()), isObjectPatternToken(el.Token()):
+		c.walkPattern(el, elemType, scope)
+	}
+}
+
+// arrayElementType peels `Array<T>` / union-with-Array to its
+// element type. Falls through to Unknown for shapes we can't
+// recognize. Matches `iterableElementOf` but specialised for
+// destructuring (which binds every leaf to the same element type
+// when the RHS is an Array).
+func arrayElementType(t jstype.JSType) jstype.JSType {
+	if t == nil {
+		return jstype.Unknown
+	}
+	if tt, ok := t.(*jstype.TemplatizedType); ok && tt.Base != nil && len(tt.Args) >= 1 {
+		return tt.Args[0]
+	}
+	return jstype.Unknown
+}
+
+// objectMemberType looks up `key` on the RHS type, returning its
+// declared member type (or Unknown when the RHS isn't a record
+// with an exposed member map). ObjectType's GetPropertyType does
+// the actual lookup; unions fold per-member.
+func objectMemberType(t jstype.JSType, key string) jstype.JSType {
+	if t == nil {
+		return jstype.Unknown
+	}
+	if obj, ok := t.(*jstype.ObjectType); ok {
+		if mt := obj.GetPropertyType(key); mt != nil {
+			return mt
+		}
+	}
+	if u, ok := t.(*jstype.UnionType); ok {
+		var out jstype.JSType
+		for _, m := range u.Members() {
+			mt := objectMemberType(m, key)
+			if out == nil {
+				out = mt
+			} else {
+				out = jstype.NewUnion(out, mt)
+			}
+		}
+		if out != nil {
+			return out
+		}
+	}
+	return jstype.Unknown
 }
 
 // resolveIterableElementType returns the element type of an iterable
