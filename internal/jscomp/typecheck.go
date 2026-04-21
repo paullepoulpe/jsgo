@@ -60,13 +60,13 @@ type TypeCheck struct {
 	// function. statementAtNode maps a CFG-statement AST node to its
 	// owning flow so TypeCheck can consult the IN FlowScope when
 	// checking expressions inside it.
-	flows         map[*rhino.Node]*DataFlowAnalysis
-	currentFlow   *DataFlowAnalysis
-	currentCfg    *ControlFlowGraph
-	flowStack     []*DataFlowAnalysis
-	cfgStack      []*ControlFlowGraph
-	currentStmt   *rhino.Node
-	stmtStack     []*rhino.Node
+	flows       map[*rhino.Node]*DataFlowAnalysis
+	currentFlow *DataFlowAnalysis
+	currentCfg  *ControlFlowGraph
+	flowStack   []*DataFlowAnalysis
+	cfgStack    []*ControlFlowGraph
+	currentStmt *rhino.Node
+	stmtStack   []*rhino.Node
 }
 
 func NewTypeCheck(path string, creator *TypedScopeCreator, global *TypedScope) *TypeCheck {
@@ -616,7 +616,6 @@ func (c *TypeCheck) visitVar(v *rhino.Node, scope *TypedScope) []diag.Diagnostic
 	return out
 }
 
-
 // visitEnumInit validates a `/** @enum [{T}] */ var E = init`
 // declaration. Three cases mirror Java's EnumType initialisation:
 //
@@ -1146,6 +1145,16 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 			Message: "Cannot do '.' access on a dict",
 		}}
 	}
+	// Union-typed receiver: Java's TypeCheck.visitGetProp emits
+	// JSC_POSSIBLE_INEXISTENT_PROPERTY when at least one variant of
+	// the union declares the property and another lacks it (ignoring
+	// null / undefined variants, which already flag as TYPE_MISMATCH
+	// at the dereference site). The null/void members were stripped
+	// above; any remaining variant-without-the-property is a genuine
+	// partial-surface union.
+	if u, ok := recvType.(*jstype.UnionType); ok {
+		return c.possibleInexistentPropertyDiag(u, propName, propNode)
+	}
 	obj := dereferencedObject(recvType)
 	if obj == nil {
 		return nil
@@ -1174,17 +1183,27 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 	if c.inexistentReported[key] {
 		return nil
 	}
-	// Broader INEXISTENT_PROPERTY: fire on structural (@record /
-	// @interface) receivers, on @struct nominal classes (sealed
-	// property surface by design), and on the known-surface
-	// builtin types we ship concrete slot maps for. For plain
-	// @constructor types without @struct, Java still fires on
-	// `this.prop` READS inside a prototype method — the
-	// missing-this-slot case — but allows writes on instance
-	// values outside the constructor to implicitly extend the
-	// surface.
+	// Broader INEXISTENT_PROPERTY surface — port of TypeCheck.java's
+	// non-structural branch. Java fires on any nominal ObjectType
+	// whose prototype chain definitively lacks the property; we keep
+	// the structural / @struct / known-surface cases, but also fall
+	// through for plain @constructor nominal types provided the
+	// receiver isn't an instance write that Java would treat as an
+	// implicit surface extension.
+	//
+	// False-positive guard: builtin stubs (e.g. the minimal DOM
+	// `Window` / `HTMLElement` externs we ship) have empty member
+	// maps — firing on every access there produces 40+ regressions
+	// with zero signal, so we defer to HasEmptyMemberMap() for those
+	// chains. Real user code with a declared surface stays covered.
 	if !obj.IsStructural && !obj.IsStruct && !isKnownSurfaceBuiltin(obj.Name) {
-		if !isThisReceiverRead(n) {
+		if obj.HasEmptyMemberMap() {
+			return nil
+		}
+		// Instance writes outside the constructor implicitly extend
+		// a non-struct class's surface in Java's default mode; only
+		// reads trip the diagnostic.
+		if isAssignLHS(n) {
 			return nil
 		}
 	}
@@ -1196,6 +1215,81 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 	return []diag.Diagnostic{{
 		Path: c.path, Line: propNode.Lineno(), Col: propNode.Charno(),
 		Code: diag.JSC_INEXISTENT_PROPERTY, Level: diag.Error, Message: msg,
+	}}
+}
+
+// possibleInexistentPropertyDiag handles the union-typed receiver
+// branch of TypeCheck.visitGetProp. Java emits
+// JSC_POSSIBLE_INEXISTENT_PROPERTY when at least one union variant
+// lacks the property (and that variant isn't null / undefined). When
+// every variant has the property, stay silent. When every variant
+// lacks it, degrade to plain JSC_INEXISTENT_PROPERTY keyed on the
+// first nominal offender — mirroring Java's best-effort single-arm
+// fallback.
+func (c *TypeCheck) possibleInexistentPropertyDiag(
+	u *jstype.UnionType, propName string, propNode *rhino.Node,
+) []diag.Diagnostic {
+	if c.fileSuppressions["missingProperties"] {
+		return nil
+	}
+	haveWith := 0
+	haveWithout := 0
+	var sampleWithout *jstype.ObjectType
+	for _, m := range u.Members() {
+		// null / undefined members were stripped upstream but guard
+		// anyway so future callers can pass raw unions safely.
+		if m == jstype.Null || m == jstype.Void {
+			continue
+		}
+		// Primitive / unknown / stub-chain (HasEmptyMemberMap) variants
+		// are treated as "has it" — anything non-nominal can't be
+		// definitively said to lack the property, and firing on bare
+		// stubs is the false-positive trap documented above.
+		obj := dereferencedObject(m)
+		if obj == nil || obj.HasProperty(propName) || obj.HasEmptyMemberMap() {
+			haveWith++
+			continue
+		}
+		haveWithout++
+		if sampleWithout == nil {
+			sampleWithout = obj
+		}
+	}
+	if haveWithout == 0 {
+		return nil
+	}
+	if haveWith == 0 {
+		// haveWithout > 0 guarantees sampleWithout is non-nil.
+		return c.emitInexistentDiag(propNode,
+			sampleWithout.TypeName()+"."+propName,
+			diag.JSC_INEXISTENT_PROPERTY, diag.Error,
+			fmt.Sprintf("Property %s never defined on %s",
+				propName, sampleWithout.TypeName()))
+	}
+	return c.emitInexistentDiag(propNode,
+		"union:"+u.TypeName()+"."+propName,
+		diag.JSC_POSSIBLE_INEXISTENT_PROPERTY, diag.Warning,
+		fmt.Sprintf("Property %s not defined on all member types of %s",
+			propName, u.TypeName()))
+}
+
+// emitInexistentDiag dedups on `key` via c.inexistentReported and
+// returns a single diagnostic when this is the first time the pair
+// has been reported for the compile. Lazily initialises the dedup
+// map for callers that allocate a TypeCheck without it.
+func (c *TypeCheck) emitInexistentDiag(
+	propNode *rhino.Node, key, code string, level diag.Level, msg string,
+) []diag.Diagnostic {
+	if c.inexistentReported[key] {
+		return nil
+	}
+	if c.inexistentReported == nil {
+		c.inexistentReported = map[string]bool{}
+	}
+	c.inexistentReported[key] = true
+	return []diag.Diagnostic{{
+		Path: c.path, Line: propNode.Lineno(), Col: propNode.Charno(),
+		Code: code, Level: level, Message: msg,
 	}}
 }
 
