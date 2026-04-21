@@ -76,8 +76,6 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	varRefDiags := NewVariableReferenceCheck(path, externScope).Check(script)
 	all = append(all, varRefDiags...)
 	all = append(all, NewJSTypeResolver(path, src, creator, scope, externScope).Check(script)...)
-	all = append(all, NewTypeCheckWithOptions(path, creator, scope, opts).Check(script)...)
-	all = append(all, NewMissingReturnCheck(path, scope).Check(script)...)
 	// Names that already triggered JSC_VAR_MULTIPLY_DECLARED_ERROR
 	// (e.g. a script-local @interface that shadows an extern of the
 	// same name) get suppressed downstream so we don't double-report
@@ -92,16 +90,11 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 			}
 		}
 	}
-	sc := NewSuperclassCheck(path, creator, scope)
-	sc.SuppressedNames = multiDecl
-	all = append(all, sc.Check(script)...)
-	all = append(all, NewCheckDupVarDecl(path, scope).Check(script)...)
+	tc := NewTypeCheckWithOptions(path, creator, scope, opts)
+	tc.SuppressedNames = multiDecl
+	all = append(all, tc.Check(script)...)
+	all = append(all, NewMissingReturnCheck(path, scope).Check(script)...)
 	all = append(all, NewCheckDuplicateMember(path).Check(script)...)
 	all = append(all, NewCheckSideEffects(path).Check(script)...)
-	// CheckDeterministicTest's diagnostics are produced from inside
-	// TypeCheck's traversal (see typecheck.go's EQ / NE / SHEQ / SHNE
-	// case) so that control-flow refinement frames are visible. We
-	// still expose the pass via its own file to mirror how other
-	// check-only diagnostics are factored out of TypeCheck.
 	return all, nil
 }

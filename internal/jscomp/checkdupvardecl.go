@@ -1,18 +1,19 @@
-// Port of com/google/javascript/jscomp/TypeCheck.java's
-// checkDuplicateVarDeclaration branch @ closure-compiler v20260415
-// (narrow; namespace-property slot only).
+// TypeCheck helper: JSC_DUP_VAR_DECLARATION_TYPE_MISMATCH +
+// JSC_DUP_VAR_DECLARATION on namespace-property slots.
+//
+// In Java these live inside TypeCheck.checkDuplicateVarDeclaration,
+// called during the visit walk. This file hosts the Go-port logic
+// invoked from TypeCheck.Check() after the main visit walk — split
+// from typecheck.go purely for readability, not because it's a
+// separate CompilerPass.
 //
 // Fires JSC_DUP_VAR_DECLARATION_TYPE_MISMATCH when a namespace
-// property is re-declared with a different type. Java tracks two
-// shapes:
+// property is re-declared with a different type:
 //
 //   /** @type {T1} */ goog.foo;
 //   /** @type {T2} */ goog.foo;
 //
-// and the assignment-form mirror. jsgo records every such decl
-// on the scope's namespaceProps map; this pass walks the AST a
-// second time, flagging each subsequent declaration against the
-// first one's type.
+// and the assignment-form mirror.
 
 package jscomp
 

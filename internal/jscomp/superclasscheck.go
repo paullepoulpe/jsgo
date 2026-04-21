@@ -1,7 +1,13 @@
-// Port of com/google/javascript/jscomp/TypeCheck.java's
-// checkPropertyVisibility / validateMethodOverride branches
-// @ closure-compiler v20260415 (narrow; no access-modifier check,
-// no `@override`-required diagnostic).
+// TypeCheck helper: JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH +
+// @implements / @extends validation.
+//
+// In Java these checks are private methods on TypeCheck.java
+// (validateMethodOverride, checkInterfaceMethodsImplemented, the
+// dict/struct extends helpers). This file hosts the Go-port logic
+// invoked from TypeCheck.Check() after the main visit walk — split
+// from typecheck.go purely for readability, not because it's a
+// separate CompilerPass. The DefaultPassConfig still sees a single
+// TypeCheck pass.
 //
 // Fires JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH when an override of
 // a superclass property has an incompatible type. Two override

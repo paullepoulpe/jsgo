@@ -35,6 +35,13 @@ type TypeCheck struct {
 	opts    *CompilerOptions
 	diags   []diag.Diagnostic
 
+	// SuppressedNames mirrors Java's TypeCheck skipping of
+	// @implements / @interface-derived diagnostics when the relevant
+	// symbol slot was already rejected by an earlier VarCheck pass
+	// (Java implements this via the slot lookup naturally failing; we
+	// thread the rejected-name set in explicitly).
+	SuppressedNames map[string]bool
+
 	// inexistentReported dedups JSC_INEXISTENT_PROPERTY emissions
 	// across the script — Java fires the diagnostic only once per
 	// (receiver, property) pair even when the program references
@@ -90,6 +97,14 @@ func NewTypeCheckWithOptions(path string, creator *TypedScopeCreator, global *Ty
 // Before walking, we run ControlFlowAnalysis + DataFlowAnalysis on
 // the top-level SCRIPT to produce per-statement FlowScopes. Nested
 // FUNCTION bodies get their own flow built on demand.
+//
+// After the main visit walk we invoke the validate-override and
+// duplicate-declaration helpers. In Java these are private
+// checkPropertyVisibility / validateMethodOverride /
+// checkDuplicateVarDeclaration methods on TypeCheck — we keep them
+// in separate Go files (superclasscheck.go / checkdupvardecl.go) for
+// file-level readability but call them from TypeCheck so the
+// pipeline stage count matches DefaultPassConfig (one TypeCheck pass).
 func (c *TypeCheck) Check(script *rhino.Node) []diag.Diagnostic {
 	c.diags = nil
 	c.installFlow(script, c.global)
@@ -97,6 +112,10 @@ func (c *TypeCheck) Check(script *rhino.Node) []diag.Diagnostic {
 	c.fileSuppressions = collectFileSuppressions(script)
 	trav := NewNodeTraversal(c, c.creator, c.global)
 	trav.Traverse(script)
+	sc := NewSuperclassCheck(c.path, c.creator, c.global)
+	sc.SuppressedNames = c.SuppressedNames
+	c.diags = append(c.diags, sc.Check(script)...)
+	c.diags = append(c.diags, NewCheckDupVarDecl(c.path, c.global).Check(script)...)
 	return c.diags
 }
 
@@ -473,13 +492,10 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 	case rhino.RETURN:
 		c.emit(c.visitReturn(n, scope))
 	case rhino.EQ, rhino.NE, rhino.SHEQ, rhino.SHNE:
-		// The DETERMINISTIC_TEST diagnostic lives in its own pass file
-		// (checkdeterministictest.go). We call into it here during the
-		// TypeCheck walk so the refinement frames pushed around
-		// if/else/&&/|| branches are visible to the operand-type
-		// lookup — running the pass as a separate traversal would
-		// lose those narrowings.
-		c.emit(NewCheckDeterministicTest(c.path, scope).VisitComparison(n))
+		// JSC_DETERMINISTIC_TEST is emitted inline from Java's
+		// TypeCheck.visitBinaryOp; the helper lives in
+		// checkdeterministictest.go purely as file-organization.
+		c.emit(VisitDeterministicTest(c.path, scope, n))
 	case rhino.IN:
 		c.emit(c.visitIn(n, scope))
 	case rhino.FOR_IN:

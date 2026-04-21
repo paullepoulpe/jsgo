@@ -1,16 +1,10 @@
-// Port of com/google/javascript/jscomp/CheckDeterministicTest.java @ closure-compiler v20260415 (subset)
+// TypeCheck helper: JSC_DETERMINISTIC_TEST emission.
 //
-// Upstream Closure does not ship a standalone `CheckDeterministicTest`
-// class — the JSC_DETERMINISTIC_TEST diagnostic is registered and
-// emitted inline from TypeCheck.java's binary-comparison branches
-// (EQ / NE / SHEQ / SHNE, plus a shallow-equality check for the
-// strict variants). The logic is a distinct concern from the rest of
-// TypeCheck, though, so in jsgo we factor it out into its own pass
-// file — matching how Closure's newer compiler releases split
-// check-only diagnostics into dedicated walker passes (e.g.
-// `CheckSideEffects`, `CheckMissingReturnStatement`). The pass is
-// wired into the pipeline after TypedScopeCreator / TypeInference so
-// the operand types are already resolved.
+// Upstream Closure does NOT ship a standalone `CheckDeterministicTest`
+// class — the diagnostic is emitted inline from TypeCheck.java's
+// binary-comparison branches (EQ / NE / SHEQ / SHNE). This file hosts
+// the helper logic called from typecheck.go's visit dispatch; it's
+// split out for readability, not because it's a separate pass.
 //
 // Diagnostic:
 //
@@ -27,14 +21,6 @@
 // For `===` / `!==` we defer to `canTestForShallowEqualityWith`:
 // disjoint primitive slots → always false under `===` (always true
 // under `!==`).
-//
-// LT / LE / GT / GE are included here because CheckDeterministicTest
-// in a full port would also cover `typeof x === "foo"` style
-// always-false comparisons where the LHS's narrowed type cannot
-// contain the tagged typeof-result. The typeof-string specialisation
-// is left for a follow-up: the relational operators are still walked
-// so the pass is a structural superset of Java's `visitBinaryOp`
-// relational-result branch.
 
 package jscomp
 
@@ -46,62 +32,23 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino/jstype"
 )
 
-// CheckDeterministicTest implements the JSC_DETERMINISTIC_TEST
-// diagnostic as a standalone pass. Mirrors Java's
-// `NodeTraversal.Callback` shape (single `Check` entry point +
-// visit method on each binary comparison node).
-type CheckDeterministicTest struct {
+// deterministicTestState is the scoped receiver for the helper
+// below. One instance is built per binary-comparison visit inside
+// TypeCheck; callers capture the returned diagnostics via
+// VisitDeterministicTest.
+type deterministicTestState struct {
 	path  string
 	scope *TypedScope
 	diags []diag.Diagnostic
 }
 
-// NewCheckDeterministicTest builds a pass instance for `path`. The
-// caller should pre-populate `scope` via TypedScopeCreator so that
-// TypeInference can resolve operand types during the walk.
-func NewCheckDeterministicTest(path string, scope *TypedScope) *CheckDeterministicTest {
-	return &CheckDeterministicTest{path: path, scope: scope}
-}
-
-// Check walks the AST firing JSC_DETERMINISTIC_TEST at every binary
-// comparison whose two operand types are statically disjoint (for
-// `==` / `===`) or statically equal singleton types (`null ==
-// null`, `undefined == undefined`). Useful when the pass needs to
-// run in isolation (tests, `fbucket`); at runtime the actual
-// diagnostics are produced inside TypeCheck's walk via VisitComparison
-// so that control-flow refinements pushed around if / && / || are
-// visible to the operand-type inference.
-func (c *CheckDeterministicTest) Check(script *rhino.Node) []diag.Diagnostic {
-	c.diags = nil
-	c.walk(script)
-	return c.diags
-}
-
-// VisitComparison is the hot-path entry point called from
-// TypeCheck.check's EQ / NE / SHEQ / SHNE case. It performs exactly
-// one comparison and returns the resulting diagnostics without
-// mutating the pass's accumulated `diags` slice — callers that
-// batch via `c.emit(...)` already own diagnostic ordering.
-func (c *CheckDeterministicTest) VisitComparison(n *rhino.Node) []diag.Diagnostic {
-	prev := c.diags
-	c.diags = nil
+// VisitDeterministicTest is the entry point invoked from TypeCheck's
+// EQ / NE / SHEQ / SHNE case. Matches Java's inline
+// checkForDeterministicTest call inside TypeCheck.visitBinaryOp.
+func VisitDeterministicTest(path string, scope *TypedScope, n *rhino.Node) []diag.Diagnostic {
+	c := &deterministicTestState{path: path, scope: scope}
 	c.visitEquality(n)
-	out := c.diags
-	c.diags = prev
-	return out
-}
-
-func (c *CheckDeterministicTest) walk(n *rhino.Node) {
-	if n == nil {
-		return
-	}
-	switch n.Token() {
-	case rhino.EQ, rhino.NE, rhino.SHEQ, rhino.SHNE:
-		c.visitEquality(n)
-	}
-	for _, ch := range n.Children() {
-		c.walk(ch)
-	}
+	return c.diags
 }
 
 // visitEquality ports the JSC_DETERMINISTIC_TEST branch of
@@ -112,7 +59,7 @@ func (c *CheckDeterministicTest) walk(n *rhino.Node) {
 // expression's source position. Unknown / All / union operand types
 // stay silent — those correspond to the `Tri.UNKNOWN` result in
 // Java, which is not reported.
-func (c *CheckDeterministicTest) visitEquality(n *rhino.Node) {
+func (c *deterministicTestState) visitEquality(n *rhino.Node) {
 	kids := n.Children()
 	if len(kids) < 2 {
 		return
