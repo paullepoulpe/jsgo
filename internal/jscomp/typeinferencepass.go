@@ -52,6 +52,30 @@ func (p *TypeInferencePass) Transfer(node *CfgNode, in *FlowScope) map[Branch]*F
 		}
 	case rhino.IF:
 		return p.transferIf(ast, in)
+	case rhino.WHILE:
+		// Loop-condition node. The condition is the first child; its
+		// OnTrue edge enters the body, OnFalse exits the loop. Matches
+		// Java's TypeInferencePass.BRANCHED case for while-headers —
+		// without this branch the loop-exit edge would never see the
+		// falsy-cond refinement (e.g. `while (!x) { … }` — on exit
+		// `x` is truthy), so the post-loop checker never observes the
+		// narrowed type.
+		if kids := ast.Children(); len(kids) >= 1 {
+			return p.transferCond(kids[0], in)
+		}
+	case rhino.DO_WHILE:
+		// `do body while (cond);` — the cond node fires at the tail
+		// of the body; its test is the second child of the DO_WHILE.
+		if kids := ast.Children(); len(kids) >= 2 {
+			return p.transferCond(kids[1], in)
+		}
+	case rhino.FOR:
+		// `for (init; cond; upd) body` — the FOR node conceptually
+		// runs its cond test; Java's TypeInference attaches the true/
+		// false refinements to the FOR's OnTrue/OnFalse edges.
+		if kids := ast.Children(); len(kids) >= 2 {
+			return p.transferCond(kids[1], in)
+		}
 	}
 	return map[Branch]*FlowScope{BranchUnconditional: in}
 }
@@ -105,7 +129,16 @@ func (p *TypeInferencePass) transferIf(ast *rhino.Node, in *FlowScope) map[Branc
 	if len(kids) < 2 {
 		return map[Branch]*FlowScope{BranchUnconditional: in}
 	}
-	cond := kids[0]
+	return p.transferCond(kids[0], in)
+}
+
+// transferCond is the shared branch-refinement computation for
+// IF / WHILE / DO_WHILE / FOR — any CFG node whose outgoing edges
+// carry BranchOnTrue / BranchOnFalse labels. Mirrors the loop- and
+// branch-gating half of Java's TypeInferencePass: the truthy edge
+// sees `cond`-truthy refinements; the falsy edge sees `cond`-falsy
+// refinements.
+func (p *TypeInferencePass) transferCond(cond *rhino.Node, in *FlowScope) map[Branch]*FlowScope {
 	trueRefs := p.branchRefinements(cond, in, true)
 	falseRefs := p.branchRefinements(cond, in, false)
 	return map[Branch]*FlowScope{

@@ -81,7 +81,12 @@ func (c *TypeCheck) installFlow(root *rhino.Node, scope *TypedScope) *DataFlowAn
 	}
 	cfg := BuildControlFlowGraph(root)
 	pass := NewTypeInferencePass(scope)
-	d := NewDataFlowAnalysis(cfg, EmptyFlowScope(), pass.Transfer)
+	// Anchor the initial FlowScope to the enclosing TypedScope so
+	// JoinFlowScopes can consult declared types on loop back-edges —
+	// without the anchor, a name refined on only one edge is dropped
+	// from the join (matches pre-anchor behaviour, but misses the
+	// "widen back to declared" case that loop-exit narrowing needs).
+	d := NewDataFlowAnalysis(cfg, NewFlowScope(scope), pass.Transfer)
 	d.Run()
 	c.flows[root] = d
 	return d

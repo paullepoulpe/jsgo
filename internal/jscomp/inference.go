@@ -174,6 +174,12 @@ func (t *TypeInference) InferType(n *rhino.Node) jstype.JSType {
 // otherwise look up the instance property map. Walks through unions
 // whose members all expose the same property (matches Java's
 // getPropertyTypeOfObjectType loop).
+//
+// Flow-refinement for qualified names: `if (obj.prop) { … }` narrows
+// obj.prop inside the then-branch. The narrowed type is keyed by the
+// dotted name "obj.prop" in the refinement stack and takes priority
+// over the declared property type — matches Java's property-slot
+// refinement stored on the FlowScope overlay.
 func (t *TypeInference) inferGetProp(n *rhino.Node) jstype.JSType {
 	kids := n.Children()
 	if len(kids) < 2 {
@@ -181,6 +187,11 @@ func (t *TypeInference) inferGetProp(n *rhino.Node) jstype.JSType {
 	}
 	recv := kids[0]
 	propName := kids[1].String_()
+	if qname := qualifiedName(n); qname != "" {
+		if r := t.scope.GetQualifiedRefinement(qname); r != nil {
+			return r
+		}
+	}
 	if recv.Token() == rhino.NAME {
 		if fn, ok := t.scope.GetDeclaredType(recv.String_()).(*jstype.FunctionType); ok && fn.Instance != nil {
 			if pt := fn.Instance.GetStaticPropertyType(propName); pt != nil {
