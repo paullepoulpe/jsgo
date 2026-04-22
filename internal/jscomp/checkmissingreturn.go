@@ -225,12 +225,12 @@ func goesThroughTrueCondition(src *CfgNode, e CfgEdge) bool {
 	}
 
 	// For conditional branches, evaluate constant conditions.
-	// Mirrors Java: `else if (branch.isConditional()) { ... NodeUtil.getBooleanValue(condition) ... }`
+	// Mirrors Java: `else if (branch.isConditional()) { ... NodeUtil.getBooleanValueCMR(condition) ... }`
 	if e.Branch == BranchOnTrue || e.Branch == BranchOnFalse {
 		if src.AST != nil {
-			cond := getConditionExpression(src.AST)
+			cond := getConditionExpressionCMR(src.AST)
 			if cond != nil {
-				val, known := getBooleanValue(cond)
+				val, known := getBooleanValueCMR(cond)
 				if known {
 					// The branch is statically possible only when the
 					// constant direction matches the branch label.
@@ -246,10 +246,10 @@ func goesThroughTrueCondition(src *CfgNode, e CfgEdge) bool {
 	return true
 }
 
-// getConditionExpression returns the condition sub-expression of a
+// getConditionExpressionCMR returns the condition sub-expression of a
 // control-flow node (IF / WHILE / FOR / DO_WHILE). Mirrors Java's
-// NodeUtil.getConditionExpression.
-func getConditionExpression(n *rhino.Node) *rhino.Node {
+// NodeUtil.getConditionExpressionCMR.
+func getConditionExpressionCMR(n *rhino.Node) *rhino.Node {
 	if n == nil {
 		return nil
 	}
@@ -279,16 +279,16 @@ func getConditionExpression(n *rhino.Node) *rhino.Node {
 	return nil
 }
 
-// getBooleanValue evaluates a constant expression to a boolean.
+// getBooleanValueCMR evaluates a constant expression to a boolean.
 // Returns (value, true) when the expression is a known constant,
-// (false, false) otherwise. Mirrors Java's NodeUtil.getBooleanValue
+// (false, false) otherwise. Mirrors Java's NodeUtil.getBooleanValueCMR
 // returning Tri (TRUE / FALSE / UNKNOWN).
 //
 // TODO: widen to evaluate more constant expressions (e.g. non-zero
 // numeric literals, non-empty string literals) — Java's NodeUtil does
 // this; the current port handles only the common cases seen in the
 // extracted corpus.
-func getBooleanValue(n *rhino.Node) (bool, bool) {
+func getBooleanValueCMR(n *rhino.Node) (bool, bool) {
 	if n == nil {
 		return false, false
 	}
@@ -309,7 +309,7 @@ func getBooleanValue(n *rhino.Node) (bool, bool) {
 	case rhino.NOT:
 		// `!expr`: invert if inner is constant.
 		if child := n.FirstChild(); child != nil {
-			if val, ok := getBooleanValue(child); ok {
+			if val, ok := getBooleanValueCMR(child); ok {
 				return !val, true
 			}
 		}
