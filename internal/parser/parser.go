@@ -193,6 +193,9 @@ func (p *Parser) tryStatement() (*rhino.Node, bool) {
 	if p.scanner.ConsumeKeyword("continue") {
 		return p.finishBreakContinue(rhino.CONTINUE), true
 	}
+	if p.scanner.ConsumeKeyword("debugger") {
+		return p.finishDebugger(kwLine, kwCol), true
+	}
 	// Labeled statement: `IDENT : STMT`. Speculative — rewinds if the
 	// cursor doesn't end up at a label colon.
 	if stmt, ok := p.tryLabeledStatement(jsdoc); ok {
@@ -923,6 +926,17 @@ func (p *Parser) finishBreakContinue(tok rhino.Token) *rhino.Node {
 			n.AddChildToBack(label)
 		}
 	}
+	p.scanner.SkipTrivia()
+	p.scanner.ConsumeByte(';')
+	return n
+}
+
+// finishDebugger parses `debugger;` → DEBUGGER node.
+// Position is taken from the keyword (kwLine, kwCol) captured by the
+// caller before ConsumeKeyword advanced the scanner.
+func (p *Parser) finishDebugger(kwLine, kwCol int) *rhino.Node {
+	n := rhino.New(rhino.DEBUGGER)
+	n.SetPos(kwLine, kwCol)
 	p.scanner.SkipTrivia()
 	p.scanner.ConsumeByte(';')
 	return n
