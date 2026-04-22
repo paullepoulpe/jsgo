@@ -27,6 +27,9 @@ type JSDocInfo struct {
 	typedefExpr   *JSTypeExpression
 	templateNames []string
 	suppressions  map[string]bool
+	hasThisType   bool   // true when @this annotation was present
+	isOverride    bool   // true when @override annotation was present
+	lendsName     string // non-empty when @lends annotation was present
 }
 
 // AddSuppression records a `@suppress {name}` entry. Mirrors
@@ -232,3 +235,31 @@ func (i *JSDocInfo) ReturnType() *JSTypeExpression {
 }
 
 func (i *JSDocInfo) SetReturnType(t *JSTypeExpression) { i.returnExpr = t }
+
+// HasThisType mirrors JSDocInfo.hasThisType() — true when @this was present.
+func (i *JSDocInfo) HasThisType() bool { return i != nil && i.hasThisType }
+
+// SetHasThisType records that @this appeared in the comment.
+func (i *JSDocInfo) SetHasThisType(b bool) { i.hasThisType = b }
+
+// IsOverride mirrors JSDocInfo.isOverride() — true when @override was present.
+func (i *JSDocInfo) IsOverride() bool { return i != nil && i.isOverride }
+
+// SetOverride records that @override appeared in the comment.
+func (i *JSDocInfo) SetOverride(b bool) { i.isOverride = b }
+
+// HasLendsName mirrors JSDocInfo.hasLendsName() — true when @lends was present.
+func (i *JSDocInfo) HasLendsName() bool { return i != nil && i.lendsName != "" }
+
+// LendsName mirrors JSDocInfo.getLendsName() — returns the lends target as a
+// JSTypeExpression so callers can inspect the name string.
+// Returns nil when no @lends was present.
+func (i *JSDocInfo) LendsName() *JSTypeExpression {
+	if i == nil || i.lendsName == "" {
+		return nil
+	}
+	return &JSTypeExpression{TypeName: i.lendsName}
+}
+
+// SetLendsName records the @lends target name.
+func (i *JSDocInfo) SetLendsName(name string) { i.lendsName = name }

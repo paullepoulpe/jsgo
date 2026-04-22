@@ -126,6 +126,14 @@ func (p *JsDocInfoParser) parseAnnotation(_ JsDocToken) JsDocToken {
 		return p.parseEnumTag()
 	case "suppress":
 		return p.parseSuppressTag()
+	case "this":
+		return p.parseThisTag()
+	case "override":
+		p.info.SetOverride(true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "lends":
+		return p.parseLendsTag()
 	}
 	return p.eatUntilEOLIfNotAnnotation()
 }
@@ -153,6 +161,35 @@ func (p *JsDocInfoParser) parseSuppressTag() JsDocToken {
 			return p.eatUntilEOLIfNotAnnotation()
 		}
 	}
+}
+
+// parseThisTag ports the @this branch of the Java parseAnnotation:
+// consumes the optional `{Type}` argument and marks the JSDocInfo as
+// having a @this annotation. Mirrors Java's JsDocInfoParser handling
+// of @this — which simply records it as hasThisType (the actual type
+// expression is not resolved by CheckGlobalThis, only its presence matters).
+func (p *JsDocInfoParser) parseThisTag() JsDocToken {
+	p.info.SetHasThisType(true)
+	p.anyRecorded = true
+	return p.eatUntilEOLIfNotAnnotation()
+}
+
+// parseLendsTag ports the @lends branch of the Java parseAnnotation:
+// consumes the `{Name}` argument and records the lend target on JSDocInfo.
+// Mirrors Java's JsDocInfoParser.parseLendsTag — CheckGlobalThis uses
+// getLendsName().getRoot().getString() to detect prototype lending.
+func (p *JsDocInfoParser) parseLendsTag() JsDocToken {
+	p.skipEOLs()
+	t := p.next()
+	if t != JsDocTokenLeftCurly {
+		return p.eatUntilEOLIfNotAnnotation()
+	}
+	typStr, ok := p.parseTopLevelTypeExpression(p.next())
+	if ok && typStr != "" {
+		p.info.SetLendsName(typStr)
+		p.anyRecorded = true
+	}
+	return p.eatUntilEOLIfNotAnnotation()
 }
 
 // parseTypeTag ports the @type branch of the Java parseAnnotation

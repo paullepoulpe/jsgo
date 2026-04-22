@@ -16,6 +16,20 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino/jstype"
 )
 
+// hasVarMultiplyError reports whether the diagnostic slice contains any
+// JSC_VAR_MULTIPLY_DECLARED_ERROR entry. CheckGlobalThis is skipped when
+// such errors are present, mirroring Java's behaviour where the
+// suspiciousCode phase (which hosts CheckGlobalThis) does not run for
+// files that fail declaration-uniqueness checks.
+func hasVarMultiplyError(diags []diag.Diagnostic) bool {
+	for _, d := range diags {
+		if d.Code == diag.JSC_VAR_MULTIPLY_DECLARED_ERROR {
+			return true
+		}
+	}
+	return false
+}
+
 // CheckSource runs the Tier-0 pipeline on one source file and returns
 // accumulated diagnostics. A parse error is returned as err; the caller
 // decides whether to surface it as a diagnostic or as a fatal.
@@ -61,5 +75,13 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	all = append(all, NewCheckDupVarDecl(path, scope).Check(script)...)
 	all = append(all, NewCheckDuplicateMember(path).Check(script)...)
 	all = append(all, NewCheckSideEffects(path).Check(script)...)
+	// CheckGlobalThis is skipped when VarCheck / VariableReferenceCheck
+	// already detected a JSC_VAR_MULTIPLY_DECLARED_ERROR. Java's compiler
+	// aborts the suspiciousCode phase (which hosts CheckGlobalThis) when
+	// declaration errors are present, so the oracle never shows both errors
+	// for the same file.
+	if !hasVarMultiplyError(all) {
+		all = append(all, NewCheckGlobalThis(path).Check(script)...)
+	}
 	return all, nil
 }
