@@ -61,5 +61,6 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	all = append(all, NewCheckDupVarDecl(path, scope).Check(script)...)
 	all = append(all, NewCheckDuplicateMember(path).Check(script)...)
 	all = append(all, NewCheckSideEffects(path).Check(script)...)
+	all = append(all, NewCheckDebuggerStatement(path, opts).Check(script)...)
 	return all, nil
 }

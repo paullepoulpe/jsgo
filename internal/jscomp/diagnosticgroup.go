@@ -69,4 +69,13 @@ var (
 			"JSC_INVALID_OPERAND_TYPE",
 		},
 	}
+	// GroupCheckDebuggerStatement is DISABLED (OFF) by default, matching
+	// Java's DiagnosticType.disabled("JSC_DEBUGGER_STATEMENT_PRESENT").
+	// Enable via SetWarningLevel(GroupCheckDebuggerStatement, LevelWarning).
+	GroupCheckDebuggerStatement = &DiagnosticGroup{
+		Name: "checkDebuggerStatement",
+		Codes: []string{
+			"JSC_DEBUGGER_STATEMENT_PRESENT",
+		},
+	}
 )

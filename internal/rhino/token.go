@@ -125,6 +125,9 @@ const (
 	ARRAYLIT
 	OBJECTLIT
 	STRING_KEY
+
+	// Debugger statement
+	DEBUGGER
 )
 
 func (t Token) String() string {
@@ -301,6 +304,8 @@ func (t Token) String() string {
 		return "OBJECTLIT"
 	case STRING_KEY:
 		return "STRING_KEY"
+	case DEBUGGER:
+		return "DEBUGGER"
 	}
 	return "ERROR"
 }
