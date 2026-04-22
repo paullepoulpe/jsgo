@@ -22,7 +22,7 @@ import (
 //
 // Pass order mirrors Java's DefaultPassConfig: VarCheck first (so
 // UNDEFINED_VARIABLE fires before downstream passes inspect an
-// undeclared NAME), then TypeCheck, then MissingReturnCheck.
+// undeclared NAME), then TypeCheck, then CheckMissingReturn.
 //
 // An externs scope is built from defaultExternsSrc and used as the
 // parent scope of the user source — matches Compiler#compile which
@@ -56,7 +56,7 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	all = append(all, NewVariableReferenceCheck(path, externScope).Check(script)...)
 	all = append(all, NewCheckJsDocTypes(path, src, scope).Check()...)
 	all = append(all, NewTypeCheckWithOptions(path, creator, scope, opts).Check(script)...)
-	all = append(all, NewMissingReturnCheck(path, scope).Check(script)...)
+	all = append(all, NewCheckMissingReturn(path, scope).Check(script)...)
 	all = append(all, NewSuperclassCheck(path, creator, scope).Check(script)...)
 	all = append(all, NewCheckDupVarDecl(path, scope).Check(script)...)
 	all = append(all, NewCheckDuplicateMember(path).Check(script)...)
