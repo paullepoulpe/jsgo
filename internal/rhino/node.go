@@ -22,6 +22,11 @@ const (
 	PropStaticMember
 	PropIsConstantName
 	PropArrowFn
+	// PropAddedBlock mirrors Node.ADDED_BLOCK (the IS_ADDED_BLOCK prop
+	// bit in Java). Set by the parser when a BLOCK was synthesized
+	// implicitly from a single statement body (i.e. without explicit
+	// braces). CheckSuspiciousCode uses it to detect `if (x);`.
+	PropAddedBlock
 )
 
 type Node struct {
@@ -153,6 +158,21 @@ func (n *Node) DetachChildren() {
 }
 
 // ---------------- property bag ------------------------------------- //
+
+// IsAddedBlock mirrors Java's Node.isAddedBlock() — true when this
+// BLOCK was synthesized implicitly (no explicit braces). The parser
+// sets PropAddedBlock on BLOCK nodes it creates for single-statement
+// control-flow bodies. CheckSuspiciousCode uses this to detect
+// a misplaced semicolon like `if (x);`.
+func (n *Node) IsAddedBlock() bool {
+	return n.GetBooleanProp(PropAddedBlock)
+}
+
+// HasChildren mirrors Java's Node.hasChildren(). Returns true when
+// the node has at least one child.
+func (n *Node) HasChildren() bool {
+	return len(n.children) > 0
+}
 
 // GetBooleanProp ports Node.getBooleanProp. Absent props are false.
 func (n *Node) GetBooleanProp(p Prop) bool {

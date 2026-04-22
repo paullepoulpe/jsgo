@@ -622,6 +622,10 @@ func (p *Parser) finishIf() *rhino.Node {
 // parseControlBody reads a block `{ … }` or a single statement into a
 // BLOCK node. Helpful both for `if` branches and for the loop/try
 // coarse handlers.
+//
+// When there are no explicit braces, the returned BLOCK has
+// PropAddedBlock set (mirrors Java Node.IS_ADDED_BLOCK) so that
+// CheckSuspiciousCode can detect misplaced semicolons like `if (x);`.
 func (p *Parser) parseControlBody() *rhino.Node {
 	p.scanner.SkipTrivia()
 	body := rhino.New(rhino.BLOCK)
@@ -630,6 +634,9 @@ func (p *Parser) parseControlBody() *rhino.Node {
 		p.scanner.ConsumeByte('}')
 		return body
 	}
+	// Synthesized block — mark it so CheckSuspiciousCode can detect
+	// `if (x);` (PropAddedBlock + no children = misplaced semicolon).
+	body.PutBooleanProp(rhino.PropAddedBlock, true)
 	if stmt, ok := p.tryStatement(); ok && stmt != nil {
 		body.AddChildToBack(stmt)
 	}
