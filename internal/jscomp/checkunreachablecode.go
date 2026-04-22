@@ -161,7 +161,7 @@ func (c *CheckUnreachableCode) isReachableEdge(pred *CfgNode, branch Branch) boo
 	if condition == nil {
 		return true
 	}
-	val, known := getBooleanValue(condition)
+	val, known := getBooleanValueKnown(condition)
 	if !known {
 		return true
 	}
@@ -208,11 +208,11 @@ func getConditionExpression(n *rhino.Node) *rhino.Node {
 	return nil
 }
 
-// getBooleanValue mirrors Java's NodeUtil.getBooleanValue (Tri-valued).
+// getBooleanValueKnown mirrors Java's NodeUtil.getBooleanValueKnown (Tri-valued).
 // Returns (bool value, known) where known==false means Tri.UNKNOWN.
 //
 // TODO(user): Handle more complicated expression like true == true, etc....
-func getBooleanValue(n *rhino.Node) (bool, bool) {
+func getBooleanValueKnown(n *rhino.Node) (bool, bool) {
 	if n == nil {
 		return false, false
 	}
@@ -228,7 +228,7 @@ func getBooleanValue(n *rhino.Node) (bool, bool) {
 		return false, true
 	case rhino.NOT:
 		if child := n.FirstChild(); child != nil {
-			v, known := getBooleanValue(child)
+			v, known := getBooleanValueKnown(child)
 			if known {
 				return !v, true
 			}
@@ -236,11 +236,11 @@ func getBooleanValue(n *rhino.Node) (bool, bool) {
 	case rhino.AND:
 		kids := n.Children()
 		if len(kids) == 2 {
-			lv, lk := getBooleanValue(kids[0])
+			lv, lk := getBooleanValueKnown(kids[0])
 			if lk && !lv {
 				return false, true // false && anything = false
 			}
-			rv, rk := getBooleanValue(kids[1])
+			rv, rk := getBooleanValueKnown(kids[1])
 			if lk && lv && rk {
 				return rv, true // true && rv
 			}
@@ -248,18 +248,18 @@ func getBooleanValue(n *rhino.Node) (bool, bool) {
 	case rhino.OR:
 		kids := n.Children()
 		if len(kids) == 2 {
-			lv, lk := getBooleanValue(kids[0])
+			lv, lk := getBooleanValueKnown(kids[0])
 			if lk && lv {
 				return true, true // true || anything = true
 			}
-			rv, rk := getBooleanValue(kids[1])
+			rv, rk := getBooleanValueKnown(kids[1])
 			if lk && !lv && rk {
 				return rv, true // false || rv
 			}
 		}
 	case rhino.NUMBER:
 		// Non-zero numbers are truthy, zero is falsy.
-		// Java's getBooleanValue checks the double value.
+		// Java's getBooleanValueKnown checks the double value.
 		if str := n.String_(); str == "0" || str == "0.0" || str == "-0" {
 			return false, true
 		}
