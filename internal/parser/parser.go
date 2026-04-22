@@ -1149,6 +1149,11 @@ func (p *Parser) tryLHSExpression() (*rhino.Node, bool) {
 		base.SetPos(startLine, startCol)
 		return p.extendWithProperty(base), true
 	}
+	if c == 's' && p.scanner.ConsumeKeyword("super") {
+		base := rhino.New(rhino.SUPER)
+		base.SetPos(startLine, startCol)
+		return p.extendWithProperty(base), true
+	}
 	if !(unicode.IsLetter(c) || c == '_' || c == '$') {
 		return nil, false
 	}
@@ -1584,6 +1589,11 @@ func (p *Parser) tryPrimary() (*rhino.Node, bool) {
 	}
 	if c == 't' && p.scanner.ConsumeKeyword("this") {
 		n := rhino.New(rhino.THIS)
+		n.SetPos(startLine, startCol)
+		return n, true
+	}
+	if c == 's' && p.scanner.ConsumeKeyword("super") {
+		n := rhino.New(rhino.SUPER)
 		n.SetPos(startLine, startCol)
 		return n, true
 	}
