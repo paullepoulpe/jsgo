@@ -823,6 +823,9 @@ func isSafeCalleeForArity(callee *rhino.Node, scope *TypedScope) bool {
 	if callee.Token() == rhino.NAME {
 		return true
 	}
+	if callee.Token() == rhino.SUPER {
+		return true
+	}
 	if callee.Token() == rhino.GETPROP {
 		kids := callee.Children()
 		if len(kids) < 2 {
@@ -1217,6 +1220,8 @@ func describeCallee(n *rhino.Node) string {
 		}
 	case rhino.THIS:
 		return "this"
+	case rhino.SUPER:
+		return "super"
 	}
 	return "<fn>"
 }

@@ -60,6 +60,13 @@ func (t *TypeInference) InferType(n *rhino.Node) jstype.JSType {
 			return inst
 		}
 		return jstype.Unknown
+	case rhino.SUPER:
+		// `super` in a derived-class constructor is bound under the name
+		// "super" in the ctor-local scope (see TypedScopeCreator.bindSuper).
+		if declared := t.scope.GetDeclaredType("super"); declared != nil {
+			return declared
+		}
+		return jstype.Unknown
 	case rhino.GETPROP:
 		return t.inferGetProp(n)
 	case rhino.GETELEM:

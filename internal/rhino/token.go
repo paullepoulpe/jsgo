@@ -75,6 +75,7 @@ const (
 	GETPROP
 	GETELEM // computed member access: `x[y]`
 	THIS
+	SUPER // `super` keyword (super(), super.prop)
 
 	// Classes
 	CLASS
@@ -232,6 +233,8 @@ func (t Token) String() string {
 		return "GETELEM"
 	case THIS:
 		return "THIS"
+	case SUPER:
+		return "SUPER"
 	case CLASS:
 		return "CLASS"
 	case CLASS_FIELD_DEF:
