@@ -88,6 +88,7 @@ const (
 	JSC_DEBUGGER_STATEMENT_PRESENT          = "JSC_DEBUGGER_STATEMENT_PRESENT"
 	JSC_REGEXP_REFERENCE                    = "JSC_REGEXP_REFERENCE"
 	JSC_MALFORMED_REGEXP                    = "JSC_MALFORMED_REGEXP"
+	JSC_UNREACHABLE_CODE                    = "JSC_UNREACHABLE_CODE"
 
 	// CheckSuspiciousCode diagnostics (all warnings).
 	JSC_SUSPICIOUS_SEMICOLON                             = "JSC_SUSPICIOUS_SEMICOLON"
