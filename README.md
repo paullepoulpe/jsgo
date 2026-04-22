@@ -17,8 +17,9 @@ corpora are all at 100%.
   enforced guardrails.
 - [ARCHITECTURE.md](ARCHITECTURE.md) — port philosophy, code layout
   mapping to Java, pass pipeline, harness.
-- [TODO.md](TODO.md) — ranked list of remaining Java ports needed
-  to reach 80%+ on the extracted benchmark.
+- [TODO.md](TODO.md) — exhaustive list of remaining Java ports
+  needed to reach 100% parity with closure-compiler on the
+  extracted corpus.
 
 ## Usage
 
