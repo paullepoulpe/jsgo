@@ -1,32 +1,50 @@
 // Port of com/google/javascript/rhino/JSDocInfo.java @ closure-compiler v20260415
 //
 // The Java class is large; this port carries the annotations Tier-0 and
-// Tier-1 need: @type, @param, @return. Further tags are added as later
-// tiers require them.
+// Tier-1 need: @type, @param, @return. Extended in a later pass to include
+// @private/@protected/@public (visibility), @nosideeffects, @abstract,
+// @dict, and @struct.
 
 package rhino
 
+// Visibility mirrors JSDocInfo.Visibility in Java. The ordinal order matches
+// Java's enum order (PRIVATE=0, PACKAGE=1, PROTECTED=2, PUBLIC=3, INHERITED=4)
+// so that comparisons via < / > retain the Java semantics ("0 is most private").
+type Visibility int
+
+const (
+	VisibilityPrivate   Visibility = iota // PRIVATE
+	VisibilityPackage                     // PACKAGE (not yet parsed; reserved for completeness)
+	VisibilityProtected                   // PROTECTED
+	VisibilityPublic                      // PUBLIC
+	VisibilityInherited                   // INHERITED — default when no tag is present
+)
+
 type JSDocInfo struct {
-	typeExpr      *JSTypeExpression
-	paramNames    []string                     // insertion order (matches Java)
-	params        map[string]*JSTypeExpression // name → type
-	restParams    map[string]bool              // param names with `{...T}` rest marker
-	optionalParams map[string]bool             // param names with `{T=}` optional marker
-	returnExpr    *JSTypeExpression
-	isConstructor bool
-	isInterface   bool
-	isRecord      bool
-	isStatic      bool
-	isStruct      bool
-	isDict        bool
-	enumExpr      *JSTypeExpression // non-nil when @enum was present
-	enumMarked    bool              // true when @enum appeared (even with no type)
-	extendsExpr   *JSTypeExpression
-	extendsAll    []*JSTypeExpression // every @extends encountered (interfaces can list many)
-	implementsAll []*JSTypeExpression
-	typedefExpr   *JSTypeExpression
-	templateNames []string
-	suppressions  map[string]bool
+	typeExpr       *JSTypeExpression
+	paramNames     []string                     // insertion order (matches Java)
+	params         map[string]*JSTypeExpression // name → type
+	restParams     map[string]bool              // param names with `{...T}` rest marker
+	optionalParams map[string]bool              // param names with `{T=}` optional marker
+	returnExpr     *JSTypeExpression
+	isConstructor  bool
+	isInterface    bool
+	isRecord       bool
+	isStatic       bool
+	isStruct       bool
+	isDict         bool
+	isAbstract     bool
+	isNoSideEffects bool
+	visibility     Visibility // default VisibilityInherited
+	hasVisibility  bool       // true once any @private/@protected/@public was recorded
+	enumExpr       *JSTypeExpression // non-nil when @enum was present
+	enumMarked     bool              // true when @enum appeared (even with no type)
+	extendsExpr    *JSTypeExpression
+	extendsAll     []*JSTypeExpression // every @extends encountered (interfaces can list many)
+	implementsAll  []*JSTypeExpression
+	typedefExpr    *JSTypeExpression
+	templateNames  []string
+	suppressions   map[string]bool
 }
 
 // AddSuppression records a `@suppress {name}` entry. Mirrors
@@ -81,16 +99,52 @@ func (i *JSDocInfo) IsRecord() bool      { return i != nil && i.isRecord }
 func (i *JSDocInfo) SetInterface(b bool) { i.isInterface = b }
 func (i *JSDocInfo) SetRecord(b bool)    { i.isRecord = b }
 
-// IsStruct / IsDict mirror JSDocInfo.makesStructs() / makesDicts() —
-// annotations on a constructor that restrict property-access shape.
-// `@struct` forbids `x['prop']` computed access; `@dict` forbids
-// `x.prop` dotted access. Propagated onto the resulting InstanceType
-// by TypedScopeCreator so TypeCheck can emit
-// JSC_ILLEGAL_PROPERTY_ACCESS at receiver sites.
-func (i *JSDocInfo) IsStruct() bool   { return i != nil && i.isStruct }
-func (i *JSDocInfo) IsDict() bool     { return i != nil && i.isDict }
-func (i *JSDocInfo) SetStruct(b bool) { i.isStruct = b }
-func (i *JSDocInfo) SetDict(b bool)   { i.isDict = b }
+// MakesStructs / MakesDicts mirror JSDocInfo.makesStructs() /
+// makesDicts() — annotations on a constructor that restrict
+// property-access shape. `@struct` forbids `x['prop']` computed
+// access; `@dict` forbids `x.prop` dotted access. Propagated onto
+// the resulting InstanceType by TypedScopeCreator so TypeCheck can
+// emit JSC_ILLEGAL_PROPERTY_ACCESS at receiver sites.
+// IsStruct / IsDict are retained as local aliases for convenience.
+func (i *JSDocInfo) MakesStructs() bool { return i != nil && i.isStruct }
+func (i *JSDocInfo) MakesDicts() bool   { return i != nil && i.isDict }
+func (i *JSDocInfo) IsStruct() bool     { return i.MakesStructs() }
+func (i *JSDocInfo) IsDict() bool       { return i.MakesDicts() }
+func (i *JSDocInfo) SetStruct(b bool)   { i.isStruct = b }
+func (i *JSDocInfo) SetDict(b bool)     { i.isDict = b }
+
+// IsAbstract mirrors JSDocInfo.isAbstract() — true when the comment
+// carried an `@abstract` annotation.
+func (i *JSDocInfo) IsAbstract() bool   { return i != nil && i.isAbstract }
+func (i *JSDocInfo) SetAbstract(b bool) { i.isAbstract = b }
+
+// IsNoSideEffects mirrors JSDocInfo.isNoSideEffects() — true when
+// the comment carried a `@nosideeffects` annotation.
+func (i *JSDocInfo) IsNoSideEffects() bool   { return i != nil && i.isNoSideEffects }
+func (i *JSDocInfo) SetNoSideEffects(b bool) { i.isNoSideEffects = b }
+
+// GetVisibility mirrors JSDocInfo.getVisibility() — returns the
+// visibility specified by @private, @protected, or @public. Defaults
+// to VisibilityInherited when no visibility tag was present.
+func (i *JSDocInfo) GetVisibility() Visibility {
+	if i == nil || !i.hasVisibility {
+		return VisibilityInherited
+	}
+	return i.visibility
+}
+
+// RecordVisibility mirrors JSDocInfo.Builder.recordVisibility() —
+// sets the visibility and returns true. Returns false and does not
+// overwrite if visibility was already recorded (duplicates ignored,
+// matching Java's idempotency guard).
+func (i *JSDocInfo) RecordVisibility(v Visibility) bool {
+	if i.hasVisibility {
+		return false
+	}
+	i.visibility = v
+	i.hasVisibility = true
+	return true
+}
 
 // IsEnum mirrors JSDocInfo.hasEnumParameterType() — true whenever
 // the comment carried an `@enum` tag (with or without an explicit

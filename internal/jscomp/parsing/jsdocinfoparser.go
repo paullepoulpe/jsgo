@@ -2,13 +2,14 @@
 //
 // Scope: Tier-0 through Tier-3 tags only (@type, @param, @return,
 // @extends, @implements, @typedef, @template, @constructor, @interface,
-// @record). Tag dispatch + type-expression recursive descent mirror the
-// Java class exactly: parseAnnotation → parseTypeExpressionAnnotation
-// → parseTopLevelTypeExpression → parseTypeExpression →
-// parseBasicTypeExpression → parseTypeName / parseRecordType /
-// parseFunctionType. Type expressions are serialised back to text so
-// the existing TypedScope.ResolveExpr continues to work; the richer
-// TypeAST → JSType resolution lands in a later slice.
+// @record, @abstract, @struct, @dict, @private, @protected, @public,
+// @nosideeffects). Tag dispatch + type-expression recursive descent
+// mirror the Java class exactly: parseAnnotation →
+// parseTypeExpressionAnnotation → parseTopLevelTypeExpression →
+// parseTypeExpression → parseBasicTypeExpression → parseTypeName /
+// parseRecordType / parseFunctionType. Type expressions are serialised
+// back to text so the existing TypedScope.ResolveExpr continues to
+// work; the richer TypeAST → JSType resolution lands in a later slice.
 
 package parsing
 
@@ -102,6 +103,11 @@ func (p *JsDocInfoParser) parseAnnotation(_ JsDocToken) JsDocToken {
 		return p.parseTypedefTag()
 	case "template":
 		return p.parseTemplateTag()
+	case "abstract":
+		// Mirrors Java's ABSTRACT case: record the flag; no type argument.
+		p.info.SetAbstract(true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
 	case "constructor":
 		p.info.SetConstructor(true)
 		p.anyRecorded = true
@@ -120,6 +126,26 @@ func (p *JsDocInfoParser) parseAnnotation(_ JsDocToken) JsDocToken {
 		return p.eatUntilEOLIfNotAnnotation()
 	case "dict":
 		p.info.SetDict(true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "private":
+		// Mirrors Java's PRIVATE case: record visibility; optional type
+		// argument on the same tag is ignored at this layer (parse-and-store
+		// only — no inline-type side-channel needed for Tier-0..3).
+		p.info.RecordVisibility(rhino.VisibilityPrivate)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "protected":
+		p.info.RecordVisibility(rhino.VisibilityProtected)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "public":
+		p.info.RecordVisibility(rhino.VisibilityPublic)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "nosideeffects":
+		// Mirrors Java's NO_SIDE_EFFECTS case.
+		p.info.SetNoSideEffects(true)
 		p.anyRecorded = true
 		return p.eatUntilEOLIfNotAnnotation()
 	case "enum":
