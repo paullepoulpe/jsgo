@@ -559,6 +559,13 @@ func (b *cfgBuilder) visitTry(stmt *rhino.Node, n *CfgNode) *CfgNode {
 	var catchEntry *CfgNode
 	if catchClause != nil {
 		catchEntry = b.cfg.node(catchClause)
+		// Add an exception edge from the TRY node to the catch entry.
+		// Java's ControlFlowAnalysis adds implicit exception edges from
+		// every try-body statement to the catch entry (modelling the fact
+		// that any statement can throw). The Go CFG only models explicit
+		// THROW, so we wire TRY → catch here to ensure the catch clause
+		// is always marked reachable (matching Java's CFG structure).
+		b.cfg.addEdge(n, catchEntry, BranchException)
 	}
 	// Wire the body with the catch target pushed so THROWs route
 	// correctly. The body's fall-through leaves the try and goes to
