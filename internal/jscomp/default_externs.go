@@ -71,16 +71,62 @@ Object.create = function(proto, opt_props) {};
 Object.freeze = function(obj) {};
 Object.defineProperty = function(obj, prop, descriptor) {};
 Object.getPrototypeOf = function(obj) {};
+Object.setPrototypeOf = function(obj, proto) {};
+Object.getOwnPropertyNames = function(obj) {};
+Object.getOwnPropertyDescriptor = function(obj, prop) {};
+Object.getOwnPropertyDescriptors = function(obj) {};
+Object.getOwnPropertySymbols = function(obj) {};
+Object.defineProperties = function(obj, props) {};
+Object.is = function(a, b) {};
+Object.fromEntries = function(iterable) {};
+Object.isFrozen = function(obj) {};
+Object.isSealed = function(obj) {};
+Object.seal = function(obj) {};
 
 /** @constructor */ function Function(var_args) {}
 Function.prototype.call = function(thisArg, var_args) {};
 Function.prototype.apply = function(thisArg, opt_args) {};
 Function.prototype.bind = function(thisArg, var_args) {};
 
-// Array intentionally omitted here — jsgo's builtins() scope
-// ships an Array stub with length/push/pop/indexOf/slice/concat
-// populated so property-access checks find them.
-// Additional Array.prototype methods:
+/**
+ * @constructor
+ * @template T
+ * @param {...*} var_args
+ * @return {!Array<T>}
+ * @implements {IArrayLike<T>}
+ */
+function Array(var_args) {}
+/** @type {number} */ Array.prototype.length;
+/** @param {...T} var_args @return {number} */ Array.prototype.push = function(var_args) {};
+/** @return {T|undefined} */ Array.prototype.pop = function() {};
+/** @return {T|undefined} */ Array.prototype.shift = function() {};
+/** @param {...T} var_args @return {number} */ Array.prototype.unshift = function(var_args) {};
+/** @param {T} searchElement @param {number=} fromIndex @return {number} */ Array.prototype.indexOf = function(searchElement, fromIndex) {};
+/** @param {T} searchElement @param {number=} fromIndex @return {number} */ Array.prototype.lastIndexOf = function(searchElement, fromIndex) {};
+/** @param {number=} begin @param {number=} end @return {!Array<T>} */ Array.prototype.slice = function(begin, end) {};
+/** @param {number} start @param {number=} deleteCount @param {...T} var_args @return {!Array<T>} */ Array.prototype.splice = function(start, deleteCount, var_args) {};
+/** @param {...(!Array<T>|T)} var_args @return {!Array<T>} */ Array.prototype.concat = function(var_args) {};
+/** @param {string=} separator @return {string} */ Array.prototype.join = function(separator) {};
+/** @return {!Array<T>} */ Array.prototype.reverse = function() {};
+/** @param {function(T,T):number=} compareFn @return {!Array<T>} */ Array.prototype.sort = function(compareFn) {};
+/** @param {function(*): ?} callback @param {*=} thisArg @return {void} */ Array.prototype.forEach = function(callback, thisArg) {};
+/** @template U @param {function(*): U} callback @param {*=} thisArg @return {!Array<U>} */ Array.prototype.map = function(callback, thisArg) {};
+/** @param {function(*): boolean} callback @param {*=} thisArg @return {!Array<T>} */ Array.prototype.filter = function(callback, thisArg) {};
+/** @template U @param {function(U, T): U} callback @param {U=} initialValue @return {U} */ Array.prototype.reduce = function(callback, initialValue) {};
+/** @template U @param {function(U, T): U} callback @param {U=} initialValue @return {U} */ Array.prototype.reduceRight = function(callback, initialValue) {};
+/** @param {function(*): boolean} callback @param {*=} thisArg @return {boolean} */ Array.prototype.some = function(callback, thisArg) {};
+/** @param {function(*): boolean} callback @param {*=} thisArg @return {boolean} */ Array.prototype.every = function(callback, thisArg) {};
+/** @param {function(*): boolean} callback @param {*=} thisArg @return {T|undefined} */ Array.prototype.find = function(callback, thisArg) {};
+/** @param {function(*): boolean} callback @param {*=} thisArg @return {number} */ Array.prototype.findIndex = function(callback, thisArg) {};
+/** @param {T} value @param {number=} start @param {number=} end @return {!Array<T>} */ Array.prototype.fill = function(value, start, end) {};
+/** @param {T} searchElement @param {number=} fromIndex @return {boolean} */ Array.prototype.includes = function(searchElement, fromIndex) {};
+/** @param {number=} depth @return {!Array<*>} */ Array.prototype.flat = function(depth) {};
+/** @template U @param {function(T,number,!Array<T>):(U|!Array<U>)} callback @return {!Array<U>} */ Array.prototype.flatMap = function(callback) {};
+/** @return {string} */ Array.prototype.toString = function() {};
+/** @param {!IArrayLike<*>} arrayLike @return {!Array<*>} */ Array.from = function(arrayLike) {};
+/** @param {...*} var_args @return {!Array<*>} */ Array.of = function(var_args) {};
+/** @param {*} value @return {boolean} */ Array.isArray = function(value) {};
+
 /** @constructor @param {*=} arg @return {string} */ function String(arg) {}
 String.prototype.charAt = function(i) {};
 String.prototype.charCodeAt = function(i) {};
@@ -106,7 +152,14 @@ String.prototype.repeat = function(n) {};
 String.prototype.concat = function(var_args) {};
 String.prototype.toString = function() {};
 String.prototype.valueOf = function() {};
+String.prototype.at = function(i) {};
+String.prototype.replaceAll = function(search, replace) {};
+String.prototype.matchAll = function(regexp) {};
+String.prototype.codePointAt = function(i) {};
+String.prototype.normalize = function(opt_form) {};
 String.fromCharCode = function(var_args) {};
+String.fromCodePoint = function(var_args) {};
+String.raw = function(template, var_args) {};
 
 /** @constructor @param {*=} arg @return {number} */ function Number(arg) {}
 Number.prototype.toFixed = function(digits) {};
@@ -117,24 +170,79 @@ Number.isInteger = function(n) {};
 Number.isNaN = function(n) {};
 Number.parseFloat = function(s) {};
 Number.parseInt = function(s, opt_radix) {};
+/** @const {number} */ Number.MAX_VALUE;
+/** @const {number} */ Number.MIN_VALUE;
+/** @const {number} */ Number.MAX_SAFE_INTEGER;
+/** @const {number} */ Number.MIN_SAFE_INTEGER;
+/** @const {number} */ Number.POSITIVE_INFINITY;
+/** @const {number} */ Number.NEGATIVE_INFINITY;
+/** @const {number} */ Number.NaN;
+/** @const {number} */ Number.EPSILON;
+Number.isSafeInteger = function(n) {};
+Number.prototype.toPrecision = function(digits) {};
+Number.prototype.toExponential = function(digits) {};
 
 /** @constructor @param {*=} arg @return {boolean} */ function Boolean(arg) {}
 Boolean.prototype.toString = function() {};
 Boolean.prototype.valueOf = function() {};
 
 /** @constructor */ function Date(opt_year, opt_month, opt_day) {}
-Date.prototype.getTime = function() {};
-Date.prototype.getFullYear = function() {};
-Date.prototype.getMonth = function() {};
-Date.prototype.getDate = function() {};
-Date.prototype.toString = function() {};
-Date.now = function() {};
+/** @return {number} */ Date.prototype.getTime = function() {};
+/** @return {number} */ Date.prototype.getFullYear = function() {};
+/** @return {number} */ Date.prototype.getMonth = function() {};
+/** @return {number} */ Date.prototype.getDate = function() {};
+/** @return {number} */ Date.prototype.getDay = function() {};
+/** @return {number} */ Date.prototype.getHours = function() {};
+/** @return {number} */ Date.prototype.getMinutes = function() {};
+/** @return {number} */ Date.prototype.getSeconds = function() {};
+/** @return {number} */ Date.prototype.getMilliseconds = function() {};
+/** @return {number} */ Date.prototype.getTimezoneOffset = function() {};
+/** @return {number} */ Date.prototype.getUTCFullYear = function() {};
+/** @return {number} */ Date.prototype.getUTCMonth = function() {};
+/** @return {number} */ Date.prototype.getUTCDate = function() {};
+/** @return {number} */ Date.prototype.getUTCDay = function() {};
+/** @return {number} */ Date.prototype.getUTCHours = function() {};
+/** @return {number} */ Date.prototype.getUTCMinutes = function() {};
+/** @return {number} */ Date.prototype.getUTCSeconds = function() {};
+/** @return {number} */ Date.prototype.getUTCMilliseconds = function() {};
+/** @param {number} value @return {number} */ Date.prototype.setTime = function(value) {};
+/** @param {number} year @param {number=} month @return {number} */ Date.prototype.setFullYear = function(year, month) {};
+/** @param {number} month @return {number} */ Date.prototype.setMonth = function(month) {};
+/** @param {number} date @return {number} */ Date.prototype.setDate = function(date) {};
+/** @param {number} hours @return {number} */ Date.prototype.setHours = function(hours) {};
+/** @param {number} minutes @return {number} */ Date.prototype.setMinutes = function(minutes) {};
+/** @param {number} seconds @return {number} */ Date.prototype.setSeconds = function(seconds) {};
+/** @param {number} ms @return {number} */ Date.prototype.setMilliseconds = function(ms) {};
+/** @return {string} */ Date.prototype.toString = function() {};
+/** @return {string} */ Date.prototype.toISOString = function() {};
+/** @return {string} */ Date.prototype.toDateString = function() {};
+/** @return {string} */ Date.prototype.toTimeString = function() {};
+/** @return {string} */ Date.prototype.toLocaleDateString = function() {};
+/** @return {string} */ Date.prototype.toLocaleTimeString = function() {};
+/** @return {string} */ Date.prototype.toLocaleString = function() {};
+/** @return {string} */ Date.prototype.toUTCString = function() {};
+/** @return {number} */ Date.prototype.valueOf = function() {};
+/** @return {number} */ Date.now = function() {};
+/** @param {string} dateString @return {number} */ Date.parse = function(dateString) {};
 
 /** @constructor */ function RegExp(pattern, opt_flags) {}
-RegExp.prototype.test = function(s) {};
-RegExp.prototype.exec = function(s) {};
+/** @type {string} */ RegExp.prototype.source;
+/** @type {string} */ RegExp.prototype.flags;
+/** @type {boolean} */ RegExp.prototype.global;
+/** @type {boolean} */ RegExp.prototype.ignoreCase;
+/** @type {boolean} */ RegExp.prototype.multiline;
+/** @type {boolean} */ RegExp.prototype.sticky;
+/** @type {boolean} */ RegExp.prototype.unicode;
+/** @type {number} */ RegExp.prototype.lastIndex;
+/** @param {string} s @return {boolean} */ RegExp.prototype.test = function(s) {};
+/** @param {string} s @return {Array<string>} */ RegExp.prototype.exec = function(s) {};
+/** @return {string} */ RegExp.prototype.toString = function() {};
 
 /** @constructor */ function Error(opt_msg) {}
+/** @type {string} */ Error.prototype.message;
+/** @type {string} */ Error.prototype.stack;
+/** @type {string} */ Error.prototype.name;
+/** @return {string} */ Error.prototype.toString = function() {};
 /** @constructor @extends {Error} */ function TypeError(opt_msg) {}
 /** @constructor @extends {Error} */ function RangeError(opt_msg) {}
 /** @constructor @extends {Error} */ function SyntaxError(opt_msg) {}
@@ -270,19 +378,79 @@ function WeakSet(opt_iter) {}
 Symbol.for = function(key) {};
 Symbol.keyFor = function(sym) {};
 /** @constructor */ function ArrayBuffer(opt_len) {}
+/** @type {number} */ ArrayBuffer.prototype.byteLength;
+/** @param {number=} begin @param {number=} end @return {!ArrayBuffer} */ ArrayBuffer.prototype.slice = function(begin, end) {};
+/** @param {*} arg @return {boolean} */ ArrayBuffer.isView = function(arg) {};
+
 /** @constructor */ function DataView(buf, opt_off, opt_len) {}
+/** @type {!ArrayBuffer} */ DataView.prototype.buffer;
+/** @type {number} */ DataView.prototype.byteLength;
+/** @type {number} */ DataView.prototype.byteOffset;
+
 /** @constructor */ function Int8Array(v) {}
+/** @type {number} */ Int8Array.prototype.length;
+/** @type {!ArrayBuffer} */ Int8Array.prototype.buffer;
+/** @type {number} */ Int8Array.prototype.byteOffset;
+/** @type {number} */ Int8Array.prototype.byteLength;
+/** @const {number} */ Int8Array.BYTES_PER_ELEMENT;
+/** @param {number=} begin @param {number=} end @return {!Int8Array} */ Int8Array.prototype.slice = function(begin, end) {};
+/** @param {function(number,number,!Int8Array):void} cb @return {void} */ Int8Array.prototype.forEach = function(cb) {};
+
 /** @constructor */ function Uint8Array(v) {}
+/** @type {number} */ Uint8Array.prototype.length;
+/** @type {!ArrayBuffer} */ Uint8Array.prototype.buffer;
+/** @type {number} */ Uint8Array.prototype.byteOffset;
+/** @type {number} */ Uint8Array.prototype.byteLength;
+/** @const {number} */ Uint8Array.BYTES_PER_ELEMENT;
+/** @param {number=} begin @param {number=} end @return {!Uint8Array} */ Uint8Array.prototype.slice = function(begin, end) {};
+/** @param {function(number,number,!Uint8Array):void} cb @return {void} */ Uint8Array.prototype.forEach = function(cb) {};
+
 /** @constructor */ function Uint8ClampedArray(v) {}
+/** @type {number} */ Uint8ClampedArray.prototype.length;
+/** @type {!ArrayBuffer} */ Uint8ClampedArray.prototype.buffer;
+
 /** @constructor */ function Int16Array(v) {}
+/** @type {number} */ Int16Array.prototype.length;
+/** @type {!ArrayBuffer} */ Int16Array.prototype.buffer;
+/** @const {number} */ Int16Array.BYTES_PER_ELEMENT;
+
 /** @constructor */ function Uint16Array(v) {}
+/** @type {number} */ Uint16Array.prototype.length;
+/** @type {!ArrayBuffer} */ Uint16Array.prototype.buffer;
+/** @const {number} */ Uint16Array.BYTES_PER_ELEMENT;
+
 /** @constructor */ function Int32Array(v) {}
+/** @type {number} */ Int32Array.prototype.length;
+/** @type {!ArrayBuffer} */ Int32Array.prototype.buffer;
+/** @const {number} */ Int32Array.BYTES_PER_ELEMENT;
+
 /** @constructor */ function Uint32Array(v) {}
+/** @type {number} */ Uint32Array.prototype.length;
+/** @type {!ArrayBuffer} */ Uint32Array.prototype.buffer;
+/** @const {number} */ Uint32Array.BYTES_PER_ELEMENT;
+
 /** @constructor */ function Float32Array(v) {}
+/** @type {number} */ Float32Array.prototype.length;
+/** @type {!ArrayBuffer} */ Float32Array.prototype.buffer;
+/** @const {number} */ Float32Array.BYTES_PER_ELEMENT;
+/** @param {number=} begin @param {number=} end @return {!Float32Array} */ Float32Array.prototype.slice = function(begin, end) {};
+/** @param {function(number,number,!Float32Array):void} cb @return {void} */ Float32Array.prototype.forEach = function(cb) {};
+
 /** @constructor */ function Float64Array(v) {}
+/** @type {number} */ Float64Array.prototype.length;
+/** @type {!ArrayBuffer} */ Float64Array.prototype.buffer;
+/** @const {number} */ Float64Array.BYTES_PER_ELEMENT;
+/** @param {number=} begin @param {number=} end @return {!Float64Array} */ Float64Array.prototype.slice = function(begin, end) {};
+/** @param {function(number,number,!Float64Array):void} cb @return {void} */ Float64Array.prototype.forEach = function(cb) {};
+
 /** @constructor */ function BigInt(opt_v) {}
 /** @constructor */ function BigInt64Array(v) {}
+/** @type {number} */ BigInt64Array.prototype.length;
+/** @type {!ArrayBuffer} */ BigInt64Array.prototype.buffer;
+
 /** @constructor */ function BigUint64Array(v) {}
+/** @type {number} */ BigUint64Array.prototype.length;
+/** @type {!ArrayBuffer} */ BigUint64Array.prototype.buffer;
 
 // ---- Closure-library-shaped names used by the corpus ---------- //
 
@@ -297,7 +465,51 @@ var Thenable;
 
 // ---- Math / JSON stubs ---------------------------------------- //
 
-/** @const */ var Math;
+/** @const @type {{
+  E: number,
+  LN10: number,
+  LN2: number,
+  LOG2E: number,
+  LOG10E: number,
+  PI: number,
+  SQRT1_2: number,
+  SQRT2: number,
+  abs: function(number): number,
+  ceil: function(number): number,
+  floor: function(number): number,
+  round: function(number): number,
+  trunc: function(number): number,
+  sign: function(number): number,
+  sqrt: function(number): number,
+  cbrt: function(number): number,
+  pow: function(number, number): number,
+  exp: function(number): number,
+  expm1: function(number): number,
+  log: function(number): number,
+  log2: function(number): number,
+  log10: function(number): number,
+  log1p: function(number): number,
+  sin: function(number): number,
+  cos: function(number): number,
+  tan: function(number): number,
+  asin: function(number): number,
+  acos: function(number): number,
+  atan: function(number): number,
+  atan2: function(number, number): number,
+  sinh: function(number): number,
+  cosh: function(number): number,
+  tanh: function(number): number,
+  asinh: function(number): number,
+  acosh: function(number): number,
+  atanh: function(number): number,
+  hypot: function(...number): number,
+  max: function(...number): number,
+  min: function(...number): number,
+  random: function(): number,
+  clz32: function(number): number,
+  imul: function(number, number): number,
+  fround: function(number): number
+}} */ var Math;
 
 /** @const */ var JSON;
 JSON.parse = function(text, opt_reviver) {};
