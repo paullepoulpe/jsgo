@@ -29,6 +29,10 @@ const (
 	PropAddedBlock
 	PropDeclaredConstantVar // set by InferConsts for @const / const-keyword vars
 	PropInferredConstantVar // set by InferConsts for single-assignment vars
+	// PropQuotedStringKey mirrors Java's Node.isQuotedStringKey() — set by
+	// the parser on STRING_KEY nodes whose source key was a string literal
+	// (e.g. `{"x": 1}`) rather than a bare identifier (e.g. `{x: 1}`).
+	PropQuotedStringKey
 )
 
 type Node struct {
@@ -223,6 +227,14 @@ func (n *Node) IsStringLit() bool { return n.token == STRINGLIT }
 // IsStringKey mirrors Java's Node.isStringKey() — true for STRING_KEY
 // token (used in record-type ASTs).
 func (n *Node) IsStringKey() bool { return n.token == STRING_KEY }
+
+// IsQuotedStringKey mirrors Java's Node.isQuotedStringKey() — true when
+// a STRING_KEY node was parsed from a quoted string literal (e.g. {"x": 1})
+// rather than a bare identifier ({x: 1}). Set by the parser via
+// PutBooleanProp(PropQuotedStringKey, true).
+func (n *Node) IsQuotedStringKey() bool {
+	return n.token == STRING_KEY && n.GetBooleanProp(PropQuotedStringKey)
+}
 
 // IsBlock mirrors Java's Node.isBlock().
 func (n *Node) IsBlock() bool { return n.token == BLOCK }

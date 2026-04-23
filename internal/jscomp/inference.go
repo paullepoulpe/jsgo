@@ -801,9 +801,20 @@ func removeMember(t, target jstype.JSType) jstype.JSType {
 // entries of an OBJECTLIT node. Used so inline `{k: v, …}` values
 // have a usable inferred shape for property lookups, mirroring how
 // Java's TypeInference builds an anonymous PrototypeObjectType.
+// If the OBJECTLIT carries a JSDoc with @struct or @dict, the
+// corresponding flag is propagated so visitObjectLit can fire
+// JSC_ILLEGAL_OBJLIT_KEY.
 func (t *TypeInference) inferObjectLit(n *rhino.Node) jstype.JSType {
 	obj := jstype.NewObjectType("")
 	obj.IsStructural = true
+	if info := n.JSDocInfo(); info != nil {
+		if info.IsStruct() {
+			obj.IsStruct = true
+		}
+		if info.IsDict() {
+			obj.IsDict = true
+		}
+	}
 	for _, kv := range n.Children() {
 		if kv.Token() != rhino.STRING_KEY {
 			continue
