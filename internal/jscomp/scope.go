@@ -1044,6 +1044,7 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 			inner := child.FirstChild()
 			if inner != nil && inner.Token() == rhino.ASSIGN {
 				c.recordPrototypeAssign(inner, scope)
+				c.recordPrototypeObjectLitAssign(inner, scope)
 				c.recordNamespaceAssign(inner, scope)
 			}
 			// `Foo.prototype.bar;` stub-declaration — Java treats
@@ -1180,6 +1181,56 @@ func (c *TypedScopeCreator) recordPrototypeAssign(a *rhino.Node, scope *TypedSco
 		// a proto method also defines `X` on the Instance.
 		if len(params) >= 3 {
 			c.collectThisPropertiesIn(params[2], fn.Instance, scope)
+		}
+	}
+}
+
+// recordPrototypeObjectLitAssign handles the
+// `Foo.prototype = { bar: function(…) {…}, … }` form — a two-segment
+// GETPROP ASSIGN whose LHS is `Foo.prototype` and whose RHS is an
+// OBJECTLIT. Each STRING_KEY entry in the object literal that holds a
+// FUNCTION value is registered on Foo's InstanceType, mirroring how
+// Java's TypedScopeCreator registers anonymous-prototype declarations.
+// This is distinct from recordPrototypeAssign which handles the
+// three-segment `Foo.prototype.bar = …` form.
+func (c *TypedScopeCreator) recordPrototypeObjectLitAssign(a *rhino.Node, scope *TypedScope) {
+	kids := a.Children()
+	if len(kids) < 2 {
+		return
+	}
+	lhs, rhs := kids[0], kids[1]
+	if lhs.Token() != rhino.GETPROP {
+		return
+	}
+	if rhs.Token() != rhino.OBJECTLIT {
+		return
+	}
+	lhsKids := lhs.Children()
+	if len(lhsKids) < 2 {
+		return
+	}
+	if lhsKids[0].Token() != rhino.NAME || lhsKids[1].String_() != "prototype" {
+		return
+	}
+	ownerName := lhsKids[0].String_()
+	fn, ok := scope.declared[ownerName].(*jstype.FunctionType)
+	if !ok || fn.Instance == nil {
+		return
+	}
+	for _, entry := range rhs.Children() {
+		if entry.Token() != rhino.STRING_KEY {
+			continue
+		}
+		propName := entry.String_()
+		val := entry.FirstChild()
+		if val == nil {
+			continue
+		}
+		info := entry.JSDocInfo()
+		memberType := c.inferPrototypeValueType(info, val, scope)
+		fn.Instance.DefineProperty(propName, memberType)
+		if val.Token() == rhino.FUNCTION {
+			c.Functions[val] = c.buildMethodScope(val, fn.Instance, scope, nil)
 		}
 	}
 }
