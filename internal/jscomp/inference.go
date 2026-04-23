@@ -191,22 +191,6 @@ func (t *TypeInference) InferType(n *rhino.Node) jstype.JSType {
 	// ---- function expression -------------------------------------- //
 	case rhino.FUNCTION:
 		return t.inferFunctionExpr(n)
-
-	// ---- cast expression ----------------------------------------- //
-	// `/** @type {T} */ (expr)` — the result type is the declared @type,
-	// not the inner expression's type. Mirrors Java's ensureTyped(n, castType).
-	case rhino.CAST:
-		if info := n.JSDocInfo(); info != nil && info.HasType() {
-			resolved := t.scope.ResolveExpr(info.Type().TypeName)
-			if resolved != nil && !isUnknownOrNil(resolved) {
-				return resolved
-			}
-		}
-		// Fallback: infer inner expression type.
-		if child := n.FirstChild(); child != nil {
-			return t.InferType(child)
-		}
-		return jstype.Unknown
 	}
 	return jstype.Unknown
 }
