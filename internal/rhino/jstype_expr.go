@@ -13,8 +13,6 @@ package rhino
 
 import (
 	"strings"
-
-	"github.com/paullepoulpe/jsgo/internal/rhino/jstype"
 )
 
 // implicitTemplateBoundSource is the synthetic source name used to mark
@@ -126,27 +124,17 @@ func (e *JSTypeExpression) IsVarArgs() bool {
 	return e.root != nil && e.root.token == ITER_REST
 }
 
-// TypeEvaluator is the minimal interface for evaluating a type expression
-// into a JSType. Implemented by *jstype.Registry via its ResolveExpr method,
-// and by any richer registry that supports createTypeFromCommentNode.
-//
-// This exists because the full JSTypeRegistry.createTypeFromCommentNode is
-// not yet ported; callers that already have a *jstype.Registry pass it
-// directly and receive the ResolveExpr-based result.
+// TypeEvaluator is the minimal interface for evaluating a type expression.
+// `ResolvedType` is left as `any` here to avoid an import cycle with the
+// jstype package (jstype.Property already imports rhino for Node refs).
+// Callers in the jscomp layer assert on *jstype.JSType at the use-site.
 type TypeEvaluator interface {
-	// ResolveExpr resolves a textual type expression (e.g. "number|string")
-	// to a JSType. Used by the current tier as the Evaluate back-end.
-	ResolveExpr(expr string) jstype.JSType
+	ResolveExpr(expr string) any
 }
 
 // Evaluate resolves this type expression into a JSType using the given
 // evaluator. Mirrors Java's JSTypeExpression.evaluate(scope, registry).
-//
-// When the expression has a Node-rooted AST, the TypeName text form is
-// used for resolution (which is the same text that the parser stored).
-// When the registry grows createTypeFromCommentNode this method will be
-// updated to pass root directly.
-func (e *JSTypeExpression) Evaluate(registry TypeEvaluator) jstype.JSType {
+func (e *JSTypeExpression) Evaluate(registry TypeEvaluator) any {
 	return registry.ResolveExpr(e.TypeName)
 }
 
