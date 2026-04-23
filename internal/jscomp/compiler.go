@@ -80,6 +80,7 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	all = append(all, NewCheckSuspiciousCode(path).Check(script)...)
 	all = append(all, NewCheckUnreachableCode(path).Check(script)...)
 	all = append(all, NewCheckSuper(path).Check(script)...)
+	all = append(all, NewCheckConformance(path).Check(script)...)
 	// CheckGlobalThis is skipped when VarCheck / VariableReferenceCheck
 	// already detected a JSC_VAR_MULTIPLY_DECLARED_ERROR. Java's compiler
 	// aborts the suspiciousCode phase (which hosts CheckGlobalThis) when
