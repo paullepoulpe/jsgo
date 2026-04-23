@@ -21,6 +21,10 @@ package jstype
 // function, mirroring Java's TemplateType reference semantics.
 type TemplateType struct {
 	Name string
+	// bound is the upper-bound constraint from `@template T extends Base`.
+	// nil means unbounded (equivalent to Unknown in Java).
+	// Mirrors TemplateType.bound in Java.
+	bound JSType
 }
 
 // NewTemplateType returns a fresh TemplateType carrying the named
@@ -30,6 +34,21 @@ type TemplateType struct {
 func NewTemplateType(name string) *TemplateType {
 	return &TemplateType{Name: name}
 }
+
+// NewBoundedTemplateType returns a fresh TemplateType with an upper-bound
+// constraint. Mirrors TemplateType(registry, name, bound) in Java.
+func NewBoundedTemplateType(name string, bound JSType) *TemplateType {
+	return &TemplateType{Name: name, bound: bound}
+}
+
+// GetBound returns the upper-bound constraint for this template parameter.
+// Returns Unknown when unbound.  Mirrors TemplateType.getBound() in Java.
+func (t *TemplateType) GetBound() JSType {
+	return t.getBound()
+}
+
+// SetBound updates the bound.  Mirrors TemplateType.setBound() in Java.
+func (t *TemplateType) SetBound(b JSType) { t.bound = b }
 
 func (t *TemplateType) TypeName() string { return t.Name }
 
