@@ -223,8 +223,3 @@ func (n *Node) SetInferredConstantVar(b bool) {
 	n.PutBooleanProp(PropInferredConstantVar, b)
 }
 
-// HasChildren mirrors Node.hasChildren() — true when the node has at
-// least one child. Used by InferConsts to detect initialised let bindings.
-func (n *Node) HasChildren() bool {
-	return len(n.children) > 0
-}
