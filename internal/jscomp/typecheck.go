@@ -570,6 +570,8 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitFunctionParams(n, scope))
 	case rhino.OBJECTLIT:
 		c.emit(c.visitObjectLit(n, scope))
+	case rhino.CAST:
+		c.emit(c.visitCast(n, scope))
 	}
 	// Strict-mode operand checks — OFF by default, matching Java.
 	// These fire only when `--jscomp_warning=strictCheckTypes` is set.
@@ -722,6 +724,13 @@ func (c *TypeCheck) visitVar(v *rhino.Node, scope *TypedScope) []diag.Diagnostic
 	if info := v.JSDocInfo(); info.IsEnum() {
 		return append(out, c.visitEnumInit(name, init, scope)...)
 	}
+	// CAST inits are validated by visitCast; skip the initializing-variable
+	// subtype check here to avoid double-reporting and flow-refinement FPs
+	// on redeclared variables (Java routes CAST through visitCast, not
+	// visitAssign / visitVar).
+	if init.Token() == rhino.CAST {
+		return out
+	}
 	declared := scope.GetDeclaredType(name.String_())
 	if declared == nil {
 		return out
@@ -749,6 +758,55 @@ func (c *TypeCheck) visitVar(v *rhino.Node, scope *TypedScope) []diag.Diagnostic
 	})
 }
 
+
+// visitCast validates `/** @type {T} */(expr)` cast expressions.
+// Mirrors Java's TypeCheck.visitCast → TypeValidator.expectCanCast:
+// fires JSC_INVALID_CAST when the CanCastToVisitor rejects the pair.
+// Object literals are excluded (Java skips them too).
+func (c *TypeCheck) visitCast(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	expr := n.FirstChild()
+	if expr == nil || expr.Token() == rhino.OBJECTLIT {
+		return nil
+	}
+	info := n.JSDocInfo()
+	if info == nil || !info.HasType() {
+		return nil
+	}
+	castType := scope.ResolveExpr(info.Type().TypeName)
+	if castType == nil {
+		return nil
+	}
+	// When the annotation resolves to a constructor (e.g. `@type {Function}`
+	// or `@type {Object}` via externs), use the instance type for the cast
+	// check — annotations refer to the nominal instance type, not the
+	// constructor function itself. Mirrors Java's getJSType(CAST) which
+	// returns the instance type of a constructor-named @type annotation.
+	if fn, ok := castType.(*jstype.FunctionType); ok && fn.IsConstructor && fn.Instance != nil {
+		castType = fn.Instance
+	}
+	infer := NewTypeInference(scope)
+	exprType := infer.InferType(expr)
+	// Ditto for exprType: if inference returns a constructor FunctionType
+	// (e.g. when a NAME resolves to a bare constructor), use its instance.
+	if fn, ok := exprType.(*jstype.FunctionType); ok && fn.IsConstructor && fn.Instance != nil {
+		exprType = fn.Instance
+	}
+	// Use the full CanCastToVisitor logic (mirrors JSType.canCastTo).
+	v := &jstype.CanCastToVisitor{}
+	if jstype.VisitRelationship(v, exprType, castType).(bool) {
+		return nil
+	}
+	return []diag.Diagnostic{{
+		Path:  c.path,
+		Line:  n.Lineno(),
+		Col:   n.Charno(),
+		Code:  diag.JSC_INVALID_CAST,
+		Level: diag.Warning,
+		Message: fmt.Sprintf(
+			"invalid cast - must be a subtype or supertype\nfrom: %s\nto  : %s",
+			exprType.TypeName(), castType.TypeName()),
+	}}
+}
 
 // visitEnumInit validates a `/** @enum [{T}] */ var E = init`
 // declaration. Three cases mirror Java's EnumType initialisation:

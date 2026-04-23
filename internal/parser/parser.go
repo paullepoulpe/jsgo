@@ -1705,12 +1705,13 @@ func (p *Parser) tryPrimary() (*rhino.Node, bool) {
 	if p.scanner.AtEnd() {
 		return nil, false
 	}
-	// Consume a leading JSDoc before `{` (object literal), or before `(`
-	// when it carries: function annotations (@param / @return /
-	// @constructor), `@type` cast of an ARRAYLIT in a decl-init context,
-	// or `@lends {X}`. Otherwise restore the scanner so downstream parses
-	// don't see the JSDoc. Mirrors Java's CAST AST node + IRFactory's
-	// leading-JSDoc path.
+	// Leading JSDoc block comment handling. If followed by `{` (object
+	// literal), attach to the object literal. If followed by `(`, priority:
+	//   - @type {T} → wrap the parenthesised expression in a CAST node
+	//     (matches Java's CAST AST node production).
+	//   - @lends {X} → attach to inner OBJECTLIT.
+	//   - @param / @return / @constructor etc. → attach to inner FUNCTION.
+	// Otherwise restore the scanner so downstream parses don't see it.
 	var leadingJSDoc *rhino.JSDocInfo
 	if p.scanner.Peek() == '/' && p.scanner.PeekAt(1) == '*' && p.scanner.PeekAt(2) == '*' {
 		save := p.scanner.Save()
@@ -1723,6 +1724,21 @@ func (p *Parser) tryPrimary() (*rhino.Node, bool) {
 			case next == '{':
 				// /** @struct|@dict|@type ... */ { … } object literal.
 				leadingJSDoc = parsed
+			case next == '(' && parsed != nil && parsed.HasType():
+				// /** @type {T} */(expr) — cast expression. Wrap the inner
+				// parenthesised expression in a CAST node carrying the
+				// annotation. Mirrors Java's CAST AST node production.
+				castLine, castCol := p.scanner.Line(), p.scanner.Col()
+				inner, ok2 := p.tryParen()
+				if !ok2 {
+					p.scanner.Restore(save)
+					break
+				}
+				cast := rhino.New(rhino.CAST)
+				cast.SetPos(castLine, castCol)
+				cast.SetJSDocInfo(parsed)
+				cast.AddChildToBack(inner)
+				return cast, true
 			case next == '(' && parsed != nil && parsed.HasLendsName():
 				// /** @lends {Foo} */ ({...}) — attach to inner OBJECTLIT.
 				leadingJSDoc = parsed
@@ -1730,20 +1746,6 @@ func (p *Parser) tryPrimary() (*rhino.Node, bool) {
 				// /** @param ... */ (…) — function-annotation before a
 				// parenthesized arrow/function expression.
 				leadingJSDoc = parsed
-			case next == '(' && p.inDeclInit && parsed != nil && parsed.HasType():
-				// /** @type {T} */ ([...]) in a var/const/let initializer —
-				// type-cast of an array literal (readonly-array pattern).
-				// Java has a CAST AST node; Go simulates for this narrow case
-				// by hoisting the cast type to the declaration.
-				startLine, startCol := p.scanner.Line(), p.scanner.Col()
-				expr, ok := p.tryParen()
-				if ok && expr.Token() == rhino.ARRAYLIT {
-					p.pendingCastDoc = parsed
-					expr.SetPos(startLine, startCol)
-					return expr, true
-				}
-				// Not an array literal — restore so nothing downstream is perturbed.
-				p.scanner.Restore(save)
 			default:
 				p.scanner.Restore(save)
 			}

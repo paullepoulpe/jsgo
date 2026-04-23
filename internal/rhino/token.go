@@ -158,6 +158,11 @@ const (
 	// Mirrors Token.DYNAMIC_IMPORT in Java. The single child is the
 	// specifier expression (usually a STRINGLIT).
 	DYNAMIC_IMPORT
+	// CAST represents `/** @type {T} */(expr)`. The parser synthesises
+	// this node when a JSDoc block comment immediately precedes a
+	// parenthesised expression; it carries the @type annotation on its
+	// JSDocInfo and the inner expression as its sole child.
+	CAST
 )
 
 func (t Token) String() string {
@@ -370,6 +375,8 @@ func (t Token) String() string {
 		return "AWAIT"
 	case DYNAMIC_IMPORT:
 		return "DYNAMIC_IMPORT"
+	case CAST:
+		return "CAST"
 	}
 	return "ERROR"
 }
