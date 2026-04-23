@@ -13,6 +13,8 @@
 
 package jstype
 
+import "strings"
+
 // ResolutionKind mirrors NamedType.ResolutionKind in Java.
 // NONE means the referenced type is already known (no lookup needed).
 // TYPE_NAME means the name should be looked up in the registry.
@@ -221,13 +223,38 @@ func (n *NamedType) GetTemplateTypes() []JSType {
 	return n.templateTypes
 }
 
+// resolveViaClosureNamespace mirrors the resolveViaClosureNamespace branch
+// within NamedType.resolveInternal() in Java. Attempts to resolve a dotted
+// reference (e.g. "goog.module.Foo") through the closure-namespace registry.
+// Returns true when the lookup succeeds and the NamedType is now resolved.
+// Only called for TYPE_NAME resolution when the reference contains a dot.
+func (n *NamedType) resolveViaClosureNamespace(reg *Registry) bool {
+	if n.resolutionKind != ResolutionKindTypeName {
+		return false
+	}
+	if !strings.Contains(n.reference, ".") {
+		return false
+	}
+	t := reg.ResolveViaClosureNamespace(n.reference)
+	if t == nil {
+		return false
+	}
+	if n.restrictByNull {
+		// TODO(Tier-5): call t.restrictByNotNullOrUndefined().
+	}
+	n.referencedType = t
+	return true
+}
+
 // resolveViaRegistry mirrors NamedType.resolveViaRegistry().  Looks up
 // the reference name in the registry's type table.  Returns true when
 // the lookup succeeds and the NamedType is now resolved.
 //
-// The reporter parameter mirrors Java's ErrorReporter.  In the current
-// Go port the registry does not emit warnings during resolution; the
-// full warning path is a TODO (see handleUnresolvedType in Java).
+// When the lookup fails, handleUnresolvedType is called: forward-declared
+// names (goog.forwardDeclare) silently receive a NoResolvedType so they
+// are assignment-compatible everywhere, while truly unknown names stay
+// unresolved (Unknown) so callers can emit JSC_UNRECOGNIZED_TYPE_ERROR.
+// Mirrors NamedType.resolveViaRegistry / handleUnresolvedType in Java.
 func (n *NamedType) resolveViaRegistry(reg *Registry) bool {
 	if n.resolutionKind == ResolutionKindNone {
 		// Already has a referenced type; nothing to look up.
@@ -235,14 +262,17 @@ func (n *NamedType) resolveViaRegistry(reg *Registry) bool {
 	}
 	t := reg.lookupNamedType(n.reference)
 	if t == nil {
-		// TODO(Tier-5): call handleUnresolvedType / set NoResolvedType
-		// when forward-declared.  For now stay unresolved (Unknown).
+		// handleUnresolvedType: if forward-declared, store NoResolvedType
+		// so the name is silently accepted; otherwise leave unresolved.
+		// Mirrors NamedType.handleUnresolvedType in Java.
+		if reg.IsForwardDeclaredType(n.reference) {
+			n.referencedType = NewNoResolvedType(n.reference, n.templateTypes)
+			return true
+		}
 		return false
 	}
 	if n.restrictByNull {
 		// TODO(Tier-5): call t.restrictByNotNullOrUndefined() here.
-		// For now just store the resolved type as-is; the "!" operator
-		// semantics are only exercised by Tier-5+ tests.
 	}
 	n.referencedType = t
 	return true

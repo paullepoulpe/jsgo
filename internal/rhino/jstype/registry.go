@@ -6,10 +6,20 @@
 //
 // Additive: namedTypes map + pendingNamedTypes worklist added to support
 // NamedType.resolveViaRegistry and the createNamedType factory.
+// Additive: forwardDeclaredTypes + closureNamespaces added to support
+// resolveViaClosureNamespace / handleUnresolvedType (Tier-1 widening).
 
 package jstype
 
 import "strings"
+
+// closureNamespace mirrors JSTypeRegistry.ClosureNamespace in Java.
+// isLegacy is true for goog.provide / legacy goog.module namespaces;
+// exportedType holds the exported type for non-legacy modules.
+type closureNamespace struct {
+	isLegacy     bool
+	exportedType JSType // nil for legacy namespaces
+}
 
 // Registry mirrors JSTypeRegistry. Named-type registration and late-resolve
 // are additive; existing ResolveName / ResolveExpr are unchanged.
@@ -27,6 +37,18 @@ type Registry struct {
 	// resolver is the JSTypeResolver that shares this registry's lifecycle.
 	// Nil until JSTypeResolver.Create() wires it.
 	resolver *JSTypeResolver
+
+	// forwardDeclaredTypes is the set of names registered via
+	// goog.forwardDeclare. Mirrors JSTypeRegistry.forwardDeclaredTypes.
+	// When a NamedType fails resolution, this set determines whether to
+	// emit a warning (not found) or silently produce a NoResolvedType.
+	forwardDeclaredTypes map[string]bool
+
+	// closureNamespaces mirrors JSTypeRegistry.closureNamespaces.
+	// Keyed by module/provide name (e.g. "goog.module.Foo").
+	// Used by ResolveViaClosureNamespace to match dotted-type references
+	// against the longest registered namespace prefix.
+	closureNamespaces map[string]closureNamespace
 }
 
 func NewRegistry() *Registry { return &Registry{namedTypes: map[string]JSType{}} }
@@ -60,13 +82,17 @@ func (r *Registry) lookupNamedType(name string) JSType {
 	return r.namedTypes[name]
 }
 
-// enqueueOrResolve is called by NamedTypeBuilder.Build. If the
-// registry already knows the name, the NamedType is resolved
-// immediately; otherwise it is added to the worklist.
-// Mirrors the resolveIfClosed call in Java's NamedType constructor.
+// enqueueOrResolve is called by NamedTypeBuilder.Build. Tries
+// resolveViaClosureNamespace (for dotted names) and resolveViaRegistry
+// in sequence. If both fail, adds nt to the late-resolve worklist.
+// Mirrors the resolveIfClosed call in Java's NamedType constructor;
+// the two-dispatch order mirrors resolveInternal in NamedType.java.
 func (r *Registry) enqueueOrResolve(nt *NamedType) {
 	if nt.resolutionKind == ResolutionKindNone {
 		return // already has a referenced type; nothing to do
+	}
+	if nt.resolveViaClosureNamespace(r) {
+		return
 	}
 	if nt.resolveViaRegistry(r) {
 		return
@@ -128,6 +154,86 @@ func (r *Registry) RegisterPending(ref, sourceName string, lineno, charno int) {
 // GetResolver returns the JSTypeResolver associated with this registry, or nil
 // if none has been attached yet. Mirrors JSTypeRegistry.getResolver() in Java.
 func (r *Registry) GetResolver() *JSTypeResolver { return r.resolver }
+
+// IsForwardDeclaredType reports whether name was registered via
+// RegisterForwardDeclare. Mirrors JSTypeRegistry.isForwardDeclaredType.
+func (r *Registry) IsForwardDeclaredType(name string) bool {
+	return r.forwardDeclaredTypes[name]
+}
+
+// RegisterForwardDeclare records a name as forward-declared (goog.forwardDeclare).
+// Mirrors the forwardDeclaredTypes set populated by the compiler's
+// ProcessClosurePrimitives pass.
+func (r *Registry) RegisterForwardDeclare(name string) {
+	if r.forwardDeclaredTypes == nil {
+		r.forwardDeclaredTypes = map[string]bool{}
+	}
+	r.forwardDeclaredTypes[name] = true
+}
+
+// RegisterClosureNamespace records a non-legacy goog.module namespace with
+// its exported type. Mirrors JSTypeRegistry.registerNonLegacyClosureNamespace.
+func (r *Registry) RegisterClosureNamespace(moduleName string, exportedType JSType) {
+	if r.closureNamespaces == nil {
+		r.closureNamespaces = map[string]closureNamespace{}
+	}
+	r.closureNamespaces[moduleName] = closureNamespace{isLegacy: false, exportedType: exportedType}
+}
+
+// RegisterLegacyClosureNamespace records a goog.provide or legacy goog.module
+// namespace. Mirrors JSTypeRegistry.registerLegacyClosureNamespace.
+func (r *Registry) RegisterLegacyClosureNamespace(moduleName string) {
+	if r.closureNamespaces == nil {
+		r.closureNamespaces = map[string]closureNamespace{}
+	}
+	r.closureNamespaces[moduleName] = closureNamespace{isLegacy: true}
+}
+
+// ResolveViaClosureNamespace resolves a dotted type reference by finding
+// the longest registered closure-namespace prefix, then walking properties.
+// Returns nil when no namespace prefix matches or when the match is a
+// legacy namespace (which falls through to the normal registry / property path).
+// Mirrors JSTypeRegistry.resolveViaClosureNamespace in Java.
+func (r *Registry) ResolveViaClosureNamespace(reference string) JSType {
+	if r.closureNamespaces == nil {
+		return nil
+	}
+	prefix := reference
+	var suffixComponents []string
+	for {
+		if ns, ok := r.closureNamespaces[prefix]; ok {
+			if ns.isLegacy {
+				// Legacy (goog.provide / declareLegacyNamespace) falls
+				// through to the normal registry / property path.
+				return nil
+			}
+			// Non-legacy goog.module: always stop here. Walk properties
+			// on the exported type for any suffix components. Mirrors
+			// Java's resolveViaPropertyGivenSlot call.
+			if len(suffixComponents) == 0 {
+				return ns.exportedType
+			}
+			t := ns.exportedType
+			for i := len(suffixComponents) - 1; i >= 0; i-- {
+				if t == nil {
+					return nil
+				}
+				obj, ok := t.(*ObjectType)
+				if !ok {
+					return nil
+				}
+				t = obj.GetPropertyType(suffixComponents[i])
+			}
+			return t
+		}
+		dot := strings.LastIndexByte(prefix, '.')
+		if dot < 0 {
+			return nil
+		}
+		suffixComponents = append(suffixComponents, prefix[dot+1:])
+		prefix = prefix[:dot]
+	}
+}
 
 // ResolveName mirrors JSTypeRegistry.getType for primitive names. Returns
 // Unknown for names this scaffold doesn't recognise yet.
