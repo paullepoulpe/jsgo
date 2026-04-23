@@ -22,6 +22,8 @@ const (
 	PropStaticMember
 	PropIsConstantName
 	PropArrowFn
+	PropDeclaredConstantVar // set by InferConsts for @const / const-keyword vars
+	PropInferredConstantVar // set by InferConsts for single-assignment vars
 )
 
 type Node struct {
@@ -177,4 +179,32 @@ func (n *Node) PutBooleanProp(p Prop, b bool) {
 		n.props = map[Prop]any{}
 	}
 	n.props[p] = true
+}
+
+// IsDeclaredConstantVar ports Node.isDeclaredConstantVar(). Returns true
+// when the name node was annotated @const or declared with the const keyword.
+func (n *Node) IsDeclaredConstantVar() bool {
+	return n.GetBooleanProp(PropDeclaredConstantVar)
+}
+
+// SetDeclaredConstantVar ports Node.setDeclaredConstantVar(boolean).
+func (n *Node) SetDeclaredConstantVar(b bool) {
+	n.PutBooleanProp(PropDeclaredConstantVar, b)
+}
+
+// IsInferredConstantVar ports Node.isInferredConstantVar(). Returns true
+// when InferConsts determined the variable is assigned exactly once.
+func (n *Node) IsInferredConstantVar() bool {
+	return n.GetBooleanProp(PropInferredConstantVar)
+}
+
+// SetInferredConstantVar ports Node.setInferredConstantVar(boolean).
+func (n *Node) SetInferredConstantVar(b bool) {
+	n.PutBooleanProp(PropInferredConstantVar, b)
+}
+
+// HasChildren mirrors Node.hasChildren() — true when the node has at
+// least one child. Used by InferConsts to detect initialised let bindings.
+func (n *Node) HasChildren() bool {
+	return len(n.children) > 0
 }

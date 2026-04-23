@@ -126,6 +126,10 @@ func (p *JsDocInfoParser) parseAnnotation(_ JsDocToken) JsDocToken {
 		return p.parseEnumTag()
 	case "suppress":
 		return p.parseSuppressTag()
+	case "const":
+		p.info.SetConst(true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
 	}
 	return p.eatUntilEOLIfNotAnnotation()
 }
