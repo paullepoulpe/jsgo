@@ -85,23 +85,9 @@ func (k SymbolKey) SymbolVal() *KnownSymbolType { return k.sym }
 func (k SymbolKey) HumanReadableName() string { return k.sym.GetDisplayName() }
 func (k SymbolKey) Matches(string) bool      { return false }
 
-// KnownSymbolType mirrors KnownSymbolType.java — a concrete well-known
-// JavaScript symbol (e.g. Symbol.iterator). Stored as property keys in
-// PropertyMap.
-//
-// TODO(later-tier): make KnownSymbolType a full JSType subtype once the
-// symbol type hierarchy is needed by type-checking passes.
-type KnownSymbolType struct {
-	name string
-}
-
-// NewKnownSymbolType mirrors new KnownSymbolType(registry, name).
-func NewKnownSymbolType(name string) *KnownSymbolType {
-	return &KnownSymbolType{name: name}
-}
-
-// GetDisplayName mirrors KnownSymbolType.getDisplayName().
-func (s *KnownSymbolType) GetDisplayName() string { return s.name }
+// KnownSymbolType is defined in known_symbol_type.go (full 1:1 port of
+// com/google/javascript/rhino/jstype/KnownSymbolType.java). Property uses
+// the same type as the property-key identity for symbol-keyed properties.
 
 // OwnedProperty mirrors Property.OwnedProperty — a property paired with
 // the ObjectType that directly owns it (as opposed to inheriting it).

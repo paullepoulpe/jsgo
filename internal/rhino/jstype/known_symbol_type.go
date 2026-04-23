@@ -33,6 +33,10 @@ func NewKnownSymbolType(name string) *KnownSymbolType {
 // name supplied at construction (e.g. "Symbol.iterator").
 func (k *KnownSymbolType) TypeName() string { return k.Name }
 
+// GetDisplayName mirrors KnownSymbolType.getDisplayName() — alias used by
+// PropertyMap / Property for symbol-keyed entries.
+func (k *KnownSymbolType) GetDisplayName() string { return k.Name }
+
 // IsSubtypeOf mirrors Java JSType.isSubtypeOf for KnownSymbolType. A
 // KnownSymbolType is a subtype of:
 //   - the general SymbolType (any SymbolType value, including another
