@@ -269,6 +269,32 @@ func (p *Property) GetScope() {
 	panic("jstype.Property.GetScope: unsupported operation")
 }
 
+// GetVisibility returns the access-control visibility recorded in the
+// property's JSDoc (@private / @protected / @public). Delegates to
+// JSDocInfo.GetVisibility(); returns VisibilityInherited (the default)
+// when no visibility tag was present or when docInfo is nil.
+// Mirrors the visibility lookup used by CheckAccessControls in Java.
+func (p *Property) GetVisibility() rhino.Visibility {
+	return p.docInfo.GetVisibility()
+}
+
+// IsDeprecated reports whether the property carries a @deprecated annotation.
+// Delegates to JSDocInfo.IsDeprecated(). Returns false when docInfo is nil.
+// Mirrors the deprecation check used by CheckAccessControls in Java.
+func (p *Property) IsDeprecated() bool {
+	return p.docInfo.IsDeprecated()
+}
+
+// GetDeprecationReason returns the optional @deprecated reason string, or ""
+// when none was supplied. Delegates to JSDocInfo.GetDeprecationReason().
+// Mirrors Property-level deprecation retrieval in Java's CheckAccessControls.
+func (p *Property) GetDeprecationReason() string {
+	if p.docInfo == nil {
+		return ""
+	}
+	return p.docInfo.GetDeprecationReason()
+}
+
 // HashCode mirrors Property.hashCode(). Uses name + type identity.
 func (p *Property) HashCode() int {
 	// Simple hash combining name string and type pointer.

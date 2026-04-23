@@ -104,6 +104,22 @@ func ToMaybeEnumType(t JSType) *EnumType {
 	return e
 }
 
+// IsRecordType mirrors JSType.isRecordType() — returns true when t is a
+// *RecordType (the Go equivalent of Java's RecordType subclass). Plain
+// ObjectType instances with IsStructural=true are @record/@interface shapes
+// but are not RecordType in Java's sense; only actual *RecordType values
+// return true here.
+func IsRecordType(t JSType) bool {
+	if t == nil {
+		return false
+	}
+	type recordTyper interface{ IsRecordType() bool }
+	if rt, ok := t.(recordTyper); ok {
+		return rt.IsRecordType()
+	}
+	return false
+}
+
 // Dereference mirrors JSType.dereference() — returns the ObjectType when
 // t is an *ObjectType or *FunctionType (which is also an object in the
 // Java hierarchy). Returns nil for primitives, null, undefined, and
