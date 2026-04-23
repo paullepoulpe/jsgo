@@ -9,12 +9,8 @@
 // a variable retains its original value (used by inlining passes).
 //
 // LocalVarMotion depends on AbstractCompiler.GetAstAnalyzer() and
-// AstAnalyzer.MayHaveSideEffects / NodeTypeMayHaveSideEffects,
-// which are not yet ported to non-skeleton code; minimal interfaces
-// are declared here so the struct compiles today. Bodies of the
-// two analyzer calls are stubbed with a safe conservative fallback
-// (always false / always true respectively) matching AstAnalyzer
-// skeleton behaviour. TODO: wire up the real AstAnalyzer once ported.
+// AstAnalyzer.MayHaveSideEffects / NodeTypeMayHaveSideEffects.
+// The astAnalyzer interface is implemented by AstAnalyzer in ast_analyzer.go.
 
 package jscomp
 
