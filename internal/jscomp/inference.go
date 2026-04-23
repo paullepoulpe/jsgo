@@ -309,7 +309,7 @@ func (t *TypeInference) inferCall(n *rhino.Node) jstype.JSType {
 		return fn.Return
 	}
 	// Build TemplateType → arg type map by walking the param slots.
-	subs := jstype.NewTemplateTypeMap()
+	subs := jstype.NewCallSiteMap()
 	args := n.Children()[1:]
 	for i := 0; i < len(fn.Params) && i < len(args); i++ {
 		argType := t.InferType(args[i])
@@ -322,7 +322,7 @@ func (t *TypeInference) inferCall(n *rhino.Node) jstype.JSType {
 // TemplateType position on the "param" side with the concrete "arg"
 // side and binding the substitution. Straight port of the structural
 // recursion in Java's TemplateTypeReplacer#replace.
-func unifyTemplates(subs *jstype.TemplateTypeMap, param, arg jstype.JSType) {
+func unifyTemplates(subs *jstype.CallSiteMap, param, arg jstype.JSType) {
 	if param == nil || arg == nil {
 		return
 	}

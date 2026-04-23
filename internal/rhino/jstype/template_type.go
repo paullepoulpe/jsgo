@@ -1,5 +1,4 @@
-// Port of com/google/javascript/rhino/jstype/TemplateType.java +
-// com/google/javascript/rhino/jstype/TemplateTypeMap.java
+// Port of com/google/javascript/rhino/jstype/TemplateType.java
 // @ closure-compiler v20260415 (narrow; no bounds, no late-binding).
 //
 // The Java TemplateType carries a bound (like Java generics'
@@ -9,6 +8,10 @@
 // thread arg types through @param {T} → @return {T}. Bounds,
 // `@template T extends Base` syntax, and the implicit-template
 // handling live in the Tier-4+ slice (see TODO.md P0-4).
+//
+// The full Java-faithful TemplateTypeMap is in template_type_map.go;
+// this file retains CallSiteMap, the narrow call-site substitution
+// struct used by TypeInference.
 
 package jstype
 
@@ -36,22 +39,23 @@ func (t *TemplateType) TypeName() string { return t.Name }
 // JSType (not the TemplateType) participates in the subtype check.
 func (t *TemplateType) IsSubtypeOf(o JSType) bool { return true }
 
-// TemplateTypeMap is the substitution `TemplateType → JSType` built
-// at a CALL site. Port of the flat portion of
-// rhino/jstype/TemplateTypeMap.java.
-type TemplateTypeMap struct {
+// CallSiteMap is the substitution `TemplateType → JSType` built
+// at a CALL site. Narrow port of the call-site unification portion
+// of rhino/jstype/TemplateTypeMap.java; used by TypeInference.
+// The full Java-faithful TemplateTypeMap is in template_type_map.go.
+type CallSiteMap struct {
 	subs map[*TemplateType]JSType
 }
 
-func NewTemplateTypeMap() *TemplateTypeMap {
-	return &TemplateTypeMap{subs: map[*TemplateType]JSType{}}
+func NewCallSiteMap() *CallSiteMap {
+	return &CallSiteMap{subs: map[*TemplateType]JSType{}}
 }
 
 // Bind records tmpl → t. If a prior binding exists and the new type
 // differs, the two are unioned — matches Java's "pick the join" rule
 // when the same template parameter is filled from multiple argument
 // positions.
-func (m *TemplateTypeMap) Bind(tmpl *TemplateType, t JSType) {
+func (m *CallSiteMap) Bind(tmpl *TemplateType, t JSType) {
 	if tmpl == nil || t == nil {
 		return
 	}
@@ -67,7 +71,7 @@ func (m *TemplateTypeMap) Bind(tmpl *TemplateType, t JSType) {
 
 // Lookup returns the substitution for tmpl (or nil if the template is
 // unresolved, e.g. because no argument positions mention it).
-func (m *TemplateTypeMap) Lookup(tmpl *TemplateType) JSType {
+func (m *CallSiteMap) Lookup(tmpl *TemplateType) JSType {
 	if m == nil {
 		return nil
 	}
@@ -79,7 +83,7 @@ func (m *TemplateTypeMap) Lookup(tmpl *TemplateType) JSType {
 // are handled structurally. Unmapped template vars stay as
 // TemplateType so a downstream caller can still decide how to
 // degrade them (our convention is to treat them as Unknown).
-func (m *TemplateTypeMap) Substitute(t JSType) JSType {
+func (m *CallSiteMap) Substitute(t JSType) JSType {
 	if m == nil || t == nil {
 		return t
 	}
