@@ -270,6 +270,19 @@ func (o *ObjectType) SetSuper(s *ObjectType) { o.super = s }
 // SetSuper) or nil at the root of the chain.
 func (o *ObjectType) Super() *ObjectType { return o.super }
 
+// SuperHasProperty reports whether the property `name` is declared
+// anywhere in the superclass chain (excluding the receiver itself).
+// Used by arity checks to detect @override methods: when the super
+// chain also declares the property, the overriding function's arity
+// may differ from the parent's and we cannot safely fire a
+// call-site arity diagnostic without override-aware inference.
+func (o *ObjectType) SuperHasProperty(name string) bool {
+	if o.super == nil {
+		return false
+	}
+	return o.super.GetPropertyType(name) != nil
+}
+
 // containsVoid reports whether `t` is (or is a union containing)
 // the Void primitive. Used by the structural-subtype check to
 // treat record-type properties with `{…: (T|undefined)}` as
