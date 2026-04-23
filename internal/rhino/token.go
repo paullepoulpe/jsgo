@@ -163,6 +163,25 @@ const (
 	// parenthesised expression; it carries the @type annotation on its
 	// JSDocInfo and the inner expression as its sole child.
 	CAST
+
+	// AST-only tokens — not emitted by the scanner; used in IR/CFG passes
+	// and module-graph plumbing. Mirror Token.java entries of the same name.
+	PLACEHOLDER1 // reserved IR placeholder (slot 1)
+	PLACEHOLDER2 // reserved IR placeholder (slot 2)
+	ROOT         // synthetic root wrapping externsRoot + jsRoot
+	INPUT_ID     // synthetic node carrying a CompilerInput id
+	IMPORT_STAR  // `* as name` namespace import
+	MODULE_BODY  // body of an ES module
+	IMPORT_META  // `import.meta` meta-property
+	ES6_SUPER    // `super` in ES6 class context (distinct from SUPER in some passes)
+
+	// TS-only tokens — TypeScript constructs that have no JS equivalent.
+	// Declared here so passes that inspect TS ASTs can reference them by
+	// name; they are never emitted by the JS scanner.
+	INTERFACE          // `interface Foo { … }`
+	IMPLEMENTS_MEMBERS // implements-clause member list on a class
+	DECLARE            // `declare` modifier (ambient declaration)
+	TYPE_ALIAS         // `type Foo = Bar`
 )
 
 func (t Token) String() string {
@@ -377,6 +396,30 @@ func (t Token) String() string {
 		return "DYNAMIC_IMPORT"
 	case CAST:
 		return "CAST"
+	case PLACEHOLDER1:
+		return "PLACEHOLDER1"
+	case PLACEHOLDER2:
+		return "PLACEHOLDER2"
+	case ROOT:
+		return "ROOT"
+	case INPUT_ID:
+		return "INPUT_ID"
+	case IMPORT_STAR:
+		return "IMPORT_STAR"
+	case MODULE_BODY:
+		return "MODULE_BODY"
+	case IMPORT_META:
+		return "IMPORT_META"
+	case ES6_SUPER:
+		return "ES6_SUPER"
+	case INTERFACE:
+		return "INTERFACE"
+	case IMPLEMENTS_MEMBERS:
+		return "IMPLEMENTS_MEMBERS"
+	case DECLARE:
+		return "DECLARE"
+	case TYPE_ALIAS:
+		return "TYPE_ALIAS"
 	}
 	return "ERROR"
 }
