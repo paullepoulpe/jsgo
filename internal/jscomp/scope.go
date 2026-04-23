@@ -302,6 +302,18 @@ func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 			}
 			return jstype.Unknown
 		}
+		// Function type expression: `function(T1, T2): R`. Mirrors how
+		// Closure JSDoc represents function types with parameter/return
+		// type annotations. Explicitly non-null functions don't get a
+		// null partner added. Resolves transitively so `function(!Object<!Object,number>)`
+		// produces a FunctionType whose param is a TemplatizedType.
+		if startsWith(p, "function(") {
+			if fn := s.resolveFunctionTypeExpr(p); fn != nil {
+				members = append(members, fn)
+				continue
+			}
+			return jstype.Unknown
+		}
 		// Generic brackets: `Array<string>` → TemplatizedType backed
 		// by Array's instance type, with `string` resolved as the
 		// type argument. Mirrors how JSTypeRegistry instantiates a
@@ -547,6 +559,77 @@ func (s *TypedScope) resolveObjectLiteralType(expr string) (*jstype.ObjectType, 
 		obj.DefineProperty(key, typ)
 	}
 	return obj, true
+}
+
+// resolveFunctionTypeExpr parses a Closure JSDoc `function(T1,T2): R`
+// type expression and returns the corresponding FunctionType, or nil
+// when the expression is malformed. Mirrors Java's JSTypeRegistry
+// handling of the `function(…)` nominal in JSDoc type resolution.
+//
+// Supported forms:
+//   - function()
+//   - function(T1, T2)
+//   - function(): R
+//   - function(T1, T2): R
+//   - function(this:C, T)   — `this:` annotation is discarded
+//   - function(new:C, T)    — `new:` annotation is discarded
+//   - function(...T)        — rest param resolved as its element type
+func (s *TypedScope) resolveFunctionTypeExpr(expr string) *jstype.FunctionType {
+	// Must start with "function("
+	if !startsWith(expr, "function(") {
+		return nil
+	}
+	// Find the closing paren of the param list.
+	// Scan from index 9 (after "function(") tracking depth.
+	depth := 1
+	end := -1
+	for i := 9; i < len(expr); i++ {
+		switch expr[i] {
+		case '(', '<', '{':
+			depth++
+		case ')', '>', '}':
+			depth--
+			if depth == 0 {
+				end = i
+			}
+		}
+		if end >= 0 {
+			break
+		}
+	}
+	if end < 0 {
+		return nil // unbalanced
+	}
+	// Parse parameter type list.
+	paramStr := trimSpace(expr[9:end])
+	var params []jstype.JSType
+	if paramStr != "" {
+		for _, a := range splitTopLevelComma(paramStr) {
+			a = trimSpace(a)
+			if a == "" {
+				continue
+			}
+			// Skip `this:C` and `new:C` modifiers — they're not positional.
+			if startsWith(a, "this:") || startsWith(a, "new:") {
+				continue
+			}
+			// Rest param `...T` — treat element type as the param type.
+			if startsWith(a, "...") {
+				a = trimSpace(a[3:])
+			}
+			params = append(params, s.ResolveExpr(a))
+		}
+	}
+	// Parse optional return type: `: R` after the closing paren.
+	var ret jstype.JSType = jstype.Unknown
+	after := trimSpace(expr[end+1:])
+	if startsWith(after, ":") {
+		retStr := trimSpace(after[1:])
+		if retStr != "" {
+			ret = s.ResolveExpr(retStr)
+		}
+	}
+	return jstype.NewFunctionType(params, ret)
 }
 
 func indexOfTopLevel(s string, b byte) int {

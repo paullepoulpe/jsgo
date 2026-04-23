@@ -17,6 +17,10 @@
 //   - "inconsistent return type" JSC_TYPE_MISMATCH on return statements
 //   - JSC_INEXISTENT_PROPERTY on structural receivers with closed
 //     property sets
+//   - JSC_NON_STRINGIFIABLE_OBJECT_KEY on @type/@return/@param/@typedef
+//     annotations whose Object<K,V> key K is not stringifiable
+//     (port of checkJsdocInfoContainsObjectWithBadKey /
+//     validateNonStringifiableKey / checkStringifiable)
 
 package jscomp
 
@@ -493,6 +497,10 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 			c.emit(c.visitRelativeComparison(n, scope))
 		}
 	}
+	// Java's TypeCheck fires checkJsdocInfoContainsObjectWithBadKey on
+	// every typeable node at the end of visit(). Mirrors the call at
+	// TypeCheck.java:969 (after ensureTyped).
+	c.emit(c.checkJsdocInfoContainsObjectWithBadKey(n, scope))
 }
 
 // pushEnclosingFlow looks up the CFG / FlowScope active for `n`'s
@@ -2118,4 +2126,214 @@ func isStringOperandOk(t jstype.JSType) bool {
 		return true
 	}
 	return t == jstype.String || t == jstype.Null || t == jstype.Void || t == jstype.All
+}
+
+// ---- JSC_NON_STRINGIFIABLE_OBJECT_KEY branch -------------------- //
+//
+// Port of TypeCheck.java checkJsdocInfoContainsObjectWithBadKey /
+// checkTypeContainsObjectWithBadKey / findObjectWithNonStringifiableKey /
+// isObjectTypeWithNonStringifiableKey / isReasonableObjectPropertyKey /
+// classHasToString (TypeCheck.java ~line 3175–3358).
+//
+// Java fires on every typeable node (TypeCheck.java:969). We mirror that
+// by calling checkJsdocInfoContainsObjectWithBadKey from Visit() after
+// all per-token dispatches.
+
+// checkJsdocInfoContainsObjectWithBadKey checks whether the JSDoc
+// attached to n contains any Object<K,V> annotation whose key K cannot
+// be stringified. Matches Java's same-named method; fires JSC_NON_STRINGIFIABLE_OBJECT_KEY
+// at n's position when a bad key is found. Checks @type, @return,
+// @typedef, and each @param type.
+func (c *TypeCheck) checkJsdocInfoContainsObjectWithBadKey(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	info := n.JSDocInfo()
+	if info == nil {
+		return nil
+	}
+	var out []diag.Diagnostic
+	out = append(out, c.checkTypeContainsObjectWithBadKey(n, scope, info.Type())...)
+	out = append(out, c.checkTypeContainsObjectWithBadKey(n, scope, info.ReturnType())...)
+	out = append(out, c.checkTypeContainsObjectWithBadKey(n, scope, info.TypedefType())...)
+	for _, name := range info.ParameterNames() {
+		out = append(out, c.checkTypeContainsObjectWithBadKey(n, scope, info.ParameterType(name))...)
+	}
+	return out
+}
+
+// checkTypeContainsObjectWithBadKey resolves a JSTypeExpression and, if
+// it contains an Object with a non-stringifiable key, reports at n.
+// Mirrors Java's checkTypeContainsObjectWithBadKey.
+func (c *TypeCheck) checkTypeContainsObjectWithBadKey(n *rhino.Node, scope *TypedScope, expr *rhino.JSTypeExpression) []diag.Diagnostic {
+	if expr == nil {
+		return nil
+	}
+	realType := scope.ResolveExpr(expr.TypeName)
+	if realType == nil || isUnknownOrNil(realType) {
+		return nil
+	}
+	visited := map[jstype.JSType]bool{}
+	bad := findObjectWithNonStringifiableKey(realType, visited)
+	if bad == nil {
+		return nil
+	}
+	return []diag.Diagnostic{{
+		Path:    c.path,
+		Line:    n.Lineno(),
+		Col:     n.Charno(),
+		Code:    diag.JSC_NON_STRINGIFIABLE_OBJECT_KEY,
+		Level:   diag.Error,
+		Message: "Object type \"" + bad.TypeName() + "\" contains non-stringifiable key and it may lead to an error. Please use ES6 Map instead or implement your own Map structure.",
+	}}
+}
+
+// findObjectWithNonStringifiableKey recursively searches `type` for any
+// Object<K,V> whose K is not stringifiable. Returns the first such Object
+// type, or nil if all Object keys are reasonable. Mirrors Java's
+// findObjectWithNonStringifiableKey.
+func findObjectWithNonStringifiableKey(t jstype.JSType, visited map[jstype.JSType]bool) jstype.JSType {
+	if t == nil {
+		return nil
+	}
+	if visited[t] {
+		// Recursive type — already being checked; skip to avoid infinite loops.
+		return nil
+	}
+	visited[t] = true
+
+	if isObjectTypeWithNonStringifiableKey(t) {
+		return t
+	}
+	if u, ok := t.(*jstype.UnionType); ok {
+		for _, alt := range u.Members() {
+			if r := findObjectWithNonStringifiableKey(alt, visited); r != nil {
+				return r
+			}
+		}
+	}
+	if tt, ok := t.(*jstype.TemplatizedType); ok {
+		for _, arg := range tt.Args {
+			if r := findObjectWithNonStringifiableKey(arg, visited); r != nil {
+				return r
+			}
+		}
+	}
+	if fn, ok := t.(*jstype.FunctionType); ok {
+		for _, param := range fn.Params {
+			if r := findObjectWithNonStringifiableKey(param, visited); r != nil {
+				return r
+			}
+		}
+		return findObjectWithNonStringifiableKey(fn.Return, visited)
+	}
+	return nil
+}
+
+// isObjectTypeWithNonStringifiableKey reports whether `t` is a
+// TemplatizedType Object<K,V> whose K is not a reasonable property key.
+// Only fires on 2+-arg instantiations (where Args[0] is the KEY slot).
+// Mirrors Java's isObjectTypeWithNonStringifiableKey.
+func isObjectTypeWithNonStringifiableKey(t jstype.JSType) bool {
+	tt, ok := t.(*jstype.TemplatizedType)
+	if !ok {
+		return false
+	}
+	if tt.Base == nil || tt.Base.Name != "Object" {
+		return false
+	}
+	// Java's Object has two template params (KEY, VALUE). When only one
+	// type arg is present it is the value; only 2+ args carry the KEY
+	// in position 0. Mirrors templateTypeMap.hasTemplateKey(objectIndexKey).
+	if len(tt.Args) < 2 {
+		return false
+	}
+	return !isReasonableObjectPropertyKey(tt.Args[0])
+}
+
+// isReasonableObjectPropertyKey reports whether `t` is acceptable as the
+// key of an Object<K,V>. Mirrors Java's isReasonableObjectPropertyKey in
+// TypeCheck.java.
+//
+// Stringifiable / always-unique key types:
+//   - Unknown / ?          (conservative)
+//   - number, string, boolean, null, undefined
+//   - Date, RegExp         (native toString)
+//   - @interface / @record (user may implement toString in classes)
+//   - Array (bare)         (stringifies via element join)
+//   - Array<T>             (stringifiable when T is)
+//   - enum{T}              (check underlying T)
+//   - Union                (all members must be stringifiable)
+//   - Object with user-defined toString
+func isReasonableObjectPropertyKey(t jstype.JSType) bool {
+	if t == nil || isUnknownOrNil(t) {
+		return true
+	}
+	// Primitives and well-known stringifiable singletons.
+	switch t {
+	case jstype.Number, jstype.String, jstype.Boolean, jstype.Null, jstype.Void:
+		return true
+	}
+	// EnumElementType — check underlying primitive.
+	// Mirrors Java: toMaybeEnumElementType() != null → getPrimitiveType().
+	if ee, ok := t.(*jstype.EnumElementType); ok {
+		return isReasonableObjectPropertyKey(ee.Enum.Underlying)
+	}
+	// Union — every alternate must be stringifiable.
+	if u, ok := t.(*jstype.UnionType); ok {
+		for _, m := range u.Members() {
+			if !isReasonableObjectPropertyKey(m) {
+				return false
+			}
+		}
+		return true
+	}
+	// TemplatizedType — handle Array<T> specially.
+	if tt, ok := t.(*jstype.TemplatizedType); ok {
+		if tt.Base != nil && tt.Base.Name == "Array" {
+			// Array<T>: stringifiable when T is stringifiable.
+			if len(tt.Args) > 0 {
+				return isReasonableObjectPropertyKey(tt.Args[0])
+			}
+			return true // no T → bare Array
+		}
+		// Other TemplatizedType (e.g. Object<K,V>) — fall through to
+		// the ObjectType check below using the Base.
+		return classHasToString(tt.Base)
+	}
+	// Plain ObjectType — covers @constructor, @interface, @record, and
+	// native builtins (Date, RegExp, Array).
+	if obj, ok := t.(*jstype.ObjectType); ok {
+		// Date and RegExp have native toString(). Matches Java's
+		// isDateType() / isRegexpType() early-returns.
+		switch obj.Name {
+		case "Date", "RegExp":
+			return true
+		}
+		// Bare Array (non-templatized) — always stringifiable.
+		if obj.Name == "Array" {
+			return true
+		}
+		// @interface / @record — user may implement toString().
+		// Matches Java's isInterface() / isRecordType() early-returns.
+		if obj.IsStructural {
+			return true
+		}
+		// User-defined @constructor: OK iff it defines a custom toString().
+		return classHasToString(obj)
+	}
+	// FunctionType and anything else are not reasonable keys.
+	return false
+}
+
+// classHasToString reports whether the ObjectType (or a non-native
+// ancestor) declares a user-defined toString() method. Native builtins
+// (Object, Array, …) don't count — their native toString gives "[object
+// Object]" / "[1,2]", which is ambiguous. Mirrors Java's classHasToString.
+func classHasToString(obj *jstype.ObjectType) bool {
+	if obj == nil {
+		return false
+	}
+	// Only user-registered toString matters. In our Go externs we do NOT
+	// register toString on native types (Object, Array, Function, …), so
+	// HasProperty("toString") will only return true when the user's own
+	// @constructor body or prototype defined it.
+	return obj.HasProperty("toString")
 }
