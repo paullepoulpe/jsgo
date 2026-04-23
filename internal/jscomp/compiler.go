@@ -89,6 +89,9 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	// only after ModuleMetadataMap + ModuleLoader are ported. Until then
 	// the pass produces no diagnostics so it does not disturb the corpus.
 	all = append(all, NewCheckClosureImports(path, nil).Check(script)...)
+	// CheckMissingRequires requires a ModuleMetadataMap (module system not yet
+	// ported). Pass nil so the pass no-ops until the module system lands.
+	all = append(all, NewCheckMissingRequires(path, nil).Check(script)...)
 	// CheckGlobalThis is skipped when VarCheck / VariableReferenceCheck
 	// already detected a JSC_VAR_MULTIPLY_DECLARED_ERROR. Java's compiler
 	// aborts the suspiciousCode phase (which hosts CheckGlobalThis) when
