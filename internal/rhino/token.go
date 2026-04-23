@@ -154,6 +154,10 @@ const (
 	// listed for CFG reference.
 	YIELD
 	AWAIT
+	// Dynamic import expression `import(specifier)`.
+	// Mirrors Token.DYNAMIC_IMPORT in Java. The single child is the
+	// specifier expression (usually a STRINGLIT).
+	DYNAMIC_IMPORT
 )
 
 func (t Token) String() string {
@@ -364,6 +368,8 @@ func (t Token) String() string {
 		return "YIELD"
 	case AWAIT:
 		return "AWAIT"
+	case DYNAMIC_IMPORT:
+		return "DYNAMIC_IMPORT"
 	}
 	return "ERROR"
 }

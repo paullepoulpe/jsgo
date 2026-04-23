@@ -1712,6 +1712,29 @@ func (p *Parser) tryPrimary() (*rhino.Node, bool) {
 		n.SetPos(startLine, startCol)
 		return n, true
 	}
+	// Dynamic import expression: import(specifier).
+	// Mirrors Parser.java's parseDynamicImport path; emits DYNAMIC_IMPORT.
+	if c == 'i' && p.scanner.AtKeyword("import") {
+		save := p.scanner.Save()
+		p.scanner.ConsumeKeyword("import")
+		p.scanner.SkipTrivia()
+		if p.scanner.Peek() == '(' {
+			p.scanner.Advance() // consume '('
+			p.scanner.SkipTrivia()
+			specLine, specCol := p.scanner.Line(), p.scanner.Col()
+			spec, ok := p.tryExpression()
+			if ok {
+				p.scanner.SkipTrivia()
+				p.scanner.ConsumeByte(')')
+				n := rhino.New(rhino.DYNAMIC_IMPORT)
+				n.SetPos(startLine, startCol)
+				spec.SetPos(specLine, specCol)
+				n.AddChildToBack(spec)
+				return n, true
+			}
+		}
+		p.scanner.Restore(save)
+	}
 	if unicode.IsLetter(c) || c == '_' || c == '$' {
 		ident, ok := p.scanner.ConsumeIdent()
 		if !ok {

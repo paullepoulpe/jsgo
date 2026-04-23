@@ -235,6 +235,8 @@ func (c *CheckClosureImports) walk(n, parent *rhino.Node) {
 		} else if cciMatchesQualifiedName(n.FirstChild(), "goog.module.get") {
 			c.checkGoogModuleGet(n)
 		}
+	} else if n.Token() == rhino.DYNAMIC_IMPORT {
+		c.checkDynamicImportPath(n)
 	}
 	for _, ch := range n.Children() {
 		c.walk(ch, n)
@@ -285,6 +287,38 @@ func (c *CheckClosureImports) checkGoogModuleGet(call *rhino.Node) {
 	if c.moduleMetadata.getModulesByGoogNamespace(namespace) == nil {
 		c.report(call, diag.JSC_MISSING_MODULE_OR_PROVIDE, diag.Error,
 			fmt.Sprintf("Required namespace %q never defined.", namespace))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// checkDynamicImportPath — mirrors BrowserModuleResolver.resolveJsModule.
+// ---------------------------------------------------------------------------
+
+// checkDynamicImportPath validates the module specifier in a dynamic
+// import(…) expression. In BROWSER resolution mode only absolute paths
+// (starting with "/") and relative paths (starting with "./" or "../")
+// are valid. Any other specifier — e.g. bare "foo.js" — is "ambiguous"
+// and triggers JSC_INVALID_MODULE_PATH.
+//
+// This mirrors the logic in BrowserModuleResolver.resolveJsModule which
+// calls ModuleLoader.isAmbiguousIdentifier and fires INVALID_MODULE_PATH
+// when it returns true. The diagnostic is emitted on the specifier node
+// (string literal) so the caret in the error message matches Java's output.
+func (c *CheckClosureImports) checkDynamicImportPath(n *rhino.Node) {
+	specifier := n.FirstChild()
+	if specifier == nil || specifier.Token() != rhino.STRINGLIT {
+		return
+	}
+	path := specifier.String_()
+	// isAmbiguousIdentifier: not absolute ("/…") and not relative ("./…" or "../…").
+	isAbsolute := len(path) > 0 && path[0] == '/'
+	isRelative := len(path) >= 2 && path[:2] == "./"
+	if !isRelative && len(path) >= 3 {
+		isRelative = path[:3] == "../"
+	}
+	if !isAbsolute && !isRelative {
+		c.report(specifier, diag.JSC_INVALID_MODULE_PATH, diag.Error,
+			fmt.Sprintf("Invalid module path %q for resolution mode \"BROWSER\"", path))
 	}
 }
 
