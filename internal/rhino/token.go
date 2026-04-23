@@ -130,8 +130,9 @@ const (
 
 	// Debugger statement
 	DEBUGGER
-	// Added for QualifiedName / NodeNameExtractor ports (SUPER already defined above)
+	// Class / object members
 	MEMBER_FUNCTION_DEF
+	COMPUTED_PROP
 )
 
 func (t Token) String() string {
@@ -316,6 +317,8 @@ func (t Token) String() string {
 		return "DEBUGGER"
 	case MEMBER_FUNCTION_DEF:
 		return "MEMBER_FUNCTION_DEF"
+	case COMPUTED_PROP:
+		return "COMPUTED_PROP"
 	}
 	return "ERROR"
 }
