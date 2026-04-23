@@ -37,16 +37,8 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino/jstype"
 )
 
-// ---- TypeMismatch accumulator ---------------------------------------- //
-
-// TypeMismatch records a pair of types that clashed at some AST node.
-// Mirrors com/google/javascript/jscomp/TypeMismatch.java's inner pair
-// structure; the accumulator replaces Java's Accumulator inner class.
-type TypeMismatch struct {
-	Found    jstype.JSType
-	Required jstype.JSType
-	Node     *rhino.Node
-}
+// TypeMismatch is defined in typemismatch.go (canonical port). TypeValidator
+// uses the same struct; the accumulator below wraps []TypeMismatch.
 
 // typeMismatchAccumulator holds the running list of mismatches seen
 // during one pass. Equivalent to TypeMismatch.Accumulator in Java.
@@ -55,7 +47,7 @@ type typeMismatchAccumulator struct {
 }
 
 func (a *typeMismatchAccumulator) registerMismatch(n *rhino.Node, found, required jstype.JSType) {
-	a.mismatches = append(a.mismatches, TypeMismatch{Found: found, Required: required, Node: n})
+	a.mismatches = append(a.mismatches, TypeMismatch{Found: found, Required: required, Location: n})
 }
 
 func (a *typeMismatchAccumulator) getMismatches() []TypeMismatch {
