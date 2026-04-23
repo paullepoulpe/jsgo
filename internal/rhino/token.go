@@ -133,6 +133,11 @@ const (
 	// Class / object members
 	MEMBER_FUNCTION_DEF
 	COMPUTED_PROP
+	// Type-expression AST tokens — used in parsed JSDoc type trees, not in
+	// the JS source AST.
+	ITER_REST // `{...T}` rest parameter type
+	QMARK     // nullable / unknown type marker `?`
+	EQUALS    // optional parameter type marker `=`
 )
 
 func (t Token) String() string {
@@ -319,6 +324,12 @@ func (t Token) String() string {
 		return "MEMBER_FUNCTION_DEF"
 	case COMPUTED_PROP:
 		return "COMPUTED_PROP"
+	case ITER_REST:
+		return "ITER_REST"
+	case QMARK:
+		return "QMARK"
+	case EQUALS:
+		return "EQUALS"
 	}
 	return "ERROR"
 }
