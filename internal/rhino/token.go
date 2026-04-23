@@ -145,6 +145,15 @@ const (
 	TEMPLATELIT_STRING
 	TEMPLATELIT_SUB
 	TAGGED_TEMPLATELIT
+	// Prefix/postfix increment and decrement. Not yet emitted by the
+	// scanner (TODO: port Scanner.readOperator's ++/-- path); listed
+	// here so CFG + AST helpers can reference the token by name.
+	INC
+	DEC
+	// Generator / async expressions. Not yet emitted by the scanner;
+	// listed for CFG reference.
+	YIELD
+	AWAIT
 )
 
 func (t Token) String() string {
@@ -347,6 +356,14 @@ func (t Token) String() string {
 		return "TEMPLATELIT_SUB"
 	case TAGGED_TEMPLATELIT:
 		return "TAGGED_TEMPLATELIT"
+	case INC:
+		return "INC"
+	case DEC:
+		return "DEC"
+	case YIELD:
+		return "YIELD"
+	case AWAIT:
+		return "AWAIT"
 	}
 	return "ERROR"
 }
