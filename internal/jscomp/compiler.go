@@ -51,6 +51,11 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	creator := NewTypedScopeCreator(reg)
 	externScope := creator.createExternScope()
 	scope := creator.createScopeInWithParent(script, externScope)
+	// InferJsDocInfo propagates JSDoc from AST nodes to their associated
+	// JSType objects. This is a pure annotation pass (no diagnostics) that
+	// must run after TypedScopeCreator and before any diagnostic pass that
+	// reads type-level JSDoc. Mirrors DefaultPassConfig's pass ordering.
+	NewInferJsDocInfo(creator, scope).Process(nil, script)
 	var all []diag.Diagnostic
 	all = append(all, NewVarCheck(path, creator, scope).Check(script)...)
 	all = append(all, NewVariableReferenceCheck(path, externScope).Check(script)...)

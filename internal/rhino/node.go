@@ -143,6 +143,59 @@ func (n *Node) Detach() {
 	n.parent, n.next, n.previous = nil, nil, nil
 }
 
+// IsFirstChildOf mirrors Node.isFirstChildOf — true iff n is the first
+// child of parent. Matches Java's Node.isFirstChildOf.
+func (n *Node) IsFirstChildOf(parent *Node) bool {
+	if parent == nil {
+		return false
+	}
+	return parent.FirstChild() == n
+}
+
+// IsQualifiedName mirrors Node.isQualifiedName() — true for NAME (non-
+// empty), THIS, and GETPROP whose receiver is itself a qualified name.
+func (n *Node) IsQualifiedName() bool {
+	switch n.token {
+	case NAME:
+		return n.str != ""
+	case THIS:
+		return true
+	case GETPROP:
+		if fc := n.FirstChild(); fc != nil {
+			return fc.IsQualifiedName()
+		}
+		return false
+	}
+	return false
+}
+
+// GetQualifiedName mirrors Node.getQualifiedName() — returns the dotted
+// string representation (e.g. "a.b.c") or empty string when the node is
+// not a qualified name. Matches Java's nullable return by using "".
+func (n *Node) GetQualifiedName() string {
+	switch n.token {
+	case NAME:
+		return n.str
+	case THIS:
+		return "this"
+	case GETPROP:
+		kids := n.children
+		if len(kids) < 2 {
+			return ""
+		}
+		recv := kids[0].GetQualifiedName()
+		if recv == "" {
+			return ""
+		}
+		prop := kids[1].String_()
+		if prop == "" {
+			return ""
+		}
+		return recv + "." + prop
+	}
+	return ""
+}
+
 // DetachChildren mirrors Node.detachChildren — remove every child and
 // null out its links.
 func (n *Node) DetachChildren() {

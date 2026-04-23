@@ -139,3 +139,43 @@ var (
 	Null     JSType = nullType{}
 	Void     JSType = voidType{}
 )
+
+// ToMaybeFunctionType mirrors JSType.toMaybeFunctionType(JSType) — null-
+// safe downcast to *FunctionType. Returns nil when t is nil or not a
+// FunctionType.
+func ToMaybeFunctionType(t JSType) *FunctionType {
+	if t == nil {
+		return nil
+	}
+	f, _ := t.(*FunctionType)
+	return f
+}
+
+// ToMaybeEnumType mirrors JSType.toMaybeEnumType() — null-safe downcast
+// to *EnumType. Returns nil when t is nil or not an EnumType.
+func ToMaybeEnumType(t JSType) *EnumType {
+	if t == nil {
+		return nil
+	}
+	e, _ := t.(*EnumType)
+	return e
+}
+
+// Dereference mirrors JSType.dereference() — returns the ObjectType when
+// t is an *ObjectType or *FunctionType (which is also an object in the
+// Java hierarchy). Returns nil for primitives, null, undefined, and
+// unknown. Mirrors Java's autobox().toObjectType() at a simplified level.
+func Dereference(t JSType) *ObjectType {
+	if t == nil {
+		return nil
+	}
+	if o, ok := t.(*ObjectType); ok {
+		return o
+	}
+	// FunctionType is an ObjectType in the Java hierarchy — InferJsDocInfo
+	// calls dereference() on the inferred type and expects to get an
+	// ObjectType back for function expressions. Return nil here because our
+	// FunctionType is not an ObjectType subtype; the caller must handle the
+	// FunctionType case separately if needed.
+	return nil
+}

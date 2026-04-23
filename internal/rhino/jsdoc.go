@@ -232,3 +232,24 @@ func (i *JSDocInfo) ReturnType() *JSTypeExpression {
 }
 
 func (i *JSDocInfo) SetReturnType(t *JSTypeExpression) { i.returnExpr = t }
+
+// ContainsDeclaration mirrors JSDocInfo.containsDeclaration() — returns
+// true when the comment carries any declaration-forming annotation.
+// Used by InferJsDocInfo to skip bare `/** @suppress */`-only comments
+// that are not declarations. Approximates the Java bitfield check by
+// testing for the annotations our JSDocInfo currently tracks.
+func (i *JSDocInfo) ContainsDeclaration() bool {
+	if i == nil {
+		return false
+	}
+	return i.typeExpr != nil ||
+		i.returnExpr != nil ||
+		len(i.params) > 0 ||
+		i.isConstructor ||
+		i.isInterface ||
+		i.isRecord ||
+		i.enumMarked ||
+		i.typedefExpr != nil ||
+		i.extendsExpr != nil ||
+		len(i.implementsAll) > 0
+}

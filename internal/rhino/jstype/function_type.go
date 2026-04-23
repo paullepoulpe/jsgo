@@ -8,7 +8,11 @@
 
 package jstype
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/paullepoulpe/jsgo/internal/rhino"
+)
 
 type FunctionType struct {
 	// Ordered positional parameters. Unknown params (e.g. JSDoc left a
@@ -49,6 +53,11 @@ type FunctionType struct {
 	// Java's TypeCheck uses the distinction to forbid
 	// `ClassName.prototype = …` reassignments.
 	IsES6Class bool
+
+	// docInfo mirrors FunctionType.getJSDocInfo() — the JSDoc from the
+	// declaration. Set by InferJsDocInfo for anonymous structural function
+	// types (case #3 in the class doc).
+	docInfo *rhino.JSDocInfo
 }
 
 // MaxArgsUnlimited is the sentinel MaxArity for rest-parameter
@@ -116,3 +125,20 @@ func (f *FunctionType) IsSubtypeOf(o JSType) bool {
 	}
 	return isAll(o) || isUnknown(o)
 }
+
+// SetJSDocInfo mirrors FunctionType.setJSDocInfo — attaches JSDoc to
+// anonymous structural function types. Called by InferJsDocInfo (case #3
+// in the class doc).
+func (f *FunctionType) SetJSDocInfo(info *rhino.JSDocInfo) { f.docInfo = info }
+
+// GetJSDocInfo mirrors FunctionType.getJSDocInfo.
+func (f *FunctionType) GetJSDocInfo() *rhino.JSDocInfo { return f.docInfo }
+
+// GetInstanceType mirrors FunctionType.getInstanceType() — returns the
+// ObjectType produced by `new F(…)`. Nil for non-constructor functions.
+func (f *FunctionType) GetInstanceType() *ObjectType { return f.Instance }
+
+// GetPrototype mirrors FunctionType.getPrototype() — returns the
+// prototype ObjectType for the constructor. In our simplified model we
+// reuse Instance for both instance and prototype slots.
+func (f *FunctionType) GetPrototype() *ObjectType { return f.Instance }

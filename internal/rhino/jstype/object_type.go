@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 type ObjectType struct {
@@ -61,6 +63,21 @@ type ObjectType struct {
 	// skips inferred properties — Java's default-mode behaviour
 	// allows open reassignment when the slot wasn't @type'd.
 	inferredProps map[string]bool
+
+	// docInfo mirrors ObjectType.getJSDocInfo() — the JSDoc attached to
+	// the type declaration (e.g. the `/** @constructor */` on `var Foo =
+	// function(){}`). Set by InferJsDocInfo; consumed by later passes.
+	docInfo *rhino.JSDocInfo
+
+	// propDocInfo mirrors ObjectType.getPropertyJSDocInfo() — per-slot
+	// JSDoc attached by InferJsDocInfo from the property's declaring node.
+	propDocInfo map[string]*rhino.JSDocInfo
+
+	// isNative marks types that were pre-registered from the externs
+	// bundle (e.g. Object, Array, Function). Mirrors
+	// ObjectType.isNativeObjectType() in Java — InferJsDocInfo skips
+	// attaching JSDoc to native types to avoid clobbering externs docs.
+	isNative bool
 }
 
 func NewObjectType(name string) *ObjectType {
@@ -269,6 +286,56 @@ func containsVoid(t JSType) bool {
 		}
 	}
 	return false
+}
+
+// SetJSDocInfo mirrors ObjectType.setJSDocInfo — attaches the declaring
+// JSDoc to this type. Called by InferJsDocInfo.
+func (o *ObjectType) SetJSDocInfo(info *rhino.JSDocInfo) { o.docInfo = info }
+
+// GetJSDocInfo mirrors ObjectType.getJSDocInfo.
+func (o *ObjectType) GetJSDocInfo() *rhino.JSDocInfo { return o.docInfo }
+
+// HasReferenceName mirrors ObjectType.hasReferenceName() — true iff the
+// type was allocated with a non-empty source name. Anonymous object
+// literals (Name == "") return false.
+func (o *ObjectType) HasReferenceName() bool { return o.Name != "" }
+
+// GetReferenceName mirrors ObjectType.getReferenceName().
+func (o *ObjectType) GetReferenceName() string { return o.Name }
+
+// IsNativeObjectType mirrors ObjectType.isNativeObjectType() — true for
+// types pre-registered from the externs bundle. InferJsDocInfo skips
+// attaching JSDoc to natives to avoid overwriting externs-supplied docs.
+func (o *ObjectType) IsNativeObjectType() bool { return o.isNative }
+
+// MarkNative marks this ObjectType as a native externs type. Called by
+// the scope creator when registering externs-bundle types.
+func (o *ObjectType) MarkNative() { o.isNative = true }
+
+// HasOwnProperty mirrors ObjectType.hasOwnProperty(String) — checks the
+// directly-declared member map only, not the super chain. Used by
+// InferJsDocInfo to avoid setting JSDoc on inherited slots.
+func (o *ObjectType) HasOwnProperty(name string) bool {
+	_, ok := o.members[name]
+	return ok
+}
+
+// GetPropertyJSDocInfo mirrors ObjectType.getPropertyJSDocInfo(String).
+// Returns nil when no JSDoc has been attached to this slot.
+func (o *ObjectType) GetPropertyJSDocInfo(name string) *rhino.JSDocInfo {
+	if o.propDocInfo == nil {
+		return nil
+	}
+	return o.propDocInfo[name]
+}
+
+// SetPropertyJSDocInfo mirrors ObjectType.setPropertyJSDocInfo(String,
+// JSDocInfo). Called by InferJsDocInfo to annotate per-property JSDoc.
+func (o *ObjectType) SetPropertyJSDocInfo(name string, info *rhino.JSDocInfo) {
+	if o.propDocInfo == nil {
+		o.propDocInfo = map[string]*rhino.JSDocInfo{}
+	}
+	o.propDocInfo[name] = info
 }
 
 // String is for diagnostics; matches Java's PrototypeObjectType.toString
