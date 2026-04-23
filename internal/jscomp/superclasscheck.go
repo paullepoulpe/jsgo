@@ -4,14 +4,17 @@
 // no `@override`-required diagnostic).
 //
 // Fires JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH when an override of
-// a superclass property has an incompatible type. Two override
-// shapes are recognised:
+// a superclass property has an incompatible type, and
+// JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH when the incompatible type
+// comes from an @implements interface. Three override shapes are
+// recognised:
 //
 //   X.prototype.method = function(...) {...};   // if X extends Y
 //   /** @override */
 //   Y.prototype.method = …
 //
 //   class Derived extends Base { method() { ... } }
+//   /** @implements {IFoo} */ class Bar { method() { ... } }
 //
 // The check is scope-driven: it walks class / prototype-assign AST
 // nodes, resolves the override's type via TypeInference, and
@@ -714,6 +717,11 @@ func (s *SuperclassCheck) scanConstructorJSDoc(n *rhino.Node, name string) *rhin
 				return c.JSDocInfo()
 			}
 		}
+		if c.Token() == rhino.CLASS {
+			if first := c.FirstChild(); first != nil && first.String_() == name {
+				return c.JSDocInfo()
+			}
+		}
 		if c.Token() == rhino.VAR || c.Token() == rhino.LET || c.Token() == rhino.CONST {
 			nm := c.FirstChild()
 			if nm != nil && nm.String_() == name {
@@ -752,19 +760,28 @@ func (s *SuperclassCheck) inferAssignValue(stmt, assign, rhs *rhino.Node, inst *
 }
 
 // checkClass verifies each method / field of a `class C extends B`
-// declaration against B's slot.
+// declaration against B's slot and against each @implements interface.
+// Mirrors TypeCheck.java's visitObjectOrClassLiteralKey →
+// checkPropertyInheritanceOnClassMember →
+// checkDeclaredPropertyAgainstNominalInheritance path.
 func (s *SuperclassCheck) checkClass(cls *rhino.Node) {
 	kids := cls.Children()
 	if len(kids) < 3 {
 		return
 	}
 	nameNode := kids[0]
+	className := nameNode.String_()
 	body := kids[2]
-	preStub, ok := s.scope.GetRawDeclaredType(nameNode.String_()).(*jstype.FunctionType)
-	if !ok || preStub.Instance == nil || preStub.Instance.Super() == nil {
+	preStub, ok := s.scope.GetRawDeclaredType(className).(*jstype.FunctionType)
+	if !ok || preStub.Instance == nil {
 		return
 	}
-	super := preStub.Instance.Super()
+	super := preStub.Instance.Super() // nil when there is no @extends
+	ifaces := s.implementedInstances(className)
+	// Nothing to check when neither superclass nor @implements are present.
+	if super == nil && len(ifaces) == 0 {
+		return
+	}
 	for _, m := range body.Children() {
 		switch m.Token() {
 		case rhino.FUNCTION:
@@ -775,27 +792,48 @@ func (s *SuperclassCheck) checkClass(cls *rhino.Node) {
 			if methodName == "" || methodName == "constructor" {
 				continue
 			}
-			superSlot := super.GetPropertyType(methodName)
-			if superSlot == nil {
-				continue
-			}
 			info := m.JSDocInfo()
 			ownSlot := functionTypeFromJSDoc(info, m, s.scope)
 			if ownSlot == nil {
 				continue
 			}
-			if jstype.IsSubtype(ownSlot, superSlot) {
-				continue
+			// Superclass slot (via @extends chain).
+			if super != nil {
+				if superSlot := super.GetPropertyType(methodName); superSlot != nil {
+					if !overrideCompatible(ownSlot, superSlot) {
+						s.diags = append(s.diags, diag.Diagnostic{
+							Path:  s.path,
+							Line:  m.Lineno(),
+							Col:   m.Charno(),
+							Code:  diag.JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH,
+							Level: diag.Error,
+							Message: fmt.Sprintf("mismatch of the %s property type and the type of the property it overrides from superclass %s\noriginal: %s\noverride: %s",
+								methodName, super.TypeName(), superSlot.TypeName(), ownSlot.TypeName()),
+						})
+						continue // one diagnostic per member
+					}
+				}
 			}
-			s.diags = append(s.diags, diag.Diagnostic{
-				Path:  s.path,
-				Line:  m.Lineno(),
-				Col:   m.Charno(),
-				Code:  diag.JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH,
-				Level: diag.Error,
-				Message: fmt.Sprintf("mismatch of the %s property type and the type of the property it overrides from superclass %s\noriginal: %s\noverride: %s",
-					methodName, super.TypeName(), superSlot.TypeName(), ownSlot.TypeName()),
-			})
+			// @implements interface slots.
+			for _, iface := range ifaces {
+				ifaceSlot := iface.GetPropertyType(methodName)
+				if ifaceSlot == nil {
+					continue
+				}
+				if overrideCompatible(ownSlot, ifaceSlot) {
+					continue
+				}
+				s.diags = append(s.diags, diag.Diagnostic{
+					Path:  s.path,
+					Line:  m.Lineno(),
+					Col:   m.Charno(),
+					Code:  diag.JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH,
+					Level: diag.Error,
+					Message: fmt.Sprintf("mismatch of the %s property on type %s and the type of the property it overrides from interface %s\noriginal: %s\noverride: %s",
+						methodName, className, iface.TypeName(), ifaceSlot.TypeName(), ownSlot.TypeName()),
+				})
+				break // one diagnostic per member
+			}
 		case rhino.CLASS_FIELD_DEF:
 			if len(m.Children()) < 1 {
 				continue
@@ -804,27 +842,48 @@ func (s *SuperclassCheck) checkClass(cls *rhino.Node) {
 			if fieldName == "" {
 				continue
 			}
-			superSlot := super.GetPropertyType(fieldName)
-			if superSlot == nil {
-				continue
-			}
 			info := m.JSDocInfo()
 			if info == nil || !info.HasType() {
 				continue
 			}
 			ownType := s.scope.ResolveExpr(info.Type().TypeName)
-			if jstype.IsSubtype(ownType, superSlot) {
-				continue
+			// Superclass slot.
+			if super != nil {
+				if superSlot := super.GetPropertyType(fieldName); superSlot != nil {
+					if !jstype.IsSubtype(ownType, superSlot) {
+						s.diags = append(s.diags, diag.Diagnostic{
+							Path:  s.path,
+							Line:  m.Lineno(),
+							Col:   m.Charno(),
+							Code:  diag.JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH,
+							Level: diag.Error,
+							Message: fmt.Sprintf("mismatch of the %s property type and the type of the property it overrides from superclass %s\noriginal: %s\noverride: %s",
+								fieldName, super.TypeName(), superSlot.TypeName(), ownType.TypeName()),
+						})
+						continue
+					}
+				}
 			}
-			s.diags = append(s.diags, diag.Diagnostic{
-				Path:  s.path,
-				Line:  m.Lineno(),
-				Col:   m.Charno(),
-				Code:  diag.JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH,
-				Level: diag.Error,
-				Message: fmt.Sprintf("mismatch of the %s property type and the type of the property it overrides from superclass %s\noriginal: %s\noverride: %s",
-					fieldName, super.TypeName(), superSlot.TypeName(), ownType.TypeName()),
-			})
+			// @implements interface slots.
+			for _, iface := range ifaces {
+				ifaceSlot := iface.GetPropertyType(fieldName)
+				if ifaceSlot == nil {
+					continue
+				}
+				if jstype.IsSubtype(ownType, ifaceSlot) {
+					continue
+				}
+				s.diags = append(s.diags, diag.Diagnostic{
+					Path:  s.path,
+					Line:  m.Lineno(),
+					Col:   m.Charno(),
+					Code:  diag.JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH,
+					Level: diag.Error,
+					Message: fmt.Sprintf("mismatch of the %s property on type %s and the type of the property it overrides from interface %s\noriginal: %s\noverride: %s",
+						fieldName, className, iface.TypeName(), ifaceSlot.TypeName(), ownType.TypeName()),
+				})
+				break
+			}
 		}
 	}
 }
