@@ -125,6 +125,10 @@ const (
 	ARRAYLIT
 	OBJECTLIT
 	STRING_KEY
+
+	// Class / object members
+	MEMBER_FUNCTION_DEF
+	COMPUTED_PROP
 )
 
 func (t Token) String() string {
@@ -301,6 +305,10 @@ func (t Token) String() string {
 		return "OBJECTLIT"
 	case STRING_KEY:
 		return "STRING_KEY"
+	case MEMBER_FUNCTION_DEF:
+		return "MEMBER_FUNCTION_DEF"
+	case COMPUTED_PROP:
+		return "COMPUTED_PROP"
 	}
 	return "ERROR"
 }
