@@ -125,6 +125,9 @@ const (
 	ARRAYLIT
 	OBJECTLIT
 	STRING_KEY
+
+	// Regular-expression literal  `/pattern/flags`
+	REGEXP
 )
 
 func (t Token) String() string {
@@ -301,6 +304,8 @@ func (t Token) String() string {
 		return "OBJECTLIT"
 	case STRING_KEY:
 		return "STRING_KEY"
+	case REGEXP:
+		return "REGEXP"
 	}
 	return "ERROR"
 }

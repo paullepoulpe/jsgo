@@ -405,3 +405,137 @@ func isIdentStart(c rune) bool {
 func isIdentCont(c rune) bool {
 	return unicode.IsLetter(c) || unicode.IsDigit(c) || c == '_' || c == '$'
 }
+
+// ---- regular-expression literal ---------------------------------- //
+
+// ScanRegularExpressionLiteral mirrors Scanner.java's
+// nextRegularExpressionLiteralToken. The caller must have confirmed
+// that the cursor is on the opening `/` and that context requires a
+// regex (not division). Returns ("", false) on scan failure.
+//
+// Grammar (ES5 §7.8.5):
+//
+//	RegularExpressionLiteral :: `/` RegularExpressionBody `/` RegularExpressionFlags
+func (s *Scanner) ScanRegularExpressionLiteral() (string, bool) {
+	begin := s.pos
+
+	// leading '/'
+	s.Advance()
+
+	// body
+	if !s.skipRegularExpressionBody() {
+		return "", false
+	}
+
+	// separating '/'
+	if s.Peek() != '/' {
+		return "", false
+	}
+	s.Advance()
+
+	// flags — zero or more IdentifierPart characters
+	for isIdentCont(s.Peek()) {
+		s.Advance()
+	}
+
+	s.lastTokenLine = s.line
+	return string(s.src[begin:s.pos]), true
+}
+
+// skipRegularExpressionBody mirrors Scanner.java's skipRegularExpressionBody.
+func (s *Scanner) skipRegularExpressionBody() bool {
+	if !isRegularExpressionFirstChar(s.Peek()) {
+		return false
+	}
+	if !s.skipRegularExpressionChar() {
+		return false
+	}
+	for !s.AtEnd() && isRegularExpressionChar(s.Peek()) {
+		if !s.skipRegularExpressionChar() {
+			return false
+		}
+	}
+	return true
+}
+
+// skipRegularExpressionChar mirrors Scanner.java's skipRegularExpressionChar.
+func (s *Scanner) skipRegularExpressionChar() bool {
+	switch s.Peek() {
+	case '\\':
+		return s.skipRegularExpressionBackslashSequence()
+	case '[':
+		return s.skipRegularExpressionClass()
+	default:
+		s.Advance()
+		return true
+	}
+}
+
+// skipRegularExpressionBackslashSequence mirrors
+// Scanner.java's skipRegularExpressionBackslashSequence.
+func (s *Scanner) skipRegularExpressionBackslashSequence() bool {
+	s.Advance() // consume '\'
+	if isLineTerminator(s.Peek()) {
+		return false
+	}
+	s.Advance()
+	return true
+}
+
+// skipRegularExpressionClass mirrors Scanner.java's skipRegularExpressionClass.
+func (s *Scanner) skipRegularExpressionClass() bool {
+	s.Advance() // consume '['
+	for !s.AtEnd() && peekRegularExpressionClassChar(s.Peek()) {
+		if !s.skipRegularExpressionClassChar() {
+			return false
+		}
+	}
+	if s.Peek() != ']' {
+		return false
+	}
+	s.Advance()
+	return true
+}
+
+// peekRegularExpressionClassChar mirrors
+// Scanner.java's peekRegularExpressionClassChar.
+func peekRegularExpressionClassChar(ch rune) bool {
+	return ch != ']' && !isLineTerminator(ch)
+}
+
+// skipRegularExpressionClassChar mirrors
+// Scanner.java's skipRegularExpressionClassChar.
+func (s *Scanner) skipRegularExpressionClassChar() bool {
+	if s.Peek() == '\\' {
+		return s.skipRegularExpressionBackslashSequence()
+	}
+	s.Advance()
+	return true
+}
+
+// isRegularExpressionFirstChar mirrors Scanner.java's isRegularExpressionFirstChar.
+func isRegularExpressionFirstChar(ch rune) bool {
+	return isRegularExpressionChar(ch) && ch != '*'
+}
+
+// isRegularExpressionChar mirrors Scanner.java's isRegularExpressionChar.
+func isRegularExpressionChar(ch rune) bool {
+	switch ch {
+	case '/':
+		return false
+	case '\\', '[':
+		return true
+	default:
+		return !isLineTerminator(ch)
+	}
+}
+
+// isLineTerminator mirrors Scanner.java's isLineTerminator (ES5 §7.3).
+func isLineTerminator(ch rune) bool {
+	switch ch {
+	case '\n', '\r', ' ', ' ':
+		return true
+	default:
+		return false
+	}
+}
