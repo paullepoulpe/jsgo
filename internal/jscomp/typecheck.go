@@ -70,7 +70,8 @@ type TypeCheck struct {
 	// @constructor stubs). Treating these types as "open" — like Java
 	// treats Object as low-confidence — avoids FPs from accessing any
 	// property on an extern type whose surface we haven't declared.
-	externTypes map[*jstype.ObjectType]bool
+	externTypes     map[*jstype.ObjectType]bool
+	globalPropNames map[string]bool
 
 	// flows maps each function / script root to its computed
 	// DataFlowAnalysis, built lazily as the traversal enters the
@@ -1337,6 +1338,159 @@ func otherSideIs(p, n *rhino.Node, tok rhino.Token) bool {
 		other = kids[0]
 	}
 	return other != nil && other.Token() == tok
+}
+
+// containsPropTest: sub-tree sub has a GETPROP recvName.propName in an existence test.
+func containsPropTest(sub *rhino.Node, recvName, propName string) bool {
+	if sub == nil {
+		return false
+	}
+	if sub.Token() == rhino.GETPROP {
+		kids := sub.Children()
+		if len(kids) >= 2 && kids[0].Token() == rhino.NAME &&
+			kids[0].String_() == recvName && kids[1].String_() == propName &&
+			isPropertyExistenceOrAbsenceTest(sub) {
+			return true
+		}
+	}
+	for _, ch := range sub.Children() {
+		if containsPropTest(ch, recvName, propName) {
+			return true
+		}
+	}
+	return false
+}
+
+// isInGuardedBranch: GETPROP n is inside a branch guarded by a prior
+// existence test of recvName.propName (mirrors Java's type narrowing).
+func isInGuardedBranch(n *rhino.Node, recvName, propName string) bool {
+	for cur := n; cur != nil; cur = cur.Parent() {
+		p := cur.Parent()
+		if p == nil {
+			break
+		}
+		switch p.Token() {
+		case rhino.AND:
+			kids := p.Children()
+			if len(kids) >= 2 && cur == kids[1] && containsPropTest(kids[0], recvName, propName) {
+				return true
+			}
+		case rhino.IF:
+			kids := p.Children()
+			if len(kids) >= 2 && cur == kids[1] && containsPropTest(kids[0], recvName, propName) {
+				return true
+			}
+		case rhino.HOOK:
+			kids := p.Children()
+			if len(kids) >= 3 && cur == kids[1] && containsPropTest(kids[0], recvName, propName) {
+				return true
+			}
+		case rhino.TYPEOF, rhino.INSTANCEOF:
+			return true
+		}
+	}
+	return false
+}
+
+// checkPossibleInexistent emits JSC_POSSIBLE_INEXISTENT_PROPERTY for
+// low-confidence receivers (Unknown / * / Object).
+func (c *TypeCheck) checkPossibleInexistent(n, recvNode *rhino.Node, propName string, recvType jstype.JSType) []diag.Diagnostic {
+	if isAssignLHS(n) {
+		return nil
+	}
+	if p := n.Parent(); p != nil && p.Token() == rhino.EXPR_RESULT {
+		return nil
+	}
+	if isPropertyExistenceOrAbsenceTest(n) {
+		return nil
+	}
+	if c.globalPropNames[propName] {
+		return nil
+	}
+	recvName := ""
+	if recvNode != nil && recvNode.Token() == rhino.NAME {
+		recvName = recvNode.String_()
+	}
+	if recvName != "" && isInGuardedBranch(n, recvName, propName) {
+		return nil
+	}
+	label := recvType.TypeName()
+	if recvType == jstype.Unknown && recvName != "" {
+		label = recvName
+	}
+	kids := n.Children()
+	if len(kids) < 2 {
+		return nil
+	}
+	return []diag.Diagnostic{{
+		Path: c.path, Line: kids[1].Lineno(), Col: kids[1].Charno(),
+		Code: diag.JSC_POSSIBLE_INEXISTENT_PROPERTY, Level: diag.Error,
+		Message: fmt.Sprintf("Property %s never defined on %s", propName, label),
+	}}
+}
+
+// checkAliasAnnotation: returns incompatible annotation string when JSDoc
+// on a var alias disagrees with the aliased FunctionType's kind.
+func checkAliasAnnotation(info *rhino.JSDocInfo, aliased *jstype.FunctionType) string {
+	structural := aliased.Instance != nil && aliased.Instance.IsStructural
+	if info.IsRecord() {
+		instDoc := aliased.Instance.GetJSDocInfo()
+		if !(structural && instDoc != nil && instDoc.IsRecord()) {
+			return "@record"
+		}
+	} else if info.IsInterface() {
+		if !structural {
+			return "@interface"
+		}
+	} else if info.IsConstructor() {
+		if structural {
+			return "@constructor"
+		}
+	}
+	return ""
+}
+
+// buildGlobalPropNameSet: all prop names from types, namespaces, writes, keys.
+func buildGlobalPropNameSet(global *TypedScope, script *rhino.Node) map[string]bool {
+	out := map[string]bool{}
+	for s := global; s != nil; s = s.parent {
+		for _, t := range s.declared {
+			if fn, ok := t.(*jstype.FunctionType); ok && fn.Instance != nil {
+				for _, prop := range fn.Instance.MemberNames() {
+					out[prop] = true
+				}
+			}
+		}
+		for _, props := range s.namespaceProps {
+			for prop := range props {
+				out[prop] = true
+			}
+		}
+	}
+	var scan func(n *rhino.Node)
+	scan = func(n *rhino.Node) {
+		if n == nil {
+			return
+		}
+		switch n.Token() {
+		case rhino.ASSIGN:
+			kids := n.Children()
+			if len(kids) >= 2 && kids[0].Token() == rhino.GETPROP {
+				if pk := kids[0].Children(); len(pk) >= 2 {
+					out[pk[1].String_()] = true
+				}
+			}
+		case rhino.STRING_KEY:
+			if s := n.String_(); s != "" {
+				out[s] = true
+			}
+		}
+		for _, ch := range n.Children() {
+			scan(ch)
+		}
+	}
+	scan(script)
+	return out
 }
 
 // buildExternTypeSet collects every ObjectType instance registered in
