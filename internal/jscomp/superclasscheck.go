@@ -60,10 +60,13 @@ func (s *SuperclassCheck) walk(n *rhino.Node) {
 	case rhino.CLASS:
 		s.checkClass(n)
 		s.checkClassDictExtendsStruct(n)
+		s.checkClassImplements(n)
+		s.checkExtendsNonObject(n)
 	case rhino.FUNCTION:
 		s.checkFunctionImplements(n)
 		s.checkInterfaceExtendsConflicts(n)
 		s.checkExtendsKindMismatch(n)
+		s.checkExtendsNonObject(n)
 		s.checkStructDictRequireConstructor(n)
 		s.checkFunctionDictExtendsStruct(n)
 	case rhino.VAR, rhino.LET, rhino.CONST:
@@ -246,6 +249,72 @@ func (s *SuperclassCheck) checkExtendsKindMismatch(fn *rhino.Node) {
 			reported = true
 		}
 	}
+}
+
+// checkExtendsNonObject fires JSC_EXTENDS_NON_OBJECT when @extends
+// references a primitive or union type. Mirrors TypeCheck.java's
+// visitClass / checkConstructor guard. Skips CLASS nodes whose JS
+// `extends` clause is populated — Java gates on the inferred type of
+// that expression, not the JSDoc annotation.
+func (s *SuperclassCheck) checkExtendsNonObject(n *rhino.Node) {
+	info := n.JSDocInfo()
+	if info == nil {
+		return
+	}
+	kids := n.Children()
+	if len(kids) < 1 {
+		return
+	}
+	name := kids[0].String_()
+	if name == "" {
+		return
+	}
+	if n.Token() == rhino.CLASS && len(kids) >= 2 && kids[1].String_() != "" {
+		return
+	}
+	bases := info.BaseTypes()
+	if len(bases) == 0 {
+		if b := info.BaseType(); b != nil {
+			bases = []*rhino.JSTypeExpression{b}
+		}
+	}
+	for _, b := range bases {
+		if s.scope.LookupNominalType(b.TypeName) != nil {
+			continue // resolved to a nominal object type — fine
+		}
+		resolved := s.scope.ResolveExpr(b.TypeName)
+		if resolved == nil || resolved == jstype.Unknown {
+			continue // unresolved / unknown — skip
+		}
+		if isObjectLikeType(resolved) {
+			continue // object / templatized / function — fine
+		}
+		s.diags = append(s.diags, diag.Diagnostic{
+			Path: s.path, Line: n.Lineno(), Col: n.Charno(),
+			Code:    diag.JSC_EXTENDS_NON_OBJECT,
+			Level:   diag.Error,
+			Message: fmt.Sprintf("%s @extends non-object type %s", name, resolved.TypeName()),
+		})
+		break // one diagnostic per declaration
+	}
+}
+
+// checkClassImplements fires JSC_IMPLEMENTS_NON_INTERFACE for ES6 class
+// nodes, delegating to validateImplements like checkFunctionImplements.
+func (s *SuperclassCheck) checkClassImplements(cls *rhino.Node) {
+	info := cls.JSDocInfo()
+	if info == nil {
+		return
+	}
+	kids := cls.Children()
+	if len(kids) < 1 {
+		return
+	}
+	name := kids[0].String_()
+	if name == "" {
+		return
+	}
+	s.validateImplements(cls, name, info)
 }
 
 // ifacePropEntry holds an interface instance type plus the display
@@ -451,6 +520,17 @@ func (s *SuperclassCheck) validateImplements(reportAt *rhino.Node, ctorName stri
 	for _, expr := range impls {
 		iface := s.scope.LookupNominalType(expr.TypeName)
 		if iface == nil {
+			// @implements a primitive or union (e.g. {string}, {Foo|Bar}).
+			// Java's TypeCheck fires JSC_IMPLEMENTS_NON_INTERFACE in this
+			// case since only object types can be interfaces.
+			resolved := s.scope.ResolveExpr(expr.TypeName)
+			if resolved != nil && resolved != jstype.Unknown && !isObjectLikeType(resolved) {
+				s.diags = append(s.diags, diag.Diagnostic{
+					Path: s.path, Line: reportAt.Lineno(), Col: reportAt.Charno(),
+					Code: diag.JSC_IMPLEMENTS_NON_INTERFACE, Level: diag.Error,
+					Message: "can only implement interfaces",
+				})
+			}
 			continue
 		}
 		// Java's TypeCheck fires JSC_IMPLEMENTS_NON_INTERFACE
@@ -481,6 +561,36 @@ func (s *SuperclassCheck) validateImplements(reportAt *rhino.Node, ctorName stri
 			})
 		}
 	}
+}
+
+// isObjectLikeType reports whether t is an object, templatized, or
+// function type — i.e. NOT a raw primitive, multi-member union, or
+// unknown. A nullable object (Foo|null) is treated as object-like to
+// match Java's behaviour: only unions with multiple non-null members
+// trigger JSC_EXTENDS_NON_OBJECT / JSC_IMPLEMENTS_NON_INTERFACE.
+func isObjectLikeType(t jstype.JSType) bool {
+	switch v := t.(type) {
+	case *jstype.ObjectType, *jstype.TemplatizedType, *jstype.FunctionType:
+		return true
+	case *jstype.UnionType:
+		// Nullable object (Foo|null or Foo|undefined) — fine.
+		// Union of two-or-more non-null types — not object-like.
+		nonNull := nonNullUnionMembers(v)
+		return len(nonNull) == 1 && isObjectLikeType(nonNull[0])
+	}
+	return false
+}
+
+// nonNullUnionMembers returns the members of u that are not null or void.
+func nonNullUnionMembers(u *jstype.UnionType) []jstype.JSType {
+	var out []jstype.JSType
+	for _, m := range u.Members() {
+		if m == jstype.Null || m == jstype.Void {
+			continue
+		}
+		out = append(out, m)
+	}
+	return out
 }
 
 // allInterfaceProperties returns every property name declared on
