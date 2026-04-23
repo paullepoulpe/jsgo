@@ -23,6 +23,10 @@ type Registry struct {
 	// Mirrors the implicit "forward-ref queue" that Java's resolver
 	// processes when the registry transitions to closed.
 	pendingNamedTypes []*NamedType
+
+	// resolver is the JSTypeResolver that shares this registry's lifecycle.
+	// Nil until JSTypeResolver.Create() wires it.
+	resolver *JSTypeResolver
 }
 
 func NewRegistry() *Registry { return &Registry{namedTypes: map[string]JSType{}} }
@@ -101,6 +105,10 @@ func (r *Registry) ResolveWorklist(resolver func(name string) JSType) {
 	}
 	r.pendingNamedTypes = remaining
 }
+
+// GetResolver returns the JSTypeResolver associated with this registry, or nil
+// if none has been attached yet. Mirrors JSTypeRegistry.getResolver() in Java.
+func (r *Registry) GetResolver() *JSTypeResolver { return r.resolver }
 
 // ResolveName mirrors JSTypeRegistry.getType for primitive names. Returns
 // Unknown for names this scaffold doesn't recognise yet.
