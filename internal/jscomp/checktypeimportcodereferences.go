@@ -1,0 +1,193 @@
+// Port of com/google/javascript/jscomp/CheckTypeImportCodeReferences.java @ closure-compiler v20260415
+
+package jscomp
+
+import (
+	"fmt"
+
+	"github.com/paullepoulpe/jsgo/internal/diag"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
+)
+
+// CheckTypeImportCodeReferences implements the JSC_TYPE_IMPORT_CODE_REFERENCE
+// diagnostic: fires when a name declared via goog.requireType() is referenced
+// in a non-type-annotation position (i.e. in executable code).
+//
+// Mirrors CheckTypeImportCodeReferences.java's AbstractPostOrderCallback walk.
+type CheckTypeImportCodeReferences struct {
+	path  string
+	diags []diag.Diagnostic
+
+	// requireTypeNames maps the declaration NAME node pointer to the
+	// name string. Populated by ctirCollect in a first pass over the
+	// AST; consulted during ctirVisit to distinguish the declaration
+	// site (excluded) from code references (flagged).
+	requireTypeNames map[*rhino.Node]string
+}
+
+// NewCheckTypeImportCodeReferences mirrors the Java constructor
+// CheckTypeImportCodeReferences(AbstractCompiler compiler).
+func NewCheckTypeImportCodeReferences(path string) *CheckTypeImportCodeReferences {
+	return &CheckTypeImportCodeReferences{
+		path:             path,
+		requireTypeNames: map[*rhino.Node]string{},
+	}
+}
+
+// Check runs the two-phase walk and returns collected diagnostics.
+// Phase 1 (ctirCollect) builds the requireTypeNames index from
+// var/let/const declarations of the form `name = goog.requireType(…)`.
+// Phase 2 visits every NAME node and flags code references.
+func (c *CheckTypeImportCodeReferences) Check(script *rhino.Node) []diag.Diagnostic {
+	c.diags = nil
+	c.requireTypeNames = map[*rhino.Node]string{}
+	c.ctirCollect(script)
+	c.ctirWalk(script)
+	return c.diags
+}
+
+// ctirCollect is a pre-order walk that populates requireTypeNames.
+// It mirrors the information Java's TypedScopeCreator stores in the
+// Var object — specifically Var.getNameNode() and the call chain
+// check performed in visit(). By collecting first we avoid needing
+// scope infrastructure.
+func (c *CheckTypeImportCodeReferences) ctirCollect(n *rhino.Node) {
+	if n == nil {
+		return
+	}
+	// Look for: var/let/const <nameBinding> = goog.requireType(…)
+	// Java's visit() checks NodeUtil.isNameDeclaration(decl) &&
+	// decl.hasOneChild() && decl.getFirstChild().hasChildren() &&
+	// decl.getFirstChild().getLastChild().isCall().
+	if ctirIsNameDeclaration(n) {
+		kids := n.Children()
+		if len(kids) == 1 {
+			binding := kids[0] // VAR's single child
+			bindingKids := binding.Children()
+			if len(bindingKids) > 0 {
+				callNode := bindingKids[len(bindingKids)-1]
+				if callNode.Token() == rhino.CALL && ctirIsGoogRequireType(callNode) {
+					// Simple form: var Foo = goog.requireType('…')
+					// binding is NAME with Foo as its string.
+					if binding.Token() == rhino.NAME {
+						c.requireTypeNames[binding] = binding.String_()
+					}
+					// Destructuring form: var {Foo} = goog.requireType('…')
+					// binding is OBJECT_PATTERN / DESTRUCTURING_LHS;
+					// each STRING_KEY child carries the bound name.
+					// Java: declNameNode.getParent().isStringKey() branch.
+					for _, skNode := range binding.Children() {
+						if skNode.Token() == rhino.STRING_KEY {
+							// The STRING_KEY's first child is the bound NAME.
+							if nameChild := skNode.FirstChild(); nameChild != nil && nameChild.Token() == rhino.NAME {
+								c.requireTypeNames[nameChild] = nameChild.String_()
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	for _, child := range n.Children() {
+		c.ctirCollect(child)
+	}
+}
+
+// ctirWalk is the post-order NAME visitor. Mirrors
+// AbstractPostOrderCallback.visit() in Java: it runs after all children
+// so the traversal order matches Java's NodeTraversal.traverse contract.
+func (c *CheckTypeImportCodeReferences) ctirWalk(n *rhino.Node) {
+	if n == nil {
+		return
+	}
+	// Post-order: children first.
+	for _, child := range n.Children() {
+		c.ctirWalk(child)
+	}
+	c.ctirVisit(n)
+}
+
+// ctirVisit checks a single node. Mirrors Java's visit(NodeTraversal t,
+// Node n, Node parent) — returns early unless n is a NAME that refers
+// to a goog.requireType'd binding.
+func (c *CheckTypeImportCodeReferences) ctirVisit(n *rhino.Node) {
+	if n.Token() != rhino.NAME {
+		return
+	}
+	name := n.String_()
+	if name == "" {
+		return
+	}
+	// Check if n is itself one of the declaration nodes (Java: declNameNode == n).
+	if _, isDeclNode := c.requireTypeNames[n]; isDeclNode {
+		return
+	}
+	// Check if any requireType binding matches this name.
+	// Java uses t.getScope().getVar(n.getString()).getNameNode() to get
+	// the declaration node and then checks it against requireTypeNames.
+	// Since we index by declaration node we can't do that lookup in O(1)
+	// without a reverse name→declNode map. Build the check by name match.
+	for declNode, declName := range c.requireTypeNames {
+		if declName == name {
+			// Additional guard: skip if n IS the declaration node
+			// (already handled above, but double-check for the
+			// destructuring path where declNode is a child of STRING_KEY).
+			if declNode == n {
+				return
+			}
+			c.diags = append(c.diags, diag.Diagnostic{
+				Path:    c.path,
+				Line:    n.Lineno(),
+				Col:     n.Charno(),
+				Code:    diag.JSC_TYPE_IMPORT_CODE_REFERENCE,
+				Level:   diag.Error,
+				Message: fmt.Sprintf("Cannot reference goog.requireType()'d name %s outside of a type annotation.", name),
+			})
+			return
+		}
+	}
+}
+
+// ctirIsNameDeclaration reports whether n is a var/let/const statement.
+// Mirrors Java's NodeUtil.isNameDeclaration(Node).
+func ctirIsNameDeclaration(n *rhino.Node) bool {
+	switch n.Token() {
+	case rhino.VAR, rhino.LET, rhino.CONST:
+		return true
+	}
+	return false
+}
+
+// ctirIsGoogRequireType reports whether callNode is a call to
+// goog.requireType(…). Mirrors Java's
+// callNode.getFirstChild().matchesQualifiedName(GOOG_REQUIRE_TYPE)
+// where GOOG_REQUIRE_TYPE = IR.getprop(IR.name("goog"), "requireType").
+func ctirIsGoogRequireType(callNode *rhino.Node) bool {
+	if callNode == nil || callNode.Token() != rhino.CALL {
+		return false
+	}
+	callee := callNode.FirstChild()
+	if callee == nil {
+		return false
+	}
+	return ctirMatchesGoogRequireType(callee)
+}
+
+// ctirMatchesGoogRequireType reports whether node is the GETPROP chain
+// `goog.requireType`. Mirrors IR.getprop(IR.name("goog"), "requireType")
+// comparison from Java.
+func ctirMatchesGoogRequireType(n *rhino.Node) bool {
+	if n == nil || n.Token() != rhino.GETPROP {
+		return false
+	}
+	kids := n.Children()
+	if len(kids) < 2 {
+		return false
+	}
+	obj := kids[0]
+	prop := kids[1]
+	if obj.Token() != rhino.NAME || obj.String_() != "goog" {
+		return false
+	}
+	return prop.String_() == "requireType"
+}
