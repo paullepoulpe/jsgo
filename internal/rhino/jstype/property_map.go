@@ -365,3 +365,30 @@ func (pm *PropertyMap) incrementCachedKeySetCounter() {
 	pm.cachedKeySet = nil
 	// TODO: panic on overflow (checkState(counter >= 0)) if needed.
 }
+
+// SnapshotOwnProperties returns a point-in-time copy of this map's own
+// string-keyed and symbol-keyed properties. The returned maps are
+// independent of the original — mutations to the PropertyMap after
+// the snapshot is taken do not affect the copy, and vice versa.
+//
+// This is used by interface-conflict diagnostics in SuperclassCheck and
+// TypeValidator: those passes iterate over interface property slots while
+// potentially modifying the live maps, so they operate on a snapshot to
+// avoid concurrent-modification issues.
+//
+// There is no direct Java equivalent; in Java ImmutableMap views or a
+// copy-on-enter pattern is used instead, but Go maps have no concurrent-
+// modification guard so an explicit copy is necessary.
+func (pm *PropertyMap) SnapshotOwnProperties() (strings map[string]*Property, symbols map[*KnownSymbolType]*Property) {
+	strings = make(map[string]*Property, len(pm.properties))
+	for k, v := range pm.properties {
+		strings[k] = v
+	}
+	if pm.knownSymbols != nil {
+		symbols = make(map[*KnownSymbolType]*Property, len(pm.knownSymbols))
+		for k, v := range pm.knownSymbols {
+			symbols[k] = v
+		}
+	}
+	return strings, symbols
+}
