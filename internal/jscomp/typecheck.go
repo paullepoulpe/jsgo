@@ -723,6 +723,15 @@ func (c *TypeCheck) visitVar(v *rhino.Node, scope *TypedScope) []diag.Diagnostic
 		return out
 	}
 	infer := NewTypeInference(scope)
+	// When `const foo = /** @type {T} */ (expr)` is parsed, Go's parser
+	// simulates the Java CAST node by marking the NAME node's JSDocInfo
+	// with isCastHoisted=true. In that case the declared type IS the cast
+	// type, so the initializer's raw type is irrelevant — Java wouldn't
+	// fire TYPE_MISMATCH either since the CAST node's getJSType() returns
+	// T, not the inner literal type.
+	if nameInfo := name.JSDocInfo(); nameInfo != nil && nameInfo.IsCastHoisted() {
+		return out
+	}
 	found := infer.InferType(init)
 	if jstype.IsSubtype(found, declared) {
 		return out
@@ -864,6 +873,17 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 			Path: c.path, Line: lhs.Lineno(), Col: lhs.Charno(),
 			Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error, Message: msg,
 		}}
+	case rhino.GETELEM:
+		// Only check for ReadonlyArray assignment; GETELEM type-mismatch
+		// is not yet ported (matches Java's checkNotReadonlyPropertyAssignment
+		// scope: fires before any other per-element checks).
+		elemKids := lhs.Children()
+		if len(elemKids) >= 1 {
+			if d := c.checkNotReadonlyPropertyAssignment(lhs, elemKids[0], infer); d != nil {
+				return []diag.Diagnostic{*d}
+			}
+		}
+		return nil
 	case rhino.GETPROP:
 		propKids := lhs.Children()
 		if len(propKids) < 2 {
@@ -871,6 +891,12 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 		}
 		propName := propKids[1].String_()
 		recv := propKids[0]
+		// ReadonlyArray guard (port of checkNotReadonlyPropertyAssignment).
+		// Java fires at the lhs (GETPROP) node; Java GETPROP charno is the
+		// property-name column, which corresponds to propKids[1] in Go.
+		if d := c.checkNotReadonlyPropertyAssignment(propKids[1], recv, infer); d != nil {
+			return []diag.Diagnostic{*d}
+		}
 		// ES6 classes reject `ClassName.prototype = …` reassignments.
 		// Java fires at the outer ASSIGN's (or wrapping EXPR_RESULT's)
 		// column, so we report at the statement's position.
@@ -963,6 +989,43 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 		}}
 	}
 	return nil
+}
+
+// checkNotReadonlyPropertyAssignment mirrors TypeCheck.java's
+// checkNotReadonlyPropertyAssignment. It fires JSC_PROPERTY_ASSIGNMENT_TO_READONLY_VALUE
+// when the receiver of a GETPROP or GETELEM assignment is a ReadonlyArray
+// (bare or templatized). Reports at the lhs node's position.
+func (c *TypeCheck) checkNotReadonlyPropertyAssignment(lhs, recv *rhino.Node, infer *TypeInference) *diag.Diagnostic {
+	// Use the raw declared type (not flow-narrowed) to check for ReadonlyArray.
+	// Java reads lhs.getFirstChild().getJSType() which is the static type;
+	// mirroring that here avoids false negatives when flow analysis narrows
+	// a ReadonlyArray-declared variable to a more specific type like Array.
+	var recvType jstype.JSType
+	if recv.Token() == rhino.NAME {
+		recvType = infer.scope.GetRawDeclaredType(recv.String_())
+	}
+	if recvType == nil {
+		recvType = infer.InferType(recv)
+	}
+	typeName := ""
+	switch t := recvType.(type) {
+	case *jstype.ObjectType:
+		if t.TypeName() == "ReadonlyArray" {
+			typeName = t.TypeName()
+		}
+	case *jstype.TemplatizedType:
+		if t.Base.TypeName() == "ReadonlyArray" {
+			typeName = t.TypeName()
+		}
+	}
+	if typeName == "" {
+		return nil
+	}
+	msg := fmt.Sprintf("Should not assign to a property of readonly type '%s'", typeName)
+	return &diag.Diagnostic{
+		Path: c.path, Line: lhs.Lineno(), Col: lhs.Charno(),
+		Code: diag.JSC_PROPERTY_ASSIGNMENT_TO_READONLY_VALUE, Level: diag.Error, Message: msg,
+	}
 }
 
 // visitNew — port of TypeCheck.java's visitNew. Reports

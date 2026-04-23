@@ -35,6 +35,17 @@ type Parser struct {
 	// swallowForHead to surface the synthetic VAR decl for a
 	// `for (let x of …)` binding as a real scope-building child.
 	pendingStatements []*rhino.Node
+	// pendingCastDoc carries a JSDoc from a `/** @type {T} */ (expr)` cast
+	// expression detected in tryPrimary. tryDecl consumes it and hoists it
+	// onto the declaration node (with IsCastHoisted=true) so the scope
+	// creator can recover the cast type without attaching JSDoc to the inner
+	// expression (which would trigger JSC_MISPLACED_ANNOTATION).
+	pendingCastDoc *rhino.JSDocInfo
+	// inDeclInit is true while parsing the initializer expression of a
+	// var/let/const binding. tryPrimary only detects `/** @type {T} */ (expr)`
+	// casts when this is true, to avoid silently changing parse behaviour for
+	// casts in other contexts (return, assignment RHS, call args, etc.).
+	inDeclInit bool
 }
 
 func Parse(src string) (n *rhino.Node, err error) {
@@ -310,13 +321,31 @@ func (p *Parser) finishDeclStatement(declToken rhino.Token, jsdoc *rhino.JSDocIn
 			}
 			p.scanner.SkipTrivia()
 			initLine, initCol := p.scanner.Line(), p.scanner.Col()
+			p.pendingCastDoc = nil // clear before parsing init
+			p.inDeclInit = true
 			init, ok := p.tryExpression()
+			p.inDeclInit = false
 			if !ok {
 				p.scanner.SkipToStatementBoundary()
 				return declNode, true
 			}
 			init.SetPos(initLine, initCol)
 			nameNode.AddChildToBack(init)
+			// `const foo = /** @type {T} */ (expr)` — tryPrimary detected
+			// the cast annotation and stored it in pendingCastDoc. Mark the
+			// NAME node with IsCastHoisted so visitVar can suppress the init
+			// subtype check (Java's CAST node makes the cast type the effective
+			// RHS type; here we use the flag to skip the check).
+			// If the declaration has no @type of its own, also hoist the cast
+			// type there so the scope creator picks it up.
+			if castDoc := p.pendingCastDoc; castDoc != nil {
+				p.pendingCastDoc = nil
+				castDoc.SetCastHoisted(true)
+				nameNode.SetJSDocInfo(castDoc)
+				if declNode.JSDocInfo() == nil {
+					declNode.SetJSDocInfo(castDoc)
+				}
+			}
 		}
 		p.scanner.SkipTrivia()
 		if !p.scanner.ConsumeByte(',') {
@@ -1615,10 +1644,12 @@ func (p *Parser) tryPrimary() (*rhino.Node, bool) {
 	if p.scanner.AtEnd() {
 		return nil, false
 	}
-	// A JSDoc block comment immediately before `{` (e.g.
-	// `/** @struct */ { … }`) — consume it speculatively and attach to
-	// the resulting object literal. If the next token after the comment
-	// is not `{`, restore the scanner so the comment is left in place.
+	// A JSDoc block comment immediately before `{` or `(` — consume it
+	// speculatively. Before `{` (e.g. `/** @struct */ { … }`), attach to
+	// the resulting object literal. Before `(` (e.g. `/** @type {T} */
+	// (expr)`), treat as a type-cast annotation and attach to the paren
+	// result. If the next token after the comment is neither, restore.
+	// Mirrors Java's CAST AST node: the parser produces a typed expression.
 	var leadingJSDoc *rhino.JSDocInfo
 	if p.scanner.Peek() == '/' && p.scanner.PeekAt(1) == '*' && p.scanner.PeekAt(2) == '*' {
 		save := p.scanner.Save()
@@ -1627,6 +1658,26 @@ func (p *Parser) tryPrimary() (*rhino.Node, bool) {
 			p.scanner.SkipTrivia()
 			if p.scanner.Peek() == '{' {
 				leadingJSDoc = parsing.ParseJSDocInfo(b, commentLine)
+			} else if p.scanner.Peek() == '(' && p.inDeclInit {
+				// `/** @type {T} */ ([...])` in a var/const/let initializer —
+				// type-cast of an array literal. Only detect this for ARRAYLIT
+				// inner expressions to avoid silently parsing other cast patterns
+				// that would cause false-positive type errors. Java has a CAST
+				// AST node; Go simulates it for this narrow case by hoisting the
+				// cast type to the declaration.
+				castDoc := parsing.ParseJSDocInfo(b, commentLine)
+				startLine, startCol := p.scanner.Line(), p.scanner.Col()
+				expr, ok := p.tryParen()
+				if ok && expr.Token() == rhino.ARRAYLIT {
+					if castDoc != nil && castDoc.HasType() {
+						p.pendingCastDoc = castDoc
+					}
+					expr.SetPos(startLine, startCol)
+					return expr, true
+				}
+				// Inner expression is not an array literal — restore so the
+				// cast is silently dropped (as before this change).
+				p.scanner.Restore(save)
 			} else {
 				p.scanner.Restore(save)
 			}
