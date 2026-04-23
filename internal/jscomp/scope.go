@@ -18,6 +18,10 @@
 package jscomp
 
 import (
+	"fmt"
+	"strings"
+
+	"github.com/paullepoulpe/jsgo/internal/diag"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/rhino/jstype"
 )
@@ -723,6 +727,11 @@ type TypedScopeCreator struct {
 	// (parameter) scope. TypeCheck reads this to type-check function
 	// bodies with the right lexical scope active.
 	Functions map[*rhino.Node]*TypedScope
+	// sourcePath and sourceSrc are set by the compiler before
+	// ResolveTypesInScope is called so the JSDoc scanner can find
+	// per-name positions in the source text.
+	sourcePath string
+	sourceSrc  string
 }
 
 func NewTypedScopeCreator(r *jstype.Registry) *TypedScopeCreator {
@@ -965,6 +974,7 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 			if inner != nil && inner.Token() == rhino.GETPROP {
 				c.recordPrototypeStub(child, inner, scope)
 				c.recordNamespaceStub(child, inner, scope)
+				c.recordNamespaceTypedefStub(child, inner, scope)
 			}
 		}
 	}
@@ -1108,8 +1118,39 @@ func (c *TypedScopeCreator) recordNamespaceAssign(a *rhino.Node, scope *TypedSco
 	// FunctionType from the JSDoc's @param / @return so arity
 	// checks work at call sites. Matches how Java's
 	// TypedScopeCreator handles `ns.foo = function(x) {…}`.
-	if info == nil || !info.HasType() {
+	if info == nil || (!info.HasType() && !info.IsEnum()) {
 		c.recordNamespaceAssignFromFunction(a, scope)
+		return
+	}
+	// `/** @enum {T} */ ns.MyEnum = {…}` — register the enum as a
+	// namespace prop so `@param {ns.MyEnum}` type references resolve.
+	if info.IsEnum() {
+		kids2 := a.Children()
+		if len(kids2) >= 2 {
+			lhs2 := kids2[0]
+			if lhs2.Token() == rhino.GETPROP {
+				lhsKids2 := lhs2.Children()
+				if len(lhsKids2) >= 2 && lhsKids2[0].Token() == rhino.NAME {
+					ownerName2 := lhsKids2[0].String_()
+					propName2 := lhsKids2[1].String_()
+					if _, ok := scope.GetDeclaredType(ownerName2).(*jstype.FunctionType); !ok {
+						var underlying jstype.JSType = jstype.Number
+						if expr := info.EnumParameterType(); expr != nil {
+							underlying = scope.ResolveExpr(expr.TypeName)
+						}
+						enum := jstype.NewEnumType(ownerName2+"."+propName2, underlying)
+						if kids2[1].Token() == rhino.OBJECTLIT {
+							for _, kv := range kids2[1].Children() {
+								if kv.Token() == rhino.STRING_KEY {
+									enum.Members[kv.String_()] = true
+								}
+							}
+						}
+						scope.recordNamespaceProp(ownerName2, propName2, enum, lhsKids2[1])
+					}
+				}
+			}
+		}
 		return
 	}
 	kids := a.Children()
@@ -1276,6 +1317,34 @@ func (c *TypedScopeCreator) recordNamespaceStub(stmt *rhino.Node, getprop *rhino
 	propName := kids[1].String_()
 	declared := scope.ResolveExpr(info.Type().TypeName)
 	scope.recordNamespaceProp(ownerName, propName, declared, kids[1])
+}
+
+// recordNamespaceTypedefStub handles `/** @typedef {T} */ ns.Name;`
+// stub-declarations: a namespace property whose JSDoc carries @typedef
+// rather than @type. Registers the resolved type under the namespace's
+// typeAliases map so `@type {ns.Name}` references resolve correctly.
+func (c *TypedScopeCreator) recordNamespaceTypedefStub(stmt *rhino.Node, getprop *rhino.Node, scope *TypedScope) {
+	info := stmt.JSDocInfo()
+	if info == nil {
+		info = getprop.JSDocInfo()
+	}
+	if info == nil || info.TypedefType() == nil {
+		return
+	}
+	kids := getprop.Children()
+	if len(kids) < 2 {
+		return
+	}
+	recv := kids[0]
+	if recv.Token() != rhino.NAME {
+		return
+	}
+	ownerName := recv.String_()
+	propName := kids[1].String_()
+	// Store as a dotted typeAlias so LookupTypeAlias("owner.prop") finds it.
+	qname := ownerName + "." + propName
+	resolved := scope.ResolveExpr(info.TypedefType().TypeName)
+	scope.typeAliases[qname] = resolved
 }
 
 // recordPrototypeStub handles the `X.prototype.name;` stub-
@@ -1793,6 +1862,21 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 			scope.declared[name.String_()] = src
 			return
 		}
+		// Typedef alias: `const alias = original` where original has a
+		// @typedef. Propagate the typedef into the alias slot so
+		// `@type {alias}` resolves to the same underlying type.
+		// Mirrors Java's TypedScopeCreator const-aliased typedef path.
+		if alias := scope.LookupTypeAlias(init.String_()); alias != nil {
+			scope.typeAliases[name.String_()] = alias
+			scope.declared[name.String_()] = jstype.Unknown
+			return
+		}
+		// Enum alias: `const MyEnum = YourEnum` where YourEnum has
+		// @enum. Share the EnumType so `@type {MyEnum}` resolves.
+		if enum, ok := scope.GetDeclaredType(init.String_()).(*jstype.EnumType); ok {
+			scope.declared[name.String_()] = enum
+			return
+		}
 	}
 	// `var foo = function bar(…){…}` with @param/@return on the VAR —
 	// build a FunctionType so call-site arity / arg checks see the
@@ -1819,6 +1903,26 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 			scope.declared[name.String_()] = fnType
 			return
 		}
+	}
+	// GETPROP init: `const E = ns.Prop` — try to resolve the qualified
+	// name. If it resolves to something non-Unknown (e.g. an enum or
+	// constructor), carry that type over so downstream checks work.
+	// When the GETPROP can't be resolved (e.g. `const E = Foo.E` where
+	// Foo.E is a static enum we don't track), fall through and let the
+	// caller see the slot as unknown-but-non-empty (use All to signal
+	// "could be a type, don't flag as unknown value binding").
+	// Mirrors Java's TypedScopeCreator const-GETPROP aliasing.
+	if init != nil && init.Token() == rhino.GETPROP {
+		t := resolveQualifiedType(scope, init)
+		if t != nil && !isJSUnknown(t) {
+			scope.declared[name.String_()] = t
+		} else {
+			// Unknown GETPROP init — use All to distinguish from a
+			// plain-value Unknown (avoids false-positive in the
+			// ResolveTypesInScope emission pass).
+			scope.declared[name.String_()] = jstype.All
+		}
+		return
 	}
 	if _, exists := scope.declared[name.String_()]; !exists {
 		scope.declared[name.String_()] = jstype.Unknown
@@ -2266,4 +2370,491 @@ func hasReturnExpr(n *rhino.Node) bool {
 		}
 	}
 	return false
+}
+
+// ResolveName resolves a single type name against the scope chain,
+// checking typedefs, enums, nominal constructors, and primitives in
+// that order. Returns Unknown when nothing matches. Used by
+// ResolveWorklist as the post-scope-creation resolver.
+func (s *TypedScope) ResolveName(name string) jstype.JSType {
+	if s == nil {
+		return jstype.Unknown
+	}
+	// Dotted name: check namespace props (e.g. "goog.Foo").
+	if dot := strings.IndexByte(name, '.'); dot >= 0 {
+		owner := name[:dot]
+		prop := name[dot+1:]
+		if t := s.LookupNamespaceProp(owner, prop); t != nil {
+			if fn, ok := t.(*jstype.FunctionType); ok && fn.Instance != nil {
+				return fn.Instance
+			}
+			// Non-constructor namespace prop — still present, not a type.
+			return jstype.Unknown
+		}
+	}
+	if alias := s.LookupTypeAlias(name); alias != nil {
+		return alias
+	}
+	if enum := s.LookupEnum(name); enum != nil {
+		return enum.Element
+	}
+	if inst := s.LookupNominalType(name); inst != nil {
+		return inst
+	}
+	return s.registry.ResolveName(name)
+}
+
+// typeNameResolvesInScope reports whether a type name is valid when
+// resolved strictly as a TYPE — not just as any declared identifier.
+// This is stricter than CheckJsDocTypes.nameResolves which also
+// accepts any identifier that appears anywhere in source text (the
+// allNames gate). We check only: primitive, built-in extern, typedef,
+// enum, constructor, or a dotted namespace ctor reference.
+func typeNameResolvesInScope(scope *TypedScope, name string) bool {
+	// Structural keywords that can appear inside a JSDoc expression.
+	if name == "function" || name == "this" || name == "new" || name == "typeof" {
+		return true
+	}
+	// Primitive / sentinel names (canonical + capitalised aliases).
+	switch name {
+	case "number", "string", "boolean", "null", "undefined", "void",
+		"symbol", "bigint", "any",
+		"Null", "Undefined", "Void", "Any":
+		return true
+	}
+	// Well-known built-in externs that are always available.
+	switch name {
+	case "Object", "Array", "Function", "Date", "RegExp", "Error",
+		"Map", "Set", "WeakMap", "WeakSet", "WeakRef",
+		"Promise", "Symbol", "BigInt",
+		"Math", "JSON", "Reflect", "Proxy",
+		"Int8Array", "Uint8Array", "Uint8ClampedArray",
+		"Int16Array", "Uint16Array",
+		"Int32Array", "Uint32Array",
+		"Float32Array", "Float64Array",
+		"BigInt64Array", "BigUint64Array",
+		"ArrayBuffer", "SharedArrayBuffer", "DataView",
+		"Atomics",
+		"IObject", "IArrayLike", "IThenable", "IIterable",
+		"IterableIterator", "Iterator", "Iterable",
+		"Generator", "AsyncIterator", "AsyncIterable", "AsyncGenerator",
+		"Disposable", "IDisposable",
+		"ReadonlyArray", "ReadonlyMap", "ReadonlySet",
+		"Arguments", "Arguments_",
+		"Window", "Document", "Element", "Event",
+		"EventTarget", "EventListener",
+		"Node", "NodeList", "HTMLElement",
+		"XMLHttpRequest":
+		return true
+	}
+	if defaultExternNames()[name] {
+		return true
+	}
+	if scope == nil {
+		return false
+	}
+	// Dotted name: check namespace constructor props, namespace typedefs,
+	// and namespace enums.
+	if dot := strings.IndexByte(name, '.'); dot >= 0 {
+		// Check dotted typedef alias (e.g. "goog.MyTypedef").
+		if scope.LookupTypeAlias(name) != nil {
+			return true
+		}
+		// Walk to the last segment for constructor / enum prop lookup.
+		// For multi-segment paths like `ns.ns2.Foo`, split at last dot.
+		lastDot := strings.LastIndexByte(name, '.')
+		owner := name[:lastDot]
+		prop := name[lastDot+1:]
+		// Only count it as a type if the prop is a constructor.
+		if t := scope.LookupNamespaceProp(owner, prop); t != nil {
+			if fn, ok := t.(*jstype.FunctionType); ok && fn.Instance != nil {
+				return true
+			}
+			// Also accept enum types (e.g. `ns.MyEnum = {@enum}…`).
+			if _, ok := t.(*jstype.EnumType); ok {
+				return true
+			}
+		}
+		return false
+	}
+	// Typedef alias?
+	if scope.LookupTypeAlias(name) != nil {
+		return true
+	}
+	// Enum type?
+	if scope.LookupEnum(name) != nil {
+		return true
+	}
+	// Constructor / interface?
+	if scope.LookupNominalType(name) != nil {
+		return true
+	}
+	return false
+}
+
+// positionInSrc returns (line, col) for absolute offset off in src.
+// Line is 1-indexed, col 0-indexed, matching Java Node positions.
+func positionInSrc(src string, off int) (int, int) {
+	if off > len(src) {
+		off = len(src)
+	}
+	line := 1
+	col := 0
+	for i := 0; i < off; i++ {
+		if src[i] == '\n' {
+			line++
+			col = 0
+			continue
+		}
+		col++
+	}
+	return line, col
+}
+
+// ResolveTypesInScope is the post-scope-creation named-type validation
+// pass. It re-scans JSDoc annotations in the source and, for any type
+// name that:
+//   (a) appears somewhere in source as a declared identifier (allNames)
+//       — so CheckJsDocTypes already suppressed it via its allNames gate
+//   (b) does NOT resolve as a genuine type (constructor, typedef, enum,
+//       or primitive)
+//
+// emits JSC_UNRECOGNIZED_TYPE_ERROR, matching Java's TypeValidator
+// behaviour where value bindings used as type names are flagged even
+// when they appear as declared identifiers.
+//
+// Names NOT in allNames are already caught by CheckJsDocTypes and are
+// not duplicated here.
+func (c *TypedScopeCreator) ResolveTypesInScope(scope *TypedScope) []diag.Diagnostic {
+	if c.sourcePath == "" || c.sourceSrc == "" {
+		return nil
+	}
+	path := c.sourcePath
+	src := c.sourceSrc
+
+	allTemplates := rtsCollectAllTemplateNames(src)
+	allNames := rtsCollectDeclaredNames(src)
+
+	// Scan all JSDoc blocks and register pending types for names that
+	// are in allNames but do not resolve as genuine types in scope.
+	s := src
+	i := 0
+	for i < len(s) {
+		start := strings.Index(s[i:], "/**")
+		if start < 0 {
+			break
+		}
+		start += i
+		end := strings.Index(s[start:], "*/")
+		if end < 0 {
+			break
+		}
+		end += start
+		rtsCheckComment(path, src, s, start, end, allTemplates, allNames, scope, c.registry)
+		i = end + 2
+	}
+
+	// Retry any pending types now that the full scope is available.
+	c.registry.ResolveWorklist(scope.ResolveName)
+
+	// Drain remaining unresolved entries and emit diagnostics.
+	var out []diag.Diagnostic
+	for _, nt := range c.registry.DrainPendingNamedTypes() {
+		out = append(out, diag.Diagnostic{
+			Path:    nt.SourceName(),
+			Line:    nt.Lineno(),
+			Col:     nt.Charno(),
+			Code:    diag.JSC_UNRECOGNIZED_TYPE_ERROR,
+			Level:   diag.Error,
+			Message: fmt.Sprintf("Bad type annotation. Unknown type %s", nt.Reference()),
+		})
+	}
+	return out
+}
+
+// rtsCollectDeclaredNames mirrors CheckJsDocTypes.collectDeclaredNames:
+// scans source for every identifier (including JSDoc-comment text is
+// skipped). Used to determine which names CheckJsDocTypes would have
+// suppressed via its allNames gate.
+func rtsCollectDeclaredNames(s string) map[string]bool {
+	out := map[string]bool{}
+	i := 0
+	for i < len(s) {
+		// Skip JSDoc / block comments.
+		if i+2 < len(s) && s[i] == '/' && s[i+1] == '*' && s[i+2] == '*' {
+			if n := strings.Index(s[i+3:], "*/"); n >= 0 {
+				i += n + 5
+				continue
+			}
+			return out
+		}
+		if i+1 < len(s) && s[i] == '/' && s[i+1] == '*' {
+			if n := strings.Index(s[i+2:], "*/"); n >= 0 {
+				i += n + 4
+			} else {
+				return out
+			}
+			continue
+		}
+		if i+1 < len(s) && s[i] == '/' && s[i+1] == '/' {
+			if n := strings.Index(s[i:], "\n"); n >= 0 {
+				i += n + 1
+			} else {
+				return out
+			}
+			continue
+		}
+		if s[i] == '"' || s[i] == '\'' {
+			i = rtsSkipQuote(s, i)
+			continue
+		}
+		if isIdentStart(s[i]) {
+			start := i
+			for i < len(s) && isIdentChar(s[i]) {
+				i++
+			}
+			out[s[start:i]] = true
+			continue
+		}
+		i++
+	}
+	return out
+}
+
+func rtsSkipQuote(s string, i int) int {
+	quote := s[i]
+	i++
+	for i < len(s) {
+		if s[i] == '\\' {
+			i += 2
+			continue
+		}
+		if s[i] == quote {
+			return i + 1
+		}
+		i++
+	}
+	return len(s)
+}
+
+// rtsCollectAllTemplateNames collects every @template name across all
+// JSDoc blocks in src. Mirrors CheckJsDocTypes.collectAllTemplateNames.
+func rtsCollectAllTemplateNames(src string) map[string]bool {
+	out := map[string]bool{}
+	i := 0
+	for i < len(src) {
+		start := strings.Index(src[i:], "/**")
+		if start < 0 {
+			return out
+		}
+		start += i
+		end := strings.Index(src[start:], "*/")
+		if end < 0 {
+			return out
+		}
+		end += start
+		for k, v := range rtsCollectTemplateNames(src[start:end]) {
+			out[k] = v
+		}
+		i = end + 2
+	}
+	return out
+}
+
+func rtsCollectTemplateNames(body string) map[string]bool {
+	out := map[string]bool{}
+	i := 0
+	for i < len(body) {
+		idx := strings.Index(body[i:], "@template")
+		if idx < 0 {
+			return out
+		}
+		idx += i
+		nl := strings.Index(body[idx:], "\n")
+		if nl < 0 {
+			nl = len(body) - idx
+		}
+		rest := body[idx+len("@template") : idx+nl]
+		// Strip bounded-generic `{B}` clause.
+		if lb := strings.Index(rest, "{"); lb >= 0 {
+			if rb := strings.Index(rest[lb:], "}"); rb > 0 {
+				rest = rest[:lb] + rest[lb+rb+1:]
+			}
+		}
+		for _, part := range strings.Split(rest, ",") {
+			part = strings.TrimSpace(part)
+			if sp := strings.IndexAny(part, " \t*"); sp >= 0 {
+				part = part[:sp]
+			}
+			if part != "" && isIdentStart(part[0]) {
+				out[part] = true
+			}
+		}
+		i = idx + nl
+	}
+	return out
+}
+
+// rtsCheckComment scans one JSDoc comment block and registers pending
+// NamedType entries for names that are in allNames but do not resolve
+// strictly as types in scope.
+func rtsCheckComment(path, src, s string, start, end int, allTemplates, allNames map[string]bool, scope *TypedScope, reg *jstype.Registry) {
+	body := s[start:end]
+	tmpls := rtsCollectTemplateNames(body)
+	i := 0
+	for i < len(body) {
+		at := strings.Index(body[i:], "@")
+		if at < 0 {
+			return
+		}
+		at += i
+		j := at + 1
+		for j < len(body) && isTagChar(body[j]) {
+			j++
+		}
+		tag := body[at+1 : j]
+		if !isTypeTag(tag) {
+			i = j
+			continue
+		}
+		k := j
+		for k < len(body) && (body[k] == ' ' || body[k] == '\t' || body[k] == '\n' || body[k] == '\r' || body[k] == '*') {
+			k++
+		}
+		if k >= len(body) || body[k] != '{' {
+			i = j
+			continue
+		}
+		braceStart := k
+		braceEnd := rtsFindMatchingBrace(body, braceStart)
+		if braceEnd < 0 {
+			return
+		}
+		inner := body[braceStart+1 : braceEnd]
+		rtsCheckTypeExpr(path, src, start+braceStart+1, inner, tmpls, allTemplates, allNames, scope, reg)
+		i = braceEnd + 1
+	}
+}
+
+// rtsCheckTypeExpr walks a type expression string and registers any
+// name that is in allNames (declared identifier in source) but fails
+// the strict type-only check. Names NOT in allNames are handled by
+// CheckJsDocTypes already.
+func rtsCheckTypeExpr(path, src string, base int, inner string, tmpls, allTemplates, allNames map[string]bool, scope *TypedScope, reg *jstype.Registry) {
+	type frame struct {
+		kind       byte
+		expectType bool
+	}
+	stack := []frame{{kind: 0, expectType: true}}
+	top := func() *frame { return &stack[len(stack)-1] }
+
+	i := 0
+	for i < len(inner) {
+		ch := inner[i]
+		switch {
+		case ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' || ch == '*':
+			i++
+		case ch == '!' || ch == '?':
+			i++
+		case ch == '|':
+			top().expectType = true
+			i++
+		case ch == ',':
+			switch top().kind {
+			case '{', '(':
+				top().expectType = false
+			default:
+				top().expectType = true
+			}
+			i++
+		case ch == ':':
+			top().expectType = true
+			i++
+		case ch == '=':
+			i++
+		case ch == '{':
+			stack = append(stack, frame{kind: '{', expectType: false})
+			i++
+		case ch == '(':
+			stack = append(stack, frame{kind: '(', expectType: false})
+			i++
+		case ch == '<':
+			stack = append(stack, frame{kind: '<', expectType: true})
+			i++
+		case ch == '}' || ch == ')' || ch == '>':
+			if len(stack) > 1 {
+				stack = stack[:len(stack)-1]
+			}
+			i++
+		case ch == '.' && i+2 < len(inner) && inner[i+1] == '.' && inner[i+2] == '.':
+			i += 3
+		case isIdentStart(ch):
+			start := i
+			for i < len(inner) && (isIdentChar(inner[i]) || inner[i] == '.') {
+				i++
+			}
+			name := inner[start:i]
+			if !top().expectType {
+				continue
+			}
+			if name == "typeof" {
+				// Skip the operand — not a type name.
+				k := i
+				for k < len(inner) && (inner[k] == ' ' || inner[k] == '\t') {
+					k++
+				}
+				for k < len(inner) && (isIdentChar(inner[k]) || inner[k] == '.') {
+					k++
+				}
+				i = k
+				continue
+			}
+			// Skip template names declared in this comment or globally.
+			if tmpls[name] || allTemplates[name] {
+				continue
+			}
+			// Only register as pending for FLAT (non-dotted) names.
+			// Dotted names like `ns.Foo` have too many edge cases
+			// (namespace constructors inside IIFEs, aliased namespaces)
+			// that the global scope cannot reliably distinguish from
+			// genuine types. Only flat names that are top-level plain
+			// value bindings (scope declares them as Unknown) are safe.
+			if strings.IndexByte(name, '.') >= 0 {
+				continue
+			}
+			// Only register as pending when the name:
+			//   1. Appears somewhere in source as a declared identifier
+			//      (allNames gate) — otherwise CheckJsDocTypes already
+			//      handles it (no allNames suppression happened).
+			//   2. Does NOT resolve strictly as a type.
+			//   3. IS explicitly declared in global scope as Unknown
+			//      (not nil — nil means locally scoped or undeclared,
+			//      which CheckJsDocTypes would NOT suppress).
+			if allNames[name] && !typeNameResolvesInScope(scope, name) &&
+				scope.GetRawDeclaredType(name) == jstype.Unknown {
+				line, col := positionInSrc(src, base+start)
+				reg.RegisterPending(name, path, line, col)
+			}
+		default:
+			i++
+		}
+	}
+}
+
+// rtsFindMatchingBrace returns the offset of the closing `}` matching
+// the `{` at open within s, or -1.
+func rtsFindMatchingBrace(s string, open int) int {
+	depth := 0
+	for i := open; i < len(s); i++ {
+		switch s[i] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return i
+			}
+		}
+	}
+	return -1
 }

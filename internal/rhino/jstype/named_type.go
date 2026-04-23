@@ -264,3 +264,9 @@ func (n *NamedType) resolveTypeof(_ *Registry) bool {
 func (n *NamedType) warning(_ string) {
 	// No-op until the ErrorReporter port lands.
 }
+
+// Reference / SourceName / Lineno / Charno expose the worklist fields.
+func (n *NamedType) Reference() string  { return n.reference }
+func (n *NamedType) SourceName() string { return n.sourceName }
+func (n *NamedType) Lineno() int        { return n.lineno }
+func (n *NamedType) Charno() int        { return n.charno }

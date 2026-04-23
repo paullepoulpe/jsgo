@@ -106,6 +106,25 @@ func (r *Registry) ResolveWorklist(resolver func(name string) JSType) {
 	r.pendingNamedTypes = remaining
 }
 
+// DrainPendingNamedTypes returns and clears the pending list so the
+// caller can emit JSC_UNRECOGNIZED_TYPE_ERROR for whatever remains.
+func (r *Registry) DrainPendingNamedTypes() []*NamedType {
+	out := r.pendingNamedTypes
+	r.pendingNamedTypes = nil
+	return out
+}
+
+// RegisterPending records an unresolved type-name reference for the
+// two-phase resolve pass. lowercase fields on main's NamedType.
+func (r *Registry) RegisterPending(ref, sourceName string, lineno, charno int) {
+	r.pendingNamedTypes = append(r.pendingNamedTypes, &NamedType{
+		reference:  ref,
+		sourceName: sourceName,
+		lineno:     lineno,
+		charno:     charno,
+	})
+}
+
 // GetResolver returns the JSTypeResolver associated with this registry, or nil
 // if none has been attached yet. Mirrors JSTypeRegistry.getResolver() in Java.
 func (r *Registry) GetResolver() *JSTypeResolver { return r.resolver }

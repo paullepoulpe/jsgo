@@ -63,6 +63,8 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	}
 	reg := jstype.NewRegistry()
 	creator := NewTypedScopeCreator(reg)
+	creator.sourcePath = path
+	creator.sourceSrc = src
 	externScope := creator.createExternScope()
 	scope := creator.createScopeInWithParent(script, externScope)
 	// InferConsts annotates NAME nodes before diagnostic passes run.
@@ -74,6 +76,7 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	all = append(all, NewVarCheck(path, creator, scope).Check(script)...)
 	all = append(all, NewVariableReferenceCheck(path, externScope).Check(script)...)
 	all = append(all, NewCheckJsDocTypes(path, src, scope, creator).Check()...)
+	all = append(all, creator.ResolveTypesInScope(scope)...)
 	all = append(all, NewTypeCheckWithOptions(path, creator, scope, opts).Check(script)...)
 	all = append(all, NewCheckDeterministicTest(path, creator, scope).Check(script)...)
 	all = append(all, NewCheckMissingReturn(path, scope).Check(script)...)
