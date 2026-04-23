@@ -875,12 +875,29 @@ func (s *SuperclassCheck) checkPrototypeAssign(stmt *rhino.Node, assign *rhino.N
 	if overrideType == nil {
 		return
 	}
+	// Read JSDoc to detect @override — mirrors Java's declaresOverride(info).
+	jsDocInfo := assign.JSDocInfo()
+	if jsDocInfo == nil {
+		jsDocInfo = stmt.JSDocInfo()
+	}
+	declaredOverride := jsDocInfo.IsOverride()
+	// Mirrors Java's checkDeclaredPropertyAgainstNominalInheritance:
+	// interfaces are checked elsewhere; skip them here.
+	if fn.Instance.IsStructural {
+		if !declaredOverride {
+			return
+		}
+	}
+	foundProperty := false
+	super := fn.Instance.Super()
+	impls := s.implementedInstances(ownerName)
 	// Superclass slot (via @extends chain).
-	if super := fn.Instance.Super(); super != nil {
+	if super != nil {
 		if super.IsPropertyInferred(propName) {
 			return
 		}
 		if slot := super.GetPropertyType(propName); slot != nil {
+			foundProperty = true
 			if !overrideCompatible(overrideType, slot) {
 				s.diags = append(s.diags, diag.Diagnostic{
 					Path:  s.path,
@@ -896,11 +913,12 @@ func (s *SuperclassCheck) checkPrototypeAssign(stmt *rhino.Node, assign *rhino.N
 		}
 	}
 	// @implements interfaces.
-	for _, iface := range s.implementedInstances(ownerName) {
+	for _, iface := range impls {
 		slot := iface.GetPropertyType(propName)
 		if slot == nil {
 			continue
 		}
+		foundProperty = true
 		if overrideCompatible(overrideType, slot) {
 			continue
 		}
@@ -914,6 +932,39 @@ func (s *SuperclassCheck) checkPrototypeAssign(stmt *rhino.Node, assign *rhino.N
 				propName, ownerName, iface.TypeName(), slot.TypeName(), overrideType.TypeName()),
 		})
 		return
+	}
+	// Mirrors Java's checkDeclaredPropertyAgainstNominalInheritance:
+	// if @override was declared but the property exists on neither the
+	// resolved superclass nor any @implements interface, fire
+	// JSC_UNKNOWN_OVERRIDE. Guard: fire when there is at least one
+	// resolved ancestor OR when the JSDoc declares a plain (non-template)
+	// @implements whose base type couldn't be resolved (i.e. truly
+	// undefined, not just unresolvable due to template args).
+	// Unresolved @extends (e.g. template @extends {Foo<T>}) leaves
+	// super==nil with no plain @implements, so we skip — matching Java's
+	// hasUnknownOrEmptySupertype guard.
+	hasAncestors := super != nil || len(impls) > 0
+	if !hasAncestors {
+		ownerInfo := s.findConstructorJSDoc(ownerName)
+		if ownerInfo != nil {
+			for _, e := range ownerInfo.Implementations() {
+				// Only count plain (non-template) @implements that failed
+				// to resolve — that indicates a truly undefined type rather
+				// than a type we can't resolve due to template arguments.
+				if !strings.ContainsRune(e.TypeName, '<') {
+					hasAncestors = true
+					break
+				}
+			}
+		}
+	}
+	if !foundProperty && declaredOverride && hasAncestors {
+		s.diags = append(s.diags, diag.Diagnostic{
+			Path: s.path, Line: stmt.Lineno(), Col: stmt.Charno(),
+			Code: diag.JSC_UNKNOWN_OVERRIDE, Level: diag.Error,
+			Message: fmt.Sprintf("property %s not defined on any superclass of %s",
+				propName, fn.Instance.TypeName()),
+		})
 	}
 }
 

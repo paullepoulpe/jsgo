@@ -1135,6 +1135,24 @@ func (c *TypeCheck) visitCall(node *rhino.Node, scope *TypedScope) []diag.Diagno
 		return nil
 	}
 	var out []diag.Diagnostic
+	// Non-native constructors must be called with `new`, not as plain
+	// functions. Mirrors TypeCheck.java's visitCall guard:
+	//   if (functionType.isConstructor() && !functionType.isNativeObjectType()
+	//       && (returnType.isUnknownType() || returnType.isVoidType())
+	//       && !child.isSuper())
+	// Java's isNativeObjectType() is approximated via externTypes: types
+	// from the externs scope (String, Function, Array, etc.) are skipped
+	// because they may be callable without `new`. User-defined constructors
+	// (Instance not in externTypes) always map to the unknown-return case.
+	if node.Token() == rhino.CALL && fn.IsConstructor && callee.Token() != rhino.SUPER &&
+		fn.Instance != nil && !c.externTypes[fn.Instance] {
+		out = append(out, diag.Diagnostic{
+			Path: c.path, Line: node.Lineno(), Col: node.Charno(),
+			Code: diag.JSC_CONSTRUCTOR_NOT_CALLABLE, Level: diag.Error,
+			Message: fmt.Sprintf("Constructor %s should be called with the \"new\" keyword",
+				strippedCallee.TypeName()),
+		})
+	}
 	calleeName := describeCallee(callee)
 	// JSC_EXPECTED_THIS_TYPE — port of TypeCheck.java:
 	// ordinary functions with an explicit `this:T` type must be called
