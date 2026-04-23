@@ -8,9 +8,19 @@ package jstype
 
 import "strings"
 
-type Registry struct{}
+type Registry struct {
+	// resolver is the JSTypeResolver that shares this registry's lifecycle.
+	// Nil until Create() wires it; exposed via GetResolver() so JSTypeResolver
+	// can detect when a resolver already exists (mirrors the Java factory method
+	// JSTypeResolver.create(JSTypeRegistry) which calls registry.getResolver()).
+	resolver *JSTypeResolver
+}
 
 func NewRegistry() *Registry { return &Registry{} }
+
+// GetResolver returns the JSTypeResolver associated with this registry, or nil
+// if none has been attached yet. Mirrors JSTypeRegistry.getResolver() in Java.
+func (r *Registry) GetResolver() *JSTypeResolver { return r.resolver }
 
 // ResolveName mirrors JSTypeRegistry.getType for primitive names. Returns
 // Unknown for names this scaffold doesn't recognise yet.
