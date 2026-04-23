@@ -24,6 +24,33 @@
 
 package jstype
 
+// KeyTracker is a visitation set for template-key cycle detection.
+// It mirrors the seenTypes concept from Java's TemplateTypeReplacer
+// but is scoped specifically to TemplateType keys so that key-level
+// recursion (e.g. T → Foo<T>) is detected separately from type-level
+// cycles.  A nil KeyTracker is safe to use (no tracking performed).
+type KeyTracker struct {
+	visited map[*TemplateType]bool
+}
+
+// Enter marks key as visited.  Returns false if key was already visited
+// (cycle detected), true otherwise.
+func (kt *KeyTracker) Enter(key *TemplateType) bool {
+	if kt.visited == nil {
+		kt.visited = make(map[*TemplateType]bool)
+	}
+	if kt.visited[key] {
+		return false
+	}
+	kt.visited[key] = true
+	return true
+}
+
+// Exit removes key from the visited set.
+func (kt *KeyTracker) Exit(key *TemplateType) {
+	delete(kt.visited, key)
+}
+
 // TemplateTypeReplacer specializes TemplatizedTypes according to a
 // TemplateTypeMap of bindings.
 // Mirrors com.google.javascript.rhino.jstype.TemplateTypeReplacer.
@@ -45,6 +72,9 @@ type TemplateTypeReplacer struct {
 
 	// seenTypes guards against cycles; nil until first use.
 	seenTypes map[JSType]bool
+	// keyTracker provides cycle detection across TemplateType key visitation.
+	// Mirrors the KeyTracker inner class in Java's TemplateTypeReplacer.
+	keyTracker KeyTracker
 	// visitedObjectTypes caches results for record-type property walks;
 	// nil until first use.
 	visitedObjectTypes map[JSType]JSType
@@ -366,6 +396,8 @@ func (r *TemplateTypeReplacer) caseUnionTypeUnguarded(t *UnionType) JSType {
 
 // caseTemplateType handles TemplateType replacement.
 // Mirrors TemplateTypeReplacer.caseTemplateType in Java.
+// Also enforces the bounded constraint: when t has a bound and the resolved
+// substitution is not a subtype of that bound, the bound itself is returned.
 func (r *TemplateTypeReplacer) caseTemplateType(t *TemplateType) JSType {
 	r.hasMadeReplacement = true
 
@@ -375,6 +407,13 @@ func (r *TemplateTypeReplacer) caseTemplateType(t *TemplateType) JSType {
 		}
 		return t
 	}
+
+	// KeyTracker: detect cycles at the key level.
+	if !r.keyTracker.Enter(t) {
+		// Cycle detected via key-level visitation.
+		return t
+	}
+	defer r.keyTracker.Exit(t)
 
 	r.initSeenTypes()
 	if r.seenTypes[t] {
@@ -402,6 +441,16 @@ func (r *TemplateTypeReplacer) caseTemplateType(t *TemplateType) JSType {
 	if visited == r.keyType {
 		panic("TemplateTypeReplacer: trying to replace key with the same value")
 	}
+
+	// Bounded constraint enforcement: if t has a bound and the resolved
+	// substitution is not a subtype of that bound, fall back to the bound.
+	// Mirrors Java's getBound() enforcement in TemplateTypeReplacer.
+	if bound := t.getBound(); !isUnknown(bound) {
+		if !IsSubtype(visited, bound) {
+			return bound
+		}
+	}
+
 	return visited
 }
 

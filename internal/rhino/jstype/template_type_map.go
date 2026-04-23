@@ -445,10 +445,23 @@ func typeName(t JSType) string {
 	return t.TypeName()
 }
 
-// getBound returns the upper bound of the TemplateType.  Since bounded
-// generics were removed in the upstream Java source, this always returns
-// Unknown.
-// TODO(template-bounds): wire to real bound when @template T extends Base
-// is ported.
-func (t *TemplateType) getBound() JSType { return Unknown }
+// getBound returns the upper bound of the TemplateType.  Returns the bound
+// field when set (for @template T extends Base), or Unknown otherwise.
+// Mirrors TemplateType.getBound() in Java.
+func (t *TemplateType) getBound() JSType {
+	if t.bound != nil {
+		return t.bound
+	}
+	return Unknown
+}
+
+// GetDecoupledTemplateKeys returns the template keys that have no
+// corresponding value — i.e. the "unfilled" keys in the map.
+// Mirrors TemplateTypeMap.getDecoupledTemplateKeys() in Java.
+func (m *TemplateTypeMap) GetDecoupledTemplateKeys() []*TemplateType {
+	if len(m.templateKeys) <= len(m.templateValues) {
+		return nil
+	}
+	return m.templateKeys[len(m.templateValues):]
+}
 

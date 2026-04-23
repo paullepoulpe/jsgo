@@ -24,7 +24,11 @@ type TemplatizedType struct {
 }
 
 func NewTemplatizedType(base *ObjectType, args []JSType) *TemplatizedType {
-	return &TemplatizedType{Base: base, Args: args}
+	t := &TemplatizedType{Base: base, Args: args}
+	if base != nil {
+		base.templatizedSelf = t
+	}
+	return t
 }
 
 func (t *TemplatizedType) TypeName() string {
@@ -40,6 +44,51 @@ func (t *TemplatizedType) TypeName() string {
 		}
 	}
 	return t.Base.TypeName() + "<" + strings.Join(names, ",") + ">"
+}
+
+// IsInstantiatedGenericType reports whether this TemplatizedType has at
+// least one template argument.  Mirrors TemplatizedType.isInstantiatedGenericType
+// in Java.
+func (t *TemplatizedType) IsInstantiatedGenericType() bool {
+	return len(t.Args) > 0
+}
+
+// GetTemplateArg returns the resolved type argument for the given template
+// key, looked up by pointer identity through the base object's type
+// parameter list.  Returns nil if key is not a parameter of the base type.
+// Mirrors TemplatizedType.getTemplateTypes() (keyed version) in Java.
+func (t *TemplatizedType) GetTemplateArg(key *TemplateType) JSType {
+	if key == nil || t.Base == nil {
+		return nil
+	}
+	// Walk the base's super chain looking for a TemplatizedType supertype
+	// so we can resolve inherited template parameters.
+	params := t.Base.GetTypeParameters()
+	for i, p := range params {
+		if p == key && i < len(t.Args) {
+			return t.Args[i]
+		}
+	}
+	// Fall through to inherited templatized supertypes: if the supertype is
+	// itself a TemplatizedType, delegate to it.
+	if t.Base.super != nil {
+		superTemplatized := findTemplatizedSuper(t.Base.super)
+		if superTemplatized != nil {
+			return superTemplatized.GetTemplateArg(key)
+		}
+	}
+	return nil
+}
+
+// findTemplatizedSuper returns the first TemplatizedType encountered
+// while walking up the super chain of obj, or nil.
+func findTemplatizedSuper(obj *ObjectType) *TemplatizedType {
+	for cur := obj; cur != nil; cur = cur.super {
+		if cur.templatizedSelf != nil {
+			return cur.templatizedSelf
+		}
+	}
+	return nil
 }
 
 // IsSubtypeOf delegates to the underlying ObjectType — assignment

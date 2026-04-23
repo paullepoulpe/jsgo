@@ -78,6 +78,15 @@ type ObjectType struct {
 	// ObjectType.isNativeObjectType() in Java — InferJsDocInfo skips
 	// attaching JSDoc to native types to avoid clobbering externs docs.
 	isNative bool
+
+	// typeParameters are the ordered @template keys declared on this type.
+	// Mirrors ObjectType.getTypeParameters() in Java.
+	typeParameters []*TemplateType
+
+	// templatizedSelf, when non-nil, is the TemplatizedType that wraps this
+	// ObjectType with its concrete arguments.  Set by NewTemplatizedType so
+	// that GetTemplateArg can resolve inherited template parameters.
+	templatizedSelf *TemplatizedType
 }
 
 func NewObjectType(name string) *ObjectType {
@@ -358,6 +367,18 @@ func (o *ObjectType) GetOwnPropertyJSDoc(name string) *rhino.JSDocInfo {
 }
 func (o *ObjectType) SetPropertyJSDoc(name string, info *rhino.JSDocInfo) {
 	o.SetPropertyJSDocInfo(name, info)
+}
+
+// GetTypeParameters returns the ordered @template keys declared on this
+// type.  Mirrors ObjectType.getTypeParameters() in Java.
+func (o *ObjectType) GetTypeParameters() []*TemplateType {
+	return o.typeParameters
+}
+
+// SetTypeParameters records the ordered @template keys for this type.
+// Called by TypedScopeCreator when processing `@template` annotations.
+func (o *ObjectType) SetTypeParameters(params []*TemplateType) {
+	o.typeParameters = params
 }
 
 // String is for diagnostics; matches Java's PrototypeObjectType.toString
