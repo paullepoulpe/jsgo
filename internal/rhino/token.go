@@ -125,6 +125,17 @@ const (
 	ARRAYLIT
 	OBJECTLIT
 	STRING_KEY
+
+	// Template literals — mirrors Java's TEMPLATELIT / TEMPLATELIT_STRING /
+	// TEMPLATELIT_SUB / TAGGED_TEMPLATELIT tokens (Token.java lines 205-342).
+	// TEMPLATELIT is the root node; its children alternate between
+	// TEMPLATELIT_STRING (cooked text segments) and TEMPLATELIT_SUB
+	// (interpolated expressions wrapped in ${ … }). TAGGED_TEMPLATELIT is
+	// the AST node for a tagged template call: `tag\`…\``.
+	TEMPLATELIT
+	TEMPLATELIT_STRING
+	TEMPLATELIT_SUB
+	TAGGED_TEMPLATELIT
 )
 
 func (t Token) String() string {
@@ -301,6 +312,14 @@ func (t Token) String() string {
 		return "OBJECTLIT"
 	case STRING_KEY:
 		return "STRING_KEY"
+	case TEMPLATELIT:
+		return "TEMPLATELIT"
+	case TEMPLATELIT_STRING:
+		return "TEMPLATELIT_STRING"
+	case TEMPLATELIT_SUB:
+		return "TEMPLATELIT_SUB"
+	case TAGGED_TEMPLATELIT:
+		return "TAGGED_TEMPLATELIT"
 	}
 	return "ERROR"
 }

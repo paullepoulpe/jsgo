@@ -396,6 +396,97 @@ func (s *Scanner) SkipToStatementBoundary() {
 	}
 }
 
+// ---- template literal scanning ---------------------------------- //
+
+// TemplatePart is the result of one call to ScanTemplatePart. It mirrors
+// the TemplateLiteralToken produced by Java's
+// nextTemplateLiteralTokenShared (Scanner.java lines 938-981).
+//
+// Kind is one of:
+//   - TemplateNoSub  — the whole template has no substitutions: `abc`
+//   - TemplateHead   — the text before the first ${
+//   - TemplateMiddle — the text between two ${ … } substitutions
+//   - TemplateTail   — the text after the last } up to the closing `
+type TemplatePartKind int
+
+const (
+	TemplateNoSub  TemplatePartKind = iota // NO_SUBSTITUTION_TEMPLATE
+	TemplateHead                           // TEMPLATE_HEAD
+	TemplateMiddle                         // TEMPLATE_MIDDLE
+	TemplateTail                           // TEMPLATE_TAIL
+)
+
+// TemplatePart carries the cooked text segment and the kind of token.
+type TemplatePart struct {
+	Kind TemplatePartKind
+	// Cooked is the raw source characters between the delimiters
+	// (backtick/`${`/`}` boundaries), not including those delimiters.
+	// Escape sequences are preserved verbatim (no decoding) to match the
+	// Java scanner which stores the raw string and lets IR nodes carry it.
+	Cooked string
+}
+
+// ScanTemplateLiteral is called when the scanner is positioned just after
+// the opening backtick. It mirrors Java's scanTemplateLiteral (line 929)
+// which immediately delegates to nextTemplateLiteralTokenShared.
+//
+// Returns the first TemplatePart (either TemplateNoSub or TemplateHead)
+// and whether scanning succeeded. On failure (unterminated literal) it
+// returns false and the scanner position is left just past the last
+// character consumed.
+func (s *Scanner) ScanTemplateLiteral() (TemplatePart, bool) {
+	return s.scanTemplateCharacters(TemplateNoSub, TemplateHead)
+}
+
+// ScanTemplateMiddleOrTail is called after the parser has finished
+// parsing a ${…} substitution expression and consumed the closing `}`.
+// It mirrors Java's nextTemplateLiteral (line 140-150), which calls
+// nextTemplateLiteralTokenShared(TEMPLATE_TAIL, TEMPLATE_MIDDLE).
+func (s *Scanner) ScanTemplateMiddleOrTail() (TemplatePart, bool) {
+	return s.scanTemplateCharacters(TemplateTail, TemplateMiddle)
+}
+
+// scanTemplateCharacters ports nextTemplateLiteralTokenShared (lines
+// 938-981). It collects raw characters until a backtick (→ endKind) or
+// a `${` sequence (→ middleKind), skipping over escape sequences.
+func (s *Scanner) scanTemplateCharacters(endKind, middleKind TemplatePartKind) (TemplatePart, bool) {
+	start := s.pos
+	for !s.AtEnd() {
+		c := s.src[s.pos]
+		switch c {
+		case '`':
+			// End of template (NO_SUBSTITUTION or TAIL).
+			cooked := string(s.src[start:s.pos])
+			s.Advance() // consume closing backtick
+			s.lastTokenLine = s.line
+			return TemplatePart{Kind: endKind, Cooked: cooked}, true
+		case '\\':
+			// Skip escape sequence: consume '\' plus the next char.
+			// For line-terminators the Java scanner calls skipLineTerminator
+			// which handles \r\n too; we match that by just advancing once
+			// more if the next char is \n (covers the common case).
+			s.Advance() // '\'
+			if !s.AtEnd() {
+				s.Advance() // escaped char
+			}
+		case '$':
+			if s.pos+1 < len(s.src) && s.src[s.pos+1] == '{' {
+				// Start of a substitution.
+				cooked := string(s.src[start:s.pos])
+				s.Advance() // '$'
+				s.Advance() // '{'
+				s.lastTokenLine = s.line
+				return TemplatePart{Kind: middleKind, Cooked: cooked}, true
+			}
+			s.Advance()
+		default:
+			s.Advance()
+		}
+	}
+	// Unterminated template literal — report failure.
+	return TemplatePart{}, false
+}
+
 // ---- character-class predicates --------------------------------- //
 
 func isIdentStart(c rune) bool {

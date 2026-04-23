@@ -1513,6 +1513,25 @@ func (p *Parser) tryPostfix() (*rhino.Node, bool) {
 			expr = call
 			continue
 		}
+		// Tagged template literal: `expr\`…\`` mirrors Java's
+		// parseTaggedTemplateLiteral in Parser.java. The tag is any
+		// MemberExpression; the template becomes a TAGGED_TEMPLATELIT node
+		// whose first child is the tag and whose remaining children form a
+		// TEMPLATELIT subtree (same shape as a bare template literal).
+		if c == '`' {
+			tmplLine, tmplCol := p.scanner.Line(), p.scanner.Col()
+			tmpl, ok := p.parseTemplateLiteral()
+			if !ok {
+				return nil, false
+			}
+			tmpl.SetPos(tmplLine, tmplCol)
+			tagged := rhino.New(rhino.TAGGED_TEMPLATELIT)
+			tagged.SetPos(expr.Lineno(), expr.Charno())
+			tagged.AddChildToBack(expr)
+			tagged.AddChildToBack(tmpl)
+			expr = tagged
+			continue
+		}
 		return expr, true
 	}
 }
@@ -1546,6 +1565,13 @@ func (p *Parser) tryPrimary() (*rhino.Node, bool) {
 	}
 	c := p.scanner.Peek()
 	switch {
+	case c == '`':
+		n, ok := p.parseTemplateLiteral()
+		if !ok {
+			return nil, false
+		}
+		n.SetPos(startLine, startCol)
+		return n, true
 	case c == '\'' || c == '"':
 		n, ok := p.parseStringLiteral(c)
 		if !ok {
@@ -2285,6 +2311,68 @@ func (p *Parser) parseBooleanLiteral() (*rhino.Node, bool) {
 		return rhino.New(rhino.FALSE), true
 	}
 	return nil, false
+}
+
+// parseTemplateLiteral parses a backtick-delimited template literal
+// starting at the current cursor position (the cursor must be on the
+// opening '`').
+//
+// Mirrors Java's parseTemplateLiteral / parseTemplateLiteralContinuation
+// in Parser.java. Produces a TEMPLATELIT node whose children alternate
+// between TEMPLATELIT_STRING (raw text segments) and TEMPLATELIT_SUB
+// (wrapped interpolated expressions). For example:
+//
+//	`hello ${name}!`
+//	→ TEMPLATELIT
+//	    TEMPLATELIT_STRING "hello "
+//	    TEMPLATELIT_SUB
+//	      NAME "name"
+//	    TEMPLATELIT_STRING "!"
+//
+// TODO: nested braces inside ${ … } (e.g. `${ {a:1} }`) are not yet
+// counted; a single unmatched '}' will prematurely end the substitution.
+// For now the minimal subset that handles simple expressions is supported.
+func (p *Parser) parseTemplateLiteral() (*rhino.Node, bool) {
+	root := rhino.New(rhino.TEMPLATELIT)
+	p.scanner.Advance() // consume opening backtick
+	part, ok := p.scanner.ScanTemplateLiteral()
+	if !ok {
+		return nil, false
+	}
+	for {
+		// Emit the text segment.
+		seg := rhino.NewString(rhino.TEMPLATELIT_STRING, part.Cooked)
+		root.AddChildToBack(seg)
+
+		if part.Kind == TemplateNoSub || part.Kind == TemplateTail {
+			// No more substitutions; we're done.
+			break
+		}
+		// part.Kind == TemplateHead or TemplateMiddle — parse the expression.
+		p.scanner.SkipTrivia()
+		subExprLine, subExprCol := p.scanner.Line(), p.scanner.Col()
+		subExpr, ok := p.tryExpression()
+		if !ok {
+			return nil, false
+		}
+		subExpr.SetPos(subExprLine, subExprCol)
+		sub := rhino.New(rhino.TEMPLATELIT_SUB)
+		sub.AddChildToBack(subExpr)
+		root.AddChildToBack(sub)
+
+		// Consume the closing '}' of the substitution.
+		p.scanner.SkipTrivia()
+		if !p.scanner.ConsumeByte('}') {
+			return nil, false
+		}
+		// Scan the next segment (middle or tail).
+		part, ok = p.scanner.ScanTemplateMiddleOrTail()
+		if !ok {
+			return nil, false
+		}
+	}
+	p.scanner.MarkTokenConsumed()
+	return root, true
 }
 
 func (p *Parser) parseStringLiteral(quote rune) (*rhino.Node, bool) {
