@@ -132,7 +132,7 @@ func (tv *TypeValidator) expectValidTypeofName(n *rhino.Node, found string) {
 		Path:    tv.path,
 		Line:    n.Lineno(),
 		Col:     n.Charno(),
-		Code:    diag.JSC_UNRECOGNIZED_TYPEOF_ERROR,
+		Code:    diag.JSC_UNKNOWN_TYPEOF_VALUE,
 		Level:   diag.Warning,
 		Message: fmt.Sprintf("unknown type: %s", found),
 	})

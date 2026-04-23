@@ -73,6 +73,9 @@ func (c *CheckSideEffects) reportUseless(stmt, expr *rhino.Node, top bool) {
 		case rhino.NOT:
 			c.emitOpAt(expr, "not")
 			return
+		case rhino.BITNOT:
+			c.emitOpAt(expr, "bitnot")
+			return
 		case rhino.GETELEM:
 			c.emitOpAt(stmt, "getelem")
 			if pure {
