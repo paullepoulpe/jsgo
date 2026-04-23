@@ -59,6 +59,7 @@ func ParseJSDocInfo(body string, startLine int) *rhino.JSDocInfo {
 	// the position of the '@' character.
 	// TODO: wire proper lineno/charno through JsDocTokenStream instead of scanning.
 	recordBoundedTemplatePositions(p.info, body, startLine)
+	recordInvalidParamPositions(p.info, body, startLine)
 	return p.info
 }
 
@@ -104,6 +105,43 @@ func recordBoundedTemplatePositions(info *rhino.JSDocInfo, body string, startLin
 			})
 		}
 		i++ // advance past '@'
+	}
+}
+
+// recordInvalidParamPositions fills in absolute (line, col) for each
+// InvalidParamPosition stored during parseParamTag, by scanning the raw body.
+func recordInvalidParamPositions(info *rhino.JSDocInfo, body string, startLine int) {
+	invalids := info.InvalidParamPositions()
+	if len(invalids) == 0 {
+		return
+	}
+	need := make(map[string]int, len(invalids))
+	for i, iv := range invalids {
+		need[iv.Name] = i
+	}
+	line, i := startLine, 0
+	for i < len(body) {
+		if body[i] == '\n' { line++; i++; continue }
+		if body[i] != '@' || !strings.HasPrefix(body[i+1:], "param") { i++; continue }
+		after := body[i+1+len("param"):]
+		j := 0
+		for j < len(after) && (after[j] == ' ' || after[j] == '\t') { j++ }
+		if j >= len(after) || after[j] != '{' { i++; continue }
+		j++
+		for depth := 1; j < len(after) && depth > 0; j++ {
+			if after[j] == '{' { depth++ } else if after[j] == '}' { depth-- }
+		}
+		for j < len(after) && (after[j] == ' ' || after[j] == '\t') { j++ }
+		k := j
+		for k < len(after) && after[k] != ' ' && after[k] != '\t' && after[k] != '\n' && after[k] != '*' { k++ }
+		name := strings.TrimLeft(after[j:k], "[")
+		if idx := strings.IndexAny(name, "=]"); idx >= 0 { name = name[:idx] }
+		if idx, ok := need[name]; ok {
+			lineStart := strings.LastIndex(body[:i], "\n") + 1
+			info.UpdateInvalidParamPosition(idx, line, i+1+len("param")+j-lineStart)
+			delete(need, name)
+		}
+		i++
 	}
 }
 
@@ -338,6 +376,12 @@ func (p *JsDocInfoParser) parseParamTag() JsDocToken {
 			if isOptional {
 				p.info.MarkOptionalParam(name)
 			}
+			p.anyRecorded = true
+		} else {
+			// Port of JsDocInfoParser.addParserWarning(JSDOC_INVALID_PARAM_NAME).
+			// Store the invalid name; positions are resolved by
+			// recordInvalidParamPositions after parsing completes.
+			p.info.AddInvalidParamPosition(rhino.InvalidParamPosition{Name: name})
 			p.anyRecorded = true
 		}
 	}

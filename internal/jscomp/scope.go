@@ -1951,6 +1951,7 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 		}
 		if init != nil && init.Token() == rhino.FUNCTION {
 			fnType := c.buildDeclaredFunctionConstructor(init, info, name.String_(), scope)
+			fnType.SetJSDocInfo(info)
 			if info.IsInterface() || info.IsRecord() {
 				fnType.Instance.IsStructural = true
 			}

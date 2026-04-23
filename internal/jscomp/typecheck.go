@@ -129,18 +129,17 @@ func (c *TypeCheck) Check(script *rhino.Node) []diag.Diagnostic {
 	// diagnostic from JsDocInfoParser.java's TEMPLATE case.
 	// TODO: bounded generics are still in development in the Java compiler too;
 	// this diagnostic is intentionally always-error (no suppression path).
-	c.emitBoundedGenericDiagnostics(script)
+	c.emitJSDocParseWarnings(script)
 	trav := NewNodeTraversal(c, c.creator, c.global)
 	trav.Traverse(script)
 	return c.diags
 }
 
-// emitBoundedGenericDiagnostics walks every node in the script and emits
-// JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES for each bounded-generic @template
-// position recorded during JSDoc parsing. Mirrors the flow in Java where
-// JsDocInfoParser.addParserWarning(JSDOC_TEMPLATE_BOUNDEDGENERICS_USED)
-// is routed through RhinoErrorReporter.typeMap to become this diagnostic.
-func (c *TypeCheck) emitBoundedGenericDiagnostics(script *rhino.Node) {
+// emitJSDocParseWarnings walks the AST and emits diagnostics for JSDoc
+// parse warnings recorded during parsing: JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES
+// (from @template {B} T) and JSC_INVALID_PARAM (from invalid @param names).
+// Mirrors JsDocInfoParser.addParserWarning routed through RhinoErrorReporter.
+func (c *TypeCheck) emitJSDocParseWarnings(script *rhino.Node) {
 	var walk func(*rhino.Node)
 	walk = func(n *rhino.Node) {
 		if n == nil {
@@ -149,12 +148,17 @@ func (c *TypeCheck) emitBoundedGenericDiagnostics(script *rhino.Node) {
 		if info := n.JSDocInfo(); info != nil {
 			for _, pos := range info.BoundedTemplatePositions() {
 				c.diags = append(c.diags, diag.Diagnostic{
-					Path:    c.path,
-					Line:    pos.Line,
-					Col:     pos.Col,
-					Code:    diag.JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES,
-					Level:   diag.Error,
+					Path: c.path, Line: pos.Line, Col: pos.Col,
+					Code: diag.JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES, Level: diag.Error,
 					Message: "Bounded generic semantics are currently still in development",
+				})
+			}
+			for _, pos := range info.InvalidParamPositions() {
+				c.diags = append(c.diags, diag.Diagnostic{
+					Path: c.path, Line: pos.Line, Col: pos.Col,
+					Code:    diag.JSC_INVALID_PARAM,
+					Level:   diag.Warning,
+					Message: `Parse error. invalid param name "` + pos.Name + `"`,
 				})
 			}
 		}
@@ -909,6 +913,17 @@ func (c *TypeCheck) visitNew(node *rhino.Node, scope *TypedScope) []diag.Diagnos
 			Code: diag.JSC_NOT_A_CONSTRUCTOR, Level: diag.Error,
 			Message: "cannot instantiate non-constructor, found type: " + found.TypeName(),
 		}}
+	}
+	// Port of TypeCheck.java: fire JSC_INSTANTIATE_ABSTRACT_CLASS when
+	// the callee is a @constructor @abstract type.
+	if fn, ok := t.(*jstype.FunctionType); ok {
+		if doc := fn.GetJSDocInfo(); doc.IsAbstract() {
+			return []diag.Diagnostic{{
+				Path: c.path, Line: node.Lineno(), Col: node.Charno(),
+				Code: diag.JSC_INSTANTIATE_ABSTRACT_CLASS, Level: diag.Error,
+				Message: "cannot instantiate abstract class",
+			}}
+		}
 	}
 	return c.visitCall(node, scope)
 }

@@ -99,6 +99,17 @@ func mergeSuppressions(dst, src *rhino.JSDocInfo) {
 // tags (@interface, @constructor, @record, @extends) beat plain
 // type / param tags. Matches Closure's "the last declaration comment
 // wins" heuristic when multiple JSDoc blocks precede a single decl.
+// jsdocHasFunctionAnnotation reports whether the JSDocInfo carries a
+// function-bearing annotation — used to distinguish inline @param tags on
+// argument functions from pure @type casts like `/** @type {Foo} */ (x)`.
+func jsdocHasFunctionAnnotation(info *rhino.JSDocInfo) bool {
+	if info == nil {
+		return false
+	}
+	return info.IsConstructor() || info.IsInterface() || info.IsRecord() ||
+		len(info.ParameterNames()) > 0 || info.ReturnType() != nil
+}
+
 func jsdocCarriesMoreInfo(b, a *rhino.JSDocInfo) bool {
 	decl := func(i *rhino.JSDocInfo) bool {
 		return i.IsConstructor() || i.IsInterface() || i.IsRecord() || i.BaseType() != nil
@@ -1128,7 +1139,11 @@ func (p *Parser) tryCallOrAssignStatement() (*rhino.Node, bool) {
 				rewind()
 				return nil, false
 			}
-			arg.SetPos(argLine, argCol)
+			// Preserve position when tryExpression already set one
+			// (e.g. a FUNCTION from `/** @param {T} x */ (function() {})`).
+			if arg.Lineno() == 0 && arg.Charno() == 0 {
+				arg.SetPos(argLine, argCol)
+			}
 			call.AddChildToBack(arg)
 			p.scanner.SkipTrivia()
 			if p.scanner.ConsumeByte(',') {
@@ -1615,18 +1630,19 @@ func (p *Parser) tryPrimary() (*rhino.Node, bool) {
 	if p.scanner.AtEnd() {
 		return nil, false
 	}
-	// A JSDoc block comment immediately before `{` (e.g.
-	// `/** @struct */ { … }`) — consume it speculatively and attach to
-	// the resulting object literal. If the next token after the comment
-	// is not `{`, restore the scanner so the comment is left in place.
+	// Consume a leading JSDoc before `{` (object literal) or before `(`
+	// when it carries function annotations (@param / @return / @constructor).
+	// Pure @type casts like `/** @type {Foo} */ (expr)` restore instead.
 	var leadingJSDoc *rhino.JSDocInfo
 	if p.scanner.Peek() == '/' && p.scanner.PeekAt(1) == '*' && p.scanner.PeekAt(2) == '*' {
 		save := p.scanner.Save()
 		commentLine := p.scanner.Line()
 		if b, ok := p.scanner.ConsumeBlockComment(); ok {
 			p.scanner.SkipTrivia()
-			if p.scanner.Peek() == '{' {
-				leadingJSDoc = parsing.ParseJSDocInfo(b, commentLine)
+			next := p.scanner.Peek()
+			parsed := parsing.ParseJSDocInfo(b, commentLine)
+			if next == '{' || (next == '(' && jsdocHasFunctionAnnotation(parsed)) {
+				leadingJSDoc = parsed
 			} else {
 				p.scanner.Restore(save)
 			}
@@ -1638,12 +1654,17 @@ func (p *Parser) tryPrimary() (*rhino.Node, bool) {
 
 	// Arrow and parenthesized expressions both start with '('. Try the
 	// arrow speculatively; on failure the Save/Restore in tryArrow
-	// leaves the scanner ready for a paren parse.
+	// leaves the scanner ready for a paren parse. When a leadingJSDoc
+	// was captured above, attach it to the result if it is a FUNCTION.
 	if p.scanner.Peek() == '(' {
 		if arrow, ok := p.tryArrow(); ok {
 			return arrow, true
 		}
-		return p.tryParen()
+		result, ok := p.tryParen()
+		if ok && result != nil && leadingJSDoc != nil && result.Token() == rhino.FUNCTION && result.JSDocInfo() == nil {
+			result.SetJSDocInfo(leadingJSDoc)
+		}
+		return result, ok
 	}
 	fnLine, fnCol := p.scanner.Line(), p.scanner.Col()
 	if p.scanner.ConsumeKeyword("function") {

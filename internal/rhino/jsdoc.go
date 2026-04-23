@@ -30,6 +30,14 @@ type BoundedTemplatePosition struct {
 	Col  int // 0-indexed column of the @ character
 }
 
+// InvalidParamPosition records the source position and raw name of an
+// invalid @param annotation. Port of addParserWarning(JSDOC_INVALID_PARAM_NAME).
+type InvalidParamPosition struct {
+	Line int
+	Col  int
+	Name string
+}
+
 type JSDocInfo struct {
 	typeExpr        *JSTypeExpression
 	paramNames      []string                     // insertion order (matches Java)
@@ -56,6 +64,7 @@ type JSDocInfo struct {
 	typedefExpr     *JSTypeExpression
 	templateNames           []string
 	boundedTemplatePositions []BoundedTemplatePosition
+	invalidParamPositions    []InvalidParamPosition
 	suppressions    map[string]bool
 	hasThisType     bool   // true when @this annotation was present
 	isOverride      bool   // true when @override annotation was present
@@ -130,6 +139,22 @@ func (i *JSDocInfo) BoundedTemplatePositions() []BoundedTemplatePosition {
 }
 func (i *JSDocInfo) AddBoundedTemplatePosition(p BoundedTemplatePosition) {
 	i.boundedTemplatePositions = append(i.boundedTemplatePositions, p)
+}
+
+func (i *JSDocInfo) InvalidParamPositions() []InvalidParamPosition {
+	if i == nil {
+		return nil
+	}
+	return i.invalidParamPositions
+}
+func (i *JSDocInfo) AddInvalidParamPosition(p InvalidParamPosition) {
+	i.invalidParamPositions = append(i.invalidParamPositions, p)
+}
+func (i *JSDocInfo) UpdateInvalidParamPosition(idx, line, col int) {
+	if idx >= 0 && idx < len(i.invalidParamPositions) {
+		i.invalidParamPositions[idx].Line = line
+		i.invalidParamPositions[idx].Col = col
+	}
 }
 
 // IsInterface / IsRecord mirror JSDocInfo.isInterface() /
