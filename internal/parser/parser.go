@@ -678,6 +678,12 @@ func (p *Parser) parseControlBody() *rhino.Node {
 	}
 	// Synthesized block — mark it so CheckSuspiciousCode can detect
 	// `if (x);` (PropAddedBlock + no children = misplaced semicolon).
+	// Capture the scanner position now (before tryStatement) so that an
+	// empty body (e.g. the `;` in `while(foo());`) has its block node
+	// positioned at the semicolon site, matching Java's JSError.make(block,
+	// SUSPICIOUS_SEMICOLON) which inherits the block's source position.
+	bodyLine, bodyCol := p.scanner.Line(), p.scanner.Col()
+	body.SetPos(bodyLine, bodyCol)
 	body.PutBooleanProp(rhino.PropAddedBlock, true)
 	if stmt, ok := p.tryStatement(); ok && stmt != nil {
 		body.AddChildToBack(stmt)
