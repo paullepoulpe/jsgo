@@ -125,6 +125,13 @@ const (
 	ARRAYLIT
 	OBJECTLIT
 	STRING_KEY
+
+	// Type-expression AST tokens — used in parsed JSDoc type trees, not in
+	// the JS source AST. These mirror the same-named entries in Java's
+	// Token enum (Token.java lines 198, 238, 240).
+	ITER_REST // `{...T}` rest parameter type
+	QMARK     // nullable / unknown type marker `?`
+	EQUALS    // optional parameter type marker `=`
 )
 
 func (t Token) String() string {
@@ -301,6 +308,12 @@ func (t Token) String() string {
 		return "OBJECTLIT"
 	case STRING_KEY:
 		return "STRING_KEY"
+	case ITER_REST:
+		return "ITER_REST"
+	case QMARK:
+		return "QMARK"
+	case EQUALS:
+		return "EQUALS"
 	}
 	return "ERROR"
 }

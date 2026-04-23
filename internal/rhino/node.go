@@ -154,6 +154,124 @@ func (n *Node) DetachChildren() {
 
 // ---------------- property bag ------------------------------------- //
 
+// HasChildren mirrors Java's Node.hasChildren().
+func (n *Node) HasChildren() bool { return len(n.children) > 0 }
+
+// HasParent mirrors Java's Node.hasParent().
+func (n *Node) HasParent() bool { return n.parent != nil }
+
+// IsStringLit mirrors Java's Node.isStringLit() — true for STRING_LIT
+// token (used in type-expression ASTs).
+func (n *Node) IsStringLit() bool { return n.token == STRINGLIT }
+
+// IsStringKey mirrors Java's Node.isStringKey() — true for STRING_KEY
+// token (used in record-type ASTs).
+func (n *Node) IsStringKey() bool { return n.token == STRING_KEY }
+
+// IsBlock mirrors Java's Node.isBlock().
+func (n *Node) IsBlock() bool { return n.token == BLOCK }
+
+// ReplaceWith mirrors Java's Node.replaceWith(Node). Swaps `n` out of its
+// parent and inserts `replacement` in the same position. No-op when `n` has
+// no parent (already detached).
+func (n *Node) ReplaceWith(replacement *Node) {
+	if n.parent == nil {
+		return
+	}
+	p := n.parent
+	for i, c := range p.children {
+		if c == n {
+			p.children[i] = replacement
+			break
+		}
+	}
+	replacement.parent = p
+	replacement.next = n.next
+	replacement.previous = n.previous
+	if n.previous != nil {
+		n.previous.next = replacement
+	}
+	if n.next != nil {
+		n.next.previous = replacement
+	}
+	n.parent, n.next, n.previous = nil, nil, nil
+}
+
+// RemoveChildren detaches all children from `n` and returns them as a slice,
+// mirroring Java's Node.removeChildren() which returns the first child (we
+// return all for use in AddChildrenToBack).
+func (n *Node) RemoveChildren() []*Node {
+	kids := n.children
+	for _, c := range kids {
+		c.parent, c.next, c.previous = nil, nil, nil
+	}
+	n.children = nil
+	return kids
+}
+
+// AddChildrenToBack appends a slice of children (result of RemoveChildren)
+// to `n`. Mirrors Java's Node.addChildrenToBack(Node firstChild) which
+// walks the linked list; here we take the slice form for convenience.
+func (n *Node) AddChildrenToBack(kids []*Node) {
+	for _, c := range kids {
+		n.AddChildToBack(c)
+	}
+}
+
+// CloneTree performs a deep copy of `n` and its entire subtree. Mirrors
+// Java's Node.cloneTree(). Position and string/number values are preserved;
+// jsdoc and props are NOT deep-copied (shallow reference, matching Java's
+// cloneTree which does copy props but not JSDocInfo).
+func (n *Node) CloneTree() *Node {
+	if n == nil {
+		return nil
+	}
+	clone := &Node{
+		token:  n.token,
+		str:    n.str,
+		num:    n.num,
+		lineno: n.lineno,
+		charno: n.charno,
+		jsdoc:  n.jsdoc,
+	}
+	if n.props != nil {
+		clone.props = make(map[Prop]any, len(n.props))
+		for k, v := range n.props {
+			clone.props[k] = v
+		}
+	}
+	for _, c := range n.children {
+		clone.AddChildToBack(c.CloneTree())
+	}
+	return clone
+}
+
+// IsEquivalentTo performs a structural equality check on two subtrees.
+// Mirrors Java's Node.isEquivalentTo(Node) — compares token, string/number
+// values, and children recursively.
+func (n *Node) IsEquivalentTo(other *Node) bool {
+	if n == nil && other == nil {
+		return true
+	}
+	if n == nil || other == nil {
+		return false
+	}
+	if n.token != other.token || n.str != other.str || n.num != other.num {
+		return false
+	}
+	if len(n.children) != len(other.children) {
+		return false
+	}
+	for i, c := range n.children {
+		if !c.IsEquivalentTo(other.children[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// ---------------- property bag ------------------------------------- //
+
 // GetBooleanProp ports Node.getBooleanProp. Absent props are false.
 func (n *Node) GetBooleanProp(p Prop) bool {
 	if n.props == nil {
