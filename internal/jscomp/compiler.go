@@ -61,5 +61,11 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	all = append(all, NewCheckDupVarDecl(path, scope).Check(script)...)
 	all = append(all, NewCheckDuplicateMember(path).Check(script)...)
 	all = append(all, NewCheckSideEffects(path).Check(script)...)
+	// CheckClosureImports is registered here but runs with a stub
+	// ModuleMetadataMap (no namespace metadata). Full enforcement fires
+	// only after ModuleMetadataMap + ModuleLoader are ported (see
+	// internal/jscomp/checkclosureimports.go TODOs). Until then the pass
+	// produces no diagnostics so it does not disturb the extracted corpus.
+	all = append(all, NewCheckClosureImports(path, nil).Check(script)...)
 	return all, nil
 }
