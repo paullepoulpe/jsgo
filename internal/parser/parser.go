@@ -1627,7 +1627,29 @@ func (p *Parser) tryPrimary() (*rhino.Node, bool) {
 		n.SetPos(startLine, startCol)
 		return n, true
 	}
+	if c == '/' {
+		n, ok := p.parseRegularExpressionLiteral()
+		if ok {
+			n.SetPos(startLine, startCol)
+		}
+		return n, ok
+	}
 	return nil, false
+}
+
+// parseRegularExpressionLiteral mirrors Parser.java's
+// parseRegularExpressionLiteral. The cursor must be on the leading `/`
+// and the call site must have determined that a regex is expected (i.e.
+// we are in a primary-expression position, not after an expression
+// where `/` would be division — the Pratt binary loop calls peekBinOp,
+// which handles division, so this function is only ever reached from
+// tryPrimary and is therefore always in the right context).
+func (p *Parser) parseRegularExpressionLiteral() (*rhino.Node, bool) {
+	text, ok := p.scanner.ScanRegularExpressionLiteral()
+	if !ok {
+		return nil, false
+	}
+	return rhino.NewString(rhino.REGEXP, text), true
 }
 
 // tryParen consumes `( expr )`. Called from tryPrimary after arrow

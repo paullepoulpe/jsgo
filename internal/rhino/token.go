@@ -138,6 +138,8 @@ const (
 	ITER_REST // `{...T}` rest parameter type
 	QMARK     // nullable / unknown type marker `?`
 	EQUALS    // optional parameter type marker `=`
+	// Regular-expression literal  `/pattern/flags`
+	REGEXP
 )
 
 func (t Token) String() string {
@@ -330,6 +332,8 @@ func (t Token) String() string {
 		return "QMARK"
 	case EQUALS:
 		return "EQUALS"
+	case REGEXP:
+		return "REGEXP"
 	}
 	return "ERROR"
 }
