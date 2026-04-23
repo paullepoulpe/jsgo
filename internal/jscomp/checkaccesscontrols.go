@@ -61,6 +61,12 @@ type CheckAccessControls struct {
 	// scopes we are currently inside. Mirrors Java's deprecationDepth.
 	cacDeprecationDepth int
 
+	// cacScopeDepth tracks how many function / class scopes (deprecated
+	// or not) we are currently inside. Zero means global scope.
+	// Mirrors Java's NodeTraversal.inGlobalScope() check inside
+	// shouldEmitDeprecationWarning.
+	cacScopeDepth int
+
 	// cacConstInits records the first const/final property initialisation
 	// per (ObjectType, propertyName) pair — equivalent to Java's
 	// constPropertyInits HashBasedTable.
@@ -124,6 +130,7 @@ func (c *CheckAccessControls) cacWalk(n, parent *rhino.Node) {
 
 // cacEnterScope mirrors CheckAccessControls.enterAccessControlScope.
 func (c *CheckAccessControls) cacEnterScope(n *rhino.Node) {
+	c.cacScopeDepth++
 	info := cacBestJSDoc(n)
 	if cacIsMarkedDeprecated(info) {
 		c.cacDeprecationDepth++
@@ -132,6 +139,7 @@ func (c *CheckAccessControls) cacEnterScope(n *rhino.Node) {
 
 // cacExitScope mirrors CheckAccessControls.exitAccessControlScope.
 func (c *CheckAccessControls) cacExitScope(n *rhino.Node) {
+	c.cacScopeDepth--
 	info := cacBestJSDoc(n)
 	if cacIsMarkedDeprecated(info) {
 		c.cacDeprecationDepth--
@@ -252,10 +260,18 @@ func (c *CheckAccessControls) cacCheckNameDeprecation(n, parent *rhino.Node) {
 			rhino.PARAM_LIST, rhino.FUNCTION, rhino.CATCH:
 			return
 		case rhino.GETPROP:
-			// NAME is the receiver of a GETPROP — not a standalone reference.
+			// NAME is the object part of a GETPROP (e.g. `foo` in `foo.bar`).
+			// cacCheckPropertyDeprecation covers the whole GETPROP node;
+			// skip the bare NAME to avoid double-reporting.
 			if n == parent.FirstChild() {
-				// Only the LHS of a dotted access; allow it here since
-				// cacCheckPropertyDeprecation covers the whole GETPROP.
+				return
+			}
+		case rhino.NEW:
+			// NAME is the constructor being instantiated. cacCheckTypeDeprecationNew
+			// handles the @constructor-deprecated case; skip here so we don't
+			// emit a spurious JSC_DEPRECATED_VAR alongside JSC_DEPRECATED_CLASS.
+			if n == parent.FirstChild() {
+				return
 			}
 		}
 	}
@@ -570,8 +586,30 @@ func (c *CheckAccessControls) cacCheckFinalClassOverrides(n *rhino.Node) {
 // cacShouldEmitDeprecationWarningNode mirrors shouldEmitDeprecationWarning(t,n).
 // Returns true when the current context is not itself deprecated and we're
 // not in a "free pass" location.
+//
+// Java's rule: in global scope, only invocation targets (call sites) and
+// NEW nodes trigger deprecation warnings — bare references are ignored.
+// Inside a function, all references to deprecated names/props fire.
 func (c *CheckAccessControls) cacShouldEmitDeprecationWarningNode(n, parent *rhino.Node) bool {
+	if c.cacScopeDepth == 0 {
+		// Global scope: only fire when the reference is a function-call
+		// callee or an explicit NEW expression. Bare references are skipped.
+		if n.Token() == rhino.NEW {
+			// n itself is the NEW node — always counts.
+		} else if !cacIsInvocationTarget(n, parent) {
+			return false
+		}
+	}
 	return c.cacDeprecationDepth == 0
+}
+
+// cacIsInvocationTarget reports whether n is the callee of a CALL expression.
+// Mirrors NodeUtil.isInvocationTarget: the first child of a CALL node.
+func cacIsInvocationTarget(n, parent *rhino.Node) bool {
+	if parent == nil {
+		return false
+	}
+	return parent.Token() == rhino.CALL && parent.FirstChild() == n
 }
 
 // ---------------------------------------------------------------------------
