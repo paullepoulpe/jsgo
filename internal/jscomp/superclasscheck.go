@@ -408,7 +408,13 @@ func (s *SuperclassCheck) checkDeclaredConstructorImplements(v *rhino.Node) {
 	if nameNode == nil || nameNode.Token() != rhino.NAME || nameNode.String_() == "" {
 		return
 	}
-	s.validateImplements(v, nameNode.String_(), info)
+	// Use the inner FUNCTION node as the report position, matching
+	// Java's behaviour of pointing at the constructor expression.
+	reportAt := v
+	if init := nameNode.FirstChild(); init != nil && init.Token() == rhino.FUNCTION {
+		reportAt = init
+	}
+	s.validateImplements(reportAt, nameNode.String_(), info)
 }
 
 // validateImplements verifies `ctorName` implements every property
@@ -467,8 +473,18 @@ func (s *SuperclassCheck) validateImplements(reportAt *rhino.Node, ctorName stri
 			continue
 		}
 		// Walk the interface's full property set (its own members
-		// plus any inherited via @extends {Other}).
-		for _, propName := range allInterfaceProperties(iface) {
+		// plus any inherited via @extends chains). Only fire for
+		// function-typed slots — data properties and Unknown-typed
+		// stubs (e.g. goog.abstractMethod assignments) are skipped,
+		// matching Java's validateImplements which gates on the slot
+		// being a function type before emitting the diagnostic.
+		// The diagnostic names the interface that originally declared
+		// the property (which may be a parent of `iface`), matching
+		// Java's output for multi-extends chains.
+		for propName, entry := range s.allInterfacePropEntries(iface) {
+			if !isFunctionTypeSlot(entry.typ) {
+				continue
+			}
 			if inst.GetPropertyType(propName) != nil {
 				continue
 			}
@@ -477,27 +493,63 @@ func (s *SuperclassCheck) validateImplements(reportAt *rhino.Node, ctorName stri
 				Code: diag.JSC_INTERFACE_METHOD_NOT_IMPLEMENTED, Level: diag.Error,
 				Message: fmt.Sprintf(
 					"property %s on interface %s is not implemented by type %s",
-					propName, iface.TypeName(), ctorName),
+					propName, entry.ifaceName, ctorName),
 			})
 		}
 	}
 }
 
-// allInterfaceProperties returns every property name declared on
-// `iface` or reachable through its super chain, deduplicated.
-func allInterfaceProperties(iface *jstype.ObjectType) []string {
-	seen := map[string]bool{}
-	var out []string
-	for cur := iface; cur != nil; cur = cur.Super() {
-		for _, name := range cur.MemberNames() {
-			if seen[name] {
-				continue
-			}
-			seen[name] = true
-			out = append(out, name)
+// ifacePropInfo holds the declared type and the name of the interface
+// that originally declared a property (which may differ from the
+// @implements target when properties are inherited via @extends).
+type ifacePropInfo struct {
+	typ       jstype.JSType
+	ifaceName string
+}
+
+// allInterfacePropEntries returns every property name → {type, declaring interface}
+// pair reachable from `iface` through its full @extends graph.
+// Mirrors TypeCheck.java's validateImplements which calls
+// getCtorExtendedInterfaces recursively to collect all properties
+// from multi-extends chains (e.g. Int2 @extends {Int0} @extends {Int1}).
+// We use the SuperclassCheck AST lookup to enumerate all @extends
+// bases rather than only the single Super() pointer (which stores
+// only the first parent). The ifaceName in each entry names the
+// interface that first declared the property, so error messages point
+// to the right interface (e.g. "interface Int1" not "interface Int2").
+func (s *SuperclassCheck) allInterfacePropEntries(iface *jstype.ObjectType) map[string]ifacePropInfo {
+	out := map[string]ifacePropInfo{}
+	s.collectIfacePropEntries(iface, out)
+	return out
+}
+
+// collectIfacePropEntries is the recursive helper for allInterfacePropEntries.
+// It registers each own member of `cur` (first-wins dedup) then recurses
+// into every @extends base found in the interface's JSDoc.
+func (s *SuperclassCheck) collectIfacePropEntries(cur *jstype.ObjectType, out map[string]ifacePropInfo) {
+	if cur == nil {
+		return
+	}
+	for _, name := range cur.MemberNames() {
+		if _, exists := out[name]; !exists {
+			out[name] = ifacePropInfo{typ: cur.GetPropertyType(name), ifaceName: cur.TypeName()}
 		}
 	}
-	return out
+	// Use the AST-based JSDoc lookup to enumerate ALL @extends bases,
+	// not just the single Super() pointer (which holds only one parent).
+	docInfo := s.findConstructorJSDoc(cur.TypeName())
+	if docInfo != nil {
+		for _, b := range docInfo.BaseTypes() {
+			baseName := stripTemplateArgs(b.TypeName)
+			base := s.scope.LookupNominalType(baseName)
+			if base != nil {
+				s.collectIfacePropEntries(base, out)
+			}
+		}
+	} else if cur.Super() != nil {
+		// Fall back to single Super() chain when no AST doc is found.
+		s.collectIfacePropEntries(cur.Super(), out)
+	}
 }
 
 // checkPrototypeStub handles the stub form `X.prototype.name;` with
