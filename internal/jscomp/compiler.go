@@ -83,6 +83,7 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	all = append(all, NewCheckUnreachableCode(path).Check(script)...)
 	all = append(all, NewCheckSuper(path).Check(script)...)
 	all = append(all, NewCheckConformance(path).Check(script)...)
+	all = append(all, NewCheckJSDoc(path).Check(script)...)
 	// CheckClosureImports is registered here but runs with a stub
 	// ModuleMetadataMap (no namespace metadata). Full enforcement fires
 	// only after ModuleMetadataMap + ModuleLoader are ported. Until then

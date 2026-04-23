@@ -67,6 +67,15 @@ func (i *JSDocInfo) HasSuppression(name string) bool {
 	return i != nil && i.suppressions != nil && i.suppressions[name]
 }
 
+// Suppressions returns the full set of suppression names. Mirrors
+// JSDocInfo.getSuppressions() in Java, used by CheckJSDoc.validateSuppress.
+func (i *JSDocInfo) Suppressions() map[string]bool {
+	if i == nil {
+		return nil
+	}
+	return i.suppressions
+}
+
 // IsStatic marks a class member as belonging to the constructor's
 // static slot rather than its instance slot. Mirrors Java's
 // MemberFunctionDef.isStaticMember and the analogous field flag.
