@@ -121,9 +121,46 @@ func (c *TypeCheck) Check(script *rhino.Node) []diag.Diagnostic {
 	c.looseProps = buildLoosePropertyIndex(c.global)
 	c.externTypes = buildExternTypeSet(c.global)
 	c.fileSuppressions = collectFileSuppressions(script)
+	// Emit JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES for every @template {B} T
+	// annotation. Mirrors RhinoErrorReporter.UNSUPPORTED_BOUNDED_GENERIC_TYPES
+	// which maps the addParserWarning(JSDOC_TEMPLATE_BOUNDEDGENERICS_USED)
+	// diagnostic from JsDocInfoParser.java's TEMPLATE case.
+	// TODO: bounded generics are still in development in the Java compiler too;
+	// this diagnostic is intentionally always-error (no suppression path).
+	c.emitBoundedGenericDiagnostics(script)
 	trav := NewNodeTraversal(c, c.creator, c.global)
 	trav.Traverse(script)
 	return c.diags
+}
+
+// emitBoundedGenericDiagnostics walks every node in the script and emits
+// JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES for each bounded-generic @template
+// position recorded during JSDoc parsing. Mirrors the flow in Java where
+// JsDocInfoParser.addParserWarning(JSDOC_TEMPLATE_BOUNDEDGENERICS_USED)
+// is routed through RhinoErrorReporter.typeMap to become this diagnostic.
+func (c *TypeCheck) emitBoundedGenericDiagnostics(script *rhino.Node) {
+	var walk func(*rhino.Node)
+	walk = func(n *rhino.Node) {
+		if n == nil {
+			return
+		}
+		if info := n.JSDocInfo(); info != nil {
+			for _, pos := range info.BoundedTemplatePositions() {
+				c.diags = append(c.diags, diag.Diagnostic{
+					Path:    c.path,
+					Line:    pos.Line,
+					Col:     pos.Col,
+					Code:    diag.JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES,
+					Level:   diag.Error,
+					Message: "Bounded generic semantics are currently still in development",
+				})
+			}
+		}
+		for _, ch := range n.Children() {
+			walk(ch)
+		}
+	}
+	walk(script)
 }
 
 // collectFileSuppressions walks the script's JSDoc blocks for any

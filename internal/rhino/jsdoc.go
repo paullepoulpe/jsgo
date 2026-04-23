@@ -20,6 +20,16 @@ const (
 	VisibilityInherited                   // INHERITED — default when no tag is present
 )
 
+// BoundedTemplatePosition records the source position of a `@template {B} T`
+// annotation. Used by TypeCheck to emit JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES.
+// Port of RhinoErrorReporter.UNSUPPORTED_BOUNDED_GENERIC_TYPES + the
+// addParserWarning(JSDOC_TEMPLATE_BOUNDEDGENERICS_USED, lineno, charno) call
+// in JsDocInfoParser.java's TEMPLATE case.
+type BoundedTemplatePosition struct {
+	Line int // 1-indexed absolute file line of the @template annotation
+	Col  int // 0-indexed column of the @ character
+}
+
 type JSDocInfo struct {
 	typeExpr        *JSTypeExpression
 	paramNames      []string                     // insertion order (matches Java)
@@ -44,7 +54,8 @@ type JSDocInfo struct {
 	extendsAll      []*JSTypeExpression // every @extends encountered (interfaces can list many)
 	implementsAll   []*JSTypeExpression
 	typedefExpr     *JSTypeExpression
-	templateNames   []string
+	templateNames           []string
+	boundedTemplatePositions []BoundedTemplatePosition
 	suppressions    map[string]bool
 	hasThisType     bool   // true when @this annotation was present
 	isOverride      bool   // true when @override annotation was present
@@ -105,6 +116,20 @@ func (i *JSDocInfo) TemplateNames() []string {
 }
 func (i *JSDocInfo) AddTemplateName(n string) {
 	i.templateNames = append(i.templateNames, n)
+}
+
+// BoundedTemplatePositions returns all @template {B} T positions recorded
+// during JSDoc parsing. Mirrors the addParserWarning(JSDOC_TEMPLATE_BOUNDEDGENERICS_USED)
+// call in JsDocInfoParser.java — each entry becomes a JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES
+// diagnostic in TypeCheck.
+func (i *JSDocInfo) BoundedTemplatePositions() []BoundedTemplatePosition {
+	if i == nil {
+		return nil
+	}
+	return i.boundedTemplatePositions
+}
+func (i *JSDocInfo) AddBoundedTemplatePosition(p BoundedTemplatePosition) {
+	i.boundedTemplatePositions = append(i.boundedTemplatePositions, p)
 }
 
 // IsInterface / IsRecord mirror JSDocInfo.isInterface() /

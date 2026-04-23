@@ -40,15 +40,71 @@ func NewJsDocInfoParser(sourceString string) *JsDocInfoParser {
 
 // ParseJSDocInfo is the package-level convenience wrapper that mirrors
 // how callers in jscomp/parsing/IRFactory use the parser in Java.
+// startLine is the 1-indexed file line of the `/**` comment opener; it is
+// used to compute absolute positions for JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES
+// (mirrors JsDocInfoParser.java's lineno/charno capture at parseAnnotation entry).
 // Returns nil when the comment carries no recognised tag, matching the
 // previous rhino.ParseJSDoc contract.
-func ParseJSDocInfo(body string) *rhino.JSDocInfo {
+func ParseJSDocInfo(body string, startLine int) *rhino.JSDocInfo {
 	p := NewJsDocInfoParser(body)
 	p.Parse()
 	if !p.anyRecorded {
 		return nil
 	}
+	// Scan the raw body for bounded-generic @template {B} T annotations and
+	// record their absolute positions. This mirrors the
+	// addParserWarning(Msg.JSDOC_TEMPLATE_BOUNDEDGENERICS_USED, lineno, charno)
+	// call in JsDocInfoParser.java's TEMPLATE case — Java captures lineno/charno
+	// from stream.getLineno()/getCharno() at parseAnnotation entry, which gives
+	// the position of the '@' character.
+	// TODO: wire proper lineno/charno through JsDocTokenStream instead of scanning.
+	recordBoundedTemplatePositions(p.info, body, startLine)
 	return p.info
+}
+
+// recordBoundedTemplatePositions scans the raw JSDoc body for every
+// `@template` annotation that carries a bound (`{`). For each one it records
+// the absolute (line, col) of the `@` character into info.
+// startLine is the 1-indexed file line of the `/**` opening delimiter.
+func recordBoundedTemplatePositions(info *rhino.JSDocInfo, body string, startLine int) {
+	line := startLine // current absolute line (1-indexed)
+	i := 0
+	for i < len(body) {
+		// Track newlines to maintain absolute line number.
+		if body[i] == '\n' {
+			line++
+			i++
+			continue
+		}
+		// Look for `@template` followed (after optional spaces) by `{`.
+		if body[i] != '@' {
+			i++
+			continue
+		}
+		// Compute column: scan back to start of current line.
+		lineStart := strings.LastIndex(body[:i], "\n") + 1 // byte offset of BOL
+		col := i - lineStart                               // 0-indexed column of '@'
+		// Match "template" (case-insensitive per JsDocInfoParser).
+		rest := body[i+1:]
+		if !strings.HasPrefix(strings.ToLower(rest), "template") {
+			i++
+			continue
+		}
+		afterKw := rest[len("template"):]
+		// Skip optional whitespace between "@template" and the bound "{".
+		j := 0
+		for j < len(afterKw) && (afterKw[j] == ' ' || afterKw[j] == '\t') {
+			j++
+		}
+		if j < len(afterKw) && afterKw[j] == '{' {
+			// This is a bounded @template {B} T — record position of '@'.
+			info.AddBoundedTemplatePosition(rhino.BoundedTemplatePosition{
+				Line: line,
+				Col:  col,
+			})
+		}
+		i++ // advance past '@'
+	}
 }
 
 // Parse mirrors Java's public boolean parse(). Walks the token stream

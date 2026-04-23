@@ -120,11 +120,12 @@ func (p *Parser) tryStatement() (*rhino.Node, bool) {
 	// to the following statement — ignore earlier stray JSDocs
 	// which Java silently drops in the same scenario.
 	for {
+		commentLine := p.scanner.Line()
 		body, ok := p.scanner.ConsumeBlockComment()
 		if !ok {
 			break
 		}
-		parsed := parsing.ParseJSDocInfo(body)
+		parsed := parsing.ParseJSDocInfo(body, commentLine)
 		if parsed != nil {
 			if jsdoc == nil {
 				jsdoc = parsed
@@ -486,9 +487,11 @@ func (p *Parser) finishClass(jsdoc *rhino.JSDocInfo) (*rhino.Node, bool) {
 // boundary so the whole body doesn't get lost.
 func (p *Parser) parseClassMember(body *rhino.Node) {
 	var jsdoc *rhino.JSDocInfo
-	if b, ok := p.scanner.ConsumeBlockComment(); ok {
-		jsdoc = parsing.ParseJSDocInfo(b)
-		p.scanner.SkipTrivia()
+	if commentLine := p.scanner.Line(); true {
+		if b, ok := p.scanner.ConsumeBlockComment(); ok {
+			jsdoc = parsing.ParseJSDocInfo(b, commentLine)
+			p.scanner.SkipTrivia()
+		}
 	}
 	if p.scanner.AtEnd() || p.scanner.Peek() == '}' {
 		return
@@ -1578,10 +1581,11 @@ func (p *Parser) tryPrimary() (*rhino.Node, bool) {
 	var leadingJSDoc *rhino.JSDocInfo
 	if p.scanner.Peek() == '/' && p.scanner.PeekAt(1) == '*' && p.scanner.PeekAt(2) == '*' {
 		save := p.scanner.Save()
+		commentLine := p.scanner.Line()
 		if b, ok := p.scanner.ConsumeBlockComment(); ok {
 			p.scanner.SkipTrivia()
 			if p.scanner.Peek() == '{' {
-				leadingJSDoc = parsing.ParseJSDocInfo(b)
+				leadingJSDoc = parsing.ParseJSDocInfo(b, commentLine)
 			} else {
 				p.scanner.Restore(save)
 			}
