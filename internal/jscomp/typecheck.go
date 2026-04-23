@@ -121,6 +121,7 @@ func (c *TypeCheck) Check(script *rhino.Node) []diag.Diagnostic {
 	c.collectPropertyWrites(script)
 	c.looseProps = buildLoosePropertyIndex(c.global)
 	c.externTypes = buildExternTypeSet(c.global)
+	c.globalPropNames = buildGlobalPropNameSet(c.global, script)
 	c.fileSuppressions = collectFileSuppressions(script)
 	// Emit JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES for every @template {B} T
 	// annotation. Mirrors RhinoErrorReporter.UNSUPPORTED_BOUNDED_GENERIC_TYPES
@@ -652,6 +653,20 @@ func (c *TypeCheck) visitVar(v *rhino.Node, scope *TypedScope) []diag.Diagnostic
 	// diagnostics below instead. Mirrors how Java's TypeCheck
 	// routes `@enum` initializers through EnumType's own
 	// validateEnumInit helper rather than the assignment rule.
+	// JSC_INCOMPATIBLE_ALIAS_ANNOTATION.
+	if info := v.JSDocInfo(); info.IsRecord() || info.IsInterface() || info.IsConstructor() {
+		if init.Token() == rhino.NAME {
+			if src, ok := scope.GetDeclaredType(init.String_()).(*jstype.FunctionType); ok && src.Instance != nil {
+				if ann := checkAliasAnnotation(info, src); ann != "" {
+					return []diag.Diagnostic{{
+						Path: c.path, Line: name.Lineno(), Col: name.Charno(),
+						Code: diag.JSC_INCOMPATIBLE_ALIAS_ANNOTATION, Level: diag.Warning,
+						Message: fmt.Sprintf("Annotation %s on %s incompatible with aliased type.", ann, name.String_()),
+					}}
+				}
+			}
+		}
+	}
 	if info := v.JSDocInfo(); info.IsEnum() {
 		return append(out, c.visitEnumInit(name, init, scope)...)
 	}
@@ -1133,6 +1148,13 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 			Message: "Cannot do '.' access on a dict",
 		}}
 	}
+	// Unknown/AllType: POSSIBLE_INEXISTENT_PROPERTY path.
+	if recvType == jstype.Unknown || recvType == jstype.All {
+		if !c.fileSuppressions["missingProperties"] {
+			return c.checkPossibleInexistent(n, kids[0], propName, recvType)
+		}
+		return nil
+	}
 	obj := dereferencedObject(recvType)
 	if obj == nil {
 		return nil
@@ -1187,6 +1209,9 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 		// and leaves the rest of the externs surface open. Go's externs
 		// are even sparser, so we skip all extern-registered types here.
 		if c.externTypes[obj] {
+			if obj.Name == "Object" {
+				return c.checkPossibleInexistent(n, kids[0], propName, recvType)
+			}
 			return nil
 		}
 		// Skip when the property is defined on a subtype (LOOSE).
@@ -1273,9 +1298,12 @@ func isPropertyExistenceOrAbsenceTest(n *rhino.Node) bool {
 	case rhino.AND, rhino.OR, rhino.INSTANCEOF, rhino.TYPEOF, rhino.COALESCE:
 		// Direct operand of &&, ||, ??, instanceof, typeof — always a test.
 		return true
-	case rhino.IF, rhino.WHILE, rhino.DO_WHILE:
-		// Condition is first child.
+	case rhino.IF, rhino.WHILE:
 		return p.FirstChild() == n
+	case rhino.DO_WHILE:
+		// DO_WHILE(body, cond): condition is last child.
+		doKids := p.Children()
+		return len(doKids) >= 2 && doKids[len(doKids)-1] == n
 	case rhino.FOR:
 		// Classic for-loop: children are [init, cond, update, body].
 		// Condition is the second child.
