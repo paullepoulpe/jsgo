@@ -46,6 +46,13 @@ type TypedScope struct {
 	// cross-referencing position on JSC_DUP_VAR_DECLARATION_TYPE
 	// _MISMATCH diagnostics.
 	namespacePropNodes map[string]map[string]*rhino.Node
+	// inferredNamespaceProps tracks namespace props that were
+	// recorded from a scalar literal assignment (no @type JSDoc).
+	// Unlike @type-declared props, inferred props are "open" — later
+	// assignments of a different type are allowed and visitAssign
+	// skips the mismatch check. Mirrors the ObjectType.IsPropertyInferred
+	// pattern but for the namespace-prop table.
+	inferredNamespaceProps map[string]map[string]bool
 	// typeAliases carry `@typedef` declarations — a parallel namespace
 	// to value bindings. ResolveExpr checks this before the nominal
 	// / primitive registry.
@@ -174,6 +181,35 @@ func (s *TypedScope) LookupNamespaceProp(owner, prop string) jstype.JSType {
 		}
 	}
 	return s.parent.LookupNamespaceProp(owner, prop)
+}
+
+// IsNamespacePropInferred returns true when `owner.prop` was recorded
+// via a bare scalar literal assignment (no @type JSDoc). Inferred props
+// are "open" — later re-assignments of a different type are allowed, so
+// TypeCheck.visitAssign skips the type check. Mirrors the
+// ObjectType.IsPropertyInferred guard.
+func (s *TypedScope) IsNamespacePropInferred(owner, prop string) bool {
+	if s == nil {
+		return false
+	}
+	if m, ok := s.inferredNamespaceProps[owner]; ok {
+		if m[prop] {
+			return true
+		}
+	}
+	return s.parent.IsNamespacePropInferred(owner, prop)
+}
+
+// markNamespacePropInferred marks `owner.prop` as inferred (scalar
+// literal, no @type). Called by recordNamespaceAssignFromFunction.
+func (s *TypedScope) markNamespacePropInferred(owner, prop string) {
+	if s.inferredNamespaceProps == nil {
+		s.inferredNamespaceProps = map[string]map[string]bool{}
+	}
+	if s.inferredNamespaceProps[owner] == nil {
+		s.inferredNamespaceProps[owner] = map[string]bool{}
+	}
+	s.inferredNamespaceProps[owner][prop] = true
 }
 
 // recordNamespaceProp remembers `owner.prop : t` on this scope.
@@ -1277,6 +1313,14 @@ func (c *TypedScopeCreator) recordNamespaceAssignFromFunction(a *rhino.Node, sco
 	// Skip if the receiver is already a known class instance (ObjectType)
 	// or constructor (FunctionType) — those assignments go through the
 	// instance/prototype property mechanism, not namespace tracking.
+	//
+	// First-wins for @type-declared props: if `ns.x` was already
+	// registered from an explicit `/** @type {T} */ ns.x = …`,
+	// skip the scalar inference so the @type stays authoritative.
+	// This prevents the declared type from being overwritten by a
+	// later bare `ns.x = literalValue` assignment. Properties newly
+	// registered here are marked inferred so visitAssign won't
+	// enforce the inferred type on subsequent re-assignments.
 	if lhs.Token() == rhino.GETPROP {
 		if t := literalType(rhs); !isJSUnknown(t) {
 			lhsKids := lhs.Children()
@@ -1285,7 +1329,17 @@ func (c *TypedScopeCreator) recordNamespaceAssignFromFunction(a *rhino.Node, sco
 				recvType := scope.GetDeclaredType(recv)
 				if _, isFn := recvType.(*jstype.FunctionType); !isFn {
 					if _, isObj := recvType.(*jstype.ObjectType); !isObj {
-						scope.recordNamespaceProp(recv, lhsKids[1].String_(), t, lhsKids[1])
+						propName := lhsKids[1].String_()
+						// Don't overwrite a non-inferred (i.e. @type-declared) prop.
+						existing := scope.LookupNamespaceProp(recv, propName)
+						if existing != nil && !scope.IsNamespacePropInferred(recv, propName) {
+							return
+						}
+						// Only register if not yet known (first-wins for inferred props).
+						if existing == nil {
+							scope.recordNamespaceProp(recv, propName, t, lhsKids[1])
+							scope.markNamespacePropInferred(recv, propName)
+						}
 						return
 					}
 				}

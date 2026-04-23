@@ -557,6 +557,9 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitForIn(n, scope))
 	case rhino.LSH, rhino.RSH, rhino.URSH, rhino.BITAND, rhino.BITOR, rhino.BITXOR:
 		c.emit(c.visitBitOp(n, scope))
+	case rhino.ASSIGN_BITOR, rhino.ASSIGN_BITAND, rhino.ASSIGN_BITXOR,
+		rhino.ASSIGN_LSH, rhino.ASSIGN_RSH, rhino.ASSIGN_URSH:
+		c.emit(c.visitBitOpAssign(n, scope))
 	case rhino.LT, rhino.LE, rhino.GT, rhino.GE:
 		c.emit(c.visitRelationalDefault(n, scope))
 	case rhino.FUNCTION:
@@ -844,6 +847,13 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 			// `/** @type {T} */ goog.foo = …` namespace-property
 			// declaration made via recordNamespaceAssign.
 			if t := scope.LookupNamespaceProp(recv.String_(), propName); t != nil {
+				// Inferred (scalar literal) props are open — subsequent
+				// re-assignments of a different type are allowed, just
+				// like ObjectType.IsPropertyInferred slots. Skip the check
+				// to match Java's "open property" behaviour.
+				if scope.IsNamespacePropInferred(recv.String_(), propName) {
+					return nil
+				}
 				declared = t
 				ownerName = recv.String_()
 			}
@@ -1615,16 +1625,32 @@ func insideOwnConstructor(n *rhino.Node, obj *jstype.ObjectType) bool {
 // function's @return annotation. The enclosing function is found by
 // walking Node parent links — mirroring how Java's TypeCheck tracks
 // the current function through NodeUtil.getEnclosingFunction.
+// Also handles `@type {function(...): T}` annotations (which carry
+// the return type embedded in the function-type expression).
 func (c *TypeCheck) visitReturn(ret *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	enclosing := findEnclosingFunction(ret)
 	if enclosing == nil {
 		return nil
 	}
 	info := functionJSDoc(enclosing)
-	if info == nil || info.ReturnType() == nil {
+	if info == nil {
 		return nil
 	}
-	declared := scope.ResolveExpr(info.ReturnType().TypeName)
+	var declared jstype.JSType
+	if info.ReturnType() != nil {
+		declared = scope.ResolveExpr(info.ReturnType().TypeName)
+	} else if info.HasType() {
+		// `@type {function(...): T}` — resolve the full function type and
+		// extract its Return field. Mirrors how Java's TypeCheck checks
+		// inconsistent return type even when the function is annotated via
+		// @type rather than @return.
+		if fnType, ok := scope.ResolveExpr(info.Type().TypeName).(*jstype.FunctionType); ok {
+			declared = fnType.Return
+		}
+	}
+	if declared == nil {
+		return nil
+	}
 	retExpr := ret.FirstChild()
 	if retExpr == nil {
 		return nil
@@ -2094,10 +2120,16 @@ func (c *TypeCheck) visitFunctionParams(fn *rhino.Node, scope *TypedScope) []dia
 	return out
 }
 
-// visitBitOp fires JSC_BAD_TYPE_FOR_BIT_OPERATION when either
-// operand of a bitwise operator (`<<`, `>>`, `>>>`, `&`, `|`,
-// `^`) is definitely not a number. Java's TypeCheck rejects
-// void / null / boolean / object operands statically.
+// visitBitOp fires:
+//  1. JSC_BAD_TYPE_FOR_BIT_OPERATION when an operand is void / null /
+//     boolean — Java's TypeCheck fires this for definite non-numbers.
+//  2. JSC_TYPE_MISMATCH when an operand is an object type (or any other
+//     non-bitwisable type) — mirrors TypeValidator.expectBitwiseable which
+//     fires JSC_TYPE_MISMATCH with "bad left/right operand to bitwise
+//     operator\nfound: T\nrequired: (boolean|null|number|string|undefined)".
+//
+// The two codes are mutually exclusive: (1) fires for definite non-number
+// primitives, (2) fires for objects and other non-bitwise-matchable types.
 func (c *TypeCheck) visitBitOp(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := n.Children()
 	if len(kids) < 2 {
@@ -2106,19 +2138,59 @@ func (c *TypeCheck) visitBitOp(n *rhino.Node, scope *TypedScope) []diag.Diagnost
 	infer := NewTypeInference(scope)
 	var out []diag.Diagnostic
 	op := bitOpSymbol(n.Token())
-	for _, k := range kids {
+	positions := []string{"left", "right"}
+	for i, k := range kids {
 		t := infer.InferType(k)
-		if !isDefinitelyNotNumber(t) {
-			continue
+		if isDefinitelyNotNumber(t) {
+			out = append(out, diag.Diagnostic{
+				Path: c.path, Line: k.Lineno(), Col: k.Charno(),
+				Code: diag.JSC_BAD_TYPE_FOR_BIT_OPERATION, Level: diag.Error,
+				Message: fmt.Sprintf("operator %s cannot be applied to %s", op, t.TypeName()),
+			})
+			break // report the first bad operand only, matching Java
 		}
-		out = append(out, diag.Diagnostic{
-			Path: c.path, Line: k.Lineno(), Col: k.Charno(),
-			Code: diag.JSC_BAD_TYPE_FOR_BIT_OPERATION, Level: diag.Error,
-			Message: fmt.Sprintf("operator %s cannot be applied to %s", op, t.TypeName()),
-		})
-		break // report the first bad operand only, matching Java
+		if isNotBitwisable(t) {
+			side := "left"
+			if i < len(positions) {
+				side = positions[i]
+			}
+			out = append(out, diag.Diagnostic{
+				Path: c.path, Line: k.Lineno(), Col: k.Charno(),
+				Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
+				Message: fmt.Sprintf(
+					"bad %s operand to bitwise operator\nfound   : %s\nrequired: %s",
+					side, t.TypeName(), bitwisableTypeName()),
+			})
+			break // report the first bad operand only
+		}
 	}
 	return out
+}
+
+// visitBitOpAssign handles compound bitwise assignments (`|=`, `&=`, etc.).
+// Java's TypeCheck routes these through TypeValidator.expectBitwiseable,
+// firing JSC_TYPE_MISMATCH when the RHS is not a bitwise-compatible type.
+// The LHS operand (which is bitwise-accumulated, so void/null coerce to 0)
+// is not re-checked here — only the RHS operand is validated, matching
+// Java's behaviour where the compound assignment visits only the new value.
+func (c *TypeCheck) visitBitOpAssign(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	kids := n.Children()
+	if len(kids) < 2 {
+		return nil
+	}
+	rhs := kids[1]
+	infer := NewTypeInference(scope)
+	t := infer.InferType(rhs)
+	if !isNotBitwisable(t) {
+		return nil
+	}
+	return []diag.Diagnostic{{
+		Path: c.path, Line: rhs.Lineno(), Col: rhs.Charno(),
+		Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
+		Message: fmt.Sprintf(
+			"bad right operand to bitwise operator\nfound   : %s\nrequired: %s",
+			t.TypeName(), bitwisableTypeName()),
+	}}
 }
 
 // bitOpSymbol returns the textual operator for a bit-op token.
@@ -2200,6 +2272,57 @@ func isDefinitelyNotNumber(t jstype.JSType) bool {
 	return false
 }
 
+// isNotBitwisable returns true when t is definitely not a valid bitwise
+// operand — i.e. it is an object type (ObjectType/FunctionType/
+// TemplatizedType) that is not number-context-matchable. This mirrors
+// TypeValidator.expectBitwiseable's condition:
+//
+//	!type.matchesNumberContext() && !type.isSubtypeOf(allBitwisableValueTypes)
+//
+// where allBitwisableValueTypes = string|number|boolean|null|undefined.
+// Unknown/All are silent (they might hold numeric values at runtime).
+// Primitive types (number/string/boolean/null/void) are bitwisable.
+// Boxed primitive wrapper types (Number, Boolean, String) are number-
+// context-matchable in Java — they coerce to number via valueOf() —
+// so we exclude them from the "not bitwisable" class.
+func isNotBitwisable(t jstype.JSType) bool {
+	if t == nil || t == jstype.Unknown || t == jstype.All {
+		return false
+	}
+	switch t {
+	case jstype.Number, jstype.Boolean, jstype.Null, jstype.Void, jstype.String:
+		return false
+	}
+	if u, ok := t.(*jstype.UnionType); ok {
+		for _, m := range u.Members() {
+			if isNotBitwisable(m) {
+				return true
+			}
+		}
+		return false
+	}
+	if _, ok := t.(*jstype.EnumElementType); ok {
+		return false // enum elements are number-typed (or similar)
+	}
+	if obj, ok := t.(*jstype.ObjectType); ok {
+		// Boxed primitive wrappers (Number, Boolean, String) match number
+		// context — their valueOf() returns a primitive. Mirrors Java's
+		// matchesNumberContext returning true for boxed types.
+		switch obj.Name {
+		case "Number", "Boolean", "String":
+			return false
+		}
+	}
+	// ObjectType (non-wrapper), FunctionType, TemplatizedType — not bitwisable.
+	return true
+}
+
+// bitwisableTypeName returns the human-readable required type for bitwise
+// operand diagnostics: "(boolean|null|number|string|undefined)".
+func bitwisableTypeName() string {
+	return "(boolean|null|number|string|undefined)"
+}
+
 // visitIn fires diagnostics for the IN operator:
 //  1. JSC_IN_USED_WITH_STRUCT when the RHS is a @struct receiver.
 //  2. JSC_TYPE_MISMATCH when the LHS is definitely not string /
@@ -2230,7 +2353,34 @@ func (c *TypeCheck) visitIn(n *rhino.Node, scope *TypedScope) []diag.Diagnostic 
 			Message: "Cannot use the IN operator with structs",
 		})
 	}
+	// RHS must be an object. Null / void / primitive types are not
+	// valid RHS operands for 'in'. Mirrors Java's TypeValidator
+	// expectObject check on the RHS of IN.
+	rawRhs := infer.InferType(rhs)
+	if isDefinitelyNotObject(rawRhs) {
+		out = append(out, diag.Diagnostic{
+			Path: c.path, Line: n.Lineno(), Col: n.Charno(),
+			Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
+			Message: fmt.Sprintf(
+				"'in' requires an object\nfound   : %s\nrequired: Object",
+				rawRhs.TypeName()),
+		})
+	}
 	return out
+}
+
+// isDefinitelyNotObject returns true when t is a type that is definitely
+// not an object — i.e. null, void, or a primitive that cannot be used as
+// the RHS of the 'in' operator. Unknown/All stay silent.
+func isDefinitelyNotObject(t jstype.JSType) bool {
+	if t == nil || t == jstype.Unknown || t == jstype.All {
+		return false
+	}
+	switch t {
+	case jstype.Null, jstype.Void, jstype.Number, jstype.String, jstype.Boolean, jstype.Symbol:
+		return true
+	}
+	return false
 }
 
 // isDefinitelyNotInKey reports whether `t` is a type that's
@@ -2439,8 +2589,8 @@ func (c *TypeCheck) visitRelationalDefault(n *rhino.Node, scope *TypedScope) []d
 
 // isDefinitelyNotComparable reports whether \`t\` is a type that
 // definitely can't participate in a relational comparison. Objects
-// / functions / booleans are rejected; primitives and unknowns
-// stay quiet.
+// / functions / booleans / symbols are rejected; primitives and
+// unknowns stay quiet.
 func isDefinitelyNotComparable(t jstype.JSType) bool {
 	if t == nil {
 		return false
@@ -2453,11 +2603,18 @@ func isDefinitelyNotComparable(t jstype.JSType) bool {
 		return false
 	case jstype.Boolean:
 		return true
+	case jstype.Symbol:
+		// Symbols are not valid relational comparison operands.
+		// Mirrors Java's TypeValidator check that rejects symbol in < / > / <= / >=.
+		return true
 	}
 	if _, ok := t.(*jstype.FunctionType); ok {
 		return true
 	}
 	if _, ok := t.(*jstype.ObjectType); ok {
+		return true
+	}
+	if jstype.IsSymbol(t) {
 		return true
 	}
 	return false
@@ -2529,53 +2686,77 @@ func isStringOperandOk(t jstype.JSType) bool {
 // ---- visitObjectLit / visitArrayLit ----------------------------- //
 
 // visitObjectLit ports the OBJECTLIT branch of TypeCheck.java's visit().
-// It fires JSC_ILLEGAL_OBJLIT_KEY when:
-//   - the object literal is annotated @struct and a key is a quoted string
-//     (e.g. `/** @struct */ { 'x': 1 }`)
-//   - the object literal is annotated @dict and a key is an unquoted identifier
-//     (e.g. `/** @dict */ { x: 1 }`)
-//
-// Mirrors Java's visitObjectOrClassLiteralKey struct/dict gate.
-// Property-value type checks (getObjectLitKeyTypeFromValueType / expectCanAssignToPropertyOf)
-// are deferred — TODO.
+// It fires:
+//  1. JSC_ILLEGAL_OBJLIT_KEY when:
+//     - the object literal is annotated @struct and a key is a quoted string
+//     - the object literal is annotated @dict and a key is an unquoted identifier
+//  2. JSC_TYPE_MISMATCH when a STRING_KEY carries an `/** @type {T} */`
+//     JSDoc annotation and the value's inferred type is not assignable to T.
+//     Mirrors Java's TypeCheck.visitObjectOrClassLiteralKey + expectCanAssignToPropertyOf.
 func (c *TypeCheck) visitObjectLit(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	infer := NewTypeInference(scope)
 	ownerType := infer.InferType(n)
 	obj := dereferencedObject(ownerType)
-	if obj == nil {
-		return nil
-	}
-	if !obj.IsStruct && !obj.IsDict {
-		return nil
-	}
 	var out []diag.Diagnostic
 	for key := n.FirstChild(); key != nil; key = key.Next() {
 		if key.Token() != rhino.STRING_KEY {
 			continue
 		}
-		if key.IsQuotedStringKey() {
-			// quoted key in @struct is illegal
-			if obj.IsStruct {
-				out = append(out, diag.Diagnostic{
-					Path:    c.path,
-					Line:    key.Lineno(),
-					Col:     key.Charno(),
-					Code:    diag.JSC_ILLEGAL_OBJLIT_KEY,
-					Level:   diag.Error,
-					Message: "Illegal key, the object literal is a struct",
-				})
+		if obj != nil {
+			if key.IsQuotedStringKey() {
+				// quoted key in @struct is illegal
+				if obj.IsStruct {
+					out = append(out, diag.Diagnostic{
+						Path:    c.path,
+						Line:    key.Lineno(),
+						Col:     key.Charno(),
+						Code:    diag.JSC_ILLEGAL_OBJLIT_KEY,
+						Level:   diag.Error,
+						Message: "Illegal key, the object literal is a struct",
+					})
+					continue
+				}
+			} else {
+				// unquoted key in @dict is illegal
+				if obj.IsDict {
+					out = append(out, diag.Diagnostic{
+						Path:    c.path,
+						Line:    key.Lineno(),
+						Col:     key.Charno(),
+						Code:    diag.JSC_ILLEGAL_OBJLIT_KEY,
+						Level:   diag.Error,
+						Message: "Illegal key, the object literal is a dict",
+					})
+					continue
+				}
 			}
-		} else {
-			// unquoted key in @dict is illegal
-			if obj.IsDict {
-				out = append(out, diag.Diagnostic{
-					Path:    c.path,
-					Line:    key.Lineno(),
-					Col:     key.Charno(),
-					Code:    diag.JSC_ILLEGAL_OBJLIT_KEY,
-					Level:   diag.Error,
-					Message: "Illegal key, the object literal is a dict",
-				})
+		}
+		// Property-value type check: `/** @type {T} */ key: value`.
+		// Mirrors Java's TypeCheck.visitObjectOrClassLiteralKey which
+		// calls expectCanAssignToPropertyOf when the key carries a
+		// JSDoc @type annotation.
+		info := key.JSDocInfo()
+		if info != nil && info.HasType() {
+			declared := scope.ResolveExpr(info.Type().TypeName)
+			if declared != nil {
+				val := key.FirstChild()
+				if val != nil {
+					found := infer.InferType(val)
+					if !jstype.IsSubtype(found, declared) {
+						// Build the owner type name from the object literal's inferred shape.
+						ownerName := ""
+						if ownerType != nil {
+							ownerName = ownerType.TypeName()
+						}
+						msg := fmt.Sprintf(
+							"assignment to property %s of %s\nfound   : %s\nrequired: %s",
+							key.String_(), ownerName, found.TypeName(), declared.TypeName())
+						out = append(out, diag.Diagnostic{
+							Path: c.path, Line: key.Lineno(), Col: key.Charno(),
+							Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error, Message: msg,
+						})
+					}
+				}
 			}
 		}
 	}

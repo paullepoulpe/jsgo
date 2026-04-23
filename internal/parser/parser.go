@@ -1837,9 +1837,15 @@ func (p *Parser) tryObjectLit() (*rhino.Node, bool) {
 			p.scanner.Advance()
 			return obj, true
 		}
-		// Optional JSDoc on the property value — ignored for now, since
-		// record-literal element typing doesn't consult it at Tier-3.
-		_, _ = p.scanner.ConsumeBlockComment()
+		// Optional JSDoc on the property — captured so that @param types
+		// on method shorthands and @type on key-value properties are
+		// preserved for TypeCheck's structural type checking.
+		commentLine := p.scanner.Line()
+		propBody, hasComment := p.scanner.ConsumeBlockComment()
+		var propJSDoc *rhino.JSDocInfo
+		if hasComment && len(propBody) > 0 && propBody[0] == '*' {
+			propJSDoc = parsing.ParseJSDocInfo(propBody, commentLine)
+		}
 		p.scanner.SkipTrivia()
 		// Accessor / method shorthand — `get foo(){…}`, `set foo(x){…}`,
 		// `foo(args){…}`. Fully consume the member (params + body) and
@@ -1849,7 +1855,7 @@ func (p *Parser) tryObjectLit() (*rhino.Node, bool) {
 		// parser when the corpus sprinkles these into record-style
 		// object literals.
 		if p.looksLikeObjectMethod() {
-			if !p.consumeObjectMethod(obj) {
+			if !p.consumeObjectMethod(obj, propJSDoc) {
 				return nil, false
 			}
 			p.scanner.SkipTrivia()
@@ -1924,6 +1930,11 @@ func (p *Parser) tryObjectLit() (*rhino.Node, bool) {
 		if quotedKey {
 			key.PutBooleanProp(rhino.PropQuotedStringKey, true)
 		}
+		// Attach any JSDoc before the key to the STRING_KEY node so
+		// TypeCheck can consult `/** @type {T} */ key: value` annotations.
+		if propJSDoc != nil {
+			key.SetJSDocInfo(propJSDoc)
+		}
 		key.AddChildToBack(val)
 		obj.AddChildToBack(key)
 		p.scanner.SkipTrivia()
@@ -1961,9 +1972,10 @@ func (p *Parser) looksLikeObjectMethod() bool {
 
 // consumeObjectMethod absorbs a getter / setter / shorthand-method
 // entry and attaches a STRING_KEY(<name>) with a FUNCTION child to
-// `obj`. Returns false on malformed input so the caller can abort the
-// entire object literal.
-func (p *Parser) consumeObjectMethod(obj *rhino.Node) bool {
+// `obj`. The info argument carries any JSDoc parsed from the comment
+// that preceded the method (nil when absent). Returns false on
+// malformed input so the caller can abort the entire object literal.
+func (p *Parser) consumeObjectMethod(obj *rhino.Node, info *rhino.JSDocInfo) bool {
 	keyLine, keyCol := p.scanner.Line(), p.scanner.Col()
 	// Swallow the `get` / `set` prefix if present; we don't mark the
 	// kind today, matching our coarse method-shorthand handling.
@@ -2008,6 +2020,12 @@ func (p *Parser) consumeObjectMethod(obj *rhino.Node) bool {
 	}
 	fn := rhino.New(rhino.FUNCTION)
 	fn.SetPos(keyLine, keyCol)
+	// Attach the preceding JSDoc (e.g. `/** @param {T} x */`) to the
+	// FUNCTION node so TypeInference.inferFunctionExpr can resolve the
+	// parameter types when the method is used as a structural type argument.
+	if info != nil {
+		fn.SetJSDocInfo(info)
+	}
 	nameInFn := rhino.NewString(rhino.NAME, "")
 	nameInFn.SetPos(keyLine, keyCol)
 	fn.AddChildToBack(nameInFn)
