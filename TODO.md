@@ -38,551 +38,840 @@ Concretely:
   starting points for every un-ported Java file; read them in
   parallel with the upstream source at `.cache/closure-src/…` when
   porting.
-
-## Current state
-
-964 / 1444 = **66.76 %** on default, 883 / 1444 = **61.15 %** on
-`strictCheckTypes`. Tier-0..Tier-3 hand-authored corpora are all at
-100 %. Gap to 100 % on default: **480** fixtures across **108**
-distinct diagnostic-tuple buckets.
-
-## Triage snapshot (current failing buckets on default)
-
-```
-193  want=[JSC_TYPE_MISMATCH]                      got=[]
- 37  want=[JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES]  got=[]   [Java itself marks in-dev]
- 17  want=[]                                       got=[JSC_TYPE_MISMATCH]                (our FPs)
- 15  want=[JSC_NON_STRINGIFIABLE_OBJECT_KEY]       got=[]
- 11  want=[JSC_UNRECOGNIZED_TYPE_ERROR]            got=[]
- 11  want=[JSC_INEXISTENT_PROPERTY]                got=[]
-  7  want=[JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH] got=[]
-  6  want=[JSC_WRONG_ARGUMENT_COUNT]               got=[]
-  6  want=[JSC_TYPE_MISMATCH]                      got=[JSC_TYPE_MISMATCH]                (wrong position)
-  5  want=[JSC_INVALID_CAST]                       got=[]
-  5  want=[JSC_TYPE_PARSE_ERROR]                   got=[]
-  5  want=[JSC_UNRECOGNIZED_TYPEOF_ERROR]          got=[]
-  5  want=[JSC_NOT_A_CONSTRUCTOR]                  got=[]
-  5  want=[JSC_UNDEFINED_VARIABLE]                 got=[]
-  5  want=[JSC_TYPE_MISMATCH,JSC_USELESS_CODE]     got=[JSC_USELESS_CODE]
-  4  want=[JSC_REFERENCE_BEFORE_DECLARE,JSC_TYPE_MISMATCH] got=[]
-  4  want=[JSC_TYPE_MISMATCH,JSC_USED_GLOBAL_THIS] got=[]
-  4  want=[JSC_POSSIBLE_INEXISTENT_PROPERTY]       got=[]
-  4  want=[JSC_DETERMINISTIC_TEST]                 got=[]
-  4  want=[JSC_USED_GLOBAL_THIS]                   got=[]
-  4  want=[JSC_INCOMPATIBLE_ALIAS_ANNOTATION]      got=[]
-  4  want=[JSC_VAR_MULTIPLY_DECLARED_ERROR]        got=[]
-  4  want=[JSC_INCOMPATIBLE_EXTENDED_PROPERTY_TYPE] got=[JSC_INCOMPATIBLE_EXTENDED_PROPERTY_TYPE]  (wrong position)
-  3  want=[JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH] got=[]
-  3  want=[JSC_INVALID_MODULE_PATH]                got=[]
-  3  want=[JSC_PARSE_ERROR]                        got=[JSC_UNDEFINED_VARIABLE]
-  3  want=[JSC_PROPERTY_ASSIGNMENT_TO_READONLY_VALUE] got=[]
-  3  want=[]                                       got=[JSC_INEXISTENT_PROPERTY]          (our FPs)
-  3  want=[JSC_DETERMINISTIC_TEST,JSC_USELESS_CODE] got=[JSC_DETERMINISTIC_TEST,JSC_USELESS_CODE]  (wrong position)
-```
-
-Full list: `go run ./tools/fbucket b`. 108 distinct buckets total.
+- **No Go-only code paths.** If a helper, struct, or check doesn't
+  exist in Java, it doesn't belong here. When a divergence looks
+  unavoidable, first map the Java call chain to the Go equivalent
+  before adding anything new.
 
 ---
 
-## Work list, organized by Java source file
+## 1. Current state
 
-The organising principle is: every item names the Java source it
-ports. Anything already partially ported is listed under the Go
-file it lives in (all such files carry a `// Port of …` header
-naming the Java source); anything un-ported is listed under its
-skeleton path in `internal/jscomp/skel/`.
+**1073 / 1444 = 74.31 %** on default, **990 / 1444 = 68.56 %** on
+`strictCheckTypes` (baseline commit `9816618`). Tier-0..Tier-3
+hand-authored corpora are all at 100 %. Gap to 100 % on default:
+**371** fixtures across the buckets below; strict lags by **83** more.
 
-### Parser — `parser.*` (`internal/parser/`)
+Diff vs. the previous TODO snapshot: default +109 (964 → 1073),
+strict +107 (883 → 990).
 
-Current ports are narrow: `scanner.go` is character-level, `parser.go`
-covers a narrow JS subset.
+## 2. Triage snapshot (current failing buckets on default)
 
-Gaps vs. `parser/Scanner.java`:
+Re-derived from `go run ./tools/fbucket b` at `9816618`. Rows with
+three or more fixtures are shown verbatim; single-count tuples are
+summarised at the bottom.
 
-- Full `TokenType` enum (port `parser/TokenType.java`).
-- String-literal tokenizer (escapes, template-literal pieces).
-- Number-literal tokenizer (hex, octal, binary, `_`-separators, `n`
-  bigint suffix, decimal edge cases).
-- Regex-literal tokenizer.
-- Comment/trivia preservation through `JsDocTokenStream`.
+```
+ 179 want=[JSC_TYPE_MISMATCH]                          got=[]
+  24 want=[]                                           got=[JSC_TYPE_MISMATCH]                    (our FPs)
+  11 want=[JSC_NON_STRINGIFIABLE_OBJECT_KEY]           got=[]
+  11 want=[JSC_TYPE_MISMATCH]                          got=[JSC_TYPE_MISMATCH]                    (wrong position)
+   8 want=[JSC_INEXISTENT_PROPERTY]                    got=[]
+   7 want=[JSC_UNRECOGNIZED_TYPE_ERROR]                got=[]
+   6 want=[JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH]    got=[]
+   5 want=[JSC_INVALID_CAST]                           got=[]
+   4 want=[]                                           got=[JSC_INEXISTENT_PROPERTY]              (our FPs)
+   4 want=[JSC_TYPE_MISMATCH,JSC_USELESS_CODE]         got=[JSC_USELESS_CODE]
+   4 want=[]                                           got=[JSC_POSSIBLE_INEXISTENT_PROPERTY]     (our FPs)
+   4 want=[JSC_DETERMINISTIC_TEST]                     got=[]
+   3 want=[JSC_INVALID_MODULE_PATH]                    got=[]
+   3 want=[JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH]     got=[]
+   3 want=[JSC_TYPE_MISMATCH,JSC_USED_GLOBAL_THIS]     got=[JSC_USED_GLOBAL_THIS]
+   3 want=[JSC_DETERMINISTIC_TEST,JSC_USELESS_CODE]    got=[JSC_DETERMINISTIC_TEST,JSC_USELESS_CODE] (wrong position)
+   3 want=[JSC_REFERENCE_BEFORE_DECLARE,JSC_TYPE_MISMATCH] got=[]
+   3 want=[JSC_PROPERTY_ASSIGNMENT_TO_READONLY_VALUE]  got=[]
+   3 want=[JSC_UNDEFINED_VARIABLE]                     got=[JSC_TYPE_MISMATCH,JSC_UNDEFINED_VARIABLE] (over-reporting)
+   2 want=[JSC_POSSIBLE_INEXISTENT_PROPERTY,JSC_USELESS_CODE] got=[JSC_POSSIBLE_INEXISTENT_PROPERTY]
+   2 want=[JSC_PARSE_ERROR]                            got=[JSC_POSSIBLE_INEXISTENT_PROPERTY,JSC_UNDEFINED_VARIABLE]
+   2 want=[JSC_TYPE_MISMATCH]                          got=[JSC_INEXISTENT_PROPERTY]              (wrong code)
+   2 want=[JSC_TYPE_MISMATCH]                          got=[JSC_POSSIBLE_INEXISTENT_PROPERTY]     (wrong code)
+   2 want=[JSC_UNDEFINED_VARIABLE]                     got=[JSC_POSSIBLE_INEXISTENT_PROPERTY,JSC_UNDEFINED_VARIABLE]
+   2 want=[JSC_INEXISTENT_PROPERTY]                    got=[JSC_INEXISTENT_PROPERTY,JSC_POSSIBLE_INEXISTENT_PROPERTY]
+   2 want=[JSC_UNDEFINED_VARIABLE]                     got=[JSC_UNDEFINED_VARIABLE,JSC_USELESS_CODE]
+   2 want=[JSC_UNDEFINED_VARIABLE]                     got=[]
+   2 want=[JSC_TEMPLATE_TRANSFORMATION_ON_CLASS,JSC_UNRECOGNIZED_TYPE_ERROR] got=[]
+   2 want=[JSC_EXPECTED_THIS_TYPE]                     got=[]
+   2 want=[JSC_MISSING_RETURN_STATEMENT,JSC_TYPE_MISMATCH] got=[]
+```
 
-Gaps vs. `parser/Parser.java`:
+Single-count residuals: `JSC_CYCLIC_INHERITANCE_ERROR`,
+`JSC_INCOMPATIBLE_EXTENDED_PROPERTY_TYPE`,
+`JSC_ILLEGAL_PROPERTY_CREATION_ON_UNION_TYPE`,
+`JSC_VAR_MULTIPLY_DECLARED_ERROR`, `JSC_UNKNOWN_TYPEOF_VALUE`,
+`JSC_NOT_FUNCTION_TYPE`, `JSC_INEXISTENT_PARAM`,
+`JSC_UNKNOWN_OVERRIDE`, `JSC_RESOLVED_TAG_EMPTY`,
+`JSC_EXTENDS_WITHOUT_TYPEDEF`, `JSC_ILLEGAL_PROPERTY_CREATION`,
+`JSC_ILLEGAL_IMPLICIT_CAST`, `JSC_INSTANTIATE_ABSTRACT_CLASS`,
+`JSC_UNKNOWN_LENDS`, `JSC_LENDS_ON_NON_OBJECT`,
+`JSC_ENUM_INITIALIZER_NOT_ENUM`, `JSC_INVALID_INTERFACE_MEMBER_DECLARATION`,
+`JSC_INVALID_PARAM`, `JSC_SUSPICIOUS_LEFT_OPERAND_OF_LOGICAL_OPERATOR`,
+`JSC_SUSPICIOUS_IN`, plus ~15 tuple/position combinations. Full list:
+`go run ./tools/fbucket b`.
 
-- Array and object literals at expression position.
-- Destructuring patterns (array and object, nested, default values,
-  rest).
-- Spread/rest arguments and parameters.
-- Template literals (`` `text ${x}` ``), tagged templates.
-- Regex literals as expressions.
-- `GETELEM` (`x[0]`) as a full expression form.
-- Optional chaining (`?.`, `?.(`, `?.[`).
-- `async` / `await`.
-- Generator functions (`function*`, `yield`, `yield*`).
-- Full computed property syntax (`{[k]: v}`, `class { [k]() {} }`).
-- Cast expressions `(/** @type {T} */ (e))` as first-class grammar.
-- Class-body grammar: class fields, static fields, accessors,
-  private `#` members, static blocks.
-- `for`/`for-in`/`for-of` with destructured binding.
-- `import` / `export` declarations (named, default, namespace, re-export).
-- `super.x`, `super(…)` in all positions Java accepts.
-- Labeled statements and label-target resolution.
+Net triage: the 179-count `want=[JSC_TYPE_MISMATCH]/got=[]` bucket
+plus the 24-count FP bucket still dominate. Every remaining 3+
+bucket maps directly to a file in section 3; single-count tuples
+map to section 5.
 
-Skeletons under `internal/jscomp/skel/jscomp/parsing/parser/`:
-`scanner.go`, `parser.go`, `token.go`, `tokentype.go`,
-`identifiertoken.go`, `literaltoken.go`, `templateliteraltoken.go`.
+---
 
-### JSDoc parsing — `jscomp.parsing.*` (`internal/jscomp/parsing/`)
+## 3. Per-file port status
 
-Gaps vs. `JsDocInfoParser.java`:
+Every file under `internal/` with a `// Port of …` header, the
+Java source it mirrors, one-line status, and a short list of Java
+entry points / fields / branches missing on the Go side. Method
+names are Java-side unless noted.
 
-- `@enum` tag (type + values).
-- `@const` with optional type.
-- `@dict` / `@struct`.
-- `@nosideeffects` + `@noside`.
-- `@abstract`.
-- `@public` / `@protected` / `@private`.
-- `@param` modifiers: `{=T}`, `{...T}`, `{T=}`, default values.
-- Callable-expression types: `function(A, B): C`,
-  `function(this:T, …)`, `function(new:T, …)`.
-- Multi-`@extends` accumulator (for interfaces).
-- Multi-`@implements`.
-- Position-tracked errors inside type expressions (needed for
-  `JSC_UNRECOGNIZED_TYPE_ERROR`, `JSC_TYPE_PARSE_ERROR`).
-- `@template` with bounds.
-- `@lends`.
-- `@typedef` across record / union / templatized forms.
-- `@ngInject`, `@idGenerator`, `@wizaction`, `@polymerBehavior`,
-  remaining long-tail tags recognised by Java.
+### 3.1 `internal/rhino/`
 
-Gaps vs. `IRFactory.java`: every construct newly introduced in the
-parser needs the matching IR materialisation (port the whole file,
-not just what the current corpus forces).
+#### `internal/rhino/node.go` — `rhino/Node.java` (3944 LoC)
+**Status: subset.** 389 LoC, ~41 exported methods vs. ~464 Java
+public/protected members.
+- Missing: `SideEffectFlags` (cache + getter/setter), `cloneNode`
+  distinct from `CloneTree`, intrusive `first`/`last`/`next`
+  linked-list children (Go uses a slice), ~40 `Prop` enum values
+  (only the frequently-touched handful are defined), `extractName`,
+  `isValidQualifiedName`, `getSecondChild`/`getLastChild` alongside
+  existing helpers, `srcref`/`srcrefIfMissing`, `getLineno`
+  vs. `Lineno` convention mismatch on a few callers, token-level
+  classifiers (`isOptionalChainCall`, `isPureDelete`,
+  `matchesName`/`matchesQualifiedName`), `JSType` storage +
+  `getJSType`/`setJSType`, `getGrandparent`, full
+  `iterChildrenInReverse` helpers.
+- Go-only: the slice-based child model and `Children()` iterator
+  — not in Java. Must be replaced by first/next linked-list fields
+  before `Node` is considered 1:1.
 
-Gaps vs. `TypeTransformationParser.java`: required for
-`@template T := … =:` transformations.
+#### `internal/rhino/jsdoc.go` + `jsdoc_info_builder.go` — `rhino/JSDocInfo.java` (2922 LoC)
+**Status: subset.** ~404 LoC each. Covers the bit flags the current
+corpus exercises.
+- Missing: `@throws` / `@preserveTry` / `@closurePrimitive`
+  accessors; full visibility lattice
+  (`getOriginalVisibility`/`setOriginalVisibility`); bit-precise
+  `BitField` enum; `getMarkers` (source-position-tagged marker
+  list needed for `JSC_UNRECOGNIZED_TYPE_ERROR` positions);
+  `cloneAndReset` + `cloneOn`; `getSourceComment`; `@modifies`
+  slots; `@ngInject`, `@idGenerator`, `@wizaction`,
+  `@polymerBehavior`, `@customElement` (parsed + surfaced); multi-
+  `@extends` is present, multi-`@implements` list is present.
+  `JSDocInfoBuilder` omits `recordThrowType`, `recordSuppressions`
+  merge semantics, `recordTypeTransformations`.
 
-Skeletons: `skel/jscomp/parsing/{irfactory,jsdocinfoparser,jsdoctoken,jsdoctokenstream,parserrunner,typetransformationparser}.go`.
+#### `jstype_expr.go` + `qualified_name.go` + `simple_source_file.go` + `input_id.go`
+**Status: near-complete.** `jstype_expr.go` missing the unified
+`evaluate(StaticTypedScope, JSTypeRegistry)` entry (callers
+resolve through the scope creator directly). Verify
+`QualifiedName.getOwner`/`matchesRoot`/`isSimple` against Java —
+a few callers reproduce logic inline.
 
-### Rhino AST & type expressions — `rhino.*` (`internal/rhino/`)
+#### `static_*.go` (`StaticRef`, `StaticScope`, `StaticSlot`, `StaticSourceFile`, `StaticSymbolTable`)
+**Status: stub interfaces** (17–67 LoC each). Surface only so the
+`Static*Typed*` subinterfaces compile. Matches Java layout.
 
-Gaps vs. `Node.java` (`internal/rhino/node.go`):
+#### `internal/rhino/token.go` — `rhino/Token.java`
+**Status: subset of the enum.** 380 LoC, covers ~95 of the ~140
+Java tokens.
+- Missing: TS-only tokens (`INTERFACE`, `IMPLEMENTS_MEMBERS`,
+  `DECLARE`, `TYPE_ALIAS`); some AST-only tokens
+  (`PLACEHOLDER1`/`PLACEHOLDER2`, `ROOT`, `INPUT_ID`,
+  `IMPORT_STAR`, `MODULE_BODY`, `DYNAMIC_IMPORT`, `IMPORT_META`,
+  `ES6_SUPER`). Add when parser breadth lands.
 
-- `SideEffectFlags` cache.
-- Full ~50-entry `Prop` enum (currently a handful).
-- `cloneNode`, `cloneTree`.
-- Intrusive linked-list children (Java uses `first`/`last`/`next`).
-- `QualifiedName` extraction helper.
-- `JSDocInfo` attachment on every node shape that can carry it.
-- `getLineno`/`getCharno`/source-file tracking on every node.
+### 3.2 `internal/rhino/jstype/`
 
-Gaps vs. `JSDocInfo.java` (`internal/rhino/jsdoc.go`):
+Currently ported (all as subsets unless noted):
 
-- Multi-`@extends` list (currently single).
-- `@implements` list.
-- `@template` bounds.
-- `@typedef` + visibility bits.
-- Full builder pattern (`JSDocInfoBuilder`).
+#### `jstype.go` — `rhino/jstype/JSType.java` (1705 LoC)
+**Status: thin dispatch shim.** 124 LoC, 7 Go-side methods. Java
+exposes 100+ public methods. Most `JSType` predicates (`isFoo`,
+`toMaybeFooType`, `visit`, `autobox`, `autoboxesTo`,
+`restrictByTypeof`, `getRestrictedTypeGivenOutcome`,
+`getTypesUnderEquality`) are implemented inline on the concrete
+types or not yet present.
+- Missing: the whole `Visitor<T>` double-dispatch path apart from
+  `can_cast_to_visitor`/`contains_upper_bound_super_type_visitor`.
+- Missing: `meet`, `isStrictSubtypeOf`, `matchesObjectContext`,
+  `getOwnerFunction`, `collapseUnion`,
+  `getTypeOfThis`.
 
-Gaps vs. `Token.java` (`internal/rhino/token.go`): bring to parity
-with Java's enum once parser breadth lands.
+#### `object_type.go` + `prototype_object_type.go` + `instance_object_type.go` + `object_type_ext.go` — `ObjectType.java` + `PrototypeObjectType.java` + `InstanceObjectType.java` (929+545+~200 LoC)
+**Status: subset.** Split across four Go files tracking the Java
+hierarchy.
+- Missing: `@private`/`@protected`/`@public` access bits as part
+  of `Property.Info` (visibility lattice not yet consulted in
+  `CheckAccessControls`); deprecation markers; `@struct` vs
+  `@dict` enforcement on definition site; sealed-for-inference
+  flag; `hasOwnDeclaredProperty`, `defineDeclaredProperty`,
+  `setPropertyJSDocInfo` preserving source positions; `isRecordType`
+  vs anonymous-object distinction.
 
-`JSTypeExpression.java` (`internal/rhino/jstype_expr.go`) is currently
-a stub — port the full class.
+#### `function_type.go` — `FunctionType.java` (1649 LoC)
+**Status: subset** (432 LoC, 29 methods).
+- Missing: the full `Builder` chain (`withReturnType`,
+  `withTemplateKeys`, `withClosurePrimitiveId`, `withKind`);
+  `setImplicitMatch`; `setImplementedInterfaces` merged with
+  `@implements`; `getOwnerFunction`; `isOrdinaryFunction`
+  distinction from `isArrow`; `getInstanceType`/`setInstanceType`
+  across constructor vs. interface; arity fields (`minArity`,
+  `maxArity`) partially present but not wired through every call
+  site; TypeScript-style `readonly` modifier on params.
 
-Other `rhino/` Java files not yet present in `internal/rhino/`
-(skeletons exist under `skel/rhino/`):
+#### `union_type.go` — `UnionType.java` (939 LoC)
+**Status: subset** (94 LoC, 4 methods) — delegates most work to
+`registry.go` when flattening.
+- Missing: the full `UnionTypeBuilder` (add/union/flatten state
+  machine); deterministic alternate ordering by token-stream
+  index; union-of-union collapse with cycle detection;
+  `restrictByNotNullOrUndefined`; `getGreatestSubtype`
+  dispatched per-alternate; `meetWith`.
 
-- `ClosurePrimitive.java`
-- `ErrorReporter.java`
-- `InputId.java`
-- `IR.java`
-- `NominalTypeBuilder.java`
-- `NonJSDocComment.java`
-- `Outcome.java`
-- `QualifiedName.java`
-- `SimpleSourceFile.java`
-- `SourcePosition.java`
-- `StaticRef.java`, `StaticScope.java`, `StaticSlot.java`,
-  `StaticSourceFile.java`, `StaticSymbolTable.java`
-- `TokenStream.java`, `TokenUtil.java`
-- `TypeDeclarationsIR.java`
+#### `enum_type.go` + `enum_element_type.go` — `EnumType.java` + `EnumElementType.java`
+**Status: subset.** `enum_type.go` 129 LoC, `enum_element_type.go`
+101 LoC.
+- Missing: `@enum` attribute inheritance across typedef-chained
+  aliases; `JSC_ENUM_INITIALIZER_NOT_ENUM` is driven by
+  `scope.go` not here.
 
-### JSType hierarchy — `rhino.jstype.*` (`internal/rhino/jstype/`)
+#### `templatized_type.go` — `TemplatizedType.java` (239 LoC)
+**Status: subset** (61 LoC, 3 methods). Core substitution works
+through `template_type_replacer.go`.
+- Missing: `getTemplateArgs` keyed by template key, not position;
+  inheritance through templatized supertypes when the supertype
+  itself is templatized again; `isInstantiatedGenericType`.
 
-Currently ported (all as subsets): `JSType`, `FunctionType`,
-`ObjectType`, `UnionType`, `EnumType`, `TemplateType`,
-`TemplatizedType`, `JSTypeRegistry`.
+#### `template_type.go` + `template_type_map.go` + `template_type_replacer.go` — matching Java files
+**Status: subset.** `template_type_map.go` is 454 LoC, fairly
+complete.
+- Missing: bounded template constraint storage
+  (`JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES` depends on this —
+  currently the bound is parsed but not enforced through the
+  replacer); `TemplateTypeReplacer.KeyTracker` visitation for
+  cycle detection; `TemplateTypeMap.getDecoupledTemplateKeys`.
 
-Gaps in already-ported files:
+#### `named_type.go` — `NamedType.java` (565 LoC)
+**Status: subset** (272 LoC, 22 methods).
+- Missing: forward-declared type resolution through the module
+  graph; `resolveViaClosureNamespace` / `resolveViaRegistry`
+  split that backs `JSC_UNRECOGNIZED_TYPE_ERROR` reporting.
 
-- `jstype.go` — widen to full `JSType.java` (visitor dispatch,
-  `canAssignTo`, `matchesObjectContext`, cache hooks).
-- `object_type.go` — `@protected` / `@private` / `@public` access
-  bits, `@struct` vs `@dict` semantics, sealed-for-inference flag,
-  split `PrototypeObjectType` vs `InstanceObjectType`.
-- `function_type.go` — optional / rest / default-value param
-  tracking, `THIS` binding type, closure-capture environment,
-  `minArity` / `maxArity`, `isOrdinaryFunction` / `isConstructor` /
-  `isInterface`.
-- `templatized_type.go` — inheritance through templatized
-  supertypes, recursive substitution at nested generic positions.
-- `union_type.go` — union-over-union flattening, deterministic
-  diagnostic ordering, `UnionTypeBuilder`.
-- `enum_type.go` — full `EnumType` + separate `EnumElementType`.
-- `template_type.go` — bounded `@template` constraints.
-- `registry.go` — full `JSTypeRegistry.java`: native-type table,
-  late-resolution worklist, property-type side table,
-  scope-registered forward declarations.
+#### `registry.go` — `rhino/jstype/JSTypeRegistry.java` (2545 LoC)
+**Status: stub.** 196 LoC, 11 methods — barely scratches Java.
+**Biggest lever in the whole port.**
+- Missing: native-type table and eager construction
+  (`createNativeTypes`, `getNativeType`); late-resolution
+  worklist (`resolveTypes`, `registerTypeResolver`); property-
+  type side table (`getPropertyTypes`, `declarePropertyOnInstance`,
+  `findTypeForProperty`); scope-registered forward declarations
+  (`forwardDeclareType`); closure-namespace registry
+  (`registerClosureNamespace`, `getClosureNamespace`); template-
+  key registration; `ScopedName` keyed type table.
+- Go-only: an ad-hoc `namespacePropNode` map on `TypedScope`
+  substitutes for Java's property-type side table.
 
-Java JSType files not yet present in `internal/rhino/jstype/`
-(skeletons exist under `skel/rhino/jstype/`):
+#### `subtype_checker.go` + `equality_checker.go` + `can_cast_to_visitor.go` + `contains_upper_bound_super_type_visitor.go` + `visitor.go` + `arrow_type.go` + `function_param_builder.go`
+**Status: near-complete.** Structure matches Java 1:1 for these
+files (449 + 351 + 261 + 182 + 165 + 152 + 134 LoC). Verify
+`SubtypeChecker.isStructuralSubtypeHelper` ordering of property
+checks vs. cycle detection.
 
-- `AllType.java`
-- `ArrowType.java`
-- `BigIntType.java`
-- `BooleanLiteralSet.java`
-- `BooleanType.java`
-- `EnumElementType.java` (separate from `EnumType`)
-- `InstanceObjectType.java`
-- `KnownSymbolType.java`
-- `NamedType.java` (forward-ref nominal)
-- `NoObjectType.java`, `NoResolvedType.java`, `NoType.java`
-- `NullType.java`
-- `NumberType.java`
-- `Property.java`, `PropertyMap.java`
-- `PrototypeObjectType.java`
-- `ProxyObjectType.java`
-- `RecordType.java` (distinct from anon `ObjectType`),
-  `RecordTypeBuilder.java`
-- `StringType.java`
-- `SymbolType.java`
-- `UnknownType.java`
-- `ValueType.java`
-- `VoidType.java`
-- `FunctionParamBuilder.java`
-- `TemplateTypeMap.java`, `TemplateTypeReplacer.java`
-- `SubtypeChecker.java`, `EqualityChecker.java`,
-  `RelationshipVisitor.java`
-- `CanCastToVisitor.java`, `ContainsUpperBoundSuperTypeVisitor.java`,
-  `JSTypeIterations.java`, `Visitor.java`
-- `TypeStringBuilder.java`
-- `JSTypeResolver.java`
-- `JSTypeClass.java`, `JSTypeNative.java`
-- `EquivalenceMethod.java`
+#### `property.go` + `property_map.go` — `Property.java` + `PropertyMap.java`
+**Status: near-complete structure**, subset of semantics (293 +
+367 LoC). Missing `isSystemProp`, `getOwnerInstantiation`,
+snapshot-in-time cloning used for interface-conflict diagnostics.
 
-### Typed-scope creation — `TypedScopeCreator.java` (`internal/jscomp/scope.go`)
+#### `proxy_object_type.go` — `ProxyObjectType.java`
+**Status: subset** (454 LoC). Base class for `NamedType` and
+`TemplatizedType`; verify every Java override is present.
 
-The current 2186-line port is a subset that collapses Java's three
-inner-builder classes into free functions. Gaps:
+#### `record_type.go` + `record_type_builder.go` — matching Java
+**Status: subset** (278 + 107 LoC). Missing: nominal-vs-structural
+duality in `isRecordType`; record-type printer simplified.
 
-- `AbstractScopeBuilder` / `ClassScopeBuilder` /
-  `FunctionScopeBuilder` inner-class separation, with the same
-  two-pass `createScopeIn` interaction that Java uses.
-- Destructuring-pattern declarations (var, let, const, parameter).
-- Per-block `let` / `const` hoisting rules.
-- `@enum` slot type + `EnumElementType` registration.
-- `Object.defineProperty` / `Object.defineProperties` property
-  registration.
-- ES6 module import bindings.
-- `goog.require` / `goog.provide` / `goog.module` interaction
-  (coordinates with `CheckClosureImports`).
-- `recordDecl` vs `recordFunction` vs `recordClass` vs
-  `recordTypedef` vs `recordPrototypeAssign` dispatch — preserve
-  Java's exact ordering.
-- Separate `AbstractScope` / `Scope` / `TypedScope` / `TypedVar` /
-  `Var` / `AbstractVar` split (skeletons exist).
+#### Singleton + primitive types (`value_type`, `boolean_type`, `number_type`, `string_type`, `null_type`, `void_type`, `big_int_type`, `boolean_literal_set`, `symbol_type`, `known_symbol_type`, `unknown_type`, `all_type`, `no_type`, `no_object_type`, `no_resolved_type`)
+**Status: near-complete.** One-file-per-Java-class, 10-80 LoC each.
+Structure matches Java.
 
-### Type inference — `TypeInference.java` + `SemanticReverseAbstractInterpreter.java`
+#### `jstype_class.go` + `jstype_native.go` + `jstype_iterations.go` + `jstype_resolver.go` + `type_string_builder.go`
+**Status: near-complete** for the thin utility classes.
+`JSTypeResolver` (241 Go LoC vs. ~500 Java LoC) is missing late-
+resolution ordering and the `Phase` enum's effect on reporting
+suppression — shows up in several position-mismatch bugs.
 
-Files: `internal/jscomp/{inference.go, typeinferencepass.go, refinement.go, flowscope.go}`.
+### 3.3 `internal/jscomp/` — type checker core
 
-Gaps vs. `TypeInference.java`:
+#### `internal/jscomp/typecheck.go` — `jscomp/TypeCheck.java` (3470 LoC)
+**Status: broad subset.** 2826 LoC, 86 Go-side funcs covering
+~80 % of Java's visitor surface.
+- Missing visitors: `visitArrayLit`, full `visitObjectLit`
+  (contextual typing + `JSC_ILLEGAL_OBJLIT_KEY` full coverage),
+  `visitRegExpLit`, `visitTemplateLit`, `visitCast` +
+  `checkForImplicitCast`, `checkForOfTypes`, `visitObjectPattern`,
+  `checkAbstractMethodInConcreteClass`,
+  `checkAbstractPropertyAccess`, `visitInterfacePropertyAssignment`
+  (full branch), `checkDestructuringAssignment`,
+  `checkPropertyInheritanceOnAssignment` sibling branches,
+  `checkDeclaredPropertyAgainstPrototypalInheritance`.
+- Missing diagnostics / branches: `JSC_INVALID_CAST`,
+  `JSC_ILLEGAL_IMPLICIT_CAST`,
+  `JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES` (Java marks in-dev —
+  port the in-dev path as-is), `JSC_TEMPLATE_TRANSFORMATION_ON_CLASS`,
+  `JSC_INCOMPATIBLE_ALIAS_ANNOTATION`,
+  `JSC_PROPERTY_ASSIGNMENT_TO_READONLY_VALUE`,
+  `JSC_CONFLICTING_GETTER_SETTER_TYPE`,
+  `JSC_ILLEGAL_PROPERTY_CREATION_ON_UNION_TYPE`,
+  `JSC_EXPECTED_THIS_TYPE`, `JSC_NOT_FUNCTION_TYPE`,
+  `JSC_CYCLIC_INHERITANCE_ERROR`, `JSC_EXTENDS_WITHOUT_TYPEDEF`,
+  `JSC_INTERFACE_METHOD_NOT_EMPTY` (partial),
+  `JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH` (partial),
+  `JSC_UNKNOWN_LENDS`, `JSC_LENDS_ON_NON_OBJECT`,
+  `JSC_ILLEGAL_CLASS_KEY`, `JSC_BAD_TYPE_FOR_BIT_OPERATION`,
+  `JSC_MULTIPLE_VAR_DEF`, `JSC_RESOLVED_TAG_EMPTY`,
+  `JSC_DICT_EXTEND_STRUCT_TYPE`, `JSC_UNKNOWN_TYPEOF_VALUE`,
+  `JSC_INEXISTENT_PARAM`, `JSC_INVALID_PARAM`,
+  `JSC_CONSTRUCTOR_NOT_CALLABLE`,
+  `JSC_INSTANTIATE_ABSTRACT_CLASS`, `JSC_UNKNOWN_OVERRIDE`.
+- Verify: `reportMissingProperty` exact position (the 24 FP
+  `JSC_TYPE_MISMATCH` bucket and the 11 wrong-position bucket
+  both land here).
+- Go-only: `isSafeCalleeForArity`, `isSafeInstanceMethodForArity`,
+  `isDefinitelyNonConstructor`, `isInGuardedBranch`, `containsPropTest`,
+  `otherSideIsNullOrUndefined`, `dereferencedObject`,
+  `isKnownSurfaceBuiltin`, `defineOnOpenObject`,
+  `buildExternTypeSet`, `buildLoosePropertyIndex`. These were
+  introduced to work around missing pieces of `TypeValidator`,
+  `NodeUtil`, and the externs bundle. Each needs to be migrated
+  into its Java home and removed once the upstream surface lands.
 
-- Binary-op inference: `ADD`, `SUB`, `MUL`, `DIV`, `MOD`, bitwise,
-  comparison — currently narrow, widen to Java's full dispatch
-  including string-vs-number `ADD` fallout.
-- `GETELEM` inference.
-- Compound-assign result-type sharpening.
-- `GETPROP` refinement (`if (x.foo) { … x.foo … }`).
-- Assignment-with-union-LHS.
-- Falsy-on-union-with-literal-false.
-- Nested AND/OR sub-expression refinement.
-- Loop-aware dataflow: `while (!x) { x = u(); }` must refine `x`
-  after the loop body.
-- Missing literal cases: BigInt, Symbol, regex.
-- `FlowScope` port as a proper lattice (currently a narrow map).
+#### `internal/jscomp/superclasscheck.go` — `TypeCheck.java` (inheritance-check subset)
+**Status: subset.** 1162 LoC.
+- Missing: constructor-arg supertype compatibility check;
+  full `JSC_INTERFACE_METHOD_NOT_IMPLEMENTED` across multi-
+  extends diamond; `JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH`
+  full property-descriptor signature comparison (6-count
+  bucket); `JSC_INCOMPATIBLE_EXTENDED_PROPERTY_TYPE` exact
+  position (4-wrong-position bucket); `JSC_CYCLIC_INHERITANCE_ERROR`.
+- Go-only: the `scanConstructorJSDoc` helper is a local pre-
+  pass — Java does this inline in `TypeCheck.checkConstructor`.
 
-Gaps vs. `SemanticReverseAbstractInterpreter.java`: full walk of
-all condition shapes (`in`, `delete`, `instanceof`, `typeof`,
-equality with `==` vs `===`, literal narrowing, tuple-destructure
-discrimination).
+#### `internal/jscomp/typevalidator.go` — `jscomp/TypeValidator.java` (1303 LoC)
+**Status: subset.** 794 LoC, 29 `expect*` methods present.
+- Missing: `expectInterfaceProperty`, `expectInterfaceProperties`
+  (wire through `SuperclassCheck`); `expectAllInterfaceProperties`;
+  `caseEnumElementType`, `caseFunctionType`, `caseNamedType`,
+  `caseUnionType`, `caseTemplatizedType`, `caseTemplateType`
+  visitor hooks — currently duplicated in
+  `SubtypeChecker`/`typecheck.go`; `getReadableTypeName`;
+  `mismatch` registration through `TypeMismatch` accumulator.
+- Go-only: `tvMismatch`/`tvRegisterMismatchAndReportWithDiag` are
+  the Go re-spelling of the overloaded Java `mismatch`/
+  `registerMismatchAndReport`. Keep but rename to match Java's
+  exact method names before declaring the port complete.
 
-Skeletons under `skel/jscomp/typeinfer/`:
-`chainablereverseabstractinterpreter.go`,
-`closurereverseabstractinterpreter.go`, `flowscope.go`,
-`reverseabstractinterpreter.go`,
-`semanticreverseabstractinterpreter.go`.
+#### `internal/jscomp/typemismatch.go` — `jscomp/TypeMismatch.java`
+**Status: near-complete** (200 LoC). Minor: `MismatchType` enum
+missing a few late-added entries — audit against Java when
+`TypeValidator` port lands.
 
-### Type checking — `TypeCheck.java` (`internal/jscomp/typecheck.go`)
+#### `internal/jscomp/scope.go` — `jscomp/TypedScopeCreator.java` (3755 LoC)
+**Status: broad subset.** 3054 LoC, 80 Go-side funcs vs. ~89 Java
+methods — coverage is on par in count but Java's three builders
+(`AbstractScopeBuilder`, `ClassScopeBuilder`, `FunctionScopeBuilder`)
+are collapsed into free functions.
+- Missing: full `AbstractScopeBuilder` / `ClassScopeBuilder` /
+  `FunctionScopeBuilder` separation — requires the
+  `Scope`/`TypedScope`/`TypedVar`/`Var`/`AbstractVar` split
+  (skeletons exist). Destructuring parameter declarations
+  (`declareDestructuringParameter`, `declareNamesInPositionalParameter`);
+  ES6 module imports (`defineModuleImport`,
+  `declareExportsInGoogModuleScope`,
+  `finishDeclaringGoogModule`, `markGoogModuleExportsAsConst`);
+  `Object.defineProperty`/`defineProperties` property
+  registration (`defineObjectLiteral` helpers);
+  `declareNativeFunctionType`/`declareNativeType`/
+  `declareNativeValueType` (tied to `JSTypeRegistry` port);
+  `declareTemplatesInFunctionBody`; `inferTypeForDestructuredTarget`;
+  `getLValueRootScope`; `findOverriddenProperty` (shared with
+  `SuperclassCheck`); `determineOwnerTypeForClassMember`;
+  `isTypedConstantDeclaration`; `isValidTypedefDeclaration`;
+  `identifyEnumOrTypedefDeclaration`.
+- Go-only: `resolveObjectLiteralType`, `PushRefinement`/
+  `PopRefinement` sit in `TypedScope` but Java puts the
+  equivalent in `FlowScope`. Move when `FlowScope` port lands.
 
-Skeleton target: `skel/jscomp/typecheck.go` (the un-narrowed port).
-Current file is 2121 lines covering a subset; remaining gaps:
+#### `internal/jscomp/inference.go` + `typeinferencepass.go` + `refinement.go` + `flowscope.go` — `jscomp/TypeInference.java` (2849 LoC) + `type/FlowScope.java`
+**Status: subset.** 1087 + 198 + 287 + 135 LoC vs. Java's 2849-line
+`TypeInference` alone.
+- Missing traversers (Java has 41 `traverse*`, Go has 11 `infer*`):
+  `traverseAnd`, `traverseOr`, `traverseNullishCoalesce` (Go
+  collapses all three through `inferUnder`); `traverseArrayLiteral`;
+  `traverseAwait`, `traverseYieldAll`; `traverseAssignOp`,
+  `traverseShortCircuitingBinOpAssignment`,
+  `traverseAssignUnsignedRightShift`, `traverseUnsignedRightShift`;
+  `traverseBigIntCompatibleBinaryOperator` / `*UnaryOperator*`;
+  `traverseCatch`; `traverseClass`, `traverseClassMemberRhs`;
+  `traverseDeclaration`, `traverseDeclarationChild`;
+  `traverseDestructuringPattern` (+ helper);
+  `traverseDynamicImport`; `traverseImportSpec`;
+  `traverseInstantiation`; `traverseNewTarget`; `traverseOptChain`;
+  `traverseReturn`; `traverseSuper`; `traverseTaggedTemplateLit`;
+  `traverseUnaryPlus`; `traverseWithinShortCircuitingBinOp`.
+- Missing: loop-aware dataflow (`while (!x) x = u();` must refine
+  `x` after the body); BigInt/Symbol/regex literals;
+  compound-assign result-type sharpening; assignment-with-union-LHS;
+  falsy-on-union-with-literal-false; nested AND/OR sub-expression
+  refinement.
+- `flowscope.go` is a thin map (Bind/BindAll/Equal/Get). Java's
+  `FlowScope` is a lattice with
+  `inferSlotType`/`inferQualifiedSlot`/`createChildFlowScope`
+  and a proper `JoinOp`. Full port blocks several `JSC_TYPE_MISMATCH`
+  misses.
+- Missing semantic reverse-abstract-interpreter: `in`, `delete`,
+  `instanceof` discrimination on union alternates, `==` vs.
+  `===` refinement over literals, tuple-destructure discrimination.
+  Skeletons at `skel/jscomp/typeinfer/`.
+- Go-only: `InferType`, `inferUnder`, `inferWithNarrowing` are
+  local simplifications of Java's `getTypeOfNode`/`traverse`/
+  `dataflow` entry points. Rename to the Java spellings as part
+  of the widening.
 
-- `visitArrayLit` / `visitObjectLit` (full inference + contextual
-  typing + key checks).
-- `visitGetElem`.
-- `visitFunction` body check (current: signature only).
-- `visitRegExpLit`, `visitTemplateLit`.
-- `visitCast` / ASSIGN-with-cast mismatch.
-- `checkPropertyAccess` non-structural broadening (full
-  `JSC_INEXISTENT_PROPERTY` + `JSC_POSSIBLE_INEXISTENT_PROPERTY`).
-- `validateNonStringifiableKey` → `JSC_NON_STRINGIFIABLE_OBJECT_KEY`.
-- Call/NEW arity and "not a constructor": `JSC_WRONG_ARGUMENT_COUNT`,
-  `JSC_NOT_A_CONSTRUCTOR`, `JSC_CONSTRUCTOR_NOT_CALLABLE`,
-  `JSC_INSTANTIATE_ABSTRACT_CLASS`.
-- `JSC_INEXISTENT_PARAM`, `JSC_INVALID_PARAM`.
-- `JSC_PROPERTY_ASSIGNMENT_TO_READONLY_VALUE`,
-  `JSC_CONFLICTING_GETTER_SETTER_TYPE`.
-- `JSC_ILLEGAL_PROPERTY_CREATION`,
-  `JSC_ILLEGAL_PROPERTY_CREATION_ON_UNION_TYPE`.
-- `JSC_INVALID_CAST`, `JSC_ILLEGAL_IMPLICIT_CAST`.
-- `JSC_EXPECTED_THIS_TYPE`, `JSC_NOT_FUNCTION_TYPE`.
-- `JSC_CYCLIC_INHERITANCE_ERROR`, `JSC_EXTENDS_NON_OBJECT`,
-  `JSC_EXTENDS_WITHOUT_TYPEDEF`, `JSC_IMPLEMENTS_NON_INTERFACE`.
-- `JSC_INTERFACE_METHOD_NOT_EMPTY`,
-  `JSC_INTERFACE_METHOD_NOT_IMPLEMENTED`.
-- `JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH`,
-  `JSC_INCOMPATIBLE_EXTENDED_PROPERTY_TYPE` (class-style).
-- `JSC_TEMPLATE_TRANSFORMATION_ON_CLASS`,
-  `JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES` (port Java's in-dev
-  branch faithfully — including the TODO it carries).
-- `JSC_UNKNOWN_LENDS`, `JSC_LENDS_ON_NON_OBJECT`,
-  `JSC_INCOMPATIBLE_ALIAS_ANNOTATION`.
-- `JSC_ENUM_INITIALIZER_NOT_ENUM`, `JSC_ILLEGAL_CLASS_KEY`,
-  `JSC_ILLEGAL_OBJLIT_KEY`, `JSC_BAD_TYPE_FOR_BIT_OPERATION`.
-- `JSC_MULTIPLE_VAR_DEF`, `JSC_RESOLVED_TAG_EMPTY`,
-  `JSC_DICT_EXTEND_STRUCT_TYPE`, `JSC_UNKNOWN_OVERRIDE`,
-  `JSC_ILLEGAL_PROPERTY_ACCESS`.
-- `JSC_UNRECOGNIZED_TYPEOF_ERROR`, `JSC_UNKNOWN_TYPEOF_VALUE`.
+#### `internal/jscomp/parsing/jsdocinfoparser.go` — `parsing/JsDocInfoParser.java` (2895 LoC)
+**Status: subset.** 869 LoC, 35 funcs vs. Java's 104 methods.
+- Missing tags: `@enum` fully (type + values); `@const` with
+  optional type; `@dict` / `@struct` (flag carried but not
+  checked here); `@nosideeffects` + `@noside`; `@abstract`;
+  `@public` / `@protected` / `@private` (parsed but not threaded
+  to visibility); `@param` modifiers `{=T}`, `{...T}`, `{T=}`,
+  default values; callable types `function(A,B):C`,
+  `function(this:T,…)`, `function(new:T,…)`; multi-`@extends`
+  accumulator (interfaces); multi-`@implements`; `@template`
+  with bounds (parser reads them, no downstream enforcement);
+  `@lends`; `@typedef` over record/union/templatized forms;
+  `@ngInject`, `@idGenerator`, `@wizaction`, `@polymerBehavior`.
+- Missing: position-tracked errors inside type expressions —
+  drives the 7-count `JSC_UNRECOGNIZED_TYPE_ERROR` bucket and
+  the 1-count wrong-position case.
 
-### Type validation + mismatch tracking — `TypeValidator.java`, `TypeMismatch.java`
+#### `internal/jscomp/parsing/jsdoctoken.go` + `jsdoctokenstream.go`
+**Status: near-complete** for the tags currently parsed (80 + 298
+LoC). Add the trailing tag set when `JsDocInfoParser` widens.
 
-Skeletons: `skel/jscomp/typevalidator.go`, `skel/jscomp/typemismatch.go`.
-No Go port yet; currently `typecheck.go` does validation inline.
-Port as separate files to match Java layout — unblocks consistent
-diagnostic formatting + handles the JSC_TYPE_MISMATCH false
-positives driven by subtype-check disagreements.
+### 3.4 `internal/jscomp/` — passes
 
-### Control-flow analysis — `ControlFlowAnalysis.java` (`internal/jscomp/controlflowanalysis.go`)
+#### `internal/jscomp/checkaccesscontrols.go` — `jscomp/CheckAccessControls.java` (1466 LoC)
+**Status: broad subset.** 793 LoC, 19 Go funcs vs. ~37 Java
+methods. Wired into the pass list.
+- Missing: `canAccessDeprecatedTypes`; `canOverrideVisibility`;
+  `checkPackagePropertyVisibility`, `checkPrivatePropertyVisibility`,
+  `checkProtectedPropertyVisibility`, `checkPropertyOverrideVisibility`,
+  `checkPropertyOverrideVisibilityIsSame`; `enterAccessControlScope`
+  / `exitAccessControlScope` scope stack (currently one
+  ambient scope); `getEffectiveVisibilityForNonOverriddenProperty`;
+  `isPackageAccessAllowed`, `isPrivateAccessAllowed`;
+  `isDocumentedDeclaration`; `isExtendsTarget`;
+  `shouldEmitDeprecationWarning` precise conditions; `isDeletion`
+  (for deprecation on delete). Drives the single-count
+  `JSC_ILLEGAL_PROPERTY_ACCESS` bucket.
+- Go-only: the `cacWalk` + inline traversal is a thin post-order
+  substitute for Java's `ShouldTraverse`/`Visit` pair. Align
+  naming when `NodeTraversal` widens.
 
-Gaps:
-
-- Labeled `break` / `continue` to **nested** loops.
-- Exception-edge fan-out: each call / throw to nearest catch.
-- `with` statement modelling.
-- Generator suspend edges (`yield`).
-- `async` / `await` suspend edges.
-- Assignment-in-condition edge handling.
-- `finally` re-raise edges.
-
-### Dataflow analysis — `DataFlowAnalysis.java` (`internal/jscomp/dataflow.go`)
-
-Gaps:
-
-- Backward direction.
-- Lattice-annotation side table (currently stored directly on
-  `CfgNode`).
-- Fixed-point iteration limit heuristic.
-- `JoinOp` abstraction as a separate interface.
-
-### Compiler driver — `Compiler.java` (`internal/jscomp/compiler.go`)
-
-Currently a ~65-line shim. Gaps (skeletons under `skel/jscomp/`):
-
-- `AbstractCompiler.java`.
-- `Compiler.java` full: `PhaseOptimizer`, pass registry, `Result`,
-  source-map context, module graph.
-- `CompilerInput.java`, `CompilerInputProvider.java`.
-- `CompilerOptions.java` beyond current flag subset, plus
-  `CompilerOptionsPreprocessor.java`.
-- `DefaultPassConfig.java` with the real ordered pass list.
-- `PassConfig.java`, `PassFactory.java`, `PassListBuilder.java`,
-  `PassNames.java`, `CompilerPass.java`.
-- `NodeTraversal.java` — widen past current subset (full
-  pre-order / post-order / scope-callback variants).
-- `JSError.java`, `DiagnosticType.java`, `DiagnosticGroup.java`,
-  `DiagnosticGroups.java`, `DiagnosticGroupWarningsGuard.java`,
-  `DiagnosticGroupPathSuppressingWarningsGuard.java`,
-  `DiagnosticToSuppressionMapper.java`,
-  `AllowlistWarningsGuard.java`, `CheckLevel.java`,
-  `AbstractMessageFormatter.java`.
-
-### Java passes not yet started (each maps to a skeleton)
-
-Skeletons live under `internal/jscomp/skel/jscomp/`; porting = move
-the file out of `skel/`, drop the `//go:build skeletons` tag, fill
-in bodies, wire into `compiler.go`, add the pass's `JSC_*` codes to
-`internal/diag/diag.go`.
-
-- `CheckAccessControls.java` → `checkaccesscontrols.go`
-  — unlocks `JSC_ILLEGAL_PROPERTY_ACCESS`.
-- `CheckClosureImports.java` → `checkclosureimports.go`
-  — unlocks `goog.require` / `goog.provide` / `JSC_INVALID_MODULE_PATH`.
-- `CheckConformance.java` → `checkconformance.go`.
-- `CheckDebuggerStatement.java` → `checkdebuggerstatement.go`.
-- `CheckGlobalThis.java` → `checkglobalthis.go`
-  — unlocks `JSC_USED_GLOBAL_THIS`.
-- `CheckJSDoc.java` → `checkjsdoc.go`
-  — unlocks bad-`@typedef` / bad-`@enum` diagnostics,
+#### `internal/jscomp/checkjsdoc.go` — `jscomp/CheckJSDoc.java` (799 LoC)
+**Status: subset.** 734 LoC, 17 funcs vs. 33 Java methods.
+- Missing: `checkJsDocInBlockComments`,
+  `containsOnlySuppressionFor`, `validateClosurePrimitive`,
+  `validateDefaultValue`, `validateImplicitCast`,
+  `validateIsUsedViaDotConstructor`, `validateJsDocTypeNames`,
+  `validateNoCollapse`, `validateRestParameter`,
+  `validateTsType`. Drives single-count
   `JSC_INVALID_INTERFACE_MEMBER_DECLARATION`.
-- `CheckMissingRequires.java` → `checkmissingrequires.go`.
-- `CheckMissingReturn.java` → `checkmissingreturn.go`
-  — unlocks the missing-path `JSC_MISSING_RETURN_STATEMENT`.
-- `CheckRegExp.java` → `checkregexp.go`.
-- `CheckSuper.java` → `checksuper.go`.
-- `CheckSuspiciousCode.java` → `checksuspiciouscode.go`
-  — unlocks `JSC_SUSPICIOUS_IN`, `JSC_SUSPICIOUS_SEMICOLON`,
-  `JSC_SUSPICIOUS_LEFT_OPERAND_OF_LOGICAL_OPERATOR`.
-- `CheckTypeImportCodeReferences.java` → `checktypeimportcodereferences.go`.
-- `CheckUnreachableCode.java` → `checkunreachablecode.go`.
-- `InferConsts.java` → `inferconsts.go`.
-- `InferJsDocInfo.java` → `inferjsdocinfo.go`.
-- `NodeIterators.java`, `NodeNameExtractor.java`, `NodeUtil.java`
-  — utility ports used by most of the above.
-- `AstAnalyzer.java`, `AstFactory.java`, `AstManipulations.java`,
-  `AstValidator.java`.
-- `BasicBlock.java`.
-- `SymbolTable.java` (+ `ScopedName.java`).
-- `TypeMatchingStrategy.java`, `TypeMismatch.java`,
-  `TypeTransformation.java`, `TypeValidator.java`.
-- There is no skeleton for `CheckDeterministicTest.java` in the
-  current generation pass — add it to `scripts/gen-skeletons.sh`
-  and port to unlock `JSC_DETERMINISTIC_TEST` cleanly.
 
-### Currently-ported checks that need widening
+#### `internal/jscomp/checkjsdoctypes.go` — part of `TypeValidator.java`
+**Status: subset** (1096 LoC). Reads `@type` expressions from
+JSDoc and checks them against resolved types. Once
+`TypeValidator.expect*` coverage is complete, collapse into
+`typevalidator.go` to match Java layout.
 
-- `internal/jscomp/checkdupvardecl.go` — port of part of
-  `VariableReferenceCheck.java`. Add the type-mismatch arm
-  (`JSC_DUP_VAR_DECLARATION_TYPE_MISMATCH` full semantics), the
-  `JSC_FUNCTION_MASKS_VARIABLE` arm, the full
-  `JSC_VAR_MULTIPLY_DECLARED_ERROR` path.
-- `internal/jscomp/checksideeffects.go` — `@nosideeffects`-aware
-  CALL classification, sub-expression `a[b].c;` reporting.
-- `internal/jscomp/superclasscheck.go` — constructor-arg
-  compatibility, multi-`@extends` interface diamond check,
-  `validateImplements` loop
-  (`JSC_INTERFACE_METHOD_NOT_IMPLEMENTED`).
-- `internal/jscomp/varcheck.go` — per-scope unreached-NAME check,
-  `JSC_REFERENCE_BEFORE_DECLARE` for var hoisting.
-- `internal/jscomp/varrefcheck.go` — full port of
-  `VariableReferenceCheck.java`.
-- `internal/jscomp/checkjsdoctypes.go` — extend when `CheckJSDoc`
-  lands.
-- `internal/jscomp/checkduplicatemember.go` — widen to class-body
-  member checks.
-- `internal/jscomp/controlflowgraph.go` — widen alongside
-  `controlflowanalysis.go`.
-- `internal/jscomp/flowscope.go` — replace with the full port of
-  `jscomp/type/FlowScope.java` (skeleton at
-  `skel/jscomp/typeinfer/flowscope.go`).
-- `internal/jscomp/nodetraversal.go` — widen to full `NodeTraversal`.
+#### `checkmissingreturn.go` + `checksuspiciouscode.go` + `checksuper.go` + `checkglobalthis.go`
+**Status: near-complete.** Sizes vs. Java: 472/203, 476/281,
+556/479, 244/208. Residuals: one FP `JSC_MISSING_RETURN_STATEMENT`
+on `??` nullable (CFG defect — revisit when `ControlFlowAnalysis`
+widens); single-count `JSC_SUSPICIOUS_IN` and
+`JSC_SUSPICIOUS_LEFT_OPERAND_OF_LOGICAL_OPERATOR` residuals
+(verify against Java branch); 3-count
+`JSC_TYPE_MISMATCH,JSC_USED_GLOBAL_THIS` where the missing
+`TYPE_MISMATCH` is a `typecheck.go` gap, not a `checkglobalthis`
+gap.
 
-### Externs
+#### `internal/jscomp/checkmissingrequires.go` — `CheckMissingRequires.java` (839 LoC)
+**Status: broad subset** (1083 LoC, covers the main branches;
+module metadata is stubbed).
+- Missing: `ModuleMetadataMap` wired through `CheckClosureImports`
+  + the real module graph (currently a local stub); `isIIFE`,
+  `isGoogScopeBody`, `isTypeScriptSource` are present; verify
+  `swapRootOfQualifiedName` against Java.
 
-- `internal/jscomp/default_externs.go` — currently an embedded
-  subset. Port Java's full `DefaultExterns.js` bundle (`Window.*`,
-  `HTMLElement.*`, typed-array methods, `String.prototype.*`,
-  `Array.prototype.*`, `Object.prototype.*`, `Map`, `Set`,
-  `Promise`, `Symbol`, `Iterator`, `goog.*`). Unlocks the remaining
-  `JSC_UNDEFINED_VARIABLE` misses and reduces TYPE_MISMATCH false
-  positives.
+#### `internal/jscomp/checkclosureimports.go` — `CheckClosureImports.java` (551 LoC)
+**Status: subset** (628 LoC). Handles the common `goog.require`
+patterns; stubs the module metadata map.
+- Missing: `checkValidImportCodeReference`; `enterModule`
+  tracking; `isValidDestructuringImport` (narrow). Drives the
+  3-count `JSC_INVALID_MODULE_PATH` bucket and the 2-count
+  `JSC_PARSE_ERROR` misroute.
+
+#### `checkregexp.go` + `checkdebuggerstatement.go` + `checkunreachablecode.go` + `checktypeimportcodereferences.go`
+**Status: near-complete.** Straightforward passes — 232/~40,
+77/small, 340/95, 193/small LoC. `CheckConformance.java`
+(`checkconformance.go`, 112 LoC) is a **stub** with only the
+entry point; low priority — no TypeCheckTest fixture exercises
+conformance.
+
+#### `internal/jscomp/checksideeffects.go` — `CheckSideEffects.java`
+**Status: subset** (211 LoC).
+- Missing: `@nosideeffects`-aware CALL classification;
+  sub-expression `a[b].c;` reporting; the ModifiedStateChecker
+  sub-pass.
+
+#### `internal/jscomp/checkdupvardecl.go` — a subset of `TypeCheck.java` + `VariableReferenceCheck.java`
+**Status: subset** (397 LoC). Carries the bulk of
+`JSC_DUP_VAR_DECLARATION_TYPE_MISMATCH` detection.
+- Missing: the `JSC_FUNCTION_MASKS_VARIABLE` arm (2-count bucket);
+  `JSC_VAR_MULTIPLY_DECLARED_ERROR` cross-file variant (1-count
+  residual).
+
+#### `internal/jscomp/checkduplicatemember.go` — `CheckSuspiciousCode.java` (duplicate-member branch)
+**Status: subset** (124 LoC).
+- Missing: class-body member checks (class fields + methods
+  conflict detection).
+
+#### `internal/jscomp/checkdeterministictest.go` — `JSC_DETERMINISTIC_TEST` branch of `TypeCheck.java`
+**Status: subset** (579 LoC). Pure-miss count is 4, position-
+mismatch count is 3, FP count is 1 — so both broader and
+narrower than Java in different spots.
+- Verify: exact Java dispatch for symbol/number cross-type
+  comparison; exact position of report when the comparison sits
+  inside a `|| void 0` chain.
+- Add a skeleton for this when `gen-skeletons.sh` runs next —
+  there isn't one in the current tree because Java keeps the
+  check inline in `TypeCheck.java`.
+
+#### `internal/jscomp/varcheck.go` — `VarCheck.java`
+**Status: subset** (197 LoC).
+- Missing: per-scope unreached-NAME reporting (drives the 2-
+  count `want=[JSC_UNDEFINED_VARIABLE] got=[]` bucket);
+  `JSC_REFERENCE_BEFORE_DECLARE` for `var` hoisting edge cases
+  (3-count `JSC_REFERENCE_BEFORE_DECLARE,JSC_TYPE_MISMATCH`
+  bucket).
+
+#### `internal/jscomp/varrefcheck.go` — `VariableReferenceCheck.java`
+**Status: subset** (500 LoC).
+- Missing: `checkEarlyReference` across hoisting of
+  function-scoped `var`; `JSC_VAR_MULTIPLY_DECLARED_ERROR` per-
+  script aggregation; `checkFunctionMasksVariable` class-scope
+  overload.
+
+#### `inferjsdocinfo.go` + `inferconsts.go` + `typetransformation.go` + `ast_analyzer.go`
+**Status: subset.** 347, 284, 987, 203 LoC. `InferJsDocInfo` misses
+prototype-assignment branches. `TypeTransformation` handles the
+standard TTL operators; `JSC_TEMPLATE_TRANSFORMATION_ON_CLASS`
+(2-count bucket) is reported from `typecheck.go` only when the
+TTL transform is detected. `AstAnalyzer` covers side-effect +
+mutation predicates used by `CheckSideEffects`.
+
+#### `symboltable.go` + `scoped_name.go` — `SymbolTable.java` + `ScopedName.java`
+**Status: subset** (1774 + 100 LoC). Currently unused by the
+corpus; kept to satisfy `TypedScopeCreator` references.
+
+#### `internal/jscomp/basicblock.go` + `cfg.go` + `controlflowgraph.go` + `controlflowanalysis.go` + `dataflow.go`
+**Status: CFG/DFG subset.** `controlflowanalysis.go` 735 LoC vs.
+1050 Java LoC; `dataflow.go` 146 vs. 499.
+- Missing: labeled `break`/`continue` to nested loops; exception
+  fan-out to nearest catch per call/throw; `with` modelling
+  (low-value but needed for conformance parity); generator
+  suspend edges (`yield`); async/await suspend edges;
+  assignment-in-condition edges; `finally` re-raise edges.
+- Missing (DFG): backward direction; lattice side-table
+  (currently annotated directly on `CfgNode`); iteration-limit
+  heuristic; `JoinOp` as a proper interface.
+
+#### `internal/jscomp/nodetraversal.go` — `NodeTraversal.java`
+**Status: subset** (201 LoC). Pre/post order + scope callbacks
+present. Missing: `traverseFunctionOutOfBand`,
+`traverseWithScope`, the various `traverseRoots` helpers, the
+`ScopeCreator` two-pass protocol's post-order phase.
+
+#### `internal/jscomp/nodeutil.go` — `NodeUtil.java` (5851 LoC!)
+**Status: thin subset.** 633 LoC, 28 funcs vs. ~127 Java methods.
+**This is a high-leverage gap** — every pass reaches for
+`NodeUtil` helpers and currently re-implements them locally.
+- Missing (selection): `getAssignedValue`, `isBleedingFunctionName`,
+  `isConstantDeclaration`, `isExpressionResultUsed`,
+  `isFunctionObjectLit`, `isGetPropOnThis`,
+  `isInFunction`, `isInSyntheticScript`, `isNameNodeInsideExtends`,
+  `isNonEs6ClassExpression`, `isObjectLitKey`,
+  `isPrototypeMethod`, `isPrototypeProperty`,
+  `mayBeObjectLitKey`, `mayBeString`, `mayEffectMutableState`,
+  `newQualifiedNameNode`, `removeChildren`, `isLhsByDestructuring`,
+  `tryGetStringFromBoolean`, `getFunctionParameters`,
+  `getBestLValue`, `getBestLValueOwner`, `getBestJSDocInfo`.
+
+#### `internal/jscomp/nodeiterators.go` + `nodenameextractor.go`
+**Status: near-complete** (343 + 202 LoC).
+
+#### `internal/jscomp/compiler.go` + `compileroptions.go`
+**Status: thin shim.** `compiler.go` 112 LoC, `compileroptions.go`
+65 LoC.
+- Missing: `AbstractCompiler.java`; `PhaseOptimizer`;
+  `Result`/`JSError` table; module graph; source-map
+  context; `DefaultPassConfig` with a real ordered pass list;
+  `PassConfig`/`PassFactory`/`PassListBuilder`/`PassNames`/
+  `CompilerPass`; `CompilerInput`/`CompilerInputProvider`;
+  `CompilerOptionsPreprocessor`. The current driver wires
+  passes imperatively in `Check`.
+
+#### `internal/jscomp/default_externs.go` — externs bundle
+**Status: subset** (625 LoC, ES5 + a sliver of DOM).
+- Missing: the full ES2022 surface (Iterator, AsyncIterator,
+  WeakRef, FinalizationRegistry); Web IDL externs (Window.*,
+  HTMLElement.*, typed arrays, Intl.*); `Promise` static and
+  instance methods; `Symbol.*` well-known keys as declared
+  properties; `goog.*` runtime surface. Drives the 2-count
+  `want=[JSC_UNDEFINED_VARIABLE] got=[]` bucket and several
+  `JSC_TYPE_MISMATCH` FPs.
+
+### 3.5 `internal/parser/`
+
+#### `internal/parser/scanner.go` — `parsing/parser/Scanner.java` (1375 LoC)
+**Status: narrow.** 632 LoC character-level scanner.
+- Missing: full `TokenType` enum; string-literal escapes
+  + template pieces; numeric literals
+  (hex/octal/binary/`_`-separators/`n` bigint suffix/decimal
+  edge cases); regex literals; comment/trivia preservation
+  through `JsDocTokenStream`; source-position stream.
+
+#### `internal/parser/parser.go` — `parsing/parser/Parser.java` (3694 LoC)
+**Status: narrow.** 2561 LoC covering a JS subset tailored to the
+corpus fixtures.
+- Missing: array and object literals at expression position;
+  destructuring patterns (array+object, nested, default, rest);
+  spread/rest args and params; template literals + tagged templates;
+  regex literals as expressions; `GETELEM` expression form;
+  optional chaining (`?.`, `?.(`, `?.[`); `async`/`await`;
+  generator functions (`function*`, `yield`, `yield*`);
+  computed property syntax (`{[k]:v}`, `class { [k]() {} }`);
+  cast `(/** @type {T} */ (e))` as first-class grammar;
+  class-body: fields + static fields + accessors + private `#`
+  + static blocks; `for`/`for-in`/`for-of` with destructured
+  binding; `import`/`export` declarations (named, default,
+  namespace, re-export); `super.x`, `super(…)`; labeled
+  statements. ~86 tree node types under Java's
+  `parsing/parser/trees/` — Go side uses the rhino `Node` model
+  directly, so each syntactic form needs a dedicated materialiser
+  inside `parser.go` when porting `IRFactory.java`.
+
+### 3.6 `internal/diag/diag.go`
+**Status: subset.** 197 LoC. Mirrors the cut of
+`DiagnosticType.java` + `JSError.java` that jsgo emits. Widen as
+new passes lift their codes.
+
+### 3.7 Test scaffolding
+
+`internal/jscomp/strictcheck_test.go` (67 LoC) tracks
+`TypeCheckStrictTest.java`. Intentionally narrow.
 
 ---
 
-## Remaining diagnostic-tuple gaps (ledger)
+## 4. Unported Java files (skeletons in `internal/jscomp/skel/`)
 
-Every failing fixture shows up in one of these three categories.
-Listed so nothing is missed — each maps back to one of the porting
-areas above. Re-run `go run ./tools/fbucket b` after every landing.
+Each Java file listed below has a companion skeleton under
+`internal/jscomp/skel/`. Porting = move the file out of `skel/`,
+drop the `//go:build skeletons` tag, fill in the body, wire into
+`compiler.go`, add any new codes to `internal/diag/diag.go`.
 
-### A. Pure misses (want=[X] got=[])
+### 4.1 `rhino.*` core (no Go counterpart yet)
+
+`ClosurePrimitive`, `ErrorReporter`, `IR`, `NominalTypeBuilder`,
+`NonJSDocComment`, `Outcome`, `SourcePosition`, `TokenStream`,
+`TokenUtil`, `TypeDeclarationsIR` — all in `skel/rhino/`.
+`HamtPMap`, `PMap`, `RhinoStringPool`, `PropTranslator`, `Msg`,
+`JSIdentifier` have no skeleton (utility classes the Go side
+collapses into stdlib equivalents — low priority).
+
+### 4.2 `rhino.jstype.*` (no Go counterpart)
+
+`EquivalenceMethod`, `RelationshipVisitor` — skeletons under
+`skel/rhino/jstype/`. `SimpleReference`, `SimpleSlot`,
+`StaticTypedRef`, `StaticTypedScope`, `StaticTypedSlot` —
+Java-side helper interfaces; fold into `internal/rhino/` when
+the `Scope`/`TypedScope`/`TypedVar` split lands.
+`AutoValue_FunctionType_Parameter` / `AutoValue_JSTypeRegistry_ClosureNamespace`
+are generated and inlined on the Go side.
+
+### 4.3 `jscomp.*` infrastructure
+
+Driver / options / diagnostics (all in `skel/jscomp/`):
+`AbstractCompiler`, `Compiler` (full rewrite over the current
+shim), `CompilerInput`, `CompilerInputProvider`, `CompilerOptions`
+(full), `CompilerOptionsPreprocessor`, `CompilerPass`,
+`DefaultPassConfig`, `PassConfig`, `PassFactory`,
+`PassListBuilder`, `PassNames`, `AbstractMessageFormatter`,
+`AllowlistWarningsGuard`, `CheckLevel`, `DiagnosticType`,
+`DiagnosticGroup` (full), `DiagnosticGroups`,
+`DiagnosticGroupWarningsGuard`,
+`DiagnosticGroupPathSuppressingWarningsGuard`,
+`DiagnosticToSuppressionMapper`, `JSError` (full),
+`DefaultExterns`.
+
+### 4.4 `jscomp.*` scope hierarchy
+
+`AbstractScope`, `AbstractVar`, `Scope`, `ScopeCreator`,
+`TypedScope`, `TypedScopeCreator` (full), `TypedVar`, `Var` — all
+in `skel/jscomp/`. Required prerequisite for splitting the
+current monolithic `internal/jscomp/scope.go` into the Java
+builder classes.
+
+### 4.5 `jscomp.*` type-check infrastructure
+
+Full 1:1 rewrites pending for: `TypeCheck`, `TypeValidator`,
+`TypeMismatch`, `TypeInference`, `TypeInferencePass`,
+`TypeMatchingStrategy`, `TypeTransformation`. Current Go ports
+are subsets (see section 3) — skeleton body is the un-narrowed
+target.
+
+### 4.6 `jscomp.type.*` (inference plumbing)
+
+`FlowScope`, `ReverseAbstractInterpreter`,
+`ChainableReverseAbstractInterpreter`,
+`ClosureReverseAbstractInterpreter`,
+`SemanticReverseAbstractInterpreter` — all in
+`skel/jscomp/typeinfer/`. Required for full refinement coverage
+(several `JSC_TYPE_MISMATCH` buckets).
+
+### 4.7 `jscomp.*` utilities
+
+`AstFactory`, `AstManipulations`, `AstValidator`, `NodeUtil`
+(full — compare §3.4 entry), `NodeTraversal` (full),
+`NodeIterators`, `NodeNameExtractor`, `ControlFlowAnalysis`
+(full), `ControlFlowGraph` (full), `DataFlowAnalysis` (full),
+`BasicBlock` (full), `SymbolTable` (full), `ScopedName` (full) —
+all in `skel/jscomp/`.
+
+### 4.8 `jscomp.parsing.*`
+
+Full rewrites: `IRFactory` (3900+ LoC Java; gates on parser
+widening), `JsDocInfoParser`, `JsDocToken`, `JsDocTokenStream`,
+`ParserRunner`, `TypeTransformationParser`. No skeleton for
+`Config`, `AutoValue_Config`, `Annotation`, `FeatureCollector`,
+`ParserConfiguration`, `ParsingUtil` — generate on next
+`scripts/gen-skeletons.sh` run.
+
+### 4.9 `jscomp.parsing.parser.*` (the scanner/parser + 86 trees)
+
+Skeletons exist for `Scanner`, `Parser`, `Token`, `TokenType`,
+`IdentifierToken`, `LiteralToken`, `TemplateLiteralToken` under
+`skel/jscomp/parsing/parser/`. No skeletons for the 86 tree
+classes under `parsing/parser/trees/*.java` nor for
+`ClassOrObjectElementInfo`, `FeatureSet`, `Identifiers`,
+`Keywords`, `LineNumberScanner`, `PredefinedName`, `SourceFile`,
+`StringLiteralToken`, `util/*`. Go port currently materialises a
+trimmed tree directly on `rhino.Node` — either port every tree
+class 1:1 or keep the current approach and document the
+divergence.
+
+### 4.10 Notes on coverage
+
+- `CheckExtraRequiresPassConfig.java` — no skeleton; generate on
+  the next `gen-skeletons.sh` run.
+- `CheckDeterministicTest` is not a Java file (inlined in
+  `TypeCheck.java`); Go's `checkdeterministictest.go` split it out
+  for locality. Merge back when `TypeCheck.java` is ported 1:1.
+
+---
+
+## 5. Diagnostic-tuple gaps (ledger)
+
+Re-derived from `go run ./tools/fbucket b` at `9816618`. Listed so
+nothing is missed. Re-run after every landing.
+
+### 5.1 Pure misses (`want=[X] got=[]`)
 
 | Count | Diagnostic | Fix-site |
-|-------|-----------|----------|
-| 193 | `JSC_TYPE_MISMATCH` | `inference.go`, `typecheck.go`, `typevalidator.go` (new port) |
-| 37  | `JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES` | `typecheck.go`'s `@template` branch — port Java's in-dev path |
-| 15  | `JSC_NON_STRINGIFIABLE_OBJECT_KEY` | `typecheck.go` `visitGetElem` / computed-prop |
-| 11  | `JSC_UNRECOGNIZED_TYPE_ERROR` | `jsdocinfoparser.go` position-tracked, `scope.go` resolve-time |
-| 11  | `JSC_INEXISTENT_PROPERTY` | `typecheck.go` non-structural branch |
-|  7  | `JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH` (class-style) | `superclasscheck.go` |
-|  6  | `JSC_WRONG_ARGUMENT_COUNT` | `typecheck.go` call arity |
-|  5  | `JSC_INVALID_CAST` | `typecheck.go` visitCast |
-|  5  | `JSC_TYPE_PARSE_ERROR` | `jsdocinfoparser.go` |
-|  5  | `JSC_UNRECOGNIZED_TYPEOF_ERROR` | `checkjsdoc.go` / `typecheck.go` |
-|  5  | `JSC_NOT_A_CONSTRUCTOR` | `typecheck.go` visitNew |
-|  5  | `JSC_UNDEFINED_VARIABLE` | externs + `varcheck.go` |
-|  4  | `JSC_DETERMINISTIC_TEST` | port `CheckDeterministicTest` |
-|  4  | `JSC_USED_GLOBAL_THIS` | port `CheckGlobalThis` |
-|  4  | `JSC_INCOMPATIBLE_ALIAS_ANNOTATION` | `typecheck.go` alias branch |
-|  4  | `JSC_VAR_MULTIPLY_DECLARED_ERROR` | `varrefcheck.go` |
-|  4  | `JSC_POSSIBLE_INEXISTENT_PROPERTY` | `typecheck.go` + diagnostic level |
-|  4  | `JSC_REFERENCE_BEFORE_DECLARE` | `varrefcheck.go` |
-|  3  | `JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH` | `typecheck.go` + `superclasscheck.go` |
-|  3  | `JSC_INVALID_MODULE_PATH` | port `CheckClosureImports` |
-|  3  | `JSC_PROPERTY_ASSIGNMENT_TO_READONLY_VALUE` | `typecheck.go` |
-|  2  | `JSC_EXTENDS_NON_OBJECT` | `typecheck.go` |
-|  2  | `JSC_ILLEGAL_CLASS_KEY` | `typecheck.go` |
-|  2  | `JSC_SUSPICIOUS_SEMICOLON` | port `CheckSuspiciousCode` |
-|  2  | `JSC_TEMPLATE_TRANSFORMATION_ON_CLASS` | `typecheck.go` |
-|  2  | `JSC_ILLEGAL_OBJLIT_KEY` | `typecheck.go` |
-|  2  | `JSC_FUNCTION_MASKS_VARIABLE` | `varrefcheck.go` |
-|  2  | `JSC_EXPECTED_THIS_TYPE` | `typecheck.go` |
-|  2  | `JSC_INTERFACE_METHOD_NOT_IMPLEMENTED` | `superclasscheck.go` |
-|  2  | `JSC_IMPLEMENTS_NON_INTERFACE` | `typecheck.go` |
-|  2  | `JSC_DUP_VAR_DECLARATION_TYPE_MISMATCH` | `checkdupvardecl.go` widening |
-|  1 each | `JSC_UNKNOWN_LENDS`, `JSC_CONSTRUCTOR_NOT_CALLABLE`, `JSC_UNKNOWN_OVERRIDE`, `JSC_INVALID_PARAM`, `JSC_INSTANTIATE_ABSTRACT_CLASS`, `JSC_CONFLICTING_GETTER_SETTER_TYPE`, `JSC_INCOMPATIBLE_EXTENDED_PROPERTY_TYPE`, `JSC_BAD_TYPE_FOR_BIT_OPERATION`, `JSC_MULTIPLE_VAR_DEF`, `JSC_INEXISTENT_PARAM`, `JSC_CYCLIC_INHERITANCE_ERROR`, `JSC_ENUM_INITIALIZER_NOT_ENUM`, `JSC_NOT_FUNCTION_TYPE`, `JSC_INTERFACE_METHOD_NOT_EMPTY`, `JSC_UNKNOWN_TYPEOF_VALUE`, `JSC_RESOLVED_TAG_EMPTY`, `JSC_SUSPICIOUS_LEFT_OPERAND_OF_LOGICAL_OPERATOR`, `JSC_DICT_EXTEND_STRUCT_TYPE`, `JSC_SUSPICIOUS_IN`, `JSC_ILLEGAL_PROPERTY_CREATION_ON_UNION_TYPE`, `JSC_USELESS_CODE` (edge case), `JSC_ILLEGAL_PROPERTY_ACCESS`, `JSC_EXTENDS_WITHOUT_TYPEDEF`, `JSC_LENDS_ON_NON_OBJECT` | see the per-pass sections above |
+|------:|-----------|----------|
+| 179 | `JSC_TYPE_MISMATCH` | `inference.go`, `typecheck.go`, `typevalidator.go` + externs widening |
+|  11 | `JSC_NON_STRINGIFIABLE_OBJECT_KEY` | `typecheck.go` `visitGetElem` / computed-prop + `findObjectWithNonStringifiableKey` |
+|   8 | `JSC_INEXISTENT_PROPERTY` | `typecheck.go` non-structural branch + `TypeValidator.caseObjectType` |
+|   7 | `JSC_UNRECOGNIZED_TYPE_ERROR` | `jsdocinfoparser.go` position-tracked errors + `scope.go` resolve-time |
+|   6 | `JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH` | `superclasscheck.go` class-style branch |
+|   5 | `JSC_INVALID_CAST` | `typecheck.go` `visitCast` |
+|   4 | `JSC_DETERMINISTIC_TEST` | `checkdeterministictest.go` dispatch on symbol/number cross-type |
+|   3 | `JSC_INVALID_MODULE_PATH` | `checkclosureimports.go` validate-path branch |
+|   3 | `JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH` | `typecheck.go` + `superclasscheck.go` |
+|   3 | `JSC_PROPERTY_ASSIGNMENT_TO_READONLY_VALUE` | `typecheck.go` new branch |
+|   2 | `JSC_UNDEFINED_VARIABLE` | `varcheck.go` unreached-NAME; externs widening |
+|   2 | `JSC_TEMPLATE_TRANSFORMATION_ON_CLASS,JSC_UNRECOGNIZED_TYPE_ERROR` | `typecheck.go` @template-TTL branch |
+|   2 | `JSC_EXPECTED_THIS_TYPE` | `typecheck.go` call-with-@this branch |
+|   2 | `JSC_MISSING_RETURN_STATEMENT,JSC_TYPE_MISMATCH` | `checkmissingreturn.go` + `typevalidator.go` |
+| 1 each | `JSC_CYCLIC_INHERITANCE_ERROR`, `JSC_INCOMPATIBLE_EXTENDED_PROPERTY_TYPE`, `JSC_ILLEGAL_PROPERTY_CREATION_ON_UNION_TYPE`, `JSC_UNKNOWN_TYPEOF_VALUE`, `JSC_NOT_FUNCTION_TYPE`, `JSC_INEXISTENT_PARAM`, `JSC_UNKNOWN_OVERRIDE`, `JSC_RESOLVED_TAG_EMPTY`, `JSC_EXTENDS_WITHOUT_TYPEDEF`, `JSC_ILLEGAL_PROPERTY_CREATION`, `JSC_ILLEGAL_IMPLICIT_CAST`, `JSC_INSTANTIATE_ABSTRACT_CLASS`, `JSC_UNKNOWN_LENDS`, `JSC_LENDS_ON_NON_OBJECT`, `JSC_ENUM_INITIALIZER_NOT_ENUM`, `JSC_INVALID_INTERFACE_MEMBER_DECLARATION`, `JSC_INVALID_PARAM`, `JSC_TYPE_PARSE_ERROR`, `JSC_MISSING_RETURN_STATEMENT` (single) | see section 3 |
 
-### B. False positives (want=[] got=[X])
+### 5.2 False positives (`want=[] got=[X]`)
 
 | Count | Spurious diagnostic | Fix-site |
-|-------|---------------------|----------|
-| 17 | `JSC_TYPE_MISMATCH` | narrow `inference.go` / loop-aware refinement / `typevalidator.go` port |
-|  3 | `JSC_INEXISTENT_PROPERTY` | broaden "unknown-structure" receiver recognition |
-|  1 | `JSC_DETERMINISTIC_TEST` | our heuristic — port `CheckDeterministicTest` precisely |
-|  1 | `JSC_MISSING_RETURN_STATEMENT` | CFG defect; revisit once `CheckMissingReturn` lands |
-|  1 | `JSC_DUP_VAR_DECLARATION_TYPE_MISMATCH` | narrow duplicate-decl detection |
+|------:|---------------------|----------|
+| 24 | `JSC_TYPE_MISMATCH` | `inference.go` loop-aware refinement + `typevalidator.go` port + externs widening |
+|  4 | `JSC_INEXISTENT_PROPERTY` | broaden "unknown-structure" receiver recognition in `typecheck.go:checkPropertyAccess` |
+|  4 | `JSC_POSSIBLE_INEXISTENT_PROPERTY` | same receiver check, narrow side |
+|  1 | `JSC_NON_STRINGIFIABLE_OBJECT_KEY` (`testenumofsymbol1.js`) | `checkTypeContainsObjectWithBadKey` on Symbol-keyed enum |
+|  1 | `JSC_MISSING_RETURN_STATEMENT` | CFG defect on `??` nullable; revisit after `ControlFlowAnalysis` widening |
 
-### C. Position mismatches (same code, wrong line/col)
+### 5.3 Position mismatches (same code, wrong line/col)
 
 Same diagnostic reported at the wrong location — usually because
 we emit on a parent node while Java emits on a child (or vice
 versa). Fix each by consulting Java's exact report-site.
 
-- 6× `JSC_TYPE_MISMATCH`
-- 4× `JSC_INCOMPATIBLE_EXTENDED_PROPERTY_TYPE`
+- 11× `JSC_TYPE_MISMATCH`
 - 3× `JSC_DETERMINISTIC_TEST,JSC_USELESS_CODE`
-- ~15 further single-count combinations (see `fbucket b`)
+- 1× `JSC_UNRECOGNIZED_TYPE_ERROR`
+- ~10 further single-count combinations.
 
-### D. Mixed tuples (partial match)
+### 5.4 Mixed tuples (partial match, mostly over-reporting)
 
-Some fixtures match one of an n-tuple but miss another. These drop
-out automatically as the underlying pure-miss / FP entries above
-are resolved; tracked in `fbucket` output for regression watch.
+| Count | Shape |
+|------:|-------|
+| 4 | `want=[JSC_TYPE_MISMATCH,JSC_USELESS_CODE]` got only `[JSC_USELESS_CODE]` |
+| 3 | `want=[JSC_TYPE_MISMATCH,JSC_USED_GLOBAL_THIS]` got only `[JSC_USED_GLOBAL_THIS]` |
+| 3 | `want=[JSC_UNDEFINED_VARIABLE]` got `[JSC_TYPE_MISMATCH,JSC_UNDEFINED_VARIABLE]` (we over-report TYPE_MISMATCH) |
+| 3 | `want=[JSC_REFERENCE_BEFORE_DECLARE,JSC_TYPE_MISMATCH]` got `[]` |
+| 2 | `want=[JSC_POSSIBLE_INEXISTENT_PROPERTY,JSC_USELESS_CODE]` got only `[JSC_POSSIBLE_INEXISTENT_PROPERTY]` |
+| 2 | `want=[JSC_UNDEFINED_VARIABLE]` got `[JSC_POSSIBLE_INEXISTENT_PROPERTY,JSC_UNDEFINED_VARIABLE]` |
+| 2 | `want=[JSC_UNDEFINED_VARIABLE]` got `[JSC_UNDEFINED_VARIABLE,JSC_USELESS_CODE]` |
+| 2 | `want=[JSC_INEXISTENT_PROPERTY]` got `[JSC_INEXISTENT_PROPERTY,JSC_POSSIBLE_INEXISTENT_PROPERTY]` |
+| 2 | `want=[JSC_TYPE_MISMATCH]` got `[JSC_INEXISTENT_PROPERTY]` (wrong code) |
+| 2 | `want=[JSC_TYPE_MISMATCH]` got `[JSC_POSSIBLE_INEXISTENT_PROPERTY]` (wrong code) |
+| 2 | `want=[JSC_PARSE_ERROR]` got `[JSC_POSSIBLE_INEXISTENT_PROPERTY,JSC_UNDEFINED_VARIABLE]` (module-path misroute) |
+
+These drop out automatically as the underlying pure-miss / FP
+entries resolve.
 
 ---
 
-## Supporting work
+## 6. Supporting work
 
 - Populate the hold-out corpus slot (SPEC guardrail #5) and keep
   its pass-rate locked to the visible corpus.
-- Performance: stay within `[0.1×, 2×]` of Java on Tier-1, verified
-  at each major port landing.
+- Performance: stay within `[0.1×, 2×]` of Java on Tier-1,
+  verified at each major port landing.
 - Oracle regeneration: re-run `scripts/gen-oracles.sh` whenever
   fixture layout or Java pinned version changes.
 - Triage tooling: `tools/fbucket` keeps the bucket table; re-run
   after every significant change, paste the snapshot back into
-  this file.
+  this file (sections 1 + 2 + 5).
+- `tools/fbucket` itself covers default mode only. For strict
+  mode, invoke `jscomp.CheckSourceWithOptions` with
+  `GroupStrictCheckTypes=LevelWarning` over `testdata/oracle-strict/…`.
+  Consider extending `fbucket` with a `-strict` flag.
 - CI floor in `harness/harness_test.go` raised alongside progress
   so regressions show up immediately.
-- Skeleton refresh: re-run `scripts/gen-skeletons.sh` when the Java
-  tag is bumped, to keep `internal/jscomp/skel/` in sync.
+- Skeleton refresh: re-run `scripts/gen-skeletons.sh` when the
+  Java tag is bumped, to keep `internal/jscomp/skel/` in sync.
+  Add missing generators for `CheckExtraRequiresPassConfig`,
+  `Config`/`ParserConfiguration`, `parsing/parser/trees/*`.
