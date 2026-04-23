@@ -43,16 +43,159 @@ type CheckJsDocTypes struct {
 	scope         *TypedScope
 	allNames      map[string]bool // every identifier declared anywhere in src
 	allTemplates  map[string]bool // every @template name across the whole source
+	typedNames    map[string]bool // names with non-Unknown declared types (across all scopes)
 }
 
-func NewCheckJsDocTypes(path, src string, scope *TypedScope) *CheckJsDocTypes {
+func NewCheckJsDocTypes(path, src string, scope *TypedScope, creator *TypedScopeCreator) *CheckJsDocTypes {
 	return &CheckJsDocTypes{
 		path:         path,
 		src:          src,
 		scope:        scope,
 		allNames:     collectDeclaredNames(src),
 		allTemplates: collectAllTemplateNames(src),
+		typedNames:   cjdMergeTypedNames(scope, creator, src),
 	}
+}
+
+// cjdCollectTypedNames builds the set of all names that have a non-Unknown
+// declared type across the global scope and every function-local scope.
+// Mirrors Java's NamedType.resolveTypeof check: the error fires when the
+// looked-up type is null or isUnknownType(). Names absent from this set
+// but present in the source should trigger JSC_UNRECOGNIZED_TYPEOF_ERROR
+// when used as a `typeof` operand in a JSDoc type annotation.
+//
+// Additionally, names whose declaration initialises an object literal
+// (`var ns = {}`) are included: Java's TypedScopeCreator calls
+// defineObjectLiteral which gives them a concrete ObjectType rather than
+// Unknown, so resolveTypeof doesn't fire for them.
+func cjdCollectTypedNames(globalScope *TypedScope, creator *TypedScopeCreator) map[string]bool {
+	out := map[string]bool{}
+	// Walk the global scope chain (global → externs → builtins).
+	for s := globalScope; s != nil; s = s.parent {
+		for name, t := range s.declared {
+			if t != nil && t != jstype.Unknown {
+				out[name] = true
+			}
+		}
+	}
+	// Walk every function-local scope registered during scope creation.
+	if creator != nil {
+		for _, local := range creator.Functions {
+			if local == nil {
+				continue
+			}
+			for name, t := range local.declared {
+				if t != nil && t != jstype.Unknown {
+					out[name] = true
+				}
+			}
+		}
+	}
+	return out
+}
+
+// cjdMergeTypedNames combines cjdCollectTypedNames (scope-based) with
+// cjdCollectObjectLitNames (text-based) so that both explicitly-typed
+// declarations and object-literal namespace declarations are excluded from
+// the JSC_UNRECOGNIZED_TYPEOF_ERROR check.
+func cjdMergeTypedNames(globalScope *TypedScope, creator *TypedScopeCreator, src string) map[string]bool {
+	out := cjdCollectTypedNames(globalScope, creator)
+	for name := range cjdCollectObjectLitNames(src) {
+		out[name] = true
+	}
+	return out
+}
+
+// cjdCollectObjectLitNames scans source text for `var/let/const NAME = {`
+// declarations and returns the set of such names. Java's TypedScopeCreator
+// calls defineObjectLiteral on these, giving them a concrete ObjectType
+// (non-Unknown) so resolveTypeof does not emit JSC_UNRECOGNIZED_TYPEOF_ERROR.
+// We need the same exclusion: object-literal namespace objects (e.g.
+// `/** @const */ var ns = {}`) are valid `typeof` operands.
+func cjdCollectObjectLitNames(src string) map[string]bool {
+	out := map[string]bool{}
+	i := 0
+	for i < len(src) {
+		// Skip JSDoc and non-JSDoc comments.
+		if i+2 < len(src) && src[i] == '/' && src[i+1] == '*' && src[i+2] == '*' {
+			if n := strings.Index(src[i+3:], "*/"); n >= 0 {
+				i += n + 5
+			} else {
+				return out
+			}
+			continue
+		}
+		if i+1 < len(src) && src[i] == '/' && src[i+1] == '*' {
+			if n := strings.Index(src[i+2:], "*/"); n >= 0 {
+				i += n + 4
+			} else {
+				return out
+			}
+			continue
+		}
+		if i+1 < len(src) && src[i] == '/' && src[i+1] == '/' {
+			if n := strings.Index(src[i:], "\n"); n >= 0 {
+				i += n + 1
+			} else {
+				return out
+			}
+			continue
+		}
+		if src[i] == '"' || src[i] == '\'' {
+			i = skipQuotedLiteral(src, i)
+			continue
+		}
+		// Match `var`/`let`/`const` keyword at a word boundary.
+		for _, kw := range [...]string{"var", "let", "const"} {
+			if !matchKeyword(src, i, kw) {
+				continue
+			}
+			j := i + len(kw)
+			// Skip whitespace + optional inline JSDoc comment.
+			for j < len(src) {
+				// Skip whitespace.
+				if src[j] == ' ' || src[j] == '\t' || src[j] == '\n' || src[j] == '\r' {
+					j++
+					continue
+				}
+				// Skip inline `/** … */` comment (no tags needed here).
+				if j+2 < len(src) && src[j] == '/' && src[j+1] == '*' && src[j+2] == '*' {
+					if n := strings.Index(src[j+3:], "*/"); n >= 0 {
+						j += n + 5
+						continue
+					}
+				}
+				break
+			}
+			// Capture the identifier name.
+			if j >= len(src) || !isIdentStart(src[j]) {
+				break
+			}
+			nameStart := j
+			for j < len(src) && isIdentChar(src[j]) {
+				j++
+			}
+			name := src[nameStart:j]
+			// Skip whitespace to `=`.
+			for j < len(src) && (src[j] == ' ' || src[j] == '\t') {
+				j++
+			}
+			if j >= len(src) || src[j] != '=' || (j+1 < len(src) && src[j+1] == '=') {
+				break
+			}
+			j++ // consume `=`
+			// Skip whitespace to `{`.
+			for j < len(src) && (src[j] == ' ' || src[j] == '\t') {
+				j++
+			}
+			if j < len(src) && src[j] == '{' {
+				out[name] = true
+			}
+			break
+		}
+		i++
+	}
+	return out
 }
 
 // collectAllTemplateNames fans out over every JSDoc block in the
@@ -248,56 +391,86 @@ func (c *CheckJsDocTypes) Check() []diag.Diagnostic {
 
 // checkBareTypeof fires JSC_UNRECOGNIZED_TYPEOF_ERROR on inline
 // JSDoc blocks of the form `/** typeof X */` where X isn't a
-// declared name. Java treats these as @type annotations and
+// declared or typed name. Java treats these as @type annotations and
 // validates the `typeof` operand the same way.
+// Only fires for `typeof` that appears OUTSIDE of `{…}` type-
+// annotation braces — occurrences inside braces are handled by
+// checkTypeExpr and emitted via checkComment.
 func (c *CheckJsDocTypes) checkBareTypeof(s string, start, end int) []diag.Diagnostic {
 	body := s[start:end]
 	var out []diag.Diagnostic
+	// Scan character by character, tracking brace depth to skip
+	// `typeof` occurrences that appear inside `{…}` (type-annotation
+	// braces). Those are already emitted by checkTypeExpr.
 	i := 0
+	braceDepth := 0
 	for i < len(body) {
-		idx := strings.Index(body[i:], "typeof")
-		if idx < 0 {
-			return out
-		}
-		idx += i
-		// Word boundary checks so `typeof` inside `@typeof` or an
-		// identifier doesn't match.
-		if idx > 0 && isIdentChar(body[idx-1]) {
-			i = idx + len("typeof")
+		ch := body[i]
+		if ch == '{' {
+			braceDepth++
+			i++
 			continue
 		}
-		after := idx + len("typeof")
-		if after < len(body) && isIdentChar(body[after]) {
-			i = after
+		if ch == '}' {
+			if braceDepth > 0 {
+				braceDepth--
+			}
+			i++
 			continue
 		}
-		// Skip whitespace, find the target name.
-		k := after
-		for k < len(body) && (body[k] == ' ' || body[k] == '\t') {
-			k++
-		}
-		xstart := k
-		for k < len(body) && (isIdentChar(body[k]) || body[k] == '.') {
-			k++
-		}
-		name := body[xstart:k]
-		i = k
-		if name == "" {
+		if braceDepth > 0 {
+			i++
 			continue
 		}
-		base := name
-		if dot := strings.IndexByte(base, '.'); dot >= 0 {
-			base = base[:dot]
-		}
-		if c.allNames[base] {
+		// At brace depth 0: check if this position starts `typeof`.
+		const kw = "typeof"
+		if i+len(kw) <= len(body) && body[i:i+len(kw)] == kw {
+			idx := i
+			// Word boundary: character before must not be ident char.
+			if idx > 0 && isIdentChar(body[idx-1]) {
+				i++
+				continue
+			}
+			after := idx + len(kw)
+			// Word boundary: character after must not be ident char.
+			if after < len(body) && isIdentChar(body[after]) {
+				i = after
+				continue
+			}
+			// Skip whitespace, find the target name.
+			k := after
+			for k < len(body) && (body[k] == ' ' || body[k] == '\t') {
+				k++
+			}
+			xstart := k
+			for k < len(body) && (isIdentChar(body[k]) || body[k] == '.') {
+				k++
+			}
+			name := body[xstart:k]
+			i = k
+			if name == "" {
+				continue
+			}
+			base := name
+			if dot := strings.IndexByte(base, '.'); dot >= 0 {
+				base = base[:dot]
+			}
+			// Fire when the operand is either undeclared (not in allNames)
+			// or declared but with an unknown/inferred type (in allNames
+			// but not in typedNames). Mirrors Java's resolveTypeof check:
+			// type == null || type.isUnknownType() → emit warning.
+			if c.allNames[base] && c.typedNames[base] {
+				continue
+			}
+			line, col := c.positionOf(s, start+xstart)
+			out = append(out, diag.Diagnostic{
+				Path: c.path, Line: line, Col: col,
+				Code: diag.JSC_UNRECOGNIZED_TYPEOF_ERROR, Level: diag.Warning,
+				Message: "Missing type for `typeof` value. The value must be declared and const.",
+			})
 			continue
 		}
-		line, col := c.positionOf(s, start+xstart)
-		out = append(out, diag.Diagnostic{
-			Path: c.path, Line: line, Col: col,
-			Code: diag.JSC_UNRECOGNIZED_TYPEOF_ERROR, Level: diag.Warning,
-			Message: "Missing type for `typeof` value. The value must be declared and const.",
-		})
+		i++
 	}
 	return out
 }
@@ -486,7 +659,11 @@ func (c *CheckJsDocTypes) checkTypeExpr(src string, base int, inner string, tmpl
 				if dot := strings.IndexByte(dotBase, '.'); dot >= 0 {
 					dotBase = dotBase[:dot]
 				}
-				if xname != "" && !c.allNames[dotBase] {
+				// Fire when the operand is undeclared (not in allNames) or
+				// declared but with an unknown/inferred type (in allNames but
+				// not in typedNames). Mirrors Java's resolveTypeof:
+				// type == null || type.isUnknownType() → emit warning.
+				if xname != "" && !(c.allNames[dotBase] && c.typedNames[dotBase]) {
 					line, col := c.positionOf(src, base+xstart)
 					out = append(out, diag.Diagnostic{
 						Path: c.path, Line: line, Col: col,
