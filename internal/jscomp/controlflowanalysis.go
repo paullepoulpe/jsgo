@@ -224,6 +224,11 @@ func (b *cfgBuilder) visitStatement(stmt *rhino.Node, prev *CfgNode) *CfgNode {
 		}
 		return n
 	}
+	// Default: expression-statement, variable declaration, etc.
+	// Any of these may throw (e.g. CALL inside EXPR_RESULT), so connect
+	// to the enclosing catch handler when one exists — matches Java's
+	// handleStmt / handleExpr calling connectToPossibleExceptionHandler.
+	b.connectToPossibleExceptionHandler(n, stmt)
 	return n
 }
 
@@ -319,6 +324,9 @@ func (b *cfgBuilder) visitIf(stmt *rhino.Node, n *CfgNode) *CfgNode {
 	} else {
 		b.cfg.addEdge(n, join, BranchOnFalse)
 	}
+	// The condition expression may throw (e.g. `if (f())`) — Java calls
+	// connectToPossibleExceptionHandler(node, getConditionExpression(node)).
+	b.connectToPossibleExceptionHandler(n, kids[0])
 	return join
 }
 
@@ -358,6 +366,9 @@ func (b *cfgBuilder) visitWhile(stmt *rhino.Node, n *CfgNode) *CfgNode {
 	// while condition node.
 	b.visitBranch(n, kids[1], BranchOnTrue, n)
 	b.cfg.addEdge(n, after, BranchOnFalse)
+	// Condition may throw — mirrors Java's handleWhile calling
+	// connectToPossibleExceptionHandler(node, getConditionExpression(node)).
+	b.connectToPossibleExceptionHandler(n, kids[0])
 	return after
 }
 
@@ -398,6 +409,9 @@ func (b *cfgBuilder) visitDoWhile(stmt *rhino.Node, n *CfgNode) *CfgNode {
 	// From cond (n): true loops back to body, false exits.
 	b.cfg.addEdge(n, firstNode, BranchOnTrue)
 	b.cfg.addEdge(n, after, BranchOnFalse)
+	// Condition may throw — mirrors Java's handleDo calling
+	// connectToPossibleExceptionHandler(node, getConditionExpression(node)).
+	b.connectToPossibleExceptionHandler(n, kids[1])
 	return after
 }
 
@@ -441,6 +455,11 @@ func (b *cfgBuilder) visitFor(stmt *rhino.Node, n *CfgNode) *CfgNode {
 	}
 	b.cfg.addEdge(n, after, BranchOnFalse)
 	b.cfg.addEdge(updNode, n, BranchSyn) // upd → cond back-edge
+	// Java's handleFor calls connectToPossibleExceptionHandler for the
+	// init, cond, and iter sub-expressions.
+	b.connectToPossibleExceptionHandler(n, kids[0]) // init
+	b.connectToPossibleExceptionHandler(n, kids[1]) // cond
+	b.connectToPossibleExceptionHandler(updNode, kids[2]) // iter
 	return after
 }
 
@@ -460,6 +479,9 @@ func (b *cfgBuilder) visitForInOf(stmt *rhino.Node, n *CfgNode) *CfgNode {
 	defer b.popLoop()
 	b.visitBranch(n, body, BranchOnTrue, n)
 	b.cfg.addEdge(n, after, BranchOnFalse)
+	// The collection/iterable expression may throw — mirrors Java's
+	// handleEnhancedFor calling connectToPossibleExceptionHandler(forNode, collection).
+	b.connectToPossibleExceptionHandler(n, kids[1])
 	return after
 }
 
@@ -478,6 +500,11 @@ func (b *cfgBuilder) visitSwitch(stmt *rhino.Node, n *CfgNode) *CfgNode {
 	b.pushSwitch(after)
 	defer b.popLoop()
 	kids := stmt.Children()
+	// The switch discriminant expression may throw — mirrors Java's
+	// handleSwitch calling connectToPossibleExceptionHandler(node, node.getFirstChild()).
+	if len(kids) > 0 {
+		b.connectToPossibleExceptionHandler(n, kids[0])
+	}
 	cases := kids
 	if len(cases) > 0 {
 		cases = cases[1:] // skip discriminant
@@ -487,7 +514,13 @@ func (b *cfgBuilder) visitSwitch(stmt *rhino.Node, n *CfgNode) *CfgNode {
 	for _, c := range cases {
 		bodyNode := c.Children()[len(c.Children())-1] // last child is BLOCK
 		bodies = append(bodies, bodyNode)
-		b.cfg.addEdge(n, b.cfg.node(c), BranchSyn)
+		caseNode := b.cfg.node(c)
+		b.cfg.addEdge(n, caseNode, BranchSyn)
+		// Case value expression may throw (e.g. `case f():`).
+		// Java's handleCase calls connectToPossibleExceptionHandler(caseNode, caseNode.getFirstChild()).
+		if c.Token() == rhino.CASE && len(c.Children()) > 0 {
+			b.connectToPossibleExceptionHandler(caseNode, c.Children()[0])
+		}
 	}
 	// Chain case bodies sequentially — fall-through from one to the
 	// next mirrors JS semantics when a case body doesn't break.
@@ -656,4 +689,47 @@ func flattenBlock(n *rhino.Node) []*rhino.Node {
 		return n.Children()
 	}
 	return []*rhino.Node{n}
+}
+
+// mayThrowException reports whether executing `n` (or any subexpression
+// not hidden behind a nested CFG boundary) might throw. Mirrors
+// ControlFlowAnalysis.mayThrowException in Java.
+func mayThrowException(n *rhino.Node) bool {
+	if n == nil {
+		return false
+	}
+	switch n.Token() {
+	case rhino.CALL, rhino.TAGGED_TEMPLATELIT, rhino.GETPROP, rhino.GETELEM,
+		rhino.THROW, rhino.NEW, rhino.ASSIGN, rhino.INC, rhino.DEC,
+		rhino.INSTANCEOF, rhino.IN, rhino.YIELD, rhino.AWAIT:
+		return true
+	case rhino.FUNCTION:
+		return false
+	}
+	for _, c := range n.Children() {
+		// Do not recurse into nodes that are themselves new CFG roots
+		// (FUNCTION bodies) — mirrors isEnteringNewCfgNode checks in Java.
+		if c.Token() == rhino.FUNCTION {
+			continue
+		}
+		if mayThrowException(c) {
+			return true
+		}
+	}
+	return false
+}
+
+// connectToPossibleExceptionHandler adds a BranchException edge from
+// cfgNode to the nearest enclosing catch (or EXIT when none) if target
+// might throw. Mirrors ControlFlowAnalysis.connectToPossibleExceptionHandler.
+func (b *cfgBuilder) connectToPossibleExceptionHandler(cfgNode *CfgNode, target *rhino.Node) {
+	if !mayThrowException(target) {
+		return
+	}
+	if c := b.topCatch(); c != nil {
+		b.cfg.addEdge(cfgNode, c, BranchException)
+	}
+	// When no catch is active we do NOT add an edge to EXIT: Java only
+	// adds the edge when there is an enclosing handler, letting uncaught
+	// throws fall out implicitly.
 }
