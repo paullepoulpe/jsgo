@@ -52,6 +52,12 @@ func (p *TypeInferencePass) Transfer(node *CfgNode, in *FlowScope) map[Branch]*F
 		}
 	case rhino.IF:
 		return p.transferIf(ast, in)
+	case rhino.WHILE:
+		return p.transferWhile(ast, in)
+	case rhino.DO_WHILE:
+		return p.transferDoWhile(ast, in)
+	case rhino.FOR:
+		return p.transferFor(ast, in)
 	}
 	return map[Branch]*FlowScope{BranchUnconditional: in}
 }
@@ -167,6 +173,71 @@ func (p *TypeInferencePass) transferIf(ast *rhino.Node, in *FlowScope) map[Branc
 	return map[Branch]*FlowScope{
 		BranchOnTrue:  in.BindAll(trueRefs),
 		BranchOnFalse: in.BindAll(falseRefs),
+	}
+}
+
+// transferWhile produces branch-specific FlowScopes for a WHILE loop.
+// Children are [cond, body]. The loop body executes when the condition
+// is truthy (BranchOnTrue), and the loop exits when it is falsy
+// (BranchOnFalse). Mirrors how Java's TypeInference.flowThrough treats
+// WHILE nodes as conditional branches in the DataFlowAnalysis.
+func (p *TypeInferencePass) transferWhile(ast *rhino.Node, in *FlowScope) map[Branch]*FlowScope {
+	kids := ast.Children()
+	if len(kids) < 1 {
+		return map[Branch]*FlowScope{BranchUnconditional: in}
+	}
+	cond := kids[0]
+	trueRefs := p.branchRefinements(cond, in, true)
+	falseRefs := p.branchRefinements(cond, in, false)
+	return map[Branch]*FlowScope{
+		BranchOnTrue:  in.BindAll(trueRefs),
+		BranchOnFalse: in.BindAll(falseRefs),
+		BranchSyn:     in, // back-edge carries unrestricted scope
+	}
+}
+
+// transferDoWhile produces branch-specific FlowScopes for a DO_WHILE
+// loop node. Children are [body, cond]. The condition is at the bottom
+// of the loop, so the CFG node for DO_WHILE is the condition site:
+// BranchOnTrue loops back into the body, BranchOnFalse exits.
+// Port of TypeInference.java's DO_WHILE case in flowThrough.
+func (p *TypeInferencePass) transferDoWhile(ast *rhino.Node, in *FlowScope) map[Branch]*FlowScope {
+	kids := ast.Children()
+	if len(kids) < 2 {
+		return map[Branch]*FlowScope{BranchUnconditional: in}
+	}
+	cond := kids[len(kids)-1] // condition is the last child
+	trueRefs := p.branchRefinements(cond, in, true)
+	falseRefs := p.branchRefinements(cond, in, false)
+	return map[Branch]*FlowScope{
+		BranchOnTrue:  in.BindAll(trueRefs),
+		BranchOnFalse: in.BindAll(falseRefs),
+	}
+}
+
+// transferFor produces branch-specific FlowScopes for a classic FOR
+// loop. Children are [init, cond, update, body]. The FOR node acts as
+// the condition-check site in the CFG: BranchOnTrue enters the body,
+// BranchOnFalse exits. An absent (empty) condition is always truthy
+// (infinite loop); in that case we pass through unconditionally.
+// Port of TypeInference.java's FOR case in flowThrough.
+func (p *TypeInferencePass) transferFor(ast *rhino.Node, in *FlowScope) map[Branch]*FlowScope {
+	kids := ast.Children()
+	if len(kids) < 2 {
+		return map[Branch]*FlowScope{BranchUnconditional: in}
+	}
+	cond := kids[1]
+	// A nil condition (omitted: `for (;;)`) means always-true;
+	// pass through without branch refinement.
+	if cond == nil {
+		return map[Branch]*FlowScope{BranchUnconditional: in}
+	}
+	trueRefs := p.branchRefinements(cond, in, true)
+	falseRefs := p.branchRefinements(cond, in, false)
+	return map[Branch]*FlowScope{
+		BranchOnTrue:  in.BindAll(trueRefs),
+		BranchOnFalse: in.BindAll(falseRefs),
+		BranchSyn:     in, // update-node back-edge
 	}
 }
 
