@@ -125,6 +125,11 @@ const (
 	ARRAYLIT
 	OBJECTLIT
 	STRING_KEY
+
+	// Cast — /** @type {T} */ (expr). Wraps the inner expression as
+	// its first child; the @type JSDocInfo is attached to this node.
+	// Mirrors Token.CAST in Java's rhino.Token enum.
+	CAST
 )
 
 func (t Token) String() string {
@@ -301,6 +306,8 @@ func (t Token) String() string {
 		return "OBJECTLIT"
 	case STRING_KEY:
 		return "STRING_KEY"
+	case CAST:
+		return "CAST"
 	}
 	return "ERROR"
 }
