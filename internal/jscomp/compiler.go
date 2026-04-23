@@ -61,5 +61,9 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	all = append(all, NewCheckDupVarDecl(path, scope).Check(script)...)
 	all = append(all, NewCheckDuplicateMember(path).Check(script)...)
 	all = append(all, NewCheckSideEffects(path).Check(script)...)
+	// CheckMissingRequires requires a ModuleMetadataMap (module system not yet
+	// ported). Pass nil so the pass no-ops until the module system lands.
+	// TODO: supply a real *cmrModuleMetadataMap once the module system is ported.
+	all = append(all, NewCheckMissingRequires(path, nil).Check(script)...)
 	return all, nil
 }
