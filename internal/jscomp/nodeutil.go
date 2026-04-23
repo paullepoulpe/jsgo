@@ -16,29 +16,29 @@ package jscomp
 
 import "github.com/paullepoulpe/jsgo/internal/rhino"
 
-// TriValue is a tri-state boolean mirroring com.google.javascript.jscomp.base.Tri.
+// TriV is a tri-state boolean mirroring com.google.javascript.jscomp.base.Tri.
 // FALSE < UNKNOWN < TRUE (integer order matches Java's internal value).
-type TriValue int8
+type TriV int8
 
 const (
-	TriFalse   TriValue = -1
-	TriUnknown TriValue = 0
-	TriTrue    TriValue = 1
+	TriVFalse   TriV = -1
+	TriVUnknown TriV = 0
+	TriVTrue    TriV = 1
 )
 
-// ForBoolean converts a plain bool to TriValue.  Mirrors Tri.forBoolean.
-func ForBoolean(b bool) TriValue {
+// ForBoolean converts a plain bool to TriV.  Mirrors Tri.forBoolean.
+func ForBoolean(b bool) TriV {
 	if b {
-		return TriTrue
+		return TriVTrue
 	}
-	return TriFalse
+	return TriVFalse
 }
 
 // Not mirrors Tri.not().
-func (t TriValue) Not() TriValue { return TriValue(-int8(t)) }
+func (t TriV) Not() TriV { return TriV(-int8(t)) }
 
 // And mirrors Tri.and(): returns whichever is smaller (more false).
-func (t TriValue) And(other TriValue) TriValue {
+func (t TriV) And(other TriV) TriV {
 	if t < other {
 		return t
 	}
@@ -46,7 +46,7 @@ func (t TriValue) And(other TriValue) TriValue {
 }
 
 // Or mirrors Tri.or(): returns whichever is larger (more true).
-func (t TriValue) Or(other TriValue) TriValue {
+func (t TriV) Or(other TriV) TriV {
 	if t > other {
 		return t
 	}
@@ -69,39 +69,39 @@ var NU = nodeUtil{}
 // ---------------------------------------------------------------------------
 
 // GetBooleanValue returns the static boolean value of an expression node, or
-// TriUnknown when it cannot be determined without running the code.
+// TriVUnknown when it cannot be determined without running the code.
 // Mirrors NodeUtil.getBooleanValue (Java).
-func (nodeUtil) GetBooleanValue(n *rhino.Node) TriValue {
+func (nodeUtil) GetBooleanValue(n *rhino.Node) TriV {
 	if n == nil {
-		return TriUnknown
+		return TriVUnknown
 	}
 	switch n.Token() {
 	case rhino.NULL, rhino.FALSE, rhino.VOID:
-		return TriFalse
+		return TriVFalse
 	case rhino.TRUE, rhino.FUNCTION, rhino.NEW, rhino.ARRAYLIT, rhino.OBJECTLIT:
-		return TriTrue
+		return TriVTrue
 	case rhino.STRINGLIT:
 		return ForBoolean(len(n.String_()) > 0)
 	case rhino.NUMBER:
 		v := n.Number()
-		return ForBoolean(v != 0 && !isNaN(v))
+		return ForBoolean(v != 0 && v == v)
 	case rhino.UNDEFINED:
 		// `undefined` is falsy.
-		return TriFalse
+		return TriVFalse
 	case rhino.NAME:
 		switch n.String_() {
 		case "undefined", "NaN":
-			return TriFalse
+			return TriVFalse
 		case "Infinity":
-			return TriTrue
+			return TriVTrue
 		default:
-			return TriUnknown
+			return TriVUnknown
 		}
 	case rhino.NOT:
 		if fc := n.FirstChild(); fc != nil {
 			return NU.GetBooleanValue(fc).Not()
 		}
-		return TriUnknown
+		return TriVUnknown
 	case rhino.ASSIGN:
 		// Value is the RHS (last child).  Java also handles COMMA here;
 		// the Go rhino package does not yet define a COMMA token so we
@@ -110,19 +110,19 @@ func (nodeUtil) GetBooleanValue(n *rhino.Node) TriValue {
 		if len(kids) >= 2 {
 			return NU.GetBooleanValue(kids[len(kids)-1])
 		}
-		return TriUnknown
+		return TriVUnknown
 	case rhino.AND:
 		kids := n.Children()
 		if len(kids) == 2 {
 			return NU.GetBooleanValue(kids[0]).And(NU.GetBooleanValue(kids[1]))
 		}
-		return TriUnknown
+		return TriVUnknown
 	case rhino.OR:
 		kids := n.Children()
 		if len(kids) == 2 {
 			return NU.GetBooleanValue(kids[0]).Or(NU.GetBooleanValue(kids[1]))
 		}
-		return TriUnknown
+		return TriVUnknown
 	case rhino.HOOK:
 		kids := n.Children()
 		if len(kids) == 3 {
@@ -132,23 +132,20 @@ func (nodeUtil) GetBooleanValue(n *rhino.Node) TriValue {
 				return tv
 			}
 		}
-		return TriUnknown
+		return TriVUnknown
 	case rhino.COALESCE:
 		kids := n.Children()
 		if len(kids) == 2 {
 			lhs := NU.GetBooleanValue(kids[0])
 			rhs := NU.GetBooleanValue(kids[1])
-			if lhs == TriTrue || lhs == rhs {
+			if lhs == TriVTrue || lhs == rhs {
 				return lhs
 			}
 		}
-		return TriUnknown
+		return TriVUnknown
 	}
-	return TriUnknown
+	return TriVUnknown
 }
-
-// isNaN reports whether a float64 is NaN (math.IsNaN without importing math).
-func isNaN(f float64) bool { return f != f }
 
 // ---------------------------------------------------------------------------
 // getConditionExpression
