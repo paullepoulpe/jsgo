@@ -90,6 +90,7 @@ const (
 	JSC_MALFORMED_REGEXP                    = "JSC_MALFORMED_REGEXP"
 	JSC_UNREACHABLE_CODE                    = "JSC_UNREACHABLE_CODE"
 	JSC_ILLEGAL_OBJLIT_KEY                  = "JSC_ILLEGAL_OBJLIT_KEY"
+	JSC_ILLEGAL_CLASS_KEY                   = "JSC_ILLEGAL_CLASS_KEY"
 	// RhinoErrorReporter / JsDocInfoParser: bounded-generic (@template {B} T)
 	// is still in development. Port of RhinoErrorReporter.UNSUPPORTED_BOUNDED_GENERIC_TYPES.
 	JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES = "JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES"

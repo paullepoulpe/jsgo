@@ -545,6 +545,8 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitGetElem(n, scope))
 	case rhino.CLASS_FIELD_DEF:
 		c.emit(c.visitClassField(n, parent, scope))
+	case rhino.COMPUTED_PROP:
+		c.emit(c.visitComputedPropInClass(n, parent, scope))
 	case rhino.RETURN:
 		c.emit(c.visitReturn(n, scope))
 	case rhino.IN:
@@ -1460,25 +1462,52 @@ func (c *TypeCheck) visitReturn(ret *rhino.Node, scope *TypedScope) []diag.Diagn
 }
 
 // visitClassField — port of the class-field branch inside Java's
-// visitClass. Emits "assignment to property X of C" at the field
-// name's position when the initializer type doesn't match the
-// declared @type.
+// visitClass / visitObjectOrClassLiteralKey. Emits:
+//  1. JSC_ILLEGAL_CLASS_KEY when the class is @dict (CLASS_FIELD_DEF is
+//     always a non-computed, non-constructor key — illegal in @dict).
+//  2. JSC_TYPE_MISMATCH when the initializer type doesn't match the
+//     declared @type.
 func (c *TypeCheck) visitClassField(field *rhino.Node, parent *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	// --- @dict / @struct class-key gate (Java's visitObjectOrClassLiteralKey) ---
+	// Mirrors: if (ownerType.isDict() && !NodeUtil.isEs6ConstructorMemberFunctionDef(key))
+	//            report(key, ILLEGAL_CLASS_KEY, "dict")
+	// CLASS_FIELD_DEF is never the constructor, so the constructor exclusion never applies.
+	var out []diag.Diagnostic
+	if parent != nil && parent.Parent() != nil {
+		classNode := parent.Parent()
+		if classNode.Token() == rhino.CLASS && classNode.FirstChild() != nil {
+			className := classNode.FirstChild().String_()
+			if fn, ok := scope.GetDeclaredType(className).(*jstype.FunctionType); ok && fn.Instance != nil {
+				if fn.Instance.IsDict {
+					out = append(out, diag.Diagnostic{
+						Path:    c.path,
+						Line:    field.Lineno(),
+						Col:     field.Charno(),
+						Code:    diag.JSC_ILLEGAL_CLASS_KEY,
+						Level:   diag.Error,
+						Message: "Illegal key, the class is a dict",
+					})
+				}
+			}
+		}
+	}
+
+	// --- @type mismatch check ---
 	kids := field.Children()
 	if len(kids) < 2 {
-		return nil
+		return out
 	}
 	name := kids[0]
 	init := kids[1]
 	info := field.JSDocInfo()
 	if info == nil || !info.HasType() {
-		return nil
+		return out
 	}
 	declared := scope.ResolveExpr(info.Type().TypeName)
 	infer := NewTypeInference(scope)
 	found := infer.InferType(init)
 	if jstype.IsSubtype(found, declared) {
-		return nil
+		return out
 	}
 	className := ""
 	if parent != nil && parent.Parent() != nil {
@@ -1492,9 +1521,51 @@ func (c *TypeCheck) visitClassField(field *rhino.Node, parent *rhino.Node, scope
 	// Java reports at the CLASS_FIELD_DEF node's position — the
 	// `static`/name column, not the bare IDENT — so we use field's
 	// pos rather than name's.
-	return []diag.Diagnostic{{
+	out = append(out, diag.Diagnostic{
 		Path: c.path, Line: field.Lineno(), Col: field.Charno(),
 		Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error, Message: msg,
+	})
+	return out
+}
+
+// visitComputedPropInClass — port of the computed-property branch inside
+// Java's visitObjectOrClassLiteralKey. Fires JSC_ILLEGAL_PROPERTY_ACCESS
+// when a COMPUTED_PROP appears in a @struct class body (mirrors Java's
+// validator.expectIndexMatch path for isComputedProp() inside CLASS_MEMBERS).
+// The diagnostic is at the key-expression node (first child of COMPUTED_PROP),
+// matching how TypeValidator.expectIndexMatch picks its indexNode.
+func (c *TypeCheck) visitComputedPropInClass(n *rhino.Node, parent *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	// Only applies when directly inside a class body (parent = BLOCK, grandparent = CLASS).
+	if parent == nil {
+		return nil
+	}
+	classNode := parent.Parent()
+	if classNode == nil || classNode.Token() != rhino.CLASS {
+		return nil
+	}
+	nameNode := classNode.FirstChild()
+	if nameNode == nil {
+		return nil
+	}
+	fn, ok := scope.GetDeclaredType(nameNode.String_()).(*jstype.FunctionType)
+	if !ok || fn.Instance == nil {
+		return nil
+	}
+	if !fn.Instance.IsStruct {
+		return nil
+	}
+	// Index node = first child of COMPUTED_PROP (the key expression).
+	keyExpr := n.FirstChild()
+	if keyExpr == nil {
+		keyExpr = n
+	}
+	return []diag.Diagnostic{{
+		Path:    c.path,
+		Line:    keyExpr.Lineno(),
+		Col:     keyExpr.Charno(),
+		Code:    diag.JSC_ILLEGAL_PROPERTY_ACCESS,
+		Level:   diag.Error,
+		Message: "Cannot do '[]' access on a struct",
 	}}
 }
 
