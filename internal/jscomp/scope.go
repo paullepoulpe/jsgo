@@ -784,6 +784,32 @@ func isJSUnknown(t jstype.JSType) bool {
 	return t.TypeName() == "?"
 }
 
+// syntheticReadonlyArrayType returns a synthetic jstype for a ReadonlyArray
+// annotation when ReadonlyArray is not registered in the scope (to avoid
+// false-positive JSC_TYPE_MISMATCH for `@const {!ReadonlyArray<T>}` decls).
+// It creates a bare ObjectType named "ReadonlyArray" for bare annotations, or
+// a TemplatizedType{ReadonlyArray, Unknown} for parameterized ones, so that
+// checkNotReadonlyPropertyAssignment can identify the ReadonlyArray pattern.
+// Returns nil if the raw type string does not mention ReadonlyArray.
+func syntheticReadonlyArrayType(rawTypeName string) jstype.JSType {
+	// Quick check: does the annotation mention ReadonlyArray?
+	base := rawTypeName
+	// Strip leading `!`, `?`, spaces.
+	for len(base) > 0 && (base[0] == '!' || base[0] == '?' || base[0] == ' ') {
+		base = base[1:]
+	}
+	if base != "ReadonlyArray" && !startsWith(base, "ReadonlyArray<") {
+		return nil
+	}
+	roInst := jstype.NewObjectType("ReadonlyArray")
+	roInst.DefineProperty("length", jstype.Number)
+	if startsWith(base, "ReadonlyArray<") {
+		// Parameterized: create TemplatizedType{ReadonlyArray, ?}.
+		return jstype.NewTemplatizedType(roInst, []jstype.JSType{jstype.Unknown})
+	}
+	return roInst
+}
+
 type TypedScopeCreator struct {
 	registry *jstype.Registry
 	// Functions associates each AST FUNCTION node with its local
@@ -1916,6 +1942,18 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 	// is a bare reference we can't resolve.
 	if info.HasType() {
 		declared := scope.ResolveExpr(info.Type().TypeName)
+		// When the declared type is Unknown but the raw annotation mentions
+		// ReadonlyArray (e.g. cast `/** @type {!ReadonlyArray<T>} */ (expr)`),
+		// create a synthetic ObjectType named "ReadonlyArray" so that
+		// JSC_PROPERTY_ASSIGNMENT_TO_READONLY_VALUE can fire. Java registers
+		// ReadonlyArray in its full type registry; Go does it on-demand only
+		// for cast-hoisted declarations, to avoid false-positives from
+		// adding ReadonlyArray as a global builtin (which would cause
+		// JSC_TYPE_MISMATCH for `@const {!ReadonlyArray<T>} const a = []`).
+		if info.IsCastHoisted() && isJSUnknown(declared) {
+			rawTypeName := info.Type().TypeName
+			declared = syntheticReadonlyArrayType(rawTypeName)
+		}
 		if init := name.FirstChild(); init != nil && initIsUndeclaredRef(init, scope) {
 			declared = jstype.Unknown
 		}

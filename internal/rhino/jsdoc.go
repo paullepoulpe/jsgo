@@ -63,6 +63,12 @@ type JSDocInfo struct {
 	isDeprecated    bool
 	deprecationReason string
 	isFinal         bool
+	// isCastHoisted marks a JSDocInfo that was hoisted from a
+	// `/** @type {T} */ (expr)` cast expression onto the enclosing
+	// declaration node. Go's parser lacks a CAST AST node (Java has one);
+	// this flag lets visitVar skip the initializer subtype check (Java
+	// uses the CAST node's type as the effective RHS type instead).
+	isCastHoisted   bool
 }
 
 // AddSuppression records a `@suppress {name}` entry. Mirrors
@@ -286,6 +292,14 @@ func (i *JSDocInfo) SetDeprecated(reason string) {
 // IsFinal / SetFinal mirror JSDocInfo.isFinal().
 func (i *JSDocInfo) IsFinal() bool    { return i != nil && i.isFinal }
 func (i *JSDocInfo) SetFinal(b bool)  { i.isFinal = b }
+
+// IsCastHoisted / SetCastHoisted track whether this JSDocInfo was hoisted
+// from a `/** @type {T} */ (expr)` type-cast onto its enclosing declaration
+// node. Go's parser lacks a CAST AST node (Java has one); this flag lets
+// visitVar skip the initializer subtype check when the declared type came
+// from a cast (Java uses the CAST node's type as the effective RHS type).
+func (i *JSDocInfo) IsCastHoisted() bool   { return i != nil && i.isCastHoisted }
+func (i *JSDocInfo) SetCastHoisted(b bool) { i.isCastHoisted = b }
 
 func (i *JSDocInfo) Type() *JSTypeExpression     { return i.typeExpr }
 func (i *JSDocInfo) SetType(t *JSTypeExpression) { i.typeExpr = t }
