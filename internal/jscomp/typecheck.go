@@ -956,6 +956,38 @@ func isSafeCalleeForArity(callee *rhino.Node, scope *TypedScope) bool {
 	return false
 }
 
+// isSafeInstanceMethodForArity reports whether a GETPROP call whose
+// receiver is `this` or a `new` expression is safe to arity-check.
+// A prototype method is safe when its instance type has no superclass
+// that also declares the same property — i.e. the method is not an
+// @override. Overriding methods may have different arity from the
+// parent's declaration; without full override-aware inference the
+// arity check would produce false positives. Mirrors Java's TypeCheck
+// which always fires but has per-slot type annotations from the full
+// override chain.
+func isSafeInstanceMethodForArity(callee *rhino.Node, infer *TypeInference) bool {
+	if callee == nil || callee.Token() != rhino.GETPROP {
+		return false
+	}
+	kids := callee.Children()
+	if len(kids) < 2 {
+		return false
+	}
+	recv := kids[0]
+	if recv.Token() != rhino.THIS && recv.Token() != rhino.NEW {
+		return false
+	}
+	propName := kids[1].String_()
+	recvType := infer.InferType(recv)
+	obj, ok := recvType.(*jstype.ObjectType)
+	if !ok {
+		return false
+	}
+	// Only safe when no superclass also declares this property
+	// (i.e. the method is not overriding a parent slot).
+	return !obj.SuperHasProperty(propName)
+}
+
 // isDefinitelyNonConstructor reports whether `t` is guaranteed not
 // to be a constructor. Returns the offending type so the diagnostic
 // can show what was found. A FunctionType without IsConstructor
@@ -1043,7 +1075,8 @@ func (c *TypeCheck) visitCall(node *rhino.Node, scope *TypedScope) []diag.Diagno
 	// leave unchecked). All other FunctionTypes — including 0-param
 	// non-constructors — are subject to the check.
 	arityKnown := !(fn.IsConstructor && len(fn.Params) == 0)
-	if node.Token() == rhino.CALL && arityKnown && isSafeCalleeForArity(callee, scope) {
+	safeForArity := isSafeCalleeForArity(callee, scope) || isSafeInstanceMethodForArity(callee, infer)
+	if node.Token() == rhino.CALL && arityKnown && safeForArity {
 		if got := len(args); got < fn.MinArity || got > fn.MaxArity {
 			maxStr := fmt.Sprintf("%d", fn.MaxArity)
 			if fn.MaxArity >= jstype.MaxArgsUnlimited {

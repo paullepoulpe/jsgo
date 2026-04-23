@@ -1044,7 +1044,7 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 			inner := child.FirstChild()
 			if inner != nil && inner.Token() == rhino.ASSIGN {
 				c.recordPrototypeAssign(inner, scope)
-				c.recordPrototypeObjectLitAssign(inner, scope)
+				c.recordPrototypeLiteralAssign(inner, scope)
 				c.recordNamespaceAssign(inner, scope)
 			}
 			// `Foo.prototype.bar;` stub-declaration — Java treats
@@ -1185,50 +1185,63 @@ func (c *TypedScopeCreator) recordPrototypeAssign(a *rhino.Node, scope *TypedSco
 	}
 }
 
-// recordPrototypeObjectLitAssign handles the
-// `Foo.prototype = { bar: function(…) {…}, … }` form — a two-segment
-// GETPROP ASSIGN whose LHS is `Foo.prototype` and whose RHS is an
-// OBJECTLIT. Each STRING_KEY entry in the object literal that holds a
-// FUNCTION value is registered on Foo's InstanceType, mirroring how
-// Java's TypedScopeCreator registers anonymous-prototype declarations.
-// This is distinct from recordPrototypeAssign which handles the
-// three-segment `Foo.prototype.bar = …` form.
-func (c *TypedScopeCreator) recordPrototypeObjectLitAssign(a *rhino.Node, scope *TypedScope) {
+// recordPrototypeLiteralAssign handles `Foo.prototype = { bar: fn, … }`
+// bulk prototype-replacement assignments. It registers each key of the
+// object literal on Foo's InstanceType, mirroring Java's
+// TypedScopeCreator checkForPrototypeAssignment path that iterates
+// OBJECTLIT children when the RHS of a `X.prototype = …` assign is an
+// object literal. Supports both bare-name constructors (`Foo`) and
+// two-segment namespace constructors (`ns.Foo`).
+func (c *TypedScopeCreator) recordPrototypeLiteralAssign(a *rhino.Node, scope *TypedScope) {
 	kids := a.Children()
 	if len(kids) < 2 {
 		return
 	}
 	lhs, rhs := kids[0], kids[1]
-	if lhs.Token() != rhino.GETPROP {
-		return
-	}
 	if rhs.Token() != rhino.OBJECTLIT {
 		return
 	}
+	if lhs.Token() != rhino.GETPROP {
+		return
+	}
 	lhsKids := lhs.Children()
-	if len(lhsKids) < 2 {
+	if len(lhsKids) < 2 || lhsKids[1].String_() != "prototype" {
 		return
 	}
-	if lhsKids[0].Token() != rhino.NAME || lhsKids[1].String_() != "prototype" {
+	// Resolve the constructor FunctionType from the receiver.
+	// Accepts `Foo.prototype` (NAME receiver) and `ns.Foo.prototype`
+	// (GETPROP receiver with NAME base).
+	recv := lhsKids[0]
+	var fn *jstype.FunctionType
+	switch recv.Token() {
+	case rhino.NAME:
+		fn, _ = scope.GetDeclaredType(recv.String_()).(*jstype.FunctionType)
+	case rhino.GETPROP:
+		recvKids := recv.Children()
+		if len(recvKids) >= 2 && recvKids[0].Token() == rhino.NAME {
+			ns := recvKids[0].String_()
+			prop := recvKids[1].String_()
+			fn, _ = scope.LookupNamespaceProp(ns, prop).(*jstype.FunctionType)
+		}
+	}
+	if fn == nil || fn.Instance == nil {
 		return
 	}
-	ownerName := lhsKids[0].String_()
-	fn, ok := scope.declared[ownerName].(*jstype.FunctionType)
-	if !ok || fn.Instance == nil {
-		return
-	}
-	for _, entry := range rhs.Children() {
-		if entry.Token() != rhino.STRING_KEY {
+	// Register each key of the object literal on the constructor's
+	// InstanceType. Function-expression values get a proper FunctionType;
+	// other values fall back to their literal type.
+	for _, kv := range rhs.Children() {
+		if kv.Token() != rhino.STRING_KEY {
 			continue
 		}
-		propName := entry.String_()
-		val := entry.FirstChild()
+		keyName := kv.String_()
+		val := kv.FirstChild()
 		if val == nil {
 			continue
 		}
-		info := entry.JSDocInfo()
-		memberType := c.inferPrototypeValueType(info, val, scope)
-		fn.Instance.DefineProperty(propName, memberType)
+		memberType := c.inferPrototypeValueType(a.JSDocInfo(), val, scope)
+		fn.Instance.DefineProperty(keyName, memberType)
+		// Bind `this` inside method bodies so `this.x` type-checks.
 		if val.Token() == rhino.FUNCTION {
 			c.Functions[val] = c.buildMethodScope(val, fn.Instance, scope, nil)
 		}
@@ -1406,7 +1419,14 @@ func (c *TypedScopeCreator) recordNamespaceAssignFromFunction(a *rhino.Node, sco
 		}
 		setArityFromParams(ctor, params[1], info)
 		scope.recordNamespaceProp(recv.String_(), lhsKids[1].String_(), ctor, lhsKids[1])
-		// Also collect \`this.X = …\` writes inside the ctor body.
+		// Build a method scope for the constructor body so `this`
+		// resolves to ctor.Instance inside the body. Mirrors how
+		// Java's TypedScopeCreator wires thisType for named
+		// constructors; without this, `this.method()` calls inside
+		// the body cannot resolve the instance type.
+		ctorScope := c.buildMethodScope(rhs, ctor.Instance, scope, paramTypes)
+		c.Functions[rhs] = ctorScope
+		// Also collect `this.X = …` writes inside the ctor body.
 		if len(params) >= 3 {
 			c.collectThisPropertiesIn(params[2], ctor.Instance, scope)
 		}
