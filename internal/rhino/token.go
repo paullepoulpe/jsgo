@@ -140,6 +140,11 @@ const (
 	EQUALS    // optional parameter type marker `=`
 	// Regular-expression literal  `/pattern/flags`
 	REGEXP
+	// Template literals.
+	TEMPLATELIT
+	TEMPLATELIT_STRING
+	TEMPLATELIT_SUB
+	TAGGED_TEMPLATELIT
 )
 
 func (t Token) String() string {
@@ -334,6 +339,14 @@ func (t Token) String() string {
 		return "EQUALS"
 	case REGEXP:
 		return "REGEXP"
+	case TEMPLATELIT:
+		return "TEMPLATELIT"
+	case TEMPLATELIT_STRING:
+		return "TEMPLATELIT_STRING"
+	case TEMPLATELIT_SUB:
+		return "TEMPLATELIT_SUB"
+	case TAGGED_TEMPLATELIT:
+		return "TAGGED_TEMPLATELIT"
 	}
 	return "ERROR"
 }
