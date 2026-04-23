@@ -812,6 +812,10 @@ type TypedScopeCreator struct {
 	// per-name positions in the source text.
 	sourcePath string
 	sourceSrc  string
+	// diags accumulates diagnostics emitted during scope creation (e.g.
+	// JSC_CYCLIC_INHERITANCE_ERROR). Drained by the compiler after
+	// createScopeInWithParent returns.
+	diags []diag.Diagnostic
 }
 
 func NewTypedScopeCreator(r *jstype.Registry) *TypedScopeCreator {
@@ -1632,8 +1636,45 @@ func (c *TypedScopeCreator) preregisterEnum(v *rhino.Node, scope *TypedScope) {
 	var underlying jstype.JSType = jstype.Number
 	if expr := info.EnumParameterType(); expr != nil {
 		underlying = scope.ResolveExpr(expr.TypeName)
+		// Detect self-referential enum: `/** @enum {MyEnum} */ var MyEnum`.
+		// Java's TypedScopeCreator emits JSC_CYCLIC_INHERITANCE_ERROR when
+		// the enum's type argument names the enum itself. The position is
+		// at the type argument inside the @enum braces in the JSDoc.
+		if expr.TypeName == name.String_() && c.sourcePath != "" {
+			line, col := enumTypeArgPos(c.sourceSrc, name.Lineno(), expr.TypeName)
+			c.diags = append(c.diags, diag.Diagnostic{
+				Path:    c.sourcePath,
+				Line:    line,
+				Col:     col,
+				Code:    diag.JSC_CYCLIC_INHERITANCE_ERROR,
+				Level:   diag.Error,
+				Message: fmt.Sprintf("Cycle detected in inheritance chain of type %s", name.String_()),
+			})
+		}
 	}
 	scope.declared[name.String_()] = jstype.NewEnumType(name.String_(), underlying)
+}
+
+// enumTypeArgPos finds the line/col of the type-argument inside
+// `@enum {TypeName}` on the given source line. Returns the name node's
+// own position as fallback. lineno is 1-indexed; returned col is 0-indexed.
+func enumTypeArgPos(src string, lineno int, typeName string) (line, col int) {
+	// Split source into lines (0-indexed slice, 1-indexed lineno).
+	lines := strings.Split(src, "\n")
+	if lineno < 1 || lineno > len(lines) {
+		return lineno, 0
+	}
+	l := lines[lineno-1]
+	// Find @enum on this line, then the opening brace after it.
+	idx := strings.Index(l, "@enum")
+	if idx < 0 {
+		return lineno, 0
+	}
+	brace := strings.Index(l[idx:], "{")
+	if brace < 0 {
+		return lineno, 0
+	}
+	return lineno, idx + brace + 1 // col of first char after '{'
 }
 
 // preregisterClass reserves a slot for a `class` declaration, mirroring

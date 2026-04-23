@@ -26,6 +26,7 @@ package jscomp
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/diag"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -631,6 +632,26 @@ func (c *TypeCheck) emit(d []diag.Diagnostic) {
 
 // ---- per-node visitors ------------------------------------------ //
 
+// varHasEqOnLine reports whether the source line (1-indexed lineno)
+// contains an `=` sign at or after the column of the name token. Used
+// to guard JSC_ENUM_INITIALIZER_NOT_ENUM: if `=` is present the parser
+// likely failed to attach the init node (e.g. inline JSDoc inside the
+// OBJECTLIT), and we should not fire the diagnostic.
+func varHasEqOnLine(src string, lineno, nameCol int) bool {
+	if src == "" || lineno < 1 {
+		return false
+	}
+	lines := strings.Split(src, "\n")
+	if lineno > len(lines) {
+		return false
+	}
+	l := lines[lineno-1]
+	if nameCol < 0 || nameCol >= len(l) {
+		return false
+	}
+	return strings.ContainsRune(l[nameCol:], '=')
+}
+
 // visitVar — port of TypeCheck.java's handling of VAR / LET / CONST:
 // compare the initializer's inferred type against the @type
 // declaration. Reports at the initializer's position to match Java's
@@ -643,6 +664,20 @@ func (c *TypeCheck) visitVar(v *rhino.Node, scope *TypedScope) []diag.Diagnostic
 	var out []diag.Diagnostic
 	init := name.FirstChild()
 	if init == nil {
+		// `/** @enum */ var E;` with no initializer — Java emits
+		// JSC_ENUM_INITIALIZER_NOT_ENUM warning. Mirrors TypeCheck.java's
+		// validateEnumInitializer guard which fires when the RHS is absent.
+		// Guard: if the source line has `=` after the NAME, the parser
+		// failed to attach the init (e.g. inline JSDoc inside OBJECTLIT);
+		// skip the diagnostic to avoid false positives.
+		if info := v.JSDocInfo(); info.IsEnum() && !varHasEqOnLine(c.creator.sourceSrc, name.Lineno(), name.Charno()) {
+			return []diag.Diagnostic{{
+				Path: c.path, Line: name.Lineno(), Col: name.Charno(),
+				Code:    diag.JSC_ENUM_INITIALIZER_NOT_ENUM,
+				Level:   diag.Warning,
+				Message: "enum initializer must be an object literal or an enum",
+			}}
+		}
 		return out
 	}
 	// `/** @enum */ var E = {FOO: 1, ...}` — the VAR's declared
