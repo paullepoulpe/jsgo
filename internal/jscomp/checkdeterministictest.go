@@ -513,18 +513,17 @@ func cdtVoidVsType(other jstype.JSType) cdtTri {
 // cdtCoercibleVsType handles number/string/boolean testForEquality.
 //
 // Java's StringType (and NumberType, BooleanType) return UNKNOWN if `that`
-// is a subtype of Object — i.e. they can coerce with objects.  They return
-// FALSE for symbol, and for null/undefined (which are handled via the
+// is a subtype of Object — i.e. they can coerce with objects via JS `==`
+// coercion (e.g. `number == new Number(1)` is allowed). They return FALSE
+// for symbol, and for null/undefined (which are handled via the
 // restrict-by-not-null step before we get here, so in practice they arrive
 // as nil).
 //
-// In our type system the Function annotation resolves to an ObjectType
-// rather than FunctionType, so we cannot detect the FunctionType branch.
-// We conservatively treat object types as disjoint from coercible
-// primitives to preserve the existing diagnostic set — matching the old
-// disjointForEquality behaviour (eqObject vs eqString/Number/Boolean =
-// disjoint).  This is slightly stricter than Java for object types that
-// aren't Function, but it avoids losing existing true positives.
+// Ports Java NumberType/StringType/BooleanType.testForEquality exactly:
+//   - Wide (All, Unknown) → UNKNOWN
+//   - null / undefined / symbol → FALSE
+//   - Object subtypes (including wrapper objects) → UNKNOWN
+//   - same-or-other coercible primitives → UNKNOWN
 func cdtCoercibleVsType(other jstype.JSType) cdtTri {
 	if cdtIsWide(other) {
 		return cdtUnknown
@@ -534,21 +533,30 @@ func cdtCoercibleVsType(other jstype.JSType) cdtTri {
 		return cdtFalse
 	}
 	if cdtIsObject(other) {
-		// Treat object vs coercible-primitive as disjoint, matching old
-		// disjointForEquality (eqObject vs eqString/Number/Boolean → false).
-		return cdtFalse
+		// Java: that.isSubtypeOf(OBJECT_TYPE) → UNKNOWN. Coercible primitives
+		// can == wrapper objects (e.g. `number == new Number(x)`).
+		return cdtUnknown
 	}
 	return cdtUnknown
 }
 
-// cdtIsObject reports whether t is an object type (ObjectType, FunctionType,
-// TemplatizedType, EnumElementType wrapping an object, …) — i.e. not a
-// primitive.  Used to decide whether a symbol can be == the other side.
+// cdtIsObject reports whether t is an object type (ObjectType,
+// PrototypeObjectType, InstanceObjectType, FunctionType, TemplatizedType,
+// EnumElementType wrapping an object, …) — i.e. not a primitive.
+// Mirrors Java JSType.isObject() which returns true for any ObjectType
+// subclass. Used to decide whether a coercible primitive can == the
+// other side (UNKNOWN) or whether it's disjoint (FALSE).
 func cdtIsObject(t jstype.JSType) bool {
 	if t == nil {
 		return false
 	}
 	if _, ok := t.(*jstype.ObjectType); ok {
+		return true
+	}
+	if _, ok := t.(*jstype.PrototypeObjectType); ok {
+		return true
+	}
+	if _, ok := t.(*jstype.InstanceObjectType); ok {
 		return true
 	}
 	if _, ok := t.(*jstype.FunctionType); ok {
