@@ -54,7 +54,8 @@ type JSDocInfo struct {
 	extendsAll      []*JSTypeExpression // every @extends encountered (interfaces can list many)
 	implementsAll   []*JSTypeExpression
 	typedefExpr     *JSTypeExpression
-	templateNames           []string
+	templateNames            []string
+	ttlTemplateNames         []string // @template T := … =: transformation names
 	boundedTemplatePositions []BoundedTemplatePosition
 	suppressions    map[string]bool
 	hasThisType     bool   // true when @this annotation was present
@@ -116,6 +117,18 @@ func (i *JSDocInfo) TemplateNames() []string {
 }
 func (i *JSDocInfo) AddTemplateName(n string) {
 	i.templateNames = append(i.templateNames, n)
+}
+
+// TTLTemplateNames returns @template T := … =: transformation template names.
+// Mirrors JSDocInfo.getTypeTransformations() key-set in Java.
+func (i *JSDocInfo) TTLTemplateNames() []string {
+	if i == nil {
+		return nil
+	}
+	return i.ttlTemplateNames
+}
+func (i *JSDocInfo) AddTTLTemplateName(n string) {
+	i.ttlTemplateNames = append(i.ttlTemplateNames, n)
 }
 
 // BoundedTemplatePositions returns all @template {B} T positions recorded

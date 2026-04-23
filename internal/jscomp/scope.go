@@ -645,6 +645,22 @@ func (s *TypedScope) resolveFunctionTypeExpr(expr string) *jstype.FunctionType {
 		paramParts = splitTopLevelComma(paramStr)
 	}
 
+	// Extract `this:T` pseudo-param (first param with "this:" prefix).
+	// parseFunctionType encodes the this-type as a `this:T` entry so we
+	// can set typeOfThis on the resulting FunctionType (mirrors Java's
+	// FunctionType.getTypeOfThis() / EXPECTED_THIS_TYPE check).
+	var typeOfThis jstype.JSType
+	var positionalParts []string
+	for _, pp := range paramParts {
+		pp = trimSpace(pp)
+		if startsWith(pp, "this:") {
+			typeOfThis = s.ResolveExpr(pp[5:])
+			continue
+		}
+		positionalParts = append(positionalParts, pp)
+	}
+	paramParts = positionalParts
+
 	var paramTypes []jstype.JSType
 	minArity := 0
 	maxArity := 0
@@ -690,12 +706,9 @@ func (s *TypedScope) resolveFunctionTypeExpr(expr string) *jstype.FunctionType {
 		minArity = 0
 	}
 
-	fn := &jstype.FunctionType{
-		Params:   paramTypes,
-		Return:   retType,
-		MinArity: minArity,
-		MaxArity: maxArity,
-	}
+	fn := jstype.NewFunctionTypeWithThis(paramTypes, retType, typeOfThis)
+	fn.MinArity = minArity
+	fn.MaxArity = maxArity
 	return fn
 }
 
@@ -1132,7 +1145,7 @@ func (c *TypedScopeCreator) recordPrototypeAssign(a *rhino.Node, scope *TypedSco
 	if !ok || fn.Instance == nil {
 		return
 	}
-	memberType := c.inferPrototypeValueType(a.JSDocInfo(), rhs, scope)
+	memberType := c.inferPrototypeValueType(a.JSDocInfo(), rhs, scope, fn.Instance)
 	fn.Instance.DefineProperty(propName, memberType)
 	// Literal-inferred prototype slots (no @type) don't participate
 	// in the subclass-override type-match check — Java treats them
@@ -1483,7 +1496,7 @@ func (c *TypedScopeCreator) recordPrototypeStub(stmt *rhino.Node, getprop *rhino
 			if info.ReturnType() != nil {
 				ret = scope.ResolveExpr(info.ReturnType().TypeName)
 			}
-			t = jstype.NewFunctionType(paramTypes, ret)
+			t = jstype.NewFunctionTypeWithThis(paramTypes, ret, fn.Instance)
 		}
 	}
 	fn.Instance.DefineProperty(propName, t)
@@ -1493,7 +1506,10 @@ func (c *TypedScopeCreator) recordPrototypeStub(stmt *rhino.Node, getprop *rhino
 // `X.prototype.m = value` assignment. Function expressions yield a
 // FunctionType derived from the ASSIGN's @param/@return JSDoc; other
 // values fall back to @type if present, otherwise Unknown.
-func (c *TypedScopeCreator) inferPrototypeValueType(info *rhino.JSDocInfo, rhs *rhino.Node, scope *TypedScope) jstype.JSType {
+// inst is the constructor's InstanceType — when non-nil it is set as
+// typeOfThis on the resulting FunctionType so TypeCheck can emit
+// JSC_EXPECTED_THIS_TYPE when the method is called without a receiver.
+func (c *TypedScopeCreator) inferPrototypeValueType(info *rhino.JSDocInfo, rhs *rhino.Node, scope *TypedScope, inst *jstype.ObjectType) jstype.JSType {
 	if rhs.Token() == rhino.FUNCTION {
 		kids := rhs.Children()
 		if len(kids) < 2 {
@@ -1508,7 +1524,15 @@ func (c *TypedScopeCreator) inferPrototypeValueType(info *rhino.JSDocInfo, rhs *
 		if info != nil && info.ReturnType() != nil {
 			ret = scope.ResolveExpr(info.ReturnType().TypeName)
 		}
-		fnT := jstype.NewFunctionType(paramTypes, ret)
+		// Set typeOfThis so EXPECTED_THIS_TYPE fires when the method is
+		// detached and called without a receiver. Mirrors Java's
+		// FunctionType.getTypeOfThis() returning the instance type for
+		// prototype methods (FunctionTypeBuilder.inferThisType).
+		var typeOfThis jstype.JSType
+		if inst != nil {
+			typeOfThis = inst
+		}
+		fnT := jstype.NewFunctionTypeWithThis(paramTypes, ret, typeOfThis)
 		setArityFromParams(fnT, params, info)
 		return fnT
 	}
@@ -2253,6 +2277,17 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 		}
 		if info.IsDict() {
 			fnType.Instance.IsDict = true
+		}
+	} else if info.HasType() {
+		// `@type {function(this:T, …)}` on a plain function — resolve the
+		// declared type so typeOfThis is preserved. When the resolved type
+		// is a FunctionType, use it directly; otherwise fall back to the
+		// param/return-inferred type. Mirrors Java's TypedScopeCreator
+		// using the JSDoc type annotation over the inferred shape.
+		if declFn, ok := scope.ResolveExpr(info.Type().TypeName).(*jstype.FunctionType); ok {
+			fnType = declFn
+		} else {
+			fnType = jstype.NewFunctionType(paramTypes, retType)
 		}
 	} else {
 		fnType = jstype.NewFunctionType(paramTypes, retType)

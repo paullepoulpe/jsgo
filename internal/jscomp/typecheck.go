@@ -1027,6 +1027,37 @@ func (c *TypeCheck) visitCall(node *rhino.Node, scope *TypedScope) []diag.Diagno
 	}
 	var out []diag.Diagnostic
 	calleeName := describeCallee(callee)
+	// JSC_EXPECTED_THIS_TYPE — port of TypeCheck.java:
+	// ordinary functions with an explicit `this:T` type must be called
+	// via a property access (GETPROP / GETELEM), not as bare names.
+	// Mirrors: `functionType.isOrdinaryFunction() && !NodeUtil.isNormalOrOptChainGet(child)`
+	// followed by `receiverType` allowlist (unknown / all / void / native objects).
+	if node.Token() == rhino.CALL && fn.IsOrdinaryFunction() &&
+		callee.Token() != rhino.GETPROP && callee.Token() != rhino.GETELEM {
+		if tot := fn.GetTypeOfThis(); tot != nil {
+			// Allow: Unknown, All, Void, or native ObjectType (matches Java's exemptions).
+			allow := false
+			switch tot {
+			case jstype.Unknown, jstype.All, jstype.Void:
+				allow = true
+			}
+			if !allow {
+				if obj, ok := tot.(*jstype.ObjectType); ok && obj.IsNativeObjectType() {
+					allow = true
+				}
+				if inst, ok := tot.(*jstype.InstanceObjectType); ok && inst.IsNativeObjectType() {
+					allow = true
+				}
+			}
+			if !allow {
+				out = append(out, diag.Diagnostic{
+					Path: c.path, Line: node.Lineno(), Col: node.Charno(),
+					Code: diag.JSC_EXPECTED_THIS_TYPE, Level: diag.Warning,
+					Message: fmt.Sprintf("%q must be called with a \"this\" type", fn.TypeName()),
+				})
+			}
+		}
+	}
 	// Arity check — fire JSC_WRONG_ARGUMENT_COUNT when the call
 	// site's arg count falls outside [MinArity, MaxArity] as
 	// computed from the function's @param annotations and closure
@@ -2054,22 +2085,39 @@ func (c *TypeCheck) visitThis(n *rhino.Node, scope *TypedScope) []diag.Diagnosti
 	}}
 }
 
-// visitFunctionParams fires JSC_INEXISTENT_PARAM when a @param
-// JSDoc names a parameter that doesn't appear in the function's
-// actual parameter list. Java reports at the FUNCTION keyword's
-// column.
+// visitFunctionParams fires:
+//   - JSC_INEXISTENT_PARAM when a @param JSDoc names a parameter that
+//     doesn't appear in the function's actual parameter list.
+//   - JSC_TEMPLATE_TRANSFORMATION_ON_CLASS when a constructor or interface
+//     carries a @template T := … =: type-transformation annotation.
+//
+// Both report at the FUNCTION keyword's position, matching Java.
 func (c *TypeCheck) visitFunctionParams(fn *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	info := fn.JSDocInfo()
 	if info == nil {
 		return nil
 	}
+	var out []diag.Diagnostic
+	// JSC_TEMPLATE_TRANSFORMATION_ON_CLASS — port of FunctionTypeBuilder.java:
+	// when a constructor or interface has TTL @template T := … =: annotations,
+	// fire a warning for each such name. `allowTypeTransformations` in Java is
+	// false for constructors and interfaces (only plain functions allow TTL).
+	if info.IsConstructor() || info.IsInterface() || info.IsRecord() {
+		for _, name := range info.TTLTemplateNames() {
+			out = append(out, diag.Diagnostic{
+				Path: c.path, Line: fn.Lineno(), Col: fn.Charno(),
+				Code: diag.JSC_TEMPLATE_TRANSFORMATION_ON_CLASS, Level: diag.Warning,
+				Message: fmt.Sprintf("Template type transformation %s not allowed on classes or interfaces", name),
+			})
+		}
+	}
 	names := info.ParameterNames()
 	if len(names) == 0 {
-		return nil
+		return out
 	}
 	kids := fn.Children()
 	if len(kids) < 2 {
-		return nil
+		return out
 	}
 	params := kids[1]
 	paramSet := map[string]bool{}
@@ -2080,7 +2128,6 @@ func (c *TypeCheck) visitFunctionParams(fn *rhino.Node, scope *TypedScope) []dia
 	if fnName == "" {
 		fnName = "<anonymous>"
 	}
-	var out []diag.Diagnostic
 	for _, name := range names {
 		if paramSet[name] {
 			continue

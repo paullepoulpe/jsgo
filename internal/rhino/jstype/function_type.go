@@ -263,6 +263,18 @@ func NewFunctionTypeFromParameters(params []Parameter, ret JSType) *FunctionType
 	return newFunctionTypeFromParams(params, ret, FunctionKindOrdinary, nil)
 }
 
+// NewFunctionTypeWithThis creates a plain FunctionType with an explicit
+// typeOfThis. Used when resolving `function(this:T, …)` JSDoc annotations
+// so TypeCheck can emit JSC_EXPECTED_THIS_TYPE on bare-name call sites.
+// Mirrors FunctionType.builder(registry).withTypeOfThis(T).build().
+func NewFunctionTypeWithThis(params []JSType, ret JSType, typeOfThis JSType) *FunctionType {
+	ps := make([]Parameter, len(params))
+	for i, t := range params {
+		ps[i] = NewParameter(t, false, false)
+	}
+	return newFunctionTypeFromParams(ps, ret, FunctionKindOrdinary, typeOfThis)
+}
+
 // NewConstructorType is the variant used when @constructor is present.
 // Returns a FunctionType whose Instance is a freshly-named ObjectType
 // — the type assigned to `new ThisCtor(args)` expressions.
