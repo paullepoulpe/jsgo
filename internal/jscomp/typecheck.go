@@ -556,8 +556,10 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitIn(n, scope))
 	case rhino.FOR_IN:
 		c.emit(c.visitForIn(n, scope))
-	case rhino.LSH, rhino.RSH, rhino.URSH, rhino.BITAND, rhino.BITOR, rhino.BITXOR:
+	case rhino.LSH, rhino.RSH, rhino.URSH, rhino.BITAND, rhino.BITOR, rhino.BITXOR, rhino.BITNOT:
 		c.emit(c.visitBitOp(n, scope))
+	case rhino.EQ, rhino.NE, rhino.SHEQ, rhino.SHNE:
+		c.emit(c.visitTypeofComparison(n, scope))
 	case rhino.LT, rhino.LE, rhino.GT, rhino.GE:
 		c.emit(c.visitRelationalDefault(n, scope))
 	case rhino.FUNCTION:
@@ -657,6 +659,17 @@ func varHasEqOnLine(src string, lineno, nameCol int) bool {
 // declaration. Reports at the initializer's position to match Java's
 // "initializing variable" variant.
 func (c *TypeCheck) visitVar(v *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	// JSC_MULTIPLE_VAR_DEF: a JSDoc @type annotation can only describe
+	// a single variable. Fire when the declaration has more than one
+	// NAME child. Mirrors TypeCheck.java's visitVar guard.
+	if info := v.JSDocInfo(); info != nil && info.HasType() && len(v.Children()) > 1 {
+		return []diag.Diagnostic{{
+			Path: c.path, Line: v.Lineno(), Col: v.Charno(),
+			Code:    diag.JSC_MULTIPLE_VAR_DEF,
+			Level:   diag.Warning,
+			Message: "declaration of multiple variables with shared type information",
+		}}
+	}
 	name := v.FirstChild()
 	if name == nil || name.Token() != rhino.NAME {
 		return nil
@@ -2254,12 +2267,29 @@ func (c *TypeCheck) visitFunctionParams(fn *rhino.Node, scope *TypedScope) []dia
 // void / null / boolean / object operands statically.
 func (c *TypeCheck) visitBitOp(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := n.Children()
-	if len(kids) < 2 {
-		return nil
-	}
 	infer := NewTypeInference(scope)
 	var out []diag.Diagnostic
 	op := bitOpSymbol(n.Token())
+	// Unary BITNOT (~): one operand; emit at the operator node position
+	// to match Java's TypeCheck which points at the BITNOT expression.
+	if n.Token() == rhino.BITNOT {
+		if len(kids) == 0 {
+			return nil
+		}
+		t := infer.InferType(kids[0])
+		if isDefinitelyNotNumber(t) {
+			out = append(out, diag.Diagnostic{
+				Path: c.path, Line: n.Lineno(), Col: n.Charno(),
+				Code: diag.JSC_BAD_TYPE_FOR_BIT_OPERATION, Level: diag.Error,
+				Message: fmt.Sprintf("operator %s cannot be applied to %s", op, t.TypeName()),
+			})
+		}
+		return out
+	}
+	// Binary bit operators: report at the first bad operand.
+	if len(kids) < 2 {
+		return nil
+	}
 	for _, k := range kids {
 		t := infer.InferType(k)
 		if !isDefinitelyNotNumber(t) {
@@ -2290,8 +2320,50 @@ func bitOpSymbol(t rhino.Token) string {
 		return "|"
 	case rhino.BITXOR:
 		return "^"
+	case rhino.BITNOT:
+		return "~"
 	}
 	return "?"
+}
+
+// visitTypeofComparison fires JSC_UNKNOWN_TYPEOF_VALUE when an EQ/NE/SHEQ/SHNE
+// expression compares typeof against a string that is not a valid typeof result.
+// Mirrors TypeCheck.java's call to validator.expectValidTypeofName.
+func (c *TypeCheck) visitTypeofComparison(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	kids := n.Children()
+	if len(kids) != 2 {
+		return nil
+	}
+	var _, strNode *rhino.Node
+	switch {
+	case kids[0].Token() == rhino.TYPEOF && kids[1].Token() == rhino.STRINGLIT:
+		_, strNode = kids[0], kids[1]
+	case kids[1].Token() == rhino.TYPEOF && kids[0].Token() == rhino.STRINGLIT:
+		_, strNode = kids[1], kids[0]
+	default:
+		return nil
+	}
+	val := strNode.String_()
+	if isValidTypeofValue(val) {
+		return nil
+	}
+	return []diag.Diagnostic{{
+		Path: c.path, Line: strNode.Lineno(), Col: strNode.Charno(),
+		Code:    diag.JSC_UNKNOWN_TYPEOF_VALUE,
+		Level:   diag.Warning,
+		Message: fmt.Sprintf("unknown type: %s", val),
+	}}
+}
+
+// isValidTypeofValue reports whether s is a string that typeof can return.
+// Java's TypeCheck also accepts "unknown" (used for the ? / all type in some
+// Closure patterns). Mirrors TypeCheck.java's VALID_TYPEOF_VALUES set.
+func isValidTypeofValue(s string) bool {
+	switch s {
+	case "undefined", "boolean", "number", "string", "function", "object", "bigint", "symbol", "unknown":
+		return true
+	}
+	return false
 }
 
 // isWellKnownSymbolIndex reports whether `idx` is a GETPROP on the

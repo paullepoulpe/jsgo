@@ -284,7 +284,23 @@ func (s *SuperclassCheck) checkExtendsNonObject(n *rhino.Node) {
 		}
 		resolved := s.scope.ResolveExpr(b.TypeName)
 		if resolved == nil || resolved == jstype.Unknown {
-			continue // unresolved / unknown — skip
+			// The tag resolved to nothing. Fire JSC_RESOLVED_TAG_EMPTY when
+			// the type name IS a locally-declared identifier (param/var — so
+			// JSC_UNRECOGNIZED_TYPE_ERROR is suppressed by allNames) but is
+			// NOT in a template-parameterized context (which Java handles
+			// specially). Skip wildcards and names that checkjsdoctypes
+			// already reports as UNRECOGNIZED_TYPE_ERROR.
+			tn := b.TypeName
+			if tn != "?" && tn != "" && s.isDeclaredInAnyFunctionScope(tn, n) &&
+				!enclosingFunctionHasTemplate(n) {
+				s.diags = append(s.diags, diag.Diagnostic{
+					Path: s.path, Line: n.Lineno(), Col: n.Charno(),
+					Code:    diag.JSC_RESOLVED_TAG_EMPTY,
+					Level:   diag.Error,
+					Message: fmt.Sprintf("Could not resolve type in @extends tag of %s", name),
+				})
+			}
+			break
 		}
 		if isObjectLikeType(resolved) {
 			continue // object / templatized / function — fine
@@ -297,6 +313,41 @@ func (s *SuperclassCheck) checkExtendsNonObject(n *rhino.Node) {
 		})
 		break // one diagnostic per declaration
 	}
+}
+
+// isDeclaredInAnyFunctionScope returns true when `name` appears as a declared
+// binding in any function-local scope tracked by the creator. Used to
+// distinguish `@extends {clazz}` (clazz is a local param → RESOLVED_TAG_EMPTY)
+// from `@extends {not_base}` (not_base not declared → UNRECOGNIZED_TYPE_ERROR).
+func (s *SuperclassCheck) isDeclaredInAnyFunctionScope(name string, near *rhino.Node) bool {
+	// Walk the parent chain looking for the nearest enclosing FUNCTION
+	// whose scope might have the name.
+	for cur := near.Parent(); cur != nil; cur = cur.Parent() {
+		if cur.Token() != rhino.FUNCTION {
+			continue
+		}
+		if fnScope, ok := s.creator.Functions[cur]; ok && fnScope != nil {
+			if fnScope.GetRawDeclaredType(name) != nil {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// enclosingFunctionHasTemplate returns true when any ancestor FUNCTION node
+// (up to the script root) carries a @template annotation. Java handles
+// template-parameterized extends specially and does not fire RESOLVED_TAG_EMPTY.
+func enclosingFunctionHasTemplate(n *rhino.Node) bool {
+	for cur := n.Parent(); cur != nil; cur = cur.Parent() {
+		if cur.Token() != rhino.FUNCTION {
+			continue
+		}
+		if info := cur.JSDocInfo(); info != nil && len(info.TemplateNames()) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // checkClassImplements fires JSC_IMPLEMENTS_NON_INTERFACE for ES6 class
