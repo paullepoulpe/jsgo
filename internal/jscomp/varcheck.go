@@ -176,8 +176,17 @@ func defaultExternNames() map[string]bool {
 		"alert", "confirm", "prompt", "setTimeout", "setInterval",
 		"clearTimeout", "clearInterval", "requestAnimationFrame",
 		"cancelAnimationFrame", "XMLHttpRequest", "fetch",
-		"Element", "HTMLElement", "HTMLDivElement", "HTMLInputElement",
-		"Event", "MouseEvent", "KeyboardEvent", "Node",
+		"Element", "HTMLElement", "HTMLDivElement", "HTMLSpanElement",
+		"HTMLInputElement", "HTMLButtonElement", "HTMLAnchorElement",
+		"HTMLFormElement", "HTMLSelectElement", "HTMLTextAreaElement",
+		"HTMLImageElement", "HTMLScriptElement",
+		"Event", "MouseEvent", "KeyboardEvent", "UIEvent",
+		"FocusEvent", "InputEvent", "Node",
+		// DOM constructor types (uppercase, distinct from lowercase globals)
+		"Window", "Document", "EventTarget",
+		// Thenable typedef is a type alias, not a var, so VarCheck
+		// doesn't need to know about it — it lives in typeAliases.
+		"Thenable",
 
 	}
 	out := make(map[string]bool, len(names))
