@@ -115,6 +115,14 @@ func (n *Node) FirstChild() *Node {
 	return n.children[0]
 }
 
+// LastChild mirrors Java's getLastChild.
+func (n *Node) LastChild() *Node {
+	if len(n.children) == 0 {
+		return nil
+	}
+	return n.children[len(n.children)-1]
+}
+
 // Children exposes the child slice — not in Java (which iterates
 // first.next), but jsgo callers prefer range loops. Treat the returned
 // slice as read-only.
