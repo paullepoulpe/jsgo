@@ -125,6 +125,10 @@ const (
 	ARRAYLIT
 	OBJECTLIT
 	STRING_KEY
+
+	// Added for QualifiedName port
+	SUPER
+	MEMBER_FUNCTION_DEF
 )
 
 func (t Token) String() string {
@@ -301,6 +305,10 @@ func (t Token) String() string {
 		return "OBJECTLIT"
 	case STRING_KEY:
 		return "STRING_KEY"
+	case SUPER:
+		return "SUPER"
+	case MEMBER_FUNCTION_DEF:
+		return "MEMBER_FUNCTION_DEF"
 	}
 	return "ERROR"
 }
