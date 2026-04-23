@@ -513,6 +513,41 @@ func (p *Parser) parseClassMember(body *rhino.Node) {
 		}
 		jsdoc.SetStatic(true)
 	}
+	// Computed class member: ['key']() {} or ['key'] = value;
+	if !p.scanner.AtEnd() && p.scanner.Peek() == '[' {
+		p.scanner.Advance() // consume '['
+		p.scanner.SkipTrivia()
+		keyLine, keyCol := p.scanner.Line(), p.scanner.Col()
+		keyExpr, ok := p.tryExpression()
+		if !ok {
+			p.scanner.SkipToStatementBoundary()
+			return
+		}
+		if keyExpr != nil {
+			keyExpr.SetPos(keyLine, keyCol)
+		}
+		p.scanner.SkipTrivia()
+		p.scanner.ConsumeByte(']') // consume ']'
+		p.scanner.SkipTrivia()
+		comp := rhino.New(rhino.COMPUTED_PROP)
+		comp.SetPos(memberLine, memberCol)
+		if jsdoc != nil {
+			comp.SetJSDocInfo(jsdoc)
+		}
+		if keyExpr != nil {
+			comp.AddChildToBack(keyExpr)
+		}
+		// Skip the body (method or field) — we only need position for diagnostics.
+		if !p.scanner.AtEnd() && p.scanner.Peek() == '(' {
+			// Computed method: skip params and body.
+			p.scanner.SkipToStatementBoundary()
+		} else {
+			p.scanner.SkipToStatementBoundary()
+		}
+		body.AddChildToBack(comp)
+		return
+	}
+
 	nameLine, nameCol := p.scanner.Line(), p.scanner.Col()
 	name, ok := p.scanner.ConsumeIdent()
 	if !ok {

@@ -90,6 +90,7 @@ const (
 	JSC_MALFORMED_REGEXP                    = "JSC_MALFORMED_REGEXP"
 	JSC_UNREACHABLE_CODE                    = "JSC_UNREACHABLE_CODE"
 	JSC_ILLEGAL_OBJLIT_KEY                  = "JSC_ILLEGAL_OBJLIT_KEY"
+	JSC_ILLEGAL_CLASS_KEY                   = "JSC_ILLEGAL_CLASS_KEY"
 
 	// CheckSuspiciousCode diagnostics (all warnings).
 	JSC_SUSPICIOUS_SEMICOLON                             = "JSC_SUSPICIOUS_SEMICOLON"
