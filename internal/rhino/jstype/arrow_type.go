@@ -89,43 +89,8 @@ func (a *ArrowType) hasTemplatedParameterType() bool {
 	return false
 }
 
-// hasAnyTemplateTypes reports whether t is or transitively contains an
-// unresolved *TemplateType. Mirrors JSType.hasAnyTemplateTypes() for the
-// types that ArrowType uses: TemplateType, UnionType, TemplatizedType,
-// FunctionType, and ArrowType itself.
-func hasAnyTemplateTypes(t JSType) bool {
-	if t == nil {
-		return false
-	}
-	switch v := t.(type) {
-	case *TemplateType:
-		return true
-	case *UnionType:
-		for _, m := range v.Members() {
-			if hasAnyTemplateTypes(m) {
-				return true
-			}
-		}
-		return false
-	case *TemplatizedType:
-		for _, a := range v.Args {
-			if hasAnyTemplateTypes(a) {
-				return true
-			}
-		}
-		return false
-	case *FunctionType:
-		for _, p := range v.Params {
-			if hasAnyTemplateTypes(p) {
-				return true
-			}
-		}
-		return hasAnyTemplateTypes(v.Return)
-	case *ArrowType:
-		return v.HasAnyTemplateTypes()
-	}
-	return false
-}
+// hasAnyTemplateTypes is defined in template_type_map.go (the canonical
+// port). ArrowType uses the same helper.
 
 // RecursionUnsafeHashCode mirrors ArrowType.recursionUnsafeHashCode().
 // Uses TypeName() as a proxy for Objects.hashCode since Go has no
