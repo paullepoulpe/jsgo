@@ -712,24 +712,47 @@ func (s *SuperclassCheck) checkPrototypeAssign(stmt *rhino.Node, assign *rhino.N
 // nuanced — we approximate by accepting any overlapping
 // param-prefix whose types match.
 func overrideCompatible(override, slot jstype.JSType) bool {
+	of, okF := override.(*jstype.FunctionType)
+	sf, okS := slot.(*jstype.FunctionType)
+	if okF && okS {
+		// Varargs sentinel (mirrors Java SubtypeChecker.isArrowTypeSubtype
+		// lines 516-529): if slot is variadic with a specific non-Unknown
+		// element type and the override has exactly the same number of
+		// declared params (all explicitly typed non-Unknown), the override
+		// is NOT compatible — it has a fixed arity that can't handle 0
+		// args the way the slot's varargs can. When the vararg type is
+		// Unknown (the Closure "top-function" sentinel, e.g.
+		// `function(...?)`) any override is accepted; likewise when the
+		// override has more params it likely also uses varargs.
+		if sf.MaxArity == jstype.MaxArgsUnlimited && of.MaxArity != jstype.MaxArgsUnlimited &&
+			len(of.Params) == len(sf.Params) &&
+			len(of.Params) > 0 && len(sf.Params) > 0 {
+			varargType := sf.Params[len(sf.Params)-1]
+			overrideParamType := of.Params[len(of.Params)-1]
+			if varargType != jstype.Unknown && overrideParamType != jstype.Unknown {
+				return false
+			}
+		}
+	}
 	if jstype.IsSubtype(override, slot) {
 		return true
 	}
-	of, ok := override.(*jstype.FunctionType)
-	if !ok {
-		return false
-	}
-	sf, ok := slot.(*jstype.FunctionType)
-	if !ok {
+	if !okF || !okS {
 		return false
 	}
 	// Override with fewer params is acceptable to Java so long
-	// as every overlapping param has a compatible type. Return
-	// type must still be a subtype.
-	if len(of.Params) > len(sf.Params) {
+	// as every overlapping param has a compatible type. When the
+	// slot is varargs, the override may also have MORE params (they
+	// are all covered by the variadic element). Return type must
+	// still be a subtype.
+	if len(of.Params) > len(sf.Params) && sf.MaxArity != jstype.MaxArgsUnlimited {
 		return false
 	}
-	for i := range of.Params {
+	limit := len(sf.Params)
+	if len(of.Params) < limit {
+		limit = len(of.Params)
+	}
+	for i := 0; i < limit; i++ {
 		if !jstype.IsSubtype(of.Params[i], sf.Params[i]) {
 			return false
 		}
