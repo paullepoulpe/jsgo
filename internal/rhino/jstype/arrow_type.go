@@ -13,33 +13,10 @@ package jstype
 
 import "strings"
 
-// Parameter mirrors FunctionType.Parameter (the inner abstract class in
-// Java). It carries the JSType of a single formal parameter together with
-// the two boolean flags that govern call-site arity checking.
-type Parameter struct {
-	// JSType is the declared or inferred type of this parameter. Mirrors
-	// Parameter.getJSType(). Unknown when the parameter is unannotated.
-	JSType JSType
-
-	// IsOptional mirrors Parameter.isOptional() — set for `opt_<name>`
-	// parameters in Closure convention and for `=`-suffixed types in
-	// JSDoc. Optional parameters need not be supplied by callers.
-	IsOptional bool
-
-	// IsVariadic mirrors Parameter.isVariadic() — set for `var_args`
-	// parameters and `...`-rest params. Only the last parameter can be
-	// variadic; callers may supply zero or more values for this slot.
-	IsVariadic bool
-}
-
-// NewParameter is the Go equivalent of Parameter.create(type, isOptional,
-// isVariadic).
-func NewParameter(t JSType, isOptional, isVariadic bool) Parameter {
-	return Parameter{JSType: t, IsOptional: isOptional, IsVariadic: isVariadic}
-}
-
-// GetJSType mirrors Parameter.getJSType().
-func (p Parameter) GetJSType() JSType { return p.JSType }
+// Parameter and NewParameter are defined in function_type.go (the
+// earlier Parameter widening landed those there). ArrowType uses the
+// same struct to avoid two different `Parameter` definitions in the
+// jstype package.
 
 // ArrowType models a "bare" function type: a parameter list and a return
 // type. JavaScript functions carry more (this-type, prototype, own
@@ -88,7 +65,7 @@ func (a *ArrowType) GetParameterList() []Parameter { return a.parameterList }
 // Returns true when any parameter type or the return type is Unknown.
 func (a *ArrowType) HasUnknownParamsOrReturn() bool {
 	for _, p := range a.parameterList {
-		if isUnknown(p.JSType) {
+		if isUnknown(p.GetJSType()) {
 			return true
 		}
 	}
@@ -105,7 +82,7 @@ func (a *ArrowType) HasAnyTemplateTypes() bool {
 // hasTemplatedParameterType mirrors ArrowType.hasTemplatedParameterType().
 func (a *ArrowType) hasTemplatedParameterType() bool {
 	for _, p := range a.parameterList {
-		if hasAnyTemplateTypes(p.JSType) {
+		if hasAnyTemplateTypes(p.GetJSType()) {
 			return true
 		}
 	}
@@ -156,7 +133,7 @@ func hasAnyTemplateTypes(t JSType) bool {
 func (a *ArrowType) RecursionUnsafeHashCode() int {
 	h := typePtrHash(a.returnType)
 	for _, p := range a.parameterList {
-		h = h*31 + typePtrHash(p.JSType)
+		h = h*31 + typePtrHash(p.GetJSType())
 	}
 	return h
 }
@@ -185,8 +162,8 @@ func (a *ArrowType) TypeName() string {
 		if i > 0 {
 			sb.WriteString(",")
 		}
-		if p.JSType != nil {
-			sb.WriteString(p.JSType.TypeName())
+		if p.GetJSType() != nil {
+			sb.WriteString(p.GetJSType().TypeName())
 		} else {
 			sb.WriteString("?")
 		}
