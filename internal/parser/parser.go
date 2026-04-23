@@ -1207,11 +1207,14 @@ func (p *Parser) tryCallOrAssignStatement() (*rhino.Node, bool) {
 			return nil, false
 		}
 		p.scanner.SkipTrivia()
-		if p.scanner.AtEnd() || p.scanner.Peek() != ';' {
-			rewind()
-			return nil, false
+		// Consume the semicolon when present; otherwise apply ASI for
+		// OBJECTLIT and FUNCTION RHS (JS semicolons are optional after `}`).
+		if !p.scanner.ConsumeByte(';') {
+			if rhs.Token() != rhino.OBJECTLIT && rhs.Token() != rhino.FUNCTION {
+				rewind()
+				return nil, false
+			}
 		}
-		p.scanner.Advance()
 		if rhs.Lineno() == 0 && rhs.Charno() == 0 {
 			rhs.SetPos(rhsLine, rhsCol)
 		}
@@ -1911,9 +1914,13 @@ func (p *Parser) tryObjectLit() (*rhino.Node, bool) {
 			p.scanner.Advance()
 			return obj, true
 		}
-		// Optional JSDoc on the property value — ignored for now, since
-		// record-literal element typing doesn't consult it at Tier-3.
-		_, _ = p.scanner.ConsumeBlockComment()
+		// Optional JSDoc on the property value. Attach it to the
+		// STRING_KEY so prototype-override checks can read @return/@param.
+		var entryDoc *rhino.JSDocInfo
+		if body, ok := p.scanner.ConsumeBlockComment(); ok {
+			commentLine := p.scanner.Line()
+			entryDoc = parsing.ParseJSDocInfo(body, commentLine)
+		}
 		p.scanner.SkipTrivia()
 		// Accessor / method shorthand — `get foo(){…}`, `set foo(x){…}`,
 		// `foo(args){…}`. Fully consume the member (params + body) and
@@ -1997,6 +2004,9 @@ func (p *Parser) tryObjectLit() (*rhino.Node, bool) {
 		key.SetPos(keyLine, keyCol)
 		if quotedKey {
 			key.PutBooleanProp(rhino.PropQuotedStringKey, true)
+		}
+		if entryDoc != nil {
+			key.SetJSDocInfo(entryDoc)
 		}
 		key.AddChildToBack(val)
 		obj.AddChildToBack(key)

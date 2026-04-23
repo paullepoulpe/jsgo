@@ -121,6 +121,11 @@ func newTemplateTypeReplacer(
 // Mirrors TemplateTypeReplacer.hasMadeReplacement in Java.
 func (r *TemplateTypeReplacer) HasMadeReplacement() bool { return r.hasMadeReplacement }
 
+// ApplyTo applies the replacer to t, returning the substituted type.
+// External callers (e.g. jscomp) use this entry point; the internal
+// visitJSType function is unexported.
+func ApplyTo(r *TemplateTypeReplacer, t JSType) JSType { return visitJSType(r, t) }
+
 // setKeyType sets the current key being processed and its submap boundary.
 // Called from newTemplateTypeMap during resolution.
 // Mirrors TemplateTypeReplacer.setKeyType in Java.

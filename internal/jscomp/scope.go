@@ -141,6 +141,10 @@ func (s *TypedScope) GetRawDeclaredType(name string) jstype.JSType {
 	return s.parent.GetRawDeclaredType(name)
 }
 
+// Registry returns the JSType registry for this scope.
+// Used by template-instantiation helpers in superclasscheck.go.
+func (s *TypedScope) Registry() *jstype.Registry { return s.registry }
+
 // ThisType returns the InstanceType `this` refers to in the lexically
 // nearest constructor scope, or nil if `this` is unbound.
 func (s *TypedScope) ThisType() *jstype.ObjectType {
@@ -1152,6 +1156,7 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 				c.recordPrototypeAssign(inner, scope)
 				c.recordPrototypeLiteralAssign(inner, scope)
 				c.recordNamespaceAssign(inner, scope)
+				c.recordPrototypeObjectLit(inner, scope)
 			}
 			// `Foo.prototype.bar;` stub-declaration — Java treats
 			// this as declaring `bar` on Foo's instance (type
@@ -1256,7 +1261,19 @@ func (c *TypedScopeCreator) recordPrototypeAssign(a *rhino.Node, scope *TypedSco
 	if !ok || fn.Instance == nil {
 		return
 	}
-	memberType := c.inferPrototypeValueType(a.JSDocInfo(), rhs, scope, fn.Instance)
+	// Use a template-aware scope when the owner has @template params so
+	// `@return {T}` on a prototype method resolves to a TemplateType
+	// rather than Unknown. Mirrors how Java's TypedScopeCreator uses the
+	// constructor's TemplateTypeMap when resolving prototype slot types.
+	resolveScope := scope
+	if len(fn.TemplateTypes) > 0 {
+		aliases := make(map[string]jstype.JSType, len(fn.TemplateTypes))
+		for _, tt := range fn.TemplateTypes {
+			aliases[tt.Name] = tt
+		}
+		resolveScope = &TypedScope{parent: scope, declared: map[string]jstype.JSType{}, typeAliases: aliases, registry: c.registry}
+	}
+	memberType := c.inferPrototypeValueType(a.JSDocInfo(), rhs, resolveScope, fn.Instance)
 	fn.Instance.DefineProperty(propName, memberType)
 	// Literal-inferred prototype slots (no @type) don't participate
 	// in the subclass-override type-match check — Java treats them
@@ -1692,6 +1709,42 @@ func (c *TypedScopeCreator) recordPrototypeStub(stmt *rhino.Node, getprop *rhino
 		}
 	}
 	fn.Instance.DefineProperty(propName, t)
+}
+
+// recordPrototypeObjectLit handles `X.prototype = {key: fn, …}` —
+// an ASSIGN whose LHS is `X.prototype` and RHS is an OBJECTLIT.
+// Registers each STRING_KEY member on X's InstanceType so that
+// JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH checks can compare the
+// override type against the inherited superclass/interface slot.
+func (c *TypedScopeCreator) recordPrototypeObjectLit(a *rhino.Node, scope *TypedScope) {
+	kids := a.Children()
+	if len(kids) < 2 {
+		return
+	}
+	lhs, rhs := kids[0], kids[1]
+	if lhs.Token() != rhino.GETPROP || rhs.Token() != rhino.OBJECTLIT {
+		return
+	}
+	lhsKids := lhs.Children()
+	if len(lhsKids) < 2 || lhsKids[0].Token() != rhino.NAME || lhsKids[1].String_() != "prototype" {
+		return
+	}
+	ownerName := lhsKids[0].String_()
+	fn, ok := scope.declared[ownerName].(*jstype.FunctionType)
+	if !ok || fn.Instance == nil {
+		return
+	}
+	for _, kv := range rhs.Children() {
+		if kv.Token() != rhino.STRING_KEY {
+			continue
+		}
+		child := kv.FirstChild()
+		if child == nil {
+			continue
+		}
+		memberType := c.inferPrototypeValueType(kv.JSDocInfo(), child, scope, fn.Instance)
+		fn.Instance.DefineProperty(kv.String_(), memberType)
+	}
 }
 
 // inferPrototypeValueType computes the member type for a
