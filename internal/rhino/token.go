@@ -154,6 +154,11 @@ const (
 	// listed for CFG reference.
 	YIELD
 	AWAIT
+	// CAST represents `/** @type {T} */(expr)`. The parser synthesises
+	// this node when a JSDoc block comment immediately precedes a
+	// parenthesised expression; it carries the @type annotation on its
+	// JSDocInfo and the inner expression as its sole child.
+	CAST
 )
 
 func (t Token) String() string {
@@ -364,6 +369,8 @@ func (t Token) String() string {
 		return "YIELD"
 	case AWAIT:
 		return "AWAIT"
+	case CAST:
+		return "CAST"
 	}
 	return "ERROR"
 }

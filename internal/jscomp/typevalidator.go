@@ -430,7 +430,7 @@ func (tv *TypeValidator) expectCanCast(n *rhino.Node, targetType, sourceType jst
 			Path:  tv.path,
 			Line:  n.Lineno(),
 			Col:   n.Charno(),
-			Code:  diag.JSC_TYPE_MISMATCH, // JSC_INVALID_CAST not yet in diag constants
+			Code:  diag.JSC_INVALID_CAST,
 			Level: diag.Warning,
 			Message: fmt.Sprintf(
 				"invalid cast - must be a subtype or supertype\nfrom: %s\nto  : %s",

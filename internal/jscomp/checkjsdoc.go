@@ -349,7 +349,10 @@ func (c *CheckJSDoc) validateTypeAnnotations(n *rhino.Node, info *rhino.JSDocInf
 	case rhino.CALL:
 		// valid when @define (not in Go JSDocInfo yet); keep false.
 		valid = false
-	// CAST, EXPORT, GETTER_DEF, SETTER_DEF, MEMBER_FIELD_DEF,
+	case rhino.CAST:
+		// Cast expressions `/** @type {T} */(expr)` are always valid.
+		valid = true
+	// EXPORT, GETTER_DEF, SETTER_DEF, MEMBER_FIELD_DEF,
 	// COMPUTED_FIELD_DEF, ARRAY_PATTERN, OBJECT_PATTERN: TODO — absent.
 	default:
 		valid = false

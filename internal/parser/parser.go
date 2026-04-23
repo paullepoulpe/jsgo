@@ -1619,6 +1619,11 @@ func (p *Parser) tryPrimary() (*rhino.Node, bool) {
 	// `/** @struct */ { … }`) — consume it speculatively and attach to
 	// the resulting object literal. If the next token after the comment
 	// is not `{`, restore the scanner so the comment is left in place.
+	//
+	// Special case: `/** @type {T} */(expr)` is a cast expression.
+	// Consume the JSDoc, then parse the parenthesised expression and
+	// wrap it in a CAST node carrying the annotation.  Mirrors the
+	// Java parser's CAST AST node production.
 	var leadingJSDoc *rhino.JSDocInfo
 	if p.scanner.Peek() == '/' && p.scanner.PeekAt(1) == '*' && p.scanner.PeekAt(2) == '*' {
 		save := p.scanner.Save()
@@ -1627,6 +1632,22 @@ func (p *Parser) tryPrimary() (*rhino.Node, bool) {
 			p.scanner.SkipTrivia()
 			if p.scanner.Peek() == '{' {
 				leadingJSDoc = parsing.ParseJSDocInfo(b, commentLine)
+			} else if p.scanner.Peek() == '(' {
+				// Cast expression: /** @type {T} */(inner).
+				castInfo := parsing.ParseJSDocInfo(b, commentLine)
+				castLine, castCol := p.scanner.Line(), p.scanner.Col()
+				inner, ok2 := p.tryParen()
+				if !ok2 {
+					p.scanner.Restore(save)
+				} else {
+					cast := rhino.New(rhino.CAST)
+					cast.SetPos(castLine, castCol)
+					if castInfo != nil {
+						cast.SetJSDocInfo(castInfo)
+					}
+					cast.AddChildToBack(inner)
+					return cast, true
+				}
 			} else {
 				p.scanner.Restore(save)
 			}

@@ -191,6 +191,17 @@ func (t *TypeInference) InferType(n *rhino.Node) jstype.JSType {
 	// ---- function expression -------------------------------------- //
 	case rhino.FUNCTION:
 		return t.inferFunctionExpr(n)
+
+	// ---- cast expression ----------------------------------------- //
+	// /** @type {T} */(expr) — the node's declared type is the cast
+	// target resolved from its @type JSDoc annotation.
+	case rhino.CAST:
+		if info := n.JSDocInfo(); info != nil && info.HasType() {
+			if ct := t.scope.ResolveExpr(info.Type().TypeName); ct != nil {
+				return ct
+			}
+		}
+		return jstype.Unknown
 	}
 	return jstype.Unknown
 }

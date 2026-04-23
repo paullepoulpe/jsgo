@@ -359,13 +359,22 @@ func (p *JsDocInfoParser) parseReturnTag() JsDocToken {
 func (p *JsDocInfoParser) parseExtendsTag() JsDocToken {
 	p.skipEOLs()
 	t := p.next()
-	expr, next, ok := p.parseTypeExpressionAnnotation(t)
-	if !ok {
+	// Braced form: `@extends {Foo}` — standard.
+	if expr, next, ok := p.parseTypeExpressionAnnotation(t); ok {
+		p.info.SetBaseType(rhino.NewJSTypeExpression(expr))
+		p.anyRecorded = true
+		return next
+	}
+	// Bare form: `@extends Foo` (no curly braces). Java's JsDocInfoParser
+	// accepts this for @extends and @implements. Mirrors the
+	// parseNameExpression fallback path in the Java source.
+	if t == JsDocTokenString {
+		expr := p.stream.String_()
+		p.info.SetBaseType(rhino.NewJSTypeExpression(expr))
+		p.anyRecorded = true
 		return p.eatUntilEOLIfNotAnnotation()
 	}
-	p.info.SetBaseType(rhino.NewJSTypeExpression(expr))
-	p.anyRecorded = true
-	return next
+	return p.eatUntilEOLIfNotAnnotation()
 }
 
 func (p *JsDocInfoParser) parseImplementsTag() JsDocToken {
