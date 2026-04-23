@@ -381,16 +381,18 @@ func unifyTemplates(subs *jstype.CallSiteMap, param, arg jstype.JSType) {
 	}
 }
 
-// inferAdd is the narrow `+` helper. Port of TypeValidator.java's ADD
-// semantics: the JS `+` operator coerces to string whenever either
-// operand is string-typed, otherwise to number when both sides are
-// number-typed. Unions containing string propagate the string bias.
+// inferAdd is the narrow `+` helper. Port of TypeInference.java's
+// traverseAdd: the JS `+` operator coerces to string whenever either
+// operand is definitely a string type (and not unknown), to number
+// when both sides are "added as number" (subtype of the
+// NUMBER_ADDITION_SUPERTYPE = boolean|null|undefined|number), and to
+// (number|string) otherwise. Mirrors the Java decision table exactly.
 //
-// Decision table:
-//   any-side string   → string (coerces the other side)
-//   number + number   → number
-//   mixed string/num  → (number|string)
-//   anything else     → Unknown
+// Decision table (Java traverseAdd order):
+//   !unknown && isString on either side   → string
+//   either side unknown                   → unknown
+//   isAddedAsNumber(l) && isAddedAsNumber(r) → number
+//   otherwise                             → (number|string)
 func (t *TypeInference) inferAdd(n *rhino.Node) jstype.JSType {
 	return t.inferAddChildren(n)
 }
@@ -399,6 +401,8 @@ func (t *TypeInference) inferAdd(n *rhino.Node) jstype.JSType {
 // (`+`) and ASSIGN_ADD (`+=`). Both operators carry two child
 // sub-expressions; compound-assign behaves identically to the binary
 // form for the purpose of the synthesised result type.
+//
+// Port of TypeInference.java traverseAdd; see inferAdd for the table.
 func (t *TypeInference) inferAddChildren(n *rhino.Node) jstype.JSType {
 	kids := n.Children()
 	if len(kids) < 2 {
@@ -406,36 +410,63 @@ func (t *TypeInference) inferAddChildren(n *rhino.Node) jstype.JSType {
 	}
 	l := t.InferType(kids[0])
 	r := t.InferType(kids[1])
-	lAllString := onlyContains(l, jstype.String)
-	rAllString := onlyContains(r, jstype.String)
-	// Definite-string path runs even when the other side is Unknown:
-	// `string + anything` always coerces to string in JS.
-	if lAllString || rAllString {
+	leftIsUnknown := isUnknownOrNil(l)
+	rightIsUnknown := isUnknownOrNil(r)
+	// Definite-string path: mirrors Java's
+	//   (!leftIsUnknown && leftType.isString()) ||
+	//   (!rightIsUnknown && rightType.isString())
+	if (!leftIsUnknown && onlyContains(l, jstype.String)) ||
+		(!rightIsUnknown && onlyContains(r, jstype.String)) {
 		return jstype.String
 	}
-	if isUnknownOrNil(l) || isUnknownOrNil(r) {
+	// Unknown propagation — same as Java.
+	if leftIsUnknown || rightIsUnknown {
 		return jstype.Unknown
 	}
-	lAllNumber := onlyContains(l, jstype.Number)
-	rAllNumber := onlyContains(r, jstype.Number)
-	lHasString := containsType(l, jstype.String)
-	rHasString := containsType(r, jstype.String)
-	lHasNumber := containsType(l, jstype.Number)
-	rHasNumber := containsType(r, jstype.Number)
-	// Definite-number path.
-	if lAllNumber && rAllNumber {
+	// Both sides are known non-string. Use isAddedAsNumber (mirrors
+	// Java's isAddedAsNumber = isSubtypeOf(NUMBER_ADDITION_SUPERTYPE)
+	// where NUMBER_ADDITION_SUPERTYPE = boolean|null|undefined|number).
+	// When both are "number-ish", the result is number; otherwise the
+	// JS spec says it coerces both to strings → (number|string).
+	if isAddedAsNumber(l) && isAddedAsNumber(r) {
 		return jstype.Number
 	}
-	// Mixed union path: at least one side might be string AND the
-	// other might be number → (number|string).
-	if (lHasString || rHasString) && (lHasNumber || rHasNumber) {
-		return jstype.NewUnion(jstype.Number, jstype.String)
+	return jstype.NewUnion(jstype.Number, jstype.String)
+}
+
+// isAddedAsNumber reports whether `t` is a subtype of Java's
+// NUMBER_ADDITION_SUPERTYPE = (boolean|Boolean|null|undefined|number|Number).
+// Port of TypeInference.java isAddedAsNumber + JSTypeRegistry
+// numberAdditionSupertype. The Java registry includes NUMBER_OBJECT_TYPE
+// (boxed Number) and BOOLEAN_OBJECT_TYPE (boxed Boolean); we recognise them
+// as ObjectType instances whose TypeName is "Number" or "Boolean" since
+// they are declared as @constructor stubs in our default externs.
+func isAddedAsNumber(t jstype.JSType) bool {
+	if t == nil {
+		return false
 	}
-	// All-string unions on both sides stay string.
-	if lHasString && rHasString {
-		return jstype.String
+	switch t {
+	case jstype.Number, jstype.Boolean, jstype.Null, jstype.Void:
+		return true
 	}
-	return jstype.Unknown
+	// Boxed Number / Boolean — ObjectType instances from the default externs.
+	// Matches Java's NUMBER_OBJECT_TYPE / BOOLEAN_OBJECT_TYPE entries in
+	// NUMBER_ADDITION_SUPERTYPE.
+	if obj, ok := t.(*jstype.ObjectType); ok {
+		name := obj.TypeName()
+		if name == "Number" || name == "Boolean" {
+			return true
+		}
+	}
+	if u, ok := t.(*jstype.UnionType); ok {
+		for _, m := range u.Members() {
+			if !isAddedAsNumber(m) {
+				return false
+			}
+		}
+		return true
+	}
+	return false
 }
 
 // inferHook computes the type of a `cond ? then : else` node. When
@@ -960,12 +991,16 @@ func keepNullUndef(t jstype.JSType) jstype.JSType {
 	return jstype.Void
 }
 
-// inferGetElem mirrors TypeInference.java's GETELEM branch. `x[i]`
-// produces:
+// inferGetElem mirrors TypeInference.java's GETELEM / inferGetElemType
+// branch (via dereferenceIndexSignature). `x[i]` produces:
 //   - the template-arg element type when the receiver is
-//     `Array<T>` / `Object<K,V>` / any templatized type with one arg,
-//   - Unknown when the receiver is a plain Array instance (no element
-//     tracking), an untyped object, or anything else.
+//     `Array<T>` (one arg → T) or `Object<K,V>` / `Map<K,V>` (two args → V),
+//   - Unknown when the receiver is a plain Array, untyped object, or
+//     anything else that carries no index signature.
+//
+// Union receiver: Java's dereferenceIndexSignature iterates the union
+// alternates; if every member yields an element type we union them,
+// otherwise we drop out to Unknown. We mirror that exactly.
 //
 // We do NOT diagnose type mismatches here — the checker raises those
 // in TypeCheck.visitGetElem.
@@ -975,17 +1010,54 @@ func (t *TypeInference) inferGetElem(n *rhino.Node) jstype.JSType {
 		return jstype.Unknown
 	}
 	recvType := t.InferType(kids[0])
+	// Java: restrictByNotNullOrUndefined — strip null/undefined before
+	// dereferencing so Array<T>|null behaves like Array<T>.
 	recvType = stripNullUndef(recvType)
-	if tt, ok := recvType.(*jstype.TemplatizedType); ok {
+	if recvType == nil {
+		return jstype.Unknown
+	}
+	// Union receiver: port of Java dereferenceIndexSignature's loop
+	// over union alternates.
+	if u, ok := recvType.(*jstype.UnionType); ok {
+		var collected []jstype.JSType
+		for _, m := range u.Members() {
+			elem := getElemIndexType(m)
+			if elem == nil {
+				// Any non-indexable member → drop out (Java sets null).
+				return jstype.Unknown
+			}
+			collected = append(collected, elem)
+		}
+		if len(collected) == 0 {
+			return jstype.Unknown
+		}
+		if len(collected) == 1 {
+			return collected[0]
+		}
+		return jstype.NewUnion(collected...)
+	}
+	// Single (non-union) receiver.
+	if elem := getElemIndexType(recvType); elem != nil {
+		return elem
+	}
+	return jstype.Unknown
+}
+
+// getElemIndexType returns the element type for a single (non-union)
+// receiver type via its index signature — the template argument used
+// by Array<T> (one arg) or Object<K,V>/Map<K,V> (two args → V). Port
+// of the TemplateTypeMap lookup inside Java's dereferenceIndexSignature.
+func getElemIndexType(recv jstype.JSType) jstype.JSType {
+	if tt, ok := recv.(*jstype.TemplatizedType); ok {
 		switch len(tt.Args) {
 		case 1:
 			return tt.Args[0]
 		case 2:
-			// Object<K,V> / Map<K,V>: index access yields the value type.
+			// Object<K,V> / Map<K,V>: index access yields the value type V.
 			return tt.Args[1]
 		}
 	}
-	return jstype.Unknown
+	return nil
 }
 
 // unionFold returns the union of non-nil members; if either side is
