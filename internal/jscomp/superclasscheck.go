@@ -449,7 +449,7 @@ func (s *SuperclassCheck) validateImplements(reportAt *rhino.Node, ctorName stri
 		seenIface[base] = true
 	}
 	for _, expr := range impls {
-		iface := s.scope.LookupNominalType(expr.TypeName)
+		iface := s.scope.LookupNominalType(stripTemplateArgs(expr.TypeName))
 		if iface == nil {
 			continue
 		}
@@ -500,6 +500,46 @@ func allInterfaceProperties(iface *jstype.ObjectType) []string {
 	return out
 }
 
+// checkImplementedConflictsForStub detects type conflicts for an
+// untyped prototype stub `X.prototype.name;` when two @implements
+// interfaces declare the property with incompatible types. Java
+// propagates the first interface's type to the stub; we replicate
+// by comparing all @implements slots against the first.
+func (s *SuperclassCheck) checkImplementedConflictsForStub(propName string, propNode *rhino.Node, ownerName string, fn *jstype.FunctionType) {
+	own := fn.Instance.GetPropertyType(propName)
+	if own == nil || own != jstype.Unknown {
+		return // only for un-annotated stubs
+	}
+	ctorDoc := s.findConstructorJSDoc(ownerName)
+	if ctorDoc == nil {
+		return
+	}
+	var firstSlot jstype.JSType
+	for _, expr := range ctorDoc.Implementations() {
+		iface := s.scope.LookupNominalType(stripTemplateArgs(expr.TypeName))
+		if iface == nil || !iface.IsStructural {
+			continue
+		}
+		slot := iface.GetPropertyType(propName)
+		if slot == nil {
+			continue
+		}
+		if firstSlot == nil {
+			firstSlot = slot
+			continue
+		}
+		if !overrideCompatible(firstSlot, slot) {
+			s.diags = append(s.diags, diag.Diagnostic{
+				Path: s.path, Line: propNode.Lineno(), Col: propNode.Charno(),
+				Code: diag.JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH, Level: diag.Error,
+				Message: fmt.Sprintf("mismatch of the %s property on type %s and the type of the property it overrides from interface %s\noriginal: %s\noverride: %s",
+					propName, ownerName, iface.TypeName(), slot.TypeName(), firstSlot.TypeName()),
+			})
+			return
+		}
+	}
+}
+
 // checkPrototypeStub handles the stub form `X.prototype.name;` with
 // a `/** @type {T} */` JSDoc. Fires JSC_HIDDEN_SUPERCLASS /
 // INTERFACE_PROPERTY_MISMATCH when the stub's declared type
@@ -532,6 +572,10 @@ func (s *SuperclassCheck) checkPrototypeStub(stmt *rhino.Node, gp *rhino.Node) {
 		info = gp.JSDocInfo()
 	}
 	if info == nil || !info.HasType() {
+		// No explicit type. Fire if two @implements interfaces conflict
+		// on this property (untyped stub — Java propagates the first
+		// interface's type; we detect conflict by comparing them).
+		s.checkImplementedConflictsForStub(propName, propNode, ownerName, fn)
 		return
 	}
 	overrideType := s.scope.ResolveExpr(info.Type().TypeName)
@@ -644,6 +688,11 @@ func (s *SuperclassCheck) checkPrototypeAssign(stmt *rhino.Node, assign *rhino.N
 	propName := lhsKids[1].String_()
 	propNode := lhsKids[1]
 	if inner.Token() != rhino.GETPROP {
+		// Detect X.prototype = {…} — object-literal prototype override.
+		if propName == "prototype" && inner.Token() == rhino.NAME &&
+			rhs.Token() == rhino.OBJECTLIT {
+			s.checkPrototypeObjectLitAssign(inner.String_(), rhs)
+		}
 		return
 	}
 	innerKids := inner.Children()
@@ -682,25 +731,50 @@ func (s *SuperclassCheck) checkPrototypeAssign(stmt *rhino.Node, assign *rhino.N
 			}
 		}
 	}
-	// @implements interfaces.
-	for _, iface := range s.implementedInstances(ownerName) {
-		slot := iface.GetPropertyType(propName)
-		if slot == nil {
-			continue
+	// @implements interfaces (with template instantiation) + @extends
+	// parents for interface owners (multi-extends like Sub @extends {A} @extends {B}).
+	ctorDoc := s.findConstructorJSDoc(ownerName)
+	if ctorDoc != nil {
+		for _, expr := range ctorDoc.Implementations() {
+			iface := s.scope.LookupNominalType(stripTemplateArgs(expr.TypeName))
+			if iface == nil {
+				continue
+			}
+			slot := iface.GetPropertyType(propName)
+			if slot == nil {
+				continue
+			}
+			slot = s.instantiateSlot(expr.TypeName, iface, slot)
+			if overrideCompatible(overrideType, slot) {
+				continue
+			}
+			s.diags = append(s.diags, diag.Diagnostic{
+				Path: s.path, Line: propNode.Lineno(), Col: propNode.Charno(),
+				Code: diag.JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH, Level: diag.Error,
+				Message: fmt.Sprintf("mismatch of the %s property on type %s and the type of the property it overrides from interface %s\noriginal: %s\noverride: %s",
+					propName, ownerName, iface.TypeName(), slot.TypeName(), overrideType.TypeName()),
+			})
+			return
 		}
-		if overrideCompatible(overrideType, slot) {
-			continue
+		if fn.Instance.IsStructural {
+			for _, b := range ctorDoc.BaseTypes() {
+				iface := s.scope.LookupNominalType(stripTemplateArgs(b.TypeName))
+				if iface == nil {
+					continue
+				}
+				slot := iface.GetPropertyType(propName)
+				if slot == nil || overrideCompatible(overrideType, slot) {
+					continue
+				}
+				s.diags = append(s.diags, diag.Diagnostic{
+					Path: s.path, Line: propNode.Lineno(), Col: propNode.Charno(),
+					Code: diag.JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH, Level: diag.Error,
+					Message: fmt.Sprintf("mismatch of the %s property on type %s and the type of the property it overrides from interface %s\noriginal: %s\noverride: %s",
+						propName, ownerName, iface.TypeName(), slot.TypeName(), overrideType.TypeName()),
+				})
+				return
+			}
 		}
-		s.diags = append(s.diags, diag.Diagnostic{
-			Path:  s.path,
-			Line:  propNode.Lineno(),
-			Col:   propNode.Charno(),
-			Code:  diag.JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH,
-			Level: diag.Error,
-			Message: fmt.Sprintf("mismatch of the %s property on type %s and the type of the property it overrides from interface %s\noriginal: %s\noverride: %s",
-				propName, ownerName, iface.TypeName(), slot.TypeName(), overrideType.TypeName()),
-		})
-		return
 	}
 }
 
@@ -755,7 +829,7 @@ func (s *SuperclassCheck) implementedInstances(ownerName string) []*jstype.Objec
 	}
 	var out []*jstype.ObjectType
 	for _, e := range info.Implementations() {
-		if inst := s.scope.LookupNominalType(e.TypeName); inst != nil {
+		if inst := s.scope.LookupNominalType(stripTemplateArgs(e.TypeName)); inst != nil {
 			out = append(out, inst)
 		}
 	}
@@ -974,4 +1048,79 @@ func functionTypeFromJSDoc(info *rhino.JSDocInfo, fn *rhino.Node, scope *TypedSc
 		ret = scope.ResolveExpr(info.ReturnType().TypeName)
 	}
 	return jstype.NewFunctionType(paramTypes, ret)
+}
+
+// instantiateSlot substitutes template args from typeExpr (e.g. "Int<string>")
+// into slot, mapping each of iface's TemplateTypes to the corresponding arg.
+// Returns slot unchanged when no template args are present.
+func (s *SuperclassCheck) instantiateSlot(typeExpr string, iface *jstype.ObjectType, slot jstype.JSType) jstype.JSType {
+	i := strings.IndexByte(typeExpr, '<')
+	if i < 0 || slot == nil {
+		return slot
+	}
+	fn, ok := s.scope.GetRawDeclaredType(iface.TypeName()).(*jstype.FunctionType)
+	if !ok || len(fn.TemplateTypes) == 0 {
+		return slot
+	}
+	inner := strings.TrimSpace(typeExpr[i+1 : len(typeExpr)-1])
+	argStrs := strings.Split(inner, ",")
+	bindings := map[*jstype.TemplateType]jstype.JSType{}
+	for j, tt := range fn.TemplateTypes {
+		if j >= len(argStrs) {
+			break
+		}
+		bindings[tt] = s.scope.ResolveExpr(strings.TrimSpace(argStrs[j]))
+	}
+	if len(bindings) == 0 {
+		return slot
+	}
+	r := jstype.ForInference(s.scope.Registry(), bindings)
+	return jstype.ApplyTo(r, slot)
+}
+
+// checkPrototypeObjectLitAssign handles `X.prototype = {key: fn, …}` —
+// fires JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH when a key's type
+// conflicts with a slot inherited from a super-interface.
+func (s *SuperclassCheck) checkPrototypeObjectLitAssign(ownerName string, lit *rhino.Node) {
+	fn, ok := s.scope.GetRawDeclaredType(ownerName).(*jstype.FunctionType)
+	if !ok || fn.Instance == nil {
+		return
+	}
+	super := fn.Instance.Super()
+	if super == nil {
+		return
+	}
+	for _, kv := range lit.Children() {
+		if kv.Token() != rhino.STRING_KEY {
+			continue
+		}
+		child := kv.FirstChild()
+		if child == nil || child.Token() != rhino.FUNCTION {
+			continue
+		}
+		methodName := kv.String_()
+		ownSlot := functionTypeFromJSDoc(kv.JSDocInfo(), child, s.scope)
+		if ownSlot == nil {
+			continue
+		}
+		superSlot := super.GetPropertyType(methodName)
+		if superSlot == nil || overrideCompatible(ownSlot, superSlot) {
+			continue
+		}
+		if fn.Instance.IsStructural || super.IsStructural {
+			s.diags = append(s.diags, diag.Diagnostic{
+				Path: s.path, Line: kv.Lineno(), Col: kv.Charno(),
+				Code: diag.JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH, Level: diag.Error,
+				Message: fmt.Sprintf("mismatch of the %s property on type %s and the type of the property it overrides from interface %s\noriginal: %s\noverride: %s",
+					methodName, ownerName, super.TypeName(), superSlot.TypeName(), ownSlot.TypeName()),
+			})
+		} else {
+			s.diags = append(s.diags, diag.Diagnostic{
+				Path: s.path, Line: kv.Lineno(), Col: kv.Charno(),
+				Code: diag.JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH, Level: diag.Error,
+				Message: fmt.Sprintf("mismatch of the %s property type and the type of the property it overrides from superclass %s\noriginal: %s\noverride: %s",
+					methodName, super.TypeName(), superSlot.TypeName(), ownSlot.TypeName()),
+			})
+		}
+	}
 }
