@@ -138,9 +138,6 @@ const (
 	ITER_REST // `{...T}` rest parameter type
 	QMARK     // nullable / unknown type marker `?`
 	EQUALS    // optional parameter type marker `=`
-	// Cast — /** @type {T} */ (expr). Wraps the inner expression as
-	// its first child; the @type JSDocInfo is attached to this node.
-	CAST
 )
 
 func (t Token) String() string {
@@ -333,8 +330,6 @@ func (t Token) String() string {
 		return "QMARK"
 	case EQUALS:
 		return "EQUALS"
-	case CAST:
-		return "CAST"
 	}
 	return "ERROR"
 }

@@ -1553,38 +1553,6 @@ func (p *Parser) tryPrimary() (*rhino.Node, bool) {
 	}
 	startLine, startCol := p.scanner.Line(), p.scanner.Col()
 
-	// Cast expression: `/** @type {T} */ (expr)`. Mirrors
-	// IRFactory.maybeInjectCastNode — when a PAREN_EXPRESSION is
-	// preceded by a JSDoc that carries a @type tag, the result is a
-	// CAST node wrapping the inner expression. Detected here because
-	// expression-level JSDoc is never hoisted to the statement layer.
-	if p.scanner.Peek() == '/' && p.scanner.PeekAt(1) == '*' && p.scanner.PeekAt(2) == '*' {
-		save := p.scanner.Save()
-		castLine, castCol := p.scanner.Line(), p.scanner.Col()
-		if body, ok := p.scanner.ConsumeBlockComment(); ok {
-			var info *rhino.JSDocInfo
-			if parsed := parsing.ParseJSDocInfo(body); parsed != nil && parsed.HasType() {
-				info = parsed
-			} else if parsed == nil {
-				info = parseInlineTypeJSDoc(body)
-			}
-			if info != nil && info.HasType() {
-				p.scanner.SkipTrivia()
-				if p.scanner.Peek() == '(' {
-					inner, ok := p.tryParen()
-					if ok {
-						cast := rhino.New(rhino.CAST)
-						cast.SetPos(castLine, castCol)
-						cast.SetJSDocInfo(info)
-						cast.AddChildToBack(inner)
-						return cast, true
-					}
-				}
-			}
-		}
-		p.scanner.Restore(save)
-	}
-
 	// Arrow and parenthesized expressions both start with '('. Try the
 	// arrow speculatively; on failure the Save/Restore in tryArrow
 	// leaves the scanner ready for a paren parse.
