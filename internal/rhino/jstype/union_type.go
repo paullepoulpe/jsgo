@@ -92,3 +92,77 @@ func (u *UnionType) IsSubtypeOf(o JSType) bool {
 	}
 	return true
 }
+
+// RestrictByNotNullOrUndefined strips null and undefined from the union's
+// alternates and returns the collapsed result. Mirrors
+// UnionType.restrictByNotNullOrUndefined() in Java, which delegates to
+// mapTypes(JSType::restrictByNotNullOrUndefined, this): each alternate's
+// own restrictByNotNullOrUndefined is called and the results are re-unioned.
+// For primitive null/void the Java override returns NoType (bottom);
+// for all other types it returns self. The net effect for a union is that
+// null and undefined members are removed and the rest are kept.
+func (u *UnionType) RestrictByNotNullOrUndefined() JSType {
+	b := NewUnionTypeBuilder()
+	for _, m := range u.members {
+		if isNullType(m) || isVoidType(m) {
+			continue // those two restrict to NoType, contributing nothing
+		}
+		b.AddAlternate(m)
+	}
+	return b.Build()
+}
+
+// UnionGetGreatestSubtype returns the greatest common subtype (lattice meet)
+// of a UnionType and an arbitrary JSType. Mirrors the static
+// UnionType.getGreatestSubtype(UnionType, JSType) in Java.
+//
+// Algorithm:
+//  1. Collect all alternates of union that are subtypes of that.
+//  2. If that is itself a union, also collect its alternates that are
+//     subtypes of union.
+//  3. Otherwise, if that is a subtype of union, add that.
+//
+// Returns NoType when the intersection is empty unless both sides are
+// object types, in which case NoObjectType is returned instead.
+func UnionGetGreatestSubtype(union *UnionType, that JSType) JSType {
+	b := NewUnionTypeBuilder()
+
+	for _, alt := range union.members {
+		if IsSubtype(alt, that) {
+			b.AddAlternate(alt)
+		}
+	}
+
+	if tu, ok := that.(*UnionType); ok {
+		for _, otherAlt := range tu.members {
+			if IsSubtype(otherAlt, union) {
+				b.AddAlternate(otherAlt)
+			}
+		}
+	} else if IsSubtype(that, union) {
+		b.AddAlternate(that)
+	}
+
+	result := b.Build()
+	if !isNoType(result) {
+		return result
+	}
+	// Both sides are objects → return the no-object bottom.
+	unionIsObj := AllTypesMatchUnion(func(m JSType) bool {
+		_, isObj := m.(*ObjectType)
+		return isObj
+	}, union)
+	if unionIsObj {
+		if _, ok := that.(*ObjectType); ok {
+			return NoObject
+		}
+	}
+	return None
+}
+
+// MeetWith returns the lattice meet (greatest common subtype) of this
+// union and another type. Mirrors JSType.meetWith / the RelationshipVisitor
+// dispatch that ultimately calls UnionType.getGreatestSubtype in Java.
+func (u *UnionType) MeetWith(that JSType) JSType {
+	return UnionGetGreatestSubtype(u, that)
+}
