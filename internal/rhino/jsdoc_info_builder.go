@@ -373,6 +373,145 @@ func (b *JSDocInfoBuilder) IsDictRecorded() bool {
 	return b != nil && b.info != nil && b.info.isDict
 }
 
+// RecordThrowsAnnotation mirrors Builder.recordThrowsAnnotation(String). Returns
+// true if the annotation was recorded. Drops the annotation when a singleton
+// type tag is already present (same guard as Java). If the annotation text is
+// empty the call still records an empty-string sentinel so PureFunctionIdentifier
+// can detect the @throws presence.
+func (b *JSDocInfoBuilder) RecordThrowsAnnotation(annotation string) bool {
+	b.populated = true
+	if b.hasAnySingletonTypeTags() {
+		return false
+	}
+	b.info.AddThrowsAnnotation(annotation)
+	return true
+}
+
+// RecordClosurePrimitiveId mirrors Builder.recordClosurePrimitiveId(String).
+func (b *JSDocInfoBuilder) RecordClosurePrimitiveId(id string) bool {
+	if !b.info.SetClosurePrimitiveId(id) {
+		return false
+	}
+	b.populated = true
+	return true
+}
+
+// RecordModifies mirrors Builder.recordModifies(Set<String>). Returns false
+// when any singleton side-effect tag is already present, otherwise records
+// the modifies set.
+func (b *JSDocInfoBuilder) RecordModifies(targets map[string]bool) bool {
+	if b.hasAnySingletonSideEffectTags() {
+		return false
+	}
+	if !b.info.SetModifies(targets) {
+		return false
+	}
+	b.populated = true
+	return true
+}
+
+// RecordSuppressions merges a set of suppressions into the existing set,
+// mirroring Builder.recordSuppressions(Set<String>). Unlike RecordSuppression
+// (single name), this accepts multiple names at once.
+func (b *JSDocInfoBuilder) RecordSuppressions(names map[string]bool) {
+	for n := range names {
+		b.info.AddSuppression(n)
+	}
+	b.populated = true
+}
+
+// RecordTypeTransformation mirrors Builder.recordTypeTransformation(String, Node).
+// In jsgo the AST node is not available yet, so we store the TTL template name
+// and return true to signal acceptance. Returns false when a regular @template
+// of the same name already exists.
+func (b *JSDocInfoBuilder) RecordTypeTransformation(name string) bool {
+	for _, existing := range b.info.templateNames {
+		if existing == name {
+			return false
+		}
+	}
+	b.info.AddTTLTemplateName(name)
+	b.populated = true
+	return true
+}
+
+// RecordNgInject mirrors Builder.recordNgInject(boolean).
+func (b *JSDocInfoBuilder) RecordNgInject(val bool) bool {
+	if b.info.CheckBit(BitNgInject) {
+		return false
+	}
+	b.info.SetBit(BitNgInject, val)
+	b.populated = true
+	return true
+}
+
+// RecordWizaction mirrors Builder.recordWizaction().
+func (b *JSDocInfoBuilder) RecordWizaction() bool {
+	if b.info.CheckBit(BitWizAction) {
+		return false
+	}
+	b.info.SetBit(BitWizAction, true)
+	b.populated = true
+	return true
+}
+
+// RecordPolymerBehavior mirrors Builder.recordPolymerBehavior().
+func (b *JSDocInfoBuilder) RecordPolymerBehavior() bool {
+	if b.info.CheckBit(BitPolymerBehavior) {
+		return false
+	}
+	b.info.SetBit(BitPolymerBehavior, true)
+	b.populated = true
+	return true
+}
+
+// RecordCustomElement mirrors Builder.recordCustomElement().
+func (b *JSDocInfoBuilder) RecordCustomElement() bool {
+	if b.info.CheckBit(BitCustomElement) {
+		return false
+	}
+	b.info.SetBit(BitCustomElement, true)
+	b.populated = true
+	return true
+}
+
+// RecordIdGenerator mirrors Builder.recordIdGenerator(). Plain @idGenerator.
+func (b *JSDocInfoBuilder) RecordIdGenerator() bool {
+	if !b.info.SetIdGenerator(IdGeneratorUnique) {
+		return false
+	}
+	b.populated = true
+	return true
+}
+
+// RecordConsistentIdGenerator mirrors Builder.recordConsistentIdGenerator().
+func (b *JSDocInfoBuilder) RecordConsistentIdGenerator() bool {
+	if !b.info.SetIdGenerator(IdGeneratorConsistent) {
+		return false
+	}
+	b.populated = true
+	return true
+}
+
+// RecordXidGenerator mirrors Builder.recordXidGenerator().
+func (b *JSDocInfoBuilder) RecordXidGenerator() bool {
+	if !b.info.SetIdGenerator(IdGeneratorXid) {
+		return false
+	}
+	b.populated = true
+	return true
+}
+
+// RecordOriginalVisibility mirrors the originalVisibility setter pattern.
+// Returns false if already recorded.
+func (b *JSDocInfoBuilder) RecordOriginalVisibility(v Visibility) bool {
+	if !b.info.SetOriginalVisibility(v) {
+		return false
+	}
+	b.populated = true
+	return true
+}
+
 // --- Compatibility gates mirroring Java private helpers ----------------
 
 // hasAnySingletonTypeTags mirrors Builder.hasAnySingletonTypeTags() — the
@@ -396,6 +535,12 @@ func (b *JSDocInfoBuilder) hasAnyTypeRelatedTags() bool {
 		b.info.extendsExpr != nil ||
 		len(b.info.implementsAll) > 0 ||
 		b.info.hasThisType
+}
+
+// hasAnySingletonSideEffectTags mirrors Builder.hasAnySingletonSideEffectTags()
+// — prevents @modifies from coexisting with @nosideeffects.
+func (b *JSDocInfoBuilder) hasAnySingletonSideEffectTags() bool {
+	return b.info.isNoSideEffects
 }
 
 // isConstructorOrInterface mirrors Builder.isConstructorOrInterface().

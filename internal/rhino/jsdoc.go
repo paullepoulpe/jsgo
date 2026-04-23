@@ -20,6 +20,86 @@ const (
 	VisibilityInherited                   // INHERITED — default when no tag is present
 )
 
+// BitField mirrors the private Bit enum in JSDocInfo.java. Each constant is a
+// 1-shifted bitmask matching Java's ordinal layout (ordinal 0 = bit 0, etc.).
+// Only the subset consumed by jsgo's type-checker is named here; the rest are
+// reserved as zero values so the bit positions stay stable.
+type BitField uint64
+
+const (
+	BitInlineType          BitField = 1 << 0  // INLINE_TYPE
+	BitIncludeDocumentation BitField = 1 << 1  // INCLUDE_DOCUMENTATION
+	BitConst               BitField = 1 << 2  // CONST
+	BitConstructor         BitField = 1 << 3  // CONSTRUCTOR
+	BitDefine              BitField = 1 << 4  // DEFINE
+	BitTypeSummary         BitField = 1 << 5  // TYPE_SUMMARY
+	BitFinal               BitField = 1 << 6  // FINAL
+	BitOverride            BitField = 1 << 7  // OVERRIDE
+	BitDeprecated          BitField = 1 << 8  // DEPRECATED
+	BitInterface           BitField = 1 << 9  // INTERFACE
+	BitExport              BitField = 1 << 10 // EXPORT
+	BitEnhancedNamespace   BitField = 1 << 11 // ENHANCED_NAMESPACE
+	BitNoInline            BitField = 1 << 12 // NOINLINE
+	BitFileoverview        BitField = 1 << 13 // FILEOVERVIEW
+	BitImplicitCast        BitField = 1 << 14 // IMPLICITCAST
+	BitNoSideEffects       BitField = 1 << 15 // NOSIDEEFFECTS
+	BitExterns             BitField = 1 << 16 // EXTERNS
+	BitNoCompile           BitField = 1 << 17 // NOCOMPILE
+	BitNoDts               BitField = 1 << 18 // NODTS
+	BitUnrestricted        BitField = 1 << 19 // UNRESTRICTED
+	BitUsedViaDotCtor      BitField = 1 << 20 // USED_VIA_DOT_CONSTRUCTOR
+	BitStruct              BitField = 1 << 21 // STRUCT
+	BitDict                BitField = 1 << 22 // DICT
+	BitNoCollapse          BitField = 1 << 23 // NOCOLLAPSE
+	BitRecord              BitField = 1 << 24 // RECORD
+	BitAbstract            BitField = 1 << 25 // ABSTRACT
+	BitPureOrBreakMyCode   BitField = 1 << 26 // PURE_OR_BREAK_MY_CODE
+	BitCollapsibleOrBreak  BitField = 1 << 27 // COLLAPSIBLE_OR_BREAK_MY_CODE
+	BitNoCoverage          BitField = 1 << 28 // NOCOVERAGE
+	BitRequireInlining     BitField = 1 << 29 // REQUIRE_INLINING
+	BitEncourageInlining   BitField = 1 << 30 // ENCOURAGE_INLINING
+	BitNgInject            BitField = 1 << 31 // NG_INJECT
+	BitWizAction           BitField = 1 << 32 // WIZ_ACTION
+	BitPolymerBehavior     BitField = 1 << 33 // POLYMER_BEHAVIOR
+	BitPolymer             BitField = 1 << 34 // POLYMER
+	BitCustomElement       BitField = 1 << 35 // CUSTOM_ELEMENT
+	BitMixinClass          BitField = 1 << 36 // MIXIN_CLASS
+	BitMixinFunction       BitField = 1 << 37 // MIXIN_FUNCTION
+)
+
+// IdGenerator mirrors the IdGenerator enum used with @idGenerator in Java.
+type IdGenerator int
+
+const (
+	IdGeneratorUnique     IdGenerator = iota // plain @idGenerator
+	IdGeneratorConsistent                    // @idGenerator {consistent}
+	IdGeneratorStable                        // @idGenerator {stable}
+	IdGeneratorXid                           // @idGenerator {xid}
+	IdGeneratorMapped                        // @idGenerator {mapped}
+)
+
+// MarkerPosition records a source range for a single piece of marker information
+// (annotation keyword, param name, description, or type expression).
+// Mirrors SourcePosition<T> in JSDocInfo.java.
+type MarkerPosition struct {
+	StartLine int // 1-indexed
+	StartCol  int // 0-indexed
+	EndLine   int
+	EndCol    int
+	Item      string // the string item (annotation name, description, or type text)
+}
+
+// Marker mirrors JSDocInfo.Marker — source-position-tagged record emitted once
+// per block tag when documentation collection is enabled. Callers that need
+// precise error positions (e.g. JSC_UNRECOGNIZED_TYPE_ERROR) walk GetMarkers().
+type Marker struct {
+	Annotation  *MarkerPosition // the annotation keyword (e.g. "param")
+	NameNode    *MarkerPosition // the name node (for @param only)
+	Description *MarkerPosition // the trailing description text
+	Type        *MarkerPosition // the {type} expression, if any
+	TypeHasBrackets bool        // mirrors TypePosition.hasBrackets()
+}
+
 // BoundedTemplatePosition records the source position of a `@template {B} T`
 // annotation. Used by TypeCheck to emit JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES.
 // Port of RhinoErrorReporter.UNSUPPORTED_BOUNDED_GENERIC_TYPES + the
@@ -56,6 +136,10 @@ type JSDocInfo struct {
 	isConst         bool // @const annotation
 	visibility      Visibility // default VisibilityInherited
 	hasVisibility   bool       // true once any @private/@protected/@public was recorded
+	// originalVisibility mirrors JSDocInfo.getOriginalVisibility() — the
+	// visibility value before any merging or inference that may change visibility.
+	originalVisibility    Visibility
+	hasOriginalVisibility bool
 	enumExpr        *JSTypeExpression // non-nil when @enum was present
 	enumMarked      bool              // true when @enum appeared (even with no type)
 	extendsExpr     *JSTypeExpression
@@ -79,6 +163,28 @@ type JSDocInfo struct {
 	// this flag lets visitVar skip the initializer subtype check (Java
 	// uses the CAST node's type as the effective RHS type instead).
 	isCastHoisted   bool
+
+	// --- extended fields: structural port of JSDocInfo property bag ---
+
+	// throwsAnnotations mirrors the THROWS_ANNOTATIONS property.
+	// Each entry is the raw text of one @throws annotation.
+	throwsAnnotations []string
+
+	// closurePrimitiveId mirrors the CLOSURE_PRIMITIVE_ID property.
+	closurePrimitiveId string
+
+	// modifies mirrors the MODIFIES property — set of strings from @modifies{…}.
+	modifies map[string]bool
+
+	// markers mirrors the MARKERS property — source-position-tagged annotation list.
+	markers []*Marker
+
+	// bit flags for boolean-ish annotations that don't merit individual fields
+	bits BitField
+
+	// idGenerator mirrors the ID_GENERATOR property.
+	idGenerator    IdGenerator
+	hasIdGenerator bool
 }
 
 // AddSuppression records a `@suppress {name}` entry. Mirrors
@@ -456,4 +562,248 @@ func (i *JSDocInfo) ContainsDeclaration() bool {
 		i.typedefExpr != nil ||
 		i.extendsExpr != nil ||
 		len(i.implementsAll) > 0
+}
+
+// --- originalVisibility accessors ---
+
+// GetOriginalVisibility mirrors JSDocInfo.getOriginalVisibility() — returns the
+// visibility annotation before any propagation or inference overwrites it.
+// Returns VisibilityInherited when none was explicitly set.
+func (i *JSDocInfo) GetOriginalVisibility() Visibility {
+	if i == nil || !i.hasOriginalVisibility {
+		return VisibilityInherited
+	}
+	return i.originalVisibility
+}
+
+// SetOriginalVisibility records the original visibility. Idempotent: does not
+// overwrite an already-recorded value (mirrors Java's idempotency guard).
+func (i *JSDocInfo) SetOriginalVisibility(v Visibility) bool {
+	if i.hasOriginalVisibility {
+		return false
+	}
+	i.originalVisibility = v
+	i.hasOriginalVisibility = true
+	return true
+}
+
+// --- @throws accessors ---
+
+// GetThrowsAnnotations mirrors JSDocInfo.getThrowsAnnotations() — returns the
+// list of raw text strings from each @throws annotation.
+func (i *JSDocInfo) GetThrowsAnnotations() []string {
+	if i == nil {
+		return nil
+	}
+	return i.throwsAnnotations
+}
+
+// AddThrowsAnnotation appends a single @throws annotation text. The first
+// element may be an empty string (sentinel) when documentation is not collected
+// but the annotation's existence must be recorded for PureFunctionIdentifier.
+func (i *JSDocInfo) AddThrowsAnnotation(annotation string) {
+	i.throwsAnnotations = append(i.throwsAnnotations, annotation)
+}
+
+// HasThrows reports whether at least one @throws annotation is present.
+func (i *JSDocInfo) HasThrows() bool {
+	return i != nil && len(i.throwsAnnotations) > 0
+}
+
+// --- @closurePrimitive accessors ---
+
+// GetClosurePrimitiveId mirrors JSDocInfo.getClosurePrimitiveId().
+func (i *JSDocInfo) GetClosurePrimitiveId() string {
+	if i == nil {
+		return ""
+	}
+	return i.closurePrimitiveId
+}
+
+// HasClosurePrimitiveId mirrors JSDocInfo.hasClosurePrimitiveId().
+func (i *JSDocInfo) HasClosurePrimitiveId() bool {
+	return i != nil && i.closurePrimitiveId != ""
+}
+
+// SetClosurePrimitiveId records the @closurePrimitive id string.
+// Returns false if an id was already recorded (idempotency guard).
+func (i *JSDocInfo) SetClosurePrimitiveId(id string) bool {
+	if i.closurePrimitiveId != "" {
+		return false
+	}
+	i.closurePrimitiveId = id
+	return true
+}
+
+// --- @modifies accessors ---
+
+// GetModifies mirrors JSDocInfo.getModifies() — returns the set of
+// modification targets declared with @modifies{this} / @modifies{arguments}.
+func (i *JSDocInfo) GetModifies() map[string]bool {
+	if i == nil {
+		return nil
+	}
+	return i.modifies
+}
+
+// ModifiesThis mirrors JSDocInfo.modifiesThis().
+func (i *JSDocInfo) ModifiesThis() bool {
+	return i != nil && i.modifies["this"]
+}
+
+// HasSideEffectsArgumentsAnnotation mirrors hasSideEffectsArgumentsAnnotation().
+func (i *JSDocInfo) HasSideEffectsArgumentsAnnotation() bool {
+	if i == nil {
+		return false
+	}
+	m := i.modifies
+	return len(m) > 1 || (len(m) == 1 && !m["this"])
+}
+
+// SetModifies records the @modifies set. Returns false if already set.
+func (i *JSDocInfo) SetModifies(targets map[string]bool) bool {
+	if i.modifies != nil {
+		return false
+	}
+	i.modifies = targets
+	return true
+}
+
+// --- BitField helpers ---
+
+// CheckBit reports whether the given bit is set.
+func (i *JSDocInfo) CheckBit(b BitField) bool {
+	return i != nil && (i.bits&b) != 0
+}
+
+// SetBit sets or clears the given bit.
+func (i *JSDocInfo) SetBit(b BitField, val bool) {
+	if val {
+		i.bits |= b
+	} else {
+		i.bits &^= b
+	}
+}
+
+// --- boolean tag accessors backed by BitField ---
+
+// IsNgInject mirrors JSDocInfo.isNgInject().
+func (i *JSDocInfo) IsNgInject() bool { return i.CheckBit(BitNgInject) }
+
+// IsWizaction mirrors JSDocInfo.isWizaction().
+func (i *JSDocInfo) IsWizaction() bool { return i.CheckBit(BitWizAction) }
+
+// IsPolymerBehavior mirrors JSDocInfo.isPolymerBehavior().
+func (i *JSDocInfo) IsPolymerBehavior() bool { return i.CheckBit(BitPolymerBehavior) }
+
+// IsPolymer mirrors JSDocInfo.isPolymer().
+func (i *JSDocInfo) IsPolymer() bool { return i.CheckBit(BitPolymer) }
+
+// IsCustomElement mirrors JSDocInfo.isCustomElement().
+func (i *JSDocInfo) IsCustomElement() bool { return i.CheckBit(BitCustomElement) }
+
+// IsMixinClass mirrors JSDocInfo.isMixinClass().
+func (i *JSDocInfo) IsMixinClass() bool { return i.CheckBit(BitMixinClass) }
+
+// IsMixinFunction mirrors JSDocInfo.isMixinFunction().
+func (i *JSDocInfo) IsMixinFunction() bool { return i.CheckBit(BitMixinFunction) }
+
+// IsExport mirrors JSDocInfo.isExport().
+func (i *JSDocInfo) IsExport() bool { return i.CheckBit(BitExport) }
+
+// IsNoCollapse mirrors JSDocInfo.isNoCollapse().
+func (i *JSDocInfo) IsNoCollapse() bool { return i.CheckBit(BitNoCollapse) }
+
+// IsNoInline mirrors JSDocInfo.isNoInline().
+func (i *JSDocInfo) IsNoInline() bool { return i.CheckBit(BitNoInline) }
+
+// --- @idGenerator accessors ---
+
+// IsAnyIdGenerator mirrors JSDocInfo.isAnyIdGenerator().
+func (i *JSDocInfo) IsAnyIdGenerator() bool { return i != nil && i.hasIdGenerator }
+
+// IsIdGenerator mirrors JSDocInfo.isIdGenerator() — plain @idGenerator.
+func (i *JSDocInfo) IsIdGenerator() bool {
+	return i != nil && i.hasIdGenerator && i.idGenerator == IdGeneratorUnique
+}
+
+// IsConsistentIdGenerator mirrors JSDocInfo.isConsistentIdGenerator().
+func (i *JSDocInfo) IsConsistentIdGenerator() bool {
+	return i != nil && i.hasIdGenerator && i.idGenerator == IdGeneratorConsistent
+}
+
+// IsStableIdGenerator mirrors JSDocInfo.isStableIdGenerator().
+func (i *JSDocInfo) IsStableIdGenerator() bool {
+	return i != nil && i.hasIdGenerator && i.idGenerator == IdGeneratorStable
+}
+
+// IsXidGenerator mirrors JSDocInfo.isXidGenerator().
+func (i *JSDocInfo) IsXidGenerator() bool {
+	return i != nil && i.hasIdGenerator && i.idGenerator == IdGeneratorXid
+}
+
+// IsMappedIdGenerator mirrors JSDocInfo.isMappedIdGenerator().
+func (i *JSDocInfo) IsMappedIdGenerator() bool {
+	return i != nil && i.hasIdGenerator && i.idGenerator == IdGeneratorMapped
+}
+
+// SetIdGenerator records the @idGenerator kind. Returns false if already set.
+func (i *JSDocInfo) SetIdGenerator(kind IdGenerator) bool {
+	if i.hasIdGenerator {
+		return false
+	}
+	i.idGenerator = kind
+	i.hasIdGenerator = true
+	return true
+}
+
+// --- Marker accessors ---
+
+// GetMarkers mirrors JSDocInfo.getMarkers() — returns all source-position-tagged
+// annotation markers collected during parsing. Only populated when documentation
+// collection is enabled.
+func (i *JSDocInfo) GetMarkers() []*Marker {
+	if i == nil {
+		return nil
+	}
+	return i.markers
+}
+
+// AddMarker appends a new Marker and returns a pointer to it so the caller
+// can fill in position fields incrementally (mirrors Builder.addMarker()).
+func (i *JSDocInfo) AddMarker() *Marker {
+	m := &Marker{}
+	i.markers = append(i.markers, m)
+	return m
+}
+
+// --- clone helpers ---
+
+// CloneAndReset returns a shallow clone of the JSDocInfo with the type fields
+// reset (typeExpr, returnExpr, params). Mirrors toBuilder / cloneAndReplaceTypeNames
+// for the narrow subset jsgo needs: only the structural (non-type) annotations
+// are preserved. Used by passes that rewrite type annotations.
+func (i *JSDocInfo) CloneAndReset() *JSDocInfo {
+	if i == nil {
+		return nil
+	}
+	cp := *i
+	cp.typeExpr = nil
+	cp.returnExpr = nil
+	cp.params = nil
+	cp.paramNames = nil
+	cp.restParams = nil
+	cp.optionalParams = nil
+	return &cp
+}
+
+// CloneOn returns a copy of this JSDocInfo attached to the caller's intent to
+// move it to a different AST node (structural copy, no deep-clone of maps).
+// Mirrors the pattern in JSDocInfo.toBuilder() where props are cloned shallowly.
+func (i *JSDocInfo) CloneOn() *JSDocInfo {
+	if i == nil {
+		return nil
+	}
+	cp := *i
+	return &cp
 }
