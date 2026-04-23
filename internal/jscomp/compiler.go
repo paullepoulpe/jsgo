@@ -91,6 +91,7 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	all = append(all, NewCheckSuspiciousCode(path).Check(script)...)
 	all = append(all, NewCheckUnreachableCode(path).Check(script)...)
 	all = append(all, NewCheckSuper(path).Check(script)...)
+	all = append(all, NewCheckAccessControlsWithCreator(path, creator, scope).Check(script)...)
 	all = append(all, NewCheckConformance(path).Check(script)...)
 	all = append(all, NewCheckJSDoc(path).Check(script)...)
 	all = append(all, NewCheckTypeImportCodeReferences(path).Check(script)...)

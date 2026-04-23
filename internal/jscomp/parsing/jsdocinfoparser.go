@@ -204,6 +204,26 @@ func (p *JsDocInfoParser) parseAnnotation(_ JsDocToken) JsDocToken {
 		p.info.SetNoSideEffects(true)
 		p.anyRecorded = true
 		return p.eatUntilEOLIfNotAnnotation()
+	case "deprecated":
+		// Mirrors Java's DEPRECATED case: recordDeprecated() then
+		// extractMultilineTextualBlock to capture the reason.
+		// We read the rest of the current line as the reason text and
+		// trim leading/trailing whitespace (Java's extractMultilineTextualBlock
+		// with WhitespaceOption.TRIM trims each line before joining).
+		reason := strings.TrimSpace(p.stream.GetRemainingJSDocLine())
+		p.info.SetDeprecated(reason)
+		p.anyRecorded = true
+		return p.next()
+	case "final":
+		// Mirrors Java's FINAL case: record the @final flag; no argument.
+		p.info.SetFinal(true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "package":
+		// @package visibility — analogous to @private/@protected/@public.
+		p.info.RecordVisibility(rhino.VisibilityPackage)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
 	case "enum":
 		return p.parseEnumTag()
 	case "suppress":
