@@ -161,7 +161,7 @@ func (p *Parser) tryStatement() (*rhino.Node, bool) {
 		return cls, ok
 	}
 	if declToken, ok := p.consumeDeclKeyword(); ok {
-		return p.finishDeclStatement(declToken, jsdoc)
+		return p.finishDeclStatement(declToken, jsdoc, kwLine, kwCol)
 	}
 	if p.scanner.ConsumeKeyword("return") {
 		return p.finishReturn(), true
@@ -269,8 +269,9 @@ func (p *Parser) tryExpressionStatement() (*rhino.Node, bool) {
 	return stmt, true
 }
 
-func (p *Parser) finishDeclStatement(declToken rhino.Token, jsdoc *rhino.JSDocInfo) (*rhino.Node, bool) {
+func (p *Parser) finishDeclStatement(declToken rhino.Token, jsdoc *rhino.JSDocInfo, kwLine, kwCol int) (*rhino.Node, bool) {
 	declNode := rhino.New(declToken)
+	declNode.SetPos(kwLine, kwCol)
 	if jsdoc != nil {
 		declNode.SetJSDocInfo(jsdoc)
 	}
