@@ -338,6 +338,15 @@ func (o *ObjectType) SetPropertyJSDocInfo(name string, info *rhino.JSDocInfo) {
 	o.propDocInfo[name] = info
 }
 
+// GetOwnPropertyJSDoc / SetPropertyJSDoc are CheckAccessControls-flavoured
+// aliases of the above, matching the Java helper names used in the port.
+func (o *ObjectType) GetOwnPropertyJSDoc(name string) *rhino.JSDocInfo {
+	return o.GetPropertyJSDocInfo(name)
+}
+func (o *ObjectType) SetPropertyJSDoc(name string, info *rhino.JSDocInfo) {
+	o.SetPropertyJSDocInfo(name, info)
+}
+
 // String is for diagnostics; matches Java's PrototypeObjectType.toString
 // shape closely enough that the message column of jsgo output is
 // recognisable to Closure users.

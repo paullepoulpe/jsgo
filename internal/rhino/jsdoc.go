@@ -49,6 +49,9 @@ type JSDocInfo struct {
 	hasThisType     bool   // true when @this annotation was present
 	isOverride      bool   // true when @override annotation was present
 	lendsName       string // non-empty when @lends annotation was present
+	isDeprecated    bool
+	deprecationReason string
+	isFinal         bool
 }
 
 // AddSuppression records a `@suppress {name}` entry. Mirrors
@@ -231,8 +234,33 @@ func (i *JSDocInfo) SetConstructor(b bool) { i.isConstructor = b }
 // jsgo adds those as needed.)
 func (i *JSDocInfo) IsConstant() bool { return i != nil && i.isConst }
 
+// IsConst is an alias used by CheckAccessControls to match Java's
+// JSDocInfo.isConstant() accessor name.
+func (i *JSDocInfo) IsConst() bool { return i.IsConstant() }
+
 // SetConst records that the @const annotation was present.
 func (i *JSDocInfo) SetConst(b bool) { i.isConst = b }
+
+// IsDeprecated / GetDeprecationReason / SetDeprecated mirror
+// JSDocInfo.isDeprecated() / getDeprecationReason() and the builder's
+// recordDeprecated(reason). Used by CheckAccessControls.
+func (i *JSDocInfo) IsDeprecated() bool {
+	return i != nil && (i.isDeprecated || i.deprecationReason != "")
+}
+func (i *JSDocInfo) GetDeprecationReason() string {
+	if i == nil {
+		return ""
+	}
+	return i.deprecationReason
+}
+func (i *JSDocInfo) SetDeprecated(reason string) {
+	i.isDeprecated = true
+	i.deprecationReason = reason
+}
+
+// IsFinal / SetFinal mirror JSDocInfo.isFinal().
+func (i *JSDocInfo) IsFinal() bool    { return i != nil && i.isFinal }
+func (i *JSDocInfo) SetFinal(b bool)  { i.isFinal = b }
 
 func (i *JSDocInfo) Type() *JSTypeExpression     { return i.typeExpr }
 func (i *JSDocInfo) SetType(t *JSTypeExpression) { i.typeExpr = t }
