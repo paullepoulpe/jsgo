@@ -1507,6 +1507,21 @@ func (c *TypedScopeCreator) recordNamespaceAssignFromFunction(a *rhino.Node, sco
 			}
 		}
 	}
+	// Object-literal assignments: `ns.foo = {}` / `ns.foo = {…}`.
+	// Record Unknown as a sentinel namespace prop so nameResolves can
+	// detect the prop exists but is not a constructor-type. Mirrors how
+	// Java's TypedScopeCreator marks namespace object-literal slots as
+	// plain values distinct from @constructor declarations.
+	if rhs.Token() == rhino.OBJECTLIT && lhs.Token() == rhino.GETPROP {
+		lhsKids := lhs.Children()
+		if len(lhsKids) >= 2 && lhsKids[0].Token() == rhino.NAME {
+			recv := lhsKids[0].String_()
+			if _, ok := scope.GetDeclaredType(recv).(*jstype.FunctionType); !ok {
+				scope.recordNamespaceProp(recv, lhsKids[1].String_(), jstype.Unknown, lhsKids[1])
+			}
+		}
+		return
+	}
 	if rhs.Token() != rhino.FUNCTION || lhs.Token() != rhino.GETPROP {
 		return
 	}

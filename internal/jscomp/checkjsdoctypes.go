@@ -915,14 +915,40 @@ func (c *CheckJsDocTypes) nameResolves(name string) bool {
 		return true
 	}
 	if strings.Contains(name, ".") {
-		// Dotted chain — Java validates that the first segment is a
-		// known namespace binding. We approximate: accept when the
-		// first segment is declared anywhere in source or resolves
-		// as a type / extern. Missing prefix → treat as unknown.
+		// If the full dotted path resolves as a genuine type (constructor
+		// namespace prop, typedef alias, or enum) accept it immediately.
+		if typeNameResolvesInScope(c.scope, name) {
+			return true
+		}
 		first := name[:strings.IndexByte(name, '.')]
 		if first == "" {
 			return true
 		}
+		// If the last segment never appears in source code (only in JSDoc
+		// comments), it cannot be a declared identifier and therefore cannot
+		// be a valid type name. Mirrors Java's JSTypeRegistry.getType which
+		// returns null for names not registered in the type registry.
+		lastDot := strings.LastIndexByte(name, '.')
+		lastSeg := name[lastDot+1:]
+		if !c.allNames[lastSeg] {
+			return false
+		}
+		// If we have an explicit namespace-property record for this path,
+		// check whether it is registered as a type (constructor or enum).
+		// A recorded non-constructor, non-enum value is definitely not a
+		// valid type annotation target.
+		owner := name[:lastDot]
+		if t := c.scope.LookupNamespaceProp(owner, lastSeg); t != nil {
+			if _, ok := t.(*jstype.EnumType); ok {
+				return true
+			}
+			if fn, ok := t.(*jstype.FunctionType); ok && fn.Instance != nil {
+				return true
+			}
+			return false
+		}
+		// Unknown or external namespace — be conservative: accept when
+		// the first segment is known anywhere in source or resolves.
 		if c.allNames[first] || c.scope.ResolveExpr(first) != jstype.Unknown || defaultExternNames()[first] {
 			return true
 		}
