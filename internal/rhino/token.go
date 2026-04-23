@@ -125,6 +125,11 @@ const (
 	ARRAYLIT
 	OBJECTLIT
 	STRING_KEY
+
+	// Cast expression — `/** @type {T} */ (expr)`.
+	// Injected by the parser when a JSDoc with @type precedes a
+	// parenthesised expression. Mirrors Token.CAST in the Java IR.
+	CAST
 )
 
 func (t Token) String() string {
@@ -301,6 +306,8 @@ func (t Token) String() string {
 		return "OBJECTLIT"
 	case STRING_KEY:
 		return "STRING_KEY"
+	case CAST:
+		return "CAST"
 	}
 	return "ERROR"
 }

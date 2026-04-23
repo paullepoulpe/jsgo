@@ -310,7 +310,12 @@ func (p *Parser) finishDeclStatement(declToken rhino.Token, jsdoc *rhino.JSDocIn
 				p.scanner.SkipToStatementBoundary()
 				return declNode, true
 			}
-			init.SetPos(initLine, initCol)
+			// Only backfill the position when the expression didn't
+			// set its own (e.g. a CAST node positions itself at the
+			// inner `(`, not at the start of the JSDoc comment).
+			if init.Lineno() == 0 && init.Charno() == 0 {
+				init.SetPos(initLine, initCol)
+			}
 			nameNode.AddChildToBack(init)
 		}
 		p.scanner.SkipTrivia()
@@ -1325,6 +1330,17 @@ func (p *Parser) tryUnary() (*rhino.Node, bool) {
 	if p.scanner.AtEnd() {
 		return nil, false
 	}
+
+	// Cast expression: `/** @type {T} */ (expr)`. Mirrors Java's
+	// IRFactory.maybeInjectCastNode — when the parser sees a JSDoc block
+	// with a @type annotation immediately before a parenthesised expression,
+	// it wraps the inner expr in a CAST node and attaches the JSDoc to it.
+	// This must be checked before the switch below so that the `/*` rune
+	// doesn't fall through to the default postfix path.
+	if node, ok := p.tryCastExpression(); ok {
+		return node, true
+	}
+
 	startLine, startCol := p.scanner.Line(), p.scanner.Col()
 	c := p.scanner.Peek()
 	switch c {
@@ -1515,6 +1531,59 @@ func (p *Parser) tryPostfix() (*rhino.Node, bool) {
 		}
 		return expr, true
 	}
+}
+
+// tryCastExpression detects `/** @type {T} */ (expr)` and wraps it in
+// a CAST node. This mirrors Java's IRFactory.maybeInjectCastNode:
+// a parenthesised expression whose preceding block comment carries an
+// @type annotation becomes CAST(inner) with the JSDoc attached to the
+// CAST node. Returns (nil, false) when the pattern doesn't match,
+// leaving the scanner position unchanged.
+func (p *Parser) tryCastExpression() (*rhino.Node, bool) {
+	save := p.scanner.Save()
+	rewind := func() { p.scanner.Restore(save) }
+
+	// Peek for a block comment. The comment must carry @type for this
+	// to be a cast; otherwise we restore and let the caller proceed.
+	body, ok := p.scanner.ConsumeBlockComment()
+	if !ok {
+		// Not a block comment — not a cast.
+		rewind()
+		return nil, false
+	}
+	castInfo := parsing.ParseJSDocInfo(body)
+	if castInfo == nil || !castInfo.HasType() {
+		// Block comment, but no @type — not a cast expression. Restore
+		// so the comment is silently dropped (same behaviour as Java
+		// which only promotes to CAST when info.hasType() is true).
+		rewind()
+		return nil, false
+	}
+
+	p.scanner.SkipTrivia()
+	if p.scanner.AtEnd() || p.scanner.Peek() != '(' {
+		// @type JSDoc not followed by '(' — fall back; the outer
+		// tryStatement path will handle the comment as a statement doc.
+		rewind()
+		return nil, false
+	}
+
+	// Consume the paren-wrapped inner expression.
+	castLine, castCol := p.scanner.Line(), p.scanner.Col()
+	inner, ok := p.tryParen()
+	if !ok {
+		rewind()
+		return nil, false
+	}
+
+	// Wrap in CAST node with the JSDoc attached. Matches Java:
+	//   irNode = newNode(Token.CAST, irNode);
+	//   node.setJSDocInfo(info);
+	cast := rhino.New(rhino.CAST)
+	cast.SetPos(castLine, castCol)
+	cast.SetJSDocInfo(castInfo)
+	cast.AddChildToBack(inner)
+	return cast, true
 }
 
 // tryPrimary parses literals, identifiers, `this`, array/object
