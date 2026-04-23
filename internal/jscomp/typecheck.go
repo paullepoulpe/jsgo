@@ -465,8 +465,6 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitClassField(n, parent, scope))
 	case rhino.RETURN:
 		c.emit(c.visitReturn(n, scope))
-	case rhino.EQ, rhino.NE, rhino.SHEQ, rhino.SHNE:
-		c.emit(c.visitEquality(n, scope))
 	case rhino.IN:
 		c.emit(c.visitIn(n, scope))
 	case rhino.FOR_IN:
@@ -1502,12 +1500,6 @@ func (c *TypeCheck) visitThis(n *rhino.Node, scope *TypedScope) []diag.Diagnosti
 	}}
 }
 
-// visitEquality ports the JSC_DETERMINISTIC_TEST branch of
-// TypeCheck.visitBinaryOp: when the two operands of `==` / `!=`
-// can never compare equal — disjoint primitive slot types —
-// the comparison always yields a known value and Java emits at
-// the whole expression's column. `===` / `!==` use a separate
-// code (not yet ported).
 // visitFunctionParams fires JSC_INEXISTENT_PARAM when a @param
 // JSDoc names a parameter that doesn't appear in the function's
 // actual parameter list. Java reports at the FUNCTION keyword's
@@ -1720,146 +1712,6 @@ func (c *TypeCheck) visitForIn(n *rhino.Node, scope *TypedScope) []diag.Diagnost
 		Message: "Cannot use the IN operator with structs",
 	}}
 }
-
-func (c *TypeCheck) visitEquality(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
-	kids := n.Children()
-	if len(kids) < 2 {
-		return nil
-	}
-	infer := NewTypeInference(scope)
-	l := infer.InferType(kids[0])
-	r := infer.InferType(kids[1])
-	det, equalValue := disjointForEquality(l, r)
-	if !det {
-		return nil
-	}
-	// Compute the final boolean for this operator. `equalValue`
-	// is the result under `==` / `===`; `!=` / `!==` flip it.
-	value := equalValue
-	if n.Token() == rhino.NE || n.Token() == rhino.SHNE {
-		value = !value
-	}
-	valueStr := "false"
-	if value {
-		valueStr = "true"
-	}
-	return []diag.Diagnostic{{
-		Path: c.path, Line: n.Lineno(), Col: n.Charno(),
-		Code: diag.JSC_DETERMINISTIC_TEST, Level: diag.Error,
-		Message: fmt.Sprintf(
-			"condition always evaluates to %s\nleft : %s\nright: %s",
-			valueStr, l.TypeName(), r.TypeName()),
-	}}
-}
-
-// disjointForEquality reports whether types `a` and `b` always
-// produce the same result under `==` / `===` / `!=` / `!==`. JS's
-// `==` coerces across number / string / boolean; function ↔
-// string / number, symbol ↔ anything-else etc. are always-false.
-// Single-inhabitant types (null, undefined) compared against
-// themselves always succeed. Conservative: stay silent on
-// Unknown / All / unions that might overlap.
-//
-// Returns (deterministic, valueIfEqualOperator):
-//   - `deterministic` true when the pair is disjoint OR both
-//     sides are the same single-inhabitant type.
-//   - `valueIfEqualOperator` is the comparison result assuming
-//     the operator is `==` or `===` (`true` for same-singleton,
-//     `false` for disjoint). Callers flip for `!=` / `!==`.
-func disjointForEquality(a, b jstype.JSType) (bool, bool) {
-	if a == nil || b == nil {
-		return false, false
-	}
-	if isUnknownOrNil(a) || isUnknownOrNil(b) {
-		return false, false
-	}
-	if _, ok := a.(*jstype.UnionType); ok {
-		return false, false
-	}
-	if _, ok := b.(*jstype.UnionType); ok {
-		return false, false
-	}
-	ka := classifyEquality(a)
-	kb := classifyEquality(b)
-	if ka == eqUnknown || kb == eqUnknown {
-		return false, false
-	}
-	if ka == kb {
-		// Same single-inhabitant kind → always equal.
-		if ka == eqNull || ka == eqVoid {
-			return true, true
-		}
-		return false, false
-	}
-	// `null == undefined` is true; keep them quiet.
-	if (ka == eqNull && kb == eqVoid) || (ka == eqVoid && kb == eqNull) {
-		return false, false
-	}
-	// number / string / boolean coerce to each other under `==`.
-	if isPrimitiveKind(ka) && isPrimitiveKind(kb) {
-		return false, false
-	}
-	// Everything else — function/object vs primitive, or distinct
-	// function-vs-object — is always false under `==`.
-	return true, false
-}
-
-func isPrimitiveKind(k equalityKind) bool {
-	switch k {
-	case eqNumber, eqString, eqBoolean:
-		return true
-	}
-	return false
-}
-
-type equalityKind int
-
-const (
-	eqUnknown equalityKind = iota
-	eqNumber
-	eqString
-	eqBoolean
-	eqNull
-	eqVoid
-	eqFunction
-	eqObject
-)
-
-func classifyEquality(t jstype.JSType) equalityKind {
-	switch t {
-	case jstype.Number:
-		return eqNumber
-	case jstype.String:
-		return eqString
-	case jstype.Boolean:
-		return eqBoolean
-	case jstype.Null:
-		return eqNull
-	case jstype.Void:
-		return eqVoid
-	}
-	if _, ok := t.(*jstype.FunctionType); ok {
-		return eqFunction
-	}
-	if obj, ok := t.(*jstype.ObjectType); ok {
-		// Nominal object types compare with each other, not with
-		// the primitive slots. Includes externs-declared Function /
-		// Date / Array / etc. and user-declared @constructor
-		// instances.
-		return eqObjectKind(obj)
-	}
-	if tt, ok := t.(*jstype.TemplatizedType); ok && tt.Base != nil {
-		return eqObjectKind(tt.Base)
-	}
-	return eqUnknown
-}
-
-// eqObjectKind collapses every distinct nominal ObjectType to a
-// single `eqObject` bucket for coarse disjointness checks — good
-// enough for `number == Date` / `Function == string`-style
-// always-false comparisons without having to enumerate every
-// extern.
-func eqObjectKind(_ *jstype.ObjectType) equalityKind { return eqObject }
 
 // visitAdd ports TypeValidator.expectNumberOrString on the ADD
 // operator. JS `+` coerces to string whenever either side is

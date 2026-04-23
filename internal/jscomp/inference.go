@@ -293,6 +293,11 @@ func (t *TypeInference) inferCall(n *rhino.Node) jstype.JSType {
 			return jstype.Number
 		case "Boolean":
 			return jstype.Boolean
+		case "Symbol":
+			// Symbol() without `new` returns a primitive symbol value.
+			// `new Symbol()` throws at runtime; Java's TypeInference
+			// maps CALL(Symbol, …) → symbol primitive here.
+			return jstype.Symbol
 		}
 		if f, ok := t.scope.GetDeclaredType(callee.String_()).(*jstype.FunctionType); ok {
 			fn = f

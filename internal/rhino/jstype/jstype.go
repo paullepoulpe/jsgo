@@ -125,8 +125,24 @@ func (voidType) IsSubtypeOf(o JSType) bool {
 	return isAll(o) || isUnknown(o)
 }
 
+// symbolType is the primitive `symbol` type (distinct from the `Symbol`
+// object wrapper). Mirrors Java's SymbolType in
+// com/google/javascript/rhino/jstype/SymbolType.java.
+type symbolType struct{}
+
+func (symbolType) TypeName() string { return "symbol" }
+func (symbolType) IsSubtypeOf(o JSType) bool {
+	if _, ok := o.(symbolType); ok {
+		return true
+	}
+	return isAll(o) || isUnknown(o)
+}
+
 func isAll(t JSType) bool     { _, ok := t.(allType); return ok }
 func isUnknown(t JSType) bool { _, ok := t.(unknownType); return ok }
+
+// IsSymbol reports whether t is the primitive symbol type.
+func IsSymbol(t JSType) bool { _, ok := t.(symbolType); return ok }
 
 // Canonical interned instances. Java JSTypeRegistry returns the same
 // instance for each primitive; we mirror that with package-level vars.
@@ -138,4 +154,5 @@ var (
 	Boolean  JSType = booleanType{}
 	Null     JSType = nullType{}
 	Void     JSType = voidType{}
+	Symbol   JSType = symbolType{}
 )
