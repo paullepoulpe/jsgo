@@ -701,9 +701,11 @@ func (p *JsDocInfoParser) parseFunctionType() (string, bool) {
 			break
 		}
 		tok := p.next()
-		// Allow leading `this:` / `new:` qualifier; swallow the
-		// qualifier and its type entirely (they affect the call
-		// shape but not the parameter count we track).
+		// Allow leading `this:` / `new:` qualifier.  For `new:T` we
+		// preserve the type in the serialised output as a `new:T`
+		// pseudo-param so resolveFunctionTypeExpr can mark the
+		// resulting FunctionType as IsConstructor=true.  `this:T` is
+		// still swallowed entirely (it doesn't affect constructability).
 		if tok == JsDocTokenString {
 			name := p.stream.String_()
 			if (name == "this" || name == "new") && p.match(JsDocTokenColon) {
@@ -714,9 +716,13 @@ func (p *JsDocInfoParser) parseFunctionType() (string, bool) {
 				// skip to the comma or closing paren. If there is no
 				// comma, the function has no positional params and we
 				// break out of the loop below.
-				_, ok := p.parseTypeExpression(tok)
+				typeExpr, ok := p.parseTypeExpression(tok)
 				if !ok {
 					return "", false
+				}
+				if name == "new" {
+					// Emit as a pseudo-param so the resolver can detect it.
+					params = append(params, "new:"+typeExpr)
 				}
 				p.skipEOLs()
 				if p.match(JsDocTokenComma) {

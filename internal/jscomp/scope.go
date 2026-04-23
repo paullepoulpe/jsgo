@@ -599,10 +599,11 @@ func (s *TypedScope) resolveObjectLiteralType(expr string) (*jstype.ObjectType, 
 // (empty, `Function`, or malformed), so the caller can fall back.
 func (s *TypedScope) resolveFunctionTypeExpr(expr string) *jstype.FunctionType {
 	if expr == "Function" || expr == "function" {
-		// Bare `function` keyword — treat as the callable top-type:
-		// no param info, return Unknown. IsConstructor stays false so
-		// `new f` where f has this type correctly fires NOT_A_CONSTRUCTOR.
-		return jstype.NewFunctionType(nil, jstype.Unknown)
+		// Bare `Function` / `function` — return nil so the caller falls
+		// back to the registered built-in Function constructor type
+		// (IsConstructor=true), matching Java's FUNCTION_TYPE which is
+		// Kind.CONSTRUCTOR and therefore passes couldBeAConstructor.
+		return nil
 	}
 	// Must start with `function(`.
 	if !startsWith(expr, "function(") {
@@ -644,6 +645,21 @@ func (s *TypedScope) resolveFunctionTypeExpr(expr string) *jstype.FunctionType {
 	if trimSpace(paramStr) != "" {
 		paramParts = splitTopLevelComma(paramStr)
 	}
+
+	// Detect `new:T` pseudo-param emitted by parseFunctionType when it
+	// sees a `new:` qualifier.  Strip it from the positional param list
+	// but record that this is a constructor function — matches Java's
+	// FunctionType.Kind.CONSTRUCTOR for `function(new:T, ...)` types.
+	isCtor := false
+	var positionalParts []string
+	for _, pp := range paramParts {
+		if startsWith(trimSpace(pp), "new:") {
+			isCtor = true
+		} else {
+			positionalParts = append(positionalParts, pp)
+		}
+	}
+	paramParts = positionalParts
 
 	var paramTypes []jstype.JSType
 	minArity := 0
@@ -691,10 +707,11 @@ func (s *TypedScope) resolveFunctionTypeExpr(expr string) *jstype.FunctionType {
 	}
 
 	fn := &jstype.FunctionType{
-		Params:   paramTypes,
-		Return:   retType,
-		MinArity: minArity,
-		MaxArity: maxArity,
+		Params:        paramTypes,
+		Return:        retType,
+		MinArity:      minArity,
+		MaxArity:      maxArity,
+		IsConstructor: isCtor,
 	}
 	return fn
 }
