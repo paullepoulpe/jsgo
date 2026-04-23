@@ -238,14 +238,9 @@ func (c *CanCastToVisitor) CaseEnumElementType(thisType *EnumElementType, thatTy
 	return VisitRelationship(c, thisType.Enum.Underlying, thatType)
 }
 
-// isRecordType reports whether t is a structural (@record) object type.
-// Mirrors JSType.isRecordType() in Java.
-func isRecordType(t JSType) bool {
-	if obj, ok := t.(*ObjectType); ok {
-		return obj.IsStructural
-	}
-	return false
-}
+// isRecordType is defined in type_string_builder.go; reused here.
+// (The Java `isRecordType` dispatches through JSType.isRecordType(); in
+// Go we share a single helper across visitor/builder files.)
 
 // isNullType reports whether t is the null primitive.
 func isNullType(t JSType) bool {
