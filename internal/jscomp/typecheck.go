@@ -520,6 +520,8 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitRelationalDefault(n, scope))
 	case rhino.FUNCTION:
 		c.emit(c.visitFunctionParams(n, scope))
+	case rhino.OBJECTLIT:
+		c.emit(c.visitObjectLit(n, scope))
 	}
 	// Strict-mode operand checks — OFF by default, matching Java.
 	// These fire only when `--jscomp_warning=strictCheckTypes` is set.
@@ -2232,6 +2234,62 @@ func isStringOperandOk(t jstype.JSType) bool {
 		return true
 	}
 	return t == jstype.String || t == jstype.Null || t == jstype.Void || t == jstype.All
+}
+
+// ---- visitObjectLit / visitArrayLit ----------------------------- //
+
+// visitObjectLit ports the OBJECTLIT branch of TypeCheck.java's visit().
+// It fires JSC_ILLEGAL_OBJLIT_KEY when:
+//   - the object literal is annotated @struct and a key is a quoted string
+//     (e.g. `/** @struct */ { 'x': 1 }`)
+//   - the object literal is annotated @dict and a key is an unquoted identifier
+//     (e.g. `/** @dict */ { x: 1 }`)
+//
+// Mirrors Java's visitObjectOrClassLiteralKey struct/dict gate.
+// Property-value type checks (getObjectLitKeyTypeFromValueType / expectCanAssignToPropertyOf)
+// are deferred — TODO.
+func (c *TypeCheck) visitObjectLit(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	infer := NewTypeInference(scope)
+	ownerType := infer.InferType(n)
+	obj := dereferencedObject(ownerType)
+	if obj == nil {
+		return nil
+	}
+	if !obj.IsStruct && !obj.IsDict {
+		return nil
+	}
+	var out []diag.Diagnostic
+	for key := n.FirstChild(); key != nil; key = key.Next() {
+		if key.Token() != rhino.STRING_KEY {
+			continue
+		}
+		if key.IsQuotedStringKey() {
+			// quoted key in @struct is illegal
+			if obj.IsStruct {
+				out = append(out, diag.Diagnostic{
+					Path:    c.path,
+					Line:    key.Lineno(),
+					Col:     key.Charno(),
+					Code:    diag.JSC_ILLEGAL_OBJLIT_KEY,
+					Level:   diag.Error,
+					Message: "Illegal key, the object literal is a struct",
+				})
+			}
+		} else {
+			// unquoted key in @dict is illegal
+			if obj.IsDict {
+				out = append(out, diag.Diagnostic{
+					Path:    c.path,
+					Line:    key.Lineno(),
+					Col:     key.Charno(),
+					Code:    diag.JSC_ILLEGAL_OBJLIT_KEY,
+					Level:   diag.Error,
+					Message: "Illegal key, the object literal is a dict",
+				})
+			}
+		}
+	}
+	return out
 }
 
 // ---- JSC_NON_STRINGIFIABLE_OBJECT_KEY branch -------------------- //

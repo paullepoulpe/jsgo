@@ -1571,6 +1571,24 @@ func (p *Parser) tryPrimary() (*rhino.Node, bool) {
 	if p.scanner.AtEnd() {
 		return nil, false
 	}
+	// A JSDoc block comment immediately before `{` (e.g.
+	// `/** @struct */ { … }`) — consume it speculatively and attach to
+	// the resulting object literal. If the next token after the comment
+	// is not `{`, restore the scanner so the comment is left in place.
+	var leadingJSDoc *rhino.JSDocInfo
+	if p.scanner.Peek() == '/' && p.scanner.PeekAt(1) == '*' && p.scanner.PeekAt(2) == '*' {
+		save := p.scanner.Save()
+		if b, ok := p.scanner.ConsumeBlockComment(); ok {
+			p.scanner.SkipTrivia()
+			if p.scanner.Peek() == '{' {
+				leadingJSDoc = parsing.ParseJSDocInfo(b)
+			} else {
+				p.scanner.Restore(save)
+			}
+		} else {
+			p.scanner.Restore(save)
+		}
+	}
 	startLine, startCol := p.scanner.Line(), p.scanner.Col()
 
 	// Arrow and parenthesized expressions both start with '('. Try the
@@ -1616,7 +1634,11 @@ func (p *Parser) tryPrimary() (*rhino.Node, bool) {
 	case c == '[':
 		return p.tryArrayLit()
 	case c == '{':
-		return p.tryObjectLit()
+		obj, ok := p.tryObjectLit()
+		if ok && obj != nil && leadingJSDoc != nil && obj.JSDocInfo() == nil {
+			obj.SetJSDocInfo(leadingJSDoc)
+		}
+		return obj, ok
 	case c == 't' || c == 'f':
 		if n, ok := p.parseBooleanLiteral(); ok {
 			n.SetPos(startLine, startCol)
@@ -1793,9 +1815,11 @@ func (p *Parser) tryObjectLit() (*rhino.Node, bool) {
 		}
 		keyLine, keyCol := p.scanner.Line(), p.scanner.Col()
 		var keyName string
+		var quotedKey bool
 		c := p.scanner.Peek()
 		switch {
 		case c == '\'' || c == '"':
+			quotedKey = true
 			p.scanner.Advance()
 			start := p.scanner.Pos()
 			for !p.scanner.AtEnd() && p.scanner.Peek() != c {
@@ -1828,6 +1852,9 @@ func (p *Parser) tryObjectLit() (*rhino.Node, bool) {
 		if p.scanner.Peek() == ',' || p.scanner.Peek() == '}' {
 			key := rhino.NewString(rhino.STRING_KEY, keyName)
 			key.SetPos(keyLine, keyCol)
+			if quotedKey {
+				key.PutBooleanProp(rhino.PropQuotedStringKey, true)
+			}
 			ref := rhino.NewString(rhino.NAME, keyName)
 			ref.SetPos(keyLine, keyCol)
 			key.AddChildToBack(ref)
@@ -1849,6 +1876,9 @@ func (p *Parser) tryObjectLit() (*rhino.Node, bool) {
 		val.SetPos(valLine, valCol)
 		key := rhino.NewString(rhino.STRING_KEY, keyName)
 		key.SetPos(keyLine, keyCol)
+		if quotedKey {
+			key.PutBooleanProp(rhino.PropQuotedStringKey, true)
+		}
 		key.AddChildToBack(val)
 		obj.AddChildToBack(key)
 		p.scanner.SkipTrivia()
