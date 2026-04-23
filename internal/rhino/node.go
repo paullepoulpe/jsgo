@@ -7,9 +7,7 @@
 // storage as a plain slice for readability. The Java side uses an
 // intrusive singly-linked list (Node.first + child.next), but the
 // slice + explicit parent/next/previous maintenance below produces
-// the same observable API. Bits still not ported: cloneNode,
-// SideEffectFlags, the full ~50-entry Prop enum, JSTypeNative
-// annotation slot.
+// the same observable API.
 
 package rhino
 
@@ -38,6 +36,25 @@ const (
 	// ES6 class getter / setter methods (`get foo(){}` / `set foo(v){}`).
 	PropGetterDef
 	PropSetterDef
+	// PropSideEffectFlags stores an inverted bitmask of SideEffectFlags bits.
+	// Mirrors Java's Node.Prop.SIDE_EFFECT_FLAGS. Only meaningful on CALL/NEW.
+	PropSideEffectFlags
+	// PropIsNamespace mirrors Java's Node.IS_NAMESPACE — set on NAME nodes
+	// that introduce a goog.provide / goog.module namespace.
+	PropIsNamespace
+	// PropFreeCall mirrors Java's Node.FREE_CALL — set on CALL nodes that
+	// have no explicit receiver ("free" calls, e.g. `f()` not `obj.f()`).
+	PropFreeCall
+	// PropDirectEval mirrors Java's Node.DIRECT_EVAL — set on direct eval
+	// CALL nodes (i.e. the callee is literally `eval`).
+	PropDirectEval
+	// PropStartOfOptChain mirrors Java's Node.START_OF_OPT_CHAIN — set on
+	// OPTCHAIN_CALL / OPTCHAIN_GETPROP / OPTCHAIN_GETELEM nodes that begin
+	// an optional chain (i.e. immediately follow the `?.` operator).
+	PropStartOfOptChain
+	// PropSynthetic mirrors Java's Node.SYNTHETIC — set on synthesized BLOCK
+	// nodes that do not correspond to source-level braces.
+	PropSynthetic
 )
 
 type Node struct {
@@ -53,6 +70,11 @@ type Node struct {
 	jsdoc  *JSDocInfo
 	lineno int // 1-indexed, matches Node.getLineno()
 	charno int // 0-indexed, matches Node.getCharno()
+
+	// jstypeOrColor mirrors Java's Node.jstypeOrColor: the compiler-inferred
+	// JSType (or Color in the colour-only pipeline). Stored as `any` to avoid
+	// an import cycle (jstype imports rhino). Callers use GetJSType/SetJSType.
+	jstypeOrColor any
 
 	props map[Prop]any
 }
@@ -399,4 +421,354 @@ func (n *Node) IsInferredConstantVar() bool {
 func (n *Node) SetInferredConstantVar(b bool) {
 	n.PutBooleanProp(PropInferredConstantVar, b)
 }
+
+// ---------------- int-prop bag ---------------------------------------- //
+
+// GetIntProp ports Node.getIntProp(Prop). Returns 0 when absent.
+func (n *Node) GetIntProp(p Prop) int {
+	if n.props == nil {
+		return 0
+	}
+	v, ok := n.props[p]
+	if !ok {
+		return 0
+	}
+	i, _ := v.(int)
+	return i
+}
+
+// PutIntProp ports Node.putIntProp(Prop, int).
+func (n *Node) PutIntProp(p Prop, val int) {
+	if val == 0 {
+		if n.props != nil {
+			delete(n.props, p)
+		}
+		return
+	}
+	if n.props == nil {
+		n.props = map[Prop]any{}
+	}
+	n.props[p] = val
+}
+
+// ---------------- JSType storage -------------------------------------- //
+
+// GetJSType ports Node.getJSType(). Returns the compiler-inferred type stored
+// on this node, or nil when none has been set. The concrete value is a
+// *jstype.JSType (or subtype thereof) — callers in the jscomp layer assert the
+// concrete type at use-sites via a type-switch/cast.
+func (n *Node) GetJSType() any { return n.jstypeOrColor }
+
+// SetJSType ports Node.setJSType(JSType). Stores the compiler-inferred type.
+// Passing nil clears the annotation.
+func (n *Node) SetJSType(t any) { n.jstypeOrColor = t }
+
+// ---------------- SideEffectFlags ------------------------------------- //
+
+// SideEffectFlags mirrors the Java inner class Node.SideEffectFlags.
+// It encodes which side effects a CALL or NEW node may produce.
+// Bit layout (identical to Java):
+//
+//	bit 0 MUTATES_GLOBAL_STATE
+//	bit 1 MUTATES_THIS
+//	bit 2 MUTATES_ARGUMENTS
+//	bit 3 THROWS
+type SideEffectFlags struct{ value int }
+
+const (
+	SideEffectMutatesGlobalState = 1
+	SideEffectMutatesThis        = 2
+	SideEffectMutatesArguments   = 4
+	SideEffectThrows             = 8
+
+	sideEffectUsedBitsMask = (1 << 4) - 1 // 0b1111
+
+	SideEffectNoSideEffects = 0
+	SideEffectAllSideEffects = SideEffectMutatesGlobalState |
+		SideEffectMutatesThis | SideEffectMutatesArguments | SideEffectThrows
+)
+
+// NewSideEffectFlags returns a SideEffectFlags with all bits set (Java default).
+func NewSideEffectFlags() SideEffectFlags {
+	return SideEffectFlags{value: SideEffectAllSideEffects}
+}
+
+// NewSideEffectFlagsValue wraps a raw int value.
+func NewSideEffectFlagsValue(v int) SideEffectFlags { return SideEffectFlags{value: v} }
+
+func (f *SideEffectFlags) ValueOf() int { return f.value }
+
+// SetAllFlags sets all side-effect bits.
+func (f *SideEffectFlags) SetAllFlags() *SideEffectFlags {
+	f.value = SideEffectAllSideEffects
+	return f
+}
+
+// ClearAllFlags clears all side-effect bits.
+func (f *SideEffectFlags) ClearAllFlags() *SideEffectFlags {
+	f.value = SideEffectNoSideEffects
+	return f
+}
+
+// SetMutatesGlobalState sets the global-state, arguments, and this mutation bits
+// (matching Java's semantics: mutating global state implies the others).
+func (f *SideEffectFlags) SetMutatesGlobalState() *SideEffectFlags {
+	f.value |= SideEffectMutatesGlobalState | SideEffectMutatesArguments | SideEffectMutatesThis
+	return f
+}
+
+// SetThrows sets the throws bit.
+func (f *SideEffectFlags) SetThrows() *SideEffectFlags {
+	f.value |= SideEffectThrows
+	return f
+}
+
+// SetMutatesThis sets the mutates-this bit.
+func (f *SideEffectFlags) SetMutatesThis() *SideEffectFlags {
+	f.value |= SideEffectMutatesThis
+	return f
+}
+
+// SetMutatesArguments sets the mutates-arguments bit.
+func (f *SideEffectFlags) SetMutatesArguments() *SideEffectFlags {
+	f.value |= SideEffectMutatesArguments
+	return f
+}
+
+// SetSideEffectFlags ports Node.setSideEffectFlags(int).
+// Only meaningful on CALL / NEW / TAGGED_TEMPLATELIT nodes.
+// The value is stored inverted so the default (0-int-prop) == all flags set.
+func (n *Node) SetSideEffectFlags(flags int) {
+	n.PutIntProp(PropSideEffectFlags, ^flags&sideEffectUsedBitsMask)
+}
+
+// SetSideEffectFlagsValue is a convenience overload accepting SideEffectFlags.
+func (n *Node) SetSideEffectFlagsValue(flags SideEffectFlags) {
+	n.SetSideEffectFlags(flags.value)
+}
+
+// GetSideEffectFlags ports Node.getSideEffectFlags().
+// Returns the raw int bitmask; defaults to all-bits-set (ALL_SIDE_EFFECTS)
+// when the prop has never been written.
+func (n *Node) GetSideEffectFlags() int {
+	return ^n.GetIntProp(PropSideEffectFlags) & sideEffectUsedBitsMask
+}
+
+// IsNoSideEffectsCall returns true iff the call has no side effects.
+func (n *Node) IsNoSideEffectsCall() bool {
+	return n.GetSideEffectFlags() == SideEffectNoSideEffects
+}
+
+// IsOnlyModifiesThisCall mirrors Java: returns true when the only side-effect
+// (if any) is mutating the receiver.
+func (n *Node) IsOnlyModifiesThisCall() bool {
+	return n.GetSideEffectFlags()&^SideEffectMutatesThis == SideEffectNoSideEffects
+}
+
+// IsOnlyModifiesArgumentsCall mirrors Java.
+func (n *Node) IsOnlyModifiesArgumentsCall() bool {
+	return n.GetSideEffectFlags()&^SideEffectMutatesArguments == SideEffectNoSideEffects
+}
+
+// MayMutateArguments returns true iff the MUTATES_ARGUMENTS bit is set.
+func (n *Node) MayMutateArguments() bool {
+	return n.GetSideEffectFlags()&SideEffectMutatesArguments != 0
+}
+
+// MayMutateGlobalStateOrThrow returns true iff the global-state or throws bit is set.
+func (n *Node) MayMutateGlobalStateOrThrow() bool {
+	return n.GetSideEffectFlags()&(SideEffectMutatesGlobalState|SideEffectThrows) != 0
+}
+
+// ---------------- shallow clone --------------------------------------- //
+
+// CloneNode ports Node.cloneNode() — returns a detached shallow copy of n
+// (same token/str/num/pos/jsdoc/props) without any children.
+// Distinct from CloneTree which recursively clones children.
+func (n *Node) CloneNode() *Node {
+	if n == nil {
+		return nil
+	}
+	clone := &Node{
+		token:         n.token,
+		str:           n.str,
+		num:           n.num,
+		lineno:        n.lineno,
+		charno:        n.charno,
+		jsdoc:         n.jsdoc,
+		jstypeOrColor: n.jstypeOrColor,
+	}
+	if n.props != nil {
+		clone.props = make(map[Prop]any, len(n.props))
+		for k, v := range n.props {
+			clone.props[k] = v
+		}
+	}
+	return clone
+}
+
+// ---------------- navigation helpers ---------------------------------- //
+
+// GetGrandparent ports Node.getGrandparent(). Returns nil when the node has
+// fewer than two ancestors.
+func (n *Node) GetGrandparent() *Node {
+	if n.parent == nil {
+		return nil
+	}
+	return n.parent.parent
+}
+
+// GetSecondChild ports Node.getSecondChild(). Returns the second child, or nil
+// when n has fewer than two children.
+func (n *Node) GetSecondChild() *Node {
+	if len(n.children) < 2 {
+		return nil
+	}
+	return n.children[1]
+}
+
+// GetLastSibling ports Node.getLastSibling(). Returns the last sibling of n
+// (following the chain of Next pointers). Returns n itself when it has no
+// next sibling.
+func (n *Node) GetLastSibling() *Node {
+	cur := n
+	for cur.next != nil {
+		cur = cur.next
+	}
+	return cur
+}
+
+// ---------------- source-ref helpers ---------------------------------- //
+
+// Srcref ports Node.srcref(Node other) — copies lineno/charno from other.
+// Returns n for fluent use (mirrors Java's @CanIgnoreReturnValue signature).
+func (n *Node) Srcref(other *Node) *Node {
+	if other == nil {
+		return n
+	}
+	n.lineno = other.lineno
+	n.charno = other.charno
+	return n
+}
+
+// SrcrefTree ports Node.srcrefTree(Node other) — copies source position from
+// other onto n and every node in its subtree.
+func (n *Node) SrcrefTree(other *Node) *Node {
+	n.Srcref(other)
+	for _, c := range n.children {
+		c.SrcrefTree(other)
+	}
+	return n
+}
+
+// SrcrefIfMissing ports Node.srcrefIfMissing(Node other) — copies lineno/charno
+// only when the node's current position is unset (lineno == 0).
+func (n *Node) SrcrefIfMissing(other *Node) *Node {
+	if other == nil {
+		return n
+	}
+	if n.lineno == 0 {
+		n.lineno = other.lineno
+		n.charno = other.charno
+	}
+	return n
+}
+
+// SrcrefTreeIfMissing ports Node.srcrefTreeIfMissing(Node other).
+func (n *Node) SrcrefTreeIfMissing(other *Node) *Node {
+	n.SrcrefIfMissing(other)
+	for _, c := range n.children {
+		c.SrcrefTreeIfMissing(other)
+	}
+	return n
+}
+
+// ---------------- token classifiers ----------------------------------- //
+
+// MatchesName ports Node.matchesName(String). Returns true iff this is a
+// non-empty NAME node whose string value equals name.
+func (n *Node) MatchesName(name string) bool {
+	if n.token != NAME {
+		return false
+	}
+	return n.str != "" && n.str == name
+}
+
+// MatchesQualifiedNameStr ports Node.matchesQualifiedName(String). Returns true
+// iff this node represents the dotted name encoded in qname (e.g. "a.b.c").
+func (n *Node) MatchesQualifiedNameStr(qname string) bool {
+	return n.matchesQualifiedNameAt(qname, len(qname))
+}
+
+// matchesQualifiedNameAt is the recursive helper for MatchesQualifiedNameStr.
+// It mirrors Java's private Node.matchesQualifiedName(String, int).
+func (n *Node) matchesQualifiedNameAt(qname string, end int) bool {
+	start := lastIndexByte(qname, '.', end) + 1
+	switch n.token {
+	case NAME:
+		name := n.str
+		return start == 0 && name != "" && len(name) == end && qname[:end] == name
+	case THIS:
+		return start == 0 && end == 4 && qname[:4] == "this"
+	case SUPER:
+		return start == 0 && end == 5 && qname[:5] == "super"
+	case GETPROP:
+		prop := n.str
+		return start > 1 &&
+			len(prop) == end-start &&
+			qname[start:end] == prop &&
+			n.FirstChild() != nil &&
+			n.FirstChild().matchesQualifiedNameAt(qname, start-1)
+	default:
+		return false
+	}
+}
+
+// lastIndexByte returns the index of the last occurrence of b in s[:end],
+// or -1 if not found. Equivalent to strings.LastIndex restricted to a byte.
+func lastIndexByte(s string, b byte, end int) int {
+	for i := end - 1; i >= 0; i-- {
+		if s[i] == b {
+			return i
+		}
+	}
+	return -1
+}
+
+// IsOptChainCall mirrors Java's Node.isOptChainCall().
+// Returns true iff the token is OPTCHAIN_CALL (not yet in this token set;
+// always false until OPTCHAIN_CALL is added to token.go).
+func (n *Node) IsOptChainCall() bool { return false }
+
+// IsOptChainGetElem mirrors Java's Node.isOptChainGetElem(). Always false
+// until OPTCHAIN_GETELEM is added to token.go.
+func (n *Node) IsOptChainGetElem() bool { return false }
+
+// IsOptChainGetProp mirrors Java's Node.isOptChainGetProp(). Always false
+// until OPTCHAIN_GETPROP is added to token.go.
+func (n *Node) IsOptChainGetProp() bool { return false }
+
+// IsOptionalChainStart mirrors Java's Node.isOptionalChainStart() — true when
+// this OPTCHAIN node is the start of the chain (immediately after `?.`).
+func (n *Node) IsOptionalChainStart() bool {
+	return n.GetBooleanProp(PropStartOfOptChain)
+}
+
+// SetIsOptionalChainStart mirrors Java's Node.setIsOptionalChainStart(bool).
+func (n *Node) SetIsOptionalChainStart(b bool) {
+	n.PutBooleanProp(PropStartOfOptChain, b)
+}
+
+// IsFreeCall mirrors Java's Node.getBooleanProp(FREE_CALL). True when this
+// CALL node has no explicit receiver (i.e. callee is not a GETPROP/GETELEM).
+func (n *Node) IsFreeCall() bool { return n.GetBooleanProp(PropFreeCall) }
+
+// SetFreeCall mirrors Java's Node.putBooleanProp(FREE_CALL, b).
+func (n *Node) SetFreeCall(b bool) { n.PutBooleanProp(PropFreeCall, b) }
+
+// IsNamespace mirrors Java's Node.getBooleanProp(IS_NAMESPACE).
+func (n *Node) IsNamespace() bool { return n.GetBooleanProp(PropIsNamespace) }
+
+// SetNamespace mirrors Java's Node.putBooleanProp(IS_NAMESPACE, b).
+func (n *Node) SetNamespace(b bool) { n.PutBooleanProp(PropIsNamespace, b) }
 
