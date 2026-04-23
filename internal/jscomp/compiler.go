@@ -75,6 +75,7 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	all = append(all, NewVariableReferenceCheck(path, externScope).Check(script)...)
 	all = append(all, NewCheckJsDocTypes(path, src, scope, creator).Check()...)
 	all = append(all, NewTypeCheckWithOptions(path, creator, scope, opts).Check(script)...)
+	all = append(all, NewCheckDeterministicTest(path, creator, scope).Check(script)...)
 	all = append(all, NewCheckMissingReturn(path, scope).Check(script)...)
 	all = append(all, NewSuperclassCheck(path, creator, scope).Check(script)...)
 	all = append(all, NewCheckDupVarDecl(path, scope).Check(script)...)

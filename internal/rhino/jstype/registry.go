@@ -124,6 +124,8 @@ func (r *Registry) ResolveName(name string) JSType {
 		return Null
 	case "undefined", "void":
 		return Void
+	case "symbol":
+		return Symbol
 	case "*":
 		return All
 	}

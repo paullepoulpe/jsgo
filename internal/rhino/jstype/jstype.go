@@ -67,16 +67,20 @@ func IsSubtype(x, y JSType) bool {
 func isAll(t JSType) bool     { _, ok := t.(allType); return ok }
 func isUnknown(t JSType) bool { _, ok := t.(unknownType); return ok }
 
+// IsSymbol reports whether t is the symbol type (SymbolType from symbol_type.go).
+func IsSymbol(t JSType) bool { _, ok := t.(SymbolType); return ok }
+
 // Canonical interned instances. Java JSTypeRegistry returns the same
 // instance for each primitive; we mirror that with package-level vars.
 var (
-	All      JSType = allType{}
-	Unknown  JSType = unknownType{}
-	Number   JSType = numberType{}
-	String   JSType = stringType{}
-	Boolean  JSType = booleanType{}
-	Null     JSType = nullType{}
-	Void     JSType = voidType{}
+	All     JSType = allType{}
+	Unknown JSType = unknownType{}
+	Number  JSType = numberType{}
+	String  JSType = stringType{}
+	Boolean JSType = booleanType{}
+	Null    JSType = nullType{}
+	Void    JSType = voidType{}
+	// Symbol is declared in symbol_type.go.
 )
 
 // ToMaybeFunctionType mirrors JSType.toMaybeFunctionType(JSType) — null-
