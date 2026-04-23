@@ -219,7 +219,20 @@ func (p *JsDocInfoParser) parseAnnotation(_ JsDocToken) JsDocToken {
 	case "const":
 		p.info.SetConst(true)
 		p.anyRecorded = true
-		return p.eatUntilEOLIfNotAnnotation()
+		// Java's parser calls recordType(type) when a `{T}` follows @const
+		// (CONSTANT is in isAlternateTypeAnnotation; lookAheadForType()→true
+		// → parseAndRecordTypeNode → recordType). Mirror that: attempt to
+		// parse an optional `{T}` and store it as the declared type so that
+		// @const {string} behaves like @type {string}.
+		p.skipEOLs()
+		t := p.next()
+		if expr, next, ok := p.parseTypeExpressionAnnotation(t); ok {
+			p.info.SetType(rhino.NewJSTypeExpression(expr))
+			return next
+		}
+		// No `{T}` present — t is the first non-EOL token (already consumed).
+		// Return it directly so the outer loop re-dispatches it.
+		return t
 	}
 	return p.eatUntilEOLIfNotAnnotation()
 }
