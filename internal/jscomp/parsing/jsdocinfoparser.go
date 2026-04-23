@@ -614,6 +614,12 @@ func (p *JsDocInfoParser) parseRecordType() (string, bool) {
 // parseFunctionType: `function(params): returnType`. Shrunk from
 // Java's more complete version: we skip `this:` / `new:` prefixes and
 // treat every param as a positional type.
+//
+// Param modifiers recognised:
+//   - Leading `...`  (JsDocTokenIterRest) marks the param as variadic;
+//     emitted as `...T` in the serialised string.
+//   - Trailing `=`   (JsDocTokenEquals) marks the param as optional;
+//     emitted as `T=` in the serialised string.
 func (p *JsDocInfoParser) parseFunctionType() (string, bool) {
 	if !p.match(JsDocTokenLeftParen) {
 		return "Function", true // bare `function`
@@ -626,20 +632,56 @@ func (p *JsDocInfoParser) parseFunctionType() (string, bool) {
 			break
 		}
 		tok := p.next()
-		// Allow leading `this:` / `new:` qualifier; swallow it.
+		// Allow leading `this:` / `new:` qualifier; swallow the
+		// qualifier and its type entirely (they affect the call
+		// shape but not the parameter count we track).
 		if tok == JsDocTokenString {
 			name := p.stream.String_()
 			if (name == "this" || name == "new") && p.match(JsDocTokenColon) {
-				p.next()
+				p.next() // consume `:`
 				p.skipEOLs()
 				tok = p.next()
+				// Consume the `this` / `new` type expression, then
+				// skip to the comma or closing paren. If there is no
+				// comma, the function has no positional params and we
+				// break out of the loop below.
+				_, ok := p.parseTypeExpression(tok)
+				if !ok {
+					return "", false
+				}
+				p.skipEOLs()
+				if p.match(JsDocTokenComma) {
+					p.next() // consume `,`
+				}
+				continue
 			}
+		}
+		// Leading `...` marks a variadic (rest) param.
+		isRest := false
+		if tok == JsDocTokenIterRest {
+			isRest = true
+			p.skipEOLs()
+			tok = p.next()
 		}
 		expr, ok := p.parseTypeExpression(tok)
 		if !ok {
 			return "", false
 		}
-		params = append(params, expr)
+		p.skipEOLs()
+		// Trailing `=` marks an optional param.
+		isOptional := false
+		if p.match(JsDocTokenEquals) {
+			p.next()
+			isOptional = true
+		}
+		switch {
+		case isRest:
+			params = append(params, "..."+expr)
+		case isOptional:
+			params = append(params, expr+"=")
+		default:
+			params = append(params, expr)
+		}
 		p.skipEOLs()
 		if p.match(JsDocTokenComma) {
 			p.next()

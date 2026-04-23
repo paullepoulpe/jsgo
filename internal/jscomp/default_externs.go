@@ -251,11 +251,10 @@ function WeakSet(opt_iter) {}
 /** @constructor */ function Proxy(target, handler) {}
 /** @const */ var Reflect;
 
-/**
- * @constructor
- * @param {string=} opt_desc
- */
-function Symbol(opt_desc) {}
+// Symbol is intentionally NOT @constructor — new Symbol() is a
+// runtime TypeError. Declared as plain function so visitNew fires
+// JSC_NOT_A_CONSTRUCTOR. Static symbol props kept from the wider bundle.
+/** @return {symbol} */ function Symbol(opt_desc) {}
 /** @type {symbol} */ Symbol.iterator;
 /** @type {symbol} */ Symbol.hasInstance;
 /** @type {symbol} */ Symbol.isConcatSpreadable;
@@ -270,7 +269,6 @@ function Symbol(opt_desc) {}
 /** @type {symbol} */ Symbol.unscopables;
 Symbol.for = function(key) {};
 Symbol.keyFor = function(sym) {};
-
 /** @constructor */ function ArrayBuffer(opt_len) {}
 /** @constructor */ function DataView(buf, opt_off, opt_len) {}
 /** @constructor */ function Int8Array(v) {}

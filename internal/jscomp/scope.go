@@ -261,6 +261,25 @@ func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 		nullable = true
 		expr = trimSpace(expr[1:])
 	}
+	// Inline function type: `function(T1,T2=,...T3):R`. Produced by
+	// JsDocInfoParser.parseFunctionType(). Mirrors how Java's
+	// JSTypeRegistry converts a FunctionTypeAST into a FunctionType.
+	if startsWith(expr, "function(") || expr == "function" || expr == "Function" {
+		if fn := s.resolveFunctionTypeExpr(expr); fn != nil {
+			if nullable {
+				return jstype.NewUnion(fn, jstype.Null)
+			}
+			return fn
+		}
+		// Fall back to the built-in Function type if resolution fails.
+		if fn := s.GetDeclaredType("Function"); fn != nil {
+			if nullable {
+				return jstype.NewUnion(fn, jstype.Null)
+			}
+			return fn
+		}
+		return jstype.Unknown
+	}
 	// Inline structural: `{k1: T1, k2: T2}`. Only take the early
 	// structural branch when the outer braces truly wrap the whole
 	// expression (i.e. the opening `{` is matched by the trailing
@@ -565,75 +584,119 @@ func (s *TypedScope) resolveObjectLiteralType(expr string) (*jstype.ObjectType, 
 	return obj, true
 }
 
-// resolveFunctionTypeExpr parses a Closure JSDoc `function(T1,T2): R`
-// type expression and returns the corresponding FunctionType, or nil
-// when the expression is malformed. Mirrors Java's JSTypeRegistry
-// handling of the `function(…)` nominal in JSDoc type resolution.
+// resolveFunctionTypeExpr converts a serialised function-type string
+// produced by JsDocInfoParser.parseFunctionType — e.g.
+// `function(number,string=,...boolean):Date` — into a *FunctionType
+// with correctly computed Params, MinArity, MaxArity, and Return.
 //
-// Supported forms:
-//   - function()
-//   - function(T1, T2)
-//   - function(): R
-//   - function(T1, T2): R
-//   - function(this:C, T)   — `this:` annotation is discarded
-//   - function(new:C, T)    — `new:` annotation is discarded
-//   - function(...T)        — rest param resolved as its element type
+// Format conventions (mirrors the serialiser in parseFunctionType):
+//   - Params separated by commas inside the outer parens.
+//   - A trailing `=` suffix on a param marks it optional.
+//   - A leading `...` prefix on a param marks it variadic (rest).
+//   - An optional `:ReturnType` after the closing `)` gives the return.
+//
+// Returns nil when the expression is not a recognisable function type
+// (empty, `Function`, or malformed), so the caller can fall back.
 func (s *TypedScope) resolveFunctionTypeExpr(expr string) *jstype.FunctionType {
-	// Must start with "function("
+	if expr == "Function" || expr == "function" {
+		// Bare `function` keyword — treat as the callable top-type:
+		// no param info, return Unknown. IsConstructor stays false so
+		// `new f` where f has this type correctly fires NOT_A_CONSTRUCTOR.
+		return jstype.NewFunctionType(nil, jstype.Unknown)
+	}
+	// Must start with `function(`.
 	if !startsWith(expr, "function(") {
 		return nil
 	}
-	// Find the closing paren of the param list.
-	// Scan from index 9 (after "function(") tracking depth.
+	// Find the matching `)` at depth 0 (params may contain nested
+	// parens from record / generic types).
+	inner := expr[len("function("):]
 	depth := 1
-	end := -1
-	for i := 9; i < len(expr); i++ {
-		switch expr[i] {
-		case '(', '<', '{':
+	closeIdx := -1
+	for i := 0; i < len(inner); i++ {
+		switch inner[i] {
+		case '(':
 			depth++
-		case ')', '>', '}':
+		case ')':
 			depth--
 			if depth == 0 {
-				end = i
+				closeIdx = i
 			}
 		}
-		if end >= 0 {
+		if closeIdx >= 0 {
 			break
 		}
 	}
-	if end < 0 {
-		return nil // unbalanced
+	if closeIdx < 0 {
+		return nil
 	}
-	// Parse parameter type list.
-	paramStr := trimSpace(expr[9:end])
-	var params []jstype.JSType
-	if paramStr != "" {
-		for _, a := range splitTopLevelComma(paramStr) {
-			a = trimSpace(a)
-			if a == "" {
-				continue
+	paramStr := inner[:closeIdx]
+	rest := inner[closeIdx+1:] // `:ReturnType` or ""
+
+	// Resolve return type.
+	var retType jstype.JSType = jstype.Void
+	if startsWith(rest, ":") {
+		retType = s.ResolveExpr(rest[1:])
+	}
+
+	// Split param list on top-level commas.
+	var paramParts []string
+	if trimSpace(paramStr) != "" {
+		paramParts = splitTopLevelComma(paramStr)
+	}
+
+	var paramTypes []jstype.JSType
+	minArity := 0
+	maxArity := 0
+	sawOptional := false
+	for i, pp := range paramParts {
+		pp = trimSpace(pp)
+		isRest := false
+		isOptional := false
+		typeStr := pp
+		if startsWith(pp, "...") {
+			isRest = true
+			typeStr = pp[3:]
+		} else if endsWith(pp, "=") {
+			isOptional = true
+			typeStr = pp[:len(pp)-1]
+		}
+		t := s.ResolveExpr(typeStr)
+		paramTypes = append(paramTypes, t)
+		switch {
+		case isRest:
+			maxArity = jstype.MaxArgsUnlimited
+			if !sawOptional {
+				minArity = i
 			}
-			// Skip `this:C` and `new:C` modifiers — they're not positional.
-			if startsWith(a, "this:") || startsWith(a, "new:") {
-				continue
+			// Variadic must be the last param; stop here.
+			sawOptional = true
+		case isOptional:
+			sawOptional = true
+			if maxArity != jstype.MaxArgsUnlimited {
+				maxArity = i + 1
 			}
-			// Rest param `...T` — treat element type as the param type.
-			if startsWith(a, "...") {
-				a = trimSpace(a[3:])
+		default:
+			if !sawOptional {
+				minArity = i + 1
 			}
-			params = append(params, s.ResolveExpr(a))
+			if maxArity != jstype.MaxArgsUnlimited {
+				maxArity = i + 1
+			}
 		}
 	}
-	// Parse optional return type: `: R` after the closing paren.
-	var ret jstype.JSType = jstype.Unknown
-	after := trimSpace(expr[end+1:])
-	if startsWith(after, ":") {
-		retStr := trimSpace(after[1:])
-		if retStr != "" {
-			ret = s.ResolveExpr(retStr)
-		}
+	if len(paramParts) == 0 {
+		maxArity = 0
+		minArity = 0
 	}
-	return jstype.NewFunctionType(params, ret)
+
+	fn := &jstype.FunctionType{
+		Params:   paramTypes,
+		Return:   retType,
+		MinArity: minArity,
+		MaxArity: maxArity,
+	}
+	return fn
 }
 
 func indexOfTopLevel(s string, b byte) int {
@@ -1204,6 +1267,28 @@ func (c *TypedScopeCreator) recordNamespaceAssignFromFunction(a *rhino.Node, sco
 			if fn, ok := src.(*jstype.FunctionType); ok && fn.Instance != nil {
 				scope.recordNamespaceProp(lhsKids[0].String_(), lhsKids[1].String_(), fn, lhsKids[1])
 				return
+			}
+		}
+	}
+	// Scalar literal assignments: `ns.x = 3` / `ns.x = "str"` / etc.
+	// Record the primitive type so `new ns.x` / `@type {ns.x}` uses
+	// can detect the non-constructor value. Mirrors how Java's scope
+	// creator assigns the literal type to simple namespace properties.
+	// Skip if the receiver is already a known class instance (ObjectType)
+	// or constructor (FunctionType) — those assignments go through the
+	// instance/prototype property mechanism, not namespace tracking.
+	if lhs.Token() == rhino.GETPROP {
+		if t := literalType(rhs); !isJSUnknown(t) {
+			lhsKids := lhs.Children()
+			if len(lhsKids) >= 2 && lhsKids[0].Token() == rhino.NAME {
+				recv := lhsKids[0].String_()
+				recvType := scope.GetDeclaredType(recv)
+				if _, isFn := recvType.(*jstype.FunctionType); !isFn {
+					if _, isObj := recvType.(*jstype.ObjectType); !isObj {
+						scope.recordNamespaceProp(recv, lhsKids[1].String_(), t, lhsKids[1])
+						return
+					}
+				}
 			}
 		}
 	}
@@ -1878,13 +1963,13 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 			return
 		}
 	}
-	// `var foo = function bar(…){…}` with @param/@return on the VAR —
-	// build a FunctionType so call-site arity / arg checks see the
-	// declared signature. Matches how Java's TypedScopeCreator
-	// NodeUtil.getBestJSDocInfo inherits the VAR's JSDoc onto the
-	// function expression.
-	if init != nil && init.Token() == rhino.FUNCTION && info != nil &&
-		(info.ReturnType() != nil || len(info.ParameterNames()) > 0) {
+	// `var foo = function bar(…){…}` — build a FunctionType from the
+	// function's shape even when JSDoc is absent. Java's TypedScopeCreator
+	// always registers a callable type for function-valued variables so
+	// `new f` on a plain (non-constructor) function expression correctly
+	// fires JSC_NOT_A_CONSTRUCTOR. Matches NodeUtil.getBestJSDocInfo
+	// inheriting the VAR's JSDoc onto the function expression.
+	if init != nil && init.Token() == rhino.FUNCTION {
 		kids := init.Children()
 		if len(kids) >= 2 {
 			params := kids[1]
@@ -1893,8 +1978,12 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 				paramTypes = append(paramTypes, resolveParamType(info, p, scope))
 			}
 			var retType jstype.JSType = jstype.Void
-			if r := info.ReturnType(); r != nil {
-				retType = scope.ResolveExpr(r.TypeName)
+			if info != nil {
+				if r := info.ReturnType(); r != nil {
+					retType = scope.ResolveExpr(r.TypeName)
+				} else if functionReturnsExplicitly(init) {
+					retType = jstype.Unknown
+				}
 			} else if functionReturnsExplicitly(init) {
 				retType = jstype.Unknown
 			}
@@ -2023,27 +2112,41 @@ func setArityFromParams(fn *jstype.FunctionType, params *rhino.Node, info *rhino
 	sawOptional := false
 	for i, p := range kids {
 		name := p.String_()
-		switch {
-		case name == "var_args" || (len(name) > 8 && name[:8] == "var_args"):
+		// JSDoc explicit rest marker ({...T}) takes highest priority.
+		if info != nil && info.IsRestParam(name) {
 			fn.MaxArity = jstype.MaxArgsUnlimited
 			if !sawOptional {
 				fn.MinArity = i
 			}
 			return
-		case info != nil && info.IsRestParam(name):
-			fn.MaxArity = jstype.MaxArgsUnlimited
-			if !sawOptional {
-				fn.MinArity = i
-			}
-			return
-		case len(name) >= 4 && name[:4] == "opt_":
+		}
+		// JSDoc explicit optional marker ({T=}) is next.
+		if info != nil && info.IsOptionalParam(name) {
 			sawOptional = true
-		case info != nil && info.IsOptionalParam(name):
-			sawOptional = true
-		default:
-			if !sawOptional {
-				fn.MinArity = i + 1
+			continue
+		}
+		// Naming conventions (opt_, var_args) apply only when there is NO
+		// explicit @param JSDoc for this name — mirrors Java's behaviour
+		// where an explicit @param {T} opt_y (without =) keeps the param
+		// required. When no JSDoc exists at all, the naming convention
+		// determines optionality.
+		hasExplicitParam := info != nil && info.ParameterType(name) != nil
+		if !hasExplicitParam {
+			if name == "var_args" || (len(name) > 8 && name[:8] == "var_args") {
+				fn.MaxArity = jstype.MaxArgsUnlimited
+				if !sawOptional {
+					fn.MinArity = i
+				}
+				return
 			}
+			if len(name) >= 4 && name[:4] == "opt_" {
+				sawOptional = true
+				continue
+			}
+		}
+		// Required param.
+		if !sawOptional {
+			fn.MinArity = i + 1
 		}
 	}
 	if !sawOptional {
@@ -2236,6 +2339,9 @@ func (c *TypedScopeCreator) collectThisPropertiesIn(node *rhino.Node, inst *jsty
 					existing := inst.GetPropertyType(prop.String_())
 					alreadyDeclared := existing != nil && !isJSUnknown(existing) && !inst.IsPropertyInferred(prop.String_())
 					info := a.JSDocInfo()
+					if info == nil {
+						info = node.JSDocInfo()
+					}
 					hasInfoType := info != nil && info.HasType()
 					// A class-field \`/** @type {T} */ x = …\` (declared,
 					// not inferred) wins over any \`this.x = …\`

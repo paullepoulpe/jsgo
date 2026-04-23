@@ -915,7 +915,13 @@ func isDefinitelyNonConstructor(t jstype.JSType) (bool, jstype.JSType) {
 		return false, nil
 	}
 	if fn, ok := t.(*jstype.FunctionType); ok {
-		if fn.IsConstructor {
+		// A FunctionType is a real constructor only when IsConstructor
+		// is set AND it is not an interface/record (those are tagged
+		// structural on their Instance). Mirroring Java's distinction:
+		// @constructor → isConstructor()=true, @interface → isInterface()=true
+		// (isConstructor()=false in Java, but we share IsConstructor=true
+		// for both in Go; use Instance.IsStructural to disambiguate).
+		if fn.IsConstructor && (fn.Instance == nil || !fn.Instance.IsStructural) {
 			return false, nil
 		}
 		return true, fn
@@ -940,7 +946,13 @@ func (c *TypeCheck) visitCall(node *rhino.Node, scope *TypedScope) []diag.Diagno
 	args := kids[1:]
 	infer := NewTypeInference(scope)
 	calleeType := infer.InferType(callee)
-	fn, ok := calleeType.(*jstype.FunctionType)
+	// Strip null/undefined from the callee type so a `?function(T)`
+	// (nullable function) still participates in arity checks — Java's
+	// restrictByNotNullOrUndefined() does the same thing before
+	// deciding whether to fire. Keep the raw type for NOT_FUNCTION_TYPE
+	// which should see the full type.
+	strippedCallee := stripNullUndef(calleeType)
+	fn, ok := strippedCallee.(*jstype.FunctionType)
 	if !ok {
 		// Only fire on bare NAME / literal callees so GETELEM
 		// (well-known symbol access, element reads) doesn't
@@ -969,7 +981,12 @@ func (c *TypeCheck) visitCall(node *rhino.Node, scope *TypedScope) []diag.Diagno
 	// a subclass's @override-only JSDoc drops the parent's
 	// optional-param markers. Firing there produces more FPs
 	// than wins until the override-aware inference lands.
-	if node.Token() == rhino.CALL && len(fn.Params) > 0 && isSafeCalleeForArity(callee, scope) {
+	// Arity guard: skip when the callee is a constructor with 0
+	// declared params (externs like Array whose arity we intentionally
+	// leave unchecked). All other FunctionTypes — including 0-param
+	// non-constructors — are subject to the check.
+	arityKnown := !(fn.IsConstructor && len(fn.Params) == 0)
+	if node.Token() == rhino.CALL && arityKnown && isSafeCalleeForArity(callee, scope) {
 		if got := len(args); got < fn.MinArity || got > fn.MaxArity {
 			maxStr := fmt.Sprintf("%d", fn.MaxArity)
 			if fn.MaxArity >= jstype.MaxArgsUnlimited {
