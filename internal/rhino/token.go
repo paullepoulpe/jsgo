@@ -58,6 +58,7 @@ const (
 	FOR
 	FOR_IN
 	FOR_OF
+	FOR_AWAIT_OF
 	SWITCH
 	CASE
 	DEFAULT_CASE
@@ -199,6 +200,8 @@ func (t Token) String() string {
 		return "FOR_IN"
 	case FOR_OF:
 		return "FOR_OF"
+	case FOR_AWAIT_OF:
+		return "FOR_AWAIT_OF"
 	case SWITCH:
 		return "SWITCH"
 	case CASE:
