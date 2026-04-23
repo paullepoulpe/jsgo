@@ -30,6 +30,10 @@ const (
 	// FunctionKindInterface is a @interface / @record function.
 	// Mirrors Java Kind.INTERFACE.
 	FunctionKindInterface
+	// FunctionKindArrow is an ES2015 arrow function (`() => …`).
+	// Mirrors Java Kind.ARROW.  Arrow functions do NOT rebind `this`,
+	// so IsOrdinaryFunction() returns false for them.
+	FunctionKindArrow
 	// FunctionKindNone is the sentinel used for the synthetic NONE
 	// kind in Java (e.g. the function type itself). Unused in Tier-1.
 	FunctionKindNone
@@ -182,6 +186,28 @@ type FunctionType struct {
 	// declaration. Set by InferJsDocInfo for anonymous structural function
 	// types (case #3 in the class doc).
 	docInfo *rhino.JSDocInfo
+
+	// implicitMatch mirrors FunctionType.isStructuralInterface in Java —
+	// set to true by SetImplicitMatch(true) when `@record` makes the
+	// interface use structural (duck-type) matching. Distinct from the
+	// ObjectType.IsStructural flag: this flag lives on the constructor.
+	implicitMatch bool
+
+	// implementedInterfaces mirrors FunctionType.implementedInterfaces in
+	// Java — the list of @implements ObjectType values set from JSDoc.
+	// Only meaningful when kind == FunctionKindConstructor.
+	implementedInterfaces []*ObjectType
+
+	// ownerFunction mirrors FunctionType for prototype methods — when
+	// this FunctionType is a method, ownerFunction points to the enclosing
+	// constructor FunctionType. Mirrors the Java relationship accessed via
+	// ObjectType.getOwnerFunction() → PrototypeObjectType.ownerFunction.
+	ownerFunction *FunctionType
+
+	// closurePrimitiveId is a free-form string tag identifying a known
+	// Closure primitive (e.g. "goog.asserts.assert"). Mirrors
+	// FunctionType.closurePrimitive in Java. Empty when not set.
+	closurePrimitiveId string
 }
 
 // MaxArgsUnlimited is the sentinel MaxArity for rest-parameter
@@ -359,8 +385,17 @@ func (f *FunctionType) GetKind() FunctionKind {
 }
 
 // IsOrdinaryFunction mirrors FunctionType.isOrdinaryFunction() in Java.
+// Returns true only for plain `function` declarations/expressions —
+// NOT for arrow functions, constructors, or interfaces.
 func (f *FunctionType) IsOrdinaryFunction() bool {
 	return f.kind == FunctionKindOrdinary
+}
+
+// IsArrow mirrors FunctionType.isArrow() in Java.
+// Returns true when this is an ES2015 arrow function (`() => …`).
+// Arrow functions do not rebind `this` and cannot be constructors.
+func (f *FunctionType) IsArrow() bool {
+	return f.kind == FunctionKindArrow
 }
 
 // IsInterface mirrors FunctionType.isInterface() in Java.
@@ -449,3 +484,143 @@ func (f *FunctionType) GetInstanceType() *ObjectType { return f.Instance }
 // prototype ObjectType for the constructor. In our simplified model we
 // reuse Instance for both instance and prototype slots.
 func (f *FunctionType) GetPrototype() *ObjectType { return f.Instance }
+
+// SetInstanceType mirrors FunctionType.setInstanceType in Java —
+// overwrites the Instance (and syncs Return/typeOfThis) for constructors.
+// Used by TypedScopeCreator when wiring up the two-pass constructor stubs.
+func (f *FunctionType) SetInstanceType(inst *ObjectType) {
+	f.Instance = inst
+	f.returnType = inst
+	f.Return = inst
+	f.typeOfThis = inst
+}
+
+// SetImplicitMatch mirrors FunctionType.setImplicitMatch(boolean) in Java.
+// When flag is true the interface uses structural (duck-type) matching
+// (@record semantics). Stored in implicitMatch; readable via
+// IsStructuralInterface().
+func (f *FunctionType) SetImplicitMatch(flag bool) { f.implicitMatch = flag }
+
+// IsStructuralInterface mirrors FunctionType.isStructuralInterface() in Java.
+// Returns true when SetImplicitMatch(true) was called — i.e. the function
+// is a @record interface that uses structural matching.
+func (f *FunctionType) IsStructuralInterface() bool { return f.implicitMatch }
+
+// SetImplementedInterfaces mirrors FunctionType.setImplementedInterfaces in
+// Java. Stores the list of @implements ObjectTypes on this constructor.
+// The list is populated by TypedScopeCreator when processing @implements
+// JSDoc on @constructor declarations.
+func (f *FunctionType) SetImplementedInterfaces(ifaces []*ObjectType) {
+	f.implementedInterfaces = ifaces
+}
+
+// GetImplementedInterfaces mirrors FunctionType.getImplementedInterfaces()
+// in Java. Returns the direct @implements interfaces for this constructor.
+// Returns nil (not the empty slice) when none have been recorded.
+func (f *FunctionType) GetImplementedInterfaces() []*ObjectType {
+	return f.implementedInterfaces
+}
+
+// GetOwnerFunction mirrors the ownerFunction concept from Java —
+// for a method FunctionType, returns the enclosing constructor
+// FunctionType. Nil for top-level functions and constructors.
+func (f *FunctionType) GetOwnerFunction() *FunctionType { return f.ownerFunction }
+
+// SetOwnerFunction records the enclosing constructor FunctionType for
+// method types. Called by TypedScopeCreator when attaching a method's
+// FunctionType to the prototype.
+func (f *FunctionType) SetOwnerFunction(owner *FunctionType) { f.ownerFunction = owner }
+
+// GetClosurePrimitiveId mirrors FunctionType.getClosurePrimitive().String()
+// in Java. Returns the closure-primitive tag (e.g. "goog.asserts.assert")
+// or the empty string when none has been set.
+func (f *FunctionType) GetClosurePrimitiveId() string { return f.closurePrimitiveId }
+
+// SetClosurePrimitiveId mirrors FunctionType.Builder.withClosurePrimitiveId
+// in Java. Tags this function type as a known Closure primitive.
+func (f *FunctionType) SetClosurePrimitiveId(id string) { f.closurePrimitiveId = id }
+
+// --- FunctionTypeBuilder — fluent builder mirroring FunctionType.Builder ---
+
+// FunctionTypeBuilder mirrors FunctionType.Builder in Java — a fluent
+// builder that accumulates fields before calling Build() to produce a
+// *FunctionType. Use NewFunctionTypeBuilder() to obtain an instance.
+//
+// The Go builder differs from Java in two ways:
+//  1. No JSTypeRegistry back-pointer (Go types are not interned at build time).
+//  2. Template keys are stored as []*TemplateType rather than ImmutableList.
+type FunctionTypeBuilder struct {
+	params     []Parameter
+	returnType JSType
+	typeOfThis JSType
+	kind       FunctionKind
+	templates  []*TemplateType
+	primitiveId string
+}
+
+// NewFunctionTypeBuilder returns a blank FunctionTypeBuilder for an
+// ordinary function. Mirrors FunctionType.builder(registry) in Java.
+func NewFunctionTypeBuilder() *FunctionTypeBuilder {
+	return &FunctionTypeBuilder{kind: FunctionKindOrdinary}
+}
+
+// WithReturnType sets the return type. Mirrors Builder.withReturnType(T).
+func (b *FunctionTypeBuilder) WithReturnType(t JSType) *FunctionTypeBuilder {
+	b.returnType = t
+	return b
+}
+
+// WithReturnTypeInferred is a no-op placeholder for callers that need the
+// Java Builder.withReturnType(T, inferred) overload. The inferred flag is
+// set on the produced FunctionType via the returnTypeInferred field.
+func (b *FunctionTypeBuilder) WithReturnTypeInferred(t JSType, inferred bool) *FunctionTypeBuilder {
+	b.returnType = t
+	return b
+}
+
+// WithTypeOfThis sets the typeOfThis. Mirrors Builder.withTypeOfThis(T).
+func (b *FunctionTypeBuilder) WithTypeOfThis(t JSType) *FunctionTypeBuilder {
+	b.typeOfThis = t
+	return b
+}
+
+// WithTemplateKeys records the function's @template parameters.
+// Mirrors Builder.withTemplateKeys(ImmutableList<TemplateType>).
+func (b *FunctionTypeBuilder) WithTemplateKeys(keys []*TemplateType) *FunctionTypeBuilder {
+	b.templates = keys
+	return b
+}
+
+// WithClosurePrimitiveId tags the function as a known Closure primitive.
+// Mirrors Builder.withClosurePrimitiveId(ClosurePrimitive).
+func (b *FunctionTypeBuilder) WithClosurePrimitiveId(id string) *FunctionTypeBuilder {
+	b.primitiveId = id
+	return b
+}
+
+// WithKind sets the FunctionKind (ordinary / constructor / interface / arrow).
+// Mirrors Builder.withKind(Kind).
+func (b *FunctionTypeBuilder) WithKind(k FunctionKind) *FunctionTypeBuilder {
+	b.kind = k
+	return b
+}
+
+// WithParameters sets the parameter list.
+// Mirrors Builder.withParameters(ImmutableList<Parameter>).
+func (b *FunctionTypeBuilder) WithParameters(params []Parameter) *FunctionTypeBuilder {
+	b.params = params
+	return b
+}
+
+// Build constructs and returns the *FunctionType.
+// Mirrors Builder.build() in Java.
+func (b *FunctionTypeBuilder) Build() *FunctionType {
+	f := newFunctionTypeFromParams(b.params, b.returnType, b.kind, b.typeOfThis)
+	if len(b.templates) > 0 {
+		f.TemplateTypes = b.templates
+	}
+	if b.primitiveId != "" {
+		f.closurePrimitiveId = b.primitiveId
+	}
+	return f
+}
