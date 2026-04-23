@@ -38,12 +38,13 @@ import (
 // type reference in JSDoc annotations. Takes the raw source so
 // per-name positions match Java's column-level reporting.
 type CheckJsDocTypes struct {
-	path          string
-	src           string
-	scope         *TypedScope
-	allNames      map[string]bool // every identifier declared anywhere in src
-	allTemplates  map[string]bool // every @template name across the whole source
-	typedNames    map[string]bool // names with non-Unknown declared types (across all scopes)
+	path           string
+	src            string
+	scope          *TypedScope
+	allNames       map[string]bool // every identifier declared anywhere in src
+	allTemplates   map[string]bool // every @template name across the whole source
+	ctorTTLNames   map[string]bool // TTL @template names from constructor/interface JSDoc
+	typedNames     map[string]bool // names with non-Unknown declared types (across all scopes)
 }
 
 func NewCheckJsDocTypes(path, src string, scope *TypedScope, creator *TypedScopeCreator) *CheckJsDocTypes {
@@ -53,6 +54,7 @@ func NewCheckJsDocTypes(path, src string, scope *TypedScope, creator *TypedScope
 		scope:        scope,
 		allNames:     collectDeclaredNames(src),
 		allTemplates: collectAllTemplateNames(src),
+		ctorTTLNames: collectConstructorTTLNames(src),
 		typedNames:   cjdMergeTypedNames(scope, creator, src),
 	}
 }
@@ -385,9 +387,103 @@ func (c *CheckJsDocTypes) Check() []diag.Diagnostic {
 		out = append(out, c.checkComment(s, start, end)...)
 		out = append(out, c.checkBareTypeof(s, start, end)...)
 		out = append(out, c.checkParseErrors(s, start, end)...)
+		out = append(out, c.checkBareInlineType(s, start, end)...)
 		i = end + 2
 	}
 	return out
+}
+
+// checkBareInlineType fires JSC_UNRECOGNIZED_TYPE_ERROR for untagged
+// inline JSDoc blocks that carry a bare type name and appear immediately
+// before a `var`/`let`/`const` declaration — the `/** T */ var x;` pattern.
+// Mirrors Java's JsDocInfoParser treating such comments as implicit `@type {T}`
+// annotations. Only fires when the type name is not resolvable (e.g. TTL
+// template names like T from `@template T := … =:` are not valid types).
+func (c *CheckJsDocTypes) checkBareInlineType(s string, start, end int) []diag.Diagnostic {
+	body := s[start:end]
+	// Skip if there is any `@` tag — those are handled by checkComment.
+	if strings.IndexByte(body, '@') >= 0 {
+		return nil
+	}
+	// The comment must appear in a declaration context: either preceded by
+	// `var`/`let`/`const` (inline type before identifier: `var /** T */ x;`)
+	// or followed by a declaration keyword (`/** T */ var x;`). Both are
+	// contexts where Java's parser treats bare comments as implicit @type.
+	after := s[end+2:] // skip `*/`
+	j := 0
+	for j < len(after) && (after[j] == ' ' || after[j] == '\t' || after[j] == '\n' || after[j] == '\r') {
+		j++
+	}
+	isDeclContext := false
+	// Check what follows the comment.
+	for _, kw := range [...]string{"var ", "let ", "const "} {
+		if strings.HasPrefix(after[j:], kw) {
+			isDeclContext = true
+			break
+		}
+	}
+	// Check what precedes the comment: scan backwards for non-whitespace.
+	if !isDeclContext {
+		before := s[:start]
+		k := len(before) - 1
+		for k >= 0 && (before[k] == ' ' || before[k] == '\t') {
+			k--
+		}
+		for _, kw := range [...]string{"var", "let", "const"} {
+			if k >= len(kw)-1 && before[k-len(kw)+1:k+1] == kw {
+				isDeclContext = true
+				break
+			}
+		}
+	}
+	if !isDeclContext {
+		return nil
+	}
+	// Trim leading `/**` markers.
+	trimmed := ""
+	for j := 0; j < len(body); j++ {
+		ch := body[j]
+		if ch == '*' || ch == '/' || ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' {
+			continue
+		}
+		trimmed = body[j:]
+		break
+	}
+	// Trim trailing whitespace / `*`.
+	for len(trimmed) > 0 {
+		last := trimmed[len(trimmed)-1]
+		if last == ' ' || last == '\t' || last == '\n' || last == '\r' || last == '*' || last == '/' {
+			trimmed = trimmed[:len(trimmed)-1]
+			continue
+		}
+		break
+	}
+	// Must be a single non-empty identifier (or dotted name) with no braces/parens.
+	if trimmed == "" || !isIdentStart(trimmed[0]) {
+		return nil
+	}
+	for _, ch := range trimmed {
+		if !isIdentChar(byte(ch)) && ch != '.' {
+			return nil
+		}
+	}
+	name := trimmed
+	// Only fire for names that are TTL template names on constructors/interfaces
+	// (not valid types) and are not otherwise resolvable. Plain-function TTL
+	// template names ARE valid types and should not fire.
+	if !c.ctorTTLNames[name] {
+		return nil
+	}
+	if c.nameResolves(name) {
+		return nil
+	}
+	line, col := c.positionOf(s, start+strings.Index(body, name))
+	return []diag.Diagnostic{{
+		Path: c.path, Line: line, Col: col,
+		Code:    diag.JSC_UNRECOGNIZED_TYPE_ERROR,
+		Level:   diag.Error,
+		Message: fmt.Sprintf("Bad type annotation. Unknown type %s", name),
+	}}
 }
 
 // checkBareTypeof fires JSC_UNRECOGNIZED_TYPEOF_ERROR on inline
@@ -565,6 +661,62 @@ func collectTemplateNames(body string) map[string]bool {
 	return out
 }
 
+// collectConstructorTTLNames collects TTL @template names (`@template T := … =:`)
+// that appear in JSDoc blocks on constructor or interface functions. These names
+// are NOT valid types (Java's FunctionTypeBuilder rejects them with
+// TEMPLATE_TRANSFORMATION_ON_CLASS when allowTypeTransformations=false for
+// constructors/interfaces). Mirrors getTypeTransformations() key-set for
+// constructor JSDoc only.
+func collectConstructorTTLNames(src string) map[string]bool {
+	out := map[string]bool{}
+	i := 0
+	for i < len(src) {
+		start := strings.Index(src[i:], "/**")
+		if start < 0 {
+			return out
+		}
+		start += i
+		end := strings.Index(src[start:], "*/")
+		if end < 0 {
+			return out
+		}
+		end += start
+		body := src[start:end]
+		// Only process JSDoc blocks that annotate a constructor or interface.
+		isCtorOrIface := strings.Contains(body, "@constructor") ||
+			strings.Contains(body, "@interface") ||
+			strings.Contains(body, "@record")
+		if isCtorOrIface {
+			for j := 0; j < len(body); {
+				idx := strings.Index(body[j:], "@template")
+				if idx < 0 {
+					break
+				}
+				idx += j
+				nl := strings.Index(body[idx:], "\n")
+				if nl < 0 {
+					nl = len(body) - idx
+				}
+				rest := body[idx+len("@template") : idx+nl]
+				if strings.Contains(rest, ":=") {
+					// Extract the name before `:=`.
+					name := strings.TrimSpace(rest[:strings.Index(rest, ":=")])
+					if sp := strings.IndexAny(name, " \t*"); sp >= 0 {
+						name = name[:sp]
+					}
+					name = strings.TrimSpace(name)
+					if name != "" && isIdentStart(name[0]) {
+						out[name] = true
+					}
+				}
+				j = idx + nl
+			}
+		}
+		i = end + 2
+	}
+	return out
+}
+
 // checkTypeExpr walks the text inside a `{…}` annotation value,
 // walking nested `<…>` / `(…)` / `{…}` groups and checking each
 // top-level name component that's in a TYPE position (as opposed
@@ -707,7 +859,10 @@ func (c *CheckJsDocTypes) checkTypeExpr(src string, base int, inner string, tmpl
 				i = k
 				continue
 			}
-			if !tmpls[name] && !c.allTemplates[name] && !c.nameResolves(name) {
+			// Constructor TTL template names (e.g. T from @template T := …) are
+			// NOT valid types — fire even though they appear in allTemplates.
+			isCtorTTL := c.ctorTTLNames[name]
+			if !tmpls[name] && (!c.allTemplates[name] || isCtorTTL) && !c.nameResolves(name) {
 				line, col := c.positionOf(src, base+start)
 				out = append(out, diag.Diagnostic{
 					Path: c.path, Line: line, Col: col,

@@ -421,9 +421,26 @@ func (p *JsDocInfoParser) parseTypedefTag() JsDocToken {
 }
 
 // parseTemplateTag mirrors the Java method: read the remainder of the
-// line, split on commas, register each as a template name.
+// line, split on commas, register each as a template name. Detects TTL
+// type-transformation syntax `T := expr =:` and records T as a TTL
+// template name rather than a plain @template name (mirrors
+// JsDocInfoParser.java's recordTypeTransformation path).
 func (p *JsDocInfoParser) parseTemplateTag() JsDocToken {
 	rest := p.stream.GetRemainingJSDocLine()
+	// Detect TTL: `T := … =:` on this line (single-name constraint).
+	// Java calls recordTypeTransformation(name, ttlAst); we just track the name.
+	if idx := strings.Index(rest, ":="); idx >= 0 {
+		name := strings.TrimSpace(rest[:idx])
+		// Strip bounded-generic `{B}` prefix if present.
+		if lb := strings.LastIndexByte(name, ' '); lb >= 0 {
+			name = strings.TrimSpace(name[lb+1:])
+		}
+		if name != "" && isJsIdent(name) {
+			p.info.AddTTLTemplateName(name)
+			p.anyRecorded = true
+		}
+		return p.next()
+	}
 	for _, part := range strings.Split(rest, ",") {
 		part = strings.TrimSpace(part)
 		// Templates can carry bounded-generic syntax like `{number} T`
@@ -681,14 +698,18 @@ func (p *JsDocInfoParser) parseRecordType() (string, bool) {
 }
 
 // parseFunctionType: `function(params): returnType`. Shrunk from
-// Java's more complete version: we skip `this:` / `new:` prefixes and
-// treat every param as a positional type.
+// Java's more complete version.
 //
 // Param modifiers recognised:
 //   - Leading `...`  (JsDocTokenIterRest) marks the param as variadic;
 //     emitted as `...T` in the serialised string.
 //   - Trailing `=`   (JsDocTokenEquals) marks the param as optional;
 //     emitted as `T=` in the serialised string.
+//
+// The `this:T` qualifier is captured and emitted as a `this:T` prefix
+// on the first param slot so resolveFunctionTypeExpr can set typeOfThis.
+// `new:T` is consumed without recording (it means the function must be
+// called with `new` — not the same as `this:T`).
 func (p *JsDocInfoParser) parseFunctionType() (string, bool) {
 	if !p.match(JsDocTokenLeftParen) {
 		return "Function", true // bare `function`
@@ -701,29 +722,24 @@ func (p *JsDocInfoParser) parseFunctionType() (string, bool) {
 			break
 		}
 		tok := p.next()
-		// Allow leading `this:` / `new:` qualifier.  For `new:T` we
-		// preserve the type in the serialised output as a `new:T`
-		// pseudo-param so resolveFunctionTypeExpr can mark the
-		// resulting FunctionType as IsConstructor=true.  `this:T` is
-		// still swallowed entirely (it doesn't affect constructability).
+		// Handle leading `this:` / `new:` qualifier. Each is emitted as
+		// a `this:T` / `new:T` pseudo-param so resolveFunctionTypeExpr
+		// can set typeOfThis (this:) or IsConstructor (new:).
 		if tok == JsDocTokenString {
 			name := p.stream.String_()
 			if (name == "this" || name == "new") && p.match(JsDocTokenColon) {
 				p.next() // consume `:`
 				p.skipEOLs()
 				tok = p.next()
-				// Consume the `this` / `new` type expression, then
-				// skip to the comma or closing paren. If there is no
-				// comma, the function has no positional params and we
-				// break out of the loop below.
 				typeExpr, ok := p.parseTypeExpression(tok)
 				if !ok {
 					return "", false
 				}
-				if name == "new" {
-					// Emit as a pseudo-param so the resolver can detect it.
-					params = append(params, "new:"+typeExpr)
-				}
+				// Emit `this:T` and `new:T` as pseudo-params so the
+				// resolver can set typeOfThis (this:) or IsConstructor
+				// (new:). Mirrors FunctionType.builder.withTypeOfThis /
+				// .forConstructor when these qualifiers are parsed.
+				params = append(params, name+":"+typeExpr)
 				p.skipEOLs()
 				if p.match(JsDocTokenComma) {
 					p.next() // consume `,`

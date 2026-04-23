@@ -694,16 +694,21 @@ func (s *TypedScope) resolveFunctionTypeExpr(expr string) *jstype.FunctionType {
 		paramParts = splitTopLevelComma(paramStr)
 	}
 
-	// Detect `new:T` pseudo-param emitted by parseFunctionType when it
-	// sees a `new:` qualifier.  Strip it from the positional param list
-	// but record that this is a constructor function — matches Java's
-	// FunctionType.Kind.CONSTRUCTOR for `function(new:T, ...)` types.
+	// Detect `new:T` and `this:T` pseudo-params emitted by
+	// parseFunctionType. `new:T` marks the function as a constructor
+	// (FunctionType.Kind.CONSTRUCTOR). `this:T` sets typeOfThis, which
+	// drives JSC_EXPECTED_THIS_TYPE and FunctionType.getTypeOfThis().
 	isCtor := false
+	var typeOfThis jstype.JSType
 	var positionalParts []string
 	for _, pp := range paramParts {
-		if startsWith(trimSpace(pp), "new:") {
+		trimmed := trimSpace(pp)
+		switch {
+		case startsWith(trimmed, "new:"):
 			isCtor = true
-		} else {
+		case startsWith(trimmed, "this:"):
+			typeOfThis = s.ResolveExpr(trimmed[5:])
+		default:
 			positionalParts = append(positionalParts, pp)
 		}
 	}
@@ -766,10 +771,15 @@ func (s *TypedScope) resolveFunctionTypeExpr(expr string) *jstype.FunctionType {
 	_ = minArity   // computed by NewFunctionTypeFromParameters
 	_ = maxArity   // computed by NewFunctionTypeFromParameters
 	fn := jstype.NewFunctionTypeFromParameters(parameters, retType)
-	// Preserve the @constructor marker detected from `new:T` pseudo-params.
+	// Preserve the @constructor marker from `new:T` pseudo-params.
 	// Mirrors FunctionType.builder.forConstructor() when new:T is present.
 	if isCtor {
 		fn.IsConstructor = true
+	}
+	// Wire `this:T` through to the function's typeOfThis so
+	// EXPECTED_THIS_TYPE checks + call-site this binding fire correctly.
+	if typeOfThis != nil {
+		fn.SetTypeOfThis(typeOfThis)
 	}
 	return fn
 }
@@ -1216,7 +1226,7 @@ func (c *TypedScopeCreator) recordPrototypeAssign(a *rhino.Node, scope *TypedSco
 	if !ok || fn.Instance == nil {
 		return
 	}
-	memberType := c.inferPrototypeValueType(a.JSDocInfo(), rhs, scope)
+	memberType := c.inferPrototypeValueType(a.JSDocInfo(), rhs, scope, fn.Instance)
 	fn.Instance.DefineProperty(propName, memberType)
 	// Literal-inferred prototype slots (no @type) don't participate
 	// in the subclass-override type-match check — Java treats them
@@ -1305,7 +1315,7 @@ func (c *TypedScopeCreator) recordPrototypeLiteralAssign(a *rhino.Node, scope *T
 		if val == nil {
 			continue
 		}
-		memberType := c.inferPrototypeValueType(a.JSDocInfo(), val, scope)
+		memberType := c.inferPrototypeValueType(a.JSDocInfo(), val, scope, fn.Instance)
 		fn.Instance.DefineProperty(keyName, memberType)
 		// Bind `this` inside method bodies so `this.x` type-checks.
 		if val.Token() == rhino.FUNCTION {
@@ -1648,7 +1658,7 @@ func (c *TypedScopeCreator) recordPrototypeStub(stmt *rhino.Node, getprop *rhino
 			if info.ReturnType() != nil {
 				ret = scope.ResolveExpr(info.ReturnType().TypeName)
 			}
-			t = jstype.NewFunctionType(paramTypes, ret)
+			t = jstype.NewFunctionTypeWithThis(paramTypes, ret, fn.Instance)
 		}
 	}
 	fn.Instance.DefineProperty(propName, t)
@@ -1658,7 +1668,10 @@ func (c *TypedScopeCreator) recordPrototypeStub(stmt *rhino.Node, getprop *rhino
 // `X.prototype.m = value` assignment. Function expressions yield a
 // FunctionType derived from the ASSIGN's @param/@return JSDoc; other
 // values fall back to @type if present, otherwise Unknown.
-func (c *TypedScopeCreator) inferPrototypeValueType(info *rhino.JSDocInfo, rhs *rhino.Node, scope *TypedScope) jstype.JSType {
+// inst is the constructor's InstanceType — when non-nil it is set as
+// typeOfThis on the resulting FunctionType so TypeCheck can emit
+// JSC_EXPECTED_THIS_TYPE when the method is called without a receiver.
+func (c *TypedScopeCreator) inferPrototypeValueType(info *rhino.JSDocInfo, rhs *rhino.Node, scope *TypedScope, inst *jstype.ObjectType) jstype.JSType {
 	if rhs.Token() == rhino.FUNCTION {
 		kids := rhs.Children()
 		if len(kids) < 2 {
@@ -1673,7 +1686,15 @@ func (c *TypedScopeCreator) inferPrototypeValueType(info *rhino.JSDocInfo, rhs *
 		if info != nil && info.ReturnType() != nil {
 			ret = scope.ResolveExpr(info.ReturnType().TypeName)
 		}
-		fnT := jstype.NewFunctionType(paramTypes, ret)
+		// Set typeOfThis so EXPECTED_THIS_TYPE fires when the method is
+		// detached and called without a receiver. Mirrors Java's
+		// FunctionType.getTypeOfThis() returning the instance type for
+		// prototype methods (FunctionTypeBuilder.inferThisType).
+		var typeOfThis jstype.JSType
+		if inst != nil {
+			typeOfThis = inst
+		}
+		fnT := jstype.NewFunctionTypeWithThis(paramTypes, ret, typeOfThis)
 		setArityFromParams(fnT, params, info)
 		return fnT
 	}
@@ -2418,6 +2439,17 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 		}
 		if info.IsDict() {
 			fnType.Instance.IsDict = true
+		}
+	} else if info.HasType() {
+		// `@type {function(this:T, …)}` on a plain function — resolve the
+		// declared type so typeOfThis is preserved. When the resolved type
+		// is a FunctionType, use it directly; otherwise fall back to the
+		// param/return-inferred type. Mirrors Java's TypedScopeCreator
+		// using the JSDoc type annotation over the inferred shape.
+		if declFn, ok := scope.ResolveExpr(info.Type().TypeName).(*jstype.FunctionType); ok {
+			fnType = declFn
+		} else {
+			fnType = jstype.NewFunctionType(paramTypes, retType)
 		}
 	} else {
 		fnType = jstype.NewFunctionType(paramTypes, retType)
