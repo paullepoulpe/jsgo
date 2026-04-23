@@ -133,18 +133,19 @@ const (
 	// Class / object members
 	MEMBER_FUNCTION_DEF
 	COMPUTED_PROP
-	// Type-expression AST tokens — used in parsed JSDoc type trees, not in
-	// the JS source AST.
-	ITER_REST // `{...T}` rest parameter type
-	QMARK     // nullable / unknown type marker `?`
-	EQUALS    // optional parameter type marker `=`
-	// Regular-expression literal  `/pattern/flags`
+	// Type-expression AST tokens.
+	ITER_REST
+	QMARK
+	EQUALS
+	// Regular-expression literal.
 	REGEXP
 	// Template literals.
 	TEMPLATELIT
 	TEMPLATELIT_STRING
 	TEMPLATELIT_SUB
 	TAGGED_TEMPLATELIT
+	// Cast expression — `/** @type {T} */ (expr)`.
+	CAST
 )
 
 func (t Token) String() string {
@@ -347,6 +348,8 @@ func (t Token) String() string {
 		return "TEMPLATELIT_SUB"
 	case TAGGED_TEMPLATELIT:
 		return "TAGGED_TEMPLATELIT"
+	case CAST:
+		return "CAST"
 	}
 	return "ERROR"
 }
