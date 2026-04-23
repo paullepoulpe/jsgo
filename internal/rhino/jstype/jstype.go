@@ -1,10 +1,9 @@
-// Port of com/google/javascript/rhino/jstype/JSType.java (plus
-// NumberType.java, StringType.java, AllType.java, UnknownType.java) @
-// closure-compiler v20260415
+// Port of com/google/javascript/rhino/jstype/JSType.java @ closure-compiler v20260415
 //
 // The Java hierarchy is an abstract class `JSType` with many subclasses.
 // In Go we expose an interface and concrete types; subtype logic is
-// centralised in isSubtypeOf. Only the types Tier-0 exercises are here.
+// centralised in isSubtypeOf. Primitive type definitions live in per-type
+// files matching the Java layout (all_type.go, unknown_type.go, …).
 
 package jstype
 
@@ -63,66 +62,6 @@ func IsSubtype(x, y JSType) bool {
 		return false
 	}
 	return x.IsSubtypeOf(y)
-}
-
-type allType struct{}
-
-func (allType) TypeName() string            { return "*" }
-func (allType) IsSubtypeOf(o JSType) bool   { _, ok := o.(allType); return ok || isUnknown(o) }
-
-type unknownType struct{}
-
-func (unknownType) TypeName() string          { return "?" }
-func (unknownType) IsSubtypeOf(o JSType) bool { return true }
-
-type numberType struct{}
-
-func (numberType) TypeName() string { return "number" }
-func (numberType) IsSubtypeOf(o JSType) bool {
-	if _, ok := o.(numberType); ok {
-		return true
-	}
-	return isAll(o) || isUnknown(o)
-}
-
-type stringType struct{}
-
-func (stringType) TypeName() string { return "string" }
-func (stringType) IsSubtypeOf(o JSType) bool {
-	if _, ok := o.(stringType); ok {
-		return true
-	}
-	return isAll(o) || isUnknown(o)
-}
-
-type booleanType struct{}
-
-func (booleanType) TypeName() string { return "boolean" }
-func (booleanType) IsSubtypeOf(o JSType) bool {
-	if _, ok := o.(booleanType); ok {
-		return true
-	}
-	return isAll(o) || isUnknown(o)
-}
-
-type nullType struct{}
-
-func (nullType) TypeName() string { return "null" }
-func (nullType) IsSubtypeOf(o JSType) bool {
-	if _, ok := o.(nullType); ok {
-		return true
-	}
-	return isAll(o) || isUnknown(o)
-}
-
-type voidType struct{}
-
-func (voidType) TypeName() string { return "undefined" }
-func (voidType) IsSubtypeOf(o JSType) bool {
-	if _, ok := o.(voidType); ok {
-		return true
-	}
-	return isAll(o) || isUnknown(o)
 }
 
 func isAll(t JSType) bool     { _, ok := t.(allType); return ok }
