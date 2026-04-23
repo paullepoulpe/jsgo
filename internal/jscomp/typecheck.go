@@ -52,6 +52,26 @@ type TypeCheck struct {
 	// of file-wide.
 	fileSuppressions map[string]bool
 
+	// looseProps mirrors Java's eachRefTypeIndexedByProperty: for each
+	// ObjectType, the set of property names defined on any of its
+	// subtypes. When a property is "loose" on a type (present on a
+	// subtype but not on the type itself), Java's
+	// canPropertyBeDefined returns LOOSE, which causes
+	// checkPropertyAccessHelper to set strictReport=true and emit
+	// only STRICT_INEXISTENT_PROPERTY. In default mode that is
+	// silenced, so visitGetProp skips the diagnostic when the
+	// property is loose.
+	looseProps map[*jstype.ObjectType]map[string]bool
+
+	// externTypes is the set of ObjectType instances registered in the
+	// externs scope (Object, Function, Date, Error, etc.). In Java these
+	// types have full property surfaces populated from closure-compiler's
+	// externs .js files; in jsgo the externs are sparse (mostly bare
+	// @constructor stubs). Treating these types as "open" — like Java
+	// treats Object as low-confidence — avoids FPs from accessing any
+	// property on an extern type whose surface we haven't declared.
+	externTypes map[*jstype.ObjectType]bool
+
 	// flows maps each function / script root to its computed
 	// DataFlowAnalysis, built lazily as the traversal enters the
 	// function. statementAtNode maps a CFG-statement AST node to its
@@ -98,6 +118,8 @@ func (c *TypeCheck) Check(script *rhino.Node) []diag.Diagnostic {
 	c.diags = nil
 	c.installFlow(script, c.global)
 	c.collectPropertyWrites(script)
+	c.looseProps = buildLoosePropertyIndex(c.global)
+	c.externTypes = buildExternTypeSet(c.global)
 	c.fileSuppressions = collectFileSuppressions(script)
 	trav := NewNodeTraversal(c, c.creator, c.global)
 	trav.Traverse(script)
@@ -139,7 +161,20 @@ func collectFileSuppressions(script *rhino.Node) map[string]bool {
 // Only extends open (non-struct / non-structural) types — sealed
 // receivers keep their declared surface so the INEXISTENT /
 // ILLEGAL checks stay accurate.
+//
+// Delegates to collectPropertyWritesIn with the global scope so
+// that function bodies are entered with their correct local scopes
+// (parameter types visible), matching Java's per-scope traversal.
 func (c *TypeCheck) collectPropertyWrites(n *rhino.Node) {
+	c.collectPropertyWritesIn(n, c.global)
+}
+
+// collectPropertyWritesIn is the scope-aware recursive worker for
+// collectPropertyWrites. When entering a FUNCTION node, it switches
+// to the function's parameter scope (from TypedScopeCreator.Functions)
+// so that `param.prop = value` assignments correctly resolve `param`
+// to its declared type and extend the ObjectType's surface.
+func (c *TypeCheck) collectPropertyWritesIn(n *rhino.Node, scope *TypedScope) {
 	if n == nil {
 		return
 	}
@@ -168,7 +203,7 @@ func (c *TypeCheck) collectPropertyWrites(n *rhino.Node) {
 						}
 					}
 				} else {
-					infer := NewTypeInference(c.global)
+					infer := NewTypeInference(scope)
 					recvType := stripNullUndef(infer.InferType(recv))
 					defineOnOpenObject(recvType, propName)
 				}
@@ -176,7 +211,13 @@ func (c *TypeCheck) collectPropertyWrites(n *rhino.Node) {
 		}
 	}
 	for _, ch := range n.Children() {
-		c.collectPropertyWrites(ch)
+		childScope := scope
+		if ch.Token() == rhino.FUNCTION {
+			if fnScope, ok := c.creator.Functions[ch]; ok && fnScope != nil {
+				childScope = fnScope
+			}
+		}
+		c.collectPropertyWritesIn(ch, childScope)
 	}
 }
 
@@ -1064,14 +1105,42 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 	// Broader INEXISTENT_PROPERTY: fire on structural (@record /
 	// @interface) receivers, on @struct nominal classes (sealed
 	// property surface by design), and on the known-surface
-	// builtin types we ship concrete slot maps for. For plain
-	// @constructor types without @struct, Java still fires on
-	// `this.prop` READS inside a prototype method — the
-	// missing-this-slot case — but allows writes on instance
-	// values outside the constructor to implicitly extend the
-	// surface.
+	// builtin types we ship concrete slot maps for.
+	//
+	// For plain @constructor types (non-struct, non-structural),
+	// Java fires JSC_INEXISTENT_PROPERTY on any read of a missing
+	// property — not just `this.prop` — provided:
+	//   (a) the property is not LOOSE (defined on a subtype):
+	//       Java's canPropertyBeDefined returns LOOSE in that case,
+	//       which routes to STRICT_INEXISTENT_PROPERTY only.
+	//   (b) the access is not a property existence test (&&, ||,
+	//       if-cond, typeof, etc.) or property absence test
+	//       (== null/undefined). Those contexts also fire as
+	//       STRICT_INEXISTENT_PROPERTY only in Java.
+	//   (c) the access is not the LHS of an assign (writes extend
+	//       the surface via defineOnOpenObject / collectPropertyWrites).
 	if !obj.IsStructural && !obj.IsStruct && !isKnownSurfaceBuiltin(obj.Name) {
-		if !isThisReceiverRead(n) {
+		// Skip types registered in the externs scope (Object, Function,
+		// Date, Error, …). jsgo ships only sparse @constructor stubs for
+		// these; their full property surfaces aren't declared, so any
+		// property access would spuriously fire. Java treats the global
+		// Object type as "low confidence" (fires POSSIBLE_INEXISTENT_PROPERTY)
+		// and leaves the rest of the externs surface open. Go's externs
+		// are even sparser, so we skip all extern-registered types here.
+		if c.externTypes[obj] {
+			return nil
+		}
+		// Skip when the property is defined on a subtype (LOOSE).
+		if c.looseProps[obj] != nil && c.looseProps[obj][propName] {
+			return nil
+		}
+		// Skip writes — collectPropertyWrites already extends the surface.
+		if isAssignLHS(n) {
+			return nil
+		}
+		// Skip property existence / absence tests — these fire as
+		// STRICT_INEXISTENT_PROPERTY only (not default JSC_INEXISTENT_PROPERTY).
+		if isPropertyExistenceOrAbsenceTest(n) {
 			return nil
 		}
 	}
@@ -1113,6 +1182,169 @@ func isAssignLHS(n *rhino.Node) bool {
 		return false
 	}
 	return p.FirstChild() == n
+}
+
+// isPropertyExistenceOrAbsenceTest mirrors Java's
+// allowLoosePropertyAccessOnNode logic (NodeUtil.isPropertyTest +
+// isPropertyAbsenceTest). Returns true when the GETPROP `n` appears
+// in a context where the access is a guard/check rather than a
+// reliance on the property's existence.
+//
+// In Java, such accesses cause checkPropertyAccessHelper to set
+// strictReport=true, routing to STRICT_INEXISTENT_PROPERTY rather
+// than JSC_INEXISTENT_PROPERTY. In default mode STRICT_INEXISTENT_PROPERTY
+// is silenced, so Go skips the diagnostic entirely here.
+//
+// Patterns covered (mirrors Java's isPropertyTest + isPropertyAbsenceTest):
+//   - && / || / ?? operand
+//   - typeof / instanceof operand
+//   - Condition of if / while / do-while / for (classic)
+//   - Condition of ternary (hook first child)
+//   - != null/undefined (NE): existence test
+//   - !== undefined (SHNE with undefined): existence test
+//   - == null/undefined (EQ): absence test
+//   - === undefined (SHEQ with undefined): absence test
+//   - !foo.bar as left operand of || (NOT-in-OR pattern)
+func isPropertyExistenceOrAbsenceTest(n *rhino.Node) bool {
+	p := n.Parent()
+	if p == nil {
+		return false
+	}
+	switch p.Token() {
+	case rhino.AND, rhino.OR, rhino.INSTANCEOF, rhino.TYPEOF, rhino.COALESCE:
+		// Direct operand of &&, ||, ??, instanceof, typeof — always a test.
+		return true
+	case rhino.IF, rhino.WHILE, rhino.DO_WHILE:
+		// Condition is first child.
+		return p.FirstChild() == n
+	case rhino.FOR:
+		// Classic for-loop: children are [init, cond, update, body].
+		// Condition is the second child.
+		kids := p.Children()
+		return len(kids) >= 2 && kids[1] == n
+	case rhino.HOOK:
+		// Ternary condition is first child.
+		return p.FirstChild() == n
+	case rhino.NOT:
+		// !foo.bar as the left operand of || → Java's NOT-in-OR pattern.
+		gp := p.Parent()
+		return gp != nil && gp.Token() == rhino.OR && gp.FirstChild() == p
+	case rhino.NE:
+		// foo.bar != null / foo.bar != undefined → existence test.
+		return otherSideIsNullOrUndefined(p, n)
+	case rhino.SHNE:
+		// foo.bar !== undefined → existence test.
+		// foo.bar !== null is NOT an existence test (Java's NE-only rule).
+		return otherSideIs(p, n, rhino.UNDEFINED)
+	case rhino.EQ:
+		// foo.bar == null / foo.bar == undefined → absence test.
+		return otherSideIsNullOrUndefined(p, n)
+	case rhino.SHEQ:
+		// foo.bar === undefined → absence test.
+		// foo.bar === null is NOT an absence test (only == null qualifies).
+		return otherSideIs(p, n, rhino.UNDEFINED)
+	}
+	return false
+}
+
+// otherSideIsNullOrUndefined returns true when the binary node `p`
+// has `n` on one side and a null/undefined literal on the other.
+// Used to implement the property existence/absence test guards.
+func otherSideIsNullOrUndefined(p, n *rhino.Node) bool {
+	kids := p.Children()
+	if len(kids) < 2 {
+		return false
+	}
+	var other *rhino.Node
+	if kids[0] == n {
+		other = kids[1]
+	} else {
+		other = kids[0]
+	}
+	return isNullOrUndefinedLiteral(other)
+}
+
+// otherSideIs returns true when the binary node `p` has `n` on one
+// side and a node with token `tok` on the other. Used by the
+// existence/absence-test guards for SHNE and SHEQ comparisons.
+func otherSideIs(p, n *rhino.Node, tok rhino.Token) bool {
+	kids := p.Children()
+	if len(kids) < 2 {
+		return false
+	}
+	var other *rhino.Node
+	if kids[0] == n {
+		other = kids[1]
+	} else {
+		other = kids[0]
+	}
+	return other != nil && other.Token() == tok
+}
+
+// buildExternTypeSet collects every ObjectType instance registered in
+// the externs scope (the parent of the user-source global scope). Java's
+// externs ship full property surfaces for Object, Function, Array, Date,
+// etc.; jsgo's externs are sparse @constructor stubs. Treating externs
+// types as "open" prevents spurious JSC_INEXISTENT_PROPERTY on any
+// property access whose type comes from the externs. Mirrors Java's
+// "low-confidence" treatment of the global Object type and the general
+// open-surface assumption for other extern types.
+//
+// The extern scope is global.parent (builtins is global.parent.parent).
+// Only FunctionType constructors with an Instance are collected — bare
+// @const or primitive entries don't carry property surfaces.
+func buildExternTypeSet(global *TypedScope) map[*jstype.ObjectType]bool {
+	out := map[*jstype.ObjectType]bool{}
+	if global == nil {
+		return out
+	}
+	// Walk only the extern scope (global.parent), not the user scope.
+	for s := global.parent; s != nil; s = s.parent {
+		for _, t := range s.declared {
+			fn, ok := t.(*jstype.FunctionType)
+			if !ok || fn.Instance == nil {
+				continue
+			}
+			out[fn.Instance] = true
+		}
+	}
+	return out
+}
+
+// buildLoosePropertyIndex builds, for each ObjectType, the set of
+// property names defined on any of its direct or transitive subtypes.
+// This mirrors Java's eachRefTypeIndexedByProperty cross-reference: Java's
+// canPropertyBeDefined returns LOOSE when a property is found on a subclass,
+// which causes checkPropertyAccessHelper to use STRICT_INEXISTENT_PROPERTY
+// (silenced in default mode). Go skips JSC_INEXISTENT_PROPERTY in the same
+// circumstances by consulting this index.
+//
+// Only FunctionType constructors with an Instance super chain are consulted —
+// these are the @constructor / class declarations registered in scope.
+func buildLoosePropertyIndex(global *TypedScope) map[*jstype.ObjectType]map[string]bool {
+	out := map[*jstype.ObjectType]map[string]bool{}
+	for s := global; s != nil; s = s.parent {
+		for _, t := range s.declared {
+			fn, ok := t.(*jstype.FunctionType)
+			if !ok || fn.Instance == nil {
+				continue
+			}
+			inst := fn.Instance
+			// For each property directly declared on inst's own member
+			// map, mark it as loose on every ancestor in the super chain.
+			for _, prop := range inst.MemberNames() {
+				for anc := inst.Super(); anc != nil; anc = anc.Super() {
+					m := out[anc]
+					if m == nil {
+						m = map[string]bool{}
+						out[anc] = m
+					}
+					m[prop] = true
+				}
+			}
+		}
+	}
+	return out
 }
 
 // insideOwnConstructor reports whether `n` is lexically inside a
