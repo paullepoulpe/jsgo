@@ -58,8 +58,9 @@ type VariableReferenceCheck struct {
 }
 
 type declSite struct {
-	line int
-	col  int
+	line   int
+	col    int
+	isFunc bool // true when declared by a function/class declaration (not var/let/const)
 }
 
 // earlyRefDecl records the source position of a `var` declaration for
@@ -92,10 +93,45 @@ func NewVariableReferenceCheck(path string, externScope *TypedScope) *VariableRe
 // file, matching Java's Compiler pass-instance pattern.
 func (v *VariableReferenceCheck) Check(script *rhino.Node) []diag.Diagnostic {
 	v.diags = nil
+	// A file-level `@fileoverview @suppress {duplicate}` suppresses all
+	// duplicate-declaration diagnostics for the entire script. Mirrors
+	// Java's hasDuplicateDeclarationSuppression / CheckLevel.OFF gate.
+	// The parser propagates @fileoverview suppressions into the first
+	// statement's JSDoc via mergeSuppressions; we also walk the whole
+	// script to catch any node that carries the suppress annotation.
+	if v.hasFileSuppressDuplicate(script) {
+		v.suppressDepth++
+		defer func() { v.suppressDepth-- }()
+	}
 	// Pre-scan script-level var declarations for the early-reference check.
 	v.preScanVarDecls(script, v.earlyRefStack[0])
 	v.walk(script, nil)
 	return v.diags
+}
+
+// hasFileSuppressDuplicate reports whether any node in the script
+// carries a @suppress {duplicate} annotation. This catches both the
+// SCRIPT node itself (if the parser attaches @fileoverview there)
+// and the first-statement node (where mergeSuppressions propagates
+// the @fileoverview suppress). Mirrors Java's
+// collectFileSuppressions / CompilerPass.skipForSuppressedPath logic.
+func (v *VariableReferenceCheck) hasFileSuppressDuplicate(script *rhino.Node) bool {
+	var check func(n *rhino.Node) bool
+	check = func(n *rhino.Node) bool {
+		if n == nil {
+			return false
+		}
+		if info := n.JSDocInfo(); info != nil && info.HasSuppression("duplicate") {
+			return true
+		}
+		for _, c := range n.Children() {
+			if check(c) {
+				return true
+			}
+		}
+		return false
+	}
+	return check(script)
 }
 
 // preScanVarDecls collects every `var`-keyword declaration in `n`'s
@@ -195,11 +231,18 @@ func (v *VariableReferenceCheck) walk(n, parent *rhino.Node) {
 				// scopes[-2] when we just pushed a function frame.
 				if n.Token() == rhino.FUNCTION {
 					target := v.scopes[len(v.scopes)-2]
-					v.recordDeclInto(target, name, name.String_())
+					v.recordFuncDecl(target, name, name.String_())
 				} else {
 					v.recordDecl(name, name.String_())
 				}
 			}
+		} else if n.Token() == rhino.FUNCTION {
+			// Named function expression (parent is not a block-level
+			// statement). Check if the function name bleeds into the
+			// enclosing scope and masks an existing non-function variable.
+			// Mirrors TypeCheck.java shouldTraverse's FUNCTION_MASKS_VARIABLE
+			// check (IE bleeding-name bug detection).
+			v.checkFunctionMasksVariable(n)
 		}
 	case rhino.NAME:
 		// Check for an early reference: a NAME used as a value reference
@@ -353,7 +396,11 @@ func isBindingSiteVRC(n, parent *rhino.Node) bool {
 }
 
 func (v *VariableReferenceCheck) recordDecl(nameNode *rhino.Node, name string) {
-	v.recordDeclInto(v.scopes[len(v.scopes)-1], nameNode, name)
+	v.recordDeclInto(v.scopes[len(v.scopes)-1], nameNode, name, false)
+}
+
+func (v *VariableReferenceCheck) recordFuncDecl(scope map[string]declSite, nameNode *rhino.Node, name string) {
+	v.recordDeclInto(scope, nameNode, name, true)
 }
 
 // isMemberContext reports whether `parent` (the node above a FUNCTION /
@@ -376,7 +423,7 @@ func isMemberContext(parent *rhino.Node) bool {
 	return false
 }
 
-func (v *VariableReferenceCheck) recordDeclInto(scope map[string]declSite, nameNode *rhino.Node, name string) {
+func (v *VariableReferenceCheck) recordDeclInto(scope map[string]declSite, nameNode *rhino.Node, name string, isFunc bool) {
 	if name == "" {
 		return
 	}
@@ -395,5 +442,59 @@ func (v *VariableReferenceCheck) recordDeclInto(scope map[string]declSite, nameN
 		})
 		return
 	}
-	scope[name] = declSite{line: nameNode.Lineno(), col: nameNode.Charno()}
+	scope[name] = declSite{line: nameNode.Lineno(), col: nameNode.Charno(), isFunc: isFunc}
+}
+
+// checkFunctionMasksVariable mirrors TypeCheck.java's shouldTraverse
+// FUNCTION_MASKS_VARIABLE path. Fires when a named function expression
+// (not a function declaration) has the same name as an existing
+// non-function variable in the enclosing scope — the so-called IE
+// "bleeding name" bug where the named function expression's name leaks
+// into the outer scope under IE9 quirks mode.
+//
+// Java condition (TypeCheck.shouldTraverse):
+//   var = outerScope.getVar(funcNameString)
+//   var != null
+//     && var.getScope().hasSameContainerScope(outerScope)
+//     && !(var.getType() instanceof FunctionType)
+//     && !hasDuplicateDeclarationSuppression(var.getNameNode())
+//
+// We approximate !(var.getType() instanceof FunctionType) by checking
+// whether the first declaration of the name was recorded as isFunc=false
+// (i.e. it came from a var/let/const, not a function/class declaration).
+func (v *VariableReferenceCheck) checkFunctionMasksVariable(fn *rhino.Node) {
+	kids := fn.Children()
+	if len(kids) < 1 {
+		return
+	}
+	funcName := kids[0].String_()
+	if funcName == "" {
+		return // anonymous function expression — no bleeding
+	}
+	// The enclosing scope is scopes[-2] because we already pushed the
+	// function's own scope frame when entering the FUNCTION node.
+	if len(v.scopes) < 2 {
+		return
+	}
+	enclosing := v.scopes[len(v.scopes)-2]
+	prev, found := enclosing[funcName]
+	if !found {
+		return
+	}
+	// Only fire when the existing declaration is NOT a function/class
+	// declaration (mirrors Java's !(var.getType() instanceof FunctionType)).
+	if prev.isFunc {
+		return
+	}
+	if v.suppressDepth > 0 {
+		return
+	}
+	v.diags = append(v.diags, diag.Diagnostic{
+		Path:    v.path,
+		Line:    fn.Lineno(),
+		Col:     fn.Charno(),
+		Code:    diag.JSC_FUNCTION_MASKS_VARIABLE,
+		Level:   diag.Error, // upgraded to error by --jscomp_error=checkTypes (DiagnosticGroups TYPE_CHECK)
+		Message: fmt.Sprintf("function %s masks variable (IE bug)", funcName),
+	})
 }
