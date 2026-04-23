@@ -77,6 +77,9 @@ const defaultExternsSrc = `
 /** @constructor @extends {Error} */ function URIError(opt_msg) {}
 /** @constructor @extends {Error} */ function EvalError(opt_msg) {}
 
+/** @constructor */ function Window() {}
+/** @constructor */ function XMLHttpRequest() {}
+
 // ---- ES6 iterable / iterator / promise ------------------------- //
 
 /** @record */ function IArrayLike() {}

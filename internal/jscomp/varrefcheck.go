@@ -11,6 +11,14 @@
 // live in the source file under check (the externs-vs-source
 // collisions — ~26 extracted fixtures against es6.js's Disposable
 // etc. — need P2-1 to land first).
+//
+// REFERENCE_BEFORE_DECLARE (JSC_REFERENCE_BEFORE_DECLARE): fires as a
+// WARNING when a `var` binding is referenced before its declaration
+// within the same container scope (script or function body). Mirrors
+// Java's checkEarlyReference / EARLY_REFERENCE path in
+// ReferenceCheckingBehavior.checkVar. Note: `let`/`const` early
+// references fire EARLY_REFERENCE_ERROR (a harder error) in Java —
+// that code path is not yet ported.
 
 package jscomp
 
@@ -22,8 +30,8 @@ import (
 )
 
 // VariableReferenceCheck is the NodeTraversal.Callback that reports
-// intra-file duplicate `var` declarations. Mirrors the pass of the
-// same name on the Java side.
+// intra-file duplicate `var` declarations and early-reference warnings.
+// Mirrors the pass of the same name on the Java side.
 type VariableReferenceCheck struct {
 	path  string
 	diags []diag.Diagnostic
@@ -33,6 +41,14 @@ type VariableReferenceCheck struct {
 	// first occurrence's source position, used to build the "First
 	// occurrence: <path>:<line>:<col>" message.
 	scopes []map[string]declSite
+
+	// earlyRefStack mirrors scopes: earlyRefStack[i] holds the
+	// complete set of `var`-declared names (pre-scanned) in the
+	// container scope at depth i, used to detect early references.
+	// Only `var` declarations populate this map (not let/const/
+	// function — hoisted functions are always "declared" from the
+	// start; let/const fire a different error not yet ported).
+	earlyRefStack []map[string]earlyRefDecl
 
 	// suppressDepth is non-zero whenever we're inside a function
 	// whose JSDoc carries `@suppress {duplicate}`. While > 0,
@@ -46,10 +62,18 @@ type declSite struct {
 	col  int
 }
 
+// earlyRefDecl records the source position of a `var` declaration for
+// the purpose of early-reference detection.
+type earlyRefDecl struct {
+	line int
+	col  int
+}
+
 func NewVariableReferenceCheck(path string, externScope *TypedScope) *VariableReferenceCheck {
 	v := &VariableReferenceCheck{
-		path:   path,
-		scopes: []map[string]declSite{{}},
+		path:          path,
+		scopes:        []map[string]declSite{{}},
+		earlyRefStack: []map[string]earlyRefDecl{{}},
 	}
 	// Seed the global frame with every name declared by the externs
 	// scope. Re-declaring one of these in user source fires
@@ -68,8 +92,40 @@ func NewVariableReferenceCheck(path string, externScope *TypedScope) *VariableRe
 // file, matching Java's Compiler pass-instance pattern.
 func (v *VariableReferenceCheck) Check(script *rhino.Node) []diag.Diagnostic {
 	v.diags = nil
+	// Pre-scan script-level var declarations for the early-reference check.
+	v.preScanVarDecls(script, v.earlyRefStack[0])
 	v.walk(script, nil)
 	return v.diags
+}
+
+// preScanVarDecls collects every `var`-keyword declaration in `n`'s
+// immediate container scope (i.e. it does not descend into nested
+// function bodies) and records the name → position in `dest`. This
+// mirrors Java's two-pass behaviour where references are collected
+// in parse-tree order and then checked against the declaration after
+// the scope exits.
+func (v *VariableReferenceCheck) preScanVarDecls(n *rhino.Node, dest map[string]earlyRefDecl) {
+	if n == nil {
+		return
+	}
+	// Do not cross function boundaries — each function has its own
+	// container scope that is pre-scanned separately before walking.
+	if n.Token() == rhino.FUNCTION {
+		return
+	}
+	if n.Token() == rhino.VAR {
+		for _, ch := range n.Children() {
+			if ch.Token() == rhino.NAME && ch.String_() != "" {
+				name := ch.String_()
+				if _, exists := dest[name]; !exists {
+					dest[name] = earlyRefDecl{line: ch.Lineno(), col: ch.Charno()}
+				}
+			}
+		}
+	}
+	for _, ch := range n.Children() {
+		v.preScanVarDecls(ch, dest)
+	}
 }
 
 func (v *VariableReferenceCheck) walk(n, parent *rhino.Node) {
@@ -81,6 +137,8 @@ func (v *VariableReferenceCheck) walk(n, parent *rhino.Node) {
 	// in the Java model, so we don't push one here.
 	if n.Token() == rhino.FUNCTION {
 		v.scopes = append(v.scopes, map[string]declSite{})
+		earlyRefs := map[string]earlyRefDecl{}
+		v.earlyRefStack = append(v.earlyRefStack, earlyRefs)
 		// `@suppress {duplicate}` on the enclosing function silences
 		// duplicate-declaration diagnostics for everything inside its
 		// body — matches the Java pass's gate.
@@ -91,6 +149,7 @@ func (v *VariableReferenceCheck) walk(n, parent *rhino.Node) {
 		}
 		defer func() {
 			v.scopes = v.scopes[:len(v.scopes)-1]
+			v.earlyRefStack = v.earlyRefStack[:len(v.earlyRefStack)-1]
 			if suppressed {
 				v.suppressDepth--
 			}
@@ -100,6 +159,12 @@ func (v *VariableReferenceCheck) walk(n, parent *rhino.Node) {
 		if len(kids) >= 2 {
 			for _, p := range kids[1].Children() {
 				v.recordDecl(p, p.String_())
+			}
+			// Pre-scan the function body (third child = BLOCK) for var
+			// declarations so early-reference checks work for references
+			// that textually precede the var statement inside the function.
+			if len(kids) >= 3 {
+				v.preScanVarDecls(kids[2], earlyRefs)
 			}
 		}
 	}
@@ -136,10 +201,155 @@ func (v *VariableReferenceCheck) walk(n, parent *rhino.Node) {
 				}
 			}
 		}
+	case rhino.NAME:
+		// Check for an early reference: a NAME used as a value reference
+		// (not a declaration binding) before its `var` declaration in
+		// the same container scope. Mirrors Java's checkEarlyReference
+		// / EARLY_REFERENCE (JSC_REFERENCE_BEFORE_DECLARE) warning for
+		// var-declared names.
+		v.checkEarlyReference(n, parent)
 	}
 	for _, c := range n.Children() {
 		v.walk(c, n)
 	}
+}
+
+// checkEarlyReference mirrors Java's checkEarlyReference for the
+// EARLY_REFERENCE (JSC_REFERENCE_BEFORE_DECLARE) warning. It fires
+// when a NAME node is a value reference (not a binding site) to a
+// `var` that is declared later in the same container scope.
+//
+// Java conditions ported here:
+//   - The reference is in the same container scope as the declaration
+//     (hasSameContainerScope). We approximate this: the name must be
+//     in the current scope's earlyRefStack entry (pre-scanned vars),
+//     and we must not be inside a nested function (depth > the depth
+//     where the var was pre-scanned).
+//   - For `var` declarations: the self-referential `var x = x || {}`
+//     pattern is exempt (Java walks up through OR nodes to detect it).
+//     The `??` (COALESCE) form is NOT exempt — it fires the warning.
+//   - The reference must come before the declaration position OR be
+//     inside the initializer of the same-line declaration
+//     (e.g. `var x = x ?? {}` — the reference is in the RHS).
+func (v *VariableReferenceCheck) checkEarlyReference(n, parent *rhino.Node) {
+	name := n.String_()
+	if name == "" {
+		return
+	}
+	// Only check NAME nodes that are value references, not binding sites.
+	if isBindingSiteVRC(n, parent) {
+		return
+	}
+	// Look up the pre-scanned var declaration in the current
+	// container scope only (the top of earlyRefStack).
+	decl, found := v.earlyRefStack[len(v.earlyRefStack)-1][name]
+	if !found {
+		return
+	}
+	refLine, refCol := n.Lineno(), n.Charno()
+	// Fire if the reference textually precedes the declaration.
+	if refLine > decl.line {
+		return
+	}
+	if refLine == decl.line && refCol >= decl.col {
+		// Same line, reference col >= decl col: only fire when the
+		// reference is inside the var's own initializer expression
+		// (e.g. `var x = x ?? {}`). Java handles this naturally via
+		// post-order traversal; we detect it by walking up the
+		// parent chain to find the declaration NAME node.
+		if !isInsideVarInitializer(n, name) {
+			return
+		}
+	}
+	// Exempt the `var x = x || {}` self-init pattern. Java walks
+	// up through OR-as-LHS chains and checks whether the eventual
+	// parent is the declaration NAME itself. We replicate the same
+	// traversal here.
+	if isVarSelfInitOr(n, name) {
+		return
+	}
+	v.diags = append(v.diags, diag.Diagnostic{
+		Path:    v.path,
+		Line:    refLine,
+		Col:     refCol,
+		Code:    diag.JSC_REFERENCE_BEFORE_DECLARE,
+		Level:   diag.Warning,
+		Message: fmt.Sprintf("Variable referenced before declaration: %s", name),
+	})
+}
+
+// isInsideVarInitializer reports whether NAME reference node n is
+// inside the initializer expression of a var declaration for the same
+// variable name. This detects the `var x = f(x)` family where the
+// reference in the RHS is semantically before initialization.
+// Mirrors the intuition behind Java's post-order reference collection:
+// in post-order, the initializer expression is visited before the
+// declaration NAME, so hasSeenDeclaration is false.
+func isInsideVarInitializer(n *rhino.Node, name string) bool {
+	curr := n.Parent()
+	for curr != nil {
+		if curr.Token() == rhino.NAME && curr.String_() == name {
+			if p := curr.Parent(); p != nil && p.Token() == rhino.VAR {
+				return true
+			}
+		}
+		curr = curr.Parent()
+	}
+	return false
+}
+
+// isVarSelfInitOr returns true for the `var x = x || {}` pattern where
+// the reference `n` (a NAME node with the given name) sits on the LHS
+// of a chain of OR expressions whose ultimate parent is the declaration
+// NAME node for the same variable. This mirrors Java's special case in
+// checkEarlyReference:
+//
+//	Node curr = reference.getParent();
+//	while (curr.isOr() && curr.getParent().getFirstChild() == curr) { curr = curr.getParent(); }
+//	if (curr.isName() && curr.getString().equals(v.getName())) { return false; }
+func isVarSelfInitOr(n *rhino.Node, varName string) bool {
+	curr := n.Parent()
+	for curr != nil && curr.Token() == rhino.OR {
+		p := curr.Parent()
+		if p == nil || p.FirstChild() != curr {
+			break
+		}
+		curr = p
+	}
+	if curr != nil && curr.Token() == rhino.NAME && curr.String_() == varName {
+		return true
+	}
+	return false
+}
+
+// isBindingSiteVRC classifies NAME nodes that are declarations (param,
+// VAR/LET/CONST child, function/class name, class-field-def name,
+// STRING_KEY child) rather than value references. Mirrors the logic in
+// VarCheck.isBindingSite, kept separate to avoid a package-level
+// coupling. The name "_VRC" suffix distinguishes it from VarCheck's
+// copy; both are 1:1 ports of the same NodeUtil helpers.
+func isBindingSiteVRC(n, parent *rhino.Node) bool {
+	if parent == nil {
+		return true // orphan NAMEs aren't references
+	}
+	switch parent.Token() {
+	case rhino.VAR, rhino.LET, rhino.CONST:
+		// Only the first child of the declaration is the binding; any
+		// NAME inside the initializer is a reference.
+		return parent.FirstChild() == n
+	case rhino.PARAM_LIST:
+		return true
+	case rhino.FUNCTION, rhino.CLASS:
+		return parent.FirstChild() == n
+	case rhino.CLASS_FIELD_DEF:
+		return parent.FirstChild() == n
+	case rhino.GETPROP:
+		// Property access: obj.prop — the second child is a property name,
+		// not a variable reference.
+		kids := parent.Children()
+		return len(kids) >= 2 && kids[1] == n
+	}
+	return false
 }
 
 func (v *VariableReferenceCheck) recordDecl(nameNode *rhino.Node, name string) {
