@@ -384,6 +384,7 @@ func (c *CheckJsDocTypes) Check() []diag.Diagnostic {
 		end += start
 		out = append(out, c.checkComment(s, start, end)...)
 		out = append(out, c.checkBareTypeof(s, start, end)...)
+		out = append(out, c.checkParseErrors(s, start, end)...)
 		i = end + 2
 	}
 	return out
@@ -582,6 +583,16 @@ func (c *CheckJsDocTypes) checkTypeExpr(src string, base int, inner string, tmpl
 	type frame struct {
 		kind        byte // '{' record, '(' params, '<' generic
 		expectType  bool // true when the next IDENT is a type name
+		// lastKey holds the most recently seen record field name (key
+		// slot), so the `:` transition can check for duplicates.
+		lastKey     string
+		// seenKeys tracks field names already processed in this record
+		// frame so we can detect duplicates and suppress type-checking
+		// the value of a duplicate field.
+		seenKeys    map[string]bool
+		// skipValue is set when the current field is a duplicate; the
+		// type-expression value is not type-checked.
+		skipValue   bool
 	}
 	// Top-level (outside any frame) is always a type slot.
 	stack := []frame{{kind: 0, expectType: true}}
@@ -606,12 +617,25 @@ func (c *CheckJsDocTypes) checkTypeExpr(src string, base int, inner string, tmpl
 			switch top().kind {
 			case '{', '(':
 				top().expectType = false
+				top().lastKey = ""
+				top().skipValue = false
 			default:
 				top().expectType = true
 			}
 			i++
 		case ch == ':':
 			// Leaving the key slot — the next IDENT is a type.
+			// For record frames, check if the lastKey is a duplicate.
+			if top().kind == '{' && top().lastKey != "" {
+				if top().seenKeys == nil {
+					top().seenKeys = map[string]bool{}
+				}
+				if top().seenKeys[top().lastKey] {
+					top().skipValue = true
+				} else {
+					top().seenKeys[top().lastKey] = true
+				}
+			}
 			top().expectType = true
 			i++
 		case ch == '=':
@@ -640,6 +664,15 @@ func (c *CheckJsDocTypes) checkTypeExpr(src string, base int, inner string, tmpl
 			name := inner[start:i]
 			if !top().expectType {
 				// Key / param name — don't resolve as a type.
+				// For record frames, remember the key so we can check
+				// for duplicates when we see the `:`.
+				if top().kind == '{' {
+					top().lastKey = name
+				}
+				continue
+			}
+			// Skip type-checking for values of duplicate record fields.
+			if top().skipValue {
 				continue
 			}
 			if name == "typeof" {
@@ -746,10 +779,261 @@ func (c *CheckJsDocTypes) nameResolves(name string) bool {
 	if defaultExternNames()[name] {
 		return true
 	}
+	// `allNames` is a broad set of all identifiers in the source; it
+	// suppresses JSC_UNRECOGNIZED_TYPE_ERROR for locally-defined names
+	// that the global scope chain doesn't see (e.g. IIFE-local
+	// constructors). However, if the name IS declared in the global
+	// scope chain but as a pure value binding (not a constructor/enum/
+	// typedef), the Java registry doesn't treat it as a type, so we
+	// should not suppress the error. Mirrors Java's
+	// JSTypeRegistry.getType returning null for plain function/object
+	// bindings.
+	rawDecl := c.scope.GetRawDeclaredType(name)
+	if rawDecl != nil &&
+		rawDecl != jstype.All && // All = unresolved alias; may be a type
+		c.scope.LookupTypeAlias(name) == nil &&
+		c.scope.LookupNominalType(name) == nil &&
+		c.scope.LookupEnum(name) == nil {
+		// Name IS in the global scope chain as a pure value binding
+		// (not a constructor/typedef/enum, not an unresolved alias).
+		// Since scope.ResolveExpr already returned Unknown, Java's
+		// JSTypeRegistry.getType would also return null for it.
+		return false
+	}
 	if c.allNames[name] {
 		return true
 	}
 	return false
+}
+
+// checkParseErrors scans a single `/** … */` block for
+// JSC_TYPE_PARSE_ERROR conditions that the Java JsDocInfoParser
+// reports via addTypeWarning:
+//
+//  1. Duplicate record field (`{x:T1, x:T2}` → Msg.JSDOC_TYPE_RECORD_DUPLICATE).
+//  2. Second @extends on a non-interface/non-record class (Msg.JSDOC_INCOMPAT_TYPE).
+//  3. @lends without a `{Name}` argument (Msg.JSDOC_LENDS_MISSING).
+//
+// Position mirrors Java: for (1) the `}` closing the duplicate field's
+// type; for (2) the `}` closing the second @extends type; for (3) the
+// first non-space char after `@lends` when no `{` follows.
+func (c *CheckJsDocTypes) checkParseErrors(s string, start, end int) []diag.Diagnostic {
+	var out []diag.Diagnostic
+	body := s[start:end]
+
+	// ---- (1) Duplicate record fields --------------------------------
+	// Walk every {…} annotation brace pair. If the inner text is a
+	// record type (starts with `{` after stripping `!`/`?`/`…`), scan
+	// for duplicate field names and emit at the `}` that closes the
+	// record type.
+	checkRecordDuplicates := func(inner string, innerAbsStart int) {
+		// innerAbsStart is the absolute offset of inner[0] in s.
+		// Strip leading modifiers so `!{k:T}` → `{k:T}`.
+		stripped := strings.TrimLeft(inner, "!?")
+		if len(stripped) == 0 || stripped[0] != '{' {
+			return
+		}
+		record := stripped[1:] // content after the `{`
+		seen := map[string]bool{}
+		i := 0
+		for i < len(record) {
+			// Skip whitespace.
+			for i < len(record) && (record[i] == ' ' || record[i] == '\t' || record[i] == '\n' || record[i] == '\r' || record[i] == '*') {
+				i++
+			}
+			if i >= len(record) || record[i] == '}' {
+				break
+			}
+			// Read field name (identifier).
+			if !isIdentStart(record[i]) {
+				break
+			}
+			nameStart := i
+			for i < len(record) && (isIdentChar(record[i]) || record[i] == '_') {
+				i++
+			}
+			fieldName := record[nameStart:i]
+			// Skip whitespace.
+			for i < len(record) && (record[i] == ' ' || record[i] == '\t') {
+				i++
+			}
+			// Optional `:` followed by type expression.
+			if i < len(record) && record[i] == ':' {
+				i++ // consume `:`
+				// Skip whitespace.
+				for i < len(record) && (record[i] == ' ' || record[i] == '\t') {
+					i++
+				}
+				// Skip the type expression (up to `,` or `}` at depth 0).
+				depth := 0
+				for i < len(record) {
+					ch := record[i]
+					if ch == '{' || ch == '<' || ch == '(' {
+						depth++
+					} else if ch == '}' || ch == '>' || ch == ')' {
+						if depth == 0 {
+							break // end of record
+						}
+						depth--
+					} else if ch == ',' && depth == 0 {
+						break
+					}
+					i++
+				}
+			}
+			// After the field entry: position is at `,` or `}`.
+			// Java fires addTypeWarning HERE (at stream position after
+			// consuming the field's type).
+			if seen[fieldName] {
+				// errPos: the offset of `i` within `record` + offset of
+				// `record` within `inner` + innerAbsStart.
+				// stripped offset relative to inner = len(inner)-len(stripped)
+				// record = stripped[1:], so record offset = strippedOffset+1
+				strippedOff := len(inner) - len(stripped)
+				recAbsStart := innerAbsStart + strippedOff + 1
+				errOff := recAbsStart + i
+				line, col := c.positionOf(s, errOff)
+				out = append(out, diag.Diagnostic{
+					Path: c.path, Line: line, Col: col,
+					Code:    diag.JSC_TYPE_PARSE_ERROR,
+					Level:   diag.Error,
+					Message: "Bad type annotation. Duplicate record field " + fieldName + ".",
+				})
+			}
+			seen[fieldName] = true
+			// Advance past `,` or stop at `}`.
+			if i < len(record) && record[i] == ',' {
+				i++
+			}
+		}
+	}
+
+	// Scan all type-bearing annotation braces in the comment.
+	bi := 0
+	for bi < len(body) {
+		at := strings.Index(body[bi:], "@")
+		if at < 0 {
+			break
+		}
+		at += bi
+		j := at + 1
+		for j < len(body) && isTagChar(body[j]) {
+			j++
+		}
+		tag := body[at+1 : j]
+		if !isTypeTag(tag) {
+			bi = j
+			continue
+		}
+		k := j
+		for k < len(body) && (body[k] == ' ' || body[k] == '\t' || body[k] == '\n' || body[k] == '\r' || body[k] == '*') {
+			k++
+		}
+		if k >= len(body) || body[k] != '{' {
+			bi = j
+			continue
+		}
+		braceStart := k
+		braceEnd := findMatchingBrace(body, braceStart)
+		if braceEnd < 0 {
+			break
+		}
+		inner := body[braceStart+1 : braceEnd]
+		checkRecordDuplicates(inner, start+braceStart+1)
+		bi = braceEnd + 1
+	}
+
+	// ---- (2) Double @extends on a non-interface/non-record class ----
+	// If the block has @interface or @record, multiple @extends is OK.
+	// Otherwise, the second (and subsequent) @extends emits TYPE_PARSE_ERROR.
+	isInterface := strings.Contains(body, "@interface") || strings.Contains(body, "@record")
+	if !isInterface {
+		extendsCount := 0
+		ei := 0
+		for ei < len(body) {
+			idx := strings.Index(body[ei:], "@extends")
+			if idx < 0 {
+				break
+			}
+			idx += ei
+			extendsCount++
+			if extendsCount >= 2 {
+				// Find the `{...}` following this @extends.
+				k := idx + len("@extends")
+				for k < len(body) && (body[k] == ' ' || body[k] == '\t' || body[k] == '\n' || body[k] == '\r' || body[k] == '*') {
+					k++
+				}
+				if k < len(body) && body[k] == '{' {
+					braceEnd := findMatchingBrace(body, k)
+					if braceEnd >= 0 {
+						// Java fires at stream position after the type name,
+						// which is the `}` position (the closing brace).
+						errOff := start + braceEnd
+						line, col := c.positionOf(s, errOff)
+						out = append(out, diag.Diagnostic{
+							Path: c.path, Line: line, Col: col,
+							Code:    diag.JSC_TYPE_PARSE_ERROR,
+							Level:   diag.Error,
+							Message: "Bad type annotation. type annotation incompatible with other annotations.",
+						})
+					}
+				}
+			}
+			ei = idx + len("@extends")
+		}
+	}
+
+	// ---- (3) @lends without a `{Name}` argument, or `{Name|…}` -------
+	// Java's JsDocInfoParser expects exactly one name (no `|`) inside
+	// the @lends braces; a `|` triggers "expected closing }".
+	li := 0
+	for li < len(body) {
+		idx := strings.Index(body[li:], "@lends")
+		if idx < 0 {
+			break
+		}
+		idx += li
+		// Check that `@lends` is not followed by a valid `{Name}` block.
+		k := idx + len("@lends")
+		// Ensure this is a word boundary (not @lendsomething).
+		if k < len(body) && isTagChar(body[k]) {
+			li = k
+			continue
+		}
+		// Skip whitespace.
+		for k < len(body) && (body[k] == ' ' || body[k] == '\t') {
+			k++
+		}
+		if k >= len(body) || body[k] != '{' {
+			// No `{` follows — emit at the first non-space char after @lends.
+			errOff := start + k
+			line, col := c.positionOf(s, errOff)
+			out = append(out, diag.Diagnostic{
+				Path: c.path, Line: line, Col: col,
+				Code: diag.JSC_TYPE_PARSE_ERROR, Level: diag.Error,
+				Message: "Bad type annotation. missing object name in @lends tag.",
+			})
+		} else {
+			// `{` follows — check that no `|` appears inside (Java's
+			// parseNameExpression reads one name then expects `}`).
+			braceOpen := k
+			if braceEnd := findMatchingBrace(body, braceOpen); braceEnd >= 0 {
+				content := body[braceOpen+1 : braceEnd]
+				if pipeIdx := strings.IndexByte(content, '|'); pipeIdx >= 0 {
+					errOff := start + braceOpen + 1 + pipeIdx
+					line, col := c.positionOf(s, errOff)
+					out = append(out, diag.Diagnostic{
+						Path: c.path, Line: line, Col: col,
+						Code: diag.JSC_TYPE_PARSE_ERROR, Level: diag.Error,
+						Message: "Bad type annotation. expected closing }",
+					})
+				}
+			}
+		}
+		li = idx + len("@lends")
+	}
+
+	return out
 }
 
 // positionOf returns (line, col) for the absolute offset `off` in
