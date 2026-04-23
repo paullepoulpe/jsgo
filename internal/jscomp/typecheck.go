@@ -745,8 +745,17 @@ func (c *TypeCheck) visitEnumInit(name, init *rhino.Node, scope *TypedScope) []d
 		}
 		return out
 	}
-	if init.Token() == rhino.NAME {
-		if other, ok := scope.GetDeclaredType(init.String_()).(*jstype.EnumType); ok {
+	if init.Token() == rhino.NAME || init.Token() == rhino.GETPROP {
+		// Resolve the RHS: for NAME look up the declared type; for
+		// GETPROP (qualified namespace enum alias e.g. `goog.a`)
+		// use InferType which routes through LookupNamespaceProp.
+		var other *jstype.EnumType
+		if init.Token() == rhino.NAME {
+			other, _ = scope.GetDeclaredType(init.String_()).(*jstype.EnumType)
+		} else {
+			other, _ = infer.InferType(init).(*jstype.EnumType)
+		}
+		if other != nil {
 			// Aliased enum — Java emits JSC_TYPE_MISMATCH
 			// "incompatible enum element types" when the alias's
 			// explicit `@enum {T}` underlying disagrees with the
@@ -843,9 +852,17 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 		if declared == nil && recv.Token() == rhino.NAME {
 			// `/** @type {T} */ goog.foo = …` namespace-property
 			// declaration made via recordNamespaceAssign.
-			if t := scope.LookupNamespaceProp(recv.String_(), propName); t != nil {
+			recvName := recv.String_()
+			if t := scope.LookupNamespaceProp(recvName, propName); t != nil {
+				// Skip properties whose type was inferred from a literal
+				// RHS (no @type JSDoc) — Java treats these as open surfaces
+				// where any subsequent assignment is allowed, matching the
+				// IsPropertyInferred guard on prototype properties.
+				if scope.IsNamespacePropInferred(recvName, propName) {
+					return nil
+				}
 				declared = t
-				ownerName = recv.String_()
+				ownerName = recvName
 			}
 		}
 		if declared == nil {
@@ -864,6 +881,18 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 				return nil
 			}
 			ownerName = obj.TypeName()
+		}
+		// `/** @enum {T} */ ns.Foo = {A:1, B:2}` — the RHS OBJECTLIT
+		// is the enum's source of truth, not a value being assigned into
+		// it; skip the top-level assignment check (per-entry validation
+		// is handled by visitEnumInit for VAR form; namespace-prop enum
+		// inits don't fire per-entry checks). Mirrors Java's TypeCheck
+		// which routes @enum assignments through EnumType's own init
+		// validator and does not fire ASSIGN mismatch at the top level.
+		if _, isEnum := declared.(*jstype.EnumType); isEnum {
+			if rhs.Token() == rhino.OBJECTLIT || rhs.Token() == rhino.NAME || rhs.Token() == rhino.GETPROP {
+				return nil
+			}
 		}
 		found := infer.InferType(rhs)
 		if jstype.IsSubtype(found, declared) {
@@ -1066,11 +1095,21 @@ func (c *TypeCheck) visitCall(node *rhino.Node, scope *TypedScope) []diag.Diagno
 	if len(fn.Params) < n {
 		n = len(fn.Params)
 	}
+	params := fn.GetParameters()
 	for i := 0; i < n; i++ {
 		arg := args[i]
 		param := fn.Params[i]
 		found := infer.InferType(arg)
 		if jstype.IsSubtype(found, param) {
+			continue
+		}
+		// Optional parameters (JSDoc {=T}) accept `undefined` at the
+		// call site. Java's TypeCheck widens the effective required
+		// type to (T|undefined) for optional params, so passing
+		// `undefined` explicitly is always valid.
+		// Mirrors FunctionType.Parameter.isOptional() check in Java's
+		// TypeCheck.visitCallParameters.
+		if i < len(params) && params[i].IsOptional() && found == jstype.Void {
 			continue
 		}
 		line, col := diagPosForArg(arg)
@@ -2449,10 +2488,11 @@ func isDefinitelyNotComparable(t jstype.JSType) bool {
 		return false
 	}
 	switch t {
-	case jstype.Number, jstype.String, jstype.Null, jstype.Void:
+	case jstype.Number, jstype.String, jstype.Null, jstype.Void, jstype.Boolean:
+		// boolean is coerced to 0/1 by JS, so it is comparable.
+		// Mirrors Java's TypeCheck which does not flag boolean operands
+		// for relational ops in default mode.
 		return false
-	case jstype.Boolean:
-		return true
 	}
 	if _, ok := t.(*jstype.FunctionType); ok {
 		return true

@@ -225,12 +225,16 @@ func cdtTestForEquality(a, b jstype.JSType) cdtTri {
 		return cdtTestForEquality(a, be.Enum.Underlying)
 	}
 
-	// FunctionType: comparable to objects; incompatible with non-objects /
-	// non-functions unless the other side is also a function/object.
-	if _, ok := a.(*jstype.FunctionType); ok {
+	// FunctionType or the built-in Function ObjectType: comparable to
+	// objects; incompatible with primitives. Mirrors Java's FunctionType
+	// testForEquality path; the ObjectType{Function} case covers the
+	// @type {Function} / @param {Function} annotation form where the
+	// scope creator resolves `Function` to the built-in type rather than
+	// a concrete function signature.
+	if cdtIsFunctionLike(a) {
 		return cdtFunctionVsType(b)
 	}
-	if _, ok := b.(*jstype.FunctionType); ok {
+	if cdtIsFunctionLike(b) {
 		return cdtFunctionVsType(a)
 	}
 
@@ -576,4 +580,19 @@ func cdtIsObject(t jstype.JSType) bool {
 // by default).  For primitives it is false.
 func cdtIsNullable(t jstype.JSType) bool {
 	return cdtIsObject(t)
+}
+
+// cdtIsFunctionLike reports whether t behaves like a function for
+// deterministic-test purposes: either it IS a FunctionType or it is
+// the built-in Function ObjectType (the @type {Function} form).
+// Mirrors Java's path where both function signatures and the top-level
+// Function type go through FunctionType.testForEquality.
+func cdtIsFunctionLike(t jstype.JSType) bool {
+	if _, ok := t.(*jstype.FunctionType); ok {
+		return true
+	}
+	if obj, ok := t.(*jstype.ObjectType); ok && obj.Name == "Function" {
+		return true
+	}
+	return false
 }

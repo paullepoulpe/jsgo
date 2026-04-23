@@ -46,6 +46,12 @@ type TypedScope struct {
 	// cross-referencing position on JSC_DUP_VAR_DECLARATION_TYPE
 	// _MISMATCH diagnostics.
 	namespacePropNodes map[string]map[string]*rhino.Node
+	// inferredNsProps tracks namespace properties whose type was
+	// inferred from a literal RHS (no @type JSDoc). Assignment
+	// checks skip inferred-only slots — Java treats them as open
+	// surfaces in default mode, mirroring the IsPropertyInferred
+	// guard on prototype slots.
+	inferredNsProps map[string]map[string]bool
 	// typeAliases carry `@typedef` declarations — a parallel namespace
 	// to value bindings. ResolveExpr checks this before the nominal
 	// / primitive registry.
@@ -205,6 +211,35 @@ func (s *TypedScope) recordNamespaceProp(owner, prop string, t jstype.JSType, at
 	return firstNode
 }
 
+// markNamespacePropInferred flags owner.prop as literal-inferred.
+// The assignment checker skips inferred-only namespace props, matching
+// Java's open-surface treatment of non-@type namespace assignments.
+func (s *TypedScope) markNamespacePropInferred(owner, prop string) {
+	if s.inferredNsProps == nil {
+		s.inferredNsProps = map[string]map[string]bool{}
+	}
+	if s.inferredNsProps[owner] == nil {
+		s.inferredNsProps[owner] = map[string]bool{}
+	}
+	s.inferredNsProps[owner][prop] = true
+}
+
+// IsNamespacePropInferred reports whether owner.prop was registered
+// via a literal-RHS assignment (no @type JSDoc) rather than an
+// explicit type declaration. Assignment checks consult this to avoid
+// false-positive TYPE_MISMATCH on open-surface re-assignments.
+func (s *TypedScope) IsNamespacePropInferred(owner, prop string) bool {
+	if s == nil {
+		return false
+	}
+	if m, ok := s.inferredNsProps[owner]; ok {
+		if m[prop] {
+			return true
+		}
+	}
+	return s.parent.IsNamespacePropInferred(owner, prop)
+}
+
 // LookupEnum returns the EnumType associated with `name` in this
 // scope chain, or nil when the binding isn't an enum. Used by
 // ResolveExpr to route `@type {MyEnum}` to the matching
@@ -264,7 +299,11 @@ func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 	// Inline function type: `function(T1,T2=,...T3):R`. Produced by
 	// JsDocInfoParser.parseFunctionType(). Mirrors how Java's
 	// JSTypeRegistry converts a FunctionTypeAST into a FunctionType.
-	if startsWith(expr, "function(") || expr == "function" || expr == "Function" {
+	// Note: `Function` (capital F) is the built-in constructor type and
+	// must NOT enter this branch — it resolves via the name-lookup path
+	// below (just like `Array`, `Object`, etc.). Only bare `function`
+	// (keyword) and `function(…)` expressions enter here.
+	if startsWith(expr, "function(") || expr == "function" {
 		if fn := s.resolveFunctionTypeExpr(expr); fn != nil {
 			if nullable {
 				return jstype.NewUnion(fn, jstype.Null)
@@ -411,6 +450,15 @@ func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 						impliedNullable = true
 					}
 					members = append(members, member)
+					continue
+				}
+				// `@type {ns.MyEnum}` where ns.MyEnum is an EnumType
+				// resolves to the EnumElementType, matching how Java's
+				// JSTypeRegistry dispatches a dotted enum name to its
+				// element type (same as a bare enum name lookup does via
+				// LookupEnum → enum.Element).
+				if enum, ok := t.(*jstype.EnumType); ok {
+					members = append(members, enum.Element)
 					continue
 				}
 				members = append(members, t)
@@ -646,6 +694,7 @@ func (s *TypedScope) resolveFunctionTypeExpr(expr string) *jstype.FunctionType {
 	}
 
 	var paramTypes []jstype.JSType
+	var parameters []jstype.Parameter
 	minArity := 0
 	maxArity := 0
 	sawOptional := false
@@ -663,6 +712,7 @@ func (s *TypedScope) resolveFunctionTypeExpr(expr string) *jstype.FunctionType {
 		}
 		t := s.ResolveExpr(typeStr)
 		paramTypes = append(paramTypes, t)
+		parameters = append(parameters, jstype.NewParameter(t, isOptional, isRest))
 		switch {
 		case isRest:
 			maxArity = jstype.MaxArgsUnlimited
@@ -690,13 +740,15 @@ func (s *TypedScope) resolveFunctionTypeExpr(expr string) *jstype.FunctionType {
 		minArity = 0
 	}
 
-	fn := &jstype.FunctionType{
-		Params:   paramTypes,
-		Return:   retType,
-		MinArity: minArity,
-		MaxArity: maxArity,
-	}
-	return fn
+	// Build the FunctionType with the rich parameter slice so callers
+	// can consult IsOptional() / IsVariadic() on each param. This
+	// mirrors FunctionType.getParameters() in Java and is needed by the
+	// optional-parameter check in TypeCheck.visitCall.
+	// NewFunctionTypeFromParameters recomputes MinArity / MaxArity via
+	// computeArity, which matches the manual computation above.
+	_ = minArity  // computed by NewFunctionTypeFromParameters
+	_ = maxArity  // computed by NewFunctionTypeFromParameters
+	return jstype.NewFunctionTypeFromParameters(parameters, retType)
 }
 
 func indexOfTopLevel(s string, b byte) int {
@@ -918,21 +970,29 @@ func (c *TypedScopeCreator) buildExpressionFunctionScope(fn *rhino.Node, parent 
 		paramTypes = append(paramTypes, t)
 		local.declared[p.String_()] = t
 	}
+	funcName := ""
 	if nameNode != nil && nameNode.String_() != "" {
+		funcName = nameNode.String_()
 		var retType jstype.JSType = jstype.Void
 		if info != nil {
 			if r := info.ReturnType(); r != nil {
 				retType = parent.ResolveExpr(r.TypeName)
 			}
 		}
-		local.declared[nameNode.String_()] = jstype.NewFunctionType(paramTypes, retType)
+		local.declared[funcName] = jstype.NewFunctionType(paramTypes, retType)
 	}
 	c.Functions[fn] = local
 	if len(kids) >= 3 {
 		body := kids[2]
 		nested := c.createScopeIn(body, local)
 		for k, v := range nested.declared {
-			if _, exists := local.declared[k]; !exists {
+			_, alreadyDefined := local.declared[k]
+			// `var x` inside `var f = function x(){}` must shadow the
+			// function name `x` — Java's scope creator honours the var
+			// binding over the bleeding function-name binding.
+			// For all other nested declarations keep the existing
+			// (param / outer) binding when a name is already defined.
+			if !alreadyDefined || k == funcName {
 				local.declared[k] = v
 			}
 		}
@@ -1277,6 +1337,9 @@ func (c *TypedScopeCreator) recordNamespaceAssignFromFunction(a *rhino.Node, sco
 	// Skip if the receiver is already a known class instance (ObjectType)
 	// or constructor (FunctionType) — those assignments go through the
 	// instance/prototype property mechanism, not namespace tracking.
+	// These slots are marked inferred so the assignment checker treats
+	// them as open surfaces (matching Java's default-mode behaviour for
+	// non-@type namespace properties).
 	if lhs.Token() == rhino.GETPROP {
 		if t := literalType(rhs); !isJSUnknown(t) {
 			lhsKids := lhs.Children()
@@ -1285,7 +1348,15 @@ func (c *TypedScopeCreator) recordNamespaceAssignFromFunction(a *rhino.Node, sco
 				recvType := scope.GetDeclaredType(recv)
 				if _, isFn := recvType.(*jstype.FunctionType); !isFn {
 					if _, isObj := recvType.(*jstype.ObjectType); !isObj {
-						scope.recordNamespaceProp(recv, lhsKids[1].String_(), t, lhsKids[1])
+						propName := lhsKids[1].String_()
+						// Only record literal-inferred type when the prop
+						// has not already been declared with @type JSDoc —
+						// a re-assignment to a declared slot must not
+						// overwrite the declared type or mark it inferred.
+						if scope.LookupNamespaceProp(recv, propName) == nil {
+							scope.recordNamespaceProp(recv, propName, t, lhsKids[1])
+							scope.markNamespacePropInferred(recv, propName)
+						}
 						return
 					}
 				}
