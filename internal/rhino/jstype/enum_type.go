@@ -21,6 +21,8 @@
 
 package jstype
 
+import "github.com/paullepoulpe/jsgo/internal/rhino"
+
 // EnumType is the type of the `@enum` binding itself. Two enums
 // compare equal iff they're literally the same Go pointer —
 // aliasing (`/** @enum */ var Alias = Other`) reuses the source
@@ -44,6 +46,10 @@ type EnumType struct {
 	// TypeCheck.visitGetProp to fire JSC_INEXISTENT_ENUM_ELEMENT
 	// when a property access names a non-existent element.
 	Members map[string]bool
+
+	// docInfo mirrors EnumType.getJSDocInfo() — the JSDoc from the
+	// @enum declaration. Set by InferJsDocInfo.
+	docInfo *rhino.JSDocInfo
 }
 
 // NewEnumType allocates a fresh EnumType + its paired
@@ -109,3 +115,15 @@ func (e *EnumElementType) IsSubtypeOf(other JSType) bool {
 	// The underlying rule: `E<T>` is a subtype of T.
 	return IsSubtype(e.Enum.Underlying, other)
 }
+
+// SetJSDocInfo mirrors EnumType.setJSDocInfo — attaches the declaring
+// JSDoc to this enum type. Called by InferJsDocInfo.
+func (e *EnumType) SetJSDocInfo(info *rhino.JSDocInfo) { e.docInfo = info }
+
+// GetJSDocInfo mirrors EnumType.getJSDocInfo.
+func (e *EnumType) GetJSDocInfo() *rhino.JSDocInfo { return e.docInfo }
+
+// GetElementsType mirrors EnumType.getElementsType() — returns the
+// EnumElementType paired with this enum, which represents the type of
+// `MyEnum.FOO`. Analogous to EnumType.getElementsType() in Java.
+func (e *EnumType) GetElementsType() *EnumElementType { return e.Element }

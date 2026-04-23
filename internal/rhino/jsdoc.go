@@ -325,7 +325,6 @@ func (i *JSDocInfo) HasLendsName() bool { return i != nil && i.lendsName != "" }
 
 // LendsName mirrors JSDocInfo.getLendsName() — returns the lends target as a
 // JSTypeExpression so callers can inspect the name string.
-// Returns nil when no @lends was present.
 func (i *JSDocInfo) LendsName() *JSTypeExpression {
 	if i == nil || i.lendsName == "" {
 		return nil
@@ -335,3 +334,21 @@ func (i *JSDocInfo) LendsName() *JSTypeExpression {
 
 // SetLendsName records the @lends target name.
 func (i *JSDocInfo) SetLendsName(name string) { i.lendsName = name }
+
+// ContainsDeclaration mirrors JSDocInfo.containsDeclaration() — returns
+// true when the comment carries any declaration-forming annotation.
+func (i *JSDocInfo) ContainsDeclaration() bool {
+	if i == nil {
+		return false
+	}
+	return i.typeExpr != nil ||
+		i.returnExpr != nil ||
+		len(i.params) > 0 ||
+		i.isConstructor ||
+		i.isInterface ||
+		i.isRecord ||
+		i.enumMarked ||
+		i.typedefExpr != nil ||
+		i.extendsExpr != nil ||
+		len(i.implementsAll) > 0
+}

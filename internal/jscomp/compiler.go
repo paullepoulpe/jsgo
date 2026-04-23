@@ -67,6 +67,9 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	scope := creator.createScopeInWithParent(script, externScope)
 	// InferConsts annotates NAME nodes before diagnostic passes run.
 	NewInferConsts().Check(script)
+	// InferJsDocInfo propagates JSDoc from AST nodes to their associated
+	// JSType objects. Pure annotation pass; must run after scope creation.
+	NewInferJsDocInfo(creator, scope).Process(nil, script)
 	var all []diag.Diagnostic
 	all = append(all, NewVarCheck(path, creator, scope).Check(script)...)
 	all = append(all, NewVariableReferenceCheck(path, externScope).Check(script)...)
