@@ -81,6 +81,11 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	all = append(all, NewCheckUnreachableCode(path).Check(script)...)
 	all = append(all, NewCheckSuper(path).Check(script)...)
 	all = append(all, NewCheckConformance(path).Check(script)...)
+	// CheckClosureImports is registered here but runs with a stub
+	// ModuleMetadataMap (no namespace metadata). Full enforcement fires
+	// only after ModuleMetadataMap + ModuleLoader are ported. Until then
+	// the pass produces no diagnostics so it does not disturb the corpus.
+	all = append(all, NewCheckClosureImports(path, nil).Check(script)...)
 	// CheckGlobalThis is skipped when VarCheck / VariableReferenceCheck
 	// already detected a JSC_VAR_MULTIPLY_DECLARED_ERROR. Java's compiler
 	// aborts the suspiciousCode phase (which hosts CheckGlobalThis) when
