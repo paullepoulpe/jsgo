@@ -47,13 +47,15 @@ Concretely:
 
 ## 1. Current state
 
-**1073 / 1444 = 74.31 %** on default, **990 / 1444 = 68.56 %** on
-`strictCheckTypes` (baseline commit `9816618`). Tier-0..Tier-3
-hand-authored corpora are all at 100 %. Gap to 100 % on default:
-**371** fixtures across the buckets below; strict lags by **83** more.
+**1101 / 1444 = 76.25 %** on default, **1017 / 1444 = 70.43 %** on
+`strictCheckTypes` (baseline commit `fc26e86` at the time of the
+last session refresh; TODO was re-audited at `9816618` so §2
+snapshot is captured there). Tier-0..Tier-3 hand-authored corpora
+are all at 100 %. Gap to 100 % on default: **343** fixtures across
+the buckets below; strict lags by **84** more.
 
-Diff vs. the previous TODO snapshot: default +109 (964 → 1073),
-strict +107 (883 → 990).
+Diff vs. the previous TODO snapshot: default +137 (964 → 1101),
+strict +134 (883 → 1017).
 
 ## 2. Triage snapshot (current failing buckets on default)
 
