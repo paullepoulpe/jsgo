@@ -147,12 +147,12 @@ func (b *TypeStringBuilder) CloneWithConfig() *TypeStringBuilder {
 // Go type assertions so we avoid adding methods to the JSType interface.
 // ---------------------------------------------------------------------------
 
-// isObjectType mirrors JSType.isObject(): true for ObjectType,
-// TemplatizedType (which wraps an ObjectType), FunctionType (functions
-// are objects), EnumType, and EnumElementType.
+// isObjectType mirrors JSType.isObject(): true for ObjectType, RecordType
+// (which embeds *ObjectType), TemplatizedType (which wraps an ObjectType),
+// FunctionType (functions are objects), EnumType, and EnumElementType.
 func isObjectType(t JSType) bool {
 	switch t.(type) {
-	case *ObjectType, *TemplatizedType, *FunctionType, *EnumType, *EnumElementType:
+	case *ObjectType, *RecordType, *TemplatizedType, *FunctionType, *EnumType, *EnumElementType:
 		return true
 	}
 	return false
@@ -164,9 +164,25 @@ func isTemplateType(t JSType) bool {
 	return ok
 }
 
-// isRecordType mirrors JSType.isRecordType(): an ObjectType whose
-// IsStructural flag is set (corresponds to Java's RecordType / @record).
+// isRecordType mirrors JSType.isRecordType(): a RecordType (structural,
+// named or anonymous) or an ObjectType whose IsStructural flag is set
+// (corresponds to Java's RecordType / @record).
+//
+// Nominal-vs-structural duality: in Java, RecordType is a subclass of
+// ObjectType and isRecordType() returns true for both via virtual dispatch.
+// In Go, *RecordType embeds *ObjectType but is a distinct concrete type —
+// a type assertion t.(*ObjectType) fails for *RecordType values. Both are
+// checked explicitly to match Java's dynamic-dispatch semantics.
+//
+// A *RecordType registered under a name (via JSTypeRegistry.declareType)
+// is still structural by nature: it matches via property shape, not nominal
+// identity. So it is always a record type regardless of whether it carries
+// a registered name. This is the nominal-vs-structural duality: the type
+// may have a name but is fundamentally structural.
 func isRecordType(t JSType) bool {
+	if _, ok := t.(*RecordType); ok {
+		return true
+	}
 	if o, ok := t.(*ObjectType); ok {
 		return o.IsStructural
 	}

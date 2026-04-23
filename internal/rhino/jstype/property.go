@@ -117,6 +117,20 @@ func (op *OwnedProperty) GetOwnerInstanceType() *ObjectType {
 	return op.owner
 }
 
+// GetOwnerInstantiation mirrors the intent of OwnedProperty.getOwnerInstanceType()
+// when the caller needs the declaring *instantiation* of the owner for
+// template-type resolution (e.g. TypeValidator.checkPropertyType uses the
+// owner's TemplateTypeMap to substitute template params in the required type).
+// In this port, where TemplateTypeMap resolution for owner instantiations is
+// not yet wired, it returns the same value as GetOwnerInstanceType.
+//
+// TODO(later-tier): when TemplatizedType / FunctionPrototypeType are fully
+// ported, resolve the owner through getOwnerFunction().getInstanceType() and
+// apply its TemplateTypeMap.
+func (op *OwnedProperty) GetOwnerInstantiation() *ObjectType {
+	return op.GetOwnerInstanceType()
+}
+
 // IsOwnedByInterface mirrors OwnedProperty.isOwnedByInterface().
 //
 // TODO(later-tier): implement isFunctionPrototypeType() dispatch.
@@ -239,6 +253,19 @@ func (p *Property) IsTypeInferred() bool { return p.inferred }
 func (p *Property) IsFromExterns() bool {
 	// TODO(later-tier): expose Node.isFromExterns().
 	return false
+}
+
+// IsSystemProp reports whether this property was synthesized by the type
+// system rather than declared by user code. A property is a "system"
+// property when it has no declaring AST node AND its type was inferred
+// (i.e. it was added via defineSynthesizedProperty, not from a user
+// annotation). This predicate is used by interface-conflict diagnostics
+// to skip properties that carry no source location.
+//
+// There is no direct Java equivalent; in Java the same condition is
+// expressed inline as `prop.getDeclaration() == null && prop.isTypeInferred()`.
+func (p *Property) IsSystemProp() bool {
+	return p.propertyNode == nil && p.inferred
 }
 
 // SetType mirrors Property.setType(JSType). Panics if typ is nil.
