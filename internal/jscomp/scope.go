@@ -812,6 +812,9 @@ type TypedScopeCreator struct {
 	// per-name positions in the source text.
 	sourcePath string
 	sourceSrc  string
+	// scopeDiags accumulates diagnostics emitted during scope creation
+	// (e.g. JSC_CONFLICTING_GETTER_SETTER_TYPE). Drained by ResolveTypesInScope.
+	scopeDiags []diag.Diagnostic
 }
 
 func NewTypedScopeCreator(r *jstype.Registry) *TypedScopeCreator {
@@ -1726,6 +1729,13 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 	// Walk body: methods attach to the InstanceType (or the static
 	// slot when tagged `static`); fields attach with their declared
 	// @type to the same slot.
+	// Track getter/setter property types for JSC_CONFLICTING_GETTER_SETTER_TYPE.
+	type accessorEntry struct {
+		typ  jstype.JSType
+		node *rhino.Node
+	}
+	getterTypes := map[string]accessorEntry{}
+	setterTypes := map[string]accessorEntry{}
 	for _, m := range body.Children() {
 		switch m.Token() {
 		case rhino.FUNCTION:
@@ -1753,6 +1763,23 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 			} else {
 				inst.DefineProperty(methodName, fnT)
 			}
+			// Record getter/setter property types for conflict detection.
+			// Mirrors Java's checkGetterOrSetterType / determineGetterType.
+			if m.IsGetterDef() {
+				// Getter property type = declared return type (if explicit).
+				var propType jstype.JSType = jstype.Unknown
+				if info != nil && info.ReturnType() != nil {
+					propType = ret
+				}
+				getterTypes[methodName] = accessorEntry{propType, m}
+			} else if m.IsSetterDef() {
+				// Setter property type = first parameter type.
+				var propType jstype.JSType = jstype.Unknown
+				if len(paramTypes) > 0 {
+					propType = paramTypes[0]
+				}
+				setterTypes[methodName] = accessorEntry{propType, m}
+			}
 		case rhino.CLASS_FIELD_DEF:
 			info := m.JSDocInfo()
 			fieldName := m.FirstChild().String_()
@@ -1765,6 +1792,36 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 			} else {
 				inst.DefineProperty(fieldName, t)
 			}
+		}
+	}
+	// Emit JSC_CONFLICTING_GETTER_SETTER_TYPE when getter/setter types differ.
+	// Mirrors Java TypeCheck.checkGetterOrSetterType. Skip when the class
+	// carries @suppress {checkTypes}.
+	clsInfo := cls.JSDocInfo()
+	checkTypesSuppressed := clsInfo != nil && clsInfo.HasSuppression("checkTypes")
+	for propName, ge := range getterTypes {
+		se, hasSetter := setterTypes[propName]
+		if !hasSetter {
+			continue
+		}
+		getType := ge.typ
+		setType := se.typ
+		// Compare by TypeName() since primitive singletons print as "{}" via %v.
+		// Report at the SETTER position (matching Java's checkGetterOrSetterType
+		// which reports on the child that doesn't match the "official" type; the
+		// getter's return type is registered first and the setter's param type
+		// is then compared against it → report fires on the setter).
+		if !checkTypesSuppressed && getType.TypeName() != setType.TypeName() {
+			c.scopeDiags = append(c.scopeDiags, diag.Diagnostic{
+				Path:  c.sourcePath,
+				Line:  se.node.Lineno(),
+				Col:   se.node.Charno(),
+				Code:  diag.JSC_CONFLICTING_GETTER_SETTER_TYPE,
+				Level: diag.Error,
+				Message: fmt.Sprintf(
+					"The types of the getter and setter for property '%s' do not match.\ngetter type is: %s\nsetter type is: %s",
+					propName, getType.TypeName(), setType.TypeName()),
+			})
 		}
 	}
 
@@ -2733,6 +2790,9 @@ func (c *TypedScopeCreator) ResolveTypesInScope(scope *TypedScope) []diag.Diagno
 
 	// Drain remaining unresolved entries and emit diagnostics.
 	var out []diag.Diagnostic
+	// Emit scope-creation diagnostics (e.g. JSC_CONFLICTING_GETTER_SETTER_TYPE).
+	out = append(out, c.scopeDiags...)
+	c.scopeDiags = nil
 	for _, nt := range c.registry.DrainPendingNamedTypes() {
 		out = append(out, diag.Diagnostic{
 			Path:    nt.SourceName(),

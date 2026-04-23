@@ -33,6 +33,11 @@ const (
 	// the parser on STRING_KEY nodes whose source key was a string literal
 	// (e.g. `{"x": 1}`) rather than a bare identifier (e.g. `{x: 1}`).
 	PropQuotedStringKey
+	// PropGetterDef / PropSetterDef mirror Java's Node.isGetterDef() /
+	// Node.isSetterDef(). Set by the parser on FUNCTION nodes that are
+	// ES6 class getter / setter methods (`get foo(){}` / `set foo(v){}`).
+	PropGetterDef
+	PropSetterDef
 )
 
 type Node struct {
@@ -238,6 +243,14 @@ func (n *Node) IsQuotedStringKey() bool {
 
 // IsBlock mirrors Java's Node.isBlock().
 func (n *Node) IsBlock() bool { return n.token == BLOCK }
+
+// IsGetterDef mirrors Java's Node.isGetterDef() — true when this FUNCTION
+// node is an ES6 class getter method (`get foo() {}`).
+func (n *Node) IsGetterDef() bool { return n.GetBooleanProp(PropGetterDef) }
+
+// IsSetterDef mirrors Java's Node.isSetterDef() — true when this FUNCTION
+// node is an ES6 class setter method (`set foo(v) {}`).
+func (n *Node) IsSetterDef() bool { return n.GetBooleanProp(PropSetterDef) }
 
 // ReplaceWith mirrors Java's Node.replaceWith(Node). Swaps `n` out of its
 // parent and inserts `replacement` in the same position. No-op when `n` has

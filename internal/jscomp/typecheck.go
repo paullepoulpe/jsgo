@@ -26,6 +26,7 @@ package jscomp
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/diag"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -2529,26 +2530,71 @@ func isStringOperandOk(t jstype.JSType) bool {
 // ---- visitObjectLit / visitArrayLit ----------------------------- //
 
 // visitObjectLit ports the OBJECTLIT branch of TypeCheck.java's visit().
-// It fires JSC_ILLEGAL_OBJLIT_KEY when:
-//   - the object literal is annotated @struct and a key is a quoted string
-//     (e.g. `/** @struct */ { 'x': 1 }`)
-//   - the object literal is annotated @dict and a key is an unquoted identifier
-//     (e.g. `/** @dict */ { x: 1 }`)
+// It fires:
+//   - JSC_UNKNOWN_LENDS when @lends names an undeclared variable.
+//   - JSC_LENDS_ON_NON_OBJECT when @lends names a non-object type.
+//   - JSC_ILLEGAL_OBJLIT_KEY when a @struct literal has a quoted key or
+//     a @dict literal has an unquoted key.
 //
-// Mirrors Java's visitObjectOrClassLiteralKey struct/dict gate.
-// Property-value type checks (getObjectLitKeyTypeFromValueType / expectCanAssignToPropertyOf)
-// are deferred — TODO.
+// Mirrors Java's defineObjectLiteral (TypedScopeCreator) for @lends, and
+// visitObjectOrClassLiteralKey struct/dict gate (TypeCheck) for key checks.
 func (c *TypeCheck) visitObjectLit(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	var out []diag.Diagnostic
+
+	// @lends checks — port of TypedScopeCreator.defineObjectLiteral.
+	// Java uses getLendsName().getRoot().getString() to get the root
+	// identifier, so `@lends {Foo.prototype}` checks whether "Foo" is
+	// declared (not the full dotted name). Union types (`|`) in a @lends
+	// annotation are invalid and already caught by JSC_TYPE_PARSE_ERROR;
+	// skip the UNKNOWN_LENDS check for them.
+	info := n.JSDocInfo()
+	if info != nil && info.HasLendsName() {
+		rawLendsName := info.LendsName().TypeName
+		// Extract the root identifier (first segment before any '.').
+		lendsName := rawLendsName
+		if i := strings.IndexByte(lendsName, '.'); i >= 0 {
+			lendsName = lendsName[:i]
+		}
+		// Skip malformed lends names (e.g. containing '|' union operators).
+		if !strings.ContainsAny(lendsName, "|{}") {
+			lendsType := scope.GetDeclaredType(lendsName)
+			if lendsType == nil {
+				out = append(out, diag.Diagnostic{
+					Path:    c.path,
+					Line:    n.Lineno(),
+					Col:     n.Charno(),
+					Code:    diag.JSC_UNKNOWN_LENDS,
+					Level:   diag.Error,
+					Message: fmt.Sprintf("Variable %s not declared before @lends annotation.", lendsName),
+				})
+			} else if rawLendsName == lendsName {
+				// Only check LENDS_ON_NON_OBJECT for bare names (not dotted
+				// names like `Foo.prototype` where the property chain is
+				// expected to be an object type).
+				if _, isObj := lendsType.(*jstype.ObjectType); !isObj {
+					if _, isFn := lendsType.(*jstype.FunctionType); !isFn {
+						out = append(out, diag.Diagnostic{
+							Path:    c.path,
+							Line:    n.Lineno(),
+							Col:     n.Charno(),
+							Code:    diag.JSC_LENDS_ON_NON_OBJECT,
+							Level:   diag.Error,
+							Message: fmt.Sprintf("May only lend properties to object types. %s has type %s.",
+								lendsName, lendsType.TypeName()),
+						})
+					}
+				}
+			}
+		}
+	}
+
+	// struct/dict key checks.
 	infer := NewTypeInference(scope)
 	ownerType := infer.InferType(n)
 	obj := dereferencedObject(ownerType)
-	if obj == nil {
-		return nil
+	if obj == nil || (!obj.IsStruct && !obj.IsDict) {
+		return out
 	}
-	if !obj.IsStruct && !obj.IsDict {
-		return nil
-	}
-	var out []diag.Diagnostic
 	for key := n.FirstChild(); key != nil; key = key.Next() {
 		if key.Token() != rhino.STRING_KEY {
 			continue

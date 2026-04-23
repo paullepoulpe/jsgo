@@ -71,6 +71,7 @@ func (s *Scanner) Line() int   { return s.line }
 func (s *Scanner) Col() int    { return s.pos - s.lineBOL }
 func (s *Scanner) AtEnd() bool { return s.pos >= len(s.src) }
 
+
 // Peek returns the current rune without consuming. Returns 0 at EOF.
 func (s *Scanner) Peek() rune {
 	if s.AtEnd() {
