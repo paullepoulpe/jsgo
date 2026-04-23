@@ -598,6 +598,37 @@ func (p *Parser) parseClassMember(body *rhino.Node) {
 		return
 	}
 	p.scanner.SkipTrivia()
+	// Detect getter/setter: `get NAME(` or `set NAME(`.
+	// When the first identifier is "get"/"set" and the next non-space token
+	// is an identifier followed by "(", this is an accessor method.
+	isGetter := false
+	isSetter := false
+	if (name == "get" || name == "set") && !p.scanner.AtEnd() && p.scanner.Peek() != '(' && p.scanner.Peek() != '=' && p.scanner.Peek() != ';' && p.scanner.Peek() != '}' {
+		// Peek ahead: next ident then '('.
+		mark := p.scanner.Save()
+		nextNameLine, nextNameCol := p.scanner.Line(), p.scanner.Col()
+		nextName, nextOk := p.scanner.ConsumeIdent()
+		if nextOk && nextName != "" {
+			p.scanner.SkipTrivia()
+			if !p.scanner.AtEnd() && p.scanner.Peek() == '(' {
+				// It's a getter or setter.
+				if name == "get" {
+					isGetter = true
+				} else {
+					isSetter = true
+				}
+				nameLine, nameCol = nextNameLine, nextNameCol
+				name = nextName
+			} else {
+				// Not a getter/setter — backtrack.
+				p.scanner.Restore(mark)
+				p.scanner.SkipTrivia()
+			}
+		} else {
+			p.scanner.Restore(mark)
+			p.scanner.SkipTrivia()
+		}
+	}
 	switch {
 	case !p.scanner.AtEnd() && p.scanner.Peek() == '(':
 		// Method: `name(params) { body }`.
@@ -606,7 +637,19 @@ func (p *Parser) parseClassMember(body *rhino.Node) {
 		if jsdoc != nil {
 			fn.SetJSDocInfo(jsdoc)
 		}
-		fn.SetPos(memberLine, memberCol)
+		// For getter/setter methods, Java reports at the property name position
+		// (e.g. `value` in `get value()`). Use nameLine/nameCol for those;
+		// fall back to memberLine/memberCol for regular methods.
+		if isGetter || isSetter {
+			fn.SetPos(nameLine, nameCol)
+		} else {
+			fn.SetPos(memberLine, memberCol)
+		}
+		if isGetter {
+			fn.PutBooleanProp(rhino.PropGetterDef, true)
+		} else if isSetter {
+			fn.PutBooleanProp(rhino.PropSetterDef, true)
+		}
 		nameNode := rhino.NewString(rhino.NAME, name)
 		nameNode.SetPos(nameLine, nameCol)
 		fn.AddChildToBack(nameNode)
@@ -1662,11 +1705,12 @@ func (p *Parser) tryPrimary() (*rhino.Node, bool) {
 	if p.scanner.AtEnd() {
 		return nil, false
 	}
-	// Consume a leading JSDoc before `{` (object literal), before `(` when
-	// it carries function annotations (@param / @return / @constructor),
-	// or before `(` containing an ARRAYLIT in a decl-init context (cast).
-	// Otherwise restore the scanner so downstream parses don't see the
-	// JSDoc. Mirrors Java's CAST AST node + IRFactory's leading-JSDoc path.
+	// Consume a leading JSDoc before `{` (object literal), or before `(`
+	// when it carries: function annotations (@param / @return /
+	// @constructor), `@type` cast of an ARRAYLIT in a decl-init context,
+	// or `@lends {X}`. Otherwise restore the scanner so downstream parses
+	// don't see the JSDoc. Mirrors Java's CAST AST node + IRFactory's
+	// leading-JSDoc path.
 	var leadingJSDoc *rhino.JSDocInfo
 	if p.scanner.Peek() == '/' && p.scanner.PeekAt(1) == '*' && p.scanner.PeekAt(2) == '*' {
 		save := p.scanner.Save()
@@ -1678,6 +1722,9 @@ func (p *Parser) tryPrimary() (*rhino.Node, bool) {
 			switch {
 			case next == '{':
 				// /** @struct|@dict|@type ... */ { … } object literal.
+				leadingJSDoc = parsed
+			case next == '(' && parsed != nil && parsed.HasLendsName():
+				// /** @lends {Foo} */ ({...}) — attach to inner OBJECTLIT.
 				leadingJSDoc = parsed
 			case next == '(' && jsdocHasFunctionAnnotation(parsed):
 				// /** @param ... */ (…) — function-annotation before a
@@ -1711,12 +1758,19 @@ func (p *Parser) tryPrimary() (*rhino.Node, bool) {
 	// leaves the scanner ready for a paren parse. When a leadingJSDoc
 	// was captured above, attach it to the result if it is a FUNCTION.
 	if p.scanner.Peek() == '(' {
-		if arrow, ok := p.tryArrow(); ok {
-			return arrow, true
+		if leadingJSDoc == nil {
+			if arrow, ok := p.tryArrow(); ok {
+				return arrow, true
+			}
 		}
 		result, ok := p.tryParen()
-		if ok && result != nil && leadingJSDoc != nil && result.Token() == rhino.FUNCTION && result.JSDocInfo() == nil {
-			result.SetJSDocInfo(leadingJSDoc)
+		if ok && result != nil && leadingJSDoc != nil && result.JSDocInfo() == nil {
+			// Attach the leading JSDoc to FUNCTION (for @param/@return)
+			// or OBJECTLIT (for @lends / object-literal annotations).
+			switch result.Token() {
+			case rhino.FUNCTION, rhino.OBJECTLIT:
+				result.SetJSDocInfo(leadingJSDoc)
+			}
 		}
 		return result, ok
 	}

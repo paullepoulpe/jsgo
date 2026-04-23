@@ -205,9 +205,14 @@ const (
 	JSC_REFERENCE_BEFORE_DECLARE                 = "JSC_REFERENCE_BEFORE_DECLARE"
 
 	// TypeCheck / TypeValidator diagnostics.
-	JSC_MULTIPLE_VAR_DEF      = "JSC_MULTIPLE_VAR_DEF"
-	JSC_UNKNOWN_TYPEOF_VALUE  = "JSC_UNKNOWN_TYPEOF_VALUE"
+	JSC_MULTIPLE_VAR_DEF     = "JSC_MULTIPLE_VAR_DEF"
+	JSC_UNKNOWN_TYPEOF_VALUE = "JSC_UNKNOWN_TYPEOF_VALUE"
 
 	// SuperclassCheck / TypedScopeCreator: @extends tag resolves to nothing.
 	JSC_RESOLVED_TAG_EMPTY = "JSC_RESOLVED_TAG_EMPTY"
+
+	// TypedScopeCreator / TypeCheck diagnostics for getter/setter and @lends.
+	JSC_CONFLICTING_GETTER_SETTER_TYPE = "JSC_CONFLICTING_GETTER_SETTER_TYPE"
+	JSC_UNKNOWN_LENDS                  = "JSC_UNKNOWN_LENDS"
+	JSC_LENDS_ON_NON_OBJECT            = "JSC_LENDS_ON_NON_OBJECT"
 )
