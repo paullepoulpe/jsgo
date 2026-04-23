@@ -1205,10 +1205,8 @@ func (st *SymbolTable) stIsEnumType(t jstype.JSType) bool {
 	return ok
 }
 
-func (st *SymbolTable) stIsRecordType(_ jstype.JSType) bool {
-	// TODO: JSType.isRecordType() not ported.
-	// TODO: port com/google/javascript/rhino/jstype/JSType.isRecordType
-	return false
+func (st *SymbolTable) stIsRecordType(t jstype.JSType) bool {
+	return jstype.IsRecordType(t)
 }
 
 // ---------------------------------------------------------------------------

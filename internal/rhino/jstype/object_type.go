@@ -73,6 +73,11 @@ type ObjectType struct {
 	// JSDoc attached by InferJsDocInfo from the property's declaring node.
 	propDocInfo map[string]*rhino.JSDocInfo
 
+	// propNodes stores the source AST Node at which each property was
+	// declared or first inferred. Populated by DefineDeclaredProperty and
+	// DefineInferredProperty; queried by GetPropertyNode.
+	propNodes map[string]*rhino.Node
+
 	// isNative marks types that were pre-registered from the externs
 	// bundle (e.g. Object, Array, Function). Mirrors
 	// ObjectType.isNativeObjectType() in Java — InferJsDocInfo skips
@@ -87,6 +92,12 @@ type ObjectType struct {
 	// ObjectType with its concrete arguments.  Set by NewTemplatizedType so
 	// that GetTemplateArg can resolve inherited template parameters.
 	templatizedSelf *TemplatizedType
+
+	// sealedForInference mirrors the sealed-for-inference flag used by
+	// TypeInference: once sealed, inferring new properties on the type is
+	// suppressed. Mirrors the concept in ObjectType / PrototypeObjectType
+	// where open-ended anonymous objects are allowed to grow until sealed.
+	sealedForInference bool
 }
 
 func NewObjectType(name string) *ObjectType {
@@ -231,9 +242,86 @@ func (o *ObjectType) IsSubtypeOf(other JSType) bool {
 // definitions overwrite earlier ones — the Java side has more nuanced
 // behaviour (declared-vs-inferred + duplicate warnings), which we'll
 // add when Tier-2 fixtures need them.
+//
+// @struct/@dict enforcement: if the type is @struct, computed-style
+// (bracket) additions are guarded by the caller; here we only reject
+// if the type is @dict and the call site is a dot-access (no way to
+// distinguish at this layer — enforcement is at the TypeCheck visitor).
 func (o *ObjectType) DefineProperty(name string, t JSType) {
 	o.members[name] = t
 }
+
+// DefineDeclaredProperty mirrors ObjectType.defineDeclaredProperty(String,
+// JSType, Node) — defines a property whose type is explicitly declared by
+// the programmer (@type annotation or ES6 class field syntax).
+//
+// Unlike DefineProperty, this returns false and is a no-op when the
+// property has already been declared (the Java "once declared, immutable"
+// semantics). This prevents later inferred slots from clobbering explicit
+// annotations. Mirrors PrototypeObjectType.defineProperty gated by
+// hasOwnDeclaredProperty.
+func (o *ObjectType) DefineDeclaredProperty(name string, t JSType, node *rhino.Node) bool {
+	if o.HasOwnDeclaredProperty(name) {
+		return false
+	}
+	o.members[name] = t
+	// Clear inferred flag — this is now a declared slot.
+	delete(o.inferredProps, name)
+	// Preserve the source node for later GetPropertyNode queries.
+	if o.propNodes == nil {
+		o.propNodes = map[string]*rhino.Node{}
+	}
+	o.propNodes[name] = node
+	return true
+}
+
+// DefineInferredProperty mirrors ObjectType.defineInferredProperty — defines
+// a property whose type is inferred from usage. If a declared property
+// already exists, returns true without overwriting. Otherwise stores the
+// type and marks it as inferred.
+func (o *ObjectType) DefineInferredProperty(name string, t JSType, node *rhino.Node) bool {
+	if o.HasOwnProperty(name) && !o.IsPropertyInferred(name) {
+		// Never hide a declared property with an inferred one.
+		return true
+	}
+	o.members[name] = t
+	o.MarkInferred(name)
+	if o.propNodes == nil {
+		o.propNodes = map[string]*rhino.Node{}
+	}
+	o.propNodes[name] = node
+	return true
+}
+
+// HasOwnDeclaredProperty mirrors ObjectType.hasOwnDeclaredProperty(String) —
+// returns true when the named property is declared directly on this type
+// (not inherited) AND is not inferred (i.e. was explicitly @type'd).
+func (o *ObjectType) HasOwnDeclaredProperty(name string) bool {
+	return o.HasOwnProperty(name) && !o.IsPropertyInferred(name)
+}
+
+// GetPropertyNode returns the AST Node at which the named property was
+// declared or first inferred, or nil when none was recorded.
+// Mirrors ObjectType.getPropertyNode(String).
+func (o *ObjectType) GetPropertyNode(name string) *rhino.Node {
+	if o.propNodes == nil {
+		return nil
+	}
+	return o.propNodes[name]
+}
+
+// IsSealed mirrors the sealed-for-inference concept: once true, no new
+// inferred properties should be added to this type by TypeInference.
+func (o *ObjectType) IsSealed() bool { return o.sealedForInference }
+
+// SealForInference sets the sealed flag. Called when TypeInference has
+// finished processing a function body and wants to freeze the inferred
+// shape of an object type.
+func (o *ObjectType) SealForInference() { o.sealedForInference = true }
+
+// IsRecordType mirrors JSType.isRecordType() for ObjectType: returns false
+// for plain ObjectType; overridden by RecordType to return true.
+func (o *ObjectType) IsRecordType() bool { return false }
 
 // GetPropertyType walks the @extends chain looking for the named
 // property. Returns nil if the property is undeclared anywhere in the
@@ -352,8 +440,21 @@ func (o *ObjectType) GetPropertyJSDocInfo(name string) *rhino.JSDocInfo {
 }
 
 // SetPropertyJSDocInfo mirrors ObjectType.setPropertyJSDocInfo(String,
-// JSDocInfo). Called by InferJsDocInfo to annotate per-property JSDoc.
+// JSDocInfo) / PrototypeObjectType.setPropertyJSDocInfo — attaches
+// per-property JSDoc. Following the Java semantics: if info is non-nil and
+// the property does not yet exist in the own map, an inferred slot is
+// created implicitly (mirrors "defineInferredProperty with nil node"
+// in PrototypeObjectType.setPropertyJSDocInfo).
 func (o *ObjectType) SetPropertyJSDocInfo(name string, info *rhino.JSDocInfo) {
+	if info != nil && !o.HasOwnProperty(name) {
+		// Java: defineInferredProperty(name, getPropertyType(name), nil)
+		// Ensure a slot exists so the JSDoc is not lost.
+		existing := o.GetPropertyType(name) // may be nil for truly new props
+		if existing == nil {
+			existing = Unknown
+		}
+		o.DefineInferredProperty(name, existing, nil)
+	}
 	if o.propDocInfo == nil {
 		o.propDocInfo = map[string]*rhino.JSDocInfo{}
 	}
