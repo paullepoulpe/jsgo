@@ -120,7 +120,9 @@ func (r *Registry) ResolveName(name string) JSType {
 		return String
 	case "boolean":
 		return Boolean
-	case "null":
+	case "null", "Null":
+		// Java exposes both lowercase "null" and the capitalised alias
+		// "Null" that appears in some Closure-compiler test fixtures.
 		return Null
 	case "undefined", "void":
 		return Void

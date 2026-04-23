@@ -25,6 +25,7 @@ package jscomp
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/diag"
@@ -247,20 +248,29 @@ func (s *SuperclassCheck) checkExtendsKindMismatch(fn *rhino.Node) {
 	}
 }
 
+// ifacePropEntry holds an interface instance type plus the display
+// name (e.g. "Int0<number>") that should appear in diagnostics.
+// Needed because ObjectType.TypeName() loses template arguments.
+type ifacePropEntry struct {
+	obj     *jstype.ObjectType
+	display string
+}
+
 // checkInterfaceExtendsConflicts fires
 // JSC_INCOMPATIBLE_EXTENDED_PROPERTY_TYPE when an @interface
 // @extends multiple other interfaces and two of those parents
-// declare the same property with incompatible types. One
-// diagnostic per pair of conflicting parents, reported at the
-// interface declaration's position. Mirrors TypeCheck.java's
-// checkConflictingExtendedInterfaces loop.
+// declare the same property with incompatible types. Mirrors
+// TypeCheck.java's checkConflictingExtendedInterfaces loop and
+// checkInterfaceConflictProperties recursive helper — uses an
+// accumulator map so each property is compared against the
+// interface that last declared it, matching Java's pair naming.
 func (s *SuperclassCheck) checkInterfaceExtendsConflicts(fn *rhino.Node) {
 	info := fn.JSDocInfo()
 	if info == nil || !info.IsInterface() {
 		return
 	}
 	bases := info.BaseTypes()
-if len(bases) < 2 {
+	if len(bases) < 2 {
 		return
 	}
 	kids := fn.Children()
@@ -271,45 +281,97 @@ if len(bases) < 2 {
 	if name == "" {
 		return
 	}
-	// Resolve each parent interface to its InstanceType.
-	var parents []*jstype.ObjectType
-	var parentNames []string
+	// properties accumulates propName → (ObjectType, displayName) of
+	// the interface that last declared the property. Mirrors Java's
+	// LinkedHashMap<Property.Key, ObjectType> properties.
+	properties := map[string]ifacePropEntry{}
+	currentProperties := map[string]ifacePropEntry{}
 	for _, b := range bases {
-		inst := s.scope.LookupNominalType(b.TypeName)
-		if inst == nil {
+		// Strip template arguments for lookup; keep original for display.
+		baseName := stripTemplateArgs(b.TypeName)
+		interfaceType := s.scope.LookupNominalType(baseName)
+		if interfaceType == nil {
 			continue
 		}
-		parents = append(parents, inst)
-		parentNames = append(parentNames, b.TypeName)
-	}
-	// For each pair of parents, compare the full property set and
-	// flag the first property whose declared types don't match.
-	seen := map[string]bool{}
-	for i := 0; i < len(parents); i++ {
-		for j := i + 1; j < len(parents); j++ {
-			for _, pname := range allInterfaceProperties(parents[i]) {
-				if seen[pname] {
-					continue
-				}
-				ti := parents[i].GetPropertyType(pname)
-				tj := parents[j].GetPropertyType(pname)
-				if ti == nil || tj == nil {
-					continue
-				}
-				if jstype.IsSubtype(ti, tj) || jstype.IsSubtype(tj, ti) {
-					continue
-				}
-				seen[pname] = true
-				s.diags = append(s.diags, diag.Diagnostic{
-					Path: s.path, Line: fn.Lineno(), Col: fn.Charno(),
-					Code: diag.JSC_INCOMPATIBLE_EXTENDED_PROPERTY_TYPE, Level: diag.Error,
-					Message: fmt.Sprintf(
-						"Interface %s has a property %s with incompatible types in its super interfaces %s and %s",
-						name, pname, parentNames[i], parentNames[j]),
-				})
-			}
+		currentProperties = map[string]ifacePropEntry{}
+		s.checkInterfaceConflictProperties(fn, name, properties, currentProperties, interfaceType, b.TypeName)
+		for k, v := range currentProperties {
+			properties[k] = v
 		}
 	}
+}
+
+// checkInterfaceConflictProperties mirrors TypeCheck.java's
+// checkInterfaceConflictProperties. For each own property of
+// interfaceType, it checks whether `properties` already holds a
+// conflicting declaration from an earlier sibling. It then recurses
+// into each interface that interfaceType extends (via JSDocInfo
+// BaseTypes, to capture multi-inheritance), accumulating into
+// currentProperties.
+func (s *SuperclassCheck) checkInterfaceConflictProperties(
+	fn *rhino.Node,
+	functionName string,
+	properties map[string]ifacePropEntry,
+	currentProperties map[string]ifacePropEntry,
+	interfaceType *jstype.ObjectType,
+	displayName string,
+) {
+	// Collect own property names, sorted for deterministic output.
+	ownNames := interfaceType.MemberNames()
+	sort.Strings(ownNames)
+	for _, pname := range ownNames {
+		currentProperties[pname] = ifacePropEntry{obj: interfaceType, display: displayName}
+		old := properties[pname]
+		if old.obj == nil {
+			continue
+		}
+		thisPropType := interfaceType.GetPropertyType(pname)
+		oPropType := old.obj.GetPropertyType(pname)
+		if thisPropType == nil || oPropType == nil {
+			continue
+		}
+		if jstype.IsSubtype(thisPropType, oPropType) || jstype.IsSubtype(oPropType, thisPropType) {
+			continue
+		}
+		s.diags = append(s.diags, diag.Diagnostic{
+			Path: s.path, Line: fn.Lineno(), Col: fn.Charno(),
+			Code: diag.JSC_INCOMPATIBLE_EXTENDED_PROPERTY_TYPE, Level: diag.Error,
+			Message: fmt.Sprintf(
+				"Interface %s has a property %s with incompatible types in its super interfaces %s and %s",
+				functionName, pname, old.display, displayName),
+		})
+	}
+	// Recurse into the interfaces that interfaceType extends. Mirrors
+	// Java's:
+	//   for (ObjectType iType : interfaceType.getCtorExtendedInterfaces())
+	// Our ObjectType.Super() only stores the first parent (single-
+	// inheritance), so we scan the AST for the interface declaration's
+	// JSDocInfo to enumerate all @extends declarations.
+	docInfo := s.findConstructorJSDoc(interfaceType.TypeName())
+	if docInfo == nil {
+		// Fall back to single-inheritance Super chain.
+		if sup := interfaceType.Super(); sup != nil {
+			s.checkInterfaceConflictProperties(fn, functionName, properties, currentProperties, sup, sup.TypeName())
+		}
+		return
+	}
+	for _, b := range docInfo.BaseTypes() {
+		baseName := stripTemplateArgs(b.TypeName)
+		iType := s.scope.LookupNominalType(baseName)
+		if iType == nil {
+			continue
+		}
+		s.checkInterfaceConflictProperties(fn, functionName, properties, currentProperties, iType, b.TypeName)
+	}
+}
+
+// stripTemplateArgs removes any `<…>` suffix from a type name so
+// that "Int0<number>" → "Int0" for scope lookup purposes.
+func stripTemplateArgs(name string) string {
+	if i := strings.IndexByte(name, '<'); i >= 0 {
+		return name[:i]
+	}
+	return name
 }
 
 // checkFunctionImplements walks an AST FUNCTION declaration and,
