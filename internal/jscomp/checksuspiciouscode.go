@@ -364,7 +364,7 @@ func mayBeObject(n *rhino.Node) bool {
 	switch n.Token() {
 	// Definitely-non-object primitives.
 	case rhino.NUMBER, rhino.STRINGLIT, rhino.TRUE, rhino.FALSE,
-		rhino.NULL, rhino.VOID, rhino.TYPEOF:
+		rhino.NULL, rhino.VOID, rhino.TYPEOF, rhino.UNDEFINED:
 		return false
 	// NAME "undefined" is also not an object.
 	case rhino.NAME:
@@ -389,7 +389,7 @@ func getBooleanValue(n *rhino.Node) Tri {
 		return TriFalse
 	case rhino.NULL:
 		return TriFalse
-	case rhino.VOID:
+	case rhino.VOID, rhino.UNDEFINED:
 		return TriFalse
 	case rhino.NUMBER:
 		v := n.Number()
