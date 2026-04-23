@@ -35,6 +35,7 @@ type JSDocInfo struct {
 	isDict          bool
 	isAbstract      bool
 	isNoSideEffects bool
+	isConst         bool // @const annotation
 	visibility      Visibility // default VisibilityInherited
 	hasVisibility   bool       // true once any @private/@protected/@public was recorded
 	enumExpr        *JSTypeExpression // non-nil when @enum was present
@@ -215,6 +216,14 @@ func (i *JSDocInfo) SetBaseType(t *JSTypeExpression) {
 func (i *JSDocInfo) IsConstructor() bool { return i != nil && i.isConstructor }
 
 func (i *JSDocInfo) SetConstructor(b bool) { i.isConstructor = b }
+
+// IsConstant mirrors JSDocInfo.isConstant() — true when the @const
+// annotation was present. (Java also checks @define / @final / @desc;
+// jsgo adds those as needed.)
+func (i *JSDocInfo) IsConstant() bool { return i != nil && i.isConst }
+
+// SetConst records that the @const annotation was present.
+func (i *JSDocInfo) SetConst(b bool) { i.isConst = b }
 
 func (i *JSDocInfo) Type() *JSTypeExpression     { return i.typeExpr }
 func (i *JSDocInfo) SetType(t *JSTypeExpression) { i.typeExpr = t }

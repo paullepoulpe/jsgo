@@ -65,6 +65,8 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	creator := NewTypedScopeCreator(reg)
 	externScope := creator.createExternScope()
 	scope := creator.createScopeInWithParent(script, externScope)
+	// InferConsts annotates NAME nodes before diagnostic passes run.
+	NewInferConsts().Check(script)
 	var all []diag.Diagnostic
 	all = append(all, NewVarCheck(path, creator, scope).Check(script)...)
 	all = append(all, NewVariableReferenceCheck(path, externScope).Check(script)...)
