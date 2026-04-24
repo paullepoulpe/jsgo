@@ -1533,6 +1533,12 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 			return nil
 		}
 	}
+	// Structural (@record) types are open surfaces: Java routes writes to
+	// unknown properties as LOOSE (STRICT_INEXISTENT_PROPERTY only), which
+	// is silenced in default mode. Skip writes on structural non-struct types.
+	if obj.IsStructural && !obj.IsStruct && isAssignLHS(n) {
+		return nil
+	}
 	msg := fmt.Sprintf("Property %s never defined on %s", propName, obj.TypeName())
 	if c.inexistentReported == nil {
 		c.inexistentReported = map[string]bool{}
@@ -1734,6 +1740,11 @@ func (c *TypeCheck) checkPossibleInexistent(n, recvNode *rhino.Node, propName st
 	if p := n.Parent(); p != nil && p.Token() == rhino.EXPR_RESULT {
 		return nil
 	}
+	// Cast expressions: `/** @type {T} */ (obj.prop)` — suppress
+	// POSSIBLE_INEXISTENT_PROPERTY inside casts (developer asserted the type).
+	if p := n.Parent(); p != nil && p.Token() == rhino.CAST {
+		return nil
+	}
 	if isPropertyExistenceOrAbsenceTest(n) {
 		return nil
 	}
@@ -1785,9 +1796,19 @@ func checkAliasAnnotation(info *rhino.JSDocInfo, aliased *jstype.FunctionType) s
 
 // buildGlobalPropNameSet: all prop names from types, namespaces, writes, keys.
 func buildGlobalPropNameSet(global *TypedScope, script *rhino.Node) map[string]bool {
-	out := map[string]bool{}
+	// Universal JS properties (exist on every object / function).
+	// Suppresses spurious POSSIBLE_INEXISTENT_PROPERTY on unknown receivers.
+	out := map[string]bool{
+		"prototype": true, "constructor": true, "hasOwnProperty": true,
+		"toString": true, "valueOf": true, "length": true,
+		"call": true, "apply": true, "bind": true,
+	}
 	for s := global; s != nil; s = s.parent {
-		for _, t := range s.declared {
+		for name, t := range s.declared {
+			// Global names are accessible as properties of the global object.
+			if name != "" {
+				out[name] = true
+			}
 			if fn, ok := t.(*jstype.FunctionType); ok && fn.Instance != nil {
 				for _, prop := range fn.Instance.MemberNames() {
 					out[prop] = true

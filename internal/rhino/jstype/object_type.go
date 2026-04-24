@@ -196,6 +196,22 @@ func (o *ObjectType) IsSubtypeOf(other JSType) bool {
 		if tt.Base != nil && tt.Base.Name == "Object" {
 			return true
 		}
+		// Nominal subtype of a templatized type: A is a subtype of
+		// Foo<string> if A's super chain contains Foo's base instance.
+		// Mirrors Java's TemplatizedType.isSubtype where an uninstantiated
+		// type (without template args) is checked against the raw base.
+		// Template-argument invariance is not enforced here (matching Java's
+		// default-mode behaviour where concrete extends Foo<string> can be
+		// assigned to Foo<number> — TypeScript would reject but Closure
+		// doesn't in default mode).
+		if tt.Base != nil {
+			for cur := o; cur != nil; cur = cur.super {
+				if cur == tt.Base {
+					return true
+				}
+			}
+		}
+		return false
 	}
 	target, ok := other.(*ObjectType)
 	if !ok {

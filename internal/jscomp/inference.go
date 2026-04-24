@@ -834,7 +834,18 @@ func (t *TypeInference) inferObjectLit(n *rhino.Node) jstype.JSType {
 		if value == nil {
 			continue
 		}
-		obj.DefineProperty(kv.String_(), t.InferType(value))
+		propType := t.InferType(value)
+		// For getter definitions (`get a() { return T; }`) the STRING_KEY
+		// child is a FUNCTION node marked as a getter. The property type
+		// should be the getter's RETURN type, not the function type itself.
+		// Mirrors Java's TypeCheck.getObjectLitKeyTypeFromValueType which
+		// maps getter values to their declared return type.
+		if value.Token() == rhino.FUNCTION && kv.IsGetterDef() {
+			if fn, ok := propType.(*jstype.FunctionType); ok {
+				propType = fn.Return
+			}
+		}
+		obj.DefineProperty(kv.String_(), propType)
 	}
 	return obj
 }

@@ -809,6 +809,19 @@ func endsWith(s, suffix string) bool {
 	return len(s) >= len(suffix) && s[len(s)-len(suffix):] == suffix
 }
 
+// stripTypeArgs removes a trailing `<…>` suffix from a type name so
+// `Foo<string>` → `Foo`. Mirrors TypedScopeCreator's
+// stripTemplateArgs helper used when resolving @extends / @implements
+// names that carry generic type arguments. Only strips when the first
+// `<` is balanced by a matching `>` at the end.
+func stripTypeArgs(name string) string {
+	i := indexOfByte(name, '<')
+	if i <= 0 {
+		return name
+	}
+	return name[:i]
+}
+
 // balancedOuterBraces reports whether the outermost `{…}` in `s`
 // wraps the entire string. Returns false for shapes like
 // `{a}|{b}` where the first `{...}` closes before the end.
@@ -1128,6 +1141,9 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 		// slots during its first scope-building pass.
 		if isDeclToken(child.Token()) {
 			c.preregisterEnum(child, scope)
+			// Pre-register var-assigned constructors (`var Foo = function(){}`)
+			// so within-scope @type forward references resolve correctly.
+			c.preregisterVarConstructor(child, scope)
 		}
 	}
 	// Pass 1b: record @typedef aliases. Typedefs resolve against the
@@ -1563,7 +1579,7 @@ func (c *TypedScopeCreator) recordNamespaceAssignFromFunction(a *rhino.Node, sco
 			ctor.Instance.IsDict = true
 		}
 		if base := info.BaseType(); base != nil {
-			if super := scope.LookupNominalType(base.TypeName); super != nil {
+			if super := scope.LookupNominalType(stripTypeArgs(base.TypeName)); super != nil {
 				ctor.Instance.SetSuper(super)
 			}
 		}
@@ -1771,6 +1787,17 @@ func (c *TypedScopeCreator) recordPrototypeObjectLit(a *rhino.Node, scope *Typed
 // typeOfThis on the resulting FunctionType so TypeCheck can emit
 // JSC_EXPECTED_THIS_TYPE when the method is called without a receiver.
 func (c *TypedScopeCreator) inferPrototypeValueType(info *rhino.JSDocInfo, rhs *rhino.Node, scope *TypedScope, inst *jstype.ObjectType) jstype.JSType {
+	// When an explicit @type annotation is present, prefer it over
+	// the inferred function body shape. This matches Java's
+	// TypedScopeCreator where getDeclaredTypeInAnnotation takes
+	// precedence over the function literal's inferred signature.
+	// Without this, `/** @type {function(...number)} */ Foo.prototype.bar = function(var_args){}`
+	// would use the inferred param types (Unknown for var_args) rather
+	// than the declared `function(...number)` signature, causing
+	// override-compatibility checks to fail silently.
+	if info != nil && info.HasType() {
+		return scope.ResolveExpr(info.Type().TypeName)
+	}
 	if rhs.Token() == rhino.FUNCTION {
 		kids := rhs.Children()
 		if len(kids) < 2 {
@@ -1781,9 +1808,15 @@ func (c *TypedScopeCreator) inferPrototypeValueType(info *rhino.JSDocInfo, rhs *
 		for _, p := range params.Children() {
 			paramTypes = append(paramTypes, resolveParamType(info, p, scope))
 		}
-		var ret jstype.JSType = jstype.Unknown
+		// Default return type: Void (undefined) when no @return JSDoc is
+		// present, matching recordFunction's Void-default policy and Java's
+		// FunctionTypeBuilder.inferReturnType. Functions with an explicit
+		// `return expr;` statement get Unknown (inferred) rather than Void.
+		var ret jstype.JSType = jstype.Void
 		if info != nil && info.ReturnType() != nil {
 			ret = scope.ResolveExpr(info.ReturnType().TypeName)
+		} else if functionReturnsExplicitly(rhs) {
+			ret = jstype.Unknown
 		}
 		// Set typeOfThis so EXPECTED_THIS_TYPE fires when the method is
 		// detached and called without a receiver. Mirrors Java's
@@ -1807,6 +1840,30 @@ func (c *TypedScopeCreator) inferPrototypeValueType(info *rhino.JSDocInfo, rhs *
 		return t
 	}
 	return jstype.Unknown
+}
+
+// preregisterVarConstructor pre-registers `/** @constructor */ var Foo = fn`
+// in Pass 1 so forward `@type {?Foo}` refs in the same scope resolve to the
+// correct inner ConstructorType instead of falling back to an outer scope.
+// Mirrors Java's two-pass constructor hoisting for VAR-assigned forms.
+func (c *TypedScopeCreator) preregisterVarConstructor(v *rhino.Node, scope *TypedScope) {
+	info := v.JSDocInfo()
+	if !info.IsConstructor() && !info.IsInterface() && !info.IsRecord() {
+		return
+	}
+	name := v.FirstChild()
+	if name == nil || name.Token() != rhino.NAME || name.String_() == "" {
+		return
+	}
+	init := name.FirstChild()
+	if init == nil || init.Token() != rhino.FUNCTION {
+		return
+	}
+	ct := jstype.NewConstructorType(name.String_(), nil)
+	if info.IsInterface() || info.IsRecord() {
+		ct.Instance.IsStructural = true
+	}
+	scope.declared[name.String_()] = ct
 }
 
 // preregisterConstructor reserves a slot in `scope` for any function
@@ -2122,13 +2179,65 @@ func (c *TypedScopeCreator) buildMethodScope(fn *rhino.Node, inst *jstype.Object
 		registry:    c.registry,
 		thisType:    inst,
 	}
-	params := fn.Children()[1]
+	kids := fn.Children()
+	if len(kids) < 2 {
+		return local
+	}
+	params := kids[1]
 	for i, p := range params.Children() {
 		if i < len(ptypes) {
 			local.declared[p.String_()] = ptypes[i]
 		}
 	}
+	// Also hoist var declarations from the method body into the local scope
+	// so VarCheck sees them as declared when traversing the body. Without
+	// this, `var` declarations inside for-loops and nested blocks in a
+	// prototype method body would be reported as JSC_UNDEFINED_VARIABLE.
+	// We use a narrow hoist (only var/let/const names) rather than full
+	// createScopeIn to avoid side-effects on the type system from
+	// processing EXPR_RESULT nodes inside the method body.
+	if len(kids) >= 3 {
+		body := kids[2]
+		c.hoistVarNamesInto(body, local)
+	}
 	return local
+}
+
+// hoistVarNamesInto walks a function body and adds every VAR/LET/CONST
+// binding name to `scope` with Unknown type. This is a narrow variant of
+// createScopeIn that only declares names (not resolves types), avoiding
+// side-effects from processing EXPR_RESULT nodes inside method bodies.
+// Used by buildMethodScope to ensure VarCheck sees `var i` inside a
+// for-loop as declared when checking the loop body. Mirrors
+// AbstractScopeBuilder.hoistVars's narrow first pass (names only).
+func (c *TypedScopeCreator) hoistVarNamesInto(body *rhino.Node, scope *TypedScope) {
+	if body == nil {
+		return
+	}
+	for _, child := range body.Children() {
+		switch child.Token() {
+		case rhino.VAR, rhino.LET, rhino.CONST:
+			if name := child.FirstChild(); name != nil && name.Token() == rhino.NAME && name.String_() != "" {
+				if _, exists := scope.declared[name.String_()]; !exists {
+					scope.declared[name.String_()] = jstype.Unknown
+				}
+			}
+			c.hoistVarNamesInto(child, scope)
+		case rhino.FOR, rhino.FOR_IN, rhino.FOR_OF:
+			if first := child.FirstChild(); first != nil && isDeclToken(first.Token()) {
+				if name := first.FirstChild(); name != nil && name.Token() == rhino.NAME && name.String_() != "" {
+					if _, exists := scope.declared[name.String_()]; !exists {
+						scope.declared[name.String_()] = jstype.Unknown
+					}
+				}
+			}
+			c.hoistVarNamesInto(child, scope)
+		case rhino.BLOCK, rhino.IF, rhino.WHILE, rhino.DO_WHILE, rhino.SWITCH, rhino.CASE, rhino.TRY, rhino.FINALLY:
+			c.hoistVarNamesInto(child, scope)
+		case rhino.FUNCTION, rhino.CLASS:
+			// Don't descend into nested function/class bodies.
+		}
+	}
 }
 
 // templateResolver returns (resolver, templateMap) — the resolver is
@@ -2259,6 +2368,12 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 		}
 		if init != nil && init.Token() == rhino.FUNCTION {
 			fnType := c.buildDeclaredFunctionConstructor(init, info, name.String_(), scope)
+			// Reuse the Pass-1 stub's Instance so forward @type references and
+			// `new Foo()` share the same ObjectType pointer. Mirrors recordFunction.
+			if preStub, ok := scope.declared[name.String_()].(*jstype.FunctionType); ok && preStub.Instance != nil && preStub.Instance != fnType.Instance {
+				fnType.Instance = preStub.Instance
+				fnType.Return = preStub.Instance
+			}
 			fnType.SetJSDocInfo(info)
 			if info.IsInterface() || info.IsRecord() {
 				fnType.Instance.IsStructural = true
@@ -2270,7 +2385,7 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 				fnType.Instance.IsDict = true
 			}
 			if base := info.BaseType(); base != nil {
-				if super := scope.LookupNominalType(base.TypeName); super != nil {
+				if super := scope.LookupNominalType(stripTypeArgs(base.TypeName)); super != nil {
 					fnType.Instance.SetSuper(super)
 					if super.IsStruct {
 						fnType.Instance.IsStruct = true
@@ -2619,9 +2734,12 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 		// Wire @extends: look up the base ctor's Instance and set as
 		// super on this ctor's Instance, mirroring
 		// FunctionType.setExtendedClass in Java. @struct / @dict flags
-		// inherit down the super chain.
+		// inherit down the super chain. Strip template args from the base
+		// type name (e.g. `Foo<string>` → `Foo`) before lookup so that
+		// generic-instantiation annotations don't prevent super resolution.
+		// Mirrors TypedScopeCreator's stripTemplateArgs call.
 		if base := info.BaseType(); base != nil {
-			if super := scope.LookupNominalType(base.TypeName); super != nil {
+			if super := scope.LookupNominalType(stripTypeArgs(base.TypeName)); super != nil {
 				fnType.Instance.SetSuper(super)
 				if super.IsStruct {
 					fnType.Instance.IsStruct = true
@@ -2683,6 +2801,10 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 			localScope.declared[p.String_()] = paramTypes[i]
 		}
 	}
+	// Declare @template names in the function body scope (Java's
+	// declareTemplatesInFunctionBody) so `/** @type {T} */` inside
+	// the body doesn't fire JSC_UNRECOGNIZED_TYPE_ERROR.
+	c.declareTemplatesInFunctionBody(fn, info, localScope, scope)
 	// Walk the body for `this.x = …` patterns so we can populate the
 	// instance type's member map. Mirrors TypedScopeCreator's
 	// AbstractScopeBuilder.attachLiteralTypes path.
@@ -2696,6 +2818,25 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 		}
 	}
 	c.Functions[fn] = localScope
+}
+
+// declareTemplatesInFunctionBody ports Java's TypedScopeCreator
+// FunctionScopeBuilder.declareTemplatesInFunctionBody. Declares each
+// @template name from the function's JSDoc as Void in the local scope so
+// `/** @type {T} */ var x` inside the body doesn't fire
+// JSC_UNRECOGNIZED_TYPE_ERROR. Void defers concrete unification to the
+// call-site. Mirrors Java's `currentScope.declare(name, fn, voidType, ...)`.
+func (c *TypedScopeCreator) declareTemplatesInFunctionBody(_ *rhino.Node, info *rhino.JSDocInfo, local, _ *TypedScope) {
+	if info == nil {
+		return
+	}
+	for _, tname := range info.TemplateNames() {
+		if tname != "" {
+			if _, exists := local.declared[tname]; !exists {
+				local.declared[tname] = jstype.Void
+			}
+		}
+	}
 }
 
 // collectThisProperties walks a constructor body looking for
@@ -3348,6 +3489,31 @@ func rtsCheckTypeExpr(path, src string, base int, inner string, tmpls, allTempla
 			i++
 		}
 	}
+}
+
+// getLValueRootScope mirrors TypedScopeCreator.getLValueRootScope in Java.
+// Returns the scope in which the lvalue declaration belongs (VAR → hoist,
+// LET/CONST → block). In our flat-scope model this always returns scope.
+func getLValueRootScope(_ *rhino.Node, scope *TypedScope) *TypedScope { return scope }
+
+// inferTypeForDestructuredTarget mirrors the narrow path in Java's
+// TypedScopeCreator: for `const {id} = obj`, returns the declared type of
+// obj.id from patternType when available, nil otherwise (defers to inference).
+func inferTypeForDestructuredTarget(patternType jstype.JSType, propertyName string) jstype.JSType {
+	if patternType == nil || isJSUnknown(patternType) || propertyName == "" {
+		return nil
+	}
+	var obj *jstype.ObjectType
+	switch t := patternType.(type) {
+	case *jstype.ObjectType:
+		obj = t
+	case *jstype.TemplatizedType:
+		obj = t.Base
+	}
+	if obj != nil {
+		return obj.GetPropertyType(propertyName)
+	}
+	return nil
 }
 
 // rtsFindMatchingBrace returns the offset of the closing `}` matching

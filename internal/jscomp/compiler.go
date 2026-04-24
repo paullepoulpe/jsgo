@@ -73,8 +73,10 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	// JSType objects. Pure annotation pass; must run after scope creation.
 	NewInferJsDocInfo(creator, scope).Process(nil, script)
 	var all []diag.Diagnostic
-	// Drain diagnostics emitted during scope creation (e.g. cyclic enum).
-	all = append(all, creator.diags...)
+	// Note: scope-creation diagnostics (e.g. cyclic enum,
+	// JSC_CONFLICTING_GETTER_SETTER_TYPE) are drained inside
+	// ResolveTypesInScope below — do NOT also drain them here or they
+	// will be duplicated.
 	all = append(all, NewVarCheck(path, creator, scope).Check(script)...)
 	all = append(all, NewVariableReferenceCheck(path, externScope).Check(script)...)
 	all = append(all, NewCheckJsDocTypes(path, src, scope, creator).Check()...)
