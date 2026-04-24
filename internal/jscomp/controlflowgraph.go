@@ -31,6 +31,12 @@ const (
 	BranchSyn
 )
 
+// IsConditional reports whether this branch is a conditional branch
+// (ON_TRUE or ON_FALSE). Mirrors ControlFlowGraph.Branch.isConditional() in Java.
+func (b Branch) IsConditional() bool {
+	return b == BranchOnTrue || b == BranchOnFalse
+}
+
 // String returns the DOT/debug label for a branch kind.
 // Mirrors ControlFlowGraph.Branch.toString() in Java.
 func (b Branch) String() string {
@@ -77,6 +83,7 @@ type ControlFlowGraph struct {
 }
 
 // NewControlFlowGraph builds an empty CFG with synthetic entry/exit.
+// Go-only: language-adapter Java uses ControlFlowGraph(N entry, bool, bool) constructor; Go needs a factory function.
 func NewControlFlowGraph() *ControlFlowGraph {
 	cfg := &ControlFlowGraph{
 		Entry: &CfgNode{Kind: "ENTRY"},
@@ -104,6 +111,7 @@ func (g *ControlFlowGraph) node(ast *rhino.Node) *CfgNode {
 }
 
 // addEdge records `from → to` with the given branch label.
+// Go-only: language-adapter Java uses LinkedDirectedGraph.connect(); Go exposes a typed addEdge helper.
 func (g *ControlFlowGraph) addEdge(from, to *CfgNode, b Branch) {
 	if from == nil || to == nil {
 		return
@@ -116,8 +124,34 @@ func (g *ControlFlowGraph) Get(ast *rhino.Node) *CfgNode {
 	return g.byAst[ast]
 }
 
+// GetImplicitReturn returns the implicit-return (exit) node.
+// Mirrors ControlFlowGraph.getImplicitReturn() in Java.
+func (g *ControlFlowGraph) GetImplicitReturn() *CfgNode {
+	return g.Exit
+}
+
+// GetEntry returns the entry node.
+// Mirrors ControlFlowGraph.getEntry() in Java.
+func (g *ControlFlowGraph) GetEntry() *CfgNode {
+	return g.Entry
+}
+
+// IsImplicitReturn reports whether node is the implicit-return (exit).
+// Mirrors ControlFlowGraph.isImplicitReturn() in Java.
+func (g *ControlFlowGraph) IsImplicitReturn(node *CfgNode) bool {
+	return node == g.Exit
+}
+
+// GetOptionalNodeComparator returns nil (no ordering) — subclasses may
+// override to return an ordering comparator.
+// Mirrors ControlFlowGraph.getOptionalNodeComparator() in Java.
+func (g *ControlFlowGraph) GetOptionalNodeComparator(isForward bool) func(a, b *CfgNode) int {
+	return nil
+}
+
 // computePreds fills Predecessors in one pass after construction so
 // DataFlowAnalysis can walk the graph both ways.
+// Go-only: language-adapter Java computes predecessors lazily in DiGraph; Go fills them eagerly post-construction.
 func (g *ControlFlowGraph) computePreds() {
 	for _, n := range g.Nodes {
 		n.Predecessors = n.Predecessors[:0]
