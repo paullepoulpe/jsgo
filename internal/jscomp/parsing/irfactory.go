@@ -165,8 +165,10 @@ func (f *IRFactory) Transform(tree *trees.ParseTree) *rhino.Node {
 				body := extractJSDocBody(c.Value)
 				startLine := c.Location.Start.Line + 1 // 1-indexed
 				jsdoc := ParseJSDocInfo(body, startLine)
-				if jsdoc == nil {
-					// Fall back to inline-type parsing (/** TypeExpr */).
+				// For declaration-like nodes, also try inline-type parsing
+				// (/** TypeExpr */ var x pattern). Avoid this for expression
+				// statements to prevent treating plain description comments as types.
+				if jsdoc == nil && isInlineTypeAttachmentPoint(tree) {
 					jsdoc = parseInlineTypeJSDoc(body)
 				}
 				if jsdoc != nil {
@@ -196,6 +198,21 @@ func attachJSDocToNode(node *rhino.Node, jsdoc *rhino.JSDocInfo) {
 		}
 	}
 	node.SetJSDocInfo(jsdoc)
+}
+
+// isInlineTypeAttachmentPoint reports whether a ParseTree type allows
+// inline-type JSDoc attachment (/** TypeExpr */ var x pattern).
+// This is more restrictive than shouldAttachJSDoc: it excludes expression
+// statements and object-literal properties to avoid treating plain
+// description comments (/** some text */) as type annotations.
+func isInlineTypeAttachmentPoint(tree *trees.ParseTree) bool {
+	switch tree.Type {
+	case trees.ParseTreeTypeVariableStatement,
+		trees.ParseTreeTypeVariableDeclarationList,
+		trees.ParseTreeTypeVariableDeclaration:
+		return true
+	}
+	return false
 }
 
 // shouldAttachJSDoc reports whether a ParseTree type is a valid JSDoc
@@ -1134,18 +1151,16 @@ func (f *IRFactory) processCommaExpression(tree *trees.CommaExpressionTree) *rhi
 // processParenthesizedExpression mirrors
 // TransformDispatcher.processParenthesizedExpression(ParenExpressionTree).
 func (f *IRFactory) processParenthesizedExpression(tree *trees.ParenExpressionTree) *rhino.Node {
-	// Check for a /** @type {T} */ (expr) cast pattern. If a JSDoc type
+	// Check for a /** @type {T} */ (expr) cast pattern. If a JSDoc @type
 	// annotation immediately precedes this parenthesized expression, wrap
-	// the inner node in a CAST node. Mirrors the legacy parser's cast
-	// detection in parsePrimaryExpression / pendingCastDoc.
+	// the inner node in a CAST node. Mirrors IRFactory.transformCast in Java.
+	// Only use ParseJSDocInfo (not parseInlineTypeJSDoc) to avoid treating
+	// plain description comments like /** some jsdoc */ as type casts.
 	if f.src != "" {
 		if c := f.findPrecedingJSDoc(tree.Location.Start.Offset); c != nil {
 			body := extractJSDocBody(c.Value)
 			startLine := c.Location.Start.Line + 1
 			jsdoc := ParseJSDocInfo(body, startLine)
-			if jsdoc == nil {
-				jsdoc = parseInlineTypeJSDoc(body)
-			}
 			if jsdoc != nil && jsdoc.HasType() {
 				inner := f.Transform(tree.Expression)
 				cast := f.newNode(rhino.CAST)
