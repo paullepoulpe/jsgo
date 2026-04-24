@@ -12,6 +12,12 @@
 // table added (Tier-2 widening; mirrors JSTypeRegistry.java §nativeTypes,
 // §eachRefTypeIndexedByProperty / §nonRefTypesIndexedByProperty,
 // and §registerTemplateTypeNamesInScope).
+// Additive: late-resolution worklist callbacks (typeResolvers) +
+// per-scope forward declarations (scopeForwardDeclaredTypes) +
+// hasType predicate + declareNative* helpers (Tier-3 widening; mirrors
+// JSTypeRegistry.java §resolveTypesForTesting / §declareType and
+// TypedScopeCreator.java §declareNativeFunctionType / §declareNativeType /
+// §declareNativeValueType).
 
 package jstype
 
@@ -83,6 +89,34 @@ type Registry struct {
 	// a rhino import.  Populated by RegisterTemplateTypeNamesInScope;
 	// read by LookupTemplateType.
 	templateScopes map[interface{}]map[string]*TemplateType
+
+	// typeResolvers is the late-resolution callback worklist.  Each entry
+	// pairs a JSType instance with a resolver function that, given a type
+	// name, returns a resolved JSType (or nil when still unknown).
+	// ResolveTypes drains this list and calls each resolver; if the
+	// resolver returns a non-nil type the entry is removed.
+	// Mirrors the implicit per-type resolution callbacks that Java's
+	// JSTypeRegistry drives during its "close" pass.
+	typeResolvers []typeResolverEntry
+
+	// scopeForwardDeclaredTypes holds per-scope forward-declared type
+	// names.  Unlike the flat forwardDeclaredTypes set (which mirrors
+	// JSTypeRegistry.forwardDeclaredTypes populated by goog.forwardDeclare
+	// at module-boundary granularity), this table is keyed by an opaque
+	// scope key (typically a *rhino.Node) so that forward declarations
+	// made inside a function scope are not visible globally.
+	//
+	// Mirrors the per-scope slot in JSTypeRegistry.scopedNameTable that
+	// TypedScopeCreator populates when processing in-scope type aliases /
+	// forward declarations.
+	scopeForwardDeclaredTypes map[interface{}]map[string]bool
+}
+
+// typeResolverEntry associates a JSType with a resolver callback.
+// Mirrors the implicit tuple that drives per-type late resolution in Java.
+type typeResolverEntry struct {
+	t        JSType
+	resolver func(name string) JSType
 }
 
 func NewRegistry() *Registry { return &Registry{namedTypes: map[string]JSType{}} }
@@ -495,4 +529,181 @@ func (r *Registry) LookupTemplateType(scopeKey interface{}, name string) *Templa
 		return nil
 	}
 	return r.templateScopes[scopeKey][name]
+}
+
+// ── Late-resolution worklist callbacks ──────────────────────────────────────
+//
+// RegisterTypeResolver / ResolveTypes implement a per-type callback
+// approach to late resolution. This mirrors the production finalisation
+// pass in Java's JSTypeRegistry where pending NamedTypes are driven
+// to resolution once all type declarations are available.
+
+// RegisterTypeResolver registers a callback for the given JSType instance.
+// When ResolveTypes is called, resolver is invoked with the referenced
+// type name; if it returns a non-nil JSType, the entry is consumed.
+// Callers that only need worklist-level resolution should use
+// RegisterNamedType (which eagerly drains pendingNamedTypes) instead.
+//
+// Mirrors the implicit per-type resolution callbacks that Java's
+// JSTypeRegistry drives via its JSTypeResolver.Closer / resolveAll path.
+func (r *Registry) RegisterTypeResolver(t JSType, resolver func(name string) JSType) {
+	r.typeResolvers = append(r.typeResolvers, typeResolverEntry{t: t, resolver: resolver})
+}
+
+// ResolveTypes drains the pending NamedType worklist and then fires any
+// registered type-resolver callbacks.  After the call, entries whose
+// resolver returned a non-nil type are removed; the remainder are left
+// for a subsequent pass.
+//
+// Mirrors JSTypeRegistry.resolveTypesForTesting (and the production
+// finalisation path) in Java, where the registry iterates the pending
+// type list once all declarations are in place.
+func (r *Registry) ResolveTypes() {
+	// Drain the named-type worklist first (same logic as ResolveWorklist
+	// but without an external resolver — relies on namedTypes only).
+	remaining := r.pendingNamedTypes[:0]
+	for _, nt := range r.pendingNamedTypes {
+		if !nt.resolveViaRegistry(r) {
+			remaining = append(remaining, nt)
+		}
+	}
+	r.pendingNamedTypes = remaining
+
+	// Fire per-type resolver callbacks.
+	if len(r.typeResolvers) == 0 {
+		return
+	}
+	live := r.typeResolvers[:0]
+	for _, entry := range r.typeResolvers {
+		// Derive the name: if the entry's type is a NamedType use its
+		// reference; otherwise leave the name blank so callers that do
+		// not need a name still get invoked (resolver("")==nil terminates).
+		name := ""
+		if nt, ok := entry.t.(*NamedType); ok {
+			name = nt.reference
+		}
+		if entry.resolver(name) == nil {
+			live = append(live, entry)
+		}
+	}
+	r.typeResolvers = live
+}
+
+// ── Per-scope forward declarations ──────────────────────────────────────────
+//
+// ForwardDeclareType / GetForwardDeclaredType implement scoped forward
+// declarations.  Unlike the flat forwardDeclaredTypes set (populated by
+// goog.forwardDeclare at module granularity), these are keyed by an
+// opaque scope key so that per-function-scope type aliases stay local.
+//
+// Mirrors JSTypeRegistry.declareType (the scoped variant) and the
+// scopedNameTable used by TypedScopeCreator when processing in-scope
+// forward declarations.
+
+// HasType reports whether name is present in the named-type table.
+// Mirrors the isDeclaredForScope / getTypeForScopeInternal pair in Java
+// (collapsed to a flat lookup since Go callers always resolve globally).
+func (r *Registry) HasType(name string) bool {
+	return r.namedTypes != nil && r.namedTypes[name] != nil
+}
+
+// ForwardDeclareType registers name as a forward-declared type within
+// the given scope key.  The scope key is an opaque value (typically a
+// *rhino.Node pointer) that identifies the enclosing scope; nil means
+// the global scope.
+//
+// Mirrors the per-scope entry in JSTypeRegistry.scopedNameTable that
+// TypedScopeCreator populates when it encounters an in-scope type alias
+// or forward-declare directive.
+func (r *Registry) ForwardDeclareType(scope interface{}, name string) {
+	if r.scopeForwardDeclaredTypes == nil {
+		r.scopeForwardDeclaredTypes = map[interface{}]map[string]bool{}
+	}
+	m := r.scopeForwardDeclaredTypes[scope]
+	if m == nil {
+		m = map[string]bool{}
+		r.scopeForwardDeclaredTypes[scope] = m
+	}
+	m[name] = true
+}
+
+// GetForwardDeclaredType looks up name in the forward-declaration table
+// for the given scope key.  It first checks scope's own table; if not
+// found, falls back to the global (nil) scope.  When a match is found,
+// a NoResolvedType carrying the name is returned so the caller can
+// distinguish "forward-declared but unresolved" from "completely unknown".
+// Returns nil when name has not been forward-declared in any visible scope.
+//
+// Mirrors the scope-chain walk in Java's JSTypeRegistry.getTypeInternal
+// (getLookupScope → getTypeForScopeInternal) for the forward-declared
+// variant of scoped type lookup.
+func (r *Registry) GetForwardDeclaredType(scope interface{}, name string) JSType {
+	if r.scopeForwardDeclaredTypes == nil {
+		return nil
+	}
+	// Check the specific scope first, then fall through to the global scope.
+	for _, key := range []interface{}{scope, nil} {
+		if m, ok := r.scopeForwardDeclaredTypes[key]; ok && m[name] {
+			return NewNoResolvedType(name, nil)
+		}
+	}
+	return nil
+}
+
+// ── Native-type declaration helpers ─────────────────────────────────────────
+//
+// DeclareNativeFunctionType / DeclareNativeType / DeclareNativeValueType
+// mirror the private helpers of the same names in TypedScopeCreator.java.
+// They are structural placeholders that register types in the named-type
+// table; they do not yet drive scope.declare (which requires a ported
+// TypedScope).
+
+// DeclareNativeFunctionType builds a FunctionType from params / ret,
+// registers it in the named-type table under name, and also registers
+// a plain version without the "Function" suffix when the name ends with
+// "Function".  Mirrors TypedScopeCreator.declareNativeFunctionType:
+//
+//	private void declareNativeFunctionType(TypedScope scope, JSTypeNative tId) {
+//	    FunctionType t = typeRegistry.getNativeFunctionType(tId);
+//	    declareNativeType(scope, t.getInstanceType().getReferenceName(), t);
+//	    declareNativeType(scope, t.getPrototype().getReferenceName(), t.getPrototype());
+//	}
+//
+// Because the Go port does not yet have a fully-wired native type table,
+// this variant accepts an explicit name, params slice, and return type
+// instead of a JSTypeNative ordinal.
+func (r *Registry) DeclareNativeFunctionType(name string, params []JSType, ret JSType) {
+	t := NewFunctionType(params, ret)
+	r.DeclareNativeType(name, t)
+}
+
+// DeclareNativeType registers t in the named-type table under name.
+// Mirrors TypedScopeCreator.declareNativeType (the static helper):
+//
+//	private static void declareNativeType(TypedScope scope, String name, JSType t) {
+//	    scope.declare(name, null, t, null, false);
+//	}
+//
+// The scope.declare call is not yet ported; until TypedScope is available
+// this method registers the type in the registry's name table so that
+// NamedType resolution and HasType queries can find it.
+func (r *Registry) DeclareNativeType(name string, t JSType) {
+	r.RegisterNamedType(name, t)
+}
+
+// DeclareNativeValueType looks up the JSType stored at typeId in the
+// native-type table and registers it under name.  Mirrors
+// TypedScopeCreator.declareNativeValueType:
+//
+//	private void declareNativeValueType(TypedScope scope, String name, JSTypeNative tId) {
+//	    declareNativeType(scope, name, typeRegistry.getNativeType(tId));
+//	}
+//
+// If the native slot for typeId is empty, the call is a no-op.
+func (r *Registry) DeclareNativeValueType(name string, typeId JSTypeNative) {
+	t := r.GetNativeType(typeId)
+	if t == nil {
+		return
+	}
+	r.DeclareNativeType(name, t)
 }
