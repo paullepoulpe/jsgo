@@ -901,7 +901,8 @@ func (c *CheckDupVarDecl) declFromAssign(stmt, a *rhino.Node) (string, string, *
 	return recv.String_(), propNode.String_(), propNode, c.scope.ResolveExpr(info.Type().TypeName)
 }
 
-// Go-only: language-adapter — declFromStub extracts owner/prop/type from a stub expression.
+// TODO(port): VarCheck typedef-stub handling from com/google/javascript/jscomp/VariableReferenceCheck.java
+// Reason: Go added declFromStub helper for typedef stubs; Java handles this inline in visit().
 func (c *CheckDupVarDecl) declFromStub(stmt, getprop *rhino.Node) (string, string, *rhino.Node, jstype.JSType) {
 	info := stmt.JSDocInfo()
 	if info == nil {

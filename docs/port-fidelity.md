@@ -13,6 +13,24 @@ Generated: auto-computed by tools/portcheck.
 | Median score | 57.4 |
 | Max score | 90.9 |
 
+## Port Debt (as of 2026-04-24)
+
+| Metric | Value |
+|--------|-------|
+| TODO(port) total | 94 |
+| Suspicious Go-only tags | 0 |
+| Files with port debt | 9 |
+
+### Top 5 files by TODO(port) count
+
+| File | TODO(port) count |
+|------|-----------------|
+| `jscomp/symboltable.go` | 54 |
+| `jscomp/checkclosureimports.go` | 17 |
+| `jscomp/checkmissingrequires.go` | 8 |
+| `parser/parser.go` | 6 |
+| `jscomp/checktypeimportcodereferences.go` | 4 |
+
 ## Files by Fidelity Score (worst first)
 
 | Rank | Score | Go File | Java Source | Method Overlap % | Stub Count | LoC Ratio | Port Debt | Notes |

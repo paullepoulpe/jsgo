@@ -312,7 +312,8 @@ func (r *Registry) ResolveViaClosureNamespace(reference string) JSType {
 	}
 }
 
-// Go-only: language-adapter — ResolveName — simplified Go lookup; Java getType takes scope+name+template parameters.
+// TODO(port): JSTypeRegistry.getType from com/google/javascript/rhino/jstype/JSTypeRegistry.java:1643
+// Reason: Go simplified to primitive-name lookup; Java getType takes scope+name+template parameters.
 // ResolveName mirrors JSTypeRegistry.getType for primitive names. Returns
 // Unknown for names this scaffold doesn't recognise yet.
 func (r *Registry) ResolveName(name string) JSType {

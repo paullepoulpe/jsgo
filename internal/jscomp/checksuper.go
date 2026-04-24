@@ -71,7 +71,8 @@ func (c *CheckSuper) report(n *rhino.Node, code, message string) {
 	})
 }
 
-// Go-only: language-adapter — inlined NodeTraversal.traverse logic (Java delegates to NodeTraversal)
+// TODO(port): CheckSuper uses NodeTraversal.traverse from com/google/javascript/jscomp/CheckSuper.java:91
+// Reason: Go inlined NodeTraversal.traverse logic instead of delegating.
 // traverseNode is the main DFS walk — calls shouldTraverse and visit in the
 // correct pre/post order, mirroring Java's NodeTraversal.traverse logic.
 func (c *CheckSuper) traverseNode(n *rhino.Node, parent *rhino.Node) {
@@ -266,7 +267,8 @@ func isEs6Constructor(fn *rhino.Node) bool {
 	return first.String_() == "constructor"
 }
 
-// Go-only: language-adapter — helper (Java uses !classNode.getSecondChild().isEmpty() inline in ConstructorContext ctor)
+// TODO(port): CheckSuper.ConstructorContext from com/google/javascript/jscomp/CheckSuper.java:370
+// Reason: Go extracted helper instead of inlining getSecondChild().isEmpty() in constructor.
 // classHasParent returns true if the class enclosing fn has an extends clause.
 // fn must be inside a class body BLOCK.
 func classHasParent(fn *rhino.Node) bool {
