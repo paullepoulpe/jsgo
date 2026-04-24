@@ -3,11 +3,9 @@
 //
 // Retains the Java API shape callers from other passes rely on —
 // parent/sibling links, Detach/DetachChildren, newString/newNumber
-// factories, a small Prop property bag — while keeping the child
-// storage as a plain slice for readability. The Java side uses an
-// intrusive singly-linked list (Node.first + child.next), but the
-// slice + explicit parent/next/previous maintenance below produces
-// the same observable API.
+// factories, a small Prop property bag. Child storage uses the same
+// intrusive circular doubly-linked list as Java: Node.first points to
+// the first child, Node.last to the last; siblings link via next/previous.
 
 package rhino
 
@@ -58,10 +56,14 @@ const (
 )
 
 type Node struct {
-	token    Token
-	str      string
-	num      float64
-	children []*Node // slice view; Java uses Node.first linked-list
+	token Token
+	str   string
+	num   float64
+
+	// Intrusive circular doubly-linked child list, mirroring Java's
+	// Node.first / Node.last. Siblings are linked by next/previous.
+	first *Node // first child (nil when no children)
+	last  *Node // last child  (nil when no children)
 
 	parent   *Node
 	next     *Node
@@ -110,81 +112,76 @@ func (n *Node) Previous() *Node { return n.previous }
 
 // ---------------- tree building ------------------------------------ //
 
-// AddChildToBack appends `c` and keeps parent/next/previous in sync.
-// Matches the observable behaviour of Java's addChildToBack.
+// AddChildToBack appends c as the last child of n. Mirrors Java's
+// Node.addChildToBack(Node). O(1).
 func (n *Node) AddChildToBack(c *Node) {
 	if c == nil {
 		return
 	}
 	c.parent = n
-	if len(n.children) > 0 {
-		last := n.children[len(n.children)-1]
-		last.next = c
-		c.previous = last
-	} else {
-		c.previous = nil
-	}
 	c.next = nil
-	n.children = append(n.children, c)
+	c.previous = n.last
+	if n.last != nil {
+		n.last.next = c
+	} else {
+		n.first = c
+	}
+	n.last = c
 }
 
-// AddChildToFront ports Node.addChildToFront.
+// AddChildToFront prepends c as the first child of n. Mirrors Java's
+// Node.addChildToFront(Node). O(1).
 func (n *Node) AddChildToFront(c *Node) {
 	if c == nil {
 		return
 	}
 	c.parent = n
 	c.previous = nil
-	if len(n.children) > 0 {
-		first := n.children[0]
-		first.previous = c
-		c.next = first
+	c.next = n.first
+	if n.first != nil {
+		n.first.previous = c
 	} else {
-		c.next = nil
+		n.last = c
 	}
-	n.children = append([]*Node{c}, n.children...)
+	n.first = c
 }
 
-// FirstChild mirrors Java's getFirstChild.
-func (n *Node) FirstChild() *Node {
-	if len(n.children) == 0 {
+// FirstChild mirrors Java's getFirstChild. O(1).
+func (n *Node) FirstChild() *Node { return n.first }
+
+// LastChild mirrors Java's getLastChild. O(1).
+func (n *Node) LastChild() *Node { return n.last }
+
+// Children builds and returns a slice of children by walking the linked
+// list. The returned slice is a snapshot — callers may range over it
+// freely. For hot paths prefer iterating with FirstChild/Next directly.
+func (n *Node) Children() []*Node {
+	if n.first == nil {
 		return nil
 	}
-	return n.children[0]
-}
-
-// LastChild mirrors Java's getLastChild.
-func (n *Node) LastChild() *Node {
-	if len(n.children) == 0 {
-		return nil
+	var out []*Node
+	for c := n.first; c != nil; c = c.next {
+		out = append(out, c)
 	}
-	return n.children[len(n.children)-1]
+	return out
 }
 
-// Children exposes the child slice — not in Java (which iterates
-// first.next), but jsgo callers prefer range loops. Treat the returned
-// slice as read-only.
-func (n *Node) Children() []*Node { return n.children }
-
-// Detach removes `n` from its parent. Mirrors Node.detach (Java returns
-// `this`; Go doesn't need the fluent API so we return nothing). No-op
-// when already detached.
+// Detach removes n from its parent. Mirrors Java's Node.detach(). O(1).
+// No-op when already detached.
 func (n *Node) Detach() {
 	if n.parent == nil {
 		return
 	}
 	p := n.parent
-	for i, c := range p.children {
-		if c == n {
-			p.children = append(p.children[:i], p.children[i+1:]...)
-			break
-		}
-	}
 	if n.previous != nil {
 		n.previous.next = n.next
+	} else {
+		p.first = n.next
 	}
 	if n.next != nil {
 		n.next.previous = n.previous
+	} else {
+		p.last = n.previous
 	}
 	n.parent, n.next, n.previous = nil, nil, nil
 }
@@ -218,13 +215,15 @@ func (n *Node) IsQualifiedName() bool {
 // GetQualifiedName mirrors Node.getQualifiedName() — returns the dotted
 // GetQualifiedName is provided by qualified_name.go (the canonical port).
 
-// DetachChildren mirrors Node.detachChildren — remove every child and
-// null out its links.
+// DetachChildren mirrors Java's Node.detachChildren — remove every child
+// and null out its links.
 func (n *Node) DetachChildren() {
-	for _, c := range n.children {
+	for c := n.first; c != nil; {
+		next := c.next
 		c.parent, c.next, c.previous = nil, nil, nil
+		c = next
 	}
-	n.children = nil
+	n.first, n.last = nil, nil
 }
 
 // ---------------- property bag ------------------------------------- //
@@ -241,7 +240,7 @@ func (n *Node) IsAddedBlock() bool {
 // HasChildren mirrors Java's Node.hasChildren(). Returns true when
 // the node has at least one child.
 func (n *Node) HasChildren() bool {
-	return len(n.children) > 0
+	return n.first != nil
 }
 
 // HasParent mirrors Java's Node.hasParent().
@@ -274,47 +273,47 @@ func (n *Node) IsGetterDef() bool { return n.GetBooleanProp(PropGetterDef) }
 // node is an ES6 class setter method (`set foo(v) {}`).
 func (n *Node) IsSetterDef() bool { return n.GetBooleanProp(PropSetterDef) }
 
-// ReplaceWith mirrors Java's Node.replaceWith(Node). Swaps `n` out of its
-// parent and inserts `replacement` in the same position. No-op when `n` has
-// no parent (already detached).
+// ReplaceWith mirrors Java's Node.replaceWith(Node). Swaps n out of its
+// parent and inserts replacement in the same position. O(1). No-op when
+// n has no parent (already detached).
 func (n *Node) ReplaceWith(replacement *Node) {
 	if n.parent == nil {
 		return
 	}
 	p := n.parent
-	for i, c := range p.children {
-		if c == n {
-			p.children[i] = replacement
-			break
-		}
-	}
 	replacement.parent = p
 	replacement.next = n.next
 	replacement.previous = n.previous
 	if n.previous != nil {
 		n.previous.next = replacement
+	} else {
+		p.first = replacement
 	}
 	if n.next != nil {
 		n.next.previous = replacement
+	} else {
+		p.last = replacement
 	}
 	n.parent, n.next, n.previous = nil, nil, nil
 }
 
-// RemoveChildren detaches all children from `n` and returns them as a slice,
-// mirroring Java's Node.removeChildren() which returns the first child (we
-// return all for use in AddChildrenToBack).
+// RemoveChildren detaches all children from n and returns them as a slice.
+// Mirrors Java's Node.removeChildren() (which returns the first-child node;
+// we return a slice so AddChildrenToBack can re-attach them).
 func (n *Node) RemoveChildren() []*Node {
-	kids := n.children
-	for _, c := range kids {
+	var kids []*Node
+	for c := n.first; c != nil; {
+		next := c.next
+		kids = append(kids, c)
 		c.parent, c.next, c.previous = nil, nil, nil
+		c = next
 	}
-	n.children = nil
+	n.first, n.last = nil, nil
 	return kids
 }
 
 // AddChildrenToBack appends a slice of children (result of RemoveChildren)
-// to `n`. Mirrors Java's Node.addChildrenToBack(Node firstChild) which
-// walks the linked list; here we take the slice form for convenience.
+// to n. Mirrors Java's Node.addChildrenToBack(Node firstChild).
 func (n *Node) AddChildrenToBack(kids []*Node) {
 	for _, c := range kids {
 		n.AddChildToBack(c)
@@ -343,7 +342,7 @@ func (n *Node) CloneTree() *Node {
 			clone.props[k] = v
 		}
 	}
-	for _, c := range n.children {
+	for c := n.first; c != nil; c = c.next {
 		clone.AddChildToBack(c.CloneTree())
 	}
 	return clone
@@ -362,15 +361,17 @@ func (n *Node) IsEquivalentTo(other *Node) bool {
 	if n.token != other.token || n.str != other.str || n.num != other.num {
 		return false
 	}
-	if len(n.children) != len(other.children) {
-		return false
-	}
-	for i, c := range n.children {
-		if !c.IsEquivalentTo(other.children[i]) {
+	nc := n.first
+	oc := other.first
+	for nc != nil && oc != nil {
+		if !nc.IsEquivalentTo(oc) {
 			return false
 		}
+		nc = nc.next
+		oc = oc.next
 	}
-	return true
+	// Both must be exhausted simultaneously.
+	return nc == nil && oc == nil
 }
 
 // ---------------- property bag ------------------------------------- //
@@ -621,10 +622,10 @@ func (n *Node) GetGrandparent() *Node {
 // GetSecondChild ports Node.getSecondChild(). Returns the second child, or nil
 // when n has fewer than two children.
 func (n *Node) GetSecondChild() *Node {
-	if len(n.children) < 2 {
+	if n.first == nil {
 		return nil
 	}
-	return n.children[1]
+	return n.first.next
 }
 
 // GetLastSibling ports Node.getLastSibling(). Returns the last sibling of n
@@ -655,7 +656,7 @@ func (n *Node) Srcref(other *Node) *Node {
 // other onto n and every node in its subtree.
 func (n *Node) SrcrefTree(other *Node) *Node {
 	n.Srcref(other)
-	for _, c := range n.children {
+	for c := n.first; c != nil; c = c.next {
 		c.SrcrefTree(other)
 	}
 	return n
@@ -677,7 +678,7 @@ func (n *Node) SrcrefIfMissing(other *Node) *Node {
 // SrcrefTreeIfMissing ports Node.srcrefTreeIfMissing(Node other).
 func (n *Node) SrcrefTreeIfMissing(other *Node) *Node {
 	n.SrcrefIfMissing(other)
-	for _, c := range n.children {
+	for c := n.first; c != nil; c = c.next {
 		c.SrcrefTreeIfMissing(other)
 	}
 	return n

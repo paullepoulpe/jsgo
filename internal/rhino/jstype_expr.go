@@ -236,7 +236,7 @@ func visitAllTypeNodes(n *Node, visitor func(*Node)) {
 	if n == nil {
 		return
 	}
-	for _, c := range n.children {
+	for c := n.first; c != nil; c = c.next {
 		visitAllTypeNodes(c, visitor)
 	}
 	if n.IsStringLit() {
@@ -269,7 +269,7 @@ func replaceNames(n *Node, names map[string]bool) *Node {
 	if n == nil {
 		return nil
 	}
-	for _, c := range n.children {
+	for c := n.first; c != nil; c = c.next {
 		replaceNames(c, names)
 	}
 	if n.IsStringLit() && names[baseName(n.str)] {
@@ -312,7 +312,7 @@ func getRecordPropertyNamesRecursive(n *Node, names *[]string) {
 	if n == nil {
 		return
 	}
-	for _, c := range n.children {
+	for c := n.first; c != nil; c = c.next {
 		getRecordPropertyNamesRecursive(c, names)
 	}
 	if n.IsStringKey() {
