@@ -313,23 +313,47 @@ func (p *JsDocInfoParser) parseAnnotation(_ JsDocToken) JsDocToken {
 		p.anyRecorded = true
 		return p.eatUntilEOLIfNotAnnotation()
 	case "closureprimitive":
-		// Mirrors Java's CLOSURE_PRIMITIVE case: recordClosurePrimitiveId(id).
+		// Mirrors Java's CLOSURE_PRIMITIVE case: skipEOLs then
+		// delegate to parseClosurePrimitiveTag.
 		p.skipEOLs()
-		t := p.next()
-		if t == JsDocTokenLeftCurly {
-			t = p.next()
-			if t == JsDocTokenString {
-				p.info.SetClosurePrimitiveId(p.stream.String_())
-				p.anyRecorded = true
-				p.next() // consume closing '}'
-			}
-		}
-		return p.eatUntilEOLIfNotAnnotation()
+		return p.parseClosurePrimitiveTag(p.next())
 	case "usedviadotconstructor":
 		// Mirrors Java's USED_VIA_DOT_CONSTRUCTOR case.
 		p.info.SetBit(rhino.BitUsedViaDotCtor, true)
 		p.anyRecorded = true
 		return p.eatUntilEOLIfNotAnnotation()
+	case "typesummary":
+		// Mirrors Java's TYPE_SUMMARY case: recordTypeSummary().
+		p.info.SetBit(rhino.BitTypeSummary, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "nginject":
+		// Mirrors Java's NG_INJECT case: recordNgInject(true).
+		p.info.SetBit(rhino.BitNgInject, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "wizaction":
+		// Mirrors Java's WIZACTION case: recordWizaction().
+		p.info.SetBit(rhino.BitWizAction, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "polymerbehavior":
+		// Mirrors Java's POLYMER_BEHAVIOR case: recordPolymerBehavior().
+		p.info.SetBit(rhino.BitPolymerBehavior, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "customelement":
+		// Mirrors Java's CUSTOM_ELEMENT case: recordCustomElement().
+		p.info.SetBit(rhino.BitCustomElement, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "throws":
+		// Mirrors Java's THROWS case: optionally parse a {type} expression,
+		// then capture the remaining text as the throws annotation.
+		return p.parseThrowsTag()
+	case "modifies":
+		// Mirrors Java's MODIFIES case: delegate to parseModifiesTag.
+		return p.parseModifiesTag(p.next())
 	}
 	return p.eatUntilEOLIfNotAnnotation()
 }
@@ -357,6 +381,103 @@ func (p *JsDocInfoParser) parseSuppressTag() JsDocToken {
 			return p.eatUntilEOLIfNotAnnotation()
 		}
 	}
+}
+
+// parseClosurePrimitiveTag ports Java's parseClosurePrimitiveTag: expects
+// `{id}` and records the closure primitive id. Mirrors Java exactly:
+// token must be LEFT_CURLY; next must be STRING; then RIGHT_CURLY.
+func (p *JsDocInfoParser) parseClosurePrimitiveTag(token JsDocToken) JsDocToken {
+	if token != JsDocTokenLeftCurly {
+		return p.eatUntilEOLIfNotAnnotation()
+	}
+	// Peek at the next token; if it's a STRING, record the id.
+	inner := p.next()
+	if inner != JsDocTokenString {
+		return p.eatUntilEOLIfNotAnnotation()
+	}
+	id := p.stream.String_()
+	p.info.SetClosurePrimitiveId(id)
+	p.anyRecorded = true
+	// Expect closing '}'.
+	if !p.match(JsDocTokenRightCurly) {
+		return p.eatUntilEOLIfNotAnnotation()
+	}
+	p.next() // consume '}'
+	return p.eatUntilEOLIfNotAnnotation()
+}
+
+// parseThrowsTag ports Java's THROWS case. Java's implementation reads
+// free text via extractMultilineTextualBlock (no type-expression parse).
+// We extend it: if a `{T}` follows @throws, we parse the type expression
+// and record it; otherwise we record an empty sentinel so HasThrows() is true.
+// Mirrors Java's lookAheadForAnnotation check: if the next token is
+// ANNOTATION/EOC/EOF we skip recording (no actual throw clause follows).
+func (p *JsDocInfoParser) parseThrowsTag() JsDocToken {
+	// Peek at the first non-EOL token.
+	p.skipEOLs()
+	// Use match to peek without consuming.
+	if p.matchAny(JsDocTokenAnnotation, JsDocTokenEOC, JsDocTokenEOF) {
+		// lookAheadForAnnotation path: no throw clause.
+		return p.next() // returns the peeked annotation token
+	}
+	// Check for a type expression `{T}`.
+	if p.match(JsDocTokenLeftCurly) {
+		t := p.next() // consume `{`
+		if expr, next, ok := p.parseTypeExpressionAnnotation(t); ok {
+			p.info.AddThrowsAnnotation(expr)
+			p.anyRecorded = true
+			return next
+		}
+		// Type parse failed — record sentinel and eat to EOL.
+		p.info.AddThrowsAnnotation("")
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	}
+	// Free-text path: read remaining line text. The token peek left a
+	// non-`{` token in unread; GetRemainingJSDocLine works at the char
+	// level so we read what's left on the line after the peeked token.
+	// The peeked token is already consumed from the stream — clear unread
+	// and read the rest of the line via GetRemainingJSDocLine.
+	_ = p.next() // consume the peeked token
+	text := strings.TrimSpace(p.stream.GetRemainingJSDocLine())
+	if text != "" {
+		p.info.AddThrowsAnnotation(text)
+	} else {
+		p.info.AddThrowsAnnotation("")
+	}
+	p.anyRecorded = true
+	return p.next()
+}
+
+// parseModifiesTag ports Java's parseModifiesTag: `@modifies{this|arguments}`.
+// Mirrors Java: expects LEFT_CURLY, then STRING items separated by PIPE,
+// then RIGHT_CURLY. Calls JSDocInfo.SetModifies with the collected set.
+func (p *JsDocInfoParser) parseModifiesTag(token JsDocToken) JsDocToken {
+	if token != JsDocTokenLeftCurly {
+		return p.eatUntilEOLIfNotAnnotation()
+	}
+	modifies := map[string]bool{}
+	for {
+		if p.match(JsDocTokenString) {
+			name := p.stream.String_()
+			modifies[name] = true
+			token = p.next()
+		} else {
+			return p.eatUntilEOLIfNotAnnotation()
+		}
+		if p.match(JsDocTokenPipe) {
+			token = p.next()
+		} else {
+			break
+		}
+	}
+	if !p.match(JsDocTokenRightCurly) {
+		return p.eatUntilEOLIfNotAnnotation()
+	}
+	token = p.next() // consume '}'
+	p.info.SetModifies(modifies)
+	p.anyRecorded = true
+	return token
 }
 
 // parseThisTag ports the @this branch of the Java parseAnnotation:
