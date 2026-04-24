@@ -153,7 +153,8 @@ type SymbolTable struct {
 // NewSymbolTable creates a new SymbolTable.
 // Mirrors SymbolTable(AbstractCompiler, JSTypeRegistry) in Java (compiler /
 // registry references are elided until they are needed by downstream callers).
-// Go-only: language-adapter — Go port names private method NewSymbolTable (Java uses private method with same logic).
+// TODO(port): SymbolTable.java:SymbolTable(AbstractCompiler,JSTypeRegistry) — constructor not directly ported; Go uses factory function
+// Reason: Java uses a class constructor; Go uses a named factory function (port gap).
 func NewSymbolTable() *SymbolTable {
 	return &SymbolTable{
 		symbols:                map[stNodeSymKey]*Symbol{},
@@ -183,7 +184,8 @@ func (st *SymbolTable) GetReferenceList(symbol *Symbol) []*Reference {
 }
 
 // stRefLess provides a stable ordering for References by source position.
-// Go-only: language-adapter — Go port names private method stRefLess (Java uses private method with same logic).
+// TODO(port): SymbolTable.java:ReferenceOrdering.compare — Go uses a free function; Java uses an inner-class Comparator
+// Reason: port gap — ordering logic should be reconciled with Java's Reference Comparator.
 func stRefLess(a, b *Reference) bool {
 	na, nb := a.GetNode(), b.GetNode()
 	if na == nil {
@@ -220,7 +222,8 @@ func (st *SymbolTable) GetAllSymbolsSorted() []*Symbol {
 
 // stSymbolLess is the "natural" symbol ordering: global before local,
 // then lexicographic by name. Mirrors getNaturalSymbolOrdering() in Java.
-// Go-only: language-adapter — Go port names private method stSymbolLess (Java uses private method with same logic).
+// TODO(port): SymbolTable.java:getNaturalSymbolOrdering — Java returns a Comparator; Go uses a free comparison function
+// Reason: port gap — the comparator pattern is not fully translated.
 func (st *SymbolTable) stSymbolLess(a, b *Symbol) bool {
 	da := st.stLexicalScopeDepth(a.scope)
 	db := st.stLexicalScopeDepth(b.scope)
@@ -293,7 +296,8 @@ func (st *SymbolTable) GetParameterInFunction(sym *Symbol, paramName string) *Sy
 	return nil
 }
 
-// Go-only: language-adapter — Go port names private method stGetScopeInFunction (Java uses private method with same logic).
+// TODO(port): SymbolTable.java:getScopeInFunction — port gap; Java private method not faithfully translated
+// Reason: Go function naming differs; full port requires FunctionType.getSource().
 func (st *SymbolTable) stGetScopeInFunction(sym *Symbol) *SymbolScope {
 	ft := sym.GetFunctionType()
 	if ft == nil {
@@ -313,7 +317,8 @@ func (st *SymbolTable) GetSymbolForScope(scope *SymbolScope) *Symbol {
 	return scope.getSymbolForScope()
 }
 
-// Go-only: language-adapter — Go port names private method stFindSymbolForScope (Java uses private method with same logic).
+// TODO(port): SymbolTable.java:findSymbolForScope — port gap; Go naming differs from Java private method
+// Reason: method is a partial port; full fidelity requires scope/node alignment with Java.
 func (st *SymbolTable) stFindSymbolForScope(scope *SymbolScope) *Symbol {
 	rootNode := scope.GetRootNode()
 	if rootNode == nil || rootNode.Parent() == nil {
@@ -345,7 +350,8 @@ func (st *SymbolTable) GetGlobalScope() *SymbolScope {
 
 // GetSymbolDeclaredByFn gets the symbol for the given constructor or interface.
 // Mirrors getSymbolDeclaredBy(FunctionType) in Java.
-// Go-only: language-adapter — Go port names private method GetSymbolDeclaredByFn (Java uses private method with same logic).
+// TODO(port): SymbolTable.java:getSymbolDeclaredBy(FunctionType) — port gap; Go overload naming differs from Java
+// Reason: Java uses method overloading; Go uses distinct names (port gap).
 func (st *SymbolTable) GetSymbolDeclaredByFn(fn *jstype.FunctionType) *Symbol {
 	if fn == nil || fn.Instance == nil {
 		return nil
@@ -356,7 +362,8 @@ func (st *SymbolTable) GetSymbolDeclaredByFn(fn *jstype.FunctionType) *Symbol {
 
 // GetSymbolDeclaredByEnum gets the symbol for the given enum.
 // Mirrors getSymbolDeclaredBy(EnumType) in Java.
-// Go-only: language-adapter — Go port names private method GetSymbolDeclaredByEnum (Java uses private method with same logic).
+// TODO(port): SymbolTable.java:getSymbolDeclaredBy(EnumType) — port gap; Go overload naming differs from Java
+// Reason: Java uses method overloading; Go uses distinct names (port gap).
 func (st *SymbolTable) GetSymbolDeclaredByEnum(enumType *jstype.EnumType) *Symbol {
 	if enumType == nil {
 		return nil
@@ -367,7 +374,8 @@ func (st *SymbolTable) GetSymbolDeclaredByEnum(enumType *jstype.EnumType) *Symbo
 
 // GetSymbolForInstancesOfSym gets the prototype symbol for a constructor sym.
 // Mirrors getSymbolForInstancesOf(Symbol) in Java.
-// Go-only: language-adapter — Go port names private method GetSymbolForInstancesOfSym (Java uses private method with same logic).
+// TODO(port): SymbolTable.java:getSymbolForInstancesOf(Symbol) — port gap; Go overload naming differs from Java
+// Reason: Java uses method overloading; Go uses distinct names (port gap).
 func (st *SymbolTable) GetSymbolForInstancesOfSym(sym *Symbol) *Symbol {
 	if sym == nil {
 		return nil
@@ -381,7 +389,8 @@ func (st *SymbolTable) GetSymbolForInstancesOfSym(sym *Symbol) *Symbol {
 
 // GetSymbolForInstancesOfFn gets the symbol for the prototype of fn.
 // Mirrors getSymbolForInstancesOf(FunctionType) in Java.
-// Go-only: language-adapter — Go port names private method GetSymbolForInstancesOfFn (Java uses private method with same logic).
+// TODO(port): SymbolTable.java:getSymbolForInstancesOf(FunctionType) — port gap; Go overload naming differs from Java
+// Reason: Java uses method overloading; Go uses distinct names (port gap).
 func (st *SymbolTable) GetSymbolForInstancesOfFn(fn *jstype.FunctionType) *Symbol {
 	if fn == nil || fn.Instance == nil {
 		return nil
@@ -389,7 +398,8 @@ func (st *SymbolTable) GetSymbolForInstancesOfFn(fn *jstype.FunctionType) *Symbo
 	return st.stGetSymbolForName(nil, fn.Instance.Name+".prototype")
 }
 
-// Go-only: language-adapter — Go port names private method stGetSymbolForName (Java uses private method with same logic).
+// TODO(port): SymbolTable.java:getSymbolForName — port gap; Go naming differs from Java private method
+// Reason: port gap — partial translation of Java getSymbolForName(Node, String).
 func (st *SymbolTable) stGetSymbolForName(source *rhino.Node, name string) *Symbol {
 	if name == "" || st.globalScope == nil {
 		return nil
@@ -433,7 +443,8 @@ func (st *SymbolTable) GetAllSymbolsForType(t jstype.JSType) []*Symbol {
 
 // stGetSymbolForTypeHelper is the private helper for type→symbol lookup.
 // Mirrors getSymbolForTypeHelper(JSType, boolean) in Java.
-// Go-only: language-adapter — Go port names private method stGetSymbolForTypeHelper (Java uses private method with same logic).
+// TODO(port): SymbolTable.java:getSymbolForTypeHelper — port gap; Go naming differs from Java private helper
+// Reason: port gap — Java's private helper uses different type dispatch.
 func (st *SymbolTable) stGetSymbolForTypeHelper(t jstype.JSType, linkToCtor bool) *Symbol {
 	if t == nil {
 		return nil
@@ -503,7 +514,8 @@ func (st *SymbolTable) ToDebugStringTree() string {
 	return b.String()
 }
 
-// Go-only: language-adapter — Go port names private method stDebugStringTree (Java uses private method with same logic).
+// TODO(port): SymbolTable.java:toDebugStringTree — port gap; Go naming differs from Java private helper
+// Reason: port gap — Java uses a private recursive helper; Go uses prefix parameter variant.
 func (st *SymbolTable) stDebugStringTree(
 	b *strings.Builder,
 	prefix string,
@@ -548,7 +560,8 @@ func (st *SymbolTable) ToDebugString() string {
 	return b.String()
 }
 
-// Go-only: language-adapter — Go port names private method stDebugString (Java uses private method with same logic).
+// TODO(port): SymbolTable.java:toDebugString — port gap; Go naming differs from Java private helper
+// Reason: port gap — Java uses a private debug helper; Go uses prefix/indent parameter variant.
 func (st *SymbolTable) stDebugString(
 	b *strings.Builder,
 	prefix string,
@@ -618,7 +631,8 @@ func (st *SymbolTable) AddAnonymousFunctions() {
 
 // stLexicalScopeLess orders lexical scopes by root-node source position then
 // by depth. Mirrors lexicalScopeOrdering in Java.
-// Go-only: language-adapter — Go port names private method stLexicalScopeLess (Java uses private method with same logic).
+// TODO(port): SymbolTable.java:lexicalScopeOrdering — port gap; Java uses Comparator; Go uses comparison function
+// Reason: port gap — comparator pattern not fully translated.
 func (st *SymbolTable) stLexicalScopeLess(a, b *SymbolScope) bool {
 	an, bn := a.GetRootNode(), b.GetRootNode()
 	pa := an.Lineno()*10000 + an.Charno()
@@ -629,7 +643,8 @@ func (st *SymbolTable) stLexicalScopeLess(a, b *SymbolScope) bool {
 	return a.GetScopeDepth() < b.GetScopeDepth()
 }
 
-// Go-only: language-adapter — Go port names private method stAddAnonymousFunctionsInScope (Java uses private method with same logic).
+// TODO(port): SymbolTable.java:addAnonymousFunctionsInScope — port gap; Go naming differs from Java private method
+// Reason: port gap — Java uses a private traversal helper; Go naming deviates.
 func (st *SymbolTable) stAddAnonymousFunctionsInScope(scope *SymbolScope) {
 	sym := st.GetSymbolForScope(scope)
 	if sym != nil {
@@ -685,7 +700,8 @@ func (st *SymbolTable) AddSymbolsFrom(otherSymbolTable StaticSymbolTable) {
 	}
 }
 
-// Go-only: language-adapter — Go port names private method stIsAnySymbolDeclared (Java uses private method with same logic).
+// TODO(port): SymbolTable.java:isAnySymbolDeclared — port gap; Go naming differs from Java private method
+// Reason: port gap — Java uses a private helper; Go naming deviates.
 func (st *SymbolTable) stIsAnySymbolDeclared(
 	name string, declNode *rhino.Node, scope *SymbolScope,
 ) *Symbol {
@@ -696,7 +712,8 @@ func (st *SymbolTable) stIsAnySymbolDeclared(
 	return sym
 }
 
-// Go-only: language-adapter — Go port names private method stFindBestDeclToAdd (Java uses private method with same logic).
+// TODO(port): SymbolTable.java:findBestDeclToAdd — port gap; Go naming differs from Java private method
+// Reason: port gap — Java uses a private helper; Go naming deviates.
 func (st *SymbolTable) stFindBestDeclToAdd(
 	table StaticSymbolTable, slot StaticSlot,
 ) StaticRef {
@@ -712,7 +729,8 @@ func (st *SymbolTable) stFindBestDeclToAdd(
 	return nil
 }
 
-// Go-only: language-adapter — Go port names private method stIsGoodRefToAdd (Java uses private method with same logic).
+// TODO(port): SymbolTable.java:isGoodRefToAdd — port gap; Go naming differs from Java private method
+// Reason: port gap — Java uses a private filter helper; Go naming deviates.
 func (st *SymbolTable) stIsGoodRefToAdd(ref StaticRef) bool {
 	if ref == nil || ref.GetNode() == nil {
 		return false

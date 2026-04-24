@@ -527,26 +527,110 @@ func TestTodoPortNotPenalized(t *testing.T) {
 // TestParseGoOnlyCode checks the reason code parser.
 func TestParseGoOnlyCode(t *testing.T) {
 	tests := []struct {
-		comment string
-		wantCode string
-		wantValid bool
+		comment        string
+		wantCode       string
+		wantValid      bool
+		wantSuspicious bool // true if suspicious phrase should be set
 	}{
-		{"// Go-only: language-adapter — some explanation", "language-adapter", true},
-		{"// Go-only: package-bridge", "package-bridge", true},
-		{"// Go-only: stdlib-interop", "stdlib-interop", true},
-		{"// Go-only: test-helper", "test-helper", true},
-		{"// Go-only: Go interface adapter; no direct Java counterpart.", "Go", false},
-		{"// Go-only: constructor shim; Java uses the class constructor directly.", "constructor", false},
-		{"// Go-only: Java-named alias for private helper", "Java-named", false},
+		{"// Go-only: language-adapter — some explanation", "language-adapter", true, false},
+		{"// Go-only: package-bridge", "package-bridge", true, false},
+		{"// Go-only: stdlib-interop", "stdlib-interop", true, false},
+		{"// Go-only: test-helper", "test-helper", true, false},
+		{"// Go-only: Go interface adapter; no direct Java counterpart.", "Go", false, false},
+		{"// Go-only: constructor shim; Java uses the class constructor directly.", "constructor", false, false},
+		{"// Go-only: Java-named alias for private helper", "Java-named", false, false},
+		// Suspicious descriptions with valid codes — should be invalid.
+		{"// Go-only: language-adapter — inlined NodeTraversal.traverse logic", "language-adapter", false, true},
+		{"// Go-only: language-adapter — Go port names private method X", "language-adapter", false, true},
+		{"// Go-only: language-adapter — factory constructor for the stub type", "language-adapter", false, true},
+		{"// Go-only: language-adapter — simpler version of Java X", "language-adapter", false, true},
+		{"// Go-only: language-adapter — simplified version of Java X", "language-adapter", false, true},
+		{"// Go-only: language-adapter — ad-hoc adapter", "language-adapter", false, true},
+		{"// Go-only: language-adapter — reduced implementation", "language-adapter", false, true},
+		{"// Go-only: language-adapter — skipped validation", "language-adapter", false, true},
+		{"// Go-only: language-adapter — partial implementation", "language-adapter", false, true},
+		{"// Go-only: language-adapter — TODO fix this", "language-adapter", false, true},
+		{"// Go-only: language-adapter — placeholder until ported", "language-adapter", false, true},
+		// Clean language-adapter — passes.
+		{"// Go-only: language-adapter — Go constructor; Java uses new X()", "language-adapter", true, false},
+		{"// Go-only: language-adapter — Go interface adapter; no direct Java counterpart", "language-adapter", true, false},
 	}
 	for _, tt := range tests {
-		code, isValid := parseGoOnlyCode(tt.comment)
+		code, isValid, suspicious := parseGoOnlyCode(tt.comment)
 		if code != tt.wantCode {
 			t.Errorf("parseGoOnlyCode(%q): code=%q want=%q", tt.comment, code, tt.wantCode)
 		}
 		if isValid != tt.wantValid {
 			t.Errorf("parseGoOnlyCode(%q): isValid=%v want=%v", tt.comment, isValid, tt.wantValid)
 		}
+		gotSuspicious := suspicious != ""
+		if gotSuspicious != tt.wantSuspicious {
+			t.Errorf("parseGoOnlyCode(%q): suspicious=%q (want suspicious=%v)", tt.comment, suspicious, tt.wantSuspicious)
+		}
+	}
+}
+
+// TestSuspiciousDescriptionPenalized checks that a valid reason code with a
+// suspicious description is treated as invalid (penalized) and emits "go-only-suspicious".
+const suspiciousDescSrc = `// Port of com/google/javascript/jscomp/FakeChecker.java @ closure-compiler v20260415
+package jscomp
+
+func check(x int) bool {
+	return x > 0
+}
+
+// Go-only: language-adapter — inlined NodeTraversal.traverse logic (Java delegates to NodeTraversal)
+func inlinedTraverseHelperXYZQ() int {
+	return 42
+}
+
+// Go-only: language-adapter — Go port names private method doSomething (Java uses private method with same logic)
+func doSomethingPrivateABCD() string {
+	return "ok"
+}
+
+// Go-only: language-adapter — Go constructor; Java uses new FakeChecker()
+func newFakeCheckerClean() *struct{} {
+	return nil
+}
+`
+
+func TestSuspiciousDescriptionPenalized(t *testing.T) {
+	tmpDir := t.TempDir()
+	makeJavaFixture(t, tmpDir)
+
+	goFile := writeTempFile(t, "suspicious.go", suspiciousDescSrc)
+	result := computeScore(goFile, suspiciousDescSrc, tmpDir)
+
+	// GoOnlyCount should include the 2 suspicious functions.
+	if result.GoOnlyCount < 2 {
+		t.Errorf("expected GoOnlyCount>=2 (suspicious), got %d", result.GoOnlyCount)
+	}
+	t.Logf("suspicious score: %.1f, GoOnlyCount: %d, notes: %s", result.Score, result.GoOnlyCount, result.Notes)
+}
+
+func TestSuspiciousAuditKind(t *testing.T) {
+	goFile := writeTempFile(t, "suspicious_audit.go", suspiciousDescSrc)
+	_, _, audits, err := extractGoFunctions(goFile)
+	if err != nil {
+		t.Fatalf("extractGoFunctions: %v", err)
+	}
+
+	suspCount := 0
+	validCount := 0
+	for _, a := range audits {
+		switch a.Kind {
+		case "go-only-suspicious":
+			suspCount++
+		case "go-only-valid":
+			validCount++
+		}
+	}
+	if suspCount != 2 {
+		t.Errorf("expected 2 go-only-suspicious entries, got %d", suspCount)
+	}
+	if validCount != 1 {
+		t.Errorf("expected 1 go-only-valid entry (clean tag), got %d", validCount)
 	}
 }
 

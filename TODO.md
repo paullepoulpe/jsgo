@@ -77,6 +77,31 @@ after a dash: `// Go-only: language-adapter — unsafe.Pointer downcast`.
 **Any `// Go-only:` with a code NOT in the table above is treated as
 an untagged divergence and incurs the go-only penalty in portcheck.**
 
+#### Forbidden description phrases (portcheck lint)
+
+Even with a valid reason code, tags whose description contains any of the
+following phrases are flagged as `INVALID (suspicious description)` and
+incur the go-only penalty. These phrases are debt-indicators, not genuine
+language-adapter justifications:
+
+| Phrase pattern | Why it's suspicious |
+|---|---|
+| `inlined` / `inlining` | "inlined X logic" = Java has the logic; Go just didn't port it |
+| `same logic` | "Java uses private method with same logic" = port gap, not adapter |
+| `simpler` / `simplified` | "simpler version" = reduced implementation, not genuine adapter |
+| `ad-hoc` / `ad hoc` | Ad-hoc code is unreviewed debt |
+| `stub` / `stubbed` | Stub = unimplemented; use `TODO(port)` instead |
+| `reduced` | "reduced implementation" = incomplete port |
+| `skip` / `skipped` | Explicitly skipped logic is port debt |
+| `partial` / `partially` | Partial implementation = port debt |
+| `TODO` | TODO in a Go-only description = port debt in disguise |
+| `placeholder` | Placeholder = not actually ported |
+| `names (private\|public) method` | "Go port names private method X (Java uses ... same logic)" = port gap |
+
+If your description would match any of these, use `// TODO(port):` instead.
+The portcheck `-audit` output now shows a `Suspicious phrase breakdown` section
+counting these automatically.
+
 ### Port debt markers
 
 When the Java counterpart exists but is not yet ported, use:

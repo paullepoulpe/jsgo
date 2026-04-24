@@ -56,21 +56,59 @@ var validReasonCodes = map[string]bool{
 // Group 1 = the code token (first word after "Go-only: ").
 var goOnlyRe = regexp.MustCompile(`//\s*Go-only:\s*(\S+)`)
 
+// suspiciousPhrases are debt-indicator words that make a // Go-only: tag
+// invalid regardless of its reason code. If the tag's description contains
+// any of these, it's probably hiding a port gap.
+var suspiciousPhrases = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)\binlin(ed|ing)\b`),           // "inlined X logic"
+	regexp.MustCompile(`(?i)\bsame logic\b`),
+	regexp.MustCompile(`(?i)\bsimpler\b`),
+	regexp.MustCompile(`(?i)\bsimplified\b`),
+	regexp.MustCompile(`(?i)\bad[- ]hoc\b`),
+	regexp.MustCompile(`(?i)\bstub(bed)?\b`),
+	regexp.MustCompile(`(?i)\breduced\b`),
+	regexp.MustCompile(`(?i)\bskip(p|ped)?\b`),
+	regexp.MustCompile(`(?i)\bpartial(ly)?\b`),
+	regexp.MustCompile(`(?i)\bTODO\b`),
+	regexp.MustCompile(`(?i)\bplaceholder\b`),
+	regexp.MustCompile(`(?i)\bnames (private |public )?method\b`), // "Go port names private method X"
+}
+
+// matchedSuspiciousPhrase returns the first suspicious phrase found in text, or "".
+func matchedSuspiciousPhrase(text string) string {
+	for _, re := range suspiciousPhrases {
+		if m := re.FindString(text); m != "" {
+			return m
+		}
+	}
+	return ""
+}
+
 // todoPortRe matches "// TODO(port): <java-signature>".
 // Group 1 = the java signature (rest of line).
 var todoPortRe = regexp.MustCompile(`//\s*TODO\(port\):\s*(.+)`)
 
 // parseGoOnlyCode extracts the reason code from a "// Go-only: <code>" comment text
-// and returns (code, isValid).  If the comment doesn't match the format, code="" isValid=false.
-func parseGoOnlyCode(commentText string) (code string, isValid bool) {
+// and returns (code, isValid, suspiciousPhrase).
+// If the comment doesn't match the format, code="" isValid=false.
+// Even with a valid reason code, if the description contains a suspicious phrase the
+// tag is treated as invalid (isValid=false, suspiciousPhrase set to the matched phrase).
+func parseGoOnlyCode(commentText string) (code string, isValid bool, suspiciousPhrase string) {
 	m := goOnlyRe.FindStringSubmatch(commentText)
 	if m == nil {
-		return "", false
+		return "", false, ""
 	}
 	code = m[1]
 	// Strip trailing punctuation that's sometimes included in reason code itself.
 	code = strings.TrimRight(code, ".,;:")
-	return code, validReasonCodes[code]
+	if !validReasonCodes[code] {
+		return code, false, ""
+	}
+	// Valid reason code — but check the description for debt-indicator phrases.
+	if phrase := matchedSuspiciousPhrase(commentText); phrase != "" {
+		return code, false, phrase
+	}
+	return code, true, ""
 }
 
 // -------- data structures --------
@@ -206,11 +244,12 @@ type GoFunc struct {
 
 // commentInfo holds information about a Go-only or TODO(port) comment at a given line.
 type commentInfo struct {
-	isGoOnly    bool
-	goOnlyValid bool
-	goOnlyCode  string
-	isTodoPort  bool
-	todoPortSig string
+	isGoOnly         bool
+	goOnlyValid      bool
+	goOnlyCode       string
+	goOnlySuspicious string // non-empty: the phrase that made an otherwise-valid tag invalid
+	isTodoPort       bool
+	todoPortSig      string
 }
 
 // extractGoFunctions parses a Go file and extracts all function and method declarations.
@@ -233,11 +272,12 @@ func extractGoFunctions(filename string) ([]GoFunc, int, []AuditEntry, error) {
 			text := c.Text
 
 			if strings.Contains(text, "Go-only:") {
-				code, isValid := parseGoOnlyCode(text)
+				code, isValid, suspicious := parseGoOnlyCode(text)
 				lineComments[line] = commentInfo{
-					isGoOnly:    true,
-					goOnlyValid: isValid,
-					goOnlyCode:  code,
+					isGoOnly:         true,
+					goOnlyValid:      isValid,
+					goOnlyCode:       code,
+					goOnlySuspicious: suspicious,
 				}
 			} else if strings.Contains(text, "TODO(port):") {
 				m := todoPortRe.FindStringSubmatch(text)
@@ -324,7 +364,11 @@ func extractGoFunctions(filename string) ([]GoFunc, int, []AuditEntry, error) {
 
 				kind := "go-only-valid"
 				if !matched.goOnlyValid {
-					kind = "go-only-invalid"
+					if matched.goOnlySuspicious != "" {
+						kind = "go-only-suspicious"
+					} else {
+						kind = "go-only-invalid"
+					}
 				}
 				audits = append(audits, AuditEntry{
 					GoFile:     filename,
@@ -332,6 +376,7 @@ func extractGoFunctions(filename string) ([]GoFunc, int, []AuditEntry, error) {
 					Line:       funcLine,
 					Kind:       kind,
 					ReasonCode: matched.goOnlyCode,
+					Text:       matched.goOnlySuspicious,
 				})
 			} else if matched.isTodoPort {
 				fn.IsTodoPort = true
@@ -874,6 +919,11 @@ func printAudit(audits []AuditEntry) {
 	codeCounts := make(map[string]int)
 	var todoEntries []AuditEntry
 	invalidCount := 0
+	suspiciousCount := 0
+	// Track phrase → count for suspicious breakdown.
+	phraseCounts := make(map[string]int)
+	// Track suspicious entries by file.
+	suspiciousFiles := make(map[string]int)
 
 	for _, a := range audits {
 		switch a.Kind {
@@ -882,6 +932,11 @@ func printAudit(audits []AuditEntry) {
 		case "go-only-invalid":
 			codeCounts["INVALID"]++
 			invalidCount++
+		case "go-only-suspicious":
+			codeCounts["SUSPICIOUS"]++
+			suspiciousCount++
+			phraseCounts[a.Text]++
+			suspiciousFiles[a.GoFile]++
 		case "todo-port":
 			todoEntries = append(todoEntries, a)
 		}
@@ -897,6 +952,53 @@ func printAudit(audits []AuditEntry) {
 	}
 	if invalidCount > 0 {
 		fmt.Printf("  INVALID: %d functions (will be penalized)\n", invalidCount)
+	}
+	if suspiciousCount > 0 {
+		fmt.Printf("  INVALID (suspicious description): %d functions (will be penalized)\n", suspiciousCount)
+		// Phrase breakdown
+		type phraseCount struct {
+			phrase string
+			count  int
+		}
+		var pcs []phraseCount
+		for p, c := range phraseCounts {
+			pcs = append(pcs, phraseCount{p, c})
+		}
+		sort.Slice(pcs, func(i, j int) bool {
+			if pcs[i].count != pcs[j].count {
+				return pcs[i].count > pcs[j].count
+			}
+			return pcs[i].phrase < pcs[j].phrase
+		})
+		fmt.Println()
+		fmt.Println("  Suspicious phrase breakdown:")
+		for _, pc := range pcs {
+			fmt.Printf("    %q: %d\n", pc.phrase, pc.count)
+		}
+		// Top files by suspicious count
+		type fileCount struct {
+			file  string
+			count int
+		}
+		var fcs []fileCount
+		for f, c := range suspiciousFiles {
+			fcs = append(fcs, fileCount{f, c})
+		}
+		sort.Slice(fcs, func(i, j int) bool {
+			if fcs[i].count != fcs[j].count {
+				return fcs[i].count > fcs[j].count
+			}
+			return fcs[i].file < fcs[j].file
+		})
+		fmt.Println()
+		fmt.Println("  Top files by suspicious tag count:")
+		limit := 10
+		if len(fcs) < limit {
+			limit = len(fcs)
+		}
+		for _, fc := range fcs[:limit] {
+			fmt.Printf("    %s: %d\n", fc.file, fc.count)
+		}
 	}
 
 	totalGoOnly := 0
