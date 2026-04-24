@@ -162,6 +162,11 @@ func (s *Scanner) GetOffset() int {
 }
 
 // SetPosition mirrors Scanner.setPosition(SourcePosition).
+// Also callable as the public entry point by the parser rewrite.
+func (s *Scanner) SetPosition(position SourcePosition) {
+	s.setPosition(position)
+}
+
 func (s *Scanner) setPosition(position SourcePosition) {
 	s.currentTokens = nil
 	s.index = position.Offset
