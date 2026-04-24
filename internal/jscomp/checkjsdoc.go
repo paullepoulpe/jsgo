@@ -59,8 +59,8 @@ func (c *CheckJSDoc) visit(n *rhino.Node) {
 	c.validateNoCollapse(n, info)
 	c.validateClassLevelJsDoc(n, info)
 	c.validateArrowFunction(n)
-	// validateRestParameter: TODO — REST token absent from Go AST.
-	// validateDefaultValue: TODO — DEFAULT_VALUE token absent from Go AST.
+	c.validateRestParameter(n)
+	// validateDefaultValue: TODO — DEFAULT_VALUE token absent from Go parser (default params produce NAME, not DEFAULT_VALUE).
 	c.validateTemplates(n, info)
 	c.validateTypedefs(n, info)
 	c.validateNoSideEffects(n, info)
@@ -228,10 +228,85 @@ func cjdHasClassLevelJsDoc(info *rhino.JSDocInfo) bool {
 // ---------------------------------------------------------------------------
 // validateAbstractJsDoc
 // Mirrors CheckJSDoc.validateAbstractJsDoc.
-// @abstract is not yet in the Go JSDocInfo, so this check is a TODO stub.
+// Fires MISPLACED_ANNOTATION when @abstract appears in an invalid position:
+//   - On a non-class, non-function node.
+//   - On an ES6 constructor member.
+//   - On a function with a non-empty body.
+//   - On a static method.
+//   - On a function that is not a method.
 // ---------------------------------------------------------------------------
-func (c *CheckJSDoc) validateAbstractJsDoc(_ *rhino.Node, _ *rhino.JSDocInfo) {
-	// TODO: port when @abstract is added to rhino.JSDocInfo.
+func (c *CheckJSDoc) validateAbstractJsDoc(n *rhino.Node, info *rhino.JSDocInfo) {
+	if info == nil || !info.IsAbstract() {
+		return
+	}
+	// Class declarations are always valid for @abstract.
+	if cjdIsClassDecl(n) {
+		return
+	}
+	// @abstract on a non-function node.
+	functionNode := cjdGetFunctionDecl(n)
+	if functionNode == nil {
+		c.reportMisplaced(n, "@abstract",
+			"only functions or non-static methods can be abstract")
+		return
+	}
+	// @abstract on a function with a non-empty body (unless it's a constructor).
+	if !info.IsConstructor() {
+		body := functionNode.LastChild()
+		if body != nil && body.Token() == rhino.BLOCK && body.HasChildren() {
+			c.reportMisplaced(n, "@abstract",
+				"function with a non-empty body cannot be abstract")
+			return
+		}
+	}
+	// @abstract on a static member is invalid.
+	if n.GetBooleanProp(rhino.PropStaticMember) {
+		c.reportMisplaced(n, "@abstract", "static methods cannot be abstract")
+		return
+	}
+	// @abstract is only valid on methods (MEMBER_FUNCTION_DEF, STRING_KEY in
+	// object literal, GETTER_DEF, SETTER_DEF, FUNCTION inside a CLASS body,
+	// or a constructor) or prototype functions.
+	// Java's check: !info.isConstructor() && !n.isMemberFunctionDef() && ...
+	// Skip the method check when @constructor is present.
+	if !info.IsConstructor() {
+		switch n.Token() {
+		case rhino.MEMBER_FUNCTION_DEF, rhino.GETTER_DEF, rhino.SETTER_DEF, rhino.STRING_KEY:
+			// Methods in class body or object literal — valid.
+		case rhino.FUNCTION:
+			// FUNCTION directly inside a CLASS body BLOCK (legacy AST for class
+			// methods — no MEMBER_FUNCTION_DEF wrapper) is a class method — valid.
+			if p := n.Parent(); p != nil && p.Token() == rhino.BLOCK {
+				if gp := p.Parent(); gp != nil && gp.Token() == rhino.CLASS {
+					return // class method — valid
+				}
+			}
+			// Check if it's a prototype method: parent is ASSIGN whose LHS is
+			// X.prototype.method (GETPROP chain ending in "prototype").
+			if !cjdIsPrototypeMethod(functionNode) {
+				c.reportMisplaced(n, "@abstract",
+					"only functions or non-static methods can be abstract")
+			}
+		}
+	}
+}
+
+// cjdIsPrototypeMethod reports whether fn is assigned as a prototype method
+// (i.e. the enclosing ASSIGN's LHS is X.prototype.y). Mirrors
+// NodeUtil.isPrototypeMethod in Java.
+func cjdIsPrototypeMethod(fn *rhino.Node) bool {
+	if fn == nil {
+		return false
+	}
+	p := fn.Parent()
+	if p == nil {
+		return false
+	}
+	if p.Token() != rhino.ASSIGN {
+		return false
+	}
+	lhs := p.FirstChild()
+	return lhs != nil && cjdIsPrototypeProperty(lhs)
 }
 
 // ---------------------------------------------------------------------------
@@ -404,6 +479,62 @@ func (c *CheckJSDoc) validateArrowFunction(n *rhino.Node) {
 		c.report(n, diag.JSC_ARROW_FUNCTION_AS_CONSTRUCTOR, diag.Error,
 			"Arrow functions cannot be used as constructors")
 	}
+}
+
+// ---------------------------------------------------------------------------
+// validateRestParameter
+// Mirrors CheckJSDoc.validateRestParameter.
+// Fires JSC_BAD_REST_PARAMETER_ANNOTATION when a rest parameter has a JSDoc
+// type annotation that is not wrapped in `...` (i.e. the annotation is
+// `{number}` instead of `{...number}`). Java uses Token.ITER_REST on the
+// type-expression root to detect this; Go checks IsRestParam.
+// ---------------------------------------------------------------------------
+func (c *CheckJSDoc) validateRestParameter(n *rhino.Node) {
+	// Java: if (!restParam.isRest() || !restParam.getParent().isParamList())
+	if n.Token() != rhino.ITER_REST {
+		return
+	}
+	p := n.Parent()
+	if p == nil || p.Token() != rhino.PARAM_LIST {
+		return
+	}
+	// The first child of ITER_REST is the bound NAME (or destructuring pattern).
+	firstChild := n.FirstChild()
+	if firstChild == nil {
+		return
+	}
+	// Prefer inline JSDoc on the rest-param child.
+	var paramTypeAnnotation *rhino.JSTypeExpression
+	if inlineInfo := firstChild.JSDocInfo(); inlineInfo != nil {
+		paramTypeAnnotation = inlineInfo.Type()
+	} else {
+		// Fall back to the enclosing function's JSDoc @param annotation.
+		fn := p.Parent() // PARAM_LIST → FUNCTION
+		if fn != nil {
+			fnInfo := cjdGetBestJSDocInfo(fn)
+			if fnInfo != nil && firstChild.Token() == rhino.NAME {
+				paramTypeAnnotation = fnInfo.ParameterType(firstChild.String_())
+				// If no named param found, check IsRestParam.
+				if paramTypeAnnotation != nil && fnInfo.IsRestParam(firstChild.String_()) {
+					// Already a rest param annotation — valid.
+					return
+				}
+			}
+		}
+	}
+	// Java fires BAD_REST_PARAMETER_ANNOTATION when the annotation root token
+	// is NOT Token.ITER_REST. In Go we approximate: if the annotation is
+	// present and does NOT carry the rest-param marker, it's bad.
+	if paramTypeAnnotation == nil {
+		return
+	}
+	// If the type name starts with `...` it was parsed as a rest annotation.
+	typeName := paramTypeAnnotation.TypeName
+	if len(typeName) >= 3 && typeName[:3] == "..." {
+		return
+	}
+	c.report(n, diag.JSC_BAD_REST_PARAMETER_ANNOTATION, diag.Warning,
+		"Missing \"...\" in type annotation for rest parameter.")
 }
 
 // ---------------------------------------------------------------------------
