@@ -1,16 +1,15 @@
-// Port of com/google/javascript/jscomp/VariableReferenceCheck.java +
-// the duplicate-decl branch of com/google/javascript/jscomp/VarCheck.java
+// Port of com/google/javascript/jscomp/VariableReferenceCheck.java
 // @ closure-compiler v20260415 (narrow; intra-file scope only).
 //
 // Java's VariableReferenceCheck walks the AST per-scope and records
 // every value-namespace declaration (var/let/const/function/class/
 // @param). A second declaration of the same name in the same scope
-// fires JSC_VAR_MULTIPLY_DECLARED_ERROR, with a message pointing at
-// the first occurrence's file:line:col. jsgo doesn't load the real
-// externs bundle yet, so we can only detect duplicates that both
-// live in the source file under check (the externs-vs-source
-// collisions — ~26 extracted fixtures against es6.js's Disposable
-// etc. — need P2-1 to land first).
+// fires JSC_VAR_MULTIPLY_DECLARED_ERROR (global scope, reusing
+// VarCheck.VAR_MULTIPLY_DECLARED_ERROR) or JSC_DUP_VAR_DECLARATION
+// (local scope), with a message pointing at the first occurrence's
+// file:line:col. jsgo doesn't load the real externs bundle yet, so we
+// can only detect duplicates that both live in the source file under
+// check (the externs-vs-source collisions need P2-1 to land first).
 //
 // REFERENCE_BEFORE_DECLARE (JSC_REFERENCE_BEFORE_DECLARE): fires as a
 // WARNING when a `var` binding is referenced before its declaration

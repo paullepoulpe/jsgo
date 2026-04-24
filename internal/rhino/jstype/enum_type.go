@@ -1,19 +1,9 @@
-// Port of com/google/javascript/rhino/jstype/EnumType.java +
-// com/google/javascript/rhino/jstype/EnumElementType.java
+// Port of com/google/javascript/rhino/jstype/EnumType.java
 // @ closure-compiler v20260415.
 //
-// An `@enum` declaration produces two related types:
-//
-//   - EnumType           — the enum object itself. Has TypeName
-//     `enum{Name}`. References to the enum binding (`var MyEnum
-//     = …`) resolve to an EnumType value; aliases (`/** @enum */
-//     var Other = MyEnum`) share the SAME EnumType pointer.
-//   - EnumElementType    — the type of any element access
-//     (`MyEnum.FOO`). Has TypeName `Name<Underlying>` where
-//     Underlying is the `@enum {T}` parameter (or Number when
-//     omitted). Subtype rule: an EnumElementType is a subtype of
-//     its own Underlying, and of any other EnumElementType sharing
-//     the same Enum pointer.
+// An `@enum` declaration produces an EnumType (the enum object itself,
+// with TypeName `enum{Name}`) paired with an EnumElementType (the type of
+// any element access, defined in enum_element_type.go).
 //
 // The Java class carries more — propertyType lookup, equals / hash
 // implementations, union handling. jsgo's port only records the
@@ -87,36 +77,6 @@ func (e *EnumType) IsSubtypeOf(other JSType) bool {
 		return e == o
 	}
 	return false
-}
-
-// EnumElementType is the type of `Enum.MEMBER`. It behaves as
-// "any element of Enum"; elements share the Enum pointer with
-// other accesses so `E.FOO` and `E.BAR` are the same static type.
-type EnumElementType struct {
-	Enum *EnumType
-}
-
-func (e *EnumElementType) TypeName() string {
-	return e.Enum.Name + "<" + e.Enum.Underlying.TypeName() + ">"
-}
-
-// IsSubtypeOf: an EnumElementType is a subtype of (1) its own
-// Underlying primitive, (2) another EnumElementType with the
-// same Enum pointer, and (3) AllType / Unknown. Notably NOT a
-// subtype of an arbitrary primitive — `E<number>` doesn't match
-// `string` and vice-versa.
-func (e *EnumElementType) IsSubtypeOf(other JSType) bool {
-	if other == nil {
-		return true
-	}
-	if isAll(other) || isUnknown(other) {
-		return true
-	}
-	if oe, ok := other.(*EnumElementType); ok {
-		return e.Enum == oe.Enum
-	}
-	// The underlying rule: `E<T>` is a subtype of T.
-	return IsSubtype(e.Enum.Underlying, other)
 }
 
 // Go-only: language-adapter — SetJSDocInfo — Go convenience; Java ObjectType.setJSDocInfo() is inherited.

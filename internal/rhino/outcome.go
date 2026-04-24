@@ -1,25 +1,27 @@
-// Port of com/google/javascript/rhino/Outcome.java +
-// com/google/javascript/jscomp/base/Tri.java
-// @ closure-compiler v20260415
+// Port of com/google/javascript/rhino/Outcome.java
+// @ closure-compiler v20260415.
 //
-// Tri is included here because Outcome.isNullish() returns it and both
-// are consumed together in flow-narrowing logic. The jscomp package
-// keeps its own local Tri copy for historical reasons; this one is the
-// canonical rhino-level definition.
+// Outcome represents truthiness and nullishness of expression values.
+// IsNullish() returns a Tri (triboolean) defined in
+// internal/jscomp/base (com/google/javascript/jscomp/base/Tri.java).
 
 package rhino
 
-// Tri is a triboolean used by Outcome.IsNullish. Mirrors
-// com.google.javascript.jscomp.base.Tri.
-type Tri int
+import "github.com/paullepoulpe/jsgo/internal/jscomp/base"
+
+// Tri is a package-level alias so that existing code in this package
+// can reference Tri without the full import path. The canonical definition
+// lives in internal/jscomp/base.
+// Go-only: language-adapter — Tri type alias; Java uses com.google.javascript.jscomp.base.Tri directly.
+type Tri = base.Tri
 
 const (
 	// TriFalse mirrors Tri.FALSE.
-	TriFalse Tri = iota
+	TriFalse = base.TriFalse
 	// TriTrue mirrors Tri.TRUE.
-	TriTrue
+	TriTrue = base.TriTrue
 	// TriUnknown mirrors Tri.UNKNOWN.
-	TriUnknown
+	TriUnknown = base.TriUnknown
 )
 
 // Outcome represents truthiness and nullishness of expression values.
