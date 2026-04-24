@@ -245,5 +245,118 @@ for rel in "${targets[@]}"; do
     processed=$((processed + 1))
 done
 
+# ---------------------------------------------------------------------------
+# Section A: parsing/parser/trees/*.java → internal/parser/trees/
+# 86 AST-node tree classes; package "trees".
+# ---------------------------------------------------------------------------
+TREES_SRC="$SRC/com/google/javascript/jscomp/parsing/parser/trees"
+TREES_OUT="internal/parser/trees"
+mkdir -p "$TREES_OUT"
+echo ""
+echo "--- parser/trees ---"
+for java_file in "$TREES_SRC"/*.java; do
+    if [[ ! -f "$java_file" ]]; then
+        continue
+    fi
+    base="$(basename "$java_file" .java)"
+    # CamelCase → snake_case for Go file names.
+    snake="$(echo "$base" | sed 's/\([A-Z]\)/_\1/g' | sed 's/^_//' | tr '[:upper:]' '[:lower:]')"
+    out="$TREES_OUT/${snake}.go"
+    go run ./tools/javaport \
+        -in "$java_file" \
+        -out "$out" \
+        -pkg "trees" \
+        -build-tag "$TAG"
+    processed=$((processed + 1))
+done
+
+# ---------------------------------------------------------------------------
+# Section B: jscomp/parsing/{IRFactory,ParserRunner,TypeTransformationParser}
+# → internal/jscomp/parsing/skel/
+# ---------------------------------------------------------------------------
+PARSING_SRC="$SRC/com/google/javascript/jscomp/parsing"
+PARSING_OUT="internal/jscomp/parsing/skel"
+mkdir -p "$PARSING_OUT"
+echo ""
+echo "--- jscomp/parsing/skel ---"
+declare -a parsing_targets=(
+    IRFactory.java
+    ParserRunner.java
+    TypeTransformationParser.java
+)
+for fname in "${parsing_targets[@]}"; do
+    in="$PARSING_SRC/$fname"
+    if [[ ! -f "$in" ]]; then
+        echo "skip (missing): $fname"
+        skipped=$((skipped + 1))
+        continue
+    fi
+    base="$(basename "$fname" .java)"
+    out_base_lc="$(echo "$base" | tr '[:upper:]' '[:lower:]').go"
+    out="$PARSING_OUT/$out_base_lc"
+    go run ./tools/javaport \
+        -in "$in" \
+        -out "$out" \
+        -pkg "parsing" \
+        -build-tag "$TAG"
+    processed=$((processed + 1))
+done
+
+# ---------------------------------------------------------------------------
+# Section C: parsing/parser/{ClassOrObjectElementInfo,FeatureSet,Identifiers,
+#   Keywords,LineNumberScanner,PredefinedName,SourceFile,StringLiteralToken}
+#   + parsing/parser/util/*.java → internal/parser/skel/
+# ---------------------------------------------------------------------------
+PARSER_SRC="$SRC/com/google/javascript/jscomp/parsing/parser"
+PARSER_SKEL_OUT="internal/parser/skel"
+mkdir -p "$PARSER_SKEL_OUT"
+echo ""
+echo "--- parser/skel ---"
+declare -a parser_skel_targets=(
+    ClassOrObjectElementInfo.java
+    FeatureSet.java
+    Identifiers.java
+    Keywords.java
+    LineNumberScanner.java
+    PredefinedName.java
+    SourceFile.java
+    StringLiteralToken.java
+)
+for fname in "${parser_skel_targets[@]}"; do
+    in="$PARSER_SRC/$fname"
+    if [[ ! -f "$in" ]]; then
+        echo "skip (missing): $fname"
+        skipped=$((skipped + 1))
+        continue
+    fi
+    base="$(basename "$fname" .java)"
+    out_base_lc="$(echo "$base" | tr '[:upper:]' '[:lower:]').go"
+    out="$PARSER_SKEL_OUT/$out_base_lc"
+    go run ./tools/javaport \
+        -in "$in" \
+        -out "$out" \
+        -pkg "parser" \
+        -build-tag "$TAG"
+    processed=$((processed + 1))
+done
+# util/ subdirectory
+PARSER_UTIL_SRC="$PARSER_SRC/util"
+PARSER_UTIL_OUT="$PARSER_SKEL_OUT/util"
+mkdir -p "$PARSER_UTIL_OUT"
+for java_file in "$PARSER_UTIL_SRC"/*.java; do
+    if [[ ! -f "$java_file" ]]; then
+        continue
+    fi
+    base="$(basename "$java_file" .java)"
+    out_base_lc="$(echo "$base" | tr '[:upper:]' '[:lower:]').go"
+    out="$PARSER_UTIL_OUT/$out_base_lc"
+    go run ./tools/javaport \
+        -in "$java_file" \
+        -out "$out" \
+        -pkg "util" \
+        -build-tag "$TAG"
+    processed=$((processed + 1))
+done
+
 echo ""
 echo "generated $processed skeletons, skipped $skipped"
