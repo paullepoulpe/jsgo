@@ -466,37 +466,76 @@ func TestTransformTaggedTemplateLiteral(t *testing.T) {
 // ---- If statement -----------------------------------------------------------
 
 // TestTransformIfStatement mirrors IRFactory transforming `if (c) t; else e;`.
-// Port gap: IfStatementTree is not yet in the IRFactory dispatch.
 func TestTransformIfStatement(t *testing.T) {
-	t.Skip("port gap: ParseTreeTypeIfStatement not dispatched in IRFactory")
+	f := newFactory(t)
+	cond := makeIdent("c")
+	thenBlock := makeBlock()
+	elseBlock := makeBlock()
+	tree := trees.NewIfStatementTree(trees.SourceRange{}, &cond.ParseTree, &thenBlock.ParseTree, &elseBlock.ParseTree)
+	node := f.Transform(&tree.ParseTree)
+	if node.Token() != rhino.IF {
+		t.Errorf("expected IF, got %v", node.Token())
+	}
+	if node.ChildCount() != 3 {
+		t.Errorf("expected 3 children (cond, then, else), got %d", node.ChildCount())
+	}
 }
 
 // TestTransformIfStatementNoElse mirrors `if (c) t;`.
-// Port gap: IfStatementTree is not yet in the IRFactory dispatch.
 func TestTransformIfStatementNoElse(t *testing.T) {
-	t.Skip("port gap: ParseTreeTypeIfStatement not dispatched in IRFactory")
+	f := newFactory(t)
+	cond := makeIdent("c")
+	thenBlock := makeBlock()
+	tree := trees.NewIfStatementTree(trees.SourceRange{}, &cond.ParseTree, &thenBlock.ParseTree, nil)
+	node := f.Transform(&tree.ParseTree)
+	if node.Token() != rhino.IF {
+		t.Errorf("expected IF, got %v", node.Token())
+	}
+	if node.ChildCount() != 2 {
+		t.Errorf("expected 2 children (cond, then), got %d", node.ChildCount())
+	}
 }
 
 // ---- Await expression -------------------------------------------------------
 
 // TestTransformAwaitExpression mirrors IRFactory transforming `await x`.
-// Port gap: AwaitExpressionTree is not yet in the IRFactory dispatch.
 func TestTransformAwaitExpression(t *testing.T) {
-	t.Skip("port gap: ParseTreeTypeAwaitExpression not dispatched in IRFactory")
+	f := newFactory(t)
+	inner := makeIdent("x")
+	tree := trees.NewAwaitExpressionTree(trees.SourceRange{}, &inner.ParseTree)
+	node := f.Transform(&tree.ParseTree)
+	if node.Token() != rhino.AWAIT {
+		t.Errorf("expected AWAIT, got %v", node.Token())
+	}
+	if node.FirstChild() == nil || node.FirstChild().Token() != rhino.NAME {
+		t.Errorf("expected NAME child, got %v", node.FirstChild())
+	}
 }
 
 // ---- Dynamic import ---------------------------------------------------------
 
 // TestTransformDynamicImport mirrors IRFactory transforming `import(x)`.
-// Port gap: DynamicImportTree is not yet in the IRFactory dispatch.
 func TestTransformDynamicImport(t *testing.T) {
-	t.Skip("port gap: ParseTreeTypeDynamicImportExpression not dispatched in IRFactory")
+	f := newFactory(t)
+	arg := makeIdent("x")
+	tree := trees.NewDynamicImportTree(trees.SourceRange{}, &arg.ParseTree)
+	node := f.Transform(&tree.ParseTree)
+	if node.Token() != rhino.DYNAMIC_IMPORT {
+		t.Errorf("expected DYNAMIC_IMPORT, got %v", node.Token())
+	}
+	if node.FirstChild() == nil || node.FirstChild().Token() != rhino.NAME {
+		t.Errorf("expected NAME child, got %v", node.FirstChild())
+	}
 }
 
 // ---- Debugger statement -----------------------------------------------------
 
 // TestTransformDebuggerStatement mirrors IRFactory transforming `debugger;`.
-// Port gap: DebuggerStatementTree is not yet in the IRFactory dispatch.
 func TestTransformDebuggerStatement(t *testing.T) {
-	t.Skip("port gap: ParseTreeTypeDebuggerStatement not dispatched in IRFactory")
+	f := newFactory(t)
+	tree := trees.NewDebuggerStatementTree(trees.SourceRange{})
+	node := f.Transform(&tree.ParseTree)
+	if node.Token() != rhino.DEBUGGER {
+		t.Errorf("expected DEBUGGER, got %v", node.Token())
+	}
 }

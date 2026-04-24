@@ -183,6 +183,14 @@ func (f *IRFactory) process(tree *trees.ParseTree) *rhino.Node {
 	case trees.ParseTreeTypeTemplateSubstitution:
 		return f.processTemplateSubstitution((*trees.TemplateSubstitutionTree)(unsafe.Pointer(tree)))
 
+	// ---- await / dynamic-import / debugger ------------------------
+	case trees.ParseTreeTypeAwaitExpression:
+		return f.transformAwaitExpression((*trees.AwaitExpressionTree)(unsafe.Pointer(tree)))
+	case trees.ParseTreeTypeDynamicImportExpression:
+		return f.transformDynamicImport((*trees.DynamicImportTree)(unsafe.Pointer(tree)))
+	case trees.ParseTreeTypeDebuggerStatement:
+		return f.newNode(rhino.DEBUGGER)
+
 	// ---- null / empty placeholder ----------------------------------
 	case trees.ParseTreeTypeNull:
 		return rhino.New(rhino.EMPTY)
@@ -190,6 +198,20 @@ func (f *IRFactory) process(tree *trees.ParseTree) *rhino.Node {
 	default:
 		return rhino.New(rhino.EMPTY)
 	}
+}
+
+// transformAwaitExpression mirrors IRFactory.processAwait(AwaitExpressionTree).
+func (f *IRFactory) transformAwaitExpression(tree *trees.AwaitExpressionTree) *rhino.Node {
+	await := f.newNode(rhino.AWAIT)
+	await.AddChildToBack(f.Transform(tree.Expression))
+	return await
+}
+
+// transformDynamicImport mirrors IRFactory.processDynamicImport(DynamicImportTree).
+func (f *IRFactory) transformDynamicImport(tree *trees.DynamicImportTree) *rhino.Node {
+	n := f.newNode(rhino.DYNAMIC_IMPORT)
+	n.AddChildToBack(f.Transform(tree.Argument))
+	return n
 }
 
 // setSourceInfo copies source-position information from tree to node.
