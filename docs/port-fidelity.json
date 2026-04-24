@@ -76,25 +76,6 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a9d0c096/internal/jscomp/checkaccesscontrols.go",
-    "java_file": "com/google/javascript/jscomp/CheckAccessControls.java",
-    "score": 38.54709118186364,
-    "method_overlap_pct": 0,
-    "go_method_count": 48,
-    "java_method_count": 70,
-    "stub_count": 0,
-    "go_body_loc": 708,
-    "java_body_loc": 857,
-    "loc_ratio": 0.8261376896149358,
-    "go_only_count": 47,
-    "port_debt_count": 0,
-    "notes": "47 go-only fns",
-    "weighted_score": 40.781558831233774,
-    "go_only_penalty": 20,
-    "stub_penalty": 0,
-    "version_penalty": 0
-  },
-  {
     "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a9d0c096/internal/jscomp/typecheck.go",
     "java_file": "com/google/javascript/jscomp/TypeCheck.java",
     "score": 38.55004591368227,
@@ -2717,6 +2698,25 @@
     "version_penalty": 0
   },
   {
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a9d0c096/internal/jscomp/checkaccesscontrols.go",
+    "java_file": "com/google/javascript/jscomp/CheckAccessControls.java",
+    "score": 58.54709118186364,
+    "method_overlap_pct": 0,
+    "go_method_count": 48,
+    "java_method_count": 70,
+    "stub_count": 0,
+    "go_body_loc": 708,
+    "java_body_loc": 857,
+    "loc_ratio": 0.8261376896149358,
+    "go_only_count": 0,
+    "port_debt_count": 0,
+    "notes": "",
+    "weighted_score": 40.781558831233774,
+    "go_only_penalty": 0,
+    "stub_penalty": 0,
+    "version_penalty": 0
+  },
+  {
     "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a9d0c096/internal/jscomp/astfactory.go",
     "java_file": "com/google/javascript/jscomp/AstFactory.java",
     "score": 58.598066007518895,
@@ -3403,7 +3403,7 @@
   {
     "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a9d0c096/internal/jscomp/checksideeffects.go",
     "java_file": "com/google/javascript/jscomp/CheckSideEffects.java",
-    "score": 65.41666666666667,
+    "score": 65.41666666666666,
     "method_overlap_pct": 33.33333333333333,
     "go_method_count": 12,
     "java_method_count": 4,
@@ -3414,7 +3414,7 @@
     "go_only_count": 0,
     "port_debt_count": 0,
     "notes": "",
-    "weighted_score": 50.5952380952381,
+    "weighted_score": 50.595238095238095,
     "go_only_penalty": 0,
     "stub_penalty": 0,
     "version_penalty": 0
@@ -3718,7 +3718,7 @@
     "go_only_count": 0,
     "port_debt_count": 17,
     "notes": "17 port-debt",
-    "weighted_score": 58.12343358395991,
+    "weighted_score": 58.1234335839599,
     "go_only_penalty": 0,
     "stub_penalty": 0,
     "version_penalty": 0
@@ -3973,7 +3973,7 @@
   {
     "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a9d0c096/internal/diag/jserror.go",
     "java_file": "com/google/javascript/jscomp/JSError.java",
-    "score": 73.09984903554799,
+    "score": 73.09984903554798,
     "method_overlap_pct": 33.9622641509434,
     "go_method_count": 47,
     "java_method_count": 31,
@@ -3984,7 +3984,7 @@
     "go_only_count": 0,
     "port_debt_count": 0,
     "notes": "1 stubs",
-    "weighted_score": 65.85692719363999,
+    "weighted_score": 65.85692719363998,
     "go_only_penalty": 0,
     "stub_penalty": 3,
     "version_penalty": 0
