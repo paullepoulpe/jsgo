@@ -43,6 +43,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/paullepoulpe/jsgo/tools/javaport/javaast"
 )
 
 func main() {
@@ -929,8 +931,20 @@ func emitConstructor(b *strings.Builder, cls *classDecl, m methodDecl) {
 		b.WriteString(p.name + " " + javaToGoType(p.typeName))
 	}
 	b.WriteString(") *" + cls.name + " {\n")
-	b.WriteString("\t// TODO: port body\n")
-	b.WriteString("\treturn &" + cls.name + "{}\n")
+
+	recv := strings.ToLower(string(cls.name[0]))
+	bodyText, translated := translateMethodBody(m.body, recv, cls.name, "")
+	if translated {
+		b.WriteString(bodyText)
+		if !strings.HasSuffix(strings.TrimSpace(bodyText), "return") &&
+			!strings.Contains(bodyText, "return &"+cls.name) &&
+			!strings.Contains(bodyText, "return nil") {
+			b.WriteString("\treturn &" + cls.name + "{}\n")
+		}
+	} else {
+		b.WriteString("\t// TODO: port body\n")
+		b.WriteString("\treturn &" + cls.name + "{}\n")
+	}
 	b.WriteString("}\n\n")
 }
 
@@ -962,21 +976,71 @@ func emitMethodStub(b *strings.Builder, cls *classDecl, m methodDecl) {
 		b.WriteString(" " + goRet)
 	}
 	b.WriteString(" {\n")
-	b.WriteString("\t// TODO: port body\n")
 	if m.throws != "" {
 		b.WriteString("\t// Java threw: " + m.throws + "\n")
 	}
-	switch goRet {
-	case "":
-		// void
-	case "bool":
-		b.WriteString("\treturn false\n")
-	case "int", "int64", "float32", "float64":
-		b.WriteString("\treturn 0\n")
-	case "string":
-		b.WriteString("\treturn \"\"\n")
-	default:
-		b.WriteString("\treturn nil\n")
+
+	bodyText, translated := translateMethodBody(m.body, recv, cls.name, goRet)
+	if translated {
+		b.WriteString(bodyText)
+	} else {
+		b.WriteString("\t// TODO: port body\n")
+		switch goRet {
+		case "":
+			// void — no return needed
+		case "bool":
+			b.WriteString("\treturn false\n")
+		case "int", "int64", "float32", "float64":
+			b.WriteString("\treturn 0\n")
+		case "string":
+			b.WriteString("\treturn \"\"\n")
+		default:
+			b.WriteString("\treturn nil\n")
+		}
 	}
 	b.WriteString("}\n\n")
+}
+
+// translateMethodBody attempts to translate the raw Java method body text
+// (between the braces) into Go using the javaast package. It tries the
+// trivial-pattern recogniser first, then falls back to the full AST walker.
+// Returns (goBody, true) on success, or ("", false) when neither succeeded.
+//
+// goRet is the Go return type (empty string for void); it is only used to
+// determine whether an empty body needs a zero-value return appended.
+func translateMethodBody(javaBody, recvName, className, goRet string) (string, bool) {
+	body := strings.TrimSpace(javaBody)
+	if body == "" {
+		// Empty Java body — emit nothing (void) or zero return.
+		switch goRet {
+		case "":
+			return "", true
+		case "bool":
+			return "\treturn false\n", true
+		case "int", "int64", "float32", "float64":
+			return "\treturn 0\n", true
+		case "string":
+			return "\treturn \"\"\n", true
+		}
+		return "\treturn nil\n", true
+	}
+
+	ctx := javaast.MethodContext{
+		RecvName:  recvName,
+		ClassName: className,
+		TypeMap:   javaToGoType,
+	}
+
+	// Try trivial patterns first (fastest, most reliable).
+	if s, ok := javaast.TryTrivial(body, recvName, className, javaToGoType); ok {
+		return s, true
+	}
+
+	// Fall back to the full AST walker.
+	translated, ok := javaast.TranslateBody(body, ctx)
+	if ok && translated != "" {
+		return translated, true
+	}
+
+	return "", false
 }
