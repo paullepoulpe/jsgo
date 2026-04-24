@@ -3143,3 +3143,42 @@ func (nodeUtil) GetCallTargetResolvingIndirectCalls(call *rhino.Node) *rhino.Nod
 	}
 	return target
 }
+
+// NewDeclaration creates a VAR/LET/CONST declaration node for lhs
+// optionally initialized to rhs.
+// Mirrors NodeUtil.newDeclaration.
+func (nodeUtil) NewDeclaration(lhs, rhs *rhino.Node, declarationType rhino.Token) *rhino.Node {
+	if rhs == nil {
+		return rhino.IRDeclarationLhs(lhs, declarationType)
+	}
+	return rhino.IRDeclaration(lhs, rhs, declarationType)
+}
+
+// NewQName creates a NAME or GETPROP chain for the given dotted name.
+// This is the compiler-context-free version.
+// Mirrors NodeUtil.newQName (without compiler).
+func (nodeUtil) NewQName(name string) *rhino.Node {
+	return NU.NewQualifiedNameNode(name)
+}
+
+// NewPropertyAccess creates a GETPROP node for context.name.
+// Mirrors NodeUtil.newPropertyAccess (without compiler context).
+func (nodeUtil) NewPropertyAccess(context *rhino.Node, name string) *rhino.Node {
+	return rhino.IRGetprop(context, name)
+}
+
+// NewUndefinedNode creates a VOID(0) node that evaluates to undefined.
+// Mirrors NodeUtil.newUndefinedNode.
+func (nodeUtil) NewUndefinedNode(srcRef *rhino.Node) *rhino.Node {
+	node := rhino.IRVoid(rhino.NewNumber(0))
+	if srcRef != nil {
+		node.SrcrefTree(srcRef)
+	}
+	return node
+}
+
+// EmptyFunction creates an empty FUNCTION node: function() {}.
+// Mirrors NodeUtil.emptyFunction.
+func (nodeUtil) EmptyFunction() *rhino.Node {
+	return rhino.IRFunction(rhino.NewString(rhino.NAME, ""), rhino.IRParamList(), rhino.IRBlock())
+}
