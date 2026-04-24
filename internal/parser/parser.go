@@ -325,7 +325,6 @@ func (p *Parser) finishDeclStatement(declToken rhino.Token, jsdoc *rhino.JSDocIn
 	}
 	// One iteration per comma-separated binding. Matches Java's
 	// parseVariableDeclarationList loop.
-	isFirstBinding := true
 	for {
 		nameLine, nameCol := p.scanner.Line(), p.scanner.Col()
 		ident, ok := p.scanner.ConsumeIdent()
@@ -342,10 +341,12 @@ func (p *Parser) finishDeclStatement(declToken rhino.Token, jsdoc *rhino.JSDocIn
 		// `var /** @type {T} */ a = 1, b = 2`. The scope creator
 		// (recordOneDecl) consults name.JSDocInfo() as well as
 		// v.JSDocInfo() to find the per-binding type annotation.
-		if isFirstBinding && firstNameInlineDoc != nil {
+		// The firstNameInlineDoc is also reused for subsequent bindings
+		// when a per-binding inline JSDoc follows `,`.
+		if firstNameInlineDoc != nil {
 			nameNode.SetJSDocInfo(firstNameInlineDoc)
+			firstNameInlineDoc = nil // consume: only applies to this binding
 		}
-		isFirstBinding = false
 		declNode.AddChildToBack(nameNode)
 
 		p.scanner.SkipTrivia()
@@ -393,12 +394,21 @@ func (p *Parser) finishDeclStatement(declToken rhino.Token, jsdoc *rhino.JSDocIn
 			break
 		}
 		p.scanner.SkipTrivia()
-		// Allow an inline JSDoc per-binding (`var a, /** @type T */ b`).
+		// Per-binding inline JSDoc after `,` — `var a, /** @type {T} */ b`.
+		// Java: each binding can have its own inline type annotation.
+		// Reuse firstNameInlineDoc as the "current binding" inline doc
+		// for the next iteration.
 		if body, ok := p.scanner.ConsumeBlockComment(); ok {
 			if inline := parseInlineTypeJSDoc(body); inline != nil {
-				_ = inline // discarded — Java drops per-binding type hints in this pos
+				firstNameInlineDoc = inline
+			} else if full := parsing.ParseJSDocInfo(body, p.scanner.Line()); full != nil && full.HasType() {
+				firstNameInlineDoc = full
+			} else {
+				firstNameInlineDoc = nil
 			}
 			p.scanner.SkipTrivia()
+		} else {
+			firstNameInlineDoc = nil
 		}
 	}
 	sawNewline := p.scanner.Line() != p.scanner.LastTokenLine()

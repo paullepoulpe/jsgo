@@ -788,38 +788,62 @@ func (c *TypeCheck) visitVar(v *rhino.Node, scope *TypedScope) []diag.Diagnostic
 	if info := v.JSDocInfo(); info.IsEnum() {
 		return append(out, c.visitEnumInit(name, init, scope)...)
 	}
-	// CAST inits are validated by visitCast; skip the initializing-variable
-	// subtype check here to avoid double-reporting and flow-refinement FPs
-	// on redeclared variables (Java routes CAST through visitCast, not
-	// visitAssign / visitVar).
-	if init.Token() == rhino.CAST {
-		return out
-	}
-	declared := scope.GetDeclaredType(name.String_())
-	if declared == nil {
-		return out
-	}
+	// Java's visitVar iterates ALL NAME children for the initializing-variable
+	// type check. Each child may have its own inline JSDoc (@type annotation).
+	// `varInfo` (the VAR-level JSDoc) is used as fallback only when there's
+	// exactly ONE child — for multi-binding VARs, per-child JSDoc applies.
+	// Mirrors Java's `JSDocInfo varInfo = n.hasOneChild() ? n.getJSDocInfo() : null`.
+	varInfo := v.JSDocInfo()
+	isMultiChild := len(v.Children()) > 1
 	infer := NewTypeInference(scope)
-	// When `const foo = /** @type {T} */ (expr)` is parsed, Go's parser
-	// simulates the Java CAST node by marking the NAME node's JSDocInfo
-	// with isCastHoisted=true. In that case the declared type IS the cast
-	// type, so the initializer's raw type is irrelevant — Java wouldn't
-	// fire TYPE_MISMATCH either since the CAST node's getJSType() returns
-	// T, not the inner literal type.
-	if nameInfo := name.JSDocInfo(); nameInfo != nil && nameInfo.IsCastHoisted() {
-		return out
+	for curName := name; curName != nil; curName = curName.Next() {
+		if curName.Token() != rhino.NAME {
+			continue
+		}
+		curInit := curName.FirstChild()
+		if curInit == nil {
+			continue
+		}
+		// CAST inits are validated by visitCast.
+		if curInit.Token() == rhino.CAST {
+			continue
+		}
+		// Determine the declared type for this binding.
+		// Per-child JSDoc takes precedence; VAR-level JSDoc as fallback
+		// only for single-child VARs (matching Java).
+		childInfo := curName.JSDocInfo()
+		if childInfo != nil && childInfo.IsCastHoisted() {
+			continue // handled by visitCast
+		}
+		var declared jstype.JSType
+		if childInfo != nil && childInfo.HasType() {
+			declared = scope.ResolveExpr(childInfo.Type().TypeName)
+		} else if !isMultiChild && varInfo != nil {
+			declared = scope.GetDeclaredType(curName.String_())
+		} else {
+			declared = scope.GetDeclaredType(curName.String_())
+		}
+		if declared == nil {
+			continue
+		}
+		found := infer.InferType(curInit)
+		if jstype.IsSubtype(found, declared) {
+			continue
+		}
+		msg := fmt.Sprintf("initializing variable\nfound   : %s\nrequired: %s",
+			found.TypeName(), declared.TypeName())
+		line, col := diagPosForArg(curInit)
+		out = append(out, diag.Diagnostic{
+			Path: c.path, Line: line, Col: col,
+			Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error, Message: msg,
+		})
+		// For the first child, stop (Java also stops after first for
+		// single-child VARs). For multi-child, continue checking all.
+		if !isMultiChild {
+			break
+		}
 	}
-	found := infer.InferType(init)
-	if jstype.IsSubtype(found, declared) {
-		return out
-	}
-	msg := fmt.Sprintf("initializing variable\nfound   : %s\nrequired: %s",
-		found.TypeName(), declared.TypeName())
-	line, col := diagPosForArg(init)
-	return append(out, diag.Diagnostic{
-		Path: c.path, Line: line, Col: col,
-		Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error, Message: msg,
-	})
+	return out
 }
 
 
