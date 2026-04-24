@@ -1,15 +1,13 @@
-// Port of com/google/javascript/jscomp/CheckMissingRequires.java @ closure-compiler v20260415 (narrow; module system stubbed)
+// Port of com/google/javascript/jscomp/CheckMissingRequires.java @ closure-compiler v20260415
 //
 // Detects references to fully qualified Closure namespaces that
 // should be imported via goog.require / goog.requireType.
 //
-// The module system (ModuleMetadata / ModuleMetadataMap), the
-// QualifiedName class, and the GoogRequire / Var helpers are not yet
-// ported. Stubs for all three live below, each marked with a TODO.
-// Until those are resolved the pass is wired into the compiler pipeline
-// but its inner logic returns immediately (no false positives). The
-// diagnostic codes are registered so conformance tooling that keys on
-// code names is not broken.
+// ModuleMetadata / ModuleMetadataMap are stubbed below with a single-file
+// gatherer (cmrGatherModuleMetadata) that mirrors the relevant subset of
+// GatherModuleMetadata.java — enough to power CheckMissingRequires for
+// single-file analysis. The QualifiedName class and GoogRequire / Var helpers
+// remain stubbed pending a full scope-system port.
 
 package jscomp
 
@@ -94,6 +92,117 @@ func (m *cmrModuleMetadataMap) get(ns string) *cmrModuleMetadata {
 		return nil
 	}
 	return m.byNamespace[ns]
+}
+
+// ---------------------------------------------------------------------------
+// cmrGatherModuleMetadata — single-file port of GatherModuleMetadata.java
+// ---------------------------------------------------------------------------
+
+// cmrGatherModuleMetadata walks `script` and builds a cmrModuleMetadataMap
+// for the single file identified by `path`. It mirrors the subset of
+// GatherModuleMetadata.java needed by CheckMissingRequires:
+//   - goog.provide(ns)                → GOOG_PROVIDE; googNamespaces += ns
+//   - goog.module(ns)                 → GOOG_MODULE;  googNamespaces += ns
+//   - goog.module.declareLegacyNamespace() → upgrades to LEGACY_GOOG_MODULE
+//   - goog.require(ns)                → strongRequires += ns
+//   - goog.requireType(ns)            → weakRequires += ns
+//
+// The returned map contains exactly one entry per declared namespace,
+// mirroring ModuleMetadataMap.getModulesByGoogNamespace().
+func cmrGatherModuleMetadata(path string, script *rhino.Node) *cmrModuleMetadataMap {
+	md := &cmrModuleMetadata{
+		sourceFileName: path,
+		googNamespaces: map[string]bool{},
+		strongRequires: map[string]bool{},
+		weakRequires:   map[string]bool{},
+		rootNode:       script,
+	}
+	// moduleType tracks SCRIPT(0) / GOOG_PROVIDE(1) / GOOG_MODULE(2).
+	// 0 = SCRIPT, 1 = GOOG_PROVIDE, 2 = GOOG_MODULE/LEGACY_GOOG_MODULE
+	moduleType := 0
+	declareLegacy := false
+	cmrScanGoogCalls(script, func(callee, arg string) {
+		switch callee {
+		case "goog.provide":
+			if arg != "" {
+				md.googNamespaces[arg] = true
+				if moduleType < 1 {
+					moduleType = 1
+				}
+			}
+		case "goog.module":
+			if arg != "" {
+				md.googNamespaces[arg] = true
+				if moduleType < 2 {
+					moduleType = 2
+				}
+			}
+		case "goog.module.declareLegacyNamespace":
+			declareLegacy = true
+		case "goog.require":
+			if arg != "" {
+				md.strongRequires[arg] = true
+			}
+		case "goog.requireType":
+			if arg != "" {
+				md.weakRequires[arg] = true
+			}
+		}
+	})
+	switch moduleType {
+	case 1:
+		md.hasLegacyNS = true
+	case 2:
+		md.isModuleFlag = true
+		md.isNonLegacy = !declareLegacy
+		if declareLegacy {
+			md.hasLegacyNS = true
+		}
+	}
+	// Build the byNamespace map: one entry per declared namespace.
+	byNS := map[string]*cmrModuleMetadata{}
+	for ns := range md.googNamespaces {
+		// Each entry is a clone with exactly one namespace, matching Java's
+		// getModulesByGoogNamespace() contract (each value has size-1 googNamespaces).
+		entry := &cmrModuleMetadata{
+			sourceFileName: md.sourceFileName,
+			googNamespaces: map[string]bool{ns: true},
+			strongRequires: md.strongRequires,
+			weakRequires:   md.weakRequires,
+			isModuleFlag:   md.isModuleFlag,
+			hasLegacyNS:    md.hasLegacyNS,
+			isNonLegacy:    md.isNonLegacy,
+			rootNode:       md.rootNode,
+		}
+		byNS[ns] = entry
+	}
+	return &cmrModuleMetadataMap{byNamespace: byNS}
+}
+
+// cmrScanGoogCalls walks `n` in pre-order and calls `fn` for every CALL
+// node whose callee is a goog.* qualified name. `arg` is the string value
+// of the first argument (or "" when absent / non-string).
+func cmrScanGoogCalls(n *rhino.Node, fn func(callee, arg string)) {
+	if n == nil {
+		return
+	}
+	if n.Token() == rhino.CALL {
+		callee := n.FirstChild()
+		if callee != nil {
+			qn := cmrQualifiedNameFromNode(callee)
+			if qn != nil && strings.HasPrefix(qn.join(), "goog") {
+				arg := ""
+				kids := n.Children()
+				if len(kids) >= 2 && kids[1].Token() == rhino.STRINGLIT {
+					arg = kids[1].String_()
+				}
+				fn(qn.join(), arg)
+			}
+		}
+	}
+	for _, ch := range n.Children() {
+		cmrScanGoogCalls(ch, fn)
+	}
 }
 
 // cmrQualifiedName is a stub for com.google.javascript.rhino.QualifiedName.
@@ -381,8 +490,8 @@ type CheckMissingRequires struct {
 }
 
 // NewCheckMissingRequires constructs the pass, mirroring the Java constructor
-// signature (compiler + moduleMetadataMap). The moduleMetadataMap may be nil
-// while the module system is not yet ported; the pass silently no-ops.
+// signature (compiler + moduleMetadataMap). Pass a map built by
+// cmrGatherModuleMetadata; nil map causes the pass to no-op.
 func NewCheckMissingRequires(path string, moduleMetadataMap *cmrModuleMetadataMap) *CheckMissingRequires {
 	c := &CheckMissingRequires{
 		path:               path,
@@ -397,20 +506,14 @@ func NewCheckMissingRequires(path string, moduleMetadataMap *cmrModuleMetadataMa
 // Check runs the pass over `script` and returns any diagnostics found.
 // Mirrors the Java CompilerPass.process entry point; externs are ignored
 // here (consistent with the narrow-port contract).
-//
-// TODO: integrate into CheckSourceWithOptions in compiler.go once the
-// module system stubs are replaced with real implementations.
 func (c *CheckMissingRequires) Check(script *rhino.Node) []diag.Diagnostic {
 	c.diags = nil
 	c.templateParamNames = map[string]bool{}
 	c.controlFlowScopeDepth = 0
 
-	// The module system is not yet ported: without a real ModuleMetadataMap
-	// we cannot determine which namespaces exist, which files provide them, or
-	// which files require them. Return immediately to avoid false positives.
-	//
-	// TODO: remove this guard once cmrModuleMetadata / cmrModuleMetadataMap
-	// are replaced with real implementations.
+	// Without a real ModuleMetadataMap we cannot determine which namespaces
+	// exist or which files provide/require them. The caller should supply one
+	// via cmrGatherModuleMetadata; if nil, no-op to avoid false positives.
 	if c.moduleByNamespace == nil {
 		return nil
 	}
@@ -426,12 +529,34 @@ func (c *CheckMissingRequires) Check(script *rhino.Node) []diag.Diagnostic {
 // walk is a pre-order / post-order recursive traversal mirroring the Java
 // AbstractModuleCallback contract (shouldTraverse pre-order, visit post-order).
 // `currentModule` is the ModuleMetadata for the enclosing file; for the
-// top-level SCRIPT node it is derived from the moduleByNamespace map.
-//
-// TODO: thread real module detection once cmrModuleMetadata is ported.
+// top-level SCRIPT node it is resolved from the moduleByNamespace map by
+// finding the metadata whose rootNode matches, mirroring AbstractModuleCallback
+// enterModule behaviour.
 func (c *CheckMissingRequires) walk(n *rhino.Node, parent *rhino.Node, currentModule *cmrModuleMetadata) {
 	if n == nil {
 		return
+	}
+
+	// Resolve currentModule for SCRIPT nodes (AbstractModuleCallback.enterModule).
+	// We look for any cmrModuleMetadata whose rootNode is this SCRIPT node.
+	if n.Token() == rhino.SCRIPT && currentModule == nil {
+		for _, md := range c.moduleByNamespace {
+			if md.rootNode == n {
+				currentModule = md
+				break
+			}
+		}
+		// If no namespace was declared (plain script), use a synthetic metadata
+		// with the rootNode set so the walker can still detect the file type.
+		if currentModule == nil {
+			currentModule = &cmrModuleMetadata{
+				sourceFileName: c.path,
+				googNamespaces: map[string]bool{},
+				strongRequires: map[string]bool{},
+				weakRequires:   map[string]bool{},
+				rootNode:       n,
+			}
+		}
 	}
 
 	// --- shouldTraverse equivalent (pre-order) ---
@@ -559,19 +684,22 @@ func (c *CheckMissingRequires) cmrVisitJsDocExpr(n *rhino.Node, currentModule *c
 // namespace (e.g., `const {Bar} = goog.require('foo')` when 'foo.Bar' is
 // its own namespace).
 //
-// TODO: this method requires Var + GoogRequire stubs to be populated;
-// currently returns immediately because we cannot look up scope variables.
+// TODO: implement once Var / GoogRequire stubs are replaced with real
+// scope-based implementations. The logic (Java lines 301–381):
+//   1. Look up rootName in the current scope as a Var.
+//   2. If it is a local destructured goog.require with a property,
+//      check whether (namespace + "." + property) is its own namespace.
+//   3. If so, fire INCORRECT_NAMESPACE_ALIAS_REQUIRE /
+//      INCORRECT_NAMESPACE_ALIAS_REQUIRE_TYPE.
 func (c *CheckMissingRequires) cmrVisitMaybeDeclaration(_ *rhino.Node, currentModule *cmrModuleMetadata) {
 	if !currentModule.isModule() {
 		return
 	}
-	// TODO: implement once Var / GoogRequire stubs are replaced with real
-	// scope-based implementations. The logic (Java lines 301–381):
-	//   1. Look up rootName in the current scope as a Var.
-	//   2. If it is a local destructured goog.require with a property,
-	//      check whether (namespace + "." + property) is its own namespace.
-	//   3. If so, fire INCORRECT_NAMESPACE_ALIAS_REQUIRE /
-	//      INCORRECT_NAMESPACE_ALIAS_REQUIRE_TYPE.
+	// Skip TypeScript-generated sources (mirrors Java isTypeScriptSource check).
+	if cmrIsTypeScriptSource(c.path) {
+		return
+	}
+	// Scope-based Var lookup not yet implemented; returns without firing.
 }
 
 // ---------------------------------------------------------------------------
@@ -647,7 +775,11 @@ func (c *CheckMissingRequires) cmrCheckMissingRequireThroughShortName(
 	qualifiedName *cmrQualifiedName,
 	referenceStrength cmrStrength,
 ) {
-	// Not yet implemented — requires real Var / scope resolution.
+	// Skip TypeScript-generated sources (mirrors Java isTypeScriptSource check).
+	if cmrIsTypeScriptSource(c.path) {
+		return
+	}
+	// Scope-based Var / GoogRequire resolution not yet implemented.
 	_ = n
 	_ = localVar
 	_ = currentFile
@@ -893,26 +1025,28 @@ func cmrHasAcceptableRequire(rdep *cmrModuleMetadata, namespace *cmrQualifiedNam
 	return false
 }
 
-// cmrIsValidCfgRoot reports whether `n` is a valid control-flow graph root
-// (SCRIPT, ROOT, FUNCTION, BLOCK, or MODULE_BODY). Mirrors the subset of
-// NodeUtil.isValidCfgRoot used by CheckMissingRequires.
+// cmrIsValidCfgRoot reports whether `n` is a valid control-flow graph root.
+// Mirrors NodeUtil.isValidCfgRoot: DEFINITE_CFG_ROOTS = {FUNCTION, SCRIPT,
+// MODULE_BODY, ROOT}. (Class static blocks are excluded here as they are not
+// produced by our parser tier.)
 func cmrIsValidCfgRoot(n *rhino.Node) bool {
 	switch n.Token() {
-	case rhino.SCRIPT, rhino.FUNCTION, rhino.BLOCK:
+	case rhino.SCRIPT, rhino.FUNCTION, rhino.MODULE_BODY, rhino.ROOT:
 		return true
 	}
 	return false
 }
 
 // cmrIsInGlobalControlFlowScope mirrors CheckMissingRequires.isInGlobalControlFlowScope.
-// Returns true for nodes that do NOT introduce a new control-flow scope relative to the
-// global scope (SCRIPT, IIFEs, goog.scope bodies).
+// Returns true for nodes that are within the global control-flow scope (SCRIPT, ROOT,
+// IIFEs, goog.scope bodies) and false for nodes that introduce a new scope (MODULE_BODY,
+// non-IIFE FUNCTIONs). Matches the Java switch exactly.
 func (c *CheckMissingRequires) cmrIsInGlobalControlFlowScope(n *rhino.Node) bool {
 	switch n.Token() {
-	case rhino.SCRIPT:
+	case rhino.SCRIPT, rhino.ROOT:
 		return true
-	case rhino.BLOCK:
-		// Class static blocks need a new cfg root but aren't in the global scope.
+	case rhino.MODULE_BODY:
+		// MODULE_BODY creates a new cfg root but is not in the global scope.
 		return false
 	case rhino.FUNCTION:
 		if c.controlFlowScopeDepth > 0 {
@@ -991,6 +1125,40 @@ func cmrIsGoogModuleGetCall(n *rhino.Node) bool {
 	}
 	// Second child must be a string literal.
 	return kids[1].Token() == rhino.STRINGLIT
+}
+
+// cmrTocci converts a cmrModuleMetadataMap into a cciModuleMetadataMap so
+// that CheckClosureImports can use the same single-file module graph built
+// by cmrGatherModuleMetadata. Only the googNamespaces set and module type
+// are carried across (CheckClosureImports only queries isGoogModule/isModule
+// and getModulesByGoogNamespace).
+func cmrTocci(m *cmrModuleMetadataMap) *cciModuleMetadataMap {
+	out := newCciModuleMetadataMap()
+	if m == nil {
+		return out
+	}
+	for ns, md := range m.byNamespace {
+		var mt cciModuleType
+		if md.isModuleFlag {
+			mt = cciModuleTypeGoogModule
+		} else {
+			mt = cciModuleTypeScript
+		}
+		gns := map[string]struct{}{ns: {}}
+		out.byGoogNamespace[ns] = &cciModuleMetadata{
+			googNamespaces: gns,
+			moduleType:     mt,
+			rootNode:       md.rootNode,
+		}
+	}
+	return out
+}
+
+// cmrIsTypeScriptSource mirrors StaticSourceFile.isTypeScriptSource().
+// Returns true for .closure.js and .tsx.cl.js files, which are
+// tsickle-generated TypeScript transpilations.
+func cmrIsTypeScriptSource(path string) bool {
+	return strings.HasSuffix(path, ".closure.js") || strings.HasSuffix(path, ".tsx.cl.js")
 }
 
 // cmrIsDeclarationLValue mirrors NodeUtil.isDeclarationLValue.
