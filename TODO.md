@@ -58,6 +58,50 @@ Concretely:
   unavoidable, first map the Java call chain to the Go equivalent
   before adding anything new.
 
+### Go-only annotation conventions
+
+Functions that genuinely cannot be ported 1:1 must be tagged with
+one of the following **closed reason codes** (enforced by
+`tools/portcheck`):
+
+| Code | Meaning |
+|------|---------|
+| `language-adapter` | Java feature Go cannot express: inheritance dispatch, method overloading, generics contravariance, unsafe.Pointer downcasts, tagged-union As* helpers, method tables. |
+| `package-bridge` | Breaks a Go import cycle: hook vars, init() wiring, shared interface definitions that cannot live in their natural Java package. |
+| `stdlib-interop` | Go stdlib interface satisfaction: fmt.Stringer, error, io.Writer, json.Marshaler. |
+| `test-helper` | Helper exclusively used by test code, not production. |
+
+Format: `// Go-only: <code>` optionally followed by an explanation
+after a dash: `// Go-only: language-adapter — unsafe.Pointer downcast`.
+
+**Any `// Go-only:` with a code NOT in the table above is treated as
+an untagged divergence and incurs the go-only penalty in portcheck.**
+
+### Port debt markers
+
+When the Java counterpart exists but is not yet ported, use:
+
+```
+// TODO(port): <java-method-signature>
+// Reason: <1-line explanation>
+```
+
+Example:
+```
+// TODO(port): NodeTraversal.traverse(AbstractCompiler, Node, Callback)
+// Reason: NodeTraversal not yet ported; inlining traversal inline.
+```
+
+`TODO(port)` functions are counted in a separate `port_debt` column in
+the fidelity report (`docs/port-fidelity.md`) and do NOT incur a
+penalty. Run `go run ./tools/portcheck/ -audit` to see a summary of
+all debt markers.
+
+**Never tag a function as Go-only to avoid porting its Java
+counterpart. If the Java counterpart exists, either port it or mark
+it with `TODO(port)`. Using `// Go-only:` on a function that has a
+Java analogue is metric laundering.**
+
 ---
 
 ## 1. Current state

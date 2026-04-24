@@ -28,7 +28,7 @@ type CheckTypeImportCodeReferences struct {
 
 // NewCheckTypeImportCodeReferences mirrors the Java constructor
 // CheckTypeImportCodeReferences(AbstractCompiler compiler).
-// Go-only: constructor shim; Java uses the class constructor directly.
+// Go-only: language-adapter — Go constructor shim (Java uses class constructor directly; Go has no class constructors).
 func NewCheckTypeImportCodeReferences(path string) *CheckTypeImportCodeReferences {
 	return &CheckTypeImportCodeReferences{
 		path:             path,
@@ -54,7 +54,7 @@ func (c *CheckTypeImportCodeReferences) Check(script *rhino.Node) []diag.Diagnos
 // Var object — specifically Var.getNameNode() and the call chain
 // check performed in visit(). By collecting first we avoid needing
 // scope infrastructure.
-// Go-only: scope-free substitute for Java's TypedScopeCreator/Var lookup.
+// TODO(port): TypedScopeCreator / Var.getNameNode() — scope-free substitute (TypedScopeCreator not yet ported; collecting declarations manually).
 func (c *CheckTypeImportCodeReferences) ctirCollect(n *rhino.Node) {
 	if n == nil {
 		return
@@ -99,7 +99,7 @@ func (c *CheckTypeImportCodeReferences) ctirCollect(n *rhino.Node) {
 
 // walk is the post-order traversal driver. Mirrors AbstractPostOrderCallback
 // behaviour: visits children before the current node, then calls visit().
-// Go-only: NodeTraversal.traverse adapter.
+// TODO(port): NodeTraversal.traverse(AbstractCompiler, Node, Callback) — NodeTraversal not yet ported.
 func (c *CheckTypeImportCodeReferences) walk(n *rhino.Node) {
 	if n == nil {
 		return
@@ -155,7 +155,7 @@ func (c *CheckTypeImportCodeReferences) visit(n *rhino.Node) {
 
 // isNameDeclaration reports whether n is a var/let/const statement.
 // Mirrors Java's NodeUtil.isNameDeclaration(Node).
-// Go-only: package-level NodeUtil helper; renamed from ctirIsNameDeclaration.
+// TODO(port): NodeUtil.isNameDeclaration(Node) — package-level helper (NodeUtil.isNameDeclaration not yet ported here).
 func isNameDeclaration(n *rhino.Node) bool {
 	switch n.Token() {
 	case rhino.VAR, rhino.LET, rhino.CONST:
@@ -168,7 +168,7 @@ func isNameDeclaration(n *rhino.Node) bool {
 // goog.requireType(…). Mirrors Java's
 // callNode.getFirstChild().matchesQualifiedName(GOOG_REQUIRE_TYPE)
 // where GOOG_REQUIRE_TYPE = IR.getprop(IR.name("goog"), "requireType").
-// Go-only: helper for GOOG_REQUIRE_TYPE qualified-name match.
+// TODO(port): Node.matchesQualifiedName(String) — qualified-name match helper (rhino.Node does not have matchesQualifiedName yet).
 func matchesGoogRequireType(callNode *rhino.Node) bool {
 	if callNode == nil || callNode.Token() != rhino.CALL {
 		return false

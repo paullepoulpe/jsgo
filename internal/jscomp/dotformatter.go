@@ -101,7 +101,7 @@ func DotFormatterAppend(n *rhino.Node, cfg *ControlFlowGraph, buf *strings.Build
 // DotFormatterCFG renders only the CFG (without AST structure) as a DOT graph.
 // Each CfgNode is a box labelled with its AST token; edges carry branch labels.
 // This is a Go-only convenience not present in the Java DotFormatter.
-// Go-only: Go port adds a CFG-only renderer for debugging.
+// Go-only: language-adapter — Go port adds a CFG-only renderer for debugging (no Java equivalent; debug-only utility).
 func DotFormatterCFG(cfg *ControlFlowGraph) string {
 	if cfg == nil {
 		return "digraph CFG {}\n"

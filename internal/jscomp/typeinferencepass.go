@@ -31,13 +31,13 @@ type TypeInferencePass struct {
 	scope *TypedScope
 }
 
-// Go-only: Go constructor replacing Java's package-private TypeInferencePass(compiler, rai, scopeCreator).
+// Go-only: language-adapter — Go constructor replacing Java's package-private TypeInferencePass constructor (Go has no package-private constructors).
 // jsgo collapses the full orchestration into a single transfer-function object.
 func NewTypeInferencePass(scope *TypedScope) *TypeInferencePass {
 	return &TypeInferencePass{scope: scope}
 }
 
-// Go-only: single Transfer entry-point; Java spreads this logic across inferAllScopes/inferScope
+// Go-only: language-adapter — single Transfer entry-point (Java spreads logic across inferAllScopes/inferScope; Go unifies due to no method overloading).
 // and the inner DataFlowAnalysis.flowThrough callback inside TypeInference.java.
 // Transfer is the method reference handed to DataFlowAnalysis.Run.
 func (p *TypeInferencePass) Transfer(node *CfgNode, in *FlowScope) map[Branch]*FlowScope {
@@ -64,7 +64,7 @@ func (p *TypeInferencePass) Transfer(node *CfgNode, in *FlowScope) map[Branch]*F
 	return map[Branch]*FlowScope{BranchUnconditional: in}
 }
 
-// Go-only: Java TypeInference.java flowThrough() handles all node types in one method;
+// Go-only: language-adapter — Java TypeInference.java flowThrough() handles all node types in one method;
 // jsgo splits by node type for clarity.  transferDecl handles VAR/LET/CONST with an initializer. The
 // declared type flows through unchanged; only names whose
 // initializer evaluates to a type sharper than the declared form
@@ -112,7 +112,7 @@ func (p *TypeInferencePass) transferDecl(decl *rhino.Node, in *FlowScope) map[Br
 	return map[Branch]*FlowScope{BranchUnconditional: in.Bind(name.String_(), t)}
 }
 
-// Go-only: helper extracted from transferDecl; no direct Java equivalent.
+// Go-only: language-adapter — helper extracted from transferDecl (Java inlines this logic; Go extracts for readability).
 // functionHasDeclaredShape reports whether any of \`fn\`'s params
 // or return carry a non-Unknown type. Used to avoid clobbering a
 // VAR-declared FunctionType whose signature comes from outer
@@ -132,7 +132,7 @@ func functionHasDeclaredShape(fn *jstype.FunctionType) bool {
 	return false
 }
 
-// Go-only: split from Transfer for ASSIGN nodes; mirrors Java TypeInference.updateScopeForTypeChange.
+// Go-only: language-adapter — split from Transfer for ASSIGN nodes (Java TypeInference.updateScopeForTypeChange is called inline; Go extracts for switch-case clarity).
 // transferAssign handles ASSIGN (and compound-assign variants) where
 // the LHS is a bare NAME or a GETPROP qualified name.
 //
@@ -232,7 +232,7 @@ func (p *TypeInferencePass) transferAssign(a *rhino.Node, in *FlowScope) map[Bra
 	}
 }
 
-// Go-only: split from Transfer for IF nodes; Java uses ReverseAbstractInterpreter inline.
+// Go-only: language-adapter — split from Transfer for IF nodes (Java uses ReverseAbstractInterpreter inline; Go extracts for switch-case clarity).
 // transferIf produces two branch-specific FlowScopes: the truthy
 // branch's refinements on BranchOnTrue, the falsy branch's on
 // BranchOnFalse. The AST child `kids[0]` is the condition; the then
@@ -251,7 +251,7 @@ func (p *TypeInferencePass) transferIf(ast *rhino.Node, in *FlowScope) map[Branc
 	}
 }
 
-// Go-only: split from Transfer for WHILE nodes; mirrors Java TypeInference.flowThrough WHILE case.
+// Go-only: language-adapter — split from Transfer for WHILE nodes (Java flowThrough WHILE case is inline; Go extracts for switch-case clarity).
 // transferWhile produces branch-specific FlowScopes for a WHILE loop.
 // Children are [cond, body]. The loop body executes when the condition
 // is truthy (BranchOnTrue), and the loop exits when it is falsy
@@ -272,7 +272,7 @@ func (p *TypeInferencePass) transferWhile(ast *rhino.Node, in *FlowScope) map[Br
 	}
 }
 
-// Go-only: split from Transfer for DO_WHILE nodes; mirrors Java TypeInference.flowThrough DO_WHILE case.
+// Go-only: language-adapter — split from Transfer for DO_WHILE nodes (Java flowThrough DO_WHILE case is inline; Go extracts for switch-case clarity).
 // transferDoWhile produces branch-specific FlowScopes for a DO_WHILE
 // loop node. Children are [body, cond]. The condition is at the bottom
 // of the loop, so the CFG node for DO_WHILE is the condition site:
@@ -292,7 +292,7 @@ func (p *TypeInferencePass) transferDoWhile(ast *rhino.Node, in *FlowScope) map[
 	}
 }
 
-// Go-only: split from Transfer for FOR nodes; mirrors Java TypeInference.flowThrough FOR case.
+// Go-only: language-adapter — split from Transfer for FOR nodes (Java flowThrough FOR case is inline; Go extracts for switch-case clarity).
 // transferFor produces branch-specific FlowScopes for a classic FOR
 // loop. Children are [init, cond, update, body]. The FOR node acts as
 // the condition-check site in the CFG: BranchOnTrue enters the body,
@@ -319,7 +319,7 @@ func (p *TypeInferencePass) transferFor(ast *rhino.Node, in *FlowScope) map[Bran
 	}
 }
 
-// Go-only: helper that wraps buildRefinements with flow-scope push/pop; no direct Java counterpart.
+// Go-only: language-adapter — helper that wraps buildRefinements with flow-scope push/pop (Java does this inline; Go extracts to manage scope lifecycle explicitly).
 // branchRefinements wraps buildRefinements with an IN-aware scope so
 // typeof / instanceof / null-check narrowing see the current flow
 // types rather than just the declared ones.
@@ -334,7 +334,7 @@ func (p *TypeInferencePass) branchRefinements(cond *rhino.Node, in *FlowScope, w
 	return buildRefinements(p.scope, cond, whenTruthy)
 }
 
-// Go-only: delegates to inference.go (TypeInference.java port); no direct method in TypeInferencePass.java.
+// Go-only: language-adapter — delegates to inference.go (TypeInference.java port); no direct method in TypeInferencePass.java (Go file split by Java file boundary).
 // inferExpr runs expression-level TypeInference against the given
 // FlowScope — the flow-narrowed name map takes precedence over the
 // declared type. Same contract as the old TypeInference.InferType
