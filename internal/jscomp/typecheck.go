@@ -3572,9 +3572,12 @@ func isReasonableObjectPropertyKey(t jstype.JSType) bool {
 	if t == nil || isUnknownOrNil(t) {
 		return true
 	}
-	// Primitives and well-known stringifiable singletons.
+	// Primitives and well-known stringifiable/usable-as-key singletons.
+	// Symbol is a valid ES6 property key (not stringifiable but allowed
+	// as Object index). BigInt is also valid as a key.
 	switch t {
-	case jstype.Number, jstype.String, jstype.Boolean, jstype.Null, jstype.Void:
+	case jstype.Number, jstype.String, jstype.Boolean, jstype.Null, jstype.Void,
+		jstype.Symbol, jstype.BigInt:
 		return true
 	}
 	// EnumElementType — check underlying primitive.
