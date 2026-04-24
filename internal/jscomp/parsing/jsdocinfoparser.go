@@ -1162,6 +1162,42 @@ func (p *JsDocInfoParser) parseFunctionType() (string, bool) {
 	return out, true
 }
 
+// ParseInlineTypeDoc mirrors Java's parseInlineTypeDoc() — parses an inline
+// type annotation (e.g. `/** @type {T} */`) and returns a JSDocInfo with the
+// type recorded and the inline-type bit set. Returns nil if no type was parsed.
+func (p *JsDocInfoParser) ParseInlineTypeDoc() *rhino.JSDocInfo {
+	p.skipEOLs()
+	t := p.next()
+	expr, next, ok := p.parseTypeExpressionAnnotation(t)
+	if !ok {
+		return nil
+	}
+	p.info.SetType(rhino.NewJSTypeExpression(expr))
+	p.info.RecordInlineType()
+	p.anyRecorded = true
+	_ = next
+	return p.RetrieveAndResetParsedJSDocInfo()
+}
+
+// ParseJsdoc mirrors Java's static parseJsdoc(String) — parses a complete
+// JsDoc comment and returns the resulting JSDocInfo, or nil if empty.
+func ParseJsdoc(toParse string) *rhino.JSDocInfo {
+	p := NewJsDocInfoParser(toParse)
+	p.Parse()
+	return p.RetrieveAndResetParsedJSDocInfo()
+}
+
+// ParseTypeString mirrors Java's static parseTypeString(String) — parses
+// a JsDoc type expression and returns it as a string. Returns "" on failure.
+func ParseTypeString(typeString string) string {
+	p := NewJsDocInfoParser(typeString)
+	p.skipEOLs()
+	t := p.next()
+	// Try to parse as a top-level type expression.
+	expr, _ := p.parseTopLevelTypeExpression(t)
+	return expr
+}
+
 // RetrieveAndResetParsedJSDocInfo mirrors Java's
 // retrieveAndResetParsedJSDocInfo() — returns the parsed JSDocInfo if any
 // annotation was recorded, otherwise nil.

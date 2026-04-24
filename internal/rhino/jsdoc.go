@@ -1382,3 +1382,124 @@ func (i *JSDocInfo) IsInlineTypeRecorded() bool {
 func (i *JSDocInfo) RecordInlineType() {
 	i.SetBit(BitInlineType, true)
 }
+
+// --- additional mirrors from JSDocInfo.java ---
+
+// IsWizcallback mirrors JSDocInfo.isWizcallback() — true when @wizcallback.
+func (i *JSDocInfo) IsWizcallback() bool { return i.CheckBit(BitWizCallback) }
+
+// IsSassGeneratedCssTs mirrors JSDocInfo.isSassGeneratedCssTs().
+func (i *JSDocInfo) IsSassGeneratedCssTs() bool { return i.CheckBit(BitSassGeneratedCssTs) }
+
+// IsClosureUnawareCode mirrors JSDocInfo.isClosureUnawareCode() — true when
+// @closureUnawareCode is present.
+func (i *JSDocInfo) IsClosureUnawareCode() bool { return i.CheckBit(BitClosureUnawareCode) }
+
+// GetLogTypeInCompiler mirrors JSDocInfo.getLogTypeInCompiler().
+func (i *JSDocInfo) GetLogTypeInCompiler() bool { return i.CheckBit(BitLogTypeInCompiler) }
+
+// GetTsTypes mirrors JSDocInfo.getTsTypes() — returns the list of @tsType texts.
+// Not tracked in the Go port; returns empty slice.
+func (i *JSDocInfo) GetTsTypes() []string {
+	if i == nil {
+		return nil
+	}
+	return nil // not tracked at this tier
+}
+
+// GetSuppressionsAndTheirDescription mirrors
+// JSDocInfo.getSuppressionsAndTheirDescription() — in the Go port, descriptions
+// are not stored; returns a map from each suppression to "".
+func (i *JSDocInfo) GetSuppressionsAndTheirDescription() map[string]string {
+	if i == nil || i.suppressions == nil {
+		return nil
+	}
+	m := make(map[string]string, len(i.suppressions))
+	for name := range i.suppressions {
+		m[name] = ""
+	}
+	return m
+}
+
+// HasEnhance mirrors JSDocInfo.hasEnhance() — true when @enhance is present.
+// Not yet tracked in the Go port.
+func (i *JSDocInfo) HasEnhance() bool { return i.CheckBit(BitEnhancedNamespace) }
+
+// GetEnhance mirrors JSDocInfo.getEnhance() — returns the enhanced namespace.
+// Not yet tracked at this tier.
+func (i *JSDocInfo) GetEnhance() string {
+	if i == nil {
+		return ""
+	}
+	return "" // not tracked at this tier
+}
+
+// HasMods mirrors JSDocInfo.hasMods() — true when @mods is present.
+// Not tracked at this tier.
+func (i *JSDocInfo) HasMods() bool { return i != nil && false }
+
+// GetMods mirrors JSDocInfo.getMods() — returns the mods namespace.
+// Not tracked at this tier.
+func (i *JSDocInfo) GetMods() string { return "" }
+
+// GetTypeExpressions mirrors JSDocInfo.getTypeExpressions() — returns all
+// JSTypeExpression values recorded on this info.
+func (i *JSDocInfo) GetTypeExpressions() []*JSTypeExpression {
+	if i == nil {
+		return nil
+	}
+	var result []*JSTypeExpression
+	if i.typeExpr != nil {
+		result = append(result, i.typeExpr)
+	}
+	if i.returnExpr != nil {
+		result = append(result, i.returnExpr)
+	}
+	if i.enumExpr != nil {
+		result = append(result, i.enumExpr)
+	}
+	if i.typedefExpr != nil {
+		result = append(result, i.typedefExpr)
+	}
+	if i.thisType != nil {
+		result = append(result, i.thisType)
+	}
+	for _, p := range i.params {
+		if p != nil {
+			result = append(result, p)
+		}
+	}
+	if i.extendsExpr != nil {
+		result = append(result, i.extendsExpr)
+	}
+	result = append(result, i.implementsAll...)
+	return result
+}
+
+// ContainsFunctionDeclaration mirrors JSDocInfo.containsFunctionDeclaration() —
+// returns true when the comment contains a function-like declaration.
+func (i *JSDocInfo) ContainsFunctionDeclaration() bool {
+	if i == nil {
+		return false
+	}
+	return i.isConstructor ||
+		i.returnExpr != nil ||
+		i.hasThisType ||
+		len(i.params) > 0 ||
+		i.isNoSideEffects
+}
+
+// IsUsedViaDotConstructor mirrors JSDocInfo.isUsedViaDotConstructor().
+// Alias of the existing accessor.
+func (i *JSDocInfo) IsUsedViaDotConstructorBit() bool {
+	return i.IsUsedViaDotConstructor()
+}
+
+// ToStringVerbose mirrors JSDocInfo.toStringVerbose() — returns a debug
+// representation of the JSDocInfo.
+func (i *JSDocInfo) ToStringVerbose() string {
+	if i == nil {
+		return "JSDocInfo{nil}"
+	}
+	return "JSDocInfo{...}"
+}
