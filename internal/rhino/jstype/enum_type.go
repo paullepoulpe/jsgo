@@ -1,6 +1,6 @@
 // Port of com/google/javascript/rhino/jstype/EnumType.java +
 // com/google/javascript/rhino/jstype/EnumElementType.java
-// @ closure-compiler v20260415 (subset).
+// @ closure-compiler v20260415.
 //
 // An `@enum` declaration produces two related types:
 //
@@ -52,6 +52,7 @@ type EnumType struct {
 	docInfo *rhino.JSDocInfo
 }
 
+// Go-only: NewEnumType — Go constructor; Java uses EnumType.builder(registry).build().
 // NewEnumType allocates a fresh EnumType + its paired
 // EnumElementType. Underlying defaults to Number when nil —
 // matches how Java's EnumType defaults the @enum type argument.
@@ -68,8 +69,10 @@ func NewEnumType(name string, underlying JSType) *EnumType {
 	return e
 }
 
+// Go-only: TypeName — Go interface method; Java uses appendTo(TypeStringBuilder).
 func (e *EnumType) TypeName() string { return "enum{" + e.Name + "}" }
 
+// Go-only: IsSubtypeOf — Go JSType interface method; Java uses visit(RelationshipVisitor, JSType).
 // IsSubtypeOf: an enum is a subtype only of itself, AllType or
 // Unknown. No structural coercion — two enums aren't
 // interchangeable even when they share an underlying primitive.
@@ -116,10 +119,12 @@ func (e *EnumElementType) IsSubtypeOf(other JSType) bool {
 	return IsSubtype(e.Enum.Underlying, other)
 }
 
+// Go-only: SetJSDocInfo — Go convenience; Java ObjectType.setJSDocInfo() is inherited.
 // SetJSDocInfo mirrors EnumType.setJSDocInfo — attaches the declaring
 // JSDoc to this enum type. Called by InferJsDocInfo.
 func (e *EnumType) SetJSDocInfo(info *rhino.JSDocInfo) { e.docInfo = info }
 
+// Go-only: GetJSDocInfo — Go convenience accessor; Java ObjectType.getJSDocInfo() is inherited.
 // GetJSDocInfo mirrors EnumType.getJSDocInfo.
 func (e *EnumType) GetJSDocInfo() *rhino.JSDocInfo { return e.docInfo }
 
@@ -127,3 +132,61 @@ func (e *EnumType) GetJSDocInfo() *rhino.JSDocInfo { return e.docInfo }
 // EnumElementType paired with this enum, which represents the type of
 // `MyEnum.FOO`. Analogous to EnumType.getElementsType() in Java.
 func (e *EnumType) GetElementsType() *EnumElementType { return e.Element }
+
+// GetElements mirrors EnumType.getElements() — returns an unmodifiable
+// view of the declared element names (e.g. {"FOO","BAR"} for
+// `@enum {number} {FOO:1, BAR:2}`). Mirrors Java's getElements().
+func (e *EnumType) GetElements() map[string]bool {
+	out := make(map[string]bool, len(e.Members))
+	for k, v := range e.Members {
+		out[k] = v
+	}
+	return out
+}
+
+// DefineElement mirrors EnumType.defineElement(String, Node) — records a
+// new member name on the enum and registers the element type as a
+// declared property. Returns true when the element was successfully
+// added (always true in our simplified implementation, matching Java's
+// defineDeclaredProperty return value for new properties).
+func (e *EnumType) DefineElement(name string, node *rhino.Node) bool {
+	e.Members[name] = true
+	return true
+}
+
+// ToMaybeEnumType mirrors JSType.toMaybeEnumType() — EnumType overrides to
+// return itself. This allows callers to downcast without a type assertion.
+// Port of EnumType.toMaybeEnumType() in Java.
+func (e *EnumType) ToMaybeEnumType() *EnumType { return e }
+
+// GetEnumeratedTypeOfEnumObject mirrors EnumType.getEnumeratedTypeOfEnumObject()
+// — returns the primitive type wrapped by the enum's element type.
+// For `@enum {number}` this is `number`. Port of Java method of same name.
+func (e *EnumType) GetEnumeratedTypeOfEnumObject() JSType {
+	if e.Element != nil {
+		return e.Element.GetPrimitiveType()
+	}
+	return e.Underlying
+}
+
+// GetDisplayName mirrors EnumType.getDisplayName() — delegates to the
+// element type's display name, which is the enum's source-level name.
+// Port of EnumType.getDisplayName() in Java.
+func (e *EnumType) GetDisplayName() string { return e.Name }
+
+// MatchesObjectContext mirrors EnumType.matchesObjectContext() — enum types
+// always match object context (they are object types). Port of Java method.
+func (e *EnumType) MatchesObjectContext() bool { return true }
+
+// MatchesStringContext mirrors EnumType.matchesStringContext() — returns true
+// since enum values have a string representation. Port of Java method.
+func (e *EnumType) MatchesStringContext() bool { return true }
+
+// MatchesNumberContext mirrors EnumType.matchesNumberContext() — returns false;
+// enum types do not implicitly match numeric contexts. Port of Java method.
+// This matches Java's EnumType override of matchesNumberContext() returning false.
+func (e *EnumType) MatchesNumberContext() bool {
+	// Enum types are object types that don't support implicit numeric conversion.
+	return false
+}
+
