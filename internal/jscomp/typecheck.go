@@ -5761,19 +5761,21 @@ func (c *TypeCheck) checkPrototypeObjectLitAssign(ownerName string, lit *rhino.N
 		if superSlot == nil || overrideCompatible(ownSlot, superSlot) {
 			continue
 		}
-		// Java reports at the value (function) node, not the key node.
-		// `child` is the FUNCTION expression (e.g., `function() { return ''; }`).
-		reportNode := child
+		// Java reports at different positions depending on whether this is an
+		// interface-to-interface mismatch (key node) or a class-to-class
+		// mismatch (function value node).
 		if fn.Instance.IsStructural || super.IsStructural {
+			// Interface: report at the property key node.
 			c.diags = append(c.diags, diag.Diagnostic{
-				Path: c.path, Line: reportNode.Lineno(), Col: reportNode.Charno(),
+				Path: c.path, Line: kv.Lineno(), Col: kv.Charno(),
 				Code: diag.JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH, Level: diag.Error,
 				Message: fmt.Sprintf("mismatch of the %s property on type %s and the type of the property it overrides from interface %s\noriginal: %s\noverride: %s",
 					methodName, ownerName, super.TypeName(), superSlot.TypeName(), ownSlot.TypeName()),
 			})
 		} else {
+			// Constructor: report at the function value node.
 			c.diags = append(c.diags, diag.Diagnostic{
-				Path: c.path, Line: reportNode.Lineno(), Col: reportNode.Charno(),
+				Path: c.path, Line: child.Lineno(), Col: child.Charno(),
 				Code: diag.JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH, Level: diag.Error,
 				Message: fmt.Sprintf("mismatch of the %s property type and the type of the property it overrides from superclass %s\noriginal: %s\noverride: %s",
 					methodName, super.TypeName(), superSlot.TypeName(), ownSlot.TypeName()),
