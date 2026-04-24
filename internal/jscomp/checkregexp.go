@@ -185,16 +185,17 @@ func (c *CheckRegExp) visitNode(n, parent *rhino.Node) {
 	}
 
 	// Branch 2: n.isRegExp() — validate regex syntax.
-	// TODO: parser needs REGEXP token — the jsgo scanner does not yet
-	// emit a REGEXP node kind, so this branch can never fire. Wire it
-	// up once the parser produces REGEXP literals as first-class tokens.
-	// The Java branch would be:
-	//   if reportErrors && n.isRegExp() {
-	//       pattern := n.FirstChild().getString()
-	//       flags   := "" ; if n.hasTwoChildren() { flags = n.LastChild().getString() }
-	//       try { RegExpTree.parseRegExp(pattern, flags) }
-	//       catch { report(n, MALFORMED_REGEXP, ex.getMessage()) }
-	//   }
+	// The jsgo parser DOES produce REGEXP tokens (the full literal is in
+	// n.String_(), e.g. "/abc/gi"). Java uses RegExpTree.parseRegExp(pattern,
+	// flags) from com.google.javascript.jscomp.regex. Go lacks a JS-compatible
+	// regex parser, so JSC_MALFORMED_REGEXP is not yet emitted.
+	// TODO(port): implement JS regex syntax validation when a JS regex library
+	// is available, or port Java's RegExpTree to Go.
+	if c.reportErrors && n.Token() == rhino.REGEXP {
+		// Placeholder — no JS regex validation library available yet.
+		// Java: pattern = n.getFirstChild().getString(), flags = n.hasTwoChildren() ? ... : ""
+		// try { RegExpTree.parseRegExp(pattern, flags) } catch { report MALFORMED_REGEXP }
+	}
 }
 
 // isRegExpReferenceName reports whether `n` is a NAME node that is a

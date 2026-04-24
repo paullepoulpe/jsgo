@@ -7,6 +7,8 @@
 package jscomp
 
 import (
+	"strings"
+
 	"github.com/paullepoulpe/jsgo/internal/diag"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -384,13 +386,57 @@ func cjdIsJSDocOnFunctionNode(n *rhino.Node, info *rhino.JSDocInfo) bool {
 // ---------------------------------------------------------------------------
 // validateMsgJsDoc
 // Mirrors CheckJSDoc.validateMsgJsDoc.
-// @desc/@meaning/@alternateMessageId are not in Go JSDocInfo yet; this is
-// a TODO stub.
+// Fires JSC_MISPLACED_MSG_ANNOTATION when @desc/@meaning/@alternateMessageId
+// appear on a node that is not a valid message declaration (name starts with
+// MSG_). Java also checks info.getDescription() != null, but only for non-TS
+// source; we mirror that by always checking description.
 // ---------------------------------------------------------------------------
-func (c *CheckJSDoc) validateMsgJsDoc(_ *rhino.Node, _ *rhino.JSDocInfo) {
-	// TODO: port when @desc / @meaning / @alternateMessageId are added to
-	// rhino.JSDocInfo. Fire JSC_MISPLACED_MSG_ANNOTATION on name nodes
-	// that don't start with MSG_.
+func (c *CheckJSDoc) validateMsgJsDoc(n *rhino.Node, info *rhino.JSDocInfo) {
+	if info == nil {
+		return
+	}
+	hasNonDescMsgTag := info.GetMeaning() != "" || info.GetAlternateMessageId() != ""
+	hasDesc := info.GetDescription() != ""
+	if !hasNonDescMsgTag && !hasDesc {
+		return
+	}
+	descOkay := false
+	switch n.Token() {
+	case rhino.ASSIGN, rhino.VAR, rhino.LET, rhino.CONST:
+		if fc := n.FirstChild(); fc != nil {
+			descOkay = cjdIsValidMsgName(fc)
+		}
+	case rhino.STRING_KEY:
+		descOkay = cjdIsValidMsgName(n)
+	case rhino.GETPROP:
+		// Java: only when n.isFromExterns() && n.isQualifiedName().
+		// Go: only for qualified name in externs context (inExterns).
+		if c.inExterns && cjdIsQualifiedName(n) {
+			descOkay = cjdIsValidMsgName(n)
+		}
+	}
+	if !descOkay {
+		c.report(n, diag.JSC_MISPLACED_MSG_ANNOTATION, diag.Warning,
+			"Misplaced message annotation. @desc, @meaning, and @alternateMessageId"+
+				" annotations should be only on message nodes."+
+				"\nMessage constants must be prefixed with 'MSG_'.")
+	}
+}
+
+// cjdIsValidMsgName mirrors CheckJSDoc.isValidMsgName.
+// Returns true when the node's name starts with "MSG_".
+func cjdIsValidMsgName(n *rhino.Node) bool {
+	if n == nil {
+		return false
+	}
+	switch n.Token() {
+	case rhino.NAME, rhino.STRING_KEY:
+		return strings.HasPrefix(n.String_(), "MSG_")
+	case rhino.GETPROP:
+		// Qualified name: check the full dotted string.
+		return strings.HasPrefix(n.GetQualifiedName(), "MSG_")
+	}
+	return false
 }
 
 // ---------------------------------------------------------------------------
