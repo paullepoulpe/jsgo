@@ -135,10 +135,17 @@ func (v *ContainsUpperBoundSuperTypeVisitor) caseForwardingType(typ JSType, refe
 //   - *ObjectType       → CaseObjectType
 //   - *EnumElementType  → CaseEnumElementType
 //   - *NamedType        → CaseNamedType
+//   - *NoType / nil     → CaseNoType
+//   - *NoObjectType     → CaseNoObjectType
+//   - bigIntType        → CaseBigIntType
+//   - SymbolType        → CaseSymbolType
 //   - unknownType       → CaseUnknownType
 //   - allType           → CaseAllType
-//   - noType / nil      → CaseNoType
-//   - all other primitives → CaseBooleanType / CaseNumberType / etc.
+//   - numberType        → CaseNumberType
+//   - stringType        → CaseStringType
+//   - booleanType       → CaseBooleanType
+//   - nullType          → CaseNullType
+//   - voidType          → CaseVoidType
 //
 // NOTE: The JSType.visit / JSType.accept wiring is intentionally absent
 // from the JSType interface (additive-only phase). Wire when actively consumed.
@@ -161,6 +168,14 @@ func VisitJSType(v Visitor, typ JSType) any {
 		return v.CaseEnumElementType(t)
 	case *NamedType:
 		return v.CaseNamedType(t)
+	case *NoType:
+		return v.CaseNoType(t)
+	case *NoObjectType:
+		return v.CaseNoObjectType()
+	case bigIntType:
+		return v.CaseBigIntType()
+	case SymbolType:
+		return v.CaseSymbolType(typ)
 	case unknownType:
 		return v.CaseUnknownType()
 	case allType:
@@ -176,7 +191,7 @@ func VisitJSType(v Visitor, typ JSType) any {
 	case voidType:
 		return v.CaseVoidType()
 	default:
-		// noType and other not-yet-ported concrete types.
+		// ProxyObjectType and other not-yet-individually-cased concrete types.
 		return v.CaseNoType(typ)
 	}
 }

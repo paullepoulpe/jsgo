@@ -166,3 +166,56 @@ func UnionGetGreatestSubtype(union *UnionType, that JSType) JSType {
 func (u *UnionType) MeetWith(that JSType) JSType {
 	return UnionGetGreatestSubtype(u, that)
 }
+
+// CollapseUnion returns the least non-union supertype of u.
+// If any alternate is unknown → Unknown.
+// If all are objects → common super (approximated as Unknown when no single
+// super is known). If mixed values and objects → All.
+// Mirrors UnionType.collapseUnion() @ closure-compiler v20260415.
+func (u *UnionType) CollapseUnion() JSType {
+	var currentValue JSType
+	var currentObj *ObjectType
+	for _, a := range u.members {
+		if isUnknown(a) {
+			return Unknown
+		}
+		obj, isObj := a.(*ObjectType)
+		if !isObj {
+			if currentValue == nil && currentObj == nil {
+				currentValue = a
+			} else {
+				return All // mixed or multiple values
+			}
+		} else if currentValue != nil {
+			return All // value + object
+		} else if currentObj == nil {
+			currentObj = obj
+		} else {
+			// Two different objects without registry — conservatively return Unknown.
+			return Unknown
+		}
+	}
+	if currentObj != nil {
+		return currentObj
+	}
+	return currentValue
+}
+
+// MatchesObjectContext reports whether any alternate of u matches an object
+// context. Mirrors UnionType.matchesObjectContext() @ closure-compiler v20260415.
+func (u *UnionType) MatchesObjectContext() bool {
+	return AnyTypeMatchesUnion(MatchesObjectContext, u)
+}
+
+// GetPossibleToBooleanOutcomes returns the union of boolean outcomes across
+// all alternates. Mirrors UnionType.getPossibleToBooleanOutcomes().
+func (u *UnionType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
+	result := BooleanLiteralSetEmpty
+	for _, m := range u.members {
+		result = result.Union(GetPossibleToBooleanOutcomes(m))
+		if result == BooleanLiteralSetBoth {
+			break
+		}
+	}
+	return result
+}
