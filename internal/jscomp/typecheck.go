@@ -2291,6 +2291,15 @@ func functionJSDoc(fn *rhino.Node) *rhino.JSDocInfo {
 	if info := fn.JSDocInfo(); info != nil {
 		return info
 	}
+	// New pipeline: class method FUNCTION is wrapped in MEMBER_FUNCTION_DEF.
+	// Check the immediate parent for JSDoc.
+	if p := fn.Parent(); p != nil {
+		if p.Token() == rhino.MEMBER_FUNCTION_DEF || p.Token() == rhino.GETTER_DEF || p.Token() == rhino.SETTER_DEF {
+			if info := p.JSDocInfo(); info != nil {
+				return info
+			}
+		}
+	}
 	// Nested inside `X.prototype.m = fn` — climb via ASSIGN → EXPR_RESULT.
 	for cur := fn.Parent(); cur != nil; cur = cur.Parent() {
 		if info := cur.JSDocInfo(); info != nil {
