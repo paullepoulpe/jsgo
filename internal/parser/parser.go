@@ -17,6 +17,7 @@ package parser
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"unicode"
 
 	"github.com/paullepoulpe/jsgo/internal/jscomp/parsing"
@@ -2667,41 +2668,69 @@ func (p *Parser) parseTemplateLiteral() (*rhino.Node, bool) {
 
 func (p *Parser) parseStringLiteral(quote rune) (*rhino.Node, bool) {
 	p.scanner.Advance() // opening quote
-	start := p.scanner.Pos()
-	for !p.scanner.AtEnd() && p.scanner.Peek() != quote {
-		if p.scanner.Peek() == '\n' {
-			return nil, false
-		}
-		if p.scanner.Peek() == '\\' && p.scanner.PeekAt(1) != 0 {
-			p.scanner.Advance()
-			p.scanner.Advance()
-			continue
-		}
-		p.scanner.Advance()
-	}
-	if p.scanner.AtEnd() {
+	raw, ok := p.scanner.ScanStringBody(quote)
+	if !ok {
 		return nil, false
 	}
-	val := p.scanner.Text(start, p.scanner.Pos())
-	p.scanner.Advance() // closing quote
-	p.scanner.MarkTokenConsumed()
+	val := DecodeStringEscapes(raw)
 	return rhino.NewString(rhino.STRINGLIT, val), true
 }
 
 func (p *Parser) parseNumberLiteral() (*rhino.Node, bool) {
-	start := p.scanner.Pos()
-	for !p.scanner.AtEnd() && (unicode.IsDigit(p.scanner.Peek()) || p.scanner.Peek() == '.') {
-		p.scanner.Advance()
-	}
-	if p.scanner.Pos() == start {
+	raw, _, ok := p.scanner.ScanNumericLiteral()
+	if !ok {
 		return nil, false
 	}
-	v, err := strconv.ParseFloat(p.scanner.Text(start, p.scanner.Pos()), 64)
+	v, err := parseNumericRaw(raw)
 	if err != nil {
 		return nil, false
 	}
-	p.scanner.MarkTokenConsumed()
 	return rhino.NewNumber(v), true
+}
+
+// parseNumericRaw converts a raw numeric literal token (as produced by
+// ScanNumericLiteral) to float64. Handles hex, octal, binary, bigint
+// suffix, underscore separators, and decimal exponents.
+func parseNumericRaw(raw string) (float64, error) {
+	// Strip bigint suffix before parsing.
+	s := raw
+	if len(s) > 0 && s[len(s)-1] == 'n' {
+		s = s[:len(s)-1]
+	}
+	// Remove underscore numeric separators.
+	if strings.ContainsRune(s, '_') {
+		s = strings.ReplaceAll(s, "_", "")
+	}
+	// Hex: 0x…
+	if len(s) >= 2 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X') {
+		v, err := strconv.ParseInt(s[2:], 16, 64)
+		if err != nil {
+			// Try unsigned parse for large hex.
+			u, err2 := strconv.ParseUint(s[2:], 16, 64)
+			if err2 != nil {
+				return 0, err
+			}
+			return float64(u), nil
+		}
+		return float64(v), nil
+	}
+	// Octal: 0o… or 0O…
+	if len(s) >= 2 && s[0] == '0' && (s[1] == 'o' || s[1] == 'O') {
+		v, err := strconv.ParseInt(s[2:], 8, 64)
+		if err != nil {
+			return 0, err
+		}
+		return float64(v), nil
+	}
+	// Binary: 0b… or 0B…
+	if len(s) >= 2 && s[0] == '0' && (s[1] == 'b' || s[1] == 'B') {
+		v, err := strconv.ParseInt(s[2:], 2, 64)
+		if err != nil {
+			return 0, err
+		}
+		return float64(v), nil
+	}
+	return strconv.ParseFloat(s, 64)
 }
 
 // consumeDeclKeyword reads `var` / `let` / `const` and returns the

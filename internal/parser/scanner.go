@@ -12,7 +12,10 @@
 
 package parser
 
-import "unicode"
+import (
+	"strings"
+	"unicode"
+)
 
 // Scanner walks a source-string by rune. All positions are reported
 // as 1-indexed line, 0-indexed col to match Java's getLineno /
@@ -487,6 +490,185 @@ func (s *Scanner) scanTemplateCharacters(endKind, middleKind TemplatePartKind) (
 	// Unterminated template literal — report failure.
 	return TemplatePart{}, false
 }
+
+
+// ---- numeric literal scanning ----------------------------------- //
+
+// ScanNumericLiteral mirrors Java's scanPostZero / scanPostDigit /
+// scanFractionalNumericLiteral / scanExponentOfNumericLiteral.
+// Cursor must be on the first digit (or '.' for .5 forms).
+// Returns (raw, isFloat, ok); advances the scanner on success.
+func (s *Scanner) ScanNumericLiteral() (string, bool, bool) {
+	start := s.pos
+	c := s.Peek()
+	if c == '0' {
+		s.Advance()
+		switch p := s.Peek(); {
+		case p == 'b' || p == 'B':
+			s.Advance(); s.skipDigits(func(r rune) bool { return r == '0' || r == '1' })
+			if s.Peek() == 'n' { s.Advance() }
+			s.lastTokenLine = s.line; return s.Text(start, s.pos), false, true
+		case p == 'o' || p == 'O':
+			s.Advance(); s.skipDigits(isOctalDigit)
+			if s.Peek() == 'n' { s.Advance() }
+			s.lastTokenLine = s.line; return s.Text(start, s.pos), false, true
+		case p == 'x' || p == 'X':
+			s.Advance(); s.skipDigits(isHexDigit)
+			if s.Peek() == 'n' { s.Advance() }
+			s.lastTokenLine = s.line; return s.Text(start, s.pos), false, true
+		case p == 'n':
+			s.Advance()
+			s.lastTokenLine = s.line; return s.Text(start, s.pos), false, true
+		case p == '.':
+			s.Advance(); s.skipDigits(isDecimalDigit); s.scanExponent()
+			s.lastTokenLine = s.line; return s.Text(start, s.pos), true, true
+		case p == 'e' || p == 'E':
+			s.scanExponent()
+			s.lastTokenLine = s.line; return s.Text(start, s.pos), true, true
+		default:
+			if isDecimalDigit(p) {
+				s.skipDigits(isDecimalDigit)
+				if s.Peek() == '.' {
+					s.Advance(); s.skipDigits(isDecimalDigit); s.scanExponent()
+					s.lastTokenLine = s.line; return s.Text(start, s.pos), true, true
+				}
+			}
+			s.lastTokenLine = s.line; return s.Text(start, s.pos), false, true
+		}
+	}
+	if c == '.' {
+		s.Advance(); s.skipDigits(isDecimalDigit); s.scanExponent()
+		s.lastTokenLine = s.line; return s.Text(start, s.pos), true, true
+	}
+	s.skipDigits(isDecimalDigit)
+	if s.Peek() == 'n' {
+		s.Advance(); s.lastTokenLine = s.line; return s.Text(start, s.pos), false, true
+	}
+	isFloat := false
+	if s.Peek() == '.' { isFloat = true; s.Advance(); s.skipDigits(isDecimalDigit) }
+	if s.scanExponent() { isFloat = true }
+	s.lastTokenLine = s.line; return s.Text(start, s.pos), isFloat, true
+}
+
+// scanExponent advances past an optional e/E exponent; returns true if found.
+func (s *Scanner) scanExponent() bool {
+	if p := s.Peek(); p != 'e' && p != 'E' { return false }
+	s.Advance()
+	if p := s.Peek(); p == '+' || p == '-' { s.Advance() }
+	s.skipDigits(isDecimalDigit)
+	return true
+}
+
+// skipDigits advances past digit runs matching pred, including '_' separators
+// (mirrors Java's skipDecimalDigits / skipHexDigits / skipOctalDigits / skipBinaryDigits).
+func (s *Scanner) skipDigits(pred func(rune) bool) {
+	for !s.AtEnd() {
+		if c := s.Peek(); pred(c) {
+			s.Advance()
+		} else if c == '_' {
+			s.Advance(); if pred(s.Peek()) { s.Advance() }
+		} else {
+			break
+		}
+	}
+}
+
+func isDecimalDigit(c rune) bool { return c >= '0' && c <= '9' }
+func isHexDigit(c rune) bool {
+	return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+}
+func isOctalDigit(c rune) bool { return c >= '0' && c <= '7' }
+
+// ---- string literal scanning ------------------------------------ //
+
+// ScanStringBody mirrors Java's scanStringLiteral + skipStringLiteralChar.
+// Cursor must be just AFTER the opening quote. Returns the raw content
+// (no quotes) and whether scanning succeeded; consumes the closing quote.
+func (s *Scanner) ScanStringBody(terminator rune) (string, bool) {
+	start := s.pos
+	for !s.AtEnd() && s.Peek() != terminator {
+		c := s.Peek()
+		if c == '\n' || c == '\r' { return "", false }
+		if c == '\\' {
+			s.Advance()
+			if s.AtEnd() { return "", false }
+			nc := s.Peek()
+			if nc == '\r' { s.Advance(); if s.Peek() == '\n' { s.Advance() }; continue }
+			if nc == '\n' { s.Advance(); continue }
+			s.Advance(); continue
+		}
+		s.Advance()
+	}
+	if s.AtEnd() { return "", false }
+	raw := s.Text(start, s.pos)
+	s.Advance(); s.lastTokenLine = s.line
+	return raw, true
+}
+
+// DecodeStringEscapes decodes the raw body of a string literal (text
+// between, not including, quotes). Mirrors Java's
+// skipStringLiteralEscapeSequence for \n \r \t \\ \' \" \0 \b \f \v
+// \xXX \uXXXX \u{XXXXX} and line continuations.
+// Unknown escapes pass through the character verbatim.
+func DecodeStringEscapes(raw string) string {
+	if !strings.ContainsRune(raw, '\\') { return raw }
+	var b strings.Builder
+	b.Grow(len(raw))
+	rs := []rune(raw)
+	for i := 0; i < len(rs); {
+		c := rs[i]; i++
+		if c != '\\' { b.WriteRune(c); continue }
+		if i >= len(rs) { b.WriteByte('\\'); break }
+		esc := rs[i]; i++
+		switch esc {
+		case 'n': b.WriteByte('\n')
+		case 'r': b.WriteByte('\r')
+		case 't': b.WriteByte('\t')
+		case 'b': b.WriteByte('\b')
+		case 'f': b.WriteByte('\f')
+		case 'v': b.WriteByte('\v')
+		case '0': b.WriteByte(0)
+		case '\\', '\'', '"', '`': b.WriteRune(esc)
+		case '\r': if i < len(rs) && rs[i] == '\n' { i++ } // line continuation
+		case '\n': // line continuation — swallow
+		case 'x':
+			if i+1 < len(rs) && isHexDigit(rs[i]) && isHexDigit(rs[i+1]) {
+				b.WriteRune(rune(hexNib(rs[i])<<4 | hexNib(rs[i+1]))); i += 2
+			} else { b.WriteByte('\\'); b.WriteRune(esc) }
+		case 'u':
+			if i < len(rs) && rs[i] == '{' {
+				i++; j := i
+				for i < len(rs) && rs[i] != '}' { i++ }
+				if v, ok := parseHexRunes(rs[j:i]); ok { b.WriteRune(rune(v)) } else {
+					b.WriteString(`\u{`); b.WriteString(string(rs[j:i])); b.WriteByte('}')
+				}
+				if i < len(rs) { i++ }
+			} else if i+3 < len(rs) && isHexDigit(rs[i]) && isHexDigit(rs[i+1]) &&
+				isHexDigit(rs[i+2]) && isHexDigit(rs[i+3]) {
+				b.WriteRune(rune(hexNib(rs[i])<<12 | hexNib(rs[i+1])<<8 |
+					hexNib(rs[i+2])<<4 | hexNib(rs[i+3]))); i += 4
+			} else { b.WriteByte('\\'); b.WriteRune(esc) }
+		default: b.WriteRune(esc)
+		}
+	}
+	return b.String()
+}
+
+func hexNib(c rune) int {
+	if c >= '0' && c <= '9' { return int(c - '0') }
+	if c >= 'a' && c <= 'f' { return int(c-'a') + 10 }
+	return int(c-'A') + 10
+}
+
+func parseHexRunes(rs []rune) (int, bool) {
+	if len(rs) == 0 { return 0, false }
+	v := 0
+	for _, c := range rs { if !isHexDigit(c) { return 0, false }; v = v<<4 | hexNib(c) }
+	return v, true
+}
+
+// isStringLineTerminator mirrors Java's isStringLineTerminator (ES5 §7.3).
+func isStringLineTerminator(c rune) bool { return c == '\n' || c == '\r' }
 
 // ---- character-class predicates --------------------------------- //
 
