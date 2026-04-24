@@ -4016,11 +4016,8 @@ func classHasToString(obj *jstype.ObjectType) bool {
 
 // ---- visitRegExpLit / visitTemplateLit / visitObjectPattern / checkDestructuringAssignment --
 
-// Go-only: language-adapter — Go extracted REGEXP from visit() into a named
-// function; Java calls ensureTyped(n, REGEXP_TYPE) inline at line 641.
-// TypeInference.InferType already assigns the RegExp instance type to REGEXP nodes;
-// TypeCheck's role is ensureTyped for typed-percent accounting, which jsgo omits
-// since it doesn't track per-node type annotations. Validates parent context.
+// Go-only: language-adapter — Go extracted REGEXP from visit() into a named function;
+// Java calls ensureTyped(n, REGEXP_TYPE) inline at line 641 without a named method.
 func (c *TypeCheck) visitRegExpLit(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	// Suppress REGEXP nodes inside @suppress annotations or casts.
 	if p := n.Parent(); p != nil && p.Token() == rhino.CAST {
@@ -6113,4 +6110,404 @@ func (c *TypeCheck) checkPrototypeObjectLitAssign(ownerName string, lit *rhino.N
 			})
 		}
 	}
+}
+
+// ---- TypeCheck.java utility methods --------------------------------- //
+
+// ensureTyped ports TypeCheck.java:ensureTyped (line 3139).
+// In Java, this attaches a type annotation to the node if it has none.
+// In Go, TypeInference handles type assignment; this is a no-op.
+func (c *TypeCheck) ensureTyped(n *rhino.Node) {
+	_ = n // TypeInference already assigned the type during inference.
+}
+
+// getJSType ports TypeCheck.java:getJSType (line 3106).
+// Returns the inferred type of n from the current scope.
+func (c *TypeCheck) getJSType(n *rhino.Node, scope *TypedScope) jstype.JSType {
+	if scope == nil {
+		return jstype.Unknown
+	}
+	infer := NewTypeInference(scope)
+	t := infer.InferType(n)
+	if t == nil {
+		return jstype.Unknown
+	}
+	return t
+}
+
+// getNativeType ports TypeCheck.java:getNativeType (line 3171).
+// Returns the native type for the given name.
+func (c *TypeCheck) getNativeType(scope *TypedScope, name string) jstype.JSType {
+	if scope == nil {
+		return jstype.Unknown
+	}
+	t := scope.GetDeclaredType(name)
+	if t == nil {
+		return jstype.Unknown
+	}
+	return t
+}
+
+// report ports TypeCheck.java:report (line 546).
+// Routes a diagnostic through the compiler. In Go, diagnostics are accumulated
+// in the diags slice rather than routed through a shared AbstractCompiler.
+func (c *TypeCheck) report(n *rhino.Node, code string, args ...string) {
+	msg := code
+	if len(args) > 0 {
+		msg = args[0]
+	}
+	c.diags = append(c.diags, diag.Diagnostic{
+		Path:    c.path,
+		Line:    n.Lineno(),
+		Col:     n.Charno(),
+		Code:    code,
+		Level:   diag.Error,
+		Message: msg,
+	})
+}
+
+// getTypedPercent ports TypeCheck.java:getTypedPercent (line 3166).
+// In Java this returns the percentage of nodes with type annotations.
+// In Go we don't track per-node typing; always returns 100.0.
+func (c *TypeCheck) getTypedPercent() float64 {
+	return 100.0
+}
+
+// doPercentTypedAccounting ports TypeCheck.java:doPercentTypedAccounting (line 1056).
+// Tracks typed/unknown/null node counts for getTypedPercent reporting.
+// In Go this is a no-op since we don't track per-node type coverage.
+func (c *TypeCheck) doPercentTypedAccounting(n *rhino.Node) {
+	_ = n // no-op in jsgo
+}
+
+// checkTypeofString ports TypeCheck.java:checkTypeofString (line 1037).
+// Fires JSC_UNKNOWN_TYPEOF_VALUE when typeof x === s uses an invalid typeof result string.
+func (c *TypeCheck) checkTypeofString(n *rhino.Node, s string) {
+	if !isValidTypeofValue(s) {
+		c.diags = append(c.diags, diag.Diagnostic{
+			Path:    c.path,
+			Line:    n.Lineno(),
+			Col:     n.Charno(),
+			Code:    diag.JSC_UNKNOWN_TYPEOF_VALUE,
+			Level:   diag.Warning,
+			Message: fmt.Sprintf("unknown typeof value %q", s),
+		})
+	}
+}
+
+// declaresOverride ports TypeCheck.java:declaresOverride (referenced throughout).
+// Returns true when the JSDoc carries an @override annotation.
+func declaresOverride(jsdoc *rhino.JSDocInfo) bool {
+	if jsdoc == nil {
+		return false
+	}
+	return jsdoc.IsOverride()
+}
+
+// flattenUnion ports TypeCheck.java:flattenUnion (line 3396).
+// Returns the list of union members, or a single-element list for non-unions.
+func flattenUnion(maybeUnion jstype.JSType) []jstype.JSType {
+	if u, ok := maybeUnion.(*jstype.UnionType); ok {
+		return u.Members()
+	}
+	if maybeUnion == nil {
+		return nil
+	}
+	return []jstype.JSType{maybeUnion}
+}
+
+// maybeReferencedType ports TypeCheck.java:maybeReferencedType (referenced at ~line 2200+).
+// Returns t itself or the element type if t is an EnumElementType.
+func maybeReferencedType(typ jstype.JSType) jstype.JSType {
+	if ee, ok := typ.(*jstype.EnumElementType); ok {
+		return ee.Enum.Underlying
+	}
+	return typ
+}
+
+// getPropertyTypeIfDeclared ports TypeCheck.java:getPropertyTypeIfDeclared (line 3122).
+// Returns the declared (non-inferred) property type, or Unknown.
+func (c *TypeCheck) getPropertyTypeIfDeclared(objectType *jstype.ObjectType, propertyName string) jstype.JSType {
+	if objectType == nil {
+		return jstype.Unknown
+	}
+	t := objectType.GetPropertyType(propertyName)
+	if t == nil {
+		return jstype.Unknown
+	}
+	return t
+}
+
+// getBestFunctionName ports TypeCheck.java:getBestFunctionName (line 2560).
+// Returns a human-readable name for a function node, for diagnostics.
+func (c *TypeCheck) getBestFunctionName(n *rhino.Node) string {
+	if n == nil {
+		return "<anonymous>"
+	}
+	kids := n.Children()
+	if len(kids) >= 1 && kids[0].Token() == rhino.NAME && kids[0].String_() != "" {
+		return kids[0].String_()
+	}
+	for cur := n.Parent(); cur != nil; cur = cur.Parent() {
+		switch cur.Token() {
+		case rhino.ASSIGN:
+			if lhs := cur.FirstChild(); lhs != nil {
+				return describeCallee(lhs)
+			}
+		case rhino.NAME:
+			if cur.String_() != "" {
+				return cur.String_()
+			}
+		}
+	}
+	return "<anonymous>"
+}
+
+// isLValueGetProp ports TypeCheck.java:isLValueGetProp (line 2102).
+// Returns true when n is a GETPROP that is the LHS of an ASSIGN.
+func (c *TypeCheck) isLValueGetProp(n *rhino.Node) bool {
+	return isAssignLHS(n) && n.Token() == rhino.GETPROP
+}
+
+// isQNameAssignmentTarget ports TypeCheck.java:isQNameAssignmentTarget (line 2222).
+// Returns true when n is a qualified name on the LHS of an assignment.
+func (c *TypeCheck) isQNameAssignmentTarget(n *rhino.Node) bool {
+	if n == nil {
+		return false
+	}
+	switch n.Token() {
+	case rhino.NAME, rhino.GETPROP:
+		return isAssignLHS(n)
+	}
+	return false
+}
+
+// visitArgumentList ports TypeCheck.java:visitArgumentList (line 2656).
+// Checks call arguments against the function type's parameter list.
+func (c *TypeCheck) visitArgumentList(call *rhino.Node, functionType *jstype.FunctionType, scope *TypedScope) []diag.Diagnostic {
+	if functionType == nil || call == nil {
+		return nil
+	}
+	kids := call.Children()
+	if len(kids) < 1 {
+		return nil
+	}
+	args := kids[1:]
+	params := functionType.Params
+	infer := NewTypeInference(scope)
+	var out []diag.Diagnostic
+	for i, arg := range args {
+		if i >= len(params) {
+			break
+		}
+		found := infer.InferType(arg)
+		declared := params[i]
+		if declared == nil || declared == jstype.Unknown {
+			continue
+		}
+		if !jstype.IsSubtype(found, declared) {
+			line, col := diagPosForArg(arg)
+			out = append(out, diag.Diagnostic{
+				Path:    c.path,
+				Line:    line,
+				Col:     col,
+				Code:    diag.JSC_TYPE_MISMATCH,
+				Level:   diag.Error,
+				Message: fmt.Sprintf("actual parameter %d does not match formal parameter\nfound   : %s\nrequired: %s", i+1, found.TypeName(), declared.TypeName()),
+			})
+		}
+	}
+	return out
+}
+
+// visitInterfacePropertyAssignment ports TypeCheck.java:visitInterfacePropertyAssignment (line 1796).
+// Validates property assignments on interface instances.
+func (c *TypeCheck) visitInterfacePropertyAssignment(object *rhino.Node, lvalue *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	_ = object
+	_ = lvalue
+	_ = scope
+	// TODO(port): TypeCheck.visitInterfacePropertyAssignment from TypeCheck.java:1796
+	// Reason: requires full @interface property inheritance tracking
+	return nil
+}
+
+// visitObjectOrClassLiteralKey ports TypeCheck.java:visitObjectOrClassLiteralKey (line 1434).
+// Checks object literal key types and validates struct/dict access patterns.
+func (c *TypeCheck) visitObjectOrClassLiteralKey(key *rhino.Node, owner *rhino.Node, ownerType jstype.JSType, scope *TypedScope) []diag.Diagnostic {
+	_ = key
+	_ = owner
+	_ = ownerType
+	_ = scope
+	// Most of this is handled by visitObjectLit and visitClassField.
+	// TODO(port): TypeCheck.visitObjectOrClassLiteralKey from TypeCheck.java:1434
+	// Reason: requires full property inheritance checking across key types
+	return nil
+}
+
+// checkCanAssignToWithScope ports TypeCheck.java:checkCanAssignToWithScope (line 1134).
+// Fires JSC_TYPE_MISMATCH when the right-hand type is not assignable to the declared lvalue type.
+func (c *TypeCheck) checkCanAssignToWithScope(t *NodeTraversal, nodeToWarn *rhino.Node, lvalue *rhino.Node, rightType jstype.JSType, info *rhino.JSDocInfo, msg string, scope *TypedScope) []diag.Diagnostic {
+	_ = t
+	_ = info
+	if lvalue == nil || rightType == nil {
+		return nil
+	}
+	var declared jstype.JSType
+	switch lvalue.Token() {
+	case rhino.NAME:
+		declared = scope.GetRawDeclaredType(lvalue.String_())
+	case rhino.GETPROP:
+		infer := NewTypeInference(scope)
+		if recv := lvalue.FirstChild(); recv != nil {
+			recvType := infer.InferType(recv)
+			if obj := dereferencedObject(recvType); obj != nil {
+				if last := lvalue.LastChild(); last != nil {
+					declared = obj.GetPropertyType(last.String_())
+				}
+			}
+		}
+	}
+	if declared == nil || isUnknownOrNil(declared) {
+		return nil
+	}
+	if jstype.IsSubtype(rightType, declared) {
+		return nil
+	}
+	return []diag.Diagnostic{{
+		Path:    c.path,
+		Line:    nodeToWarn.Lineno(),
+		Col:     nodeToWarn.Charno(),
+		Code:    diag.JSC_TYPE_MISMATCH,
+		Level:   diag.Error,
+		Message: fmt.Sprintf("%s\nfound   : %s\nrequired: %s", msg, rightType.TypeName(), declared.TypeName()),
+	}}
+}
+
+// checkEnumAlias ports TypeCheck.java:checkEnumAlias (line 3086).
+// Validates @enum alias declarations.
+func (c *TypeCheck) checkEnumAlias(t *NodeTraversal, declInfo *rhino.JSDocInfo, valueType jstype.JSType, nodeToWarn *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	_ = t
+	_ = declInfo
+	_ = valueType
+	_ = nodeToWarn
+	_ = scope
+	// TODO(port): TypeCheck.checkEnumAlias from TypeCheck.java:3086
+	// Reason: requires full enum type modeling
+	return nil
+}
+
+// checkPropCreation ports TypeCheck.java:checkPropCreation (line 1269).
+// Fires JSC_ILLEGAL_PROPERTY_CREATION when a property is created on a @struct outside a constructor.
+func (c *TypeCheck) checkPropCreation(lvalue *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	if lvalue == nil || lvalue.Token() != rhino.GETPROP {
+		return nil
+	}
+	kids := lvalue.Children()
+	if len(kids) < 2 {
+		return nil
+	}
+	recv := kids[0]
+	infer := NewTypeInference(scope)
+	recvType := stripNullUndef(infer.InferType(recv))
+	obj := dereferencedObject(recvType)
+	if obj == nil || !obj.IsStruct {
+		return nil
+	}
+	propName := kids[1].String_()
+	if obj.HasProperty(propName) || insideOwnConstructor(lvalue, obj) {
+		return nil
+	}
+	return []diag.Diagnostic{{
+		Path:    c.path,
+		Line:    kids[1].Lineno(),
+		Col:     kids[1].Charno(),
+		Code:    diag.JSC_ILLEGAL_PROPERTY_CREATION,
+		Level:   diag.Error,
+		Message: "Cannot add a property to a struct instance after it is constructed. (If you already declared the property, make sure to give it a type.)",
+	}}
+}
+
+// couldBeAConstructor ports TypeCheck.java:couldBeAConstructor (line 2328).
+// Returns true if the type could be a constructor at runtime.
+func (c *TypeCheck) couldBeAConstructor(typ jstype.JSType) bool {
+	if typ == nil || isUnknownOrNil(typ) {
+		return true
+	}
+	if fn, ok := typ.(*jstype.FunctionType); ok {
+		return fn.IsConstructor
+	}
+	if _, ok := typ.(*jstype.UnionType); ok {
+		return true
+	}
+	return false
+}
+
+// normalizeTemplatizedType ports TypeCheck.java:normalizeTemplatizedType (line 2508).
+// Strips template arguments from a templatized type to get the raw base type.
+func (c *TypeCheck) normalizeTemplatizedType(maybeTemplatizedType jstype.JSType) jstype.JSType {
+	if tt, ok := maybeTemplatizedType.(*jstype.TemplatizedType); ok {
+		return tt.Base
+	}
+	return maybeTemplatizedType
+}
+
+// hasUnknownOrEmptySupertype ports TypeCheck.java:hasUnknownOrEmptySupertype (line 1733).
+// Returns true when the constructor has no declared supertype or the supertype is unknown.
+func hasUnknownOrEmptySupertype(ctor *jstype.FunctionType) bool {
+	if ctor == nil || ctor.Instance == nil {
+		return true
+	}
+	return ctor.Instance.Super() == nil
+}
+
+// isDeclaredLocally ports TypeCheck.java:isDeclaredLocally (line 1644).
+// Returns true when the property is declared directly on the constructor's instance type.
+func isDeclaredLocally(ctorType *jstype.FunctionType, propertyName string) bool {
+	if ctorType == nil || ctorType.Instance == nil {
+		return false
+	}
+	return ctorType.Instance.HasProperty(propertyName) &&
+		!ctorType.Instance.IsPropertyInferred(propertyName)
+}
+
+// propertyIsImplicitCast ports TypeCheck.java:propertyIsImplicitCast (line 1541).
+// Returns true when the property has an @implicitCast annotation.
+func propertyIsImplicitCast(typ *jstype.ObjectType, prop string) bool {
+	_ = typ
+	_ = prop
+	// jsgo doesn't model @implicitCast per-property yet.
+	return false
+}
+
+// checkStructDictSubtyping ports TypeCheck.java:checkStructDictSubtyping (line 2515).
+// Fires JSC_DICT_EXTEND_STRUCT_TYPE when a @dict type extends a @struct type.
+func (c *TypeCheck) checkStructDictSubtyping(n *rhino.Node, subtype *jstype.FunctionType, supertype *jstype.FunctionType) {
+	if subtype == nil || supertype == nil {
+		return
+	}
+	if subtype.Instance == nil || supertype.Instance == nil {
+		return
+	}
+	if subtype.Instance.IsDict && supertype.Instance.IsStruct {
+		c.diags = append(c.diags, diag.Diagnostic{
+			Path:    c.path,
+			Line:    n.Lineno(),
+			Col:     n.Charno(),
+			Code:    diag.JSC_DICT_EXTEND_STRUCT_TYPE,
+			Level:   diag.Error,
+			Message: "@dict class cannot extend @struct class",
+		})
+	}
+}
+
+// allowStrictPropertyAccessOnNode ports TypeCheck.java:allowStrictPropertyAccessOnNode (line 2202).
+// Returns true when the property access should use strict checking.
+func (c *TypeCheck) allowStrictPropertyAccessOnNode(n *rhino.Node) bool {
+	return isThisReceiverRead(n)
+}
+
+// allowLoosePropertyAccessOnNode ports TypeCheck.java:allowLoosePropertyAccessOnNode (line 2214).
+// Returns true when the property access should NOT fire INEXISTENT_PROPERTY.
+func (c *TypeCheck) allowLoosePropertyAccessOnNode(n *rhino.Node) bool {
+	return isPropertyExistenceOrAbsenceTest(n)
 }
