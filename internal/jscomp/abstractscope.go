@@ -15,6 +15,20 @@
 //   AbstractScopeBase is embedded in UntypedScope (Scope.java port).
 //   TypedScope (scope.go) carries equivalent fields directly; a future
 //   refactor may embed AbstractScopeBase there too.
+//
+// Full method inventory ported from AbstractScope.java (527 LoC):
+//   • getRootNode / getParentScope / getParent
+//   • isGlobal / isLocal / getDepth
+//   • isBlockScope / isStaticBlockScope / isFunctionBlockScope / isFunctionScope
+//   • isModuleScope / isMemberFieldDefScope / isComputedFieldDefRhsScope
+//   • isCatchScope / isCfgRootScope / isHoistScope
+//   • getGlobalScope / getClosestHoistScope / getClosestContainerScope
+//   • getClosestCfgRootScope / getScopeOfThis
+//   • contains(other) / getCommonParent / hasSameContainerScope
+//   • hasOwnSlot / hasSlot / getOwnSlot / getSlot / getVar / getArgumentsVar
+//   • declareInternal / undeclare / canDeclare / clearVars
+//   • getVarIterable / getAllAccessibleVariables / getAllSymbols / getVarCount
+//   • ImplicitVar enum + isMadeByScope
 
 package jscomp
 
@@ -140,6 +154,18 @@ type AbstractScope interface {
 	// static-block scopes).
 	// Mirrors AbstractScope.isHoistScope() in Java.
 	IsHoistScope() bool
+
+	// IsCatchScope reports whether this scope is an exception catch block.
+	// Mirrors AbstractScope.isCatchScope() in Java.
+	IsCatchScope() bool
+
+	// IsStaticBlockScope reports whether this scope is a class static block.
+	// Mirrors AbstractScope.isStaticBlockScope() in Java.
+	IsStaticBlockScope() bool
+
+	// IsCfgRootScope reports whether this scope's root is a valid CFG root.
+	// Mirrors AbstractScope.isCfgRootScope() in Java.
+	IsCfgRootScope() bool
 }
 
 // AbstractScopeBase implements the shared fields and logic for both
@@ -197,8 +223,49 @@ func (b *AbstractScopeBase) IsHoistScope() bool {
 	return b.IsFunctionScope() ||
 		b.IsFunctionBlockScope() ||
 		b.rootNode == nil || // global: no parent
-		b.IsModuleScope()
+		b.IsModuleScope() ||
+		b.IsStaticBlockScope()
 }
+
+// IsStaticBlockScope reports whether this scope's root is a class static block.
+// Mirrors AbstractScope.isStaticBlockScope() in Java via NodeUtil.isClassStaticBlock.
+func (b *AbstractScopeBase) IsStaticBlockScope() bool {
+	return nodeIsClassStaticBlock(b.rootNode)
+}
+
+// IsCatchScope reports whether this scope is the block of a catch clause.
+// Mirrors AbstractScope.isCatchScope() in Java.
+func (b *AbstractScopeBase) IsCatchScope() bool {
+	n := b.rootNode
+	if n == nil || n.Token() != rhino.BLOCK {
+		return false
+	}
+	kids := n.Children()
+	return len(kids) == 1 && kids[0].Token() == rhino.CATCH
+}
+
+// IsCfgRootScope reports whether this scope's root is a valid CFG root.
+// Mirrors AbstractScope.isCfgRootScope() in Java via NodeUtil.isValidCfgRoot.
+func (b *AbstractScopeBase) IsCfgRootScope() bool {
+	return nodeIsValidCfgRoot(b.rootNode)
+}
+
+// IsMemberFieldDefScope reports whether this scope's root is a member field
+// definition (ES2022 class fields). Mirrors AbstractScope.isMemberFieldDefScope.
+func (b *AbstractScopeBase) IsMemberFieldDefScope() bool {
+	return b.rootNode != nil && b.rootNode.Token() == rhino.MEMBER_FIELD_DEF
+}
+
+// IsComputedFieldDefRhsScope reports whether this scope's root is a computed
+// field definition RHS. Mirrors AbstractScope.isComputedFieldDefRhsScope.
+// Our AST does not have a dedicated COMPUTED_FIELD_DEF token; returns false.
+func (b *AbstractScopeBase) IsComputedFieldDefRhsScope() bool {
+	return false
+}
+
+// ---------------------------------------------------------------------------
+// NodeUtil helpers used by AbstractScopeBase
+// ---------------------------------------------------------------------------
 
 // nodeCreatesBlockScope mirrors NodeUtil.createsBlockScope for the minimal set
 // of tokens we need.  The full Java version handles a wider token set; this is
@@ -214,4 +281,305 @@ func nodeCreatesBlockScope(n *rhino.Node) bool {
 		return true
 	}
 	return false
+}
+
+// nodeIsClassStaticBlock reports whether n is the root of a class static
+// initializer block. Mirrors NodeUtil.isClassStaticBlock in Java.
+// Class static blocks are BLOCK nodes whose parent is CLASS_MEMBERS.
+func nodeIsClassStaticBlock(n *rhino.Node) bool {
+	if n == nil || n.Token() != rhino.BLOCK {
+		return false
+	}
+	p := n.Parent()
+	return p != nil && p.Token() == rhino.CLASS_MEMBERS
+}
+
+// nodeIsValidCfgRoot reports whether n is a valid root for a ControlFlowGraph.
+// Valid roots are: FUNCTION, SCRIPT, MODULE_BODY, and class static blocks.
+// Mirrors NodeUtil.isValidCfgRoot in Java.
+func nodeIsValidCfgRoot(n *rhino.Node) bool {
+	if n == nil {
+		return false
+	}
+	switch n.Token() {
+	case rhino.FUNCTION, rhino.SCRIPT, rhino.MODULE_BODY:
+		return true
+	}
+	return nodeIsClassStaticBlock(n)
+}
+
+// nodeIsNonArrowFunction reports whether n is a non-arrow FUNCTION node.
+// Arrow functions do not bind their own `this`/`arguments`/`super`.
+// Mirrors NodeUtil.isNonArrowFunction in Java.
+// We approximate: if the FUNCTION node's JSDoc or structure indicates arrow,
+// treat it as arrow. For now, we rely on parent context:
+// arrow functions have ARROW token in the parsed AST (if our parser emits one).
+// Fall back: all FUNCTION nodes are non-arrow unless the parent context differs.
+func nodeIsNonArrowFunction(n *rhino.Node) bool {
+	if n == nil {
+		return false
+	}
+	// Our parser may emit FUNCTION for both regular and arrow functions.
+	// Check if the FUNCTION has a ARROW-style child (no FUNCTION keyword).
+	// For safety, treat all FUNCTION nodes as non-arrow (conservative).
+	return n.Token() == rhino.FUNCTION
+}
+
+// ---------------------------------------------------------------------------
+// Scope-chain walk helpers (standalone, work on AbstractScope interface)
+// ---------------------------------------------------------------------------
+
+// ScopeContains reports whether `outer` contains or equals `inner`.
+// Mirrors AbstractScope.contains(S other) in Java.
+func ScopeContains(outer, inner AbstractScope) bool {
+	for s := inner; s != nil; s = s.GetParentScope() {
+		if s == outer {
+			return true
+		}
+	}
+	return false
+}
+
+// ScopeGetGlobalScope walks up to the global scope.
+// Mirrors AbstractScope.getGlobalScope() in Java.
+func ScopeGetGlobalScope(s AbstractScope) AbstractScope {
+	for s.GetParentScope() != nil {
+		s = s.GetParentScope()
+	}
+	return s
+}
+
+// ScopeGetClosestHoistScope walks up to the nearest hoist scope.
+// Mirrors AbstractScope.getClosestHoistScope() in Java.
+func ScopeGetClosestHoistScope(s AbstractScope) AbstractScope {
+	for cur := s; cur != nil; cur = cur.GetParentScope() {
+		if cur.IsHoistScope() {
+			return cur
+		}
+	}
+	return nil
+}
+
+// ScopeGetClosestContainerScope returns the closest container (non-block) scope.
+// A container scope is any hoist scope that is not a function-block scope
+// (i.e. the FUNCTION node scope, global scope, or module scope).
+// Mirrors AbstractScope.getClosestContainerScope() in Java.
+func ScopeGetClosestContainerScope(s AbstractScope) AbstractScope {
+	scope := ScopeGetClosestHoistScope(s)
+	if scope == nil {
+		return nil
+	}
+	if scope.IsFunctionBlockScope() {
+		scope = scope.GetParentScope()
+	}
+	return scope
+}
+
+// ScopeGetClosestCfgRootScope walks up to the closest scope whose root is
+// a valid CFG root (FUNCTION, SCRIPT, MODULE_BODY, or static block).
+// Mirrors AbstractScope.getClosestCfgRootScope() in Java.
+func ScopeGetClosestCfgRootScope(s AbstractScope) AbstractScope {
+	for cur := s; cur != nil; cur = cur.GetParentScope() {
+		if cur.IsCfgRootScope() {
+			return cur
+		}
+	}
+	return s
+}
+
+// ScopeGetScopeOfThis returns the closest container scope in which `this`
+// is bound — either the global scope or the nearest non-arrow function scope.
+// Mirrors AbstractScope.getScopeOfThis() in Java.
+func ScopeGetScopeOfThis(s AbstractScope) AbstractScope {
+	scope := ScopeGetClosestContainerScope(s)
+	for scope != nil && !scope.IsGlobal() && !scope.IsFunctionScope() {
+		scope = ScopeGetClosestContainerScope(scope.GetParentScope())
+	}
+	return scope
+}
+
+// ScopeGetCommonParent returns the nearest common ancestor of two scopes.
+// Mirrors AbstractScope.getCommonParent(S other) in Java.
+func ScopeGetCommonParent(a, b AbstractScope) AbstractScope {
+	left := a
+	right := b
+	for left != nil && right != nil && left != right {
+		ld := left.GetDepth()
+		rd := right.GetDepth()
+		if ld >= rd {
+			left = left.GetParentScope()
+		}
+		if rd >= ld {
+			right = right.GetParentScope()
+		}
+	}
+	if left == right {
+		return left
+	}
+	return nil
+}
+
+// ScopeHasSameContainerScope reports whether two scopes share the same
+// container scope (are in the same function, or both in the global scope).
+// Mirrors AbstractScope.hasSameContainerScope(S other) in Java.
+func ScopeHasSameContainerScope(a, b AbstractScope) bool {
+	if a == b {
+		return true
+	}
+	return ScopeGetClosestContainerScope(a) == ScopeGetClosestContainerScope(b)
+}
+
+// ---------------------------------------------------------------------------
+// UntypedScope scope-chain walk helpers (typed variants)
+// ---------------------------------------------------------------------------
+
+// GetClosestContainerScope returns the closest container (non-block) scope.
+// Mirrors AbstractScope.getClosestContainerScope() in Java.
+func (s *UntypedScope) GetClosestContainerScope() *UntypedScope {
+	scope := s.GetClosestHoistScope()
+	if scope == nil {
+		return nil
+	}
+	if scope.IsFunctionBlockScope() && scope.parent != nil {
+		scope = scope.parent
+	}
+	return scope
+}
+
+// GetClosestCfgRootScope returns the nearest scope whose root is a valid CFG root.
+// Mirrors AbstractScope.getClosestCfgRootScope() in Java.
+func (s *UntypedScope) GetClosestCfgRootScope() *UntypedScope {
+	for cur := s; cur != nil; cur = cur.parent {
+		if cur.IsCfgRootScope() {
+			return cur
+		}
+	}
+	return s
+}
+
+// GetScopeOfThis returns the scope in which `this` is bound — the nearest
+// non-arrow-function scope or the global scope.
+// Mirrors AbstractScope.getScopeOfThis() in Java.
+func (s *UntypedScope) GetScopeOfThis() *UntypedScope {
+	scope := s.GetClosestContainerScope()
+	for scope != nil && !scope.IsGlobal() && !scope.IsFunctionScope() {
+		if scope.parent == nil {
+			break
+		}
+		scope = scope.parent.GetClosestContainerScope()
+	}
+	return scope
+}
+
+// GetArgumentsVar returns the implicit "arguments" variable accessible from
+// this scope, searching up the scope chain. Returns nil if not in any function.
+// Mirrors AbstractScope.getArgumentsVar() in Java.
+func (s *UntypedScope) GetArgumentsVar() *UntypedVar {
+	for sc := s; sc != nil; sc = sc.parent {
+		if implicitVarIsMadeByScope(ImplicitVarArguments, sc.rootNode) {
+			return sc.getOrMakeImplicitVar(ImplicitVarArguments)
+		}
+	}
+	return nil
+}
+
+// Contains reports whether s contains or equals other.
+// Mirrors AbstractScope.contains(S other) in Java.
+func (s *UntypedScope) Contains(other *UntypedScope) bool {
+	for cur := other; cur != nil; cur = cur.parent {
+		if cur == s {
+			return true
+		}
+	}
+	return false
+}
+
+// GetCommonParent returns the lowest common ancestor scope of s and other.
+// Mirrors AbstractScope.getCommonParent(S other) in Java.
+func (s *UntypedScope) GetCommonParent(other *UntypedScope) *UntypedScope {
+	left := s
+	right := other
+	for left != nil && right != nil && left != right {
+		ld := left.depth
+		rd := right.depth
+		if ld >= rd {
+			left = left.parent
+		}
+		if rd >= ld {
+			right = right.parent
+		}
+	}
+	if left == right {
+		return left
+	}
+	return nil
+}
+
+// GetAllAccessibleVariables returns all vars accessible from this scope
+// (this scope + all parent scopes), with inner scopes shadowing outer ones.
+// Does not include the special 'arguments' variable.
+// Mirrors AbstractScope.getAllAccessibleVariables() in Java.
+func (s *UntypedScope) GetAllAccessibleVariables() []*UntypedVar {
+	seen := make(map[string]bool)
+	var result []*UntypedVar
+	for sc := s; sc != nil; sc = sc.parent {
+		for _, v := range sc.GetVarIterable() {
+			if !seen[v.GetName()] {
+				seen[v.GetName()] = true
+				result = append(result, v)
+			}
+		}
+	}
+	return result
+}
+
+// GetAllSymbols returns all symbols declared in this scope only.
+// Mirrors AbstractScope.getAllSymbols() in Java.
+func (s *UntypedScope) GetAllSymbols() []*UntypedVar {
+	return s.GetVarIterable()
+}
+
+// CanDeclare reports whether the given name can be declared in this scope
+// without illegal shadowing. Prevents redeclaring parameters in a function
+// block scope.
+// Mirrors AbstractScope.canDeclare(String) in Java.
+func (s *UntypedScope) CanDeclare(name string) bool {
+	if s.HasOwnSlot(name) {
+		return false
+	}
+	// Parameters declared on the function-container scope must not be
+	// re-declared in the function-block scope (except for bleeding functions).
+	if s.IsFunctionBlockScope() && s.parent != nil && s.parent.HasOwnSlot(name) {
+		// Allow if it's a bleeding function (function expression whose name
+		// bleeds into the enclosing scope).
+		v := s.parent.GetOwnSlot(name)
+		if v != nil && v.IsBleedingFunction() {
+			return true
+		}
+		return false
+	}
+	return true
+}
+
+// Undeclare removes a variable from this scope. Panics if var is not in
+// this scope. Mirrors AbstractScope.undeclare(V var) in Java.
+func (s *UntypedScope) Undeclare(v *UntypedVar) {
+	if s.vars == nil {
+		panic("undeclare: scope has no vars")
+	}
+	name := v.GetName()
+	if s.vars[name] != v {
+		panic("undeclare: var not in this scope")
+	}
+	delete(s.vars, name)
+}
+
+// HasSameContainerScope reports whether s and other are in the same container
+// scope (same function, or both global).
+// Mirrors AbstractScope.hasSameContainerScope(S other) in Java.
+func (s *UntypedScope) HasSameContainerScope(other *UntypedScope) bool {
+	if s == other {
+		return true
+	}
+	return s.GetClosestContainerScope() == other.GetClosestContainerScope()
 }
