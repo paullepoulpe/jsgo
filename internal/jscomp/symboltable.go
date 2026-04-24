@@ -151,10 +151,9 @@ type SymbolTable struct {
 }
 
 // NewSymbolTable creates a new SymbolTable.
-// Mirrors SymbolTable(AbstractCompiler, JSTypeRegistry) in Java (compiler /
-// registry references are elided until they are needed by downstream callers).
-// TODO(port): SymbolTable.java:SymbolTable(AbstractCompiler,JSTypeRegistry) — constructor not directly ported; Go uses factory function
-// Reason: Java uses a class constructor; Go uses a named factory function (port gap).
+// Mirrors SymbolTable(AbstractCompiler, JSTypeRegistry) in Java.
+// compiler and registry references are elided until needed by downstream callers;
+// Go uses a factory function instead of a class constructor.
 func NewSymbolTable() *SymbolTable {
 	return &SymbolTable{
 		symbols:                map[stNodeSymKey]*Symbol{},
@@ -184,8 +183,8 @@ func (st *SymbolTable) GetReferenceList(symbol *Symbol) []*Reference {
 }
 
 // stRefLess provides a stable ordering for References by source position.
-// TODO(port): SymbolTable.java:ReferenceOrdering.compare — Go uses a free function; Java uses an inner-class Comparator
-// Reason: port gap — ordering logic should be reconciled with Java's Reference Comparator.
+// Go-only helper used by GetReferenceList; Java getReferenceList() preserves
+// LinkedHashMap insertion order without an explicit comparator.
 func stRefLess(a, b *Reference) bool {
 	na, nb := a.GetNode(), b.GetNode()
 	if na == nil {
@@ -221,9 +220,8 @@ func (st *SymbolTable) GetAllSymbolsSorted() []*Symbol {
 }
 
 // stSymbolLess is the "natural" symbol ordering: global before local,
-// then lexicographic by name. Mirrors getNaturalSymbolOrdering() in Java.
-// TODO(port): SymbolTable.java:getNaturalSymbolOrdering — Java returns a Comparator; Go uses a free comparison function
-// Reason: port gap — the comparator pattern is not fully translated.
+// then lexicographic by name. Mirrors the symbolOrdering Comparator in Java
+// (getNaturalSymbolOrdering returns symbolOrdering; Go uses a free comparison function).
 func (st *SymbolTable) stSymbolLess(a, b *Symbol) bool {
 	da := st.stLexicalScopeDepth(a.scope)
 	db := st.stLexicalScopeDepth(b.scope)
@@ -296,16 +294,17 @@ func (st *SymbolTable) GetParameterInFunction(sym *Symbol, paramName string) *Sy
 	return nil
 }
 
-// TODO(port): SymbolTable.java:getScopeInFunction — port gap; Java private method not faithfully translated
-// Reason: Go function naming differs; full port requires FunctionType.getSource().
+// stGetScopeInFunction mirrors private getScopeInFunction(Symbol) in Java.
 func (st *SymbolTable) stGetScopeInFunction(sym *Symbol) *SymbolScope {
 	ft := sym.GetFunctionType()
 	if ft == nil {
 		return nil
 	}
-	// TODO: FunctionType.getSource() not yet ported; cannot find scope.
-	// TODO: port com/google/javascript/rhino/jstype/FunctionType.getSource()
-	return nil
+	functionNode := ft.GetSource()
+	if functionNode == nil {
+		return nil
+	}
+	return st.scopes[functionNode]
 }
 
 // GetSymbolForScope returns the Symbol associated with the given scope.
@@ -317,23 +316,20 @@ func (st *SymbolTable) GetSymbolForScope(scope *SymbolScope) *Symbol {
 	return scope.getSymbolForScope()
 }
 
-// TODO(port): SymbolTable.java:findSymbolForScope — port gap; Go naming differs from Java private method
-// Reason: method is a partial port; full fidelity requires scope/node alignment with Java.
+// stFindSymbolForScope mirrors private findSymbolForScope(SymbolScope) in Java.
 func (st *SymbolTable) stFindSymbolForScope(scope *SymbolScope) *Symbol {
 	rootNode := scope.GetRootNode()
-	if rootNode == nil || rootNode.Parent() == nil {
-		if st.globalScope != nil {
-			return st.globalScope.GetSlot(GlobalThisName)
-		}
-		return nil
+	if rootNode.Parent() == nil {
+		return st.globalScope.GetSlot(GlobalThisName)
 	}
 	if rootNode.Token() != rhino.FUNCTION {
 		return nil
 	}
-	// TODO: NodeUtil.getBestLValueName(NodeUtil.getBestLValue(rootNode)) not ported.
-	// TODO: port com/google/javascript/jscomp/NodeUtil.getBestLValue
-	// TODO: port com/google/javascript/jscomp/NodeUtil.getBestLValueName
-	return nil
+	name := NU.GetBestLValueName(NU.GetBestLValue(rootNode))
+	if name == "" {
+		return nil
+	}
+	return scope.GetParentScope().GetQualifiedSlot(name)
 }
 
 // GetAllSymbolsForTypeOf returns Symbols associated with the type of sym.
@@ -350,38 +346,37 @@ func (st *SymbolTable) GetGlobalScope() *SymbolScope {
 
 // GetSymbolDeclaredByFn gets the symbol for the given constructor or interface.
 // Mirrors getSymbolDeclaredBy(FunctionType) in Java.
-// TODO(port): SymbolTable.java:getSymbolDeclaredBy(FunctionType) — port gap; Go overload naming differs from Java
-// Reason: Java uses method overloading; Go uses distinct names (port gap).
+// GetSymbolDeclaredByFn gets the symbol for the given constructor or interface.
+// Mirrors getSymbolDeclaredBy(FunctionType) in Java.
+// Go uses a distinct name because Go lacks method overloading.
 func (st *SymbolTable) GetSymbolDeclaredByFn(fn *jstype.FunctionType) *Symbol {
 	if fn == nil || fn.Instance == nil {
 		return nil
 	}
-	// TODO: fn.getSource() not ported; we pass nil source.
-	return st.stGetSymbolForName(nil, fn.Instance.Name)
+	instanceType := fn.GetInstanceType()
+	return st.stGetSymbolForName(fn.GetSource(), instanceType.GetReferenceName())
 }
 
 // GetSymbolDeclaredByEnum gets the symbol for the given enum.
 // Mirrors getSymbolDeclaredBy(EnumType) in Java.
-// TODO(port): SymbolTable.java:getSymbolDeclaredBy(EnumType) — port gap; Go overload naming differs from Java
-// Reason: Java uses method overloading; Go uses distinct names (port gap).
+// Go uses a distinct name because Go lacks method overloading.
+// EnumType.getSource() is not yet available; passing nil source falls back to globalScope.
 func (st *SymbolTable) GetSymbolDeclaredByEnum(enumType *jstype.EnumType) *Symbol {
-	if enumType == nil {
+	if enumType == nil || enumType.Element == nil {
 		return nil
 	}
-	// TODO: EnumType.getSource() not ported.
-	return st.stGetSymbolForName(nil, enumType.Name)
+	return st.stGetSymbolForName(nil, enumType.Element.GetReferenceName())
 }
 
 // GetSymbolForInstancesOfSym gets the prototype symbol for a constructor sym.
 // Mirrors getSymbolForInstancesOf(Symbol) in Java.
-// TODO(port): SymbolTable.java:getSymbolForInstancesOf(Symbol) — port gap; Go overload naming differs from Java
-// Reason: Java uses method overloading; Go uses distinct names (port gap).
+// Go uses a distinct name because Go lacks method overloading.
 func (st *SymbolTable) GetSymbolForInstancesOfSym(sym *Symbol) *Symbol {
 	if sym == nil {
 		return nil
 	}
 	fn := sym.GetFunctionType()
-	if fn != nil && fn.IsConstructor {
+	if fn != nil && (fn.IsConstructor || fn.IsInterface()) {
 		return st.GetSymbolForInstancesOfFn(fn)
 	}
 	return nil
@@ -389,17 +384,20 @@ func (st *SymbolTable) GetSymbolForInstancesOfSym(sym *Symbol) *Symbol {
 
 // GetSymbolForInstancesOfFn gets the symbol for the prototype of fn.
 // Mirrors getSymbolForInstancesOf(FunctionType) in Java.
-// TODO(port): SymbolTable.java:getSymbolForInstancesOf(FunctionType) — port gap; Go overload naming differs from Java
-// Reason: Java uses method overloading; Go uses distinct names (port gap).
+// Go uses a distinct name because Go lacks method overloading.
 func (st *SymbolTable) GetSymbolForInstancesOfFn(fn *jstype.FunctionType) *Symbol {
 	if fn == nil || fn.Instance == nil {
 		return nil
 	}
-	return st.stGetSymbolForName(nil, fn.Instance.Name+".prototype")
+	pType := fn.GetPrototype()
+	return st.stGetSymbolForName(fn.GetSource(), pType.GetReferenceName())
 }
 
-// TODO(port): SymbolTable.java:getSymbolForName — port gap; Go naming differs from Java private method
-// Reason: port gap — partial translation of Java getSymbolForName(Node, String).
+// stGetSymbolForName mirrors private getSymbolForName(Node, String) in Java.
+// The module-scope name-stripping branch (which strips the goog.module namespace
+// prefix from fully-qualified names when looking up symbols inside a module scope)
+// requires ModuleMetadataMap, which is not yet ported; that branch is skipped.
+// TODO: port com/google/javascript/jscomp/modules/ModuleMetadataMap
 func (st *SymbolTable) stGetSymbolForName(source *rhino.Node, name string) *Symbol {
 	if name == "" || st.globalScope == nil {
 		return nil
@@ -413,8 +411,7 @@ func (st *SymbolTable) stGetSymbolForName(source *rhino.Node, name string) *Symb
 	if scope == nil {
 		return nil
 	}
-	// TODO: module-scope name stripping requires ModuleMetadataMap.
-	// TODO: port com/google/javascript/jscomp/modules/ModuleMetadataMap
+	// Module-scope name stripping omitted: requires ModuleMetadataMap (not yet ported).
 	return scope.GetQualifiedSlot(name)
 }
 
@@ -441,26 +438,28 @@ func (st *SymbolTable) GetAllSymbolsForType(t jstype.JSType) []*Symbol {
 	return []*Symbol{sym}
 }
 
-// stGetSymbolForTypeHelper is the private helper for type→symbol lookup.
-// Mirrors getSymbolForTypeHelper(JSType, boolean) in Java.
-// TODO(port): SymbolTable.java:getSymbolForTypeHelper — port gap; Go naming differs from Java private helper
-// Reason: port gap — Java's private helper uses different type dispatch.
+// stGetSymbolForTypeHelper mirrors private getSymbolForTypeHelper(JSType, boolean) in Java.
+// isGlobalThisType() is not yet available on the Go JSType interface; that branch is omitted.
+// TODO: port isGlobalThisType() when global-this type tracking is ported.
 func (st *SymbolTable) stGetSymbolForTypeHelper(t jstype.JSType, linkToCtor bool) *Symbol {
 	if t == nil {
 		return nil
 	}
-	switch v := t.(type) {
-	case *jstype.FunctionType:
-		if v.IsConstructor {
+	// FunctionType: isNominalConstructorOrInterface (constructor or interface)
+	if ft, ok := t.(*jstype.FunctionType); ok {
+		if ft.IsConstructor || ft.IsInterface() {
 			if linkToCtor {
 				if st.globalScope != nil {
 					return st.globalScope.GetSlot("Function")
 				}
 				return nil
 			}
-			return st.GetSymbolDeclaredByFn(v)
+			return st.GetSymbolDeclaredByFn(ft)
 		}
-		// non-constructor function
+		// isFunctionPrototypeType: FunctionType owning a prototype object
+		// In Go, a FunctionType whose ownerFunction is set is a prototype.
+		// We check via GetOwnerFunction on PrototypeObjectType below instead.
+		// Plain (non-constructor) FunctionType:
 		if linkToCtor {
 			if st.globalScope != nil {
 				return st.globalScope.GetSlot("Function")
@@ -471,14 +470,46 @@ func (st *SymbolTable) stGetSymbolForTypeHelper(t jstype.JSType, linkToCtor bool
 			return st.globalScope.GetQualifiedSlot("Function.prototype")
 		}
 		return nil
-	case *jstype.ObjectType:
-		// TODO: isGlobalThisType / isNominalConstructorOrInterface /
-		// isFunctionPrototypeType / isInstanceType / autoboxesTo not fully
-		// ported. Fall back to symbolThatDeclaresType lookup.
-		_ = v
+	}
+	// isFunctionPrototypeType: PrototypeObjectType with an ownerFunction
+	if pot, ok := t.(*jstype.PrototypeObjectType); ok {
+		ownerFn := pot.GetOwnerFunction()
+		if ownerFn != nil {
+			if !ownerFn.IsConstructor && !ownerFn.IsInterface() {
+				return nil
+			}
+			if linkToCtor {
+				return st.GetSymbolDeclaredByFn(ownerFn)
+			}
+			return st.GetSymbolForInstancesOfFn(ownerFn)
+		}
+		// Fall through to autoboxesTo / symbolThatDeclaresType.
+		autoboxed := jstype.AutoboxesTo(t)
+		if autoboxed != nil {
+			return st.stGetSymbolForTypeHelper(autoboxed, linkToCtor)
+		}
 		return st.symbolThatDeclaresType[t]
-	case *jstype.EnumType:
-		return st.GetSymbolDeclaredByEnum(v)
+	}
+	// isInstanceType: InstanceObjectType
+	if iot, ok := t.(*jstype.InstanceObjectType); ok {
+		ownerFn := iot.GetConstructor()
+		if linkToCtor {
+			return st.GetSymbolDeclaredByFn(ownerFn)
+		}
+		return st.GetSymbolForInstancesOfFn(ownerFn)
+	}
+	// isEnumType
+	if et, ok := t.(*jstype.EnumType); ok {
+		return st.GetSymbolDeclaredByEnum(et)
+	}
+	// isRecordType
+	if jstype.IsRecordType(t) {
+		return st.symbolThatDeclaresType[t]
+	}
+	// autoboxesTo
+	autoboxed := jstype.AutoboxesTo(t)
+	if autoboxed != nil {
+		return st.stGetSymbolForTypeHelper(autoboxed, linkToCtor)
 	}
 	return nil
 }
@@ -514,8 +545,8 @@ func (st *SymbolTable) ToDebugStringTree() string {
 	return b.String()
 }
 
-// TODO(port): SymbolTable.java:toDebugStringTree — port gap; Go naming differs from Java private helper
-// Reason: port gap — Java uses a private recursive helper; Go uses prefix parameter variant.
+// stDebugStringTree mirrors private toDebugStringTree(StringBuilder, String, SymbolScope,
+// ImmutableListMultimap) in Java. Go passes the children map directly.
 func (st *SymbolTable) stDebugStringTree(
 	b *strings.Builder,
 	prefix string,
@@ -560,8 +591,10 @@ func (st *SymbolTable) ToDebugString() string {
 	return b.String()
 }
 
-// TODO(port): SymbolTable.java:toDebugString — port gap; Go naming differs from Java private helper
-// Reason: port gap — Java uses a private debug helper; Go uses prefix/indent parameter variant.
+// stDebugString mirrors private toDebugString(StringBuilder, String, Symbol, boolean) in Java.
+// Node.getSourceFileName() and Node.getLength()/isIndexable() are not yet ported;
+// those fields are omitted from the format string.
+// TODO: extend rhino.Node with source-file metadata and length/indexable fields.
 func (st *SymbolTable) stDebugString(
 	b *strings.Builder,
 	prefix string,
@@ -630,9 +663,10 @@ func (st *SymbolTable) AddAnonymousFunctions() {
 }
 
 // stLexicalScopeLess orders lexical scopes by root-node source position then
-// by depth. Mirrors lexicalScopeOrdering in Java.
-// TODO(port): SymbolTable.java:lexicalScopeOrdering — port gap; Java uses Comparator; Go uses comparison function
-// Reason: port gap — comparator pattern not fully translated.
+// by depth. Mirrors the lexicalScopeOrdering Comparator in Java.
+// Node.getSourceFileName() is not yet ported so cross-file ordering is omitted;
+// within-file ordering uses lineno*10000+charno as a source-position proxy.
+// TODO: use Node.getSourceFileName() once source-file metadata is ported.
 func (st *SymbolTable) stLexicalScopeLess(a, b *SymbolScope) bool {
 	an, bn := a.GetRootNode(), b.GetRootNode()
 	pa := an.Lineno()*10000 + an.Charno()
@@ -643,8 +677,11 @@ func (st *SymbolTable) stLexicalScopeLess(a, b *SymbolScope) bool {
 	return a.GetScopeDepth() < b.GetScopeDepth()
 }
 
-// TODO(port): SymbolTable.java:addAnonymousFunctionsInScope — port gap; Go naming differs from Java private method
-// Reason: port gap — Java uses a private traversal helper; Go naming deviates.
+// stAddAnonymousFunctionsInScope mirrors private addAnonymousFunctionsInScope(SymbolScope) in Java.
+// rootNode.getJSType() and rootNode.isFromExterns() are not yet ported; JSType is nil and
+// isFromExterns is conservatively treated as false (anonymous functions in extern files
+// may be named even when they shouldn't be).
+// TODO: extend rhino.Node with JSType slot and isFromExterns flag.
 func (st *SymbolTable) stAddAnonymousFunctionsInScope(scope *SymbolScope) {
 	sym := st.GetSymbolForScope(scope)
 	if sym != nil {
@@ -700,8 +737,7 @@ func (st *SymbolTable) AddSymbolsFrom(otherSymbolTable StaticSymbolTable) {
 	}
 }
 
-// TODO(port): SymbolTable.java:isAnySymbolDeclared — port gap; Go naming differs from Java private method
-// Reason: port gap — Java uses a private helper; Go naming deviates.
+// stIsAnySymbolDeclared mirrors private isAnySymbolDeclared(String, Node, SymbolScope) in Java.
 func (st *SymbolTable) stIsAnySymbolDeclared(
 	name string, declNode *rhino.Node, scope *SymbolScope,
 ) *Symbol {
@@ -712,8 +748,7 @@ func (st *SymbolTable) stIsAnySymbolDeclared(
 	return sym
 }
 
-// TODO(port): SymbolTable.java:findBestDeclToAdd — port gap; Go naming differs from Java private method
-// Reason: port gap — Java uses a private helper; Go naming deviates.
+// stFindBestDeclToAdd mirrors private findBestDeclToAdd(StaticSymbolTable, StaticSlot) in Java.
 func (st *SymbolTable) stFindBestDeclToAdd(
 	table StaticSymbolTable, slot StaticSlot,
 ) StaticRef {
@@ -729,21 +764,19 @@ func (st *SymbolTable) stFindBestDeclToAdd(
 	return nil
 }
 
-// TODO(port): SymbolTable.java:isGoodRefToAdd — port gap; Go naming differs from Java private method
-// Reason: port gap — Java uses a private filter helper; Go naming deviates.
+// stIsGoodRefToAdd mirrors private isGoodRefToAdd(StaticRef) in Java.
+// The full Java check also requires ref.getNode().getStaticSourceFile() != null,
+// NodeUtil.isInSyntheticScript, and NodeUtil.isGoogProvideCall, none of which
+// are yet ported. Those checks are conservatively omitted (all refs pass).
+// TODO: port Node.getStaticSourceFile(), NodeUtil.isInSyntheticScript, NodeUtil.isGoogProvideCall
 func (st *SymbolTable) stIsGoodRefToAdd(ref StaticRef) bool {
 	if ref == nil || ref.GetNode() == nil {
 		return false
 	}
-	// TODO: ref.getNode().getStaticSourceFile() / NodeUtil.isInSyntheticScript /
-	// NodeUtil.isGoogProvideCall not ported.
-	// TODO: port com/google/javascript/jscomp/NodeUtil.isInSyntheticScript
-	// TODO: port com/google/javascript/jscomp/NodeUtil.isGoogProvideCall
 	return true
 }
 
-// TODO(port): SymbolTable.copySymbolTo from com/google/javascript/jscomp/SymbolTable.java:697
-// Reason: Go renamed but did not port the body faithfully.
+// stCopySymbolTo mirrors private copySymbolTo(StaticSlot, Node, SymbolScope) in Java.
 func (st *SymbolTable) stCopySymbolTo(sym StaticSlot, declNode *rhino.Node, scope *SymbolScope) *Symbol {
 	if declNode == nil {
 		panic("symboltable: copySymbolTo: declNode must not be nil")
@@ -758,10 +791,7 @@ func (st *SymbolTable) stCopySymbolTo(sym StaticSlot, declNode *rhino.Node, scop
 	)
 }
 
-// stSanitizeSpecialChars replaces backslash, NUL, and newline.
-// Mirrors sanitizeSpecialChars(String) in Java.
-// TODO(port): SymbolTable.sanitizeSpecialChars from com/google/javascript/jscomp/SymbolTable.java:708
-// Reason: Go renamed but did not port the body faithfully.
+// stSanitizeSpecialChars mirrors private static sanitizeSpecialChars(String) in Java.
 func stSanitizeSpecialChars(s string) string {
 	s = strings.ReplaceAll(s, "\\", "\\\\")
 	s = strings.ReplaceAll(s, "\x00", "\\0")
@@ -769,8 +799,7 @@ func stSanitizeSpecialChars(s string) string {
 	return s
 }
 
-// TODO(port): SymbolTable.addSymbol from com/google/javascript/jscomp/SymbolTable.java:712
-// Reason: Go renamed but did not port the body faithfully.
+// stAddSymbol mirrors private addSymbol(String, JSType, boolean, SymbolScope, Node) in Java.
 func (st *SymbolTable) stAddSymbol(
 	name string,
 	t jstype.JSType,
@@ -798,8 +827,7 @@ func (st *SymbolTable) stAddSymbol(
 	return symbol
 }
 
-// TODO(port): SymbolTable.declareSymbol from com/google/javascript/jscomp/SymbolTable.java:727
-// Reason: Go renamed but did not port the body faithfully.
+// stDeclareSymbol mirrors private declareSymbol(String, JSType, boolean, SymbolScope, Node, JSDocInfo) in Java.
 func (st *SymbolTable) stDeclareSymbol(
 	name string,
 	t jstype.JSType,
@@ -814,10 +842,7 @@ func (st *SymbolTable) stDeclareSymbol(
 	return symbol
 }
 
-// stMergeSymbol moves all references from `from` to `to` and removes `from`.
-// Mirrors mergeSymbol(Symbol, Symbol) in Java.
-// TODO(port): SymbolTable.mergeSymbol from com/google/javascript/jscomp/SymbolTable.java:744
-// Reason: Go renamed but did not port the body faithfully.
+// stMergeSymbol mirrors private mergeSymbol(Symbol, Symbol) in Java.
 func (st *SymbolTable) stMergeSymbol(from, to *Symbol) {
 	fromDecl := from.GetDeclaration()
 	for node := range from.references {
@@ -828,8 +853,7 @@ func (st *SymbolTable) stMergeSymbol(from, to *Symbol) {
 	st.stRemoveSymbol(from)
 }
 
-// TODO(port): SymbolTable.removeSymbol from com/google/javascript/jscomp/SymbolTable.java:753
-// Reason: Go renamed but did not port the body faithfully.
+// stRemoveSymbol mirrors private removeSymbol(Symbol) in Java.
 func (st *SymbolTable) stRemoveSymbol(s *Symbol) {
 	scope := st.GetScope(s)
 	if scope.ownSymbols[s.GetName()] != s {
@@ -858,8 +882,7 @@ func (st *SymbolTable) stRemoveSymbol(s *Symbol) {
 	}
 }
 
-// TODO(port): SymbolTable.renameSymbol from com/google/javascript/jscomp/SymbolTable.java:776
-// Reason: Go renamed but did not port the body faithfully.
+// stRenameSymbol mirrors private renameSymbol(SymbolScope, Symbol, String) in Java.
 func (st *SymbolTable) stRenameSymbol(scope *SymbolScope, sym *Symbol, newName string) {
 	if sym.propertyScope != nil {
 		panic("symboltable: renameSymbol: symbol has a property scope")
