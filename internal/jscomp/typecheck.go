@@ -2680,6 +2680,15 @@ func isBitwiseableTypeViolation(t jstype.JSType, bitwiseable jstype.JSType) bool
 	if t == nil || t == jstype.Unknown || t == jstype.All {
 		return false
 	}
+	// JS primitive wrapper objects (Number, Boolean, String) match number/
+	// string/boolean context in Java's type system. Java's JSType.isNumber()
+	// and JSType.matchesNumberContext() return true for Number objects.
+	// We approximate this by name: if the type is named "Number", "Boolean",
+	// or "String" (capital first letter = wrapper object), treat as matching.
+	name := t.TypeName()
+	if name == "Number" || name == "Boolean" || name == "String" {
+		return false
+	}
 	return !tvMatchesNumberContext(t) && !jstype.IsSubtype(t, bitwiseable)
 }
 
