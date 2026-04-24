@@ -3,6 +3,8 @@
 
 package trees
 
+import "fmt"
+
 // SourcePosition represents an offset within a source file.
 // Stub — full implementation lives in a future port of
 // com/google/javascript/jscomp/parsing/parser/util/SourcePosition.java.
@@ -187,9 +189,24 @@ type ParseTree struct {
 	Location SourceRange
 }
 
-// NewParseTree constructs a ParseTree node with the given type and location.
+// Go-only: NewParseTree replaces Java's protected constructor `ParseTree(ParseTreeType, SourceRange)`.
 func NewParseTree(typ ParseTreeType, location SourceRange) *ParseTree {
 	return &ParseTree{Type: typ, Location: location}
+}
+
+// GetStart mirrors ParseTree.getStart() — returns the start position of the tree's source range.
+func (t *ParseTree) GetStart() SourcePosition {
+	return t.Location.Start
+}
+
+// GetEnd mirrors ParseTree.getEnd() — returns the end position of the tree's source range.
+func (t *ParseTree) GetEnd() SourcePosition {
+	return t.Location.End
+}
+
+// ToString mirrors ParseTree.toString() — returns "type@location" for debugging.
+func (t *ParseTree) ToString() string {
+	return fmt.Sprintf("%v@%v-%v", t.Type, t.Location.Start, t.Location.End)
 }
 
 // LiteralToken is a stub placeholder for the full Java LiteralToken class.

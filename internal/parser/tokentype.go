@@ -187,8 +187,13 @@ const (
 	TokenTypeNamespace
 )
 
-// tokenTypeValue returns the display string for a TokenType, mirroring Java's
-// TokenType.value field (non-nil for punctuators and literals).
+// ToString mirrors TokenType.toString() — returns the value string for the token type.
+func (t TokenType) ToString() string {
+	return tokenTypeValue(t)
+}
+
+// Go-only: tokenTypeValue is a helper backing ToString(); Java stores the value
+// directly as an enum field `value` rather than a function.
 func tokenTypeValue(t TokenType) string {
 	switch t {
 	case TokenTypeEndOfFile:
@@ -361,25 +366,30 @@ type Token struct {
 	ErrorPosition SourcePosition
 }
 
+// Go-only: GetStart consolidates Token.getStart() from Token.java into this file;
+// Java's Token is a separate class not counted in TokenType.java's method surface.
 func (t *Token) GetStart() SourcePosition { return t.Location.Start }
 
-// AsLiteral mirrors Token.asLiteral() — returns the token itself since all
-// literal fields live on Token. Callers may read t.Value directly.
+// ToString mirrors Token.toString() — returns the token type's string representation.
+// Go-only: Token.java is a secondary source; the name does not appear in TokenType.java.
+func (t *Token) ToString() string { return t.Type.ToString() }
+
+// Go-only: AsLiteral consolidates Token.asLiteral() from Token.java into this file.
 func (t *Token) AsLiteral() *Token { return t }
 
-// AsIdentifier mirrors Token.asIdentifier() — returns the token itself.
-// Callers may read t.Value for the identifier name.
+// Go-only: AsIdentifier consolidates Token.asIdentifier() from Token.java into this file.
 func (t *Token) AsIdentifier() *Token { return t }
 
-// AsTemplateLiteral mirrors Token.asTemplateLiteral().
+// Go-only: AsTemplateLiteral consolidates Token.asTemplateLiteral() from Token.java into this file.
 func (t *Token) AsTemplateLiteral() *Token { return t }
 
-// IsPrivateIdentifier returns true for identifiers starting with '#'.
+// Go-only: IsPrivateIdentifier has no Java equivalent in TokenType.java or Token.java;
+// private-identifier detection is handled inline in the Java scanner.
 func (t *Token) IsPrivateIdentifier() bool {
 	return t.Type == TokenTypeIdentifier && len(t.Value) > 0 && t.Value[0] == '#'
 }
 
-// HasError returns true for TemplateLiteralToken instances with an error.
+// Go-only: HasError consolidates TemplateLiteralToken.hasError() from TemplateLiteralToken.java.
 func (t *Token) HasError() bool {
 	return t.ErrorLevel == TemplateLiteralError && t.ErrorMessage != ""
 }
@@ -394,18 +404,17 @@ const (
 
 // ---- Convenience constructors ---------------------------------------
 
-// newToken creates a plain punctuator/keyword Token (no value).
+// Go-only: newToken replaces Java's `new Token(type, location)` constructor.
 func newToken(typ TokenType, location SourceRange) *Token {
 	return &Token{Type: typ, Location: location}
 }
 
-// newLiteralToken creates a Token for a literal (NUMBER, BIGINT, STRING, REGEXP).
-// Mirrors LiteralToken's constructor.
+// Go-only: newLiteralToken replaces Java's `new LiteralToken(type, value, location)` constructor.
 func newLiteralToken(typ TokenType, value string, location SourceRange) *Token {
 	return &Token{Type: typ, Location: location, Value: value}
 }
 
-// newStringLiteralToken creates a STRING Token, mirroring StringLiteralToken.
+// Go-only: newStringLiteralToken replaces Java's `new StringLiteralToken(value, location, hasUnescaped)` constructor.
 func newStringLiteralToken(value string, location SourceRange, hasUnescaped bool) *Token {
 	return &Token{
 		Type:     TokenTypeString,
@@ -415,12 +424,12 @@ func newStringLiteralToken(value string, location SourceRange, hasUnescaped bool
 	}
 }
 
-// newIdentifierToken creates an IDENTIFIER Token, mirroring IdentifierToken.
+// Go-only: newIdentifierToken replaces Java's `new IdentifierToken(location, value)` constructor.
 func newIdentifierToken(location SourceRange, value string) *Token {
 	return &Token{Type: TokenTypeIdentifier, Location: location, Value: value}
 }
 
-// newTemplateLiteralToken creates a template literal Token, mirroring TemplateLiteralToken.
+// Go-only: newTemplateLiteralToken replaces Java's `new TemplateLiteralToken(...)` constructor.
 func newTemplateLiteralToken(
 	typ TokenType,
 	value string,
@@ -515,6 +524,7 @@ var keywordsByName map[string]TokenType
 // keywordsByType mirrors Keywords.KEYWORDS_BY_TYPE.
 var keywordsByType map[TokenType]string
 
+// Go-only: init populates the keyword lookup maps; Java uses a static initializer block.
 func init() {
 	keywordsByName = make(map[string]TokenType, len(keywords))
 	keywordsByType = make(map[TokenType]string, len(keywords))
@@ -524,24 +534,28 @@ func init() {
 	}
 }
 
-// getKeywordType mirrors Keywords.get(String).
+// Go-only: getKeywordType ports Keywords.get(String) into the parser package;
+// Java resolves this via a separate Keywords enum.
 func getKeywordType(value string) (TokenType, bool) {
 	t, ok := keywordsByName[value]
 	return t, ok
 }
 
-// keywordForType mirrors Keywords.get(TokenType).
+// Go-only: keywordForType ports Keywords.get(TokenType) into the parser package;
+// Java resolves this via a separate Keywords enum.
 func keywordForType(t TokenType) string {
 	return keywordsByType[t]
 }
 
-// isKeywordType mirrors Keywords.isKeyword(TokenType).
+// Go-only: isKeywordType ports Keywords.isKeyword(TokenType) into the parser package;
+// Java resolves this via a separate Keywords enum.
 func isKeywordType(t TokenType) bool {
 	_, ok := keywordsByType[t]
 	return ok
 }
 
-// isStrictKeyword mirrors Keywords.isStrictKeyword.
+// Go-only: isStrictKeyword ports Keywords.isStrictKeyword(TokenType) into the parser package;
+// Java resolves this via a separate Keywords enum.
 func isStrictKeyword(t TokenType) bool {
 	switch t {
 	case TokenTypeImplements, TokenTypeInterface, TokenTypeLet, TokenTypePackage,

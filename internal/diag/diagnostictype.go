@@ -18,29 +18,32 @@ type DiagnosticType struct {
 	Level CheckLevel
 }
 
-// Error creates a DiagnosticType at CheckLevel ERROR.
+// Go-only: DiagnosticTypeError ports DiagnosticType.error(String, String) using the
+// package-qualified naming convention; Java's static method is named just `error`.
 func DiagnosticTypeError(name, descriptionFormat string) *DiagnosticType {
 	return DiagnosticTypeMake(name, CheckLevelError, descriptionFormat)
 }
 
-// Warning creates a DiagnosticType at CheckLevel WARNING.
+// Go-only: DiagnosticTypeWarning ports DiagnosticType.warning(String, String) using the
+// package-qualified naming convention; Java's static method is named just `warning`.
 func DiagnosticTypeWarning(name, descriptionFormat string) *DiagnosticType {
 	return DiagnosticTypeMake(name, CheckLevelWarning, descriptionFormat)
 }
 
-// Disabled creates a DiagnosticType at CheckLevel OFF.
+// Go-only: DiagnosticTypeDisabled ports DiagnosticType.disabled(String, String) using the
+// package-qualified naming convention; Java's static method is named just `disabled`.
 func DiagnosticTypeDisabled(name, descriptionFormat string) *DiagnosticType {
 	return DiagnosticTypeMake(name, CheckLevelOff, descriptionFormat)
 }
 
-// DiagnosticTypeMake is the general factory — mirrors Java's DiagnosticType.make.
+// Go-only: DiagnosticTypeMake ports DiagnosticType.make(String, CheckLevel, String) using the
+// package-qualified naming convention; Java's static method is named just `make`.
 func DiagnosticTypeMake(name string, level CheckLevel, descriptionFormat string) *DiagnosticType {
 	return &DiagnosticType{Key: name, Level: level, Format: descriptionFormat}
 }
 
-// FormatMessage substitutes positional arguments into a java.text.MessageFormat
-// template. Only the simple {N} positional form is supported (no choice/date
-// sub-formats). Matches Platform.formatMessage used by Java's DiagnosticType.format.
+// Go-only: FormatMessage ports DiagnosticType.format(String...) under a different name
+// to avoid shadowing the Format field; Java's method is named just `format`.
 func (dt *DiagnosticType) FormatMessage(arguments ...string) string {
 	result := dt.Format
 	for i, arg := range arguments {
@@ -51,7 +54,7 @@ func (dt *DiagnosticType) FormatMessage(arguments ...string) string {
 	return result
 }
 
-// replaceAll replaces all occurrences of old with new_ in s.
+// Go-only: replaceAll is a string-replacement helper; Java uses java.text.MessageFormat.
 func replaceAll(s, old, new_ string) string {
 	if old == "" {
 		return s
@@ -69,6 +72,7 @@ func replaceAll(s, old, new_ string) string {
 	return out
 }
 
+// Go-only: indexOf is a string-search helper used by replaceAll; Java uses String.indexOf.
 func indexOf(s, sub string) int {
 	for i := 0; i <= len(s)-len(sub); i++ {
 		if s[i:i+len(sub)] == sub {
@@ -78,6 +82,35 @@ func indexOf(s, sub string) int {
 	return -1
 }
 
+// Equals mirrors DiagnosticType.equals(Object) — two DiagnosticTypes are equal iff their keys match.
+func (dt *DiagnosticType) Equals(other *DiagnosticType) bool {
+	if other == nil {
+		return false
+	}
+	return dt.Key == other.Key
+}
+
+// HashCode mirrors DiagnosticType.hashCode() — returns a hash of the key string.
+func (dt *DiagnosticType) HashCode() int {
+	h := 0
+	for _, c := range dt.Key {
+		h = 31*h + int(c)
+	}
+	return h
+}
+
+// CompareTo mirrors DiagnosticType.compareTo(DiagnosticType) — lexicographic key comparison.
+func (dt *DiagnosticType) CompareTo(other *DiagnosticType) int {
+	if dt.Key < other.Key {
+		return -1
+	}
+	if dt.Key > other.Key {
+		return 1
+	}
+	return 0
+}
+
+// String mirrors DiagnosticType.toString().
 func (dt *DiagnosticType) String() string {
 	return dt.Key + ": " + dt.Format
 }
@@ -92,6 +125,7 @@ const (
 	CheckLevelError                     // ERROR: emit as error
 )
 
+// Go-only: IsOn is a convenience predicate absent from the Java CheckLevel enum.
 func (cl CheckLevel) IsOn() bool {
 	return cl != CheckLevelOff
 }

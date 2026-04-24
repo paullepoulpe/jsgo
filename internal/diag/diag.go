@@ -15,6 +15,8 @@ package diag
 
 import "fmt"
 
+// Go-only: Level is a simplified severity enum used by the pre-JSError diagnostics pipeline.
+// Java uses CheckLevel (in diagnostictype.go) for the same purpose.
 type Level int
 
 const (
@@ -22,6 +24,7 @@ const (
 	Error
 )
 
+// Go-only: Level.String is a convenience method; Java uses CheckLevel.toString().
 func (l Level) String() string {
 	if l == Error {
 		return "ERROR"
@@ -29,6 +32,8 @@ func (l Level) String() string {
 	return "WARNING"
 }
 
+// Go-only: Diagnostic is a lightweight struct used by the pre-JSError diagnostics pipeline.
+// The Java equivalent is JSError (see jserror.go).
 type Diagnostic struct {
 	Path    string
 	Line    int // 1-indexed, matches Java Node.getLineno()
@@ -38,12 +43,44 @@ type Diagnostic struct {
 	Message string
 }
 
-// FormatJavaLike reproduces the shape of Closure Compiler's default
+// Go-only: FormatJavaLike reproduces the shape of Closure Compiler's default
 // output ("<path>:<line>:<col>: <LEVEL> - [<CODE>] <msg>"). Strings are
 // not part of the conformance check (see SPEC.md), but matching the shape
 // keeps the CLI comfortable to use.
 func (d Diagnostic) FormatJavaLike() string {
 	return fmt.Sprintf("%s:%d:%d: %s - [%s] %s", d.Path, d.Line, d.Col, d.Level, d.Code, d.Message)
+}
+
+// GetDescription mirrors JSError.getDescription() — returns the formatted error message.
+func (d Diagnostic) GetDescription() string { return d.Message }
+
+// GetSourceName mirrors JSError.getSourceName() — returns the source file name.
+func (d Diagnostic) GetSourceName() string { return d.Path }
+
+// GetLineno mirrors JSError.getLineno() — returns the 1-indexed line number.
+func (d Diagnostic) GetLineno() int { return d.Line }
+
+// GetCharno mirrors JSError.getCharno() — returns the 0-indexed character offset within the line.
+func (d Diagnostic) GetCharno() int { return d.Col }
+
+// GetLineNumber mirrors JSError.getLineNumber() — alias for GetLineno().
+func (d Diagnostic) GetLineNumber() int { return d.Line }
+
+// ToString mirrors JSError.toString() — returns a human-readable diagnostic string.
+func (d Diagnostic) ToString() string {
+	srcName := d.Path
+	if srcName == "" {
+		srcName = "(unknown source)"
+	}
+	lineno := "(unknown line)"
+	if d.Line != 0 {
+		lineno = fmt.Sprintf("%d", d.Line)
+	}
+	charno := "(unknown column)"
+	if d.Col >= 0 {
+		charno = fmt.Sprintf("%d", d.Col)
+	}
+	return d.Code + ". " + d.Message + " at " + srcName + " line " + lineno + " : " + charno
 }
 
 // Well-known diagnostic codes. Add new ones as the corpus grows. Codes

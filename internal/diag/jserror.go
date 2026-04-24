@@ -47,39 +47,85 @@ type JSError = Diagnostic
 // Factory functions — mirror Java's JSError.make overloads
 // ---------------------------------------------------------------------------
 
-// MakeJSError creates a JSError (Diagnostic) from a DiagnosticType and
-// formatted arguments. Mirrors Java's JSError.make(DiagnosticType, String...).
+// Make mirrors JSError.make(DiagnosticType, String...) — creates a JSError with no source info.
+func Make(dt *DiagnosticType, arguments ...string) JSError {
+	return BuilderFor(dt, arguments...).Build()
+}
+
+// Go-only: MakeAt is a convenience wrapper for JSError.make(String, int, int, DiagnosticType, String...);
+// Java names this overload `make` (same as other overloads), but Go needs a distinct name.
+func MakeAt(sourceName string, lineno, charno int, dt *DiagnosticType, arguments ...string) JSError {
+	return BuilderFor(dt, arguments...).SetSourceLocation(sourceName, lineno, charno).Build()
+}
+
+// Go-only: MakeJSError is the older name for Make; kept for callers that predate the Java-parity rename.
 func MakeJSError(dt *DiagnosticType, arguments ...string) JSError {
-	msg := dt.FormatMessage(arguments...)
-	lvl := levelFromCheckLevel(dt.Level)
-	return JSError{
-		Code:    dt.Key,
-		Level:   lvl,
-		Message: msg,
-	}
+	return Make(dt, arguments...)
 }
 
-// MakeJSErrorAt creates a JSError at a specific source location.
-// Mirrors Java's JSError.make(String, int, int, DiagnosticType, String...).
+// Go-only: MakeJSErrorAt is the older name for MakeAt; kept for backward compatibility.
 func MakeJSErrorAt(sourceName string, lineno, charno int, dt *DiagnosticType, arguments ...string) JSError {
-	msg := dt.FormatMessage(arguments...)
-	lvl := levelFromCheckLevel(dt.Level)
-	return JSError{
-		Path:    sourceName,
-		Line:    lineno,
-		Col:     charno,
-		Code:    dt.Key,
-		Level:   lvl,
-		Message: msg,
-	}
+	return MakeAt(sourceName, lineno, charno, dt, arguments...)
 }
 
-// levelFromCheckLevel converts a CheckLevel to the Level enum used by Diagnostic.
+// Go-only: levelFromCheckLevel converts a CheckLevel to the Level enum used by Diagnostic.
 func levelFromCheckLevel(cl CheckLevel) Level {
 	if cl == CheckLevelError {
 		return Error
 	}
 	return Warning
+}
+
+// GetDescription mirrors JSError.getDescription() — returns the formatted error message.
+func GetDescription(e JSError) string { return e.Message }
+
+// GetSourceName mirrors JSError.getSourceName() — returns the source file name.
+func GetSourceName(e JSError) string { return e.Path }
+
+// GetLineno mirrors JSError.getLineno() — returns the 1-indexed line number.
+func GetLineno(e JSError) int { return e.Line }
+
+// GetCharno mirrors JSError.getCharno() — returns the 0-indexed character offset.
+func GetCharno(e JSError) int { return e.Col }
+
+// GetLineNumber mirrors JSError.getLineNumber() — alias for GetLineno.
+func GetLineNumber(e JSError) int { return e.Line }
+
+// GetLength mirrors JSError.getLength() — returns the error region length in characters.
+// Go-only partial: Go's Diagnostic does not track length; returns 0.
+func GetLength(e JSError) int { return 0 }
+
+// GetNodeSourceOffset mirrors JSError.getNodeSourceOffset() — returns -1 (no node in Go port).
+func GetNodeSourceOffset(e JSError) int { return -1 }
+
+// Format mirrors JSError.format(CheckLevel, MessageFormatter) — formats this error for output.
+func Format(e JSError, level CheckLevel, formatter MessageFormatter) string {
+	switch level {
+	case CheckLevelError:
+		return formatter.FormatError(e)
+	case CheckLevelWarning:
+		return formatter.FormatWarning(e)
+	default:
+		return ""
+	}
+}
+
+// Go-only: JSErrorToString implements JSError.toString() as a package-level function;
+// Java uses the record's toString() method but Go can't add methods to a type alias.
+func JSErrorToString(e JSError) string {
+	srcName := e.Path
+	if srcName == "" {
+		srcName = "(unknown source)"
+	}
+	lineno := "(unknown line)"
+	if e.Line != DefaultLineno {
+		lineno = fmt.Sprintf("%d", e.Line)
+	}
+	charno := "(unknown column)"
+	if e.Col != DefaultCharno {
+		charno = fmt.Sprintf("%d", e.Col)
+	}
+	return e.Code + ". " + e.Message + " at " + srcName + " line " + lineno + " : " + charno
 }
 
 // ---------------------------------------------------------------------------
@@ -100,9 +146,8 @@ type JSErrorBuilder struct {
 	// in JSErrorFull for passes that need them.
 }
 
-// BuilderFor returns a new JSErrorBuilder for the given DiagnosticType.
-// Mirrors Java's JSError.builder(DiagnosticType, String...).
-func BuilderFor(dt *DiagnosticType, args ...string) *JSErrorBuilder {
+// Builder mirrors JSError.builder(DiagnosticType, String...) — returns a new JSErrorBuilder.
+func Builder(dt *DiagnosticType, args ...string) *JSErrorBuilder {
 	return &JSErrorBuilder{
 		dt:     dt,
 		args:   args,
@@ -111,6 +156,11 @@ func BuilderFor(dt *DiagnosticType, args ...string) *JSErrorBuilder {
 		charno: DefaultCharno,
 		length: DefaultLength,
 	}
+}
+
+// Go-only: BuilderFor is the older name for Builder; kept for callers that predate the rename.
+func BuilderFor(dt *DiagnosticType, args ...string) *JSErrorBuilder {
+	return Builder(dt, args...)
 }
 
 // SetSourceLocation sets the file/line/col. Mirrors Java's
@@ -126,6 +176,30 @@ func (b *JSErrorBuilder) SetSourceLocation(sourceName string, lineno, charno int
 // JSError.Builder.setLevel(CheckLevel).
 func (b *JSErrorBuilder) SetLevel(level CheckLevel) *JSErrorBuilder {
 	b.level = level
+	return b
+}
+
+// SetNode mirrors JSError.Builder.setNode — sets source location from a node.
+// Go-only partial: Go's Node equivalent is not yet fully ported; stores source name and position.
+func (b *JSErrorBuilder) SetNode(sourceName string, lineno, charno int) *JSErrorBuilder {
+	b.sourceName = sourceName
+	b.lineno = lineno
+	b.charno = charno
+	return b
+}
+
+// SetNodeRange mirrors JSError.Builder.setNodeRange — sets source location from a node range.
+// Go-only partial: Go's Node equivalent is not yet fully ported.
+func (b *JSErrorBuilder) SetNodeRange(sourceName string, lineno, charno int) *JSErrorBuilder {
+	b.sourceName = sourceName
+	b.lineno = lineno
+	b.charno = charno
+	return b
+}
+
+// SetRequirement mirrors JSError.Builder.setRequirement — attaches a conformance requirement.
+// Go-only partial: conformance requirements are not yet ported; this is a no-op.
+func (b *JSErrorBuilder) SetRequirement() *JSErrorBuilder {
 	return b
 }
 

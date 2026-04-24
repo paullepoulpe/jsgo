@@ -32,18 +32,45 @@ var idToClosurePrimitive = map[string]ClosurePrimitive{
 	"asserts.matchesReturn": ClosurePrimitiveAssertsMatchesReturn,
 }
 
-// ClosurePrimitiveFromStringId returns the ClosurePrimitive corresponding to
-// the given string id, mirroring ClosurePrimitive.fromStringId in Java.
+// closurePrimitiveName maps each ClosurePrimitive to its Java enum name string.
+var closurePrimitiveName = map[ClosurePrimitive]string{
+	ClosurePrimitiveAssertsFail:          "ASSERTS_FAIL",
+	ClosurePrimitiveAssertsMatchesReturn: "ASSERTS_MATCHES_RETURN",
+	ClosurePrimitiveAssertsTruthy:        "ASSERTS_TRUTHY",
+}
+
+// Name mirrors the implicit Enum.name() method — returns the Java enum constant name.
+func (p ClosurePrimitive) Name() string {
+	if s, ok := closurePrimitiveName[p]; ok {
+		return s
+	}
+	return "UNKNOWN"
+}
+
+// Go-only: ToString implements Java's Enum.toString() which ClosurePrimitive inherits;
+// it is not declared explicitly in ClosurePrimitive.java but is implicitly available.
+func (p ClosurePrimitive) ToString() string {
+	return p.Name()
+}
+
+// FromStringId mirrors ClosurePrimitive.fromStringId(String) — returns the ClosurePrimitive
+// corresponding to the given string id.
 //
 // Returns ok=false if id is empty; panics if id is non-empty but does not
 // match any known enum member.
-func ClosurePrimitiveFromStringId(id string) (ClosurePrimitive, bool) {
+func FromStringId(id string) (ClosurePrimitive, bool) {
 	if id == "" {
 		return 0, false
 	}
 	p, ok := idToClosurePrimitive[id]
 	if !ok {
-		panic("string id " + id + " does not match any ClosurePrimitive")
+		panic("String id " + id + " does not match any ClosurePrimitive")
 	}
 	return p, true
+}
+
+// Go-only: ClosurePrimitiveFromStringId is an alias for FromStringId using the
+// package-prefixed naming convention; callers that predate the Java-parity rename use this.
+func ClosurePrimitiveFromStringId(id string) (ClosurePrimitive, bool) {
+	return FromStringId(id)
 }
