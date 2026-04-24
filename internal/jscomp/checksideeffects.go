@@ -35,17 +35,44 @@ func NewCheckSideEffects(path string) *CheckSideEffects {
 	return &CheckSideEffects{path: path, analyzer: NewAstAnalyzer()}
 }
 
-// Check walks the AST firing JSC_USELESS_CODE at every EXPR_RESULT
-// whose contained expression is observably pure.
-// Mirrors Java's process(Node externs, Node root):
+// process mirrors Java's CompilerPass.process(Node externs, Node root):
 //  1. GetNoSideEffectExterns sub-pass collects @nosideeffects names.
 //  2. Main traversal fires diagnostics.
-func (c *CheckSideEffects) Check(script *rhino.Node) []diag.Diagnostic {
-	c.diags = nil
+//  3. Optionally protect side-effect free code for dead-code elimination.
+func (c *CheckSideEffects) process(script *rhino.Node) {
 	c.noSEFns = make(map[string]bool)
 	c.collectNoSideEffectFns(script)
 	c.visit(script)
+	// protectSideEffects is skipped in this port (requires full compiler infrastructure).
+}
+
+// Check walks the AST firing JSC_USELESS_CODE at every EXPR_RESULT
+// whose contained expression is observably pure.
+// Go-only: Go entry point that wraps process() and returns diagnostics.
+func (c *CheckSideEffects) Check(script *rhino.Node) []diag.Diagnostic {
+	c.diags = nil
+	c.process(script)
 	return c.diags
+}
+
+// protectSideEffects mirrors Java's CheckSideEffects.protectSideEffects.
+// Wraps side-effect-free expressions in a JSCOMPILER_PRESERVE call so they
+// survive dead-code elimination. Skipped in this port — requires full compiler
+// node manipulation infrastructure.
+func (c *CheckSideEffects) protectSideEffects() {
+	// Not yet ported: requires compiler.reportChangeToEnclosingScope and IR.call infrastructure.
+	// Java: problemNodes are wrapped in JSCOMPILER_PRESERVE(expr) calls.
+	// protectSideEffectFreeCode flag must also be set in the Java constructor.
+	_ = c.noSEFns // suppress unused-in-stub warning
+}
+
+// addExtern mirrors Java's CheckSideEffects.addExtern (static method).
+// Injects the JSCOMPILER_PRESERVE extern into the synthetic externs so
+// optimizer passes know about it. Skipped in this port — requires a full
+// AbstractCompiler instance.
+func addExtern(c *CheckSideEffects) {
+	// Not yet ported: requires NodeUtil.createSynthesizedExternsSymbol(compiler, PROTECTOR_FN).
+	_ = c
 }
 
 // Go-only: merged scan (Java uses separate GetNoSideEffectExterns traversal pass)
