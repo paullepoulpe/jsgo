@@ -108,14 +108,15 @@ type TypeCheck struct {
 	scriptRoot *rhino.Node
 }
 
+// Go-only: language-adapter — Go's single-file package requires one constructor
+// per caller ABI; Java's TypeCheck has two overloaded constructors (lines 437, 452).
 func NewTypeCheck(path string, creator *TypedScopeCreator, global *TypedScope) *TypeCheck {
 	return NewTypeCheckWithOptions(path, creator, global, NewCompilerOptions())
 }
 
-// NewTypeCheckWithOptions is the per-options constructor, mirroring
-// Java's TypeCheck(AbstractCompiler, …). The options bag routes
-// per-DiagnosticGroup CheckLevel so strict-only validators stay
-// silent unless `strictCheckTypes` is set to WARNING / ERROR.
+// Go-only: language-adapter — Go does not support method overloading; this variant
+// carries the CompilerOptions bag that Java's constructor accepted implicitly via the
+// AbstractCompiler (TypeCheck.java:437–459).
 func NewTypeCheckWithOptions(path string, creator *TypedScopeCreator, global *TypedScope, opts *CompilerOptions) *TypeCheck {
 	if opts == nil {
 		opts = NewCompilerOptions()
@@ -129,12 +130,9 @@ func NewTypeCheckWithOptions(path string, creator *TypedScopeCreator, global *Ty
 	}
 }
 
-// SetUndeclaredNames injects the set of variable names that VarCheck
-// reported as undeclared. When the root receiver of a GETPROP is one
-// of these names, POSSIBLE_INEXISTENT_PROPERTY is suppressed — mirrors
-// Java's VarCheck.createSynthesizedExternVar() mechanism which adds
-// undeclared names to the externs scope so property accesses on them
-// are treated as extern-typed (AllType / open surface).
+// Go-only: package-bridge — injects undeclared names from VarCheck. Java routes this
+// through AbstractCompiler.createSynthesizedExternVar(); in Go the two passes share
+// a plain map since they run in the same process without a shared compiler object.
 func (c *TypeCheck) SetUndeclaredNames(names map[string]bool) {
 	c.undeclaredNames = names
 }
@@ -172,7 +170,9 @@ func (c *TypeCheck) Check(script *rhino.Node) []diag.Diagnostic {
 // emitJSDocParseWarnings walks the AST and emits diagnostics for JSDoc
 // parse warnings recorded during parsing: JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES
 // (from @template {B} T) and JSC_INVALID_PARAM (from invalid @param names).
-// Mirrors JsDocInfoParser.addParserWarning routed through RhinoErrorReporter.
+// Go-only: package-bridge — walks JSDoc parse errors that Java surfaces via
+// RhinoErrorReporter / JsDocInfoParser callbacks. In Go, rhino.JSDocInfo exposes
+// the positions directly, so TypeCheck walks them once at the top of Check().
 func (c *TypeCheck) emitJSDocParseWarnings(script *rhino.Node) {
 	var walk func(*rhino.Node)
 	walk = func(n *rhino.Node) {
@@ -203,11 +203,9 @@ func (c *TypeCheck) emitJSDocParseWarnings(script *rhino.Node) {
 	walk(script)
 }
 
-// collectFileSuppressions walks the script's JSDoc blocks for any
-// @fileoverview / stand-alone @suppress declarations and returns
-// the union of their suppression names. Mirrors Java's
-// CompilerPass.skipForSuppressedPath filter — diagnostics whose
-// code matches a file-level suppression are dropped silently.
+// Go-only: package-bridge — Java's CompilerPass base class carries a reference to
+// AbstractCompiler which exposes file-level suppressions via getSuppressedWarnings();
+// in Go we pre-scan the script's JSDoc once and pass the map to TypeCheck.
 func collectFileSuppressions(script *rhino.Node) map[string]bool {
 	out := map[string]bool{}
 	var walk func(n *rhino.Node)
@@ -230,27 +228,15 @@ func collectFileSuppressions(script *rhino.Node) map[string]bool {
 	return out
 }
 
-// collectPropertyWrites walks the script once before TypeCheck
-// runs, registering every `X.prop = …` where X resolves to a
-// nominal ObjectType. Java's TypedScopeCreator does this during
-// its own traversal; jsgo runs it here so every later
-// visitGetProp read has the full property surface available.
-// Only extends open (non-struct / non-structural) types — sealed
-// receivers keep their declared surface so the INEXISTENT /
-// ILLEGAL checks stay accurate.
-//
-// Delegates to collectPropertyWritesIn with the global scope so
-// that function bodies are entered with their correct local scopes
-// (parameter types visible), matching Java's per-scope traversal.
+// Go-only: package-bridge — Java's TypedScopeCreator already registers all property
+// writes during its own traversal so TypeCheck never needs a pre-pass; in Go the
+// scope creator's traversal is separated, so TypeCheck performs this walk itself.
 func (c *TypeCheck) collectPropertyWrites(n *rhino.Node) {
 	c.collectPropertyWritesIn(n, c.global)
 }
 
-// collectPropertyWritesIn is the scope-aware recursive worker for
-// collectPropertyWrites. When entering a FUNCTION node, it switches
-// to the function's parameter scope (from TypedScopeCreator.Functions)
-// so that `param.prop = value` assignments correctly resolve `param`
-// to its declared type and extend the ObjectType's surface.
+// Go-only: package-bridge — scope-aware worker for collectPropertyWrites; no Java
+// counterpart because Java's TypedScopeCreator handles this during its own pass.
 func (c *TypeCheck) collectPropertyWritesIn(n *rhino.Node, scope *TypedScope) {
 	if n == nil {
 		return
@@ -298,9 +284,9 @@ func (c *TypeCheck) collectPropertyWritesIn(n *rhino.Node, scope *TypedScope) {
 	}
 }
 
-// installFlow builds the CFG + DataFlowAnalysis for `root` (a
-// FUNCTION or SCRIPT) and stores it on the TypeCheck instance so
-// Visit can look up IN FlowScopes for each statement.
+// Go-only: language-adapter — Java runs TypeInference as a separate compiler pass
+// before TypeCheck; in Go, TypeCheck builds CFG + DataFlowAnalysis lazily so the
+// same traversal can consult in-scope refinements (TypeCheck.java has no equivalent).
 func (c *TypeCheck) installFlow(root *rhino.Node, scope *TypedScope) *DataFlowAnalysis {
 	if existing, ok := c.flows[root]; ok {
 		return existing
@@ -313,10 +299,8 @@ func (c *TypeCheck) installFlow(root *rhino.Node, scope *TypedScope) *DataFlowAn
 	return d
 }
 
-// enclosingStmt returns the nearest ancestor of `n` that's a CFG
-// statement (matches the Token set visited by BuildControlFlowGraph).
-// Used so an expression node can find its owning statement's IN
-// FlowScope.
+// Go-only: language-adapter — helper for the integrated flow analysis; Java's
+// TypeInference pass uses a separate lattice/CFG framework; no Java equivalent.
 func enclosingStmt(n *rhino.Node) *rhino.Node {
 	for cur := n; cur != nil; cur = cur.Parent() {
 		switch cur.Token() {
@@ -367,11 +351,10 @@ func (c *TypeCheck) ShouldTraverse(t *NodeTraversal, n, parent *rhino.Node) bool
 	return true
 }
 
-// traverseLoop walks a WHILE / DO_WHILE loop. The loop body runs
-// only when the condition is truthy, so we push the truthy
-// refinement before descending into the body. Matches how Java's
-// TypeInference refines a FlowScope at the loop header's true
-// back-edge.
+// Go-only: language-adapter — Go's NodeTraversal lacks Java's per-branch
+// FlowScope threading from TypeInference; traverseLoop / traverseShortCircuit /
+// traverseBlock / traverseIf / traverseHook implement equivalent refinement pushing
+// inline within ShouldTraverse so Visit sees narrowed types.
 func (c *TypeCheck) traverseLoop(t *NodeTraversal, n *rhino.Node) {
 	kids := n.Children()
 	if len(kids) < 2 {
@@ -392,12 +375,7 @@ func (c *TypeCheck) traverseLoop(t *NodeTraversal, n *rhino.Node) {
 	}
 }
 
-// traverseShortCircuit handles the AND / OR / COALESCE binary
-// operators. The RHS is evaluated only when the LHS is truthy
-// (for &&) or falsy (for || / ??), so we walk the RHS under a
-// refinement derived from the LHS. Matches Java's
-// SemanticReverseAbstractInterpreter behaviour at the expression
-// level.
+// Go-only: language-adapter — see traverseLoop comment; short-circuit variant.
 func (c *TypeCheck) traverseShortCircuit(t *NodeTraversal, n *rhino.Node) {
 	kids := n.Children()
 	if len(kids) != 2 {
@@ -419,11 +397,7 @@ func (c *TypeCheck) traverseShortCircuit(t *NodeTraversal, n *rhino.Node) {
 	}
 }
 
-// traverseBlock walks a block's statements in order, threading
-// post-guard refinements forward — when a statement is an `if (cond)
-// { return; }` (or `throw`), the negated cond's refinement is pushed
-// for the remainder of the block. Mirrors how Java's TypeInference
-// applies a refined FlowScope to siblings after an early-exit guard.
+// Go-only: language-adapter — see traverseLoop comment; block-statement variant.
 func (c *TypeCheck) traverseBlock(t *NodeTraversal, block *rhino.Node) {
 	scope := t.CurrentScope()
 	pushed := 0
@@ -460,9 +434,8 @@ func (c *TypeCheck) traverseBlock(t *NodeTraversal, block *rhino.Node) {
 	c.Visit(t, block, block.Parent())
 }
 
-// earlyExitGuard reports whether `n` is `if (cond) { return | throw
-// | break | continue }` with no else, returning the cond expression
-// for use in negated refinement of the remaining siblings.
+// Go-only: language-adapter — helper for traverseBlock's post-guard narrowing;
+// Java's TypeInference tracks this implicitly via FlowScope lattice join.
 func earlyExitGuard(n *rhino.Node) (*rhino.Node, bool) {
 	if n == nil || n.Token() != rhino.IF {
 		return nil, false
@@ -477,9 +450,7 @@ func earlyExitGuard(n *rhino.Node) (*rhino.Node, bool) {
 	return kids[0], true
 }
 
-// blockExits reports whether `n` (a single statement or a BLOCK)
-// definitely terminates execution of the enclosing function via
-// return / throw on every path.
+// Go-only: language-adapter — helper for earlyExitGuard; no Java counterpart.
 func blockExits(n *rhino.Node) bool {
 	if n == nil {
 		return false
@@ -493,10 +464,7 @@ func blockExits(n *rhino.Node) bool {
 	return false
 }
 
-// traverseIf walks `if (cond) thenBlock [else elseBlock]` with a
-// refinement overlay active on the current scope while descending
-// into each branch. Mirrors how Java's TypeInferencePass refines a
-// FlowScope at branch points.
+// Go-only: language-adapter — see traverseLoop comment; if-branch variant.
 func (c *TypeCheck) traverseIf(t *NodeTraversal, n *rhino.Node) {
 	kids := n.Children()
 	if len(kids) < 2 {
@@ -531,9 +499,7 @@ func (c *TypeCheck) traverseIf(t *NodeTraversal, n *rhino.Node) {
 	}
 }
 
-// traverseHook is the HOOK analogue of traverseIf — refines per
-// branch so `cond ? cond.foo() : fallback` resolves cond.foo()
-// against the truthy form of cond.
+// Go-only: language-adapter — see traverseLoop comment; ternary-expression variant.
 func (c *TypeCheck) traverseHook(t *NodeTraversal, n *rhino.Node) {
 	kids := n.Children()
 	if len(kids) < 3 {
@@ -651,10 +617,8 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 	c.emit(c.checkJsdocInfoContainsObjectWithBadKey(n, scope))
 }
 
-// pushEnclosingFlow looks up the CFG / FlowScope active for `n`'s
-// enclosing statement and pushes it as a refinement on the current
-// scope. Returns a pop function the caller defers. Safe no-op if
-// the node isn't inside a tracked CFG.
+// Go-only: language-adapter — threads CFG flow-scope into Visit; Java's TypeCheck
+// receives a pre-narrowed scope from TypeInference via NodeTraversal; no equivalent.
 func (c *TypeCheck) pushEnclosingFlow(n *rhino.Node, scope *TypedScope) func() {
 	stmt := enclosingStmt(n)
 	if stmt == nil {
@@ -679,8 +643,7 @@ func (c *TypeCheck) pushEnclosingFlow(n *rhino.Node, scope *TypedScope) func() {
 	return scope.PopRefinement
 }
 
-// enclosingFlowRoot returns the nearest FUNCTION or SCRIPT ancestor
-// of `n` — the CFG owner for that subtree.
+// Go-only: language-adapter — helper for pushEnclosingFlow; no Java counterpart.
 func enclosingFlowRoot(n *rhino.Node) *rhino.Node {
 	for cur := n; cur != nil; cur = cur.Parent() {
 		switch cur.Token() {
@@ -691,14 +654,18 @@ func enclosingFlowRoot(n *rhino.Node) *rhino.Node {
 	return nil
 }
 
+// Go-only: language-adapter — diagnostic accumulator; Java's TypeCheck calls
+// compiler.report() directly via the AbstractCompiler interface; Go collects into
+// a slice returned from Check() since there is no shared compiler object.
 func (c *TypeCheck) emit(d []diag.Diagnostic) {
 	c.diags = append(c.diags, d...)
 }
 
 // tvDrain collects all diagnostics accumulated by c.tv since the last
 // drain call, clears the TypeValidator's buffer, and returns them.
-// Mirrors the pattern Java uses via typeValidator.getAndClearMismatches()
-// — here we drain diags so each visitor gets only its own emissions.
+// Go-only: language-adapter — drains TypeValidator's diagnostic buffer between
+// visitor calls; Java routes all diagnostics through AbstractCompiler.report() so
+// this accumulation/drain pattern does not exist in Java.
 func (c *TypeCheck) tvDrain() []diag.Diagnostic {
 	d := c.tv.diags
 	c.tv.diags = nil
