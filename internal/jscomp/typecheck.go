@@ -3816,11 +3816,8 @@ func classHasToString(obj *jstype.ObjectType) bool {
 
 // ---- visitRegExpLit / visitTemplateLit / visitObjectPattern / checkDestructuringAssignment --
 
-// visitRegExpLit ports TypeCheck.java's visitRegExpLit. TypeInference
-// already assigns the RegExp instance type to REGEXP nodes; this
-// visitor is the TypeCheck-side dispatch that ensures the node is
-// considered "typed" (mirrors Java's ensureTyped call). No
-// diagnostics are emitted for regexp literals themselves.
+// Go-only: language-adapter — Go extracted REGEXP from visit() into a named no-op
+// function for symmetry; Java calls ensureTyped(n, REGEXP_TYPE) inline at line 641.
 func (c *TypeCheck) visitRegExpLit(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	// TypeInference.InferType(REGEXP) already returns the RegExp
 	// instance type (LookupNominalType("RegExp")). TypeCheck's role
@@ -3830,17 +3827,9 @@ func (c *TypeCheck) visitRegExpLit(n *rhino.Node, scope *TypedScope) []diag.Diag
 	return nil
 }
 
-// visitTemplateLit ports TypeCheck.java's visitTemplateLit. Each
-// TEMPLATELIT_SUB child's expression is verified to be coercible to
-// string; mismatches fire JSC_TYPE_MISMATCH. The TEMPLATELIT result
-// type is always string (handled by TypeInference).
-//
-// In Java, expectStringOrSymbol rejects only BigInt among concrete
-// primitives. Since jsgo does not model BigInt as a distinct type,
-// this visitor fires only for structural object types that have no
-// implicit toString path, which is not yet tracked — making this
-// effectively a no-op in the current type model. The structural port
-// exists so future BigInt tracking can plug in.
+// Go-only: language-adapter — Go extracted TEMPLATELIT from visit() into a named
+// function; Java calls ensureTyped inline plus validator.expectStringOrSymbol
+// (TypeCheck.java:684); Go adds explicit TEMPLATELIT_SUB checking.
 func (c *TypeCheck) visitTemplateLit(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	infer := NewTypeInference(scope)
 	var out []diag.Diagnostic
@@ -3866,9 +3855,8 @@ func (c *TypeCheck) visitTemplateLit(n *rhino.Node, scope *TypedScope) []diag.Di
 	return out
 }
 
-// isTemplateLitSubOk mirrors Java's TypeValidator.expectStringOrSymbol:
-// accepts string, number, boolean, null, undefined, Unknown/All, and
-// any ObjectType (implicit toString). Rejects BigInt (not yet modeled).
+// Go-only: language-adapter — predicate for visitTemplateLit; Java's
+// TypeValidator.expectStringOrSymbol handles this inline.
 func isTemplateLitSubOk(t jstype.JSType) bool {
 	if t == nil || isUnknownOrNil(t) {
 		return true
@@ -3956,9 +3944,8 @@ func (c *TypeCheck) visitObjectPattern(pattern *rhino.Node, scope *TypedScope) [
 	return out
 }
 
-// objectPatternRHSType resolves the RHS type for an OBJECT_PATTERN by
-// climbing the parent chain. Returns nil when the pattern is used in
-// an unsupported context.
+// Go-only: language-adapter — helper for visitObjectPattern; Java resolves the RHS
+// type inline via NodeUtil.getBestJSDocInfo; Go climbs the parent chain explicitly.
 func objectPatternRHSType(pattern *rhino.Node, scope *TypedScope) jstype.JSType {
 	parent := pattern.Parent()
 	if parent == nil {
@@ -4092,13 +4079,9 @@ func (c *TypeCheck) checkAbstractPropertyAccess(method *rhino.Node) []diag.Diagn
 // restrictByNotNullOrUndefined) so `(string|null) === number` and
 // `string === number` both fire.
 
-// visitEqualityOp fires JSC_DETERMINISTIC_TEST at EQ / NE / SHEQ / SHNE
-// nodes whose operand types make the comparison always yield the same
-// boolean. Called from Visit alongside visitTypeofComparison.
-//
-// Uses declared (non-flow-narrowed) types — matching how Java's
-// TypeCheck.visitCompare evaluates the static declared types, not the
-// flow-refined types active at the comparison site.
+// Go-only: language-adapter — Go extracts Java's EQ/NE/SHEQ/SHNE inline handling
+// (TypeCheck.java:692-736) into a named function; Java calls JSType.testForEquality
+// directly in the visit() switch.
 func (c *TypeCheck) visitEqualityOp(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := n.Children()
 	if len(kids) < 2 {
@@ -4162,7 +4145,8 @@ const (
 	eqFalse   eqTri = -1
 )
 
-// eqTriNot flips TRUE↔FALSE; UNKNOWN stays UNKNOWN.
+// Go-only: language-adapter — mirrors Java's TernaryValue.not() method; Go uses a
+// free function since eqTri is a plain int8, not an enum with methods.
 func eqTriNot(t eqTri) eqTri {
 	switch t {
 	case eqTrue:
@@ -4173,16 +4157,9 @@ func eqTriNot(t eqTri) eqTri {
 	return eqUnknown
 }
 
-// equalityRestrictByNotNullOrUndefined ports JSType.restrictByNotNullOrUndefined.
-//
-// Java's per-type overrides:
-//   - NullType  → returns NO_TYPE (the empty / bottom type)
-//   - VoidType  → returns NO_TYPE
-//   - UnionType → strips null/undefined members
-//   - everything else → returns self unchanged
-//
-// We represent NO_TYPE as nil; callers that receive nil must treat both
-// sides as if they were the empty type (→ UNKNOWN, conservative).
+// Go-only: language-adapter — ports Java's JSType.restrictByNotNullOrUndefined()
+// virtual method as a free function; Go's non-polymorphic type system requires
+// explicit type switching instead of virtual dispatch.
 func equalityRestrictByNotNullOrUndefined(t jstype.JSType) jstype.JSType {
 	if t == nil {
 		return nil // already empty
@@ -4212,8 +4189,9 @@ func equalityRestrictByNotNullOrUndefined(t jstype.JSType) jstype.JSType {
 	}
 }
 
-// equalityTestForEquality ports JSType.testForEquality and its per-type
-// overrides for the `==` / `!=` operators.
+// Go-only: language-adapter — ports Java's virtual JSType.testForEquality()
+// dispatch hierarchy as a free function with explicit type switching; Java uses
+// per-class overrides (NullType, VoidType, SymbolType, UnionType, etc.).
 func equalityTestForEquality(a, b jstype.JSType) eqTri {
 	// nil represents the empty type (NO_TYPE in Java).
 	aEmpty := a == nil
@@ -4287,8 +4265,8 @@ func equalityTestForEquality(a, b jstype.JSType) eqTri {
 	return eqUnknown
 }
 
-// equalityUnionTestForEquality reduces testForEquality over union members:
-// all members must agree on the same Tri; any disagreement → UNKNOWN.
+// Go-only: language-adapter — ports Java's UnionType.testForEquality() override;
+// Java iterates members polymorphically; Go uses explicit union type switching.
 func equalityUnionTestForEquality(u *jstype.UnionType, other jstype.JSType) eqTri {
 	var result eqTri
 	first := true
@@ -4307,8 +4285,8 @@ func equalityUnionTestForEquality(u *jstype.UnionType, other jstype.JSType) eqTr
 	return result
 }
 
-// equalityTestForShallowEquality ports JSType.canTestForShallowEqualityWith
-// for the `===` / `!==` operators.
+// Go-only: language-adapter — ports Java's virtual JSType.canTestForShallowEqualityWith()
+// as a free function; Java dispatches through per-class overrides.
 func equalityTestForShallowEquality(a, b jstype.JSType) eqTri {
 	if a == nil || b == nil {
 		return eqUnknown
@@ -4364,8 +4342,8 @@ func equalityTestForShallowEquality(a, b jstype.JSType) eqTri {
 	return eqUnknown
 }
 
-// equalityUnionTestForShallowEquality reduces equalityTestForShallowEquality
-// over union members.
+// Go-only: language-adapter — ports Java's UnionType.canTestForShallowEqualityWith()
+// override; no named Java equivalent at this abstraction level.
 func equalityUnionTestForShallowEquality(u *jstype.UnionType, other jstype.JSType) eqTri {
 	var result eqTri
 	first := true
@@ -4386,7 +4364,8 @@ func equalityUnionTestForShallowEquality(u *jstype.UnionType, other jstype.JSTyp
 
 // --- type-classification helpers for equality checks ---
 
-// equalityIsWide reports whether t is the All (*) or Unknown (?) sentinel.
+// Go-only: language-adapter — classification helper for equality test functions;
+// Java's AllType / UnknownType implement testForEquality as UNKNOWN inline.
 func equalityIsWide(t jstype.JSType) bool {
 	if t == nil {
 		return true
@@ -4395,11 +4374,12 @@ func equalityIsWide(t jstype.JSType) bool {
 	return n == "*" || n == "?"
 }
 
-// equalityIsEmpty reports whether t is an uninhabited type (NoType). jsgo
-// doesn't materialise a dedicated NoType; treat as false (conservative).
+// Go-only: language-adapter — Java has a dedicated NoType (bottom type); Go
+// represents it as nil, so this stub always returns false (conservative).
 func equalityIsEmpty(_ jstype.JSType) bool { return false }
 
-// equalityIsPrimitive reports whether t is a non-object, non-function primitive.
+// Go-only: language-adapter — classification helper; Java uses JSType.isNominalType()
+// and related predicates inline.
 func equalityIsPrimitive(t jstype.JSType) bool {
 	switch t {
 	case jstype.Number, jstype.String, jstype.Boolean,
@@ -4409,13 +4389,12 @@ func equalityIsPrimitive(t jstype.JSType) bool {
 	return false
 }
 
-// equalityIsCoerciblePrimitive reports whether t is one of number/string/boolean.
+// Go-only: language-adapter — classification helper for equalityTestForEquality.
 func equalityIsCoerciblePrimitive(t jstype.JSType) bool {
 	return t == jstype.Number || t == jstype.String || t == jstype.Boolean
 }
 
-// equalityFunctionVsType implements the FunctionType branch of
-// JSType.testForEquality.
+// Go-only: language-adapter — ports Java's FunctionType.testForEquality() override.
 func equalityFunctionVsType(other jstype.JSType) eqTri {
 	if equalityIsWide(other) {
 		return eqUnknown
@@ -4426,7 +4405,7 @@ func equalityFunctionVsType(other jstype.JSType) eqTri {
 	return eqUnknown
 }
 
-// equalitySymbolVsType implements Java SymbolType.testForEquality for `==`.
+// Go-only: language-adapter — ports Java's SymbolType.testForEquality() override.
 func equalitySymbolVsType(other jstype.JSType) eqTri {
 	if equalityIsWide(other) {
 		return eqUnknown
@@ -4440,7 +4419,7 @@ func equalitySymbolVsType(other jstype.JSType) eqTri {
 	return eqFalse
 }
 
-// equalityShallowSymbolVsType implements the symbol branch for `===`.
+// Go-only: language-adapter — ports the symbol branch of JSType.canTestForShallowEqualityWith.
 func equalityShallowSymbolVsType(other jstype.JSType) eqTri {
 	if equalityIsWide(other) {
 		return eqUnknown
@@ -4454,7 +4433,7 @@ func equalityShallowSymbolVsType(other jstype.JSType) eqTri {
 	return eqFalse
 }
 
-// equalityNullVsType implements Java NullType.testForEquality.
+// Go-only: language-adapter — ports Java's NullType.testForEquality() override.
 func equalityNullVsType(other jstype.JSType) eqTri {
 	if equalityIsWide(other) {
 		return eqUnknown
@@ -4471,7 +4450,7 @@ func equalityNullVsType(other jstype.JSType) eqTri {
 	return eqFalse
 }
 
-// equalityVoidVsType implements Java VoidType.testForEquality.
+// Go-only: language-adapter — ports Java's VoidType.testForEquality() override.
 func equalityVoidVsType(other jstype.JSType) eqTri {
 	if equalityIsWide(other) {
 		return eqUnknown
@@ -4485,7 +4464,8 @@ func equalityVoidVsType(other jstype.JSType) eqTri {
 	return eqFalse
 }
 
-// equalityCoercibleVsType handles number/string/boolean testForEquality.
+// Go-only: language-adapter — ports Java's NumberType/StringType/BooleanType
+// testForEquality() overrides (they share the same logic).
 func equalityCoercibleVsType(other jstype.JSType) eqTri {
 	if equalityIsWide(other) {
 		return eqUnknown
@@ -4500,7 +4480,8 @@ func equalityCoercibleVsType(other jstype.JSType) eqTri {
 	return eqUnknown
 }
 
-// equalityIsObject reports whether t is an object type (not a primitive).
+// Go-only: language-adapter — classification helper for equalityNullVsType etc.;
+// Java uses JSType.isObjectType() virtual method.
 func equalityIsObject(t jstype.JSType) bool {
 	if t == nil {
 		return false
@@ -4526,13 +4507,13 @@ func equalityIsObject(t jstype.JSType) bool {
 	return false
 }
 
-// equalityIsNullable reports whether t (a non-union type) could hold null.
+// Go-only: language-adapter — reports nullable potential; Java's types use
+// isNullable() virtual method.
 func equalityIsNullable(t jstype.JSType) bool {
 	return equalityIsObject(t)
 }
 
-// equalityIsFunctionLike reports whether t behaves like a function for
-// deterministic-test purposes.
+// Go-only: language-adapter — classification helper for equalityTestForEquality.
 func equalityIsFunctionLike(t jstype.JSType) bool {
 	if _, ok := t.(*jstype.FunctionType); ok {
 		return true
