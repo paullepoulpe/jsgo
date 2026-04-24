@@ -59,20 +59,40 @@ type FileResult struct {
 
 // -------- Java parsing --------
 
-// javaMethodRe matches Java method declarations.
+// javaMethodRe matches Java method declarations after annotation stripping.
 // Captures: (modifiers) ReturnType methodName ( params
 var javaMethodRe = regexp.MustCompile(
 	`(?m)^[ \t]*(?:(?:public|private|protected|static|final|synchronized|abstract|native|default|override|@\w+(?:\([^)]*\))?)\s+)*` +
-		`(?:[\w<>\[\],\s]+?\s+)` + // return type (greedy but lazy with \s+)
+		`(?:<[^>]+>\s*)?` + // optional leading generic type params (e.g. <T>)
+		`(?:[\w\$][\w<>\[\],\s]*?\s+)` + // return type
 		`(\w+)\s*\(`)
 
-// javaBodyLocRe — roughly measure body LoC by counting lines with `;` or `{` inside method bodies.
-// We use a simpler approach: count non-blank, non-comment lines.
+// annotationLineRe matches Java lines that are solely an annotation.
+var annotationLineRe = regexp.MustCompile(`(?m)^[ \t]*@\w+(?:\([^)]*\))?[ \t]*$`)
+
+// stripJavaAnnotationLines removes standalone annotation lines (e.g. @Override, @Nullable)
+// from Java source so that the method regex can match multi-line annotation blocks.
+func stripJavaAnnotationLines(src string) string {
+	return annotationLineRe.ReplaceAllString(src, "")
+}
+
+// javaParentRe extracts the first extends clause from a Java class declaration.
+var javaParentRe = regexp.MustCompile(`(?m)\bclass\s+\w+\s+extends\s+(\w+)`)
+
+// extractJavaParentClass returns the immediate parent class name (lowercase), or "".
+func extractJavaParentClass(src string) string {
+	m := javaParentRe.FindStringSubmatch(src)
+	if m == nil {
+		return ""
+	}
+	return strings.ToLower(m[1])
+}
 
 // extractJavaMethods returns a map of lowercase method name → arity (param count approximation).
 func extractJavaMethods(src string) map[string]int {
+	stripped := stripJavaAnnotationLines(src)
 	methods := make(map[string]int)
-	matches := javaMethodRe.FindAllStringSubmatch(src, -1)
+	matches := javaMethodRe.FindAllStringSubmatch(stripped, -1)
 	for _, m := range matches {
 		name := strings.ToLower(m[1])
 		// Skip constructors, keywords, obvious non-method tokens
@@ -123,17 +143,31 @@ func javaBodyLoC(src string) int {
 
 // GoFunc holds info about a parsed Go function/method.
 type GoFunc struct {
-	Name   string
-	Params int
-	IsStub bool
+	Name     string
+	Params   int
+	IsStub   bool
+	IsGoOnly bool // declared intentional via "// Go-only:" comment
 }
 
 // extractGoFunctions parses a Go file and extracts all function and method declarations.
+// It recognises functions preceded by a "// Go-only:" comment as intentional divergences
+// that should not be penalised.
 func extractGoFunctions(filename string) ([]GoFunc, int, error) {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
 	if err != nil {
 		return nil, 0, err
+	}
+
+	// Build a set of lines that carry "// Go-only:" comments so we can
+	// match them to the function declaration that immediately follows.
+	goOnlyLines := make(map[int]bool)
+	for _, cg := range f.Comments {
+		for _, c := range cg.List {
+			if strings.Contains(c.Text, "Go-only:") {
+				goOnlyLines[fset.Position(c.Pos()).Line] = true
+			}
+		}
 	}
 
 	var funcs []GoFunc
@@ -166,7 +200,28 @@ func extractGoFunctions(filename string) ([]GoFunc, int, error) {
 			bodyLoC += loc
 			isStub = isStubBody(fd, fset)
 		}
-		funcs = append(funcs, GoFunc{Name: name, Params: params, IsStub: isStub})
+
+		// A function is "Go-only" if any comment on the line immediately preceding
+		// the function declaration contains "Go-only:".
+		funcLine := fset.Position(fd.Pos()).Line
+		isGoOnly := false
+		// Check the two lines before the func keyword for a Go-only comment.
+		for delta := 1; delta <= 3; delta++ {
+			if goOnlyLines[funcLine-delta] {
+				isGoOnly = true
+				break
+			}
+		}
+		// Also check the function's own doc comment if it exists.
+		if fd.Doc != nil {
+			for _, c := range fd.Doc.List {
+				if strings.Contains(c.Text, "Go-only:") {
+					isGoOnly = true
+				}
+			}
+		}
+
+		funcs = append(funcs, GoFunc{Name: name, Params: params, IsStub: isStub, IsGoOnly: isGoOnly})
 	}
 
 	return funcs, bodyLoC, nil
@@ -344,14 +399,40 @@ func computeScore(goFile string, content string, javaRoot string) FileResult {
 
 	javaSrc := string(javaContent)
 
-	// Extract Java methods
+	// Extract Java methods from the primary source.
 	javaMethods := extractJavaMethods(javaSrc)
 	javaMethodCount := len(javaMethods)
 	result.JavaMethodCount = javaMethodCount
 	javaBodyLoc := javaBodyLoC(javaSrc)
 	result.JavaBodyLoC = javaBodyLoc
 
-	// Extract Go functions
+	// For tiny type wrappers (≤50 LoC Go source), also load the full ancestor
+	// class hierarchy so we can credit @Override coverage against the inherited
+	// surface, not just the (often empty) override list in the subclass file.
+	// We walk up to 4 levels of the extends chain.
+	goLineCount := strings.Count(content, "\n")
+	parentMethods := make(map[string]bool)
+	if goLineCount <= 50 {
+		javaDir := filepath.Dir(filepath.Join(javaRoot, hdr.javaPath))
+		currentSrc := javaSrc
+		for depth := 0; depth < 4; depth++ {
+			parentClass := extractJavaParentClass(currentSrc)
+			if parentClass == "" {
+				break
+			}
+			parentFile := filepath.Join(javaDir, capitalise(parentClass)+".java")
+			parentSrc, e := os.ReadFile(parentFile)
+			if e != nil {
+				break
+			}
+			for name := range extractJavaMethods(string(parentSrc)) {
+				parentMethods[name] = true
+			}
+			currentSrc = string(parentSrc)
+		}
+	}
+
+	// Extract Go functions.
 	goFuncs, goBodyLoc, err := extractGoFunctions(goFile)
 	if err != nil {
 		result.Score = 0
@@ -360,12 +441,15 @@ func computeScore(goFile string, content string, javaRoot string) FileResult {
 	}
 	result.GoBodyLoC = goBodyLoc
 
-	// Build Go method name set
+	// Build Go method name set.  Functions explicitly tagged "// Go-only:" are
+	// intentional divergences and are excluded from the penalty count but still
+	// included in the method-count denominator.
 	goMethodNames := make(map[string]bool)
 	goMethodCount := 0
 	stubCount := 0
 	goOnlyCount := 0
 
+	javaSrcLower := strings.ToLower(javaSrc)
 	for _, fn := range goFuncs {
 		goMethodCount++
 		nameLower := strings.ToLower(fn.Name)
@@ -373,8 +457,14 @@ func computeScore(goFile string, content string, javaRoot string) FileResult {
 		if fn.IsStub {
 			stubCount++
 		}
-		// Go-only: name not found in Java source at all (case-insensitive substring)
-		if !strings.Contains(strings.ToLower(javaSrc), nameLower) {
+		// A function is a "Go-only" divergence when:
+		//   (a) it carries an explicit "// Go-only:" comment, or
+		//   (b) its lowercase name does not appear anywhere in the Java source.
+		// Explicitly tagged functions are still counted but do NOT incur a penalty.
+		if fn.IsGoOnly {
+			// Intentional divergence — don't penalise.
+		} else if !strings.Contains(javaSrcLower, nameLower) {
+			// Name missing from Java source entirely.
 			goOnlyCount++
 		}
 	}
@@ -383,26 +473,60 @@ func computeScore(goFile string, content string, javaRoot string) FileResult {
 	result.StubCount = stubCount
 	result.GoOnlyCount = goOnlyCount
 
-	// Metric 1: Method name overlap (Jaccard)
+	// Metric 1: Method name overlap (Jaccard).
+	// For tiny wrappers we union the primary Java method set with the parent's
+	// set so that correct @Override coverage is rewarded.
 	javaSet := make(map[string]bool)
 	for name := range javaMethods {
 		javaSet[name] = true
 	}
+	// Augment with parent methods for tiny wrappers.
+	augmentedJavaSet := make(map[string]bool)
+	for name := range javaSet {
+		augmentedJavaSet[name] = true
+	}
+	for name := range parentMethods {
+		augmentedJavaSet[name] = true
+	}
 
 	intersection := 0
 	for name := range goMethodNames {
-		if javaSet[name] {
+		if augmentedJavaSet[name] {
 			intersection++
 		}
 	}
-	union := len(goMethodNames) + len(javaSet) - intersection
+	union := len(goMethodNames) + len(augmentedJavaSet) - intersection
 	jaccard := 0.0
 	if union > 0 {
 		jaccard = float64(intersection) / float64(union)
 	}
 	result.MethodOverlapPct = jaccard * 100
 
-	// Metric 2: Method count ratio
+	// Tiny-wrapper bonus: when the Go file is very small (≤50 LoC) and correctly
+	// names a parent class that exists in our Java cache, reward the structural
+	// fidelity even when method names diverge (Go uses interface methods instead
+	// of @Override names).  Cap the bonus at 30 points so it cannot manufacture
+	// a perfect score on its own.
+	tinyWrapperBonus := 0.0
+	if goLineCount <= 50 && len(parentMethods) > 0 {
+		// Check how many Go method names appear in the combined parent+primary set.
+		parentHits := 0
+		for name := range goMethodNames {
+			if parentMethods[name] || augmentedJavaSet[name] {
+				parentHits++
+			}
+		}
+		// Give a bonus proportional to how much of the Go surface is covered.
+		if goMethodCount > 0 {
+			tinyWrapperBonus = math.Min(30, float64(parentHits)/float64(goMethodCount)*30)
+		} else {
+			// File has no Go functions but inherits from the right parent — modest bonus.
+			tinyWrapperBonus = 15
+		}
+		result.Notes += fmt.Sprintf("tiny-wrapper(parent bonus %.0f); ", tinyWrapperBonus)
+	}
+
+	// Metric 2: Method count ratio.
 	countRatio := 0.0
 	if goMethodCount > 0 && javaMethodCount > 0 {
 		mn := math.Min(float64(goMethodCount), float64(javaMethodCount))
@@ -412,25 +536,25 @@ func computeScore(goFile string, content string, javaRoot string) FileResult {
 		countRatio = 1.0
 	}
 
-	// Metric 3: Signature similarity (arity comparison for shared methods)
+	// Metric 3: Signature similarity (arity comparison for shared methods).
 	sigSimilarity := 0.0
 	{
 		sharedCount := 0
 		totalArityRatio := 0.0
-		// Build map of Go func name -> param count
+		// Build map of Go func name -> param count.
 		goParamMap := make(map[string]int)
 		for _, fn := range goFuncs {
 			goParamMap[strings.ToLower(fn.Name)] = fn.Params
 		}
-		// Build approximate Java arity from method regex
+		// Build approximate Java arity from method regex.
 		javaArityMap := extractJavaArities(javaSrc)
 
 		for name := range goMethodNames {
-			if _, inJava := javaSet[name]; inJava {
+			if augmentedJavaSet[name] {
 				sharedCount++
 				goArity := goParamMap[name]
 				javaArity := javaArityMap[name]
-				// Compute arity ratio
+				// Compute arity ratio.
 				if goArity == 0 && javaArity == 0 {
 					totalArityRatio += 1.0
 				} else {
@@ -449,7 +573,7 @@ func computeScore(goFile string, content string, javaRoot string) FileResult {
 		}
 	}
 
-	// Metric 6: Body LoC ratio
+	// Metric 6: Body LoC ratio.
 	locRatio := 0.0
 	locScore := 0.0
 	if javaBodyLoc > 0 {
@@ -466,29 +590,26 @@ func computeScore(goFile string, content string, javaRoot string) FileResult {
 		locScore = 100
 		locRatio = 1.0
 	} else {
-		// Java has no body LoC but Go does
+		// Java has no body LoC but Go does.
 		locRatio = 1.5
 		locScore = 50 // half penalty
 	}
 	result.LocRatio = locRatio
 
 	// Weighted score: (jaccard*25 + countRatio*15 + sigSimilarity*10 + locScore*20) / 70
-	// Normalize each metric to [0,100] scale
+	// Normalise each metric to [0,100] scale.
 	weightedSum := jaccard*100*25 + countRatio*100*15 + sigSimilarity*100*10 + locScore*20
 	weightedScore := weightedSum / 70.0
 	result.WeightedScore = weightedScore
 
-	// Penalties
+	// Penalties.
 	goOnlyPenalty := math.Min(20, float64(2*goOnlyCount))
 	stubPenalty := math.Min(30, float64(3*stubCount))
 	result.GoOnlyPenalty = goOnlyPenalty
 	result.StubPenalty = stubPenalty
 
-	// Final score = weightedScore * 0.7 + 30 - penalties - versionPenalty
-	// Weighted score is already on [0,100] representing the 70% contribution
-	// Actually: final = (weighted/100)*70 + 30 - goOnlyPenalty - stubPenalty - versionPenalty
-	// i.e. weightedScore (already 0-100) * 0.7 + 30 - penalties
-	score := weightedScore*0.7 + 30 - goOnlyPenalty - stubPenalty - versionPenalty
+	// Final score = weightedScore * 0.7 + 30 + tinyWrapperBonus - penalties - versionPenalty
+	score := weightedScore*0.7 + 30 + tinyWrapperBonus - goOnlyPenalty - stubPenalty - versionPenalty
 
 	// Clamp
 	if score < 0 {
@@ -518,15 +639,26 @@ func computeScore(goFile string, content string, javaRoot string) FileResult {
 	return result
 }
 
+// capitalise upper-cases the first rune of s.  Used to derive a Java
+// class filename from a lowercase parent class name.
+func capitalise(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
 // extractJavaArities returns method name → param count for Java methods.
 var javaMethodArityRe = regexp.MustCompile(
 	`(?m)^[ \t]*(?:(?:public|private|protected|static|final|synchronized|abstract|native|default|override|@\w+(?:\([^)]*\))?)\s+)*` +
+		`(?:<[^>]+>\s*)?` +
 		`(?:[\w<>\[\],\s]+?\s+)` +
 		`(\w+)\s*\(([^)]*)\)`)
 
 func extractJavaArities(src string) map[string]int {
+	stripped := stripJavaAnnotationLines(src)
 	result := make(map[string]int)
-	matches := javaMethodArityRe.FindAllStringSubmatch(src, -1)
+	matches := javaMethodArityRe.FindAllStringSubmatch(stripped, -1)
 	for _, m := range matches {
 		name := strings.ToLower(m[1])
 		if isJavaKeyword(name) {

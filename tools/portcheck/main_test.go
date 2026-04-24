@@ -297,6 +297,167 @@ func TestComputeStats(t *testing.T) {
 	}
 }
 
+// -------- tiny wrapper + @Override tests --------
+
+// nullTypeGoSrc mimics null_type.go: a ≤50-LoC Go file that implements a tiny
+// type wrapper by satisfying a Go interface.  Its methods do not have Java-identical
+// names, but the parent Java class (NullType → ValueType) contains recognisable
+// method names that should trigger the tiny-wrapper bonus.
+const nullTypeGoSrc = `// Port of com/google/javascript/rhino/jstype/NullType.java @ closure-compiler v20260415
+package jstype
+
+// nullType is the null type.
+type nullType struct{}
+
+func (nullType) TypeName() string { return "null" }
+func (nullType) IsNullType() bool { return true }
+func (nullType) IsNullable() bool { return true }
+func (nullType) MatchesStringContext() bool { return false }
+func (nullType) TestForEquality(that JSType) int { return 0 }
+`
+
+// nullTypeJavaSrc is the Java source for NullType — a small class with @Override methods.
+const nullTypeJavaSrc = `
+package com.google.javascript.rhino.jstype;
+
+public final class NullType extends ValueType {
+  @Override
+  public boolean isNullType() {
+    return true;
+  }
+  @Override
+  public boolean isNullable() {
+    return true;
+  }
+  @Override
+  public boolean matchesStringContext() {
+    return false;
+  }
+  @Override
+  public JSType testForEquality(JSType that) {
+    return null;
+  }
+  @Override
+  public <T> T visit(Visitor<T> visitor) {
+    return visitor.caseNullType(this);
+  }
+}
+`
+
+// valueTypeJavaSrc is the parent class ValueType — contains additional @Override methods.
+const valueTypeJavaSrc = `
+package com.google.javascript.rhino.jstype;
+
+public abstract class ValueType extends JSType {
+  @Override
+  public String getDisplayName() {
+    return null;
+  }
+  @Override
+  public boolean isNullable() {
+    return false;
+  }
+}
+`
+
+// makeNullTypeFixtures writes the Java NullType + ValueType fixtures under tmpDir.
+func makeNullTypeFixtures(t *testing.T, tmpDir string) {
+	t.Helper()
+	javaDir := filepath.Join(tmpDir, "com", "google", "javascript", "rhino", "jstype")
+	if err := os.MkdirAll(javaDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(javaDir, "NullType.java"), []byte(nullTypeJavaSrc), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// Parent class — tiny-wrapper bonus looks here.
+	if err := os.WriteFile(filepath.Join(javaDir, "ValueType.java"), []byte(valueTypeJavaSrc), 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestTinyWrapperBonus(t *testing.T) {
+	tmpDir := t.TempDir()
+	makeNullTypeFixtures(t, tmpDir)
+
+	// Redirect the header path so computeScore finds the fixture.
+	goSrc := strings.Replace(nullTypeGoSrc,
+		"com/google/javascript/rhino/jstype/NullType.java",
+		"com/google/javascript/rhino/jstype/NullType.java",
+		1)
+	goFile := writeTempFile(t, "null_type.go", goSrc)
+
+	result := computeScore(goFile, goSrc, tmpDir)
+	t.Logf("tiny-wrapper score: %.1f (notes: %s, overlap: %.0f%%)", result.Score, result.Notes, result.MethodOverlapPct)
+
+	if result.Score < 70 {
+		t.Errorf("tiny-wrapper file scored too low: %.1f — expected ≥70 (notes: %s)", result.Score, result.Notes)
+	}
+}
+
+// TestJavaMethodRegexAnnotations verifies that methods preceded by multi-line
+// annotation stacks (@Override\n@Nullable\n) are correctly extracted.
+func TestJavaMethodRegexAnnotations(t *testing.T) {
+	src := `
+package com.google.javascript.rhino.jstype;
+
+public class Example {
+  @Override
+  @Nullable
+  public boolean isNullType() {
+    return true;
+  }
+
+  @Override
+  public <T> T visit(Visitor<T> v) {
+    return v.caseNull(this);
+  }
+
+  @SuppressWarnings("unchecked")
+  public static Example of() {
+    return null;
+  }
+}
+`
+	methods := extractJavaMethods(src)
+	want := []string{"isnulltype", "visit", "of"}
+	for _, w := range want {
+		if _, ok := methods[w]; !ok {
+			t.Errorf("expected Java method %q to be extracted, got: %v", w, mapKeys(methods))
+		}
+	}
+}
+
+// TestGoOnlyRecognition checks that functions with a "// Go-only:" comment
+// are flagged as intentional divergences (IsGoOnly == true) and do not
+// inflate the go-only penalty.
+const goOnlyTaggedSrc = `// Port of com/google/javascript/jscomp/FakeChecker.java @ closure-compiler v20260415
+package jscomp
+
+func check(x int) bool {
+	return x > 0
+}
+
+// Go-only: Go interface adapter; no direct Java counterpart.
+func goHelperForInterfaceAdaption() int {
+	return 42
+}
+`
+
+func TestGoOnlyTaggedFunctionNotPenalised(t *testing.T) {
+	tmpDir := t.TempDir()
+	makeJavaFixture(t, tmpDir) // uses highFidelityJavaSrc which has check()
+
+	goFile := writeTempFile(t, "tagged.go", goOnlyTaggedSrc)
+	result := computeScore(goFile, goOnlyTaggedSrc, tmpDir)
+
+	// GoOnlyCount should be 0 for the tagged function (it's intentional).
+	if result.GoOnlyCount > 1 {
+		t.Errorf("tagged Go-only function should not inflate GoOnlyCount: got %d", result.GoOnlyCount)
+	}
+	t.Logf("go-only tagged score: %.1f, GoOnlyCount: %d, notes: %s", result.Score, result.GoOnlyCount, result.Notes)
+}
+
 // -------- helpers --------
 
 func mapKeys(m map[string]int) []string {
