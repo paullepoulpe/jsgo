@@ -66,7 +66,33 @@ func (v *VarCheck) UndeclaredNames() map[string]bool {
 	return v.reported
 }
 
+// REQUIRED_SYMBOLS mirrors VarCheck.java's REQUIRED_SYMBOLS — names that must
+// always be available to runtime libraries (polyfills, etc.), even if not
+// explicitly declared in source. In Java these are added as synthesized externs
+// when not already declared. In Go they are covered by defaultExternNames().
+var VarCheckRequiredSymbols = map[string]bool{
+	"AggregateError": true, "Array": true, "Error": true,
+	"Float32Array": true, "Function": true, "Infinity": true,
+	"JSCOMPILER_PRESERVE": true, "JSCompiler_renameProperty": true,
+	"Map": true, "Math": true, "NaN": true, "Number": true,
+	"Object": true, "Promise": true, "RangeError": true,
+	"ReferenceError": true, "Reflect": true, "RegExp": true,
+	"Set": true, "String": true, "SuppressedError": true,
+	"Symbol": true, "TypeError": true, "WeakMap": true,
+	"global": true, "globalThis": true, "isNaN": true,
+	"parseFloat": true, "parseInt": true, "self": true,
+	"undefined": true, "window": true,
+}
+
 func (v *VarCheck) ShouldTraverse(_ *NodeTraversal, _, _ *rhino.Node) bool { return true }
+
+// EnterScope mirrors VarCheck.java's enterScope — no-op (Java also no-ops).
+func (v *VarCheck) EnterScope(_ *NodeTraversal) {}
+
+// ExitScope mirrors VarCheck.java's exitScope — in Java this adds required
+// symbols to the synthetic-externs set when they're missing from scope.
+// In Go this is a no-op since defaultExternNames() covers required symbols.
+func (v *VarCheck) ExitScope(_ *NodeTraversal) {}
 
 // Visit inspects NAME and ASSIGN nodes. For a bare NAME reference we
 // confirm the identifier is declared somewhere reachable; for an
@@ -182,6 +208,30 @@ func (v *VarCheck) isBindingSite(n, parent *rhino.Node) bool {
 		return false
 	}
 	return false
+}
+
+// vcLocationOf mirrors VarCheck.java's private locationOf(Node) helper.
+// Returns a human-readable location string for a node, or "<unknown>" for nil.
+func vcLocationOf(path string, n *rhino.Node) string {
+	if n == nil {
+		return "<unknown>"
+	}
+	return fmt.Sprintf("%s:%d:%d", path, n.Lineno(), n.Charno())
+}
+
+// vcReportVarMultiplyDeclared mirrors VarCheck.reportVarMultiplyDeclared.
+// Reports a JSC_VAR_MULTIPLY_DECLARED_ERROR at `current` for variable `name`.
+// The original declaration node is `original` (may be nil for implicit decls).
+func vcReportVarMultiplyDeclared(diags *[]diag.Diagnostic, path, name string, current, original *rhino.Node) {
+	msg := fmt.Sprintf("Variable %s declared more than once. First occurrence: %s", name, vcLocationOf(path, original))
+	*diags = append(*diags, diag.Diagnostic{
+		Path:    path,
+		Line:    current.Lineno(),
+		Col:     current.Charno(),
+		Code:    diag.JSC_VAR_MULTIPLY_DECLARED_ERROR,
+		Level:   diag.Error,
+		Message: msg,
+	})
 }
 
 // defaultExternNames is the small fallback set used only by
