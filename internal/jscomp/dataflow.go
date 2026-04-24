@@ -348,6 +348,38 @@ func (d *GenericDFA[N, L]) Analyze() {
 	}
 }
 
+// IsBranched reports whether this analysis uses branched flow (per-edge states).
+// The default is false; analyses that need ON_TRUE/ON_FALSE distinctions should
+// override IsBranched via GenericDFABase to return true.
+// Mirrors DataFlowAnalysis.isBranched() in Java.
+func (d *GenericDFA[N, L]) IsBranched() bool {
+	return d.impl.IsBranched()
+}
+
+// IsForward reports whether this is a forward analysis.
+// Mirrors DataFlowAnalysis.isForward() in Java.
+func (d *GenericDFA[N, L]) IsForward() bool {
+	return d.impl.IsForward()
+}
+
+// CreateEntryLattice returns the entry lattice value.
+// Mirrors DataFlowAnalysis.createEntryLattice() in Java.
+func (d *GenericDFA[N, L]) CreateEntryLattice() L {
+	return d.impl.CreateEntryLattice()
+}
+
+// CreateInitialEstimateLattice returns the bottom lattice value.
+// Mirrors DataFlowAnalysis.createInitialEstimateLattice() in Java.
+func (d *GenericDFA[N, L]) CreateInitialEstimateLattice() L {
+	return d.impl.CreateInitialEstimateLattice()
+}
+
+// FlowThrough computes the output lattice for node nVal given input.
+// Mirrors DataFlowAnalysis.flowThrough(N, L) in Java.
+func (d *GenericDFA[N, L]) FlowThrough(nVal N, input L) L {
+	return d.impl.FlowThrough(nVal, input)
+}
+
 // Join merges two lattice values using this analysis's FlowJoiner.
 // Mirrors DataFlowAnalysis.join(L, L) in Java.
 func (d *GenericDFA[N, L]) Join(latticeA, latticeB L) L {
@@ -361,6 +393,18 @@ func (d *GenericDFA[N, L]) Join(latticeA, latticeB L) L {
 // Mirrors DataFlowAnalysis.getCfg() in Java.
 func (d *GenericDFA[N, L]) GetCfg() *ControlFlowGraph {
 	return d.Cfg
+}
+
+// CreateFlowJoiner returns a fresh joiner for an analysis step.
+// Mirrors DataFlowAnalysis.createFlowJoiner() in Java.
+func (d *GenericDFA[N, L]) CreateFlowJoiner() FlowJoiner[L] {
+	return d.impl.CreateFlowJoiner()
+}
+
+// CreateFlowBrancher returns a brancher for the given node's output state.
+// Mirrors DataFlowAnalysis.createFlowBrancher(N, L) in Java.
+func (d *GenericDFA[N, L]) CreateFlowBrancher(node N, output L) FlowBrancher[L] {
+	return d.impl.CreateFlowBrancher(node, output)
 }
 
 // GetFlowState returns the LinearFlowState for node n, or nil if n is not in
