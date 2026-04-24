@@ -315,6 +315,56 @@ func (u *UnionType) IsVoidable() bool {
 	return false
 }
 
+// HasPropertyKind describes whether a property is absent, present on all
+// non-null/undefined union members, or present on only some of them.
+// Mirrors Java's JSType.HasPropertyKind enum.
+type HasPropertyKind int
+
+const (
+	HasPropertyAbsent       HasPropertyKind = iota // property not found on any member
+	HasPropertyKnownPresent                        // property found on all non-null/void members
+	HasPropertyMaybePresent                        // property found on some but not all members
+)
+
+// propertyHaver is satisfied by *ObjectType (and *RecordType via embedding).
+type propertyHaver interface {
+	HasProperty(name string) bool
+}
+
+// GetPropertyKind mirrors Java's UnionType.getPropertyKind(String) — it
+// iterates the union's members (skipping null/void) and returns:
+//   - HasPropertyKnownPresent when every non-null/void member has the property,
+//   - HasPropertyMaybePresent when some but not all do,
+//   - HasPropertyAbsent when none do.
+//
+// Mirrors UnionType.getPropertyKind(Property.Key, boolean) @ closure-compiler v20260415.
+func (u *UnionType) GetPropertyKind(name string) HasPropertyKind {
+	found := false
+	always := true
+	for _, m := range u.members {
+		if isNullType(m) || isVoidType(m) {
+			continue
+		}
+		if ph, ok := m.(propertyHaver); ok {
+			if ph.HasProperty(name) {
+				found = true
+			} else {
+				always = false
+			}
+		} else {
+			// Member is not an object type (e.g. primitive); treat as absent.
+			always = false
+		}
+	}
+	if !found {
+		return HasPropertyAbsent
+	}
+	if always {
+		return HasPropertyKnownPresent
+	}
+	return HasPropertyMaybePresent
+}
+
 // IsObject mirrors UnionType.isObject() — true when all alternates are
 // object types. Mirrors Java's allTypesMatch(JSType::isObject, this).
 func (u *UnionType) IsObject() bool {

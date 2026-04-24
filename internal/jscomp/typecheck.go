@@ -1572,6 +1572,33 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 	}
 	obj := dereferencedObject(recvType)
 	if obj == nil {
+		// Port of TypeCheck.java reportMissingProperty with PropDefinitionKind.LOOSE_UNION:
+		// when the receiver is a union type and the property is present on some
+		// but not all members (MAYBE_PRESENT → LOOSE_UNION), emit
+		// JSC_STRICT_INEXISTENT_UNION_PROPERTY in strict mode.
+		// Mirrors canPropertyBeDefined + reportMissingProperty w/ isKnownToUnionMember=true.
+		if u, ok := recvType.(*jstype.UnionType); ok {
+			kind := u.GetPropertyKind(propName)
+			if kind == jstype.HasPropertyMaybePresent {
+				if c.opts != nil && c.opts.IsOn(GroupStrictCheckTypes) {
+					// Readable receiver name: use the variable name when the
+					// receiver node is a NAME (mirrors Java's getReadableTypeName(objNode)
+					// which falls back to n.getQualifiedName()).
+					recvName := recvType.TypeName()
+					if kids[0].Token() == rhino.NAME {
+						recvName = kids[0].String_()
+					}
+					return []diag.Diagnostic{{
+						Path:    c.path,
+						Line:    propNode.Lineno(),
+						Col:     propNode.Charno(),
+						Code:    diag.JSC_STRICT_INEXISTENT_UNION_PROPERTY,
+						Level:   diag.Warning,
+						Message: fmt.Sprintf("Property %s not defined on all member types of %s", propName, recvName),
+					}}
+				}
+			}
+		}
 		return nil
 	}
 	if obj.Name == "" {
