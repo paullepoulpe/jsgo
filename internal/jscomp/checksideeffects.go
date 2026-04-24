@@ -231,7 +231,9 @@ func (c *CheckSideEffects) hasSideEffects(n *rhino.Node) bool {
 	case rhino.ASSIGN, rhino.ASSIGN_ADD, rhino.ASSIGN_SUB, rhino.ASSIGN_MUL,
 		rhino.ASSIGN_DIV, rhino.ASSIGN_MOD, rhino.ASSIGN_BITAND,
 		rhino.ASSIGN_BITOR, rhino.ASSIGN_BITXOR, rhino.ASSIGN_LSH,
-		rhino.ASSIGN_RSH, rhino.ASSIGN_URSH,
+		rhino.ASSIGN_RSH, rhino.ASSIGN_URSH, rhino.ASSIGN_EXPONENT,
+		rhino.ASSIGN_AND, rhino.ASSIGN_OR, rhino.ASSIGN_COALESCE,
+		rhino.INC, rhino.DEC,
 		rhino.DELPROP, rhino.THROW, rhino.DYNAMIC_IMPORT:
 		return true
 	// CALL / OPTCHAIN_CALL: pure only if callee is @nosideeffects.
