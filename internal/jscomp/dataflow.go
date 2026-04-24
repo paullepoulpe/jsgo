@@ -151,6 +151,7 @@ type GenericDFA[N any, L LatticeElement[L]] struct {
 // NewGenericDFA constructs a GenericDFA.
 // nodeVal must return the N-typed payload stored in a CfgNode.
 // Mirrors the DataFlowAnalysis(ControlFlowGraph) constructor in Java.
+// Go-only: language-adapter Go generics require an explicit constructor; Java uses the class constructor.
 func NewGenericDFA[N any, L LatticeElement[L]](
 	cfg *ControlFlowGraph,
 	nodeVal func(*CfgNode) N,
@@ -321,9 +322,25 @@ func (d *GenericDFA[N, L]) Analyze() {
 	}
 }
 
+// Join merges two lattice values using this analysis's FlowJoiner.
+// Mirrors DataFlowAnalysis.join(L, L) in Java.
+func (d *GenericDFA[N, L]) Join(latticeA, latticeB L) L {
+	joiner := d.impl.CreateFlowJoiner()
+	joiner.JoinFlow(latticeA)
+	joiner.JoinFlow(latticeB)
+	return joiner.Finish()
+}
+
+// GetCfg returns the control flow graph being analysed.
+// Mirrors DataFlowAnalysis.getCfg() in Java.
+func (d *GenericDFA[N, L]) GetCfg() *ControlFlowGraph {
+	return d.Cfg
+}
+
 // GetFlowState returns the LinearFlowState for node n, or nil if n is not in
 // the CFG or Analyze has not been called.
 // Mirrors DiGraphNode.getAnnotation() usage in Java.
+// Go-only: language-adapter Java uses DiGraphNode.getAnnotation(); Go uses a typed map lookup.
 func (d *GenericDFA[N, L]) GetFlowState(n *CfgNode) *LinearFlowState[L] {
 	return d.State[n]
 }
@@ -335,11 +352,13 @@ func (d *GenericDFA[N, L]) GetFlowState(n *CfgNode) *LinearFlowState[L] {
 // uniqueQueue is a FIFO queue that ignores duplicate inserts while the
 // element is already present in the queue.
 // Mirrors the private UniqueQueue<T> in DataFlowAnalysis.java.
+// Go-only: language-adapter Java's UniqueQueue uses PriorityQueue+LinkedHashSet; Go uses a slice+map for simplicity.
 type uniqueQueue[T comparable] struct {
 	queue  []T
 	inQ    map[T]bool
 }
 
+// Go-only: language-adapter Go generics need an explicit factory; Java uses constructor.
 func newUniqueQueue[T comparable]() *uniqueQueue[T] {
 	return &uniqueQueue[T]{inQ: make(map[T]bool)}
 }
@@ -375,6 +394,7 @@ func (q *uniqueQueue[T]) clear() {
 // The CfgEdge.To field is the source node (inverted so the join loop
 // can call getInputFromEdge uniformly).
 // Used only by joinInputs when isForward==true.
+// Go-only: language-adapter Java uses DiGraph.getInEdges() built into the graph; Go reconstructs from Predecessors.
 func (n *CfgNode) inEdges() []CfgEdge {
 	edges := make([]CfgEdge, 0, len(n.Predecessors))
 	for _, pred := range n.Predecessors {
@@ -486,6 +506,8 @@ type DataFlowAnalysis struct {
 	initial  *FlowScope
 }
 
+// edgeKey identifies a directed CFG edge (from→to with branch label).
+// Go-only: language-adapter Java uses DiGraphEdge identity; Go uses a struct key for map lookups.
 type edgeKey struct {
 	from   *CfgNode
 	to     *CfgNode
@@ -495,6 +517,7 @@ type edgeKey struct {
 // NewDataFlowAnalysis wires a DataFlowAnalysis over `cfg` with the
 // given transfer function. `initial` is the IN scope attached to the
 // entry node (typically an empty FlowScope).
+// Go-only: language-adapter Go needs a constructor function; Java DataFlowAnalysis uses subclassing.
 func NewDataFlowAnalysis(cfg *ControlFlowGraph, initial *FlowScope, transfer TransferFunction) *DataFlowAnalysis {
 	return &DataFlowAnalysis{
 		Cfg:      cfg,
@@ -510,6 +533,7 @@ func NewDataFlowAnalysis(cfg *ControlFlowGraph, initial *FlowScope, transfer Tra
 // keeps its refined type or joins to a union that subsumes it), and
 // NewUnion deduplicates by name — so the number of distinct union
 // shapes per name is bounded by the type lattice.
+// Go-only: language-adapter Mirrors DataFlowAnalysis.analyze(); renamed Run to avoid collision with the generic Analyze.
 func (d *DataFlowAnalysis) Run() {
 	d.In[d.Cfg.Entry] = d.initial
 	worklist := []*CfgNode{d.Cfg.Entry}
@@ -585,12 +609,16 @@ func (d *DataFlowAnalysis) Run() {
 // InOf returns the IN FlowScope for the CfgNode wrapping `ast`. Nil
 // if the node was never reached or the AST isn't a statement in the
 // analysed CFG.
+// Go-only: language-adapter Kept for interface-parity; real callers use InOfAst.
 func (d *DataFlowAnalysis) InOf(ast interface{ Token() Tokenish }) *FlowScope {
-	return nil // kept for interface-parity documentation; real callers use InOfAst below
+	// Real callers use InOfAst with a *CfgNode; this overload exists for interface parity.
+	_ = ast
+	return nil
 }
 
 // InOfAst is the concrete lookup used by TypeCheck — given a CFG and
 // an AST statement node, return its IN FlowScope.
+// Go-only: language-adapter Java callers use DiGraphNode.getAnnotation(); Go uses a typed map lookup via InOfAst.
 func (d *DataFlowAnalysis) InOfAst(node *CfgNode) *FlowScope {
 	if node == nil {
 		return nil

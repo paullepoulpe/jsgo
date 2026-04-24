@@ -15,6 +15,7 @@ import "github.com/paullepoulpe/jsgo/internal/rhino"
 // BuildControlFlowGraph runs on a FUNCTION or SCRIPT node and returns
 // its CFG. Nested FUNCTION / CLASS nodes are NOT descended into —
 // each has its own CFG, built lazily by the caller.
+// Go-only: language-adapter Java uses ControlFlowAnalysis.builder().computeCfg(); Go uses a single function entry point.
 func BuildControlFlowGraph(root *rhino.Node) *ControlFlowGraph {
 	var body *rhino.Node
 	switch root.Token() {
@@ -85,6 +86,7 @@ type cfgBuilder struct {
 	pendingLabel string
 }
 
+// Go-only: language-adapter Java uses a Deque<Node>; Go uses a typed stack with pushLoop/popLoop.
 func (b *cfgBuilder) pushLoop(breakTo, continueTo *CfgNode) {
 	b.loops = append(b.loops, breakTarget{
 		label:      b.takePendingLabel(),
@@ -92,8 +94,10 @@ func (b *cfgBuilder) pushLoop(breakTo, continueTo *CfgNode) {
 		continueTo: continueTo,
 	})
 }
+// Go-only: language-adapter stack pop helper not present in Java.
 func (b *cfgBuilder) popLoop() { b.loops = b.loops[:len(b.loops)-1] }
 
+// Go-only: language-adapter Java reuses the same exceptionHandler deque; Go uses typed stacks.
 func (b *cfgBuilder) pushSwitch(breakTo *CfgNode) {
 	b.loops = append(b.loops, breakTarget{
 		label:   b.takePendingLabel(),
@@ -101,6 +105,7 @@ func (b *cfgBuilder) pushSwitch(breakTo *CfgNode) {
 	})
 }
 
+// Go-only: language-adapter Java inlines label handling in shouldTraverse; Go uses an explicit stack entry.
 func (b *cfgBuilder) pushLabel(breakTo *CfgNode, label string) {
 	b.loops = append(b.loops, breakTarget{
 		label:   label,
@@ -111,14 +116,18 @@ func (b *cfgBuilder) pushLabel(breakTo *CfgNode, label string) {
 // takePendingLabel returns and clears any pending label that a
 // surrounding LABEL statement attached. The loop / switch consumes
 // it so its breakTarget stack entry is labeled correctly.
+// Go-only: language-adapter Java tracks labels via AST parent walks; Go uses a pending-label field.
 func (b *cfgBuilder) takePendingLabel() string {
 	l := b.pendingLabel
 	b.pendingLabel = ""
 	return l
 }
 
+// Go-only: language-adapter Java uses exceptionHandler Deque<Node>; Go uses typed catch stack.
 func (b *cfgBuilder) pushCatch(to *CfgNode) { b.catches = append(b.catches, catchTarget{to: to}) }
-func (b *cfgBuilder) popCatch()             { b.catches = b.catches[:len(b.catches)-1] }
+// Go-only: language-adapter Java pops exceptionHandler Deque; Go uses typed catch stack.
+func (b *cfgBuilder) popCatch() { b.catches = b.catches[:len(b.catches)-1] }
+// Go-only: language-adapter Java walks exceptionHandler to find the nearest catch; Go uses topCatch.
 func (b *cfgBuilder) topCatch() *CfgNode {
 	if len(b.catches) == 0 {
 		return nil
@@ -126,12 +135,15 @@ func (b *cfgBuilder) topCatch() *CfgNode {
 	return b.catches[len(b.catches)-1].to
 }
 
+// Go-only: language-adapter Java tracks finally via finallyMap + exceptionHandler; Go uses a typed finally stack.
 func (b *cfgBuilder) pushFinally(entry *CfgNode) {
 	b.finallies = append(b.finallies, finallyFrame{entry: entry})
 }
+// Go-only: language-adapter stack pop helper for finally frames.
 func (b *cfgBuilder) popFinally() { b.finallies = b.finallies[:len(b.finallies)-1] }
 
 // routeJumpThroughFinally returns the node that a non-local jump
+// Go-only: language-adapter Java computes this through finallyMap; Go uses explicit routing.
 // (return / break / continue / throw-to-EXIT) should actually target
 // when one or more finally blocks are open. Jumps route through the
 // innermost finally; that finally's fall-through logic handles the
@@ -166,6 +178,7 @@ func (b *cfgBuilder) routeJumpThroughFinally(target *CfgNode) *CfgNode {
 // unconditional edges. `prev` is the node whose fall-through edge
 // should be the first statement; `fallthrough_` is where the last
 // statement's implicit fall-through goes.
+// Go-only: language-adapter Java uses NodeTraversal.Callback.visit(); Go uses explicit recursive walk.
 func (b *cfgBuilder) visitStatements(stmts []*rhino.Node, prev *CfgNode, fallthrough_ *CfgNode) {
 	current := prev
 	for _, stmt := range stmts {
@@ -186,6 +199,7 @@ func (b *cfgBuilder) visitStatements(stmts []*rhino.Node, prev *CfgNode, fallthr
 // Returns nil when the statement terminates flow (return / throw /
 // break / continue). `prev == nil` skips the predecessor edge (used
 // when the caller has already attached a branch-labeled edge).
+// Go-only: language-adapter Java uses NodeTraversal.Callback.visit(); Go uses explicit dispatch.
 func (b *cfgBuilder) visitStatement(stmt *rhino.Node, prev *CfgNode) *CfgNode {
 	n := b.cfg.node(stmt)
 	if prev != nil {
@@ -264,6 +278,7 @@ func (b *cfgBuilder) visitStatement(stmt *rhino.Node, prev *CfgNode) *CfgNode {
 // bare `break;` — the innermost matching entry on the break stack.
 // `label == ""` means "innermost of any kind"; a non-empty label
 // walks outward looking for the matching entry.
+// Go-only: language-adapter Java calls isBreakTarget + AST ancestor walk; Go uses a typed stack search.
 func (b *cfgBuilder) breakTargetFor(label string) *CfgNode {
 	for i := len(b.loops) - 1; i >= 0; i-- {
 		if label == "" || b.loops[i].label == label {
@@ -277,6 +292,7 @@ func (b *cfgBuilder) breakTargetFor(label string) *CfgNode {
 // `continue label;` or bare `continue;` — innermost continue-capable
 // entry, filtered by label when given. Pure switches (continueTo ==
 // nil) are skipped.
+// Go-only: language-adapter Java calls isContinueTarget + AST ancestor walk; Go uses a typed stack search.
 func (b *cfgBuilder) continueTargetFor(label string) *CfgNode {
 	for i := len(b.loops) - 1; i >= 0; i-- {
 		if b.loops[i].continueTo == nil {
@@ -291,6 +307,7 @@ func (b *cfgBuilder) continueTargetFor(label string) *CfgNode {
 
 // labelOf returns the label name of a BREAK / CONTINUE statement or
 // "" when the statement is unlabeled.
+// Go-only: language-adapter Java reads node.getFirstChild().getString() inline; Go uses a helper.
 func labelOf(stmt *rhino.Node) string {
 	if stmt == nil {
 		return ""
@@ -306,6 +323,7 @@ func labelOf(stmt *rhino.Node) string {
 // breakTarget stack entry. Non-loop labeled statements (e.g.
 // `lbl: { break lbl; }`) get a dedicated stack entry tied to a
 // synthetic LABEL_AFTER join.
+// Go-only: language-adapter Java's shouldTraverse handles LABEL implicitly; Go dispatches to visitLabel.
 func (b *cfgBuilder) visitLabel(stmt *rhino.Node, n *CfgNode) *CfgNode {
 	kids := stmt.Children()
 	if len(kids) < 2 {
@@ -338,6 +356,7 @@ func (b *cfgBuilder) visitLabel(stmt *rhino.Node, n *CfgNode) *CfgNode {
 // add an exception edge to the enclosing handler — mirrors Java's
 // handleWith: createEdge(node, UNCOND, node.getLastChild()) +
 // connectToPossibleExceptionHandler(node, node.getFirstChild()).
+// Go-only: language-adapter Java uses handleWith in the visitor; Go uses visitWith.
 func (b *cfgBuilder) visitWith(stmt *rhino.Node, n *CfgNode) *CfgNode {
 	kids := stmt.Children()
 	if len(kids) < 2 {
@@ -369,6 +388,7 @@ func (b *cfgBuilder) visitWith(stmt *rhino.Node, n *CfgNode) *CfgNode {
 }
 
 // visitIf handles an `if (cond) then [else]` statement.
+// Go-only: language-adapter Java uses handleIf in visitor; Go uses visitIf.
 func (b *cfgBuilder) visitIf(stmt *rhino.Node, n *CfgNode) *CfgNode {
 	kids := stmt.Children()
 	if len(kids) < 2 {
@@ -394,6 +414,7 @@ func (b *cfgBuilder) visitIf(stmt *rhino.Node, n *CfgNode) *CfgNode {
 }
 
 // visitBranch wires one arm of an if/else.
+// Go-only: language-adapter Java inlines branch wiring in handleIf; Go extracts it to visitBranch.
 func (b *cfgBuilder) visitBranch(ifNode *CfgNode, block *rhino.Node, branch Branch, join *CfgNode) {
 	stmts := flattenBlock(block)
 	if len(stmts) == 0 {
@@ -412,6 +433,7 @@ func (b *cfgBuilder) visitBranch(ifNode *CfgNode, block *rhino.Node, branch Bran
 }
 
 // visitWhile handles `while (cond) body`. The CFG shape:
+// Go-only: language-adapter Java uses handleWhile in visitor; Go uses visitWhile.
 //
 //	prev → WHILE    (unconditional)
 //	WHILE → body-start (BranchOnTrue)
@@ -437,6 +459,7 @@ func (b *cfgBuilder) visitWhile(stmt *rhino.Node, n *CfgNode) *CfgNode {
 }
 
 // visitDoWhile handles `do body while (cond);`. CFG:
+// Go-only: language-adapter Java uses handleDo in visitor; Go uses visitDoWhile.
 //
 //	prev → body-start
 //	body-tail → DO_WHILE (cond node)
@@ -481,6 +504,7 @@ func (b *cfgBuilder) visitDoWhile(stmt *rhino.Node, n *CfgNode) *CfgNode {
 }
 
 // visitFor handles classic `for (init; cond; upd) body`.
+// Go-only: language-adapter Java uses handleFor in visitor; Go uses visitFor.
 // Children are (init, cond, upd, body). CFG:
 //
 //	prev → FOR (the init slot conceptually runs first)
@@ -530,6 +554,7 @@ func (b *cfgBuilder) visitFor(stmt *rhino.Node, n *CfgNode) *CfgNode {
 }
 
 // visitForInOf handles for-in / for-of with children (lhs, iter, body).
+// Go-only: language-adapter Java uses handleEnhancedFor in visitor; Go uses visitForInOf.
 // Models the iterator as a conditional on the header: OnTrue enters
 // the body, OnFalse exits. Body back-edges to the header. Close
 // enough to Java's IR even though we lack a dedicated ITER_NEXT node.
@@ -552,6 +577,7 @@ func (b *cfgBuilder) visitForInOf(stmt *rhino.Node, n *CfgNode) *CfgNode {
 }
 
 // visitSwitch handles `switch (e) { case v1: s1 case v2: s2 default:
+// Go-only: language-adapter Java uses handleSwitch+handleCase+handleDefault in visitor; Go uses visitSwitch.
 // d }`. Children are (discriminant, CASE*, DEFAULT_CASE?). Each case
 // body falls through to the next unless it ends in a break or
 // return. CFG:
@@ -636,6 +662,7 @@ func (b *cfgBuilder) visitSwitch(stmt *rhino.Node, n *CfgNode) *CfgNode {
 }
 
 // visitTry handles `try body catch (e) handler [finally block]`.
+// Go-only: language-adapter Java uses handleTry+handleCatch in visitor; Go uses visitTry.
 // Body runs with a catch target pushed so contained THROWs route
 // to the catch entry. After body / catch, flow joins at an after
 // node (and may pass through the finally block).
@@ -774,6 +801,7 @@ func (b *cfgBuilder) visitTry(stmt *rhino.Node, n *CfgNode) *CfgNode {
 // flattenBlock returns the statement list inside `n`. If `n` is a
 // BLOCK, returns its children; otherwise returns a single-element
 // slice with `n` itself so `if (c) x;` parses like `if (c) { x; }`.
+// Go-only: language-adapter Java uses computeFallThrough; Go uses flattenBlock to extract child statements.
 func flattenBlock(n *rhino.Node) []*rhino.Node {
 	if n == nil {
 		return nil
