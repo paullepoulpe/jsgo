@@ -3,13 +3,17 @@
 
 package trees
 
+// ProgramTree is the root node of a parsed JavaScript program.
 type ProgramTree struct {
-	SourceElements []ParseTree
+	ParseTree
+	SourceElements []*ParseTree
 	SourceComments []Comment
 }
 
-func NewProgramTree(location SourceRange, sourceElements []ParseTree, sourceComments []Comment) *ProgramTree {
+// NewProgramTree constructs a ProgramTree.
+func NewProgramTree(location SourceRange, sourceElements []*ParseTree, sourceComments []Comment) *ProgramTree {
 	return &ProgramTree{
+		ParseTree:      ParseTree{Type: ParseTreeTypeProgram, Location: location},
 		SourceElements: sourceElements,
 		SourceComments: sourceComments,
 	}
