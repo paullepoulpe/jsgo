@@ -116,7 +116,21 @@ func (g *AllowlistWarningsGuard) FormatWarningWithMetadata(d Diagnostic) string 
 	sb.WriteString(src)
 	sb.WriteByte(':')
 	// include line number
-	sb.WriteString(strings.ReplaceAll("", "", "")) // placeholder — no fmt import
+	if d.Line > 0 {
+		sb.WriteByte(':')
+		// write line number without importing fmt
+		n := d.Line
+		if n == 0 {
+			sb.WriteByte('0')
+		} else {
+			digits := make([]byte, 0, 10)
+			for n > 0 {
+				digits = append([]byte{byte('0' + n%10)}, digits...)
+				n /= 10
+			}
+			sb.Write(digits)
+		}
+	}
 	lines := strings.Split(d.Message, "\n")
 	sb.WriteString("  ")
 	sb.WriteString(lines[0])
