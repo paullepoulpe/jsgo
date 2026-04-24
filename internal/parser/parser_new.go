@@ -257,11 +257,6 @@ func (p *ParserRewrite) parseGlobalSourceElements() []*trees.ParseTree {
 	return result
 }
 
-func (p *ParserRewrite) parseScriptElement() *trees.ParseTree {
-	// Stubs for statement-level methods; will be filled in part 2.
-	panic("parseScriptElement: not yet implemented")
-}
-
 // ---- Infrastructure: position & location -------------------------------------
 
 func (p *ParserRewrite) getTreeStartLocation() SourcePosition {
@@ -1823,13 +1818,6 @@ func (p *ParserRewrite) peekSetAccessor() bool {
 	return p.peekPredefinedString(predefinedSET) && p.peekPropertyNameOrComputedPropAt(1)
 }
 
-func (p *ParserRewrite) peekAsyncMethod() bool {
-	return p.peekPredefinedString(predefinedASYNC) &&
-		!p.peekImplicitSemiColonAt(1) &&
-		(p.peekPropertyNameOrComputedPropAt(1) ||
-			(p.peekAt(1, TokenTypeStar) && p.peekPropertyNameOrComputedPropAt(2)))
-}
-
 func (p *ParserRewrite) parseObjectLiteralGetAccessor() *trees.ParseTree {
 	return p.parseGetAccessor(createObjectLiteralElementInfoAt(toTreesPos(p.getTreeStartLocation())))
 }
@@ -1879,19 +1867,67 @@ func (p *ParserRewrite) parseObjectLiteralMethodDeclaration() *trees.ParseTree {
 }
 
 func (p *ParserRewrite) parseMethodDeclaration(elementInfo *classOrObjectElementInfo) *trees.ParseTree {
-	return p.parseMethodDefinition(elementInfo, false)
+	isGenerator := p.eatOpt(TokenTypeStar) != nil
+	p.parseClassElementName(elementInfo)
+	return p.parseMethodDefinition(elementInfo, isGenerator)
 }
 
 func (p *ParserRewrite) parseObjectLiteralAsyncMethod() *trees.ParseTree {
 	return p.parseAsyncMethod(createObjectLiteralElementInfoAt(toTreesPos(p.getTreeStartLocation())))
 }
 
+// parseAsyncMethod mirrors parseAsyncMethod() from the Java parser.
 func (p *ParserRewrite) parseAsyncMethod(elementInfo *classOrObjectElementInfo) *trees.ParseTree {
-	p.eatAsyncFunctionStart()
-	isGenerator := p.eatOpt(TokenTypeStar) != nil
-	return p.parseMethodDefinition(elementInfo, isGenerator)
+	p.eatPredefinedString(predefinedASYNC)
+	generator := p.peek(TokenTypeStar)
+	if generator {
+		p.eat(TokenTypeStar)
+	}
+	flavor := functionFlavorAsynchronous
+	if generator {
+		flavor = functionFlavorAsynchronousGenerator
+	}
+	if p.peekPropertyNameAt(0) {
+		if p.peekIdOrKeyword() {
+			nameTok := p.eatIdOrKeywordAsId()
+			name := toTreesIdentToken(nameTok)
+			nameStart := nameTok.Location.Start
+			builder := trees.NewFunctionDeclarationBuilder(trees.FunctionDeclarationKindMember).
+				SetAsync(true).
+				SetGenerator(generator).
+				SetIsClassMember(elementInfo.isClassMember).
+				SetStatic(elementInfo.isStatic).
+				SetName(name)
+			p.parseFunctionTail(builder, flavor)
+			nameTreesPos := toTreesPos(nameStart)
+			return p.asParseTree(builder.Build(p.getTreeLocationFromTreesPos(nameTreesPos)))
+		}
+		// string/number literal — treat as computed
+		nameExpr := p.asParseTree(p.parseLiteralExpression())
+		builder := trees.NewFunctionDeclarationBuilder(trees.FunctionDeclarationKindExpression).
+			SetAsync(true).
+			SetGenerator(generator).
+			SetIsClassMember(elementInfo.isClassMember).
+			SetStatic(elementInfo.isStatic)
+		p.parseFunctionTail(builder, flavor)
+		funcTree := p.asParseTree(builder.Build(p.getTreeLocationFromTreesPos(nameExpr.Location.Start)))
+		return p.asParseTree(trees.NewComputedPropertyMethodTree(
+			p.getTreeLocationFromTreesPos(nameExpr.Location.Start), nameExpr, funcTree))
+	}
+	// computed property name
+	nameExpr := p.parseComputedPropertyName()
+	builder := trees.NewFunctionDeclarationBuilder(trees.FunctionDeclarationKindExpression).
+		SetAsync(true).
+		SetGenerator(generator).
+		SetIsClassMember(elementInfo.isClassMember).
+		SetStatic(elementInfo.isStatic)
+	p.parseFunctionTail(builder, flavor)
+	funcTree := p.asParseTree(builder.Build(p.getTreeLocationFromTreesPos(nameExpr.Location.Start)))
+	return p.asParseTree(trees.NewComputedPropertyMethodTree(
+		p.getTreeLocationFromTreesPos(nameExpr.Location.Start), nameExpr, funcTree))
 }
 
+// parseMethodDefinition mirrors parseMethodDefinition() from the Java parser.
 func (p *ParserRewrite) parseMethodDefinition(elementInfo *classOrObjectElementInfo, isGenerator bool) *trees.ParseTree {
 	var kind trees.FunctionDeclarationKind
 	if elementInfo.hasNameExpr() {
@@ -1916,6 +1952,14 @@ func (p *ParserRewrite) parseMethodDefinition(elementInfo *classOrObjectElementI
 	}
 	return p.asParseTree(trees.NewComputedPropertyMethodTree(
 		p.getTreeLocationFromTreesPos(elementInfo.start), elementInfo.getNameExpr(), function))
+}
+
+// peekAsyncMethod mirrors peekAsyncMethod() from the Java parser.
+func (p *ParserRewrite) peekAsyncMethod() bool {
+	return p.peekPredefinedString(predefinedASYNC) &&
+		!p.peekImplicitSemiColonAt(1) &&
+		(p.peekPropertyNameOrComputedPropAt(1) ||
+			(p.peekAt(1, TokenTypeStar) && p.peekPropertyNameOrComputedPropAt(2)))
 }
 
 func (p *ParserRewrite) parseObjectLiteralPropertyNameAssignment() *trees.ParseTree {
@@ -2207,49 +2251,6 @@ func (p *ParserRewrite) parseParameter() *trees.ParseTree {
 	return p.asParseTree(ident)
 }
 
-// ---- Statement-level stubs (to be filled in by part 2) ----------------------
-
-// parseFunctionBody is a stub that will be implemented in part 2.
-func (p *ParserRewrite) parseFunctionBody() *trees.BlockTree {
-	panic("parseFunctionBody: not yet implemented (part 2)")
-}
-
-// parseFunctionTail is a stub that will be implemented in part 2.
-func (p *ParserRewrite) parseFunctionTail(builder *trees.FunctionDeclarationBuilder, flavor functionFlavor) {
-	panic("parseFunctionTail: not yet implemented (part 2)")
-}
-
-// parseFunctionExpression is a stub that will be implemented in part 2.
-func (p *ParserRewrite) parseFunctionExpression() *trees.ParseTree {
-	panic("parseFunctionExpression: not yet implemented (part 2)")
-}
-
-// parseAsyncFunctionExpression is a stub that will be implemented in part 2.
-func (p *ParserRewrite) parseAsyncFunctionExpression() *trees.ParseTree {
-	panic("parseAsyncFunctionExpression: not yet implemented (part 2)")
-}
-
-// parseClassExpression is a stub that will be implemented in part 2.
-func (p *ParserRewrite) parseClassExpression() *trees.ParseTree {
-	panic("parseClassExpression: not yet implemented (part 2)")
-}
-
-// peekFunction is a stub.
-func (p *ParserRewrite) peekFunction() bool {
-	return p.peek(TokenTypeFunction)
-}
-
-// peekAsyncFunctionStart is a stub.
-func (p *ParserRewrite) peekAsyncFunctionStart() bool {
-	return p.peekPredefinedString(predefinedASYNC) && !p.peekImplicitSemiColonAt(1) && p.peekAt(1, TokenTypeFunction)
-}
-
-// eatAsyncFunctionStart is a stub.
-func (p *ParserRewrite) eatAsyncFunctionStart() {
-	p.eatPredefinedString(predefinedASYNC)
-	p.eat(TokenTypeFunction)
-}
-
 // ---- Utility: asParseTree ----------------------------------------------------
 
 // asParseTree converts any concrete ParseTree subtype to *trees.ParseTree.
@@ -2406,6 +2407,68 @@ func (p *ParserRewrite) asParseTree(node interface{}) *trees.ParseTree {
 	case *trees.PropertyNameAssignmentTree:
 		t := trees.ParseTree{Type: n.Type, Location: n.Location}
 		return &t
+	// ---- Statement types (no embedded ParseTree — type is known statically) ----
+	case *trees.BlockTree:
+		t := trees.ParseTree{Type: trees.ParseTreeTypeBlock, Location: n.Location}
+		return &t
+	case *trees.IfStatementTree:
+		return &trees.ParseTree{Type: trees.ParseTreeTypeIfStatement}
+	case *trees.DoWhileStatementTree:
+		return &trees.ParseTree{Type: trees.ParseTreeTypeDoWhileStatement}
+	case *trees.WhileStatementTree:
+		return &trees.ParseTree{Type: trees.ParseTreeTypeWhileStatement}
+	case *trees.ForStatementTree:
+		return &trees.ParseTree{Type: trees.ParseTreeTypeForStatement}
+	case *trees.ForInStatementTree:
+		return &trees.ParseTree{Type: trees.ParseTreeTypeForInStatement}
+	case *trees.ForOfStatementTree:
+		return &trees.ParseTree{Type: trees.ParseTreeTypeForOfStatement}
+	case *trees.SwitchStatementTree:
+		return &trees.ParseTree{Type: trees.ParseTreeTypeSwitchStatement}
+	case *trees.CaseClauseTree:
+		return &trees.ParseTree{Type: trees.ParseTreeTypeCaseClause}
+	case *trees.DefaultClauseTree:
+		return &trees.ParseTree{Type: trees.ParseTreeTypeDefaultClause}
+	case *trees.TryStatementTree:
+		return &trees.ParseTree{Type: trees.ParseTreeTypeTryStatement}
+	case *trees.CatchTree:
+		return &trees.ParseTree{Type: trees.ParseTreeTypeCatch}
+	case *trees.FinallyTree:
+		return &trees.ParseTree{Type: trees.ParseTreeTypeFinally}
+	case *trees.VariableStatementTree:
+		return &trees.ParseTree{Type: trees.ParseTreeTypeVariableStatement}
+	case *trees.VariableDeclarationListTree:
+		return &trees.ParseTree{Type: trees.ParseTreeTypeVariableDeclarationList}
+	case *trees.VariableDeclarationTree:
+		return &trees.ParseTree{Type: trees.ParseTreeTypeVariableDeclaration}
+	case *trees.EmptyStatementTree:
+		return &trees.ParseTree{Type: trees.ParseTreeTypeEmptyStatement}
+	case *trees.ExpressionStatementTree:
+		return &trees.ParseTree{Type: trees.ParseTreeTypeExpressionStatement}
+	case *trees.BreakStatementTree:
+		return &trees.ParseTree{Type: trees.ParseTreeTypeBreakStatement}
+	case *trees.ContinueStatementTree:
+		return &trees.ParseTree{Type: trees.ParseTreeTypeContinueStatement}
+	case *trees.ReturnStatementTree:
+		return &trees.ParseTree{Type: trees.ParseTreeTypeReturnStatement}
+	case *trees.WithStatementTree:
+		return &trees.ParseTree{Type: trees.ParseTreeTypeWithStatement}
+	case *trees.ThrowStatementTree:
+		return &trees.ParseTree{Type: trees.ParseTreeTypeThrowStatement}
+	case *trees.DebuggerStatementTree:
+		return &trees.ParseTree{Type: trees.ParseTreeTypeDebuggerStatement}
+	case *trees.LabelledStatementTree:
+		return &trees.ParseTree{Type: trees.ParseTreeTypeLabelledStatement}
+	case *trees.ClassDeclarationTree:
+		return &trees.ParseTree{Type: trees.ParseTreeTypeClassDeclaration}
+	case *trees.ImportDeclarationTree:
+		return &trees.ParseTree{Type: trees.ParseTreeTypeImportDeclaration}
+	case *trees.ImportSpecifierTree:
+		return &trees.ParseTree{Type: trees.ParseTreeTypeImportSpecifier}
+	case *trees.ExportDeclarationTree:
+		return &trees.ParseTree{Type: trees.ParseTreeTypeExportDeclaration}
+	case *trees.ExportSpecifierTree:
+		return &trees.ParseTree{Type: trees.ParseTreeTypeExportSpecifier}
 	default:
 		panic(fmt.Sprintf("asParseTree: unhandled type %T", node))
 	}
