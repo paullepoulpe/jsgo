@@ -312,6 +312,7 @@ func (ctx *superPropertyAccessAllowedContext) getContextForArrowFunctionNode(arr
 
 func (ctx *superPropertyAccessAllowedContext) visitSuperPropertyAccess(c *CheckSuper, superNode *rhino.Node) {
 	// Super property should be allowed on a public field and inside static blocks.
+	_ = superNode
 }
 
 func (ctx *superPropertyAccessAllowedContext) visitSuperConstructorCall(c *CheckSuper, superNode *rhino.Node) {
@@ -322,12 +323,15 @@ func (ctx *superPropertyAccessAllowedContext) visitSuperConstructorCall(c *Check
 
 func (ctx *superPropertyAccessAllowedContext) visitThis(c *CheckSuper, thisNode *rhino.Node) {
 	// Ignored except in constructor methods. Mirrors Java Context base class default.
+	_ = thisNode
 }
 func (ctx *superPropertyAccessAllowedContext) visitReturn(c *CheckSuper, returnNode *rhino.Node) {
 	// Ignored except in constructor methods. Mirrors Java Context base class default.
+	_ = returnNode
 }
 func (ctx *superPropertyAccessAllowedContext) visitContextNode(c *CheckSuper) {
 	// Called when visiting the root node of this context — no-op here. Mirrors Java Context base class default.
+	_ = c
 }
 
 // ── superNotAllowedContext ────────────────────────────────────────────────────
@@ -362,12 +366,15 @@ func (ctx *superNotAllowedContext) visitSuperPropertyAccess(c *CheckSuper, super
 
 func (ctx *superNotAllowedContext) visitThis(c *CheckSuper, thisNode *rhino.Node) {
 	// Ignored except in constructor methods. Mirrors Java Context base class default.
+	_ = thisNode
 }
 func (ctx *superNotAllowedContext) visitReturn(c *CheckSuper, returnNode *rhino.Node) {
 	// Ignored except in constructor methods. Mirrors Java Context base class default.
+	_ = returnNode
 }
 func (ctx *superNotAllowedContext) visitContextNode(c *CheckSuper) {
 	// Called when visiting the root node of this context — no-op here. Mirrors Java Context base class default.
+	_ = c
 }
 
 // ── methodContext ─────────────────────────────────────────────────────────────
@@ -400,7 +407,8 @@ func (ctx *methodContext) getContextForArrowFunctionNode(arrowFn *rhino.Node) su
 }
 
 func (ctx *methodContext) visitSuperPropertyAccess(c *CheckSuper, superNode *rhino.Node) {
-	// super property access in a method is perfectly valid.
+	// super property access in a method is perfectly valid, so do not report an error.
+	_ = superNode
 }
 
 func (ctx *methodContext) visitSuperConstructorCall(c *CheckSuper, superNode *rhino.Node) {
@@ -425,12 +433,15 @@ func (ctx *methodContext) visitSuperConstructorCall(c *CheckSuper, superNode *rh
 
 func (ctx *methodContext) visitThis(c *CheckSuper, thisNode *rhino.Node) {
 	// Ignored except in constructor methods. Mirrors Java Context base class default.
+	_ = thisNode
 }
 func (ctx *methodContext) visitReturn(c *CheckSuper, returnNode *rhino.Node) {
 	// Ignored except in constructor methods. Mirrors Java Context base class default.
+	_ = returnNode
 }
 func (ctx *methodContext) visitContextNode(c *CheckSuper) {
 	// Called when visiting the root node of this context — no-op here. Mirrors Java Context base class default.
+	_ = c
 }
 
 // getPropertyName returns the method name for the diagnostic suggestion, or "".
@@ -576,10 +587,13 @@ func (ctx *constructorArrowContext) visitSuperPropertyAccess(c *CheckSuper, supe
 
 func (ctx *constructorArrowContext) visitThis(c *CheckSuper, thisNode *rhino.Node) {
 	// Arrow functions in constructors don't independently track this-access. Mirrors Java ConstructorArrowContext.
+	_ = thisNode
 }
 func (ctx *constructorArrowContext) visitReturn(c *CheckSuper, returnNode *rhino.Node) {
 	// Return statements in arrow functions don't affect constructor return-a-value tracking. Mirrors Java.
+	_ = returnNode
 }
 func (ctx *constructorArrowContext) visitContextNode(c *CheckSuper) {
 	// Called when visiting the root node of this context — no-op here. Mirrors Java Context base class default.
+	_ = c
 }

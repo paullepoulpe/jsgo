@@ -166,7 +166,10 @@ func (v *closureRestrictToObjectVisitor) CaseTemplatizedType(typ *jstype.Templat
 }
 
 // Go-only: Visitor interface implementation (Java anonymous class inherits default)
-func (v *closureRestrictToObjectVisitor) CaseTemplateType(_ *jstype.TemplateType) any { return nil }
+func (v *closureRestrictToObjectVisitor) CaseTemplateType(typ *jstype.TemplateType) any {
+	_ = typ // template types are not object types; mirrors Java RestrictByTrueTypeOfResultVisitor default
+	return nil
+}
 
 // Go-only: Visitor interface implementation (Java anonymous class inherits default)
 func (v *closureRestrictToObjectVisitor) CaseNamedType(typ jstype.JSType) any {
@@ -219,8 +222,14 @@ func (v *closureRestrictToNotObjectVisitor) CaseUnknownType() any {
 	return v.c.getNativeType(jstype.CHECKED_UNKNOWN_TYPE)
 }
 
-func (v *closureRestrictToNotObjectVisitor) CaseObjectType(_ *jstype.ObjectType) any   { return nil }
-func (v *closureRestrictToNotObjectVisitor) CaseFunctionType(_ *jstype.FunctionType) any { return nil }
+func (v *closureRestrictToNotObjectVisitor) CaseObjectType(typ *jstype.ObjectType) any {
+	_ = typ // objects are eliminated when goog.isObject is false; mirrors Java anonymous class override
+	return nil
+}
+func (v *closureRestrictToNotObjectVisitor) CaseFunctionType(typ *jstype.FunctionType) any {
+	_ = typ // functions are eliminated when goog.isObject is false; mirrors Java anonymous class override
+	return nil
+}
 
 // Go-only: explicit case (Java RestrictByFalseTypeOfResultVisitor base class handles via default)
 // The following are RestrictByFalseTypeOfResultVisitor defaults — return native type.
@@ -277,7 +286,8 @@ func (v *closureRestrictToNotObjectVisitor) CaseTemplatizedType(typ *jstype.Temp
 }
 
 // Go-only: Visitor interface implementation (Java anonymous class inherits default)
-func (v *closureRestrictToNotObjectVisitor) CaseTemplateType(_ *jstype.TemplateType) any {
+func (v *closureRestrictToNotObjectVisitor) CaseTemplateType(typ *jstype.TemplateType) any {
+	_ = typ // template types are not constrained by goog.isObject; mirrors RestrictByFalseTypeOfResultVisitor default
 	return nil
 }
 
