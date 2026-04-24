@@ -532,25 +532,6 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a9d0c096/internal/rhino/jsdoc.go",
-    "java_file": "com/google/javascript/rhino/JSDocInfo.java",
-    "score": 51.620229767488055,
-    "method_overlap_pct": 31.182795698924732,
-    "go_method_count": 199,
-    "java_method_count": 289,
-    "stub_count": 0,
-    "go_body_loc": 459,
-    "java_body_loc": 1313,
-    "loc_ratio": 0.3495811119573496,
-    "go_only_count": 68,
-    "port_debt_count": 0,
-    "notes": "68 go-only fns",
-    "weighted_score": 59.45747109641152,
-    "go_only_penalty": 20,
-    "stub_penalty": 0,
-    "version_penalty": 0
-  },
-  {
     "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a9d0c096/internal/parser/trees/parse_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ParseTree.java",
     "score": 51.715561591966086,
@@ -3422,7 +3403,7 @@
   {
     "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a9d0c096/internal/jscomp/checksideeffects.go",
     "java_file": "com/google/javascript/jscomp/CheckSideEffects.java",
-    "score": 65.41666666666666,
+    "score": 65.41666666666667,
     "method_overlap_pct": 33.33333333333333,
     "go_method_count": 12,
     "java_method_count": 4,
@@ -3433,7 +3414,7 @@
     "go_only_count": 0,
     "port_debt_count": 0,
     "notes": "",
-    "weighted_score": 50.595238095238095,
+    "weighted_score": 50.5952380952381,
     "go_only_penalty": 0,
     "stub_penalty": 0,
     "version_penalty": 0
@@ -3737,7 +3718,7 @@
     "go_only_count": 0,
     "port_debt_count": 17,
     "notes": "17 port-debt",
-    "weighted_score": 58.1234335839599,
+    "weighted_score": 58.12343358395991,
     "go_only_penalty": 0,
     "stub_penalty": 0,
     "version_penalty": 0
@@ -3796,6 +3777,25 @@
     "notes": "7 go-only fns",
     "weighted_score": 78.98073278968637,
     "go_only_penalty": 14,
+    "stub_penalty": 0,
+    "version_penalty": 0
+  },
+  {
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a9d0c096/internal/rhino/jsdoc.go",
+    "java_file": "com/google/javascript/rhino/JSDocInfo.java",
+    "score": 71.62022976748806,
+    "method_overlap_pct": 31.182795698924732,
+    "go_method_count": 199,
+    "java_method_count": 289,
+    "stub_count": 0,
+    "go_body_loc": 459,
+    "java_body_loc": 1313,
+    "loc_ratio": 0.3495811119573496,
+    "go_only_count": 0,
+    "port_debt_count": 0,
+    "notes": "",
+    "weighted_score": 59.45747109641152,
+    "go_only_penalty": 0,
     "stub_penalty": 0,
     "version_penalty": 0
   },
@@ -4239,7 +4239,7 @@
   {
     "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a9d0c096/internal/diag/abstractmessageformatter.go",
     "java_file": "com/google/javascript/jscomp/AbstractMessageFormatter.java",
-    "score": 80.87247474747475,
+    "score": 80.87247474747474,
     "method_overlap_pct": 66.66666666666666,
     "go_method_count": 7,
     "java_method_count": 8,
@@ -4250,7 +4250,7 @@
     "go_only_count": 1,
     "port_debt_count": 0,
     "notes": "1 go-only fns",
-    "weighted_score": 75.5321067821068,
+    "weighted_score": 75.53210678210678,
     "go_only_penalty": 2,
     "stub_penalty": 0,
     "version_penalty": 0
