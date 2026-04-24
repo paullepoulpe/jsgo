@@ -2593,7 +2593,21 @@ func (c *TypeCheck) visitFunctionParams(fn *rhino.Node, scope *TypedScope) []dia
 	params := kids[1]
 	paramSet := map[string]bool{}
 	for _, p := range params.Children() {
-		paramSet[p.String_()] = true
+		name := p.String_()
+		if name != "" {
+			paramSet[name] = true
+		} else if p.Token() == rhino.DEFAULT_VALUE {
+			// Default parameter: `x = expr` — the binding name is the
+			// first child (NAME node).
+			if fc := p.FirstChild(); fc != nil && fc.Token() == rhino.NAME {
+				paramSet[fc.String_()] = true
+			}
+		} else if p.Token() == rhino.ITER_SPREAD {
+			// Rest parameter: `...x` — the first child is the NAME.
+			if fc := p.FirstChild(); fc != nil && fc.Token() == rhino.NAME {
+				paramSet[fc.String_()] = true
+			}
+		}
 	}
 	fnName := kids[0].String_()
 	if fnName == "" {
