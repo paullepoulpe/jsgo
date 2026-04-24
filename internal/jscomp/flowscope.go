@@ -29,13 +29,13 @@ type FlowScope struct {
 	syntacticScope *TypedScope // mirrors LinkedFlowScope.syntacticScope
 }
 
-// Go-only: EmptyFlowScope is the bottom of the lattice — no names refined.
+// Go-only: language-adapter — EmptyFlowScope is the bottom of the lattice — no names refined.
 // Java uses createEntryLattice; Go uses a simpler nil/empty map.
 func EmptyFlowScope() *FlowScope {
 	return &FlowScope{types: map[string]jstype.JSType{}}
 }
 
-// Go-only: createChildFlowScope returns a new FlowScope that inherits all
+// Go-only: language-adapter — createChildFlowScope returns a new FlowScope that inherits all
 // refinements from `parent`. Mirrors the LinkedFlowScope lattice
 // parent/child relationship; here we copy eagerly (flat map) so
 // the child is independent and all callers continue to work without
@@ -94,7 +94,7 @@ func (f *FlowScope) optimize(parent *FlowScope) *FlowScope {
 	return f
 }
 
-// Go-only: Bind produces a copy of `f` with `name` remapped to `t`. The
+// Go-only: language-adapter — Bind produces a copy of `f` with `name` remapped to `t`. The
 // receiver is never mutated — mirrors the persistent-map contract
 // LinkedFlowScope documents in Java (via OverlayScope PMap updates).
 func (f *FlowScope) Bind(name string, t jstype.JSType) *FlowScope {
@@ -113,7 +113,7 @@ func (f *FlowScope) Bind(name string, t jstype.JSType) *FlowScope {
 	return out
 }
 
-// Go-only: BindAll layers every entry of `refs` onto `f`.
+// Go-only: language-adapter — BindAll layers every entry of `refs` onto `f`.
 func (f *FlowScope) BindAll(refs map[string]jstype.JSType) *FlowScope {
 	if len(refs) == 0 {
 		return f
@@ -173,7 +173,7 @@ type JoinOp struct {
 	result *FlowScope
 }
 
-// Go-only: NewJoinOp returns an empty JoinOp ready to accumulate edge scopes.
+// Go-only: language-adapter — NewJoinOp returns an empty JoinOp ready to accumulate edge scopes.
 // Java creates FlowScopeJoinOp via its constructor with an inputProvider.
 func NewJoinOp() *JoinOp { return &JoinOp{} }
 
@@ -312,7 +312,7 @@ func getCommonParentDeclarationScope(left, right *FlowScope) *TypedScope {
 	return r
 }
 
-// Go-only: JoinFlowScopes computes the lattice-join of two FlowScopes.
+// Go-only: language-adapter — JoinFlowScopes computes the lattice-join of two FlowScopes.
 // Java's join logic lives inside LinkedFlowScope.FlowScopeJoinOp.joinFlow
 // and the private join() static method — extracted here for clarity.
 func JoinFlowScopes(a, b *FlowScope) *FlowScope {

@@ -52,7 +52,7 @@ type EnumType struct {
 	docInfo *rhino.JSDocInfo
 }
 
-// Go-only: NewEnumType — Go constructor; Java uses EnumType.builder(registry).build().
+// Go-only: language-adapter — NewEnumType — Go constructor; Java uses EnumType.builder(registry).build().
 // NewEnumType allocates a fresh EnumType + its paired
 // EnumElementType. Underlying defaults to Number when nil —
 // matches how Java's EnumType defaults the @enum type argument.
@@ -69,10 +69,10 @@ func NewEnumType(name string, underlying JSType) *EnumType {
 	return e
 }
 
-// Go-only: TypeName — Go interface method; Java uses appendTo(TypeStringBuilder).
+// Go-only: language-adapter — TypeName — Go interface method; Java uses appendTo(TypeStringBuilder).
 func (e *EnumType) TypeName() string { return "enum{" + e.Name + "}" }
 
-// Go-only: IsSubtypeOf — Go JSType interface method; Java uses visit(RelationshipVisitor, JSType).
+// Go-only: language-adapter — IsSubtypeOf — Go JSType interface method; Java uses visit(RelationshipVisitor, JSType).
 // IsSubtypeOf: an enum is a subtype only of itself, AllType or
 // Unknown. No structural coercion — two enums aren't
 // interchangeable even when they share an underlying primitive.
@@ -119,12 +119,12 @@ func (e *EnumElementType) IsSubtypeOf(other JSType) bool {
 	return IsSubtype(e.Enum.Underlying, other)
 }
 
-// Go-only: SetJSDocInfo — Go convenience; Java ObjectType.setJSDocInfo() is inherited.
+// Go-only: language-adapter — SetJSDocInfo — Go convenience; Java ObjectType.setJSDocInfo() is inherited.
 // SetJSDocInfo mirrors EnumType.setJSDocInfo — attaches the declaring
 // JSDoc to this enum type. Called by InferJsDocInfo.
 func (e *EnumType) SetJSDocInfo(info *rhino.JSDocInfo) { e.docInfo = info }
 
-// Go-only: GetJSDocInfo — Go convenience accessor; Java ObjectType.getJSDocInfo() is inherited.
+// Go-only: language-adapter — GetJSDocInfo — Go convenience accessor; Java ObjectType.getJSDocInfo() is inherited.
 // GetJSDocInfo mirrors EnumType.getJSDocInfo.
 func (e *EnumType) GetJSDocInfo() *rhino.JSDocInfo { return e.docInfo }
 

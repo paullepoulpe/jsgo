@@ -89,7 +89,7 @@ type CompilerOptions struct {
 	conformanceMode                  int
 }
 
-// Go-only: NewCompilerOptions creates a CompilerOptions with jsgo defaults.
+// Go-only: language-adapter — NewCompilerOptions creates a CompilerOptions with jsgo defaults.
 // Java uses `new CompilerOptions()` directly.
 func NewCompilerOptions() *CompilerOptions {
 	o := &CompilerOptions{
@@ -132,7 +132,7 @@ func (o *CompilerOptions) resetWarningsGuard() {
 	o.levels = map[*DiagnosticGroup]CheckLevel{}
 }
 
-// Go-only: getLevelForGroup returns the CheckLevel for the given DiagnosticGroup.
+// Go-only: language-adapter — getLevelForGroup returns the CheckLevel for the given DiagnosticGroup.
 // Java uses a WarningsGuard chain; jsgo uses a direct map.
 func (o *CompilerOptions) getLevelForGroup(g *DiagnosticGroup) CheckLevel {
 	if o == nil || o.levels == nil {
@@ -144,7 +144,7 @@ func (o *CompilerOptions) getLevelForGroup(g *DiagnosticGroup) CheckLevel {
 	return LevelOff
 }
 
-// LevelFor is the Go name for getLevelForGroup. Go-only: Java uses getCheckLevel.
+// Go-only: language-adapter — LevelFor is the Go name for getLevelForGroup; Java uses getCheckLevel.
 func (o *CompilerOptions) LevelFor(g *DiagnosticGroup) CheckLevel {
 	return o.getLevelForGroup(g)
 }
@@ -212,7 +212,7 @@ func (o *CompilerOptions) getCheckSymbols() bool {
 	return o.checkSymbols
 }
 
-// Go-only: shouldCheckSymbols is the Go-style name for getCheckSymbols.
+// Go-only: language-adapter — shouldCheckSymbols is the Go-style name for getCheckSymbols.
 func (o *CompilerOptions) shouldCheckSymbols() bool {
 	return o.getCheckSymbols()
 }
@@ -258,7 +258,7 @@ func (o *CompilerOptions) setLanguageOut(lang LanguageMode) {
 }
 
 // getLanguageOut returns the configured output language mode.
-// Go-only: Java uses getOutputFeatureSet() or getLanguageOut().
+// Go-only: language-adapter — Java uses getOutputFeatureSet() or getLanguageOut().
 func (o *CompilerOptions) getLanguageOut() LanguageMode {
 	if o == nil {
 		return LanguageModeEcmascript5
@@ -417,7 +417,7 @@ func (o *CompilerOptions) setPrintConfig(printConfig bool) {
 	o.printConfig = printConfig
 }
 
-// Go-only: setAddScopeNames — Java does not have this exact method.
+// Go-only: language-adapter — setAddScopeNames — Java does not have this exact method.
 func (o *CompilerOptions) setAddScopeNames(enable bool) {
 	if o == nil {
 		return
@@ -425,7 +425,7 @@ func (o *CompilerOptions) setAddScopeNames(enable bool) {
 	o.addScopeNames = enable
 }
 
-// Go-only: isAddScopeNames — Java does not have this exact method.
+// Go-only: language-adapter — isAddScopeNames — Java does not have this exact method.
 func (o *CompilerOptions) isAddScopeNames() bool {
 	if o == nil {
 		return false
@@ -433,7 +433,7 @@ func (o *CompilerOptions) isAddScopeNames() bool {
 	return o.addScopeNames
 }
 
-// Go-only: setAssumeFunctionWrapper — Java names it differently.
+// Go-only: language-adapter — setAssumeFunctionWrapper — Java names it differently.
 func (o *CompilerOptions) setAssumeFunctionWrapper(b bool) {
 	if o == nil {
 		return
@@ -441,7 +441,7 @@ func (o *CompilerOptions) setAssumeFunctionWrapper(b bool) {
 	o.assumeFunctionWrapper = b
 }
 
-// Go-only: isAssumeFunctionWrapper — Java names it differently.
+// Go-only: language-adapter — isAssumeFunctionWrapper — Java names it differently.
 func (o *CompilerOptions) isAssumeFunctionWrapper() bool {
 	if o == nil {
 		return false
@@ -481,7 +481,7 @@ func (o *CompilerOptions) getRewritePolyfills() bool {
 	return o.rewritePolyfills
 }
 
-// Go-only: rewritePolyfillsEnabled — Java uses getRewritePolyfills directly.
+// Go-only: language-adapter — rewritePolyfillsEnabled — Java uses getRewritePolyfills directly.
 func (o *CompilerOptions) rewritePolyfillsEnabled() bool {
 	return o.getRewritePolyfills()
 }
@@ -698,7 +698,7 @@ func (o *CompilerOptions) setDeadAssignmentElimination(enable bool) {
 	o.deadAssignmentElimination = enable
 }
 
-// Go-only: setRemoveDeadCode — Java uses PassConfig to configure dead code removal.
+// Go-only: language-adapter — setRemoveDeadCode — Java uses PassConfig to configure dead code removal.
 func (o *CompilerOptions) setRemoveDeadCode(enable bool) {
 	if o == nil {
 		return
@@ -765,7 +765,7 @@ func (o *CompilerOptions) setExtractPrototypeMemberDeclarations(enable bool) {
 	o.extractPrototypeMemberDeclarations = enable
 }
 
-// Go-only: setShadowVariables — Java uses different variable shadowing controls.
+// Go-only: language-adapter — setShadowVariables — Java uses different variable shadowing controls.
 func (o *CompilerOptions) setShadowVariables(enable bool) {
 	if o == nil {
 		return

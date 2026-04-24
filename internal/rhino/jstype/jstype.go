@@ -157,7 +157,7 @@ const (
 // IsTruthy mirrors Outcome.isTruthy().
 func (o Outcome) IsTruthy() bool { return o == OutcomeTrue }
 
-// Go-only: IsNullishBool — Go exposes OutcomeNullish constant directly instead of a method.
+// Go-only: language-adapter — IsNullishBool — Go exposes OutcomeNullish constant directly instead of a method.
 // IsNullish mirrors Outcome.isNullish() → true only for OutcomeNullish, false
 // for OutcomeFalseNotNull, and unknown (represented as -1 sentinel) for
 // OutcomeFalse (which covers both nullish and non-null-falsy).
@@ -208,7 +208,7 @@ func Meet(x, y JSType) JSType {
 	return None
 }
 
-// Go-only: IsStrictSubtypeOf — Go package-level wrapper; Java uses isSubtypeWithoutStructuralTyping on instances.
+// Go-only: language-adapter — IsStrictSubtypeOf — Go package-level wrapper; Java uses isSubtypeWithoutStructuralTyping on instances.
 // IsStrictSubtypeOf reports x <: y with structural subtyping disabled.
 // Port of JSType.isSubtypeWithoutStructuralTyping() @ closure-compiler v20260415.
 // Implemented as: IsSubtype(x, y) && x != y (approximation without registry).
@@ -311,7 +311,7 @@ func CollapseUnion(t JSType) JSType {
 // ownerFunctioner is the optional interface for prototype / proxy object types.
 type ownerFunctioner interface{ GetOwnerFunction() *FunctionType }
 
-// Go-only: GetOwnerFunction — package-level wrapper; Java calls getOwnerFunction() on ObjectType instances.
+// Go-only: language-adapter — GetOwnerFunction — package-level wrapper; Java calls getOwnerFunction() on ObjectType instances.
 // GetOwnerFunction returns the FunctionType whose prototype this object is,
 // or nil when t is not a prototype. Port of ObjectType.getOwnerFunction().
 func GetOwnerFunction(t JSType) *FunctionType {
@@ -458,7 +458,7 @@ func testForEquality(t, that JSType) eqResult {
 	return eqUnknown
 }
 
-// Go-only: unionTypesUnderEquality — internal Go helper; Java inlines this logic in UnionType.
+// Go-only: language-adapter — unionTypesUnderEquality — internal Go helper; Java inlines this logic in UnionType.
 // unionTypesUnderEquality implements GetTypesUnderEquality for union on left.
 func unionTypesUnderEquality(u *UnionType, that JSType) TypePair {
 	b := NewUnionTypeBuilder()
@@ -475,7 +475,7 @@ func unionTypesUnderEquality(u *UnionType, that JSType) TypePair {
 	return TypePair{b.Build(), thatB.Build()}
 }
 
-// Go-only: unionTypesUnderInequality — internal Go helper; Java inlines this logic in UnionType.
+// Go-only: language-adapter — unionTypesUnderInequality — internal Go helper; Java inlines this logic in UnionType.
 // unionTypesUnderInequality implements GetTypesUnderInequality for union on left.
 func unionTypesUnderInequality(u *UnionType, that JSType) TypePair {
 	b := NewUnionTypeBuilder()
@@ -492,7 +492,7 @@ func unionTypesUnderInequality(u *UnionType, that JSType) TypePair {
 	return TypePair{b.Build(), thatB.Build()}
 }
 
-// Go-only: RestrictByTypeof — Go package-level helper; Java spreads this across AbstractInterpreter.
+// Go-only: language-adapter — RestrictByTypeof — Go package-level helper; Java spreads this across AbstractInterpreter.
 // RestrictByTypeof narrows t to the subset compatible with a typeof result.
 // Port of the typeof-narrowing logic in ClosureReverseAbstractInterpreter.
 // Returns None when the typeof value is inconsistent with t.
@@ -579,7 +579,7 @@ func ToMaybeUnionType(t JSType) *UnionType {
 	return u
 }
 
-// Go-only: IsUnionTypeValue — renamed to avoid clash with interface method; Java uses isUnionType() instance method.
+// Go-only: language-adapter — IsUnionTypeValue — renamed to avoid clash with interface method; Java uses isUnionType() instance method.
 // IsUnionType reports whether t is a UnionType.
 // Mirrors JSType.isUnionType() in Java.
 func IsUnionTypeValue(t JSType) bool {
@@ -615,7 +615,7 @@ func GetLeastSupertype(x, y JSType) JSType {
 	return NewUnion(x, y)
 }
 
-// Go-only: IsConstructorType — package-level wrapper; Java uses isConstructor() instance method.
+// Go-only: language-adapter — IsConstructorType — package-level wrapper; Java uses isConstructor() instance method.
 // IsConstructorType reports whether t is a @constructor FunctionType.
 // Mirrors JSType.isConstructor() in Java.
 func IsConstructorType(t JSType) bool {
@@ -625,7 +625,7 @@ func IsConstructorType(t JSType) bool {
 	return false
 }
 
-// Go-only: IsInterfaceType — package-level wrapper; Java uses isInterface() instance method.
+// Go-only: language-adapter — IsInterfaceType — package-level wrapper; Java uses isInterface() instance method.
 // IsInterfaceType reports whether t is a @interface FunctionType.
 // Mirrors JSType.isInterface() in Java.
 func IsInterfaceType(t JSType) bool {
@@ -649,7 +649,7 @@ func IsNamedType(t JSType) bool {
 	return ok
 }
 
-// Go-only: typeofMatchesType — internal Go helper for RestrictByTypeof, no Java analogue.
+// Go-only: language-adapter — typeofMatchesType — internal Go helper for RestrictByTypeof, no Java analogue.
 // typeofMatchesType reports whether a typeof string is consistent with t.
 func typeofMatchesType(typeofValue string, t JSType) bool {
 	switch typeofValue {

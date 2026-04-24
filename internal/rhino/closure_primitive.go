@@ -47,7 +47,7 @@ func (p ClosurePrimitive) Name() string {
 	return "UNKNOWN"
 }
 
-// Go-only: ToString implements Java's Enum.toString() which ClosurePrimitive inherits;
+// Go-only: language-adapter — ToString implements Java's Enum.toString() which ClosurePrimitive inherits;
 // it is not declared explicitly in ClosurePrimitive.java but is implicitly available.
 func (p ClosurePrimitive) ToString() string {
 	return p.Name()
@@ -69,7 +69,7 @@ func FromStringId(id string) (ClosurePrimitive, bool) {
 	return p, true
 }
 
-// Go-only: ClosurePrimitiveFromStringId is an alias for FromStringId using the
+// Go-only: language-adapter — ClosurePrimitiveFromStringId is an alias for FromStringId using the
 // package-prefixed naming convention; callers that predate the Java-parity rename use this.
 func ClosurePrimitiveFromStringId(id string) (ClosurePrimitive, bool) {
 	return FromStringId(id)

@@ -189,7 +189,7 @@ type ParseTree struct {
 	Location SourceRange
 }
 
-// Go-only: NewParseTree replaces Java's protected constructor `ParseTree(ParseTreeType, SourceRange)`.
+// Go-only: language-adapter — NewParseTree replaces Java's protected constructor `ParseTree(ParseTreeType, SourceRange)`.
 func NewParseTree(typ ParseTreeType, location SourceRange) *ParseTree {
 	return &ParseTree{Type: typ, Location: location}
 }

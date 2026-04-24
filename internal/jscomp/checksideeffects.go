@@ -30,7 +30,7 @@ type CheckSideEffects struct {
 	analyzer *AstAnalyzer
 }
 
-// Go-only: constructor (Java uses new CheckSideEffects(compiler, report, protectSideEffectFreeCode))
+// Go-only: language-adapter — constructor (Java uses new CheckSideEffects(compiler, report, protectSideEffectFreeCode))
 func NewCheckSideEffects(path string) *CheckSideEffects {
 	return &CheckSideEffects{path: path, analyzer: NewAstAnalyzer()}
 }
@@ -48,7 +48,7 @@ func (c *CheckSideEffects) process(script *rhino.Node) {
 
 // Check walks the AST firing JSC_USELESS_CODE at every EXPR_RESULT
 // whose contained expression is observably pure.
-// Go-only: Go entry point that wraps process() and returns diagnostics.
+// Go-only: language-adapter — Go entry point that wraps process() and returns diagnostics.
 func (c *CheckSideEffects) Check(script *rhino.Node) []diag.Diagnostic {
 	c.diags = nil
 	c.process(script)
@@ -75,7 +75,7 @@ func addExtern(c *CheckSideEffects) {
 	_ = c
 }
 
-// Go-only: merged scan (Java uses separate GetNoSideEffectExterns traversal pass)
+// Go-only: language-adapter — merged scan (Java uses separate GetNoSideEffectExterns traversal pass)
 // collectNoSideEffectFns mirrors Java's GetNoSideEffectExterns —
 // scans the AST for FUNCTION nodes annotated @nosideeffects and
 // records their qualified names so CALL classification can treat
@@ -120,7 +120,7 @@ func (c *CheckSideEffects) visit(n *rhino.Node) {
 	}
 }
 
-// Go-only: helper for visit() that handles both full-statement and sub-expression reporting
+// Go-only: language-adapter — helper for visit() that handles both full-statement and sub-expression reporting
 // reportUseless fires JSC_USELESS_CODE at `expr`'s position when the
 // expression is pure. Mirrors the double-dispatch in Java's
 // CheckSideEffects — when the outer form is a short-circuit
@@ -186,7 +186,7 @@ func (c *CheckSideEffects) reportUseless(stmt, expr *rhino.Node, top bool) {
 	}
 }
 
-// Go-only: helper to emit diagnostic at a node position
+// Go-only: language-adapter — helper to emit diagnostic at a node position
 func (c *CheckSideEffects) emitAt(n *rhino.Node) {
 	c.diags = append(c.diags, diag.Diagnostic{
 		Path:    c.path,
@@ -198,7 +198,7 @@ func (c *CheckSideEffects) emitAt(n *rhino.Node) {
 	})
 }
 
-// Go-only: operator-specific variant of emitAt (Java builds message inline in visit())
+// Go-only: language-adapter — operator-specific variant of emitAt (Java builds message inline in visit())
 // emitOpAt emits the operator-specific "The result of the 'foo'
 // operator is not being used." variant that Java uses for
 // getprop / in / not / getelem top-level expressions.
@@ -213,7 +213,7 @@ func (c *CheckSideEffects) emitOpAt(n *rhino.Node, op string) {
 	})
 }
 
-// Go-only: checks for Closure slot declarations (Java checks isQualifiedName() + JSDoc inline in visit())
+// Go-only: language-adapter — checks for Closure slot declarations (Java checks isQualifiedName() + JSDoc inline in visit())
 // isDeclarationStatement reports whether `n` (an EXPR_RESULT) is
 // actually a prototype-slot / property-type declaration rather than
 // a real expression statement. Closure treats `Foo.prototype.bar;`
@@ -249,7 +249,7 @@ func isDeclarationStatement(stmt *rhino.Node) bool {
 	return false
 }
 
-// Go-only: combined side-effect checker (Java uses AstAnalyzer.mayHaveSideEffects() + noSideEffectExterns set)
+// Go-only: language-adapter — combined side-effect checker (Java uses AstAnalyzer.mayHaveSideEffects() + noSideEffectExterns set)
 // hasSideEffects returns true for expression nodes that Closure
 // considers observably effectful. The classification consults
 // AstAnalyzer for constructor calls (so new Date() is pure) and

@@ -55,7 +55,7 @@ type AstValidator struct {
 // TODO: replace with the concrete Compiler once that port lands.
 type Compiler struct{}
 
-// Go-only: newAstValidatorFull is the internal constructor used by public New* funcs.
+// Go-only: language-adapter — newAstValidatorFull is the internal constructor used by public New* funcs.
 func newAstValidatorFull(c *Compiler, h ViolationHandler, validateScripts, validateInlinings bool) *AstValidator {
 	return &AstValidator{
 		compiler:                         c,
@@ -66,18 +66,18 @@ func newAstValidatorFull(c *Compiler, h ViolationHandler, validateScripts, valid
 	}
 }
 
-// Go-only: NewAstValidator mirrors AstValidator(AbstractCompiler).
+// Go-only: language-adapter — NewAstValidator mirrors AstValidator(AbstractCompiler).
 // Java uses a direct constructor; Go uses factory functions.
 func NewAstValidator(compiler *Compiler) *AstValidator {
 	return newAstValidatorFull(compiler, panicViolationHandler{}, false, false)
 }
 
-// Go-only: NewAstValidatorValidateScripts mirrors AstValidator(AbstractCompiler, boolean).
+// Go-only: language-adapter — NewAstValidatorValidateScripts mirrors AstValidator(AbstractCompiler, boolean).
 func NewAstValidatorValidateScripts(compiler *Compiler, validateScriptFeatures bool) *AstValidator {
 	return newAstValidatorFull(compiler, panicViolationHandler{}, validateScriptFeatures, false)
 }
 
-// Go-only: NewAstValidatorFull mirrors the four-argument Java constructor.
+// Go-only: language-adapter — NewAstValidatorFull mirrors the four-argument Java constructor.
 func NewAstValidatorFull(c *Compiler, h ViolationHandler, validateScripts, validateInlinings bool) *AstValidator {
 	return newAstValidatorFull(c, h, validateScripts, validateInlinings)
 }
@@ -145,7 +145,7 @@ func (av *AstValidator) ValidateStatementAmbient(n *rhino.Node, isAmbient bool) 
 	av.validateStatementHelper(n, isAmbient)
 }
 
-// Go-only: validateStatementHelper dispatches by token. Token-specific
+// Go-only: language-adapter — validateStatementHelper dispatches by token. Token-specific
 // validation is delegated to per-token helpers (validateBlock, validateIf, etc.).
 func (av *AstValidator) validateStatementHelper(n *rhino.Node, _ bool) {
 	if n == nil {

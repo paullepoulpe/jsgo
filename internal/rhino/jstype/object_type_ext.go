@@ -35,7 +35,7 @@ type objectTypePropertyMapField struct {
 // (never moved by the GC in Go).
 var objExtFields = map[*ObjectType]*objectTypePropertyMapField{}
 
-// Go-only: extFor — Go extension-field accessor; Java uses class fields directly.
+// Go-only: language-adapter — extFor — Go extension-field accessor; Java uses class fields directly.
 func extFor(o *ObjectType) *objectTypePropertyMapField {
 	if f, ok := objExtFields[o]; ok {
 		return f
@@ -71,7 +71,7 @@ func (o *ObjectType) getImplicitPrototype() *ObjectType {
 	return o.super
 }
 
-// Go-only: SetImplicitPrototype — Go setter; Java ObjectType.setImplicitPrototype is package-private.
+// Go-only: language-adapter — SetImplicitPrototype — Go setter; Java ObjectType.setImplicitPrototype is package-private.
 // SetImplicitPrototype mirrors ObjectType.setImplicitPrototype(ObjectType).
 // Sets the __proto__ for property-chain traversal.
 func (o *ObjectType) SetImplicitPrototype(proto *ObjectType) {
@@ -84,7 +84,7 @@ func (o *ObjectType) getCtorExtendedInterfaces() []*ObjectType {
 	return extFor(o).extendedInterfaces
 }
 
-// Go-only: AddExtendedInterface — Go mutator; Java uses Builder.setExtendedInterfaces().
+// Go-only: language-adapter — AddExtendedInterface — Go mutator; Java uses Builder.setExtendedInterfaces().
 // AddExtendedInterface appends an interface to the list of extended
 // interfaces for this type. Used by the scope creator when wiring
 // `@extends` on interface declarations.
@@ -93,7 +93,7 @@ func (o *ObjectType) AddExtendedInterface(iface *ObjectType) {
 	f.extendedInterfaces = append(f.extendedInterfaces, iface)
 }
 
-// Go-only: DefinePropertyKeyed — Go PropertyMap-layer helper; Java uses defineDeclaredProperty(Key, JSType, Node).
+// Go-only: language-adapter — DefinePropertyKeyed — Go PropertyMap-layer helper; Java uses defineDeclaredProperty(Key, JSType, Node).
 // DefinePropertyKeyed mirrors ObjectType.defineDeclaredProperty(Key, JSType, Node)
 // at the PropertyMap layer. Unlike the legacy DefineProperty which stores
 // into the members map[string]JSType, this stores a full Property into the

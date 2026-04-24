@@ -36,7 +36,7 @@ type CheckUnreachableCode struct {
 	diags []diag.Diagnostic
 }
 
-// Go-only: constructor (Java uses new CheckUnreachableCode(compiler))
+// Go-only: language-adapter — constructor (Java uses new CheckUnreachableCode(compiler))
 // NewCheckUnreachableCode constructs the pass. `path` is the source file
 // path used in diagnostic positions, matching how Java passes `compiler`
 // (which carries the current source file context).
@@ -80,7 +80,7 @@ func (c *CheckUnreachableCode) enterScopeWithCfg(root *rhino.Node) {
 	}
 }
 
-// Go-only: recursive descent to find nested FUNCTION scopes (Java uses NodeTraversal)
+// Go-only: language-adapter — recursive descent to find nested FUNCTION scopes (Java uses NodeTraversal)
 // walkChildren descends into nested FUNCTION nodes so each gets its own CFG pass.
 func (c *CheckUnreachableCode) walkChildren(n *rhino.Node) {
 	if n == nil {
@@ -171,7 +171,7 @@ func (c *CheckUnreachableCode) isReachable(pred *CfgNode, branch Branch) bool {
 	return val == (branch == BranchOnTrue)
 }
 
-// Go-only: Branch.isConditional() is a method on the Branch enum in Java
+// Go-only: language-adapter — Branch.isConditional() is a method on the Branch enum in Java
 // isConditionalBranch reports whether `b` is a conditional branch (ON_TRUE
 // or ON_FALSE). Mirrors Java's Branch.isConditional().
 func isConditionalBranch(b Branch) bool {
@@ -211,7 +211,7 @@ func getConditionExpression(n *rhino.Node) *rhino.Node {
 	return nil
 }
 
-// Go-only: returns (bool, known) pair since Go has no Tri type (Java uses NodeUtil.getBooleanValue returning Tri)
+// Go-only: language-adapter — returns (bool, known) pair since Go has no Tri type (Java uses NodeUtil.getBooleanValue returning Tri)
 // getBooleanValueKnown mirrors Java's NodeUtil.getBooleanValueKnown (Tri-valued).
 // Returns (bool value, known) where known==false means Tri.UNKNOWN.
 //

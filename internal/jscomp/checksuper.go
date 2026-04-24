@@ -31,7 +31,7 @@ type CheckSuper struct {
 	contextStack []superContext
 }
 
-// Go-only: constructor (Java uses new CheckSuper(compiler))
+// Go-only: language-adapter — constructor (Java uses new CheckSuper(compiler))
 // NewCheckSuper creates a new CheckSuper pass for the given source path.
 func NewCheckSuper(path string) *CheckSuper {
 	return &CheckSuper{path: path}
@@ -52,7 +52,7 @@ func (c *CheckSuper) createStaticBlockContext(staticBlock *rhino.Node) superCont
 }
 
 // Check walks the AST and returns diagnostics for super-keyword errors.
-// Go-only: Go entry point that wraps process() and returns diagnostics.
+// Go-only: language-adapter — Go entry point that wraps process() and returns diagnostics.
 func (c *CheckSuper) Check(script *rhino.Node) []diag.Diagnostic {
 	c.diags = nil
 	c.process(script)
@@ -71,7 +71,7 @@ func (c *CheckSuper) report(n *rhino.Node, code, message string) {
 	})
 }
 
-// Go-only: inlined NodeTraversal.traverse logic (Java delegates to NodeTraversal)
+// Go-only: language-adapter — inlined NodeTraversal.traverse logic (Java delegates to NodeTraversal)
 // traverseNode is the main DFS walk — calls shouldTraverse and visit in the
 // correct pre/post order, mirroring Java's NodeTraversal.traverse logic.
 func (c *CheckSuper) traverseNode(n *rhino.Node, parent *rhino.Node) {
@@ -166,7 +166,7 @@ func (c *CheckSuper) visit(n *rhino.Node, parent *rhino.Node) {
 	}
 }
 
-// Go-only: stack peek helper (Java uses ArrayDeque.peek())
+// Go-only: language-adapter — stack peek helper (Java uses ArrayDeque.peek())
 // peekContext returns the top of the context stack, or nil if empty.
 func (c *CheckSuper) peekContext() superContext {
 	if len(c.contextStack) == 0 {
@@ -266,7 +266,7 @@ func isEs6Constructor(fn *rhino.Node) bool {
 	return first.String_() == "constructor"
 }
 
-// Go-only: helper (Java uses !classNode.getSecondChild().isEmpty() inline in ConstructorContext ctor)
+// Go-only: language-adapter — helper (Java uses !classNode.getSecondChild().isEmpty() inline in ConstructorContext ctor)
 // classHasParent returns true if the class enclosing fn has an extends clause.
 // fn must be inside a class body BLOCK.
 func classHasParent(fn *rhino.Node) bool {
@@ -400,7 +400,7 @@ type methodContext struct {
 	isClassMethod bool
 }
 
-// Go-only: factory function (Java uses new MethodContext(fn) directly)
+// Go-only: language-adapter — factory function (Java uses new MethodContext(fn) directly)
 func newMethodContext(fn *rhino.Node) *methodContext {
 	isClass := false
 	if p := fn.Parent(); p != nil {

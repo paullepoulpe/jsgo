@@ -31,7 +31,7 @@ type ProxyObjectType struct {
 	referencedObjType *ObjectType
 }
 
-// Go-only: NewProxyObjectType — Go constructor; Java uses package-private ProxyObjectType(registry, type).
+// Go-only: language-adapter — NewProxyObjectType — Go constructor; Java uses package-private ProxyObjectType(registry, type).
 // NewProxyObjectType constructs a ProxyObjectType wrapping referencedType.
 // Mirrors the package-private Java constructor that takes only a registry
 // and a JSType (no TemplateTypeMap).
@@ -41,7 +41,7 @@ func NewProxyObjectType(referencedType JSType) *ProxyObjectType {
 	return p
 }
 
-// Go-only: NewProxyObjectTypeWithTemplates — Go constructor; Java uses ProxyObjectType(registry, type, templateTypeMap).
+// Go-only: language-adapter — NewProxyObjectTypeWithTemplates — Go constructor; Java uses ProxyObjectType(registry, type, templateTypeMap).
 // NewProxyObjectTypeWithTemplates constructs a ProxyObjectType wrapping
 // referencedType, with an associated TemplateTypeMap. The map is accepted
 // for API parity with Java's two-arg constructor but is not stored on
@@ -83,14 +83,14 @@ func (p *ProxyObjectType) SetReferencedType(referencedType JSType) {
 
 // --- JSType interface --------------------------------------------------
 
-// Go-only: TypeName — Go interface method; Java uses appendTo(TypeStringBuilder) instead.
+// Go-only: language-adapter — TypeName — Go interface method; Java uses appendTo(TypeStringBuilder) instead.
 // TypeName delegates to the referenced type. Mirrors Java's
 // ProxyObjectType.appendTo which calls referencedType.appendTo.
 func (p *ProxyObjectType) TypeName() string {
 	return p.referencedType.TypeName()
 }
 
-// Go-only: IsSubtypeOf — Go JSType interface method; Java uses visit(RelationshipVisitor, JSType).
+// Go-only: language-adapter — IsSubtypeOf — Go JSType interface method; Java uses visit(RelationshipVisitor, JSType).
 // IsSubtypeOf delegates to the referenced type. Mirrors Java's visit
 // mechanism — ProxyObjectType.visit(RelationshipVisitor, JSType) calls
 // referencedType.visit(visitor, that), so subtype tests are forwarded.
@@ -147,7 +147,7 @@ func (p *ProxyObjectType) GetImplicitPrototype() *ObjectType {
 	return nil
 }
 
-// Go-only: GetPropertyType — Go accessor; Java uses findPropertyTypeWithoutConsideringTemplateTypes.
+// Go-only: language-adapter — GetPropertyType — Go accessor; Java uses findPropertyTypeWithoutConsideringTemplateTypes.
 // GetPropertyType looks up a property on the referenced ObjectType. Returns
 // nil when the referenced type is not an ObjectType. Mirrors Java's
 // findPropertyTypeWithoutConsideringTemplateTypes which calls
