@@ -1482,8 +1482,16 @@ func (c *TypeCheck) visitCall(node *rhino.Node, scope *TypedScope) []diag.Diagno
 			if fn.MaxArity >= jstype.MaxArgsUnlimited {
 				maxStr = "unlimited"
 			}
+			// Position: when the CALL is a top-level EXPR_RESULT with
+			// an outer paren wrapping the callee (e.g. `(new Foo).run()`),
+			// Java reports at the statement's column. Promote to the
+			// EXPR_RESULT position when it precedes the CALL node.
+			line, col := node.Lineno(), node.Charno()
+			if p := node.Parent(); p != nil && p.Token() == rhino.EXPR_RESULT && p.Charno() < col {
+				line, col = p.Lineno(), p.Charno()
+			}
 			out = append(out, diag.Diagnostic{
-				Path: c.path, Line: node.Lineno(), Col: node.Charno(),
+				Path: c.path, Line: line, Col: col,
 				Code: diag.JSC_WRONG_ARGUMENT_COUNT, Level: diag.Error,
 				Message: fmt.Sprintf(
 					"Function %s: called with %d argument(s). Function requires at least %d argument(s) and no more than %s argument(s).",
