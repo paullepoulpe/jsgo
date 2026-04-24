@@ -9,19 +9,30 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino/jstype"
 )
 
-// TODO(port): TypedScope.getDepth from TypedScope.java:119
-// Reason: depth tracking not needed for current flat-scope model.
-
-// TODO(port): TypedScope.getVar from TypedScope.java:232
-// Reason: Java TypedVar wrapper not ported; use GetDeclaredType instead.
-
-// TODO(port): TypedScope.isBottom / createLatticeBottom from TypedScope.java:73
-// Reason: lattice-bottom concept unused in Go port's dataflow model.
-
-// TypedScope maps identifier names to their declared JSType. The parent
-// pointer mirrors the Java scope chain used during name resolution.
+// TypedScope contains information about variables and their types. Scopes can
+// be nested; a scope points back to its parent scope.
+//
+// TypedScope is also used as a lattice element for flow-sensitive type
+// inference. As a lattice element, a scope is viewed as a map from names to
+// types. A name not in the map is considered to have the bottom type.
+//
+// TypedScopes also have a concept of a set of 'reserved' names. These are
+// names that will be declared as actual TypedVars later in the compilation.
+// Looking up any of these reserved names will always return null, even if the
+// name is available in a parent scope.
+//
+// Mirrors com/google/javascript/jscomp/TypedScope.java.
 type TypedScope struct {
-	parent   *TypedScope
+	parent *TypedScope
+	// depth is the nesting depth of this scope (0 = global).
+	// Mirrors TypedScope.depth in Java.
+	depth int
+	// isBottom is true when this scope is the lattice bottom for type inference.
+	// Mirrors TypedScope.isBottom in Java.
+	isBottom bool
+	// reservedNames holds names that will be declared later. Looking up reserved
+	// names returns nil. Mirrors TypedScope.reservedNames in Java.
+	reservedNames map[string]bool
 	// rootNode is the AST node that roots this scope (the SCRIPT/FUNCTION/BLOCK
 	// node). It mirrors AbstractScope.getRootNode() in Java and is used by
 	// NodeTraversal.getScopeRoot(). May be nil for synthetic scopes.
@@ -68,9 +79,269 @@ type TypedScope struct {
 	refinements []map[string]jstype.JSType
 }
 
-// PushRefinement records a narrowing overlay for the duration of one
-// block. Mirrors FlowScope's "refine and restore" pattern used by
-// TypeInference when entering an if-true / if-false branch.
+// CreateGlobalScope creates a new global TypedScope at the given root node.
+// Mirrors TypedScope.createGlobalScope(Node) in Java.
+func CreateGlobalTypedScope(rootNode *rhino.Node, registry *jstype.Registry) *TypedScope {
+	return &TypedScope{
+		parent:   nil,
+		depth:    0,
+		isBottom: false,
+		rootNode: rootNode,
+		registry: registry,
+	}
+}
+
+// CreateLatticeBottom creates the lattice-bottom TypedScope used by type inference.
+// Mirrors TypedScope.createLatticeBottom(Node) in Java.
+func CreateLatticeBottom(rootNode *rhino.Node) *TypedScope {
+	return &TypedScope{
+		parent:   nil,
+		depth:    0,
+		isBottom: true,
+		rootNode: rootNode,
+	}
+}
+
+// Typed returns this TypedScope (mirrors AbstractScope.typed() in Java, overridden here).
+// Mirrors TypedScope.typed() in Java.
+func (s *TypedScope) Typed() *TypedScope { return s }
+
+// IsBottom reports whether this scope is the lattice bottom for type inference.
+// Mirrors TypedScope.isBottom() in Java.
+func (s *TypedScope) IsBottom() bool {
+	if s == nil {
+		return false
+	}
+	return s.isBottom
+}
+
+// GetDepth returns the nesting depth (0 = global).
+// Mirrors TypedScope.getDepth() in Java.
+func (s *TypedScope) GetDepth() int {
+	if s == nil {
+		return 0
+	}
+	return s.depth
+}
+
+// GetParent returns the parent TypedScope, or nil for the global scope.
+// Mirrors TypedScope.getParent() in Java.
+func (s *TypedScope) GetParent() *TypedScope {
+	if s == nil {
+		return nil
+	}
+	return s.parent
+}
+
+// GetParentScope returns the parent as an AbstractScope interface.
+// Mirrors AbstractScope.getParentScope() in Java.
+// Go-only: language-adapter — Go interface dispatch requires a separate method
+// returning AbstractScope; Java uses the same getParent() via generics.
+func (s *TypedScope) GetParentScope() AbstractScope {
+	if s == nil || s.parent == nil {
+		return nil
+	}
+	return s.parent
+}
+
+// ValidateCompletelyBuilt asserts that all reserved names have been declared.
+// Mirrors TypedScope.validateCompletelyBuilt() in Java.
+func (s *TypedScope) ValidateCompletelyBuilt() {
+	// In the Go port, reservedNames is pre-populated and cleared as names are declared.
+	// If any remain, it indicates a bug in TypedScopeCreator.
+	if len(s.reservedNames) > 0 {
+		panic("TypedScope: reserved names not declared: " + joinReservedNames(s.reservedNames))
+	}
+}
+
+// joinReservedNames formats the reserved name set for an error message.
+// Go-only: language-adapter — Go has no built-in set-to-string formatting.
+func joinReservedNames(m map[string]bool) string {
+	sb := "{"
+	first := true
+	for k := range m {
+		if !first {
+			sb += ", "
+		}
+		sb += k
+		first = false
+	}
+	return sb + "}"
+}
+
+// GetTypeOfThis returns the type of `this` in the current scope.
+// Mirrors TypedScope.getTypeOfThis() in Java.
+func (s *TypedScope) GetTypeOfThis() jstype.JSType {
+	if s == nil {
+		return nil
+	}
+	if s.IsGlobal() {
+		if s.rootNode != nil {
+			if t, ok := s.rootNode.GetJSType().(jstype.JSType); ok {
+				return t
+			}
+		}
+		return nil
+	}
+	if nodeIsNonArrowFunction(s.rootNode) {
+		if nodeType, ok := s.rootNode.GetJSType().(jstype.JSType); ok && nodeType != nil {
+			if fn, ok := nodeType.(*jstype.FunctionType); ok {
+				return fn.GetTypeOfThis()
+			}
+		}
+		return nil
+	}
+	if s.IsStaticBlockScope() {
+		if p := s.GetParent(); p != nil && p.rootNode != nil {
+			if t, ok := p.rootNode.GetJSType().(jstype.JSType); ok {
+				return t
+			}
+		}
+		return nil
+	}
+	if s.parent != nil {
+		return s.parent.GetTypeOfThis()
+	}
+	return nil
+}
+
+// IsGlobal reports whether this is the global scope (no parent).
+// Mirrors AbstractScope.isGlobal() in Java.
+func (s *TypedScope) IsGlobal() bool {
+	return s == nil || s.parent == nil
+}
+
+// IsLocal reports whether this is a local (non-global) scope.
+// Mirrors AbstractScope.isLocal() in Java.
+func (s *TypedScope) IsLocal() bool {
+	return s != nil && s.parent != nil
+}
+
+// IsStaticBlockScope reports whether this scope's root is a class static block.
+// Mirrors AbstractScope.isStaticBlockScope() in Java.
+func (s *TypedScope) IsStaticBlockScope() bool {
+	return nodeIsClassStaticBlock(s.rootNode)
+}
+
+// IsMemberFieldDefScope reports whether the root is a member field definition.
+// Mirrors AbstractScope.isMemberFieldDefScope() in Java.
+func (s *TypedScope) IsMemberFieldDefScope() bool {
+	return s != nil && s.rootNode != nil && s.rootNode.Token() == rhino.MEMBER_FIELD_DEF
+}
+
+// IsFunctionBlockScope reports whether the root is a function-body block.
+// Mirrors AbstractScope.isFunctionBlockScope() in Java.
+func (s *TypedScope) IsFunctionBlockScope() bool {
+	if s == nil || s.rootNode == nil {
+		return false
+	}
+	if s.rootNode.Token() != rhino.BLOCK {
+		return false
+	}
+	p := s.rootNode.Parent()
+	return p != nil && p.Token() == rhino.FUNCTION
+}
+
+// IsFunctionScope reports whether the root is a FUNCTION node.
+// Mirrors AbstractScope.isFunctionScope() in Java.
+func (s *TypedScope) IsFunctionScope() bool {
+	return s != nil && s.rootNode != nil && s.rootNode.Token() == rhino.FUNCTION
+}
+
+// IsModuleScope reports whether the root is a MODULE_BODY node.
+// Mirrors AbstractScope.isModuleScope() in Java.
+func (s *TypedScope) IsModuleScope() bool {
+	return s != nil && s.rootNode != nil && s.rootNode.Token() == rhino.MODULE_BODY
+}
+
+// IsBlockScope reports whether the root creates a block scope.
+// Mirrors AbstractScope.isBlockScope() in Java.
+func (s *TypedScope) IsBlockScope() bool {
+	if s == nil {
+		return false
+	}
+	return nodeCreatesBlockScope(s.rootNode)
+}
+
+// IsCatchScope reports whether this scope is a catch block.
+// Mirrors AbstractScope.isCatchScope() in Java.
+func (s *TypedScope) IsCatchScope() bool {
+	if s == nil || s.rootNode == nil || s.rootNode.Token() != rhino.BLOCK {
+		return false
+	}
+	kids := s.rootNode.Children()
+	return len(kids) == 1 && kids[0].Token() == rhino.CATCH
+}
+
+// IsCfgRootScope reports whether this scope's root is a valid CFG root.
+// Mirrors AbstractScope.isCfgRootScope() in Java.
+func (s *TypedScope) IsCfgRootScope() bool {
+	return nodeIsValidCfgRoot(s.rootNode)
+}
+
+// GetDeclarativelyUnboundVarsWithoutTypes returns vars declared with 'var' but
+// without a known type. These can safely be set to undefined at the start of
+// type inference.
+// Mirrors TypedScope.getDeclarativelyUnboundVarsWithoutTypes() in Java.
+func (s *TypedScope) GetDeclarativelyUnboundVarsWithoutTypes() []*GoTypedVar {
+	// TODO(port): TypedScope.getDeclarativelyUnboundVarsWithoutTypes from TypedScope.java:257
+	// Reason: TypedVar/GoTypedVar var-iteration over TypedScope.declared not yet wired.
+	return nil
+}
+
+// GetVar returns the variable for name, considering qualified-name shadowing.
+// Mirrors TypedScope.getVar(String) in Java (the overridden version that handles
+// qualified names and shadowing).
+func (s *TypedScope) GetVar(name string) *GoTypedVar {
+	// TODO(port): TypedScope.getVar from TypedScope.java:288
+	// Reason: GoTypedVar scope map not yet integrated into TypedScope.declared.
+	return nil
+}
+
+// GetTypeThroughNamespace resolves a dotted module-id through the scope's
+// namespace chain (e.g. "goog.foo" → look up "goog", get property "foo").
+// Mirrors TypedScope.getTypeThroughNamespace(String) in Java.
+func (s *TypedScope) GetTypeThroughNamespace(moduleId string) jstype.JSType {
+	dot := strings.LastIndex(moduleId, ".")
+	if dot >= 0 {
+		parentName := moduleId[:dot]
+		prop := moduleId[dot+1:]
+		parentType := s.GetTypeThroughNamespace(parentName)
+		if parentType == nil {
+			return nil
+		}
+		if obj, ok := parentType.(*jstype.ObjectType); ok {
+			return obj.GetPropertyType(prop)
+		}
+		return nil
+	}
+	// Simple name: look up in the scope chain.
+	t := s.GetDeclaredType(moduleId)
+	return t
+}
+
+// GetTopmostScopeOfEventualDeclaration returns the topmost scope that
+// declares (or will declare) the given name, walking up the chain.
+// Mirrors TypedScope.getTopmostScopeOfEventualDeclaration(String) in Java.
+func (s *TypedScope) GetTopmostScopeOfEventualDeclaration(name string) *TypedScope {
+	if s == nil {
+		return nil
+	}
+	if _, ok := s.declared[name]; ok {
+		return s
+	}
+	if s.reservedNames[name] {
+		return s
+	}
+	if s.parent == nil {
+		return nil
+	}
+	return s.parent.GetTopmostScopeOfEventualDeclaration(name)
+}
+
+// Go-only: language-adapter — PushRefinement replaces Java's FlowScope
+// refinement stack, which Java TypeInference manages separately from TypedScope.
+// The Go port embeds the refinement stack directly in TypedScope for simplicity.
 func (s *TypedScope) PushRefinement(refs map[string]jstype.JSType) {
 	if s == nil || len(refs) == 0 {
 		return
@@ -78,8 +349,8 @@ func (s *TypedScope) PushRefinement(refs map[string]jstype.JSType) {
 	s.refinements = append(s.refinements, refs)
 }
 
-// PopRefinement removes the topmost overlay. Safe no-op if the stack
-// is empty (matches the FlowScope.popInto contract).
+// Go-only: language-adapter — PopRefinement is the paired cleanup for
+// PushRefinement; Java uses FlowScope.popInto instead.
 func (s *TypedScope) PopRefinement() {
 	if s == nil || len(s.refinements) == 0 {
 		return
@@ -87,11 +358,9 @@ func (s *TypedScope) PopRefinement() {
 	s.refinements = s.refinements[:len(s.refinements)-1]
 }
 
-// WithoutRefinements temporarily clears the refinement stack, calls f,
-// then restores it. Used by visitors (e.g. visitEqualityOp) that must
-// evaluate declared types rather than flow-narrowed types — matching
-// how CheckDeterministicTest used its own scope-walking traversal that
-// never consulted flow refinements.
+// Go-only: language-adapter — WithoutRefinements allows visiting with only
+// declared types visible; Java TypeInference uses separate FlowScope objects
+// rather than toggling a stack on a single TypedScope.
 func (s *TypedScope) WithoutRefinements(f func()) {
 	if s == nil {
 		f()
@@ -129,6 +398,10 @@ func (s *TypedScope) IsHoistScope() bool {
 	return false
 }
 
+// Go-only: language-adapter — GetDeclaredType combines TypedScope.getOwnSlot +
+// TypedVar.getType walking the scope chain; Java exposes this via getVar(name).getType().
+// Also incorporates flow-refinement overlay (PushRefinement/PopRefinement) which
+// Java handles through a separate FlowScope hierarchy.
 func (s *TypedScope) GetDeclaredType(name string) jstype.JSType {
 	if s == nil {
 		return nil
@@ -146,12 +419,9 @@ func (s *TypedScope) GetDeclaredType(name string) jstype.JSType {
 	return s.parent.GetDeclaredType(name)
 }
 
-// GetQualifiedRefinement walks the refinement stack for a dotted
-// qualified name (e.g. "obj.prop", "this.x.y"). Returns the flow-
-// narrowed type or nil when the name isn't refined. Distinct from
-// GetDeclaredType: qualified names aren't tracked in declared
-// (only refinements), so the lookup never falls through to the
-// parent scope's declared map.
+// Go-only: language-adapter — GetQualifiedRefinement walks the Go-specific
+// refinement stack for dotted names; Java's FlowScope handles qualified-name
+// narrowing through a separate LinkedFlowScope chain.
 func (s *TypedScope) GetQualifiedRefinement(qname string) jstype.JSType {
 	for cur := s; cur != nil; cur = cur.parent {
 		for i := len(cur.refinements) - 1; i >= 0; i-- {
@@ -163,12 +433,9 @@ func (s *TypedScope) GetQualifiedRefinement(qname string) jstype.JSType {
 	return nil
 }
 
-// GetRawDeclaredType skips the refinement overlay and returns only
-// the binding's declared type from the scope chain. Used by the
-// assignment-target lookup in visitAssign so `x = 1` compares the
-// RHS against the original declaration, not the flow-narrowed type
-// (otherwise a prior `var x = null;` would make x's type null and
-// every subsequent assignment would false-positive).
+// Go-only: language-adapter — GetRawDeclaredType bypasses the Go refinement stack
+// to see the originally declared type; Java does not need this because FlowScope
+// and TypedScope are separate objects.
 func (s *TypedScope) GetRawDeclaredType(name string) jstype.JSType {
 	if s == nil {
 		return nil
@@ -179,12 +446,13 @@ func (s *TypedScope) GetRawDeclaredType(name string) jstype.JSType {
 	return s.parent.GetRawDeclaredType(name)
 }
 
-// Registry returns the JSType registry for this scope.
-// Used by template-instantiation helpers in superclasscheck.go.
+// Go-only: language-adapter — Registry() exposes the JSTypeRegistry pointer
+// held on the scope; in Java the registry is accessed via compiler.getTypeRegistry().
 func (s *TypedScope) Registry() *jstype.Registry { return s.registry }
 
-// ThisType returns the InstanceType `this` refers to in the lexically
-// nearest constructor scope, or nil if `this` is unbound.
+// Go-only: language-adapter — ThisType() is a Go-specific convenience that
+// returns the ObjectType of `this`; Java uses TypedScope.getTypeOfThis()
+// which is now also ported as GetTypeOfThis().
 func (s *TypedScope) ThisType() *jstype.ObjectType {
 	if s == nil {
 		return nil
@@ -195,10 +463,9 @@ func (s *TypedScope) ThisType() *jstype.ObjectType {
 	return s.parent.ThisType()
 }
 
-// LookupTypeAlias walks the scope chain returning the resolved JSType
-// for a @typedef'd name, or nil if none. Lives in a namespace parallel
-// to `declared` so `var X;` + `@typedef {Y}` doesn't clash with a
-// value binding named X.
+// Go-only: language-adapter — LookupTypeAlias provides @typedef resolution
+// through the scope chain; Java resolves typedefs through JSTypeRegistry.getType()
+// which has access to the full typedef registry directly.
 func (s *TypedScope) LookupTypeAlias(name string) jstype.JSType {
 	if s == nil {
 		return nil
@@ -209,9 +476,9 @@ func (s *TypedScope) LookupTypeAlias(name string) jstype.JSType {
 	return s.parent.LookupTypeAlias(name)
 }
 
-// LookupNamespaceProp returns the type declared for `owner.prop`
-// via a `/** @type {T} */ owner.prop = …` statement earlier in
-// the scope chain. Returns nil when no such declaration exists.
+// Go-only: language-adapter — LookupNamespaceProp provides qualified-name type
+// lookup through the scope chain; Java resolves obj.prop types through
+// ObjectType.getPropertyType() on the object's declared type.
 func (s *TypedScope) LookupNamespaceProp(owner, prop string) jstype.JSType {
 	if s == nil {
 		return nil
@@ -228,7 +495,8 @@ func (s *TypedScope) LookupNamespaceProp(owner, prop string) jstype.JSType {
 // Returns the first-declaration node when this call overrides an
 // existing entry — callers use that node to emit the "original
 // definition at …" cross-reference on
-// JSC_DUP_VAR_DECLARATION_TYPE_MISMATCH diagnostics.
+// Go-only: language-adapter — recordNamespaceProp stores obj.prop types directly
+// on the scope; Java stores them on the ObjectType via ObjectType.defineDeclaredProperty().
 func (s *TypedScope) recordNamespaceProp(owner, prop string, t jstype.JSType, at *rhino.Node) *rhino.Node {
 	if s.namespaceProps == nil {
 		s.namespaceProps = map[string]map[string]jstype.JSType{}
@@ -253,9 +521,9 @@ func (s *TypedScope) recordNamespaceProp(owner, prop string, t jstype.JSType, at
 	return firstNode
 }
 
-// markNamespacePropInferred flags owner.prop as literal-inferred.
-// The assignment checker skips inferred-only namespace props, matching
-// Java's open-surface treatment of non-@type namespace assignments.
+// Go-only: language-adapter — markNamespacePropInferred tracks literal-inferred
+// namespace props; Java uses ObjectType.isPropertyTypeDeclared() to distinguish
+// declared from inferred properties.
 func (s *TypedScope) markNamespacePropInferred(owner, prop string) {
 	if s.inferredNsProps == nil {
 		s.inferredNsProps = map[string]map[string]bool{}
@@ -266,10 +534,8 @@ func (s *TypedScope) markNamespacePropInferred(owner, prop string) {
 	s.inferredNsProps[owner][prop] = true
 }
 
-// IsNamespacePropInferred reports whether owner.prop was registered
-// via a literal-RHS assignment (no @type JSDoc) rather than an
-// explicit type declaration. Assignment checks consult this to avoid
-// false-positive TYPE_MISMATCH on open-surface re-assignments.
+// Go-only: language-adapter — IsNamespacePropInferred queries the Go-specific
+// inferred-prop map; Java checks ObjectType.isPropertyTypeDeclared(prop) instead.
 func (s *TypedScope) IsNamespacePropInferred(owner, prop string) bool {
 	if s == nil {
 		return false
@@ -282,10 +548,9 @@ func (s *TypedScope) IsNamespacePropInferred(owner, prop string) bool {
 	return s.parent.IsNamespacePropInferred(owner, prop)
 }
 
-// LookupEnum returns the EnumType associated with `name` in this
-// scope chain, or nil when the binding isn't an enum. Used by
-// ResolveExpr to route `@type {MyEnum}` to the matching
-// EnumElementType.
+// Go-only: language-adapter — LookupEnum provides enum lookup through the scope
+// chain; Java dispatches `@type {MyEnum}` through JSTypeRegistry.getType() which
+// stores enum types indexed by name in the registry itself.
 func (s *TypedScope) LookupEnum(name string) *jstype.EnumType {
 	if s == nil {
 		return nil
@@ -298,11 +563,9 @@ func (s *TypedScope) LookupEnum(name string) *jstype.EnumType {
 	return s.parent.LookupEnum(name)
 }
 
-// LookupNominalType returns the InstanceType associated with a name
-// that refers to a known constructor in this scope chain. Used when
-// resolving `@type {Foo}` to the instance type rather than the
-// constructor function type. Template args (e.g. "Foo<string>") are
-// stripped before lookup so that @extends {Foo<string>} resolves to Foo.
+// Go-only: language-adapter — LookupNominalType maps a constructor name to its
+// instance type through the scope chain; Java uses JSTypeRegistry.getType() which
+// stores instance types indexed by name directly in the registry.
 func (s *TypedScope) LookupNominalType(name string) *jstype.ObjectType {
 	if s == nil {
 		return nil
@@ -322,10 +585,10 @@ func (s *TypedScope) LookupNominalType(name string) *jstype.ObjectType {
 	return s.parent.LookupNominalType(name)
 }
 
-// ResolveExpr is the scope-aware version of Registry.ResolveExpr: it
-// looks up nominal names (constructor → instance type), @typedef
-// aliases, inline structural `{k: T}` types, and primitives. Mirrors
-// how JSTypeRegistry.getType(StaticScope, String) dispatches in Java.
+// Go-only: language-adapter — ResolveExpr is the Go port of
+// JSTypeRegistry.getType(StaticScope, String); Java resolves JSDoc type
+// expressions through a dedicated TypeAST parser and the registry, whereas
+// the Go port parses type strings textually and dispatches through the scope chain.
 func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 	expr = trimSpace(expr)
 	if expr == "" || expr == "?" {
@@ -557,6 +820,8 @@ func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 // Tiny string helpers — kept here to avoid pulling all of strings into
 // every callsite, and to match the Java side's defensive scope code.
 
+// Go-only: language-adapter — trimSpace is a zero-allocation string trimmer
+// used by ResolveExpr; Java uses String.trim() from the standard library.
 func trimSpace(s string) string {
 	for len(s) > 0 && (s[0] == ' ' || s[0] == '\t' || s[0] == '\n' || s[0] == '\r') {
 		s = s[1:]
@@ -567,10 +832,12 @@ func trimSpace(s string) string {
 	return s
 }
 
+// Go-only: stdlib-interop — startsWith avoids importing strings for a single check.
 func startsWith(s, prefix string) bool {
 	return len(s) >= len(prefix) && s[:len(prefix)] == prefix
 }
 
+// Go-only: stdlib-interop — trimPrefix strips a leading substring.
 func trimPrefix(s, prefix string) string {
 	if startsWith(s, prefix) {
 		return s[len(prefix):]
@@ -578,6 +845,7 @@ func trimPrefix(s, prefix string) string {
 	return s
 }
 
+// Go-only: stdlib-interop — indexOfByte finds the first occurrence of a byte.
 func indexOfByte(s string, b byte) int {
 	for i := 0; i < len(s); i++ {
 		if s[i] == b {
@@ -587,6 +855,7 @@ func indexOfByte(s string, b byte) int {
 	return -1
 }
 
+// Go-only: stdlib-interop — indexLastByte finds the last occurrence of a byte.
 func indexLastByte(s string, b byte) int {
 	for i := len(s) - 1; i >= 0; i-- {
 		if s[i] == b {
@@ -596,6 +865,8 @@ func indexLastByte(s string, b byte) int {
 	return -1
 }
 
+// Go-only: language-adapter — splitTopLevelComma handles comma-splitting of type
+// argument lists that Java does structurally via TypeAST nodes.
 // splitTopLevelComma splits `s` on `,` at depth 0 of {} () <>. Used
 // for template-arg lists like `Map<string, Array<number>>`.
 func splitTopLevelComma(s string) []string {
@@ -619,9 +890,8 @@ func splitTopLevelComma(s string) []string {
 	return out
 }
 
-// splitTopLevelUnion splits `A|B|C` on `|` but respects nesting depth
-// of `{}`, `()`, `<>` so `{a: number|string}|boolean` doesn't
-// accidentally split inside the object literal.
+// Go-only: language-adapter — splitTopLevelUnion handles the JSDoc union `A|B`
+// split that Java does structurally via TypeAST.
 func splitTopLevelUnion(s string) []string {
 	var out []string
 	depth := 0
@@ -643,10 +913,9 @@ func splitTopLevelUnion(s string) []string {
 	return out
 }
 
-// resolveObjectLiteralType parses a `{k1: T1, k2: T2}` expression
-// into a structural ObjectType (nil name, IsStructural=true) whose
-// members are resolved against this scope. Returns false on malformed
-// input so the caller can fall back to Unknown.
+// Go-only: language-adapter — resolveObjectLiteralType parses `{k: T}` record
+// types textually; Java parses them through JsDocInfoParser.parseRecordType()
+// into a TypeAST which is then converted by JSTypeRegistry.
 func (s *TypedScope) resolveObjectLiteralType(expr string) (*jstype.ObjectType, bool) {
 	if !startsWith(expr, "{") || !endsWith(expr, "}") {
 		return nil, false
@@ -688,6 +957,10 @@ func (s *TypedScope) resolveObjectLiteralType(expr string) (*jstype.ObjectType, 
 	return obj, true
 }
 
+// Go-only: language-adapter — resolveFunctionTypeExpr parses `function(T1,T2):R`
+// strings textually; Java uses FunctionTypeAST nodes produced by parseFunctionType
+// which are then converted to FunctionType via JSTypeRegistry.createFunctionType().
+//
 // resolveFunctionTypeExpr converts a serialised function-type string
 // produced by JsDocInfoParser.parseFunctionType — e.g.
 // `function(number,string=,...boolean):Date` — into a *FunctionType
@@ -840,6 +1113,8 @@ func (s *TypedScope) resolveFunctionTypeExpr(expr string) *jstype.FunctionType {
 	return fn
 }
 
+// Go-only: language-adapter — indexOfTopLevel finds the first byte at nesting
+// depth 0; used by resolveObjectLiteralType for key:value splitting.
 func indexOfTopLevel(s string, b byte) int {
 	depth := 0
 	for i := 0; i < len(s); i++ {
@@ -857,15 +1132,13 @@ func indexOfTopLevel(s string, b byte) int {
 	return -1
 }
 
+// Go-only: stdlib-interop — endsWith avoids importing strings for a single check.
 func endsWith(s, suffix string) bool {
 	return len(s) >= len(suffix) && s[len(s)-len(suffix):] == suffix
 }
 
-// stripTypeArgs removes a trailing `<…>` suffix from a type name so
-// `Foo<string>` → `Foo`. Mirrors TypedScopeCreator's
-// stripTemplateArgs helper used when resolving @extends / @implements
-// names that carry generic type arguments. Only strips when the first
-// `<` is balanced by a matching `>` at the end.
+// Go-only: language-adapter — stripTypeArgs replicates TypedScopeCreator's
+// stripTemplateArgs private method for @extends/@implements name normalization.
 func stripTypeArgs(name string) string {
 	i := indexOfByte(name, '<')
 	if i <= 0 {
@@ -874,9 +1147,8 @@ func stripTypeArgs(name string) string {
 	return name[:i]
 }
 
-// balancedOuterBraces reports whether the outermost `{…}` in `s`
-// wraps the entire string. Returns false for shapes like
-// `{a}|{b}` where the first `{...}` closes before the end.
+// Go-only: language-adapter — balancedOuterBraces detects top-level record type
+// expressions that Java's TypeAST handles structurally.
 func balancedOuterBraces(s string) bool {
 	if len(s) < 2 || s[0] != '{' || s[len(s)-1] != '}' {
 		return false
@@ -896,9 +1168,8 @@ func balancedOuterBraces(s string) bool {
 	return true
 }
 
-// balancedOuter reports whether the outermost `(...)` in `s` is a
-// complete paren group (the closing `)` is at `len(s)-1`). Tracks
-// depth so `(a)|(b)` isn't misread as one big group.
+// Go-only: language-adapter — balancedOuter detects outer-paren grouping in
+// type expressions that Java's JsDocInfoParser handles structurally.
 func balancedOuter(s string) bool {
 	if len(s) < 2 || s[0] != '(' || s[len(s)-1] != ')' {
 		return false
@@ -918,6 +1189,7 @@ func balancedOuter(s string) bool {
 	return true
 }
 
+// Go-only: stdlib-interop — splitOn is a byte-delimited split without importing strings.
 func splitOn(s string, sep byte) []string {
 	var out []string
 	start := 0
@@ -931,6 +1203,8 @@ func splitOn(s string, sep byte) []string {
 	return out
 }
 
+// Go-only: language-adapter — isJSUnknown centralises the nil/Unknown check;
+// Java uses JSType.isUnknownType() which is a virtual method on JSType.
 func isJSUnknown(t jstype.JSType) bool {
 	if t == nil {
 		return true
@@ -938,13 +1212,9 @@ func isJSUnknown(t jstype.JSType) bool {
 	return t.TypeName() == "?"
 }
 
-// syntheticReadonlyArrayType returns a synthetic jstype for a ReadonlyArray
-// annotation when ReadonlyArray is not registered in the scope (to avoid
-// false-positive JSC_TYPE_MISMATCH for `@const {!ReadonlyArray<T>}` decls).
-// It creates a bare ObjectType named "ReadonlyArray" for bare annotations, or
-// a TemplatizedType{ReadonlyArray, Unknown} for parameterized ones, so that
-// checkNotReadonlyPropertyAssignment can identify the ReadonlyArray pattern.
-// Returns nil if the raw type string does not mention ReadonlyArray.
+// Go-only: language-adapter — syntheticReadonlyArrayType creates a stand-in type
+// for ReadonlyArray annotations not registered in the Go type registry; Java
+// handles this through the full TypedScopeCreator/JSTypeRegistry type pipeline.
 func syntheticReadonlyArrayType(rawTypeName string) jstype.JSType {
 	// Quick check: does the annotation mention ReadonlyArray?
 	base := rawTypeName
@@ -981,10 +1251,8 @@ func syntheticReadonlyArrayType(rawTypeName string) jstype.JSType {
 	return roInst
 }
 
-// namespacePropNode returns the AST node (typically the property
-// STRING_KEY) that carried the first `/** @type {T} */` namespace
-// declaration for `owner.prop`. Nil when none exists. Consumed by
-// the DUP_VAR_DECLARATION_TYPE_MISMATCH diagnostic.
+// Go-only: language-adapter — namespacePropNode retrieves the declaration node
+// for a qualified property type; Java stores this in ObjectType's property map.
 func (s *TypedScope) namespacePropNode(owner, prop string) *rhino.Node {
 	if s == nil {
 		return nil
@@ -997,9 +1265,8 @@ func (s *TypedScope) namespacePropNode(owner, prop string) *rhino.Node {
 	return s.parent.namespacePropNode(owner, prop)
 }
 
-// inferExprType is a lightweight type inferencer for simple expressions
-// in scope context. Used to get the type of a for-of iterable at
-// scope-creation time (before TypeInference runs).
+// Go-only: language-adapter — inferExprType is a lightweight pre-TypeInference
+// type lookup; Java runs full TypeInference before scope creation is complete.
 func (s *TypedScope) inferExprType(n *rhino.Node) jstype.JSType {
 	if n == nil {
 		return jstype.Unknown
@@ -1028,10 +1295,9 @@ func (s *TypedScope) inferExprType(n *rhino.Node) jstype.JSType {
 	return jstype.Unknown
 }
 
-// ResolveName resolves a single type name against the scope chain,
-// checking typedefs, enums, nominal constructors, and primitives in
-// that order. Returns Unknown when nothing matches. Used by
-// ResolveWorklist as the post-scope-creation resolver.
+// Go-only: language-adapter — ResolveName is a Go-specific type-name resolver
+// that searches the scope chain before falling back to the registry; Java
+// resolves type names through JSTypeRegistry.getType(StaticTypedScope, String).
 func (s *TypedScope) ResolveName(name string) jstype.JSType {
 	if s == nil {
 		return jstype.Unknown
