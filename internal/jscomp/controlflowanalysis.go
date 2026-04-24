@@ -1007,6 +1007,7 @@ func (b *cfgBuilder) handleTry(node *rhino.Node, n *CfgNode) *CfgNode { return b
 func (b *cfgBuilder) handleWith(node *rhino.Node, n *CfgNode) *CfgNode { return b.visitWith(node, n) }
 
 // handleLabel mirrors ControlFlowAnalysis handling of LABEL in visit().
+// Go-only: language-adapter Java handles LABEL as an empty case in visit(); Go uses a dedicated handleLabel.
 func (b *cfgBuilder) handleLabel(node *rhino.Node, n *CfgNode) *CfgNode {
 	return b.visitLabel(node, n)
 }
