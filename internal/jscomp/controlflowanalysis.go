@@ -117,8 +117,8 @@ func (b *cfgBuilder) takePendingLabel() string {
 	return l
 }
 
-func (b *cfgBuilder) pushCatch(to *CfgNode)    { b.catches = append(b.catches, catchTarget{to: to}) }
-func (b *cfgBuilder) popCatch()                { b.catches = b.catches[:len(b.catches)-1] }
+func (b *cfgBuilder) pushCatch(to *CfgNode) { b.catches = append(b.catches, catchTarget{to: to}) }
+func (b *cfgBuilder) popCatch()             { b.catches = b.catches[:len(b.catches)-1] }
 func (b *cfgBuilder) topCatch() *CfgNode {
 	if len(b.catches) == 0 {
 		return nil
@@ -407,10 +407,11 @@ func (b *cfgBuilder) visitBranch(ifNode *CfgNode, block *rhino.Node, branch Bran
 }
 
 // visitWhile handles `while (cond) body`. The CFG shape:
-//   prev → WHILE    (unconditional)
-//   WHILE → body-start (BranchOnTrue)
-//   WHILE → after   (BranchOnFalse)
-//   body-tail → WHILE (back-edge, BranchSyn)
+//
+//	prev → WHILE    (unconditional)
+//	WHILE → body-start (BranchOnTrue)
+//	WHILE → after   (BranchOnFalse)
+//	body-tail → WHILE (back-edge, BranchSyn)
 func (b *cfgBuilder) visitWhile(stmt *rhino.Node, n *CfgNode) *CfgNode {
 	kids := stmt.Children()
 	if len(kids) < 2 {
@@ -431,10 +432,11 @@ func (b *cfgBuilder) visitWhile(stmt *rhino.Node, n *CfgNode) *CfgNode {
 }
 
 // visitDoWhile handles `do body while (cond);`. CFG:
-//   prev → body-start
-//   body-tail → DO_WHILE (cond node)
-//   DO_WHILE → body-start (BranchOnTrue, back-edge)
-//   DO_WHILE → after (BranchOnFalse)
+//
+//	prev → body-start
+//	body-tail → DO_WHILE (cond node)
+//	DO_WHILE → body-start (BranchOnTrue, back-edge)
+//	DO_WHILE → after (BranchOnFalse)
 func (b *cfgBuilder) visitDoWhile(stmt *rhino.Node, n *CfgNode) *CfgNode {
 	kids := stmt.Children()
 	if len(kids) < 2 {
@@ -475,11 +477,12 @@ func (b *cfgBuilder) visitDoWhile(stmt *rhino.Node, n *CfgNode) *CfgNode {
 
 // visitFor handles classic `for (init; cond; upd) body`.
 // Children are (init, cond, upd, body). CFG:
-//   prev → FOR (the init slot conceptually runs first)
-//   FOR → cond-node via init
-//   cond → body-start (BranchOnTrue)
-//   cond → after       (BranchOnFalse)
-//   body-tail → upd → cond
+//
+//	prev → FOR (the init slot conceptually runs first)
+//	FOR → cond-node via init
+//	cond → body-start (BranchOnTrue)
+//	cond → after       (BranchOnFalse)
+//	body-tail → upd → cond
 func (b *cfgBuilder) visitFor(stmt *rhino.Node, n *CfgNode) *CfgNode {
 	kids := stmt.Children()
 	if len(kids) < 4 {
@@ -515,8 +518,8 @@ func (b *cfgBuilder) visitFor(stmt *rhino.Node, n *CfgNode) *CfgNode {
 	b.cfg.addEdge(updNode, n, BranchSyn) // upd → cond back-edge
 	// Java's handleFor calls connectToPossibleExceptionHandler for the
 	// init, cond, and iter sub-expressions.
-	b.connectToPossibleExceptionHandler(n, kids[0]) // init
-	b.connectToPossibleExceptionHandler(n, kids[1]) // cond
+	b.connectToPossibleExceptionHandler(n, kids[0])       // init
+	b.connectToPossibleExceptionHandler(n, kids[1])       // cond
 	b.connectToPossibleExceptionHandler(updNode, kids[2]) // iter
 	return after
 }
@@ -547,11 +550,12 @@ func (b *cfgBuilder) visitForInOf(stmt *rhino.Node, n *CfgNode) *CfgNode {
 // d }`. Children are (discriminant, CASE*, DEFAULT_CASE?). Each case
 // body falls through to the next unless it ends in a break or
 // return. CFG:
-//   prev → SWITCH
-//   SWITCH → case[0] (BranchSyn — synthetic match-test)
-//   case[0] body-tail → case[1] (fall-through)
-//   case[i] body ends in BREAK → after
-//   SWITCH → default → after
+//
+//	prev → SWITCH
+//	SWITCH → case[0] (BranchSyn — synthetic match-test)
+//	case[0] body-tail → case[1] (fall-through)
+//	case[i] body ends in BREAK → after
+//	SWITCH → default → after
 func (b *cfgBuilder) visitSwitch(stmt *rhino.Node, n *CfgNode) *CfgNode {
 	after := &CfgNode{Kind: "SWITCH_AFTER"}
 	b.cfg.Nodes = append(b.cfg.Nodes, after)

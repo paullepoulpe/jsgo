@@ -30,10 +30,12 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"go/format"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -52,9 +54,10 @@ func main() {
 	pkg := flag.String("pkg", "jscomp", "go package name")
 	buildTag := flag.String("build-tag", "", "add a //go:build <tag> constraint so the file is excluded from the default build")
 	cacheDir := flag.String("cache-dir", ".javaport-cache", "directory for translation cache")
+	gofmtCheck := flag.Bool("gofmt-check", false, "after writing, run gofmt and report any remaining errors")
 	flag.Parse()
 	if *inPath == "" || *outPath == "" {
-		fmt.Fprintln(os.Stderr, "usage: javaport -in <foo.java> -out <foo.go> [-pkg <name>] [-build-tag <tag>]")
+		fmt.Fprintln(os.Stderr, "usage: javaport -in <foo.java> -out <foo.go> [-pkg <name>] [-build-tag <tag>] [-gofmt-check]")
 		os.Exit(2)
 	}
 	src, err := os.ReadFile(*inPath)
@@ -94,6 +97,50 @@ func main() {
 	}
 	saveCache(*cacheDir, cacheKey, out)
 	fmt.Printf("wrote %s (%d bytes)\n", *outPath, len(out))
+	if *gofmtCheck {
+		reportGofmtErrors(*outPath, []byte(out))
+	}
+}
+
+// reportGofmtErrors runs go/format on src and prints any lines that differ
+// from the formatted version, prefixed with their line number.  This is
+// equivalent to `gofmt -d` but uses the in-process formatter so no external
+// binary is required.  Errors are printed to stderr; the process does not
+// exit non-zero so that -gofmt-check is advisory only.
+func reportGofmtErrors(path string, src []byte) {
+	formatted, err := format.Source(src)
+	if err != nil {
+		// Syntax errors: just report the parse failure.
+		fmt.Fprintf(os.Stderr, "gofmt-check %s: parse error: %v\n", path, err)
+		return
+	}
+	if bytes.Equal(src, formatted) {
+		fmt.Printf("gofmt-check %s: OK (0 errors)\n", path)
+		return
+	}
+	// Count differing lines.
+	srcLines := bytes.Split(src, []byte("\n"))
+	fmtLines := bytes.Split(formatted, []byte("\n"))
+	n := len(srcLines)
+	if len(fmtLines) > n {
+		n = len(fmtLines)
+	}
+	errCount := 0
+	for i := 0; i < n; i++ {
+		var sl, fl []byte
+		if i < len(srcLines) {
+			sl = srcLines[i]
+		}
+		if i < len(fmtLines) {
+			fl = fmtLines[i]
+		}
+		if !bytes.Equal(sl, fl) {
+			errCount++
+			fmt.Fprintf(os.Stderr, "gofmt-check %s:%d: want %q got %q\n",
+				path, i+1, string(fl), string(sl))
+		}
+	}
+	fmt.Fprintf(os.Stderr, "gofmt-check %s: %d error(s)\n", path, errCount)
 }
 
 // ── #171 translation cache ──────────────────────────────────────────────────
