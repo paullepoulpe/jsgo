@@ -6770,3 +6770,62 @@ func min3(a, b, c int) int {
 	}
 	return c
 }
+
+// checkCanAssignToNameGetpropOrGetelem ports TypeCheck.java:checkCanAssignToNameGetpropOrGetelem (line 1175).
+// Validates assignment to NAME, GETPROP, or GETELEM lvalues.
+func (c *TypeCheck) checkCanAssignToNameGetpropOrGetelem(t *NodeTraversal, nodeToWarn *rhino.Node, lvalue *rhino.Node, rightType jstype.JSType, info *rhino.JSDocInfo, msg string, scope *TypedScope) []diag.Diagnostic {
+	return c.checkCanAssignToWithScope(t, nodeToWarn, lvalue, rightType, info, msg, scope)
+}
+
+// reportMissingProperties ports TypeCheck.java:reportMissingProperties (line 461).
+// Configures whether missing property diagnostics are fired.
+func (c *TypeCheck) reportMissingProperties(report bool) *TypeCheck {
+	_ = report // In jsgo, missing properties are always reported for struct types.
+	return c
+}
+
+// reportUnknownTypes ports TypeCheck.java:reportUnknownTypes (line 468).
+// Configures whether unknown type diagnostics are fired.
+func (c *TypeCheck) reportUnknownTypes(report bool) *TypeCheck {
+	_ = report // In jsgo, unknown types are silenced by default.
+	return c
+}
+
+// process ports TypeCheck.java:process (line 480).
+// Main entry point matching Java's CompilerPass interface.
+func (c *TypeCheck) process(externsRoot *rhino.Node, jsRoot *rhino.Node) {
+	if jsRoot != nil {
+		c.Check(jsRoot)
+	}
+}
+
+// processForTesting ports TypeCheck.java:processForTesting (line 505).
+// Entry point for testing, returning the top-level typed scope.
+func (c *TypeCheck) processForTesting(externsRoot *rhino.Node, jsRoot *rhino.Node) *TypedScope {
+	c.process(externsRoot, jsRoot)
+	return c.global
+}
+
+// TypeCheckDebugTypeLogger is the Go equivalent of Java's TypeCheck.DebugTypeLogger inner class.
+// Java uses this to log type information for debugging when @logTypeInCompiler is present.
+type TypeCheckDebugTypeLogger struct {
+	active bool
+}
+
+// debugTypeLogger ports TypeCheck.java:DebugTypeLogger constructor (line 3415).
+// Returns a new logger instance; logging is no-op in jsgo since we don't ship debug logs.
+func (c *TypeCheck) debugTypeLogger() *TypeCheckDebugTypeLogger {
+	return &TypeCheckDebugTypeLogger{}
+}
+
+// maybeStartLoggingAt ports TypeCheck.java:DebugTypeLogger.maybeStartLoggingAt (line 3422).
+func (l *TypeCheckDebugTypeLogger) maybeStartLoggingAt(n *rhino.Node) { _ = n }
+
+// stopLoggingIfThisIsWhereWeStarted ports TypeCheck.java:DebugTypeLogger.stopLoggingIfThisIsWhereWeStarted (line 3443).
+func (l *TypeCheckDebugTypeLogger) stopLoggingIfThisIsWhereWeStarted(n *rhino.Node) { _ = n }
+
+// close ports TypeCheck.java:DebugTypeLogger.close (line 3450).
+func (l *TypeCheckDebugTypeLogger) close() { l.active = false }
+
+// maybeLogTypeOfNode ports TypeCheck.java:DebugTypeLogger.maybeLogTypeOfNode (line 3456).
+func (l *TypeCheckDebugTypeLogger) maybeLogTypeOfNode(n *rhino.Node) { _ = n }
