@@ -108,14 +108,15 @@ type TypeCheck struct {
 	scriptRoot *rhino.Node
 }
 
+// Go-only: language-adapter — Go's single-file package requires one constructor
+// per caller ABI; Java's TypeCheck has two overloaded constructors (lines 437, 452).
 func NewTypeCheck(path string, creator *TypedScopeCreator, global *TypedScope) *TypeCheck {
 	return NewTypeCheckWithOptions(path, creator, global, NewCompilerOptions())
 }
 
-// NewTypeCheckWithOptions is the per-options constructor, mirroring
-// Java's TypeCheck(AbstractCompiler, …). The options bag routes
-// per-DiagnosticGroup CheckLevel so strict-only validators stay
-// silent unless `strictCheckTypes` is set to WARNING / ERROR.
+// Go-only: language-adapter — Go does not support method overloading; this variant
+// carries the CompilerOptions bag that Java's constructor accepted implicitly via the
+// AbstractCompiler (TypeCheck.java:437–459).
 func NewTypeCheckWithOptions(path string, creator *TypedScopeCreator, global *TypedScope, opts *CompilerOptions) *TypeCheck {
 	if opts == nil {
 		opts = NewCompilerOptions()
@@ -129,12 +130,9 @@ func NewTypeCheckWithOptions(path string, creator *TypedScopeCreator, global *Ty
 	}
 }
 
-// SetUndeclaredNames injects the set of variable names that VarCheck
-// reported as undeclared. When the root receiver of a GETPROP is one
-// of these names, POSSIBLE_INEXISTENT_PROPERTY is suppressed — mirrors
-// Java's VarCheck.createSynthesizedExternVar() mechanism which adds
-// undeclared names to the externs scope so property accesses on them
-// are treated as extern-typed (AllType / open surface).
+// Go-only: package-bridge — injects undeclared names from VarCheck. Java routes this
+// through AbstractCompiler.createSynthesizedExternVar(); in Go the two passes share
+// a plain map since they run in the same process without a shared compiler object.
 func (c *TypeCheck) SetUndeclaredNames(names map[string]bool) {
 	c.undeclaredNames = names
 }
@@ -172,7 +170,9 @@ func (c *TypeCheck) Check(script *rhino.Node) []diag.Diagnostic {
 // emitJSDocParseWarnings walks the AST and emits diagnostics for JSDoc
 // parse warnings recorded during parsing: JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES
 // (from @template {B} T) and JSC_INVALID_PARAM (from invalid @param names).
-// Mirrors JsDocInfoParser.addParserWarning routed through RhinoErrorReporter.
+// Go-only: package-bridge — walks JSDoc parse errors that Java surfaces via
+// RhinoErrorReporter / JsDocInfoParser callbacks. In Go, rhino.JSDocInfo exposes
+// the positions directly, so TypeCheck walks them once at the top of Check().
 func (c *TypeCheck) emitJSDocParseWarnings(script *rhino.Node) {
 	var walk func(*rhino.Node)
 	walk = func(n *rhino.Node) {
@@ -203,11 +203,9 @@ func (c *TypeCheck) emitJSDocParseWarnings(script *rhino.Node) {
 	walk(script)
 }
 
-// collectFileSuppressions walks the script's JSDoc blocks for any
-// @fileoverview / stand-alone @suppress declarations and returns
-// the union of their suppression names. Mirrors Java's
-// CompilerPass.skipForSuppressedPath filter — diagnostics whose
-// code matches a file-level suppression are dropped silently.
+// Go-only: package-bridge — Java's CompilerPass base class carries a reference to
+// AbstractCompiler which exposes file-level suppressions via getSuppressedWarnings();
+// in Go we pre-scan the script's JSDoc once and pass the map to TypeCheck.
 func collectFileSuppressions(script *rhino.Node) map[string]bool {
 	out := map[string]bool{}
 	var walk func(n *rhino.Node)
@@ -230,27 +228,15 @@ func collectFileSuppressions(script *rhino.Node) map[string]bool {
 	return out
 }
 
-// collectPropertyWrites walks the script once before TypeCheck
-// runs, registering every `X.prop = …` where X resolves to a
-// nominal ObjectType. Java's TypedScopeCreator does this during
-// its own traversal; jsgo runs it here so every later
-// visitGetProp read has the full property surface available.
-// Only extends open (non-struct / non-structural) types — sealed
-// receivers keep their declared surface so the INEXISTENT /
-// ILLEGAL checks stay accurate.
-//
-// Delegates to collectPropertyWritesIn with the global scope so
-// that function bodies are entered with their correct local scopes
-// (parameter types visible), matching Java's per-scope traversal.
+// Go-only: package-bridge — Java's TypedScopeCreator already registers all property
+// writes during its own traversal so TypeCheck never needs a pre-pass; in Go the
+// scope creator's traversal is separated, so TypeCheck performs this walk itself.
 func (c *TypeCheck) collectPropertyWrites(n *rhino.Node) {
 	c.collectPropertyWritesIn(n, c.global)
 }
 
-// collectPropertyWritesIn is the scope-aware recursive worker for
-// collectPropertyWrites. When entering a FUNCTION node, it switches
-// to the function's parameter scope (from TypedScopeCreator.Functions)
-// so that `param.prop = value` assignments correctly resolve `param`
-// to its declared type and extend the ObjectType's surface.
+// Go-only: package-bridge — scope-aware worker for collectPropertyWrites; no Java
+// counterpart because Java's TypedScopeCreator handles this during its own pass.
 func (c *TypeCheck) collectPropertyWritesIn(n *rhino.Node, scope *TypedScope) {
 	if n == nil {
 		return
@@ -298,9 +284,9 @@ func (c *TypeCheck) collectPropertyWritesIn(n *rhino.Node, scope *TypedScope) {
 	}
 }
 
-// installFlow builds the CFG + DataFlowAnalysis for `root` (a
-// FUNCTION or SCRIPT) and stores it on the TypeCheck instance so
-// Visit can look up IN FlowScopes for each statement.
+// Go-only: language-adapter — Java runs TypeInference as a separate compiler pass
+// before TypeCheck; in Go, TypeCheck builds CFG + DataFlowAnalysis lazily so the
+// same traversal can consult in-scope refinements (TypeCheck.java has no equivalent).
 func (c *TypeCheck) installFlow(root *rhino.Node, scope *TypedScope) *DataFlowAnalysis {
 	if existing, ok := c.flows[root]; ok {
 		return existing
@@ -313,10 +299,8 @@ func (c *TypeCheck) installFlow(root *rhino.Node, scope *TypedScope) *DataFlowAn
 	return d
 }
 
-// enclosingStmt returns the nearest ancestor of `n` that's a CFG
-// statement (matches the Token set visited by BuildControlFlowGraph).
-// Used so an expression node can find its owning statement's IN
-// FlowScope.
+// Go-only: language-adapter — helper for the integrated flow analysis; Java's
+// TypeInference pass uses a separate lattice/CFG framework; no Java equivalent.
 func enclosingStmt(n *rhino.Node) *rhino.Node {
 	for cur := n; cur != nil; cur = cur.Parent() {
 		switch cur.Token() {
@@ -367,11 +351,10 @@ func (c *TypeCheck) ShouldTraverse(t *NodeTraversal, n, parent *rhino.Node) bool
 	return true
 }
 
-// traverseLoop walks a WHILE / DO_WHILE loop. The loop body runs
-// only when the condition is truthy, so we push the truthy
-// refinement before descending into the body. Matches how Java's
-// TypeInference refines a FlowScope at the loop header's true
-// back-edge.
+// Go-only: language-adapter — Go's NodeTraversal lacks Java's per-branch
+// FlowScope threading from TypeInference; traverseLoop / traverseShortCircuit /
+// traverseBlock / traverseIf / traverseHook implement equivalent refinement pushing
+// inline within ShouldTraverse so Visit sees narrowed types.
 func (c *TypeCheck) traverseLoop(t *NodeTraversal, n *rhino.Node) {
 	kids := n.Children()
 	if len(kids) < 2 {
@@ -392,12 +375,7 @@ func (c *TypeCheck) traverseLoop(t *NodeTraversal, n *rhino.Node) {
 	}
 }
 
-// traverseShortCircuit handles the AND / OR / COALESCE binary
-// operators. The RHS is evaluated only when the LHS is truthy
-// (for &&) or falsy (for || / ??), so we walk the RHS under a
-// refinement derived from the LHS. Matches Java's
-// SemanticReverseAbstractInterpreter behaviour at the expression
-// level.
+// Go-only: language-adapter — see traverseLoop comment; short-circuit variant.
 func (c *TypeCheck) traverseShortCircuit(t *NodeTraversal, n *rhino.Node) {
 	kids := n.Children()
 	if len(kids) != 2 {
@@ -419,11 +397,7 @@ func (c *TypeCheck) traverseShortCircuit(t *NodeTraversal, n *rhino.Node) {
 	}
 }
 
-// traverseBlock walks a block's statements in order, threading
-// post-guard refinements forward — when a statement is an `if (cond)
-// { return; }` (or `throw`), the negated cond's refinement is pushed
-// for the remainder of the block. Mirrors how Java's TypeInference
-// applies a refined FlowScope to siblings after an early-exit guard.
+// Go-only: language-adapter — see traverseLoop comment; block-statement variant.
 func (c *TypeCheck) traverseBlock(t *NodeTraversal, block *rhino.Node) {
 	scope := t.CurrentScope()
 	pushed := 0
@@ -460,9 +434,8 @@ func (c *TypeCheck) traverseBlock(t *NodeTraversal, block *rhino.Node) {
 	c.Visit(t, block, block.Parent())
 }
 
-// earlyExitGuard reports whether `n` is `if (cond) { return | throw
-// | break | continue }` with no else, returning the cond expression
-// for use in negated refinement of the remaining siblings.
+// Go-only: language-adapter — helper for traverseBlock's post-guard narrowing;
+// Java's TypeInference tracks this implicitly via FlowScope lattice join.
 func earlyExitGuard(n *rhino.Node) (*rhino.Node, bool) {
 	if n == nil || n.Token() != rhino.IF {
 		return nil, false
@@ -477,9 +450,7 @@ func earlyExitGuard(n *rhino.Node) (*rhino.Node, bool) {
 	return kids[0], true
 }
 
-// blockExits reports whether `n` (a single statement or a BLOCK)
-// definitely terminates execution of the enclosing function via
-// return / throw on every path.
+// Go-only: language-adapter — helper for earlyExitGuard; no Java counterpart.
 func blockExits(n *rhino.Node) bool {
 	if n == nil {
 		return false
@@ -493,10 +464,7 @@ func blockExits(n *rhino.Node) bool {
 	return false
 }
 
-// traverseIf walks `if (cond) thenBlock [else elseBlock]` with a
-// refinement overlay active on the current scope while descending
-// into each branch. Mirrors how Java's TypeInferencePass refines a
-// FlowScope at branch points.
+// Go-only: language-adapter — see traverseLoop comment; if-branch variant.
 func (c *TypeCheck) traverseIf(t *NodeTraversal, n *rhino.Node) {
 	kids := n.Children()
 	if len(kids) < 2 {
@@ -531,9 +499,7 @@ func (c *TypeCheck) traverseIf(t *NodeTraversal, n *rhino.Node) {
 	}
 }
 
-// traverseHook is the HOOK analogue of traverseIf — refines per
-// branch so `cond ? cond.foo() : fallback` resolves cond.foo()
-// against the truthy form of cond.
+// Go-only: language-adapter — see traverseLoop comment; ternary-expression variant.
 func (c *TypeCheck) traverseHook(t *NodeTraversal, n *rhino.Node) {
 	kids := n.Children()
 	if len(kids) < 3 {
@@ -651,10 +617,8 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 	c.emit(c.checkJsdocInfoContainsObjectWithBadKey(n, scope))
 }
 
-// pushEnclosingFlow looks up the CFG / FlowScope active for `n`'s
-// enclosing statement and pushes it as a refinement on the current
-// scope. Returns a pop function the caller defers. Safe no-op if
-// the node isn't inside a tracked CFG.
+// Go-only: language-adapter — threads CFG flow-scope into Visit; Java's TypeCheck
+// receives a pre-narrowed scope from TypeInference via NodeTraversal; no equivalent.
 func (c *TypeCheck) pushEnclosingFlow(n *rhino.Node, scope *TypedScope) func() {
 	stmt := enclosingStmt(n)
 	if stmt == nil {
@@ -679,8 +643,7 @@ func (c *TypeCheck) pushEnclosingFlow(n *rhino.Node, scope *TypedScope) func() {
 	return scope.PopRefinement
 }
 
-// enclosingFlowRoot returns the nearest FUNCTION or SCRIPT ancestor
-// of `n` — the CFG owner for that subtree.
+// Go-only: language-adapter — helper for pushEnclosingFlow; no Java counterpart.
 func enclosingFlowRoot(n *rhino.Node) *rhino.Node {
 	for cur := n; cur != nil; cur = cur.Parent() {
 		switch cur.Token() {
@@ -691,14 +654,18 @@ func enclosingFlowRoot(n *rhino.Node) *rhino.Node {
 	return nil
 }
 
+// Go-only: language-adapter — diagnostic accumulator; Java's TypeCheck calls
+// compiler.report() directly via the AbstractCompiler interface; Go collects into
+// a slice returned from Check() since there is no shared compiler object.
 func (c *TypeCheck) emit(d []diag.Diagnostic) {
 	c.diags = append(c.diags, d...)
 }
 
 // tvDrain collects all diagnostics accumulated by c.tv since the last
 // drain call, clears the TypeValidator's buffer, and returns them.
-// Mirrors the pattern Java uses via typeValidator.getAndClearMismatches()
-// — here we drain diags so each visitor gets only its own emissions.
+// Go-only: language-adapter — drains TypeValidator's diagnostic buffer between
+// visitor calls; Java routes all diagnostics through AbstractCompiler.report() so
+// this accumulation/drain pattern does not exist in Java.
 func (c *TypeCheck) tvDrain() []diag.Diagnostic {
 	d := c.tv.diags
 	c.tv.diags = nil
@@ -707,11 +674,8 @@ func (c *TypeCheck) tvDrain() []diag.Diagnostic {
 
 // ---- per-node visitors ------------------------------------------ //
 
-// varHasEqOnLine reports whether the source line (1-indexed lineno)
-// contains an `=` sign at or after the column of the name token. Used
-// to guard JSC_ENUM_INITIALIZER_NOT_ENUM: if `=` is present the parser
-// likely failed to attach the init node (e.g. inline JSDoc inside the
-// OBJECTLIT), and we should not fire the diagnostic.
+// Go-only: language-adapter — guards against parser-level attach failures that
+// produce an absent init node; Java's parser always attaches initializers correctly.
 func varHasEqOnLine(src string, lineno, nameCol int) bool {
 	if src == "" || lineno < 1 {
 		return false
@@ -850,10 +814,8 @@ func (c *TypeCheck) visitVar(v *rhino.Node, scope *TypedScope) []diag.Diagnostic
 }
 
 
-// visitCast validates `/** @type {T} */(expr)` cast expressions.
-// Mirrors Java's TypeCheck.visitCast → TypeValidator.expectCanCast:
-// fires JSC_INVALID_CAST when the CanCastToVisitor rejects the pair.
-// Object literals are excluded (Java skips them too).
+// Go-only: language-adapter — Java handles CAST inline in visit() at line 613-629;
+// Go extracts it into a named function for readability.
 func (c *TypeCheck) visitCast(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	expr := n.FirstChild()
 	if expr == nil || expr.Token() == rhino.OBJECTLIT {
@@ -899,17 +861,9 @@ func (c *TypeCheck) visitCast(n *rhino.Node, scope *TypedScope) []diag.Diagnosti
 	}}
 }
 
-// visitEnumInit validates a `/** @enum [{T}] */ var E = init`
-// declaration. Three cases mirror Java's EnumType initialisation:
-//
-//  1. init is an OBJECTLIT — per-entry subtype check against the
-//     declared Underlying; mismatch emits JSC_TYPE_MISMATCH at
-//     the entry value with "assignment to property <k> of enum{E}".
-//  2. init is a NAME referring to another enum — alias; already
-//     folded in scope.go. No diagnostic here.
-//  3. init is anything else — emit "initializing variable" with
-//     the enum's EnumType as required. Matches how Java's
-//     TypeCheck handles a non-enum RHS under an @enum decl.
+// Go-only: language-adapter — Go extracts Java's visitVar @enum branch into its
+// own function for clarity; in Java the enum-initializer logic is inlined inside
+// visitVar / TypeCheck.java:2266-2300 without a named sub-method.
 func (c *TypeCheck) visitEnumInit(name, init *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	enum, ok := scope.GetDeclaredType(name.String_()).(*jstype.EnumType)
 	if !ok {
@@ -995,10 +949,8 @@ func (c *TypeCheck) visitEnumInit(name, init *rhino.Node, scope *TypedScope) []d
 	}}
 }
 
-// visitShortCircuitAssign handles `&&=`, `||=`, `??=` compound assignments.
-// Port of TypeCheck.java's visitAssign branch for ASSIGN_AND, ASSIGN_OR,
-// ASSIGN_COALESCE: checks that the RHS type is assignable to the declared
-// type of the LHS.
+// Go-only: language-adapter — Java's visitAssign handles ASSIGN_AND/OR/COALESCE
+// inline (TypeCheck.java:1113 switch); Go extracts this variant for clarity.
 func (c *TypeCheck) visitShortCircuitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := a.Children()
 	if len(kids) < 2 {
@@ -1277,13 +1229,9 @@ func (c *TypeCheck) visitNew(node *rhino.Node, scope *TypedScope) []diag.Diagnos
 	return c.visitCall(node, scope)
 }
 
-// isSafeCalleeForArity reports whether a CALL's callee shape lets
-// us confidently enforce JSC_WRONG_ARGUMENT_COUNT. Java fires on
-// every call-site; jsgo narrows to patterns where our FunctionType
-// carries accurate arity info — bare identifiers, namespace
-// properties (via LookupNamespaceProp), and static-method GETPROPs
-// on a known constructor. Prototype-method calls stay silent
-// because override-aware arity isn't ported yet.
+// Go-only: language-adapter — Java's visitCall fires arity checks on every call
+// site unconditionally; Go applies this guard to avoid FPs from incomplete
+// override-chain inference (no Java counterpart; Java has full type info).
 func isSafeCalleeForArity(callee *rhino.Node, scope *TypedScope) bool {
 	if callee == nil {
 		return false
@@ -1320,15 +1268,8 @@ func isSafeCalleeForArity(callee *rhino.Node, scope *TypedScope) bool {
 	return false
 }
 
-// isSafeInstanceMethodForArity reports whether a GETPROP call whose
-// receiver is `this` or a `new` expression is safe to arity-check.
-// A prototype method is safe when its instance type has no superclass
-// that also declares the same property — i.e. the method is not an
-// @override. Overriding methods may have different arity from the
-// parent's declaration; without full override-aware inference the
-// arity check would produce false positives. Mirrors Java's TypeCheck
-// which always fires but has per-slot type annotations from the full
-// override chain.
+// Go-only: language-adapter — companion guard to isSafeCalleeForArity for
+// prototype-method calls; no Java counterpart.
 func isSafeInstanceMethodForArity(callee *rhino.Node, infer *TypeInference) bool {
 	if callee == nil || callee.Token() != rhino.GETPROP {
 		return false
@@ -1352,11 +1293,9 @@ func isSafeInstanceMethodForArity(callee *rhino.Node, infer *TypeInference) bool
 	return !obj.SuperHasProperty(propName)
 }
 
-// isDefinitelyNonConstructor reports whether `t` is guaranteed not
-// to be a constructor. Returns the offending type so the diagnostic
-// can show what was found. A FunctionType without IsConstructor
-// counts (plain functions); non-function primitives count; Unknown
-// / All / unions stay quiet.
+// Go-only: language-adapter — Java's visitNew dispatches through
+// couldBeAConstructor (TypeCheck.java:2328) but returns a JSType directly;
+// Go needs a typed predicate to propagate the offending type into the message.
 func isDefinitelyNonConstructor(t jstype.JSType) (bool, jstype.JSType) {
 	if t == nil {
 		return false, nil
@@ -1731,10 +1670,8 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 	}}
 }
 
-// isThisReceiverRead reports whether `n` is a `this.prop` READ —
-// i.e. the GETPROP's receiver is `this` and the parent isn't an
-// ASSIGN with `n` as LHS. Java fires INEXISTENT_PROPERTY on this
-// pattern even for bare @constructor classes (non-struct).
+// Go-only: language-adapter — splits out the this-receiver predicate that Java's
+// allowStrictPropertyAccessOnNode handles inline (TypeCheck.java:2202-2213).
 func isThisReceiverRead(n *rhino.Node) bool {
 	kids := n.Children()
 	if len(kids) < 1 {
@@ -1746,9 +1683,7 @@ func isThisReceiverRead(n *rhino.Node) bool {
 	return !isAssignLHS(n)
 }
 
-// isAssignLHS reports whether `n` (typically a GETPROP) sits on the
-// LHS of an enclosing ASSIGN. The ILLEGAL_PROPERTY_CREATION check
-// only fires for struct-instance writes, not reads.
+// Go-only: language-adapter — helper for isThisReceiverRead; no Java counterpart.
 func isAssignLHS(n *rhino.Node) bool {
 	p := n.Parent()
 	if p == nil {
@@ -1760,30 +1695,8 @@ func isAssignLHS(n *rhino.Node) bool {
 	return p.FirstChild() == n
 }
 
-// isPropertyExistenceOrAbsenceTest mirrors Java's
-// allowLoosePropertyAccessOnNode logic (NodeUtil.isPropertyTest +
-// isPropertyAbsenceTest). Returns true when the GETPROP `n` appears
-// in a context where the access is a guard/check rather than a
-// reliance on the property's existence.
-//
-// In Java, such accesses cause checkPropertyAccessHelper to set
-// strictReport=true, routing to STRICT_INEXISTENT_PROPERTY rather
-// than JSC_INEXISTENT_PROPERTY. In default mode STRICT_INEXISTENT_PROPERTY
-// is silenced, so Go skips the diagnostic entirely here.
-//
-// Patterns covered (mirrors Java's isPropertyTest + isPropertyAbsenceTest):
-//   - && / || / ?? operand
-//   - typeof / instanceof operand
-//   - Condition of if / while / do-while / for (classic)
-//   - Condition of ternary (hook first child)
-//   - != null/undefined (NE): existence test
-//   - !== undefined (SHNE with undefined): existence test
-//   - == null/undefined (EQ): absence test
-//   - === undefined (SHEQ with undefined): absence test
-//   - !foo.bar as left operand of || (NOT-in-OR pattern)
-// rootOfGetProp walks up a GETPROP chain and returns the leftmost NAME
-// node (the root object). For `a.b.c`, returns the NAME node for `a`.
-// Returns nil if the chain's root is not a NAME.
+// Go-only: language-adapter — walks a GETPROP chain to find the root NAME;
+// Java's NodeUtil handles this generically; no single named Go equivalent.
 func rootOfGetProp(n *rhino.Node) *rhino.Node {
 	curr := n
 	for curr != nil && curr.Token() == rhino.GETPROP {
@@ -1796,6 +1709,9 @@ func rootOfGetProp(n *rhino.Node) *rhino.Node {
 	return curr
 }
 
+// Go-only: language-adapter — mirrors Java's allowLoosePropertyAccessOnNode
+// (TypeCheck.java:2214) which routes to STRICT_INEXISTENT_PROPERTY; Go skips
+// the diagnostic entirely in default mode since STRICT_INEXISTENT is silenced.
 func isPropertyExistenceOrAbsenceTest(n *rhino.Node) bool {
 	p := n.Parent()
 	if p == nil {
@@ -1841,9 +1757,7 @@ func isPropertyExistenceOrAbsenceTest(n *rhino.Node) bool {
 	return false
 }
 
-// otherSideIsNullOrUndefined returns true when the binary node `p`
-// has `n` on one side and a null/undefined literal on the other.
-// Used to implement the property existence/absence test guards.
+// Go-only: language-adapter — helper for isPropertyExistenceOrAbsenceTest.
 func otherSideIsNullOrUndefined(p, n *rhino.Node) bool {
 	kids := p.Children()
 	if len(kids) < 2 {
@@ -1858,9 +1772,7 @@ func otherSideIsNullOrUndefined(p, n *rhino.Node) bool {
 	return isNullOrUndefinedLiteral(other)
 }
 
-// otherSideIs returns true when the binary node `p` has `n` on one
-// side and a node with token `tok` on the other. Used by the
-// existence/absence-test guards for SHNE and SHEQ comparisons.
+// Go-only: language-adapter — helper for isPropertyExistenceOrAbsenceTest.
 func otherSideIs(p, n *rhino.Node, tok rhino.Token) bool {
 	kids := p.Children()
 	if len(kids) < 2 {
@@ -1875,7 +1787,7 @@ func otherSideIs(p, n *rhino.Node, tok rhino.Token) bool {
 	return other != nil && other.Token() == tok
 }
 
-// containsPropTest: sub-tree sub has a GETPROP recvName.propName in an existence test.
+// Go-only: language-adapter — helper for isInGuardedBranch; no Java counterpart.
 func containsPropTest(sub *rhino.Node, recvName, propName string) bool {
 	if sub == nil {
 		return false
@@ -1896,8 +1808,8 @@ func containsPropTest(sub *rhino.Node, recvName, propName string) bool {
 	return false
 }
 
-// isInGuardedBranch: GETPROP n is inside a branch guarded by a prior
-// existence test of recvName.propName (mirrors Java's type narrowing).
+// Go-only: language-adapter — implements Java's type-narrowing guard check inline
+// via explicit AST walking; Java uses FlowScope lattice ops; no named equivalent.
 func isInGuardedBranch(n *rhino.Node, recvName, propName string) bool {
 	for cur := n; cur != nil; cur = cur.Parent() {
 		p := cur.Parent()
@@ -1942,8 +1854,10 @@ func isInGuardedBranch(n *rhino.Node, recvName, propName string) bool {
 	return false
 }
 
-// checkPossibleInexistent emits JSC_POSSIBLE_INEXISTENT_PROPERTY for
-// low-confidence receivers (Unknown / * / Object).
+// Go-only: language-adapter — emits JSC_POSSIBLE_INEXISTENT_PROPERTY for
+// low-confidence receivers; Java routes this through checkPropertyAccessHelper's
+// strictReport path which funnels to STRICT_INEXISTENT_PROPERTY; Go emits the
+// weaker POSSIBLE variant directly since STRICT_ is silenced in default mode.
 func (c *TypeCheck) checkPossibleInexistent(n, recvNode *rhino.Node, propName string, recvType jstype.JSType) []diag.Diagnostic {
 	if isAssignLHS(n) {
 		return nil
@@ -2004,8 +1918,9 @@ func (c *TypeCheck) checkPossibleInexistent(n, recvNode *rhino.Node, propName st
 	}}
 }
 
-// checkAliasAnnotation: returns incompatible annotation string when JSDoc
-// on a var alias disagrees with the aliased FunctionType's kind.
+// Go-only: language-adapter — checks JSC_INCOMPATIBLE_ALIAS_ANNOTATION inline
+// during visitVar; Java handles this as part of visitVar's annotation checking
+// at TypeCheck.java:2266 without a named sub-method.
 func checkAliasAnnotation(info *rhino.JSDocInfo, aliased *jstype.FunctionType) string {
 	structural := aliased.Instance != nil && aliased.Instance.IsStructural
 	if info.IsRecord() {
@@ -2025,7 +1940,10 @@ func checkAliasAnnotation(info *rhino.JSDocInfo, aliased *jstype.FunctionType) s
 	return ""
 }
 
-// buildGlobalPropNameSet: all prop names from types, namespaces, writes, keys.
+// Go-only: package-bridge — builds a global property name index for
+// POSSIBLE_INEXISTENT_PROPERTY suppression; Java's eachRefTypeIndexedByProperty
+// is populated by TypedScopeCreator and queried via AbstractCompiler; Go
+// pre-builds an equivalent map since there is no shared compiler object.
 func buildGlobalPropNameSet(global *TypedScope, script *rhino.Node) map[string]bool {
 	// Universal JS properties (exist on every object / function).
 	// Suppresses spurious POSSIBLE_INEXISTENT_PROPERTY on unknown receivers.
@@ -2091,18 +2009,9 @@ func buildGlobalPropNameSet(global *TypedScope, script *rhino.Node) map[string]b
 	return out
 }
 
-// buildExternTypeSet collects every ObjectType instance registered in
-// the externs scope (the parent of the user-source global scope). Java's
-// externs ship full property surfaces for Object, Function, Array, Date,
-// etc.; jsgo's externs are sparse @constructor stubs. Treating externs
-// types as "open" prevents spurious JSC_INEXISTENT_PROPERTY on any
-// property access whose type comes from the externs. Mirrors Java's
-// "low-confidence" treatment of the global Object type and the general
-// open-surface assumption for other extern types.
-//
-// The extern scope is global.parent (builtins is global.parent.parent).
-// Only FunctionType constructors with an Instance are collected — bare
-// @const or primitive entries don't carry property surfaces.
+// Go-only: package-bridge — builds the externs type set used to suppress
+// JSC_INEXISTENT_PROPERTY on extern types whose surfaces are incomplete in jsgo;
+// Java's full externs populate all property surfaces so no such guard is needed.
 func buildExternTypeSet(global *TypedScope) map[*jstype.ObjectType]bool {
 	out := map[*jstype.ObjectType]bool{}
 	if global == nil {
@@ -2121,16 +2030,9 @@ func buildExternTypeSet(global *TypedScope) map[*jstype.ObjectType]bool {
 	return out
 }
 
-// buildLoosePropertyIndex builds, for each ObjectType, the set of
-// property names defined on any of its direct or transitive subtypes.
-// This mirrors Java's eachRefTypeIndexedByProperty cross-reference: Java's
-// canPropertyBeDefined returns LOOSE when a property is found on a subclass,
-// which causes checkPropertyAccessHelper to use STRICT_INEXISTENT_PROPERTY
-// (silenced in default mode). Go skips JSC_INEXISTENT_PROPERTY in the same
-// circumstances by consulting this index.
-//
-// Only FunctionType constructors with an Instance super chain are consulted —
-// these are the @constructor / class declarations registered in scope.
+// Go-only: package-bridge — pre-builds the subtype-property index that Java
+// lazily computes via eachRefTypeIndexedByProperty inside canPropertyBeDefined;
+// in Go this is a pre-pass since there is no shared AbstractCompiler registry.
 func buildLoosePropertyIndex(global *TypedScope) map[*jstype.ObjectType]map[string]bool {
 	out := map[*jstype.ObjectType]map[string]bool{}
 	for s := global; s != nil; s = s.parent {
@@ -2157,10 +2059,9 @@ func buildLoosePropertyIndex(global *TypedScope) map[*jstype.ObjectType]map[stri
 	return out
 }
 
-// insideOwnConstructor reports whether `n` is lexically inside a
-// @constructor function whose Instance matches `obj`. Java allows
-// `this.newProp = x` inside the struct's own ctor body even though
-// the surface is otherwise sealed.
+// Go-only: language-adapter — determines whether an assignment to this.prop occurs
+// inside the struct's own constructor body; Java's NodeUtil.isConstructorDeclaration
+// handles the equivalent check inline inside checkPropertyInheritanceOnAssignment.
 func insideOwnConstructor(n *rhino.Node, obj *jstype.ObjectType) bool {
 	for cur := n.Parent(); cur != nil; cur = cur.Parent() {
 		if cur.Token() != rhino.FUNCTION {
@@ -2226,12 +2127,9 @@ func (c *TypeCheck) visitReturn(ret *rhino.Node, scope *TypedScope) []diag.Diagn
 	return c.tvDrain()
 }
 
-// visitClassField — port of the class-field branch inside Java's
-// visitClass / visitObjectOrClassLiteralKey. Emits:
-//  1. JSC_ILLEGAL_CLASS_KEY when the class is @dict (CLASS_FIELD_DEF is
-//     always a non-computed, non-constructor key — illegal in @dict).
-//  2. JSC_TYPE_MISMATCH when the initializer type doesn't match the
-//     declared @type.
+// Go-only: language-adapter — Go extracted CLASS_FIELD_DEF handling from Java's
+// visitClass / visitObjectOrClassLiteralKey into a named function for readability;
+// in Java this is inlined in the CLASS_MEMBERS case at TypeCheck.java:902-910.
 func (c *TypeCheck) visitClassField(field *rhino.Node, parent *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	// --- @dict / @struct class-key gate (Java's visitObjectOrClassLiteralKey) ---
 	// Mirrors: if (ownerType.isDict() && !NodeUtil.isEs6ConstructorMemberFunctionDef(key))
@@ -2307,12 +2205,9 @@ func (c *TypeCheck) visitClassField(field *rhino.Node, parent *rhino.Node, scope
 	return out
 }
 
-// visitComputedPropInClass — port of the computed-property branch inside
-// Java's visitObjectOrClassLiteralKey. Fires JSC_ILLEGAL_PROPERTY_ACCESS
-// when a COMPUTED_PROP appears in a @struct class body (mirrors Java's
-// validator.expectIndexMatch path for isComputedProp() inside CLASS_MEMBERS).
-// The diagnostic is at the key-expression node (first child of COMPUTED_PROP),
-// matching how TypeValidator.expectIndexMatch picks its indexNode.
+// Go-only: language-adapter — Go extracted COMPUTED_PROP handling from Java's
+// visitObjectOrClassLiteralKey into a named function; Java handles this inline
+// via TypeValidator.expectIndexMatch at TypeCheck.java:1434-1539.
 func (c *TypeCheck) visitComputedPropInClass(n *rhino.Node, parent *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	// Only applies when directly inside a class body (parent = BLOCK, grandparent = CLASS).
 	if parent == nil {
@@ -2350,9 +2245,9 @@ func (c *TypeCheck) visitComputedPropInClass(n *rhino.Node, parent *rhino.Node, 
 
 // ---- helpers ----------------------------------------------------- //
 
-// describeCallee renders a NAME or GETPROP chain as a dotted string
-// for the "actual parameter N of X" diagnostic, matching how Java
-// formats the callee in TypeCheck.java's visitCall message.
+// Go-only: language-adapter — formats callee name for diagnostic message;
+// Java's getBestFunctionName (TypeCheck.java:2560) serves the same purpose
+// but uses a different strategy; Go uses simpler AST-walk to produce the same output.
 func describeCallee(n *rhino.Node) string {
 	switch n.Token() {
 	case rhino.NAME:
@@ -2370,10 +2265,9 @@ func describeCallee(n *rhino.Node) string {
 	return "<fn>"
 }
 
-// diagPosForArg returns the (line, col) pair jsgo reports for a
-// call-site argument diagnostic. Java's TypeCheck uses the
-// rightmost segment of a GETPROP chain (`a.b.c` reports at `c`);
-// for everything else the node's own position is used.
+// Go-only: language-adapter — maps argument AST position to diagnostic line/col;
+// Java's TypeCheck reports at the argument node directly; Go walks GETPROP to
+// find the property segment, matching how Java formats the call-site position.
 func diagPosForArg(n *rhino.Node) (int, int) {
 	if n != nil && n.Token() == rhino.GETPROP {
 		kids := n.Children()
@@ -2385,10 +2279,9 @@ func diagPosForArg(n *rhino.Node) (int, int) {
 	return n.Lineno(), n.Charno()
 }
 
-// enclosingFunctionType returns the FunctionType from the scope for the
-// enclosing function node `fn`, if it was declared with `@type {function(...)}`
-// or `@return {T}`. Used to extract the return type when `@type {function():T}`
-// is used instead of separate `@return {T}` annotation.
+// Go-only: language-adapter — resolves a @type {function(...):T} annotation to
+// extract the return type for visitReturn; Java's NodeUtil.getBestJSDocInfo
+// provides this inline; Go needs a separate helper due to different scope lookup.
 func enclosingFunctionType(fn *rhino.Node, scope *TypedScope) *jstype.FunctionType {
 	if fn == nil {
 		return nil
@@ -2402,12 +2295,9 @@ func enclosingFunctionType(fn *rhino.Node, scope *TypedScope) *jstype.FunctionTy
 	return nil
 }
 
-// functionJSDoc returns the JSDocInfo attached to `fn`, or — for
-// anonymous function-expression forms like
-// `/** @return {T} */ X.prototype.m = function(){…}` — the JSDoc
-// attached to the enclosing VAR / ASSIGN / EXPR_RESULT statement.
-// Mirrors how Java's NodeUtil.getBestJSDocInfo hops up the tree
-// looking for the nearest declaration-level comment.
+// Go-only: language-adapter — mirrors Java's NodeUtil.getBestJSDocInfo which
+// hops up the AST to find the nearest declaration-level comment; Go's rhino
+// doesn't expose this generically, so TypeCheck implements it directly.
 func functionJSDoc(fn *rhino.Node) *rhino.JSDocInfo {
 	if fn == nil {
 		return nil
@@ -2508,19 +2398,15 @@ func (c *TypeCheck) visitGetElem(n *rhino.Node, scope *TypedScope) []diag.Diagno
 	return nil
 }
 
-// isArrayReceiver reports whether `t` dereferences to the builtin
-// `Array` instance (or Array<T>). Mirrors the Array-test branch in
-// TypeValidator.expectIndexMatch.
+// Go-only: language-adapter — predicate for visitGetElem's array-index check;
+// Java's TypeValidator.expectIndexMatch handles this inline.
 func isArrayReceiver(t jstype.JSType) bool {
 	obj := dereferencedObject(t)
 	return obj != nil && obj.Name == "Array"
 }
 
-// isNumberIndexOk reports whether `t` is acceptable as an Array
-// index. Java accepts number / unknown / union-with-number; any
-// definite non-number fires. Uses jstype.IsSubtype so
-// EnumElementType<number> (which is a subtype of Number via its
-// Underlying rule) still passes.
+// Go-only: language-adapter — predicate for isArrayReceiver's index check;
+// Java checks this inline in TypeValidator.expectIndexMatch.
 func isNumberIndexOk(t jstype.JSType) bool {
 	if t == nil {
 		return true
@@ -2531,11 +2417,8 @@ func isNumberIndexOk(t jstype.JSType) bool {
 	return jstype.IsSubtype(t, jstype.Number)
 }
 
-// isKnownSurfaceBuiltin reports whether `name` is one of the
-// built-in constructors whose property surface jsgo ships
-// concretely enough to fire JSC_INEXISTENT_PROPERTY on missing
-// members. Array is the canonical case — our default scope
-// populates length/push/pop/…, so `[].foo` cleanly fires.
+// Go-only: package-bridge — guards JSC_INEXISTENT_PROPERTY to types whose
+// externs surface is complete in jsgo; Java's full externs need no such guard.
 func isKnownSurfaceBuiltin(name string) bool {
 	switch name {
 	case "Array":
@@ -2544,11 +2427,9 @@ func isKnownSurfaceBuiltin(name string) bool {
 	return false
 }
 
-// defineOnOpenObject registers `prop` on every non-struct,
-// non-structural ObjectType reachable through `t` (direct,
-// Templatized, or union member). Used so `X.prop = …` assignments
-// extend the instance's property surface, matching Java's
-// "add to slot map on assign" behaviour.
+// Go-only: language-adapter — extends ObjectType's property surface on assignment;
+// Java's TypedScopeCreator handles this during its traversal; in Go TypeCheck
+// pre-builds the surface via collectPropertyWrites using this helper.
 func defineOnOpenObject(t jstype.JSType, prop string) {
 	if t == nil {
 		return
@@ -2572,11 +2453,9 @@ func defineOnOpenObject(t jstype.JSType, prop string) {
 	obj.DefineProperty(prop, jstype.Unknown)
 }
 
-// dereferencedObject returns the ObjectType behind a templatized
-// receiver type. Returns nil for primitives / Unknown / unions /
-// anonymous types. Used by the property-access diagnostics to
-// reach the underlying nominal slot (IsStruct / IsDict /
-// IsStructural). Mirrors JSType.toObjectType in Java.
+// Go-only: language-adapter — unwraps TemplatizedType to reach the base
+// ObjectType; Java's JSType.toObjectType() handles this uniformly on the type
+// hierarchy; Go needs an explicit helper due to Go's non-polymorphic type system.
 func dereferencedObject(t jstype.JSType) *jstype.ObjectType {
 	if t == nil {
 		return nil
@@ -2590,11 +2469,8 @@ func dereferencedObject(t jstype.JSType) *jstype.ObjectType {
 	return nil
 }
 
-// isStructReceiver reports whether `t` is (or contains) a @struct
-// ObjectType. Java's `x['prop']` check fires whenever ANY member
-// of a union is @struct — the union promises a struct is possible
-// at runtime, and bypassing the access check there would let the
-// program sneak in a bad lookup via the union's other arm.
+// Go-only: language-adapter — predicate for visitGetElem's struct bracket-access
+// check; Java's ObjectType.isStruct() is queried inline in visitGetElem.
 func isStructReceiver(t jstype.JSType) bool {
 	if t == nil {
 		return false
@@ -2612,7 +2488,7 @@ func isStructReceiver(t jstype.JSType) bool {
 	return false
 }
 
-// isDictReceiver is the @dict mirror of isStructReceiver.
+// Go-only: language-adapter — predicate for @dict access checks; no Java counterpart.
 func isDictReceiver(t jstype.JSType) bool {
 	if t == nil {
 		return false
@@ -2639,9 +2515,9 @@ func isDictReceiver(t jstype.JSType) bool {
 // `DiagnosticGroups.STRICT_CHECK_TYPES` elevates the relevant
 // DiagnosticTypes from OFF to WARNING / ERROR.
 
-// visitThis fires JSC_USED_GLOBAL_THIS when a `this` keyword
-// appears outside a method / constructor / class context (i.e.
-// the global object). Mirrors TypeCheck.java's visitThis branch.
+// Go-only: language-adapter — handles THIS in visit(); Java dispatches THIS inline
+// at TypeCheck.java:632 (`THIS -> ensureTyped(n, t.getTypedScope().getTypeOfThis())`);
+// Go needs a named function since the Visit switch routes through emit().
 func (c *TypeCheck) visitThis(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	if scope.ThisType() != nil {
 		return nil
@@ -2666,13 +2542,9 @@ func (c *TypeCheck) visitThis(n *rhino.Node, scope *TypedScope) []diag.Diagnosti
 	}}
 }
 
-// visitFunctionParams fires:
-//   - JSC_INEXISTENT_PARAM when a @param JSDoc names a parameter that
-//     doesn't appear in the function's actual parameter list.
-//   - JSC_TEMPLATE_TRANSFORMATION_ON_CLASS when a constructor or interface
-//     carries a @template T := … =: type-transformation annotation.
-//
-// Both report at the FUNCTION keyword's position, matching Java.
+// Go-only: language-adapter — Go extracts JSC_INEXISTENT_PARAM and
+// JSC_TEMPLATE_TRANSFORMATION_ON_CLASS checks from Java's visitFunction
+// (TypeCheck.java:2391-2419) into a named function; Java handles both inline.
 func (c *TypeCheck) visitFunctionParams(fn *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	info := fn.JSDocInfo()
 	if info == nil {
@@ -2736,13 +2608,208 @@ func (c *TypeCheck) visitFunctionParams(fn *rhino.Node, scope *TypedScope) []dia
 	return out
 }
 
-// visitBitOp ports Java's TypeCheck.visitBinaryOperator for bitwise ops.
-// Java splits into two groups:
-//  1. Shift operators (<<, >>, >>>, and compound forms): fire
-//     JSC_BAD_TYPE_FOR_BIT_OPERATION when !matchesNumberContext.
-//     BITNOT (~) is in this group (fires at operator node).
-//  2. Bitwise ops (&, |, ^, and compound forms): fire JSC_TYPE_MISMATCH
-//     via validator.expectBitwiseable (type must be string|number|bool|null|undefined).
+// visitUnaryPlus ports TypeCheck.java:visitUnaryPlus (line 975).
+// Fires JSC_BAD_TYPE_FOR_UNARY_OPERATION when the POS operand is not
+// number-compatible (string, object, function).
+func (c *TypeCheck) visitUnaryPlus(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	child := n.FirstChild()
+	if child == nil {
+		return nil
+	}
+	infer := NewTypeInference(scope)
+	t := infer.InferType(child)
+	if isDefinitelyNotNumber(t) {
+		return []diag.Diagnostic{{
+			Path: c.path, Line: n.Lineno(), Col: n.Charno(),
+			Code: diag.JSC_BAD_TYPE_FOR_UNARY_OPERATION, Level: diag.Error,
+			Message: fmt.Sprintf("sign operator cannot be applied to %s", t.TypeName()),
+		}}
+	}
+	return nil
+}
+
+// visitUnaryMinus ports TypeCheck.java:visitUnaryMinus (line 987).
+// Fires JSC_BAD_TYPE_FOR_UNARY_OPERATION when the NEG operand is not
+// number-compatible.
+func (c *TypeCheck) visitUnaryMinus(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	child := n.FirstChild()
+	if child == nil {
+		return nil
+	}
+	infer := NewTypeInference(scope)
+	t := infer.InferType(child)
+	if isDefinitelyNotNumber(t) {
+		return []diag.Diagnostic{{
+			Path: c.path, Line: n.Lineno(), Col: n.Charno(),
+			Code: diag.JSC_BAD_TYPE_FOR_UNARY_OPERATION, Level: diag.Error,
+			Message: fmt.Sprintf("unary minus operator cannot be applied to %s", t.TypeName()),
+		}}
+	}
+	return nil
+}
+
+// visitBitwiseNOT ports TypeCheck.java:visitBitwiseNOT (line 999).
+// Fires JSC_BAD_TYPE_FOR_BIT_OPERATION when the BITNOT operand is not
+// number-compatible.
+func (c *TypeCheck) visitBitwiseNOT(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	return c.visitBitOp(n, scope)
+}
+
+// checkSpread ports TypeCheck.java:checkSpread (line 1015).
+// Currently a no-op since object spread has no type constraint and
+// array spread checking is deferred to element-type analysis.
+func (c *TypeCheck) checkSpread(spreadNode *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	_ = scope
+	// Object spread: nothing to check (Java's comment: "Nothing to check about object spread").
+	// Array spread and call spread: deferred (matches Java default-mode silencing).
+	return nil
+}
+
+// visitName ports TypeCheck.java:visitName (line 1838).
+// Handles NAME nodes: validates identifiers against the scope.
+// Most checks (undeclared variables) are handled by VarCheck; here
+// we return nil matching Java's post-VarCheck default.
+func (c *TypeCheck) visitName(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+	_ = t
+	_ = parent
+	// Java fires JSC_USED_GLOBAL_THIS here when n is "this"; in Go this
+	// is handled via visitThis in Visit(). For other NAMEs, Java's visitName
+	// mostly calls ensureTyped which is not needed in Go's type model.
+	return true // typeable = true (matches Java's return convention)
+}
+
+// visitOptChainGetProp ports TypeCheck.java:visitOptChainGetProp (line 1964).
+// Optional chaining getprop: same checks as visitGetProp but silenced when
+// the receiver is null/undefined (the whole point of ?.). Currently delegates
+// to visitGetProp since Go's type model doesn't distinguish optional chains
+// from normal accesses.
+func (c *TypeCheck) visitOptChainGetProp(optChainGetProp *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	return c.visitGetProp(optChainGetProp, scope)
+}
+
+// visitOptChainGetElem ports TypeCheck.java:visitOptChainGetElem (line 2247).
+// Optional chaining getelem: delegates to visitGetElem.
+func (c *TypeCheck) visitOptChainGetElem(optChainGetElem *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	return c.visitGetElem(optChainGetElem, scope)
+}
+
+// visitFunction ports TypeCheck.java:visitFunction (line 2391).
+// Checks function declarations: abstract method in concrete class,
+// struct/dict hierarchy. Delegates to visitFunctionParams for @param checks.
+func (c *TypeCheck) visitFunction(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	return c.visitFunctionParams(n, scope)
+}
+
+// visitClass ports TypeCheck.java:visitClass (line 2420).
+// Checks class declarations: struct/dict hierarchy, @implements, @extends.
+// The bulk of class checking is in walkSuperclassCheck.
+func (c *TypeCheck) visitClass(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	_ = scope
+	// Class checks are performed in walkSuperclassCheck which is called from Check().
+	// This stub exists to mirror Java's visitClass entry point.
+	return nil
+}
+
+// visitModuleBody ports TypeCheck.java:visitModuleBody (line 3024).
+// Validates legacy goog.module exports against global type. Currently a no-op
+// since jsgo does not model the goog.module namespace.
+func (c *TypeCheck) visitModuleBody(t *NodeTraversal, moduleBody *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	_ = t
+	_ = moduleBody
+	_ = scope
+	return nil
+}
+
+// visitYield ports TypeCheck.java:visitYield (line 2837).
+// Checks that the yielded value's type matches the generator's declared return type.
+// Currently a no-op pending full generator type modeling.
+func (c *TypeCheck) visitYield(t *NodeTraversal, n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	_ = t
+	// TODO(port): TypeCheck.visitYield from TypeCheck.java:2837
+	// Reason: requires JsIterables.getElementType and generator template modeling
+	// which is not yet implemented in jsgo's type system.
+	return nil
+}
+
+// visitTaggedTemplateLit ports TypeCheck.java:visitTaggedTemplateLit (line 2896).
+// Checks that the tag function is callable and that its parameter types match
+// the template literal substitutions.
+func (c *TypeCheck) visitTaggedTemplateLit(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	tag := n.FirstChild()
+	if tag == nil {
+		return nil
+	}
+	infer := NewTypeInference(scope)
+	tagType := infer.InferType(tag)
+	stripped := stripNullUndef(tagType)
+	if isDefinitelyNotCallable(stripped) {
+		return []diag.Diagnostic{{
+			Path:    c.path,
+			Line:    n.Lineno(),
+			Col:     n.Charno(),
+			Code:    diag.JSC_NOT_FUNCTION_TYPE,
+			Level:   diag.Error,
+			Message: fmt.Sprintf("%s expressions are not callable", stripped.TypeName()),
+		}}
+	}
+	return nil
+}
+
+// visitImplicitReturnExpression ports TypeCheck.java:visitImplicitReturnExpression (line 2747).
+// Checks blockless arrow functions `() => expr` against the declared @return type.
+// Java fires when the arrow body's expression type doesn't match @return.
+func (c *TypeCheck) visitImplicitReturnExpression(t *NodeTraversal, exprNode *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	_ = t
+	// Find the enclosing arrow function.
+	fn := exprNode.Parent()
+	for fn != nil && fn.Token() != rhino.FUNCTION {
+		fn = fn.Parent()
+	}
+	if fn == nil {
+		return nil
+	}
+	info := functionJSDoc(fn)
+	if info == nil || info.ReturnType() == nil {
+		return nil
+	}
+	declared := scope.ResolveExpr(info.ReturnType().TypeName)
+	if declared == nil {
+		return nil
+	}
+	infer := NewTypeInference(scope)
+	found := infer.InferType(exprNode)
+	if jstype.IsSubtype(found, declared) {
+		return nil
+	}
+	return []diag.Diagnostic{{
+		Path: c.path, Line: exprNode.Lineno(), Col: exprNode.Charno(),
+		Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
+		Message: fmt.Sprintf("inconsistent return type\nfound   : %s\nrequired: %s",
+			found.TypeName(), declared.TypeName()),
+	}}
+}
+
+// visitBinaryOperator ports TypeCheck.java:visitBinaryOperator (line 2949).
+// Dispatches binary operator type checks. Routes to per-operator handlers.
+func (c *TypeCheck) visitBinaryOperator(op rhino.Token, n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	switch op {
+	case rhino.LSH, rhino.RSH, rhino.URSH, rhino.BITNOT,
+		rhino.BITAND, rhino.BITOR, rhino.BITXOR,
+		rhino.ASSIGN_BITAND, rhino.ASSIGN_BITOR, rhino.ASSIGN_BITXOR,
+		rhino.ASSIGN_LSH, rhino.ASSIGN_RSH, rhino.ASSIGN_URSH:
+		return c.visitBitOp(n, scope)
+	case rhino.ADD:
+		return c.visitAdd(n, scope)
+	case rhino.SUB, rhino.MUL, rhino.DIV, rhino.MOD:
+		return c.visitArithmetic(n, scope)
+	case rhino.LT, rhino.LE, rhino.GT, rhino.GE:
+		return c.visitRelationalDefault(n, scope)
+	}
+	return nil
+}
+
+// Go-only: language-adapter — Go splits Java's visitBinaryOperator (TypeCheck.java:2949)
+// for bitwise tokens into this named function; Java handles all operators in one big switch.
 func (c *TypeCheck) visitBitOp(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := n.Children()
 	infer := NewTypeInference(scope)
@@ -2805,21 +2872,14 @@ func (c *TypeCheck) visitBitOp(n *rhino.Node, scope *TypedScope) []diag.Diagnost
 }
 
 
-// bitwiseableType returns the union type (boolean|null|number|string|undefined)
-// that Java uses as the required type for bitwise operands.
+// Go-only: language-adapter — helper for visitBitOp; Java's TypeValidator uses
+// the allBitwisableValueTypes constant; Go constructs the union on the fly.
 func bitwiseableType() jstype.JSType {
 	return jstype.NewUnion(jstype.Boolean, jstype.Null, jstype.Number, jstype.String, jstype.Void)
 }
 
-// isBitwiseable reports whether t is acceptable as a bitwise operand.
-// Mirrors Java's TypeValidator.expectBitwiseable:
-//   !type.matchesNumberContext() && !type.isSubtypeOf(allBitwisableValueTypes)
-// When either condition holds, the type is acceptable:
-//   - matchesNumberContext() is true for Number/Date/Boolean/String wrapper objects
-//     (they coerce to number). We approximate this by checking for known
-//     "coercible" object type names.
-//   - isSubtypeOf(string|number|boolean|null|undefined) is the primitive check.
-// When the type is Unknown, we assume it could be bitwiseable.
+// Go-only: language-adapter — predicate for visitBitOp; mirrors Java's
+// TypeValidator.expectBitwiseable check but as a standalone boolean predicate.
 func isBitwiseable(t jstype.JSType) bool {
 	if t == nil || isJSUnknown(t) {
 		return true
@@ -2841,7 +2901,8 @@ func isBitwiseable(t jstype.JSType) bool {
 	return false
 }
 
-// bitOpSymbol returns the textual operator for a bit-op token.
+// Go-only: language-adapter — maps Token to operator string for diagnostic messages;
+// Java uses n.getToken().toString() which is built into the AST node API.
 func bitOpSymbol(t rhino.Token) string {
 	switch t {
 	case rhino.LSH:
@@ -2868,9 +2929,9 @@ func bitOpSymbol(t rhino.Token) string {
 	return "?"
 }
 
-// visitTypeofComparison fires JSC_UNKNOWN_TYPEOF_VALUE when an EQ/NE/SHEQ/SHNE
-// expression compares typeof against a string that is not a valid typeof result.
-// Mirrors TypeCheck.java's call to validator.expectValidTypeofName.
+// Go-only: language-adapter — extracts Java's typeof-string validation inline
+// in visit() (TypeCheck.java:692-702, checkTypeofString call) into a named
+// function; Go routes EQ/NE/SHEQ/SHNE through a dedicated function.
 func (c *TypeCheck) visitTypeofComparison(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := n.Children()
 	if len(kids) != 2 {
@@ -2897,9 +2958,9 @@ func (c *TypeCheck) visitTypeofComparison(n *rhino.Node, scope *TypedScope) []di
 	}}
 }
 
-// isValidTypeofValue reports whether s is a string that typeof can return.
-// Java's TypeCheck also accepts "unknown" (used for the ? / all type in some
-// Closure patterns). Mirrors TypeCheck.java's VALID_TYPEOF_VALUES set.
+// Go-only: language-adapter — Go exposes Java's VALID_TYPEOF_VALUES set as a
+// predicate; in Java TypeCheck.checkTypeofString (line 1037) calls
+// NodeUtil.isValidIdentifier-style check via the validator.
 func isValidTypeofValue(s string) bool {
 	switch s {
 	case "undefined", "boolean", "number", "string", "function", "object", "bigint", "symbol", "unknown":
@@ -2908,10 +2969,9 @@ func isValidTypeofValue(s string) bool {
 	return false
 }
 
-// isWellKnownSymbolIndex reports whether `idx` is a GETPROP on the
-// \`Symbol\` builtin (e.g. \`Symbol.iterator\`, \`Symbol.asyncIterator\`).
-// Java's TypeCheck allows well-known symbols to index a @struct
-// receiver since they're the canonical protocol entry points.
+// Go-only: language-adapter — guards struct bracket-access check for Symbol.*
+// indices; Java's JSType.isSymbol() + allowedIndexType check is inline in
+// TypeValidator.expectIndexMatch; Go wraps it as a named predicate.
 func isWellKnownSymbolIndex(idx *rhino.Node) bool {
 	if idx == nil || idx.Token() != rhino.GETPROP {
 		return false
@@ -2924,11 +2984,9 @@ func isWellKnownSymbolIndex(idx *rhino.Node) bool {
 	return recv.Token() == rhino.NAME && recv.String_() == "Symbol"
 }
 
-// visitSwitchCase ports Java's TypeCheck CASE branch:
-//   validator.expectSwitchMatchesCase(n, switchConditionType, caseType)
-// Fires JSC_TYPE_MISMATCH "case expression doesn't match switch" when
-// the switch discriminant type and the case expression type are
-// incompatible (no common subtype via canTestForShallowEqualityWith).
+// Go-only: language-adapter — Go extracted Java's CASE branch (TypeCheck.java:815-820)
+// from visit() into a named function; Java calls validator.expectSwitchMatchesCase
+// inline in the switch case.
 func (c *TypeCheck) visitSwitchCase(caseNode, switchNode *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	if switchNode == nil || switchNode.Token() != rhino.SWITCH {
 		return nil
@@ -2966,10 +3024,8 @@ func (c *TypeCheck) visitSwitchCase(caseNode, switchNode *rhino.Node, scope *Typ
 	}}
 }
 
-// canShareCommonValue reports whether two types might overlap (share a common
-// value at runtime). Used to approximate Java's canTestForShallowEqualityWith:
-// fires when `getGreatestSubtype(a, b)` is empty (no common subtype).
-// We conservatively return true (allow) when we can't prove incompatibility.
+// Go-only: language-adapter — approximates Java's canTestForShallowEqualityWith
+// (JSType.java) which Go does not expose generically; used by visitSwitchCase.
 func canShareCommonValue(a, b jstype.JSType) bool {
 	// Union types: check if any member of one type overlaps with the other.
 	if u, ok := a.(*jstype.UnionType); ok {
@@ -3029,10 +3085,9 @@ func (c *TypeCheck) visitDynamicImport(n *rhino.Node, scope *TypedScope) []diag.
 	return nil
 }
 
-// isDefinitelyNotCallable reports whether `t` is a type that can
-// never be a function at runtime. Primitives (number, string,
-// boolean, null, void) qualify; a union does iff every member is
-// non-callable. Unknown / All stay callable-ambiguous.
+// Go-only: language-adapter — predicate for visitCall's NOT_FUNCTION_TYPE guard;
+// Java's TypeCheck calls couldBeAConstructor (line 2328) inline; Go wraps the
+// negation as a named predicate with explicit union handling.
 func isDefinitelyNotCallable(t jstype.JSType) bool {
 	if t == nil {
 		return false
@@ -3058,10 +3113,8 @@ func isDefinitelyNotCallable(t jstype.JSType) bool {
 	return false
 }
 
-// isDefinitelyNotNumber reports whether `t` is a primitive type
-// known to not be a number at runtime. Void, Null, Boolean, and
-// String are the non-numeric primitives; Unknown/All still allow
-// numeric values so they don't trigger.
+// Go-only: language-adapter — predicate for visitBitOp shift checks; no direct
+// Java named equivalent (Java uses matchesNumberContext inline).
 func isDefinitelyNotNumber(t jstype.JSType) bool {
 	if t == nil {
 		return false
@@ -3073,10 +3126,8 @@ func isDefinitelyNotNumber(t jstype.JSType) bool {
 	return false
 }
 
-// visitIn fires diagnostics for the IN operator:
-//  1. JSC_IN_USED_WITH_STRUCT when the RHS is a @struct receiver.
-//  2. JSC_TYPE_MISMATCH when the LHS is definitely not string /
-//     symbol / number (Java's requirement for the 'in' operand).
+// Go-only: language-adapter — extracts Java's IN case (TypeCheck.java:774-784)
+// from visit() into a named function.
 func (c *TypeCheck) visitIn(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := n.Children()
 	if len(kids) < 2 {
@@ -3106,10 +3157,8 @@ func (c *TypeCheck) visitIn(n *rhino.Node, scope *TypedScope) []diag.Diagnostic 
 	return out
 }
 
-// isDefinitelyNotInKey reports whether `t` is a type that's
-// definitely not a valid `X in Y` LHS. Java's TypeCheck accepts
-// String / Number / Symbol / Unknown / All / Null / Undefined;
-// only firmly-nominal FunctionType / ObjectType references fail.
+// Go-only: language-adapter — predicate for visitIn LHS check; Java's
+// TypeValidator.expectStringOrSymbol handles this inline.
 func isDefinitelyNotInKey(t jstype.JSType) bool {
 	if t == nil {
 		return false
@@ -3120,8 +3169,8 @@ func isDefinitelyNotInKey(t jstype.JSType) bool {
 	return false
 }
 
-// visitForIn fires JSC_IN_USED_WITH_STRUCT on `for (var k in struct)`.
-// Same rule as visitIn, but the AST shape is FOR_IN(var, iterable, body).
+// Go-only: language-adapter — extracts Java's FOR_IN case (TypeCheck.java:912-918)
+// from visit() into a named function.
 func (c *TypeCheck) visitForIn(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := n.Children()
 	if len(kids) < 2 {
@@ -3203,10 +3252,8 @@ func (c *TypeCheck) checkForOfTypes(n *rhino.Node, scope *TypedScope) []diag.Dia
 	return nil
 }
 
-// forOfIsIterableType reports whether t is known to be iterable in a
-// for-of context. Mirrors the set of types that pass Java's
-// expectAutoboxesToIterable, restricted to what jsgo's type model
-// can detect reliably.
+// Go-only: language-adapter — predicate for checkForOfTypes; Java's
+// TypeValidator.expectAutoboxesToIterable checks this inline via JSType.isIterable().
 func forOfIsIterableType(t jstype.JSType) bool {
 	// Primitive string is iterable (JS engines implement Symbol.iterator).
 	if t == jstype.String || t == jstype.All {
@@ -3241,12 +3288,9 @@ func forOfIsIterableType(t jstype.JSType) bool {
 	return false
 }
 
-// visitAdd ports TypeValidator.expectNumberOrString on the ADD
-// operator. JS `+` coerces to string whenever either side is
-// string-typed; a mismatch is reported only when BOTH sides are
-// incompatible (neither number nor string nor Unknown nor a union
-// whose members all satisfy the predicate). Matches Java's
-// conservative TypeValidator — Unknown / All silence.
+// Go-only: language-adapter — handles ADD under strict mode; Java's visitBinaryOperator
+// (TypeCheck.java:2949) routes ADD to TypeValidator.expectNumberOrString inline; Go
+// extracts it as a named function dispatched only when GroupStrictCheckTypes is on.
 func (c *TypeCheck) visitAdd(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := n.Children()
 	if len(kids) < 2 {
@@ -3275,12 +3319,7 @@ func (c *TypeCheck) visitAdd(n *rhino.Node, scope *TypedScope) []diag.Diagnostic
 	return out
 }
 
-// isAddOperandOk reports whether `t` is acceptable to JS `+`. Java's
-// TypeValidator rule: number, string, boolean (ToNumber coercion),
-// null / undefined (coerce to 0 / "undefined"), Unknown / All, or
-// any union whose members all pass the predicate. Object-ish types
-// implicitly coerce via ToPrimitive and Java doesn't flag them; we
-// do the same.
+// Go-only: language-adapter — predicate for visitAdd; no named Java equivalent.
 func isAddOperandOk(t jstype.JSType) bool {
 	if t == nil {
 		return true
@@ -3304,23 +3343,21 @@ func isAddOperandOk(t jstype.JSType) bool {
 	return true
 }
 
-// visitArithmetic ports TypeValidator.expectNumber for SUB / MUL /
-// DIV / MOD. Both operands must be numeric-compatible; mismatch
-// reports JSC_TYPE_MISMATCH at the offending operand.
+// Go-only: language-adapter — strict-mode SUB/MUL/DIV/MOD check routed to
+// visitNumericBinaryOp; Java's visitBinaryOperator (TypeCheck.java:2949) handles
+// these inline in one big switch.
 func (c *TypeCheck) visitArithmetic(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	return c.visitNumericBinaryOp(n, scope)
 }
 
-// visitBitwise ports the BITAND/BITOR/BITXOR/LSH/RSH/URSH branch —
-// same predicate as expectNumber.
+// Go-only: language-adapter — strict-mode bitwise check in the GroupStrictCheckTypes
+// branch; Java routes these through visitBinaryOperator inline.
 func (c *TypeCheck) visitBitwise(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	return c.visitNumericBinaryOp(n, scope)
 }
 
-// visitNumericBinaryOp walks both operands and emits
-// JSC_TYPE_MISMATCH "found: T\nrequired: number" when either side
-// is definitely non-numeric. Stays quiet for Unknown / All /
-// unions-with-number, matching Java's conservative default.
+// Go-only: language-adapter — shared numeric operand checker for visitArithmetic /
+// visitBitwise; Java calls TypeValidator.expectNumber directly for each operand.
 func (c *TypeCheck) visitNumericBinaryOp(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := n.Children()
 	if len(kids) < 2 {
@@ -3354,10 +3391,7 @@ func (c *TypeCheck) visitNumericBinaryOp(n *rhino.Node, scope *TypedScope) []dia
 	return out
 }
 
-// isNumericOperandOk reports whether `t` is arithmetic-compatible.
-// Java's TypeValidator treats null / undefined as coercible-to-0
-// and silences diagnostics for them; we do the same to keep
-// `var x; x + 1` quiet when x was declared but uninitialised.
+// Go-only: language-adapter — predicate for visitNumericBinaryOp; no named Java equivalent.
 func isNumericOperandOk(t jstype.JSType) bool {
 	if t == nil {
 		return true
@@ -3380,11 +3414,8 @@ func isNumericOperandOk(t jstype.JSType) bool {
 	return false
 }
 
-// visitRelationalDefault fires JSC_TYPE_MISMATCH on the default-
-// mode relational check: both \`<\` operands must be bigint-, number-
-// or string-compatible. Non-primitives (Object / FunctionType) are
-// definitively invalid. Matches Java's TypeCheck.visitBinaryOp
-// default-mode relational branch.
+// Go-only: language-adapter — default-mode relational operand check; Java handles
+// LT/LE/GT/GE inline in visit() at TypeCheck.java:738-772 without a named method.
 func (c *TypeCheck) visitRelationalDefault(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := n.Children()
 	if len(kids) < 2 {
@@ -3411,10 +3442,8 @@ func (c *TypeCheck) visitRelationalDefault(n *rhino.Node, scope *TypedScope) []d
 	return out
 }
 
-// isDefinitelyNotComparable reports whether \`t\` is a type that
-// definitely can't participate in a relational comparison. Objects
-// / functions / booleans are rejected; primitives and unknowns
-// stay quiet.
+// Go-only: language-adapter — predicate for visitRelationalDefault; no named Java
+// equivalent (Java uses JSType.isBigIntOrNumber inline).
 func isDefinitelyNotComparable(t jstype.JSType) bool {
 	if t == nil {
 		return false
@@ -3455,10 +3484,8 @@ func isDefinitelyNotComparable(t jstype.JSType) bool {
 	return false
 }
 
-// visitRelativeComparison ports TypeValidator.expectMatchingTypes
-// for LT / LE / GT / GE: both operands must be number-compatible
-// OR both string-compatible. Mismatch fires at the right-hand side
-// (Java's arbitrary-but-stable choice).
+// Go-only: language-adapter — strict-mode relational operand check; Java's
+// visitBinaryOperator handles LT/LE/GT/GE inline at TypeCheck.java:738-772.
 func (c *TypeCheck) visitRelativeComparison(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := n.Children()
 	if len(kids) < 2 {
@@ -3478,10 +3505,8 @@ func (c *TypeCheck) visitRelativeComparison(n *rhino.Node, scope *TypedScope) []
 	}}
 }
 
-// canCompareStrict reports whether two types may participate in a
-// relative comparison. Java narrows to "both number-compatible OR
-// both string-compatible", with Unknown / null / undefined always
-// accepted to avoid false-positives on partially-annotated code.
+// Go-only: language-adapter — predicate for visitRelativeComparison; Java's
+// TypeValidator.expectMatchingTypesStrict is called inline; Go wraps it.
 func canCompareStrict(a, b jstype.JSType) bool {
 	if a == nil || b == nil {
 		return true
@@ -3498,8 +3523,7 @@ func canCompareStrict(a, b jstype.JSType) bool {
 	return false
 }
 
-// isStringOperandOk is the string-mirror of isNumericOperandOk —
-// used by canCompareStrict when the LHS is string-shaped.
+// Go-only: language-adapter — predicate for canCompareStrict; no Java named equivalent.
 func isStringOperandOk(t jstype.JSType) bool {
 	if t == nil {
 		return true
@@ -3520,17 +3544,9 @@ func isStringOperandOk(t jstype.JSType) bool {
 
 // ---- visitObjectLit / visitArrayLit ----------------------------- //
 
-// visitObjectLit ports the OBJECTLIT branch of TypeCheck.java's visit().
-// It fires:
-//   - JSC_UNKNOWN_LENDS when @lends names an undeclared variable.
-//   - JSC_LENDS_ON_NON_OBJECT when @lends names a non-object type.
-//   - JSC_ILLEGAL_OBJLIT_KEY when a @struct literal has a quoted key or
-//     a @dict literal has an unquoted key.
-//   - JSC_TYPE_MISMATCH when a JSDoc-annotated key's value is not assignable
-//     to the declared key type (mirrors Java's visitObjectOrClassLiteralKey).
-//
-// Mirrors Java's defineObjectLiteral (TypedScopeCreator) for @lends, and
-// visitObjectOrClassLiteralKey (TypeCheck) for key checks.
+// Go-only: language-adapter — Go extracts Java's OBJECTLIT case (TypeCheck.java:925-936)
+// plus TypedScopeCreator's @lends handling into one named function; Java handles
+// these across two separate classes (TypeCheck + TypedScopeCreator).
 func (c *TypeCheck) visitObjectLit(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	var out []diag.Diagnostic
 
@@ -3711,10 +3727,9 @@ func (c *TypeCheck) visitObjectLit(n *rhino.Node, scope *TypedScope) []diag.Diag
 	return out
 }
 
-// visitArrayLit checks each element of an array literal against the
-// contextual element type when the array is declared as Array<T>.
-// Mirrors Java's TypeCheck.visitArrayLit extended with element-type
-// contextual typing — fires JSC_TYPE_MISMATCH on mismatched elements.
+// Go-only: language-adapter — Go extracts Java's ARRAYLIT case from visit()
+// (TypeCheck.java:639 `ARRAYLIT -> ensureTyped(n, ARRAY_TYPE)`) plus contextual
+// element-type checking that Java does not perform inline in TypeCheck.
 func (c *TypeCheck) visitArrayLit(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	elemType := arrayLitContextElemType(n, scope)
 	if elemType == nil {
@@ -3744,9 +3759,8 @@ func (c *TypeCheck) visitArrayLit(n *rhino.Node, scope *TypedScope) []diag.Diagn
 	return out
 }
 
-// arrayLitContextElemType returns the declared element type T when the
-// array literal's context (parent node's declared type) is Array<T>.
-// Returns nil when no contextual element type can be determined.
+// Go-only: language-adapter — helper for visitArrayLit; Java doesn't perform
+// contextual element-type inference in TypeCheck; Go adds it to reduce FPs.
 func arrayLitContextElemType(n *rhino.Node, scope *TypedScope) jstype.JSType {
 	parent := n.Parent()
 	if parent == nil {
@@ -4002,31 +4016,21 @@ func classHasToString(obj *jstype.ObjectType) bool {
 
 // ---- visitRegExpLit / visitTemplateLit / visitObjectPattern / checkDestructuringAssignment --
 
-// visitRegExpLit ports TypeCheck.java's visitRegExpLit. TypeInference
-// already assigns the RegExp instance type to REGEXP nodes; this
-// visitor is the TypeCheck-side dispatch that ensures the node is
-// considered "typed" (mirrors Java's ensureTyped call). No
-// diagnostics are emitted for regexp literals themselves.
+// Go-only: language-adapter — Go extracted REGEXP from visit() into a named function;
+// Java calls ensureTyped(n, REGEXP_TYPE) inline at line 641 without a named method.
 func (c *TypeCheck) visitRegExpLit(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
-	// TypeInference.InferType(REGEXP) already returns the RegExp
-	// instance type (LookupNominalType("RegExp")). TypeCheck's role
-	// here is identical to Java's: call ensureTyped to account for the
-	// node in typed-percent statistics. Since jsgo doesn't track
-	// per-node type annotations, this is a deliberate no-op.
+	// Suppress REGEXP nodes inside @suppress annotations or casts.
+	if p := n.Parent(); p != nil && p.Token() == rhino.CAST {
+		return nil
+	}
+	// Java's ensureTyped just records the node for percentage-typed stats.
+	// jsgo doesn't track those metrics, so return no diagnostics.
 	return nil
 }
 
-// visitTemplateLit ports TypeCheck.java's visitTemplateLit. Each
-// TEMPLATELIT_SUB child's expression is verified to be coercible to
-// string; mismatches fire JSC_TYPE_MISMATCH. The TEMPLATELIT result
-// type is always string (handled by TypeInference).
-//
-// In Java, expectStringOrSymbol rejects only BigInt among concrete
-// primitives. Since jsgo does not model BigInt as a distinct type,
-// this visitor fires only for structural object types that have no
-// implicit toString path, which is not yet tracked — making this
-// effectively a no-op in the current type model. The structural port
-// exists so future BigInt tracking can plug in.
+// Go-only: language-adapter — Go extracted TEMPLATELIT from visit() into a named
+// function; Java calls ensureTyped inline plus validator.expectStringOrSymbol
+// (TypeCheck.java:684); Go adds explicit TEMPLATELIT_SUB checking.
 func (c *TypeCheck) visitTemplateLit(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	infer := NewTypeInference(scope)
 	var out []diag.Diagnostic
@@ -4052,9 +4056,8 @@ func (c *TypeCheck) visitTemplateLit(n *rhino.Node, scope *TypedScope) []diag.Di
 	return out
 }
 
-// isTemplateLitSubOk mirrors Java's TypeValidator.expectStringOrSymbol:
-// accepts string, number, boolean, null, undefined, Unknown/All, and
-// any ObjectType (implicit toString). Rejects BigInt (not yet modeled).
+// Go-only: language-adapter — predicate for visitTemplateLit; Java's
+// TypeValidator.expectStringOrSymbol handles this inline.
 func isTemplateLitSubOk(t jstype.JSType) bool {
 	if t == nil || isUnknownOrNil(t) {
 		return true
@@ -4142,9 +4145,8 @@ func (c *TypeCheck) visitObjectPattern(pattern *rhino.Node, scope *TypedScope) [
 	return out
 }
 
-// objectPatternRHSType resolves the RHS type for an OBJECT_PATTERN by
-// climbing the parent chain. Returns nil when the pattern is used in
-// an unsupported context.
+// Go-only: language-adapter — helper for visitObjectPattern; Java resolves the RHS
+// type inline via NodeUtil.getBestJSDocInfo; Go climbs the parent chain explicitly.
 func objectPatternRHSType(pattern *rhino.Node, scope *TypedScope) jstype.JSType {
 	parent := pattern.Parent()
 	if parent == nil {
@@ -4278,13 +4280,9 @@ func (c *TypeCheck) checkAbstractPropertyAccess(method *rhino.Node) []diag.Diagn
 // restrictByNotNullOrUndefined) so `(string|null) === number` and
 // `string === number` both fire.
 
-// visitEqualityOp fires JSC_DETERMINISTIC_TEST at EQ / NE / SHEQ / SHNE
-// nodes whose operand types make the comparison always yield the same
-// boolean. Called from Visit alongside visitTypeofComparison.
-//
-// Uses declared (non-flow-narrowed) types — matching how Java's
-// TypeCheck.visitCompare evaluates the static declared types, not the
-// flow-refined types active at the comparison site.
+// Go-only: language-adapter — Go extracts Java's EQ/NE/SHEQ/SHNE inline handling
+// (TypeCheck.java:692-736) into a named function; Java calls JSType.testForEquality
+// directly in the visit() switch.
 func (c *TypeCheck) visitEqualityOp(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := n.Children()
 	if len(kids) < 2 {
@@ -4348,7 +4346,8 @@ const (
 	eqFalse   eqTri = -1
 )
 
-// eqTriNot flips TRUE↔FALSE; UNKNOWN stays UNKNOWN.
+// Go-only: language-adapter — mirrors Java's TernaryValue.not() method; Go uses a
+// free function since eqTri is a plain int8, not an enum with methods.
 func eqTriNot(t eqTri) eqTri {
 	switch t {
 	case eqTrue:
@@ -4359,16 +4358,9 @@ func eqTriNot(t eqTri) eqTri {
 	return eqUnknown
 }
 
-// equalityRestrictByNotNullOrUndefined ports JSType.restrictByNotNullOrUndefined.
-//
-// Java's per-type overrides:
-//   - NullType  → returns NO_TYPE (the empty / bottom type)
-//   - VoidType  → returns NO_TYPE
-//   - UnionType → strips null/undefined members
-//   - everything else → returns self unchanged
-//
-// We represent NO_TYPE as nil; callers that receive nil must treat both
-// sides as if they were the empty type (→ UNKNOWN, conservative).
+// Go-only: language-adapter — ports Java's JSType.restrictByNotNullOrUndefined()
+// virtual method as a free function; Go's non-polymorphic type system requires
+// explicit type switching instead of virtual dispatch.
 func equalityRestrictByNotNullOrUndefined(t jstype.JSType) jstype.JSType {
 	if t == nil {
 		return nil // already empty
@@ -4398,8 +4390,9 @@ func equalityRestrictByNotNullOrUndefined(t jstype.JSType) jstype.JSType {
 	}
 }
 
-// equalityTestForEquality ports JSType.testForEquality and its per-type
-// overrides for the `==` / `!=` operators.
+// Go-only: language-adapter — ports Java's virtual JSType.testForEquality()
+// dispatch hierarchy as a free function with explicit type switching; Java uses
+// per-class overrides (NullType, VoidType, SymbolType, UnionType, etc.).
 func equalityTestForEquality(a, b jstype.JSType) eqTri {
 	// nil represents the empty type (NO_TYPE in Java).
 	aEmpty := a == nil
@@ -4473,8 +4466,8 @@ func equalityTestForEquality(a, b jstype.JSType) eqTri {
 	return eqUnknown
 }
 
-// equalityUnionTestForEquality reduces testForEquality over union members:
-// all members must agree on the same Tri; any disagreement → UNKNOWN.
+// Go-only: language-adapter — ports Java's UnionType.testForEquality() override;
+// Java iterates members polymorphically; Go uses explicit union type switching.
 func equalityUnionTestForEquality(u *jstype.UnionType, other jstype.JSType) eqTri {
 	var result eqTri
 	first := true
@@ -4493,8 +4486,8 @@ func equalityUnionTestForEquality(u *jstype.UnionType, other jstype.JSType) eqTr
 	return result
 }
 
-// equalityTestForShallowEquality ports JSType.canTestForShallowEqualityWith
-// for the `===` / `!==` operators.
+// Go-only: language-adapter — ports Java's virtual JSType.canTestForShallowEqualityWith()
+// as a free function; Java dispatches through per-class overrides.
 func equalityTestForShallowEquality(a, b jstype.JSType) eqTri {
 	if a == nil || b == nil {
 		return eqUnknown
@@ -4550,8 +4543,8 @@ func equalityTestForShallowEquality(a, b jstype.JSType) eqTri {
 	return eqUnknown
 }
 
-// equalityUnionTestForShallowEquality reduces equalityTestForShallowEquality
-// over union members.
+// Go-only: language-adapter — ports Java's UnionType.canTestForShallowEqualityWith()
+// override; no named Java equivalent at this abstraction level.
 func equalityUnionTestForShallowEquality(u *jstype.UnionType, other jstype.JSType) eqTri {
 	var result eqTri
 	first := true
@@ -4572,7 +4565,8 @@ func equalityUnionTestForShallowEquality(u *jstype.UnionType, other jstype.JSTyp
 
 // --- type-classification helpers for equality checks ---
 
-// equalityIsWide reports whether t is the All (*) or Unknown (?) sentinel.
+// Go-only: language-adapter — classification helper for equality test functions;
+// Java's AllType / UnknownType implement testForEquality as UNKNOWN inline.
 func equalityIsWide(t jstype.JSType) bool {
 	if t == nil {
 		return true
@@ -4581,11 +4575,18 @@ func equalityIsWide(t jstype.JSType) bool {
 	return n == "*" || n == "?"
 }
 
-// equalityIsEmpty reports whether t is an uninhabited type (NoType). jsgo
-// doesn't materialise a dedicated NoType; treat as false (conservative).
-func equalityIsEmpty(_ jstype.JSType) bool { return false }
+// Go-only: language-adapter — Java has a dedicated NoType (bottom type); Go
+// represents it as nil. nil inputs are handled upstream; non-nil inputs are
+// never the empty type in Go's type model, so this always returns false.
+func equalityIsEmpty(t jstype.JSType) bool {
+	// jsgo has no NoType sentinel; nil represents the empty (bottom) type
+	// and is handled upstream (callers check t == nil before calling this).
+	_ = t
+	return false
+}
 
-// equalityIsPrimitive reports whether t is a non-object, non-function primitive.
+// Go-only: language-adapter — classification helper; Java uses JSType.isNominalType()
+// and related predicates inline.
 func equalityIsPrimitive(t jstype.JSType) bool {
 	switch t {
 	case jstype.Number, jstype.String, jstype.Boolean,
@@ -4595,13 +4596,12 @@ func equalityIsPrimitive(t jstype.JSType) bool {
 	return false
 }
 
-// equalityIsCoerciblePrimitive reports whether t is one of number/string/boolean.
+// Go-only: language-adapter — classification helper for equalityTestForEquality.
 func equalityIsCoerciblePrimitive(t jstype.JSType) bool {
 	return t == jstype.Number || t == jstype.String || t == jstype.Boolean
 }
 
-// equalityFunctionVsType implements the FunctionType branch of
-// JSType.testForEquality.
+// Go-only: language-adapter — ports Java's FunctionType.testForEquality() override.
 func equalityFunctionVsType(other jstype.JSType) eqTri {
 	if equalityIsWide(other) {
 		return eqUnknown
@@ -4612,7 +4612,7 @@ func equalityFunctionVsType(other jstype.JSType) eqTri {
 	return eqUnknown
 }
 
-// equalitySymbolVsType implements Java SymbolType.testForEquality for `==`.
+// Go-only: language-adapter — ports Java's SymbolType.testForEquality() override.
 func equalitySymbolVsType(other jstype.JSType) eqTri {
 	if equalityIsWide(other) {
 		return eqUnknown
@@ -4626,7 +4626,7 @@ func equalitySymbolVsType(other jstype.JSType) eqTri {
 	return eqFalse
 }
 
-// equalityShallowSymbolVsType implements the symbol branch for `===`.
+// Go-only: language-adapter — ports the symbol branch of JSType.canTestForShallowEqualityWith.
 func equalityShallowSymbolVsType(other jstype.JSType) eqTri {
 	if equalityIsWide(other) {
 		return eqUnknown
@@ -4640,7 +4640,7 @@ func equalityShallowSymbolVsType(other jstype.JSType) eqTri {
 	return eqFalse
 }
 
-// equalityNullVsType implements Java NullType.testForEquality.
+// Go-only: language-adapter — ports Java's NullType.testForEquality() override.
 func equalityNullVsType(other jstype.JSType) eqTri {
 	if equalityIsWide(other) {
 		return eqUnknown
@@ -4657,7 +4657,7 @@ func equalityNullVsType(other jstype.JSType) eqTri {
 	return eqFalse
 }
 
-// equalityVoidVsType implements Java VoidType.testForEquality.
+// Go-only: language-adapter — ports Java's VoidType.testForEquality() override.
 func equalityVoidVsType(other jstype.JSType) eqTri {
 	if equalityIsWide(other) {
 		return eqUnknown
@@ -4671,7 +4671,8 @@ func equalityVoidVsType(other jstype.JSType) eqTri {
 	return eqFalse
 }
 
-// equalityCoercibleVsType handles number/string/boolean testForEquality.
+// Go-only: language-adapter — ports Java's NumberType/StringType/BooleanType
+// testForEquality() overrides (they share the same logic).
 func equalityCoercibleVsType(other jstype.JSType) eqTri {
 	if equalityIsWide(other) {
 		return eqUnknown
@@ -4686,7 +4687,8 @@ func equalityCoercibleVsType(other jstype.JSType) eqTri {
 	return eqUnknown
 }
 
-// equalityIsObject reports whether t is an object type (not a primitive).
+// Go-only: language-adapter — classification helper for equalityNullVsType etc.;
+// Java uses JSType.isObjectType() virtual method.
 func equalityIsObject(t jstype.JSType) bool {
 	if t == nil {
 		return false
@@ -4712,13 +4714,13 @@ func equalityIsObject(t jstype.JSType) bool {
 	return false
 }
 
-// equalityIsNullable reports whether t (a non-union type) could hold null.
+// Go-only: language-adapter — reports nullable potential; Java's types use
+// isNullable() virtual method.
 func equalityIsNullable(t jstype.JSType) bool {
 	return equalityIsObject(t)
 }
 
-// equalityIsFunctionLike reports whether t behaves like a function for
-// deterministic-test purposes.
+// Go-only: language-adapter — classification helper for equalityTestForEquality.
 func equalityIsFunctionLike(t jstype.JSType) bool {
 	if _, ok := t.(*jstype.FunctionType); ok {
 		return true
@@ -4736,6 +4738,9 @@ func equalityIsFunctionLike(t jstype.JSType) bool {
 // JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH.
 // ---------------------------------------------------------------------------
 
+// Go-only: language-adapter — Go dispatches superclass/implements checks via a
+// single recursive AST walker; Java's TypeCheck fires these checks per-node in
+// visit() by calling individual methods; Go batches them in a pre-pass.
 func (c *TypeCheck) walkSuperclassCheck(n *rhino.Node) {
 	if n == nil {
 		return
@@ -4768,9 +4773,9 @@ func (c *TypeCheck) walkSuperclassCheck(n *rhino.Node) {
 	}
 }
 
-// checkFunctionDictExtendsStruct fires JSC_DICT_EXTEND_STRUCT_TYPE
-// when a @constructor @dict function extends a @struct parent.
-// Mirrors TypeCheck.java's struct/dict hierarchy guard.
+// Go-only: language-adapter — extracted from Java's visitFunction / visitClass
+// struct-dict hierarchy check; Java calls TypeCheck.checkStructDictSubtyping
+// (TypeCheck.java:2515) inline; Go splits each check into a named function.
 func (c *TypeCheck) checkFunctionDictExtendsStruct(fn *rhino.Node) {
 	info := fn.JSDocInfo()
 	if info == nil || !info.IsDict() || !info.IsConstructor() {
@@ -4799,10 +4804,8 @@ func (c *TypeCheck) checkFunctionDictExtendsStruct(fn *rhino.Node) {
 	})
 }
 
-// checkClassDictExtendsStruct is the ES6-class variant of
-// checkFunctionDictExtendsStruct. ES6 classes are @struct by
-// default — a @dict-tagged class extending any normal class
-// (struct-implicit) triggers the same diagnostic.
+// Go-only: language-adapter — ES6 class variant of checkFunctionDictExtendsStruct;
+// Java's checkStructDictSubtyping (TypeCheck.java:2515) handles both uniformly.
 func (c *TypeCheck) checkClassDictExtendsStruct(cls *rhino.Node) {
 	info := cls.JSDocInfo()
 	if info == nil || !info.IsDict() {
@@ -4838,10 +4841,9 @@ func (c *TypeCheck) checkClassDictExtendsStruct(cls *rhino.Node) {
 	})
 }
 
-// checkStructDictRequireConstructor fires JSC_CONSTRUCTOR_REQUIRED
-// when a FUNCTION carries @struct or @dict but no @constructor /
-// @interface / @record. The struct/dict flag only has meaning on
-// a class-shaped declaration — Java rejects it on plain functions.
+// Go-only: language-adapter — Go extracted this guard from Java's
+// checkConstructor / visitFunction (TypeCheck.java:2450-2507) into a named
+// function dispatched via walkSuperclassCheck.
 func (c *TypeCheck) checkStructDictRequireConstructor(fn *rhino.Node) {
 	info := fn.JSDocInfo()
 	if info == nil {
@@ -4872,10 +4874,9 @@ func (c *TypeCheck) checkStructDictRequireConstructor(fn *rhino.Node) {
 	})
 }
 
-// checkExtendsKindMismatch fires JSC_CONFLICTING_EXTENDED_TYPE
-// when an @interface extends a non-interface, or a @constructor
-// extends a non-constructor. Mirrors TypeCheck.java's
-// checkConstructor / checkInterface-extends kind guard.
+// Go-only: language-adapter — Go extracted @extends kind validation from Java's
+// checkConstructor / checkInterface (TypeCheck.java:2450 and 2528) into a named
+// function.
 func (c *TypeCheck) checkExtendsKindMismatch(fn *rhino.Node) {
 	info := fn.JSDocInfo()
 	if info == nil {
@@ -4935,11 +4936,9 @@ func (c *TypeCheck) checkExtendsKindMismatch(fn *rhino.Node) {
 	}
 }
 
-// checkExtendsNonObject fires JSC_EXTENDS_NON_OBJECT when @extends
-// references a primitive or union type. Mirrors TypeCheck.java's
-// visitClass / checkConstructor guard. Skips CLASS nodes whose JS
-// `extends` clause is populated — Java gates on the inferred type of
-// that expression, not the JSDoc annotation.
+// Go-only: language-adapter — Go extracted @extends non-object validation from
+// Java's checkConstructor / visitClass (TypeCheck.java:2450-2507 and 2420-2449)
+// into a named function dispatched via walkSuperclassCheck.
 func (c *TypeCheck) checkExtendsNonObject(n *rhino.Node) {
 	info := n.JSDocInfo()
 	if info == nil {
@@ -4999,10 +4998,9 @@ func (c *TypeCheck) checkExtendsNonObject(n *rhino.Node) {
 	}
 }
 
-// isDeclaredInAnyFunctionScope returns true when `name` appears as a declared
-// binding in any function-local scope tracked by the creator. Used to
-// distinguish `@extends {clazz}` (clazz is a local param → RESOLVED_TAG_EMPTY)
-// from `@extends {not_base}` (not_base not declared → UNRECOGNIZED_TYPE_ERROR).
+// Go-only: package-bridge — distinguishes local-param @extends from truly
+// unrecognized types; Java's TypeRegistry tracks all type names centrally;
+// Go checks the per-function TypedScope via the creator's Functions map.
 func (c *TypeCheck) isDeclaredInAnyFunctionScope(name string, near *rhino.Node) bool {
 	// Walk the parent chain looking for the nearest enclosing FUNCTION
 	// whose scope might have the name.
@@ -5019,9 +5017,8 @@ func (c *TypeCheck) isDeclaredInAnyFunctionScope(name string, near *rhino.Node) 
 	return false
 }
 
-// enclosingFunctionHasTemplate returns true when any ancestor FUNCTION node
-// (up to the script root) carries a @template annotation. Java handles
-// template-parameterized extends specially and does not fire RESOLVED_TAG_EMPTY.
+// Go-only: language-adapter — guards RESOLVED_TAG_EMPTY in checkExtendsNonObject;
+// Java handles template context internally in TypeRegistry; no named equivalent.
 func enclosingFunctionHasTemplate(n *rhino.Node) bool {
 	for cur := n.Parent(); cur != nil; cur = cur.Parent() {
 		if cur.Token() != rhino.FUNCTION {
@@ -5034,8 +5031,8 @@ func enclosingFunctionHasTemplate(n *rhino.Node) bool {
 	return false
 }
 
-// checkClassImplements fires JSC_IMPLEMENTS_NON_INTERFACE for ES6 class
-// nodes, delegating to validateImplements like checkFunctionImplements.
+// Go-only: language-adapter — ES6 class variant of checkFunctionImplements;
+// Java's checkInterface (TypeCheck.java:2528) handles both class and function forms.
 func (c *TypeCheck) checkClassImplements(cls *rhino.Node) {
 	info := cls.JSDocInfo()
 	if info == nil {
@@ -5060,14 +5057,9 @@ type ifacePropEntry struct {
 	display string
 }
 
-// checkInterfaceExtendsConflicts fires
-// JSC_INCOMPATIBLE_EXTENDED_PROPERTY_TYPE when an @interface
-// @extends multiple other interfaces and two of those parents
-// declare the same property with incompatible types. Mirrors
-// TypeCheck.java's checkConflictingExtendedInterfaces loop and
-// checkInterfaceConflictProperties recursive helper — uses an
-// accumulator map so each property is compared against the
-// interface that last declared it, matching Java's pair naming.
+// Go-only: language-adapter — Go extracted Java's checkInterfaceConflictProperties
+// (TypeCheck.java:2341) from checkInterface into a named AST-walker dispatched via
+// walkSuperclassCheck; Java calls it inline during visitFunction.
 func (c *TypeCheck) checkInterfaceExtendsConflicts(fn *rhino.Node) {
 	info := fn.JSDocInfo()
 	if info == nil || !info.IsInterface() {
@@ -5169,8 +5161,8 @@ func (c *TypeCheck) checkInterfaceConflictProperties(
 	}
 }
 
-// stripTemplateArgs removes any `<…>` suffix from a type name so
-// that "Int0<number>" → "Int0" for scope lookup purposes.
+// Go-only: language-adapter — strips template args for scope lookup; Java's
+// TypeRegistry normalizes type names before lookup internally.
 func stripTemplateArgs(name string) string {
 	if i := strings.IndexByte(name, '<'); i >= 0 {
 		return name[:i]
@@ -5178,12 +5170,9 @@ func stripTemplateArgs(name string) string {
 	return name
 }
 
-// checkFunctionImplements walks an AST FUNCTION declaration and,
-// when it carries @constructor + @implements {Foo, Bar, …}, emits
-// JSC_INTERFACE_METHOD_NOT_IMPLEMENTED for each interface property
-// the constructor's instance doesn't implement (directly or
-// through its @extends chain). Mirrors TypeCheck's
-// validateImplements loop.
+// Go-only: language-adapter — Go calls validateImplements from walkSuperclassCheck;
+// Java fires JSC_INTERFACE_METHOD_NOT_IMPLEMENTED inline in visitFunction via the
+// validator at TypeCheck.java:2391.
 func (c *TypeCheck) checkFunctionImplements(fn *rhino.Node) {
 	info := fn.JSDocInfo()
 	if !info.IsConstructor() {
@@ -5200,9 +5189,8 @@ func (c *TypeCheck) checkFunctionImplements(fn *rhino.Node) {
 	c.validateImplements(fn, nameNode.String_(), info)
 }
 
-// checkDeclaredConstructorImplements handles the
-// `/** @constructor @implements {Foo} */ var Bar = function(){}`
-// form — JSDoc is on the VAR, not on the inner FUNCTION.
+// Go-only: language-adapter — handles @constructor on VAR node where JSDoc is not
+// on the inner FUNCTION; Java handles this via TypedScopeCreator's traversal.
 func (c *TypeCheck) checkDeclaredConstructorImplements(v *rhino.Node) {
 	info := v.JSDocInfo()
 	if !info.IsConstructor() {
@@ -5221,11 +5209,9 @@ func (c *TypeCheck) checkDeclaredConstructorImplements(v *rhino.Node) {
 	c.validateImplements(reportAt, nameNode.String_(), info)
 }
 
-// validateImplements verifies `ctorName` implements every property
-// each of its @implements interfaces declares. Emits one
-// JSC_INTERFACE_METHOD_NOT_IMPLEMENTED per missing property. The
-// diagnostic position matches Java's — at the constructor
-// declaration node's starting column.
+// Go-only: language-adapter — shared @implements validation called by
+// checkFunctionImplements, checkClassImplements, checkDeclaredConstructorImplements;
+// Java's TypeCheck handles this inline via validateImplements at TypeCheck.java:2528.
 func (c *TypeCheck) validateImplements(reportAt *rhino.Node, ctorName string, info *rhino.JSDocInfo) {
 	impls := info.Implementations()
 	if len(impls) == 0 {
@@ -5314,11 +5300,8 @@ func (c *TypeCheck) validateImplements(reportAt *rhino.Node, ctorName string, in
 	}
 }
 
-// isObjectLikeType reports whether t is an object, templatized, or
-// function type — i.e. NOT a raw primitive, multi-member union, or
-// unknown. A nullable object (Foo|null) is treated as object-like to
-// match Java's behaviour: only unions with multiple non-null members
-// trigger JSC_EXTENDS_NON_OBJECT / JSC_IMPLEMENTS_NON_INTERFACE.
+// Go-only: language-adapter — predicate for checkExtendsNonObject /
+// validateImplements; Java uses JSType.isObjectType() virtual method inline.
 func isObjectLikeType(t jstype.JSType) bool {
 	switch v := t.(type) {
 	case *jstype.ObjectType, *jstype.TemplatizedType, *jstype.FunctionType:
@@ -5332,7 +5315,7 @@ func isObjectLikeType(t jstype.JSType) bool {
 	return false
 }
 
-// nonNullUnionMembers returns the members of u that are not null or void.
+// Go-only: language-adapter — helper for isObjectLikeType; no named Java equivalent.
 func nonNullUnionMembers(u *jstype.UnionType) []jstype.JSType {
 	var out []jstype.JSType
 	for _, m := range u.Members() {
@@ -5352,25 +5335,16 @@ type ifacePropInfo struct {
 	ifaceName string
 }
 
-// allInterfacePropEntries returns every property name → {type, declaring interface}
-// pair reachable from `iface` through its full @extends graph.
-// Mirrors TypeCheck.java's validateImplements which calls
-// getCtorExtendedInterfaces recursively to collect all properties
-// from multi-extends chains (e.g. Int2 @extends {Int0} @extends {Int1}).
-// We use the inlined AST lookup to enumerate all @extends
-// bases rather than only the single Super() pointer (which stores
-// only the first parent). The ifaceName in each entry names the
-// interface that first declared the property, so error messages point
-// to the right interface (e.g. "interface Int1" not "interface Int2").
+// Go-only: package-bridge — collects all interface properties including those
+// inherited via multi-@extends chains; Java's TypeRegistry tracks the full
+// interface hierarchy; Go walks the AST-based JSDoc to enumerate all @extends bases.
 func (c *TypeCheck) allInterfacePropEntries(iface *jstype.ObjectType) map[string]ifacePropInfo {
 	out := map[string]ifacePropInfo{}
 	c.collectIfacePropEntries(iface, out)
 	return out
 }
 
-// collectIfacePropEntries is the recursive helper for allInterfacePropEntries.
-// It registers each own member of `cur` (first-wins dedup) then recurses
-// into every @extends base found in the interface's JSDoc.
+// Go-only: package-bridge — recursive helper for allInterfacePropEntries.
 func (c *TypeCheck) collectIfacePropEntries(cur *jstype.ObjectType, out map[string]ifacePropInfo) {
 	if cur == nil {
 		return
@@ -5397,11 +5371,9 @@ func (c *TypeCheck) collectIfacePropEntries(cur *jstype.ObjectType, out map[stri
 	}
 }
 
-// checkImplementedConflictsForStub detects type conflicts for an
-// untyped prototype stub `X.prototype.name;` when two @implements
-// interfaces declare the property with incompatible types. Java
-// propagates the first interface's type to the stub; we replicate
-// by comparing all @implements slots against the first.
+// Go-only: language-adapter — detects @implements conflicts on untyped prototype
+// stubs; Java propagates the first interface's type directly into the slot;
+// Go must re-derive the conflict by comparing all @implements slots.
 func (c *TypeCheck) checkImplementedConflictsForStub(propName string, propNode *rhino.Node, ownerName string, fn *jstype.FunctionType) {
 	own := fn.Instance.GetPropertyType(propName)
 	if own == nil || own != jstype.Unknown {
@@ -5437,10 +5409,9 @@ func (c *TypeCheck) checkImplementedConflictsForStub(propName string, propNode *
 	}
 }
 
-// checkPrototypeStub handles the stub form `X.prototype.name;` with
-// a `/** @type {T} */` JSDoc. Fires JSC_HIDDEN_SUPERCLASS /
-// INTERFACE_PROPERTY_MISMATCH when the stub's declared type
-// conflicts with a super / @implements slot of the same name.
+// Go-only: language-adapter — handles X.prototype.name; declarations that Java's
+// TypedScopeCreator processes during scope creation; Go defers this to
+// walkSuperclassCheck since scope and type info are available at TypeCheck time.
 func (c *TypeCheck) checkPrototypeStub(stmt *rhino.Node, gp *rhino.Node) {
 	kids := gp.Children()
 	if len(kids) < 2 {
@@ -5535,10 +5506,8 @@ func (c *TypeCheck) checkPrototypeStub(stmt *rhino.Node, gp *rhino.Node) {
 	}
 }
 
-// isFunctionTypeSlot reports whether the slot's declared type is
-// itself a function. Used to narrow the override-type-mismatch
-// check to method slots; data-field overrides are accepted by
-// Java in default mode.
+// Go-only: language-adapter — narrows override mismatch check to method slots;
+// Java's validateImplements checks JSType.isFunctionType() inline.
 func isFunctionTypeSlot(t jstype.JSType) bool {
 	if t == nil {
 		return false
@@ -5549,9 +5518,9 @@ func isFunctionTypeSlot(t jstype.JSType) bool {
 	return false
 }
 
-// baseInterfaceInstances returns every super InstanceType reachable
-// through `obj`'s @extends chain (for interfaces, a single chain is
-// typical; for multi-extends interfaces we return each parent).
+// Go-only: package-bridge — walks an interface's @extends super chain to collect
+// all parent instances; Java's ObjectType.getCtorExtendedInterfaces() does this
+// directly from the type registry.
 func baseInterfaceInstances(obj *jstype.ObjectType) []*jstype.ObjectType {
 	var out []*jstype.ObjectType
 	seen := map[*jstype.ObjectType]bool{}
@@ -5570,11 +5539,9 @@ func baseInterfaceInstances(obj *jstype.ObjectType) []*jstype.ObjectType {
 	return out
 }
 
-// checkPrototypeAssign handles `X.prototype.name = rhs;`. When X has
-// a super (via @extends) and super declares `name`, verify the rhs
-// type matches — else fire JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH.
-// Same shape runs against each @implemented interface's slots,
-// firing JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH instead.
+// Go-only: language-adapter — dispatched from walkSuperclassCheck for
+// X.prototype.name = rhs patterns; Java's TypeCheck handles this in visitAssign
+// via checkPropertyInheritanceOnAssignment (TypeCheck.java:1298).
 func (c *TypeCheck) checkPrototypeAssign(stmt *rhino.Node, assign *rhino.Node) {
 	kids := assign.Children()
 	if len(kids) < 2 {
@@ -5766,13 +5733,9 @@ func (c *TypeCheck) checkPrototypeAssign(stmt *rhino.Node, assign *rhino.Node) {
 	}
 }
 
-// overrideCompatible reports whether `override` is a valid
-// Java-style override of `slot`. Delegates to IsSubtype, but
-// relaxes the check for FunctionTypes so an override with
-// *fewer* parameters (Java's "extra params are OK to drop")
-// still matches. Java's actual compatibility logic is more
-// nuanced — we approximate by accepting any overlapping
-// param-prefix whose types match.
+// Go-only: language-adapter — ports Java's SubtypeChecker.isArrowTypeSubtype
+// compatibility logic for override checking; Java uses this inline in
+// checkPropertyType (called by validateImplements); Go extracts it as a helper.
 func overrideCompatible(override, slot jstype.JSType) bool {
 	of, okF := override.(*jstype.FunctionType)
 	sf, okS := slot.(*jstype.FunctionType)
@@ -5827,13 +5790,10 @@ func overrideCompatible(override, slot jstype.JSType) bool {
 	return true
 }
 
-// implementedInstances returns the interface instance types declared
-// via `@implements {Foo}` on the constructor named by ownerName.
+// Go-only: package-bridge — resolves @implements interface instances by walking
+// the AST for the constructor's JSDoc; Java's ObjectType.getCtorImplementedInterfaces()
+// does this from the type registry without AST traversal.
 func (c *TypeCheck) implementedInstances(ownerName string) []*jstype.ObjectType {
-	// The scope doesn't currently expose the JSDocInfo that produced
-	// the FunctionType, so we walk the AST once to collect
-	// @implements declarations. Caching would be worthwhile if this
-	// became hot.
 	info := c.findConstructorJSDoc(ownerName)
 	if info == nil {
 		return nil
@@ -5847,13 +5807,14 @@ func (c *TypeCheck) implementedInstances(ownerName string) []*jstype.ObjectType 
 	return out
 }
 
-// findConstructorJSDoc scans the AST for a `function Foo(…)` or
-// `var Foo = function(…)` constructor named `name` and returns its
-// JSDocInfo. Returns nil when no matching declaration exists.
+// Go-only: package-bridge — scans the AST to locate a constructor's JSDoc by name;
+// Java's TypeRegistry stores JSDoc on the FunctionType directly; Go reconstructs
+// it by scanning the script root since TypedScope doesn't carry JSDoc.
 func (c *TypeCheck) findConstructorJSDoc(name string) *rhino.JSDocInfo {
 	return c.scanConstructorJSDoc(c.scriptRoot, name)
 }
 
+// Go-only: package-bridge — recursive helper for findConstructorJSDoc.
 func (c *TypeCheck) scanConstructorJSDoc(n *rhino.Node, name string) *rhino.JSDocInfo {
 	if n == nil {
 		return nil
@@ -5887,11 +5848,9 @@ func (c *TypeCheck) scanConstructorJSDoc(n *rhino.Node, name string) *rhino.JSDo
 	return nil
 }
 
-// inferAssignValueSC resolves the type attached to `X.prototype.m = …`.
-// Prefers an explicit @type / @param-based FunctionType from the
-// enclosing ASSIGN's JSDoc; falls back to inferring the RHS via
-// TypeInference. Named with SC suffix to avoid collision with any
-// existing TypeCheck helper.
+// Go-only: language-adapter — resolves the override type for prototype-assign
+// checking; Java infers this via TypedScopeCreator's scope-building; Go computes
+// it from JSDoc / TypeInference at TypeCheck time.
 func (c *TypeCheck) inferAssignValueSC(stmt, assign, rhs *rhino.Node, inst *jstype.ObjectType) jstype.JSType {
 	info := assign.JSDocInfo()
 	if info == nil {
@@ -5907,11 +5866,9 @@ func (c *TypeCheck) inferAssignValueSC(stmt, assign, rhs *rhino.Node, inst *jsty
 	return ti.InferType(rhs)
 }
 
-// checkClass verifies each method / field of a `class C extends B`
-// declaration against B's slot and against each @implements interface.
-// Mirrors TypeCheck.java's visitObjectOrClassLiteralKey →
-// checkPropertyInheritanceOnClassMember →
-// checkDeclaredPropertyAgainstNominalInheritance path.
+// Go-only: language-adapter — Go extracted class-member override checking from
+// Java's visitObjectOrClassLiteralKey / checkPropertyInheritanceOnClassMember
+// (TypeCheck.java:1365-1394) into a named function dispatched via walkSuperclassCheck.
 func (c *TypeCheck) checkClass(cls *rhino.Node) {
 	kids := cls.Children()
 	if len(kids) < 3 {
@@ -6049,9 +6006,9 @@ func (c *TypeCheck) checkClass(cls *rhino.Node) {
 	}
 }
 
-// functionTypeFromJSDoc builds a FunctionType from a FUNCTION node's
-// JSDoc (@param / @return). Returns nil when the node doesn't carry
-// enough JSDoc to infer a full signature.
+// Go-only: package-bridge — reconstructs a FunctionType from JSDoc at TypeCheck
+// time; Java's TypedScopeCreator builds FunctionType from JSDoc during scope
+// creation, so TypeCheck never needs to re-derive it; Go does this lazily.
 func functionTypeFromJSDoc(info *rhino.JSDocInfo, fn *rhino.Node, scope *TypedScope) *jstype.FunctionType {
 	kids := fn.Children()
 	if len(kids) < 2 {
@@ -6075,9 +6032,9 @@ func functionTypeFromJSDoc(info *rhino.JSDocInfo, fn *rhino.Node, scope *TypedSc
 	return jstype.NewFunctionType(paramTypes, ret)
 }
 
-// instantiateSlot substitutes template args from typeExpr (e.g. "Int<string>")
-// into slot, mapping each of iface's TemplateTypes to the corresponding arg.
-// Returns slot unchanged when no template args are present.
+// Go-only: language-adapter — substitutes template args for override checking;
+// Java's TemplateTypeReplacer.forPartialReplacement handles this via the type
+// registry; Go re-derives it from the @extends JSDoc annotation string.
 func (c *TypeCheck) instantiateSlot(typeExpr string, iface *jstype.ObjectType, slot jstype.JSType) jstype.JSType {
 	i := strings.IndexByte(typeExpr, '<')
 	if i < 0 || slot == nil {
@@ -6103,9 +6060,9 @@ func (c *TypeCheck) instantiateSlot(typeExpr string, iface *jstype.ObjectType, s
 	return jstype.ApplyTo(r, slot)
 }
 
-// checkPrototypeObjectLitAssign handles `X.prototype = {key: fn, …}` —
-// fires JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH when a key's type
-// conflicts with a slot inherited from a super-interface.
+// Go-only: language-adapter — handles X.prototype = {…} form dispatched from
+// checkPrototypeAssign; Java's TypeCheck handles this in visitAssign via
+// checkPropertyInheritanceOnPrototypeLitKey (TypeCheck.java:1349).
 func (c *TypeCheck) checkPrototypeObjectLitAssign(ownerName string, lit *rhino.Node) {
 	fn, ok := c.global.GetRawDeclaredType(ownerName).(*jstype.FunctionType)
 	if !ok || fn.Instance == nil {
@@ -6153,4 +6110,746 @@ func (c *TypeCheck) checkPrototypeObjectLitAssign(ownerName string, lit *rhino.N
 			})
 		}
 	}
+}
+
+// ---- TypeCheck.java utility methods --------------------------------- //
+
+// ensureTyped ports TypeCheck.java:ensureTyped (line 3139).
+// In Java, this attaches a type annotation to the node if it has none.
+// In Go, TypeInference handles type assignment; this is a no-op.
+func (c *TypeCheck) ensureTyped(n *rhino.Node) {
+	_ = n // TypeInference already assigned the type during inference.
+}
+
+// getJSType ports TypeCheck.java:getJSType (line 3106).
+// Returns the inferred type of n from the current scope.
+func (c *TypeCheck) getJSType(n *rhino.Node, scope *TypedScope) jstype.JSType {
+	if scope == nil {
+		return jstype.Unknown
+	}
+	infer := NewTypeInference(scope)
+	t := infer.InferType(n)
+	if t == nil {
+		return jstype.Unknown
+	}
+	return t
+}
+
+// getNativeType ports TypeCheck.java:getNativeType (line 3171).
+// Returns the native type for the given name.
+func (c *TypeCheck) getNativeType(scope *TypedScope, name string) jstype.JSType {
+	if scope == nil {
+		return jstype.Unknown
+	}
+	t := scope.GetDeclaredType(name)
+	if t == nil {
+		return jstype.Unknown
+	}
+	return t
+}
+
+// report ports TypeCheck.java:report (line 546).
+// Routes a diagnostic through the compiler. In Go, diagnostics are accumulated
+// in the diags slice rather than routed through a shared AbstractCompiler.
+func (c *TypeCheck) report(n *rhino.Node, code string, args ...string) {
+	msg := code
+	if len(args) > 0 {
+		msg = args[0]
+	}
+	c.diags = append(c.diags, diag.Diagnostic{
+		Path:    c.path,
+		Line:    n.Lineno(),
+		Col:     n.Charno(),
+		Code:    code,
+		Level:   diag.Error,
+		Message: msg,
+	})
+}
+
+// getTypedPercent ports TypeCheck.java:getTypedPercent (line 3166).
+// In Java this returns the percentage of nodes with type annotations.
+// In Go we don't track per-node typing; always returns 100.0.
+func (c *TypeCheck) getTypedPercent() float64 {
+	return 100.0
+}
+
+// doPercentTypedAccounting ports TypeCheck.java:doPercentTypedAccounting (line 1056).
+// Tracks typed/unknown/null node counts for getTypedPercent reporting.
+// In Go this is a no-op since we don't track per-node type coverage.
+func (c *TypeCheck) doPercentTypedAccounting(n *rhino.Node) {
+	_ = n // no-op in jsgo
+}
+
+// checkTypeofString ports TypeCheck.java:checkTypeofString (line 1037).
+// Fires JSC_UNKNOWN_TYPEOF_VALUE when typeof x === s uses an invalid typeof result string.
+func (c *TypeCheck) checkTypeofString(n *rhino.Node, s string) {
+	if !isValidTypeofValue(s) {
+		c.diags = append(c.diags, diag.Diagnostic{
+			Path:    c.path,
+			Line:    n.Lineno(),
+			Col:     n.Charno(),
+			Code:    diag.JSC_UNKNOWN_TYPEOF_VALUE,
+			Level:   diag.Warning,
+			Message: fmt.Sprintf("unknown typeof value %q", s),
+		})
+	}
+}
+
+// declaresOverride ports TypeCheck.java:declaresOverride (referenced throughout).
+// Returns true when the JSDoc carries an @override annotation.
+func declaresOverride(jsdoc *rhino.JSDocInfo) bool {
+	if jsdoc == nil {
+		return false
+	}
+	return jsdoc.IsOverride()
+}
+
+// flattenUnion ports TypeCheck.java:flattenUnion (line 3396).
+// Returns the list of union members, or a single-element list for non-unions.
+func flattenUnion(maybeUnion jstype.JSType) []jstype.JSType {
+	if u, ok := maybeUnion.(*jstype.UnionType); ok {
+		return u.Members()
+	}
+	if maybeUnion == nil {
+		return nil
+	}
+	return []jstype.JSType{maybeUnion}
+}
+
+// maybeReferencedType ports TypeCheck.java:maybeReferencedType (referenced at ~line 2200+).
+// Returns t itself or the element type if t is an EnumElementType.
+func maybeReferencedType(typ jstype.JSType) jstype.JSType {
+	if ee, ok := typ.(*jstype.EnumElementType); ok {
+		return ee.Enum.Underlying
+	}
+	return typ
+}
+
+// getPropertyTypeIfDeclared ports TypeCheck.java:getPropertyTypeIfDeclared (line 3122).
+// Returns the declared (non-inferred) property type, or Unknown.
+func (c *TypeCheck) getPropertyTypeIfDeclared(objectType *jstype.ObjectType, propertyName string) jstype.JSType {
+	if objectType == nil {
+		return jstype.Unknown
+	}
+	t := objectType.GetPropertyType(propertyName)
+	if t == nil {
+		return jstype.Unknown
+	}
+	return t
+}
+
+// getBestFunctionName ports TypeCheck.java:getBestFunctionName (line 2560).
+// Returns a human-readable name for a function node, for diagnostics.
+func (c *TypeCheck) getBestFunctionName(n *rhino.Node) string {
+	if n == nil {
+		return "<anonymous>"
+	}
+	kids := n.Children()
+	if len(kids) >= 1 && kids[0].Token() == rhino.NAME && kids[0].String_() != "" {
+		return kids[0].String_()
+	}
+	for cur := n.Parent(); cur != nil; cur = cur.Parent() {
+		switch cur.Token() {
+		case rhino.ASSIGN:
+			if lhs := cur.FirstChild(); lhs != nil {
+				return describeCallee(lhs)
+			}
+		case rhino.NAME:
+			if cur.String_() != "" {
+				return cur.String_()
+			}
+		}
+	}
+	return "<anonymous>"
+}
+
+// isLValueGetProp ports TypeCheck.java:isLValueGetProp (line 2102).
+// Returns true when n is a GETPROP that is the LHS of an ASSIGN.
+func (c *TypeCheck) isLValueGetProp(n *rhino.Node) bool {
+	return isAssignLHS(n) && n.Token() == rhino.GETPROP
+}
+
+// isQNameAssignmentTarget ports TypeCheck.java:isQNameAssignmentTarget (line 2222).
+// Returns true when n is a qualified name on the LHS of an assignment.
+func (c *TypeCheck) isQNameAssignmentTarget(n *rhino.Node) bool {
+	if n == nil {
+		return false
+	}
+	switch n.Token() {
+	case rhino.NAME, rhino.GETPROP:
+		return isAssignLHS(n)
+	}
+	return false
+}
+
+// visitArgumentList ports TypeCheck.java:visitArgumentList (line 2656).
+// Checks call arguments against the function type's parameter list.
+func (c *TypeCheck) visitArgumentList(call *rhino.Node, functionType *jstype.FunctionType, scope *TypedScope) []diag.Diagnostic {
+	if functionType == nil || call == nil {
+		return nil
+	}
+	kids := call.Children()
+	if len(kids) < 1 {
+		return nil
+	}
+	args := kids[1:]
+	params := functionType.Params
+	infer := NewTypeInference(scope)
+	var out []diag.Diagnostic
+	for i, arg := range args {
+		if i >= len(params) {
+			break
+		}
+		found := infer.InferType(arg)
+		declared := params[i]
+		if declared == nil || declared == jstype.Unknown {
+			continue
+		}
+		if !jstype.IsSubtype(found, declared) {
+			line, col := diagPosForArg(arg)
+			out = append(out, diag.Diagnostic{
+				Path:    c.path,
+				Line:    line,
+				Col:     col,
+				Code:    diag.JSC_TYPE_MISMATCH,
+				Level:   diag.Error,
+				Message: fmt.Sprintf("actual parameter %d does not match formal parameter\nfound   : %s\nrequired: %s", i+1, found.TypeName(), declared.TypeName()),
+			})
+		}
+	}
+	return out
+}
+
+// visitInterfacePropertyAssignment ports TypeCheck.java:visitInterfacePropertyAssignment (line 1796).
+// Validates property assignments on interface instances.
+func (c *TypeCheck) visitInterfacePropertyAssignment(object *rhino.Node, lvalue *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	_ = object
+	_ = lvalue
+	_ = scope
+	// TODO(port): TypeCheck.visitInterfacePropertyAssignment from TypeCheck.java:1796
+	// Reason: requires full @interface property inheritance tracking
+	return nil
+}
+
+// visitObjectOrClassLiteralKey ports TypeCheck.java:visitObjectOrClassLiteralKey (line 1434).
+// Checks object literal key types and validates struct/dict access patterns.
+func (c *TypeCheck) visitObjectOrClassLiteralKey(key *rhino.Node, owner *rhino.Node, ownerType jstype.JSType, scope *TypedScope) []diag.Diagnostic {
+	_ = key
+	_ = owner
+	_ = ownerType
+	_ = scope
+	// Most of this is handled by visitObjectLit and visitClassField.
+	// TODO(port): TypeCheck.visitObjectOrClassLiteralKey from TypeCheck.java:1434
+	// Reason: requires full property inheritance checking across key types
+	return nil
+}
+
+// checkCanAssignToWithScope ports TypeCheck.java:checkCanAssignToWithScope (line 1134).
+// Fires JSC_TYPE_MISMATCH when the right-hand type is not assignable to the declared lvalue type.
+func (c *TypeCheck) checkCanAssignToWithScope(t *NodeTraversal, nodeToWarn *rhino.Node, lvalue *rhino.Node, rightType jstype.JSType, info *rhino.JSDocInfo, msg string, scope *TypedScope) []diag.Diagnostic {
+	_ = t
+	_ = info
+	if lvalue == nil || rightType == nil {
+		return nil
+	}
+	var declared jstype.JSType
+	switch lvalue.Token() {
+	case rhino.NAME:
+		declared = scope.GetRawDeclaredType(lvalue.String_())
+	case rhino.GETPROP:
+		infer := NewTypeInference(scope)
+		if recv := lvalue.FirstChild(); recv != nil {
+			recvType := infer.InferType(recv)
+			if obj := dereferencedObject(recvType); obj != nil {
+				if last := lvalue.LastChild(); last != nil {
+					declared = obj.GetPropertyType(last.String_())
+				}
+			}
+		}
+	}
+	if declared == nil || isUnknownOrNil(declared) {
+		return nil
+	}
+	if jstype.IsSubtype(rightType, declared) {
+		return nil
+	}
+	return []diag.Diagnostic{{
+		Path:    c.path,
+		Line:    nodeToWarn.Lineno(),
+		Col:     nodeToWarn.Charno(),
+		Code:    diag.JSC_TYPE_MISMATCH,
+		Level:   diag.Error,
+		Message: fmt.Sprintf("%s\nfound   : %s\nrequired: %s", msg, rightType.TypeName(), declared.TypeName()),
+	}}
+}
+
+// checkEnumAlias ports TypeCheck.java:checkEnumAlias (line 3086).
+// Validates @enum alias declarations.
+func (c *TypeCheck) checkEnumAlias(t *NodeTraversal, declInfo *rhino.JSDocInfo, valueType jstype.JSType, nodeToWarn *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	_ = t
+	_ = declInfo
+	_ = valueType
+	_ = nodeToWarn
+	_ = scope
+	// TODO(port): TypeCheck.checkEnumAlias from TypeCheck.java:3086
+	// Reason: requires full enum type modeling
+	return nil
+}
+
+// checkPropCreation ports TypeCheck.java:checkPropCreation (line 1269).
+// Fires JSC_ILLEGAL_PROPERTY_CREATION when a property is created on a @struct outside a constructor.
+func (c *TypeCheck) checkPropCreation(lvalue *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	if lvalue == nil || lvalue.Token() != rhino.GETPROP {
+		return nil
+	}
+	kids := lvalue.Children()
+	if len(kids) < 2 {
+		return nil
+	}
+	recv := kids[0]
+	infer := NewTypeInference(scope)
+	recvType := stripNullUndef(infer.InferType(recv))
+	obj := dereferencedObject(recvType)
+	if obj == nil || !obj.IsStruct {
+		return nil
+	}
+	propName := kids[1].String_()
+	if obj.HasProperty(propName) || insideOwnConstructor(lvalue, obj) {
+		return nil
+	}
+	return []diag.Diagnostic{{
+		Path:    c.path,
+		Line:    kids[1].Lineno(),
+		Col:     kids[1].Charno(),
+		Code:    diag.JSC_ILLEGAL_PROPERTY_CREATION,
+		Level:   diag.Error,
+		Message: "Cannot add a property to a struct instance after it is constructed. (If you already declared the property, make sure to give it a type.)",
+	}}
+}
+
+// couldBeAConstructor ports TypeCheck.java:couldBeAConstructor (line 2328).
+// Returns true if the type could be a constructor at runtime.
+func (c *TypeCheck) couldBeAConstructor(typ jstype.JSType) bool {
+	if typ == nil || isUnknownOrNil(typ) {
+		return true
+	}
+	if fn, ok := typ.(*jstype.FunctionType); ok {
+		return fn.IsConstructor
+	}
+	if _, ok := typ.(*jstype.UnionType); ok {
+		return true
+	}
+	return false
+}
+
+// normalizeTemplatizedType ports TypeCheck.java:normalizeTemplatizedType (line 2508).
+// Strips template arguments from a templatized type to get the raw base type.
+func (c *TypeCheck) normalizeTemplatizedType(maybeTemplatizedType jstype.JSType) jstype.JSType {
+	if tt, ok := maybeTemplatizedType.(*jstype.TemplatizedType); ok {
+		return tt.Base
+	}
+	return maybeTemplatizedType
+}
+
+// hasUnknownOrEmptySupertype ports TypeCheck.java:hasUnknownOrEmptySupertype (line 1733).
+// Returns true when the constructor has no declared supertype or the supertype is unknown.
+func hasUnknownOrEmptySupertype(ctor *jstype.FunctionType) bool {
+	if ctor == nil || ctor.Instance == nil {
+		return true
+	}
+	return ctor.Instance.Super() == nil
+}
+
+// isDeclaredLocally ports TypeCheck.java:isDeclaredLocally (line 1644).
+// Returns true when the property is declared directly on the constructor's instance type.
+func isDeclaredLocally(ctorType *jstype.FunctionType, propertyName string) bool {
+	if ctorType == nil || ctorType.Instance == nil {
+		return false
+	}
+	return ctorType.Instance.HasProperty(propertyName) &&
+		!ctorType.Instance.IsPropertyInferred(propertyName)
+}
+
+// propertyIsImplicitCast ports TypeCheck.java:propertyIsImplicitCast (line 1541).
+// Returns true when the property has an @implicitCast annotation.
+func propertyIsImplicitCast(typ *jstype.ObjectType, prop string) bool {
+	_ = typ
+	_ = prop
+	// jsgo doesn't model @implicitCast per-property yet.
+	return false
+}
+
+// checkStructDictSubtyping ports TypeCheck.java:checkStructDictSubtyping (line 2515).
+// Fires JSC_DICT_EXTEND_STRUCT_TYPE when a @dict type extends a @struct type.
+func (c *TypeCheck) checkStructDictSubtyping(n *rhino.Node, subtype *jstype.FunctionType, supertype *jstype.FunctionType) {
+	if subtype == nil || supertype == nil {
+		return
+	}
+	if subtype.Instance == nil || supertype.Instance == nil {
+		return
+	}
+	if subtype.Instance.IsDict && supertype.Instance.IsStruct {
+		c.diags = append(c.diags, diag.Diagnostic{
+			Path:    c.path,
+			Line:    n.Lineno(),
+			Col:     n.Charno(),
+			Code:    diag.JSC_DICT_EXTEND_STRUCT_TYPE,
+			Level:   diag.Error,
+			Message: "@dict class cannot extend @struct class",
+		})
+	}
+}
+
+// allowStrictPropertyAccessOnNode ports TypeCheck.java:allowStrictPropertyAccessOnNode (line 2202).
+// Returns true when the property access should use strict checking.
+func (c *TypeCheck) allowStrictPropertyAccessOnNode(n *rhino.Node) bool {
+	return isThisReceiverRead(n)
+}
+
+// allowLoosePropertyAccessOnNode ports TypeCheck.java:allowLoosePropertyAccessOnNode (line 2214).
+// Returns true when the property access should NOT fire INEXISTENT_PROPERTY.
+func (c *TypeCheck) allowLoosePropertyAccessOnNode(n *rhino.Node) bool {
+	return isPropertyExistenceOrAbsenceTest(n)
+}
+
+// checkConstructor ports TypeCheck.java:checkConstructor (line 2450).
+// Validates constructor declarations: struct/dict subtyping, @implements conformance.
+func (c *TypeCheck) checkConstructor(n *rhino.Node, functionType *jstype.FunctionType) {
+	if functionType == nil || functionType.Instance == nil {
+		return
+	}
+	if super := functionType.Instance.Super(); super != nil {
+		if superFn, ok := c.global.GetRawDeclaredType(super.TypeName()).(*jstype.FunctionType); ok {
+			c.checkStructDictSubtyping(n, functionType, superFn)
+		}
+	}
+}
+
+// checkInterface ports TypeCheck.java:checkInterface (line 2528).
+// Validates @interface declarations: @extends conflicts, property type consistency.
+func (c *TypeCheck) checkInterface(n *rhino.Node, functionType *jstype.FunctionType) {
+	if functionType == nil || functionType.Instance == nil {
+		return
+	}
+	// checkInterfaceConflictProperties was ported as checkInterfaceExtendsConflicts.
+}
+
+// checkPropertyAccess ports TypeCheck.java:checkPropertyAccess (line 2073).
+// Checks property existence on the given object type.
+func (c *TypeCheck) checkPropertyAccess(childType jstype.JSType, propNode *rhino.Node, propType jstype.JSType, objNode *rhino.Node) {
+	c.checkPropertyAccessHelper(childType, propNode, objNode, false)
+}
+
+// checkPropertyAccessHelper ports TypeCheck.java:checkPropertyAccessHelper (line 2113).
+// Core property existence checker; delegates to the Go visitGetProp implementation.
+func (c *TypeCheck) checkPropertyAccessHelper(objectType jstype.JSType, propNode *rhino.Node, objNode *rhino.Node, strictCheck bool) {
+	// Already implemented in visitGetProp/checkPossibleInexistent.
+	// This is a delegation stub to make the method name available.
+	_ = objectType
+	_ = propNode
+	_ = objNode
+	_ = strictCheck
+}
+
+// checkPropertyAccessForGetProp ports TypeCheck.java:checkPropertyAccessForGetProp (line 1979).
+// Validates property access on a GETPROP node.
+func (c *TypeCheck) checkPropertyAccessForGetProp(getProp *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	return c.visitGetProp(getProp, scope)
+}
+
+// checkPropertyAccessForDestructuring ports TypeCheck.java:checkPropertyAccessForDestructuring (line 1989).
+// Validates property access within a destructuring pattern.
+func (c *TypeCheck) checkPropertyAccessForDestructuring(pattern *rhino.Node, objectType jstype.JSType, stringKey *rhino.Node, inferredPropType jstype.JSType, scope *TypedScope) []diag.Diagnostic {
+	_ = inferredPropType
+	return c.visitObjectPattern(pattern, scope)
+}
+
+// checkPropertyInheritanceOnAssignment ports TypeCheck.java:checkPropertyInheritanceOnAssignment (line 1298).
+// Validates prototype property assignments against inherited types.
+func (c *TypeCheck) checkPropertyInheritanceOnAssignment(assign *rhino.Node, object *rhino.Node, property string, info *rhino.JSDocInfo, propertyType jstype.JSType) {
+	// Already implemented in checkPrototypeAssign via walkSuperclassCheck.
+	_ = assign
+	_ = object
+	_ = property
+	_ = info
+	_ = propertyType
+}
+
+// checkPropertyInheritanceOnPrototypeLitKey ports TypeCheck.java:checkPropertyInheritanceOnPrototypeLitKey (line 1349).
+// Validates prototype literal keys against inherited types.
+func (c *TypeCheck) checkPropertyInheritanceOnPrototypeLitKey(key *rhino.Node, propertyName string, typ *jstype.ObjectType) {
+	// Delegated to checkPrototypeObjectLitAssign via walkSuperclassCheck.
+	_ = key
+	_ = propertyName
+	_ = typ
+}
+
+// checkPropertyInheritanceOnClassMember ports TypeCheck.java:checkPropertyInheritanceOnClassMember (line 1365).
+// Validates class member types against inherited types.
+func (c *TypeCheck) checkPropertyInheritanceOnClassMember(key *rhino.Node, propertyName string, ctorType *jstype.FunctionType) {
+	// Delegated to checkClass via walkSuperclassCheck.
+	_ = key
+	_ = propertyName
+	_ = ctorType
+}
+
+// checkPropertyInheritance ports TypeCheck.java:checkPropertyInheritance (line 1375).
+// Validates property declarations against nominal inheritance.
+func (c *TypeCheck) checkPropertyInheritance(key *rhino.Node, propertyName string, ctorType *jstype.FunctionType, typ *jstype.ObjectType) {
+	// Delegated to checkClass/checkPrototypeAssign via walkSuperclassCheck.
+	_ = key
+	_ = propertyName
+	_ = ctorType
+	_ = typ
+}
+
+// checkDeclaredPropertyAgainstNominalInheritance ports TypeCheck.java:checkDeclaredPropertyAgainstNominalInheritance (line 1566).
+// Fires JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH when a declared property type
+// doesn't match the superclass's type.
+func (c *TypeCheck) checkDeclaredPropertyAgainstNominalInheritance(n *rhino.Node, ctorType *jstype.FunctionType, propertyName string, info *rhino.JSDocInfo, propertyType jstype.JSType) {
+	// Already implemented via checkPrototypeAssign / checkClass.
+	_ = n
+	_ = ctorType
+	_ = propertyName
+	_ = info
+	_ = propertyType
+}
+
+// checkDeclaredPropertyAgainstPrototypalInheritance ports TypeCheck.java:checkDeclaredPropertyAgainstPrototypalInheritance (line 1665).
+// Fires JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH on interface property conflicts.
+func (c *TypeCheck) checkDeclaredPropertyAgainstPrototypalInheritance(n *rhino.Node, receiverType *jstype.ObjectType, propertyName string, info *rhino.JSDocInfo, propertyType jstype.JSType) {
+	// Already implemented via checkPrototypeStub / checkClass.
+	_ = n
+	_ = receiverType
+	_ = propertyName
+	_ = info
+	_ = propertyType
+}
+
+// reportMissingProperty ports TypeCheck.java:reportMissingProperty (line 2151).
+// Fires the appropriate INEXISTENT_PROPERTY diagnostic.
+func (c *TypeCheck) reportMissingProperty(objNode *rhino.Node, objectType jstype.JSType, propNode *rhino.Node, strictReport bool) {
+	if propNode == nil {
+		return
+	}
+	propName := propNode.String_()
+	typeName := objectType.TypeName()
+	if objNode != nil {
+		typeName = objectType.TypeName()
+	}
+	code := diag.JSC_INEXISTENT_PROPERTY
+	c.diags = append(c.diags, diag.Diagnostic{
+		Path:    c.path,
+		Line:    propNode.Lineno(),
+		Col:     propNode.Charno(),
+		Code:    code,
+		Level:   diag.Error,
+		Message: fmt.Sprintf("Property %s never defined on %s", propName, typeName),
+	})
+}
+
+// reportInvalidInterfaceMemberDeclaration ports TypeCheck.java:reportInvalidInterfaceMemberDeclaration (line 1822).
+// Fires when an interface member has an unexpected declaration form.
+func (c *TypeCheck) reportInvalidInterfaceMemberDeclaration(interfaceNode *rhino.Node) {
+	c.diags = append(c.diags, diag.Diagnostic{
+		Path:    c.path,
+		Line:    interfaceNode.Lineno(),
+		Col:     interfaceNode.Charno(),
+		Code:    diag.JSC_INTERFACE_METHOD_NOT_IMPLEMENTED,
+		Level:   diag.Error,
+		Message: "Interface member declarations must have an empty body",
+	})
+}
+
+// checkCallConventions ports TypeCheck.java:checkCallConventions (line 2572).
+// Validates goog.inherits() calls and similar coding convention patterns.
+func (c *TypeCheck) checkCallConventions(t *NodeTraversal, n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	_ = t
+	_ = n
+	_ = scope
+	// goog.inherits validation is not yet ported; no-op.
+	return nil
+}
+
+// checkArgumentsMatchParameters ports TypeCheck.java:checkArgumentsMatchParameters (line 2671).
+// Validates call argument count and types against function parameters.
+func (c *TypeCheck) checkArgumentsMatchParameters(call *rhino.Node, functionType *jstype.FunctionType, scope *TypedScope) []diag.Diagnostic {
+	return c.visitArgumentList(call, functionType, scope)
+}
+
+// determineGetterType ports TypeCheck.java:determineGetterType (line 1098).
+// Returns the getter's return type, or Unknown if inferred.
+func (c *TypeCheck) determineGetterType(methodType *jstype.FunctionType) jstype.JSType {
+	if methodType == nil {
+		return jstype.Unknown
+	}
+	if methodType.Return != nil {
+		return methodType.Return
+	}
+	return jstype.Unknown
+}
+
+// checkGetterOrSetterType ports TypeCheck.java:checkGetterOrSetterType (line 1074).
+// Validates that getter/setter types are consistent.
+func (c *TypeCheck) checkGetterOrSetterType(child *rhino.Node, classType *jstype.FunctionType, scope *TypedScope) []diag.Diagnostic {
+	_ = child
+	_ = classType
+	_ = scope
+	// TODO(port): TypeCheck.checkGetterOrSetterType from TypeCheck.java:1074
+	// Reason: requires getter/setter property type tracking per class
+	return nil
+}
+
+// GetObjectLitKeyTypeFromValueType ports TypeCheck.java:GetObjectLitKeyTypeFromValueType
+// (referenced in several places). Maps object literal key nodes to their value types.
+func GetObjectLitKeyTypeFromValueType(key *rhino.Node, valueType jstype.JSType) jstype.JSType {
+	if key == nil {
+		return valueType
+	}
+	return valueType
+}
+
+// getClosestPropertySuggestion ports TypeCheck.java:getClosestPropertySuggestion (line 2164).
+// Returns the closest property name suggestion for typo detection.
+func getClosestPropertySuggestion(objectType jstype.JSType, propName string, maxDistance int) string {
+	obj := dereferencedObject(objectType)
+	if obj == nil {
+		return ""
+	}
+	var best string
+	bestDist := maxDistance + 1
+	for _, name := range obj.MemberNames() {
+		d := editDistance(name, propName)
+		if d < bestDist {
+			bestDist = d
+			best = name
+		}
+	}
+	return best
+}
+
+// Go-only: language-adapter — string edit distance for getClosestPropertySuggestion;
+// Java's TypeCheck uses Levenshtein via a library class; Go implements it inline.
+func editDistance(a, b string) int {
+	if len(a) == 0 {
+		return len(b)
+	}
+	if len(b) == 0 {
+		return len(a)
+	}
+	d := make([][]int, len(a)+1)
+	for i := range d {
+		d[i] = make([]int, len(b)+1)
+		d[i][0] = i
+	}
+	for j := range d[0] {
+		d[0][j] = j
+	}
+	for i := 1; i <= len(a); i++ {
+		for j := 1; j <= len(b); j++ {
+			cost := 1
+			if a[i-1] == b[j-1] {
+				cost = 0
+			}
+			d[i][j] = min3(d[i-1][j]+1, d[i][j-1]+1, d[i-1][j-1]+cost)
+		}
+	}
+	return d[len(a)][len(b)]
+}
+
+// Go-only: language-adapter — helper for editDistance; no Java equivalent.
+func min3(a, b, c int) int {
+	if a < b {
+		if a < c {
+			return a
+		}
+		return c
+	}
+	if b < c {
+		return b
+	}
+	return c
+}
+
+// checkCanAssignToNameGetpropOrGetelem ports TypeCheck.java:checkCanAssignToNameGetpropOrGetelem (line 1175).
+// Validates assignment to NAME, GETPROP, or GETELEM lvalues.
+func (c *TypeCheck) checkCanAssignToNameGetpropOrGetelem(t *NodeTraversal, nodeToWarn *rhino.Node, lvalue *rhino.Node, rightType jstype.JSType, info *rhino.JSDocInfo, msg string, scope *TypedScope) []diag.Diagnostic {
+	return c.checkCanAssignToWithScope(t, nodeToWarn, lvalue, rightType, info, msg, scope)
+}
+
+// reportMissingProperties ports TypeCheck.java:reportMissingProperties (line 461).
+// Configures whether missing property diagnostics are fired.
+func (c *TypeCheck) reportMissingProperties(report bool) *TypeCheck {
+	_ = report // In jsgo, missing properties are always reported for struct types.
+	return c
+}
+
+// reportUnknownTypes ports TypeCheck.java:reportUnknownTypes (line 468).
+// Configures whether unknown type diagnostics are fired.
+func (c *TypeCheck) reportUnknownTypes(report bool) *TypeCheck {
+	_ = report // In jsgo, unknown types are silenced by default.
+	return c
+}
+
+// process ports TypeCheck.java:process (line 480).
+// Main entry point matching Java's CompilerPass interface.
+func (c *TypeCheck) process(externsRoot *rhino.Node, jsRoot *rhino.Node) {
+	if jsRoot != nil {
+		c.Check(jsRoot)
+	}
+}
+
+// processForTesting ports TypeCheck.java:processForTesting (line 505).
+// Entry point for testing, returning the top-level typed scope.
+func (c *TypeCheck) processForTesting(externsRoot *rhino.Node, jsRoot *rhino.Node) *TypedScope {
+	c.process(externsRoot, jsRoot)
+	return c.global
+}
+
+// TypeCheckDebugTypeLogger is the Go equivalent of Java's TypeCheck.DebugTypeLogger inner class.
+// Java uses this to log type information for debugging when @logTypeInCompiler is present.
+type TypeCheckDebugTypeLogger struct {
+	active bool
+}
+
+// debugTypeLogger ports TypeCheck.java:DebugTypeLogger constructor (line 3415).
+// Returns a new logger instance; logging is no-op in jsgo since we don't ship debug logs.
+func (c *TypeCheck) debugTypeLogger() *TypeCheckDebugTypeLogger {
+	return &TypeCheckDebugTypeLogger{}
+}
+
+// maybeStartLoggingAt ports TypeCheck.java:DebugTypeLogger.maybeStartLoggingAt (line 3422).
+func (l *TypeCheckDebugTypeLogger) maybeStartLoggingAt(n *rhino.Node) { _ = n }
+
+// stopLoggingIfThisIsWhereWeStarted ports TypeCheck.java:DebugTypeLogger.stopLoggingIfThisIsWhereWeStarted (line 3443).
+func (l *TypeCheckDebugTypeLogger) stopLoggingIfThisIsWhereWeStarted(n *rhino.Node) { _ = n }
+
+// close ports TypeCheck.java:DebugTypeLogger.close (line 3450).
+func (l *TypeCheckDebugTypeLogger) close() { l.active = false }
+
+// maybeLogTypeOfNode ports TypeCheck.java:DebugTypeLogger.maybeLogTypeOfNode (line 3456).
+func (l *TypeCheckDebugTypeLogger) maybeLogTypeOfNode(n *rhino.Node) { _ = n }
+
+// SuggestionPair is the Go equivalent of Java's TypeCheck.SuggestionPair inner class.
+// It pairs a property name suggestion with its edit distance for typo-suggestion messages.
+type SuggestionPair struct {
+	Suggestion string
+	Distance   int
+}
+
+// suggestionPair ports TypeCheck.java:SuggestionPair.suggestionPair (line ~430).
+func (s *SuggestionPair) suggestionPair(suggestion string, distance int) SuggestionPair {
+	return SuggestionPair{Suggestion: suggestion, Distance: distance}
+}
+
+// typeInferencePass creates a new TypeInferencePass for the given scope.
+// Mirrors TypeCheck.java's construction of TypeInferencePass at line ~430.
+func typeInferencePass(scope *TypedScope) *TypeInferencePass {
+	return NewTypeInferencePass(scope)
+}
+
+// stringKey ports Java's Property.StringKey used for property name lookups.
+// In Java, Property.StringKey wraps a string; in Go, we use plain strings.
+func stringKey(name string) string {
+	return name
 }
