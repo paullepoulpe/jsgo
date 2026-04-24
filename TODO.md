@@ -62,15 +62,55 @@ Concretely:
 
 ## 1. Current state
 
-**1101 / 1444 = 76.25 %** on default, **1017 / 1444 = 70.43 %** on
-`strictCheckTypes` (baseline commit `fc26e86` at the time of the
-last session refresh; TODO was re-audited at `9816618` so §2
-snapshot is captured there). Tier-0..Tier-3 hand-authored corpora
-are all at 100 %. Gap to 100 % on default: **343** fixtures across
-the buckets below; strict lags by **84** more.
+**1123 / 1444 = 77.77 %** on default, **1036 / 1444 = 71.75 %** on
+`strictCheckTypes` (baseline commit `bb95a8f`). Tier-0..Tier-3
+hand-authored corpora are all at 100 %. Gap to 100 % on default:
+**321** fixtures across the buckets in §5; strict lags by **87**
+more.
 
-Diff vs. the previous TODO snapshot: default +137 (964 → 1101),
-strict +134 (883 → 1017).
+Diff vs. the initial baseline this project started from: default
++159 (964 → 1123), strict +153 (883 → 1036).
+
+## 1.1 Priority order
+
+Ranked by divergence severity + fixture-leverage. Every entry is
+port-owed, not "nice to have". The audit in `docs/divergence-audit.md`
+drives this ordering. Sections below (§3 / §4) give the detailed
+per-file inventory; this table is the execution order.
+
+| # | Item | Owed LoC | Blocking | Why now |
+|---|------|---------:|----------|---------|
+| **P0** | **Convert `rhino.Node` children slice → intrusive linked list** | ~150 diff | everything downstream | Universal structural divergence (`Detach` O(n) vs O(1)); cascades into every visitor. Audit Priority 1. |
+| **P0** | **Port parsing pipeline Parser → ParseTree → IRFactory → rhino.Node** | ~9,500 | all future grammar work | Every grammar task so far has cost 2-4× the faithful port time. See §3.5. |
+| **P1** | **Merge Go-only TypeCheck extractions back inline** | ~2,000 refactor | 1:1 with `TypeCheck.java` | `superclasscheck.go` (1419), `checkdeterministictest.go` (598), `checkdupvardecl.go`. All are Java-inline branches that were split out "for locality". |
+| **P1** | **Remove ~15 Go-only helpers in `typecheck.go`** | ~500 delete | JSTypeRegistry + NodeUtil widens | `buildGlobalPropNameSet`, `buildExternTypeSet`, `buildLoosePropertyIndex`, `dereferencedObject`, `isKnownSurfaceBuiltin`, `checkPossibleInexistent`, `defineOnOpenObject`, `isSafeCalleeForArity`, `isSafeInstanceMethodForArity`, `isDefinitelyNonConstructor`, `insideOwnConstructor`, `isInGuardedBranch`, `containsPropTest`, `otherSideIsNullOrUndefined`, `isPropertyExistenceOrAbsenceTest`. Each papers over missing upstream surface. |
+| **P1** | **`TypeInference` — port all 41 Java `traverse*` methods** (currently 11 Go `infer*`) | ~3,000 | loop-aware narrowing, FlowScope-returning dispatch | Each Go `inferType` returns `JSType`; Java returns `FlowScope`. Our expression-level inference cannot be flow-sensitive until this is fixed. |
+| **P2** | **`NodeUtil` — port remaining ~80 methods** (40/127 done) | ~2,000 | sibling passes shed local duplicates | Horizontal gap; every pass re-implements helpers. |
+| **P2** | **Widen `TypeCheck.java` full surface** (86 Go funcs vs ~250 Java) | ~3,000 | full diagnostic surface | Missing visitors: `visitObjectPattern` full, `visitCast` full, `checkPropertyInheritanceOnAssignment`, `checkForImplicitCast`, `visitInterfacePropertyAssignment`, etc. |
+| **P2** | **Widen `TypeValidator.java` — caseFooType dispatch wired into all sites** | ~800 | TYPE_MISMATCH accuracy | `caseFunctionType/NamedType/UnionType/TemplatizedType/TemplateType` now ported; not yet consumed everywhere. |
+| **P2** | **Scope hierarchy split — `AbstractScope` / `Scope` / `TypedScope` / `TypedVar` / `Var` / `AbstractVar`** | ~2,500 refactor | `TypedScopeCreator` 1:1 | Currently collapsed into one 3000-line file. |
+| **P2** | **Inference plumbing — `ReverseAbstractInterpreter` + `Chainable*` + `Closure*`** (SemanticRAI done) | ~1,500 | full refinement dispatch | Java has a 4-layer RAI inheritance; Go has only the semantic layer. |
+| **P3** | **`CFG/DFG` widens — full `ControlFlowAnalysis`, `DataFlowAnalysis`, `ControlFlowGraph`, `BasicBlock`** | ~1,500 | loop-aware type narrowing | `dataflow.go` 146 vs 499 Java. |
+| **P3** | **`NodeTraversal` full port** | ~500 | `traverseFunctionOutOfBand`, `traverseWithScope`, ScopeCreator 2-pass | Missing entry points some passes want. |
+| **P3** | **`SymbolTable` full port** | ~1,000 | currently unused by corpus, kept minimal | Needed when symbol-table references land in fixtures. |
+| **P3** | **`JSTypeRegistry` full port** (partial done this session) | ~1,500 | removes several Go-only helpers | Native-type table + property side table now present; getters not wired through. |
+| **P4** | **Compiler driver — `AbstractCompiler`, `Compiler`, `DefaultPassConfig`, `PassConfig`, `PassFactory`, `PassListBuilder`, `PassNames`, `CompilerOptions`, `CompilerInput`** | ~3,000 | port completeness; low fixture leverage | Currently a 112-line shim. Replaces imperative `Check` path. |
+| **P4** | **Diagnostics — `JSError`, `DiagnosticType`, `DiagnosticGroup` (full), `DiagnosticGroups`, `AbstractMessageFormatter`, `CheckLevel`, `AllowlistWarningsGuard`** | ~1,500 | `--jscomp_warning=<group>` | Go emits `(path, line, col, code)` tuples; Java has full group/level machinery. |
+| **P4** | **rhino core stubs — `ClosurePrimitive`, `ErrorReporter`, `IR`, `NominalTypeBuilder`, `NonJSDocComment`, `Outcome`, `SourcePosition`, `TokenStream`, `TokenUtil`, `TypeDeclarationsIR`** | ~1,000 | consumer passes don't require them yet | 0% ported; all under `skel/rhino/`. |
+| **P4** | **rhino/jstype remaining — `EquivalenceMethod`, `RelationshipVisitor`, `SimpleReference`, `SimpleSlot`, `StaticTypedRef`, `StaticTypedScope`, `StaticTypedSlot`** | ~500 | fold into `internal/rhino/` on Scope split | Thin helper interfaces. |
+| **P5** | **Subset widens across already-ported `internal/` files** | variable | per-file — see §3 | Every file tagged "subset" in §3 has a specific missing-methods list. |
+| **P5** | **86 `parsing/parser/trees/*` class subtypes** | ~1,500 | Parser 1:1 (P0 item above enumerates this) | Covered under P0 parser pipeline port. |
+
+Total port-owed LoC estimate: **~32,000 lines** across the items
+above (not counting the P0 parser pipeline which is ~9,500 by
+itself). Current `internal/` is ~35,000 LoC; at full 1:1 Java
+parity we expect roughly double.
+
+**Execution rule.** Do not start a P-N item while a P-(N-k) item is
+unfinished unless explicitly unblocked. Parser pipeline work (P0)
+fans out to four sub-workstreams (Node linked list, tree classes,
+IRFactory, Parser/Scanner rewrite); those run in parallel once
+the skeleton generation lands.
 
 ## 2. Triage snapshot (current failing buckets on default)
 
