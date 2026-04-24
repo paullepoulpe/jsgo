@@ -11,6 +11,7 @@ type CallExpressionTree struct {
 }
 
 // NewCallExpressionTree constructs a CallExpressionTree.
+// Go-only: language-adapter
 func NewCallExpressionTree(location SourceRange, operand *ParseTree, arguments *ArgumentListTree) *CallExpressionTree {
 	return &CallExpressionTree{
 		ParseTree: ParseTree{Type: ParseTreeTypeCallExpression, Location: location},

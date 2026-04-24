@@ -11,6 +11,7 @@ type DefaultParameterTree struct {
 }
 
 // NewDefaultParameterTree constructs a DefaultParameterTree.
+// Go-only: language-adapter
 func NewDefaultParameterTree(location SourceRange, lhs *ParseTree, defaultValue *ParseTree) *DefaultParameterTree {
 	return &DefaultParameterTree{
 		ParseTree:    ParseTree{Type: ParseTreeTypeDefaultParameter, Location: location},

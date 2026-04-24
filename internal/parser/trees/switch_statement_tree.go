@@ -9,6 +9,7 @@ type SwitchStatementTree struct {
 	CaseClauses []*ParseTree
 }
 
+// Go-only: language-adapter
 func NewSwitchStatementTree(location SourceRange, expression *ParseTree, caseClauses []*ParseTree) *SwitchStatementTree {
 	return &SwitchStatementTree{
 		ParseTree:   ParseTree{Type: ParseTreeTypeSwitchStatement, Location: location},

@@ -10,6 +10,7 @@ type ParenExpressionTree struct {
 }
 
 // NewParenExpressionTree constructs a ParenExpressionTree.
+// Go-only: language-adapter
 func NewParenExpressionTree(location SourceRange, expression *ParseTree) *ParenExpressionTree {
 	return &ParenExpressionTree{
 		ParseTree:  ParseTree{Type: ParseTreeTypeParenExpression, Location: location},

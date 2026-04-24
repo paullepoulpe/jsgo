@@ -9,6 +9,7 @@ type ImportSpecifierTree struct {
 	DestinationName *IdentifierToken
 }
 
+// Go-only: language-adapter
 func NewImportSpecifierTree(location SourceRange, importedName *IdentifierToken, destinationName *IdentifierToken) *ImportSpecifierTree {
 	return &ImportSpecifierTree{
 		ParseTree:       ParseTree{Type: ParseTreeTypeImportSpecifier, Location: location},

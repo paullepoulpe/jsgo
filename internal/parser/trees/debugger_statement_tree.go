@@ -7,6 +7,7 @@ type DebuggerStatementTree struct {
 	ParseTree
 }
 
+// Go-only: language-adapter
 func NewDebuggerStatementTree(location SourceRange) *DebuggerStatementTree {
 	return &DebuggerStatementTree{
 		ParseTree: ParseTree{Type: ParseTreeTypeDebuggerStatement, Location: location},

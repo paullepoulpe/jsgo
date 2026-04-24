@@ -12,6 +12,7 @@ type AwaitExpressionTree struct {
 }
 
 // NewAwaitExpressionTree constructs an AwaitExpressionTree.
+// Go-only: language-adapter
 func NewAwaitExpressionTree(location SourceRange, expression *ParseTree) *AwaitExpressionTree {
 	return &AwaitExpressionTree{
 		ParseTree:  ParseTree{Type: ParseTreeTypeAwaitExpression, Location: location},

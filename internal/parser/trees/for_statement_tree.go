@@ -11,6 +11,7 @@ type ForStatementTree struct {
 	Body        *ParseTree
 }
 
+// Go-only: language-adapter
 func NewForStatementTree(location SourceRange, variables *ParseTree, condition *ParseTree, increment *ParseTree, body *ParseTree) *ForStatementTree {
 	return &ForStatementTree{
 		ParseTree:   ParseTree{Type: ParseTreeTypeForStatement, Location: location},

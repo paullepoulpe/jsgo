@@ -11,6 +11,7 @@ type UnaryExpressionTree struct {
 }
 
 // NewUnaryExpressionTree constructs a UnaryExpressionTree.
+// Go-only: language-adapter
 func NewUnaryExpressionTree(location SourceRange, operator *Token, operand *ParseTree) *UnaryExpressionTree {
 	return &UnaryExpressionTree{
 		ParseTree: ParseTree{Type: ParseTreeTypeUnaryExpression, Location: location},

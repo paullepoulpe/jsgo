@@ -20,6 +20,7 @@ type ComprehensionTree struct {
 }
 
 // NewComprehensionTree constructs a ComprehensionTree.
+// Go-only: language-adapter
 func NewComprehensionTree(location SourceRange, comprehensionType ComprehensionType, children []*ParseTree, tailExpression *ParseTree) *ComprehensionTree {
 	return &ComprehensionTree{
 		ParseTree:         ParseTree{Type: ParseTreeTypeComprehension, Location: location},

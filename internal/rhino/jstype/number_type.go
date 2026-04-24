@@ -6,7 +6,10 @@ package jstype
 // All, and Unknown.
 type numberType struct{}
 
+// Go-only: language-adapter
 func (numberType) TypeName() string { return "number" }
+
+// Go-only: language-adapter
 func (numberType) IsSubtypeOf(o JSType) bool {
 	if _, ok := o.(numberType); ok {
 		return true

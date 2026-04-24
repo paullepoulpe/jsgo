@@ -9,6 +9,7 @@ type ImportMetaExpressionTree struct {
 }
 
 // NewImportMetaExpressionTree constructs an ImportMetaExpressionTree.
+// Go-only: language-adapter
 func NewImportMetaExpressionTree(location SourceRange) *ImportMetaExpressionTree {
 	return &ImportMetaExpressionTree{
 		ParseTree: ParseTree{Type: ParseTreeTypeImportMetaExpression, Location: location},

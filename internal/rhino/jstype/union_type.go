@@ -22,6 +22,7 @@ type UnionType struct {
 // combine TypeName with pointer identity so two anonymous structural
 // records (both TypeName "{...}") stay distinct. Mirrors
 // JSTypeRegistry.createUnionType interning semantics.
+// Go-only: language-adapter
 func NewUnion(members ...JSType) JSType {
 	type key struct {
 		name string
@@ -71,8 +72,14 @@ func NewUnion(members ...JSType) JSType {
 	return &UnionType{members: out}
 }
 
+// Go-only: language-adapter
 func (u *UnionType) Members() []JSType { return u.members }
 
+// GetAlternates returns the slice of member types in this union.
+// Mirrors UnionType.getAlternates() in Java.
+func (u *UnionType) GetAlternates() []JSType { return u.members }
+
+// Go-only: language-adapter
 func (u *UnionType) TypeName() string {
 	names := make([]string, len(u.members))
 	for i, m := range u.members {
@@ -124,6 +131,7 @@ func (u *UnionType) RestrictByNotNullOrUndefined() JSType {
 //
 // Returns NoType when the intersection is empty unless both sides are
 // object types, in which case NoObjectType is returned instead.
+// Go-only: language-adapter
 func UnionGetGreatestSubtype(union *UnionType, that JSType) JSType {
 	b := NewUnionTypeBuilder()
 
@@ -163,6 +171,7 @@ func UnionGetGreatestSubtype(union *UnionType, that JSType) JSType {
 // MeetWith returns the lattice meet (greatest common subtype) of this
 // union and another type. Mirrors JSType.meetWith / the RelationshipVisitor
 // dispatch that ultimately calls UnionType.getGreatestSubtype in Java.
+// Go-only: language-adapter
 func (u *UnionType) MeetWith(that JSType) JSType {
 	return UnionGetGreatestSubtype(u, that)
 }

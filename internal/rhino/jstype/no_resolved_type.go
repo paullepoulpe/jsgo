@@ -31,6 +31,7 @@ type NoResolvedType struct {
 
 // NewNoResolvedType allocates a fresh NoResolvedType. templateTypes may
 // be nil. Mirrors the package-private constructor in Java.
+// Go-only: language-adapter
 func NewNoResolvedType(referenceName string, templateTypes []JSType) *NoResolvedType {
 	return &NoResolvedType{
 		ReferenceName: referenceName,
@@ -41,6 +42,7 @@ func NewNoResolvedType(referenceName string, templateTypes []JSType) *NoResolved
 // TypeName returns the internal string representation. Java's appendTo
 // emits "?" for annotation contexts and "NoResolvedType<name>" otherwise;
 // we use the non-annotation form for diagnostics.
+// Go-only: language-adapter
 func (n *NoResolvedType) TypeName() string {
 	return "NoResolvedType<" + n.ReferenceName + ">"
 }
@@ -54,4 +56,5 @@ func (n *NoResolvedType) IsNoResolvedType() bool { return true }
 // the top object type and therefore assignment-compatible everywhere an
 // object is accepted. Being conservative (accepting all targets) avoids
 // false positives when dependencies are absent.
+// Go-only: language-adapter
 func (n *NoResolvedType) IsSubtypeOf(other JSType) bool { return true }

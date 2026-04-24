@@ -9,6 +9,7 @@ type WhileStatementTree struct {
 	Body      *ParseTree
 }
 
+// Go-only: language-adapter
 func NewWhileStatementTree(location SourceRange, condition *ParseTree, body *ParseTree) *WhileStatementTree {
 	return &WhileStatementTree{
 		ParseTree: ParseTree{Type: ParseTreeTypeWhileStatement, Location: location},

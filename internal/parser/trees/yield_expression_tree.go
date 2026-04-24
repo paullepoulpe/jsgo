@@ -12,6 +12,7 @@ type YieldExpressionTree struct {
 }
 
 // NewYieldExpressionTree constructs a YieldExpressionTree.
+// Go-only: language-adapter
 func NewYieldExpressionTree(location SourceRange, isYieldAll bool, expression *ParseTree) *YieldExpressionTree {
 	return &YieldExpressionTree{
 		ParseTree:  ParseTree{Type: ParseTreeTypeYieldExpression, Location: location},

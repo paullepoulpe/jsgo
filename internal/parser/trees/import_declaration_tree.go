@@ -17,6 +17,7 @@ type ImportDeclarationTree struct {
 	ModuleSpecifier *LiteralToken
 }
 
+// Go-only: language-adapter
 func NewImportDeclarationTree(location SourceRange, defaultBindingIdentifier *IdentifierToken, importSpecifierList []*ParseTree, nameSpaceImportIdentifier *IdentifierToken, moduleSpecifier *LiteralToken) *ImportDeclarationTree {
 	return &ImportDeclarationTree{
 		ParseTree:                 ParseTree{Type: ParseTreeTypeImportDeclaration, Location: location},

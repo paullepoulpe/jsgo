@@ -13,6 +13,7 @@ type ComputedPropertyGetterTree struct {
 }
 
 // NewComputedPropertyGetterTree constructs a ComputedPropertyGetterTree.
+// Go-only: language-adapter
 func NewComputedPropertyGetterTree(location SourceRange, property *ParseTree, isStatic bool, body *BlockTree) *ComputedPropertyGetterTree {
 	return &ComputedPropertyGetterTree{
 		ParseTree: ParseTree{Type: ParseTreeTypeComputedPropertyGetter, Location: location},

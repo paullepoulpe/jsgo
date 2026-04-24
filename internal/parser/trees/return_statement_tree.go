@@ -8,6 +8,7 @@ type ReturnStatementTree struct {
 	Expression *ParseTree
 }
 
+// Go-only: language-adapter
 func NewReturnStatementTree(location SourceRange, expression *ParseTree) *ReturnStatementTree {
 	return &ReturnStatementTree{
 		ParseTree:  ParseTree{Type: ParseTreeTypeReturnStatement, Location: location},

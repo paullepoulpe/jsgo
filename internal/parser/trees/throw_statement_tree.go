@@ -8,6 +8,7 @@ type ThrowStatementTree struct {
 	Value *ParseTree
 }
 
+// Go-only: language-adapter
 func NewThrowStatementTree(location SourceRange, value *ParseTree) *ThrowStatementTree {
 	return &ThrowStatementTree{
 		ParseTree: ParseTree{Type: ParseTreeTypeThrowStatement, Location: location},

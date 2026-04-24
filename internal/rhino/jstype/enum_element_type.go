@@ -24,6 +24,7 @@ type EnumElementType struct {
 
 // TypeName mirrors JSType.getDisplayName() for EnumElementType: renders
 // as `Name<Underlying>` (e.g. `MyEnum<number>`).
+// Go-only: language-adapter
 func (e *EnumElementType) TypeName() string {
 	return e.Enum.Name + "<" + e.Enum.Underlying.TypeName() + ">"
 }
@@ -34,6 +35,7 @@ func (e *EnumElementType) TypeName() string {
 // subtype of an arbitrary primitive — `E<number>` doesn't match
 // `string` and vice-versa.
 // Mirrors EnumElementType.isSubtype in Java.
+// Go-only: language-adapter
 func (e *EnumElementType) IsSubtypeOf(other JSType) bool {
 	if other == nil {
 		return true

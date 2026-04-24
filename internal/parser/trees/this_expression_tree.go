@@ -9,6 +9,7 @@ type ThisExpressionTree struct {
 }
 
 // NewThisExpressionTree constructs a ThisExpressionTree.
+// Go-only: language-adapter
 func NewThisExpressionTree(location SourceRange) *ThisExpressionTree {
 	return &ThisExpressionTree{
 		ParseTree: ParseTree{Type: ParseTreeTypeThisExpression, Location: location},

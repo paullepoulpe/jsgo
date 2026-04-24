@@ -9,6 +9,7 @@ type CaseClauseTree struct {
 	Statements []*ParseTree
 }
 
+// Go-only: language-adapter
 func NewCaseClauseTree(location SourceRange, expression *ParseTree, statements []*ParseTree) *CaseClauseTree {
 	return &CaseClauseTree{
 		ParseTree:  ParseTree{Type: ParseTreeTypeCaseClause, Location: location},

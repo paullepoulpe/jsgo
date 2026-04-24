@@ -12,6 +12,7 @@ type ObjectLiteralExpressionTree struct {
 }
 
 // NewObjectLiteralExpressionTree constructs an ObjectLiteralExpressionTree.
+// Go-only: language-adapter
 func NewObjectLiteralExpressionTree(location SourceRange, propertyNameAndValues []*ParseTree, hasTrailingComma bool) *ObjectLiteralExpressionTree {
 	return &ObjectLiteralExpressionTree{
 		ParseTree:             ParseTree{Type: ParseTreeTypeObjectLiteralExpression, Location: location},
