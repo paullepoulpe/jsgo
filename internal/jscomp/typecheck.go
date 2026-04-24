@@ -4807,6 +4807,7 @@ func (c *TypeCheck) walkSuperclassCheck(n *rhino.Node) {
 		c.checkExtendsNonObject(n)
 		c.checkStructDictRequireConstructor(n)
 		c.checkFunctionDictExtendsStruct(n)
+		c.checkExtendsWithoutTypedef(n)
 	case rhino.VAR, rhino.LET, rhino.CONST:
 		c.checkDeclaredConstructorImplements(n)
 	case rhino.EXPR_RESULT:
@@ -4920,6 +4921,32 @@ func (c *TypeCheck) checkStructDictRequireConstructor(fn *rhino.Node) {
 		Path: c.path, Line: fn.Lineno(), Col: fn.Charno(),
 		Code: diag.JSC_CONSTRUCTOR_REQUIRED, Level: diag.Error,
 		Message: fmt.Sprintf("%s used without @constructor for %s", tag, name),
+	})
+}
+
+// checkExtendsWithoutTypedef ports FunctionTypeBuilder.java:469 — fires
+// JSC_EXTENDS_WITHOUT_TYPEDEF when a FUNCTION node carries @extends but
+// is neither @constructor nor @interface.
+func (c *TypeCheck) checkExtendsWithoutTypedef(fn *rhino.Node) {
+	info := fn.JSDocInfo()
+	if info == nil {
+		return
+	}
+	if info.IsConstructor() || info.IsInterface() || info.IsRecord() {
+		return
+	}
+	if info.BaseType() == nil {
+		return
+	}
+	kids := fn.Children()
+	name := ""
+	if len(kids) >= 1 {
+		name = kids[0].String_()
+	}
+	c.diags = append(c.diags, diag.Diagnostic{
+		Path: c.path, Line: fn.Lineno(), Col: fn.Charno(),
+		Code: diag.JSC_EXTENDS_WITHOUT_TYPEDEF, Level: diag.Error,
+		Message: fmt.Sprintf("@extends used without @constructor or @interface for %s", name),
 	})
 }
 
