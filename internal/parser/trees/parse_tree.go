@@ -55,3 +55,11 @@ type ParseTree struct {
 func NewParseTree(typ ParseTreeType, location SourceRange) *ParseTree {
 	return &ParseTree{Type: typ, Location: location}
 }
+
+// LiteralToken is a stub placeholder for the full Java LiteralToken class.
+// The scanner emits Token instances carrying literal values; once the
+// parser layer is migrated to consume internal/parser's token stream, this
+// alias will be replaced by a direct reference to parser.Token.
+type LiteralToken struct {
+	Token
+}
