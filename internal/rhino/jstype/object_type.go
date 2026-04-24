@@ -49,6 +49,13 @@ type ObjectType struct {
 	// property T declares with a compatible type — no nominal check.
 	IsStructural bool
 
+	// IsInterface is true for `@interface` types (not `@record`). Interface
+	// types are open-ended: accessing an undeclared property on an interface
+	// variable does NOT fire JSC_INEXISTENT_PROPERTY (only
+	// STRICT_INEXISTENT_PROPERTY, which is off by default). @record types
+	// are structural but closed — missing properties do fire.
+	IsInterface bool
+
 	// IsStruct / IsDict mirror ObjectType.isStruct() / isDict() in Java —
 	// flags set from `@struct` / `@dict` on the constructor JSDoc.
 	// A @struct instance forbids `x['k']` computed access; a @dict

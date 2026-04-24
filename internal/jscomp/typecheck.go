@@ -1640,10 +1640,11 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 			return nil
 		}
 	}
-	// Structural (@record) types are open surfaces: Java routes writes to
-	// unknown properties as LOOSE (STRICT_INEXISTENT_PROPERTY only), which
-	// is silenced in default mode. Skip writes on structural non-struct types.
-	if obj.IsStructural && !obj.IsStruct && isAssignLHS(n) {
+	// @interface types are open surfaces in default mode: Java routes
+	// unknown-property accesses on them as LOOSE (STRICT_INEXISTENT_PROPERTY
+	// only), which is silenced in default mode. Skip reads and writes on
+	// @interface types. @record types ARE closed — missing properties fire.
+	if obj.IsStructural && !obj.IsStruct && obj.IsInterface {
 		return nil
 	}
 	msg := fmt.Sprintf("Property %s never defined on %s", propName, obj.TypeName())
