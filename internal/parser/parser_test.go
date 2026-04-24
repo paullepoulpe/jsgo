@@ -730,8 +730,13 @@ func TestOptChainChain(t *testing.T) {
 // ---- Phase 2: tagged template, free-call checks -----------------------------
 
 func TestTaggedTemplateFreeCall1(t *testing.T) {
-	// Java: isFreeCall() — Go parser does not set FREE_CALL prop on TAGGED_TEMPLATELIT.
-	t.Skip("port gap: FREE_CALL prop not set on TAGGED_TEMPLATELIT by Go parser")
+	// Java: a`b` → TAGGED_TEMPLATELIT should have FREE_CALL set (callee is NAME, not GETPROP).
+	script := mustParseNoErr(t, "a`b`;")
+	assertHasToken(t, script, rhino.SCRIPT)
+	firstExpr := firstChild(script)
+	call := firstChild(firstExpr)
+	assertHasToken(t, call, rhino.TAGGED_TEMPLATELIT)
+	assertIsFreeCall(t, call)
 }
 
 func TestTaggedTemplateFreeCall2(t *testing.T) {
@@ -745,8 +750,13 @@ func TestTaggedTemplateFreeCall2(t *testing.T) {
 }
 
 func TestOptionalFreeCall1(t *testing.T) {
-	// Java: isFreeCall() — Go parser does not set FREE_CALL on OPTCHAIN_CALL.
-	t.Skip("port gap: FREE_CALL prop not set on OPTCHAIN_CALL by Go parser")
+	// Java: a?.() → OPTCHAIN_CALL should have FREE_CALL set (callee is NAME, not GETPROP).
+	script := mustParseNoErr(t, "a?.();")
+	assertHasToken(t, script, rhino.SCRIPT)
+	firstExpr := firstChild(script)
+	call := firstChild(firstExpr)
+	assertHasToken(t, call, rhino.OPTCHAIN_CALL)
+	assertIsFreeCall(t, call)
 }
 
 func TestOptChainFreeCall(t *testing.T) {

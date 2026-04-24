@@ -1536,6 +1536,7 @@ func (p *Parser) tryCallOrAssignStatement() (*rhino.Node, bool) {
 				continue
 			}
 		}
+		setFreeCallIfNeeded(call)
 		p.scanner.SkipTrivia()
 		// Call-as-statement must end with `;` (or `}` / EOF). If we
 		// see a postfix continuation — `.prop` / `(args)` / `[i]` —
@@ -1938,6 +1939,7 @@ func (p *Parser) parseUpdateExpression() (*rhino.Node, bool) {
 				call.SetIsOptionalChainStart(isStart)
 				call.AddChildToBack(expr)
 				p.parseArguments(call)
+				setFreeCallIfNeeded(call)
 				expr = call
 			case c2 == '[':
 				p.scanner.Advance(); p.scanner.SkipTrivia()
@@ -1990,6 +1992,7 @@ func (p *Parser) parseUpdateExpression() (*rhino.Node, bool) {
 				call.SetIsOptionalChainStart(false)
 				call.AddChildToBack(expr)
 				p.parseArguments(call)
+				setFreeCallIfNeeded(call)
 				expr = call
 			case '[':
 				p.scanner.Advance(); p.scanner.SkipTrivia()
@@ -2052,6 +2055,7 @@ func (p *Parser) parseUpdateExpression() (*rhino.Node, bool) {
 			call.SetPos(expr.Lineno(), expr.Charno())
 			call.AddChildToBack(expr)
 			p.parseArguments(call)
+			setFreeCallIfNeeded(call)
 			expr = call
 			continue
 		}
@@ -2071,6 +2075,7 @@ func (p *Parser) parseUpdateExpression() (*rhino.Node, bool) {
 			tagged.SetPos(expr.Lineno(), expr.Charno())
 			tagged.AddChildToBack(expr)
 			tagged.AddChildToBack(tmpl)
+			setFreeCallIfNeeded(tagged)
 			expr = tagged
 			continue
 		}
@@ -2353,6 +2358,8 @@ func (p *Parser) tryParen() (*rhino.Node, bool) {
 	if inner.Lineno() == 0 && inner.Charno() == 0 {
 		inner.SetPos(openLine, openCol)
 	}
+	// Java IRFactory.processParenthesizedExpression sets isParenthesized.
+	inner.SetIsParenthesized(true)
 	return inner, true
 }
 
@@ -2393,6 +2400,37 @@ func (p *Parser) parseArrayLiteral() (*rhino.Node, bool) {
 		if p.scanner.ConsumeByte(',') {
 			continue
 		}
+	}
+}
+
+// isNormalOrOptChainGet mirrors Java's IRFactory.isNormalOrOptChainGet — true
+// when n is a GETPROP, GETELEM, OPTCHAIN_GETPROP, or OPTCHAIN_GETELEM node.
+// Used to decide whether a call node should have FREE_CALL set.
+func isNormalOrOptChainGet(n *rhino.Node) bool {
+	switch n.Token() {
+	case rhino.GETPROP, rhino.GETELEM, rhino.OPTCHAIN_GETPROP, rhino.OPTCHAIN_GETELEM:
+		return true
+	}
+	return false
+}
+
+// setFreeCallIfNeeded mirrors Java's IRFactory visitor logic: if the first
+// child of a CALL / OPTCHAIN_CALL / TAGGED_TEMPLATELIT is not a GET-style
+// callee, mark the call as a free call (no implicit `this`).
+func setFreeCallIfNeeded(call *rhino.Node) {
+	callee := call.FirstChild()
+	if callee == nil {
+		return
+	}
+	// Skip past CAST wrappers, matching Java's comment about cast nodes.
+	for callee != nil && callee.Token() == rhino.CAST {
+		callee = callee.FirstChild()
+	}
+	if callee == nil {
+		return
+	}
+	if !isNormalOrOptChainGet(callee) {
+		call.SetFreeCall(true)
 	}
 }
 

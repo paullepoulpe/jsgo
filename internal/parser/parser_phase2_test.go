@@ -78,15 +78,26 @@ func TestInlineJSDocAttachmentToVar(t *testing.T) {
 // ---- Parenthesized nodes ----------------------------------------------------
 
 func TestNodeInsideParens_simpleString(t *testing.T) {
-	// Java: str.getIsParenthesized() == true
-	// Port gap: Go parser does not set PropIsParenthesized on expression nodes.
-	t.Skip("port gap: IsParenthesized prop not set by Go parser")
+	// Java: str node inside parens should have isParenthesized() == true.
+	script := mustParseNoErr(t, "('str');")
+	assertHasToken(t, script, rhino.SCRIPT)
+	exprResult := firstChild(script)
+	str := firstChild(exprResult)
+	if !str.IsParenthesized() {
+		t.Errorf("expected node inside parens to have IsParenthesized() == true, got false")
+	}
 }
 
 func TestNodesInsideParens(t *testing.T) {
-	// Java: checks IsParenthesized on nested AND nodes.
-	// Port gap: Go parser does not set PropIsParenthesized.
-	t.Skip("port gap: IsParenthesized prop not set by Go parser")
+	// Java: AND node inside parens should have isParenthesized() == true.
+	script := mustParseNoErr(t, "(a && b);")
+	assertHasToken(t, script, rhino.SCRIPT)
+	exprResult := firstChild(script)
+	and := firstChild(exprResult)
+	assertHasToken(t, and, rhino.AND)
+	if !and.IsParenthesized() {
+		t.Errorf("expected AND node inside parens to have IsParenthesized() == true, got false")
+	}
 }
 
 // ---- Non-JSDoc comment attachment (isIdeMode) — all skip -------------------
