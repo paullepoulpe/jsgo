@@ -56,6 +56,7 @@ func (c *CheckJSDoc) visit(n *rhino.Node) {
 	c.validateTypeAnnotations(n, info)
 	c.validateFunctionJsDoc(n, info)
 	c.validateMsgJsDoc(n, info)
+	c.validateNoCollapse(n, info)
 	c.validateClassLevelJsDoc(n, info)
 	c.validateArrowFunction(n)
 	// validateRestParameter: TODO — REST token absent from Go AST.
@@ -66,12 +67,12 @@ func (c *CheckJSDoc) visit(n *rhino.Node) {
 	c.validateAbstractJsDoc(n, info)
 	c.validateDefinesDeclaration(n, info)
 	c.validateSuppress(n, info)
-	// validateImplicitCast: TODO — @implicitCast not in Go JSDocInfo.
-	// validateClosurePrimitive: TODO — @closurePrimitive not in Go JSDocInfo.
+	c.validateImplicitCast(n, info)
+	c.validateClosurePrimitive(n, info)
 	c.validateReturnJsDoc(n, info)
-	// validateTsType: TODO — @tsType not in Go JSDocInfo.
+	// validateTsType: TODO — @tsType not in Go JSDocInfo (TsTypes() absent).
 	// validateJsDocTypeNames: handled by CheckJsDocTypes.
-	// validateIsUsedViaDotConstructor: TODO — @usedViaDotConstructor not in Go JSDocInfo.
+	c.validateIsUsedViaDotConstructor(n, info)
 }
 
 // ---------------------------------------------------------------------------
@@ -402,25 +403,30 @@ func (c *CheckJSDoc) validateArrowFunction(n *rhino.Node) {
 // validateNoSideEffects
 // Mirrors CheckJSDoc.validateNoSideEffects.
 // Fires JSC_INVALID_MODIFIES_ANNOTATION when @modifies appears outside externs.
-// Go JSDocInfo doesn't yet have hasSideEffectsArgumentsAnnotation /
-// modifiesThis — this is a TODO stub.
 // ---------------------------------------------------------------------------
-func (c *CheckJSDoc) validateNoSideEffects(_ *rhino.Node, _ *rhino.JSDocInfo) {
-	// TODO: port when @modifies / @nosideeffects are added to rhino.JSDocInfo.
-	// Fire JSC_INVALID_MODIFIES_ANNOTATION when not inExterns.
+func (c *CheckJSDoc) validateNoSideEffects(n *rhino.Node, info *rhino.JSDocInfo) {
+	if info == nil {
+		return
+	}
+	if c.inExterns {
+		return
+	}
+	if info.HasSideEffectsArgumentsAnnotation() || info.ModifiesThis() {
+		c.report(n, diag.JSC_INVALID_MODIFIES_ANNOTATION, diag.Error,
+			"@modifies may only appear in externs files.")
+	}
 }
 
 // ---------------------------------------------------------------------------
 // validateDefinesDeclaration
 // Mirrors CheckJSDoc.validateDefinesDeclaration.
 // Fires JSC_INVALID_DEFINE_ON_LET when @define appears on a let declaration.
-// Go JSDocInfo doesn't yet have isDefine() — this is a TODO stub.
 // ---------------------------------------------------------------------------
-func (c *CheckJSDoc) validateDefinesDeclaration(_ *rhino.Node, _ *rhino.JSDocInfo) {
-	// TODO: port when @define is added to rhino.JSDocInfo.
-	// if info != nil && info.IsDefine() && n.Token() == rhino.LET {
-	//     c.report(n, diag.JSC_INVALID_DEFINE_ON_LET, diag.Error, ...)
-	// }
+func (c *CheckJSDoc) validateDefinesDeclaration(n *rhino.Node, info *rhino.JSDocInfo) {
+	if info != nil && info.IsDefine() && n.Token() == rhino.LET {
+		c.report(n, diag.JSC_INVALID_DEFINE_ON_LET, diag.Error,
+			"variables annotated with @define may only be declared with VARs, ASSIGNs, or CONSTs")
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -462,6 +468,93 @@ func cjdContainsDeclaration(info *rhino.JSDocInfo) bool {
 		return true
 	}
 	return false
+}
+
+// ---------------------------------------------------------------------------
+// validateImplicitCast
+// Mirrors CheckJSDoc.validateImplicitCast.
+// Fires JSC_ILLEGAL_IMPLICIT_CAST when @implicitCast appears outside externs.
+// ---------------------------------------------------------------------------
+func (c *CheckJSDoc) validateImplicitCast(n *rhino.Node, info *rhino.JSDocInfo) {
+	if !c.inExterns && info != nil && info.IsImplicitCast() {
+		c.report(n, diag.JSC_ILLEGAL_IMPLICIT_CAST, diag.Error,
+			"Illegal annotation on {0}. @implicitCast may only be used in externs.")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// validateClosurePrimitive
+// Mirrors CheckJSDoc.validateClosurePrimitive.
+// Fires MISPLACED_ANNOTATION when @closurePrimitive is not on a function node.
+// ---------------------------------------------------------------------------
+func (c *CheckJSDoc) validateClosurePrimitive(n *rhino.Node, info *rhino.JSDocInfo) {
+	if info == nil || !info.HasClosurePrimitiveId() {
+		return
+	}
+	if !cjdIsJSDocOnFunctionNode(n, info) {
+		c.reportMisplaced(n, "closurePrimitive", "must be on a function node")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// validateNoCollapse
+// Mirrors CheckJSDoc.validateNoCollapse.
+// Fires MISPLACED_ANNOTATION when @nocollapse is in an invalid position:
+//   - In externs (no effect there).
+//   - On prototype properties or non-static class fields.
+//   - On an assignment whose LHS root is not a NAME.
+// ---------------------------------------------------------------------------
+func (c *CheckJSDoc) validateNoCollapse(n *rhino.Node, info *rhino.JSDocInfo) {
+	if info == nil || !info.IsNoCollapse() {
+		return
+	}
+	if c.inExterns {
+		c.reportMisplaced(n, "nocollapse", "This JSDoc has no effect in externs.")
+		return
+	}
+	// isPrototypePropertyDeclaration: parent of n is a prototype property.
+	p := n.Parent()
+	if p != nil && cjdIsPrototypeProperty(p) {
+		c.reportMisplaced(n, "nocollapse",
+			"This JSDoc has no effect on prototype properties and non-static fields.")
+		return
+	}
+	// Non-static class field: parent is CLASS_MEMBERS block and n is non-static.
+	if p != nil && p.Token() == rhino.BLOCK {
+		gp := p.Parent()
+		if gp != nil && gp.Token() == rhino.CLASS {
+			if !n.GetBooleanProp(rhino.PropStaticMember) {
+				c.reportMisplaced(n, "nocollapse",
+					"This JSDoc has no effect on prototype properties and non-static fields.")
+				return
+			}
+		}
+	}
+	if n.Token() == rhino.ASSIGN {
+		assignee := n.FirstChild()
+		if assignee != nil && cjdIsQualifiedName(assignee) {
+			root := cjdGetRootOfQualifiedName(assignee)
+			if root != nil && root.Token() != rhino.NAME {
+				c.reportMisplaced(n, "nocollapse", "This JSDoc has no effect.")
+			}
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// validateIsUsedViaDotConstructor
+// Mirrors CheckJSDoc.validateIsUsedViaDotConstructor.
+// Fires MISPLACED_ANNOTATION when @usedViaDotConstructor is not on a
+// constructor FUNCTION or ES6 constructor member.
+// ---------------------------------------------------------------------------
+func (c *CheckJSDoc) validateIsUsedViaDotConstructor(n *rhino.Node, info *rhino.JSDocInfo) {
+	if info == nil || !info.IsUsedViaDotConstructor() {
+		return
+	}
+	if n.Token() == rhino.FUNCTION && info.IsConstructor() {
+		return
+	}
+	c.reportMisplaced(n, "usedViaDotConstructor", "must be on a constructor")
 }
 
 // ---------------------------------------------------------------------------

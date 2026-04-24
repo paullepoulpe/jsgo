@@ -717,6 +717,15 @@ func (i *JSDocInfo) IsNoCollapse() bool { return i.CheckBit(BitNoCollapse) }
 // IsNoInline mirrors JSDocInfo.isNoInline().
 func (i *JSDocInfo) IsNoInline() bool { return i.CheckBit(BitNoInline) }
 
+// IsImplicitCast mirrors JSDocInfo.isImplicitCast().
+func (i *JSDocInfo) IsImplicitCast() bool { return i.CheckBit(BitImplicitCast) }
+
+// IsDefine mirrors JSDocInfo.isDefine().
+func (i *JSDocInfo) IsDefine() bool { return i.CheckBit(BitDefine) }
+
+// IsUsedViaDotConstructor mirrors JSDocInfo.isUsedViaDotConstructor().
+func (i *JSDocInfo) IsUsedViaDotConstructor() bool { return i.CheckBit(BitUsedViaDotCtor) }
+
 // --- @idGenerator accessors ---
 
 // IsAnyIdGenerator mirrors JSDocInfo.isAnyIdGenerator().

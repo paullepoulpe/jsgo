@@ -291,6 +291,45 @@ func (p *JsDocInfoParser) parseAnnotation(_ JsDocToken) JsDocToken {
 		// No `{T}` present — t is the first non-EOL token (already consumed).
 		// Return it directly so the outer loop re-dispatches it.
 		return t
+	case "implicitcast":
+		// Mirrors Java's IMPLICIT_CAST case: recordImplicitCast().
+		p.info.SetBit(rhino.BitImplicitCast, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "define":
+		// Mirrors Java's DEFINE case: recordDefineType() with optional {T}.
+		p.info.SetBit(rhino.BitDefine, true)
+		p.anyRecorded = true
+		p.skipEOLs()
+		t := p.next()
+		if expr, next, ok := p.parseTypeExpressionAnnotation(t); ok {
+			p.info.SetType(rhino.NewJSTypeExpression(expr))
+			return next
+		}
+		return t
+	case "nocollapse":
+		// Mirrors Java's NO_COLLAPSE case: recordNoCollapse().
+		p.info.SetBit(rhino.BitNoCollapse, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "closureprimitive":
+		// Mirrors Java's CLOSURE_PRIMITIVE case: recordClosurePrimitiveId(id).
+		p.skipEOLs()
+		t := p.next()
+		if t == JsDocTokenLeftCurly {
+			t = p.next()
+			if t == JsDocTokenString {
+				p.info.SetClosurePrimitiveId(p.stream.String_())
+				p.anyRecorded = true
+				p.next() // consume closing '}'
+			}
+		}
+		return p.eatUntilEOLIfNotAnnotation()
+	case "usedviadotconstructor":
+		// Mirrors Java's USED_VIA_DOT_CONSTRUCTOR case.
+		p.info.SetBit(rhino.BitUsedViaDotCtor, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
 	}
 	return p.eatUntilEOLIfNotAnnotation()
 }
