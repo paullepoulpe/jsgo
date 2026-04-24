@@ -223,20 +223,43 @@ func (p *JsDocInfoParser) parseAnnotation(_ JsDocToken) JsDocToken {
 		p.anyRecorded = true
 		return p.eatUntilEOLIfNotAnnotation()
 	case "private":
-		// Mirrors Java's PRIVATE case: record visibility; optional type
-		// argument on the same tag is ignored at this layer (parse-and-store
-		// only — no inline-type side-channel needed for Tier-0..3).
+		// Mirrors Java's PRIVATE case: record visibility; if a `{T}` type
+		// annotation follows, also record it as the declared type
+		// (isAlternateTypeAnnotation → recordType(type) in Java).
+		// `@private {number} var x = false` → x has declared type number.
 		p.info.RecordVisibility(rhino.VisibilityPrivate)
 		p.anyRecorded = true
-		return p.eatUntilEOLIfNotAnnotation()
+		p.skipEOLs()
+		t := p.next()
+		if expr, next, ok := p.parseTypeExpressionAnnotation(t); ok {
+			p.info.SetType(rhino.NewJSTypeExpression(expr))
+			return next
+		}
+		return t
 	case "protected":
+		// Mirrors Java's PROTECTED case: same isAlternateTypeAnnotation
+		// treatment as @private.
 		p.info.RecordVisibility(rhino.VisibilityProtected)
 		p.anyRecorded = true
-		return p.eatUntilEOLIfNotAnnotation()
+		p.skipEOLs()
+		t := p.next()
+		if expr, next, ok := p.parseTypeExpressionAnnotation(t); ok {
+			p.info.SetType(rhino.NewJSTypeExpression(expr))
+			return next
+		}
+		return t
 	case "public":
+		// Mirrors Java's PUBLIC case: same isAlternateTypeAnnotation
+		// treatment as @private.
 		p.info.RecordVisibility(rhino.VisibilityPublic)
 		p.anyRecorded = true
-		return p.eatUntilEOLIfNotAnnotation()
+		p.skipEOLs()
+		t := p.next()
+		if expr, next, ok := p.parseTypeExpressionAnnotation(t); ok {
+			p.info.SetType(rhino.NewJSTypeExpression(expr))
+			return next
+		}
+		return t
 	case "nosideeffects":
 		// Mirrors Java's NO_SIDE_EFFECTS case.
 		p.info.SetNoSideEffects(true)

@@ -1638,6 +1638,7 @@ func (c *TypedScopeCreator) recordNamespaceAssignFromFunction(a *rhino.Node, sco
 		ctor := jstype.NewConstructorType(qname, paramTypes)
 		if info.IsInterface() || info.IsRecord() {
 			ctor.Instance.IsStructural = true
+			ctor.Instance.IsRecord = info.IsRecord()
 		}
 		if info.IsStruct() {
 			ctor.Instance.IsStruct = true
@@ -1925,6 +1926,7 @@ func (c *TypedScopeCreator) preregisterVarConstructor(v *rhino.Node, scope *Type
 	ct := jstype.NewConstructorType(name.String_(), nil)
 	if info.IsInterface() || info.IsRecord() {
 		ct.Instance.IsStructural = true
+		ct.Instance.IsRecord = info.IsRecord()
 	}
 	scope.declared[name.String_()] = ct
 }
@@ -2079,6 +2081,7 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 	// Mark as structural when the class carries @record or @interface.
 	if info := cls.JSDocInfo(); info != nil && (info.IsRecord() || info.IsInterface()) {
 		inst.IsStructural = true
+		inst.IsRecord = info.IsRecord()
 	}
 	if info := cls.JSDocInfo(); info != nil {
 		if info.IsStruct() {
@@ -2380,7 +2383,22 @@ func (c *TypedScopeCreator) hoistVarNamesInto(body *rhino.Node, scope *TypedScop
 			if first := child.FirstChild(); first != nil && NU.IsNameDeclaration(first) {
 				if name := first.FirstChild(); name != nil && name.Token() == rhino.NAME && name.String_() != "" {
 					if _, exists := scope.declared[name.String_()]; !exists {
-						scope.declared[name.String_()] = jstype.Unknown
+						// Java's TypeInference: FOR_IN key is always string type;
+						// FOR_OF key type is the element type of the Iterable.
+						keyType := jstype.JSType(jstype.Unknown)
+						if child.Token() == rhino.FOR_IN {
+							keyType = jstype.String
+						} else if child.Token() == rhino.FOR_OF {
+							// Extract element type from the iterable (second child).
+							kids := child.Children()
+							if len(kids) >= 2 {
+								iterType := scope.inferExprType(kids[1])
+								if elem := extractIterableElemType(iterType); elem != nil {
+									keyType = elem
+								}
+							}
+						}
+						scope.declared[name.String_()] = keyType
 					}
 				}
 			}
@@ -2467,7 +2485,16 @@ func (c *TypedScopeCreator) recordDecl(v *rhino.Node, scope *TypedScope) {
 // from recordDecl so the multi-binding loop can reuse the same
 // @type / @enum / @constructor handling per name.
 func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope *TypedScope) {
+	// VAR-level JSDoc is the primary source; NAME-level JSDoc
+	// (set by the parser for inline `var /** @type {T} */ x = …`
+	// annotations) takes precedence for @type when present on the
+	// specific NAME node. This mirrors Java's per-binding type
+	// annotation: `var /** @type {!Date} */ foo = 'abc'` attaches
+	// the @type to foo's NAME node, not the shared VAR.
 	info := v.JSDocInfo()
+	if nameInfo := name.JSDocInfo(); nameInfo != nil && nameInfo.HasType() && (info == nil || !info.HasType()) {
+		info = nameInfo
+	}
 	if name == nil || name.Token() != rhino.NAME {
 		return
 	}
@@ -2521,6 +2548,7 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 			ct := jstype.NewConstructorType(name.String_(), nil)
 			if info.IsInterface() || info.IsRecord() {
 				ct.Instance.IsStructural = true
+				ct.Instance.IsRecord = info.IsRecord()
 			}
 			scope.declared[name.String_()] = ct
 			return
@@ -2536,6 +2564,7 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 			fnType.SetJSDocInfo(info)
 			if info.IsInterface() || info.IsRecord() {
 				fnType.Instance.IsStructural = true
+				fnType.Instance.IsRecord = info.IsRecord()
 			}
 			if info.IsStruct() {
 				fnType.Instance.IsStruct = true
@@ -2677,14 +2706,89 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 		return
 	}
 	if _, exists := scope.declared[name.String_()]; !exists {
-		// `undefined` is a special well-known value with type void (undefined).
-		// Java's type system gives `undefined` the void singleton type.
+		// `undefined` is a special well-known value with type void.
 		if name.String_() == "undefined" {
 			scope.declared[name.String_()] = jstype.Void
+		} else if p := v.Parent(); p != nil && p.Token() == rhino.FOR_IN {
+			// FOR_IN key type is string (property names of the object).
+			// Mirrors TypeInference.java case FOR_IN: iterKeyType = STRING_TYPE.
+			scope.declared[name.String_()] = jstype.String
+		} else if p := v.Parent(); p != nil && p.Token() == rhino.FOR_OF {
+			// Extract element type from the Iterable (second child of FOR_OF).
+			kids := p.Children()
+			if len(kids) >= 2 {
+				iterType := scope.inferExprType(kids[1])
+				if elem := extractIterableElemType(iterType); elem != nil {
+					scope.declared[name.String_()] = elem
+					return
+				}
+			}
+			scope.declared[name.String_()] = jstype.Unknown
 		} else {
 			scope.declared[name.String_()] = jstype.Unknown
 		}
 	}
+}
+
+// inferExprType is a lightweight type inferencer for simple expressions
+// in scope context. Used to get the type of a for-of iterable at
+// scope-creation time (before TypeInference runs).
+func (s *TypedScope) inferExprType(n *rhino.Node) jstype.JSType {
+	if n == nil {
+		return jstype.Unknown
+	}
+	switch n.Token() {
+	case rhino.NAME:
+		t := s.GetDeclaredType(n.String_())
+		if t == nil {
+			return jstype.Unknown
+		}
+		return t
+	case rhino.GETPROP:
+		// Delegate to the qualified-name lookup.
+		if qname := NU.GetBestLValueName(n); qname != "" {
+			parts := strings.SplitN(qname, ".", 2)
+			if len(parts) == 2 {
+				if fn, ok := s.GetDeclaredType(parts[0]).(*jstype.FunctionType); ok && fn.Instance != nil {
+					if t := fn.Instance.GetStaticPropertyType(parts[1]); t != nil {
+						return t
+					}
+				}
+			}
+		}
+		return jstype.Unknown
+	}
+	return jstype.Unknown
+}
+
+// extractIterableElemType returns the element type T from an Iterable<T>,
+// Array<T>, or similar iteratable type. For union types, returns the union
+// of element types from each member. Returns nil if not determinable.
+// Mirrors Java's TypeInference case FOR_OF element-type extraction.
+func extractIterableElemType(t jstype.JSType) jstype.JSType {
+	if t == nil {
+		return nil
+	}
+	// Handle TemplatizedType: Array<T>, Iterable<T>, etc.
+	if tt, ok := t.(*jstype.TemplatizedType); ok && len(tt.Args) > 0 {
+		return tt.Args[0]
+	}
+	// Handle union type: collect element types from each member and union them.
+	if u, ok := t.(*jstype.UnionType); ok {
+		var elems []jstype.JSType
+		for _, m := range u.Members() {
+			if elem := extractIterableElemType(m); elem != nil {
+				elems = append(elems, elem)
+			}
+		}
+		if len(elems) == 1 {
+			return elems[0]
+		}
+		if len(elems) > 1 {
+			return jstype.NewUnion(elems...)
+		}
+	}
+	return nil
 }
 
 // finishEnumDecl resolves `/** @enum */ var MyEnum = …` by
@@ -2917,6 +3021,7 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 		// Mark structural when annotated @record / @interface.
 		if info.IsInterface() || info.IsRecord() {
 			fnType.Instance.IsStructural = true
+			fnType.Instance.IsRecord = info.IsRecord()
 		}
 		// Propagate @struct / @dict onto the instance so TypeCheck can
 		// gate JSC_ILLEGAL_PROPERTY_ACCESS at GETPROP / GETELEM sites.

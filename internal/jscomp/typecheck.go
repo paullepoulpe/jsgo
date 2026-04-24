@@ -576,6 +576,8 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 	case rhino.ASSIGN:
 		c.emit(c.visitAssign(n, scope))
 	case rhino.ASSIGN_AND, rhino.ASSIGN_OR, rhino.ASSIGN_COALESCE:
+		// Java: logical-assignment forms go through visitLogicalAssign
+		// (which in turn invokes visitAssign for the typecheck side).
 		c.emit(c.visitLogicalAssign(n, scope))
 	case rhino.CALL:
 		c.emit(c.visitCall(n, scope))
@@ -597,7 +599,11 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitForIn(n, scope))
 	case rhino.FOR_OF, rhino.FOR_AWAIT_OF:
 		c.emit(c.checkForOfTypes(n, scope))
-	case rhino.LSH, rhino.RSH, rhino.URSH, rhino.BITAND, rhino.BITOR, rhino.BITXOR, rhino.BITNOT:
+	case rhino.LSH, rhino.RSH, rhino.URSH, rhino.BITAND, rhino.BITOR, rhino.BITXOR, rhino.BITNOT,
+		// Java: compound assignment operators also route through visitBinaryOperator
+		// for the same operand-type checks as the bare binary ops.
+		rhino.ASSIGN_BITOR, rhino.ASSIGN_BITXOR, rhino.ASSIGN_BITAND,
+		rhino.ASSIGN_LSH, rhino.ASSIGN_RSH, rhino.ASSIGN_URSH:
 		c.emit(c.visitBitOp(n, scope))
 	case rhino.EQ, rhino.NE, rhino.SHEQ, rhino.SHNE:
 		c.emit(c.visitTypeofComparison(n, scope))
@@ -618,6 +624,15 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitTemplateLit(n, scope))
 	case rhino.OBJECT_PATTERN:
 		c.emit(c.visitObjectPattern(n, scope))
+	case rhino.DYNAMIC_IMPORT:
+		// Java: visitDynamicImport — checks that import(specifier) has a
+		// non-null, non-undefined string specifier.
+		c.emit(c.visitDynamicImport(n, scope))
+	case rhino.CASE:
+		// Java: validator.expectSwitchMatchesCase(n, switchConditionType, caseType).
+		// The CASE node is a child of SWITCH. The switch condition type is the
+		// type of the SWITCH's first child (the expression before the SWITCH_BODY).
+		c.emit(c.visitSwitchCase(n, parent, scope))
 	}
 	// Strict-mode operand checks — OFF by default, matching Java.
 	// These fire only when `--jscomp_warning=strictCheckTypes` is set.
@@ -780,38 +795,62 @@ func (c *TypeCheck) visitVar(v *rhino.Node, scope *TypedScope) []diag.Diagnostic
 	if info := v.JSDocInfo(); info.IsEnum() {
 		return append(out, c.visitEnumInit(name, init, scope)...)
 	}
-	// CAST inits are validated by visitCast; skip the initializing-variable
-	// subtype check here to avoid double-reporting and flow-refinement FPs
-	// on redeclared variables (Java routes CAST through visitCast, not
-	// visitAssign / visitVar).
-	if init.Token() == rhino.CAST {
-		return out
-	}
-	declared := scope.GetDeclaredType(name.String_())
-	if declared == nil {
-		return out
-	}
+	// Java's visitVar iterates ALL NAME children for the initializing-variable
+	// type check. Each child may have its own inline JSDoc (@type annotation).
+	// `varInfo` (the VAR-level JSDoc) is used as fallback only when there's
+	// exactly ONE child — for multi-binding VARs, per-child JSDoc applies.
+	// Mirrors Java's `JSDocInfo varInfo = n.hasOneChild() ? n.getJSDocInfo() : null`.
+	varInfo := v.JSDocInfo()
+	isMultiChild := len(v.Children()) > 1
 	infer := NewTypeInference(scope)
-	// When `const foo = /** @type {T} */ (expr)` is parsed, Go's parser
-	// simulates the Java CAST node by marking the NAME node's JSDocInfo
-	// with isCastHoisted=true. In that case the declared type IS the cast
-	// type, so the initializer's raw type is irrelevant — Java wouldn't
-	// fire TYPE_MISMATCH either since the CAST node's getJSType() returns
-	// T, not the inner literal type.
-	if nameInfo := name.JSDocInfo(); nameInfo != nil && nameInfo.IsCastHoisted() {
-		return out
+	for curName := name; curName != nil; curName = curName.Next() {
+		if curName.Token() != rhino.NAME {
+			continue
+		}
+		curInit := curName.FirstChild()
+		if curInit == nil {
+			continue
+		}
+		// CAST inits are validated by visitCast.
+		if curInit.Token() == rhino.CAST {
+			continue
+		}
+		// Determine the declared type for this binding.
+		// Per-child JSDoc takes precedence; VAR-level JSDoc as fallback
+		// only for single-child VARs (matching Java).
+		childInfo := curName.JSDocInfo()
+		if childInfo != nil && childInfo.IsCastHoisted() {
+			continue // handled by visitCast
+		}
+		var declared jstype.JSType
+		if childInfo != nil && childInfo.HasType() {
+			declared = scope.ResolveExpr(childInfo.Type().TypeName)
+		} else if !isMultiChild && varInfo != nil {
+			declared = scope.GetDeclaredType(curName.String_())
+		} else {
+			declared = scope.GetDeclaredType(curName.String_())
+		}
+		if declared == nil {
+			continue
+		}
+		found := infer.InferType(curInit)
+		if jstype.IsSubtype(found, declared) {
+			continue
+		}
+		msg := fmt.Sprintf("initializing variable\nfound   : %s\nrequired: %s",
+			found.TypeName(), declared.TypeName())
+		line, col := diagPosForArg(curInit)
+		out = append(out, diag.Diagnostic{
+			Path: c.path, Line: line, Col: col,
+			Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error, Message: msg,
+		})
+		// For the first child, stop (Java also stops after first for
+		// single-child VARs). For multi-child, continue checking all.
+		if !isMultiChild {
+			break
+		}
 	}
-	found := infer.InferType(init)
-	if jstype.IsSubtype(found, declared) {
-		return out
-	}
-	msg := fmt.Sprintf("initializing variable\nfound   : %s\nrequired: %s",
-		found.TypeName(), declared.TypeName())
-	line, col := diagPosForArg(init)
-	return append(out, diag.Diagnostic{
-		Path: c.path, Line: line, Col: col,
-		Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error, Message: msg,
-	})
+	return out
 }
 
 
@@ -1110,9 +1149,42 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 		// inits don't fire per-entry checks). Mirrors Java's TypeCheck
 		// which routes @enum assignments through EnumType's own init
 		// validator and does not fire ASSIGN mismatch at the top level.
-		if _, isEnum := declared.(*jstype.EnumType); isEnum {
-			if rhs.Token() == rhino.OBJECTLIT || rhs.Token() == rhino.NAME || rhs.Token() == rhino.GETPROP {
-				return nil
+		// However, enum aliasing (`/** @enum {string} */ ns.b = a` where
+		// `a: @enum {number}`) fires "incompatible enum element types" when
+		// the source and target underlying types disagree.
+		if declEnum, isEnum := declared.(*jstype.EnumType); isEnum {
+			if rhs.Token() == rhino.OBJECTLIT {
+				return nil // object-literal enum init — no top-level check
+			}
+			if rhs.Token() == rhino.NAME || rhs.Token() == rhino.GETPROP {
+				// Enum alias: check incompatible underlying types.
+				if rhsEnum, ok := infer.InferType(rhs).(*jstype.EnumType); ok {
+					// Get the declared underlying type from the JSDoc on the ASSIGN.
+					declUnderlying := declEnum.Underlying
+					if aInfo := a.JSDocInfo(); aInfo != nil {
+						if expr := aInfo.EnumParameterType(); expr != nil {
+							declUnderlying = scope.ResolveExpr(expr.TypeName)
+						}
+					}
+					if !jstype.IsSubtype(rhsEnum.Underlying, declUnderlying) {
+						// Java reports at the outer ASSIGN's LHS position.
+						posNode := a
+						if p := a.Parent(); p != nil && p.Token() == rhino.EXPR_RESULT {
+							posNode = p
+						}
+						return []diag.Diagnostic{{
+							Path:  c.path,
+							Line:  posNode.Lineno(),
+							Col:   posNode.Charno(),
+							Code:  diag.JSC_TYPE_MISMATCH,
+							Level: diag.Error,
+							Message: fmt.Sprintf(
+								"incompatible enum element types\nfound   : %s\nrequired: %s",
+								rhsEnum.Underlying.TypeName(), declUnderlying.TypeName()),
+						}}
+					}
+				}
+				return nil // compatible enum alias or unknown RHS — no further check
 			}
 		}
 		found := infer.InferType(rhs)
@@ -1436,18 +1508,33 @@ func (c *TypeCheck) visitCall(node *rhino.Node, scope *TypedScope) []diag.Diagno
 			})
 		}
 	}
-	// Arity-mismatch: still type-check the overlapping prefix so a
-	// `f(0)` against `function f(s: string)` reports the type error
-	// even when other params are dropped. Java fires both
-	// JSC_WRONG_ARGUMENT_COUNT and the per-arg JSC_TYPE_MISMATCH.
-	n := len(args)
-	if len(fn.Params) < n {
-		n = len(fn.Params)
-	}
+	// Per-argument type check. Java's TypeCheck.visitCallParameters:
+	// when parameters are exhausted, if the last parameter isVariadic,
+	// keep reusing it for remaining arguments. Mirrors:
+	//   if (parameters.hasNext()) { parameter = parameters.next(); }
+	//   else if (parameter != null && parameter.isVariadic()) { /* reuse */ }
+	//
+	// We detect variadic functions via MaxArity == MaxArgsUnlimited — this
+	// is set by setArityFromParams for @param {...T} and var_args patterns.
+	// The last declared param type is then reused for all remaining args.
 	params := fn.GetParameters()
-	for i := 0; i < n; i++ {
-		arg := args[i]
-		param := fn.Params[i]
+	// Determine if the function is variadic (rest param / var_args).
+	// When variadic, the last declared param type is reused for all excess args.
+	var lastParamType jstype.JSType
+	isVariadic := fn.MaxArity >= jstype.MaxArgsUnlimited && len(fn.Params) > 0
+	if isVariadic {
+		lastParamType = fn.Params[len(fn.Params)-1]
+	}
+	for i, arg := range args {
+		var param jstype.JSType
+		if i < len(fn.Params) {
+			param = fn.Params[i]
+		} else if isVariadic {
+			// Rest parameter covers all remaining arguments.
+			param = lastParamType
+		} else {
+			break
+		}
 		found := infer.InferType(arg)
 		// Optional parameters (JSDoc {=T}) accept `undefined` at the
 		// call site. Java's TypeCheck widens the effective required
@@ -2107,10 +2194,24 @@ func (c *TypeCheck) visitReturn(ret *rhino.Node, scope *TypedScope) []diag.Diagn
 		return nil
 	}
 	info := functionJSDoc(enclosing)
-	if info == nil || info.ReturnType() == nil {
+	if info == nil {
 		return nil
 	}
-	declared := scope.ResolveExpr(info.ReturnType().TypeName)
+	// Get declared return type from @return annotation or from @type {function(...):R}
+	var declared jstype.JSType
+	if info.ReturnType() != nil {
+		declared = scope.ResolveExpr(info.ReturnType().TypeName)
+	} else if info.HasType() {
+		// `@type {function(...): R}` — extract R from the declared FunctionType.
+		// Java's TypeCheck finds the enclosing function's declared type and uses
+		// its return type for the inconsistent-return-type check.
+		if fn, ok := scope.ResolveExpr(info.Type().TypeName).(*jstype.FunctionType); ok {
+			declared = fn.Return
+		}
+	}
+	if declared == nil {
+		return nil
+	}
 	retExpr := ret.FirstChild()
 	if retExpr == nil {
 		return nil
@@ -2626,10 +2727,13 @@ func (c *TypeCheck) visitFunctionParams(fn *rhino.Node, scope *TypedScope) []dia
 	return out
 }
 
-// visitBitOp fires JSC_BAD_TYPE_FOR_BIT_OPERATION when either
-// operand of a bitwise operator (`<<`, `>>`, `>>>`, `&`, `|`,
-// `^`) is definitely not a number. Java's TypeCheck rejects
-// void / null / boolean / object operands statically.
+// visitBitOp ports Java's TypeCheck.visitBinaryOperator for bitwise ops.
+// Java splits into two groups:
+//  1. Shift operators (<<, >>, >>>, and compound forms): fire
+//     JSC_BAD_TYPE_FOR_BIT_OPERATION when !matchesNumberContext.
+//     BITNOT (~) is in this group (fires at operator node).
+//  2. Bitwise ops (&, |, ^, and compound forms): fire JSC_TYPE_MISMATCH
+//     via validator.expectBitwiseable (type must be string|number|bool|null|undefined).
 func (c *TypeCheck) visitBitOp(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := n.Children()
 	infer := NewTypeInference(scope)
@@ -2651,23 +2755,80 @@ func (c *TypeCheck) visitBitOp(n *rhino.Node, scope *TypedScope) []diag.Diagnost
 		}
 		return out
 	}
-	// Binary bit operators: report at the first bad operand.
 	if len(kids) < 2 {
 		return nil
 	}
-	for _, k := range kids {
-		t := infer.InferType(k)
-		if !isDefinitelyNotNumber(t) {
-			continue
+	switch n.Token() {
+	case rhino.BITAND, rhino.BITOR, rhino.BITXOR,
+		rhino.ASSIGN_BITAND, rhino.ASSIGN_BITOR, rhino.ASSIGN_BITXOR:
+		// Java: validator.expectBitwiseable fires JSC_TYPE_MISMATCH when
+		// type is not a subtype of (string|number|boolean|null|undefined).
+		// Port: check left and right operands; fire JSC_TYPE_MISMATCH for
+		// each non-bitwiseable type (only first bad operand, matching Java).
+		for i, k := range kids {
+			t := infer.InferType(k)
+			if !isBitwiseable(t) {
+				msg := "bad left operand to bitwise operator"
+				if i > 0 {
+					msg = "bad right operand to bitwise operator"
+				}
+				c.tv.expectCanAssignTo(k, t, bitwiseableType(), msg)
+				out = append(out, c.tvDrain()...)
+				break // first bad operand only
+			}
 		}
-		out = append(out, diag.Diagnostic{
-			Path: c.path, Line: k.Lineno(), Col: k.Charno(),
-			Code: diag.JSC_BAD_TYPE_FOR_BIT_OPERATION, Level: diag.Error,
-			Message: fmt.Sprintf("operator %s cannot be applied to %s", op, t.TypeName()),
-		})
-		break // report the first bad operand only, matching Java
+	default:
+		// Shift operators (LSH, RSH, URSH, ASSIGN_LSH, ASSIGN_RSH, ASSIGN_URSH):
+		// Java fires JSC_BAD_TYPE_FOR_BIT_OPERATION when !matchesNumberContext.
+		for _, k := range kids {
+			t := infer.InferType(k)
+			if isDefinitelyNotNumber(t) {
+				out = append(out, diag.Diagnostic{
+					Path: c.path, Line: k.Lineno(), Col: k.Charno(),
+					Code: diag.JSC_BAD_TYPE_FOR_BIT_OPERATION, Level: diag.Error,
+					Message: fmt.Sprintf("operator %s cannot be applied to %s", op, t.TypeName()),
+				})
+				break // report first bad operand only
+			}
+		}
 	}
 	return out
+}
+
+// bitwiseableType returns the union type (boolean|null|number|string|undefined)
+// that Java uses as the required type for bitwise operands.
+func bitwiseableType() jstype.JSType {
+	return jstype.NewUnion(jstype.Boolean, jstype.Null, jstype.Number, jstype.String, jstype.Void)
+}
+
+// isBitwiseable reports whether t is acceptable as a bitwise operand.
+// Mirrors Java's TypeValidator.expectBitwiseable:
+//   !type.matchesNumberContext() && !type.isSubtypeOf(allBitwisableValueTypes)
+// When either condition holds, the type is acceptable:
+//   - matchesNumberContext() is true for Number/Date/Boolean/String wrapper objects
+//     (they coerce to number). We approximate this by checking for known
+//     "coercible" object type names.
+//   - isSubtypeOf(string|number|boolean|null|undefined) is the primitive check.
+// When the type is Unknown, we assume it could be bitwiseable.
+func isBitwiseable(t jstype.JSType) bool {
+	if t == nil || isJSUnknown(t) {
+		return true
+	}
+	if jstype.IsSubtype(t, bitwiseableType()) {
+		return true
+	}
+	// Approximate Java's matchesNumberContext() for wrapper object types
+	// (Number, Date, Boolean — they coerce to numbers in bitwise contexts).
+	// PrototypeObjectType.matchesNumberContext: isNumberObjectType() ||
+	//   isDateType() || isBooleanObjectType() || isStringObjectType() ||
+	//   hasOverriddenNativeProperty("valueOf")
+	if obj, ok := t.(*jstype.ObjectType); ok {
+		switch obj.TypeName() {
+		case "Number", "Date", "Boolean", "String":
+			return true
+		}
+	}
+	return false
 }
 
 // bitOpSymbol returns the textual operator for a bit-op token.
@@ -2745,6 +2906,111 @@ func isWellKnownSymbolIndex(idx *rhino.Node) bool {
 	}
 	recv := kids[0]
 	return recv.Token() == rhino.NAME && recv.String_() == "Symbol"
+}
+
+// visitSwitchCase ports Java's TypeCheck CASE branch:
+//   validator.expectSwitchMatchesCase(n, switchConditionType, caseType)
+// Fires JSC_TYPE_MISMATCH "case expression doesn't match switch" when
+// the switch discriminant type and the case expression type are
+// incompatible (no common subtype via canTestForShallowEqualityWith).
+func (c *TypeCheck) visitSwitchCase(caseNode, switchNode *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	if switchNode == nil || switchNode.Token() != rhino.SWITCH {
+		return nil
+	}
+	discrim := switchNode.FirstChild()
+	if discrim == nil {
+		return nil
+	}
+	caseExpr := caseNode.FirstChild()
+	if caseExpr == nil {
+		return nil
+	}
+	infer := NewTypeInference(scope)
+	switchType := infer.InferType(discrim)
+	caseType := infer.InferType(caseExpr)
+	// Skip unknown types — can't prove incompatibility.
+	if isJSUnknown(switchType) || isJSUnknown(caseType) {
+		return nil
+	}
+	// canTestForShallowEqualityWith: types are comparable if at least one
+	// is a subtype of the other. If neither is a subtype → incompatible.
+	if jstype.IsSubtype(switchType, caseType) || jstype.IsSubtype(caseType, switchType) {
+		return nil
+	}
+	// Also allow if the types could share a common value (e.g. union types
+	// might have overlapping members).
+	if canShareCommonValue(switchType, caseType) {
+		return nil
+	}
+	msg := fmt.Sprintf("case expression doesn't match switch\nfound   : %s\nrequired: %s",
+		caseType.TypeName(), switchType.TypeName())
+	return []diag.Diagnostic{{
+		Path: c.path, Line: caseExpr.Lineno(), Col: caseExpr.Charno(),
+		Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error, Message: msg,
+	}}
+}
+
+// canShareCommonValue reports whether two types might overlap (share a common
+// value at runtime). Used to approximate Java's canTestForShallowEqualityWith:
+// fires when `getGreatestSubtype(a, b)` is empty (no common subtype).
+// We conservatively return true (allow) when we can't prove incompatibility.
+func canShareCommonValue(a, b jstype.JSType) bool {
+	// Union types: check if any member of one type overlaps with the other.
+	if u, ok := a.(*jstype.UnionType); ok {
+		for _, m := range u.Members() {
+			if canShareCommonValue(m, b) {
+				return true
+			}
+		}
+		return false
+	}
+	if u, ok := b.(*jstype.UnionType); ok {
+		for _, m := range u.Members() {
+			if canShareCommonValue(a, m) {
+				return true
+			}
+		}
+		return false
+	}
+	// Function types can always be compared (Java's function exception).
+	if _, ok := a.(*jstype.FunctionType); ok {
+		return true
+	}
+	if _, ok := b.(*jstype.FunctionType); ok {
+		return true
+	}
+	// Same type → can share value.
+	return jstype.IsSubtype(a, b) || jstype.IsSubtype(b, a)
+}
+
+// visitDynamicImport ports Java's TypeCheck.visitDynamicImport.
+// Fires JSC_TYPE_MISMATCH "dynamic import specifier" when the specifier
+// is null or undefined — import() requires a string specifier.
+// Java: validator.expectNotNullOrUndefined(t, specifier, specifierType,
+//   "dynamic import specifier", STRING_TYPE).
+func (c *TypeCheck) visitDynamicImport(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	specifier := n.FirstChild()
+	if specifier == nil {
+		return nil
+	}
+	infer := NewTypeInference(scope)
+	specType := infer.InferType(specifier)
+	// Only fire when the specifier is definitively null/undefined.
+	// Java's expectNotNullOrUndefined skips unknown types.
+	if specType == jstype.Null || specType == jstype.Void {
+		msg := fmt.Sprintf("dynamic import specifier\nfound   : %s\nrequired: string",
+			specType.TypeName())
+		posNode := specifier
+		return []diag.Diagnostic{{
+			Path:    c.path,
+			Line:    posNode.Lineno(),
+			Col:     posNode.Charno(),
+			Code:    diag.JSC_TYPE_MISMATCH,
+			Level:   diag.Error,
+			Message: msg,
+		}}
+	}
+	return nil
 }
 
 // isDefinitelyNotCallable reports whether `t` is a type that can
@@ -2885,7 +3151,15 @@ func (c *TypeCheck) checkForOfTypes(n *rhino.Node, scope *TypedScope) []diag.Dia
 	foundName := iterType.TypeName()
 
 	stripped := stripNullUndef(iterType)
-	hasNullOrUndef := (stripped != iterType) // type changed → had null/void
+	// hasNullOrUndef: the type changed after stripping null/void.
+	// Use TypeName comparison (not pointer equality) since stripNullUndef
+	// may create a new union pointer even when no null was present.
+	var hasNullOrUndef bool
+	if stripped == nil {
+		hasNullOrUndef = true
+	} else {
+		hasNullOrUndef = (stripped.TypeName() != iterType.TypeName())
+	}
 
 	if hasNullOrUndef {
 		// Nullable iterable: `?Iterable<T>` → cannot iterate.
@@ -2920,6 +3194,19 @@ func (c *TypeCheck) checkForOfTypes(n *rhino.Node, scope *TypedScope) []diag.Dia
 func forOfIsIterableType(t jstype.JSType) bool {
 	// Primitive string is iterable (JS engines implement Symbol.iterator).
 	if t == jstype.String || t == jstype.All {
+		return true
+	}
+	// Unknown types are treated as potentially iterable.
+	if isJSUnknown(t) {
+		return true
+	}
+	// Union: iterable if ALL members are iterable.
+	if u, ok := t.(*jstype.UnionType); ok {
+		for _, m := range u.Members() {
+			if !forOfIsIterableType(m) {
+				return false
+			}
+		}
 		return true
 	}
 	// Derive the base name from the TypeName: strip template parameters.
@@ -3120,17 +3407,34 @@ func isDefinitelyNotComparable(t jstype.JSType) bool {
 		return false
 	}
 	switch t {
-	case jstype.Number, jstype.String, jstype.Null, jstype.Void, jstype.Boolean:
+	case jstype.Number, jstype.String, jstype.Boolean:
 		// boolean is coerced to 0/1 by JS, so it is comparable.
 		// Mirrors Java's TypeCheck which does not flag boolean operands
 		// for relational ops in default mode.
 		return false
+	case jstype.Void, jstype.Null:
+		// undefined/null: Java fires errors for these in numeric comparisons
+		// (expectBigIntOrNumber fails for null/undefined). Treat as not
+		// comparable so the default-mode relational check fires.
+		return true
 	}
 	if _, ok := t.(*jstype.FunctionType); ok {
 		return true
 	}
 	if _, ok := t.(*jstype.ObjectType); ok {
 		return true
+	}
+	// Union types: not comparable if any member is not comparable.
+	// Simplification: not comparable if ALL members are not comparable.
+	if u, ok := t.(*jstype.UnionType); ok {
+		anyComparable := false
+		for _, m := range u.Members() {
+			if !isDefinitelyNotComparable(m) {
+				anyComparable = true
+				break
+			}
+		}
+		return !anyComparable
 	}
 	return false
 }
@@ -3265,9 +3569,65 @@ func (c *TypeCheck) visitObjectLit(n *rhino.Node, scope *TypedScope) []diag.Diag
 	ownerType := infer.InferType(n)
 	obj := dereferencedObject(ownerType)
 
+	// Enum element type check — mirrors Java's visitObjectOrClassLiteralKey
+	// line 1515: when key type is EnumElementType, check value against the
+	// enum's underlying primitive type.
+	// Detect enum init: check if the parent has @enum JSDoc. This covers
+	// both `/** @enum */ var E = {...}` (handled by visitVar/visitEnumInit)
+	// and `/** @enum */ goog.a = {...}` (namespace-prop enum, visited here).
+	var enumUnderlyingType jstype.JSType
+	if p := n.Parent(); p != nil {
+		parentInfo := p.JSDocInfo()
+		if parentInfo == nil {
+			// For `goog.a = {...}`, the parent is ASSIGN; check the ASSIGN's JSDoc.
+			if p.Token() == rhino.ASSIGN {
+				parentInfo = p.JSDocInfo()
+			}
+		}
+		if parentInfo != nil && parentInfo.IsEnum() {
+			if expr := parentInfo.EnumParameterType(); expr != nil {
+				enumUnderlyingType = scope.ResolveExpr(expr.TypeName)
+			} else {
+				enumUnderlyingType = jstype.Number // @enum without type defaults to number
+			}
+		}
+	}
+
 	for key := n.FirstChild(); key != nil; key = key.Next() {
 		if key.Token() != rhino.STRING_KEY {
 			continue
+		}
+		// Enum element check: verify value type matches the enum's underlying type.
+		// Mirrors Java's visitObjectOrClassLiteralKey when keyType.isEnumElementType().
+		if enumUnderlyingType != nil {
+			value := key.FirstChild()
+			if value != nil {
+				rightType := infer.InferType(value)
+				if !jstype.IsSubtype(rightType, enumUnderlyingType) {
+					propName := key.String_()
+					parentNode := n.Parent()
+					ownerName := ""
+					if parentNode != nil {
+						if parentNode.Token() == rhino.NAME {
+							ownerName = "enum{" + parentNode.String_() + "}"
+						} else if parentNode.Token() == rhino.ASSIGN {
+							if lhs := parentNode.FirstChild(); lhs != nil {
+								qname := NU.GetBestLValueName(lhs)
+								if qname != "" {
+									ownerName = "enum{" + qname + "}"
+								}
+							}
+						}
+					}
+					msg := fmt.Sprintf("assignment to property %s of %s\nfound   : %s\nrequired: %s",
+						propName, ownerName, rightType.TypeName(), enumUnderlyingType.TypeName())
+					out = append(out, diag.Diagnostic{
+						Path: c.path, Line: key.Lineno(), Col: key.Charno(),
+						Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error, Message: msg,
+					})
+				}
+			}
+			continue // skip the regular key type check for enum values
 		}
 		// struct/dict key form checks.
 		if obj != nil && (obj.IsStruct || obj.IsDict) {

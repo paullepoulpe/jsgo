@@ -307,14 +307,19 @@ func (p *Parser) finishDeclStatement(declToken rhino.Token, jsdoc *rhino.JSDocIn
 	}
 
 	p.scanner.SkipTrivia()
-	// Inline JSDoc between the decl keyword and the name —
-	// `var /** null */ n = …;` — treat the brace-only type
-	// expression as an @type annotation on the resulting VAR.
-	// Matches how Java's parser synthesises a @type JSDoc from
-	// an inline bracketed comment at this position.
+	// Inline JSDoc between the decl keyword and the first name —
+	// `var /** null */ n = …;` or `var /** @type {!Date} */ n = …`.
+	// Java: the per-binding annotation belongs to the first NAME
+	// only (not shared across all bindings). We capture it here
+	// and attach it to the first NAME node below; that way
+	// JSC_MULTIPLE_VAR_DEF is not triggered for single-type
+	// multi-binding forms like `var /** @type {T} */ a, b`.
+	var firstNameInlineDoc *rhino.JSDocInfo
 	if body, ok := p.scanner.ConsumeBlockComment(); ok {
-		if inline := parseInlineTypeJSDoc(body); inline != nil && declNode.JSDocInfo() == nil {
-			declNode.SetJSDocInfo(inline)
+		if inline := parseInlineTypeJSDoc(body); inline != nil {
+			firstNameInlineDoc = inline
+		} else if full := parsing.ParseJSDocInfo(body, p.scanner.Line()); full != nil && full.HasType() {
+			firstNameInlineDoc = full
 		}
 		p.scanner.SkipTrivia()
 	}
@@ -329,6 +334,19 @@ func (p *Parser) finishDeclStatement(declToken rhino.Token, jsdoc *rhino.JSDocIn
 		}
 		nameNode := rhino.NewString(rhino.NAME, ident)
 		nameNode.SetPos(nameLine, nameCol)
+		// Attach the inline JSDoc to the first NAME node only.
+		// We deliberately do NOT propagate it to the VAR/declNode
+		// because that would cause JSC_MULTIPLE_VAR_DEF to fire
+		// for multi-binding declarations like
+		// `var /** @type {T} */ a = 1, b = 2`. The scope creator
+		// (recordOneDecl) consults name.JSDocInfo() as well as
+		// v.JSDocInfo() to find the per-binding type annotation.
+		// The firstNameInlineDoc is also reused for subsequent bindings
+		// when a per-binding inline JSDoc follows `,`.
+		if firstNameInlineDoc != nil {
+			nameNode.SetJSDocInfo(firstNameInlineDoc)
+			firstNameInlineDoc = nil // consume: only applies to this binding
+		}
 		declNode.AddChildToBack(nameNode)
 
 		p.scanner.SkipTrivia()
@@ -376,12 +394,21 @@ func (p *Parser) finishDeclStatement(declToken rhino.Token, jsdoc *rhino.JSDocIn
 			break
 		}
 		p.scanner.SkipTrivia()
-		// Allow an inline JSDoc per-binding (`var a, /** @type T */ b`).
+		// Per-binding inline JSDoc after `,` — `var a, /** @type {T} */ b`.
+		// Java: each binding can have its own inline type annotation.
+		// Reuse firstNameInlineDoc as the "current binding" inline doc
+		// for the next iteration.
 		if body, ok := p.scanner.ConsumeBlockComment(); ok {
 			if inline := parseInlineTypeJSDoc(body); inline != nil {
-				_ = inline // discarded — Java drops per-binding type hints in this pos
+				firstNameInlineDoc = inline
+			} else if full := parsing.ParseJSDocInfo(body, p.scanner.Line()); full != nil && full.HasType() {
+				firstNameInlineDoc = full
+			} else {
+				firstNameInlineDoc = nil
 			}
 			p.scanner.SkipTrivia()
+		} else {
+			firstNameInlineDoc = nil
 		}
 	}
 	sawNewline := p.scanner.Line() != p.scanner.LastTokenLine()
@@ -2670,6 +2697,17 @@ func (p *Parser) peekAssignOp() (rhino.Token, int) {
 	if c0 == '<' && c1 == '<' && c2 == '=' {
 		return rhino.ASSIGN_LSH, 3
 	}
+	// Three-rune logical assignment forms: &&=, ||=, ??=
+	// Java: Token.ASSIGN_AND (&&=), Token.ASSIGN_OR (||=), Token.ASSIGN_COALESCE (??=)
+	if c0 == '&' && c1 == '&' && c2 == '=' {
+		return rhino.ASSIGN_AND, 3
+	}
+	if c0 == '|' && c1 == '|' && c2 == '=' {
+		return rhino.ASSIGN_OR, 3
+	}
+	if c0 == '?' && c1 == '?' && c2 == '=' {
+		return rhino.ASSIGN_COALESCE, 3
+	}
 	// Two-rune forms.
 	if c1 == '=' {
 		switch c0 {
@@ -2743,18 +2781,20 @@ func (p *Parser) peekBinOp() (rhino.Token, int, int) {
 	if c0 == '>' && c1 == '>' {
 		return rhino.RSH, 2, 9
 	}
-	if c0 == '&' && c1 == '&' {
+	// Skip `&&` / `||` / `??` when followed by `=` — those are
+	// logical-assignment operators (&&=, ||=, ??=) handled by peekAssignOp.
+	if c0 == '&' && c1 == '&' && c2 != '=' {
 		return rhino.AND, 2, 3
 	}
-	if c0 == '|' && c1 == '|' {
+	if c0 == '|' && c1 == '|' && c2 != '=' {
 		return rhino.OR, 2, 2
 	}
-	if c0 == '?' && c1 == '?' {
+	if c0 == '?' && c1 == '?' && c2 != '=' {
 		return rhino.COALESCE, 2, 2
 	}
 	// One-char forms. Skip when followed by `=` (compound assign) or
 	// when they're tokens we don't treat as binary (`&` → bitand only
-	// when not `&&=`, which we don't support yet).
+	// when not `&&=`).
 	if c1 == '=' {
 		// `X=` is an assignment.
 		return rhino.ERROR, 0, -1
@@ -2783,8 +2823,18 @@ func (p *Parser) peekBinOp() (rhino.Token, int, int) {
 	case '>':
 		return rhino.GT, 1, 8
 	case '&':
+		// Skip bare `&` when it starts `&&` or `&&=` — those are handled
+		// at higher precedence or as assignment operators.
+		if c1 == '&' {
+			return rhino.ERROR, 0, -1
+		}
 		return rhino.BITAND, 1, 6
 	case '|':
+		// Skip bare `|` when it starts `||` or `||=` — those are handled
+		// at higher precedence or as assignment operators.
+		if c1 == '|' {
+			return rhino.ERROR, 0, -1
+		}
 		return rhino.BITOR, 1, 4
 	case '^':
 		return rhino.BITXOR, 1, 5
