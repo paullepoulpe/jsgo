@@ -1689,7 +1689,12 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 		// JSC_TYPE_MISMATCH for `@const {!ReadonlyArray<T>} const a = []`).
 		if info.IsCastHoisted() && isJSUnknown(declared) {
 			rawTypeName := info.Type().TypeName
-			declared = syntheticReadonlyArrayType(rawTypeName)
+			if synthetic := syntheticReadonlyArrayType(rawTypeName); synthetic != nil {
+				declared = synthetic
+			}
+			// else: keep declared as jstype.Unknown so VarCheck doesn't
+			// fire for variables declared via cast-hoisted @type {?} or
+			// other non-ReadonlyArray annotations.
 		}
 		if init := name.FirstChild(); init != nil && initIsUndeclaredRef(init, scope) {
 			declared = jstype.Unknown

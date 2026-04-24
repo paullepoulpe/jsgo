@@ -70,6 +70,7 @@ func (c *CheckRegExp) IsGlobalRegExpPropertiesUsed() bool {
 }
 
 // Check runs the traversal and returns accumulated diagnostics.
+// Go-only: language-adapter — Java's process() takes (externs, root); Go uses a single SCRIPT node.
 func (c *CheckRegExp) Check(script *rhino.Node) []diag.Diagnostic {
 	c.diags = nil
 	c.walk(script, nil)
@@ -77,6 +78,7 @@ func (c *CheckRegExp) Check(script *rhino.Node) []diag.Diagnostic {
 }
 
 // ShouldTraverse satisfies the Callback interface (always descend).
+// Go-only: language-adapter — Java's AbstractPostOrderCallback has this implicit; Go requires explicit impl.
 func (c *CheckRegExp) ShouldTraverse(_ *NodeTraversal, _, _ *rhino.Node) bool { return true }
 
 // Visit mirrors AbstractPostOrderCallback.visit — called after a node's
@@ -86,6 +88,7 @@ func (c *CheckRegExp) Visit(_ *NodeTraversal, n, parent *rhino.Node) {
 }
 
 // walk drives a manual post-order traversal so CheckRegExp can be used
+// Go-only: language-adapter — Java uses NodeTraversal.traverse; Go uses recursive walk.
 // without a full NodeTraversal / TypedScopeCreator rig (no scope needed
 // for the REGEXP_REFERENCE check which only cares about NAME("RegExp")
 // references at the global level).
@@ -185,16 +188,17 @@ func (c *CheckRegExp) visitNode(n, parent *rhino.Node) {
 	}
 
 	// Branch 2: n.isRegExp() — validate regex syntax.
-	// TODO: parser needs REGEXP token — the jsgo scanner does not yet
-	// emit a REGEXP node kind, so this branch can never fire. Wire it
-	// up once the parser produces REGEXP literals as first-class tokens.
-	// The Java branch would be:
-	//   if reportErrors && n.isRegExp() {
-	//       pattern := n.FirstChild().getString()
-	//       flags   := "" ; if n.hasTwoChildren() { flags = n.LastChild().getString() }
-	//       try { RegExpTree.parseRegExp(pattern, flags) }
-	//       catch { report(n, MALFORMED_REGEXP, ex.getMessage()) }
-	//   }
+	// The jsgo parser DOES produce REGEXP tokens (the full literal is in
+	// n.String_(), e.g. "/abc/gi"). Java uses RegExpTree.parseRegExp(pattern,
+	// flags) from com.google.javascript.jscomp.regex. Go lacks a JS-compatible
+	// regex parser, so JSC_MALFORMED_REGEXP is not yet emitted.
+	// TODO(port): implement JS regex syntax validation when a JS regex library
+	// is available, or port Java's RegExpTree to Go.
+	if c.reportErrors && n.Token() == rhino.REGEXP {
+		// Placeholder — no JS regex validation library available yet.
+		// Java: pattern = n.getFirstChild().getString(), flags = n.hasTwoChildren() ? ... : ""
+		// try { RegExpTree.parseRegExp(pattern, flags) } catch { report MALFORMED_REGEXP }
+	}
 }
 
 // isRegExpReferenceName reports whether `n` is a NAME node that is a
@@ -202,6 +206,7 @@ func (c *CheckRegExp) visitNode(n, parent *rhino.Node) {
 // NodeUtil.isReferenceName in Java: a NAME whose parent makes it a
 // binding site (VAR/LET/CONST child, PARAM_LIST child, FUNCTION/CLASS
 // first child, STRING_KEY child) is NOT a reference name.
+// Go-only: language-adapter — Java uses NodeUtil.isReferenceName directly in the callback.
 func isRegExpReferenceName(n, parent *rhino.Node) bool {
 	if n == nil || n.Token() != rhino.NAME {
 		return false

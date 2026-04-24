@@ -198,7 +198,7 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	all = append(all, NewCheckSuper(path).Check(script)...)
 	all = append(all, NewCheckAccessControlsWithCreator(path, creator, scope).Check(script)...)
 	all = append(all, NewCheckConformance(path).Check(script)...)
-	all = append(all, NewCheckJSDoc(path).Check(script)...)
+	all = append(all, NewCheckJSDoc(path, src).Check(script)...)
 	all = append(all, NewCheckTypeImportCodeReferences(path).Check(script)...)
 	// Build a single-file ModuleMetadataMap by scanning goog.provide/module/require
 	// calls in the script. This mirrors GatherModuleMetadata.java, which the Java

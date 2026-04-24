@@ -50,6 +50,7 @@ func NewVarCheck(path string, creator *TypedScopeCreator, global *TypedScope) *V
 // Check runs the traversal and returns any JSC_UNDEFINED_VARIABLE
 // diagnostics discovered. Fresh VarCheck per file matches the Java
 // Compiler#process entry point.
+// Go-only: language-adapter — Java's process() takes externs+root Node pair; Go uses a single SCRIPT node.
 func (v *VarCheck) Check(script *rhino.Node) []diag.Diagnostic {
 	v.diags = nil
 	trav := NewNodeTraversal(v, v.creator, v.global)
@@ -62,17 +63,46 @@ func (v *VarCheck) Check(script *rhino.Node) []diag.Diagnostic {
 // can use this to suppress downstream false-positives on properties of
 // undeclared objects, mirroring Java VarCheck's synthesized-extern
 // mechanism which marks undeclared names as externs.
+// Go-only: language-adapter — Java uses createSynthesizedExternVar; Go uses this set.
 func (v *VarCheck) UndeclaredNames() map[string]bool {
 	return v.reported
 }
 
+// REQUIRED_SYMBOLS mirrors VarCheck.java's REQUIRED_SYMBOLS — names that must
+// always be available to runtime libraries (polyfills, etc.), even if not
+// explicitly declared in source. In Java these are added as synthesized externs
+// when not already declared. In Go they are covered by defaultExternNames().
+var VarCheckRequiredSymbols = map[string]bool{
+	"AggregateError": true, "Array": true, "Error": true,
+	"Float32Array": true, "Function": true, "Infinity": true,
+	"JSCOMPILER_PRESERVE": true, "JSCompiler_renameProperty": true,
+	"Map": true, "Math": true, "NaN": true, "Number": true,
+	"Object": true, "Promise": true, "RangeError": true,
+	"ReferenceError": true, "Reflect": true, "RegExp": true,
+	"Set": true, "String": true, "SuppressedError": true,
+	"Symbol": true, "TypeError": true, "WeakMap": true,
+	"global": true, "globalThis": true, "isNaN": true,
+	"parseFloat": true, "parseInt": true, "self": true,
+	"undefined": true, "window": true,
+}
+
 func (v *VarCheck) ShouldTraverse(_ *NodeTraversal, _, _ *rhino.Node) bool { return true }
 
-// Visit inspects NAME and ASSIGN nodes. For a bare NAME reference we
-// confirm the identifier is declared somewhere reachable; for an
-// ASSIGN whose LHS is an undeclared NAME we flag at the NAME position.
-// GETPROP and call-callee positions ride the same NAME inspection via
-// the post-order walk (children are visited before the parent).
+// EnterScope mirrors VarCheck.java's enterScope — Java's enterScope is also
+// a no-op in VarCheck (it delegates to the default ScopedCallback.enterScope).
+func (v *VarCheck) EnterScope(t *NodeTraversal) {
+	_ = t // VarCheck doesn't need scope entry bookkeeping.
+}
+
+// ExitScope mirrors VarCheck.java's exitScope — in Java this adds required
+// symbols to the synthetic-externs set when they're missing from scope.
+// In Go this is a no-op since defaultExternNames() covers required symbols.
+func (v *VarCheck) ExitScope(t *NodeTraversal) {
+	_ = t // Required symbols are handled via defaultExternNames() in checkName.
+}
+
+// Visit mirrors VarCheck.java's ScopedCallback.visit — dispatches to
+// checkName for NAME nodes. Other token types are ignored (no scope needed).
 func (v *VarCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 	if n == nil {
 		return
@@ -80,6 +110,13 @@ func (v *VarCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 	if n.Token() != rhino.NAME {
 		return
 	}
+	v.checkName(t, n, parent)
+}
+
+// checkName mirrors VarCheck.java's checkName — validates that a NAME node
+// references a declared variable. Fires JSC_UNDEFINED_VARIABLE when the
+// name is not declared in the reachable scope chain or well-known externs.
+func (v *VarCheck) checkName(t *NodeTraversal, n, parent *rhino.Node) {
 	name := n.String_()
 	if name == "" {
 		return
@@ -115,6 +152,19 @@ func (v *VarCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 	if defaultExternNames()[name] {
 		return
 	}
+	v.handleUndeclaredVariableRef(t, n)
+}
+
+// handleUndeclaredVariableRef mirrors VarCheck.java's handleUndeclaredVariableRef.
+// Reports JSC_UNDEFINED_VARIABLE for the undeclared name, unless it's inside
+// a typeof expression (Java treats typeof as an existence check). Deduplicates
+// within a single file (Java reports once per file per name).
+func (v *VarCheck) handleUndeclaredVariableRef(t *NodeTraversal, n *rhino.Node) {
+	name := n.String_()
+	// Java: if (n.getParent().isTypeOf()) — typeof checks are existence checks.
+	if parent := n.Parent(); parent != nil && parent.Token() == rhino.TYPEOF {
+		return
+	}
 	if v.reported[name] {
 		return
 	}
@@ -133,6 +183,7 @@ func (v *VarCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 // VAR child, function/class name, class-field-def name, STRING_KEY
 // child inside destructuring, object-literal shorthand) rather than
 // references. Matches NodeUtil.isNameDeclaration's intent.
+// Go-only: language-adapter — Java uses NodeUtil.isReferenceName directly; Go needs its own helper.
 func (v *VarCheck) isBindingSite(n, parent *rhino.Node) bool {
 	if parent == nil {
 		return true // orphan NAMEs aren't references
@@ -184,12 +235,39 @@ func (v *VarCheck) isBindingSite(n, parent *rhino.Node) bool {
 	return false
 }
 
+// locationOf mirrors VarCheck.java's private static locationOf(Node) helper.
+// Returns a human-readable location string for a node, or "<unknown>" for nil.
+// Go-only: language-adapter — takes path as an extra arg since Go nodes don't carry their source file.
+func locationOf(path string, n *rhino.Node) string {
+	if n == nil {
+		return "<unknown>"
+	}
+	return fmt.Sprintf("%s:%d:%d", path, n.Lineno(), n.Charno())
+}
+
+// reportVarMultiplyDeclared mirrors VarCheck.reportVarMultiplyDeclared.
+// Reports a JSC_VAR_MULTIPLY_DECLARED_ERROR at `current` for variable `name`.
+// The original declaration node is `original` (may be nil for implicit decls).
+// Go-only: language-adapter — takes diags and path as extra args (Java uses compiler reference).
+func reportVarMultiplyDeclared(diags *[]diag.Diagnostic, path, name string, current, original *rhino.Node) {
+	msg := fmt.Sprintf("Variable %s declared more than once. First occurrence: %s", name, locationOf(path, original))
+	*diags = append(*diags, diag.Diagnostic{
+		Path:    path,
+		Line:    current.Lineno(),
+		Col:     current.Charno(),
+		Code:    diag.JSC_VAR_MULTIPLY_DECLARED_ERROR,
+		Level:   diag.Error,
+		Message: msg,
+	})
+}
+
 // defaultExternNames is the small fallback set used only by
 // initIsUndeclaredRef (to decide whether a bare-ref initializer
 // should downgrade the binding to Unknown). The primary extern
 // lookup goes through the externs scope parsed from
 // defaultExternsSrc — this list is just the names that can appear
 // as initializer-only refs without a proper @type annotation.
+// Go-only: language-adapter — Java uses a full externs bundle; Go uses this hand-curated list.
 func defaultExternNames() map[string]bool {
 	names := []string{
 		// Primitive / language intrinsics

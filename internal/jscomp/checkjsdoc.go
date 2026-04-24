@@ -7,6 +7,8 @@
 package jscomp
 
 import (
+	"strings"
+
 	"github.com/paullepoulpe/jsgo/internal/diag"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -17,13 +19,15 @@ import (
 // interface for a pass that doesn't need scope.
 type CheckJSDoc struct {
 	path      string
-	inExterns bool // TODO: wire real externs tracking when externs are loaded
+	src       string // raw source text (for checkJsDocInBlockComments)
+	inExterns bool   // TODO: wire real externs tracking when externs are loaded
 	diags     []diag.Diagnostic
 }
 
 // NewCheckJSDoc mirrors the Java constructor CheckJSDoc(AbstractCompiler).
-func NewCheckJSDoc(path string) *CheckJSDoc {
-	return &CheckJSDoc{path: path}
+// Go-only: language-adapter — takes path and src; Java uses AbstractCompiler which provides both.
+func NewCheckJSDoc(path, src string) *CheckJSDoc {
+	return &CheckJSDoc{path: path, src: src}
 }
 
 // Check is the entry point; mirrors CompilerPass.process(externs, root).
@@ -33,8 +37,134 @@ func NewCheckJSDoc(path string) *CheckJSDoc {
 func (c *CheckJSDoc) Check(script *rhino.Node) []diag.Diagnostic {
 	c.diags = nil
 	c.inExterns = false
+	if c.src != "" {
+		c.checkJsDocInBlockComments()
+	}
 	c.cjdWalk(script)
 	return c.diags
+}
+
+// checkJsDocInBlockComments mirrors CheckJSDoc.checkJsDocInBlockComments.
+// Scans the raw source for block comments (/* ... */, not JSDoc /** ... */)
+// that contain JSDoc-style @annotation patterns. Fires JSC_JSDOC_IN_BLOCK_COMMENT
+// when found, suggesting the user use /** instead of /*.
+// Java uses a regex: (/|(\n[ \t]*))\*[ \t]*@[a-zA-Z]+[ \t\n{]
+func (c *CheckJSDoc) checkJsDocInBlockComments() {
+	s := c.src
+	i := 0
+	for i < len(s) {
+		// Skip JSDoc comments /** ... */
+		if i+2 < len(s) && s[i] == '/' && s[i+1] == '*' && s[i+2] == '*' {
+			if n := strings.Index(s[i+3:], "*/"); n >= 0 {
+				i += n + 5
+			} else {
+				return
+			}
+			continue
+		}
+		// Find block comments /* ... */
+		if i+1 < len(s) && s[i] == '/' && s[i+1] == '*' {
+			commentStart := i
+			end := strings.Index(s[i+2:], "*/")
+			if end < 0 {
+				return
+			}
+			commentEnd := i + 2 + end
+			body := s[i+2 : commentEnd]
+			// Check for JSDoc pattern: (*[ \t]*@[a-zA-Z]+[ \t\n{]) or at line start
+			if cjdHasJSDocPattern(body) {
+				line, col := cjdLineCol(s, commentStart)
+				c.diags = append(c.diags, diag.Diagnostic{
+					Path:    c.path,
+					Line:    line,
+					Col:     col,
+					Code:    diag.JSC_JSDOC_IN_BLOCK_COMMENT,
+					Level:   diag.Warning,
+					Message: "Non-JSDoc comment has annotations. Did you mean to start it with '/**'?",
+				})
+			}
+			i = commentEnd + 2
+			continue
+		}
+		// Skip single-line comments
+		if i+1 < len(s) && s[i] == '/' && s[i+1] == '/' {
+			if n := strings.Index(s[i:], "\n"); n >= 0 {
+				i += n + 1
+			} else {
+				return
+			}
+			continue
+		}
+		i++
+	}
+}
+
+// cjdHasJSDocPattern mirrors Java's COMMENT_PATTERN:
+// (/|(\n[ \t]*))\*[ \t]*@[a-zA-Z]+[ \t\n{]
+// Checks if a block comment body contains JSDoc-style annotations.
+func cjdHasJSDocPattern(body string) bool {
+	for i := 0; i < len(body); i++ {
+		ch := body[i]
+		// Look for `*[ \t]*@[a-zA-Z]+` after a `/` or a newline+optional-space.
+		matchStar := false
+		if ch == '/' || ch == '\n' {
+			j := i + 1
+			// Skip optional whitespace after newline.
+			if ch == '\n' {
+				for j < len(body) && (body[j] == ' ' || body[j] == '\t') {
+					j++
+				}
+			}
+			// Must be `*`.
+			if j < len(body) && body[j] == '*' {
+				matchStar = true
+				j++
+			}
+			if !matchStar {
+				continue
+			}
+			// Skip optional whitespace.
+			for j < len(body) && (body[j] == ' ' || body[j] == '\t') {
+				j++
+			}
+			// Must be `@` followed by at least one letter.
+			if j >= len(body) || body[j] != '@' {
+				continue
+			}
+			j++ // consume '@'
+			if j >= len(body) || !((body[j] >= 'a' && body[j] <= 'z') || (body[j] >= 'A' && body[j] <= 'Z')) {
+				continue
+			}
+			// Read the annotation name.
+			for j < len(body) && ((body[j] >= 'a' && body[j] <= 'z') || (body[j] >= 'A' && body[j] <= 'Z')) {
+				j++
+			}
+			// Must be followed by space, tab, newline, or `{`.
+			if j < len(body) && (body[j] == ' ' || body[j] == '\t' || body[j] == '\n' || body[j] == '{') {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// cjdLineCol returns (line, col) for the absolute offset in src.
+// Go-only: language-adapter — Java uses Node.getLineno/getCharno; Go uses raw offset.
+func cjdLineCol(src string, off int) (int, int) {
+	if off > len(src) {
+		off = len(src)
+	}
+	line := 1
+	col := 0
+	for i := 0; i < off; i++ {
+		if src[i] == '\n' {
+			line++
+			col = 0
+		} else {
+			col++
+		}
+	}
+	return line, col
 }
 
 // cjdWalk is the post-order visit loop, mirroring
@@ -59,8 +189,8 @@ func (c *CheckJSDoc) visit(n *rhino.Node) {
 	c.validateNoCollapse(n, info)
 	c.validateClassLevelJsDoc(n, info)
 	c.validateArrowFunction(n)
-	// validateRestParameter: TODO — REST token absent from Go AST.
-	// validateDefaultValue: TODO — DEFAULT_VALUE token absent from Go AST.
+	c.validateRestParameter(n)
+	// validateDefaultValue: TODO — DEFAULT_VALUE token absent from Go parser (default params produce NAME, not DEFAULT_VALUE).
 	c.validateTemplates(n, info)
 	c.validateTypedefs(n, info)
 	c.validateNoSideEffects(n, info)
@@ -70,7 +200,7 @@ func (c *CheckJSDoc) visit(n *rhino.Node) {
 	c.validateImplicitCast(n, info)
 	c.validateClosurePrimitive(n, info)
 	c.validateReturnJsDoc(n, info)
-	// validateTsType: TODO — @tsType not in Go JSDocInfo (TsTypes() absent).
+	c.validateTsType(n, info)
 	// validateJsDocTypeNames: handled by CheckJsDocTypes.
 	c.validateIsUsedViaDotConstructor(n, info)
 }
@@ -113,8 +243,8 @@ func (c *CheckJSDoc) validateSuppress(n *rhino.Node, info *rhino.JSDocInfo) {
 			" https://github.com/google/closure-compiler/wiki/@suppress-annotations")
 }
 
-// cjdContainsOnlySuppressionFor mirrors Java's containsOnlySuppressionFor.
-func cjdContainsOnlySuppressionFor(info *rhino.JSDocInfo, allowed string) bool {
+// containsOnlySuppressionFor mirrors Java's containsOnlySuppressionFor.
+func containsOnlySuppressionFor(info *rhino.JSDocInfo, allowed string) bool {
 	s := info.Suppressions()
 	if len(s) != 1 {
 		return false
@@ -133,7 +263,7 @@ func (c *CheckJSDoc) validateTypedefs(n *rhino.Node, info *rhino.JSDocInfo) {
 	if info == nil || info.TypedefType() == nil {
 		return
 	}
-	if cjdIsClassDecl(n) {
+	if isClassDecl(n) {
 		c.reportMisplaced(n, "typedef", "@typedef is not allowed on a class declaration.")
 		return
 	}
@@ -165,7 +295,7 @@ func (c *CheckJSDoc) validateTemplates(n *rhino.Node, info *rhino.JSDocInfo) {
 	if info.IsConstructor() || info.IsInterface() {
 		return
 	}
-	if cjdIsClassDecl(n) {
+	if isClassDecl(n) {
 		return
 	}
 	// containsFunctionDeclaration / getFunctionDecl approximation:
@@ -188,7 +318,7 @@ func (c *CheckJSDoc) validateTemplates(n *rhino.Node, info *rhino.JSDocInfo) {
 // FUNCTION whose parent is a CLASS body BLOCK.
 // ---------------------------------------------------------------------------
 func (c *CheckJSDoc) validateClassLevelJsDoc(n *rhino.Node, info *rhino.JSDocInfo) {
-	if info == nil || !cjdHasClassLevelJsDoc(info) {
+	if info == nil || !hasClassLevelJsDoc(info) {
 		return
 	}
 	// Legacy AST: FUNCTION → BLOCK → CLASS.
@@ -217,8 +347,8 @@ func (c *CheckJSDoc) validateClassLevelJsDoc(n *rhino.Node, info *rhino.JSDocInf
 	}
 }
 
-// cjdHasClassLevelJsDoc mirrors the private Java helper hasClassLevelJsDoc.
-func cjdHasClassLevelJsDoc(info *rhino.JSDocInfo) bool {
+// hasClassLevelJsDoc mirrors the private Java helper hasClassLevelJsDoc.
+func hasClassLevelJsDoc(info *rhino.JSDocInfo) bool {
 	return info.IsConstructor() || info.IsInterface() ||
 		info.BaseType() != nil ||
 		len(info.Implementations()) != 0 ||
@@ -228,10 +358,87 @@ func cjdHasClassLevelJsDoc(info *rhino.JSDocInfo) bool {
 // ---------------------------------------------------------------------------
 // validateAbstractJsDoc
 // Mirrors CheckJSDoc.validateAbstractJsDoc.
-// @abstract is not yet in the Go JSDocInfo, so this check is a TODO stub.
+// Fires MISPLACED_ANNOTATION when @abstract appears in an invalid position:
+//   - On a non-class, non-function node.
+//   - On an ES6 constructor member.
+//   - On a function with a non-empty body.
+//   - On a static method.
+//   - On a function that is not a method.
 // ---------------------------------------------------------------------------
-func (c *CheckJSDoc) validateAbstractJsDoc(_ *rhino.Node, _ *rhino.JSDocInfo) {
-	// TODO: port when @abstract is added to rhino.JSDocInfo.
+func (c *CheckJSDoc) validateAbstractJsDoc(n *rhino.Node, info *rhino.JSDocInfo) {
+	if info == nil || !info.IsAbstract() {
+		return
+	}
+	// Class declarations are always valid for @abstract.
+	if isClassDecl(n) {
+		return
+	}
+	// @abstract on a non-function node.
+	functionNode := cjdGetFunctionDecl(n)
+	if functionNode == nil {
+		c.reportMisplaced(n, "@abstract",
+			"only functions or non-static methods can be abstract")
+		return
+	}
+	// @abstract on a function with a non-empty body (unless it's a constructor).
+	if !info.IsConstructor() {
+		body := functionNode.LastChild()
+		if body != nil && body.Token() == rhino.BLOCK && body.HasChildren() {
+			c.reportMisplaced(n, "@abstract",
+				"function with a non-empty body cannot be abstract")
+			return
+		}
+	}
+	// @abstract on a static member is invalid.
+	// Check both the AST property (for MEMBER_FUNCTION_DEF) and the JSDoc
+	// flag (for FUNCTION with `static` parsed into JSDocInfo).
+	if n.GetBooleanProp(rhino.PropStaticMember) || info.IsStatic() {
+		c.reportMisplaced(n, "@abstract", "static methods cannot be abstract")
+		return
+	}
+	// @abstract is only valid on methods (MEMBER_FUNCTION_DEF, STRING_KEY in
+	// object literal, GETTER_DEF, SETTER_DEF, FUNCTION inside a CLASS body,
+	// or a constructor) or prototype functions.
+	// Java's check: !info.isConstructor() && !n.isMemberFunctionDef() && ...
+	// Skip the method check when @constructor is present.
+	if !info.IsConstructor() {
+		switch n.Token() {
+		case rhino.MEMBER_FUNCTION_DEF, rhino.GETTER_DEF, rhino.SETTER_DEF, rhino.STRING_KEY:
+			// Methods in class body or object literal — valid.
+		case rhino.FUNCTION:
+			// FUNCTION directly inside a CLASS body BLOCK (legacy AST for class
+			// methods — no MEMBER_FUNCTION_DEF wrapper) is a class method — valid.
+			if p := n.Parent(); p != nil && p.Token() == rhino.BLOCK {
+				if gp := p.Parent(); gp != nil && gp.Token() == rhino.CLASS {
+					return // class method — valid
+				}
+			}
+			// Check if it's a prototype method: parent is ASSIGN whose LHS is
+			// X.prototype.method (GETPROP chain ending in "prototype").
+			if !cjdIsPrototypeMethod(functionNode) {
+				c.reportMisplaced(n, "@abstract",
+					"only functions or non-static methods can be abstract")
+			}
+		}
+	}
+}
+
+// cjdIsPrototypeMethod reports whether fn is assigned as a prototype method
+// (i.e. the enclosing ASSIGN's LHS is X.prototype.y). Mirrors
+// NodeUtil.isPrototypeMethod in Java.
+func cjdIsPrototypeMethod(fn *rhino.Node) bool {
+	if fn == nil {
+		return false
+	}
+	p := fn.Parent()
+	if p == nil {
+		return false
+	}
+	if p.Token() != rhino.ASSIGN {
+		return false
+	}
+	lhs := p.FirstChild()
+	return lhs != nil && cjdIsPrototypeProperty(lhs)
 }
 
 // ---------------------------------------------------------------------------
@@ -253,7 +460,7 @@ func (c *CheckJSDoc) validateFunctionJsDoc(n *rhino.Node, info *rhino.JSDocInfo)
 	if info.HasType() {
 		return
 	}
-	if cjdIsJSDocOnFunctionNode(n, info) {
+	if isJSDocOnFunctionNode(n, info) {
 		return
 	}
 	c.reportMisplaced(n, "function",
@@ -276,7 +483,7 @@ func cjdContainsFunctionDeclaration(info *rhino.JSDocInfo) bool {
 	return false
 }
 
-// cjdIsJSDocOnFunctionNode mirrors Java's isJSDocOnFunctionNode.
+// isJSDocOnFunctionNode mirrors Java's isJSDocOnFunctionNode.
 // Returns true when the node can be the host for function-bearing JSDoc.
 // Java's switch includes FUNCTION, GETTER_DEF, SETTER_DEF, MEMBER_FUNCTION_DEF,
 // STRING_KEY, COMPUTED_PROP, EXPORT, MEMBER_FIELD_DEF, COMPUTED_FIELD_DEF,
@@ -284,7 +491,7 @@ func cjdContainsFunctionDeclaration(info *rhino.JSDocInfo) bool {
 // Go subset: FUNCTION, CLASS (for @constructor/@interface on class decls),
 // STRING_KEY, CLASS_FIELD_DEF, VAR/LET/CONST, ASSIGN,
 // GETPROP (when qualified and parent is EXPR_RESULT).
-func cjdIsJSDocOnFunctionNode(n *rhino.Node, info *rhino.JSDocInfo) bool {
+func isJSDocOnFunctionNode(n *rhino.Node, info *rhino.JSDocInfo) bool {
 	switch n.Token() {
 	case rhino.FUNCTION, rhino.CLASS, rhino.STRING_KEY, rhino.CLASS_FIELD_DEF,
 		rhino.MEMBER_FUNCTION_DEF, rhino.GETTER_DEF, rhino.SETTER_DEF:
@@ -309,13 +516,57 @@ func cjdIsJSDocOnFunctionNode(n *rhino.Node, info *rhino.JSDocInfo) bool {
 // ---------------------------------------------------------------------------
 // validateMsgJsDoc
 // Mirrors CheckJSDoc.validateMsgJsDoc.
-// @desc/@meaning/@alternateMessageId are not in Go JSDocInfo yet; this is
-// a TODO stub.
+// Fires JSC_MISPLACED_MSG_ANNOTATION when @desc/@meaning/@alternateMessageId
+// appear on a node that is not a valid message declaration (name starts with
+// MSG_). Java also checks info.getDescription() != null, but only for non-TS
+// source; we mirror that by always checking description.
 // ---------------------------------------------------------------------------
-func (c *CheckJSDoc) validateMsgJsDoc(_ *rhino.Node, _ *rhino.JSDocInfo) {
-	// TODO: port when @desc / @meaning / @alternateMessageId are added to
-	// rhino.JSDocInfo. Fire JSC_MISPLACED_MSG_ANNOTATION on name nodes
-	// that don't start with MSG_.
+func (c *CheckJSDoc) validateMsgJsDoc(n *rhino.Node, info *rhino.JSDocInfo) {
+	if info == nil {
+		return
+	}
+	hasNonDescMsgTag := info.GetMeaning() != "" || info.GetAlternateMessageId() != ""
+	hasDesc := info.GetDescription() != ""
+	if !hasNonDescMsgTag && !hasDesc {
+		return
+	}
+	descOkay := false
+	switch n.Token() {
+	case rhino.ASSIGN, rhino.VAR, rhino.LET, rhino.CONST:
+		if fc := n.FirstChild(); fc != nil {
+			descOkay = isValidMsgName(fc)
+		}
+	case rhino.STRING_KEY:
+		descOkay = isValidMsgName(n)
+	case rhino.GETPROP:
+		// Java: only when n.isFromExterns() && n.isQualifiedName().
+		// Go: only for qualified name in externs context (inExterns).
+		if c.inExterns && cjdIsQualifiedName(n) {
+			descOkay = isValidMsgName(n)
+		}
+	}
+	if !descOkay {
+		c.report(n, diag.JSC_MISPLACED_MSG_ANNOTATION, diag.Warning,
+			"Misplaced message annotation. @desc, @meaning, and @alternateMessageId"+
+				" annotations should be only on message nodes."+
+				"\nMessage constants must be prefixed with 'MSG_'.")
+	}
+}
+
+// isValidMsgName mirrors CheckJSDoc.isValidMsgName.
+// Returns true when the node's name starts with "MSG_".
+func isValidMsgName(n *rhino.Node) bool {
+	if n == nil {
+		return false
+	}
+	switch n.Token() {
+	case rhino.NAME, rhino.STRING_KEY:
+		return strings.HasPrefix(n.String_(), "MSG_")
+	case rhino.GETPROP:
+		// Qualified name: check the full dotted string.
+		return strings.HasPrefix(n.GetQualifiedName(), "MSG_")
+	}
+	return false
 }
 
 // ---------------------------------------------------------------------------
@@ -407,6 +658,62 @@ func (c *CheckJSDoc) validateArrowFunction(n *rhino.Node) {
 }
 
 // ---------------------------------------------------------------------------
+// validateRestParameter
+// Mirrors CheckJSDoc.validateRestParameter.
+// Fires JSC_BAD_REST_PARAMETER_ANNOTATION when a rest parameter has a JSDoc
+// type annotation that is not wrapped in `...` (i.e. the annotation is
+// `{number}` instead of `{...number}`). Java uses Token.ITER_REST on the
+// type-expression root to detect this; Go checks IsRestParam.
+// ---------------------------------------------------------------------------
+func (c *CheckJSDoc) validateRestParameter(n *rhino.Node) {
+	// Java: if (!restParam.isRest() || !restParam.getParent().isParamList())
+	if n.Token() != rhino.ITER_REST {
+		return
+	}
+	p := n.Parent()
+	if p == nil || p.Token() != rhino.PARAM_LIST {
+		return
+	}
+	// The first child of ITER_REST is the bound NAME (or destructuring pattern).
+	firstChild := n.FirstChild()
+	if firstChild == nil {
+		return
+	}
+	// Prefer inline JSDoc on the rest-param child.
+	var paramTypeAnnotation *rhino.JSTypeExpression
+	if inlineInfo := firstChild.JSDocInfo(); inlineInfo != nil {
+		paramTypeAnnotation = inlineInfo.Type()
+	} else {
+		// Fall back to the enclosing function's JSDoc @param annotation.
+		fn := p.Parent() // PARAM_LIST → FUNCTION
+		if fn != nil {
+			fnInfo := cjdGetBestJSDocInfo(fn)
+			if fnInfo != nil && firstChild.Token() == rhino.NAME {
+				paramTypeAnnotation = fnInfo.ParameterType(firstChild.String_())
+				// If no named param found, check IsRestParam.
+				if paramTypeAnnotation != nil && fnInfo.IsRestParam(firstChild.String_()) {
+					// Already a rest param annotation — valid.
+					return
+				}
+			}
+		}
+	}
+	// Java fires BAD_REST_PARAMETER_ANNOTATION when the annotation root token
+	// is NOT Token.ITER_REST. In Go we approximate: if the annotation is
+	// present and does NOT carry the rest-param marker, it's bad.
+	if paramTypeAnnotation == nil {
+		return
+	}
+	// If the type name starts with `...` it was parsed as a rest annotation.
+	typeName := paramTypeAnnotation.TypeName
+	if len(typeName) >= 3 && typeName[:3] == "..." {
+		return
+	}
+	c.report(n, diag.JSC_BAD_REST_PARAMETER_ANNOTATION, diag.Warning,
+		"Missing \"...\" in type annotation for rest parameter.")
+}
+
+// ---------------------------------------------------------------------------
 // validateNoSideEffects
 // Mirrors CheckJSDoc.validateNoSideEffects.
 // Fires JSC_INVALID_MODIFIES_ANNOTATION when @modifies appears outside externs.
@@ -484,7 +791,17 @@ func cjdContainsDeclaration(info *rhino.JSDocInfo) bool {
 // ---------------------------------------------------------------------------
 func (c *CheckJSDoc) validateImplicitCast(n *rhino.Node, info *rhino.JSDocInfo) {
 	if !c.inExterns && info != nil && info.IsImplicitCast() {
-		c.report(n, diag.JSC_ILLEGAL_IMPLICIT_CAST, diag.Error,
+		// Java reports at the node `n`. For GETPROP nodes (e.g. the JSDoc
+		// is on `Element.prototype.innerHTML`), the property name STRINGLIT
+		// holds the position Java uses — not the GETPROP itself.
+		// Mirror that by using the last child (property name) of GETPROP.
+		reportNode := n
+		if n.Token() == rhino.GETPROP {
+			if last := n.LastChild(); last != nil {
+				reportNode = last
+			}
+		}
+		c.report(reportNode, diag.JSC_ILLEGAL_IMPLICIT_CAST, diag.Error,
 			"Illegal annotation on {0}. @implicitCast may only be used in externs.")
 	}
 }
@@ -498,7 +815,7 @@ func (c *CheckJSDoc) validateClosurePrimitive(n *rhino.Node, info *rhino.JSDocIn
 	if info == nil || !info.HasClosurePrimitiveId() {
 		return
 	}
-	if !cjdIsJSDocOnFunctionNode(n, info) {
+	if !isJSDocOnFunctionNode(n, info) {
 		c.reportMisplaced(n, "closurePrimitive", "must be on a function node")
 	}
 }
@@ -563,6 +880,31 @@ func (c *CheckJSDoc) validateIsUsedViaDotConstructor(n *rhino.Node, info *rhino.
 		return
 	}
 	c.reportMisplaced(n, "usedViaDotConstructor", "must be on a constructor")
+}
+
+// ---------------------------------------------------------------------------
+// validateTsType
+// Mirrors CheckJSDoc.validateTsType.
+// Fires MISPLACED_ANNOTATION when @tsType is not on a function node.
+// ---------------------------------------------------------------------------
+func (c *CheckJSDoc) validateTsType(n *rhino.Node, info *rhino.JSDocInfo) {
+	if info == nil || len(info.GetTsTypes()) == 0 {
+		return
+	}
+	if !isJSDocOnFunctionNode(n, info) {
+		c.reportMisplaced(n, "tsType", "must be on a function node")
+	}
+}
+
+// isFromTs mirrors CheckJSDoc.isFromTs — returns whether the node's source is
+// a TypeScript file. Go does not distinguish TS from JS sources, so this
+// always returns false. Java calls n.getStaticSourceFile().isTypeScriptSource().
+// Go-only: language-adapter — Java checks StaticSourceFile.isTypeScriptSource(); Go has no TS source-kind.
+func isFromTs(n *rhino.Node) bool {
+	// Go jsgo does not load TypeScript sources — all files are treated as JS.
+	// Return false to match the default (non-TS) path in Java.
+	_ = n // n is not used; kept for API symmetry with Java.
+	return false
 }
 
 // ---------------------------------------------------------------------------
@@ -665,19 +1007,19 @@ func cjdGetRootOfQualifiedName(n *rhino.Node) *rhino.Node {
 	return n
 }
 
-// cjdIsClassDecl mirrors CheckJSDoc.isClassDecl.
-func cjdIsClassDecl(n *rhino.Node) bool {
+// isClassDecl mirrors CheckJSDoc.isClassDecl.
+func isClassDecl(n *rhino.Node) bool {
 	return cjdIsClassNode(n) ||
 		(n.Token() == rhino.ASSIGN && n.LastChild() != nil && cjdIsClassNode(n.LastChild())) ||
 		(cjdIsNameDeclaration(n) && n.FirstChild() != nil &&
-			cjdIsNameInitializeWithClass(n.FirstChild())) ||
-		cjdIsNameInitializeWithClass(n)
+			isNameInitializeWithClass(n.FirstChild())) ||
+		isNameInitializeWithClass(n)
 }
 
-// cjdIsNameInitializeWithClass mirrors CheckJSDoc.isNameInitializeWithClass.
-func cjdIsNameInitializeWithClass(n *rhino.Node) bool {
+// isNameInitializeWithClass mirrors CheckJSDoc.isNameInitializeWithClass.
+func isNameInitializeWithClass(n *rhino.Node) bool {
 	return n != nil && n.Token() == rhino.NAME &&
-		n.FirstChild() != nil && cjdIsClassDecl(n.FirstChild())
+		n.FirstChild() != nil && isClassDecl(n.FirstChild())
 }
 
 // cjdIsClassNode mirrors CheckJSDoc.isClass.
