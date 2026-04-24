@@ -50,6 +50,7 @@ func NewVarCheck(path string, creator *TypedScopeCreator, global *TypedScope) *V
 // Check runs the traversal and returns any JSC_UNDEFINED_VARIABLE
 // diagnostics discovered. Fresh VarCheck per file matches the Java
 // Compiler#process entry point.
+// Go-only: language-adapter — Java's process() takes externs+root Node pair; Go uses a single SCRIPT node.
 func (v *VarCheck) Check(script *rhino.Node) []diag.Diagnostic {
 	v.diags = nil
 	trav := NewNodeTraversal(v, v.creator, v.global)
@@ -62,6 +63,7 @@ func (v *VarCheck) Check(script *rhino.Node) []diag.Diagnostic {
 // can use this to suppress downstream false-positives on properties of
 // undeclared objects, mirroring Java VarCheck's synthesized-extern
 // mechanism which marks undeclared names as externs.
+// Go-only: language-adapter — Java uses createSynthesizedExternVar; Go uses this set.
 func (v *VarCheck) UndeclaredNames() map[string]bool {
 	return v.reported
 }
@@ -176,6 +178,7 @@ func (v *VarCheck) handleUndeclaredVariableRef(t *NodeTraversal, n *rhino.Node) 
 // VAR child, function/class name, class-field-def name, STRING_KEY
 // child inside destructuring, object-literal shorthand) rather than
 // references. Matches NodeUtil.isNameDeclaration's intent.
+// Go-only: language-adapter — Java uses NodeUtil.isReferenceName directly; Go needs its own helper.
 func (v *VarCheck) isBindingSite(n, parent *rhino.Node) bool {
 	if parent == nil {
 		return true // orphan NAMEs aren't references
@@ -227,20 +230,22 @@ func (v *VarCheck) isBindingSite(n, parent *rhino.Node) bool {
 	return false
 }
 
-// vcLocationOf mirrors VarCheck.java's private locationOf(Node) helper.
+// locationOf mirrors VarCheck.java's private static locationOf(Node) helper.
 // Returns a human-readable location string for a node, or "<unknown>" for nil.
-func vcLocationOf(path string, n *rhino.Node) string {
+// Go-only: language-adapter — takes path as an extra arg since Go nodes don't carry their source file.
+func locationOf(path string, n *rhino.Node) string {
 	if n == nil {
 		return "<unknown>"
 	}
 	return fmt.Sprintf("%s:%d:%d", path, n.Lineno(), n.Charno())
 }
 
-// vcReportVarMultiplyDeclared mirrors VarCheck.reportVarMultiplyDeclared.
+// reportVarMultiplyDeclared mirrors VarCheck.reportVarMultiplyDeclared.
 // Reports a JSC_VAR_MULTIPLY_DECLARED_ERROR at `current` for variable `name`.
 // The original declaration node is `original` (may be nil for implicit decls).
-func vcReportVarMultiplyDeclared(diags *[]diag.Diagnostic, path, name string, current, original *rhino.Node) {
-	msg := fmt.Sprintf("Variable %s declared more than once. First occurrence: %s", name, vcLocationOf(path, original))
+// Go-only: language-adapter — takes diags and path as extra args (Java uses compiler reference).
+func reportVarMultiplyDeclared(diags *[]diag.Diagnostic, path, name string, current, original *rhino.Node) {
+	msg := fmt.Sprintf("Variable %s declared more than once. First occurrence: %s", name, locationOf(path, original))
 	*diags = append(*diags, diag.Diagnostic{
 		Path:    path,
 		Line:    current.Lineno(),
@@ -257,6 +262,7 @@ func vcReportVarMultiplyDeclared(diags *[]diag.Diagnostic, path, name string, cu
 // lookup goes through the externs scope parsed from
 // defaultExternsSrc — this list is just the names that can appear
 // as initializer-only refs without a proper @type annotation.
+// Go-only: language-adapter — Java uses a full externs bundle; Go uses this hand-curated list.
 func defaultExternNames() map[string]bool {
 	names := []string{
 		// Primitive / language intrinsics
