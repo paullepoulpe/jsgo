@@ -5761,16 +5761,19 @@ func (c *TypeCheck) checkPrototypeObjectLitAssign(ownerName string, lit *rhino.N
 		if superSlot == nil || overrideCompatible(ownSlot, superSlot) {
 			continue
 		}
+		// Java reports at the value (function) node, not the key node.
+		// `child` is the FUNCTION expression (e.g., `function() { return ''; }`).
+		reportNode := child
 		if fn.Instance.IsStructural || super.IsStructural {
 			c.diags = append(c.diags, diag.Diagnostic{
-				Path: c.path, Line: kv.Lineno(), Col: kv.Charno(),
+				Path: c.path, Line: reportNode.Lineno(), Col: reportNode.Charno(),
 				Code: diag.JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH, Level: diag.Error,
 				Message: fmt.Sprintf("mismatch of the %s property on type %s and the type of the property it overrides from interface %s\noriginal: %s\noverride: %s",
 					methodName, ownerName, super.TypeName(), superSlot.TypeName(), ownSlot.TypeName()),
 			})
 		} else {
 			c.diags = append(c.diags, diag.Diagnostic{
-				Path: c.path, Line: kv.Lineno(), Col: kv.Charno(),
+				Path: c.path, Line: reportNode.Lineno(), Col: reportNode.Charno(),
 				Code: diag.JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH, Level: diag.Error,
 				Message: fmt.Sprintf("mismatch of the %s property type and the type of the property it overrides from superclass %s\noriginal: %s\noverride: %s",
 					methodName, super.TypeName(), superSlot.TypeName(), ownSlot.TypeName()),
