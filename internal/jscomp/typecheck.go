@@ -855,6 +855,14 @@ func (c *TypeCheck) visitCast(n *rhino.Node, scope *TypedScope) []diag.Diagnosti
 	if castType == nil {
 		return nil
 	}
+	// When the cast target resolved to Unknown, CheckJSDocTypes has
+	// already emitted (or will emit) JSC_UNRECOGNIZED_TYPE_ERROR; Java's
+	// TypeCheck skips the CAST subtype test when the target is
+	// unknown-typed (see TypeCheck.java:validateTypeAnnotation which
+	// returns early for unresolved annotations). Mirror that here.
+	if isUnknownOrNil(castType) {
+		return nil
+	}
 	// When the annotation resolves to a constructor (e.g. `@type {Function}`
 	// or `@type {Object}` via externs), use the instance type for the cast
 	// check — annotations refer to the nominal instance type, not the
@@ -1363,6 +1371,20 @@ func (c *TypeCheck) visitCall(node *rhino.Node, scope *TypedScope) []diag.Diagno
 	callee := kids[0]
 	args := kids[1:]
 	infer := NewTypeInference(scope)
+	// Handle f.bind(thisArg, arg1, …) and f.call(thisArg, arg1, …) specially.
+	// Java lazily defines a synthetic function type for "bind" and "call" on
+	// FunctionType.getPropertyType (FunctionType.java:getCallOrBindSignature).
+	// In Go, FunctionType doesn't embed ObjectType so GetPropertyType("bind")
+	// returns nil and infer.InferType(callee) → Unknown, bypassing all checks.
+	// We replicate Java's behaviour inline: when callee is GETPROP(recv, "bind"/
+	// "call") and recv's type is a FunctionType, check the post-thisArg args
+	// against the receiver's parameter list. Port of
+	// FunctionType.java:getCallOrBindSignature + TypeCheck.java:visitArgumentList.
+	if callee.Token() == rhino.GETPROP {
+		if diags, handled := c.visitCallOrBind(node, callee, args, infer); handled {
+			return diags
+		}
+	}
 	calleeType := infer.InferType(callee)
 	// Strip null/undefined from the callee type so a `?function(T)`
 	// (nullable function) still participates in arity checks — Java's
@@ -1523,6 +1545,72 @@ func (c *TypeCheck) visitCall(node *rhino.Node, scope *TypedScope) []diag.Diagno
 		out = append(out, c.tvDrain()...)
 	}
 	return out
+}
+
+// visitCallOrBind checks argument types for f.call(thisArg, a, b, …) and
+// f.bind(thisArg, a, b, …) when the receiver of the GETPROP is a FunctionType.
+// Returns (diagnostics, true) when the pattern is matched (caller should return
+// those diagnostics directly), or (nil, false) when it is not.
+//
+// Port of FunctionType.java:getCallOrBindSignature (lines 709-750) combined with
+// TypeCheck.java:visitArgumentList (lines 2656-2660): Java lazily synthesises a
+// function type for "bind"/"call" and then runs the standard argument-checking
+// loop against it; we replicate that here for the Go port.
+func (c *TypeCheck) visitCallOrBind(node *rhino.Node, callee *rhino.Node, args []*rhino.Node, infer *TypeInference) ([]diag.Diagnostic, bool) {
+	gpKids := callee.Children()
+	if len(gpKids) < 2 {
+		return nil, false
+	}
+	propName := gpKids[1].String_()
+	if propName != "call" && propName != "bind" {
+		return nil, false
+	}
+	// Resolve the receiver type (e.g. the `f` in `f.call`).
+	recvType := infer.InferType(gpKids[0])
+	recvType = stripNullUndef(recvType)
+	recvFn, ok := recvType.(*jstype.FunctionType)
+	if !ok {
+		return nil, false
+	}
+	// args[0] is thisArg — not type-checked (Java also skips it).
+	// args[1..] are checked against recvFn.Params[0..].
+	if len(args) <= 1 {
+		// Only thisArg or nothing — nothing to check.
+		return nil, true
+	}
+	boundArgs := args[1:] // args after thisArg
+	params := recvFn.GetParameters()
+	isVariadic := recvFn.MaxArity >= jstype.MaxArgsUnlimited && len(recvFn.Params) > 0
+	var lastParamType jstype.JSType
+	if isVariadic {
+		lastParamType = recvFn.Params[len(recvFn.Params)-1]
+	}
+	var out []diag.Diagnostic
+	for i, arg := range boundArgs {
+		var param jstype.JSType
+		if i < len(recvFn.Params) {
+			param = recvFn.Params[i]
+		} else if isVariadic {
+			param = lastParamType
+		} else {
+			break
+		}
+		found := infer.InferType(arg)
+		// Optional params accept undefined explicitly (mirrors Java).
+		if i < len(params) && params[i].IsOptional() && found == jstype.Void {
+			continue
+		}
+		posNode := arg
+		if arg.Token() == rhino.GETPROP {
+			if gk := arg.Children(); len(gk) >= 2 {
+				posNode = gk[1]
+			}
+		}
+		// Ordinal is i+2: 1-based, starting at 2 because arg 1 is thisArg.
+		c.tv.expectArgumentMatchesParameter(posNode, found, param, node, i+2)
+		out = append(out, c.tvDrain()...)
+	}
+	return out, true
 }
 
 // visitGetProp — port of TypeCheck.java's visitGetProp. Fires:
