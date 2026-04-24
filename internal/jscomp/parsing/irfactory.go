@@ -23,6 +23,12 @@ import (
 type IRFactory struct {
 	sourceFile    rhino.StaticSourceFile
 	errorReporter errorReporter
+	// jsdocComments holds all JSDoc comments from the source, sorted by
+	// end offset, for JSDoc attachment during Transform.
+	// Mirrors Java IRFactory's comment-list that IRFactory.attachJSDoc uses.
+	jsdocComments []trees.Comment
+	// src is the raw source text, used to extract JSDoc comment bodies for parsing.
+	src string
 }
 
 // errorReporter is a minimal error-reporting interface used by IRFactory.
@@ -42,6 +48,66 @@ func NewIRFactory(sourceFile rhino.StaticSourceFile, er errorReporter) *IRFactor
 	}
 }
 
+// SetSourceComments provides the list of comments from the ProgramTree so
+// IRFactory can attach JSDoc to nodes. Must be called before Transform if
+// JSDoc attachment is desired.
+// Go-only: Java IRFactory receives comments via transformTree(...) static factory.
+func (f *IRFactory) SetSourceComments(comments []trees.Comment, src string) {
+	f.src = src
+	for _, c := range comments {
+		if c.Type == trees.CommentTypeJSDoc {
+			f.jsdocComments = append(f.jsdocComments, c)
+		}
+	}
+}
+
+// findPrecedingJSDoc returns the JSDoc comment (if any) whose end offset
+// immediately precedes the given start offset, with only whitespace in between.
+// Mirrors Java IRFactory.getJSDocNode(ParseTree) which walks back from the
+// node's start to find the preceding JSDoc comment.
+// Go-only: Java uses a different infrastructure for comment lookup.
+func (f *IRFactory) findPrecedingJSDoc(nodeStartOffset int) *trees.Comment {
+	var best *trees.Comment
+	for i := range f.jsdocComments {
+		c := &f.jsdocComments[i]
+		endOff := c.Location.End.Offset
+		if endOff > nodeStartOffset {
+			continue
+		}
+		// Only match if there's no non-whitespace between comment end and node start.
+		if endOff <= len(f.src) && nodeStartOffset <= len(f.src) {
+			between := f.src[endOff:nodeStartOffset]
+			hasNonWhitespace := false
+			for _, ch := range between {
+				if ch != ' ' && ch != '\t' && ch != '\n' && ch != '\r' {
+					hasNonWhitespace = true
+					break
+				}
+			}
+			if hasNonWhitespace {
+				continue
+			}
+		}
+		if best == nil || c.Location.End.Offset > best.Location.End.Offset {
+			best = c
+		}
+	}
+	return best
+}
+
+// extractJSDocBody extracts the body of a JSDoc comment (without /** and */).
+// Mirrors the body extraction Java's IRFactory does before passing to JsDocInfoParser.
+func extractJSDocBody(raw string) string {
+	body := raw
+	if len(body) >= 3 && body[:3] == "/**" {
+		body = body[3:]
+	}
+	if len(body) >= 2 && body[len(body)-2:] == "*/" {
+		body = body[:len(body)-2]
+	}
+	return body
+}
+
 // Transform converts a ParseTree node into a rhino IR Node.
 // Mirrors IRFactory.transform(ParseTree) in Java.
 func (f *IRFactory) Transform(tree *trees.ParseTree) *rhino.Node {
@@ -51,8 +117,57 @@ func (f *IRFactory) Transform(tree *trees.ParseTree) *rhino.Node {
 	node := f.process(tree)
 	if node != nil {
 		f.setSourceInfo(node, tree)
+		// Attach JSDoc if a JSDoc comment immediately precedes this node.
+		// Mirrors Java IRFactory.attachJSDoc(ParseTree, Node).
+		// Only attach to statement-level nodes (functions, classes, var/let/const,
+		// and expression statements) to match Java's attachment points.
+		if f.src != "" && shouldAttachJSDoc(tree) {
+			if c := f.findPrecedingJSDoc(tree.Location.Start.Offset); c != nil {
+				body := extractJSDocBody(c.Value)
+				startLine := c.Location.Start.Line + 1 // 1-indexed
+				if jsdoc := ParseJSDocInfo(body, startLine); jsdoc != nil {
+					attachJSDocToNode(node, jsdoc)
+				}
+			}
+		}
 	}
 	return node
+}
+
+// attachJSDocToNode attaches jsdoc to the appropriate node. For EXPR_RESULT
+// nodes, JSDoc is attached to the first child (ASSIGN/CALL/NEW/FUNCTION) rather
+// than the wrapper, mirroring the legacy parser's attachJSDocToInner.
+// For VAR/LET/CONST declarations, JSDoc is attached to the declaration node.
+func attachJSDocToNode(node *rhino.Node, jsdoc *rhino.JSDocInfo) {
+	if node == nil || jsdoc == nil {
+		return
+	}
+	switch node.Token() {
+	case rhino.EXPR_RESULT:
+		// Mirror legacy parser's attachJSDocToInner: put JSDoc on the inner
+		// ASSIGN/CALL/NEW/FUNCTION node, not on the EXPR_RESULT wrapper.
+		if inner := node.FirstChild(); inner != nil {
+			inner.SetJSDocInfo(jsdoc)
+			return
+		}
+	}
+	node.SetJSDocInfo(jsdoc)
+}
+
+// shouldAttachJSDoc reports whether a ParseTree type is a valid JSDoc
+// attachment point. Mirrors Java IRFactory's per-type attachment logic.
+func shouldAttachJSDoc(tree *trees.ParseTree) bool {
+	switch tree.Type {
+	case trees.ParseTreeTypeFunctionDeclaration,
+		trees.ParseTreeTypeClassDeclaration,
+		trees.ParseTreeTypeVariableStatement,
+		trees.ParseTreeTypeVariableDeclarationList,
+		trees.ParseTreeTypeVariableDeclaration,
+		trees.ParseTreeTypeExpressionStatement,
+		trees.ParseTreeTypeFieldDeclaration:
+		return true
+	}
+	return false
 }
 
 // process routes a ParseTree to the appropriate transform* method based on
@@ -724,9 +839,18 @@ func (f *IRFactory) processImportDecl(tree *trees.ImportDeclarationTree) *rhino.
 	}
 
 	// Third child: module specifier string.
-	// Note: LiteralToken is a stub and carries no value field; the string
-	// value is unavailable until the token layer is fully ported.
-	thirdChild := f.newStringNode(rhino.STRINGLIT, "")
+	var thirdChild *rhino.Node
+	if tree.ModuleSpecifier != nil {
+		// Strip surrounding quotes from the string literal value.
+		val := tree.ModuleSpecifier.Value
+		if len(val) >= 2 && (val[0] == '"' || val[0] == '\'') {
+			val = val[1 : len(val)-1]
+		}
+		thirdChild = f.newStringNode(rhino.STRINGLIT, val)
+		f.setSourceInfoFromToken(thirdChild, &tree.ModuleSpecifier.Token)
+	} else {
+		thirdChild = f.newStringNode(rhino.STRINGLIT, "")
+	}
 
 	node := f.newNode(rhino.IMPORT)
 	node.AddChildToBack(firstChild)
@@ -837,13 +961,17 @@ func (f *IRFactory) processLiteralExpression(tree *trees.LiteralExpressionTree) 
 	case trees.TokenTypeNull:
 		return f.newNode(rhino.NULL)
 	case trees.TokenTypeNumber:
-		// trees.Token has no Value field; number value is not accessible via the
-		// stub. Return 0 as a placeholder until the full token is wired.
-		return f.newNumberNode(0)
+		v, _ := strconv.ParseFloat(tok.Value, 64)
+		return f.newNumberNode(v)
 	case trees.TokenTypeString:
-		return f.newStringNode(rhino.STRINGLIT, "")
+		// String token value includes surrounding quotes; strip them.
+		s := tok.Value
+		if len(s) >= 2 && (s[0] == '"' || s[0] == '\'' || s[0] == '`') {
+			s = s[1 : len(s)-1]
+		}
+		return f.newStringNode(rhino.STRINGLIT, s)
 	case trees.TokenTypeRegularExpression:
-		return f.processRegExpLiteral("")
+		return f.processRegExpLiteral(tok.Value)
 	default:
 		return f.newNode(rhino.EMPTY)
 	}
@@ -986,8 +1114,16 @@ func (f *IRFactory) processPropertyGet(tree *trees.MemberExpressionTree) *rhino.
 	if tree.MemberName == nil {
 		return leftChild
 	}
-	getProp := f.newStringNode(rhino.GETPROP, tree.MemberName.Value)
+	// GETPROP has 2 children: the object expression and a STRINGLIT for the
+	// property name. This mirrors Java IRFactory.processPropertyGet which calls
+	// IR.getprop(object, property) — a 2-child node — not a single string node.
+	getProp := f.newNode(rhino.GETPROP)
 	getProp.AddChildToBack(leftChild)
+	propNode := f.newStringNode(rhino.STRINGLIT, tree.MemberName.Value)
+	if tree.MemberName != nil {
+		f.setSourceInfoFromToken(propNode, &tree.MemberName.Token)
+	}
+	getProp.AddChildToBack(propNode)
 	return getProp
 }
 
@@ -1135,25 +1271,27 @@ func (f *IRFactory) processTemplateSubstitution(tree *trees.TemplateSubstitution
 
 // processObjectLitKey creates a STRING_KEY / GETTER_DEF / SETTER_DEF node
 // from the property token. Mirrors IRFactory.TransformDispatcher.processObjectLitKey.
-// Note: trees.Token is a stub without a Value field; the property name
-// is not accessible through the current trees.Token type.
 func (f *IRFactory) processObjectLitKey(tok *trees.Token, output rhino.Token) *rhino.Node {
 	if tok == nil {
 		return f.newStringNode(output, "__missing_key__")
 	}
 	switch tok.Type {
 	case trees.TokenTypeIdentifier:
-		// Identifier key: name carried by IdentifierToken.Value (not on trees.Token stub).
-		node := f.newStringNode(output, "")
+		node := f.newStringNode(output, tok.Value)
 		f.setSourceInfoFromToken(node, tok)
 		return node
 	case trees.TokenTypeNumber:
-		node := f.newStringNode(output, "0")
+		node := f.newStringNode(output, tok.Value)
 		node.PutBooleanProp(rhino.PropQuotedStringKey, true)
 		f.setSourceInfoFromToken(node, tok)
 		return node
 	default:
-		node := f.newStringNode(output, "")
+		// String literal key: strip surrounding quotes.
+		val := tok.Value
+		if len(val) >= 2 && (val[0] == '"' || val[0] == '\'') {
+			val = val[1 : len(val)-1]
+		}
+		node := f.newStringNode(output, val)
 		node.PutBooleanProp(rhino.PropQuotedStringKey, true)
 		f.setSourceInfoFromToken(node, tok)
 		return node
@@ -1163,12 +1301,19 @@ func (f *IRFactory) processObjectLitKey(tok *trees.Token, output rhino.Token) *r
 // processRegExpLiteral builds a REGEXP node from the raw literal string.
 // Mirrors TransformDispatcher.processRegExpLiteral.
 func (f *IRFactory) processRegExpLiteral(raw string) *rhino.Node {
-	lastSlash := len(raw) - 1
-	for lastSlash > 0 && raw[lastSlash] != '/' {
-		lastSlash--
+	// Guard against malformed / stub raw strings (e.g. empty string from
+	// token stubs that don't carry a value yet).
+	var pattern, flags string
+	if len(raw) >= 2 && raw[0] == '/' {
+		lastSlash := len(raw) - 1
+		for lastSlash > 0 && raw[lastSlash] != '/' {
+			lastSlash--
+		}
+		if lastSlash > 0 {
+			pattern = raw[1:lastSlash]
+			flags = raw[lastSlash+1:]
+		}
 	}
-	pattern := raw[1:lastSlash]
-	flags := raw[lastSlash+1:]
 	patternNode := f.newStringNode(rhino.STRINGLIT, pattern)
 	node := f.newNode(rhino.REGEXP)
 	node.AddChildToBack(patternNode)

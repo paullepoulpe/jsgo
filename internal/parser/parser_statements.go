@@ -1013,7 +1013,7 @@ func (p *ParserRewrite) parseImportDeclaration() *trees.ParseTree {
 		p.eatPossiblyImplicitSemiColon()
 		var moduleSpecifier *trees.LiteralToken
 		if tok != nil {
-			moduleSpecifier = &trees.LiteralToken{Token: trees.Token{Type: trees.TokenType(int(tok.Type)), Location: toTreesRange(tok.Location)}}
+			moduleSpecifier = &trees.LiteralToken{Token: trees.Token{Type: trees.TokenType(int(tok.Type)), Location: toTreesRange(tok.Location), Value: tok.Value}}
 		}
 		return p.asParseTree(trees.NewImportDeclarationTree(p.getTreeLocation(start), nil, nil, nil, moduleSpecifier))
 	}
@@ -1055,7 +1055,7 @@ func (p *ParserRewrite) parseImportDeclaration() *trees.ParseTree {
 	strTok := p.eat(TokenTypeString)
 	var moduleSpecifier *trees.LiteralToken
 	if strTok != nil {
-		moduleSpecifier = &trees.LiteralToken{Token: trees.Token{Type: trees.TokenType(int(strTok.Type)), Location: toTreesRange(strTok.Location)}}
+		moduleSpecifier = &trees.LiteralToken{Token: trees.Token{Type: trees.TokenType(int(strTok.Type)), Location: toTreesRange(strTok.Location), Value: strTok.Value}}
 	}
 	p.eatPossiblyImplicitSemiColon()
 
@@ -1142,7 +1142,7 @@ func (p *ParserRewrite) parseExportDeclaration() *trees.ParseTree {
 		p.eatPredefinedString(predefinedFROM)
 		tok := p.eat(TokenTypeString)
 		if tok != nil {
-			moduleSpecifier = &trees.LiteralToken{Token: trees.Token{Type: trees.TokenType(int(tok.Type)), Location: toTreesRange(tok.Location)}}
+			moduleSpecifier = &trees.LiteralToken{Token: trees.Token{Type: trees.TokenType(int(tok.Type)), Location: toTreesRange(tok.Location), Value: tok.Value}}
 		}
 	} else if isExportSpecifier {
 		// validate that exported names are not keywords

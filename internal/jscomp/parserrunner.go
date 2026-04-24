@@ -101,6 +101,9 @@ func runNewPipeline(sourceName, src string) parseResult {
 	//          root = factory.getResultNode();
 	sourceFile := rhino.NewSimpleSourceFile(sourceName, rhino.SourceKindStrong)
 	factory := parsing.NewIRFactory(sourceFile, irEr)
+	// Wire source comments so IRFactory can attach JSDoc to each node.
+	// Mirrors Java IRFactory.transformTree receiving the comment list from ParserRunner.
+	factory.SetSourceComments(programTree.SourceComments, src)
 	root := factory.Transform(&programTree.ParseTree)
 
 	return parseResult{
