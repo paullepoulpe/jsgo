@@ -2257,10 +2257,19 @@ func (c *TypedScopeCreator) hoistVarNamesInto(body *rhino.Node, scope *TypedScop
 				if name := first.FirstChild(); name != nil && name.Token() == rhino.NAME && name.String_() != "" {
 					if _, exists := scope.declared[name.String_()]; !exists {
 						// Java's TypeInference: FOR_IN key is always string type;
-						// FOR_OF key type is the element type (Unknown for now).
+						// FOR_OF key type is the element type of the Iterable.
 						keyType := jstype.JSType(jstype.Unknown)
 						if child.Token() == rhino.FOR_IN {
 							keyType = jstype.String
+						} else if child.Token() == rhino.FOR_OF {
+							// Extract element type from the iterable (second child).
+							kids := child.Children()
+							if len(kids) >= 2 {
+								iterType := scope.inferExprType(kids[1])
+								if elem := extractIterableElemType(iterType); elem != nil {
+									keyType = elem
+								}
+							}
 						}
 						scope.declared[name.String_()] = keyType
 					}
@@ -2567,12 +2576,77 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 		// Java's TypeInference assigns the for-in key type as string
 		// (the property names of the object being iterated are strings).
 		// Mirrors TypeInference.java case FOR_IN: iterKeyType = STRING_TYPE.
+		// For FOR_OF, extract the element type from the Iterable<T>.
 		if p := v.Parent(); p != nil && p.Token() == rhino.FOR_IN {
 			scope.declared[name.String_()] = jstype.String
+		} else if p := v.Parent(); p != nil && p.Token() == rhino.FOR_OF {
+			// Extract element type from the Iterable (second child of FOR_OF).
+			kids := p.Children()
+			if len(kids) >= 2 {
+				iterType := scope.inferExprType(kids[1])
+				if elem := extractIterableElemType(iterType); elem != nil {
+					scope.declared[name.String_()] = elem
+					return
+				}
+			}
+			scope.declared[name.String_()] = jstype.Unknown
 		} else {
 			scope.declared[name.String_()] = jstype.Unknown
 		}
 	}
+}
+
+// inferExprType is a lightweight type inferencer for simple expressions
+// in scope context. Used to get the type of a for-of iterable at
+// scope-creation time (before TypeInference runs).
+func (s *TypedScope) inferExprType(n *rhino.Node) jstype.JSType {
+	if n == nil {
+		return jstype.Unknown
+	}
+	switch n.Token() {
+	case rhino.NAME:
+		t := s.GetDeclaredType(n.String_())
+		if t == nil {
+			return jstype.Unknown
+		}
+		return t
+	case rhino.GETPROP:
+		// Delegate to the qualified-name lookup.
+		if qname := NU.GetBestLValueName(n); qname != "" {
+			parts := strings.SplitN(qname, ".", 2)
+			if len(parts) == 2 {
+				if fn, ok := s.GetDeclaredType(parts[0]).(*jstype.FunctionType); ok && fn.Instance != nil {
+					if t := fn.Instance.GetStaticPropertyType(parts[1]); t != nil {
+						return t
+					}
+				}
+			}
+		}
+		return jstype.Unknown
+	}
+	return jstype.Unknown
+}
+
+// extractIterableElemType returns the element type T from an Iterable<T>,
+// Array<T>, or similar iteratable type. Returns nil if not determinable.
+// Mirrors Java's TypeInference case FOR_OF element-type extraction.
+func extractIterableElemType(t jstype.JSType) jstype.JSType {
+	if t == nil {
+		return nil
+	}
+	// Handle TemplatizedType: Array<T>, Iterable<T>, etc.
+	if tt, ok := t.(*jstype.TemplatizedType); ok && len(tt.Args) > 0 {
+		return tt.Args[0]
+	}
+	// Handle union type: try each member.
+	if u, ok := t.(*jstype.UnionType); ok {
+		for _, m := range u.Members() {
+			if elem := extractIterableElemType(m); elem != nil {
+				return elem
+			}
+		}
+	}
+	return nil
 }
 
 // finishEnumDecl resolves `/** @enum */ var MyEnum = …` by
