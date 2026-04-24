@@ -622,6 +622,10 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitTemplateLit(n, scope))
 	case rhino.OBJECT_PATTERN:
 		c.emit(c.visitObjectPattern(n, scope))
+	case rhino.DYNAMIC_IMPORT:
+		// Java: visitDynamicImport — checks that import(specifier) has a
+		// non-null, non-undefined string specifier.
+		c.emit(c.visitDynamicImport(n, scope))
 	}
 	// Strict-mode operand checks — OFF by default, matching Java.
 	// These fire only when `--jscomp_warning=strictCheckTypes` is set.
@@ -1091,9 +1095,42 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 		// inits don't fire per-entry checks). Mirrors Java's TypeCheck
 		// which routes @enum assignments through EnumType's own init
 		// validator and does not fire ASSIGN mismatch at the top level.
-		if _, isEnum := declared.(*jstype.EnumType); isEnum {
-			if rhs.Token() == rhino.OBJECTLIT || rhs.Token() == rhino.NAME || rhs.Token() == rhino.GETPROP {
-				return nil
+		// However, enum aliasing (`/** @enum {string} */ ns.b = a` where
+		// `a: @enum {number}`) fires "incompatible enum element types" when
+		// the source and target underlying types disagree.
+		if declEnum, isEnum := declared.(*jstype.EnumType); isEnum {
+			if rhs.Token() == rhino.OBJECTLIT {
+				return nil // object-literal enum init — no top-level check
+			}
+			if rhs.Token() == rhino.NAME || rhs.Token() == rhino.GETPROP {
+				// Enum alias: check incompatible underlying types.
+				if rhsEnum, ok := infer.InferType(rhs).(*jstype.EnumType); ok {
+					// Get the declared underlying type from the JSDoc on the ASSIGN.
+					declUnderlying := declEnum.Underlying
+					if aInfo := a.JSDocInfo(); aInfo != nil {
+						if expr := aInfo.EnumParameterType(); expr != nil {
+							declUnderlying = scope.ResolveExpr(expr.TypeName)
+						}
+					}
+					if !jstype.IsSubtype(rhsEnum.Underlying, declUnderlying) {
+						// Java reports at the outer ASSIGN's LHS position.
+						posNode := a
+						if p := a.Parent(); p != nil && p.Token() == rhino.EXPR_RESULT {
+							posNode = p
+						}
+						return []diag.Diagnostic{{
+							Path:  c.path,
+							Line:  posNode.Lineno(),
+							Col:   posNode.Charno(),
+							Code:  diag.JSC_TYPE_MISMATCH,
+							Level: diag.Error,
+							Message: fmt.Sprintf(
+								"incompatible enum element types\nfound   : %s\nrequired: %s",
+								rhsEnum.Underlying.TypeName(), declUnderlying.TypeName()),
+						}}
+					}
+				}
+				return nil // compatible enum alias or unknown RHS — no further check
 			}
 		}
 		found := infer.InferType(rhs)
@@ -2778,6 +2815,36 @@ func isWellKnownSymbolIndex(idx *rhino.Node) bool {
 	}
 	recv := kids[0]
 	return recv.Token() == rhino.NAME && recv.String_() == "Symbol"
+}
+
+// visitDynamicImport ports Java's TypeCheck.visitDynamicImport.
+// Fires JSC_TYPE_MISMATCH "dynamic import specifier" when the specifier
+// is null or undefined — import() requires a string specifier.
+// Java: validator.expectNotNullOrUndefined(t, specifier, specifierType,
+//   "dynamic import specifier", STRING_TYPE).
+func (c *TypeCheck) visitDynamicImport(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	specifier := n.FirstChild()
+	if specifier == nil {
+		return nil
+	}
+	infer := NewTypeInference(scope)
+	specType := infer.InferType(specifier)
+	// Only fire when the specifier is definitively null/undefined.
+	// Java's expectNotNullOrUndefined skips unknown types.
+	if specType == jstype.Null || specType == jstype.Void {
+		msg := fmt.Sprintf("dynamic import specifier\nfound   : %s\nrequired: string",
+			specType.TypeName())
+		posNode := specifier
+		return []diag.Diagnostic{{
+			Path:    c.path,
+			Line:    posNode.Lineno(),
+			Col:     posNode.Charno(),
+			Code:    diag.JSC_TYPE_MISMATCH,
+			Level:   diag.Error,
+			Message: msg,
+		}}
+	}
+	return nil
 }
 
 // isDefinitelyNotCallable reports whether `t` is a type that can
