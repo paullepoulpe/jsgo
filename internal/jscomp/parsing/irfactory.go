@@ -108,6 +108,45 @@ func extractJSDocBody(raw string) string {
 	return body
 }
 
+// parseInlineTypeJSDoc parses a block comment body as an inline type annotation.
+// Handles the `/** TypeExpr */` pattern used for inline parameter/variable types,
+// where the body contains a type expression without `@` tags.
+// Mirrors parser.parseInlineTypeJSDoc from the legacy parser.
+func parseInlineTypeJSDoc(body string) *rhino.JSDocInfo {
+	// If the body contains an @ tag, it's not an inline type annotation.
+	for i := 0; i < len(body); i++ {
+		if body[i] == '@' {
+			return nil
+		}
+	}
+	// Trim whitespace and leading * markers.
+	trimmed := ""
+	inLineStar := true
+	for i := 0; i < len(body); i++ {
+		c := body[i]
+		if c == '\n' || c == '\r' {
+			trimmed += " "
+			inLineStar = true
+			continue
+		}
+		if inLineStar && (c == ' ' || c == '\t' || c == '*') {
+			continue
+		}
+		inLineStar = false
+		trimmed += string(c)
+	}
+	// Trim trailing whitespace.
+	for len(trimmed) > 0 && (trimmed[len(trimmed)-1] == ' ' || trimmed[len(trimmed)-1] == '\t') {
+		trimmed = trimmed[:len(trimmed)-1]
+	}
+	if trimmed == "" {
+		return nil
+	}
+	info := &rhino.JSDocInfo{}
+	info.SetType(rhino.NewJSTypeExpression(trimmed))
+	return info
+}
+
 // Transform converts a ParseTree node into a rhino IR Node.
 // Mirrors IRFactory.transform(ParseTree) in Java.
 func (f *IRFactory) Transform(tree *trees.ParseTree) *rhino.Node {
@@ -698,7 +737,27 @@ func (f *IRFactory) processFunction(tree *trees.FunctionDeclarationTree) *rhino.
 func (f *IRFactory) processFormalParameterList(tree *trees.FormalParameterListTree) *rhino.Node {
 	params := f.newNode(rhino.PARAM_LIST)
 	for _, param := range tree.Parameters {
-		params.AddChildToBack(f.Transform(param))
+		paramNode := f.Transform(param)
+		// Attach inline JSDoc (e.g. /** @type {T} */ or /** SomeType */) to
+		// parameter nodes. This mirrors Java IRFactory's inline-annotation
+		// handling for function parameters (/** TypeExpr */ param patterns).
+		if f.src != "" && paramNode != nil {
+			if c := f.findPrecedingJSDoc(param.Location.Start.Offset); c != nil {
+				body := extractJSDocBody(c.Value)
+				startLine := c.Location.Start.Line + 1
+				// Try full JSDoc parsing first (@param, @type, etc.)
+				var jsdoc *rhino.JSDocInfo
+				jsdoc = ParseJSDocInfo(body, startLine)
+				if jsdoc == nil {
+					// Fall back to inline-type parsing for /** TypeExpr */ patterns.
+					jsdoc = parseInlineTypeJSDoc(body)
+				}
+				if jsdoc != nil {
+					paramNode.SetJSDocInfo(jsdoc)
+				}
+			}
+		}
+		params.AddChildToBack(paramNode)
 	}
 	return params
 }

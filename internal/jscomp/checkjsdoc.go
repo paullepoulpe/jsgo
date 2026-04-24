@@ -280,7 +280,8 @@ func cjdContainsFunctionDeclaration(info *rhino.JSDocInfo) bool {
 // GETPROP (when qualified and parent is EXPR_RESULT).
 func cjdIsJSDocOnFunctionNode(n *rhino.Node, info *rhino.JSDocInfo) bool {
 	switch n.Token() {
-	case rhino.FUNCTION, rhino.CLASS, rhino.STRING_KEY, rhino.CLASS_FIELD_DEF:
+	case rhino.FUNCTION, rhino.CLASS, rhino.STRING_KEY, rhino.CLASS_FIELD_DEF,
+		rhino.MEMBER_FUNCTION_DEF, rhino.GETTER_DEF, rhino.SETTER_DEF:
 		return true
 	case rhino.GETPROP, rhino.GETELEM:
 		if fc := n.FirstChild(); fc != nil && cjdIsQualifiedName(fc) {
