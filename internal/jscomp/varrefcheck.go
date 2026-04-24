@@ -442,8 +442,13 @@ func isMemberContext(parent *rhino.Node) bool {
 		return false
 	}
 	// Class methods live under the CLASS's BLOCK body (the third
-	// child of a CLASS node).
+	// child of a CLASS node) — legacy pipeline.
 	if parent.Token() == rhino.BLOCK && parent.Parent() != nil && parent.Parent().Token() == rhino.CLASS {
+		return true
+	}
+	// New pipeline: class methods are MEMBER_FUNCTION_DEF inside CLASS_MEMBERS.
+	if (parent.Token() == rhino.MEMBER_FUNCTION_DEF || parent.Token() == rhino.GETTER_DEF || parent.Token() == rhino.SETTER_DEF) &&
+		parent.Parent() != nil && parent.Parent().Token() == rhino.CLASS_MEMBERS {
 		return true
 	}
 	// Object-literal method shorthand wraps the FUNCTION under a
