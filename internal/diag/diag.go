@@ -15,7 +15,7 @@ package diag
 
 import "fmt"
 
-// Go-only: Level is a simplified severity enum used by the pre-JSError diagnostics pipeline.
+// Go-only: language-adapter — Level is a simplified severity enum used by the pre-JSError diagnostics pipeline.
 // Java uses CheckLevel (in diagnostictype.go) for the same purpose.
 type Level int
 
@@ -24,7 +24,7 @@ const (
 	Error
 )
 
-// Go-only: Level.String is a convenience method; Java uses CheckLevel.toString().
+// Go-only: stdlib-interop — Level.String satisfies fmt.Stringer; Java uses CheckLevel.toString().
 func (l Level) String() string {
 	if l == Error {
 		return "ERROR"
@@ -32,7 +32,7 @@ func (l Level) String() string {
 	return "WARNING"
 }
 
-// Go-only: Diagnostic is a lightweight struct used by the pre-JSError diagnostics pipeline.
+// Go-only: language-adapter — Diagnostic is a lightweight struct used by the pre-JSError diagnostics pipeline.
 // The Java equivalent is JSError (see jserror.go).
 type Diagnostic struct {
 	Path    string
@@ -43,7 +43,7 @@ type Diagnostic struct {
 	Message string
 }
 
-// Go-only: FormatJavaLike reproduces the shape of Closure Compiler's default
+// Go-only: language-adapter — FormatJavaLike reproduces the shape of Closure Compiler's default
 // output ("<path>:<line>:<col>: <LEVEL> - [<CODE>] <msg>"). Strings are
 // not part of the conformance check (see SPEC.md), but matching the shape
 // keeps the CLI comfortable to use.

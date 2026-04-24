@@ -52,23 +52,23 @@ func Make(dt *DiagnosticType, arguments ...string) JSError {
 	return BuilderFor(dt, arguments...).Build()
 }
 
-// Go-only: MakeAt is a convenience wrapper for JSError.make(String, int, int, DiagnosticType, String...);
+// Go-only: language-adapter — MakeAt is a convenience wrapper for JSError.make(String, int, int, DiagnosticType, String...);
 // Java names this overload `make` (same as other overloads), but Go needs a distinct name.
 func MakeAt(sourceName string, lineno, charno int, dt *DiagnosticType, arguments ...string) JSError {
 	return BuilderFor(dt, arguments...).SetSourceLocation(sourceName, lineno, charno).Build()
 }
 
-// Go-only: MakeJSError is the older name for Make; kept for callers that predate the Java-parity rename.
+// Go-only: language-adapter — MakeJSError is the older name for Make; kept for callers that predate the Java-parity rename.
 func MakeJSError(dt *DiagnosticType, arguments ...string) JSError {
 	return Make(dt, arguments...)
 }
 
-// Go-only: MakeJSErrorAt is the older name for MakeAt; kept for backward compatibility.
+// Go-only: language-adapter — MakeJSErrorAt is the older name for MakeAt; kept for backward compatibility.
 func MakeJSErrorAt(sourceName string, lineno, charno int, dt *DiagnosticType, arguments ...string) JSError {
 	return MakeAt(sourceName, lineno, charno, dt, arguments...)
 }
 
-// Go-only: levelFromCheckLevel converts a CheckLevel to the Level enum used by Diagnostic.
+// Go-only: language-adapter — levelFromCheckLevel converts a CheckLevel to the Level enum used by Diagnostic.
 func levelFromCheckLevel(cl CheckLevel) Level {
 	if cl == CheckLevelError {
 		return Error
@@ -92,7 +92,7 @@ func GetCharno(e JSError) int { return e.Col }
 func GetLineNumber(e JSError) int { return e.Line }
 
 // GetLength mirrors JSError.getLength() — returns the error region length in characters.
-// Go-only: Go's Diagnostic does not track length; returns 0.
+// Go-only: language-adapter — Go's Diagnostic does not track length; returns 0.
 func GetLength(e JSError) int { return 0 }
 
 // GetNodeSourceOffset mirrors JSError.getNodeSourceOffset() — returns -1 (no node in Go port).
@@ -110,7 +110,7 @@ func Format(e JSError, level CheckLevel, formatter MessageFormatter) string {
 	}
 }
 
-// Go-only: JSErrorToString implements JSError.toString() as a package-level function;
+// Go-only: language-adapter — JSErrorToString implements JSError.toString() as a package-level function;
 // Java uses the record's toString() method but Go can't add methods to a type alias.
 func JSErrorToString(e JSError) string {
 	srcName := e.Path
@@ -158,7 +158,7 @@ func Builder(dt *DiagnosticType, args ...string) *JSErrorBuilder {
 	}
 }
 
-// Go-only: BuilderFor is the older name for Builder; kept for callers that predate the rename.
+// Go-only: language-adapter — BuilderFor is the older name for Builder; kept for callers that predate the rename.
 func BuilderFor(dt *DiagnosticType, args ...string) *JSErrorBuilder {
 	return Builder(dt, args...)
 }
@@ -248,7 +248,7 @@ type JSErrorFull struct {
 	DefaultLevel CheckLevel
 }
 
-// Go-only: NewJSErrorFull creates a JSErrorFull from a DiagnosticType;
+// Go-only: language-adapter — NewJSErrorFull creates a JSErrorFull from a DiagnosticType;
 // Java uses the same `make` overload but returns JSError not JSErrorFull.
 func NewJSErrorFull(dt *DiagnosticType, args ...string) JSErrorFull {
 	msg := dt.FormatMessage(args...)
@@ -265,7 +265,7 @@ func NewJSErrorFull(dt *DiagnosticType, args ...string) JSErrorFull {
 	}
 }
 
-// Go-only: NewJSErrorFullAt creates a JSErrorFull at a specific source location;
+// Go-only: language-adapter — NewJSErrorFullAt creates a JSErrorFull at a specific source location;
 // Java uses the same `make` overload but returns JSError not JSErrorFull.
 func NewJSErrorFullAt(sourceName string, lineno, charno int, dt *DiagnosticType, args ...string) JSErrorFull {
 	msg := dt.FormatMessage(args...)
@@ -370,19 +370,19 @@ type JSErrorMessageFormatter struct {
 	IncludeSourceCode bool
 }
 
-// Go-only: FormatErrorFull formats a JSErrorFull at error level;
+// Go-only: language-adapter — FormatErrorFull formats a JSErrorFull at error level;
 // Java's LightweightMessageFormatter.formatError operates on JSError, not a separate Full type.
 func (f *JSErrorMessageFormatter) FormatErrorFull(e JSErrorFull) string {
 	return f.formatFull(e, "ERROR")
 }
 
-// Go-only: FormatWarningFull formats a JSErrorFull at warning level;
+// Go-only: language-adapter — FormatWarningFull formats a JSErrorFull at warning level;
 // Java's LightweightMessageFormatter.formatWarning operates on JSError, not a separate Full type.
 func (f *JSErrorMessageFormatter) FormatWarningFull(e JSErrorFull) string {
 	return f.formatFull(e, "WARNING")
 }
 
-// Go-only: formatFull is an internal helper for FormatErrorFull/FormatWarningFull.
+// Go-only: language-adapter — formatFull is an internal helper for FormatErrorFull/FormatWarningFull.
 func (f *JSErrorMessageFormatter) formatFull(e JSErrorFull, level string) string {
 	src := e.Path
 	if src == "" {
@@ -410,12 +410,12 @@ func (f *JSErrorMessageFormatter) FormatWarning(d Diagnostic) string {
 // JSErrorFull equality / comparison helpers
 // ---------------------------------------------------------------------------
 
-// Go-only: SameLocation is a Go-specific helper with no Java equivalent.
+// Go-only: language-adapter — SameLocation is a Go-specific helper with no Java equivalent.
 func SameLocation(a, b JSErrorFull) bool {
 	return a.Path == b.Path && a.Line == b.Line && a.Col == b.Col
 }
 
-// Go-only: SameType is a Go-specific helper with no Java equivalent.
+// Go-only: language-adapter — SameType is a Go-specific helper with no Java equivalent.
 func SameType(a, b JSErrorFull) bool {
 	return a.Code == b.Code
 }
@@ -424,12 +424,12 @@ func SameType(a, b JSErrorFull) bool {
 // Make helpers for common JSError construction patterns
 // ---------------------------------------------------------------------------
 
-// Go-only: MakeJSErrorFullAt is a convenience wrapper for NewJSErrorFullAt.
+// Go-only: language-adapter — MakeJSErrorFullAt is a convenience wrapper for NewJSErrorFullAt.
 func MakeJSErrorFullAt(sourceName string, lineno, charno int, dt *DiagnosticType, args ...string) JSErrorFull {
 	return NewJSErrorFullAt(sourceName, lineno, charno, dt, args...)
 }
 
-// Go-only: MakeJSErrorFullWithLength creates a JSErrorFull with a specific error-region length.
+// Go-only: language-adapter — MakeJSErrorFullWithLength creates a JSErrorFull with a specific error-region length.
 func MakeJSErrorFullWithLength(sourceName string, lineno, charno, length int, dt *DiagnosticType, args ...string) JSErrorFull {
 	e := NewJSErrorFullAt(sourceName, lineno, charno, dt, args...)
 	e.Length = length
@@ -458,7 +458,7 @@ type CompositeWarningsGuard struct {
 	guards []WarningsGuard
 }
 
-// Go-only: NewCompositeWarningsGuard creates a CompositeWarningsGuard;
+// Go-only: language-adapter — NewCompositeWarningsGuard creates a CompositeWarningsGuard;
 // Java uses ComposeWarningsGuard which is a separate class not part of JSError.java.
 func NewCompositeWarningsGuard(guards ...WarningsGuard) *CompositeWarningsGuard {
 	return &CompositeWarningsGuard{guards: guards}
@@ -475,7 +475,7 @@ func (g *CompositeWarningsGuard) Level(d Diagnostic) (CheckLevel, bool) {
 	return 0, false
 }
 
-// Go-only: GetPriority is a Go-specific helper on CompositeWarningsGuard.
+// Go-only: language-adapter — GetPriority is a Go-specific helper on CompositeWarningsGuard.
 func (g *CompositeWarningsGuard) GetPriority() int {
 	max := 0
 	for _, guard := range g.guards {
@@ -486,7 +486,7 @@ func (g *CompositeWarningsGuard) GetPriority() int {
 	return max
 }
 
-// Go-only: AddGuard appends a WarningsGuard; Java's ComposeWarningsGuard uses a constructor list.
+// Go-only: language-adapter — AddGuard appends a WarningsGuard; Java's ComposeWarningsGuard uses a constructor list.
 func (g *CompositeWarningsGuard) AddGuard(guard WarningsGuard) {
 	g.guards = append(g.guards, guard)
 }

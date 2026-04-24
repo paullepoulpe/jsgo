@@ -18,31 +18,31 @@ type DiagnosticType struct {
 	Level CheckLevel
 }
 
-// Go-only: DiagnosticTypeError ports DiagnosticType.error(String, String) using the
+// Go-only: language-adapter — DiagnosticTypeError ports DiagnosticType.error(String, String) using the
 // package-qualified naming convention; Java's static method is named just `error`.
 func DiagnosticTypeError(name, descriptionFormat string) *DiagnosticType {
 	return DiagnosticTypeMake(name, CheckLevelError, descriptionFormat)
 }
 
-// Go-only: DiagnosticTypeWarning ports DiagnosticType.warning(String, String) using the
+// Go-only: language-adapter — DiagnosticTypeWarning ports DiagnosticType.warning(String, String) using the
 // package-qualified naming convention; Java's static method is named just `warning`.
 func DiagnosticTypeWarning(name, descriptionFormat string) *DiagnosticType {
 	return DiagnosticTypeMake(name, CheckLevelWarning, descriptionFormat)
 }
 
-// Go-only: DiagnosticTypeDisabled ports DiagnosticType.disabled(String, String) using the
+// Go-only: language-adapter — DiagnosticTypeDisabled ports DiagnosticType.disabled(String, String) using the
 // package-qualified naming convention; Java's static method is named just `disabled`.
 func DiagnosticTypeDisabled(name, descriptionFormat string) *DiagnosticType {
 	return DiagnosticTypeMake(name, CheckLevelOff, descriptionFormat)
 }
 
-// Go-only: DiagnosticTypeMake ports DiagnosticType.make(String, CheckLevel, String) using the
+// Go-only: language-adapter — DiagnosticTypeMake ports DiagnosticType.make(String, CheckLevel, String) using the
 // package-qualified naming convention; Java's static method is named just `make`.
 func DiagnosticTypeMake(name string, level CheckLevel, descriptionFormat string) *DiagnosticType {
 	return &DiagnosticType{Key: name, Level: level, Format: descriptionFormat}
 }
 
-// Go-only: FormatMessage ports DiagnosticType.format(String...) under a different name
+// Go-only: language-adapter — FormatMessage ports DiagnosticType.format(String...) under a different name
 // to avoid shadowing the Format field; Java's method is named just `format`.
 func (dt *DiagnosticType) FormatMessage(arguments ...string) string {
 	result := dt.Format
@@ -54,7 +54,7 @@ func (dt *DiagnosticType) FormatMessage(arguments ...string) string {
 	return result
 }
 
-// Go-only: replaceAll is a string-replacement helper; Java uses java.text.MessageFormat.
+// Go-only: language-adapter — replaceAll is a string-replacement helper; Java uses java.text.MessageFormat.
 func replaceAll(s, old, new_ string) string {
 	if old == "" {
 		return s
@@ -72,7 +72,7 @@ func replaceAll(s, old, new_ string) string {
 	return out
 }
 
-// Go-only: indexOf is a string-search helper used by replaceAll; Java uses String.indexOf.
+// Go-only: language-adapter — indexOf is a string-search helper used by replaceAll; Java uses String.indexOf.
 func indexOf(s, sub string) int {
 	for i := 0; i <= len(s)-len(sub); i++ {
 		if s[i:i+len(sub)] == sub {
@@ -125,7 +125,7 @@ const (
 	CheckLevelError                     // ERROR: emit as error
 )
 
-// Go-only: IsOn is a convenience predicate absent from the Java CheckLevel enum.
+// Go-only: language-adapter — IsOn is a convenience predicate absent from the Java CheckLevel enum.
 func (cl CheckLevel) IsOn() bool {
 	return cl != CheckLevelOff
 }
