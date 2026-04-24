@@ -22,8 +22,8 @@ const (
 	VisibilityInherited                   // INHERITED — default when no tag is present
 )
 
-// String implements fmt.Stringer for Visibility, matching Java's Visibility.name()
-// (all-caps enum name). Used by CheckAccessControls diagnostic messages.
+// String implements fmt.Stringer for Visibility, matching Java's
+// Visibility.toString() / name() output (lower-case).
 func (v Visibility) String() string {
 	switch v {
 	case VisibilityPrivate:

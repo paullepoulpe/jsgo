@@ -17,7 +17,8 @@ import (
 // Note that criterion (1) is only used for normal code, not externs.
 type InferConsts struct{}
 
-// NewInferConsts mirrors InferConsts(AbstractCompiler compiler).
+// Go-only: NewInferConsts mirrors InferConsts(AbstractCompiler compiler).
+// Java has no factory function; the object is constructed directly.
 func NewInferConsts() *InferConsts {
 	return &InferConsts{}
 }
@@ -31,7 +32,7 @@ func (ic *InferConsts) Check(script *rhino.Node) {
 	icAnnotate(script, counts)
 }
 
-// icCountAssignments walks n and returns a map from identifier name to the
+// Go-only: icCountAssignments walks n and returns a map from identifier name to the
 // number of times it appears as an assignment target (lvalue) in the tree.
 // Declaration sites that also initialise (var x = 1, let x = 1, const x = 1)
 // count as one assignment. Plain reassignments (x = 2) add another. The
@@ -43,7 +44,7 @@ func icCountAssignments(root *rhino.Node) map[string]int {
 	return counts
 }
 
-// icWalkForCounts is the recursive worker for icCountAssignments.
+// Go-only: icWalkForCounts is the recursive worker for icCountAssignments.
 // inLoop tracks whether the current position is inside a loop body, so that
 // a declaration inside a loop does not qualify as single-assignment.
 func icWalkForCounts(n *rhino.Node, counts map[string]int, inLoop bool) {
@@ -146,7 +147,7 @@ func icWalkForCounts(n *rhino.Node, counts map[string]int, inLoop bool) {
 	}
 }
 
-// icAnnotate walks n and sets DeclaredConstantVar / InferredConstantVar on
+// Go-only: icAnnotate walks n and sets DeclaredConstantVar / InferredConstantVar on
 // every NAME node that is a declaration binding site.
 func icAnnotate(n *rhino.Node, counts map[string]int) {
 	if n == nil {
@@ -195,7 +196,8 @@ func icAnnotate(n *rhino.Node, counts map[string]int) {
 	}
 }
 
-// icConsiderNameNode mirrors InferConsts.considerVar for a single NAME node.
+// Go-only: icConsiderNameNode mirrors InferConsts.considerVar for a single NAME node.
+// Renamed with ic prefix to avoid collisions; Java's method is considerVar.
 // nameNode is the binding NAME; declParent is its declaration parent
 // (VAR/LET/CONST/FUNCTION/CATCH/PARAM_LIST). counts maps name → total
 // assignment count in the script.
@@ -232,7 +234,8 @@ func icConsiderNameNode(nameNode, declParent *rhino.Node, counts map[string]int)
 	}
 }
 
-// icIsInferredConst mirrors InferConsts.isInferredConst.
+// Go-only: icIsInferredConst mirrors InferConsts.isInferredConst.
+// Prefixed with ic to avoid name collision; Java method is isInferredConst.
 // Returns true when the variable can be inferred to be assigned exactly once.
 func icIsInferredConst(nameNode, declParent *rhino.Node, counts map[string]int) bool {
 	name := nameNode.String_()

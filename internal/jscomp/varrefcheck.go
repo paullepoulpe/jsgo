@@ -110,7 +110,7 @@ func (v *VariableReferenceCheck) Check(script *rhino.Node) []diag.Diagnostic {
 	return v.diags
 }
 
-// hasFileSuppressDuplicate reports whether any node in the script
+// Go-only: hasFileSuppressDuplicate reports whether any node in the script
 // carries a @suppress {duplicate} annotation. This catches both the
 // SCRIPT node itself (if the parser attaches @fileoverview there)
 // and the first-statement node (where mergeSuppressions propagates
@@ -135,7 +135,7 @@ func (v *VariableReferenceCheck) hasFileSuppressDuplicate(script *rhino.Node) bo
 	return check(script)
 }
 
-// preScanVarDecls collects every `var`-keyword declaration in `n`'s
+// Go-only: preScanVarDecls collects every `var`-keyword declaration in `n`'s
 // immediate container scope (i.e. it does not descend into nested
 // function bodies) and records the name → position in `dest`. This
 // mirrors Java's two-pass behaviour where references are collected
@@ -165,6 +165,8 @@ func (v *VariableReferenceCheck) preScanVarDecls(n *rhino.Node, dest map[string]
 	}
 }
 
+// Go-only: walk is the AST traversal driver. Java uses NodeTraversal callbacks
+// (shouldTraverse / visit); Go uses a direct recursive walk function.
 func (v *VariableReferenceCheck) walk(n, parent *rhino.Node) {
 	if n == nil {
 		return
@@ -322,7 +324,7 @@ func (v *VariableReferenceCheck) checkEarlyReference(n, parent *rhino.Node) {
 	})
 }
 
-// isInsideVarInitializer reports whether NAME reference node n is
+// Go-only: isInsideVarInitializer reports whether NAME reference node n is
 // inside the initializer expression of a var declaration for the same
 // variable name. This detects the `var x = f(x)` family where the
 // reference in the RHS is semantically before initialization.
@@ -342,7 +344,7 @@ func isInsideVarInitializer(n *rhino.Node, name string) bool {
 	return false
 }
 
-// isVarSelfInitOr returns true for the `var x = x || {}` pattern where
+// Go-only: isVarSelfInitOr returns true for the `var x = x || {}` pattern where
 // the reference `n` (a NAME node with the given name) sits on the LHS
 // of a chain of OR expressions whose ultimate parent is the declaration
 // NAME node for the same variable. This mirrors Java's special case in
@@ -366,7 +368,7 @@ func isVarSelfInitOr(n *rhino.Node, varName string) bool {
 	return false
 }
 
-// isBindingSiteVRC classifies NAME nodes that are declarations (param,
+// Go-only: isBindingSiteVRC classifies NAME nodes that are declarations (param,
 // VAR/LET/CONST child, function/class name, class-field-def name,
 // STRING_KEY child inside destructuring, ARRAY_PATTERN child, etc.)
 // rather than value references. Mirrors the logic in VarCheck.isBindingSite,
@@ -426,15 +428,17 @@ func isBindingSiteVRC(n, parent *rhino.Node) bool {
 	return false
 }
 
+// Go-only: recordDecl dispatches to recordDeclInto for the current scope.
 func (v *VariableReferenceCheck) recordDecl(nameNode *rhino.Node, name string) {
 	v.recordDeclInto(v.scopes[len(v.scopes)-1], nameNode, name, false)
 }
 
+// Go-only: recordFuncDecl records a function declaration into a specific scope map.
 func (v *VariableReferenceCheck) recordFuncDecl(scope map[string]declSite, nameNode *rhino.Node, name string) {
 	v.recordDeclInto(scope, nameNode, name, true)
 }
 
-// isMemberContext reports whether `parent` (the node above a FUNCTION /
+// Go-only: isMemberContext reports whether `parent` (the node above a FUNCTION /
 // CLASS) is a class-body or object-literal slot, where the nested
 // definition is a member rather than a var-like declaration.
 func isMemberContext(parent *rhino.Node) bool {
@@ -454,6 +458,9 @@ func isMemberContext(parent *rhino.Node) bool {
 	return false
 }
 
+// Go-only: recordDeclInto records a declaration into the given scope map, emitting
+// JSC_VAR_MULTIPLY_DECLARED_ERROR on conflict. Java's equivalent is
+// ReferenceCheckingBehavior.checkRedeclaration.
 func (v *VariableReferenceCheck) recordDeclInto(scope map[string]declSite, nameNode *rhino.Node, name string, isFunc bool) {
 	if name == "" {
 		return
@@ -476,7 +483,7 @@ func (v *VariableReferenceCheck) recordDeclInto(scope map[string]declSite, nameN
 	scope[name] = declSite{line: nameNode.Lineno(), col: nameNode.Charno(), isFunc: isFunc}
 }
 
-// checkFunctionMasksVariable mirrors TypeCheck.java's shouldTraverse
+// Go-only: checkFunctionMasksVariable mirrors TypeCheck.java's shouldTraverse
 // FUNCTION_MASKS_VARIABLE path. Fires when a named function expression
 // (not a function declaration) has the same name as an existing
 // non-function variable in the enclosing scope — the so-called IE
@@ -661,7 +668,7 @@ func (c *CheckDupVarDecl) Check(script *rhino.Node) []diag.Diagnostic {
 	return c.diags
 }
 
-// sameDeclaredType reports whether two JSTypes declared on the
+// Go-only: sameDeclaredType reports whether two JSTypes declared on the
 // same slot should be treated as equal by TypeCheck's duplicate-
 // declaration check. Java compares by nominal identity: two
 // @record-backed ObjectTypes with the same structural surface
@@ -696,7 +703,7 @@ func sameDeclaredType(a, b jstype.JSType) bool {
 	return jstype.IsSubtype(a, b) && jstype.IsSubtype(b, a)
 }
 
-// walkFunctionAssigns collects every `owner.prop = function(){…}`
+// Go-only: walkFunctionAssigns collects every `owner.prop = function(){…}`
 // assignment whose JSDoc signals a fresh function declaration
 // (@param / @return / @constructor / @interface / @record),
 // skipping @suppress {duplicate}. Mirrors Java's
@@ -730,7 +737,7 @@ func (c *CheckDupVarDecl) walkFunctionAssigns(n *rhino.Node, emit func(owner, pr
 	}
 }
 
-// isFreshFunctionDecl reports whether the ASSIGN carries JSDoc
+// Go-only: isFreshFunctionDecl reports whether the ASSIGN carries JSDoc
 // Java considers a function-declaration marker (as opposed to a
 // mere type annotation). Also returns false when the author
 // explicitly suppressed `duplicate`.
@@ -757,7 +764,7 @@ func isFreshFunctionDecl(stmt, a *rhino.Node) bool {
 	return false
 }
 
-// walkTypedefStubs collects every `/** @typedef {T} */ owner.prop;`
+// Go-only: walkTypedefStubs collects every `/** @typedef {T} */ owner.prop;`
 // GETPROP stub (EXPR_RESULT > GETPROP with JSDoc @typedef). Used to
 // detect when a @typedef re-declares a name that was previously a
 // @constructor function assign. Mirrors TypedScopeCreator's
@@ -789,7 +796,7 @@ func (c *CheckDupVarDecl) walkTypedefStubs(n *rhino.Node, emit func(owner, prop 
 	}
 }
 
-// walkTemplateParmCollisions detects functions whose @template names
+// Go-only: walkTemplateParmCollisions detects functions whose @template names
 // collide with a parameter name in the same function. Mirrors
 // TypedScopeCreator's declareTemplateTypeNames loop which calls
 // expectUndeclaredVariable (firing DUP_VAR_DECLARATION_TYPE_MISMATCH)
@@ -830,8 +837,8 @@ func (c *CheckDupVarDecl) walkTemplateParmCollisions(n *rhino.Node, emit func(fn
 	}
 }
 
-// walk recurses over the AST calling `emit` for every namespace-
-// property type declaration it finds.
+// Go-only: walk recurses over the AST calling `emit` for every namespace-
+// property type declaration it finds. Java uses NodeTraversal.
 func (c *CheckDupVarDecl) walk(n *rhino.Node, emit func(owner, prop string, at *rhino.Node, t jstype.JSType)) {
 	if n == nil {
 		return
@@ -854,6 +861,7 @@ func (c *CheckDupVarDecl) walk(n *rhino.Node, emit func(owner, prop string, at *
 	}
 }
 
+// Go-only: declFromAssign extracts owner/prop/type from an assignment expression.
 func (c *CheckDupVarDecl) declFromAssign(stmt, a *rhino.Node) (string, string, *rhino.Node, jstype.JSType) {
 	info := a.JSDocInfo()
 	if info == nil {
@@ -893,6 +901,7 @@ func (c *CheckDupVarDecl) declFromAssign(stmt, a *rhino.Node) (string, string, *
 	return recv.String_(), propNode.String_(), propNode, c.scope.ResolveExpr(info.Type().TypeName)
 }
 
+// Go-only: declFromStub extracts owner/prop/type from a stub expression.
 func (c *CheckDupVarDecl) declFromStub(stmt, getprop *rhino.Node) (string, string, *rhino.Node, jstype.JSType) {
 	info := stmt.JSDocInfo()
 	if info == nil {
