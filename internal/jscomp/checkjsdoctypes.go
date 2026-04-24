@@ -808,6 +808,43 @@ func (c *CheckJsDocTypes) checkTypeExpr(src string, base int, inner string, tmpl
 			i++
 		case ch == '.' && i+2 < len(inner) && inner[i+1] == '.' && inner[i+2] == '.':
 			i += 3 // `...T` rest marker
+		case ch == '.' && i+1 < len(inner) && inner[i+1] == '/':
+			// Module-relative path type: `./Foo` or `../Foo`. Java's
+			// JsDocInfoParser parses these as module references and fires
+			// JSC_UNRECOGNIZED_TYPE_ERROR at the `.` position. We do the same
+			// by reading the path as a single name token starting at `.`.
+			if !top().expectType {
+				// In key/param slot — skip.
+				for i < len(inner) && !strings.ContainsRune(" \t\n\r,:|<>{}()", rune(inner[i])) {
+					i++
+				}
+				continue
+			}
+			// Skip type-checking for values of duplicate record fields.
+			if top().skipValue {
+				for i < len(inner) && !strings.ContainsRune(" \t\n\r,:|<>{}()", rune(inner[i])) {
+					i++
+				}
+				continue
+			}
+			start := i
+			// Read the full module path: `./Foo/Bar` or `../Foo`.
+			for i < len(inner) && !strings.ContainsRune(" \t\n\r,:|<>{}()", rune(inner[i])) {
+				i++
+			}
+			name := inner[start:i]
+			// Module paths are never valid type names in jsgo (Java fires
+			// JSC_UNRECOGNIZED_TYPE_ERROR). Don't call nameResolves — just
+			// emit the error at the start of the path.
+			if !c.allTemplates[name] {
+				line, col := c.positionOf(src, base+start)
+				out = append(out, diag.Diagnostic{
+					Path: c.path, Line: line, Col: col,
+					Code:    diag.JSC_UNRECOGNIZED_TYPE_ERROR,
+					Level:   diag.Error,
+					Message: fmt.Sprintf("Bad type annotation. Unknown type %s", name),
+				})
+			}
 		case isIdentStart(ch):
 			start := i
 			for i < len(inner) && (isIdentChar(inner[i]) || inner[i] == '.') {
