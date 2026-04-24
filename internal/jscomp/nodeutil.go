@@ -2949,3 +2949,86 @@ func (nodeUtil) IsCallTo(n *rhino.Node, qualifiedName string) bool {
 func (nodeUtil) IsGoogModuleGetCall(n *rhino.Node) bool {
 	return NU.IsCallTo(n, "goog.module.get")
 }
+
+// GetNearestFunctionName returns the nearest inferred name for a FUNCTION
+// node, including keys in object literals.
+// Mirrors NodeUtil.getNearestFunctionName.
+func (nodeUtil) GetNearestFunctionName(n *rhino.Node) string {
+	if !n.IsFunction() {
+		return ""
+	}
+	name := NU.GetName(n)
+	if name != "" {
+		return name
+	}
+	parent := n.Parent()
+	if parent == nil {
+		return ""
+	}
+	switch parent.Token() {
+	case rhino.MEMBER_FUNCTION_DEF, rhino.STRING_KEY:
+		return parent.GetString()
+	case rhino.NUMBER:
+		s, _ := NU.GetStringValue(parent)
+		return s
+	}
+	return ""
+}
+
+// IsObjLitProperty reports whether node is a property key node in an object
+// literal (STRING_KEY, GETTER_DEF, SETTER_DEF, MEMBER_FUNCTION_DEF, or COMPUTED_PROP).
+// Mirrors NodeUtil.isObjLitProperty.
+func (nodeUtil) IsObjLitProperty(node *rhino.Node) bool {
+	return node.IsStringKey() || node.IsGetterDef() || node.IsSetterDef() ||
+		node.IsMemberFunctionDef() || node.Token() == rhino.COMPUTED_PROP
+}
+
+// IsBlocklessArrowFunctionResult reports whether n is the implicit return
+// expression of a blockless arrow function.
+// Mirrors NodeUtil.isBlocklessArrowFunctionResult.
+func (nodeUtil) IsBlocklessArrowFunctionResult(n *rhino.Node) bool {
+	parent := n.Parent()
+	return parent != nil && parent.IsFunction() && n == parent.LastChild() && !n.IsBlock()
+}
+
+// GetBestJSDocInfoNode returns the node that best carries the JSDoc for n.
+// Mirrors NodeUtil.getBestJSDocInfoNode.
+func (nodeUtil) GetBestJSDocInfoNode(n *rhino.Node) *rhino.Node {
+	if n.IsExprResult() {
+		return NU.GetBestJSDocInfoNode(n.FirstChild())
+	}
+	if n.JSDocInfo() != nil {
+		return n
+	}
+	parent := n.Parent()
+	if parent == nil {
+		return nil
+	}
+	switch {
+	case parent.IsName() || parent.IsExport() ||
+		parent.IsVar() || parent.IsLet() || parent.IsConst():
+		return NU.GetBestJSDocInfoNode(parent)
+	case parent.IsAssign():
+		return NU.GetBestJSDocInfoNode(parent)
+	case NU.MayBeObjectLitKey(parent) || parent.Token() == rhino.COMPUTED_PROP:
+		if parent.JSDocInfo() != nil {
+			return parent
+		}
+	case parent.IsClass() || parent.IsMemberFunctionDef():
+		if parent.JSDocInfo() != nil {
+			return parent
+		}
+	}
+	return nil
+}
+
+// IsPrototypePropertyDeclaration reports whether n is an assignment to a
+// prototype property (e.g. `Foo.prototype.bar = function() {}`).
+// Mirrors NodeUtil.isPrototypePropertyDeclaration.
+func (nodeUtil) IsPrototypePropertyDeclaration(n *rhino.Node) bool {
+	if !NU.IsExprAssign(n) {
+		return false
+	}
+	assign := n.FirstChild()
+	return NU.IsPrototypeProperty(assign.FirstChild())
+}
