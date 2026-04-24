@@ -92,7 +92,7 @@ func GetCharno(e JSError) int { return e.Col }
 func GetLineNumber(e JSError) int { return e.Line }
 
 // GetLength mirrors JSError.getLength() — returns the error region length in characters.
-// Go-only partial: Go's Diagnostic does not track length; returns 0.
+// Go-only: Go's Diagnostic does not track length; returns 0.
 func GetLength(e JSError) int { return 0 }
 
 // GetNodeSourceOffset mirrors JSError.getNodeSourceOffset() — returns -1 (no node in Go port).
@@ -180,7 +180,7 @@ func (b *JSErrorBuilder) SetLevel(level CheckLevel) *JSErrorBuilder {
 }
 
 // SetNode mirrors JSError.Builder.setNode — sets source location from a node.
-// Go-only partial: Go's Node equivalent is not yet fully ported; stores source name and position.
+// Simplified: Go's Node is not fully ported; this overload accepts (sourceName, lineno, charno).
 func (b *JSErrorBuilder) SetNode(sourceName string, lineno, charno int) *JSErrorBuilder {
 	b.sourceName = sourceName
 	b.lineno = lineno
@@ -189,7 +189,7 @@ func (b *JSErrorBuilder) SetNode(sourceName string, lineno, charno int) *JSError
 }
 
 // SetNodeRange mirrors JSError.Builder.setNodeRange — sets source location from a node range.
-// Go-only partial: Go's Node equivalent is not yet fully ported.
+// Simplified: Go's Node is not fully ported; this overload accepts (sourceName, lineno, charno).
 func (b *JSErrorBuilder) SetNodeRange(sourceName string, lineno, charno int) *JSErrorBuilder {
 	b.sourceName = sourceName
 	b.lineno = lineno
@@ -198,7 +198,7 @@ func (b *JSErrorBuilder) SetNodeRange(sourceName string, lineno, charno int) *JS
 }
 
 // SetRequirement mirrors JSError.Builder.setRequirement — attaches a conformance requirement.
-// Go-only partial: conformance requirements are not yet ported; this is a no-op.
+// Simplified: conformance requirements are not yet ported; this is a no-op.
 func (b *JSErrorBuilder) SetRequirement() *JSErrorBuilder {
 	return b
 }
@@ -248,8 +248,8 @@ type JSErrorFull struct {
 	DefaultLevel CheckLevel
 }
 
-// NewJSErrorFull creates a JSErrorFull from a DiagnosticType and arguments.
-// Mirrors Java's JSError.make(DiagnosticType, String...) for the full form.
+// Go-only: NewJSErrorFull creates a JSErrorFull from a DiagnosticType;
+// Java uses the same `make` overload but returns JSError not JSErrorFull.
 func NewJSErrorFull(dt *DiagnosticType, args ...string) JSErrorFull {
 	msg := dt.FormatMessage(args...)
 	lvl := levelFromCheckLevel(dt.Level)
@@ -265,8 +265,8 @@ func NewJSErrorFull(dt *DiagnosticType, args ...string) JSErrorFull {
 	}
 }
 
-// NewJSErrorFullAt creates a JSErrorFull at a specific source location.
-// Mirrors Java's JSError.make(String, int, int, DiagnosticType, String...).
+// Go-only: NewJSErrorFullAt creates a JSErrorFull at a specific source location;
+// Java uses the same `make` overload but returns JSError not JSErrorFull.
 func NewJSErrorFullAt(sourceName string, lineno, charno int, dt *DiagnosticType, args ...string) JSErrorFull {
 	msg := dt.FormatMessage(args...)
 	lvl := levelFromCheckLevel(dt.Level)
@@ -370,18 +370,19 @@ type JSErrorMessageFormatter struct {
 	IncludeSourceCode bool
 }
 
-// FormatErrorFull formats an error-level JSErrorFull. Mirrors the behavior
-// of Java's LightweightMessageFormatter.formatError.
+// Go-only: FormatErrorFull formats a JSErrorFull at error level;
+// Java's LightweightMessageFormatter.formatError operates on JSError, not a separate Full type.
 func (f *JSErrorMessageFormatter) FormatErrorFull(e JSErrorFull) string {
 	return f.formatFull(e, "ERROR")
 }
 
-// FormatWarningFull formats a warning-level JSErrorFull. Mirrors the behavior
-// of Java's LightweightMessageFormatter.formatWarning.
+// Go-only: FormatWarningFull formats a JSErrorFull at warning level;
+// Java's LightweightMessageFormatter.formatWarning operates on JSError, not a separate Full type.
 func (f *JSErrorMessageFormatter) FormatWarningFull(e JSErrorFull) string {
 	return f.formatFull(e, "WARNING")
 }
 
+// Go-only: formatFull is an internal helper for FormatErrorFull/FormatWarningFull.
 func (f *JSErrorMessageFormatter) formatFull(e JSErrorFull, level string) string {
 	src := e.Path
 	if src == "" {
@@ -409,14 +410,12 @@ func (f *JSErrorMessageFormatter) FormatWarning(d Diagnostic) string {
 // JSErrorFull equality / comparison helpers
 // ---------------------------------------------------------------------------
 
-// SameLocation reports whether two JSErrorFull values refer to the same
-// source location (same file, line, and column). Useful for deduplication.
+// Go-only: SameLocation is a Go-specific helper with no Java equivalent.
 func SameLocation(a, b JSErrorFull) bool {
 	return a.Path == b.Path && a.Line == b.Line && a.Col == b.Col
 }
 
-// SameType reports whether two JSErrorFull values have the same diagnostic
-// code. Useful for grouping errors by type.
+// Go-only: SameType is a Go-specific helper with no Java equivalent.
 func SameType(a, b JSErrorFull) bool {
 	return a.Code == b.Code
 }
@@ -425,14 +424,12 @@ func SameType(a, b JSErrorFull) bool {
 // Make helpers for common JSError construction patterns
 // ---------------------------------------------------------------------------
 
-// MakeJSErrorFullAt creates a JSErrorFull at the given location.
-// Convenience wrapper over NewJSErrorFullAt.
+// Go-only: MakeJSErrorFullAt is a convenience wrapper for NewJSErrorFullAt.
 func MakeJSErrorFullAt(sourceName string, lineno, charno int, dt *DiagnosticType, args ...string) JSErrorFull {
 	return NewJSErrorFullAt(sourceName, lineno, charno, dt, args...)
 }
 
-// MakeJSErrorFullWithLength creates a JSErrorFull with a specific error-region
-// length. Mirrors Java's JSError.Builder.setNodeRange(start, end).
+// Go-only: MakeJSErrorFullWithLength creates a JSErrorFull with a specific error-region length.
 func MakeJSErrorFullWithLength(sourceName string, lineno, charno, length int, dt *DiagnosticType, args ...string) JSErrorFull {
 	e := NewJSErrorFullAt(sourceName, lineno, charno, dt, args...)
 	e.Length = length
@@ -461,9 +458,8 @@ type CompositeWarningsGuard struct {
 	guards []WarningsGuard
 }
 
-// NewCompositeWarningsGuard creates a CompositeWarningsGuard from the given
-// guards, ordered by priority (lowest first). Mirrors Java's
-// ComposeWarningsGuard(List<WarningsGuard>).
+// Go-only: NewCompositeWarningsGuard creates a CompositeWarningsGuard;
+// Java uses ComposeWarningsGuard which is a separate class not part of JSError.java.
 func NewCompositeWarningsGuard(guards ...WarningsGuard) *CompositeWarningsGuard {
 	return &CompositeWarningsGuard{guards: guards}
 }
@@ -479,7 +475,7 @@ func (g *CompositeWarningsGuard) Level(d Diagnostic) (CheckLevel, bool) {
 	return 0, false
 }
 
-// GetPriority returns the maximum priority of all guards.
+// Go-only: GetPriority is a Go-specific helper on CompositeWarningsGuard.
 func (g *CompositeWarningsGuard) GetPriority() int {
 	max := 0
 	for _, guard := range g.guards {
@@ -490,7 +486,7 @@ func (g *CompositeWarningsGuard) GetPriority() int {
 	return max
 }
 
-// AddGuard appends a WarningsGuard to the composite.
+// Go-only: AddGuard appends a WarningsGuard; Java's ComposeWarningsGuard uses a constructor list.
 func (g *CompositeWarningsGuard) AddGuard(guard WarningsGuard) {
 	g.guards = append(g.guards, guard)
 }
