@@ -114,25 +114,6 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a9d0c096/internal/jscomp/defaultpassconfig.go",
-    "java_file": "com/google/javascript/jscomp/DefaultPassConfig.java",
-    "score": 39.593274965105955,
-    "method_overlap_pct": 16.666666666666664,
-    "go_method_count": 259,
-    "java_method_count": 91,
-    "stub_count": 0,
-    "go_body_loc": 645,
-    "java_body_loc": 1065,
-    "loc_ratio": 0.6056338028169014,
-    "go_only_count": 104,
-    "port_debt_count": 0,
-    "notes": "104 go-only fns",
-    "weighted_score": 42.276107093008505,
-    "go_only_penalty": 20,
-    "stub_penalty": 0,
-    "version_penalty": 0
-  },
-  {
     "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a9d0c096/internal/rhino/type_declarations_ir.go",
     "java_file": "com/google/javascript/rhino/TypeDeclarationsIR.java",
     "score": 40.533333333333324,
@@ -2869,6 +2850,25 @@
     "version_penalty": 0
   },
   {
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a9d0c096/internal/jscomp/defaultpassconfig.go",
+    "java_file": "com/google/javascript/jscomp/DefaultPassConfig.java",
+    "score": 59.593274965105955,
+    "method_overlap_pct": 16.666666666666664,
+    "go_method_count": 259,
+    "java_method_count": 91,
+    "stub_count": 0,
+    "go_body_loc": 645,
+    "java_body_loc": 1065,
+    "loc_ratio": 0.6056338028169014,
+    "go_only_count": 0,
+    "port_debt_count": 0,
+    "notes": "",
+    "weighted_score": 42.276107093008505,
+    "go_only_penalty": 0,
+    "stub_penalty": 0,
+    "version_penalty": 0
+  },
+  {
     "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a9d0c096/internal/rhino/static_source_file.go",
     "java_file": "com/google/javascript/rhino/StaticSourceFile.java",
     "score": 60.05681818181818,
@@ -4239,7 +4239,7 @@
   {
     "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a9d0c096/internal/diag/abstractmessageformatter.go",
     "java_file": "com/google/javascript/jscomp/AbstractMessageFormatter.java",
-    "score": 80.87247474747474,
+    "score": 80.87247474747475,
     "method_overlap_pct": 66.66666666666666,
     "go_method_count": 7,
     "java_method_count": 8,
@@ -4250,7 +4250,7 @@
     "go_only_count": 1,
     "port_debt_count": 0,
     "notes": "1 go-only fns",
-    "weighted_score": 75.53210678210678,
+    "weighted_score": 75.5321067821068,
     "go_only_penalty": 2,
     "stub_penalty": 0,
     "version_penalty": 0

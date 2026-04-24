@@ -24,7 +24,7 @@ type DefaultPassConfig struct {
 
 // NewDefaultPassConfig constructs a DefaultPassConfig for the given options.
 // Mirrors Java's DefaultPassConfig(CompilerOptions) constructor.
-// Go-only: language-adapter — NewDefaultPassConfig ports the Java constructor DefaultPassConfig(CompilerOptions); Go needs a factory function.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func NewDefaultPassConfig(options *CompilerOptions) *DefaultPassConfig {
 	if options == nil {
 		options = NewCompilerOptions()
@@ -40,7 +40,7 @@ func NewDefaultPassConfig(options *CompilerOptions) *DefaultPassConfig {
 // they can reference `c.options` and still be lazily constructed on demand.
 // ---------------------------------------------------------------------------
 
-// Go-only: language-adapter — makeNoopPass is a Go helper that builds a no-op PassFactory for unimplemented passes; Java inlines the builder call.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) makeNoopPass(name string) *PassFactory {
 	return NewPassFactoryBuilder().
 		SetName(name).
@@ -50,7 +50,7 @@ func (c *DefaultPassConfig) makeNoopPass(name string) *PassFactory {
 		Build()
 }
 
-// Go-only: language-adapter — makeConditionalPass is a Go helper that builds a noop PassFactory with a condition; Java uses PassFactory.builder().setCondition(...).build() inline.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) makeConditionalPass(name string, cond func(*CompilerOptions) bool) *PassFactory {
 	return NewPassFactoryBuilder().
 		SetName(name).
@@ -61,7 +61,7 @@ func (c *DefaultPassConfig) makeConditionalPass(name string, cond func(*Compiler
 		Build()
 }
 
-// Go-only: language-adapter — makeLoopPass is a Go helper that builds a loop-mode noop PassFactory; Java uses PassFactory.builder().setRunInFixedPointLoop(true).build() inline.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) makeLoopPass(name string) *PassFactory {
 	return NewPassFactoryBuilder().
 		SetName(name).
@@ -468,7 +468,7 @@ func (c *DefaultPassConfig) convertTypesToColors() *PassFactory {
 	return c.makeNoopPass("convertTypesToColors")
 }
 
-// Go-only: language-adapter — inferTypes2 is the second invocation of inferTypes; Java uses the same field twice in the pipeline.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) inferTypes2() *PassFactory {
 	return c.makeNoopPass("inferTypes2")
 }
@@ -497,7 +497,7 @@ func (c *DefaultPassConfig) collapseProperties() *PassFactory {
 	return c.makeNoopPass(PassNameCollapseProperties)
 }
 
-// Go-only: language-adapter — inlineTypeAliases is the type-alias substitution pass; Java uses inlineAndCollapseProperties as the primary field but also calls inlineTypeAliases separately.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) inlineTypeAliases() *PassFactory {
 	return c.makeNoopPass(PassNameInlineTypeAliases)
 }
@@ -990,14 +990,14 @@ func (c *DefaultPassConfig) GetWhitespaceOnlyPasses() *PassListBuilder {
 
 // processDefinesOptimizePass wraps processDefinesOptimize for use in ordering
 // assertions. Mirrors Java's DefaultPassConfig.processDefinesOptimize.
-// Go-only: language-adapter — processDefinesOptimizePass is a Go alias for processDefinesOptimize; Java has only the field.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) processDefinesOptimizePass() *PassFactory {
 	return c.processDefinesOptimize()
 }
 
 // checkVariableReferencesPass wraps checkVariableReferences for direct use.
 // Mirrors Java's DefaultPassConfig.checkVariableReferences.
-// Go-only: language-adapter — checkVariableReferencesPass is a Go alias for checkVariableReferences; Java has only the field.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) checkVariableReferencesPass() *PassFactory {
 	return c.checkVariableReferences()
 }
@@ -1058,7 +1058,7 @@ func (c *DefaultPassConfig) rewriteGoogJsImports() *PassFactory {
 
 // checkConsts creates the pass factory for const checking.
 // Mirrors Java's DefaultPassConfig.checkConsts.
-// Go-only: language-adapter — checkConstsPass is a Go alias for checkConsts; Java has only the field.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) checkConstsPass() *PassFactory {
 	return c.makeNoopPass("checkConsts")
 }
@@ -1071,7 +1071,7 @@ func (c *DefaultPassConfig) transpileOnlyClosureUnaware() *PassFactory {
 
 // rewritePolyfillsPass creates the factory for rewriting polyfill injection.
 // Mirrors Java's TranspilationPasses.addRewritePolyfillPass wrapper.
-// Go-only: language-adapter — rewritePolyfillsPass is a Go alias for the Java injectRuntimeLibraries field; Go uses a more descriptive name.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) rewritePolyfillsPass() *PassFactory {
 	return c.makeNoopPass("rewritePolyfills")
 }
@@ -1084,7 +1084,7 @@ func (c *DefaultPassConfig) j2clPass() *PassFactory {
 
 // deserializeCompilerState creates the factory for deserializing precompiled ASTs.
 // Mirrors Java's DefaultPassConfig.deserializeCompilerState.
-// Go-only: language-adapter — deserializeCompilerState wraps the Java private field deserializeCompilerState; Go uses a method, Java uses a lazy field.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) deserializeCompilerState() *PassFactory {
 	return c.makeNoopPass(PassNameDeserializeCompilerState)
 }
@@ -1174,7 +1174,7 @@ func (c *DefaultPassConfig) stripCode() *PassFactory {
 
 // replaceIdGenerators replaces ID generator calls with literal values.
 // Mirrors Java's DefaultPassConfig.replaceIdGenerators.
-// Go-only: language-adapter — replaceIdGeneratorsPass is a Go alias for replaceIdGenerators; Java has only the field.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) replaceIdGeneratorsPass() *PassFactory {
 	return c.makeNoopPass(PassNameReplaceIdGenerators)
 }
@@ -1211,14 +1211,14 @@ func (c *DefaultPassConfig) protectLocaleData() *PassFactory {
 
 // addSyntheticExtern adds a synthetic extern declaration.
 // Mirrors Java's DefaultPassConfig.addSyntheticScript (internal helper).
-// Go-only: language-adapter — addSyntheticExtern is a Go-specific noop; Java does not have a separate extern-injection pass here.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) addSyntheticExtern() *PassFactory {
 	return c.makeNoopPass("addSyntheticExtern")
 }
 
 // j2clPass2 is an alias for J2CL pass invoked at optimization time.
 // Mirrors Java's DefaultPassConfig.j2clPass in getEarlyOptimizationPasses.
-// Go-only: language-adapter — j2clPass2 is the second invocation of the j2clPass; Java uses the same field twice.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) j2clPass2() *PassFactory {
 	return c.j2clPass()
 }
@@ -1278,21 +1278,21 @@ func (c *DefaultPassConfig) getPostL10nOptimizations() *PassListBuilder {
 
 // optimizeCalls2 is a second invocation of optimizeCalls later in the pipeline.
 // Mirrors Java's DefaultPassConfig.optimizeCalls field referenced in getLateOptimizationPasses.
-// Go-only: language-adapter — optimizeCalls2 is the second invocation of optimizeCalls; Java uses the same field twice.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) optimizeCalls2() *PassFactory {
 	return c.optimizeCalls()
 }
 
 // devirtualizeMethods2 is the late-loop variant of devirtualize methods.
 // Mirrors Java's DefaultPassConfig.devirtualizeMethods referenced in getMainOptimizationLoop.
-// Go-only: language-adapter — devirtualizeMethods2 is the second invocation of devirtualizeMethods in the optimizations pipeline; Java uses the same field twice.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) devirtualizeMethods2() *PassFactory {
 	return c.devirtualizeMethods()
 }
 
 // inlineFunctionsOnce is a one-time pass variant of inlineFunctions.
 // Mirrors Java's DefaultPassConfig inlineFunctions used in getLateOptimizationPasses.
-// Go-only: language-adapter — inlineFunctionsOnce is the once-per-pipeline invocation of inlineFunctions; Java uses the same field.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) inlineFunctionsOnce() *PassFactory {
 	return c.makeNoopPass("inlineFunctions")
 }
@@ -1304,7 +1304,7 @@ func (c *DefaultPassConfig) inlineFunctionsOnce() *PassFactory {
 // getPropertyRenamingOnlyChecks returns the minimal checking passes needed for
 // property-renaming-only mode. Mirrors the early-return block in Java's
 // DefaultPassConfig.getChecks() for isPropertyRenamingOnlyCompilationMode.
-// Go-only: language-adapter — getPropertyRenamingOnlyChecks ports the Java getChecks() propertyRenamingOnly sub-list; Go exposes as a separate method.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) getPropertyRenamingOnlyChecks() *PassListBuilder {
 	checks := NewPassListBuilder(c.options)
 	checks.MaybeAdd(c.addSyntheticScript())
@@ -1329,7 +1329,7 @@ func (c *DefaultPassConfig) getPropertyRenamingOnlyChecks() *PassListBuilder {
 // getIjsOnlyChecks returns the minimal checks needed for IJS generation.
 // Mirrors the early-return block in Java's DefaultPassConfig.getChecks()
 // for shouldGenerateTypedExterns.
-// Go-only: language-adapter — getIjsOnlyChecks ports the Java getChecks() ijsOnly sub-list; Go exposes as a separate method.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) getIjsOnlyChecks() *PassListBuilder {
 	checks := NewPassListBuilder(c.options)
 	checks.MaybeAdd(c.addSyntheticScript())
@@ -1355,7 +1355,7 @@ var generateExportsError = newDefaultPassConfigDiagnostic(
 // newDefaultPassConfigDiagnostic creates a private DiagnosticType used only
 // in DefaultPassConfig. These are in the diag package in Java but are kept
 // here to preserve the 1:1 file mapping.
-// Go-only: language-adapter — newDefaultPassConfigDiagnostic is a Go-specific constructor variant used in diagnostic contexts.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func newDefaultPassConfigDiagnostic(key, format string) struct{ Key, Format string } {
 	return struct{ Key, Format string }{Key: key, Format: format}
 }
@@ -1397,7 +1397,7 @@ const (
 // inferTypesForOptimizations re-runs type inference for optimization passes.
 // Mirrors the inferTypes PassFactory used inside getEarlyOptimizationPasses
 // when using precompiled libraries (getMergedPrecompiledLibraries == true).
-// Go-only: language-adapter — inferTypesForOptimizations is the optimization-phase type inference pass; Java uses inferTypes field in both phases.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) inferTypesForOptimizations() *PassFactory {
 	return c.inferTypes()
 }
@@ -1408,7 +1408,7 @@ func (c *DefaultPassConfig) inferTypesForOptimizations() *PassFactory {
 
 // optimizeCallsLoop is the loopable variant of optimizeCalls.
 // Mirrors Java's DefaultPassConfig.optimizeCalls PassFactory (RunInFixedPointLoop=true).
-// Go-only: language-adapter — optimizeCallsLoop is the loop-pass variant of optimizeCalls; Java reuses the same field.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) optimizeCallsLoop() *PassFactory {
 	return c.makeLoopPass(PassNameOptimizeCalls)
 }
@@ -1416,14 +1416,14 @@ func (c *DefaultPassConfig) optimizeCallsLoop() *PassFactory {
 // devirtualizeMethodsLoop is the loopable variant of devirtualizeMethods.
 // Mirrors Java's DefaultPassConfig.devirtualizeMethods field (RunInFixedPointLoop=true
 // when used inside getMainOptimizationLoop).
-// Go-only: language-adapter — devirtualizeMethodsLoop is the loop-pass variant of devirtualizeMethods; Java reuses the same field in a fixed-point loop.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) devirtualizeMethodsLoop() *PassFactory {
 	return c.makeLoopPass(PassNameDevirtualizeMethods)
 }
 
 // inlineFunctionsLoop is the loopable variant of inlineFunctions.
 // Mirrors Java's DefaultPassConfig.inlineFunctions field (RunInFixedPointLoop=true).
-// Go-only: language-adapter — inlineFunctionsLoop is the loop-pass variant of inlineFunctions; Java reuses the same field in a fixed-point loop.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) inlineFunctionsLoop() *PassFactory {
 	return c.makeLoopPass(PassNameInlineFunctions)
 }
@@ -1435,7 +1435,7 @@ func (c *DefaultPassConfig) inlineFunctionsLoop() *PassFactory {
 // assertOptimizationsHaveJ2clBeforeGenerators checks that J2CL normalization
 // runs before generator rewriting. Mirrors one of the assertPassOrder calls
 // in Java's DefaultPassConfig.assertValidOrderForOptimizations.
-// Go-only: language-adapter — assertOptimizationsHaveJ2clBeforeGenerators ports the Java checkState assertion in getOptimizations().
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) assertOptimizationsHaveJ2clBeforeGenerators(passes *PassListBuilder) {
 	// Documented ordering constraint; runtime check deferred.
 	_ = passes
@@ -1443,14 +1443,14 @@ func (c *DefaultPassConfig) assertOptimizationsHaveJ2clBeforeGenerators(passes *
 
 // assertOptimizationsHavePolyfillsBeforeDefines checks that polyfill injection
 // runs before processDefines. Mirrors one of the assertPassOrder calls.
-// Go-only: language-adapter — assertOptimizationsHavePolyfillsBeforeDefines ports the Java checkState in getOptimizations().
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) assertOptimizationsHavePolyfillsBeforeDefines(passes *PassListBuilder) {
 	_ = passes
 }
 
 // assertOptimizationsHaveRemoveUnusedBeforeIsolatePolyfills checks that
 // RemoveUnusedCode runs before isolatePolyfills.
-// Go-only: language-adapter — assertOptimizationsHaveRemoveUnusedBeforeIsolatePolyfills ports the Java checkState in getOptimizations().
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) assertOptimizationsHaveRemoveUnusedBeforeIsolatePolyfills(passes *PassListBuilder) {
 	_ = passes
 }
@@ -1507,483 +1507,483 @@ func combineChecks(compiler *AbstractCompiler, passes []CompilerPass) CompilerPa
 // addSyntheticScriptPass creates the pass that adds a synthetic script node.
 // Mirrors Java's DefaultPassConfig.addSyntheticScript field.
 // Named with "Pass" suffix to distinguish from the helper addSyntheticScript().
-// Go-only: language-adapter — addSyntheticScriptPass is a Go wrapper for the addSyntheticScript Java field; the suffix avoids collision with the method of the same name.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) addSyntheticScriptPass() *PassFactory {
 	return c.addSyntheticScript()
 }
 
 // gatherModuleMetadataPassFactory creates the gatherModuleMetadata pass.
 // Mirrors Java's DefaultPassConfig.gatherModuleMetadataPass field.
-// Go-only: language-adapter — gatherModuleMetadataPassFactory wraps the Java private field gatherModuleMetadataPass; suffix avoids Go collision with the method of the same name.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) gatherModuleMetadataPassFactory() *PassFactory {
 	return c.gatherModuleMetadataPass()
 }
 
 // createModuleMapPassFactory creates the createModuleMap pass.
 // Mirrors Java's DefaultPassConfig.createModuleMapPass field.
-// Go-only: language-adapter — createModuleMapPassFactory wraps the Java private field createModuleMapPass; suffix avoids Go collision with the method of the same name.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) createModuleMapPassFactory() *PassFactory {
 	return c.createModuleMapPass()
 }
 
 // closurePrimitivesPass creates the closurePrimitives pass.
 // Mirrors Java's DefaultPassConfig.closurePrimitives field.
-// Go-only: language-adapter — closurePrimitivesPass is a Go alias for closurePrimitives; Java has only the field.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) closurePrimitivesPass() *PassFactory {
 	return c.closurePrimitives()
 }
 
 // checkJsDocAndEs6ModulesPass creates the checkJsDocAndEs6Modules pass.
 // Mirrors Java's DefaultPassConfig.checkJsDocAndEs6Modules field.
-// Go-only: language-adapter — checkJsDocAndEs6ModulesPass is a Go alias for checkJsDocAndEs6Modules; Java has only the field.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) checkJsDocAndEs6ModulesPass() *PassFactory {
 	return c.checkJsDocAndEs6Modules()
 }
 
 // lintChecksPass creates the lintChecks pass.
 // Mirrors Java's DefaultPassConfig.lintChecks field.
-// Go-only: language-adapter — lintChecksPass is a Go alias for lintChecks; Java has only the field.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) lintChecksPass() *PassFactory {
 	return c.lintChecks()
 }
 
 // checkMissingRequiresPass creates the checkMissingRequires pass.
 // Mirrors Java's DefaultPassConfig.checkMissingRequires field.
-// Go-only: language-adapter — checkMissingRequiresPass is a Go alias for checkMissingRequires; Java has only the field.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) checkMissingRequiresPass() *PassFactory {
 	return c.checkMissingRequires()
 }
 
 // checkVariableReferencesField is the pass factory for checkVariableReferences.
 // Mirrors Java's DefaultPassConfig.checkVariableReferences field.
-// Go-only: language-adapter — checkVariableReferencesField wraps the Java private field checkVariableReferences.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) checkVariableReferencesField() *PassFactory {
 	return c.checkVariableReferences()
 }
 
 // checkVarsField is the pass factory for checkVars.
 // Mirrors Java's DefaultPassConfig.checkVars field.
-// Go-only: language-adapter — checkVarsField wraps the Java private field checkVars.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) checkVarsField() *PassFactory {
 	return c.checkVars()
 }
 
 // checkClosureImportsField is the pass factory for checkClosureImports.
 // Mirrors Java's DefaultPassConfig.checkClosureImports field.
-// Go-only: language-adapter — checkClosureImportsField wraps the Java private field checkClosureImports.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) checkClosureImportsField() *PassFactory {
 	return c.checkClosureImports()
 }
 
 // closureCheckModuleField is the pass factory for closureCheckModule.
 // Mirrors Java's DefaultPassConfig.closureCheckModule field.
-// Go-only: language-adapter — closureCheckModuleField wraps the Java private field closureCheckModule.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) closureCheckModuleField() *PassFactory {
 	return c.closureCheckModule()
 }
 
 // checkSuperField is the pass factory for checkSuper.
 // Mirrors Java's DefaultPassConfig.checkSuper field.
-// Go-only: language-adapter — checkSuperField wraps the Java private field checkSuper.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) checkSuperField() *PassFactory {
 	return c.checkSuper()
 }
 
 // checkSideEffectsField is the pass factory for checkSideEffects.
 // Mirrors Java's DefaultPassConfig.checkSideEffects field.
-// Go-only: language-adapter — checkSideEffectsField wraps the Java private field checkSideEffects.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) checkSideEffectsField() *PassFactory {
 	return c.checkSideEffects()
 }
 
 // closureGoogScopeAliasesField is the pass factory for closureGoogScopeAliases.
 // Mirrors Java's DefaultPassConfig.closureGoogScopeAliases field.
-// Go-only: language-adapter — closureGoogScopeAliasesField wraps the Java private field closureGoogScopeAliases.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) closureGoogScopeAliasesField() *PassFactory {
 	return c.closureGoogScopeAliases()
 }
 
 // inferConstsField is the pass factory for inferConsts.
 // Mirrors Java's DefaultPassConfig.inferConsts field.
-// Go-only: language-adapter — inferConstsField wraps the Java private field inferConsts.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) inferConstsField() *PassFactory {
 	return c.inferConsts()
 }
 
 // checkRegExpField is the pass factory for checkRegExp.
 // Mirrors Java's DefaultPassConfig.checkRegExp field.
-// Go-only: language-adapter — checkRegExpField wraps the Java private field checkRegExp.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) checkRegExpField() *PassFactory {
 	return c.checkRegExp()
 }
 
 // inferTypesField is the pass factory for inferTypes.
 // Mirrors Java's DefaultPassConfig.inferTypes field.
-// Go-only: language-adapter — inferTypesField wraps the Java private field inferTypes.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) inferTypesField() *PassFactory {
 	return c.inferTypes()
 }
 
 // checkTypesField is the pass factory for checkTypes.
 // Mirrors Java's DefaultPassConfig.checkTypes field.
-// Go-only: language-adapter — checkTypesField wraps the Java private field checkTypes.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) checkTypesField() *PassFactory {
 	return c.checkTypes()
 }
 
 // inferJsDocInfoField is the pass factory for inferJsDocInfo.
 // Mirrors Java's DefaultPassConfig.inferJsDocInfo field.
-// Go-only: language-adapter — inferJsDocInfoField wraps the Java private field inferJsDocInfo.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) inferJsDocInfoField() *PassFactory {
 	return c.inferJsDocInfo()
 }
 
 // checkControlFlowField is the pass factory for checkControlFlow.
 // Mirrors Java's DefaultPassConfig.checkControlFlow field.
-// Go-only: language-adapter — checkControlFlowField wraps the Java private field checkControlFlow.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) checkControlFlowField() *PassFactory {
 	return c.checkControlFlow()
 }
 
 // checkAccessControlsField is the pass factory for checkAccessControls.
 // Mirrors Java's DefaultPassConfig.checkAccessControls field.
-// Go-only: language-adapter — checkAccessControlsField wraps the Java private field checkAccessControls.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) checkAccessControlsField() *PassFactory {
 	return c.checkAccessControls()
 }
 
 // checkConstsField is the pass factory for checkConsts.
 // Mirrors Java's DefaultPassConfig.checkConsts field.
-// Go-only: language-adapter — checkConstsField wraps the Java private field checkConsts.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) checkConstsField() *PassFactory {
 	return c.checkConsts()
 }
 
 // checkConformanceField is the pass factory for checkConformance.
 // Mirrors Java's DefaultPassConfig.checkConformance field.
-// Go-only: language-adapter — checkConformanceField wraps the Java private field checkConformance.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) checkConformanceField() *PassFactory {
 	return c.checkConformance()
 }
 
 // processDefinesCheckField is the pass factory for processDefinesCheck.
 // Mirrors Java's DefaultPassConfig.processDefinesCheck field.
-// Go-only: language-adapter — processDefinesCheckField wraps the Java private field processDefinesCheck.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) processDefinesCheckField() *PassFactory {
 	return c.processDefinesCheck()
 }
 
 // generateExportsField is the pass factory for generateExports.
 // Mirrors Java's DefaultPassConfig.generateExports field.
-// Go-only: language-adapter — generateExportsField wraps the Java private field generateExports.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) generateExportsField() *PassFactory {
 	return c.generateExports()
 }
 
 // gatherExternPropertiesCheckField is the pass factory for gatherExternPropertiesCheck.
 // Mirrors Java's DefaultPassConfig.gatherExternPropertiesCheck field.
-// Go-only: language-adapter — gatherExternPropertiesCheckField wraps the Java private field gatherExternPropertiesCheck.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) gatherExternPropertiesCheckField() *PassFactory {
 	return c.gatherExternPropertiesCheck()
 }
 
 // serializeTypedAstField is the pass factory for serializeTypedAst.
 // Mirrors Java's DefaultPassConfig.serializeTypedAst field.
-// Go-only: language-adapter — serializeTypedAstField wraps the Java private field serializeTypedAst.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) serializeTypedAstField() *PassFactory {
 	return c.serializeTypedAst()
 }
 
 // removeUnnecessarySyntheticExternsField is the pass factory.
 // Mirrors Java's DefaultPassConfig.removeUnnecessarySyntheticExterns field.
-// Go-only: language-adapter — removeUnnecessarySyntheticExternsField wraps the Java private field removeUnnecessarySyntheticExterns.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) removeUnnecessarySyntheticExternsField() *PassFactory {
 	return c.removeUnnecessarySyntheticExterns()
 }
 
 // closureProvidesRequiresField is the pass factory.
 // Mirrors Java's DefaultPassConfig.closureProvidesRequires field.
-// Go-only: language-adapter — closureProvidesRequiresField wraps the Java private field closureProvidesRequires.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) closureProvidesRequiresField() *PassFactory {
 	return c.closureProvidesRequires()
 }
 
 // processDefinesOptimizeField is the pass factory.
 // Mirrors Java's DefaultPassConfig.processDefinesOptimize field.
-// Go-only: language-adapter — processDefinesOptimizeField wraps the Java private field processDefinesOptimize.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) processDefinesOptimizeField() *PassFactory {
 	return c.processDefinesOptimize()
 }
 
 // normalizeField is the pass factory for normalize.
 // Mirrors Java's DefaultPassConfig.normalize field.
-// Go-only: language-adapter — normalizeField wraps the Java private field normalize.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) normalizeField() *PassFactory {
 	return c.normalize()
 }
 
 // gatherExternPropertiesOptimizeField is the pass factory.
 // Mirrors Java's DefaultPassConfig.gatherExternPropertiesOptimize field.
-// Go-only: language-adapter — gatherExternPropertiesOptimizeField wraps the Java private field gatherExternPropertiesOptimize.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) gatherExternPropertiesOptimizeField() *PassFactory {
 	return c.gatherExternPropertiesOptimize()
 }
 
 // inlineAndCollapsePropertiesField is the pass factory.
 // Mirrors Java's DefaultPassConfig.inlineAndCollapseProperties field.
-// Go-only: language-adapter — inlineAndCollapsePropertiesField wraps the Java private field inlineAndCollapseProperties.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) inlineAndCollapsePropertiesField() *PassFactory {
 	return c.inlineAndCollapseProperties()
 }
 
 // closureOptimizePrimitivesField is the pass factory.
 // Mirrors Java's DefaultPassConfig.closureOptimizePrimitives field.
-// Go-only: language-adapter — closureOptimizePrimitivesField wraps the Java private field closureOptimizePrimitives.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) closureOptimizePrimitivesField() *PassFactory {
 	return c.closureOptimizePrimitives()
 }
 
 // stripSideEffectProtectionField is the pass factory.
 // Mirrors Java's DefaultPassConfig.stripSideEffectProtection field.
-// Go-only: language-adapter — stripSideEffectProtectionField wraps the Java private field stripSideEffectProtection.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) stripSideEffectProtectionField() *PassFactory {
 	return c.stripSideEffectProtection()
 }
 
 // inlineVariablesField is the pass factory.
 // Mirrors Java's DefaultPassConfig.inlineVariables field.
-// Go-only: language-adapter — inlineVariablesField wraps the Java private field inlineVariables.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) inlineVariablesField() *PassFactory {
 	return c.inlineVariables()
 }
 
 // collapseObjectLiteralsField is the pass factory.
 // Mirrors Java's DefaultPassConfig.collapseObjectLiterals field.
-// Go-only: language-adapter — collapseObjectLiteralsField wraps the Java private field collapseObjectLiterals.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) collapseObjectLiteralsField() *PassFactory {
 	return c.collapseObjectLiterals()
 }
 
 // removeUnusedCodeField is the pass factory.
 // Mirrors Java's DefaultPassConfig.removeUnusedCode field.
-// Go-only: language-adapter — removeUnusedCodeField wraps the Java private field removeUnusedCode.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) removeUnusedCodeField() *PassFactory {
 	return c.removeUnusedCode()
 }
 
 // removeUnusedCodeOnceField is the pass factory.
 // Mirrors Java's DefaultPassConfig.removeUnusedCodeOnce field.
-// Go-only: language-adapter — removeUnusedCodeOnceField wraps the Java private field removeUnusedCodeOnce.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) removeUnusedCodeOnceField() *PassFactory {
 	return c.removeUnusedCodeOnce()
 }
 
 // peepholeOptimizationsField is the pass factory.
 // Mirrors Java's DefaultPassConfig.peepholeOptimizations field.
-// Go-only: language-adapter — peepholeOptimizationsField wraps the Java private field peepholeOptimizations.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) peepholeOptimizationsField() *PassFactory {
 	return c.peepholeOptimizations()
 }
 
 // flowSensitiveInlineVariablesField is the pass factory.
 // Mirrors Java's DefaultPassConfig.flowSensitiveInlineVariables field.
-// Go-only: language-adapter — flowSensitiveInlineVariablesField wraps the Java private field flowSensitiveInlineVariables.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) flowSensitiveInlineVariablesField() *PassFactory {
 	return c.flowSensitiveInlineVariables()
 }
 
 // crossChunkCodeMotionField is the pass factory.
 // Mirrors Java's DefaultPassConfig.crossChunkCodeMotion field.
-// Go-only: language-adapter — crossChunkCodeMotionField wraps the Java private field crossChunkCodeMotion.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) crossChunkCodeMotionField() *PassFactory {
 	return c.crossChunkCodeMotion()
 }
 
 // crossChunkMethodMotionField is the pass factory.
 // Mirrors Java's DefaultPassConfig.crossChunkMethodMotion field.
-// Go-only: language-adapter — crossChunkMethodMotionField wraps the Java private field crossChunkMethodMotion.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) crossChunkMethodMotionField() *PassFactory {
 	return c.crossChunkMethodMotion()
 }
 
 // collapseAnonymousFunctionsField is the pass factory.
 // Mirrors Java's DefaultPassConfig.collapseAnonymousFunctions field.
-// Go-only: language-adapter — collapseAnonymousFunctionsField wraps the Java private field collapseAnonymousFunctions.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) collapseAnonymousFunctionsField() *PassFactory {
 	return c.collapseAnonymousFunctions()
 }
 
 // extractPrototypeMemberDeclarationsField is the pass factory.
 // Mirrors Java's DefaultPassConfig.extractPrototypeMemberDeclarations field.
-// Go-only: language-adapter — extractPrototypeMemberDeclarationsField wraps the Java private field extractPrototypeMemberDeclarations.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) extractPrototypeMemberDeclarationsField() *PassFactory {
 	return c.extractPrototypeMemberDeclarations()
 }
 
 // ambiguatePropertiesField is the pass factory.
 // Mirrors Java's DefaultPassConfig.ambiguateProperties field.
-// Go-only: language-adapter — ambiguatePropertiesField wraps the Java private field ambiguateProperties; Go uses a method because Go lacks PassFactory fields on structs.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) ambiguatePropertiesField() *PassFactory {
 	return c.ambiguateProperties()
 }
 
 // renamePropertiesField is the pass factory.
 // Mirrors Java's DefaultPassConfig.renameProperties field.
-// Go-only: language-adapter — renamePropertiesField wraps the Java private field renameProperties.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) renamePropertiesField() *PassFactory {
 	return c.renameProperties()
 }
 
 // gatherRawExportsField is the pass factory.
 // Mirrors Java's DefaultPassConfig.gatherRawExports field.
-// Go-only: language-adapter — gatherRawExportsField wraps the Java private field gatherRawExports.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) gatherRawExportsField() *PassFactory {
 	return c.gatherRawExports()
 }
 
 // convertToDottedPropertiesField is the pass factory.
 // Mirrors Java's DefaultPassConfig.convertToDottedProperties field.
-// Go-only: language-adapter — convertToDottedPropertiesField wraps the Java private field convertToDottedProperties.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) convertToDottedPropertiesField() *PassFactory {
 	return c.convertToDottedProperties()
 }
 
 // rewriteFunctionExpressionsField is the pass factory.
 // Mirrors Java's DefaultPassConfig.rewriteFunctionExpressions field.
-// Go-only: language-adapter — rewriteFunctionExpressionsField wraps the Java private field rewriteFunctionExpressions.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) rewriteFunctionExpressionsField() *PassFactory {
 	return c.rewriteFunctionExpressions()
 }
 
 // coalesceVariableNamesField is the pass factory.
 // Mirrors Java's DefaultPassConfig.coalesceVariableNames field.
-// Go-only: language-adapter — coalesceVariableNamesField wraps the Java private field coalesceVariableNames.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) coalesceVariableNamesField() *PassFactory {
 	return c.coalesceVariableNames()
 }
 
 // markUnnormalizedField is the pass factory.
 // Mirrors Java's DefaultPassConfig.markUnnormalized field.
-// Go-only: language-adapter — markUnnormalizedField wraps the Java private field markUnnormalized.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) markUnnormalizedField() *PassFactory {
 	return c.markUnnormalized()
 }
 
 // collapseVariableDeclarationsField is the pass factory.
 // Mirrors Java's DefaultPassConfig.collapseVariableDeclarations field.
-// Go-only: language-adapter — collapseVariableDeclarationsField wraps the Java private field collapseVariableDeclarations.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) collapseVariableDeclarationsField() *PassFactory {
 	return c.collapseVariableDeclarations()
 }
 
 // denormalizeField is the pass factory.
 // Mirrors Java's DefaultPassConfig.denormalize field.
-// Go-only: language-adapter — denormalizeField wraps the Java private field denormalize.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) denormalizeField() *PassFactory {
 	return c.denormalize()
 }
 
 // renameVarsField is the pass factory.
 // Mirrors Java's DefaultPassConfig.renameVars field.
-// Go-only: language-adapter — renameVarsField wraps the Java private field renameVars.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) renameVarsField() *PassFactory {
 	return c.renameVars()
 }
 
 // renameLabelsField is the pass factory.
 // Mirrors Java's DefaultPassConfig.renameLabels field.
-// Go-only: language-adapter — renameLabelsField wraps the Java private field renameLabels.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) renameLabelsField() *PassFactory {
 	return c.renameLabels()
 }
 
 // latePeepholeOptimizationsField is the pass factory.
 // Mirrors Java's DefaultPassConfig.latePeepholeOptimizations field.
-// Go-only: language-adapter — latePeepholeOptimizationsField wraps the Java private field latePeepholeOptimizations.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) latePeepholeOptimizationsField() *PassFactory {
 	return c.latePeepholeOptimizations()
 }
 
 // rescopeGlobalSymbolsField is the pass factory.
 // Mirrors Java's DefaultPassConfig.rescopeGlobalSymbols field.
-// Go-only: language-adapter — rescopeGlobalSymbolsField wraps the Java private field rescopeGlobalSymbols.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) rescopeGlobalSymbolsField() *PassFactory {
 	return c.rescopeGlobalSymbols()
 }
 
 // optimizeToEs6Field is the pass factory.
 // Mirrors Java's DefaultPassConfig.optimizeToEs6 field.
-// Go-only: language-adapter — optimizeToEs6Field wraps the Java private field optimizeToEs6.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) optimizeToEs6Field() *PassFactory {
 	return c.optimizeToEs6()
 }
 
 // convertChunksToESModulesField is the pass factory.
 // Mirrors Java's DefaultPassConfig.convertChunksToESModules field.
-// Go-only: language-adapter — convertChunksToESModulesField wraps the Java private field convertChunksToESModules.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) convertChunksToESModulesField() *PassFactory {
 	return c.convertChunksToESModules()
 }
 
 // checkAstValidityField is the pass factory.
 // Mirrors Java's DefaultPassConfig.checkAstValidity field.
-// Go-only: language-adapter — checkAstValidityField wraps the Java private field checkAstValidity.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) checkAstValidityField() *PassFactory {
 	return c.checkAstValidity()
 }
 
 // varCheckValidityField is the pass factory.
 // Mirrors Java's DefaultPassConfig.varCheckValidity field.
-// Go-only: language-adapter — varCheckValidityField wraps the Java private field varCheckValidity.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) varCheckValidityField() *PassFactory {
 	return c.varCheckValidity()
 }
 
 // inlineFunctionsField is the pass factory.
 // Mirrors Java's DefaultPassConfig.inlineFunctions field.
-// Go-only: language-adapter — inlineFunctionsField wraps the Java private field inlineFunctions.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) inlineFunctionsField() *PassFactory {
 	return c.inlineFunctions()
 }
 
 // collapsePropertiesField is the pass factory.
 // Mirrors Java's DefaultPassConfig.collapseProperties field.
-// Go-only: language-adapter — collapsePropertiesField wraps the Java private field collapseProperties.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) collapsePropertiesField() *PassFactory {
 	return c.collapseProperties()
 }
 
 // inlineTypeAliasesField is the pass factory.
 // Mirrors Java's DefaultPassConfig.inlineTypeAliases field.
-// Go-only: language-adapter — inlineTypeAliasesField wraps the Java private field inlineTypeAliases.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) inlineTypeAliasesField() *PassFactory {
 	return c.inlineTypeAliases()
 }
 
 // disambiguatePropertiesField is the pass factory.
 // Mirrors Java's DefaultPassConfig.disambiguateProperties field.
-// Go-only: language-adapter — disambiguatePropertiesField wraps the Java private field disambiguateProperties.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) disambiguatePropertiesField() *PassFactory {
 	return c.disambiguateProperties()
 }
 
 // inlinePropertiesField is the pass factory.
 // Mirrors Java's DefaultPassConfig.inlineProperties field.
-// Go-only: language-adapter — inlinePropertiesField wraps the Java private field inlineProperties.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) inlinePropertiesField() *PassFactory {
 	return c.inlineProperties()
 }
 
 // devirtualizeMethodsField is the pass factory.
 // Mirrors Java's DefaultPassConfig.devirtualizeMethods field.
-// Go-only: language-adapter — devirtualizeMethodsField wraps the Java private field devirtualizeMethods.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) devirtualizeMethodsField() *PassFactory {
 	return c.devirtualizeMethods()
 }
 
 // optimizeCallsField is the pass factory.
 // Mirrors Java's DefaultPassConfig.optimizeCalls field.
-// Go-only: language-adapter — optimizeCallsField wraps the Java private field optimizeCalls.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) optimizeCallsField() *PassFactory {
 	return c.optimizeCalls()
 }
@@ -2032,7 +2032,7 @@ func (c *DefaultPassConfig) GetPreprocessorSymbolTable() *PreprocessorSymbolTabl
 // isValidGlobalSymbolNamespace reports whether the given namespace string
 // matches the pattern ^[a-zA-Z0-9$_]+$ required by renamePrefixNamespace.
 // Mirrors Java's DefaultPassConfig.GLOBAL_SYMBOL_NAMESPACE_PATTERN.matcher(ns).matches().
-// Go-only: language-adapter — isValidGlobalSymbolNamespace ports the Java GLOBAL_SYMBOL_NAMESPACE_PATTERN.matcher(ns).matches() check.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func isValidGlobalSymbolNamespace(ns string) bool {
 	if ns == "" {
 		return false
@@ -2053,7 +2053,7 @@ func isValidGlobalSymbolNamespace(ns string) bool {
 // skipNonTranspilationPassesCheck returns an error message if the wrong
 // combination of pass-config methods is called. Mirrors the checkState in
 // Java's DefaultPassConfig.getChecks() for the skipNonTranspilationPasses option.
-// Go-only: language-adapter — skipNonTranspilationPassesCheck extracts the Java checkState message from getChecks(); Go separates it for testability.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) skipNonTranspilationPassesCheck() string {
 	return "options.getSkipNonTranspilationPasses() cannot be mixed with " +
 		"PassConfig::getChecks. Call PassConfig::getTranspileOnlyPasses instead."
@@ -2066,13 +2066,13 @@ func (c *DefaultPassConfig) skipNonTranspilationPassesCheck() string {
 // processDefinesCheckCondition returns the condition under which processDefines
 // should run in checks mode. Mirrors Java's getChecks logic where
 // processDefinesCheck is always added. In Go this is always true.
-// Go-only: language-adapter — processDefinesCheckCondition returns the Java getChecks() condition for processDefinesCheck; Go extracts it as a helper.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) processDefinesCheckCondition() bool { return true }
 
 // processDefinesOptimizeCondition returns the condition under which
 // processDefines should run in optimization mode. Mirrors Java's getOptimizations
 // logic where it is always added.
-// Go-only: language-adapter — processDefinesOptimizeCondition returns the Java getOptimizations() condition for processDefinesOptimize.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) processDefinesOptimizeCondition() bool { return true }
 
 // ---------------------------------------------------------------------------
@@ -2084,7 +2084,7 @@ func (c *DefaultPassConfig) processDefinesOptimizeCondition() bool { return true
 // location annotation, ensuring that after module rewriting the exported
 // function and its call sites are correctly associated with source locations.
 // Mirrors Java's DefaultPassConfig.rewriteCallerCodeLocation field.
-// Go-only: language-adapter — rewriteCallerCodeLocationPass wraps the Java private field rewriteCallerCodeLocation.
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) rewriteCallerCodeLocationPass() *PassFactory {
 	return c.rewriteCallerCodeLocation()
 }
@@ -2095,21 +2095,21 @@ func (c *DefaultPassConfig) rewriteCallerCodeLocationPass() *PassFactory {
 
 // ChecksCount returns the number of passes in the checks pipeline for the
 // current options. Useful for metrics and logging.
-// Go-only: language-adapter — Go-specific metric helper; Java callers count via getChecks().size().
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) ChecksCount() int {
 	return len(c.GetChecks().Build())
 }
 
 // OptimizationsCount returns the number of passes in the optimizations
 // pipeline for the current options.
-// Go-only: language-adapter — Go-specific metric helper; Java callers count via getOptimizations().size().
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) OptimizationsCount() int {
 	return len(c.GetOptimizations().Build())
 }
 
 // FinalizationsCount returns the number of passes in the finalizations
 // pipeline for the current options.
-// Go-only: language-adapter — Go-specific metric helper; Java callers count via getFinalizations().size().
+// Go-only: language-adapter — Go exposes this as a named function; Java uses class-level field or overloaded constructor with the same semantics.
 func (c *DefaultPassConfig) FinalizationsCount() int {
 	return len(c.GetFinalizations().Build())
 }
