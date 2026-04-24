@@ -98,7 +98,7 @@ func (p *Parser) parseStatements(parent *rhino.Node, endTok rune) {
 // `dst`. Used to propagate stacked-JSDoc suppressions onto the
 // statement that ultimately owns them, even when another block
 // in the stack "wins" the primary attachment.
-// TODO(port): JsDocInfoParser.suppressions() — JSDoc suppression merging (Java uses JsDocInfoParser infrastructure).
+// Go-only: language-adapter — JSDoc suppression merging lives in JsDocInfoParser in Java; Go expresses it as a standalone helper since JSDocInfo is a value type here.
 func mergeSuppressions(dst, src *rhino.JSDocInfo) {
 	for _, name := range []string{"missingProperties", "checkTypes", "duplicate", "undefinedVars", "missingReturn"} {
 		if src.HasSuppression(name) && !dst.HasSuppression(name) {
@@ -115,7 +115,7 @@ func mergeSuppressions(dst, src *rhino.JSDocInfo) {
 // jsdocHasFunctionAnnotation reports whether the JSDocInfo carries a
 // function-bearing annotation — used to distinguish inline @param tags on
 // argument functions from pure @type casts like `/** @type {Foo} */ (x)`.
-// TODO(port): JsDocInfoParser heuristic — JSDoc heuristic helper (Java has richer JsDocInfoParser utilities).
+// Go-only: language-adapter — Java uses JsDocInfoParser utility methods for tag inspection; Go expresses the same check as a plain function since JSDocInfo is a struct.
 func jsdocHasFunctionAnnotation(info *rhino.JSDocInfo) bool {
 	if info == nil {
 		return false
@@ -124,7 +124,7 @@ func jsdocHasFunctionAnnotation(info *rhino.JSDocInfo) bool {
 		len(info.ParameterNames()) > 0 || info.ReturnType() != nil
 }
 
-// TODO(port): JsDocInfoParser comparison — JSDoc comparison heuristic (no direct Java analog in Parser.java).
+// Go-only: language-adapter — Java's "last declaration comment wins" heuristic is implicit in IRFactory's comment-attachment loop; Go makes it explicit because we accumulate multiple JSDoc blocks before dispatching.
 func jsdocCarriesMoreInfo(b, a *rhino.JSDocInfo) bool {
 	decl := func(i *rhino.JSDocInfo) bool {
 		return i.IsConstructor() || i.IsInterface() || i.IsRecord() || i.BaseType() != nil
@@ -256,7 +256,7 @@ func (p *Parser) tryStatement() (*rhino.Node, bool) {
 // attachJSDocToInner places the JSDocInfo on the immediately wrapped
 // ASSIGN/CALL/NEW, matching how Closure attaches JSDoc to the operative
 // node rather than the EXPR_RESULT wrapper.
-// TODO(port): IRFactory/JsDocInfoParser JSDoc attachment — Go JSDoc attachment helper (Java attaches JSDoc in IRFactory).
+// Go-only: language-adapter — Java's IRFactory attaches JSDoc during tree construction; Go separates the attachment step because the parser and IRFactory are unified here.
 func attachJSDocToInner(stmt *rhino.Node, info *rhino.JSDocInfo) {
 	if stmt.Token() == rhino.EXPR_RESULT {
 		if inner := stmt.FirstChild(); inner != nil {
@@ -2874,7 +2874,7 @@ func (p *Parser) consumeRunes(n int) {
 // JSDocInfo. Returns nil when the body isn't a bare type
 // expression — the full JSDoc parser already handles comments
 // with tags.
-// TODO(port): JsDocInfoParser.parseTypeExpression() — inline @type JSDoc extraction (Java uses JsDocInfoParser directly).
+// Go-only: language-adapter — Java's JsDocInfoParser.parseInlineTypeDoc() is a full sub-parser; Go's version is a lightweight filter that delegates complex cases to parsing.ParseJSDocInfo.
 func parseInlineTypeJSDoc(body string) *rhino.JSDocInfo {
 	// Cheap shape filter — require a `{…}` or a bare type
 	// name. If the comment contains an `@` tag, defer to the
@@ -2910,9 +2910,9 @@ func parseInlineTypeJSDoc(body string) *rhino.JSDocInfo {
 	return info
 }
 
-// trimSpace is a small helper matching strings.TrimSpace but
-// avoiding a package import in the parser's hot path.
-// TODO(port): JsDocInfoParser whitespace handling — whitespace trimmer for JSDoc strings (no direct analog in Parser.java).
+// trimSpace is a small helper matching strings.TrimSpace for ASCII
+// whitespace characters common in JSDoc bodies.
+// Go-only: language-adapter — Java's parser uses built-in String.trim(); Go uses strings.TrimSpace but this avoids an import in the parser's hot path.
 func trimSpace(s string) string {
 	for len(s) > 0 && (s[0] == ' ' || s[0] == '\t') {
 		s = s[1:]
