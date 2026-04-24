@@ -488,3 +488,13 @@ func (o *ObjectType) SetTypeParameters(params []*TemplateType) {
 func (o *ObjectType) String() string {
 	return fmt.Sprintf("ObjectType(%s)", o.TypeName())
 }
+
+// MatchesObjectContext reports true — all ObjectType instances can appear in
+// an Object context. Mirrors PrototypeObjectType.matchesObjectContext().
+func (o *ObjectType) MatchesObjectContext() bool { return true }
+
+// GetPossibleToBooleanOutcomes returns BooleanLiteralSetTrue — an Object is
+// always truthy. Mirrors ObjectType.getPossibleToBooleanOutcomes().
+func (o *ObjectType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
+	return BooleanLiteralSetTrue
+}

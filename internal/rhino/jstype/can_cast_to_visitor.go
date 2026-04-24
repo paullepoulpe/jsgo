@@ -27,16 +27,13 @@ package jstype
 //   - *FunctionType     → CaseFunctionType
 //   - *ObjectType       → CaseObjectType
 //   - *EnumElementType  → CaseEnumElementType
+//   - *NoType           → CaseNoType
+//   - *NoObjectType     → CaseNoObjectType
 //   - unknownType       → CaseUnknownType
 //   - allType           → CaseAllType
-//   - all other primitives (number/string/boolean/null/void) →
+//   - all other primitives (number/string/boolean/null/void/bigint/symbol) →
 //       CaseValueType (mirrors Java's ValueType superclass for
 //       primitive scalar types)
-//
-// NOTE: NoType, NoObjectType, NamedType, ProxyObjectType and
-// ValueType (BigInt, Symbol) are not yet ported; once they are, add
-// their cases here. Until then those values fall through to
-// CaseValueType, which is the conservative choice.
 func VisitRelationship(v RelationshipVisitor, thisType JSType, thatType JSType) any {
 	switch t := thisType.(type) {
 	case unknownType:
@@ -55,10 +52,14 @@ func VisitRelationship(v RelationshipVisitor, thisType JSType, thatType JSType) 
 		return v.CaseObjectType(t, thatType)
 	case *EnumElementType:
 		return v.CaseEnumElementType(t, thatType)
+	case *NoType:
+		return v.CaseNoType(thatType)
+	case *NoObjectType:
+		return v.CaseNoObjectType(thatType)
 	default:
 		// Covers primitives (numberType, stringType, booleanType,
-		// nullType, voidType) — all are subclasses of Java's ValueType.
-		// Also covers not-yet-ported types conservatively.
+		// nullType, voidType, bigIntType, SymbolType) — all are subclasses
+		// of Java's ValueType. Also covers not-yet-ported types conservatively.
 		return v.CaseValueType(thisType, thatType)
 	}
 }

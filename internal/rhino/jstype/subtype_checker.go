@@ -442,8 +442,7 @@ func (s *SubtypeChecker) isTemplateSubtype(subtype *TemplateType, supertype JSTy
 }
 
 // isNoType reports whether t is the bottom type (NoType).
-// In our type system NoType doesn't exist as a concrete type, but we keep
-// this helper for completeness — it returns false unconditionally.
 func isNoType(t JSType) bool {
-	return false
+	_, ok := t.(*NoType)
+	return ok
 }

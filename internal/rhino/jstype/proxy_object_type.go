@@ -283,13 +283,7 @@ func (p *ProxyObjectType) ToMaybeTemplateType() *TemplateType {
 // a union, delegates collapse to it; otherwise returns the receiver itself.
 // Mirrors Java's ProxyObjectType.collapseUnion().
 func (p *ProxyObjectType) CollapseUnion() JSType {
-	if u, ok := p.referencedType.(*UnionType); ok {
-		_ = u
-		// UnionType does not yet expose a CollapseUnion method in Go.
-		// TODO(proxy): call referencedType.CollapseUnion() once added.
-		return p.referencedType
-	}
-	return p
+	return CollapseUnion(p.referencedType)
 }
 
 // IsConstructor reports whether the referenced type is a constructor

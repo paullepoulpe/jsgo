@@ -540,6 +540,16 @@ func (f *FunctionType) GetClosurePrimitiveId() string { return f.closurePrimitiv
 // in Java. Tags this function type as a known Closure primitive.
 func (f *FunctionType) SetClosurePrimitiveId(id string) { f.closurePrimitiveId = id }
 
+// MatchesObjectContext reports true — functions are objects.
+// Mirrors FunctionType (PrototypeObjectType) matchesObjectContext().
+func (f *FunctionType) MatchesObjectContext() bool { return true }
+
+// GetPossibleToBooleanOutcomes returns BooleanLiteralSetTrue — functions are always truthy.
+// Mirrors FunctionType (ObjectType) getPossibleToBooleanOutcomes().
+func (f *FunctionType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
+	return BooleanLiteralSetTrue
+}
+
 // --- FunctionTypeBuilder — fluent builder mirroring FunctionType.Builder ---
 
 // FunctionTypeBuilder mirrors FunctionType.Builder in Java — a fluent
