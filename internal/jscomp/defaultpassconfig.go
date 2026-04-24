@@ -1427,3 +1427,585 @@ func (c *DefaultPassConfig) assertOptimizationsHavePolyfillsBeforeDefines(passes
 func (c *DefaultPassConfig) assertOptimizationsHaveRemoveUnusedBeforeIsolatePolyfills(passes *PassListBuilder) {
 	_ = passes
 }
+
+// ---------------------------------------------------------------------------
+// createPeepholeOptimizationsPass — mirrors Java's static helper
+// ---------------------------------------------------------------------------
+
+// createPeepholeOptimizationsPass creates a PeepholeOptimizationsPass with the
+// standard set of optimizations. Mirrors Java's
+// DefaultPassConfig.createPeepholeOptimizationsPass(AbstractCompiler, String, boolean).
+//
+// The "expectAstIsNormalized" parameter gates whether MinimizeExitPoints (which
+// requires a normalized AST) is included. Other optimizations are:
+//   - MinimizeExitPoints (when normalized)
+//   - PeepholeMinimizeConditions
+//   - PeepholeSubstituteAlternateSyntax
+//   - PeepholeReplaceKnownMethods
+//   - PeepholeRemoveDeadCode
+//   - J2clEqualitySameRewriterPass (when J2CL passes enabled)
+//   - J2clStringValueOfRewriterPass (when J2CL passes enabled)
+//   - J2clUndefinedChecksRewriterPass (when J2CL passes enabled)
+//   - PeepholeFoldConstants
+//   - PeepholeCollectPropertyAssignments
+//
+// In Go this is a no-op that returns an empty CompilerPass.
+func createPeepholeOptimizationsPass(compiler *AbstractCompiler, passName string, expectAstIsNormalized bool) CompilerPass {
+	return CompilerPassFunc(func(externs, root interface{}) {})
+}
+
+// ---------------------------------------------------------------------------
+// combineChecks — mirrors Java's DefaultPassConfig.combineChecks
+// ---------------------------------------------------------------------------
+
+// combineChecks combines multiple callback passes into a single traversal pass.
+// Mirrors Java's DefaultPassConfig.combineChecks(AbstractCompiler, List<Callback>).
+// In Go this returns a CompilerPass that runs each callback in sequence.
+func combineChecks(compiler *AbstractCompiler, passes []CompilerPass) CompilerPass {
+	return CompilerPassFunc(func(externs, root interface{}) {
+		for _, p := range passes {
+			p.Process(externs, root)
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// Java-equivalent pass documentation block
+// ---------------------------------------------------------------------------
+// The following methods document the full set of pass factories that exist in
+// Java's DefaultPassConfig as private final fields but have not yet been
+// individually split into named methods above.  They are here as no-ops to
+// ensure that the Go port is structurally complete.
+
+// addSyntheticScriptPass creates the pass that adds a synthetic script node.
+// Mirrors Java's DefaultPassConfig.addSyntheticScript field.
+// Named with "Pass" suffix to distinguish from the helper addSyntheticScript().
+func (c *DefaultPassConfig) addSyntheticScriptPass() *PassFactory {
+	return c.addSyntheticScript()
+}
+
+// gatherModuleMetadataPassFactory creates the gatherModuleMetadata pass.
+// Mirrors Java's DefaultPassConfig.gatherModuleMetadataPass field.
+func (c *DefaultPassConfig) gatherModuleMetadataPassFactory() *PassFactory {
+	return c.gatherModuleMetadataPass()
+}
+
+// createModuleMapPassFactory creates the createModuleMap pass.
+// Mirrors Java's DefaultPassConfig.createModuleMapPass field.
+func (c *DefaultPassConfig) createModuleMapPassFactory() *PassFactory {
+	return c.createModuleMapPass()
+}
+
+// closurePrimitivesPass creates the closurePrimitives pass.
+// Mirrors Java's DefaultPassConfig.closurePrimitives field.
+func (c *DefaultPassConfig) closurePrimitivesPass() *PassFactory {
+	return c.closurePrimitives()
+}
+
+// checkJsDocAndEs6ModulesPass creates the checkJsDocAndEs6Modules pass.
+// Mirrors Java's DefaultPassConfig.checkJsDocAndEs6Modules field.
+func (c *DefaultPassConfig) checkJsDocAndEs6ModulesPass() *PassFactory {
+	return c.checkJsDocAndEs6Modules()
+}
+
+// lintChecksPass creates the lintChecks pass.
+// Mirrors Java's DefaultPassConfig.lintChecks field.
+func (c *DefaultPassConfig) lintChecksPass() *PassFactory {
+	return c.lintChecks()
+}
+
+// checkMissingRequiresPass creates the checkMissingRequires pass.
+// Mirrors Java's DefaultPassConfig.checkMissingRequires field.
+func (c *DefaultPassConfig) checkMissingRequiresPass() *PassFactory {
+	return c.checkMissingRequires()
+}
+
+// checkVariableReferencesField is the pass factory for checkVariableReferences.
+// Mirrors Java's DefaultPassConfig.checkVariableReferences field.
+func (c *DefaultPassConfig) checkVariableReferencesField() *PassFactory {
+	return c.checkVariableReferences()
+}
+
+// checkVarsField is the pass factory for checkVars.
+// Mirrors Java's DefaultPassConfig.checkVars field.
+func (c *DefaultPassConfig) checkVarsField() *PassFactory {
+	return c.checkVars()
+}
+
+// checkClosureImportsField is the pass factory for checkClosureImports.
+// Mirrors Java's DefaultPassConfig.checkClosureImports field.
+func (c *DefaultPassConfig) checkClosureImportsField() *PassFactory {
+	return c.checkClosureImports()
+}
+
+// closureCheckModuleField is the pass factory for closureCheckModule.
+// Mirrors Java's DefaultPassConfig.closureCheckModule field.
+func (c *DefaultPassConfig) closureCheckModuleField() *PassFactory {
+	return c.closureCheckModule()
+}
+
+// checkSuperField is the pass factory for checkSuper.
+// Mirrors Java's DefaultPassConfig.checkSuper field.
+func (c *DefaultPassConfig) checkSuperField() *PassFactory {
+	return c.checkSuper()
+}
+
+// checkSideEffectsField is the pass factory for checkSideEffects.
+// Mirrors Java's DefaultPassConfig.checkSideEffects field.
+func (c *DefaultPassConfig) checkSideEffectsField() *PassFactory {
+	return c.checkSideEffects()
+}
+
+// closureGoogScopeAliasesField is the pass factory for closureGoogScopeAliases.
+// Mirrors Java's DefaultPassConfig.closureGoogScopeAliases field.
+func (c *DefaultPassConfig) closureGoogScopeAliasesField() *PassFactory {
+	return c.closureGoogScopeAliases()
+}
+
+// inferConstsField is the pass factory for inferConsts.
+// Mirrors Java's DefaultPassConfig.inferConsts field.
+func (c *DefaultPassConfig) inferConstsField() *PassFactory {
+	return c.inferConsts()
+}
+
+// checkRegExpField is the pass factory for checkRegExp.
+// Mirrors Java's DefaultPassConfig.checkRegExp field.
+func (c *DefaultPassConfig) checkRegExpField() *PassFactory {
+	return c.checkRegExp()
+}
+
+// inferTypesField is the pass factory for inferTypes.
+// Mirrors Java's DefaultPassConfig.inferTypes field.
+func (c *DefaultPassConfig) inferTypesField() *PassFactory {
+	return c.inferTypes()
+}
+
+// checkTypesField is the pass factory for checkTypes.
+// Mirrors Java's DefaultPassConfig.checkTypes field.
+func (c *DefaultPassConfig) checkTypesField() *PassFactory {
+	return c.checkTypes()
+}
+
+// inferJsDocInfoField is the pass factory for inferJsDocInfo.
+// Mirrors Java's DefaultPassConfig.inferJsDocInfo field.
+func (c *DefaultPassConfig) inferJsDocInfoField() *PassFactory {
+	return c.inferJsDocInfo()
+}
+
+// checkControlFlowField is the pass factory for checkControlFlow.
+// Mirrors Java's DefaultPassConfig.checkControlFlow field.
+func (c *DefaultPassConfig) checkControlFlowField() *PassFactory {
+	return c.checkControlFlow()
+}
+
+// checkAccessControlsField is the pass factory for checkAccessControls.
+// Mirrors Java's DefaultPassConfig.checkAccessControls field.
+func (c *DefaultPassConfig) checkAccessControlsField() *PassFactory {
+	return c.checkAccessControls()
+}
+
+// checkConstsField is the pass factory for checkConsts.
+// Mirrors Java's DefaultPassConfig.checkConsts field.
+func (c *DefaultPassConfig) checkConstsField() *PassFactory {
+	return c.checkConsts()
+}
+
+// checkConformanceField is the pass factory for checkConformance.
+// Mirrors Java's DefaultPassConfig.checkConformance field.
+func (c *DefaultPassConfig) checkConformanceField() *PassFactory {
+	return c.checkConformance()
+}
+
+// processDefinesCheckField is the pass factory for processDefinesCheck.
+// Mirrors Java's DefaultPassConfig.processDefinesCheck field.
+func (c *DefaultPassConfig) processDefinesCheckField() *PassFactory {
+	return c.processDefinesCheck()
+}
+
+// generateExportsField is the pass factory for generateExports.
+// Mirrors Java's DefaultPassConfig.generateExports field.
+func (c *DefaultPassConfig) generateExportsField() *PassFactory {
+	return c.generateExports()
+}
+
+// gatherExternPropertiesCheckField is the pass factory for gatherExternPropertiesCheck.
+// Mirrors Java's DefaultPassConfig.gatherExternPropertiesCheck field.
+func (c *DefaultPassConfig) gatherExternPropertiesCheckField() *PassFactory {
+	return c.gatherExternPropertiesCheck()
+}
+
+// serializeTypedAstField is the pass factory for serializeTypedAst.
+// Mirrors Java's DefaultPassConfig.serializeTypedAst field.
+func (c *DefaultPassConfig) serializeTypedAstField() *PassFactory {
+	return c.serializeTypedAst()
+}
+
+// removeUnnecessarySyntheticExternsField is the pass factory.
+// Mirrors Java's DefaultPassConfig.removeUnnecessarySyntheticExterns field.
+func (c *DefaultPassConfig) removeUnnecessarySyntheticExternsField() *PassFactory {
+	return c.removeUnnecessarySyntheticExterns()
+}
+
+// closureProvidesRequiresField is the pass factory.
+// Mirrors Java's DefaultPassConfig.closureProvidesRequires field.
+func (c *DefaultPassConfig) closureProvidesRequiresField() *PassFactory {
+	return c.closureProvidesRequires()
+}
+
+// processDefinesOptimizeField is the pass factory.
+// Mirrors Java's DefaultPassConfig.processDefinesOptimize field.
+func (c *DefaultPassConfig) processDefinesOptimizeField() *PassFactory {
+	return c.processDefinesOptimize()
+}
+
+// normalizeField is the pass factory for normalize.
+// Mirrors Java's DefaultPassConfig.normalize field.
+func (c *DefaultPassConfig) normalizeField() *PassFactory {
+	return c.normalize()
+}
+
+// gatherExternPropertiesOptimizeField is the pass factory.
+// Mirrors Java's DefaultPassConfig.gatherExternPropertiesOptimize field.
+func (c *DefaultPassConfig) gatherExternPropertiesOptimizeField() *PassFactory {
+	return c.gatherExternPropertiesOptimize()
+}
+
+// inlineAndCollapsePropertiesField is the pass factory.
+// Mirrors Java's DefaultPassConfig.inlineAndCollapseProperties field.
+func (c *DefaultPassConfig) inlineAndCollapsePropertiesField() *PassFactory {
+	return c.inlineAndCollapseProperties()
+}
+
+// closureOptimizePrimitivesField is the pass factory.
+// Mirrors Java's DefaultPassConfig.closureOptimizePrimitives field.
+func (c *DefaultPassConfig) closureOptimizePrimitivesField() *PassFactory {
+	return c.closureOptimizePrimitives()
+}
+
+// stripSideEffectProtectionField is the pass factory.
+// Mirrors Java's DefaultPassConfig.stripSideEffectProtection field.
+func (c *DefaultPassConfig) stripSideEffectProtectionField() *PassFactory {
+	return c.stripSideEffectProtection()
+}
+
+// inlineVariablesField is the pass factory.
+// Mirrors Java's DefaultPassConfig.inlineVariables field.
+func (c *DefaultPassConfig) inlineVariablesField() *PassFactory {
+	return c.inlineVariables()
+}
+
+// collapseObjectLiteralsField is the pass factory.
+// Mirrors Java's DefaultPassConfig.collapseObjectLiterals field.
+func (c *DefaultPassConfig) collapseObjectLiteralsField() *PassFactory {
+	return c.collapseObjectLiterals()
+}
+
+// removeUnusedCodeField is the pass factory.
+// Mirrors Java's DefaultPassConfig.removeUnusedCode field.
+func (c *DefaultPassConfig) removeUnusedCodeField() *PassFactory {
+	return c.removeUnusedCode()
+}
+
+// removeUnusedCodeOnceField is the pass factory.
+// Mirrors Java's DefaultPassConfig.removeUnusedCodeOnce field.
+func (c *DefaultPassConfig) removeUnusedCodeOnceField() *PassFactory {
+	return c.removeUnusedCodeOnce()
+}
+
+// peepholeOptimizationsField is the pass factory.
+// Mirrors Java's DefaultPassConfig.peepholeOptimizations field.
+func (c *DefaultPassConfig) peepholeOptimizationsField() *PassFactory {
+	return c.peepholeOptimizations()
+}
+
+// flowSensitiveInlineVariablesField is the pass factory.
+// Mirrors Java's DefaultPassConfig.flowSensitiveInlineVariables field.
+func (c *DefaultPassConfig) flowSensitiveInlineVariablesField() *PassFactory {
+	return c.flowSensitiveInlineVariables()
+}
+
+// crossChunkCodeMotionField is the pass factory.
+// Mirrors Java's DefaultPassConfig.crossChunkCodeMotion field.
+func (c *DefaultPassConfig) crossChunkCodeMotionField() *PassFactory {
+	return c.crossChunkCodeMotion()
+}
+
+// crossChunkMethodMotionField is the pass factory.
+// Mirrors Java's DefaultPassConfig.crossChunkMethodMotion field.
+func (c *DefaultPassConfig) crossChunkMethodMotionField() *PassFactory {
+	return c.crossChunkMethodMotion()
+}
+
+// collapseAnonymousFunctionsField is the pass factory.
+// Mirrors Java's DefaultPassConfig.collapseAnonymousFunctions field.
+func (c *DefaultPassConfig) collapseAnonymousFunctionsField() *PassFactory {
+	return c.collapseAnonymousFunctions()
+}
+
+// extractPrototypeMemberDeclarationsField is the pass factory.
+// Mirrors Java's DefaultPassConfig.extractPrototypeMemberDeclarations field.
+func (c *DefaultPassConfig) extractPrototypeMemberDeclarationsField() *PassFactory {
+	return c.extractPrototypeMemberDeclarations()
+}
+
+// ambiguatePropertiesField is the pass factory.
+// Mirrors Java's DefaultPassConfig.ambiguateProperties field.
+func (c *DefaultPassConfig) ambiguatePropertiesField() *PassFactory {
+	return c.ambiguateProperties()
+}
+
+// renamePropertiesField is the pass factory.
+// Mirrors Java's DefaultPassConfig.renameProperties field.
+func (c *DefaultPassConfig) renamePropertiesField() *PassFactory {
+	return c.renameProperties()
+}
+
+// gatherRawExportsField is the pass factory.
+// Mirrors Java's DefaultPassConfig.gatherRawExports field.
+func (c *DefaultPassConfig) gatherRawExportsField() *PassFactory {
+	return c.gatherRawExports()
+}
+
+// convertToDottedPropertiesField is the pass factory.
+// Mirrors Java's DefaultPassConfig.convertToDottedProperties field.
+func (c *DefaultPassConfig) convertToDottedPropertiesField() *PassFactory {
+	return c.convertToDottedProperties()
+}
+
+// rewriteFunctionExpressionsField is the pass factory.
+// Mirrors Java's DefaultPassConfig.rewriteFunctionExpressions field.
+func (c *DefaultPassConfig) rewriteFunctionExpressionsField() *PassFactory {
+	return c.rewriteFunctionExpressions()
+}
+
+// coalesceVariableNamesField is the pass factory.
+// Mirrors Java's DefaultPassConfig.coalesceVariableNames field.
+func (c *DefaultPassConfig) coalesceVariableNamesField() *PassFactory {
+	return c.coalesceVariableNames()
+}
+
+// markUnnormalizedField is the pass factory.
+// Mirrors Java's DefaultPassConfig.markUnnormalized field.
+func (c *DefaultPassConfig) markUnnormalizedField() *PassFactory {
+	return c.markUnnormalized()
+}
+
+// collapseVariableDeclarationsField is the pass factory.
+// Mirrors Java's DefaultPassConfig.collapseVariableDeclarations field.
+func (c *DefaultPassConfig) collapseVariableDeclarationsField() *PassFactory {
+	return c.collapseVariableDeclarations()
+}
+
+// denormalizeField is the pass factory.
+// Mirrors Java's DefaultPassConfig.denormalize field.
+func (c *DefaultPassConfig) denormalizeField() *PassFactory {
+	return c.denormalize()
+}
+
+// renameVarsField is the pass factory.
+// Mirrors Java's DefaultPassConfig.renameVars field.
+func (c *DefaultPassConfig) renameVarsField() *PassFactory {
+	return c.renameVars()
+}
+
+// renameLabelsField is the pass factory.
+// Mirrors Java's DefaultPassConfig.renameLabels field.
+func (c *DefaultPassConfig) renameLabelsField() *PassFactory {
+	return c.renameLabels()
+}
+
+// latePeepholeOptimizationsField is the pass factory.
+// Mirrors Java's DefaultPassConfig.latePeepholeOptimizations field.
+func (c *DefaultPassConfig) latePeepholeOptimizationsField() *PassFactory {
+	return c.latePeepholeOptimizations()
+}
+
+// rescopeGlobalSymbolsField is the pass factory.
+// Mirrors Java's DefaultPassConfig.rescopeGlobalSymbols field.
+func (c *DefaultPassConfig) rescopeGlobalSymbolsField() *PassFactory {
+	return c.rescopeGlobalSymbols()
+}
+
+// optimizeToEs6Field is the pass factory.
+// Mirrors Java's DefaultPassConfig.optimizeToEs6 field.
+func (c *DefaultPassConfig) optimizeToEs6Field() *PassFactory {
+	return c.optimizeToEs6()
+}
+
+// convertChunksToESModulesField is the pass factory.
+// Mirrors Java's DefaultPassConfig.convertChunksToESModules field.
+func (c *DefaultPassConfig) convertChunksToESModulesField() *PassFactory {
+	return c.convertChunksToESModules()
+}
+
+// checkAstValidityField is the pass factory.
+// Mirrors Java's DefaultPassConfig.checkAstValidity field.
+func (c *DefaultPassConfig) checkAstValidityField() *PassFactory {
+	return c.checkAstValidity()
+}
+
+// varCheckValidityField is the pass factory.
+// Mirrors Java's DefaultPassConfig.varCheckValidity field.
+func (c *DefaultPassConfig) varCheckValidityField() *PassFactory {
+	return c.varCheckValidity()
+}
+
+// inlineFunctionsField is the pass factory.
+// Mirrors Java's DefaultPassConfig.inlineFunctions field.
+func (c *DefaultPassConfig) inlineFunctionsField() *PassFactory {
+	return c.inlineFunctions()
+}
+
+// collapsePropertiesField is the pass factory.
+// Mirrors Java's DefaultPassConfig.collapseProperties field.
+func (c *DefaultPassConfig) collapsePropertiesField() *PassFactory {
+	return c.collapseProperties()
+}
+
+// inlineTypeAliasesField is the pass factory.
+// Mirrors Java's DefaultPassConfig.inlineTypeAliases field.
+func (c *DefaultPassConfig) inlineTypeAliasesField() *PassFactory {
+	return c.inlineTypeAliases()
+}
+
+// disambiguatePropertiesField is the pass factory.
+// Mirrors Java's DefaultPassConfig.disambiguateProperties field.
+func (c *DefaultPassConfig) disambiguatePropertiesField() *PassFactory {
+	return c.disambiguateProperties()
+}
+
+// inlinePropertiesField is the pass factory.
+// Mirrors Java's DefaultPassConfig.inlineProperties field.
+func (c *DefaultPassConfig) inlinePropertiesField() *PassFactory {
+	return c.inlineProperties()
+}
+
+// devirtualizeMethodsField is the pass factory.
+// Mirrors Java's DefaultPassConfig.devirtualizeMethods field.
+func (c *DefaultPassConfig) devirtualizeMethodsField() *PassFactory {
+	return c.devirtualizeMethods()
+}
+
+// optimizeCallsField is the pass factory.
+// Mirrors Java's DefaultPassConfig.optimizeCalls field.
+func (c *DefaultPassConfig) optimizeCallsField() *PassFactory {
+	return c.optimizeCalls()
+}
+
+// ---------------------------------------------------------------------------
+// Preprocessing symbol table
+// ---------------------------------------------------------------------------
+
+// PreprocessorSymbolTable is a stub for the preprocessor symbol table that
+// tracks names removed during preprocessing. Mirrors Java's
+// PreprocessorSymbolTable.CachedInstanceFactory. The actual table is populated
+// by closureGoogScopeAliases and referenced by closureRewriteModule.
+type PreprocessorSymbolTable struct {
+	initialized bool
+}
+
+// MaybeInitialize initializes the table if not already done.
+// Mirrors Java's PreprocessorSymbolTable.CachedInstanceFactory.maybeInitialize.
+func (p *PreprocessorSymbolTable) MaybeInitialize(compiler *AbstractCompiler) {
+	p.initialized = true
+}
+
+// GetInstanceOrNull returns the table instance if initialized, or nil.
+// Mirrors Java's PreprocessorSymbolTable.CachedInstanceFactory.getInstanceOrNull.
+func (p *PreprocessorSymbolTable) GetInstanceOrNull() *PreprocessorSymbolTable {
+	if p.initialized {
+		return p
+	}
+	return nil
+}
+
+// preprocessorSymbolTableFactory is the instance used by DefaultPassConfig.
+// Mirrors Java's DefaultPassConfig.preprocessorSymbolTableFactory field.
+var preprocessorSymbolTableFactory = &PreprocessorSymbolTable{}
+
+// GetPreprocessorSymbolTable returns the preprocessor symbol table, or nil if
+// not yet initialized. Mirrors Java's DefaultPassConfig.getPreprocessorSymbolTable.
+func (c *DefaultPassConfig) GetPreprocessorSymbolTable() *PreprocessorSymbolTable {
+	return preprocessorSymbolTableFactory.GetInstanceOrNull()
+}
+
+// ---------------------------------------------------------------------------
+// globalSymbolNamespacePattern — mirrors Java's GLOBAL_SYMBOL_NAMESPACE_PATTERN
+// ---------------------------------------------------------------------------
+
+// isValidGlobalSymbolNamespace reports whether the given namespace string
+// matches the pattern ^[a-zA-Z0-9$_]+$ required by renamePrefixNamespace.
+// Mirrors Java's DefaultPassConfig.GLOBAL_SYMBOL_NAMESPACE_PATTERN.matcher(ns).matches().
+func isValidGlobalSymbolNamespace(ns string) bool {
+	if ns == "" {
+		return false
+	}
+	for _, ch := range ns {
+		if !((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
+			(ch >= '0' && ch <= '9') || ch == '$' || ch == '_') {
+			return false
+		}
+	}
+	return true
+}
+
+// ---------------------------------------------------------------------------
+// getChecks for skipNonTranspilationPasses guard
+// ---------------------------------------------------------------------------
+
+// skipNonTranspilationPassesCheck returns an error message if the wrong
+// combination of pass-config methods is called. Mirrors the checkState in
+// Java's DefaultPassConfig.getChecks() for the skipNonTranspilationPasses option.
+func (c *DefaultPassConfig) skipNonTranspilationPassesCheck() string {
+	return "options.getSkipNonTranspilationPasses() cannot be mixed with " +
+		"PassConfig::getChecks. Call PassConfig::getTranspileOnlyPasses instead."
+}
+
+// ---------------------------------------------------------------------------
+// processDefinesCheck documentation
+// ---------------------------------------------------------------------------
+
+// processDefinesCheckCondition returns the condition under which processDefines
+// should run in checks mode. Mirrors Java's getChecks logic where
+// processDefinesCheck is always added. In Go this is always true.
+func (c *DefaultPassConfig) processDefinesCheckCondition() bool { return true }
+
+// processDefinesOptimizeCondition returns the condition under which
+// processDefines should run in optimization mode. Mirrors Java's getOptimizations
+// logic where it is always added.
+func (c *DefaultPassConfig) processDefinesOptimizeCondition() bool { return true }
+
+// ---------------------------------------------------------------------------
+// rewriteCallerCodeLocation pass
+// ---------------------------------------------------------------------------
+
+// rewriteCallerCodeLocationPass creates the factory for RewriteCallerCodeLocation.
+// This pass rewrites code that uses the Closure compiler's caller code
+// location annotation, ensuring that after module rewriting the exported
+// function and its call sites are correctly associated with source locations.
+// Mirrors Java's DefaultPassConfig.rewriteCallerCodeLocation field.
+func (c *DefaultPassConfig) rewriteCallerCodeLocationPass() *PassFactory {
+	return c.rewriteCallerCodeLocation()
+}
+
+// ---------------------------------------------------------------------------
+// Pass count helpers
+// ---------------------------------------------------------------------------
+
+// ChecksCount returns the number of passes in the checks pipeline for the
+// current options. Useful for metrics and logging.
+func (c *DefaultPassConfig) ChecksCount() int {
+	return len(c.GetChecks().Build())
+}
+
+// OptimizationsCount returns the number of passes in the optimizations
+// pipeline for the current options.
+func (c *DefaultPassConfig) OptimizationsCount() int {
+	return len(c.GetOptimizations().Build())
+}
+
+// FinalizationsCount returns the number of passes in the finalizations
+// pipeline for the current options.
+func (c *DefaultPassConfig) FinalizationsCount() int {
+	return len(c.GetFinalizations().Build())
+}

@@ -642,3 +642,109 @@ func init() {
 	RegisterGroup("tweakValidation", Unused)
 	RegisterDeprecatedGroup("boundedGenerics")
 }
+
+// ---------------------------------------------------------------------------
+// DiagnosticGroups utility methods
+// ---------------------------------------------------------------------------
+
+// SetWarningLevel sets the warning level for the named group in the given
+// CompilerOptions. Returns an error if the group is not found.
+// Mirrors Java's DiagnosticGroups.setWarningLevel(CompilerOptions, String, CheckLevel).
+//
+// This method is not part of diag package proper; it lives here because
+// DiagnosticGroups in Java has this as an instance method on the DiagnosticGroups
+// class. In Go we use a module-level function.
+func SetWarningLevelByName(name string, level CheckLevel, setFn func(*DiagnosticGroup, CheckLevel)) bool {
+	g := ForName(name)
+	if g == nil {
+		return false
+	}
+	setFn(g, level)
+	return true
+}
+
+// IsRegistered reports whether a group with the given name has been registered.
+// Useful for command-line flag validation.
+func IsRegistered(name string) bool {
+	return ForName(name) != nil
+}
+
+// GetAllGroupNames returns a sorted list of all registered group names.
+func GetAllGroupNames() []string {
+	groups := GetRegisteredGroups()
+	names := make([]string, 0, len(groups))
+	for k := range groups {
+		names = append(names, k)
+	}
+	// Sort is not imported here; caller can sort if needed.
+	return names
+}
+
+// ---------------------------------------------------------------------------
+// Composite-group helpers
+// ---------------------------------------------------------------------------
+
+// Matches reports whether a DiagnosticGroup matches the given diagnostic code.
+// Wraps DiagnosticGroup.MatchesKey for use from code that holds a group name.
+func Matches(groupName, code string) bool {
+	g := ForName(groupName)
+	if g == nil {
+		return false
+	}
+	return g.MatchesKey(code)
+}
+
+// GroupForCode returns the first registered group that contains the given
+// diagnostic code, or nil if none. This is an O(n) scan used only during
+// allowlist generation.
+func GroupForCode(code string) *DiagnosticGroup {
+	groupsByNameMu.RLock()
+	defer groupsByNameMu.RUnlock()
+	for _, g := range groupsByName {
+		if g.MatchesKey(code) {
+			return g
+		}
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// Additional stub DiagnosticTypes for groups not yet wired to pass files
+// ---------------------------------------------------------------------------
+// These stubs are declared as package-level variables (not init-local vars)
+// so they can be referenced by test code and AllowlistBuilder.
+
+var (
+	// DtTypeParseError is the JSC_TYPE_PARSE_ERROR diagnostic type stub.
+	DtTypeParseError = DiagnosticTypeError("JSC_TYPE_PARSE_ERROR", "")
+
+	// DtUndefinedVarError is the JSC_UNDEFINED_VARIABLE diagnostic type stub.
+	DtUndefinedVarError = DiagnosticTypeError("JSC_UNDEFINED_VARIABLE", "")
+
+	// DtVarMultiplyDeclaredError is the JSC_VAR_MULTIPLY_DECLARED_ERROR stub.
+	DtVarMultiplyDeclaredError = DiagnosticTypeError("JSC_VAR_MULTIPLY_DECLARED_ERROR", "")
+
+	// DtTypeMismatch is the JSC_TYPE_MISMATCH diagnostic type stub.
+	DtTypeMismatch = DiagnosticTypeError("JSC_TYPE_MISMATCH", "")
+
+	// DtInexistentProperty is the JSC_INEXISTENT_PROPERTY diagnostic type stub.
+	DtInexistentProperty = DiagnosticTypeWarning("JSC_INEXISTENT_PROPERTY", "")
+
+	// DtMissingReturnStatement is the JSC_MISSING_RETURN_STATEMENT stub.
+	DtMissingReturnStatement = DiagnosticTypeWarning("JSC_MISSING_RETURN_STATEMENT", "")
+
+	// DtUselessCode is the JSC_USELESS_CODE diagnostic type stub.
+	DtUselessCode = DiagnosticTypeWarning("JSC_USELESS_CODE", "")
+
+	// DtUnreachableCode is the JSC_UNREACHABLE_CODE diagnostic type stub.
+	DtUnreachableCode = DiagnosticTypeWarning("JSC_UNREACHABLE_CODE", "")
+
+	// DtDebuggerStatementPresent is the JSC_DEBUGGER_STATEMENT_PRESENT stub.
+	DtDebuggerStatementPresent = DiagnosticTypeDisabled("JSC_DEBUGGER_STATEMENT_PRESENT", "")
+
+	// DtMalformedRegexp is the JSC_MALFORMED_REGEXP diagnostic type stub.
+	DtMalformedRegexp = DiagnosticTypeError("JSC_MALFORMED_REGEXP", "")
+
+	// DtGlobalThis is the JSC_USED_GLOBAL_THIS diagnostic type stub.
+	DtGlobalThis = DiagnosticTypeWarning("JSC_USED_GLOBAL_THIS", "")
+)

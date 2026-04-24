@@ -283,3 +283,140 @@ func (e JSErrorFull) String() string {
 	return e.Code + ". " + e.Message + " at " + sourceName +
 		" line " + lineno + " : " + charno
 }
+
+// ---------------------------------------------------------------------------
+// JSErrorMessageFormatter — a MessageFormatter implementation for JSErrorFull
+// ---------------------------------------------------------------------------
+
+// JSErrorMessageFormatter formats JSErrorFull values for display.
+// Mirrors the general contract of Java's MessageFormatter interface but
+// operates on JSErrorFull rather than the basic Diagnostic type.
+type JSErrorMessageFormatter struct {
+	// IncludeSourceCode, if true, adds a source excerpt to the output.
+	IncludeSourceCode bool
+}
+
+// FormatErrorFull formats an error-level JSErrorFull. Mirrors the behavior
+// of Java's LightweightMessageFormatter.formatError.
+func (f *JSErrorMessageFormatter) FormatErrorFull(e JSErrorFull) string {
+	return f.formatFull(e, "ERROR")
+}
+
+// FormatWarningFull formats a warning-level JSErrorFull. Mirrors the behavior
+// of Java's LightweightMessageFormatter.formatWarning.
+func (f *JSErrorMessageFormatter) FormatWarningFull(e JSErrorFull) string {
+	return f.formatFull(e, "WARNING")
+}
+
+func (f *JSErrorMessageFormatter) formatFull(e JSErrorFull, level string) string {
+	src := e.Path
+	if src == "" {
+		src = "(unknown source)"
+	}
+	return fmt.Sprintf("%s:%d:%d: %s - [%s] %s",
+		src, e.Line, e.Col, level, e.Code, e.Message)
+}
+
+// FormatError implements MessageFormatter.FormatError for the basic Diagnostic type.
+// Mirrors Java's LightweightMessageFormatter.formatError(JSError).
+func (f *JSErrorMessageFormatter) FormatError(d Diagnostic) string {
+	return fmt.Sprintf("%s:%d:%d: ERROR - [%s] %s",
+		d.Path, d.Line, d.Col, d.Code, d.Message)
+}
+
+// FormatWarning implements MessageFormatter.FormatWarning for the basic Diagnostic type.
+// Mirrors Java's LightweightMessageFormatter.formatWarning(JSError).
+func (f *JSErrorMessageFormatter) FormatWarning(d Diagnostic) string {
+	return fmt.Sprintf("%s:%d:%d: WARNING - [%s] %s",
+		d.Path, d.Line, d.Col, d.Code, d.Message)
+}
+
+// ---------------------------------------------------------------------------
+// JSErrorFull equality / comparison helpers
+// ---------------------------------------------------------------------------
+
+// SameLocation reports whether two JSErrorFull values refer to the same
+// source location (same file, line, and column). Useful for deduplication.
+func SameLocation(a, b JSErrorFull) bool {
+	return a.Path == b.Path && a.Line == b.Line && a.Col == b.Col
+}
+
+// SameType reports whether two JSErrorFull values have the same diagnostic
+// code. Useful for grouping errors by type.
+func SameType(a, b JSErrorFull) bool {
+	return a.Code == b.Code
+}
+
+// ---------------------------------------------------------------------------
+// Make helpers for common JSError construction patterns
+// ---------------------------------------------------------------------------
+
+// MakeJSErrorFullAt creates a JSErrorFull at the given location.
+// Convenience wrapper over NewJSErrorFullAt.
+func MakeJSErrorFullAt(sourceName string, lineno, charno int, dt *DiagnosticType, args ...string) JSErrorFull {
+	return NewJSErrorFullAt(sourceName, lineno, charno, dt, args...)
+}
+
+// MakeJSErrorFullWithLength creates a JSErrorFull with a specific error-region
+// length. Mirrors Java's JSError.Builder.setNodeRange(start, end).
+func MakeJSErrorFullWithLength(sourceName string, lineno, charno, length int, dt *DiagnosticType, args ...string) JSErrorFull {
+	e := NewJSErrorFullAt(sourceName, lineno, charno, dt, args...)
+	e.Length = length
+	return e
+}
+
+// ---------------------------------------------------------------------------
+// WarningsGuard interface (minimal) — mirrors Java's WarningsGuard
+// ---------------------------------------------------------------------------
+
+// WarningsGuard adjusts the reporting level of JSErrors before they are
+// reported to the error manager. Mirrors Java's WarningsGuard abstract class.
+type WarningsGuard interface {
+	// Level returns the overridden CheckLevel for the given JSError, and
+	// whether the override applies. If the second return value is false,
+	// the error's default level is used.
+	Level(d Diagnostic) (CheckLevel, bool)
+	// GetPriority returns the priority of this guard. Higher numbers apply
+	// later. Mirrors Java's WarningsGuard.getPriority().
+	GetPriority() int
+}
+
+// CompositeWarningsGuard chains multiple WarningsGuards. Mirrors Java's
+// ComposeWarningsGuard.
+type CompositeWarningsGuard struct {
+	guards []WarningsGuard
+}
+
+// NewCompositeWarningsGuard creates a CompositeWarningsGuard from the given
+// guards, ordered by priority (lowest first). Mirrors Java's
+// ComposeWarningsGuard(List<WarningsGuard>).
+func NewCompositeWarningsGuard(guards ...WarningsGuard) *CompositeWarningsGuard {
+	return &CompositeWarningsGuard{guards: guards}
+}
+
+// Level returns the first guard's overriding level, if any.
+// Mirrors Java's ComposeWarningsGuard.level(JSError).
+func (g *CompositeWarningsGuard) Level(d Diagnostic) (CheckLevel, bool) {
+	for _, guard := range g.guards {
+		if level, ok := guard.Level(d); ok {
+			return level, true
+		}
+	}
+	return 0, false
+}
+
+// GetPriority returns the maximum priority of all guards.
+func (g *CompositeWarningsGuard) GetPriority() int {
+	max := 0
+	for _, guard := range g.guards {
+		if p := guard.GetPriority(); p > max {
+			max = p
+		}
+	}
+	return max
+}
+
+// AddGuard appends a WarningsGuard to the composite.
+func (g *CompositeWarningsGuard) AddGuard(guard WarningsGuard) {
+	g.guards = append(g.guards, guard)
+}
