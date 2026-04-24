@@ -4531,6 +4531,9 @@ func equalityIsFunctionLike(t jstype.JSType) bool {
 // JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH.
 // ---------------------------------------------------------------------------
 
+// Go-only: language-adapter — Go dispatches superclass/implements checks via a
+// single recursive AST walker; Java's TypeCheck fires these checks per-node in
+// visit() by calling individual methods; Go batches them in a pre-pass.
 func (c *TypeCheck) walkSuperclassCheck(n *rhino.Node) {
 	if n == nil {
 		return
@@ -4563,9 +4566,9 @@ func (c *TypeCheck) walkSuperclassCheck(n *rhino.Node) {
 	}
 }
 
-// checkFunctionDictExtendsStruct fires JSC_DICT_EXTEND_STRUCT_TYPE
-// when a @constructor @dict function extends a @struct parent.
-// Mirrors TypeCheck.java's struct/dict hierarchy guard.
+// Go-only: language-adapter — extracted from Java's visitFunction / visitClass
+// struct-dict hierarchy check; Java calls TypeCheck.checkStructDictSubtyping
+// (TypeCheck.java:2515) inline; Go splits each check into a named function.
 func (c *TypeCheck) checkFunctionDictExtendsStruct(fn *rhino.Node) {
 	info := fn.JSDocInfo()
 	if info == nil || !info.IsDict() || !info.IsConstructor() {
@@ -4594,10 +4597,8 @@ func (c *TypeCheck) checkFunctionDictExtendsStruct(fn *rhino.Node) {
 	})
 }
 
-// checkClassDictExtendsStruct is the ES6-class variant of
-// checkFunctionDictExtendsStruct. ES6 classes are @struct by
-// default — a @dict-tagged class extending any normal class
-// (struct-implicit) triggers the same diagnostic.
+// Go-only: language-adapter — ES6 class variant of checkFunctionDictExtendsStruct;
+// Java's checkStructDictSubtyping (TypeCheck.java:2515) handles both uniformly.
 func (c *TypeCheck) checkClassDictExtendsStruct(cls *rhino.Node) {
 	info := cls.JSDocInfo()
 	if info == nil || !info.IsDict() {
@@ -4633,10 +4634,9 @@ func (c *TypeCheck) checkClassDictExtendsStruct(cls *rhino.Node) {
 	})
 }
 
-// checkStructDictRequireConstructor fires JSC_CONSTRUCTOR_REQUIRED
-// when a FUNCTION carries @struct or @dict but no @constructor /
-// @interface / @record. The struct/dict flag only has meaning on
-// a class-shaped declaration — Java rejects it on plain functions.
+// Go-only: language-adapter — Go extracted this guard from Java's
+// checkConstructor / visitFunction (TypeCheck.java:2450-2507) into a named
+// function dispatched via walkSuperclassCheck.
 func (c *TypeCheck) checkStructDictRequireConstructor(fn *rhino.Node) {
 	info := fn.JSDocInfo()
 	if info == nil {
@@ -4667,10 +4667,9 @@ func (c *TypeCheck) checkStructDictRequireConstructor(fn *rhino.Node) {
 	})
 }
 
-// checkExtendsKindMismatch fires JSC_CONFLICTING_EXTENDED_TYPE
-// when an @interface extends a non-interface, or a @constructor
-// extends a non-constructor. Mirrors TypeCheck.java's
-// checkConstructor / checkInterface-extends kind guard.
+// Go-only: language-adapter — Go extracted @extends kind validation from Java's
+// checkConstructor / checkInterface (TypeCheck.java:2450 and 2528) into a named
+// function.
 func (c *TypeCheck) checkExtendsKindMismatch(fn *rhino.Node) {
 	info := fn.JSDocInfo()
 	if info == nil {
@@ -4730,11 +4729,9 @@ func (c *TypeCheck) checkExtendsKindMismatch(fn *rhino.Node) {
 	}
 }
 
-// checkExtendsNonObject fires JSC_EXTENDS_NON_OBJECT when @extends
-// references a primitive or union type. Mirrors TypeCheck.java's
-// visitClass / checkConstructor guard. Skips CLASS nodes whose JS
-// `extends` clause is populated — Java gates on the inferred type of
-// that expression, not the JSDoc annotation.
+// Go-only: language-adapter — Go extracted @extends non-object validation from
+// Java's checkConstructor / visitClass (TypeCheck.java:2450-2507 and 2420-2449)
+// into a named function dispatched via walkSuperclassCheck.
 func (c *TypeCheck) checkExtendsNonObject(n *rhino.Node) {
 	info := n.JSDocInfo()
 	if info == nil {
@@ -4794,10 +4791,9 @@ func (c *TypeCheck) checkExtendsNonObject(n *rhino.Node) {
 	}
 }
 
-// isDeclaredInAnyFunctionScope returns true when `name` appears as a declared
-// binding in any function-local scope tracked by the creator. Used to
-// distinguish `@extends {clazz}` (clazz is a local param → RESOLVED_TAG_EMPTY)
-// from `@extends {not_base}` (not_base not declared → UNRECOGNIZED_TYPE_ERROR).
+// Go-only: package-bridge — distinguishes local-param @extends from truly
+// unrecognized types; Java's TypeRegistry tracks all type names centrally;
+// Go checks the per-function TypedScope via the creator's Functions map.
 func (c *TypeCheck) isDeclaredInAnyFunctionScope(name string, near *rhino.Node) bool {
 	// Walk the parent chain looking for the nearest enclosing FUNCTION
 	// whose scope might have the name.
@@ -4814,9 +4810,8 @@ func (c *TypeCheck) isDeclaredInAnyFunctionScope(name string, near *rhino.Node) 
 	return false
 }
 
-// enclosingFunctionHasTemplate returns true when any ancestor FUNCTION node
-// (up to the script root) carries a @template annotation. Java handles
-// template-parameterized extends specially and does not fire RESOLVED_TAG_EMPTY.
+// Go-only: language-adapter — guards RESOLVED_TAG_EMPTY in checkExtendsNonObject;
+// Java handles template context internally in TypeRegistry; no named equivalent.
 func enclosingFunctionHasTemplate(n *rhino.Node) bool {
 	for cur := n.Parent(); cur != nil; cur = cur.Parent() {
 		if cur.Token() != rhino.FUNCTION {
@@ -4829,8 +4824,8 @@ func enclosingFunctionHasTemplate(n *rhino.Node) bool {
 	return false
 }
 
-// checkClassImplements fires JSC_IMPLEMENTS_NON_INTERFACE for ES6 class
-// nodes, delegating to validateImplements like checkFunctionImplements.
+// Go-only: language-adapter — ES6 class variant of checkFunctionImplements;
+// Java's checkInterface (TypeCheck.java:2528) handles both class and function forms.
 func (c *TypeCheck) checkClassImplements(cls *rhino.Node) {
 	info := cls.JSDocInfo()
 	if info == nil {
@@ -4964,8 +4959,8 @@ func (c *TypeCheck) checkInterfaceConflictProperties(
 	}
 }
 
-// stripTemplateArgs removes any `<…>` suffix from a type name so
-// that "Int0<number>" → "Int0" for scope lookup purposes.
+// Go-only: language-adapter — strips template args for scope lookup; Java's
+// TypeRegistry normalizes type names before lookup internally.
 func stripTemplateArgs(name string) string {
 	if i := strings.IndexByte(name, '<'); i >= 0 {
 		return name[:i]
@@ -4973,12 +4968,9 @@ func stripTemplateArgs(name string) string {
 	return name
 }
 
-// checkFunctionImplements walks an AST FUNCTION declaration and,
-// when it carries @constructor + @implements {Foo, Bar, …}, emits
-// JSC_INTERFACE_METHOD_NOT_IMPLEMENTED for each interface property
-// the constructor's instance doesn't implement (directly or
-// through its @extends chain). Mirrors TypeCheck's
-// validateImplements loop.
+// Go-only: language-adapter — Go calls validateImplements from walkSuperclassCheck;
+// Java fires JSC_INTERFACE_METHOD_NOT_IMPLEMENTED inline in visitFunction via the
+// validator at TypeCheck.java:2391.
 func (c *TypeCheck) checkFunctionImplements(fn *rhino.Node) {
 	info := fn.JSDocInfo()
 	if !info.IsConstructor() {
@@ -4995,9 +4987,8 @@ func (c *TypeCheck) checkFunctionImplements(fn *rhino.Node) {
 	c.validateImplements(fn, nameNode.String_(), info)
 }
 
-// checkDeclaredConstructorImplements handles the
-// `/** @constructor @implements {Foo} */ var Bar = function(){}`
-// form — JSDoc is on the VAR, not on the inner FUNCTION.
+// Go-only: language-adapter — handles @constructor on VAR node where JSDoc is not
+// on the inner FUNCTION; Java handles this via TypedScopeCreator's traversal.
 func (c *TypeCheck) checkDeclaredConstructorImplements(v *rhino.Node) {
 	info := v.JSDocInfo()
 	if !info.IsConstructor() {
@@ -5016,11 +5007,9 @@ func (c *TypeCheck) checkDeclaredConstructorImplements(v *rhino.Node) {
 	c.validateImplements(reportAt, nameNode.String_(), info)
 }
 
-// validateImplements verifies `ctorName` implements every property
-// each of its @implements interfaces declares. Emits one
-// JSC_INTERFACE_METHOD_NOT_IMPLEMENTED per missing property. The
-// diagnostic position matches Java's — at the constructor
-// declaration node's starting column.
+// Go-only: language-adapter — shared @implements validation called by
+// checkFunctionImplements, checkClassImplements, checkDeclaredConstructorImplements;
+// Java's TypeCheck handles this inline via validateImplements at TypeCheck.java:2528.
 func (c *TypeCheck) validateImplements(reportAt *rhino.Node, ctorName string, info *rhino.JSDocInfo) {
 	impls := info.Implementations()
 	if len(impls) == 0 {
@@ -5109,11 +5098,8 @@ func (c *TypeCheck) validateImplements(reportAt *rhino.Node, ctorName string, in
 	}
 }
 
-// isObjectLikeType reports whether t is an object, templatized, or
-// function type — i.e. NOT a raw primitive, multi-member union, or
-// unknown. A nullable object (Foo|null) is treated as object-like to
-// match Java's behaviour: only unions with multiple non-null members
-// trigger JSC_EXTENDS_NON_OBJECT / JSC_IMPLEMENTS_NON_INTERFACE.
+// Go-only: language-adapter — predicate for checkExtendsNonObject /
+// validateImplements; Java uses JSType.isObjectType() virtual method inline.
 func isObjectLikeType(t jstype.JSType) bool {
 	switch v := t.(type) {
 	case *jstype.ObjectType, *jstype.TemplatizedType, *jstype.FunctionType:
@@ -5127,7 +5113,7 @@ func isObjectLikeType(t jstype.JSType) bool {
 	return false
 }
 
-// nonNullUnionMembers returns the members of u that are not null or void.
+// Go-only: language-adapter — helper for isObjectLikeType; no named Java equivalent.
 func nonNullUnionMembers(u *jstype.UnionType) []jstype.JSType {
 	var out []jstype.JSType
 	for _, m := range u.Members() {
@@ -5147,25 +5133,16 @@ type ifacePropInfo struct {
 	ifaceName string
 }
 
-// allInterfacePropEntries returns every property name → {type, declaring interface}
-// pair reachable from `iface` through its full @extends graph.
-// Mirrors TypeCheck.java's validateImplements which calls
-// getCtorExtendedInterfaces recursively to collect all properties
-// from multi-extends chains (e.g. Int2 @extends {Int0} @extends {Int1}).
-// We use the inlined AST lookup to enumerate all @extends
-// bases rather than only the single Super() pointer (which stores
-// only the first parent). The ifaceName in each entry names the
-// interface that first declared the property, so error messages point
-// to the right interface (e.g. "interface Int1" not "interface Int2").
+// Go-only: package-bridge — collects all interface properties including those
+// inherited via multi-@extends chains; Java's TypeRegistry tracks the full
+// interface hierarchy; Go walks the AST-based JSDoc to enumerate all @extends bases.
 func (c *TypeCheck) allInterfacePropEntries(iface *jstype.ObjectType) map[string]ifacePropInfo {
 	out := map[string]ifacePropInfo{}
 	c.collectIfacePropEntries(iface, out)
 	return out
 }
 
-// collectIfacePropEntries is the recursive helper for allInterfacePropEntries.
-// It registers each own member of `cur` (first-wins dedup) then recurses
-// into every @extends base found in the interface's JSDoc.
+// Go-only: package-bridge — recursive helper for allInterfacePropEntries.
 func (c *TypeCheck) collectIfacePropEntries(cur *jstype.ObjectType, out map[string]ifacePropInfo) {
 	if cur == nil {
 		return
@@ -5192,11 +5169,9 @@ func (c *TypeCheck) collectIfacePropEntries(cur *jstype.ObjectType, out map[stri
 	}
 }
 
-// checkImplementedConflictsForStub detects type conflicts for an
-// untyped prototype stub `X.prototype.name;` when two @implements
-// interfaces declare the property with incompatible types. Java
-// propagates the first interface's type to the stub; we replicate
-// by comparing all @implements slots against the first.
+// Go-only: language-adapter — detects @implements conflicts on untyped prototype
+// stubs; Java propagates the first interface's type directly into the slot;
+// Go must re-derive the conflict by comparing all @implements slots.
 func (c *TypeCheck) checkImplementedConflictsForStub(propName string, propNode *rhino.Node, ownerName string, fn *jstype.FunctionType) {
 	own := fn.Instance.GetPropertyType(propName)
 	if own == nil || own != jstype.Unknown {
@@ -5232,10 +5207,9 @@ func (c *TypeCheck) checkImplementedConflictsForStub(propName string, propNode *
 	}
 }
 
-// checkPrototypeStub handles the stub form `X.prototype.name;` with
-// a `/** @type {T} */` JSDoc. Fires JSC_HIDDEN_SUPERCLASS /
-// INTERFACE_PROPERTY_MISMATCH when the stub's declared type
-// conflicts with a super / @implements slot of the same name.
+// Go-only: language-adapter — handles prototype stub declarations that Java's
+// TypedScopeCreator processes during scope creation; Go defers this to
+// walkSuperclassCheck since scope and type info are available at TypeCheck time.
 func (c *TypeCheck) checkPrototypeStub(stmt *rhino.Node, gp *rhino.Node) {
 	kids := gp.Children()
 	if len(kids) < 2 {
@@ -5330,10 +5304,8 @@ func (c *TypeCheck) checkPrototypeStub(stmt *rhino.Node, gp *rhino.Node) {
 	}
 }
 
-// isFunctionTypeSlot reports whether the slot's declared type is
-// itself a function. Used to narrow the override-type-mismatch
-// check to method slots; data-field overrides are accepted by
-// Java in default mode.
+// Go-only: language-adapter — narrows override mismatch check to method slots;
+// Java's validateImplements checks JSType.isFunctionType() inline.
 func isFunctionTypeSlot(t jstype.JSType) bool {
 	if t == nil {
 		return false
@@ -5344,9 +5316,9 @@ func isFunctionTypeSlot(t jstype.JSType) bool {
 	return false
 }
 
-// baseInterfaceInstances returns every super InstanceType reachable
-// through `obj`'s @extends chain (for interfaces, a single chain is
-// typical; for multi-extends interfaces we return each parent).
+// Go-only: package-bridge — walks an interface's @extends super chain to collect
+// all parent instances; Java's ObjectType.getCtorExtendedInterfaces() does this
+// directly from the type registry.
 func baseInterfaceInstances(obj *jstype.ObjectType) []*jstype.ObjectType {
 	var out []*jstype.ObjectType
 	seen := map[*jstype.ObjectType]bool{}
@@ -5365,11 +5337,9 @@ func baseInterfaceInstances(obj *jstype.ObjectType) []*jstype.ObjectType {
 	return out
 }
 
-// checkPrototypeAssign handles `X.prototype.name = rhs;`. When X has
-// a super (via @extends) and super declares `name`, verify the rhs
-// type matches — else fire JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH.
-// Same shape runs against each @implemented interface's slots,
-// firing JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH instead.
+// Go-only: language-adapter — dispatched from walkSuperclassCheck for
+// X.prototype.name = rhs patterns; Java's TypeCheck handles this in visitAssign
+// via checkPropertyInheritanceOnAssignment (TypeCheck.java:1298).
 func (c *TypeCheck) checkPrototypeAssign(stmt *rhino.Node, assign *rhino.Node) {
 	kids := assign.Children()
 	if len(kids) < 2 {
@@ -5561,13 +5531,9 @@ func (c *TypeCheck) checkPrototypeAssign(stmt *rhino.Node, assign *rhino.Node) {
 	}
 }
 
-// overrideCompatible reports whether `override` is a valid
-// Java-style override of `slot`. Delegates to IsSubtype, but
-// relaxes the check for FunctionTypes so an override with
-// *fewer* parameters (Java's "extra params are OK to drop")
-// still matches. Java's actual compatibility logic is more
-// nuanced — we approximate by accepting any overlapping
-// param-prefix whose types match.
+// Go-only: language-adapter — ports Java's SubtypeChecker.isArrowTypeSubtype
+// compatibility logic for override checking; Java uses this inline in
+// checkPropertyType (called by validateImplements); Go extracts it as a helper.
 func overrideCompatible(override, slot jstype.JSType) bool {
 	of, okF := override.(*jstype.FunctionType)
 	sf, okS := slot.(*jstype.FunctionType)
@@ -5622,13 +5588,10 @@ func overrideCompatible(override, slot jstype.JSType) bool {
 	return true
 }
 
-// implementedInstances returns the interface instance types declared
-// via `@implements {Foo}` on the constructor named by ownerName.
+// Go-only: package-bridge — resolves @implements interface instances by walking
+// the AST for the constructor's JSDoc; Java's ObjectType.getCtorImplementedInterfaces()
+// does this from the type registry without AST traversal.
 func (c *TypeCheck) implementedInstances(ownerName string) []*jstype.ObjectType {
-	// The scope doesn't currently expose the JSDocInfo that produced
-	// the FunctionType, so we walk the AST once to collect
-	// @implements declarations. Caching would be worthwhile if this
-	// became hot.
 	info := c.findConstructorJSDoc(ownerName)
 	if info == nil {
 		return nil
@@ -5642,13 +5605,14 @@ func (c *TypeCheck) implementedInstances(ownerName string) []*jstype.ObjectType 
 	return out
 }
 
-// findConstructorJSDoc scans the AST for a `function Foo(…)` or
-// `var Foo = function(…)` constructor named `name` and returns its
-// JSDocInfo. Returns nil when no matching declaration exists.
+// Go-only: package-bridge — scans the AST to locate a constructor's JSDoc by name;
+// Java's TypeRegistry stores JSDoc on the FunctionType directly; Go reconstructs
+// it by scanning the script root since TypedScope doesn't carry JSDoc.
 func (c *TypeCheck) findConstructorJSDoc(name string) *rhino.JSDocInfo {
 	return c.scanConstructorJSDoc(c.scriptRoot, name)
 }
 
+// Go-only: package-bridge — recursive helper for findConstructorJSDoc.
 func (c *TypeCheck) scanConstructorJSDoc(n *rhino.Node, name string) *rhino.JSDocInfo {
 	if n == nil {
 		return nil
@@ -5682,11 +5646,9 @@ func (c *TypeCheck) scanConstructorJSDoc(n *rhino.Node, name string) *rhino.JSDo
 	return nil
 }
 
-// inferAssignValueSC resolves the type attached to `X.prototype.m = …`.
-// Prefers an explicit @type / @param-based FunctionType from the
-// enclosing ASSIGN's JSDoc; falls back to inferring the RHS via
-// TypeInference. Named with SC suffix to avoid collision with any
-// existing TypeCheck helper.
+// Go-only: language-adapter — resolves the override type for prototype-assign
+// checking; Java infers this via TypedScopeCreator's scope-building; Go computes
+// it from JSDoc / TypeInference at TypeCheck time.
 func (c *TypeCheck) inferAssignValueSC(stmt, assign, rhs *rhino.Node, inst *jstype.ObjectType) jstype.JSType {
 	info := assign.JSDocInfo()
 	if info == nil {
@@ -5702,11 +5664,9 @@ func (c *TypeCheck) inferAssignValueSC(stmt, assign, rhs *rhino.Node, inst *jsty
 	return ti.InferType(rhs)
 }
 
-// checkClass verifies each method / field of a `class C extends B`
-// declaration against B's slot and against each @implements interface.
-// Mirrors TypeCheck.java's visitObjectOrClassLiteralKey →
-// checkPropertyInheritanceOnClassMember →
-// checkDeclaredPropertyAgainstNominalInheritance path.
+// Go-only: language-adapter — Go extracted class-member override checking from
+// Java's visitObjectOrClassLiteralKey / checkPropertyInheritanceOnClassMember
+// (TypeCheck.java:1365-1394) into a named function dispatched via walkSuperclassCheck.
 func (c *TypeCheck) checkClass(cls *rhino.Node) {
 	kids := cls.Children()
 	if len(kids) < 3 {
@@ -5844,9 +5804,9 @@ func (c *TypeCheck) checkClass(cls *rhino.Node) {
 	}
 }
 
-// functionTypeFromJSDoc builds a FunctionType from a FUNCTION node's
-// JSDoc (@param / @return). Returns nil when the node doesn't carry
-// enough JSDoc to infer a full signature.
+// Go-only: package-bridge — reconstructs a FunctionType from JSDoc at TypeCheck
+// time; Java's TypedScopeCreator builds FunctionType from JSDoc during scope
+// creation, so TypeCheck never needs to re-derive it; Go does this lazily.
 func functionTypeFromJSDoc(info *rhino.JSDocInfo, fn *rhino.Node, scope *TypedScope) *jstype.FunctionType {
 	kids := fn.Children()
 	if len(kids) < 2 {
@@ -5870,9 +5830,9 @@ func functionTypeFromJSDoc(info *rhino.JSDocInfo, fn *rhino.Node, scope *TypedSc
 	return jstype.NewFunctionType(paramTypes, ret)
 }
 
-// instantiateSlot substitutes template args from typeExpr (e.g. "Int<string>")
-// into slot, mapping each of iface's TemplateTypes to the corresponding arg.
-// Returns slot unchanged when no template args are present.
+// Go-only: language-adapter — substitutes template args for override checking;
+// Java's TemplateTypeReplacer.forPartialReplacement handles this via the type
+// registry; Go re-derives it from the @extends JSDoc annotation string.
 func (c *TypeCheck) instantiateSlot(typeExpr string, iface *jstype.ObjectType, slot jstype.JSType) jstype.JSType {
 	i := strings.IndexByte(typeExpr, '<')
 	if i < 0 || slot == nil {
@@ -5898,9 +5858,9 @@ func (c *TypeCheck) instantiateSlot(typeExpr string, iface *jstype.ObjectType, s
 	return jstype.ApplyTo(r, slot)
 }
 
-// checkPrototypeObjectLitAssign handles `X.prototype = {key: fn, …}` —
-// fires JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH when a key's type
-// conflicts with a slot inherited from a super-interface.
+// Go-only: language-adapter — handles X.prototype = {…} form dispatched from
+// checkPrototypeAssign; Java's TypeCheck handles this in visitAssign via
+// checkPropertyInheritanceOnPrototypeLitKey (TypeCheck.java:1349).
 func (c *TypeCheck) checkPrototypeObjectLitAssign(ownerName string, lit *rhino.Node) {
 	fn, ok := c.global.GetRawDeclaredType(ownerName).(*jstype.FunctionType)
 	if !ok || fn.Instance == nil {
