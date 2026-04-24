@@ -53,7 +53,14 @@ func TryTrivial(javaBody, recvName, className string, typeMapper func(string) st
 //   `return this.foo;`
 //   `return foo != null ? foo : "";`  (guarded getter — still trivial)
 
-var getterRe = regexp.MustCompile(`^return\s+(this\.)?(\w+)\s*;$`)
+// getter: `return foo;` or `return this.foo;` — the field name must start with a letter/underscore.
+var getterRe = regexp.MustCompile(`^return\s+(this\.)?([a-zA-Z_]\w*)\s*;$`)
+
+// reserved words that must not be treated as field names.
+var javaReserved = map[string]bool{
+	"true": true, "false": true, "null": true, "this": true,
+	"super": true, "new": true,
+}
 
 func tryGetter(body, recv string) (string, bool) {
 	m := getterRe.FindStringSubmatch(body)
@@ -61,6 +68,9 @@ func tryGetter(body, recv string) (string, bool) {
 		return "", false
 	}
 	field := m[2]
+	if javaReserved[field] {
+		return "", false
+	}
 	return "\treturn " + recv + "." + field + "\n", true
 }
 
