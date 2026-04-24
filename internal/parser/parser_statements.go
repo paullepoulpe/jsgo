@@ -78,6 +78,7 @@ func (p *ParserRewrite) parseStatement() *trees.ParseTree {
 }
 
 // parseStatementListItem mirrors parseStatement() — same as parseStatement in practice.
+// Go-only: alias for parseStatement used at declaration-level; Java uses parseSourceElement for the same purpose.
 func (p *ParserRewrite) parseStatementListItem() *trees.ParseTree {
 	return p.parseStatement()
 }
@@ -269,6 +270,7 @@ func (p *ParserRewrite) maybeReportNoInitializer(token TokenType, lvalue *trees.
 }
 
 // isPattern returns true if the tree is a destructuring pattern.
+// Go-only: tree-type predicate used by parseVariableDeclaration; Java checks inline via instanceof.
 func (p *ParserRewrite) isPattern(tree *trees.ParseTree) bool {
 	return tree.Type == trees.ParseTreeTypeArrayPattern || tree.Type == trees.ParseTreeTypeObjectPattern
 }
@@ -436,6 +438,7 @@ func (p *ParserRewrite) parseForStatement() *trees.ParseTree {
 }
 
 // parseForStatementVanilla mirrors parseForStatement(start, initializer).
+// Go-only: extracted body of the vanilla for-loop path; Java has a single overloaded parseForStatement(SourcePosition, ParseTree).
 func (p *ParserRewrite) parseForStatementVanilla(start SourcePosition, initializer *trees.ParseTree) *trees.ParseTree {
 	var initVal *trees.ParseTree
 	if initializer == nil {
