@@ -16,6 +16,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -30,31 +31,81 @@ import (
 )
 
 const (
-	javaSourceRoot = "/Users/damien/code/jsgo/.cache/closure-src"
+	javaSourceRoot  = "/Users/damien/code/jsgo/.cache/closure-src"
 	expectedVersion = "v20260415"
 )
+
+// -------- reason codes --------
+
+// validReasonCodes is the closed list of accepted reason codes for "// Go-only: <code>".
+// Any Go-only comment whose code is NOT in this set is treated as bare (penalty applies).
+var validReasonCodes = map[string]bool{
+	// Java feature that Go doesn't have: inheritance dispatch, generics contravariance,
+	// unsafe.Pointer downcasts, tagged-union As* helpers, method tables.
+	"language-adapter": true,
+	// Breaks a Go import cycle: hook vars, init() wiring, shared interface definitions
+	// that can't live in their natural Java package.
+	"package-bridge": true,
+	// Go stdlib interface satisfaction: fmt.Stringer, error, io.Writer, json.Marshaler.
+	"stdlib-interop": true,
+	// Helper exclusively used by test code, not production.
+	"test-helper": true,
+}
+
+// goOnlyRe matches "// Go-only: <code>" and optionally captures an explanation.
+// Group 1 = the code token (first word after "Go-only: ").
+var goOnlyRe = regexp.MustCompile(`//\s*Go-only:\s*(\S+)`)
+
+// todoPortRe matches "// TODO(port): <java-signature>".
+// Group 1 = the java signature (rest of line).
+var todoPortRe = regexp.MustCompile(`//\s*TODO\(port\):\s*(.+)`)
+
+// parseGoOnlyCode extracts the reason code from a "// Go-only: <code>" comment text
+// and returns (code, isValid).  If the comment doesn't match the format, code="" isValid=false.
+func parseGoOnlyCode(commentText string) (code string, isValid bool) {
+	m := goOnlyRe.FindStringSubmatch(commentText)
+	if m == nil {
+		return "", false
+	}
+	code = m[1]
+	// Strip trailing punctuation that's sometimes included in reason code itself.
+	code = strings.TrimRight(code, ".,;:")
+	return code, validReasonCodes[code]
+}
 
 // -------- data structures --------
 
 // FileResult holds computed metrics for one Go file.
 type FileResult struct {
-	GoFile          string  `json:"go_file"`
-	JavaFile        string  `json:"java_file"`
-	Score           float64 `json:"score"`
+	GoFile           string  `json:"go_file"`
+	JavaFile         string  `json:"java_file"`
+	Score            float64 `json:"score"`
 	MethodOverlapPct float64 `json:"method_overlap_pct"`
-	GoMethodCount   int     `json:"go_method_count"`
-	JavaMethodCount int     `json:"java_method_count"`
-	StubCount       int     `json:"stub_count"`
-	GoBodyLoC       int     `json:"go_body_loc"`
-	JavaBodyLoC     int     `json:"java_body_loc"`
-	LocRatio        float64 `json:"loc_ratio"`
-	GoOnlyCount     int     `json:"go_only_count"`
-	Notes           string  `json:"notes"`
+	GoMethodCount    int     `json:"go_method_count"`
+	JavaMethodCount  int     `json:"java_method_count"`
+	StubCount        int     `json:"stub_count"`
+	GoBodyLoC        int     `json:"go_body_loc"`
+	JavaBodyLoC      int     `json:"java_body_loc"`
+	LocRatio         float64 `json:"loc_ratio"`
+	GoOnlyCount      int     `json:"go_only_count"`   // penalized (invalid/bare go-only)
+	PortDebtCount    int     `json:"port_debt_count"` // TODO(port) markers
+	Notes            string  `json:"notes"`
 	// Internal breakdown
-	WeightedScore   float64 `json:"weighted_score"`
-	GoOnlyPenalty   float64 `json:"go_only_penalty"`
-	StubPenalty     float64 `json:"stub_penalty"`
-	VersionPenalty  float64 `json:"version_penalty"`
+	WeightedScore  float64 `json:"weighted_score"`
+	GoOnlyPenalty  float64 `json:"go_only_penalty"`
+	StubPenalty    float64 `json:"stub_penalty"`
+	VersionPenalty float64 `json:"version_penalty"`
+}
+
+// AuditEntry records a single Go-only or TODO(port) annotation for audit mode.
+type AuditEntry struct {
+	GoFile    string
+	FuncName  string
+	Line      int
+	Kind      string // "go-only-valid", "go-only-invalid", "todo-port"
+	ReasonCode string // for go-only
+	JavaSig   string // for todo-port
+	Text      string // raw comment text
 }
 
 // -------- Java parsing --------
@@ -143,34 +194,67 @@ func javaBodyLoC(src string) int {
 
 // GoFunc holds info about a parsed Go function/method.
 type GoFunc struct {
-	Name     string
-	Params   int
-	IsStub   bool
-	IsGoOnly bool // declared intentional via "// Go-only:" comment
+	Name         string
+	Params       int
+	IsStub       bool
+	IsGoOnly     bool   // tagged with "// Go-only:" (valid OR invalid)
+	GoOnlyValid  bool   // tagged with a valid reason code
+	GoOnlyCode   string // the reason code (e.g. "language-adapter")
+	IsTodoPort   bool   // tagged with "// TODO(port):"
+	TodoPortSig  string // the java signature from TODO(port) comment
+}
+
+// commentInfo holds information about a Go-only or TODO(port) comment at a given line.
+type commentInfo struct {
+	isGoOnly    bool
+	goOnlyValid bool
+	goOnlyCode  string
+	isTodoPort  bool
+	todoPortSig string
 }
 
 // extractGoFunctions parses a Go file and extracts all function and method declarations.
-// It recognises functions preceded by a "// Go-only:" comment as intentional divergences
-// that should not be penalised.
-func extractGoFunctions(filename string) ([]GoFunc, int, error) {
+// It recognises functions preceded by a "// Go-only: <code>" comment.
+// - Valid reason codes → IsGoOnly=true, GoOnlyValid=true (no penalty)
+// - Invalid/bare reason codes → IsGoOnly=true, GoOnlyValid=false (penalty applies)
+// - "// TODO(port): <sig>" → IsTodoPort=true (debt count, no penalty)
+func extractGoFunctions(filename string) ([]GoFunc, int, []AuditEntry, error) {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, nil, err
 	}
 
-	// Build a set of lines that carry "// Go-only:" comments so we can
-	// match them to the function declaration that immediately follows.
-	goOnlyLines := make(map[int]bool)
+	// Build a map of line → commentInfo for all relevant comments.
+	lineComments := make(map[int]commentInfo)
 	for _, cg := range f.Comments {
 		for _, c := range cg.List {
-			if strings.Contains(c.Text, "Go-only:") {
-				goOnlyLines[fset.Position(c.Pos()).Line] = true
+			line := fset.Position(c.Pos()).Line
+			text := c.Text
+
+			if strings.Contains(text, "Go-only:") {
+				code, isValid := parseGoOnlyCode(text)
+				lineComments[line] = commentInfo{
+					isGoOnly:    true,
+					goOnlyValid: isValid,
+					goOnlyCode:  code,
+				}
+			} else if strings.Contains(text, "TODO(port):") {
+				m := todoPortRe.FindStringSubmatch(text)
+				sig := ""
+				if m != nil {
+					sig = strings.TrimSpace(m[1])
+				}
+				lineComments[line] = commentInfo{
+					isTodoPort:  true,
+					todoPortSig: sig,
+				}
 			}
 		}
 	}
 
 	var funcs []GoFunc
+	var audits []AuditEntry
 	bodyLoC := 0
 
 	for _, decl := range f.Decls {
@@ -201,30 +285,72 @@ func extractGoFunctions(filename string) ([]GoFunc, int, error) {
 			isStub = isStubBody(fd, fset)
 		}
 
-		// A function is "Go-only" if any comment on the line immediately preceding
-		// the function declaration contains "Go-only:".
+		// A function is tagged if any comment on the 3 lines immediately preceding it
+		// contains "Go-only:" or "TODO(port):".
 		funcLine := fset.Position(fd.Pos()).Line
-		isGoOnly := false
-		// Check the two lines before the func keyword for a Go-only comment.
+		var matched *commentInfo
+		matchedLine := 0
 		for delta := 1; delta <= 3; delta++ {
-			if goOnlyLines[funcLine-delta] {
-				isGoOnly = true
+			if ci, ok := lineComments[funcLine-delta]; ok {
+				matched = &ci
+				matchedLine = funcLine - delta
 				break
 			}
 		}
 		// Also check the function's own doc comment if it exists.
-		if fd.Doc != nil {
+		if matched == nil && fd.Doc != nil {
 			for _, c := range fd.Doc.List {
-				if strings.Contains(c.Text, "Go-only:") {
-					isGoOnly = true
+				line := fset.Position(c.Pos()).Line
+				if ci, ok := lineComments[line]; ok {
+					matched = &ci
+					matchedLine = line
+					break
 				}
 			}
 		}
+		_ = matchedLine
 
-		funcs = append(funcs, GoFunc{Name: name, Params: params, IsStub: isStub, IsGoOnly: isGoOnly})
+		fn := GoFunc{
+			Name:   name,
+			Params: params,
+			IsStub: isStub,
+		}
+
+		if matched != nil {
+			if matched.isGoOnly {
+				fn.IsGoOnly = true
+				fn.GoOnlyValid = matched.goOnlyValid
+				fn.GoOnlyCode = matched.goOnlyCode
+
+				kind := "go-only-valid"
+				if !matched.goOnlyValid {
+					kind = "go-only-invalid"
+				}
+				audits = append(audits, AuditEntry{
+					GoFile:     filename,
+					FuncName:   name,
+					Line:       funcLine,
+					Kind:       kind,
+					ReasonCode: matched.goOnlyCode,
+				})
+			} else if matched.isTodoPort {
+				fn.IsTodoPort = true
+				fn.TodoPortSig = matched.todoPortSig
+
+				audits = append(audits, AuditEntry{
+					GoFile:   filename,
+					FuncName: name,
+					Line:     funcLine,
+					Kind:     "todo-port",
+					JavaSig:  matched.todoPortSig,
+				})
+			}
+		}
+
+		funcs = append(funcs, fn)
 	}
 
-	return funcs, bodyLoC, nil
+	return funcs, bodyLoC, audits, nil
 }
 
 // isStubBody returns true if the function body is a stub.
@@ -433,7 +559,7 @@ func computeScore(goFile string, content string, javaRoot string) FileResult {
 	}
 
 	// Extract Go functions.
-	goFuncs, goBodyLoc, err := extractGoFunctions(goFile)
+	goFuncs, goBodyLoc, _, err := extractGoFunctions(goFile)
 	if err != nil {
 		result.Score = 0
 		result.Notes += fmt.Sprintf("parse error: %v", err)
@@ -441,13 +567,15 @@ func computeScore(goFile string, content string, javaRoot string) FileResult {
 	}
 	result.GoBodyLoC = goBodyLoc
 
-	// Build Go method name set.  Functions explicitly tagged "// Go-only:" are
-	// intentional divergences and are excluded from the penalty count but still
-	// included in the method-count denominator.
+	// Build Go method name set.
+	// - Functions tagged with a VALID "// Go-only: <code>" → exempt from penalty
+	// - Functions tagged with an INVALID/bare "// Go-only:" → penalized (same as untagged)
+	// - Functions tagged with "// TODO(port):" → counted in port_debt, NO penalty
 	goMethodNames := make(map[string]bool)
 	goMethodCount := 0
 	stubCount := 0
-	goOnlyCount := 0
+	goOnlyCount := 0   // penalized
+	portDebtCount := 0 // TODO(port) markers
 
 	javaSrcLower := strings.ToLower(javaSrc)
 	for _, fn := range goFuncs {
@@ -457,14 +585,17 @@ func computeScore(goFile string, content string, javaRoot string) FileResult {
 		if fn.IsStub {
 			stubCount++
 		}
-		// A function is a "Go-only" divergence when:
-		//   (a) it carries an explicit "// Go-only:" comment, or
-		//   (b) its lowercase name does not appear anywhere in the Java source.
-		// Explicitly tagged functions are still counted but do NOT incur a penalty.
-		if fn.IsGoOnly {
-			// Intentional divergence — don't penalise.
+		if fn.IsTodoPort {
+			// Explicit port debt — counts in debt column, not penalty.
+			portDebtCount++
+		} else if fn.IsGoOnly && fn.GoOnlyValid {
+			// Intentional divergence with valid reason — no penalty.
+		} else if fn.IsGoOnly && !fn.GoOnlyValid {
+			// Invalid or bare "// Go-only:" → STILL penalized.
+			// This is the behavior change: the invalid code is treated as bare.
+			goOnlyCount++
 		} else if !strings.Contains(javaSrcLower, nameLower) {
-			// Name missing from Java source entirely.
+			// Name missing from Java source entirely and not tagged.
 			goOnlyCount++
 		}
 	}
@@ -472,6 +603,7 @@ func computeScore(goFile string, content string, javaRoot string) FileResult {
 	result.GoMethodCount = goMethodCount
 	result.StubCount = stubCount
 	result.GoOnlyCount = goOnlyCount
+	result.PortDebtCount = portDebtCount
 
 	// Metric 1: Method name overlap (Jaccard).
 	// For tiny wrappers we union the primary Java method set with the parent's
@@ -631,6 +763,9 @@ func computeScore(goFile string, content string, javaRoot string) FileResult {
 	if goOnlyCount > 0 {
 		noteParts = append(noteParts, fmt.Sprintf("%d go-only fns", goOnlyCount))
 	}
+	if portDebtCount > 0 {
+		noteParts = append(noteParts, fmt.Sprintf("%d port-debt", portDebtCount))
+	}
 	if hdr.multi {
 		noteParts = append(noteParts, "multi-java-source")
 	}
@@ -678,8 +813,9 @@ func extractJavaArities(src string) map[string]int {
 
 // -------- walker --------
 
-func walkInternal(internalDir string, javaRoot string) ([]FileResult, error) {
+func walkInternal(internalDir string, javaRoot string) ([]FileResult, []AuditEntry, error) {
 	var results []FileResult
+	var allAudits []AuditEntry
 
 	err := filepath.Walk(internalDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -718,10 +854,89 @@ func walkInternal(internalDir string, javaRoot string) ([]FileResult, error) {
 
 		result := computeScore(path, src, javaRoot)
 		results = append(results, result)
+
+		// Also collect audit entries from this file.
+		_, _, audits, err2 := extractGoFunctions(path)
+		if err2 == nil {
+			allAudits = append(allAudits, audits...)
+		}
+
 		return nil
 	})
 
-	return results, err
+	return results, allAudits, err
+}
+
+// -------- audit mode --------
+
+func printAudit(audits []AuditEntry) {
+	// Tally by reason code and kind.
+	codeCounts := make(map[string]int)
+	var todoEntries []AuditEntry
+	invalidCount := 0
+
+	for _, a := range audits {
+		switch a.Kind {
+		case "go-only-valid":
+			codeCounts[a.ReasonCode]++
+		case "go-only-invalid":
+			codeCounts["INVALID"]++
+			invalidCount++
+		case "todo-port":
+			todoEntries = append(todoEntries, a)
+		}
+	}
+
+	fmt.Println("## Go-only usage by reason code")
+	// Print valid codes in sorted order.
+	validCodes := []string{"language-adapter", "package-bridge", "stdlib-interop", "test-helper"}
+	for _, code := range validCodes {
+		if n, ok := codeCounts[code]; ok {
+			fmt.Printf("  %s: %d functions\n", code, n)
+		}
+	}
+	if invalidCount > 0 {
+		fmt.Printf("  INVALID: %d functions (will be penalized)\n", invalidCount)
+	}
+
+	totalGoOnly := 0
+	for _, n := range codeCounts {
+		totalGoOnly += n
+	}
+	fmt.Printf("  Total: %d functions\n", totalGoOnly)
+
+	fmt.Println()
+	fmt.Println("## Port debt (TODO(port) markers)")
+
+	// Group todo entries by file.
+	fileDebt := make(map[string]int)
+	for _, a := range todoEntries {
+		fileDebt[a.GoFile]++
+	}
+	fmt.Printf("  %d total across %d files\n", len(todoEntries), len(fileDebt))
+
+	if len(todoEntries) > 0 {
+		// Sort files by count descending.
+		type fileCount struct {
+			file  string
+			count int
+		}
+		var fcs []fileCount
+		for f, c := range fileDebt {
+			fcs = append(fcs, fileCount{f, c})
+		}
+		sort.Slice(fcs, func(i, j int) bool {
+			if fcs[i].count != fcs[j].count {
+				return fcs[i].count > fcs[j].count
+			}
+			return fcs[i].file < fcs[j].file
+		})
+		fmt.Println()
+		fmt.Println("  By file:")
+		for _, fc := range fcs {
+			fmt.Printf("    %s: %d\n", fc.file, fc.count)
+		}
+	}
 }
 
 // -------- report generation --------
@@ -743,21 +958,22 @@ Generated: auto-computed by tools/portcheck.
 
 ## Files by Fidelity Score (worst first)
 
-| Rank | Score | Go File | Java Source | Method Overlap % | Stub Count | LoC Ratio | Notes |
-|------|-------|---------|-------------|-----------------|------------|-----------|-------|
-{{range .Rows}}| {{.Rank}} | {{printf "%.0f" .Score}} | ` + "`" + `{{.GoFileShort}}` + "`" + ` | ` + "`" + `{{.JavaFileShort}}` + "`" + ` | {{printf "%.0f" .MethodOverlapPct}}% | {{.StubCount}} | {{printf "%.2f" .LocRatio}} | {{.Notes}} |
+| Rank | Score | Go File | Java Source | Method Overlap % | Stub Count | LoC Ratio | Port Debt | Notes |
+|------|-------|---------|-------------|-----------------|------------|-----------|-----------|-------|
+{{range .Rows}}| {{.Rank}} | {{printf "%.0f" .Score}} | ` + "`" + `{{.GoFileShort}}` + "`" + ` | ` + "`" + `{{.JavaFileShort}}` + "`" + ` | {{printf "%.0f" .MethodOverlapPct}}% | {{.StubCount}} | {{printf "%.2f" .LocRatio}} | {{.PortDebtCount}} | {{.Notes}} |
 {{end}}
 `
 
 type mdRow struct {
-	Rank            int
-	Score           float64
-	GoFileShort     string
-	JavaFileShort   string
+	Rank             int
+	Score            float64
+	GoFileShort      string
+	JavaFileShort    string
 	MethodOverlapPct float64
-	StubCount       int
-	LocRatio        float64
-	Notes           string
+	StubCount        int
+	LocRatio         float64
+	PortDebtCount    int
+	Notes            string
 }
 
 type mdData struct {
@@ -839,14 +1055,15 @@ func generateReport(results []FileResult, internalDir string, outputMD string, o
 		javaShort = strings.TrimPrefix(javaShort, "com/google/javascript/")
 
 		rows[i] = mdRow{
-			Rank:            i + 1,
-			Score:           r.Score,
-			GoFileShort:     goShort,
-			JavaFileShort:   javaShort,
+			Rank:             i + 1,
+			Score:            r.Score,
+			GoFileShort:      goShort,
+			JavaFileShort:    javaShort,
 			MethodOverlapPct: r.MethodOverlapPct,
-			StubCount:       r.StubCount,
-			LocRatio:        r.LocRatio,
-			Notes:           r.Notes,
+			StubCount:        r.StubCount,
+			LocRatio:         r.LocRatio,
+			PortDebtCount:    r.PortDebtCount,
+			Notes:            r.Notes,
 		}
 	}
 	stats.Rows = rows
@@ -882,6 +1099,9 @@ func generateReport(results []FileResult, internalDir string, outputMD string, o
 // -------- main --------
 
 func main() {
+	auditFlag := flag.Bool("audit", false, "print audit of Go-only reason codes and TODO(port) markers")
+	flag.Parse()
+
 	// Locate repo root relative to this binary's path.
 	// When run as `go run ./tools/portcheck/...` from repo root, use CWD.
 	repoRoot := findRepoRoot()
@@ -896,13 +1116,18 @@ func main() {
 	fmt.Fprintf(os.Stderr, "Scanning %s...\n", internalDir)
 	fmt.Fprintf(os.Stderr, "Java source root: %s\n", javaRoot)
 
-	results, err := walkInternal(internalDir, javaRoot)
+	results, audits, err := walkInternal(internalDir, javaRoot)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error walking internal/: %v\n", err)
 		os.Exit(1)
 	}
 
 	fmt.Fprintf(os.Stderr, "Scored %d files.\n", len(results))
+
+	if *auditFlag {
+		printAudit(audits)
+		return
+	}
 
 	docsDir := filepath.Join(repoRoot, "docs")
 	if err := os.MkdirAll(docsDir, 0755); err != nil {
@@ -925,6 +1150,15 @@ func main() {
 	stats := computeStats(results)
 	fmt.Printf("Total files: %d, avg score: %.1f, min: %.1f, max: %.1f\n",
 		stats.TotalFiles, stats.AvgScore, stats.MinScore, stats.MaxScore)
+
+	// Print port debt summary
+	totalDebt := 0
+	for _, r := range results {
+		totalDebt += r.PortDebtCount
+	}
+	if totalDebt > 0 {
+		fmt.Printf("Port debt (TODO(port) markers): %d total\n", totalDebt)
+	}
 }
 
 // findRepoRoot walks up from the current directory looking for go.mod.

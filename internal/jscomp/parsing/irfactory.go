@@ -34,7 +34,7 @@ type errorReporter interface {
 	Warning(msg, sourceName string, lineno, charno int)
 }
 
-// Go-only: Go constructor — Java uses the static IRFactory.transformTree(...) factory method.
+// Go-only: language-adapter — Go constructor (Java uses static IRFactory.transformTree factory method; Go has no static methods).
 func NewIRFactory(sourceFile rhino.StaticSourceFile, er errorReporter) *IRFactory {
 	return &IRFactory{
 		sourceFile:    sourceFile,
@@ -261,7 +261,7 @@ func (f *IRFactory) processBlock(tree *trees.BlockTree) *rhino.Node {
 	return node
 }
 
-// Go-only: dispatches and wraps single-statement bodies in a synthetic BLOCK.
+// Go-only: language-adapter — dispatches and wraps single-statement bodies in a synthetic BLOCK (Java has transformBlock overload; Go has no overloading).
 // Java inlines this wrapping at each call site via processBlock(ParseTree node).
 func (f *IRFactory) processBlockTree(tree *trees.ParseTree) *rhino.Node {
 	if tree == nil {
@@ -296,7 +296,7 @@ func (f *IRFactory) transformOrEmpty(tree *trees.ParseTree, parent *trees.ParseT
 	return f.Transform(tree)
 }
 
-// Go-only: helper to wrap a bare expression ParseTree in EXPR_RESULT.
+// Go-only: language-adapter — helper to wrap a bare expression ParseTree in EXPR_RESULT (Java inlines this; Go extracts for reuse).
 // Java's processExpressionStatement always has an ExpressionStatementTree wrapper.
 func (f *IRFactory) transformExpressionStatementExpr(expr *trees.ParseTree) *rhino.Node {
 	node := f.newNode(rhino.EXPR_RESULT)
@@ -1179,7 +1179,7 @@ func (f *IRFactory) processRegExpLiteral(raw string) *rhino.Node {
 	return node
 }
 
-// Go-only: token-based overload of setSourceInfo; Java's setSourceInfo takes a ParseTree.
+// Go-only: language-adapter — token-based overload of setSourceInfo (Java's setSourceInfo takes a ParseTree; Go has no overloading).
 func (f *IRFactory) setSourceInfoFromToken(node *rhino.Node, tok *trees.Token) {
 	if node.Lineno() == 0 {
 		node.SetPos(tok.Location.Start.Line+1, tok.Location.Start.Column)
@@ -1332,7 +1332,7 @@ func normalizeString(raw string) string {
 	return raw
 }
 
-// Go-only: Go-level numeric literal parser; Java uses removeNumericSeparators + Double.parseDouble.
+// Go-only: language-adapter — Go-level numeric literal parser (Java uses removeNumericSeparators + Double.parseDouble; Go has no Double.parseDouble).
 func parseFloat(s string) float64 {
 	if s == "" {
 		return 0
@@ -1344,7 +1344,7 @@ func parseFloat(s string) float64 {
 	return v
 }
 
-// Go-only: converts float64 to JS number string; Java uses DToA.numberToString.
+// Go-only: language-adapter — converts float64 to JS number string (Java uses DToA.numberToString; Go has no DToA equivalent).
 func floatToString(v float64) string {
 	return fmt.Sprintf("%g", v)
 }

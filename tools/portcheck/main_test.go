@@ -168,7 +168,7 @@ func TestExtractJavaMethods(t *testing.T) {
 
 func TestExtractGoFunctions_Count(t *testing.T) {
 	path := writeTempFile(t, "fake.go", highFidelityGoSrc)
-	funcs, _, err := extractGoFunctions(path)
+	funcs, _, _, err := extractGoFunctions(path)
 	if err != nil {
 		t.Fatalf("extractGoFunctions: %v", err)
 	}
@@ -179,7 +179,7 @@ func TestExtractGoFunctions_Count(t *testing.T) {
 
 func TestStubDetection(t *testing.T) {
 	path := writeTempFile(t, "stub.go", stubbyGoSrc)
-	funcs, _, err := extractGoFunctions(path)
+	funcs, _, _, err := extractGoFunctions(path)
 	if err != nil {
 		t.Fatalf("extractGoFunctions: %v", err)
 	}
@@ -428,10 +428,38 @@ public class Example {
 	}
 }
 
-// TestGoOnlyRecognition checks that functions with a "// Go-only:" comment
-// are flagged as intentional divergences (IsGoOnly == true) and do not
-// inflate the go-only penalty.
-const goOnlyTaggedSrc = `// Port of com/google/javascript/jscomp/FakeChecker.java @ closure-compiler v20260415
+// TestGoOnlyRecognition checks that functions with a valid "// Go-only: <code>" comment
+// are flagged as intentional divergences and do NOT inflate the go-only penalty.
+const goOnlyValidTaggedSrc = `// Port of com/google/javascript/jscomp/FakeChecker.java @ closure-compiler v20260415
+package jscomp
+
+func check(x int) bool {
+	return x > 0
+}
+
+// Go-only: language-adapter — Go interface adapter; no direct Java counterpart.
+func goHelperForInterfaceAdaption() int {
+	return 42
+}
+`
+
+func TestGoOnlyValidTaggedFunctionNotPenalised(t *testing.T) {
+	tmpDir := t.TempDir()
+	makeJavaFixture(t, tmpDir) // uses highFidelityJavaSrc which has check()
+
+	goFile := writeTempFile(t, "tagged.go", goOnlyValidTaggedSrc)
+	result := computeScore(goFile, goOnlyValidTaggedSrc, tmpDir)
+
+	// GoOnlyCount should be 0 for the validly tagged function.
+	if result.GoOnlyCount > 0 {
+		t.Errorf("valid Go-only tagged function should not inflate GoOnlyCount: got %d", result.GoOnlyCount)
+	}
+	t.Logf("go-only valid tagged score: %.1f, GoOnlyCount: %d, notes: %s", result.Score, result.GoOnlyCount, result.Notes)
+}
+
+// TestGoOnlyInvalidTagPenalized checks that a "// Go-only:" with an invalid/unknown
+// reason code IS penalized (treated as bare go-only).
+const goOnlyInvalidTaggedSrc = `// Port of com/google/javascript/jscomp/FakeChecker.java @ closure-compiler v20260415
 package jscomp
 
 func check(x int) bool {
@@ -439,23 +467,134 @@ func check(x int) bool {
 }
 
 // Go-only: Go interface adapter; no direct Java counterpart.
-func goHelperForInterfaceAdaption() int {
+func goHelperForInterfaceAdaptionXYZ() int {
 	return 42
 }
 `
 
-func TestGoOnlyTaggedFunctionNotPenalised(t *testing.T) {
+func TestGoOnlyInvalidTagPenalized(t *testing.T) {
 	tmpDir := t.TempDir()
-	makeJavaFixture(t, tmpDir) // uses highFidelityJavaSrc which has check()
+	makeJavaFixture(t, tmpDir)
 
-	goFile := writeTempFile(t, "tagged.go", goOnlyTaggedSrc)
-	result := computeScore(goFile, goOnlyTaggedSrc, tmpDir)
+	goFile := writeTempFile(t, "invalid_tagged.go", goOnlyInvalidTaggedSrc)
+	result := computeScore(goFile, goOnlyInvalidTaggedSrc, tmpDir)
 
-	// GoOnlyCount should be 0 for the tagged function (it's intentional).
-	if result.GoOnlyCount > 1 {
-		t.Errorf("tagged Go-only function should not inflate GoOnlyCount: got %d", result.GoOnlyCount)
+	// GoOnlyCount should be >0 because the reason code is invalid.
+	if result.GoOnlyCount == 0 {
+		t.Errorf("invalid Go-only tag should still penalize: GoOnlyCount=0")
 	}
-	t.Logf("go-only tagged score: %.1f, GoOnlyCount: %d, notes: %s", result.Score, result.GoOnlyCount, result.Notes)
+	t.Logf("go-only invalid tagged score: %.1f, GoOnlyCount: %d", result.Score, result.GoOnlyCount)
+}
+
+// TestTodoPortNotPenalized checks that "// TODO(port):" functions are counted
+// in port_debt but NOT penalized as go-only.
+const todoPortSrc = `// Port of com/google/javascript/jscomp/FakeChecker.java @ closure-compiler v20260415
+package jscomp
+
+func check(x int) bool {
+	return x > 0
+}
+
+// TODO(port): FakeChecker.validate(int, int)
+func validate(x int, y int) bool {
+	return false
+}
+
+// TODO(port): FakeChecker.reportXYZQQQABC(String)
+func reportXYZQQQABC(msg string) {
+}
+`
+
+func TestTodoPortNotPenalized(t *testing.T) {
+	tmpDir := t.TempDir()
+	makeJavaFixture(t, tmpDir)
+
+	goFile := writeTempFile(t, "tododebt.go", todoPortSrc)
+	result := computeScore(goFile, todoPortSrc, tmpDir)
+
+	// PortDebtCount should be 2 (both TODO(port) functions).
+	if result.PortDebtCount != 2 {
+		t.Errorf("expected PortDebtCount=2, got %d", result.PortDebtCount)
+	}
+	// GoOnlyCount should NOT include the TODO(port) functions.
+	// validate IS in Java (so not go-only anyway), reportXYZQQQABC is not but is marked as debt.
+	if result.GoOnlyCount > 0 {
+		t.Errorf("TODO(port) functions should not be penalized as go-only, GoOnlyCount=%d", result.GoOnlyCount)
+	}
+	t.Logf("todo-port score: %.1f, PortDebtCount: %d, GoOnlyCount: %d", result.Score, result.PortDebtCount, result.GoOnlyCount)
+}
+
+// TestParseGoOnlyCode checks the reason code parser.
+func TestParseGoOnlyCode(t *testing.T) {
+	tests := []struct {
+		comment string
+		wantCode string
+		wantValid bool
+	}{
+		{"// Go-only: language-adapter — some explanation", "language-adapter", true},
+		{"// Go-only: package-bridge", "package-bridge", true},
+		{"// Go-only: stdlib-interop", "stdlib-interop", true},
+		{"// Go-only: test-helper", "test-helper", true},
+		{"// Go-only: Go interface adapter; no direct Java counterpart.", "Go", false},
+		{"// Go-only: constructor shim; Java uses the class constructor directly.", "constructor", false},
+		{"// Go-only: Java-named alias for private helper", "Java-named", false},
+	}
+	for _, tt := range tests {
+		code, isValid := parseGoOnlyCode(tt.comment)
+		if code != tt.wantCode {
+			t.Errorf("parseGoOnlyCode(%q): code=%q want=%q", tt.comment, code, tt.wantCode)
+		}
+		if isValid != tt.wantValid {
+			t.Errorf("parseGoOnlyCode(%q): isValid=%v want=%v", tt.comment, isValid, tt.wantValid)
+		}
+	}
+}
+
+// TestAuditEntries checks that extractGoFunctions produces audit entries.
+func TestAuditEntries(t *testing.T) {
+	src := `// Port of com/google/javascript/jscomp/FakeChecker.java @ closure-compiler v20260415
+package jscomp
+
+func check(x int) bool { return x > 0 }
+
+// Go-only: language-adapter — valid reason.
+func adapterHelper() int { return 42 }
+
+// Go-only: invalid-code — not a real reason code.
+func invalidHelper() int { return 99 }
+
+// TODO(port): FakeChecker.missingMethod(String)
+func missingMethod(s string) {}
+`
+	goFile := writeTempFile(t, "audit_test.go", src)
+	_, _, audits, err := extractGoFunctions(goFile)
+	if err != nil {
+		t.Fatalf("extractGoFunctions: %v", err)
+	}
+
+	validCount := 0
+	invalidCount := 0
+	debtCount := 0
+	for _, a := range audits {
+		switch a.Kind {
+		case "go-only-valid":
+			validCount++
+		case "go-only-invalid":
+			invalidCount++
+		case "todo-port":
+			debtCount++
+		}
+	}
+
+	if validCount != 1 {
+		t.Errorf("expected 1 valid go-only, got %d", validCount)
+	}
+	if invalidCount != 1 {
+		t.Errorf("expected 1 invalid go-only, got %d", invalidCount)
+	}
+	if debtCount != 1 {
+		t.Errorf("expected 1 todo-port, got %d", debtCount)
+	}
 }
 
 // -------- helpers --------

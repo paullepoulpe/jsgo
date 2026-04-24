@@ -40,7 +40,7 @@ type ParserConfig struct {
 }
 
 // NewParserConfig mirrors new Config(mode, isStrictMode).
-// Go-only: Go constructor for ParserConfig; Java uses Config(Mode, boolean) constructor.
+// Go-only: language-adapter — Go constructor for ParserConfig (Java uses Config(Mode, boolean) overload).
 func NewParserConfig(mode ParserMode, strictMode bool) ParserConfig {
 	return ParserConfig{
 		AtLeast6:           mode != ParserModeES3 && mode != ParserModeES5,
@@ -119,12 +119,12 @@ func (r *parserCommentRecorder) RecordComment(typ CommentType, rang SourceRange,
 
 // ---- Position helpers --------------------------------------------------------
 
-// Go-only: converts parser SourcePosition to trees.SourcePosition; Java uses same type.
+// Go-only: language-adapter — converts parser SourcePosition to trees.SourcePosition (Go package split; Java uses one type).
 func toTreesPos(p SourcePosition) trees.SourcePosition {
 	return trees.SourcePosition{Offset: p.Offset, Line: p.Line, Column: p.Column}
 }
 
-// Go-only: converts parser SourceRange to trees.SourceRange; Java uses same type.
+// Go-only: language-adapter — converts parser SourceRange to trees.SourceRange (Go package split; Java uses one type).
 func toTreesRange(r SourceRange) trees.SourceRange {
 	return trees.SourceRange{Start: toTreesPos(r.Start), End: toTreesPos(r.End)}
 }
@@ -133,7 +133,7 @@ func toTreesRange(r SourceRange) trees.SourceRange {
 
 // toTreesToken converts a *parser.Token to a *trees.Token, bridging the
 // parser and trees package token types.
-// Go-only: converts scanner Token to trees.Token; Java uses same type.
+// Go-only: language-adapter — converts scanner Token to trees.Token (Go package split; Java uses one type).
 func toTreesToken(t *Token) *trees.Token {
 	if t == nil {
 		return nil
@@ -145,7 +145,7 @@ func toTreesToken(t *Token) *trees.Token {
 }
 
 // toTreesIdentToken converts a *parser.Token (identifier) to a *trees.IdentifierToken.
-// Go-only: converts scanner IdentifierToken to trees.IdentifierToken; Java uses same type.
+// Go-only: language-adapter — converts scanner IdentifierToken to trees.IdentifierToken (Go package split; Java uses one type).
 func toTreesIdentToken(t *Token) *trees.IdentifierToken {
 	if t == nil {
 		return nil
@@ -170,12 +170,12 @@ type classOrObjectElementInfo struct {
 	nameExpr      *trees.ParseTree       // set by setNameExpr
 }
 
-// Go-only: factory for classOrObjectElementInfo at a position; Java uses createObjectLiteralElementInfo().
+// Go-only: language-adapter — factory for classOrObjectElementInfo at a position (Java uses createObjectLiteralElementInfo overload).
 func createObjectLiteralElementInfoAt(start trees.SourcePosition) *classOrObjectElementInfo {
 	return &classOrObjectElementInfo{start: start, isClassMember: false, isStatic: false}
 }
 
-// Go-only: factory for classOrObjectElementInfo with static flag; Java constructs it inline.
+// Go-only: language-adapter — factory for classOrObjectElementInfo with static flag (Java constructs inline; Go needs named constructor).
 func createClassMemberInfoAt(start trees.SourcePosition, isStatic bool) *classOrObjectElementInfo {
 	return &classOrObjectElementInfo{start: start, isClassMember: true, isStatic: isStatic}
 }
@@ -228,7 +228,7 @@ type ParserRewrite struct {
 }
 
 // NewParserRewrite mirrors new Parser(config, errorReporter, source).
-// Go-only: Go constructor; Java uses Parser(Config, ErrorReporter, SourceFile) constructor.
+// Go-only: language-adapter — Go constructor (Java uses Parser(Config, ErrorReporter, SourceFile) constructor overload).
 func NewParserRewrite(config ParserConfig, errorReporter ErrorReporter, src string) *ParserRewrite {
 	p := &ParserRewrite{
 		config:        config,
@@ -281,7 +281,7 @@ func (p *ParserRewrite) getTreeLocation(start SourcePosition) trees.SourceRange 
 
 // getTreeLocationFromTreesPos is like getTreeLocation but accepts a trees.SourcePosition
 // (used when start comes from a trees struct like classOrObjectElementInfo).
-// Go-only: overload of getTreeLocation taking trees.SourcePosition; Java uses a single getTreeLocation(SourcePosition).
+// Go-only: language-adapter — overload of getTreeLocation taking trees.SourcePosition (Java uses method overloading).
 func (p *ParserRewrite) getTreeLocationFromTreesPos(start trees.SourcePosition) trees.SourceRange {
 	return trees.SourceRange{Start: start, End: toTreesPos(p.getTreeEndLocation())}
 }
@@ -315,7 +315,7 @@ func (p *ParserRewrite) peek(expected TokenType) bool {
 }
 
 // peekAt returns true if the index-th next token is of the expected type.
-// Go-only: index-parameterised peek; Java has peek(int, TokenType).
+// Go-only: language-adapter — index-parameterised peek (Java has peek(int, TokenType) overload; Go has no overloading).
 func (p *ParserRewrite) peekAt(index int, expected TokenType) bool {
 	return p.peekTypeAt(index) == expected
 }
@@ -326,7 +326,7 @@ func (p *ParserRewrite) peekType() TokenType {
 }
 
 // peekTypeAt returns the type of the index-th next token without consuming it.
-// Go-only: index-parameterised peekType; Java has peekType(int).
+// Go-only: language-adapter — index-parameterised peekType (Java has peekType(int) overload; Go has no overloading).
 func (p *ParserRewrite) peekTypeAt(index int) TokenType {
 	return p.peekTokenAt(index).Type
 }
@@ -337,14 +337,14 @@ func (p *ParserRewrite) peekToken() *Token {
 }
 
 // peekTokenAt returns the index-th next token without consuming it.
-// Go-only: index-parameterised peekToken; Java has peekToken(int).
+// Go-only: language-adapter — index-parameterised peekToken (Java has peekToken(int) overload; Go has no overloading).
 func (p *ParserRewrite) peekTokenAt(index int) *Token {
 	return p.scanner.PeekTokenAt(index)
 }
 
 // peekTokenNoLineTerminator returns the next token if it is on the same line
 // as the last consumed token; otherwise returns nil.
-// Go-only: no-line-terminator peek variant; Java checks line via getLastLine/getNextLine inline.
+// Go-only: language-adapter — no-line-terminator peek variant (Java checks inline; Go needs helper due to no overloading).
 func (p *ParserRewrite) peekTokenNoLineTerminator() *Token {
 	tok := p.peekToken()
 	if tok.Location.Start.Line > p.lastSourcePosition.Line {
@@ -389,7 +389,7 @@ func (p *ParserRewrite) peekPredefinedString(str string) bool {
 }
 
 // peekPredefinedStringAt returns true if the index-th token is the identifier str.
-// Go-only: index-parameterised peekPredefinedString; Java has peekPredefinedString(int, String).
+// Go-only: language-adapter — index-parameterised peekPredefinedString (Java has method overload; Go has no overloading).
 func (p *ParserRewrite) peekPredefinedStringAt(index int, str string) bool {
 	tok := p.peekTokenAt(index)
 	return tok.Type == TokenTypeIdentifier && tok.Value == str
@@ -403,7 +403,7 @@ func (p *ParserRewrite) peekId() bool {
 }
 
 // peekIdAt returns true if the index-th token can be used as an identifier.
-// Go-only: index-parameterised peekId; Java has peekId(int).
+// Go-only: language-adapter — index-parameterised peekId (Java has peekId(int) overload; Go has no overloading).
 func (p *ParserRewrite) peekIdAt(index int) bool {
 	typ := p.peekTypeAt(index)
 	return typ == TokenTypeIdentifier || (!p.inStrictContext() && isStrictKeyword(typ))
@@ -415,7 +415,7 @@ func (p *ParserRewrite) peekIdOrKeyword() bool {
 }
 
 // peekIdOrKeywordAt returns true if the index-th token is an identifier or keyword.
-// Go-only: index-parameterised peekIdOrKeyword; Java has peekIdOrKeyword(int).
+// Go-only: language-adapter — index-parameterised peekIdOrKeyword (Java has peekIdOrKeyword(int) overload; Go has no overloading).
 func (p *ParserRewrite) peekIdOrKeywordAt(index int) bool {
 	typ := p.peekTypeAt(index)
 	return typ == TokenTypeIdentifier || isKeywordType(typ)
@@ -494,13 +494,13 @@ func (p *ParserRewrite) reportError(format string, args ...interface{}) {
 }
 
 // reportErrorAt reports an error at a specific position.
-// Go-only: position-based reportError variant; Java has reportError(SourcePosition, String, Object...).
+// Go-only: language-adapter — position-based reportError variant (Java has method overloading; Go has no overloading).
 func (p *ParserRewrite) reportErrorAt(pos SourcePosition, format string, args ...interface{}) {
 	p.errorReporter.ReportError(pos, format, args...)
 }
 
 // reportErrorToken reports an error at the given token's start position.
-// Go-only: token-based reportError variant; Java has reportError(Token, String, Object...).
+// Go-only: language-adapter — token-based reportError variant (Java has method overloading; Go has no overloading).
 func (p *ParserRewrite) reportErrorToken(tok *Token, format string, args ...interface{}) {
 	if tok == nil {
 		p.reportError(format, args...)
@@ -522,7 +522,7 @@ func (p *ParserRewrite) peekImplicitSemiColon() bool {
 	return p.peekImplicitSemiColonAt(0)
 }
 
-// Go-only: index-parameterised peekImplicitSemiColon; Java has peekImplicitSemiColon(int).
+// Go-only: language-adapter — index-parameterised peekImplicitSemiColon (Java has method overload; Go has no overloading).
 func (p *ParserRewrite) peekImplicitSemiColonAt(index int) bool {
 	var lineAdvanced bool
 	if index == 0 {
@@ -555,14 +555,14 @@ func (p *ParserRewrite) eatPossiblyImplicitSemiColon() {
 // ---- Infrastructure: scanner reset -------------------------------------------
 
 // resetScannerToPos resets the scanner to a saved source position.
-// Go-only: position-based scanner reset; Java has resetScanner(SourcePosition).
+// Go-only: language-adapter — position-based scanner reset (Java has resetScanner(SourcePosition) overload).
 func (p *ParserRewrite) resetScannerToPos(pos SourcePosition) {
 	p.lastSourcePosition = pos
 	p.scanner.SetPosition(pos)
 }
 
 // resetScannerToTree rewinds the scanner to the start of the given tree.
-// Go-only: tree-based scanner reset; Java has resetScanner(ParseTree).
+// Go-only: language-adapter — tree-based scanner reset (Java has resetScanner(ParseTree) overload).
 func (p *ParserRewrite) resetScannerToTree(tree *trees.ParseTree) {
 	sp := SourcePosition{
 		Offset: tree.Location.Start.Offset,
@@ -573,7 +573,7 @@ func (p *ParserRewrite) resetScannerToTree(tree *trees.ParseTree) {
 }
 
 // resetScannerAfterTree rewinds the scanner to the end of the given tree.
-// Go-only: post-tree scanner reset; Java has resetScannerAfter(ParseTree).
+// Go-only: language-adapter — post-tree scanner reset (Java has resetScannerAfter(ParseTree); Go needs named variant).
 func (p *ParserRewrite) resetScannerAfterTree(tree *trees.ParseTree) {
 	sp := SourcePosition{
 		Offset: tree.Location.End.Offset,
@@ -599,12 +599,12 @@ func (p *ParserRewrite) maybeReportTrailingComma(commaToken *Token) {
 
 // ---- Infrastructure: peekPropertyName / peekPropertyNameOrComputedProp -------
 
-// Go-only: renamed from Java peekPropertyNameOrComputedProp(int) to avoid shadowing the zero-arg form.
+// Go-only: language-adapter — renamed from Java peekPropertyNameOrComputedProp(int) (no overloading in Go).
 func (p *ParserRewrite) peekPropertyNameOrComputedPropAt(tokenIndex int) bool {
 	return p.peekPropertyNameAt(tokenIndex) || p.peekTypeAt(tokenIndex) == TokenTypeOpenSquare
 }
 
-// Go-only: renamed from Java peekPropertyName(int) to avoid shadowing the zero-arg form.
+// Go-only: language-adapter — renamed from Java peekPropertyName(int) (no overloading in Go).
 func (p *ParserRewrite) peekPropertyNameAt(tokenIndex int) bool {
 	typ := p.peekTypeAt(tokenIndex)
 	switch typ {
@@ -698,7 +698,7 @@ func (p *ParserRewrite) parseAssignmentExpression() *trees.ParseTree {
 }
 
 // parseAssignmentExpressionNoIn mirrors parseAssignment(Expression.NO_IN).
-// Go-only: no-in variant wrapper; Java uses parseAssignmentExpression(Expression.NO_IN).
+// Go-only: language-adapter — no-in variant wrapper (Java uses parseAssignmentExpression(Expression.NO_IN) overload).
 func (p *ParserRewrite) parseAssignmentExpressionNoIn() *trees.ParseTree {
 	return p.parseAssignment(expressionNoIn)
 }
@@ -845,7 +845,7 @@ func (p *ParserRewrite) completeAssignmentExpressionParseAtArrow(leftOfArrow *tr
 
 // completeAssignmentAtArrowFromCall handles the edge case where a CallExpression
 // precedes `=>` (e.g., an implicit semicolon before the arrow).
-// Go-only: arrow completion from a call-expression tree; Java has a single completeAssignmentExpressionParseAtArrow(CallExpressionTree) overload.
+// Go-only: language-adapter — arrow completion from a call-expression tree (Java has completeAssignmentExpressionParseAtArrow overload).
 func (p *ParserRewrite) completeAssignmentAtArrowFromCall(callTree *trees.ParseTree) *trees.ParseTree {
 	// We can't easily inspect CallExpressionTree fields from *ParseTree alone without
 	// a type-safe cast. For now treat conservatively: report error.
@@ -2290,7 +2290,7 @@ func (p *ParserRewrite) parseParameter() *trees.ParseTree {
 // Every concrete tree type embeds ParseTree as its first field, so the
 // address of the embedded field equals the address of the concrete struct,
 // and the cast (*ConcreteTree)(unsafe.Pointer(pt)) is valid.
-// Go-only: type-asserts any concrete tree to *trees.ParseTree; Java uses direct subtype polymorphism.
+// Go-only: language-adapter — type-asserts any concrete tree to *trees.ParseTree (Java uses subtype polymorphism; Go needs explicit assertion).
 func (p *ParserRewrite) asParseTree(node interface{}) *trees.ParseTree {
 	if node == nil {
 		return nil

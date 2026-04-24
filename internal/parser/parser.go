@@ -98,7 +98,7 @@ func (p *Parser) parseStatements(parent *rhino.Node, endTok rune) {
 // `dst`. Used to propagate stacked-JSDoc suppressions onto the
 // statement that ultimately owns them, even when another block
 // in the stack "wins" the primary attachment.
-// Go-only: JSDoc suppression merging; Java uses a separate JSDoc infrastructure.
+// TODO(port): JsDocInfoParser.suppressions() — JSDoc suppression merging (Java uses JsDocInfoParser infrastructure).
 func mergeSuppressions(dst, src *rhino.JSDocInfo) {
 	for _, name := range []string{"missingProperties", "checkTypes", "duplicate", "undefinedVars", "missingReturn"} {
 		if src.HasSuppression(name) && !dst.HasSuppression(name) {
@@ -115,7 +115,7 @@ func mergeSuppressions(dst, src *rhino.JSDocInfo) {
 // jsdocHasFunctionAnnotation reports whether the JSDocInfo carries a
 // function-bearing annotation — used to distinguish inline @param tags on
 // argument functions from pure @type casts like `/** @type {Foo} */ (x)`.
-// Go-only: JSDoc heuristic helper; Java has richer JsDocInfoParser utilities.
+// TODO(port): JsDocInfoParser heuristic — JSDoc heuristic helper (Java has richer JsDocInfoParser utilities).
 func jsdocHasFunctionAnnotation(info *rhino.JSDocInfo) bool {
 	if info == nil {
 		return false
@@ -124,7 +124,7 @@ func jsdocHasFunctionAnnotation(info *rhino.JSDocInfo) bool {
 		len(info.ParameterNames()) > 0 || info.ReturnType() != nil
 }
 
-// Go-only: JSDoc comparison heuristic; no direct Java analog in Parser.
+// TODO(port): JsDocInfoParser comparison — JSDoc comparison heuristic (no direct Java analog in Parser.java).
 func jsdocCarriesMoreInfo(b, a *rhino.JSDocInfo) bool {
 	decl := func(i *rhino.JSDocInfo) bool {
 		return i.IsConstructor() || i.IsInterface() || i.IsRecord() || i.BaseType() != nil
@@ -138,7 +138,7 @@ func jsdocCarriesMoreInfo(b, a *rhino.JSDocInfo) bool {
 // tryStatement attempts one statement. Returns (stmt, true) on success
 // or (nil, false) otherwise; in either case p.scanner.Pos() is left past the
 // consumed input (or rewound on speculative failures).
-// Go-only: try-based dispatch combining parseStatementStandard + peekStatement; Java uses separate parseStatement/parseStatementStandard methods.
+// Go-only: language-adapter — try-based dispatch combining parseStatementStandard + peekStatement (Java has separate methods; Go unifies due to no overloading).
 func (p *Parser) tryStatement() (*rhino.Node, bool) {
 	var jsdoc *rhino.JSDocInfo
 	// Consume any number of back-to-back block comments. When a
@@ -256,7 +256,7 @@ func (p *Parser) tryStatement() (*rhino.Node, bool) {
 // attachJSDocToInner places the JSDocInfo on the immediately wrapped
 // ASSIGN/CALL/NEW, matching how Closure attaches JSDoc to the operative
 // node rather than the EXPR_RESULT wrapper.
-// Go-only: Go JSDoc attachment helper; Java attaches JSDoc in IRFactory/JsDocInfoParser.
+// TODO(port): IRFactory/JsDocInfoParser JSDoc attachment — Go JSDoc attachment helper (Java attaches JSDoc in IRFactory).
 func attachJSDocToInner(stmt *rhino.Node, info *rhino.JSDocInfo) {
 	if stmt.Token() == rhino.EXPR_RESULT {
 		if inner := stmt.FirstChild(); inner != nil {
@@ -298,7 +298,7 @@ func (p *Parser) parseExpressionStatement() (*rhino.Node, bool) {
 	return stmt, true
 }
 
-// Go-only: combines parseFunctionDeclaration + parseClassDeclaration + parseVariableStatement into one try-based path.
+// Go-only: language-adapter — combines parseFunctionDeclaration + parseClassDeclaration + parseVariableStatement (Java has separate overloads; Go unifies).
 func (p *Parser) finishDeclStatement(declToken rhino.Token, jsdoc *rhino.JSDocInfo, kwLine, kwCol int) (*rhino.Node, bool) {
 	declNode := rhino.New(declToken)
 	declNode.SetPos(kwLine, kwCol)
@@ -470,7 +470,7 @@ func (p *Parser) parseParameter(inlineInfo *rhino.JSDocInfo) (pNode *rhino.Node,
 // parsePatternOrIdent parses `[a, b, ...rest]` (ARRAY_PATTERN),
 // `{a, b: c, ...rest}` (OBJECT_PATTERN), or a plain identifier NAME.
 // Used for destructuring targets in param lists and decl statements.
-// Go-only: helper that unifies identifier and destructuring pattern parsing in one try path.
+// Go-only: language-adapter — unifies identifier and destructuring pattern parsing (Java has separate overloads; Go uses one try path).
 func (p *Parser) parsePatternOrIdent() (*rhino.Node, bool) {
 	pLine, pCol := p.scanner.Line(), p.scanner.Col()
 	if p.scanner.Peek() == '[' {
@@ -668,7 +668,7 @@ func (p *Parser) parseObjectPattern(startLine, startCol int) (*rhino.Node, bool)
 // finishFunction parses `function NAME(params) { body }` after the
 // `function` keyword is consumed. Attaches the caller-provided JSDoc
 // (carrying @param / @return).
-// Go-only: shared body for parseFunctionDeclaration + parseFunctionExpression (unified by try-pattern).
+// Go-only: language-adapter — shared body for parseFunctionDeclaration + parseFunctionExpression (Java has separate methods; Go unifies by try-pattern).
 func (p *Parser) finishFunction(jsdoc *rhino.JSDocInfo) (*rhino.Node, bool) {
 	fn := rhino.New(rhino.FUNCTION)
 	if jsdoc != nil {
@@ -774,7 +774,7 @@ func (p *Parser) finishFunction(jsdoc *rhino.JSDocInfo) (*rhino.Node, bool) {
 // shape closely enough for TypedScopeCreator to process classes with
 // the same two-pass pre-registration it already uses for @constructor
 // functions.
-// Go-only: shared body for parseClassDeclaration + parseClassExpression (unified by try-pattern).
+// Go-only: language-adapter — shared body for parseClassDeclaration + parseClassExpression (Java has separate methods; Go unifies by try-pattern).
 func (p *Parser) finishClass(jsdoc *rhino.JSDocInfo) (*rhino.Node, bool) {
 	class := rhino.New(rhino.CLASS)
 	if jsdoc != nil {
@@ -822,7 +822,7 @@ func (p *Parser) finishClass(jsdoc *rhino.JSDocInfo) (*rhino.Node, bool) {
 	return class, true
 }
 
-// Go-only: combined class-member parser covering parseClassElement + parseClassMemberDeclaration;
+// Go-only: language-adapter — combined class-member parser covering parseClassElement + parseClassMemberDeclaration;
 // Java splits these into separate methods with ClassOrObjectElementInfo threading.
 func (p *Parser) parseClassMember(body *rhino.Node) {
 	var jsdoc *rhino.JSDocInfo
@@ -1061,7 +1061,7 @@ func (p *Parser) parseIfStatement() *rhino.Node {
 // When there are no explicit braces, the returned BLOCK has
 // PropAddedBlock set (mirrors Java Node.IS_ADDED_BLOCK) so that
 // CheckSuspiciousCode can detect misplaced semicolons like `if (x);`.
-// Go-only: helper that parses optional-brace control bodies; Java uses parseBlock at each call site.
+// Go-only: language-adapter — helper that parses optional-brace control bodies (Java uses parseBlock at each call site; Go extracts for reuse).
 func (p *Parser) parseControlBody() *rhino.Node {
 	p.scanner.SkipTrivia()
 	body := rhino.New(rhino.BLOCK)
@@ -1203,7 +1203,7 @@ func (p *Parser) parseForStatement() *rhino.Node {
 	return n
 }
 
-// Go-only: shared tail for for-in/for-of after the loop keyword; Java has separate parseForInStatement + parseForOfStatement + parseForAwaitOfStatement.
+// Go-only: language-adapter — shared tail for for-in/for-of after loop keyword (Java has separate methods per loop kind; Go unifies due to no overloading).
 func (p *Parser) parseForStatementInOf(tok rhino.Token, lhs *rhino.Node, line, col int) *rhino.Node {
 	p.scanner.SkipTrivia()
 	rhs, _ := p.parseExpression()
@@ -1277,7 +1277,7 @@ func (p *Parser) parseSwitchStatement() *rhino.Node {
 
 // parseCaseBody reads statements up to the next `case` / `default` /
 // `}`. Returned as a BLOCK so the CFG builder can chain them.
-// Go-only: helper for switch case bodies; Java uses parseCaseStatementsOpt inline.
+// Go-only: language-adapter — helper for switch case bodies (Java uses parseCaseStatementsOpt inline; Go extracts for reuse).
 func (p *Parser) parseCaseBody() *rhino.Node {
 	body := rhino.New(rhino.BLOCK)
 	for {
@@ -1362,7 +1362,7 @@ func (p *Parser) parseThrowStatement() *rhino.Node {
 // finishBreakContinue parses `break [label];` / `continue [label];`.
 // Emits BREAK / CONTINUE with an optional NAME child carrying the
 // label.
-// Go-only: shared body for parseBreakStatement + parseContinueStatement (unified by try-pattern).
+// Go-only: language-adapter — shared body for parseBreakStatement + parseContinueStatement (Java has separate methods; Go unifies by try-pattern).
 func (p *Parser) finishBreakContinue(tok rhino.Token) *rhino.Node {
 	n := rhino.New(tok)
 	n.SetPos(p.scanner.Line(), p.scanner.Col())
@@ -1429,7 +1429,7 @@ func (p *Parser) parseLabelledStatement(jsdoc *rhino.JSDocInfo) (*rhino.Node, bo
 // consumeParenExpression reads `( expr )` at the cursor, returning
 // the inner expression (or nil if malformed). Used by while / do /
 // switch header parsers.
-// Go-only: parenthesised-expression consumer shared by finishFunction / tryArrow.
+// Go-only: language-adapter — parenthesised-expression consumer shared by finishFunction / tryArrow (Java has no equivalent shared helper; Go needs one).
 func (p *Parser) consumeParenExpression() *rhino.Node {
 	p.scanner.SkipTrivia()
 	if !p.scanner.ConsumeByte('(') {
@@ -1483,7 +1483,7 @@ func (p *Parser) parseReturnStatement() *rhino.Node {
 //
 // Speculative: rewinds on mismatch so the caller can fall back to other
 // statement forms.
-// Go-only: speculative call/assign dispatcher; Java splits this across parseLeftHandSideExpression + parseAssignment.
+// Go-only: language-adapter — speculative call/assign dispatcher (Java splits across parseLeftHandSideExpression + parseAssignment; Go unifies).
 func (p *Parser) tryCallOrAssignStatement() (*rhino.Node, bool) {
 	save := p.scanner.Save()
 	rewind := func() {
@@ -1726,7 +1726,7 @@ func (p *Parser) parseConditional() (*rhino.Node, bool) {
 // the minimum precedence allowed at the current level — higher values
 // correspond to tighter binding. Matches the canonical Pratt/Crockford
 // loop structure, with operators looked up via peekBinOp.
-// Go-only: Pratt-style single binary-precedence method; Java uses separate parseLogicalOR/parseLogicalAND/… methods.
+// Go-only: language-adapter — Pratt-style single binary-precedence method (Java uses separate parseLogicalOR/parseLogicalAND/… methods; Go Pratt-table approach).
 func (p *Parser) tryBinary(minPrec int) (*rhino.Node, bool) {
 	left, ok := p.parseUnaryExpression()
 	if !ok {
@@ -2332,7 +2332,7 @@ func (p *Parser) parseRegularExpressionLiteral() (*rhino.Node, bool) {
 // tryParen consumes `( expr )`. Called from parsePrimaryExpression after arrow
 // detection fails. Not exposed elsewhere because parenthesized groups
 // don't exist at any lower layer.
-// Go-only: speculative parenthesised-expression parse; Java uses parseCoverParenthesizedExpressionAndArrowParameterList.
+// Go-only: language-adapter — speculative parenthesised-expression parse (Java uses parseCoverParenthesizedExpressionAndArrowParameterList; Go uses try-pattern).
 func (p *Parser) tryParen() (*rhino.Node, bool) {
 	save := p.scanner.Save()
 	openLine, openCol := p.scanner.Line(), p.scanner.Col()
@@ -2561,7 +2561,7 @@ func (p *Parser) parseObjectLiteral() (*rhino.Node, bool) {
 // object-literal entry is a method / accessor (`get foo(){}`,
 // `set foo(x){}`, `foo(args){}`) rather than a `key: value` pair.
 // Non-consuming; restores the scanner on return.
-// Go-only: lookahead heuristic for object method shorthand; Java peeks inline in parseObjectLiteralPropertyAssignment.
+// Go-only: language-adapter — lookahead heuristic for object method shorthand (Java peeks inline; Go extracts due to complexity).
 func (p *Parser) looksLikeObjectMethod() bool {
 	save := p.scanner.Save()
 	defer p.scanner.Restore(save)
@@ -2588,7 +2588,7 @@ func (p *Parser) looksLikeObjectMethod() bool {
 // entry and attaches a STRING_KEY(<name>) with a FUNCTION child to
 // `obj`. Returns false on malformed input so the caller can abort the
 // entire object literal.
-// Go-only: object method consumer; Java uses parseMethodDefinition + parseObjectLiteralMethodDeclaration.
+// Go-only: language-adapter — object method consumer (Java uses parseMethodDefinition + parseObjectLiteralMethodDeclaration; Go unifies).
 func (p *Parser) consumeObjectMethod(obj *rhino.Node) bool {
 	keyLine, keyCol := p.scanner.Line(), p.scanner.Col()
 	// Swallow the `get` / `set` prefix if present; we don't mark the
@@ -2651,7 +2651,7 @@ func (p *Parser) consumeObjectMethod(obj *rhino.Node) bool {
 // the number of runes that should be consumed on success. The scanner
 // is NOT advanced here — the caller is responsible for calling
 // consumeRunes.
-// Go-only: returns rhino assignment token; Java uses peekAssignmentOperator returning bool.
+// Go-only: language-adapter — returns rhino assignment token (Java's peekAssignmentOperator returns bool; Go needs the token).
 func (p *Parser) peekAssignOp() (rhino.Token, int) {
 	if p.scanner.AtEnd() {
 		return rhino.ERROR, 0
@@ -2702,7 +2702,7 @@ func (p *Parser) peekAssignOp() (rhino.Token, int) {
 // returns (Token, runes, precedence). When no operator is at the
 // cursor, returns (ERROR, 0, -1). Assignment and ternary operators
 // are deliberately excluded — they're handled at higher layers.
-// Go-only: Pratt precedence helper; Java has separate peek methods per precedence level.
+// Go-only: language-adapter — Pratt precedence helper (Java has separate peek methods per precedence level; Go uses Pratt table).
 func (p *Parser) peekBinOp() (rhino.Token, int, int) {
 	if p.scanner.AtEnd() {
 		return rhino.ERROR, 0, -1
@@ -2794,7 +2794,7 @@ func (p *Parser) peekBinOp() (rhino.Token, int, int) {
 
 // consumeRunes advances the scanner by n runes. Small helper so the
 // op-lookup functions above can separate recognition from consumption.
-// Go-only: character-level scanner advance; Java operates on a TokenStream.
+// Go-only: language-adapter — character-level scanner advance (Java operates on a TokenStream; Go has no equivalent).
 func (p *Parser) consumeRunes(n int) {
 	for i := 0; i < n; i++ {
 		p.scanner.Advance()
@@ -2806,7 +2806,7 @@ func (p *Parser) consumeRunes(n int) {
 // JSDocInfo. Returns nil when the body isn't a bare type
 // expression — the full JSDoc parser already handles comments
 // with tags.
-// Go-only: inline @type JSDoc extraction; Java uses JsDocInfoParser directly.
+// TODO(port): JsDocInfoParser.parseTypeExpression() — inline @type JSDoc extraction (Java uses JsDocInfoParser directly).
 func parseInlineTypeJSDoc(body string) *rhino.JSDocInfo {
 	// Cheap shape filter — require a `{…}` or a bare type
 	// name. If the comment contains an `@` tag, defer to the
@@ -2844,7 +2844,7 @@ func parseInlineTypeJSDoc(body string) *rhino.JSDocInfo {
 
 // trimSpace is a small helper matching strings.TrimSpace but
 // avoiding a package import in the parser's hot path.
-// Go-only: whitespace trimmer for JSDoc strings; no Java analog in Parser.
+// TODO(port): JsDocInfoParser whitespace handling — whitespace trimmer for JSDoc strings (no direct analog in Parser.java).
 func trimSpace(s string) string {
 	for len(s) > 0 && (s[0] == ' ' || s[0] == '\t') {
 		s = s[1:]
@@ -2859,7 +2859,7 @@ func trimSpace(s string) string {
 // after the given base, building GETPROP / GETELEM nodes as in Closure.
 // Used by the `this` and NAME paths so member access is uniform with
 // the postfix chain in parseUpdateExpression.
-// Go-only: property/element access chainer; Java uses parseMemberExpressionSuffix logic.
+// Go-only: language-adapter — property/element access chainer (Java uses parseMemberExpressionSuffix logic; Go extracts for try-pattern).
 func (p *Parser) extendWithProperty(base *rhino.Node) *rhino.Node {
 	for {
 		p.scanner.SkipTrivia()
@@ -2913,7 +2913,7 @@ func (p *Parser) extendWithProperty(base *rhino.Node) *rhino.Node {
 // forms. Arrow functions surface as FUNCTION nodes so the same
 // scope/typecheck machinery applies to them.
 // Supports rest, destructuring, and default params via parseParameter.
-// Go-only: speculative arrow-function parser; Java integrates arrow detection into parseAssignment.
+// Go-only: language-adapter — speculative arrow-function parser (Java integrates arrow detection into parseAssignment; Go separates for try-pattern).
 func (p *Parser) tryArrow() (*rhino.Node, bool) {
 	save := p.scanner.Save()
 	rewind := func() {
@@ -3077,7 +3077,7 @@ func (p *Parser) parseNewExpression() (*rhino.Node, bool) {
 	}
 }
 
-// Go-only: boolean literal parser returning rhino.Node; Java handles this inside parsePrimaryExpression/parseLiteralExpression.
+// Go-only: language-adapter — boolean literal parser returning rhino.Node (Java handles inside parsePrimaryExpression; Go extracts for clarity).
 func (p *Parser) parseBooleanLiteral() (*rhino.Node, bool) {
 	if p.scanner.ConsumeKeyword("true") {
 		return rhino.New(rhino.TRUE), true
@@ -3150,7 +3150,7 @@ func (p *Parser) parseTemplateLiteral() (*rhino.Node, bool) {
 	return root, true
 }
 
-// Go-only: character-level string literal parser; Java uses nextLiteralToken via the Scanner.
+// Go-only: language-adapter — character-level string literal parser (Java uses nextLiteralToken via the Scanner; Go has no Scanner API).
 func (p *Parser) parseStringLiteral(quote rune) (*rhino.Node, bool) {
 	p.scanner.Advance() // opening quote
 	raw, ok := p.scanner.ScanStringBody(quote)
@@ -3161,7 +3161,7 @@ func (p *Parser) parseStringLiteral(quote rune) (*rhino.Node, bool) {
 	return rhino.NewString(rhino.STRINGLIT, val), true
 }
 
-// Go-only: character-level number literal parser; Java uses nextLiteralToken via the Scanner.
+// Go-only: language-adapter — character-level number literal parser (Java uses nextLiteralToken via the Scanner; Go has no Scanner API).
 func (p *Parser) parseNumberLiteral() (*rhino.Node, bool) {
 	raw, _, ok := p.scanner.ScanNumericLiteral()
 	if !ok {
@@ -3177,7 +3177,7 @@ func (p *Parser) parseNumberLiteral() (*rhino.Node, bool) {
 // parseNumericRaw converts a raw numeric literal token (as produced by
 // ScanNumericLiteral) to float64. Handles hex, octal, binary, bigint
 // suffix, underscore separators, and decimal exponents.
-// Go-only: numeric string-to-float64 conversion; Java uses Double.parseDouble after removeNumericSeparators.
+// Go-only: language-adapter — numeric string-to-float64 conversion (Java uses Double.parseDouble; Go has no equivalent stdlib path).
 func parseNumericRaw(raw string) (float64, error) {
 	// Strip bigint suffix before parsing.
 	s := raw
@@ -3223,7 +3223,7 @@ func parseNumericRaw(raw string) (float64, error) {
 // consumeDeclKeyword reads `var` / `let` / `const` and returns the
 // matching AST Token. Mirrors the three checkKeywordAndConsume
 // dispatches Closure's parseVariableStatement does in Java.
-// Go-only: peeks and consumes var/let/const; Java uses separate peekDeclaration + eat(TokenType) calls.
+// Go-only: language-adapter — peeks and consumes var/let/const (Java uses separate peekDeclaration + eat(TokenType) calls; Go unifies).
 func (p *Parser) consumeDeclKeyword() (rhino.Token, bool) {
 	if p.scanner.ConsumeKeyword("var") {
 		return rhino.VAR, true

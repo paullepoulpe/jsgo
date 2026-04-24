@@ -88,7 +88,7 @@ type ModuleMetadataMap struct {
 }
 
 // newModuleMetadataMap constructs an empty ModuleMetadataMap.
-// Go-only: factory for the stub type.
+// Go-only: language-adapter — factory constructor for the stub type (Java uses class constructor directly; Go needs factory function).
 func newModuleMetadataMap() *ModuleMetadataMap {
 	return &ModuleMetadataMap{byGoogNamespace: map[string]*ModuleMetadata{}}
 }
@@ -184,7 +184,7 @@ type CheckClosureImports struct {
 //
 // The path argument is the source file path used in diagnostics.
 // The metadata map is stubbed; pass nil to use an empty map.
-// Go-only: constructor shim; Java uses the class constructor directly.
+// Go-only: language-adapter — Go constructor shim (Java uses class constructor directly; Go has no class constructors).
 func NewCheckClosureImports(path string, metadata *ModuleMetadataMap) *CheckClosureImports {
 	if metadata == nil {
 		metadata = newModuleMetadataMap()
@@ -236,7 +236,7 @@ func (c *CheckClosureImports) enterModule(n *rhino.Node) {
 
 // walk visits every node depth-first. Mirrors the Checker inner-class
 // visit() method, which receives both CALL and NAME nodes.
-// Go-only: NodeTraversal adapter.
+// TODO(port): NodeTraversal.traverse(AbstractCompiler, Node, Callback) — NodeTraversal adapter not yet ported.
 func (c *CheckClosureImports) walk(n, parent *rhino.Node) {
 	if n == nil {
 		return
@@ -333,7 +333,7 @@ func (c *CheckClosureImports) checkGoogModuleGet(call *rhino.Node) {
 // (starting with "/") and relative paths (starting with "./" or "../")
 // are valid. Any other specifier — e.g. bare "foo.js" — is "ambiguous"
 // and triggers JSC_INVALID_MODULE_PATH.
-// Go-only: BrowserModuleResolver logic inlined for dynamic import checking.
+// TODO(port): BrowserModuleResolver.resolve(String) — BrowserModuleResolver not yet ported; logic inlined here.
 func (c *CheckClosureImports) checkDynamicImportPath(n *rhino.Node) {
 	specifier := n.FirstChild()
 	if specifier == nil || specifier.Token() != rhino.STRINGLIT {
@@ -557,7 +557,7 @@ func (c *CheckClosureImports) report(n *rhino.Node, code string, level diag.Leve
 // cciMatchesQualifiedName returns true when node is a GETPROP chain that
 // spells out the dotted `name` (e.g. "goog.require", "goog.module.get").
 // Mirrors Node.matchesQualifiedName(Node) in Java.
-// Go-only: qualified-name matcher helper.
+// TODO(port): Node.matchesQualifiedName(Node) — qualified-name matcher (Java uses Node.matchesQualifiedName; rhino.Node does not have it yet).
 func cciMatchesQualifiedName(n *rhino.Node, name string) bool {
 	if n == nil {
 		return false
@@ -567,7 +567,7 @@ func cciMatchesQualifiedName(n *rhino.Node, name string) bool {
 
 // cciGetQualifiedName reconstructs the dotted string from a GETPROP chain
 // or bare NAME. Returns "" for non-name nodes.
-// Go-only: qualified-name builder helper.
+// TODO(port): Node.getQualifiedName() — qualified-name builder (Java uses Node.getQualifiedName; rhino.Node does not have it yet).
 func cciGetQualifiedName(n *rhino.Node) string {
 	if n == nil {
 		return ""
@@ -590,14 +590,14 @@ func cciGetQualifiedName(n *rhino.Node) string {
 
 // cciHasTwoChildren returns true when n has exactly two children.
 // Mirrors call.hasTwoChildren() in Java.
-// Go-only: Node.hasTwoChildren() adapter.
+// TODO(port): Node.hasTwoChildren() — rhino.Node does not yet expose this method.
 func cciHasTwoChildren(n *rhino.Node) bool {
 	return n != nil && len(n.Children()) == 2
 }
 
 // cciSecondChild returns the second child of n, or nil.
 // Mirrors Node.getSecondChild() in Java.
-// Go-only: Node.getSecondChild() adapter.
+// TODO(port): Node.getSecondChild() — rhino.Node does not yet expose this method.
 func cciSecondChild(n *rhino.Node) *rhino.Node {
 	kids := n.Children()
 	if len(kids) < 2 {
@@ -608,21 +608,21 @@ func cciSecondChild(n *rhino.Node) *rhino.Node {
 
 // cciHasOneChild returns true when n has exactly one child.
 // Mirrors Node.hasOneChild() in Java.
-// Go-only: Node.hasOneChild() adapter.
+// TODO(port): Node.hasOneChild() — rhino.Node does not yet expose this method.
 func cciHasOneChild(n *rhino.Node) bool {
 	return n != nil && len(n.Children()) == 1
 }
 
 // cciIsExprResult reports whether n is an EXPR_RESULT node.
 // Mirrors Node.isExprResult() in Java.
-// Go-only: Node.isExprResult() adapter.
+// TODO(port): Node.isExprResult() — rhino.Node does not yet expose this method.
 func cciIsExprResult(n *rhino.Node) bool {
 	return n != nil && n.Token() == rhino.EXPR_RESULT
 }
 
 // cciIsNameDecl reports whether n is VAR / LET / CONST.
 // Mirrors NodeUtil.isNameDeclaration in Java.
-// Go-only: NodeUtil.isNameDeclaration adapter (avoids package-level name clash).
+// TODO(port): NodeUtil.isNameDeclaration(Node) — NodeUtil method not fully ported; adapter here due to package-level name clash.
 func cciIsNameDecl(n *rhino.Node) bool {
 	if n == nil {
 		return false
@@ -633,21 +633,21 @@ func cciIsNameDecl(n *rhino.Node) bool {
 
 // cciIsLet reports whether n is a LET declaration.
 // Mirrors Node.isLet() in Java.
-// Go-only: Node.isLet() adapter.
+// TODO(port): Node.isLet() — rhino.Node does not yet expose this method.
 func cciIsLet(n *rhino.Node) bool {
 	return n != nil && n.Token() == rhino.LET
 }
 
 // cciIsConst reports whether n is a CONST declaration.
 // Mirrors Node.isConst() in Java.
-// Go-only: Node.isConst() adapter.
+// TODO(port): Node.isConst() — rhino.Node does not yet expose this method.
 func cciIsConst(n *rhino.Node) bool {
 	return n != nil && n.Token() == rhino.CONST
 }
 
 // cciGrandParent returns n.Parent().Parent(), or nil.
 // Mirrors Node.getGrandparent() in Java.
-// Go-only: Node.getGrandparent() adapter.
+// TODO(port): Node.getGrandparent() — rhino.Node does not yet expose this method.
 func cciGrandParent(n *rhino.Node) *rhino.Node {
 	if n == nil {
 		return nil
@@ -668,7 +668,7 @@ func cciGrandParent(n *rhino.Node) *rhino.Node {
 // child is an OBJECTLIT.
 //
 // TODO: add DESTRUCTURING_LHS token to rhino when rhino.Node is extended.
-// Go-only: DESTRUCTURING_LHS token approximation.
+// TODO(port): Token.DESTRUCTURING_LHS — rhino token not yet ported; approximating with OBJECTLIT check.
 func isValidDestructuringLhs(n *rhino.Node) bool {
 	// Approximate: if the node itself is an OBJECTLIT it is acting as
 	// a destructuring LHS inside a var/let/const initializer.
@@ -681,7 +681,7 @@ func isValidDestructuringLhs(n *rhino.Node) bool {
 // cciHasFunctionAncestor returns true when any ancestor of n is a FUNCTION
 // node. Used as a proxy for "not at top-level scope".
 // TODO: replace with real NodeTraversal scope-stack query.
-// Go-only: scope-stack proxy for top-level detection.
+// TODO(port): NodeTraversal.inGlobalScope() / Scope.isGlobal() — scope infrastructure not yet ported; using stack proxy.
 func cciHasFunctionAncestor(n *rhino.Node) bool {
 	for cur := n.Parent(); cur != nil; cur = cur.Parent() {
 		if cur.Token() == rhino.FUNCTION {
@@ -694,7 +694,7 @@ func cciHasFunctionAncestor(n *rhino.Node) bool {
 // cciGoogProvideOrModuleNamespace returns the namespace string from a
 // goog.provide(ns) or goog.module(ns) call, or "" if the node is neither.
 // Used by enterModule to seed namespacesSeen.
-// Go-only: namespace extractor for enterModule stub.
+// TODO(port): ModuleMetadata.getGoogNamespace() — namespace extractor for enterModule (ModuleMetadata not fully ported).
 func cciGoogProvideOrModuleNamespace(call *rhino.Node) string {
 	if call.Token() != rhino.CALL {
 		return ""
@@ -715,7 +715,7 @@ func cciGoogProvideOrModuleNamespace(call *rhino.Node) string {
 }
 
 // cciLastDotIndex returns the index of the last '.' in s, or -1.
-// Go-only: strings.LastIndex('.') helper for checkShortName.
+// Go-only: language-adapter — strings.LastIndex helper for checkShortName (Java uses String.lastIndexOf('.') inline; Go extracts for clarity).
 func cciLastDotIndex(s string) int {
 	for i := len(s) - 1; i >= 0; i-- {
 		if s[i] == '.' {

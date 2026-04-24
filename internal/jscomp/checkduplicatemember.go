@@ -38,7 +38,7 @@ type CheckDuplicateMember struct {
 
 // NewCheckDuplicateMember mirrors the Java constructor
 // StrictModeCheck(AbstractCompiler compiler, CheckLevel defaultLevel).
-// Go-only: constructor shim; Java uses the class constructor directly.
+// Go-only: language-adapter — Go constructor shim (Java uses class constructor directly; Go has no class constructors).
 func NewCheckDuplicateMember(path string) *CheckDuplicateMember {
 	return &CheckDuplicateMember{path: path}
 }
@@ -55,7 +55,7 @@ func (c *CheckDuplicateMember) Check(script *rhino.Node) []diag.Diagnostic {
 
 // walk drives the traversal, calling visit() for each node and recursing into children.
 // Pre-order walk mirrors the order of Java's AbstractPostOrderCallback for this pass.
-// Go-only: NodeTraversal adapter; Java uses NodeTraversal.traverseRoots.
+// TODO(port): NodeTraversal.traverseRoots(AbstractCompiler, Node, Callback, Node...) — NodeTraversal adapter not yet ported.
 func (c *CheckDuplicateMember) walk(n *rhino.Node, owner string) {
 	if n == nil {
 		return
@@ -221,7 +221,7 @@ func (c *CheckDuplicateMember) report(n *rhino.Node, code string, level diag.Lev
 // qualify the JSC_DUP_VAR_DECLARATION diagnostic. Falls back to
 // `<anonymous>` when the literal isn't directly assigned to a
 // named slot.
-// Go-only: helper for JSC_DUP_VAR_DECLARATION message formatting.
+// Go-only: language-adapter — helper for JSC_DUP_VAR_DECLARATION message formatting (Java uses NodeUtil.getEnclosingName inline; Go extracts for clarity).
 func enclosingOwnerName(n *rhino.Node, fallback string) string {
 	for cur := n.Parent(); cur != nil; cur = cur.Parent() {
 		switch cur.Token() {
@@ -247,7 +247,7 @@ func enclosingOwnerName(n *rhino.Node, fallback string) string {
 
 // flattenGetProp renders a NAME / GETPROP chain as a dotted path
 // (`goog.a.BB`). Unknown tokens fall through to `<anonymous>`.
-// Go-only: helper for JSC_DUP_VAR_DECLARATION message formatting.
+// Go-only: language-adapter — helper for JSC_DUP_VAR_DECLARATION message formatting (Java uses NodeUtil.getEnclosingName inline; Go extracts for clarity).
 func flattenGetProp(n *rhino.Node) string {
 	if n == nil {
 		return "<anonymous>"

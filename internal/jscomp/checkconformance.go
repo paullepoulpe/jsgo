@@ -169,7 +169,7 @@ type CheckConformance struct {
 // Both are collapsed here: without a ConformanceConfig proto type,
 // the config argument is a plain file path (empty = no config).
 //
-// Go-only: constructor shim; Java uses the class constructor directly.
+// Go-only: language-adapter — Go constructor shim (Java uses class constructor directly; Go has no class constructors).
 // TODO: port the ImmutableList<ConformanceConfig> + ConformanceReportingMode
 // constructor signature (lines 158-165) once proto types are available.
 func NewCheckConformance(path string) *CheckConformance {
