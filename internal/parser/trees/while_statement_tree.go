@@ -4,12 +4,14 @@
 package trees
 
 type WhileStatementTree struct {
-	Condition ParseTree
-	Body      ParseTree
+	ParseTree
+	Condition *ParseTree
+	Body      *ParseTree
 }
 
-func NewWhileStatementTree(location SourceRange, condition ParseTree, body ParseTree) *WhileStatementTree {
+func NewWhileStatementTree(location SourceRange, condition *ParseTree, body *ParseTree) *WhileStatementTree {
 	return &WhileStatementTree{
+		ParseTree: ParseTree{Type: ParseTreeTypeWhileStatement, Location: location},
 		Condition: condition,
 		Body:      body,
 	}

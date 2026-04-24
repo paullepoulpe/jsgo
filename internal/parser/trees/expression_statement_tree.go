@@ -4,11 +4,13 @@
 package trees
 
 type ExpressionStatementTree struct {
-	Expression ParseTree
+	ParseTree
+	Expression *ParseTree
 }
 
-func NewExpressionStatementTree(location SourceRange, expression ParseTree) *ExpressionStatementTree {
+func NewExpressionStatementTree(location SourceRange, expression *ParseTree) *ExpressionStatementTree {
 	return &ExpressionStatementTree{
+		ParseTree:  ParseTree{Type: ParseTreeTypeExpressionStatement, Location: location},
 		Expression: expression,
 	}
 }

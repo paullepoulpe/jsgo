@@ -4,11 +4,12 @@
 package trees
 
 type ImportDeclarationTree struct {
+	ParseTree
 	// The identifier for the "default" import from the module.
 	DefaultBindingIdentifier *IdentifierToken
 	// The list of names imported from the module when using the
 	// `import {...} from 'specifier'` form.
-	ImportSpecifierList []ParseTree
+	ImportSpecifierList []*ParseTree
 	// The namespace into which imported names are put when using the
 	// `import * as nameSpaceImportIdentifier from 'specifier'` form.
 	NameSpaceImportIdentifier *IdentifierToken
@@ -16,8 +17,9 @@ type ImportDeclarationTree struct {
 	ModuleSpecifier *LiteralToken
 }
 
-func NewImportDeclarationTree(location SourceRange, defaultBindingIdentifier *IdentifierToken, importSpecifierList []ParseTree, nameSpaceImportIdentifier *IdentifierToken, moduleSpecifier *LiteralToken) *ImportDeclarationTree {
+func NewImportDeclarationTree(location SourceRange, defaultBindingIdentifier *IdentifierToken, importSpecifierList []*ParseTree, nameSpaceImportIdentifier *IdentifierToken, moduleSpecifier *LiteralToken) *ImportDeclarationTree {
 	return &ImportDeclarationTree{
+		ParseTree:                 ParseTree{Type: ParseTreeTypeImportDeclaration, Location: location},
 		DefaultBindingIdentifier:  defaultBindingIdentifier,
 		ImportSpecifierList:       importSpecifierList,
 		NameSpaceImportIdentifier: nameSpaceImportIdentifier,

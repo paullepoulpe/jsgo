@@ -4,13 +4,15 @@
 package trees
 
 type VariableDeclarationTree struct {
+	ParseTree
 	// An IdentifierExpressionTree, ArrayPatternTree or ObjectLiteralTree
-	Lvalue      ParseTree
-	Initializer ParseTree
+	Lvalue      *ParseTree
+	Initializer *ParseTree
 }
 
-func NewVariableDeclarationTree(location SourceRange, lvalue ParseTree, initializer ParseTree) *VariableDeclarationTree {
+func NewVariableDeclarationTree(location SourceRange, lvalue *ParseTree, initializer *ParseTree) *VariableDeclarationTree {
 	return &VariableDeclarationTree{
+		ParseTree:   ParseTree{Type: ParseTreeTypeVariableDeclaration, Location: location},
 		Lvalue:      lvalue,
 		Initializer: initializer,
 	}

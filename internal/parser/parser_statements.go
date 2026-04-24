@@ -256,15 +256,7 @@ func (p *ParserRewrite) parseVariableDeclaration(binding TokenType, exprIn expre
 		p.maybeReportNoInitializer(binding, lvalue)
 	}
 
-	lvalueVal := trees.ParseTree{}
-	if lvalue != nil {
-		lvalueVal = *lvalue
-	}
-	initializerVal := trees.ParseTree{}
-	if initializer != nil {
-		initializerVal = *initializer
-	}
-	return trees.NewVariableDeclarationTree(p.getTreeLocation(start), lvalueVal, initializerVal)
+	return trees.NewVariableDeclarationTree(p.getTreeLocation(start), lvalue, initializer)
 }
 
 // maybeReportNoInitializer mirrors maybeReportNoInitializer().
@@ -306,11 +298,7 @@ func (p *ParserRewrite) parseExpressionStatement() *trees.ExpressionStatementTre
 	start := p.getTreeStartLocation()
 	expression := p.parseExpression()
 	p.eatPossiblyImplicitSemiColon()
-	expressionVal := trees.ParseTree{}
-	if expression != nil {
-		expressionVal = *expression
-	}
-	return trees.NewExpressionStatementTree(p.getTreeLocation(start), expressionVal)
+	return trees.NewExpressionStatementTree(p.getTreeLocation(start), expression)
 }
 
 // ---- If statement ------------------------------------------------------------
@@ -328,19 +316,7 @@ func (p *ParserRewrite) parseIfStatement() *trees.IfStatementTree {
 		p.eat(TokenTypeElse)
 		elseClause = p.parseStatement()
 	}
-	conditionVal := trees.ParseTree{}
-	if condition != nil {
-		conditionVal = *condition
-	}
-	ifClauseVal := trees.ParseTree{}
-	if ifClause != nil {
-		ifClauseVal = *ifClause
-	}
-	elseClauseVal := trees.ParseTree{}
-	if elseClause != nil {
-		elseClauseVal = *elseClause
-	}
-	return trees.NewIfStatementTree(p.getTreeLocation(start), conditionVal, ifClauseVal, elseClauseVal)
+	return trees.NewIfStatementTree(p.getTreeLocation(start), condition, ifClause, elseClause)
 }
 
 // ---- Do-while statement ------------------------------------------------------
@@ -358,15 +334,7 @@ func (p *ParserRewrite) parseDoWhileStatement() *trees.ParseTree {
 	if p.peek(TokenTypeSemiColon) {
 		p.eat(TokenTypeSemiColon)
 	}
-	bodyVal := trees.ParseTree{}
-	if body != nil {
-		bodyVal = *body
-	}
-	conditionVal := trees.ParseTree{}
-	if condition != nil {
-		conditionVal = *condition
-	}
-	return p.asParseTree(trees.NewDoWhileStatementTree(p.getTreeLocation(start), bodyVal, conditionVal))
+	return p.asParseTree(trees.NewDoWhileStatementTree(p.getTreeLocation(start), body, condition))
 }
 
 // ---- While statement ---------------------------------------------------------
@@ -379,15 +347,7 @@ func (p *ParserRewrite) parseWhileStatement() *trees.WhileStatementTree {
 	condition := p.parseExpression()
 	p.eat(TokenTypeCloseParen)
 	body := p.parseStatement()
-	conditionVal := trees.ParseTree{}
-	if condition != nil {
-		conditionVal = *condition
-	}
-	bodyVal := trees.ParseTree{}
-	if body != nil {
-		bodyVal = *body
-	}
-	return trees.NewWhileStatementTree(p.getTreeLocation(start), conditionVal, bodyVal)
+	return trees.NewWhileStatementTree(p.getTreeLocation(start), condition, body)
 }
 
 // ---- For statements ----------------------------------------------------------
@@ -413,7 +373,7 @@ func (p *ParserRewrite) parseForStatement() *trees.ParseTree {
 			}
 			if len(variables.Declarations) > 0 {
 				decl := variables.Declarations[0]
-				if decl.Initializer != (trees.ParseTree{}) {
+				if decl.Initializer != nil {
 					if p.config.AtLeast6 {
 						p.reportError("for-in statement may not have initializer")
 					}
@@ -430,7 +390,7 @@ func (p *ParserRewrite) parseForStatement() *trees.ParseTree {
 			}
 			if len(variables.Declarations) > 0 {
 				decl := variables.Declarations[0]
-				if decl.Initializer != (trees.ParseTree{}) {
+				if decl.Initializer != nil {
 					if awaited {
 						p.reportError("for-await-of statement may not have initializer")
 					} else {
@@ -477,57 +437,47 @@ func (p *ParserRewrite) parseForStatement() *trees.ParseTree {
 
 // parseForStatementVanilla mirrors parseForStatement(start, initializer).
 func (p *ParserRewrite) parseForStatementVanilla(start SourcePosition, initializer *trees.ParseTree) *trees.ParseTree {
-	var initVal trees.ParseTree
+	var initVal *trees.ParseTree
 	if initializer == nil {
 		endPos := p.getTreeEndLocation()
 		startPos := p.getTreeStartLocation()
 		nullRange := toTreesRange(SourceRange{Start: endPos, End: startPos})
-		initVal = trees.ParseTree{Type: trees.ParseTreeTypeNull, Location: nullRange}
+		initVal = p.asParseTree(trees.NewNullTree(nullRange))
 	} else {
-		initVal = *initializer
+		initVal = initializer
 	}
 	p.eat(TokenTypeSemiColon)
 
-	var conditionVal trees.ParseTree
+	var conditionVal *trees.ParseTree
 	if !p.peek(TokenTypeSemiColon) {
-		cond := p.parseExpression()
-		if cond != nil {
-			conditionVal = *cond
-		}
+		conditionVal = p.parseExpression()
 	} else {
 		endPos := p.getTreeEndLocation()
 		startPos := p.getTreeStartLocation()
 		nullRange := toTreesRange(SourceRange{Start: endPos, End: startPos})
-		conditionVal = trees.ParseTree{Type: trees.ParseTreeTypeNull, Location: nullRange}
+		conditionVal = p.asParseTree(trees.NewNullTree(nullRange))
 	}
 	p.eat(TokenTypeSemiColon)
 
-	var incrementVal trees.ParseTree
+	var incrementVal *trees.ParseTree
 	if !p.peek(TokenTypeCloseParen) {
-		incr := p.parseExpression()
-		if incr != nil {
-			incrementVal = *incr
-		}
+		incrementVal = p.parseExpression()
 	} else {
 		endPos := p.getTreeEndLocation()
 		startPos := p.getTreeStartLocation()
 		nullRange := toTreesRange(SourceRange{Start: endPos, End: startPos})
-		incrementVal = trees.ParseTree{Type: trees.ParseTreeTypeNull, Location: nullRange}
+		incrementVal = p.asParseTree(trees.NewNullTree(nullRange))
 	}
 	p.eat(TokenTypeCloseParen)
 	body := p.parseStatement()
-	bodyVal := trees.ParseTree{}
-	if body != nil {
-		bodyVal = *body
-	}
-	return p.asParseTree(trees.NewForStatementTree(p.getTreeLocation(start), initVal, conditionVal, incrementVal, bodyVal))
+	return p.asParseTree(trees.NewForStatementTree(p.getTreeLocation(start), initVal, conditionVal, incrementVal, body))
 }
 
 // checkVanillaForInitializers mirrors checkVanillaForInitializers().
 func (p *ParserRewrite) checkVanillaForInitializers(variables *trees.VariableDeclarationListTree) {
 	for _, decl := range variables.Declarations {
-		if decl.Initializer == (trees.ParseTree{}) {
-			p.maybeReportNoInitializer(TokenType(int(variables.DeclarationType)), &decl.Lvalue)
+		if decl.Initializer == nil {
+			p.maybeReportNoInitializer(TokenType(int(variables.DeclarationType)), decl.Lvalue)
 		}
 	}
 }
@@ -538,19 +488,7 @@ func (p *ParserRewrite) parseForOfStatement(start SourcePosition, initializer *t
 	collection := p.parseExpression()
 	p.eat(TokenTypeCloseParen)
 	body := p.parseStatement()
-	initVal := trees.ParseTree{}
-	if initializer != nil {
-		initVal = *initializer
-	}
-	collectionVal := trees.ParseTree{}
-	if collection != nil {
-		collectionVal = *collection
-	}
-	bodyVal := trees.ParseTree{}
-	if body != nil {
-		bodyVal = *body
-	}
-	return p.asParseTree(trees.NewForOfStatementTree(p.getTreeLocation(start), initVal, collectionVal, bodyVal))
+	return p.asParseTree(trees.NewForOfStatementTree(p.getTreeLocation(start), initializer, collection, body))
 }
 
 // parseForAwaitOfStatement mirrors parseForAwaitOfStatement().
@@ -573,19 +511,7 @@ func (p *ParserRewrite) parseForInStatement(start SourcePosition, initializer *t
 	collection := p.parseExpression()
 	p.eat(TokenTypeCloseParen)
 	body := p.parseStatement()
-	initVal := trees.ParseTree{}
-	if initializer != nil {
-		initVal = *initializer
-	}
-	collectionVal := trees.ParseTree{}
-	if collection != nil {
-		collectionVal = *collection
-	}
-	bodyVal := trees.ParseTree{}
-	if body != nil {
-		bodyVal = *body
-	}
-	return p.asParseTree(trees.NewForInStatementTree(p.getTreeLocation(start), initVal, collectionVal, bodyVal))
+	return p.asParseTree(trees.NewForInStatementTree(p.getTreeLocation(start), initializer, collection, body))
 }
 
 // ---- Continue/Break/Return/Throw/With/Debugger/Labelled ----------------------
@@ -624,15 +550,12 @@ func (p *ParserRewrite) parseBreakStatement() *trees.ParseTree {
 func (p *ParserRewrite) parseReturnStatement() *trees.ParseTree {
 	start := p.getTreeStartLocation()
 	p.eat(TokenTypeReturn)
-	var expressionVal trees.ParseTree
+	var expression *trees.ParseTree
 	if !p.peekImplicitSemiColon() {
-		expr := p.parseExpression()
-		if expr != nil {
-			expressionVal = *expr
-		}
+		expression = p.parseExpression()
 	}
 	p.eatPossiblyImplicitSemiColon()
-	return p.asParseTree(trees.NewReturnStatementTree(p.getTreeLocation(start), expressionVal))
+	return p.asParseTree(trees.NewReturnStatementTree(p.getTreeLocation(start), expression))
 }
 
 // parseWithStatement mirrors parseWithStatement().
@@ -643,32 +566,21 @@ func (p *ParserRewrite) parseWithStatement() *trees.WithStatementTree {
 	expression := p.parseExpression()
 	p.eat(TokenTypeCloseParen)
 	body := p.parseStatement()
-	expressionVal := trees.ParseTree{}
-	if expression != nil {
-		expressionVal = *expression
-	}
-	bodyVal := trees.ParseTree{}
-	if body != nil {
-		bodyVal = *body
-	}
-	return trees.NewWithStatementTree(p.getTreeLocation(start), expressionVal, bodyVal)
+	return trees.NewWithStatementTree(p.getTreeLocation(start), expression, body)
 }
 
 // parseThrowStatement mirrors parseThrowStatement().
 func (p *ParserRewrite) parseThrowStatement() *trees.ParseTree {
 	start := p.getTreeStartLocation()
 	p.eat(TokenTypeThrow)
-	var valueVal trees.ParseTree
+	var value *trees.ParseTree
 	if p.peekImplicitSemiColon() {
 		p.reportError("semicolon/newline not allowed after 'throw'")
 	} else {
-		val := p.parseExpression()
-		if val != nil {
-			valueVal = *val
-		}
+		value = p.parseExpression()
 	}
 	p.eatPossiblyImplicitSemiColon()
-	return p.asParseTree(trees.NewThrowStatementTree(p.getTreeLocation(start), valueVal))
+	return p.asParseTree(trees.NewThrowStatementTree(p.getTreeLocation(start), value))
 }
 
 // parseDebuggerStatement mirrors parseDebuggerStatement().
@@ -694,11 +606,7 @@ func (p *ParserRewrite) parseLabelledStatement() *trees.ParseTree {
 	}
 	p.eat(TokenTypeColon)
 	stmt := p.parseStatement()
-	stmtVal := trees.ParseTree{}
-	if stmt != nil {
-		stmtVal = *stmt
-	}
-	return p.asParseTree(trees.NewLabelledStatementTree(p.getTreeLocation(start), name, stmtVal))
+	return p.asParseTree(trees.NewLabelledStatementTree(p.getTreeLocation(start), name, stmt))
 }
 
 // ---- Switch statement --------------------------------------------------------
@@ -713,17 +621,13 @@ func (p *ParserRewrite) parseSwitchStatement() *trees.SwitchStatementTree {
 	p.eat(TokenTypeOpenCurly)
 	caseClauses := p.parseCaseClauses()
 	p.eat(TokenTypeCloseCurly)
-	expressionVal := trees.ParseTree{}
-	if expression != nil {
-		expressionVal = *expression
-	}
-	return trees.NewSwitchStatementTree(p.getTreeLocation(start), expressionVal, caseClauses)
+	return trees.NewSwitchStatementTree(p.getTreeLocation(start), expression, caseClauses)
 }
 
 // parseCaseClauses mirrors parseCaseClauses().
-func (p *ParserRewrite) parseCaseClauses() []trees.ParseTree {
+func (p *ParserRewrite) parseCaseClauses() []*trees.ParseTree {
 	foundDefault := false
-	var result []trees.ParseTree
+	var result []*trees.ParseTree
 	for {
 		start := p.getTreeStartLocation()
 		switch p.peekType() {
@@ -732,13 +636,8 @@ func (p *ParserRewrite) parseCaseClauses() []trees.ParseTree {
 			expr := p.parseExpression()
 			p.eat(TokenTypeColon)
 			stmts := p.parseStatementList()
-			exprVal := trees.ParseTree{}
-			if expr != nil {
-				exprVal = *expr
-			}
-			stmtsVal := ptrsToValues(stmts)
-			_ = trees.NewCaseClauseTree(p.getTreeLocation(start), exprVal, stmtsVal)
-			result = append(result, trees.ParseTree{Type: trees.ParseTreeTypeCaseClause, Location: p.getTreeLocation(start)})
+			clause := trees.NewCaseClauseTree(p.getTreeLocation(start), expr, stmts)
+			result = append(result, &clause.ParseTree)
 		case TokenTypeDefault:
 			if foundDefault {
 				p.reportError("Switch statements may have at most one default clause")
@@ -748,27 +647,12 @@ func (p *ParserRewrite) parseCaseClauses() []trees.ParseTree {
 			p.eat(TokenTypeDefault)
 			p.eat(TokenTypeColon)
 			stmts := p.parseStatementList()
-			stmtsVal := ptrsToValues(stmts)
-			_ = trees.NewDefaultClauseTree(p.getTreeLocation(start), stmtsVal)
-			result = append(result, trees.ParseTree{Type: trees.ParseTreeTypeDefaultClause, Location: p.getTreeLocation(start)})
+			clause := trees.NewDefaultClauseTree(p.getTreeLocation(start), stmts)
+			result = append(result, &clause.ParseTree)
 		default:
 			return result
 		}
 	}
-}
-
-// ptrsToValues converts []*ParseTree to []ParseTree.
-func ptrsToValues(ptrs []*trees.ParseTree) []trees.ParseTree {
-	if ptrs == nil {
-		return nil
-	}
-	result := make([]trees.ParseTree, len(ptrs))
-	for i, p := range ptrs {
-		if p != nil {
-			result[i] = *p
-		}
-	}
-	return result
 }
 
 // ---- Try statement -----------------------------------------------------------
@@ -789,19 +673,11 @@ func (p *ParserRewrite) parseTryStatement() *trees.ParseTree {
 	if catchBlock == nil && finallyBlock == nil {
 		p.reportError("'catch' or 'finally' expected.")
 	}
-	bodyVal := trees.ParseTree{}
+	var bodyPT *trees.ParseTree
 	if body != nil {
-		bodyVal = trees.ParseTree{Type: body.Type, Location: body.Location}
+		bodyPT = &body.ParseTree
 	}
-	catchVal := trees.ParseTree{}
-	if catchBlock != nil {
-		catchVal = *catchBlock
-	}
-	finallyVal := trees.ParseTree{}
-	if finallyBlock != nil {
-		finallyVal = *finallyBlock
-	}
-	return p.asParseTree(trees.NewTryStatementTree(p.getTreeLocation(start), bodyVal, catchVal, finallyVal))
+	return p.asParseTree(trees.NewTryStatementTree(p.getTreeLocation(start), bodyPT, catchBlock, finallyBlock))
 }
 
 // parseCatch mirrors parseCatch().
@@ -809,30 +685,28 @@ func (p *ParserRewrite) parseCatch() *trees.ParseTree {
 	start := p.getTreeStartLocation()
 	p.eat(TokenTypeCatch)
 
-	endPos := p.getTreeEndLocation()
-	startPos := p.getTreeStartLocation()
-	emptyRange := toTreesRange(SourceRange{Start: endPos, End: startPos})
-	exception := trees.ParseTree{Type: trees.ParseTreeTypeEmptyStatement, Location: emptyRange}
-
+	var exception *trees.ParseTree
 	if p.peek(TokenTypeOpenParen) {
 		p.eat(TokenTypeOpenParen)
-		var exceptionTree *trees.ParseTree
 		if p.peekPatternStart() {
-			exceptionTree = p.parsePattern(patternKindInitializer)
+			exception = p.parsePattern(patternKindInitializer)
 		} else {
-			exceptionTree = p.asParseTree(p.parseIdentifierExpression())
+			exception = p.asParseTree(p.parseIdentifierExpression())
 		}
 		p.eat(TokenTypeCloseParen)
-		if exceptionTree != nil {
-			exception = *exceptionTree
-		}
+	} else {
+		// optional catch binding: `catch { ... }` (ES2019)
+		endPos := p.getTreeEndLocation()
+		startPos := p.getTreeStartLocation()
+		emptyRange := toTreesRange(SourceRange{Start: endPos, End: startPos})
+		exception = p.asParseTree(trees.NewEmptyStatementTree(emptyRange))
 	}
 	catchBody := p.parseBlock()
-	catchBodyVal := trees.ParseTree{}
+	var catchBodyPT *trees.ParseTree
 	if catchBody != nil {
-		catchBodyVal = trees.ParseTree{Type: catchBody.Type, Location: catchBody.Location}
+		catchBodyPT = &catchBody.ParseTree
 	}
-	return p.asParseTree(trees.NewCatchTree(p.getTreeLocation(start), exception, catchBodyVal))
+	return p.asParseTree(trees.NewCatchTree(p.getTreeLocation(start), exception, catchBodyPT))
 }
 
 // parseFinallyBlock mirrors parseFinallyBlock().
@@ -840,11 +714,11 @@ func (p *ParserRewrite) parseFinallyBlock() *trees.ParseTree {
 	start := p.getTreeStartLocation()
 	p.eat(TokenTypeFinally)
 	block := p.parseBlock()
-	blockVal := trees.ParseTree{}
+	var blockPT *trees.ParseTree
 	if block != nil {
-		blockVal = trees.ParseTree{Type: block.Type, Location: block.Location}
+		blockPT = &block.ParseTree
 	}
-	return p.asParseTree(trees.NewFinallyTree(p.getTreeLocation(start), blockVal))
+	return p.asParseTree(trees.NewFinallyTree(p.getTreeLocation(start), blockPT))
 }
 
 // ---- Function declarations ---------------------------------------------------
@@ -976,13 +850,10 @@ func (p *ParserRewrite) parseClass(isExpression bool) *trees.ParseTree {
 			name = toTreesIdentToken(tok)
 		}
 	}
-	var superClass trees.ParseTree
+	var superClass *trees.ParseTree
 	if p.peek(TokenTypeExtends) {
 		p.eat(TokenTypeExtends)
-		sc := p.parseLeftHandSideExpression()
-		if sc != nil {
-			superClass = *sc
-		}
+		superClass = p.parseLeftHandSideExpression()
 	}
 	p.eat(TokenTypeOpenCurly)
 	elements := p.parseClassElements()
@@ -991,8 +862,8 @@ func (p *ParserRewrite) parseClass(isExpression bool) *trees.ParseTree {
 }
 
 // parseClassElements mirrors parseClassElements().
-func (p *ParserRewrite) parseClassElements() []trees.ParseTree {
-	var result []trees.ParseTree
+func (p *ParserRewrite) parseClassElements() []*trees.ParseTree {
+	var result []*trees.ParseTree
 	for {
 		tok := p.peekToken()
 		if tok.Type == TokenTypeSemiColon {
@@ -1004,7 +875,7 @@ func (p *ParserRewrite) parseClassElements() []trees.ParseTree {
 		}
 		elem := p.parseClassElement()
 		if elem != nil {
-			result = append(result, *elem)
+			result = append(result, elem)
 		}
 	}
 }
@@ -1146,7 +1017,7 @@ func (p *ParserRewrite) parseImportDeclaration() *trees.ParseTree {
 
 	var defaultBindingIdentifier *trees.IdentifierToken
 	var nameSpaceImportIdentifier *trees.IdentifierToken
-	var identifierSet []trees.ParseTree
+	var identifierSet []*trees.ParseTree
 
 	parseExplicitNames := true
 	if p.peekId() {
@@ -1195,13 +1066,13 @@ func (p *ParserRewrite) parseImportDeclaration() *trees.ParseTree {
 }
 
 // parseImportSpecifierSet mirrors parseImportSpecifierSet().
-func (p *ParserRewrite) parseImportSpecifierSet() []trees.ParseTree {
-	var elements []trees.ParseTree
+func (p *ParserRewrite) parseImportSpecifierSet() []*trees.ParseTree {
+	var elements []*trees.ParseTree
 	p.eat(TokenTypeOpenCurly)
 	for p.peekIdOrKeyword() {
 		elem := p.parseImportSpecifier()
 		if elem != nil {
-			elements = append(elements, *p.asParseTree(elem))
+			elements = append(elements, p.asParseTree(elem))
 		}
 		if !p.peek(TokenTypeCloseCurly) {
 			p.eat(TokenTypeComma)
@@ -1237,7 +1108,7 @@ func (p *ParserRewrite) parseExportDeclaration() *trees.ParseTree {
 	needsSemiColon := true
 	p.eat(TokenTypeExport)
 	var export *trees.ParseTree
-	var exportSpecifierList []trees.ParseTree
+	var exportSpecifierList []*trees.ParseTree
 
 	switch p.peekType() {
 	case TokenTypeStar:
@@ -1281,28 +1152,24 @@ func (p *ParserRewrite) parseExportDeclaration() *trees.ParseTree {
 		p.eatPossiblyImplicitSemiColon()
 	}
 
-	var exportVal trees.ParseTree
-	if export != nil {
-		exportVal = *export
-	}
 	return p.asParseTree(trees.NewExportDeclarationTree(
 		p.getTreeLocation(start),
 		isDefault,
 		isExportAll,
-		exportVal,
+		export,
 		exportSpecifierList,
 		moduleSpecifier,
 	))
 }
 
 // parseExportSpecifierSet mirrors parseExportSpecifierSet().
-func (p *ParserRewrite) parseExportSpecifierSet() []trees.ParseTree {
-	var elements []trees.ParseTree
+func (p *ParserRewrite) parseExportSpecifierSet() []*trees.ParseTree {
+	var elements []*trees.ParseTree
 	p.eat(TokenTypeOpenCurly)
 	for p.peekIdOrKeyword() {
 		elem := p.parseExportSpecifier()
 		if elem != nil {
-			elements = append(elements, *p.asParseTree(elem))
+			elements = append(elements, p.asParseTree(elem))
 		}
 		if !p.peek(TokenTypeCloseCurly) {
 			p.eat(TokenTypeComma)

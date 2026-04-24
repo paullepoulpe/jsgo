@@ -3,8 +3,12 @@
 
 package trees
 
-type DebuggerStatementTree struct{}
+type DebuggerStatementTree struct {
+	ParseTree
+}
 
 func NewDebuggerStatementTree(location SourceRange) *DebuggerStatementTree {
-	return &DebuggerStatementTree{}
+	return &DebuggerStatementTree{
+		ParseTree: ParseTree{Type: ParseTreeTypeDebuggerStatement, Location: location},
+	}
 }

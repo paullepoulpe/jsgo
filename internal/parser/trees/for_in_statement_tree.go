@@ -4,13 +4,15 @@
 package trees
 
 type ForInStatementTree struct {
-	Initializer ParseTree
-	Collection  ParseTree
-	Body        ParseTree
+	ParseTree
+	Initializer *ParseTree
+	Collection  *ParseTree
+	Body        *ParseTree
 }
 
-func NewForInStatementTree(location SourceRange, initializer ParseTree, collection ParseTree, body ParseTree) *ForInStatementTree {
+func NewForInStatementTree(location SourceRange, initializer *ParseTree, collection *ParseTree, body *ParseTree) *ForInStatementTree {
 	return &ForInStatementTree{
+		ParseTree:   ParseTree{Type: ParseTreeTypeForInStatement, Location: location},
 		Initializer: initializer,
 		Collection:  collection,
 		Body:        body,

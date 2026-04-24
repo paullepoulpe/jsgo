@@ -3,8 +3,12 @@
 
 package trees
 
-type EmptyStatementTree struct{}
+type EmptyStatementTree struct {
+	ParseTree
+}
 
 func NewEmptyStatementTree(location SourceRange) *EmptyStatementTree {
-	return &EmptyStatementTree{}
+	return &EmptyStatementTree{
+		ParseTree: ParseTree{Type: ParseTreeTypeEmptyStatement, Location: location},
+	}
 }

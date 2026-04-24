@@ -4,11 +4,13 @@
 package trees
 
 type VariableStatementTree struct {
+	ParseTree
 	Declarations *VariableDeclarationListTree
 }
 
 func NewVariableStatementTree(location SourceRange, declarations *VariableDeclarationListTree) *VariableStatementTree {
 	return &VariableStatementTree{
+		ParseTree:    ParseTree{Type: ParseTreeTypeVariableStatement, Location: location},
 		Declarations: declarations,
 	}
 }

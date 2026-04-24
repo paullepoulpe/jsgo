@@ -4,13 +4,15 @@
 package trees
 
 type ForOfStatementTree struct {
-	Initializer ParseTree
-	Collection  ParseTree
-	Body        ParseTree
+	ParseTree
+	Initializer *ParseTree
+	Collection  *ParseTree
+	Body        *ParseTree
 }
 
-func NewForOfStatementTree(location SourceRange, initializer ParseTree, collection ParseTree, body ParseTree) *ForOfStatementTree {
+func NewForOfStatementTree(location SourceRange, initializer *ParseTree, collection *ParseTree, body *ParseTree) *ForOfStatementTree {
 	return &ForOfStatementTree{
+		ParseTree:   ParseTree{Type: ParseTreeTypeForOfStatement, Location: location},
 		Initializer: initializer,
 		Collection:  collection,
 		Body:        body,
