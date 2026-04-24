@@ -11,6 +11,18 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino/jstype"
 )
 
+// TODO(port): TypedScopeCreator.createScopeInternal from TypedScopeCreator.java:157
+// Reason: goog.module / ES module scoping not yet ported; createScopeIn handles the common path.
+
+// TODO(port): TypedScopeCreator.addWellKnownSymbols from TypedScopeCreator.java:298
+// Reason: well-known symbols (Symbol.iterator etc.) not yet needed for corpus tests.
+
+// TODO(port): TypedScopeCreator.FinishAndFreeze from TypedScopeCreator.java:346
+// Reason: registry freeze / two-phase commit not yet wired in Go compiler pipeline.
+
+// TODO(port): TypedScopeCreator.markGoogModuleExportsAsConst from TypedScopeCreator.java:215
+// Reason: goog.module const-exports not yet tracked; no corpus failures tied to it.
+
 type TypedScopeCreator struct {
 	registry *jstype.Registry
 	// Functions associates each AST FUNCTION node with its local

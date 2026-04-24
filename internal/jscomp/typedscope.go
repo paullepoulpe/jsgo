@@ -9,6 +9,15 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino/jstype"
 )
 
+// TODO(port): TypedScope.getDepth from TypedScope.java:119
+// Reason: depth tracking not needed for current flat-scope model.
+
+// TODO(port): TypedScope.getVar from TypedScope.java:232
+// Reason: Java TypedVar wrapper not ported; use GetDeclaredType instead.
+
+// TODO(port): TypedScope.isBottom / createLatticeBottom from TypedScope.java:73
+// Reason: lattice-bottom concept unused in Go port's dataflow model.
+
 // TypedScope maps identifier names to their declared JSType. The parent
 // pointer mirrors the Java scope chain used during name resolution.
 type TypedScope struct {
