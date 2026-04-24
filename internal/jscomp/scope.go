@@ -2344,6 +2344,12 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 	if name == nil || name.Token() != rhino.NAME {
 		return
 	}
+	// Inline JSDoc (`var /** @type {T} */ n`) may be attached to the NAME
+	// node by the new pipeline's IRFactory. Fall back to the NAME's JSDoc
+	// when the declaration container (VAR/LET/CONST) carries none.
+	if info == nil {
+		info = name.JSDocInfo()
+	}
 	// Typedef declarations primarily populate the typeAliases
 	// namespace, but we still record the NAME at Unknown in the
 	// value namespace so later `var alias = original;` references

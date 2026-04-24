@@ -164,7 +164,12 @@ func (f *IRFactory) Transform(tree *trees.ParseTree) *rhino.Node {
 			if c := f.findPrecedingJSDoc(tree.Location.Start.Offset); c != nil {
 				body := extractJSDocBody(c.Value)
 				startLine := c.Location.Start.Line + 1 // 1-indexed
-				if jsdoc := ParseJSDocInfo(body, startLine); jsdoc != nil {
+				jsdoc := ParseJSDocInfo(body, startLine)
+				if jsdoc == nil {
+					// Fall back to inline-type parsing (/** TypeExpr */).
+					jsdoc = parseInlineTypeJSDoc(body)
+				}
+				if jsdoc != nil {
 					attachJSDocToNode(node, jsdoc)
 				}
 			}
