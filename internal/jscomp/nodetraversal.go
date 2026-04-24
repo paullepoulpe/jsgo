@@ -4,16 +4,21 @@
 // Ported shapes:
 //   - Callback interface (ShouldTraverse + Visit)
 //   - ScopedCallback interface (Callback + EnterScope + ExitScope)
+//   - ScopeCreator interface (createScope 2-pass protocol)
 //   - AbstractPostOrderCallback (always traverses; subclass supplies Visit)
 //   - AbstractPreOrderCallback  (always traverses; no-op Visit)
 //   - AbstractScopedCallback    (ScopedCallback; always traverses; no-op Enter/Exit)
 //   - NodeTraversal struct with scope-aware enter/exit hooks
+//   - TraverseWithScope — traverse under a pre-built scope
+//   - TraverseRoots     — multi-root batch entry
+//   - TraverseAtScope   — scope-rooted traversal with ancestor scopes pushed quietly
+//   - TraverseFunctionOutOfBand — traverse a function body in isolation
 //
 // Not yet ported (no caller): AbstractCfgCallback, AbstractShallowCallback,
 // AbstractShallowStatementCallback, AbstractModuleCallback,
-// AbstractChangedScopeCallback, Builder, traverseRoots, traverseAtScope,
-// traverseScopeRoots, traverseWithScope, GetScopeDepth, GetScopeRoot,
-// GetClosestHoistScopeRoot, GetClosestContainerScope, GetClosestHoistScope.
+// AbstractChangedScopeCallback, Builder, traverseScopeRoots,
+// GetScopeDepth, GetScopeRoot, GetClosestHoistScopeRoot,
+// GetClosestContainerScope, GetClosestHoistScope.
 
 package jscomp
 
@@ -73,6 +78,31 @@ func (AbstractScopedCallback) ShouldTraverse(_ *NodeTraversal, _, _ *rhino.Node)
 
 func (AbstractScopedCallback) EnterScope(_ *NodeTraversal) {}
 func (AbstractScopedCallback) ExitScope(_ *NodeTraversal)  {}
+
+// ScopeCreator mirrors the Java ScopeCreator interface.  It is called
+// in pre-order (when a scope boundary node is first entered) to
+// create the scope for that node; the scope is then active for all
+// descendants until the traversal exits the boundary, at which point
+// ExitScope fires on any ScopedCallback (post-order).  This 2-pass
+// protocol matches Java's lazy getAbstractScope / popScope sequence.
+//
+// CreateScope receives the scope-boundary node and its parent scope
+// and returns the new child scope.  ExitScope is called with the same
+// node immediately before the scope is popped — implementors that
+// need to do post-processing (e.g. finalise inferred return types)
+// may hook here.  A nil ExitScope implementation is valid; the
+// interface method is still called, so a no-op pointer receiver is
+// fine.
+type ScopeCreatorIface interface {
+	// CreateScope is called in pre-order when the traversal pushes a
+	// new scope boundary (function body, block-scope node, etc.).
+	// parent is the enclosing TypedScope (never nil).
+	CreateScopeForNode(n *rhino.Node, parent *TypedScope) *TypedScope
+
+	// ExitScopeForNode is called in post-order, just before the scope
+	// pushed by CreateScopeForNode is removed from the stack.
+	ExitScopeForNode(n *rhino.Node, scope *TypedScope)
+}
 
 // NodeTraversal drives the walk. Java's class tracks the current
 // Compiler, scope stack, source file, input id, change-time flags,
@@ -198,4 +228,105 @@ func (t *NodeTraversal) CurrentScope() *TypedScope {
 		return t.global
 	}
 	return t.scopes[len(t.scopes)-1]
+}
+
+// TraverseWithScope walks `root` under the provided pre-built `scope`,
+// replacing the current innermost scope for the duration of the walk.
+// EnterScope fires for `scope` before the walk; ExitScope fires after.
+// This mirrors Java's private NodeTraversal.traverseWithScope(Node,
+// AbstractScope), which pushes the given scope and traverses `root`
+// with parent==nil (i.e. treating `root` as the traversal root).
+//
+// Use this when you hold a pre-built global or module scope and want
+// to traverse a subtree under it without rebuilding the scope from
+// scratch.
+func (t *NodeTraversal) TraverseWithScope(root *rhino.Node, scope *TypedScope) {
+	t.pushScope(scope)
+	t.traverse(root, nil)
+	t.popScope()
+}
+
+// TraverseRoots walks each root in `roots` under the shared global
+// scope held by the traversal.  EnterScope fires once before the
+// first root and ExitScope fires once after the last root — matching
+// Java's private NodeTraversal.traverseRoots which calls
+// pushScope(scopeRoot) once and then traverseBranch for each root in
+// sequence.
+//
+// The public static Java overload is
+// NodeTraversal.traverseRoots(compiler, cb, externs, root); this Go
+// method is the equivalent instance-level entry point.
+func (t *NodeTraversal) TraverseRoots(roots ...*rhino.Node) {
+	if len(roots) == 0 {
+		return
+	}
+	// The global scope is already the bottom of t.scopes; fire
+	// EnterScope once for it (mirrors Java's single pushScope call).
+	if t.scopeCallback != nil {
+		t.scopeCallback.EnterScope(t)
+	}
+	for _, root := range roots {
+		t.traverse(root, nil)
+	}
+	if t.scopeCallback != nil {
+		t.scopeCallback.ExitScope(t)
+	}
+}
+
+// TraverseAtScope begins a traversal rooted at `scopeRoot`, with all
+// ancestor scopes in `scope`'s parent chain pushed silently (no
+// EnterScope for ancestors) and EnterScope / ExitScope firing only
+// for `scope` itself.
+//
+// This mirrors Java's private NodeTraversal.traverseAtScope(AbstractScope)
+// which calls s.getRootNode() to obtain the root, then walks
+// s.getParent() to collect ancestors, pushes them with quietly=true,
+// and finally pushes the target scope normally before traversing the
+// root node.
+//
+// Because Go's TypedScope does not carry its root AST node (unlike
+// Java's AbstractScope), the caller must supply `scopeRoot` explicitly.
+func (t *NodeTraversal) TraverseAtScope(scopeRoot *rhino.Node, scope *TypedScope) {
+	// Collect ancestor scopes so we can push outermost-first.
+	var ancestors []*TypedScope
+	for p := scope.parent; p != nil; p = p.parent {
+		ancestors = append(ancestors, p)
+	}
+	// Push ancestors quietly (no EnterScope callback), outermost-first.
+	for i := len(ancestors) - 1; i >= 0; i-- {
+		t.scopes = append(t.scopes, ancestors[i])
+	}
+	// Push the target scope with normal EnterScope notification.
+	t.pushScope(scope)
+	// Traverse from the scope's root node.
+	t.traverse(scopeRoot, nil)
+	// Pop target scope with normal ExitScope notification.
+	t.popScope()
+	// Pop the silently-pushed ancestor scopes (no ExitScope callbacks).
+	t.scopes = t.scopes[:len(t.scopes)-len(ancestors)]
+}
+
+// TraverseFunctionOutOfBand traverses a FUNCTION node in isolation
+// using the provided pre-built scope.  This mirrors Java's private
+// traverseFunction helper but is exposed as a public entry point for
+// callers — such as TypeCheck — that need to re-visit a function body
+// after the main traversal, using a scope built out-of-band by
+// TypedScopeCreator.
+//
+// The callback's ShouldTraverse is called on `root` with parent==nil
+// (matching Java's out-of-band handling where the function has no
+// traversal parent).  If ShouldTraverse returns false the walk is
+// skipped entirely.  Otherwise: EnterScope fires for `scope`, the
+// function's children are traversed depth-first, ExitScope fires, the
+// scope is popped, and finally Visit is called on `root`.
+func (t *NodeTraversal) TraverseFunctionOutOfBand(root *rhino.Node, scope *TypedScope) {
+	if !t.callback.ShouldTraverse(t, root, nil) {
+		return
+	}
+	t.pushScope(scope)
+	for _, c := range root.Children() {
+		t.traverse(c, root)
+	}
+	t.popScope()
+	t.callback.Visit(t, root, nil)
 }
