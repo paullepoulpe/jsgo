@@ -129,6 +129,18 @@ const (
 	OBJECTLIT
 	STRING_KEY
 
+	// Destructuring pattern nodes — mirror Token.java ARRAY_PATTERN / OBJECT_PATTERN.
+	ARRAY_PATTERN
+	OBJECT_PATTERN
+	DEFAULT_VALUE // `x = dflt` inside param/pattern
+	ITER_SPREAD   // `...expr` spread in call args / array/obj literals
+	OBJECT_REST   // `...target` at tail of object pattern
+
+	// Optional-chaining nodes — mirror Token.java OPTCHAIN_* entries.
+	OPTCHAIN_GETPROP // `a?.b`
+	OPTCHAIN_GETELEM // `a?.[b]`
+	OPTCHAIN_CALL    // `a?.(args)`
+
 	// Debugger statement
 	DEBUGGER
 	// Class / object members
@@ -365,6 +377,22 @@ func (t Token) String() string {
 		return "OBJECTLIT"
 	case STRING_KEY:
 		return "STRING_KEY"
+	case ARRAY_PATTERN:
+		return "ARRAY_PATTERN"
+	case OBJECT_PATTERN:
+		return "OBJECT_PATTERN"
+	case DEFAULT_VALUE:
+		return "DEFAULT_VALUE"
+	case ITER_SPREAD:
+		return "ITER_SPREAD"
+	case OBJECT_REST:
+		return "OBJECT_REST"
+	case OPTCHAIN_GETPROP:
+		return "OPTCHAIN_GETPROP"
+	case OPTCHAIN_GETELEM:
+		return "OPTCHAIN_GETELEM"
+	case OPTCHAIN_CALL:
+		return "OPTCHAIN_CALL"
 	case DEBUGGER:
 		return "DEBUGGER"
 	case MEMBER_FUNCTION_DEF:
