@@ -250,6 +250,9 @@ public class Outer {
 // ── #169 Panic stubs ─────────────────────────────────────────────────────────
 
 func TestPanicStub(t *testing.T) {
+	// Bodies that can be translated by the javaast package emit Go code
+	// instead of a panic stub. `return 42;` translates to `return 42`.
+	// Bodies that cannot be parsed at all still get the panic stub.
 	src := `package com.example;
 public class Foo {
   public int bar(String s) { return 42; }
@@ -259,8 +262,9 @@ public class Foo {
 		t.Fatal("parseClass returned nil")
 	}
 	out := emitMethods(cls, "com/example/Foo.java")
-	if !strings.Contains(out, `panic("unimplemented:`) {
-		t.Errorf("expected panic stub, got:\n%s", out)
+	// Translator successfully handles `return 42;` — no panic stub needed.
+	if !strings.Contains(out, "return 42") {
+		t.Errorf("expected translated 'return 42', got:\n%s", out)
 	}
 }
 
@@ -418,7 +422,7 @@ public final class MyPass implements CompilerPass {
 		"type MyPass struct",
 		"func NewMyPass(",
 		"func (c *MyPass) Process(",
-		"panic(\"unimplemented:",
+		// Note: `return false;` is translated by javaast — no panic stub.
 		"// @ com/google/javascript/jscomp/MyPass.java:",
 		"// Main entry point",
 		"// Param: root the root node",

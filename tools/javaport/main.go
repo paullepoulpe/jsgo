@@ -38,6 +38,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/paullepoulpe/jsgo/tools/javaport/javaast"
 )
 
 // javaportVersion is bumped whenever the generator logic changes to
@@ -1583,9 +1585,18 @@ func emitConstructor(b *strings.Builder, cls *classDecl, m methodDecl, javaPath 
 		b.WriteString(p.name + " " + javaToGoType(p.typeName))
 	}
 	b.WriteString(") *" + cls.name + " {\n")
-	// #169 — panic stub instead of bare return
-	sig := buildPanicSig(m)
-	b.WriteString("\tpanic(\"unimplemented: " + javaPath + ":" + fmt.Sprint(m.sourceLine) + " " + sig + "\")\n")
+	recv := strings.ToLower(string(cls.name[0]))
+	if bodyText, ok := translateMethodBody(m.body, recv, cls.name, ""); ok {
+		b.WriteString(bodyText)
+		// Ensure the constructor always returns.
+		if !strings.Contains(bodyText, "return") && !strings.Contains(bodyText, "panic(") {
+			b.WriteString("\treturn &" + cls.name + "{}\n")
+		}
+	} else {
+		// #169 — panic stub instead of bare return
+		sig := buildPanicSig(m)
+		b.WriteString("\tpanic(\"unimplemented: " + javaPath + ":" + fmt.Sprint(m.sourceLine) + " " + sig + "\")\n")
+	}
 	b.WriteString("}\n\n")
 }
 
@@ -1620,11 +1631,15 @@ func emitMethodStub(b *strings.Builder, cls *classDecl, m methodDecl, javaPath s
 		b.WriteString(" " + goRet)
 	}
 	b.WriteString(" {\n")
-	// #169 — panic stub
-	sig := buildPanicSig(m)
-	b.WriteString("\tpanic(\"unimplemented: " + javaPath + ":" + fmt.Sprint(m.sourceLine) + " " + sig + "\")\n")
 	if m.throws != "" {
 		b.WriteString("\t// Java threw: " + m.throws + "\n")
+	}
+	if bodyText, ok := translateMethodBody(m.body, recv, cls.name, goRet); ok {
+		b.WriteString(bodyText)
+	} else {
+		// #169 — panic stub
+		sig := buildPanicSig(m)
+		b.WriteString("\tpanic(\"unimplemented: " + javaPath + ":" + fmt.Sprint(m.sourceLine) + " " + sig + "\")\n")
 	}
 	b.WriteString("}\n\n")
 }
@@ -1635,4 +1650,48 @@ func toExported(name string) string {
 		return ""
 	}
 	return strings.ToUpper(name[:1]) + name[1:]
+}
+
+// translateMethodBody attempts to translate the raw Java method body text
+// (between the braces) into Go using the javaast package. It tries the
+// trivial-pattern recogniser first, then falls back to the full AST walker.
+// Returns (goBody, true) on success, or ("", false) when neither succeeded.
+//
+// goRet is the Go return type (empty string for void); used to synthesise a
+// zero-value return when the Java body is empty.
+func translateMethodBody(javaBody, recvName, className, goRet string) (string, bool) {
+	body := strings.TrimSpace(javaBody)
+	if body == "" {
+		// Empty Java body — emit a zero-value return for non-void methods.
+		switch goRet {
+		case "":
+			return "", true
+		case "bool":
+			return "\treturn false\n", true
+		case "int", "int64", "float32", "float64":
+			return "\treturn 0\n", true
+		case "string":
+			return "\treturn \"\"\n", true
+		}
+		return "\treturn nil\n", true
+	}
+
+	ctx := javaast.MethodContext{
+		RecvName:  recvName,
+		ClassName: className,
+		TypeMap:   javaToGoType,
+	}
+
+	// Try trivial patterns first (getter/setter/delegation/null-check/field-init).
+	if s, ok := javaast.TryTrivial(body, recvName, className, javaToGoType); ok {
+		return s, true
+	}
+
+	// Fall back to the full recursive-descent AST walker.
+	translated, ok := javaast.TranslateBody(body, ctx)
+	if ok && translated != "" {
+		return translated, true
+	}
+
+	return "", false
 }
