@@ -5,6 +5,64 @@ package diag
 
 import "sync"
 
+// DiagnosticGroupNames is the comma-separated list of public named groups
+// that appear on the command-line help. Mirrors Java's
+// DiagnosticGroups.DIAGNOSTIC_GROUP_NAMES.
+const DiagnosticGroupNames = "accessControls, " +
+	"checkPrototypalTypes, " +
+	"checkRegExp, " +
+	"checkTypes, " +
+	"checkVars, " +
+	"conformanceViolations, " +
+	"const, " +
+	"constantProperty, " +
+	"deprecated, " +
+	"deprecatedAnnotations, " +
+	"duplicateMessage, " +
+	"es5Strict, " +
+	"externsValidation, " +
+	"functionParams, " +
+	"globalThis, " +
+	"invalidCasts, " +
+	"lintVarDeclarations, " +
+	"misplacedTypeAnnotation, " +
+	"missingOverride, " +
+	"missingPolyfill, " +
+	"missingProperties, " +
+	"missingProvide, " +
+	"missingRequire, " +
+	"missingReturn, " +
+	"missingSourcesWarnings, " +
+	"moduleLoad, " +
+	"moduleImport, " +
+	"msgDescriptions, " +
+	"nonStandardJsDocs, " +
+	"partialAlias, " +
+	"polymer, " +
+	"reportUnknownTypes, " +
+	"strictCheckTypes, " +
+	"strictMissingProperties, " +
+	"strictModuleDepCheck, " +
+	"strictPrimitiveOperators, " +
+	"suspiciousCode, " +
+	"typeInvalidation, " +
+	"undefinedVars, " +
+	"underscore, " +
+	"unknownDefines, " +
+	"unusedLocalVariables, " +
+	"uselessCode, " +
+	"untranspilableFeatures," +
+	"visibility"
+
+// WildcardExcludedGroups is the set of group names that are excluded when the
+// wildcard group is used. Mirrors Java's DiagnosticGroups.wildcardExcludedGroups.
+var WildcardExcludedGroups = map[string]bool{
+	"reportUnknownTypes":                  true,
+	"analyzerChecks":                      true,
+	"missingSourcesWarnings":              true,
+	"closureUnawareCodeAnnotationPresent": true,
+}
+
 // DiagnosticGroups is the registry of named diagnostic groups exposed by the
 // compiler. Mirrors Java's DiagnosticGroups class. Each public field
 // corresponds to a Java public-static-final field.
@@ -200,47 +258,159 @@ var (
 	dtUnrecognizedTypeError       = DiagnosticTypeWarning("JSC_UNRECOGNIZED_TYPE_ERROR", "")
 	dtMissingModuleOrProvide      = DiagnosticTypeWarning("JSC_MISSING_MODULE_OR_PROVIDE", "")
 	dtMissingModuleOrProvideForFD = DiagnosticTypeWarning("JSC_MISSING_MODULE_OR_PROVIDE_FOR_FORWARD_DECLARE", "")
+
+	// --- VarCheck / module strictness ---
+	dtViolatedChunkDepError  = DiagnosticTypeWarning("JSC_VIOLATED_CHUNK_DEP_ERROR", "")
+	dtStrictChunkDepError    = DiagnosticTypeWarning("JSC_STRICT_CHUNK_DEP_ERROR", "")
+	dtNameReferenceInExterns = DiagnosticTypeWarning("JSC_NAME_REFERENCE_IN_EXTERNS_ERROR", "")
+	dtUndefinedExternVar     = DiagnosticTypeWarning("JSC_UNDEFINED_EXTERN_VAR_ERROR", "")
+
+	// --- ConstCheck ---
+	dtConstReassignedValueError = DiagnosticTypeError("JSC_CONST_REASSIGNED_VALUE_ERROR", "")
+
+	// --- TypeCheck extra ---
+	dtHiddenPrototypalSupertypeProperty         = DiagnosticTypeWarning("JSC_HIDDEN_PROTOTYPAL_SUPERTYPE_PROPERTY", "")
+	dtHiddenPrototypalSupertypePropertyMismatch = DiagnosticTypeWarning("JSC_HIDDEN_PROTOTYPAL_SUPERTYPE_PROPERTY_MISMATCH", "")
+	dtUnknownPrototypalOverride                 = DiagnosticTypeWarning("JSC_UNKNOWN_PROTOTYPAL_OVERRIDE", "")
+	dtHiddenSuperclassProperty                  = DiagnosticTypeWarning("JSC_HIDDEN_SUPERCLASS_PROPERTY", "")
+	dtHiddenInterfaceProperty                   = DiagnosticTypeWarning("JSC_HIDDEN_INTERFACE_PROPERTY", "")
+	dtStrictInexistentPropertyWithSuggestion    = DiagnosticTypeWarning("JSC_STRICT_INEXISTENT_PROPERTY_WITH_SUGGESTION", "")
+	dtStrictInexistentUnionProperty             = DiagnosticTypeWarning("JSC_STRICT_INEXISTENT_UNION_PROPERTY", "")
+	dtInexistentPropertyWithSuggestion          = DiagnosticTypeWarning("JSC_INEXISTENT_PROPERTY_WITH_SUGGESTION", "")
+
+	// --- CheckDuplicateCase ---
+	dtDuplicateCase = DiagnosticTypeWarning("JSC_DUPLICATE_CASE", "")
+
+	// --- CheckUnusedPrivateProperties ---
+	dtUnusedPrivateProperty = DiagnosticTypeWarning("JSC_UNUSED_PRIVATE_PROPERTY", "")
+
+	// --- VariableReferenceCheck extra ---
+	dtUnusedLocalAssignment = DiagnosticTypeWarning("JSC_UNUSED_LOCAL_ASSIGNMENT", "")
+
+	// --- FunctionTypeBuilder ---
+	dtInexistentParam     = DiagnosticTypeWarning("JSC_INEXISTENT_PARAM", "")
+	dtOptionalArgAtEnd    = DiagnosticTypeWarning("JSC_OPTIONAL_ARG_AT_END", "")
+
+	// --- RhinoErrorReporter extra ---
+	dtInvalidOctalLiteral    = DiagnosticTypeWarning("INVALID_OCTAL_LITERAL", "")
+	dtDuplicateParam         = DiagnosticTypeWarning("DUPLICATE_PARAM", "")
+	dtTooManyTemplateParams  = DiagnosticTypeWarning("JSC_TOO_MANY_TEMPLATE_PARAMS", "")
+	dtJsdocMissingType       = DiagnosticTypeWarning("JSC_JSDOC_MISSING_TYPE_WARNING", "")
+	dtJsdocMissingBraces     = DiagnosticTypeWarning("JSC_JSDOC_MISSING_BRACES_WARNING", "")
+	dtParseError             = DiagnosticTypeError("JSC_PARSE_ERROR", "")
+
+	// --- ProcessCommonJSModules ---
+	dtSuspiciousExportsAssignment = DiagnosticTypeWarning("JSC_SUSPICIOUS_EXPORTS_ASSIGNMENT", "")
+	dtUnknownRequireEnsure        = DiagnosticTypeWarning("JSC_UNKNOWN_REQUIRE_ENSURE", "")
+
+	// --- ModuleLoader ---
+	dtLoadWarning = DiagnosticTypeWarning("JSC_LOAD_WARNING", "")
+
+	// --- ModuleMapCreator ---
+	dtDoesNotHaveExport            = DiagnosticTypeWarning("JSC_DOES_NOT_HAVE_EXPORT", "")
+	dtDoesNotHaveExportWithDetails = DiagnosticTypeWarning("JSC_DOES_NOT_HAVE_EXPORT_WITH_DETAILS", "")
+
+	// --- ReportUntranspilableFeatures ---
+	dtUntranspilableFeaturePresent = DiagnosticTypeWarning("JSC_UNTRANSPILABLE_FEATURE_PRESENT", "")
+
+	// --- RewritePolyfills ---
+	dtInsufficientOutputVersionError = DiagnosticTypeWarning("JSC_INSUFFICIENT_OUTPUT_VERSION_ERROR", "")
+
+	// --- PolymerPassErrors ---
+	dtPolymerDescriptorNotValid = DiagnosticTypeWarning("JSC_POLYMER_DESCRIPTOR_NOT_VALID", "")
+
+	// --- CheckConformance (extra) ---
+	dtConformanceViolationFull         = DiagnosticTypeWarning("JSC_CONFORMANCE_VIOLATION", "")
+	dtConformancePossibleViolationFull = DiagnosticTypeWarning("JSC_CONFORMANCE_POSSIBLE_VIOLATION", "")
+
+	// --- DisambiguateProperties ---
+	dtPropertyInvalidation = DiagnosticTypeWarning("JSC_PROPERTY_INVALIDATION", "")
+
+	// --- InlineAndCollapseProperties ---
+	dtNamespaceRedefinedWarning = DiagnosticTypeWarning("JSC_NAMESPACE_REDEFINED_WARNING", "")
+	dtPartialNamespaceWarning   = DiagnosticTypeWarning("JSC_PARTIAL_NAMESPACE_WARNING", "")
+
+	// --- PureFunctionIdentifier ---
+	dtUnusedArtificialPureAnnotation = DiagnosticTypeWarning("JSC_UNUSED_ARTIFICIAL_PURE_ANNOTATION", "")
+
+	// --- CheckTypeImportCodeReferences ---
+	dtTypeImportCodeReferenceFull = DiagnosticTypeWarning("JSC_TYPE_IMPORT_CODE_REFERENCE", "")
 )
 
 // Named groups — public variables matching Java static-final DiagnosticGroup fields.
 // Assigned in init() below.
 var (
-	GroupGlobalThis       *DiagnosticGroup
-	GroupDeprecated       *DiagnosticGroup
-	GroupUnderscore       *DiagnosticGroup
-	GroupVisibility       *DiagnosticGroup
-	GroupAccessControls   *DiagnosticGroup
-	GroupNonStandardJsDoc *DiagnosticGroup
-	GroupInvalidCasts     *DiagnosticGroup
-	GroupStrictModuleDepCheck *DiagnosticGroup
-	GroupMissingOverride  *DiagnosticGroup
-	GroupMissingProperties *DiagnosticGroup
-	GroupMissingReturn    *DiagnosticGroup
-	GroupUndefinedVariables *DiagnosticGroup
-	GroupDebuggerStatementPresent *DiagnosticGroup
-	GroupCheckRegExp      *DiagnosticGroup
-	GroupCheckTypes       *DiagnosticGroup
-	GroupStrictMissingProperties *DiagnosticGroup
-	GroupStrictPrimitiveOperators *DiagnosticGroup
-	GroupStrictCheckTypes *DiagnosticGroup
-	GroupReportUnknownTypes *DiagnosticGroup
-	GroupCheckVariables   *DiagnosticGroup
-	GroupCheckUselessCode *DiagnosticGroup
-	GroupConst            *DiagnosticGroup
-	GroupConstantProperty *DiagnosticGroup
-	GroupDuplicateVars    *DiagnosticGroup
-	GroupSuspiciousCode   *DiagnosticGroup
-	GroupMisplacedTypeAnnotation *DiagnosticGroup
-	GroupMisplacedMsgAnnotation  *DiagnosticGroup
-	GroupMisplacedSuppress       *DiagnosticGroup
-	GroupMissingRequire   *DiagnosticGroup
-	GroupTypeImportCodeReferences *DiagnosticGroup
-	GroupConformanceViolations    *DiagnosticGroup
-	GroupDeprecatedAnnotations    *DiagnosticGroup
-	GroupLateProvide              *DiagnosticGroup
-	GroupUnrecognizedTypeError    *DiagnosticGroup
-	GroupMissingProvide           *DiagnosticGroup
-	GroupMissingSourcesWarnings   *DiagnosticGroup
+	GroupGlobalThis                    *DiagnosticGroup
+	GroupDeprecated                    *DiagnosticGroup
+	GroupUnderscore                    *DiagnosticGroup
+	GroupVisibility                    *DiagnosticGroup
+	GroupAccessControls                *DiagnosticGroup
+	GroupNonStandardJsDoc              *DiagnosticGroup
+	GroupInvalidCasts                  *DiagnosticGroup
+	GroupStrictModuleDepCheck          *DiagnosticGroup
+	GroupViolatedModuleDep             *DiagnosticGroup
+	GroupExternsValidation             *DiagnosticGroup
+	GroupMissingOverride               *DiagnosticGroup
+	GroupMissingProperties             *DiagnosticGroup
+	GroupGloballyMissingProperties     *DiagnosticGroup
+	GroupMissingReturn                 *DiagnosticGroup
+	GroupUndefinedVariables            *DiagnosticGroup
+	GroupDebuggerStatementPresent      *DiagnosticGroup
+	GroupCheckRegExp                   *DiagnosticGroup
+	GroupCheckTypes                    *DiagnosticGroup
+	GroupCheckPrototypalTypes          *DiagnosticGroup
+	GroupCheckStaticOverrides          *DiagnosticGroup
+	GroupEs5InheritanceDiagnosticGroup *DiagnosticGroup
+	GroupStrictMissingProperties       *DiagnosticGroup
+	GroupStrictPrimitiveOperators      *DiagnosticGroup
+	GroupStrictCheckTypes              *DiagnosticGroup
+	GroupReportUnknownTypes            *DiagnosticGroup
+	GroupCheckVariables                *DiagnosticGroup
+	GroupCheckUselessCode              *DiagnosticGroup
+	GroupConst                         *DiagnosticGroup
+	GroupConstantProperty              *DiagnosticGroup
+	GroupAccessControlsConst           *DiagnosticGroup
+	GroupTypeInvalidation              *DiagnosticGroup
+	GroupDuplicateVars                 *DiagnosticGroup
+	GroupEs5Strict                     *DiagnosticGroup
+	GroupSuspiciousCode                *DiagnosticGroup
+	GroupFunctionParams                *DiagnosticGroup
+	GroupMisplacedTypeAnnotation       *DiagnosticGroup
+	GroupMisplacedMsgAnnotation        *DiagnosticGroup
+	GroupMisplacedSuppress             *DiagnosticGroup
+	GroupMissingRequire                *DiagnosticGroup
+	GroupExtraRequire                  *DiagnosticGroup
+	GroupDuplicateMessage              *DiagnosticGroup
+	GroupMessageDescriptions           *DiagnosticGroup
+	GroupMsgConventions                *DiagnosticGroup
+	GroupTypeImportCodeReferences      *DiagnosticGroup
+	GroupPartialAlias                  *DiagnosticGroup
+	GroupConformanceViolations         *DiagnosticGroup
+	GroupDeprecatedAnnotations         *DiagnosticGroup
+	GroupLateProvide                   *DiagnosticGroup
+	GroupUnrecognizedTypeError         *DiagnosticGroup
+	GroupDangerousUnrecognizedTypeError *DiagnosticGroup
+	GroupMissingProvide                *DiagnosticGroup
+	GroupMissingSourcesWarnings        *DiagnosticGroup
+	GroupUnusedLocalVariable           *DiagnosticGroup
+	GroupJsdocMissingType              *DiagnosticGroup
+	GroupTooManyTypeParams             *DiagnosticGroup
+	GroupModuleLoad                    *DiagnosticGroup
+	GroupModuleImport                  *DiagnosticGroup
+	GroupUntranspilableFeatures        *DiagnosticGroup
+	GroupMissingPolyfill               *DiagnosticGroup
+	GroupPolymer                       *DiagnosticGroup
+	GroupLintChecks                    *DiagnosticGroup
+	GroupLintVarDeclarations           *DiagnosticGroup
+	GroupStrictModuleChecks            *DiagnosticGroup
+	GroupAnalyzerChecks                *DiagnosticGroup
+	GroupClosureDepMethodUsageChecks   *DiagnosticGroup
+	GroupClosureClassChecks            *DiagnosticGroup
+	GroupArtificialFunctionPurityValidation *DiagnosticGroup
+	GroupClosureUnawareCodeAnnotationPresent *DiagnosticGroup
+	GroupParsing                       *DiagnosticGroup
+	GroupUnknownDefines                *DiagnosticGroup
+	GroupJ2clChecks                    *DiagnosticGroup
 )
 
 func init() {
@@ -372,4 +542,103 @@ func init() {
 	GroupMissingSourcesWarnings = RegisterGroupComposite("missingSourcesWarnings",
 		GroupReportUnknownTypes, GroupUndefinedVariables, GroupMissingProvide,
 		GroupMissingProperties, GroupDuplicateVars)
+
+	// --- Additional groups from Java's DiagnosticGroups ---
+
+	GroupViolatedModuleDep = RegisterGroup("violatedModuleDep", dtViolatedChunkDepError)
+
+	GroupExternsValidation = RegisterGroup("externsValidation",
+		dtNameReferenceInExterns, dtUndefinedExternVar)
+
+	GroupGloballyMissingProperties = RegisterGroup("globallyMissingProperties",
+		dtPossibleInexistentProperty)
+
+	GroupCheckPrototypalTypes = RegisterGroup("checkPrototypalTypes",
+		dtUnknownPrototypalOverride,
+		dtHiddenPrototypalSupertypeProperty,
+		dtHiddenPrototypalSupertypePropertyMismatch)
+
+	GroupCheckStaticOverrides = GroupCheckPrototypalTypes
+
+	GroupEs5InheritanceDiagnosticGroup = RegisterGroup(
+		"checkEs5InheritanceCorrectnessConditions")
+
+	GroupAccessControlsConst = RegisterGroupComposite("accessControlsConst", GroupConstantProperty)
+
+	GroupTypeInvalidation = RegisterGroup("typeInvalidation", dtPropertyInvalidation)
+
+	GroupEs5Strict = RegisterGroup("es5Strict",
+		dtInvalidOctalLiteral, dtDuplicateParam)
+
+	GroupFunctionParams = RegisterGroup("functionParams",
+		dtInexistentParam, dtOptionalArgAtEnd)
+
+	GroupExtraRequire = RegisterGroup("extraRequire", Unused)
+
+	GroupDuplicateMessage = RegisterGroup("duplicateMessage", Unused)
+
+	GroupMessageDescriptions = RegisterGroup("msgDescriptions", Unused)
+
+	GroupMsgConventions = RegisterGroup("messageConventions", Unused)
+
+	GroupPartialAlias = RegisterGroup("partialAlias", dtPartialNamespaceWarning)
+
+	GroupDangerousUnrecognizedTypeError = RegisterGroupComposite(
+		"dangerousUnrecognizedTypeError", GroupUnrecognizedTypeError)
+
+	GroupUnusedLocalVariable = RegisterGroup("unusedLocalVariables", dtUnusedLocalAssignment)
+
+	GroupJsdocMissingType = RegisterGroup("jsdocMissingType", dtJsdocMissingType)
+
+	GroupTooManyTypeParams = RegisterGroup("tooManyTypeParams", dtTooManyTemplateParams)
+
+	GroupModuleLoad = RegisterGroup("moduleLoad",
+		dtLoadWarning,
+		dtSuspiciousExportsAssignment,
+		dtUnknownRequireEnsure)
+
+	GroupModuleImport = RegisterGroup("moduleImport",
+		dtDoesNotHaveExport,
+		dtDoesNotHaveExportWithDetails)
+
+	GroupUntranspilableFeatures = RegisterGroup("untranspilableFeatures",
+		dtUntranspilableFeaturePresent)
+
+	GroupMissingPolyfill = RegisterGroup("missingPolyfill", dtInsufficientOutputVersionError)
+
+	GroupPolymer = RegisterGroup("polymer", dtPolymerDescriptorNotValid)
+
+	GroupLintVarDeclarations = RegisterGroup("lintVarDeclarations", Unused)
+
+	GroupLintChecks = RegisterGroup("lintChecks", Unused)
+
+	GroupStrictModuleChecks = RegisterGroup("strictModuleChecks", Unused)
+
+	GroupAnalyzerChecks = RegisterGroup("analyzerChecks", Unused)
+
+	GroupClosureDepMethodUsageChecks = RegisterGroup("closureDepMethodUsageChecks", Unused)
+
+	GroupClosureClassChecks = RegisterGroup("closureClassChecks", Unused)
+
+	GroupArtificialFunctionPurityValidation = RegisterGroup(
+		"artificialFunctionPurityValidation", dtUnusedArtificialPureAnnotation)
+
+	GroupClosureUnawareCodeAnnotationPresent = RegisterGroup(
+		"closureUnawareCodeAnnotationPresent", Unused)
+
+	GroupParsing = RegisterGroup("parsing", dtParseError)
+
+	GroupUnknownDefines = RegisterGroup("unknownDefines", Unused)
+
+	GroupJ2clChecks = RegisterGroup("j2clChecks", Unused)
+
+	// Internal-use groups (not public in Java, but registered for ForName lookups).
+	RegisterGroup("polymerBehavior", Unused)
+	RegisterGroup("invalidProvide", Unused)
+	RegisterGroup("conflictingIjsFile", Unused)
+	RegisterGroup("implicitWeakEntryPoint", Unused)
+	RegisterGroup("transitionalSuspiciousCodeWarnings", Unused)
+	RegisterGroup("useOfGoogProvide", Unused)
+	RegisterGroup("tweakValidation", Unused)
+	RegisterDeprecatedGroup("boundedGenerics")
 }
