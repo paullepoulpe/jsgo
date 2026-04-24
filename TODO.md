@@ -112,6 +112,17 @@ fans out to four sub-workstreams (Node linked list, tree classes,
 IRFactory, Parser/Scanner rewrite); those run in parallel once
 the skeleton generation lands.
 
+**Regression tolerance for faithful ports.** Structural 1:1 Java
+ports routinely cause temporary fixture regressions while
+downstream callers are re-aligned. Land the port anyway and fix
+forward. The bar for landing a faithful port is: (a) it builds,
+(b) it does not crash at runtime, (c) the regression surface is
+understood. We are not optimising for fixture count on any single
+landing; we are optimising for the codebase being a faithful 1:1
+port of Java, because that is what gets us to 100 % in the long
+term. A temporary dip is preferable to an ad-hoc shortcut that
+papers over a missing layer.
+
 ## 2. Triage snapshot (current failing buckets on default)
 
 Re-derived from `go run ./tools/fbucket b` at `9816618`. Rows with
