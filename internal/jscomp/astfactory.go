@@ -646,6 +646,68 @@ func (af *AstFactory) createParamList(parameterNames ...string) *rhino.Node {
 	return n
 }
 
+// getNativeType looks up a native type from the registry.
+// Mirrors AstFactory.getNativeType(JSTypeNative) in Java.
+func (af *AstFactory) getNativeType(typeID jstype.JSTypeNative) jstype.JSType {
+	if af.registry == nil {
+		return nil
+	}
+	return af.registry.GetNativeType(typeID)
+}
+
+// assertNotAddingColors panics when this factory is in Color mode.
+// Mirrors AstFactory.assertNotAddingColors() in Java.
+func (af *AstFactory) assertNotAddingColors() {
+	if af.IsAddingColors() {
+		panic("method not supported for colors")
+	}
+}
+
+// createZeroArgFunction mirrors AstFactory.createZeroArgFunction(String, Node, JSType).
+func (af *AstFactory) createZeroArgFunction(name string, body *rhino.Node, returnType jstype.JSType) *rhino.Node {
+	params := rhino.New(rhino.PARAM_LIST)
+	return af.createFunction(name, params, body, returnType)
+}
+
+// createZeroArgGeneratorFunction mirrors AstFactory.createZeroArgGeneratorFunction.
+func (af *AstFactory) createZeroArgGeneratorFunction(name string, body *rhino.Node, returnType jstype.JSType) *rhino.Node {
+	result := af.createZeroArgFunction(name, body, returnType)
+	result.SetIsGeneratorFunction(true)
+	return result
+}
+
+// createGetterDef mirrors AstFactory.createGetterDef(String, Node).
+// Creates `get name() { return value; }`.
+func (af *AstFactory) createGetterDef(name string, value *rhino.Node) *rhino.Node {
+	body := af.CreateBlock(af.CreateReturn(value))
+	functionNode := af.createZeroArgFunction("", body, nodeJSType(value))
+	n := rhino.NewString(rhino.GETTER_DEF, name)
+	n.AddChildToFront(functionNode)
+	return n
+}
+
+// createZeroArgArrowFunctionForExpression mirrors AstFactory.createZeroArgArrowFunctionForExpression.
+func (af *AstFactory) createZeroArgArrowFunctionForExpression(expression *rhino.Node) *rhino.Node {
+	nameNode := rhino.NewString(rhino.NAME, "")
+	params := rhino.New(rhino.PARAM_LIST)
+	n := rhino.New(rhino.FUNCTION)
+	n.AddChildToBack(nameNode)
+	n.AddChildToBack(params)
+	n.AddChildToBack(expression)
+	n.SetIsArrowFunction(true)
+	af.setType(n, nodeJSType(expression))
+	return n
+}
+
+// createQuotedStringKey mirrors AstFactory.createQuotedStringKey.
+func (af *AstFactory) createQuotedStringKey(key string, value *rhino.Node) *rhino.Node {
+	n := rhino.NewString(rhino.STRING_KEY, key)
+	n.PutBooleanProp(rhino.PropQuotedStringKey, true)
+	n.AddChildToBack(value)
+	af.setType(n, nodeJSType(value))
+	return n
+}
+
 // isAddingTypes mirrors AstFactory.isAddingTypes (lowercase alias).
 func (af *AstFactory) isAddingTypes() bool { return af.IsAddingTypes() }
 
