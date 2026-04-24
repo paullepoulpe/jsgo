@@ -1256,16 +1256,12 @@ func (f *IRFactory) processPropertyGet(tree *trees.MemberExpressionTree) *rhino.
 	if tree.MemberName == nil {
 		return leftChild
 	}
-	// GETPROP has 2 children: the object expression and a STRINGLIT for the
-	// property name. This mirrors Java IRFactory.processPropertyGet which calls
-	// IR.getprop(object, property) — a 2-child node — not a single string node.
-	getProp := f.newNode(rhino.GETPROP)
+	// Java's newStringNodeFromIdentifier(Token.GETPROP, …) creates a GETPROP
+	// node whose string value is the property name, with the object as its
+	// only child. Mirrors IR.getprop(object, prop).
+	getProp := f.newStringNode(rhino.GETPROP, tree.MemberName.Value)
 	getProp.AddChildToBack(leftChild)
-	propNode := f.newStringNode(rhino.STRINGLIT, tree.MemberName.Value)
-	if tree.MemberName != nil {
-		f.setSourceInfoFromToken(propNode, &tree.MemberName.Token)
-	}
-	getProp.AddChildToBack(propNode)
+	f.setSourceInfoFromToken(getProp, &tree.MemberName.Token)
 	return getProp
 }
 
