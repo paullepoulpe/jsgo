@@ -256,6 +256,7 @@ type JSDocInfo struct {
 
 // AddSuppression records a `@suppress {name}` entry. Mirrors
 // JSDocInfo.addSuppression in Java.
+// Go-only: language-adapter — AddSuppression ports JSDocInfo.Builder.recordSuppression(String). Go uses direct mutation; Java uses Builder.
 func (i *JSDocInfo) AddSuppression(name string) {
 	if i.suppressions == nil {
 		i.suppressions = map[string]bool{}
@@ -266,12 +267,14 @@ func (i *JSDocInfo) AddSuppression(name string) {
 // HasSuppression reports whether the named suppression was attached
 // to this comment. Used by the per-pass diagnostic gates (e.g.
 // VariableReferenceCheck honours `@suppress {duplicate}`).
+// Go-only: language-adapter — HasSuppression ports getSuppressions().contains(name). Go provides a direct predicate; Java callers use getSuppressions().
 func (i *JSDocInfo) HasSuppression(name string) bool {
 	return i != nil && i.suppressions != nil && i.suppressions[name]
 }
 
 // Suppressions returns the full set of suppression names. Mirrors
 // JSDocInfo.getSuppressions() in Java, used by CheckJSDoc.validateSuppress.
+// Go-only: language-adapter — Suppressions ports JSDocInfo.getSuppressions(). Go exposes the map directly; Java returns an ImmutableSet.
 func (i *JSDocInfo) Suppressions() map[string]bool {
 	if i == nil {
 		return nil
@@ -282,7 +285,9 @@ func (i *JSDocInfo) Suppressions() map[string]bool {
 // IsStatic marks a class member as belonging to the constructor's
 // static slot rather than its instance slot. Mirrors Java's
 // MemberFunctionDef.isStaticMember and the analogous field flag.
+// Go-only: language-adapter — IsStatic is a Go-specific field on JSDocInfo; Java uses MemberFunctionDef.isStaticMember() on the AST node.
 func (i *JSDocInfo) IsStatic() bool   { return i != nil && i.isStatic }
+// Go-only: language-adapter — SetStatic is a Go-specific setter for the static member flag; Java uses MemberFunctionDef.isStaticMember() on the AST node.
 func (i *JSDocInfo) SetStatic(b bool) { i.isStatic = b }
 
 // TypedefType mirrors JSDocInfo.getTypedefType() — returns the aliased
@@ -293,28 +298,33 @@ func (i *JSDocInfo) TypedefType() *JSTypeExpression {
 	}
 	return i.typedefExpr
 }
+// Go-only: language-adapter — SetTypedefType ports JSDocInfo.Builder.recordTypedef(JSTypeExpression).
 func (i *JSDocInfo) SetTypedefType(t *JSTypeExpression) { i.typedefExpr = t }
 
 // TemplateNames mirrors JSDocInfo.getTemplateTypeNames() — the in-order
 // list of names captured from `@template T` tags.
+// Go-only: language-adapter — TemplateNames ports JSDocInfo.getTemplateTypeNames(). Go uses a List; Java returns ImmutableList.
 func (i *JSDocInfo) TemplateNames() []string {
 	if i == nil {
 		return nil
 	}
 	return i.templateNames
 }
+// Go-only: language-adapter — AddTemplateName ports JSDocInfo.Builder.recordTemplateTypeName(String). Go uses direct mutation; Java uses Builder.
 func (i *JSDocInfo) AddTemplateName(n string) {
 	i.templateNames = append(i.templateNames, n)
 }
 
 // TTLTemplateNames returns @template T := … =: transformation template names.
 // Mirrors JSDocInfo.getTypeTransformations() key-set in Java.
+// Go-only: language-adapter — TTLTemplateNames ports getTypeTransformations() key-set for @template T := … =: transformation names.
 func (i *JSDocInfo) TTLTemplateNames() []string {
 	if i == nil {
 		return nil
 	}
 	return i.ttlTemplateNames
 }
+// Go-only: language-adapter — AddTTLTemplateName ports JSDocInfo.Builder.recordTypeTransformation(String, Node). Go stores only the name; Java stores the transformation AST node too.
 func (i *JSDocInfo) AddTTLTemplateName(n string) {
 	i.ttlTemplateNames = append(i.ttlTemplateNames, n)
 }
@@ -323,25 +333,30 @@ func (i *JSDocInfo) AddTTLTemplateName(n string) {
 // during JSDoc parsing. Mirrors the addParserWarning(JSDOC_TEMPLATE_BOUNDEDGENERICS_USED)
 // call in JsDocInfoParser.java — each entry becomes a JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES
 // diagnostic in TypeCheck.
+// Go-only: language-adapter — BoundedTemplatePositions returns the Go-specific list of bounded @template source positions; Java fires JSC warnings directly in JsDocInfoParser.
 func (i *JSDocInfo) BoundedTemplatePositions() []BoundedTemplatePosition {
 	if i == nil {
 		return nil
 	}
 	return i.boundedTemplatePositions
 }
+// Go-only: language-adapter — AddBoundedTemplatePosition tracks @template {B} T source positions; Java records the warning directly in JsDocInfoParser.
 func (i *JSDocInfo) AddBoundedTemplatePosition(p BoundedTemplatePosition) {
 	i.boundedTemplatePositions = append(i.boundedTemplatePositions, p)
 }
 
+// Go-only: language-adapter — InvalidParamPositions returns the Go-specific list of invalid @param name positions; Java fires JSC warnings immediately in JsDocInfoParser.
 func (i *JSDocInfo) InvalidParamPositions() []InvalidParamPosition {
 	if i == nil {
 		return nil
 	}
 	return i.invalidParamPositions
 }
+// Go-only: language-adapter — AddInvalidParamPosition records invalid @param name positions for JSC_INVALID_PARAM_NAME; Java calls addParserWarning directly.
 func (i *JSDocInfo) AddInvalidParamPosition(p InvalidParamPosition) {
 	i.invalidParamPositions = append(i.invalidParamPositions, p)
 }
+// Go-only: language-adapter — UpdateInvalidParamPosition updates a previously recorded invalid @param position; Java fires the warning at parse time.
 func (i *JSDocInfo) UpdateInvalidParamPosition(idx, line, col int) {
 	if idx >= 0 && idx < len(i.invalidParamPositions) {
 		i.invalidParamPositions[idx].Line = line
@@ -353,8 +368,11 @@ func (i *JSDocInfo) UpdateInvalidParamPosition(idx, line, col int) {
 // JSDocInfo.usesImplicitMatch() — together they mark a class as a
 // structural type.
 func (i *JSDocInfo) IsInterface() bool   { return i != nil && i.isInterface }
+// Go-only: language-adapter — IsRecord ports isRecordRecorded(). Go uses Go-style naming; Java uses the recorded-predicate pattern.
 func (i *JSDocInfo) IsRecord() bool      { return i != nil && i.isRecord }
+// Go-only: language-adapter — SetInterface ports JSDocInfo.Builder.recordInterface(). Go uses direct mutation; Java uses Builder.
 func (i *JSDocInfo) SetInterface(b bool) { i.isInterface = b }
+// Go-only: language-adapter — SetRecord ports JSDocInfo.Builder.recordInterface() with isRecord=true.
 func (i *JSDocInfo) SetRecord(b bool)    { i.isRecord = b }
 
 // MakesStructs / MakesDicts mirror JSDocInfo.makesStructs() /
@@ -368,17 +386,21 @@ func (i *JSDocInfo) MakesStructs() bool { return i != nil && i.isStruct }
 func (i *JSDocInfo) MakesDicts() bool   { return i != nil && i.isDict }
 func (i *JSDocInfo) IsStruct() bool     { return i.MakesStructs() }
 func (i *JSDocInfo) IsDict() bool       { return i.MakesDicts() }
+// Go-only: language-adapter — SetStruct ports JSDocInfo.Builder.recordStruct(). Go uses direct mutation; Java uses Builder.
 func (i *JSDocInfo) SetStruct(b bool)   { i.isStruct = b }
+// Go-only: language-adapter — SetDict ports JSDocInfo.Builder.recordDict(). Go uses direct mutation; Java uses Builder.
 func (i *JSDocInfo) SetDict(b bool)     { i.isDict = b }
 
 // IsAbstract mirrors JSDocInfo.isAbstract() — true when the comment
 // carried an `@abstract` annotation.
 func (i *JSDocInfo) IsAbstract() bool   { return i != nil && i.isAbstract }
+// Go-only: language-adapter — SetAbstract ports JSDocInfo.Builder.recordAbstract(). Go uses direct mutation; Java uses Builder.
 func (i *JSDocInfo) SetAbstract(b bool) { i.isAbstract = b }
 
 // IsNoSideEffects mirrors JSDocInfo.isNoSideEffects() — true when
 // the comment carried a `@nosideeffects` annotation.
 func (i *JSDocInfo) IsNoSideEffects() bool   { return i != nil && i.isNoSideEffects }
+// Go-only: language-adapter — SetNoSideEffects ports JSDocInfo.Builder.recordNoSideEffects().
 func (i *JSDocInfo) SetNoSideEffects(b bool) { i.isNoSideEffects = b }
 
 // GetVisibility mirrors JSDocInfo.getVisibility() — returns the
@@ -407,6 +429,7 @@ func (i *JSDocInfo) RecordVisibility(v Visibility) bool {
 // IsEnum mirrors JSDocInfo.hasEnumParameterType() — true whenever
 // the comment carried an `@enum` tag (with or without an explicit
 // type argument).
+// Go-only: language-adapter — IsEnum ports isEnumParamRecorded(). Go uses isEnum-style naming; Java uses the recorded-predicate pattern.
 func (i *JSDocInfo) IsEnum() bool { return i != nil && i.enumMarked }
 
 // EnumParameterType mirrors JSDocInfo.getEnumParameterType() —
@@ -419,19 +442,23 @@ func (i *JSDocInfo) EnumParameterType() *JSTypeExpression {
 	}
 	return i.enumExpr
 }
+// Go-only: language-adapter — SetEnumParameterType ports JSDocInfo.Builder.recordEnumParameterType(JSTypeExpression).
 func (i *JSDocInfo) SetEnumParameterType(t *JSTypeExpression) {
 	i.enumExpr = t
 	i.enumMarked = true
 }
+// Go-only: language-adapter — MarkEnum ports the no-arg form of recordEnumParameterType() — marks @enum without capturing a type expression.
 func (i *JSDocInfo) MarkEnum() { i.enumMarked = true }
 
 // Implementations mirrors JSDocInfo.getImplementedInterfaces().
+// Go-only: language-adapter — Implementations ports JSDocInfo.getImplementedInterfaces(). Go uses a list; Java returns an ImmutableList.
 func (i *JSDocInfo) Implementations() []*JSTypeExpression {
 	if i == nil {
 		return nil
 	}
 	return i.implementsAll
 }
+// Go-only: language-adapter — AddImplementation ports recordImplementedInterface(JSTypeExpression). Go uses direct mutation; Java uses Builder.
 func (i *JSDocInfo) AddImplementation(t *JSTypeExpression) {
 	i.implementsAll = append(i.implementsAll, t)
 }
@@ -452,6 +479,7 @@ func (i *JSDocInfo) BaseType() *JSTypeExpression {
 // declaration order. Interfaces permit multi-inheritance so this
 // may carry more than one entry; regular constructors carry at
 // most one.
+// Go-only: language-adapter — BaseTypes exposes all @extends expressions in interface context; Java's getBaseType() returns only the first. Go splits into BaseType() and BaseTypes().
 func (i *JSDocInfo) BaseTypes() []*JSTypeExpression {
 	if i == nil {
 		return nil
@@ -459,6 +487,7 @@ func (i *JSDocInfo) BaseTypes() []*JSTypeExpression {
 	return i.extendsAll
 }
 
+// Go-only: language-adapter — SetBaseType ports JSDocInfo.Builder.recordBaseType(JSTypeExpression). Go uses direct mutation; Java uses Builder.
 func (i *JSDocInfo) SetBaseType(t *JSTypeExpression) {
 	if i.extendsExpr == nil {
 		i.extendsExpr = t
@@ -469,6 +498,7 @@ func (i *JSDocInfo) SetBaseType(t *JSTypeExpression) {
 // IsConstructor mirrors JSDocInfo.isConstructor().
 func (i *JSDocInfo) IsConstructor() bool { return i != nil && i.isConstructor }
 
+// Go-only: language-adapter — SetConstructor ports JSDocInfo.Builder.recordConstructor(). Go uses direct mutation; Java uses Builder.
 func (i *JSDocInfo) SetConstructor(b bool) { i.isConstructor = b }
 
 // IsConstant mirrors JSDocInfo.isConstant() — true when the @const
@@ -481,6 +511,7 @@ func (i *JSDocInfo) IsConstant() bool { return i != nil && i.isConst }
 func (i *JSDocInfo) IsConst() bool { return i.IsConstant() }
 
 // SetConst records that the @const annotation was present.
+// Go-only: language-adapter — SetConst ports JSDocInfo.Builder.recordConstancy(). Go uses a boolean setter; Java uses a Constancy enum.
 func (i *JSDocInfo) SetConst(b bool) { i.isConst = b }
 
 // IsDeprecated / GetDeprecationReason / SetDeprecated mirror
@@ -495,6 +526,7 @@ func (i *JSDocInfo) GetDeprecationReason() string {
 	}
 	return i.deprecationReason
 }
+// Go-only: language-adapter — SetDeprecated ports JSDocInfo.Builder.recordDeprecated() + recordDeprecationReason(String).
 func (i *JSDocInfo) SetDeprecated(reason string) {
 	i.isDeprecated = true
 	i.deprecationReason = reason
@@ -502,6 +534,7 @@ func (i *JSDocInfo) SetDeprecated(reason string) {
 
 // IsFinal / SetFinal mirror JSDocInfo.isFinal().
 func (i *JSDocInfo) IsFinal() bool    { return i != nil && i.isFinal }
+// Go-only: language-adapter — SetFinal ports JSDocInfo.Builder.recordFinality(). Go uses a boolean setter; Java has no args.
 func (i *JSDocInfo) SetFinal(b bool)  { i.isFinal = b }
 
 // IsCastHoisted / SetCastHoisted track whether this JSDocInfo was hoisted
@@ -509,7 +542,9 @@ func (i *JSDocInfo) SetFinal(b bool)  { i.isFinal = b }
 // node. Go's parser lacks a CAST AST node (Java has one); this flag lets
 // visitVar skip the initializer subtype check when the declared type came
 // from a cast (Java uses the CAST node's type as the effective RHS type).
+// Go-only: language-adapter — IsCastHoisted is Go-specific: Java represents cast annotations as CAST AST nodes; Go hoists the JSDocInfo to the enclosing declaration.
 func (i *JSDocInfo) IsCastHoisted() bool   { return i != nil && i.isCastHoisted }
+// Go-only: language-adapter — SetCastHoisted is Go-specific: Java uses a CAST AST node; Go hoists cast JSDoc to the enclosing declaration.
 func (i *JSDocInfo) SetCastHoisted(b bool) { i.isCastHoisted = b }
 
 func (i *JSDocInfo) Type() *JSTypeExpression     { return i.typeExpr }
@@ -533,6 +568,7 @@ func (i *JSDocInfo) ParameterType(name string) *JSTypeExpression {
 	return i.params[name]
 }
 
+// Go-only: language-adapter — AddParam ports JSDocInfo.Builder.recordParameter(String, JSTypeExpression). Go uses direct mutation; Java uses Builder.
 func (i *JSDocInfo) AddParam(name string, t *JSTypeExpression) {
 	if i.params == nil {
 		i.params = map[string]*JSTypeExpression{}
@@ -546,6 +582,7 @@ func (i *JSDocInfo) AddParam(name string, t *JSTypeExpression) {
 // IsRestParam reports whether the named @param carried the rest
 // marker (`@param {...T} x`). Mirrors JSDocInfo.hasRestParameter()
 // + isRestParameter(name) in Java.
+// Go-only: language-adapter — IsRestParam tracks {...T} rest-param annotations; Java tracks these inside JsDocInfoParser, not on JSDocInfo.
 func (i *JSDocInfo) IsRestParam(name string) bool {
 	return i != nil && i.restParams[name]
 }
@@ -553,6 +590,7 @@ func (i *JSDocInfo) IsRestParam(name string) bool {
 // MarkRestParam records that the named @param carries the `{...T}`
 // rest marker. Called from JsDocInfoParser when the annotation
 // has IterRest at the top of the brace.
+// Go-only: language-adapter — MarkRestParam marks a param as {...T} rest; Java tracks this inside JsDocInfoParser, not on JSDocInfo.
 func (i *JSDocInfo) MarkRestParam(name string) {
 	if i.restParams == nil {
 		i.restParams = map[string]bool{}
@@ -564,11 +602,13 @@ func (i *JSDocInfo) MarkRestParam(name string) {
 // `{T=}` optional marker — callers may omit this argument without
 // a WRONG_ARGUMENT_COUNT diagnostic. Mirrors
 // JSDocInfo.isOptionalParameter(name) in Java.
+// Go-only: language-adapter — IsOptionalParam tracks {T=} optional-param annotations; Java tracks these inside JsDocInfoParser, not on JSDocInfo.
 func (i *JSDocInfo) IsOptionalParam(name string) bool {
 	return i != nil && i.optionalParams[name]
 }
 
 // MarkOptionalParam records that the named @param carries `{T=}`.
+// Go-only: language-adapter — MarkOptionalParam marks a param as {T=} optional; Java tracks this inside JsDocInfoParser, not on JSDocInfo.
 func (i *JSDocInfo) MarkOptionalParam(name string) {
 	if i.optionalParams == nil {
 		i.optionalParams = map[string]bool{}
@@ -584,18 +624,21 @@ func (i *JSDocInfo) ReturnType() *JSTypeExpression {
 	return i.returnExpr
 }
 
+// Go-only: language-adapter — SetReturnType ports JSDocInfo.Builder.recordReturnType(JSTypeExpression).
 func (i *JSDocInfo) SetReturnType(t *JSTypeExpression) { i.returnExpr = t }
 
 // HasThisType mirrors JSDocInfo.hasThisType() — true when @this was present.
 func (i *JSDocInfo) HasThisType() bool { return i != nil && i.hasThisType }
 
 // SetHasThisType records that @this appeared in the comment.
+// Go-only: language-adapter — SetHasThisType ports the presence-flag portion of recordThisType(JSTypeExpression).
 func (i *JSDocInfo) SetHasThisType(b bool) { i.hasThisType = b }
 
 // IsOverride mirrors JSDocInfo.isOverride() — true when @override was present.
 func (i *JSDocInfo) IsOverride() bool { return i != nil && i.isOverride }
 
 // SetOverride records that @override appeared in the comment.
+// Go-only: language-adapter — SetOverride ports JSDocInfo.Builder.recordOverride(). Go uses direct mutation; Java uses Builder.
 func (i *JSDocInfo) SetOverride(b bool) { i.isOverride = b }
 
 // HasLendsName mirrors JSDocInfo.hasLendsName() — true when @lends was present.
@@ -611,6 +654,7 @@ func (i *JSDocInfo) LendsName() *JSTypeExpression {
 }
 
 // SetLendsName records the @lends target name.
+// Go-only: language-adapter — SetLendsName ports JSDocInfo.Builder.recordLends(String).
 func (i *JSDocInfo) SetLendsName(name string) { i.lendsName = name }
 
 // ContainsDeclaration mirrors JSDocInfo.containsDeclaration() — returns
@@ -636,6 +680,7 @@ func (i *JSDocInfo) ContainsDeclaration() bool {
 // GetOriginalVisibility mirrors JSDocInfo.getOriginalVisibility() — returns the
 // visibility annotation before any propagation or inference overwrites it.
 // Returns VisibilityInherited when none was explicitly set.
+// Go-only: language-adapter — GetOriginalVisibility ports JSDocInfo.getOriginalVisibility() — returns the visibility before any inference-driven merging.
 func (i *JSDocInfo) GetOriginalVisibility() Visibility {
 	if i == nil || !i.hasOriginalVisibility {
 		return VisibilityInherited
@@ -645,6 +690,7 @@ func (i *JSDocInfo) GetOriginalVisibility() Visibility {
 
 // SetOriginalVisibility records the original visibility. Idempotent: does not
 // overwrite an already-recorded value (mirrors Java's idempotency guard).
+// Go-only: language-adapter — SetOriginalVisibility stores the pre-inference visibility from the JSDocInfo.originalVisibility field; Go exposes as a setter because there is no Builder.
 func (i *JSDocInfo) SetOriginalVisibility(v Visibility) bool {
 	if i.hasOriginalVisibility {
 		return false
@@ -668,11 +714,13 @@ func (i *JSDocInfo) GetThrowsAnnotations() []string {
 // AddThrowsAnnotation appends a single @throws annotation text. The first
 // element may be an empty string (sentinel) when documentation is not collected
 // but the annotation's existence must be recorded for PureFunctionIdentifier.
+// Go-only: language-adapter — AddThrowsAnnotation ports JSDocInfo.Builder.recordThrowsAnnotation(String). Go uses direct mutation; Java uses Builder.
 func (i *JSDocInfo) AddThrowsAnnotation(annotation string) {
 	i.throwsAnnotations = append(i.throwsAnnotations, annotation)
 }
 
 // HasThrows reports whether at least one @throws annotation is present.
+// Go-only: language-adapter — HasThrows is a presence check for @throws annotations; Java callers use getThrowsAnnotations() and test for empty.
 func (i *JSDocInfo) HasThrows() bool {
 	return i != nil && len(i.throwsAnnotations) > 0
 }
@@ -694,6 +742,7 @@ func (i *JSDocInfo) HasClosurePrimitiveId() bool {
 
 // SetClosurePrimitiveId records the @closurePrimitive id string.
 // Returns false if an id was already recorded (idempotency guard).
+// Go-only: language-adapter — SetClosurePrimitiveId ports JSDocInfo.Builder.recordClosurePrimitiveId(String).
 func (i *JSDocInfo) SetClosurePrimitiveId(id string) bool {
 	if i.closurePrimitiveId != "" {
 		return false
@@ -728,6 +777,7 @@ func (i *JSDocInfo) HasSideEffectsArgumentsAnnotation() bool {
 }
 
 // SetModifies records the @modifies set. Returns false if already set.
+// Go-only: language-adapter — SetModifies ports JSDocInfo.Builder.recordModifies(Set<String>).
 func (i *JSDocInfo) SetModifies(targets map[string]bool) bool {
 	if i.modifies != nil {
 		return false
@@ -824,6 +874,7 @@ func (i *JSDocInfo) IsMappedIdGenerator() bool {
 }
 
 // SetIdGenerator records the @idGenerator kind. Returns false if already set.
+// Go-only: language-adapter — SetIdGenerator ports the recordIdGenerator / recordConsistentIdGenerator / recordStableIdGenerator family.
 func (i *JSDocInfo) SetIdGenerator(kind IdGenerator) bool {
 	if i.hasIdGenerator {
 		return false
@@ -859,6 +910,7 @@ func (i *JSDocInfo) AddMarker() *Marker {
 // reset (typeExpr, returnExpr, params). Mirrors toBuilder / cloneAndReplaceTypeNames
 // for the narrow subset jsgo needs: only the structural (non-type) annotations
 // are preserved. Used by passes that rewrite type annotations.
+// Go-only: language-adapter — CloneAndReset ports JSDocInfo.cloneAndReset() — used by JsDocInfoParser to clone state while resetting mutable fields.
 func (i *JSDocInfo) CloneAndReset() *JSDocInfo {
 	if i == nil {
 		return nil
@@ -876,6 +928,7 @@ func (i *JSDocInfo) CloneAndReset() *JSDocInfo {
 // CloneOn returns a copy of this JSDocInfo attached to the caller's intent to
 // move it to a different AST node (structural copy, no deep-clone of maps).
 // Mirrors the pattern in JSDocInfo.toBuilder() where props are cloned shallowly.
+// Go-only: language-adapter — CloneOn is a Go-specific clone helper for transferring JSDocInfo to a different node; Java assigns the JSDocInfo reference directly.
 func (i *JSDocInfo) CloneOn() *JSDocInfo {
 	if i == nil {
 		return nil
@@ -1153,11 +1206,13 @@ func (i *JSDocInfo) IsAtSignCodePresent() bool {
 
 // IsDeprecatedBit mirrors JSDocInfo.isDeprecated() using the Bit.DEPRECATED
 // path. The Go port uses a field, so delegate.
+// Go-only: language-adapter — IsDeprecatedBit ports isDeprecationReasonRecorded(). Go uses a method; Java uses the bit-field helper.
 func (i *JSDocInfo) IsDeprecatedBit() bool {
 	return i.IsDeprecated()
 }
 
 // IsExport mirrors JSDocInfo.isExport().
+// Go-only: language-adapter — IsExportBit ports isExportRecorded(). Go uses a method; Java uses the bit-field helper.
 func (i *JSDocInfo) IsExportBit() bool {
 	return i.IsExport()
 }
@@ -1173,6 +1228,7 @@ func (i *JSDocInfo) IsProvideAlreadyProvided() bool {
 
 // HasThrowsAnnotations mirrors JSDocInfo.getThrowsAnnotations().size() > 0.
 // Alias of HasThrows() for API compatibility.
+// Go-only: language-adapter — HasThrowsAnnotations is a presence-check alias for HasThrows; Java callers use getThrowsAnnotations().
 func (i *JSDocInfo) HasThrowsAnnotations() bool {
 	return i.HasThrows()
 }
@@ -1190,6 +1246,7 @@ func (i *JSDocInfo) GetThisType() *JSTypeExpression {
 
 // SetThisType records the type expression for @this. Called by JsDocInfoParser
 // when it processes a @this annotation with a type argument.
+// Go-only: language-adapter — SetThisType ports JSDocInfo.Builder.recordThisType(JSTypeExpression).
 func (i *JSDocInfo) SetThisType(t *JSTypeExpression) {
 	i.thisType = t
 	i.hasThisType = t != nil
@@ -1217,6 +1274,7 @@ func (i *JSDocInfo) GetLicense() string {
 }
 
 // SetLicense records the @license annotation text.
+// Go-only: language-adapter — SetLicense ports JSDocInfo.Builder.recordLicense(String).
 func (i *JSDocInfo) SetLicense(license string) { i.license = license }
 
 // GetBlockDescription mirrors JSDocInfo.getBlockDescription() — returns the
@@ -1229,6 +1287,7 @@ func (i *JSDocInfo) GetBlockDescription() string {
 }
 
 // SetBlockDescription records the leading block description.
+// Go-only: language-adapter — SetBlockDescription ports JSDocInfo.Builder.recordBlockDescription(String).
 func (i *JSDocInfo) SetBlockDescription(desc string) { i.blockDescription = desc }
 
 // GetFileOverview mirrors JSDocInfo.getFileOverview() — returns text from
@@ -1241,6 +1300,7 @@ func (i *JSDocInfo) GetFileOverview() string {
 }
 
 // SetFileOverview records the @fileoverview description text.
+// Go-only: language-adapter — SetFileOverview ports JSDocInfo.Builder.recordFileOverview(String).
 func (i *JSDocInfo) SetFileOverview(desc string) { i.fileoverviewDescription = desc }
 
 // --- original comment accessors ---
@@ -1255,6 +1315,7 @@ func (i *JSDocInfo) GetOriginalCommentString() string {
 }
 
 // SetOriginalCommentString records the raw comment text.
+// Go-only: language-adapter — SetOriginalCommentString ports JSDocInfo.Builder.recordOriginalCommentString(String).
 func (i *JSDocInfo) SetOriginalCommentString(comment string) {
 	i.originalCommentString = comment
 }
@@ -1268,6 +1329,7 @@ func (i *JSDocInfo) GetOriginalCommentPosition() int {
 }
 
 // SetOriginalCommentPosition records the comment position.
+// Go-only: language-adapter — SetOriginalCommentPosition ports JSDocInfo.Builder.recordOriginalCommentPosition(int).
 func (i *JSDocInfo) SetOriginalCommentPosition(pos int) {
 	i.originalCommentPosition = pos
 }
@@ -1283,6 +1345,7 @@ func (i *JSDocInfo) GetAuthors() []string {
 }
 
 // AddAuthor appends an @author value.
+// Go-only: language-adapter — AddAuthor ports JSDocInfo.Builder.recordAuthor(String). Go uses direct mutation; Java uses Builder.
 func (i *JSDocInfo) AddAuthor(author string) {
 	i.authors = append(i.authors, author)
 }
@@ -1296,6 +1359,7 @@ func (i *JSDocInfo) GetReferences() []string {
 }
 
 // AddReference appends a @see reference.
+// Go-only: language-adapter — AddReference ports JSDocInfo.Builder.recordReference(String). Go uses direct mutation; Java uses Builder.
 func (i *JSDocInfo) AddReference(ref string) {
 	i.sees = append(i.sees, ref)
 }
@@ -1312,6 +1376,7 @@ func (i *JSDocInfo) GetReturnDescription() string {
 }
 
 // SetReturnDescription records the @return description text.
+// Go-only: language-adapter — SetReturnDescription ports JSDocInfo.Builder.recordReturnDescription(String).
 func (i *JSDocInfo) SetReturnDescription(desc string) { i.returnDescription = desc }
 
 // --- @param description ---
@@ -1334,6 +1399,7 @@ func (i *JSDocInfo) GetDescriptionForParameter(name string) string {
 }
 
 // SetDescriptionForParameter records the description for a named parameter.
+// Go-only: language-adapter — SetDescriptionForParameter ports JSDocInfo.Builder.recordParameterDescription(String, String).
 func (i *JSDocInfo) SetDescriptionForParameter(name, desc string) {
 	if i.paramDescriptions == nil {
 		i.paramDescriptions = map[string]string{}
@@ -1352,6 +1418,7 @@ func (i *JSDocInfo) GetMeaning() string {
 }
 
 // SetMeaning records the @meaning annotation text.
+// Go-only: language-adapter — SetMeaning ports JSDocInfo.Builder.recordMeaning(String).
 func (i *JSDocInfo) SetMeaning(meaning string) { i.meaning = meaning }
 
 // GetAlternateMessageId mirrors JSDocInfo.getAlternateMessageId().
@@ -1363,6 +1430,7 @@ func (i *JSDocInfo) GetAlternateMessageId() string {
 }
 
 // SetAlternateMessageId records the @alternateMessageId text.
+// Go-only: language-adapter — SetAlternateMessageId ports JSDocInfo.Builder.recordAlternateMessageId(String).
 func (i *JSDocInfo) SetAlternateMessageId(id string) { i.alternateMessageId = id }
 
 // IsDocumentationIncluded mirrors JSDocInfo.isDocumentationIncluded() — true
@@ -1380,6 +1448,7 @@ func (i *JSDocInfo) ParseDocumentation() {
 
 // IsInlineTypeRecorded mirrors JSDocInfo.isInlineType() for the builder
 // check path. Returns true when the @type was inlined.
+// Go-only: language-adapter — IsInlineTypeRecorded ports JSDocInfo.isInlineTypeRecorded(). Go forwards to the bit-field CheckBit helper.
 func (i *JSDocInfo) IsInlineTypeRecorded() bool {
 	return i.IsInlineType()
 }
@@ -1505,6 +1574,7 @@ func (i *JSDocInfo) ContainsFunctionDeclaration() bool {
 
 // IsUsedViaDotConstructor mirrors JSDocInfo.isUsedViaDotConstructor().
 // Alias of the existing accessor.
+// Go-only: language-adapter — IsUsedViaDotConstructorBit ports isUsedViaDotConstructorRecorded(). Go uses a method; Java uses the bit-field helper.
 func (i *JSDocInfo) IsUsedViaDotConstructorBit() bool {
 	return i.IsUsedViaDotConstructor()
 }
