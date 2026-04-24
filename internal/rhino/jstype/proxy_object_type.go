@@ -16,6 +16,8 @@
 
 package jstype
 
+import "github.com/paullepoulpe/jsgo/internal/rhino"
+
 // ProxyObjectType wraps an arbitrary JSType and forwards all operations
 // to it. It satisfies the JSType interface by delegating TypeName and
 // IsSubtypeOf to the referenced type — matching Java's behaviour where
@@ -135,15 +137,11 @@ func (p *ProxyObjectType) IsDict() bool {
 	return false
 }
 
-// GetImplicitPrototype mirrors ObjectType.getImplicitPrototype(). Returns
-// nil when the referenced type is not an ObjectType — matching Java's null
-// return for non-object references.
-//
-// TODO(proxy): return the actual prototype chain entry once the prototype
-// field is added to ObjectType.
+// GetImplicitPrototype mirrors ProxyObjectType.getImplicitPrototype() in Java —
+// delegates to the referenced ObjectType's GetImplicitPrototype().
 func (p *ProxyObjectType) GetImplicitPrototype() *ObjectType {
 	if p.referencedObjType != nil {
-		return p.referencedObjType.Super()
+		return p.referencedObjType.GetImplicitPrototype()
 	}
 	return nil
 }
@@ -168,51 +166,57 @@ func (p *ProxyObjectType) HasProperty(name string) bool {
 	return false
 }
 
-// GetConstructor mirrors ObjectType.getConstructor(). Returns nil when the
-// referenced type is not an ObjectType. The *FunctionType return type
-// matches Java's FunctionType; callers must handle nil.
-//
-// TODO(proxy): wire to the constructor slot on ObjectType once it carries
-// a FunctionType reference.
+// GetConstructor mirrors ProxyObjectType.getConstructor() in Java — delegates
+// to the referenced ObjectType's GetConstructor().
 func (p *ProxyObjectType) GetConstructor() *FunctionType {
-	// ObjectType does not yet carry a constructor FunctionType pointer.
-	// Return nil conservatively — matches Java's null return for plain
-	// anonymous object types.
+	if p.referencedObjType != nil {
+		return p.referencedObjType.GetConstructor()
+	}
 	return nil
 }
 
-// GetOwnerFunction mirrors ObjectType.getOwnerFunction(). Returns nil when
-// the referenced type is not an ObjectType. Used by TypeCheck for prototype
-// method ownership checks.
-//
-// TODO(proxy): wire to owner-function slot on ObjectType once added.
+// GetOwnerFunction mirrors ProxyObjectType.getOwnerFunction() in Java —
+// delegates to the referenced ObjectType's GetOwnerFunction().
 func (p *ProxyObjectType) GetOwnerFunction() *FunctionType {
+	if p.referencedObjType != nil {
+		return p.referencedObjType.GetOwnerFunction()
+	}
 	return nil
 }
 
-// GetCtorImplementedInterfaces mirrors ObjectType.getCtorImplementedInterfaces().
-// Returns an empty slice when the referenced type is not an ObjectType.
-// Mirrors Java's ImmutableList.of() fallback.
-//
-// TODO(proxy): wire to @implements list on ObjectType once ported.
+// GetCtorImplementedInterfaces mirrors ProxyObjectType.getCtorImplementedInterfaces()
+// in Java — delegates to the referenced ObjectType.
 func (p *ProxyObjectType) GetCtorImplementedInterfaces() []*ObjectType {
+	if p.referencedObjType != nil {
+		return p.referencedObjType.GetCtorImplementedInterfaces()
+	}
 	return nil
 }
 
-// GetCtorExtendedInterfaces mirrors ObjectType.getCtorExtendedInterfaces().
-// Returns nil (empty slice) when the referenced type is not an ObjectType.
-//
-// TODO(proxy): wire to @extends list on ObjectType once ported.
+// GetCtorExtendedInterfaces mirrors ProxyObjectType.getCtorExtendedInterfaces()
+// in Java — delegates to the referenced ObjectType.
 func (p *ProxyObjectType) GetCtorExtendedInterfaces() []*ObjectType {
+	if p.referencedObjType != nil {
+		return p.referencedObjType.GetCtorExtendedInterfaces()
+	}
 	return nil
 }
 
-// GetTemplateTypes mirrors ObjectType.getTemplateTypes(). Returns nil when
-// the referenced type is not an ObjectType.
-//
-// TODO(proxy): wire to template-type list on ObjectType once ported.
+// GetTemplateTypes mirrors ProxyObjectType.getTemplateTypes() in Java —
+// delegates to the referenced ObjectType, converting []*TemplateType to []JSType.
 func (p *ProxyObjectType) GetTemplateTypes() []JSType {
-	return nil
+	if p.referencedObjType == nil {
+		return nil
+	}
+	params := p.referencedObjType.GetTypeParameters()
+	if len(params) == 0 {
+		return nil
+	}
+	out := make([]JSType, len(params))
+	for i, tp := range params {
+		out[i] = tp
+	}
+	return out
 }
 
 // GetTemplateParamCount mirrors JSType.getTemplateParamCount(). Returns 0
@@ -445,4 +449,41 @@ func (p *ProxyObjectType) HasAnyTemplateTypesInternal() bool {
 // TODO(proxy): add Visitor interface and implement.
 func (p *ProxyObjectType) VisitReferenceType() JSType {
 	return p.referencedType
+}
+
+// --- Additional Java-parity methods ----------------------------------------
+
+// GetJSDocInfo mirrors ProxyObjectType.getJSDocInfo() in Java — delegates to
+// the referenced type's JSDocInfo.
+func (p *ProxyObjectType) GetJSDocInfo() *rhino.JSDocInfo {
+	if p.referencedObjType != nil {
+		return p.referencedObjType.GetJSDocInfo()
+	}
+	return nil
+}
+
+// SetJSDocInfo mirrors ProxyObjectType.setJSDocInfo(JSDocInfo) in Java —
+// delegates to the referenced ObjectType.
+func (p *ProxyObjectType) SetJSDocInfo(info *rhino.JSDocInfo) {
+	if p.referencedObjType != nil {
+		p.referencedObjType.SetJSDocInfo(info)
+	}
+}
+
+// GetTypeOfThis mirrors ProxyObjectType.getTypeOfThis() in Java — delegates
+// to the referenced ObjectType.
+func (p *ProxyObjectType) GetTypeOfThis() JSType {
+	if p.referencedObjType != nil {
+		return p.referencedObjType.GetTypeOfThis()
+	}
+	return nil
+}
+
+// CanBeCalled mirrors ProxyObjectType.canBeCalled() in Java — true if the
+// referenced type is a FunctionType.
+func (p *ProxyObjectType) CanBeCalled() bool {
+	if _, ok := p.referencedType.(*FunctionType); ok {
+		return true
+	}
+	return false
 }
