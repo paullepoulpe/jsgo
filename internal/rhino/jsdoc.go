@@ -20,6 +20,22 @@ const (
 	VisibilityInherited                   // INHERITED — default when no tag is present
 )
 
+// String returns the Java-style name for the visibility level.
+func (v Visibility) String() string {
+	switch v {
+	case VisibilityPrivate:
+		return "private"
+	case VisibilityPackage:
+		return "package"
+	case VisibilityProtected:
+		return "protected"
+	case VisibilityPublic:
+		return "public"
+	default:
+		return "inherited"
+	}
+}
+
 // BitField mirrors the private Bit enum in JSDocInfo.java. Each constant is a
 // 1-shifted bitmask matching Java's ordinal layout (ordinal 0 = bit 0, etc.).
 // Only the subset consumed by jsgo's type-checker is named here; the rest are
