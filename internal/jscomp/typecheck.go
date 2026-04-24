@@ -597,7 +597,8 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitForIn(n, scope))
 	case rhino.FOR_OF, rhino.FOR_AWAIT_OF:
 		c.emit(c.checkForOfTypes(n, scope))
-	case rhino.LSH, rhino.RSH, rhino.URSH, rhino.BITAND, rhino.BITOR, rhino.BITXOR, rhino.BITNOT:
+	case rhino.LSH, rhino.RSH, rhino.URSH, rhino.BITAND, rhino.BITOR, rhino.BITXOR, rhino.BITNOT,
+		rhino.ASSIGN_BITAND, rhino.ASSIGN_BITOR, rhino.ASSIGN_BITXOR:
 		c.emit(c.visitBitOp(n, scope))
 	case rhino.EQ, rhino.NE, rhino.SHEQ, rhino.SHNE:
 		c.emit(c.visitTypeofComparison(n, scope))
@@ -2607,52 +2608,64 @@ func (c *TypeCheck) visitBitOp(n *rhino.Node, scope *TypedScope) []diag.Diagnost
 	infer := NewTypeInference(scope)
 	var out []diag.Diagnostic
 	op := bitOpSymbol(n.Token())
+	isShift := n.Token() == rhino.LSH || n.Token() == rhino.RSH || n.Token() == rhino.URSH
+
 	// Unary BITNOT (~): one operand; emit at the operator node position
 	// to match Java's TypeCheck which points at the BITNOT expression.
+	// Java uses expectBitwiseable for ~, so Object types fire JSC_TYPE_MISMATCH
+	// and void/null/boolean are allowed.
 	if n.Token() == rhino.BITNOT {
 		if len(kids) == 0 {
 			return nil
 		}
 		t := infer.InferType(kids[0])
-		if isDefinitelyNotNumber(t) {
-			out = append(out, diag.Diagnostic{
-				Path: c.path, Line: n.Lineno(), Col: n.Charno(),
-				Code: diag.JSC_BAD_TYPE_FOR_BIT_OPERATION, Level: diag.Error,
-				Message: fmt.Sprintf("operator %s cannot be applied to %s", op, t.TypeName()),
-			})
+		if isBitwiseableTypeViolation(t, c.tv.allBitwisableValueTypes) {
+			c.tv.mismatch(n, "bitwise NOT", t, c.tv.allBitwisableValueTypes)
+			out = append(out, c.tvDrain()...)
 		}
 		return out
 	}
-	// Binary bit operators: fire JSC_TYPE_MISMATCH when the operand is
-	// not a bitwiseable type (i.e., not a subtype of
-	// (boolean|null|number|string|undefined)). In default mode, this
-	// catches Object and function types. The strict path
-	// (JSC_INVALID_OPERAND_TYPE) is only enabled via strictCheckTypes.
-	// Mirrors the first branch of Java's TypeValidator.expectBitwiseable.
 	if len(kids) < 2 {
 		return nil
 	}
-	for _, k := range kids {
-		t := infer.InferType(k)
-		if isDefinitelyNotNumber(t) {
-			// Legacy path for void/null/boolean: JSC_BAD_TYPE_FOR_BIT_OPERATION.
-			out = append(out, diag.Diagnostic{
-				Path: c.path, Line: k.Lineno(), Col: k.Charno(),
-				Code: diag.JSC_BAD_TYPE_FOR_BIT_OPERATION, Level: diag.Error,
-				Message: fmt.Sprintf("operator %s cannot be applied to %s", op, t.TypeName()),
-			})
-			break
+
+	if isShift {
+		// Shift operators (<<, >>, >>>) use expectNumber/JSC_BAD_TYPE_FOR_BIT_OPERATION.
+		// Java's TypeCheck calls validator.expectNumber for shift operands.
+		for i, k := range kids {
+			t := infer.InferType(k)
+			if isDefinitelyNotNumber(t) {
+				side := "left"
+				if i > 0 {
+					side = "right"
+				}
+				out = append(out, diag.Diagnostic{
+					Path: c.path, Line: k.Lineno(), Col: k.Charno(),
+					Code: diag.JSC_BAD_TYPE_FOR_BIT_OPERATION, Level: diag.Error,
+					Message: fmt.Sprintf("operator %s cannot be applied to %s", op, t.TypeName()),
+				})
+				_ = side
+				break // report first bad operand only
+			}
 		}
-		// Object/function types that are not bitwiseable get JSC_TYPE_MISMATCH.
+		return out
+	}
+
+	// Bitwise operators (&, |, ^): use expectBitwiseable / JSC_TYPE_MISMATCH.
+	// In default mode, fires for Object/function types; void/null/boolean/
+	// string/number are all bitwiseable and do NOT fire.
+	// Mirrors Java's TypeValidator.expectBitwiseable first branch.
+	for i, k := range kids {
+		t := infer.InferType(k)
 		if isBitwiseableTypeViolation(t, c.tv.allBitwisableValueTypes) {
 			msgSuffix := "bad left operand to bitwise operator"
-			if k == kids[1] {
+			if i > 0 {
 				msgSuffix = "bad right operand to bitwise operator"
 			}
 			c.tv.mismatch(k, msgSuffix, t, c.tv.allBitwisableValueTypes)
 			if diags := c.tvDrain(); len(diags) > 0 {
 				out = append(out, diags...)
-				break
+				break // report first bad operand only
 			}
 		}
 	}
@@ -2679,14 +2692,20 @@ func bitOpSymbol(t rhino.Token) string {
 		return ">>"
 	case rhino.URSH:
 		return ">>>"
-	case rhino.BITAND:
+	case rhino.BITAND, rhino.ASSIGN_BITAND:
 		return "&"
-	case rhino.BITOR:
+	case rhino.BITOR, rhino.ASSIGN_BITOR:
 		return "|"
-	case rhino.BITXOR:
+	case rhino.BITXOR, rhino.ASSIGN_BITXOR:
 		return "^"
 	case rhino.BITNOT:
 		return "~"
+	case rhino.ASSIGN_LSH:
+		return "<<="
+	case rhino.ASSIGN_RSH:
+		return ">>="
+	case rhino.ASSIGN_URSH:
+		return ">>>="
 	}
 	return "?"
 }
