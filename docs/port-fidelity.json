@@ -774,24 +774,6 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a69ce1d9/internal/jscomp/parsing/jsdocinfoparser.go",
-    "java_file": "com/google/javascript/jscomp/parsing/JsDocInfoParser.java",
-    "score": 49.3653201185423,
-    "method_overlap_pct": 26.851851851851855,
-    "go_method_count": 51,
-    "java_method_count": 86,
-    "stub_count": 0,
-    "go_body_loc": 1064,
-    "java_body_loc": 1882,
-    "loc_ratio": 0.565356004250797,
-    "go_only_count": 21,
-    "notes": "21 go-only fns",
-    "weighted_score": 56.236171597917576,
-    "go_only_penalty": 20,
-    "stub_penalty": 0,
-    "version_penalty": 0
-  },
-  {
     "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a69ce1d9/internal/jscomp/diagnosticgroup.go",
     "java_file": "com/google/javascript/jscomp/DiagnosticGroup.java",
     "score": 50,
@@ -949,6 +931,24 @@
     "go_only_count": 28,
     "notes": "28 go-only fns",
     "weighted_score": 57.15134554777738,
+    "go_only_penalty": 20,
+    "stub_penalty": 0,
+    "version_penalty": 0
+  },
+  {
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a69ce1d9/internal/jscomp/parsing/jsdocinfoparser.go",
+    "java_file": "com/google/javascript/jscomp/parsing/JsDocInfoParser.java",
+    "score": 50.00978397273778,
+    "method_overlap_pct": 27.77777777777778,
+    "go_method_count": 52,
+    "java_method_count": 86,
+    "stub_count": 0,
+    "go_body_loc": 1097,
+    "java_body_loc": 1882,
+    "loc_ratio": 0.5828905419766206,
+    "go_only_count": 21,
+    "notes": "21 go-only fns",
+    "weighted_score": 57.15683424676826,
     "go_only_penalty": 20,
     "stub_penalty": 0,
     "version_penalty": 0
@@ -3170,7 +3170,7 @@
   {
     "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a69ce1d9/internal/jscomp/parsing/irfactory.go",
     "java_file": "com/google/javascript/jscomp/parsing/IRFactory.java",
-    "score": 61.59836989476538,
+    "score": 61.59836989476537,
     "method_overlap_pct": 30.08849557522124,
     "go_method_count": 76,
     "java_method_count": 218,
@@ -3180,7 +3180,7 @@
     "loc_ratio": 0.3373848987108656,
     "go_only_count": 2,
     "notes": "2 go-only fns",
-    "weighted_score": 50.854814135379115,
+    "weighted_score": 50.85481413537911,
     "go_only_penalty": 4,
     "stub_penalty": 0,
     "version_penalty": 0
@@ -3890,7 +3890,7 @@
   {
     "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a69ce1d9/internal/diag/abstractmessageformatter.go",
     "java_file": "com/google/javascript/jscomp/AbstractMessageFormatter.java",
-    "score": 80.87247474747475,
+    "score": 80.87247474747474,
     "method_overlap_pct": 66.66666666666666,
     "go_method_count": 7,
     "java_method_count": 8,
@@ -3900,7 +3900,7 @@
     "loc_ratio": 0.36363636363636365,
     "go_only_count": 1,
     "notes": "1 go-only fns",
-    "weighted_score": 75.5321067821068,
+    "weighted_score": 75.53210678210678,
     "go_only_penalty": 2,
     "stub_penalty": 0,
     "version_penalty": 0

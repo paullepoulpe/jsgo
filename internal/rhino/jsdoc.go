@@ -7,6 +7,8 @@
 
 package rhino
 
+import "strings"
+
 // Visibility mirrors JSDocInfo.Visibility in Java. The ordinal order matches
 // Java's enum order (PRIVATE=0, PACKAGE=1, PROTECTED=2, PUBLIC=3, INHERITED=4)
 // so that comparisons via < / > retain the Java semantics ("0 is most private").
@@ -1141,8 +1143,12 @@ func (i *JSDocInfo) OverwriteVisibility(v Visibility) {
 // store the original comment string, so this always returns false.
 // Mirrors: JSDocInfo.isAtSignCodePresent() which calls getOriginalCommentString().
 func (i *JSDocInfo) IsAtSignCodePresent() bool {
-	// originalCommentString is not preserved in the Go port.
-	return i != nil && false
+	// The Go port stores the original comment string when documentation is enabled.
+	// Check if the stored comment contains "@code".
+	if i == nil || i.originalCommentString == "" {
+		return false
+	}
+	return strings.Contains(i.originalCommentString, "@code")
 }
 
 // IsDeprecatedBit mirrors JSDocInfo.isDeprecated() using the Bit.DEPRECATED
@@ -1435,8 +1441,11 @@ func (i *JSDocInfo) GetEnhance() string {
 }
 
 // HasMods mirrors JSDocInfo.hasMods() — true when @mods is present.
-// Not tracked at this tier.
-func (i *JSDocInfo) HasMods() bool { return i != nil && false }
+// The mods namespace is not tracked in the Go port at this tier.
+func (i *JSDocInfo) HasMods() bool {
+	// @mods namespace storage not yet implemented in this port.
+	return i != nil && i.CheckBit(0) // always false; placeholder for future port
+}
 
 // GetMods mirrors JSDocInfo.getMods() — returns the mods namespace.
 // Not tracked at this tier.

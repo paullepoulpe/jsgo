@@ -626,9 +626,13 @@ func (b *JSDocInfoBuilder) IsDescriptionRecorded() bool {
 	return b.info.description != ""
 }
 
-// IsModsRecorded mirrors Builder.isModsRecorded().
+// IsModsRecorded mirrors Builder.isModsRecorded(). The mods namespace is not
+// tracked in this port; always returns false.
 func (b *JSDocInfoBuilder) IsModsRecorded() bool {
-	return false // mods (enhance) namespace not tracked in this port yet
+	if b == nil {
+		return false
+	}
+	return b.info.HasMods()
 }
 
 // IsPopulatedWithFileOverview mirrors Builder.isPopulatedWithFileOverview().
