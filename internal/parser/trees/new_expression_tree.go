@@ -12,6 +12,7 @@ type NewExpressionTree struct {
 }
 
 // NewNewExpressionTree constructs a NewExpressionTree.
+// Go-only: language-adapter
 func NewNewExpressionTree(location SourceRange, operand *ParseTree, arguments *ArgumentListTree, hasTrailingComma bool) *NewExpressionTree {
 	return &NewExpressionTree{
 		ParseTree:        ParseTree{Type: ParseTreeTypeNewExpression, Location: location},

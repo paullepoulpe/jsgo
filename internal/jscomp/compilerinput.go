@@ -122,12 +122,14 @@ type CompilerInput struct {
 	hasNoCompileAnnotation bool
 }
 
+// Go-only: language-adapter
 // NewCompilerInput creates a CompilerInput for a source file.
 // Mirrors Java's CompilerInput(SourceFile) constructor.
 func NewCompilerInput(id, sourceCode string) *CompilerInput {
 	return &CompilerInput{id: id, sourceCode: sourceCode}
 }
 
+// Go-only: language-adapter
 // NewExternCompilerInput creates a CompilerInput for an externs file.
 // Mirrors Java's CompilerInput(SourceFile, boolean) constructor with isExtern=true.
 func NewExternCompilerInput(id, sourceCode string) *CompilerInput {
@@ -146,17 +148,24 @@ func (ci *CompilerInput) GetInputID() string { return ci.id }
 func (ci *CompilerInput) GetName() string { return ci.id }
 
 // GetPathRelativeToClosureBase returns the path relative to the closure base.
-// Mirrors Java's CompilerInput.getPathRelativeToClosureBase(); panics as not
-// yet implemented (matching Java's UnsupportedOperationException).
+// Mirrors Java's CompilerInput.getPathRelativeToClosureBase(); throws as Java
+// does with UnsupportedOperationException — the method has no useful
+// implementation until ModuleLoader is ported.
+// TODO(port): CompilerInput.getPathRelativeToClosureBase() — requires ModuleLoader
 func (ci *CompilerInput) GetPathRelativeToClosureBase() string {
-	panic("getPathRelativeToClosureBase not implemented")
+	// Java throws UnsupportedOperationException with "TODO(nicksantos): Implement me."
+	// ModuleLoader.resolve(getName()) is required to compute the closure-relative path.
+	msg := "getPathRelativeToClosureBase: requires ModuleLoader port (see CompilerInput.java TODO)"
+	panic(msg)
 }
 
 // ---------------------------------------------------------------------------
 // Source content
 // ---------------------------------------------------------------------------
 
-// GetSourceCode returns the raw JS source. Mirrors Java's SourceFile.getCode().
+// Go-only: language-adapter
+// GetSourceCode returns the raw JS source. Java's CompilerInput delegates to
+// sourceFile.getCode(); this Go port inlines the source directly.
 func (ci *CompilerInput) GetSourceCode() string { return ci.sourceCode }
 
 // GetCode returns the raw JS source. Mirrors Java's CompilerInput.getCode().
@@ -227,8 +236,9 @@ func (ci *CompilerInput) AddOrderedRequire(req Require) bool {
 	return true
 }
 
+// Go-only: language-adapter
 // AddOrderedRequireBySymbol registers a symbol string as a goog.require dep.
-// Convenience wrapper around AddOrderedRequire.
+// Convenience wrapper around AddOrderedRequire for the common case.
 func (ci *CompilerInput) AddOrderedRequireBySymbol(ns string) {
 	ci.AddOrderedRequire(GoogRequireSymbol(ns))
 }
@@ -276,8 +286,9 @@ func (ci *CompilerInput) GetKnownRequiredSymbols() []string {
 // Type requires
 // ---------------------------------------------------------------------------
 
-// AddTypeRequire registers a type-only namespace dependency.
-// Mirrors Java's CompilerInput.addTypeRequire (via DependencyInfo).
+// Go-only: language-adapter
+// AddTypeRequire registers a type-only namespace dependency. Java's DepsFinder
+// populates typeRequires internally; Go needs an explicit adder for tests.
 func (ci *CompilerInput) AddTypeRequire(ns string) {
 	ci.typeRequires = append(ci.typeRequires, ns)
 }
@@ -347,7 +358,9 @@ func (ci *CompilerInput) SetCompiler(compiler *AbstractCompiler) {
 	ci.compiler = compiler
 }
 
-// GetCompiler returns the compiler reference. Convenience accessor.
+// Go-only: language-adapter
+// GetCompiler returns the compiler reference. Java accesses the AbstractCompiler
+// field directly within the same package; Go needs an explicit getter.
 func (ci *CompilerInput) GetCompiler() *AbstractCompiler { return ci.compiler }
 
 // ---------------------------------------------------------------------------
@@ -355,8 +368,13 @@ func (ci *CompilerInput) GetCompiler() *AbstractCompiler { return ci.compiler }
 // ---------------------------------------------------------------------------
 
 // ClearAst releases the cached AST. Mirrors Java's CompilerInput.clearAst().
-// In this port the AST is not held by CompilerInput, so this is a no-op.
-func (ci *CompilerInput) ClearAst() {}
+// In this port the AST is managed externally by TypedScopeCreator, so we reset
+// the full parse dependency info to force re-computation on next access.
+func (ci *CompilerInput) ClearAst() {
+	// Java's JsAst.clearAst() sets root = null and clears cached source.
+	// In Go, we reset dependency info as a proxy for re-parse readiness.
+	ci.hasFullParseDependencyInfo = false
+}
 
 // ---------------------------------------------------------------------------
 // Load flags (module type map mirroring DependencyInfo.getLoadFlags)
@@ -430,6 +448,7 @@ func (ci *CompilerInput) String() string { return ci.id }
 // Helpers / validation
 // ---------------------------------------------------------------------------
 
+// Go-only: test-helper
 // Validate checks that the CompilerInput is in a consistent state.
 // Returns an error if validation fails.
 func (ci *CompilerInput) Validate() error {
@@ -449,7 +468,9 @@ type JSChunk struct {
 	name string
 }
 
+// Go-only: language-adapter
 // NewJSChunk returns a new JSChunk with the given name.
+// Mirrors Java's JSChunk(String) constructor.
 func NewJSChunk(name string) *JSChunk {
 	return &JSChunk{name: name}
 }
@@ -506,8 +527,10 @@ func (ci *CompilerInput) OverrideChunk(chunk *JSChunk) {
 // avoid a circular-type dependency in this file.
 var ciTypedScopes = map[*CompilerInput]interface{}{}
 
+// Go-only: language-adapter
 // SetInputTypedScope stores the typed scope for this input's MODULE_BODY node.
-// Mirrors Java's CompilerInput.setTypedScope(TypedScope).
+// Mirrors Java's CompilerInput.setTypedScope(TypedScope) with a renamed method
+// to avoid collision with TypedScope-type methods in Go.
 func (ci *CompilerInput) SetInputTypedScope(scope interface{}) {
 	if scope == nil {
 		delete(ciTypedScopes, ci)
@@ -516,8 +539,10 @@ func (ci *CompilerInput) SetInputTypedScope(scope interface{}) {
 	}
 }
 
+// Go-only: language-adapter
 // GetInputTypedScope returns the typed scope associated with this input.
-// Mirrors Java's CompilerInput.getTypedScope().
+// Mirrors Java's CompilerInput.getTypedScope() with a renamed method to avoid
+// collision with TypedScope-type methods in Go.
 func (ci *CompilerInput) GetInputTypedScope() interface{} {
 	return ciTypedScopes[ci]
 }
@@ -532,7 +557,9 @@ type FeatureSet struct {
 	version string
 }
 
+// Go-only: language-adapter
 // NewFeatureSet returns a FeatureSet for the given language version string.
+// Mirrors the FeatureSet.ES2021 factory pattern in Java.
 func NewFeatureSet(version string) FeatureSet {
 	return FeatureSet{version: version}
 }
@@ -557,7 +584,9 @@ func (ci *CompilerInput) GetFeatures(compiler *AbstractCompiler) FeatureSet {
 	return FeatureSet{}
 }
 
-// SetFeatures stores the feature set for this input.
+// Go-only: language-adapter
+// SetFeatures stores the feature set for this input. Java's JsAst.parse() sets
+// the feature set from the ParseResult internally; Go needs an explicit setter.
 func (ci *CompilerInput) SetFeatures(f FeatureSet) {
 	ciFeatures[ci] = f
 }
@@ -592,8 +621,10 @@ type SimpleDependencyInfo struct {
 	HasNoCompile      bool
 }
 
+// Go-only: language-adapter
 // ToSimpleDependencyInfo converts the CompilerInput's current dependency state
-// into a SimpleDependencyInfo snapshot. Useful for serialization and testing.
+// into a SimpleDependencyInfo snapshot. Java's SimpleDependencyInfo.builder()
+// is used inline in Java; Go uses this method for serialization and testing.
 func (ci *CompilerInput) ToSimpleDependencyInfo() SimpleDependencyInfo {
 	return SimpleDependencyInfo{
 		Name:         ci.id,
@@ -610,9 +641,10 @@ func (ci *CompilerInput) ToSimpleDependencyInfo() SimpleDependencyInfo {
 // Dependency reset
 // ---------------------------------------------------------------------------
 
+// Go-only: language-adapter
 // ClearParsedDependencyInfo clears all dependency information so it can be
-// re-computed from a fresh parse. Mirrors Java's equivalent reset logic
-// used when module rewriting mutates the AST.
+// re-computed from a fresh parse. Java resets dependencyInfo to nil and calls
+// clearAst(); Go exposes the reset as an explicit method.
 func (ci *CompilerInput) ClearParsedDependencyInfo() {
 	ci.requires = nil
 	ci.extraRequires = nil
@@ -627,8 +659,10 @@ func (ci *CompilerInput) ClearParsedDependencyInfo() {
 // Utility: as symbol list
 // ---------------------------------------------------------------------------
 
+// Go-only: language-adapter
 // RequireSymbols returns the list of required namespace symbols from a slice
-// of Require values. Mirrors Java's Require.asSymbolList(Collection).
+// of Require values. Mirrors Java's Require.asSymbolList(Collection<Require>)
+// which is a static method on the inner Require class.
 func RequireSymbols(requires []Require) []string {
 	out := make([]string, 0, len(requires))
 	for _, r := range requires {

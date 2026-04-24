@@ -26,6 +26,7 @@ var NoObject JSType = &NoObjectType{}
 // TypeName returns "NoObject" (the internal toString representation).
 // Java's appendTo emits "?" for annotation contexts and "NoObject"
 // otherwise; we expose the non-annotation form for diagnostics.
+// Go-only: language-adapter
 func (n *NoObjectType) TypeName() string { return "NoObject" }
 
 // IsNoObjectType mirrors NoObjectType.isNoObjectType() → true.
@@ -33,6 +34,7 @@ func (n *NoObjectType) IsNoObjectType() bool { return true }
 
 // IsNoType mirrors the default JSType.isNoType() → false; overridden
 // to false here since NoObjectType is distinct from the full bottom.
+// Go-only: language-adapter
 func (n *NoObjectType) IsNoType() bool { return false }
 
 // MatchesNumberContext mirrors NoObjectType.matchesNumberContext() → true.
@@ -51,4 +53,5 @@ func (n *NoObjectType) MatchesSymbolContext() bool { return true }
 // IsSubtypeOf follows the bottom-type rule: ⊥ is a subtype of every
 // type. This mirrors how Java's NoObjectType participates in the
 // isSubtype lattice — it is below everything except itself.
+// Go-only: language-adapter
 func (n *NoObjectType) IsSubtypeOf(other JSType) bool { return true }

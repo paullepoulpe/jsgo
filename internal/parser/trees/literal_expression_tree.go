@@ -11,6 +11,7 @@ type LiteralExpressionTree struct {
 }
 
 // NewLiteralExpressionTree constructs a LiteralExpressionTree.
+// Go-only: language-adapter
 func NewLiteralExpressionTree(location SourceRange, literalToken *Token) *LiteralExpressionTree {
 	return &LiteralExpressionTree{
 		ParseTree:    ParseTree{Type: ParseTreeTypeLiteralExpression, Location: location},

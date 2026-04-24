@@ -11,6 +11,7 @@ type IterRestTree struct {
 }
 
 // NewIterRestTree constructs an IterRestTree.
+// Go-only: language-adapter
 func NewIterRestTree(location SourceRange, assignmentTarget *ParseTree) *IterRestTree {
 	return &IterRestTree{
 		ParseTree:        ParseTree{Type: ParseTreeTypeIterRest, Location: location},

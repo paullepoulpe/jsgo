@@ -14,6 +14,7 @@ type ComputedPropertySetterTree struct {
 }
 
 // NewComputedPropertySetterTree constructs a ComputedPropertySetterTree.
+// Go-only: language-adapter
 func NewComputedPropertySetterTree(location SourceRange, property *ParseTree, isStatic bool, parameter *FormalParameterListTree, body *BlockTree) *ComputedPropertySetterTree {
 	return &ComputedPropertySetterTree{
 		ParseTree: ParseTree{Type: ParseTreeTypeComputedPropertySetter, Location: location},

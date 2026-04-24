@@ -7,5 +7,8 @@ package jstype
 // Unknown (which accepts everything).
 type allType struct{}
 
-func (allType) TypeName() string            { return "*" }
-func (allType) IsSubtypeOf(o JSType) bool   { _, ok := o.(allType); return ok || isUnknown(o) }
+// Go-only: language-adapter
+func (allType) TypeName() string { return "*" }
+
+// Go-only: language-adapter
+func (allType) IsSubtypeOf(o JSType) bool { _, ok := o.(allType); return ok || isUnknown(o) }

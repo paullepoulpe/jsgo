@@ -9,6 +9,7 @@ type SuperExpressionTree struct {
 }
 
 // NewSuperExpressionTree constructs a SuperExpressionTree.
+// Go-only: language-adapter
 func NewSuperExpressionTree(location SourceRange) *SuperExpressionTree {
 	return &SuperExpressionTree{
 		ParseTree: ParseTree{Type: ParseTreeTypeSuperExpression, Location: location},

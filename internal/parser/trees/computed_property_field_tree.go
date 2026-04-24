@@ -13,6 +13,7 @@ type ComputedPropertyFieldTree struct {
 }
 
 // NewComputedPropertyFieldTree constructs a ComputedPropertyFieldTree.
+// Go-only: language-adapter
 func NewComputedPropertyFieldTree(location SourceRange, property *ParseTree, isStatic bool, initializer *ParseTree) *ComputedPropertyFieldTree {
 	return &ComputedPropertyFieldTree{
 		ParseTree:   ParseTree{Type: ParseTreeTypeComputedPropertyField, Location: location},

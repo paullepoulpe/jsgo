@@ -14,6 +14,7 @@ type ExportDeclarationTree struct {
 	From                *LiteralToken
 }
 
+// Go-only: language-adapter
 func NewExportDeclarationTree(location SourceRange, isDefault bool, isExportAll bool, declaration *ParseTree, exportSpecifierList []*ParseTree, from *LiteralToken) *ExportDeclarationTree {
 	return &ExportDeclarationTree{
 		ParseTree:           ParseTree{Type: ParseTreeTypeExportDeclaration, Location: location},

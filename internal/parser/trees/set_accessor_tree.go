@@ -15,6 +15,7 @@ type SetAccessorTree struct {
 }
 
 // NewSetAccessorTree constructs a SetAccessorTree.
+// Go-only: language-adapter
 func NewSetAccessorTree(location SourceRange, propertyName *Token, isClassMember bool, isStatic bool, parameter *FormalParameterListTree, body *BlockTree) *SetAccessorTree {
 	return &SetAccessorTree{
 		ParseTree:     ParseTree{Type: ParseTreeTypeSetAccessor, Location: location},

@@ -8,6 +8,7 @@ type VariableStatementTree struct {
 	Declarations *VariableDeclarationListTree
 }
 
+// Go-only: language-adapter
 func NewVariableStatementTree(location SourceRange, declarations *VariableDeclarationListTree) *VariableStatementTree {
 	return &VariableStatementTree{
 		ParseTree:    ParseTree{Type: ParseTreeTypeVariableStatement, Location: location},

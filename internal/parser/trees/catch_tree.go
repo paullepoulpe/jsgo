@@ -9,6 +9,7 @@ type CatchTree struct {
 	CatchBody *ParseTree
 }
 
+// Go-only: language-adapter
 func NewCatchTree(location SourceRange, exception *ParseTree, catchBody *ParseTree) *CatchTree {
 	return &CatchTree{
 		ParseTree: ParseTree{Type: ParseTreeTypeCatch, Location: location},

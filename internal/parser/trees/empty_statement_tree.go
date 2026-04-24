@@ -7,6 +7,7 @@ type EmptyStatementTree struct {
 	ParseTree
 }
 
+// Go-only: language-adapter
 func NewEmptyStatementTree(location SourceRange) *EmptyStatementTree {
 	return &EmptyStatementTree{
 		ParseTree: ParseTree{Type: ParseTreeTypeEmptyStatement, Location: location},

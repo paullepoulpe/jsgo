@@ -12,6 +12,7 @@ type FormalParameterListTree struct {
 }
 
 // NewFormalParameterListTree constructs a FormalParameterListTree.
+// Go-only: language-adapter
 func NewFormalParameterListTree(location SourceRange, parameters []*ParseTree, hasTrailingComma bool, commaPositions []SourcePosition) *FormalParameterListTree {
 	return &FormalParameterListTree{
 		ParseTree:        ParseTree{Type: ParseTreeTypeFormalParameterList, Location: location},

@@ -10,6 +10,7 @@ type ObjectPatternTree struct {
 }
 
 // NewObjectPatternTree constructs an ObjectPatternTree.
+// Go-only: language-adapter
 func NewObjectPatternTree(location SourceRange, fields []*ParseTree) *ObjectPatternTree {
 	return &ObjectPatternTree{
 		ParseTree: ParseTree{Type: ParseTreeTypeObjectPattern, Location: location},

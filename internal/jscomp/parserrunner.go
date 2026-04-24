@@ -54,7 +54,9 @@ func (r *pipelineErrorReporter) ReportError(position parser.SourcePosition, form
 }
 
 func (r *pipelineErrorReporter) ReportWarning(position parser.SourcePosition, format string, args ...interface{}) {
-	// warnings do not set hadError
+	// Warnings are not promoted to errors in the Go pipeline. Mirrors Java's
+	// Es6ErrorReporter.reportWarning, which delegates to ErrorReporter.warning.
+	_ = position
 }
 
 // --- parsing.ErrorReporter interface (used by IRFactory via its internal errorReporter type) ---
@@ -73,9 +75,11 @@ func (r *irfactoryErrorReporter) Error(msg, sourceName string, lineno, charno in
 }
 
 func (r *irfactoryErrorReporter) Warning(msg, sourceName string, lineno, charno int) {
-	// warnings only
+	// Warnings are not promoted to errors; mirrors Es6ErrorReporter.reportWarning.
+	_ = msg
 }
 
+// Go-only: package-bridge
 // runNewPipeline runs the new 1:1 parse pipeline:
 //
 //	ParserRewrite → ProgramTree → IRFactory → rhino.Node

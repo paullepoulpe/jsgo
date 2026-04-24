@@ -10,6 +10,7 @@ type ComprehensionIfTree struct {
 }
 
 // NewComprehensionIfTree constructs a ComprehensionIfTree.
+// Go-only: language-adapter
 func NewComprehensionIfTree(location SourceRange, expression *ParseTree) *ComprehensionIfTree {
 	return &ComprehensionIfTree{
 		ParseTree:  ParseTree{Type: ParseTreeTypeComprehensionIf, Location: location},

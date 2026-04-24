@@ -13,6 +13,7 @@ type ForAwaitOfStatementTree struct {
 }
 
 // NewForAwaitOfStatementTree constructs a ForAwaitOfStatementTree.
+// Go-only: language-adapter
 func NewForAwaitOfStatementTree(location SourceRange, initializer, collection, body *ParseTree) *ForAwaitOfStatementTree {
 	return &ForAwaitOfStatementTree{
 		ParseTree:   ParseTree{Type: ParseTreeTypeForAwaitOfStatement, Location: location},

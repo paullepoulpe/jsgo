@@ -10,6 +10,7 @@ type BlockTree struct {
 }
 
 // NewBlockTree constructs a BlockTree.
+// Go-only: language-adapter
 func NewBlockTree(location SourceRange, statements []*ParseTree) *BlockTree {
 	return &BlockTree{
 		ParseTree:  ParseTree{Type: ParseTreeTypeBlock, Location: location},

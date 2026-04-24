@@ -12,6 +12,7 @@ type ComputedPropertyMethodTree struct {
 }
 
 // NewComputedPropertyMethodTree constructs a ComputedPropertyMethodTree.
+// Go-only: language-adapter
 func NewComputedPropertyMethodTree(location SourceRange, property *ParseTree, method *ParseTree) *ComputedPropertyMethodTree {
 	return &ComputedPropertyMethodTree{
 		ParseTree: ParseTree{Type: ParseTreeTypeComputedPropertyMethod, Location: location},
