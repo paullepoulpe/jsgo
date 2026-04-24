@@ -1,6 +1,5 @@
 // Port of com/google/javascript/jscomp/CheckSideEffects.java
-// @ closure-compiler v20260415 (narrow; no useless-getelem sub-expr
-// reporting, no @nosideeffects function annotation).
+// @ closure-compiler v20260415.
 //
 // Walks every EXPR_RESULT statement and fires
 // JSC_USELESS_CODE whenever the contained expression has no
@@ -9,9 +8,12 @@
 // access, arithmetic / comparison / logical / ternary / typeof /
 // unary-negate of pure operands. Calls, `new`, assignment,
 // increment / decrement, and `delete` are treated as side-
-// effecting. AND / OR / COALESCE / HOOK with a pure RHS recurse so
-// we report the inner useless piece at its own location (matches
-// Java).
+// effecting — unless the callee carries @nosideeffects (mirroring
+// Java's GetNoSideEffectExterns + @nosideeffects-aware CALL
+// classification). AND / OR / COALESCE / HOOK with a pure RHS
+// recurse so we report the inner useless piece at its own location
+// (matches Java). Sub-expression `a[b].c;` is reported at the
+// outermost expression position per the Java emitOpAt convention.
 
 package jscomp
 
@@ -22,20 +24,53 @@ import (
 
 // CheckSideEffects implements the JSC_USELESS_CODE diagnostic.
 type CheckSideEffects struct {
-	path  string
-	diags []diag.Diagnostic
+	path     string
+	diags    []diag.Diagnostic
+	noSEFns  map[string]bool // qualified names of @nosideeffects functions
+	analyzer *AstAnalyzer
 }
 
 func NewCheckSideEffects(path string) *CheckSideEffects {
-	return &CheckSideEffects{path: path}
+	return &CheckSideEffects{path: path, analyzer: NewAstAnalyzer()}
 }
 
 // Check walks the AST firing JSC_USELESS_CODE at every EXPR_RESULT
 // whose contained expression is observably pure.
+// Mirrors Java's process(Node externs, Node root):
+//  1. GetNoSideEffectExterns sub-pass collects @nosideeffects names.
+//  2. Main traversal fires diagnostics.
 func (c *CheckSideEffects) Check(script *rhino.Node) []diag.Diagnostic {
 	c.diags = nil
+	c.noSEFns = make(map[string]bool)
+	c.collectNoSideEffectFns(script)
 	c.walk(script)
 	return c.diags
+}
+
+// collectNoSideEffectFns mirrors Java's GetNoSideEffectExterns —
+// scans the AST for FUNCTION nodes annotated @nosideeffects and
+// records their qualified names so CALL classification can treat
+// them as pure.
+func (c *CheckSideEffects) collectNoSideEffectFns(n *rhino.Node) {
+	if n == nil {
+		return
+	}
+	if n.Token() == rhino.FUNCTION {
+		info := n.JSDocInfo()
+		if info == nil {
+			if p := n.Parent(); p != nil {
+				info = p.JSDocInfo()
+			}
+		}
+		if info != nil && info.IsNoSideEffects() {
+			if name := NU.GetFunctionName(n); name != "" {
+				c.noSEFns[name] = true
+			}
+		}
+	}
+	for _, child := range n.Children() {
+		c.collectNoSideEffectFns(child)
+	}
 }
 
 func (c *CheckSideEffects) walk(n *rhino.Node) {
@@ -61,7 +96,7 @@ func (c *CheckSideEffects) walk(n *rhino.Node) {
 // individually, in addition to the whole-statement diagnostic when
 // the outer form is fully pure.
 func (c *CheckSideEffects) reportUseless(stmt, expr *rhino.Node, top bool) {
-	pure := !hasSideEffects(expr)
+	pure := !c.hasSideEffects(expr)
 	// Per-operator "result not used" diagnostics fire even when the
 	// operand has side effects — the operator itself is dropped.
 	// Java emits at specific positions for each operator kind.
@@ -103,16 +138,16 @@ func (c *CheckSideEffects) reportUseless(stmt, expr *rhino.Node, top bool) {
 	switch expr.Token() {
 	case rhino.AND, rhino.OR, rhino.COALESCE:
 		kids := expr.Children()
-		if len(kids) == 2 && !hasSideEffects(kids[1]) {
+		if len(kids) == 2 && !c.hasSideEffects(kids[1]) {
 			c.emitAt(kids[1])
 		}
 	case rhino.HOOK:
 		kids := expr.Children()
 		if len(kids) == 3 {
-			if !hasSideEffects(kids[1]) {
+			if !c.hasSideEffects(kids[1]) {
 				c.emitAt(kids[1])
 			}
-			if !hasSideEffects(kids[2]) {
+			if !c.hasSideEffects(kids[2]) {
 				c.emitAt(kids[2])
 			}
 		}
@@ -180,24 +215,44 @@ func isDeclarationStatement(stmt *rhino.Node) bool {
 }
 
 // hasSideEffects returns true for expression nodes that Closure
-// considers observably effectful. The classification is the same
-// the Java NodeUtil.mayHaveSideEffects uses at the narrow scope
-// (pre-nosideeffects JSDoc support).
-func hasSideEffects(n *rhino.Node) bool {
+// considers observably effectful. The classification consults
+// AstAnalyzer for constructor calls (so new Date() is pure) and
+// the noSEFns set for @nosideeffects-annotated function calls —
+// mirroring Java's AstAnalyzer.mayHaveSideEffects + the
+// GetNoSideEffectExterns pass that populates noSideEffectExterns.
+func (c *CheckSideEffects) hasSideEffects(n *rhino.Node) bool {
 	if n == nil {
 		return false
 	}
 	switch n.Token() {
-	// Definitely-effectful: calls may do anything; new constructs an
-	// object; assignments mutate a binding; increment / decrement
-	// mutate a LHS; delete mutates a property set.
-	case rhino.CALL, rhino.NEW, rhino.DELPROP,
-		rhino.ASSIGN, rhino.ASSIGN_ADD, rhino.ASSIGN_SUB, rhino.ASSIGN_MUL,
+	// Definitely-effectful: assignments mutate a binding;
+	// increment / decrement mutate a LHS; delete mutates a property
+	// set; throw interrupts control flow; dynamic import is async.
+	case rhino.ASSIGN, rhino.ASSIGN_ADD, rhino.ASSIGN_SUB, rhino.ASSIGN_MUL,
 		rhino.ASSIGN_DIV, rhino.ASSIGN_MOD, rhino.ASSIGN_BITAND,
 		rhino.ASSIGN_BITOR, rhino.ASSIGN_BITXOR, rhino.ASSIGN_LSH,
 		rhino.ASSIGN_RSH, rhino.ASSIGN_URSH,
-		rhino.THROW:
+		rhino.DELPROP, rhino.THROW, rhino.DYNAMIC_IMPORT:
 		return true
+	// CALL: pure only if the callee is a @nosideeffects function.
+	// Mirrors Java's noSideEffectExterns set + AstAnalyzer check.
+	case rhino.CALL:
+		callee := n.FirstChild()
+		if callee != nil {
+			name := callee.GetQualifiedName()
+			if name != "" && c.noSEFns[name] {
+				break // callee is @nosideeffects → check children
+			}
+		}
+		return true
+	// NEW: use AstAnalyzer.ConstructorCallHasSideEffects so that
+	// known-pure constructors like new Date() are treated as pure
+	// (mirrors Java's ModifiedStateChecker / AstAnalyzer).
+	case rhino.NEW:
+		if c.analyzer.ConstructorCallHasSideEffects(n) {
+			return true
+		}
+		// Pure constructor: side-effecting only if args are.
 	// Pure leaves.
 	case rhino.NAME, rhino.STRINGLIT, rhino.NUMBER, rhino.TRUE, rhino.FALSE,
 		rhino.NULL, rhino.UNDEFINED, rhino.THIS, rhino.GETPROP,
@@ -205,8 +260,8 @@ func hasSideEffects(n *rhino.Node) bool {
 		return false
 	}
 	// Compound: side-effecting iff any child is.
-	for _, c := range n.Children() {
-		if hasSideEffects(c) {
+	for _, child := range n.Children() {
+		if c.hasSideEffects(child) {
 			return true
 		}
 	}
