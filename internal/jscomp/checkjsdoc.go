@@ -897,10 +897,13 @@ func (c *CheckJSDoc) validateTsType(n *rhino.Node, info *rhino.JSDocInfo) {
 }
 
 // isFromTs mirrors CheckJSDoc.isFromTs — returns whether the node's source is
-// a TypeScript file. Go-only: language-adapter — always returns false since Go
-// doesn't distinguish TS from JS sources.
-// Go-only: language-adapter — Java checks StaticSourceFile.isTypeScriptSource(); Go has no TS detection.
-func isFromTs(_ *rhino.Node) bool {
+// a TypeScript file. Go does not distinguish TS from JS sources, so this
+// always returns false. Java calls n.getStaticSourceFile().isTypeScriptSource().
+// Go-only: language-adapter — Java checks StaticSourceFile.isTypeScriptSource(); Go has no TS source-kind.
+func isFromTs(n *rhino.Node) bool {
+	// Go jsgo does not load TypeScript sources — all files are treated as JS.
+	// Return false to match the default (non-TS) path in Java.
+	_ = n // n is not used; kept for API symmetry with Java.
 	return false
 }
 
