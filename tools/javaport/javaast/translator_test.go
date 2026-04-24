@@ -449,3 +449,109 @@ func TestCF_NewArray(t *testing.T) {
 		t.Errorf("expected make(..., 10), got:\n%s", got)
 	}
 }
+
+// ---- Root cause 1: Lambda -> (fix for #218) --------------------------------
+
+func TestLambda_SingleParam(t *testing.T) {
+	body := `return nodes.stream().filter(n -> n.isFunction()).count();`
+	got := translate(t, body)
+	// Lambda `n -> n.isFunction()` must NOT appear as `n - > n.isFunction()`.
+	if strings.Contains(got, " - >") {
+		t.Errorf("lambda emitted as binary ops, got:\n%s", got)
+	}
+	// Must produce a func literal.
+	if !strings.Contains(got, "func(") {
+		t.Errorf("expected func literal for lambda, got:\n%s", got)
+	}
+}
+
+func TestLambda_NoParam(t *testing.T) {
+	body := `Supplier<String> s = () -> "hello";`
+	got := translate(t, body)
+	if strings.Contains(got, " - >") {
+		t.Errorf("lambda emitted as binary ops, got:\n%s", got)
+	}
+	if !strings.Contains(got, "func(") {
+		t.Errorf("expected func literal for no-param lambda, got:\n%s", got)
+	}
+}
+
+func TestLambda_PostIncInBody(t *testing.T) {
+	// Java: `n -> count++` — body is a post-increment.
+	// Go: `return x++` is invalid; must hoist the increment.
+	body := `int[] count = {0};
+visitPreOrder(root, n -> count[0]++);`
+	got := translate(t, body)
+	// Must not contain `return count[0]++` (invalid Go).
+	if strings.Contains(got, "return count[0]++") {
+		t.Errorf("post-increment inside lambda return is invalid Go, got:\n%s", got)
+	}
+}
+
+// ---- Root cause 2: Inline comments confusing tryFieldInit (fix for #218) ---
+
+func TestTrivial_CommentWithFieldLikeText(t *testing.T) {
+	// Java body with a comment that looks like `this.x = ...`.
+	// The trivial parser must NOT match the comment text as a field init.
+	body := `
+if (!type.isNoType()) {
+  // if (this.x == null) {
+  //   this.initializeX();
+  // }
+  return type.isNullType();
+}`
+	got := translate(t, body)
+	// Must NOT produce the broken `c.x = = null) {` pattern.
+	if strings.Contains(got, "= = null") || strings.Contains(got, "c.x =") {
+		t.Errorf("comment text leaked into output, got:\n%s", got)
+	}
+	// Must produce valid-looking Go.
+	if !strings.Contains(got, "if") {
+		t.Errorf("expected if statement in output, got:\n%s", got)
+	}
+}
+
+// ---- Root cause 3: Raw generics at call sites (fix for #218) ---------------
+
+func TestNewExpr_CollectionDiamondOp(t *testing.T) {
+	// Java: `new LinkedHashSet<>()` with diamond operator.
+	// When the type maps to a map type, must emit make(...) not
+	// `NewLinkedHashSet<>()` (invalid Go).
+	ctx := javaast.MethodContext{
+		RecvName:  "c",
+		ClassName: "MyClass",
+		TypeMap: func(jt string) string {
+			// Simulate javaToGoType for collection types.
+			if jt == "LinkedHashSet<>" || jt == "LinkedHashSet<any>" {
+				return "map[any]struct{}"
+			}
+			return jt
+		},
+	}
+	body := `return new LinkedHashSet<>();`
+	got, ok := javaast.TranslateBody(body, ctx)
+	if !ok {
+		t.Fatalf("TranslateBody returned ok=false")
+	}
+	got = strings.TrimSpace(got)
+	// Must emit make(map[...]) not invalid `NewLinkedHashSet<>()`
+	if strings.Contains(got, "NewLinked") || strings.Contains(got, "<>") {
+		t.Errorf("diamond constructor should emit make/literal, got:\n%s", got)
+	}
+	if !strings.Contains(got, "make(map[") {
+		t.Errorf("expected make(map[...]) for set constructor, got:\n%s", got)
+	}
+}
+
+func TestNilVarInit(t *testing.T) {
+	// Java: `Node previous = null;` — `x := nil` is not valid Go.
+	body := `Node previous = null;`
+	got := translate(t, body)
+	// Must use `var previous ...` not `previous := nil`.
+	if strings.Contains(got, ":= nil") {
+		t.Errorf("`x := nil` is invalid Go, got:\n%s", got)
+	}
+	if !strings.Contains(got, "var previous") {
+		t.Errorf("expected 'var previous', got:\n%s", got)
+	}
+}

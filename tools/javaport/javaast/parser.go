@@ -453,10 +453,19 @@ func lastTopLevelSpaceP(s string) int {
 	last := -1
 	for i := 0; i < len(s); i++ {
 		switch s[i] {
-		case '(', '<', '[':
+		case '(', '[':
 			depth++
-		case ')', '>', ']':
-			depth--
+		case ')', ']':
+			if depth > 0 {
+				depth--
+			}
+		case '<':
+			// Track angle bracket nesting for generics.
+			depth++
+		case '>':
+			if depth > 0 {
+				depth--
+			}
 		case ' ':
 			if depth == 0 {
 				last = i
@@ -690,7 +699,7 @@ func (p *parser) parseThrow() Stmt {
 	p.skipWS()
 	exprText, ok := p.readUntilStop(';')
 	if !ok {
-		return &ThrowStmt{X: &RawExpr{Text: "???"}}
+		return &ThrowStmt{X: &RawExpr{Text: "nil /* throw expr not parsed */"}}
 	}
 	return &ThrowStmt{X: parseExpr(strings.TrimSpace(exprText))}
 }
@@ -721,6 +730,32 @@ func (p *parser) parseContinue() Stmt {
 
 // ---- local var ---------------------------------------------------------
 
+// readGenericSuffix reads a `<...>` generic type argument list (handling
+// nesting) and returns the full type string including the angle brackets.
+// Returns "" if the next character is not `<`.
+func (p *parser) readGenericSuffix() string {
+	p.skipWS()
+	if p.peek() != '<' {
+		return ""
+	}
+	start := p.pos
+	p.pos++ // consume '<'
+	depth := 1
+	for !p.eof() && depth > 0 {
+		c := p.src[p.pos]
+		switch c {
+		case '<':
+			depth++
+		case '>':
+			depth--
+		case '"', '\'':
+			p.pos = skipStringLitP(p.src, p.pos)
+		}
+		p.pos++
+	}
+	return p.src[start:p.pos]
+}
+
 // tryLocalVar tries to parse `[final] Type name [= init];`.
 // Returns (stmt, true) on success or (nil, false) if this doesn't look
 // like a local variable declaration.
@@ -734,16 +769,8 @@ func (p *parser) tryLocalVar() (Stmt, bool) {
 		p.pos = saved
 		return nil, false
 	}
-	// Consume generic suffix: `<...>`.
-	typeStr := id
-	p.skipWS()
-	if p.peek() == '<' {
-		p.pos++ // consume <
-		inner, ok2 := p.readUntilStop('>')
-		if ok2 {
-			typeStr = id + "<" + inner + ">"
-		}
-	}
+	// Consume generic suffix: `<...>` (handles nesting like PriorityQueue<DiGraphNode<X,Y>>).
+	typeStr := id + p.readGenericSuffix()
 	// Array suffix
 	for p.consume("[]") {
 		typeStr += "[]"
@@ -938,10 +965,33 @@ func (ep *exprParser) skipWS() {
 		c := ep.src[ep.pos]
 		if c == ' ' || c == '\t' || c == '\n' || c == '\r' {
 			ep.pos++
+		} else if strings.HasPrefix(ep.rest(), "//") {
+			nl := strings.Index(ep.rest(), "\n")
+			if nl < 0 {
+				ep.pos = len(ep.src)
+				return
+			}
+			ep.pos += nl + 1
+		} else if strings.HasPrefix(ep.rest(), "/*") {
+			end := strings.Index(ep.rest(), "*/")
+			if end < 0 {
+				ep.pos = len(ep.src)
+				return
+			}
+			ep.pos += end + 2
 		} else {
 			break
 		}
 	}
+}
+
+// peekLambdaArrow reports whether the next non-whitespace characters are `->`.
+func (ep *exprParser) peekLambdaArrow() bool {
+	saved := ep.pos
+	ep.skipWS()
+	ok := strings.HasPrefix(ep.rest(), "->")
+	ep.pos = saved
+	return ok
 }
 
 func (ep *exprParser) consume(s string) bool {
@@ -962,7 +1012,7 @@ func (ep *exprParser) parseTernary() Expr {
 	ep.pos++ // consume '?'
 	then := ep.parseTernary()
 	if !ep.consume(":") {
-		return &TernaryExpr{Cond: cond, Then: then, Else: &RawExpr{Text: "???"}}
+		return &TernaryExpr{Cond: cond, Then: then, Else: &RawExpr{Text: "nil /* ternary else not parsed */"}}
 	}
 	els := ep.parseTernary()
 	return &TernaryExpr{Cond: cond, Then: then, Else: els}
@@ -1187,12 +1237,24 @@ func (ep *exprParser) parsePrimary() Expr {
 	}
 
 	// Parenthesised expression (or cast — handled by parseUnary already)
+	// Also handles lambda with paren params: `() -> expr` or `(a, b) -> expr`.
 	if ep.peek() == '(' {
+		saved2 := ep.pos
 		ep.pos++ // consume '('
 		inner, ok := ep.readUntil(')')
 		if !ok {
-			return &RawExpr{Text: ep.rest()}
+			ep.pos = len(ep.src) // consume rest
+			return &RawExpr{Text: "nil /* unmatched paren */"}
 		}
+		// Check if this is a lambda: `(params) -> body`
+		if ep.peekLambdaArrow() {
+			ep.skipWS()
+			ep.pos += 2 // consume '->'
+			body := ep.parseTernary()
+			params := strings.TrimSpace(inner)
+			return &LambdaExpr{Params: params, Body: body}
+		}
+		_ = saved2
 		return parseExpr(inner)
 	}
 
@@ -1218,6 +1280,13 @@ func (ep *exprParser) parsePrimary() Expr {
 	// Identifier / keyword
 	id := ep.readIdentStr()
 	if id == "" {
+		// Check for no-param lambda: ` -> expr` (empty param list without parens)
+		if ep.peekLambdaArrow() {
+			ep.skipWS()
+			ep.pos += 2 // consume '->'
+			body := ep.parseTernary()
+			return &LambdaExpr{Params: "", Body: body}
+		}
 		// Unknown — consume the rest as raw.
 		raw := ep.rest()
 		ep.pos = len(ep.src)
@@ -1234,6 +1303,13 @@ func (ep *exprParser) parsePrimary() Expr {
 		return &IdentExpr{Name: "super"}
 	}
 	ep.skipWS()
+	// Check for single-param lambda: `ident -> body`
+	if ep.peekLambdaArrow() {
+		ep.skipWS()
+		ep.pos += 2 // consume '->'
+		body := ep.parseTernary()
+		return &LambdaExpr{Params: id, Body: body}
+	}
 	if ep.peek() == '(' {
 		args := ep.readArgs()
 		return &CallExpr{Fun: &IdentExpr{Name: id}, Args: args}

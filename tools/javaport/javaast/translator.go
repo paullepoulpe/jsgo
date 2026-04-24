@@ -69,7 +69,21 @@ func (t *translator) emitStmt(b *strings.Builder, s Stmt) {
 
 	case *LocalVarStmt:
 		if v.Init != nil {
-			fmt.Fprintf(b, "%s%s := %s\n", t.tab(), goIdent(v.Name), t.emitExpr(v.Init))
+			initStr := t.emitExpr(v.Init)
+			goType := t.javaType(v.Type)
+			// `x := nil` is not valid Go — use var form with the mapped type.
+			if initStr == "nil" {
+				if goType == "" {
+					goType = "any"
+				}
+				fmt.Fprintf(b, "%svar %s %s\n", t.tab(), goIdent(v.Name), goType)
+			} else if _, isArr := v.Init.(*ArrayLitExpr); isArr && goType != "" {
+				// Array literal init: `int[] x = {0}` → `x := []int{0}`
+				// Prefix the init with the element type.
+				fmt.Fprintf(b, "%s%s := %s%s\n", t.tab(), goIdent(v.Name), goType, initStr)
+			} else {
+				fmt.Fprintf(b, "%s%s := %s\n", t.tab(), goIdent(v.Name), initStr)
+			}
 		} else {
 			goType := t.javaType(v.Type)
 			fmt.Fprintf(b, "%svar %s %s\n", t.tab(), goIdent(v.Name), goType)
@@ -325,9 +339,28 @@ func (t *translator) emitExpr(e Expr) string {
 
 	case *NewExpr:
 		goType := t.javaType(v.Type)
+		args := t.emitArgs(v.Args)
+		// Collection types: emit make(...) or literal instead of NewXxx().
+		if strings.HasPrefix(goType, "[]") {
+			if args != "" {
+				return "make(" + goType + ", " + args + ")"
+			}
+			return goType + "{}"
+		}
+		if strings.HasPrefix(goType, "map[") {
+			return "make(" + goType + ")"
+		}
+		// Unknown type (mapped to "any") — emit a nil placeholder to keep syntax valid.
+		if goType == "any" {
+			return "nil /* new " + v.Type + " */"
+		}
 		// Strip leading `*` for constructor name: *Foo → NewFoo
 		base := strings.TrimPrefix(goType, "*")
-		args := t.emitArgs(v.Args)
+		// Strip residual Java generic parameters (e.g. "TreeSet<>" → "TreeSet")
+		// so the emitted call is valid Go syntax even if it's a stub.
+		if lt := strings.Index(base, "<"); lt >= 0 {
+			base = base[:lt]
+		}
 		return "New" + base + "(" + args + ")"
 
 	case *NewArrayExpr:
@@ -392,8 +425,40 @@ func (t *translator) emitExpr(e Expr) string {
 		// Go uses type assertion for interface checks; emit reflect-style as best effort.
 		return fmt.Sprintf("func() bool { _, ok := %s.(%s); return ok }()", inner, goType)
 
+	case *LambdaExpr:
+		params := strings.TrimSpace(v.Params)
+		// Translate as an inline func literal: func(params) any { return body }
+		// Special case: when the body is a post-increment/decrement (x++),
+		// Go doesn't allow `return x++` — emit the inc/dec before the return.
+		var bodyStmt string
+		if u, ok := v.Body.(*UnaryExpr); ok && (u.Op == "++" || u.Op == "--") {
+			base := t.emitExpr(u.X)
+			bodyStmt = base + u.Op + "; return " + base
+		} else {
+			bodyStmt = "return " + t.emitExpr(v.Body)
+		}
+		if params == "" {
+			return "func() any { " + bodyStmt + " }"
+		}
+		// params may be comma-separated; emit each as `_ any` since we don't have type info.
+		parts := strings.Split(params, ",")
+		var goParams []string
+		for _, p := range parts {
+			p = strings.TrimSpace(p)
+			if p != "" {
+				goParams = append(goParams, p+" any")
+			}
+		}
+		return "func(" + strings.Join(goParams, ", ") + ") any { " + bodyStmt + " }"
+
 	case *RawExpr:
-		return v.Text
+		// Ensure raw text doesn't contain characters that would break Go syntax.
+		// Replace '?' (Java wildcard/ternary marker) and other illegal chars.
+		text := v.Text
+		if strings.ContainsAny(text, "?@") {
+			return "nil /* " + strings.NewReplacer("?", "_", "@", "_").Replace(text) + " */"
+		}
+		return text
 
 	default:
 		return "/* unknown expr */"
@@ -426,9 +491,21 @@ func (t *translator) emitCall(v *CallExpr) string {
 func (t *translator) emitArgs(args []Expr) string {
 	parts := make([]string, len(args))
 	for i, a := range args {
-		parts[i] = t.emitExpr(a)
+		parts[i] = t.emitArgExpr(a)
 	}
 	return strings.Join(parts, ", ")
+}
+
+// emitArgExpr emits an expression for use as a function argument.
+// Java post-increment/decrement (x++) cannot be used as a Go argument
+// expression, so we preserve semantics by wrapping in an IIFE:
+//   postfix x++  → func() any { r := x; x++; return r }()
+func (t *translator) emitArgExpr(e Expr) string {
+	if u, ok := e.(*UnaryExpr); ok && (u.Op == "++" || u.Op == "--") {
+		base := t.emitExpr(u.X)
+		return "func() any { r := " + base + "; " + base + u.Op + "; return r }()"
+	}
+	return t.emitExpr(e)
 }
 
 func (t *translator) translateIdent(name string) string {
