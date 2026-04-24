@@ -2340,7 +2340,16 @@ func (c *TypedScopeCreator) recordDecl(v *rhino.Node, scope *TypedScope) {
 // from recordDecl so the multi-binding loop can reuse the same
 // @type / @enum / @constructor handling per name.
 func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope *TypedScope) {
+	// VAR-level JSDoc is the primary source; NAME-level JSDoc
+	// (set by the parser for inline `var /** @type {T} */ x = …`
+	// annotations) takes precedence for @type when present on the
+	// specific NAME node. This mirrors Java's per-binding type
+	// annotation: `var /** @type {!Date} */ foo = 'abc'` attaches
+	// the @type to foo's NAME node, not the shared VAR.
 	info := v.JSDocInfo()
+	if nameInfo := name.JSDocInfo(); nameInfo != nil && nameInfo.HasType() && (info == nil || !info.HasType()) {
+		info = nameInfo
+	}
 	if name == nil || name.Token() != rhino.NAME {
 		return
 	}

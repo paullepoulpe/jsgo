@@ -573,7 +573,9 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 	switch n.Token() {
 	case rhino.VAR, rhino.LET, rhino.CONST:
 		c.emit(c.visitVar(n, scope))
-	case rhino.ASSIGN:
+	case rhino.ASSIGN, rhino.ASSIGN_OR, rhino.ASSIGN_AND, rhino.ASSIGN_COALESCE:
+		// Java: `case ASSIGN, ASSIGN_OR, ASSIGN_AND, ASSIGN_COALESCE -> visitAssign(t, n)`
+		// All four logical-assignment forms share the same visitAssign path.
 		c.emit(c.visitAssign(n, scope))
 	case rhino.CALL:
 		c.emit(c.visitCall(n, scope))
