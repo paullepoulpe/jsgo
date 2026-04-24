@@ -1405,7 +1405,7 @@ func (c *TypeCheck) visitCall(node *rhino.Node, scope *TypedScope) []diag.Diagno
 			if !allow {
 				out = append(out, diag.Diagnostic{
 					Path: c.path, Line: node.Lineno(), Col: node.Charno(),
-					Code: diag.JSC_EXPECTED_THIS_TYPE, Level: diag.Warning,
+					Code: diag.JSC_EXPECTED_THIS_TYPE, Level: diag.Error,
 					Message: fmt.Sprintf("%q must be called with a \"this\" type", fn.TypeName()),
 				})
 			}
