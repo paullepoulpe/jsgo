@@ -1,5 +1,4 @@
-// Port of fragment of com/google/javascript/jscomp/TypeInference.java +
-// com/google/javascript/jscomp/type/SemanticReverseAbstractInterpreter.java
+// Port of com/google/javascript/jscomp/type/SemanticReverseAbstractInterpreter.java
 // @ closure-compiler v20260415.
 //
 // Java's SemanticReverseAbstractInterpreter walks the boolean
@@ -365,9 +364,12 @@ func refineTypeof(t jstype.JSType, typeofValue string) jstype.JSType {
 }
 
 // qualifiedName returns a dotted string for a GETPROP chain rooted
-// at a NAME or THIS, e.g. \`t.x.y\` → "t.x.y", \`this.x\` → "this.x".
+// at a NAME or THIS, e.g. `t.x.y` → "t.x.y", `this.x` → "this.x".
 // Returns "" for any chain that doesn't resolve to a pure
 // name/this-rooted access (GETELEM, CALL receivers, etc.).
+//
+// Go-only: helper shared between semanticreverseabstractinterpreter.go
+// and inference.go (both in the same package).
 func qualifiedName(n *rhino.Node) string {
 	if n == nil {
 		return ""
@@ -395,6 +397,9 @@ func qualifiedName(n *rhino.Node) string {
 // chain — walks from the NAME / THIS root through each property
 // step, consulting scope's namespace-prop map for flat two-segment
 // chains. Returns nil if any step is unknown.
+//
+// Go-only: helper used by collectRefinements for GETPROP condition
+// narrowing.
 func resolveQualifiedType(scope *TypedScope, n *rhino.Node) jstype.JSType {
 	if n == nil {
 		return nil
@@ -435,6 +440,8 @@ func resolveQualifiedType(scope *TypedScope, n *rhino.Node) jstype.JSType {
 // instanceofCheckTarget recognises `NAME instanceof Ctor`. Returns
 // the NAME and the constructor's instance type so the truthy branch
 // can narrow to that instance. Returns ("", nil) on no match.
+//
+// Go-only: pattern-matching helper for SRAI.caseInstanceOf.
 func instanceofCheckTarget(scope *TypedScope, cond *rhino.Node) (string, *jstype.ObjectType) {
 	if cond == nil || cond.Token() != rhino.INSTANCEOF {
 		return "", nil

@@ -832,8 +832,8 @@ func typeofCheckTarget(cond *rhino.Node) (string, string, bool) {
 	case rhino.NAME:
 		return target.String_(), strNode.String_(), equal
 	case rhino.GETPROP:
-		// qualifiedName is defined in refinement.go; both files are in
-		// the same package so it is accessible here.
+		// qualifiedName is defined in semanticreverseabstractinterpreter.go;
+		// both files are in the same package so it is accessible here.
 		if qname := qualifiedName(target); qname != "" {
 			return qname, strNode.String_(), equal
 		}
