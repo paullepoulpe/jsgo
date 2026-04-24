@@ -2244,7 +2244,7 @@ func (c *TypedScopeCreator) hoistVarNamesInto(body *rhino.Node, scope *TypedScop
 			}
 			c.hoistVarNamesInto(child, scope)
 		case rhino.FOR, rhino.FOR_IN, rhino.FOR_OF:
-			if first := child.FirstChild(); first != nil && isDeclToken(first.Token()) {
+			if first := child.FirstChild(); first != nil && NU.IsNameDeclaration(first) {
 				if name := first.FirstChild(); name != nil && name.Token() == rhino.NAME && name.String_() != "" {
 					if _, exists := scope.declared[name.String_()]; !exists {
 						scope.declared[name.String_()] = jstype.Unknown
