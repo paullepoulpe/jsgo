@@ -1,13 +1,12 @@
 // Port of com/google/javascript/jscomp/ControlFlowAnalysis.java
-// @ closure-compiler v20260415 (narrow; no labeled break/continue,
-// no generator suspend edges, no with-statement).
+// @ closure-compiler v20260415.
 //
 // Builds a ControlFlowGraph for a FUNCTION body or top-level SCRIPT.
 // Walks the AST producing one CfgNode per statement, then connects
 // them with properly-labeled branch edges for IF / WHILE / DO_WHILE /
 // FOR / FOR_IN / FOR_OF / SWITCH / TRY / THROW / BREAK / CONTINUE /
-// RETURN. Matches the edge set Java produces so DataFlowAnalysis sees
-// every path the real pass would see.
+// RETURN / WITH / YIELD / AWAIT. Matches the edge set Java produces so
+// DataFlowAnalysis sees every path the real pass would see.
 
 package jscomp
 
@@ -63,9 +62,13 @@ type catchTarget struct {
 // finallyFrame records a currently-open finally block. Non-local
 // jumps (return / break / continue / throw) passing through it must
 // flow via the finally's entry before reaching their logical target.
-// Matches Java ControlFlowAnalysis's FinallyKeyword bookkeeping.
+// pendingTargets accumulates the logical destinations that were
+// re-routed through this finally, so visitTry can emit
+// finally_exit --ON_EX--> target edges once the finally body is wired
+// (mirroring Java's finallyMap mechanism in computeFollowNode).
 type finallyFrame struct {
-	entry *CfgNode
+	entry          *CfgNode
+	pendingTargets []*CfgNode
 }
 
 // cfgBuilder carries the mutable state of a single CFG build: the
@@ -134,11 +137,29 @@ func (b *cfgBuilder) popFinally() { b.finallies = b.finallies[:len(b.finallies)-
 // innermost finally; that finally's fall-through logic handles the
 // rest of the cleanup chain implicitly once its own successors are
 // walked. Returns `target` unchanged when no finally is open.
+// Side-effect: records `target` as a pending continuation so that
+// visitTry can later emit finally_exit --ON_EX--> target edges that
+// mirror Java's finallyMap mechanism.
 func (b *cfgBuilder) routeJumpThroughFinally(target *CfgNode) *CfgNode {
 	if len(b.finallies) == 0 {
 		return target
 	}
-	return b.finallies[len(b.finallies)-1].entry
+	frame := &b.finallies[len(b.finallies)-1]
+	// Record unique pending targets so visitTry can wire the re-raise
+	// edge (finally_exit --ON_EX--> target) after the body is built.
+	if target != nil {
+		found := false
+		for _, pt := range frame.pendingTargets {
+			if pt == target {
+				found = true
+				break
+			}
+		}
+		if !found {
+			frame.pendingTargets = append(frame.pendingTargets, target)
+		}
+	}
+	return frame.entry
 }
 
 // visitStatements walks a sequence of statements, chaining them with
@@ -215,6 +236,8 @@ func (b *cfgBuilder) visitStatement(stmt *rhino.Node, prev *CfgNode) *CfgNode {
 		return nil
 	case rhino.LABEL:
 		return b.visitLabel(stmt, n)
+	case rhino.WITH:
+		return b.visitWith(stmt, n)
 	case rhino.BLOCK:
 		if kids := stmt.Children(); len(kids) > 0 {
 			after := &CfgNode{Kind: "BLOCK_JOIN"}
@@ -303,6 +326,41 @@ func (b *cfgBuilder) visitLabel(stmt *rhino.Node, n *CfgNode) *CfgNode {
 		b.cfg.addEdge(next, after, BranchUnconditional)
 	}
 	return after
+}
+
+// visitWith handles `with (obj) body`. Control flows unconditionally
+// into the body; evaluating the object expression may throw, so we
+// add an exception edge to the enclosing handler — mirrors Java's
+// handleWith: createEdge(node, UNCOND, node.getLastChild()) +
+// connectToPossibleExceptionHandler(node, node.getFirstChild()).
+func (b *cfgBuilder) visitWith(stmt *rhino.Node, n *CfgNode) *CfgNode {
+	kids := stmt.Children()
+	if len(kids) < 2 {
+		return n
+	}
+	// Connect the object expression's possible exception first.
+	b.connectToPossibleExceptionHandler(n, kids[0])
+	// Unconditional edge into the body and walk it.
+	body := kids[1]
+	stmts := flattenBlock(body)
+	if len(stmts) == 0 {
+		return n
+	}
+	firstNode := b.cfg.node(stmts[0])
+	b.cfg.addEdge(n, firstNode, BranchUnconditional)
+	next := b.visitStatement(stmts[0], nil)
+	if next != nil {
+		after := &CfgNode{Kind: "WITH_AFTER"}
+		b.cfg.Nodes = append(b.cfg.Nodes, after)
+		b.visitStatements(stmts[1:], next, after)
+		return after
+	} else if len(stmts) > 1 {
+		after := &CfgNode{Kind: "WITH_AFTER"}
+		b.cfg.Nodes = append(b.cfg.Nodes, after)
+		b.visitStatements(stmts[1:], nil, after)
+		return after
+	}
+	return next
 }
 
 // visitIf handles an `if (cond) then [else]` statement.
@@ -652,6 +710,12 @@ func (b *cfgBuilder) visitTry(stmt *rhino.Node, n *CfgNode) *CfgNode {
 			b.cfg.addEdge(catchEntry, bodyFall, BranchUnconditional)
 		}
 	}
+	// Collect pending targets before popping the finally frame so we
+	// can emit re-raise edges after wiring the finally body.
+	var finallyPending []*CfgNode
+	if finallyClause != nil && len(b.finallies) > 0 {
+		finallyPending = b.finallies[len(b.finallies)-1].pendingTargets
+	}
 	// Pop the finally frame before emitting the finally's own body,
 	// so nested non-local jumps inside the finally don't loop back
 	// to the same frame.
@@ -663,16 +727,36 @@ func (b *cfgBuilder) visitTry(stmt *rhino.Node, n *CfgNode) *CfgNode {
 	if finallyClause != nil {
 		finallyNode := b.cfg.node(finallyClause)
 		fStmts := flattenBlock(finallyClause.FirstChild())
+		var finallyTail *CfgNode
 		if len(fStmts) > 0 {
 			b.cfg.addEdge(finallyNode, b.cfg.node(fStmts[0]), BranchUnconditional)
 			next := b.visitStatement(fStmts[0], nil)
 			if next != nil {
 				b.visitStatements(fStmts[1:], next, after)
+				if len(fStmts) == 1 {
+					finallyTail = next
+				}
 			} else if len(fStmts) > 1 {
 				b.visitStatements(fStmts[1:], nil, after)
 			}
 		} else {
 			b.cfg.addEdge(finallyNode, after, BranchUnconditional)
+			finallyTail = finallyNode
+		}
+		// Emit re-raise edges: finally_tail --ON_EX--> pending_target.
+		// This mirrors Java's finallyMap: when a non-local jump (return /
+		// break / continue / throw) traversed through this finally, the
+		// finally must also connect to the jump's original destination
+		// so the type-flow analysis sees those paths.
+		if finallyTail != nil {
+			for _, pt := range finallyPending {
+				b.cfg.addEdge(finallyTail, pt, BranchException)
+			}
+		}
+		// Also emit exception edge from the finally entry itself when
+		// any pending targets exist (finally body may throw).
+		for _, pt := range finallyPending {
+			b.cfg.addEdge(finallyNode, pt, BranchException)
 		}
 	}
 	return after

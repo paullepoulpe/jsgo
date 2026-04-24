@@ -83,15 +83,23 @@ func (c *CheckMissingReturn) enterScopeWithCfg(fn *rhino.Node) {
 		}
 	}
 
+	// Guard: skip functions that the parser could not fully parse (fewer
+	// than 3 children means no body block was produced). BuildCFG for
+	// such a function produces Entry → Exit directly, which would
+	// incorrectly appear as a path without a return.
+	kids := fn.Children()
+	if len(kids) < 3 {
+		return
+	}
 	// Guard against parser-degraded cast expressions: the Go parser
 	// degrades `return /** @type {T} */ (expr)` to a bare `return;`
 	// because it cannot parse the inline @type as a cast node. When
-	// no value-bearing RETURN exists in the body, the function may
-	// appear to have only bare returns even though it legitimately
-	// returns via a cast. Skip the check in that case.
+	// the body has at least one bare return (suggesting degraded casts)
+	// but no value-bearing return, skip the check to avoid false
+	// positives. If the body has NO return at all we still run the check
+	// — that is a genuine missing-return case.
 	// NOTE: Java has a real CAST AST node so this guard is not needed there.
-	kids := fn.Children()
-	if len(kids) >= 3 && !hasValueReturn(kids[2]) {
+	if hasBareReturn(kids[2]) && !hasValueReturn(kids[2]) {
 		return
 	}
 
@@ -406,6 +414,27 @@ func hasValueReturn(n *rhino.Node) bool {
 	return false
 }
 
+// hasBareReturn returns true when the subtree rooted at `n` contains
+// at least one bare `return;` (a RETURN node with no child).
+// Stops at nested FUNCTION boundaries.
+func hasBareReturn(n *rhino.Node) bool {
+	if n == nil {
+		return false
+	}
+	if n.Token() == rhino.FUNCTION {
+		return false
+	}
+	if n.Token() == rhino.RETURN && n.FirstChild() == nil {
+		return true
+	}
+	for _, c := range n.Children() {
+		if hasBareReturn(c) {
+			return true
+		}
+	}
+	return false
+}
+
 // isEmptyFunction mirrors Java's CheckMissingReturn.isEmptyFunction.
 // Returns true when the FUNCTION node has an empty body block
 // (three children: name, params, empty-block). Empty-body stubs are
@@ -441,18 +470,20 @@ func (c *CheckMissingReturn) isVoidOrUnknown(returnType jstype.JSType) bool {
 // @return annotation.
 func returnJSDocFor(fn *rhino.Node) *rhino.JSDocInfo {
 	for cur := fn; cur != nil; cur = cur.Parent() {
+		// Boundary checks must come BEFORE the JSDoc lookup so that we
+		// do not adopt JSDoc from nodes we are about to stop at.
+		// Stop at any FUNCTION node that is not the function we are
+		// checking — prevents an inner function from inheriting its
+		// enclosing function's @return.
+		if cur != fn && cur.Token() == rhino.FUNCTION {
+			break
+		}
 		if info := cur.JSDocInfo(); info != nil && info.ReturnType() != nil {
 			return info
 		}
 		// Stop at a statement boundary (covers the EXPR_RESULT → ASSIGN
 		// → FUNCTION chain for prototype-method assignments).
 		if cur.Token() == rhino.EXPR_RESULT {
-			break
-		}
-		// Stop at any FUNCTION node that is not the function we are
-		// checking — prevents an inner function from inheriting its
-		// enclosing function's @return.
-		if cur != fn && cur.Token() == rhino.FUNCTION {
 			break
 		}
 	}

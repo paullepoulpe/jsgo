@@ -69,6 +69,7 @@ const (
 	BREAK
 	CONTINUE
 	LABEL
+	WITH // `with (obj) body`
 
 	// Calls / new / member access
 	CALL
@@ -278,6 +279,8 @@ func (t Token) String() string {
 		return "CONTINUE"
 	case LABEL:
 		return "LABEL"
+	case WITH:
+		return "WITH"
 	case CALL:
 		return "CALL"
 	case NEW:
