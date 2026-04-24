@@ -57,22 +57,26 @@ func (m *cmrModuleMetadata) hasLegacyGoogNamespaces() bool { return m != nil && 
 
 func (m *cmrModuleMetadata) isNonLegacyGoogModule() bool { return m != nil && m.isNonLegacy }
 
-// Go-only: language-adapter — stub accessor on cmrModuleMetadata (replaces googNamespaces().contains())
+// TODO(port): ModuleMetadata.java:googNamespaces — stub accessor; real port should use the ModuleMetadata class
+// Reason: GatherModuleMetadata not yet ported; stub replaces googNamespaces().contains().
 func (m *cmrModuleMetadata) containsNamespace(ns string) bool {
 	return m != nil && m.googNamespaces[ns]
 }
 
-// Go-only: language-adapter — stub accessor on cmrModuleMetadata (replaces stronglyRequiredGoogNamespaces().contains())
+// TODO(port): ModuleMetadata.java:stronglyRequiredGoogNamespaces — stub accessor; real port needs ModuleMetadata
+// Reason: GatherModuleMetadata not yet ported; stub replaces stronglyRequiredGoogNamespaces().contains().
 func (m *cmrModuleMetadata) containsStrongRequire(ns string) bool {
 	return m != nil && m.strongRequires[ns]
 }
 
-// Go-only: language-adapter — stub accessor on cmrModuleMetadata (replaces weaklyRequiredGoogNamespaces().contains())
+// TODO(port): ModuleMetadata.java:weaklyRequiredGoogNamespaces — stub accessor; real port needs ModuleMetadata
+// Reason: GatherModuleMetadata not yet ported; stub replaces weaklyRequiredGoogNamespaces().contains().
 func (m *cmrModuleMetadata) containsWeakRequire(ns string) bool {
 	return m != nil && m.weakRequires[ns]
 }
 
-// Go-only: language-adapter — stub accessor on cmrModuleMetadata (replaces rootNode().getSourceFileName())
+// TODO(port): ModuleMetadata.java:getRootNode — stub accessor; real port needs ModuleMetadata
+// Reason: GatherModuleMetadata not yet ported; stub replaces rootNode().getSourceFileName().
 func (m *cmrModuleMetadata) getRootSourceFileName() string {
 	if m == nil {
 		return ""
@@ -114,7 +118,8 @@ func (m *cmrModuleMetadataMap) get(ns string) *cmrModuleMetadata {
 // The returned map contains exactly one entry per declared namespace,
 // mirroring ModuleMetadataMap.getModulesByGoogNamespace().
 //
-// Go-only: language-adapter — single-file adapter for GatherModuleMetadata pass (full pass stubbed)
+// TODO(port): GatherModuleMetadata.java:process — stub for full GatherModuleMetadata compiler pass
+// Reason: GatherModuleMetadata pass not yet ported; this is a single-file approximation.
 func cmrGatherModuleMetadata(path string, script *rhino.Node) *cmrModuleMetadataMap {
 	md := &cmrModuleMetadata{
 		sourceFileName: path,
@@ -185,7 +190,8 @@ func cmrGatherModuleMetadata(path string, script *rhino.Node) *cmrModuleMetadata
 	return &cmrModuleMetadataMap{byNamespace: byNS}
 }
 
-// Go-only: language-adapter — AST scanner helper for goog.* call discovery (replaces inline visitor logic in Java)
+// TODO(port): CheckMissingRequires.java — inline visitor logic for goog.* call discovery not fully ported
+// Reason: Java uses an inline NodeTraversal callback; Go extracts as a separate helper (port gap).
 // scanGoogCalls walks `n` in pre-order and calls `fn` for every CALL
 // node whose callee is a goog.* qualified name. `arg` is the string value
 // of the first argument (or "" when absent / non-string).
@@ -228,7 +234,8 @@ type cmrQualifiedName struct {
 	components []string
 }
 
-// Go-only: language-adapter — factory for cmrQualifiedName stub (Java uses QualifiedName.of())
+// TODO(port): QualifiedName.java:of — stub factory for QualifiedName; not yet ported from Java
+// Reason: port gap — Java uses QualifiedName.of(String); Go uses a stub struct.
 func qualifiedNameOf(dotted string) *cmrQualifiedName {
 	if dotted == "" {
 		return &cmrQualifiedName{}
@@ -278,7 +285,8 @@ func (q *cmrQualifiedName) getComponentCount() int {
 	return len(q.components)
 }
 
-// Go-only: language-adapter — converts AST node to stub QualifiedName (Java uses Node.getQualifiedNameObject())
+// TODO(port): Node.java:getQualifiedNameObject — port gap; Java returns a QualifiedName from a Node
+// Reason: port gap — Node.getQualifiedNameObject() not yet ported; Go uses a local stub converter.
 // qualifiedNameFromNode converts a NAME or GETPROP chain into a
 // cmrQualifiedName. Returns nil when `n` is not a qualified name chain.
 func qualifiedNameFromNode(n *rhino.Node) *cmrQualifiedName {
