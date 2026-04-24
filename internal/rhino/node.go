@@ -103,6 +103,26 @@ const (
 	// PropGeneratorSafe mirrors Java's Node.isGeneratorSafe() — marks nodes
 	// that have already been processed by the generator rewriter.
 	PropGeneratorSafe
+	// PropDeleted mirrors Java's Node.DELETED — set when a node has been deleted.
+	PropDeleted
+	// PropIsUnusedParameter mirrors Java's Node.IS_UNUSED_PARAMETER — set on
+	// function parameter nodes that are unused.
+	PropIsUnusedParameter
+	// PropUseStrict mirrors Java's Node.USE_STRICT — set on blocks that contain
+	// the "use strict" directive.
+	PropUseStrict
+	// PropTrailingComma mirrors Java's Node.TRAILING_COMMA — set on nodes that
+	// had a trailing comma in the source.
+	PropTrailingComma
+	// PropIsInterface mirrors Java's Node.INTERFACE — set on class-like nodes
+	// that are TypeScript interfaces.
+	PropIsInterface
+	// PropFromExterns mirrors Java's Node.IS_FROM_EXTERNS — set on nodes
+	// that originate from extern files.
+	PropFromExterns
+	// PropNonIndexable mirrors Java's Node.NON_INDEXABLE — set when makeNonIndexable
+	// is called; IsIndexable returns false for such nodes.
+	PropNonIndexable
 )
 
 type Node struct {
@@ -1718,5 +1738,82 @@ func (n *Node) IsSuperCall() bool {
 
 // GetDeclaredTypeExpression and SetDeclaredTypeExpression are defined in
 // type_declarations_ir.go.
+
+// ---------------------------------------------------------------------------
+// More Java-canonical methods ported from Node.java
+// ---------------------------------------------------------------------------
+
+// SetDeleted mirrors Java's Node.setDeleted(boolean).
+func (n *Node) SetDeleted(deleted bool) { n.PutBooleanProp(PropDeleted, deleted) }
+
+// IsDeleted mirrors Java's Node.isDeleted() — true when this node has been
+// marked as deleted by a compiler pass.
+func (n *Node) IsDeleted() bool { return n.GetBooleanProp(PropDeleted) }
+
+// SetUnusedParameter mirrors Java's Node.setUnusedParameter(boolean).
+func (n *Node) SetUnusedParameter(unused bool) { n.PutBooleanProp(PropIsUnusedParameter, unused) }
+
+// IsUnusedParameter mirrors Java's Node.isUnusedParameter() — true for
+// function parameters marked as unused by RemoveUnusedVars.
+func (n *Node) IsUnusedParameter() bool { return n.GetBooleanProp(PropIsUnusedParameter) }
+
+// SetUseStrict mirrors Java's Node.setUseStrict(boolean).
+func (n *Node) SetUseStrict(x bool) { n.PutBooleanProp(PropUseStrict, x) }
+
+// IsUseStrict mirrors Java's Node.isUseStrict() — true when this BLOCK
+// contained the "use strict" directive.
+func (n *Node) IsUseStrict() bool { return n.GetBooleanProp(PropUseStrict) }
+
+// SetTrailingComma mirrors Java's Node.setTrailingComma(boolean).
+func (n *Node) SetTrailingComma(hasTrailingComma bool) {
+	n.PutBooleanProp(PropTrailingComma, hasTrailingComma)
+}
+
+// HasTrailingComma mirrors Java's Node.hasTrailingComma() — true when the
+// corresponding source had a trailing comma after this node.
+func (n *Node) HasTrailingComma() bool { return n.GetBooleanProp(PropTrailingComma) }
+
+// IsOptionalEs6Typed mirrors Java's Node.isOptionalEs6Typed() — true for
+// TypeScript optional parameter nodes.
+func (n *Node) IsOptionalEs6Typed() bool { return n.GetBooleanProp(PropOptEs6Typed) }
+
+// IsInterface mirrors Java's Node.isInterface() — true for TypeScript
+// interface declaration nodes.
+func (n *Node) IsInterface() bool { return n.GetBooleanProp(PropIsInterface) }
+
+// IsFromExterns mirrors Java's Node.isFromExterns() — true when this node
+// originates from an externs file.
+func (n *Node) IsFromExterns() bool { return n.GetBooleanProp(PropFromExterns) }
+
+// SetStaticSourceFile mirrors Java's Node.setStaticSourceFile — stores the
+// source file name in the PropSourceFile property.
+func (n *Node) SetStaticSourceFile(filename string) {
+	n.PutProp(PropSourceFile, filename)
+}
+
+// IsIndexable mirrors Java's Node.isIndexable() — true when the node should
+// be indexed by static analysis tools. Defaults to true (absent = true).
+func (n *Node) IsIndexable() bool { return !n.GetBooleanProp(PropNonIndexable) }
+
+// GetToken mirrors Java's Node.getToken() — returns the Token type.
+func (n *Node) GetToken() Token { return n.token }
+
+// IsIsSyntheticBlock is an alias for IsSyntheticBlock.
+// Mirrors Java's Node.isIsSyntheticBlock() naming.
+func (n *Node) SetIsSyntheticBlock(b bool) { n.PutBooleanProp(PropSynthetic, b) }
+
+// ClonePropsFrom copies all properties from other into this node.
+// Mirrors Java's Node.clonePropsFrom(Node).
+func (n *Node) ClonePropsFrom(other *Node) {
+	if len(other.props) == 0 {
+		return
+	}
+	if n.props == nil {
+		n.props = make(map[Prop]any, len(other.props))
+	}
+	for k, v := range other.props {
+		n.props[k] = v
+	}
+}
 
 
