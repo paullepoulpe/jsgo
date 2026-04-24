@@ -81,6 +81,13 @@ type TypeCheck struct {
 	externTypes     map[*jstype.ObjectType]bool
 	globalPropNames map[string]bool
 
+	// undeclaredNames is the set of variable names reported as
+	// undeclared by VarCheck. When the root of a GETPROP chain is one
+	// of these names, POSSIBLE_INEXISTENT_PROPERTY is suppressed.
+	// Mirrors Java VarCheck's synthesized-extern mechanism: once VarCheck
+	// marks a name as an extern, all property accesses on it are permitted.
+	undeclaredNames map[string]bool
+
 	// flows maps each function / script root to its computed
 	// DataFlowAnalysis, built lazily as the traversal enters the
 	// function. statementAtNode maps a CFG-statement AST node to its
@@ -114,6 +121,16 @@ func NewTypeCheckWithOptions(path string, creator *TypedScopeCreator, global *Ty
 		opts:    opts,
 		flows:   map[*rhino.Node]*DataFlowAnalysis{},
 	}
+}
+
+// SetUndeclaredNames injects the set of variable names that VarCheck
+// reported as undeclared. When the root receiver of a GETPROP is one
+// of these names, POSSIBLE_INEXISTENT_PROPERTY is suppressed — mirrors
+// Java's VarCheck.createSynthesizedExternVar() mechanism which adds
+// undeclared names to the externs scope so property accesses on them
+// are treated as extern-typed (AllType / open surface).
+func (c *TypeCheck) SetUndeclaredNames(names map[string]bool) {
+	c.undeclaredNames = names
 }
 
 // Check drives a NodeTraversal over the script and returns every
@@ -1645,6 +1662,21 @@ func isAssignLHS(n *rhino.Node) bool {
 //   - == null/undefined (EQ): absence test
 //   - === undefined (SHEQ with undefined): absence test
 //   - !foo.bar as left operand of || (NOT-in-OR pattern)
+// rootOfGetProp walks up a GETPROP chain and returns the leftmost NAME
+// node (the root object). For `a.b.c`, returns the NAME node for `a`.
+// Returns nil if the chain's root is not a NAME.
+func rootOfGetProp(n *rhino.Node) *rhino.Node {
+	curr := n
+	for curr != nil && curr.Token() == rhino.GETPROP {
+		kids := curr.Children()
+		if len(kids) == 0 {
+			break
+		}
+		curr = kids[0]
+	}
+	return curr
+}
+
 func isPropertyExistenceOrAbsenceTest(n *rhino.Node) bool {
 	p := n.Parent()
 	if p == nil {
@@ -1822,6 +1854,18 @@ func (c *TypeCheck) checkPossibleInexistent(n, recvNode *rhino.Node, propName st
 	recvName := ""
 	if recvNode != nil && recvNode.Token() == rhino.NAME {
 		recvName = recvNode.String_()
+	}
+	// Suppress POSSIBLE_INEXISTENT_PROPERTY when the root receiver is a
+	// variable that VarCheck already flagged as undeclared. Java's VarCheck
+	// synthesizes an extern for undeclared names (createSynthesizedExternVar),
+	// making subsequent property-access checks treat the name as open-typed.
+	// We approximate this by checking whether the ROOT of the GETPROP chain
+	// is in the undeclared set.
+	if len(c.undeclaredNames) > 0 {
+		root := rootOfGetProp(n)
+		if root != nil && root.Token() == rhino.NAME && c.undeclaredNames[root.String_()] {
+			return nil
+		}
 	}
 	if recvName != "" && isInGuardedBranch(n, recvName, propName) {
 		return nil

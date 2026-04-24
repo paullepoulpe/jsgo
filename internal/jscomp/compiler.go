@@ -77,11 +77,18 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	// JSC_CONFLICTING_GETTER_SETTER_TYPE) are drained inside
 	// ResolveTypesInScope below — do NOT also drain them here or they
 	// will be duplicated.
-	all = append(all, NewVarCheck(path, creator, scope).Check(script)...)
+	varChecker := NewVarCheck(path, creator, scope)
+	all = append(all, varChecker.Check(script)...)
 	all = append(all, NewVariableReferenceCheck(path, externScope).Check(script)...)
 	all = append(all, NewCheckJsDocTypes(path, src, scope, creator).Check()...)
 	all = append(all, creator.ResolveTypesInScope(scope)...)
-	all = append(all, NewTypeCheckWithOptions(path, creator, scope, opts).Check(script)...)
+	tc := NewTypeCheckWithOptions(path, creator, scope, opts)
+	// Inject VarCheck's undeclared-name set so TypeCheck can suppress
+	// POSSIBLE_INEXISTENT_PROPERTY on property chains whose root object
+	// was already flagged as undeclared. Mirrors Java VarCheck's
+	// createSynthesizedExternVar mechanism.
+	tc.SetUndeclaredNames(varChecker.UndeclaredNames())
+	all = append(all, tc.Check(script)...)
 	all = append(all, NewCheckMissingReturn(path, scope).Check(script)...)
 	all = append(all, NewSuperclassCheck(path, creator, scope).Check(script)...)
 	all = append(all, NewCheckDupVarDecl(path, scope).Check(script)...)

@@ -57,6 +57,15 @@ func (v *VarCheck) Check(script *rhino.Node) []diag.Diagnostic {
 	return v.diags
 }
 
+// UndeclaredNames returns the set of variable names that were reported
+// as undeclared by the most recent Check call. Callers (e.g. TypeCheck)
+// can use this to suppress downstream false-positives on properties of
+// undeclared objects, mirroring Java VarCheck's synthesized-extern
+// mechanism which marks undeclared names as externs.
+func (v *VarCheck) UndeclaredNames() map[string]bool {
+	return v.reported
+}
+
 func (v *VarCheck) ShouldTraverse(_ *NodeTraversal, _, _ *rhino.Node) bool { return true }
 
 // Visit inspects NAME and ASSIGN nodes. For a bare NAME reference we
