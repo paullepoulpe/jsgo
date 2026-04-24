@@ -57,22 +57,22 @@ func (m *cmrModuleMetadata) hasLegacyGoogNamespaces() bool { return m != nil && 
 
 func (m *cmrModuleMetadata) isNonLegacyGoogModule() bool { return m != nil && m.isNonLegacy }
 
-// Go-only: stub accessor on cmrModuleMetadata (replaces googNamespaces().contains())
+// Go-only: language-adapter — stub accessor on cmrModuleMetadata (replaces googNamespaces().contains())
 func (m *cmrModuleMetadata) containsNamespace(ns string) bool {
 	return m != nil && m.googNamespaces[ns]
 }
 
-// Go-only: stub accessor on cmrModuleMetadata (replaces stronglyRequiredGoogNamespaces().contains())
+// Go-only: language-adapter — stub accessor on cmrModuleMetadata (replaces stronglyRequiredGoogNamespaces().contains())
 func (m *cmrModuleMetadata) containsStrongRequire(ns string) bool {
 	return m != nil && m.strongRequires[ns]
 }
 
-// Go-only: stub accessor on cmrModuleMetadata (replaces weaklyRequiredGoogNamespaces().contains())
+// Go-only: language-adapter — stub accessor on cmrModuleMetadata (replaces weaklyRequiredGoogNamespaces().contains())
 func (m *cmrModuleMetadata) containsWeakRequire(ns string) bool {
 	return m != nil && m.weakRequires[ns]
 }
 
-// Go-only: stub accessor on cmrModuleMetadata (replaces rootNode().getSourceFileName())
+// Go-only: language-adapter — stub accessor on cmrModuleMetadata (replaces rootNode().getSourceFileName())
 func (m *cmrModuleMetadata) getRootSourceFileName() string {
 	if m == nil {
 		return ""
@@ -114,7 +114,7 @@ func (m *cmrModuleMetadataMap) get(ns string) *cmrModuleMetadata {
 // The returned map contains exactly one entry per declared namespace,
 // mirroring ModuleMetadataMap.getModulesByGoogNamespace().
 //
-// Go-only: single-file adapter for GatherModuleMetadata pass (full pass stubbed)
+// Go-only: language-adapter — single-file adapter for GatherModuleMetadata pass (full pass stubbed)
 func cmrGatherModuleMetadata(path string, script *rhino.Node) *cmrModuleMetadataMap {
 	md := &cmrModuleMetadata{
 		sourceFileName: path,
@@ -185,7 +185,7 @@ func cmrGatherModuleMetadata(path string, script *rhino.Node) *cmrModuleMetadata
 	return &cmrModuleMetadataMap{byNamespace: byNS}
 }
 
-// Go-only: AST scanner helper for goog.* call discovery (replaces inline visitor logic in Java)
+// Go-only: language-adapter — AST scanner helper for goog.* call discovery (replaces inline visitor logic in Java)
 // scanGoogCalls walks `n` in pre-order and calls `fn` for every CALL
 // node whose callee is a goog.* qualified name. `arg` is the string value
 // of the first argument (or "" when absent / non-string).
@@ -228,7 +228,7 @@ type cmrQualifiedName struct {
 	components []string
 }
 
-// Go-only: factory for cmrQualifiedName stub (Java uses QualifiedName.of())
+// Go-only: language-adapter — factory for cmrQualifiedName stub (Java uses QualifiedName.of())
 func qualifiedNameOf(dotted string) *cmrQualifiedName {
 	if dotted == "" {
 		return &cmrQualifiedName{}
@@ -278,7 +278,7 @@ func (q *cmrQualifiedName) getComponentCount() int {
 	return len(q.components)
 }
 
-// Go-only: converts AST node to stub QualifiedName (Java uses Node.getQualifiedNameObject())
+// Go-only: language-adapter — converts AST node to stub QualifiedName (Java uses Node.getQualifiedNameObject())
 // qualifiedNameFromNode converts a NAME or GETPROP chain into a
 // cmrQualifiedName. Returns nil when `n` is not a qualified name chain.
 func qualifiedNameFromNode(n *rhino.Node) *cmrQualifiedName {
@@ -305,7 +305,7 @@ func qualifiedNameFromNode(n *rhino.Node) *cmrQualifiedName {
 	return nil
 }
 
-// Go-only: convenience wrapper (Java uses qualifiedName.matches(node))
+// Go-only: language-adapter — convenience wrapper (Java uses qualifiedName.matches(node))
 // matchesQualifiedName reports whether a GETPROP/NAME chain matches
 // the given qualified name (mirrors QualifiedName.matches(Node)).
 func matchesQualifiedName(n *rhino.Node, q *cmrQualifiedName) bool {
@@ -502,7 +502,7 @@ type CheckMissingRequires struct {
 // NewCheckMissingRequires constructs the pass, mirroring the Java constructor
 // signature (compiler + moduleMetadataMap). Pass a map built by
 // cmrGatherModuleMetadata; nil map causes the pass to no-op.
-// Go-only: Go constructor (Java uses new CheckMissingRequires(compiler, moduleMetadataMap))
+// Go-only: language-adapter — Go constructor (Java uses new CheckMissingRequires(compiler, moduleMetadataMap))
 func NewCheckMissingRequires(path string, moduleMetadataMap *cmrModuleMetadataMap) *CheckMissingRequires {
 	c := &CheckMissingRequires{
 		path:               path,
@@ -551,7 +551,7 @@ func (c *CheckMissingRequires) visit(n *rhino.Node, currentModule *cmrModuleMeta
 // Check runs the pass over `script` and returns any diagnostics found.
 // Mirrors the Java CompilerPass.process entry point; externs are ignored
 // here (consistent with the narrow-port contract).
-// Go-only: Go entry point wrapper that returns diagnostics.
+// Go-only: language-adapter — Go entry point wrapper that returns diagnostics.
 func (c *CheckMissingRequires) Check(script *rhino.Node) []diag.Diagnostic {
 	c.diags = nil
 
@@ -570,7 +570,7 @@ func (c *CheckMissingRequires) Check(script *rhino.Node) []diag.Diagnostic {
 // Tree walker
 // ---------------------------------------------------------------------------
 
-// Go-only: replaces AbstractModuleCallback traversal lifecycle (enterModule/shouldTraverse/visit)
+// Go-only: language-adapter — replaces AbstractModuleCallback traversal lifecycle (enterModule/shouldTraverse/visit)
 // walk is a pre-order / post-order recursive traversal mirroring the Java
 // AbstractModuleCallback contract (shouldTraverse pre-order, visit post-order).
 // `currentModule` is the ModuleMetadata for the enclosing file; for the
@@ -1096,7 +1096,7 @@ func (c *CheckMissingRequires) isInGlobalControlFlowScope(n *rhino.Node) bool {
 	return false
 }
 
-// Go-only: local getFunctionBody variant (avoids name conflict with typetransformation.go)
+// Go-only: language-adapter — local getFunctionBody variant (avoids name conflict with typetransformation.go)
 // getFunctionBodyCMR returns the BLOCK child of a FUNCTION node (the body),
 // mirroring NodeUtil.getFunctionBody.
 func getFunctionBodyCMR(fn *rhino.Node) *rhino.Node {
@@ -1162,7 +1162,7 @@ func isGoogModuleGetCall(n *rhino.Node) bool {
 	return kids[1].Token() == rhino.STRINGLIT
 }
 
-// Go-only: adapter that bridges cmrModuleMetadataMap to CheckClosureImports's type system
+// Go-only: language-adapter — adapter that bridges cmrModuleMetadataMap to CheckClosureImports's type system
 // cmrTocci converts a cmrModuleMetadataMap into a ModuleMetadataMap so
 // that CheckClosureImports can use the same single-file module graph built
 // by cmrGatherModuleMetadata. Only the googNamespaces set and module type
@@ -1247,7 +1247,7 @@ func (c *CheckMissingRequires) report(n *rhino.Node, code, arg0, arg1 string) {
 	})
 }
 
-// Go-only: formats diagnostic message string (Java uses DiagnosticType.format() internally)
+// Go-only: language-adapter — formats diagnostic message string (Java uses DiagnosticType.format() internally)
 // formatMessage returns a human-readable message for the given code,
 // substituting arg0 and arg1 into the Java format template.
 func formatMessage(code, arg0, arg1 string) string {

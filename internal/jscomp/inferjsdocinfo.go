@@ -43,7 +43,7 @@ type InferJsDocInfo struct {
 	global  *TypedScope
 }
 
-// Go-only: NewInferJsDocInfo mirrors InferJSDocInfo(AbstractCompiler). The scope
+// Go-only: language-adapter — NewInferJsDocInfo mirrors InferJSDocInfo(AbstractCompiler). The scope
 // creator + global scope replace the compiler reference because jsgo
 // resolves types from the scope rather than from node annotations.
 func NewInferJsDocInfo(creator *TypedScopeCreator, global *TypedScope) *InferJsDocInfo {
@@ -62,7 +62,7 @@ func (p *InferJsDocInfo) Process(externs, root *rhino.Node) {
 	}
 }
 
-// Go-only: ShouldTraverse always returns true — this is a post-order-only pass.
+// Go-only: language-adapter — ShouldTraverse always returns true — this is a post-order-only pass.
 // Java implements shouldTraverse as part of AbstractPostOrderCallback.
 func (p *InferJsDocInfo) ShouldTraverse(_ *NodeTraversal, _, _ *rhino.Node) bool { return true }
 
@@ -90,7 +90,7 @@ func (p *InferJsDocInfo) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 	}
 }
 
-// Go-only: ijiInferJSDocForName mirrors InferJSDocInfo.inferJSDocForName. Handles
+// Go-only: language-adapter — ijiInferJSDocForName mirrors InferJSDocInfo.inferJSDocForName. Handles
 // NAME nodes that appear in var/let/const declarations, function
 // declarations, class declarations, and simple assigns.
 func (p *InferJsDocInfo) ijiInferJSDocForName(n, parent *rhino.Node, scope *TypedScope) {
@@ -147,7 +147,7 @@ func (p *InferJsDocInfo) ijiInferJSDocForName(n, parent *rhino.Node, scope *Type
 	}
 }
 
-// Go-only: ijiInferJSDocForObjectKeyOrMember mirrors
+// Go-only: language-adapter — ijiInferJSDocForObjectKeyOrMember mirrors
 // InferJSDocInfo.inferJSDocForObjectKeyOrClassField. Handles STRING_KEY
 // nodes inside object literals. In the Go AST, class methods appear as
 // FUNCTION children of CLASS (not as MEMBER_FUNCTION_DEF), so the class-
@@ -197,7 +197,7 @@ func (p *InferJsDocInfo) ijiInferJSDocForObjectKeyOrMember(n, parent *rhino.Node
 	}
 }
 
-// Go-only: ijiPrototypeLitOwner returns the ObjectType for the prototype when
+// Go-only: language-adapter — ijiPrototypeLitOwner returns the ObjectType for the prototype when
 // parent is an OBJECTLIT that is the RHS of `Foo.prototype = {…}`.
 // Mirrors how Java's inferJSDocForObjectKeyOrClassField resolves the
 // owning type for object-literal prototype assignments.
@@ -229,7 +229,7 @@ func ijiPrototypeLitOwner(objectlit *rhino.Node, scope *TypedScope) *jstype.Obje
 	return nil
 }
 
-// Go-only: ijiEnclosingPrototypeAssign returns the ASSIGN node when objectlit is
+// Go-only: language-adapter — ijiEnclosingPrototypeAssign returns the ASSIGN node when objectlit is
 // the RHS of a `Foo.prototype = {…}` assignment, nil otherwise.
 func ijiEnclosingPrototypeAssign(objectlit *rhino.Node) *rhino.Node {
 	if objectlit == nil {
@@ -254,7 +254,7 @@ func ijiEnclosingPrototypeAssign(objectlit *rhino.Node) *rhino.Node {
 	return assign
 }
 
-// Go-only: ijiInferJSDocForGetProp mirrors InferJSDocInfo.inferJSDocForProperty.
+// Go-only: language-adapter — ijiInferJSDocForGetProp mirrors InferJSDocInfo.inferJSDocForProperty.
 // Handles GETPROP nodes (property reads / declarations).
 func (p *InferJsDocInfo) ijiInferJSDocForGetProp(n, parent *rhino.Node, scope *TypedScope) {
 	var typeDoc *rhino.JSDocInfo
@@ -320,13 +320,13 @@ func (p *InferJsDocInfo) ijiInferJSDocForGetProp(n, parent *rhino.Node, scope *T
 	}
 }
 
-// Go-only: ijiDereferenced mirrors InferJSDocInfo's private dereferenced() — null-
+// Go-only: language-adapter — ijiDereferenced mirrors InferJSDocInfo's private dereferenced() — null-
 // safe wrapper for ObjectType dereferencing.
 func ijiDereferenced(t jstype.JSType) *jstype.ObjectType {
 	return jstype.Dereference(t)
 }
 
-// Go-only: ijiShouldAttachJSDocToNominalTypeOrShape mirrors the private
+// Go-only: language-adapter — ijiShouldAttachJSDocToNominalTypeOrShape mirrors the private
 // shouldAttachJSDocToNominalTypeOrShape. Returns true when the type is
 // non-nil, has no existing JSDoc, and is not merely an alias for another
 // type (aliasedType == nil or != type).
@@ -347,7 +347,7 @@ func ijiShouldAttachJSDocToNominalTypeOrShape(t *jstype.ObjectType, aliasedType 
 	return true
 }
 
-// Go-only: ijiAttachJSDocInfoToNominalTypeOrShape mirrors the private
+// Go-only: language-adapter — ijiAttachJSDocInfoToNominalTypeOrShape mirrors the private
 // attachJSDocInfoToNominalTypeOrShape — handles cases #1 and #3 in the
 // class-level doc.
 //
@@ -379,13 +379,13 @@ func ijiAttachJSDocInfoToNominalTypeOrShape(objType *jstype.ObjectType, docInfo 
 	}
 }
 
-// Go-only: ijiIsReferenceNameOf mirrors InferJSDocInfo.isReferenceNameOf — true
+// Go-only: language-adapter — ijiIsReferenceNameOf mirrors InferJSDocInfo.isReferenceNameOf — true
 // when `type.getReferenceName() == name`.
 func ijiIsReferenceNameOf(t *jstype.ObjectType, name string) bool {
 	return t.HasReferenceName() && t.GetReferenceName() == name
 }
 
-// Go-only: ijiIsNameDeclaration mirrors NodeUtil.isNameDeclaration — true for VAR,
+// Go-only: language-adapter — ijiIsNameDeclaration mirrors NodeUtil.isNameDeclaration — true for VAR,
 // LET, CONST parents.
 func ijiIsNameDeclaration(n *rhino.Node) bool {
 	switch n.Token() {
@@ -395,19 +395,19 @@ func ijiIsNameDeclaration(n *rhino.Node) bool {
 	return false
 }
 
-// Go-only: ijiIsFunctionDeclaration mirrors NodeUtil.isFunctionDeclaration — true
+// Go-only: language-adapter — ijiIsFunctionDeclaration mirrors NodeUtil.isFunctionDeclaration — true
 // for a FUNCTION node that is a statement (not an expression).
 func ijiIsFunctionDeclaration(n *rhino.Node) bool {
 	return n.Token() == rhino.FUNCTION
 }
 
-// Go-only: ijiIsClassDeclaration mirrors NodeUtil.isClassDeclaration — true for a
+// Go-only: language-adapter — ijiIsClassDeclaration mirrors NodeUtil.isClassDeclaration — true for a
 // CLASS node that is a statement.
 func ijiIsClassDeclaration(n *rhino.Node) bool {
 	return n.Token() == rhino.CLASS
 }
 
-// Go-only: ijiInferNameType resolves the declared type of a NAME node from the
+// Go-only: language-adapter — ijiInferNameType resolves the declared type of a NAME node from the
 // scope. Mirrors Node.getJSType() on a NAME reference — returns the type
 // attached by TypeInference in the Java pipeline.
 func ijiInferNameType(n *rhino.Node, scope *TypedScope) jstype.JSType {
@@ -417,7 +417,7 @@ func ijiInferNameType(n *rhino.Node, scope *TypedScope) jstype.JSType {
 	return scope.GetDeclaredType(n.String_())
 }
 
-// Go-only: ijiInferExprType resolves the type of an expression node. Used to
+// Go-only: language-adapter — ijiInferExprType resolves the type of an expression node. Used to
 // determine the "aliasedType" when the RHS of an assignment is a
 // qualified name, and to look up the receiver type for GETPROP /
 // STRING_KEY / MEMBER_FUNCTION_DEF nodes. Mirrors Node.getJSType() for

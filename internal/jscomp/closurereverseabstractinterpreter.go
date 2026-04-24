@@ -41,7 +41,7 @@ type ClosureReverseAbstractInterpreter struct {
 	restricters map[string]typeRestrictor
 }
 
-// Go-only: constructor (Java uses new ClosureReverseAbstractInterpreter(typeRegistry))
+// Go-only: language-adapter — constructor (Java uses new ClosureReverseAbstractInterpreter(typeRegistry))
 // NewClosureReverseAbstractInterpreter constructs a ClosureRAI and wires up
 // the restricters map.
 //
@@ -147,7 +147,7 @@ type closureRestrictToObjectVisitor struct {
 	c *ClosureReverseAbstractInterpreter
 }
 
-// Go-only: factory method for the anonymous restrictToObjectVisitor field (Java uses anonymous class init in constructor)
+// Go-only: language-adapter — factory method for the anonymous restrictToObjectVisitor field (Java uses anonymous class init in constructor)
 func (c *ClosureReverseAbstractInterpreter) newRestrictToObjectVisitor() *closureRestrictToObjectVisitor {
 	v := &closureRestrictToObjectVisitor{c: c}
 	// RestrictByTrueTypeOfResultVisitor: all unhandled leaf cases → nil.
@@ -155,12 +155,12 @@ func (c *ClosureReverseAbstractInterpreter) newRestrictToObjectVisitor() *closur
 	return v
 }
 
-// Go-only: Visitor interface implementation (Java uses anonymous RestrictByTrueTypeOfResultVisitor subclass)
+// Go-only: language-adapter — Visitor interface implementation (Java uses anonymous RestrictByTrueTypeOfResultVisitor subclass)
 func (v *closureRestrictToObjectVisitor) CaseAllType() any {
 	return v.c.getNativeType(jstype.NO_OBJECT_TYPE)
 }
 
-// Go-only: Visitor interface implementation (Java uses anonymous RestrictByTrueTypeOfResultVisitor subclass)
+// Go-only: language-adapter — Visitor interface implementation (Java uses anonymous RestrictByTrueTypeOfResultVisitor subclass)
 func (v *closureRestrictToObjectVisitor) CaseUnknownType() any {
 	return v.c.getNativeType(jstype.NO_OBJECT_TYPE)
 }
@@ -169,29 +169,29 @@ func (v *closureRestrictToObjectVisitor) CaseObjectType(typ *jstype.ObjectType) 
 
 func (v *closureRestrictToObjectVisitor) CaseFunctionType(typ *jstype.FunctionType) any { return typ }
 
-// Go-only: Visitor interface implementation for union types (Java anonymous class inherits from RestrictByTrueTypeOfResultVisitor)
+// Go-only: language-adapter — Visitor interface implementation for union types (Java anonymous class inherits from RestrictByTrueTypeOfResultVisitor)
 // Union, enum, named, proxy, templatized, template: shared helpers.
 func (v *closureRestrictToObjectVisitor) CaseUnionType(typ *jstype.UnionType) any {
 	return visitUnionRestrictingType(v, typ)
 }
 
-// Go-only: Visitor interface implementation (Java anonymous class inherits default)
+// Go-only: language-adapter — Visitor interface implementation (Java anonymous class inherits default)
 func (v *closureRestrictToObjectVisitor) CaseEnumElementType(typ *jstype.EnumElementType) any {
 	return visitEnumElement(v, typ)
 }
 
-// Go-only: Visitor interface implementation (Java anonymous class inherits default)
+// Go-only: language-adapter — Visitor interface implementation (Java anonymous class inherits default)
 func (v *closureRestrictToObjectVisitor) CaseTemplatizedType(typ *jstype.TemplatizedType) any {
 	return v.CaseObjectType(typ.Base)
 }
 
-// Go-only: Visitor interface implementation (Java anonymous class inherits default)
+// Go-only: language-adapter — Visitor interface implementation (Java anonymous class inherits default)
 func (v *closureRestrictToObjectVisitor) CaseTemplateType(typ *jstype.TemplateType) any {
 	_ = typ // template types are not object types; mirrors Java RestrictByTrueTypeOfResultVisitor default
 	return nil
 }
 
-// Go-only: Visitor interface implementation (Java anonymous class inherits default)
+// Go-only: language-adapter — Visitor interface implementation (Java anonymous class inherits default)
 func (v *closureRestrictToObjectVisitor) CaseNamedType(typ jstype.JSType) any {
 	if nt, ok := typ.(*jstype.NamedType); ok {
 		return visitNamedType(v, nt)
@@ -199,7 +199,7 @@ func (v *closureRestrictToObjectVisitor) CaseNamedType(typ jstype.JSType) any {
 	return nil
 }
 
-// Go-only: Visitor interface implementation (Java anonymous class inherits default)
+// Go-only: language-adapter — Visitor interface implementation (Java anonymous class inherits default)
 func (v *closureRestrictToObjectVisitor) CaseProxyObjectType(typ jstype.JSType) any {
 	if pt, ok := typ.(*jstype.ProxyObjectType); ok {
 		return visitProxyObjectType(v, pt)
@@ -207,7 +207,7 @@ func (v *closureRestrictToObjectVisitor) CaseProxyObjectType(typ jstype.JSType) 
 	return nil
 }
 
-// Go-only: Visitor interface implementation (Java anonymous class inherits default)
+// Go-only: language-adapter — Visitor interface implementation (Java anonymous class inherits default)
 func (v *closureRestrictToObjectVisitor) CaseNoType(typ jstype.JSType) any { return typ }
 
 // ----------------------------------------------------------------------------
@@ -224,7 +224,7 @@ type closureRestrictToNotObjectVisitor struct {
 	c *ClosureReverseAbstractInterpreter
 }
 
-// Go-only: factory method for the anonymous restrictToNotObjectVisitor field (Java uses anonymous class init in constructor)
+// Go-only: language-adapter — factory method for the anonymous restrictToNotObjectVisitor field (Java uses anonymous class init in constructor)
 func (c *ClosureReverseAbstractInterpreter) newRestrictToNotObjectVisitor() *closureRestrictToNotObjectVisitor {
 	v := &closureRestrictToNotObjectVisitor{c: c}
 	// RestrictByFalseTypeOfResultVisitor: default keeps the type as-is.
@@ -232,12 +232,12 @@ func (c *ClosureReverseAbstractInterpreter) newRestrictToNotObjectVisitor() *clo
 	return v
 }
 
-// Go-only: Visitor interface implementation (Java uses anonymous RestrictByFalseTypeOfResultVisitor subclass)
+// Go-only: language-adapter — Visitor interface implementation (Java uses anonymous RestrictByFalseTypeOfResultVisitor subclass)
 func (v *closureRestrictToNotObjectVisitor) CaseAllType() any {
 	return v.c.getNativeType(jstype.ALL_TYPE)
 }
 
-// Go-only: Visitor interface implementation (Java uses anonymous RestrictByFalseTypeOfResultVisitor subclass)
+// Go-only: language-adapter — Visitor interface implementation (Java uses anonymous RestrictByFalseTypeOfResultVisitor subclass)
 func (v *closureRestrictToNotObjectVisitor) CaseUnknownType() any {
 	return v.c.getNativeType(jstype.CHECKED_UNKNOWN_TYPE)
 }
@@ -251,67 +251,67 @@ func (v *closureRestrictToNotObjectVisitor) CaseFunctionType(typ *jstype.Functio
 	return nil
 }
 
-// Go-only: explicit case (Java RestrictByFalseTypeOfResultVisitor base class handles via default)
+// Go-only: language-adapter — explicit case (Java RestrictByFalseTypeOfResultVisitor base class handles via default)
 // The following are RestrictByFalseTypeOfResultVisitor defaults — return native type.
 func (v *closureRestrictToNotObjectVisitor) CaseNoObjectType() any {
 	return v.c.getNativeType(jstype.NO_OBJECT_TYPE)
 }
 
-// Go-only: explicit case (Java RestrictByFalseTypeOfResultVisitor base class handles via default)
+// Go-only: language-adapter — explicit case (Java RestrictByFalseTypeOfResultVisitor base class handles via default)
 func (v *closureRestrictToNotObjectVisitor) CaseBooleanType() any {
 	return v.c.getNativeType(jstype.BOOLEAN_TYPE)
 }
 
-// Go-only: explicit case (Java RestrictByFalseTypeOfResultVisitor base class handles via default)
+// Go-only: language-adapter — explicit case (Java RestrictByFalseTypeOfResultVisitor base class handles via default)
 func (v *closureRestrictToNotObjectVisitor) CaseNullType() any {
 	return v.c.getNativeType(jstype.NULL_TYPE)
 }
 
-// Go-only: explicit case (Java RestrictByFalseTypeOfResultVisitor base class handles via default)
+// Go-only: language-adapter — explicit case (Java RestrictByFalseTypeOfResultVisitor base class handles via default)
 func (v *closureRestrictToNotObjectVisitor) CaseNumberType() any {
 	return v.c.getNativeType(jstype.NUMBER_TYPE)
 }
-// Go-only: explicit case (Java RestrictByFalseTypeOfResultVisitor base class handles via default)
+// Go-only: language-adapter — explicit case (Java RestrictByFalseTypeOfResultVisitor base class handles via default)
 func (v *closureRestrictToNotObjectVisitor) CaseBigIntType() any {
 	return v.c.getNativeType(jstype.BIGINT_TYPE)
 }
 
-// Go-only: explicit case (Java RestrictByFalseTypeOfResultVisitor base class handles via default)
+// Go-only: language-adapter — explicit case (Java RestrictByFalseTypeOfResultVisitor base class handles via default)
 func (v *closureRestrictToNotObjectVisitor) CaseStringType() any {
 	return v.c.getNativeType(jstype.STRING_TYPE)
 }
 
-// Go-only: explicit case (Java RestrictByFalseTypeOfResultVisitor base class handles via default)
+// Go-only: language-adapter — explicit case (Java RestrictByFalseTypeOfResultVisitor base class handles via default)
 func (v *closureRestrictToNotObjectVisitor) CaseSymbolType(typ jstype.JSType) any { return typ }
 
-// Go-only: explicit case (Java RestrictByFalseTypeOfResultVisitor base class handles via default)
+// Go-only: language-adapter — explicit case (Java RestrictByFalseTypeOfResultVisitor base class handles via default)
 func (v *closureRestrictToNotObjectVisitor) CaseVoidType() any {
 	return v.c.getNativeType(jstype.VOID_TYPE)
 }
 
-// Go-only: Visitor interface implementation for union types (Java anonymous class inherits default)
+// Go-only: language-adapter — Visitor interface implementation for union types (Java anonymous class inherits default)
 // Union, enum, named, proxy, templatized, template: shared helpers.
 func (v *closureRestrictToNotObjectVisitor) CaseUnionType(typ *jstype.UnionType) any {
 	return visitUnionRestrictingType(v, typ)
 }
 
-// Go-only: Visitor interface implementation (Java anonymous class inherits default)
+// Go-only: language-adapter — Visitor interface implementation (Java anonymous class inherits default)
 func (v *closureRestrictToNotObjectVisitor) CaseEnumElementType(typ *jstype.EnumElementType) any {
 	return visitEnumElement(v, typ)
 }
 
-// Go-only: Visitor interface implementation (Java anonymous class inherits default)
+// Go-only: language-adapter — Visitor interface implementation (Java anonymous class inherits default)
 func (v *closureRestrictToNotObjectVisitor) CaseTemplatizedType(typ *jstype.TemplatizedType) any {
 	return v.CaseObjectType(typ.Base)
 }
 
-// Go-only: Visitor interface implementation (Java anonymous class inherits default)
+// Go-only: language-adapter — Visitor interface implementation (Java anonymous class inherits default)
 func (v *closureRestrictToNotObjectVisitor) CaseTemplateType(typ *jstype.TemplateType) any {
 	_ = typ // template types are not constrained by goog.isObject; mirrors RestrictByFalseTypeOfResultVisitor default
 	return nil
 }
 
-// Go-only: Visitor interface implementation (Java anonymous class inherits default)
+// Go-only: language-adapter — Visitor interface implementation (Java anonymous class inherits default)
 func (v *closureRestrictToNotObjectVisitor) CaseNamedType(typ jstype.JSType) any {
 	if nt, ok := typ.(*jstype.NamedType); ok {
 		return visitNamedType(v, nt)
@@ -319,7 +319,7 @@ func (v *closureRestrictToNotObjectVisitor) CaseNamedType(typ jstype.JSType) any
 	return nil
 }
 
-// Go-only: Visitor interface implementation (Java anonymous class inherits default)
+// Go-only: language-adapter — Visitor interface implementation (Java anonymous class inherits default)
 func (v *closureRestrictToNotObjectVisitor) CaseProxyObjectType(typ jstype.JSType) any {
 	if pt, ok := typ.(*jstype.ProxyObjectType); ok {
 		return visitProxyObjectType(v, pt)
@@ -327,5 +327,5 @@ func (v *closureRestrictToNotObjectVisitor) CaseProxyObjectType(typ jstype.JSTyp
 	return nil
 }
 
-// Go-only: Visitor interface implementation (Java anonymous class inherits default)
+// Go-only: language-adapter — Visitor interface implementation (Java anonymous class inherits default)
 func (v *closureRestrictToNotObjectVisitor) CaseNoType(typ jstype.JSType) any { return typ }

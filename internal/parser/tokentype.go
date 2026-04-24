@@ -192,7 +192,7 @@ func (t TokenType) ToString() string {
 	return tokenTypeValue(t)
 }
 
-// Go-only: tokenTypeValue is a helper backing ToString(); Java stores the value
+// Go-only: language-adapter — tokenTypeValue is a helper backing ToString(); Java stores the value
 // directly as an enum field `value` rather than a function.
 func tokenTypeValue(t TokenType) string {
 	switch t {
@@ -366,30 +366,30 @@ type Token struct {
 	ErrorPosition SourcePosition
 }
 
-// Go-only: GetStart consolidates Token.getStart() from Token.java into this file;
+// Go-only: language-adapter — GetStart consolidates Token.getStart() from Token.java into this file;
 // Java's Token is a separate class not counted in TokenType.java's method surface.
 func (t *Token) GetStart() SourcePosition { return t.Location.Start }
 
 // ToString mirrors Token.toString() — returns the token type's string representation.
-// Go-only: Token.java is a secondary source; the name does not appear in TokenType.java.
+// Go-only: language-adapter — Token.java is a secondary source; the name does not appear in TokenType.java.
 func (t *Token) ToString() string { return t.Type.ToString() }
 
-// Go-only: AsLiteral consolidates Token.asLiteral() from Token.java into this file.
+// Go-only: language-adapter — AsLiteral consolidates Token.asLiteral() from Token.java into this file.
 func (t *Token) AsLiteral() *Token { return t }
 
-// Go-only: AsIdentifier consolidates Token.asIdentifier() from Token.java into this file.
+// Go-only: language-adapter — AsIdentifier consolidates Token.asIdentifier() from Token.java into this file.
 func (t *Token) AsIdentifier() *Token { return t }
 
-// Go-only: AsTemplateLiteral consolidates Token.asTemplateLiteral() from Token.java into this file.
+// Go-only: language-adapter — AsTemplateLiteral consolidates Token.asTemplateLiteral() from Token.java into this file.
 func (t *Token) AsTemplateLiteral() *Token { return t }
 
-// Go-only: IsPrivateIdentifier has no Java equivalent in TokenType.java or Token.java;
+// Go-only: language-adapter — IsPrivateIdentifier has no Java equivalent in TokenType.java or Token.java;
 // private-identifier detection is handled inline in the Java scanner.
 func (t *Token) IsPrivateIdentifier() bool {
 	return t.Type == TokenTypeIdentifier && len(t.Value) > 0 && t.Value[0] == '#'
 }
 
-// Go-only: HasError consolidates TemplateLiteralToken.hasError() from TemplateLiteralToken.java.
+// Go-only: language-adapter — HasError consolidates TemplateLiteralToken.hasError() from TemplateLiteralToken.java.
 func (t *Token) HasError() bool {
 	return t.ErrorLevel == TemplateLiteralError && t.ErrorMessage != ""
 }
@@ -404,17 +404,17 @@ const (
 
 // ---- Convenience constructors ---------------------------------------
 
-// Go-only: newToken replaces Java's `new Token(type, location)` constructor.
+// Go-only: language-adapter — newToken replaces Java's `new Token(type, location)` constructor.
 func newToken(typ TokenType, location SourceRange) *Token {
 	return &Token{Type: typ, Location: location}
 }
 
-// Go-only: newLiteralToken replaces Java's `new LiteralToken(type, value, location)` constructor.
+// Go-only: language-adapter — newLiteralToken replaces Java's `new LiteralToken(type, value, location)` constructor.
 func newLiteralToken(typ TokenType, value string, location SourceRange) *Token {
 	return &Token{Type: typ, Location: location, Value: value}
 }
 
-// Go-only: newStringLiteralToken replaces Java's `new StringLiteralToken(value, location, hasUnescaped)` constructor.
+// Go-only: language-adapter — newStringLiteralToken replaces Java's `new StringLiteralToken(value, location, hasUnescaped)` constructor.
 func newStringLiteralToken(value string, location SourceRange, hasUnescaped bool) *Token {
 	return &Token{
 		Type:     TokenTypeString,
@@ -424,12 +424,12 @@ func newStringLiteralToken(value string, location SourceRange, hasUnescaped bool
 	}
 }
 
-// Go-only: newIdentifierToken replaces Java's `new IdentifierToken(location, value)` constructor.
+// Go-only: language-adapter — newIdentifierToken replaces Java's `new IdentifierToken(location, value)` constructor.
 func newIdentifierToken(location SourceRange, value string) *Token {
 	return &Token{Type: TokenTypeIdentifier, Location: location, Value: value}
 }
 
-// Go-only: newTemplateLiteralToken replaces Java's `new TemplateLiteralToken(...)` constructor.
+// Go-only: language-adapter — newTemplateLiteralToken replaces Java's `new TemplateLiteralToken(...)` constructor.
 func newTemplateLiteralToken(
 	typ TokenType,
 	value string,
@@ -524,7 +524,7 @@ var keywordsByName map[string]TokenType
 // keywordsByType mirrors Keywords.KEYWORDS_BY_TYPE.
 var keywordsByType map[TokenType]string
 
-// Go-only: init populates the keyword lookup maps; Java uses a static initializer block.
+// Go-only: language-adapter — init populates the keyword lookup maps; Java uses a static initializer block.
 func init() {
 	keywordsByName = make(map[string]TokenType, len(keywords))
 	keywordsByType = make(map[TokenType]string, len(keywords))
@@ -534,27 +534,27 @@ func init() {
 	}
 }
 
-// Go-only: getKeywordType ports Keywords.get(String) into the parser package;
+// Go-only: language-adapter — getKeywordType ports Keywords.get(String) into the parser package;
 // Java resolves this via a separate Keywords enum.
 func getKeywordType(value string) (TokenType, bool) {
 	t, ok := keywordsByName[value]
 	return t, ok
 }
 
-// Go-only: keywordForType ports Keywords.get(TokenType) into the parser package;
+// Go-only: language-adapter — keywordForType ports Keywords.get(TokenType) into the parser package;
 // Java resolves this via a separate Keywords enum.
 func keywordForType(t TokenType) string {
 	return keywordsByType[t]
 }
 
-// Go-only: isKeywordType ports Keywords.isKeyword(TokenType) into the parser package;
+// Go-only: language-adapter — isKeywordType ports Keywords.isKeyword(TokenType) into the parser package;
 // Java resolves this via a separate Keywords enum.
 func isKeywordType(t TokenType) bool {
 	_, ok := keywordsByType[t]
 	return ok
 }
 
-// Go-only: isStrictKeyword ports Keywords.isStrictKeyword(TokenType) into the parser package;
+// Go-only: language-adapter — isStrictKeyword ports Keywords.isStrictKeyword(TokenType) into the parser package;
 // Java resolves this via a separate Keywords enum.
 func isStrictKeyword(t TokenType) bool {
 	switch t {
