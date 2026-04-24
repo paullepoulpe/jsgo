@@ -2628,7 +2628,8 @@ func (s *TypedScope) inferExprType(n *rhino.Node) jstype.JSType {
 }
 
 // extractIterableElemType returns the element type T from an Iterable<T>,
-// Array<T>, or similar iteratable type. Returns nil if not determinable.
+// Array<T>, or similar iteratable type. For union types, returns the union
+// of element types from each member. Returns nil if not determinable.
 // Mirrors Java's TypeInference case FOR_OF element-type extraction.
 func extractIterableElemType(t jstype.JSType) jstype.JSType {
 	if t == nil {
@@ -2638,12 +2639,19 @@ func extractIterableElemType(t jstype.JSType) jstype.JSType {
 	if tt, ok := t.(*jstype.TemplatizedType); ok && len(tt.Args) > 0 {
 		return tt.Args[0]
 	}
-	// Handle union type: try each member.
+	// Handle union type: collect element types from each member and union them.
 	if u, ok := t.(*jstype.UnionType); ok {
+		var elems []jstype.JSType
 		for _, m := range u.Members() {
 			if elem := extractIterableElemType(m); elem != nil {
-				return elem
+				elems = append(elems, elem)
 			}
+		}
+		if len(elems) == 1 {
+			return elems[0]
+		}
+		if len(elems) > 1 {
+			return jstype.NewUnion(elems...)
 		}
 	}
 	return nil

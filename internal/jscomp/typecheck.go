@@ -3009,7 +3009,15 @@ func (c *TypeCheck) checkForOfTypes(n *rhino.Node, scope *TypedScope) []diag.Dia
 	foundName := iterType.TypeName()
 
 	stripped := stripNullUndef(iterType)
-	hasNullOrUndef := (stripped != iterType) // type changed → had null/void
+	// hasNullOrUndef: the type changed after stripping null/void.
+	// Use TypeName comparison (not pointer equality) since stripNullUndef
+	// may create a new union pointer even when no null was present.
+	var hasNullOrUndef bool
+	if stripped == nil {
+		hasNullOrUndef = true
+	} else {
+		hasNullOrUndef = (stripped.TypeName() != iterType.TypeName())
+	}
 
 	if hasNullOrUndef {
 		// Nullable iterable: `?Iterable<T>` → cannot iterate.
@@ -3044,6 +3052,19 @@ func (c *TypeCheck) checkForOfTypes(n *rhino.Node, scope *TypedScope) []diag.Dia
 func forOfIsIterableType(t jstype.JSType) bool {
 	// Primitive string is iterable (JS engines implement Symbol.iterator).
 	if t == jstype.String || t == jstype.All {
+		return true
+	}
+	// Unknown types are treated as potentially iterable.
+	if isJSUnknown(t) {
+		return true
+	}
+	// Union: iterable if ALL members are iterable.
+	if u, ok := t.(*jstype.UnionType); ok {
+		for _, m := range u.Members() {
+			if !forOfIsIterableType(m) {
+				return false
+			}
+		}
 		return true
 	}
 	// Derive the base name from the TypeName: strip template parameters.
