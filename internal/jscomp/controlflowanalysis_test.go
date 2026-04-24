@@ -439,24 +439,6 @@ func TestCFA_SimpleFor(t *testing.T) {
 	}
 }
 
-// helper for above — just check it has a for loop that terminates
-func (b Branch) String() string {
-	switch b {
-	case BranchUnconditional:
-		return "UNCOND"
-	case BranchOnTrue:
-		return "ON_TRUE"
-	case BranchOnFalse:
-		return "ON_FALSE"
-	case BranchException:
-		return "ON_EX"
-	case BranchSyn:
-		return "SYN"
-	default:
-		return "UNKNOWN"
-	}
-}
-
 // forHasExitEdge checks that some FOR node has an ON_FALSE edge to EXIT
 // (directly or through synthetic nodes).
 func forHasExitEdge(cfg *ControlFlowGraph) bool {

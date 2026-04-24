@@ -31,6 +31,25 @@ const (
 	BranchSyn
 )
 
+// String returns the DOT/debug label for a branch kind.
+// Mirrors ControlFlowGraph.Branch.toString() in Java.
+func (b Branch) String() string {
+	switch b {
+	case BranchUnconditional:
+		return "UNCOND"
+	case BranchOnTrue:
+		return "ON_TRUE"
+	case BranchOnFalse:
+		return "ON_FALSE"
+	case BranchException:
+		return "ON_EX"
+	case BranchSyn:
+		return "SYN"
+	default:
+		return "UNKNOWN"
+	}
+}
+
 // CfgEdge is a directed successor with a branch label.
 type CfgEdge struct {
 	To     *CfgNode
