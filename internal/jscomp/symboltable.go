@@ -742,7 +742,8 @@ func (st *SymbolTable) stIsGoodRefToAdd(ref StaticRef) bool {
 	return true
 }
 
-// Go-only: language-adapter — Go port names private method stCopySymbolTo (Java uses private method with same logic).
+// TODO(port): SymbolTable.copySymbolTo from com/google/javascript/jscomp/SymbolTable.java:697
+// Reason: Go renamed but did not port the body faithfully.
 func (st *SymbolTable) stCopySymbolTo(sym StaticSlot, declNode *rhino.Node, scope *SymbolScope) *Symbol {
 	if declNode == nil {
 		panic("symboltable: copySymbolTo: declNode must not be nil")
@@ -759,7 +760,8 @@ func (st *SymbolTable) stCopySymbolTo(sym StaticSlot, declNode *rhino.Node, scop
 
 // stSanitizeSpecialChars replaces backslash, NUL, and newline.
 // Mirrors sanitizeSpecialChars(String) in Java.
-// Go-only: language-adapter — Go port names private method stSanitizeSpecialChars (Java uses private method with same logic).
+// TODO(port): SymbolTable.sanitizeSpecialChars from com/google/javascript/jscomp/SymbolTable.java:708
+// Reason: Go renamed but did not port the body faithfully.
 func stSanitizeSpecialChars(s string) string {
 	s = strings.ReplaceAll(s, "\\", "\\\\")
 	s = strings.ReplaceAll(s, "\x00", "\\0")
@@ -767,7 +769,8 @@ func stSanitizeSpecialChars(s string) string {
 	return s
 }
 
-// Go-only: language-adapter — Go port names private method stAddSymbol (Java uses private method with same logic).
+// TODO(port): SymbolTable.addSymbol from com/google/javascript/jscomp/SymbolTable.java:712
+// Reason: Go renamed but did not port the body faithfully.
 func (st *SymbolTable) stAddSymbol(
 	name string,
 	t jstype.JSType,
@@ -795,7 +798,8 @@ func (st *SymbolTable) stAddSymbol(
 	return symbol
 }
 
-// Go-only: language-adapter — Go port names private method stDeclareSymbol (Java uses private method with same logic).
+// TODO(port): SymbolTable.declareSymbol from com/google/javascript/jscomp/SymbolTable.java:727
+// Reason: Go renamed but did not port the body faithfully.
 func (st *SymbolTable) stDeclareSymbol(
 	name string,
 	t jstype.JSType,
@@ -812,7 +816,8 @@ func (st *SymbolTable) stDeclareSymbol(
 
 // stMergeSymbol moves all references from `from` to `to` and removes `from`.
 // Mirrors mergeSymbol(Symbol, Symbol) in Java.
-// Go-only: language-adapter — Go port names private method stMergeSymbol (Java uses private method with same logic).
+// TODO(port): SymbolTable.mergeSymbol from com/google/javascript/jscomp/SymbolTable.java:744
+// Reason: Go renamed but did not port the body faithfully.
 func (st *SymbolTable) stMergeSymbol(from, to *Symbol) {
 	fromDecl := from.GetDeclaration()
 	for node := range from.references {
@@ -823,7 +828,8 @@ func (st *SymbolTable) stMergeSymbol(from, to *Symbol) {
 	st.stRemoveSymbol(from)
 }
 
-// Go-only: language-adapter — Go port names private method stRemoveSymbol (Java uses private method with same logic).
+// TODO(port): SymbolTable.removeSymbol from com/google/javascript/jscomp/SymbolTable.java:753
+// Reason: Go renamed but did not port the body faithfully.
 func (st *SymbolTable) stRemoveSymbol(s *Symbol) {
 	scope := st.GetScope(s)
 	if scope.ownSymbols[s.GetName()] != s {
@@ -852,7 +858,8 @@ func (st *SymbolTable) stRemoveSymbol(s *Symbol) {
 	}
 }
 
-// Go-only: language-adapter — Go port names private method stRenameSymbol (Java uses private method with same logic).
+// TODO(port): SymbolTable.renameSymbol from com/google/javascript/jscomp/SymbolTable.java:776
+// Reason: Go renamed but did not port the body faithfully.
 func (st *SymbolTable) stRenameSymbol(scope *SymbolScope, sym *Symbol, newName string) {
 	if sym.propertyScope != nil {
 		panic("symboltable: renameSymbol: symbol has a property scope")
@@ -967,7 +974,8 @@ func (st *SymbolTable) FillPropertyScopes() {
 	st.PruneOrphanedNames()
 }
 
-// Go-only: language-adapter — Go port names private method stNeedsPropertyScope (Java uses private method with same logic).
+// TODO(port): SymbolTable.needsPropertyScope from com/google/javascript/jscomp/SymbolTable.java:963
+// Reason: Go renamed but did not port the body faithfully.
 func (st *SymbolTable) stNeedsPropertyScope(sym *Symbol) bool {
 	jsT := st.stGetType(sym)
 	if jsT != nil && st.stIsRecordType(jsT) {
@@ -1074,7 +1082,8 @@ func (st *SymbolTable) FillSymbolVisibility(externs, root *rhino.Node) {
 	}
 }
 
-// Go-only: language-adapter — Go port names private method stCreatePropertyScopeFor (Java uses private method with same logic).
+// TODO(port): SymbolTable.createPropertyScopeFor from com/google/javascript/jscomp/SymbolTable.java:1114
+// Reason: Go renamed but did not port the body faithfully.
 func (st *SymbolTable) stCreatePropertyScopeFor(s *Symbol) {
 	if s.propertyScope != nil {
 		return
@@ -1106,7 +1115,8 @@ func (st *SymbolTable) stCreatePropertyScopeFor(s *Symbol) {
 //
 // Full implementation requires ObjectType.getImplicitPrototype() (not yet
 // ported). Returns nil until prototype-chain introspection is available.
-// Go-only: language-adapter — Go port names private method stMaybeGetParentPropertyScope (Java uses private method with same logic).
+// TODO(port): SymbolTable.maybeGetParentPropertyScope from com/google/javascript/jscomp/SymbolTable.java:1215
+// Reason: Go renamed but did not port the body faithfully.
 func (st *SymbolTable) stMaybeGetParentPropertyScope(t jstype.JSType) *SymbolScope {
 	// Without ObjectType.getImplicitPrototype(), we cannot walk the prototype
 	// chain to find a parent property scope. Return nil conservatively.
@@ -1238,7 +1248,8 @@ func (st *SymbolTable) RemoveGeneratedSymbols() {
 	st.stMergeExternSymbolsDuplicatedOnWindow()
 }
 
-// Go-only: language-adapter — Go port names private method stIsSymbolAQuotedObjectKey (Java uses private method with same logic).
+// TODO(port): SymbolTable.isSymbolAQuotedObjectKey from com/google/javascript/jscomp/SymbolTable.java:1475
+// Reason: Go renamed but did not port the body faithfully.
 func (st *SymbolTable) stIsSymbolAQuotedObjectKey(sym *Symbol) bool {
 	n := sym.GetDeclarationNode()
 	if n == nil {
@@ -1249,7 +1260,8 @@ func (st *SymbolTable) stIsSymbolAQuotedObjectKey(sym *Symbol) bool {
 	return n.Token() == rhino.STRING_KEY
 }
 
-// Go-only: language-adapter — Go port names private method stIsSymbolDuplicatedExternOnWindow (Java uses private method with same logic).
+// TODO(port): SymbolTable.isSymbolDuplicatedExternOnWindow from com/google/javascript/jscomp/SymbolTable.java:1484
+// Reason: Go renamed but did not port the body faithfully.
 func (st *SymbolTable) stIsSymbolDuplicatedExternOnWindow(sym *Symbol) bool {
 	n := sym.GetDeclarationNode()
 	if n == nil {
@@ -1269,7 +1281,8 @@ func (st *SymbolTable) stIsSymbolDuplicatedExternOnWindow(sym *Symbol) bool {
 // not yet available in our rhino.Node. The merge is a no-op until source-file
 // metadata is available.
 // Mirrors SymbolTable.mergeExternSymbolsDuplicatedOnWindow() in Java.
-// Go-only: language-adapter — Go port names private method stMergeExternSymbolsDuplicatedOnWindow (Java uses private method with same logic).
+// TODO(port): SymbolTable.mergeExternSymbolsDuplicatedOnWindow from com/google/javascript/jscomp/SymbolTable.java:1510
+// Reason: Go renamed but did not port the body faithfully.
 func (st *SymbolTable) stMergeExternSymbolsDuplicatedOnWindow() {
 	// Deferred: requires Node.getStaticSourceFile().isExtern() and the
 	// Window object's property scope. The full logic finds symbols declared
@@ -1283,7 +1296,8 @@ func (st *SymbolTable) stMergeExternSymbolsDuplicatedOnWindow() {
 
 // stCreateScopeFrom creates or retrieves a SymbolScope for otherScope's root.
 // Mirrors createScopeFrom(StaticScope) in Java.
-// Go-only: language-adapter — Go port names private method stCreateScopeFrom (Java uses private method with same logic).
+// TODO(port): SymbolTable.createScopeFrom from com/google/javascript/jscomp/SymbolTable.java:1571
+// Reason: Go renamed but did not port the body faithfully.
 func (st *SymbolTable) stCreateScopeFrom(otherScope StaticScope) *SymbolScope {
 	otherScopeRoot := otherScope.GetRootNode()
 	myScope := st.scopes[otherScopeRoot]
@@ -1310,17 +1324,20 @@ func (st *SymbolTable) stCreateScopeFrom(otherScope StaticScope) *SymbolScope {
 // Type helpers
 // ---------------------------------------------------------------------------
 
-// Go-only: language-adapter — Go port names private method stGetType (Java uses private method with same logic).
+// TODO(port): SymbolTable.getType from com/google/javascript/jscomp/SymbolTable.java:2379
+// Reason: Go renamed but did not port the body faithfully.
 func (st *SymbolTable) stGetType(sym *Symbol) jstype.JSType {
 	return sym.jsType
 }
 
-// Go-only: language-adapter — Go port names private method stIsTypeInferredSym (Java uses private method with same logic).
+// TODO(port): SymbolTable.isTypeInferred from com/google/javascript/jscomp/SymbolTable.java:2400
+// Reason: Go renamed but did not port the body faithfully.
 func (st *SymbolTable) stIsTypeInferredSym(sym *Symbol) bool {
 	return sym.inferred
 }
 
-// Go-only: language-adapter — Go port names private method stGetTypeFromSlot (Java uses private method with same logic).
+// TODO(port): SymbolTable.getType from com/google/javascript/jscomp/SymbolTable.java:2379
+// Reason: Go renamed but did not port the body faithfully (slot variant).
 func (st *SymbolTable) stGetTypeFromSlot(sym StaticSlot) jstype.JSType {
 	if ts, ok := sym.(StaticTypedSlot); ok {
 		return ts.GetType()
@@ -1328,7 +1345,8 @@ func (st *SymbolTable) stGetTypeFromSlot(sym StaticSlot) jstype.JSType {
 	return nil
 }
 
-// Go-only: language-adapter — Go port names private method stIsTypeInferred (Java uses private method with same logic).
+// TODO(port): SymbolTable.isTypeInferred from com/google/javascript/jscomp/SymbolTable.java:2400
+// Reason: Go renamed but did not port the body faithfully (slot variant).
 func (st *SymbolTable) stIsTypeInferred(sym StaticSlot) bool {
 	if ts, ok := sym.(StaticTypedSlot); ok {
 		return ts.IsTypeInferred()
@@ -1336,7 +1354,8 @@ func (st *SymbolTable) stIsTypeInferred(sym StaticSlot) bool {
 	return true
 }
 
-// Go-only: language-adapter — Go port names private method stGetTypeOfThis (Java uses private method with same logic).
+// TODO(port): SymbolTable.getTypeOfThis from com/google/javascript/jscomp/SymbolTable.java:2393
+// Reason: Go renamed but did not port the body faithfully.
 func (st *SymbolTable) stGetTypeOfThis(s StaticScope) jstype.JSType {
 	if ts, ok := s.(StaticTypedScope); ok {
 		return ts.GetTypeOfThis()
@@ -1344,7 +1363,8 @@ func (st *SymbolTable) stGetTypeOfThis(s StaticScope) jstype.JSType {
 	return nil
 }
 
-// Go-only: language-adapter — Go port names private method stIsFunctionTypeConstructorOrInterface (Java uses private method with same logic).
+// TODO(port): SymbolTable uses isNominalConstructorOrInterface from com/google/javascript/jscomp/SymbolTable.java:979
+// Reason: Go renamed but did not port the body faithfully.
 func (st *SymbolTable) stIsFunctionTypeConstructorOrInterface(t jstype.JSType) bool {
 	if ft, ok := t.(*jstype.FunctionType); ok {
 		return ft.IsConstructor
@@ -1352,7 +1372,8 @@ func (st *SymbolTable) stIsFunctionTypeConstructorOrInterface(t jstype.JSType) b
 	return false
 }
 
-// Go-only: language-adapter — Go port names private method stIsFunctionPrototypeType (Java uses private method with same logic).
+// TODO(port): SymbolTable uses isFunctionPrototypeType from com/google/javascript/jscomp/SymbolTable.java:979
+// Reason: Go renamed but did not port the body faithfully.
 func (st *SymbolTable) stIsFunctionPrototypeType(t jstype.JSType) bool {
 	// In Java, isFunctionPrototypeType() returns true for PrototypeObjectType instances.
 	// In Go, these are represented as *jstype.PrototypeObjectType.
@@ -1360,13 +1381,15 @@ func (st *SymbolTable) stIsFunctionPrototypeType(t jstype.JSType) bool {
 	return ok
 }
 
-// Go-only: language-adapter — Go port names private method stIsEnumType (Java uses private method with same logic).
+// TODO(port): SymbolTable uses isEnumType from com/google/javascript/jscomp/SymbolTable.java:982
+// Reason: Go renamed but did not port the body faithfully.
 func (st *SymbolTable) stIsEnumType(t jstype.JSType) bool {
 	_, ok := t.(*jstype.EnumType)
 	return ok
 }
 
-// Go-only: language-adapter — Go port names private method stIsRecordType (Java uses private method with same logic).
+// TODO(port): SymbolTable uses isRecordType from com/google/javascript/jscomp/SymbolTable.java:965
+// Reason: Go renamed but did not port the body faithfully.
 func (st *SymbolTable) stIsRecordType(t jstype.JSType) bool {
 	return jstype.IsRecordType(t)
 }
@@ -1375,7 +1398,8 @@ func (st *SymbolTable) stIsRecordType(t jstype.JSType) bool {
 // stLexicalScopeDepth mirrors getLexicalScopeDepth in Java.
 // ---------------------------------------------------------------------------
 
-// Go-only: language-adapter — Go port names private method stLexicalScopeDepth (Java uses private method with same logic).
+// TODO(port): SymbolTable.getLexicalScopeDepth from com/google/javascript/jscomp/SymbolTable.java:2368
+// Reason: Go renamed but did not port the body faithfully.
 func (st *SymbolTable) stLexicalScopeDepth(scope *SymbolScope) int {
 	if scope.IsLexicalScope() || scope.IsDocScope() {
 		return scope.GetScopeDepth()
@@ -1393,7 +1417,8 @@ func (st *SymbolTable) stLexicalScopeDepth(scope *SymbolScope) int {
 // ---------------------------------------------------------------------------
 
 // stNodeIsQualifiedName mirrors Node.isQualifiedName() in Java.
-// Go-only: language-adapter — Go port names private method stNodeIsQualifiedName (Java uses private method with same logic).
+// TODO(port): SymbolTable uses Node.isQualifiedName from com/google/javascript/jscomp/SymbolTable.java:1926
+// Reason: Go renamed but did not port the body faithfully.
 func stNodeIsQualifiedName(n *rhino.Node) bool {
 	if n == nil {
 		return false
@@ -1402,7 +1427,8 @@ func stNodeIsQualifiedName(n *rhino.Node) bool {
 }
 
 // stNodeQualifiedName mirrors Node.getQualifiedName() in Java.
-// Go-only: language-adapter — Go port names private method stNodeQualifiedName (Java uses private method with same logic).
+// TODO(port): SymbolTable uses Node.getQualifiedName from com/google/javascript/jscomp/SymbolTable.java:1926
+// Reason: Go renamed but did not port the body faithfully.
 func stNodeQualifiedName(n *rhino.Node) string {
 	if n == nil {
 		return ""
@@ -1422,13 +1448,15 @@ func stNodeQualifiedName(n *rhino.Node) string {
 
 // stNodeIsModuleBody reports whether n is a MODULE_BODY node.
 // Mirrors Node.isModuleBody() in Java.
-// Go-only: language-adapter — Go port names private method stNodeIsModuleBody (Java uses private method with same logic).
+// TODO(port): SymbolTable uses Node.isModuleBody from com/google/javascript/jscomp/SymbolTable.java:527
+// Reason: Go renamed but did not port the body faithfully.
 func stNodeIsModuleBody(n *rhino.Node) bool {
 	return n != nil && n.Token() == rhino.MODULE_BODY
 }
 
 // stWalkPostOrder performs a post-order walk of the subtree rooted at n.
-// Go-only: language-adapter — Go port names private method stWalkPostOrder (Java uses private method with same logic).
+// TODO(port): SymbolTable uses NodeTraversal.AbstractPostOrderCallback from com/google/javascript/jscomp/SymbolTable.java:1890
+// Reason: Go renamed but did not port the body faithfully.
 func stWalkPostOrder(n *rhino.Node, fn func(*rhino.Node)) {
 	if n == nil {
 		return
@@ -1643,7 +1671,8 @@ type SymbolScope struct {
 
 // newSymbolScope allocates a SymbolScope.
 // Mirrors SymbolScope constructor in Java.
-// Go-only: language-adapter — Go port names private method newSymbolScope (Java uses private method with same logic).
+// TODO(port): SymbolTable.SymbolScope constructor from com/google/javascript/jscomp/SymbolTable.java:1736
+// Reason: Go renamed but did not port the body faithfully.
 func newSymbolScope(
 	rootNode *rhino.Node,
 	parent *SymbolScope,
@@ -1878,7 +1907,8 @@ func (c *stThisRefCollector) process(externs, root *rhino.Node) {
 	c.traverseWithScopes(root)
 }
 
-// Go-only: language-adapter — Go port names private method traverseWithScopes (Java uses private method with same logic).
+// TODO(port): SymbolTable.ThisRefCollector traversal from com/google/javascript/jscomp/SymbolTable.java:2065
+// Reason: Go renamed but did not port the body faithfully.
 func (c *stThisRefCollector) traverseWithScopes(n *rhino.Node) {
 	if n == nil {
 		return
@@ -1891,7 +1921,8 @@ func (c *stThisRefCollector) traverseWithScopes(n *rhino.Node) {
 	c.exitNode(n)
 }
 
-// Go-only: language-adapter — Go port names private method enterNode (Java uses private method with same logic).
+// TODO(port): SymbolTable.ThisRefCollector.enterScope from com/google/javascript/jscomp/SymbolTable.java:2084
+// Reason: Go renamed but did not port the body faithfully.
 func (c *stThisRefCollector) enterNode(n *rhino.Node) {
 	if n.Token() == rhino.SCRIPT || n.Token() == rhino.FUNCTION {
 		// TODO: full global-this / function-this symbol creation requires
@@ -1901,7 +1932,8 @@ func (c *stThisRefCollector) enterNode(n *rhino.Node) {
 	}
 }
 
-// Go-only: language-adapter — Go port names private method exitNode (Java uses private method with same logic).
+// TODO(port): SymbolTable.ThisRefCollector.exitScope from com/google/javascript/jscomp/SymbolTable.java:2133
+// Reason: Go renamed but did not port the body faithfully.
 func (c *stThisRefCollector) exitNode(n *rhino.Node) {
 	if n.Token() == rhino.SCRIPT || n.Token() == rhino.FUNCTION {
 		if len(c.thisStack) > 0 {
@@ -1910,7 +1942,8 @@ func (c *stThisRefCollector) exitNode(n *rhino.Node) {
 	}
 }
 
-// Go-only: language-adapter — Go port names private method visitNode (Java uses private method with same logic).
+// TODO(port): SymbolTable.ThisRefCollector.visit from com/google/javascript/jscomp/SymbolTable.java:2139
+// Reason: Go renamed but did not port the body faithfully.
 func (c *stThisRefCollector) visitNode(n *rhino.Node) {
 	if n.Token() != rhino.THIS || len(c.thisStack) == 0 {
 		return
@@ -2105,7 +2138,8 @@ func (st *SymbolTable) findScopes(externs, root *rhino.Node) {
 
 // stFindEnclosingSymbolScope returns the SymbolScope for the nearest ancestor
 // of n that already has a scope in st.scopes.
-// Go-only: language-adapter — Go port names private method stFindEnclosingSymbolScope (Java uses private method with same logic).
+// TODO(port): SymbolTable.findScopes scope-lookup logic from com/google/javascript/jscomp/SymbolTable.java:527
+// Reason: Go renamed but did not port the body faithfully.
 func (st *SymbolTable) stFindEnclosingSymbolScope(n *rhino.Node) *SymbolScope {
 	if n == nil {
 		return nil
@@ -2120,7 +2154,8 @@ func (st *SymbolTable) stFindEnclosingSymbolScope(n *rhino.Node) *SymbolScope {
 
 // stCreateScopeFromNode creates a SymbolScope for the given AST node if none exists.
 // Helper for findScopes.
-// Go-only: language-adapter — Go port names private method stCreateScopeFromNode (Java uses private method with same logic).
+// TODO(port): SymbolTable.createScopeFrom from com/google/javascript/jscomp/SymbolTable.java:1571
+// Reason: Go renamed but did not port the body faithfully (node variant).
 func (st *SymbolTable) stCreateScopeFromNode(n *rhino.Node, parent *SymbolScope) *SymbolScope {
 	if s, ok := st.scopes[n]; ok {
 		return s
@@ -2154,7 +2189,8 @@ func sanitizeSpecialChars(s string) string {
 
 // isFunctionTypeConstructorOrInterface is the Java-named helper.
 // Mirrors type.isNominalConstructorOrInterface() / isFunctionType checks in Java.
-// Go-only: language-adapter — Go port names private method isFunctionTypeConstructorOrInterface (Java uses private method with same logic).
+// TODO(port): SymbolTable uses isNominalConstructorOrInterface from com/google/javascript/jscomp/SymbolTable.java:979
+// Reason: Go renamed but did not port the body faithfully.
 func (st *SymbolTable) isFunctionTypeConstructorOrInterface(t jstype.JSType) bool {
 	return st.stIsFunctionTypeConstructorOrInterface(t)
 }

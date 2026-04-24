@@ -88,7 +88,8 @@ type ModuleMetadataMap struct {
 }
 
 // newModuleMetadataMap constructs an empty ModuleMetadataMap.
-// Go-only: language-adapter — factory constructor for the stub type (Java uses class constructor directly; Go needs factory function).
+// TODO(port): CheckClosureImports uses ModuleMetadataMap from com/google/javascript/jscomp/CheckClosureImports.java:220
+// Reason: Go added factory function for stub type; Java uses class constructor directly.
 func newModuleMetadataMap() *ModuleMetadataMap {
 	return &ModuleMetadataMap{byGoogNamespace: map[string]*ModuleMetadata{}}
 }
@@ -715,7 +716,8 @@ func cciGoogProvideOrModuleNamespace(call *rhino.Node) string {
 }
 
 // cciLastDotIndex returns the index of the last '.' in s, or -1.
-// Go-only: language-adapter — strings.LastIndex helper for checkShortName (Java uses String.lastIndexOf('.') inline; Go extracts for clarity).
+// TODO(port): CheckClosureImports.Checker.checkShortName from com/google/javascript/jscomp/CheckClosureImports.java:422
+// Reason: Go extracted lastIndexOf helper; Java inlines String.lastIndexOf('.').
 func cciLastDotIndex(s string) int {
 	for i := len(s) - 1; i >= 0; i-- {
 		if s[i] == '.' {
