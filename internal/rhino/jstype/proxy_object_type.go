@@ -331,7 +331,7 @@ func (p *ProxyObjectType) IsNominalType() bool {
 // Mirrors Java's ProxyObjectType.isInstanceType() → referencedType.isInstanceType().
 func (p *ProxyObjectType) IsInstanceType() bool {
 	if p.referencedObjType != nil {
-		return p.referencedObjType.constructor != nil
+		return p.referencedObjType.GetConstructor() != nil
 	}
 	return false
 }

@@ -115,17 +115,11 @@ type ObjectType struct {
 	// suppressed. Mirrors the concept in ObjectType / PrototypeObjectType
 	// where open-ended anonymous objects are allowed to grow until sealed.
 	sealedForInference bool
-
-	// constructor mirrors the back-pointer from an instance ObjectType to its
-	// constructor FunctionType. Set by SetConstructor when the TypedScopeCreator
-	// wires up the constructor/instance relationship. Mirrors the Java
-	// relationship accessed via InstanceObjectType.getConstructor().
-	constructor *FunctionType
-
-	// ownerFunction mirrors the PrototypeObjectType.ownerFunction field in Java.
-	// For prototype objects, this is the constructor FunctionType that owns the
-	// prototype. Nil for regular instance objects. Set via SetOwnerFunction.
-	ownerFunction *FunctionType
+	// NOTE: constructor and ownerFunction are NOT fields of ObjectType.
+	// They live on InstanceObjectType and PrototypeObjectType respectively,
+	// mirroring the Java class hierarchy:
+	//   InstanceObjectType.constructor  → InstanceObjectType.getConstructor()
+	//   PrototypeObjectType.ownerFunction → PrototypeObjectType.getOwnerFunction()
 }
 
 // Go-only: language-adapter — NewObjectType — Go constructor; Java uses Builder pattern (PrototypeObjectType.Builder).
@@ -566,19 +560,13 @@ func (o *ObjectType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
 
 // --- Additional Java-parity methods ----------------------------------------
 
-// GetConstructor mirrors ObjectType.getConstructor() in Java — returns the
-// FunctionType whose instance this object is, or nil for literal objects.
-// In the Go port this is stored via the constructor back-pointer field.
+// GetConstructor mirrors ObjectType.getConstructor() in Java.
+// Base-class default: plain ObjectType instances have no constructor.
+// InstanceObjectType overrides this via its embedded PrototypeObjectType chain.
+// Port of ObjectType.getConstructor() in Java (base-class default returns nil).
 func (o *ObjectType) GetConstructor() *FunctionType {
-	return o.constructor
-}
-
-// Go-only: language-adapter — SetConstructor — Go setter; Java constructor relationship set via InstanceObjectType.Builder.
-// SetConstructor records the constructor FunctionType for this instance.
-// Called by TypedScopeCreator when wiring up the instance/constructor
-// relationship (mirrors Java's setImplicitPrototype → setOwnerFunction chain).
-func (o *ObjectType) SetConstructor(ctor *FunctionType) {
-	o.constructor = ctor
+	// ObjectType is the abstract base; constructor lives on InstanceObjectType.
+	return nil
 }
 
 // GetSuperClassConstructor mirrors ObjectType.getSuperClassConstructor()
@@ -599,22 +587,18 @@ func (o *ObjectType) GetImplicitPrototype() *ObjectType {
 }
 
 // GetCtorImplementedInterfaces mirrors ObjectType.getCtorImplementedInterfaces()
-// in Java — returns the @implements interfaces registered via the constructor.
-// Delegates to the constructor's implementedInterfaces list.
+// in Java. Base-class default: ObjectType has no associated constructor.
+// InstanceObjectType overrides to return the constructor's implementedInterfaces.
+// Port of ObjectType.getCtorImplementedInterfaces() in Java (returns nil by default).
 func (o *ObjectType) GetCtorImplementedInterfaces() []*ObjectType {
-	if o.constructor != nil {
-		return o.constructor.GetImplementedInterfaces()
-	}
 	return nil
 }
 
 // GetCtorExtendedInterfaces mirrors ObjectType.getCtorExtendedInterfaces() in
-// Java — returns the @extends interfaces for an interface's constructor.
-// Delegates to the constructor's extendedInterfaces list.
+// Java. Base-class default: ObjectType has no associated constructor.
+// InstanceObjectType overrides to return the constructor's extendedInterfaces.
+// Port of ObjectType.getCtorExtendedInterfaces() in Java (returns nil by default).
 func (o *ObjectType) GetCtorExtendedInterfaces() []*ObjectType {
-	if o.constructor != nil {
-		return o.constructor.GetExtendedInterfaces()
-	}
 	return nil
 }
 
@@ -664,17 +648,13 @@ func (o *ObjectType) GetTypeOfThis() JSType {
 	return nil
 }
 
-// GetOwnerFunction mirrors ObjectType.getOwnerFunction() in Java — returns
-// nil for regular objects. For prototype objects (PrototypeObjectType in Java)
-// this is set to the constructor.
+// GetOwnerFunction mirrors ObjectType.getOwnerFunction() in Java.
+// Base-class default: plain ObjectType instances are not function prototypes.
+// PrototypeObjectType overrides this via its ownerFunction field.
+// Port of ObjectType.getOwnerFunction() in Java (base-class default returns nil).
 func (o *ObjectType) GetOwnerFunction() *FunctionType {
-	return o.ownerFunction
-}
-
-// SetOwnerFunction mirrors ObjectType.setOwnerFunction() in Java — records
-// the constructor that owns this prototype.
-func (o *ObjectType) SetOwnerFunction(fn *FunctionType) {
-	o.ownerFunction = fn
+	// ObjectType is the abstract base; ownerFunction lives on PrototypeObjectType.
+	return nil
 }
 
 // IsObject mirrors JSType.isObject() in Java — all ObjectTypes are objects.
