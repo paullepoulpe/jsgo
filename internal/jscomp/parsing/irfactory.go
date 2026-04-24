@@ -34,7 +34,7 @@ type errorReporter interface {
 	Warning(msg, sourceName string, lineno, charno int)
 }
 
-// NewIRFactory constructs an IRFactory for the given source file.
+// Go-only: Go constructor — Java uses the static IRFactory.transformTree(...) factory method.
 func NewIRFactory(sourceFile rhino.StaticSourceFile, er errorReporter) *IRFactory {
 	return &IRFactory{
 		sourceFile:    sourceFile,
@@ -48,140 +48,140 @@ func (f *IRFactory) Transform(tree *trees.ParseTree) *rhino.Node {
 	if tree == nil {
 		return nil
 	}
-	node := f.dispatch(tree)
+	node := f.process(tree)
 	if node != nil {
 		f.setSourceInfo(node, tree)
 	}
 	return node
 }
 
-// dispatch routes a ParseTree to the appropriate transform* method based on
+// process routes a ParseTree to the appropriate transform* method based on
 // its type. Mirrors the TransformDispatcher.process(ParseTree) switch in Java.
-func (f *IRFactory) dispatch(tree *trees.ParseTree) *rhino.Node {
+func (f *IRFactory) process(tree *trees.ParseTree) *rhino.Node {
 	switch tree.Type {
 	// ---- programme / block -----------------------------------------
 	case trees.ParseTreeTypeProgram:
-		return f.transformProgram((*trees.ProgramTree)(unsafe.Pointer(tree)))
+		return f.processAstRoot((*trees.ProgramTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeBlock:
-		return f.transformBlock((*trees.BlockTree)(unsafe.Pointer(tree)))
+		return f.processBlock((*trees.BlockTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeExpressionStatement:
-		return f.transformExpressionStatement((*trees.ExpressionStatementTree)(unsafe.Pointer(tree)))
+		return f.processExpressionStatement((*trees.ExpressionStatementTree)(unsafe.Pointer(tree)))
 
 	// ---- basic statements ------------------------------------------
 	case trees.ParseTreeTypeReturnStatement:
-		return f.transformReturnStatement((*trees.ReturnStatementTree)(unsafe.Pointer(tree)))
+		return f.processReturnStatement((*trees.ReturnStatementTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeThrowStatement:
-		return f.transformThrowStatement((*trees.ThrowStatementTree)(unsafe.Pointer(tree)))
+		return f.processThrowStatement((*trees.ThrowStatementTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeBreakStatement:
-		return f.transformBreakStatement((*trees.BreakStatementTree)(unsafe.Pointer(tree)))
+		return f.processBreakStatement((*trees.BreakStatementTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeContinueStatement:
-		return f.transformContinueStatement((*trees.ContinueStatementTree)(unsafe.Pointer(tree)))
+		return f.processContinueStatement((*trees.ContinueStatementTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeIfStatement:
-		return f.transformIfStatement((*trees.IfStatementTree)(unsafe.Pointer(tree)))
+		return f.processIfStatement((*trees.IfStatementTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeWhileStatement:
-		return f.transformWhileStatement((*trees.WhileStatementTree)(unsafe.Pointer(tree)))
+		return f.processWhileLoop((*trees.WhileStatementTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeDoWhileStatement:
-		return f.transformDoWhileStatement((*trees.DoWhileStatementTree)(unsafe.Pointer(tree)))
+		return f.processDoLoop((*trees.DoWhileStatementTree)(unsafe.Pointer(tree)))
 
 	// ---- loops + try/switch ----------------------------------------
 	case trees.ParseTreeTypeForStatement:
-		return f.transformForStatement((*trees.ForStatementTree)(unsafe.Pointer(tree)))
+		return f.processForLoop((*trees.ForStatementTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeForInStatement:
-		return f.transformForInStatement((*trees.ForInStatementTree)(unsafe.Pointer(tree)))
+		return f.processForInLoop((*trees.ForInStatementTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeForOfStatement:
-		return f.transformForOfStatement((*trees.ForOfStatementTree)(unsafe.Pointer(tree)))
+		return f.processForOf((*trees.ForOfStatementTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeForAwaitOfStatement:
-		return f.transformForAwaitOfStatement((*trees.ForAwaitOfStatementTree)(unsafe.Pointer(tree)))
+		return f.processForAwaitOf((*trees.ForAwaitOfStatementTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeSwitchStatement:
-		return f.transformSwitchStatement((*trees.SwitchStatementTree)(unsafe.Pointer(tree)))
+		return f.processSwitchStatement((*trees.SwitchStatementTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeCaseClause:
-		return f.transformCaseClause((*trees.CaseClauseTree)(unsafe.Pointer(tree)))
+		return f.processSwitchCase((*trees.CaseClauseTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeDefaultClause:
-		return f.transformDefaultClause((*trees.DefaultClauseTree)(unsafe.Pointer(tree)))
+		return f.processSwitchDefault((*trees.DefaultClauseTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeTryStatement:
-		return f.transformTryStatement((*trees.TryStatementTree)(unsafe.Pointer(tree)))
+		return f.processTryStatement((*trees.TryStatementTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeCatch:
-		return f.transformCatch((*trees.CatchTree)(unsafe.Pointer(tree)))
+		return f.processCatchClause((*trees.CatchTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeFinally:
-		return f.transformFinally((*trees.FinallyTree)(unsafe.Pointer(tree)))
+		return f.processFinally((*trees.FinallyTree)(unsafe.Pointer(tree)))
 
 	// ---- declarations + functions + classes ------------------------
 	case trees.ParseTreeTypeFunctionDeclaration:
-		return f.transformFunctionDeclaration((*trees.FunctionDeclarationTree)(unsafe.Pointer(tree)))
+		return f.processFunction((*trees.FunctionDeclarationTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeFormalParameterList:
-		return f.transformFormalParameterList((*trees.FormalParameterListTree)(unsafe.Pointer(tree)))
+		return f.processFormalParameterList((*trees.FormalParameterListTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeDefaultParameter:
-		return f.transformDefaultParameter((*trees.DefaultParameterTree)(unsafe.Pointer(tree)))
+		return f.processDefaultParameter((*trees.DefaultParameterTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeClassDeclaration:
-		return f.transformClassDeclaration((*trees.ClassDeclarationTree)(unsafe.Pointer(tree)))
+		return f.processClassDeclaration((*trees.ClassDeclarationTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeFieldDeclaration:
-		return f.transformFieldDeclaration((*trees.FieldDeclarationTree)(unsafe.Pointer(tree)))
+		return f.processField((*trees.FieldDeclarationTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeVariableStatement:
-		return f.transformVariableStatement((*trees.VariableStatementTree)(unsafe.Pointer(tree)))
+		return f.processVariableStatement((*trees.VariableStatementTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeVariableDeclarationList:
-		return f.transformVariableDeclarationList((*trees.VariableDeclarationListTree)(unsafe.Pointer(tree)))
+		return f.processVariableDeclarationList((*trees.VariableDeclarationListTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeVariableDeclaration:
-		return f.transformVariableDeclaration((*trees.VariableDeclarationTree)(unsafe.Pointer(tree)))
+		return f.processVariableDeclaration((*trees.VariableDeclarationTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeImportDeclaration:
-		return f.transformImportDeclaration((*trees.ImportDeclarationTree)(unsafe.Pointer(tree)))
+		return f.processImportDecl((*trees.ImportDeclarationTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeImportSpecifier:
-		return f.transformImportSpecifier((*trees.ImportSpecifierTree)(unsafe.Pointer(tree)))
+		return f.processImportSpec((*trees.ImportSpecifierTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeExportDeclaration:
-		return f.transformExportDeclaration((*trees.ExportDeclarationTree)(unsafe.Pointer(tree)))
+		return f.processExportDecl((*trees.ExportDeclarationTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeExportSpecifier:
-		return f.transformExportSpecifier((*trees.ExportSpecifierTree)(unsafe.Pointer(tree)))
+		return f.processExportSpec((*trees.ExportSpecifierTree)(unsafe.Pointer(tree)))
 
 	// ---- primitive expressions -------------------------------------
 	case trees.ParseTreeTypeIdentifierExpression:
-		return f.transformIdentifierExpression((*trees.IdentifierExpressionTree)(unsafe.Pointer(tree)))
+		return f.processName((*trees.IdentifierExpressionTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeLiteralExpression:
-		return f.transformLiteralExpression((*trees.LiteralExpressionTree)(unsafe.Pointer(tree)))
+		return f.processLiteralExpression((*trees.LiteralExpressionTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeThisExpression:
-		return f.transformThisExpression()
+		return f.processThisExpression()
 	case trees.ParseTreeTypeSuperExpression:
-		return f.transformSuperExpression()
+		return f.processSuper()
 
 	// ---- unary / binary / update -----------------------------------
 	case trees.ParseTreeTypeUnaryExpression:
-		return f.transformUnaryExpression((*trees.UnaryExpressionTree)(unsafe.Pointer(tree)))
+		return f.processUnaryExpression((*trees.UnaryExpressionTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeUpdateExpression:
-		return f.transformUpdateExpression((*trees.UpdateExpressionTree)(unsafe.Pointer(tree)))
+		return f.processUpdateExpression((*trees.UpdateExpressionTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeBinaryOperator:
-		return f.transformBinaryOperator((*trees.BinaryOperatorTree)(unsafe.Pointer(tree)))
+		return f.processBinaryExpression((*trees.BinaryOperatorTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeConditionalExpression:
-		return f.transformConditionalExpression((*trees.ConditionalExpressionTree)(unsafe.Pointer(tree)))
+		return f.processConditionalExpression((*trees.ConditionalExpressionTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeCommaExpression:
-		return f.transformCommaExpression((*trees.CommaExpressionTree)(unsafe.Pointer(tree)))
+		return f.processCommaExpression((*trees.CommaExpressionTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeParenExpression:
-		return f.transformParenExpression((*trees.ParenExpressionTree)(unsafe.Pointer(tree)))
+		return f.processParenthesizedExpression((*trees.ParenExpressionTree)(unsafe.Pointer(tree)))
 
 	// ---- calls / member access / new -------------------------------
 	case trees.ParseTreeTypeCallExpression:
-		return f.transformCallExpression((*trees.CallExpressionTree)(unsafe.Pointer(tree)))
+		return f.processFunctionCall((*trees.CallExpressionTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeNewExpression:
-		return f.transformNewExpression((*trees.NewExpressionTree)(unsafe.Pointer(tree)))
+		return f.processNewExpression((*trees.NewExpressionTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeMemberExpression:
-		return f.transformMemberExpression((*trees.MemberExpressionTree)(unsafe.Pointer(tree)))
+		return f.processPropertyGet((*trees.MemberExpressionTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeMemberLookupExpression:
-		return f.transformMemberLookupExpression((*trees.MemberLookupExpressionTree)(unsafe.Pointer(tree)))
+		return f.processElementGet((*trees.MemberLookupExpressionTree)(unsafe.Pointer(tree)))
 
 	// ---- structured literals ---------------------------------------
 	case trees.ParseTreeTypeArrayLiteralExpression:
-		return f.transformArrayLiteralExpression((*trees.ArrayLiteralExpressionTree)(unsafe.Pointer(tree)))
+		return f.processArrayLiteral((*trees.ArrayLiteralExpressionTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeObjectLiteralExpression:
-		return f.transformObjectLiteralExpression((*trees.ObjectLiteralExpressionTree)(unsafe.Pointer(tree)))
+		return f.processObjectLiteral((*trees.ObjectLiteralExpressionTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypePropertyNameAssignment:
-		return f.transformPropertyNameAssignment((*trees.PropertyNameAssignmentTree)(unsafe.Pointer(tree)))
+		return f.processPropertyNameAssignment((*trees.PropertyNameAssignmentTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeGetAccessor:
-		return f.transformGetAccessor((*trees.GetAccessorTree)(unsafe.Pointer(tree)))
+		return f.processGetAccessor((*trees.GetAccessorTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeSetAccessor:
-		return f.transformSetAccessor((*trees.SetAccessorTree)(unsafe.Pointer(tree)))
+		return f.processSetAccessor((*trees.SetAccessorTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeTemplateLiteralExpression:
-		return f.transformTemplateLiteralExpression((*trees.TemplateLiteralExpressionTree)(unsafe.Pointer(tree)))
+		return f.processTemplateLiteral((*trees.TemplateLiteralExpressionTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeTemplateLiteralPortion:
-		return f.transformTemplateLiteralPortion((*trees.TemplateLiteralPortionTree)(unsafe.Pointer(tree)))
+		return f.processTemplateLiteralPortion((*trees.TemplateLiteralPortionTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeTemplateSubstitution:
-		return f.transformTemplateSubstitution((*trees.TemplateSubstitutionTree)(unsafe.Pointer(tree)))
+		return f.processTemplateSubstitution((*trees.TemplateSubstitutionTree)(unsafe.Pointer(tree)))
 
 	// ---- null / empty placeholder ----------------------------------
 	case trees.ParseTreeTypeNull:
@@ -221,8 +221,8 @@ func (f *IRFactory) newNumberNode(v float64) *rhino.Node {
 
 // ---- programme / block ---------------------------------------------
 
-// transformProgram mirrors TransformDispatcher.processAstRoot(ProgramTree).
-func (f *IRFactory) transformProgram(tree *trees.ProgramTree) *rhino.Node {
+// processAstRoot mirrors TransformDispatcher.processAstRoot(ProgramTree).
+func (f *IRFactory) processAstRoot(tree *trees.ProgramTree) *rhino.Node {
 	script := f.newNode(rhino.SCRIPT)
 	for _, child := range tree.SourceElements {
 		script.AddChildToBack(f.Transform(child))
@@ -230,8 +230,8 @@ func (f *IRFactory) transformProgram(tree *trees.ProgramTree) *rhino.Node {
 	return script
 }
 
-// transformBlock mirrors TransformDispatcher.processBlock(BlockTree).
-func (f *IRFactory) transformBlock(tree *trees.BlockTree) *rhino.Node {
+// processBlock mirrors TransformDispatcher.processBlock(BlockTree).
+func (f *IRFactory) processBlock(tree *trees.BlockTree) *rhino.Node {
 	node := f.newNode(rhino.BLOCK)
 	for _, child := range tree.Statements {
 		node.AddChildToBack(f.Transform(child))
@@ -239,11 +239,9 @@ func (f *IRFactory) transformBlock(tree *trees.BlockTree) *rhino.Node {
 	return node
 }
 
-// transformBlockTree transforms any ParseTree as a block, matching Java's
-// transformBlock(ParseTree) which dispatches and wraps non-block results.
-// When the tree is already a BLOCK the result is used directly; when it is
-// anything else (e.g. a single statement) it is wrapped in a synthetic BLOCK.
-func (f *IRFactory) transformBlockTree(tree *trees.ParseTree) *rhino.Node {
+// Go-only: dispatches and wraps single-statement bodies in a synthetic BLOCK.
+// Java inlines this wrapping at each call site via processBlock(ParseTree node).
+func (f *IRFactory) processBlockTree(tree *trees.ParseTree) *rhino.Node {
 	if tree == nil {
 		return f.newNode(rhino.BLOCK)
 	}
@@ -276,18 +274,17 @@ func (f *IRFactory) transformOrEmpty(tree *trees.ParseTree, parent *trees.ParseT
 	return f.Transform(tree)
 }
 
-// transformExpressionStatementExpr mirrors
-// TransformDispatcher.processExpressionStatement, given the inner expression
-// tree. Used when the expression-statement's child is dispatched directly.
+// Go-only: helper to wrap a bare expression ParseTree in EXPR_RESULT.
+// Java's processExpressionStatement always has an ExpressionStatementTree wrapper.
 func (f *IRFactory) transformExpressionStatementExpr(expr *trees.ParseTree) *rhino.Node {
 	node := f.newNode(rhino.EXPR_RESULT)
 	node.AddChildToBack(f.Transform(expr))
 	return node
 }
 
-// transformExpressionStatement mirrors
+// processExpressionStatement mirrors
 // TransformDispatcher.processExpressionStatement(ExpressionStatementTree).
-func (f *IRFactory) transformExpressionStatement(tree *trees.ExpressionStatementTree) *rhino.Node {
+func (f *IRFactory) processExpressionStatement(tree *trees.ExpressionStatementTree) *rhino.Node {
 	node := f.newNode(rhino.EXPR_RESULT)
 	node.AddChildToBack(f.Transform(tree.Expression))
 	return node
@@ -295,9 +292,9 @@ func (f *IRFactory) transformExpressionStatement(tree *trees.ExpressionStatement
 
 // ---- basic statements ----------------------------------------------
 
-// transformReturnStatement mirrors
+// processReturnStatement mirrors
 // TransformDispatcher.processReturnStatement(ReturnStatementTree).
-func (f *IRFactory) transformReturnStatement(tree *trees.ReturnStatementTree) *rhino.Node {
+func (f *IRFactory) processReturnStatement(tree *trees.ReturnStatementTree) *rhino.Node {
 	node := f.newNode(rhino.RETURN)
 	if tree.Expression != nil {
 		node.AddChildToBack(f.Transform(tree.Expression))
@@ -305,17 +302,17 @@ func (f *IRFactory) transformReturnStatement(tree *trees.ReturnStatementTree) *r
 	return node
 }
 
-// transformThrowStatement mirrors
+// processThrowStatement mirrors
 // TransformDispatcher.processThrowStatement(ThrowStatementTree).
-func (f *IRFactory) transformThrowStatement(tree *trees.ThrowStatementTree) *rhino.Node {
+func (f *IRFactory) processThrowStatement(tree *trees.ThrowStatementTree) *rhino.Node {
 	node := f.newNode(rhino.THROW)
 	node.AddChildToBack(f.Transform(tree.Value))
 	return node
 }
 
-// transformBreakStatement mirrors
+// processBreakStatement mirrors
 // TransformDispatcher.processBreakStatement(BreakStatementTree).
-func (f *IRFactory) transformBreakStatement(tree *trees.BreakStatementTree) *rhino.Node {
+func (f *IRFactory) processBreakStatement(tree *trees.BreakStatementTree) *rhino.Node {
 	node := f.newNode(rhino.BREAK)
 	if tree.HasLabel() {
 		labelName := f.transformLabelName(tree.Name)
@@ -324,9 +321,9 @@ func (f *IRFactory) transformBreakStatement(tree *trees.BreakStatementTree) *rhi
 	return node
 }
 
-// transformContinueStatement mirrors
+// processContinueStatement mirrors
 // TransformDispatcher.processContinueStatement(ContinueStatementTree).
-func (f *IRFactory) transformContinueStatement(tree *trees.ContinueStatementTree) *rhino.Node {
+func (f *IRFactory) processContinueStatement(tree *trees.ContinueStatementTree) *rhino.Node {
 	node := f.newNode(rhino.CONTINUE)
 	if tree.HasLabel() {
 		labelName := f.transformLabelName(tree.Name)
@@ -343,82 +340,82 @@ func (f *IRFactory) transformLabelName(tok *trees.IdentifierToken) *rhino.Node {
 	return label
 }
 
-// transformIfStatement mirrors
+// processIfStatement mirrors
 // TransformDispatcher.processIfStatement(IfStatementTree).
-func (f *IRFactory) transformIfStatement(tree *trees.IfStatementTree) *rhino.Node {
+func (f *IRFactory) processIfStatement(tree *trees.IfStatementTree) *rhino.Node {
 	node := f.newNode(rhino.IF)
 	node.AddChildToBack(f.Transform(tree.Condition))
-	node.AddChildToBack(f.transformBlockTree(tree.IfClause))
+	node.AddChildToBack(f.processBlockTree(tree.IfClause))
 	if tree.ElseClause != nil {
-		node.AddChildToBack(f.transformBlockTree(tree.ElseClause))
+		node.AddChildToBack(f.processBlockTree(tree.ElseClause))
 	}
 	return node
 }
 
-// transformWhileStatement mirrors
+// processWhileLoop mirrors
 // TransformDispatcher.processWhileLoop(WhileStatementTree).
-func (f *IRFactory) transformWhileStatement(tree *trees.WhileStatementTree) *rhino.Node {
+func (f *IRFactory) processWhileLoop(tree *trees.WhileStatementTree) *rhino.Node {
 	node := f.newNode(rhino.WHILE)
 	node.AddChildToBack(f.Transform(tree.Condition))
-	node.AddChildToBack(f.transformBlockTree(tree.Body))
+	node.AddChildToBack(f.processBlockTree(tree.Body))
 	return node
 }
 
-// transformDoWhileStatement mirrors
+// processDoLoop mirrors
 // TransformDispatcher.processDoLoop(DoWhileStatementTree).
-func (f *IRFactory) transformDoWhileStatement(tree *trees.DoWhileStatementTree) *rhino.Node {
+func (f *IRFactory) processDoLoop(tree *trees.DoWhileStatementTree) *rhino.Node {
 	node := f.newNode(rhino.DO)
-	node.AddChildToBack(f.transformBlockTree(tree.Body))
+	node.AddChildToBack(f.processBlockTree(tree.Body))
 	node.AddChildToBack(f.Transform(tree.Condition))
 	return node
 }
 
 // ---- loops + try/switch -------------------------------------------
 
-// transformForStatement mirrors
+// processForLoop mirrors
 // TransformDispatcher.processForLoop(ForStatementTree).
-func (f *IRFactory) transformForStatement(tree *trees.ForStatementTree) *rhino.Node {
+func (f *IRFactory) processForLoop(tree *trees.ForStatementTree) *rhino.Node {
 	node := f.newNode(rhino.FOR)
 	node.AddChildToBack(f.transformOrEmpty(tree.Initializer, &tree.ParseTree))
 	node.AddChildToBack(f.transformOrEmpty(tree.Condition, &tree.ParseTree))
 	node.AddChildToBack(f.transformOrEmpty(tree.Increment, &tree.ParseTree))
-	node.AddChildToBack(f.transformBlockTree(tree.Body))
+	node.AddChildToBack(f.processBlockTree(tree.Body))
 	return node
 }
 
-// transformForInStatement mirrors
+// processForInLoop mirrors
 // TransformDispatcher.processForInLoop(ForInStatementTree).
-func (f *IRFactory) transformForInStatement(tree *trees.ForInStatementTree) *rhino.Node {
+func (f *IRFactory) processForInLoop(tree *trees.ForInStatementTree) *rhino.Node {
 	node := f.newNode(rhino.FOR_IN)
 	node.AddChildToBack(f.Transform(tree.Initializer))
 	node.AddChildToBack(f.Transform(tree.Collection))
-	node.AddChildToBack(f.transformBlockTree(tree.Body))
+	node.AddChildToBack(f.processBlockTree(tree.Body))
 	return node
 }
 
-// transformForOfStatement mirrors
+// processForOf mirrors
 // TransformDispatcher.processForOf(ForOfStatementTree).
-func (f *IRFactory) transformForOfStatement(tree *trees.ForOfStatementTree) *rhino.Node {
+func (f *IRFactory) processForOf(tree *trees.ForOfStatementTree) *rhino.Node {
 	node := f.newNode(rhino.FOR_OF)
 	node.AddChildToBack(f.Transform(tree.Initializer))
 	node.AddChildToBack(f.Transform(tree.Collection))
-	node.AddChildToBack(f.transformBlockTree(tree.Body))
+	node.AddChildToBack(f.processBlockTree(tree.Body))
 	return node
 }
 
-// transformForAwaitOfStatement mirrors
+// processForAwaitOf mirrors
 // TransformDispatcher.processForAwaitOf(ForAwaitOfStatementTree).
-func (f *IRFactory) transformForAwaitOfStatement(tree *trees.ForAwaitOfStatementTree) *rhino.Node {
+func (f *IRFactory) processForAwaitOf(tree *trees.ForAwaitOfStatementTree) *rhino.Node {
 	node := f.newNode(rhino.FOR_AWAIT_OF)
 	node.AddChildToBack(f.Transform(tree.Initializer))
 	node.AddChildToBack(f.Transform(tree.Collection))
-	node.AddChildToBack(f.transformBlockTree(tree.Body))
+	node.AddChildToBack(f.processBlockTree(tree.Body))
 	return node
 }
 
-// transformSwitchStatement mirrors
+// processSwitchStatement mirrors
 // TransformDispatcher.processSwitchStatement(SwitchStatementTree).
-func (f *IRFactory) transformSwitchStatement(tree *trees.SwitchStatementTree) *rhino.Node {
+func (f *IRFactory) processSwitchStatement(tree *trees.SwitchStatementTree) *rhino.Node {
 	node := f.newNode(rhino.SWITCH)
 	node.AddChildToBack(f.Transform(tree.Expression))
 	switchBody := f.newNode(rhino.SWITCH_BODY)
@@ -430,9 +427,9 @@ func (f *IRFactory) transformSwitchStatement(tree *trees.SwitchStatementTree) *r
 	return node
 }
 
-// transformCaseClause mirrors
+// processSwitchCase mirrors
 // TransformDispatcher.processSwitchCase(CaseClauseTree).
-func (f *IRFactory) transformCaseClause(tree *trees.CaseClauseTree) *rhino.Node {
+func (f *IRFactory) processSwitchCase(tree *trees.CaseClauseTree) *rhino.Node {
 	node := f.newNode(rhino.CASE)
 	node.AddChildToBack(f.Transform(tree.Expression))
 	block := f.newNode(rhino.BLOCK)
@@ -445,9 +442,9 @@ func (f *IRFactory) transformCaseClause(tree *trees.CaseClauseTree) *rhino.Node 
 	return node
 }
 
-// transformDefaultClause mirrors
+// processSwitchDefault mirrors
 // TransformDispatcher.processSwitchDefault(DefaultClauseTree).
-func (f *IRFactory) transformDefaultClause(tree *trees.DefaultClauseTree) *rhino.Node {
+func (f *IRFactory) processSwitchDefault(tree *trees.DefaultClauseTree) *rhino.Node {
 	node := f.newNode(rhino.DEFAULT_CASE)
 	block := f.newNode(rhino.BLOCK)
 	block.PutBooleanProp(rhino.PropAddedBlock, true)
@@ -459,11 +456,11 @@ func (f *IRFactory) transformDefaultClause(tree *trees.DefaultClauseTree) *rhino
 	return node
 }
 
-// transformTryStatement mirrors
+// processTryStatement mirrors
 // TransformDispatcher.processTryStatement(TryStatementTree).
-func (f *IRFactory) transformTryStatement(tree *trees.TryStatementTree) *rhino.Node {
+func (f *IRFactory) processTryStatement(tree *trees.TryStatementTree) *rhino.Node {
 	node := f.newNode(rhino.TRY)
-	node.AddChildToBack(f.transformBlockTree(tree.Body))
+	node.AddChildToBack(f.processBlockTree(tree.Body))
 	block := f.newNode(rhino.BLOCK)
 	lineSet := false
 	if tree.CatchBlock != nil {
@@ -473,7 +470,7 @@ func (f *IRFactory) transformTryStatement(tree *trees.TryStatementTree) *rhino.N
 	}
 	node.AddChildToBack(block)
 	if tree.FinallyBlock != nil {
-		node.AddChildToBack(f.transformBlockTree(tree.FinallyBlock))
+		node.AddChildToBack(f.processBlockTree(tree.FinallyBlock))
 	}
 	// Mirror Java: if no catch clause, set the block's position from finally.
 	if !lineSet && tree.FinallyBlock != nil {
@@ -482,27 +479,27 @@ func (f *IRFactory) transformTryStatement(tree *trees.TryStatementTree) *rhino.N
 	return node
 }
 
-// transformCatch mirrors
+// processCatchClause mirrors
 // TransformDispatcher.processCatchClause(CatchTree).
-func (f *IRFactory) transformCatch(tree *trees.CatchTree) *rhino.Node {
+func (f *IRFactory) processCatchClause(tree *trees.CatchTree) *rhino.Node {
 	node := f.newNode(rhino.CATCH)
 	node.AddChildToBack(f.Transform(tree.Exception))
-	node.AddChildToBack(f.transformBlockTree(tree.CatchBody))
+	node.AddChildToBack(f.processBlockTree(tree.CatchBody))
 	return node
 }
 
-// transformFinally mirrors
+// processFinally mirrors
 // TransformDispatcher.processFinally(FinallyTree).
-// Java's processFinally calls transformBlock on the block field.
-func (f *IRFactory) transformFinally(tree *trees.FinallyTree) *rhino.Node {
-	return f.transformBlockTree(tree.Block)
+// Java's processFinally calls processBlock on the block field.
+func (f *IRFactory) processFinally(tree *trees.FinallyTree) *rhino.Node {
+	return f.processBlockTree(tree.Block)
 }
 
 // ---- declarations + functions + classes ---------------------------
 
-// transformFunctionDeclaration mirrors
+// processFunction mirrors
 // TransformDispatcher.processFunction(FunctionDeclarationTree).
-func (f *IRFactory) transformFunctionDeclaration(tree *trees.FunctionDeclarationTree) *rhino.Node {
+func (f *IRFactory) processFunction(tree *trees.FunctionDeclarationTree) *rhino.Node {
 	isDeclaration := tree.Kind == trees.FunctionDeclarationKindDeclaration
 	isMember := tree.Kind == trees.FunctionDeclarationKindMember
 	isArrow := tree.Kind == trees.FunctionDeclarationKindArrow
@@ -559,9 +556,9 @@ func (f *IRFactory) transformFunctionDeclaration(tree *trees.FunctionDeclaration
 	return node
 }
 
-// transformFormalParameterList mirrors
+// processFormalParameterList mirrors
 // TransformDispatcher.processFormalParameterList(FormalParameterListTree).
-func (f *IRFactory) transformFormalParameterList(tree *trees.FormalParameterListTree) *rhino.Node {
+func (f *IRFactory) processFormalParameterList(tree *trees.FormalParameterListTree) *rhino.Node {
 	params := f.newNode(rhino.PARAM_LIST)
 	for _, param := range tree.Parameters {
 		params.AddChildToBack(f.Transform(param))
@@ -569,9 +566,9 @@ func (f *IRFactory) transformFormalParameterList(tree *trees.FormalParameterList
 	return params
 }
 
-// transformDefaultParameter mirrors
+// processDefaultParameter mirrors
 // TransformDispatcher.processDefaultParameter(DefaultParameterTree).
-func (f *IRFactory) transformDefaultParameter(tree *trees.DefaultParameterTree) *rhino.Node {
+func (f *IRFactory) processDefaultParameter(tree *trees.DefaultParameterTree) *rhino.Node {
 	targetNode := f.Transform(tree.Lhs)
 	defaultValue := f.Transform(tree.DefaultValue)
 	node := f.newNode(rhino.DEFAULT_VALUE)
@@ -581,9 +578,9 @@ func (f *IRFactory) transformDefaultParameter(tree *trees.DefaultParameterTree) 
 	return node
 }
 
-// transformClassDeclaration mirrors
+// processClassDeclaration mirrors
 // TransformDispatcher.processClassDeclaration(ClassDeclarationTree).
-func (f *IRFactory) transformClassDeclaration(tree *trees.ClassDeclarationTree) *rhino.Node {
+func (f *IRFactory) processClassDeclaration(tree *trees.ClassDeclarationTree) *rhino.Node {
 	var name *rhino.Node
 	if tree.Name != nil {
 		name = f.newStringNode(rhino.NAME, tree.Name.Value)
@@ -614,9 +611,9 @@ func (f *IRFactory) transformClassDeclaration(tree *trees.ClassDeclarationTree) 
 	return node
 }
 
-// transformFieldDeclaration mirrors
+// processField mirrors
 // TransformDispatcher.processField(FieldDeclarationTree).
-func (f *IRFactory) transformFieldDeclaration(tree *trees.FieldDeclarationTree) *rhino.Node {
+func (f *IRFactory) processField(tree *trees.FieldDeclarationTree) *rhino.Node {
 	var name string
 	if tree.Name != nil {
 		name = tree.Name.Value
@@ -629,19 +626,19 @@ func (f *IRFactory) transformFieldDeclaration(tree *trees.FieldDeclarationTree) 
 	return node
 }
 
-// transformVariableStatement mirrors
+// processVariableStatement mirrors
 // TransformDispatcher.processVariableStatement(VariableStatementTree).
 // Java delegates directly to the inner VariableDeclarationListTree.
-func (f *IRFactory) transformVariableStatement(tree *trees.VariableStatementTree) *rhino.Node {
+func (f *IRFactory) processVariableStatement(tree *trees.VariableStatementTree) *rhino.Node {
 	if tree.Declarations != nil {
 		return f.Transform(&tree.Declarations.ParseTree)
 	}
 	return f.newNode(rhino.EMPTY)
 }
 
-// transformVariableDeclarationList mirrors
+// processVariableDeclarationList mirrors
 // TransformDispatcher.processVariableDeclarationList(VariableDeclarationListTree).
-func (f *IRFactory) transformVariableDeclarationList(tree *trees.VariableDeclarationListTree) *rhino.Node {
+func (f *IRFactory) processVariableDeclarationList(tree *trees.VariableDeclarationListTree) *rhino.Node {
 	var tok rhino.Token
 	switch tree.DeclarationType {
 	case trees.TokenTypeConst:
@@ -658,9 +655,9 @@ func (f *IRFactory) transformVariableDeclarationList(tree *trees.VariableDeclara
 	return node
 }
 
-// transformVariableDeclaration mirrors
+// processVariableDeclaration mirrors
 // TransformDispatcher.processVariableDeclaration(VariableDeclarationTree).
-func (f *IRFactory) transformVariableDeclaration(tree *trees.VariableDeclarationTree) *rhino.Node {
+func (f *IRFactory) processVariableDeclaration(tree *trees.VariableDeclarationTree) *rhino.Node {
 	lhsNode := f.Transform(tree.Lvalue)
 	var lhs *rhino.Node
 	if lhsNode != nil && lhsNode.IsDestructuringPattern() {
@@ -675,9 +672,9 @@ func (f *IRFactory) transformVariableDeclaration(tree *trees.VariableDeclaration
 	return lhs
 }
 
-// transformImportDeclaration mirrors
+// processImportDecl mirrors
 // TransformDispatcher.processImportDecl(ImportDeclarationTree).
-func (f *IRFactory) transformImportDeclaration(tree *trees.ImportDeclarationTree) *rhino.Node {
+func (f *IRFactory) processImportDecl(tree *trees.ImportDeclarationTree) *rhino.Node {
 	// First child: default binding or EMPTY.
 	var firstChild *rhino.Node
 	if tree.DefaultBindingIdentifier != nil {
@@ -716,9 +713,9 @@ func (f *IRFactory) transformImportDeclaration(tree *trees.ImportDeclarationTree
 	return node
 }
 
-// transformImportSpecifier mirrors
+// processImportSpec mirrors
 // TransformDispatcher.processImportSpec(ImportSpecifierTree).
-func (f *IRFactory) transformImportSpecifier(tree *trees.ImportSpecifierTree) *rhino.Node {
+func (f *IRFactory) processImportSpec(tree *trees.ImportSpecifierTree) *rhino.Node {
 	var importedName *rhino.Node
 	if tree.ImportedName != nil {
 		importedName = f.newStringNode(rhino.NAME, tree.ImportedName.Value)
@@ -737,9 +734,9 @@ func (f *IRFactory) transformImportSpecifier(tree *trees.ImportSpecifierTree) *r
 	return importSpec
 }
 
-// transformExportDeclaration mirrors
+// processExportDecl mirrors
 // TransformDispatcher.processExportDecl(ExportDeclarationTree).
-func (f *IRFactory) transformExportDeclaration(tree *trees.ExportDeclarationTree) *rhino.Node {
+func (f *IRFactory) processExportDecl(tree *trees.ExportDeclarationTree) *rhino.Node {
 	var decls *rhino.Node
 	if tree.IsExportAll {
 		// export * from 'mod' — no declaration or spec list.
@@ -771,9 +768,9 @@ func (f *IRFactory) transformExportDeclaration(tree *trees.ExportDeclarationTree
 	return export
 }
 
-// transformExportSpecifier mirrors
+// processExportSpec mirrors
 // TransformDispatcher.processExportSpec(ExportSpecifierTree).
-func (f *IRFactory) transformExportSpecifier(tree *trees.ExportSpecifierTree) *rhino.Node {
+func (f *IRFactory) processExportSpec(tree *trees.ExportSpecifierTree) *rhino.Node {
 	var importedName *rhino.Node
 	if tree.ImportedName != nil {
 		importedName = f.newStringNode(rhino.NAME, tree.ImportedName.Value)
@@ -794,18 +791,18 @@ func (f *IRFactory) transformExportSpecifier(tree *trees.ExportSpecifierTree) *r
 
 // ---- primitive expressions -----------------------------------------
 
-// transformIdentifierExpression mirrors
+// processName mirrors
 // TransformDispatcher.processName(IdentifierExpressionTree, IdentifierType).
-func (f *IRFactory) transformIdentifierExpression(tree *trees.IdentifierExpressionTree) *rhino.Node {
+func (f *IRFactory) processName(tree *trees.IdentifierExpressionTree) *rhino.Node {
 	if tree.IdentifierToken == nil {
 		return f.newStringNode(rhino.NAME, "__missing_name__")
 	}
 	return f.newStringNode(rhino.NAME, tree.IdentifierToken.Value)
 }
 
-// transformLiteralExpression dispatches on the literal token type.
+// processLiteralExpression processes on the literal token type.
 // Mirrors the per-type literal processing in TransformDispatcher.
-func (f *IRFactory) transformLiteralExpression(tree *trees.LiteralExpressionTree) *rhino.Node {
+func (f *IRFactory) processLiteralExpression(tree *trees.LiteralExpressionTree) *rhino.Node {
 	if tree.LiteralToken == nil {
 		return f.newNode(rhino.EMPTY)
 	}
@@ -824,28 +821,28 @@ func (f *IRFactory) transformLiteralExpression(tree *trees.LiteralExpressionTree
 	case trees.TokenTypeString:
 		return f.newStringNode(rhino.STRINGLIT, "")
 	case trees.TokenTypeRegularExpression:
-		return f.transformRegexpLiteral("")
+		return f.processRegExpLiteral("")
 	default:
 		return f.newNode(rhino.EMPTY)
 	}
 }
 
-// transformThisExpression mirrors
+// processThisExpression mirrors
 // TransformDispatcher.processThisExpression(ThisExpressionTree).
-func (f *IRFactory) transformThisExpression() *rhino.Node {
+func (f *IRFactory) processThisExpression() *rhino.Node {
 	return f.newNode(rhino.THIS)
 }
 
-// transformSuperExpression mirrors Java super expression → Token.SUPER.
-func (f *IRFactory) transformSuperExpression() *rhino.Node {
+// processSuper mirrors Java super expression → Token.SUPER.
+func (f *IRFactory) processSuper() *rhino.Node {
 	return f.newNode(rhino.SUPER)
 }
 
 // ---- unary / binary / update ---------------------------------------
 
-// transformUnaryExpression mirrors
+// processUnaryExpression mirrors
 // TransformDispatcher.processUnaryExpression(UnaryExpressionTree).
-func (f *IRFactory) transformUnaryExpression(tree *trees.UnaryExpressionTree) *rhino.Node {
+func (f *IRFactory) processUnaryExpression(tree *trees.UnaryExpressionTree) *rhino.Node {
 	if tree.Operator == nil {
 		return f.newNode(rhino.EMPTY)
 	}
@@ -856,9 +853,9 @@ func (f *IRFactory) transformUnaryExpression(tree *trees.UnaryExpressionTree) *r
 	return node
 }
 
-// transformUpdateExpression mirrors
+// processUpdateExpression mirrors
 // TransformDispatcher.processUpdateExpression(UpdateExpressionTree).
-func (f *IRFactory) transformUpdateExpression(tree *trees.UpdateExpressionTree) *rhino.Node {
+func (f *IRFactory) processUpdateExpression(tree *trees.UpdateExpressionTree) *rhino.Node {
 	if tree.Operator == nil {
 		return f.newNode(rhino.EMPTY)
 	}
@@ -871,9 +868,9 @@ func (f *IRFactory) transformUpdateExpression(tree *trees.UpdateExpressionTree) 
 	return node
 }
 
-// transformBinaryOperator mirrors
+// processBinaryExpression mirrors
 // TransformDispatcher.processBinaryExpression(BinaryOperatorTree).
-func (f *IRFactory) transformBinaryOperator(tree *trees.BinaryOperatorTree) *rhino.Node {
+func (f *IRFactory) processBinaryExpression(tree *trees.BinaryOperatorTree) *rhino.Node {
 	if tree.Operator == nil {
 		return f.newNode(rhino.EMPTY)
 	}
@@ -886,9 +883,9 @@ func (f *IRFactory) transformBinaryOperator(tree *trees.BinaryOperatorTree) *rhi
 	return node
 }
 
-// transformConditionalExpression mirrors
+// processConditionalExpression mirrors
 // TransformDispatcher.processConditionalExpression(ConditionalExpressionTree).
-func (f *IRFactory) transformConditionalExpression(tree *trees.ConditionalExpressionTree) *rhino.Node {
+func (f *IRFactory) processConditionalExpression(tree *trees.ConditionalExpressionTree) *rhino.Node {
 	node := f.newNode(rhino.HOOK)
 	node.AddChildToBack(f.Transform(tree.Condition))
 	node.AddChildToBack(f.Transform(tree.Left))
@@ -896,9 +893,9 @@ func (f *IRFactory) transformConditionalExpression(tree *trees.ConditionalExpres
 	return node
 }
 
-// transformCommaExpression mirrors
+// processCommaExpression mirrors
 // TransformDispatcher.processCommaExpression(CommaExpressionTree).
-func (f *IRFactory) transformCommaExpression(tree *trees.CommaExpressionTree) *rhino.Node {
+func (f *IRFactory) processCommaExpression(tree *trees.CommaExpressionTree) *rhino.Node {
 	if len(tree.Expressions) == 0 {
 		return f.newNode(rhino.EMPTY)
 	}
@@ -917,9 +914,9 @@ func (f *IRFactory) transformCommaExpression(tree *trees.CommaExpressionTree) *r
 	return root
 }
 
-// transformParenExpression mirrors
+// processParenthesizedExpression mirrors
 // TransformDispatcher.processParenthesizedExpression(ParenExpressionTree).
-func (f *IRFactory) transformParenExpression(tree *trees.ParenExpressionTree) *rhino.Node {
+func (f *IRFactory) processParenthesizedExpression(tree *trees.ParenExpressionTree) *rhino.Node {
 	expr := f.Transform(tree.Expression)
 	if expr != nil {
 		expr.SetIsParenthesized(true)
@@ -929,9 +926,9 @@ func (f *IRFactory) transformParenExpression(tree *trees.ParenExpressionTree) *r
 
 // ---- calls / member access / new -----------------------------------
 
-// transformCallExpression mirrors
+// processFunctionCall mirrors
 // TransformDispatcher.processFunctionCall(CallExpressionTree).
-func (f *IRFactory) transformCallExpression(tree *trees.CallExpressionTree) *rhino.Node {
+func (f *IRFactory) processFunctionCall(tree *trees.CallExpressionTree) *rhino.Node {
 	node := f.newNode(rhino.CALL)
 	node.AddChildToBack(f.Transform(tree.Operand))
 	if tree.Arguments != nil {
@@ -947,9 +944,9 @@ func (f *IRFactory) transformCallExpression(tree *trees.CallExpressionTree) *rhi
 	return node
 }
 
-// transformNewExpression mirrors
+// processNewExpression mirrors
 // TransformDispatcher.processNewExpression(NewExpressionTree).
-func (f *IRFactory) transformNewExpression(tree *trees.NewExpressionTree) *rhino.Node {
+func (f *IRFactory) processNewExpression(tree *trees.NewExpressionTree) *rhino.Node {
 	node := f.newNode(rhino.NEW)
 	node.AddChildToBack(f.Transform(tree.Operand))
 	if tree.Arguments != nil {
@@ -960,9 +957,9 @@ func (f *IRFactory) transformNewExpression(tree *trees.NewExpressionTree) *rhino
 	return node
 }
 
-// transformMemberExpression mirrors
+// processPropertyGet mirrors
 // TransformDispatcher.processPropertyGet(MemberExpressionTree).
-func (f *IRFactory) transformMemberExpression(tree *trees.MemberExpressionTree) *rhino.Node {
+func (f *IRFactory) processPropertyGet(tree *trees.MemberExpressionTree) *rhino.Node {
 	leftChild := f.Transform(tree.Operand)
 	if tree.MemberName == nil {
 		return leftChild
@@ -972,9 +969,9 @@ func (f *IRFactory) transformMemberExpression(tree *trees.MemberExpressionTree) 
 	return getProp
 }
 
-// transformMemberLookupExpression mirrors
+// processElementGet mirrors
 // TransformDispatcher.processElementGet(MemberLookupExpressionTree).
-func (f *IRFactory) transformMemberLookupExpression(tree *trees.MemberLookupExpressionTree) *rhino.Node {
+func (f *IRFactory) processElementGet(tree *trees.MemberLookupExpressionTree) *rhino.Node {
 	node := f.newNode(rhino.GETELEM)
 	node.AddChildToBack(f.Transform(tree.Operand))
 	node.AddChildToBack(f.Transform(tree.MemberExpression))
@@ -983,9 +980,9 @@ func (f *IRFactory) transformMemberLookupExpression(tree *trees.MemberLookupExpr
 
 // ---- structured literals -------------------------------------------
 
-// transformArrayLiteralExpression mirrors
+// processArrayLiteral mirrors
 // TransformDispatcher.processArrayLiteral(ArrayLiteralExpressionTree).
-func (f *IRFactory) transformArrayLiteralExpression(tree *trees.ArrayLiteralExpressionTree) *rhino.Node {
+func (f *IRFactory) processArrayLiteral(tree *trees.ArrayLiteralExpressionTree) *rhino.Node {
 	node := f.newNode(rhino.ARRAYLIT)
 	for _, el := range tree.Elements {
 		node.AddChildToBack(f.Transform(el))
@@ -993,9 +990,9 @@ func (f *IRFactory) transformArrayLiteralExpression(tree *trees.ArrayLiteralExpr
 	return node
 }
 
-// transformObjectLiteralExpression mirrors
+// processObjectLiteral mirrors
 // TransformDispatcher.processObjectLiteral(ObjectLiteralExpressionTree).
-func (f *IRFactory) transformObjectLiteralExpression(tree *trees.ObjectLiteralExpressionTree) *rhino.Node {
+func (f *IRFactory) processObjectLiteral(tree *trees.ObjectLiteralExpressionTree) *rhino.Node {
 	node := f.newNode(rhino.OBJECTLIT)
 	for _, el := range tree.PropertyNameAndValues {
 		key := f.Transform(el)
@@ -1006,9 +1003,9 @@ func (f *IRFactory) transformObjectLiteralExpression(tree *trees.ObjectLiteralEx
 	return node
 }
 
-// transformPropertyNameAssignment mirrors
+// processPropertyNameAssignment mirrors
 // TransformDispatcher.processPropertyNameAssignment(PropertyNameAssignmentTree).
-func (f *IRFactory) transformPropertyNameAssignment(tree *trees.PropertyNameAssignmentTree) *rhino.Node {
+func (f *IRFactory) processPropertyNameAssignment(tree *trees.PropertyNameAssignmentTree) *rhino.Node {
 	key := f.processObjectLitKey(tree.Name, rhino.STRING_KEY)
 	if tree.Value != nil {
 		key.AddChildToFront(f.Transform(tree.Value))
@@ -1021,9 +1018,9 @@ func (f *IRFactory) transformPropertyNameAssignment(tree *trees.PropertyNameAssi
 	return key
 }
 
-// transformGetAccessor mirrors
+// processGetAccessor mirrors
 // TransformDispatcher.processGetAccessor(GetAccessorTree).
-func (f *IRFactory) transformGetAccessor(tree *trees.GetAccessorTree) *rhino.Node {
+func (f *IRFactory) processGetAccessor(tree *trees.GetAccessorTree) *rhino.Node {
 	key := f.processObjectLitKey(tree.PropertyName, rhino.GETTER_DEF)
 	body := f.Transform(&tree.Body.ParseTree)
 	dummyName := f.newStringNode(rhino.NAME, "")
@@ -1042,9 +1039,9 @@ func (f *IRFactory) transformGetAccessor(tree *trees.GetAccessorTree) *rhino.Nod
 	return key
 }
 
-// transformSetAccessor mirrors
+// processSetAccessor mirrors
 // TransformDispatcher.processSetAccessor(SetAccessorTree).
-func (f *IRFactory) transformSetAccessor(tree *trees.SetAccessorTree) *rhino.Node {
+func (f *IRFactory) processSetAccessor(tree *trees.SetAccessorTree) *rhino.Node {
 	key := f.processObjectLitKey(tree.PropertyName, rhino.SETTER_DEF)
 	// Build a minimal PARAM_LIST from the formal parameter.
 	paramList := f.newNode(rhino.PARAM_LIST)
@@ -1071,9 +1068,9 @@ func (f *IRFactory) transformSetAccessor(tree *trees.SetAccessorTree) *rhino.Nod
 	return key
 }
 
-// transformTemplateLiteralExpression mirrors
+// processTemplateLiteral mirrors
 // TransformDispatcher.processTemplateLiteral(TemplateLiteralExpressionTree).
-func (f *IRFactory) transformTemplateLiteralExpression(tree *trees.TemplateLiteralExpressionTree) *rhino.Node {
+func (f *IRFactory) processTemplateLiteral(tree *trees.TemplateLiteralExpressionTree) *rhino.Node {
 	templateLitNode := f.newNode(rhino.TEMPLATELIT)
 	f.setSourceInfo(templateLitNode, &tree.ParseTree)
 	var node *rhino.Node
@@ -1097,16 +1094,16 @@ func (f *IRFactory) transformTemplateLiteralExpression(tree *trees.TemplateLiter
 	return node
 }
 
-// transformTemplateLiteralPortion mirrors
+// processTemplateLiteralPortion mirrors
 // TransformDispatcher.processTemplateLiteralPortion(TemplateLiteralPortionTree).
 // Note: trees.Token has no Value field in the stub; cooked/raw are empty stubs.
-func (f *IRFactory) transformTemplateLiteralPortion(tree *trees.TemplateLiteralPortionTree) *rhino.Node {
+func (f *IRFactory) processTemplateLiteralPortion(tree *trees.TemplateLiteralPortionTree) *rhino.Node {
 	return rhino.NewTemplateLitString("", "")
 }
 
-// transformTemplateSubstitution mirrors
+// processTemplateSubstitution mirrors
 // TransformDispatcher.processTemplateSubstitution(TemplateSubstitutionTree).
-func (f *IRFactory) transformTemplateSubstitution(tree *trees.TemplateSubstitutionTree) *rhino.Node {
+func (f *IRFactory) processTemplateSubstitution(tree *trees.TemplateSubstitutionTree) *rhino.Node {
 	node := f.newNode(rhino.TEMPLATELIT_SUB)
 	node.AddChildToBack(f.Transform(tree.Expression))
 	return node
@@ -1141,9 +1138,9 @@ func (f *IRFactory) processObjectLitKey(tok *trees.Token, output rhino.Token) *r
 	}
 }
 
-// transformRegexpLiteral builds a REGEXP node from the raw literal string.
+// processRegExpLiteral builds a REGEXP node from the raw literal string.
 // Mirrors TransformDispatcher.processRegExpLiteral.
-func (f *IRFactory) transformRegexpLiteral(raw string) *rhino.Node {
+func (f *IRFactory) processRegExpLiteral(raw string) *rhino.Node {
 	lastSlash := len(raw) - 1
 	for lastSlash > 0 && raw[lastSlash] != '/' {
 		lastSlash--
@@ -1160,7 +1157,7 @@ func (f *IRFactory) transformRegexpLiteral(raw string) *rhino.Node {
 	return node
 }
 
-// setSourceInfoFromToken copies position from a trees.Token to a rhino Node.
+// Go-only: token-based overload of setSourceInfo; Java's setSourceInfo takes a ParseTree.
 func (f *IRFactory) setSourceInfoFromToken(node *rhino.Node, tok *trees.Token) {
 	if node.Lineno() == 0 {
 		node.SetPos(tok.Location.Start.Line+1, tok.Location.Start.Column)
@@ -1313,9 +1310,7 @@ func normalizeString(raw string) string {
 	return raw
 }
 
-// parseFloat converts a JS number literal string to float64.
-// A full implementation would handle hex/octal/binary; this handles the
-// common decimal case.
+// Go-only: Go-level numeric literal parser; Java uses removeNumericSeparators + Double.parseDouble.
 func parseFloat(s string) float64 {
 	if s == "" {
 		return 0
@@ -1327,8 +1322,7 @@ func parseFloat(s string) float64 {
 	return v
 }
 
-// floatToString converts a float64 to a JS-style string (used for numeric
-// property keys). Mirrors DToA.numberToString.
+// Go-only: converts float64 to JS number string; Java uses DToA.numberToString.
 func floatToString(v float64) string {
 	return fmt.Sprintf("%g", v)
 }

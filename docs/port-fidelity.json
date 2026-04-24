@@ -1,6 +1,6 @@
 [
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/default_externs.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/default_externs.go",
     "java_file": "",
     "score": 0,
     "method_overlap_pct": 0,
@@ -18,7 +18,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/tokentype.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/tokentype.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/TokenType.java",
     "score": 28.12834224598931,
     "method_overlap_pct": 0,
@@ -36,7 +36,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/closurereverseabstractinterpreter.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/closurereverseabstractinterpreter.go",
     "java_file": "com/google/javascript/jscomp/type/ClosureReverseAbstractInterpreter.java",
     "score": 30.851190476190474,
     "method_overlap_pct": 12.5,
@@ -54,7 +54,25 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/checkjsdoctypes.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/compiler.go",
+    "java_file": "com/google/javascript/jscomp/Compiler.java",
+    "score": 32.56977692202222,
+    "method_overlap_pct": 0,
+    "go_method_count": 4,
+    "java_method_count": 289,
+    "stub_count": 0,
+    "go_body_loc": 85,
+    "java_body_loc": 2347,
+    "loc_ratio": 0.03621644652748189,
+    "go_only_count": 4,
+    "notes": "4 go-only fns",
+    "weighted_score": 15.099681317174607,
+    "go_only_penalty": 8,
+    "stub_penalty": 0,
+    "version_penalty": 0
+  },
+  {
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/checkjsdoctypes.go",
     "java_file": "com/google/javascript/jscomp/TypeValidator.java",
     "score": 32.89463359344348,
     "method_overlap_pct": 0,
@@ -72,7 +90,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/checkmissingrequires.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/checkmissingrequires.go",
     "java_file": "com/google/javascript/jscomp/CheckMissingRequires.java",
     "score": 33.318377051695045,
     "method_overlap_pct": 0,
@@ -90,7 +108,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/checkaccesscontrols.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/checkaccesscontrols.go",
     "java_file": "com/google/javascript/jscomp/CheckAccessControls.java",
     "score": 33.64085680946824,
     "method_overlap_pct": 0,
@@ -108,25 +126,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/parsing/irfactory.go",
-    "java_file": "com/google/javascript/jscomp/parsing/IRFactory.java",
-    "score": 34.22538457561344,
-    "method_overlap_pct": 4.435483870967742,
-    "go_method_count": 41,
-    "java_method_count": 218,
-    "stub_count": 0,
-    "go_body_loc": 471,
-    "java_body_loc": 2715,
-    "loc_ratio": 0.1734806629834254,
-    "go_only_count": 29,
-    "notes": "29 go-only fns",
-    "weighted_score": 34.60769225087634,
-    "go_only_penalty": 20,
-    "stub_penalty": 0,
-    "version_penalty": 0
-  },
-  {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/checkunreachablecode.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/checkunreachablecode.go",
     "java_file": "com/google/javascript/jscomp/CheckUnreachableCode.java",
     "score": 34.45454545454545,
     "method_overlap_pct": 0,
@@ -144,25 +144,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/compiler.go",
-    "java_file": "com/google/javascript/jscomp/Compiler.java",
-    "score": 34.4667447068554,
-    "method_overlap_pct": 0,
-    "go_method_count": 3,
-    "java_method_count": 289,
-    "stub_count": 0,
-    "go_body_loc": 73,
-    "java_body_loc": 2347,
-    "loc_ratio": 0.03110353642948445,
-    "go_only_count": 3,
-    "notes": "3 go-only fns",
-    "weighted_score": 14.952492438364857,
-    "go_only_penalty": 6,
-    "stub_penalty": 0,
-    "version_penalty": 0
-  },
-  {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/checksuper.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/checksuper.go",
     "java_file": "com/google/javascript/jscomp/CheckSuper.java",
     "score": 34.77123961476644,
     "method_overlap_pct": 43.75,
@@ -180,7 +162,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/dataflow.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/dataflow.go",
     "java_file": "com/google/javascript/jscomp/DataFlowAnalysis.java",
     "score": 34.929856945085376,
     "method_overlap_pct": 0,
@@ -198,7 +180,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/checksideeffects.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/checksideeffects.go",
     "java_file": "com/google/javascript/jscomp/CheckSideEffects.java",
     "score": 35.666666666666664,
     "method_overlap_pct": 0,
@@ -216,7 +198,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/symboltable.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/symboltable.go",
     "java_file": "com/google/javascript/jscomp/SymbolTable.java",
     "score": 36.06256445084985,
     "method_overlap_pct": 41.17647058823529,
@@ -234,7 +216,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/checktypeimportcodereferences.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/checktypeimportcodereferences.go",
     "java_file": "com/google/javascript/jscomp/CheckTypeImportCodeReferences.java",
     "score": 36.625,
     "method_overlap_pct": 0,
@@ -252,7 +234,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/registry.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/registry.go",
     "java_file": "com/google/javascript/rhino/jstype/JSTypeRegistry.java",
     "score": 36.9927988392866,
     "method_overlap_pct": 7.042253521126761,
@@ -270,7 +252,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/nodeutil.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/nodeutil.go",
     "java_file": "com/google/javascript/jscomp/NodeUtil.java",
     "score": 37.595274622231756,
     "method_overlap_pct": 14.325068870523417,
@@ -288,25 +270,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/parser.go",
-    "java_file": "com/google/javascript/jscomp/parsing/parser/Parser.java",
-    "score": 38.05890628662808,
-    "method_overlap_pct": 1.400560224089636,
-    "go_method_count": 61,
-    "java_method_count": 301,
-    "stub_count": 0,
-    "go_body_loc": 2707,
-    "java_body_loc": 2389,
-    "loc_ratio": 1.1331100879028881,
-    "go_only_count": 53,
-    "notes": "53 go-only fns",
-    "weighted_score": 40.084151838040114,
-    "go_only_penalty": 20,
-    "stub_penalty": 0,
-    "version_penalty": 0
-  },
-  {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/parse_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/parse_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ParseTree.java",
     "score": 38.22284644194757,
     "method_overlap_pct": 0,
@@ -324,25 +288,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/typecheck.go",
-    "java_file": "com/google/javascript/jscomp/TypeCheck.java",
-    "score": 38.43198857879709,
-    "method_overlap_pct": 8.51063829787234,
-    "go_method_count": 154,
-    "java_method_count": 101,
-    "stub_count": 2,
-    "go_body_loc": 4227,
-    "java_body_loc": 1759,
-    "loc_ratio": 1.5,
-    "go_only_count": 131,
-    "notes": "2 stubs; 131 go-only fns",
-    "weighted_score": 49.18855511256727,
-    "go_only_penalty": 20,
-    "stub_penalty": 6,
-    "version_penalty": 0
-  },
-  {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/jstype.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/jstype.go",
     "java_file": "com/google/javascript/rhino/jstype/JSType.java",
     "score": 38.46038884660624,
     "method_overlap_pct": 10,
@@ -360,7 +306,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/proxy_object_type.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/proxy_object_type.go",
     "java_file": "com/google/javascript/rhino/jstype/ProxyObjectType.java",
     "score": 38.589879766473075,
     "method_overlap_pct": 55.88235294117647,
@@ -378,7 +324,25 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/templatized_type.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/typecheck.go",
+    "java_file": "com/google/javascript/jscomp/TypeCheck.java",
+    "score": 38.82214972217817,
+    "method_overlap_pct": 9.745762711864407,
+    "go_method_count": 158,
+    "java_method_count": 101,
+    "stub_count": 2,
+    "go_body_loc": 4341,
+    "java_body_loc": 1759,
+    "loc_ratio": 1.5,
+    "go_only_count": 132,
+    "notes": "2 stubs; 132 go-only fns",
+    "weighted_score": 49.745928174540246,
+    "go_only_penalty": 20,
+    "stub_penalty": 6,
+    "version_penalty": 0
+  },
+  {
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/templatized_type.go",
     "java_file": "com/google/javascript/rhino/jstype/TemplatizedType.java",
     "score": 39.21020156314274,
     "method_overlap_pct": 0,
@@ -396,7 +360,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/diag/diag.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/diag/diag.go",
     "java_file": "com/google/javascript/jscomp/JSError.java",
     "score": 39.27830094169505,
     "method_overlap_pct": 0,
@@ -414,7 +378,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/flowscope.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/flowscope.go",
     "java_file": "com/google/javascript/jscomp/type/FlowScope.java",
     "score": 39.94871794871794,
     "method_overlap_pct": 13.333333333333334,
@@ -432,7 +396,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jsdoc.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jsdoc.go",
     "java_file": "com/google/javascript/rhino/JSDocInfo.java",
     "score": 40.64355140367904,
     "method_overlap_pct": 13.314447592067987,
@@ -450,25 +414,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/node.go",
-    "java_file": "com/google/javascript/rhino/Node.java",
-    "score": 40.812624680078464,
-    "method_overlap_pct": 20.35175879396985,
-    "go_method_count": 105,
-    "java_method_count": 374,
-    "stub_count": 0,
-    "go_body_loc": 305,
-    "java_body_loc": 1571,
-    "loc_ratio": 0.19414385741565882,
-    "go_only_count": 12,
-    "notes": "12 go-only fns",
-    "weighted_score": 44.01803525725495,
-    "go_only_penalty": 20,
-    "stub_penalty": 0,
-    "version_penalty": 0
-  },
-  {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/nodetraversal.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/nodetraversal.go",
     "java_file": "com/google/javascript/jscomp/NodeTraversal.java",
     "score": 40.9528210632321,
     "method_overlap_pct": 12.5,
@@ -486,7 +432,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/astvalidator.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/astvalidator.go",
     "java_file": "com/google/javascript/jscomp/AstValidator.java",
     "score": 41.2681504068626,
     "method_overlap_pct": 5.660377358490567,
@@ -504,7 +450,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/compileroptions.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/compileroptions.go",
     "java_file": "com/google/javascript/jscomp/CompilerOptions.java",
     "score": 41.35149344168805,
     "method_overlap_pct": 0.4444444444444444,
@@ -522,7 +468,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/function_type.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/function_type.go",
     "java_file": "com/google/javascript/rhino/jstype/FunctionType.java",
     "score": 41.976939617437644,
     "method_overlap_pct": 16.083916083916083,
@@ -540,7 +486,25 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/parsing/jsdocinfoparser.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/node.go",
+    "java_file": "com/google/javascript/rhino/Node.java",
+    "score": 42.292299923942366,
+    "method_overlap_pct": 23.44139650872818,
+    "go_method_count": 121,
+    "java_method_count": 374,
+    "stub_count": 0,
+    "go_body_loc": 306,
+    "java_body_loc": 1571,
+    "loc_ratio": 0.19478039465308722,
+    "go_only_count": 15,
+    "notes": "15 go-only fns",
+    "weighted_score": 46.131857034203385,
+    "go_only_penalty": 20,
+    "stub_penalty": 0,
+    "version_penalty": 0
+  },
+  {
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/parsing/jsdocinfoparser.go",
     "java_file": "com/google/javascript/jscomp/parsing/JsDocInfoParser.java",
     "score": 42.47416283722557,
     "method_overlap_pct": 16.822429906542055,
@@ -558,7 +522,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/checkconformance.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/checkconformance.go",
     "java_file": "com/google/javascript/jscomp/CheckConformance.java",
     "score": 43.53673145872565,
     "method_overlap_pct": 5.263157894736842,
@@ -576,7 +540,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/varrefcheck.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/varrefcheck.go",
     "java_file": "com/google/javascript/jscomp/VariableReferenceCheck.java",
     "score": 43.55769230769231,
     "method_overlap_pct": 2.564102564102564,
@@ -594,7 +558,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/cfg.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/cfg.go",
     "java_file": "com/google/javascript/jscomp/ControlFlowGraph.java",
     "score": 43.68181818181818,
     "method_overlap_pct": 0,
@@ -612,7 +576,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/inferconsts.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/inferconsts.go",
     "java_file": "com/google/javascript/jscomp/InferConsts.java",
     "score": 43.714285714285715,
     "method_overlap_pct": 0,
@@ -630,7 +594,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/enum_type.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/enum_type.go",
     "java_file": "com/google/javascript/rhino/jstype/EnumType.java",
     "score": 43.89236111111111,
     "method_overlap_pct": 3.125,
@@ -648,7 +612,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/astfactory.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/astfactory.go",
     "java_file": "com/google/javascript/jscomp/AstFactory.java",
     "score": 44.296785924670296,
     "method_overlap_pct": 12.8,
@@ -666,7 +630,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/inferjsdocinfo.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/inferjsdocinfo.go",
     "java_file": "com/google/javascript/jscomp/InferJsDocInfo.java",
     "score": 44.5,
     "method_overlap_pct": 8,
@@ -684,7 +648,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/parsing/jsdoctoken.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/parsing/jsdoctoken.go",
     "java_file": "com/google/javascript/jscomp/parsing/JsDocToken.java",
     "score": 45,
     "method_overlap_pct": 0,
@@ -702,7 +666,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/object_type_ext.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/object_type_ext.go",
     "java_file": "com/google/javascript/rhino/jstype/ObjectType.java",
     "score": 45.26048310890621,
     "method_overlap_pct": 4.166666666666666,
@@ -720,7 +684,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/checkduplicatemember.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/checkduplicatemember.go",
     "java_file": "com/google/javascript/jscomp/StrictModeCheck.java",
     "score": 45.27583527583527,
     "method_overlap_pct": 0,
@@ -738,7 +702,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/scope.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/scope.go",
     "java_file": "com/google/javascript/jscomp/TypedScopeCreator.java",
     "score": 45.38599132246064,
     "method_overlap_pct": 2.450980392156863,
@@ -756,7 +720,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/inference.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/inference.go",
     "java_file": "com/google/javascript/jscomp/TypeInference.java",
     "score": 45.46558076788975,
     "method_overlap_pct": 6.493506493506493,
@@ -774,7 +738,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/checkclosureimports.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/checkclosureimports.go",
     "java_file": "com/google/javascript/jscomp/CheckClosureImports.java",
     "score": 47.0812324929972,
     "method_overlap_pct": 14.285714285714285,
@@ -792,7 +756,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/union_type.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/union_type.go",
     "java_file": "com/google/javascript/rhino/jstype/UnionType.java",
     "score": 47.469275144218706,
     "method_overlap_pct": 6.666666666666667,
@@ -810,7 +774,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/closure_primitive.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/closure_primitive.go",
     "java_file": "com/google/javascript/rhino/ClosurePrimitive.java",
     "score": 48.46296296296296,
     "method_overlap_pct": 0,
@@ -828,7 +792,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/object_type.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/object_type.go",
     "java_file": "com/google/javascript/rhino/jstype/PrototypeObjectType.java",
     "score": 48.75728849918329,
     "method_overlap_pct": 6.578947368421052,
@@ -846,7 +810,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/diagnosticgroup.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/diagnosticgroup.go",
     "java_file": "com/google/javascript/jscomp/DiagnosticGroup.java",
     "score": 50,
     "method_overlap_pct": 0,
@@ -864,7 +828,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/reverseabstractinterpreter.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/reverseabstractinterpreter.go",
     "java_file": "com/google/javascript/jscomp/type/ReverseAbstractInterpreter.java",
     "score": 50,
     "method_overlap_pct": 0,
@@ -882,7 +846,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/jstype_class.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/jstype_class.go",
     "java_file": "com/google/javascript/rhino/jstype/JSTypeClass.java",
     "score": 50,
     "method_overlap_pct": 0,
@@ -900,7 +864,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/relationship_visitor.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/relationship_visitor.go",
     "java_file": "com/google/javascript/rhino/jstype/RelationshipVisitor.java",
     "score": 50,
     "method_overlap_pct": 0,
@@ -918,7 +882,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/static_ref.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/static_ref.go",
     "java_file": "com/google/javascript/rhino/StaticRef.java",
     "score": 50,
     "method_overlap_pct": 0,
@@ -936,7 +900,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/static_slot.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/static_slot.go",
     "java_file": "com/google/javascript/rhino/StaticSlot.java",
     "score": 50,
     "method_overlap_pct": 0,
@@ -954,7 +918,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/static_symbol_table.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/static_symbol_table.go",
     "java_file": "com/google/javascript/rhino/StaticSymbolTable.java",
     "score": 50,
     "method_overlap_pct": 0,
@@ -972,7 +936,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/controlflowanalysis.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/controlflowanalysis.go",
     "java_file": "com/google/javascript/jscomp/ControlFlowAnalysis.java",
     "score": 50.005941883444166,
     "method_overlap_pct": 2.7027027027027026,
@@ -990,7 +954,25 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/nodenameextractor.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/token.go",
+    "java_file": "com/google/javascript/rhino/Token.java",
+    "score": 50.5,
+    "method_overlap_pct": 0,
+    "go_method_count": 2,
+    "java_method_count": 1,
+    "stub_count": 0,
+    "go_body_loc": 279,
+    "java_body_loc": 182,
+    "loc_ratio": 1.5,
+    "go_only_count": 1,
+    "notes": "1 go-only fns",
+    "weighted_score": 32.142857142857146,
+    "go_only_penalty": 2,
+    "stub_penalty": 0,
+    "version_penalty": 0
+  },
+  {
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/nodenameextractor.go",
     "java_file": "com/google/javascript/jscomp/NodeNameExtractor.java",
     "score": 50.714285714285715,
     "method_overlap_pct": 14.285714285714285,
@@ -1008,7 +990,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/no_resolved_type.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/no_resolved_type.go",
     "java_file": "com/google/javascript/rhino/jstype/NoResolvedType.java",
     "score": 50.93546037296037,
     "method_overlap_pct": 6.25,
@@ -1026,7 +1008,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/controlflowgraph.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/controlflowgraph.go",
     "java_file": "com/google/javascript/jscomp/ControlFlowGraph.java",
     "score": 51.04545454545455,
     "method_overlap_pct": 0,
@@ -1044,25 +1026,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/token.go",
-    "java_file": "com/google/javascript/rhino/Token.java",
-    "score": 51.15934065934066,
-    "method_overlap_pct": 0,
-    "go_method_count": 2,
-    "java_method_count": 1,
-    "stub_count": 0,
-    "go_body_loc": 261,
-    "java_body_loc": 182,
-    "loc_ratio": 1.434065934065934,
-    "go_only_count": 1,
-    "notes": "1 go-only fns",
-    "weighted_score": 33.084772370486654,
-    "go_only_penalty": 2,
-    "stub_penalty": 0,
-    "version_penalty": 0
-  },
-  {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/chainablereverseabstractinterpreter.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/chainablereverseabstractinterpreter.go",
     "java_file": "com/google/javascript/jscomp/type/ChainableReverseAbstractInterpreter.java",
     "score": 51.91987885006867,
     "method_overlap_pct": 65.21739130434783,
@@ -1080,7 +1044,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/update_expression_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/update_expression_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/UpdateExpressionTree.java",
     "score": 51.962962962962955,
     "method_overlap_pct": 0,
@@ -1098,7 +1062,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/template_type.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/template_type.go",
     "java_file": "com/google/javascript/rhino/jstype/TemplateType.java",
     "score": 51.98701298701299,
     "method_overlap_pct": 9.090909090909092,
@@ -1116,7 +1080,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/unknown_type.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/unknown_type.go",
     "java_file": "com/google/javascript/rhino/jstype/UnknownType.java",
     "score": 52.42629904559915,
     "method_overlap_pct": 0.4878048780487805,
@@ -1134,7 +1098,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/checkjsdoc.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/checkjsdoc.go",
     "java_file": "com/google/javascript/jscomp/CheckJSDoc.java",
     "score": 52.89467076136981,
     "method_overlap_pct": 31.666666666666664,
@@ -1152,7 +1116,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/all_type.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/all_type.go",
     "java_file": "com/google/javascript/rhino/jstype/AllType.java",
     "score": 53.16556291390729,
     "method_overlap_pct": 0.6622516556291391,
@@ -1170,7 +1134,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/typeinferencepass.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/typeinferencepass.go",
     "java_file": "com/google/javascript/jscomp/TypeInferencePass.java",
     "score": 53.18181818181818,
     "method_overlap_pct": 0,
@@ -1188,7 +1152,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/property.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/property.go",
     "java_file": "com/google/javascript/rhino/jstype/Property.java",
     "score": 53.519230769230774,
     "method_overlap_pct": 55.00000000000001,
@@ -1206,7 +1170,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/varcheck.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/varcheck.go",
     "java_file": "com/google/javascript/jscomp/VarCheck.java",
     "score": 54.02707006369427,
     "method_overlap_pct": 8,
@@ -1224,7 +1188,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/null_type.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/null_type.go",
     "java_file": "com/google/javascript/rhino/jstype/NullType.java",
     "score": 54.2809475292919,
     "method_overlap_pct": 0.6622516556291391,
@@ -1242,7 +1206,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/no_object_type.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/no_object_type.go",
     "java_file": "com/google/javascript/rhino/jstype/NoObjectType.java",
     "score": 54.30882352941176,
     "method_overlap_pct": 25,
@@ -1260,7 +1224,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jsdoc_info_builder.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jsdoc_info_builder.go",
     "java_file": "com/google/javascript/rhino/JSDocInfo.java",
     "score": 54.519515195274224,
     "method_overlap_pct": 16.78082191780822,
@@ -1278,7 +1242,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/formal_parameter_list_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/formal_parameter_list_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/FormalParameterListTree.java",
     "score": 55.22222222222222,
     "method_overlap_pct": 0,
@@ -1296,7 +1260,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/typevalidator.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/typevalidator.go",
     "java_file": "com/google/javascript/jscomp/TypeValidator.java",
     "score": 55.29072435267125,
     "method_overlap_pct": 42.857142857142854,
@@ -1314,25 +1278,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/parser_new.go",
-    "java_file": "com/google/javascript/jscomp/parsing/parser/Parser.java",
-    "score": 55.365922759852666,
-    "method_overlap_pct": 41.246290801186944,
-    "go_method_count": 176,
-    "java_method_count": 301,
-    "stub_count": 0,
-    "go_body_loc": 1610,
-    "java_body_loc": 2389,
-    "loc_ratio": 0.6739221431561323,
-    "go_only_count": 27,
-    "notes": "27 go-only fns",
-    "weighted_score": 64.80846108550382,
-    "go_only_penalty": 20,
-    "stub_penalty": 0,
-    "version_penalty": 0
-  },
-  {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/comprehension_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/comprehension_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ComprehensionTree.java",
     "score": 55.72727272727273,
     "method_overlap_pct": 0,
@@ -1350,7 +1296,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/named_type.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/named_type.go",
     "java_file": "com/google/javascript/rhino/jstype/NamedType.java",
     "score": 55.957142857142856,
     "method_overlap_pct": 28.000000000000004,
@@ -1368,7 +1314,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/void_type.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/void_type.go",
     "java_file": "com/google/javascript/rhino/jstype/VoidType.java",
     "score": 56.08863983698421,
     "method_overlap_pct": 0.6622516556291391,
@@ -1386,7 +1332,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/argument_list_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/argument_list_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ArgumentListTree.java",
     "score": 56.1578947368421,
     "method_overlap_pct": 0,
@@ -1404,7 +1350,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/class_declaration_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/class_declaration_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ClassDeclarationTree.java",
     "score": 56.1578947368421,
     "method_overlap_pct": 0,
@@ -1422,7 +1368,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/import_declaration_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/import_declaration_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ImportDeclarationTree.java",
     "score": 56.18181818181818,
     "method_overlap_pct": 0,
@@ -1440,7 +1386,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/export_declaration_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/export_declaration_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ExportDeclarationTree.java",
     "score": 56.33333333333333,
     "method_overlap_pct": 0,
@@ -1458,7 +1404,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/get_accessor_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/get_accessor_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/GetAccessorTree.java",
     "score": 56.33333333333333,
     "method_overlap_pct": 0,
@@ -1476,7 +1422,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/object_literal_expression_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/object_literal_expression_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ObjectLiteralExpressionTree.java",
     "score": 56.33333333333333,
     "method_overlap_pct": 0,
@@ -1494,7 +1440,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/optional_member_expression_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/optional_member_expression_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/OptionalMemberExpressionTree.java",
     "score": 56.33333333333333,
     "method_overlap_pct": 0,
@@ -1512,7 +1458,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/program_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/program_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ProgramTree.java",
     "score": 56.33333333333333,
     "method_overlap_pct": 0,
@@ -1530,7 +1476,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/set_accessor_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/set_accessor_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/SetAccessorTree.java",
     "score": 56.33333333333333,
     "method_overlap_pct": 0,
@@ -1548,7 +1494,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/variable_declaration_list_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/variable_declaration_list_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/VariableDeclarationListTree.java",
     "score": 56.33333333333333,
     "method_overlap_pct": 0,
@@ -1566,7 +1512,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/computed_property_setter_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/computed_property_setter_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ComputedPropertySetterTree.java",
     "score": 56.5,
     "method_overlap_pct": 0,
@@ -1584,7 +1530,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/opt_chain_call_expression_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/opt_chain_call_expression_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/OptChainCallExpressionTree.java",
     "score": 56.5,
     "method_overlap_pct": 0,
@@ -1602,7 +1548,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/new_expression_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/new_expression_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/NewExpressionTree.java",
     "score": 56.52941176470588,
     "method_overlap_pct": 0,
@@ -1620,7 +1566,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/optional_member_lookup_expression_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/optional_member_lookup_expression_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/OptionalMemberLookupExpressionTree.java",
     "score": 56.52941176470588,
     "method_overlap_pct": 0,
@@ -1638,7 +1584,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/number_type.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/number_type.go",
     "java_file": "com/google/javascript/rhino/jstype/NumberType.java",
     "score": 56.57080174287493,
     "method_overlap_pct": 0.6622516556291391,
@@ -1656,7 +1602,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/string_type.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/string_type.go",
     "java_file": "com/google/javascript/rhino/jstype/StringType.java",
     "score": 56.57080174287493,
     "method_overlap_pct": 0.6622516556291391,
@@ -1674,7 +1620,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/case_clause_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/case_clause_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/CaseClauseTree.java",
     "score": 56.57142857142858,
     "method_overlap_pct": 0,
@@ -1692,7 +1638,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/comprehension_for_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/comprehension_for_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ComprehensionForTree.java",
     "score": 56.57142857142858,
     "method_overlap_pct": 0,
@@ -1710,7 +1656,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/template_literal_expression_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/template_literal_expression_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/TemplateLiteralExpressionTree.java",
     "score": 56.57142857142858,
     "method_overlap_pct": 0,
@@ -1728,7 +1674,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/value_type.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/value_type.go",
     "java_file": "com/google/javascript/rhino/jstype/ValueType.java",
     "score": 56.57882882882883,
     "method_overlap_pct": 8.333333333333332,
@@ -1746,7 +1692,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/boolean_type.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/boolean_type.go",
     "java_file": "com/google/javascript/rhino/jstype/BooleanType.java",
     "score": 56.594590027144925,
     "method_overlap_pct": 0.6622516556291391,
@@ -1764,7 +1710,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/array_pattern_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/array_pattern_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ArrayPatternTree.java",
     "score": 56.63636363636364,
     "method_overlap_pct": 0,
@@ -1782,7 +1728,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/comma_expression_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/comma_expression_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/CommaExpressionTree.java",
     "score": 56.63636363636364,
     "method_overlap_pct": 0,
@@ -1800,7 +1746,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/comprehension_if_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/comprehension_if_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ComprehensionIfTree.java",
     "score": 56.63636363636364,
     "method_overlap_pct": 0,
@@ -1818,7 +1764,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/object_pattern_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/object_pattern_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ObjectPatternTree.java",
     "score": 56.63636363636364,
     "method_overlap_pct": 0,
@@ -1836,7 +1782,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/array_literal_expression_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/array_literal_expression_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ArrayLiteralExpressionTree.java",
     "score": 56.84615384615385,
     "method_overlap_pct": 0,
@@ -1854,7 +1800,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/export_specifier_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/export_specifier_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ExportSpecifierTree.java",
     "score": 56.84615384615385,
     "method_overlap_pct": 0,
@@ -1872,7 +1818,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/import_specifier_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/import_specifier_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ImportSpecifierTree.java",
     "score": 56.84615384615385,
     "method_overlap_pct": 0,
@@ -1890,7 +1836,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/switch_statement_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/switch_statement_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/SwitchStatementTree.java",
     "score": 56.84615384615385,
     "method_overlap_pct": 0,
@@ -1908,7 +1854,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/block_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/block_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/BlockTree.java",
     "score": 57,
     "method_overlap_pct": 0,
@@ -1926,7 +1872,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/default_clause_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/default_clause_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/DefaultClauseTree.java",
     "score": 57,
     "method_overlap_pct": 0,
@@ -1944,7 +1890,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/identifier_expression_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/identifier_expression_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/IdentifierExpressionTree.java",
     "score": 57,
     "method_overlap_pct": 0,
@@ -1962,7 +1908,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/literal_expression_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/literal_expression_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/LiteralExpressionTree.java",
     "score": 57,
     "method_overlap_pct": 0,
@@ -1980,7 +1926,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/template_literal_portion_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/template_literal_portion_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/TemplateLiteralPortionTree.java",
     "score": 57,
     "method_overlap_pct": 0,
@@ -1998,7 +1944,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/computed_property_definition_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/computed_property_definition_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ComputedPropertyDefinitionTree.java",
     "score": 57.16666666666667,
     "method_overlap_pct": 0,
@@ -2016,7 +1962,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/default_parameter_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/default_parameter_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/DefaultParameterTree.java",
     "score": 57.16666666666667,
     "method_overlap_pct": 0,
@@ -2034,7 +1980,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/do_while_statement_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/do_while_statement_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/DoWhileStatementTree.java",
     "score": 57.16666666666667,
     "method_overlap_pct": 0,
@@ -2052,7 +1998,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/labelled_statement_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/labelled_statement_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/LabelledStatementTree.java",
     "score": 57.16666666666667,
     "method_overlap_pct": 0,
@@ -2070,7 +2016,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/member_expression_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/member_expression_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/MemberExpressionTree.java",
     "score": 57.16666666666667,
     "method_overlap_pct": 0,
@@ -2088,7 +2034,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/member_lookup_expression_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/member_lookup_expression_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/MemberLookupExpressionTree.java",
     "score": 57.16666666666667,
     "method_overlap_pct": 0,
@@ -2106,7 +2052,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/property_name_assignment_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/property_name_assignment_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/PropertyNameAssignmentTree.java",
     "score": 57.16666666666667,
     "method_overlap_pct": 0,
@@ -2124,7 +2070,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/unary_expression_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/unary_expression_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/UnaryExpressionTree.java",
     "score": 57.16666666666667,
     "method_overlap_pct": 0,
@@ -2142,7 +2088,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/yield_expression_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/yield_expression_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/YieldExpressionTree.java",
     "score": 57.16666666666667,
     "method_overlap_pct": 0,
@@ -2160,7 +2106,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/binary_operator_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/binary_operator_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/BinaryOperatorTree.java",
     "score": 57.285714285714285,
     "method_overlap_pct": 0,
@@ -2178,7 +2124,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/computed_property_getter_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/computed_property_getter_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ComputedPropertyGetterTree.java",
     "score": 57.285714285714285,
     "method_overlap_pct": 0,
@@ -2196,7 +2142,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/conditional_expression_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/conditional_expression_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ConditionalExpressionTree.java",
     "score": 57.285714285714285,
     "method_overlap_pct": 0,
@@ -2214,7 +2160,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/debugger_statement_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/debugger_statement_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/DebuggerStatementTree.java",
     "score": 57.285714285714285,
     "method_overlap_pct": 0,
@@ -2232,7 +2178,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/empty_statement_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/empty_statement_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/EmptyStatementTree.java",
     "score": 57.285714285714285,
     "method_overlap_pct": 0,
@@ -2250,7 +2196,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/for_await_of_statement_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/for_await_of_statement_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ForAwaitOfStatementTree.java",
     "score": 57.285714285714285,
     "method_overlap_pct": 0,
@@ -2268,7 +2214,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/for_in_statement_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/for_in_statement_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ForInStatementTree.java",
     "score": 57.285714285714285,
     "method_overlap_pct": 0,
@@ -2286,7 +2232,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/for_of_statement_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/for_of_statement_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ForOfStatementTree.java",
     "score": 57.285714285714285,
     "method_overlap_pct": 0,
@@ -2304,7 +2250,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/if_statement_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/if_statement_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/IfStatementTree.java",
     "score": 57.285714285714285,
     "method_overlap_pct": 0,
@@ -2322,7 +2268,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/missing_primary_expression_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/missing_primary_expression_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/MissingPrimaryExpressionTree.java",
     "score": 57.285714285714285,
     "method_overlap_pct": 0,
@@ -2340,7 +2286,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/new_target_expression_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/new_target_expression_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/NewTargetExpressionTree.java",
     "score": 57.285714285714285,
     "method_overlap_pct": 0,
@@ -2358,7 +2304,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/null_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/null_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/NullTree.java",
     "score": 57.285714285714285,
     "method_overlap_pct": 0,
@@ -2376,7 +2322,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/super_expression_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/super_expression_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/SuperExpressionTree.java",
     "score": 57.285714285714285,
     "method_overlap_pct": 0,
@@ -2394,7 +2340,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/this_expression_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/this_expression_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ThisExpressionTree.java",
     "score": 57.285714285714285,
     "method_overlap_pct": 0,
@@ -2412,7 +2358,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/try_statement_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/try_statement_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/TryStatementTree.java",
     "score": 57.285714285714285,
     "method_overlap_pct": 0,
@@ -2430,7 +2376,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/for_statement_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/for_statement_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ForStatementTree.java",
     "score": 57.375,
     "method_overlap_pct": 0,
@@ -2448,7 +2394,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/await_expression_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/await_expression_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/AwaitExpressionTree.java",
     "score": 57.44444444444444,
     "method_overlap_pct": 0,
@@ -2466,7 +2412,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/dynamic_import_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/dynamic_import_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/DynamicImportTree.java",
     "score": 57.44444444444444,
     "method_overlap_pct": 0,
@@ -2484,7 +2430,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/expression_statement_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/expression_statement_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ExpressionStatementTree.java",
     "score": 57.44444444444444,
     "method_overlap_pct": 0,
@@ -2502,7 +2448,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/finally_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/finally_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/FinallyTree.java",
     "score": 57.44444444444444,
     "method_overlap_pct": 0,
@@ -2520,7 +2466,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/iter_rest_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/iter_rest_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/IterRestTree.java",
     "score": 57.44444444444444,
     "method_overlap_pct": 0,
@@ -2538,7 +2484,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/iter_spread_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/iter_spread_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/IterSpreadTree.java",
     "score": 57.44444444444444,
     "method_overlap_pct": 0,
@@ -2556,7 +2502,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/object_rest_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/object_rest_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ObjectRestTree.java",
     "score": 57.44444444444444,
     "method_overlap_pct": 0,
@@ -2574,7 +2520,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/object_spread_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/object_spread_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ObjectSpreadTree.java",
     "score": 57.44444444444444,
     "method_overlap_pct": 0,
@@ -2592,7 +2538,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/paren_expression_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/paren_expression_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ParenExpressionTree.java",
     "score": 57.44444444444444,
     "method_overlap_pct": 0,
@@ -2610,7 +2556,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/return_statement_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/return_statement_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ReturnStatementTree.java",
     "score": 57.44444444444444,
     "method_overlap_pct": 0,
@@ -2628,7 +2574,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/template_substitution_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/template_substitution_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/TemplateSubstitutionTree.java",
     "score": 57.44444444444444,
     "method_overlap_pct": 0,
@@ -2646,7 +2592,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/throw_statement_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/throw_statement_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ThrowStatementTree.java",
     "score": 57.44444444444444,
     "method_overlap_pct": 0,
@@ -2664,7 +2610,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/variable_statement_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/variable_statement_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/VariableStatementTree.java",
     "score": 57.44444444444444,
     "method_overlap_pct": 0,
@@ -2682,7 +2628,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/call_expression_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/call_expression_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/CallExpressionTree.java",
     "score": 57.54545454545455,
     "method_overlap_pct": 0,
@@ -2700,7 +2646,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/catch_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/catch_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/CatchTree.java",
     "score": 57.54545454545455,
     "method_overlap_pct": 0,
@@ -2718,7 +2664,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/computed_property_method_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/computed_property_method_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ComputedPropertyMethodTree.java",
     "score": 57.54545454545455,
     "method_overlap_pct": 0,
@@ -2736,7 +2682,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/variable_declaration_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/variable_declaration_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/VariableDeclarationTree.java",
     "score": 57.54545454545455,
     "method_overlap_pct": 0,
@@ -2754,7 +2700,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/while_statement_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/while_statement_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/WhileStatementTree.java",
     "score": 57.54545454545455,
     "method_overlap_pct": 0,
@@ -2772,7 +2718,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/with_statement_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/with_statement_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/WithStatementTree.java",
     "score": 57.54545454545455,
     "method_overlap_pct": 0,
@@ -2790,7 +2736,25 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/computed_property_field_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/parserrunner.go",
+    "java_file": "com/google/javascript/jscomp/parsing/ParserRunner.java",
+    "score": 57.94516594516594,
+    "method_overlap_pct": 14.285714285714285,
+    "go_method_count": 5,
+    "java_method_count": 11,
+    "stub_count": 2,
+    "go_body_loc": 32,
+    "java_body_loc": 36,
+    "loc_ratio": 0.8888888888888888,
+    "go_only_count": 1,
+    "notes": "2 stubs; 1 go-only fns",
+    "weighted_score": 51.35023706452277,
+    "go_only_penalty": 2,
+    "stub_penalty": 6,
+    "version_penalty": 0
+  },
+  {
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/computed_property_field_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ComputedPropertyFieldTree.java",
     "score": 57.99999999999999,
     "method_overlap_pct": 0,
@@ -2808,7 +2772,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/field_declaration_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/field_declaration_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/FieldDeclarationTree.java",
     "score": 57.99999999999999,
     "method_overlap_pct": 0,
@@ -2826,7 +2790,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/import_meta_expression_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/import_meta_expression_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ImportMetaExpressionTree.java",
     "score": 57.99999999999999,
     "method_overlap_pct": 0,
@@ -2844,7 +2808,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/checkregexp.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/checkregexp.go",
     "java_file": "com/google/javascript/jscomp/CheckRegExp.java",
     "score": 58.04347826086956,
     "method_overlap_pct": 20,
@@ -2862,7 +2826,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/scanner.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/scanner.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/Scanner.java",
     "score": 58.22418782654603,
     "method_overlap_pct": 50.78125,
@@ -2880,7 +2844,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/static_scope.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/static_scope.go",
     "java_file": "com/google/javascript/rhino/StaticScope.java",
     "score": 58.333333333333336,
     "method_overlap_pct": 20,
@@ -2898,25 +2862,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/parser_statements.go",
-    "java_file": "com/google/javascript/jscomp/parsing/parser/Parser.java",
-    "score": 58.60584628040295,
-    "method_overlap_pct": 22.697368421052634,
-    "go_method_count": 72,
-    "java_method_count": 301,
-    "stub_count": 0,
-    "go_body_loc": 868,
-    "java_body_loc": 2389,
-    "loc_ratio": 0.36333193804939307,
-    "go_only_count": 2,
-    "notes": "2 go-only fns",
-    "weighted_score": 46.57978040057565,
-    "go_only_penalty": 4,
-    "stub_penalty": 0,
-    "version_penalty": 0
-  },
-  {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/enum_element_type.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/enum_element_type.go",
     "java_file": "com/google/javascript/rhino/jstype/EnumElementType.java",
     "score": 59.05871388630009,
     "method_overlap_pct": 17.24137931034483,
@@ -2934,7 +2880,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/static_source_file.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/static_source_file.go",
     "java_file": "com/google/javascript/rhino/StaticSourceFile.java",
     "score": 60.05681818181818,
     "method_overlap_pct": 45.45454545454545,
@@ -2952,7 +2898,25 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/comment.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/parser.go",
+    "java_file": "com/google/javascript/jscomp/parsing/parser/Parser.java",
+    "score": 60.565173788628414,
+    "method_overlap_pct": 8.383233532934131,
+    "go_method_count": 61,
+    "java_method_count": 301,
+    "stub_count": 0,
+    "go_body_loc": 2713,
+    "java_body_loc": 2389,
+    "loc_ratio": 1.1356215989953955,
+    "go_only_count": 0,
+    "notes": "",
+    "weighted_score": 43.66453398375488,
+    "go_only_penalty": 0,
+    "stub_penalty": 0,
+    "version_penalty": 0
+  },
+  {
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/comment.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/Comment.java",
     "score": 60.88461538461538,
     "method_overlap_pct": 20,
@@ -2970,7 +2934,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/checkmissingreturn.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/checkmissingreturn.go",
     "java_file": "com/google/javascript/jscomp/CheckMissingReturn.java",
     "score": 60.94642857142857,
     "method_overlap_pct": 37.5,
@@ -2988,7 +2952,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/record_type.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/record_type.go",
     "java_file": "com/google/javascript/rhino/jstype/RecordType.java",
     "score": 61.043269230769226,
     "method_overlap_pct": 31.25,
@@ -3006,7 +2970,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/qualified_name.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/qualified_name.go",
     "java_file": "com/google/javascript/rhino/QualifiedName.java",
     "score": 61.70477611334388,
     "method_overlap_pct": 52.17391304347826,
@@ -3024,7 +2988,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/symbol_type.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/symbol_type.go",
     "java_file": "com/google/javascript/rhino/jstype/SymbolType.java",
     "score": 61.88440451633916,
     "method_overlap_pct": 1.3245033112582782,
@@ -3042,7 +3006,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/arrow_type.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/arrow_type.go",
     "java_file": "com/google/javascript/rhino/jstype/ArrowType.java",
     "score": 62.46012431521281,
     "method_overlap_pct": 23.809523809523807,
@@ -3060,7 +3024,25 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/parsing/jsdoctokenstream.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/parser_statements.go",
+    "java_file": "com/google/javascript/jscomp/parsing/parser/Parser.java",
+    "score": 62.60584628040295,
+    "method_overlap_pct": 22.697368421052634,
+    "go_method_count": 72,
+    "java_method_count": 301,
+    "stub_count": 0,
+    "go_body_loc": 868,
+    "java_body_loc": 2389,
+    "loc_ratio": 0.36333193804939307,
+    "go_only_count": 0,
+    "notes": "",
+    "weighted_score": 46.57978040057565,
+    "go_only_penalty": 0,
+    "stub_penalty": 0,
+    "version_penalty": 0
+  },
+  {
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/parsing/jsdoctokenstream.go",
     "java_file": "com/google/javascript/jscomp/parsing/JsDocTokenStream.java",
     "score": 62.95292753950976,
     "method_overlap_pct": 25.806451612903224,
@@ -3078,7 +3060,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/checksuspiciouscode.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/checksuspiciouscode.go",
     "java_file": "com/google/javascript/jscomp/CheckSuspiciousCode.java",
     "score": 63.03030303030303,
     "method_overlap_pct": 44,
@@ -3096,7 +3078,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/known_symbol_type.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/known_symbol_type.go",
     "java_file": "com/google/javascript/rhino/jstype/KnownSymbolType.java",
     "score": 63.125,
     "method_overlap_pct": 12.5,
@@ -3114,7 +3096,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/checkdebuggerstatement.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/checkdebuggerstatement.go",
     "java_file": "com/google/javascript/jscomp/CheckDebuggerStatement.java",
     "score": 63.32142857142857,
     "method_overlap_pct": 16.666666666666664,
@@ -3132,7 +3114,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/no_type.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/no_type.go",
     "java_file": "com/google/javascript/rhino/jstype/NoType.java",
     "score": 64.25,
     "method_overlap_pct": 40,
@@ -3150,7 +3132,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/prototype_object_type.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/prototype_object_type.go",
     "java_file": "com/google/javascript/rhino/jstype/PrototypeObjectType.java",
     "score": 64.31097054533669,
     "method_overlap_pct": 43.75,
@@ -3168,7 +3150,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/checkglobalthis.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/checkglobalthis.go",
     "java_file": "com/google/javascript/jscomp/CheckGlobalThis.java",
     "score": 64.33333333333333,
     "method_overlap_pct": 33.33333333333333,
@@ -3186,7 +3168,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/parse_tree_type.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/parse_tree_type.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ParseTreeType.java",
     "score": 65,
     "method_overlap_pct": 0,
@@ -3204,7 +3186,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/equivalence_method.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/equivalence_method.go",
     "java_file": "com/google/javascript/rhino/jstype/EquivalenceMethod.java",
     "score": 65,
     "method_overlap_pct": 0,
@@ -3222,7 +3204,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/jstype_native.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/jstype_native.go",
     "java_file": "com/google/javascript/rhino/jstype/JSTypeNative.java",
     "score": 65,
     "method_overlap_pct": 0,
@@ -3240,7 +3222,25 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/scoped_name.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/parsing/irfactory.go",
+    "java_file": "com/google/javascript/jscomp/parsing/IRFactory.java",
+    "score": 65.47635165881447,
+    "method_overlap_pct": 30.357142857142854,
+    "go_method_count": 74,
+    "java_method_count": 218,
+    "stub_count": 0,
+    "go_body_loc": 902,
+    "java_body_loc": 2715,
+    "loc_ratio": 0.33222836095764274,
+    "go_only_count": 0,
+    "notes": "",
+    "weighted_score": 50.68050236973496,
+    "go_only_penalty": 0,
+    "stub_penalty": 0,
+    "version_penalty": 0
+  },
+  {
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/scoped_name.go",
     "java_file": "com/google/javascript/jscomp/ScopedName.java",
     "score": 67,
     "method_overlap_pct": 20,
@@ -3258,7 +3258,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/instance_object_type.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/instance_object_type.go",
     "java_file": "com/google/javascript/rhino/jstype/InstanceObjectType.java",
     "score": 67.21072796934867,
     "method_overlap_pct": 58.620689655172406,
@@ -3276,7 +3276,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/ast_analyzer.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/ast_analyzer.go",
     "java_file": "com/google/javascript/jscomp/AstAnalyzer.java",
     "score": 67.39685792349727,
     "method_overlap_pct": 40,
@@ -3294,7 +3294,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/big_int_type.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/big_int_type.go",
     "java_file": "com/google/javascript/rhino/jstype/BigIntType.java",
     "score": 69.16083916083916,
     "method_overlap_pct": 38.46153846153847,
@@ -3312,7 +3312,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/input_id.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/input_id.go",
     "java_file": "com/google/javascript/rhino/InputId.java",
     "score": 69.47619047619047,
     "method_overlap_pct": 28.57142857142857,
@@ -3330,7 +3330,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/template_type_replacer.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/template_type_replacer.go",
     "java_file": "com/google/javascript/rhino/jstype/TemplateTypeReplacer.java",
     "score": 70.02970769364212,
     "method_overlap_pct": 42.857142857142854,
@@ -3348,7 +3348,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/property_map.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/property_map.go",
     "java_file": "com/google/javascript/rhino/jstype/PropertyMap.java",
     "score": 71.28651295278046,
     "method_overlap_pct": 61.53846153846154,
@@ -3366,7 +3366,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/subtype_checker.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/subtype_checker.go",
     "java_file": "com/google/javascript/rhino/jstype/SubtypeChecker.java",
     "score": 71.83797551469965,
     "method_overlap_pct": 45.94594594594595,
@@ -3384,7 +3384,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/equality_checker.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/equality_checker.go",
     "java_file": "com/google/javascript/rhino/jstype/EqualityChecker.java",
     "score": 71.95819866408101,
     "method_overlap_pct": 38.095238095238095,
@@ -3402,7 +3402,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/nodeiterators.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/nodeiterators.go",
     "java_file": "com/google/javascript/jscomp/NodeIterators.java",
     "score": 72.04323031640912,
     "method_overlap_pct": 44.44444444444444,
@@ -3420,7 +3420,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/template_type_map.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/template_type_map.go",
     "java_file": "com/google/javascript/rhino/jstype/TemplateTypeMap.java",
     "score": 72.11339099496995,
     "method_overlap_pct": 60.60606060606061,
@@ -3438,7 +3438,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/astmanipulations.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/astmanipulations.go",
     "java_file": "com/google/javascript/jscomp/AstManipulations.java",
     "score": 72.22222222222221,
     "method_overlap_pct": 50,
@@ -3456,7 +3456,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/simple_source_file.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/simple_source_file.go",
     "java_file": "com/google/javascript/rhino/SimpleSourceFile.java",
     "score": 72.5,
     "method_overlap_pct": 50,
@@ -3474,7 +3474,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/jstype_iterations.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/jstype_iterations.go",
     "java_file": "com/google/javascript/rhino/jstype/JSTypeIterations.java",
     "score": 72.55054302422722,
     "method_overlap_pct": 42.857142857142854,
@@ -3492,7 +3492,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/type_string_builder.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/type_string_builder.go",
     "java_file": "com/google/javascript/rhino/jstype/TypeStringBuilder.java",
     "score": 72.93333333333332,
     "method_overlap_pct": 50,
@@ -3510,7 +3510,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/boolean_literal_set.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/boolean_literal_set.go",
     "java_file": "com/google/javascript/rhino/jstype/BooleanLiteralSet.java",
     "score": 74.00840336134453,
     "method_overlap_pct": 42.857142857142854,
@@ -3528,7 +3528,25 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/typetransformation.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/parser_new.go",
+    "java_file": "com/google/javascript/jscomp/parsing/parser/Parser.java",
+    "score": 75.36592275985267,
+    "method_overlap_pct": 41.246290801186944,
+    "go_method_count": 176,
+    "java_method_count": 301,
+    "stub_count": 0,
+    "go_body_loc": 1610,
+    "java_body_loc": 2389,
+    "loc_ratio": 0.6739221431561323,
+    "go_only_count": 0,
+    "notes": "",
+    "weighted_score": 64.80846108550382,
+    "go_only_penalty": 0,
+    "stub_penalty": 0,
+    "version_penalty": 0
+  },
+  {
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/typetransformation.go",
     "java_file": "com/google/javascript/jscomp/TypeTransformation.java",
     "score": 75.95126207126206,
     "method_overlap_pct": 75.75757575757575,
@@ -3546,7 +3564,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/typemismatch.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/typemismatch.go",
     "java_file": "com/google/javascript/jscomp/TypeMismatch.java",
     "score": 79.31991239892183,
     "method_overlap_pct": 56.25,
@@ -3564,7 +3582,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/contains_upper_bound_super_type_visitor.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/contains_upper_bound_super_type_visitor.go",
     "java_file": "com/google/javascript/rhino/jstype/ContainsUpperBoundSuperTypeVisitor.java",
     "score": 81,
     "method_overlap_pct": 60,
@@ -3582,7 +3600,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype_expr.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype_expr.go",
     "java_file": "com/google/javascript/rhino/JSTypeExpression.java",
     "score": 81.434037692747,
     "method_overlap_pct": 68,
@@ -3600,7 +3618,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/record_type_builder.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/record_type_builder.go",
     "java_file": "com/google/javascript/rhino/jstype/RecordTypeBuilder.java",
     "score": 81.45108695652173,
     "method_overlap_pct": 50,
@@ -3618,7 +3636,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/break_statement_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/break_statement_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/BreakStatementTree.java",
     "score": 81.84024577572964,
     "method_overlap_pct": 1.0752688172043012,
@@ -3636,7 +3654,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/continue_statement_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/continue_statement_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/ContinueStatementTree.java",
     "score": 81.84024577572964,
     "method_overlap_pct": 1.0752688172043012,
@@ -3654,7 +3672,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/outcome.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/outcome.go",
     "java_file": "com/google/javascript/rhino/Outcome.java",
     "score": 82,
     "method_overlap_pct": 60,
@@ -3672,7 +3690,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/non_jsdoc_comment.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/non_jsdoc_comment.go",
     "java_file": "com/google/javascript/rhino/NonJSDocComment.java",
     "score": 83.9090909090909,
     "method_overlap_pct": 63.63636363636363,
@@ -3690,7 +3708,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/parser/trees/function_declaration_tree.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/parser/trees/function_declaration_tree.go",
     "java_file": "com/google/javascript/jscomp/parsing/parser/trees/FunctionDeclarationTree.java",
     "score": 84.10431235431236,
     "method_overlap_pct": 75,
@@ -3708,7 +3726,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/can_cast_to_visitor.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/can_cast_to_visitor.go",
     "java_file": "com/google/javascript/rhino/jstype/CanCastToVisitor.java",
     "score": 85.91228070175438,
     "method_overlap_pct": 78.94736842105263,
@@ -3726,7 +3744,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/jscomp/basicblock.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/jscomp/basicblock.go",
     "java_file": "com/google/javascript/jscomp/BasicBlock.java",
     "score": 87.14650537634408,
     "method_overlap_pct": 66.66666666666666,
@@ -3744,7 +3762,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/jstype_resolver.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/jstype_resolver.go",
     "java_file": "com/google/javascript/rhino/jstype/JSTypeResolver.java",
     "score": 88.125,
     "method_overlap_pct": 80,
@@ -3762,7 +3780,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/function_param_builder.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/function_param_builder.go",
     "java_file": "com/google/javascript/rhino/jstype/FunctionParamBuilder.java",
     "score": 88.12995337995338,
     "method_overlap_pct": 75,
@@ -3780,7 +3798,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/jstype/visitor.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/jstype/visitor.go",
     "java_file": "com/google/javascript/rhino/jstype/Visitor.java",
     "score": 88.29411764705881,
     "method_overlap_pct": 95,
@@ -3798,7 +3816,7 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a02456c9/internal/rhino/source_position.go",
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a08ea515/internal/rhino/source_position.go",
     "java_file": "com/google/javascript/rhino/SourcePosition.java",
     "score": 89.281045751634,
     "method_overlap_pct": 88.88888888888889,
