@@ -1257,6 +1257,83 @@ func (c *CheckJsDocTypes) checkParseErrors(s string, start, end int) []diag.Diag
 		li = idx + len("@lends")
 	}
 
+	// ---- (4) Rest parameter not last in function type -----------------
+	// `function(...T, S)` or `function(...T, S=)` — the rest (`...T`) must
+	// be the last parameter. Java's JsDocInfoParser fires
+	// "variable length argument must be last" at the position of the
+	// parameter that follows the rest.
+	// Scan all function(...) type expressions in the body.
+	fi := 0
+	for fi < len(body) {
+		idx := strings.Index(body[fi:], "function(")
+		if idx < 0 {
+			break
+		}
+		idx += fi
+		// Find the matching `)`.
+		openParen := idx + len("function(") - 1
+		depth := 0
+		closeParen := -1
+		for j := openParen; j < len(body); j++ {
+			if body[j] == '(' {
+				depth++
+			} else if body[j] == ')' {
+				depth--
+				if depth == 0 {
+					closeParen = j
+					break
+				}
+			}
+		}
+		if closeParen < 0 {
+			break
+		}
+		// Check the parameter list for a rest param that isn't last.
+		params := body[openParen+1 : closeParen]
+		restIdx := -1 // index in params where `...` was found
+		// Split params on top-level commas.
+		paramsStart := openParen + 1 // absolute offset in body
+		depth = 0
+		pStart := 0
+		for j := 0; j <= len(params); j++ {
+			if j < len(params) {
+				ch := params[j]
+				if ch == '(' || ch == '<' || ch == '{' {
+					depth++
+				} else if ch == ')' || ch == '>' || ch == '}' {
+					depth--
+				}
+			}
+			if depth == 0 && (j == len(params) || params[j] == ',') {
+				param := strings.TrimSpace(params[pStart:j])
+				if restIdx >= 0 && len(param) > 0 {
+					// There was a rest param earlier — fire at the comma that separates
+					// the rest param from this next param. Java reports at the position
+					// right before the next param (at the separating comma).
+					// The comma is at position `pStart - 1` in params.
+					commaOff := start + paramsStart + pStart - 1
+					// Skip back to the actual comma character.
+					for commaOff > 0 && (s[commaOff] == ' ' || s[commaOff] == '\t') {
+						commaOff--
+					}
+					line, col := c.positionOf(s, commaOff)
+					out = append(out, diag.Diagnostic{
+						Path: c.path, Line: line, Col: col,
+						Code:  diag.JSC_TYPE_PARSE_ERROR, Level: diag.Error,
+						Message: "Bad type annotation. variable length argument must be last." +
+							" See https://github.com/google/closure-compiler/wiki/Annotating-JavaScript-for-the-Closure-Compiler for more information.",
+					})
+					break
+				}
+				if strings.HasPrefix(param, "...") {
+					restIdx = pStart
+				}
+				pStart = j + 1
+			}
+		}
+		fi = closeParen + 1
+	}
+
 	return out
 }
 
