@@ -970,6 +970,12 @@ func (t *TypeInference) inferAwait(n *rhino.Node) jstype.JSType {
 // If the OBJECTLIT carries a JSDoc with @struct or @dict, the
 // corresponding flag is propagated so visitObjectLit can fire
 // JSC_ILLEGAL_OBJLIT_KEY.
+//
+// When a key carries a @type or @return JSDoc annotation, the property
+// is registered as declared (DefineDeclaredProperty) so downstream
+// visitAssign can reject mismatched reassignments. Keys without JSDoc
+// are marked inferred (DefineInferredProperty) to allow open reassignment,
+// matching Java's TypeInference.traverseObjectLiteral semantics.
 func (t *TypeInference) inferObjectLit(n *rhino.Node) jstype.JSType {
 	obj := jstype.NewObjectType("")
 	obj.IsStructural = true
@@ -989,7 +995,24 @@ func (t *TypeInference) inferObjectLit(n *rhino.Node) jstype.JSType {
 		if value == nil {
 			continue
 		}
-		obj.DefineProperty(kv.String_(), t.InferType(value))
+		propName := kv.String_()
+		kvInfo := kv.JSDocInfo()
+		// @type {T} on the key: property is declared with type T.
+		if kvInfo != nil && kvInfo.HasType() {
+			if declared := t.scope.ResolveExpr(kvInfo.Type().TypeName); declared != nil {
+				obj.DefineDeclaredProperty(propName, declared, kv)
+				continue
+			}
+		}
+		// @return {T} on the key: property is declared with type function(): T.
+		if kvInfo != nil && kvInfo.ReturnType() != nil {
+			if ret := t.scope.ResolveExpr(kvInfo.ReturnType().TypeName); ret != nil {
+				obj.DefineDeclaredProperty(propName, jstype.NewFunctionType(nil, ret), kv)
+				continue
+			}
+		}
+		// No JSDoc annotation: inferred slot — allows open reassignment.
+		obj.DefineInferredProperty(propName, t.InferType(value), kv)
 	}
 	return obj
 }
