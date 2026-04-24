@@ -91,6 +91,18 @@ const (
 	// typed declarations. Mirrors Node.setDeclaredTypeExpression /
 	// Node.getDeclaredTypeExpression in Java.
 	PropDeclaredTypeExpr
+	// PropOriginalName stores the original (pre-rename) name of a node.
+	// Mirrors Java's Node.setOriginalName / Node.getOriginalName.
+	PropOriginalName
+	// PropSourceFile stores the source file name for a node.
+	// Mirrors Java's Node.getSourceFileName.
+	PropSourceFile
+	// PropGeneratorMarker mirrors Java's Node.isGeneratorMarker() — marks
+	// generator function body entry points during code generation.
+	PropGeneratorMarker
+	// PropGeneratorSafe mirrors Java's Node.isGeneratorSafe() — marks nodes
+	// that have already been processed by the generator rewriter.
+	PropGeneratorSafe
 )
 
 type Node struct {
@@ -1475,5 +1487,232 @@ func (n *Node) GetString() string { return n.str }
 // SetToken mirrors Java's Node.setToken(Token).
 func (n *Node) SetToken(tok Token) { n.token = tok }
 
-// [duplicate of first declaration removed]
+// ---------------------------------------------------------------------------
+// Java-canonical accessor aliases and new methods ported from Node.java
+// ---------------------------------------------------------------------------
+
+// GetFirstChild mirrors Java's Node.getFirstChild().
+func (n *Node) GetFirstChild() *Node { return n.first }
+
+// GetLastChild mirrors Java's Node.getLastChild().
+func (n *Node) GetLastChild() *Node { return n.last }
+
+// GetNext mirrors Java's Node.getNext().
+func (n *Node) GetNext() *Node { return n.next }
+
+// GetPrevious mirrors Java's Node.getPrevious().
+func (n *Node) GetPrevious() *Node { return n.previous }
+
+// GetParent mirrors Java's Node.getParent().
+func (n *Node) GetParent() *Node { return n.parent }
+
+// GetChildCount mirrors Java's Node.getChildCount().
+func (n *Node) GetChildCount() int {
+	c := 0
+	for x := n.first; x != nil; x = x.next {
+		c++
+	}
+	return c
+}
+
+// GetLineno mirrors Java's Node.getLineno().
+func (n *Node) GetLineno() int { return n.lineno }
+
+// GetCharno mirrors Java's Node.getCharno().
+func (n *Node) GetCharno() int { return n.charno }
+
+// SetLinenoCharno mirrors Java's Node.setLinenoCharno(int, int).
+func (n *Node) SetLinenoCharno(lineno, charno int) {
+	n.lineno = lineno
+	n.charno = charno
+}
+
+// GetAncestor returns the ancestor at the given level above n
+// (0 = n, 1 = parent, 2 = grandparent, …), or nil if not that deep.
+// Mirrors Java's Node.getAncestor(int level).
+func (n *Node) GetAncestor(level int) *Node {
+	cur := n
+	for cur != nil && level > 0 {
+		cur = cur.parent
+		level--
+	}
+	return cur
+}
+
+// GetSourceFileName mirrors Java's Node.getSourceFileName().
+func (n *Node) GetSourceFileName() string {
+	v := n.GetProp(PropSourceFile)
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return ""
+}
+
+// GetOriginalName mirrors Java's Node.getOriginalName() — returns the name the
+// node had before any renaming, stored in the PropOriginalName property.
+func (n *Node) GetOriginalName() string {
+	v := n.GetProp(PropOriginalName)
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return ""
+}
+
+// SetOriginalName mirrors Java's Node.setOriginalName(String).
+func (n *Node) SetOriginalName(s string) {
+	if s == "" {
+		n.PutProp(PropOriginalName, nil)
+	} else {
+		n.PutProp(PropOriginalName, s)
+	}
+}
+
+// SetOriginalNameFromName mirrors Java's Node.setOriginalNameFromName(Node name).
+func (n *Node) SetOriginalNameFromName(name *Node) {
+	n.SetOriginalName(name.GetString())
+}
+
+// MatchesQualifiedNameStr is the canonical Go implementation.
+// MatchesQualifiedName is defined in qualified_name.go.
+
+// IsOnlyChild mirrors Java's Node.isOnlyChild() — true when this node is the
+// only child of its parent.
+func (n *Node) IsOnlyChild() bool {
+	p := n.parent
+	if p == nil {
+		return false
+	}
+	return p.first == n && n.next == nil
+}
+
+// IsGrandparentOf mirrors Java's Node.isGrandparentOf(Node n).
+func (n *Node) IsGrandparentOf(possible *Node) bool {
+	if possible == nil {
+		return false
+	}
+	p := possible.parent
+	if p == nil {
+		return false
+	}
+	return p.parent == n
+}
+
+// Remove mirrors Java's Node.detach() — detaches this node from its parent.
+func (n *Node) Remove() { n.Detach() }
+
+// GetIntValue mirrors Java's Node.getIntValue() — returns the numeric value
+// truncated to int.
+func (n *Node) GetIntValue() int { return int(n.num) }
+
+// HasDirectParent mirrors Java's Node.hasDirectParent(Node n) — true when n
+// is the direct parent of this node.
+func (n *Node) HasDirectParent(possible *Node) bool { return n.parent == possible }
+
+// IsStringLiteral mirrors Java's Node.isStringLit() — true for STRINGLIT token.
+func (n *Node) IsStringLiteral() bool { return n.token == STRINGLIT }
+
+// IsFor mirrors Java's Node.isVanillaFor() — true for the FOR token (C-style for).
+func (n *Node) IsFor() bool { return n.token == FOR }
+
+// IsDynamicImport mirrors Java's Node.isDynamicImport() — true for DYNAMIC_IMPORT.
+func (n *Node) IsDynamicImport() bool { return n.token == DYNAMIC_IMPORT }
+
+// IsObjSpread mirrors Java's Node.isObjectSpread() — true for OBJECT_SPREAD.
+func (n *Node) IsObjSpread() bool { return n.token == OBJECT_SPREAD }
+
+// IsRestOr mirrors Java's Node.isRest() — true for ITER_REST or OBJECT_REST.
+// (Go already has IsRest; this is an additional Java-canonical alias.)
+func (n *Node) IsRestOr() bool { return n.token == ITER_REST || n.token == OBJECT_REST }
+
+// GetJSDocInfo mirrors Java's Node.getJSDocInfo() — returns the JSDoc attached
+// to this node, or nil.
+func (n *Node) GetJSDocInfo() *JSDocInfo { return n.jsdoc }
+
+// SetJSDocInfoNode is an alias for SetJSDocInfo.
+// Mirrors Java's Node.setJSDocInfo(JSDocInfo).
+func (n *Node) SetJSDocInfoNode(i *JSDocInfo) { n.jsdoc = i }
+
+// IsAndAssign mirrors Java's Node.isAndAssign() — true for ASSIGN_AND.
+func (n *Node) IsAndAssign() bool { return n.token == ASSIGN_AND }
+
+// IsOrAssign mirrors Java's Node.isOrAssign() — true for ASSIGN_OR.
+func (n *Node) IsOrAssign() bool { return n.token == ASSIGN_OR }
+
+// IsTagTemplateLit mirrors Java's Node.isTaggedTemplateLit() — true for TAGGED_TEMPLATELIT.
+func (n *Node) IsTagTemplateLit() bool { return n.token == TAGGED_TEMPLATELIT }
+
+// IsComputed mirrors Java's Node.isComputed() — true for COMPUTED_PROP.
+func (n *Node) IsComputed() bool { return n.token == COMPUTED_PROP }
+
+// IsGenerator mirrors Java's Node.isGeneratorMarker() — true for generator marker.
+func (n *Node) IsGenerator() bool { return n.GetBooleanProp(PropGeneratorFn) }
+
+// IsGeneratorMarker mirrors Java's Node.isGeneratorMarker().
+func (n *Node) IsGeneratorMarker() bool { return n.GetBooleanProp(PropGeneratorMarker) }
+
+// IsGeneratorSafe mirrors Java's Node.isGeneratorSafe().
+func (n *Node) IsGeneratorSafe() bool { return n.GetBooleanProp(PropGeneratorSafe) }
+
+// SetGeneratorMarker mirrors Java's Node.setGeneratorMarker(boolean).
+func (n *Node) SetGeneratorMarker(b bool) { n.PutBooleanProp(PropGeneratorMarker, b) }
+
+// SetGeneratorSafe mirrors Java's Node.setGeneratorSafe(boolean).
+func (n *Node) SetGeneratorSafe(b bool) { n.PutBooleanProp(PropGeneratorSafe, b) }
+
+// IsAsync mirrors Java's Node.isAsync() — alias for IsAsyncFunction().
+func (n *Node) IsAsync() bool { return n.IsAsyncFunction() }
+
+// ToStringTree mirrors Java's Node.toStringTree() — returns a debug string.
+func (n *Node) ToStringTree() string { return n.token.String() }
+
+// ToString mirrors Java's Node.toString() — returns a single-node debug string.
+func (n *Node) ToString() string { return n.token.String() }
+
+// HasProps mirrors Java's Node.hasProps() — true when the node has any properties.
+func (n *Node) HasProps() bool { return len(n.props) > 0 }
+
+// GetProp mirrors Java's Node.getProp(Prop p) — returns a property value or nil.
+func (n *Node) GetProp(p Prop) any {
+	if n.props == nil {
+		return nil
+	}
+	return n.props[p]
+}
+
+// PutProp mirrors Java's Node.putProp(Prop p, Object v).
+func (n *Node) PutProp(p Prop, v any) {
+	if v == nil {
+		if n.props != nil {
+			delete(n.props, p)
+		}
+		return
+	}
+	if n.props == nil {
+		n.props = make(map[Prop]any)
+	}
+	n.props[p] = v
+}
+
+// SetIsAddedBlock mirrors Java's Node.setIsAddedBlock(boolean).
+func (n *Node) SetIsAddedBlock(b bool) { n.PutBooleanProp(PropAddedBlock, b) }
+
+// IsAccessorProp mirrors Java's Node.isAccessorProp() — true for GETTER_DEF or SETTER_DEF.
+func (n *Node) IsAccessorProp() bool { return n.IsGetterDef() || n.IsSetterDef() }
+
+// IsFieldDeclaration mirrors Java's Node.isFieldDeclaration() — true for MEMBER_FIELD_DEF.
+func (n *Node) IsFieldDeclaration() bool { return n.token == MEMBER_FIELD_DEF }
+
+// IsIsSuperCall mirrors Java's Node.isSuperCall() — true for a CALL node
+// whose callee is SUPER.
+func (n *Node) IsSuperCall() bool {
+	if n.token != CALL {
+		return false
+	}
+	callee := n.first
+	return callee != nil && callee.token == SUPER
+}
+
+// GetDeclaredTypeExpression and SetDeclaredTypeExpression are defined in
+// type_declarations_ir.go.
+
 
