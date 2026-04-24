@@ -580,6 +580,12 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitObjectLit(n, scope))
 	case rhino.CAST:
 		c.emit(c.visitCast(n, scope))
+	case rhino.REGEXP:
+		c.emit(c.visitRegExpLit(n, scope))
+	case rhino.TEMPLATELIT:
+		c.emit(c.visitTemplateLit(n, scope))
+	case rhino.OBJECT_PATTERN:
+		c.emit(c.visitObjectPattern(n, scope))
 	}
 	// Strict-mode operand checks — OFF by default, matching Java.
 	// These fire only when `--jscomp_warning=strictCheckTypes` is set.
@@ -1058,6 +1064,10 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 		}
 		c.tv.expectCanAssignToPropertyOf(posNode, found, declared, ownerName, propName)
 		return c.tvDrain()
+	case rhino.OBJECT_PATTERN, rhino.ARRAY_PATTERN:
+		infer := NewTypeInference(scope)
+		rhsType := infer.InferType(kids[1])
+		return c.checkDestructuringAssignment(lhs, rhsType, scope)
 	}
 	return nil
 }
@@ -3255,4 +3265,195 @@ func classHasToString(obj *jstype.ObjectType) bool {
 	// HasProperty("toString") will only return true when the user's own
 	// @constructor body or prototype defined it.
 	return obj.HasProperty("toString")
+}
+
+// ---- visitRegExpLit / visitTemplateLit / visitObjectPattern / checkDestructuringAssignment --
+
+// visitRegExpLit ports TypeCheck.java's visitRegExpLit. TypeInference
+// already assigns the RegExp instance type to REGEXP nodes; this
+// visitor is the TypeCheck-side dispatch that ensures the node is
+// considered "typed" (mirrors Java's ensureTyped call). No
+// diagnostics are emitted for regexp literals themselves.
+func (c *TypeCheck) visitRegExpLit(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	// TypeInference.InferType(REGEXP) already returns the RegExp
+	// instance type (LookupNominalType("RegExp")). TypeCheck's role
+	// here is identical to Java's: call ensureTyped to account for the
+	// node in typed-percent statistics. Since jsgo doesn't track
+	// per-node type annotations, this is a deliberate no-op.
+	return nil
+}
+
+// visitTemplateLit ports TypeCheck.java's visitTemplateLit. Each
+// TEMPLATELIT_SUB child's expression is verified to be coercible to
+// string; mismatches fire JSC_TYPE_MISMATCH. The TEMPLATELIT result
+// type is always string (handled by TypeInference).
+//
+// In Java, expectStringOrSymbol rejects only BigInt among concrete
+// primitives. Since jsgo does not model BigInt as a distinct type,
+// this visitor fires only for structural object types that have no
+// implicit toString path, which is not yet tracked — making this
+// effectively a no-op in the current type model. The structural port
+// exists so future BigInt tracking can plug in.
+func (c *TypeCheck) visitTemplateLit(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	infer := NewTypeInference(scope)
+	var out []diag.Diagnostic
+	for _, child := range n.Children() {
+		if child.Token() != rhino.TEMPLATELIT_SUB {
+			continue
+		}
+		expr := child.FirstChild()
+		if expr == nil {
+			continue
+		}
+		t := infer.InferType(expr)
+		if !isTemplateLitSubOk(t) {
+			out = append(out, diag.Diagnostic{
+				Path: c.path, Line: expr.Lineno(), Col: expr.Charno(),
+				Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
+				Message: fmt.Sprintf(
+					"template literal substitution\nfound   : %s\nrequired: (string|number|boolean|null|undefined|symbol)",
+					t.TypeName()),
+			})
+		}
+	}
+	return out
+}
+
+// isTemplateLitSubOk mirrors Java's TypeValidator.expectStringOrSymbol:
+// accepts string, number, boolean, null, undefined, Unknown/All, and
+// any ObjectType (implicit toString). Rejects BigInt (not yet modeled).
+func isTemplateLitSubOk(t jstype.JSType) bool {
+	if t == nil || isUnknownOrNil(t) {
+		return true
+	}
+	switch t {
+	case jstype.String, jstype.Number, jstype.Boolean, jstype.Null, jstype.Void, jstype.All:
+		return true
+	}
+	// Objects have implicit toString/valueOf coercion.
+	if _, ok := t.(*jstype.ObjectType); ok {
+		return true
+	}
+	if _, ok := t.(*jstype.TemplatizedType); ok {
+		return true
+	}
+	if _, ok := t.(*jstype.FunctionType); ok {
+		return true
+	}
+	if u, ok := t.(*jstype.UnionType); ok {
+		for _, m := range u.Members() {
+			if !isTemplateLitSubOk(m) {
+				return false
+			}
+		}
+		return true
+	}
+	return true
+}
+
+// visitObjectPattern ports TypeCheck.java's visitObjectPattern. When
+// visiting an OBJECT_PATTERN node (`{a, b} = rhs`), each STRING_KEY
+// child names a property that must exist on the RHS object type.
+// Missing properties fire JSC_INEXISTENT_PROPERTY.
+//
+// The RHS type is resolved by climbing the parent chain:
+//   - ASSIGN(OBJECT_PATTERN, rhs)  → InferType(rhs)
+//   - NAME(init=rhs) inside VAR/LET/CONST → InferType(rhs)
+//
+// Guards: fires only on closed-surface types (structural @record /
+// @interface and @struct nominal classes). Open @constructor surfaces
+// are skipped to match Java's default-mode behavior.
+func (c *TypeCheck) visitObjectPattern(pattern *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	rhsType := objectPatternRHSType(pattern, scope)
+	if rhsType == nil {
+		return nil
+	}
+	rhsType = stripNullUndef(rhsType)
+	if isUnknownOrNil(rhsType) {
+		return nil
+	}
+	obj := dereferencedObject(rhsType)
+	if obj == nil {
+		return nil
+	}
+	// Only check closed-surface types (structural or @struct) to avoid
+	// false-positives on open @constructor surfaces, matching Java's
+	// default-mode checkPropertyAccessForDestructuring guard.
+	if !obj.IsStructural && !obj.IsStruct {
+		return nil
+	}
+	var out []diag.Diagnostic
+	for _, key := range pattern.Children() {
+		if key.Token() != rhino.STRING_KEY {
+			continue // skip rest elements
+		}
+		propName := key.String_()
+		if obj.HasProperty(propName) {
+			continue
+		}
+		dedupKey := obj.TypeName() + "." + propName
+		if c.inexistentReported[dedupKey] {
+			continue
+		}
+		if c.inexistentReported == nil {
+			c.inexistentReported = map[string]bool{}
+		}
+		c.inexistentReported[dedupKey] = true
+		out = append(out, diag.Diagnostic{
+			Path: c.path, Line: key.Lineno(), Col: key.Charno(),
+			Code:    diag.JSC_INEXISTENT_PROPERTY,
+			Level:   diag.Error,
+			Message: fmt.Sprintf("Property %s never defined on %s", propName, obj.TypeName()),
+		})
+	}
+	return out
+}
+
+// objectPatternRHSType resolves the RHS type for an OBJECT_PATTERN by
+// climbing the parent chain. Returns nil when the pattern is used in
+// an unsupported context.
+func objectPatternRHSType(pattern *rhino.Node, scope *TypedScope) jstype.JSType {
+	parent := pattern.Parent()
+	if parent == nil {
+		return nil
+	}
+	infer := NewTypeInference(scope)
+	switch parent.Token() {
+	case rhino.ASSIGN:
+		kids := parent.Children()
+		if len(kids) >= 2 {
+			return infer.InferType(kids[1])
+		}
+	case rhino.NAME:
+		// NAME is the VAR/LET/CONST binding — init is the first child of NAME.
+		init := parent.FirstChild()
+		if init != nil {
+			return infer.InferType(init)
+		}
+	}
+	return nil
+}
+
+// checkDestructuringAssignment ports TypeCheck.java's
+// checkDestructuringAssignment. Routes ARRAY_PATTERN and OBJECT_PATTERN
+// LHS nodes to their respective checkers.
+//
+//   - ARRAY_PATTERN: checks that the RHS is iterable (has Symbol.iterator
+//     or is an array/tuple type). Currently a structural no-op since
+//     iterability is not yet modeled in jsgo's type system.
+//   - OBJECT_PATTERN: delegates to visitObjectPattern to check that each
+//     named property exists on the RHS type.
+func (c *TypeCheck) checkDestructuringAssignment(lhs *rhino.Node, rhsType jstype.JSType, scope *TypedScope) []diag.Diagnostic {
+	switch lhs.Token() {
+	case rhino.OBJECT_PATTERN:
+		return c.visitObjectPattern(lhs, scope)
+	case rhino.ARRAY_PATTERN:
+		// Array destructuring iterability: not yet modeled.
+		// Java fires JSC_TYPE_MISMATCH when the RHS is not iterable
+		// (e.g. a non-array object without Symbol.iterator). jsgo
+		// does not track iterability in the type graph, so this is
+		// a no-op pending that feature.
+		return nil
+	}
+	return nil
 }
