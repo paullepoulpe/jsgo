@@ -2647,7 +2647,13 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 		return
 	}
 	if _, exists := scope.declared[name.String_()]; !exists {
-		scope.declared[name.String_()] = jstype.Unknown
+		// `undefined` is a special well-known value with type void (undefined).
+		// Java's type system gives `undefined` the void singleton type.
+		if name.String_() == "undefined" {
+			scope.declared[name.String_()] = jstype.Void
+		} else {
+			scope.declared[name.String_()] = jstype.Unknown
+		}
 	}
 }
 
