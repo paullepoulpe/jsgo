@@ -390,7 +390,9 @@ func (c *CheckJSDoc) validateAbstractJsDoc(n *rhino.Node, info *rhino.JSDocInfo)
 		}
 	}
 	// @abstract on a static member is invalid.
-	if n.GetBooleanProp(rhino.PropStaticMember) {
+	// Check both the AST property (for MEMBER_FUNCTION_DEF) and the JSDoc
+	// flag (for FUNCTION with `static` parsed into JSDocInfo).
+	if n.GetBooleanProp(rhino.PropStaticMember) || info.IsStatic() {
 		c.reportMisplaced(n, "@abstract", "static methods cannot be abstract")
 		return
 	}
