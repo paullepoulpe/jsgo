@@ -354,6 +354,137 @@ func (p *JsDocInfoParser) parseAnnotation(_ JsDocToken) JsDocToken {
 	case "modifies":
 		// Mirrors Java's MODIFIES case: delegate to parseModifiesTag.
 		return p.parseModifiesTag(p.next())
+	case "polymer":
+		// Mirrors Java's POLYMER case: recordPolymer().
+		p.info.SetBit(rhino.BitPolymer, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "mixinclass":
+		// Mirrors Java's MIXIN_CLASS case: recordMixinClass().
+		p.info.SetBit(rhino.BitMixinClass, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "mixinfunction":
+		// Mirrors Java's MIXIN_FUNCTION case: recordMixinFunction().
+		p.info.SetBit(rhino.BitMixinFunction, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "externs":
+		// Mirrors Java's EXTERNS case: recordExterns().
+		p.info.SetBit(rhino.BitExterns, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "nocompile":
+		// Mirrors Java's NO_COMPILE case: recordNoCompile().
+		p.info.SetBit(rhino.BitNoCompile, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "nocoverage":
+		// Mirrors Java's NO_COVERAGE case: recordNoCoverage().
+		p.info.SetBit(rhino.BitNoCoverage, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "nodts":
+		// Mirrors Java's NO_DTS case: recordNoDts().
+		p.info.SetBit(rhino.BitNoDts, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "fileoverview":
+		// Mirrors Java's FILE_OVERVIEW case: recordFileOverview().
+		p.info.SetBit(rhino.BitFileoverview, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "pureorbreakmycode":
+		// Mirrors Java's PURE_OR_BREAK_MY_CODE case: recordPureOrBreakMyCode().
+		p.info.SetBit(rhino.BitPureOrBreakMyCode, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "collapsibleorbreakmycode":
+		// Mirrors Java's COLLAPSIBLE_OR_BREAK_MY_CODE case.
+		p.info.SetBit(rhino.BitCollapsibleOrBreak, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "export":
+		// Mirrors Java's EXPORT case: recordExport().
+		p.info.SetBit(rhino.BitExport, true)
+		p.anyRecorded = true
+		// @export may optionally carry a type (like @const); skip it.
+		p.skipEOLs()
+		t := p.next()
+		if _, next, ok := p.parseTypeExpressionAnnotation(t); ok {
+			return next
+		}
+		return t
+	case "unrestricted":
+		// Mirrors Java's UNRESTRICTED case: recordUnrestricted().
+		p.info.SetBit(rhino.BitUnrestricted, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "wizcallback":
+		// Mirrors Java's WIZCALLBACK case.
+		p.info.SetBit(rhino.BitWizCallback, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "requireinlining":
+		// Mirrors Java's REQUIRE_INLINING case.
+		p.info.SetBit(rhino.BitRequireInlining, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "encourageinlining":
+		// Mirrors Java's ENCOURAGE_INLINING case.
+		p.info.SetBit(rhino.BitEncourageInlining, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "providegoog":
+		// Mirrors Java's PROVIDE_GOOG case.
+		p.info.SetBit(rhino.BitProvideGoog, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "providealreadyprovided":
+		// Mirrors Java's PROVIDE_ALREADY_PROVIDED case.
+		p.info.SetBit(rhino.BitProvideAlreadyProvided, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "idgenerator":
+		// Mirrors Java's IDGENERATOR case: delegate to parseIdGeneratorTag.
+		p.skipEOLs()
+		return p.parseIdGeneratorTag(p.next())
+	case "see":
+		// Mirrors Java's SEE case: skip to end of line.
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "author":
+		// Mirrors Java's AUTHOR case: skip to end of line.
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "desc":
+		// Mirrors Java's DESC case: skip to end of line (documentation not collected here).
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "inheritdoc":
+		// Mirrors Java's INHERIT_DOC case — treat like @override.
+		p.info.SetOverride(true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "mods":
+		// Mirrors Java's MODS case: parseModsTag.
+		p.skipEOLs()
+		return p.parseModsTag(p.next())
+	case "enhance":
+		// Mirrors Java's ENHANCE case: records @enhance with namespace.
+		p.anyRecorded = true
+		p.info.SetBit(rhino.BitEnhancedNamespace, true)
+		return p.eatUntilEOLIfNotAnnotation()
+	case "nocode":
+		// Common alias; skip gracefully.
+		return p.eatUntilEOLIfNotAnnotation()
+	case "license", "preserve":
+		// Mirrors Java's LICENSE/PRESERVE case: skip the text block.
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "jsxfragment", "jsx", "soymodule", "soytemplate", "mayreachextraedge", "notimplemented":
+		// Mirrors Java's JSX / SOY_TEMPLATE / etc. — skip gracefully.
+		return p.eatUntilEOLIfNotAnnotation()
 	}
 	return p.eatUntilEOLIfNotAnnotation()
 }
@@ -535,11 +666,15 @@ func (p *JsDocInfoParser) parseParamTag() JsDocToken {
 	if !ok {
 		return p.eatUntilEOLIfNotAnnotation()
 	}
-	// parseParamTypeExpressionAnnotation already advanced to the
-	// token immediately following `}`. Java's parser expects that to
-	// be the parameter name (STRING), possibly wrapped in optional-
-	// param `[ … ]` syntax. Take the name from stream.String_ when
-	// the follower is a STRING, otherwise skip to end-of-line.
+	// The token after `}` is either:
+	//   STRING          — the bare parameter name
+	//   LEFT_SQUARE     — the optional-param wrapper `[name]`
+	// Java handles LEFT_SQUARE via isBracketedParam. We mirror that here.
+	isBracketedParam := next == JsDocTokenLeftSquare
+	if isBracketedParam {
+		next = p.next() // consume `[` and advance to the name
+		isOptional = true
+	}
 	if next == JsDocTokenString {
 		name := p.stream.String_()
 		// Optional-param wrappers arrive as raw identifiers; strip a
@@ -547,6 +682,22 @@ func (p *JsDocInfoParser) parseParamTag() JsDocToken {
 		name = strings.TrimLeft(name, "[")
 		if i := strings.IndexAny(name, "=]"); i >= 0 {
 			name = name[:i]
+		}
+		if isBracketedParam {
+			// Consume optional default-value syntax: `[name=default]`.
+			// Eat up to the matching `]`.
+			tok := p.next()
+			if tok == JsDocTokenEquals {
+				// consume any default value tokens up to `]`
+				for tok != JsDocTokenRightSquare && tok != JsDocTokenEOC && tok != JsDocTokenEOF {
+					tok = p.next()
+				}
+			} else if tok == JsDocTokenRightSquare {
+				// `[name]` — just the closing bracket
+			} else {
+				// unexpected; continue
+				_ = tok
+			}
 		}
 		if isJsIdent(name) {
 			p.info.AddParam(name, rhino.NewJSTypeExpression(expr))
@@ -1030,6 +1181,88 @@ func (p *JsDocInfoParser) parseFunctionType() (string, bool) {
 	return out, true
 }
 
+// ParseInlineTypeDoc mirrors Java's parseInlineTypeDoc() — parses an inline
+// type annotation (e.g. `/** @type {T} */`) and returns a JSDocInfo with the
+// type recorded and the inline-type bit set. Returns nil if no type was parsed.
+func (p *JsDocInfoParser) ParseInlineTypeDoc() *rhino.JSDocInfo {
+	p.skipEOLs()
+	t := p.next()
+	expr, next, ok := p.parseTypeExpressionAnnotation(t)
+	if !ok {
+		return nil
+	}
+	p.info.SetType(rhino.NewJSTypeExpression(expr))
+	p.info.RecordInlineType()
+	p.anyRecorded = true
+	_ = next
+	return p.RetrieveAndResetParsedJSDocInfo()
+}
+
+// ParseJsdoc mirrors Java's static parseJsdoc(String) — parses a complete
+// JsDoc comment and returns the resulting JSDocInfo, or nil if empty.
+func ParseJsdoc(toParse string) *rhino.JSDocInfo {
+	p := NewJsDocInfoParser(toParse)
+	p.Parse()
+	return p.RetrieveAndResetParsedJSDocInfo()
+}
+
+// ParseTypeString mirrors Java's static parseTypeString(String) — parses
+// a JsDoc type expression and returns it as a string. Returns "" on failure.
+func ParseTypeString(typeString string) string {
+	p := NewJsDocInfoParser(typeString)
+	p.skipEOLs()
+	t := p.next()
+	// Try to parse as a top-level type expression.
+	expr, _ := p.parseTopLevelTypeExpression(t)
+	return expr
+}
+
+// RetrieveAndResetParsedJSDocInfo mirrors Java's
+// retrieveAndResetParsedJSDocInfo() — returns the parsed JSDocInfo if any
+// annotation was recorded, otherwise nil.
+func (p *JsDocInfoParser) RetrieveAndResetParsedJSDocInfo() *rhino.JSDocInfo {
+	if !p.anyRecorded {
+		return nil
+	}
+	return p.info
+}
+
+// GetFileOverviewJSDocInfo mirrors Java's getFileOverviewJSDocInfo() —
+// returns the fileoverview JSDocInfo if one was parsed. Not implemented
+// in the Go port (fileoverview detection requires a separate pass over
+// the parsed info). Returns nil by default.
+func (p *JsDocInfoParser) GetFileOverviewJSDocInfo() *rhino.JSDocInfo {
+	if p.info.HasFileOverview() {
+		return p.info
+	}
+	return nil
+}
+
+// lookAheadForType mirrors Java's lookAheadForType() — peeks ahead in the
+// character stream (without consuming) to see if a `{` follows.
+func (p *JsDocInfoParser) lookAheadForType() bool {
+	return p.lookAheadFor('{')
+}
+
+// lookAheadForAnnotation mirrors Java's lookAheadForAnnotation() — peeks
+// ahead to see if an `@` follows (ignoring leading spaces).
+func (p *JsDocInfoParser) lookAheadForAnnotation() bool {
+	return p.lookAheadFor('@')
+}
+
+// lookAheadFor peeks ahead in the character stream for a specific rune,
+// skipping spaces only. Mirrors Java's lookAheadFor(char).
+func (p *JsDocInfoParser) lookAheadFor(expect byte) bool {
+	rest := p.stream.GetRemainingJSDocLine()
+	for _, c := range rest {
+		if c == ' ' || c == '\t' {
+			continue
+		}
+		return byte(c) == expect
+	}
+	return false
+}
+
 // ---------------------------------------------------------------- //
 // Small helpers: match / next / skipEOLs / line-eaters.            //
 // ---------------------------------------------------------------- //
@@ -1079,6 +1312,89 @@ func (p *JsDocInfoParser) eatUntilEOLIfNotAnnotation() JsDocToken {
 			return t
 		}
 	}
+}
+
+// eatUntilEOLIfNotAnnotationFrom mirrors Java's
+// eatUntilEOLIfNotAnnotation(JsDocToken) — starts from the given token.
+// If token is ANNOTATION, returns it immediately; otherwise eats until EOL/EOC/EOF.
+func (p *JsDocInfoParser) eatUntilEOLIfNotAnnotationFrom(token JsDocToken) JsDocToken {
+	if token == JsDocTokenAnnotation {
+		return token
+	}
+	return p.eatTokensUntilEOL(token)
+}
+
+// eatTokensUntilEOL mirrors Java's eatTokensUntilEOL() — consumes tokens
+// until EOL, EOC, or EOF (but not ANNOTATION), then returns that terminating token.
+func (p *JsDocInfoParser) eatTokensUntilEOL(token JsDocToken) JsDocToken {
+	for {
+		switch token {
+		case JsDocTokenEOL, JsDocTokenEOC, JsDocTokenEOF:
+			return token
+		}
+		token = p.next()
+	}
+}
+
+// eatIfMatch mirrors Java's eatIfMatch(JsDocToken) — if the next token
+// matches, consume it and return true.
+func (p *JsDocInfoParser) eatIfMatch(tok JsDocToken) bool {
+	if p.match(tok) {
+		p.next()
+		return true
+	}
+	return false
+}
+
+// parseModsTag ports Java's parseModsTag: `@mods {namespace}`. Records the
+// namespace string and returns the next token after the closing `}`.
+func (p *JsDocInfoParser) parseModsTag(token JsDocToken) JsDocToken {
+	if token != JsDocTokenLeftCurly {
+		return p.eatUntilEOLIfNotAnnotation()
+	}
+	if !p.match(JsDocTokenString) {
+		return p.eatUntilEOLIfNotAnnotation()
+	}
+	_ = p.stream.String_() // namespace value — not tracked in this tier
+	token = p.next()
+	if !p.match(JsDocTokenRightCurly) {
+		return p.eatUntilEOLIfNotAnnotation()
+	}
+	token = p.next()
+	p.anyRecorded = true
+	return token
+}
+
+// parseIdGeneratorTag ports Java's parseIdGeneratorTag: expects an optional
+// `{kind}` and records the id generator kind. Mirrors Java exactly.
+func (p *JsDocInfoParser) parseIdGeneratorTag(token JsDocToken) JsDocToken {
+	idgenKind := "unique"
+	if token == JsDocTokenLeftCurly {
+		if p.match(JsDocTokenString) {
+			idgenKind = p.stream.String_()
+			token = p.next()
+		} else {
+			return p.eatUntilEOLIfNotAnnotation()
+		}
+		if !p.match(JsDocTokenRightCurly) {
+			return p.eatUntilEOLIfNotAnnotation()
+		}
+		token = p.next()
+	}
+	switch idgenKind {
+	case "unique":
+		p.info.SetIdGenerator(rhino.IdGeneratorUnique)
+	case "consistent":
+		p.info.SetIdGenerator(rhino.IdGeneratorConsistent)
+	case "stable":
+		p.info.SetIdGenerator(rhino.IdGeneratorStable)
+	case "xid":
+		p.info.SetIdGenerator(rhino.IdGeneratorXid)
+	case "mapped":
+		p.info.SetIdGenerator(rhino.IdGeneratorMapped)
+	}
+	p.anyRecorded = true
+	return token
 }
 
 // readParamName consumes the identifier that follows a `@param {T}`

@@ -512,6 +512,463 @@ func (b *JSDocInfoBuilder) RecordOriginalVisibility(v Visibility) bool {
 	return true
 }
 
+// RecordOriginalCommentString mirrors Builder.recordOriginalCommentString(String).
+func (b *JSDocInfoBuilder) RecordOriginalCommentString(comment string) {
+	if b.info.IsDocumentationIncluded() {
+		b.info.SetOriginalCommentString(comment)
+		b.populated = true
+	}
+}
+
+// RecordOriginalCommentPosition mirrors Builder.recordOriginalCommentPosition(int).
+func (b *JSDocInfoBuilder) RecordOriginalCommentPosition(pos int) {
+	if b.info.IsDocumentationIncluded() {
+		b.info.SetOriginalCommentPosition(pos)
+		b.populated = true
+	}
+}
+
+// RecordDescription mirrors Builder.recordDescription(String).
+func (b *JSDocInfoBuilder) RecordDescription(desc string) bool {
+	if b.info.description != "" {
+		return false
+	}
+	b.info.description = desc
+	b.populated = true
+	return true
+}
+
+// RecordMeaning mirrors Builder.recordMeaning(String).
+func (b *JSDocInfoBuilder) RecordMeaning(meaning string) bool {
+	if b.info.meaning != "" {
+		return false
+	}
+	b.info.meaning = meaning
+	b.populated = true
+	return true
+}
+
+// RecordAlternateMessageId mirrors Builder.recordAlternateMessageId(String).
+func (b *JSDocInfoBuilder) RecordAlternateMessageId(id string) bool {
+	if b.info.alternateMessageId != "" {
+		return false
+	}
+	b.info.alternateMessageId = id
+	b.populated = true
+	return true
+}
+
+// RecordAuthor mirrors Builder.recordAuthor(String).
+func (b *JSDocInfoBuilder) RecordAuthor(author string) bool {
+	if b.info.IsDocumentationIncluded() {
+		b.info.AddAuthor(author)
+	}
+	b.populated = true
+	return true
+}
+
+// RecordReference mirrors Builder.recordReference(String).
+func (b *JSDocInfoBuilder) RecordReference(ref string) bool {
+	if b.info.IsDocumentationIncluded() {
+		b.info.AddReference(ref)
+	}
+	b.populated = true
+	return true
+}
+
+// RecordReturnDescription mirrors Builder.recordReturnDescription(String).
+func (b *JSDocInfoBuilder) RecordReturnDescription(desc string) bool {
+	if !b.info.IsDocumentationIncluded() {
+		return true
+	}
+	if b.info.returnDescription != "" {
+		return false
+	}
+	b.info.returnDescription = desc
+	b.populated = true
+	return true
+}
+
+// RecordParameterDescription mirrors Builder.recordParameterDescription(String, String).
+func (b *JSDocInfoBuilder) RecordParameterDescription(name, desc string) bool {
+	if !b.info.IsDocumentationIncluded() {
+		return true
+	}
+	if b.info.HasDescriptionForParameter(name) {
+		return false
+	}
+	b.info.SetDescriptionForParameter(name, desc)
+	b.populated = true
+	return true
+}
+
+// RecordLicense mirrors Builder.recordLicense(String).
+func (b *JSDocInfoBuilder) RecordLicense(license string) bool {
+	b.info.license = license
+	b.populated = true
+	return true
+}
+
+// ShouldParseDocumentation mirrors Builder.shouldParseDocumentation().
+func (b *JSDocInfoBuilder) ShouldParseDocumentation() bool {
+	return b.info.IsDocumentationIncluded()
+}
+
+// ParseDocumentation mirrors Builder.parseDocumentation() — enables
+// documentation collection mode.
+func (b *JSDocInfoBuilder) ParseDocumentation() *JSDocInfoBuilder {
+	b.info.ParseDocumentation()
+	return b
+}
+
+// IsDescriptionRecorded mirrors Builder.isDescriptionRecorded().
+func (b *JSDocInfoBuilder) IsDescriptionRecorded() bool {
+	return b.info.description != ""
+}
+
+// IsModsRecorded mirrors Builder.isModsRecorded(). The mods namespace is not
+// tracked in this port; always returns false.
+func (b *JSDocInfoBuilder) IsModsRecorded() bool {
+	if b == nil {
+		return false
+	}
+	return b.info.HasMods()
+}
+
+// IsPopulatedWithFileOverview mirrors Builder.isPopulatedWithFileOverview().
+func (b *JSDocInfoBuilder) IsPopulatedWithFileOverview() bool {
+	if !b.populated {
+		return false
+	}
+	return b.info.HasFileOverview() ||
+		b.info.IsExterns() ||
+		b.info.IsNoCompile() ||
+		b.info.IsNoCoverage() ||
+		b.info.IsTypeSummary()
+}
+
+// RecordFileOverview mirrors Builder.recordFileOverview(String). Records
+// the @fileoverview bit and optionally the description text.
+func (b *JSDocInfoBuilder) RecordFileOverview(description string) bool {
+	if b.info.HasFileOverview() {
+		return false
+	}
+	b.info.SetBit(BitFileoverview, true)
+	if b.info.IsDocumentationIncluded() && description != "" {
+		b.info.SetFileOverview(description)
+	}
+	b.populated = true
+	return true
+}
+
+// RecordNoCollapse mirrors Builder.recordNoCollapse().
+func (b *JSDocInfoBuilder) RecordNoCollapse() bool {
+	if b.info.CheckBit(BitNoCollapse) {
+		return false
+	}
+	b.info.SetBit(BitNoCollapse, true)
+	b.populated = true
+	return true
+}
+
+// RecordNoInline mirrors Builder.recordNoInline().
+func (b *JSDocInfoBuilder) RecordNoInline() bool {
+	if b.info.CheckBit(BitNoInline) {
+		return false
+	}
+	b.info.SetBit(BitNoInline, true)
+	b.populated = true
+	return true
+}
+
+// RecordExport mirrors Builder.recordExport().
+func (b *JSDocInfoBuilder) RecordExport() bool {
+	if b.info.CheckBit(BitExport) {
+		return false
+	}
+	b.info.SetBit(BitExport, true)
+	b.populated = true
+	return true
+}
+
+// RemoveExport mirrors Builder.removeExport().
+func (b *JSDocInfoBuilder) RemoveExport() bool {
+	if !b.info.CheckBit(BitExport) {
+		return false
+	}
+	b.info.SetBit(BitExport, false)
+	b.populated = true
+	return true
+}
+
+// RecordImplicitCast mirrors Builder.recordImplicitCast().
+func (b *JSDocInfoBuilder) RecordImplicitCast() bool {
+	if b.info.CheckBit(BitImplicitCast) {
+		return false
+	}
+	b.info.SetBit(BitImplicitCast, true)
+	b.populated = true
+	return true
+}
+
+// RecordExterns mirrors Builder.recordExterns().
+func (b *JSDocInfoBuilder) RecordExterns() bool {
+	if b.info.CheckBit(BitExterns) {
+		return false
+	}
+	b.info.SetBit(BitExterns, true)
+	b.populated = true
+	return true
+}
+
+// RecordNoCoverage mirrors Builder.recordNoCoverage().
+func (b *JSDocInfoBuilder) RecordNoCoverage() bool {
+	if b.info.CheckBit(BitNoCoverage) {
+		return false
+	}
+	b.info.SetBit(BitNoCoverage, true)
+	b.populated = true
+	return true
+}
+
+// RecordTypeSummary mirrors Builder.recordTypeSummary().
+func (b *JSDocInfoBuilder) RecordTypeSummary() bool {
+	if b.info.CheckBit(BitTypeSummary) {
+		return false
+	}
+	b.info.SetBit(BitTypeSummary, true)
+	b.populated = true
+	return true
+}
+
+// RecordPureOrBreakMyCode mirrors Builder.recordPureOrBreakMyCode().
+func (b *JSDocInfoBuilder) RecordPureOrBreakMyCode() bool {
+	if b.info.CheckBit(BitPureOrBreakMyCode) {
+		return false
+	}
+	b.info.SetBit(BitPureOrBreakMyCode, true)
+	b.populated = true
+	return true
+}
+
+// RecordCollapsibleOrBreakMyCode mirrors Builder.recordCollapsibleOrBreakMyCode().
+func (b *JSDocInfoBuilder) RecordCollapsibleOrBreakMyCode() bool {
+	if b.info.CheckBit(BitCollapsibleOrBreak) {
+		return false
+	}
+	b.info.SetBit(BitCollapsibleOrBreak, true)
+	b.populated = true
+	return true
+}
+
+// RecordNoCompile mirrors Builder.recordNoCompile().
+func (b *JSDocInfoBuilder) RecordNoCompile() bool {
+	if b.info.CheckBit(BitNoCompile) {
+		return false
+	}
+	b.info.SetBit(BitNoCompile, true)
+	b.populated = true
+	return true
+}
+
+// RecordNoDts mirrors Builder.recordNoDts().
+func (b *JSDocInfoBuilder) RecordNoDts() bool {
+	if b.info.CheckBit(BitNoDts) {
+		return false
+	}
+	b.info.SetBit(BitNoDts, true)
+	b.populated = true
+	return true
+}
+
+// RecordEncourageInlining mirrors Builder.recordEncourageInlining().
+func (b *JSDocInfoBuilder) RecordEncourageInlining() bool {
+	if b.info.CheckBit(BitEncourageInlining) {
+		return false
+	}
+	b.info.SetBit(BitEncourageInlining, true)
+	b.populated = true
+	return true
+}
+
+// RecordRequireInlining mirrors Builder.recordRequireInlining().
+func (b *JSDocInfoBuilder) RecordRequireInlining() bool {
+	if b.info.CheckBit(BitRequireInlining) {
+		return false
+	}
+	b.info.SetBit(BitRequireInlining, true)
+	b.populated = true
+	return true
+}
+
+// RecordProvideGoog mirrors Builder.recordProvideGoog().
+func (b *JSDocInfoBuilder) RecordProvideGoog() bool {
+	if b.info.CheckBit(BitProvideGoog) {
+		return false
+	}
+	b.info.SetBit(BitProvideGoog, true)
+	b.populated = true
+	return true
+}
+
+// RecordProvideAlreadyProvided mirrors Builder.recordProvideAlreadyProvided().
+func (b *JSDocInfoBuilder) RecordProvideAlreadyProvided() bool {
+	if b.info.CheckBit(BitProvideAlreadyProvided) {
+		return false
+	}
+	b.info.SetBit(BitProvideAlreadyProvided, true)
+	b.populated = true
+	return true
+}
+
+// RecordWizcallback mirrors Builder.recordWizcallback().
+func (b *JSDocInfoBuilder) RecordWizcallback() bool {
+	if b.info.CheckBit(BitWizCallback) {
+		return false
+	}
+	b.info.SetBit(BitWizCallback, true)
+	b.populated = true
+	return true
+}
+
+// RecordMixinClass mirrors Builder.recordMixinClass().
+func (b *JSDocInfoBuilder) RecordMixinClass() bool {
+	if b.info.CheckBit(BitMixinClass) {
+		return false
+	}
+	b.info.SetBit(BitMixinClass, true)
+	b.populated = true
+	return true
+}
+
+// RecordMixinFunction mirrors Builder.recordMixinFunction().
+func (b *JSDocInfoBuilder) RecordMixinFunction() bool {
+	if b.info.CheckBit(BitMixinFunction) {
+		return false
+	}
+	b.info.SetBit(BitMixinFunction, true)
+	b.populated = true
+	return true
+}
+
+// RecordPolymer mirrors Builder.recordPolymer().
+func (b *JSDocInfoBuilder) RecordPolymer() bool {
+	if b.info.CheckBit(BitPolymer) {
+		return false
+	}
+	b.info.SetBit(BitPolymer, true)
+	b.populated = true
+	return true
+}
+
+// RecordUnrestricted mirrors Builder.recordUnrestricted().
+func (b *JSDocInfoBuilder) RecordUnrestricted() bool {
+	if b.info.CheckBit(BitUnrestricted) || b.hasAnySingletonTypeTags() {
+		return false
+	}
+	if b.info.isInterface || b.info.isDict || b.info.isStruct {
+		return false
+	}
+	b.info.SetBit(BitUnrestricted, true)
+	b.populated = true
+	return true
+}
+
+// IsUnrestrictedRecorded mirrors Builder.isUnrestrictedRecorded().
+func (b *JSDocInfoBuilder) IsUnrestrictedRecorded() bool {
+	return b.info.CheckBit(BitUnrestricted)
+}
+
+// RecordThisType mirrors Builder.recordThisType with a full type-expression.
+// Wraps SetThisType if the type is non-nil and no singleton type is set.
+func (b *JSDocInfoBuilder) RecordThisTypeExpr(t *JSTypeExpression) bool {
+	if t == nil || b.info.hasThisType || b.hasAnySingletonTypeTags() {
+		return false
+	}
+	b.info.SetThisType(t)
+	b.populated = true
+	return true
+}
+
+// IsNgInline mirrors Builder.isNoInline() — returns true when @noinline set.
+func (b *JSDocInfoBuilder) IsNoInline() bool {
+	return b.info.CheckBit(BitNoInline)
+}
+
+// IsRequireInlining mirrors Builder.isRequireInlining().
+func (b *JSDocInfoBuilder) IsRequireInlining() bool {
+	return b.info.CheckBit(BitRequireInlining)
+}
+
+// IsEncourageInlining mirrors Builder.isEncourageInlining().
+func (b *JSDocInfoBuilder) IsEncourageInlining() bool {
+	return b.info.CheckBit(BitEncourageInlining)
+}
+
+// IsPolymerBehaviorRecorded mirrors Builder.isPolymerBehaviorRecorded().
+func (b *JSDocInfoBuilder) IsPolymerBehaviorRecorded() bool {
+	return b.info.CheckBit(BitPolymerBehavior)
+}
+
+// IsPolymerRecorded mirrors Builder.isPolymerRecorded().
+func (b *JSDocInfoBuilder) IsPolymerRecorded() bool {
+	return b.info.CheckBit(BitPolymer)
+}
+
+// IsCustomElementRecorded mirrors Builder.isCustomElementRecorded().
+func (b *JSDocInfoBuilder) IsCustomElementRecorded() bool {
+	return b.info.CheckBit(BitCustomElement)
+}
+
+// IsMixinClassRecorded mirrors Builder.isMixinClassRecorded().
+func (b *JSDocInfoBuilder) IsMixinClassRecorded() bool {
+	return b.info.CheckBit(BitMixinClass)
+}
+
+// IsMixinFunctionRecorded mirrors Builder.isMixinFunctionRecorded().
+func (b *JSDocInfoBuilder) IsMixinFunctionRecorded() bool {
+	return b.info.CheckBit(BitMixinFunction)
+}
+
+// IsWizcallbackRecorded mirrors Builder.isWizcallbackRecorded().
+func (b *JSDocInfoBuilder) IsWizcallbackRecorded() bool {
+	return b.info.CheckBit(BitWizCallback)
+}
+
+// IsSassGeneratedCssTsRecorded mirrors Builder.isSassGeneratedCssTsRecorded().
+func (b *JSDocInfoBuilder) IsSassGeneratedCssTsRecorded() bool {
+	return b.info.CheckBit(BitSassGeneratedCssTs)
+}
+
+// RecordSassGeneratedCssTs mirrors Builder.recordSassGeneratedCssTs().
+func (b *JSDocInfoBuilder) RecordSassGeneratedCssTs() {
+	b.info.SetBit(BitSassGeneratedCssTs, true)
+	b.populated = true
+}
+
+// IsDeprecationReasonRecorded mirrors Builder.isDeprecationReasonRecorded().
+func (b *JSDocInfoBuilder) IsDeprecationReasonRecorded() bool {
+	return b.info.deprecationReason != ""
+}
+
+// RecordStableIdGenerator mirrors Builder.recordStableIdGenerator().
+func (b *JSDocInfoBuilder) RecordStableIdGenerator() bool {
+	if !b.info.SetIdGenerator(IdGeneratorStable) {
+		return false
+	}
+	b.populated = true
+	return true
+}
+
+// RecordMappedIdGenerator mirrors Builder.recordMappedIdGenerator().
+func (b *JSDocInfoBuilder) RecordMappedIdGenerator() bool {
+	if !b.info.SetIdGenerator(IdGeneratorMapped) {
+		return false
+	}
+	b.populated = true
+	return true
+}
+
 // --- Compatibility gates mirroring Java private helpers ----------------
 
 // hasAnySingletonTypeTags mirrors Builder.hasAnySingletonTypeTags() — the

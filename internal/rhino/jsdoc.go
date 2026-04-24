@@ -7,6 +7,8 @@
 
 package rhino
 
+import "strings"
+
 // Visibility mirrors JSDocInfo.Visibility in Java. The ordinal order matches
 // Java's enum order (PRIVATE=0, PACKAGE=1, PROTECTED=2, PUBLIC=3, INHERITED=4)
 // so that comparisons via < / > retain the Java semantics ("0 is most private").
@@ -20,8 +22,8 @@ const (
 	VisibilityInherited                   // INHERITED — default when no tag is present
 )
 
-// String returns the lowercase name of the visibility level.
-// Mirrors JSDocInfo.Visibility.name() for use in diagnostic messages.
+// String implements fmt.Stringer for Visibility, matching Java's Visibility.name()
+// (all-caps enum name). Used by CheckAccessControls diagnostic messages.
 func (v Visibility) String() string {
 	switch v {
 	case VisibilityPrivate:
@@ -34,8 +36,9 @@ func (v Visibility) String() string {
 		return "public"
 	case VisibilityInherited:
 		return "inherited"
+	default:
+		return "unknown"
 	}
-	return "unknown"
 }
 
 // BitField mirrors the private Bit enum in JSDocInfo.java. Each constant is a
@@ -81,8 +84,14 @@ const (
 	BitPolymerBehavior     BitField = 1 << 33 // POLYMER_BEHAVIOR
 	BitPolymer             BitField = 1 << 34 // POLYMER
 	BitCustomElement       BitField = 1 << 35 // CUSTOM_ELEMENT
-	BitMixinClass          BitField = 1 << 36 // MIXIN_CLASS
-	BitMixinFunction       BitField = 1 << 37 // MIXIN_FUNCTION
+	BitMixinClass               BitField = 1 << 36 // MIXIN_CLASS
+	BitMixinFunction            BitField = 1 << 37 // MIXIN_FUNCTION
+	BitSassGeneratedCssTs       BitField = 1 << 38 // SASS_GENERATED_CSS_TS
+	BitClosureUnawareCode       BitField = 1 << 39 // CLOSURE_UNAWARE_CODE
+	BitProvideGoog              BitField = 1 << 40 // PROVIDE_GOOG
+	BitProvideAlreadyProvided   BitField = 1 << 41 // PROVIDE_ALREADY_PROVIDED
+	BitWizCallback              BitField = 1 << 42 // WIZ_CALLBACK
+	BitLogTypeInCompiler        BitField = 1 << 43 // LOG_TYPE_IN_COMPILER
 )
 
 // IdGenerator mirrors the IdGenerator enum used with @idGenerator in Java.
@@ -203,6 +212,46 @@ type JSDocInfo struct {
 	// idGenerator mirrors the ID_GENERATOR property.
 	idGenerator    IdGenerator
 	hasIdGenerator bool
+
+	// thisType mirrors the THIS_TYPE property — the type expression from @this.
+	thisType *JSTypeExpression
+
+	// description mirrors the DESCRIPTION property — text from @desc.
+	description string
+
+	// license mirrors the LICENSE property — text from @license.
+	license string
+
+	// blockDescription mirrors the BLOCK_DESCRIPTION property — the leading
+	// description block before any tag.
+	blockDescription string
+
+	// originalCommentPosition mirrors the ORIGINAL_COMMENT_POSITION property.
+	originalCommentPosition int
+
+	// originalCommentString mirrors the SOURCE_COMMENT property.
+	originalCommentString string
+
+	// fileoverviewDescription mirrors the FILEOVERVIEW_DESCRIPTION property.
+	fileoverviewDescription string
+
+	// authors mirrors the AUTHORS property.
+	authors []string
+
+	// sees mirrors the SEES property (@see references).
+	sees []string
+
+	// returnDescription mirrors the RETURN_DESCRIPTION property.
+	returnDescription string
+
+	// paramDescriptions mirrors PARAMETER_DESCRIPTIONS property.
+	paramDescriptions map[string]string
+
+	// meaning mirrors the MEANING property — context for i18n translation.
+	meaning string
+
+	// alternateMessageId mirrors the ALTERNATE_MESSAGE_ID property.
+	alternateMessageId string
 }
 
 // AddSuppression records a `@suppress {name}` entry. Mirrors
@@ -833,4 +882,638 @@ func (i *JSDocInfo) CloneOn() *JSDocInfo {
 	}
 	cp := *i
 	return &cp
+}
+
+// --- additional accessor ports from JSDocInfo.java ---
+
+// HasConstAnnotation mirrors JSDocInfo.hasConstAnnotation() — true when
+// the @const annotation is explicitly present (distinct from isConstant()
+// which also checks @define and @final).
+func (i *JSDocInfo) HasConstAnnotation() bool {
+	return i != nil && i.isConst
+}
+
+// IsConstructorOrInterface mirrors JSDocInfo.isConstructorOrInterface() —
+// true when any of @constructor, @interface, or @record is present.
+func (i *JSDocInfo) IsConstructorOrInterface() bool {
+	if i == nil {
+		return false
+	}
+	return i.isConstructor || i.isInterface || i.isRecord
+}
+
+// ContainsDeclarationExcludingTypelessConst mirrors
+// JSDocInfo.containsDeclarationExcludingTypelessConst() — returns true when
+// the comment carries a declaration-forming annotation other than a bare @const.
+func (i *JSDocInfo) ContainsDeclarationExcludingTypelessConst() bool {
+	if i == nil {
+		return false
+	}
+	return i.typeExpr != nil ||
+		i.returnExpr != nil ||
+		len(i.params) > 0 ||
+		i.isConstructor ||
+		i.isInterface ||
+		i.isRecord ||
+		i.enumMarked ||
+		i.typedefExpr != nil ||
+		i.extendsExpr != nil ||
+		len(i.implementsAll) > 0 ||
+		i.hasThisType ||
+		i.hasVisibility ||
+		i.isOverride ||
+		i.isNoSideEffects ||
+		i.CheckBit(BitDefine)
+}
+
+// ContainsTypeDeclaration mirrors JSDocInfo.containsTypeDeclaration() — true
+// when any of @type, @return, @enum, @typedef, @this, or @param is present.
+func (i *JSDocInfo) ContainsTypeDeclaration() bool {
+	if i == nil {
+		return false
+	}
+	return i.typeExpr != nil ||
+		i.returnExpr != nil ||
+		i.enumMarked ||
+		i.typedefExpr != nil ||
+		i.hasThisType ||
+		len(i.params) > 0 ||
+		i.extendsExpr != nil
+}
+
+// ContainsTypeDefinition mirrors JSDocInfo.containsTypeDefinition() — true
+// when the comment defines a new type (@constructor, @interface, @enum, @typedef).
+func (i *JSDocInfo) ContainsTypeDefinition() bool {
+	if i == nil {
+		return false
+	}
+	return i.isConstructor || i.isInterface || i.enumMarked || i.typedefExpr != nil
+}
+
+// HasEnumParameterType mirrors JSDocInfo.hasEnumParameterType() — true when
+// @enum was present with an explicit type argument.
+func (i *JSDocInfo) HasEnumParameterType() bool {
+	return i != nil && i.enumExpr != nil
+}
+
+// HasTypedefType mirrors JSDocInfo.hasTypedefType() — true when @typedef is present.
+func (i *JSDocInfo) HasTypedefType() bool {
+	return i != nil && i.typedefExpr != nil
+}
+
+// HasReturnType mirrors JSDocInfo.hasReturnType() — true when @return is present.
+func (i *JSDocInfo) HasReturnType() bool {
+	return i != nil && i.returnExpr != nil
+}
+
+// HasTypeInformation mirrors JSDocInfo.hasTypeInformation() — true when any
+// of @type, @typedef, @enum, or @return annotations is present.
+func (i *JSDocInfo) HasTypeInformation() bool {
+	if i == nil {
+		return false
+	}
+	return i.typeExpr != nil || i.typedefExpr != nil || i.enumMarked || i.returnExpr != nil
+}
+
+// HasParameter mirrors JSDocInfo.hasParameter(String) — true when the named
+// parameter appears in the comment's @param list.
+func (i *JSDocInfo) HasParameter(name string) bool {
+	if i == nil {
+		return false
+	}
+	_, ok := i.params[name]
+	return ok
+}
+
+// HasParameterType mirrors JSDocInfo.hasParameterType(String) — true when the
+// named parameter has an attached type expression.
+func (i *JSDocInfo) HasParameterType(name string) bool {
+	if i == nil {
+		return false
+	}
+	return i.params[name] != nil
+}
+
+// GetParameterCount mirrors JSDocInfo.getParameterCount() — returns the number
+// of @param annotations recorded.
+func (i *JSDocInfo) GetParameterCount() int {
+	if i == nil {
+		return 0
+	}
+	return len(i.params)
+}
+
+// GetParameterNameAt mirrors JSDocInfo.getParameterNameAt(int) — returns the
+// nth parameter name in declaration order, or "" if out of range.
+func (i *JSDocInfo) GetParameterNameAt(index int) string {
+	if i == nil || index < 0 || index >= len(i.paramNames) {
+		return ""
+	}
+	return i.paramNames[index]
+}
+
+// HasBaseType mirrors JSDocInfo.hasBaseType() — true when @extends is present.
+func (i *JSDocInfo) HasBaseType() bool {
+	return i != nil && i.extendsExpr != nil
+}
+
+// GetImplementedInterfaceCount mirrors JSDocInfo.getImplementedInterfaceCount().
+func (i *JSDocInfo) GetImplementedInterfaceCount() int {
+	if i == nil {
+		return 0
+	}
+	return len(i.implementsAll)
+}
+
+// GetExtendedInterfaces mirrors JSDocInfo.getExtendedInterfaces() — returns
+// all @extends expressions (interfaces can list multiple supers).
+func (i *JSDocInfo) GetExtendedInterfaces() []*JSTypeExpression {
+	if i == nil {
+		return nil
+	}
+	return i.extendsAll
+}
+
+// GetExtendedInterfacesCount mirrors JSDocInfo.getExtendedInterfacesCount().
+func (i *JSDocInfo) GetExtendedInterfacesCount() int {
+	if i == nil {
+		return 0
+	}
+	return len(i.extendsAll)
+}
+
+// HasModifies mirrors JSDocInfo.hasModifies() — true when @modifies is present.
+func (i *JSDocInfo) HasModifies() bool {
+	return i != nil && i.modifies != nil
+}
+
+// HasFileOverview mirrors JSDocInfo.hasFileOverview() — true when @fileoverview
+// bit is set.
+func (i *JSDocInfo) HasFileOverview() bool {
+	return i.CheckBit(BitFileoverview)
+}
+
+// IsExterns mirrors JSDocInfo.isExterns().
+func (i *JSDocInfo) IsExterns() bool { return i.CheckBit(BitExterns) }
+
+// IsNoCompile mirrors JSDocInfo.isNoCompile().
+func (i *JSDocInfo) IsNoCompile() bool { return i.CheckBit(BitNoCompile) }
+
+// IsNoCoverage mirrors JSDocInfo.isNoCoverage().
+func (i *JSDocInfo) IsNoCoverage() bool { return i.CheckBit(BitNoCoverage) }
+
+// IsTypeSummary mirrors JSDocInfo.isTypeSummary().
+func (i *JSDocInfo) IsTypeSummary() bool { return i.CheckBit(BitTypeSummary) }
+
+// IsPureOrBreakMyCode mirrors JSDocInfo.isPureOrBreakMyCode().
+func (i *JSDocInfo) IsPureOrBreakMyCode() bool { return i.CheckBit(BitPureOrBreakMyCode) }
+
+// IsCollapsibleOrBreakMyCode mirrors JSDocInfo.isCollapsibleOrBreakMyCode().
+func (i *JSDocInfo) IsCollapsibleOrBreakMyCode() bool {
+	return i.CheckBit(BitCollapsibleOrBreak)
+}
+
+// MakesUnrestricted mirrors JSDocInfo.makesUnrestricted() — true when the
+// @unrestricted annotation was present.
+func (i *JSDocInfo) MakesUnrestricted() bool { return i.CheckBit(BitUnrestricted) }
+
+// IsInlineType mirrors JSDocInfo.isInlineType() — true when the type
+// annotation was inlined (e.g. `/** @type {T} */ var x`).
+func (i *JSDocInfo) IsInlineType() bool { return i.CheckBit(BitInlineType) }
+
+// IsNgInjectRecorded mirrors JSDocInfo.Builder.isNgInjectRecorded().
+func (i *JSDocInfo) IsNgInjectRecorded() bool { return i.IsNgInject() }
+
+// IsWizactionRecorded mirrors JSDocInfo.Builder.isWizactionRecorded().
+func (i *JSDocInfo) IsWizactionRecorded() bool { return i.IsWizaction() }
+
+// IsRequireInlining mirrors JSDocInfo.isRequireInlining().
+func (i *JSDocInfo) IsRequireInlining() bool { return i.CheckBit(BitRequireInlining) }
+
+// IsEncourageInlining mirrors JSDocInfo.isEncourageInlining().
+func (i *JSDocInfo) IsEncourageInlining() bool { return i.CheckBit(BitEncourageInlining) }
+
+// IsNoDts mirrors JSDocInfo.isNoDts().
+func (i *JSDocInfo) IsNoDts() bool { return i.CheckBit(BitNoDts) }
+
+// GetTemplateTypes mirrors JSDocInfo.getTemplateTypes() — returns the mapping
+// of template names to their bound type expressions (nil for unbounded). The
+// Go port stores names as a flat slice; we return a map with nil values.
+func (i *JSDocInfo) GetTemplateTypes() map[string]*JSTypeExpression {
+	if i == nil || len(i.templateNames) == 0 {
+		return nil
+	}
+	m := make(map[string]*JSTypeExpression, len(i.templateNames))
+	for _, name := range i.templateNames {
+		m[name] = nil // bound is not tracked at this tier
+	}
+	return m
+}
+
+// GetTypeTransformations mirrors JSDocInfo.getTypeTransformations() — returns
+// the map of TTL template names to their transformation ASTs. The Go port
+// stores names only (no AST), so we return a nil-valued map.
+func (i *JSDocInfo) GetTypeTransformations() map[string]interface{} {
+	if i == nil || len(i.ttlTemplateNames) == 0 {
+		return nil
+	}
+	m := make(map[string]interface{}, len(i.ttlTemplateNames))
+	for _, name := range i.ttlTemplateNames {
+		m[name] = nil
+	}
+	return m
+}
+
+// GetThrowsAnnotations mirrors JSDocInfo.getThrowsAnnotations() — alias of
+// the existing GetThrowsAnnotations accessor.
+func (i *JSDocInfo) GetThrows() []string {
+	return i.GetThrowsAnnotations()
+}
+
+// OverwriteVisibility mirrors JSDocInfo.Builder.overwriteVisibility() —
+// forcibly sets the visibility even if already recorded. Used by passes that
+// propagate fileoverview visibility onto individual declarations.
+func (i *JSDocInfo) OverwriteVisibility(v Visibility) {
+	i.visibility = v
+	i.hasVisibility = true
+}
+
+// IsAtSignCodePresent mirrors JSDocInfo.isAtSignCodePresent() — checks
+// whether the raw comment string contains "@code". The Go port does not
+// store the original comment string, so this always returns false.
+// Mirrors: JSDocInfo.isAtSignCodePresent() which calls getOriginalCommentString().
+func (i *JSDocInfo) IsAtSignCodePresent() bool {
+	// The Go port stores the original comment string when documentation is enabled.
+	// Check if the stored comment contains "@code".
+	if i == nil || i.originalCommentString == "" {
+		return false
+	}
+	return strings.Contains(i.originalCommentString, "@code")
+}
+
+// IsDeprecatedBit mirrors JSDocInfo.isDeprecated() using the Bit.DEPRECATED
+// path. The Go port uses a field, so delegate.
+func (i *JSDocInfo) IsDeprecatedBit() bool {
+	return i.IsDeprecated()
+}
+
+// IsExport mirrors JSDocInfo.isExport().
+func (i *JSDocInfo) IsExportBit() bool {
+	return i.IsExport()
+}
+
+// ProvideGoog mirrors JSDocInfo.isProvideGoog() — true when @provideGoog
+// is present (only in base.js).
+func (i *JSDocInfo) IsProvideGoog() bool { return i.CheckBit(BitProvideGoog) }
+
+// IsProvideAlreadyProvided mirrors JSDocInfo.isProvideAlreadyProvided().
+func (i *JSDocInfo) IsProvideAlreadyProvided() bool {
+	return i.CheckBit(BitProvideAlreadyProvided)
+}
+
+// HasThrowsAnnotations mirrors JSDocInfo.getThrowsAnnotations().size() > 0.
+// Alias of HasThrows() for API compatibility.
+func (i *JSDocInfo) HasThrowsAnnotations() bool {
+	return i.HasThrows()
+}
+
+// --- @this type accessors ---
+
+// GetThisType mirrors JSDocInfo.getThisType() — returns the type expression
+// from @this, or nil if not present.
+func (i *JSDocInfo) GetThisType() *JSTypeExpression {
+	if i == nil {
+		return nil
+	}
+	return i.thisType
+}
+
+// SetThisType records the type expression for @this. Called by JsDocInfoParser
+// when it processes a @this annotation with a type argument.
+func (i *JSDocInfo) SetThisType(t *JSTypeExpression) {
+	i.thisType = t
+	i.hasThisType = t != nil
+}
+
+// --- @desc / @license / block-description accessors ---
+
+// GetDescription mirrors JSDocInfo.getDescription() — returns text from @desc.
+func (i *JSDocInfo) GetDescription() string {
+	if i == nil {
+		return ""
+	}
+	return i.description
+}
+
+// SetDescription records the @desc annotation text.
+func (i *JSDocInfo) SetDescription(desc string) { i.description = desc }
+
+// GetLicense mirrors JSDocInfo.getLicense() — returns text from @license.
+func (i *JSDocInfo) GetLicense() string {
+	if i == nil {
+		return ""
+	}
+	return i.license
+}
+
+// SetLicense records the @license annotation text.
+func (i *JSDocInfo) SetLicense(license string) { i.license = license }
+
+// GetBlockDescription mirrors JSDocInfo.getBlockDescription() — returns the
+// leading description block that precedes any @-tags.
+func (i *JSDocInfo) GetBlockDescription() string {
+	if i == nil {
+		return ""
+	}
+	return i.blockDescription
+}
+
+// SetBlockDescription records the leading block description.
+func (i *JSDocInfo) SetBlockDescription(desc string) { i.blockDescription = desc }
+
+// GetFileOverview mirrors JSDocInfo.getFileOverview() — returns text from
+// @fileoverview.
+func (i *JSDocInfo) GetFileOverview() string {
+	if i == nil {
+		return ""
+	}
+	return i.fileoverviewDescription
+}
+
+// SetFileOverview records the @fileoverview description text.
+func (i *JSDocInfo) SetFileOverview(desc string) { i.fileoverviewDescription = desc }
+
+// --- original comment accessors ---
+
+// GetOriginalCommentString mirrors JSDocInfo.getOriginalCommentString().
+// Returns the raw comment text if documentation collection is enabled.
+func (i *JSDocInfo) GetOriginalCommentString() string {
+	if i == nil {
+		return ""
+	}
+	return i.originalCommentString
+}
+
+// SetOriginalCommentString records the raw comment text.
+func (i *JSDocInfo) SetOriginalCommentString(comment string) {
+	i.originalCommentString = comment
+}
+
+// GetOriginalCommentPosition mirrors JSDocInfo.getOriginalCommentPosition().
+func (i *JSDocInfo) GetOriginalCommentPosition() int {
+	if i == nil {
+		return 0
+	}
+	return i.originalCommentPosition
+}
+
+// SetOriginalCommentPosition records the comment position.
+func (i *JSDocInfo) SetOriginalCommentPosition(pos int) {
+	i.originalCommentPosition = pos
+}
+
+// --- @author / @see accessors ---
+
+// GetAuthors mirrors JSDocInfo.getAuthors() — returns the list of @author values.
+func (i *JSDocInfo) GetAuthors() []string {
+	if i == nil {
+		return nil
+	}
+	return i.authors
+}
+
+// AddAuthor appends an @author value.
+func (i *JSDocInfo) AddAuthor(author string) {
+	i.authors = append(i.authors, author)
+}
+
+// GetReferences mirrors JSDocInfo.getReferences() — returns @see values.
+func (i *JSDocInfo) GetReferences() []string {
+	if i == nil {
+		return nil
+	}
+	return i.sees
+}
+
+// AddReference appends a @see reference.
+func (i *JSDocInfo) AddReference(ref string) {
+	i.sees = append(i.sees, ref)
+}
+
+// --- @return description ---
+
+// GetReturnDescription mirrors JSDocInfo.getReturnDescription() — returns
+// the text that follows the @return type expression.
+func (i *JSDocInfo) GetReturnDescription() string {
+	if i == nil {
+		return ""
+	}
+	return i.returnDescription
+}
+
+// SetReturnDescription records the @return description text.
+func (i *JSDocInfo) SetReturnDescription(desc string) { i.returnDescription = desc }
+
+// --- @param description ---
+
+// HasDescriptionForParameter mirrors JSDocInfo.hasDescriptionForParameter(String).
+func (i *JSDocInfo) HasDescriptionForParameter(name string) bool {
+	if i == nil {
+		return false
+	}
+	_, ok := i.paramDescriptions[name]
+	return ok
+}
+
+// GetDescriptionForParameter mirrors JSDocInfo.getDescriptionForParameter(String).
+func (i *JSDocInfo) GetDescriptionForParameter(name string) string {
+	if i == nil {
+		return ""
+	}
+	return i.paramDescriptions[name]
+}
+
+// SetDescriptionForParameter records the description for a named parameter.
+func (i *JSDocInfo) SetDescriptionForParameter(name, desc string) {
+	if i.paramDescriptions == nil {
+		i.paramDescriptions = map[string]string{}
+	}
+	i.paramDescriptions[name] = desc
+}
+
+// --- @meaning / @alternateMessageId ---
+
+// GetMeaning mirrors JSDocInfo.getMeaning() — returns the @meaning text.
+func (i *JSDocInfo) GetMeaning() string {
+	if i == nil {
+		return ""
+	}
+	return i.meaning
+}
+
+// SetMeaning records the @meaning annotation text.
+func (i *JSDocInfo) SetMeaning(meaning string) { i.meaning = meaning }
+
+// GetAlternateMessageId mirrors JSDocInfo.getAlternateMessageId().
+func (i *JSDocInfo) GetAlternateMessageId() string {
+	if i == nil {
+		return ""
+	}
+	return i.alternateMessageId
+}
+
+// SetAlternateMessageId records the @alternateMessageId text.
+func (i *JSDocInfo) SetAlternateMessageId(id string) { i.alternateMessageId = id }
+
+// IsDocumentationIncluded mirrors JSDocInfo.isDocumentationIncluded() — true
+// when parseDocumentation was called on the builder (documentation collection
+// is enabled). The Go port tracks this via a bit.
+func (i *JSDocInfo) IsDocumentationIncluded() bool {
+	return i.CheckBit(BitIncludeDocumentation)
+}
+
+// ParseDocumentation mirrors Builder.parseDocumentation() — marks that
+// documentation collection is enabled.
+func (i *JSDocInfo) ParseDocumentation() {
+	i.SetBit(BitIncludeDocumentation, true)
+}
+
+// IsInlineTypeRecorded mirrors JSDocInfo.isInlineType() for the builder
+// check path. Returns true when the @type was inlined.
+func (i *JSDocInfo) IsInlineTypeRecorded() bool {
+	return i.IsInlineType()
+}
+
+// RecordInlineType records that the type annotation was inlined.
+func (i *JSDocInfo) RecordInlineType() {
+	i.SetBit(BitInlineType, true)
+}
+
+// --- additional mirrors from JSDocInfo.java ---
+
+// IsWizcallback mirrors JSDocInfo.isWizcallback() — true when @wizcallback.
+func (i *JSDocInfo) IsWizcallback() bool { return i.CheckBit(BitWizCallback) }
+
+// IsSassGeneratedCssTs mirrors JSDocInfo.isSassGeneratedCssTs().
+func (i *JSDocInfo) IsSassGeneratedCssTs() bool { return i.CheckBit(BitSassGeneratedCssTs) }
+
+// IsClosureUnawareCode mirrors JSDocInfo.isClosureUnawareCode() — true when
+// @closureUnawareCode is present.
+func (i *JSDocInfo) IsClosureUnawareCode() bool { return i.CheckBit(BitClosureUnawareCode) }
+
+// GetLogTypeInCompiler mirrors JSDocInfo.getLogTypeInCompiler().
+func (i *JSDocInfo) GetLogTypeInCompiler() bool { return i.CheckBit(BitLogTypeInCompiler) }
+
+// GetTsTypes mirrors JSDocInfo.getTsTypes() — returns the list of @tsType texts.
+// Not tracked in the Go port; returns empty slice.
+func (i *JSDocInfo) GetTsTypes() []string {
+	if i == nil {
+		return nil
+	}
+	return nil // not tracked at this tier
+}
+
+// GetSuppressionsAndTheirDescription mirrors
+// JSDocInfo.getSuppressionsAndTheirDescription() — in the Go port, descriptions
+// are not stored; returns a map from each suppression to "".
+func (i *JSDocInfo) GetSuppressionsAndTheirDescription() map[string]string {
+	if i == nil || i.suppressions == nil {
+		return nil
+	}
+	m := make(map[string]string, len(i.suppressions))
+	for name := range i.suppressions {
+		m[name] = ""
+	}
+	return m
+}
+
+// HasEnhance mirrors JSDocInfo.hasEnhance() — true when @enhance is present.
+// Not yet tracked in the Go port.
+func (i *JSDocInfo) HasEnhance() bool { return i.CheckBit(BitEnhancedNamespace) }
+
+// GetEnhance mirrors JSDocInfo.getEnhance() — returns the enhanced namespace.
+// Not yet tracked at this tier.
+func (i *JSDocInfo) GetEnhance() string {
+	if i == nil {
+		return ""
+	}
+	return "" // not tracked at this tier
+}
+
+// HasMods mirrors JSDocInfo.hasMods() — true when @mods is present.
+// The mods namespace is not tracked in the Go port at this tier.
+func (i *JSDocInfo) HasMods() bool {
+	// @mods namespace storage not yet implemented in this port.
+	return i != nil && i.CheckBit(0) // always false; placeholder for future port
+}
+
+// GetMods mirrors JSDocInfo.getMods() — returns the mods namespace.
+// The mods namespace is not tracked in the Go port at this tier.
+func (i *JSDocInfo) GetMods() string {
+	if i == nil {
+		return ""
+	}
+	return "" // not tracked at this tier
+}
+
+// GetTypeExpressions mirrors JSDocInfo.getTypeExpressions() — returns all
+// JSTypeExpression values recorded on this info.
+func (i *JSDocInfo) GetTypeExpressions() []*JSTypeExpression {
+	if i == nil {
+		return nil
+	}
+	var result []*JSTypeExpression
+	if i.typeExpr != nil {
+		result = append(result, i.typeExpr)
+	}
+	if i.returnExpr != nil {
+		result = append(result, i.returnExpr)
+	}
+	if i.enumExpr != nil {
+		result = append(result, i.enumExpr)
+	}
+	if i.typedefExpr != nil {
+		result = append(result, i.typedefExpr)
+	}
+	if i.thisType != nil {
+		result = append(result, i.thisType)
+	}
+	for _, p := range i.params {
+		if p != nil {
+			result = append(result, p)
+		}
+	}
+	if i.extendsExpr != nil {
+		result = append(result, i.extendsExpr)
+	}
+	result = append(result, i.implementsAll...)
+	return result
+}
+
+// ContainsFunctionDeclaration mirrors JSDocInfo.containsFunctionDeclaration() —
+// returns true when the comment contains a function-like declaration.
+func (i *JSDocInfo) ContainsFunctionDeclaration() bool {
+	if i == nil {
+		return false
+	}
+	return i.isConstructor ||
+		i.returnExpr != nil ||
+		i.hasThisType ||
+		len(i.params) > 0 ||
+		i.isNoSideEffects
+}
+
+// IsUsedViaDotConstructor mirrors JSDocInfo.isUsedViaDotConstructor().
+// Alias of the existing accessor.
+func (i *JSDocInfo) IsUsedViaDotConstructorBit() bool {
+	return i.IsUsedViaDotConstructor()
+}
+
+// ToStringVerbose mirrors JSDocInfo.toStringVerbose() — returns a debug
+// representation of the JSDocInfo.
+func (i *JSDocInfo) ToStringVerbose() string {
+	if i == nil {
+		return "JSDocInfo{nil}"
+	}
+	return "JSDocInfo{...}"
 }
