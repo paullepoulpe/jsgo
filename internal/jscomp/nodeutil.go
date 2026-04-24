@@ -1228,9 +1228,8 @@ func (nodeUtil) GetRValueOfLValue(n *rhino.Node) *rhino.Node {
 	return nil
 }
 
-// GetRValueFromLValue is an alias for GetRValueOfLValue that accepts the
-// l-value node directly.  Provided as a convenience companion matching the
-// Java naming variant used in some callers.
+// Go-only: language-adapter — alias for GetRValueOfLValue for callers using
+// the alternate Java naming variant.
 func (nodeUtil) GetRValueFromLValue(n *rhino.Node) *rhino.Node {
 	return NU.GetRValueOfLValue(n)
 }
