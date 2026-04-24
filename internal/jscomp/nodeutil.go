@@ -3255,3 +3255,81 @@ func (nodeUtil) GetSourceName(n *rhino.Node) string {
 	}
 	return ""
 }
+
+// ---------------------------------------------------------------------------
+// Visitor / iteration methods ported from Java NodeUtil
+// ---------------------------------------------------------------------------
+
+// Visitor mirrors com.google.javascript.jscomp.NodeUtil.Visitor: a callback
+// invoked for each node during a traversal.
+type Visitor func(node *rhino.Node)
+
+// VisitPreOrder visits all nodes in n's subtree in pre-order (parent before
+// children), calling v for each node. If traverseChildrenPred returns false
+// for a node, its children are skipped.
+// Mirrors NodeUtil.visitPreOrder.
+func (nodeUtil) VisitPreOrder(node *rhino.Node, v Visitor, traverseChildrenPred func(*rhino.Node) bool) {
+	v(node)
+	if traverseChildrenPred(node) {
+		for c := node.FirstChild(); c != nil; c = c.Next() {
+			NU.VisitPreOrder(c, v, traverseChildrenPred)
+		}
+	}
+}
+
+// VisitPostOrder visits all nodes in n's subtree in post-order (children
+// before parent). If traverseChildrenPred returns false for a node, its
+// children are skipped.
+// Mirrors NodeUtil.visitPostOrder.
+func (nodeUtil) VisitPostOrder(node *rhino.Node, v Visitor, traverseChildrenPred func(*rhino.Node) bool) {
+	if traverseChildrenPred(node) {
+		for c := node.FirstChild(); c != nil; {
+			next := c.Next()
+			NU.VisitPostOrder(c, v, traverseChildrenPred)
+			c = next
+		}
+	}
+	v(node)
+}
+
+// GetCount counts how many nodes in the subtree of n satisfy pred, subject to
+// traversal gating by traverseChildrenPred.
+// Mirrors NodeUtil.getCount.
+func (nodeUtil) GetCount(n *rhino.Node, pred func(*rhino.Node) bool, traverseChildrenPred func(*rhino.Node) bool) int {
+	total := 0
+	if pred(n) {
+		total++
+	}
+	if traverseChildrenPred(n) {
+		for c := n.FirstChild(); c != nil; c = c.Next() {
+			total += NU.GetCount(c, pred, traverseChildrenPred)
+		}
+	}
+	return total
+}
+
+// Has reports whether any node in the subtree of n satisfies pred, subject to
+// traversal gating by traverseChildrenPred.
+// Mirrors NodeUtil.has.
+func (nodeUtil) Has(n *rhino.Node, pred func(*rhino.Node) bool, traverseChildrenPred func(*rhino.Node) bool) bool {
+	return nuHas(n, pred, traverseChildrenPred)
+}
+
+// FindPreorder returns the first node (pre-order) in the subtree of n that
+// satisfies pred, or nil. Children of non-matching nodes whose
+// traverseChildrenPred returns false are skipped.
+// Mirrors NodeUtil.findPreorder.
+func (nodeUtil) FindPreorder(n *rhino.Node, pred func(*rhino.Node) bool, traverseChildrenPred func(*rhino.Node) bool) *rhino.Node {
+	if pred(n) {
+		return n
+	}
+	if !traverseChildrenPred(n) {
+		return nil
+	}
+	for c := n.FirstChild(); c != nil; c = c.Next() {
+		if found := NU.FindPreorder(c, pred, traverseChildrenPred); found != nil {
+			return found
+		}
+	}
+	return nil
+}
