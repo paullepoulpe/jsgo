@@ -212,8 +212,8 @@ func (s *TypedScope) IsGlobal() bool {
 	return s == nil || s.parent == nil
 }
 
-// IsLocal reports whether this is a local (non-global) scope.
-// Mirrors AbstractScope.isLocal() in Java.
+// Go-only: language-adapter — IsLocal is a final method on AbstractScope in Java;
+// Go requires explicit implementation on TypedScope since Go has no inheritance.
 func (s *TypedScope) IsLocal() bool {
 	return s != nil && s.parent != nil
 }
@@ -230,8 +230,8 @@ func (s *TypedScope) IsMemberFieldDefScope() bool {
 	return s != nil && s.rootNode != nil && s.rootNode.Token() == rhino.MEMBER_FIELD_DEF
 }
 
-// IsFunctionBlockScope reports whether the root is a function-body block.
-// Mirrors AbstractScope.isFunctionBlockScope() in Java.
+// Go-only: language-adapter — IsFunctionBlockScope is a final method on AbstractScope in Java;
+// Go requires explicit implementation since TypedScope cannot inherit AbstractScope.
 func (s *TypedScope) IsFunctionBlockScope() bool {
 	if s == nil || s.rootNode == nil {
 		return false
@@ -243,14 +243,14 @@ func (s *TypedScope) IsFunctionBlockScope() bool {
 	return p != nil && p.Token() == rhino.FUNCTION
 }
 
-// IsFunctionScope reports whether the root is a FUNCTION node.
-// Mirrors AbstractScope.isFunctionScope() in Java.
+// Go-only: language-adapter — IsFunctionScope is a final method on AbstractScope in Java;
+// Go requires explicit implementation since TypedScope cannot inherit AbstractScope.
 func (s *TypedScope) IsFunctionScope() bool {
 	return s != nil && s.rootNode != nil && s.rootNode.Token() == rhino.FUNCTION
 }
 
-// IsModuleScope reports whether the root is a MODULE_BODY node.
-// Mirrors AbstractScope.isModuleScope() in Java.
+// Go-only: language-adapter — IsModuleScope is a final method on AbstractScope in Java;
+// Go requires explicit implementation since TypedScope cannot inherit AbstractScope.
 func (s *TypedScope) IsModuleScope() bool {
 	return s != nil && s.rootNode != nil && s.rootNode.Token() == rhino.MODULE_BODY
 }
@@ -264,8 +264,8 @@ func (s *TypedScope) IsBlockScope() bool {
 	return nodeCreatesBlockScope(s.rootNode)
 }
 
-// IsCatchScope reports whether this scope is a catch block.
-// Mirrors AbstractScope.isCatchScope() in Java.
+// Go-only: language-adapter — IsCatchScope is a final method on AbstractScope in Java;
+// Go requires explicit implementation since TypedScope cannot inherit AbstractScope.
 func (s *TypedScope) IsCatchScope() bool {
 	if s == nil || s.rootNode == nil || s.rootNode.Token() != rhino.BLOCK {
 		return false
@@ -274,8 +274,8 @@ func (s *TypedScope) IsCatchScope() bool {
 	return len(kids) == 1 && kids[0].Token() == rhino.CATCH
 }
 
-// IsCfgRootScope reports whether this scope's root is a valid CFG root.
-// Mirrors AbstractScope.isCfgRootScope() in Java.
+// Go-only: language-adapter — IsCfgRootScope is a final method on AbstractScope in Java;
+// Go requires explicit implementation since TypedScope cannot inherit AbstractScope.
 func (s *TypedScope) IsCfgRootScope() bool {
 	return nodeIsValidCfgRoot(s.rootNode)
 }
@@ -412,9 +412,8 @@ func (s *TypedScope) GetRootNode() *rhino.Node {
 	return s.rootNode
 }
 
-// IsHoistScope reports whether this scope is a hoist scope (function, global,
-// or module scope — as opposed to a block scope). Mirrors
-// AbstractScope.isHoistScope() in Java.
+// Go-only: language-adapter — IsHoistScope is a final method on AbstractScope in Java;
+// Go requires explicit implementation since TypedScope cannot inherit AbstractScope.
 func (s *TypedScope) IsHoistScope() bool {
 	if s == nil {
 		return false
