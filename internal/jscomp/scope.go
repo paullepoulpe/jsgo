@@ -2253,7 +2253,13 @@ func (c *TypedScopeCreator) hoistVarNamesInto(body *rhino.Node, scope *TypedScop
 			if first := child.FirstChild(); first != nil && NU.IsNameDeclaration(first) {
 				if name := first.FirstChild(); name != nil && name.Token() == rhino.NAME && name.String_() != "" {
 					if _, exists := scope.declared[name.String_()]; !exists {
-						scope.declared[name.String_()] = jstype.Unknown
+						// Java's TypeInference: FOR_IN key is always string type;
+						// FOR_OF key type is the element type (Unknown for now).
+						keyType := jstype.JSType(jstype.Unknown)
+						if child.Token() == rhino.FOR_IN {
+							keyType = jstype.String
+						}
+						scope.declared[name.String_()] = keyType
 					}
 				}
 			}
@@ -2553,7 +2559,14 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 		return
 	}
 	if _, exists := scope.declared[name.String_()]; !exists {
-		scope.declared[name.String_()] = jstype.Unknown
+		// Java's TypeInference assigns the for-in key type as string
+		// (the property names of the object being iterated are strings).
+		// Mirrors TypeInference.java case FOR_IN: iterKeyType = STRING_TYPE.
+		if p := v.Parent(); p != nil && p.Token() == rhino.FOR_IN {
+			scope.declared[name.String_()] = jstype.String
+		} else {
+			scope.declared[name.String_()] = jstype.Unknown
+		}
 	}
 }
 
