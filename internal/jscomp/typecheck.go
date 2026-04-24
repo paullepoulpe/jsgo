@@ -2613,16 +2613,19 @@ func (c *TypeCheck) visitBitOp(n *rhino.Node, scope *TypedScope) []diag.Diagnost
 
 	// Unary BITNOT (~): one operand; emit at the operator node position
 	// to match Java's TypeCheck which points at the BITNOT expression.
-	// Java uses expectBitwiseable for ~, so Object types fire JSC_TYPE_MISMATCH
-	// and void/null/boolean are allowed.
+	// Java fires JSC_BAD_TYPE_FOR_BIT_OPERATION when the operand doesn't
+	// match number context. Void/null/boolean/object types don't match.
 	if n.Token() == rhino.BITNOT {
 		if len(kids) == 0 {
 			return nil
 		}
 		t := infer.InferType(kids[0])
-		if isBitwiseableTypeViolation(t, c.tv.allBitwisableValueTypes) {
-			c.tv.mismatch(n, "bitwise NOT", t, c.tv.allBitwisableValueTypes)
-			out = append(out, c.tvDrain()...)
+		if isDefinitelyNotNumber(t) {
+			out = append(out, diag.Diagnostic{
+				Path: c.path, Line: n.Lineno(), Col: n.Charno(),
+				Code: diag.JSC_BAD_TYPE_FOR_BIT_OPERATION, Level: diag.Error,
+				Message: fmt.Sprintf("operator %s cannot be applied to %s", op, t.TypeName()),
+			})
 		}
 		return out
 	}
@@ -2681,16 +2684,18 @@ func isBitwiseableTypeViolation(t jstype.JSType, bitwiseable jstype.JSType) bool
 	if t == nil || t == jstype.Unknown || t == jstype.All {
 		return false
 	}
-	// JS primitive wrapper objects (Number, Boolean, String) match number/
-	// string/boolean context in Java's type system. Java's JSType.isNumber()
-	// and JSType.matchesNumberContext() return true for Number objects.
-	// We approximate this by name: if the type is named "Number", "Boolean",
-	// or "String" (capital first letter = wrapper object), treat as matching.
-	name := t.TypeName()
-	if name == "Number" || name == "Boolean" || name == "String" {
+	if isBitwisableWrapper(t) {
 		return false
 	}
 	return !tvMatchesNumberContext(t) && !jstype.IsSubtype(t, bitwiseable)
+}
+
+// isBitwisableWrapper reports whether t is a primitive wrapper object that
+// Java considers to match number/boolean/string context (Number, Boolean,
+// String wrapper objects). These are accepted in bitwiseable positions.
+func isBitwisableWrapper(t jstype.JSType) bool {
+	name := t.TypeName()
+	return name == "Number" || name == "Boolean" || name == "String"
 }
 
 // bitOpSymbol returns the textual operator for a bit-op token.
