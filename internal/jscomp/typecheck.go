@@ -1470,6 +1470,15 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 	if obj.HasProperty(propName) {
 		return nil
 	}
+	// `'prop' in obj` narrowing (SRAI caseIn): if the caller guarded
+	// with `if ('prop' in this)` then obj.prop is in the refinement
+	// stack with Unknown type. Suppress JSC_INEXISTENT_PROPERTY inside
+	// such a guard branch. Port of caseIn / inferQualifiedSlot.
+	if qname := qualifiedName(n); qname != "" {
+		if scope.GetQualifiedRefinement(qname) != nil {
+			return nil
+		}
+	}
 	if c.fileSuppressions["missingProperties"] {
 		return nil
 	}
@@ -1708,6 +1717,21 @@ func isInGuardedBranch(n *rhino.Node, recvName, propName string) bool {
 			if len(kids) >= 2 && cur == kids[1] && containsPropTest(kids[0], recvName, propName) {
 				return true
 			}
+		case rhino.OR:
+			// `!x.foo || x.foo()` — RHS is guarded by the LHS NOT test.
+			// Java's isPropertyTest recognises !foo.bar as the left operand
+			// of ||; the RHS access is thus a guarded branch. Port of
+			// SemanticReverseAbstractInterpreter / checkPropertyAccessHelper.
+			kids := p.Children()
+			if len(kids) >= 2 && cur == kids[1] {
+				lhs := kids[0]
+				if lhs.Token() == rhino.NOT {
+					notKids := lhs.Children()
+					if len(notKids) >= 1 && containsPropTest(notKids[0], recvName, propName) {
+						return true
+					}
+				}
+			}
 		case rhino.IF:
 			kids := p.Children()
 			if len(kids) >= 2 && cur == kids[1] && containsPropTest(kids[0], recvName, propName) {
@@ -1731,8 +1755,16 @@ func (c *TypeCheck) checkPossibleInexistent(n, recvNode *rhino.Node, propName st
 	if isAssignLHS(n) {
 		return nil
 	}
-	if p := n.Parent(); p != nil && p.Token() == rhino.EXPR_RESULT {
-		return nil
+	if p := n.Parent(); p != nil {
+		switch p.Token() {
+		case rhino.EXPR_RESULT:
+			return nil
+		case rhino.CAST:
+			// `/** @type {T} */ (x.prop)` — the explicit cast overrides the
+			// type; suppress the existence check. Port of Java's visitCast
+			// suppressing the property check when a JSDoc cast is present.
+			return nil
+		}
 	}
 	if isPropertyExistenceOrAbsenceTest(n) {
 		return nil

@@ -599,14 +599,27 @@ func narrowingTarget(cond *rhino.Node, whenTruthy bool) (string, func(jstype.JST
 		return "", nil
 	}
 	if isNullCheck(cond) {
-		name, equalToNull := nullCheckTarget(cond)
+		name, equalToNull, strict, nullLit := nullCheckTarget(cond)
 		if name == "" {
 			return "", nil
 		}
 		// `x == null` truthy → x narrows to null/undefined; falsy →
-		// x narrows to non-null/non-undefined.
-		// `x != null` is the mirror.
+		// x narrows to non-null/non-undefined. Strict === only keeps/strips
+		// the specific literal (null or undefined, not both).
+		// Port of SemanticReverseAbstractInterpreter.caseEquality.
 		isNull := equalToNull == whenTruthy
+		if strict {
+			if isNull {
+				if nullLit {
+					return name, keepNull
+				}
+				return name, keepVoid
+			}
+			if nullLit {
+				return name, stripNull
+			}
+			return name, stripVoid
+		}
 		if isNull {
 			return name, keepNullUndef
 		}
@@ -648,28 +661,42 @@ func isNullCheck(n *rhino.Node) bool {
 	return false
 }
 
-// nullCheckTarget returns (name, equal) for a null-check comparison:
-// `name` is the NAME being compared, `equal` is true when the operator
-// is `==` / `===` (checking equality) and false for `!=` / `!==`.
-func nullCheckTarget(n *rhino.Node) (string, bool) {
+// nullCheckTarget returns (name, equal, strict, nullLit) for a null-check
+// comparison where `name` is the NAME or dotted qualified name being
+// compared, `equal` is true when the operator is `==` / `===`, `strict`
+// is true for `===` / `!==`, and `nullLit` is true when the literal is
+// `null` (false for `undefined`). Accepts both NAME and GETPROP operands.
+// Port of SemanticReverseAbstractInterpreter.caseEquality / eq / sheq.
+func nullCheckTarget(n *rhino.Node) (name string, equal bool, strict bool, nullLit bool) {
 	kids := n.Children()
 	if len(kids) != 2 {
-		return "", false
+		return "", false, false, false
 	}
-	var nameNode *rhino.Node
+	var nameNode, litNode *rhino.Node
 	switch {
 	case isNullOrUndefinedLiteral(kids[0]):
-		nameNode = kids[1]
+		litNode, nameNode = kids[0], kids[1]
 	case isNullOrUndefinedLiteral(kids[1]):
-		nameNode = kids[0]
+		litNode, nameNode = kids[1], kids[0]
 	default:
-		return "", false
+		return "", false, false, false
 	}
-	if nameNode == nil || nameNode.Token() != rhino.NAME {
-		return "", false
+	if nameNode == nil {
+		return "", false, false, false
 	}
-	equal := n.Token() == rhino.EQ || n.Token() == rhino.SHEQ
-	return nameNode.String_(), equal
+	eq := n.Token() == rhino.EQ || n.Token() == rhino.SHEQ
+	str := n.Token() == rhino.SHEQ || n.Token() == rhino.SHNE
+	isNull := litNode.Token() == rhino.NULL
+	switch nameNode.Token() {
+	case rhino.NAME:
+		return nameNode.String_(), eq, str, isNull
+	case rhino.GETPROP:
+		// Allow GETPROP chains: `x.y == null` narrows "x.y".
+		if qname := qualifiedName(nameNode); qname != "" {
+			return qname, eq, str, isNull
+		}
+	}
+	return "", false, false, false
 }
 
 func isNullOrUndefinedLiteral(n *rhino.Node) bool {
@@ -682,7 +709,9 @@ func isNullOrUndefinedLiteral(n *rhino.Node) bool {
 // typeofCheckTarget returns (name, primitiveName, equal) when `cond` is
 // `typeof X === 'prim'` / `'prim' === typeof X` / `typeof X == 'prim'`
 // or the != / !== mirrors. `equal` is true for == / ===; false for
-// != / !==. Otherwise returns ("", "", false).
+// != / !==. `name` may be a dotted qualified name when X is a GETPROP
+// chain (e.g. "x.foo"). Otherwise returns ("", "", false).
+// Port of SemanticReverseAbstractInterpreter.caseTypeOf.
 func typeofCheckTarget(cond *rhino.Node) (string, string, bool) {
 	if cond == nil {
 		return "", "", false
@@ -706,11 +735,23 @@ func typeofCheckTarget(cond *rhino.Node) (string, string, bool) {
 		return "", "", false
 	}
 	target := typeofNode.FirstChild()
-	if target == nil || target.Token() != rhino.NAME {
+	if target == nil {
 		return "", "", false
 	}
 	equal := cond.Token() == rhino.EQ || cond.Token() == rhino.SHEQ
-	return target.String_(), strNode.String_(), equal
+	// Accept both NAME and GETPROP chains as narrowing targets.
+	// For GETPROP, return the qualified dotted name (e.g. "x.foo").
+	switch target.Token() {
+	case rhino.NAME:
+		return target.String_(), strNode.String_(), equal
+	case rhino.GETPROP:
+		// qualifiedName is defined in refinement.go; both files are in
+		// the same package so it is accessible here.
+		if qname := qualifiedName(target); qname != "" {
+			return qname, strNode.String_(), equal
+		}
+	}
+	return "", "", false
 }
 
 // primitiveByName maps the result of `typeof` to the matching jstype
@@ -1125,6 +1166,126 @@ func keepNullUndef(t jstype.JSType) jstype.JSType {
 		return t
 	}
 	return jstype.Void
+}
+
+// keepNull keeps only the null member of a union — used when a strict
+// `x === null` asserts equality, narrowing x to just null (not undefined).
+// Port of getTypesUnderShallowEquality / TypePair for null literal.
+func keepNull(t jstype.JSType) jstype.JSType {
+	if u, ok := t.(*jstype.UnionType); ok {
+		for _, m := range u.Members() {
+			if m == jstype.Null {
+				return jstype.Null
+			}
+		}
+		return jstype.Null // conservative
+	}
+	if t == jstype.Null {
+		return t
+	}
+	return jstype.Null
+}
+
+// stripNull removes only the null member from a union, leaving void
+// (undefined) in place — used by `x !== null` strict inequality
+// narrowing. Port of getTypesUnderShallowInequality for null.
+func stripNull(t jstype.JSType) jstype.JSType {
+	if u, ok := t.(*jstype.UnionType); ok {
+		var kept []jstype.JSType
+		for _, m := range u.Members() {
+			if m != jstype.Null {
+				kept = append(kept, m)
+			}
+		}
+		if len(kept) == 0 {
+			return nil
+		}
+		if len(kept) == 1 {
+			return kept[0]
+		}
+		return jstype.NewUnion(kept...)
+	}
+	if t == jstype.Null {
+		return nil
+	}
+	return t
+}
+
+// stripVoid removes only the void (undefined) member from a union —
+// used by `x !== undefined` strict inequality narrowing.
+func stripVoid(t jstype.JSType) jstype.JSType {
+	if u, ok := t.(*jstype.UnionType); ok {
+		var kept []jstype.JSType
+		for _, m := range u.Members() {
+			if m != jstype.Void {
+				kept = append(kept, m)
+			}
+		}
+		if len(kept) == 0 {
+			return nil
+		}
+		if len(kept) == 1 {
+			return kept[0]
+		}
+		return jstype.NewUnion(kept...)
+	}
+	if t == jstype.Void {
+		return nil
+	}
+	return t
+}
+
+// keepVoid keeps only the void (undefined) member — used when a strict
+// `x === undefined` assertion holds.
+func keepVoid(t jstype.JSType) jstype.JSType {
+	if u, ok := t.(*jstype.UnionType); ok {
+		for _, m := range u.Members() {
+			if m == jstype.Void {
+				return jstype.Void
+			}
+		}
+		return jstype.Void // conservative
+	}
+	if t == jstype.Void {
+		return t
+	}
+	return jstype.Void
+}
+
+// removeFromUnion removes instances of `remove` from `t` if `t` is a
+// union; for non-unions returns nil when t == remove, t otherwise.
+// Used by the instanceof false-branch narrowing to remove the instance
+// type from a union. Port of RestrictByFalseInstanceOfResultVisitor.
+func removeFromUnion(t jstype.JSType, remove *jstype.ObjectType) jstype.JSType {
+	u, ok := t.(*jstype.UnionType)
+	if !ok {
+		if t == remove {
+			return nil
+		}
+		obj, isObj := t.(*jstype.ObjectType)
+		if isObj && jstype.IsSubtype(obj, remove) {
+			return nil
+		}
+		return t
+	}
+	var kept []jstype.JSType
+	for _, m := range u.Members() {
+		obj, isObj := m.(*jstype.ObjectType)
+		if isObj && jstype.IsSubtype(obj, remove) {
+			continue // remove — this member is an instance of target
+		}
+		if m == remove {
+			continue
+		}
+		kept = append(kept, m)
+	}
+	if len(kept) == 0 {
+		return nil
+	}
+	if len(kept) == 1 {
+		return kept[0]
+	}
+	return jstype.NewUnion(kept...)
 }
 
 // inferGetElem mirrors TypeInference.java's GETELEM / inferGetElemType

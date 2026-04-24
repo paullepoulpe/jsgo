@@ -1,7 +1,6 @@
 // Port of fragment of com/google/javascript/jscomp/TypeInference.java +
-// com/google/javascript/jscomp/SemanticReverseAbstractInterpreter.java
-// @ closure-compiler v20260415 (narrow; no AND/OR sub-refinement,
-// no aliasing, no .property refinement).
+// com/google/javascript/jscomp/type/SemanticReverseAbstractInterpreter.java
+// @ closure-compiler v20260415.
 //
 // Java's SemanticReverseAbstractInterpreter walks the boolean
 // expression tree of an if/hook condition and produces a refined
@@ -11,20 +10,20 @@
 // Recognised condition forms:
 //
 //   x                                     – truthy branch strips falsy from x
-//   x == null / x === null               – truthy keeps null/undef on x
-//   x != null / x !== null               – truthy strips null/undef on x
+//   x == null / x === null               – truthy keeps null/undef (== loose) or null (=== strict)
+//   x != null / x !== null               – truthy strips null/undef (!=) or null (!==)
 //   typeof x === 'string'/'number'/...   – truthy narrows x to the named primitive
-//   x instanceof Foo                      – truthy narrows x to Foo's instance type
+//   x instanceof Foo                      – truthy narrows x to Foo's instance type;
+//                                          falsy removes Foo from a union (SRAI caseInstanceOf)
+//   'prop' in obj                         – truthy records obj.prop as Unknown (SRAI caseIn)
 //   !cond                                  – flips the refinement direction
 //   cond1 && cond2                        – combines cond1 and cond2 in the truthy branch
-//
-// More elaborate AND / OR / parenthesised-conjunction handling lands
-// with the full SRAI port; the current set covers the most common
-// guard shapes the corpus exercises.
 
 package jscomp
 
 import (
+	"strings"
+
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/rhino/jstype"
 )
@@ -141,28 +140,76 @@ func collectRefinements(scope *TypedScope, cond *rhino.Node, whenTruthy bool, ou
 		return
 	}
 	if isNullCheck(cond) {
-		name, equalToNull := nullCheckTarget(cond)
+		name, equalToNull, strict, nullLit := nullCheckTarget(cond)
 		if name == "" {
+			return
+		}
+		// For GETPROP qualified names (e.g. "x.y"), we can't look up the
+		// declared type from the scope chain. Instead, record a refinement
+		// that suppresses inexistent-property errors when the check shows
+		// the property is non-null/non-undefined. Port of SRAI caseEquality
+		// for GETPROP via inferQualifiedSlot → Unknown.
+		if strings.Contains(name, ".") {
+			isNull := equalToNull == whenTruthy
+			if !isNull {
+				// `x.y != null` or `x.y !== null` truthy: property exists.
+				out[name] = jstype.Unknown
+			}
 			return
 		}
 		t := scope.GetDeclaredType(name)
 		if t == nil {
 			return
 		}
+		// `x === null` truthy → keep only null; `x !== null` truthy → strip null.
+		// `x == null` truthy → keep null+undefined; `x != null` truthy → strip both.
+		// Port of SemanticReverseAbstractInterpreter.caseEquality / eq / sheq.
 		isNull := equalToNull == whenTruthy
-		if isNull {
-			out[name] = keepNullUndef(t)
-		} else if narrowed := stripNullUndef(t); narrowed != nil {
-			out[name] = narrowed
+		if strict {
+			if isNull {
+				if nullLit {
+					out[name] = keepNull(t)
+				} else {
+					out[name] = keepVoid(t)
+				}
+			} else {
+				var narrowed jstype.JSType
+				if nullLit {
+					narrowed = stripNull(t)
+				} else {
+					narrowed = stripVoid(t)
+				}
+				if narrowed != nil {
+					out[name] = narrowed
+				}
+			}
+		} else {
+			if isNull {
+				out[name] = keepNullUndef(t)
+			} else if narrowed := stripNullUndef(t); narrowed != nil {
+				out[name] = narrowed
+			}
 		}
 		return
 	}
 	if name, primName, equal := typeofCheckTarget(cond); name != "" {
+		matchesPositive := equal == whenTruthy
+		// For GETPROP qualified names (e.g. "x.foo"), the declared type
+		// is not in the scope chain; instead we use the refinement to
+		// record that the property exists (Unknown) on the falsy branch
+		// of `typeof x.foo == 'undefined'` (i.e. after the guard throws).
+		// Port of SRAI caseTypeOf for GETPROP targets.
+		if strings.Contains(name, ".") {
+			if primName == "undefined" && !matchesPositive {
+				// Negated: typeof x.foo != 'undefined' — property is defined.
+				out[name] = jstype.Unknown
+			}
+			return
+		}
 		t := scope.GetDeclaredType(name)
 		if t == nil {
 			return
 		}
-		matchesPositive := equal == whenTruthy
 		// `typeof x == 'object'` is a special case — narrows to
 		// null plus object-ish members on the truthy branch, and
 		// strips those on the falsy branch. Matches Java's
@@ -187,13 +234,34 @@ func collectRefinements(scope *TypedScope, cond *rhino.Node, whenTruthy bool, ou
 		return
 	}
 	if name, target := instanceofCheckTarget(scope, cond); name != "" {
-		// `x instanceof Foo` truthy → x narrows to Foo's instance.
-		// On the falsy branch we can't easily express "anything except
-		// Foo" so we leave x alone.
+		// `x instanceof Foo` truthy → x narrows to Foo's instance type.
+		// `x instanceof Foo` falsy → remove Foo's instance type from the
+		// union when x is a union. Port of caseInstanceOf +
+		// RestrictByFalseInstanceOfResultVisitor from SRAI.
 		if whenTruthy {
 			out[name] = target
+		} else {
+			t := scope.GetDeclaredType(name)
+			if t != nil {
+				if narrowed := removeFromUnion(t, target); narrowed != nil {
+					out[name] = narrowed
+				}
+			}
 		}
 		return
+	}
+	// `'prop' in obj` (truthy) — add obj.prop as a refinement with
+	// Unknown type so JSC_INEXISTENT_PROPERTY is suppressed inside the
+	// branch. Port of SemanticReverseAbstractInterpreter.caseIn.
+	if cond.Token() == rhino.IN && whenTruthy {
+		kids := cond.Children()
+		if len(kids) == 2 && kids[0].Token() == rhino.STRINGLIT {
+			propName := kids[0].String_()
+			obj := kids[1]
+			if qname := qualifiedName(obj); qname != "" {
+				out[qname+"."+propName] = jstype.Unknown
+			}
+		}
 	}
 }
 
