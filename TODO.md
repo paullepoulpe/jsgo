@@ -987,3 +987,57 @@ entries resolve.
   Java tag is bumped, to keep `internal/jscomp/skel/` in sync.
   Add missing generators for `CheckExtraRequiresPassConfig`,
   `Config`/`ParserConfiguration`, `parsing/parser/trees/*`.
+
+## 7. Upstream unit-test corpus port
+
+Until now, jsgo was measured only at pipeline output (the 1444
+`TypeCheckTest.java` fixtures in `testdata/fixtures/`). That
+conflates defects in parser, IRFactory, scope creation, and type
+checking into a single pass/fail signal, which means regressions
+in the middle layers are invisible until they leak all the way to
+the diagnostic surface.
+
+Every Java file under `src/com/google/javascript/jscomp/…` has a
+sibling under `test/com/google/javascript/jscomp/…` that exercises
+it directly with JUnit assertions. Port these 1:1 to Go table-tests
+so each middle layer has its own pass/fail signal.
+
+Fetch from `https://raw.githubusercontent.com/google/closure-compiler/v20260415/test/com/google/javascript/jscomp/<X>Test.java`
+(fall back to `master` if the tagged tree has moved).
+
+### 7.1 Priority test files
+
+| Priority | Java test file | Go target | Pairs with |
+|---|---|---|---|
+| **T0** | `parsing/parser/ParserTest.java` | `internal/parser/parser_test.go` | `parser_new.go`, `parser_statements.go`, `scanner.go` (new 1:1 port — zero unit coverage today) |
+| **T0** | `parsing/IRFactoryTest.java` | `internal/jscomp/parsing/irfactory_test.go` | `irfactory.go` (#140/#147 — fresh port, zero unit coverage) |
+| **T1** | `NodeUtilTest.java` | `internal/jscomp/nodeutil_test.go` | `nodeutil.go` |
+| **T1** | `NodeTraversalTest.java` | `internal/jscomp/nodetraversal_test.go` | `nodetraversal.go` |
+| **T1** | `ScopeTest.java` + `TypedScopeCreatorTest.java` | `internal/jscomp/scope_test.go`, `typedscopecreator_test.go` | `scope.go`, in-flight #155 split |
+| **T1** | `rhino/jstype/JSTypeRegistryTest.java` | `internal/rhino/jstype/registry_test.go` | `registry.go` |
+| **T2** | `TypeInferenceTest.java` | `internal/jscomp/inference_test.go` | `inference.go` |
+| **T2** | `SemanticReverseAbstractInterpreterTest.java` | `internal/jscomp/refinement_test.go` | `refinement.go`, `semanticrai.go` |
+| **T2** | `TypeValidatorTest.java` | `internal/jscomp/typevalidator_test.go` | `typevalidator.go` |
+| **T2** | `VarCheckTest.java` + `VariableReferenceCheckTest.java` | `varcheck_test.go`, `varrefcheck_test.go` | `varcheck.go`, `varrefcheck.go` |
+| **T3** | `ControlFlowAnalysisTest.java` + `DataFlowAnalysisTest.java` | `controlflowanalysis_test.go`, `dataflow_test.go` | `controlflowanalysis.go`, `dataflow.go` |
+| **T3** | `parsing/JsDocInfoParserTest.java` | `internal/rhino/jsdoc_info_parser_test.go` | `jsdoc_info_parser.go` |
+| **T3** | `CheckMissingRequiresTest.java` + `CheckJsDocTest.java` | `checkmissingrequires_test.go`, `checkjsdoc_test.go` | `checkmissingrequires.go`, `checkjsdoc.go` |
+
+### 7.2 Porting rules
+
+- **1:1 with Java.** Each `@Test` method → `TestXxx` with the same
+  Go-cased name. Preserve assertion order, input strings verbatim,
+  and expected error messages.
+- **Table tests only when the Java uses parameterised cases.**
+  Otherwise keep them as discrete methods to match the Java reader.
+- **Top-of-file header:** `// Port of test/com/google/javascript/jscomp/<X>Test.java @ closure-compiler v20260415`
+  (same header rule as src ports, enforced by `scripts/ci-guards.sh`).
+- **Shared test helpers** (e.g. `CompilerTypeTestCase`) are ported
+  as needed into sibling `*_test_helpers.go` files, re-using what
+  `harness/` already provides where possible.
+- **Regressions are OK.** A freshly-ported unit test file may have
+  many failing cases at landing; that is the whole point — we need
+  the pass/fail signal at each layer. Mark failing cases with
+  `t.Skip("port gap: <short reason>")` so the test file compiles
+  and runs cleanly, then close the gaps incrementally.
+

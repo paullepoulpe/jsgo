@@ -5,21 +5,20 @@
 //   - the // Port of <java-path> @ v20260415 (skeleton) header
 //     required by ci-guards.sh
 //   - the target package declaration
-//   - a struct for each top-level class (fields translated via a
-//     small type-name mapping)
+//   - a struct for each top-level class and inner class (prefixed
+//     with the outer class name, e.g., OuterInner)
 //   - a method stub for every public / package / protected method,
 //     with the original javadoc preserved above it
-//   - a // TODO: port-body marker in each stub body so `go vet` /
-//     `go build` still pass while the human fills them in
-//
-// The parser is intentionally regex-based — it handles the regular
-// shape of closure-compiler files (`final class X extends Y
-// implements Z { … }`, one class per file, javadoc immediately
-// preceding each declaration) and falls back to // TODO: manual
-// translation comments on anything complex (anonymous classes,
-// deeply-nested generics, switch-with-arrow-body). The goal isn't
-// a correct translation — it's a starting skeleton so the human
-// can focus on the logic, not the boilerplate.
+//   - a panic("unimplemented: …") in each untranslated stub body so
+//     missing ports surface loudly at runtime
+//   - // @ <java-path>:<line> pin comments on each method
+//   - Go generics for Java generic type parameters
+//   - Guava/JDK collection types mapped to Go equivalents
+//   - AutoValue @AutoValue classes → struct + factory
+//   - enum-with-methods → interface + per-constant struct
+//   - Java import → Go import block via package mapping table
+//   - per-class translation cache in .javaport-cache/<hash>.json
+//   - Javadoc /** */ → Go // doc comments
 //
 // Usage:
 //
@@ -27,16 +26,12 @@
 //	    -in  .cache/closure-src/com/google/javascript/jscomp/CheckJSDoc.java \
 //	    -out internal/jscomp/checkjsdoc.go \
 //	    -pkg jscomp
-//
-// Not ported:
-//   - full method bodies — emit a // TODO: port body comment
-//   - nested / anonymous classes — flagged with // TODO: nested class
-//   - static initializers, enums with methods, AutoValue / @AutoBuilder
-//   - visitor-pattern dispatch tables (requires per-target Node enum)
 
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -47,11 +42,16 @@ import (
 	"github.com/paullepoulpe/jsgo/tools/javaport/javaast"
 )
 
+// javaportVersion is bumped whenever the generator logic changes to
+// invalidate stale cache entries.
+const javaportVersion = "2"
+
 func main() {
 	inPath := flag.String("in", "", "java source file (required)")
 	outPath := flag.String("out", "", "go output file (required)")
 	pkg := flag.String("pkg", "jscomp", "go package name")
 	buildTag := flag.String("build-tag", "", "add a //go:build <tag> constraint so the file is excluded from the default build")
+	cacheDir := flag.String("cache-dir", ".javaport-cache", "directory for translation cache")
 	flag.Parse()
 	if *inPath == "" || *outPath == "" {
 		fmt.Fprintln(os.Stderr, "usage: javaport -in <foo.java> -out <foo.go> [-pkg <name>] [-build-tag <tag>]")
@@ -67,6 +67,22 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
+
+	// #171 — check translation cache before doing work.
+	cacheKey := computeCacheKey(src)
+	if cached := loadCache(*cacheDir, cacheKey); cached != "" {
+		if err := os.MkdirAll(filepath.Dir(*outPath), 0o755); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+		if err := os.WriteFile(*outPath, []byte(cached), 0o644); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+		fmt.Printf("wrote %s (%d bytes) [cache hit]\n", *outPath, len(cached))
+		return
+	}
+
 	out := generateSkeleton(string(src), javaPath, *pkg, *buildTag)
 	if err := os.MkdirAll(filepath.Dir(*outPath), 0o755); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -76,7 +92,48 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
+	saveCache(*cacheDir, cacheKey, out)
 	fmt.Printf("wrote %s (%d bytes)\n", *outPath, len(out))
+}
+
+// ── #171 translation cache ──────────────────────────────────────────────────
+
+type cacheEntry struct {
+	Version string `json:"version"`
+	Output  string `json:"output"`
+}
+
+func computeCacheKey(src []byte) string {
+	h := sha256.Sum256(src)
+	return fmt.Sprintf("%x", h)
+}
+
+func cacheFilePath(dir, key string) string {
+	return filepath.Join(dir, key[:2], key+".json")
+}
+
+func loadCache(dir, key string) string {
+	data, err := os.ReadFile(cacheFilePath(dir, key))
+	if err != nil {
+		return ""
+	}
+	var e cacheEntry
+	if err := json.Unmarshal(data, &e); err != nil {
+		return ""
+	}
+	if e.Version != javaportVersion {
+		return ""
+	}
+	return e.Output
+}
+
+func saveCache(dir, key, output string) {
+	path := cacheFilePath(dir, key)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return
+	}
+	data, _ := json.Marshal(cacheEntry{Version: javaportVersion, Output: output})
+	_ = os.WriteFile(path, data, 0o644)
 }
 
 // relToSrcRoot returns the Java file's package-relative path — the
@@ -98,7 +155,7 @@ func relToSrcRoot(p string) (string, error) {
 
 // generateSkeleton drives the pipeline: strip comments, detect the
 // class declaration, emit the Port-of header, translate fields +
-// method signatures, write // TODO: port-body bodies.
+// method signatures, write panic("unimplemented") bodies.
 func generateSkeleton(src, javaPath, pkg, buildTag string) string {
 	var b strings.Builder
 	if buildTag != "" {
@@ -106,15 +163,21 @@ func generateSkeleton(src, javaPath, pkg, buildTag string) string {
 	}
 	b.WriteString(headerFor(javaPath))
 	b.WriteString("\npackage " + pkg + "\n\n")
-	b.WriteString(importBlockFor(src))
+	b.WriteString(importBlockFor(src, javaPath))
 	cls := parseClass(src)
 	if cls == nil {
 		b.WriteString("// TODO: manual — no top-level class found in source\n")
 		return b.String()
 	}
 	b.WriteString(emitDiagnosticConsts(cls, src))
+	b.WriteString(emitEnum(cls, javaPath))
+	b.WriteString(emitAutoValue(cls, javaPath))
 	b.WriteString(emitStruct(cls))
-	b.WriteString(emitMethods(cls))
+	b.WriteString(emitMethods(cls, javaPath))
+	// #162 — emit inner classes
+	for _, inner := range cls.innerClasses {
+		b.WriteString(emitInnerClass(cls.name, inner, javaPath))
+	}
 	return b.String()
 }
 
@@ -132,25 +195,46 @@ func headerFor(javaPath string) string {
 		"// Hand-edit freely — re-running the generator will overwrite.\n"
 }
 
+// ── Data structures ──────────────────────────────────────────────────────────
+
 // classDecl captures the parsed shape of a Java top-level class.
-// Only the surface used for Go skeleton emission is retained —
-// inner classes, enums and generics land as // TODO: comments.
 type classDecl struct {
-	name     string
-	javadoc  string
-	modifier string // "final" / "abstract" / ""
-	extends  string
-	implList []string
-	fields   []fieldDecl
-	methods  []methodDecl
-	body     string
+	name         string
+	javadoc      string
+	modifier     string // "final" / "abstract" / ""
+	extends      string
+	implList     []string
+	fields       []fieldDecl
+	methods      []methodDecl
+	body         string
+	isAutoValue  bool
+	isEnum       bool
+	enumConsts   []enumConst
+	innerClasses []*classDecl
+	// #170 — source line of class declaration
+	sourceLine int
+	// #166 — generic type parameters
+	typeParams []typeParam
+}
+
+// #163 — enum constant (may carry method bodies)
+type enumConst struct {
+	name    string
+	javadoc string
+	body    string // non-empty if constant has anonymous-class body
+}
+
+// #166 — generic type parameter
+type typeParam struct {
+	name  string
+	bound string // "" means "any"
 }
 
 type fieldDecl struct {
-	javadoc    string
-	modifiers  string // "private final", "public static", …
-	typeName   string
-	name       string
+	javadoc     string
+	modifiers   string // "private final", "public static", …
+	typeName    string
+	name        string
 	initialiser string // raw rhs text, empty when absent
 }
 
@@ -162,6 +246,7 @@ type methodDecl struct {
 	params     []paramDecl
 	throws     string
 	body       string // raw body text (including braces)
+	sourceLine int    // #170
 }
 
 type paramDecl struct {
@@ -169,16 +254,45 @@ type paramDecl struct {
 	name     string
 }
 
-// classHeadRe matches the top-level class declaration line. `final
-// class CheckJSDoc extends AbstractPostOrderCallback implements
-// CompilerPass {` etc.
+// ── Java source parsing ──────────────────────────────────────────────────────
+
+// classHeadRe matches the top-level class declaration line.
 var classHeadRe = regexp.MustCompile(
 	`(?m)^\s*(?:public\s+|private\s+|protected\s+)?(?:(abstract|final)\s+)?class\s+(\w+)` +
+		`(?:\s*<([^{>]+)>)?` +
 		`(?:\s+extends\s+([\w.<>,\s]+?))?` +
 		`(?:\s+implements\s+([\w.<>,\s]+?))?` +
 		`\s*\{`)
 
+// enumHeadRe matches Java enum declarations.
+var enumHeadRe = regexp.MustCompile(
+	`(?m)^\s*(?:public\s+|private\s+|protected\s+)?enum\s+(\w+)` +
+		`(?:\s+implements\s+([\w.<>,\s]+?))?` +
+		`\s*\{`)
+
 func parseClass(src string) *classDecl {
+	// Check for enum first
+	if em := enumHeadRe.FindStringSubmatchIndex(src); em != nil {
+		cls := &classDecl{
+			name:   src[em[2]:em[3]],
+			isEnum: true,
+		}
+		if em[4] != -1 {
+			for _, p := range strings.Split(src[em[4]:em[5]], ",") {
+				cls.implList = append(cls.implList, strings.TrimSpace(p))
+			}
+		}
+		cls.javadoc = javadocBefore(src, em[0])
+		cls.sourceLine = lineNumber(src, em[0])
+		body, ok := braceBody(src, em[1]-1)
+		if ok {
+			cls.body = body
+			cls.enumConsts = parseEnumConsts(body)
+			_, cls.methods = parseBody(body)
+		}
+		return cls
+	}
+
 	m := classHeadRe.FindStringSubmatchIndex(src)
 	if m == nil {
 		return nil
@@ -189,32 +303,269 @@ func parseClass(src string) *classDecl {
 	if m[2] != -1 {
 		cls.modifier = strings.TrimSpace(src[m[2]:m[3]])
 	}
+	// #166 — type parameters
 	if m[6] != -1 {
-		cls.extends = strings.TrimSpace(src[m[6]:m[7]])
+		cls.typeParams = parseTypeParams(src[m[6]:m[7]])
 	}
 	if m[8] != -1 {
-		for _, p := range strings.Split(src[m[8]:m[9]], ",") {
+		cls.extends = strings.TrimSpace(src[m[8]:m[9]])
+	}
+	if m[10] != -1 {
+		for _, p := range strings.Split(src[m[10]:m[11]], ",") {
 			cls.implList = append(cls.implList, strings.TrimSpace(p))
 		}
 	}
-	// Class javadoc is the /** … */ comment immediately preceding
-	// the declaration. Walk backwards.
 	cls.javadoc = javadocBefore(src, m[0])
-	// Top-level body is the braces balanced from m[1] onward.
+	cls.sourceLine = lineNumber(src, m[0])
+	// #168 — detect @AutoValue
+	cls.isAutoValue = strings.Contains(javadocBefore(src, m[0]), "@AutoValue") ||
+		strings.Contains(src[:m[0]], "@AutoValue")
+
 	body, ok := braceBody(src, m[1]-1)
 	if !ok {
 		return cls
 	}
 	cls.body = body
 	cls.fields, cls.methods = parseBody(body)
+	// #162 — parse inner classes
+	cls.innerClasses = parseInnerClasses(body)
 	return cls
 }
 
+// parseTypeParams parses `T extends Foo, K, V` into []typeParam.
+// #166
+func parseTypeParams(s string) []typeParam {
+	var out []typeParam
+	parts := splitTopLevel(s, ',')
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		// Handle wildcard ?
+		if p == "?" {
+			out = append(out, typeParam{name: "T", bound: "any"})
+			continue
+		}
+		if strings.HasPrefix(p, "? extends ") {
+			bound := javaToGoType(strings.TrimPrefix(p, "? extends "))
+			out = append(out, typeParam{name: "T", bound: bound})
+			continue
+		}
+		if strings.HasPrefix(p, "? super ") {
+			// Go has no contravariance — drop bound
+			out = append(out, typeParam{name: "T", bound: "any"})
+			continue
+		}
+		if idx := strings.Index(p, " extends "); idx >= 0 {
+			name := strings.TrimSpace(p[:idx])
+			bound := javaToGoType(strings.TrimSpace(p[idx+len(" extends "):]))
+			out = append(out, typeParam{name: name, bound: bound})
+			continue
+		}
+		out = append(out, typeParam{name: p, bound: "any"})
+	}
+	return out
+}
+
+// typeParamsGoString formats []typeParam as `[T any, K comparable, V any]`.
+// Returns "" when params is empty.
+func typeParamsGoString(params []typeParam) string {
+	if len(params) == 0 {
+		return ""
+	}
+	var parts []string
+	for _, tp := range params {
+		if tp.bound == "" || tp.bound == "any" {
+			parts = append(parts, tp.name+" any")
+		} else {
+			parts = append(parts, tp.name+" "+tp.bound)
+		}
+	}
+	return "[" + strings.Join(parts, ", ") + "]"
+}
+
+// splitTopLevel splits s at every sep that is at nesting depth 0.
+func splitTopLevel(s string, sep rune) []string {
+	depth := 0
+	var out []string
+	start := 0
+	for i, r := range s {
+		switch r {
+		case '<', '(', '[':
+			depth++
+		case '>', ')', ']':
+			depth--
+		case sep:
+			if depth == 0 {
+				out = append(out, s[start:i])
+				start = i + 1
+			}
+		}
+	}
+	out = append(out, s[start:])
+	return out
+}
+
+// lineNumber returns the 1-based line number of offset pos in src.
+func lineNumber(src string, pos int) int {
+	return strings.Count(src[:pos], "\n") + 1
+}
+
+// #163 — parse enum constants from the body.
+// Handles both simple `A, B, C` and method-carrying `A { ... }`.
+func parseEnumConsts(body string) []enumConst {
+	// Enum body: constants first, then optionally `;` separating methods.
+	semiIdx := -1
+	depth := 0
+	for i := 0; i < len(body); i++ {
+		switch body[i] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+		case ';':
+			if depth == 0 {
+				semiIdx = i
+				break
+			}
+		}
+		if semiIdx >= 0 {
+			break
+		}
+	}
+	constPart := body
+	if semiIdx >= 0 {
+		constPart = body[:semiIdx]
+	}
+
+	var consts []enumConst
+	i := 0
+	for i < len(constPart) {
+		i = skipWS(constPart, i)
+		if i >= len(constPart) {
+			break
+		}
+		// Skip comments
+		if strings.HasPrefix(constPart[i:], "//") {
+			nl := strings.Index(constPart[i:], "\n")
+			if nl < 0 {
+				break
+			}
+			i += nl + 1
+			continue
+		}
+		if strings.HasPrefix(constPart[i:], "/*") {
+			end := strings.Index(constPart[i:], "*/")
+			if end < 0 {
+				break
+			}
+			i += end + 2
+			continue
+		}
+		// Read constant name
+		doc := javadocBefore(constPart, i)
+		j := i
+		for j < len(constPart) && isJavaIdentChar(constPart[j]) {
+			j++
+		}
+		if j == i {
+			break
+		}
+		name := constPart[i:j]
+		i = j
+		i = skipWS(constPart, i)
+		// Skip constructor args if present
+		if i < len(constPart) && constPart[i] == '(' {
+			_, end2 := findMatchingParen(constPart, i)
+			if end2 >= 0 {
+				i = end2 + 1
+			}
+		}
+		i = skipWS(constPart, i)
+		// Check for anonymous class body
+		var constBody string
+		if i < len(constPart) && constPart[i] == '{' {
+			var ok bool
+			constBody, ok = braceBody(constPart, i)
+			if ok {
+				i += 2 + len(constBody)
+			}
+		}
+		consts = append(consts, enumConst{name: name, javadoc: doc, body: constBody})
+		i = skipWS(constPart, i)
+		if i < len(constPart) && constPart[i] == ',' {
+			i++
+		}
+	}
+	return consts
+}
+
+func findMatchingParen(s string, open int) (int, int) {
+	if open >= len(s) || s[open] != '(' {
+		return -1, -1
+	}
+	depth := 0
+	for i := open; i < len(s); i++ {
+		switch s[i] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				return open, i
+			}
+		}
+	}
+	return -1, -1
+}
+
+// #162 — parse inner (nested) class declarations from a class body.
+var innerClassRe = regexp.MustCompile(
+	`(?m)(?:public\s+|private\s+|protected\s+)?(?:static\s+)?(?:(abstract|final)\s+)?class\s+(\w+)` +
+		`(?:\s*<([^{>]+)>)?` +
+		`(?:\s+extends\s+([\w.<>,\s]+?))?` +
+		`(?:\s+implements\s+([\w.<>,\s]+?))?` +
+		`\s*\{`)
+
+func parseInnerClasses(body string) []*classDecl {
+	var result []*classDecl
+	matches := innerClassRe.FindAllStringSubmatchIndex(body, -1)
+	for _, m := range matches {
+		inner := &classDecl{
+			name: body[m[4]:m[5]],
+		}
+		if m[2] != -1 {
+			inner.modifier = strings.TrimSpace(body[m[2]:m[3]])
+		}
+		if m[6] != -1 {
+			inner.typeParams = parseTypeParams(body[m[6]:m[7]])
+		}
+		if m[8] != -1 {
+			inner.extends = strings.TrimSpace(body[m[8]:m[9]])
+		}
+		if m[10] != -1 {
+			for _, p := range strings.Split(body[m[10]:m[11]], ",") {
+				inner.implList = append(inner.implList, strings.TrimSpace(p))
+			}
+		}
+		inner.javadoc = javadocBefore(body, m[0])
+		braceStart := m[1] - 1
+		if braceStart >= 0 && braceStart < len(body) && body[braceStart] == '{' {
+			if innerBody, ok := braceBody(body, braceStart); ok {
+				inner.body = innerBody
+				inner.fields, inner.methods = parseBody(innerBody)
+			}
+		}
+		result = append(result, inner)
+	}
+	return result
+}
+
 // javadocBefore returns the /** … */ doc comment that immediately
-// precedes the declaration at offset `pos`, stripped of the `*`
-// column prefixes so it's ready to drop into a Go comment block.
+// precedes the declaration at offset `pos`.
+// #172 — convert Javadoc tags to prose.
 func javadocBefore(src string, pos int) string {
-	// Scan backward for the last `*/` before pos.
 	end := strings.LastIndex(src[:pos], "*/")
 	if end < 0 {
 		return ""
@@ -223,10 +574,11 @@ func javadocBefore(src string, pos int) string {
 	if start < 0 {
 		return ""
 	}
-	// Nothing but whitespace between */ and pos? If not, this block
-	// isn't attached to the declaration.
 	gap := src[end+2 : pos]
-	if strings.TrimSpace(gap) != "" {
+	// Allow whitespace and annotation lines (@Override, @Nullable, etc.)
+	// between the closing */ and the declaration. Non-annotation, non-
+	// whitespace content means this javadoc belongs to another declaration.
+	if !isJavadocGapOK(gap) {
 		return ""
 	}
 	raw := src[start+3 : end]
@@ -235,9 +587,10 @@ func javadocBefore(src string, pos int) string {
 		line = strings.TrimSpace(line)
 		line = strings.TrimPrefix(line, "*")
 		line = strings.TrimPrefix(line, " ")
+		// #172 — convert @param, @return, @see to prose
+		line = convertJavadocTag(line)
 		lines = append(lines, line)
 	}
-	// Drop leading + trailing empty lines.
 	for len(lines) > 0 && lines[0] == "" {
 		lines = lines[1:]
 	}
@@ -247,10 +600,48 @@ func javadocBefore(src string, pos int) string {
 	return strings.Join(lines, "\n")
 }
 
+// isJavadocGapOK returns true if the text between a `*/` and the next
+// declaration contains only whitespace and Java annotation lines (@…).
+func isJavadocGapOK(gap string) bool {
+	for _, line := range strings.Split(gap, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		// Allow annotation lines such as @Override, @Nullable, @SuppressWarnings(...)
+		if strings.HasPrefix(line, "@") {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+// convertJavadocTag converts @param, @return, @see, @throws tags to prose.
+// #172
+func convertJavadocTag(line string) string {
+	for _, tag := range []string{"@param", "@return", "@returns", "@see", "@throws", "@deprecated"} {
+		if strings.HasPrefix(line, tag) {
+			rest := strings.TrimSpace(line[len(tag):])
+			switch tag {
+			case "@param":
+				return "Param: " + rest
+			case "@return", "@returns":
+				return "Returns: " + rest
+			case "@see":
+				return "See: " + rest
+			case "@throws":
+				return "Throws: " + rest
+			case "@deprecated":
+				return "Deprecated: " + rest
+			}
+		}
+	}
+	return line
+}
+
 // braceBody returns the text between matching braces starting at
-// openIdx (the `{` offset, inclusive). Respects string / char
-// literals and block + line comments so string-embedded braces
-// don't throw off the counter.
+// openIdx (the `{` offset, inclusive).
 func braceBody(src string, openIdx int) (string, bool) {
 	depth := 0
 	for i := openIdx; i < len(src); i++ {
@@ -275,8 +666,6 @@ func braceBody(src string, openIdx int) (string, bool) {
 	return "", false
 }
 
-// skipStringLit returns the index of the closing quote of a "..."
-// or '...' literal starting at i. Handles `\"` / `\'` / `\\`.
 func skipStringLit(src string, i int) int {
 	quote := src[i]
 	i++
@@ -312,14 +701,11 @@ func skipBlockComment(src string, i int) int {
 }
 
 // parseBody splits a class body into field / method declarations.
-// Nested classes and initialisers are ignored; the caller emits a
-// // TODO: nested marker for those.
 func parseBody(body string) ([]fieldDecl, []methodDecl) {
 	var fields []fieldDecl
 	var methods []methodDecl
 	pos := 0
 	for pos < len(body) {
-		// Skip whitespace + block + line comments.
 		pos = skipWS(body, pos)
 		if pos >= len(body) {
 			break
@@ -337,34 +723,22 @@ func parseBody(body string) ([]fieldDecl, []methodDecl) {
 			if end < 0 {
 				break
 			}
-			// javadocs stay for the next decl; other /* … */ we just skip.
 			pos += end + 2
 			continue
 		}
-		// Skip stand-alone annotations (`@Override`, `@Nullable`, …)
-		// sitting on their own line so we don't get confused by a
-		// modifier we can't parse.
 		if body[pos] == '@' {
 			nl := strings.Index(body[pos:], "\n")
 			if nl < 0 {
 				break
 			}
-			// Only skip if the annotation is truly stand-alone (no
-			// `(…)` opener we're about to descend into). Annotation
-			// lines without parens apply to the next decl.
 			line := body[pos : pos+nl]
 			if !strings.Contains(line, "(") {
 				pos += nl + 1
 				continue
 			}
 		}
-		// Accumulate the pending javadoc for the next decl by walking
-		// back from pos.
 		doc := javadocBefore(body, pos)
-		// Find the terminator: the first `;` or `{` at the current
-		// statement's top level. Tracks only paren / angle / bracket
-		// depth — a `{` at depth 0 is the method-body opener, a `;`
-		// at depth 0 is the field / abstract-method terminator.
+		srcLine := lineNumber(body, pos)
 		semi, brace := findDeclTerminator(body[pos:])
 		if semi < 0 && brace < 0 {
 			break
@@ -375,6 +749,12 @@ func parseBody(body string) ([]fieldDecl, []methodDecl) {
 			advance = semi + 1
 			if f, ok := parseField(decl, doc); ok {
 				fields = append(fields, f)
+			} else if strings.Contains(decl, "(") {
+				// Abstract / interface method declaration: `abstract int x();`
+				if m, ok := parseMethod(decl, "", doc); ok {
+					m.sourceLine = srcLine
+					methods = append(methods, m)
+				}
 			}
 		} else {
 			sig := body[pos : pos+brace]
@@ -384,6 +764,7 @@ func parseBody(body string) ([]fieldDecl, []methodDecl) {
 			}
 			advance = brace + 2 + len(methodBody)
 			if m, ok := parseMethod(sig, methodBody, doc); ok {
+				m.sourceLine = srcLine
 				methods = append(methods, m)
 			}
 		}
@@ -393,10 +774,7 @@ func parseBody(body string) ([]fieldDecl, []methodDecl) {
 }
 
 // findDeclTerminator scans `s` from the start and returns (semiIdx,
-// braceIdx) — whichever comes first at paren-depth zero. -1 for the
-// side that doesn't appear. Used by parseBody to decide "field or
-// method" before actually splitting. String / char literals and
-// comments are skipped so quoted braces don't throw off depth.
+// braceIdx) — whichever comes first at paren-depth zero.
 func findDeclTerminator(s string) (int, int) {
 	depth := 0
 	for i := 0; i < len(s); i++ {
@@ -426,10 +804,6 @@ func findDeclTerminator(s string) (int, int) {
 	return -1, -1
 }
 
-// indexAtDepthZero returns the offset of the first occurrence of
-// `b` at paren / angle / brace depth 0. We use this to find the
-// statement / signature terminator without tripping over generics
-// or arrow expressions.
 func indexAtDepthZero(s string, b byte) int {
 	depth := 0
 	for i := 0; i < len(s); i++ {
@@ -442,8 +816,6 @@ func indexAtDepthZero(s string, b byte) int {
 			if b == '{' && depth == 0 {
 				return i
 			}
-			// opening brace at depth 0 is the method body start;
-			// we should NOT descend for depth tracking.
 			return -1
 		case b:
 			if depth == 0 {
@@ -467,27 +839,20 @@ func skipWS(s string, i int) int {
 }
 
 // parseField recognises `[modifiers] Type name [= init]` pattern.
-// Anonymous-class RHS (`= new Thing() { … }`) triggers a manual
-// marker on the init string but the field is still emitted.
 func parseField(decl, doc string) (fieldDecl, bool) {
 	decl = strings.TrimSpace(decl)
 	if decl == "" {
 		return fieldDecl{}, false
 	}
-	// Quick reject: method declarations end in `)` (abstract form).
-	// Constructors: name matches class — they also end in `)`.
 	if strings.HasSuffix(decl, ")") {
 		return fieldDecl{}, false
 	}
-	// Split off optional `= rhs`.
 	var init string
 	if eq := indexAssignOp(decl); eq >= 0 {
 		init = strings.TrimSpace(decl[eq+1:])
 		decl = strings.TrimSpace(decl[:eq])
 	}
-	// Peel modifiers from the front of decl.
 	mods, rest := peelModifiers(decl)
-	// What's left is `Type name`.
 	tn := strings.TrimSpace(rest)
 	sp := lastTopLevelSpace(tn)
 	if sp < 0 {
@@ -502,17 +867,14 @@ func parseField(decl, doc string) (fieldDecl, bool) {
 	}, true
 }
 
-// parseMethod recognises `[modifiers] [returnType] name(params)
-// [throws …]` signatures. Constructors have no return type.
+// parseMethod recognises `[modifiers] [returnType] name(params) [throws …]`.
 func parseMethod(sig, body, doc string) (methodDecl, bool) {
 	sig = strings.TrimSpace(sig)
-	// `throws …` clause — strip.
 	var throws string
 	if i := strings.Index(sig, " throws "); i >= 0 {
 		throws = strings.TrimSpace(sig[i+len(" throws "):])
 		sig = strings.TrimSpace(sig[:i])
 	}
-	// Must contain `(`.
 	open := strings.Index(sig, "(")
 	if open < 0 {
 		return methodDecl{}, false
@@ -523,12 +885,18 @@ func parseMethod(sig, body, doc string) (methodDecl, bool) {
 	}
 	params := parseParams(sig[open+1 : close])
 	head := strings.TrimSpace(sig[:open])
-	// head = `[modifiers] [returnType] name`
 	mods, rest := peelModifiers(head)
+	// #166 — strip generic type params from method-level `<T> T foo(...)`
+	rest = strings.TrimSpace(rest)
+	if strings.HasPrefix(rest, "<") {
+		end := strings.Index(rest, ">")
+		if end >= 0 {
+			rest = strings.TrimSpace(rest[end+1:])
+		}
+	}
 	sp := lastTopLevelSpace(rest)
 	var ret, name string
 	if sp < 0 {
-		// ctor — no return type.
 		name = rest
 	} else {
 		ret = strings.TrimSpace(rest[:sp])
@@ -557,6 +925,10 @@ func parseParams(s string) []paramDecl {
 		if i == len(s) || (s[i] == ',' && depth == 0) {
 			piece := strings.TrimSpace(s[start:i])
 			if piece != "" {
+				// Strip final/annotations from param
+				_, piece = peelModifiers(piece)
+				// Handle varargs: `Type... name` → treat as array
+				piece = strings.ReplaceAll(piece, "...", "[]")
 				sp := lastTopLevelSpace(piece)
 				if sp > 0 {
 					out = append(out, paramDecl{
@@ -658,57 +1030,85 @@ func indexAssignOp(s string) int {
 	return -1
 }
 
-// importBlockFor emits the Go import block with the jsgo packages
-// most ported files pull in. Ignores Java imports — each of those
-// maps to a different Go package we can't derive automatically.
-func importBlockFor(src string) string {
+// ── #164 Import block ────────────────────────────────────────────────────────
+
+// javaImportToGoPackage maps Java fully-qualified class prefixes to Go import paths.
+var javaImportToGoPackage = map[string]string{
+	"com.google.javascript.jscomp.":    "github.com/paullepoulpe/jsgo/internal/jscomp",
+	"com.google.javascript.rhino.":     "github.com/paullepoulpe/jsgo/internal/rhino",
+	"com.google.javascript.rhino.jstype.": "github.com/paullepoulpe/jsgo/internal/rhino/jstype",
+	"com.google.javascript.jscomp.parsing.": "github.com/paullepoulpe/jsgo/internal/parser",
+	"com.google.javascript.jscomp.diagnostic.": "github.com/paullepoulpe/jsgo/internal/diag",
+}
+
+// parseJavaImports extracts the Java import lines from src.
+func parseJavaImports(src string) []string {
+	var imports []string
+	importRe := regexp.MustCompile(`(?m)^import\s+(static\s+)?([\w.]+);`)
+	for _, m := range importRe.FindAllStringSubmatch(src, -1) {
+		imports = append(imports, m[2])
+	}
+	return imports
+}
+
+// javaImportsToGoPkgs converts Java import lines to Go package paths.
+func javaImportsToGoPkgs(javaImports []string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, imp := range javaImports {
+		for prefix, goPkg := range javaImportToGoPackage {
+			if strings.HasPrefix(imp, prefix) {
+				if !seen[goPkg] {
+					seen[goPkg] = true
+					out = append(out, `"`+goPkg+`"`)
+				}
+			}
+		}
+	}
+	return out
+}
+
+// importBlockFor emits the Go import block. It uses the Java import
+// lines to derive correct Go packages (#164) plus heuristic checks
+// for well-known types.
+func importBlockFor(src, javaPath string) string {
+	seen := map[string]bool{}
 	var needed []string
+
+	add := func(pkg string) {
+		q := `"` + pkg + `"`
+		if !seen[q] {
+			seen[q] = true
+			needed = append(needed, q)
+		}
+	}
+
+	// #164 — map Java imports
+	for _, pkg := range javaImportsToGoPkgs(parseJavaImports(src)) {
+		p := strings.Trim(pkg, `"`)
+		add(p)
+	}
+
+	// Heuristic fallbacks for types referenced without import
 	if strings.Contains(src, "Node ") || strings.Contains(src, "Node.") {
-		needed = append(needed, `"github.com/paullepoulpe/jsgo/internal/rhino"`)
+		add("github.com/paullepoulpe/jsgo/internal/rhino")
 	}
 	if strings.Contains(src, "JSType") {
-		needed = append(needed, `"github.com/paullepoulpe/jsgo/internal/rhino/jstype"`)
+		add("github.com/paullepoulpe/jsgo/internal/rhino/jstype")
 	}
 	if strings.Contains(src, "JSError") || strings.Contains(src, "DiagnosticType") {
-		needed = append(needed, `"github.com/paullepoulpe/jsgo/internal/diag"`)
+		add("github.com/paullepoulpe/jsgo/internal/diag")
 	}
+
 	if len(needed) == 0 {
 		return ""
 	}
 	return "import (\n\t" + strings.Join(needed, "\n\t") + "\n)\n\n"
 }
 
-// emitDiagnosticConsts scans for `DiagnosticType.{error,warning,disabled}(
-// "JSC_X", "...")` declarations and emits matching diag code
-// constants. Closure concentrates error codes at the top of each
-// pass file, so this gives us the full error catalogue without
-// having to hand-copy them.
-var diagRe = regexp.MustCompile(
-	`(?s)DiagnosticType\.(error|warning|disabled)\(\s*"(JSC_[A-Z_0-9]+)"\s*,\s*([^)]+)\)`)
+// ── Type mapping ─────────────────────────────────────────────────────────────
 
-func emitDiagnosticConsts(cls *classDecl, src string) string {
-	matches := diagRe.FindAllStringSubmatch(src, -1)
-	if len(matches) == 0 {
-		return ""
-	}
-	var b strings.Builder
-	b.WriteString("// Diagnostic codes discovered in the Java source.\n")
-	b.WriteString("// Add the matching entries to internal/diag/diag.go.\n")
-	b.WriteString("//\n")
-	for _, m := range matches {
-		b.WriteString("//   ")
-		b.WriteString(m[2])
-		b.WriteString(" (")
-		b.WriteString(m[1])
-		b.WriteString(")\n")
-	}
-	b.WriteString("\n")
-	return b.String()
-}
-
-// javaTypeMap is the Java→Go type translation table. Nil-mapped
-// entries mean "use the Java name as-is" (primitives that share a
-// spelling, enum-like names we haven't ported yet).
+// javaTypeMap is the Java→Go type translation table.
 var javaTypeMap = map[string]string{
 	"":                 "",
 	"String":           "string",
@@ -742,14 +1142,9 @@ var javaTypeMap = map[string]string{
 }
 
 // javaToGoType maps a Java type expression to its Go equivalent.
-// Annotation prefixes (`@Nullable`, `@Positive`) are stripped.
-// Arrays, generics and wildcards fall through to a best-effort
-// textual translation. Caller uses isMappedType to decide whether
-// to add a // TODO: unmapped comment.
+// #166 handles generics; #167 handles Guava collections.
 func javaToGoType(t string) string {
 	t = stripTypeAnnotations(strings.TrimSpace(t))
-	// `final`, `transient`, etc. occasionally leak through for
-	// parameters with inline modifiers.
 	for _, prefix := range []string{"final ", "transient "} {
 		t = strings.TrimPrefix(t, prefix)
 	}
@@ -760,33 +1155,33 @@ func javaToGoType(t string) string {
 	if strings.HasSuffix(t, "[]") {
 		return "[]" + javaToGoType(strings.TrimSuffix(t, "[]"))
 	}
-	// Generic collections — crude but usually good enough.
+	// #167 — Guava/JDK collections
 	if strings.HasPrefix(t, "List<") || strings.HasPrefix(t, "ImmutableList<") ||
-		strings.HasPrefix(t, "Collection<") || strings.HasPrefix(t, "Iterable<") {
+		strings.HasPrefix(t, "Collection<") || strings.HasPrefix(t, "Iterable<") ||
+		strings.HasPrefix(t, "ArrayList<") || strings.HasPrefix(t, "LinkedList<") {
 		return "[]" + javaToGoType(innerGeneric(t))
 	}
-	if strings.HasPrefix(t, "Set<") || strings.HasPrefix(t, "ImmutableSet<") {
-		return "map[" + javaToGoType(innerGeneric(t)) + "]bool"
+	if strings.HasPrefix(t, "Set<") || strings.HasPrefix(t, "ImmutableSet<") ||
+		strings.HasPrefix(t, "HashSet<") || strings.HasPrefix(t, "LinkedHashSet<") {
+		return "map[" + javaToGoType(innerGeneric(t)) + "]struct{}"
 	}
-	if strings.HasPrefix(t, "Map<") || strings.HasPrefix(t, "ImmutableMap<") {
+	if strings.HasPrefix(t, "Map<") || strings.HasPrefix(t, "ImmutableMap<") ||
+		strings.HasPrefix(t, "HashMap<") || strings.HasPrefix(t, "LinkedHashMap<") {
 		inner := innerGeneric(t)
 		parts := strings.SplitN(inner, ",", 2)
 		if len(parts) == 2 {
-			return "map[" + javaToGoType(parts[0]) + "]" + javaToGoType(parts[1])
+			return "map[" + javaToGoType(strings.TrimSpace(parts[0])) + "]" + javaToGoType(strings.TrimSpace(parts[1]))
 		}
 	}
+	// #167 — Optional<T> → *T
 	if strings.HasPrefix(t, "Optional<") {
-		// Java Optional maps cleanly to Go's nullable pointer for
-		// reference types; fall back to *T as the conservative shape.
 		inner := javaToGoType(innerGeneric(t))
 		if strings.HasPrefix(inner, "*") {
 			return inner
 		}
 		return "*" + inner
 	}
-	// Generic of a mapped base type — `ControlFlowGraph<Node>` →
-	// `*ControlFlowGraph`. Drop the arg when the underlying Go
-	// port doesn't carry a parameter yet.
+	// Generic of a mapped base type
 	if lt := strings.Index(t, "<"); lt > 0 && strings.HasSuffix(t, ">") {
 		base := t[:lt]
 		if v, ok := javaTypeMap[base]; ok {
@@ -796,13 +1191,8 @@ func javaToGoType(t string) string {
 	return t
 }
 
-// stripTypeAnnotations drops Java `@Nullable` / `@Nonnull` /
-// `@Positive` etc. prefixes from a type expression. Also handles
-// annotations with arguments (`@SuppressWarnings("…")`).
 func stripTypeAnnotations(t string) string {
 	for strings.HasPrefix(t, "@") {
-		// Find end of annotation: whitespace or `(` followed by
-		// matching `)`, then whitespace.
 		i := 1
 		for i < len(t) && (isJavaIdentChar(t[i]) || t[i] == '.') {
 			i++
@@ -829,8 +1219,6 @@ func isJavaIdentChar(c byte) bool {
 		(c >= '0' && c <= '9') || c == '_' || c == '$'
 }
 
-// isMappedType reports whether javaToGoType produced a recognised
-// Go type (so the caller can decide whether to flag it with a TODO).
 func isMappedType(javaType string) bool {
 	javaType = stripTypeAnnotations(strings.TrimSpace(javaType))
 	if _, ok := javaTypeMap[javaType]; ok {
@@ -843,10 +1231,13 @@ func isMappedType(javaType string) bool {
 		strings.HasPrefix(javaType, "ImmutableList<") ||
 		strings.HasPrefix(javaType, "Collection<") ||
 		strings.HasPrefix(javaType, "Iterable<") ||
+		strings.HasPrefix(javaType, "ArrayList<") ||
 		strings.HasPrefix(javaType, "Set<") ||
 		strings.HasPrefix(javaType, "ImmutableSet<") ||
+		strings.HasPrefix(javaType, "HashSet<") ||
 		strings.HasPrefix(javaType, "Map<") ||
 		strings.HasPrefix(javaType, "ImmutableMap<") ||
+		strings.HasPrefix(javaType, "HashMap<") ||
 		strings.HasPrefix(javaType, "Optional<") {
 		return true
 	}
@@ -867,17 +1258,260 @@ func innerGeneric(t string) string {
 	return strings.TrimSpace(t[open+1 : close])
 }
 
-// emitStruct produces the Go struct declaration for the class's
-// instance fields. Static fields stay out — they become package-
-// level vars / consts in the caller's follow-up edit.
-func emitStruct(cls *classDecl) string {
+// ── Diagnostic constants ─────────────────────────────────────────────────────
+
+var diagRe = regexp.MustCompile(
+	`(?s)DiagnosticType\.(error|warning|disabled)\(\s*"(JSC_[A-Z_0-9]+)"\s*,\s*([^)]+)\)`)
+
+func emitDiagnosticConsts(cls *classDecl, src string) string {
+	matches := diagRe.FindAllStringSubmatch(src, -1)
+	if len(matches) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("// Diagnostic codes discovered in the Java source.\n")
+	b.WriteString("// Add the matching entries to internal/diag/diag.go.\n")
+	b.WriteString("//\n")
+	for _, m := range matches {
+		b.WriteString("//   ")
+		b.WriteString(m[2])
+		b.WriteString(" (")
+		b.WriteString(m[1])
+		b.WriteString(")\n")
+	}
+	b.WriteString("\n")
+	return b.String()
+}
+
+// ── #168 AutoValue ───────────────────────────────────────────────────────────
+
+// emitAutoValue emits a Go struct + factory for @AutoValue classes.
+func emitAutoValue(cls *classDecl, javaPath string) string {
+	if !cls.isAutoValue {
+		return ""
+	}
+	var b strings.Builder
+	// Doc comment
+	if cls.javadoc != "" {
+		for _, line := range strings.Split(cls.javadoc, "\n") {
+			b.WriteString("// " + line + "\n")
+		}
+	}
+	b.WriteString("// AutoValue: value-based equality; compare with == or reflect.DeepEqual.\n")
+	tpStr := typeParamsGoString(cls.typeParams)
+	b.WriteString("type " + cls.name + tpStr + " struct {\n")
+	for _, f := range cls.fields {
+		goType := javaToGoType(f.typeName)
+		if f.javadoc != "" {
+			for _, l := range strings.Split(f.javadoc, "\n") {
+				b.WriteString("\t// " + l + "\n")
+			}
+		}
+		b.WriteString("\t" + toExported(f.name) + " " + goType + "\n")
+	}
+	b.WriteString("}\n\n")
+	// Abstract accessor methods become fields; emit factory
+	b.WriteString("// New" + cls.name + " constructs a " + cls.name + " (AutoValue factory).\n")
+	b.WriteString("func New" + cls.name + "(")
+	first := true
+	for _, m := range cls.methods {
+		if strings.Contains(m.modifiers, "abstract") && len(m.params) == 0 && m.returnType != "" {
+			if !first {
+				b.WriteString(", ")
+			}
+			b.WriteString(m.name + " " + javaToGoType(m.returnType))
+			first = false
+		}
+	}
+	b.WriteString(") *" + cls.name + " {\n")
+	b.WriteString("\treturn &" + cls.name + "{\n")
+	for _, m := range cls.methods {
+		if strings.Contains(m.modifiers, "abstract") && len(m.params) == 0 && m.returnType != "" {
+			b.WriteString("\t\t" + toExported(m.name) + ": " + m.name + ",\n")
+		}
+	}
+	b.WriteString("\t}\n}\n\n")
+	return b.String()
+}
+
+// ── #163 Enum-with-methods ───────────────────────────────────────────────────
+
+// emitEnum emits a Go interface + per-constant struct for Java enums.
+func emitEnum(cls *classDecl, javaPath string) string {
+	if !cls.isEnum {
+		return ""
+	}
 	var b strings.Builder
 	if cls.javadoc != "" {
 		for _, line := range strings.Split(cls.javadoc, "\n") {
 			b.WriteString("// " + line + "\n")
 		}
 	}
-	b.WriteString("type " + cls.name + " struct {\n")
+
+	// Determine if any constant has a body (methods) — if so, emit interface+structs.
+	hasMethodBodies := false
+	for _, ec := range cls.enumConsts {
+		if ec.body != "" {
+			hasMethodBodies = true
+			break
+		}
+	}
+
+	if hasMethodBodies || len(cls.methods) > 0 {
+		// Rich enum: interface + per-constant struct + factory
+		b.WriteString("// " + cls.name + " is a Java enum with methods; represented as an interface.\n")
+		b.WriteString("type " + cls.name + " interface {\n")
+		for _, m := range cls.methods {
+			if strings.Contains(m.modifiers, "private") {
+				continue
+			}
+			goName := toExported(m.name)
+			b.WriteString("\t" + goName + "(")
+			for i, p := range m.params {
+				if i > 0 {
+					b.WriteString(", ")
+				}
+				b.WriteString(p.name + " " + javaToGoType(p.typeName))
+			}
+			b.WriteString(")")
+			if ret := javaToGoType(m.returnType); ret != "" {
+				b.WriteString(" " + ret)
+			}
+			b.WriteString("\n")
+		}
+		b.WriteString("\t// Name returns the enum constant name.\n")
+		b.WriteString("\tName() string\n")
+		b.WriteString("}\n\n")
+
+		// Per-constant structs
+		for _, ec := range cls.enumConsts {
+			structName := cls.name + "_" + ec.name
+			if ec.javadoc != "" {
+				for _, l := range strings.Split(ec.javadoc, "\n") {
+					b.WriteString("// " + l + "\n")
+				}
+			}
+			b.WriteString("type " + structName + " struct{}\n\n")
+			b.WriteString("func (" + strings.ToLower(string(ec.name[0])) + " *" + structName + ") Name() string {\n")
+			b.WriteString("\treturn \"" + ec.name + "\"\n}\n\n")
+			// Stub out interface methods per constant
+			for _, m := range cls.methods {
+				if strings.Contains(m.modifiers, "private") {
+					continue
+				}
+				goName := toExported(m.name)
+				recv := strings.ToLower(string(ec.name[0]))
+				b.WriteString("// @ " + javaPath + ":" + fmt.Sprint(m.sourceLine) + "\n")
+				b.WriteString("func (" + recv + " *" + structName + ") " + goName + "(")
+				for i, p := range m.params {
+					if i > 0 {
+						b.WriteString(", ")
+					}
+					b.WriteString(p.name + " " + javaToGoType(p.typeName))
+				}
+				b.WriteString(")")
+				goRet := javaToGoType(m.returnType)
+				if goRet != "" {
+					b.WriteString(" " + goRet)
+				}
+				b.WriteString(" {\n")
+				sig := buildPanicSig(m)
+				b.WriteString("\tpanic(\"unimplemented: " + javaPath + ":" + fmt.Sprint(m.sourceLine) + " " + sig + "\")\n")
+				b.WriteString("}\n\n")
+			}
+		}
+
+		// Factory
+		b.WriteString("// New" + cls.name + " returns the " + cls.name + " for a given constant name.\n")
+		b.WriteString("func New" + cls.name + "(name string) " + cls.name + " {\n")
+		b.WriteString("\tswitch name {\n")
+		for _, ec := range cls.enumConsts {
+			b.WriteString("\tcase \"" + ec.name + "\":\n")
+			b.WriteString("\t\treturn &" + cls.name + "_" + ec.name + "{}\n")
+		}
+		b.WriteString("\t}\n")
+		b.WriteString("\treturn nil\n}\n\n")
+
+		// Sentinel vars for simple access
+		b.WriteString("var (\n")
+		for _, ec := range cls.enumConsts {
+			b.WriteString("\t" + cls.name + ec.name + " " + cls.name + " = &" + cls.name + "_" + ec.name + "{}\n")
+		}
+		b.WriteString(")\n\n")
+	} else {
+		// Simple value-only enum: iota const block
+		b.WriteString("type " + cls.name + " int\n\n")
+		b.WriteString("const (\n")
+		for i, ec := range cls.enumConsts {
+			if ec.javadoc != "" {
+				for _, l := range strings.Split(ec.javadoc, "\n") {
+					b.WriteString("\t// " + l + "\n")
+				}
+			}
+			if i == 0 {
+				b.WriteString("\t" + ec.name + " " + cls.name + " = iota\n")
+			} else {
+				b.WriteString("\t" + ec.name + "\n")
+			}
+		}
+		b.WriteString(")\n\n")
+	}
+	return b.String()
+}
+
+// ── #162 Inner class emission ────────────────────────────────────────────────
+
+func emitInnerClass(outerName string, inner *classDecl, javaPath string) string {
+	// Prefix inner class name with outer name: OuterInner
+	prefixedName := outerName + inner.name
+	// Save original name and swap for emission
+	orig := inner.name
+	inner.name = prefixedName
+	defer func() { inner.name = orig }()
+
+	var b strings.Builder
+	if inner.javadoc != "" {
+		for _, line := range strings.Split(inner.javadoc, "\n") {
+			b.WriteString("// " + line + "\n")
+		}
+	}
+	b.WriteString("// Inner class " + outerName + "." + orig + " — ported as " + prefixedName + ".\n")
+	tpStr := typeParamsGoString(inner.typeParams)
+	b.WriteString("type " + prefixedName + tpStr + " struct {\n")
+	for _, f := range inner.fields {
+		if strings.Contains(f.modifiers, "static") {
+			continue
+		}
+		goType := javaToGoType(f.typeName)
+		if f.javadoc != "" {
+			for _, l := range strings.Split(f.javadoc, "\n") {
+				b.WriteString("\t// " + l + "\n")
+			}
+		}
+		if !isMappedType(f.typeName) {
+			b.WriteString("\t// TODO: Java type " + f.typeName + " not mapped\n")
+		}
+		b.WriteString("\t" + toExported(f.name) + " " + goType + "\n")
+	}
+	b.WriteString("}\n\n")
+	b.WriteString(emitMethods(inner, javaPath))
+	return b.String()
+}
+
+// ── Struct + methods emission ────────────────────────────────────────────────
+
+func emitStruct(cls *classDecl) string {
+	if cls.isEnum || cls.isAutoValue {
+		return ""
+	}
+	var b strings.Builder
+	if cls.javadoc != "" {
+		for _, line := range strings.Split(cls.javadoc, "\n") {
+			b.WriteString("// " + line + "\n")
+		}
+	}
+	tpStr := typeParamsGoString(cls.typeParams)
+	b.WriteString("type " + cls.name + tpStr + " struct {\n")
 	for _, f := range cls.fields {
 		if strings.Contains(f.modifiers, "static") {
 			continue
@@ -891,37 +1525,57 @@ func emitStruct(cls *classDecl) string {
 		if !isMappedType(f.typeName) {
 			b.WriteString("\t// TODO: Java type " + f.typeName + " not mapped\n")
 		}
-		b.WriteString("\t" + strings.Title(f.name) + " " + goType + "\n")
+		b.WriteString("\t" + toExported(f.name) + " " + goType + "\n")
 	}
 	b.WriteString("}\n\n")
 	return b.String()
 }
 
-// emitMethods emits a Go method stub per Java method, preserving
-// the original javadoc as a Go doc comment. Bodies are replaced
-// with a panic-free `// TODO: port body` marker so the file still
-// compiles (methods with non-void returns get a zero-value return).
-func emitMethods(cls *classDecl) string {
+func emitMethods(cls *classDecl, javaPath string) string {
+	if cls.isEnum {
+		return ""
+	}
 	var b strings.Builder
 	for _, m := range cls.methods {
 		if strings.Contains(m.modifiers, "static") {
 			continue
 		}
 		if m.name == cls.name {
-			// Constructor → write a NewX factory stub.
-			emitConstructor(&b, cls, m)
+			emitConstructor(&b, cls, m, javaPath)
 			continue
 		}
-		emitMethodStub(&b, cls, m)
+		emitMethodStub(&b, cls, m, javaPath)
 	}
 	return b.String()
 }
 
-func emitConstructor(b *strings.Builder, cls *classDecl, m methodDecl) {
+// buildPanicSig builds a human-readable method signature for the panic message.
+// #169
+func buildPanicSig(m methodDecl) string {
+	var sb strings.Builder
+	sb.WriteString(m.name + "(")
+	for i, p := range m.params {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		sb.WriteString(p.typeName + " " + p.name)
+	}
+	sb.WriteString(")")
+	if m.returnType != "" {
+		sb.WriteString(" " + m.returnType)
+	}
+	return sb.String()
+}
+
+func emitConstructor(b *strings.Builder, cls *classDecl, m methodDecl, javaPath string) {
 	if m.javadoc != "" {
 		for _, l := range strings.Split(m.javadoc, "\n") {
 			b.WriteString("// " + l + "\n")
 		}
+	}
+	// #170 — source-line pin
+	if m.sourceLine > 0 {
+		b.WriteString("// @ " + javaPath + ":" + fmt.Sprint(m.sourceLine) + "\n")
 	}
 	b.WriteString("func New" + cls.name + "(")
 	for i, p := range m.params {
@@ -931,27 +1585,15 @@ func emitConstructor(b *strings.Builder, cls *classDecl, m methodDecl) {
 		b.WriteString(p.name + " " + javaToGoType(p.typeName))
 	}
 	b.WriteString(") *" + cls.name + " {\n")
-
-	recv := strings.ToLower(string(cls.name[0]))
-	bodyText, translated := translateMethodBody(m.body, recv, cls.name, "")
-	if translated {
-		b.WriteString(bodyText)
-		if !strings.HasSuffix(strings.TrimSpace(bodyText), "return") &&
-			!strings.Contains(bodyText, "return &"+cls.name) &&
-			!strings.Contains(bodyText, "return nil") {
-			b.WriteString("\treturn &" + cls.name + "{}\n")
-		}
-	} else {
-		b.WriteString("\t// TODO: port body\n")
-		b.WriteString("\treturn &" + cls.name + "{}\n")
-	}
+	// #169 — panic stub instead of bare return
+	sig := buildPanicSig(m)
+	b.WriteString("\tpanic(\"unimplemented: " + javaPath + ":" + fmt.Sprint(m.sourceLine) + " " + sig + "\")\n")
 	b.WriteString("}\n\n")
 }
 
-func emitMethodStub(b *strings.Builder, cls *classDecl, m methodDecl) {
+func emitMethodStub(b *strings.Builder, cls *classDecl, m methodDecl, javaPath string) {
 	recv := "c"
 	if strings.Contains(m.modifiers, "private") {
-		// package-private helper with a different recv reads better.
 		recv = strings.ToLower(string(cls.name[0]))
 	}
 	if m.javadoc != "" {
@@ -959,7 +1601,11 @@ func emitMethodStub(b *strings.Builder, cls *classDecl, m methodDecl) {
 			b.WriteString("// " + l + "\n")
 		}
 	}
-	goName := strings.Title(m.name)
+	// #170 — source-line pin
+	if m.sourceLine > 0 {
+		b.WriteString("// @ " + javaPath + ":" + fmt.Sprint(m.sourceLine) + "\n")
+	}
+	goName := toExported(m.name)
 	if strings.Contains(m.modifiers, "private") {
 		goName = strings.ToLower(m.name[:1]) + m.name[1:]
 	}
@@ -976,71 +1622,19 @@ func emitMethodStub(b *strings.Builder, cls *classDecl, m methodDecl) {
 		b.WriteString(" " + goRet)
 	}
 	b.WriteString(" {\n")
+	// #169 — panic stub
+	sig := buildPanicSig(m)
+	b.WriteString("\tpanic(\"unimplemented: " + javaPath + ":" + fmt.Sprint(m.sourceLine) + " " + sig + "\")\n")
 	if m.throws != "" {
 		b.WriteString("\t// Java threw: " + m.throws + "\n")
-	}
-
-	bodyText, translated := translateMethodBody(m.body, recv, cls.name, goRet)
-	if translated {
-		b.WriteString(bodyText)
-	} else {
-		b.WriteString("\t// TODO: port body\n")
-		switch goRet {
-		case "":
-			// void — no return needed
-		case "bool":
-			b.WriteString("\treturn false\n")
-		case "int", "int64", "float32", "float64":
-			b.WriteString("\treturn 0\n")
-		case "string":
-			b.WriteString("\treturn \"\"\n")
-		default:
-			b.WriteString("\treturn nil\n")
-		}
 	}
 	b.WriteString("}\n\n")
 }
 
-// translateMethodBody attempts to translate the raw Java method body text
-// (between the braces) into Go using the javaast package. It tries the
-// trivial-pattern recogniser first, then falls back to the full AST walker.
-// Returns (goBody, true) on success, or ("", false) when neither succeeded.
-//
-// goRet is the Go return type (empty string for void); it is only used to
-// determine whether an empty body needs a zero-value return appended.
-func translateMethodBody(javaBody, recvName, className, goRet string) (string, bool) {
-	body := strings.TrimSpace(javaBody)
-	if body == "" {
-		// Empty Java body — emit nothing (void) or zero return.
-		switch goRet {
-		case "":
-			return "", true
-		case "bool":
-			return "\treturn false\n", true
-		case "int", "int64", "float32", "float64":
-			return "\treturn 0\n", true
-		case "string":
-			return "\treturn \"\"\n", true
-		}
-		return "\treturn nil\n", true
+// toExported capitalises the first rune of a name.
+func toExported(name string) string {
+	if name == "" {
+		return ""
 	}
-
-	ctx := javaast.MethodContext{
-		RecvName:  recvName,
-		ClassName: className,
-		TypeMap:   javaToGoType,
-	}
-
-	// Try trivial patterns first (fastest, most reliable).
-	if s, ok := javaast.TryTrivial(body, recvName, className, javaToGoType); ok {
-		return s, true
-	}
-
-	// Fall back to the full AST walker.
-	translated, ok := javaast.TranslateBody(body, ctx)
-	if ok && translated != "" {
-		return translated, true
-	}
-
-	return "", false
+	return strings.ToUpper(name[:1]) + name[1:]
 }
