@@ -5,7 +5,14 @@
 // isStatement, isStatementBlock, isControlStructure, isImmutableValue,
 // isLiteralValue, getFunctionName, getBestLValueName, getFunctionParameters,
 // mayHaveSideEffects, isCall, isNew, isFunctionDeclaration, canBeSideEffected,
-// isThis, isSuperOrSuperProperty, isGet, isPrototypeProperty.
+// isThis, isSuperOrSuperProperty, isGet, isPrototypeProperty,
+// getAssignedValue, isBleedingFunctionName, isConstantDeclaration,
+// isExpressionResultUsed, isFunctionExpression, isInFunction, isInSyntheticScript,
+// isLhsByDestructuring, isObjectLitKey, mayBeObjectLitKey, isPrototypeMethod,
+// mayBeString, mayEffectMutableState, newQualifiedNameNode, removeChildren,
+// getBestLValue, getBestLValueOwner, getBestJSDocInfo, isNameDeclaration,
+// isExprAssign, tryGetStringFromBoolean, isFunctionObjectLit, isGetPropOnThis,
+// isNonEs6ClassExpression, isNameNodeInsideExtends.
 //
 // All helpers live on a zero-value nodeUtil receiver, exposed via the
 // package-level NU sentinel. Call as NU.GetBooleanValue(n), etc.
@@ -14,7 +21,11 @@
 
 package jscomp
 
-import "github.com/paullepoulpe/jsgo/internal/rhino"
+import (
+	"strings"
+
+	"github.com/paullepoulpe/jsgo/internal/rhino"
+)
 
 // TriV is a tri-state boolean mirroring com.google.javascript.jscomp.base.Tri.
 // FALSE < UNKNOWN < TRUE (integer order matches Java's internal value).
@@ -630,4 +641,387 @@ func (nodeUtil) IsPrototypeProperty(n *rhino.Node) bool {
 		return false
 	}
 	return recv.Token() == rhino.GETPROP && recv.String_() == "prototype"
+}
+
+// MayBeString reports whether n could evaluate to a string.
+// Mirrors NodeUtil.mayBeString(Node) (Java).
+func (nodeUtil) MayBeString(n *rhino.Node) bool {
+	if n == nil {
+		return true
+	}
+	switch n.Token() {
+	case rhino.NUMBER, rhino.URSH, rhino.POS, rhino.INC, rhino.DEC,
+		rhino.BITNOT, rhino.NEG, rhino.BITOR, rhino.BITXOR, rhino.BITAND,
+		rhino.LSH, rhino.RSH, rhino.SUB, rhino.MUL, rhino.MOD, rhino.DIV,
+		rhino.TRUE, rhino.FALSE, rhino.EQ, rhino.NE, rhino.SHEQ, rhino.SHNE,
+		rhino.LT, rhino.GT, rhino.LE, rhino.GE, rhino.IN, rhino.INSTANCEOF,
+		rhino.NOT, rhino.DELPROP, rhino.NULL, rhino.VOID:
+		return false
+	case rhino.NAME:
+		s := n.String_()
+		return s != "undefined" && s != "NaN" && s != "Infinity"
+	}
+	return true
+}
+
+// IsNameDeclaration reports whether n is VAR, LET, or CONST. Mirrors NodeUtil.isNameDeclaration.
+func (nodeUtil) IsNameDeclaration(n *rhino.Node) bool {
+	return n != nil && (n.Token() == rhino.VAR || n.Token() == rhino.LET || n.Token() == rhino.CONST)
+}
+
+// IsExprAssign reports whether n is EXPR_RESULT wrapping ASSIGN. Mirrors NodeUtil.isExprAssign.
+func (nodeUtil) IsExprAssign(n *rhino.Node) bool {
+	if n == nil || n.Token() != rhino.EXPR_RESULT {
+		return false
+	}
+	fc := n.FirstChild()
+	return fc != nil && fc.Token() == rhino.ASSIGN
+}
+
+// IsFunctionExpression reports whether n is a non-declaration FUNCTION. Mirrors NodeUtil.isFunctionExpression.
+func (nodeUtil) IsFunctionExpression(n *rhino.Node) bool {
+	return n != nil && n.Token() == rhino.FUNCTION && !NU.IsFunctionDeclaration(n)
+}
+
+// GetAssignedValue returns the RHS assigned to NAME/GETPROP lvalue n, or nil.
+// Mirrors NodeUtil.getAssignedValue (Java).
+func (nodeUtil) GetAssignedValue(n *rhino.Node) *rhino.Node {
+	if n == nil {
+		return nil
+	}
+	p := n.Parent()
+	if p == nil {
+		return nil
+	}
+	if NU.IsNameDeclaration(p) {
+		return n.FirstChild()
+	}
+	if p.Token() == rhino.ASSIGN && p.FirstChild() == n {
+		return n.Next()
+	}
+	return nil
+}
+
+// IsBleedingFunctionName reports whether n is the bleeding NAME of a named
+// function expression. Mirrors NodeUtil.isBleedingFunctionName (Java).
+func (nodeUtil) IsBleedingFunctionName(n *rhino.Node) bool {
+	if n == nil || n.Token() != rhino.NAME || n.String_() == "" {
+		return false
+	}
+	p := n.Parent()
+	return p != nil && NU.IsFunctionExpression(p) && p.FirstChild() == n
+}
+
+// IsConstantDeclaration reports whether n is a constant lvalue.
+// Mirrors NodeUtil.isConstantDeclaration (Java).
+func (nodeUtil) IsConstantDeclaration(info *rhino.JSDocInfo, n *rhino.Node) bool {
+	if n == nil {
+		return false
+	}
+	p := n.Parent()
+	if NU.IsObjectLitKey(n) ||
+		(p != nil && p.Token() == rhino.ASSIGN && p.FirstChild() == n) ||
+		(p != nil && p.Token() == rhino.EXPR_RESULT && NU.IsGet(n)) {
+		return info != nil && info.IsConstant()
+	}
+	if n.Token() != rhino.NAME {
+		return false
+	}
+	if p != nil && p.Token() == rhino.CONST {
+		return true
+	}
+	return (info != nil && info.IsConstant()) || n.IsInferredConstantVar()
+}
+
+// IsExpressionResultUsed reports whether the result of expr is consumed.
+// Mirrors NodeUtil.isExpressionResultUsed (Java).
+func (nodeUtil) IsExpressionResultUsed(expr *rhino.Node) bool {
+	if expr == nil {
+		return false
+	}
+	p := expr.Parent()
+	if p == nil {
+		return true
+	}
+	switch p.Token() {
+	case rhino.BLOCK, rhino.EXPR_RESULT:
+		return false
+	case rhino.CAST:
+		return NU.IsExpressionResultUsed(p)
+	case rhino.HOOK, rhino.AND, rhino.OR, rhino.COALESCE:
+		return expr == p.FirstChild() || NU.IsExpressionResultUsed(p)
+	case rhino.FOR:
+		return p.GetSecondChild() == expr
+	}
+	return true
+}
+
+// IsInFunction reports whether n is nested inside a FUNCTION node.
+// Mirrors NodeUtil.isInFunction (Java).
+func (nodeUtil) IsInFunction(n *rhino.Node) bool { return NU.GetEnclosingFunction(n) != nil }
+
+// IsInSyntheticScript always returns false; rhino.Node has no source-file info.
+// Mirrors NodeUtil.isInSyntheticScript (Java).
+func (nodeUtil) IsInSyntheticScript(_ *rhino.Node) bool { return false }
+
+// IsLhsByDestructuring reports whether n is an LHS target in a destructuring pattern.
+// Mirrors NodeUtil.isLhsByDestructuring (Java).
+func (nodeUtil) IsLhsByDestructuring(n *rhino.Node) bool {
+	if n == nil {
+		return false
+	}
+	switch n.Token() {
+	case rhino.NAME, rhino.GETPROP, rhino.GETELEM:
+		p, gp := n.Parent(), n.GetGrandparent()
+		if p == nil {
+			return false
+		}
+		switch p.Token() {
+		case rhino.ITER_REST:
+			return true
+		case rhino.COMPUTED_PROP:
+			return !n.IsFirstChildOf(p) && gp != nil && gp.Token() == rhino.OBJECTLIT
+		case rhino.STRING_KEY:
+			return gp != nil && gp.Token() == rhino.OBJECTLIT
+		}
+	}
+	return false
+}
+
+// MayBeObjectLitKey reports whether n could be an object-literal key.
+// Mirrors NodeUtil.mayBeObjectLitKey (Java).
+func (nodeUtil) MayBeObjectLitKey(n *rhino.Node) bool {
+	if n == nil {
+		return false
+	}
+	switch n.Token() {
+	case rhino.STRING_KEY, rhino.MEMBER_FUNCTION_DEF, rhino.COMPUTED_PROP:
+		return true
+	}
+	return n.IsGetterDef() || n.IsSetterDef()
+}
+
+// IsObjectLitKey reports whether n is a key inside an OBJECTLIT node.
+// Mirrors NodeUtil.isObjectLitKey (Java).
+func (nodeUtil) IsObjectLitKey(n *rhino.Node) bool {
+	if n == nil {
+		return false
+	}
+	p := n.Parent()
+	return p != nil && p.Token() == rhino.OBJECTLIT && NU.MayBeObjectLitKey(n)
+}
+
+// IsPrototypeMethod reports whether n is a FUNCTION assigned as a prototype method.
+// Mirrors NodeUtil.isPrototypeMethod (Java).
+func (nodeUtil) IsPrototypeMethod(n *rhino.Node) bool {
+	if n == nil || n.Token() != rhino.FUNCTION {
+		return false
+	}
+	assign := n.Parent()
+	if assign == nil || assign.Token() != rhino.ASSIGN {
+		return false
+	}
+	er := assign.Parent()
+	lhs := er.FirstChild()
+	return NU.IsExprAssign(er) && lhs != nil && NU.IsPrototypeProperty(lhs.FirstChild())
+}
+
+// MayEffectMutableState reports whether n may create or mutate state.
+// Mirrors AstAnalyzer.mayEffectMutableState (Java).
+func (nodeUtil) MayEffectMutableState(n *rhino.Node) bool {
+	if n == nil {
+		return false
+	}
+	switch n.Token() {
+	case rhino.CALL, rhino.NEW, rhino.THROW, rhino.FOR_IN, rhino.FOR_OF,
+		rhino.VAR, rhino.LET, rhino.CONST,
+		rhino.ASSIGN, rhino.ASSIGN_ADD, rhino.ASSIGN_SUB, rhino.ASSIGN_MUL,
+		rhino.ASSIGN_DIV, rhino.ASSIGN_MOD,
+		rhino.ASSIGN_BITAND, rhino.ASSIGN_BITOR, rhino.ASSIGN_BITXOR,
+		rhino.ASSIGN_LSH, rhino.ASSIGN_RSH, rhino.ASSIGN_URSH,
+		rhino.ARRAYLIT, rhino.OBJECTLIT, rhino.REGEXP:
+		return true
+	case rhino.NAME:
+		return n.HasChildren()
+	case rhino.FUNCTION:
+		return NU.IsFunctionDeclaration(n)
+	}
+	for _, c := range n.Children() {
+		if NU.MayEffectMutableState(c) {
+			return true
+		}
+	}
+	return false
+}
+
+// NewQualifiedNameNode builds a NAME or GETPROP chain for a dotted name.
+// Mirrors NodeUtil.newQName (Java) without compiler context.
+func (nodeUtil) NewQualifiedNameNode(name string) *rhino.Node {
+	dot := strings.IndexByte(name, '.')
+	if dot == -1 {
+		return rhino.NewString(rhino.NAME, name)
+	}
+	root := rhino.NewString(rhino.NAME, name[:dot])
+	for rest := name[dot+1:]; ; {
+		d := strings.IndexByte(rest, '.')
+		var part string
+		if d == -1 {
+			part, rest = rest, ""
+		} else {
+			part, rest = rest[:d], rest[d+1:]
+		}
+		prop := rhino.NewString(rhino.GETPROP, part)
+		prop.AddChildToBack(root)
+		root = prop
+		if d == -1 {
+			break
+		}
+	}
+	return root
+}
+
+// RemoveChildren detaches and returns all children of n. Mirrors Node.removeChildren().
+func (nodeUtil) RemoveChildren(n *rhino.Node) []*rhino.Node {
+	if n == nil {
+		return nil
+	}
+	return n.RemoveChildren()
+}
+
+// GetBestLValue returns the l-value node that n (r-value) is being assigned to.
+// Mirrors NodeUtil.getBestLValue (Java).
+func (nodeUtil) GetBestLValue(n *rhino.Node) *rhino.Node {
+	if n == nil {
+		return nil
+	}
+	if NU.IsFunctionDeclaration(n) {
+		return n.FirstChild()
+	}
+	p := n.Parent()
+	if p == nil {
+		return nil
+	}
+	switch p.Token() {
+	case rhino.NAME:
+		return p
+	case rhino.ASSIGN:
+		return p.FirstChild()
+	case rhino.HOOK, rhino.AND, rhino.OR, rhino.COALESCE:
+		if p.FirstChild() != n {
+			return NU.GetBestLValue(p)
+		}
+	case rhino.CAST:
+		return NU.GetBestLValue(p)
+	}
+	if NU.MayBeObjectLitKey(p) || p.Token() == rhino.COMPUTED_PROP {
+		return p
+	}
+	return nil
+}
+
+// GetBestLValueOwner returns the owner node of an l-value.
+// Mirrors NodeUtil.getBestLValueOwner (Java).
+func (nodeUtil) GetBestLValueOwner(lv *rhino.Node) *rhino.Node {
+	if lv == nil || lv.Parent() == nil {
+		return nil
+	}
+	if NU.MayBeObjectLitKey(lv) || lv.Token() == rhino.COMPUTED_PROP {
+		return NU.GetBestLValue(lv.Parent())
+	}
+	if NU.IsGet(lv) {
+		return lv.FirstChild()
+	}
+	return nil
+}
+
+// GetBestJSDocInfo returns the JSDocInfo most closely associated with n.
+// Mirrors NodeUtil.getBestJSDocInfo (Java).
+func (nodeUtil) GetBestJSDocInfo(n *rhino.Node) *rhino.JSDocInfo {
+	if n == nil {
+		return nil
+	}
+	if n.Token() == rhino.EXPR_RESULT {
+		if fc := n.FirstChild(); fc != nil {
+			return NU.GetBestJSDocInfo(fc)
+		}
+		return nil
+	}
+	if info := n.JSDocInfo(); info != nil {
+		return info
+	}
+	p := n.Parent()
+	if p == nil {
+		return nil
+	}
+	switch p.Token() {
+	case rhino.NAME, rhino.VAR, rhino.LET, rhino.CONST, rhino.DECLARE, rhino.ASSIGN:
+		return NU.GetBestJSDocInfo(p)
+	case rhino.FUNCTION, rhino.CLASS:
+		if n == p.FirstChild() {
+			return NU.GetBestJSDocInfo(p)
+		}
+	}
+	if NU.MayBeObjectLitKey(p) || p.Token() == rhino.COMPUTED_PROP {
+		return p.JSDocInfo()
+	}
+	return nil
+}
+
+// TryGetStringFromBoolean returns "true"/"false" for TRUE/FALSE nodes, else "".
+func (nodeUtil) TryGetStringFromBoolean(n *rhino.Node) string {
+	if n == nil {
+		return ""
+	}
+	switch n.Token() {
+	case rhino.TRUE:
+		return "true"
+	case rhino.FALSE:
+		return "false"
+	}
+	return ""
+}
+
+// IsFunctionObjectLit reports whether n is a FUNCTION whose sole body statement
+// is EXPR_RESULT(OBJECTLIT).
+func (nodeUtil) IsFunctionObjectLit(n *rhino.Node) bool {
+	if n == nil || n.Token() != rhino.FUNCTION {
+		return false
+	}
+	block := n.LastChild()
+	if block == nil || block.Token() != rhino.BLOCK {
+		return false
+	}
+	kids := block.Children()
+	return len(kids) == 1 && kids[0].Token() == rhino.EXPR_RESULT &&
+		kids[0].FirstChild() != nil && kids[0].FirstChild().Token() == rhino.OBJECTLIT
+}
+
+// IsGetPropOnThis reports whether n is GETPROP with THIS as receiver.
+func (nodeUtil) IsGetPropOnThis(n *rhino.Node) bool {
+	if n == nil || n.Token() != rhino.GETPROP {
+		return false
+	}
+	fc := n.FirstChild()
+	return fc != nil && fc.Token() == rhino.THIS
+}
+
+// IsNonEs6ClassExpression reports whether n is a class expression (not a class declaration).
+func (nodeUtil) IsNonEs6ClassExpression(n *rhino.Node) bool {
+	if n == nil || n.Token() != rhino.CLASS {
+		return false
+	}
+	kids := n.Children()
+	if len(kids) >= 1 && kids[0].Token() == rhino.NAME && kids[0].String_() != "" {
+		return !isStatementParent(n.Parent())
+	}
+	return true
+}
+
+// IsNameNodeInsideExtends reports whether n is the NAME in a class extends clause.
+func (nodeUtil) IsNameNodeInsideExtends(n *rhino.Node) bool {
+	if n == nil || n.Token() != rhino.NAME {
+		return false
+	}
+	p := n.Parent()
+	return p != nil && p.Token() == rhino.CLASS && p.GetSecondChild() == n
 }
