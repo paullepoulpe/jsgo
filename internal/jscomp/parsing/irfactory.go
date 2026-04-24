@@ -51,7 +51,7 @@ func NewIRFactory(sourceFile rhino.StaticSourceFile, er errorReporter) *IRFactor
 // SetSourceComments provides the list of comments from the ProgramTree so
 // IRFactory can attach JSDoc to nodes. Must be called before Transform if
 // JSDoc attachment is desired.
-// Go-only: Java IRFactory receives comments via transformTree(...) static factory.
+// Go-only: language-adapter — Java IRFactory receives comments via the transformTree(...) static factory; Go splits it into a separate setter because Go has no static methods.
 func (f *IRFactory) SetSourceComments(comments []trees.Comment, src string) {
 	f.src = src
 	for _, c := range comments {
@@ -65,7 +65,7 @@ func (f *IRFactory) SetSourceComments(comments []trees.Comment, src string) {
 // immediately precedes the given start offset, with only whitespace in between.
 // Mirrors Java IRFactory.getJSDocNode(ParseTree) which walks back from the
 // node's start to find the preceding JSDoc comment.
-// Go-only: Java uses a different infrastructure for comment lookup.
+// Go-only: language-adapter — Java uses a SourceComments list threaded through the Parser; Go exposes the comment list via SetSourceComments because Go has no Scanner-level comment callbacks.
 func (f *IRFactory) findPrecedingJSDoc(nodeStartOffset int) *trees.Comment {
 	var best *trees.Comment
 	for i := range f.jsdocComments {
