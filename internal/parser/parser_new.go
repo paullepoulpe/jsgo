@@ -858,10 +858,11 @@ func (p *ParserRewrite) completeArrowFunctionParseAtArrow(leftOfArrow *trees.Par
 func (p *ParserRewrite) transformToArrowFormalParameters(leftOfArrow *trees.ParseTree) *trees.FormalParameterListTree {
 	switch leftOfArrow.Type {
 	case trees.ParseTreeTypeFormalParameterList:
-		// direct formal parameter list (e.g., () => or (a, b) =>)
-		// We can't safely cast *ParseTree to *FormalParameterListTree here;
-		// the caller should have stored the typed pointer. Panic to surface this.
-		panic(fmt.Sprintf("transformToArrowFormalParameters: need typed FormalParameterListTree, got ParseTree %v", leftOfArrow.Type))
+		// direct formal parameter list — came from parseCoverParenthesizedExpression...
+		// when the result was already re-parsed as a FormalParameterListTree.
+		// Re-parse from the start of the tree to recover the typed value.
+		p.resetScannerToTree(leftOfArrow)
+		return p.parseFormalParameterList()
 	case trees.ParseTreeTypeIdentifierExpression:
 		// single-parameter arrow: x =>
 		return trees.NewFormalParameterListTree(
