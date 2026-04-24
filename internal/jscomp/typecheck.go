@@ -585,7 +585,7 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitGetProp(n, scope))
 	case rhino.GETELEM:
 		c.emit(c.visitGetElem(n, scope))
-	case rhino.CLASS_FIELD_DEF:
+	case rhino.CLASS_FIELD_DEF, rhino.MEMBER_FIELD_DEF:
 		c.emit(c.visitClassField(n, parent, scope))
 	case rhino.COMPUTED_PROP:
 		c.emit(c.visitComputedPropInClass(n, parent, scope))
