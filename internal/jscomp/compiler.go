@@ -116,18 +116,18 @@ func scanLexicalErrors(path, src string) []diag.Diagnostic {
 	if len(er.errs) == 0 {
 		return nil
 	}
-	out := make([]diag.Diagnostic, 0, len(er.errs))
-	for _, e := range er.errs {
-		out = append(out, diag.Diagnostic{
-			Path:    path,
-			Line:    e.line + 1,
-			Col:     e.col,
-			Code:    diag.JSC_PARSE_ERROR,
-			Level:   diag.Error,
-			Message: "Parse error. " + e.msg,
-		})
-	}
-	return out
+	// Java's ParserRunner reports only the first scanner error and halts
+	// compilation (subsequent invalid escapes in the same source produce
+	// cascading false positives, which Java avoids). Emit only the first.
+	e := er.errs[0]
+	return []diag.Diagnostic{{
+		Path:    path,
+		Line:    e.line + 1,
+		Col:     e.col,
+		Code:    diag.JSC_PARSE_ERROR,
+		Level:   diag.Error,
+		Message: "Parse error. " + e.msg,
+	}}
 }
 
 // Go-only: language-adapter — minimal ErrorReporter that records every
