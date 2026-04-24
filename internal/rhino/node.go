@@ -53,6 +53,21 @@ const (
 	// PropSynthetic mirrors Java's Node.SYNTHETIC — set on synthesized BLOCK
 	// nodes that do not correspond to source-level braces.
 	PropSynthetic
+	// PropIncrDecr mirrors Java's Node.INCRDECR_PROP — set on INC/DEC nodes
+	// when the operator is postfix (e.g. x++ vs ++x).
+	PropIncrDecr
+	// PropShorthandProperty mirrors Java's Node.isShorthandProperty() — set on
+	// STRING_KEY nodes in object literals that use shorthand syntax (e.g. {x}).
+	PropShorthandProperty
+	// PropIsParenthesized mirrors Java's Node.isParenthesized() — set on
+	// expression nodes that are wrapped in explicit parentheses in source.
+	PropIsParenthesized
+	// PropIsPrivateIdentifier mirrors Java's Node.isPrivateIdentifier() — set on
+	// GETPROP / NAME nodes that reference a private class property (#foo).
+	PropIsPrivateIdentifier
+	// PropTemplateLitRaw stores the raw string value on TEMPLATELIT_STRING nodes.
+	// Mirrors the second string argument to Node.newTemplateLitString(cooked, raw).
+	PropTemplateLitRaw
 )
 
 type Node struct {
@@ -768,4 +783,85 @@ func (n *Node) IsNamespace() bool { return n.GetBooleanProp(PropIsNamespace) }
 
 // SetNamespace mirrors Java's Node.putBooleanProp(IS_NAMESPACE, b).
 func (n *Node) SetNamespace(b bool) { n.PutBooleanProp(PropIsNamespace, b) }
+
+// IsGetProp mirrors Java's Node.isGetprop() — true for GETPROP token.
+func (n *Node) IsGetProp() bool { return n.token == GETPROP }
+
+// IsGetElem mirrors Java's Node.isGetelem() — true for GETELEM token.
+func (n *Node) IsGetElem() bool { return n.token == GETELEM }
+
+// IsCall mirrors Java's Node.isCall() — true for CALL token.
+func (n *Node) IsCall() bool { return n.token == CALL }
+
+// IsNew mirrors Java's Node.isNew() — true for NEW token.
+func (n *Node) IsNew() bool { return n.token == NEW }
+
+// IsName mirrors Java's Node.isName() — true for NAME token.
+func (n *Node) IsName() bool { return n.token == NAME }
+
+// IsFunction mirrors Java's Node.isFunction() — true for FUNCTION token.
+func (n *Node) IsFunction() bool { return n.token == FUNCTION }
+
+// IsScript mirrors Java's Node.isScript() — true for SCRIPT token.
+func (n *Node) IsScript() bool { return n.token == SCRIPT }
+
+// IsReturn mirrors Java's Node.isReturn() — true for RETURN token.
+func (n *Node) IsReturn() bool { return n.token == RETURN }
+
+// IsSpread mirrors Java's Node.isSpread() — true for ITER_SPREAD token.
+func (n *Node) IsSpread() bool { return n.token == ITER_SPREAD }
+
+// IsComputedProp mirrors Java's Node.isComputedProp() — true for COMPUTED_PROP token.
+func (n *Node) IsComputedProp() bool { return n.token == COMPUTED_PROP }
+
+// IsIn mirrors Java's Node.isIn() — true for the IN token.
+func (n *Node) IsIn() bool { return n.token == IN }
+
+// IsPrivateIdentifier mirrors Java's Node.isPrivateIdentifier() — true when
+// PropIsPrivateIdentifier is set (e.g. #foo property access).
+func (n *Node) IsPrivateIdentifier() bool { return n.GetBooleanProp(PropIsPrivateIdentifier) }
+
+// IsShorthandProperty mirrors Java's Node.isShorthandProperty() — true when
+// PropShorthandProperty is set on a STRING_KEY in an object literal.
+func (n *Node) IsShorthandProperty() bool { return n.GetBooleanProp(PropShorthandProperty) }
+
+// SetShorthandProperty mirrors Java's Node.setShorthandProperty(bool).
+func (n *Node) SetShorthandProperty(b bool) { n.PutBooleanProp(PropShorthandProperty, b) }
+
+// IsParenthesized mirrors Java's Node.isParenthesized() — true when the
+// expression was wrapped in explicit parentheses in source.
+func (n *Node) IsParenthesized() bool { return n.GetBooleanProp(PropIsParenthesized) }
+
+// SetIsParenthesized mirrors Java's Node.setIsParenthesized(bool).
+func (n *Node) SetIsParenthesized(b bool) { n.PutBooleanProp(PropIsParenthesized, b) }
+
+// SetStaticMember mirrors Java's Node.setStaticMember(bool) — marks
+// a method/accessor as a static class member.
+func (n *Node) SetStaticMember(b bool) { n.PutBooleanProp(PropStaticMember, b) }
+
+// IsStaticMember mirrors Java's Node.isStaticMember().
+func (n *Node) IsStaticMember() bool { return n.GetBooleanProp(PropStaticMember) }
+
+// NewTemplateLitString creates a TEMPLATELIT_STRING node with cooked and raw
+// values. Mirrors Node.newTemplateLitString(String, String) in Java.
+func NewTemplateLitString(cooked, raw string) *Node {
+	n := &Node{token: TEMPLATELIT_STRING, str: cooked}
+	// Store the raw value as a second string via the props map.
+	if n.props == nil {
+		n.props = make(map[Prop]any)
+	}
+	n.props[PropTemplateLitRaw] = raw
+	return n
+}
+
+// GetRawString returns the raw template literal string stored on a
+// TEMPLATELIT_STRING node. Mirrors Node.getRawString().
+func (n *Node) GetRawString() string {
+	if v, ok := n.props[PropTemplateLitRaw]; ok {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return ""
+}
 

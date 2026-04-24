@@ -177,6 +177,40 @@ const (
 	// JSDocInfo and the inner expression as its sole child.
 	CAST
 
+	// EMPTY mirrors Token.EMPTY — a placeholder for absent optional nodes
+	// (e.g. empty for-loop initializer, holes in array literals).
+	EMPTY
+	// COMMA mirrors Token.COMMA — the comma (sequence) expression operator.
+	COMMA
+	// DO mirrors Token.DO — the do-while statement. (Go had DO_WHILE; DO is
+	// the canonical Java name that IRFactory emits.)
+	DO
+	// EXPONENT mirrors Token.EXPONENT — the ** exponentiation operator.
+	EXPONENT
+	// ASSIGN_EXPONENT mirrors Token.ASSIGN_EXPONENT — the **= compound assignment.
+	ASSIGN_EXPONENT
+	// ASSIGN_OR mirrors Token.ASSIGN_OR — the ||= logical assignment.
+	ASSIGN_OR
+	// ASSIGN_AND mirrors Token.ASSIGN_AND — the &&= logical assignment.
+	ASSIGN_AND
+	// ASSIGN_COALESCE mirrors Token.ASSIGN_COALESCE — the ??= logical assignment.
+	ASSIGN_COALESCE
+	// SWITCH_BODY mirrors Token.SWITCH_BODY — synthetic child of SWITCH that
+	// holds the case/default clause list.
+	SWITCH_BODY
+	// GETTER_DEF mirrors Token.GETTER_DEF — a get accessor property in an
+	// object literal or class body (e.g. get foo() {}).
+	GETTER_DEF
+	// SETTER_DEF mirrors Token.SETTER_DEF — a set accessor property in an
+	// object literal or class body (e.g. set foo(v) {}).
+	SETTER_DEF
+	// LABEL_NAME mirrors Token.LABEL_NAME — the NAME node inside a LABEL or
+	// BREAK/CONTINUE that carries the label string.
+	LABEL_NAME
+	// CLASS_MEMBERS mirrors Token.CLASS_MEMBERS — the body node of a class
+	// declaration/expression that holds method/field definitions.
+	CLASS_MEMBERS
+
 	// AST-only tokens — not emitted by the scanner; used in IR/CFG passes
 	// and module-graph plumbing. Mirror Token.java entries of the same name.
 	PLACEHOLDER1 // reserved IR placeholder (slot 1)
