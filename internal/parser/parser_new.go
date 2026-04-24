@@ -107,9 +107,13 @@ func (r *parserCommentRecorder) RecordComment(typ CommentType, rang SourceRange,
 		Location: tr,
 		Value:    value,
 	}
-	// map CommentType
+	// map CommentType — preserve JSDoc distinction for IRFactory JSDoc attachment.
 	switch typ {
-	case CommentBlock, CommentJSDoc, CommentImportant:
+	case CommentJSDoc:
+		tc.Type = trees.CommentTypeJSDoc
+	case CommentImportant:
+		tc.Type = trees.CommentTypeImportant
+	case CommentBlock:
 		tc.Type = trees.CommentTypeBlock
 	default:
 		tc.Type = trees.CommentTypeLine
@@ -141,6 +145,7 @@ func toTreesToken(t *Token) *trees.Token {
 	return &trees.Token{
 		Type:     trees.TokenType(int(t.Type)),
 		Location: toTreesRange(t.Location),
+		Value:    t.Value,
 	}
 }
 

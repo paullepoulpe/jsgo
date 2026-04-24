@@ -194,14 +194,16 @@ func getBestJSDocInfo(fn *rhino.Node) *rhino.JSDocInfo {
 	if info := fn.JSDocInfo(); info != nil {
 		return info
 	}
-	// Climb via ASSIGN → EXPR_RESULT / NAME / VAR to find an attached comment.
+	// Climb via ASSIGN → EXPR_RESULT / NAME / VAR / MEMBER_FUNCTION_DEF
+	// to find an attached comment.
 	for cur := fn.Parent(); cur != nil; cur = cur.Parent() {
 		if info := cur.JSDocInfo(); info != nil {
 			return info
 		}
 		switch cur.Token() {
 		case rhino.ASSIGN, rhino.EXPR_RESULT, rhino.VAR, rhino.LET, rhino.CONST,
-			rhino.NAME:
+			rhino.NAME, rhino.MEMBER_FUNCTION_DEF, rhino.GETTER_DEF, rhino.SETTER_DEF,
+			rhino.STRING_KEY:
 			continue
 		}
 		break

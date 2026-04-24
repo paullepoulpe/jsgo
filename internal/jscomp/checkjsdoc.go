@@ -191,10 +191,9 @@ func (c *CheckJSDoc) validateClassLevelJsDoc(n *rhino.Node, info *rhino.JSDocInf
 	if info == nil || !cjdHasClassLevelJsDoc(info) {
 		return
 	}
-	// In the Go AST a class member function sits inside the CLASS body block.
-	// Pattern: n.Token()==FUNCTION && n.Parent().Token()==BLOCK &&
-	//          n.Parent().Parent().Token()==CLASS.
-	if n.Token() != rhino.FUNCTION {
+	// Legacy AST: FUNCTION → BLOCK → CLASS.
+	// New pipeline AST: FUNCTION → MEMBER_FUNCTION_DEF → CLASS_MEMBERS → CLASS.
+	if n.Token() != rhino.FUNCTION && n.Token() != rhino.MEMBER_FUNCTION_DEF {
 		return
 	}
 	p := n.Parent()
@@ -205,7 +204,14 @@ func (c *CheckJSDoc) validateClassLevelJsDoc(n *rhino.Node, info *rhino.JSDocInf
 	if gp == nil {
 		return
 	}
-	if p.Token() == rhino.BLOCK && gp.Token() == rhino.CLASS {
+	// Legacy: FUNCTION inside CLASS body BLOCK.
+	if n.Token() == rhino.FUNCTION && p.Token() == rhino.BLOCK && gp.Token() == rhino.CLASS {
+		c.report(n, diag.JSC_DISALLOWED_MEMBER_JSDOC, diag.Warning,
+			"Class level JSDocs (@interface, @extends, etc.) are not allowed on class members")
+		return
+	}
+	// New pipeline: MEMBER_FUNCTION_DEF inside CLASS_MEMBERS inside CLASS.
+	if n.Token() == rhino.MEMBER_FUNCTION_DEF && p.Token() == rhino.CLASS_MEMBERS && gp.Token() == rhino.CLASS {
 		c.report(n, diag.JSC_DISALLOWED_MEMBER_JSDOC, diag.Warning,
 			"Class level JSDocs (@interface, @extends, etc.) are not allowed on class members")
 	}
@@ -280,7 +286,8 @@ func cjdContainsFunctionDeclaration(info *rhino.JSDocInfo) bool {
 // GETPROP (when qualified and parent is EXPR_RESULT).
 func cjdIsJSDocOnFunctionNode(n *rhino.Node, info *rhino.JSDocInfo) bool {
 	switch n.Token() {
-	case rhino.FUNCTION, rhino.CLASS, rhino.STRING_KEY, rhino.CLASS_FIELD_DEF:
+	case rhino.FUNCTION, rhino.CLASS, rhino.STRING_KEY, rhino.CLASS_FIELD_DEF,
+		rhino.MEMBER_FUNCTION_DEF, rhino.GETTER_DEF, rhino.SETTER_DEF:
 		return true
 	case rhino.GETPROP, rhino.GETELEM:
 		if fc := n.FirstChild(); fc != nil && cjdIsQualifiedName(fc) {
@@ -327,7 +334,7 @@ func (c *CheckJSDoc) validateTypeAnnotations(n *rhino.Node, info *rhino.JSDocInf
 		valid = cjdIsFunctionDeclaration(n)
 	case rhino.NAME:
 		valid = cjdIsTypeAnnotationAllowedForName(n)
-	case rhino.STRING_KEY, rhino.CLASS_FIELD_DEF:
+	case rhino.STRING_KEY, rhino.CLASS_FIELD_DEF, rhino.MEMBER_FIELD_DEF:
 		// Object literal properties and class fields are valid.
 		valid = true
 	case rhino.VAR, rhino.LET, rhino.CONST:
@@ -713,8 +720,13 @@ func cjdGetFunctionDecl(n *rhino.Node) *rhino.Node {
 		if fc != nil && fc.Token() == rhino.FUNCTION {
 			return fc
 		}
+	case rhino.MEMBER_FUNCTION_DEF, rhino.GETTER_DEF, rhino.SETTER_DEF:
+		// Class method definitions: MEMBER_FUNCTION_DEF wraps a FUNCTION node.
+		fc := n.FirstChild()
+		if fc != nil && fc.Token() == rhino.FUNCTION {
+			return fc
+		}
 	}
-	// GETTER_DEF, SETTER_DEF, MEMBER_FUNCTION_DEF: TODO — not in Go AST.
 	return nil
 }
 

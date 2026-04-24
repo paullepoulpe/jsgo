@@ -109,6 +109,12 @@ func (v *VarCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 	if scope.GetDeclaredType(name) != nil {
 		return
 	}
+	// Fallback: treat well-known extern names as declared even if the
+	// scope chain doesn't contain them. This handles cases where the
+	// externs scope might be incomplete or when using the new pipeline.
+	if defaultExternNames()[name] {
+		return
+	}
 	if v.reported[name] {
 		return
 	}

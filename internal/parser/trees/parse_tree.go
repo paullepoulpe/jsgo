@@ -23,11 +23,14 @@ type SourceRange struct {
 }
 
 // Token is the base token type emitted by the scanner.
-// Stub — full implementation lives in a future port of
-// com/google/javascript/jscomp/parsing/parser/Token.java.
+// Mirrors com/google/javascript/jscomp/parsing/parser/Token.java.
 type Token struct {
 	Type     TokenType
 	Location SourceRange
+	// Value holds the string value for identifier, literal, and string tokens.
+	// Empty for punctuator/keyword tokens.
+	// Mirrors Token.java's LiteralToken / IdentifierToken value field.
+	Value string
 }
 
 // TokenType identifies the lexical kind of a Token.

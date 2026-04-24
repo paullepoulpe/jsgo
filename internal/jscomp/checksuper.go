@@ -239,16 +239,33 @@ func isMethodDeclaration(fn *rhino.Node) bool {
 	if p == nil {
 		return false
 	}
-	// Class body: parent is BLOCK, grandparent is CLASS.
+	// Class body: parent is BLOCK, grandparent is CLASS (legacy pipeline).
 	if p.Token() == rhino.BLOCK {
 		gp := p.Parent()
 		if gp != nil && gp.Token() == rhino.CLASS {
 			return true
 		}
 	}
-	// Object-literal method: parent is OBJECTLIT.
+	// Class body: parent is MEMBER_FUNCTION_DEF/GETTER_DEF/SETTER_DEF,
+	// grandparent is CLASS_MEMBERS, great-grandparent is CLASS (new pipeline).
+	if p.Token() == rhino.MEMBER_FUNCTION_DEF || p.Token() == rhino.GETTER_DEF || p.Token() == rhino.SETTER_DEF {
+		gp := p.Parent()
+		if gp != nil && gp.Token() == rhino.CLASS_MEMBERS {
+			ggp := gp.Parent()
+			if ggp != nil && ggp.Token() == rhino.CLASS {
+				return true
+			}
+		}
+	}
+	// Object-literal method: parent is OBJECTLIT or STRING_KEY (new pipeline).
 	if p.Token() == rhino.OBJECTLIT {
 		return true
+	}
+	if p.Token() == rhino.STRING_KEY {
+		gp := p.Parent()
+		if gp != nil && gp.Token() == rhino.OBJECTLIT {
+			return true
+		}
 	}
 	return false
 }
@@ -259,12 +276,19 @@ func isEs6Constructor(fn *rhino.Node) bool {
 	if !isMethodDeclaration(fn) {
 		return false
 	}
-	// Our parser places the method name as children[0] of the FUNCTION.
+	// Legacy pipeline: method name as children[0] of the FUNCTION.
 	first := fn.FirstChild()
-	if first == nil {
-		return false
+	if first != nil && first.String_() == "constructor" {
+		return true
 	}
-	return first.String_() == "constructor"
+	// New pipeline: method name is on the MEMBER_FUNCTION_DEF parent.
+	if p := fn.Parent(); p != nil {
+		if (p.Token() == rhino.MEMBER_FUNCTION_DEF || p.Token() == rhino.GETTER_DEF || p.Token() == rhino.SETTER_DEF) &&
+			p.String_() == "constructor" {
+			return true
+		}
+	}
+	return false
 }
 
 // TODO(port): CheckSuper.ConstructorContext from com/google/javascript/jscomp/CheckSuper.java:370

@@ -575,6 +575,8 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitVar(n, scope))
 	case rhino.ASSIGN:
 		c.emit(c.visitAssign(n, scope))
+	case rhino.ASSIGN_AND, rhino.ASSIGN_OR, rhino.ASSIGN_COALESCE:
+		c.emit(c.visitLogicalAssign(n, scope))
 	case rhino.CALL:
 		c.emit(c.visitCall(n, scope))
 	case rhino.NEW:
@@ -583,7 +585,7 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitGetProp(n, scope))
 	case rhino.GETELEM:
 		c.emit(c.visitGetElem(n, scope))
-	case rhino.CLASS_FIELD_DEF:
+	case rhino.CLASS_FIELD_DEF, rhino.MEMBER_FIELD_DEF:
 		c.emit(c.visitClassField(n, parent, scope))
 	case rhino.COMPUTED_PROP:
 		c.emit(c.visitComputedPropInClass(n, parent, scope))
@@ -956,6 +958,29 @@ func (c *TypeCheck) visitEnumInit(name, init *rhino.Node, scope *TypedScope) []d
 		Message: fmt.Sprintf("initializing variable\nfound   : %s\nrequired: enum{%s}",
 			found.TypeName(), enum.Name),
 	}}
+}
+
+// visitLogicalAssign handles logical compound assignments (&&=, ||=, ??=).
+// Mirrors Java's TypeCheck.visitAssignmentOp: checks whether the RHS is
+// assignable to the LHS's declared type. These operators conditionally
+// assign the RHS to LHS only when LHS is truthy (&&=) or falsy (||=, ??=).
+func (c *TypeCheck) visitLogicalAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	kids := a.Children()
+	if len(kids) < 2 {
+		return nil
+	}
+	lhs, rhs := kids[0], kids[1]
+	if lhs.Token() != rhino.NAME {
+		return nil
+	}
+	declared := scope.GetRawDeclaredType(lhs.String_())
+	if declared == nil {
+		return nil
+	}
+	infer := NewTypeInference(scope)
+	found := infer.InferType(rhs)
+	c.tv.expectCanAssignTo(lhs, found, declared, "assignment")
+	return c.tvDrain()
 }
 
 // visitAssign handles bare `IDENT = …` and `obj.prop = …` assignment
@@ -2140,12 +2165,26 @@ func (c *TypeCheck) visitClassField(field *rhino.Node, parent *rhino.Node, scope
 	}
 
 	// --- @type mismatch check ---
+	// CLASS_FIELD_DEF (legacy): kids = [NAME(fieldName), initializer]
+	// MEMBER_FIELD_DEF (new pipeline): String_() = fieldName, kids = [initializer]
 	kids := field.Children()
-	if len(kids) < 2 {
-		return out
+	var name *rhino.Node
+	var init *rhino.Node
+	if field.Token() == rhino.MEMBER_FIELD_DEF {
+		// New pipeline: the field name is the node's string, initializer is first child.
+		name = rhino.NewString(rhino.NAME, field.String_())
+		if len(kids) >= 1 {
+			init = kids[0]
+		} else {
+			return out
+		}
+	} else {
+		if len(kids) < 2 {
+			return out
+		}
+		name = kids[0]
+		init = kids[1]
 	}
-	name := kids[0]
-	init := kids[1]
 	info := field.JSDocInfo()
 	if info == nil || !info.HasType() {
 		return out
@@ -2265,6 +2304,15 @@ func functionJSDoc(fn *rhino.Node) *rhino.JSDocInfo {
 	}
 	if info := fn.JSDocInfo(); info != nil {
 		return info
+	}
+	// New pipeline: class method FUNCTION is wrapped in MEMBER_FUNCTION_DEF.
+	// Check the immediate parent for JSDoc.
+	if p := fn.Parent(); p != nil {
+		if p.Token() == rhino.MEMBER_FUNCTION_DEF || p.Token() == rhino.GETTER_DEF || p.Token() == rhino.SETTER_DEF {
+			if info := p.JSDocInfo(); info != nil {
+				return info
+			}
+		}
 	}
 	// Nested inside `X.prototype.m = fn` — climb via ASSIGN → EXPR_RESULT.
 	for cur := fn.Parent(); cur != nil; cur = cur.Parent() {
@@ -2545,7 +2593,21 @@ func (c *TypeCheck) visitFunctionParams(fn *rhino.Node, scope *TypedScope) []dia
 	params := kids[1]
 	paramSet := map[string]bool{}
 	for _, p := range params.Children() {
-		paramSet[p.String_()] = true
+		name := p.String_()
+		if name != "" {
+			paramSet[name] = true
+		} else if p.Token() == rhino.DEFAULT_VALUE {
+			// Default parameter: `x = expr` — the binding name is the
+			// first child (NAME node).
+			if fc := p.FirstChild(); fc != nil && fc.Token() == rhino.NAME {
+				paramSet[fc.String_()] = true
+			}
+		} else if p.Token() == rhino.ITER_SPREAD {
+			// Rest parameter: `...x` — the first child is the NAME.
+			if fc := p.FirstChild(); fc != nil && fc.Token() == rhino.NAME {
+				paramSet[fc.String_()] = true
+			}
+		}
 	}
 	fnName := kids[0].String_()
 	if fnName == "" {
