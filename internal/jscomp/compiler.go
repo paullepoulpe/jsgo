@@ -11,10 +11,37 @@
 package jscomp
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/paullepoulpe/jsgo/internal/diag"
 	"github.com/paullepoulpe/jsgo/internal/parser"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/rhino/jstype"
 )
+
+// useNewPipeline reports whether JSGO_NEW_PIPELINE=1 is set, gating the
+// ParserRewrite → IRFactory path. When false, the legacy parser.Parse path
+// is used unchanged.
+var useNewPipeline = os.Getenv("JSGO_NEW_PIPELINE") == "1"
+
+// parseSource selects the parse path based on useNewPipeline.
+// It mirrors Compiler.parse(input) which calls ParserRunner.parse internally.
+// Returns the SCRIPT-rooted rhino.Node and any fatal parse error.
+func parseSource(path, src string) (*rhino.Node, error) {
+	if useNewPipeline {
+		result := runNewPipeline(path, src)
+		if result.hadError || result.ast == nil {
+			msg := result.firstError
+			if msg == "" {
+				msg = "parse error"
+			}
+			return nil, fmt.Errorf("%s", msg)
+		}
+		return result.ast, nil
+	}
+	return parser.Parse(src)
+}
 
 // hasVarMultiplyError reports whether the diagnostic slice contains any
 // JSC_VAR_MULTIPLY_DECLARED_ERROR entry. CheckGlobalThis is skipped when
@@ -57,7 +84,7 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	if opts == nil {
 		opts = NewCompilerOptions()
 	}
-	script, err := parser.Parse(src)
+	script, err := parseSource(path, src)
 	if err != nil {
 		return nil, err
 	}

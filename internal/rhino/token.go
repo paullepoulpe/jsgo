@@ -221,6 +221,27 @@ const (
 	MODULE_BODY  // body of an ES module
 	IMPORT_META  // `import.meta` meta-property
 	ES6_SUPER    // `super` in ES6 class context (distinct from SUPER in some passes)
+	// IMPORT mirrors Token.IMPORT — an ES module import declaration.
+	IMPORT
+	// EXPORT mirrors Token.EXPORT — an ES module export declaration.
+	EXPORT
+	// IMPORT_SPEC mirrors Token.IMPORT_SPEC — a single `name [as alias]` entry
+	// inside an IMPORT_SPECS list.
+	IMPORT_SPEC
+	// EXPORT_SPEC mirrors Token.EXPORT_SPEC — a single `name [as alias]` entry
+	// inside an EXPORT_SPECS list.
+	EXPORT_SPEC
+	// IMPORT_SPECS mirrors Token.IMPORT_SPECS — the `{ … }` list in an import.
+	IMPORT_SPECS
+	// EXPORT_SPECS mirrors Token.EXPORT_SPECS — the `{ … }` list in an export.
+	EXPORT_SPECS
+	// MEMBER_FIELD_DEF mirrors Token.MEMBER_FIELD_DEF — a class field declaration.
+	MEMBER_FIELD_DEF
+	// DESTRUCTURING_LHS mirrors Token.DESTRUCTURING_LHS — the LHS wrapper in a
+	// destructuring var/let/const declaration.
+	DESTRUCTURING_LHS
+	// NEW_TARGET mirrors Token.NEW_TARGET — the `new.target` meta-property.
+	NEW_TARGET
 
 	// TS-only tokens — TypeScript constructs that have no JS equivalent.
 	// Declared here so passes that inspect TS ASTs can reference them by
@@ -477,6 +498,24 @@ func (t Token) String() string {
 		return "IMPORT_META"
 	case ES6_SUPER:
 		return "ES6_SUPER"
+	case IMPORT:
+		return "IMPORT"
+	case EXPORT:
+		return "EXPORT"
+	case IMPORT_SPEC:
+		return "IMPORT_SPEC"
+	case EXPORT_SPEC:
+		return "EXPORT_SPEC"
+	case IMPORT_SPECS:
+		return "IMPORT_SPECS"
+	case EXPORT_SPECS:
+		return "EXPORT_SPECS"
+	case MEMBER_FIELD_DEF:
+		return "MEMBER_FIELD_DEF"
+	case DESTRUCTURING_LHS:
+		return "DESTRUCTURING_LHS"
+	case NEW_TARGET:
+		return "NEW_TARGET"
 	case INTERFACE:
 		return "INTERFACE"
 	case IMPLEMENTS_MEMBERS:
