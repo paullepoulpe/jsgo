@@ -15,9 +15,10 @@ const (
 
 // FunctionDeclarationTree represents a function declaration, expression, arrow, or member.
 type FunctionDeclarationTree struct {
+	ParseTree
 	Name                *IdentifierToken
 	FormalParameterList *FormalParameterListTree
-	FunctionBody        ParseTree
+	FunctionBody        *ParseTree
 	IsClassMember       bool
 	IsStatic            bool
 	IsGenerator         bool
@@ -31,7 +32,7 @@ type FunctionDeclarationBuilder struct {
 	kind                FunctionDeclarationKind
 	name                *IdentifierToken
 	formalParameterList *FormalParameterListTree
-	functionBody        ParseTree
+	functionBody        *ParseTree
 	isClassMember       bool
 	isStatic            bool
 	isGenerator         bool
@@ -53,7 +54,7 @@ func (b *FunctionDeclarationBuilder) SetFormalParameterList(fpl *FormalParameter
 	return b
 }
 
-func (b *FunctionDeclarationBuilder) SetFunctionBody(body ParseTree) *FunctionDeclarationBuilder {
+func (b *FunctionDeclarationBuilder) SetFunctionBody(body *ParseTree) *FunctionDeclarationBuilder {
 	b.functionBody = body
 	return b
 }
@@ -85,6 +86,7 @@ func (b *FunctionDeclarationBuilder) SetAsync(isAsync bool) *FunctionDeclaration
 
 func (b *FunctionDeclarationBuilder) Build(location SourceRange) *FunctionDeclarationTree {
 	return &FunctionDeclarationTree{
+		ParseTree:           ParseTree{Type: ParseTreeTypeFunctionDeclaration, Location: location},
 		Name:                b.name,
 		FormalParameterList: b.formalParameterList,
 		FunctionBody:        b.functionBody,

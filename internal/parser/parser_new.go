@@ -837,7 +837,7 @@ func (p *ParserRewrite) completeArrowFunctionParseAtArrow(leftOfArrow *trees.Par
 	arrowFunctionBody := p.parseArrowFunctionBody(exprIn, functionFlavorNormal)
 	builder := trees.NewFunctionDeclarationBuilder(trees.FunctionDeclarationKindArrow).
 		SetFormalParameterList(arrowFormalParameters).
-		SetFunctionBody(*arrowFunctionBody)
+		SetFunctionBody(arrowFunctionBody)
 	loc := toTreesRange(SourceRange{
 		Start: SourcePosition{
 			Offset: arrowFormalParameters.Location.Start.Offset,
@@ -909,7 +909,7 @@ func (p *ParserRewrite) parseAsyncArrowFunction(exprIn expressionKind) *trees.Pa
 	builder := trees.NewFunctionDeclarationBuilder(trees.FunctionDeclarationKindArrow).
 		SetAsync(true).
 		SetFormalParameterList(arrowParameterList).
-		SetFunctionBody(*arrowFunctionBody)
+		SetFunctionBody(arrowFunctionBody)
 	return p.asParseTree(builder.Build(p.getTreeLocation(start)))
 }
 
@@ -2326,7 +2326,7 @@ func (p *ParserRewrite) asParseTree(node interface{}) *trees.ParseTree {
 		t := trees.ParseTree{Type: n.Type, Location: n.Location}
 		return &t
 	case *trees.FunctionDeclarationTree:
-		t := trees.ParseTree{Type: trees.ParseTreeTypeFunctionDeclaration, Location: n.FormalParameterList.Location}
+		t := trees.ParseTree{Type: n.Type, Location: n.Location}
 		return &t
 	case *trees.SuperExpressionTree:
 		t := trees.ParseTree{Type: n.Type, Location: n.Location}
