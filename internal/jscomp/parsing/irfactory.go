@@ -97,6 +97,7 @@ func (f *IRFactory) findPrecedingJSDoc(nodeStartOffset int) *trees.Comment {
 
 // extractJSDocBody extracts the body of a JSDoc comment (without /** and */).
 // Mirrors the body extraction Java's IRFactory does before passing to JsDocInfoParser.
+// Go-only: language-adapter — Java passes the raw Comment object to JsDocInfoParser which extracts the body internally; Go pre-processes the string because JsDocTokenStream takes a plain string.
 func extractJSDocBody(raw string) string {
 	body := raw
 	if len(body) >= 3 && body[:3] == "/**" {
@@ -111,7 +112,9 @@ func extractJSDocBody(raw string) string {
 // parseInlineTypeJSDoc parses a block comment body as an inline type annotation.
 // Handles the `/** TypeExpr */` pattern used for inline parameter/variable types,
 // where the body contains a type expression without `@` tags.
-// Mirrors parser.parseInlineTypeJSDoc from the legacy parser.
+// Mirrors Java's JsDocInfoParser.parseInlineTypeDoc() but as a standalone function
+// since Go cannot call into JsDocInfoParser from here without a circular import.
+// Go-only: language-adapter — Java calls JsDocInfoParser.parseInlineTypeDoc() via parseJSDocInfoFrom(); Go reimplements the lightweight path inline to avoid a package import cycle.
 func parseInlineTypeJSDoc(body string) *rhino.JSDocInfo {
 	// If the body contains an @ tag, it's not an inline type annotation.
 	for i := 0; i < len(body); i++ {
@@ -184,6 +187,7 @@ func (f *IRFactory) Transform(tree *trees.ParseTree) *rhino.Node {
 // nodes, JSDoc is attached to the first child (ASSIGN/CALL/NEW/FUNCTION) rather
 // than the wrapper, mirroring the legacy parser's attachJSDocToInner.
 // For VAR/LET/CONST declarations, JSDoc is attached to the declaration node.
+// Go-only: language-adapter — Java's IRFactory attaches JSDoc during transform via setJsDocInfo(); Go needs a separate helper because JSDoc is attached post-construction after the node tree is built.
 func attachJSDocToNode(node *rhino.Node, jsdoc *rhino.JSDocInfo) {
 	if node == nil || jsdoc == nil {
 		return
@@ -205,6 +209,7 @@ func attachJSDocToNode(node *rhino.Node, jsdoc *rhino.JSDocInfo) {
 // This is more restrictive than shouldAttachJSDoc: it excludes expression
 // statements and object-literal properties to avoid treating plain
 // description comments (/** some text */) as type annotations.
+// Go-only: language-adapter — Java's IRFactory handles inline-type attachment inline in attachJSDoc; Go extracts it to a predicate for clarity.
 func isInlineTypeAttachmentPoint(tree *trees.ParseTree) bool {
 	switch tree.Type {
 	case trees.ParseTreeTypeVariableStatement,
@@ -217,6 +222,7 @@ func isInlineTypeAttachmentPoint(tree *trees.ParseTree) bool {
 
 // shouldAttachJSDoc reports whether a ParseTree type is a valid JSDoc
 // attachment point. Mirrors Java IRFactory's per-type attachment logic.
+// Go-only: language-adapter — Java's IRFactory calls attachJSDoc for every node and checks type inline; Go extracts the type predicate so the Transform method stays readable.
 func shouldAttachJSDoc(tree *trees.ParseTree) bool {
 	switch tree.Type {
 	case trees.ParseTreeTypeFunctionDeclaration,
@@ -380,6 +386,7 @@ func (f *IRFactory) process(tree *trees.ParseTree) *rhino.Node {
 }
 
 // transformAwaitExpression mirrors IRFactory.processAwait(AwaitExpressionTree).
+// Go-only: language-adapter — Java's TransformDispatcher uses processAwait(); Go renames to transformAwaitExpression for naming consistency with the Go dispatch table.
 func (f *IRFactory) transformAwaitExpression(tree *trees.AwaitExpressionTree) *rhino.Node {
 	await := f.newNode(rhino.AWAIT)
 	await.AddChildToBack(f.Transform(tree.Expression))
@@ -387,6 +394,7 @@ func (f *IRFactory) transformAwaitExpression(tree *trees.AwaitExpressionTree) *r
 }
 
 // transformDynamicImport mirrors IRFactory.processDynamicImport(DynamicImportTree).
+// Go-only: language-adapter — Java's TransformDispatcher uses processDynamicImport(); Go renames for naming consistency.
 func (f *IRFactory) transformDynamicImport(tree *trees.DynamicImportTree) *rhino.Node {
 	n := f.newNode(rhino.DYNAMIC_IMPORT)
 	n.AddChildToBack(f.Transform(tree.Argument))
@@ -450,6 +458,7 @@ func (f *IRFactory) processAstRoot(tree *trees.ProgramTree) *rhino.Node {
 }
 
 // isFileoverviewComment reports whether a JSDoc comment body contains @fileoverview.
+// Go-only: language-adapter — Java's IRFactory tests this via JsDocInfoParser.getFileOverviewJSDocInfo(); Go uses a cheap string scan to avoid a full parse just for the fileoverview check.
 func isFileoverviewComment(body string) bool {
 	for i := 0; i < len(body)-len("fileoverview"); i++ {
 		if body[i] == '@' && i+len("fileoverview") < len(body) && body[i+1:i+1+len("fileoverview")] == "fileoverview" {
