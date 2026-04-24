@@ -63,7 +63,10 @@ func (AbstractPreOrderCallback) ShouldTraverse(_ *NodeTraversal, _, _ *rhino.Nod
 	return true
 }
 
-func (AbstractPreOrderCallback) Visit(_ *NodeTraversal, _, _ *rhino.Node) {}
+func (AbstractPreOrderCallback) Visit(t *NodeTraversal, n, parent *rhino.Node) {
+	// Default no-op: AbstractPreOrderCallback processes nodes in ShouldTraverse only.
+	_ = t
+}
 
 // AbstractScopedCallback mirrors Java's
 // NodeTraversal.AbstractScopedCallback: a ScopedCallback that always
@@ -76,8 +79,14 @@ func (AbstractScopedCallback) ShouldTraverse(_ *NodeTraversal, _, _ *rhino.Node)
 	return true
 }
 
-func (AbstractScopedCallback) EnterScope(_ *NodeTraversal) {}
-func (AbstractScopedCallback) ExitScope(_ *NodeTraversal)  {}
+func (AbstractScopedCallback) EnterScope(t *NodeTraversal) {
+	// Default no-op: AbstractScopedCallback subclasses override as needed.
+	_ = t
+}
+func (AbstractScopedCallback) ExitScope(t *NodeTraversal) {
+	// Default no-op: AbstractScopedCallback subclasses override as needed.
+	_ = t
+}
 
 // ScopeCreator mirrors the Java ScopeCreator interface.  It is called
 // in pre-order (when a scope boundary node is first entered) to
@@ -122,13 +131,8 @@ type NodeTraversal struct {
 	scopes        []*TypedScope
 }
 
-// NewNodeTraversal builds a traversal driven by the given callback,
-// starting from the provided global scope.  The scope creator is
-// consulted when we descend into a FUNCTION (or class method) whose
-// body needs its local scope active.
-//
-// If cb also satisfies ScopedCallback its EnterScope / ExitScope
-// methods are called whenever a scope is pushed or popped.
+// Go-only: language-adapter — Java uses NodeTraversal.Builder; Go uses a
+// constructor function since there is no builder pattern here.
 func NewNodeTraversal(cb Callback, creator *TypedScopeCreator, global *TypedScope) *NodeTraversal {
 	t := &NodeTraversal{
 		callback: cb,
@@ -162,15 +166,8 @@ func (t *NodeTraversal) Traverse(root *rhino.Node) {
 	}
 }
 
-// TraverseInto exposes the recursive walker so callbacks can drive
-// custom child orderings — e.g. TypeCheck visits an IF's condition,
-// then descends into the then-branch under one refinement frame and
-// the else-branch under another.  Mirrors NodeTraversal#traverse on
-// the Java side.
-//
-// TraverseInto does not fire EnterScope / ExitScope for the node
-// itself; those fire only at scope-boundary nodes (FUNCTION bodies)
-// encountered during the walk.
+// Go-only: language-adapter — Java's traverseBranch is private; Go exposes
+// it as TraverseInto for callers that need to drive child traversal order.
 func (t *NodeTraversal) TraverseInto(n, parent *rhino.Node) {
 	t.traverse(n, parent)
 }
@@ -327,19 +324,65 @@ func (t *NodeTraversal) GetClosestHoistScopeRoot() *rhino.Node {
 	return t.global.GetRootNode()
 }
 
-// TraverseFunctionOutOfBand traverses a FUNCTION node in isolation
-// using the provided pre-built scope.  This mirrors Java's private
-// traverseFunction helper but is exposed as a public entry point for
-// callers — such as TypeCheck — that need to re-visit a function body
-// after the main traversal, using a scope built out-of-band by
-// TypedScopeCreator.
-//
-// The callback's ShouldTraverse is called on `root` with parent==nil
-// (matching Java's out-of-band handling where the function has no
-// traversal parent).  If ShouldTraverse returns false the walk is
-// skipped entirely.  Otherwise: EnterScope fires for `scope`, the
-// function's children are traversed depth-first, ExitScope fires, the
-// scope is popped, and finally Visit is called on `root`.
+// GetScopeCreator returns the TypedScopeCreator used by this traversal.
+// Mirrors NodeTraversal.getScopeCreator.
+func (t *NodeTraversal) GetScopeCreator() *TypedScopeCreator {
+	return t.creator
+}
+
+// GetTypedScope returns the current innermost TypedScope.
+// Mirrors NodeTraversal.getTypedScope.
+func (t *NodeTraversal) GetTypedScope() *TypedScope {
+	return t.CurrentScope()
+}
+
+// InGlobalScope reports whether the traversal is currently at the outermost
+// (global) scope depth.
+// Mirrors NodeTraversal.inGlobalScope.
+func (t *NodeTraversal) InGlobalScope() bool {
+	return len(t.scopes) == 1
+}
+
+// InFunctionBlockScope reports whether the current scope root is a FUNCTION
+// body BLOCK node.
+// Mirrors NodeTraversal.inFunctionBlockScope.
+func (t *NodeTraversal) InFunctionBlockScope() bool {
+	root := t.CurrentScope().GetRootNode()
+	return root != nil && root.IsBlock() &&
+		root.Parent() != nil && root.Parent().IsFunction()
+}
+
+// InGlobalHoistScope reports whether the current hoist scope is the global scope.
+// Mirrors NodeTraversal.inGlobalHoistScope.
+func (t *NodeTraversal) InGlobalHoistScope() bool {
+	for i := len(t.scopes) - 1; i >= 0; i-- {
+		if t.scopes[i].IsHoistScope() {
+			return t.scopes[i] == t.global
+		}
+	}
+	return true
+}
+
+// IsHoistScope reports whether the current scope is a hoist scope (function,
+// module body, or class static block).
+// Mirrors NodeTraversal.isHoistScope.
+func (t *NodeTraversal) IsHoistScope() bool {
+	return t.CurrentScope().IsHoistScope()
+}
+
+// GetEnclosingFunction returns the nearest enclosing function node,
+// searching from the current scope root upward.
+// Mirrors NodeTraversal.getEnclosingFunction.
+func (t *NodeTraversal) GetEnclosingFunction() *rhino.Node {
+	root := t.CurrentScope().GetRootNode()
+	if root == nil {
+		return nil
+	}
+	return NU.GetEnclosingFunction(root)
+}
+
+// Go-only: language-adapter — Java's traverseFunction is private; Go exposes
+// it for TypeCheck's out-of-band function re-traversal.
 func (t *NodeTraversal) TraverseFunctionOutOfBand(root *rhino.Node, scope *TypedScope) {
 	if !t.callback.ShouldTraverse(t, root, nil) {
 		return

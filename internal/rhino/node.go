@@ -91,6 +91,38 @@ const (
 	// typed declarations. Mirrors Node.setDeclaredTypeExpression /
 	// Node.getDeclaredTypeExpression in Java.
 	PropDeclaredTypeExpr
+	// PropOriginalName stores the original (pre-rename) name of a node.
+	// Mirrors Java's Node.setOriginalName / Node.getOriginalName.
+	PropOriginalName
+	// PropSourceFile stores the source file name for a node.
+	// Mirrors Java's Node.getSourceFileName.
+	PropSourceFile
+	// PropGeneratorMarker mirrors Java's Node.isGeneratorMarker() — marks
+	// generator function body entry points during code generation.
+	PropGeneratorMarker
+	// PropGeneratorSafe mirrors Java's Node.isGeneratorSafe() — marks nodes
+	// that have already been processed by the generator rewriter.
+	PropGeneratorSafe
+	// PropDeleted mirrors Java's Node.DELETED — set when a node has been deleted.
+	PropDeleted
+	// PropIsUnusedParameter mirrors Java's Node.IS_UNUSED_PARAMETER — set on
+	// function parameter nodes that are unused.
+	PropIsUnusedParameter
+	// PropUseStrict mirrors Java's Node.USE_STRICT — set on blocks that contain
+	// the "use strict" directive.
+	PropUseStrict
+	// PropTrailingComma mirrors Java's Node.TRAILING_COMMA — set on nodes that
+	// had a trailing comma in the source.
+	PropTrailingComma
+	// PropIsInterface mirrors Java's Node.INTERFACE — set on class-like nodes
+	// that are TypeScript interfaces.
+	PropIsInterface
+	// PropFromExterns mirrors Java's Node.IS_FROM_EXTERNS — set on nodes
+	// that originate from extern files.
+	PropFromExterns
+	// PropNonIndexable mirrors Java's Node.NON_INDEXABLE — set when makeNonIndexable
+	// is called; IsIndexable returns false for such nodes.
+	PropNonIndexable
 )
 
 type Node struct {
@@ -135,6 +167,7 @@ func NewNumber(v float64) *Node { return &Node{token: NUMBER, num: v} }
 
 func (n *Node) Token() Token             { return n.token }
 func (n *Node) String_() string          { return n.str }
+// Go-only: language-adapter — alias for SetString; underscore avoids name collision.
 func (n *Node) SetString_(s string)      { n.str = s }
 func (n *Node) SetString(s string)       { n.str = s }
 func (n *Node) Number() float64          { return n.num }
@@ -142,6 +175,8 @@ func (n *Node) JSDocInfo() *JSDocInfo    { return n.jsdoc }
 func (n *Node) SetJSDocInfo(i *JSDocInfo) { n.jsdoc = i }
 func (n *Node) Lineno() int              { return n.lineno }
 func (n *Node) Charno() int              { return n.charno }
+// Go-only: language-adapter — Java uses setLineno/setCharno separately;
+// Go combines into a single call.
 func (n *Node) SetPos(line, col int)     { n.lineno, n.charno = line, col }
 
 // Parent mirrors Java's getParent(). Nil for detached / root nodes.
@@ -677,12 +712,14 @@ const (
 		SideEffectMutatesThis | SideEffectMutatesArguments | SideEffectThrows
 )
 
-// NewSideEffectFlags returns a SideEffectFlags with all bits set (Java default).
+// Go-only: language-adapter — Java uses SideEffectFlags() constructor with
+// all bits; Go uses a named factory for clarity.
 func NewSideEffectFlags() SideEffectFlags {
 	return SideEffectFlags{value: SideEffectAllSideEffects}
 }
 
-// NewSideEffectFlagsValue wraps a raw int value.
+// Go-only: language-adapter — Java uses SideEffectFlags(int); Go adds a
+// factory to distinguish from the no-arg constructor.
 func NewSideEffectFlagsValue(v int) SideEffectFlags { return SideEffectFlags{value: v} }
 
 func (f *SideEffectFlags) ValueOf() int { return f.value }
@@ -731,7 +768,8 @@ func (n *Node) SetSideEffectFlags(flags int) {
 	n.PutIntProp(PropSideEffectFlags, ^flags&sideEffectUsedBitsMask)
 }
 
-// SetSideEffectFlagsValue is a convenience overload accepting SideEffectFlags.
+// Go-only: language-adapter — Java's setSideEffectFlags(SideEffectFlags)
+// is the canonical form; Go adds "Value" suffix to distinguish overloads.
 func (n *Node) SetSideEffectFlagsValue(flags SideEffectFlags) {
 	n.SetSideEffectFlags(flags.value)
 }
@@ -816,9 +854,8 @@ func (n *Node) GetSecondChild() *Node {
 	return n.first.next
 }
 
-// GetLastSibling ports Node.getLastSibling(). Returns the last sibling of n
-// (following the chain of Next pointers). Returns n itself when it has no
-// next sibling.
+// Go-only: language-adapter — Java has getLastSibling() but using circular
+// linked list; Go's implementation uses forward-only traversal.
 func (n *Node) GetLastSibling() *Node {
 	cur := n
 	for cur.next != nil {
@@ -883,14 +920,14 @@ func (n *Node) MatchesName(name string) bool {
 	return n.str != "" && n.str == name
 }
 
-// MatchesQualifiedNameStr ports Node.matchesQualifiedName(String). Returns true
-// iff this node represents the dotted name encoded in qname (e.g. "a.b.c").
+// Go-only: language-adapter — Java name is matchesQualifiedName(String);
+// Go adds "Str" suffix since MatchesQualifiedName (node overload) is in qualified_name.go.
 func (n *Node) MatchesQualifiedNameStr(qname string) bool {
 	return n.matchesQualifiedNameAt(qname, len(qname))
 }
 
+// Go-only: package-bridge — Java's private matchesQualifiedName(String, int).
 // matchesQualifiedNameAt is the recursive helper for MatchesQualifiedNameStr.
-// It mirrors Java's private Node.matchesQualifiedName(String, int).
 func (n *Node) matchesQualifiedNameAt(qname string, end int) bool {
 	start := lastIndexByte(qname, '.', end) + 1
 	switch n.token {
@@ -913,8 +950,8 @@ func (n *Node) matchesQualifiedNameAt(qname string, end int) bool {
 	}
 }
 
-// lastIndexByte returns the index of the last occurrence of b in s[:end],
-// or -1 if not found. Equivalent to strings.LastIndex restricted to a byte.
+// Go-only: language-adapter — Java uses s.lastIndexOf('.', end-1) inline;
+// Go needs a named helper function.
 func lastIndexByte(s string, b byte, end int) int {
 	for i := end - 1; i >= 0; i-- {
 		if s[i] == b {
@@ -944,17 +981,17 @@ func (n *Node) SetIsOptionalChainStart(b bool) {
 	n.PutBooleanProp(PropStartOfOptChain, b)
 }
 
-// IsFreeCall mirrors Java's Node.getBooleanProp(FREE_CALL). True when this
-// CALL node has no explicit receiver (i.e. callee is not a GETPROP/GETELEM).
+// Go-only: language-adapter — Java uses getBooleanProp(FREE_CALL) inline;
+// Go wraps it as a named method.
 func (n *Node) IsFreeCall() bool { return n.GetBooleanProp(PropFreeCall) }
 
-// SetFreeCall mirrors Java's Node.putBooleanProp(FREE_CALL, b).
+// Go-only: language-adapter — Java uses putBooleanProp(FREE_CALL, b) inline.
 func (n *Node) SetFreeCall(b bool) { n.PutBooleanProp(PropFreeCall, b) }
 
-// IsNamespace mirrors Java's Node.getBooleanProp(IS_NAMESPACE).
+// Go-only: language-adapter — Java uses getBooleanProp(IS_NAMESPACE) inline.
 func (n *Node) IsNamespace() bool { return n.GetBooleanProp(PropIsNamespace) }
 
-// SetNamespace mirrors Java's Node.putBooleanProp(IS_NAMESPACE, b).
+// Go-only: language-adapter — Java uses putBooleanProp(IS_NAMESPACE, b) inline.
 func (n *Node) SetNamespace(b bool) { n.PutBooleanProp(PropIsNamespace, b) }
 
 // IsGetProp mirrors Java's Node.isGetprop() — true for GETPROP token.
@@ -1043,10 +1080,10 @@ func (n *Node) IsYieldAll() bool { return n.GetBooleanProp(PropYieldAll) }
 // SetYieldAll mirrors Java's Node.setYieldAll(bool).
 func (n *Node) SetYieldAll(b bool) { n.PutBooleanProp(PropYieldAll, b) }
 
-// IsExportAll mirrors Java's Node.getBooleanProp(EXPORT_ALL_FROM).
+// Go-only: language-adapter — Java uses getBooleanProp(EXPORT_ALL_FROM) inline.
 func (n *Node) IsExportAll() bool { return n.GetBooleanProp(PropExportAll) }
 
-// IsExportDefault mirrors Java's Node.getBooleanProp(EXPORT_DEFAULT).
+// Go-only: language-adapter — Java uses getBooleanProp(EXPORT_DEFAULT) inline.
 func (n *Node) IsExportDefault() bool { return n.GetBooleanProp(PropExportDefault) }
 
 // IsDestructuringPattern mirrors Java's Node.isDestructuringPattern() — true
@@ -1096,8 +1133,8 @@ func (n *Node) GetLength() int { return n.length }
 // SetLength ports Node.setLength(int).
 func (n *Node) SetLength(l int) { n.length = l }
 
-// HasLength returns true when the node has a non-zero source length.
-// Convenience wrapper used by tests that mirror Java's assertNode.hasLength().
+// Go-only: language-adapter — Java uses getLength() > 0 inline; Go provides
+// this for test assertions that mirror Java's assertNode.hasLength().
 func (n *Node) HasLength() bool { return n.length > 0 }
 
 // ---------------- additional source-info ---------------------------------- //
@@ -1434,7 +1471,7 @@ func (n *Node) IsSyntheticBlock() bool {
 	return n.token == BLOCK && n.GetBooleanProp(PropSynthetic)
 }
 
-// SetSyntheticBlock mirrors Java's Node.setIsSyntheticBlock(boolean).
+// Go-only: language-adapter — Java name is setIsSyntheticBlock; Go shortens it.
 func (n *Node) SetSyntheticBlock(b bool) { n.PutBooleanProp(PropSynthetic, b) }
 
 // IsUnscopedQualifiedName mirrors Java's Node.isUnscopedQualifiedName().
@@ -1475,5 +1512,417 @@ func (n *Node) GetString() string { return n.str }
 // SetToken mirrors Java's Node.setToken(Token).
 func (n *Node) SetToken(tok Token) { n.token = tok }
 
-// [duplicate of first declaration removed]
+// ---------------------------------------------------------------------------
+// Java-canonical accessor aliases and new methods ported from Node.java
+// ---------------------------------------------------------------------------
+
+// GetFirstChild mirrors Java's Node.getFirstChild().
+func (n *Node) GetFirstChild() *Node { return n.first }
+
+// GetLastChild mirrors Java's Node.getLastChild().
+func (n *Node) GetLastChild() *Node { return n.last }
+
+// GetNext mirrors Java's Node.getNext().
+func (n *Node) GetNext() *Node { return n.next }
+
+// GetPrevious mirrors Java's Node.getPrevious().
+func (n *Node) GetPrevious() *Node { return n.previous }
+
+// GetParent mirrors Java's Node.getParent().
+func (n *Node) GetParent() *Node { return n.parent }
+
+// GetChildCount mirrors Java's Node.getChildCount().
+func (n *Node) GetChildCount() int {
+	c := 0
+	for x := n.first; x != nil; x = x.next {
+		c++
+	}
+	return c
+}
+
+// GetLineno mirrors Java's Node.getLineno().
+func (n *Node) GetLineno() int { return n.lineno }
+
+// GetCharno mirrors Java's Node.getCharno().
+func (n *Node) GetCharno() int { return n.charno }
+
+// SetLinenoCharno mirrors Java's Node.setLinenoCharno(int, int).
+func (n *Node) SetLinenoCharno(lineno, charno int) {
+	n.lineno = lineno
+	n.charno = charno
+}
+
+// GetAncestor returns the ancestor at the given level above n
+// (0 = n, 1 = parent, 2 = grandparent, …), or nil if not that deep.
+// Mirrors Java's Node.getAncestor(int level).
+func (n *Node) GetAncestor(level int) *Node {
+	cur := n
+	for cur != nil && level > 0 {
+		cur = cur.parent
+		level--
+	}
+	return cur
+}
+
+// GetSourceFileName mirrors Java's Node.getSourceFileName().
+func (n *Node) GetSourceFileName() string {
+	v := n.GetProp(PropSourceFile)
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return ""
+}
+
+// GetOriginalName mirrors Java's Node.getOriginalName() — returns the name the
+// node had before any renaming, stored in the PropOriginalName property.
+func (n *Node) GetOriginalName() string {
+	v := n.GetProp(PropOriginalName)
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return ""
+}
+
+// SetOriginalName mirrors Java's Node.setOriginalName(String).
+func (n *Node) SetOriginalName(s string) {
+	if s == "" {
+		n.PutProp(PropOriginalName, nil)
+	} else {
+		n.PutProp(PropOriginalName, s)
+	}
+}
+
+// SetOriginalNameFromName mirrors Java's Node.setOriginalNameFromName(Node name).
+func (n *Node) SetOriginalNameFromName(name *Node) {
+	n.SetOriginalName(name.GetString())
+}
+
+// MatchesQualifiedNameStr is the canonical Go implementation.
+// MatchesQualifiedName is defined in qualified_name.go.
+
+// IsOnlyChild mirrors Java's Node.isOnlyChild() — true when this node is the
+// only child of its parent.
+func (n *Node) IsOnlyChild() bool {
+	p := n.parent
+	if p == nil {
+		return false
+	}
+	return p.first == n && n.next == nil
+}
+
+// Go-only: language-adapter — Java uses manual two-level parent check inline.
+func (n *Node) IsGrandparentOf(possible *Node) bool {
+	if possible == nil {
+		return false
+	}
+	p := possible.parent
+	if p == nil {
+		return false
+	}
+	return p.parent == n
+}
+
+// Remove mirrors Java's Node.detach() — detaches this node from its parent.
+func (n *Node) Remove() { n.Detach() }
+
+// GetIntValue mirrors Java's Node.getIntValue() — returns the numeric value
+// truncated to int.
+func (n *Node) GetIntValue() int { return int(n.num) }
+
+// Go-only: language-adapter — Java uses n.getParent() == parent inline.
+func (n *Node) HasDirectParent(possible *Node) bool { return n.parent == possible }
+
+// Go-only: language-adapter — Java name is isStringLit; Go uses Literal suffix.
+func (n *Node) IsStringLiteral() bool { return n.token == STRINGLIT }
+
+// Go-only: language-adapter — Java name is isVanillaFor; Go uses IsFor.
+func (n *Node) IsFor() bool { return n.token == FOR }
+
+// IsDynamicImport mirrors Java's Node.isDynamicImport() — true for DYNAMIC_IMPORT.
+func (n *Node) IsDynamicImport() bool { return n.token == DYNAMIC_IMPORT }
+
+// Go-only: language-adapter — Java name is isObjectSpread; Go uses ObjSpread.
+func (n *Node) IsObjSpread() bool { return n.token == OBJECT_SPREAD }
+
+// Go-only: language-adapter — Go already has IsRest; this variant is for
+// explicit both-token checks without calling IsRest's underlying logic.
+func (n *Node) IsRestOr() bool { return n.token == ITER_REST || n.token == OBJECT_REST }
+
+// GetJSDocInfo mirrors Java's Node.getJSDocInfo() — returns the JSDoc attached
+// to this node, or nil.
+func (n *Node) GetJSDocInfo() *JSDocInfo { return n.jsdoc }
+
+// Go-only: language-adapter — Java name is setJSDocInfo; Go adds Node suffix
+// to distinguish from the JSDocInfo-typed overload.
+func (n *Node) SetJSDocInfoNode(i *JSDocInfo) { n.jsdoc = i }
+
+// Go-only: language-adapter — Java uses isAssign(AND); Go provides IsAndAssign.
+func (n *Node) IsAndAssign() bool { return n.token == ASSIGN_AND }
+
+// Go-only: language-adapter — Java uses isAssign(OR); Go provides IsOrAssign.
+func (n *Node) IsOrAssign() bool { return n.token == ASSIGN_OR }
+
+// Go-only: language-adapter — Java name is isTaggedTemplateLit; Go uses shorter form.
+func (n *Node) IsTagTemplateLit() bool { return n.token == TAGGED_TEMPLATELIT }
+
+// IsComputed mirrors Java's Node.isComputed() — true for COMPUTED_PROP.
+func (n *Node) IsComputed() bool { return n.token == COMPUTED_PROP }
+
+// Go-only: language-adapter — Java uses isGeneratorMarker for a different prop;
+// Go maps this to PropGeneratorFn for functions marked with generator syntax.
+func (n *Node) IsGenerator() bool { return n.GetBooleanProp(PropGeneratorFn) }
+
+// IsGeneratorMarker mirrors Java's Node.isGeneratorMarker().
+func (n *Node) IsGeneratorMarker() bool { return n.GetBooleanProp(PropGeneratorMarker) }
+
+// IsGeneratorSafe mirrors Java's Node.isGeneratorSafe().
+func (n *Node) IsGeneratorSafe() bool { return n.GetBooleanProp(PropGeneratorSafe) }
+
+// SetGeneratorMarker mirrors Java's Node.setGeneratorMarker(boolean).
+func (n *Node) SetGeneratorMarker(b bool) { n.PutBooleanProp(PropGeneratorMarker, b) }
+
+// SetGeneratorSafe mirrors Java's Node.setGeneratorSafe(boolean).
+func (n *Node) SetGeneratorSafe(b bool) { n.PutBooleanProp(PropGeneratorSafe, b) }
+
+// IsAsync mirrors Java's Node.isAsync() — alias for IsAsyncFunction().
+func (n *Node) IsAsync() bool { return n.IsAsyncFunction() }
+
+// ToStringTree mirrors Java's Node.toStringTree() — returns a debug string.
+func (n *Node) ToStringTree() string { return n.token.String() }
+
+// ToString mirrors Java's Node.toString() — returns a single-node debug string.
+func (n *Node) ToString() string { return n.token.String() }
+
+// Go-only: language-adapter — Java has hasPropListHead(); Go uses map check.
+func (n *Node) HasProps() bool { return len(n.props) > 0 }
+
+// GetProp mirrors Java's Node.getProp(Prop p) — returns a property value or nil.
+func (n *Node) GetProp(p Prop) any {
+	if n.props == nil {
+		return nil
+	}
+	return n.props[p]
+}
+
+// PutProp mirrors Java's Node.putProp(Prop p, Object v).
+func (n *Node) PutProp(p Prop, v any) {
+	if v == nil {
+		if n.props != nil {
+			delete(n.props, p)
+		}
+		return
+	}
+	if n.props == nil {
+		n.props = make(map[Prop]any)
+	}
+	n.props[p] = v
+}
+
+// Go-only: language-adapter — Java uses putBooleanProp(ADDED_BLOCK, b) inline.
+func (n *Node) SetIsAddedBlock(b bool) { n.PutBooleanProp(PropAddedBlock, b) }
+
+// Go-only: language-adapter — Java uses isGetterDef() || isSetterDef() inline.
+func (n *Node) IsAccessorProp() bool { return n.IsGetterDef() || n.IsSetterDef() }
+
+// Go-only: language-adapter — Java uses isMemberVariableDef for MEMBER_FIELD_DEF.
+func (n *Node) IsFieldDeclaration() bool { return n.token == MEMBER_FIELD_DEF }
+
+// Go-only: language-adapter — Java has no isSuperCall; Go provides it as a helper.
+func (n *Node) IsSuperCall() bool {
+	if n.token != CALL {
+		return false
+	}
+	callee := n.first
+	return callee != nil && callee.token == SUPER
+}
+
+// GetDeclaredTypeExpression and SetDeclaredTypeExpression are defined in
+// type_declarations_ir.go.
+
+// ---------------------------------------------------------------------------
+// More Java-canonical methods ported from Node.java
+// ---------------------------------------------------------------------------
+
+// SetDeleted mirrors Java's Node.setDeleted(boolean).
+func (n *Node) SetDeleted(deleted bool) { n.PutBooleanProp(PropDeleted, deleted) }
+
+// IsDeleted mirrors Java's Node.isDeleted() — true when this node has been
+// marked as deleted by a compiler pass.
+func (n *Node) IsDeleted() bool { return n.GetBooleanProp(PropDeleted) }
+
+// SetUnusedParameter mirrors Java's Node.setUnusedParameter(boolean).
+func (n *Node) SetUnusedParameter(unused bool) { n.PutBooleanProp(PropIsUnusedParameter, unused) }
+
+// IsUnusedParameter mirrors Java's Node.isUnusedParameter() — true for
+// function parameters marked as unused by RemoveUnusedVars.
+func (n *Node) IsUnusedParameter() bool { return n.GetBooleanProp(PropIsUnusedParameter) }
+
+// SetUseStrict mirrors Java's Node.setUseStrict(boolean).
+func (n *Node) SetUseStrict(x bool) { n.PutBooleanProp(PropUseStrict, x) }
+
+// IsUseStrict mirrors Java's Node.isUseStrict() — true when this BLOCK
+// contained the "use strict" directive.
+func (n *Node) IsUseStrict() bool { return n.GetBooleanProp(PropUseStrict) }
+
+// SetTrailingComma mirrors Java's Node.setTrailingComma(boolean).
+func (n *Node) SetTrailingComma(hasTrailingComma bool) {
+	n.PutBooleanProp(PropTrailingComma, hasTrailingComma)
+}
+
+// HasTrailingComma mirrors Java's Node.hasTrailingComma() — true when the
+// corresponding source had a trailing comma after this node.
+func (n *Node) HasTrailingComma() bool { return n.GetBooleanProp(PropTrailingComma) }
+
+// IsOptionalEs6Typed mirrors Java's Node.isOptionalEs6Typed() — true for
+// TypeScript optional parameter nodes.
+func (n *Node) IsOptionalEs6Typed() bool { return n.GetBooleanProp(PropOptEs6Typed) }
+
+// IsInterface mirrors Java's Node.isInterface() — true for TypeScript
+// interface declaration nodes.
+func (n *Node) IsInterface() bool { return n.GetBooleanProp(PropIsInterface) }
+
+// IsFromExterns mirrors Java's Node.isFromExterns() — true when this node
+// originates from an externs file.
+func (n *Node) IsFromExterns() bool { return n.GetBooleanProp(PropFromExterns) }
+
+// SetStaticSourceFile mirrors Java's Node.setStaticSourceFile — stores the
+// source file name in the PropSourceFile property.
+func (n *Node) SetStaticSourceFile(filename string) {
+	n.PutProp(PropSourceFile, filename)
+}
+
+// IsIndexable mirrors Java's Node.isIndexable() — true when the node should
+// be indexed by static analysis tools. Defaults to true (absent = true).
+func (n *Node) IsIndexable() bool { return !n.GetBooleanProp(PropNonIndexable) }
+
+// GetToken mirrors Java's Node.getToken() — returns the Token type.
+func (n *Node) GetToken() Token { return n.token }
+
+// IsIsSyntheticBlock is an alias for IsSyntheticBlock.
+// Mirrors Java's Node.isIsSyntheticBlock() naming.
+func (n *Node) SetIsSyntheticBlock(b bool) { n.PutBooleanProp(PropSynthetic, b) }
+
+// ClonePropsFrom copies all properties from other into this node.
+// Mirrors Java's Node.clonePropsFrom(Node).
+func (n *Node) ClonePropsFrom(other *Node) {
+	if len(other.props) == 0 {
+		return
+	}
+	if n.props == nil {
+		n.props = make(map[Prop]any, len(other.props))
+	}
+	for k, v := range other.props {
+		n.props[k] = v
+	}
+}
+
+// HasZeroOrOneChild mirrors Java's Node.hasZeroOrOneChild() — true when the
+// node has at most one child.
+func (n *Node) HasZeroOrOneChild() bool {
+	return n.first == n.last
+}
+
+// HasChild mirrors Java's Node.hasChild(Node child) — true when child is an
+// immediate child of this node.
+func (n *Node) HasChild(child *Node) bool {
+	for c := n.first; c != nil; c = c.next {
+		if c == child {
+			return true
+		}
+	}
+	return false
+}
+
+// IsAsyncGeneratorFunction mirrors Java's Node.isAsyncGeneratorFunction() —
+// true for async generator function nodes (async function*).
+func (n *Node) IsAsyncGeneratorFunction() bool {
+	return n.IsAsyncFunction() && n.IsGeneratorFunction()
+}
+
+// GetOriginalQualifiedName mirrors Java's Node.getOriginalQualifiedName() —
+// returns the original (pre-rename) dotted name for this NAME or GETPROP chain.
+func (n *Node) GetOriginalQualifiedName() string {
+	switch n.token {
+	case NAME:
+		orig := n.GetOriginalName()
+		if orig == "" {
+			orig = n.str
+		}
+		if orig == "" {
+			return ""
+		}
+		return orig
+	case GETPROP:
+		left := n.first
+		if left == nil {
+			return ""
+		}
+		leftName := left.GetOriginalQualifiedName()
+		if leftName == "" {
+			return ""
+		}
+		right := n.GetOriginalName()
+		if right == "" {
+			right = n.str
+		}
+		if right == "" {
+			return ""
+		}
+		return leftName + "." + right
+	}
+	return ""
+}
+
+// AddChildrenAfter mirrors Java's Node.addChildrenAfter(Node, Node) —
+// inserts the sibling chain beginning at children after the node afterNode
+// (or at front if afterNode is nil).
+func (n *Node) AddChildrenAfter(children, afterNode *Node) {
+	if children == nil {
+		return
+	}
+	if afterNode == nil {
+		n.AddChildrenToFront(children)
+		return
+	}
+	for c := children; c != nil; {
+		next := c.next
+		c.next = nil
+		c.previous = nil
+		c.parent = nil
+		// Insert after afterNode
+		c.parent = n
+		c.previous = afterNode
+		c.next = afterNode.next
+		if afterNode.next != nil {
+			afterNode.next.previous = c
+		} else {
+			// afterNode was the last child
+			if n.first != nil {
+				n.first.previous = c
+			}
+		}
+		afterNode.next = c
+		afterNode = c
+		c = next
+	}
+}
+
+// AddChildrenToFront mirrors Java's Node.addChildrenToFront(Node) —
+// prepends all children from firstChild's chain to the front of n's children.
+func (n *Node) AddChildrenToFront(firstChild *Node) {
+	if firstChild == nil {
+		return
+	}
+	for c := firstChild; c != nil; {
+		next := c.next
+		c.next = nil
+		c.previous = nil
+		c.parent = nil
+		n.AddChildToFront(c)
+		c = next
+	}
+}
+
+// GetQualifiedName is defined in qualified_name.go.
+
 

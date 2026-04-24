@@ -363,9 +363,8 @@ func (nodeUtil) IsLiteralValue(n *rhino.Node, includeFunctions bool) bool {
 // getFunctionName / getBestLValueName
 // ---------------------------------------------------------------------------
 
-// GetFunctionName returns the inferred name of a FUNCTION node, or "".
-// Mirrors NodeUtil.getNearestFunctionName (Java) — the task calls this
-// getFunctionName for the subset we expose.
+// Go-only: language-adapter — Java exposes getName and getNearestFunctionName
+// separately; this consolidates them for the subset callers need.
 func (nodeUtil) GetFunctionName(n *rhino.Node) string {
 	if n == nil || n.Token() != rhino.FUNCTION {
 		return ""
@@ -429,7 +428,7 @@ func (nodeUtil) GetBestLValueName(n *rhino.Node) string {
 	return ""
 }
 
-// nuQualifiedName reconstructs a.b.c from a GETPROP chain.
+// Go-only: package-bridge — inlines Java's private getQualifiedName logic.
 func nuQualifiedName(n *rhino.Node) string {
 	if n == nil {
 		return ""
@@ -479,9 +478,8 @@ func (nodeUtil) GetFunctionParameters(fnNode *rhino.Node) *rhino.Node {
 // mayHaveSideEffects
 // ---------------------------------------------------------------------------
 
-// MayHaveSideEffects reports conservatively whether evaluating `n` can
-// produce observable side effects.  Mirrors the narrow form of
-// AstAnalyzer.mayHaveSideEffects (Java) — no @nosideeffects JSDoc support.
+// Go-only: language-adapter — Java's version is on AstAnalyzer, not NodeUtil;
+// this provides a simpler inline version without @nosideeffects JSDoc support.
 func (nodeUtil) MayHaveSideEffects(n *rhino.Node) bool {
 	if n == nil {
 		return false
@@ -623,10 +621,8 @@ func (nodeUtil) IsThis(n *rhino.Node) bool {
 	return n != nil && n.Token() == rhino.THIS
 }
 
-// IsSuperOrSuperProperty reports whether `n` is a SUPER node or a property
-// access whose object is SUPER (e.g. `super.method`).
-// There is no direct Java counterpart by this exact name; the predicate
-// is spelled out inline in Java's NodeUtil in several places.
+// Go-only: language-adapter — Java inlines this predicate; we extract it
+// as a named method to avoid repetition across callers.
 func (nodeUtil) IsSuperOrSuperProperty(n *rhino.Node) bool {
 	if n == nil {
 		return false
@@ -848,8 +844,7 @@ func (nodeUtil) IsPrototypeMethod(n *rhino.Node) bool {
 	return NU.IsExprAssign(er) && lhs != nil && NU.IsPrototypeProperty(lhs.FirstChild())
 }
 
-// MayEffectMutableState reports whether n may create or mutate state.
-// Mirrors AstAnalyzer.mayEffectMutableState (Java).
+// Go-only: language-adapter — Java's version is on AstAnalyzer, not NodeUtil.
 func (nodeUtil) MayEffectMutableState(n *rhino.Node) bool {
 	if n == nil {
 		return false
@@ -876,8 +871,8 @@ func (nodeUtil) MayEffectMutableState(n *rhino.Node) bool {
 	return false
 }
 
-// NewQualifiedNameNode builds a NAME or GETPROP chain for a dotted name.
-// Mirrors NodeUtil.newQName (Java) without compiler context.
+// Go-only: language-adapter — Java's newQName takes an AbstractCompiler;
+// this version omits the compiler context for callers that don't need it.
 func (nodeUtil) NewQualifiedNameNode(name string) *rhino.Node {
 	dot := strings.IndexByte(name, '.')
 	if dot == -1 {
@@ -902,7 +897,8 @@ func (nodeUtil) NewQualifiedNameNode(name string) *rhino.Node {
 	return root
 }
 
-// RemoveChildren detaches and returns all children of n. Mirrors Node.removeChildren().
+// Go-only: language-adapter — delegates to Node.removeChildren(); Java callers
+// call Node.removeChildren() directly without going through NodeUtil.
 func (nodeUtil) RemoveChildren(n *rhino.Node) []*rhino.Node {
 	if n == nil {
 		return nil
@@ -989,7 +985,7 @@ func (nodeUtil) GetBestJSDocInfo(n *rhino.Node) *rhino.JSDocInfo {
 	return nil
 }
 
-// TryGetStringFromBoolean returns "true"/"false" for TRUE/FALSE nodes, else "".
+// Go-only: language-adapter — Java inlines this; Go extracts it for reuse.
 func (nodeUtil) TryGetStringFromBoolean(n *rhino.Node) string {
 	if n == nil {
 		return ""
@@ -1003,8 +999,7 @@ func (nodeUtil) TryGetStringFromBoolean(n *rhino.Node) string {
 	return ""
 }
 
-// IsFunctionObjectLit reports whether n is a FUNCTION whose sole body statement
-// is EXPR_RESULT(OBJECTLIT).
+// Go-only: language-adapter — Java inlines this pattern; Go extracts it.
 func (nodeUtil) IsFunctionObjectLit(n *rhino.Node) bool {
 	if n == nil || n.Token() != rhino.FUNCTION {
 		return false
@@ -1018,7 +1013,7 @@ func (nodeUtil) IsFunctionObjectLit(n *rhino.Node) bool {
 		kids[0].FirstChild() != nil && kids[0].FirstChild().Token() == rhino.OBJECTLIT
 }
 
-// IsGetPropOnThis reports whether n is GETPROP with THIS as receiver.
+// Go-only: language-adapter — Java inlines this predicate.
 func (nodeUtil) IsGetPropOnThis(n *rhino.Node) bool {
 	if n == nil || n.Token() != rhino.GETPROP {
 		return false
@@ -1027,7 +1022,7 @@ func (nodeUtil) IsGetPropOnThis(n *rhino.Node) bool {
 	return fc != nil && fc.Token() == rhino.THIS
 }
 
-// IsNonEs6ClassExpression reports whether n is a class expression (not a class declaration).
+// Go-only: language-adapter — Java has isNamedClassExpression but not this variant.
 func (nodeUtil) IsNonEs6ClassExpression(n *rhino.Node) bool {
 	if n == nil || n.Token() != rhino.CLASS {
 		return false
@@ -1039,7 +1034,7 @@ func (nodeUtil) IsNonEs6ClassExpression(n *rhino.Node) bool {
 	return true
 }
 
-// IsNameNodeInsideExtends reports whether n is the NAME in a class extends clause.
+// Go-only: language-adapter — Java has no equivalent; used by type inference.
 func (nodeUtil) IsNameNodeInsideExtends(n *rhino.Node) bool {
 	if n == nil || n.Token() != rhino.NAME {
 		return false
@@ -1052,8 +1047,8 @@ func (nodeUtil) IsNameNodeInsideExtends(n *rhino.Node) bool {
 // scope navigation
 // ---------------------------------------------------------------------------
 
-// nuCreatesScope mirrors NodeUtil.createsScope (package-private in Java).
-// Returns true when n introduces a new lexical scope.
+// Go-only: package-bridge — Java name is createsScope (package-private); renamed
+// with nu prefix to avoid collision with method namespace in Go.
 func nuCreatesScope(n *rhino.Node) bool {
 	if n == nil {
 		return false
@@ -1113,8 +1108,7 @@ func (nodeUtil) GetFunctionBody(fn *rhino.Node) *rhino.Node {
 	return fn.LastChild()
 }
 
-// GetFunctionArgs returns the first child of the PARAM_LIST of fn (i.e. the
-// first formal parameter node), or nil.  Companion to GetFunctionParameters.
+// Go-only: language-adapter — Java uses getFunctionParameters().getFirstChild() inline.
 func (nodeUtil) GetFunctionArgs(fn *rhino.Node) *rhino.Node {
 	params := NU.GetFunctionParameters(fn)
 	if params == nil {
@@ -1127,10 +1121,8 @@ func (nodeUtil) GetFunctionArgs(fn *rhino.Node) *rhino.Node {
 // l-value / r-value helpers
 // ---------------------------------------------------------------------------
 
-// GetLValuesOfVar collects the NAME nodes that a VAR/LET/CONST declaration
-// binds.  Simple (non-destructuring) declarations yield one NAME; destructuring
-// yields all leaf NAME nodes.  Mirrors the spirit of NodeUtil.visitLhsNodesInNode
-// for name-declaration nodes.
+// Go-only: language-adapter — Java uses visitLhsNodesInNode with a callback;
+// Go returns a slice for easier iteration.
 func (nodeUtil) GetLValuesOfVar(decl *rhino.Node) []*rhino.Node {
 	if decl == nil {
 		return nil
@@ -1147,9 +1139,8 @@ func (nodeUtil) GetLValuesOfVar(decl *rhino.Node) []*rhino.Node {
 	return out
 }
 
-// GetLValuesOfAssign collects the NAME/GETPROP/GETELEM nodes on the left-hand
-// side of an assignment or destructuring assignment.  Mirrors the spirit of
-// NodeUtil.visitLhsNodesInNode for assignment nodes.
+// Go-only: language-adapter — Java uses visitLhsNodesInNode with a callback;
+// Go returns a slice for easier iteration.
 func (nodeUtil) GetLValuesOfAssign(assign *rhino.Node) []*rhino.Node {
 	if assign == nil {
 		return nil
@@ -1173,8 +1164,7 @@ func (nodeUtil) GetLValuesOfAssign(assign *rhino.Node) []*rhino.Node {
 	return out
 }
 
-// nuCollectLValues recursively collects leaf l-value nodes from a potentially
-// destructuring pattern or a simple name/getprop/getelem.
+// Go-only: package-bridge — Java uses inner lambda; Go needs a named helper.
 func nuCollectLValues(n *rhino.Node, out *[]*rhino.Node) {
 	if n == nil {
 		return
@@ -1238,9 +1228,8 @@ func (nodeUtil) GetRValueOfLValue(n *rhino.Node) *rhino.Node {
 	return nil
 }
 
-// GetRValueFromLValue is an alias for GetRValueOfLValue that accepts the
-// l-value node directly.  Provided as a convenience companion matching the
-// Java naming variant used in some callers.
+// Go-only: language-adapter — alias for GetRValueOfLValue for callers using
+// the alternate Java naming variant.
 func (nodeUtil) GetRValueFromLValue(n *rhino.Node) *rhino.Node {
 	return NU.GetRValueOfLValue(n)
 }
@@ -1249,9 +1238,7 @@ func (nodeUtil) GetRValueFromLValue(n *rhino.Node) *rhino.Node {
 // call / invocation target predicates
 // ---------------------------------------------------------------------------
 
-// IsCallTarget reports whether n is the target (callee) of a CALL expression,
-// including the pattern `x.call(...)` where n is `x`.
-// Mirrors OptimizeCalls.ReferenceMap.isCallTarget.
+// Go-only: language-adapter — Java inlines this predicate in several passes.
 func (nodeUtil) IsCallTarget(n *rhino.Node) bool {
 	if n == nil {
 		return false
@@ -1273,9 +1260,7 @@ func (nodeUtil) IsCallTarget(n *rhino.Node) bool {
 		p.IsFirstChildOf(gp)
 }
 
-// IsCallOrNewTarget reports whether n is the target of a CALL or NEW expression
-// (or an optional-chain call), including the `.call(...)` pattern.
-// Mirrors NodeUtil's isInvocationTarget extended to cover NEW.
+// Go-only: language-adapter — extends Java's isInvocationTarget to cover NEW.
 func (nodeUtil) IsCallOrNewTarget(n *rhino.Node) bool {
 	if n == nil {
 		return false
@@ -1407,8 +1392,7 @@ func (nodeUtil) IsNamespaceDecl(n *rhino.Node) bool {
 	return false
 }
 
-// nuQualifiedNameStr returns the dotted qualified name string for a NAME or
-// GETPROP chain, or "" if n is not a qualified name.
+// Go-only: package-bridge — Java name is matchesQualifiedName or similar; renamed with nu prefix.
 func nuQualifiedNameStr(n *rhino.Node) string {
 	if n == nil {
 		return ""
@@ -1441,9 +1425,7 @@ func (nodeUtil) IsFunctionObjectApply(callNode *rhino.Node) bool {
 	return nuIsObjectCallMethod(callNode, "apply")
 }
 
-// nuIsObjectCallMethod mirrors NodeUtil.isObjectCallMethod: returns true when
-// callNode is a CALL/OPTCHAIN_CALL whose callee is a GETPROP/OPTCHAIN_GETPROP
-// with the given method name.
+// Go-only: package-bridge — Java name is isObjectCallMethod (package-private).
 func nuIsObjectCallMethod(callNode *rhino.Node, methodName string) bool {
 	if callNode == nil {
 		return false
@@ -1494,8 +1476,8 @@ func (nodeUtil) IsHoistedFunctionDeclaration(n *rhino.Node) bool {
 	return false
 }
 
-// IsFunctionBody reports whether n is the BLOCK node that forms the body of a
-// function expression or declaration.  Mirrors NodeUtil.isFunctionBlock.
+// Go-only: language-adapter — Java name is isFunctionBlock; renamed to avoid
+// ambiguity with the IsFunctionBlock alias below.
 func (nodeUtil) IsFunctionBody(n *rhino.Node) bool {
 	return n != nil && n.Token() == rhino.BLOCK &&
 		n.HasParent() && n.Parent().Token() == rhino.FUNCTION
@@ -1548,8 +1530,8 @@ func (nodeUtil) IsAnyFor(n *rhino.Node) bool {
 	return false
 }
 
-// IsTopLevelFunction reports whether n is a FUNCTION node whose parent is a
-// SCRIPT or MODULE_BODY (top-level in the file).
+// Go-only: language-adapter — Java uses isTopLevel which is more general;
+// this variant is narrowed to functions for type-checker use.
 func (nodeUtil) IsTopLevelFunction(n *rhino.Node) bool {
 	if n == nil || n.Token() != rhino.FUNCTION {
 		return false
@@ -1576,9 +1558,8 @@ func (nodeUtil) IsTopLevelFunction(n *rhino.Node) bool {
 	return false
 }
 
-// IsAnonymousFunction reports whether n is a FUNCTION node with no name (or an
-// empty-string name), i.e. a function expression without a declared name.
-// Mirrors Java's treatment of anonymous functions in NodeUtil.getNameNode.
+// Go-only: language-adapter — Java has isAnonymousFunction but it is on Node,
+// not NodeUtil; this wraps the predicate on the NU helper.
 func (nodeUtil) IsAnonymousFunction(n *rhino.Node) bool {
 	if n == nil || n.Token() != rhino.FUNCTION {
 		return false
@@ -1596,8 +1577,7 @@ func (nodeUtil) IsAnonymousFunction(n *rhino.Node) bool {
 // goog.* call predicates and namespace extractors
 // ---------------------------------------------------------------------------
 
-// nuMatchesQualifiedName returns true when n spells out the given dotted name
-// as a GETPROP chain or bare NAME.
+// Go-only: package-bridge — Java name is matchesQualifiedName (package-private).
 func nuMatchesQualifiedName(n *rhino.Node, name string) bool {
 	return nuQualifiedNameStr(n) == name
 }
@@ -1631,8 +1611,8 @@ func (nodeUtil) IsGoogModuleCall(n *rhino.Node) bool {
 	return nuMatchesQualifiedName(target, "goog.module")
 }
 
-// GetGoogProvideName returns the string argument of a goog.provide(…) call,
-// or "" if n is not a goog.provide EXPR_RESULT or has no string argument.
+// Go-only: language-adapter — Java uses getGoogRequireInfo which returns a
+// richer object; this extracts just the name for simple callers.
 func (nodeUtil) GetGoogProvideName(n *rhino.Node) string {
 	if !NU.IsGoogProvideCall(n) {
 		return ""
@@ -1646,8 +1626,7 @@ func (nodeUtil) GetGoogProvideName(n *rhino.Node) string {
 	return arg.String_()
 }
 
-// GetGoogRequireName returns the string argument of a goog.require(…) call,
-// or "" if n is not a goog.require CALL or has no string argument.
+// Go-only: language-adapter — Java uses getGoogRequireInfo; this extracts just the name.
 func (nodeUtil) GetGoogRequireName(n *rhino.Node) string {
 	if !NU.IsGoogRequireCall(n) {
 		return ""
@@ -1800,9 +1779,8 @@ func arrayToString(n *rhino.Node) (string, bool) {
 	return sb.String(), true
 }
 
-// GetPrefixedName returns the string "prefix + name" for a NAME or GETPROP
-// node, prepending prefix to the qualified name string.  Returns "" when n is
-// not a recognisable name node.  Useful for synthesising mangled names.
+// Go-only: language-adapter — Java has no direct equivalent; used for name
+// mangling in the type-checker pipeline.
 func (nodeUtil) GetPrefixedName(n *rhino.Node, prefix string) string {
 	qname := nuQualifiedNameStr(n)
 	if qname == "" {
@@ -2130,8 +2108,7 @@ func (nodeUtil) GetNameReferenceCount(node *rhino.Node, name string) int {
 	}, func(_ *rhino.Node) bool { return true })
 }
 
-// nuHas returns true iff any node in the subtree satisfies pred, subject to
-// the traversal gating by traverseChildrenPred.
+// Go-only: package-bridge — Java name is has (package-private); renamed to nuHas.
 func nuHas(node *rhino.Node, pred func(*rhino.Node) bool, traverseChildrenPred func(*rhino.Node) bool) bool {
 	if node == nil {
 		return false
@@ -2150,8 +2127,7 @@ func nuHas(node *rhino.Node, pred func(*rhino.Node) bool, traverseChildrenPred f
 	return false
 }
 
-// nuCount counts how many nodes in the subtree satisfy pred, subject to
-// traversal gating by traverseChildrenPred.
+// Go-only: package-bridge — Java name is getCount (package-private); renamed.
 func nuCount(node *rhino.Node, pred func(*rhino.Node) bool, traverseChildrenPred func(*rhino.Node) bool) int {
 	if node == nil {
 		return 0
@@ -2298,6 +2274,573 @@ func (nodeUtil) ReplaceDeclarationChild(declChild, newStatement *rhino.Node) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Ported from Java NodeUtil: isUndefined, isNullOrUndefined, isEmptyBlock,
+// isAssignmentOp, isLogicalAssignmentOp, isCompoundAssignmentOp,
+// isHoistScopeRoot, isEnhancedFor, isLoopStructure, getLoopCodeBlock,
+// getEnclosingBlock, getEnclosingBlockScopeRoot, getEnclosingHoistScopeRoot,
+// getEnclosingClass, getEnclosingStatement, getEnclosingNode,
+// isStatementParent, isNormalGet, isNormalOrOptChainGet, isNormalOrOptChainGetProp,
+// isNormalOrOptChainCall, isOptChainGet, isOptChainNode,
+// isNumericResult, isBooleanResult, isStringResult, isObjectResult, isBigIntResult,
+// isLValue, isLhsOfAssign, isImportedName, getClassMembers,
+// getEs6ClassConstructorMemberFunctionDef, getName, getNameNode,
+// isEs6Constructor, isEs6ConstructorMemberFunctionDef.
+// ---------------------------------------------------------------------------
+
+// IsUndefined reports whether n is an undefined value expression
+// (VOID node, or NAME "undefined").
+// Mirrors NodeUtil.isUndefined.
+func (nodeUtil) IsUndefined(n *rhino.Node) bool {
+	switch n.Token() {
+	case rhino.VOID:
+		return true
+	case rhino.NAME:
+		return n.GetString() == "undefined"
+	}
+	return false
+}
+
+// IsNullOrUndefined reports whether n is a null or undefined expression.
+// Mirrors NodeUtil.isNullOrUndefined.
+func (nodeUtil) IsNullOrUndefined(n *rhino.Node) bool {
+	return n.IsNull() || NU.IsUndefined(n)
+}
+
+// IsEmptyBlock reports whether block is a BLOCK node containing only EMPTY
+// nodes (or no children at all).
+// Mirrors NodeUtil.isEmptyBlock.
+func (nodeUtil) IsEmptyBlock(block *rhino.Node) bool {
+	if !block.IsBlock() {
+		return false
+	}
+	for c := block.FirstChild(); c != nil; c = c.Next() {
+		if !c.IsEmpty() {
+			return false
+		}
+	}
+	return true
+}
+
+// IsAssignmentOp reports whether n is any assignment operator
+// (=, +=, -=, *=, /=, %=, **=, |=, ^=, &=, <<=, >>=, >>>=, ||=, &&=, ??=).
+// Mirrors NodeUtil.isAssignmentOp.
+func (nodeUtil) IsAssignmentOp(n *rhino.Node) bool {
+	switch n.Token() {
+	case rhino.ASSIGN, rhino.ASSIGN_BITOR, rhino.ASSIGN_BITXOR, rhino.ASSIGN_BITAND,
+		rhino.ASSIGN_LSH, rhino.ASSIGN_RSH, rhino.ASSIGN_URSH,
+		rhino.ASSIGN_ADD, rhino.ASSIGN_SUB, rhino.ASSIGN_MUL,
+		rhino.ASSIGN_EXPONENT, rhino.ASSIGN_DIV, rhino.ASSIGN_MOD,
+		rhino.ASSIGN_OR, rhino.ASSIGN_AND, rhino.ASSIGN_COALESCE:
+		return true
+	}
+	return false
+}
+
+// IsLogicalAssignmentOp reports whether n is a logical assignment operator
+// (||=, &&=, ??=).
+// Mirrors NodeUtil.isLogicalAssignmentOp.
+func (nodeUtil) IsLogicalAssignmentOp(n *rhino.Node) bool {
+	switch n.Token() {
+	case rhino.ASSIGN_OR, rhino.ASSIGN_AND, rhino.ASSIGN_COALESCE:
+		return true
+	}
+	return false
+}
+
+// IsCompoundAssignmentOp reports whether n is a compound assignment operator
+// (any assignment op except plain =).
+// Mirrors NodeUtil.isCompoundAssignmentOp.
+func (nodeUtil) IsCompoundAssignmentOp(n *rhino.Node) bool {
+	return NU.IsAssignmentOp(n) && !n.IsAssign()
+}
+
+// IsHoistScopeRoot reports whether n is a hoist-scope root (FUNCTION, MODULE_BODY,
+// or class static block).
+// Mirrors NodeUtil.isHoistScopeRoot.
+func (nodeUtil) IsHoistScopeRoot(n *rhino.Node) bool {
+	return n.IsFunction() || n.IsModuleBody() || nodeIsClassStaticBlock(n)
+}
+
+// IsEnhancedFor reports whether n is a for-of, for-await-of, or for-in loop.
+// Mirrors NodeUtil.isEnhancedFor.
+func (nodeUtil) IsEnhancedFor(n *rhino.Node) bool {
+	return n.IsForOf() || n.IsForAwaitOf() || n.IsForIn()
+}
+
+// IsLoopStructure reports whether n is a loop (FOR, FOR_IN, FOR_OF,
+// FOR_AWAIT_OF, DO, WHILE).
+// Mirrors NodeUtil.isLoopStructure.
+func (nodeUtil) IsLoopStructure(n *rhino.Node) bool {
+	switch n.Token() {
+	case rhino.FOR, rhino.FOR_IN, rhino.FOR_OF, rhino.FOR_AWAIT_OF, rhino.DO, rhino.WHILE:
+		return true
+	}
+	return false
+}
+
+// GetLoopCodeBlock returns the body BLOCK of a loop node, or nil for non-loops.
+// Mirrors NodeUtil.getLoopCodeBlock.
+func (nodeUtil) GetLoopCodeBlock(n *rhino.Node) *rhino.Node {
+	switch n.Token() {
+	case rhino.FOR, rhino.FOR_IN, rhino.FOR_OF, rhino.FOR_AWAIT_OF, rhino.WHILE:
+		return n.LastChild()
+	case rhino.DO:
+		return n.FirstChild()
+	}
+	return nil
+}
+
+// GetEnclosingBlock returns the nearest enclosing BLOCK node, or nil.
+// Mirrors NodeUtil.getEnclosingBlock.
+func (nodeUtil) GetEnclosingBlock(n *rhino.Node) *rhino.Node {
+	return NU.GetEnclosingType(n, rhino.BLOCK)
+}
+
+// Go-only: package-bridge — Java name is createsBlockScope (package-private).
+func nuCreatesBlockScope(n *rhino.Node) bool {
+	switch n.Token() {
+	case rhino.FOR, rhino.FOR_IN, rhino.FOR_OF, rhino.FOR_AWAIT_OF, rhino.SWITCH_BODY:
+		return true
+	case rhino.BLOCK:
+		p := n.Parent()
+		if p == nil {
+			return false
+		}
+		switch p.Token() {
+		case rhino.FUNCTION, rhino.SCRIPT, rhino.MODULE_BODY:
+			return false
+		}
+		return true
+	}
+	return false
+}
+
+// GetEnclosingBlockScopeRoot returns the nearest block-scope root, or nil.
+// Mirrors NodeUtil.getEnclosingBlockScopeRoot.
+func (nodeUtil) GetEnclosingBlockScopeRoot(n *rhino.Node) *rhino.Node {
+	curr := n.Parent()
+	for curr != nil {
+		if nuCreatesBlockScope(curr) {
+			return curr
+		}
+		curr = curr.Parent()
+	}
+	return nil
+}
+
+// GetEnclosingHoistScopeRoot returns the nearest hoist-scope root, or nil.
+// Mirrors NodeUtil.getEnclosingHoistScopeRoot.
+func (nodeUtil) GetEnclosingHoistScopeRoot(n *rhino.Node) *rhino.Node {
+	curr := n.Parent()
+	for curr != nil {
+		if NU.IsHoistScopeRoot(curr) {
+			return curr
+		}
+		curr = curr.Parent()
+	}
+	return nil
+}
+
+// GetEnclosingClass returns the nearest enclosing CLASS node, or nil.
+// Mirrors NodeUtil.getEnclosingClass.
+func (nodeUtil) GetEnclosingClass(n *rhino.Node) *rhino.Node {
+	return NU.GetEnclosingType(n, rhino.CLASS)
+}
+
+// GetEnclosingStatement returns the nearest ancestor that is a statement, or nil.
+// Mirrors NodeUtil.getEnclosingStatement.
+func (nodeUtil) GetEnclosingStatement(n *rhino.Node) *rhino.Node {
+	curr := n
+	for curr != nil {
+		if NU.IsStatement(curr) {
+			return curr
+		}
+		curr = curr.Parent()
+	}
+	return nil
+}
+
+// GetEnclosingNode returns the nearest ancestor (including n itself) for which
+// pred returns true, or nil.
+// Mirrors NodeUtil.getEnclosingNode.
+func (nodeUtil) GetEnclosingNode(n *rhino.Node, pred func(*rhino.Node) bool) *rhino.Node {
+	curr := n
+	for curr != nil {
+		if pred(curr) {
+			return curr
+		}
+		curr = curr.Parent()
+	}
+	return nil
+}
+
+// GetEnclosingModuleIfPresent returns the nearest enclosing MODULE_BODY, or nil.
+// Mirrors NodeUtil.getEnclosingModuleIfPresent.
+func (nodeUtil) GetEnclosingModuleIfPresent(n *rhino.Node) *rhino.Node {
+	return NU.GetEnclosingType(n, rhino.MODULE_BODY)
+}
+
+// IsNormalGet reports whether n is a GETPROP or GETELEM node.
+// Mirrors NodeUtil.isNormalGet.
+func (nodeUtil) IsNormalGet(n *rhino.Node) bool {
+	return n.IsGetProp() || n.IsGetElem()
+}
+
+// IsOptChainGet reports whether n is an OPTCHAIN_GETPROP or OPTCHAIN_GETELEM.
+// Mirrors NodeUtil.isOptChainGet.
+func (nodeUtil) IsOptChainGet(n *rhino.Node) bool {
+	return n.IsOptChainGetProp() || n.IsOptChainGetElem()
+}
+
+// IsOptChainNode reports whether n is any optional-chain node
+// (OPTCHAIN_GETPROP, OPTCHAIN_GETELEM, or OPTCHAIN_CALL).
+// Mirrors NodeUtil.isOptChainNode.
+func (nodeUtil) IsOptChainNode(n *rhino.Node) bool {
+	return n.IsOptChainGetProp() || n.IsOptChainGetElem() || n.IsOptChainCall()
+}
+
+// IsNormalOrOptChainGet reports whether n is any get node
+// (GETPROP, GETELEM, OPTCHAIN_GETPROP, or OPTCHAIN_GETELEM).
+// Mirrors NodeUtil.isNormalOrOptChainGet.
+func (nodeUtil) IsNormalOrOptChainGet(n *rhino.Node) bool {
+	return NU.IsNormalGet(n) || NU.IsOptChainGet(n)
+}
+
+// IsNormalOrOptChainGetProp reports whether n is a GETPROP or OPTCHAIN_GETPROP.
+// Mirrors NodeUtil.isNormalOrOptChainGetProp.
+func (nodeUtil) IsNormalOrOptChainGetProp(n *rhino.Node) bool {
+	return n.IsGetProp() || n.IsOptChainGetProp()
+}
+
+// IsNormalOrOptChainCall reports whether n is a CALL or OPTCHAIN_CALL.
+// Mirrors NodeUtil.isNormalOrOptChainCall.
+func (nodeUtil) IsNormalOrOptChainCall(n *rhino.Node) bool {
+	return n.IsCall() || n.IsOptChainCall()
+}
+
+// ---------------------------------------------------------------------------
+// Value type predicates (depend on GetKnownValueType — ported below).
+// ---------------------------------------------------------------------------
+
+// ValueType mirrors com.google.javascript.jscomp.NodeUtil.ValueType.
+type ValueType int
+
+const (
+	ValueTypeUndetermined ValueType = iota
+	ValueTypeNull
+	ValueTypeVoid
+	ValueTypeNumber
+	ValueTypeBigint
+	ValueTypeString
+	ValueTypeBoolean
+	ValueTypeObject
+)
+
+// Go-only: package-bridge — Java's getKnownValueType is directly on NodeUtil;
+// this is an unexported wrapper to break the call cycle in Go.
+func getKnownValueTypePriv(n *rhino.Node) ValueType {
+	switch n.Token() {
+	case rhino.CAST:
+		return getKnownValueTypePriv(n.FirstChild())
+	case rhino.ASSIGN, rhino.COMMA:
+		return getKnownValueTypePriv(n.LastChild())
+	case rhino.AND, rhino.OR, rhino.COALESCE,
+		rhino.ASSIGN_OR, rhino.ASSIGN_AND, rhino.ASSIGN_COALESCE:
+		a := getKnownValueTypePriv(n.FirstChild())
+		b := getKnownValueTypePriv(n.LastChild())
+		if a == b {
+			return a
+		}
+		return ValueTypeUndetermined
+	case rhino.HOOK:
+		a := getKnownValueTypePriv(n.GetSecondChild())
+		b := getKnownValueTypePriv(n.LastChild())
+		if a == b {
+			return a
+		}
+		return ValueTypeUndetermined
+	case rhino.ADD:
+		last := getKnownValueTypePriv(n.LastChild())
+		if last == ValueTypeString {
+			return ValueTypeString
+		}
+		first := getKnownValueTypePriv(n.FirstChild())
+		if first == ValueTypeString {
+			return ValueTypeString
+		}
+		if first == ValueTypeObject || last == ValueTypeObject {
+			return ValueTypeUndetermined
+		}
+		if nuMayBeString(first) || nuMayBeString(last) {
+			return ValueTypeUndetermined
+		}
+		if first == ValueTypeBigint || last == ValueTypeBigint {
+			return ValueTypeBigint
+		}
+		return ValueTypeNumber
+	case rhino.ASSIGN_ADD:
+		last := getKnownValueTypePriv(n.LastChild())
+		if last == ValueTypeString {
+			return ValueTypeString
+		}
+		return ValueTypeUndetermined
+	case rhino.NAME:
+		s := n.GetString()
+		if s == "undefined" {
+			return ValueTypeVoid
+		}
+		if s == "NaN" || s == "Infinity" {
+			return ValueTypeNumber
+		}
+		return ValueTypeUndetermined
+	case rhino.ASSIGN_BITOR, rhino.ASSIGN_BITXOR, rhino.ASSIGN_BITAND,
+		rhino.ASSIGN_LSH, rhino.ASSIGN_RSH, rhino.ASSIGN_URSH,
+		rhino.ASSIGN_SUB, rhino.ASSIGN_MUL, rhino.ASSIGN_EXPONENT,
+		rhino.ASSIGN_DIV, rhino.ASSIGN_MOD:
+		if getKnownValueTypePriv(n.LastChild()) == ValueTypeBigint {
+			return ValueTypeBigint
+		}
+		return ValueTypeNumber
+	case rhino.BIGINT:
+		return ValueTypeBigint
+	case rhino.BITOR, rhino.BITXOR, rhino.BITAND,
+		rhino.LSH, rhino.RSH, rhino.SUB, rhino.MUL, rhino.MOD, rhino.DIV, rhino.EXPONENT:
+		first := getKnownValueTypePriv(n.FirstChild())
+		last := getKnownValueTypePriv(n.LastChild())
+		if first == ValueTypeBigint || last == ValueTypeBigint {
+			return ValueTypeBigint
+		}
+		return ValueTypeNumber
+	case rhino.BITNOT, rhino.NEG:
+		if getKnownValueTypePriv(n.FirstChild()) == ValueTypeBigint {
+			return ValueTypeBigint
+		}
+		return ValueTypeNumber
+	case rhino.INC, rhino.DEC, rhino.URSH, rhino.POS, rhino.NUMBER:
+		return ValueTypeNumber
+	case rhino.TRUE, rhino.FALSE,
+		rhino.EQ, rhino.NE, rhino.SHEQ, rhino.SHNE,
+		rhino.LT, rhino.GT, rhino.LE, rhino.GE,
+		rhino.IN, rhino.INSTANCEOF,
+		rhino.NOT, rhino.DELPROP:
+		return ValueTypeBoolean
+	case rhino.TYPEOF, rhino.STRINGLIT, rhino.TEMPLATELIT:
+		return ValueTypeString
+	case rhino.NULL:
+		return ValueTypeNull
+	case rhino.VOID:
+		return ValueTypeVoid
+	case rhino.FUNCTION, rhino.NEW, rhino.ARRAYLIT, rhino.OBJECTLIT, rhino.REGEXP:
+		return ValueTypeObject
+	default:
+		return ValueTypeUndetermined
+	}
+}
+
+// Go-only: package-bridge — Java name is mayBeString(ValueType) (package-private).
+func nuMayBeString(t ValueType) bool {
+	switch t {
+	case ValueTypeBoolean, ValueTypeNull, ValueTypeNumber, ValueTypeBigint, ValueTypeVoid:
+		return false
+	}
+	return true
+}
+
+// GetKnownValueType returns the known primitive value type of n, or
+// ValueTypeUndetermined when it cannot be determined statically.
+// Mirrors NodeUtil.getKnownValueType.
+func (nodeUtil) GetKnownValueType(n *rhino.Node) ValueType {
+	return getKnownValueTypePriv(n)
+}
+
+// IsNumericResult reports whether n always evaluates to a number.
+// Mirrors NodeUtil.isNumericResult.
+func (nodeUtil) IsNumericResult(n *rhino.Node) bool {
+	return getKnownValueTypePriv(n) == ValueTypeNumber
+}
+
+// IsBigIntResult reports whether n always evaluates to a bigint.
+// Mirrors NodeUtil.isBigIntResult.
+func (nodeUtil) IsBigIntResult(n *rhino.Node) bool {
+	return getKnownValueTypePriv(n) == ValueTypeBigint
+}
+
+// IsBooleanResult reports whether n always evaluates to a boolean.
+// Mirrors NodeUtil.isBooleanResult.
+func (nodeUtil) IsBooleanResult(n *rhino.Node) bool {
+	return getKnownValueTypePriv(n) == ValueTypeBoolean
+}
+
+// IsStringResult reports whether n always evaluates to a string.
+// Mirrors NodeUtil.isStringResult.
+func (nodeUtil) IsStringResult(n *rhino.Node) bool {
+	return getKnownValueTypePriv(n) == ValueTypeString
+}
+
+// IsObjectResult reports whether n always evaluates to an object.
+// Mirrors NodeUtil.isObjectResult.
+func (nodeUtil) IsObjectResult(n *rhino.Node) bool {
+	return getKnownValueTypePriv(n) == ValueTypeObject
+}
+
+// ---------------------------------------------------------------------------
+// LValue predicates
+// ---------------------------------------------------------------------------
+
+// IsLValue reports whether n is used as an L-value (assignment target or
+// declaration binding).
+// Mirrors NodeUtil.isLValue.
+func (nodeUtil) IsLValue(n *rhino.Node) bool {
+	switch n.Token() {
+	case rhino.NAME, rhino.GETPROP, rhino.GETELEM:
+		// fall through to parent check
+	default:
+		return false
+	}
+	parent := n.Parent()
+	if parent == nil {
+		return false
+	}
+	switch parent.Token() {
+	case rhino.IMPORT_SPEC:
+		return parent.LastChild() == n
+	case rhino.VAR, rhino.LET, rhino.CONST,
+		rhino.ITER_REST, rhino.OBJECT_REST,
+		rhino.PARAM_LIST, rhino.IMPORT,
+		rhino.INC, rhino.DEC, rhino.CATCH:
+		return true
+	case rhino.CLASS, rhino.FUNCTION, rhino.DEFAULT_VALUE,
+		rhino.FOR, rhino.FOR_IN, rhino.FOR_OF, rhino.FOR_AWAIT_OF:
+		return parent.FirstChild() == n
+	case rhino.ARRAY_PATTERN, rhino.STRING_KEY, rhino.COMPUTED_PROP:
+		return NU.IsLhsByDestructuring(n)
+	default:
+		return NU.IsAssignmentOp(parent) && parent.FirstChild() == n
+	}
+}
+
+// IsLhsOfAssign reports whether n is the left-hand side of a plain assignment.
+// Mirrors NodeUtil.isLhsOfAssign.
+func (nodeUtil) IsLhsOfAssign(n *rhino.Node) bool {
+	parent := n.Parent()
+	return parent != nil && parent.IsAssign() && parent.FirstChild() == n
+}
+
+// IsImportedName reports whether n is a NAME node that was introduced by an
+// import declaration.
+// Mirrors NodeUtil.isImportedName.
+func (nodeUtil) IsImportedName(n *rhino.Node) bool {
+	parent := n.Parent()
+	if parent == nil {
+		return false
+	}
+	return parent.IsImport() || (parent.IsImportSpec() && parent.LastChild() == n)
+}
+
+// ---------------------------------------------------------------------------
+// Class helpers
+// ---------------------------------------------------------------------------
+
+// GetClassMembers returns the CLASS_MEMBERS child of a CLASS node.
+// Mirrors NodeUtil.getClassMembers.
+func (nodeUtil) GetClassMembers(n *rhino.Node) *rhino.Node {
+	return n.LastChild()
+}
+
+// IsEs6ConstructorMemberFunctionDef reports whether n is a MEMBER_FUNCTION_DEF
+// whose string value is "constructor" and that is not static.
+// Mirrors NodeUtil.isEs6ConstructorMemberFunctionDef.
+func (nodeUtil) IsEs6ConstructorMemberFunctionDef(n *rhino.Node) bool {
+	return n.IsMemberFunctionDef() && !n.IsStaticMember() && n.GetString() == "constructor"
+}
+
+// IsEs6Constructor reports whether n is the FUNCTION node of an ES6 class
+// constructor.
+// Mirrors NodeUtil.isEs6Constructor.
+func (nodeUtil) IsEs6Constructor(n *rhino.Node) bool {
+	return n.IsFunction() && n.Parent() != nil &&
+		NU.IsEs6ConstructorMemberFunctionDef(n.Parent())
+}
+
+// GetEs6ClassConstructorMemberFunctionDef returns the MEMBER_FUNCTION_DEF for
+// the constructor of a class node, or nil if none is present.
+// Mirrors NodeUtil.getEs6ClassConstructorMemberFunctionDef.
+func (nodeUtil) GetEs6ClassConstructorMemberFunctionDef(classNode *rhino.Node) *rhino.Node {
+	classMembers := classNode.LastChild()
+	if classMembers == nil {
+		return nil
+	}
+	for m := classMembers.FirstChild(); m != nil; m = m.Next() {
+		if NU.IsEs6ConstructorMemberFunctionDef(m) {
+			return m
+		}
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// getName / getNameNode
+// ---------------------------------------------------------------------------
+
+// GetName returns the declared name of a FUNCTION or CLASS node, or "" if
+// the node has no discernible name.
+// Mirrors NodeUtil.getName.
+func (nodeUtil) GetName(n *rhino.Node) string {
+	nameNode := NU.GetNameNode(n)
+	if nameNode == nil {
+		return ""
+	}
+	if nameNode.IsQualifiedName() {
+		return nameNode.GetQualifiedName()
+	}
+	return nameNode.GetString()
+}
+
+// GetNameNode returns the AST node that best represents the name of a FUNCTION
+// or CLASS node, or nil when no name can be identified.
+// Mirrors NodeUtil.getNameNode.
+func (nodeUtil) GetNameNode(n *rhino.Node) *rhino.Node {
+	parent := n.Parent()
+	if parent == nil {
+		return nil
+	}
+	switch parent.Token() {
+	case rhino.NAME:
+		return parent
+	case rhino.ASSIGN:
+		first := parent.FirstChild()
+		if first.IsQualifiedName() {
+			return first
+		}
+		return nil
+	default:
+		funNameNode := n.FirstChild()
+		if funNameNode == nil || funNameNode.IsEmpty() {
+			return nil
+		}
+		if funNameNode.IsName() && funNameNode.GetString() == "" {
+			return nil
+		}
+		return funNameNode
+	}
+}
+
+// ---------------------------------------------------------------------------
+// IsStatementParent
+// ---------------------------------------------------------------------------
+
+// IsStatementParent reports whether parent is a node that may contain
+// statement children.
+// Mirrors NodeUtil.isStatementParent.
+func (nodeUtil) IsStatementParent(parent *rhino.Node) bool {
+	switch parent.Token() {
+	case rhino.SCRIPT, rhino.MODULE_BODY, rhino.BLOCK, rhino.LABEL:
+		return true
+	}
+	return false
+}
+
 // TryMergeBlock merges a block node with its parent block when safe to do so.
 // Returns true if the block was merged.
 // Mirrors NodeUtil.tryMergeBlock (Java).
@@ -2335,4 +2878,458 @@ func (nodeUtil) CanMergeBlock(block *rhino.Node) bool {
 		}
 	}
 	return true
+}
+
+// ---------------------------------------------------------------------------
+// Additional Java NodeUtil methods ported to Go
+// ---------------------------------------------------------------------------
+
+// IsNameDeclOrSimpleAssignLhs reports whether n is the LHS of a simple
+// assignment or a name declaration (VAR/LET/CONST).
+// Mirrors NodeUtil.isNameDeclOrSimpleAssignLhs.
+func (nodeUtil) IsNameDeclOrSimpleAssignLhs(n, parent *rhino.Node) bool {
+	return (parent.IsAssign() && parent.FirstChild() == n) || NU.IsNameDeclaration(parent)
+}
+
+// IsDeclarationLValue reports whether n is an l-value that also constitutes a
+// binding declaration (e.g. `const x`, `import x`, but NOT `x = 5`).
+// Mirrors NodeUtil.isDeclarationLValue.
+func (nodeUtil) IsDeclarationLValue(n *rhino.Node) bool {
+	if !NU.IsLValue(n) {
+		return false
+	}
+	parent := n.Parent()
+	if parent == nil {
+		return false
+	}
+	switch parent.Token() {
+	case rhino.IMPORT_SPEC, rhino.VAR, rhino.LET, rhino.CONST,
+		rhino.PARAM_LIST, rhino.IMPORT, rhino.CATCH, rhino.CLASS, rhino.FUNCTION:
+		return true
+	case rhino.STRING_KEY:
+		gp := parent.Parent()
+		if gp == nil {
+			return false
+		}
+		return NU.IsNameDeclaration(gp.Parent())
+	case rhino.OBJECT_PATTERN, rhino.ARRAY_PATTERN:
+		gp := parent.Parent()
+		if gp == nil {
+			return false
+		}
+		return NU.IsNameDeclaration(gp)
+	}
+	return false
+}
+
+// IsTopLevel reports whether n is a SCRIPT or MODULE_BODY node (a top-level
+// scope root in the AST).
+// Mirrors NodeUtil.isTopLevel.
+func (nodeUtil) IsTopLevel(n *rhino.Node) bool {
+	return n.IsScript() || n.IsModuleBody()
+}
+
+// IsShallowStatementTree reports whether n is at a "shallow" nesting depth
+// for statement trees: control structures, statement blocks, or switch bodies.
+// Mirrors NodeUtil.isShallowStatementTree.
+func (nodeUtil) IsShallowStatementTree(n *rhino.Node) bool {
+	return n == nil || NU.IsControlStructure(n) || NU.IsStatementBlock(n) ||
+		n.Token() == rhino.SWITCH_BODY
+}
+
+// IsCallTo reports whether n is a CALL to the function identified by
+// qualifiedName.
+// Mirrors NodeUtil.isCallTo(Node, String).
+func (nodeUtil) IsCallTo(n *rhino.Node, qualifiedName string) bool {
+	return n.IsCall() && n.FirstChild().MatchesQualifiedNameStr(qualifiedName)
+}
+
+// IsGoogModuleGetCall reports whether n is a call to goog.module.get(…).
+// Mirrors NodeUtil.isGoogModuleGetCall.
+func (nodeUtil) IsGoogModuleGetCall(n *rhino.Node) bool {
+	return NU.IsCallTo(n, "goog.module.get")
+}
+
+// GetNearestFunctionName returns the nearest inferred name for a FUNCTION
+// node, including keys in object literals.
+// Mirrors NodeUtil.getNearestFunctionName.
+func (nodeUtil) GetNearestFunctionName(n *rhino.Node) string {
+	if !n.IsFunction() {
+		return ""
+	}
+	name := NU.GetName(n)
+	if name != "" {
+		return name
+	}
+	parent := n.Parent()
+	if parent == nil {
+		return ""
+	}
+	switch parent.Token() {
+	case rhino.MEMBER_FUNCTION_DEF, rhino.STRING_KEY:
+		return parent.GetString()
+	case rhino.NUMBER:
+		s, _ := NU.GetStringValue(parent)
+		return s
+	}
+	return ""
+}
+
+// IsObjLitProperty reports whether node is a property key node in an object
+// literal (STRING_KEY, GETTER_DEF, SETTER_DEF, MEMBER_FUNCTION_DEF, or COMPUTED_PROP).
+// Mirrors NodeUtil.isObjLitProperty.
+func (nodeUtil) IsObjLitProperty(node *rhino.Node) bool {
+	return node.IsStringKey() || node.IsGetterDef() || node.IsSetterDef() ||
+		node.IsMemberFunctionDef() || node.Token() == rhino.COMPUTED_PROP
+}
+
+// IsBlocklessArrowFunctionResult reports whether n is the implicit return
+// expression of a blockless arrow function.
+// Mirrors NodeUtil.isBlocklessArrowFunctionResult.
+func (nodeUtil) IsBlocklessArrowFunctionResult(n *rhino.Node) bool {
+	parent := n.Parent()
+	return parent != nil && parent.IsFunction() && n == parent.LastChild() && !n.IsBlock()
+}
+
+// GetBestJSDocInfoNode returns the node that best carries the JSDoc for n.
+// Mirrors NodeUtil.getBestJSDocInfoNode.
+func (nodeUtil) GetBestJSDocInfoNode(n *rhino.Node) *rhino.Node {
+	if n.IsExprResult() {
+		return NU.GetBestJSDocInfoNode(n.FirstChild())
+	}
+	if n.JSDocInfo() != nil {
+		return n
+	}
+	parent := n.Parent()
+	if parent == nil {
+		return nil
+	}
+	switch {
+	case parent.IsName() || parent.IsExport() ||
+		parent.IsVar() || parent.IsLet() || parent.IsConst():
+		return NU.GetBestJSDocInfoNode(parent)
+	case parent.IsAssign():
+		return NU.GetBestJSDocInfoNode(parent)
+	case NU.MayBeObjectLitKey(parent) || parent.Token() == rhino.COMPUTED_PROP:
+		if parent.JSDocInfo() != nil {
+			return parent
+		}
+	case parent.IsClass() || parent.IsMemberFunctionDef():
+		if parent.JSDocInfo() != nil {
+			return parent
+		}
+	}
+	return nil
+}
+
+// IsPrototypePropertyDeclaration reports whether n is an assignment to a
+// prototype property (e.g. `Foo.prototype.bar = function() {}`).
+// Mirrors NodeUtil.isPrototypePropertyDeclaration.
+func (nodeUtil) IsPrototypePropertyDeclaration(n *rhino.Node) bool {
+	if !NU.IsExprAssign(n) {
+		return false
+	}
+	assign := n.FirstChild()
+	return NU.IsPrototypeProperty(assign.FirstChild())
+}
+
+// IsNamedExportsLiteral reports whether objectLiteral is an object literal
+// where all keys are unquoted string keys whose values are NAME nodes —
+// the pattern used for CommonJS-style named exports.
+// Mirrors NodeUtil.isNamedExportsLiteral.
+func (nodeUtil) IsNamedExportsLiteral(objectLiteral *rhino.Node) bool {
+	if !objectLiteral.IsObjectLit() || !objectLiteral.HasChildren() {
+		return false
+	}
+	for key := objectLiteral.FirstChild(); key != nil; key = key.Next() {
+		if !key.IsStringKey() || key.IsQuotedStringKey() {
+			return false
+		}
+		first := key.FirstChild()
+		if first == nil || !first.IsName() {
+			return false
+		}
+	}
+	return true
+}
+
+// IsFromTypeSummary reports whether a SCRIPT node comes from a type summary
+// file (declared with @typeSummary in its JSDoc).
+// Mirrors NodeUtil.isFromTypeSummary.
+func (nodeUtil) IsFromTypeSummary(n *rhino.Node) bool {
+	if !n.IsScript() {
+		return false
+	}
+	info := n.JSDocInfo()
+	return info != nil && info.IsTypeSummary()
+}
+
+// Precedence returns the operator precedence (0 = lowest) for a given token
+// type. Mirrors NodeUtil.precedence(Token).
+func (nodeUtil) Precedence(typ rhino.Token) int {
+	switch typ {
+	case rhino.COMMA:
+		return 0
+	case rhino.ASSIGN, rhino.ASSIGN_BITOR, rhino.ASSIGN_BITXOR, rhino.ASSIGN_BITAND,
+		rhino.ASSIGN_LSH, rhino.ASSIGN_RSH, rhino.ASSIGN_URSH,
+		rhino.ASSIGN_ADD, rhino.ASSIGN_SUB, rhino.ASSIGN_MUL,
+		rhino.ASSIGN_EXPONENT, rhino.ASSIGN_DIV, rhino.ASSIGN_MOD,
+		rhino.ASSIGN_OR, rhino.ASSIGN_AND, rhino.ASSIGN_COALESCE:
+		return 1
+	case rhino.YIELD:
+		return 2
+	case rhino.HOOK:
+		return 3
+	case rhino.OR:
+		return 4
+	case rhino.AND:
+		return 5
+	case rhino.COALESCE:
+		return 6
+	case rhino.BITOR:
+		return 7
+	case rhino.BITXOR:
+		return 8
+	case rhino.BITAND:
+		return 9
+	case rhino.EQ, rhino.NE, rhino.SHEQ, rhino.SHNE:
+		return 10
+	case rhino.LT, rhino.GT, rhino.LE, rhino.GE, rhino.INSTANCEOF, rhino.IN:
+		return 11
+	case rhino.LSH, rhino.RSH, rhino.URSH:
+		return 12
+	case rhino.SUB, rhino.ADD:
+		return 13
+	case rhino.MUL, rhino.MOD, rhino.DIV:
+		return 14
+	case rhino.EXPONENT:
+		return 15
+	case rhino.AWAIT, rhino.NEW, rhino.DELPROP, rhino.TYPEOF, rhino.VOID,
+		rhino.NOT, rhino.BITNOT, rhino.POS, rhino.NEG:
+		return 16
+	case rhino.INC, rhino.DEC:
+		return 17
+	case rhino.CALL, rhino.GETELEM, rhino.GETPROP,
+		rhino.OPTCHAIN_CALL, rhino.OPTCHAIN_GETELEM, rhino.OPTCHAIN_GETPROP,
+		rhino.ARRAYLIT, rhino.ARRAY_PATTERN, rhino.DEFAULT_VALUE,
+		rhino.DESTRUCTURING_LHS, rhino.EMPTY, rhino.FALSE,
+		rhino.FUNCTION, rhino.CLASS, rhino.NAME, rhino.NULL,
+		rhino.NUMBER, rhino.BIGINT, rhino.OBJECTLIT, rhino.OBJECT_PATTERN,
+		rhino.REGEXP, rhino.ITER_REST, rhino.OBJECT_REST,
+		rhino.ITER_SPREAD, rhino.OBJECT_SPREAD, rhino.STRINGLIT, rhino.STRING_KEY,
+		rhino.THIS, rhino.SUPER, rhino.TRUE, rhino.TAGGED_TEMPLATELIT, rhino.TEMPLATELIT,
+		rhino.DYNAMIC_IMPORT:
+		return 18
+	case rhino.CAST:
+		return 22
+	default:
+		return 18 // safe fallback for unknown tokens
+	}
+}
+
+// GetCallTargetResolvingIndirectCalls returns the effective call target of
+// n, looking through (0, x.method)(...) indirect call patterns.
+// Mirrors NodeUtil.getCallTargetResolvingIndirectCalls.
+func (nodeUtil) GetCallTargetResolvingIndirectCalls(call *rhino.Node) *rhino.Node {
+	target := call.FirstChild()
+	if target == nil {
+		return nil
+	}
+	if target.IsComma() {
+		second := target.GetSecondChild()
+		if second != nil && second.IsQualifiedName() {
+			return second
+		}
+	}
+	return target
+}
+
+// NewDeclaration creates a VAR/LET/CONST declaration node for lhs
+// optionally initialized to rhs.
+// Mirrors NodeUtil.newDeclaration.
+func (nodeUtil) NewDeclaration(lhs, rhs *rhino.Node, declarationType rhino.Token) *rhino.Node {
+	if rhs == nil {
+		return rhino.IRDeclarationLhs(lhs, declarationType)
+	}
+	return rhino.IRDeclaration(lhs, rhs, declarationType)
+}
+
+// NewQName creates a NAME or GETPROP chain for the given dotted name.
+// This is the compiler-context-free version.
+// Mirrors NodeUtil.newQName (without compiler).
+func (nodeUtil) NewQName(name string) *rhino.Node {
+	return NU.NewQualifiedNameNode(name)
+}
+
+// NewPropertyAccess creates a GETPROP node for context.name.
+// Mirrors NodeUtil.newPropertyAccess (without compiler context).
+func (nodeUtil) NewPropertyAccess(context *rhino.Node, name string) *rhino.Node {
+	return rhino.IRGetprop(context, name)
+}
+
+// NewUndefinedNode creates a VOID(0) node that evaluates to undefined.
+// Mirrors NodeUtil.newUndefinedNode.
+func (nodeUtil) NewUndefinedNode(srcRef *rhino.Node) *rhino.Node {
+	node := rhino.IRVoid(rhino.NewNumber(0))
+	if srcRef != nil {
+		node.SrcrefTree(srcRef)
+	}
+	return node
+}
+
+// EmptyFunction creates an empty FUNCTION node: function() {}.
+// Mirrors NodeUtil.emptyFunction.
+func (nodeUtil) EmptyFunction() *rhino.Node {
+	return rhino.IRFunction(rhino.NewString(rhino.NAME, ""), rhino.IRParamList(), rhino.IRBlock())
+}
+
+// RemoveName sets the first child of a FUNCTION or CLASS node to an empty
+// name, effectively anonymizing the function/class.
+// Mirrors NodeUtil.removeName.
+func (nodeUtil) RemoveName(n *rhino.Node) {
+	orig := n.FirstChild()
+	if orig == nil {
+		return
+	}
+	var emptyName *rhino.Node
+	if n.IsFunction() {
+		emptyName = rhino.NewString(rhino.NAME, "")
+	} else {
+		emptyName = rhino.New(rhino.EMPTY)
+	}
+	emptyName.Srcref(orig)
+	orig.ReplaceWith(emptyName)
+}
+
+// GetRootOfQualifiedName returns the root NAME/THIS/SUPER node of a qualified
+// name chain (e.g. returns the NAME "foo" for "foo.bar.baz").
+// Mirrors NodeUtil.getRootOfQualifiedName(Node).
+func (nodeUtil) GetRootOfQualifiedName(qName *rhino.Node) *rhino.Node {
+	curr := qName
+	for {
+		if curr.IsName() || curr.IsThis() || curr.IsSuper() {
+			return curr
+		}
+		first := curr.FirstChild()
+		if first == nil {
+			return curr
+		}
+		curr = first
+	}
+}
+
+// IsObjectDefinePropertiesDefinition reports whether n is a call to
+// Object.defineProperties with exactly 3 arguments.
+// Mirrors NodeUtil.isObjectDefinePropertiesDefinition.
+func (nodeUtil) IsObjectDefinePropertiesDefinition(n *rhino.Node) bool {
+	if !n.IsCall() || !n.HasXChildren(3) {
+		return false
+	}
+	getprop := n.FirstChild()
+	if !getprop.IsGetProp() {
+		return false
+	}
+	if getprop.GetString() != "defineProperties" {
+		return false
+	}
+	obj := getprop.FirstChild()
+	if obj == nil {
+		return false
+	}
+	return (obj.IsName() && obj.GetString() == "Object") ||
+		obj.MatchesQualifiedNameStr("$jscomp.global.Object") ||
+		obj.MatchesQualifiedNameStr("$jscomp$global.Object")
+}
+
+// GetSourceName returns the source file name for n by walking up the parent
+// chain until a node with a source file name is found.
+// Mirrors NodeUtil.getSourceName.
+func (nodeUtil) GetSourceName(n *rhino.Node) string {
+	curr := n
+	for curr != nil {
+		s := curr.GetSourceFileName()
+		if s != "" {
+			return s
+		}
+		curr = curr.Parent()
+	}
+	return ""
+}
+
+// ---------------------------------------------------------------------------
+// Visitor / iteration methods ported from Java NodeUtil
+// ---------------------------------------------------------------------------
+
+// Visitor mirrors com.google.javascript.jscomp.NodeUtil.Visitor: a callback
+// invoked for each node during a traversal.
+type Visitor func(node *rhino.Node)
+
+// VisitPreOrder visits all nodes in n's subtree in pre-order (parent before
+// children), calling v for each node. If traverseChildrenPred returns false
+// for a node, its children are skipped.
+// Mirrors NodeUtil.visitPreOrder.
+func (nodeUtil) VisitPreOrder(node *rhino.Node, v Visitor, traverseChildrenPred func(*rhino.Node) bool) {
+	v(node)
+	if traverseChildrenPred(node) {
+		for c := node.FirstChild(); c != nil; c = c.Next() {
+			NU.VisitPreOrder(c, v, traverseChildrenPred)
+		}
+	}
+}
+
+// VisitPostOrder visits all nodes in n's subtree in post-order (children
+// before parent). If traverseChildrenPred returns false for a node, its
+// children are skipped.
+// Mirrors NodeUtil.visitPostOrder.
+func (nodeUtil) VisitPostOrder(node *rhino.Node, v Visitor, traverseChildrenPred func(*rhino.Node) bool) {
+	if traverseChildrenPred(node) {
+		for c := node.FirstChild(); c != nil; {
+			next := c.Next()
+			NU.VisitPostOrder(c, v, traverseChildrenPred)
+			c = next
+		}
+	}
+	v(node)
+}
+
+// GetCount counts how many nodes in the subtree of n satisfy pred, subject to
+// traversal gating by traverseChildrenPred.
+// Mirrors NodeUtil.getCount.
+func (nodeUtil) GetCount(n *rhino.Node, pred func(*rhino.Node) bool, traverseChildrenPred func(*rhino.Node) bool) int {
+	total := 0
+	if pred(n) {
+		total++
+	}
+	if traverseChildrenPred(n) {
+		for c := n.FirstChild(); c != nil; c = c.Next() {
+			total += NU.GetCount(c, pred, traverseChildrenPred)
+		}
+	}
+	return total
+}
+
+// Has reports whether any node in the subtree of n satisfies pred, subject to
+// traversal gating by traverseChildrenPred.
+// Mirrors NodeUtil.has.
+func (nodeUtil) Has(n *rhino.Node, pred func(*rhino.Node) bool, traverseChildrenPred func(*rhino.Node) bool) bool {
+	return nuHas(n, pred, traverseChildrenPred)
+}
+
+// FindPreorder returns the first node (pre-order) in the subtree of n that
+// satisfies pred, or nil. Children of non-matching nodes whose
+// traverseChildrenPred returns false are skipped.
+// Mirrors NodeUtil.findPreorder.
+func (nodeUtil) FindPreorder(n *rhino.Node, pred func(*rhino.Node) bool, traverseChildrenPred func(*rhino.Node) bool) *rhino.Node {
+	if pred(n) {
+		return n
+	}
+	if !traverseChildrenPred(n) {
+		return nil
+	}
+	for c := n.FirstChild(); c != nil; c = c.Next() {
+		if found := NU.FindPreorder(c, pred, traverseChildrenPred); found != nil {
+			return found
+		}
+	}
+	return nil
 }

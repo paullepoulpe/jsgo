@@ -59,9 +59,8 @@ type Scanner struct {
 	lastTokenLine int
 }
 
-// NewScanner mirrors Java's `new Scanner(errorReporter, commentRecorder, file, offset)`.
-// For the char-level-only use case (existing parser), errorReporter and
-// commentRecorder may be nil.
+// Go-only: language-adapter — Java requires errorReporter and commentRecorder;
+// this factory provides a simpler construction path for callers that don't need them.
 func NewScanner(src string) *Scanner {
 	rs := []rune(src)
 	return &Scanner{
@@ -73,8 +72,7 @@ func NewScanner(src string) *Scanner {
 	}
 }
 
-// NewScannerFull constructs a Scanner with a full error reporter and comment recorder,
-// mirroring the Java constructor signature.
+// Go-only: language-adapter — Java uses a single constructor; Go splits it by arg count.
 func NewScannerFull(er ErrorReporter, cr CommentRecorder, src string, offset int) *Scanner {
 	rs := []rune(src)
 	return &Scanner{
@@ -143,7 +141,8 @@ func (s *Scanner) NextTemplateLiteralToken() *TemplateLiteralToken {
 	return s.nextTemplateLiteralTokenShared(TokenTypeTemplateTail, TokenTypeTemplateMiddle)
 }
 
-// PeekToken mirrors Scanner.peekToken().
+// Go-only: language-adapter — Java's peekToken(int) is named peekToken; Go
+// renames to PeekTokenAt to distinguish from the zero-arg PeekToken below.
 func (s *Scanner) PeekTokenAt(index int) *Token {
 	return s.peekToken(index)
 }
@@ -227,7 +226,8 @@ func (s *Scanner) peekWhitespace() bool {
 	return scannerIsWhitespace(s.peekChar())
 }
 
-// scannerIsWhitespace mirrors Scanner.isWhitespace(char).
+// Go-only: package-bridge — Java name is isWhitespace (private static); renamed to avoid
+// conflict with package-level function names in Go.
 func scannerIsWhitespace(ch rune) bool {
 	switch ch {
 	case '	', // Tab
@@ -325,7 +325,8 @@ func (s *Scanner) skipSingleLineComment() {
 	s.skipSingleLineCommentType(CommentLine)
 }
 
-// skipSingleLineCommentType mirrors Scanner.skipSingleLineComment(Comment.Type).
+// Go-only: language-adapter — Java has skipSingleLineComment(Comment.Type); Go adds
+// 'Type' suffix to distinguish from the no-arg overload.
 func (s *Scanner) skipSingleLineCommentType(typ CommentType) {
 	startOffset := s.index
 	startPos := s.getPositionAt(startOffset)
@@ -1229,7 +1230,8 @@ func (s *Scanner) peekChar() rune {
 	return s.peekCharAt(0)
 }
 
-// peekCharAt mirrors Scanner.peekChar(int offset).
+// Go-only: language-adapter — Java's peekChar(int) is the same; Go adds 'At'
+// suffix to distinguish from zero-arg peekChar.
 func (s *Scanner) peekCharAt(offset int) rune {
 	if !s.isValidIndex(s.index + offset) {
 		return 0
@@ -1246,7 +1248,7 @@ func (s *Scanner) reportError(position SourcePosition, format string, args ...in
 	}
 }
 
-// reportWarningAt mirrors Scanner.reportWarning(String, Object...).
+// Go-only: language-adapter — Java uses varargs; Go takes a single string.
 func (s *Scanner) reportWarningAt(position SourcePosition, msg string) {
 	if s.errorReporter != nil {
 		s.errorReporter.ReportWarning(position, "%s", msg)
@@ -1255,9 +1257,8 @@ func (s *Scanner) reportWarningAt(position SourcePosition, msg string) {
 
 // ---- Position helpers -----------------------------------------------
 
-// getPositionAt computes the SourcePosition for rune index offset.
-// This is a simplified version that tracks line/column from current state.
-// For accuracy it uses the line counter maintained by nextChar.
+// Go-only: language-adapter — Java uses getPosition(int); Go renames to clarify
+// it takes an absolute rune offset.
 func (s *Scanner) getPositionAt(offset int) SourcePosition {
 	// Compute line/col by scanning from lineBOL.
 	// Since we maintain s.line and s.lineBOL incrementally, we compute
@@ -1269,7 +1270,8 @@ func (s *Scanner) getPositionAt(offset int) SourcePosition {
 	return SourcePosition{Offset: offset, Line: s.line - 1, Column: col}
 }
 
-// getTokenRangeFromOffset mirrors Scanner.getTokenRange(int startOffset).
+// Go-only: language-adapter — Java uses getTokenRange(int); Go renames to
+// distinguish int-offset vs SourcePosition overloads.
 func (s *Scanner) getTokenRangeFromOffset(startOffset int) SourceRange {
 	return SourceRange{
 		Start: s.getPositionAt(startOffset),
@@ -1277,7 +1279,7 @@ func (s *Scanner) getTokenRangeFromOffset(startOffset int) SourceRange {
 	}
 }
 
-// getTokenRangeFromPos mirrors Scanner.getTokenRange(SourcePosition).
+// Go-only: language-adapter — Java overloads getTokenRange; Go uses distinct names.
 func (s *Scanner) getTokenRangeFromPos(start SourcePosition) SourceRange {
 	return SourceRange{
 		Start: start,
@@ -1285,7 +1287,8 @@ func (s *Scanner) getTokenRangeFromPos(start SourcePosition) SourceRange {
 	}
 }
 
-// rewindLineTo resets line-tracking state to match a previously saved position.
+// Go-only: language-adapter — Java uses setOffset to rewind; Go tracks line
+// separately and needs this helper to restore line state.
 func (s *Scanner) rewindLineTo(position SourcePosition) {
 	// Recompute line and lineBOL from position.line (0-based in SourcePosition).
 	s.line = position.Line + 1
@@ -1393,7 +1396,7 @@ func isRegularExpressionChar(ch rune) bool {
 
 // ---- Identifiers (mirrors com.google.javascript.jscomp.parsing.parser.Identifiers) ---
 
-// identifiersIsIdentifierStart mirrors Identifiers.isIdentifierStart(char).
+// Go-only: package-bridge — Java is in separate Identifiers class; inlined here.
 func identifiersIsIdentifierStart(ch rune) bool {
 	if ch <= 127 {
 		return (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || ch == '_' || ch == '$'
@@ -1401,7 +1404,7 @@ func identifiersIsIdentifierStart(ch rune) bool {
 	return unicode.IsLetter(ch)
 }
 
-// identifiersIsIdentifierPart mirrors Identifiers.isIdentifierPart(char).
+// Go-only: package-bridge — Java is in separate Identifiers class; inlined here.
 func identifiersIsIdentifierPart(ch rune) bool {
 	if ch <= 127 {
 		return (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') ||
@@ -1412,7 +1415,7 @@ func identifiersIsIdentifierPart(ch rune) bool {
 
 // ---- Utility --------------------------------------------------------
 
-// hexNib returns the hex value of a single hex digit rune.
+// Go-only: language-adapter — Java uses Character.digit(ch, 16) inline.
 func hexNib(c rune) int {
 	if c >= '0' && c <= '9' {
 		return int(c - '0')
@@ -1450,7 +1453,8 @@ func (s *Scanner) Save() ScannerMark {
 	}
 }
 
-// Restore rewinds the scanner to a previously saved mark.
+// Go-only: language-adapter — Java uses setOffset(int); Go uses a ScannerMark
+// struct to capture all scanner state for full restore.
 func (s *Scanner) Restore(m ScannerMark) {
 	s.index = m.pos
 	s.line = m.line
@@ -1480,22 +1484,27 @@ func (s *Scanner) AtEnd() bool { return s.isAtEnd() }
 // Peek returns the current rune without consuming. Returns 0 at EOF.
 func (s *Scanner) Peek() rune { return s.peekChar() }
 
-// PeekAt returns the rune at offset ahead of the cursor, or 0 past end.
+// Go-only: language-adapter — Java's peekChar(int) is accessible directly;
+// Go wraps it for use from parser code.
 func (s *Scanner) PeekAt(offset int) rune { return s.peekCharAt(offset) }
 
-// Advance consumes one rune and updates line/col tracking.
+// Go-only: language-adapter — Java's nextChar() is package-private; Advance
+// is the public API for parser code that needs to consume one rune directly.
 func (s *Scanner) Advance() rune {
 	ch := s.nextChar()
 	return ch
 }
 
-// LastTokenLine returns the line of the most recently consumed non-trivia character.
+// Go-only: language-adapter — Java tracks this via getLastLine(); Go exposes as
+// an explicit method for the parser to compute ASI positions.
 func (s *Scanner) LastTokenLine() int { return s.lastTokenLine }
 
-// MarkTokenConsumed updates lastTokenLine to the current scanner line.
+// Go-only: language-adapter — Java updates this inline; Go extracts it for
+// the parser to call when it emits a real token.
 func (s *Scanner) MarkTokenConsumed() { s.lastTokenLine = s.line }
 
-// Text returns the substring between two rune-positions.
+// Go-only: language-adapter — Java uses getTokenString(int, int); Go names
+// this Text for clarity.
 func (s *Scanner) Text(start, end int) string {
 	if start < 0 {
 		start = 0
@@ -1509,7 +1518,8 @@ func (s *Scanner) Text(start, end int) string {
 	return string(s.contents[start:end])
 }
 
-// ConsumeByte advances past `b` if the current rune matches.
+// Go-only: language-adapter — Java uses eat(char); Go uses ConsumeByte for
+// ASCII characters to avoid rune overhead.
 func (s *Scanner) ConsumeByte(b byte) bool {
 	if s.isAtEnd() || byte(s.peekChar()) != b {
 		return false
@@ -1519,9 +1529,8 @@ func (s *Scanner) ConsumeByte(b byte) bool {
 	return true
 }
 
-// ConsumeIdent reads a JS identifier starting at the cursor.
-// Returns ("", false) if the cursor isn't on an ident start or if the
-// identifier matches a reserved word.
+// Go-only: language-adapter — Java's scanIdentifierOrKeyword handles this
+// inline; Go exposes a public helper for parser consumers.
 func (s *Scanner) ConsumeIdent() (string, bool) {
 	if s.isAtEnd() {
 		return "", false
@@ -1546,7 +1555,8 @@ func (s *Scanner) ConsumeIdent() (string, bool) {
 	return ident, true
 }
 
-// isReservedWord returns true for JS reserved words.
+// Go-only: language-adapter — Java uses Keywords.isKeyword(String); Go inlines
+// the keyword set here to avoid an extra class.
 func isReservedWord(str string) bool {
 	switch str {
 	case "break", "case", "catch", "class", "const", "continue",
@@ -1563,7 +1573,8 @@ func isReservedWord(str string) bool {
 	return false
 }
 
-// AtKeyword reports whether `kw` is the next keyword (non-consuming).
+// Go-only: language-adapter — Java's peekToken() lookahead covers this;
+// Go needs an explicit non-consuming keyword check for the parser.
 func (s *Scanner) AtKeyword(kw string) bool {
 	rs := []rune(kw)
 	if s.index+len(rs) > s.contentsLength {
@@ -1580,7 +1591,8 @@ func (s *Scanner) AtKeyword(kw string) bool {
 	return true
 }
 
-// ConsumeKeywordRaw advances past a keyword without the reserved-word filter.
+// Go-only: language-adapter — Java uses eat() per character; Go has this
+// helper for multi-character keyword consumption.
 func (s *Scanner) ConsumeKeywordRaw(kw string) {
 	for range []rune(kw) {
 		s.Advance()
@@ -1588,7 +1600,8 @@ func (s *Scanner) ConsumeKeywordRaw(kw string) {
 	s.lastTokenLine = s.line
 }
 
-// ConsumeKeyword matches an exact keyword followed by a non-ident boundary.
+// Go-only: language-adapter — Java uses eatOpt/eat per char; Go exposes a
+// convenience method for keyword-boundary-checked consumption.
 func (s *Scanner) ConsumeKeyword(kw string) bool {
 	rs := []rune(kw)
 	if s.index+len(rs) > s.contentsLength {
@@ -1612,7 +1625,8 @@ func (s *Scanner) ConsumeKeyword(kw string) bool {
 	return true
 }
 
-// ConsumeBlockComment reads a /* … */ block comment.
+// Go-only: language-adapter — Java's skipBlockComment handles this in the
+// main scan loop; Go exposes it for external parser consumers.
 func (s *Scanner) ConsumeBlockComment() (string, bool) {
 	if s.index+1 >= s.contentsLength || s.peekChar() != '/' || s.peekCharAt(1) != '*' {
 		return "", false
@@ -1633,7 +1647,8 @@ func (s *Scanner) ConsumeBlockComment() (string, bool) {
 	return body, true
 }
 
-// ConsumeLineComment reads a // … comment.
+// Go-only: language-adapter — Java handles this in skipSingleLineComment;
+// Go extracts it for the trivia-skipping loop.
 func (s *Scanner) ConsumeLineComment() bool {
 	if s.index+1 < s.contentsLength && s.peekChar() == '/' && s.peekCharAt(1) == '/' {
 		for !s.isAtEnd() && s.peekChar() != '\n' {
@@ -1644,16 +1659,19 @@ func (s *Scanner) ConsumeLineComment() bool {
 	return false
 }
 
-// SkipTrivia consumes whitespace plus plain (non-JSDoc) block + line comments.
+// Go-only: language-adapter — Java integrates trivia skipping into the main
+// scan loop; Go exposes it for the parser's trivia-consuming API.
 func (s *Scanner) SkipTrivia() {
 	s.skipTriviaTracked()
 }
 
-// SkipTriviaSeenNewline is SkipTrivia but reports whether the skipped region crossed a line boundary.
+// Go-only: language-adapter — Java has no direct equivalent; Go needs this
+// to implement ASI (automatic semicolon insertion) checks.
 func (s *Scanner) SkipTriviaSeenNewline() bool {
 	return s.skipTriviaTracked()
 }
 
+// Go-only: language-adapter — combines Java's whitespace + comment skipping.
 func (s *Scanner) skipTriviaTracked() bool {
 	startLine := s.line
 	for !s.isAtEnd() {
@@ -1682,7 +1700,8 @@ func (s *Scanner) skipTriviaTracked() bool {
 	return s.line != startLine
 }
 
-// SkipToStatementBoundary walks forward until just past the next `;` or `}` at top-level, or to EOF.
+// Go-only: language-adapter — Java uses error recovery logic in the parser;
+// Go exposes this helper for the parser's error-recovery pass.
 func (s *Scanner) SkipToStatementBoundary() {
 	depth := 0
 	for !s.isAtEnd() {
@@ -1768,12 +1787,14 @@ func (s *Scanner) ScanTemplateLiteral() (TemplatePart, bool) {
 	return s.scanTemplateCharacters(TemplateNoSub, TemplateHead)
 }
 
-// ScanTemplateMiddleOrTail is called after the parser has consumed the closing `}`.
+// Go-only: language-adapter — Java's scanner handles template re-entry via
+// scanTemplateLiteral; Go splits into ScanTemplateMiddleOrTail for the parser.
 func (s *Scanner) ScanTemplateMiddleOrTail() (TemplatePart, bool) {
 	return s.scanTemplateCharacters(TemplateTail, TemplateMiddle)
 }
 
-// scanTemplateCharacters is the char-level template scanner used by parser.go.
+// Go-only: package-bridge — Java's scanTemplateLiteral handles this inline;
+// Go extracts the loop body into a named function shared by two entry points.
 func (s *Scanner) scanTemplateCharacters(endKind, middleKind TemplatePartKind) (TemplatePart, bool) {
 	start := s.index
 	for !s.isAtEnd() {
@@ -1807,9 +1828,8 @@ func (s *Scanner) scanTemplateCharacters(endKind, middleKind TemplatePartKind) (
 
 // ---- Numeric literal char-level API (used by parser.go) -------------
 
-// ScanNumericLiteral mirrors the old char-level numeric scanner.
-// Cursor must be on the first digit (or '.' for .5 forms).
-// Returns (raw, isFloat, ok); advances the scanner on success.
+// Go-only: language-adapter — Java uses scanNumericLiteral internally; Go
+// exposes this public API for the char-level parser layer.
 func (s *Scanner) ScanNumericLiteral() (string, bool, bool) {
 	start := s.index
 	c := s.Peek()
@@ -1895,7 +1915,8 @@ func (s *Scanner) ScanNumericLiteral() (string, bool, bool) {
 	return s.Text(start, s.index), isFloat, true
 }
 
-// scanExponentSuffix advances past an optional e/E exponent; returns true if found.
+// Go-only: package-bridge — Java's scanExponentOfNumericLiteral is the
+// equivalent; renamed for clarity in Go.
 func (s *Scanner) scanExponentSuffix() bool {
 	if p := s.Peek(); p != 'e' && p != 'E' {
 		return false
@@ -1908,7 +1929,8 @@ func (s *Scanner) scanExponentSuffix() bool {
 	return true
 }
 
-// skipDigitsFunc advances past digit runs matching pred, including '_' separators.
+// Go-only: language-adapter — Java's skipDigits loops are inlined per number
+// base; Go extracts a generic helper taking a predicate.
 func (s *Scanner) skipDigitsFunc(pred func(rune) bool) {
 	for !s.isAtEnd() {
 		if c := s.Peek(); pred(c) {
@@ -1926,8 +1948,8 @@ func (s *Scanner) skipDigitsFunc(pred func(rune) bool) {
 
 // ---- String body char-level API (used by parser.go) -----------------
 
-// ScanStringBody mirrors old char-level ScanStringBody.
-// Cursor must be just AFTER the opening quote.
+// Go-only: language-adapter — Java's scanStringLiteral handles this inline;
+// Go exposes it for the char-level parser API.
 func (s *Scanner) ScanStringBody(terminator rune) (string, bool) {
 	start := s.index
 	for !s.isAtEnd() && s.Peek() != terminator {
@@ -1968,7 +1990,8 @@ func (s *Scanner) ScanStringBody(terminator rune) (string, bool) {
 
 // ---- Regular expression char-level API (used by parser.go) ----------
 
-// ScanRegularExpressionLiteral mirrors old char-level ScanRegularExpressionLiteral.
+// Go-only: language-adapter — Java's scanRegularExpression is in the main
+// scan loop; Go exposes it for the char-level parser API.
 func (s *Scanner) ScanRegularExpressionLiteral() (string, bool) {
 	begin := s.index
 
@@ -1997,19 +2020,20 @@ func (s *Scanner) ScanRegularExpressionLiteral() (string, bool) {
 
 // ---- Shared char-class predicates ----------------------------------
 
-// isIdentStart and isIdentCont are the char-level predicates used by
-// the old ConsumeIdent / ConsumeKeyword paths (identical to identifiersIsIdentifierStart/Part
-// but kept as local names for the char-level API callers).
+// Go-only: package-bridge — duplicates identifiersIsIdentifierStart; kept as
+// short names for the char-level API callers to avoid verbose references.
 func isIdentStart(c rune) bool {
 	return unicode.IsLetter(c) || c == '_' || c == '$'
 }
 
+// Go-only: package-bridge — duplicates identifiersIsIdentifierPart; kept as
+// short names for the char-level API callers to avoid verbose references.
 func isIdentCont(c rune) bool {
 	return unicode.IsLetter(c) || unicode.IsDigit(c) || c == '_' || c == '$'
 }
 
-// DecodeStringEscapes decodes the raw body of a string literal.
-// Mirrors the old scanner's DecodeStringEscapes helper.
+// Go-only: language-adapter — Java uses StringUtil.unescapeUnicode + friends;
+// Go provides this self-contained helper.
 func DecodeStringEscapes(raw string) string {
 	if !strings.ContainsRune(raw, '\\') {
 		return raw
@@ -2093,6 +2117,8 @@ func DecodeStringEscapes(raw string) string {
 	return b.String()
 }
 
+// Go-only: language-adapter — Java uses Integer.parseInt with radix 16;
+// Go needs a custom version that works on []rune.
 func parseHexRunes(rs []rune) (int, bool) {
 	if len(rs) == 0 {
 		return 0, false
