@@ -1448,8 +1448,13 @@ func (i *JSDocInfo) HasMods() bool {
 }
 
 // GetMods mirrors JSDocInfo.getMods() — returns the mods namespace.
-// Not tracked at this tier.
-func (i *JSDocInfo) GetMods() string { return "" }
+// The mods namespace is not tracked in the Go port at this tier.
+func (i *JSDocInfo) GetMods() string {
+	if i == nil {
+		return ""
+	}
+	return "" // not tracked at this tier
+}
 
 // GetTypeExpressions mirrors JSDocInfo.getTypeExpressions() — returns all
 // JSTypeExpression values recorded on this info.

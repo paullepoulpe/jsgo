@@ -300,7 +300,7 @@
     "loc_ratio": 1.5,
     "go_only_count": 132,
     "notes": "2 stubs; 132 go-only fns",
-    "weighted_score": 49.745928174540246,
+    "weighted_score": 49.74592817454024,
     "go_only_penalty": 20,
     "stub_penalty": 6,
     "version_penalty": 0
@@ -756,24 +756,6 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a69ce1d9/internal/rhino/jsdoc.go",
-    "java_file": "com/google/javascript/rhino/JSDocInfo.java",
-    "score": 48.54406830518799,
-    "method_overlap_pct": 31.182795698924732,
-    "go_method_count": 199,
-    "java_method_count": 289,
-    "stub_count": 1,
-    "go_body_loc": 449,
-    "java_body_loc": 1313,
-    "loc_ratio": 0.341964965727342,
-    "go_only_count": 68,
-    "notes": "1 stubs; 68 go-only fns",
-    "weighted_score": 59.34866900741142,
-    "go_only_penalty": 20,
-    "stub_penalty": 3,
-    "version_penalty": 0
-  },
-  {
     "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a69ce1d9/internal/jscomp/diagnosticgroup.go",
     "java_file": "com/google/javascript/jscomp/DiagnosticGroup.java",
     "score": 50,
@@ -1112,6 +1094,24 @@
     "notes": "3 go-only fns",
     "weighted_score": 38.63636363636364,
     "go_only_penalty": 6,
+    "stub_penalty": 0,
+    "version_penalty": 0
+  },
+  {
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a69ce1d9/internal/rhino/jsdoc.go",
+    "java_file": "com/google/javascript/rhino/JSDocInfo.java",
+    "score": 51.620229767488055,
+    "method_overlap_pct": 31.182795698924732,
+    "go_method_count": 199,
+    "java_method_count": 289,
+    "stub_count": 0,
+    "go_body_loc": 459,
+    "java_body_loc": 1313,
+    "loc_ratio": 0.3495811119573496,
+    "go_only_count": 68,
+    "notes": "68 go-only fns",
+    "weighted_score": 59.45747109641152,
+    "go_only_penalty": 20,
     "stub_penalty": 0,
     "version_penalty": 0
   },
@@ -3060,24 +3060,6 @@
     "version_penalty": 0
   },
   {
-    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a69ce1d9/internal/rhino/jsdoc_info_builder.go",
-    "java_file": "com/google/javascript/rhino/JSDocInfo.java",
-    "score": 58.71570847406605,
-    "method_overlap_pct": 34.470989761092156,
-    "go_method_count": 105,
-    "java_method_count": 289,
-    "stub_count": 1,
-    "go_body_loc": 505,
-    "java_body_loc": 1313,
-    "loc_ratio": 0.38461538461538464,
-    "go_only_count": 3,
-    "notes": "1 stubs; 3 go-only fns",
-    "weighted_score": 53.87958353438008,
-    "go_only_penalty": 6,
-    "stub_penalty": 3,
-    "version_penalty": 0
-  },
-  {
     "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a69ce1d9/internal/rhino/jstype/enum_element_type.go",
     "java_file": "com/google/javascript/rhino/jstype/EnumElementType.java",
     "score": 59.05871388630009,
@@ -3201,6 +3183,24 @@
     "weighted_score": 66.72110873334842,
     "go_only_penalty": 12,
     "stub_penalty": 3,
+    "version_penalty": 0
+  },
+  {
+    "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a69ce1d9/internal/rhino/jsdoc_info_builder.go",
+    "java_file": "com/google/javascript/rhino/JSDocInfo.java",
+    "score": 61.73855691275608,
+    "method_overlap_pct": 34.470989761092156,
+    "go_method_count": 105,
+    "java_method_count": 289,
+    "stub_count": 0,
+    "go_body_loc": 508,
+    "java_body_loc": 1313,
+    "loc_ratio": 0.3869002284843869,
+    "go_only_count": 3,
+    "notes": "3 go-only fns",
+    "weighted_score": 53.91222416108012,
+    "go_only_penalty": 6,
+    "stub_penalty": 0,
     "version_penalty": 0
   },
   {
@@ -3890,7 +3890,7 @@
   {
     "go_file": "/Users/damien/code/jsgo/.claude/worktrees/agent-a69ce1d9/internal/diag/abstractmessageformatter.go",
     "java_file": "com/google/javascript/jscomp/AbstractMessageFormatter.java",
-    "score": 80.87247474747474,
+    "score": 80.87247474747475,
     "method_overlap_pct": 66.66666666666666,
     "go_method_count": 7,
     "java_method_count": 8,
@@ -3900,7 +3900,7 @@
     "loc_ratio": 0.36363636363636365,
     "go_only_count": 1,
     "notes": "1 go-only fns",
-    "weighted_score": 75.53210678210678,
+    "weighted_score": 75.5321067821068,
     "go_only_penalty": 2,
     "stub_penalty": 0,
     "version_penalty": 0
