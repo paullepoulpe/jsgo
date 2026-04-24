@@ -4,12 +4,14 @@
 package trees
 
 type ContinueStatementTree struct {
+	ParseTree
 	Name *IdentifierToken
 }
 
 func NewContinueStatementTree(location SourceRange, name *IdentifierToken) *ContinueStatementTree {
 	return &ContinueStatementTree{
-		Name: name,
+		ParseTree: ParseTree{Type: ParseTreeTypeContinueStatement, Location: location},
+		Name:      name,
 	}
 }
 

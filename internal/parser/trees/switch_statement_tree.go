@@ -4,12 +4,14 @@
 package trees
 
 type SwitchStatementTree struct {
-	Expression  ParseTree
-	CaseClauses []ParseTree
+	ParseTree
+	Expression  *ParseTree
+	CaseClauses []*ParseTree
 }
 
-func NewSwitchStatementTree(location SourceRange, expression ParseTree, caseClauses []ParseTree) *SwitchStatementTree {
+func NewSwitchStatementTree(location SourceRange, expression *ParseTree, caseClauses []*ParseTree) *SwitchStatementTree {
 	return &SwitchStatementTree{
+		ParseTree:   ParseTree{Type: ParseTreeTypeSwitchStatement, Location: location},
 		Expression:  expression,
 		CaseClauses: caseClauses,
 	}

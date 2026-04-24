@@ -4,12 +4,14 @@
 package trees
 
 type LabelledStatementTree struct {
+	ParseTree
 	Name      *IdentifierToken
-	Statement ParseTree
+	Statement *ParseTree
 }
 
-func NewLabelledStatementTree(location SourceRange, name *IdentifierToken, statement ParseTree) *LabelledStatementTree {
+func NewLabelledStatementTree(location SourceRange, name *IdentifierToken, statement *ParseTree) *LabelledStatementTree {
 	return &LabelledStatementTree{
+		ParseTree: ParseTree{Type: ParseTreeTypeLabelledStatement, Location: location},
 		Name:      name,
 		Statement: statement,
 	}

@@ -4,12 +4,14 @@
 package trees
 
 type ImportSpecifierTree struct {
+	ParseTree
 	ImportedName    *IdentifierToken
 	DestinationName *IdentifierToken
 }
 
 func NewImportSpecifierTree(location SourceRange, importedName *IdentifierToken, destinationName *IdentifierToken) *ImportSpecifierTree {
 	return &ImportSpecifierTree{
+		ParseTree:       ParseTree{Type: ParseTreeTypeImportSpecifier, Location: location},
 		ImportedName:    importedName,
 		DestinationName: destinationName,
 	}

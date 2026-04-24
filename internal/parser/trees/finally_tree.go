@@ -4,11 +4,13 @@
 package trees
 
 type FinallyTree struct {
-	Block ParseTree
+	ParseTree
+	Block *ParseTree
 }
 
-func NewFinallyTree(location SourceRange, block ParseTree) *FinallyTree {
+func NewFinallyTree(location SourceRange, block *ParseTree) *FinallyTree {
 	return &FinallyTree{
-		Block: block,
+		ParseTree: ParseTree{Type: ParseTreeTypeFinally, Location: location},
+		Block:     block,
 	}
 }

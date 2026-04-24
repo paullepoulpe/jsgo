@@ -4,12 +4,14 @@
 package trees
 
 type CaseClauseTree struct {
-	Expression ParseTree
-	Statements []ParseTree
+	ParseTree
+	Expression *ParseTree
+	Statements []*ParseTree
 }
 
-func NewCaseClauseTree(location SourceRange, expression ParseTree, statements []ParseTree) *CaseClauseTree {
+func NewCaseClauseTree(location SourceRange, expression *ParseTree, statements []*ParseTree) *CaseClauseTree {
 	return &CaseClauseTree{
+		ParseTree:  ParseTree{Type: ParseTreeTypeCaseClause, Location: location},
 		Expression: expression,
 		Statements: statements,
 	}

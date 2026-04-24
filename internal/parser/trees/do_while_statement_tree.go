@@ -4,12 +4,14 @@
 package trees
 
 type DoWhileStatementTree struct {
-	Body      ParseTree
-	Condition ParseTree
+	ParseTree
+	Body      *ParseTree
+	Condition *ParseTree
 }
 
-func NewDoWhileStatementTree(location SourceRange, body ParseTree, condition ParseTree) *DoWhileStatementTree {
+func NewDoWhileStatementTree(location SourceRange, body *ParseTree, condition *ParseTree) *DoWhileStatementTree {
 	return &DoWhileStatementTree{
+		ParseTree: ParseTree{Type: ParseTreeTypeDoWhileStatement, Location: location},
 		Body:      body,
 		Condition: condition,
 	}

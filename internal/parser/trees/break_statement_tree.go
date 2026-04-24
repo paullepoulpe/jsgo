@@ -4,12 +4,14 @@
 package trees
 
 type BreakStatementTree struct {
+	ParseTree
 	Name *IdentifierToken
 }
 
 func NewBreakStatementTree(location SourceRange, name *IdentifierToken) *BreakStatementTree {
 	return &BreakStatementTree{
-		Name: name,
+		ParseTree: ParseTree{Type: ParseTreeTypeBreakStatement, Location: location},
+		Name:      name,
 	}
 }
 

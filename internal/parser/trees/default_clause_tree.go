@@ -4,11 +4,13 @@
 package trees
 
 type DefaultClauseTree struct {
-	Statements []ParseTree
+	ParseTree
+	Statements []*ParseTree
 }
 
-func NewDefaultClauseTree(location SourceRange, statements []ParseTree) *DefaultClauseTree {
+func NewDefaultClauseTree(location SourceRange, statements []*ParseTree) *DefaultClauseTree {
 	return &DefaultClauseTree{
+		ParseTree:  ParseTree{Type: ParseTreeTypeDefaultClause, Location: location},
 		Statements: statements,
 	}
 }

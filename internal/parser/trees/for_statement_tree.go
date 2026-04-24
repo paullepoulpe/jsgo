@@ -4,14 +4,16 @@
 package trees
 
 type ForStatementTree struct {
-	Initializer ParseTree
-	Condition   ParseTree
-	Increment   ParseTree
-	Body        ParseTree
+	ParseTree
+	Initializer *ParseTree
+	Condition   *ParseTree
+	Increment   *ParseTree
+	Body        *ParseTree
 }
 
-func NewForStatementTree(location SourceRange, variables ParseTree, condition ParseTree, increment ParseTree, body ParseTree) *ForStatementTree {
+func NewForStatementTree(location SourceRange, variables *ParseTree, condition *ParseTree, increment *ParseTree, body *ParseTree) *ForStatementTree {
 	return &ForStatementTree{
+		ParseTree:   ParseTree{Type: ParseTreeTypeForStatement, Location: location},
 		Initializer: variables,
 		Condition:   condition,
 		Increment:   increment,

@@ -4,11 +4,13 @@
 package trees
 
 type ThrowStatementTree struct {
-	Value ParseTree
+	ParseTree
+	Value *ParseTree
 }
 
-func NewThrowStatementTree(location SourceRange, value ParseTree) *ThrowStatementTree {
+func NewThrowStatementTree(location SourceRange, value *ParseTree) *ThrowStatementTree {
 	return &ThrowStatementTree{
-		Value: value,
+		ParseTree: ParseTree{Type: ParseTreeTypeThrowStatement, Location: location},
+		Value:     value,
 	}
 }

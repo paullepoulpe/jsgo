@@ -4,13 +4,15 @@
 package trees
 
 type ClassDeclarationTree struct {
+	ParseTree
 	Name       *IdentifierToken
-	SuperClass ParseTree
-	Elements   []ParseTree
+	SuperClass *ParseTree
+	Elements   []*ParseTree
 }
 
-func NewClassDeclarationTree(location SourceRange, name *IdentifierToken, superClass ParseTree, elements []ParseTree) *ClassDeclarationTree {
+func NewClassDeclarationTree(location SourceRange, name *IdentifierToken, superClass *ParseTree, elements []*ParseTree) *ClassDeclarationTree {
 	return &ClassDeclarationTree{
+		ParseTree:  ParseTree{Type: ParseTreeTypeClassDeclaration, Location: location},
 		Name:       name,
 		SuperClass: superClass,
 		Elements:   elements,

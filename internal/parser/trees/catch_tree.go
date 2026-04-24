@@ -4,12 +4,14 @@
 package trees
 
 type CatchTree struct {
-	Exception ParseTree
-	CatchBody ParseTree
+	ParseTree
+	Exception *ParseTree
+	CatchBody *ParseTree
 }
 
-func NewCatchTree(location SourceRange, exception ParseTree, catchBody ParseTree) *CatchTree {
+func NewCatchTree(location SourceRange, exception *ParseTree, catchBody *ParseTree) *CatchTree {
 	return &CatchTree{
+		ParseTree: ParseTree{Type: ParseTreeTypeCatch, Location: location},
 		Exception: exception,
 		CatchBody: catchBody,
 	}

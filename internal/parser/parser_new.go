@@ -2256,6 +2256,14 @@ func (p *ParserRewrite) parseParameter() *trees.ParseTree {
 // asParseTree converts any concrete ParseTree subtype to *trees.ParseTree.
 // This is used as a uniform conversion since Go doesn't have Java's implicit
 // upcasting to a reference base type.
+// asParseTree converts a concrete tree pointer to a *trees.ParseTree that
+// satisfies the embedded-field invariant: the returned pointer must equal
+// &concrete.ParseTree so that IRFactory's unsafe.Pointer dispatch can
+// recover the concrete type from the base pointer.
+//
+// Every concrete tree type embeds ParseTree as its first field, so the
+// address of the embedded field equals the address of the concrete struct,
+// and the cast (*ConcreteTree)(unsafe.Pointer(pt)) is valid.
 func (p *ParserRewrite) asParseTree(node interface{}) *trees.ParseTree {
 	if node == nil {
 		return nil
@@ -2263,212 +2271,170 @@ func (p *ParserRewrite) asParseTree(node interface{}) *trees.ParseTree {
 	switch n := node.(type) {
 	case *trees.ParseTree:
 		return n
+	// ---- expression types ----
 	case *trees.BinaryOperatorTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.CommaExpressionTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.MissingPrimaryExpressionTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.ConditionalExpressionTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.UnaryExpressionTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.UpdateExpressionTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.CallExpressionTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.NewExpressionTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.MemberExpressionTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.MemberLookupExpressionTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.OptChainCallExpressionTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.OptionalMemberExpressionTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.OptionalMemberLookupExpressionTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.IdentifierExpressionTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.LiteralExpressionTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.TemplateLiteralExpressionTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.TemplateLiteralPortionTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.TemplateSubstitutionTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.ArrayLiteralExpressionTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.ObjectLiteralExpressionTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.ObjectSpreadTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.ParenExpressionTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.FormalParameterListTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.FunctionDeclarationTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.SuperExpressionTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.ThisExpressionTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.DynamicImportTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.ImportMetaExpressionTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.NewTargetExpressionTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.YieldExpressionTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.AwaitExpressionTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.ArrayPatternTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.ObjectPatternTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.IterSpreadTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.IterRestTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.ObjectRestTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.DefaultParameterTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.ComprehensionTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.ComprehensionForTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.ComprehensionIfTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.NullTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.ComputedPropertyDefinitionTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.ComputedPropertyMethodTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.ComputedPropertyGetterTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.ComputedPropertySetterTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
+	case *trees.ComputedPropertyFieldTree:
+		return &n.ParseTree
 	case *trees.GetAccessorTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.SetAccessorTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.PropertyNameAssignmentTree:
-		t := trees.ParseTree{Type: n.Type, Location: n.Location}
-		return &t
-	// ---- Statement types (no embedded ParseTree — type is known statically) ----
+		return &n.ParseTree
+	case *trees.FieldDeclarationTree:
+		return &n.ParseTree
+	// ---- statement types ----
 	case *trees.BlockTree:
-		t := trees.ParseTree{Type: trees.ParseTreeTypeBlock, Location: n.Location}
-		return &t
+		return &n.ParseTree
 	case *trees.IfStatementTree:
-		return &trees.ParseTree{Type: trees.ParseTreeTypeIfStatement}
+		return &n.ParseTree
 	case *trees.DoWhileStatementTree:
-		return &trees.ParseTree{Type: trees.ParseTreeTypeDoWhileStatement}
+		return &n.ParseTree
 	case *trees.WhileStatementTree:
-		return &trees.ParseTree{Type: trees.ParseTreeTypeWhileStatement}
+		return &n.ParseTree
 	case *trees.ForStatementTree:
-		return &trees.ParseTree{Type: trees.ParseTreeTypeForStatement}
+		return &n.ParseTree
 	case *trees.ForInStatementTree:
-		return &trees.ParseTree{Type: trees.ParseTreeTypeForInStatement}
+		return &n.ParseTree
 	case *trees.ForOfStatementTree:
-		return &trees.ParseTree{Type: trees.ParseTreeTypeForOfStatement}
+		return &n.ParseTree
+	case *trees.ForAwaitOfStatementTree:
+		return &n.ParseTree
 	case *trees.SwitchStatementTree:
-		return &trees.ParseTree{Type: trees.ParseTreeTypeSwitchStatement}
+		return &n.ParseTree
 	case *trees.CaseClauseTree:
-		return &trees.ParseTree{Type: trees.ParseTreeTypeCaseClause}
+		return &n.ParseTree
 	case *trees.DefaultClauseTree:
-		return &trees.ParseTree{Type: trees.ParseTreeTypeDefaultClause}
+		return &n.ParseTree
 	case *trees.TryStatementTree:
-		return &trees.ParseTree{Type: trees.ParseTreeTypeTryStatement}
+		return &n.ParseTree
 	case *trees.CatchTree:
-		return &trees.ParseTree{Type: trees.ParseTreeTypeCatch}
+		return &n.ParseTree
 	case *trees.FinallyTree:
-		return &trees.ParseTree{Type: trees.ParseTreeTypeFinally}
+		return &n.ParseTree
 	case *trees.VariableStatementTree:
-		return &trees.ParseTree{Type: trees.ParseTreeTypeVariableStatement}
+		return &n.ParseTree
 	case *trees.VariableDeclarationListTree:
-		return &trees.ParseTree{Type: trees.ParseTreeTypeVariableDeclarationList}
+		return &n.ParseTree
 	case *trees.VariableDeclarationTree:
-		return &trees.ParseTree{Type: trees.ParseTreeTypeVariableDeclaration}
+		return &n.ParseTree
 	case *trees.EmptyStatementTree:
-		return &trees.ParseTree{Type: trees.ParseTreeTypeEmptyStatement}
+		return &n.ParseTree
 	case *trees.ExpressionStatementTree:
-		return &trees.ParseTree{Type: trees.ParseTreeTypeExpressionStatement}
+		return &n.ParseTree
 	case *trees.BreakStatementTree:
-		return &trees.ParseTree{Type: trees.ParseTreeTypeBreakStatement}
+		return &n.ParseTree
 	case *trees.ContinueStatementTree:
-		return &trees.ParseTree{Type: trees.ParseTreeTypeContinueStatement}
+		return &n.ParseTree
 	case *trees.ReturnStatementTree:
-		return &trees.ParseTree{Type: trees.ParseTreeTypeReturnStatement}
+		return &n.ParseTree
 	case *trees.WithStatementTree:
-		return &trees.ParseTree{Type: trees.ParseTreeTypeWithStatement}
+		return &n.ParseTree
 	case *trees.ThrowStatementTree:
-		return &trees.ParseTree{Type: trees.ParseTreeTypeThrowStatement}
+		return &n.ParseTree
 	case *trees.DebuggerStatementTree:
-		return &trees.ParseTree{Type: trees.ParseTreeTypeDebuggerStatement}
+		return &n.ParseTree
 	case *trees.LabelledStatementTree:
-		return &trees.ParseTree{Type: trees.ParseTreeTypeLabelledStatement}
+		return &n.ParseTree
 	case *trees.ClassDeclarationTree:
-		return &trees.ParseTree{Type: trees.ParseTreeTypeClassDeclaration}
+		return &n.ParseTree
 	case *trees.ImportDeclarationTree:
-		return &trees.ParseTree{Type: trees.ParseTreeTypeImportDeclaration}
+		return &n.ParseTree
 	case *trees.ImportSpecifierTree:
-		return &trees.ParseTree{Type: trees.ParseTreeTypeImportSpecifier}
+		return &n.ParseTree
 	case *trees.ExportDeclarationTree:
-		return &trees.ParseTree{Type: trees.ParseTreeTypeExportDeclaration}
+		return &n.ParseTree
 	case *trees.ExportSpecifierTree:
-		return &trees.ParseTree{Type: trees.ParseTreeTypeExportSpecifier}
+		return &n.ParseTree
 	default:
 		panic(fmt.Sprintf("asParseTree: unhandled type %T", node))
 	}

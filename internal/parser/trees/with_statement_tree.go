@@ -4,12 +4,14 @@
 package trees
 
 type WithStatementTree struct {
-	Expression ParseTree
-	Body       ParseTree
+	ParseTree
+	Expression *ParseTree
+	Body       *ParseTree
 }
 
-func NewWithStatementTree(location SourceRange, expression ParseTree, body ParseTree) *WithStatementTree {
+func NewWithStatementTree(location SourceRange, expression *ParseTree, body *ParseTree) *WithStatementTree {
 	return &WithStatementTree{
+		ParseTree:  ParseTree{Type: ParseTreeTypeWithStatement, Location: location},
 		Expression: expression,
 		Body:       body,
 	}

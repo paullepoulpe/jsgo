@@ -4,13 +4,15 @@
 package trees
 
 type TryStatementTree struct {
-	Body         ParseTree
-	CatchBlock   ParseTree
-	FinallyBlock ParseTree
+	ParseTree
+	Body         *ParseTree
+	CatchBlock   *ParseTree
+	FinallyBlock *ParseTree
 }
 
-func NewTryStatementTree(location SourceRange, body ParseTree, catchBlock ParseTree, finallyBlock ParseTree) *TryStatementTree {
+func NewTryStatementTree(location SourceRange, body *ParseTree, catchBlock *ParseTree, finallyBlock *ParseTree) *TryStatementTree {
 	return &TryStatementTree{
+		ParseTree:    ParseTree{Type: ParseTreeTypeTryStatement, Location: location},
 		Body:         body,
 		CatchBlock:   catchBlock,
 		FinallyBlock: finallyBlock,
