@@ -3632,6 +3632,16 @@ func isReasonableObjectPropertyKey(t jstype.JSType) bool {
 	return false
 }
 
+// nativeObjectsWithNonUniqueToString is the set of built-in types whose
+// toString() is defined in our externs but produces non-unique output
+// (e.g. Object → "[object Object]", Array → "1,2,3"). These should NOT
+// be treated as reasonable Object keys even if HasProperty("toString").
+var nativeObjectsWithNonUniqueToString = map[string]bool{
+	"Object":   true,
+	"Array":    true,
+	"Function": true,
+}
+
 // classHasToString reports whether the ObjectType (or a non-native
 // ancestor) declares a user-defined toString() method. Native builtins
 // (Object, Array, …) don't count — their native toString gives "[object
@@ -3640,10 +3650,11 @@ func classHasToString(obj *jstype.ObjectType) bool {
 	if obj == nil {
 		return false
 	}
-	// Only user-registered toString matters. In our Go externs we do NOT
-	// register toString on native types (Object, Array, Function, …), so
-	// HasProperty("toString") will only return true when the user's own
-	// @constructor body or prototype defined it.
+	// Skip native builtins whose toString is non-unique. Java's
+	// classHasToString explicitly rejects Object/Array/Function.
+	if nativeObjectsWithNonUniqueToString[obj.Name] {
+		return false
+	}
 	return obj.HasProperty("toString")
 }
 
