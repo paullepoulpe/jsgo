@@ -203,7 +203,10 @@ func shouldAttachJSDoc(tree *trees.ParseTree) bool {
 		trees.ParseTreeTypeVariableDeclarationList,
 		trees.ParseTreeTypeVariableDeclaration,
 		trees.ParseTreeTypeExpressionStatement,
-		trees.ParseTreeTypeFieldDeclaration:
+		trees.ParseTreeTypeFieldDeclaration,
+		trees.ParseTreeTypePropertyNameAssignment,
+		trees.ParseTreeTypeGetAccessor,
+		trees.ParseTreeTypeSetAccessor:
 		return true
 	}
 	return false
