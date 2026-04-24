@@ -355,14 +355,21 @@ func (p *Parser) finishDeclStatement(declToken rhino.Token, jsdoc *rhino.JSDocIn
 				init.SetPos(initLine, initCol)
 			}
 			nameNode.AddChildToBack(init)
-			// `const foo = /** @type {T} */ (expr)` — parsePrimaryExpression detected
-			// the cast annotation and stored it in pendingCastDoc. Mark the
-			// NAME node with IsCastHoisted so visitVar can suppress the init
-			// subtype check (Java's CAST node makes the cast type the effective
-			// RHS type; here we use the flag to skip the check).
-			// If the declaration has no @type of its own, also hoist the cast
-			// type there so the scope creator picks it up.
-			if castDoc := p.pendingCastDoc; castDoc != nil {
+			// `const foo = /** @type {T} */ (expr)` — the init is a CAST node
+			// when parsePrimaryExpression detected `/** @type {T} */ (expr)`.
+			// Hoist the CAST's JSDocInfo to the declaration so the scope creator
+			// can resolve the ReadonlyArray or other cast type.
+			if init.Token() == rhino.CAST {
+				if castDoc := init.JSDocInfo(); castDoc != nil && castDoc.HasType() {
+					hoisted := *castDoc // copy
+					hoisted.SetCastHoisted(true)
+					nameNode.SetJSDocInfo(&hoisted)
+					if declNode.JSDocInfo() == nil {
+						declNode.SetJSDocInfo(&hoisted)
+					}
+				}
+			} else if castDoc := p.pendingCastDoc; castDoc != nil {
+				// Legacy path for pendingCastDoc (should be dead, but keep for safety).
 				p.pendingCastDoc = nil
 				castDoc.SetCastHoisted(true)
 				nameNode.SetJSDocInfo(castDoc)

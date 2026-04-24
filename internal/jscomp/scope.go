@@ -936,7 +936,24 @@ func syntheticReadonlyArrayType(rawTypeName string) jstype.JSType {
 	roInst := jstype.NewObjectType("ReadonlyArray")
 	roInst.DefineProperty("length", jstype.Number)
 	if startsWith(base, "ReadonlyArray<") {
-		// Parameterized: create TemplatizedType{ReadonlyArray, ?}.
+		// Parameterized: extract the type argument for accurate TypeName().
+		// e.g. "ReadonlyArray<number>" → targ = "number" → Number type.
+		closing := indexLastByte(base, '>')
+		if closing > len("ReadonlyArray<") {
+			inner := trimSpace(base[len("ReadonlyArray<"):closing])
+			// Use the registry/scope to resolve — but we don't have a scope
+			// here. Use a simple primitive lookup instead.
+			var targ jstype.JSType = jstype.Unknown
+			switch inner {
+			case "number":
+				targ = jstype.Number
+			case "string":
+				targ = jstype.String
+			case "boolean":
+				targ = jstype.Boolean
+			}
+			return jstype.NewTemplatizedType(roInst, []jstype.JSType{targ})
+		}
 		return jstype.NewTemplatizedType(roInst, []jstype.JSType{jstype.Unknown})
 	}
 	return roInst
