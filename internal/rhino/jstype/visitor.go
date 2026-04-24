@@ -1,5 +1,4 @@
-// Port of com/google/javascript/rhino/jstype/Visitor.java +
-// com/google/javascript/rhino/jstype/RelationshipVisitor.java
+// Port of com/google/javascript/rhino/jstype/Visitor.java
 // @ closure-compiler v20260415
 //
 // Java uses a generic type parameter T on the Visitor interface.
@@ -8,10 +7,6 @@
 // WithDefaultCase is ported as a concrete struct that embeds
 // DefaultCaseFunc; implementations embed *WithDefaultCase and
 // override only the cases they need.
-//
-// RelationshipVisitor is included here because it is the direct
-// super-interface of CanCastToVisitor and belongs to the same
-// visitor infrastructure layer.
 //
 // NOTE: The JSType.visit / JSType.accept wiring is intentionally
 // absent here (additive-only phase). Wire it when the visitor is
@@ -124,42 +119,3 @@ func (w *WithDefaultCase) CaseTemplatizedType(typ *TemplatizedType) any {
 	return w.DefaultCase(typ)
 }
 func (w *WithDefaultCase) CaseTemplateType(typ *TemplateType) any { return w.DefaultCase(typ) }
-
-// RelationshipVisitor calculates a value of type T from two JSTypes
-// based on the structural relationship between them.
-// Port of RelationshipVisitor<T> — T is erased to any.
-type RelationshipVisitor interface {
-	// CaseUnknownType is the unknown type's case.
-	CaseUnknownType(thisType JSType, thatType JSType) any
-
-	// CaseNoType is the bottom type's case.
-	CaseNoType(thatType JSType) any
-
-	// CaseNoObjectType is the bottom object type's case.
-	CaseNoObjectType(thatType JSType) any
-
-	// CaseAllType is the all type's case.
-	CaseAllType(thatType JSType) any
-
-	// CaseValueType is the value type's case.
-	// TODO: replace JSType with *ValueType once ValueType is ported.
-	CaseValueType(thisType JSType, thatType JSType) any
-
-	// CaseObjectType is the object type's case.
-	CaseObjectType(thisType *ObjectType, thatType JSType) any
-
-	// CaseFunctionType is the function type's case.
-	CaseFunctionType(thisType *FunctionType, thatType JSType) any
-
-	// CaseUnionType is the union type's case.
-	CaseUnionType(thisType *UnionType, thatType JSType) any
-
-	// CaseTemplatizedType is the templatized type's case.
-	CaseTemplatizedType(thisType *TemplatizedType, thatType JSType) any
-
-	// CaseTemplateType is the template type's case.
-	CaseTemplateType(thisType *TemplateType, thatType JSType) any
-
-	// CaseEnumElementType is the enum element type's case.
-	CaseEnumElementType(thisType *EnumElementType, thatType JSType) any
-}
