@@ -243,7 +243,7 @@ func (c *TypeCheck) collectPropertyWritesIn(n *rhino.Node, scope *TypedScope) {
 					// X to Foo's surface too. Java's type-inference
 					// propagates the write up the extends chain for
 					// read-site validation.
-					if enc := findEnclosingFunction(n); enc != nil {
+					if enc := NU.GetEnclosingFunction(n); enc != nil {
 						if info := enc.JSDocInfo(); info != nil && info.IsConstructor() {
 							if base := info.BaseType(); base != nil {
 								if super := c.global.LookupNominalType(base.TypeName); super != nil {
@@ -1967,7 +1967,7 @@ func insideOwnConstructor(n *rhino.Node, obj *jstype.ObjectType) bool {
 // walking Node parent links — mirroring how Java's TypeCheck tracks
 // the current function through NodeUtil.getEnclosingFunction.
 func (c *TypeCheck) visitReturn(ret *rhino.Node, scope *TypedScope) []diag.Diagnostic {
-	enclosing := findEnclosingFunction(ret)
+	enclosing := NU.GetEnclosingFunction(ret)
 	if enclosing == nil {
 		return nil
 	}
@@ -2141,17 +2141,6 @@ func diagPosForArg(n *rhino.Node) (int, int) {
 		}
 	}
 	return n.Lineno(), n.Charno()
-}
-
-// findEnclosingFunction walks Node parent links to the nearest
-// FUNCTION ancestor. Mirrors NodeUtil.getEnclosingFunction in Java.
-func findEnclosingFunction(n *rhino.Node) *rhino.Node {
-	for cur := n.Parent(); cur != nil; cur = cur.Parent() {
-		if cur.Token() == rhino.FUNCTION {
-			return cur
-		}
-	}
-	return nil
 }
 
 // functionJSDoc returns the JSDocInfo attached to `fn`, or — for

@@ -1126,7 +1126,7 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 		// `/** @enum */ var MyEnum = …` decl appears later in the
 		// source. Matches how Java's TypedScopeCreator hoists enum
 		// slots during its first scope-building pass.
-		if isDeclToken(child.Token()) {
+		if NU.IsNameDeclaration(child) {
 			c.preregisterEnum(child, scope)
 		}
 	}
@@ -1134,14 +1134,14 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 	// scope that now has nominal types pre-registered, so
 	// `@typedef {Foo|null}` can reference a Foo declared later.
 	for _, child := range hoisted {
-		if isDeclToken(child.Token()) {
+		if NU.IsNameDeclaration(child) {
 			c.recordTypedef(child, scope)
 		}
 	}
 	// Pass 2: record declarations + functions properly.
 	for _, child := range hoisted {
 		switch {
-		case isDeclToken(child.Token()):
+		case NU.IsNameDeclaration(child):
 			c.recordDecl(child, scope)
 		case child.Token() == rhino.FUNCTION:
 			c.recordFunction(child, scope)
@@ -2833,10 +2833,6 @@ func literalType(n *rhino.Node) jstype.JSType {
 		return jstype.Void
 	}
 	return jstype.Unknown
-}
-
-func isDeclToken(t rhino.Token) bool {
-	return t == rhino.VAR || t == rhino.LET || t == rhino.CONST
 }
 
 // initIsUndeclaredRef reports whether `init` is a bare NAME node that

@@ -233,96 +233,25 @@ func goesThroughTrueCondition(src *CfgNode, e CfgEdge) bool {
 	}
 
 	// For conditional branches, evaluate constant conditions.
-	// Mirrors Java: `else if (branch.isConditional()) { ... NodeUtil.getBooleanValueCMR(condition) ... }`
+	// Mirrors Java: `else if (branch.isConditional()) { ... NodeUtil.getBooleanValue(condition) ... }`
 	if e.Branch == BranchOnTrue || e.Branch == BranchOnFalse {
 		if src.AST != nil {
-			cond := getConditionExpressionCMR(src.AST)
+			cond := NU.GetConditionExpression(src.AST)
 			if cond != nil {
-				val, known := getBooleanValueCMR(cond)
-				if known {
+				tv := NU.GetBooleanValue(cond)
+				if tv != TriVUnknown {
 					// The branch is statically possible only when the
 					// constant direction matches the branch label.
 					if e.Branch == BranchOnTrue {
-						return val
+						return tv == TriVTrue
 					}
-					return !val
+					return tv == TriVFalse
 				}
 			}
 		}
 	}
 
 	return true
-}
-
-// getConditionExpressionCMR returns the condition sub-expression of a
-// control-flow node (IF / WHILE / FOR / DO_WHILE). Mirrors Java's
-// NodeUtil.getConditionExpressionCMR.
-func getConditionExpressionCMR(n *rhino.Node) *rhino.Node {
-	if n == nil {
-		return nil
-	}
-	kids := n.Children()
-	switch n.Token() {
-	case rhino.IF:
-		// IF children: (condition, then [, else])
-		if len(kids) >= 1 {
-			return kids[0]
-		}
-	case rhino.WHILE:
-		// WHILE children: (condition, body)
-		if len(kids) >= 1 {
-			return kids[0]
-		}
-	case rhino.FOR:
-		// FOR children: (init, condition, update, body)
-		if len(kids) >= 2 {
-			return kids[1]
-		}
-	case rhino.DO_WHILE:
-		// DO_WHILE children: (body, condition)
-		if len(kids) >= 2 {
-			return kids[1]
-		}
-	}
-	return nil
-}
-
-// getBooleanValueCMR evaluates a constant expression to a boolean.
-// Returns (value, true) when the expression is a known constant,
-// (false, false) otherwise. Mirrors Java's NodeUtil.getBooleanValueCMR
-// returning Tri (TRUE / FALSE / UNKNOWN).
-//
-// TODO: widen to evaluate more constant expressions (e.g. non-zero
-// numeric literals, non-empty string literals) — Java's NodeUtil does
-// this; the current port handles only the common cases seen in the
-// extracted corpus.
-func getBooleanValueCMR(n *rhino.Node) (bool, bool) {
-	if n == nil {
-		return false, false
-	}
-	switch n.Token() {
-	case rhino.TRUE:
-		return true, true
-	case rhino.FALSE:
-		return false, true
-	case rhino.NULL:
-		return false, true
-	case rhino.NUMBER:
-		return n.Number() != 0, true
-	case rhino.STRINGLIT:
-		return n.String_() != "", true
-	case rhino.VOID:
-		// `void expr` is always undefined (falsy).
-		return false, true
-	case rhino.NOT:
-		// `!expr`: invert if inner is constant.
-		if child := n.FirstChild(); child != nil {
-			if val, ok := getBooleanValueCMR(child); ok {
-				return !val, true
-			}
-		}
-	}
-	return false, false
 }
 
 // getExplicitReturnTypeIfExpected mirrors Java's
