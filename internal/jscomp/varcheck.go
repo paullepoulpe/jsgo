@@ -94,11 +94,8 @@ func (v *VarCheck) EnterScope(_ *NodeTraversal) {}
 // In Go this is a no-op since defaultExternNames() covers required symbols.
 func (v *VarCheck) ExitScope(_ *NodeTraversal) {}
 
-// Visit inspects NAME and ASSIGN nodes. For a bare NAME reference we
-// confirm the identifier is declared somewhere reachable; for an
-// ASSIGN whose LHS is an undeclared NAME we flag at the NAME position.
-// GETPROP and call-callee positions ride the same NAME inspection via
-// the post-order walk (children are visited before the parent).
+// Visit mirrors VarCheck.java's ScopedCallback.visit — dispatches to
+// checkName for NAME nodes. Other token types are ignored (no scope needed).
 func (v *VarCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 	if n == nil {
 		return
@@ -106,6 +103,13 @@ func (v *VarCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 	if n.Token() != rhino.NAME {
 		return
 	}
+	v.checkName(t, n, parent)
+}
+
+// checkName mirrors VarCheck.java's checkName — validates that a NAME node
+// references a declared variable. Fires JSC_UNDEFINED_VARIABLE when the
+// name is not declared in the reachable scope chain or well-known externs.
+func (v *VarCheck) checkName(t *NodeTraversal, n, parent *rhino.Node) {
 	name := n.String_()
 	if name == "" {
 		return
@@ -139,6 +143,19 @@ func (v *VarCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 	// scope chain doesn't contain them. This handles cases where the
 	// externs scope might be incomplete or when using the new pipeline.
 	if defaultExternNames()[name] {
+		return
+	}
+	v.handleUndeclaredVariableRef(t, n)
+}
+
+// handleUndeclaredVariableRef mirrors VarCheck.java's handleUndeclaredVariableRef.
+// Reports JSC_UNDEFINED_VARIABLE for the undeclared name, unless it's inside
+// a typeof expression (Java treats typeof as an existence check). Deduplicates
+// within a single file (Java reports once per file per name).
+func (v *VarCheck) handleUndeclaredVariableRef(t *NodeTraversal, n *rhino.Node) {
+	name := n.String_()
+	// Java: if (n.getParent().isTypeOf()) — typeof checks are existence checks.
+	if parent := n.Parent(); parent != nil && parent.Token() == rhino.TYPEOF {
 		return
 	}
 	if v.reported[name] {
