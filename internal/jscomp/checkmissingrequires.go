@@ -514,13 +514,46 @@ func NewCheckMissingRequires(path string, moduleMetadataMap *cmrModuleMetadataMa
 	return c
 }
 
+// process mirrors Java's CompilerPass.process(Node externs, Node root) — the
+// entry point that runs NodeTraversal.traverse(compiler, root, this).
+// Externs are ignored here; the port works on a single root script node.
+func (c *CheckMissingRequires) process(script *rhino.Node) {
+	c.templateParamNames = map[string]bool{}
+	c.controlFlowScopeDepth = 0
+	c.walk(script, nil, nil)
+}
+
+// shouldTraverse mirrors Java's AbstractModuleCallback.shouldTraverse.
+// Called in pre-order; handles controlFlowScopeDepth tracking and
+// invokes visitNode for each node.
+func (c *CheckMissingRequires) shouldTraverse(n *rhino.Node, currentModule *cmrModuleMetadata) bool {
+	if isValidCfgRoot(n) && !c.isInGlobalControlFlowScope(n) {
+		c.controlFlowScopeDepth++
+	}
+	if currentModule != nil {
+		c.visitNode(n, currentModule)
+	}
+	return true
+}
+
+// visit mirrors Java's AbstractModuleCallback.visit.
+// Called in post-order; handles controlFlowScopeDepth decrement and
+// template parameter name cleanup at module root exit.
+func (c *CheckMissingRequires) visit(n *rhino.Node, currentModule *cmrModuleMetadata) {
+	if isValidCfgRoot(n) && !c.isInGlobalControlFlowScope(n) {
+		c.controlFlowScopeDepth--
+	}
+	if currentModule != nil && n == currentModule.rootNode {
+		c.templateParamNames = map[string]bool{}
+	}
+}
+
 // Check runs the pass over `script` and returns any diagnostics found.
 // Mirrors the Java CompilerPass.process entry point; externs are ignored
 // here (consistent with the narrow-port contract).
+// Go-only: Go entry point wrapper that returns diagnostics.
 func (c *CheckMissingRequires) Check(script *rhino.Node) []diag.Diagnostic {
 	c.diags = nil
-	c.templateParamNames = map[string]bool{}
-	c.controlFlowScopeDepth = 0
 
 	// Without a real ModuleMetadataMap we cannot determine which namespaces
 	// exist or which files provide/require them. The caller should supply one
@@ -529,7 +562,7 @@ func (c *CheckMissingRequires) Check(script *rhino.Node) []diag.Diagnostic {
 		return nil
 	}
 
-	c.walk(script, nil, nil)
+	c.process(script)
 	return c.diags
 }
 
@@ -571,27 +604,16 @@ func (c *CheckMissingRequires) walk(n *rhino.Node, parent *rhino.Node, currentMo
 		}
 	}
 
-	// --- shouldTraverse equivalent (pre-order) ---
-	if isValidCfgRoot(n) && !c.isInGlobalControlFlowScope(n) {
-		c.controlFlowScopeDepth++
-	}
-
-	if currentModule != nil {
-		c.visitNode(n, currentModule)
-	}
+	// shouldTraverse (pre-order): update depth, visit node.
+	c.shouldTraverse(n, currentModule)
 
 	// Descend into children
 	for _, ch := range n.Children() {
 		c.walk(ch, n, currentModule)
 	}
 
-	// --- visit equivalent (post-order) ---
-	if isValidCfgRoot(n) && !c.isInGlobalControlFlowScope(n) {
-		c.controlFlowScopeDepth--
-	}
-	if currentModule != nil && n == currentModule.rootNode {
-		c.templateParamNames = map[string]bool{}
-	}
+	// visit (post-order): update depth, clear template names at root.
+	c.visit(n, currentModule)
 }
 
 // ---------------------------------------------------------------------------
