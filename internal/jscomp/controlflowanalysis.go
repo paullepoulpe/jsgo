@@ -1023,3 +1023,89 @@ func shouldTraverse(n *rhino.Node) bool {
 	// Don't descend into nested functions — each has its own CFG.
 	return n.Token() != rhino.FUNCTION || n.FirstChild() == nil
 }
+
+// handleBreak mirrors ControlFlowAnalysis.handleBreak(Node). The break target
+// resolution is embedded in visitStatement in the Go port.
+func (b *cfgBuilder) handleBreak(node *rhino.Node, n *CfgNode) {
+	target := b.breakTargetFor(labelOf(node))
+	if target == nil {
+		target = b.cfg.Exit
+	}
+	b.cfg.addEdge(n, b.routeJumpThroughFinally(target), BranchUnconditional)
+}
+
+// handleContinue mirrors ControlFlowAnalysis.handleContinue(Node).
+func (b *cfgBuilder) handleContinue(node *rhino.Node, n *CfgNode) {
+	target := b.continueTargetFor(labelOf(node))
+	if target == nil {
+		target = b.cfg.Exit
+	}
+	b.cfg.addEdge(n, b.routeJumpThroughFinally(target), BranchUnconditional)
+}
+
+// handleReturn mirrors ControlFlowAnalysis.handleReturn(Node).
+func (b *cfgBuilder) handleReturn(node *rhino.Node, n *CfgNode) {
+	b.cfg.addEdge(n, b.routeJumpThroughFinally(b.cfg.Exit), BranchUnconditional)
+	if kids := node.Children(); len(kids) > 0 {
+		b.connectToPossibleExceptionHandler(n, kids[0])
+	}
+}
+
+// handleThrow mirrors ControlFlowAnalysis.handleThrow(Node).
+func (b *cfgBuilder) handleThrow(node *rhino.Node, n *CfgNode) {
+	b.connectToPossibleExceptionHandler(n, node)
+}
+
+// handleStmt mirrors ControlFlowAnalysis.handleStmt(Node).
+func (b *cfgBuilder) handleStmt(node *rhino.Node, n *CfgNode) {
+	b.connectToPossibleExceptionHandler(n, node)
+}
+
+// handleExpr mirrors ControlFlowAnalysis.handleExpr(Node).
+func (b *cfgBuilder) handleExpr(node *rhino.Node, n *CfgNode) {
+	b.connectToPossibleExceptionHandler(n, node)
+}
+
+// handleFunction mirrors ControlFlowAnalysis.handleFunction(Node).
+func (b *cfgBuilder) handleFunction(node *rhino.Node, n *CfgNode) {
+	// Functions start a new CFG; the builder does not descend into them.
+	_ = n
+}
+
+// handleStmtList mirrors ControlFlowAnalysis.handleStmtList(Node).
+func (b *cfgBuilder) handleStmtList(node *rhino.Node, n *CfgNode) {
+	stmts := flattenBlock(node)
+	if len(stmts) > 0 {
+		b.cfg.addEdge(n, b.cfg.node(stmts[0]), BranchUnconditional)
+	}
+}
+
+// handleCase mirrors ControlFlowAnalysis.handleCase(Node).
+// Case wiring is done in visitSwitch in the Go port.
+func (b *cfgBuilder) handleCase(node *rhino.Node, n *CfgNode) {
+	_ = n
+}
+
+// handleDefault mirrors ControlFlowAnalysis.handleDefault(Node).
+func (b *cfgBuilder) handleDefault(node *rhino.Node, n *CfgNode) {
+	_ = n
+}
+
+// handleCatch mirrors ControlFlowAnalysis.handleCatch(Node).
+func (b *cfgBuilder) handleCatch(node *rhino.Node, n *CfgNode) {
+	_ = n
+}
+
+// visit mirrors ControlFlowAnalysis.visit(NodeTraversal, Node, Node) in Java.
+// In Go this is implemented as visitStatement dispatch.
+func (b *cfgBuilder) visit(node *rhino.Node, n *CfgNode) *CfgNode {
+	return b.visitStatement(node, n)
+}
+
+// createEdge connects fromNode to toNode in the CFG.
+// Mirrors ControlFlowAnalysis.createEdge(Node, Branch, Node) in Java.
+func (b *cfgBuilder) createEdge(fromNode, toNode *rhino.Node, branch Branch) {
+	from := b.cfg.node(fromNode)
+	to := b.cfg.node(toNode)
+	b.cfg.addEdge(from, to, branch)
+}
