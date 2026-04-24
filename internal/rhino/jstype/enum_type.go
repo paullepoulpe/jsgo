@@ -184,5 +184,9 @@ func (e *EnumType) MatchesStringContext() bool { return true }
 
 // MatchesNumberContext mirrors EnumType.matchesNumberContext() — returns false;
 // enum types do not implicitly match numeric contexts. Port of Java method.
-func (e *EnumType) MatchesNumberContext() bool { return false }
+// This matches Java's EnumType override of matchesNumberContext() returning false.
+func (e *EnumType) MatchesNumberContext() bool {
+	// Enum types are object types that don't support implicit numeric conversion.
+	return false
+}
 

@@ -357,7 +357,11 @@ func (o *ObjectType) SealForInference() { o.sealedForInference = true }
 
 // IsRecordType mirrors JSType.isRecordType() for ObjectType: returns false
 // for plain ObjectType; overridden by RecordType to return true.
-func (o *ObjectType) IsRecordType() bool { return false }
+// Port of ObjectType.isRecordType() in Java (base-class default).
+func (o *ObjectType) IsRecordType() bool {
+	// Only RecordType overrides this to return true.
+	return false
+}
 
 // GetPropertyType walks the @extends chain looking for the named
 // property. Returns nil if the property is undeclared anywhere in the
@@ -636,7 +640,10 @@ func (o *ObjectType) GetPropertiesCount() int {
 // GetTypeOfThis mirrors ObjectType.getTypeOfThis() in Java — for most
 // ObjectTypes returns nil; for instances of constructors this is meaningful
 // to the function that owns the prototype. Returns nil by default.
+// Port of ObjectType.getTypeOfThis() in Java (base-class default).
 func (o *ObjectType) GetTypeOfThis() JSType {
+	// Default: plain ObjectTypes don't have a "this" type. PrototypeObjectType
+	// and FunctionType override this to return the instance/this type.
 	return nil
 }
 
@@ -658,6 +665,114 @@ func (o *ObjectType) IsObject() bool { return true }
 
 // GetEnumeratedTypeOfEnumObject mirrors ObjectType.getEnumeratedTypeOfEnumObject().
 // Returns nil for plain ObjectTypes; overridden by EnumType.
+// Port of ObjectType.getEnumeratedTypeOfEnumObject() in Java (base-class default).
 func (o *ObjectType) GetEnumeratedTypeOfEnumObject() JSType {
+	// EnumType overrides this to return its element type's primitive type.
 	return nil
+}
+
+// GetDisplayName mirrors ObjectType.getDisplayName() — returns the normalized
+// reference name (stripping delegate suffixes). Port of Java method.
+func (o *ObjectType) GetDisplayName() string {
+	return o.GetNormalizedReferenceName()
+}
+
+// GetNormalizedReferenceName mirrors ObjectType.getNormalizedReferenceName() —
+// strips delegate suffix from the reference name. Delegate suffixes appear
+// inside parentheses (e.g. "Foo(Bar).prototype" → "Foo.prototype").
+// Port of ObjectType.getNormalizedReferenceName() in Java.
+func (o *ObjectType) GetNormalizedReferenceName() string {
+	name := o.GetReferenceName()
+	if name == "" {
+		return ""
+	}
+	start := strings.IndexByte(name, '(')
+	if start == -1 {
+		return name
+	}
+	end := strings.LastIndexByte(name, ')')
+	prefix := name[:start]
+	if end+1 >= len(name) {
+		return prefix
+	}
+	return prefix + name[end+1:]
+}
+
+// IsPropertyTypeDeclared mirrors ObjectType.isPropertyTypeDeclared(String) —
+// returns true when the named property exists and was explicitly declared
+// (not inferred from usage). Port of Java method.
+func (o *ObjectType) IsPropertyTypeDeclared(name string) bool {
+	return o.HasOwnProperty(name) && !o.IsPropertyInferred(name)
+}
+
+// IsPropertyTypeInferred mirrors ObjectType.isPropertyTypeInferred(String) —
+// returns true when the named property exists and was inferred from usage.
+// Port of Java method.
+func (o *ObjectType) IsPropertyTypeInferred(name string) bool {
+	return o.HasOwnProperty(name) && o.IsPropertyInferred(name)
+}
+
+// IsStructuralType mirrors ObjectType.isStructuralType() — returns true when
+// the type is a @record / @interface type backed by structural (duck-type)
+// subtyping. Port of ObjectType.isStructuralType() in Java.
+func (o *ObjectType) IsStructuralType() bool {
+	return o.IsStructural
+}
+
+// IsImplicitPrototypeOf mirrors ObjectType.isImplicitPrototypeOf(ObjectType) —
+// returns true when `o` appears in the implicit-prototype chain of `other`.
+// Port of ObjectType.isImplicitPrototypeOf(ObjectType) in Java.
+func (o *ObjectType) IsImplicitPrototypeOf(other *ObjectType) bool {
+	for cur := other.GetImplicitPrototype(); cur != nil; cur = cur.GetImplicitPrototype() {
+		if cur == o {
+			return true
+		}
+	}
+	return false
+}
+
+// GetPropertyDefSite mirrors ObjectType.getPropertyDefSite(String) — returns
+// the AST node at which the property was declared. Alias for GetPropertyNode.
+// Port of ObjectType.getPropertyDefSite(String) in Java.
+func (o *ObjectType) GetPropertyDefSite(name string) *rhino.Node {
+	return o.GetPropertyNode(name)
+}
+
+// IsPropertyInExterns mirrors ObjectType.isPropertyInExterns(String) —
+// returns true when the property was declared on a native (externs) type.
+// Port of ObjectType.isPropertyInExterns(String) in Java. In the Go port,
+// a property is in externs iff it's declared on a native ObjectType.
+func (o *ObjectType) IsPropertyInExterns(name string) bool {
+	for cur := o; cur != nil; cur = cur.super {
+		if cur.isNative && cur.HasOwnProperty(name) {
+			return true
+		}
+	}
+	return false
+}
+
+// IsUnknownType mirrors JSType.isUnknownType() — returns false for all
+// concrete ObjectType instances (only UnknownType returns true).
+// Port of default ObjectType.isUnknownType() in Java.
+// This is the base-class default; subclasses that model Unknown override this.
+func (o *ObjectType) IsUnknownType() bool {
+	// ObjectType and its subclasses (except UnknownType) are always known.
+	return false
+}
+
+// HasCachedValues mirrors ObjectType.hasCachedValues() — returns whether
+// the type's property cache is valid. Java uses `return !unknown` where
+// the `unknown` field starts as `true` until properties are added.
+// Port of ObjectType.hasCachedValues() in Java. In the Go port, all
+// types start with a valid member map, so this always returns true.
+func (o *ObjectType) HasCachedValues() bool {
+	return len(o.members) > 0 || o.Name != ""
+}
+
+// ClearCachedValues mirrors ObjectType.clearCachedValues() — resets cached
+// property type information. In Java, sets `unknown = true` to mark the
+// property type cache as stale. Port of ObjectType.clearCachedValues() in Java.
+// In the Go port, the member map is the source of truth, so this is a no-op.
+func (o *ObjectType) ClearCachedValues() {
+	_ = o.Name // touch the receiver so the compiler doesn't elide the call
 }

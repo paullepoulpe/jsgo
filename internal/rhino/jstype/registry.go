@@ -727,3 +727,91 @@ func (r *Registry) DeclareNativeValueType(name string, typeId JSTypeNative) {
 	}
 	r.DeclareNativeType(name, t)
 }
+
+// ── Type factory methods ─────────────────────────────────────────────────────
+//
+// These mirror JSTypeRegistry factory methods. Each creates a JSType value
+// from its arguments without side-effecting the name table.
+
+// CreateUnionType creates a union type from the given variants.
+// Mirrors JSTypeRegistry.createUnionType(JSType...) in Java.
+func (r *Registry) CreateUnionType(variants ...JSType) JSType {
+	return NewUnion(variants...)
+}
+
+// CreateNullableType creates a union of type and null.
+// Mirrors JSTypeRegistry.createNullableType(JSType) in Java.
+func (r *Registry) CreateNullableType(typ JSType) JSType {
+	return NewUnion(typ, Null)
+}
+
+// CreateOptionalType creates a union of type and undefined (void).
+// Mirrors JSTypeRegistry.createOptionalType(JSType) in Java.
+func (r *Registry) CreateOptionalType(typ JSType) JSType {
+	if isUnknown(typ) || isAll(typ) {
+		return typ
+	}
+	return NewUnion(typ, Void)
+}
+
+// CreateOptionalNullableType creates a union of type, null, and undefined.
+// Mirrors JSTypeRegistry.createOptionalNullableType(JSType) in Java.
+func (r *Registry) CreateOptionalNullableType(typ JSType) JSType {
+	return NewUnion(typ, Null, Void)
+}
+
+// CreateObjectType creates a named ObjectType with an implicit prototype.
+// Mirrors JSTypeRegistry.createObjectType(String, ObjectType) in Java.
+func (r *Registry) CreateObjectType(name string, implicitPrototype *ObjectType) *ObjectType {
+	o := NewObjectType(name)
+	if implicitPrototype != nil {
+		o.SetSuper(implicitPrototype)
+	}
+	return o
+}
+
+// CreateTemplateType creates a template type with the given name.
+// Mirrors JSTypeRegistry.createTemplateType(String) in Java.
+func (r *Registry) CreateTemplateType(name string) *TemplateType {
+	return &TemplateType{Name: name}
+}
+
+// CreateFunctionType creates a FunctionType with the given return type and parameter types.
+// Mirrors JSTypeRegistry.createFunctionType(JSType, JSType...) in Java.
+func (r *Registry) CreateFunctionType(returnType JSType, paramTypes ...JSType) *FunctionType {
+	return NewFunctionType(paramTypes, returnType)
+}
+
+// OverwriteDeclaredType replaces a type in the name table. Mirrors
+// JSTypeRegistry.overwriteDeclaredType(StaticScope, String, JSType) in Java.
+// In the Go port, scope is ignored (we use a flat name table).
+func (r *Registry) OverwriteDeclaredType(_ interface{}, name string, typ JSType) {
+	if r.namedTypes == nil {
+		r.namedTypes = map[string]JSType{}
+	}
+	r.namedTypes[name] = typ
+}
+
+// GetNativeObjectType returns the native ObjectType registered at typeId,
+// or nil when the slot has not been populated.
+// Mirrors JSTypeRegistry.getNativeObjectType(JSTypeNative) in Java.
+func (r *Registry) GetNativeObjectType(typeId JSTypeNative) *ObjectType {
+	t := r.GetNativeType(typeId)
+	if t == nil {
+		return nil
+	}
+	o, _ := t.(*ObjectType)
+	return o
+}
+
+// GetNativeFunctionType returns the native FunctionType registered at typeId,
+// or nil when the slot has not been populated.
+// Mirrors JSTypeRegistry.getNativeFunctionType(JSTypeNative) in Java.
+func (r *Registry) GetNativeFunctionType(typeId JSTypeNative) *FunctionType {
+	t := r.GetNativeType(typeId)
+	if t == nil {
+		return nil
+	}
+	f, _ := t.(*FunctionType)
+	return f
+}

@@ -311,6 +311,7 @@ func CollapseUnion(t JSType) JSType {
 // ownerFunctioner is the optional interface for prototype / proxy object types.
 type ownerFunctioner interface{ GetOwnerFunction() *FunctionType }
 
+// Go-only: GetOwnerFunction — package-level wrapper; Java calls getOwnerFunction() on ObjectType instances.
 // GetOwnerFunction returns the FunctionType whose prototype this object is,
 // or nil when t is not a prototype. Port of ObjectType.getOwnerFunction().
 func GetOwnerFunction(t JSType) *FunctionType {
