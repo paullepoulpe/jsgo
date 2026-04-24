@@ -468,12 +468,13 @@ func (c *CheckJsDocTypes) checkBareInlineType(s string, start, end int) []diag.D
 		}
 	}
 	name := trimmed
-	// Only fire for names that are TTL template names on constructors/interfaces
-	// (not valid types) and are not otherwise resolvable. Plain-function TTL
-	// template names ARE valid types and should not fire.
-	if !c.ctorTTLNames[name] {
+	// If the name is a template name in this or any sibling comment, it's a
+	// valid type within this file — don't fire.
+	if c.allTemplates[name] && !c.ctorTTLNames[name] {
 		return nil
 	}
+	// If the name resolves as a type (primitive, typedef, nominal, etc.),
+	// don't fire.
 	if c.nameResolves(name) {
 		return nil
 	}
