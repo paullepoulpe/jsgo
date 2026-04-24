@@ -3,11 +3,8 @@
 // The type of individual elements of an enum type (see EnumType).
 //
 // In Java, EnumElementType extends ObjectType and wraps a primitiveType
-// field plus a back-pointer to the owning EnumType. In this Go port the
-// struct is defined in enum_type.go (where EnumType lives so the two can
-// mutually reference each other at allocation time). This file adds the
-// faithful 1:1 method set that downstream TypeCheck enum-mismatch
-// diagnostics will consume.
+// field plus a back-pointer to the owning EnumType. EnumType is defined
+// in enum_type.go.
 //
 // Field mapping (Java → Go):
 //   primitiveType        → e.Enum.Underlying  (the @enum {T} parameter)
@@ -16,6 +13,40 @@
 //   enumType             → e.Enum
 
 package jstype
+
+// EnumElementType is the type of `Enum.MEMBER`. It behaves as
+// "any element of Enum"; elements share the Enum pointer with
+// other accesses so `E.FOO` and `E.BAR` are the same static type.
+// Mirrors com.google.javascript.rhino.jstype.EnumElementType in Java.
+type EnumElementType struct {
+	Enum *EnumType
+}
+
+// TypeName mirrors JSType.getDisplayName() for EnumElementType: renders
+// as `Name<Underlying>` (e.g. `MyEnum<number>`).
+func (e *EnumElementType) TypeName() string {
+	return e.Enum.Name + "<" + e.Enum.Underlying.TypeName() + ">"
+}
+
+// IsSubtypeOf: an EnumElementType is a subtype of (1) its own
+// Underlying primitive, (2) another EnumElementType with the
+// same Enum pointer, and (3) AllType / Unknown. Notably NOT a
+// subtype of an arbitrary primitive — `E<number>` doesn't match
+// `string` and vice-versa.
+// Mirrors EnumElementType.isSubtype in Java.
+func (e *EnumElementType) IsSubtypeOf(other JSType) bool {
+	if other == nil {
+		return true
+	}
+	if isAll(other) || isUnknown(other) {
+		return true
+	}
+	if oe, ok := other.(*EnumElementType); ok {
+		return e.Enum == oe.Enum
+	}
+	// The underlying rule: `E<T>` is a subtype of T.
+	return IsSubtype(e.Enum.Underlying, other)
+}
 
 // GetPrimitiveType returns the underlying primitive (or nominal) type
 // that every element of this enum must be assignable to. Mirrors Java's
