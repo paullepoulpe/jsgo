@@ -3345,17 +3345,34 @@ func isDefinitelyNotComparable(t jstype.JSType) bool {
 		return false
 	}
 	switch t {
-	case jstype.Number, jstype.String, jstype.Null, jstype.Void, jstype.Boolean:
+	case jstype.Number, jstype.String, jstype.Boolean:
 		// boolean is coerced to 0/1 by JS, so it is comparable.
 		// Mirrors Java's TypeCheck which does not flag boolean operands
 		// for relational ops in default mode.
 		return false
+	case jstype.Void, jstype.Null:
+		// undefined/null: Java fires errors for these in numeric comparisons
+		// (expectBigIntOrNumber fails for null/undefined). Treat as not
+		// comparable so the default-mode relational check fires.
+		return true
 	}
 	if _, ok := t.(*jstype.FunctionType); ok {
 		return true
 	}
 	if _, ok := t.(*jstype.ObjectType); ok {
 		return true
+	}
+	// Union types: not comparable if any member is not comparable.
+	// Simplification: not comparable if ALL members are not comparable.
+	if u, ok := t.(*jstype.UnionType); ok {
+		anyComparable := false
+		for _, m := range u.Members() {
+			if !isDefinitelyNotComparable(m) {
+				anyComparable = true
+				break
+			}
+		}
+		return !anyComparable
 	}
 	return false
 }
