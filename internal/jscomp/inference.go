@@ -970,6 +970,13 @@ func (t *TypeInference) inferAwait(n *rhino.Node) jstype.JSType {
 // If the OBJECTLIT carries a JSDoc with @struct or @dict, the
 // corresponding flag is propagated so visitObjectLit can fire
 // JSC_ILLEGAL_OBJLIT_KEY.
+//
+// Getter/setter handling: when a STRING_KEY has a FUNCTION child
+// marked as a getter, the property type is the getter's declared
+// return type (or Unknown). This mirrors Java's TypedScopeCreator
+// determineGetterType / traverseObjectLiteral which records the
+// return type — not the function type — on the property slot.
+// Setter entries do not contribute a value-type and are skipped.
 func (t *TypeInference) inferObjectLit(n *rhino.Node) jstype.JSType {
 	obj := jstype.NewObjectType("")
 	obj.IsStructural = true
@@ -989,18 +996,30 @@ func (t *TypeInference) inferObjectLit(n *rhino.Node) jstype.JSType {
 		if value == nil {
 			continue
 		}
-		propType := t.InferType(value)
-		// For getter definitions (`get a() { return T; }`) the STRING_KEY
-		// child is a FUNCTION node marked as a getter. The property type
-		// should be the getter's RETURN type, not the function type itself.
-		// Mirrors Java's TypeCheck.getObjectLitKeyTypeFromValueType which
-		// maps getter values to their declared return type.
-		if value.Token() == rhino.FUNCTION && kv.IsGetterDef() {
-			if fn, ok := propType.(*jstype.FunctionType); ok {
-				propType = fn.Return
+		if value.Token() == rhino.FUNCTION {
+			if value.IsGetterDef() {
+				// Getter: property type is the declared return type.
+				// Port of TypedScopeCreator.determineGetterType:
+				// getterNode's JSDoc @return drives the slot type.
+				propType := jstype.JSType(jstype.Unknown)
+				if info := value.JSDocInfo(); info != nil && info.ReturnType() != nil {
+					if resolved := t.scope.ResolveExpr(info.ReturnType().TypeName); resolved != nil {
+						propType = resolved
+					}
+				}
+				obj.DefineProperty(kv.String_(), propType)
+				continue
+			}
+			if value.IsSetterDef() {
+				// Setter-only property: the readable value type is
+				// Unknown (no return value). Java records the setter
+				// parameter type for conflict checks but does not
+				// expose it as the property's readable type.
+				obj.DefineProperty(kv.String_(), jstype.Unknown)
+				continue
 			}
 		}
-		obj.DefineProperty(kv.String_(), propType)
+		obj.DefineProperty(kv.String_(), t.InferType(value))
 	}
 	return obj
 }

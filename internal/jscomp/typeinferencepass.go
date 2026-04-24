@@ -129,33 +129,102 @@ func functionHasDeclaredShape(fn *jstype.FunctionType) bool {
 }
 
 // transferAssign handles ASSIGN (and compound-assign variants) where
-// the LHS is a bare NAME. GETPROP assignments don't refine the flow
-// scope at this narrow tier.
+// the LHS is a bare NAME or a GETPROP qualified name.
+//
+// GETPROP handling: `t.x = expr` narrows the qualified name "t.x" in
+// the output FlowScope via inferQualifiedSlot. This matches Java's
+// TypeInference.updateScopeForTypeChange which calls
+// scope.inferQualifiedSlot for GETPROP LHS nodes so that subsequent
+// reads of t.x see the narrowed type rather than the declared union.
 func (p *TypeInferencePass) transferAssign(a *rhino.Node, in *FlowScope) map[Branch]*FlowScope {
 	kids := a.Children()
 	if len(kids) < 2 {
 		return map[Branch]*FlowScope{BranchUnconditional: in}
 	}
 	lhs, rhs := kids[0], kids[1]
-	if lhs.Token() != rhino.NAME {
-		return map[Branch]*FlowScope{BranchUnconditional: in}
-	}
-	t := p.inferExpr(rhs, in)
-	if t == nil {
-		return map[Branch]*FlowScope{BranchUnconditional: in}
-	}
-	// Don't widen past the declared type. If the RHS-inferred type
-	// is a proper superset of the declared slot (e.g. declared
-	// `number` being fed `null|number`), the declared type wins —
-	// TypeCheck's subtype check on the ASSIGN itself would fire if
-	// the RHS truly couldn't fit. Matches Java's refuse-to-widen
-	// rule on named-slot assignments.
-	if declared := p.scope.GetRawDeclaredType(lhs.String_()); declared != nil {
-		if !jstype.IsSubtype(t, declared) {
+	switch lhs.Token() {
+	case rhino.NAME:
+		t := p.inferExpr(rhs, in)
+		if t == nil {
 			return map[Branch]*FlowScope{BranchUnconditional: in}
 		}
+		// Don't widen past the declared type. If the RHS-inferred type
+		// is a proper superset of the declared slot (e.g. declared
+		// `number` being fed `null|number`), the declared type wins —
+		// TypeCheck's subtype check on the ASSIGN itself would fire if
+		// the RHS truly couldn't fit. Matches Java's refuse-to-widen
+		// rule on named-slot assignments.
+		if declared := p.scope.GetRawDeclaredType(lhs.String_()); declared != nil {
+			if !jstype.IsSubtype(t, declared) {
+				return map[Branch]*FlowScope{BranchUnconditional: in}
+			}
+		}
+		return map[Branch]*FlowScope{BranchUnconditional: in.inferSlotType(lhs.String_(), t)}
+	case rhino.GETPROP:
+		// Qualified-name assignment: `obj.prop = expr` narrows
+		// "obj.prop" in the output scope. Port of TypeInference.java
+		// updateScopeForTypeChange for the GETPROP branch which calls
+		// scope.inferQualifiedSlot(qualifiedName, inferredType).
+		//
+		// Guards (all must pass before narrowing):
+		//   1. No JSDoc type annotation on the ASSIGN — e.g.
+		//      `/** @constructor */ ns.Foo = ...` should not be narrowed
+		//      since TypedScopeCreator controls the declared slot type.
+		//   2. No static namespace declaration for this prop via
+		//      LookupNamespaceProp (catches @type-annotated ns props).
+		// Together these avoid clobbering constructor/enum declarations
+		// with the RHS-inferred type, which would corrupt property checks.
+		info := a.JSDocInfo()
+		if info != nil && (info.IsConstructor() || info.IsInterface() ||
+			info.IsRecord() || info.IsEnum() || info.HasType()) {
+			return map[Branch]*FlowScope{BranchUnconditional: in}
+		}
+		lhsKids := lhs.Children()
+		if len(lhsKids) >= 2 {
+			// GETPROP property key is a STRINGLIT node in this port's
+			// AST (the parser builds: gp.AddChildToBack(rhino.NewString(
+			// rhino.STRINGLIT, ident))). Use String_() regardless of
+			// the token type.
+			prop := lhsKids[1].String_()
+			// `X.prototype = …` is handled by TypedScopeCreator
+			// (recordPrototypeAssign). Don't record it in the FlowScope
+			// or the constructor's instance type (which may be @struct
+			// or @dict) would be pinned to `X.prototype`, causing
+			// spurious struct/dict errors on subsequent property additions
+			// to the prototype. Matches Java's TypeInference which skips
+			// the prototype slot in updateScopeForTypeChange.
+			if prop == "prototype" {
+				return map[Branch]*FlowScope{BranchUnconditional: in}
+			}
+			if lhsKids[0].Token() == rhino.NAME {
+				owner := lhsKids[0].String_()
+				if p.scope.LookupNamespaceProp(owner, prop) != nil {
+					// Has a static namespace declaration — don't narrow.
+					return map[Branch]*FlowScope{BranchUnconditional: in}
+				}
+			}
+		}
+		qname := qualifiedName(lhs)
+		if qname == "" {
+			return map[Branch]*FlowScope{BranchUnconditional: in}
+		}
+		t := p.inferExpr(rhs, in)
+		if t == nil {
+			return map[Branch]*FlowScope{BranchUnconditional: in}
+		}
+		// Don't narrow to All / Unknown — those types carry no information
+		// and would discard the declared type of a slot that was
+		// previously narrower. E.g. `this.a = unknown_param` should not
+		// override `this.a : string` with `?`. Mirrors Java's
+		// updateScopeForTypeChange guard: it skips the slot update when
+		// the inferred type is wider than the declared type.
+		if t == jstype.All || t == jstype.Unknown {
+			return map[Branch]*FlowScope{BranchUnconditional: in}
+		}
+		return map[Branch]*FlowScope{BranchUnconditional: in.inferQualifiedSlot(qname, t)}
+	default:
+		return map[Branch]*FlowScope{BranchUnconditional: in}
 	}
-	return map[Branch]*FlowScope{BranchUnconditional: in.Bind(lhs.String_(), t)}
 }
 
 // transferIf produces two branch-specific FlowScopes: the truthy

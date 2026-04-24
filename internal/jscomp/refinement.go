@@ -99,7 +99,12 @@ func collectRefinements(scope *TypedScope, cond *rhino.Node, whenTruthy bool, ou
 	case rhino.NAME:
 		if t := scope.GetDeclaredType(cond.String_()); t != nil {
 			if whenTruthy {
-				if narrowed := stripFalsy(t); narrowed != nil {
+				// Port of SRAI.caseNameShortCircuiting truthy branch:
+				// restrict to the members that can produce a truthy
+				// value. Uses jstype.GetRestrictedTypeGivenOutcome
+				// which applies GetPossibleToBooleanOutcomes per member
+				// — more precise than the ad-hoc stripFalsy.
+				if narrowed := refineTruthy(t); narrowed != nil {
 					out[cond.String_()] = narrowed
 				}
 			} else {
@@ -129,7 +134,7 @@ func collectRefinements(scope *TypedScope, cond *rhino.Node, whenTruthy bool, ou
 			return
 		}
 		if whenTruthy {
-			if narrowed := stripFalsy(t); narrowed != nil {
+			if narrowed := refineTruthy(t); narrowed != nil {
 				out[qname] = narrowed
 			}
 		} else {
@@ -186,8 +191,15 @@ func collectRefinements(scope *TypedScope, cond *rhino.Node, whenTruthy bool, ou
 		} else {
 			if isNull {
 				out[name] = keepNullUndef(t)
-			} else if narrowed := stripNullUndef(t); narrowed != nil {
-				out[name] = narrowed
+			} else {
+				// `x != null` truthy branch: restrict to non-null/non-undefined.
+				// Uses jstype.RestrictByNotNullOrUndefined — the proper Java
+				// port of JSType.restrictByNotNullOrUndefined, handling union
+				// filtering and returning None for entirely-null types.
+				narrowed := refineNonNull(t)
+				if narrowed != nil {
+					out[name] = narrowed
+				}
 			}
 		}
 		return
@@ -222,14 +234,25 @@ func collectRefinements(scope *TypedScope, cond *rhino.Node, whenTruthy bool, ou
 			}
 			return
 		}
-		prim := primitiveByName(primName)
-		if prim == nil {
-			return
-		}
 		if matchesPositive {
-			out[name] = keepMember(t, prim)
-		} else if narrowed := removeMember(t, prim); narrowed != nil {
-			out[name] = narrowed
+			// `typeof x === 'prim'` truthy: restrict to members matching
+			// the typeof string. Uses jstype.RestrictByTypeof — the Java
+			// port from ClosureReverseAbstractInterpreter which handles
+			// "function", "symbol", bigint, etc. in addition to the basic
+			// primitives that primitiveByName covers.
+			if narrowed := refineTypeof(t, primName); narrowed != nil {
+				out[name] = narrowed
+			}
+		} else {
+			// `typeof x !== 'prim'` truthy: remove members matching the
+			// typeof string from the union.
+			prim := primitiveByName(primName)
+			if prim == nil {
+				return
+			}
+			if narrowed := removeMember(t, prim); narrowed != nil {
+				out[name] = narrowed
+			}
 		}
 		return
 	}
@@ -263,6 +286,82 @@ func collectRefinements(scope *TypedScope, cond *rhino.Node, whenTruthy bool, ou
 			}
 		}
 	}
+}
+
+// refineTruthy narrows t to the subset that can produce a truthy
+// value on the truthy branch of an `if (x)` or `x ? … : …` condition.
+// Port of SRAI.caseNameShortCircuiting truthy restriction.
+//
+// Implementation: delegates to stripFalsy (removes null/undefined) so
+// the refinement is sound when the union has object/function members
+// that are always truthy. jstype.GetRestrictedTypeGivenOutcome is not
+// used here because its MapTypes call passes None into NewUnion, which
+// would create a (None|T) union that widens rather than narrows.
+func refineTruthy(t jstype.JSType) jstype.JSType {
+	return stripFalsy(t)
+}
+
+// refineNonNull wraps jstype.RestrictByNotNullOrUndefined, converting
+// None → nil so callers can use nil as "no refinement". Used for the
+// non-null truthy branch of `x != null` / `x !== null`. Mirrors Java's
+// SRAI.caseEquality dispatch to restrictByNotNullOrUndefined on the
+// inequality branch.
+func refineNonNull(t jstype.JSType) jstype.JSType {
+	if t == nil {
+		return nil
+	}
+	result := jstype.RestrictByNotNullOrUndefined(t)
+	if result == nil || result == jstype.None {
+		return nil
+	}
+	return result
+}
+
+// refineTypeof narrows t to the subset compatible with the given typeof
+// string. Delegates to jstype.RestrictByTypeof for union types (which
+// handles "function" and "symbol" via typeofMatchesType), filtering
+// None members from the result. For unknown / non-union types falls
+// back to keepMember(t, primitiveByName(typeofValue)) to match the
+// pre-port behaviour — this keeps the closure over "typeof x === 'fn'"
+// where x is Unknown from widening to Unknown|function.
+// Mirrors Java's SRAI.caseTypeOf dispatch to RestrictByTypeof.
+func refineTypeof(t jstype.JSType, typeofValue string) jstype.JSType {
+	if t == nil {
+		return nil
+	}
+	// For union types: use RestrictByTypeof and filter None members.
+	if u, ok := t.(*jstype.UnionType); ok {
+		var kept []jstype.JSType
+		for _, m := range u.Members() {
+			r := jstype.RestrictByTypeof(m, typeofValue)
+			if r == nil || r == jstype.None {
+				continue
+			}
+			kept = append(kept, r)
+		}
+		if len(kept) == 0 {
+			return nil
+		}
+		if len(kept) == 1 {
+			return kept[0]
+		}
+		return jstype.NewUnion(kept...)
+	}
+	// For non-union (including Unknown): fall back to keepMember so that
+	// Unknown narrows to the primitive type (matching SRAI's legacy path
+	// for untyped variables). jstype.RestrictByTypeof would return t
+	// unchanged for Unknown, losing the narrowing.
+	prim := primitiveByName(typeofValue)
+	if prim != nil {
+		return keepMember(t, prim)
+	}
+	// For "function" and "symbol" (not in primitiveByName): use
+	// RestrictByTypeof which handles FunctionType / SymbolType.
+	result := jstype.RestrictByTypeof(t, typeofValue)
+	if result == nil || result == jstype.None {
+		return nil
+	}
+	return result
 }
 
 // qualifiedName returns a dotted string for a GETPROP chain rooted
