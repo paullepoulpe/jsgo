@@ -233,6 +233,11 @@ func (b *cfgBuilder) visitStatement(stmt *rhino.Node, prev *CfgNode) *CfgNode {
 		return nil
 	case rhino.RETURN:
 		b.cfg.addEdge(n, b.routeJumpThroughFinally(b.cfg.Exit), BranchUnconditional)
+		// The return expression may throw (e.g. `return a()`) — mirrors Java's
+		// handleReturn calling connectToPossibleExceptionHandler(node, node.getFirstChild()).
+		if kids := stmt.Children(); len(kids) > 0 {
+			b.connectToPossibleExceptionHandler(n, kids[0])
+		}
 		return nil
 	case rhino.LABEL:
 		return b.visitLabel(stmt, n)

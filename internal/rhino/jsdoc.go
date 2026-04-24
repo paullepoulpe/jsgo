@@ -20,6 +20,24 @@ const (
 	VisibilityInherited                   // INHERITED — default when no tag is present
 )
 
+// String returns the lowercase name of the visibility level.
+// Mirrors JSDocInfo.Visibility.name() for use in diagnostic messages.
+func (v Visibility) String() string {
+	switch v {
+	case VisibilityPrivate:
+		return "private"
+	case VisibilityPackage:
+		return "package"
+	case VisibilityProtected:
+		return "protected"
+	case VisibilityPublic:
+		return "public"
+	case VisibilityInherited:
+		return "inherited"
+	}
+	return "unknown"
+}
+
 // BitField mirrors the private Bit enum in JSDocInfo.java. Each constant is a
 // 1-shifted bitmask matching Java's ordinal layout (ordinal 0 = bit 0, etc.).
 // Only the subset consumed by jsgo's type-checker is named here; the rest are
