@@ -2879,3 +2879,73 @@ func (nodeUtil) CanMergeBlock(block *rhino.Node) bool {
 	}
 	return true
 }
+
+// ---------------------------------------------------------------------------
+// Additional Java NodeUtil methods ported to Go
+// ---------------------------------------------------------------------------
+
+// IsNameDeclOrSimpleAssignLhs reports whether n is the LHS of a simple
+// assignment or a name declaration (VAR/LET/CONST).
+// Mirrors NodeUtil.isNameDeclOrSimpleAssignLhs.
+func (nodeUtil) IsNameDeclOrSimpleAssignLhs(n, parent *rhino.Node) bool {
+	return (parent.IsAssign() && parent.FirstChild() == n) || NU.IsNameDeclaration(parent)
+}
+
+// IsDeclarationLValue reports whether n is an l-value that also constitutes a
+// binding declaration (e.g. `const x`, `import x`, but NOT `x = 5`).
+// Mirrors NodeUtil.isDeclarationLValue.
+func (nodeUtil) IsDeclarationLValue(n *rhino.Node) bool {
+	if !NU.IsLValue(n) {
+		return false
+	}
+	parent := n.Parent()
+	if parent == nil {
+		return false
+	}
+	switch parent.Token() {
+	case rhino.IMPORT_SPEC, rhino.VAR, rhino.LET, rhino.CONST,
+		rhino.PARAM_LIST, rhino.IMPORT, rhino.CATCH, rhino.CLASS, rhino.FUNCTION:
+		return true
+	case rhino.STRING_KEY:
+		gp := parent.Parent()
+		if gp == nil {
+			return false
+		}
+		return NU.IsNameDeclaration(gp.Parent())
+	case rhino.OBJECT_PATTERN, rhino.ARRAY_PATTERN:
+		gp := parent.Parent()
+		if gp == nil {
+			return false
+		}
+		return NU.IsNameDeclaration(gp)
+	}
+	return false
+}
+
+// IsTopLevel reports whether n is a SCRIPT or MODULE_BODY node (a top-level
+// scope root in the AST).
+// Mirrors NodeUtil.isTopLevel.
+func (nodeUtil) IsTopLevel(n *rhino.Node) bool {
+	return n.IsScript() || n.IsModuleBody()
+}
+
+// IsShallowStatementTree reports whether n is at a "shallow" nesting depth
+// for statement trees: control structures, statement blocks, or switch bodies.
+// Mirrors NodeUtil.isShallowStatementTree.
+func (nodeUtil) IsShallowStatementTree(n *rhino.Node) bool {
+	return n == nil || NU.IsControlStructure(n) || NU.IsStatementBlock(n) ||
+		n.Token() == rhino.SWITCH_BODY
+}
+
+// IsCallTo reports whether n is a CALL to the function identified by
+// qualifiedName.
+// Mirrors NodeUtil.isCallTo(Node, String).
+func (nodeUtil) IsCallTo(n *rhino.Node, qualifiedName string) bool {
+	return n.IsCall() && n.FirstChild().MatchesQualifiedNameStr(qualifiedName)
+}
+
+// IsGoogModuleGetCall reports whether n is a call to goog.module.get(…).
+// Mirrors NodeUtil.isGoogModuleGetCall.
+func (nodeUtil) IsGoogModuleGetCall(n *rhino.Node) bool {
+	return NU.IsCallTo(n, "goog.module.get")
+}
