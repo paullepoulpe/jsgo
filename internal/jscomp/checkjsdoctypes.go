@@ -458,6 +458,11 @@ func (c *CheckJsDocTypes) checkBareInlineType(s string, start, end int) []diag.D
 		}
 		break
 	}
+	// Strip leading nullability modifiers (`!`, `?`) that may precede a bare
+	// type name — e.g. `/** !Foo */` or `/** ?Bar */`.
+	for len(trimmed) > 0 && (trimmed[0] == '!' || trimmed[0] == '?') {
+		trimmed = trimmed[1:]
+	}
 	// Must be a single non-empty identifier (or dotted name) with no braces/parens.
 	if trimmed == "" || !isIdentStart(trimmed[0]) {
 		return nil
