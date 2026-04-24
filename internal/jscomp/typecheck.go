@@ -572,6 +572,7 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitBitOp(n, scope))
 	case rhino.EQ, rhino.NE, rhino.SHEQ, rhino.SHNE:
 		c.emit(c.visitTypeofComparison(n, scope))
+		c.emit(c.visitEqualityOp(n, scope))
 	case rhino.LT, rhino.LE, rhino.GT, rhino.GE:
 		c.emit(c.visitRelationalDefault(n, scope))
 	case rhino.FUNCTION:
@@ -3456,4 +3457,472 @@ func (c *TypeCheck) checkDestructuringAssignment(lhs *rhino.Node, rhsType jstype
 		return nil
 	}
 	return nil
+}
+
+// ---- JSC_DETERMINISTIC_TEST (port of TypeCheck.visitCompare equality branch) ----
+//
+// Java's TypeCheck.visitCompare dispatches differently for the two
+// operator groups:
+//
+//	EQ / NE   — TypeCheck calls leftType.testForEquality(rightType),
+//	            which honours JS coercion rules (number ↔ string ↔ boolean).
+//
+//	SHEQ / SHNE — TypeCheck calls
+//	            leftType.canTestForShallowEqualityWith(rightType),
+//	            the strict-equality variant that requires a non-empty
+//	            greatest common subtype.
+//
+// Both paths strip null/undefined before comparing (Java's
+// restrictByNotNullOrUndefined) so `(string|null) === number` and
+// `string === number` both fire.
+
+// visitEqualityOp fires JSC_DETERMINISTIC_TEST at EQ / NE / SHEQ / SHNE
+// nodes whose operand types make the comparison always yield the same
+// boolean. Called from Visit alongside visitTypeofComparison.
+//
+// Uses declared (non-flow-narrowed) types — matching how Java's
+// TypeCheck.visitCompare evaluates the static declared types, not the
+// flow-refined types active at the comparison site.
+func (c *TypeCheck) visitEqualityOp(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	kids := n.Children()
+	if len(kids) < 2 {
+		return nil
+	}
+	// Infer using declared (non-refined) types. Flow refinements can make
+	// a nullable type appear as null at a comparison site, which would
+	// produce false-positive deterministic-test errors. Java's checker
+	// uses the declared type from the type registry, not the flow-narrowed
+	// type. Temporarily suspend refinements to match that behaviour.
+	var leftType, rightType jstype.JSType
+	scope.WithoutRefinements(func() {
+		infer := NewTypeInference(scope)
+		leftType = infer.InferType(kids[0])
+		rightType = infer.InferType(kids[1])
+	})
+
+	// Java strips null/undefined before comparing (restrictByNotNullOrUndefined).
+	leftRestricted := equalityRestrictByNotNullOrUndefined(leftType)
+	rightRestricted := equalityRestrictByNotNullOrUndefined(rightType)
+
+	var result eqTri
+	switch n.Token() {
+	case rhino.EQ:
+		result = equalityTestForEquality(leftRestricted, rightRestricted)
+	case rhino.NE:
+		result = eqTriNot(equalityTestForEquality(leftRestricted, rightRestricted))
+	case rhino.SHEQ:
+		result = equalityTestForShallowEquality(leftRestricted, rightRestricted)
+	case rhino.SHNE:
+		result = eqTriNot(equalityTestForShallowEquality(leftRestricted, rightRestricted))
+	default:
+		return nil
+	}
+
+	if result == eqUnknown {
+		return nil
+	}
+	valueStr := "false"
+	if result == eqTrue {
+		valueStr = "true"
+	}
+	return []diag.Diagnostic{{
+		Path:  c.path,
+		Line:  n.Lineno(),
+		Col:   n.Charno(),
+		Code:  diag.JSC_DETERMINISTIC_TEST,
+		Level: diag.Error,
+		Message: fmt.Sprintf(
+			"condition always evaluates to %s\nleft : %s\nright: %s",
+			valueStr, leftType.TypeName(), rightType.TypeName()),
+	}}
+}
+
+// eqTri mirrors Java's com.google.javascript.rhino.jstype.TernaryValue (Tri).
+type eqTri int8
+
+const (
+	eqUnknown eqTri = 0
+	eqTrue    eqTri = 1
+	eqFalse   eqTri = -1
+)
+
+// eqTriNot flips TRUE↔FALSE; UNKNOWN stays UNKNOWN.
+func eqTriNot(t eqTri) eqTri {
+	switch t {
+	case eqTrue:
+		return eqFalse
+	case eqFalse:
+		return eqTrue
+	}
+	return eqUnknown
+}
+
+// equalityRestrictByNotNullOrUndefined ports JSType.restrictByNotNullOrUndefined.
+//
+// Java's per-type overrides:
+//   - NullType  → returns NO_TYPE (the empty / bottom type)
+//   - VoidType  → returns NO_TYPE
+//   - UnionType → strips null/undefined members
+//   - everything else → returns self unchanged
+//
+// We represent NO_TYPE as nil; callers that receive nil must treat both
+// sides as if they were the empty type (→ UNKNOWN, conservative).
+func equalityRestrictByNotNullOrUndefined(t jstype.JSType) jstype.JSType {
+	if t == nil {
+		return nil // already empty
+	}
+	// Null and Undefined restrict to the empty type.
+	if t == jstype.Null || t == jstype.Void {
+		return nil
+	}
+	u, ok := t.(*jstype.UnionType)
+	if !ok {
+		return t
+	}
+	var kept []jstype.JSType
+	for _, m := range u.Members() {
+		if m == jstype.Null || m == jstype.Void {
+			continue
+		}
+		kept = append(kept, m)
+	}
+	switch len(kept) {
+	case 0:
+		return nil // all members stripped → empty type
+	case 1:
+		return kept[0]
+	default:
+		return jstype.NewUnion(kept...)
+	}
+}
+
+// equalityTestForEquality ports JSType.testForEquality and its per-type
+// overrides for the `==` / `!=` operators.
+func equalityTestForEquality(a, b jstype.JSType) eqTri {
+	// nil represents the empty type (NO_TYPE in Java).
+	aEmpty := a == nil
+	bEmpty := b == nil
+	if aEmpty || bEmpty {
+		if aEmpty && bEmpty {
+			return eqTrue // e.g. null == null → both restrict to NO_TYPE → TRUE
+		}
+		return eqUnknown
+	}
+	// All, Unknown → conservative.
+	if equalityIsWide(a) || equalityIsWide(b) {
+		return eqUnknown
+	}
+	// Union: reduce to the merge of each member's result.
+	if au, ok := a.(*jstype.UnionType); ok {
+		return equalityUnionTestForEquality(au, b)
+	}
+	if bu, ok := b.(*jstype.UnionType); ok {
+		return equalityUnionTestForEquality(bu, a)
+	}
+	// EnumElementType: unwrap to underlying and re-evaluate.
+	if ae, ok := a.(*jstype.EnumElementType); ok {
+		return equalityTestForEquality(ae.Enum.Underlying, b)
+	}
+	if be, ok := b.(*jstype.EnumElementType); ok {
+		return equalityTestForEquality(a, be.Enum.Underlying)
+	}
+
+	// FunctionType or the built-in Function ObjectType.
+	if equalityIsFunctionLike(a) {
+		return equalityFunctionVsType(b)
+	}
+	if equalityIsFunctionLike(b) {
+		return equalityFunctionVsType(a)
+	}
+
+	// symbol primitive (Java SymbolType.testForEquality).
+	if a == jstype.Symbol {
+		return equalitySymbolVsType(b)
+	}
+	if b == jstype.Symbol {
+		return equalitySymbolVsType(a)
+	}
+
+	// null (Java NullType.testForEquality).
+	if a == jstype.Null {
+		return equalityNullVsType(b)
+	}
+	if b == jstype.Null {
+		return equalityNullVsType(a)
+	}
+
+	// undefined/void (Java VoidType.testForEquality).
+	if a == jstype.Void {
+		return equalityVoidVsType(b)
+	}
+	if b == jstype.Void {
+		return equalityVoidVsType(a)
+	}
+
+	// Number/String/Boolean can coerce with each other and objects → UNKNOWN.
+	if equalityIsCoerciblePrimitive(a) {
+		return equalityCoercibleVsType(b)
+	}
+	if equalityIsCoerciblePrimitive(b) {
+		return equalityCoercibleVsType(a)
+	}
+
+	// ObjectType / unknown kind → conservative.
+	return eqUnknown
+}
+
+// equalityUnionTestForEquality reduces testForEquality over union members:
+// all members must agree on the same Tri; any disagreement → UNKNOWN.
+func equalityUnionTestForEquality(u *jstype.UnionType, other jstype.JSType) eqTri {
+	var result eqTri
+	first := true
+	for _, m := range u.Members() {
+		r := equalityTestForEquality(m, other)
+		if first {
+			result = r
+			first = false
+		} else if r != result {
+			return eqUnknown
+		}
+	}
+	if first {
+		return eqUnknown
+	}
+	return result
+}
+
+// equalityTestForShallowEquality ports JSType.canTestForShallowEqualityWith
+// for the `===` / `!==` operators.
+func equalityTestForShallowEquality(a, b jstype.JSType) eqTri {
+	if a == nil || b == nil {
+		return eqUnknown
+	}
+	// All, Unknown → conservative.
+	if equalityIsWide(a) || equalityIsWide(b) {
+		return eqUnknown
+	}
+	// Empty types — mirror Java: subtype check.
+	if equalityIsEmpty(a) || equalityIsEmpty(b) {
+		if jstype.IsSubtype(a, b) || jstype.IsSubtype(b, a) {
+			return eqUnknown
+		}
+		return eqFalse
+	}
+	// EnumElementType: unwrap to underlying for strict comparison.
+	if ae, ok := a.(*jstype.EnumElementType); ok {
+		return equalityTestForShallowEquality(ae.Enum.Underlying, b)
+	}
+	if be, ok := b.(*jstype.EnumElementType); ok {
+		return equalityTestForShallowEquality(a, be.Enum.Underlying)
+	}
+	// Union: reduce over members.
+	if au, ok := a.(*jstype.UnionType); ok {
+		return equalityUnionTestForShallowEquality(au, b)
+	}
+	if bu, ok := b.(*jstype.UnionType); ok {
+		return equalityUnionTestForShallowEquality(bu, a)
+	}
+
+	// symbol primitive vs object → disjoint (strict types, no coercion).
+	if a == jstype.Symbol {
+		return equalityShallowSymbolVsType(b)
+	}
+	if b == jstype.Symbol {
+		return equalityShallowSymbolVsType(a)
+	}
+
+	// Primitives vs object (or function): no common subtype → FALSE.
+	aPrim := equalityIsPrimitive(a)
+	bPrim := equalityIsPrimitive(b)
+	if aPrim && !bPrim {
+		return eqFalse
+	}
+	if bPrim && !aPrim {
+		return eqFalse
+	}
+	// Two different primitives → no common subtype.
+	if aPrim && bPrim && a != b {
+		return eqFalse
+	}
+	// Two object types (or two functions): conservatively UNKNOWN.
+	return eqUnknown
+}
+
+// equalityUnionTestForShallowEquality reduces equalityTestForShallowEquality
+// over union members.
+func equalityUnionTestForShallowEquality(u *jstype.UnionType, other jstype.JSType) eqTri {
+	var result eqTri
+	first := true
+	for _, m := range u.Members() {
+		r := equalityTestForShallowEquality(m, other)
+		if first {
+			result = r
+			first = false
+		} else if r != result {
+			return eqUnknown
+		}
+	}
+	if first {
+		return eqUnknown
+	}
+	return result
+}
+
+// --- type-classification helpers for equality checks ---
+
+// equalityIsWide reports whether t is the All (*) or Unknown (?) sentinel.
+func equalityIsWide(t jstype.JSType) bool {
+	if t == nil {
+		return true
+	}
+	n := t.TypeName()
+	return n == "*" || n == "?"
+}
+
+// equalityIsEmpty reports whether t is an uninhabited type (NoType). jsgo
+// doesn't materialise a dedicated NoType; treat as false (conservative).
+func equalityIsEmpty(_ jstype.JSType) bool { return false }
+
+// equalityIsPrimitive reports whether t is a non-object, non-function primitive.
+func equalityIsPrimitive(t jstype.JSType) bool {
+	switch t {
+	case jstype.Number, jstype.String, jstype.Boolean,
+		jstype.Null, jstype.Void, jstype.Symbol:
+		return true
+	}
+	return false
+}
+
+// equalityIsCoerciblePrimitive reports whether t is one of number/string/boolean.
+func equalityIsCoerciblePrimitive(t jstype.JSType) bool {
+	return t == jstype.Number || t == jstype.String || t == jstype.Boolean
+}
+
+// equalityFunctionVsType implements the FunctionType branch of
+// JSType.testForEquality.
+func equalityFunctionVsType(other jstype.JSType) eqTri {
+	if equalityIsWide(other) {
+		return eqUnknown
+	}
+	if equalityIsPrimitive(other) {
+		return eqFalse
+	}
+	return eqUnknown
+}
+
+// equalitySymbolVsType implements Java SymbolType.testForEquality for `==`.
+func equalitySymbolVsType(other jstype.JSType) eqTri {
+	if equalityIsWide(other) {
+		return eqUnknown
+	}
+	if other == jstype.Symbol {
+		return eqUnknown
+	}
+	if equalityIsObject(other) {
+		return eqUnknown
+	}
+	return eqFalse
+}
+
+// equalityShallowSymbolVsType implements the symbol branch for `===`.
+func equalityShallowSymbolVsType(other jstype.JSType) eqTri {
+	if equalityIsWide(other) {
+		return eqUnknown
+	}
+	if other == jstype.Symbol {
+		return eqUnknown
+	}
+	if equalityIsObject(other) {
+		return eqFalse
+	}
+	return eqFalse
+}
+
+// equalityNullVsType implements Java NullType.testForEquality.
+func equalityNullVsType(other jstype.JSType) eqTri {
+	if equalityIsWide(other) {
+		return eqUnknown
+	}
+	if other == jstype.Null {
+		return eqTrue
+	}
+	if other == jstype.Void {
+		return eqTrue // null == undefined is true in JS
+	}
+	if equalityIsNullable(other) {
+		return eqUnknown
+	}
+	return eqFalse
+}
+
+// equalityVoidVsType implements Java VoidType.testForEquality.
+func equalityVoidVsType(other jstype.JSType) eqTri {
+	if equalityIsWide(other) {
+		return eqUnknown
+	}
+	if other == jstype.Void || other == jstype.Null {
+		return eqTrue
+	}
+	if equalityIsNullable(other) {
+		return eqUnknown
+	}
+	return eqFalse
+}
+
+// equalityCoercibleVsType handles number/string/boolean testForEquality.
+func equalityCoercibleVsType(other jstype.JSType) eqTri {
+	if equalityIsWide(other) {
+		return eqUnknown
+	}
+	switch other {
+	case jstype.Null, jstype.Void, jstype.Symbol:
+		return eqFalse
+	}
+	if equalityIsObject(other) {
+		return eqUnknown
+	}
+	return eqUnknown
+}
+
+// equalityIsObject reports whether t is an object type (not a primitive).
+func equalityIsObject(t jstype.JSType) bool {
+	if t == nil {
+		return false
+	}
+	if _, ok := t.(*jstype.ObjectType); ok {
+		return true
+	}
+	if _, ok := t.(*jstype.PrototypeObjectType); ok {
+		return true
+	}
+	if _, ok := t.(*jstype.InstanceObjectType); ok {
+		return true
+	}
+	if _, ok := t.(*jstype.FunctionType); ok {
+		return true
+	}
+	if _, ok := t.(*jstype.TemplatizedType); ok {
+		return true
+	}
+	if ee, ok := t.(*jstype.EnumElementType); ok {
+		return equalityIsObject(ee.Enum.Underlying)
+	}
+	return false
+}
+
+// equalityIsNullable reports whether t (a non-union type) could hold null.
+func equalityIsNullable(t jstype.JSType) bool {
+	return equalityIsObject(t)
+}
+
+// equalityIsFunctionLike reports whether t behaves like a function for
+// deterministic-test purposes.
+func equalityIsFunctionLike(t jstype.JSType) bool {
+	if _, ok := t.(*jstype.FunctionType); ok {
+		return true
+	}
+	if obj, ok := t.(*jstype.ObjectType); ok && obj.Name == "Function" {
+		return true
+	}
+	return false
 }

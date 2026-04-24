@@ -91,6 +91,22 @@ func (s *TypedScope) PopRefinement() {
 	s.refinements = s.refinements[:len(s.refinements)-1]
 }
 
+// WithoutRefinements temporarily clears the refinement stack, calls f,
+// then restores it. Used by visitors (e.g. visitEqualityOp) that must
+// evaluate declared types rather than flow-narrowed types — matching
+// how CheckDeterministicTest used its own scope-walking traversal that
+// never consulted flow refinements.
+func (s *TypedScope) WithoutRefinements(f func()) {
+	if s == nil {
+		f()
+		return
+	}
+	saved := s.refinements
+	s.refinements = nil
+	f()
+	s.refinements = saved
+}
+
 func (s *TypedScope) GetDeclaredType(name string) jstype.JSType {
 	if s == nil {
 		return nil
