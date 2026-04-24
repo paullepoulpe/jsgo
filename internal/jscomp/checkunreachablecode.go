@@ -36,6 +36,7 @@ type CheckUnreachableCode struct {
 	diags []diag.Diagnostic
 }
 
+// Go-only: constructor (Java uses new CheckUnreachableCode(compiler))
 // NewCheckUnreachableCode constructs the pass. `path` is the source file
 // path used in diagnostic positions, matching how Java passes `compiler`
 // (which carries the current source file context).
@@ -49,14 +50,14 @@ func NewCheckUnreachableCode(path string) *CheckUnreachableCode {
 // then shouldTraverse per node.
 func (c *CheckUnreachableCode) Check(script *rhino.Node) []diag.Diagnostic {
 	c.diags = nil
-	c.walkRoot(script)
+	c.enterScopeWithCfg(script)
 	return c.diags
 }
 
-// walkRoot handles one CFG root (FUNCTION or SCRIPT): builds CFG,
+// enterScopeWithCfg handles one CFG root (FUNCTION or SCRIPT): builds CFG,
 // computes reachability, checks nodes, then descends into nested
-// functions. Matches the AbstractCfgCallback's per-scope lifecycle.
-func (c *CheckUnreachableCode) walkRoot(root *rhino.Node) {
+// functions. Mirrors Java's AbstractCfgCallback.enterScopeWithCfg per-scope lifecycle.
+func (c *CheckUnreachableCode) enterScopeWithCfg(root *rhino.Node) {
 	if root == nil {
 		return
 	}
@@ -65,11 +66,11 @@ func (c *CheckUnreachableCode) walkRoot(root *rhino.Node) {
 		cfg := BuildControlFlowGraph(root)
 		// initScope: run GraphReachability.compute from the entry node,
 		// using isReachable to skip definitely-unreachable conditional branches.
-		reachable := c.computeReachability(cfg)
+		reachable := c.initScope(cfg)
 		// shouldTraverse pass: walk statement nodes in the CFG, report
 		// unreachable ones, re-expand their successors into reachable after
 		// reporting (matching Java's GraphReachability.recompute(n) call).
-		c.checkReachability(cfg, reachable)
+		c.shouldTraverse(cfg, reachable)
 	}
 	// Descend into children to find nested FUNCTION nodes — each has its own CFG.
 	// For FUNCTION roots we skip the function node itself since it was just processed,
@@ -79,6 +80,7 @@ func (c *CheckUnreachableCode) walkRoot(root *rhino.Node) {
 	}
 }
 
+// Go-only: recursive descent to find nested FUNCTION scopes (Java uses NodeTraversal)
 // walkChildren descends into nested FUNCTION nodes so each gets its own CFG pass.
 func (c *CheckUnreachableCode) walkChildren(n *rhino.Node) {
 	if n == nil {
@@ -87,8 +89,8 @@ func (c *CheckUnreachableCode) walkChildren(n *rhino.Node) {
 	if n.Token() == rhino.FUNCTION {
 		// This is a new CFG root — process it.
 		cfg := BuildControlFlowGraph(n)
-		reachable := c.computeReachability(cfg)
-		c.checkReachability(cfg, reachable)
+		reachable := c.initScope(cfg)
+		c.shouldTraverse(cfg, reachable)
 		// Descend into the function's children to find nested functions.
 		for _, child := range n.Children() {
 			c.walkChildren(child)
@@ -100,13 +102,13 @@ func (c *CheckUnreachableCode) walkChildren(n *rhino.Node) {
 	}
 }
 
-// computeReachability implements GraphReachability.compute: BFS/DFS from
+// initScope implements GraphReachability.compute: BFS/DFS from
 // the ENTRY node, using isReachable to prune edges where the branch
 // condition is provably false. Returns the set of reachable CfgNodes.
 //
-// Mirrors Java's GraphReachability<Node, Branch> with the custom
-// isReachable predicate from CheckUnreachableCode.isReachable.
-func (c *CheckUnreachableCode) computeReachability(cfg *ControlFlowGraph) map[*CfgNode]bool {
+// Mirrors Java's CheckUnreachableCode.initScope which calls
+// new GraphReachability<>(controlFlowGraph, CheckUnreachableCode::isReachable).compute(entry).
+func (c *CheckUnreachableCode) initScope(cfg *ControlFlowGraph) map[*CfgNode]bool {
 	reachable := map[*CfgNode]bool{}
 	if cfg == nil || cfg.Entry == nil {
 		return reachable
@@ -120,7 +122,7 @@ func (c *CheckUnreachableCode) computeReachability(cfg *ControlFlowGraph) map[*C
 		}
 		reachable[n] = true
 		for _, e := range n.Successors {
-			if !reachable[e.To] && c.isReachableEdge(n, e.Branch) {
+			if !reachable[e.To] && c.isReachable(n, e.Branch) {
 				stack = append(stack, e.To)
 			}
 		}
@@ -128,7 +130,7 @@ func (c *CheckUnreachableCode) computeReachability(cfg *ControlFlowGraph) map[*C
 	return reachable
 }
 
-// isReachableEdge mirrors Java's CheckUnreachableCode.isReachable(EdgeTuple).
+// isReachable mirrors Java's CheckUnreachableCode.isReachable(EdgeTuple).
 // For unconditional branches it always returns true. For conditional branches
 // it evaluates whether the branch condition is a compile-time boolean constant
 // that makes this particular arm provably unreachable.
@@ -150,7 +152,7 @@ func (c *CheckUnreachableCode) computeReachability(cfg *ControlFlowGraph) map[*C
 //	}
 //
 // TODO(user): Handle more complicated expression like true == true, etc....
-func (c *CheckUnreachableCode) isReachableEdge(pred *CfgNode, branch Branch) bool {
+func (c *CheckUnreachableCode) isReachable(pred *CfgNode, branch Branch) bool {
 	if !isConditionalBranch(branch) {
 		return true
 	}
@@ -169,6 +171,7 @@ func (c *CheckUnreachableCode) isReachableEdge(pred *CfgNode, branch Branch) boo
 	return val == (branch == BranchOnTrue)
 }
 
+// Go-only: Branch.isConditional() is a method on the Branch enum in Java
 // isConditionalBranch reports whether `b` is a conditional branch (ON_TRUE
 // or ON_FALSE). Mirrors Java's Branch.isConditional().
 func isConditionalBranch(b Branch) bool {
@@ -208,6 +211,7 @@ func getConditionExpression(n *rhino.Node) *rhino.Node {
 	return nil
 }
 
+// Go-only: returns (bool, known) pair since Go has no Tri type (Java uses NodeUtil.getBooleanValue returning Tri)
 // getBooleanValueKnown mirrors Java's NodeUtil.getBooleanValueKnown (Tri-valued).
 // Returns (bool value, known) where known==false means Tri.UNKNOWN.
 //
@@ -272,13 +276,13 @@ func getBooleanValueKnown(n *rhino.Node) (bool, bool) {
 	return false, false
 }
 
-// checkReachability walks the CFG nodes and reports those that are not
+// shouldTraverse walks the CFG nodes and reports those that are not
 // reachable. When it reports a node, it calls recompute to expand that
 // node's successors back into the reachable set — this prevents cascade
 // warnings on code the user presumably intended to have (they just need
 // to fix the dead code before it). Mirrors Java's shouldTraverse callback
 // plus the GraphReachability.recompute(n) call.
-func (c *CheckUnreachableCode) checkReachability(cfg *ControlFlowGraph, reachable map[*CfgNode]bool) {
+func (c *CheckUnreachableCode) shouldTraverse(cfg *ControlFlowGraph, reachable map[*CfgNode]bool) {
 	for _, cfgNode := range cfg.Nodes {
 		// Only real AST statement nodes participate (not synthetic ENTRY/EXIT/JOIN).
 		if cfgNode.AST == nil {

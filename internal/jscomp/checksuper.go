@@ -31,6 +31,7 @@ type CheckSuper struct {
 	contextStack []superContext
 }
 
+// Go-only: constructor (Java uses new CheckSuper(compiler))
 // NewCheckSuper creates a new CheckSuper pass for the given source path.
 func NewCheckSuper(path string) *CheckSuper {
 	return &CheckSuper{path: path}
@@ -56,6 +57,7 @@ func (c *CheckSuper) report(n *rhino.Node, code, message string) {
 	})
 }
 
+// Go-only: inlined NodeTraversal.traverse logic (Java delegates to NodeTraversal)
 // traverseNode is the main DFS walk — calls shouldTraverse and visit in the
 // correct pre/post order, mirroring Java's NodeTraversal.traverse logic.
 func (c *CheckSuper) traverseNode(n *rhino.Node, parent *rhino.Node) {
@@ -150,6 +152,7 @@ func (c *CheckSuper) visit(n *rhino.Node, parent *rhino.Node) {
 	}
 }
 
+// Go-only: stack peek helper (Java uses ArrayDeque.peek())
 // peekContext returns the top of the context stack, or nil if empty.
 func (c *CheckSuper) peekContext() superContext {
 	if len(c.contextStack) == 0 {
@@ -249,6 +252,7 @@ func isEs6Constructor(fn *rhino.Node) bool {
 	return first.String_() == "constructor"
 }
 
+// Go-only: helper (Java uses !classNode.getSecondChild().isEmpty() inline in ConstructorContext ctor)
 // classHasParent returns true if the class enclosing fn has an extends clause.
 // fn must be inside a class body BLOCK.
 func classHasParent(fn *rhino.Node) bool {
@@ -316,9 +320,15 @@ func (ctx *superPropertyAccessAllowedContext) visitSuperConstructorCall(c *Check
 		"super() not allowed except in the constructor of a subclass")
 }
 
-func (ctx *superPropertyAccessAllowedContext) visitThis(c *CheckSuper, thisNode *rhino.Node)     {}
-func (ctx *superPropertyAccessAllowedContext) visitReturn(c *CheckSuper, returnNode *rhino.Node) {}
-func (ctx *superPropertyAccessAllowedContext) visitContextNode(c *CheckSuper)                    {}
+func (ctx *superPropertyAccessAllowedContext) visitThis(c *CheckSuper, thisNode *rhino.Node) {
+	// Ignored except in constructor methods. Mirrors Java Context base class default.
+}
+func (ctx *superPropertyAccessAllowedContext) visitReturn(c *CheckSuper, returnNode *rhino.Node) {
+	// Ignored except in constructor methods. Mirrors Java Context base class default.
+}
+func (ctx *superPropertyAccessAllowedContext) visitContextNode(c *CheckSuper) {
+	// Called when visiting the root node of this context — no-op here. Mirrors Java Context base class default.
+}
 
 // ── superNotAllowedContext ────────────────────────────────────────────────────
 
@@ -350,9 +360,15 @@ func (ctx *superNotAllowedContext) visitSuperPropertyAccess(c *CheckSuper, super
 		"'super' may only be accessed within a method")
 }
 
-func (ctx *superNotAllowedContext) visitThis(c *CheckSuper, thisNode *rhino.Node)     {}
-func (ctx *superNotAllowedContext) visitReturn(c *CheckSuper, returnNode *rhino.Node) {}
-func (ctx *superNotAllowedContext) visitContextNode(c *CheckSuper)                    {}
+func (ctx *superNotAllowedContext) visitThis(c *CheckSuper, thisNode *rhino.Node) {
+	// Ignored except in constructor methods. Mirrors Java Context base class default.
+}
+func (ctx *superNotAllowedContext) visitReturn(c *CheckSuper, returnNode *rhino.Node) {
+	// Ignored except in constructor methods. Mirrors Java Context base class default.
+}
+func (ctx *superNotAllowedContext) visitContextNode(c *CheckSuper) {
+	// Called when visiting the root node of this context — no-op here. Mirrors Java Context base class default.
+}
 
 // ── methodContext ─────────────────────────────────────────────────────────────
 
@@ -363,6 +379,7 @@ type methodContext struct {
 	isClassMethod bool
 }
 
+// Go-only: factory function (Java uses new MethodContext(fn) directly)
 func newMethodContext(fn *rhino.Node) *methodContext {
 	isClass := false
 	if p := fn.Parent(); p != nil {
@@ -406,9 +423,15 @@ func (ctx *methodContext) visitSuperConstructorCall(c *CheckSuper, superNode *rh
 	}
 }
 
-func (ctx *methodContext) visitThis(c *CheckSuper, thisNode *rhino.Node)     {}
-func (ctx *methodContext) visitReturn(c *CheckSuper, returnNode *rhino.Node) {}
-func (ctx *methodContext) visitContextNode(c *CheckSuper)                    {}
+func (ctx *methodContext) visitThis(c *CheckSuper, thisNode *rhino.Node) {
+	// Ignored except in constructor methods. Mirrors Java Context base class default.
+}
+func (ctx *methodContext) visitReturn(c *CheckSuper, returnNode *rhino.Node) {
+	// Ignored except in constructor methods. Mirrors Java Context base class default.
+}
+func (ctx *methodContext) visitContextNode(c *CheckSuper) {
+	// Called when visiting the root node of this context — no-op here. Mirrors Java Context base class default.
+}
 
 // getPropertyName returns the method name for the diagnostic suggestion, or "".
 // In Java, the MEMBER_FUNCTION_DEF / GETTER_DEF / SETTER_DEF parent node carries
@@ -551,6 +574,12 @@ func (ctx *constructorArrowContext) visitSuperPropertyAccess(c *CheckSuper, supe
 	ctx.constructorCtx.visitSuperPropertyAccess(c, superNode)
 }
 
-func (ctx *constructorArrowContext) visitThis(c *CheckSuper, thisNode *rhino.Node)     {}
-func (ctx *constructorArrowContext) visitReturn(c *CheckSuper, returnNode *rhino.Node) {}
-func (ctx *constructorArrowContext) visitContextNode(c *CheckSuper)                    {}
+func (ctx *constructorArrowContext) visitThis(c *CheckSuper, thisNode *rhino.Node) {
+	// Arrow functions in constructors don't independently track this-access. Mirrors Java ConstructorArrowContext.
+}
+func (ctx *constructorArrowContext) visitReturn(c *CheckSuper, returnNode *rhino.Node) {
+	// Return statements in arrow functions don't affect constructor return-a-value tracking. Mirrors Java.
+}
+func (ctx *constructorArrowContext) visitContextNode(c *CheckSuper) {
+	// Called when visiting the root node of this context — no-op here. Mirrors Java Context base class default.
+}

@@ -57,18 +57,22 @@ func (m *cmrModuleMetadata) hasLegacyGoogNamespaces() bool { return m != nil && 
 
 func (m *cmrModuleMetadata) isNonLegacyGoogModule() bool { return m != nil && m.isNonLegacy }
 
+// Go-only: stub accessor on cmrModuleMetadata (replaces googNamespaces().contains())
 func (m *cmrModuleMetadata) containsNamespace(ns string) bool {
 	return m != nil && m.googNamespaces[ns]
 }
 
+// Go-only: stub accessor on cmrModuleMetadata (replaces stronglyRequiredGoogNamespaces().contains())
 func (m *cmrModuleMetadata) containsStrongRequire(ns string) bool {
 	return m != nil && m.strongRequires[ns]
 }
 
+// Go-only: stub accessor on cmrModuleMetadata (replaces weaklyRequiredGoogNamespaces().contains())
 func (m *cmrModuleMetadata) containsWeakRequire(ns string) bool {
 	return m != nil && m.weakRequires[ns]
 }
 
+// Go-only: stub accessor on cmrModuleMetadata (replaces rootNode().getSourceFileName())
 func (m *cmrModuleMetadata) getRootSourceFileName() string {
 	if m == nil {
 		return ""
@@ -109,6 +113,8 @@ func (m *cmrModuleMetadataMap) get(ns string) *cmrModuleMetadata {
 //
 // The returned map contains exactly one entry per declared namespace,
 // mirroring ModuleMetadataMap.getModulesByGoogNamespace().
+//
+// Go-only: single-file adapter for GatherModuleMetadata pass (full pass stubbed)
 func cmrGatherModuleMetadata(path string, script *rhino.Node) *cmrModuleMetadataMap {
 	md := &cmrModuleMetadata{
 		sourceFileName: path,
@@ -121,7 +127,7 @@ func cmrGatherModuleMetadata(path string, script *rhino.Node) *cmrModuleMetadata
 	// 0 = SCRIPT, 1 = GOOG_PROVIDE, 2 = GOOG_MODULE/LEGACY_GOOG_MODULE
 	moduleType := 0
 	declareLegacy := false
-	cmrScanGoogCalls(script, func(callee, arg string) {
+	scanGoogCalls(script, func(callee, arg string) {
 		switch callee {
 		case "goog.provide":
 			if arg != "" {
@@ -179,17 +185,18 @@ func cmrGatherModuleMetadata(path string, script *rhino.Node) *cmrModuleMetadata
 	return &cmrModuleMetadataMap{byNamespace: byNS}
 }
 
-// cmrScanGoogCalls walks `n` in pre-order and calls `fn` for every CALL
+// Go-only: AST scanner helper for goog.* call discovery (replaces inline visitor logic in Java)
+// scanGoogCalls walks `n` in pre-order and calls `fn` for every CALL
 // node whose callee is a goog.* qualified name. `arg` is the string value
 // of the first argument (or "" when absent / non-string).
-func cmrScanGoogCalls(n *rhino.Node, fn func(callee, arg string)) {
+func scanGoogCalls(n *rhino.Node, fn func(callee, arg string)) {
 	if n == nil {
 		return
 	}
 	if n.Token() == rhino.CALL {
 		callee := n.FirstChild()
 		if callee != nil {
-			qn := cmrQualifiedNameFromNode(callee)
+			qn := qualifiedNameFromNode(callee)
 			if qn != nil && strings.HasPrefix(qn.join(), "goog") {
 				arg := ""
 				kids := n.Children()
@@ -201,7 +208,7 @@ func cmrScanGoogCalls(n *rhino.Node, fn func(callee, arg string)) {
 		}
 	}
 	for _, ch := range n.Children() {
-		cmrScanGoogCalls(ch, fn)
+		scanGoogCalls(ch, fn)
 	}
 }
 
@@ -221,7 +228,8 @@ type cmrQualifiedName struct {
 	components []string
 }
 
-func cmrQualifiedNameOf(dotted string) *cmrQualifiedName {
+// Go-only: factory for cmrQualifiedName stub (Java uses QualifiedName.of())
+func qualifiedNameOf(dotted string) *cmrQualifiedName {
 	if dotted == "" {
 		return &cmrQualifiedName{}
 	}
@@ -255,7 +263,7 @@ func (q *cmrQualifiedName) getOwner() *cmrQualifiedName {
 
 func (q *cmrQualifiedName) getprop(s string) *cmrQualifiedName {
 	if q == nil {
-		return cmrQualifiedNameOf(s)
+		return qualifiedNameOf(s)
 	}
 	newComponents := make([]string, len(q.components)+1)
 	copy(newComponents, q.components)
@@ -270,9 +278,10 @@ func (q *cmrQualifiedName) getComponentCount() int {
 	return len(q.components)
 }
 
-// cmrQualifiedNameFromNode converts a NAME or GETPROP chain into a
+// Go-only: converts AST node to stub QualifiedName (Java uses Node.getQualifiedNameObject())
+// qualifiedNameFromNode converts a NAME or GETPROP chain into a
 // cmrQualifiedName. Returns nil when `n` is not a qualified name chain.
-func cmrQualifiedNameFromNode(n *rhino.Node) *cmrQualifiedName {
+func qualifiedNameFromNode(n *rhino.Node) *cmrQualifiedName {
 	if n == nil {
 		return nil
 	}
@@ -281,13 +290,13 @@ func cmrQualifiedNameFromNode(n *rhino.Node) *cmrQualifiedName {
 		if n.String_() == "" {
 			return nil
 		}
-		return cmrQualifiedNameOf(n.String_())
+		return qualifiedNameOf(n.String_())
 	case rhino.GETPROP:
 		kids := n.Children()
 		if len(kids) < 2 {
 			return nil
 		}
-		owner := cmrQualifiedNameFromNode(kids[0])
+		owner := qualifiedNameFromNode(kids[0])
 		if owner == nil {
 			return nil
 		}
@@ -296,13 +305,14 @@ func cmrQualifiedNameFromNode(n *rhino.Node) *cmrQualifiedName {
 	return nil
 }
 
-// cmrMatchesQualifiedName reports whether a GETPROP/NAME chain matches
+// Go-only: convenience wrapper (Java uses qualifiedName.matches(node))
+// matchesQualifiedName reports whether a GETPROP/NAME chain matches
 // the given qualified name (mirrors QualifiedName.matches(Node)).
-func cmrMatchesQualifiedName(n *rhino.Node, q *cmrQualifiedName) bool {
+func matchesQualifiedName(n *rhino.Node, q *cmrQualifiedName) bool {
 	if q == nil || n == nil {
 		return false
 	}
-	qn := cmrQualifiedNameFromNode(n)
+	qn := qualifiedNameFromNode(n)
 	if qn == nil {
 		return false
 	}
@@ -459,7 +469,7 @@ var _ = cmrCodeMissingRequireTypeInGoogScope
 
 // cmrGoogScope is the QualifiedName for "goog.scope" — used to identify
 // goog.scope call bodies. Mirrors the Java static field GOOG_SCOPE.
-var cmrGoogScope = cmrQualifiedNameOf("goog.scope")
+var cmrGoogScope = qualifiedNameOf("goog.scope")
 
 // CheckMissingRequires detects references to fully qualified Closure
 // namespaces in files that should import them via goog.require /
@@ -492,6 +502,7 @@ type CheckMissingRequires struct {
 // NewCheckMissingRequires constructs the pass, mirroring the Java constructor
 // signature (compiler + moduleMetadataMap). Pass a map built by
 // cmrGatherModuleMetadata; nil map causes the pass to no-op.
+// Go-only: Go constructor (Java uses new CheckMissingRequires(compiler, moduleMetadataMap))
 func NewCheckMissingRequires(path string, moduleMetadataMap *cmrModuleMetadataMap) *CheckMissingRequires {
 	c := &CheckMissingRequires{
 		path:               path,
@@ -526,6 +537,7 @@ func (c *CheckMissingRequires) Check(script *rhino.Node) []diag.Diagnostic {
 // Tree walker
 // ---------------------------------------------------------------------------
 
+// Go-only: replaces AbstractModuleCallback traversal lifecycle (enterModule/shouldTraverse/visit)
 // walk is a pre-order / post-order recursive traversal mirroring the Java
 // AbstractModuleCallback contract (shouldTraverse pre-order, visit post-order).
 // `currentModule` is the ModuleMetadata for the enclosing file; for the
@@ -560,12 +572,12 @@ func (c *CheckMissingRequires) walk(n *rhino.Node, parent *rhino.Node, currentMo
 	}
 
 	// --- shouldTraverse equivalent (pre-order) ---
-	if cmrIsValidCfgRoot(n) && !c.cmrIsInGlobalControlFlowScope(n) {
+	if isValidCfgRoot(n) && !c.isInGlobalControlFlowScope(n) {
 		c.controlFlowScopeDepth++
 	}
 
 	if currentModule != nil {
-		c.cmrVisitNode(n, currentModule)
+		c.visitNode(n, currentModule)
 	}
 
 	// Descend into children
@@ -574,7 +586,7 @@ func (c *CheckMissingRequires) walk(n *rhino.Node, parent *rhino.Node, currentMo
 	}
 
 	// --- visit equivalent (post-order) ---
-	if cmrIsValidCfgRoot(n) && !c.cmrIsInGlobalControlFlowScope(n) {
+	if isValidCfgRoot(n) && !c.isInGlobalControlFlowScope(n) {
 		c.controlFlowScopeDepth--
 	}
 	if currentModule != nil && n == currentModule.rootNode {
@@ -586,30 +598,30 @@ func (c *CheckMissingRequires) walk(n *rhino.Node, parent *rhino.Node, currentMo
 // cmrVisitNode — mirrors visitNode(NodeTraversal, Node, ModuleMetadata)
 // ---------------------------------------------------------------------------
 
-func (c *CheckMissingRequires) cmrVisitNode(n *rhino.Node, currentModule *cmrModuleMetadata) {
+func (c *CheckMissingRequires) visitNode(n *rhino.Node, currentModule *cmrModuleMetadata) {
 	info := n.JSDocInfo()
 	if info != nil {
-		c.cmrVisitJsDocInfo(n, currentModule, info)
+		c.visitJsDocInfo(n, currentModule, info)
 	}
 
 	// Check non-root GETPROP chains and NAME nodes for fully-qualified references.
 	if n.Parent() != nil && n.Parent().Token() != rhino.GETPROP {
-		if qn := cmrQualifiedNameFromNode(n); qn != nil {
+		if qn := qualifiedNameFromNode(n); qn != nil {
 			root := qn.getRoot()
 			if root != "this" && root != "super" {
-				c.cmrVisitQualifiedName(n, currentModule, qn, cmrStrengthCode)
+				c.visitQualifiedName(n, currentModule, qn, cmrStrengthCode)
 			}
 		}
 	}
 
 	// visitMaybeDeclaration for NAME nodes.
 	if n.Token() == rhino.NAME && n.String_() != "" {
-		c.cmrVisitMaybeDeclaration(n, currentModule)
+		c.visitMaybeDeclaration(n, currentModule)
 	}
 
 	// visitMaybeGoogModuleGet for CALL nodes at top-level control flow.
 	if n.Token() == rhino.CALL && c.controlFlowScopeDepth == 0 {
-		c.cmrVisitMaybeGoogModuleGet(n, currentModule)
+		c.visitMaybeGoogModuleGet(n, currentModule)
 	}
 }
 
@@ -617,47 +629,47 @@ func (c *CheckMissingRequires) cmrVisitNode(n *rhino.Node, currentModule *cmrMod
 // cmrVisitJsDocInfo — mirrors visitJsDocInfo
 // ---------------------------------------------------------------------------
 
-func (c *CheckMissingRequires) cmrVisitJsDocInfo(n *rhino.Node, currentModule *cmrModuleMetadata, info *rhino.JSDocInfo) {
+func (c *CheckMissingRequires) visitJsDocInfo(n *rhino.Node, currentModule *cmrModuleMetadata, info *rhino.JSDocInfo) {
 	// Collect template names before checking.
 	for _, name := range info.TemplateNames() {
 		c.templateParamNames[name] = true
 	}
 
 	if info.HasType() {
-		c.cmrVisitJsDocExpr(n, currentModule, info.Type(), cmrStrengthWeakType)
+		c.visitJsDocExpr(n, currentModule, info.Type(), cmrStrengthWeakType)
 	}
 	for _, param := range info.ParameterNames() {
 		if pt := info.ParameterType(param); pt != nil {
-			c.cmrVisitJsDocExpr(n, currentModule, pt, cmrStrengthWeakType)
+			c.visitJsDocExpr(n, currentModule, pt, cmrStrengthWeakType)
 		}
 	}
 	if rt := info.ReturnType(); rt != nil {
-		c.cmrVisitJsDocExpr(n, currentModule, rt, cmrStrengthWeakType)
+		c.visitJsDocExpr(n, currentModule, rt, cmrStrengthWeakType)
 	}
 	if ep := info.EnumParameterType(); ep != nil {
-		c.cmrVisitJsDocExpr(n, currentModule, ep, cmrStrengthWeakType)
+		c.visitJsDocExpr(n, currentModule, ep, cmrStrengthWeakType)
 	}
 	if td := info.TypedefType(); td != nil {
-		c.cmrVisitJsDocExpr(n, currentModule, td, cmrStrengthWeakType)
+		c.visitJsDocExpr(n, currentModule, td, cmrStrengthWeakType)
 	}
 	// @extends requires a strong require, not just a requireType.
 	for _, ext := range info.BaseTypes() {
-		c.cmrVisitJsDocExpr(n, currentModule, ext, cmrStrengthImplementsExtends)
+		c.visitJsDocExpr(n, currentModule, ext, cmrStrengthImplementsExtends)
 	}
 	// @implements requires a strong require.
 	for _, impl := range info.Implementations() {
-		c.cmrVisitJsDocExpr(n, currentModule, impl, cmrStrengthImplementsExtends)
+		c.visitJsDocExpr(n, currentModule, impl, cmrStrengthImplementsExtends)
 	}
 }
 
-// cmrVisitJsDocExpr mirrors visitJsDocExpr.
+// visitJsDocExpr mirrors visitJsDocExpr.
 // JSTypeExpression in our port only carries a TypeName string (Tier-0
 // limitation). The Java side parses a full type AST and calls getAllTypeNodes().
 // Here we parse the dotted name directly from the TypeName field.
 //
 // TODO: when JSTypeExpression is upgraded to a Node-rooted parse tree,
 // iterate over all type nodes in the expression as Java does.
-func (c *CheckMissingRequires) cmrVisitJsDocExpr(n *rhino.Node, currentModule *cmrModuleMetadata, expr *rhino.JSTypeExpression, strength cmrStrength) {
+func (c *CheckMissingRequires) visitJsDocExpr(n *rhino.Node, currentModule *cmrModuleMetadata, expr *rhino.JSTypeExpression, strength cmrStrength) {
 	if expr == nil || expr.TypeName == "" {
 		return
 	}
@@ -671,15 +683,15 @@ func (c *CheckMissingRequires) cmrVisitJsDocExpr(n *rhino.Node, currentModule *c
 	if typeName == "" {
 		return
 	}
-	qn := cmrQualifiedNameOf(typeName)
-	c.cmrVisitQualifiedName(n, currentModule, qn, strength)
+	qn := qualifiedNameOf(typeName)
+	c.visitQualifiedName(n, currentModule, qn, strength)
 }
 
 // ---------------------------------------------------------------------------
-// cmrVisitMaybeDeclaration — mirrors visitMaybeDeclaration
+// visitMaybeDeclaration — mirrors visitMaybeDeclaration
 // ---------------------------------------------------------------------------
 
-// cmrVisitMaybeDeclaration checks destructured goog.require imports for
+// visitMaybeDeclaration checks destructured goog.require imports for
 // cases where the destructured property corresponds to its own Closure
 // namespace (e.g., `const {Bar} = goog.require('foo')` when 'foo.Bar' is
 // its own namespace).
@@ -691,25 +703,25 @@ func (c *CheckMissingRequires) cmrVisitJsDocExpr(n *rhino.Node, currentModule *c
 //      check whether (namespace + "." + property) is its own namespace.
 //   3. If so, fire INCORRECT_NAMESPACE_ALIAS_REQUIRE /
 //      INCORRECT_NAMESPACE_ALIAS_REQUIRE_TYPE.
-func (c *CheckMissingRequires) cmrVisitMaybeDeclaration(_ *rhino.Node, currentModule *cmrModuleMetadata) {
+func (c *CheckMissingRequires) visitMaybeDeclaration(_ *rhino.Node, currentModule *cmrModuleMetadata) {
 	if !currentModule.isModule() {
 		return
 	}
 	// Skip TypeScript-generated sources (mirrors Java isTypeScriptSource check).
-	if cmrIsTypeScriptSource(c.path) {
+	if isTypeScriptSource(c.path) {
 		return
 	}
 	// Scope-based Var lookup not yet implemented; returns without firing.
 }
 
 // ---------------------------------------------------------------------------
-// cmrVisitMaybeGoogModuleGet — mirrors visitMaybeGoogModuleGet
+// visitMaybeGoogModuleGet — mirrors visitMaybeGoogModuleGet
 // ---------------------------------------------------------------------------
 
-// cmrVisitMaybeGoogModuleGet checks goog.module.get calls at script-load time
+// visitMaybeGoogModuleGet checks goog.module.get calls at script-load time
 // to ensure the required namespace has an acceptable goog.require.
-func (c *CheckMissingRequires) cmrVisitMaybeGoogModuleGet(googModuleGet *rhino.Node, currentFile *cmrModuleMetadata) {
-	if !cmrIsGoogModuleGetCall(googModuleGet) {
+func (c *CheckMissingRequires) visitMaybeGoogModuleGet(googModuleGet *rhino.Node, currentFile *cmrModuleMetadata) {
+	if !isGoogModuleGetCall(googModuleGet) {
 		return
 	}
 	kids := googModuleGet.Children()
@@ -725,17 +737,17 @@ func (c *CheckMissingRequires) cmrVisitMaybeGoogModuleGet(googModuleGet *rhino.N
 	if requiredFile == nil {
 		return
 	}
-	qn := cmrQualifiedNameOf(importedNamespace)
-	if !cmrHasAcceptableRequire(currentFile, qn, requiredFile, cmrStrengthWeakType) {
-		c.cmrReport(googModuleGet, cmrCodeMissingRequireForGoogModuleGet, importedNamespace, "")
+	qn := qualifiedNameOf(importedNamespace)
+	if !hasAcceptableRequire(currentFile, qn, requiredFile, cmrStrengthWeakType) {
+		c.report(googModuleGet, cmrCodeMissingRequireForGoogModuleGet, importedNamespace, "")
 	}
 }
 
 // ---------------------------------------------------------------------------
-// cmrVisitQualifiedName — mirrors visitQualifiedName
+// visitQualifiedName — mirrors visitQualifiedName
 // ---------------------------------------------------------------------------
 
-func (c *CheckMissingRequires) cmrVisitQualifiedName(n *rhino.Node, currentFile *cmrModuleMetadata, qualifiedName *cmrQualifiedName, referenceStrength cmrStrength) {
+func (c *CheckMissingRequires) visitQualifiedName(n *rhino.Node, currentFile *cmrModuleMetadata, qualifiedName *cmrQualifiedName, referenceStrength cmrStrength) {
 	rootName := qualifiedName.getRoot()
 
 	if qualifiedName.isSimple() {
@@ -744,7 +756,7 @@ func (c *CheckMissingRequires) cmrVisitQualifiedName(n *rhino.Node, currentFile 
 		}
 	}
 
-	if cmrIsDeclarationLValue(n) {
+	if isDeclarationLValue(n) {
 		return
 	}
 
@@ -752,14 +764,14 @@ func (c *CheckMissingRequires) cmrVisitQualifiedName(n *rhino.Node, currentFile 
 	// populated). Java branches on whether the var is local to call
 	// checkMissingRequireThroughShortName vs checkMissingRequireThroughFullyQualifiedName.
 	// For now, always take the fully-qualified path (handles global references).
-	c.cmrCheckMissingRequireThroughFullyQualifiedName(n, currentFile, qualifiedName, referenceStrength)
+	c.checkMissingRequireThroughFullyQualifiedName(n, currentFile, qualifiedName, referenceStrength)
 }
 
 // ---------------------------------------------------------------------------
-// cmrCheckMissingRequireThroughShortName — mirrors checkMissingRequireThroughShortName
+// checkMissingRequireThroughShortName — mirrors checkMissingRequireThroughShortName
 // ---------------------------------------------------------------------------
 
-// cmrCheckMissingRequireThroughShortName is called when the root of the
+// checkMissingRequireThroughShortName is called when the root of the
 // qualified name is a local variable that may be an alias for an imported namespace.
 //
 // TODO: implement once Var / GoogRequire / scope stubs are real. Java logic:
@@ -768,7 +780,7 @@ func (c *CheckMissingRequires) cmrVisitQualifiedName(n *rhino.Node, currentFile 
 //   3. For simple names (no dots), return — already validated in visitMaybeDeclaration.
 //   4. Dispatch to checkMissingRequireThroughShortNameInGoogScope or
 //      checkMissingRequireThroughShortNameInModule.
-func (c *CheckMissingRequires) cmrCheckMissingRequireThroughShortName(
+func (c *CheckMissingRequires) checkMissingRequireThroughShortName(
 	n *rhino.Node,
 	localVar *cmrVar,
 	currentFile *cmrModuleMetadata,
@@ -776,7 +788,7 @@ func (c *CheckMissingRequires) cmrCheckMissingRequireThroughShortName(
 	referenceStrength cmrStrength,
 ) {
 	// Skip TypeScript-generated sources (mirrors Java isTypeScriptSource check).
-	if cmrIsTypeScriptSource(c.path) {
+	if isTypeScriptSource(c.path) {
 		return
 	}
 	// Scope-based Var / GoogRequire resolution not yet implemented.
@@ -788,15 +800,15 @@ func (c *CheckMissingRequires) cmrCheckMissingRequireThroughShortName(
 }
 
 // ---------------------------------------------------------------------------
-// cmrCheckMissingRequireThroughShortNameInGoogScope
+// checkMissingRequireThroughShortNameInGoogScope
 // ---------------------------------------------------------------------------
 
-// cmrCheckMissingRequireThroughShortNameInGoogScope handles the goog.scope case.
+// checkMissingRequireThroughShortNameInGoogScope handles the goog.scope case.
 //
 // TODO: implement once Var stubs are real. Java logic handles two cases:
 //  1. Initial value is a qualified name (legacy namespace + optional extra props).
 //  2. Initial value is a goog.module.get call (+ optional extra props).
-func (c *CheckMissingRequires) cmrCheckMissingRequireThroughShortNameInGoogScope(
+func (c *CheckMissingRequires) checkMissingRequireThroughShortNameInGoogScope(
 	n *rhino.Node,
 	localVar *cmrVar,
 	currentFile *cmrModuleMetadata,
@@ -811,13 +823,13 @@ func (c *CheckMissingRequires) cmrCheckMissingRequireThroughShortNameInGoogScope
 }
 
 // ---------------------------------------------------------------------------
-// cmrCheckMissingRequireThroughShortNameInModule
+// checkMissingRequireThroughShortNameInModule
 // ---------------------------------------------------------------------------
 
-// cmrCheckMissingRequireThroughShortNameInModule handles the goog.module case.
+// checkMissingRequireThroughShortNameInModule handles the goog.module case.
 //
 // TODO: implement once GoogRequire stubs are real.
-func (c *CheckMissingRequires) cmrCheckMissingRequireThroughShortNameInModule(
+func (c *CheckMissingRequires) checkMissingRequireThroughShortNameInModule(
 	n *rhino.Node,
 	require *cmrGoogRequire,
 	currentFile *cmrModuleMetadata,
@@ -832,17 +844,17 @@ func (c *CheckMissingRequires) cmrCheckMissingRequireThroughShortNameInModule(
 }
 
 // ---------------------------------------------------------------------------
-// cmrCheckNormalizedShortNameImport
+// checkNormalizedShortNameImport
 // ---------------------------------------------------------------------------
 
-// cmrCheckNormalizedShortNameImport is the shared inner logic for the two
+// checkNormalizedShortNameImport is the shared inner logic for the two
 // "through short name" methods above. It resolves the longest-prefix match
 // of `normalizedQualifiedName` against known namespaces and fires the
 // appropriate diagnostic.
 //
-// TODO: call this from cmrCheckMissingRequireThroughShortNameInGoogScope and
-// cmrCheckMissingRequireThroughShortNameInModule once those stubs are real.
-func (c *CheckMissingRequires) cmrCheckNormalizedShortNameImport(
+// TODO: call this from checkMissingRequireThroughShortNameInGoogScope and
+// checkMissingRequireThroughShortNameInModule once those stubs are real.
+func (c *CheckMissingRequires) checkNormalizedShortNameImport(
 	n *rhino.Node,
 	currentFile *cmrModuleMetadata,
 	originalImport *cmrModuleMetadata,
@@ -852,7 +864,7 @@ func (c *CheckMissingRequires) cmrCheckNormalizedShortNameImport(
 ) {
 	for subName := normalizedQualifiedName; subName != nil; subName = subName.getOwner() {
 		namespace := subName.join()
-		if cmrIsAllowedNamespace(currentFile, namespace) {
+		if isAllowedNamespace(currentFile, namespace) {
 			return
 		}
 		requiredFile := c.moduleByNamespace[namespace]
@@ -860,7 +872,7 @@ func (c *CheckMissingRequires) cmrCheckNormalizedShortNameImport(
 			continue
 		}
 
-		if !cmrHasAcceptableRequire(currentFile, subName, requiredFile, referenceStrength) ||
+		if !hasAcceptableRequire(currentFile, subName, requiredFile, referenceStrength) ||
 			originalImport == nil ||
 			originalImport != requiredFile {
 
@@ -887,7 +899,7 @@ func (c *CheckMissingRequires) cmrCheckNormalizedShortNameImport(
 				for i := 0; i < diff && errorNode.Token() == rhino.GETPROP; i++ {
 					errorNode = errorNode.FirstChild()
 				}
-				c.cmrReport(errorNode, code, namespace, "")
+				c.report(errorNode, code, namespace, "")
 			} else {
 				// JSDoc reference — trim the original qualified name by diff levels.
 				errorQName := originalQualifiedName
@@ -895,7 +907,7 @@ func (c *CheckMissingRequires) cmrCheckNormalizedShortNameImport(
 					errorQName = errorQName.getOwner()
 				}
 				if errorQName != nil {
-					c.cmrReport(n, code, errorQName.join(), "")
+					c.report(n, code, errorQName.join(), "")
 				}
 			}
 		}
@@ -904,13 +916,13 @@ func (c *CheckMissingRequires) cmrCheckNormalizedShortNameImport(
 }
 
 // ---------------------------------------------------------------------------
-// cmrCheckMissingRequireThroughFullyQualifiedName
+// checkMissingRequireThroughFullyQualifiedName
 // ---------------------------------------------------------------------------
 
-// cmrCheckMissingRequireThroughFullyQualifiedName mirrors the Java method of
+// checkMissingRequireThroughFullyQualifiedName mirrors the Java method of
 // the same name. It looks for the longest prefix of `qualifiedName` that
 // matches a known Closure namespace and fires the appropriate diagnostic.
-func (c *CheckMissingRequires) cmrCheckMissingRequireThroughFullyQualifiedName(
+func (c *CheckMissingRequires) checkMissingRequireThroughFullyQualifiedName(
 	n *rhino.Node,
 	currentFile *cmrModuleMetadata,
 	qualifiedName *cmrQualifiedName,
@@ -918,7 +930,7 @@ func (c *CheckMissingRequires) cmrCheckMissingRequireThroughFullyQualifiedName(
 ) {
 	for subName := qualifiedName; subName != nil; subName = subName.getOwner() {
 		namespace := subName.join()
-		if cmrIsAllowedNamespace(currentFile, namespace) {
+		if isAllowedNamespace(currentFile, namespace) {
 			return
 		}
 		requiredFile := c.moduleByNamespace[namespace]
@@ -935,7 +947,7 @@ func (c *CheckMissingRequires) cmrCheckMissingRequireThroughFullyQualifiedName(
 			} else {
 				code = cmrCodeMissingRequireType
 			}
-		} else if !cmrHasAcceptableRequire(currentFile, subName, requiredFile, referenceStrength) {
+		} else if !hasAcceptableRequire(currentFile, subName, requiredFile, referenceStrength) {
 			// In non-module files, fire only when there is no acceptable require.
 			if referenceStrength.isStrong() {
 				code = cmrCodeMissingRequireInProvidesFile
@@ -950,34 +962,34 @@ func (c *CheckMissingRequires) cmrCheckMissingRequireThroughFullyQualifiedName(
 			return
 		}
 
-		c.cmrReport(n, code, namespace, fileName)
+		c.report(n, code, namespace, fileName)
 		return
 	}
 }
 
 // ---------------------------------------------------------------------------
-// cmrNormalizeQualifiedNamePlusImport — mirrors normalizeQualifiedNamePlusImport
+// normalizeQualifiedNamePlusImport — mirrors normalizeQualifiedNamePlusImport
 // ---------------------------------------------------------------------------
 
-// cmrNormalizeQualifiedNamePlusImport builds the fully-qualified name from a
+// normalizeQualifiedNamePlusImport builds the fully-qualified name from a
 // local alias + its GoogRequire origin. Mirrors the Java helper.
-func cmrNormalizeQualifiedNamePlusImport(qualifiedName *cmrQualifiedName, imported *cmrGoogRequire) *cmrQualifiedName {
-	newQName := cmrQualifiedNameOf(imported.namespace)
+func normalizeQualifiedNamePlusImport(qualifiedName *cmrQualifiedName, imported *cmrGoogRequire) *cmrQualifiedName {
+	newQName := qualifiedNameOf(imported.namespace)
 	if imported.hasProperty {
 		newQName = newQName.getprop(imported.property)
 	}
-	return cmrSwapRootOfQualifiedName(qualifiedName, newQName)
+	return swapRootOfQualifiedName(qualifiedName, newQName)
 }
 
 // ---------------------------------------------------------------------------
-// cmrSwapRootOfQualifiedName — mirrors swapRootOfQualifiedName
+// swapRootOfQualifiedName — mirrors swapRootOfQualifiedName
 // ---------------------------------------------------------------------------
 
-// cmrSwapRootOfQualifiedName replaces the root component of `original` with
+// swapRootOfQualifiedName replaces the root component of `original` with
 // `newRoot` (which may itself be a dotted name). Mirrors the Java static helper.
 //
 // Example: original="oldRoot.a.b", newRoot="x.y" → "x.y.a.b"
-func cmrSwapRootOfQualifiedName(original, newRoot *cmrQualifiedName) *cmrQualifiedName {
+func swapRootOfQualifiedName(original, newRoot *cmrQualifiedName) *cmrQualifiedName {
 	result := newRoot
 	if original == nil || len(original.components) <= 1 {
 		return result
@@ -993,8 +1005,8 @@ func cmrSwapRootOfQualifiedName(original, newRoot *cmrQualifiedName) *cmrQualifi
 // Utility helpers — mirrors of Java static methods
 // ---------------------------------------------------------------------------
 
-// cmrIsAllowedNamespace mirrors CheckMissingRequires.isAllowedNamespace.
-func cmrIsAllowedNamespace(currentFile *cmrModuleMetadata, namespace string) bool {
+// isAllowedNamespace mirrors CheckMissingRequires.isAllowedNamespace.
+func isAllowedNamespace(currentFile *cmrModuleMetadata, namespace string) bool {
 	if namespace == "goog.module" {
 		// Special-cased: goog.module is both a primitive keyword and a
 		// Closure Library namespace; references to the namespace itself are OK.
@@ -1003,10 +1015,10 @@ func cmrIsAllowedNamespace(currentFile *cmrModuleMetadata, namespace string) boo
 	return currentFile.containsNamespace(namespace)
 }
 
-// cmrHasAcceptableRequire mirrors CheckMissingRequires.hasAcceptableRequire.
+// hasAcceptableRequire mirrors CheckMissingRequires.hasAcceptableRequire.
 // It checks whether `rdep` has a require (strong or weak, depending on
 // `referenceStrength`) that covers any prefix of `namespace` declared by `dep`.
-func cmrHasAcceptableRequire(rdep *cmrModuleMetadata, namespace *cmrQualifiedName, dep *cmrModuleMetadata, referenceStrength cmrStrength) bool {
+func hasAcceptableRequire(rdep *cmrModuleMetadata, namespace *cmrQualifiedName, dep *cmrModuleMetadata, referenceStrength cmrStrength) bool {
 	if rdep == nil || dep == nil {
 		return false
 	}
@@ -1025,11 +1037,11 @@ func cmrHasAcceptableRequire(rdep *cmrModuleMetadata, namespace *cmrQualifiedNam
 	return false
 }
 
-// cmrIsValidCfgRoot reports whether `n` is a valid control-flow graph root.
+// isValidCfgRoot reports whether `n` is a valid control-flow graph root.
 // Mirrors NodeUtil.isValidCfgRoot: DEFINITE_CFG_ROOTS = {FUNCTION, SCRIPT,
 // MODULE_BODY, ROOT}. (Class static blocks are excluded here as they are not
 // produced by our parser tier.)
-func cmrIsValidCfgRoot(n *rhino.Node) bool {
+func isValidCfgRoot(n *rhino.Node) bool {
 	switch n.Token() {
 	case rhino.SCRIPT, rhino.FUNCTION, rhino.MODULE_BODY, rhino.ROOT:
 		return true
@@ -1037,11 +1049,11 @@ func cmrIsValidCfgRoot(n *rhino.Node) bool {
 	return false
 }
 
-// cmrIsInGlobalControlFlowScope mirrors CheckMissingRequires.isInGlobalControlFlowScope.
+// isInGlobalControlFlowScope mirrors CheckMissingRequires.isInGlobalControlFlowScope.
 // Returns true for nodes that are within the global control-flow scope (SCRIPT, ROOT,
 // IIFEs, goog.scope bodies) and false for nodes that introduce a new scope (MODULE_BODY,
 // non-IIFE FUNCTIONs). Matches the Java switch exactly.
-func (c *CheckMissingRequires) cmrIsInGlobalControlFlowScope(n *rhino.Node) bool {
+func (c *CheckMissingRequires) isInGlobalControlFlowScope(n *rhino.Node) bool {
 	switch n.Token() {
 	case rhino.SCRIPT, rhino.ROOT:
 		return true
@@ -1053,18 +1065,19 @@ func (c *CheckMissingRequires) cmrIsInGlobalControlFlowScope(n *rhino.Node) bool
 			return false
 		}
 		// IIFEs and goog.scope callees are in the global control-flow scope.
-		body := cmrGetFunctionBody(n)
-		if body != nil && cmrIsGoogScopeBody(body) {
+		body := getFunctionBodyCMR(n)
+		if body != nil && isGoogScopeBody(body) {
 			return true
 		}
-		return cmrIsIIFE(n)
+		return isIIFE(n)
 	}
 	return false
 }
 
-// cmrGetFunctionBody returns the BLOCK child of a FUNCTION node (the body),
+// Go-only: local getFunctionBody variant (avoids name conflict with typetransformation.go)
+// getFunctionBodyCMR returns the BLOCK child of a FUNCTION node (the body),
 // mirroring NodeUtil.getFunctionBody.
-func cmrGetFunctionBody(fn *rhino.Node) *rhino.Node {
+func getFunctionBodyCMR(fn *rhino.Node) *rhino.Node {
 	if fn == nil || fn.Token() != rhino.FUNCTION {
 		return nil
 	}
@@ -1078,9 +1091,9 @@ func cmrGetFunctionBody(fn *rhino.Node) *rhino.Node {
 	return nil
 }
 
-// cmrIsGoogScopeBody mirrors the Java static helper of the same name.
+// isGoogScopeBody mirrors the Java static helper of the same name.
 // It returns true when `body` is the BLOCK of a function passed directly to goog.scope(…).
-func cmrIsGoogScopeBody(body *rhino.Node) bool {
+func isGoogScopeBody(body *rhino.Node) bool {
 	if body == nil || body.Token() != rhino.BLOCK {
 		return false
 	}
@@ -1093,11 +1106,11 @@ func cmrIsGoogScopeBody(body *rhino.Node) bool {
 		return false
 	}
 	callee := call.FirstChild()
-	return cmrMatchesQualifiedName(callee, cmrGoogScope)
+	return matchesQualifiedName(callee, cmrGoogScope)
 }
 
-// cmrIsIIFE mirrors the Java static isIIFE helper in CheckMissingRequires.
-func cmrIsIIFE(n *rhino.Node) bool {
+// isIIFE mirrors the Java static isIIFE helper in CheckMissingRequires.
+func isIIFE(n *rhino.Node) bool {
 	if n == nil || n.Token() != rhino.FUNCTION {
 		return false
 	}
@@ -1108,9 +1121,9 @@ func cmrIsIIFE(n *rhino.Node) bool {
 	return parent.FirstChild() == n
 }
 
-// cmrIsGoogModuleGetCall mirrors NodeUtil.isGoogModuleGetCall.
+// isGoogModuleGetCall mirrors NodeUtil.isGoogModuleGetCall.
 // It returns true when `n` is a CALL node of the form goog.module.get("…").
-func cmrIsGoogModuleGetCall(n *rhino.Node) bool {
+func isGoogModuleGetCall(n *rhino.Node) bool {
 	if n == nil || n.Token() != rhino.CALL {
 		return false
 	}
@@ -1119,7 +1132,7 @@ func cmrIsGoogModuleGetCall(n *rhino.Node) bool {
 		return false
 	}
 	callee := kids[0]
-	qn := cmrQualifiedNameFromNode(callee)
+	qn := qualifiedNameFromNode(callee)
 	if qn == nil || qn.join() != "goog.module.get" {
 		return false
 	}
@@ -1127,6 +1140,7 @@ func cmrIsGoogModuleGetCall(n *rhino.Node) bool {
 	return kids[1].Token() == rhino.STRINGLIT
 }
 
+// Go-only: adapter that bridges cmrModuleMetadataMap to CheckClosureImports's type system
 // cmrTocci converts a cmrModuleMetadataMap into a ModuleMetadataMap so
 // that CheckClosureImports can use the same single-file module graph built
 // by cmrGatherModuleMetadata. Only the googNamespaces set and module type
@@ -1154,17 +1168,17 @@ func cmrTocci(m *cmrModuleMetadataMap) *ModuleMetadataMap {
 	return out
 }
 
-// cmrIsTypeScriptSource mirrors StaticSourceFile.isTypeScriptSource().
+// isTypeScriptSource mirrors StaticSourceFile.isTypeScriptSource().
 // Returns true for .closure.js and .tsx.cl.js files, which are
 // tsickle-generated TypeScript transpilations.
-func cmrIsTypeScriptSource(path string) bool {
+func isTypeScriptSource(path string) bool {
 	return strings.HasSuffix(path, ".closure.js") || strings.HasSuffix(path, ".tsx.cl.js")
 }
 
-// cmrIsDeclarationLValue mirrors NodeUtil.isDeclarationLValue.
+// isDeclarationLValue mirrors NodeUtil.isDeclarationLValue.
 // Returns true when `n` is the left-hand side of a VAR/LET/CONST declaration
 // or the name being declared in a FUNCTION/CLASS statement.
-func cmrIsDeclarationLValue(n *rhino.Node) bool {
+func isDeclarationLValue(n *rhino.Node) bool {
 	if n == nil {
 		return false
 	}
@@ -1186,13 +1200,13 @@ func cmrIsDeclarationLValue(n *rhino.Node) bool {
 }
 
 // ---------------------------------------------------------------------------
-// cmrReport — diagnostic emission helper
+// report — diagnostic emission helper
 // ---------------------------------------------------------------------------
 
-// cmrReport emits a diagnostic. The `code` constant determines the level
+// report emits a diagnostic. The `code` constant determines the level
 // (WARNING or ERROR) consistent with the Java DiagnosticType registration.
 // `arg0` and `arg1` are the format arguments; `arg1` is ignored when empty.
-func (c *CheckMissingRequires) cmrReport(n *rhino.Node, code, arg0, arg1 string) {
+func (c *CheckMissingRequires) report(n *rhino.Node, code, arg0, arg1 string) {
 	if n == nil {
 		return
 	}
@@ -1200,7 +1214,7 @@ func (c *CheckMissingRequires) cmrReport(n *rhino.Node, code, arg0, arg1 string)
 	if code == cmrCodeNonLegacyGoogModuleReference {
 		level = diag.Error
 	}
-	msg := cmrFormatMessage(code, arg0, arg1)
+	msg := formatMessage(code, arg0, arg1)
 	c.diags = append(c.diags, diag.Diagnostic{
 		Path:    c.path,
 		Line:    n.Lineno(),
@@ -1211,9 +1225,10 @@ func (c *CheckMissingRequires) cmrReport(n *rhino.Node, code, arg0, arg1 string)
 	})
 }
 
-// cmrFormatMessage returns a human-readable message for the given code,
+// Go-only: formats diagnostic message string (Java uses DiagnosticType.format() internally)
+// formatMessage returns a human-readable message for the given code,
 // substituting arg0 and arg1 into the Java format template.
-func cmrFormatMessage(code, arg0, arg1 string) string {
+func formatMessage(code, arg0, arg1 string) string {
 	switch code {
 	case cmrCodeMissingRequire:
 		return "'" + arg0 + "' references a fully qualified namespace, which is disallowed by the style guide.\n" +

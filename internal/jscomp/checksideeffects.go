@@ -30,6 +30,7 @@ type CheckSideEffects struct {
 	analyzer *AstAnalyzer
 }
 
+// Go-only: constructor (Java uses new CheckSideEffects(compiler, report, protectSideEffectFreeCode))
 func NewCheckSideEffects(path string) *CheckSideEffects {
 	return &CheckSideEffects{path: path, analyzer: NewAstAnalyzer()}
 }
@@ -43,10 +44,11 @@ func (c *CheckSideEffects) Check(script *rhino.Node) []diag.Diagnostic {
 	c.diags = nil
 	c.noSEFns = make(map[string]bool)
 	c.collectNoSideEffectFns(script)
-	c.walk(script)
+	c.visit(script)
 	return c.diags
 }
 
+// Go-only: merged scan (Java uses separate GetNoSideEffectExterns traversal pass)
 // collectNoSideEffectFns mirrors Java's GetNoSideEffectExterns —
 // scans the AST for FUNCTION nodes annotated @nosideeffects and
 // records their qualified names so CALL classification can treat
@@ -73,7 +75,9 @@ func (c *CheckSideEffects) collectNoSideEffectFns(n *rhino.Node) {
 	}
 }
 
-func (c *CheckSideEffects) walk(n *rhino.Node) {
+// visit mirrors Java's AbstractPostOrderCallback.visit — called for each node in post-order.
+// Go uses pre-order walk since the port applies EXPR_RESULT detection directly.
+func (c *CheckSideEffects) visit(n *rhino.Node) {
 	if n == nil {
 		return
 	}
@@ -85,10 +89,11 @@ func (c *CheckSideEffects) walk(n *rhino.Node) {
 		}
 	}
 	for _, child := range n.Children() {
-		c.walk(child)
+		c.visit(child)
 	}
 }
 
+// Go-only: helper for visit() that handles both full-statement and sub-expression reporting
 // reportUseless fires JSC_USELESS_CODE at `expr`'s position when the
 // expression is pure. Mirrors the double-dispatch in Java's
 // CheckSideEffects — when the outer form is a short-circuit
@@ -154,6 +159,7 @@ func (c *CheckSideEffects) reportUseless(stmt, expr *rhino.Node, top bool) {
 	}
 }
 
+// Go-only: helper to emit diagnostic at a node position
 func (c *CheckSideEffects) emitAt(n *rhino.Node) {
 	c.diags = append(c.diags, diag.Diagnostic{
 		Path:    c.path,
@@ -165,6 +171,7 @@ func (c *CheckSideEffects) emitAt(n *rhino.Node) {
 	})
 }
 
+// Go-only: operator-specific variant of emitAt (Java builds message inline in visit())
 // emitOpAt emits the operator-specific "The result of the 'foo'
 // operator is not being used." variant that Java uses for
 // getprop / in / not / getelem top-level expressions.
@@ -179,6 +186,7 @@ func (c *CheckSideEffects) emitOpAt(n *rhino.Node, op string) {
 	})
 }
 
+// Go-only: checks for Closure slot declarations (Java checks isQualifiedName() + JSDoc inline in visit())
 // isDeclarationStatement reports whether `n` (an EXPR_RESULT) is
 // actually a prototype-slot / property-type declaration rather than
 // a real expression statement. Closure treats `Foo.prototype.bar;`
@@ -214,6 +222,7 @@ func isDeclarationStatement(stmt *rhino.Node) bool {
 	return false
 }
 
+// Go-only: combined side-effect checker (Java uses AstAnalyzer.mayHaveSideEffects() + noSideEffectExterns set)
 // hasSideEffects returns true for expression nodes that Closure
 // considers observably effectful. The classification consults
 // AstAnalyzer for constructor calls (so new Date() is pure) and
