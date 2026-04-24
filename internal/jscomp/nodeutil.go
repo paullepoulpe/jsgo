@@ -3182,3 +3182,76 @@ func (nodeUtil) NewUndefinedNode(srcRef *rhino.Node) *rhino.Node {
 func (nodeUtil) EmptyFunction() *rhino.Node {
 	return rhino.IRFunction(rhino.NewString(rhino.NAME, ""), rhino.IRParamList(), rhino.IRBlock())
 }
+
+// RemoveName sets the first child of a FUNCTION or CLASS node to an empty
+// name, effectively anonymizing the function/class.
+// Mirrors NodeUtil.removeName.
+func (nodeUtil) RemoveName(n *rhino.Node) {
+	orig := n.FirstChild()
+	if orig == nil {
+		return
+	}
+	var emptyName *rhino.Node
+	if n.IsFunction() {
+		emptyName = rhino.NewString(rhino.NAME, "")
+	} else {
+		emptyName = rhino.New(rhino.EMPTY)
+	}
+	emptyName.Srcref(orig)
+	orig.ReplaceWith(emptyName)
+}
+
+// GetRootOfQualifiedName returns the root NAME/THIS/SUPER node of a qualified
+// name chain (e.g. returns the NAME "foo" for "foo.bar.baz").
+// Mirrors NodeUtil.getRootOfQualifiedName(Node).
+func (nodeUtil) GetRootOfQualifiedName(qName *rhino.Node) *rhino.Node {
+	curr := qName
+	for {
+		if curr.IsName() || curr.IsThis() || curr.IsSuper() {
+			return curr
+		}
+		first := curr.FirstChild()
+		if first == nil {
+			return curr
+		}
+		curr = first
+	}
+}
+
+// IsObjectDefinePropertiesDefinition reports whether n is a call to
+// Object.defineProperties with exactly 3 arguments.
+// Mirrors NodeUtil.isObjectDefinePropertiesDefinition.
+func (nodeUtil) IsObjectDefinePropertiesDefinition(n *rhino.Node) bool {
+	if !n.IsCall() || !n.HasXChildren(3) {
+		return false
+	}
+	getprop := n.FirstChild()
+	if !getprop.IsGetProp() {
+		return false
+	}
+	if getprop.GetString() != "defineProperties" {
+		return false
+	}
+	obj := getprop.FirstChild()
+	if obj == nil {
+		return false
+	}
+	return (obj.IsName() && obj.GetString() == "Object") ||
+		obj.MatchesQualifiedNameStr("$jscomp.global.Object") ||
+		obj.MatchesQualifiedNameStr("$jscomp$global.Object")
+}
+
+// GetSourceName returns the source file name for n by walking up the parent
+// chain until a node with a source file name is found.
+// Mirrors NodeUtil.getSourceName.
+func (nodeUtil) GetSourceName(n *rhino.Node) string {
+	curr := n
+	for curr != nil {
+		s := curr.GetSourceFileName()
+		if s != "" {
+			return s
+		}
+		curr = curr.Parent()
+	}
+	return ""
+}
