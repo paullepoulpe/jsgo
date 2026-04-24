@@ -4850,14 +4850,9 @@ type ifacePropEntry struct {
 	display string
 }
 
-// checkInterfaceExtendsConflicts fires
-// JSC_INCOMPATIBLE_EXTENDED_PROPERTY_TYPE when an @interface
-// @extends multiple other interfaces and two of those parents
-// declare the same property with incompatible types. Mirrors
-// TypeCheck.java's checkConflictingExtendedInterfaces loop and
-// checkInterfaceConflictProperties recursive helper — uses an
-// accumulator map so each property is compared against the
-// interface that last declared it, matching Java's pair naming.
+// Go-only: language-adapter — Go extracted Java's checkInterfaceConflictProperties
+// (TypeCheck.java:2341) from checkInterface into a named AST-walker dispatched via
+// walkSuperclassCheck; Java calls it inline during visitFunction.
 func (c *TypeCheck) checkInterfaceExtendsConflicts(fn *rhino.Node) {
 	info := fn.JSDocInfo()
 	if info == nil || !info.IsInterface() {
@@ -5207,7 +5202,7 @@ func (c *TypeCheck) checkImplementedConflictsForStub(propName string, propNode *
 	}
 }
 
-// Go-only: language-adapter — handles prototype stub declarations that Java's
+// Go-only: language-adapter — handles X.prototype.name; declarations that Java's
 // TypedScopeCreator processes during scope creation; Go defers this to
 // walkSuperclassCheck since scope and type info are available at TypeCheck time.
 func (c *TypeCheck) checkPrototypeStub(stmt *rhino.Node, gp *rhino.Node) {
