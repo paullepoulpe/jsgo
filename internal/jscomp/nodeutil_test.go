@@ -1140,3 +1140,563 @@ func TestIsPropertyTest(t *testing.T) {
 func TestGetEnclosingScopeRoot(t *testing.T) {
 	t.Skip("port gap: NodeUtil.getEnclosingScopeRoot not ported")
 }
+func TestBreakingOutOfOptChain(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestContinuedChain(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsEndOfChain(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsEndOfChain_call_innerChain(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsEndOfChain_call_innerChain2(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsEndOfChain_callAndGetProp_innerChain(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsEndOfChain_callAndGetProp_innerChain_multipleInnerArgs(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsEndOfChain_getProp_innerChain(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsStartOfChain(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestLocalValueOptChainCall(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestLocalValueOptChainCall_toString(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestLocalValueOptChainGetElem(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestLocalValueOptChainGetProp(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestMixedChain(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestNestedChain(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestProhibitAddingNonAllowableFeatureToScriptExceptModules(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestRemoveFeatureFromAllScriptUpdatesCompilerFeatureSet(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestRemoveFeatureSetFromAllScriptUpdatesCompilerFeatureSet(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestShortChain(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestSimpleChain(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestCallTargetNodeResolution_notAQualifiedName(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestCallTargetNodeResolution_qualifiedName(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestDestructuring1(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestDestructuring1b(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestDestructuring1c(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestDestructuring1d(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestDestructuring1e(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestDestructuring1f(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestDestructuring2(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestDestructuring2b(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestDestructuring3(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestDestructuring3b(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestDestructuring4(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestDestructuring5(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestDestructuring6(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestDestructuring6b(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestDestructuring6c(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestDestructuring7(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestDestructuring7b(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestDestructuring7c(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestDestructuring7d(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestDestructuring7e(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestDestructuring8(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestDestructuring8b(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestDestructuring9(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestDestructuringComputedPropertyWithDefault(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestDestructuringObjectRest(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestDestructuringWithArrayPatternInCatch(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestDoesFunctionReferenceOwnArgumentsObject(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestEstimateNumLines(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestFindLhsNodesInForInWithDeclaration(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestFindLhsNodesInForInWithoutDeclaration(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestFindLhsNodesInForOfWithDeclaration(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestFindLhsNodesInForOfWithoutDeclaration(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestFindLhsNodesInNodeWithArrayPatternAssign(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestFindLhsNodesInNodeWithArrayPatternDeclaration(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestFindLhsNodesInNodeWithCastOnLhs(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestFindLhsNodesInNodeWithComplexAssign(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestFindLhsNodesInNodeWithNameDeclaration(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestFindLhsNodesInNodeWithObjectPatternDeclaration(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetAllModuleVars(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetAllModuleVars2(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetAllVars1(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetAllVars2(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetBestJsDocInfoExport(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetBestJsDocInfoForClasses(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetBestJsDocInfoForMethods(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetBestJsDocInfoNodeStrict_classDeclaration_doesNotThrow(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetBestJsDocInfoNodeStrict_declaredName_doesNotThrow(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetBestJsDocInfoNodeStrict_exportedFunction_doesNotThrow(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetBestJsDocInfoNodeStrict_exportNode_doesNotThrow(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetBestJsDocInfoNodeStrict_rhsClassName_doesNotThrow(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetBestJsDocInfoNodeStrict_rhsFunctionName_doesNotThrow(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetBestJsDocInfoNodeStrict_rhsNamedClassExpression_doesNotThrow(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetBestJsDocInfoNodeStrict_rhsNamedFunctionExpression_doesNotThrow(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetBestJsDocInfoNodeStrict_rhsUnnamedClassExpression_throws(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetBestLValue(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetBigIntValue(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetDeclaredTypeExpression1(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetDeclaredTypeExpression2(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetDeclaredTypeExpression3(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetDeclaredTypeExpression4(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetEs6ClassConstructorMemberFunctionDef(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetGoogRequireInfo_returnsNullForShadowedRequires(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetNearestFunctionName(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetNumberValue(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetNumberValueNoConversions(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetOctalNumberValue(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetRValueOfLValueDestructuringLhs(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetRValueOfLValueDestructuringPattern(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetRValueOfLValueFromClass(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetRValueOfLValueInDestructuringPattern(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestGetRValueOfLValueInObjectLiteral(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsBigIntResult(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsBlockScopedFunctionDeclaration2(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsBooleanResult(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsBundledGoogModule(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsBundledGoogModule_onlyIfInScript(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsCallToNode(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsCallToString(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsConstantDeclaration(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsConstantDeclaration_keys(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsConstantDeclaration_qnames(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsConstantDeclaration_throwsOnNonDeclarationReferences(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsConstantDeclarations_FunctionClassLiterals(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsConstructor(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsExecutedExactlyOnce(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsGetterOrSetter(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsGoogModuleGetCall(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsLValue(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsNaN(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsNotLValue(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsNumericResult(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsObjectDefinePropertiesDefinition(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsObjectDefinePropertyDefinition(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsObjectResult(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsSimpleOperator(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIsStringResult(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIteratePreOrder(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestIteratePreOrderWithPredicate(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestLocalValueAwait(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestLocalValueNewExpr(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestLocalValueSpread(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestLocalValueYield(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestMayBeObject(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestMayBeStringWithTypes(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestNewQName1(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestNewQNameDeclarationWithConst(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestNewQNameDeclarationWithLet(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestNewQNameDeclarationWithQualifiedName(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestNewQNameDeclarationWithVar(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestNewQualifiedNameNode2(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestReferencesEnclosingReceiver_ofFn(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestReferencesEnclosingReceiver_ofScript(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestReferencesOwnReceiver_ofFn(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestRestParameter(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestValidNames(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestVisitPostOrder(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestVisitPreOrder(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
+func TestTwoChains(t *testing.T) {
+	t.Skip("port gap: function not ported in NodeUtil")
+}
+
