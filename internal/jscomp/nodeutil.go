@@ -3032,3 +3032,114 @@ func (nodeUtil) IsPrototypePropertyDeclaration(n *rhino.Node) bool {
 	assign := n.FirstChild()
 	return NU.IsPrototypeProperty(assign.FirstChild())
 }
+
+// IsNamedExportsLiteral reports whether objectLiteral is an object literal
+// where all keys are unquoted string keys whose values are NAME nodes —
+// the pattern used for CommonJS-style named exports.
+// Mirrors NodeUtil.isNamedExportsLiteral.
+func (nodeUtil) IsNamedExportsLiteral(objectLiteral *rhino.Node) bool {
+	if !objectLiteral.IsObjectLit() || !objectLiteral.HasChildren() {
+		return false
+	}
+	for key := objectLiteral.FirstChild(); key != nil; key = key.Next() {
+		if !key.IsStringKey() || key.IsQuotedStringKey() {
+			return false
+		}
+		first := key.FirstChild()
+		if first == nil || !first.IsName() {
+			return false
+		}
+	}
+	return true
+}
+
+// IsFromTypeSummary reports whether a SCRIPT node comes from a type summary
+// file (declared with @typeSummary in its JSDoc).
+// Mirrors NodeUtil.isFromTypeSummary.
+func (nodeUtil) IsFromTypeSummary(n *rhino.Node) bool {
+	if !n.IsScript() {
+		return false
+	}
+	info := n.JSDocInfo()
+	return info != nil && info.IsTypeSummary()
+}
+
+// Precedence returns the operator precedence (0 = lowest) for a given token
+// type. Mirrors NodeUtil.precedence(Token).
+func (nodeUtil) Precedence(typ rhino.Token) int {
+	switch typ {
+	case rhino.COMMA:
+		return 0
+	case rhino.ASSIGN, rhino.ASSIGN_BITOR, rhino.ASSIGN_BITXOR, rhino.ASSIGN_BITAND,
+		rhino.ASSIGN_LSH, rhino.ASSIGN_RSH, rhino.ASSIGN_URSH,
+		rhino.ASSIGN_ADD, rhino.ASSIGN_SUB, rhino.ASSIGN_MUL,
+		rhino.ASSIGN_EXPONENT, rhino.ASSIGN_DIV, rhino.ASSIGN_MOD,
+		rhino.ASSIGN_OR, rhino.ASSIGN_AND, rhino.ASSIGN_COALESCE:
+		return 1
+	case rhino.YIELD:
+		return 2
+	case rhino.HOOK:
+		return 3
+	case rhino.OR:
+		return 4
+	case rhino.AND:
+		return 5
+	case rhino.COALESCE:
+		return 6
+	case rhino.BITOR:
+		return 7
+	case rhino.BITXOR:
+		return 8
+	case rhino.BITAND:
+		return 9
+	case rhino.EQ, rhino.NE, rhino.SHEQ, rhino.SHNE:
+		return 10
+	case rhino.LT, rhino.GT, rhino.LE, rhino.GE, rhino.INSTANCEOF, rhino.IN:
+		return 11
+	case rhino.LSH, rhino.RSH, rhino.URSH:
+		return 12
+	case rhino.SUB, rhino.ADD:
+		return 13
+	case rhino.MUL, rhino.MOD, rhino.DIV:
+		return 14
+	case rhino.EXPONENT:
+		return 15
+	case rhino.AWAIT, rhino.NEW, rhino.DELPROP, rhino.TYPEOF, rhino.VOID,
+		rhino.NOT, rhino.BITNOT, rhino.POS, rhino.NEG:
+		return 16
+	case rhino.INC, rhino.DEC:
+		return 17
+	case rhino.CALL, rhino.GETELEM, rhino.GETPROP,
+		rhino.OPTCHAIN_CALL, rhino.OPTCHAIN_GETELEM, rhino.OPTCHAIN_GETPROP,
+		rhino.ARRAYLIT, rhino.ARRAY_PATTERN, rhino.DEFAULT_VALUE,
+		rhino.DESTRUCTURING_LHS, rhino.EMPTY, rhino.FALSE,
+		rhino.FUNCTION, rhino.CLASS, rhino.NAME, rhino.NULL,
+		rhino.NUMBER, rhino.BIGINT, rhino.OBJECTLIT, rhino.OBJECT_PATTERN,
+		rhino.REGEXP, rhino.ITER_REST, rhino.OBJECT_REST,
+		rhino.ITER_SPREAD, rhino.OBJECT_SPREAD, rhino.STRINGLIT, rhino.STRING_KEY,
+		rhino.THIS, rhino.SUPER, rhino.TRUE, rhino.TAGGED_TEMPLATELIT, rhino.TEMPLATELIT,
+		rhino.DYNAMIC_IMPORT:
+		return 18
+	case rhino.CAST:
+		return 22
+	default:
+		return 18 // safe fallback for unknown tokens
+	}
+}
+
+// GetCallTargetResolvingIndirectCalls returns the effective call target of
+// n, looking through (0, x.method)(...) indirect call patterns.
+// Mirrors NodeUtil.getCallTargetResolvingIndirectCalls.
+func (nodeUtil) GetCallTargetResolvingIndirectCalls(call *rhino.Node) *rhino.Node {
+	target := call.FirstChild()
+	if target == nil {
+		return nil
+	}
+	if target.IsComma() {
+		second := target.GetSecondChild()
+		if second != nil && second.IsQualifiedName() {
+			return second
+		}
+	}
+	return target
+}
