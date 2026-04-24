@@ -31,6 +31,7 @@ type JsDocInfoParser struct {
 
 // NewJsDocInfoParser mirrors Java's constructor. sourceString is the
 // comment body *without* the /** ... */ delimiters.
+// Go-only: language-adapter — Java has a class constructor + factory methods; Go uses a NewXxx pattern.
 func NewJsDocInfoParser(sourceString string) *JsDocInfoParser {
 	return &JsDocInfoParser{
 		stream: NewJsDocTokenStream(sourceString, 0, 0),
@@ -45,6 +46,7 @@ func NewJsDocInfoParser(sourceString string) *JsDocInfoParser {
 // (mirrors JsDocInfoParser.java's lineno/charno capture at parseAnnotation entry).
 // Returns nil when the comment carries no recognised tag, matching the
 // previous rhino.ParseJSDoc contract.
+// Go-only: language-adapter — Java callers instantiate JsDocInfoParser directly; Go exposes a top-level helper to avoid import cycles between parser and parsing packages.
 func ParseJSDocInfo(body string, startLine int) *rhino.JSDocInfo {
 	p := NewJsDocInfoParser(body)
 	p.Parse()
@@ -67,6 +69,7 @@ func ParseJSDocInfo(body string, startLine int) *rhino.JSDocInfo {
 // `@template` annotation that carries a bound (`{`). For each one it records
 // the absolute (line, col) of the `@` character into info.
 // startLine is the 1-indexed file line of the `/**` opening delimiter.
+// Go-only: language-adapter — Java reads lineno/charno directly from JsDocTokenStream during parsing; Go post-processes the raw body because JsDocTokenStream doesn't yet thread position info.
 func recordBoundedTemplatePositions(info *rhino.JSDocInfo, body string, startLine int) {
 	line := startLine // current absolute line (1-indexed)
 	i := 0
@@ -110,6 +113,7 @@ func recordBoundedTemplatePositions(info *rhino.JSDocInfo, body string, startLin
 
 // recordInvalidParamPositions fills in absolute (line, col) for each
 // InvalidParamPosition stored during parseParamTag, by scanning the raw body.
+// Go-only: language-adapter — Java reads lineno/charno from JsDocTokenStream at parseAnnotation entry; Go post-processes positions because JsDocTokenStream doesn't yet thread lineno/charno.
 func recordInvalidParamPositions(info *rhino.JSDocInfo, body string, startLine int) {
 	invalids := info.InvalidParamPositions()
 	if len(invalids) == 0 {
@@ -566,6 +570,7 @@ func (p *JsDocInfoParser) parseClosurePrimitiveTag(token JsDocToken) JsDocToken 
 // and record it; otherwise we record an empty sentinel so HasThrows() is true.
 // Mirrors Java's lookAheadForAnnotation check: if the next token is
 // ANNOTATION/EOC/EOF we skip recording (no actual throw clause follows).
+// Go-only: language-adapter — Java handles THROWS inline in the parseAnnotation switch; Go extracts it to a dedicated method for readability.
 func (p *JsDocInfoParser) parseThrowsTag() JsDocToken {
 	// Peek at the first non-EOL token.
 	p.skipEOLs()
@@ -639,6 +644,7 @@ func (p *JsDocInfoParser) parseModifiesTag(token JsDocToken) JsDocToken {
 // having a @this annotation. Mirrors Java's JsDocInfoParser handling
 // of @this — which simply records it as hasThisType (the actual type
 // expression is not resolved by CheckGlobalThis, only its presence matters).
+// Go-only: language-adapter — Java handles THIS inline in the parseAnnotation switch; Go extracts it to a dedicated method.
 func (p *JsDocInfoParser) parseThisTag() JsDocToken {
 	p.info.SetHasThisType(true)
 	p.anyRecorded = true
@@ -649,6 +655,7 @@ func (p *JsDocInfoParser) parseThisTag() JsDocToken {
 // consumes the `{Name}` argument and records the lend target on JSDocInfo.
 // Mirrors Java's JsDocInfoParser.parseLendsTag — CheckGlobalThis uses
 // getLendsName().getRoot().getString() to detect prototype lending.
+// Go-only: language-adapter — Java handles LENDS inline in the parseAnnotation switch; Go extracts it to a dedicated method.
 func (p *JsDocInfoParser) parseLendsTag() JsDocToken {
 	p.skipEOLs()
 	t := p.next()
@@ -665,6 +672,7 @@ func (p *JsDocInfoParser) parseLendsTag() JsDocToken {
 
 // parseTypeTag ports the @type branch of the Java parseAnnotation
 // switch: parseTypeExpressionAnnotation, record on the builder.
+// Go-only: language-adapter — Java handles TYPE inline in the parseAnnotation switch; Go extracts it to a dedicated method.
 func (p *JsDocInfoParser) parseTypeTag() JsDocToken {
 	p.skipEOLs()
 	t := p.next()
@@ -682,6 +690,7 @@ func (p *JsDocInfoParser) parseTypeTag() JsDocToken {
 // line. The Java side has additional optional / rest / default-value
 // handling; we ignore those (the Tier-0 checker treats them as plain
 // names).
+// Go-only: language-adapter — Java handles PARAM inline in the parseAnnotation switch calling into a private parseParamType helper; Go extracts the whole branch to a dedicated method.
 func (p *JsDocInfoParser) parseParamTag() JsDocToken {
 	p.skipEOLs()
 	t := p.next()
@@ -742,6 +751,7 @@ func (p *JsDocInfoParser) parseParamTag() JsDocToken {
 	return p.eatUntilEOLIfNotAnnotation()
 }
 
+// Go-only: language-adapter — Java handles RETURN inline in the parseAnnotation switch; Go extracts it to a dedicated method.
 func (p *JsDocInfoParser) parseReturnTag() JsDocToken {
 	p.skipEOLs()
 	t := p.next()
@@ -754,6 +764,7 @@ func (p *JsDocInfoParser) parseReturnTag() JsDocToken {
 	return next
 }
 
+// Go-only: language-adapter — Java handles EXTENDS inline in the parseAnnotation switch (case EXTENDS, IMPLEMENTS); Go extracts each to a dedicated method.
 func (p *JsDocInfoParser) parseExtendsTag() JsDocToken {
 	p.skipEOLs()
 	t := p.next()
@@ -775,6 +786,7 @@ func (p *JsDocInfoParser) parseExtendsTag() JsDocToken {
 	return p.eatUntilEOLIfNotAnnotation()
 }
 
+// Go-only: language-adapter — Java handles IMPLEMENTS inline in the parseAnnotation switch (case EXTENDS, IMPLEMENTS); Go extracts it to a dedicated method.
 func (p *JsDocInfoParser) parseImplementsTag() JsDocToken {
 	p.skipEOLs()
 	t := p.next()
@@ -791,6 +803,7 @@ func (p *JsDocInfoParser) parseImplementsTag() JsDocToken {
 // optional — bare `@enum` implies an `@enum {number}` in Java's
 // EnumType defaulting path. Either way we flip the `enumMarked`
 // flag on the JSDocInfo so TypedScopeCreator's enum branch fires.
+// Go-only: language-adapter — Java handles ENUM inline in the parseAnnotation switch; Go extracts it to a dedicated method.
 func (p *JsDocInfoParser) parseEnumTag() JsDocToken {
 	p.skipEOLs()
 	t := p.next()
@@ -815,6 +828,7 @@ func (p *JsDocInfoParser) parseEnumTag() JsDocToken {
 	return next
 }
 
+// Go-only: language-adapter — Java handles TYPEDEF inline in the parseAnnotation switch; Go extracts it to a dedicated method.
 func (p *JsDocInfoParser) parseTypedefTag() JsDocToken {
 	p.skipEOLs()
 	t := p.next()
@@ -832,6 +846,7 @@ func (p *JsDocInfoParser) parseTypedefTag() JsDocToken {
 // type-transformation syntax `T := expr =:` and records T as a TTL
 // template name rather than a plain @template name (mirrors
 // JsDocInfoParser.java's recordTypeTransformation path).
+// Go-only: language-adapter — Java handles TEMPLATE inline in the parseAnnotation switch; Go extracts it to a dedicated method.
 func (p *JsDocInfoParser) parseTemplateTag() JsDocToken {
 	rest := p.stream.GetRemainingJSDocLine()
 	// Detect TTL: `T := … =:` on this line (single-name constraint).
@@ -891,6 +906,7 @@ func (p *JsDocInfoParser) parseTypeExpressionAnnotation(token JsDocToken) (strin
 // parseTypeExpressionAnnotation with optional `=` / `...` modifiers;
 // we drop those as a Tier-0 simplification. Returns the expr + the
 // post-annotation token.
+// Go-only: language-adapter — Go uses multiple return values to thread (expr, isRest, isOptional) back to the caller; Java modifies mutable local state instead.
 func (p *JsDocInfoParser) parseParamTypeExpressionAnnotation(token JsDocToken) (string, JsDocToken, bool) {
 	expr, _, next, ok := p.parseParamTypeExpressionAnnotationWithRest(token)
 	return expr, next, ok
@@ -900,6 +916,7 @@ func (p *JsDocInfoParser) parseParamTypeExpressionAnnotation(token JsDocToken) (
 // variant — callers who need to know whether the brace carried
 // `{...T}` (rest) or `{T=}` (optional) use this so the param's
 // flags thread through to the JSDocInfo.
+// Go-only: language-adapter — Java's parseParamTypeExpression modifies a flag object in-place; Go returns rest/optional as tuple members since Go has no output parameters.
 func (p *JsDocInfoParser) parseParamTypeExpressionAnnotationWithRest(token JsDocToken) (string, bool, JsDocToken, bool) {
 	expr, isRest, _, next, ok := p.parseParamTypeAnnotationFull(token)
 	return expr, isRest, next, ok
@@ -908,6 +925,7 @@ func (p *JsDocInfoParser) parseParamTypeExpressionAnnotationWithRest(token JsDoc
 // parseParamTypeAnnotationFull returns (expr, isRest, isOptional,
 // nextToken, ok). Splits the two brace-position modifiers Java's
 // JsDocInfoParser tracks.
+// Go-only: language-adapter — Go packs (expr, isRest, isOptional, next, ok) into a 5-tuple return; Java uses a mutable local struct (ExtractionInfo) to pass these back.
 func (p *JsDocInfoParser) parseParamTypeAnnotationFull(token JsDocToken) (string, bool, bool, JsDocToken, bool) {
 	if token != JsDocTokenLeftCurly {
 		return "", false, false, token, false
@@ -1296,6 +1314,7 @@ func (p *JsDocInfoParser) match(tok JsDocToken) bool {
 	return p.unread == tok
 }
 
+// Go-only: language-adapter — Java uses separate match() calls for each token; Go adds a variadic matchAny() for brevity since Go has no overloaded match(JsDocToken...) with varargs.
 func (p *JsDocInfoParser) matchAny(toks ...JsDocToken) bool {
 	p.unread = p.next()
 	p.hasUnread = true
@@ -1340,6 +1359,7 @@ func (p *JsDocInfoParser) eatUntilEOLIfNotAnnotation() JsDocToken {
 // eatUntilEOLIfNotAnnotationFrom mirrors Java's
 // eatUntilEOLIfNotAnnotation(JsDocToken) — starts from the given token.
 // If token is ANNOTATION, returns it immediately; otherwise eats until EOL/EOC/EOF.
+// Go-only: language-adapter — Java overloads eatUntilEOLIfNotAnnotation with and without a token argument; Go has no overloading so this variant uses a different name.
 func (p *JsDocInfoParser) eatUntilEOLIfNotAnnotationFrom(token JsDocToken) JsDocToken {
 	if token == JsDocTokenAnnotation {
 		return token
@@ -1422,6 +1442,7 @@ func (p *JsDocInfoParser) parseIdGeneratorTag(token JsDocToken) JsDocToken {
 
 // readParamName consumes the identifier that follows a `@param {T}`
 // type annotation, tolerating `[name]` and `[name=default]`.
+// Go-only: language-adapter — Java reads param names directly from token stream state; Go extracts it to a helper because the token stream doesn't expose character-level access inline.
 func (p *JsDocInfoParser) readParamName() string {
 	// Consume whitespace (still in the stream's char layer).
 	rest := p.stream.GetRemainingJSDocLine()
@@ -1440,6 +1461,7 @@ func (p *JsDocInfoParser) readParamName() string {
 
 // isJsIdent / isJsIdentChar: duplicate the small helpers the Java side
 // delegates to TokenUtil.
+// Go-only: language-adapter — Java uses TokenUtil.isJSIdentifierPart(); Go reimplements for the ASCII subset used in JSDoc identifiers to avoid importing the full TokenUtil.
 func isJsIdent(s string) bool {
 	for i := 0; i < len(s); i++ {
 		if !isJsIdentChar(s[i]) {
@@ -1449,6 +1471,7 @@ func isJsIdent(s string) bool {
 	return len(s) > 0
 }
 
+// Go-only: language-adapter — Java uses TokenUtil.isJSIdentifierPart(); Go reimplements the ASCII subset.
 func isJsIdentChar(c byte) bool {
 	return (c >= 'a' && c <= 'z') ||
 		(c >= 'A' && c <= 'Z') ||
