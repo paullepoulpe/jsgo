@@ -68,6 +68,25 @@ const (
 	// PropTemplateLitRaw stores the raw string value on TEMPLATELIT_STRING nodes.
 	// Mirrors the second string argument to Node.newTemplateLitString(cooked, raw).
 	PropTemplateLitRaw
+	// PropGeneratorFn mirrors Java's Node.isGeneratorFunction() — set on FUNCTION
+	// nodes that are generator functions (i.e. function*).
+	PropGeneratorFn
+	// PropAsyncFn mirrors Java's Node.isAsyncFunction() — set on FUNCTION nodes
+	// that are async functions.
+	PropAsyncFn
+	// PropArrowFnBody is not used; PropArrowFn already exists above.
+	// PropExportAll mirrors Java's Node.EXPORT_ALL_FROM — set on EXPORT nodes that
+	// are `export * from 'mod'`.
+	PropExportAll
+	// PropExportDefault mirrors Java's Node.EXPORT_DEFAULT — set on EXPORT nodes
+	// that are `export default`.
+	PropExportDefault
+	// PropYieldAll mirrors Java's Node.YIELD_ALL — set on YIELD nodes that are
+	// yield* (i.e. delegate generators).
+	PropYieldAll
+	// PropOptEs6Typed mirrors Java's Node.OPT_ES6_TYPED — set on FUNCTION
+	// parameter nodes that are TypeScript optional parameters.
+	PropOptEs6Typed
 )
 
 type Node struct {
@@ -111,6 +130,8 @@ func NewNumber(v float64) *Node { return &Node{token: NUMBER, num: v} }
 
 func (n *Node) Token() Token             { return n.token }
 func (n *Node) String_() string          { return n.str }
+func (n *Node) SetString_(s string)      { n.str = s }
+func (n *Node) SetString(s string)       { n.str = s }
 func (n *Node) Number() float64          { return n.num }
 func (n *Node) JSDocInfo() *JSDocInfo    { return n.jsdoc }
 func (n *Node) SetJSDocInfo(i *JSDocInfo) { n.jsdoc = i }
@@ -841,6 +862,55 @@ func (n *Node) SetStaticMember(b bool) { n.PutBooleanProp(PropStaticMember, b) }
 
 // IsStaticMember mirrors Java's Node.isStaticMember().
 func (n *Node) IsStaticMember() bool { return n.GetBooleanProp(PropStaticMember) }
+
+// IsGeneratorFunction mirrors Java's Node.isGeneratorFunction() — true when
+// PropGeneratorFn is set on a FUNCTION node.
+func (n *Node) IsGeneratorFunction() bool { return n.GetBooleanProp(PropGeneratorFn) }
+
+// SetIsGeneratorFunction mirrors Java's Node.setIsGeneratorFunction(bool).
+func (n *Node) SetIsGeneratorFunction(b bool) { n.PutBooleanProp(PropGeneratorFn, b) }
+
+// IsArrowFunction mirrors Java's Node.isArrowFunction() — true when
+// PropArrowFn is set on a FUNCTION node.
+func (n *Node) IsArrowFunction() bool { return n.GetBooleanProp(PropArrowFn) }
+
+// SetIsArrowFunction mirrors Java's Node.setIsArrowFunction(bool).
+func (n *Node) SetIsArrowFunction(b bool) { n.PutBooleanProp(PropArrowFn, b) }
+
+// IsAsyncFunction mirrors Java's Node.isAsyncFunction() — true when
+// PropAsyncFn is set on a FUNCTION node.
+func (n *Node) IsAsyncFunction() bool { return n.GetBooleanProp(PropAsyncFn) }
+
+// SetIsAsyncFunction mirrors Java's Node.setIsAsyncFunction(bool).
+func (n *Node) SetIsAsyncFunction(b bool) { n.PutBooleanProp(PropAsyncFn, b) }
+
+// IsYieldAll mirrors Java's Node.isYieldAll() — true when PropYieldAll is
+// set on a YIELD node (i.e. yield*).
+func (n *Node) IsYieldAll() bool { return n.GetBooleanProp(PropYieldAll) }
+
+// SetYieldAll mirrors Java's Node.setYieldAll(bool).
+func (n *Node) SetYieldAll(b bool) { n.PutBooleanProp(PropYieldAll, b) }
+
+// IsExportAll mirrors Java's Node.getBooleanProp(EXPORT_ALL_FROM).
+func (n *Node) IsExportAll() bool { return n.GetBooleanProp(PropExportAll) }
+
+// IsExportDefault mirrors Java's Node.getBooleanProp(EXPORT_DEFAULT).
+func (n *Node) IsExportDefault() bool { return n.GetBooleanProp(PropExportDefault) }
+
+// IsDestructuringPattern mirrors Java's Node.isDestructuringPattern() — true
+// when this node is ARRAY_PATTERN or OBJECT_PATTERN.
+func (n *Node) IsDestructuringPattern() bool {
+	return n.token == ARRAY_PATTERN || n.token == OBJECT_PATTERN
+}
+
+// IsMemberFunctionDef mirrors Java's Node.isMemberFunctionDef().
+func (n *Node) IsMemberFunctionDef() bool { return n.token == MEMBER_FUNCTION_DEF }
+
+// IsMemberFieldDef mirrors Java's Node.isMemberFieldDef().
+func (n *Node) IsMemberFieldDef() bool { return n.token == MEMBER_FIELD_DEF }
+
+// IsClassMembers mirrors Java's Node.isClassMembers().
+func (n *Node) IsClassMembers() bool { return n.token == CLASS_MEMBERS }
 
 // NewTemplateLitString creates a TEMPLATELIT_STRING node with cooked and raw
 // values. Mirrors Node.newTemplateLitString(String, String) in Java.

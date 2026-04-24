@@ -64,10 +64,72 @@ func (f *IRFactory) dispatch(tree *trees.ParseTree) *rhino.Node {
 		return f.transformProgram((*trees.ProgramTree)(unsafe.Pointer(tree)))
 	case trees.ParseTreeTypeBlock:
 		return f.transformBlock((*trees.BlockTree)(unsafe.Pointer(tree)))
-	// NOTE: ParseTreeTypeExpressionStatement is intentionally omitted here.
-	// ExpressionStatementTree does not embed ParseTree, so it cannot be
-	// addressed via *ParseTree from the parse-tree slice. The dispatch will be
-	// wired when the parser produces a proper embedded tree.
+	case trees.ParseTreeTypeExpressionStatement:
+		return f.transformExpressionStatement((*trees.ExpressionStatementTree)(unsafe.Pointer(tree)))
+
+	// ---- basic statements ------------------------------------------
+	case trees.ParseTreeTypeReturnStatement:
+		return f.transformReturnStatement((*trees.ReturnStatementTree)(unsafe.Pointer(tree)))
+	case trees.ParseTreeTypeThrowStatement:
+		return f.transformThrowStatement((*trees.ThrowStatementTree)(unsafe.Pointer(tree)))
+	case trees.ParseTreeTypeBreakStatement:
+		return f.transformBreakStatement((*trees.BreakStatementTree)(unsafe.Pointer(tree)))
+	case trees.ParseTreeTypeContinueStatement:
+		return f.transformContinueStatement((*trees.ContinueStatementTree)(unsafe.Pointer(tree)))
+	case trees.ParseTreeTypeIfStatement:
+		return f.transformIfStatement((*trees.IfStatementTree)(unsafe.Pointer(tree)))
+	case trees.ParseTreeTypeWhileStatement:
+		return f.transformWhileStatement((*trees.WhileStatementTree)(unsafe.Pointer(tree)))
+	case trees.ParseTreeTypeDoWhileStatement:
+		return f.transformDoWhileStatement((*trees.DoWhileStatementTree)(unsafe.Pointer(tree)))
+
+	// ---- loops + try/switch ----------------------------------------
+	case trees.ParseTreeTypeForStatement:
+		return f.transformForStatement((*trees.ForStatementTree)(unsafe.Pointer(tree)))
+	case trees.ParseTreeTypeForInStatement:
+		return f.transformForInStatement((*trees.ForInStatementTree)(unsafe.Pointer(tree)))
+	case trees.ParseTreeTypeForOfStatement:
+		return f.transformForOfStatement((*trees.ForOfStatementTree)(unsafe.Pointer(tree)))
+	case trees.ParseTreeTypeForAwaitOfStatement:
+		return f.transformForAwaitOfStatement((*trees.ForAwaitOfStatementTree)(unsafe.Pointer(tree)))
+	case trees.ParseTreeTypeSwitchStatement:
+		return f.transformSwitchStatement((*trees.SwitchStatementTree)(unsafe.Pointer(tree)))
+	case trees.ParseTreeTypeCaseClause:
+		return f.transformCaseClause((*trees.CaseClauseTree)(unsafe.Pointer(tree)))
+	case trees.ParseTreeTypeDefaultClause:
+		return f.transformDefaultClause((*trees.DefaultClauseTree)(unsafe.Pointer(tree)))
+	case trees.ParseTreeTypeTryStatement:
+		return f.transformTryStatement((*trees.TryStatementTree)(unsafe.Pointer(tree)))
+	case trees.ParseTreeTypeCatch:
+		return f.transformCatch((*trees.CatchTree)(unsafe.Pointer(tree)))
+	case trees.ParseTreeTypeFinally:
+		return f.transformFinally((*trees.FinallyTree)(unsafe.Pointer(tree)))
+
+	// ---- declarations + functions + classes ------------------------
+	case trees.ParseTreeTypeFunctionDeclaration:
+		return f.transformFunctionDeclaration((*trees.FunctionDeclarationTree)(unsafe.Pointer(tree)))
+	case trees.ParseTreeTypeFormalParameterList:
+		return f.transformFormalParameterList((*trees.FormalParameterListTree)(unsafe.Pointer(tree)))
+	case trees.ParseTreeTypeDefaultParameter:
+		return f.transformDefaultParameter((*trees.DefaultParameterTree)(unsafe.Pointer(tree)))
+	case trees.ParseTreeTypeClassDeclaration:
+		return f.transformClassDeclaration((*trees.ClassDeclarationTree)(unsafe.Pointer(tree)))
+	case trees.ParseTreeTypeFieldDeclaration:
+		return f.transformFieldDeclaration((*trees.FieldDeclarationTree)(unsafe.Pointer(tree)))
+	case trees.ParseTreeTypeVariableStatement:
+		return f.transformVariableStatement((*trees.VariableStatementTree)(unsafe.Pointer(tree)))
+	case trees.ParseTreeTypeVariableDeclarationList:
+		return f.transformVariableDeclarationList((*trees.VariableDeclarationListTree)(unsafe.Pointer(tree)))
+	case trees.ParseTreeTypeVariableDeclaration:
+		return f.transformVariableDeclaration((*trees.VariableDeclarationTree)(unsafe.Pointer(tree)))
+	case trees.ParseTreeTypeImportDeclaration:
+		return f.transformImportDeclaration((*trees.ImportDeclarationTree)(unsafe.Pointer(tree)))
+	case trees.ParseTreeTypeImportSpecifier:
+		return f.transformImportSpecifier((*trees.ImportSpecifierTree)(unsafe.Pointer(tree)))
+	case trees.ParseTreeTypeExportDeclaration:
+		return f.transformExportDeclaration((*trees.ExportDeclarationTree)(unsafe.Pointer(tree)))
+	case trees.ParseTreeTypeExportSpecifier:
+		return f.transformExportSpecifier((*trees.ExportSpecifierTree)(unsafe.Pointer(tree)))
 
 	// ---- primitive expressions -------------------------------------
 	case trees.ParseTreeTypeIdentifierExpression:
@@ -177,6 +239,43 @@ func (f *IRFactory) transformBlock(tree *trees.BlockTree) *rhino.Node {
 	return node
 }
 
+// transformBlockTree transforms any ParseTree as a block, matching Java's
+// transformBlock(ParseTree) which dispatches and wraps non-block results.
+// When the tree is already a BLOCK the result is used directly; when it is
+// anything else (e.g. a single statement) it is wrapped in a synthetic BLOCK.
+func (f *IRFactory) transformBlockTree(tree *trees.ParseTree) *rhino.Node {
+	if tree == nil {
+		return f.newNode(rhino.BLOCK)
+	}
+	result := f.Transform(tree)
+	if result == nil {
+		return f.newNode(rhino.BLOCK)
+	}
+	if result.Token() == rhino.BLOCK {
+		return result
+	}
+	// Wrap a single statement in a synthetic block (mirrors Java behaviour for
+	// braceless if/while/for bodies).
+	block := f.newNode(rhino.BLOCK)
+	block.PutBooleanProp(rhino.PropAddedBlock, true)
+	f.setSourceInfo(block, tree)
+	block.AddChildToBack(result)
+	return block
+}
+
+// transformOrEmpty transforms tree if non-nil, else returns an EMPTY node
+// positioned at parent. Mirrors IRFactory.TransformDispatcher.transformOrEmpty.
+func (f *IRFactory) transformOrEmpty(tree *trees.ParseTree, parent *trees.ParseTree) *rhino.Node {
+	if tree == nil {
+		n := f.newNode(rhino.EMPTY)
+		if parent != nil {
+			f.setSourceInfo(n, parent)
+		}
+		return n
+	}
+	return f.Transform(tree)
+}
+
 // transformExpressionStatementExpr mirrors
 // TransformDispatcher.processExpressionStatement, given the inner expression
 // tree. Used when the expression-statement's child is dispatched directly.
@@ -184,6 +283,513 @@ func (f *IRFactory) transformExpressionStatementExpr(expr *trees.ParseTree) *rhi
 	node := f.newNode(rhino.EXPR_RESULT)
 	node.AddChildToBack(f.Transform(expr))
 	return node
+}
+
+// transformExpressionStatement mirrors
+// TransformDispatcher.processExpressionStatement(ExpressionStatementTree).
+func (f *IRFactory) transformExpressionStatement(tree *trees.ExpressionStatementTree) *rhino.Node {
+	node := f.newNode(rhino.EXPR_RESULT)
+	node.AddChildToBack(f.Transform(tree.Expression))
+	return node
+}
+
+// ---- basic statements ----------------------------------------------
+
+// transformReturnStatement mirrors
+// TransformDispatcher.processReturnStatement(ReturnStatementTree).
+func (f *IRFactory) transformReturnStatement(tree *trees.ReturnStatementTree) *rhino.Node {
+	node := f.newNode(rhino.RETURN)
+	if tree.Expression != nil {
+		node.AddChildToBack(f.Transform(tree.Expression))
+	}
+	return node
+}
+
+// transformThrowStatement mirrors
+// TransformDispatcher.processThrowStatement(ThrowStatementTree).
+func (f *IRFactory) transformThrowStatement(tree *trees.ThrowStatementTree) *rhino.Node {
+	node := f.newNode(rhino.THROW)
+	node.AddChildToBack(f.Transform(tree.Value))
+	return node
+}
+
+// transformBreakStatement mirrors
+// TransformDispatcher.processBreakStatement(BreakStatementTree).
+func (f *IRFactory) transformBreakStatement(tree *trees.BreakStatementTree) *rhino.Node {
+	node := f.newNode(rhino.BREAK)
+	if tree.HasLabel() {
+		labelName := f.transformLabelName(tree.Name)
+		node.AddChildToBack(labelName)
+	}
+	return node
+}
+
+// transformContinueStatement mirrors
+// TransformDispatcher.processContinueStatement(ContinueStatementTree).
+func (f *IRFactory) transformContinueStatement(tree *trees.ContinueStatementTree) *rhino.Node {
+	node := f.newNode(rhino.CONTINUE)
+	if tree.HasLabel() {
+		labelName := f.transformLabelName(tree.Name)
+		node.AddChildToBack(labelName)
+	}
+	return node
+}
+
+// transformLabelName builds a LABEL_NAME node from an IdentifierToken.
+// Mirrors IRFactory.TransformDispatcher.transformLabelName(IdentifierToken).
+func (f *IRFactory) transformLabelName(tok *trees.IdentifierToken) *rhino.Node {
+	label := f.newStringNode(rhino.LABEL_NAME, tok.Value)
+	label.SetPos(tok.Location.Start.Line+1, tok.Location.Start.Column)
+	return label
+}
+
+// transformIfStatement mirrors
+// TransformDispatcher.processIfStatement(IfStatementTree).
+func (f *IRFactory) transformIfStatement(tree *trees.IfStatementTree) *rhino.Node {
+	node := f.newNode(rhino.IF)
+	node.AddChildToBack(f.Transform(tree.Condition))
+	node.AddChildToBack(f.transformBlockTree(tree.IfClause))
+	if tree.ElseClause != nil {
+		node.AddChildToBack(f.transformBlockTree(tree.ElseClause))
+	}
+	return node
+}
+
+// transformWhileStatement mirrors
+// TransformDispatcher.processWhileLoop(WhileStatementTree).
+func (f *IRFactory) transformWhileStatement(tree *trees.WhileStatementTree) *rhino.Node {
+	node := f.newNode(rhino.WHILE)
+	node.AddChildToBack(f.Transform(tree.Condition))
+	node.AddChildToBack(f.transformBlockTree(tree.Body))
+	return node
+}
+
+// transformDoWhileStatement mirrors
+// TransformDispatcher.processDoLoop(DoWhileStatementTree).
+func (f *IRFactory) transformDoWhileStatement(tree *trees.DoWhileStatementTree) *rhino.Node {
+	node := f.newNode(rhino.DO)
+	node.AddChildToBack(f.transformBlockTree(tree.Body))
+	node.AddChildToBack(f.Transform(tree.Condition))
+	return node
+}
+
+// ---- loops + try/switch -------------------------------------------
+
+// transformForStatement mirrors
+// TransformDispatcher.processForLoop(ForStatementTree).
+func (f *IRFactory) transformForStatement(tree *trees.ForStatementTree) *rhino.Node {
+	node := f.newNode(rhino.FOR)
+	node.AddChildToBack(f.transformOrEmpty(tree.Initializer, &tree.ParseTree))
+	node.AddChildToBack(f.transformOrEmpty(tree.Condition, &tree.ParseTree))
+	node.AddChildToBack(f.transformOrEmpty(tree.Increment, &tree.ParseTree))
+	node.AddChildToBack(f.transformBlockTree(tree.Body))
+	return node
+}
+
+// transformForInStatement mirrors
+// TransformDispatcher.processForInLoop(ForInStatementTree).
+func (f *IRFactory) transformForInStatement(tree *trees.ForInStatementTree) *rhino.Node {
+	node := f.newNode(rhino.FOR_IN)
+	node.AddChildToBack(f.Transform(tree.Initializer))
+	node.AddChildToBack(f.Transform(tree.Collection))
+	node.AddChildToBack(f.transformBlockTree(tree.Body))
+	return node
+}
+
+// transformForOfStatement mirrors
+// TransformDispatcher.processForOf(ForOfStatementTree).
+func (f *IRFactory) transformForOfStatement(tree *trees.ForOfStatementTree) *rhino.Node {
+	node := f.newNode(rhino.FOR_OF)
+	node.AddChildToBack(f.Transform(tree.Initializer))
+	node.AddChildToBack(f.Transform(tree.Collection))
+	node.AddChildToBack(f.transformBlockTree(tree.Body))
+	return node
+}
+
+// transformForAwaitOfStatement mirrors
+// TransformDispatcher.processForAwaitOf(ForAwaitOfStatementTree).
+func (f *IRFactory) transformForAwaitOfStatement(tree *trees.ForAwaitOfStatementTree) *rhino.Node {
+	node := f.newNode(rhino.FOR_AWAIT_OF)
+	node.AddChildToBack(f.Transform(tree.Initializer))
+	node.AddChildToBack(f.Transform(tree.Collection))
+	node.AddChildToBack(f.transformBlockTree(tree.Body))
+	return node
+}
+
+// transformSwitchStatement mirrors
+// TransformDispatcher.processSwitchStatement(SwitchStatementTree).
+func (f *IRFactory) transformSwitchStatement(tree *trees.SwitchStatementTree) *rhino.Node {
+	node := f.newNode(rhino.SWITCH)
+	node.AddChildToBack(f.Transform(tree.Expression))
+	switchBody := f.newNode(rhino.SWITCH_BODY)
+	f.setSourceInfo(switchBody, &tree.ParseTree)
+	node.AddChildToBack(switchBody)
+	for _, child := range tree.CaseClauses {
+		switchBody.AddChildToBack(f.Transform(child))
+	}
+	return node
+}
+
+// transformCaseClause mirrors
+// TransformDispatcher.processSwitchCase(CaseClauseTree).
+func (f *IRFactory) transformCaseClause(tree *trees.CaseClauseTree) *rhino.Node {
+	node := f.newNode(rhino.CASE)
+	node.AddChildToBack(f.Transform(tree.Expression))
+	block := f.newNode(rhino.BLOCK)
+	block.PutBooleanProp(rhino.PropAddedBlock, true)
+	f.setSourceInfo(block, &tree.ParseTree)
+	for _, stmt := range tree.Statements {
+		block.AddChildToBack(f.Transform(stmt))
+	}
+	node.AddChildToBack(block)
+	return node
+}
+
+// transformDefaultClause mirrors
+// TransformDispatcher.processSwitchDefault(DefaultClauseTree).
+func (f *IRFactory) transformDefaultClause(tree *trees.DefaultClauseTree) *rhino.Node {
+	node := f.newNode(rhino.DEFAULT_CASE)
+	block := f.newNode(rhino.BLOCK)
+	block.PutBooleanProp(rhino.PropAddedBlock, true)
+	f.setSourceInfo(block, &tree.ParseTree)
+	for _, stmt := range tree.Statements {
+		block.AddChildToBack(f.Transform(stmt))
+	}
+	node.AddChildToBack(block)
+	return node
+}
+
+// transformTryStatement mirrors
+// TransformDispatcher.processTryStatement(TryStatementTree).
+func (f *IRFactory) transformTryStatement(tree *trees.TryStatementTree) *rhino.Node {
+	node := f.newNode(rhino.TRY)
+	node.AddChildToBack(f.transformBlockTree(tree.Body))
+	block := f.newNode(rhino.BLOCK)
+	lineSet := false
+	if tree.CatchBlock != nil {
+		f.setSourceInfo(block, tree.CatchBlock)
+		lineSet = true
+		block.AddChildToBack(f.Transform(tree.CatchBlock))
+	}
+	node.AddChildToBack(block)
+	if tree.FinallyBlock != nil {
+		node.AddChildToBack(f.transformBlockTree(tree.FinallyBlock))
+	}
+	// Mirror Java: if no catch clause, set the block's position from finally.
+	if !lineSet && tree.FinallyBlock != nil {
+		f.setSourceInfo(block, tree.FinallyBlock)
+	}
+	return node
+}
+
+// transformCatch mirrors
+// TransformDispatcher.processCatchClause(CatchTree).
+func (f *IRFactory) transformCatch(tree *trees.CatchTree) *rhino.Node {
+	node := f.newNode(rhino.CATCH)
+	node.AddChildToBack(f.Transform(tree.Exception))
+	node.AddChildToBack(f.transformBlockTree(tree.CatchBody))
+	return node
+}
+
+// transformFinally mirrors
+// TransformDispatcher.processFinally(FinallyTree).
+// Java's processFinally calls transformBlock on the block field.
+func (f *IRFactory) transformFinally(tree *trees.FinallyTree) *rhino.Node {
+	return f.transformBlockTree(tree.Block)
+}
+
+// ---- declarations + functions + classes ---------------------------
+
+// transformFunctionDeclaration mirrors
+// TransformDispatcher.processFunction(FunctionDeclarationTree).
+func (f *IRFactory) transformFunctionDeclaration(tree *trees.FunctionDeclarationTree) *rhino.Node {
+	isDeclaration := tree.Kind == trees.FunctionDeclarationKindDeclaration
+	isMember := tree.Kind == trees.FunctionDeclarationKindMember
+	isArrow := tree.Kind == trees.FunctionDeclarationKindArrow
+	isAsync := tree.IsAsync
+	isGenerator := tree.IsGenerator
+
+	var newName *rhino.Node
+	if tree.Name != nil {
+		newName = f.newStringNode(rhino.NAME, tree.Name.Value)
+		f.setSourceInfoFromToken(newName, &tree.Name.Token)
+	} else {
+		if isDeclaration || isMember {
+			newName = f.newStringNode(rhino.NAME, "__missing_name__")
+		} else {
+			newName = f.newStringNode(rhino.NAME, "")
+		}
+		f.setSourceInfo(newName, &tree.ParseTree)
+	}
+
+	node := f.newNode(rhino.FUNCTION)
+	if isMember {
+		newName.SetString("")
+	}
+	node.AddChildToBack(newName)
+
+	if tree.FormalParameterList != nil {
+		node.AddChildToBack(f.Transform(&tree.FormalParameterList.ParseTree))
+	} else {
+		node.AddChildToBack(f.newNode(rhino.PARAM_LIST))
+	}
+
+	if tree.FunctionBody != nil {
+		node.AddChildToBack(f.Transform(tree.FunctionBody))
+	} else {
+		node.AddChildToBack(f.newNode(rhino.BLOCK))
+	}
+
+	node.SetIsGeneratorFunction(isGenerator)
+	node.SetIsArrowFunction(isArrow)
+	node.SetIsAsyncFunction(isAsync)
+	node.PutBooleanProp(rhino.PropOptEs6Typed, tree.IsOptional)
+
+	if isMember {
+		f.setSourceInfo(node, &tree.ParseTree)
+		memberName := f.newStringNode(rhino.MEMBER_FUNCTION_DEF, "")
+		if tree.Name != nil {
+			memberName.SetString_(tree.Name.Value)
+			f.setSourceInfoFromToken(memberName, &tree.Name.Token)
+		}
+		memberName.AddChildToBack(node)
+		memberName.SetStaticMember(tree.IsStatic)
+		return memberName
+	}
+	return node
+}
+
+// transformFormalParameterList mirrors
+// TransformDispatcher.processFormalParameterList(FormalParameterListTree).
+func (f *IRFactory) transformFormalParameterList(tree *trees.FormalParameterListTree) *rhino.Node {
+	params := f.newNode(rhino.PARAM_LIST)
+	for _, param := range tree.Parameters {
+		params.AddChildToBack(f.Transform(param))
+	}
+	return params
+}
+
+// transformDefaultParameter mirrors
+// TransformDispatcher.processDefaultParameter(DefaultParameterTree).
+func (f *IRFactory) transformDefaultParameter(tree *trees.DefaultParameterTree) *rhino.Node {
+	targetNode := f.Transform(tree.Lhs)
+	defaultValue := f.Transform(tree.DefaultValue)
+	node := f.newNode(rhino.DEFAULT_VALUE)
+	node.AddChildToBack(targetNode)
+	node.AddChildToBack(defaultValue)
+	f.setSourceInfo(node, &tree.ParseTree)
+	return node
+}
+
+// transformClassDeclaration mirrors
+// TransformDispatcher.processClassDeclaration(ClassDeclarationTree).
+func (f *IRFactory) transformClassDeclaration(tree *trees.ClassDeclarationTree) *rhino.Node {
+	var name *rhino.Node
+	if tree.Name != nil {
+		name = f.newStringNode(rhino.NAME, tree.Name.Value)
+		f.setSourceInfoFromToken(name, &tree.Name.Token)
+	} else {
+		name = f.newNode(rhino.EMPTY)
+		f.setSourceInfo(name, &tree.ParseTree)
+	}
+
+	var superClass *rhino.Node
+	if tree.SuperClass != nil {
+		superClass = f.Transform(tree.SuperClass)
+	} else {
+		superClass = f.newNode(rhino.EMPTY)
+		f.setSourceInfo(superClass, &tree.ParseTree)
+	}
+
+	classMembers := f.newNode(rhino.CLASS_MEMBERS)
+	f.setSourceInfo(classMembers, &tree.ParseTree)
+	for _, child := range tree.Elements {
+		classMembers.AddChildToBack(f.Transform(child))
+	}
+
+	node := f.newNode(rhino.CLASS)
+	node.AddChildToBack(name)
+	node.AddChildToBack(superClass)
+	node.AddChildToBack(classMembers)
+	return node
+}
+
+// transformFieldDeclaration mirrors
+// TransformDispatcher.processField(FieldDeclarationTree).
+func (f *IRFactory) transformFieldDeclaration(tree *trees.FieldDeclarationTree) *rhino.Node {
+	var name string
+	if tree.Name != nil {
+		name = tree.Name.Value
+	}
+	node := f.newStringNode(rhino.MEMBER_FIELD_DEF, name)
+	if tree.Initializer != nil {
+		node.AddChildToBack(f.Transform(tree.Initializer))
+	}
+	node.PutBooleanProp(rhino.PropStaticMember, tree.IsStatic)
+	return node
+}
+
+// transformVariableStatement mirrors
+// TransformDispatcher.processVariableStatement(VariableStatementTree).
+// Java delegates directly to the inner VariableDeclarationListTree.
+func (f *IRFactory) transformVariableStatement(tree *trees.VariableStatementTree) *rhino.Node {
+	if tree.Declarations != nil {
+		return f.Transform(&tree.Declarations.ParseTree)
+	}
+	return f.newNode(rhino.EMPTY)
+}
+
+// transformVariableDeclarationList mirrors
+// TransformDispatcher.processVariableDeclarationList(VariableDeclarationListTree).
+func (f *IRFactory) transformVariableDeclarationList(tree *trees.VariableDeclarationListTree) *rhino.Node {
+	var tok rhino.Token
+	switch tree.DeclarationType {
+	case trees.TokenTypeConst:
+		tok = rhino.CONST
+	case trees.TokenTypeLet:
+		tok = rhino.LET
+	default:
+		tok = rhino.VAR
+	}
+	node := f.newNode(tok)
+	for _, child := range tree.Declarations {
+		node.AddChildToBack(f.Transform(&child.ParseTree))
+	}
+	return node
+}
+
+// transformVariableDeclaration mirrors
+// TransformDispatcher.processVariableDeclaration(VariableDeclarationTree).
+func (f *IRFactory) transformVariableDeclaration(tree *trees.VariableDeclarationTree) *rhino.Node {
+	lhsNode := f.Transform(tree.Lvalue)
+	var lhs *rhino.Node
+	if lhsNode != nil && lhsNode.IsDestructuringPattern() {
+		lhs = f.newNode(rhino.DESTRUCTURING_LHS)
+		lhs.AddChildToBack(lhsNode)
+	} else {
+		lhs = lhsNode
+	}
+	if tree.Initializer != nil {
+		lhs.AddChildToBack(f.Transform(tree.Initializer))
+	}
+	return lhs
+}
+
+// transformImportDeclaration mirrors
+// TransformDispatcher.processImportDecl(ImportDeclarationTree).
+func (f *IRFactory) transformImportDeclaration(tree *trees.ImportDeclarationTree) *rhino.Node {
+	// First child: default binding or EMPTY.
+	var firstChild *rhino.Node
+	if tree.DefaultBindingIdentifier != nil {
+		firstChild = f.newStringNode(rhino.NAME, tree.DefaultBindingIdentifier.Value)
+		f.setSourceInfoFromToken(firstChild, &tree.DefaultBindingIdentifier.Token)
+	} else {
+		firstChild = f.newNode(rhino.EMPTY)
+		f.setSourceInfo(firstChild, &tree.ParseTree)
+	}
+
+	// Second child: namespace import or import-spec list.
+	var secondChild *rhino.Node
+	if tree.NameSpaceImportIdentifier != nil {
+		secondChild = f.newStringNode(rhino.IMPORT_STAR, tree.NameSpaceImportIdentifier.Value)
+		f.setSourceInfoFromToken(secondChild, &tree.NameSpaceImportIdentifier.Token)
+	} else if len(tree.ImportSpecifierList) > 0 {
+		secondChild = f.newNode(rhino.IMPORT_SPECS)
+		f.setSourceInfo(secondChild, &tree.ParseTree)
+		for _, spec := range tree.ImportSpecifierList {
+			secondChild.AddChildToBack(f.Transform(spec))
+		}
+	} else {
+		secondChild = f.newNode(rhino.EMPTY)
+		f.setSourceInfo(secondChild, &tree.ParseTree)
+	}
+
+	// Third child: module specifier string.
+	// Note: LiteralToken is a stub and carries no value field; the string
+	// value is unavailable until the token layer is fully ported.
+	thirdChild := f.newStringNode(rhino.STRINGLIT, "")
+
+	node := f.newNode(rhino.IMPORT)
+	node.AddChildToBack(firstChild)
+	node.AddChildToBack(secondChild)
+	node.AddChildToBack(thirdChild)
+	return node
+}
+
+// transformImportSpecifier mirrors
+// TransformDispatcher.processImportSpec(ImportSpecifierTree).
+func (f *IRFactory) transformImportSpecifier(tree *trees.ImportSpecifierTree) *rhino.Node {
+	var importedName *rhino.Node
+	if tree.ImportedName != nil {
+		importedName = f.newStringNode(rhino.NAME, tree.ImportedName.Value)
+	} else {
+		importedName = f.newStringNode(rhino.NAME, "")
+	}
+	importSpec := f.newNode(rhino.IMPORT_SPEC)
+	importSpec.AddChildToBack(importedName)
+	if tree.DestinationName == nil {
+		importSpec.SetShorthandProperty(true)
+		importSpec.AddChildToBack(importedName.CloneTree())
+	} else {
+		destName := f.newStringNode(rhino.NAME, tree.DestinationName.Value)
+		importSpec.AddChildToBack(destName)
+	}
+	return importSpec
+}
+
+// transformExportDeclaration mirrors
+// TransformDispatcher.processExportDecl(ExportDeclarationTree).
+func (f *IRFactory) transformExportDeclaration(tree *trees.ExportDeclarationTree) *rhino.Node {
+	var decls *rhino.Node
+	if tree.IsExportAll {
+		// export * from 'mod' — no declaration or spec list.
+		decls = f.newNode(rhino.EMPTY)
+	} else if tree.Declaration != nil {
+		decls = f.Transform(tree.Declaration)
+	} else if len(tree.ExportSpecifierList) > 0 {
+		decls = f.newNode(rhino.EXPORT_SPECS)
+		for _, spec := range tree.ExportSpecifierList {
+			decls.AddChildToBack(f.Transform(spec))
+		}
+	} else {
+		decls = f.newNode(rhino.EMPTY)
+	}
+	if decls == nil {
+		decls = f.newNode(rhino.EMPTY)
+	}
+	f.setSourceInfo(decls, &tree.ParseTree)
+
+	export := f.newNode(rhino.EXPORT)
+	export.AddChildToBack(decls)
+	if tree.From != nil {
+		// LiteralToken carries no value field in the current stub.
+		from := f.newStringNode(rhino.STRINGLIT, "")
+		export.AddChildToBack(from)
+	}
+	export.PutBooleanProp(rhino.PropExportAll, tree.IsExportAll)
+	export.PutBooleanProp(rhino.PropExportDefault, tree.IsDefault)
+	return export
+}
+
+// transformExportSpecifier mirrors
+// TransformDispatcher.processExportSpec(ExportSpecifierTree).
+func (f *IRFactory) transformExportSpecifier(tree *trees.ExportSpecifierTree) *rhino.Node {
+	var importedName *rhino.Node
+	if tree.ImportedName != nil {
+		importedName = f.newStringNode(rhino.NAME, tree.ImportedName.Value)
+	} else {
+		importedName = f.newStringNode(rhino.NAME, "")
+	}
+	exportSpec := f.newNode(rhino.EXPORT_SPEC)
+	exportSpec.AddChildToBack(importedName)
+	if tree.DestinationName == nil {
+		exportSpec.SetShorthandProperty(true)
+		exportSpec.AddChildToBack(importedName.CloneTree())
+	} else {
+		destName := f.newStringNode(rhino.NAME, tree.DestinationName.Value)
+		exportSpec.AddChildToBack(destName)
+	}
+	return exportSpec
 }
 
 // ---- primitive expressions -----------------------------------------
