@@ -1689,8 +1689,24 @@ func translateMethodBody(javaBody, recvName, className, goRet string) (string, b
 
 	// Fall back to the full recursive-descent AST walker.
 	translated, ok := javaast.TranslateBody(body, ctx)
-	if ok && translated != "" {
-		return translated, true
+	if ok {
+		if translated != "" {
+			return translated, true
+		}
+		// Empty translation = body was all comments (e.g. "// Do nothing").
+		// Treat as void body — add zero-value return for non-void methods.
+		switch goRet {
+		case "":
+			return "", true
+		case "bool":
+			return "\treturn false\n", true
+		case "int", "int64", "float32", "float64":
+			return "\treturn 0\n", true
+		case "string":
+			return "\treturn \"\"\n", true
+		default:
+			return "\treturn nil\n", true
+		}
 	}
 
 	return "", false
