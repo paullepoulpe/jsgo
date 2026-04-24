@@ -145,7 +145,7 @@ func (tv *TypeValidator) expectObject(n *rhino.Node, typ jstype.JSType, msg stri
 	if tvMatchesObjectContext(typ) {
 		return true
 	}
-	tv.tvMismatch(n, msg, typ, jstype.NewObjectType("Object"))
+	tv.mismatch(n, msg, typ, jstype.NewObjectType("Object"))
 	return false
 }
 
@@ -154,7 +154,7 @@ func (tv *TypeValidator) expectObject(n *rhino.Node, typ jstype.JSType, msg stri
 // Mirrors Java's TypeValidator.expectActualObject(Node, JSType, String).
 func (tv *TypeValidator) expectActualObject(n *rhino.Node, typ jstype.JSType, msg string) {
 	if !tvIsObject(typ) {
-		tv.tvMismatch(n, msg, typ, jstype.NewObjectType("Object"))
+		tv.mismatch(n, msg, typ, jstype.NewObjectType("Object"))
 	}
 }
 
@@ -164,7 +164,7 @@ func (tv *TypeValidator) expectActualObject(n *rhino.Node, typ jstype.JSType, ms
 func (tv *TypeValidator) expectAnyObject(n *rhino.Node, typ jstype.JSType, msg string) {
 	anyObject := jstype.NewObjectType("Object")
 	if !jstype.IsSubtype(anyObject, typ) && !tvIsEmptyType(typ) {
-		tv.tvMismatch(n, msg, typ, anyObject)
+		tv.mismatch(n, msg, typ, anyObject)
 	}
 }
 
@@ -172,7 +172,7 @@ func (tv *TypeValidator) expectAnyObject(n *rhino.Node, typ jstype.JSType, msg s
 // to a string. Mirrors Java's TypeValidator.expectString(Node, JSType, String).
 func (tv *TypeValidator) expectString(n *rhino.Node, typ jstype.JSType, msg string) {
 	if !tvMatchesStringContext(typ) {
-		tv.tvMismatch(n, msg, typ, jstype.String)
+		tv.mismatch(n, msg, typ, jstype.String)
 	}
 }
 
@@ -182,7 +182,7 @@ func (tv *TypeValidator) expectString(n *rhino.Node, typ jstype.JSType, msg stri
 // Mirrors Java's TypeValidator.expectNumber(Node, JSType, String).
 func (tv *TypeValidator) expectNumber(n *rhino.Node, typ jstype.JSType, msg string) {
 	if !tvMatchesNumberContext(typ) {
-		tv.tvMismatch(n, msg, typ, jstype.Number)
+		tv.mismatch(n, msg, typ, jstype.Number)
 	} else {
 		tv.expectNumberStrict(n, typ, msg)
 	}
@@ -192,7 +192,7 @@ func (tv *TypeValidator) expectNumber(n *rhino.Node, typ jstype.JSType, msg stri
 // strict subtype of number. Mirrors Java's TypeValidator.expectNumberStrict.
 func (tv *TypeValidator) expectNumberStrict(n *rhino.Node, typ jstype.JSType, msg string) {
 	if !jstype.IsSubtype(typ, jstype.Number) {
-		tv.tvRegisterMismatchAndReportWithDiag(n, diag.JSC_INVALID_OPERAND_TYPE, msg, typ, jstype.Number, nil, nil)
+		tv.registerMismatchAndReport(n, diag.JSC_INVALID_OPERAND_TYPE, msg, typ, jstype.Number, nil, nil)
 	}
 }
 
@@ -201,7 +201,7 @@ func (tv *TypeValidator) expectNumberStrict(n *rhino.Node, typ jstype.JSType, ms
 // Mirrors Java's TypeValidator.expectMatchingTypesStrict.
 func (tv *TypeValidator) expectMatchingTypesStrict(n *rhino.Node, left, right jstype.JSType, msg string) {
 	if !jstype.IsSubtype(left, right) && !jstype.IsSubtype(right, left) {
-		tv.tvRegisterMismatchAndReportWithDiag(n, diag.JSC_INVALID_OPERAND_TYPE, msg, right, left, nil, nil)
+		tv.registerMismatchAndReport(n, diag.JSC_INVALID_OPERAND_TYPE, msg, right, left, nil, nil)
 	}
 }
 
@@ -210,7 +210,7 @@ func (tv *TypeValidator) expectMatchingTypesStrict(n *rhino.Node, left, right js
 // number check. Mirrors Java's TypeValidator.expectBitwiseable.
 func (tv *TypeValidator) expectBitwiseable(n *rhino.Node, typ jstype.JSType, msg string) {
 	if !tvMatchesNumberContext(typ) && !jstype.IsSubtype(typ, tv.allBitwisableValueTypes) {
-		tv.tvMismatch(n, msg, typ, tv.allBitwisableValueTypes)
+		tv.mismatch(n, msg, typ, tv.allBitwisableValueTypes)
 	} else {
 		tv.expectNumberStrict(n, typ, msg)
 	}
@@ -221,7 +221,7 @@ func (tv *TypeValidator) expectBitwiseable(n *rhino.Node, typ jstype.JSType, msg
 func (tv *TypeValidator) expectNumberOrSymbol(n *rhino.Node, typ jstype.JSType, msg string) {
 	if !tvMatchesNumberContext(typ) && !tvMatchesSymbolContext(typ) {
 		// Report mismatch against number (symbol not in our type lattice)
-		tv.tvMismatch(n, msg, typ, jstype.Number)
+		tv.mismatch(n, msg, typ, jstype.Number)
 	}
 }
 
@@ -229,7 +229,7 @@ func (tv *TypeValidator) expectNumberOrSymbol(n *rhino.Node, typ jstype.JSType, 
 // symbol-context. Mirrors Java's TypeValidator.expectStringOrSymbol.
 func (tv *TypeValidator) expectStringOrSymbol(n *rhino.Node, typ jstype.JSType, msg string) {
 	if !tvMatchesStringContext(typ) && !tvMatchesSymbolContext(typ) {
-		tv.tvMismatch(n, msg, typ, jstype.String)
+		tv.mismatch(n, msg, typ, jstype.String)
 	}
 }
 
@@ -237,7 +237,7 @@ func (tv *TypeValidator) expectStringOrSymbol(n *rhino.Node, typ jstype.JSType, 
 // or symbol context. Mirrors Java's TypeValidator.expectStringOrNumberOrSymbol.
 func (tv *TypeValidator) expectStringOrNumberOrSymbol(n *rhino.Node, typ jstype.JSType, msg string) {
 	if !tvMatchesNumberContext(typ) && !tvMatchesStringContext(typ) && !tvMatchesSymbolContext(typ) {
-		tv.tvMismatch(n, msg, typ, jstype.NewUnion(jstype.String, jstype.Number))
+		tv.mismatch(n, msg, typ, jstype.NewUnion(jstype.String, jstype.Number))
 	} else {
 		tv.expectStringOrNumberOrSymbolStrict(n, typ, msg)
 	}
@@ -249,7 +249,7 @@ func (tv *TypeValidator) expectStringOrNumberOrSymbol(n *rhino.Node, typ jstype.
 func (tv *TypeValidator) expectStringOrNumberOrSymbolStrict(n *rhino.Node, typ jstype.JSType, msg string) {
 	strNum := jstype.NewUnion(jstype.String, jstype.Number)
 	if !jstype.IsSubtype(typ, strNum) {
-		tv.tvRegisterMismatchAndReportWithDiag(n, diag.JSC_INVALID_OPERAND_TYPE, msg, typ, strNum, nil, nil)
+		tv.registerMismatchAndReport(n, diag.JSC_INVALID_OPERAND_TYPE, msg, typ, strNum, nil, nil)
 	}
 }
 
@@ -263,9 +263,9 @@ func (tv *TypeValidator) expectUnknownOrComparable(n *rhino.Node, typ jstype.JST
 		return
 	}
 	if tvMatchesNumberContext(typ) || tvMatchesStringContext(typ) {
-		tv.tvRegisterMismatchAndReportWithDiag(n, diag.JSC_INVALID_OPERAND_TYPE, msg, typ, strNum, nil, nil)
+		tv.registerMismatchAndReport(n, diag.JSC_INVALID_OPERAND_TYPE, msg, typ, strNum, nil, nil)
 	} else {
-		tv.tvMismatch(n, msg, typ, strNum)
+		tv.mismatch(n, msg, typ, strNum)
 	}
 }
 
@@ -277,9 +277,9 @@ func (tv *TypeValidator) expectBigIntOrNumber(n *rhino.Node, typ jstype.JSType, 
 		return
 	}
 	if tvMatchesNumberContext(typ) {
-		tv.tvRegisterMismatchAndReportWithDiag(n, diag.JSC_INVALID_OPERAND_TYPE, msg, typ, jstype.Number, nil, nil)
+		tv.registerMismatchAndReport(n, diag.JSC_INVALID_OPERAND_TYPE, msg, typ, jstype.Number, nil, nil)
 	} else {
-		tv.tvMismatch(n, msg, typ, jstype.Number)
+		tv.mismatch(n, msg, typ, jstype.Number)
 	}
 }
 
@@ -299,7 +299,7 @@ func (tv *TypeValidator) expectNotNullOrUndefined(n *rhino.Node, typ jstype.JSTy
 	// Java's edge case: if (this.x == null) { this.x.foo() } — suppress
 	// for GETPROP inside non-global scope when the type is null. Omitted
 	// since jsgo does not track global-scope flag here.
-	tv.tvMismatch(n, msg, typ, expectedType)
+	tv.mismatch(n, msg, typ, expectedType)
 	return false
 }
 
@@ -312,7 +312,7 @@ func (tv *TypeValidator) expectSwitchMatchesCase(n *rhino.Node, switchType, case
 		first = n
 	}
 	if !tvCanTestForShallowEqualityWith(switchType, caseType) {
-		tv.tvMismatch(first, "case expression doesn't match switch", caseType, switchType)
+		tv.mismatch(first, "case expression doesn't match switch", caseType, switchType)
 	}
 }
 
@@ -365,7 +365,7 @@ func (tv *TypeValidator) expectIndexMatch(n *rhino.Node, objType, indexType jsty
 		return
 	}
 	// Not an object at all.
-	tv.tvMismatch(n, "only arrays or objects can be accessed", objType,
+	tv.mismatch(n, "only arrays or objects can be accessed", objType,
 		jstype.NewUnion(jstype.NewObjectType("Array"), jstype.NewObjectType("Object")))
 }
 
@@ -378,7 +378,7 @@ func (tv *TypeValidator) expectCanAssignTo(n *rhino.Node, rightType, leftType js
 		return true
 	}
 	if !jstype.IsSubtype(rightType, leftType) {
-		tv.tvMismatch(n, msg, rightType, leftType)
+		tv.mismatch(n, msg, rightType, leftType)
 		return false
 	}
 	return true
@@ -402,7 +402,7 @@ func (tv *TypeValidator) expectCanAssignToPropertyOf(n *rhino.Node, rightType, l
 				return true
 			}
 		}
-		tv.tvMismatch(n,
+		tv.mismatch(n,
 			fmt.Sprintf("assignment to property %s of %s", propName, ownerName),
 			rightType, leftType)
 		return false
@@ -419,7 +419,7 @@ func (tv *TypeValidator) expectArgumentMatchesParameter(n *rhino.Node, argType, 
 	}
 	callName := tvCallNodeName(callNode)
 	msg := fmt.Sprintf("actual parameter %d of %s does not match formal parameter", ordinal, callName)
-	tv.tvMismatch(n, msg, argType, paramType)
+	tv.mismatch(n, msg, argType, paramType)
 }
 
 // expectCanCast fires JSC_INVALID_CAST when `sourceType` cannot be cast
@@ -447,10 +447,10 @@ func (tv *TypeValidator) expectCanCast(n *rhino.Node, targetType, sourceType jst
 
 // ---- private helpers ------------------------------------------------- //
 
-// tvMismatch is the internal mismatch dispatcher. Mirrors Java's private
+// mismatch is the internal mismatch dispatcher. Mirrors Java's private
 // mismatch(Node, String, JSType, JSType) method. Computes structural
-// property details and delegates to tvRegisterMismatchAndReportWithDiag.
-func (tv *TypeValidator) tvMismatch(n *rhino.Node, msg string, found, required jstype.JSType) {
+// property details and delegates to registerMismatchAndReport.
+func (tv *TypeValidator) mismatch(n *rhino.Node, msg string, found, required jstype.JSType) {
 	if tvIsSubtypeRespectingMode(found, required, tv.subtypingMode) {
 		return
 	}
@@ -474,13 +474,13 @@ func (tv *TypeValidator) tvMismatch(n *rhino.Node, msg string, found, required j
 			sort.Strings(mismatch)
 		}
 	}
-	tv.tvRegisterMismatchAndReportWithDiag(n, diag.JSC_TYPE_MISMATCH, msg, found, required, missing, mismatch)
+	tv.registerMismatchAndReport(n, diag.JSC_TYPE_MISMATCH, msg, found, required, missing, mismatch)
 }
 
-// tvRegisterMismatchAndReportWithDiag builds and emits a diagnostic,
+// registerMismatchAndReport builds and emits a diagnostic,
 // then registers the mismatch in the accumulator.
 // Mirrors Java's registerMismatchAndReport(Node, DiagnosticType, String, …).
-func (tv *TypeValidator) tvRegisterMismatchAndReportWithDiag(n *rhino.Node, code string, msg string, found, required jstype.JSType, missing, mismatch []string) {
+func (tv *TypeValidator) registerMismatchAndReport(n *rhino.Node, code string, msg string, found, required jstype.JSType, missing, mismatch []string) {
 	formatted := tvFormatFoundRequired(msg, found, required, missing, mismatch)
 	tv.emit(diag.Diagnostic{
 		Path:    tv.path,
@@ -775,6 +775,216 @@ func tvCallNodeName(callNode *rhino.Node) string {
 		}
 	}
 	return "<unknown>"
+}
+
+// ---- expectInterface* methods ---------------------------------------- //
+
+// expectAllInterfaceProperties checks that a class type implements all
+// properties declared on its implemented interfaces and extended interfaces.
+// Mirrors Java's TypeValidator.expectAllInterfaceProperties(Node, FunctionType).
+func (tv *TypeValidator) expectAllInterfaceProperties(n *rhino.Node, fnType *jstype.FunctionType) {
+	instance := fnType.GetInstanceType()
+	if instance == nil {
+		return
+	}
+	for _, iface := range fnType.GetImplementedInterfaces() {
+		tv.expectInterfaceProperties(n, instance, iface)
+	}
+}
+
+// expectInterfaceProperties checks that all properties on ancestorInterface
+// are implemented on instance.
+// Mirrors Java's TypeValidator.expectInterfaceProperties(Node, ObjectType, ObjectType).
+func (tv *TypeValidator) expectInterfaceProperties(n *rhino.Node, instance *jstype.ObjectType, ancestorInterface *jstype.ObjectType) {
+	// Direct properties on the interface.
+	for _, prop := range ancestorInterface.MemberNames() {
+		tv.expectInterfaceProperty(n, instance, ancestorInterface, prop)
+	}
+}
+
+// expectInterfaceProperty checks that a single property from an interface is
+// implemented and correctly typed on instance.
+// Mirrors Java's TypeValidator.expectInterfaceProperty(Node, ObjectType, ObjectType, Property.Key).
+func (tv *TypeValidator) expectInterfaceProperty(n *rhino.Node, instance *jstype.ObjectType, implementedInterface *jstype.ObjectType, propName string) {
+	// Check whether the instance (or a super) defines the property.
+	if !instance.HasProperty(propName) {
+		// Check if the constructor is abstract or an interface — they are
+		// not required to implement interface properties.
+		// (Abstract check via JSDoc is not available on plain ObjectType here;
+		//  we guard only by checking IsStructural on the interface.)
+		ifacePropType := implementedInterface.GetPropertyType(propName)
+		if containsVoidTV(ifacePropType) {
+			// Voidable properties don't require explicit implementation.
+			return
+		}
+		// Property not implemented — emit JSC_INTERFACE_METHOD_NOT_IMPLEMENTED.
+		tv.emit(diag.Diagnostic{
+			Path:  tv.path,
+			Line:  n.Lineno(),
+			Col:   n.Charno(),
+			Code:  diag.JSC_INTERFACE_METHOD_NOT_IMPLEMENTED,
+			Level: diag.Warning,
+			Message: fmt.Sprintf("property %s on interface %s is not implemented by type %s",
+				propName, implementedInterface.GetReferenceName(), instance.GetReferenceName()),
+		})
+		tv.mismatches.registerMismatch(n, instance, implementedInterface)
+		return
+	}
+
+	// Property is present — check the type.
+	foundType := instance.GetPropertyType(propName)
+	requiredType := implementedInterface.GetPropertyType(propName)
+	if jstype.IsSubtype(foundType, requiredType) {
+		return
+	}
+	// Type mismatch on interface property.
+	tv.emit(diag.Diagnostic{
+		Path:  tv.path,
+		Line:  n.Lineno(),
+		Col:   n.Charno(),
+		Code:  diag.JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH,
+		Level: diag.Warning,
+		Message: fmt.Sprintf(
+			"mismatch of the %s property on type %s and the type of the property it overrides from interface %s\noriginal: %s\noverride: %s",
+			propName, instance.GetReferenceName(), implementedInterface.GetReferenceName(),
+			tvTypeName(requiredType), tvTypeName(foundType)),
+	})
+	tv.mismatches.registerMismatch(n, foundType, requiredType)
+}
+
+// getReadableTypeName returns a human-readable name for the type on a node.
+// Mirrors Java's JSTypeRegistry.getReadableTypeName(Node).
+func (tv *TypeValidator) getReadableTypeName(t jstype.JSType) string {
+	return tvTypeName(t)
+}
+
+// ---- expectWellFormedTemplatizedType --------------------------------- //
+
+// expectWellFormedTemplatizedType visits the type of node n and verifies
+// that all TemplatizedType arguments satisfy their template parameter
+// bounds. Mirrors Java's TypeValidator.expectWellFormedTemplatizedType(Node).
+func (tv *TypeValidator) expectWellFormedTemplatizedType(n *rhino.Node, t jstype.JSType) {
+	if t == nil {
+		return
+	}
+	v := &wellFormedTemplatizedTypeVerifier{tv: tv, node: n}
+	wellFormedVisit(v, t)
+}
+
+// wellFormedTemplatizedTypeVerifier is the inner visitor used by
+// expectWellFormedTemplatizedType. It recurses through composite types
+// checking that TemplatizedType arguments satisfy their bounds.
+// Mirrors TypeValidator.WellFormedTemplatizedTypeVerifier in Java.
+type wellFormedTemplatizedTypeVerifier struct {
+	tv   *TypeValidator
+	node *rhino.Node
+}
+
+// wellFormedVisit dispatches to the appropriate case based on the concrete
+// type of t, mirroring JSType.visit(Visitor) in Java.
+func wellFormedVisit(v *wellFormedTemplatizedTypeVerifier, t jstype.JSType) bool {
+	if t == nil {
+		return true
+	}
+	switch typ := t.(type) {
+	case *jstype.EnumElementType:
+		return v.caseEnumElementType(typ)
+	case *jstype.FunctionType:
+		return v.caseFunctionType(typ)
+	case *jstype.NamedType:
+		return v.caseNamedType(typ)
+	case *jstype.UnionType:
+		return v.caseUnionType(typ)
+	case *jstype.TemplatizedType:
+		return v.caseTemplatizedType(typ)
+	case *jstype.TemplateType:
+		return v.caseTemplateType(typ)
+	default:
+		return true
+	}
+}
+
+// caseEnumElementType mirrors WellFormedTemplatizedTypeVerifier.caseEnumElementType.
+// Recurses into the enum's underlying primitive type.
+func (v *wellFormedTemplatizedTypeVerifier) caseEnumElementType(typ *jstype.EnumElementType) bool {
+	if typ.Enum == nil {
+		return true
+	}
+	return wellFormedVisit(v, typ.Enum.Underlying)
+}
+
+// caseFunctionType mirrors WellFormedTemplatizedTypeVerifier.caseFunctionType.
+// Recurses into each parameter type and the return type.
+func (v *wellFormedTemplatizedTypeVerifier) caseFunctionType(typ *jstype.FunctionType) bool {
+	for _, p := range typ.GetParameters() {
+		if !wellFormedVisit(v, p.GetJSType()) {
+			return false
+		}
+	}
+	return wellFormedVisit(v, typ.GetReturnType())
+}
+
+// caseNamedType mirrors WellFormedTemplatizedTypeVerifier.caseNamedType.
+// Recurses into the resolved referenced type.
+func (v *wellFormedTemplatizedTypeVerifier) caseNamedType(typ *jstype.NamedType) bool {
+	return wellFormedVisit(v, typ.GetReferencedType())
+}
+
+// caseUnionType mirrors WellFormedTemplatizedTypeVerifier.caseUnionType.
+// Recurses into all union alternatives.
+func (v *wellFormedTemplatizedTypeVerifier) caseUnionType(typ *jstype.UnionType) bool {
+	for _, alt := range typ.Members() {
+		if !wellFormedVisit(v, alt) {
+			return false
+		}
+	}
+	return true
+}
+
+// caseTemplatizedType mirrors WellFormedTemplatizedTypeVerifier.caseTemplatizedType.
+// Checks each template argument against its declared bound. Emits
+// JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES when an argument violates a bound.
+func (v *wellFormedTemplatizedTypeVerifier) caseTemplatizedType(typ *jstype.TemplatizedType) bool {
+	if typ.Base == nil {
+		return true
+	}
+	referencedTemplates := typ.Base.GetTypeParameters()
+	for i, assignedType := range typ.Args {
+		if i >= len(referencedTemplates) {
+			break
+		}
+		templateType := referencedTemplates[i]
+		bound := templateType.GetBound()
+		if bound == nil {
+			continue
+		}
+		if !jstype.IsSubtype(assignedType, bound) {
+			v.tv.emit(diag.Diagnostic{
+				Path:  v.tv.path,
+				Line:  v.node.Lineno(),
+				Col:   v.node.Charno(),
+				Code:  diag.JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES,
+				Level: diag.Warning,
+				Message: fmt.Sprintf(
+					"Bounded generic type error: %s is not a subtype of the bound %s declared by template parameter %s",
+					tvTypeName(assignedType), tvTypeName(bound), templateType.Name),
+			})
+			v.tv.mismatches.registerMismatch(v.node, assignedType, bound)
+			return false
+		}
+	}
+	return true
+}
+
+// caseTemplateType mirrors WellFormedTemplatizedTypeVerifier.caseTemplateType.
+// Checks that the template type does not contain a cycle, then recurses
+// into its bound.
+func (v *wellFormedTemplatizedTypeVerifier) caseTemplateType(typ *jstype.TemplateType) bool {
+	bound := typ.GetBound()
+	if bound == nil {
+		return true
+	}
+	return wellFormedVisit(v, bound)
 }
 
 // containsVoidTV mirrors ObjectType.containsVoid — checks whether a type
