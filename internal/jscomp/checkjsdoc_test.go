@@ -153,12 +153,16 @@ func TestCheckJSDoc_Abstract_getter_setter(t *testing.T) {
 
 // testAbstract_nonEmptyMethod
 func TestCheckJSDoc_Abstract_nonEmptyMethod(t *testing.T) {
-	t.Skip("port gap: @abstract on non-empty method not detected")
+	// @abstract on a method with a non-empty body fires MISPLACED_ANNOTATION.
+	assertCjdWarning(t, "class Foo { /** @abstract */ doSomething() { return 5; }}", diag.JSC_MISPLACED_ANNOTATION)
+	// But empty body is fine.
+	assertCjdSame(t, "class Foo { /** @abstract */ doSomething() {} }")
 }
 
 // testAbstract_staticMethod
 func TestCheckJSDoc_Abstract_staticMethod(t *testing.T) {
-	t.Skip("port gap: @abstract on static method not detected")
+	// @abstract on a static method fires MISPLACED_ANNOTATION.
+	assertCjdWarning(t, "class Foo { /** @abstract */ static doSomething() {} }", diag.JSC_MISPLACED_ANNOTATION)
 }
 
 // testAbstract_class
