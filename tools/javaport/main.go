@@ -579,10 +579,54 @@ var innerClassRe = regexp.MustCompile(
 		`(?:\s+implements\s+([\w.<>,\s]+?))?` +
 		`\s*\{`)
 
+// isInsideComment returns true if offset pos in src is inside a // or /* */ comment.
+func isInsideComment(src string, pos int) bool {
+	// Scan from start to pos, tracking comment regions.
+	i := 0
+	for i < pos {
+		if i+1 < len(src) && src[i] == '/' && src[i+1] == '/' {
+			// Line comment — extends to newline.
+			nl := strings.Index(src[i:], "\n")
+			if nl < 0 {
+				return true // rest of file is a comment
+			}
+			end := i + nl
+			if pos < end {
+				return true
+			}
+			i = end + 1
+			continue
+		}
+		if i+1 < len(src) && src[i] == '/' && src[i+1] == '*' {
+			// Block comment — extends to */.
+			endStr := strings.Index(src[i:], "*/")
+			if endStr < 0 {
+				return true // rest of file is a comment
+			}
+			end := i + endStr + 2
+			if pos < end {
+				return true
+			}
+			i = end
+			continue
+		}
+		if src[i] == '"' || src[i] == '\'' {
+			i = skipStringLit(src, i) + 1
+			continue
+		}
+		i++
+	}
+	return false
+}
+
 func parseInnerClasses(body string) []*classDecl {
 	var result []*classDecl
 	matches := innerClassRe.FindAllStringSubmatchIndex(body, -1)
 	for _, m := range matches {
+		// Skip matches that are inside comments (e.g. Javadoc code examples).
+		if isInsideComment(body, m[0]) {
+			continue
+		}
 		inner := &classDecl{
 			name: body[m[4]:m[5]],
 		}
@@ -784,9 +828,38 @@ func parseBody(body string) ([]fieldDecl, []methodDecl) {
 			}
 			line := body[pos : pos+nl]
 			if !strings.Contains(line, "(") {
+				// Simple annotation (@Override, @Nullable, …) — skip the line.
 				pos += nl + 1
 				continue
 			}
+			// Annotation with arguments (@SuppressWarnings(...), @InlineMe(...), …).
+			// Skip the entire annotation including multi-line argument list.
+			parenStart := pos + strings.Index(body[pos:], "(")
+			depth := 0
+			i := parenStart
+			for i < len(body) {
+				switch body[i] {
+				case '(':
+					depth++
+				case ')':
+					depth--
+					if depth == 0 {
+						// Skip to end of line after closing paren.
+						for i < len(body) && body[i] != '\n' {
+							i++
+						}
+						pos = i + 1
+						goto nextDecl
+					}
+				case '"', '\'':
+					i = skipStringLit(body, i)
+				}
+				i++
+			}
+			// If we didn't find matching ')', skip just the line.
+			pos += nl + 1
+			continue
+		nextDecl:
 		}
 		doc := javadocBefore(body, pos)
 		srcLine := lineNumber(body, pos)
@@ -1216,6 +1289,31 @@ func javaToGoType(t string) string {
 	if strings.HasSuffix(t, "[]") {
 		return "[]" + javaToGoType(strings.TrimSuffix(t, "[]"))
 	}
+	// Java functional interfaces → Go func types.
+	// Predicate<T>: T → bool
+	if strings.HasPrefix(t, "Predicate<") {
+		return "func(any) bool"
+	}
+	// Supplier<T>: () → T
+	if strings.HasPrefix(t, "Supplier<") {
+		return "func() any"
+	}
+	// Consumer<T>: T → void
+	if strings.HasPrefix(t, "Consumer<") {
+		return "func(any)"
+	}
+	// BiConsumer<T,U>: (T,U) → void
+	if strings.HasPrefix(t, "BiConsumer<") {
+		return "func(any, any)"
+	}
+	// Function<T,R>: T → R
+	if strings.HasPrefix(t, "Function<") {
+		return "func(any) any"
+	}
+	// BiFunction<T,U,R>: (T,U) → R
+	if strings.HasPrefix(t, "BiFunction<") {
+		return "func(any, any) any"
+	}
 	// #167 — Guava/JDK collections
 	if strings.HasPrefix(t, "List<") || strings.HasPrefix(t, "ImmutableList<") ||
 		strings.HasPrefix(t, "Collection<") || strings.HasPrefix(t, "Iterable<") ||
@@ -1233,6 +1331,8 @@ func javaToGoType(t string) string {
 		if len(parts) == 2 {
 			return "map[" + javaToGoType(strings.TrimSpace(parts[0])) + "]" + javaToGoType(strings.TrimSpace(parts[1]))
 		}
+		// Diamond operator or single-arg — default to map[any]any.
+		return "map[any]any"
 	}
 	// #167 — Optional<T> → *T
 	if strings.HasPrefix(t, "Optional<") {
@@ -1248,6 +1348,9 @@ func javaToGoType(t string) string {
 		if v, ok := javaTypeMap[base]; ok {
 			return v
 		}
+		// Unknown generic type — emit `any` to avoid raw Java generics leaking
+		// into Go output (which would cause gofmt parse errors).
+		return "any"
 	}
 	return t
 }
@@ -1299,7 +1402,13 @@ func isMappedType(javaType string) bool {
 		strings.HasPrefix(javaType, "Map<") ||
 		strings.HasPrefix(javaType, "ImmutableMap<") ||
 		strings.HasPrefix(javaType, "HashMap<") ||
-		strings.HasPrefix(javaType, "Optional<") {
+		strings.HasPrefix(javaType, "Optional<") ||
+		strings.HasPrefix(javaType, "Predicate<") ||
+		strings.HasPrefix(javaType, "Supplier<") ||
+		strings.HasPrefix(javaType, "Consumer<") ||
+		strings.HasPrefix(javaType, "BiConsumer<") ||
+		strings.HasPrefix(javaType, "Function<") ||
+		strings.HasPrefix(javaType, "BiFunction<") {
 		return true
 	}
 	if lt := strings.Index(javaType, "<"); lt > 0 && strings.HasSuffix(javaType, ">") {
@@ -1316,7 +1425,12 @@ func innerGeneric(t string) string {
 	if open < 0 || close < 0 || close <= open {
 		return t
 	}
-	return strings.TrimSpace(t[open+1 : close])
+	inner := strings.TrimSpace(t[open+1 : close])
+	// Diamond operator `<>` — no type arguments; default to any.
+	if inner == "" {
+		return "any"
+	}
+	return inner
 }
 
 // ── Diagnostic constants ─────────────────────────────────────────────────────

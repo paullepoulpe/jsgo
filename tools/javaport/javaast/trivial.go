@@ -5,6 +5,38 @@ import (
 	"strings"
 )
 
+// stripComments removes Java // line comments and /* */ block comments from s.
+// This is used by TryTrivial so that inline comments don't confuse the
+// trivial-pattern regexps.
+func stripComments(s string) string {
+	var b strings.Builder
+	i := 0
+	for i < len(s) {
+		if i+1 < len(s) && s[i] == '/' && s[i+1] == '/' {
+			// Line comment: skip to end of line.
+			for i < len(s) && s[i] != '\n' {
+				i++
+			}
+			continue
+		}
+		if i+1 < len(s) && s[i] == '/' && s[i+1] == '*' {
+			// Block comment: skip to */.
+			i += 2
+			for i+1 < len(s) {
+				if s[i] == '*' && s[i+1] == '/' {
+					i += 2
+					break
+				}
+				i++
+			}
+			continue
+		}
+		b.WriteByte(s[i])
+		i++
+	}
+	return b.String()
+}
+
 // TryTrivial attempts to recognise one of the "trivial" body patterns
 // (#161) and returns the translated Go body text (without outer braces)
 // plus true on success. The caller should write:
@@ -18,7 +50,7 @@ import (
 //	className  – the Go struct name (e.g. "CheckJSDoc")
 //	typeMapper – Java→Go type converter
 func TryTrivial(javaBody, recvName, className string, typeMapper func(string) string) (string, bool) {
-	body := strings.TrimSpace(javaBody)
+	body := strings.TrimSpace(stripComments(javaBody))
 
 	// Getter: `return foo;` or `return this.foo;`
 	if s, ok := tryGetter(body, recvName); ok {
@@ -84,8 +116,8 @@ func trySetter(body, recv string) (string, bool) {
 	if m == nil {
 		return "", false
 	}
-	field := m[1]
-	param := m[2]
+	field := goIdent(m[1])
+	param := goIdent(m[2])
 	return "\t" + recv + "." + field + " = " + param + "\n", true
 }
 
@@ -202,6 +234,24 @@ func splitSemicolon(s string) []string {
 	depth := 0
 	start := 0
 	for i := 0; i < len(s); i++ {
+		// Skip line comments: everything after // until newline is not code.
+		if i+1 < len(s) && s[i] == '/' && s[i+1] == '/' {
+			nl := strings.Index(s[i:], "\n")
+			if nl < 0 {
+				break
+			}
+			i += nl // loop increments i by 1
+			continue
+		}
+		// Skip block comments.
+		if i+1 < len(s) && s[i] == '/' && s[i+1] == '*' {
+			end := strings.Index(s[i:], "*/")
+			if end < 0 {
+				break
+			}
+			i += end + 1 // loop increments i by 1
+			continue
+		}
 		switch s[i] {
 		case '(', '[', '{':
 			depth++

@@ -217,6 +217,13 @@ type (
 		Type string
 	}
 
+	// LambdaExpr is a Java lambda `param -> body` or `(p1, p2) -> body`.
+	// Translated to an inline Go func literal.
+	LambdaExpr struct {
+		Params string // raw parameter list text, e.g. "n" or "n1, n2"
+		Body   Expr   // the expression body (right of ->)
+	}
+
 	// RawExpr holds an untranslatable Java expression snippet.
 	RawExpr struct{ Text string }
 )
@@ -234,4 +241,5 @@ func (*BinaryExpr) exprNode()    {}
 func (*TernaryExpr) exprNode()   {}
 func (*CastExpr) exprNode()      {}
 func (*TypeCheckExpr) exprNode() {}
+func (*LambdaExpr) exprNode()    {}
 func (*RawExpr) exprNode()       {}
