@@ -31,11 +31,13 @@ type AstFactory struct {
 }
 
 // NewAstFactoryWithoutTypes mirrors AstFactory.createFactoryWithoutTypes.
+// Go-only: language-adapter Java uses createFactoryWithoutTypes(LifeCycleStage, RuntimeJsLibManager); Go omits those args.
 func NewAstFactoryWithoutTypes() *AstFactory {
 	return &AstFactory{typeMode: astTypeModeNone}
 }
 
 // NewAstFactoryWithTypes mirrors AstFactory.createFactoryWithTypes.
+// Go-only: language-adapter Java uses createFactoryWithTypes(LifeCycleStage, Registry, RuntimeJsLibManager); Go omits lifecycle args.
 func NewAstFactoryWithTypes(reg *jstype.Registry) *AstFactory {
 	return &AstFactory{registry: reg, unknownType: jstype.Unknown, typeMode: astTypeModeJSType}
 }
@@ -47,6 +49,7 @@ func (af *AstFactory) IsAddingTypes() bool { return af.typeMode == astTypeModeJS
 func (af *AstFactory) IsAddingColors() bool { return af.typeMode == astTypeModeColor }
 
 // setType attaches type to n in JSTYPE mode. Color mode is a TODO.
+// Go-only: language-adapter Java uses a TypeMode-dispatching setJSTypeOrColor(Type, Node); Go's setType is JSType-only.
 func (af *AstFactory) setType(n *rhino.Node, t jstype.JSType) {
 	if af.typeMode == astTypeModeJSType && t != nil {
 		n.SetJSType(t)
@@ -54,6 +57,7 @@ func (af *AstFactory) setType(n *rhino.Node, t jstype.JSType) {
 }
 
 // nodeJSType extracts the JSType stored on n, or nil if absent.
+// Go-only: language-adapter Java calls n.getJSType() directly; Go wraps for type-safe extraction.
 func nodeJSType(n *rhino.Node) jstype.JSType {
 	t, _ := n.GetJSType().(jstype.JSType)
 	return t
@@ -81,6 +85,7 @@ func (af *AstFactory) CreateIf(cond, then *rhino.Node) *rhino.Node {
 }
 
 // CreateIfElse mirrors AstFactory.createIf(cond, then, elseNode).
+// Go-only: language-adapter Java uses createIf(cond, then, elseNode) overload; Go names it CreateIfElse to avoid ambiguity.
 func (af *AstFactory) CreateIfElse(cond, then, elseNode *rhino.Node) *rhino.Node {
 	n := af.CreateIf(cond, then)
 	n.AddChildToBack(elseNode)
@@ -104,6 +109,7 @@ func (af *AstFactory) CreateThrow(expr *rhino.Node) *rhino.Node {
 }
 
 // CreateExprResult mirrors AstFactory.exprResult; sets srcref.
+// Go-only: language-adapter Java uses exprResult(expr); Go capitalizes for export and uses CreateExprResult.
 func (af *AstFactory) CreateExprResult(expr *rhino.Node) *rhino.Node {
 	n := rhino.New(rhino.EXPR_RESULT)
 	n.AddChildToBack(expr)
@@ -445,6 +451,191 @@ func (af *AstFactory) createSingleVarNameDeclaration(variableName string) *rhino
 	return n
 }
 
+// createSuper mirrors AstFactory.createSuper.
+func (af *AstFactory) createSuper(superType jstype.JSType) *rhino.Node {
+	n := rhino.New(rhino.SUPER)
+	af.setType(n, superType)
+	return n
+}
+
+// createYield mirrors AstFactory.createYield.
+func (af *AstFactory) createYield(yieldType jstype.JSType, value *rhino.Node) *rhino.Node {
+	n := rhino.New(rhino.YIELD)
+	if value != nil {
+		n.AddChildToBack(value)
+	}
+	af.setType(n, yieldType)
+	return n
+}
+
+// createAwait mirrors AstFactory.createAwait.
+func (af *AstFactory) createAwait(awaitType jstype.JSType, value *rhino.Node) *rhino.Node {
+	n := rhino.New(rhino.AWAIT)
+	n.AddChildToBack(value)
+	af.setType(n, awaitType)
+	return n
+}
+
+// createIn mirrors AstFactory.createIn.
+func (af *AstFactory) createIn(left, right *rhino.Node) *rhino.Node {
+	n := rhino.New(rhino.IN)
+	n.AddChildToBack(left)
+	n.AddChildToBack(right)
+	af.setType(n, jstype.Boolean)
+	return n
+}
+
+// createComma mirrors AstFactory.createComma.
+func (af *AstFactory) createComma(left, right *rhino.Node) *rhino.Node {
+	n := rhino.New(rhino.COMMA)
+	n.AddChildToBack(left)
+	n.AddChildToBack(right)
+	af.setType(n, nodeJSType(right))
+	return n
+}
+
+// createCommas mirrors AstFactory.createCommas.
+func (af *AstFactory) createCommas(first, second *rhino.Node, rest ...*rhino.Node) *rhino.Node {
+	result := af.createComma(first, second)
+	for _, next := range rest {
+		result = af.createComma(result, next)
+	}
+	return result
+}
+
+// createBitwiseAnd mirrors AstFactory.createBitwiseAnd.
+func (af *AstFactory) createBitwiseAnd(left, right *rhino.Node) *rhino.Node {
+	n := rhino.New(rhino.BITAND)
+	n.AddChildToBack(left)
+	n.AddChildToBack(right)
+	af.setType(n, jstype.Number)
+	return n
+}
+
+// createRightShift mirrors AstFactory.createRightShift.
+func (af *AstFactory) createRightShift(left, right *rhino.Node) *rhino.Node {
+	n := rhino.New(rhino.RSH)
+	n.AddChildToBack(left)
+	n.AddChildToBack(right)
+	af.setType(n, jstype.Number)
+	return n
+}
+
+// createStringKey mirrors AstFactory.createStringKey.
+func (af *AstFactory) createStringKey(key string, value *rhino.Node) *rhino.Node {
+	n := rhino.NewString(rhino.STRING_KEY, key)
+	n.AddChildToBack(value)
+	af.setType(n, nodeJSType(value))
+	return n
+}
+
+// createComputedProperty mirrors AstFactory.createComputedProperty.
+func (af *AstFactory) createComputedProperty(key, value *rhino.Node) *rhino.Node {
+	n := rhino.New(rhino.COMPUTED_PROP)
+	n.AddChildToBack(key)
+	n.AddChildToBack(value)
+	af.setType(n, nodeJSType(value))
+	return n
+}
+
+// createDelProp mirrors AstFactory.createDelProp.
+func (af *AstFactory) createDelProp(target *rhino.Node) *rhino.Node {
+	n := rhino.New(rhino.DELPROP)
+	n.AddChildToBack(target)
+	af.setType(n, jstype.Boolean)
+	return n
+}
+
+// createConstantName mirrors AstFactory.createConstantName.
+func (af *AstFactory) createConstantName(name string, t jstype.JSType) *rhino.Node {
+	n := rhino.NewString(rhino.NAME, name)
+	af.setType(n, t)
+	return n
+}
+
+// createSingleConstNameDeclaration mirrors AstFactory.createSingleConstNameDeclaration.
+func (af *AstFactory) createSingleConstNameDeclaration(variableName string, value *rhino.Node) *rhino.Node {
+	nameNode := af.createConstantName(variableName, nodeJSType(value))
+	n := rhino.New(rhino.CONST)
+	n.AddChildToBack(nameNode)
+	if value != nil {
+		nameNode.AddChildToBack(value)
+	}
+	return n
+}
+
+// createSingleConstObjectPatternDeclaration mirrors AstFactory.createSingleConstObjectPatternDeclaration.
+func (af *AstFactory) createSingleConstObjectPatternDeclaration(objectPattern, value *rhino.Node) *rhino.Node {
+	n := rhino.New(rhino.CONST)
+	n.AddChildToBack(objectPattern)
+	objectPattern.AddChildToBack(value)
+	return n
+}
+
+// createArgumentsReference mirrors AstFactory.createArgumentsReference.
+func (af *AstFactory) createArgumentsReference() *rhino.Node {
+	return af.createNameWithUnknownType("arguments")
+}
+
+// createArgumentsAliasDeclaration mirrors AstFactory.createArgumentsAliasDeclaration.
+func (af *AstFactory) createArgumentsAliasDeclaration(aliasName string) *rhino.Node {
+	return af.createSingleConstNameDeclaration(aliasName, af.createArgumentsReference())
+}
+
+// createEmptyGeneratorFunction mirrors AstFactory.createEmptyGeneratorFunction.
+func (af *AstFactory) createEmptyGeneratorFunction(t jstype.JSType) *rhino.Node {
+	n := af.createEmptyFunction(t)
+	n.SetIsGeneratorFunction(true)
+	return n
+}
+
+// createFunction mirrors AstFactory.createFunction(String, Node, Node, Type).
+func (af *AstFactory) createFunction(name string, paramList, body *rhino.Node, t jstype.JSType) *rhino.Node {
+	nameNode := af.CreateName(name, t)
+	n := rhino.New(rhino.FUNCTION)
+	n.AddChildToBack(nameNode)
+	n.AddChildToBack(paramList)
+	n.AddChildToBack(body)
+	af.setType(n, t)
+	return n
+}
+
+// createMemberFunctionDef mirrors AstFactory.createMemberFunctionDef.
+func (af *AstFactory) createMemberFunctionDef(name string, function *rhino.Node) *rhino.Node {
+	n := rhino.NewString(rhino.MEMBER_FUNCTION_DEF, name)
+	n.AddChildToBack(function)
+	af.setType(n, nodeJSType(function))
+	return n
+}
+
+// createPrototypeAccess mirrors AstFactory.createPrototypeAccess.
+func (af *AstFactory) createPrototypeAccess(receiver *rhino.Node) *rhino.Node {
+	return af.createGetPropWithUnknownType(receiver, "prototype")
+}
+
+// createGetPropsWithUnknownType mirrors AstFactory.createGetPropsWithUnknownType.
+func (af *AstFactory) createGetPropsWithUnknownType(receiver *rhino.Node, propertyNames []string) *rhino.Node {
+	result := receiver
+	for _, name := range propertyNames {
+		result = af.createGetPropWithUnknownType(result, name)
+	}
+	return result
+}
+
+// createSingleNameDeclaration mirrors AstFactory.createSingleNameDeclaration.
+func (af *AstFactory) createSingleNameDeclaration(tok rhino.Token, name string, value *rhino.Node) *rhino.Node {
+	switch tok {
+	case rhino.LET:
+		return af.createSingleLetNameDeclaration(name)
+	case rhino.VAR:
+		return af.createSingleVarNameDeclaration(name)
+	case rhino.CONST:
+		return af.createSingleConstNameDeclaration(name, value)
+	default:
+		panic("createSingleNameDeclaration: unexpected token " + tok.String())
+	}
+}
+
 // createParamList mirrors AstFactory.createParamList(String...).
 func (af *AstFactory) createParamList(parameterNames ...string) *rhino.Node {
 	n := rhino.New(rhino.PARAM_LIST)
@@ -452,6 +643,68 @@ func (af *AstFactory) createParamList(parameterNames ...string) *rhino.Node {
 		p := af.CreateName(pname, af.unknownType)
 		n.AddChildToBack(p)
 	}
+	return n
+}
+
+// getNativeType looks up a native type from the registry.
+// Mirrors AstFactory.getNativeType(JSTypeNative) in Java.
+func (af *AstFactory) getNativeType(typeID jstype.JSTypeNative) jstype.JSType {
+	if af.registry == nil {
+		return nil
+	}
+	return af.registry.GetNativeType(typeID)
+}
+
+// assertNotAddingColors panics when this factory is in Color mode.
+// Mirrors AstFactory.assertNotAddingColors() in Java.
+func (af *AstFactory) assertNotAddingColors() {
+	if af.IsAddingColors() {
+		panic("method not supported for colors")
+	}
+}
+
+// createZeroArgFunction mirrors AstFactory.createZeroArgFunction(String, Node, JSType).
+func (af *AstFactory) createZeroArgFunction(name string, body *rhino.Node, returnType jstype.JSType) *rhino.Node {
+	params := rhino.New(rhino.PARAM_LIST)
+	return af.createFunction(name, params, body, returnType)
+}
+
+// createZeroArgGeneratorFunction mirrors AstFactory.createZeroArgGeneratorFunction.
+func (af *AstFactory) createZeroArgGeneratorFunction(name string, body *rhino.Node, returnType jstype.JSType) *rhino.Node {
+	result := af.createZeroArgFunction(name, body, returnType)
+	result.SetIsGeneratorFunction(true)
+	return result
+}
+
+// createGetterDef mirrors AstFactory.createGetterDef(String, Node).
+// Creates `get name() { return value; }`.
+func (af *AstFactory) createGetterDef(name string, value *rhino.Node) *rhino.Node {
+	body := af.CreateBlock(af.CreateReturn(value))
+	functionNode := af.createZeroArgFunction("", body, nodeJSType(value))
+	n := rhino.NewString(rhino.GETTER_DEF, name)
+	n.AddChildToFront(functionNode)
+	return n
+}
+
+// createZeroArgArrowFunctionForExpression mirrors AstFactory.createZeroArgArrowFunctionForExpression.
+func (af *AstFactory) createZeroArgArrowFunctionForExpression(expression *rhino.Node) *rhino.Node {
+	nameNode := rhino.NewString(rhino.NAME, "")
+	params := rhino.New(rhino.PARAM_LIST)
+	n := rhino.New(rhino.FUNCTION)
+	n.AddChildToBack(nameNode)
+	n.AddChildToBack(params)
+	n.AddChildToBack(expression)
+	n.SetIsArrowFunction(true)
+	af.setType(n, nodeJSType(expression))
+	return n
+}
+
+// createQuotedStringKey mirrors AstFactory.createQuotedStringKey.
+func (af *AstFactory) createQuotedStringKey(key string, value *rhino.Node) *rhino.Node {
+	n := rhino.NewString(rhino.STRING_KEY, key)
+	n.PutBooleanProp(rhino.PropQuotedStringKey, true)
+	n.AddChildToBack(value)
+	af.setType(n, nodeJSType(value))
 	return n
 }
 

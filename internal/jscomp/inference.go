@@ -30,294 +30,11 @@ func NewTypeInference(scope *TypedScope) *TypeInference { return &TypeInference{
 // InferType mirrors TypeInference's per-node type computation.
 // Unhandled tokens fall through to Unknown so the checker stays
 // conservative instead of false-positiving.
+// InferType is the public entry point for per-node type inference.
+// It delegates to traverse, which is the Java-faithful dispatcher.
+// Port of TypeInference.java#flowThrough → traverse.
 func (t *TypeInference) InferType(n *rhino.Node) jstype.JSType {
-	if n == nil {
-		return jstype.Unknown
-	}
-	switch n.Token() {
-
-	// ---- literals -------------------------------------------------- //
-	case rhino.STRINGLIT:
-		return jstype.String
-	case rhino.NUMBER:
-		return jstype.Number
-	case rhino.TRUE, rhino.FALSE:
-		return jstype.Boolean
-	case rhino.NULL:
-		return jstype.Null
-	case rhino.UNDEFINED:
-		return jstype.Void
-
-	// ---- NAME / THIS / member access ------------------------------- //
-	case rhino.NAME:
-		// Port of TypeInference.java's "N_NAME" case: a bare identifier
-		// resolves to the declared type of its binding, else Unknown.
-		if declared := t.scope.GetDeclaredType(n.String_()); declared != nil {
-			return declared
-		}
-		return jstype.Unknown
-	case rhino.THIS:
-		if inst := t.scope.ThisType(); inst != nil {
-			return inst
-		}
-		return jstype.Unknown
-	case rhino.SUPER:
-		// `super` in a derived-class constructor is bound under the name
-		// "super" in the ctor-local scope (see TypedScopeCreator.bindSuper).
-		if declared := t.scope.GetDeclaredType("super"); declared != nil {
-			return declared
-		}
-		return jstype.Unknown
-	case rhino.GETPROP:
-		return t.inferGetProp(n)
-	case rhino.GETELEM:
-		return t.inferGetElem(n)
-	case rhino.NEW:
-		if callee := n.FirstChild(); callee != nil {
-			if ct := t.InferType(callee); ct != nil {
-				if fn, ok := ct.(*jstype.FunctionType); ok && fn.Instance != nil {
-					return fn.Instance
-				}
-			}
-		}
-		return jstype.Unknown
-	case rhino.CALL:
-		return t.inferCall(n)
-
-	// ---- assignment --------------------------------------------- //
-	case rhino.ASSIGN:
-		// Bare `=` — the expression value is the RHS type. Matches
-		// TypeInference.java's ASSIGN branch.
-		kids := n.Children()
-		if len(kids) >= 2 {
-			return t.InferType(kids[1])
-		}
-		return jstype.Unknown
-	case rhino.ASSIGN_ADD:
-		// `x += y` has the same result type as `x + y`; delegate to
-		// inferAdd so string-coercion is tracked. Mirrors how Java's
-		// TypeInference sharpens compound-assign result types via the
-		// underlying binary-op helper (getOpResultType in ADD path).
-		return t.inferAddChildren(n)
-	case rhino.ASSIGN_SUB, rhino.ASSIGN_MUL, rhino.ASSIGN_DIV, rhino.ASSIGN_MOD,
-		rhino.ASSIGN_BITAND, rhino.ASSIGN_BITOR, rhino.ASSIGN_BITXOR,
-		rhino.ASSIGN_LSH, rhino.ASSIGN_RSH, rhino.ASSIGN_URSH,
-		rhino.ASSIGN_EXPONENT:
-		// traverseAssignOp: these compound assigns delegate to
-		// traverseBigIntCompatibleBinaryOperator in Java, producing bigint
-		// when both operands are bigint, else number. For simplicity we
-		// call the binary helper using the LHS and RHS inferred types.
-		// Port of TypeInference.java#traverseAssignOp.
-		kids := n.Children()
-		if len(kids) < 2 {
-			return jstype.Number
-		}
-		return t.traverseBigIntCompatibleBinaryOp(t.InferType(kids[0]), t.InferType(kids[1]))
-	case rhino.ASSIGN_OR:
-		// `x ||= y` — port of traverseShortCircuitingBinOpAssignment (OR).
-		// Result is (truthy members of x) ∪ y.
-		kids := n.Children()
-		if len(kids) < 2 {
-			return jstype.Unknown
-		}
-		return t.traverseShortCircuitingAssignOp(t.InferType(kids[0]), t.InferType(kids[1]), false)
-	case rhino.ASSIGN_AND:
-		// `x &&= y` — port of traverseShortCircuitingBinOpAssignment (AND).
-		// Result is (falsy members of x) ∪ y.
-		kids := n.Children()
-		if len(kids) < 2 {
-			return jstype.Unknown
-		}
-		return t.traverseShortCircuitingAssignOp(t.InferType(kids[0]), t.InferType(kids[1]), true)
-	case rhino.ASSIGN_COALESCE:
-		// `x ??= y` — port of traverseNullishCoalesce assignment form.
-		// When x is non-null/non-undefined, result is x; otherwise x∖null∖undef ∪ y.
-		kids := n.Children()
-		if len(kids) < 2 {
-			return jstype.Unknown
-		}
-		left := t.InferType(kids[0])
-		stripped := stripNullUndef(left)
-		if stripped != nil && sameType(stripped, left) {
-			return left
-		}
-		return unionFold(stripped, t.InferType(kids[1]))
-
-	// ---- binary arithmetic / comparison / logical ----------------- //
-	case rhino.ADD:
-		return t.inferAdd(n)
-	case rhino.SUB, rhino.MUL, rhino.DIV, rhino.MOD,
-		rhino.BITAND, rhino.BITOR, rhino.BITXOR, rhino.LSH, rhino.RSH,
-		rhino.EXPONENT:
-		// traverseBigIntCompatibleBinaryOperator: result is bigint when both
-		// operands are bigint, number when neither, bigint|number when mixed.
-		// Port of TypeInference.java#traverseBigIntCompatibleBinaryOperator.
-		kids := n.Children()
-		if len(kids) < 2 {
-			return jstype.Number
-		}
-		return t.traverseBigIntCompatibleBinaryOp(t.InferType(kids[0]), t.InferType(kids[1]))
-	case rhino.URSH:
-		// >>> is not compatible with BigInt (always returns number).
-		// Port of TypeInference.java#traverseUnsignedRightShift.
-		return jstype.Number
-	case rhino.LT, rhino.LE, rhino.GT, rhino.GE,
-		rhino.EQ, rhino.NE, rhino.SHEQ, rhino.SHNE,
-		rhino.INSTANCEOF, rhino.IN:
-		return jstype.Boolean
-	case rhino.OR:
-		// `a || b` evaluates to `a` when truthy, else `b`. The static
-		// result is `(a − falsy) ∪ b`. Without full dataflow we still
-		// drop null/undefined/void from the left side, which is enough
-		// for the common `(T|undefined) || fallback` pattern that shows
-		// up across the checker tests.
-		kids := n.Children()
-		if len(kids) < 2 {
-			return jstype.Unknown
-		}
-		return unionFold(stripFalsy(t.InferType(kids[0])), t.InferType(kids[1]))
-	case rhino.COALESCE:
-		// `a ?? b` keeps only null/undefined-free members of `a` before
-		// unioning with `b`. When `a` itself cannot be null/undefined,
-		// the fallback is unreachable at runtime so we drop `b` to
-		// avoid widening the result — mirrors how Java's TypeInference
-		// sees the `??` refinement on a definitely-non-null left side.
-		kids := n.Children()
-		if len(kids) < 2 {
-			return jstype.Unknown
-		}
-		left := t.InferType(kids[0])
-		stripped := stripNullUndef(left)
-		if stripped != nil && sameType(stripped, left) {
-			return left
-		}
-		return unionFold(stripped, t.InferType(kids[1]))
-	case rhino.AND:
-		// `a && b` returns `b` when `a` is truthy, else `a`. Result
-		// is `(a − truthy) ∪ b` — the falsy members of `a` plus
-		// whatever `b` evaluates to under the truthy-a refinement.
-		//
-		// Special case: if `a` is ALWAYS falsy (null/undefined/false literal),
-		// the right side never executes, so the result type is just `a`.
-		// This mirrors Java's BooleanLiteralSet.get(false) check in
-		// traverseShortCircuitingBinOp: when leftOutcome.toBooleanOutcomes
-		// is always-false, Java returns leftType without including the right.
-		kids := n.Children()
-		if len(kids) < 2 {
-			return jstype.Unknown
-		}
-		left := t.InferType(kids[0])
-		// If left is always-falsy (null, void, or a literal-false type),
-		// the RHS is unreachable — return the left type directly.
-		if isAlwaysFalsyType(left) {
-			return left
-		}
-		refs := buildRefinements(t.scope, kids[0], true)
-		right := t.inferUnder(kids[1], refs)
-		falsy := keepFalsyRefined(left)
-		if falsy == nil {
-			return right
-		}
-		return unionFold(falsy, right)
-
-	// ---- unary ---------------------------------------------------- //
-	case rhino.NOT:
-		return jstype.Boolean
-	case rhino.NEG, rhino.BITNOT:
-		// traverseBigIntCompatibleUnaryOperator: NEG and BITNOT support
-		// bigint — result is bigint when operand is bigint, else number.
-		// Port of TypeInference.java#traverseBigIntCompatibleUnaryOperator.
-		if child := n.FirstChild(); child != nil {
-			return t.traverseBigIntCompatibleUnaryOp(t.InferType(child))
-		}
-		return jstype.Number
-	case rhino.POS:
-		// traverseUnaryPlus: unary + on bigint is a runtime error.
-		// Java returns NO_TYPE for bigint operands; we conservatively return Number.
-		// Port of TypeInference.java#traverseUnaryPlus.
-		return jstype.Number
-	case rhino.TYPEOF:
-		return jstype.String
-	case rhino.VOID:
-		return jstype.Void
-	case rhino.DELPROP:
-		return jstype.Boolean
-
-	// ---- ternary -------------------------------------------------- //
-	case rhino.HOOK:
-		return t.inferHook(n)
-
-	// ---- literals with structure ---------------------------------- //
-	case rhino.ARRAYLIT:
-		// Port of traverseArrayLiteral: returns Array<Unknown> so that
-		// getElem / property lookup resolves through the Array prototype.
-		// Java creates createTemplatizedType(ARRAY_TYPE, UNKNOWN_TYPE).
-		if inst := t.scope.LookupNominalType("Array"); inst != nil {
-			return jstype.NewTemplatizedType(inst, []jstype.JSType{jstype.Unknown})
-		}
-		return jstype.Unknown
-	case rhino.OBJECTLIT:
-		return t.inferObjectLit(n)
-	case rhino.REGEXP:
-		// traverseRegExp: a regex literal evaluates to a RegExp instance.
-		// Port of TypeInference.java's REGEXP branch which sets the node's
-		// type to the native REGEXP_TYPE.
-		if inst := t.scope.LookupNominalType("RegExp"); inst != nil {
-			return inst
-		}
-		return jstype.Unknown
-	case rhino.TEMPLATELIT:
-		// traverseTemplateLit: a template literal (non-tagged) always
-		// evaluates to a string. Port of the TEMPLATELIT branch in
-		// TypeInference.java which sets the node type to STRING_TYPE.
-		return jstype.String
-	case rhino.TAGGED_TEMPLATELIT:
-		// traverseTaggedTemplateLit: a tagged template literal is a
-		// special function call — the tag function is the first child and
-		// the template literal is the second child. The expression type
-		// equals the tag's return type, mirroring Java's
-		// setCallNodeTypeAfterChildrenTraversed on TAGGED_TEMPLATELIT.
-		return t.inferTaggedTemplateLit(n)
-
-	// ---- increment / decrement ------------------------------------ //
-	case rhino.INC, rhino.DEC:
-		// traverseBigIntCompatibleUnaryOperator (INC/DEC): result mirrors
-		// the operand — bigint for bigint operands, number otherwise.
-		// Port of TypeInference.java#traverseBigIntCompatibleUnaryOperator.
-		if child := n.FirstChild(); child != nil {
-			return t.traverseBigIntCompatibleUnaryOp(t.InferType(child))
-		}
-		return jstype.Number
-
-	// ---- yield / await ------------------------------------------- //
-	case rhino.YIELD:
-		// traverseYieldAll / traverseYield: the type of the yield
-		// expression is the value sent back into the generator via
-		// next(value). Without full dataflow we conservatively return
-		// Unknown, matching Java's fallback when no TNext is resolved.
-		return jstype.Unknown
-	case rhino.AWAIT:
-		// traverseAwait: resolves to the awaited type stripped of its
-		// Promise wrapper. Mirrors Java's
-		// Promises.getResolvedType(registry, exprType).
-		return t.inferAwait(n)
-
-	// ---- function expression -------------------------------------- //
-	case rhino.FUNCTION:
-		return t.inferFunctionExpr(n)
-
-	// ---- cast expression ----------------------------------------- //
-	// /** @type {T} */(expr) — the node's declared type is the cast
-	// target resolved from its @type JSDoc annotation.
-	case rhino.CAST:
-		if info := n.JSDocInfo(); info != nil && info.HasType() {
-			if ct := t.scope.ResolveExpr(info.Type().TypeName); ct != nil {
-				return ct
-			}
-		}
-		return jstype.Unknown
-	}
-	return jstype.Unknown
+	return t.traverse(n)
 }
 
 // Go-only: language-adapter
@@ -1797,6 +1514,12 @@ func (t *TypeInference) traverseAnd(n *rhino.Node) jstype.JSType {
 		return jstype.Unknown
 	}
 	left := t.InferType(kids[0])
+	// If left is always-falsy (null, void, or literal-false), the RHS is
+	// unreachable — return the left type directly. Mirrors Java's
+	// BooleanLiteralSet.get(false) check in traverseShortCircuitingBinOp.
+	if isAlwaysFalsyType(left) {
+		return left
+	}
 	refs := buildRefinements(t.scope, kids[0], true)
 	right := t.inferUnder(kids[1], refs)
 	falsy := keepFalsyRefined(left)
@@ -1955,15 +1678,24 @@ func (t *TypeInference) traverseArrayLiteral(n *rhino.Node) jstype.JSType {
 }
 
 // traverseName returns the inferred type of a NAME node.
-// Port of TypeInference.java#traverseName: when the node has an
-// initialiser child the type is the child's type; otherwise the
-// declared type from the scope is used.
+// Port of TypeInference.java#traverseName: resolves the type from the
+// current FlowScope. When the name has a declaration initialiser, the
+// initialiser is traversed to update the scope, but the node type is
+// the scope's inferred/declared type for the variable. Without a
+// FlowScope we use the declared type from the static scope; if absent,
+// fall back to the initialiser's type so declaration-time inference
+// still propagates.
 func (t *TypeInference) traverseName(n *rhino.Node) jstype.JSType {
-	if init := n.FirstChild(); init != nil {
-		return t.InferType(init)
-	}
+	// Prefer the statically-declared type from the scope (mirrors
+	// Java's var.getType() path inside traverseName).
 	if declared := t.scope.GetDeclaredType(n.String_()); declared != nil {
 		return declared
+	}
+	// No declared type: if this is a declaration NAME with an initialiser,
+	// propagate the initialiser's inferred type (approximates Java's
+	// updateScopeForAssignment on the inferred-type path).
+	if init := n.FirstChild(); init != nil {
+		return t.InferType(init)
 	}
 	return jstype.Unknown
 }
@@ -2236,8 +1968,183 @@ func (t *TypeInference) traverseOptChain(n *rhino.Node) jstype.JSType {
 // traverse is the main per-node type dispatcher. Port of
 // TypeInference.java#traverse: dispatches to the appropriate
 // traverseX method based on the node token and returns the inferred type.
+//
+// This mirrors Java's TypeInference.traverse(Node n, FlowScope input) switch
+// case-for-case. Each branch routes to the named traverse* method so that
+// all flow-sensitive narrowing logic in those methods actually runs.
 func (t *TypeInference) traverse(n *rhino.Node) jstype.JSType {
-	return t.InferType(n)
+	if n == nil {
+		return jstype.Unknown
+	}
+	switch n.Token() {
+	case rhino.ASSIGN:
+		return t.traverseAssign(n)
+	case rhino.NAME:
+		return t.traverseName(n)
+	case rhino.OPTCHAIN_GETPROP, rhino.OPTCHAIN_CALL, rhino.OPTCHAIN_GETELEM:
+		return t.traverseOptChain(n)
+	case rhino.GETPROP:
+		return t.traverseGetProp(n)
+	case rhino.CLASS:
+		return t.traverseClass(n)
+	case rhino.ASSIGN_AND, rhino.ASSIGN_OR:
+		return t.traverseShortCircuitingBinOpAssignment(n)
+	case rhino.AND:
+		return t.traverseAnd(n)
+	case rhino.OR:
+		return t.traverseOr(n)
+	case rhino.ASSIGN_COALESCE, rhino.COALESCE:
+		return t.traverseNullishCoalesce(n)
+	case rhino.HOOK:
+		return t.traverseHook(n)
+	case rhino.OBJECTLIT:
+		return t.traverseObjectLiteral(n)
+	case rhino.CALL:
+		return t.traverseCall(n)
+	case rhino.NEW:
+		return t.traverseNew(n)
+	case rhino.NEW_TARGET:
+		return t.traverseNewTarget(n)
+	case rhino.ASSIGN_ADD, rhino.ADD:
+		return t.traverseAdd(n)
+	case rhino.POS:
+		return t.traverseUnaryPlus(n)
+	case rhino.NEG, rhino.BITNOT, rhino.DEC, rhino.INC:
+		if child := n.FirstChild(); child != nil {
+			return t.traverseBigIntCompatibleUnaryOperator(t.traverse(child))
+		}
+		return jstype.Number
+	case rhino.ARRAYLIT:
+		return t.traverseArrayLiteral(n)
+	case rhino.THIS:
+		if inst := t.scope.ThisType(); inst != nil {
+			return inst
+		}
+		return jstype.Unknown
+	case rhino.ASSIGN_LSH, rhino.ASSIGN_RSH, rhino.ASSIGN_DIV, rhino.ASSIGN_MOD,
+		rhino.ASSIGN_BITAND, rhino.ASSIGN_BITXOR, rhino.ASSIGN_BITOR,
+		rhino.ASSIGN_MUL, rhino.ASSIGN_SUB, rhino.ASSIGN_EXPONENT:
+		return t.traverseAssignOp(n)
+	case rhino.ASSIGN_URSH:
+		return t.traverseAssignUnsignedRightShift(n)
+	case rhino.BITAND, rhino.BITXOR, rhino.BITOR, rhino.LSH, rhino.RSH,
+		rhino.SUB, rhino.MUL, rhino.DIV, rhino.MOD, rhino.EXPONENT:
+		kids := n.Children()
+		if len(kids) < 2 {
+			return jstype.Number
+		}
+		return t.traverseBigIntCompatibleBinaryOperator(t.traverse(kids[0]), t.traverse(kids[1]))
+	case rhino.URSH:
+		return t.traverseUnsignedRightShift(n)
+	case rhino.COMMA:
+		// Traverse children for side effects then return last child type.
+		// Port of Java's COMMA case: traverseChildren + getJSType(lastChild).
+		// NOTE: Return Unknown to match pre-wiring behavior and avoid
+		// false-positive TYPE_MISMATCH on comma expressions used as RHS
+		// in assignment contexts where typecheck.go checks against declared type.
+		kids := n.Children()
+		for _, child := range kids {
+			t.traverse(child)
+		}
+		return jstype.Unknown
+	case rhino.TEMPLATELIT, rhino.TYPEOF:
+		t.traverseChildren(n)
+		return jstype.String
+	case rhino.TEMPLATELIT_SUB, rhino.THROW, rhino.ITER_SPREAD, rhino.OBJECT_SPREAD,
+		rhino.IMPORT, rhino.IMPORT_SPECS, rhino.IMPORT_STAR:
+		t.traverseChildren(n)
+		return jstype.Unknown
+	case rhino.IMPORT_SPEC:
+		return t.traverseImportSpec(n)
+	case rhino.TAGGED_TEMPLATELIT:
+		return t.traverseTaggedTemplateLit(n)
+	case rhino.DELPROP, rhino.LT, rhino.LE, rhino.GT, rhino.GE, rhino.NOT,
+		rhino.EQ, rhino.NE, rhino.SHEQ, rhino.SHNE, rhino.INSTANCEOF, rhino.IN:
+		t.traverseChildren(n)
+		return jstype.Boolean
+	case rhino.GETELEM:
+		return t.traverseGetElem(n)
+	case rhino.EXPR_RESULT:
+		t.traverseChildren(n)
+		return jstype.Unknown
+	case rhino.SWITCH:
+		if first := n.FirstChild(); first != nil {
+			t.traverse(first)
+		}
+		return jstype.Unknown
+	case rhino.RETURN:
+		return t.traverseReturn(n)
+	case rhino.YIELD:
+		if n.IsYieldAll() {
+			return t.traverseYieldAll(n)
+		}
+		t.traverseChildren(n)
+		return jstype.Unknown
+	case rhino.VAR, rhino.LET, rhino.CONST:
+		return t.traverseDeclaration(n)
+	case rhino.CATCH:
+		if catchVar := n.FirstChild(); catchVar != nil {
+			return t.traverseCatch(catchVar.String_())
+		}
+		return jstype.Unknown
+	case rhino.CAST:
+		t.traverseChildren(n)
+		if info := n.JSDocInfo(); info != nil && info.HasType() {
+			if ct := t.scope.ResolveExpr(info.Type().TypeName); ct != nil {
+				return ct
+			}
+		}
+		return jstype.Unknown
+	case rhino.SUPER:
+		return t.traverseSuper(n)
+	case rhino.AWAIT:
+		return t.traverseAwait(n)
+	case rhino.VOID:
+		t.traverseChildren(n)
+		return jstype.Void
+	case rhino.EXPORT:
+		t.traverseChildren(n)
+		return jstype.Unknown
+	case rhino.IMPORT_META:
+		return jstype.Unknown
+	case rhino.ROOT, rhino.SCRIPT, rhino.MODULE_BODY, rhino.SWITCH_BODY,
+		rhino.PARAM_LIST, rhino.BLOCK, rhino.EMPTY,
+		rhino.IF, rhino.WHILE, rhino.DO, rhino.FOR, rhino.FOR_IN, rhino.FOR_OF,
+		rhino.FOR_AWAIT_OF, rhino.BREAK, rhino.CONTINUE, rhino.TRY,
+		rhino.CASE, rhino.DEFAULT_CASE, rhino.WITH, rhino.DEBUGGER,
+		rhino.EXPORT_SPECS, rhino.LABEL:
+		return jstype.Unknown
+	case rhino.DYNAMIC_IMPORT:
+		// Return Unknown to avoid false-positive TYPE_MISMATCH on
+		// `var x: T = import(...)` — Java doesn't check this pairing
+		// when JSC_INVALID_MODULE_PATH is already emitted.
+		// traverseDynamicImport still available for callers that need
+		// the Promise type explicitly.
+		return jstype.Unknown
+	// FUNCTION expression yields its FunctionType.
+	case rhino.FUNCTION:
+		return t.inferFunctionExpr(n)
+	// Primitive literals — types set in TypedScopeCreator, mirrored here.
+	case rhino.STRINGLIT, rhino.TEMPLATELIT_STRING:
+		return jstype.String
+	case rhino.NUMBER:
+		return jstype.Number
+	case rhino.TRUE, rhino.FALSE:
+		return jstype.Boolean
+	case rhino.NULL:
+		return jstype.Null
+	case rhino.BIGINT:
+		return jstype.BigInt
+	case rhino.UNDEFINED:
+		return jstype.Void
+	case rhino.REGEXP:
+		if inst := t.scope.LookupNominalType("RegExp"); inst != nil {
+			return inst
+		}
+		return jstype.Unknown
+	}
+	// Fallback for any token not yet in the Java switch — return Unknown.
+	return jstype.Unknown
 }
 
 // getJSType returns the inferred type of a node, or Unknown when the
@@ -2246,7 +2153,7 @@ func (t *TypeInference) getJSType(n *rhino.Node) jstype.JSType {
 	if n == nil {
 		return jstype.Unknown
 	}
-	return t.InferType(n)
+	return t.traverse(n)
 }
 
 // getNativeType resolves a well-known JS type by its native-type name.

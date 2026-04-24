@@ -68,6 +68,32 @@ type LinearFlowState[L any] struct {
 	StepCount int
 }
 
+// GetIn returns the IN lattice value.
+// Mirrors LinearFlowState.getIn() in Java.
+func (s *LinearFlowState[L]) GetIn() L { return s.In }
+
+// SetIn sets the IN lattice value.
+// Mirrors LinearFlowState.setIn() in Java.
+func (s *LinearFlowState[L]) SetIn(v L) { s.In = v }
+
+// GetOut returns the OUT lattice value.
+// Mirrors LinearFlowState.getOut() in Java.
+func (s *LinearFlowState[L]) GetOut() L { return s.Out }
+
+// SetOut sets the OUT lattice value.
+// Mirrors LinearFlowState.setOut() in Java.
+func (s *LinearFlowState[L]) SetOut(v L) { s.Out = v }
+
+// GetStepCount returns the iteration step count for this node.
+// Mirrors LinearFlowState.getStepCount() in Java.
+func (s *LinearFlowState[L]) GetStepCount() int { return s.StepCount }
+
+// String returns a human-readable representation of this flow state.
+// Mirrors LinearFlowState.toString() in Java.
+func (s *LinearFlowState[L]) String() string {
+	return fmt.Sprintf("IN: %v OUT: %v", s.In, s.Out)
+}
+
 // ---------------------------------------------------------------------------
 // GenericDFABase — abstract base for concrete analyses
 // ---------------------------------------------------------------------------
@@ -151,6 +177,7 @@ type GenericDFA[N any, L LatticeElement[L]] struct {
 // NewGenericDFA constructs a GenericDFA.
 // nodeVal must return the N-typed payload stored in a CfgNode.
 // Mirrors the DataFlowAnalysis(ControlFlowGraph) constructor in Java.
+// Go-only: language-adapter Go generics require an explicit constructor; Java uses the class constructor.
 func NewGenericDFA[N any, L LatticeElement[L]](
 	cfg *ControlFlowGraph,
 	nodeVal func(*CfgNode) N,
@@ -321,9 +348,69 @@ func (d *GenericDFA[N, L]) Analyze() {
 	}
 }
 
+// IsBranched reports whether this analysis uses branched flow (per-edge states).
+// The default is false; analyses that need ON_TRUE/ON_FALSE distinctions should
+// override IsBranched via GenericDFABase to return true.
+// Mirrors DataFlowAnalysis.isBranched() in Java.
+func (d *GenericDFA[N, L]) IsBranched() bool {
+	return d.impl.IsBranched()
+}
+
+// IsForward reports whether this is a forward analysis.
+// Mirrors DataFlowAnalysis.isForward() in Java.
+func (d *GenericDFA[N, L]) IsForward() bool {
+	return d.impl.IsForward()
+}
+
+// CreateEntryLattice returns the entry lattice value.
+// Mirrors DataFlowAnalysis.createEntryLattice() in Java.
+func (d *GenericDFA[N, L]) CreateEntryLattice() L {
+	return d.impl.CreateEntryLattice()
+}
+
+// CreateInitialEstimateLattice returns the bottom lattice value.
+// Mirrors DataFlowAnalysis.createInitialEstimateLattice() in Java.
+func (d *GenericDFA[N, L]) CreateInitialEstimateLattice() L {
+	return d.impl.CreateInitialEstimateLattice()
+}
+
+// FlowThrough computes the output lattice for node nVal given input.
+// Mirrors DataFlowAnalysis.flowThrough(N, L) in Java.
+func (d *GenericDFA[N, L]) FlowThrough(nVal N, input L) L {
+	return d.impl.FlowThrough(nVal, input)
+}
+
+// Join merges two lattice values using this analysis's FlowJoiner.
+// Mirrors DataFlowAnalysis.join(L, L) in Java.
+func (d *GenericDFA[N, L]) Join(latticeA, latticeB L) L {
+	joiner := d.impl.CreateFlowJoiner()
+	joiner.JoinFlow(latticeA)
+	joiner.JoinFlow(latticeB)
+	return joiner.Finish()
+}
+
+// GetCfg returns the control flow graph being analysed.
+// Mirrors DataFlowAnalysis.getCfg() in Java.
+func (d *GenericDFA[N, L]) GetCfg() *ControlFlowGraph {
+	return d.Cfg
+}
+
+// CreateFlowJoiner returns a fresh joiner for an analysis step.
+// Mirrors DataFlowAnalysis.createFlowJoiner() in Java.
+func (d *GenericDFA[N, L]) CreateFlowJoiner() FlowJoiner[L] {
+	return d.impl.CreateFlowJoiner()
+}
+
+// CreateFlowBrancher returns a brancher for the given node's output state.
+// Mirrors DataFlowAnalysis.createFlowBrancher(N, L) in Java.
+func (d *GenericDFA[N, L]) CreateFlowBrancher(node N, output L) FlowBrancher[L] {
+	return d.impl.CreateFlowBrancher(node, output)
+}
+
 // GetFlowState returns the LinearFlowState for node n, or nil if n is not in
 // the CFG or Analyze has not been called.
 // Mirrors DiGraphNode.getAnnotation() usage in Java.
+// Go-only: language-adapter Java uses DiGraphNode.getAnnotation(); Go uses a typed map lookup.
 func (d *GenericDFA[N, L]) GetFlowState(n *CfgNode) *LinearFlowState[L] {
 	return d.State[n]
 }
@@ -335,11 +422,13 @@ func (d *GenericDFA[N, L]) GetFlowState(n *CfgNode) *LinearFlowState[L] {
 // uniqueQueue is a FIFO queue that ignores duplicate inserts while the
 // element is already present in the queue.
 // Mirrors the private UniqueQueue<T> in DataFlowAnalysis.java.
+// Go-only: language-adapter Java's UniqueQueue uses PriorityQueue+LinkedHashSet; Go uses a slice+map for simplicity.
 type uniqueQueue[T comparable] struct {
 	queue  []T
 	inQ    map[T]bool
 }
 
+// Go-only: language-adapter Go generics need an explicit factory; Java uses constructor.
 func newUniqueQueue[T comparable]() *uniqueQueue[T] {
 	return &uniqueQueue[T]{inQ: make(map[T]bool)}
 }
@@ -375,6 +464,7 @@ func (q *uniqueQueue[T]) clear() {
 // The CfgEdge.To field is the source node (inverted so the join loop
 // can call getInputFromEdge uniformly).
 // Used only by joinInputs when isForward==true.
+// Go-only: language-adapter Java uses DiGraph.getInEdges() built into the graph; Go reconstructs from Predecessors.
 func (n *CfgNode) inEdges() []CfgEdge {
 	edges := make([]CfgEdge, 0, len(n.Predecessors))
 	for _, pred := range n.Predecessors {
@@ -486,6 +576,8 @@ type DataFlowAnalysis struct {
 	initial  *FlowScope
 }
 
+// edgeKey identifies a directed CFG edge (from→to with branch label).
+// Go-only: language-adapter Java uses DiGraphEdge identity; Go uses a struct key for map lookups.
 type edgeKey struct {
 	from   *CfgNode
 	to     *CfgNode
@@ -495,6 +587,7 @@ type edgeKey struct {
 // NewDataFlowAnalysis wires a DataFlowAnalysis over `cfg` with the
 // given transfer function. `initial` is the IN scope attached to the
 // entry node (typically an empty FlowScope).
+// Go-only: language-adapter Go needs a constructor function; Java DataFlowAnalysis uses subclassing.
 func NewDataFlowAnalysis(cfg *ControlFlowGraph, initial *FlowScope, transfer TransferFunction) *DataFlowAnalysis {
 	return &DataFlowAnalysis{
 		Cfg:      cfg,
@@ -510,6 +603,7 @@ func NewDataFlowAnalysis(cfg *ControlFlowGraph, initial *FlowScope, transfer Tra
 // keeps its refined type or joins to a union that subsumes it), and
 // NewUnion deduplicates by name — so the number of distinct union
 // shapes per name is bounded by the type lattice.
+// Go-only: language-adapter Mirrors DataFlowAnalysis.analyze(); renamed Run to avoid collision with the generic Analyze.
 func (d *DataFlowAnalysis) Run() {
 	d.In[d.Cfg.Entry] = d.initial
 	worklist := []*CfgNode{d.Cfg.Entry}
@@ -585,12 +679,16 @@ func (d *DataFlowAnalysis) Run() {
 // InOf returns the IN FlowScope for the CfgNode wrapping `ast`. Nil
 // if the node was never reached or the AST isn't a statement in the
 // analysed CFG.
+// Go-only: language-adapter Kept for interface-parity; real callers use InOfAst.
 func (d *DataFlowAnalysis) InOf(ast interface{ Token() Tokenish }) *FlowScope {
-	return nil // kept for interface-parity documentation; real callers use InOfAst below
+	// Real callers use InOfAst with a *CfgNode; this overload exists for interface parity.
+	_ = ast
+	return nil
 }
 
 // InOfAst is the concrete lookup used by TypeCheck — given a CFG and
 // an AST statement node, return its IN FlowScope.
+// Go-only: language-adapter Java callers use DiGraphNode.getAnnotation(); Go uses a typed map lookup via InOfAst.
 func (d *DataFlowAnalysis) InOfAst(node *CfgNode) *FlowScope {
 	if node == nil {
 		return nil
