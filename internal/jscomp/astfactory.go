@@ -49,7 +49,7 @@ func (af *AstFactory) IsAddingTypes() bool { return af.typeMode == astTypeModeJS
 func (af *AstFactory) IsAddingColors() bool { return af.typeMode == astTypeModeColor }
 
 // setType attaches type to n in JSTYPE mode. Color mode is a TODO.
-// Go-only: language-adapter Java calls setJSTypeOrColor(Type, Node); Go uses setType as a simplified wrapper.
+// Go-only: language-adapter Java uses a TypeMode-dispatching setJSTypeOrColor(Type, Node); Go's setType is JSType-only.
 func (af *AstFactory) setType(n *rhino.Node, t jstype.JSType) {
 	if af.typeMode == astTypeModeJSType && t != nil {
 		n.SetJSType(t)
