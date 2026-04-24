@@ -440,12 +440,21 @@ func nuQualifiedName(n *rhino.Node) string {
 	if n.Token() != rhino.GETPROP {
 		return ""
 	}
-	fc := n.FirstChild()
-	base := nuQualifiedName(fc)
+	kids := n.Children()
+	if len(kids) < 2 {
+		return ""
+	}
+	base := nuQualifiedName(kids[0])
 	if base == "" {
 		return ""
 	}
-	return base + "." + n.String_()
+	// In our AST, GETPROP has the property name as its second child (STRINGLIT).
+	// Use its String_() rather than n.String_() (which is empty for GETPROP).
+	prop := kids[1].String_()
+	if prop == "" {
+		return ""
+	}
+	return base + "." + prop
 }
 
 // ---------------------------------------------------------------------------

@@ -3298,9 +3298,65 @@ func (c *TypeCheck) visitObjectLit(n *rhino.Node, scope *TypedScope) []diag.Diag
 	ownerType := infer.InferType(n)
 	obj := dereferencedObject(ownerType)
 
+	// Enum element type check — mirrors Java's visitObjectOrClassLiteralKey
+	// line 1515: when key type is EnumElementType, check value against the
+	// enum's underlying primitive type.
+	// Detect enum init: check if the parent has @enum JSDoc. This covers
+	// both `/** @enum */ var E = {...}` (handled by visitVar/visitEnumInit)
+	// and `/** @enum */ goog.a = {...}` (namespace-prop enum, visited here).
+	var enumUnderlyingType jstype.JSType
+	if p := n.Parent(); p != nil {
+		parentInfo := p.JSDocInfo()
+		if parentInfo == nil {
+			// For `goog.a = {...}`, the parent is ASSIGN; check the ASSIGN's JSDoc.
+			if p.Token() == rhino.ASSIGN {
+				parentInfo = p.JSDocInfo()
+			}
+		}
+		if parentInfo != nil && parentInfo.IsEnum() {
+			if expr := parentInfo.EnumParameterType(); expr != nil {
+				enumUnderlyingType = scope.ResolveExpr(expr.TypeName)
+			} else {
+				enumUnderlyingType = jstype.Number // @enum without type defaults to number
+			}
+		}
+	}
+
 	for key := n.FirstChild(); key != nil; key = key.Next() {
 		if key.Token() != rhino.STRING_KEY {
 			continue
+		}
+		// Enum element check: verify value type matches the enum's underlying type.
+		// Mirrors Java's visitObjectOrClassLiteralKey when keyType.isEnumElementType().
+		if enumUnderlyingType != nil {
+			value := key.FirstChild()
+			if value != nil {
+				rightType := infer.InferType(value)
+				if !jstype.IsSubtype(rightType, enumUnderlyingType) {
+					propName := key.String_()
+					parentNode := n.Parent()
+					ownerName := ""
+					if parentNode != nil {
+						if parentNode.Token() == rhino.NAME {
+							ownerName = "enum{" + parentNode.String_() + "}"
+						} else if parentNode.Token() == rhino.ASSIGN {
+							if lhs := parentNode.FirstChild(); lhs != nil {
+								qname := NU.GetBestLValueName(lhs)
+								if qname != "" {
+									ownerName = "enum{" + qname + "}"
+								}
+							}
+						}
+					}
+					msg := fmt.Sprintf("assignment to property %s of %s\nfound   : %s\nrequired: %s",
+						propName, ownerName, rightType.TypeName(), enumUnderlyingType.TypeName())
+					out = append(out, diag.Diagnostic{
+						Path: c.path, Line: key.Lineno(), Col: key.Charno(),
+						Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error, Message: msg,
+					})
+				}
+			}
+			continue // skip the regular key type check for enum values
 		}
 		// struct/dict key form checks.
 		if obj != nil && (obj.IsStruct || obj.IsDict) {
