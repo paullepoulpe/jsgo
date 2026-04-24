@@ -1816,4 +1816,113 @@ func (n *Node) ClonePropsFrom(other *Node) {
 	}
 }
 
+// HasZeroOrOneChild mirrors Java's Node.hasZeroOrOneChild() — true when the
+// node has at most one child.
+func (n *Node) HasZeroOrOneChild() bool {
+	return n.first == n.last
+}
+
+// HasChild mirrors Java's Node.hasChild(Node child) — true when child is an
+// immediate child of this node.
+func (n *Node) HasChild(child *Node) bool {
+	for c := n.first; c != nil; c = c.next {
+		if c == child {
+			return true
+		}
+	}
+	return false
+}
+
+// IsAsyncGeneratorFunction mirrors Java's Node.isAsyncGeneratorFunction() —
+// true for async generator function nodes (async function*).
+func (n *Node) IsAsyncGeneratorFunction() bool {
+	return n.IsAsyncFunction() && n.IsGeneratorFunction()
+}
+
+// GetOriginalQualifiedName mirrors Java's Node.getOriginalQualifiedName() —
+// returns the original (pre-rename) dotted name for this NAME or GETPROP chain.
+func (n *Node) GetOriginalQualifiedName() string {
+	switch n.token {
+	case NAME:
+		orig := n.GetOriginalName()
+		if orig == "" {
+			orig = n.str
+		}
+		if orig == "" {
+			return ""
+		}
+		return orig
+	case GETPROP:
+		left := n.first
+		if left == nil {
+			return ""
+		}
+		leftName := left.GetOriginalQualifiedName()
+		if leftName == "" {
+			return ""
+		}
+		right := n.GetOriginalName()
+		if right == "" {
+			right = n.str
+		}
+		if right == "" {
+			return ""
+		}
+		return leftName + "." + right
+	}
+	return ""
+}
+
+// AddChildrenAfter mirrors Java's Node.addChildrenAfter(Node, Node) —
+// inserts the sibling chain beginning at children after the node afterNode
+// (or at front if afterNode is nil).
+func (n *Node) AddChildrenAfter(children, afterNode *Node) {
+	if children == nil {
+		return
+	}
+	if afterNode == nil {
+		n.AddChildrenToFront(children)
+		return
+	}
+	for c := children; c != nil; {
+		next := c.next
+		c.next = nil
+		c.previous = nil
+		c.parent = nil
+		// Insert after afterNode
+		c.parent = n
+		c.previous = afterNode
+		c.next = afterNode.next
+		if afterNode.next != nil {
+			afterNode.next.previous = c
+		} else {
+			// afterNode was the last child
+			if n.first != nil {
+				n.first.previous = c
+			}
+		}
+		afterNode.next = c
+		afterNode = c
+		c = next
+	}
+}
+
+// AddChildrenToFront mirrors Java's Node.addChildrenToFront(Node) —
+// prepends all children from firstChild's chain to the front of n's children.
+func (n *Node) AddChildrenToFront(firstChild *Node) {
+	if firstChild == nil {
+		return
+	}
+	for c := firstChild; c != nil; {
+		next := c.next
+		c.next = nil
+		c.previous = nil
+		c.parent = nil
+		n.AddChildToFront(c)
+		c = next
+	}
+}
+
+// GetQualifiedName is defined in qualified_name.go.
+
 
