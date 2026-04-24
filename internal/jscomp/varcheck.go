@@ -88,13 +88,18 @@ var VarCheckRequiredSymbols = map[string]bool{
 
 func (v *VarCheck) ShouldTraverse(_ *NodeTraversal, _, _ *rhino.Node) bool { return true }
 
-// EnterScope mirrors VarCheck.java's enterScope — no-op (Java also no-ops).
-func (v *VarCheck) EnterScope(_ *NodeTraversal) {}
+// EnterScope mirrors VarCheck.java's enterScope — Java's enterScope is also
+// a no-op in VarCheck (it delegates to the default ScopedCallback.enterScope).
+func (v *VarCheck) EnterScope(t *NodeTraversal) {
+	_ = t // VarCheck doesn't need scope entry bookkeeping.
+}
 
 // ExitScope mirrors VarCheck.java's exitScope — in Java this adds required
 // symbols to the synthetic-externs set when they're missing from scope.
 // In Go this is a no-op since defaultExternNames() covers required symbols.
-func (v *VarCheck) ExitScope(_ *NodeTraversal) {}
+func (v *VarCheck) ExitScope(t *NodeTraversal) {
+	_ = t // Required symbols are handled via defaultExternNames() in checkName.
+}
 
 // Visit mirrors VarCheck.java's ScopedCallback.visit — dispatches to
 // checkName for NAME nodes. Other token types are ignored (no scope needed).
