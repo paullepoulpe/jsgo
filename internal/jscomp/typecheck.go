@@ -2165,12 +2165,26 @@ func (c *TypeCheck) visitClassField(field *rhino.Node, parent *rhino.Node, scope
 	}
 
 	// --- @type mismatch check ---
+	// CLASS_FIELD_DEF (legacy): kids = [NAME(fieldName), initializer]
+	// MEMBER_FIELD_DEF (new pipeline): String_() = fieldName, kids = [initializer]
 	kids := field.Children()
-	if len(kids) < 2 {
-		return out
+	var name *rhino.Node
+	var init *rhino.Node
+	if field.Token() == rhino.MEMBER_FIELD_DEF {
+		// New pipeline: the field name is the node's string, initializer is first child.
+		name = rhino.NewString(rhino.NAME, field.String_())
+		if len(kids) >= 1 {
+			init = kids[0]
+		} else {
+			return out
+		}
+	} else {
+		if len(kids) < 2 {
+			return out
+		}
+		name = kids[0]
+		init = kids[1]
 	}
-	name := kids[0]
-	init := kids[1]
 	info := field.JSDocInfo()
 	if info == nil || !info.HasType() {
 		return out
