@@ -674,11 +674,8 @@ func (c *TypeCheck) tvDrain() []diag.Diagnostic {
 
 // ---- per-node visitors ------------------------------------------ //
 
-// varHasEqOnLine reports whether the source line (1-indexed lineno)
-// contains an `=` sign at or after the column of the name token. Used
-// to guard JSC_ENUM_INITIALIZER_NOT_ENUM: if `=` is present the parser
-// likely failed to attach the init node (e.g. inline JSDoc inside the
-// OBJECTLIT), and we should not fire the diagnostic.
+// Go-only: language-adapter — guards against parser-level attach failures that
+// produce an absent init node; Java's parser always attaches initializers correctly.
 func varHasEqOnLine(src string, lineno, nameCol int) bool {
 	if src == "" || lineno < 1 {
 		return false
@@ -817,10 +814,8 @@ func (c *TypeCheck) visitVar(v *rhino.Node, scope *TypedScope) []diag.Diagnostic
 }
 
 
-// visitCast validates `/** @type {T} */(expr)` cast expressions.
-// Mirrors Java's TypeCheck.visitCast → TypeValidator.expectCanCast:
-// fires JSC_INVALID_CAST when the CanCastToVisitor rejects the pair.
-// Object literals are excluded (Java skips them too).
+// Go-only: language-adapter — Java handles CAST inline in visit() at line 613-629;
+// Go extracts it into a named function for readability.
 func (c *TypeCheck) visitCast(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	expr := n.FirstChild()
 	if expr == nil || expr.Token() == rhino.OBJECTLIT {
@@ -866,17 +861,9 @@ func (c *TypeCheck) visitCast(n *rhino.Node, scope *TypedScope) []diag.Diagnosti
 	}}
 }
 
-// visitEnumInit validates a `/** @enum [{T}] */ var E = init`
-// declaration. Three cases mirror Java's EnumType initialisation:
-//
-//  1. init is an OBJECTLIT — per-entry subtype check against the
-//     declared Underlying; mismatch emits JSC_TYPE_MISMATCH at
-//     the entry value with "assignment to property <k> of enum{E}".
-//  2. init is a NAME referring to another enum — alias; already
-//     folded in scope.go. No diagnostic here.
-//  3. init is anything else — emit "initializing variable" with
-//     the enum's EnumType as required. Matches how Java's
-//     TypeCheck handles a non-enum RHS under an @enum decl.
+// Go-only: language-adapter — Go extracts Java's visitVar @enum branch into its
+// own function for clarity; in Java the enum-initializer logic is inlined inside
+// visitVar / TypeCheck.java:2266-2300 without a named sub-method.
 func (c *TypeCheck) visitEnumInit(name, init *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	enum, ok := scope.GetDeclaredType(name.String_()).(*jstype.EnumType)
 	if !ok {
@@ -962,10 +949,8 @@ func (c *TypeCheck) visitEnumInit(name, init *rhino.Node, scope *TypedScope) []d
 	}}
 }
 
-// visitShortCircuitAssign handles `&&=`, `||=`, `??=` compound assignments.
-// Port of TypeCheck.java's visitAssign branch for ASSIGN_AND, ASSIGN_OR,
-// ASSIGN_COALESCE: checks that the RHS type is assignable to the declared
-// type of the LHS.
+// Go-only: language-adapter — Java's visitAssign handles ASSIGN_AND/OR/COALESCE
+// inline (TypeCheck.java:1113 switch); Go extracts this variant for clarity.
 func (c *TypeCheck) visitShortCircuitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := a.Children()
 	if len(kids) < 2 {
@@ -1244,13 +1229,9 @@ func (c *TypeCheck) visitNew(node *rhino.Node, scope *TypedScope) []diag.Diagnos
 	return c.visitCall(node, scope)
 }
 
-// isSafeCalleeForArity reports whether a CALL's callee shape lets
-// us confidently enforce JSC_WRONG_ARGUMENT_COUNT. Java fires on
-// every call-site; jsgo narrows to patterns where our FunctionType
-// carries accurate arity info — bare identifiers, namespace
-// properties (via LookupNamespaceProp), and static-method GETPROPs
-// on a known constructor. Prototype-method calls stay silent
-// because override-aware arity isn't ported yet.
+// Go-only: language-adapter — Java's visitCall fires arity checks on every call
+// site unconditionally; Go applies this guard to avoid FPs from incomplete
+// override-chain inference (no Java counterpart; Java has full type info).
 func isSafeCalleeForArity(callee *rhino.Node, scope *TypedScope) bool {
 	if callee == nil {
 		return false
@@ -1287,15 +1268,8 @@ func isSafeCalleeForArity(callee *rhino.Node, scope *TypedScope) bool {
 	return false
 }
 
-// isSafeInstanceMethodForArity reports whether a GETPROP call whose
-// receiver is `this` or a `new` expression is safe to arity-check.
-// A prototype method is safe when its instance type has no superclass
-// that also declares the same property — i.e. the method is not an
-// @override. Overriding methods may have different arity from the
-// parent's declaration; without full override-aware inference the
-// arity check would produce false positives. Mirrors Java's TypeCheck
-// which always fires but has per-slot type annotations from the full
-// override chain.
+// Go-only: language-adapter — companion guard to isSafeCalleeForArity for
+// prototype-method calls; no Java counterpart.
 func isSafeInstanceMethodForArity(callee *rhino.Node, infer *TypeInference) bool {
 	if callee == nil || callee.Token() != rhino.GETPROP {
 		return false
@@ -1319,11 +1293,9 @@ func isSafeInstanceMethodForArity(callee *rhino.Node, infer *TypeInference) bool
 	return !obj.SuperHasProperty(propName)
 }
 
-// isDefinitelyNonConstructor reports whether `t` is guaranteed not
-// to be a constructor. Returns the offending type so the diagnostic
-// can show what was found. A FunctionType without IsConstructor
-// counts (plain functions); non-function primitives count; Unknown
-// / All / unions stay quiet.
+// Go-only: language-adapter — Java's visitNew dispatches through
+// couldBeAConstructor (TypeCheck.java:2328) but returns a JSType directly;
+// Go needs a typed predicate to propagate the offending type into the message.
 func isDefinitelyNonConstructor(t jstype.JSType) (bool, jstype.JSType) {
 	if t == nil {
 		return false, nil
@@ -1698,10 +1670,8 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 	}}
 }
 
-// isThisReceiverRead reports whether `n` is a `this.prop` READ —
-// i.e. the GETPROP's receiver is `this` and the parent isn't an
-// ASSIGN with `n` as LHS. Java fires INEXISTENT_PROPERTY on this
-// pattern even for bare @constructor classes (non-struct).
+// Go-only: language-adapter — splits out the this-receiver predicate that Java's
+// allowStrictPropertyAccessOnNode handles inline (TypeCheck.java:2202-2213).
 func isThisReceiverRead(n *rhino.Node) bool {
 	kids := n.Children()
 	if len(kids) < 1 {
@@ -1713,9 +1683,7 @@ func isThisReceiverRead(n *rhino.Node) bool {
 	return !isAssignLHS(n)
 }
 
-// isAssignLHS reports whether `n` (typically a GETPROP) sits on the
-// LHS of an enclosing ASSIGN. The ILLEGAL_PROPERTY_CREATION check
-// only fires for struct-instance writes, not reads.
+// Go-only: language-adapter — helper for isThisReceiverRead; no Java counterpart.
 func isAssignLHS(n *rhino.Node) bool {
 	p := n.Parent()
 	if p == nil {
@@ -1727,30 +1695,8 @@ func isAssignLHS(n *rhino.Node) bool {
 	return p.FirstChild() == n
 }
 
-// isPropertyExistenceOrAbsenceTest mirrors Java's
-// allowLoosePropertyAccessOnNode logic (NodeUtil.isPropertyTest +
-// isPropertyAbsenceTest). Returns true when the GETPROP `n` appears
-// in a context where the access is a guard/check rather than a
-// reliance on the property's existence.
-//
-// In Java, such accesses cause checkPropertyAccessHelper to set
-// strictReport=true, routing to STRICT_INEXISTENT_PROPERTY rather
-// than JSC_INEXISTENT_PROPERTY. In default mode STRICT_INEXISTENT_PROPERTY
-// is silenced, so Go skips the diagnostic entirely here.
-//
-// Patterns covered (mirrors Java's isPropertyTest + isPropertyAbsenceTest):
-//   - && / || / ?? operand
-//   - typeof / instanceof operand
-//   - Condition of if / while / do-while / for (classic)
-//   - Condition of ternary (hook first child)
-//   - != null/undefined (NE): existence test
-//   - !== undefined (SHNE with undefined): existence test
-//   - == null/undefined (EQ): absence test
-//   - === undefined (SHEQ with undefined): absence test
-//   - !foo.bar as left operand of || (NOT-in-OR pattern)
-// rootOfGetProp walks up a GETPROP chain and returns the leftmost NAME
-// node (the root object). For `a.b.c`, returns the NAME node for `a`.
-// Returns nil if the chain's root is not a NAME.
+// Go-only: language-adapter — walks a GETPROP chain to find the root NAME;
+// Java's NodeUtil handles this generically; no single named Go equivalent.
 func rootOfGetProp(n *rhino.Node) *rhino.Node {
 	curr := n
 	for curr != nil && curr.Token() == rhino.GETPROP {
@@ -1763,6 +1709,9 @@ func rootOfGetProp(n *rhino.Node) *rhino.Node {
 	return curr
 }
 
+// Go-only: language-adapter — mirrors Java's allowLoosePropertyAccessOnNode
+// (TypeCheck.java:2214) which routes to STRICT_INEXISTENT_PROPERTY; Go skips
+// the diagnostic entirely in default mode since STRICT_INEXISTENT is silenced.
 func isPropertyExistenceOrAbsenceTest(n *rhino.Node) bool {
 	p := n.Parent()
 	if p == nil {
@@ -1808,9 +1757,7 @@ func isPropertyExistenceOrAbsenceTest(n *rhino.Node) bool {
 	return false
 }
 
-// otherSideIsNullOrUndefined returns true when the binary node `p`
-// has `n` on one side and a null/undefined literal on the other.
-// Used to implement the property existence/absence test guards.
+// Go-only: language-adapter — helper for isPropertyExistenceOrAbsenceTest.
 func otherSideIsNullOrUndefined(p, n *rhino.Node) bool {
 	kids := p.Children()
 	if len(kids) < 2 {
@@ -1825,9 +1772,7 @@ func otherSideIsNullOrUndefined(p, n *rhino.Node) bool {
 	return isNullOrUndefinedLiteral(other)
 }
 
-// otherSideIs returns true when the binary node `p` has `n` on one
-// side and a node with token `tok` on the other. Used by the
-// existence/absence-test guards for SHNE and SHEQ comparisons.
+// Go-only: language-adapter — helper for isPropertyExistenceOrAbsenceTest.
 func otherSideIs(p, n *rhino.Node, tok rhino.Token) bool {
 	kids := p.Children()
 	if len(kids) < 2 {
@@ -1842,7 +1787,7 @@ func otherSideIs(p, n *rhino.Node, tok rhino.Token) bool {
 	return other != nil && other.Token() == tok
 }
 
-// containsPropTest: sub-tree sub has a GETPROP recvName.propName in an existence test.
+// Go-only: language-adapter — helper for isInGuardedBranch; no Java counterpart.
 func containsPropTest(sub *rhino.Node, recvName, propName string) bool {
 	if sub == nil {
 		return false
@@ -1863,8 +1808,8 @@ func containsPropTest(sub *rhino.Node, recvName, propName string) bool {
 	return false
 }
 
-// isInGuardedBranch: GETPROP n is inside a branch guarded by a prior
-// existence test of recvName.propName (mirrors Java's type narrowing).
+// Go-only: language-adapter — implements Java's type-narrowing guard check inline
+// via explicit AST walking; Java uses FlowScope lattice ops; no named equivalent.
 func isInGuardedBranch(n *rhino.Node, recvName, propName string) bool {
 	for cur := n; cur != nil; cur = cur.Parent() {
 		p := cur.Parent()
@@ -1909,8 +1854,10 @@ func isInGuardedBranch(n *rhino.Node, recvName, propName string) bool {
 	return false
 }
 
-// checkPossibleInexistent emits JSC_POSSIBLE_INEXISTENT_PROPERTY for
-// low-confidence receivers (Unknown / * / Object).
+// Go-only: language-adapter — emits JSC_POSSIBLE_INEXISTENT_PROPERTY for
+// low-confidence receivers; Java routes this through checkPropertyAccessHelper's
+// strictReport path which funnels to STRICT_INEXISTENT_PROPERTY; Go emits the
+// weaker POSSIBLE variant directly since STRICT_ is silenced in default mode.
 func (c *TypeCheck) checkPossibleInexistent(n, recvNode *rhino.Node, propName string, recvType jstype.JSType) []diag.Diagnostic {
 	if isAssignLHS(n) {
 		return nil
