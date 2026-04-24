@@ -1217,7 +1217,34 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 			}
 		}
 	}
+	// Pass 3: catch parameters always have type * (Unknown) in Java's
+	// TypedScopeCreator regardless of any same-named outer declaration.
+	// Walk the block to find CATCH nodes and unconditionally bind their
+	// parameter names to Unknown, overriding any shadowed outer binding.
+	// Mirrors Java's TypedScopeCreator.AbstractScopeBuilder.visitCatch
+	// which always assigns JSType.ALL to the catch parameter slot.
+	registerCatchParams(block, scope)
 	return scope
+}
+
+// registerCatchParams walks the AST tree rooted at block and for each
+// CATCH node unconditionally binds the parameter name to Unknown in
+// the given scope. This ensures catch parameters shadow outer
+// same-named declarations with *, matching Java's TypedScopeCreator.
+func registerCatchParams(block *rhino.Node, scope *TypedScope) {
+	if block == nil {
+		return
+	}
+	for _, child := range block.Children() {
+		if child.Token() == rhino.CATCH {
+			if first := child.FirstChild(); first != nil && first.Token() == rhino.NAME && first.String_() != "" {
+				scope.declared[first.String_()] = jstype.Unknown
+			}
+			registerCatchParams(child, scope)
+		} else if child.Token() != rhino.FUNCTION && child.Token() != rhino.CLASS {
+			registerCatchParams(child, scope)
+		}
+	}
 }
 
 // hoistDeclarations walks `block` collecting every VAR/LET/CONST /
