@@ -1,5 +1,5 @@
-// Port of com/google/javascript/rhino/jstype/PrototypeObjectType.java +
-// InstanceObjectType.java + ObjectType.java @ closure-compiler v20260415
+// Port of com/google/javascript/rhino/jstype/ObjectType.java +
+// PrototypeObjectType.java + InstanceObjectType.java @ closure-compiler v20260415
 //
 // Closure's ObjectType hierarchy is large (templates, structural subtype
 // for @record, late-resolution flags, member descriptor flags …). This
@@ -111,6 +111,7 @@ type ObjectType struct {
 	ownerFunction *FunctionType
 }
 
+// Go-only: NewObjectType — Go constructor; Java uses Builder pattern (PrototypeObjectType.Builder).
 func NewObjectType(name string) *ObjectType {
 	return &ObjectType{
 		Name:          name,
@@ -120,6 +121,7 @@ func NewObjectType(name string) *ObjectType {
 	}
 }
 
+// Go-only: MarkInferred — Go helper for inferred-property tracking; Java uses Property.inferred flag.
 // MarkInferred flags property `name` as literal-inferred. Callers
 // that register a property type from an RHS literal (rather than
 // an explicit @type annotation) mark it so visitAssign can skip
@@ -131,12 +133,14 @@ func (o *ObjectType) MarkInferred(name string) {
 	o.inferredProps[name] = true
 }
 
+// Go-only: IsPropertyInferred — Go helper; Java uses Property.isInferred() from PropertyMap.
 // IsPropertyInferred reports whether `name` was registered via
 // literal inference.
 func (o *ObjectType) IsPropertyInferred(name string) bool {
 	return o.inferredProps[name]
 }
 
+// Go-only: DefineStaticProperty — Go addition for static class members; Java tracks statics on FunctionType.
 // DefineStaticProperty mirrors ObjectType.defineStaticProperty — puts
 // the property on the constructor-owned slot rather than the instance
 // map. Used for `static x = …` class fields and `static method(){…}`.
@@ -144,6 +148,7 @@ func (o *ObjectType) DefineStaticProperty(name string, t JSType) {
 	o.staticMembers[name] = t
 }
 
+// Go-only: GetStaticPropertyType — Go accessor for static slot; Java uses FunctionType own-property map.
 // GetStaticPropertyType looks up a member on the static slot only —
 // does not walk the instance map or the @extends chain.
 func (o *ObjectType) GetStaticPropertyType(name string) JSType {
@@ -153,11 +158,13 @@ func (o *ObjectType) GetStaticPropertyType(name string) JSType {
 	return nil
 }
 
+// Go-only: HasStaticProperty — Go existence check for static slot; no direct Java analogue.
 // HasStaticProperty is the existence check for the static slot.
 func (o *ObjectType) HasStaticProperty(name string) bool {
 	return o.GetStaticPropertyType(name) != nil
 }
 
+// Go-only: TypeName — Go interface method for diagnostics; Java uses appendTo(TypeStringBuilder).
 func (o *ObjectType) TypeName() string {
 	if o.Name != "" {
 		return o.Name
@@ -337,10 +344,12 @@ func (o *ObjectType) GetPropertyNode(name string) *rhino.Node {
 	return o.propNodes[name]
 }
 
+// Go-only: IsSealed — Go inference-sealing concept; Java uses separate ObjectType.sealed flag.
 // IsSealed mirrors the sealed-for-inference concept: once true, no new
 // inferred properties should be added to this type by TypeInference.
 func (o *ObjectType) IsSealed() bool { return o.sealedForInference }
 
+// Go-only: SealForInference — Go helper; Java equivalent concept doesn't use a separate seal method.
 // SealForInference sets the sealed flag. Called when TypeInference has
 // finished processing a function body and wants to freeze the inferred
 // shape of an object type.
@@ -368,12 +377,14 @@ func (o *ObjectType) HasProperty(name string) bool {
 	return o.GetPropertyType(name) != nil
 }
 
+// Go-only: MemberCount — Go convenience count; Java uses getPropertyMap().getOwnProperties().size().
 // MemberCount returns the number of directly-declared members on this
 // type (not including the super chain). Used by the checker to skip
 // inexistent-property diagnostics on stub types whose member map is
 // still empty.
 func (o *ObjectType) MemberCount() int { return len(o.members) }
 
+// Go-only: MemberNames — Go convenience slice; Java uses getPropertyMap().getOwnProperties().
 // MemberNames returns the set of directly-declared member names on
 // this type. Caller owns the slice; iteration order is undefined.
 // Used by passes that need to fan out over an interface's properties
@@ -386,6 +397,7 @@ func (o *ObjectType) MemberNames() []string {
 	return out
 }
 
+// Go-only: SetSuper — Go helper for super-chain wiring; Java uses setImplicitPrototype().
 // SetSuper wires the @extends chain. Called by TypedScopeCreator when
 // it processes `@extends {Base}` on a constructor.
 func (o *ObjectType) SetSuper(s *ObjectType) { o.super = s }
@@ -394,6 +406,7 @@ func (o *ObjectType) SetSuper(s *ObjectType) { o.super = s }
 // SetSuper) or nil at the root of the chain.
 func (o *ObjectType) Super() *ObjectType { return o.super }
 
+// Go-only: SuperHasProperty — Go convenience; Java uses getImplicitPrototype().getPropertyKind().
 // SuperHasProperty reports whether the property `name` is declared
 // anywhere in the superclass chain (excluding the receiver itself).
 // Used by arity checks to detect @override methods: when the super
@@ -407,6 +420,7 @@ func (o *ObjectType) SuperHasProperty(name string) bool {
 	return o.super.GetPropertyType(name) != nil
 }
 
+// Go-only: containsVoid — Go internal helper for structural subtyping; Java uses JSType.isVoidable().
 // containsVoid reports whether `t` is (or is a union containing)
 // the Void primitive. Used by the structural-subtype check to
 // treat record-type properties with `{…: (T|undefined)}` as
@@ -445,6 +459,7 @@ func (o *ObjectType) GetReferenceName() string { return o.Name }
 // attaching JSDoc to natives to avoid overwriting externs-supplied docs.
 func (o *ObjectType) IsNativeObjectType() bool { return o.isNative }
 
+// Go-only: MarkNative — Go helper to set native flag; Java sets via ObjectType constructor parameter.
 // MarkNative marks this ObjectType as a native externs type. Called by
 // the scope creator when registering externs-bundle types.
 func (o *ObjectType) MarkNative() { o.isNative = true }
@@ -497,12 +512,14 @@ func (o *ObjectType) SetPropertyJSDoc(name string, info *rhino.JSDocInfo) {
 	o.SetPropertyJSDocInfo(name, info)
 }
 
+// Go-only: GetTypeParameters — Go accessor; Java uses getTemplateTypeMap().getTemplateKeys().
 // GetTypeParameters returns the ordered @template keys declared on this
 // type.  Mirrors ObjectType.getTypeParameters() in Java.
 func (o *ObjectType) GetTypeParameters() []*TemplateType {
 	return o.typeParameters
 }
 
+// Go-only: SetTypeParameters — Go setter; Java wires template keys via registry builder.
 // SetTypeParameters records the ordered @template keys for this type.
 // Called by TypedScopeCreator when processing `@template` annotations.
 func (o *ObjectType) SetTypeParameters(params []*TemplateType) {
@@ -535,6 +552,7 @@ func (o *ObjectType) GetConstructor() *FunctionType {
 	return o.constructor
 }
 
+// Go-only: SetConstructor — Go setter; Java constructor relationship set via InstanceObjectType.Builder.
 // SetConstructor records the constructor FunctionType for this instance.
 // Called by TypedScopeCreator when wiring up the instance/constructor
 // relationship (mirrors Java's setImplicitPrototype → setOwnerFunction chain).

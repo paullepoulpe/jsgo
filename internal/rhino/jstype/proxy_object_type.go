@@ -31,6 +31,7 @@ type ProxyObjectType struct {
 	referencedObjType *ObjectType
 }
 
+// Go-only: NewProxyObjectType — Go constructor; Java uses package-private ProxyObjectType(registry, type).
 // NewProxyObjectType constructs a ProxyObjectType wrapping referencedType.
 // Mirrors the package-private Java constructor that takes only a registry
 // and a JSType (no TemplateTypeMap).
@@ -40,14 +41,12 @@ func NewProxyObjectType(referencedType JSType) *ProxyObjectType {
 	return p
 }
 
+// Go-only: NewProxyObjectTypeWithTemplates — Go constructor; Java uses ProxyObjectType(registry, type, templateTypeMap).
 // NewProxyObjectTypeWithTemplates constructs a ProxyObjectType wrapping
 // referencedType, with an associated TemplateTypeMap. The map is accepted
 // for API parity with Java's two-arg constructor but is not stored on
 // ProxyObjectType itself — subclasses that need it (e.g. TemplatizedType)
 // track it separately.
-//
-// TODO(proxy): store/use templateTypeMap once TemplateTypeMap is fully
-// integrated into the jstype hierarchy.
 func NewProxyObjectTypeWithTemplates(referencedType JSType, _ *TemplateTypeMap) *ProxyObjectType {
 	return NewProxyObjectType(referencedType)
 }
@@ -84,12 +83,14 @@ func (p *ProxyObjectType) SetReferencedType(referencedType JSType) {
 
 // --- JSType interface --------------------------------------------------
 
+// Go-only: TypeName — Go interface method; Java uses appendTo(TypeStringBuilder) instead.
 // TypeName delegates to the referenced type. Mirrors Java's
 // ProxyObjectType.appendTo which calls referencedType.appendTo.
 func (p *ProxyObjectType) TypeName() string {
 	return p.referencedType.TypeName()
 }
 
+// Go-only: IsSubtypeOf — Go JSType interface method; Java uses visit(RelationshipVisitor, JSType).
 // IsSubtypeOf delegates to the referenced type. Mirrors Java's visit
 // mechanism — ProxyObjectType.visit(RelationshipVisitor, JSType) calls
 // referencedType.visit(visitor, that), so subtype tests are forwarded.
@@ -146,6 +147,7 @@ func (p *ProxyObjectType) GetImplicitPrototype() *ObjectType {
 	return nil
 }
 
+// Go-only: GetPropertyType — Go accessor; Java uses findPropertyTypeWithoutConsideringTemplateTypes.
 // GetPropertyType looks up a property on the referenced ObjectType. Returns
 // nil when the referenced type is not an ObjectType. Mirrors Java's
 // findPropertyTypeWithoutConsideringTemplateTypes which calls
@@ -219,12 +221,13 @@ func (p *ProxyObjectType) GetTemplateTypes() []JSType {
 	return out
 }
 
-// GetTemplateParamCount mirrors JSType.getTemplateParamCount(). Returns 0
-// as a conservative default — matches Java's base implementation.
-//
-// TODO(proxy): delegate to referencedType once getTemplateParamCount is
-// part of the Go JSType interface.
+// GetTemplateParamCount mirrors JSType.getTemplateParamCount(). Delegates to
+// the referenced ObjectType's type parameter count.
+// Mirrors Java's ProxyObjectType.getTemplateParamCount() → referencedType.getTemplateParamCount().
 func (p *ProxyObjectType) GetTemplateParamCount() int {
+	if p.referencedObjType != nil {
+		return len(p.referencedObjType.GetTypeParameters())
+	}
 	return 0
 }
 
@@ -301,22 +304,23 @@ func (p *ProxyObjectType) IsConstructor() bool {
 
 // IsInterface reports whether the referenced type is an @interface.
 // Mirrors Java's ProxyObjectType.isInterface() which delegates to
-// FunctionType.isInterface(). Returns false for non-function types.
-//
-// TODO(proxy): extend once ObjectType/FunctionType carry an IsInterface
-// flag.
+// referencedType.isInterface().
 func (p *ProxyObjectType) IsInterface() bool {
+	if f, ok := p.referencedType.(*FunctionType); ok {
+		return f.kind == FunctionKindInterface
+	}
 	return false
 }
 
 // IsNominalType mirrors JSType.isNominalType(). Delegates to the
 // referenced type's Go representation — true for named ObjectTypes and
 // constructor FunctionTypes.
-//
-// TODO(proxy): delegate to referencedType once isNominalType is part of
-// the Go JSType interface.
+// Mirrors Java's ProxyObjectType.isNominalType() → referencedType.isNominalType().
 func (p *ProxyObjectType) IsNominalType() bool {
 	if p.referencedObjType != nil && p.referencedObjType.Name != "" {
+		return true
+	}
+	if _, ok := p.referencedType.(*FunctionType); ok {
 		return true
 	}
 	return false
@@ -324,18 +328,20 @@ func (p *ProxyObjectType) IsNominalType() bool {
 
 // IsInstanceType mirrors JSType.isInstanceType(). Returns true iff the
 // referenced ObjectType was created as the instance type of a constructor.
-//
-// TODO(proxy): wire to the IsInstance flag on FunctionType.Instance once
-// that relationship is modelled.
+// Mirrors Java's ProxyObjectType.isInstanceType() → referencedType.isInstanceType().
 func (p *ProxyObjectType) IsInstanceType() bool {
+	if p.referencedObjType != nil {
+		return p.referencedObjType.constructor != nil
+	}
 	return false
 }
 
 // IsOrdinaryFunction mirrors JSType.isOrdinaryFunction(). Returns true iff
-// the referenced type is a non-constructor FunctionType.
+// the referenced type is a non-constructor, non-interface FunctionType.
+// Mirrors Java's ProxyObjectType.isOrdinaryFunction() → referencedType.isOrdinaryFunction().
 func (p *ProxyObjectType) IsOrdinaryFunction() bool {
 	if f, ok := p.referencedType.(*FunctionType); ok {
-		return !f.IsConstructor
+		return f.kind == FunctionKindOrdinary
 	}
 	return false
 }
@@ -353,33 +359,37 @@ func (p *ProxyObjectType) IsUnknownType() bool {
 }
 
 // IsCheckedUnknownType mirrors JSType.isCheckedUnknownType(). The Go port
-// does not distinguish checked-unknown from plain unknown yet.
-//
-// TODO(proxy): add a checkedUnknownType variant and delegate here.
+// does not distinguish checked-unknown from plain unknown; delegates to
+// the referenced type's unknown-type check.
+// Mirrors Java's ProxyObjectType.isCheckedUnknownType() → referencedType.isCheckedUnknownType().
 func (p *ProxyObjectType) IsCheckedUnknownType() bool {
-	return false
+	return isUnknown(p.referencedType)
 }
 
-// IsNoType mirrors JSType.isNoType(). The Go port has no bottom type yet.
-//
-// TODO(proxy): add noType and delegate here.
+// IsNoType mirrors JSType.isNoType() — delegates to the referenced type.
+// Mirrors Java's ProxyObjectType: final boolean isNoType() { return referencedType.isNoType(); }
 func (p *ProxyObjectType) IsNoType() bool {
+	if t, ok := p.referencedType.(*NoType); ok {
+		return t.IsNoType()
+	}
 	return false
 }
 
-// IsNoObjectType mirrors JSType.isNoObjectType(). The Go port has no
-// no-object type yet.
-//
-// TODO(proxy): add noObjectType and delegate here.
+// IsNoObjectType mirrors JSType.isNoObjectType() — delegates to the referenced type.
+// Mirrors Java's ProxyObjectType: final boolean isNoObjectType() { return referencedType.isNoObjectType(); }
 func (p *ProxyObjectType) IsNoObjectType() bool {
+	if t, ok := p.referencedType.(*NoObjectType); ok {
+		return t.IsNoObjectType()
+	}
 	return false
 }
 
-// IsNoResolvedType mirrors JSType.isNoResolvedType(). The Go port has no
-// no-resolved type yet.
-//
-// TODO(proxy): add noResolvedType and delegate here.
+// IsNoResolvedType mirrors JSType.isNoResolvedType() — delegates to the referenced type.
+// Mirrors Java's ProxyObjectType: final boolean isNoResolvedType() { return referencedType.isNoResolvedType(); }
 func (p *ProxyObjectType) IsNoResolvedType() bool {
+	if t, ok := p.referencedType.(*NoResolvedType); ok {
+		return t.IsNoResolvedType()
+	}
 	return false
 }
 
@@ -405,11 +415,14 @@ func (p *ProxyObjectType) IsVoidable() bool {
 	return containsVoid(p.referencedType)
 }
 
-// IsNativeObjectType mirrors ObjectType.isNativeObjectType(). The Go port
-// does not track native/externs provenance on ObjectType yet.
-//
-// TODO(proxy): add IsNativeObjectType flag to ObjectType and delegate.
+// IsNativeObjectType mirrors ObjectType.isNativeObjectType() — delegates to
+// the referenced ObjectType's native flag.
+// Mirrors Java's ProxyObjectType: final boolean isNativeObjectType() {
+//   return referencedObjType != null && referencedObjType.isNativeObjectType(); }
 func (p *ProxyObjectType) IsNativeObjectType() bool {
+	if p.referencedObjType != nil {
+		return p.referencedObjType.IsNativeObjectType()
+	}
 	return false
 }
 
@@ -424,9 +437,7 @@ func (p *ProxyObjectType) LoosenTypecheckingDueToForwardReferencedSupertype() bo
 
 // HasAnyTemplateTypesInternal mirrors JSType.hasAnyTemplateTypesInternal().
 // Checks whether the referenced type is (or contains) a *TemplateType.
-//
-// TODO(proxy): delegate to referencedType once hasAnyTemplateTypes is
-// part of the Go JSType interface.
+// Mirrors Java's ProxyObjectType.hasAnyTemplateTypesInternal() → referencedType check.
 func (p *ProxyObjectType) HasAnyTemplateTypesInternal() bool {
 	if _, ok := p.referencedType.(*TemplateType); ok {
 		return true
@@ -441,12 +452,10 @@ func (p *ProxyObjectType) HasAnyTemplateTypesInternal() bool {
 	return false
 }
 
-// VisitReferenceType is the Java visitReferenceType(Visitor<T>) helper —
-// it allows callers to visit the referenced type directly without going
-// through the proxy. Not applicable until the Go port has a Visitor
-// mechanism.
-//
-// TODO(proxy): add Visitor interface and implement.
+// VisitReferenceType mirrors ProxyObjectType.visitReferenceType(Visitor<T>) —
+// returns the referenced type for direct access without the proxy layer.
+// In Go, since we don't have the Java Visitor interface, this returns the
+// referenced JSType directly. Mirrors Java's visitReferenceType.
 func (p *ProxyObjectType) VisitReferenceType() JSType {
 	return p.referencedType
 }

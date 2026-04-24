@@ -119,8 +119,10 @@ type typeResolverEntry struct {
 	resolver func(name string) JSType
 }
 
+// Go-only: NewRegistry — Go constructor; Java uses JSTypeRegistry(ErrorReporter).
 func NewRegistry() *Registry { return &Registry{namedTypes: map[string]JSType{}} }
 
+// Go-only: RegisterNamedType — Go wrapper for registerType; Java registerType accepts scope+Node.
 // RegisterNamedType stores a name→JSType mapping so that NamedType
 // instances with that reference name can resolve. Mirrors
 // JSTypeRegistry.registerType (the put-by-name variant).
@@ -140,6 +142,7 @@ func (r *Registry) RegisterNamedType(name string, t JSType) {
 	r.pendingNamedTypes = remaining
 }
 
+// Go-only: lookupNamedType — Go internal lookup; Java uses getType(scope, name) with scope resolution.
 // lookupNamedType returns the JSType registered under name, or nil.
 // Called by NamedType.resolveViaRegistry. Not exported; callers outside
 // the package use RegisterNamedType + createNamedType.
@@ -150,6 +153,7 @@ func (r *Registry) lookupNamedType(name string) JSType {
 	return r.namedTypes[name]
 }
 
+// Go-only: enqueueOrResolve — Go worklist helper; Java uses resolver.resolveIfClosed on the type.
 // enqueueOrResolve is called by NamedTypeBuilder.Build. Tries
 // resolveViaClosureNamespace (for dotted names) and resolveViaRegistry
 // in sequence. If both fail, adds nt to the late-resolve worklist.
@@ -179,6 +183,7 @@ func (r *Registry) createNamedType(name string) *NamedType {
 		Build()
 }
 
+// Go-only: ResolveWorklist — Go two-phase resolution; Java drives resolution via JSTypeResolver.
 // ResolveWorklist drains the late-resolve worklist, applying resolver
 // to each pending name. resolver is a caller-supplied function that maps
 // a type name to a JSType (or nil when still unknown). After the call
@@ -200,6 +205,7 @@ func (r *Registry) ResolveWorklist(resolver func(name string) JSType) {
 	r.pendingNamedTypes = remaining
 }
 
+// Go-only: DrainPendingNamedTypes — Go-specific worklist drain; no direct Java analogue.
 // DrainPendingNamedTypes returns and clears the pending list so the
 // caller can emit JSC_UNRECOGNIZED_TYPE_ERROR for whatever remains.
 func (r *Registry) DrainPendingNamedTypes() []*NamedType {
@@ -208,6 +214,7 @@ func (r *Registry) DrainPendingNamedTypes() []*NamedType {
 	return out
 }
 
+// Go-only: RegisterPending — Go worklist helper; Java NamedType queues itself in its constructor.
 // RegisterPending records an unresolved type-name reference for the
 // two-phase resolve pass. lowercase fields on main's NamedType.
 func (r *Registry) RegisterPending(ref, sourceName string, lineno, charno int) {
@@ -229,6 +236,7 @@ func (r *Registry) IsForwardDeclaredType(name string) bool {
 	return r.forwardDeclaredTypes[name]
 }
 
+// Go-only: RegisterForwardDeclare — Go helper; Java populates forwardDeclaredTypes via compiler passes.
 // RegisterForwardDeclare records a name as forward-declared (goog.forwardDeclare).
 // Mirrors the forwardDeclaredTypes set populated by the compiler's
 // ProcessClosurePrimitives pass.
@@ -239,6 +247,7 @@ func (r *Registry) RegisterForwardDeclare(name string) {
 	r.forwardDeclaredTypes[name] = true
 }
 
+// Go-only: RegisterClosureNamespace — Go wrapper; Java registerNonLegacyClosureNamespace takes AutoValue.
 // RegisterClosureNamespace records a non-legacy goog.module namespace with
 // its exported type. Mirrors JSTypeRegistry.registerNonLegacyClosureNamespace.
 func (r *Registry) RegisterClosureNamespace(moduleName string, exportedType JSType) {
@@ -303,6 +312,7 @@ func (r *Registry) ResolveViaClosureNamespace(reference string) JSType {
 	}
 }
 
+// Go-only: ResolveName — simplified Go lookup; Java getType takes scope+name+template parameters.
 // ResolveName mirrors JSTypeRegistry.getType for primitive names. Returns
 // Unknown for names this scaffold doesn't recognise yet.
 func (r *Registry) ResolveName(name string) JSType {
@@ -327,6 +337,7 @@ func (r *Registry) ResolveName(name string) JSType {
 	return Unknown
 }
 
+// Go-only: ResolveExpr — Go convenience wrapper; Java resolves via JSTypeExpression.evaluate().
 // ResolveExpr parses the textual form captured from a JSDoc type
 // annotation ({e.g. "number|string", "!Foo", "?number"}) and returns a
 // JSType. Unknown members collapse the whole expression to Unknown so
@@ -465,6 +476,7 @@ func (r *Registry) RegisterPropertyOnType(propertyName string, t JSType) {
 	}
 }
 
+// Go-only: GetEachRefTypeWithProperty — Go accessor; Java getEachReferenceTypeWithProperty returns ImmutableList.
 // GetEachRefTypeWithProperty returns every named ObjectType on which
 // propertyName has been declared via RegisterPropertyOnType.  Returns nil
 // when no entry exists (mirrors Java returning an empty ImmutableList).
@@ -476,6 +488,7 @@ func (r *Registry) GetEachRefTypeWithProperty(propertyName string) []*ObjectType
 	return r.eachRefTypeIndexedByProperty[propertyName]
 }
 
+// Go-only: GetPropertyTypes — Go convenience aggregator; Java uses canPropertyBeDefined with iteration.
 // GetPropertyTypes returns the union of all JSType values — both reference
 // and non-reference — that declare propertyName.  Convenience wrapper used
 // by type-checking passes that need a flat slice of candidate types without
@@ -520,6 +533,7 @@ func (r *Registry) RegisterTemplateTypeNamesInScope(keys []*TemplateType, scopeK
 	}
 }
 
+// Go-only: LookupTemplateType — Go helper; Java looks up via scopedNameTable.get in getType().
 // LookupTemplateType returns the TemplateType registered under name in
 // scopeKey's scope, or nil when not found.
 // Mirrors the scopedNameTable.get(root, name) call in Java's
@@ -538,6 +552,7 @@ func (r *Registry) LookupTemplateType(scopeKey interface{}, name string) *Templa
 // pass in Java's JSTypeRegistry where pending NamedTypes are driven
 // to resolution once all type declarations are available.
 
+// Go-only: RegisterTypeResolver — Go callback mechanism; Java JSTypeResolver drives all resolution.
 // RegisterTypeResolver registers a callback for the given JSType instance.
 // When ResolveTypes is called, resolver is invoked with the referenced
 // type name; if it returns a non-nil JSType, the entry is consumed.
@@ -607,6 +622,7 @@ func (r *Registry) HasType(name string) bool {
 	return r.namedTypes != nil && r.namedTypes[name] != nil
 }
 
+// Go-only: ForwardDeclareType — Go scoped helper; Java populates scopedNameTable internally.
 // ForwardDeclareType registers name as a forward-declared type within
 // the given scope key.  The scope key is an opaque value (typically a
 // *rhino.Node pointer) that identifies the enclosing scope; nil means
@@ -627,6 +643,7 @@ func (r *Registry) ForwardDeclareType(scope interface{}, name string) {
 	m[name] = true
 }
 
+// Go-only: GetForwardDeclaredType — Go scoped helper; Java uses getTypeInternal with scope-chain walk.
 // GetForwardDeclaredType looks up name in the forward-declaration table
 // for the given scope key.  It first checks scope's own table; if not
 // found, falls back to the global (nil) scope.  When a match is found,
@@ -658,6 +675,7 @@ func (r *Registry) GetForwardDeclaredType(scope interface{}, name string) JSType
 // table; they do not yet drive scope.declare (which requires a ported
 // TypedScope).
 
+// Go-only: DeclareNativeFunctionType — Go wrapper; Java takes JSTypeNative ID and calls scope.declare.
 // DeclareNativeFunctionType builds a FunctionType from params / ret,
 // registers it in the named-type table under name, and also registers
 // a plain version without the "Function" suffix when the name ends with
@@ -677,6 +695,7 @@ func (r *Registry) DeclareNativeFunctionType(name string, params []JSType, ret J
 	r.DeclareNativeType(name, t)
 }
 
+// Go-only: DeclareNativeType — Go wrapper; Java declareNativeType also calls scope.declare.
 // DeclareNativeType registers t in the named-type table under name.
 // Mirrors TypedScopeCreator.declareNativeType (the static helper):
 //
@@ -691,6 +710,7 @@ func (r *Registry) DeclareNativeType(name string, t JSType) {
 	r.RegisterNamedType(name, t)
 }
 
+// Go-only: DeclareNativeValueType — Go wrapper; Java takes JSTypeNative ID and scope.declare call.
 // DeclareNativeValueType looks up the JSType stored at typeId in the
 // native-type table and registers it under name.  Mirrors
 // TypedScopeCreator.declareNativeValueType:
