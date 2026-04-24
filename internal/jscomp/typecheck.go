@@ -1413,18 +1413,33 @@ func (c *TypeCheck) visitCall(node *rhino.Node, scope *TypedScope) []diag.Diagno
 			})
 		}
 	}
-	// Arity-mismatch: still type-check the overlapping prefix so a
-	// `f(0)` against `function f(s: string)` reports the type error
-	// even when other params are dropped. Java fires both
-	// JSC_WRONG_ARGUMENT_COUNT and the per-arg JSC_TYPE_MISMATCH.
-	n := len(args)
-	if len(fn.Params) < n {
-		n = len(fn.Params)
-	}
+	// Per-argument type check. Java's TypeCheck.visitCallParameters:
+	// when parameters are exhausted, if the last parameter isVariadic,
+	// keep reusing it for remaining arguments. Mirrors:
+	//   if (parameters.hasNext()) { parameter = parameters.next(); }
+	//   else if (parameter != null && parameter.isVariadic()) { /* reuse */ }
+	//
+	// We detect variadic functions via MaxArity == MaxArgsUnlimited — this
+	// is set by setArityFromParams for @param {...T} and var_args patterns.
+	// The last declared param type is then reused for all remaining args.
 	params := fn.GetParameters()
-	for i := 0; i < n; i++ {
-		arg := args[i]
-		param := fn.Params[i]
+	// Determine if the function is variadic (rest param / var_args).
+	// When variadic, the last declared param type is reused for all excess args.
+	var lastParamType jstype.JSType
+	isVariadic := fn.MaxArity >= jstype.MaxArgsUnlimited && len(fn.Params) > 0
+	if isVariadic {
+		lastParamType = fn.Params[len(fn.Params)-1]
+	}
+	for i, arg := range args {
+		var param jstype.JSType
+		if i < len(fn.Params) {
+			param = fn.Params[i]
+		} else if isVariadic {
+			// Rest parameter covers all remaining arguments.
+			param = lastParamType
+		} else {
+			break
+		}
 		found := infer.InferType(arg)
 		// Optional parameters (JSDoc {=T}) accept `undefined` at the
 		// call site. Java's TypeCheck widens the effective required
@@ -2084,10 +2099,24 @@ func (c *TypeCheck) visitReturn(ret *rhino.Node, scope *TypedScope) []diag.Diagn
 		return nil
 	}
 	info := functionJSDoc(enclosing)
-	if info == nil || info.ReturnType() == nil {
+	if info == nil {
 		return nil
 	}
-	declared := scope.ResolveExpr(info.ReturnType().TypeName)
+	// Get declared return type from @return annotation or from @type {function(...):R}
+	var declared jstype.JSType
+	if info.ReturnType() != nil {
+		declared = scope.ResolveExpr(info.ReturnType().TypeName)
+	} else if info.HasType() {
+		// `@type {function(...): R}` — extract R from the declared FunctionType.
+		// Java's TypeCheck finds the enclosing function's declared type and uses
+		// its return type for the inconsistent-return-type check.
+		if fn, ok := scope.ResolveExpr(info.Type().TypeName).(*jstype.FunctionType); ok {
+			declared = fn.Return
+		}
+	}
+	if declared == nil {
+		return nil
+	}
 	retExpr := ret.FirstChild()
 	if retExpr == nil {
 		return nil
