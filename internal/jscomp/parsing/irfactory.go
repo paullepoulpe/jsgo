@@ -1134,6 +1134,29 @@ func (f *IRFactory) processCommaExpression(tree *trees.CommaExpressionTree) *rhi
 // processParenthesizedExpression mirrors
 // TransformDispatcher.processParenthesizedExpression(ParenExpressionTree).
 func (f *IRFactory) processParenthesizedExpression(tree *trees.ParenExpressionTree) *rhino.Node {
+	// Check for a /** @type {T} */ (expr) cast pattern. If a JSDoc type
+	// annotation immediately precedes this parenthesized expression, wrap
+	// the inner node in a CAST node. Mirrors the legacy parser's cast
+	// detection in parsePrimaryExpression / pendingCastDoc.
+	if f.src != "" {
+		if c := f.findPrecedingJSDoc(tree.Location.Start.Offset); c != nil {
+			body := extractJSDocBody(c.Value)
+			startLine := c.Location.Start.Line + 1
+			jsdoc := ParseJSDocInfo(body, startLine)
+			if jsdoc == nil {
+				jsdoc = parseInlineTypeJSDoc(body)
+			}
+			if jsdoc != nil && jsdoc.HasType() {
+				inner := f.Transform(tree.Expression)
+				cast := f.newNode(rhino.CAST)
+				cast.SetJSDocInfo(jsdoc)
+				if inner != nil {
+					cast.AddChildToBack(inner)
+				}
+				return cast
+			}
+		}
+	}
 	expr := f.Transform(tree.Expression)
 	if expr != nil {
 		expr.SetIsParenthesized(true)
