@@ -597,7 +597,11 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitForIn(n, scope))
 	case rhino.FOR_OF, rhino.FOR_AWAIT_OF:
 		c.emit(c.checkForOfTypes(n, scope))
-	case rhino.LSH, rhino.RSH, rhino.URSH, rhino.BITAND, rhino.BITOR, rhino.BITXOR, rhino.BITNOT:
+	case rhino.LSH, rhino.RSH, rhino.URSH, rhino.BITAND, rhino.BITOR, rhino.BITXOR, rhino.BITNOT,
+		// Java: compound assignment operators also route through visitBinaryOperator
+		// for the same operand-type checks as the bare binary ops.
+		rhino.ASSIGN_BITOR, rhino.ASSIGN_BITXOR, rhino.ASSIGN_BITAND,
+		rhino.ASSIGN_LSH, rhino.ASSIGN_RSH, rhino.ASSIGN_URSH:
 		c.emit(c.visitBitOp(n, scope))
 	case rhino.EQ, rhino.NE, rhino.SHEQ, rhino.SHNE:
 		c.emit(c.visitTypeofComparison(n, scope))
@@ -2595,10 +2599,13 @@ func (c *TypeCheck) visitFunctionParams(fn *rhino.Node, scope *TypedScope) []dia
 	return out
 }
 
-// visitBitOp fires JSC_BAD_TYPE_FOR_BIT_OPERATION when either
-// operand of a bitwise operator (`<<`, `>>`, `>>>`, `&`, `|`,
-// `^`) is definitely not a number. Java's TypeCheck rejects
-// void / null / boolean / object operands statically.
+// visitBitOp ports Java's TypeCheck.visitBinaryOperator for bitwise ops.
+// Java splits into two groups:
+//  1. Shift operators (<<, >>, >>>, and compound forms): fire
+//     JSC_BAD_TYPE_FOR_BIT_OPERATION when !matchesNumberContext.
+//     BITNOT (~) is in this group (fires at operator node).
+//  2. Bitwise ops (&, |, ^, and compound forms): fire JSC_TYPE_MISMATCH
+//     via validator.expectBitwiseable (type must be string|number|bool|null|undefined).
 func (c *TypeCheck) visitBitOp(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := n.Children()
 	infer := NewTypeInference(scope)
@@ -2620,23 +2627,62 @@ func (c *TypeCheck) visitBitOp(n *rhino.Node, scope *TypedScope) []diag.Diagnost
 		}
 		return out
 	}
-	// Binary bit operators: report at the first bad operand.
 	if len(kids) < 2 {
 		return nil
 	}
-	for _, k := range kids {
-		t := infer.InferType(k)
-		if !isDefinitelyNotNumber(t) {
-			continue
+	switch n.Token() {
+	case rhino.BITAND, rhino.BITOR, rhino.BITXOR,
+		rhino.ASSIGN_BITAND, rhino.ASSIGN_BITOR, rhino.ASSIGN_BITXOR:
+		// Java: validator.expectBitwiseable fires JSC_TYPE_MISMATCH when
+		// type is not a subtype of (string|number|boolean|null|undefined).
+		// Port: check left and right operands; fire JSC_TYPE_MISMATCH for
+		// each non-bitwiseable type (only first bad operand, matching Java).
+		for i, k := range kids {
+			t := infer.InferType(k)
+			if !isBitwiseable(t) {
+				msg := "bad left operand to bitwise operator"
+				if i > 0 {
+					msg = "bad right operand to bitwise operator"
+				}
+				c.tv.expectCanAssignTo(k, t, bitwiseableType(), msg)
+				out = append(out, c.tvDrain()...)
+				break // first bad operand only
+			}
 		}
-		out = append(out, diag.Diagnostic{
-			Path: c.path, Line: k.Lineno(), Col: k.Charno(),
-			Code: diag.JSC_BAD_TYPE_FOR_BIT_OPERATION, Level: diag.Error,
-			Message: fmt.Sprintf("operator %s cannot be applied to %s", op, t.TypeName()),
-		})
-		break // report the first bad operand only, matching Java
+	default:
+		// Shift operators (LSH, RSH, URSH, ASSIGN_LSH, ASSIGN_RSH, ASSIGN_URSH):
+		// Java fires JSC_BAD_TYPE_FOR_BIT_OPERATION when !matchesNumberContext.
+		for _, k := range kids {
+			t := infer.InferType(k)
+			if isDefinitelyNotNumber(t) {
+				out = append(out, diag.Diagnostic{
+					Path: c.path, Line: k.Lineno(), Col: k.Charno(),
+					Code: diag.JSC_BAD_TYPE_FOR_BIT_OPERATION, Level: diag.Error,
+					Message: fmt.Sprintf("operator %s cannot be applied to %s", op, t.TypeName()),
+				})
+				break // report first bad operand only
+			}
+		}
 	}
 	return out
+}
+
+// bitwiseableType returns the union type (boolean|null|number|string|undefined)
+// that Java uses as the required type for bitwise operands.
+func bitwiseableType() jstype.JSType {
+	return jstype.NewUnion(jstype.Boolean, jstype.Null, jstype.Number, jstype.String, jstype.Void)
+}
+
+// isBitwiseable reports whether t is a subtype of
+// (boolean|null|number|string|undefined) — the valid bitwise operand types.
+// Mirrors Java's TypeValidator.expectBitwiseable which checks
+// !type.matchesNumberContext() && !type.isSubtypeOf(allBitwisableValueTypes).
+// When the type is Unknown, we assume it could be bitwiseable.
+func isBitwiseable(t jstype.JSType) bool {
+	if t == nil || isJSUnknown(t) {
+		return true
+	}
+	return jstype.IsSubtype(t, bitwiseableType())
 }
 
 // bitOpSymbol returns the textual operator for a bit-op token.
