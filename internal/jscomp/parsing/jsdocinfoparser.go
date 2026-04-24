@@ -354,6 +354,118 @@ func (p *JsDocInfoParser) parseAnnotation(_ JsDocToken) JsDocToken {
 	case "modifies":
 		// Mirrors Java's MODIFIES case: delegate to parseModifiesTag.
 		return p.parseModifiesTag(p.next())
+	case "polymer":
+		// Mirrors Java's POLYMER case: recordPolymer().
+		p.info.SetBit(rhino.BitPolymer, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "mixinclass":
+		// Mirrors Java's MIXIN_CLASS case: recordMixinClass().
+		p.info.SetBit(rhino.BitMixinClass, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "mixinfunction":
+		// Mirrors Java's MIXIN_FUNCTION case: recordMixinFunction().
+		p.info.SetBit(rhino.BitMixinFunction, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "externs":
+		// Mirrors Java's EXTERNS case: recordExterns().
+		p.info.SetBit(rhino.BitExterns, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "nocompile":
+		// Mirrors Java's NO_COMPILE case: recordNoCompile().
+		p.info.SetBit(rhino.BitNoCompile, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "nocoverage":
+		// Mirrors Java's NO_COVERAGE case: recordNoCoverage().
+		p.info.SetBit(rhino.BitNoCoverage, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "nodts":
+		// Mirrors Java's NO_DTS case: recordNoDts().
+		p.info.SetBit(rhino.BitNoDts, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "fileoverview":
+		// Mirrors Java's FILE_OVERVIEW case: recordFileOverview().
+		p.info.SetBit(rhino.BitFileoverview, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "pureorbreakmycode":
+		// Mirrors Java's PURE_OR_BREAK_MY_CODE case: recordPureOrBreakMyCode().
+		p.info.SetBit(rhino.BitPureOrBreakMyCode, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "collapsibleorbreakmycode":
+		// Mirrors Java's COLLAPSIBLE_OR_BREAK_MY_CODE case.
+		p.info.SetBit(rhino.BitCollapsibleOrBreak, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "export":
+		// Mirrors Java's EXPORT case: recordExport().
+		p.info.SetBit(rhino.BitExport, true)
+		p.anyRecorded = true
+		// @export may optionally carry a type (like @const); skip it.
+		p.skipEOLs()
+		t := p.next()
+		if _, next, ok := p.parseTypeExpressionAnnotation(t); ok {
+			return next
+		}
+		return t
+	case "unrestricted":
+		// Mirrors Java's UNRESTRICTED case: recordUnrestricted().
+		p.info.SetBit(rhino.BitUnrestricted, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "wizcallback":
+		// Mirrors Java's WIZCALLBACK case.
+		p.info.SetBit(rhino.BitWizCallback, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "requireinlining":
+		// Mirrors Java's REQUIRE_INLINING case.
+		p.info.SetBit(rhino.BitRequireInlining, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "encourageinlining":
+		// Mirrors Java's ENCOURAGE_INLINING case.
+		p.info.SetBit(rhino.BitEncourageInlining, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "providegoog":
+		// Mirrors Java's PROVIDE_GOOG case.
+		p.info.SetBit(rhino.BitProvideGoog, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "providealreadyprovided":
+		// Mirrors Java's PROVIDE_ALREADY_PROVIDED case.
+		p.info.SetBit(rhino.BitProvideAlreadyProvided, true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "idgenerator":
+		// Mirrors Java's IDGENERATOR case: delegate to parseIdGeneratorTag.
+		p.skipEOLs()
+		return p.parseIdGeneratorTag(p.next())
+	case "see":
+		// Mirrors Java's SEE case: skip to end of line.
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "author":
+		// Mirrors Java's AUTHOR case: skip to end of line.
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "desc":
+		// Mirrors Java's DESC case: skip to end of line (documentation not collected here).
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "inheritdoc":
+		// Mirrors Java's INHERIT_DOC case — treat like @override.
+		p.info.SetOverride(true)
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
 	}
 	return p.eatUntilEOLIfNotAnnotation()
 }
@@ -1079,6 +1191,38 @@ func (p *JsDocInfoParser) eatUntilEOLIfNotAnnotation() JsDocToken {
 			return t
 		}
 	}
+}
+
+// parseIdGeneratorTag ports Java's parseIdGeneratorTag: expects an optional
+// `{kind}` and records the id generator kind. Mirrors Java exactly.
+func (p *JsDocInfoParser) parseIdGeneratorTag(token JsDocToken) JsDocToken {
+	idgenKind := "unique"
+	if token == JsDocTokenLeftCurly {
+		if p.match(JsDocTokenString) {
+			idgenKind = p.stream.String_()
+			token = p.next()
+		} else {
+			return p.eatUntilEOLIfNotAnnotation()
+		}
+		if !p.match(JsDocTokenRightCurly) {
+			return p.eatUntilEOLIfNotAnnotation()
+		}
+		token = p.next()
+	}
+	switch idgenKind {
+	case "unique":
+		p.info.SetIdGenerator(rhino.IdGeneratorUnique)
+	case "consistent":
+		p.info.SetIdGenerator(rhino.IdGeneratorConsistent)
+	case "stable":
+		p.info.SetIdGenerator(rhino.IdGeneratorStable)
+	case "xid":
+		p.info.SetIdGenerator(rhino.IdGeneratorXid)
+	case "mapped":
+		p.info.SetIdGenerator(rhino.IdGeneratorMapped)
+	}
+	p.anyRecorded = true
+	return token
 }
 
 // readParamName consumes the identifier that follows a `@param {T}`
