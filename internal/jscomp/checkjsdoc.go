@@ -713,8 +713,13 @@ func cjdGetFunctionDecl(n *rhino.Node) *rhino.Node {
 		if fc != nil && fc.Token() == rhino.FUNCTION {
 			return fc
 		}
+	case rhino.MEMBER_FUNCTION_DEF, rhino.GETTER_DEF, rhino.SETTER_DEF:
+		// Class method definitions: MEMBER_FUNCTION_DEF wraps a FUNCTION node.
+		fc := n.FirstChild()
+		if fc != nil && fc.Token() == rhino.FUNCTION {
+			return fc
+		}
 	}
-	// GETTER_DEF, SETTER_DEF, MEMBER_FUNCTION_DEF: TODO — not in Go AST.
 	return nil
 }
 

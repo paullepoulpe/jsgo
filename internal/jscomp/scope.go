@@ -1973,6 +1973,36 @@ func enumTypeArgPos(src string, lineno int, typeName string) (line, col int) {
 	return lineno, idx + brace + 1 // col of first char after '{'
 }
 
+// classMemberFunctionNode returns the FUNCTION node inside a class body member
+// node. In the new pipeline, class methods are MEMBER_FUNCTION_DEF(FUNCTION);
+// in the legacy pipeline, they are plain FUNCTION nodes.
+// Returns nil if m is not a function-bearing member.
+func classMemberFunctionNode(m *rhino.Node) *rhino.Node {
+	if m == nil {
+		return nil
+	}
+	if m.Token() == rhino.FUNCTION {
+		return m
+	}
+	if m.Token() == rhino.MEMBER_FUNCTION_DEF || m.Token() == rhino.GETTER_DEF || m.Token() == rhino.SETTER_DEF {
+		fc := m.FirstChild()
+		if fc != nil && fc.Token() == rhino.FUNCTION {
+			return fc
+		}
+	}
+	return nil
+}
+
+// classMemberFunctionOrSelf is like classMemberFunctionNode but returns m itself
+// when it is already a FUNCTION, and returns nil for non-method nodes.
+// Used to normalize class body iteration across old and new pipeline ASTs.
+func classMemberFunctionOrSelf(m *rhino.Node) *rhino.Node {
+	if fn := classMemberFunctionNode(m); fn != nil {
+		return fn
+	}
+	return m
+}
+
 // preregisterClass reserves a slot for a `class` declaration, mirroring
 // the @constructor pre-registration path so forward `@type {C}`
 // references resolve to C's InstanceType.
@@ -2023,17 +2053,23 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 	}
 
 	// Locate the `constructor` method; otherwise the class has an
-	// implicit zero-arg constructor.
+	// implicit zero-arg constructor. In the new pipeline, class methods
+	// are wrapped in MEMBER_FUNCTION_DEF; unwrap to find the FUNCTION node.
 	var ctor *rhino.Node
 	for _, m := range body.Children() {
-		if m.Token() == rhino.FUNCTION && len(m.Children()) >= 1 && m.FirstChild().String_() == "constructor" {
-			ctor = m
+		fn := classMemberFunctionNode(m)
+		if fn != nil && len(fn.Children()) >= 1 && fn.FirstChild().String_() == "constructor" {
+			ctor = fn
 			break
 		}
 	}
 	var ctorParams []jstype.JSType
 	if ctor != nil {
 		ctorInfo := ctor.JSDocInfo()
+		// In the new pipeline, JSDoc may be on the MEMBER_FUNCTION_DEF wrapper.
+		if ctorInfo == nil && ctor.Parent() != nil {
+			ctorInfo = ctor.Parent().JSDocInfo()
+		}
 		for _, p := range ctor.Children()[1].Children() {
 			ctorParams = append(ctorParams, resolveParamType(ctorInfo, p, scope))
 		}
@@ -2070,17 +2106,61 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 	}
 	getterTypes := map[string]accessorEntry{}
 	setterTypes := map[string]accessorEntry{}
-	for _, m := range body.Children() {
+	for _, mOrig := range body.Children() {
+		// In the new pipeline, class methods are MEMBER_FUNCTION_DEF nodes
+		// wrapping a FUNCTION; fields are MEMBER_FIELD_DEF nodes.
+		// In the legacy pipeline, methods are direct FUNCTION nodes and
+		// fields are CLASS_FIELD_DEF nodes.
+		// We normalize by checking the original token first.
+		origTok := mOrig.Token()
+
+		// Handle field declarations.
+		if origTok == rhino.CLASS_FIELD_DEF || origTok == rhino.MEMBER_FIELD_DEF {
+			info := mOrig.JSDocInfo()
+			if info == nil {
+				info = mOrig.FirstChild().JSDocInfo() // sometimes on inner node
+			}
+			fieldName := mOrig.String_()
+			if fieldName == "" && mOrig.FirstChild() != nil {
+				fieldName = mOrig.FirstChild().String_()
+			}
+			var t jstype.JSType = jstype.Unknown
+			if info != nil && info.HasType() {
+				t = scope.ResolveExpr(info.Type().TypeName)
+			}
+			if mOrig.IsStaticMember() || (info != nil && info.IsStatic()) {
+				inst.DefineStaticProperty(fieldName, t)
+			} else {
+				inst.DefineProperty(fieldName, t)
+			}
+			continue
+		}
+
+		// Handle method declarations.
+		mInfo := mOrig.JSDocInfo()
+		isStatic := mOrig.IsStaticMember()
+		isGetter := mOrig.Token() == rhino.GETTER_DEF
+		isSetter := mOrig.Token() == rhino.SETTER_DEF
+		m := classMemberFunctionOrSelf(mOrig)
 		switch m.Token() {
 		case rhino.FUNCTION:
 			if len(m.Children()) < 2 {
 				continue
 			}
 			methodName := m.FirstChild().String_()
+			if methodName == "" {
+				methodName = mOrig.String_() // from MEMBER_FUNCTION_DEF string value
+			}
 			if methodName == "constructor" {
 				continue // handled above
 			}
 			info := m.JSDocInfo()
+			if info == nil {
+				info = mInfo // fall back to MEMBER_FUNCTION_DEF's JSDoc
+			}
+			if !isStatic && info != nil && info.IsStatic() {
+				isStatic = true
+			}
 			params := m.Children()[1]
 			var paramTypes []jstype.JSType
 			for _, p := range params.Children() {
@@ -2092,36 +2172,37 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 			}
 			fnT := jstype.NewFunctionType(paramTypes, ret)
 			setArityFromParams(fnT, params, info)
-			if info.IsStatic() {
+			if isStatic {
 				inst.DefineStaticProperty(methodName, fnT)
 			} else {
 				inst.DefineProperty(methodName, fnT)
 			}
 			// Record getter/setter property types for conflict detection.
-			// Mirrors Java's checkGetterOrSetterType / determineGetterType.
-			if m.IsGetterDef() {
-				// Getter property type = declared return type (if explicit).
+			if isGetter || m.IsGetterDef() {
 				var propType jstype.JSType = jstype.Unknown
 				if info != nil && info.ReturnType() != nil {
 					propType = ret
 				}
-				getterTypes[methodName] = accessorEntry{propType, m}
-			} else if m.IsSetterDef() {
-				// Setter property type = first parameter type.
+				getterTypes[methodName] = accessorEntry{propType, mOrig}
+			} else if isSetter || m.IsSetterDef() {
 				var propType jstype.JSType = jstype.Unknown
 				if len(paramTypes) > 0 {
 					propType = paramTypes[0]
 				}
-				setterTypes[methodName] = accessorEntry{propType, m}
+				setterTypes[methodName] = accessorEntry{propType, mOrig}
 			}
-		case rhino.CLASS_FIELD_DEF:
+		case rhino.CLASS_FIELD_DEF, rhino.MEMBER_FIELD_DEF:
+			// Should have been handled above, but catch stragglers.
 			info := m.JSDocInfo()
-			fieldName := m.FirstChild().String_()
+			if info == nil {
+				info = mInfo
+			}
+			fieldName := m.String_()
 			var t jstype.JSType = jstype.Unknown
 			if info != nil && info.HasType() {
 				t = scope.ResolveExpr(info.Type().TypeName)
 			}
-			if info.IsStatic() {
+			if isStatic || (info != nil && info.IsStatic()) {
 				inst.DefineStaticProperty(fieldName, t)
 			} else {
 				inst.DefineProperty(fieldName, t)
