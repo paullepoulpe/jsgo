@@ -78,7 +78,9 @@ type CheckAccessControls struct {
 	diags []diag.Diagnostic
 }
 
-// NewCheckAccessControls constructs the pass. Mirrors the Java constructor.
+// Go-only: language-adapter — NewCheckAccessControls ports the Java constructor
+// CheckAccessControls(AbstractCompiler, bool). Go lacks constructors; factory
+// functions are the language-adapter pattern.
 func NewCheckAccessControls(path string, scope *TypedScope) *CheckAccessControls {
 	return &CheckAccessControls{
 		path:          path,
@@ -87,14 +89,18 @@ func NewCheckAccessControls(path string, scope *TypedScope) *CheckAccessControls
 	}
 }
 
-// NewCheckAccessControlsWithCreator is the variant used from compiler.go.
+// Go-only: language-adapter — NewCheckAccessControlsWithCreator is the
+// TypedScopeCreator variant of the Java constructor; Go needs separate
+// factory functions where Java uses constructor overloads.
 func NewCheckAccessControlsWithCreator(path string, creator *TypedScopeCreator, scope *TypedScope) *CheckAccessControls {
 	c := NewCheckAccessControls(path, scope)
 	c.creator = creator
 	return c
 }
 
-// Check runs the pass over one script node and returns diagnostics.
+// Go-only: language-adapter — Check ports CheckAccessControls.process(Node, Node).
+// Java's process takes separate externs and root trees; Go's single-file
+// model calls this once per script node.
 func (c *CheckAccessControls) Check(script *rhino.Node) []diag.Diagnostic {
 	c.diags = nil
 	c.cacScriptRoot = script
@@ -102,9 +108,9 @@ func (c *CheckAccessControls) Check(script *rhino.Node) []diag.Diagnostic {
 	return c.diags
 }
 
-// cacWalk is the pre-order / post-order walker. Mirrors the Java
-// NodeTraversal callbacks: we call cacEnterScope in pre-order and
-// cacVisit in post-order, matching ShouldTraverse → Visit.
+// Go-only: language-adapter — cacWalk replaces Java's NodeTraversal-driven
+// shouldTraverse / visit callbacks; Go lacks a traversal framework so we
+// inline the walk with pre/post order matching Java's ShouldTraverse → Visit.
 func (c *CheckAccessControls) cacWalk(n, parent *rhino.Node) {
 	if n == nil {
 		return
@@ -128,7 +134,8 @@ func (c *CheckAccessControls) cacWalk(n, parent *rhino.Node) {
 	}
 }
 
-// cacEnterScope mirrors CheckAccessControls.enterAccessControlScope.
+// Go-only: language-adapter — cacEnterScope ports enterAccessControlScope.
+// The cac prefix avoids collision with future TypedScope or pass method names.
 func (c *CheckAccessControls) cacEnterScope(n *rhino.Node) {
 	c.cacScopeDepth++
 	info := cacBestJSDoc(n)
@@ -137,7 +144,7 @@ func (c *CheckAccessControls) cacEnterScope(n *rhino.Node) {
 	}
 }
 
-// cacExitScope mirrors CheckAccessControls.exitAccessControlScope.
+// Go-only: language-adapter — cacExitScope ports exitAccessControlScope.
 func (c *CheckAccessControls) cacExitScope(n *rhino.Node) {
 	c.cacScopeDepth--
 	info := cacBestJSDoc(n)
@@ -146,7 +153,7 @@ func (c *CheckAccessControls) cacExitScope(n *rhino.Node) {
 	}
 }
 
-// cacVisit dispatches post-order checks, mirroring Java's visit().
+// Go-only: language-adapter — cacVisit ports CheckAccessControls.visit(NodeTraversal, Node, Node).
 func (c *CheckAccessControls) cacVisit(n, parent *rhino.Node) {
 	switch n.Token() {
 	case rhino.NAME:
@@ -168,8 +175,8 @@ func (c *CheckAccessControls) cacVisit(n, parent *rhino.Node) {
 // Deprecation checks
 // ---------------------------------------------------------------------------
 
-// cacCheckTypeDeprecation handles ES5 constructors (FUNCTION nodes whose
-// JSDoc has @constructor). Mirrors checkTypeDeprecation for the ES5 path.
+// Go-only: language-adapter — cacCheckTypeDeprecation ports checkTypeDeprecation.
+// The cac prefix prevents collision with the pass-config method of the same name.
 func (c *CheckAccessControls) cacCheckTypeDeprecation(n, parent *rhino.Node) {
 	if n.Token() != rhino.FUNCTION {
 		return
@@ -206,7 +213,9 @@ func (c *CheckAccessControls) cacCheckTypeDeprecation(n, parent *rhino.Node) {
 	}
 }
 
-// cacCheckTypeDeprecationNew handles `new Foo()` where Foo is deprecated.
+// Go-only: language-adapter — cacCheckTypeDeprecationNew is the NEW-node
+// path of checkTypeDeprecation; Java dispatches on node kind inside one method,
+// Go splits it to reduce nesting.
 func (c *CheckAccessControls) cacCheckTypeDeprecationNew(n, parent *rhino.Node) {
 	if n.Token() != rhino.NEW {
 		return
@@ -247,8 +256,7 @@ func (c *CheckAccessControls) cacCheckTypeDeprecationNew(n, parent *rhino.Node) 
 	}
 }
 
-// cacCheckNameDeprecation handles `@deprecated` on plain variables /
-// functions. Mirrors checkNameDeprecation.
+// Go-only: language-adapter — cacCheckNameDeprecation ports checkNameDeprecation.
 func (c *CheckAccessControls) cacCheckNameDeprecation(n, parent *rhino.Node) {
 	if n.Token() != rhino.NAME {
 		return
@@ -304,8 +312,7 @@ func (c *CheckAccessControls) cacCheckNameDeprecation(n, parent *rhino.Node) {
 	}
 }
 
-// cacCheckPropertyDeprecation handles `@deprecated` on GETPROP nodes.
-// Mirrors checkPropertyDeprecation.
+// Go-only: language-adapter — cacCheckPropertyDeprecation ports checkPropertyDeprecation.
 func (c *CheckAccessControls) cacCheckPropertyDeprecation(n, parent *rhino.Node) {
 	if n.Token() != rhino.GETPROP {
 		return
@@ -371,8 +378,7 @@ func (c *CheckAccessControls) cacCheckPropertyDeprecation(n, parent *rhino.Node)
 // Visibility checks
 // ---------------------------------------------------------------------------
 
-// cacCheckNameVisibility checks @private / @package on plain NAME references.
-// Mirrors checkNameVisibility.
+// Go-only: language-adapter — cacCheckNameVisibility ports checkNameVisibility.
 func (c *CheckAccessControls) cacCheckNameVisibility(n, parent *rhino.Node) {
 	if n.Token() != rhino.NAME {
 		return
@@ -404,8 +410,7 @@ func (c *CheckAccessControls) cacCheckNameVisibility(n, parent *rhino.Node) {
 	// PUBLIC / PROTECTED / INHERITED — no error.
 }
 
-// cacCheckPropertyVisibility checks @private / @protected / @package /
-// @public on GETPROP accesses. Mirrors checkPropertyVisibility.
+// Go-only: language-adapter — cacCheckPropertyVisibility ports checkPropertyVisibility.
 func (c *CheckAccessControls) cacCheckPropertyVisibility(n, parent *rhino.Node) {
 	if n.Token() != rhino.GETPROP {
 		return
@@ -463,8 +468,8 @@ func (c *CheckAccessControls) cacCheckPropertyVisibility(n, parent *rhino.Node) 
 // Constant / final property checks
 // ---------------------------------------------------------------------------
 
-// cacCheckConstantPropertyGetProp detects reassignment of @const / @final
-// properties via GETPROP. Mirrors the GETPROP branch of checkConstantProperty.
+// Go-only: language-adapter — cacCheckConstantPropertyGetProp ports the
+// GETPROP branch of checkConstantProperty.
 func (c *CheckAccessControls) cacCheckConstantPropertyGetProp(n, parent *rhino.Node) {
 	if n.Token() != rhino.GETPROP {
 		return
@@ -535,8 +540,7 @@ func (c *CheckAccessControls) cacCheckConstantPropertyGetProp(n, parent *rhino.N
 // Final class override check
 // ---------------------------------------------------------------------------
 
-// cacCheckFinalClassOverrides detects constructors that extend a @final
-// class. Mirrors checkFinalClassOverrides.
+// Go-only: language-adapter — cacCheckFinalClassOverrides ports checkFinalClassOverrides.
 func (c *CheckAccessControls) cacCheckFinalClassOverrides(n *rhino.Node) {
 	if n.Token() != rhino.FUNCTION && n.Token() != rhino.CLASS {
 		return
@@ -583,13 +587,9 @@ func (c *CheckAccessControls) cacCheckFinalClassOverrides(n *rhino.Node) {
 // Helper: shouldEmitDeprecationWarning
 // ---------------------------------------------------------------------------
 
-// cacShouldEmitDeprecationWarningNode mirrors shouldEmitDeprecationWarning(t,n).
-// Returns true when the current context is not itself deprecated and we're
-// not in a "free pass" location.
-//
-// Java's rule: in global scope, only invocation targets (call sites) and
-// NEW nodes trigger deprecation warnings — bare references are ignored.
-// Inside a function, all references to deprecated names/props fire.
+// Go-only: language-adapter — cacShouldEmitDeprecationWarningNode ports
+// shouldEmitDeprecationWarning(NodeTraversal, Node). Java has two overloads
+// (Node and PropertyReference); Go splits them.
 func (c *CheckAccessControls) cacShouldEmitDeprecationWarningNode(n, parent *rhino.Node) bool {
 	if c.cacScopeDepth == 0 {
 		// Global scope: only fire when the reference is a function-call
@@ -603,8 +603,8 @@ func (c *CheckAccessControls) cacShouldEmitDeprecationWarningNode(n, parent *rhi
 	return c.cacDeprecationDepth == 0
 }
 
-// cacIsInvocationTarget reports whether n is the callee of a CALL expression.
-// Mirrors NodeUtil.isInvocationTarget: the first child of a CALL node.
+// Go-only: language-adapter — cacIsInvocationTarget ports NodeUtil.isInvocationTarget.
+// Prefixed cac to scope it to this pass; Java uses a shared NodeUtil static.
 func cacIsInvocationTarget(n, parent *rhino.Node) bool {
 	if parent == nil {
 		return false
@@ -616,6 +616,7 @@ func cacIsInvocationTarget(n, parent *rhino.Node) bool {
 // Constant property init table helpers
 // ---------------------------------------------------------------------------
 
+// Go-only: language-adapter — cacGetConstPropertyInit ports getConstPropertyInit.
 func (c *CheckAccessControls) cacGetConstPropertyInit(ot *jstype.ObjectType, prop string) *cacConstDecl {
 	for cur := ot; cur != nil; cur = cur.Super() {
 		if row, ok := c.cacConstInits[cur]; ok {
@@ -627,6 +628,7 @@ func (c *CheckAccessControls) cacGetConstPropertyInit(ot *jstype.ObjectType, pro
 	return nil
 }
 
+// Go-only: language-adapter — cacRecordConstPropertyInit ports recordConstPropertyInit.
 func (c *CheckAccessControls) cacRecordConstPropertyInit(ot *jstype.ObjectType, prop string, n *rhino.Node, constness cacConstancy) {
 	if _, ok := c.cacConstInits[ot]; !ok {
 		c.cacConstInits[ot] = map[string]*cacConstDecl{}
@@ -636,9 +638,7 @@ func (c *CheckAccessControls) cacRecordConstPropertyInit(ot *jstype.ObjectType, 
 	}
 }
 
-// cacIsPropertyDeclaredConstant walks the ObjectType chain checking for
-// @const or @final on the property's JSDoc. Mirrors
-// CheckAccessControls.isPropertyDeclaredConstant.
+// Go-only: language-adapter — cacIsPropertyDeclaredConstant ports isPropertyDeclaredConstant.
 func (c *CheckAccessControls) cacIsPropertyDeclaredConstant(ot *jstype.ObjectType, prop string) (cacConstancy, *rhino.JSDocInfo) {
 	for cur := ot; cur != nil; cur = cur.Super() {
 		info := cur.GetOwnPropertyJSDoc(prop)
@@ -659,8 +659,9 @@ func (c *CheckAccessControls) cacIsPropertyDeclaredConstant(ot *jstype.ObjectTyp
 // Scope / AST helpers
 // ---------------------------------------------------------------------------
 
-// cacFindVarJSDoc looks up the JSDocInfo for a named variable by walking
-// the AST root for its declaration node.
+// Go-only: language-adapter — cacFindVarJSDoc is a Go-specific AST scan
+// replacing Java's scope lookup (Scope.getVar(name).getJSDocInfo()).
+// Java has a typed scope; Go's single-file model walks the AST instead.
 func (c *CheckAccessControls) cacFindVarJSDoc(name string) *rhino.JSDocInfo {
 	if c.cacScriptRoot == nil {
 		return nil
@@ -668,8 +669,8 @@ func (c *CheckAccessControls) cacFindVarJSDoc(name string) *rhino.JSDocInfo {
 	return cacScanVarJSDoc(c.cacScriptRoot, name)
 }
 
-// cacScanVarJSDoc recursively searches `n` for a top-level declaration of
-// `name` and returns its JSDocInfo.
+// Go-only: language-adapter — cacScanVarJSDoc is a recursive AST-scan helper
+// implementing the JSDoc lookup that Java's Scope.getVar provides via type info.
 func cacScanVarJSDoc(n *rhino.Node, name string) *rhino.JSDocInfo {
 	if n == nil {
 		return nil
@@ -711,8 +712,9 @@ func cacScanVarJSDoc(n *rhino.Node, name string) *rhino.JSDocInfo {
 	return nil
 }
 
-// cacFindObjectType resolves a simple name to its instance ObjectType via
-// the scope's nominal type lookup.
+// Go-only: language-adapter — cacFindObjectType ports Java's scope type
+// resolution (Scope.getVar(name).getType().toObjectType()); Go delegates to
+// LookupNominalType in TypedScope.
 func (c *CheckAccessControls) cacFindObjectType(name string) *jstype.ObjectType {
 	if c.scope == nil {
 		return nil
@@ -724,9 +726,8 @@ func (c *CheckAccessControls) cacFindObjectType(name string) *jstype.ObjectType 
 // Small helpers (free functions with cac prefix)
 // ---------------------------------------------------------------------------
 
-// cacBestJSDoc returns the best JSDocInfo for a node, checking the node
-// itself and — for functions — the parent assignment/var declaration.
-// Mirrors NodeUtil.getBestJSDocInfo in Java.
+// Go-only: language-adapter — cacBestJSDoc ports NodeUtil.getBestJSDocInfo.
+// Prefixed cac to scope it to this pass; Java uses a shared NodeUtil static.
 func cacBestJSDoc(n *rhino.Node) *rhino.JSDocInfo {
 	if n == nil {
 		return nil
@@ -737,8 +738,9 @@ func cacBestJSDoc(n *rhino.Node) *rhino.JSDocInfo {
 	return nil
 }
 
-// cacBestJSDocForAssign returns the JSDoc for the assignment node that
-// contains a GETPROP LHS, for override / mutation context.
+// Go-only: language-adapter — cacBestJSDocForAssign ports
+// NodeUtil.getBestJSDocInfo for assignment contexts; Java uses a unified
+// helper, Go splits by context for clarity.
 func cacBestJSDocForAssign(n, parent *rhino.Node) *rhino.JSDocInfo {
 	if parent == nil {
 		return nil
@@ -755,13 +757,12 @@ func cacBestJSDocForAssign(n, parent *rhino.Node) *rhino.JSDocInfo {
 	return nil
 }
 
-// cacIsMarkedDeprecated reports whether the node's JSDoc carries @deprecated.
+// Go-only: language-adapter — cacIsMarkedDeprecated ports isMarkedDeprecated.
 func cacIsMarkedDeprecated(info *rhino.JSDocInfo) bool {
 	return info != nil && info.IsDeprecated()
 }
 
-// cacGetDeprecationReasonFromInfo returns nil when not deprecated, otherwise
-// a pointer to the reason string (which may be empty).
+// Go-only: language-adapter — cacGetDeprecationReasonFromInfo ports getDeprecationReason(JSDocInfo).
 func cacGetDeprecationReasonFromInfo(info *rhino.JSDocInfo) *string {
 	if info == nil || !info.IsDeprecated() {
 		return nil
@@ -770,7 +771,8 @@ func cacGetDeprecationReasonFromInfo(info *rhino.JSDocInfo) *string {
 	return &r
 }
 
-// cacIsLValue reports whether n is on the left-hand side of an assignment.
+// Go-only: language-adapter — cacIsLValue ports NodeUtil.isLValue.
+// Scoped to this pass with cac prefix; Java uses a shared NodeUtil static.
 func cacIsLValue(n, parent *rhino.Node) bool {
 	if parent == nil {
 		return false
@@ -790,7 +792,8 @@ func cacIsLValue(n, parent *rhino.Node) bool {
 	return false
 }
 
-// cacFunctionName extracts the name from a FUNCTION or CLASS node.
+// Go-only: language-adapter — cacFunctionName ports NodeUtil.getName(Node).
+// Scoped to this pass to avoid collision with a future global nodeutil helper.
 func cacFunctionName(n *rhino.Node) string {
 	if n == nil {
 		return ""
@@ -802,7 +805,8 @@ func cacFunctionName(n *rhino.Node) string {
 	return first.String_()
 }
 
-// cacNodeLocation formats a node's location for diagnostic messages.
+// Go-only: language-adapter — cacNodeLocation formats a node source location
+// for diagnostic messages; Java uses SourcePosition / JSError directly.
 func cacNodeLocation(n *rhino.Node) string {
 	if n == nil {
 		return "unknown location"
@@ -810,8 +814,8 @@ func cacNodeLocation(n *rhino.Node) string {
 	return fmt.Sprintf("line %d", n.Lineno())
 }
 
-// cacSamePackage reports whether two file paths share the same directory,
-// which Closure uses as the definition of "same package".
+// Go-only: language-adapter — cacSamePackage ports CodingConvention.getPackageName
+// equality check; Java uses CodingConvention.getPackageName(path) for both args.
 func cacSamePackage(a, b string) bool {
 	if a == "" || b == "" {
 		return false
@@ -819,13 +823,14 @@ func cacSamePackage(a, b string) bool {
 	return filepath.Dir(a) == filepath.Dir(b)
 }
 
-// cacSameFile reports whether two paths refer to the same source file.
+// Go-only: language-adapter — cacSameFile ports the Java file-equality check
+// (StaticSourceFile.getName() equality) used by isPrivateAccessAllowed.
 func cacSameFile(a, b string) bool {
 	return a != "" && b != "" && a == b
 }
 
-// cacPackageName returns the directory component of a file path, which
-// is what Closure uses as the "package name" for @package visibility.
+// Go-only: language-adapter — cacPackageName ports CodingConvention.getPackageName;
+// Java's implementation returns the directory of the source path.
 func cacPackageName(filePath string) string {
 	return filepath.Dir(filePath)
 }
@@ -835,17 +840,13 @@ func cacPackageName(filePath string) string {
 // They are not yet wired into the main walk (which uses a narrower JSDoc-only
 // subset), but are present for 1:1 Java surface coverage.
 
-// cacIsPrivateAccessAllowed mirrors CheckAccessControls.isPrivateAccessAllowed
-// in Java. Returns true when a @private variable is accessible from the
-// reference site (i.e. both are in the same source file).
+// Go-only: language-adapter — cacIsPrivateAccessAllowed ports isPrivateAccessAllowed.
 func cacIsPrivateAccessAllowed(varSourceFile, refSourceFile string) bool {
 	// Mirrors Java: varSrc == null || refSrc == null || varSrc.getName() == refSrc.getName()
 	return varSourceFile == "" || refSourceFile == "" || varSourceFile == refSourceFile
 }
 
-// cacIsPackageAccessAllowed mirrors CheckAccessControls.isPackageAccessAllowed
-// in Java. Returns true when both the variable and the reference site are in
-// the same package (directory). Mirrors Java's CodingConvention.getPackageName.
+// Go-only: language-adapter — cacIsPackageAccessAllowed ports isPackageAccessAllowed.
 func cacIsPackageAccessAllowed(varSourceFile, refSourceFile string) bool {
 	if varSourceFile == "" || refSourceFile == "" {
 		return false
@@ -853,10 +854,7 @@ func cacIsPackageAccessAllowed(varSourceFile, refSourceFile string) bool {
 	return cacPackageName(varSourceFile) == cacPackageName(refSourceFile)
 }
 
-// cacCanOverrideVisibility mirrors CheckAccessControls.canOverrideVisibility
-// in Java. The visibility order is PUBLIC > PROTECTED > PACKAGE > PRIVATE,
-// so an override is valid when the overriding visibility is >= the original.
-// Java's Visibility enum compareTo maps to rhino.Visibility ordering.
+// Go-only: language-adapter — cacCanOverrideVisibility ports canOverrideVisibility.
 func cacCanOverrideVisibility(superVis, subVis rhino.Visibility) bool {
 	// Inherited can override anything.
 	if subVis == rhino.VisibilityInherited {
@@ -881,10 +879,7 @@ func cacCanOverrideVisibility(superVis, subVis rhino.Visibility) bool {
 	return order(superVis) <= order(subVis)
 }
 
-// cacCheckPropertyOverrideVisibility mirrors
-// CheckAccessControls.checkPropertyOverrideVisibility in Java.
-// Emits PRIVATE_OVERRIDE when a @private property is overridden from a
-// different file, or VISIBILITY_MISMATCH when the visibility narrows.
+// Go-only: language-adapter — cacCheckPropertyOverrideVisibility ports checkPropertyOverrideVisibility.
 func (c *CheckAccessControls) cacCheckPropertyOverrideVisibility(
 	n *rhino.Node,
 	propName string,
@@ -914,10 +909,7 @@ func (c *CheckAccessControls) cacCheckPropertyOverrideVisibility(
 	}
 }
 
-// cacCheckPackagePropertyVisibility mirrors
-// CheckAccessControls.checkPackagePropertyVisibility in Java.
-// Emits BAD_PACKAGE_PROPERTY_ACCESS when a @package property is accessed
-// from a different directory.
+// Go-only: language-adapter — cacCheckPackagePropertyVisibility ports checkPackagePropertyVisibility.
 func (c *CheckAccessControls) cacCheckPackagePropertyVisibility(
 	n *rhino.Node,
 	propName string,
@@ -938,10 +930,7 @@ func (c *CheckAccessControls) cacCheckPackagePropertyVisibility(
 	}
 }
 
-// cacCheckPrivatePropertyVisibility mirrors
-// CheckAccessControls.checkPrivatePropertyVisibility in Java.
-// Emits BAD_PRIVATE_PROPERTY_ACCESS when a @private property is accessed
-// from a different file.
+// Go-only: language-adapter — cacCheckPrivatePropertyVisibility ports checkPrivatePropertyVisibility.
 func (c *CheckAccessControls) cacCheckPrivatePropertyVisibility(
 	n *rhino.Node,
 	propName string,
@@ -957,10 +946,7 @@ func (c *CheckAccessControls) cacCheckPrivatePropertyVisibility(
 	})
 }
 
-// cacCheckProtectedPropertyVisibility mirrors
-// CheckAccessControls.checkProtectedPropertyVisibility in Java.
-// Emits BAD_PROTECTED_PROPERTY_ACCESS when a @protected property is accessed
-// from outside a subclass.
+// Go-only: language-adapter — cacCheckProtectedPropertyVisibility ports checkProtectedPropertyVisibility.
 func (c *CheckAccessControls) cacCheckProtectedPropertyVisibility(
 	n *rhino.Node,
 	propName string,
@@ -976,10 +962,7 @@ func (c *CheckAccessControls) cacCheckProtectedPropertyVisibility(
 	})
 }
 
-// cacCheckPropertyAccessVisibility mirrors
-// CheckAccessControls.checkPropertyAccessVisibility in Java.
-// Dispatches to the appropriate sub-check based on visibility.
-// Same-file accesses are always allowed.
+// Go-only: language-adapter — cacCheckPropertyAccessVisibility ports checkPropertyAccessVisibility.
 func (c *CheckAccessControls) cacCheckPropertyAccessVisibility(
 	n *rhino.Node,
 	propName string,
@@ -1002,16 +985,14 @@ func (c *CheckAccessControls) cacCheckPropertyAccessVisibility(
 	}
 }
 
-// cacCanAccessDeprecatedTypes mirrors CheckAccessControls.canAccessDeprecatedTypes
-// in Java. Returns true when the current traversal context is itself deprecated
-// (i.e. we're inside a @deprecated function / class).
+// Go-only: language-adapter — cacCanAccessDeprecatedTypes ports canAccessDeprecatedTypes.
 func (c *CheckAccessControls) cacCanAccessDeprecatedTypes() bool {
 	return c.cacDeprecationDepth > 0
 }
 
-// cacShouldEmitDeprecationWarningPropRef mirrors the PropertyReference variant of
-// CheckAccessControls.shouldEmitDeprecationWarning in Java.
-// Returns true when a deprecation warning should be emitted for a property access.
+// Go-only: language-adapter — cacShouldEmitDeprecationWarningPropRef ports
+// shouldEmitDeprecationWarning(NodeTraversal, PropertyReference). Java has two
+// overloads; Go splits them (the other is cacShouldEmitDeprecationWarningNode).
 func (c *CheckAccessControls) cacShouldEmitDeprecationWarningPropRef(
 	n, parent *rhino.Node,
 	isMutation bool,
@@ -1029,9 +1010,7 @@ func (c *CheckAccessControls) cacShouldEmitDeprecationWarningPropRef(
 	return !c.cacCanAccessDeprecatedTypes()
 }
 
-// cacGetTypeDeprecationInfo mirrors CheckAccessControls.getTypeDeprecationInfo
-// in Java. Returns nil when the type is not deprecated; otherwise returns
-// a pointer to the deprecation reason (which may be empty).
+// Go-only: language-adapter — cacGetTypeDeprecationInfo ports getTypeDeprecationInfo.
 func cacGetTypeDeprecationInfo(ot *jstype.ObjectType) *string {
 	if ot == nil {
 		return nil
@@ -1040,9 +1019,7 @@ func cacGetTypeDeprecationInfo(ot *jstype.ObjectType) *string {
 	return cacGetDeprecationReasonFromInfo(info)
 }
 
-// cacGetPropertyDeprecationInfo mirrors CheckAccessControls.getPropertyDeprecationInfo
-// in Java. Walks the implicit prototype chain looking for a @deprecated annotation
-// on the given property.
+// Go-only: language-adapter — cacGetPropertyDeprecationInfoChain ports getPropertyDeprecationInfo.
 func cacGetPropertyDeprecationInfoChain(ot *jstype.ObjectType, prop string) *string {
 	for cur := ot; cur != nil; cur = cur.Super() {
 		info := cur.GetOwnPropertyJSDoc(prop)
@@ -1054,10 +1031,8 @@ func cacGetPropertyDeprecationInfoChain(ot *jstype.ObjectType, prop string) *str
 	return nil
 }
 
-// cacIsPropertyDeclaredConstantChain mirrors the Java
-// CheckAccessControls.isPropertyDeclaredConstant(ObjectType, String) — walks
-// the implicit prototype chain looking for @final / @const / @define on the
-// given property. Returns cacMutable when none found.
+// Go-only: language-adapter — cacIsPropertyDeclaredConstantChain ports
+// isPropertyDeclaredConstant(ObjectType, String).
 func cacIsPropertyDeclaredConstantChain(ot *jstype.ObjectType, prop string) cacConstancy {
 	for cur := ot; cur != nil; cur = cur.Super() {
 		info := cur.GetOwnPropertyJSDoc(prop)
@@ -1074,7 +1049,7 @@ func cacIsPropertyDeclaredConstantChain(ot *jstype.ObjectType, prop string) cacC
 	return cacMutable
 }
 
-// cacIsFunctionOrClass mirrors CheckAccessControls.isFunctionOrClass in Java.
+// Go-only: language-adapter — cacIsFunctionOrClass ports isFunctionOrClass.
 func cacIsFunctionOrClass(n *rhino.Node) bool {
 	if n == nil {
 		return false
@@ -1082,8 +1057,7 @@ func cacIsFunctionOrClass(n *rhino.Node) bool {
 	return n.Token() == rhino.FUNCTION || n.Token() == rhino.CLASS
 }
 
-// cacIsExtendsTarget mirrors CheckAccessControls.isExtendsTarget in Java —
-// returns true when the node is a class extends clause.
+// Go-only: language-adapter — cacIsExtendsTarget ports isExtendsTarget.
 func cacIsExtendsTarget(n, parent *rhino.Node) bool {
 	if parent == nil {
 		return false
