@@ -271,8 +271,12 @@ var enumHeadRe = regexp.MustCompile(
 		`\s*\{`)
 
 func parseClass(src string) *classDecl {
-	// Check for enum first
-	if em := enumHeadRe.FindStringSubmatchIndex(src); em != nil {
+	// Check for top-level enum. We only treat the file as an enum-first source
+	// when the enum declaration appears before any class declaration; otherwise
+	// the enum is an inner type inside a class (e.g. NodeUtil.ValueType).
+	em := enumHeadRe.FindStringSubmatchIndex(src)
+	cm := classHeadRe.FindStringSubmatchIndex(src)
+	if em != nil && (cm == nil || em[0] < cm[0]) {
 		cls := &classDecl{
 			name:   src[em[2]:em[3]],
 			isEnum: true,
@@ -293,7 +297,7 @@ func parseClass(src string) *classDecl {
 		return cls
 	}
 
-	m := classHeadRe.FindStringSubmatchIndex(src)
+	m := cm
 	if m == nil {
 		return nil
 	}
@@ -775,6 +779,12 @@ func parseBody(body string) ([]fieldDecl, []methodDecl) {
 
 // findDeclTerminator scans `s` from the start and returns (semiIdx,
 // braceIdx) — whichever comes first at paren-depth zero.
+//
+// We deliberately do NOT track `<`/`>` as nesting because Java uses them
+// both for generic type arguments AND as arithmetic/shift operators (`<<`,
+// `>>`, `>>>`, `<=`, `>=`). Tracking `<`/`>` causes the depth counter to
+// desync on expressions like `(1L << 53)`, hiding the terminating `;` or `{`.
+// Generic angle-brackets never contain `;` or `{`, so omitting them is safe.
 func findDeclTerminator(s string) (int, int) {
 	depth := 0
 	for i := 0; i < len(s); i++ {
@@ -787,10 +797,12 @@ func findDeclTerminator(s string) (int, int) {
 			} else if i+1 < len(s) && s[i+1] == '*' {
 				i = skipBlockComment(s, i)
 			}
-		case '(', '<', '[':
+		case '(', '[':
 			depth++
-		case ')', '>', ']':
-			depth--
+		case ')', ']':
+			if depth > 0 {
+				depth--
+			}
 		case ';':
 			if depth == 0 {
 				return i, -1
@@ -844,13 +856,15 @@ func parseField(decl, doc string) (fieldDecl, bool) {
 	if decl == "" {
 		return fieldDecl{}, false
 	}
-	if strings.HasSuffix(decl, ")") {
-		return fieldDecl{}, false
-	}
+	// Strip initialiser first; if there is none and the declaration ends with
+	// `)` it must be a method signature, not a field.
 	var init string
 	if eq := indexAssignOp(decl); eq >= 0 {
 		init = strings.TrimSpace(decl[eq+1:])
 		decl = strings.TrimSpace(decl[:eq])
+	} else if strings.HasSuffix(decl, ")") {
+		// No initialiser and ends with `)` → method signature, not a field.
+		return fieldDecl{}, false
 	}
 	mods, rest := peelModifiers(decl)
 	tn := strings.TrimSpace(rest)
@@ -1538,6 +1552,10 @@ func emitMethods(cls *classDecl, javaPath string) string {
 	var b strings.Builder
 	for _, m := range cls.methods {
 		if strings.Contains(m.modifiers, "static") {
+			// Emit static methods as package-level functions (Go has no static
+			// methods; Java statics become free functions or methods on a
+			// singleton, depending on the class).
+			emitStaticFunc(&b, cls, m, javaPath)
 			continue
 		}
 		if m.name == cls.name {
@@ -1547,6 +1565,46 @@ func emitMethods(cls *classDecl, javaPath string) string {
 		emitMethodStub(&b, cls, m, javaPath)
 	}
 	return b.String()
+}
+
+// emitStaticFunc emits a Java static method as a Go package-level function.
+func emitStaticFunc(b *strings.Builder, cls *classDecl, m methodDecl, javaPath string) {
+	if m.javadoc != "" {
+		for _, l := range strings.Split(m.javadoc, "\n") {
+			b.WriteString("// " + l + "\n")
+		}
+	}
+	if m.sourceLine > 0 {
+		b.WriteString("// @ " + javaPath + ":" + fmt.Sprint(m.sourceLine) + "\n")
+	}
+	goName := toExported(m.name)
+	if strings.Contains(m.modifiers, "private") {
+		goName = strings.ToLower(m.name[:1]) + m.name[1:]
+	}
+	b.WriteString("func " + goName + "(")
+	for i, p := range m.params {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString(goIdent(p.name) + " " + javaToGoType(p.typeName))
+	}
+	b.WriteString(")")
+	goRet := javaToGoType(m.returnType)
+	if goRet != "" {
+		b.WriteString(" " + goRet)
+	}
+	b.WriteString(" {\n")
+	if m.throws != "" {
+		b.WriteString("\t// Java threw: " + m.throws + "\n")
+	}
+	recv := strings.ToLower(string(cls.name[0]))
+	if bodyText, ok := translateMethodBody(m.body, recv, cls.name, goRet); ok {
+		b.WriteString(bodyText)
+	} else {
+		sig := buildPanicSig(m)
+		b.WriteString("\tpanic(\"unimplemented: " + javaPath + ":" + fmt.Sprint(m.sourceLine) + " " + sig + "\")\n")
+	}
+	b.WriteString("}\n\n")
 }
 
 // buildPanicSig builds a human-readable method signature for the panic message.
@@ -1582,15 +1640,24 @@ func emitConstructor(b *strings.Builder, cls *classDecl, m methodDecl, javaPath 
 		if i > 0 {
 			b.WriteString(", ")
 		}
-		b.WriteString(p.name + " " + javaToGoType(p.typeName))
+		b.WriteString(goIdent(p.name) + " " + javaToGoType(p.typeName))
 	}
 	b.WriteString(") *" + cls.name + " {\n")
 	recv := strings.ToLower(string(cls.name[0]))
 	if bodyText, ok := translateMethodBody(m.body, recv, cls.name, ""); ok {
-		b.WriteString(bodyText)
-		// Ensure the constructor always returns.
 		if !strings.Contains(bodyText, "return") && !strings.Contains(bodyText, "panic(") {
-			b.WriteString("\treturn &" + cls.name + "{}\n")
+			// Body is field-init assignments (this.X = Y pattern). Declare the
+			// receiver first so that all assignments target a valid variable.
+			if strings.Contains(bodyText, recv+".") {
+				b.WriteString("\t" + recv + " := &" + cls.name + "{}\n")
+				b.WriteString(bodyText)
+				b.WriteString("\treturn " + recv + "\n")
+			} else {
+				b.WriteString(bodyText)
+				b.WriteString("\treturn &" + cls.name + "{}\n")
+			}
+		} else {
+			b.WriteString(bodyText)
 		}
 	} else {
 		// #169 — panic stub instead of bare return
@@ -1623,7 +1690,7 @@ func emitMethodStub(b *strings.Builder, cls *classDecl, m methodDecl, javaPath s
 		if i > 0 {
 			b.WriteString(", ")
 		}
-		b.WriteString(p.name + " " + javaToGoType(p.typeName))
+		b.WriteString(goIdent(p.name) + " " + javaToGoType(p.typeName))
 	}
 	b.WriteString(")")
 	goRet := javaToGoType(m.returnType)
@@ -1650,6 +1717,39 @@ func toExported(name string) string {
 		return ""
 	}
 	return strings.ToUpper(name[:1]) + name[1:]
+}
+
+// goIdent escapes Java identifiers that are reserved words in Go.
+func goIdent(name string) string {
+	switch name {
+	case "type":
+		return "typ"
+	case "len":
+		return "length"
+	case "cap":
+		return "capacity"
+	case "range":
+		return "rng"
+	case "map":
+		return "mp"
+	case "var":
+		return "v"
+	case "func":
+		return "fn"
+	case "package":
+		return "pkg"
+	case "interface":
+		return "iface"
+	case "chan":
+		return "ch"
+	case "select":
+		return "sel"
+	case "go":
+		return "goroutine"
+	case "defer":
+		return "deferred"
+	}
+	return name
 }
 
 // translateMethodBody attempts to translate the raw Java method body text
