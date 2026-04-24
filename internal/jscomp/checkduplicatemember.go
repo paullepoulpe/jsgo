@@ -1,11 +1,16 @@
-// Port of com/google/javascript/jscomp/CheckSuspiciousCode.java's
-// duplicate-member branch (subset) @ closure-compiler v20260415.
+// Port of com/google/javascript/jscomp/StrictModeCheck.java's
+// checkObjectLiteralOrClass (subset) @ closure-compiler v20260415.
 //
-// Fires JSC_DUPLICATE_MEMBER + JSC_DUP_VAR_DECLARATION on object
-// literals that list the same key twice — `{BB: 1, BB: 2}`. Java
-// emits two diagnostics: a WARNING at the first occurrence with
-// the "duplicate member" message, and an ERROR at the second
-// occurrence describing the redefined variable.
+// Object literals: fires JSC_DUPLICATE_MEMBER + JSC_DUP_VAR_DECLARATION
+// when the same key appears twice in an OBJECTLIT — `{BB: 1, BB: 2}`.
+// Java emits a WARNING at the first occurrence and an ERROR at the
+// second.
+//
+// Class bodies: fires JSC_DUPLICATE_MEMBER (WARNING only) when a
+// class declares two members with the same name, mirroring Java's
+// StrictModeCheck.checkObjectLiteralOrClass. Getter + setter for the
+// same name are compatible and do not trigger the diagnostic. Static
+// and instance slots are tracked separately.
 
 package jscomp
 
@@ -25,8 +30,8 @@ func NewCheckDuplicateMember(path string) *CheckDuplicateMember {
 	return &CheckDuplicateMember{path: path}
 }
 
-// Check walks the AST flagging duplicate STRING_KEY entries in
-// every OBJECTLIT.
+// Check walks the AST flagging duplicate members in every OBJECTLIT
+// and every class body (CLASS → BLOCK).
 func (c *CheckDuplicateMember) Check(script *rhino.Node) []diag.Diagnostic {
 	c.diags = nil
 	c.walk(script, "")
@@ -37,7 +42,8 @@ func (c *CheckDuplicateMember) walk(n *rhino.Node, owner string) {
 	if n == nil {
 		return
 	}
-	if n.Token() == rhino.OBJECTLIT {
+	switch n.Token() {
+	case rhino.OBJECTLIT:
 		// Determine the receiver name to qualify the DUP_VAR
 		// diagnostic with — matches how Java uses the containing
 		// declaration's fully-qualified name (`a.BB` / `goog.a.BB`).
@@ -71,9 +77,94 @@ func (c *CheckDuplicateMember) walk(n *rhino.Node, owner string) {
 			}
 			seen[name] = kv
 		}
+	case rhino.CLASS:
+		// Mirrors StrictModeCheck.visit: n.isClass() →
+		// checkObjectLiteralOrClass(n.getLastChild()).
+		// CLASS children: [0]=name, [1]=superName, [2]=body BLOCK.
+		if kids := n.Children(); len(kids) >= 3 {
+			c.checkClassBody(kids[2])
+		}
 	}
 	for _, ch := range n.Children() {
 		c.walk(ch, owner)
+	}
+}
+
+// checkClassBody ports StrictModeCheck.checkObjectLiteralOrClass for
+// ES6 class bodies. It iterates the body BLOCK's children backwards
+// (so the last declaration wins) and fires JSC_DUPLICATE_MEMBER on
+// any earlier declaration with the same name.
+//
+// Four independent name-sets track instance-getter, instance-setter,
+// static-getter, and static-setter slots — matching the Java 4-set
+// design. A getter and a setter with the same name are compatible and
+// do NOT trigger the diagnostic; two getters (or two non-setter
+// members) DO.
+func (c *CheckDuplicateMember) checkClassBody(body *rhino.Node) {
+	// Four sets: getters / setters × instance / static.
+	// key = member name, value = first-seen node (last in source).
+	getters := map[string]*rhino.Node{}
+	setters := map[string]*rhino.Node{}
+	staticGetters := map[string]*rhino.Node{}
+	staticSetters := map[string]*rhino.Node{}
+
+	kids := body.Children()
+	for i := len(kids) - 1; i >= 0; i-- {
+		m := kids[i]
+		switch m.Token() {
+		case rhino.FUNCTION, rhino.CLASS_FIELD_DEF:
+			// proceed
+		default:
+			continue // skip COMPUTED_PROP, EMPTY, etc.
+		}
+		first := m.FirstChild()
+		if first == nil {
+			continue
+		}
+		name := first.String_()
+		if name == "" {
+			continue
+		}
+		isStatic := m.JSDocInfo().IsStatic()
+		isGetter := m.IsGetterDef()
+		isSetter := m.IsSetterDef()
+
+		if !isSetter {
+			gs := getters
+			if isStatic {
+				gs = staticGetters
+			}
+			if _, dup := gs[name]; dup {
+				c.diags = append(c.diags, diag.Diagnostic{
+					Path: c.path, Line: m.Lineno(), Col: m.Charno(),
+					Code:  diag.JSC_DUPLICATE_MEMBER,
+					Level: diag.Warning,
+					Message: fmt.Sprintf(
+						"Class or object literal contains duplicate member %q. In non-strict code, the last duplicate will overwrite the others.",
+						name),
+				})
+			} else {
+				gs[name] = m
+			}
+		}
+		if !isGetter {
+			ss := setters
+			if isStatic {
+				ss = staticSetters
+			}
+			if _, dup := ss[name]; dup {
+				c.diags = append(c.diags, diag.Diagnostic{
+					Path: c.path, Line: m.Lineno(), Col: m.Charno(),
+					Code:  diag.JSC_DUPLICATE_MEMBER,
+					Level: diag.Warning,
+					Message: fmt.Sprintf(
+						"Class or object literal contains duplicate member %q. In non-strict code, the last duplicate will overwrite the others.",
+						name),
+				})
+			} else {
+				ss[name] = m
+			}
+		}
 	}
 }
 
