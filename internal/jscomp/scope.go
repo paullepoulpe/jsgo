@@ -1771,6 +1771,16 @@ func (c *TypedScopeCreator) recordPrototypeObjectLit(a *rhino.Node, scope *Typed
 // typeOfThis on the resulting FunctionType so TypeCheck can emit
 // JSC_EXPECTED_THIS_TYPE when the method is called without a receiver.
 func (c *TypedScopeCreator) inferPrototypeValueType(info *rhino.JSDocInfo, rhs *rhino.Node, scope *TypedScope, inst *jstype.ObjectType) jstype.JSType {
+	// When an explicit @type annotation is present it takes precedence
+	// over the FUNCTION-body parameter / return inference so that
+	// `/** @type {function(...number)} */ Foo.prototype.bar = function(var_args) {}`
+	// records the declared signature (function(...number)) rather than
+	// the bare-arity signature derived from the function expression.
+	// Mirrors how Java's TypedScopeCreator uses JSDocInfo.getType() to
+	// override the inferred FunctionType for prototype-method stubs.
+	if info != nil && info.HasType() {
+		return scope.ResolveExpr(info.Type().TypeName)
+	}
 	if rhs.Token() == rhino.FUNCTION {
 		kids := rhs.Children()
 		if len(kids) < 2 {

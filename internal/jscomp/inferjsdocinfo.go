@@ -153,16 +153,23 @@ func (p *InferJsDocInfo) ijiInferJSDocForName(n, parent *rhino.Node, scope *Type
 // member branch from the Java pass doesn't apply here.
 func (p *InferJsDocInfo) ijiInferJSDocForObjectKeyOrMember(n, parent *rhino.Node, scope *TypedScope) {
 	typeDoc := n.JSDocInfo()
-	if typeDoc == nil {
-		return
-	}
 
 	// Object literal: STRING_KEY inside an OBJECTLIT. The owning type is
 	// the type of the OBJECTLIT parent.
 	if parent == nil {
 		return
 	}
+
 	owningType := ijiDereferenced(ijiInferExprType(parent, scope))
+	// When the OBJECTLIT itself isn't typed (e.g. in Foo.prototype = {…}),
+	// try resolving the prototype type from the enclosing assignment.
+	// Mirrors Java's inferJSDocForObjectKeyOrClassField walking up to
+	// find the owningType when the OBJECTLIT is a bulk-prototype override:
+	//   Foo.prototype = { bar: function() { … } }
+	if owningType == nil {
+		owningType = ijiPrototypeLitOwner(parent, scope)
+	}
+
 	if owningType == nil {
 		return
 	}
@@ -171,9 +178,79 @@ func (p *InferJsDocInfo) ijiInferJSDocForObjectKeyOrMember(n, parent *rhino.Node
 	if propName == "" {
 		return
 	}
+
+	// Determine the JSDoc to attach: prefer the STRING_KEY's own doc;
+	// fall back to the enclosing ASSIGN's doc for the prototype-literal
+	// case (branch 2: inherit ASSIGN JSDoc to each STRING_KEY value).
+	if typeDoc == nil {
+		if assign := ijiEnclosingPrototypeAssign(parent); assign != nil {
+			typeDoc = assign.JSDocInfo()
+		}
+	}
+	if typeDoc == nil {
+		return
+	}
+
 	if owningType.HasOwnProperty(propName) && owningType.GetPropertyJSDocInfo(propName) == nil {
 		owningType.SetPropertyJSDocInfo(propName, typeDoc)
 	}
+}
+
+// ijiPrototypeLitOwner returns the ObjectType for the prototype when
+// parent is an OBJECTLIT that is the RHS of `Foo.prototype = {…}`.
+// Mirrors how Java's inferJSDocForObjectKeyOrClassField resolves the
+// owning type for object-literal prototype assignments.
+func ijiPrototypeLitOwner(objectlit *rhino.Node, scope *TypedScope) *jstype.ObjectType {
+	if objectlit == nil || objectlit.Token() != rhino.OBJECTLIT {
+		return nil
+	}
+	assign := objectlit.Parent()
+	if assign == nil || assign.Token() != rhino.ASSIGN {
+		return nil
+	}
+	kids := assign.Children()
+	if len(kids) < 2 || kids[1] != objectlit {
+		return nil
+	}
+	lhs := kids[0]
+	if lhs.Token() != rhino.GETPROP {
+		return nil
+	}
+	lhsKids := lhs.Children()
+	if len(lhsKids) < 2 || lhsKids[1].String_() != "prototype" {
+		return nil
+	}
+	// Resolve the type of the receiver to get the constructor's prototype.
+	recv := ijiInferExprType(lhsKids[0], scope)
+	if fn, ok := recv.(*jstype.FunctionType); ok && fn.Instance != nil {
+		return fn.Instance
+	}
+	return nil
+}
+
+// ijiEnclosingPrototypeAssign returns the ASSIGN node when objectlit is
+// the RHS of a `Foo.prototype = {…}` assignment, nil otherwise.
+func ijiEnclosingPrototypeAssign(objectlit *rhino.Node) *rhino.Node {
+	if objectlit == nil {
+		return nil
+	}
+	assign := objectlit.Parent()
+	if assign == nil || assign.Token() != rhino.ASSIGN {
+		return nil
+	}
+	kids := assign.Children()
+	if len(kids) < 2 || kids[1] != objectlit {
+		return nil
+	}
+	lhs := kids[0]
+	if lhs.Token() != rhino.GETPROP {
+		return nil
+	}
+	lhsKids := lhs.Children()
+	if len(lhsKids) < 2 || lhsKids[1].String_() != "prototype" {
+		return nil
+	}
+	return assign
 }
 
 // ijiInferJSDocForGetProp mirrors InferJSDocInfo.inferJSDocForProperty.
@@ -203,8 +280,18 @@ func (p *InferJsDocInfo) ijiInferJSDocForGetProp(n, parent *rhino.Node, scope *T
 	}
 
 	// Resolve the receiver's type.
-	recv := n.FirstChild()
-	if recv == nil {
+	// GETPROP has two children: the receiver (children[0]) and the
+	// property-name STRINGLIT (children[1]). Use children[1].String_()
+	// rather than n.String_() because the Go AST stores the property
+	// name in the child node, not in the GETPROP's own str field
+	// (unlike Java's Node.getString() which mirrors the str field).
+	nKids := n.Children()
+	if len(nKids) < 2 {
+		return
+	}
+	recv := nKids[0]
+	propName := nKids[1].String_()
+	if propName == "" {
 		return
 	}
 	lhsType := ijiDereferenced(ijiInferExprType(recv, scope))
@@ -213,14 +300,22 @@ func (p *InferJsDocInfo) ijiInferJSDocForGetProp(n, parent *rhino.Node, scope *T
 	}
 
 	// Put the JSDoc in the property slot, if there is one.
-	propName := n.String_()
 	if lhsType.HasOwnProperty(propName) && lhsType.GetPropertyJSDocInfo(propName) == nil {
 		lhsType.SetPropertyJSDocInfo(propName, typeDoc)
 	}
 
-	propType := ijiDereferenced(lhsType.GetPropertyType(propName))
+	propTypeRaw := lhsType.GetPropertyType(propName)
+	propType := ijiDereferenced(propTypeRaw)
 	if ijiShouldAttachJSDocToNominalTypeOrShape(propType, aliasedType) {
 		ijiAttachJSDocInfoToNominalTypeOrShape(propType, typeDoc, n.GetQualifiedName())
+	}
+	// Branch 1: `Foo.prototype.bar = function() { … }`.
+	// In Java, FunctionType is a subtype of ObjectType, so
+	// attachJSDocInfoToNominalTypeOrShape handles it. In Go they are
+	// separate; attach the JSDoc directly to the FunctionType here when
+	// the property type is a function and has no doc yet.
+	if fn, ok := propTypeRaw.(*jstype.FunctionType); ok && fn.GetJSDocInfo() == nil {
+		fn.SetJSDocInfo(typeDoc)
 	}
 }
 
@@ -339,8 +434,21 @@ func ijiInferExprType(n *rhino.Node, scope *TypedScope) jstype.JSType {
 			return nil
 		}
 		recv := ijiInferExprType(kids[0], scope)
+		propName := kids[1].String_()
+		// ObjectType: standard property lookup.
 		if obj, ok := recv.(*jstype.ObjectType); ok {
-			return obj.GetPropertyType(kids[1].String_())
+			return obj.GetPropertyType(propName)
+		}
+		// FunctionType: in Java, FunctionType extends ObjectType so
+		// getJSType() on `Foo` returns the FunctionType and `.prototype`
+		// is special-cased. Mirror that here: "prototype" yields the
+		// constructor's Instance (prototype ObjectType); other names
+		// look into the Instance's property map.
+		if fn, ok := recv.(*jstype.FunctionType); ok && fn.Instance != nil {
+			if propName == "prototype" {
+				return fn.Instance
+			}
+			return fn.Instance.GetPropertyType(propName)
 		}
 	}
 	return nil
