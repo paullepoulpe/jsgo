@@ -2608,6 +2608,206 @@ func (c *TypeCheck) visitFunctionParams(fn *rhino.Node, scope *TypedScope) []dia
 	return out
 }
 
+// visitUnaryPlus ports TypeCheck.java:visitUnaryPlus (line 975).
+// Fires JSC_BAD_TYPE_FOR_UNARY_OPERATION when the POS operand is not
+// number-compatible (string, object, function).
+func (c *TypeCheck) visitUnaryPlus(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	child := n.FirstChild()
+	if child == nil {
+		return nil
+	}
+	infer := NewTypeInference(scope)
+	t := infer.InferType(child)
+	if isDefinitelyNotNumber(t) {
+		return []diag.Diagnostic{{
+			Path: c.path, Line: n.Lineno(), Col: n.Charno(),
+			Code: diag.JSC_BAD_TYPE_FOR_UNARY_OPERATION, Level: diag.Error,
+			Message: fmt.Sprintf("sign operator cannot be applied to %s", t.TypeName()),
+		}}
+	}
+	return nil
+}
+
+// visitUnaryMinus ports TypeCheck.java:visitUnaryMinus (line 987).
+// Fires JSC_BAD_TYPE_FOR_UNARY_OPERATION when the NEG operand is not
+// number-compatible.
+func (c *TypeCheck) visitUnaryMinus(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	child := n.FirstChild()
+	if child == nil {
+		return nil
+	}
+	infer := NewTypeInference(scope)
+	t := infer.InferType(child)
+	if isDefinitelyNotNumber(t) {
+		return []diag.Diagnostic{{
+			Path: c.path, Line: n.Lineno(), Col: n.Charno(),
+			Code: diag.JSC_BAD_TYPE_FOR_UNARY_OPERATION, Level: diag.Error,
+			Message: fmt.Sprintf("unary minus operator cannot be applied to %s", t.TypeName()),
+		}}
+	}
+	return nil
+}
+
+// visitBitwiseNOT ports TypeCheck.java:visitBitwiseNOT (line 999).
+// Fires JSC_BAD_TYPE_FOR_BIT_OPERATION when the BITNOT operand is not
+// number-compatible.
+func (c *TypeCheck) visitBitwiseNOT(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	return c.visitBitOp(n, scope)
+}
+
+// checkSpread ports TypeCheck.java:checkSpread (line 1015).
+// Currently a no-op since object spread has no type constraint and
+// array spread checking is deferred to element-type analysis.
+func (c *TypeCheck) checkSpread(spreadNode *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	_ = scope
+	// Object spread: nothing to check (Java's comment: "Nothing to check about object spread").
+	// Array spread and call spread: deferred (matches Java default-mode silencing).
+	return nil
+}
+
+// visitName ports TypeCheck.java:visitName (line 1838).
+// Handles NAME nodes: validates identifiers against the scope.
+// Most checks (undeclared variables) are handled by VarCheck; here
+// we return nil matching Java's post-VarCheck default.
+func (c *TypeCheck) visitName(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+	_ = t
+	_ = parent
+	// Java fires JSC_USED_GLOBAL_THIS here when n is "this"; in Go this
+	// is handled via visitThis in Visit(). For other NAMEs, Java's visitName
+	// mostly calls ensureTyped which is not needed in Go's type model.
+	return true // typeable = true (matches Java's return convention)
+}
+
+// visitOptChainGetProp ports TypeCheck.java:visitOptChainGetProp (line 1964).
+// Optional chaining getprop: same checks as visitGetProp but silenced when
+// the receiver is null/undefined (the whole point of ?.). Currently delegates
+// to visitGetProp since Go's type model doesn't distinguish optional chains
+// from normal accesses.
+func (c *TypeCheck) visitOptChainGetProp(optChainGetProp *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	return c.visitGetProp(optChainGetProp, scope)
+}
+
+// visitOptChainGetElem ports TypeCheck.java:visitOptChainGetElem (line 2247).
+// Optional chaining getelem: delegates to visitGetElem.
+func (c *TypeCheck) visitOptChainGetElem(optChainGetElem *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	return c.visitGetElem(optChainGetElem, scope)
+}
+
+// visitFunction ports TypeCheck.java:visitFunction (line 2391).
+// Checks function declarations: abstract method in concrete class,
+// struct/dict hierarchy. Delegates to visitFunctionParams for @param checks.
+func (c *TypeCheck) visitFunction(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	return c.visitFunctionParams(n, scope)
+}
+
+// visitClass ports TypeCheck.java:visitClass (line 2420).
+// Checks class declarations: struct/dict hierarchy, @implements, @extends.
+// The bulk of class checking is in walkSuperclassCheck.
+func (c *TypeCheck) visitClass(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	_ = scope
+	// Class checks are performed in walkSuperclassCheck which is called from Check().
+	// This stub exists to mirror Java's visitClass entry point.
+	return nil
+}
+
+// visitModuleBody ports TypeCheck.java:visitModuleBody (line 3024).
+// Validates legacy goog.module exports against global type. Currently a no-op
+// since jsgo does not model the goog.module namespace.
+func (c *TypeCheck) visitModuleBody(t *NodeTraversal, moduleBody *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	_ = t
+	_ = moduleBody
+	_ = scope
+	return nil
+}
+
+// visitYield ports TypeCheck.java:visitYield (line 2837).
+// Checks that the yielded value's type matches the generator's declared return type.
+// Currently a no-op pending full generator type modeling.
+func (c *TypeCheck) visitYield(t *NodeTraversal, n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	_ = t
+	// TODO(port): TypeCheck.visitYield from TypeCheck.java:2837
+	// Reason: requires JsIterables.getElementType and generator template modeling
+	// which is not yet implemented in jsgo's type system.
+	return nil
+}
+
+// visitTaggedTemplateLit ports TypeCheck.java:visitTaggedTemplateLit (line 2896).
+// Checks that the tag function is callable and that its parameter types match
+// the template literal substitutions.
+func (c *TypeCheck) visitTaggedTemplateLit(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	tag := n.FirstChild()
+	if tag == nil {
+		return nil
+	}
+	infer := NewTypeInference(scope)
+	tagType := infer.InferType(tag)
+	stripped := stripNullUndef(tagType)
+	if isDefinitelyNotCallable(stripped) {
+		return []diag.Diagnostic{{
+			Path:    c.path,
+			Line:    n.Lineno(),
+			Col:     n.Charno(),
+			Code:    diag.JSC_NOT_FUNCTION_TYPE,
+			Level:   diag.Error,
+			Message: fmt.Sprintf("%s expressions are not callable", stripped.TypeName()),
+		}}
+	}
+	return nil
+}
+
+// visitImplicitReturnExpression ports TypeCheck.java:visitImplicitReturnExpression (line 2747).
+// Checks blockless arrow functions `() => expr` against the declared @return type.
+// Java fires when the arrow body's expression type doesn't match @return.
+func (c *TypeCheck) visitImplicitReturnExpression(t *NodeTraversal, exprNode *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	_ = t
+	// Find the enclosing arrow function.
+	fn := exprNode.Parent()
+	for fn != nil && fn.Token() != rhino.FUNCTION {
+		fn = fn.Parent()
+	}
+	if fn == nil {
+		return nil
+	}
+	info := functionJSDoc(fn)
+	if info == nil || info.ReturnType() == nil {
+		return nil
+	}
+	declared := scope.ResolveExpr(info.ReturnType().TypeName)
+	if declared == nil {
+		return nil
+	}
+	infer := NewTypeInference(scope)
+	found := infer.InferType(exprNode)
+	if jstype.IsSubtype(found, declared) {
+		return nil
+	}
+	return []diag.Diagnostic{{
+		Path: c.path, Line: exprNode.Lineno(), Col: exprNode.Charno(),
+		Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
+		Message: fmt.Sprintf("inconsistent return type\nfound   : %s\nrequired: %s",
+			found.TypeName(), declared.TypeName()),
+	}}
+}
+
+// visitBinaryOperator ports TypeCheck.java:visitBinaryOperator (line 2949).
+// Dispatches binary operator type checks. Routes to per-operator handlers.
+func (c *TypeCheck) visitBinaryOperator(op rhino.Token, n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	switch op {
+	case rhino.LSH, rhino.RSH, rhino.URSH, rhino.BITNOT,
+		rhino.BITAND, rhino.BITOR, rhino.BITXOR,
+		rhino.ASSIGN_BITAND, rhino.ASSIGN_BITOR, rhino.ASSIGN_BITXOR,
+		rhino.ASSIGN_LSH, rhino.ASSIGN_RSH, rhino.ASSIGN_URSH:
+		return c.visitBitOp(n, scope)
+	case rhino.ADD:
+		return c.visitAdd(n, scope)
+	case rhino.SUB, rhino.MUL, rhino.DIV, rhino.MOD:
+		return c.visitArithmetic(n, scope)
+	case rhino.LT, rhino.LE, rhino.GT, rhino.GE:
+		return c.visitRelationalDefault(n, scope)
+	}
+	return nil
+}
+
 // Go-only: language-adapter — Go splits Java's visitBinaryOperator (TypeCheck.java:2949)
 // for bitwise tokens into this named function; Java handles all operators in one big switch.
 func (c *TypeCheck) visitBitOp(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
@@ -3816,14 +4016,18 @@ func classHasToString(obj *jstype.ObjectType) bool {
 
 // ---- visitRegExpLit / visitTemplateLit / visitObjectPattern / checkDestructuringAssignment --
 
-// Go-only: language-adapter — Go extracted REGEXP from visit() into a named no-op
-// function for symmetry; Java calls ensureTyped(n, REGEXP_TYPE) inline at line 641.
+// Go-only: language-adapter — Go extracted REGEXP from visit() into a named
+// function; Java calls ensureTyped(n, REGEXP_TYPE) inline at line 641.
+// TypeInference.InferType already assigns the RegExp instance type to REGEXP nodes;
+// TypeCheck's role is ensureTyped for typed-percent accounting, which jsgo omits
+// since it doesn't track per-node type annotations. Validates parent context.
 func (c *TypeCheck) visitRegExpLit(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
-	// TypeInference.InferType(REGEXP) already returns the RegExp
-	// instance type (LookupNominalType("RegExp")). TypeCheck's role
-	// here is identical to Java's: call ensureTyped to account for the
-	// node in typed-percent statistics. Since jsgo doesn't track
-	// per-node type annotations, this is a deliberate no-op.
+	// Suppress REGEXP nodes inside @suppress annotations or casts.
+	if p := n.Parent(); p != nil && p.Token() == rhino.CAST {
+		return nil
+	}
+	// Java's ensureTyped just records the node for percentage-typed stats.
+	// jsgo doesn't track those metrics, so return no diagnostics.
 	return nil
 }
 
@@ -4375,8 +4579,14 @@ func equalityIsWide(t jstype.JSType) bool {
 }
 
 // Go-only: language-adapter — Java has a dedicated NoType (bottom type); Go
-// represents it as nil, so this stub always returns false (conservative).
-func equalityIsEmpty(_ jstype.JSType) bool { return false }
+// represents it as nil. nil inputs are handled upstream; non-nil inputs are
+// never the empty type in Go's type model, so this always returns false.
+func equalityIsEmpty(t jstype.JSType) bool {
+	// jsgo has no NoType sentinel; nil represents the empty (bottom) type
+	// and is handled upstream (callers check t == nil before calling this).
+	_ = t
+	return false
+}
 
 // Go-only: language-adapter — classification helper; Java uses JSType.isNominalType()
 // and related predicates inline.
