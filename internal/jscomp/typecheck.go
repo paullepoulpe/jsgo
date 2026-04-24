@@ -1649,14 +1649,36 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 		// Skip property existence / absence tests — these fire as
 		// STRICT_INEXISTENT_PROPERTY only (not default JSC_INEXISTENT_PROPERTY).
 		if isPropertyExistenceOrAbsenceTest(n) {
+			// In strict mode, emit STRICT_INEXISTENT_PROPERTY.
+			if c.opts != nil && c.opts.IsOn(GroupStrictCheckTypes) {
+				if c.inexistentReported == nil {
+					c.inexistentReported = map[string]bool{}
+				}
+				c.inexistentReported[key] = true
+				return []diag.Diagnostic{{
+					Path: c.path, Line: propNode.Lineno(), Col: propNode.Charno(),
+					Code: diag.JSC_STRICT_INEXISTENT_PROPERTY, Level: diag.Warning,
+					Message: fmt.Sprintf("Property %s never defined on %s", propName, obj.TypeName()),
+				}}
+			}
 			return nil
 		}
 	}
 	// @interface types are open surfaces in default mode: Java routes
 	// unknown-property accesses on them as LOOSE (STRICT_INEXISTENT_PROPERTY
-	// only), which is silenced in default mode. Skip reads and writes on
-	// @interface types. @record types ARE closed — missing properties fire.
+	// only), which is silenced in default mode. In strict mode, emit.
 	if obj.IsStructural && !obj.IsStruct && obj.IsInterface {
+		if c.opts != nil && c.opts.IsOn(GroupStrictCheckTypes) {
+			if c.inexistentReported == nil {
+				c.inexistentReported = map[string]bool{}
+			}
+			c.inexistentReported[key] = true
+			return []diag.Diagnostic{{
+				Path: c.path, Line: propNode.Lineno(), Col: propNode.Charno(),
+				Code: diag.JSC_STRICT_INEXISTENT_PROPERTY, Level: diag.Warning,
+				Message: fmt.Sprintf("Property %s never defined on %s", propName, obj.TypeName()),
+			}}
+		}
 		return nil
 	}
 	msg := fmt.Sprintf("Property %s never defined on %s", propName, obj.TypeName())
