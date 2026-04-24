@@ -263,6 +263,153 @@ func (n *Node) DetachChildren() {
 	n.first, n.last = nil, nil
 }
 
+// InsertAfter inserts n immediately after existing in the child list of
+// existing's parent. Mirrors Java's Node.insertAfter(Node existing).
+// Panics if existing has no parent.
+func (n *Node) InsertAfter(existing *Node) {
+	p := existing.parent
+	n.parent = p
+	n.previous = existing
+	n.next = existing.next
+	if existing.next != nil {
+		existing.next.previous = n
+	} else {
+		p.last = n
+	}
+	existing.next = n
+}
+
+// InsertBefore inserts n immediately before existing in the child list of
+// existing's parent. Mirrors Java's Node.insertBefore(Node existing).
+// Panics if existing has no parent.
+func (n *Node) InsertBefore(existing *Node) {
+	p := existing.parent
+	n.parent = p
+	n.next = existing
+	n.previous = existing.previous
+	if existing.previous != nil {
+		existing.previous.next = n
+	} else {
+		p.first = n
+	}
+	existing.previous = n
+}
+
+// HasXChildren mirrors Java's Node.hasXChildren(int). Returns true when n has
+// exactly count children.
+func (n *Node) HasXChildren(count int) bool {
+	c := n.first
+	for i := 0; i < count; i++ {
+		if c == nil {
+			return false
+		}
+		c = c.next
+	}
+	return c == nil
+}
+
+// HasOneChild mirrors Java's Node.hasOneChild().
+func (n *Node) HasOneChild() bool {
+	return n.first != nil && n.first == n.last
+}
+
+// HasTwoChildren mirrors Java's Node.hasTwoChildren().
+func (n *Node) HasTwoChildren() bool {
+	return n.first != nil && n.first.next != nil && n.first.next == n.last
+}
+
+// HasMoreThanOneChild mirrors Java's Node.hasMoreThanOneChild().
+func (n *Node) HasMoreThanOneChild() bool {
+	return n.first != nil && n.first.next != nil
+}
+
+// RemoveFirstChild detaches and returns the first child of n, or nil if n has
+// no children. Mirrors Java's Node.removeFirstChild().
+func (n *Node) RemoveFirstChild() *Node {
+	if n.first == nil {
+		return nil
+	}
+	c := n.first
+	n.first = c.next
+	if n.first != nil {
+		n.first.previous = nil
+	} else {
+		n.last = nil
+	}
+	c.parent, c.next, c.previous = nil, nil, nil
+	return c
+}
+
+// ChildCount returns the number of direct children. Mirrors Java's Node.getChildCount().
+func (n *Node) ChildCount() int {
+	count := 0
+	for c := n.first; c != nil; c = c.next {
+		count++
+	}
+	return count
+}
+
+// IsTry mirrors Java's Node.isTry().
+func (n *Node) IsTry() bool { return n.token == TRY }
+
+// IsClass mirrors Java's Node.isClass().
+func (n *Node) IsClass() bool { return n.token == CLASS }
+
+// IsImport mirrors Java's Node.isImport().
+func (n *Node) IsImport() bool { return n.token == IMPORT }
+
+// IsExport mirrors Java's Node.isExport().
+func (n *Node) IsExport() bool { return n.token == EXPORT }
+
+// IsImportSpec mirrors Java's Node.isImportSpec().
+func (n *Node) IsImportSpec() bool { return n.token == IMPORT_SPEC }
+
+// IsExportSpec mirrors Java's Node.isExportSpec().
+func (n *Node) IsExportSpec() bool { return n.token == EXPORT_SPEC }
+
+// IsObjectPattern mirrors Java's Node.isObjectPattern().
+func (n *Node) IsObjectPattern() bool { return n.token == OBJECT_PATTERN }
+
+// IsArrayPattern mirrors Java's Node.isArrayPattern().
+func (n *Node) IsArrayPattern() bool { return n.token == ARRAY_PATTERN }
+
+// IsDestructuringLhs mirrors Java's Node.isDestructuringLhs().
+func (n *Node) IsDestructuringLhs() bool { return n.token == DESTRUCTURING_LHS }
+
+// IsParamList mirrors Java's Node.isParamList().
+func (n *Node) IsParamList() bool { return n.token == PARAM_LIST }
+
+// IsLabel mirrors Java's Node.isLabel().
+func (n *Node) IsLabel() bool { return n.token == LABEL }
+
+// IsVanillaFor mirrors Java's Node.isVanillaFor() — true for a plain FOR node
+// (not FOR_IN or FOR_OF).
+func (n *Node) IsVanillaFor() bool { return n.token == FOR }
+
+// IsModuleBody mirrors Java's Node.isModuleBody().
+func (n *Node) IsModuleBody() bool { return n.token == MODULE_BODY }
+
+// IsRest mirrors Java's Node.isRest().
+func (n *Node) IsRest() bool { return n.token == ITER_REST || n.token == OBJECT_REST }
+
+// IsExprResult mirrors Java's Node.isExprResult().
+func (n *Node) IsExprResult() bool { return n.token == EXPR_RESULT }
+
+// IsVar mirrors Java's Node.isVar().
+func (n *Node) IsVar() bool { return n.token == VAR }
+
+// IsConst mirrors Java's Node.isConst().
+func (n *Node) IsConst() bool { return n.token == CONST }
+
+// IsLet mirrors Java's Node.isLet().
+func (n *Node) IsLet() bool { return n.token == LET }
+
+// IsCase mirrors Java's Node.isCase().
+func (n *Node) IsCase() bool { return n.token == CASE }
+
+// IsDefaultCase mirrors Java's Node.isDefaultCase().
+func (n *Node) IsDefaultCase() bool { return n.token == DEFAULT_CASE }
+
 // ---------------- property bag ------------------------------------- //
 
 // IsAddedBlock mirrors Java's Node.isAddedBlock() — true when this
@@ -1001,53 +1148,6 @@ func (n *Node) IsSecondChildOf(possibleParent *Node) bool {
 	return second != nil && second == n
 }
 
-// InsertAfter mirrors Java's Node.insertAfter(existing) — inserts n
-// into n's parent immediately after the existing sibling.
-func (n *Node) InsertAfter(existing *Node) {
-	if existing == nil || existing.parent == nil {
-		return
-	}
-	p := existing.parent
-	n.parent = p
-	n.previous = existing
-	n.next = existing.next
-	if existing.next != nil {
-		existing.next.previous = n
-	} else {
-		p.last = n
-	}
-	existing.next = n
-}
-
-// InsertBefore mirrors Java's Node.insertBefore(existing) — inserts n
-// into n's parent immediately before the existing sibling.
-func (n *Node) InsertBefore(existing *Node) {
-	if existing == nil || existing.parent == nil {
-		return
-	}
-	p := existing.parent
-	n.parent = p
-	n.next = existing
-	n.previous = existing.previous
-	if existing.previous != nil {
-		existing.previous.next = n
-	} else {
-		p.first = n
-	}
-	existing.previous = n
-}
-
-// RemoveFirstChild mirrors Java's Node.removeFirstChild() — detaches and
-// returns the first child, or nil if n has no children.
-func (n *Node) RemoveFirstChild() *Node {
-	if n.first == nil {
-		return nil
-	}
-	child := n.first
-	child.Detach()
-	return child
-}
-
 // GetChildAtIndex mirrors Java's Node.getChildAtIndex(int). Returns the child
 // at 0-based index i, or nil if out of bounds. O(n).
 func (n *Node) GetChildAtIndex(i int) *Node {
@@ -1092,9 +1192,6 @@ func (n *Node) IsAssignAnd() bool { return n.token == ASSIGN_AND }
 // IsArrayLit mirrors Java's Node.isArrayLit().
 func (n *Node) IsArrayLit() bool { return n.token == ARRAYLIT }
 
-// IsArrayPattern mirrors Java's Node.isArrayPattern().
-func (n *Node) IsArrayPattern() bool { return n.token == ARRAY_PATTERN }
-
 // IsAssign mirrors Java's Node.isAssign().
 func (n *Node) IsAssign() bool { return n.token == ASSIGN }
 
@@ -1116,17 +1213,11 @@ func (n *Node) IsBitNot() bool { return n.token == BITNOT }
 // IsBreak mirrors Java's Node.isBreak().
 func (n *Node) IsBreak() bool { return n.token == BREAK }
 
-// IsCase mirrors Java's Node.isCase().
-func (n *Node) IsCase() bool { return n.token == CASE }
-
 // IsCast mirrors Java's Node.isCast().
 func (n *Node) IsCast() bool { return n.token == CAST }
 
 // IsCatch mirrors Java's Node.isCatch().
 func (n *Node) IsCatch() bool { return n.token == CATCH }
-
-// IsClass mirrors Java's Node.isClass().
-func (n *Node) IsClass() bool { return n.token == CLASS }
 
 // IsComma mirrors Java's Node.isComma().
 func (n *Node) IsComma() bool { return n.token == COMMA }
@@ -1134,26 +1225,17 @@ func (n *Node) IsComma() bool { return n.token == COMMA }
 // IsContinue mirrors Java's Node.isContinue().
 func (n *Node) IsContinue() bool { return n.token == CONTINUE }
 
-// IsConst mirrors Java's Node.isConst().
-func (n *Node) IsConst() bool { return n.token == CONST }
-
 // IsDebugger mirrors Java's Node.isDebugger().
 func (n *Node) IsDebugger() bool { return n.token == DEBUGGER }
 
 // IsDec mirrors Java's Node.isDec().
 func (n *Node) IsDec() bool { return n.token == DEC }
 
-// IsDefaultCase mirrors Java's Node.isDefaultCase().
-func (n *Node) IsDefaultCase() bool { return n.token == DEFAULT_CASE }
-
 // IsDefaultValue mirrors Java's Node.isDefaultValue().
 func (n *Node) IsDefaultValue() bool { return n.token == DEFAULT_VALUE }
 
 // IsDelProp mirrors Java's Node.isDelProp().
 func (n *Node) IsDelProp() bool { return n.token == DELPROP }
-
-// IsDestructuringLhs mirrors Java's Node.isDestructuringLhs().
-func (n *Node) IsDestructuringLhs() bool { return n.token == DESTRUCTURING_LHS }
 
 // IsDo mirrors Java's Node.isDo().
 func (n *Node) IsDo() bool { return n.token == DO }
@@ -1167,23 +1249,17 @@ func (n *Node) IsExponent() bool { return n.token == EXPONENT }
 // IsAssignExponent mirrors Java's Node.isAssignExponent().
 func (n *Node) IsAssignExponent() bool { return n.token == ASSIGN_EXPONENT }
 
-// IsExport mirrors Java's Node.isExport().
-func (n *Node) IsExport() bool { return n.token == EXPORT }
-
-// IsExportSpec mirrors Java's Node.isExportSpec().
-func (n *Node) IsExportSpec() bool { return n.token == EXPORT_SPEC }
+// [duplicate of first declaration removed]
 
 // IsExportSpecs mirrors Java's Node.isExportSpecs().
 func (n *Node) IsExportSpecs() bool { return n.token == EXPORT_SPECS }
 
-// IsExprResult mirrors Java's Node.isExprResult().
-func (n *Node) IsExprResult() bool { return n.token == EXPR_RESULT }
+// [duplicate of first declaration removed]
 
 // IsFalse mirrors Java's Node.isFalse().
 func (n *Node) IsFalse() bool { return n.token == FALSE }
 
-// IsVanillaFor mirrors Java's Node.isVanillaFor() — true for the plain FOR token.
-func (n *Node) IsVanillaFor() bool { return n.token == FOR }
+// [duplicate of first declaration removed]
 
 // IsForIn mirrors Java's Node.isForIn().
 func (n *Node) IsForIn() bool { return n.token == FOR_IN }
@@ -1200,8 +1276,7 @@ func (n *Node) IsHook() bool { return n.token == HOOK }
 // IsIf mirrors Java's Node.isIf().
 func (n *Node) IsIf() bool { return n.token == IF }
 
-// IsImport mirrors Java's Node.isImport().
-func (n *Node) IsImport() bool { return n.token == IMPORT }
+// [duplicate of first declaration removed]
 
 // IsImportMeta mirrors Java's Node.isImportMeta().
 func (n *Node) IsImportMeta() bool { return n.token == IMPORT_META }
@@ -1209,8 +1284,7 @@ func (n *Node) IsImportMeta() bool { return n.token == IMPORT_META }
 // IsImportStar mirrors Java's Node.isImportStar().
 func (n *Node) IsImportStar() bool { return n.token == IMPORT_STAR }
 
-// IsImportSpec mirrors Java's Node.isImportSpec().
-func (n *Node) IsImportSpec() bool { return n.token == IMPORT_SPEC }
+// [duplicate of first declaration removed]
 
 // IsImportSpecs mirrors Java's Node.isImportSpecs().
 func (n *Node) IsImportSpecs() bool { return n.token == IMPORT_SPECS }
@@ -1221,14 +1295,12 @@ func (n *Node) IsInc() bool { return n.token == INC }
 // IsInstanceOf mirrors Java's Node.isInstanceOf().
 func (n *Node) IsInstanceOf() bool { return n.token == INSTANCEOF }
 
-// IsLabel mirrors Java's Node.isLabel().
-func (n *Node) IsLabel() bool { return n.token == LABEL }
+// [duplicate of first declaration removed]
 
 // IsLabelName mirrors Java's Node.isLabelName().
 func (n *Node) IsLabelName() bool { return n.token == LABEL_NAME }
 
-// IsLet mirrors Java's Node.isLet().
-func (n *Node) IsLet() bool { return n.token == LET }
+// [duplicate of first declaration removed]
 
 // IsMemberVariableDef mirrors Java's Node.isMemberVariableDef().
 // In Go this token is represented as MEMBER_FIELD_DEF (no separate MEMBER_VARIABLE_DEF).
@@ -1237,8 +1309,7 @@ func (n *Node) IsMemberVariableDef() bool { return n.token == MEMBER_FIELD_DEF }
 // IsComputedFieldDef mirrors Java's Node.isComputedFieldDef().
 func (n *Node) IsComputedFieldDef() bool { return n.token == COMPUTED_PROP }
 
-// IsModuleBody mirrors Java's Node.isModuleBody().
-func (n *Node) IsModuleBody() bool { return n.token == MODULE_BODY }
+// [duplicate of first declaration removed]
 
 // IsNE mirrors Java's Node.isNE().
 func (n *Node) IsNE() bool { return n.token == NE }
@@ -1273,8 +1344,7 @@ func (n *Node) IsNumber() bool { return n.token == NUMBER }
 // IsObjectLit mirrors Java's Node.isObjectLit().
 func (n *Node) IsObjectLit() bool { return n.token == OBJECTLIT }
 
-// IsObjectPattern mirrors Java's Node.isObjectPattern().
-func (n *Node) IsObjectPattern() bool { return n.token == OBJECT_PATTERN }
+// [duplicate of first declaration removed]
 
 // IsOr mirrors Java's Node.isOr() — logical OR (||).
 func (n *Node) IsOr() bool { return n.token == OR }
@@ -1282,14 +1352,12 @@ func (n *Node) IsOr() bool { return n.token == OR }
 // IsAssignOr mirrors Java's Node.isAssignOr() — ||=.
 func (n *Node) IsAssignOr() bool { return n.token == ASSIGN_OR }
 
-// IsParamList mirrors Java's Node.isParamList().
-func (n *Node) IsParamList() bool { return n.token == PARAM_LIST }
+// [duplicate of first declaration removed]
 
 // IsRegExp mirrors Java's Node.isRegExp().
 func (n *Node) IsRegExp() bool { return n.token == REGEXP }
 
-// IsRest mirrors Java's Node.isRest() — true for ITER_REST or OBJECT_REST.
-func (n *Node) IsRest() bool { return n.token == ITER_REST || n.token == OBJECT_REST }
+// [duplicate of first declaration removed]
 
 // IsObjectRest mirrors Java's Node.isObjectRest().
 func (n *Node) IsObjectRest() bool { return n.token == OBJECT_REST }
@@ -1324,14 +1392,12 @@ func (n *Node) IsThrow() bool { return n.token == THROW }
 // IsTrue mirrors Java's Node.isTrue().
 func (n *Node) IsTrue() bool { return n.token == TRUE }
 
-// IsTry mirrors Java's Node.isTry().
-func (n *Node) IsTry() bool { return n.token == TRY }
+// [duplicate of first declaration removed]
 
 // IsTypeOf mirrors Java's Node.isTypeOf().
 func (n *Node) IsTypeOf() bool { return n.token == TYPEOF }
 
-// IsVar mirrors Java's Node.isVar().
-func (n *Node) IsVar() bool { return n.token == VAR }
+// [duplicate of first declaration removed]
 
 // IsVoid mirrors Java's Node.isVoid().
 func (n *Node) IsVoid() bool { return n.token == VOID }
@@ -1405,9 +1471,5 @@ func (n *Node) GetString() string { return n.str }
 // SetToken mirrors Java's Node.setToken(Token).
 func (n *Node) SetToken(tok Token) { n.token = tok }
 
-// HasOneChild returns true when n has exactly one child.
-// Mirrors Java's hasOneChild() check.
-func (n *Node) HasOneChild() bool {
-	return n.first != nil && n.first == n.last
-}
+// [duplicate of first declaration removed]
 

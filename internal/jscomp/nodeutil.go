@@ -1749,3 +1749,505 @@ func (nodeUtil) NewDecl(lhs *rhino.Node, rhs *rhino.Node, declType rhino.Token) 
 	}
 	return decl
 }
+
+// ---------------------------------------------------------------------------
+// isDefinedValue / mayBeUndefined
+// ---------------------------------------------------------------------------
+
+// IsDefinedValue reports whether the expression is statically known not to
+// evaluate to undefined.  Mirrors NodeUtil.isDefinedValue (Java).
+func (nodeUtil) IsDefinedValue(value *rhino.Node) bool {
+	if value == nil {
+		return false
+	}
+	switch value.Token() {
+	case rhino.ASSIGN, rhino.CAST:
+		// Only the assigned value matters.
+		return NU.IsDefinedValue(value.LastChild())
+	case rhino.COALESCE:
+		// 'null' is defined, so we can only trust the RHS.
+		return NU.IsDefinedValue(value.GetSecondChild())
+	case rhino.AND, rhino.OR:
+		return NU.IsDefinedValue(value.FirstChild()) && NU.IsDefinedValue(value.LastChild())
+	case rhino.HOOK:
+		return NU.IsDefinedValue(value.GetSecondChild()) && NU.IsDefinedValue(value.LastChild())
+	case rhino.CALL, rhino.OPTCHAIN_CALL,
+		rhino.GETELEM, rhino.GETPROP,
+		rhino.OPTCHAIN_GETELEM, rhino.OPTCHAIN_GETPROP,
+		rhino.THIS, rhino.VOID, rhino.YIELD, rhino.AWAIT:
+		return false
+	case rhino.DELPROP, rhino.INC, rhino.DEC,
+		rhino.CLASS, rhino.FUNCTION, rhino.REGEXP,
+		rhino.EMPTY, rhino.ARRAYLIT, rhino.OBJECTLIT,
+		rhino.TEMPLATELIT, rhino.STRINGLIT,
+		rhino.NUMBER, rhino.NULL, rhino.TRUE, rhino.FALSE, rhino.NEW:
+		return true
+	case rhino.NAME:
+		name := value.String_()
+		return name == "Infinity" || name == "NaN"
+	default:
+		return false
+	}
+}
+
+// MayBeUndefined mirrors NodeUtil.mayBeUndefined.
+func (nodeUtil) MayBeUndefined(n *rhino.Node) bool {
+	return !NU.IsDefinedValue(n)
+}
+
+// ---------------------------------------------------------------------------
+// isSomeCompileTimeConstStringValue
+// ---------------------------------------------------------------------------
+
+// IsSomeCompileTimeConstStringValue reports whether the node is a compile-time
+// constant string value (string literal, template literal with no substitutions,
+// concatenation of such values, or ternary between such values).
+// Mirrors NodeUtil.isSomeCompileTimeConstStringValue (Java).
+func (nodeUtil) IsSomeCompileTimeConstStringValue(node *rhino.Node) bool {
+	if node == nil {
+		return false
+	}
+	if node.IsStringLit() {
+		return true
+	}
+	if node.Token() == rhino.TEMPLATELIT && node.HasOneChild() {
+		return true
+	}
+	if node.Token() == rhino.ADD {
+		left := node.FirstChild()
+		right := node.LastChild()
+		return left != nil && right != nil &&
+			NU.IsSomeCompileTimeConstStringValue(left) &&
+			NU.IsSomeCompileTimeConstStringValue(right)
+	}
+	if node.Token() == rhino.HOOK {
+		left := node.GetSecondChild()
+		right := node.LastChild()
+		return left != nil && right != nil &&
+			NU.IsSomeCompileTimeConstStringValue(left) &&
+			NU.IsSomeCompileTimeConstStringValue(right)
+	}
+	return false
+}
+
+// ---------------------------------------------------------------------------
+// isDeclarationParent / isNamedClass / isNamedFunction / isReferenceName
+// ---------------------------------------------------------------------------
+
+// isDeclarationParent mirrors the private NodeUtil.isDeclarationParent.
+func isDeclarationParent(parent *rhino.Node) bool {
+	if parent == nil {
+		return false
+	}
+	switch parent.Token() {
+	case rhino.DECLARE, rhino.EXPORT:
+		return true
+	}
+	return isStatementParent(parent)
+}
+
+// isReferenceName mirrors NodeUtil.isReferenceName.
+func isReferenceName(n *rhino.Node) bool {
+	return n != nil && n.Token() == rhino.NAME && n.String_() != ""
+}
+
+// isNamedFunction mirrors NodeUtil.isNamedFunction.
+func isNamedFunction(n *rhino.Node) bool {
+	return n != nil && n.IsFunction() && isReferenceName(n.FirstChild())
+}
+
+// isNamedClass mirrors NodeUtil.isNamedClass.
+func isNamedClass(n *rhino.Node) bool {
+	return n != nil && n.IsClass() && isReferenceName(n.FirstChild())
+}
+
+// isSwitchCase mirrors NodeUtil.isSwitchCase.
+func isSwitchCase(n *rhino.Node) bool {
+	return n != nil && (n.IsCase() || n.IsDefaultCase())
+}
+
+// isExportFrom mirrors NodeUtil.isExportFrom — an EXPORT node that has a from-clause (2 children).
+func isExportFrom(n *rhino.Node) bool {
+	return n != nil && n.IsExport() && n.HasTwoChildren()
+}
+
+// hasCatchHandler mirrors NodeUtil.hasCatchHandler.
+func hasCatchHandler(catchBlock *rhino.Node) bool {
+	return catchBlock != nil && catchBlock.HasChildren()
+}
+
+// hasFinally mirrors NodeUtil.hasFinally.
+func hasFinally(n *rhino.Node) bool {
+	return n != nil && n.IsTry() && n.HasXChildren(3)
+}
+
+// getCatchBlock returns the second child of a TRY node (the catch container block).
+func getCatchBlock(tryNode *rhino.Node) *rhino.Node {
+	return tryNode.GetSecondChild()
+}
+
+// isTryFinallyNode mirrors NodeUtil.isTryFinallyNode.
+func isTryFinallyNode(parent, child *rhino.Node) bool {
+	return parent != nil && parent.IsTry() && parent.HasXChildren(3) && child == parent.LastChild()
+}
+
+// isTryCatchNodeContainer mirrors NodeUtil.isTryCatchNodeContainer.
+func isTryCatchNodeContainer(n *rhino.Node) bool {
+	parent := n.Parent()
+	return parent != nil && parent.IsTry() && parent.GetSecondChild() == n
+}
+
+// ---------------------------------------------------------------------------
+// isMethodDeclaration / isClassDeclaration / isBlockScopedFunctionDeclaration
+// ---------------------------------------------------------------------------
+
+// IsMethodDeclaration reports whether n is a method in a class or object
+// literal (getter, setter, computed property method, or member function).
+// Mirrors NodeUtil.isMethodDeclaration (Java).
+func (nodeUtil) IsMethodDeclaration(n *rhino.Node) bool {
+	if n == nil || !n.IsFunction() {
+		return false
+	}
+	p := n.Parent()
+	if p == nil {
+		return false
+	}
+	switch p.Token() {
+	case rhino.GETTER_DEF, rhino.SETTER_DEF, rhino.MEMBER_FUNCTION_DEF:
+		return true
+	case rhino.COMPUTED_PROP:
+		// Java also checks COMPUTED_PROP_METHOD/GETTER/SETTER boolean props;
+		// those props are not yet ported to the Go rhino package, so we
+		// conservatively check only whether this function is the last child
+		// (the method body position in a computed method).
+		return p.LastChild() == n
+	}
+	return false
+}
+
+// IsClassDeclaration reports whether n is a class declaration.
+// Mirrors NodeUtil.isClassDeclaration (Java).
+func (nodeUtil) IsClassDeclaration(n *rhino.Node) bool {
+	return n != nil && n.IsClass() && isDeclarationParent(n.Parent()) && isNamedClass(n)
+}
+
+// IsClassExpression reports whether n is a class used within an expression.
+// Mirrors NodeUtil.isClassExpression (Java).
+func (nodeUtil) IsClassExpression(n *rhino.Node) bool {
+	return n != nil && n.IsClass() && (!isNamedClass(n) || !isDeclarationParent(n.Parent()))
+}
+
+// IsBlockScopedFunctionDeclaration reports whether n is a function declaration
+// inside a block scope (not at the top of a function/script/module body).
+// Mirrors NodeUtil.isBlockScopedFunctionDeclaration (Java).
+func (nodeUtil) IsBlockScopedFunctionDeclaration(n *rhino.Node) bool {
+	if !NU.IsFunctionDeclaration(n) {
+		return false
+	}
+	current := n.Parent()
+	for current != nil {
+		switch current.Token() {
+		case rhino.BLOCK:
+			p := current.Parent()
+			return p == nil || !p.IsFunction()
+		case rhino.FUNCTION, rhino.SCRIPT, rhino.DECLARE, rhino.EXPORT, rhino.MODULE_BODY:
+			return false
+		default:
+			// Must be LABEL
+			current = current.Parent()
+		}
+	}
+	return false
+}
+
+// ---------------------------------------------------------------------------
+// isControlStructureCodeBlock
+// ---------------------------------------------------------------------------
+
+// IsControlStructureCodeBlock reports whether n is the code block of its
+// control-structure parent.  Mirrors NodeUtil.isControlStructureCodeBlock (Java).
+func (nodeUtil) IsControlStructureCodeBlock(parent, n *rhino.Node) bool {
+	if parent == nil || n == nil {
+		return false
+	}
+	switch parent.Token() {
+	case rhino.DO_WHILE:
+		return parent.FirstChild() == n
+	case rhino.TRY:
+		return parent.FirstChild() == n || parent.LastChild() == n
+	case rhino.FOR, rhino.FOR_IN, rhino.FOR_OF, rhino.FOR_AWAIT_OF,
+		rhino.WHILE, rhino.LABEL, rhino.CATCH:
+		return parent.LastChild() == n
+	case rhino.IF, rhino.SWITCH, rhino.CASE:
+		return parent.FirstChild() != n
+	case rhino.DEFAULT_CASE:
+		return true
+	}
+	return false
+}
+
+// ---------------------------------------------------------------------------
+// isNonlocalModuleExportName
+// ---------------------------------------------------------------------------
+
+// IsNonlocalModuleExportName reports whether the NAME node n is the non-local
+// part of an import or export specifier.
+// Mirrors NodeUtil.isNonlocalModuleExportName (Java).
+func (nodeUtil) IsNonlocalModuleExportName(n *rhino.Node) bool {
+	if n == nil || n.Token() != rhino.NAME {
+		return false
+	}
+	parent := n.Parent()
+	if parent == nil {
+		return false
+	}
+	if parent.IsImportSpec() && n.IsFirstChildOf(parent) {
+		// import {nonlocal as x} from './foo.js'
+		return true
+	}
+	if parent.IsExportSpec() {
+		if n.IsFirstChildOf(parent) {
+			// export {nonlocal as b} from './foo.js';
+			gp := parent.GetGrandparent()
+			return gp != nil && isExportFrom(gp)
+		}
+		// export {local as nonlocal};
+		return true
+	}
+	return false
+}
+
+// ---------------------------------------------------------------------------
+// getNodeTypeReferenceCount / isNameReferenced / getNameReferenceCount
+// ---------------------------------------------------------------------------
+
+// GetNodeTypeReferenceCount returns the count of nodes with the given token
+// reachable from node, with traversal limited by traverseChildrenPred.
+// Mirrors NodeUtil.getNodeTypeReferenceCount (Java).
+func (nodeUtil) GetNodeTypeReferenceCount(node *rhino.Node, typ rhino.Token, traverseChildrenPred func(*rhino.Node) bool) int {
+	return nuCount(node, func(n *rhino.Node) bool { return n.Token() == typ }, traverseChildrenPred)
+}
+
+// IsNameReferenced reports whether the simple name `name` appears anywhere
+// reachable from node (with full traversal, no predicate filter).
+// Mirrors NodeUtil.isNameReferenced(Node, String) (Java).
+func (nodeUtil) IsNameReferenced(node *rhino.Node, name string) bool {
+	return nuHas(node, func(n *rhino.Node) bool {
+		return n.Token() == rhino.NAME && n.String_() == name
+	}, func(_ *rhino.Node) bool { return true })
+}
+
+// GetNameReferenceCount returns the number of NAME references to `name` in the
+// subtree rooted at node.  Mirrors NodeUtil.getNameReferenceCount (Java).
+func (nodeUtil) GetNameReferenceCount(node *rhino.Node, name string) int {
+	return nuCount(node, func(n *rhino.Node) bool {
+		return n.Token() == rhino.NAME && n.String_() == name
+	}, func(_ *rhino.Node) bool { return true })
+}
+
+// nuHas returns true iff any node in the subtree satisfies pred, subject to
+// the traversal gating by traverseChildrenPred.
+func nuHas(node *rhino.Node, pred func(*rhino.Node) bool, traverseChildrenPred func(*rhino.Node) bool) bool {
+	if node == nil {
+		return false
+	}
+	if pred(node) {
+		return true
+	}
+	if !traverseChildrenPred(node) {
+		return false
+	}
+	for c := node.FirstChild(); c != nil; c = c.Next() {
+		if nuHas(c, pred, traverseChildrenPred) {
+			return true
+		}
+	}
+	return false
+}
+
+// nuCount counts how many nodes in the subtree satisfy pred, subject to
+// traversal gating by traverseChildrenPred.
+func nuCount(node *rhino.Node, pred func(*rhino.Node) bool, traverseChildrenPred func(*rhino.Node) bool) int {
+	if node == nil {
+		return 0
+	}
+	count := 0
+	if pred(node) {
+		count++
+	}
+	if traverseChildrenPred(node) {
+		for c := node.FirstChild(); c != nil; c = c.Next() {
+			count += nuCount(c, pred, traverseChildrenPred)
+		}
+	}
+	return count
+}
+
+// ---------------------------------------------------------------------------
+// getVarsDeclaredInBranch
+// ---------------------------------------------------------------------------
+
+// GetVarsDeclaredInBranch collects all VAR-declared NAME nodes in the subtree
+// rooted at root, excluding descent into nested functions (which have their
+// own scope).  Mirrors NodeUtil.getVarsDeclaredInBranch (Java).
+func (nodeUtil) GetVarsDeclaredInBranch(root *rhino.Node) []*rhino.Node {
+	var vars []*rhino.Node
+	var collect func(n *rhino.Node)
+	collect = func(n *rhino.Node) {
+		if n == nil {
+			return
+		}
+		if n != root && n.IsFunction() {
+			// Don't descend into nested functions.
+			return
+		}
+		if n.IsVar() {
+			// Collect all NAME children of VAR.
+			for c := n.FirstChild(); c != nil; c = c.Next() {
+				if c.Token() == rhino.NAME {
+					vars = append(vars, c)
+				}
+			}
+		}
+		for c := n.FirstChild(); c != nil; c = c.Next() {
+			collect(c)
+		}
+	}
+	collect(root)
+	return vars
+}
+
+// ---------------------------------------------------------------------------
+// removeChild / replaceDeclarationChild / tryMergeBlock / canMergeBlock
+// ---------------------------------------------------------------------------
+
+// RemoveChild safely removes node from parent, maintaining a valid AST.
+// Mirrors NodeUtil.removeChild (Java).
+func (nodeUtil) RemoveChild(parent, node *rhino.Node) {
+	if isTryFinallyNode(parent, node) {
+		if hasCatchHandler(getCatchBlock(parent)) {
+			node.Detach()
+		} else {
+			node.DetachChildren()
+		}
+	} else if node.Token() == rhino.CATCH {
+		// CATCH can only be removed if there is a finally clause.
+		node.Detach()
+	} else if isTryCatchNodeContainer(node) {
+		// The container node itself can't be removed, but CATCH can if there's a finally.
+		node.DetachChildren()
+	} else if node.IsBlock() {
+		// Simply empty the block.
+		node.DetachChildren()
+	} else if NU.IsStatementBlock(parent) || isSwitchCase(node) || node.IsMemberFunctionDef() {
+		// A statement in a block or a member function can simply be removed.
+		node.Detach()
+	} else if NU.IsNameDeclaration(parent) || parent.IsExprResult() {
+		if parent.HasMoreThanOneChild() {
+			node.Detach()
+		} else {
+			node.Detach()
+			NU.RemoveChild(parent.Parent(), parent)
+		}
+	} else if parent.IsLabel() && node == parent.LastChild() {
+		node.Detach()
+		NU.RemoveChild(parent.Parent(), parent)
+	} else if parent.IsVanillaFor() {
+		node.ReplaceWith(rhino.New(rhino.EMPTY))
+	} else if parent.IsObjectPattern() {
+		node.Detach()
+	} else if parent.IsArrayPattern() {
+		if node == parent.LastChild() {
+			node.Detach()
+		} else {
+			node.ReplaceWith(rhino.New(rhino.EMPTY))
+		}
+	} else if parent.IsDestructuringLhs() {
+		node.Detach()
+		if parent.Parent() != nil && parent.Parent().HasChildren() {
+			NU.RemoveChild(parent.Parent(), parent)
+		}
+	} else if parent.IsRest() {
+		parent.Detach()
+	} else if parent.IsParamList() {
+		node.Detach()
+	} else if parent.IsImport() {
+		if node == parent.FirstChild() {
+			node.ReplaceWith(rhino.New(rhino.EMPTY))
+		}
+		// else: invalid removal, silently ignore in Go port
+	}
+	// else: invalid removal, silently ignore in Go port
+}
+
+// ReplaceDeclarationChild replaces the child of a var/let/const declaration
+// with a new statement, preserving side-effects for other declaration children.
+// Mirrors NodeUtil.replaceDeclarationChild (Java).
+func (nodeUtil) ReplaceDeclarationChild(declChild, newStatement *rhino.Node) {
+	decl := declChild.Parent()
+	if decl == nil {
+		return
+	}
+	if decl.HasOneChild() {
+		decl.ReplaceWith(newStatement)
+	} else if declChild.Next() == nil {
+		declChild.Detach()
+		newStatement.InsertAfter(decl)
+	} else if declChild.Previous() == nil {
+		declChild.Detach()
+		newStatement.InsertBefore(decl)
+	} else {
+		// Split the declaration: keep previous children in decl, move
+		// subsequent children to a new declaration node.
+		newDecl := rhino.New(decl.Token())
+		newDecl.Srcref(decl)
+		for after := declChild.Next(); after != nil; {
+			next := after.Next()
+			after.Detach()
+			newDecl.AddChildToBack(after)
+			after = next
+		}
+		declChild.Detach()
+		newStatement.InsertAfter(decl)
+		newDecl.InsertAfter(newStatement)
+	}
+}
+
+// TryMergeBlock merges a block node with its parent block when safe to do so.
+// Returns true if the block was merged.
+// Mirrors NodeUtil.tryMergeBlock (Java).
+func (nodeUtil) TryMergeBlock(block *rhino.Node, ignoreBlockScopedDeclarations bool) bool {
+	if !block.IsBlock() {
+		return false
+	}
+	parent := block.Parent()
+	canMerge := ignoreBlockScopedDeclarations || NU.CanMergeBlock(block)
+	if NU.IsStatementBlock(parent) && canMerge {
+		prev := block
+		for block.HasChildren() {
+			child := block.RemoveFirstChild()
+			child.InsertAfter(prev)
+			prev = child
+		}
+		block.Detach()
+		return true
+	}
+	return false
+}
+
+// CanMergeBlock reports whether a block node can be safely merged with its parent
+// (i.e., it contains no block-scoped declarations that might cause name collisions).
+// Mirrors NodeUtil.canMergeBlock (Java).
+func (nodeUtil) CanMergeBlock(block *rhino.Node) bool {
+	for c := block.FirstChild(); c != nil; c = c.Next() {
+		switch c.Token() {
+		case rhino.LABEL:
+			if !NU.CanMergeBlock(c) {
+				return false
+			}
+		case rhino.CONST, rhino.LET, rhino.CLASS, rhino.FUNCTION:
+			return false
+		}
+	}
+	return true
+}
