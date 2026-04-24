@@ -243,8 +243,8 @@ func (c *CheckJSDoc) validateSuppress(n *rhino.Node, info *rhino.JSDocInfo) {
 			" https://github.com/google/closure-compiler/wiki/@suppress-annotations")
 }
 
-// cjdContainsOnlySuppressionFor mirrors Java's containsOnlySuppressionFor.
-func cjdContainsOnlySuppressionFor(info *rhino.JSDocInfo, allowed string) bool {
+// containsOnlySuppressionFor mirrors Java's containsOnlySuppressionFor.
+func containsOnlySuppressionFor(info *rhino.JSDocInfo, allowed string) bool {
 	s := info.Suppressions()
 	if len(s) != 1 {
 		return false
@@ -263,7 +263,7 @@ func (c *CheckJSDoc) validateTypedefs(n *rhino.Node, info *rhino.JSDocInfo) {
 	if info == nil || info.TypedefType() == nil {
 		return
 	}
-	if cjdIsClassDecl(n) {
+	if isClassDecl(n) {
 		c.reportMisplaced(n, "typedef", "@typedef is not allowed on a class declaration.")
 		return
 	}
@@ -295,7 +295,7 @@ func (c *CheckJSDoc) validateTemplates(n *rhino.Node, info *rhino.JSDocInfo) {
 	if info.IsConstructor() || info.IsInterface() {
 		return
 	}
-	if cjdIsClassDecl(n) {
+	if isClassDecl(n) {
 		return
 	}
 	// containsFunctionDeclaration / getFunctionDecl approximation:
@@ -318,7 +318,7 @@ func (c *CheckJSDoc) validateTemplates(n *rhino.Node, info *rhino.JSDocInfo) {
 // FUNCTION whose parent is a CLASS body BLOCK.
 // ---------------------------------------------------------------------------
 func (c *CheckJSDoc) validateClassLevelJsDoc(n *rhino.Node, info *rhino.JSDocInfo) {
-	if info == nil || !cjdHasClassLevelJsDoc(info) {
+	if info == nil || !hasClassLevelJsDoc(info) {
 		return
 	}
 	// Legacy AST: FUNCTION → BLOCK → CLASS.
@@ -347,8 +347,8 @@ func (c *CheckJSDoc) validateClassLevelJsDoc(n *rhino.Node, info *rhino.JSDocInf
 	}
 }
 
-// cjdHasClassLevelJsDoc mirrors the private Java helper hasClassLevelJsDoc.
-func cjdHasClassLevelJsDoc(info *rhino.JSDocInfo) bool {
+// hasClassLevelJsDoc mirrors the private Java helper hasClassLevelJsDoc.
+func hasClassLevelJsDoc(info *rhino.JSDocInfo) bool {
 	return info.IsConstructor() || info.IsInterface() ||
 		info.BaseType() != nil ||
 		len(info.Implementations()) != 0 ||
@@ -370,7 +370,7 @@ func (c *CheckJSDoc) validateAbstractJsDoc(n *rhino.Node, info *rhino.JSDocInfo)
 		return
 	}
 	// Class declarations are always valid for @abstract.
-	if cjdIsClassDecl(n) {
+	if isClassDecl(n) {
 		return
 	}
 	// @abstract on a non-function node.
@@ -460,7 +460,7 @@ func (c *CheckJSDoc) validateFunctionJsDoc(n *rhino.Node, info *rhino.JSDocInfo)
 	if info.HasType() {
 		return
 	}
-	if cjdIsJSDocOnFunctionNode(n, info) {
+	if isJSDocOnFunctionNode(n, info) {
 		return
 	}
 	c.reportMisplaced(n, "function",
@@ -483,7 +483,7 @@ func cjdContainsFunctionDeclaration(info *rhino.JSDocInfo) bool {
 	return false
 }
 
-// cjdIsJSDocOnFunctionNode mirrors Java's isJSDocOnFunctionNode.
+// isJSDocOnFunctionNode mirrors Java's isJSDocOnFunctionNode.
 // Returns true when the node can be the host for function-bearing JSDoc.
 // Java's switch includes FUNCTION, GETTER_DEF, SETTER_DEF, MEMBER_FUNCTION_DEF,
 // STRING_KEY, COMPUTED_PROP, EXPORT, MEMBER_FIELD_DEF, COMPUTED_FIELD_DEF,
@@ -491,7 +491,7 @@ func cjdContainsFunctionDeclaration(info *rhino.JSDocInfo) bool {
 // Go subset: FUNCTION, CLASS (for @constructor/@interface on class decls),
 // STRING_KEY, CLASS_FIELD_DEF, VAR/LET/CONST, ASSIGN,
 // GETPROP (when qualified and parent is EXPR_RESULT).
-func cjdIsJSDocOnFunctionNode(n *rhino.Node, info *rhino.JSDocInfo) bool {
+func isJSDocOnFunctionNode(n *rhino.Node, info *rhino.JSDocInfo) bool {
 	switch n.Token() {
 	case rhino.FUNCTION, rhino.CLASS, rhino.STRING_KEY, rhino.CLASS_FIELD_DEF,
 		rhino.MEMBER_FUNCTION_DEF, rhino.GETTER_DEF, rhino.SETTER_DEF:
@@ -534,15 +534,15 @@ func (c *CheckJSDoc) validateMsgJsDoc(n *rhino.Node, info *rhino.JSDocInfo) {
 	switch n.Token() {
 	case rhino.ASSIGN, rhino.VAR, rhino.LET, rhino.CONST:
 		if fc := n.FirstChild(); fc != nil {
-			descOkay = cjdIsValidMsgName(fc)
+			descOkay = isValidMsgName(fc)
 		}
 	case rhino.STRING_KEY:
-		descOkay = cjdIsValidMsgName(n)
+		descOkay = isValidMsgName(n)
 	case rhino.GETPROP:
 		// Java: only when n.isFromExterns() && n.isQualifiedName().
 		// Go: only for qualified name in externs context (inExterns).
 		if c.inExterns && cjdIsQualifiedName(n) {
-			descOkay = cjdIsValidMsgName(n)
+			descOkay = isValidMsgName(n)
 		}
 	}
 	if !descOkay {
@@ -553,9 +553,9 @@ func (c *CheckJSDoc) validateMsgJsDoc(n *rhino.Node, info *rhino.JSDocInfo) {
 	}
 }
 
-// cjdIsValidMsgName mirrors CheckJSDoc.isValidMsgName.
+// isValidMsgName mirrors CheckJSDoc.isValidMsgName.
 // Returns true when the node's name starts with "MSG_".
-func cjdIsValidMsgName(n *rhino.Node) bool {
+func isValidMsgName(n *rhino.Node) bool {
 	if n == nil {
 		return false
 	}
@@ -815,7 +815,7 @@ func (c *CheckJSDoc) validateClosurePrimitive(n *rhino.Node, info *rhino.JSDocIn
 	if info == nil || !info.HasClosurePrimitiveId() {
 		return
 	}
-	if !cjdIsJSDocOnFunctionNode(n, info) {
+	if !isJSDocOnFunctionNode(n, info) {
 		c.reportMisplaced(n, "closurePrimitive", "must be on a function node")
 	}
 }
@@ -891,7 +891,7 @@ func (c *CheckJSDoc) validateTsType(n *rhino.Node, info *rhino.JSDocInfo) {
 	if info == nil || len(info.GetTsTypes()) == 0 {
 		return
 	}
-	if !cjdIsJSDocOnFunctionNode(n, info) {
+	if !isJSDocOnFunctionNode(n, info) {
 		c.reportMisplaced(n, "tsType", "must be on a function node")
 	}
 }
@@ -1007,19 +1007,19 @@ func cjdGetRootOfQualifiedName(n *rhino.Node) *rhino.Node {
 	return n
 }
 
-// cjdIsClassDecl mirrors CheckJSDoc.isClassDecl.
-func cjdIsClassDecl(n *rhino.Node) bool {
+// isClassDecl mirrors CheckJSDoc.isClassDecl.
+func isClassDecl(n *rhino.Node) bool {
 	return cjdIsClassNode(n) ||
 		(n.Token() == rhino.ASSIGN && n.LastChild() != nil && cjdIsClassNode(n.LastChild())) ||
 		(cjdIsNameDeclaration(n) && n.FirstChild() != nil &&
-			cjdIsNameInitializeWithClass(n.FirstChild())) ||
-		cjdIsNameInitializeWithClass(n)
+			isNameInitializeWithClass(n.FirstChild())) ||
+		isNameInitializeWithClass(n)
 }
 
-// cjdIsNameInitializeWithClass mirrors CheckJSDoc.isNameInitializeWithClass.
-func cjdIsNameInitializeWithClass(n *rhino.Node) bool {
+// isNameInitializeWithClass mirrors CheckJSDoc.isNameInitializeWithClass.
+func isNameInitializeWithClass(n *rhino.Node) bool {
 	return n != nil && n.Token() == rhino.NAME &&
-		n.FirstChild() != nil && cjdIsClassDecl(n.FirstChild())
+		n.FirstChild() != nil && isClassDecl(n.FirstChild())
 }
 
 // cjdIsClassNode mirrors CheckJSDoc.isClass.
