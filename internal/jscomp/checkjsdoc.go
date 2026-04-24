@@ -615,7 +615,17 @@ func cjdContainsDeclaration(info *rhino.JSDocInfo) bool {
 // ---------------------------------------------------------------------------
 func (c *CheckJSDoc) validateImplicitCast(n *rhino.Node, info *rhino.JSDocInfo) {
 	if !c.inExterns && info != nil && info.IsImplicitCast() {
-		c.report(n, diag.JSC_ILLEGAL_IMPLICIT_CAST, diag.Error,
+		// Java reports at the node `n`. For GETPROP nodes (e.g. the JSDoc
+		// is on `Element.prototype.innerHTML`), the property name STRINGLIT
+		// holds the position Java uses — not the GETPROP itself.
+		// Mirror that by using the last child (property name) of GETPROP.
+		reportNode := n
+		if n.Token() == rhino.GETPROP {
+			if last := n.LastChild(); last != nil {
+				reportNode = last
+			}
+		}
+		c.report(reportNode, diag.JSC_ILLEGAL_IMPLICIT_CAST, diag.Error,
 			"Illegal annotation on {0}. @implicitCast may only be used in externs.")
 	}
 }
