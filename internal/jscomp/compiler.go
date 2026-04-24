@@ -92,6 +92,64 @@ import (
 // is used unchanged.
 var useNewPipeline = os.Getenv("JSGO_NEW_PIPELINE") == "1"
 
+// Go-only: language-adapter
+// scanLexicalErrors runs the new Scanner over src and returns one
+// JSC_PARSE_ERROR diagnostic per reported lexical error (invalid escape
+// sequences, unterminated strings, …). Mirrors Java's scanner which is
+// part of the parse pipeline and surfaces every scanner error via the
+// compiler's ErrorReporter. The legacy Go parser (still the default for
+// the AST path) silently recovers from these, so we run a scanner-only
+// pre-pass to reach Java parity. Returns nil if the source is lexically
+// valid.
+func scanLexicalErrors(path, src string) []diag.Diagnostic {
+	er := &scannerOnlyReporter{}
+	sc := parser.NewScannerFull(er, nil, src, 0)
+	for {
+		tok := sc.NextToken()
+		if tok == nil {
+			break
+		}
+		if tok.Type == parser.TokenTypeEndOfFile {
+			break
+		}
+	}
+	if len(er.errs) == 0 {
+		return nil
+	}
+	out := make([]diag.Diagnostic, 0, len(er.errs))
+	for _, e := range er.errs {
+		out = append(out, diag.Diagnostic{
+			Path:    path,
+			Line:    e.line + 1,
+			Col:     e.col,
+			Code:    diag.JSC_PARSE_ERROR,
+			Level:   diag.Error,
+			Message: "Parse error. " + e.msg,
+		})
+	}
+	return out
+}
+
+// Go-only: language-adapter — minimal ErrorReporter that records every
+// scanner error (line, col, message).
+type scannerOnlyReporter struct {
+	errs []scannerErr
+}
+
+type scannerErr struct {
+	line int
+	col  int
+	msg  string
+}
+
+func (r *scannerOnlyReporter) ReportError(position parser.SourcePosition, format string, args ...interface{}) {
+	r.errs = append(r.errs, scannerErr{line: position.Line, col: position.Column, msg: fmt.Sprintf(format, args...)})
+}
+
+func (r *scannerOnlyReporter) ReportWarning(position parser.SourcePosition, format string, args ...interface{}) {
+	_ = position
+}
+
 // Go-only: package-bridge
 // parseSource selects the parse path based on useNewPipeline.
 // It mirrors Compiler.parse(input) which calls ParserRunner.parse internally.
@@ -154,6 +212,15 @@ func CheckSource(path, src string) ([]diag.Diagnostic, error) {
 func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Diagnostic, error) {
 	if opts == nil {
 		opts = NewCompilerOptions()
+	}
+	// Pre-scan for lexical errors (e.g. bare `\s` invalid escape) that the
+	// legacy parser silently recovers from. Mirrors Java's scanner which
+	// reports every invalid-escape via ErrorReporter before the parser
+	// builds the AST, so Closure emits JSC_PARSE_ERROR even if subsequent
+	// recovery produces a tree. When lexical errors are present we skip
+	// downstream passes (Java halts compilation on parser errors).
+	if parseDiags := scanLexicalErrors(path, src); len(parseDiags) > 0 {
+		return parseDiags, nil
 	}
 	script, err := parseSource(path, src)
 	if err != nil {
