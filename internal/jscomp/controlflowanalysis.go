@@ -840,6 +840,118 @@ func mayThrowException(n *rhino.Node) bool {
 	return false
 }
 
+// computeFallThrough returns the first statement node of n, skipping
+// syntactic wrappers like LABEL and the DO / FOR initializer. This is
+// the Go port of ControlFlowAnalysis.computeFallThrough(Node) in Java.
+func computeFallThrough(n *rhino.Node) *rhino.Node {
+	if n == nil {
+		return nil
+	}
+	switch n.Token() {
+	case rhino.DO, rhino.FOR:
+		return computeFallThrough(n.FirstChild())
+	case rhino.FOR_IN, rhino.FOR_OF:
+		// The second child is the collection/iterable expression.
+		kids := n.Children()
+		if len(kids) >= 2 {
+			return kids[1]
+		}
+		return n
+	case rhino.LABEL:
+		if last := n.LastChild(); last != nil {
+			return computeFallThrough(last)
+		}
+		return n
+	}
+	return n
+}
+
+// isBreakTarget reports whether target is a break target for the given label
+// (nil label matches any break structure). Mirrors ControlFlowAnalysis.isBreakTarget in Java.
+func isBreakTarget(target *rhino.Node, label string) bool {
+	return isBreakStructure(target, label != "") && matchLabel(target.Parent(), label)
+}
+
+// isContinueTarget reports whether target is a continue target for the given label.
+// Mirrors ControlFlowAnalysis.isContinueTarget in Java.
+func isContinueTarget(target *rhino.Node, label string) bool {
+	return isLoopStructure(target) && matchLabel(target.Parent(), label)
+}
+
+// matchLabel reports whether the label string refers to the given control structure.
+// An empty label matches any structure. Mirrors ControlFlowAnalysis.matchLabel in Java.
+func matchLabel(target *rhino.Node, label string) bool {
+	if label == "" {
+		return true
+	}
+	for target != nil && target.Token() == rhino.LABEL {
+		if kids := target.Children(); len(kids) > 0 && kids[0].String_() == label {
+			return true
+		}
+		target = target.Parent()
+	}
+	return false
+}
+
+// isBreakStructure reports whether the given node is a structural target for
+// a break statement. When labeled is true, BLOCK / IF / TRY / BREAK are also
+// considered valid targets. Mirrors ControlFlowAnalysis.isBreakStructure in Java.
+func isBreakStructure(n *rhino.Node, labeled bool) bool {
+	switch n.Token() {
+	case rhino.FOR, rhino.FOR_IN, rhino.FOR_OF, rhino.DO, rhino.WHILE, rhino.SWITCH:
+		return true
+	case rhino.BLOCK, rhino.IF, rhino.TRY, rhino.BREAK:
+		return labeled
+	}
+	return false
+}
+
+// isLoopStructure reports whether the node is a loop (while / do / for*).
+// Helper used by isContinueTarget.
+func isLoopStructure(n *rhino.Node) bool {
+	switch n.Token() {
+	case rhino.WHILE, rhino.DO, rhino.FOR, rhino.FOR_IN, rhino.FOR_OF, rhino.FOR_AWAIT_OF:
+		return true
+	}
+	return false
+}
+
+// getExceptionHandler returns the nearest enclosing CATCH node that would
+// handle an exception thrown by n, or nil if none exists before the
+// function/script boundary. Mirrors ControlFlowAnalysis.getExceptionHandler in Java.
+func getExceptionHandler(n *rhino.Node) *rhino.Node {
+	for cur := n; cur != nil && cur.Token() != rhino.SCRIPT && cur.Token() != rhino.FUNCTION; cur = cur.Parent() {
+		if catch := getCatchHandlerForBlock(cur); catch != nil {
+			return catch
+		}
+	}
+	return nil
+}
+
+// getCatchHandlerForBlock returns the CATCH node for a try-body BLOCK, or nil.
+// Mirrors ControlFlowAnalysis.getCatchHandlerForBlock in Java.
+func getCatchHandlerForBlock(block *rhino.Node) *rhino.Node {
+	if block == nil || block.Token() != rhino.BLOCK {
+		return nil
+	}
+	parent := block.Parent()
+	if parent == nil || parent.Token() != rhino.TRY {
+		return nil
+	}
+	if parent.FirstChild() != block {
+		return nil
+	}
+	for s := block.Next(); s != nil; s = s.Next() {
+		if s.Token() == rhino.BLOCK {
+			fc := s.FirstChild()
+			if fc != nil && fc.Token() == rhino.CATCH {
+				return fc
+			}
+		}
+	}
+	return nil
+}
+
 // connectToPossibleExceptionHandler adds a BranchException edge from
 // cfgNode to the nearest enclosing catch (or EXIT when none) if target
 // might throw. Mirrors ControlFlowAnalysis.connectToPossibleExceptionHandler.

@@ -68,6 +68,32 @@ type LinearFlowState[L any] struct {
 	StepCount int
 }
 
+// GetIn returns the IN lattice value.
+// Mirrors LinearFlowState.getIn() in Java.
+func (s *LinearFlowState[L]) GetIn() L { return s.In }
+
+// SetIn sets the IN lattice value.
+// Mirrors LinearFlowState.setIn() in Java.
+func (s *LinearFlowState[L]) SetIn(v L) { s.In = v }
+
+// GetOut returns the OUT lattice value.
+// Mirrors LinearFlowState.getOut() in Java.
+func (s *LinearFlowState[L]) GetOut() L { return s.Out }
+
+// SetOut sets the OUT lattice value.
+// Mirrors LinearFlowState.setOut() in Java.
+func (s *LinearFlowState[L]) SetOut(v L) { s.Out = v }
+
+// GetStepCount returns the iteration step count for this node.
+// Mirrors LinearFlowState.getStepCount() in Java.
+func (s *LinearFlowState[L]) GetStepCount() int { return s.StepCount }
+
+// String returns a human-readable representation of this flow state.
+// Mirrors LinearFlowState.toString() in Java.
+func (s *LinearFlowState[L]) String() string {
+	return fmt.Sprintf("IN: %v OUT: %v", s.In, s.Out)
+}
+
 // ---------------------------------------------------------------------------
 // GenericDFABase — abstract base for concrete analyses
 // ---------------------------------------------------------------------------

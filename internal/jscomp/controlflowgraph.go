@@ -146,7 +146,58 @@ func (g *ControlFlowGraph) IsImplicitReturn(node *CfgNode) bool {
 // override to return an ordering comparator.
 // Mirrors ControlFlowGraph.getOptionalNodeComparator() in Java.
 func (g *ControlFlowGraph) GetOptionalNodeComparator(isForward bool) func(a, b *CfgNode) int {
+	// Base implementation returns nil; AstControlFlowGraph in Java overrides
+	// this to use AST pre-order priority for worklist ordering.
+	_ = isForward
 	return nil
+}
+
+// IsEnteringNewCfgNode reports whether n should be represented by a new CFG
+// node. True when the parent is a block-level construct (BLOCK, SCRIPT, TRY,
+// etc.) or when n is not the condition expression of a control-flow node.
+// Mirrors ControlFlowGraph.isEnteringNewCfgNode(Node) in Java.
+func IsEnteringNewCfgNode(n *rhino.Node) bool {
+	parent := n.Parent()
+	if parent == nil {
+		return false
+	}
+	switch parent.Token() {
+	case rhino.BLOCK, rhino.SCRIPT, rhino.TRY:
+		return true
+	case rhino.FUNCTION:
+		// Only the function body (second child) is a new CFG node.
+		return n != parent.GetSecondChild()
+	case rhino.WHILE, rhino.DO, rhino.IF:
+		// The condition expression is not a separate CFG node.
+		cond := parent.FirstChild()
+		return cond != n
+	case rhino.FOR:
+		// The condition (second child) is the CFG node.
+		kids := parent.Children()
+		if len(kids) >= 2 {
+			return kids[1] != n
+		}
+		return false
+	case rhino.FOR_IN, rhino.FOR_OF:
+		// The collection/iterable (second child) starts the iteration CFG node.
+		return n != parent.FirstChild()
+	case rhino.CASE, rhino.CATCH, rhino.WITH:
+		return n != parent.FirstChild()
+	}
+	return false
+}
+
+// String returns a textual representation of the CFG.
+// Mirrors ControlFlowGraph.toString() in Java.
+func (g *ControlFlowGraph) String() string {
+	var sb string
+	sb = "CFG:\n"
+	for _, n := range g.Nodes {
+		for _, e := range n.Successors {
+			sb += n.Kind + " --" + e.Branch.String() + "--> " + e.To.Kind + "\n"
+		}
+	}
+	return sb
 }
 
 // computePreds fills Predecessors in one pass after construction so
