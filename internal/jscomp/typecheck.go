@@ -575,6 +575,8 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitVar(n, scope))
 	case rhino.ASSIGN:
 		c.emit(c.visitAssign(n, scope))
+	case rhino.ASSIGN_AND, rhino.ASSIGN_OR, rhino.ASSIGN_COALESCE:
+		c.emit(c.visitLogicalAssign(n, scope))
 	case rhino.CALL:
 		c.emit(c.visitCall(n, scope))
 	case rhino.NEW:
@@ -956,6 +958,29 @@ func (c *TypeCheck) visitEnumInit(name, init *rhino.Node, scope *TypedScope) []d
 		Message: fmt.Sprintf("initializing variable\nfound   : %s\nrequired: enum{%s}",
 			found.TypeName(), enum.Name),
 	}}
+}
+
+// visitLogicalAssign handles logical compound assignments (&&=, ||=, ??=).
+// Mirrors Java's TypeCheck.visitAssignmentOp: checks whether the RHS is
+// assignable to the LHS's declared type. These operators conditionally
+// assign the RHS to LHS only when LHS is truthy (&&=) or falsy (||=, ??=).
+func (c *TypeCheck) visitLogicalAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	kids := a.Children()
+	if len(kids) < 2 {
+		return nil
+	}
+	lhs, rhs := kids[0], kids[1]
+	if lhs.Token() != rhino.NAME {
+		return nil
+	}
+	declared := scope.GetRawDeclaredType(lhs.String_())
+	if declared == nil {
+		return nil
+	}
+	infer := NewTypeInference(scope)
+	found := infer.InferType(rhs)
+	c.tv.expectCanAssignTo(lhs, found, declared, "assignment")
+	return c.tvDrain()
 }
 
 // visitAssign handles bare `IDENT = …` and `obj.prop = …` assignment
