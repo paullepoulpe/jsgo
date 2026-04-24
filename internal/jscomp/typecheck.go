@@ -575,6 +575,8 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitVar(n, scope))
 	case rhino.ASSIGN:
 		c.emit(c.visitAssign(n, scope))
+	case rhino.ASSIGN_AND, rhino.ASSIGN_OR, rhino.ASSIGN_COALESCE:
+		c.emit(c.visitShortCircuitAssign(n, scope))
 	case rhino.CALL:
 		c.emit(c.visitCall(n, scope))
 	case rhino.NEW:
@@ -956,6 +958,38 @@ func (c *TypeCheck) visitEnumInit(name, init *rhino.Node, scope *TypedScope) []d
 		Message: fmt.Sprintf("initializing variable\nfound   : %s\nrequired: enum{%s}",
 			found.TypeName(), enum.Name),
 	}}
+}
+
+// visitShortCircuitAssign handles `&&=`, `||=`, `??=` compound assignments.
+// Port of TypeCheck.java's visitAssign branch for ASSIGN_AND, ASSIGN_OR,
+// ASSIGN_COALESCE: checks that the RHS type is assignable to the declared
+// type of the LHS. Java's TypeCheck.visitAssign calls
+// typeValidator.expectCanAssignTo(lhs, rhsType, lhsType, "assignment")
+// for these same operators.
+//
+// For `a &&= b`: b is assigned to a (only when a is truthy). The declared
+// type of a constrains what b can be.
+// For `a ||= b`: b is assigned to a (only when a is falsy).
+// For `a ??= b`: b is assigned to a (only when a is null/undefined).
+// In all three cases, the static type check is: typeof(b) must be
+// assignable to declared_type(a).
+func (c *TypeCheck) visitShortCircuitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	kids := a.Children()
+	if len(kids) < 2 {
+		return nil
+	}
+	lhs, rhs := kids[0], kids[1]
+	if lhs.Token() != rhino.NAME {
+		return nil
+	}
+	declared := scope.GetRawDeclaredType(lhs.String_())
+	if declared == nil {
+		return nil
+	}
+	infer := NewTypeInference(scope)
+	found := infer.InferType(rhs)
+	c.tv.expectCanAssignTo(lhs, found, declared, "assignment")
+	return c.tvDrain()
 }
 
 // visitAssign handles bare `IDENT = …` and `obj.prop = …` assignment

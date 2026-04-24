@@ -2691,6 +2691,17 @@ func (p *Parser) peekAssignOp() (rhino.Token, int) {
 			return rhino.ASSIGN_BITXOR, 2
 		}
 	}
+	// Logical assignment operators: &&=, ||=, ??=.
+	// Must be checked before the bare `=` case and before binary &&/||/?? ops.
+	if c0 == '&' && c1 == '&' && c2 == '=' {
+		return rhino.ASSIGN_AND, 3
+	}
+	if c0 == '|' && c1 == '|' && c2 == '=' {
+		return rhino.ASSIGN_OR, 3
+	}
+	if c0 == '?' && c1 == '?' && c2 == '=' {
+		return rhino.ASSIGN_COALESCE, 3
+	}
 	// Bare `=` — but NOT `==` / `===` / `=>`.
 	if c0 == '=' && c1 != '=' && c1 != '>' {
 		return rhino.ASSIGN, 1
@@ -2743,13 +2754,14 @@ func (p *Parser) peekBinOp() (rhino.Token, int, int) {
 	if c0 == '>' && c1 == '>' {
 		return rhino.RSH, 2, 9
 	}
-	if c0 == '&' && c1 == '&' {
+	// Don't match &&/||/?? when followed by = (those are &&=/||=/??= assignments).
+	if c0 == '&' && c1 == '&' && c2 != '=' {
 		return rhino.AND, 2, 3
 	}
-	if c0 == '|' && c1 == '|' {
+	if c0 == '|' && c1 == '|' && c2 != '=' {
 		return rhino.OR, 2, 2
 	}
-	if c0 == '?' && c1 == '?' {
+	if c0 == '?' && c1 == '?' && c2 != '=' {
 		return rhino.COALESCE, 2, 2
 	}
 	// One-char forms. Skip when followed by `=` (compound assign) or
@@ -2783,8 +2795,16 @@ func (p *Parser) peekBinOp() (rhino.Token, int, int) {
 	case '>':
 		return rhino.GT, 1, 8
 	case '&':
+		// Don't match single `&` when the next char is also `&` (that's && or &&=).
+		if c1 == '&' {
+			return rhino.ERROR, 0, -1
+		}
 		return rhino.BITAND, 1, 6
 	case '|':
+		// Don't match single `|` when the next char is also `|` (that's || or ||=).
+		if c1 == '|' {
+			return rhino.ERROR, 0, -1
+		}
 		return rhino.BITOR, 1, 4
 	case '^':
 		return rhino.BITXOR, 1, 5
