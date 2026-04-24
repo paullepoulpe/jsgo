@@ -2063,9 +2063,18 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 	// implicit zero-arg constructor. In the new pipeline, class methods
 	// are wrapped in MEMBER_FUNCTION_DEF; unwrap to find the FUNCTION node.
 	var ctor *rhino.Node
-	for _, m := range body.Children() {
-		fn := classMemberFunctionNode(m)
-		if fn != nil && len(fn.Children()) >= 1 && fn.FirstChild().String_() == "constructor" {
+	for _, mOuter := range body.Children() {
+		fn := classMemberFunctionNode(mOuter)
+		if fn == nil {
+			continue
+		}
+		// Legacy: name is the FUNCTION's first child.
+		if len(fn.Children()) >= 1 && fn.FirstChild().String_() == "constructor" {
+			ctor = fn
+			break
+		}
+		// New pipeline: name is the MEMBER_FUNCTION_DEF's String_().
+		if mOuter.Token() == rhino.MEMBER_FUNCTION_DEF && mOuter.String_() == "constructor" {
 			ctor = fn
 			break
 		}
