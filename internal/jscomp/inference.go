@@ -192,14 +192,25 @@ func (t *TypeInference) InferType(n *rhino.Node) jstype.JSType {
 		}
 		return unionFold(stripped, t.InferType(kids[1]))
 	case rhino.AND:
-		// \`a && b\` returns \`b\` when \`a\` is truthy, else \`a\`. Result
-		// is \`(a − truthy) ∪ b\` — the falsy members of \`a\` plus
-		// whatever \`b\` evaluates to under the truthy-a refinement.
+		// `a && b` returns `b` when `a` is truthy, else `a`. Result
+		// is `(a − truthy) ∪ b` — the falsy members of `a` plus
+		// whatever `b` evaluates to under the truthy-a refinement.
+		//
+		// Special case: if `a` is ALWAYS falsy (null/undefined/false literal),
+		// the right side never executes, so the result type is just `a`.
+		// This mirrors Java's BooleanLiteralSet.get(false) check in
+		// traverseShortCircuitingBinOp: when leftOutcome.toBooleanOutcomes
+		// is always-false, Java returns leftType without including the right.
 		kids := n.Children()
 		if len(kids) < 2 {
 			return jstype.Unknown
 		}
 		left := t.InferType(kids[0])
+		// If left is always-falsy (null, void, or a literal-false type),
+		// the RHS is unreachable — return the left type directly.
+		if isAlwaysFalsyType(left) {
+			return left
+		}
 		refs := buildRefinements(t.scope, kids[0], true)
 		right := t.inferUnder(kids[1], refs)
 		falsy := keepFalsyRefined(left)
@@ -1213,6 +1224,28 @@ func stripFalsy(t jstype.JSType) jstype.JSType {
 		return nil
 	}
 	return t
+}
+
+// isAlwaysFalsyType reports whether t is a type whose values are ALWAYS
+// falsy at runtime. Specifically: null and void (undefined) are always
+// falsy. String, number, and boolean can be truthy or falsy. Object and
+// FunctionType are always truthy. This is used to short-circuit AND
+// inference when the left side can never be truthy, mirroring Java's
+// BooleanLiteralSet.get(false) check in traverseShortCircuitingBinOp.
+func isAlwaysFalsyType(t jstype.JSType) bool {
+	if t == jstype.Null || t == jstype.Void {
+		return true
+	}
+	// A union is always-falsy only if ALL members are always-falsy.
+	if u, ok := t.(*jstype.UnionType); ok {
+		for _, m := range u.Members() {
+			if !isAlwaysFalsyType(m) {
+				return false
+			}
+		}
+		return len(u.Members()) > 0
+	}
+	return false
 }
 
 // stripNullUndef removes only null / undefined / void members — used
