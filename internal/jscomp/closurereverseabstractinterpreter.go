@@ -95,6 +95,26 @@ func (c *ClosureReverseAbstractInterpreter) GetPreciserScopeKnowingConditionOutc
 	return c.nextPreciserScopeKnowingConditionOutcome(condition, blindScope, outcome)
 }
 
+// getNativeType delegates to the embedded ChainableReverseAbstractInterpreter.
+// Mirrors Java's ChainableReverseAbstractInterpreter.getNativeType, inherited by this class.
+func (c *ClosureReverseAbstractInterpreter) getNativeType(typeID jstype.JSTypeNative) jstype.JSType {
+	return c.ChainableReverseAbstractInterpreter.getNativeType(typeID)
+}
+
+// declareNameInScope delegates to the embedded ChainableReverseAbstractInterpreter.
+// Mirrors Java's ChainableReverseAbstractInterpreter.declareNameInScope, inherited by this class.
+func (c *ClosureReverseAbstractInterpreter) declareNameInScope(scope *FlowScope, node *rhino.Node, t jstype.JSType) *FlowScope {
+	return c.ChainableReverseAbstractInterpreter.declareNameInScope(scope, node, t)
+}
+
+// nextPreciserScopeKnowingConditionOutcome delegates to the embedded ChainableReverseAbstractInterpreter.
+// Mirrors Java's ChainableReverseAbstractInterpreter.nextPreciserScopeKnowingConditionOutcome, inherited by this class.
+func (c *ClosureReverseAbstractInterpreter) nextPreciserScopeKnowingConditionOutcome(
+	condition *rhino.Node, blindScope *FlowScope, outcome bool,
+) *FlowScope {
+	return c.ChainableReverseAbstractInterpreter.nextPreciserScopeKnowingConditionOutcome(condition, blindScope, outcome)
+}
+
 // restrictParameter applies restriction to paramType and, if non-nil,
 // declares the refined type for the parameter node in a new FlowScope.
 //
