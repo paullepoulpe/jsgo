@@ -24,15 +24,26 @@ import (
 
 // CheckSideEffects implements the JSC_USELESS_CODE diagnostic.
 type CheckSideEffects struct {
-	path     string
-	diags    []diag.Diagnostic
-	noSEFns  map[string]bool // qualified names of @nosideeffects functions
-	analyzer *AstAnalyzer
+	path            string
+	diags           []diag.Diagnostic
+	noSEFns         map[string]bool // qualified names of @nosideeffects functions
+	undeclaredNames map[string]bool // VarCheck-reported undeclared root names
+	analyzer        *AstAnalyzer
 }
 
 // Go-only: language-adapter — constructor (Java uses new CheckSideEffects(compiler, report, protectSideEffectFreeCode))
 func NewCheckSideEffects(path string) *CheckSideEffects {
 	return &CheckSideEffects{path: path, analyzer: NewAstAnalyzer()}
+}
+
+// SetUndeclaredNames mirrors TypeCheck.SetUndeclaredNames: when VarCheck has
+// reported JSC_UNDEFINED_VARIABLE for a NAME, downstream passes treat the
+// root name as "already flagged" and suppress their own diagnostics on
+// chains rooted in that name. In Java this is implicit because the
+// diagnostic group ordering / pass halts prevent the duplicate warning;
+// the Go pipeline runs all passes, so we replicate the suppression here.
+func (c *CheckSideEffects) SetUndeclaredNames(names map[string]bool) {
+	c.undeclaredNames = names
 }
 
 // process mirrors Java's CompilerPass.process(Node externs, Node root):
@@ -111,13 +122,42 @@ func (c *CheckSideEffects) visit(n *rhino.Node) {
 	if n.Token() == rhino.EXPR_RESULT {
 		if !isDeclarationStatement(n) {
 			if inner := n.FirstChild(); inner != nil {
-				c.reportUseless(n, inner, true /*top-level*/)
+				if c.rootedInUndeclared(inner) {
+					// Suppress USELESS_CODE when the chain is rooted in a
+					// name VarCheck already flagged as JSC_UNDEFINED_VARIABLE.
+					// Java's downstream passes don't re-fire on these because
+					// the compilation halts; we replicate by short-circuit.
+				} else {
+					c.reportUseless(n, inner, true /*top-level*/)
+				}
 			}
 		}
 	}
 	for _, child := range n.Children() {
 		c.visit(child)
 	}
+}
+
+// rootedInUndeclared reports whether the qualified-name chain (NAME or
+// GETPROP chain) at n is rooted at a NAME that VarCheck flagged as
+// undeclared. Mirrors Java's rootNameNode check in CheckSideEffects
+// when deciding whether to emit noSideEffectExterns-related warnings.
+func (c *CheckSideEffects) rootedInUndeclared(n *rhino.Node) bool {
+	if c.undeclaredNames == nil {
+		return false
+	}
+	for n != nil {
+		switch n.Token() {
+		case rhino.NAME:
+			return c.undeclaredNames[n.String_()]
+		case rhino.GETPROP, rhino.GETELEM, rhino.OPTCHAIN_GETPROP, rhino.OPTCHAIN_GETELEM:
+			n = n.FirstChild()
+			continue
+		default:
+			return false
+		}
+	}
+	return false
 }
 
 // Go-only: language-adapter — helper for visit() that handles both full-statement and sub-expression reporting
