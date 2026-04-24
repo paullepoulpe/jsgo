@@ -341,7 +341,13 @@ func (p *Parser) finishDeclStatement(declToken rhino.Token, jsdoc *rhino.JSDocIn
 				p.scanner.SkipToStatementBoundary()
 				return declNode, true
 			}
-			init.SetPos(initLine, initCol)
+			// Preserve the CAST node's own position (the `(` character)
+			// set by tryPrimary; SetPos would overwrite it with the
+			// position of the leading /** comment. Mirrors Java behaviour
+			// where the CAST node carries the paren position.
+			if init.Token() != rhino.CAST {
+				init.SetPos(initLine, initCol)
+			}
 			nameNode.AddChildToBack(init)
 			// `const foo = /** @type {T} */ (expr)` — tryPrimary detected
 			// the cast annotation and stored it in pendingCastDoc. Mark the

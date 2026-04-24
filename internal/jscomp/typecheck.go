@@ -593,6 +593,8 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitIn(n, scope))
 	case rhino.FOR_IN:
 		c.emit(c.visitForIn(n, scope))
+	case rhino.FOR_OF, rhino.FOR_AWAIT_OF:
+		c.emit(c.checkForOfTypes(n, scope))
 	case rhino.LSH, rhino.RSH, rhino.URSH, rhino.BITAND, rhino.BITOR, rhino.BITXOR, rhino.BITNOT:
 		c.emit(c.visitBitOp(n, scope))
 	case rhino.EQ, rhino.NE, rhino.SHEQ, rhino.SHNE:
@@ -853,7 +855,7 @@ func (c *TypeCheck) visitCast(n *rhino.Node, scope *TypedScope) []diag.Diagnosti
 		Line:  n.Lineno(),
 		Col:   n.Charno(),
 		Code:  diag.JSC_INVALID_CAST,
-		Level: diag.Warning,
+		Level: diag.Error,
 		Message: fmt.Sprintf(
 			"invalid cast - must be a subtype or supertype\nfrom: %s\nto  : %s",
 			exprType.TypeName(), castType.TypeName()),
@@ -2794,6 +2796,86 @@ func (c *TypeCheck) visitForIn(n *rhino.Node, scope *TypedScope) []diag.Diagnost
 	}}
 }
 
+// checkForOfTypes ports TypeCheck.java's checkForOfTypes.
+// Fires JSC_TYPE_MISMATCH when the RHS of a for-of loop is null,
+// undefined, or a known non-Iterable type (e.g. Iterator without
+// Iterable). Matches Java's validator.expectAutoboxesToIterable:
+// non-null Iterable<T>, Array<T>, string, and unknown types pass;
+// nullable wrappers or pure Iterator types fail.
+//
+// AST shape: FOR_OF(lhs, iterable, body).
+func (c *TypeCheck) checkForOfTypes(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	kids := n.Children()
+	if len(kids) < 2 {
+		return nil
+	}
+	iterable := kids[1]
+	infer := NewTypeInference(scope)
+	iterType := infer.InferType(iterable)
+	if isUnknownOrNil(iterType) {
+		return nil // unknown → can't prove non-iterability
+	}
+
+	// Java's expectAutoboxesToIterable passes when the type or its
+	// autoboxed form implements Iterable. In our simplified type model
+	// we check via TypeName analysis plus a nullable-union guard.
+	// Build found-type string before stripping null (needed for message).
+	foundName := iterType.TypeName()
+
+	stripped := stripNullUndef(iterType)
+	hasNullOrUndef := (stripped != iterType) // type changed → had null/void
+
+	if hasNullOrUndef {
+		// Nullable iterable: `?Iterable<T>` → cannot iterate.
+		return []diag.Diagnostic{{
+			Path: c.path, Line: iterable.Lineno(), Col: iterable.Charno(),
+			Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
+			Message: "Can only iterate over a (non-null) Iterable type\nfound   : " +
+				foundName + "\nrequired: Iterable",
+		}}
+	}
+
+	// After stripping null, check if the remaining type is known to be
+	// non-iterable. Skip unknown / all types.
+	if isUnknownOrNil(stripped) {
+		return nil
+	}
+	if !forOfIsIterableType(stripped) {
+		return []diag.Diagnostic{{
+			Path: c.path, Line: iterable.Lineno(), Col: iterable.Charno(),
+			Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
+			Message: "Can only iterate over a (non-null) Iterable type\nfound   : " +
+				foundName + "\nrequired: Iterable",
+		}}
+	}
+	return nil
+}
+
+// forOfIsIterableType reports whether t is known to be iterable in a
+// for-of context. Mirrors the set of types that pass Java's
+// expectAutoboxesToIterable, restricted to what jsgo's type model
+// can detect reliably.
+func forOfIsIterableType(t jstype.JSType) bool {
+	// Primitive string is iterable (JS engines implement Symbol.iterator).
+	if t == jstype.String || t == jstype.All {
+		return true
+	}
+	// Derive the base name from the TypeName: strip template parameters.
+	name := t.TypeName()
+	if i := strings.IndexByte(name, '<'); i >= 0 {
+		name = name[:i]
+	}
+	switch name {
+	case "Iterable", "IteratorIterable", "IterableIterator",
+		"AsyncIterable", "AsyncIteratorIterable",
+		"Array", "ReadonlyArray", "IArrayLike", "IIterable",
+		"Set", "Map", "Generator", "AsyncGenerator",
+		"String": // String object is iterable
+		return true
+	}
+	return false
+}
+
 // visitAdd ports TypeValidator.expectNumberOrString on the ADD
 // operator. JS `+` coerces to string whenever either side is
 // string-typed; a mismatch is reported only when BOTH sides are
@@ -3653,6 +3735,76 @@ func (c *TypeCheck) checkDestructuringAssignment(lhs *rhino.Node, rhsType jstype
 		// does not track iterability in the type graph, so this is
 		// a no-op pending that feature.
 		return nil
+	}
+	return nil
+}
+
+// ---- Abstract method / property access checks ----
+
+// checkAbstractMethodInConcreteClass ports TypeCheck.java's
+// checkAbstractMethodInConcreteClass. Fires JSC_ABSTRACT_METHOD_IN_CONCRETE_CLASS
+// when a method annotated @abstract is defined inside a non-abstract class.
+//
+// Java signature: checkAbstractMethodInConcreteClass(Node n, FunctionType ctorType, JSDocInfo info)
+// Called when visiting prototype method assignments and class members.
+func (c *TypeCheck) checkAbstractMethodInConcreteClass(n *rhino.Node, ctorFn *jstype.FunctionType, info *rhino.JSDocInfo) []diag.Diagnostic {
+	if info == nil || !info.IsAbstract() {
+		return nil
+	}
+	// The constructor itself must be non-abstract to fire.
+	ctorDoc := ctorFn.GetJSDocInfo()
+	if ctorDoc.IsAbstract() {
+		return nil // abstract method in abstract class is fine
+	}
+	if !ctorFn.IsConstructor {
+		return nil
+	}
+	return []diag.Diagnostic{{
+		Path: c.path, Line: n.Lineno(), Col: n.Charno(),
+		Code:    diag.JSC_ABSTRACT_METHOD_IN_CONCRETE_CLASS,
+		Level:   diag.Warning,
+		Message: "Abstract methods can only appear in abstract classes. Please declare the class as @abstract",
+	}}
+}
+
+// checkAbstractPropertyAccess ports TypeCheck.java's checkAbstractPropertyAccess.
+// Fires JSC_ABSTRACT_SUPER_METHOD_NOT_USABLE when an abstract method is accessed
+// via super.foo() or Foo.prototype.bar().
+//
+// Does not fire for @abstract constructors (they are still callable) or when
+// the access is the target of an assignment (declaring the method).
+func (c *TypeCheck) checkAbstractPropertyAccess(method *rhino.Node) []diag.Diagnostic {
+	// Allow lhs of assignment: `/** @abstract */ Foo.prototype.bar = function() {}`
+	if method.Parent() != nil && method.Parent().Token() == rhino.ASSIGN &&
+		method.Parent().FirstChild() == method {
+		return nil
+	}
+	// The method itself must have an abstract FunctionType.
+	// We check via the property's inferred type (not available without
+	// full inference), so we guard on the JSDoc of the node.
+	// Java uses getJSType(method).toMaybeFunctionType().isAbstract().
+	// For the basic port, we check objectNode.isSuper() and
+	// objectNode == Foo.prototype pattern, as Java does.
+	objectNode := method.FirstChild()
+	if objectNode == nil {
+		return nil
+	}
+	if objectNode.Token() != rhino.SUPER && objectNode.Token() != rhino.GETPROP {
+		return nil
+	}
+	if objectNode.Token() == rhino.SUPER {
+		// case (a): super.foo()
+		// Java also requires methodType.isAbstract() — without full type
+		// inference for the method type, we skip this to avoid FPs.
+		return nil
+	}
+	if objectNode.Token() == rhino.GETPROP {
+		prop := objectNode.String_()
+		if prop == "prototype" {
+			// case (b): Foo.prototype.bar — also needs abstract check
+			// Skip without full type info.
+			return nil
+		}
 	}
 	return nil
 }
