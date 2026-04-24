@@ -213,6 +213,11 @@ type ParserRewrite struct {
 	functionContextStack []functionFlavor
 	lastSourcePosition   SourcePosition
 	sourceMapURL         string
+
+	// lastIdentValue records the Value of the most recently consumed identifier
+	// token (set by eatId / eatIdOrKeywordAsId). Used by isStartOfAsyncArrowFunction
+	// to inspect the identifier expression that was just parsed as a ParseTree.
+	lastIdentValue string
 }
 
 // NewParserRewrite mirrors new Parser(config, errorReporter, source).
@@ -431,14 +436,17 @@ func (p *ParserRewrite) eatIdOpt() *Token {
 func (p *ParserRewrite) eatIdOrKeywordAsId() *Token {
 	tok := p.nextToken()
 	if tok.Type == TokenTypeIdentifier {
+		p.lastIdentValue = tok.Value
 		return tok
 	}
 	if isKeywordType(tok.Type) {
 		// Synthesize an identifier token with the keyword's string value.
+		val := keywordForType(tok.Type)
+		p.lastIdentValue = val
 		return &Token{
 			Type:     TokenTypeIdentifier,
 			Location: tok.Location,
-			Value:    keywordForType(tok.Type),
+			Value:    val,
 		}
 	}
 	p.reportExpectedError(tok, tokenTypeValue(TokenTypeIdentifier))
@@ -749,16 +757,13 @@ func (p *ParserRewrite) isValidNonVanillaAssignmentTarget(tree *trees.ParseTree)
 func (p *ParserRewrite) isStartOfAsyncArrowFunction(partial *trees.ParseTree) bool {
 	if partial.Type == trees.ParseTreeTypeIdentifierExpression {
 		// partial = `async`; next must be [no newline] bindingId [no newline] =>
-		// We can't easily inspect identifier value here without casting. Use a
-		// marker approach: check if scanner is at a position consistent with this.
-		// The partial expression's identifier value is stored in its location string;
-		// in our Go tree the identifier token isn't stored on ParseTree itself.
-		// We check structurally based on what follows.
-		// NOTE: This is called right after parseConditional, so peekId() is the
-		//       check for the "binding identifier" after "async".
-		// We rely on the caller having stored the IdentifierToken separately.
-		// For now, delegate to the stored token via the unsafe cast-free check.
-		return false // filled in once IdentifierExpressionTree carries the token
+		// p.lastIdentValue holds the value of the most-recently consumed identifier
+		// (set by eatIdOrKeywordAsId, which was the last thing parseIdentifierExpression called).
+		return p.lastIdentValue == predefinedASYNC &&
+			!p.peekImplicitSemiColon() &&
+			p.peekId() &&
+			!p.peekImplicitSemiColonAt(1) &&
+			p.peekAt(1, TokenTypeArrow)
 	}
 	if partial.Type == trees.ParseTreeTypeCallExpression {
 		// partial = `async [no newline] (parameters)`; next must be [no newline] =>
