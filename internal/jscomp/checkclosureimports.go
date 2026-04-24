@@ -412,6 +412,14 @@ func (c *CheckClosureImports) checkImport(call, parent *rhino.Node) {
 			}
 			return
 		}
+		if importType == cciImportRequireDynamic {
+			// goog.requireDynamic can reference modules loaded at runtime
+			// (e.g. via goog.loadModule). Skip the static namespace check
+			// to avoid false positives when the module is loaded dynamically.
+			// Mirrors Java's CheckClosureImports which handles requireDynamic
+			// separately and doesn't fire JSC_MISSING_MODULE_OR_PROVIDE for it.
+			return
+		}
 		c.report(call, diag.JSC_MISSING_MODULE_OR_PROVIDE, diag.Error,
 			fmt.Sprintf("Required namespace %q never defined.", namespace))
 		return
