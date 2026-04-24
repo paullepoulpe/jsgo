@@ -430,6 +430,12 @@ func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 			if explicitNonNull {
 				alias = stripNullUndef(alias)
 			}
+			// If the alias resolved to Unknown (e.g. due to a cyclic typedef
+			// forward reference), Unknown absorbs the entire union — return it
+			// immediately. Mirrors Java's type lattice invariant.
+			if isJSUnknown(alias) {
+				return jstype.Unknown
+			}
 			members = append(members, alias)
 			continue
 		}
