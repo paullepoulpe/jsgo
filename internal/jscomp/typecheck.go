@@ -2623,23 +2623,51 @@ func (c *TypeCheck) visitBitOp(n *rhino.Node, scope *TypedScope) []diag.Diagnost
 		}
 		return out
 	}
-	// Binary bit operators: report at the first bad operand.
+	// Binary bit operators: fire JSC_TYPE_MISMATCH when the operand is
+	// not a bitwiseable type (i.e., not a subtype of
+	// (boolean|null|number|string|undefined)). In default mode, this
+	// catches Object and function types. The strict path
+	// (JSC_INVALID_OPERAND_TYPE) is only enabled via strictCheckTypes.
+	// Mirrors the first branch of Java's TypeValidator.expectBitwiseable.
 	if len(kids) < 2 {
 		return nil
 	}
 	for _, k := range kids {
 		t := infer.InferType(k)
-		if !isDefinitelyNotNumber(t) {
-			continue
+		if isDefinitelyNotNumber(t) {
+			// Legacy path for void/null/boolean: JSC_BAD_TYPE_FOR_BIT_OPERATION.
+			out = append(out, diag.Diagnostic{
+				Path: c.path, Line: k.Lineno(), Col: k.Charno(),
+				Code: diag.JSC_BAD_TYPE_FOR_BIT_OPERATION, Level: diag.Error,
+				Message: fmt.Sprintf("operator %s cannot be applied to %s", op, t.TypeName()),
+			})
+			break
 		}
-		out = append(out, diag.Diagnostic{
-			Path: c.path, Line: k.Lineno(), Col: k.Charno(),
-			Code: diag.JSC_BAD_TYPE_FOR_BIT_OPERATION, Level: diag.Error,
-			Message: fmt.Sprintf("operator %s cannot be applied to %s", op, t.TypeName()),
-		})
-		break // report the first bad operand only, matching Java
+		// Object/function types that are not bitwiseable get JSC_TYPE_MISMATCH.
+		if isBitwiseableTypeViolation(t, c.tv.allBitwisableValueTypes) {
+			msgSuffix := "bad left operand to bitwise operator"
+			if k == kids[1] {
+				msgSuffix = "bad right operand to bitwise operator"
+			}
+			c.tv.mismatch(k, msgSuffix, t, c.tv.allBitwisableValueTypes)
+			if diags := c.tvDrain(); len(diags) > 0 {
+				out = append(out, diags...)
+				break
+			}
+		}
 	}
 	return out
+}
+
+// isBitwiseableTypeViolation reports whether t violates the bitwiseable
+// constraint — i.e., it is NOT a subtype of (boolean|null|number|string|undefined)
+// AND does not match number context. Mirrors the condition in
+// Java's TypeValidator.expectBitwiseable that fires JSC_TYPE_MISMATCH.
+func isBitwiseableTypeViolation(t jstype.JSType, bitwiseable jstype.JSType) bool {
+	if t == nil || t == jstype.Unknown || t == jstype.All {
+		return false
+	}
+	return !tvMatchesNumberContext(t) && !jstype.IsSubtype(t, bitwiseable)
 }
 
 // bitOpSymbol returns the textual operator for a bit-op token.
