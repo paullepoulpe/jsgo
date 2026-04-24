@@ -461,3 +461,123 @@ public class Container<T extends Object> {
 		t.Errorf("expected generic type param, got:\n%s", out)
 	}
 }
+
+// ── Bug fix regressions ──────────────────────────────────────────────────────
+
+// Bug #1 — Field with generic constructor initialiser (new ArrayList<>())
+// must NOT be emitted as a method stub like `arrayList<>()`.
+func TestBug1_GenericConstructorInitFieldNotMethod(t *testing.T) {
+	src := `package com.google.javascript.jscomp;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import com.google.javascript.rhino.Node;
+import java.util.List;
+import java.util.Set;
+final class CheckSideEffects {
+  private final List<Node> problemNodes = new ArrayList<>();
+  private final Set<String> noSideEffectExterns = new LinkedHashSet<>();
+  CheckSideEffects(boolean report) { this.report = report; }
+  private final boolean report;
+}`
+	out := generateSkeleton(src, "com/google/javascript/jscomp/CheckSideEffects.java", "jscomp", "")
+	// The generic constructor initialiser must NOT produce a method stub.
+	if strings.Contains(out, "arrayList<>") || strings.Contains(out, "ArrayList<>") ||
+		strings.Contains(out, "linkedHashSet<>") || strings.Contains(out, "LinkedHashSet<>") {
+		t.Errorf("Bug #1: field with new ArrayList<>() emitted as method stub:\n%s", out)
+	}
+	// The struct must still contain the fields.
+	if !strings.Contains(out, "ProblemNodes") && !strings.Contains(out, "problemNodes") {
+		t.Errorf("Bug #1: struct missing ProblemNodes field:\n%s", out)
+	}
+}
+
+// Bug #2 — Constructor body must declare the receiver before assigning fields.
+// `this.x = x; this.y = y;` should NOT reference an undeclared `c` variable.
+func TestBug2_ConstructorBodyDeclaredReceiver(t *testing.T) {
+	src := `package com.google.javascript.jscomp;
+final class CheckSideEffects {
+  private final boolean report;
+  private final boolean protect;
+  CheckSideEffects(boolean report, boolean protect) {
+    this.report = report;
+    this.protect = protect;
+  }
+}`
+	out := generateSkeleton(src, "com/google/javascript/jscomp/CheckSideEffects.java", "jscomp", "")
+	// The constructor must declare the receiver (e.g. `c := &CheckSideEffects{}`).
+	if !strings.Contains(out, ":= &CheckSideEffects{") {
+		t.Errorf("Bug #2: constructor does not declare receiver with :=:\n%s", out)
+	}
+	// The constructor must return the receiver.
+	if !strings.Contains(out, "return c") {
+		t.Errorf("Bug #2: constructor does not return receiver variable:\n%s", out)
+	}
+}
+
+// Bug #3a — Arithmetic shift `<<` in a field initialiser must not confuse the
+// depth counter in findDeclTerminator, causing it to miss the terminating `;`
+// and thus fail to reach the method that follows.
+func TestBug3a_ShiftOperatorInFieldInitialiser(t *testing.T) {
+	src := `package com.google.javascript.jscomp;
+public final class NodeUtil {
+  static final long MAX_POSITIVE_INTEGER_NUMBER = (1L << 53) - 1;
+  static final String JSC_PROPERTY_NAME_FN = "JSCompiler_renameProperty";
+  static boolean isExpression(Object n) { return true; }
+  public static boolean isSomething(Object n) { return false; }
+}`
+	out := generateSkeleton(src, "com/google/javascript/jscomp/NodeUtil.java", "jscomp", "")
+	// The static methods AFTER the tricky field must be emitted.
+	// Before the fix, the depth counter would desync on `<<` and the parser
+	// would never find the closing `;`, stopping all further processing.
+	if !strings.Contains(out, "IsExpression") {
+		t.Errorf("Bug #3a: static method after `<<` field missing from output:\n%s", out)
+	}
+	if !strings.Contains(out, "IsSomething") {
+		t.Errorf("Bug #3a: second static method missing from output:\n%s", out)
+	}
+}
+
+// Bug #3b — A Java file whose top-level declaration is a class containing an
+// inner enum must be parsed as a class, not as that inner enum.
+func TestBug3b_InnerEnumNotTopLevelClass(t *testing.T) {
+	src := `package com.google.javascript.jscomp;
+public final class NodeUtil {
+  private NodeUtil() {}
+  public enum ValueType {
+    UNDETERMINED,
+    NULL,
+    VOID
+  }
+  public static boolean isExpression(Object n) { return true; }
+}`
+	out := generateSkeleton(src, "com/google/javascript/jscomp/NodeUtil.java", "jscomp", "")
+	// The output must contain a NodeUtil struct, NOT a NodeUtil enum.
+	if !strings.Contains(out, "type NodeUtil struct") {
+		t.Errorf("Bug #3b: top-level should be class NodeUtil struct, got:\n%s", out)
+	}
+	// The inner enum must appear as an inner declaration, not as the file's type.
+	if strings.Contains(out, "type NodeUtil int") {
+		t.Errorf("Bug #3b: top-level was wrongly treated as enum:\n%s", out)
+	}
+	// Static method must be emitted as a package-level function.
+	if !strings.Contains(out, "func IsExpression(") {
+		t.Errorf("Bug #3b: static method not emitted as package-level func:\n%s", out)
+	}
+}
+
+// Static methods must be emitted as package-level functions, not skipped.
+func TestStaticMethodsEmittedAsPackageLevelFunctions(t *testing.T) {
+	src := `package com.google.javascript.jscomp;
+public final class NodeUtil {
+  private NodeUtil() {}
+  public static boolean isExpression(Object n) { return true; }
+  private static String getNameHelper(Object n) { return ""; }
+}`
+	out := generateSkeleton(src, "com/google/javascript/jscomp/NodeUtil.java", "jscomp", "")
+	if !strings.Contains(out, "func IsExpression(") {
+		t.Errorf("public static method should be package-level func, got:\n%s", out)
+	}
+	if !strings.Contains(out, "func getNameHelper(") {
+		t.Errorf("private static method should be package-level func, got:\n%s", out)
+	}
+}
