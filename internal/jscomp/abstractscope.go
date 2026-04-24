@@ -85,10 +85,8 @@ func implicitVarOf(name string) (ImplicitVar, bool) {
 	return 0, false
 }
 
-// Go-only: language-adapter — implicitVarIsMadeByScope takes a rootNode rather
-// than a full scope; Java's ImplicitVar.isMadeByScope(AbstractScope) calls scope
-// predicates directly on the scope object. The Go version accepts a Node to
-// avoid circular dependency between scope types.
+// implicitVarIsMadeByScope reports whether this implicit var is owned by the given scope root.
+// Go-only: language-adapter — takes rootNode instead of AbstractScope to avoid import cycles.
 func implicitVarIsMadeByScope(v ImplicitVar, rootNode *rhino.Node) bool {
 	if rootNode == nil {
 		return false

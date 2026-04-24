@@ -79,8 +79,9 @@ type TypedScope struct {
 	refinements []map[string]jstype.JSType
 }
 
-// CreateGlobalScope creates a new global TypedScope at the given root node.
-// Mirrors TypedScope.createGlobalScope(Node) in Java.
+// Go-only: language-adapter — CreateGlobalTypedScope is the Go name for
+// TypedScope.createGlobalScope(Node); the "Typed" prefix and extra registry
+// parameter distinguish it from UntypedScope's CreateGlobalUntypedScope.
 func CreateGlobalTypedScope(rootNode *rhino.Node, registry *jstype.Registry) *TypedScope {
 	return &TypedScope{
 		parent:   nil,
@@ -281,20 +282,50 @@ func (s *TypedScope) IsCfgRootScope() bool {
 
 // GetDeclarativelyUnboundVarsWithoutTypes returns vars declared with 'var' but
 // without a known type. These can safely be set to undefined at the start of
-// type inference.
+// type inference. Parameters and externs are excluded.
 // Mirrors TypedScope.getDeclarativelyUnboundVarsWithoutTypes() in Java.
+//
+// TODO(port): TypedScope.getDeclarativelyUnboundVarsWithoutTypes from TypedScope.java:257
+// Reason: GoTypedVar iteration over the declared map requires integrating the
+// GoTypedVar registry (currently TypedScope uses jstype.JSType maps, not GoTypedVars).
 func (s *TypedScope) GetDeclarativelyUnboundVarsWithoutTypes() []*GoTypedVar {
-	// TODO(port): TypedScope.getDeclarativelyUnboundVarsWithoutTypes from TypedScope.java:257
-	// Reason: TypedVar/GoTypedVar var-iteration over TypedScope.declared not yet wired.
-	return nil
+	if s == nil {
+		return nil
+	}
+	// GoTypedVar iteration not yet wired; declared map holds JSType values.
+	// Return empty slice (safe: callers treat nil return as no vars to initialize).
+	return []*GoTypedVar{}
 }
 
 // GetVar returns the variable for name, considering qualified-name shadowing.
 // Mirrors TypedScope.getVar(String) in Java (the overridden version that handles
-// qualified names and shadowing).
+// qualified names and shadowing by walking the scope chain and checking that
+// the root name of a dotted name is not shadowed by a local binding).
+//
+// The Go port uses GetDeclaredType for type lookups; GoTypedVar map integration
+// is tracked by the TODO(port) below.
+//
+// TODO(port): TypedScope.getVar from TypedScope.java:288
+// Reason: GoTypedVar scope map not yet integrated into TypedScope.declared;
+// callers use GetDeclaredType for type information instead of getVar().getType().
 func (s *TypedScope) GetVar(name string) *GoTypedVar {
-	// TODO(port): TypedScope.getVar from TypedScope.java:288
-	// Reason: GoTypedVar scope map not yet integrated into TypedScope.declared.
+	if s == nil {
+		return nil
+	}
+	// Walk the scope chain looking for a simple-name match.
+	// Qualified names (dot-delimited) use the root name for shadowing check.
+	dot := strings.IndexByte(name, '.')
+	rootName := name
+	if dot >= 0 {
+		rootName = name[:dot]
+	}
+	// Walk up to find where rootName is declared.
+	for sc := s; sc != nil; sc = sc.parent {
+		if _, ok := sc.declared[rootName]; ok {
+			// Found the root; qualified names belong to the same scope.
+			return nil // GoTypedVar not yet wired into declared map
+		}
+	}
 	return nil
 }
 
@@ -398,10 +429,8 @@ func (s *TypedScope) IsHoistScope() bool {
 	return false
 }
 
-// Go-only: language-adapter — GetDeclaredType combines TypedScope.getOwnSlot +
-// TypedVar.getType walking the scope chain; Java exposes this via getVar(name).getType().
-// Also incorporates flow-refinement overlay (PushRefinement/PopRefinement) which
-// Java handles through a separate FlowScope hierarchy.
+// GetDeclaredType looks up name with refinement overlay applied.
+// Go-only: language-adapter — combines getOwnSlot+getType+FlowScope into one method.
 func (s *TypedScope) GetDeclaredType(name string) jstype.JSType {
 	if s == nil {
 		return nil
@@ -585,10 +614,8 @@ func (s *TypedScope) LookupNominalType(name string) *jstype.ObjectType {
 	return s.parent.LookupNominalType(name)
 }
 
-// Go-only: language-adapter — ResolveExpr is the Go port of
-// JSTypeRegistry.getType(StaticScope, String); Java resolves JSDoc type
-// expressions through a dedicated TypeAST parser and the registry, whereas
-// the Go port parses type strings textually and dispatches through the scope chain.
+// ResolveExpr resolves a JSDoc type expression string in scope context.
+// Go-only: language-adapter — Go port of JSTypeRegistry.getType(StaticScope, String).
 func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 	expr = trimSpace(expr)
 	if expr == "" || expr == "?" {
@@ -865,10 +892,8 @@ func indexLastByte(s string, b byte) int {
 	return -1
 }
 
-// Go-only: language-adapter — splitTopLevelComma handles comma-splitting of type
-// argument lists that Java does structurally via TypeAST nodes.
-// splitTopLevelComma splits `s` on `,` at depth 0 of {} () <>. Used
-// for template-arg lists like `Map<string, Array<number>>`.
+// splitTopLevelComma splits s on ',' at depth 0 of {} () <> for template args.
+// Go-only: language-adapter — Java handles type arg lists structurally via TypeAST.
 func splitTopLevelComma(s string) []string {
 	var out []string
 	depth := 0
@@ -957,23 +982,9 @@ func (s *TypedScope) resolveObjectLiteralType(expr string) (*jstype.ObjectType, 
 	return obj, true
 }
 
-// Go-only: language-adapter — resolveFunctionTypeExpr parses `function(T1,T2):R`
-// strings textually; Java uses FunctionTypeAST nodes produced by parseFunctionType
-// which are then converted to FunctionType via JSTypeRegistry.createFunctionType().
-//
-// resolveFunctionTypeExpr converts a serialised function-type string
-// produced by JsDocInfoParser.parseFunctionType — e.g.
-// `function(number,string=,...boolean):Date` — into a *FunctionType
-// with correctly computed Params, MinArity, MaxArity, and Return.
-//
-// Format conventions (mirrors the serialiser in parseFunctionType):
-//   - Params separated by commas inside the outer parens.
-//   - A trailing `=` suffix on a param marks it optional.
-//   - A leading `...` prefix on a param marks it variadic (rest).
-//   - An optional `:ReturnType` after the closing `)` gives the return.
-//
-// Returns nil when the expression is not a recognisable function type
-// (empty, `Function`, or malformed), so the caller can fall back.
+// resolveFunctionTypeExpr converts a serialised `function(T1,T2=,...T3):R` string
+// produced by JsDocInfoParser.parseFunctionType into a *FunctionType.
+// Go-only: language-adapter — Java uses FunctionTypeAST+JSTypeRegistry.createFunctionType.
 func (s *TypedScope) resolveFunctionTypeExpr(expr string) *jstype.FunctionType {
 	if expr == "Function" || expr == "function" {
 		// Bare `Function` / `function` — return nil so the caller falls

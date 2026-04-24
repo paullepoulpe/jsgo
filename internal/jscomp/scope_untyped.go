@@ -81,17 +81,15 @@ func (s *UntypedScope) GetParent() *UntypedScope { return s.parent }
 // Mirrors AbstractScope.isGlobal() in Java.
 func (s *UntypedScope) IsGlobal() bool { return s.parent == nil }
 
-// IsLocal reports whether this scope has a parent.
-// Mirrors AbstractScope.isLocal() in Java.
+// Go-only: language-adapter — IsLocal is inherited from AbstractScope in Java (final method).
 func (s *UntypedScope) IsLocal() bool { return s.parent != nil }
 
 // GetDepth returns the nesting depth (0 = global).
 // Mirrors Scope.getDepth() in Java.
 func (s *UntypedScope) GetDepth() int { return s.depth }
 
-// IsHoistScope is delegated to AbstractScopeBase, which re-computes from the
-// root node. Overriding here for the interface check; the embedded base
-// provides the implementation.
+// Go-only: language-adapter — IsHoistScope delegates to AbstractScopeBase; in Java this
+// is a final method on AbstractScope, but Go interface dispatch requires explicit delegation.
 func (s *UntypedScope) IsHoistScope() bool { return s.AbstractScopeBase.IsHoistScope() }
 
 // ---------------------------------------------------------------------------
@@ -149,9 +147,9 @@ func (s *UntypedScope) GetOwnSlot(name string) *UntypedVar {
 	return s.getOrMakeImplicitVar(iv)
 }
 
-// GetSlot returns the variable with the given name from this or any parent
-// scope, or nil.
-// Mirrors AbstractScope.getSlot(String) / getVar(String) in Java.
+// Go-only: language-adapter — GetSlot delegates to getSlot/getVar which is
+// a final method on AbstractScope; Go requires explicit implementation since
+// UntypedScope cannot inherit AbstractScope's generic getSlot(String).
 func (s *UntypedScope) GetSlot(name string) *UntypedVar {
 	for sc := s; sc != nil; sc = sc.parent {
 		if v := sc.GetOwnSlot(name); v != nil {
@@ -161,14 +159,14 @@ func (s *UntypedScope) GetSlot(name string) *UntypedVar {
 	return nil
 }
 
-// HasOwnSlot reports whether this scope directly declares the given name.
-// Mirrors AbstractScope.hasOwnSlot(String) in Java.
+// Go-only: language-adapter — HasOwnSlot is a final method on AbstractScope in Java;
+// Go requires explicit delegation since UntypedScope cannot inherit it.
 func (s *UntypedScope) HasOwnSlot(name string) bool {
 	return s.GetOwnSlot(name) != nil
 }
 
-// HasSlot reports whether the given name is declared in this or any parent scope.
-// Mirrors AbstractScope.hasSlot(String) in Java.
+// Go-only: language-adapter — HasSlot is a final method on AbstractScope in Java;
+// Go requires explicit delegation since UntypedScope cannot inherit it.
 func (s *UntypedScope) HasSlot(name string) bool {
 	return s.GetSlot(name) != nil
 }
@@ -182,8 +180,8 @@ func (s *UntypedScope) RemoveVar(name string) {
 	}
 }
 
-// GetVarIterable returns all non-implicit vars declared in this scope.
-// Mirrors AbstractScope.getVarIterable() in Java.
+// Go-only: language-adapter — GetVarIterable returns a slice instead of Java's Iterable<V>;
+// Java's AbstractScope.getVarIterable() returns Iterable backed by a LinkedHashMap.
 func (s *UntypedScope) GetVarIterable() []*UntypedVar {
 	out := make([]*UntypedVar, 0, len(s.vars))
 	for _, v := range s.vars {
@@ -198,8 +196,8 @@ func (s *UntypedScope) GetVarCount() int {
 	return len(s.vars)
 }
 
-// GetGlobalScope walks up to and returns the global scope.
-// Mirrors AbstractScope.getGlobalScope() in Java.
+// Go-only: language-adapter — GetGlobalScope returns *UntypedScope instead of the
+// Java generic S type; Java's AbstractScope.getGlobalScope() returns S via thisScope().
 func (s *UntypedScope) GetGlobalScope() *UntypedScope {
 	result := s
 	for result.parent != nil {
@@ -208,8 +206,8 @@ func (s *UntypedScope) GetGlobalScope() *UntypedScope {
 	return result
 }
 
-// GetClosestHoistScope returns the nearest hoist scope at or above this scope.
-// Mirrors AbstractScope.getClosestHoistScope() in Java.
+// Go-only: language-adapter — GetClosestHoistScope returns *UntypedScope instead of
+// the Java generic S; Java's AbstractScope.getClosestHoistScope() returns S via thisScope().
 func (s *UntypedScope) GetClosestHoistScope() *UntypedScope {
 	for cur := s; cur != nil; cur = cur.parent {
 		if cur.IsHoistScope() {

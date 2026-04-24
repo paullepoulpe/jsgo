@@ -306,10 +306,8 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 	return scope
 }
 
-// registerCatchParams walks the AST tree rooted at block and for each
-// CATCH node unconditionally binds the parameter name to Unknown in
-// the given scope. This ensures catch parameters shadow outer
-// same-named declarations with *, matching Java's TypedScopeCreator.
+// Go-only: language-adapter — registerCatchParams binds catch params inline;
+// Java's NormalScopeBuilder.visit handles CATCH nodes during NodeTraversal.
 func registerCatchParams(block *rhino.Node, scope *TypedScope) {
 	if block == nil {
 		return
@@ -326,12 +324,8 @@ func registerCatchParams(block *rhino.Node, scope *TypedScope) {
 	}
 }
 
-// hoistDeclarations walks `block` collecting every VAR/LET/CONST /
-// FUNCTION / CLASS / EXPR_RESULT it and its nested BLOCKs / IF
-// branches / loop bodies / try handlers contain. FUNCTION / CLASS
-// subtrees are not descended into — they own their own scope, built
-// separately via recordFunction / recordClass. Matches Java's
-// hoistVars pass on AbstractScopeBuilder.
+// Go-only: language-adapter — hoistDeclarations collects declarations eagerly;
+// Java's NormalScopeBuilder visits them lazily during NodeTraversal.
 func hoistDeclarations(block *rhino.Node) []*rhino.Node {
 	var out []*rhino.Node
 	var walk func(n *rhino.Node)
@@ -519,17 +513,8 @@ func (c *TypedScopeCreator) recordPrototypeLiteralAssign(a *rhino.Node, scope *T
 	}
 }
 
-// Go-only: language-adapter — recordNamespaceAssign handles qualified-name
-// `@type` assignments as a standalone method; Java's NormalScopeBuilder.visit
-// dispatches this logic inline when seeing ASSIGN nodes with GETPROP LHS.
-// recordNamespaceAssign handles `/** @type {T} */ owner.prop = …`
-// declarations — bare two-segment GETPROP assignments whose
-// receiver is a known binding in this scope chain. Records `T`
-// as owner.prop in the scope's namespaceProps map so later reads
-// and assigns can consult it. Skips the prototype-assign form
-// (already handled by recordPrototypeAssign) and static class
-// properties (handled by their owning FunctionType's Instance
-// slots).
+// recordNamespaceAssign handles `/** @type {T} */ owner.prop = …` declarations.
+// Go-only: language-adapter — Java's NormalScopeBuilder dispatches this inline.
 func (c *TypedScopeCreator) recordNamespaceAssign(a *rhino.Node, scope *TypedScope) {
 	info := a.JSDocInfo()
 	// No @type JSDoc — but if the RHS is a FUNCTION, infer a
