@@ -39,8 +39,8 @@ type UntypedVar struct {
 	scope *UntypedScope
 }
 
-// newUntypedVar creates a variable declared at nameNode in the given scope.
-// Mirrors the package-private Var constructor in Java.
+// Go-only: language-adapter — newUntypedVar is the Go constructor for UntypedVar;
+// Java uses the package-private Var(name, nameNode, scope, index, input, null) constructor.
 func newUntypedVar(name string, nameNode *rhino.Node, scope *UntypedScope, index int) *UntypedVar {
 	return &UntypedVar{
 		AbstractVarBase: AbstractVarBase{
@@ -52,9 +52,9 @@ func newUntypedVar(name string, nameNode *rhino.Node, scope *UntypedScope, index
 	}
 }
 
-// createImplicitGoogNamespace creates a Var that represents an implicit
-// goog.provide or legacy goog.module namespace (no real AST nameNode).
-// Mirrors Var.createImplicitGoogNamespace in Java.
+// Go-only: language-adapter — createUntypedImplicitGoogNamespace is the Go name for
+// the factory that Java calls Var.createImplicitGoogNamespace(name, scope, definition).
+// The "Untyped" prefix distinguishes it from a future TypedVar equivalent.
 func createUntypedImplicitGoogNamespace(name string, scope *UntypedScope, definition *rhino.Node) *UntypedVar {
 	return &UntypedVar{
 		AbstractVarBase: AbstractVarBase{
@@ -67,39 +67,42 @@ func createUntypedImplicitGoogNamespace(name string, scope *UntypedScope, defini
 	}
 }
 
-// GetScope returns the UntypedScope that contains this variable.
-// Mirrors AbstractVar.getScope() in Java.
+// Go-only: language-adapter — GetScope exposes the UntypedScope pointer directly;
+// in Java, getScope() is defined on AbstractVar and returns the generic S (scope type).
 func (v *UntypedVar) GetScope() *UntypedScope { return v.scope }
 
-// IsGlobal reports whether the enclosing scope is the global scope.
-// Mirrors AbstractVar.isGlobal() in Java.
+// Go-only: language-adapter — IsGlobal is inherited from AbstractVar in Java;
+// Go requires explicit delegation since UntypedVar cannot inherit from AbstractVarBase.
 func (v *UntypedVar) IsGlobal() bool {
 	return v.scope != nil && v.scope.IsGlobal()
 }
 
-// IsLocal reports whether the enclosing scope is a local (non-global) scope.
-// Mirrors AbstractVar.isLocal() in Java.
+// Go-only: language-adapter — IsLocal is inherited from AbstractVar in Java;
+// Go requires explicit delegation since UntypedVar cannot inherit AbstractVar.
 func (v *UntypedVar) IsLocal() bool {
 	return v.scope != nil && v.scope.IsLocal()
 }
 
-// IsVar reports whether this variable was declared with the `var` keyword.
-// Mirrors AbstractVar.isVar() in Java.
+// Go-only: language-adapter — IsVar is inherited from AbstractVar in Java (final method);
+// Go requires explicit implementation since UntypedVar embeds AbstractVarBase, not AbstractVar.
 func (v *UntypedVar) IsVar() bool {
 	return declarationTypeOf(v.nameNode) == rhino.VAR
 }
 
-// IsLet reports whether this variable was declared with `let`.
+// Go-only: language-adapter — IsLet is inherited from AbstractVar.isLet() in Java;
+// Go requires explicit delegation since UntypedVar embeds AbstractVarBase struct.
 func (v *UntypedVar) IsLet() bool {
 	return declarationTypeOf(v.nameNode) == rhino.LET
 }
 
-// IsConst reports whether this variable was declared with `const`.
+// Go-only: language-adapter — IsConst is inherited from AbstractVar.isConst() in Java;
+// Go requires explicit delegation since UntypedVar embeds AbstractVarBase struct.
 func (v *UntypedVar) IsConst() bool {
 	return declarationTypeOf(v.nameNode) == rhino.CONST
 }
 
-// IsParam reports whether this variable is a function parameter.
+// Go-only: language-adapter — IsParam is inherited from AbstractVar.isParam() in Java;
+// Go requires explicit delegation since UntypedVar embeds AbstractVarBase struct.
 func (v *UntypedVar) IsParam() bool {
 	return declarationTypeOf(v.nameNode) == rhino.PARAM_LIST
 }

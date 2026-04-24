@@ -41,6 +41,9 @@ type TypedScopeCreator struct {
 	diags []diag.Diagnostic
 }
 
+// Go-only: language-adapter — NewTypedScopeCreator is the Go constructor for
+// TypedScopeCreator; Java instantiates it via TypedScopeCreator(AbstractCompiler,
+// CodingConvention) which wires into the full compiler infrastructure.
 func NewTypedScopeCreator(r *jstype.Registry) *TypedScopeCreator {
 	return &TypedScopeCreator{registry: r, Functions: map[*rhino.Node]*TypedScope{}}
 }
@@ -59,26 +62,18 @@ func (c *TypedScopeCreator) CreateScope(script *rhino.Node) *TypedScope {
 	return global
 }
 
-// createScopeInWithParent is the externs-aware entry point used by
-// Compiler#compile's two-phase build: first the externs script has
-// its scope constructed, then the user source's scope is built with
-// the externs scope as its parent. Mirrors Compiler.getTypeRegistry
-// chaining in Java.
+// Go-only: language-adapter — createScopeInWithParent is the externs-aware scope
+// entry point; Java uses createScope(Node, AbstractScope) with the memoized
+// parent scope obtained from a previous call, not a dedicated method.
 func (c *TypedScopeCreator) createScopeInWithParent(script *rhino.Node, parent *TypedScope) *TypedScope {
 	scope := c.createScopeIn(script, parent)
 	c.registerNestedFunctions(script, scope)
 	return scope
 }
 
-// createExternScope parses defaultExternsSrc and builds a scope from
-// the resulting SCRIPT. The returned scope's parent is c.builtins(),
-// so primitives still flow in via the sparse Array stub. The
-// resulting scope carries names like Disposable / Promise / Iterator
-// that the user source is expected to reference as predeclared.
-//
-// Parse errors in the externs source are not reachable in practice
-// (the source is vendored), but they surface as a scope containing
-// only the builtins — never as a panic.
+// Go-only: language-adapter — createExternScope builds the externs scope from a
+// vendored source string; Java's TypedScopeCreator receives a pre-parsed extern
+// AST from the compiler and does not need to parse externs separately.
 func (c *TypedScopeCreator) createExternScope() *TypedScope {
 	externScript, err := parseExternsSource(defaultExternsSrc)
 	if err != nil || externScript == nil {
@@ -89,11 +84,9 @@ func (c *TypedScopeCreator) createExternScope() *TypedScope {
 	return scope
 }
 
-// registerNestedFunctions recursively visits every FUNCTION node that
-// isn't already associated with a local scope (top-level functions
-// were handled by recordFunction) and builds a parameter scope for
-// it. Used so arrow / function-expression parameters are reachable to
-// VarCheck and TypeCheck.
+// Go-only: language-adapter — registerNestedFunctions replaces Java's
+// NodeTraversal-driven inner-class traversal (AbstractScopeBuilder.visit)
+// that creates function scopes on-the-fly during tree traversal.
 func (c *TypedScopeCreator) registerNestedFunctions(n *rhino.Node, enclosing *TypedScope) {
 	if n == nil {
 		return
@@ -112,14 +105,9 @@ func (c *TypedScopeCreator) registerNestedFunctions(n *rhino.Node, enclosing *Ty
 	}
 }
 
-// buildExpressionFunctionScope creates a local scope for a FUNCTION
-// node that was discovered outside the top-level statement walk
-// (arrow bodies, anonymous function expressions, object-literal
-// method shorthands). Parameters are bound to @param types when
-// JSDoc is present, else Unknown. The function body is then walked
-// via createScopeIn so nested declarations — `var foo = …`,
-// `function bar(){}`, `class Baz{}` — populate the same local slot,
-// matching how recordFunction handles top-level functions.
+// Go-only: language-adapter — buildExpressionFunctionScope handles function
+// expressions encountered during registerNestedFunctions; Java's
+// AbstractScopeBuilder.visit creates these scopes inline during NodeTraversal.
 func (c *TypedScopeCreator) buildExpressionFunctionScope(fn *rhino.Node, parent *TypedScope) {
 	kids := fn.Children()
 	if len(kids) < 2 {
@@ -209,12 +197,9 @@ func (c *TypedScopeCreator) buildExpressionFunctionScope(fn *rhino.Node, parent 
 	}
 }
 
-// builtins returns the synthetic parent scope carrying a minimal set
-// of externs. Mirrors how Java's TypedScopeCreator pre-populates the
-// scope from DefaultExterns.js — we can't load real externs yet, so
-// each builtin is narrowly scoped to what jsgo can actually reason
-// about without regressing on the long tail of tests that rely on
-// the real (much richer) spec type.
+// Go-only: language-adapter — builtins() builds a minimal synthetic externs scope;
+// Java uses DefaultExterns.java populated from type-annotated .js externs files
+// through the full compiler pipeline (addWellKnownSymbols, declareNativeFunctionType).
 func (c *TypedScopeCreator) builtins() *TypedScope {
 	s := &TypedScope{
 		declared: make(map[string]jstype.JSType),
@@ -321,10 +306,8 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 	return scope
 }
 
-// registerCatchParams walks the AST tree rooted at block and for each
-// CATCH node unconditionally binds the parameter name to Unknown in
-// the given scope. This ensures catch parameters shadow outer
-// same-named declarations with *, matching Java's TypedScopeCreator.
+// Go-only: language-adapter — registerCatchParams binds catch params inline;
+// Java's NormalScopeBuilder.visit handles CATCH nodes during NodeTraversal.
 func registerCatchParams(block *rhino.Node, scope *TypedScope) {
 	if block == nil {
 		return
@@ -341,12 +324,8 @@ func registerCatchParams(block *rhino.Node, scope *TypedScope) {
 	}
 }
 
-// hoistDeclarations walks `block` collecting every VAR/LET/CONST /
-// FUNCTION / CLASS / EXPR_RESULT it and its nested BLOCKs / IF
-// branches / loop bodies / try handlers contain. FUNCTION / CLASS
-// subtrees are not descended into — they own their own scope, built
-// separately via recordFunction / recordClass. Matches Java's
-// hoistVars pass on AbstractScopeBuilder.
+// Go-only: language-adapter — hoistDeclarations collects declarations eagerly;
+// Java's NormalScopeBuilder visits them lazily during NodeTraversal.
 func hoistDeclarations(block *rhino.Node) []*rhino.Node {
 	var out []*rhino.Node
 	var walk func(n *rhino.Node)
@@ -395,10 +374,9 @@ func hoistDeclarations(block *rhino.Node) []*rhino.Node {
 	return out
 }
 
-// recordPrototypeAssign detects the `Foo.prototype.<name> = <expr>`
-// pattern and adds `<name>` to Foo's InstanceType member map, mirroring
-// how TypedScopeCreator in Java inspects StaticSlot assignments that
-// write to `X.prototype.*`.
+// Go-only: language-adapter — recordPrototypeAssign handles `Foo.prototype.x = v`
+// as a standalone method; Java's NormalScopeBuilder.visit() dispatches this
+// inline when it encounters an ASSIGN node during NodeTraversal.
 func (c *TypedScopeCreator) recordPrototypeAssign(a *rhino.Node, scope *TypedScope) {
 	kids := a.Children()
 	if len(kids) < 2 {
@@ -476,13 +454,9 @@ func (c *TypedScopeCreator) recordPrototypeAssign(a *rhino.Node, scope *TypedSco
 	}
 }
 
-// recordPrototypeLiteralAssign handles `Foo.prototype = { bar: fn, … }`
-// bulk prototype-replacement assignments. It registers each key of the
-// object literal on Foo's InstanceType, mirroring Java's
-// TypedScopeCreator checkForPrototypeAssignment path that iterates
-// OBJECTLIT children when the RHS of a `X.prototype = …` assign is an
-// object literal. Supports both bare-name constructors (`Foo`) and
-// two-segment namespace constructors (`ns.Foo`).
+// Go-only: language-adapter — recordPrototypeLiteralAssign handles `Foo.prototype={...}`
+// as a standalone method; Java's TypedScopeCreator.NormalScopeBuilder.visit dispatches
+// this inline when seeing an ASSIGN with an object-literal RHS.
 func (c *TypedScopeCreator) recordPrototypeLiteralAssign(a *rhino.Node, scope *TypedScope) {
 	kids := a.Children()
 	if len(kids) < 2 {
@@ -539,14 +513,8 @@ func (c *TypedScopeCreator) recordPrototypeLiteralAssign(a *rhino.Node, scope *T
 	}
 }
 
-// recordNamespaceAssign handles `/** @type {T} */ owner.prop = …`
-// declarations — bare two-segment GETPROP assignments whose
-// receiver is a known binding in this scope chain. Records `T`
-// as owner.prop in the scope's namespaceProps map so later reads
-// and assigns can consult it. Skips the prototype-assign form
-// (already handled by recordPrototypeAssign) and static class
-// properties (handled by their owning FunctionType's Instance
-// slots).
+// recordNamespaceAssign handles `/** @type {T} */ owner.prop = …` declarations.
+// Go-only: language-adapter — Java's NormalScopeBuilder dispatches this inline.
 func (c *TypedScopeCreator) recordNamespaceAssign(a *rhino.Node, scope *TypedScope) {
 	info := a.JSDocInfo()
 	// No @type JSDoc — but if the RHS is a FUNCTION, infer a
@@ -620,9 +588,9 @@ func (c *TypedScopeCreator) recordNamespaceAssign(a *rhino.Node, scope *TypedSco
 	scope.recordNamespaceProp(ownerName, propName, declared, lhsKids[1])
 }
 
-// recordNamespaceAssignFromFunction handles `ns.foo = function(x){…}`
-// (no @type JSDoc). Builds a FunctionType from the JSDoc @param /
-// @return so later CALL sites can consult arity + param types.
+// Go-only: language-adapter — recordNamespaceAssignFromFunction infers
+// FunctionType from `ns.foo = function(){}`; Java's NormalScopeBuilder.defineName
+// handles this inline via createFunctionTypeFromNodes.
 func (c *TypedScopeCreator) recordNamespaceAssignFromFunction(a *rhino.Node, scope *TypedScope) {
 	kids := a.Children()
 	if len(kids) < 2 {
@@ -773,6 +741,7 @@ func (c *TypedScopeCreator) recordNamespaceAssignFromFunction(a *rhino.Node, sco
 // EXPR_RESULT carrying a bare two-segment GETPROP with a @type
 // JSDoc. Matches the assignment form's behaviour, used for Closure
 // library-style type declarations that don't assign a value.
+// Go-only: language-adapter — recordNamespaceStub is a Go-only helper that handles `owner.prop;` stubs as standalone method; Java inlines this in NormalScopeBuilder.visit for EXPR_RESULT nodes.
 func (c *TypedScopeCreator) recordNamespaceStub(stmt *rhino.Node, getprop *rhino.Node, scope *TypedScope) {
 	info := stmt.JSDocInfo()
 	if info == nil {
@@ -802,6 +771,7 @@ func (c *TypedScopeCreator) recordNamespaceStub(stmt *rhino.Node, getprop *rhino
 // stub-declarations: a namespace property whose JSDoc carries @typedef
 // rather than @type. Registers the resolved type under the namespace's
 // typeAliases map so `@type {ns.Name}` references resolve correctly.
+// Go-only: language-adapter — recordNamespaceTypedefStub is a Go-only helper that handles `@typedef` stubs on GETPROP as standalone method; Java inlines this in NormalScopeBuilder.identifyEnumOrTypedefDeclaration.
 func (c *TypedScopeCreator) recordNamespaceTypedefStub(stmt *rhino.Node, getprop *rhino.Node, scope *TypedScope) {
 	info := stmt.JSDocInfo()
 	if info == nil {
@@ -832,6 +802,7 @@ func (c *TypedScopeCreator) recordNamespaceTypedefStub(stmt *rhino.Node, getprop
 // at the @type-annotated slot (or Unknown when no JSDoc), matching
 // how Java's TypedScopeCreator lifts these stubs into the scope so
 // `@implements` + property-existence checks see them.
+// Go-only: language-adapter — recordPrototypeStub is a Go-only helper that handles `X.prototype.name;` stubs as standalone method; Java inlines this in NormalScopeBuilder.visit for EXPR_RESULT.
 func (c *TypedScopeCreator) recordPrototypeStub(stmt *rhino.Node, getprop *rhino.Node, scope *TypedScope) {
 	kids := getprop.Children()
 	if len(kids) < 2 {
@@ -888,6 +859,7 @@ func (c *TypedScopeCreator) recordPrototypeStub(stmt *rhino.Node, getprop *rhino
 // Registers each STRING_KEY member on X's InstanceType so that
 // JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH checks can compare the
 // override type against the inherited superclass/interface slot.
+// Go-only: language-adapter — recordPrototypeObjectLit is a Go-only helper that handles `X.prototype={key:fn}` as standalone method; Java inlines this in NormalScopeBuilder.defineObjectLiteral.
 func (c *TypedScopeCreator) recordPrototypeObjectLit(a *rhino.Node, scope *TypedScope) {
 	kids := a.Children()
 	if len(kids) < 2 {
@@ -926,6 +898,7 @@ func (c *TypedScopeCreator) recordPrototypeObjectLit(a *rhino.Node, scope *Typed
 // inst is the constructor's InstanceType — when non-nil it is set as
 // typeOfThis on the resulting FunctionType so TypeCheck can emit
 // JSC_EXPECTED_THIS_TYPE when the method is called without a receiver.
+// Go-only: language-adapter — inferPrototypeValueType is a Go-only helper that infers prototype member type as standalone method; Java inlines this in NormalScopeBuilder.defineObjectLiteral.
 func (c *TypedScopeCreator) inferPrototypeValueType(info *rhino.JSDocInfo, rhs *rhino.Node, scope *TypedScope, inst *jstype.ObjectType) jstype.JSType {
 	// When an explicit @type annotation is present it takes precedence
 	// over the FUNCTION-body parameter / return inference. Mirrors
@@ -982,6 +955,7 @@ func (c *TypedScopeCreator) inferPrototypeValueType(info *rhino.JSDocInfo, rhs *
 // in Pass 1 so forward `@type {?Foo}` refs in the same scope resolve to the
 // correct inner ConstructorType instead of falling back to an outer scope.
 // Mirrors Java's two-pass constructor hoisting for VAR-assigned forms.
+// Go-only: language-adapter — preregisterVarConstructor is a Go-only helper that pre-registers @constructor var declarations; Java inlines this in first-pass GatherScopeCreator traversal.
 func (c *TypedScopeCreator) preregisterVarConstructor(v *rhino.Node, scope *TypedScope) {
 	info := v.JSDocInfo()
 	if !info.IsConstructor() && !info.IsInterface() && !info.IsRecord() {
@@ -1011,6 +985,7 @@ func (c *TypedScopeCreator) preregisterVarConstructor(v *rhino.Node, scope *Type
 // `@type {Foo}` references resolve to the real InstanceType rather
 // than collapsing to Unknown. The param/return types stay Unknown
 // until pass 2 fills them in.
+// Go-only: language-adapter — preregisterConstructor is a Go-only helper that pre-registers @constructor FUNCTION nodes; Java uses NormalScopeBuilder in a two-pass traversal via NodeTraversal.
 func (c *TypedScopeCreator) preregisterConstructor(fn *rhino.Node, scope *TypedScope) {
 	info := fn.JSDocInfo()
 	if !info.IsConstructor() && !info.IsInterface() && !info.IsRecord() {
@@ -1034,6 +1009,7 @@ func (c *TypedScopeCreator) preregisterConstructor(fn *rhino.Node, scope *TypedS
 // the `@enum {T}` argument (Number when omitted); aliased enums
 // (`/** @enum */ var Alias = Source`) are handled in recordDecl's
 // second pass, where we can see the RHS type.
+// Go-only: language-adapter — preregisterEnum is a Go-only helper that pre-registers @enum declarations; Java uses NormalScopeBuilder.identifyEnumOrTypedefDeclaration.
 func (c *TypedScopeCreator) preregisterEnum(v *rhino.Node, scope *TypedScope) {
 	info := v.JSDocInfo()
 	if !info.IsEnum() {
@@ -1068,6 +1044,7 @@ func (c *TypedScopeCreator) preregisterEnum(v *rhino.Node, scope *TypedScope) {
 // enumTypeArgPos finds the line/col of the type-argument inside
 // `@enum {TypeName}` on the given source line. Returns the name node's
 // own position as fallback. lineno is 1-indexed; returned col is 0-indexed.
+// Go-only: language-adapter — enumTypeArgPos is a Go-only helper that computes position within source for enum @type arg; Java uses SourceFile position directly from the compiler.
 func enumTypeArgPos(src string, lineno int, typeName string) (line, col int) {
 	// Split source into lines (0-indexed slice, 1-indexed lineno).
 	lines := strings.Split(src, "\n")
@@ -1091,6 +1068,7 @@ func enumTypeArgPos(src string, lineno int, typeName string) (line, col int) {
 // node. In the new pipeline, class methods are MEMBER_FUNCTION_DEF(FUNCTION);
 // in the legacy pipeline, they are plain FUNCTION nodes.
 // Returns nil if m is not a function-bearing member.
+// Go-only: language-adapter — classMemberFunctionNode is a Go-only helper that extracts the FUNCTION node from a class member; Java accesses class member AST via Node.getLastChild() directly.
 func classMemberFunctionNode(m *rhino.Node) *rhino.Node {
 	if m == nil {
 		return nil
@@ -1110,6 +1088,7 @@ func classMemberFunctionNode(m *rhino.Node) *rhino.Node {
 // classMemberFunctionOrSelf is like classMemberFunctionNode but returns m itself
 // when it is already a FUNCTION, and returns nil for non-method nodes.
 // Used to normalize class body iteration across old and new pipeline ASTs.
+// Go-only: language-adapter — classMemberFunctionOrSelf is a Go-only helper that returns FUNCTION node or the member itself; Java accesses the class member structure directly in NormalScopeBuilder.
 func classMemberFunctionOrSelf(m *rhino.Node) *rhino.Node {
 	if fn := classMemberFunctionNode(m); fn != nil {
 		return fn
@@ -1120,6 +1099,7 @@ func classMemberFunctionOrSelf(m *rhino.Node) *rhino.Node {
 // preregisterClass reserves a slot for a `class` declaration, mirroring
 // the @constructor pre-registration path so forward `@type {C}`
 // references resolve to C's InstanceType.
+// Go-only: language-adapter — preregisterClass is a Go-only helper that pre-registers a CLASS node; Java uses a first-pass traversal in GatherScopeCreator to pre-register class names.
 func (c *TypedScopeCreator) preregisterClass(cls *rhino.Node, scope *TypedScope) {
 	kids := cls.Children()
 	if len(kids) < 3 {
@@ -1137,6 +1117,7 @@ func (c *TypedScopeCreator) preregisterClass(cls *rhino.Node, scope *TypedScope)
 // recordClass fills in a class's constructor params, methods, fields,
 // and super link. Mirrors how TypedScopeCreator processes a CLASS node
 // in Java (TypedScopeCreator.java, visitClass).
+// Go-only: language-adapter — recordClass is a Go-only helper that processes a CLASS node to build its FunctionType; Java uses NormalScopeBuilder.visit for CLASS tokens in TypedScopeCreator.
 func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 	kids := cls.Children()
 	if len(kids) < 3 {
@@ -1405,6 +1386,7 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 // buildMethodScope wraps the parameter + this binding needed for a
 // method body to type-check under the same local-scope model as
 // top-level @constructor functions.
+// Go-only: language-adapter — buildMethodScope is a Go-only helper that builds a parameter scope for a class method; Java uses NormalScopeBuilder and createScope(Node, AbstractScope) inline.
 func (c *TypedScopeCreator) buildMethodScope(fn *rhino.Node, inst *jstype.ObjectType, parent *TypedScope, ptypes []jstype.JSType) *TypedScope {
 	local := &TypedScope{
 		parent:      parent,
@@ -1444,6 +1426,7 @@ func (c *TypedScopeCreator) buildMethodScope(fn *rhino.Node, inst *jstype.Object
 // Used by buildMethodScope to ensure VarCheck sees `var i` inside a
 // for-loop as declared when checking the loop body. Mirrors
 // AbstractScopeBuilder.hoistVars's narrow first pass (names only).
+// Go-only: language-adapter — hoistVarNamesInto is a Go-only helper that hoists `var` declarations into a scope; Java does this via NormalScopeBuilder walking the function body on demand.
 func (c *TypedScopeCreator) hoistVarNamesInto(body *rhino.Node, scope *TypedScope) {
 	if body == nil {
 		return
@@ -1496,6 +1479,7 @@ func (c *TypedScopeCreator) hoistVarNamesInto(body *rhino.Node, scope *TypedScop
 // TemplateTypes on the resulting FunctionType so call-site
 // unification can refer to them later. Port of the per-function
 // TemplateTypeMap construction in TypedScopeCreator.java.
+// Go-only: language-adapter — templateResolver is a Go-only helper that builds a @template name resolver for a scope; Java creates a JSTypeRegistry scope with templates via typeRegistry.createScopeWithTemplates.
 func (c *TypedScopeCreator) templateResolver(parent *TypedScope, info *rhino.JSDocInfo) (func(string) jstype.JSType, map[string]*jstype.TemplateType) {
 	if info == nil || len(info.TemplateNames()) == 0 {
 		return parent.ResolveExpr, nil
@@ -1519,6 +1503,7 @@ func (c *TypedScopeCreator) templateResolver(parent *TypedScope, info *rhino.JSD
 // bindSuper resolves the named superclass into its constructor's
 // FunctionType and stores it under `super` in the given (ctor-local)
 // scope. Harmless no-op when the class has no base.
+// Go-only: language-adapter — bindSuper is a Go-only helper that binds `super` in a class method scope; Java handles `super` via the implicit variable system in TypedScope.makeImplicitVar.
 func (c *TypedScopeCreator) bindSuper(local *TypedScope, superName string, outer *TypedScope) {
 	if superName == "" {
 		return
@@ -1534,6 +1519,7 @@ func (c *TypedScopeCreator) bindSuper(local *TypedScope, superName string, outer
 // the scope's typeAliases map. Mirrors how Java's TypedScopeCreator
 // registers typedefs ahead of the normal scope-building passes so
 // `@type {NAME}` lookups resolve to the aliased type.
+// Go-only: language-adapter — recordTypedef is a Go-only helper that records a @typedef declaration; Java uses NormalScopeBuilder.identifyEnumOrTypedefDeclaration via NodeTraversal.
 func (c *TypedScopeCreator) recordTypedef(v *rhino.Node, scope *TypedScope) {
 	info := v.JSDocInfo()
 	if info == nil || info.TypedefType() == nil {
@@ -1546,6 +1532,7 @@ func (c *TypedScopeCreator) recordTypedef(v *rhino.Node, scope *TypedScope) {
 	scope.typeAliases[name.String_()] = scope.ResolveExpr(info.TypedefType().TypeName)
 }
 
+// Go-only: language-adapter — recordDecl is a Go-only helper that dispatches a VAR/LET/CONST declaration; Java uses NormalScopeBuilder.defineName inline during NodeTraversal.
 func (c *TypedScopeCreator) recordDecl(v *rhino.Node, scope *TypedScope) {
 	// Multi-binding forms (`var a, b = 1, c`) each declare their own
 	// slot. Run the full recordOneDecl per NAME child so the scope
@@ -1562,6 +1549,7 @@ func (c *TypedScopeCreator) recordDecl(v *rhino.Node, scope *TypedScope) {
 // recordOneDecl processes a single declaration binding. Split out
 // from recordDecl so the multi-binding loop can reuse the same
 // @type / @enum / @constructor handling per name.
+// Go-only: language-adapter — recordOneDecl is a Go-only helper that processes a single declaration binding; Java uses NormalScopeBuilder.defineName which handles both simple and destructured names.
 func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope *TypedScope) {
 	// VAR-level JSDoc is the primary source; NAME-level JSDoc
 	// (set by the parser for inline `var /** @type {T} */ x = …`
@@ -1819,6 +1807,7 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 // Array<T>, or similar iteratable type. For union types, returns the union
 // of element types from each member. Returns nil if not determinable.
 // Mirrors Java's TypeInference case FOR_OF element-type extraction.
+// Go-only: language-adapter — extractIterableElemType is a Go-only helper that extracts element type from an iterable type; Java uses JSTypeRegistry.getIteratedTypeOfIterable(JSType).
 func extractIterableElemType(t jstype.JSType) jstype.JSType {
 	if t == nil {
 		return nil
@@ -1851,6 +1840,7 @@ func extractIterableElemType(t jstype.JSType) jstype.JSType {
 // initialisers populate the Members map. Matches how Java's
 // TypedScopeCreator.EnumBuilder hoists the enum slot in pass 1
 // and fills its members in pass 2.
+// Go-only: language-adapter — finishEnumDecl is a Go-only helper that finalizes an @enum type declaration; Java uses NormalScopeBuilder.createEnumTypeFromNodes inline.
 func (c *TypedScopeCreator) finishEnumDecl(nameNode *rhino.Node, info *rhino.JSDocInfo, scope *TypedScope) {
 	name := nameNode.String_()
 	enum, ok := scope.declared[name].(*jstype.EnumType)
@@ -1903,6 +1893,7 @@ func (c *TypedScopeCreator) finishEnumDecl(nameNode *rhino.Node, info *rhino.JSD
 //
 // Matches FunctionParamBuilder's prefix detection path in Java.
 // Called for every FunctionType we build from a PARAM_LIST node.
+// Go-only: language-adapter — setArityFromParamNames is a Go-only helper that sets arity from param name nodes; Java uses FunctionType.Builder.withParamsNode in createFunctionTypeFromNodes.
 func setArityFromParamNames(fn *jstype.FunctionType, params *rhino.Node) {
 	setArityFromParams(fn, params, nil)
 }
@@ -1915,6 +1906,7 @@ func setArityFromParamNames(fn *jstype.FunctionType, params *rhino.Node) {
 //  1. Inline JSDoc on the param itself: `function f(/** T */ x)`.
 //  2. Outer function @param {T} x JSDoc on `info`.
 //  3. Unknown (unannotated).
+// Go-only: language-adapter — resolveParamType is a Go-only helper that resolves a @param type for a function parameter; Java resolves this via JSDocInfo.getParameterType inline in createFunctionTypeFromNodes.
 func resolveParamType(info *rhino.JSDocInfo, p *rhino.Node, scope *TypedScope) jstype.JSType {
 	if p != nil {
 		if pj := p.JSDocInfo(); pj != nil && pj.HasType() {
@@ -1929,6 +1921,7 @@ func resolveParamType(info *rhino.JSDocInfo, p *rhino.Node, scope *TypedScope) j
 	return jstype.Unknown
 }
 
+// Go-only: language-adapter — setArityFromParams is a Go-only helper that sets arity from both param nodes and JSDoc; Java handles this inline in NormalScopeBuilder.createFunctionTypeFromNodes.
 func setArityFromParams(fn *jstype.FunctionType, params *rhino.Node, info *rhino.JSDocInfo) {
 	if params == nil {
 		return
@@ -1987,6 +1980,7 @@ func setArityFromParams(fn *jstype.FunctionType, params *rhino.Node, info *rhino
 // a fresh InstanceType named after the variable. Mirrors how Java's
 // TypedScopeCreator promotes a plain `function(){}` on the RHS of
 // a constructor-annotated `var`.
+// Go-only: language-adapter — buildDeclaredFunctionConstructor is a Go-only helper that builds a FunctionType for a declared @constructor; Java uses NormalScopeBuilder.createFunctionTypeFromNodes.
 func (c *TypedScopeCreator) buildDeclaredFunctionConstructor(fn *rhino.Node, info *rhino.JSDocInfo, name string, scope *TypedScope) *jstype.FunctionType {
 	kids := fn.Children()
 	var paramTypes []jstype.JSType
@@ -1999,6 +1993,7 @@ func (c *TypedScopeCreator) buildDeclaredFunctionConstructor(fn *rhino.Node, inf
 	return jstype.NewConstructorType(name, paramTypes)
 }
 
+// Go-only: language-adapter — recordFunction is a Go-only helper that records a FUNCTION node and builds its type; Java uses NormalScopeBuilder.visit for FUNCTION tokens and createFunctionTypeFromNodes.
 func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 	info := fn.JSDocInfo()
 	kids := fn.Children()
@@ -2163,6 +2158,7 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 // `/** @type {T} */ var x` inside the body doesn't fire
 // JSC_UNRECOGNIZED_TYPE_ERROR. Void defers concrete unification to the
 // call-site. Mirrors Java's `currentScope.declare(name, fn, voidType, ...)`.
+// Go-only: language-adapter — declareTemplatesInFunctionBody is a Go-only helper that declares @template types in a function body scope; Java creates a template scope via typeRegistry.createScopeWithTemplates.
 func (c *TypedScopeCreator) declareTemplatesInFunctionBody(_ *rhino.Node, info *rhino.JSDocInfo, local, _ *TypedScope) {
 	if info == nil {
 		return
@@ -2183,6 +2179,7 @@ func (c *TypedScopeCreator) declareTemplatesInFunctionBody(_ *rhino.Node, info *
 // non-simple (destructuring) function parameters so that VarCheck
 // and VariableReferenceCheck do not flag the bound names as undeclared
 // when they appear as references inside the function body.
+// Go-only: language-adapter — collectPatternNames is a Go-only helper that collects names from destructuring patterns; Java handles destructuring in NormalScopeBuilder.defineName for LET/CONST/VAR.
 func collectPatternNames(n *rhino.Node, scope *TypedScope) {
 	if n == nil {
 		return
@@ -2231,6 +2228,7 @@ func collectPatternNames(n *rhino.Node, scope *TypedScope) {
 // adds each property to the instance's member map. Mirrors how
 // TypedScopeCreator's AssignmentInferrer attaches inferred property
 // types to `this`.
+// Go-only: language-adapter — collectThisProperties is a Go-only helper that collects `this.prop` assignments in a constructor; Java uses AssignmentInferrer which runs separately from scope creation.
 func (c *TypedScopeCreator) collectThisProperties(node *rhino.Node, inst *jstype.ObjectType) {
 	c.collectThisPropertiesIn(node, inst, nil)
 }
@@ -2239,6 +2237,7 @@ func (c *TypedScopeCreator) collectThisProperties(node *rhino.Node, inst *jstype
 // falling back to the primitive-only registry. Used by the this-
 // property collector so inline \`@type {Name}\` JSDocs see the
 // scope's nominal bindings (Number, user classes, etc.).
+// Go-only: language-adapter — resolveTypeExpr is a Go-only helper that resolves a type expression string in a scope; Java uses JSTypeRegistry.getType(StaticTypedScope, String).
 func resolveTypeExpr(scope *TypedScope, reg *jstype.Registry, expr string) jstype.JSType {
 	if scope != nil {
 		return scope.ResolveExpr(expr)
@@ -2253,6 +2252,7 @@ func resolveTypeExpr(scope *TypedScope, reg *jstype.Registry, expr string) jstyp
 // registry. Callers without a scope reference use the plain
 // collectThisProperties overload above, whose behaviour is the
 // primitive-registry fallback.
+// Go-only: language-adapter — collectThisPropertiesIn is a Go-only helper that recursively collects `this.prop` assignments; Java uses AssignmentInferrer which walks the AST separately.
 func (c *TypedScopeCreator) collectThisPropertiesIn(node *rhino.Node, inst *jstype.ObjectType, scope *TypedScope) {
 	if node == nil {
 		return
@@ -2334,6 +2334,7 @@ func (c *TypedScopeCreator) collectThisPropertiesIn(node *rhino.Node, inst *jsty
 // literalType returns the JSType of a literal or simple RHS node.
 // Used by collectThisProperties to sharpen `this.x = <lit>` slot
 // types when no @type JSDoc is present.
+// Go-only: language-adapter — literalType is a Go-only helper that maps literal node tokens to primitive types; Java uses TypedScopeCreator.getDeclaredTypeInAnnotation inline for literal nodes.
 func literalType(n *rhino.Node) jstype.JSType {
 	if n == nil {
 		return jstype.Unknown
@@ -2357,6 +2358,7 @@ func literalType(n *rhino.Node) jstype.JSType {
 // resolves to no value-namespace binding in `scope` — used so
 // recordDecl can downgrade `var x = unknown;` to Unknown when
 // `unknown` itself isn't reachable.
+// Go-only: language-adapter — initIsUndeclaredRef is a Go-only helper that checks if an initializer is an undeclared reference; Java uses similar logic inline in NormalScopeBuilder.defineName.
 func initIsUndeclaredRef(init *rhino.Node, scope *TypedScope) bool {
 	if init == nil || init.Token() != rhino.NAME {
 		return false
@@ -2375,6 +2377,7 @@ func initIsUndeclaredRef(init *rhino.Node, scope *TypedScope) bool {
 // returning Void while `function g(){return x;}` stays Unknown when
 // no @return JSDoc is present. Mirrors the body-walk at the start of
 // TypedScopeCreator's recordFunction.
+// Go-only: language-adapter — functionReturnsExplicitly is a Go-only helper that checks if a function has explicit returns; Java uses NodeUtil.functionHasExplicitReturn as a static utility.
 func functionReturnsExplicitly(fn *rhino.Node) bool {
 	kids := fn.Children()
 	if len(kids) < 3 {
@@ -2384,6 +2387,7 @@ func functionReturnsExplicitly(fn *rhino.Node) bool {
 	return hasReturnExpr(body)
 }
 
+// Go-only: language-adapter — hasReturnExpr is a Go-only helper that recursively checks for return-with-expression nodes; Java uses NodeUtil.functionHasExplicitReturn which calls into CheckMissingReturn logic.
 func hasReturnExpr(n *rhino.Node) bool {
 	if n == nil {
 		return false
@@ -2409,6 +2413,7 @@ func hasReturnExpr(n *rhino.Node) bool {
 // accepts any identifier that appears anywhere in source text (the
 // allNames gate). We check only: primitive, built-in extern, typedef,
 // enum, constructor, or a dotted namespace ctor reference.
+// Go-only: language-adapter — typeNameResolvesInScope is a Go-only helper that checks if a type name is resolvable in scope; Java resolves type names eagerly through JSTypeRegistry during scope building.
 func typeNameResolvesInScope(scope *TypedScope, name string) bool {
 	// Structural keywords that can appear inside a JSDoc expression.
 	if name == "function" || name == "this" || name == "new" || name == "typeof" {
@@ -2493,6 +2498,7 @@ func typeNameResolvesInScope(scope *TypedScope, name string) bool {
 
 // positionInSrc returns (line, col) for absolute offset off in src.
 // Line is 1-indexed, col 0-indexed, matching Java Node positions.
+// Go-only: language-adapter — positionInSrc is a Go-only helper that computes line/column position in source; Java uses SourceFile.getLineOfOffset / getColumnOfOffset for diagnostics.
 func positionInSrc(src string, off int) (int, int) {
 	if off > len(src) {
 		off = len(src)
@@ -2524,6 +2530,7 @@ func positionInSrc(src string, off int) (int, int) {
 //
 // Names NOT in allNames are already caught by CheckJsDocTypes and are
 // not duplicated here.
+// Go-only: language-adapter — ResolveTypesInScope is a Go-only helper that post-processes a scope to resolve forward type references; Java resolves types eagerly during scope construction via TypedScopeCreator.createScope.
 func (c *TypedScopeCreator) ResolveTypesInScope(scope *TypedScope) []diag.Diagnostic {
 	if c.sourcePath == "" || c.sourceSrc == "" {
 		return nil
@@ -2578,6 +2585,7 @@ func (c *TypedScopeCreator) ResolveTypesInScope(scope *TypedScope) []diag.Diagno
 // scans source for every identifier (including JSDoc-comment text is
 // skipped). Used to determine which names CheckJsDocTypes would have
 // suppressed via its allNames gate.
+// Go-only: language-adapter — rtsCollectDeclaredNames is a Go-only helper that collects declared names from JSDoc comments; Go-specific post-processing step not needed when types resolve eagerly.
 func rtsCollectDeclaredNames(s string) map[string]bool {
 	out := map[string]bool{}
 	i := 0
@@ -2623,6 +2631,7 @@ func rtsCollectDeclaredNames(s string) map[string]bool {
 	return out
 }
 
+// Go-only: language-adapter — rtsSkipQuote is a Go-only helper that skips quoted strings in JSDoc text; Go-specific helper for rtsCheckComment string scanning.
 func rtsSkipQuote(s string, i int) int {
 	quote := s[i]
 	i++
@@ -2641,6 +2650,7 @@ func rtsSkipQuote(s string, i int) int {
 
 // rtsCollectAllTemplateNames collects every @template name across all
 // JSDoc blocks in src. Mirrors CheckJsDocTypes.collectAllTemplateNames.
+// Go-only: language-adapter — rtsCollectAllTemplateNames is a Go-only helper that collects all @template names in a source file; Go-specific analysis for forward-reference resolution.
 func rtsCollectAllTemplateNames(src string) map[string]bool {
 	out := map[string]bool{}
 	i := 0
@@ -2663,6 +2673,7 @@ func rtsCollectAllTemplateNames(src string) map[string]bool {
 	return out
 }
 
+// Go-only: language-adapter — rtsCollectTemplateNames is a Go-only helper that collects @template names from a JSDoc comment body; Go-specific helper for ResolveTypesInScope.
 func rtsCollectTemplateNames(body string) map[string]bool {
 	out := map[string]bool{}
 	i := 0
@@ -2700,6 +2711,7 @@ func rtsCollectTemplateNames(body string) map[string]bool {
 // rtsCheckComment scans one JSDoc comment block and registers pending
 // NamedType entries for names that are in allNames but do not resolve
 // strictly as types in scope.
+// Go-only: language-adapter — rtsCheckComment is a Go-only helper that checks a JSDoc comment block for unresolved types; Go-specific post-pass not present in Java TypedScopeCreator.
 func rtsCheckComment(path, src, s string, start, end int, allTemplates, allNames map[string]bool, scope *TypedScope, reg *jstype.Registry) {
 	body := s[start:end]
 	tmpls := rtsCollectTemplateNames(body)
@@ -2742,6 +2754,7 @@ func rtsCheckComment(path, src, s string, start, end int, allTemplates, allNames
 // name that is in allNames (declared identifier in source) but fails
 // the strict type-only check. Names NOT in allNames are handled by
 // CheckJsDocTypes already.
+// Go-only: language-adapter — rtsCheckTypeExpr is a Go-only helper that checks a single type expression for resolution; Go-specific helper invoked by rtsCheckComment.
 func rtsCheckTypeExpr(path, src string, base int, inner string, tmpls, allTemplates, allNames map[string]bool, scope *TypedScope, reg *jstype.Registry) {
 	type frame struct {
 		kind       byte
@@ -2846,11 +2859,13 @@ func rtsCheckTypeExpr(path, src string, base int, inner string, tmpls, allTempla
 // getLValueRootScope mirrors TypedScopeCreator.getLValueRootScope in Java.
 // Returns the scope in which the lvalue declaration belongs (VAR → hoist,
 // LET/CONST → block). In our flat-scope model this always returns scope.
+// Go-only: language-adapter — getLValueRootScope is a Go-only helper that returns the root scope for an LValue; Java uses TypedScopeCreator.getDeclaredType inline without a separate helper.
 func getLValueRootScope(_ *rhino.Node, scope *TypedScope) *TypedScope { return scope }
 
 // inferTypeForDestructuredTarget mirrors the narrow path in Java's
 // TypedScopeCreator: for `const {id} = obj`, returns the declared type of
 // obj.id from patternType when available, nil otherwise (defers to inference).
+// Go-only: language-adapter — inferTypeForDestructuredTarget is a Go-only helper that infers type for a destructuring target property; Java uses NormalScopeBuilder.RValueInfo inline.
 func inferTypeForDestructuredTarget(patternType jstype.JSType, propertyName string) jstype.JSType {
 	if patternType == nil || isJSUnknown(patternType) || propertyName == "" {
 		return nil
@@ -2870,6 +2885,7 @@ func inferTypeForDestructuredTarget(patternType jstype.JSType, propertyName stri
 
 // rtsFindMatchingBrace returns the offset of the closing `}` matching
 // the `{` at open within s, or -1.
+// Go-only: language-adapter — rtsFindMatchingBrace is a Go-only helper that finds the matching closing brace in source; Go-specific helper for rtsCheckComment brace scanning.
 func rtsFindMatchingBrace(s string, open int) int {
 	depth := 0
 	for i := open; i < len(s); i++ {
