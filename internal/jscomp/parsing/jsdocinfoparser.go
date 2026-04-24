@@ -466,6 +466,25 @@ func (p *JsDocInfoParser) parseAnnotation(_ JsDocToken) JsDocToken {
 		p.info.SetOverride(true)
 		p.anyRecorded = true
 		return p.eatUntilEOLIfNotAnnotation()
+	case "mods":
+		// Mirrors Java's MODS case: parseModsTag.
+		p.skipEOLs()
+		return p.parseModsTag(p.next())
+	case "enhance":
+		// Mirrors Java's ENHANCE case: records @enhance with namespace.
+		p.anyRecorded = true
+		p.info.SetBit(rhino.BitEnhancedNamespace, true)
+		return p.eatUntilEOLIfNotAnnotation()
+	case "nocode":
+		// Common alias; skip gracefully.
+		return p.eatUntilEOLIfNotAnnotation()
+	case "license", "preserve":
+		// Mirrors Java's LICENSE/PRESERVE case: skip the text block.
+		p.anyRecorded = true
+		return p.eatUntilEOLIfNotAnnotation()
+	case "jsxfragment", "jsx", "soymodule", "soytemplate", "mayreachextraedge", "notimplemented":
+		// Mirrors Java's JSX / SOY_TEMPLATE / etc. — skip gracefully.
+		return p.eatUntilEOLIfNotAnnotation()
 	}
 	return p.eatUntilEOLIfNotAnnotation()
 }
@@ -1325,6 +1344,25 @@ func (p *JsDocInfoParser) eatIfMatch(tok JsDocToken) bool {
 		return true
 	}
 	return false
+}
+
+// parseModsTag ports Java's parseModsTag: `@mods {namespace}`. Records the
+// namespace string and returns the next token after the closing `}`.
+func (p *JsDocInfoParser) parseModsTag(token JsDocToken) JsDocToken {
+	if token != JsDocTokenLeftCurly {
+		return p.eatUntilEOLIfNotAnnotation()
+	}
+	if !p.match(JsDocTokenString) {
+		return p.eatUntilEOLIfNotAnnotation()
+	}
+	_ = p.stream.String_() // namespace value — not tracked in this tier
+	token = p.next()
+	if !p.match(JsDocTokenRightCurly) {
+		return p.eatUntilEOLIfNotAnnotation()
+	}
+	token = p.next()
+	p.anyRecorded = true
+	return token
 }
 
 // parseIdGeneratorTag ports Java's parseIdGeneratorTag: expects an optional
