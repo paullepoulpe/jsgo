@@ -263,10 +263,18 @@ func (s *TypedScope) LookupEnum(name string) *jstype.EnumType {
 // LookupNominalType returns the InstanceType associated with a name
 // that refers to a known constructor in this scope chain. Used when
 // resolving `@type {Foo}` to the instance type rather than the
-// constructor function type.
+// constructor function type. Template args (e.g. "Foo<string>") are
+// stripped before lookup so that @extends {Foo<string>} resolves to Foo.
 func (s *TypedScope) LookupNominalType(name string) *jstype.ObjectType {
 	if s == nil {
 		return nil
+	}
+	// Strip template args (e.g. "Foo<string>" → "Foo") so that a templatized
+	// @extends expression resolves to the raw constructor. Mirrors Java's
+	// TypedScopeCreator which passes the raw type name (not the full
+	// templatized expression) to scope lookup.
+	if i := strings.IndexByte(name, '<'); i >= 0 {
+		name = name[:i]
 	}
 	if t, ok := s.declared[name]; ok {
 		if fn, ok := t.(*jstype.FunctionType); ok && fn.Instance != nil {

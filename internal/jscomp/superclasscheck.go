@@ -940,6 +940,10 @@ func (s *SuperclassCheck) checkPrototypeAssign(stmt *rhino.Node, assign *rhino.N
 	foundProperty := false
 	super := fn.Instance.Super()
 	impls := s.implementedInstances(ownerName)
+	// Fetch JSDoc once; shared by both the super-slot template instantiation
+	// and the @implements loop below. Mirrors Java's checkDeclaredPropertyAgainstNominalInheritance
+	// which consults the constructor's JSDoc for both the super chain and interfaces.
+	ctorDoc := s.findConstructorJSDoc(ownerName)
 	// Superclass slot (via @extends chain).
 	if super != nil {
 		if super.IsPropertyInferred(propName) {
@@ -947,6 +951,17 @@ func (s *SuperclassCheck) checkPrototypeAssign(stmt *rhino.Node, assign *rhino.N
 		}
 		if slot := super.GetPropertyType(propName); slot != nil {
 			foundProperty = true
+			// Instantiate template args from @extends {Foo<string>} so that
+			// a raw TemplateType T becomes string before the subtype check.
+			// Mirrors TypeCheck.java's checkPropertyType which calls
+			// TemplateTypeReplacer.forPartialReplacement on the instance's
+			// template-type map before comparing. Port: 1:1 Java logic applied
+			// via the existing instantiateSlot helper.
+			if ctorDoc != nil {
+				if base := ctorDoc.BaseType(); base != nil {
+					slot = s.instantiateSlot(base.TypeName, super, slot)
+				}
+			}
 			if !overrideCompatible(overrideType, slot) {
 				s.diags = append(s.diags, diag.Diagnostic{
 					Path:  s.path,
@@ -965,7 +980,7 @@ func (s *SuperclassCheck) checkPrototypeAssign(stmt *rhino.Node, assign *rhino.N
 	// parents for interface owners (multi-extends like Sub @extends {A} @extends {B}).
 	// Mirrors TypeCheck.java's checkDeclaredPropertyAgainstInterfaceDeclaredInheritance,
 	// which walks each @implements and applies the target's template args.
-	ctorDoc := s.findConstructorJSDoc(ownerName)
+	// (ctorDoc already fetched above)
 	if ctorDoc != nil {
 		for _, expr := range ctorDoc.Implementations() {
 			iface := s.scope.LookupNominalType(stripTemplateArgs(expr.TypeName))
@@ -1211,6 +1226,12 @@ func (s *SuperclassCheck) checkClass(cls *rhino.Node) {
 	if super == nil && len(ifaces) == 0 {
 		return
 	}
+	// Fetch class JSDoc once for super-slot template instantiation below.
+	// ES6 classes may carry @extends {Foo<string>} in their JSDoc even when
+	// the extends clause is in AST syntax — mirrors TypeCheck.java which
+	// resolves the extends type via FunctionType.getSuperClassConstructor()
+	// whose TemplateTypeMap already holds the instantiated args.
+	classDoc := cls.JSDocInfo()
 	for _, m := range body.Children() {
 		switch m.Token() {
 		case rhino.FUNCTION:
@@ -1226,9 +1247,16 @@ func (s *SuperclassCheck) checkClass(cls *rhino.Node) {
 			if ownSlot == nil {
 				continue
 			}
-			// Superclass slot (via @extends chain).
+			// Superclass slot (via @extends chain), with template instantiation.
 			if super != nil {
 				if superSlot := super.GetPropertyType(methodName); superSlot != nil {
+					// Instantiate template args from @extends {Foo<string>} so
+					// T becomes string before the compatibility check.
+					if classDoc != nil {
+						if base := classDoc.BaseType(); base != nil {
+							superSlot = s.instantiateSlot(base.TypeName, super, superSlot)
+						}
+					}
 					if !overrideCompatible(ownSlot, superSlot) {
 						s.diags = append(s.diags, diag.Diagnostic{
 							Path:  s.path,
