@@ -208,6 +208,19 @@ type FunctionType struct {
 	// Closure primitive (e.g. "goog.asserts.assert"). Mirrors
 	// FunctionType.closurePrimitive in Java. Empty when not set.
 	closurePrimitiveId string
+
+	// extendedInterfaces mirrors FunctionType.extendedInterfaces — the list of
+	// @extends ObjectType values set from JSDoc on @interface declarations.
+	// Only meaningful when kind == FunctionKindInterface.
+	extendedInterfaces []*ObjectType
+
+	// source is the AST Node for the function declaration/expression.
+	// Mirrors FunctionType.source in Java. Nil for synthetic types.
+	source *rhino.Node
+
+	// isAbstract mirrors FunctionType.isAbstract in Java — true when the
+	// function is declared @abstract (may not be instantiated directly).
+	isAbstract bool
 }
 
 // MaxArgsUnlimited is the sentinel MaxArity for rest-parameter
@@ -633,4 +646,309 @@ func (b *FunctionTypeBuilder) Build() *FunctionType {
 		f.closurePrimitiveId = b.primitiveId
 	}
 	return f
+}
+
+// --- Additional Java-parity methods ----------------------------------------
+
+// HasInstanceType mirrors FunctionType.hasInstanceType() in Java.
+// Returns true for constructors and interfaces (both create instance types).
+func (f *FunctionType) HasInstanceType() bool {
+	return f.kind == FunctionKindConstructor || f.kind == FunctionKindInterface
+}
+
+// GetSource mirrors FunctionType.getSource() in Java.
+// Returns the source AST Node for the function, or nil.
+func (f *FunctionType) GetSource() *rhino.Node {
+	return f.source
+}
+
+// SetSource mirrors FunctionType.setSource(Node) in Java.
+func (f *FunctionType) SetSource(src *rhino.Node) {
+	f.source = src
+}
+
+// GetExtendedInterfaces mirrors FunctionType.getExtendedInterfaces() in Java.
+// Returns the directly @extends interfaces for this interface.
+func (f *FunctionType) GetExtendedInterfaces() []*ObjectType {
+	return f.extendedInterfaces
+}
+
+// GetExtendedInterfacesCount mirrors FunctionType.getExtendedInterfacesCount().
+func (f *FunctionType) GetExtendedInterfacesCount() int {
+	return len(f.extendedInterfaces)
+}
+
+// SetExtendedInterfaces mirrors FunctionType.setExtendedInterfaces(List) in Java.
+// Only valid for @interface types.
+func (f *FunctionType) SetExtendedInterfaces(ifaces []*ObjectType) {
+	f.extendedInterfaces = ifaces
+}
+
+// GetAllImplementedInterfaces mirrors FunctionType.getAllImplementedInterfaces()
+// in Java — returns the transitive closure of all interfaces implemented/extended.
+// Mirrors Java's LinkedHashSet-based dedup traversal.
+func (f *FunctionType) GetAllImplementedInterfaces() []*ObjectType {
+	seen := map[*ObjectType]bool{}
+	var out []*ObjectType
+	for _, iface := range f.implementedInterfaces {
+		addRelatedInterfaces(iface, seen, &out)
+	}
+	return out
+}
+
+// addRelatedInterfaces is the recursive helper for GetAllImplementedInterfaces.
+// Mirrors Java's FunctionType.addRelatedInterfaces.
+func addRelatedInterfaces(instance *ObjectType, seen map[*ObjectType]bool, out *[]*ObjectType) {
+	if instance == nil || seen[instance] {
+		return
+	}
+	seen[instance] = true
+	*out = append(*out, instance)
+	// walk extended interfaces of the interface's constructor
+	if instance.typeParameters == nil {
+		return
+	}
+	// Walk super chain looking for more interfaces.
+	for cur := instance.super; cur != nil; cur = cur.super {
+		addRelatedInterfaces(cur, seen, out)
+	}
+}
+
+// GetAncestorInterfaces mirrors FunctionType.getAncestorInterfaces() in Java.
+// For constructors returns the implementedInterfaces; for interfaces returns
+// the extendedInterfaces.
+func (f *FunctionType) GetAncestorInterfaces() []*ObjectType {
+	if f.kind == FunctionKindConstructor {
+		return f.implementedInterfaces
+	}
+	return f.extendedInterfaces
+}
+
+// GetOwnImplementedInterfaces mirrors FunctionType.getOwnImplementedInterfaces()
+// in Java — returns only directly declared @implements interfaces.
+func (f *FunctionType) GetOwnImplementedInterfaces() []*ObjectType {
+	return f.implementedInterfaces
+}
+
+// HasProperties mirrors FunctionType.hasProperties() in Java.
+// Returns true when the function type has any own (non-prototype) properties.
+// In the Go port we check the staticMembers on the Instance type if present.
+func (f *FunctionType) HasProperties() bool {
+	if f.Instance != nil && len(f.Instance.staticMembers) > 0 {
+		return true
+	}
+	return false
+}
+
+// IsAbstract mirrors FunctionType.isAbstract() in Java.
+func (f *FunctionType) IsAbstract() bool { return f.isAbstract }
+
+// SetAbstract mirrors FunctionType.Builder.withIsAbstract() in Java.
+func (f *FunctionType) SetAbstract(v bool) { f.isAbstract = v }
+
+// AcceptsArguments mirrors FunctionType.acceptsArguments(List<JSType>) in Java.
+// Returns true if the given argument types satisfy this function's parameter list
+// (each arg is a subtype of the corresponding param, and the count is in range).
+func (f *FunctionType) AcceptsArguments(argumentTypes []JSType) bool {
+	paramIdx := 0
+	params := f.parameters
+	var lastParam *Parameter
+	for argIdx := 0; argIdx < len(argumentTypes); argIdx++ {
+		if paramIdx < len(params) {
+			p := &params[paramIdx]
+			lastParam = p
+			paramIdx++
+			if !IsSubtype(argumentTypes[argIdx], p.jsType) {
+				return false
+			}
+		} else if lastParam != nil && lastParam.isVariadic {
+			// variadic: reuse last param
+			if !IsSubtype(argumentTypes[argIdx], lastParam.jsType) {
+				return false
+			}
+		} else {
+			return false
+		}
+	}
+	minArity := f.GetMinArguments()
+	maxArity := f.GetMaxArguments()
+	n := len(argumentTypes)
+	return minArity <= n && n <= maxArity
+}
+
+// GetPropertyTypeMap mirrors FunctionType.getPropertyTypeMap() in Java.
+// Returns a map of all properties declared on the prototype chain of this
+// constructor, including inherited ones from extended interfaces.
+func (f *FunctionType) GetPropertyTypeMap() map[string]JSType {
+	result := map[string]JSType{}
+	seen := map[*FunctionType]bool{}
+	updatePropertyTypeMap(f, result, seen)
+	return result
+}
+
+// updatePropertyTypeMap is the recursive helper for GetPropertyTypeMap.
+// Mirrors Java's private static updatePropertyTypeMap.
+func updatePropertyTypeMap(ft *FunctionType, out map[string]JSType, seen map[*FunctionType]bool) {
+	if ft == nil || seen[ft] {
+		return
+	}
+	seen[ft] = true
+	// own prototype properties
+	if ft.Instance != nil {
+		for name, t := range ft.Instance.members {
+			if _, exists := out[name]; !exists {
+				out[name] = t
+			}
+		}
+	}
+	// extended interfaces
+	for _, iface := range ft.extendedInterfaces {
+		if iface == nil {
+			continue
+		}
+		// walk super chain
+		for cur := iface; cur != nil; cur = cur.super {
+			for name, t := range cur.members {
+				if _, exists := out[name]; !exists {
+					out[name] = t
+				}
+			}
+		}
+	}
+}
+
+// HasEqualCallType mirrors FunctionType.hasEqualCallType(FunctionType) in Java.
+// Two function types have equal call signatures when their parameters and
+// return type are identical (by pointer identity for Go types).
+func (f *FunctionType) HasEqualCallType(that *FunctionType) bool {
+	if that == nil {
+		return false
+	}
+	if len(f.parameters) != len(that.parameters) {
+		return false
+	}
+	for i := range f.parameters {
+		if f.parameters[i].jsType != that.parameters[i].jsType {
+			return false
+		}
+	}
+	return f.returnType == that.returnType
+}
+
+// GetConstructorOnlyTemplateParameters mirrors
+// FunctionType.getConstructorOnlyTemplateParameters() in Java. Returns the
+// template parameters that live on the constructor but not the instance.
+// In the Go port we return the full TemplateTypes list since we don't track
+// instance vs constructor template keys separately.
+func (f *FunctionType) GetConstructorOnlyTemplateParameters() []*TemplateType {
+	if !f.IsConstructor {
+		return nil
+	}
+	if f.Instance == nil {
+		return f.TemplateTypes
+	}
+	instanceParams := f.Instance.typeParameters
+	// return only TemplateTypes not present in the instance's params.
+	var out []*TemplateType
+	for _, tt := range f.TemplateTypes {
+		found := false
+		for _, ip := range instanceParams {
+			if ip == tt {
+				found = true
+				break
+			}
+		}
+		if !found {
+			out = append(out, tt)
+		}
+	}
+	return out
+}
+
+// GetOwnPropertyNames mirrors FunctionType.getOwnPropertyNames() in Java.
+// Returns the set of own property names; always includes "prototype" when
+// the function is a constructor with an Instance type.
+func (f *FunctionType) GetOwnPropertyNames() []string {
+	seen := map[string]bool{}
+	var out []string
+	if f.Instance != nil {
+		seen["prototype"] = true
+		out = append(out, "prototype")
+	}
+	if f.Instance != nil {
+		for name := range f.Instance.staticMembers {
+			if !seen[name] {
+				seen[name] = true
+				out = append(out, name)
+			}
+		}
+	}
+	return out
+}
+
+// GetReferenceName mirrors FunctionType.getReferenceName() (via
+// PrototypeObjectType). Returns the constructor or function name,
+// or empty string for anonymous types.
+func (f *FunctionType) GetReferenceName() string {
+	if f.Instance != nil {
+		return f.Instance.Name
+	}
+	return ""
+}
+
+// HasReferenceName mirrors FunctionType.hasReferenceName().
+func (f *FunctionType) HasReferenceName() bool {
+	return f.GetReferenceName() != ""
+}
+
+// MakesStructs mirrors FunctionType.makesStructs() in Java — returns true
+// when this constructor's instances should be @struct typed (forbidding
+// computed-property access). In the Go port delegates to Instance.IsStruct.
+func (f *FunctionType) MakesStructs() bool {
+	if !f.HasInstanceType() {
+		return false
+	}
+	if f.Instance != nil {
+		return f.Instance.IsStruct
+	}
+	return false
+}
+
+// MakesDicts mirrors FunctionType.makesDicts() in Java — returns true when
+// this constructor's instances should be @dict typed (forbidding dotted
+// property access). In the Go port delegates to Instance.IsDict.
+func (f *FunctionType) MakesDicts() bool {
+	if f.kind != FunctionKindConstructor {
+		return false
+	}
+	if f.Instance != nil {
+		return f.Instance.IsDict
+	}
+	return false
+}
+
+// SetStruct marks this constructor's instance as @struct.
+// Mirrors FunctionType.setStruct().
+func (f *FunctionType) SetStruct() {
+	if f.Instance != nil {
+		f.Instance.IsStruct = true
+	}
+}
+
+// SetDict marks this constructor's instance as @dict.
+// Mirrors FunctionType.setDict().
+func (f *FunctionType) SetDict() {
+	if f.Instance != nil {
+		f.Instance.IsDict = true
+	}
+}
+
+// CanBeCalled mirrors FunctionType.canBeCalled() — all function types can
+// be called. Mirrors Java's override that returns true.
+func (f *FunctionType) CanBeCalled() bool { return true }
+
+// HasImplementedInterfaces mirrors FunctionType.hasImplementedInterfaces() —
+// returns true when this constructor has at least one @implements.
+func (f *FunctionType) HasImplementedInterfaces() bool {
+	return len(f.GetImplementedInterfaces()) > 0
 }

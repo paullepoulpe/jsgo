@@ -12,7 +12,11 @@
 
 package jstype
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/paullepoulpe/jsgo/internal/rhino"
+)
 
 // TemplatizedType is a generic instantiation: an underlying ObjectType
 // (Array, Map, etc.) plus the per-position type arguments. Falls back
@@ -89,6 +93,58 @@ func findTemplatizedSuper(obj *ObjectType) *TemplatizedType {
 		}
 	}
 	return nil
+}
+
+// GetTemplateTypes mirrors TemplatizedType.getTemplateTypes() in Java.
+// Returns the ordered list of template type arguments for this specialization.
+func (t *TemplatizedType) GetTemplateTypes() []JSType {
+	return t.Args
+}
+
+// ToMaybeTemplatizedType mirrors JSType.toMaybeTemplatizedType() — returns
+// this TemplatizedType itself. Mirrors the Java override.
+func (t *TemplatizedType) ToMaybeTemplatizedType() *TemplatizedType {
+	return t
+}
+
+// GetReferencedType mirrors TemplatizedType.getReferencedType() in Java —
+// returns the underlying ObjectType (the unparameterized base type).
+func (t *TemplatizedType) GetReferencedType() *ObjectType {
+	return t.Base
+}
+
+// MatchesObjectContext delegates to the base ObjectType. Mirrors
+// TemplatizedType (ProxyObjectType) matchesObjectContext().
+func (t *TemplatizedType) MatchesObjectContext() bool {
+	return true
+}
+
+// GetPossibleToBooleanOutcomes delegates to the base ObjectType.
+func (t *TemplatizedType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
+	return BooleanLiteralSetTrue
+}
+
+// GetJSDocInfo mirrors ObjectType.getJSDocInfo() for TemplatizedType by
+// delegating to the base ObjectType.
+func (t *TemplatizedType) GetJSDocInfo() *rhino.JSDocInfo {
+	if t.Base != nil {
+		return t.Base.GetJSDocInfo()
+	}
+	return nil
+}
+
+// GetPropertyType mirrors TemplatizedType.getPropertyType(name) — looks up
+// property on the base ObjectType. Mirrors Java's ProxyObjectType delegation.
+func (t *TemplatizedType) GetPropertyType(name string) JSType {
+	if t.Base != nil {
+		return t.Base.GetPropertyType(name)
+	}
+	return nil
+}
+
+// HasProperty mirrors TemplatizedType.hasProperty(name).
+func (t *TemplatizedType) HasProperty(name string) bool {
+	return t.GetPropertyType(name) != nil
 }
 
 // IsSubtypeOf delegates to the underlying ObjectType — assignment

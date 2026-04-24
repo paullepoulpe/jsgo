@@ -506,6 +506,140 @@ func RestrictByTypeof(t JSType, typeofValue string) JSType {
 	return None
 }
 
+// --- Additional Java-parity helpers ----------------------------------------
+
+// IsNullable reports whether t includes null (is nullable). For union types,
+// true if any member is null. Mirrors JSType.isNullable() in Java.
+func IsNullable(t JSType) bool {
+	if t == nil {
+		return false
+	}
+	if isNullType(t) {
+		return true
+	}
+	if u, ok := t.(*UnionType); ok {
+		return u.IsNullable()
+	}
+	return false
+}
+
+// IsVoidable reports whether t includes undefined/void. For union types, true
+// if any member is void. Mirrors JSType.isVoidable() in Java.
+func IsVoidable(t JSType) bool {
+	if t == nil {
+		return false
+	}
+	if isVoidType(t) {
+		return true
+	}
+	if u, ok := t.(*UnionType); ok {
+		return u.IsVoidable()
+	}
+	return false
+}
+
+// IsObject reports whether t is an object type (ObjectType, FunctionType, or
+// TemplatizedType). Mirrors JSType.isObject() in Java.
+func IsObject(t JSType) bool {
+	if t == nil {
+		return false
+	}
+	switch t.(type) {
+	case *ObjectType, *FunctionType, *TemplatizedType:
+		return true
+	case *UnionType:
+		return t.(*UnionType).IsObject()
+	}
+	return false
+}
+
+// ToMaybeObjectType mirrors JSType.toObjectType() / toMaybeObjectType() — null-safe
+// downcast to *ObjectType. Returns nil when t is nil or not an ObjectType.
+func ToMaybeObjectType(t JSType) *ObjectType {
+	if t == nil {
+		return nil
+	}
+	o, _ := t.(*ObjectType)
+	return o
+}
+
+// ToMaybeUnionType mirrors JSType.toMaybeUnionType() — null-safe downcast to
+// *UnionType. Returns nil when t is not a UnionType.
+func ToMaybeUnionType(t JSType) *UnionType {
+	if t == nil {
+		return nil
+	}
+	u, _ := t.(*UnionType)
+	return u
+}
+
+// IsUnionType reports whether t is a UnionType.
+// Mirrors JSType.isUnionType() in Java.
+func IsUnionTypeValue(t JSType) bool {
+	return ToMaybeUnionType(t) != nil
+}
+
+// GetLeastSupertype returns the least supertype (join / supremum) of x and y.
+// Mirrors JSType.getLeastSupertype(JSType) in Java. For non-union types with
+// no common supertype, returns a union of the two.
+func GetLeastSupertype(x, y JSType) JSType {
+	if x == nil {
+		return y
+	}
+	if y == nil {
+		return x
+	}
+	if x == y {
+		return x
+	}
+	if isUnknown(x) || isAll(x) {
+		return x
+	}
+	if isUnknown(y) || isAll(y) {
+		return y
+	}
+	if IsSubtype(x, y) {
+		return y
+	}
+	if IsSubtype(y, x) {
+		return x
+	}
+	// No common supertype — create a union.
+	return NewUnion(x, y)
+}
+
+// IsConstructorType reports whether t is a @constructor FunctionType.
+// Mirrors JSType.isConstructor() in Java.
+func IsConstructorType(t JSType) bool {
+	if f, ok := t.(*FunctionType); ok {
+		return f.kind == FunctionKindConstructor
+	}
+	return false
+}
+
+// IsInterfaceType reports whether t is a @interface FunctionType.
+// Mirrors JSType.isInterface() in Java.
+func IsInterfaceType(t JSType) bool {
+	if f, ok := t.(*FunctionType); ok {
+		return f.kind == FunctionKindInterface
+	}
+	return false
+}
+
+// IsTemplatizedType reports whether t is a *TemplatizedType.
+// Mirrors JSType.isTemplatizedType() in Java.
+func IsTemplatizedType(t JSType) bool {
+	_, ok := t.(*TemplatizedType)
+	return ok
+}
+
+// IsNamedType reports whether t is a *NamedType.
+// Mirrors JSType.isNamedType() in Java.
+func IsNamedType(t JSType) bool {
+	_, ok := t.(*NamedType)
+	return ok
+}
+
 // typeofMatchesType reports whether a typeof string is consistent with t.
 func typeofMatchesType(typeofValue string, t JSType) bool {
 	switch typeofValue {

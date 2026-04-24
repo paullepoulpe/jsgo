@@ -98,6 +98,17 @@ type ObjectType struct {
 	// suppressed. Mirrors the concept in ObjectType / PrototypeObjectType
 	// where open-ended anonymous objects are allowed to grow until sealed.
 	sealedForInference bool
+
+	// constructor mirrors the back-pointer from an instance ObjectType to its
+	// constructor FunctionType. Set by SetConstructor when the TypedScopeCreator
+	// wires up the constructor/instance relationship. Mirrors the Java
+	// relationship accessed via InstanceObjectType.getConstructor().
+	constructor *FunctionType
+
+	// ownerFunction mirrors the PrototypeObjectType.ownerFunction field in Java.
+	// For prototype objects, this is the constructor FunctionType that owns the
+	// prototype. Nil for regular instance objects. Set via SetOwnerFunction.
+	ownerFunction *FunctionType
 }
 
 func NewObjectType(name string) *ObjectType {
@@ -513,4 +524,122 @@ func (o *ObjectType) MatchesObjectContext() bool { return true }
 // always truthy. Mirrors ObjectType.getPossibleToBooleanOutcomes().
 func (o *ObjectType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
 	return BooleanLiteralSetTrue
+}
+
+// --- Additional Java-parity methods ----------------------------------------
+
+// GetConstructor mirrors ObjectType.getConstructor() in Java — returns the
+// FunctionType whose instance this object is, or nil for literal objects.
+// In the Go port this is stored via the constructor back-pointer field.
+func (o *ObjectType) GetConstructor() *FunctionType {
+	return o.constructor
+}
+
+// SetConstructor records the constructor FunctionType for this instance.
+// Called by TypedScopeCreator when wiring up the instance/constructor
+// relationship (mirrors Java's setImplicitPrototype → setOwnerFunction chain).
+func (o *ObjectType) SetConstructor(ctor *FunctionType) {
+	o.constructor = ctor
+}
+
+// GetSuperClassConstructor mirrors ObjectType.getSuperClassConstructor()
+// in Java — climbs two implicit-prototype levels to find the superclass
+// constructor. In the Go port: super.GetConstructor().
+func (o *ObjectType) GetSuperClassConstructor() *FunctionType {
+	if o.super == nil {
+		return nil
+	}
+	return o.super.GetConstructor()
+}
+
+// GetImplicitPrototype mirrors ObjectType.getImplicitPrototype() in Java —
+// returns the [[Prototype]] chain entry, which in the Go port is the super
+// ObjectType. Returns nil at the top of the chain.
+func (o *ObjectType) GetImplicitPrototype() *ObjectType {
+	return o.super
+}
+
+// GetCtorImplementedInterfaces mirrors ObjectType.getCtorImplementedInterfaces()
+// in Java — returns the @implements interfaces registered via the constructor.
+// Delegates to the constructor's implementedInterfaces list.
+func (o *ObjectType) GetCtorImplementedInterfaces() []*ObjectType {
+	if o.constructor != nil {
+		return o.constructor.GetImplementedInterfaces()
+	}
+	return nil
+}
+
+// GetCtorExtendedInterfaces mirrors ObjectType.getCtorExtendedInterfaces() in
+// Java — returns the @extends interfaces for an interface's constructor.
+// Delegates to the constructor's extendedInterfaces list.
+func (o *ObjectType) GetCtorExtendedInterfaces() []*ObjectType {
+	if o.constructor != nil {
+		return o.constructor.GetExtendedInterfaces()
+	}
+	return nil
+}
+
+// GetPropertyTypeMap mirrors ObjectType.getPropertyTypeMap() in Java.
+// Returns a map of all property names to their types, walking the super chain.
+func (o *ObjectType) GetPropertyTypeMap() map[string]JSType {
+	out := map[string]JSType{}
+	for cur := o; cur != nil; cur = cur.super {
+		for k, v := range cur.members {
+			if _, exists := out[k]; !exists {
+				out[k] = v
+			}
+		}
+	}
+	return out
+}
+
+// GetOwnPropertyNames mirrors ObjectType.getOwnPropertyNames() in Java.
+// Returns the set of directly-owned property names (not inherited).
+func (o *ObjectType) GetOwnPropertyNames() []string {
+	out := make([]string, 0, len(o.members))
+	for k := range o.members {
+		out = append(out, k)
+	}
+	return out
+}
+
+// GetPropertiesCount mirrors ObjectType.getPropertiesCount() in Java.
+// Returns the total count of properties (own + inherited via super chain).
+func (o *ObjectType) GetPropertiesCount() int {
+	seen := map[string]bool{}
+	for cur := o; cur != nil; cur = cur.super {
+		for k := range cur.members {
+			seen[k] = true
+		}
+	}
+	return len(seen)
+}
+
+// GetTypeOfThis mirrors ObjectType.getTypeOfThis() in Java — for most
+// ObjectTypes returns nil; for instances of constructors this is meaningful
+// to the function that owns the prototype. Returns nil by default.
+func (o *ObjectType) GetTypeOfThis() JSType {
+	return nil
+}
+
+// GetOwnerFunction mirrors ObjectType.getOwnerFunction() in Java — returns
+// nil for regular objects. For prototype objects (PrototypeObjectType in Java)
+// this is set to the constructor.
+func (o *ObjectType) GetOwnerFunction() *FunctionType {
+	return o.ownerFunction
+}
+
+// SetOwnerFunction mirrors ObjectType.setOwnerFunction() in Java — records
+// the constructor that owns this prototype.
+func (o *ObjectType) SetOwnerFunction(fn *FunctionType) {
+	o.ownerFunction = fn
+}
+
+// IsObject mirrors JSType.isObject() in Java — all ObjectTypes are objects.
+func (o *ObjectType) IsObject() bool { return true }
+
+// GetEnumeratedTypeOfEnumObject mirrors ObjectType.getEnumeratedTypeOfEnumObject().
+// Returns nil for plain ObjectTypes; overridden by EnumType.
+func (o *ObjectType) GetEnumeratedTypeOfEnumObject() JSType {
+	return nil
 }

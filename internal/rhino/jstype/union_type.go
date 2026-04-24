@@ -219,3 +219,103 @@ func (u *UnionType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
 	}
 	return result
 }
+
+// ToMaybeUnionType mirrors JSType.toMaybeUnionType() — returns this union
+// itself. Mirrors the Java UnionType override.
+func (u *UnionType) ToMaybeUnionType() *UnionType { return u }
+
+// Contains mirrors UnionType.contains(JSType) — returns true when the
+// given type is a member of this union (by TypeName equality for value
+// types, by pointer identity for object types). Mirrors Java's
+// anyTypeMatches(type::equals, this).
+func (u *UnionType) Contains(t JSType) bool {
+	tName := t.TypeName()
+	for _, m := range u.members {
+		if m == t || m.TypeName() == tName {
+			return true
+		}
+	}
+	return false
+}
+
+// GetRestrictedUnion mirrors UnionType.getRestrictedUnion(JSType) in Java.
+// Returns a new union with all subtypes of `restrictType` removed, keeping
+// unknown/unresolved members. Mirrors Java's logic exactly.
+func (u *UnionType) GetRestrictedUnion(restrictType JSType) JSType {
+	b := NewUnionTypeBuilder()
+	for _, m := range u.members {
+		// Keep unknown types and any type that is NOT a subtype of restrictType.
+		if isUnknown(m) || !IsSubtype(m, restrictType) {
+			b.AddAlternate(m)
+		}
+	}
+	return b.Build()
+}
+
+// RestrictByNotUndefined strips undefined (void) from the union's alternates.
+// Mirrors UnionType.restrictByNotUndefined() in Java.
+func (u *UnionType) RestrictByNotUndefined() JSType {
+	b := NewUnionTypeBuilder()
+	for _, m := range u.members {
+		if isVoidType(m) {
+			continue
+		}
+		b.AddAlternate(m)
+	}
+	return b.Build()
+}
+
+// RestrictByNotNull strips null from the union's alternates.
+// Mirrors UnionType.restrictByNotNull() in Java.
+func (u *UnionType) RestrictByNotNull() JSType {
+	b := NewUnionTypeBuilder()
+	for _, m := range u.members {
+		if isNullType(m) {
+			continue
+		}
+		b.AddAlternate(m)
+	}
+	return b.Build()
+}
+
+// IsNullable mirrors UnionType.isNullable() — true when any alternate is
+// nullable (i.e. has null in its type). Mirrors Java's
+// anyTypeMatches(JSType::isNullable, this).
+func (u *UnionType) IsNullable() bool {
+	for _, m := range u.members {
+		if isNullType(m) {
+			return true
+		}
+	}
+	return false
+}
+
+// IsVoidable mirrors UnionType.isVoidable() — true when any alternate
+// includes undefined/void. Mirrors Java's anyTypeMatches(JSType::isVoidable, this).
+func (u *UnionType) IsVoidable() bool {
+	for _, m := range u.members {
+		if isVoidType(m) {
+			return true
+		}
+		if inner, ok := m.(*UnionType); ok {
+			if inner.IsVoidable() {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// IsObject mirrors UnionType.isObject() — true when all alternates are
+// object types. Mirrors Java's allTypesMatch(JSType::isObject, this).
+func (u *UnionType) IsObject() bool {
+	for _, m := range u.members {
+		switch m.(type) {
+		case *ObjectType, *FunctionType, *TemplatizedType:
+			// ok
+		default:
+			return false
+		}
+	}
+	return len(u.members) > 0
+}
