@@ -40,6 +40,13 @@ type TypeCheck struct {
 	opts    *CompilerOptions
 	diags   []diag.Diagnostic
 
+	// tv is the shared TypeValidator for this file; wired in Check()
+	// so that visitAssign / visitReturn / visitCall route JSC_TYPE_MISMATCH
+	// through the canonical mismatch dispatcher (structural analysis,
+	// TemplateType skipping, TypeMismatch accumulation). Mirrors Java's
+	// TypeCheck holding a reference to a per-compiler TypeValidator.
+	tv *TypeValidator
+
 	// inexistentReported dedups JSC_INEXISTENT_PROPERTY emissions
 	// across the script — Java fires the diagnostic only once per
 	// (receiver, property) pair even when the program references
@@ -118,6 +125,7 @@ func NewTypeCheckWithOptions(path string, creator *TypedScopeCreator, global *Ty
 // FUNCTION bodies get their own flow built on demand.
 func (c *TypeCheck) Check(script *rhino.Node) []diag.Diagnostic {
 	c.diags = nil
+	c.tv = NewTypeValidator(c.path, c.global.Registry())
 	c.installFlow(script, c.global)
 	c.collectPropertyWrites(script)
 	c.looseProps = buildLoosePropertyIndex(c.global)
@@ -638,6 +646,16 @@ func (c *TypeCheck) emit(d []diag.Diagnostic) {
 	c.diags = append(c.diags, d...)
 }
 
+// tvDrain collects all diagnostics accumulated by c.tv since the last
+// drain call, clears the TypeValidator's buffer, and returns them.
+// Mirrors the pattern Java uses via typeValidator.getAndClearMismatches()
+// — here we drain diags so each visitor gets only its own emissions.
+func (c *TypeCheck) tvDrain() []diag.Diagnostic {
+	d := c.tv.diags
+	c.tv.diags = nil
+	return d
+}
+
 // ---- per-node visitors ------------------------------------------ //
 
 // varHasEqOnLine reports whether the source line (1-indexed lineno)
@@ -926,15 +944,12 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 			return nil
 		}
 		found := infer.InferType(rhs)
-		if jstype.IsSubtype(found, declared) {
-			return nil
-		}
-		msg := fmt.Sprintf("assignment\nfound   : %s\nrequired: %s",
-			found.TypeName(), declared.TypeName())
-		return []diag.Diagnostic{{
-			Path: c.path, Line: lhs.Lineno(), Col: lhs.Charno(),
-			Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error, Message: msg,
-		}}
+		// Route through TypeValidator.expectCanAssignTo so the canonical
+		// mismatch dispatcher runs (TemplateType skip, structural-property
+		// analysis, TypeMismatch accumulation). Mirrors Java's TypeCheck.visitAssign
+		// calling typeValidator.expectCanAssignTo(lhs, rhsType, lhsType, msg).
+		c.tv.expectCanAssignTo(lhs, found, declared, "assignment")
+		return c.tvDrain()
 	case rhino.GETELEM:
 		// Only check for ReadonlyArray assignment; GETELEM type-mismatch
 		// is not yet ported (matches Java's checkNotReadonlyPropertyAssignment
@@ -1031,24 +1046,18 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 			}
 		}
 		found := infer.InferType(rhs)
-		if jstype.IsSubtype(found, declared) {
-			return nil
-		}
-		msg := fmt.Sprintf("assignment to property %s of %s\nfound   : %s\nrequired: %s",
-			propName, ownerName, found.TypeName(), declared.TypeName())
-		// Report at the enclosing EXPR_RESULT's column — Java
-		// points at the statement's start, so parenthesized
-		// receivers line up (`(new F).x_ = 3` → col 0 not the
-		// `.x_` column). Falls back to the LHS when the ASSIGN
-		// is nested inside a larger expression.
-		line, col := lhs.Lineno(), lhs.Charno()
+		// Route through TypeValidator.expectCanAssignToPropertyOf so the canonical
+		// mismatch dispatcher runs (TemplateType skip, structural-property
+		// analysis, TypeMismatch accumulation). Mirrors Java's TypeCheck.visitAssign
+		// calling typeValidator.expectCanAssignToPropertyOf(lhs, rhsType, propType, …).
+		// Position: use parent EXPR_RESULT when available (Java points at statement
+		// start for parenthesised receivers), falling back to lhs.
+		posNode := lhs
 		if p := a.Parent(); p != nil && p.Token() == rhino.EXPR_RESULT {
-			line, col = p.Lineno(), p.Charno()
+			posNode = p
 		}
-		return []diag.Diagnostic{{
-			Path: c.path, Line: line, Col: col,
-			Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error, Message: msg,
-		}}
+		c.tv.expectCanAssignToPropertyOf(posNode, found, declared, ownerName, propName)
+		return c.tvDrain()
 	}
 	return nil
 }
@@ -1366,9 +1375,6 @@ func (c *TypeCheck) visitCall(node *rhino.Node, scope *TypedScope) []diag.Diagno
 		arg := args[i]
 		param := fn.Params[i]
 		found := infer.InferType(arg)
-		if jstype.IsSubtype(found, param) {
-			continue
-		}
 		// Optional parameters (JSDoc {=T}) accept `undefined` at the
 		// call site. Java's TypeCheck widens the effective required
 		// type to (T|undefined) for optional params, so passing
@@ -1378,13 +1384,21 @@ func (c *TypeCheck) visitCall(node *rhino.Node, scope *TypedScope) []diag.Diagno
 		if i < len(params) && params[i].IsOptional() && found == jstype.Void {
 			continue
 		}
-		line, col := diagPosForArg(arg)
-		msg := fmt.Sprintf("actual parameter %d of %s does not match formal parameter\nfound   : %s\nrequired: %s",
-			i+1, calleeName, found.TypeName(), param.TypeName())
-		out = append(out, diag.Diagnostic{
-			Path: c.path, Line: line, Col: col,
-			Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error, Message: msg,
-		})
+		// Route through TypeValidator.expectArgumentMatchesParameter so the
+		// canonical mismatch dispatcher runs (TemplateType skip, structural-
+		// property analysis, TypeMismatch accumulation). Mirrors Java's
+		// TypeCheck.visitCallParameters calling
+		// typeValidator.expectArgumentMatchesParameter(arg, argType, paramType, callNode, i).
+		// Position: for GETPROP args Java reports at the property-name node
+		// (rightmost segment), matching diagPosForArg's behaviour.
+		posNode := arg
+		if arg.Token() == rhino.GETPROP {
+			if gpKids := arg.Children(); len(gpKids) >= 2 {
+				posNode = gpKids[1]
+			}
+		}
+		c.tv.expectArgumentMatchesParameter(posNode, found, param, node, i+1)
+		out = append(out, c.tvDrain()...)
 	}
 	return out
 }
@@ -1968,16 +1982,20 @@ func (c *TypeCheck) visitReturn(ret *rhino.Node, scope *TypedScope) []diag.Diagn
 	}
 	infer := NewTypeInference(scope)
 	found := infer.InferType(retExpr)
-	if jstype.IsSubtype(found, declared) {
-		return nil
+	// Route through TypeValidator.expectCanAssignTo so the canonical
+	// mismatch dispatcher runs (TemplateType skip, structural-property
+	// analysis, TypeMismatch accumulation). Mirrors Java's TypeCheck.visitReturn
+	// calling typeValidator.expectCanAssignTo(retExpr, actualType, declaredType, msg).
+	// Position: for GETPROP return-exprs Java reports at the property-name node
+	// (rightmost segment), matching diagPosForArg's behaviour.
+	posNode := retExpr
+	if retExpr.Token() == rhino.GETPROP {
+		if kids := retExpr.Children(); len(kids) >= 2 {
+			posNode = kids[1]
+		}
 	}
-	msg := fmt.Sprintf("inconsistent return type\nfound   : %s\nrequired: %s",
-		found.TypeName(), declared.TypeName())
-	line, col := diagPosForArg(retExpr)
-	return []diag.Diagnostic{{
-		Path: c.path, Line: line, Col: col,
-		Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error, Message: msg,
-	}}
+	c.tv.expectCanAssignTo(posNode, found, declared, "inconsistent return type")
+	return c.tvDrain()
 }
 
 // visitClassField — port of the class-field branch inside Java's
