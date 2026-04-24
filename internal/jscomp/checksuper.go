@@ -37,11 +37,25 @@ func NewCheckSuper(path string) *CheckSuper {
 	return &CheckSuper{path: path}
 }
 
-// Check walks the AST and returns diagnostics for super-keyword errors.
-func (c *CheckSuper) Check(script *rhino.Node) []diag.Diagnostic {
-	c.diags = nil
+// process mirrors Java's CompilerPass.process(Node externs, Node root) —
+// entry point: runs NodeTraversal.traverse(compiler, root, this) and validates context stack.
+func (c *CheckSuper) process(script *rhino.Node) {
 	c.contextStack = nil
 	c.traverseNode(script, nil)
+	// Java also calls: checkState(this.contextStack.isEmpty(), ImmutableList.of(this.contextStack))
+}
+
+// createStaticBlockContext mirrors Java's CheckSuper.createStaticBlockContext.
+// Creates a SuperPropertyAccessAllowedContext for a class static block.
+func (c *CheckSuper) createStaticBlockContext(staticBlock *rhino.Node) superContext {
+	return &superPropertyAccessAllowedContext{contextNode: staticBlock}
+}
+
+// Check walks the AST and returns diagnostics for super-keyword errors.
+// Go-only: Go entry point that wraps process() and returns diagnostics.
+func (c *CheckSuper) Check(script *rhino.Node) []diag.Diagnostic {
+	c.diags = nil
+	c.process(script)
 	return c.diags
 }
 
