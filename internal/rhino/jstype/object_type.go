@@ -1,13 +1,20 @@
-// Port of com/google/javascript/rhino/jstype/ObjectType.java +
-// PrototypeObjectType.java + InstanceObjectType.java @ closure-compiler v20260415
+// Port of com/google/javascript/rhino/jstype/ObjectType.java
+// @ closure-compiler v20260415 (collapsed hierarchy).
 //
 // Closure's ObjectType hierarchy is large (templates, structural subtype
 // for @record, late-resolution flags, member descriptor flags …). This
-// port covers the structural members Tier-2 actually exercises:
+// port collapses the ObjectType/PrototypeObjectType/InstanceObjectType
+// hierarchy into a single concrete Go struct (see also
+// prototype_object_type.go and instance_object_type.go for the fuller
+// typed subclasses). The covers the structural members Tier-2 actually
+// exercises:
 //   - a member map (name → declared JSType)
 //   - a nominal name (the constructor's name, e.g. "Foo")
-//   - a super pointer for @extends chains (added when Tier-2 lands
-//     inheritance)
+//   - a super pointer for @extends chains
+//
+// Methods that are abstract in ObjectType.java and implemented in
+// PrototypeObjectType.java (such as defineProperty, appendTo) are
+// implemented here on *ObjectType as the base concrete defaults.
 //
 // Properties are nominal: two ObjectType instances compare equal only
 // when they're literally the same Go value. That mirrors Closure's
