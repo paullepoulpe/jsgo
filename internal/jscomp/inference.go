@@ -100,16 +100,65 @@ func (t *TypeInference) InferType(n *rhino.Node) jstype.JSType {
 		return t.inferAddChildren(n)
 	case rhino.ASSIGN_SUB, rhino.ASSIGN_MUL, rhino.ASSIGN_DIV, rhino.ASSIGN_MOD,
 		rhino.ASSIGN_BITAND, rhino.ASSIGN_BITOR, rhino.ASSIGN_BITXOR,
-		rhino.ASSIGN_LSH, rhino.ASSIGN_RSH, rhino.ASSIGN_URSH:
-		// Arithmetic / bitwise compound assigns always produce Number.
-		// Port of the corresponding TypeInference.java branches.
-		return jstype.Number
+		rhino.ASSIGN_LSH, rhino.ASSIGN_RSH, rhino.ASSIGN_URSH,
+		rhino.ASSIGN_EXPONENT:
+		// traverseAssignOp: these compound assigns delegate to
+		// traverseBigIntCompatibleBinaryOperator in Java, producing bigint
+		// when both operands are bigint, else number. For simplicity we
+		// call the binary helper using the LHS and RHS inferred types.
+		// Port of TypeInference.java#traverseAssignOp.
+		kids := n.Children()
+		if len(kids) < 2 {
+			return jstype.Number
+		}
+		return t.traverseBigIntCompatibleBinaryOp(t.InferType(kids[0]), t.InferType(kids[1]))
+	case rhino.ASSIGN_OR:
+		// `x ||= y` — port of traverseShortCircuitingBinOpAssignment (OR).
+		// Result is (truthy members of x) ∪ y.
+		kids := n.Children()
+		if len(kids) < 2 {
+			return jstype.Unknown
+		}
+		return t.traverseShortCircuitingAssignOp(t.InferType(kids[0]), t.InferType(kids[1]), false)
+	case rhino.ASSIGN_AND:
+		// `x &&= y` — port of traverseShortCircuitingBinOpAssignment (AND).
+		// Result is (falsy members of x) ∪ y.
+		kids := n.Children()
+		if len(kids) < 2 {
+			return jstype.Unknown
+		}
+		return t.traverseShortCircuitingAssignOp(t.InferType(kids[0]), t.InferType(kids[1]), true)
+	case rhino.ASSIGN_COALESCE:
+		// `x ??= y` — port of traverseNullishCoalesce assignment form.
+		// When x is non-null/non-undefined, result is x; otherwise x∖null∖undef ∪ y.
+		kids := n.Children()
+		if len(kids) < 2 {
+			return jstype.Unknown
+		}
+		left := t.InferType(kids[0])
+		stripped := stripNullUndef(left)
+		if stripped != nil && sameType(stripped, left) {
+			return left
+		}
+		return unionFold(stripped, t.InferType(kids[1]))
 
 	// ---- binary arithmetic / comparison / logical ----------------- //
 	case rhino.ADD:
 		return t.inferAdd(n)
 	case rhino.SUB, rhino.MUL, rhino.DIV, rhino.MOD,
-		rhino.BITAND, rhino.BITOR, rhino.BITXOR, rhino.LSH, rhino.RSH, rhino.URSH:
+		rhino.BITAND, rhino.BITOR, rhino.BITXOR, rhino.LSH, rhino.RSH,
+		rhino.EXPONENT:
+		// traverseBigIntCompatibleBinaryOperator: result is bigint when both
+		// operands are bigint, number when neither, bigint|number when mixed.
+		// Port of TypeInference.java#traverseBigIntCompatibleBinaryOperator.
+		kids := n.Children()
+		if len(kids) < 2 {
+			return jstype.Number
+		}
+		return t.traverseBigIntCompatibleBinaryOp(t.InferType(kids[0]), t.InferType(kids[1]))
+	case rhino.URSH:
+		// >>> is not compatible with BigInt (always returns number).
+		// Port of TypeInference.java#traverseUnsignedRightShift.
 		return jstype.Number
 	case rhino.LT, rhino.LE, rhino.GT, rhino.GE,
 		rhino.EQ, rhino.NE, rhino.SHEQ, rhino.SHNE,
@@ -162,7 +211,18 @@ func (t *TypeInference) InferType(n *rhino.Node) jstype.JSType {
 	// ---- unary ---------------------------------------------------- //
 	case rhino.NOT:
 		return jstype.Boolean
-	case rhino.NEG, rhino.POS, rhino.BITNOT:
+	case rhino.NEG, rhino.BITNOT:
+		// traverseBigIntCompatibleUnaryOperator: NEG and BITNOT support
+		// bigint — result is bigint when operand is bigint, else number.
+		// Port of TypeInference.java#traverseBigIntCompatibleUnaryOperator.
+		if child := n.FirstChild(); child != nil {
+			return t.traverseBigIntCompatibleUnaryOp(t.InferType(child))
+		}
+		return jstype.Number
+	case rhino.POS:
+		// traverseUnaryPlus: unary + on bigint is a runtime error.
+		// Java returns NO_TYPE for bigint operands; we conservatively return Number.
+		// Port of TypeInference.java#traverseUnaryPlus.
 		return jstype.Number
 	case rhino.TYPEOF:
 		return jstype.String
@@ -209,11 +269,12 @@ func (t *TypeInference) InferType(n *rhino.Node) jstype.JSType {
 
 	// ---- increment / decrement ------------------------------------ //
 	case rhino.INC, rhino.DEC:
-		// traverseBigIntCompatibleUnaryOperator (INC/DEC): the result
-		// type mirrors the operand — number for numeric operands. Since
-		// BigInt is not yet tracked statically in this port, INC/DEC
-		// conservatively return Number. Matches the NO_BIGINT branch of
-		// Java's traverseBigIntCompatibleUnaryOperator.
+		// traverseBigIntCompatibleUnaryOperator (INC/DEC): result mirrors
+		// the operand — bigint for bigint operands, number otherwise.
+		// Port of TypeInference.java#traverseBigIntCompatibleUnaryOperator.
+		if child := n.FirstChild(); child != nil {
+			return t.traverseBigIntCompatibleUnaryOp(t.InferType(child))
+		}
 		return jstype.Number
 
 	// ---- yield / await ------------------------------------------- //
@@ -1636,6 +1697,113 @@ func (t *TypeInference) inferWithinShortCircuit(n *rhino.Node) jstype.JSType {
 		return t.InferType(n)
 	}
 	return t.InferType(n)
+}
+
+// traverseAnd returns the inferred type of an AND (`&&`) node.
+// Port of TypeInference.java#traverseAnd (expression-type half):
+// result is (falsy members of left) ∪ right, respecting truthy-branch
+// refinement on the right. The dataflow BooleanOutcomePair bookkeeping
+// is omitted; only the JSType is computed here.
+func (t *TypeInference) traverseAnd(n *rhino.Node) jstype.JSType {
+	kids := n.Children()
+	if len(kids) < 2 {
+		return jstype.Unknown
+	}
+	left := t.InferType(kids[0])
+	refs := buildRefinements(t.scope, kids[0], true)
+	right := t.inferUnder(kids[1], refs)
+	falsy := keepFalsyRefined(left)
+	if falsy == nil {
+		return right
+	}
+	return unionFold(falsy, right)
+}
+
+// traverseOr returns the inferred type of an OR (`||`) node.
+// Port of TypeInference.java#traverseOr (expression-type half):
+// result is (left stripped of falsy members) ∪ right.
+func (t *TypeInference) traverseOr(n *rhino.Node) jstype.JSType {
+	kids := n.Children()
+	if len(kids) < 2 {
+		return jstype.Unknown
+	}
+	return unionFold(stripFalsy(t.InferType(kids[0])), t.InferType(kids[1]))
+}
+
+// traverseNullishCoalesce returns the inferred type of a COALESCE (`??`) node.
+// Port of TypeInference.java#traverseNullishCoalesce: left non-null →
+// result is left; otherwise result is (left ∖ null ∖ undefined) ∪ right.
+func (t *TypeInference) traverseNullishCoalesce(n *rhino.Node) jstype.JSType {
+	kids := n.Children()
+	if len(kids) < 2 {
+		return jstype.Unknown
+	}
+	left := t.InferType(kids[0])
+	stripped := stripNullUndef(left)
+	if stripped != nil && sameType(stripped, left) {
+		return left
+	}
+	return unionFold(stripped, t.InferType(kids[1]))
+}
+
+// traverseCatch returns the inferred type of the catch-clause parameter.
+// Port of TypeInference.java#traverseCatch: uses the declared type when
+// the catch variable was typed in TypedScopeCreator, else Unknown (any
+// value can be thrown in JS).
+func (t *TypeInference) traverseCatch(catchVar string) jstype.JSType {
+	if declared := t.scope.GetDeclaredType(catchVar); declared != nil {
+		return declared
+	}
+	return jstype.Unknown
+}
+
+// traverseNewTarget returns the inferred type of a `new.target` expression.
+// Port of TypeInference.java#traverseNewTarget: inside an ES6 constructor
+// new.target is !Function; inside any other function it is
+// (undefined|!Function); outside a function it is Unknown.
+// Since the Go parser does not yet emit a dedicated NEW_TARGET token (the
+// expression is parsed but not surfaced through the type-inference switch),
+// this method is provided as a named entry-point for callers that walk the
+// AST independently.
+func (t *TypeInference) traverseNewTarget(newTargetNode *rhino.Node) jstype.JSType {
+	// Without a dedicated token we cannot determine the enclosing function
+	// kind from the node itself. Return Unknown conservatively — the same
+	// fallback Java uses when scope == null (top-level arrow function).
+	return jstype.Unknown
+}
+
+// traverseSuper returns the inferred type of the `super` keyword.
+// Port of TypeInference.java#traverseSuper: in a CALL context `super`
+// carries the super-constructor type; in GETPROP/GETELEM context it
+// carries the super-instance type bound under "super" in the scope.
+// Without full FlowScope plumbing, we look up "super" in the current
+// typed scope and fall back to Unknown, mirroring the GETPROP/GETELEM
+// branch of the Java method.
+func (t *TypeInference) traverseSuper(superNode *rhino.Node) jstype.JSType {
+	if declared := t.scope.GetDeclaredType("super"); declared != nil {
+		return declared
+	}
+	return jstype.Unknown
+}
+
+// traverseBigIntCompatibleBinaryOperator returns the result type for a
+// binary operation that supports both number and bigint operands (SUB,
+// MUL, DIV, MOD, BITAND, BITOR, BITXOR, LSH, RSH, EXPONENT).
+// Port of TypeInference.java#traverseBigIntCompatibleBinaryOperator:
+// the result is bigint when both operands are bigint, number when neither,
+// bigint|number when both are bigint|number, and conservatively number for
+// ill-typed mixtures.
+func (t *TypeInference) traverseBigIntCompatibleBinaryOperator(left, right jstype.JSType) jstype.JSType {
+	return t.traverseBigIntCompatibleBinaryOp(left, right)
+}
+
+// traverseBigIntCompatibleUnaryOperator returns the result type for a
+// unary operation that supports both number and bigint operands (NEG,
+// BITNOT, INC, DEC).
+// Port of TypeInference.java#traverseBigIntCompatibleUnaryOperator:
+// result is bigint when operand is all-bigint, number when no bigint.
+func (t *TypeInference) traverseBigIntCompatibleUnaryOperator(operand jstype.JSType) jstype.JSType {
+	return t.traverseBigIntCompatibleUnaryOp(operand)
 }
 
 // unionFold returns the union of non-nil members; if either side is
