@@ -72,7 +72,7 @@ func (c *CheckJSDoc) visit(n *rhino.Node) {
 	c.validateImplicitCast(n, info)
 	c.validateClosurePrimitive(n, info)
 	c.validateReturnJsDoc(n, info)
-	// validateTsType: TODO — @tsType not in Go JSDocInfo (TsTypes() absent).
+	c.validateTsType(n, info)
 	// validateJsDocTypeNames: handled by CheckJsDocTypes.
 	c.validateIsUsedViaDotConstructor(n, info)
 }
@@ -750,6 +750,28 @@ func (c *CheckJSDoc) validateIsUsedViaDotConstructor(n *rhino.Node, info *rhino.
 		return
 	}
 	c.reportMisplaced(n, "usedViaDotConstructor", "must be on a constructor")
+}
+
+// ---------------------------------------------------------------------------
+// validateTsType
+// Mirrors CheckJSDoc.validateTsType.
+// Fires MISPLACED_ANNOTATION when @tsType is not on a function node.
+// ---------------------------------------------------------------------------
+func (c *CheckJSDoc) validateTsType(n *rhino.Node, info *rhino.JSDocInfo) {
+	if info == nil || len(info.GetTsTypes()) == 0 {
+		return
+	}
+	if !cjdIsJSDocOnFunctionNode(n, info) {
+		c.reportMisplaced(n, "tsType", "must be on a function node")
+	}
+}
+
+// isFromTs mirrors CheckJSDoc.isFromTs — returns whether the node's source is
+// a TypeScript file. Go-only: language-adapter — always returns false since Go
+// doesn't distinguish TS from JS sources.
+// Go-only: language-adapter — Java checks StaticSourceFile.isTypeScriptSource(); Go has no TS detection.
+func isFromTs(_ *rhino.Node) bool {
+	return false
 }
 
 // ---------------------------------------------------------------------------
