@@ -70,6 +70,7 @@ func (c *CheckRegExp) IsGlobalRegExpPropertiesUsed() bool {
 }
 
 // Check runs the traversal and returns accumulated diagnostics.
+// Go-only: language-adapter — Java's process() takes (externs, root); Go uses a single SCRIPT node.
 func (c *CheckRegExp) Check(script *rhino.Node) []diag.Diagnostic {
 	c.diags = nil
 	c.walk(script, nil)
@@ -77,6 +78,7 @@ func (c *CheckRegExp) Check(script *rhino.Node) []diag.Diagnostic {
 }
 
 // ShouldTraverse satisfies the Callback interface (always descend).
+// Go-only: language-adapter — Java's AbstractPostOrderCallback has this implicit; Go requires explicit impl.
 func (c *CheckRegExp) ShouldTraverse(_ *NodeTraversal, _, _ *rhino.Node) bool { return true }
 
 // Visit mirrors AbstractPostOrderCallback.visit — called after a node's
@@ -86,6 +88,7 @@ func (c *CheckRegExp) Visit(_ *NodeTraversal, n, parent *rhino.Node) {
 }
 
 // walk drives a manual post-order traversal so CheckRegExp can be used
+// Go-only: language-adapter — Java uses NodeTraversal.traverse; Go uses recursive walk.
 // without a full NodeTraversal / TypedScopeCreator rig (no scope needed
 // for the REGEXP_REFERENCE check which only cares about NAME("RegExp")
 // references at the global level).
@@ -203,6 +206,7 @@ func (c *CheckRegExp) visitNode(n, parent *rhino.Node) {
 // NodeUtil.isReferenceName in Java: a NAME whose parent makes it a
 // binding site (VAR/LET/CONST child, PARAM_LIST child, FUNCTION/CLASS
 // first child, STRING_KEY child) is NOT a reference name.
+// Go-only: language-adapter — Java uses NodeUtil.isReferenceName directly in the callback.
 func isRegExpReferenceName(n, parent *rhino.Node) bool {
 	if n == nil || n.Token() != rhino.NAME {
 		return false
