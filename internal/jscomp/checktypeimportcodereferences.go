@@ -14,19 +14,21 @@ import (
 // in a non-type-annotation position (i.e. in executable code).
 //
 // Mirrors CheckTypeImportCodeReferences.java's AbstractPostOrderCallback walk.
+// Java: extends AbstractPostOrderCallback implements CompilerPass.
 type CheckTypeImportCodeReferences struct {
 	path  string
 	diags []diag.Diagnostic
 
 	// requireTypeNames maps the declaration NAME node pointer to the
 	// name string. Populated by ctirCollect in a first pass over the
-	// AST; consulted during ctirVisit to distinguish the declaration
+	// AST; consulted during visit to distinguish the declaration
 	// site (excluded) from code references (flagged).
 	requireTypeNames map[*rhino.Node]string
 }
 
 // NewCheckTypeImportCodeReferences mirrors the Java constructor
 // CheckTypeImportCodeReferences(AbstractCompiler compiler).
+// Go-only: constructor shim; Java uses the class constructor directly.
 func NewCheckTypeImportCodeReferences(path string) *CheckTypeImportCodeReferences {
 	return &CheckTypeImportCodeReferences{
 		path:             path,
@@ -35,14 +37,15 @@ func NewCheckTypeImportCodeReferences(path string) *CheckTypeImportCodeReference
 }
 
 // Check runs the two-phase walk and returns collected diagnostics.
+// Mirrors Java's process(Node externs, Node root): calls NodeTraversal.traverse(compiler, root, this).
 // Phase 1 (ctirCollect) builds the requireTypeNames index from
 // var/let/const declarations of the form `name = goog.requireType(…)`.
-// Phase 2 visits every NAME node and flags code references.
+// Phase 2 (post-order visit) flags code references.
 func (c *CheckTypeImportCodeReferences) Check(script *rhino.Node) []diag.Diagnostic {
 	c.diags = nil
 	c.requireTypeNames = map[*rhino.Node]string{}
 	c.ctirCollect(script)
-	c.ctirWalk(script)
+	c.walk(script)
 	return c.diags
 }
 
@@ -51,6 +54,7 @@ func (c *CheckTypeImportCodeReferences) Check(script *rhino.Node) []diag.Diagnos
 // Var object — specifically Var.getNameNode() and the call chain
 // check performed in visit(). By collecting first we avoid needing
 // scope infrastructure.
+// Go-only: scope-free substitute for Java's TypedScopeCreator/Var lookup.
 func (c *CheckTypeImportCodeReferences) ctirCollect(n *rhino.Node) {
 	if n == nil {
 		return
@@ -59,14 +63,14 @@ func (c *CheckTypeImportCodeReferences) ctirCollect(n *rhino.Node) {
 	// Java's visit() checks NodeUtil.isNameDeclaration(decl) &&
 	// decl.hasOneChild() && decl.getFirstChild().hasChildren() &&
 	// decl.getFirstChild().getLastChild().isCall().
-	if ctirIsNameDeclaration(n) {
+	if isNameDeclaration(n) {
 		kids := n.Children()
 		if len(kids) == 1 {
 			binding := kids[0] // VAR's single child
 			bindingKids := binding.Children()
 			if len(bindingKids) > 0 {
 				callNode := bindingKids[len(bindingKids)-1]
-				if callNode.Token() == rhino.CALL && ctirIsGoogRequireType(callNode) {
+				if callNode.Token() == rhino.CALL && matchesGoogRequireType(callNode) {
 					// Simple form: var Foo = goog.requireType('…')
 					// binding is NAME with Foo as its string.
 					if binding.Token() == rhino.NAME {
@@ -93,24 +97,25 @@ func (c *CheckTypeImportCodeReferences) ctirCollect(n *rhino.Node) {
 	}
 }
 
-// ctirWalk is the post-order NAME visitor. Mirrors
-// AbstractPostOrderCallback.visit() in Java: it runs after all children
-// so the traversal order matches Java's NodeTraversal.traverse contract.
-func (c *CheckTypeImportCodeReferences) ctirWalk(n *rhino.Node) {
+// walk is the post-order traversal driver. Mirrors AbstractPostOrderCallback
+// behaviour: visits children before the current node, then calls visit().
+// Go-only: NodeTraversal.traverse adapter.
+func (c *CheckTypeImportCodeReferences) walk(n *rhino.Node) {
 	if n == nil {
 		return
 	}
 	// Post-order: children first.
 	for _, child := range n.Children() {
-		c.ctirWalk(child)
+		c.walk(child)
 	}
-	c.ctirVisit(n)
+	c.visit(n)
 }
 
-// ctirVisit checks a single node. Mirrors Java's visit(NodeTraversal t,
-// Node n, Node parent) — returns early unless n is a NAME that refers
-// to a goog.requireType'd binding.
-func (c *CheckTypeImportCodeReferences) ctirVisit(n *rhino.Node) {
+// visit checks a single node. Mirrors Java's
+// visit(NodeTraversal t, Node n, Node parent):
+// checks that NAME references to goog.requireType'd bindings are not
+// used in code (non-type-annotation) positions.
+func (c *CheckTypeImportCodeReferences) visit(n *rhino.Node) {
 	if n.Token() != rhino.NAME {
 		return
 	}
@@ -148,9 +153,10 @@ func (c *CheckTypeImportCodeReferences) ctirVisit(n *rhino.Node) {
 	}
 }
 
-// ctirIsNameDeclaration reports whether n is a var/let/const statement.
+// isNameDeclaration reports whether n is a var/let/const statement.
 // Mirrors Java's NodeUtil.isNameDeclaration(Node).
-func ctirIsNameDeclaration(n *rhino.Node) bool {
+// Go-only: package-level NodeUtil helper; renamed from ctirIsNameDeclaration.
+func isNameDeclaration(n *rhino.Node) bool {
 	switch n.Token() {
 	case rhino.VAR, rhino.LET, rhino.CONST:
 		return true
@@ -158,11 +164,12 @@ func ctirIsNameDeclaration(n *rhino.Node) bool {
 	return false
 }
 
-// ctirIsGoogRequireType reports whether callNode is a call to
+// matchesGoogRequireType reports whether callNode is a call to
 // goog.requireType(…). Mirrors Java's
 // callNode.getFirstChild().matchesQualifiedName(GOOG_REQUIRE_TYPE)
 // where GOOG_REQUIRE_TYPE = IR.getprop(IR.name("goog"), "requireType").
-func ctirIsGoogRequireType(callNode *rhino.Node) bool {
+// Go-only: helper for GOOG_REQUIRE_TYPE qualified-name match.
+func matchesGoogRequireType(callNode *rhino.Node) bool {
 	if callNode == nil || callNode.Token() != rhino.CALL {
 		return false
 	}
@@ -170,17 +177,10 @@ func ctirIsGoogRequireType(callNode *rhino.Node) bool {
 	if callee == nil {
 		return false
 	}
-	return ctirMatchesGoogRequireType(callee)
-}
-
-// ctirMatchesGoogRequireType reports whether node is the GETPROP chain
-// `goog.requireType`. Mirrors IR.getprop(IR.name("goog"), "requireType")
-// comparison from Java.
-func ctirMatchesGoogRequireType(n *rhino.Node) bool {
-	if n == nil || n.Token() != rhino.GETPROP {
+	if callee == nil || callee.Token() != rhino.GETPROP {
 		return false
 	}
-	kids := n.Children()
+	kids := callee.Children()
 	if len(kids) < 2 {
 		return false
 	}

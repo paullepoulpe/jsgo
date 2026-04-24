@@ -21,6 +21,7 @@
 //	JSC_XMODULE_REQUIRE_ERROR                (warning)
 //
 // Plus cross-file codes consumed but defined elsewhere:
+//
 //	JSC_INVALID_CLOSURE_CALL_ERROR (ClosurePrimitiveErrors)
 //	JSC_MODULE_USES_GOOG_MODULE_GET (ClosurePrimitiveErrors)
 //	JSC_MISSING_MODULE_OR_PROVIDE (ClosurePrimitiveErrors)
@@ -54,10 +55,10 @@ const (
 	cciModuleTypeEs6Module                      // ES6 import/export
 )
 
-// cciModuleMetadata is a minimal stub for
+// ModuleMetadata is a minimal stub for
 // com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata.
 // TODO: replace with the real ModuleMetadata port.
-type cciModuleMetadata struct {
+type ModuleMetadata struct {
 	// googNamespaces is the set of goog.provide / goog.module / goog.declareModuleId
 	// namespaces declared by the module's root node.
 	googNamespaces map[string]struct{}
@@ -66,79 +67,90 @@ type cciModuleMetadata struct {
 	rootNode *rhino.Node
 }
 
-func (m *cciModuleMetadata) isGoogModule() bool { return m.moduleType == cciModuleTypeGoogModule }
-func (m *cciModuleMetadata) isEs6Module() bool  { return m.moduleType == cciModuleTypeEs6Module }
+// isGoogModule mirrors ModuleMetadata.isGoogModule().
+func (m *ModuleMetadata) isGoogModule() bool { return m.moduleType == cciModuleTypeGoogModule }
+
+// isEs6Module mirrors ModuleMetadata.isEs6Module().
+func (m *ModuleMetadata) isEs6Module() bool { return m.moduleType == cciModuleTypeEs6Module }
 
 // isModule mirrors ModuleMetadata.isModule() — true for goog.module and ES6 modules.
-func (m *cciModuleMetadata) isModule() bool {
+func (m *ModuleMetadata) isModule() bool {
 	return m.isGoogModule() || m.isEs6Module()
 }
 
-// cciModuleMetadataMap is a minimal stub for
+// ModuleMetadataMap is a minimal stub for
 // com.google.javascript.jscomp.modules.ModuleMetadataMap.
 // TODO: replace with the real ModuleMetadataMap port.
-type cciModuleMetadataMap struct {
+type ModuleMetadataMap struct {
 	// byGoogNamespace maps goog.provide / goog.module / goog.declareModuleId
 	// namespace strings to their owning module metadata.
-	byGoogNamespace map[string]*cciModuleMetadata
+	byGoogNamespace map[string]*ModuleMetadata
 }
 
-func newCciModuleMetadataMap() *cciModuleMetadataMap {
-	return &cciModuleMetadataMap{byGoogNamespace: map[string]*cciModuleMetadata{}}
+// newModuleMetadataMap constructs an empty ModuleMetadataMap.
+// Go-only: factory for the stub type.
+func newModuleMetadataMap() *ModuleMetadataMap {
+	return &ModuleMetadataMap{byGoogNamespace: map[string]*ModuleMetadata{}}
 }
 
 // getModulesByGoogNamespace mirrors
 // ModuleMetadataMap.getModulesByGoogNamespace().get(namespace).
-func (m *cciModuleMetadataMap) getModulesByGoogNamespace(ns string) *cciModuleMetadata {
+func (m *ModuleMetadataMap) getModulesByGoogNamespace(ns string) *ModuleMetadata {
 	return m.byGoogNamespace[ns]
 }
 
 // ---------------------------------------------------------------------------
-// cciClosureImport — mirrors the ClosureImport enum with methods.
+// ClosureImport enum — mirrors the ClosureImport enum with methods.
 // ---------------------------------------------------------------------------
 
-type cciClosureImport int
+// closureImport mirrors the ClosureImport enum in Java's CheckClosureImports.
+// Each constant represents one of the recognised goog.* import call types.
+type closureImport int
 
 const (
-	cciImportRequire        cciClosureImport = iota // goog.require
-	cciImportForwardDeclare                         // goog.forwardDeclare
-	cciImportRequireType                            // goog.requireType
-	cciImportRequireDynamic                         // goog.requireDynamic
+	closureImportRequire        closureImport = iota // goog.require
+	closureImportForwardDeclare                      // goog.forwardDeclare
+	closureImportRequireType                         // goog.requireType
+	closureImportRequireDynamic                      // goog.requireDynamic
 )
 
 // allowDestructuring mirrors ClosureImport.allowDestructuring().
-func (ci cciClosureImport) allowDestructuring() bool {
+// Returns true for REQUIRE, REQUIRE_TYPE, REQUIRE_DYNAMIC.
+func (ci closureImport) allowDestructuring() bool {
 	switch ci {
-	case cciImportRequire, cciImportRequireType, cciImportRequireDynamic:
+	case closureImportRequire, closureImportRequireType, closureImportRequireDynamic:
 		return true
 	}
 	return false
 }
 
 // aliasMustBeConstant mirrors ClosureImport.aliasMustBeConstant().
-func (ci cciClosureImport) aliasMustBeConstant() bool {
+// Returns true for REQUIRE, REQUIRE_TYPE, REQUIRE_DYNAMIC.
+func (ci closureImport) aliasMustBeConstant() bool {
 	switch ci {
-	case cciImportRequire, cciImportRequireType, cciImportRequireDynamic:
+	case closureImportRequire, closureImportRequireType, closureImportRequireDynamic:
 		return true
 	}
 	return false
 }
 
 // mustBeOrdered mirrors ClosureImport.mustBeOrdered().
-func (ci cciClosureImport) mustBeOrdered() bool {
-	return ci == cciImportRequire
+// Only REQUIRE enforces ordering (provided namespace must appear before the call).
+func (ci closureImport) mustBeOrdered() bool {
+	return ci == closureImportRequire
 }
 
 // callName mirrors ClosureImport.callName().
-func (ci cciClosureImport) callName() string {
+// Returns the human-readable name of the import call for error messages.
+func (ci closureImport) callName() string {
 	switch ci {
-	case cciImportRequire:
+	case closureImportRequire:
 		return "goog.require"
-	case cciImportForwardDeclare:
+	case closureImportForwardDeclare:
 		return "goog.forwardDeclare"
-	case cciImportRequireType:
+	case closureImportRequireType:
 		return "goog.requireType"
-	case cciImportRequireDynamic:
+	case closureImportRequireDynamic:
 		return "goog.requireDynamic"
 	}
 	return "<unknown>"
@@ -153,14 +165,17 @@ func (ci cciClosureImport) callName() string {
 // goog.requireType / goog.requireDynamic calls are well-formed, in scope,
 // and refer to defined namespaces.
 //
+// Java: final class CheckClosureImports implements CompilerPass.
+// The Checker inner class (extends AbstractModuleCallback) is inlined here.
+//
 // Because ModuleMetadataMap is not yet ported, the pass accumulates
 // diagnostics via a minimal stub map; namespacesSeen tracks which goog
 // namespaces have been declared prior to a require (ordering check).
 type CheckClosureImports struct {
-	path            string
-	moduleMetadata  *cciModuleMetadataMap // TODO: replace with real ModuleMetadataMap port
-	namespacesSeen  map[string]struct{}
-	diags           []diag.Diagnostic
+	path           string
+	moduleMetadata *ModuleMetadataMap // TODO: replace with real ModuleMetadataMap port
+	namespacesSeen map[string]struct{}
+	diags          []diag.Diagnostic
 }
 
 // NewCheckClosureImports mirrors the Java constructor:
@@ -169,9 +184,10 @@ type CheckClosureImports struct {
 //
 // The path argument is the source file path used in diagnostics.
 // The metadata map is stubbed; pass nil to use an empty map.
-func NewCheckClosureImports(path string, metadata *cciModuleMetadataMap) *CheckClosureImports {
+// Go-only: constructor shim; Java uses the class constructor directly.
+func NewCheckClosureImports(path string, metadata *ModuleMetadataMap) *CheckClosureImports {
 	if metadata == nil {
-		metadata = newCciModuleMetadataMap()
+		metadata = newModuleMetadataMap()
 	}
 	return &CheckClosureImports{
 		path:           path,
@@ -188,12 +204,11 @@ func (c *CheckClosureImports) Check(script *rhino.Node) []diag.Diagnostic {
 	c.diags = nil
 	c.namespacesSeen = map[string]struct{}{}
 
-	// TODO: Once ModuleMetadataMap is ported, seed namespacesSeen via
-	// AbstractModuleCallback.enterModule(currentModule).
-	// For now walk the AST to collect goog.provide / goog.module
-	// namespace declarations encountered before each require, so the
-	// ordering check (LATE_PROVIDE_ERROR) can fire correctly.
-	c.collectNamespaces(script)
+	// enterModule: seed namespacesSeen via AbstractModuleCallback.enterModule.
+	// TODO: once ModuleMetadataMap is ported, derive from currentModule.googNamespaces().
+	// For now walk the AST to collect goog.provide / goog.module namespace declarations
+	// encountered before each require, so the ordering check (LATE_PROVIDE_ERROR) fires.
+	c.enterModule(script)
 
 	// Walk the AST and check every call that looks like a Closure import.
 	c.walk(script, nil)
@@ -201,13 +216,11 @@ func (c *CheckClosureImports) Check(script *rhino.Node) []diag.Diagnostic {
 	return c.diags
 }
 
-// collectNamespaces pre-populates namespacesSeen with every namespace
-// that is *declared* in the file (goog.provide / goog.module calls).
-// This is a simplified substitute for the Java AbstractModuleCallback
-// enterModule hook which would receive pre-built metadata.
-//
-// TODO: replace with ModuleMetadataMap.enterModule seeding.
-func (c *CheckClosureImports) collectNamespaces(n *rhino.Node) {
+// enterModule is called when the traversal enters a module scope.
+// Mirrors AbstractModuleCallback.enterModule(ModuleMetadata currentModule, Node moduleScopeRoot).
+// Java: namespacesSeen.addAll(currentModule.googNamespaces().elementSet()).
+// Go stub: pre-populates namespacesSeen by walking the AST for goog.provide/module calls.
+func (c *CheckClosureImports) enterModule(n *rhino.Node) {
 	if n == nil {
 		return
 	}
@@ -217,26 +230,28 @@ func (c *CheckClosureImports) collectNamespaces(n *rhino.Node) {
 		}
 	}
 	for _, ch := range n.Children() {
-		c.collectNamespaces(ch)
+		c.enterModule(ch)
 	}
 }
 
-// walk visits every node depth-first.  Mirrors the Checker inner-class
+// walk visits every node depth-first. Mirrors the Checker inner-class
 // visit() method, which receives both CALL and NAME nodes.
+// Go-only: NodeTraversal adapter.
 func (c *CheckClosureImports) walk(n, parent *rhino.Node) {
 	if n == nil {
 		return
 	}
 	if n.Token() == rhino.CALL {
-		kind, ok := cciKindOfCall(n)
-		if ok {
-			c.checkImport(n, parent)
-			_ = kind // kind is used in checkImport via cciKindOfCall re-call
+		importType := c.kindOfCall(n)
+		if importType >= 0 {
+			c.checkImport(n, parent, importType)
 		} else if cciMatchesQualifiedName(n.FirstChild(), "goog.module.get") {
 			c.checkGoogModuleGet(n)
 		}
 	} else if n.Token() == rhino.DYNAMIC_IMPORT {
 		c.checkDynamicImportPath(n)
+	} else if n.Token() == rhino.NAME {
+		c.checkValidImportCodeReference(n)
 	}
 	for _, ch := range n.Children() {
 		c.walk(ch, n)
@@ -244,24 +259,41 @@ func (c *CheckClosureImports) walk(n, parent *rhino.Node) {
 }
 
 // ---------------------------------------------------------------------------
-// cciKindOfCall — mirrors Checker.kindOfCall(Node callNode).
+// kindOfCall — mirrors Checker.kindOfCall(Node callNode).
 // ---------------------------------------------------------------------------
 
-// cciKindOfCall returns the ClosureImport kind for callNode, if any.
-// Returns (_, false) when the call is not a recognized Closure import.
-func cciKindOfCall(callNode *rhino.Node) (cciClosureImport, bool) {
+// kindOfCall returns the closureImport kind for callNode, or -1 if not recognized.
+// Mirrors Java's private ClosureImport kindOfCall(Node callNode).
+func (c *CheckClosureImports) kindOfCall(callNode *rhino.Node) closureImport {
 	callee := callNode.FirstChild()
 	switch {
 	case cciMatchesQualifiedName(callee, "goog.require"):
-		return cciImportRequire, true
+		return closureImportRequire
 	case cciMatchesQualifiedName(callee, "goog.forwardDeclare"):
-		return cciImportForwardDeclare, true
+		return closureImportForwardDeclare
 	case cciMatchesQualifiedName(callee, "goog.requireType"):
-		return cciImportRequireType, true
+		return closureImportRequireType
 	case cciMatchesQualifiedName(callee, "goog.requireDynamic"):
-		return cciImportRequireDynamic, true
+		return closureImportRequireDynamic
 	}
-	return 0, false
+	return -1
+}
+
+// ---------------------------------------------------------------------------
+// checkValidImportCodeReference — mirrors Checker.checkValidImportCodeReference.
+// ---------------------------------------------------------------------------
+
+// checkValidImportCodeReference validates that a NAME reference to a closure
+// import alias is not used in code position (mirrors Java lines 289-317).
+// The full check requires scope infrastructure (Var lookup); this stub
+// only performs the structural check that is possible without it.
+//
+// TODO: implement full scope-based check once TypedScopeCreator is wired.
+func (c *CheckClosureImports) checkValidImportCodeReference(nameNode *rhino.Node) {
+	// TODO: use t.getScope().getVar(nameNode.getString()) to find the declaration.
+	// TODO: check NodeUtil.isDeclarationLValue(declarationNameNode).
+	// TODO: check kindOfCall on the RHS call and fire JSC_TYPE_IMPORT_CODE_REFERENCE.
+	_ = nameNode
 }
 
 // ---------------------------------------------------------------------------
@@ -269,14 +301,16 @@ func cciKindOfCall(callNode *rhino.Node) (cciClosureImport, bool) {
 // ---------------------------------------------------------------------------
 
 // checkGoogModuleGet validates a goog.module.get(…) call.
+// Mirrors Java's checkGoogModuleGet(NodeTraversal t, Node call, ModuleMetadata currentModule)
+// (lines 319-398).
 // Full scope/chunk checks require ModuleMetadata + scope stack; those
 // are stubbed until the module system is ported.
 func (c *CheckClosureImports) checkGoogModuleGet(call *rhino.Node) {
-	// TODO: check t.inModuleHoistScope() → MODULE_USES_GOOG_MODULE_GET
-	// TODO: check INVALID_GET_CALL_SCOPE for goog.provide files in global scope
-	// TODO: check INVALID_GET_ALIAS when filling a forwardDeclare alias
+	// TODO: check t.inModuleHoistScope() → MODULE_USES_GOOG_MODULE_GET (Java line 320).
+	// TODO: check INVALID_GET_CALL_SCOPE for goog.provide files in global scope (lines 325-357).
+	// TODO: check INVALID_GET_ALIAS when filling a forwardDeclare alias (lines 372-398).
 
-	// Validate argument.
+	// Validate argument: must have two children, second must be string literal.
 	if !cciHasTwoChildren(call) || cciSecondChild(call) == nil || cciSecondChild(call).Token() != rhino.STRINGLIT {
 		c.report(call, diag.JSC_INVALID_CLOSURE_IMPORT_CALL, diag.Error,
 			"goog.module.get parameter must be a string literal.")
@@ -299,11 +333,7 @@ func (c *CheckClosureImports) checkGoogModuleGet(call *rhino.Node) {
 // (starting with "/") and relative paths (starting with "./" or "../")
 // are valid. Any other specifier — e.g. bare "foo.js" — is "ambiguous"
 // and triggers JSC_INVALID_MODULE_PATH.
-//
-// This mirrors the logic in BrowserModuleResolver.resolveJsModule which
-// calls ModuleLoader.isAmbiguousIdentifier and fires INVALID_MODULE_PATH
-// when it returns true. The diagnostic is emitted on the specifier node
-// (string literal) so the caret in the error message matches Java's output.
+// Go-only: BrowserModuleResolver logic inlined for dynamic import checking.
 func (c *CheckClosureImports) checkDynamicImportPath(n *rhino.Node) {
 	specifier := n.FirstChild()
 	if specifier == nil || specifier.Token() != rhino.STRINGLIT {
@@ -329,9 +359,10 @@ func (c *CheckClosureImports) checkDynamicImportPath(n *rhino.Node) {
 // checkImport validates a single Closure-import call (require / forwardDeclare /
 // requireType / requireDynamic). `call` is the CALL node; `parent` is its
 // parent in the AST.
-func (c *CheckClosureImports) checkImport(call, parent *rhino.Node) {
-	importType, _ := cciKindOfCall(call)
-
+// Mirrors Java's checkImport(NodeTraversal t, Node call, Node parent,
+//
+//	ModuleMetadata currentModule, ClosureImport importType) (lines 437-520).
+func (c *CheckClosureImports) checkImport(call, parent *rhino.Node, importType closureImport) {
 	// -- scope check --------------------------------------------------------
 	// goog.requireDynamic is allowed anywhere; others must be at top-level
 	// scope of a module or global hoist scope AND directly under an
@@ -343,7 +374,7 @@ func (c *CheckClosureImports) checkImport(call, parent *rhino.Node) {
 	isModule := false // TODO: derive from ModuleMetadata.isModule()
 	validAssignment := isModule || cciIsExprResult(parent)
 
-	if (!atTopLevel || !validAssignment) && importType != cciImportRequireDynamic {
+	if (!atTopLevel || !validAssignment) && importType != closureImportRequireDynamic {
 		c.report(call, diag.JSC_INVALID_CLOSURE_CALL_ERROR, diag.Error,
 			"Closure import call is not in an acceptable scope.")
 		return
@@ -357,7 +388,7 @@ func (c *CheckClosureImports) checkImport(call, parent *rhino.Node) {
 	}
 
 	// -- alias / declaration checks -----------------------------------------
-	isAliased := parent != nil && cciIsNameDeclaration(cciGrandParent(call))
+	isAliased := parent != nil && cciIsNameDecl(cciGrandParent(call))
 	if isModule && isAliased {
 		decl := cciGrandParent(call)
 		if decl != nil {
@@ -380,9 +411,9 @@ func (c *CheckClosureImports) checkImport(call, parent *rhino.Node) {
 			}
 
 			lhs := decl.FirstChild()
-			if lhs != nil && cciIsDestructuringLhs(lhs) {
+			if lhs != nil && isValidDestructuringLhs(lhs) {
 				if importType.allowDestructuring() {
-					if !cciIsValidDestructuringImport(lhs) {
+					if !isValidDestructuringImport(lhs) {
 						c.report(decl, diag.JSC_INVALID_CLOSURE_IMPORT_DESTRUCTURING, diag.Error,
 							fmt.Sprintf("Destructuring %s must be a simple object pattern.", importType.callName()))
 					}
@@ -393,7 +424,7 @@ func (c *CheckClosureImports) checkImport(call, parent *rhino.Node) {
 			} else if lhs != nil {
 				// checkShortName — compare alias capitalization with last namespace segment
 				ns := cciSecondChild(call).String_()
-				c.cciCheckShortName(lhs, ns)
+				c.checkShortName(lhs, ns)
 			}
 		}
 	}
@@ -403,7 +434,7 @@ func (c *CheckClosureImports) checkImport(call, parent *rhino.Node) {
 	requiredModule := c.moduleMetadata.getModulesByGoogNamespace(namespace)
 
 	if requiredModule == nil {
-		if importType == cciImportForwardDeclare {
+		if importType == closureImportForwardDeclare {
 			// goog.forwardDeclare allows missing namespaces (legacy behaviour).
 			// When aliased inside a module, fire a softer warning.
 			if isAliased && isModule {
@@ -419,7 +450,7 @@ func (c *CheckClosureImports) checkImport(call, parent *rhino.Node) {
 
 	// -- ordering check -----------------------------------------------------
 	if importType.mustBeOrdered() {
-		c.cciVerifyRequireOrder(namespace, call, requiredModule)
+		c.verifyRequireOrder(namespace, call, requiredModule)
 	}
 
 	// -- ES6 module mutual-import check -------------------------------------
@@ -428,12 +459,14 @@ func (c *CheckClosureImports) checkImport(call, parent *rhino.Node) {
 }
 
 // ---------------------------------------------------------------------------
-// cciVerifyRequireOrder — mirrors CheckClosureImports.verifyRequireOrder.
+// verifyRequireOrder — mirrors CheckClosureImports.verifyRequireOrder.
 // ---------------------------------------------------------------------------
 
-// cciVerifyRequireOrder checks that the required namespace was declared
-// before the current require call. Mirrors verifyRequireOrder() in Java.
-func (c *CheckClosureImports) cciVerifyRequireOrder(namespace string, call *rhino.Node, _ *cciModuleMetadata) {
+// verifyRequireOrder checks that the required namespace was declared
+// before the current require call. Mirrors Java's
+// verifyRequireOrder(String namespace, Node call, NodeTraversal t, ModuleMetadata requiredModule)
+// (lines 523-550).
+func (c *CheckClosureImports) verifyRequireOrder(namespace string, call *rhino.Node, _ *ModuleMetadata) {
 	if _, seen := c.namespacesSeen[namespace]; !seen {
 		c.report(call, diag.JSC_LATE_PROVIDE_ERROR, diag.Error,
 			fmt.Sprintf("Required namespace %q not provided yet.", namespace))
@@ -444,25 +477,19 @@ func (c *CheckClosureImports) cciVerifyRequireOrder(namespace string, call *rhin
 }
 
 // ---------------------------------------------------------------------------
-// cciCheckShortName — mirrors Checker.checkShortName.
+// checkShortName — mirrors Checker.checkShortName.
 // ---------------------------------------------------------------------------
 
-// cciCheckShortName validates that the short alias name for a require has
+// checkShortName validates that the short alias name for a require has
 // matching capitalization with the last segment of the namespace.
-// Mirrors ClosureCheckModule.checkShortName / the inline call in Java.
-func (c *CheckClosureImports) cciCheckShortName(shortNameNode *rhino.Node, namespace string) {
+// Mirrors Java's checkShortName(NodeTraversal t, Node shortNameNode, String namespace)
+// (lines 420-435).
+func (c *CheckClosureImports) checkShortName(shortNameNode *rhino.Node, namespace string) {
 	if shortNameNode == nil {
 		return
 	}
 	shortName := shortNameNode.String_()
-	lastDot := len(namespace) - 1
-	for i := len(namespace) - 1; i >= 0; i-- {
-		if namespace[i] == '.' {
-			lastDot = i
-			break
-		}
-	}
-	lastSegment := namespace[lastDot+1:]
+	lastSegment := namespace[cciLastDotIndex(namespace)+1:]
 	if shortName == lastSegment || lastSegment == "" {
 		return
 	}
@@ -485,9 +512,33 @@ func (c *CheckClosureImports) cciCheckShortName(shortNameNode *rhino.Node, names
 }
 
 // ---------------------------------------------------------------------------
+// isValidDestructuringImport — mirrors Checker.isValidDestructuringImport.
+// ---------------------------------------------------------------------------
+
+// isValidDestructuringImport mirrors Java's isValidDestructuringImport(Node destructuringLhs).
+// A valid destructuring import is `const { Foo, Bar } = goog.require(…)` —
+// every key of the object pattern must be a plain string key with a NAME value.
+// Java (lines 401-418): checks objectPattern.isObjectPattern(), then each stringKey.isStringKey()
+// and stringKey.getFirstChild().isName().
+func isValidDestructuringImport(lhs *rhino.Node) bool {
+	// lhs is the OBJECTLIT acting as destructuring pattern.
+	for _, key := range lhs.Children() {
+		if key.Token() != rhino.STRING_KEY {
+			return false
+		}
+		val := key.FirstChild()
+		if val == nil || val.Token() != rhino.NAME {
+			return false
+		}
+	}
+	return true
+}
+
+// ---------------------------------------------------------------------------
 // report helper.
 // ---------------------------------------------------------------------------
 
+// report emits a diagnostic. Mirrors Java's t.report(node, diagnosticType, args...).
 func (c *CheckClosureImports) report(n *rhino.Node, code string, level diag.Level, msg string) {
 	c.diags = append(c.diags, diag.Diagnostic{
 		Path:    c.path,
@@ -506,6 +557,7 @@ func (c *CheckClosureImports) report(n *rhino.Node, code string, level diag.Leve
 // cciMatchesQualifiedName returns true when node is a GETPROP chain that
 // spells out the dotted `name` (e.g. "goog.require", "goog.module.get").
 // Mirrors Node.matchesQualifiedName(Node) in Java.
+// Go-only: qualified-name matcher helper.
 func cciMatchesQualifiedName(n *rhino.Node, name string) bool {
 	if n == nil {
 		return false
@@ -515,6 +567,7 @@ func cciMatchesQualifiedName(n *rhino.Node, name string) bool {
 
 // cciGetQualifiedName reconstructs the dotted string from a GETPROP chain
 // or bare NAME. Returns "" for non-name nodes.
+// Go-only: qualified-name builder helper.
 func cciGetQualifiedName(n *rhino.Node) string {
 	if n == nil {
 		return ""
@@ -537,11 +590,14 @@ func cciGetQualifiedName(n *rhino.Node) string {
 
 // cciHasTwoChildren returns true when n has exactly two children.
 // Mirrors call.hasTwoChildren() in Java.
+// Go-only: Node.hasTwoChildren() adapter.
 func cciHasTwoChildren(n *rhino.Node) bool {
 	return n != nil && len(n.Children()) == 2
 }
 
 // cciSecondChild returns the second child of n, or nil.
+// Mirrors Node.getSecondChild() in Java.
+// Go-only: Node.getSecondChild() adapter.
 func cciSecondChild(n *rhino.Node) *rhino.Node {
 	kids := n.Children()
 	if len(kids) < 2 {
@@ -551,18 +607,23 @@ func cciSecondChild(n *rhino.Node) *rhino.Node {
 }
 
 // cciHasOneChild returns true when n has exactly one child.
+// Mirrors Node.hasOneChild() in Java.
+// Go-only: Node.hasOneChild() adapter.
 func cciHasOneChild(n *rhino.Node) bool {
 	return n != nil && len(n.Children()) == 1
 }
 
 // cciIsExprResult reports whether n is an EXPR_RESULT node.
+// Mirrors Node.isExprResult() in Java.
+// Go-only: Node.isExprResult() adapter.
 func cciIsExprResult(n *rhino.Node) bool {
 	return n != nil && n.Token() == rhino.EXPR_RESULT
 }
 
-// cciIsNameDeclaration reports whether n is VAR / LET / CONST.
+// cciIsNameDecl reports whether n is VAR / LET / CONST.
 // Mirrors NodeUtil.isNameDeclaration in Java.
-func cciIsNameDeclaration(n *rhino.Node) bool {
+// Go-only: NodeUtil.isNameDeclaration adapter (avoids package-level name clash).
+func cciIsNameDecl(n *rhino.Node) bool {
 	if n == nil {
 		return false
 	}
@@ -571,16 +632,22 @@ func cciIsNameDeclaration(n *rhino.Node) bool {
 }
 
 // cciIsLet reports whether n is a LET declaration.
+// Mirrors Node.isLet() in Java.
+// Go-only: Node.isLet() adapter.
 func cciIsLet(n *rhino.Node) bool {
 	return n != nil && n.Token() == rhino.LET
 }
 
 // cciIsConst reports whether n is a CONST declaration.
+// Mirrors Node.isConst() in Java.
+// Go-only: Node.isConst() adapter.
 func cciIsConst(n *rhino.Node) bool {
 	return n != nil && n.Token() == rhino.CONST
 }
 
 // cciGrandParent returns n.Parent().Parent(), or nil.
+// Mirrors Node.getGrandparent() in Java.
+// Go-only: Node.getGrandparent() adapter.
 func cciGrandParent(n *rhino.Node) *rhino.Node {
 	if n == nil {
 		return nil
@@ -592,7 +659,7 @@ func cciGrandParent(n *rhino.Node) *rhino.Node {
 	return p.Parent()
 }
 
-// cciIsDestructuringLhs reports whether n represents a destructuring LHS
+// isValidDestructuringLhs reports whether n represents a destructuring LHS
 // (i.e. the first child of a VAR/LET/CONST that is an OBJECTLIT or
 // array pattern used on the LHS of an initializer).
 //
@@ -601,7 +668,8 @@ func cciGrandParent(n *rhino.Node) *rhino.Node {
 // child is an OBJECTLIT.
 //
 // TODO: add DESTRUCTURING_LHS token to rhino when rhino.Node is extended.
-func cciIsDestructuringLhs(n *rhino.Node) bool {
+// Go-only: DESTRUCTURING_LHS token approximation.
+func isValidDestructuringLhs(n *rhino.Node) bool {
 	// Approximate: if the node itself is an OBJECTLIT it is acting as
 	// a destructuring LHS inside a var/let/const initializer.
 	if n == nil {
@@ -610,26 +678,10 @@ func cciIsDestructuringLhs(n *rhino.Node) bool {
 	return n.Token() == rhino.OBJECTLIT
 }
 
-// cciIsValidDestructuringImport mirrors Checker.isValidDestructuringImport.
-// A valid destructuring import is `const { Foo, Bar } = goog.require(…)` —
-// every key of the object pattern must be a plain string key with a NAME value.
-func cciIsValidDestructuringImport(lhs *rhino.Node) bool {
-	// lhs is the OBJECTLIT acting as destructuring pattern.
-	for _, key := range lhs.Children() {
-		if key.Token() != rhino.STRING_KEY {
-			return false
-		}
-		val := key.FirstChild()
-		if val == nil || val.Token() != rhino.NAME {
-			return false
-		}
-	}
-	return true
-}
-
 // cciHasFunctionAncestor returns true when any ancestor of n is a FUNCTION
 // node. Used as a proxy for "not at top-level scope".
 // TODO: replace with real NodeTraversal scope-stack query.
+// Go-only: scope-stack proxy for top-level detection.
 func cciHasFunctionAncestor(n *rhino.Node) bool {
 	for cur := n.Parent(); cur != nil; cur = cur.Parent() {
 		if cur.Token() == rhino.FUNCTION {
@@ -641,7 +693,8 @@ func cciHasFunctionAncestor(n *rhino.Node) bool {
 
 // cciGoogProvideOrModuleNamespace returns the namespace string from a
 // goog.provide(ns) or goog.module(ns) call, or "" if the node is neither.
-// Used by collectNamespaces to seed namespacesSeen.
+// Used by enterModule to seed namespacesSeen.
+// Go-only: namespace extractor for enterModule stub.
 func cciGoogProvideOrModuleNamespace(call *rhino.Node) string {
 	if call.Token() != rhino.CALL {
 		return ""
@@ -659,4 +712,15 @@ func cciGoogProvideOrModuleNamespace(call *rhino.Node) string {
 		return ""
 	}
 	return arg.String_()
+}
+
+// cciLastDotIndex returns the index of the last '.' in s, or -1.
+// Go-only: strings.LastIndex('.') helper for checkShortName.
+func cciLastDotIndex(s string) int {
+	for i := len(s) - 1; i >= 0; i-- {
+		if s[i] == '.' {
+			return i
+		}
+	}
+	return -1
 }

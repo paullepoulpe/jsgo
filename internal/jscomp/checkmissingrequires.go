@@ -1127,13 +1127,13 @@ func cmrIsGoogModuleGetCall(n *rhino.Node) bool {
 	return kids[1].Token() == rhino.STRINGLIT
 }
 
-// cmrTocci converts a cmrModuleMetadataMap into a cciModuleMetadataMap so
+// cmrTocci converts a cmrModuleMetadataMap into a ModuleMetadataMap so
 // that CheckClosureImports can use the same single-file module graph built
 // by cmrGatherModuleMetadata. Only the googNamespaces set and module type
 // are carried across (CheckClosureImports only queries isGoogModule/isModule
 // and getModulesByGoogNamespace).
-func cmrTocci(m *cmrModuleMetadataMap) *cciModuleMetadataMap {
-	out := newCciModuleMetadataMap()
+func cmrTocci(m *cmrModuleMetadataMap) *ModuleMetadataMap {
+	out := newModuleMetadataMap()
 	if m == nil {
 		return out
 	}
@@ -1145,7 +1145,7 @@ func cmrTocci(m *cmrModuleMetadataMap) *cciModuleMetadataMap {
 			mt = cciModuleTypeScript
 		}
 		gns := map[string]struct{}{ns: {}}
-		out.byGoogNamespace[ns] = &cciModuleMetadata{
+		out.byGoogNamespace[ns] = &ModuleMetadata{
 			googNamespaces: gns,
 			moduleType:     mt,
 			rootNode:       md.rootNode,

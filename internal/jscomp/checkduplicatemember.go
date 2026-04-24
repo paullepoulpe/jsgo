@@ -1,16 +1,23 @@
-// Port of com/google/javascript/jscomp/StrictModeCheck.java's
-// checkObjectLiteralOrClass (subset) @ closure-compiler v20260415.
+// Port of com/google/javascript/jscomp/StrictModeCheck.java @ closure-compiler v20260415
 //
-// Object literals: fires JSC_DUPLICATE_MEMBER + JSC_DUP_VAR_DECLARATION
-// when the same key appears twice in an OBJECTLIT — `{BB: 1, BB: 2}`.
-// Java emits a WARNING at the first occurrence and an ERROR at the
-// second.
+// This file ports the duplicate-member subset of StrictModeCheck:
 //
-// Class bodies: fires JSC_DUPLICATE_MEMBER (WARNING only) when a
-// class declares two members with the same name, mirroring Java's
-// StrictModeCheck.checkObjectLiteralOrClass. Getter + setter for the
-// same name are compatible and do not trigger the diagnostic. Static
-// and instance slots are tracked separately.
+//  Object literals: fires JSC_DUPLICATE_MEMBER + JSC_DUP_VAR_DECLARATION
+//  when the same key appears twice in an OBJECTLIT — `{BB: 1, BB: 2}`.
+//  Java emits a WARNING at the first occurrence and an ERROR at the second.
+//
+//  Class bodies: fires JSC_DUPLICATE_MEMBER (WARNING only) when a
+//  class declares two members with the same name, mirroring Java's
+//  StrictModeCheck.checkObjectLiteralOrClass. Getter + setter for the
+//  same name are compatible and do not trigger the diagnostic. Static
+//  and instance slots are tracked separately.
+//
+// The NonExternChecks inner class (eval/arguments redeclaration, callee/caller
+// property access) is not yet ported because it requires scope infrastructure.
+// TODO: port USE_OF_WITH, EVAL_DECLARATION, EVAL_ASSIGNMENT, ARGUMENTS_DECLARATION,
+//   ARGUMENTS_ASSIGNMENT, ARGUMENTS_CALLEE_FORBIDDEN, ARGUMENTS_CALLER_FORBIDDEN,
+//   FUNCTION_CALLER_FORBIDDEN, FUNCTION_ARGUMENTS_PROP_FORBIDDEN, DELETE_VARIABLE.
+// TODO: port NonExternChecks.checkDeclaration, NonExternChecks.checkGetProp.
 
 package jscomp
 
@@ -21,35 +28,93 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
+// CheckDuplicateMember mirrors the duplicate-member checking subset of
+// Java's StrictModeCheck class (StrictModeCheck extends AbstractPostOrderCallback
+// implements CompilerPass).
 type CheckDuplicateMember struct {
 	path  string
 	diags []diag.Diagnostic
 }
 
+// NewCheckDuplicateMember mirrors the Java constructor
+// StrictModeCheck(AbstractCompiler compiler, CheckLevel defaultLevel).
+// Go-only: constructor shim; Java uses the class constructor directly.
 func NewCheckDuplicateMember(path string) *CheckDuplicateMember {
 	return &CheckDuplicateMember{path: path}
 }
 
 // Check walks the AST flagging duplicate members in every OBJECTLIT
 // and every class body (CLASS → BLOCK).
+// Mirrors Java's process(Node externs, Node root): calls
+// NodeTraversal.traverseRoots and NodeTraversal.traverse(compiler, root, new NonExternChecks()).
 func (c *CheckDuplicateMember) Check(script *rhino.Node) []diag.Diagnostic {
 	c.diags = nil
 	c.walk(script, "")
 	return c.diags
 }
 
+// walk drives the traversal, calling visit() for each node and recursing into children.
+// Pre-order walk mirrors the order of Java's AbstractPostOrderCallback for this pass.
+// Go-only: NodeTraversal adapter; Java uses NodeTraversal.traverseRoots.
 func (c *CheckDuplicateMember) walk(n *rhino.Node, owner string) {
 	if n == nil {
 		return
 	}
+	c.visit(n, owner)
+	for _, ch := range n.Children() {
+		c.walk(ch, owner)
+	}
+}
+
+// visit checks a single node. Mirrors Java's StrictModeCheck.visit(NodeTraversal t, Node n, Node parent):
+//
+//	if (n.isAssign())          checkAssignment(n)
+//	else if (n.isDelProp())   checkDelete(t, n)
+//	else if (n.isObjectLit()) checkObjectLiteralOrClass(n)
+//	else if (n.isClass())     checkObjectLiteralOrClass(n.getLastChild())
+//	else if (n.isWith())      checkWith(n)
+func (c *CheckDuplicateMember) visit(n *rhino.Node, owner string) {
 	switch n.Token() {
 	case rhino.OBJECTLIT:
-		// Determine the receiver name to qualify the DUP_VAR
-		// diagnostic with — matches how Java uses the containing
-		// declaration's fully-qualified name (`a.BB` / `goog.a.BB`).
+		c.checkObjectLiteralOrClass(n, owner)
+	case rhino.CLASS:
+		// Java: checkObjectLiteralOrClass(n.getLastChild())
+		// CLASS children: [0]=name, [1]=superName, [2]=body BLOCK.
+		if kids := n.Children(); len(kids) >= 3 {
+			c.checkObjectLiteralOrClass(kids[2], owner)
+		}
+	}
+}
+
+// checkObjectLiteralOrClass ports StrictModeCheck.checkObjectLiteralOrClass(Node n).
+// Checks both object literals and class bodies (n is the body BLOCK for classes).
+// Uses four sets (getters / setters × instance / static) to track names,
+// iterating backwards for class bodies so the last duplicate "wins" (sloppy-mode semantics).
+//
+// Java (lines 163-202):
+//
+//	private void checkObjectLiteralOrClass(Node n) {
+//	  LinkedHashSet<String> getters = new LinkedHashSet<>();
+//	  LinkedHashSet<String> setters = new LinkedHashSet<>();
+//	  LinkedHashSet<String> staticGetters = new LinkedHashSet<>();
+//	  LinkedHashSet<String> staticSetters = new LinkedHashSet<>();
+//	  for (Node key = n.getLastChild(); key != null; key = key.getPrevious()) {
+//	    if (key.isEmpty() || key.isComputedProp() || key.isSpread() || …) continue;
+//	    String keyName = key.getString();
+//	    if (!key.isSetterDef()) { set = …getters; if (!set.add(keyName)) report(key, DUPLICATE_MEMBER, keyName); }
+//	    if (!key.isGetterDef()) { set = …setters; if (!set.add(keyName)) report(key, DUPLICATE_MEMBER, keyName); }
+//	  }
+//	}
+func (c *CheckDuplicateMember) checkObjectLiteralOrClass(n *rhino.Node, owner string) {
+	kids := n.Children()
+
+	if n.Token() == rhino.OBJECTLIT {
+		// Object literal: check STRING_KEY children for duplicates.
+		// Iterate forward, tracking first-seen by name; fires diagnostics
+		// at first (JSC_DUPLICATE_MEMBER) and second (JSC_DUP_VAR_DECLARATION) occurrences.
 		scope := enclosingOwnerName(n, owner)
 		seen := map[string]*rhino.Node{}
-		for _, kv := range n.Children() {
+		for _, kv := range kids {
 			if kv.Token() != rhino.STRING_KEY {
 				continue
 			}
@@ -77,38 +142,20 @@ func (c *CheckDuplicateMember) walk(n *rhino.Node, owner string) {
 			}
 			seen[name] = kv
 		}
-	case rhino.CLASS:
-		// Mirrors StrictModeCheck.visit: n.isClass() →
-		// checkObjectLiteralOrClass(n.getLastChild()).
-		// CLASS children: [0]=name, [1]=superName, [2]=body BLOCK.
-		if kids := n.Children(); len(kids) >= 3 {
-			c.checkClassBody(kids[2])
-		}
+		return
 	}
-	for _, ch := range n.Children() {
-		c.walk(ch, owner)
-	}
-}
 
-// checkClassBody ports StrictModeCheck.checkObjectLiteralOrClass for
-// ES6 class bodies. It iterates the body BLOCK's children backwards
-// (so the last declaration wins) and fires JSC_DUPLICATE_MEMBER on
-// any earlier declaration with the same name.
-//
-// Four independent name-sets track instance-getter, instance-setter,
-// static-getter, and static-setter slots — matching the Java 4-set
-// design. A getter and a setter with the same name are compatible and
-// do NOT trigger the diagnostic; two getters (or two non-setter
-// members) DO.
-func (c *CheckDuplicateMember) checkClassBody(body *rhino.Node) {
-	// Four sets: getters / setters × instance / static.
-	// key = member name, value = first-seen node (last in source).
+	// Class body: iterate backwards (Java: for (Node key = n.getLastChild(); ...));
+	// skip computed, empty, static-block nodes.
+	// Four independent name-sets track instance-getter, instance-setter,
+	// static-getter, and static-setter slots — matching the Java 4-set design.
+	// A getter and a setter with the same name are compatible and do NOT trigger
+	// the diagnostic; two getters (or two non-setter members) DO.
 	getters := map[string]*rhino.Node{}
 	setters := map[string]*rhino.Node{}
 	staticGetters := map[string]*rhino.Node{}
 	staticSetters := map[string]*rhino.Node{}
 
-	kids := body.Children()
 	for i := len(kids) - 1; i >= 0; i-- {
 		m := kids[i]
 		switch m.Token() {
@@ -135,14 +182,8 @@ func (c *CheckDuplicateMember) checkClassBody(body *rhino.Node) {
 				gs = staticGetters
 			}
 			if _, dup := gs[name]; dup {
-				c.diags = append(c.diags, diag.Diagnostic{
-					Path: c.path, Line: m.Lineno(), Col: m.Charno(),
-					Code:  diag.JSC_DUPLICATE_MEMBER,
-					Level: diag.Warning,
-					Message: fmt.Sprintf(
-						"Class or object literal contains duplicate member %q. In non-strict code, the last duplicate will overwrite the others.",
-						name),
-				})
+				c.report(m, diag.JSC_DUPLICATE_MEMBER, diag.Warning,
+					fmt.Sprintf("Class or object literal contains duplicate member %q. In non-strict code, the last duplicate will overwrite the others.", name))
 			} else {
 				gs[name] = m
 			}
@@ -153,14 +194,8 @@ func (c *CheckDuplicateMember) checkClassBody(body *rhino.Node) {
 				ss = staticSetters
 			}
 			if _, dup := ss[name]; dup {
-				c.diags = append(c.diags, diag.Diagnostic{
-					Path: c.path, Line: m.Lineno(), Col: m.Charno(),
-					Code:  diag.JSC_DUPLICATE_MEMBER,
-					Level: diag.Warning,
-					Message: fmt.Sprintf(
-						"Class or object literal contains duplicate member %q. In non-strict code, the last duplicate will overwrite the others.",
-						name),
-				})
+				c.report(m, diag.JSC_DUPLICATE_MEMBER, diag.Warning,
+					fmt.Sprintf("Class or object literal contains duplicate member %q. In non-strict code, the last duplicate will overwrite the others.", name))
 			} else {
 				ss[name] = m
 			}
@@ -168,11 +203,25 @@ func (c *CheckDuplicateMember) checkClassBody(body *rhino.Node) {
 	}
 }
 
+// report emits a diagnostic. Mirrors Java's
+// void report(Node n, DiagnosticType diagnostic, String... args).
+func (c *CheckDuplicateMember) report(n *rhino.Node, code string, level diag.Level, msg string) {
+	c.diags = append(c.diags, diag.Diagnostic{
+		Path:    c.path,
+		Line:    n.Lineno(),
+		Col:     n.Charno(),
+		Code:    code,
+		Level:   level,
+		Message: msg,
+	})
+}
+
 // enclosingOwnerName walks parents looking for the VAR / ASSIGN
 // LHS that owns this OBJECTLIT, returning the dotted name used to
 // qualify the JSC_DUP_VAR_DECLARATION diagnostic. Falls back to
 // `<anonymous>` when the literal isn't directly assigned to a
 // named slot.
+// Go-only: helper for JSC_DUP_VAR_DECLARATION message formatting.
 func enclosingOwnerName(n *rhino.Node, fallback string) string {
 	for cur := n.Parent(); cur != nil; cur = cur.Parent() {
 		switch cur.Token() {
@@ -198,6 +247,7 @@ func enclosingOwnerName(n *rhino.Node, fallback string) string {
 
 // flattenGetProp renders a NAME / GETPROP chain as a dotted path
 // (`goog.a.BB`). Unknown tokens fall through to `<anonymous>`.
+// Go-only: helper for JSC_DUP_VAR_DECLARATION message formatting.
 func flattenGetProp(n *rhino.Node) string {
 	if n == nil {
 		return "<anonymous>"
