@@ -647,11 +647,15 @@ func (p *JsDocInfoParser) parseParamTag() JsDocToken {
 	if !ok {
 		return p.eatUntilEOLIfNotAnnotation()
 	}
-	// parseParamTypeExpressionAnnotation already advanced to the
-	// token immediately following `}`. Java's parser expects that to
-	// be the parameter name (STRING), possibly wrapped in optional-
-	// param `[ … ]` syntax. Take the name from stream.String_ when
-	// the follower is a STRING, otherwise skip to end-of-line.
+	// The token after `}` is either:
+	//   STRING          — the bare parameter name
+	//   LEFT_SQUARE     — the optional-param wrapper `[name]`
+	// Java handles LEFT_SQUARE via isBracketedParam. We mirror that here.
+	isBracketedParam := next == JsDocTokenLeftSquare
+	if isBracketedParam {
+		next = p.next() // consume `[` and advance to the name
+		isOptional = true
+	}
 	if next == JsDocTokenString {
 		name := p.stream.String_()
 		// Optional-param wrappers arrive as raw identifiers; strip a
@@ -659,6 +663,22 @@ func (p *JsDocInfoParser) parseParamTag() JsDocToken {
 		name = strings.TrimLeft(name, "[")
 		if i := strings.IndexAny(name, "=]"); i >= 0 {
 			name = name[:i]
+		}
+		if isBracketedParam {
+			// Consume optional default-value syntax: `[name=default]`.
+			// Eat up to the matching `]`.
+			tok := p.next()
+			if tok == JsDocTokenEquals {
+				// consume any default value tokens up to `]`
+				for tok != JsDocTokenRightSquare && tok != JsDocTokenEOC && tok != JsDocTokenEOF {
+					tok = p.next()
+				}
+			} else if tok == JsDocTokenRightSquare {
+				// `[name]` — just the closing bracket
+			} else {
+				// unexpected; continue
+				_ = tok
+			}
 		}
 		if isJsIdent(name) {
 			p.info.AddParam(name, rhino.NewJSTypeExpression(expr))
