@@ -7,6 +7,73 @@
 // passes (parse → TypedScopeCreator → TypeCheck) for the CLI +
 // harness. A real Compiler port — pass registry, phase ordering,
 // Results — lands when we have more than these three passes.
+//
+// Substantive Java methods not yet ported (requires unported types):
+//   TODO(port): Compiler() — constructor
+//   TODO(port): Compiler(PrintStream) — constructor with output stream
+//   TODO(port): Compiler(ErrorManager) — constructor with error manager
+//   TODO(port): Compiler.compile(SourceFile, SourceFile, CompilerOptions)
+//   TODO(port): Compiler.compile(List, List, CompilerOptions)
+//   TODO(port): Compiler.compileModules(List, List, CompilerOptions)
+//   TODO(port): Compiler.compileChunks(List, List, CompilerOptions)
+//   TODO(port): Compiler.init(List, List, CompilerOptions)
+//   TODO(port): Compiler.initChunks(List, List, CompilerOptions)
+//   TODO(port): Compiler.initOptions(CompilerOptions)
+//   TODO(port): Compiler.parseInputs()
+//   TODO(port): Compiler.parse()
+//   TODO(port): Compiler.check()
+//   TODO(port): Compiler.optimize()
+//   TODO(port): Compiler.stage1Passes()
+//   TODO(port): Compiler.stage2Passes()
+//   TODO(port): Compiler.toSource()
+//   TODO(port): Compiler.toSource(Node)
+//   TODO(port): Compiler.report(JSError)
+//   TODO(port): Compiler.getInput(InputId)
+//   TODO(port): Compiler.getChunkGraph()
+//   TODO(port): Compiler.getJsRoot()
+//   TODO(port): Compiler.getRoot()
+//   TODO(port): Compiler.getErrorManager()
+//   TODO(port): Compiler.getCodingConvention()
+//   TODO(port): Compiler.getReverseAbstractInterpreter()
+//   TODO(port): Compiler.getTypeRegistry()
+//   TODO(port): Compiler.getTopScope()
+//   TODO(port): Compiler.getTypedScopeCreator()
+//   TODO(port): Compiler.getParserConfig(ConfigContext)
+//   TODO(port): Compiler.getUniqueIdSupplier()
+//   TODO(port): Compiler.getUniqueNameIdSupplier()
+//   TODO(port): Compiler.getChangeTracker()
+//   TODO(port): Compiler.beforePass(String)
+//   TODO(port): Compiler.afterPass(String)
+//   TODO(port): Compiler.process(CompilerPass)
+//   TODO(port): Compiler.setErrorManager(ErrorManager)
+//   TODO(port): Compiler.printConfig()
+//   TODO(port): Compiler.reconcileOptionsWithGuards()
+//   TODO(port): Compiler.getNodeForCodeInsertion(JSChunk)
+//   TODO(port): Compiler.getTypeValidator()
+//   TODO(port): Compiler.getTypeMismatches()
+//   TODO(port): Compiler.getSyntheticExternsInput()
+//   TODO(port): Compiler.getSynthesizedTypeSummaryInput()
+//   TODO(port): Compiler.getModuleLoader()
+//   TODO(port): Compiler.getRuntimeJsLibManager()
+//   TODO(port): Compiler.getTranspilationNamespace()
+//   TODO(port): Compiler.initWithTypedAstFilesystem(List, List, CompilerOptions, InputStream)
+//   TODO(port): Compiler.initChunksWithTypedAstFilesystem(List, List, CompilerOptions, InputStream)
+//   TODO(port): Compiler.getInputsInOrder()
+//   TODO(port): Compiler.clearTypedScopeCreator()
+//   TODO(port): Compiler.hasScopeChanged(Node)
+//   TODO(port): Compiler.hasHaltingErrors()
+//   TODO(port): Compiler.addIndexProvider(IndexProvider)
+//   TODO(port): Compiler.getIndex(Class)
+//   TODO(port): Compiler.getDefaultErrorReporter()
+//   TODO(port): Compiler.clearJSTypeRegistry()
+//   TODO(port): Compiler.getColorRegistry()
+//   TODO(port): Compiler.setColorRegistry(ColorRegistry)
+//   TODO(port): Compiler.initRuntimeLibraryTypedAsts(Optional)
+//   TODO(port): Compiler.parseTestCode(String)
+//   TODO(port): Compiler.createOrReopenLog(Class, String, String...)
+//   TODO(port): Compiler.createOrReopenIndexedLog(Class, String, String...)
+//   TODO(port): Compiler.createDefaultExpressionDecomposer()
+//   TODO(port): Compiler.createExpressionDecomposer(Supplier, ImmutableSet, Scope)
 
 package jscomp
 
@@ -25,6 +92,7 @@ import (
 // is used unchanged.
 var useNewPipeline = os.Getenv("JSGO_NEW_PIPELINE") == "1"
 
+// Go-only: package-bridge
 // parseSource selects the parse path based on useNewPipeline.
 // It mirrors Compiler.parse(input) which calls ParserRunner.parse internally.
 // Returns the SCRIPT-rooted rhino.Node and any fatal parse error.
@@ -43,6 +111,7 @@ func parseSource(path, src string) (*rhino.Node, error) {
 	return parser.Parse(src)
 }
 
+// Go-only: package-bridge
 // hasVarMultiplyError reports whether the diagnostic slice contains any
 // JSC_VAR_MULTIPLY_DECLARED_ERROR entry. CheckGlobalThis is skipped when
 // such errors are present, mirroring Java's behaviour where the
@@ -57,6 +126,7 @@ func hasVarMultiplyError(diags []diag.Diagnostic) bool {
 	return false
 }
 
+// Go-only: package-bridge
 // CheckSource runs the Tier-0 pipeline on one source file and returns
 // accumulated diagnostics. A parse error is returned as err; the caller
 // decides whether to surface it as a diagnostic or as a fatal.
@@ -77,6 +147,7 @@ func CheckSource(path, src string) ([]diag.Diagnostic, error) {
 	return CheckSourceWithOptions(path, src, NewCompilerOptions())
 }
 
+// Go-only: package-bridge
 // CheckSourceWithOptions is the per-options variant. Mirrors how
 // Compiler#compile accepts a CompilerOptions instance and threads
 // it into each pass's constructor.
