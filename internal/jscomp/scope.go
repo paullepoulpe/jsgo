@@ -1073,7 +1073,13 @@ func (c *TypedScopeCreator) buildExpressionFunctionScope(fn *rhino.Node, parent 
 	for _, p := range params.Children() {
 		t := resolveParamType(info, p, parent)
 		paramTypes = append(paramTypes, t)
-		local.declared[p.String_()] = t
+		if p.Token() == rhino.NAME {
+			local.declared[p.String_()] = t
+		} else {
+			// Destructuring param — collect all bound names as Unknown.
+			// resolveParamType returns Unknown for non-NAME params already.
+			collectPatternNames(p, local)
+		}
 	}
 	funcName := ""
 	if nameNode != nil && nameNode.String_() != "" {
@@ -2817,8 +2823,18 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 		thisType: fnType.Instance, // nil for non-ctors
 	}
 	for i, p := range params.Children() {
-		if i < len(paramTypes) {
-			localScope.declared[p.String_()] = paramTypes[i]
+		if p.Token() == rhino.NAME {
+			if i < len(paramTypes) {
+				localScope.declared[p.String_()] = paramTypes[i]
+			}
+		} else {
+			// Destructuring parameter: `({a, b}) =>` or `([x, y]) =>`.
+			// Collect all NAME bindings from the pattern and declare them
+			// as Unknown (we don't have per-binding type info without full
+			// destructuring type inference). Mirrors Java's
+			// TypedScopeCreator.AbstractScopeBuilder.visitParameters()
+			// handling of non-simple param patterns.
+			collectPatternNames(p, localScope)
 		}
 	}
 	// Declare @template names in the function body scope (Java's
@@ -2855,6 +2871,56 @@ func (c *TypedScopeCreator) declareTemplatesInFunctionBody(_ *rhino.Node, info *
 			if _, exists := local.declared[tname]; !exists {
 				local.declared[tname] = jstype.Void
 			}
+		}
+	}
+}
+
+// collectPatternNames recursively visits a destructuring pattern node
+// (OBJECT_PATTERN, ARRAY_PATTERN, or DEFAULT_VALUE) and declares every
+// NAME leaf as Unknown in the supplied scope. This mirrors Java's
+// TypedScopeCreator.AbstractScopeBuilder.visitParameters() for
+// non-simple (destructuring) function parameters so that VarCheck
+// and VariableReferenceCheck do not flag the bound names as undeclared
+// when they appear as references inside the function body.
+func collectPatternNames(n *rhino.Node, scope *TypedScope) {
+	if n == nil {
+		return
+	}
+	switch n.Token() {
+	case rhino.NAME:
+		// Leaf binding — register in scope unless already declared.
+		name := n.String_()
+		if name != "" {
+			if _, exists := scope.declared[name]; !exists {
+				scope.declared[name] = jstype.Unknown
+			}
+		}
+	case rhino.OBJECT_PATTERN:
+		for _, ch := range n.Children() {
+			collectPatternNames(ch, scope)
+		}
+	case rhino.ARRAY_PATTERN:
+		for _, ch := range n.Children() {
+			collectPatternNames(ch, scope)
+		}
+	case rhino.STRING_KEY:
+		// `{key: pattern}` or `{key}` shorthand — descend into the
+		// value child (the binding target).
+		for _, ch := range n.Children() {
+			collectPatternNames(ch, scope)
+		}
+	case rhino.DEFAULT_VALUE:
+		// `{a = dflt}` — first child is the binding, second is the
+		// default expression (a reference, not a binding).
+		kids := n.Children()
+		if len(kids) >= 1 {
+			collectPatternNames(kids[0], scope)
+		}
+		// Do NOT recurse into kids[1] — it's a reference expression.
+	case rhino.OBJECT_REST:
+		// `{...rest}` — the single child is the binding name.
+		for _, ch := range n.Children() {
+			collectPatternNames(ch, scope)
 		}
 	}
 }

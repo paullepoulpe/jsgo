@@ -116,8 +116,8 @@ func (v *VarCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 
 // isBindingSite classifies NAME nodes that are declarations (param,
 // VAR child, function/class name, class-field-def name, STRING_KEY
-// child, object-literal shorthand) rather than references. Matches
-// NodeUtil.isNameDeclaration's intent.
+// child inside destructuring, object-literal shorthand) rather than
+// references. Matches NodeUtil.isNameDeclaration's intent.
 func (v *VarCheck) isBindingSite(n, parent *rhino.Node) bool {
 	if parent == nil {
 		return true // orphan NAMEs aren't references
@@ -133,11 +133,37 @@ func (v *VarCheck) isBindingSite(n, parent *rhino.Node) bool {
 		return parent.FirstChild() == n
 	case rhino.CLASS_FIELD_DEF:
 		return parent.FirstChild() == n
+	case rhino.ARRAY_PATTERN:
+		// Direct NAME children of an array pattern are bindings:
+		// `[a, b] = rhs` — a and b are bindings.
+		return true
+	case rhino.OBJECT_REST:
+		// `{...rest}` — the NAME inside OBJECT_REST is a binding.
+		return true
 	case rhino.STRING_KEY:
-		// `{x: y}` — NAME on the key side is the key (not a reference);
-		// NAME on the value side IS a reference. STRING_KEY is the
-		// parent of the value only (the name itself is the STRING_KEY's
-		// own string).
+		// In destructuring: `{x: y}` or `{x}` inside OBJECT_PATTERN —
+		// the NAME child of STRING_KEY is a binding target. In an object
+		// literal, STRING_KEY is under OBJECTLIT, and the NAME child IS
+		// a reference. Distinguish by checking the grandparent.
+		gp := parent.Parent()
+		if gp != nil && gp.Token() == rhino.OBJECT_PATTERN {
+			return true
+		}
+		return false
+	case rhino.DEFAULT_VALUE:
+		// `{a = dflt}` or `[a = dflt]` — first child is the binding
+		// target; second child is the default expression (a reference).
+		// Only mark as binding if we are in a pattern context (parent of
+		// DEFAULT_VALUE is STRING_KEY/ARRAY_PATTERN/OBJECT_PATTERN).
+		if parent.FirstChild() == n {
+			gp := parent.Parent()
+			if gp != nil {
+				switch gp.Token() {
+				case rhino.STRING_KEY, rhino.ARRAY_PATTERN, rhino.OBJECT_PATTERN, rhino.PARAM_LIST:
+					return true
+				}
+			}
+		}
 		return false
 	}
 	return false

@@ -368,10 +368,10 @@ func isVarSelfInitOr(n *rhino.Node, varName string) bool {
 
 // isBindingSiteVRC classifies NAME nodes that are declarations (param,
 // VAR/LET/CONST child, function/class name, class-field-def name,
-// STRING_KEY child) rather than value references. Mirrors the logic in
-// VarCheck.isBindingSite, kept separate to avoid a package-level
-// coupling. The name "_VRC" suffix distinguishes it from VarCheck's
-// copy; both are 1:1 ports of the same NodeUtil helpers.
+// STRING_KEY child inside destructuring, ARRAY_PATTERN child, etc.)
+// rather than value references. Mirrors the logic in VarCheck.isBindingSite,
+// kept separate to avoid a package-level coupling. Both are 1:1 ports of
+// the same NodeUtil helpers extended for ES2015+ destructuring patterns.
 func isBindingSiteVRC(n, parent *rhino.Node) bool {
 	if parent == nil {
 		return true // orphan NAMEs aren't references
@@ -392,6 +392,36 @@ func isBindingSiteVRC(n, parent *rhino.Node) bool {
 		// not a variable reference.
 		kids := parent.Children()
 		return len(kids) >= 2 && kids[1] == n
+	case rhino.ARRAY_PATTERN:
+		// Direct NAME children of an array pattern are bindings:
+		// `[a, b] = rhs` — a and b are bindings.
+		return true
+	case rhino.OBJECT_REST:
+		// `{...rest}` — the NAME inside OBJECT_REST is a binding.
+		return true
+	case rhino.STRING_KEY:
+		// In destructuring: `{x: y}` or `{x}` inside OBJECT_PATTERN —
+		// the NAME child of STRING_KEY is a binding target. In an object
+		// literal, STRING_KEY is under OBJECTLIT, and the NAME child IS
+		// a reference. Distinguish by checking the grandparent.
+		gp := parent.Parent()
+		if gp != nil && gp.Token() == rhino.OBJECT_PATTERN {
+			return true
+		}
+		return false
+	case rhino.DEFAULT_VALUE:
+		// `{a = dflt}` or `[a = dflt]` — first child is the binding
+		// target; second child is the default expression (a reference).
+		if parent.FirstChild() == n {
+			gp := parent.Parent()
+			if gp != nil {
+				switch gp.Token() {
+				case rhino.STRING_KEY, rhino.ARRAY_PATTERN, rhino.OBJECT_PATTERN, rhino.PARAM_LIST:
+					return true
+				}
+			}
+		}
+		return false
 	}
 	return false
 }
