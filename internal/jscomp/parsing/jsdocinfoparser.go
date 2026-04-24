@@ -1142,6 +1142,52 @@ func (p *JsDocInfoParser) parseFunctionType() (string, bool) {
 	return out, true
 }
 
+// RetrieveAndResetParsedJSDocInfo mirrors Java's
+// retrieveAndResetParsedJSDocInfo() — returns the parsed JSDocInfo if any
+// annotation was recorded, otherwise nil.
+func (p *JsDocInfoParser) RetrieveAndResetParsedJSDocInfo() *rhino.JSDocInfo {
+	if !p.anyRecorded {
+		return nil
+	}
+	return p.info
+}
+
+// GetFileOverviewJSDocInfo mirrors Java's getFileOverviewJSDocInfo() —
+// returns the fileoverview JSDocInfo if one was parsed. Not implemented
+// in the Go port (fileoverview detection requires a separate pass over
+// the parsed info). Returns nil by default.
+func (p *JsDocInfoParser) GetFileOverviewJSDocInfo() *rhino.JSDocInfo {
+	if p.info.HasFileOverview() {
+		return p.info
+	}
+	return nil
+}
+
+// lookAheadForType mirrors Java's lookAheadForType() — peeks ahead in the
+// character stream (without consuming) to see if a `{` follows.
+func (p *JsDocInfoParser) lookAheadForType() bool {
+	return p.lookAheadFor('{')
+}
+
+// lookAheadForAnnotation mirrors Java's lookAheadForAnnotation() — peeks
+// ahead to see if an `@` follows (ignoring leading spaces).
+func (p *JsDocInfoParser) lookAheadForAnnotation() bool {
+	return p.lookAheadFor('@')
+}
+
+// lookAheadFor peeks ahead in the character stream for a specific rune,
+// skipping spaces only. Mirrors Java's lookAheadFor(char).
+func (p *JsDocInfoParser) lookAheadFor(expect byte) bool {
+	rest := p.stream.GetRemainingJSDocLine()
+	for _, c := range rest {
+		if c == ' ' || c == '\t' {
+			continue
+		}
+		return byte(c) == expect
+	}
+	return false
+}
+
 // ---------------------------------------------------------------- //
 // Small helpers: match / next / skipEOLs / line-eaters.            //
 // ---------------------------------------------------------------- //

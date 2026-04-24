@@ -210,6 +210,46 @@ type JSDocInfo struct {
 	// idGenerator mirrors the ID_GENERATOR property.
 	idGenerator    IdGenerator
 	hasIdGenerator bool
+
+	// thisType mirrors the THIS_TYPE property — the type expression from @this.
+	thisType *JSTypeExpression
+
+	// description mirrors the DESCRIPTION property — text from @desc.
+	description string
+
+	// license mirrors the LICENSE property — text from @license.
+	license string
+
+	// blockDescription mirrors the BLOCK_DESCRIPTION property — the leading
+	// description block before any tag.
+	blockDescription string
+
+	// originalCommentPosition mirrors the ORIGINAL_COMMENT_POSITION property.
+	originalCommentPosition int
+
+	// originalCommentString mirrors the SOURCE_COMMENT property.
+	originalCommentString string
+
+	// fileoverviewDescription mirrors the FILEOVERVIEW_DESCRIPTION property.
+	fileoverviewDescription string
+
+	// authors mirrors the AUTHORS property.
+	authors []string
+
+	// sees mirrors the SEES property (@see references).
+	sees []string
+
+	// returnDescription mirrors the RETURN_DESCRIPTION property.
+	returnDescription string
+
+	// paramDescriptions mirrors PARAMETER_DESCRIPTIONS property.
+	paramDescriptions map[string]string
+
+	// meaning mirrors the MEANING property — context for i18n translation.
+	meaning string
+
+	// alternateMessageId mirrors the ALTERNATE_MESSAGE_ID property.
+	alternateMessageId string
 }
 
 // AddSuppression records a `@suppress {name}` entry. Mirrors
@@ -1097,10 +1137,12 @@ func (i *JSDocInfo) OverwriteVisibility(v Visibility) {
 }
 
 // IsAtSignCodePresent mirrors JSDocInfo.isAtSignCodePresent() — checks
-// whether the raw comment string contains "@code". Not available in the Go
-// port (raw comment is not stored) so always returns false.
+// whether the raw comment string contains "@code". The Go port does not
+// store the original comment string, so this always returns false.
+// Mirrors: JSDocInfo.isAtSignCodePresent() which calls getOriginalCommentString().
 func (i *JSDocInfo) IsAtSignCodePresent() bool {
-	return false
+	// originalCommentString is not preserved in the Go port.
+	return i != nil && false
 }
 
 // IsDeprecatedBit mirrors JSDocInfo.isDeprecated() using the Bit.DEPRECATED
@@ -1123,8 +1165,220 @@ func (i *JSDocInfo) IsProvideAlreadyProvided() bool {
 	return i.CheckBit(BitProvideAlreadyProvided)
 }
 
-// HasThrows mirrors JSDocInfo.getThrowsAnnotations().size() > 0.
-// Alias already exists; this is a convenience check.
+// HasThrowsAnnotations mirrors JSDocInfo.getThrowsAnnotations().size() > 0.
+// Alias of HasThrows() for API compatibility.
 func (i *JSDocInfo) HasThrowsAnnotations() bool {
 	return i.HasThrows()
+}
+
+// --- @this type accessors ---
+
+// GetThisType mirrors JSDocInfo.getThisType() — returns the type expression
+// from @this, or nil if not present.
+func (i *JSDocInfo) GetThisType() *JSTypeExpression {
+	if i == nil {
+		return nil
+	}
+	return i.thisType
+}
+
+// SetThisType records the type expression for @this. Called by JsDocInfoParser
+// when it processes a @this annotation with a type argument.
+func (i *JSDocInfo) SetThisType(t *JSTypeExpression) {
+	i.thisType = t
+	i.hasThisType = t != nil
+}
+
+// --- @desc / @license / block-description accessors ---
+
+// GetDescription mirrors JSDocInfo.getDescription() — returns text from @desc.
+func (i *JSDocInfo) GetDescription() string {
+	if i == nil {
+		return ""
+	}
+	return i.description
+}
+
+// SetDescription records the @desc annotation text.
+func (i *JSDocInfo) SetDescription(desc string) { i.description = desc }
+
+// GetLicense mirrors JSDocInfo.getLicense() — returns text from @license.
+func (i *JSDocInfo) GetLicense() string {
+	if i == nil {
+		return ""
+	}
+	return i.license
+}
+
+// SetLicense records the @license annotation text.
+func (i *JSDocInfo) SetLicense(license string) { i.license = license }
+
+// GetBlockDescription mirrors JSDocInfo.getBlockDescription() — returns the
+// leading description block that precedes any @-tags.
+func (i *JSDocInfo) GetBlockDescription() string {
+	if i == nil {
+		return ""
+	}
+	return i.blockDescription
+}
+
+// SetBlockDescription records the leading block description.
+func (i *JSDocInfo) SetBlockDescription(desc string) { i.blockDescription = desc }
+
+// GetFileOverview mirrors JSDocInfo.getFileOverview() — returns text from
+// @fileoverview.
+func (i *JSDocInfo) GetFileOverview() string {
+	if i == nil {
+		return ""
+	}
+	return i.fileoverviewDescription
+}
+
+// SetFileOverview records the @fileoverview description text.
+func (i *JSDocInfo) SetFileOverview(desc string) { i.fileoverviewDescription = desc }
+
+// --- original comment accessors ---
+
+// GetOriginalCommentString mirrors JSDocInfo.getOriginalCommentString().
+// Returns the raw comment text if documentation collection is enabled.
+func (i *JSDocInfo) GetOriginalCommentString() string {
+	if i == nil {
+		return ""
+	}
+	return i.originalCommentString
+}
+
+// SetOriginalCommentString records the raw comment text.
+func (i *JSDocInfo) SetOriginalCommentString(comment string) {
+	i.originalCommentString = comment
+}
+
+// GetOriginalCommentPosition mirrors JSDocInfo.getOriginalCommentPosition().
+func (i *JSDocInfo) GetOriginalCommentPosition() int {
+	if i == nil {
+		return 0
+	}
+	return i.originalCommentPosition
+}
+
+// SetOriginalCommentPosition records the comment position.
+func (i *JSDocInfo) SetOriginalCommentPosition(pos int) {
+	i.originalCommentPosition = pos
+}
+
+// --- @author / @see accessors ---
+
+// GetAuthors mirrors JSDocInfo.getAuthors() — returns the list of @author values.
+func (i *JSDocInfo) GetAuthors() []string {
+	if i == nil {
+		return nil
+	}
+	return i.authors
+}
+
+// AddAuthor appends an @author value.
+func (i *JSDocInfo) AddAuthor(author string) {
+	i.authors = append(i.authors, author)
+}
+
+// GetReferences mirrors JSDocInfo.getReferences() — returns @see values.
+func (i *JSDocInfo) GetReferences() []string {
+	if i == nil {
+		return nil
+	}
+	return i.sees
+}
+
+// AddReference appends a @see reference.
+func (i *JSDocInfo) AddReference(ref string) {
+	i.sees = append(i.sees, ref)
+}
+
+// --- @return description ---
+
+// GetReturnDescription mirrors JSDocInfo.getReturnDescription() — returns
+// the text that follows the @return type expression.
+func (i *JSDocInfo) GetReturnDescription() string {
+	if i == nil {
+		return ""
+	}
+	return i.returnDescription
+}
+
+// SetReturnDescription records the @return description text.
+func (i *JSDocInfo) SetReturnDescription(desc string) { i.returnDescription = desc }
+
+// --- @param description ---
+
+// HasDescriptionForParameter mirrors JSDocInfo.hasDescriptionForParameter(String).
+func (i *JSDocInfo) HasDescriptionForParameter(name string) bool {
+	if i == nil {
+		return false
+	}
+	_, ok := i.paramDescriptions[name]
+	return ok
+}
+
+// GetDescriptionForParameter mirrors JSDocInfo.getDescriptionForParameter(String).
+func (i *JSDocInfo) GetDescriptionForParameter(name string) string {
+	if i == nil {
+		return ""
+	}
+	return i.paramDescriptions[name]
+}
+
+// SetDescriptionForParameter records the description for a named parameter.
+func (i *JSDocInfo) SetDescriptionForParameter(name, desc string) {
+	if i.paramDescriptions == nil {
+		i.paramDescriptions = map[string]string{}
+	}
+	i.paramDescriptions[name] = desc
+}
+
+// --- @meaning / @alternateMessageId ---
+
+// GetMeaning mirrors JSDocInfo.getMeaning() — returns the @meaning text.
+func (i *JSDocInfo) GetMeaning() string {
+	if i == nil {
+		return ""
+	}
+	return i.meaning
+}
+
+// SetMeaning records the @meaning annotation text.
+func (i *JSDocInfo) SetMeaning(meaning string) { i.meaning = meaning }
+
+// GetAlternateMessageId mirrors JSDocInfo.getAlternateMessageId().
+func (i *JSDocInfo) GetAlternateMessageId() string {
+	if i == nil {
+		return ""
+	}
+	return i.alternateMessageId
+}
+
+// SetAlternateMessageId records the @alternateMessageId text.
+func (i *JSDocInfo) SetAlternateMessageId(id string) { i.alternateMessageId = id }
+
+// IsDocumentationIncluded mirrors JSDocInfo.isDocumentationIncluded() — true
+// when parseDocumentation was called on the builder (documentation collection
+// is enabled). The Go port tracks this via a bit.
+func (i *JSDocInfo) IsDocumentationIncluded() bool {
+	return i.CheckBit(BitIncludeDocumentation)
+}
+
+// ParseDocumentation mirrors Builder.parseDocumentation() — marks that
+// documentation collection is enabled.
+func (i *JSDocInfo) ParseDocumentation() {
+	i.SetBit(BitIncludeDocumentation, true)
+}
+
+// IsInlineTypeRecorded mirrors JSDocInfo.isInlineType() for the builder
+// check path. Returns true when the @type was inlined.
+func (i *JSDocInfo) IsInlineTypeRecorded() bool {
+	return i.IsInlineType()
+}
+
+// RecordInlineType records that the type annotation was inlined.
+func (i *JSDocInfo) RecordInlineType() {
+	i.SetBit(BitInlineType, true)
 }
