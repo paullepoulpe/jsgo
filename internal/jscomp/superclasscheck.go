@@ -769,15 +769,22 @@ func (s *SuperclassCheck) checkPrototypeStub(stmt *rhino.Node, gp *rhino.Node) {
 		return
 	}
 	innerKids := inner.Children()
-	if len(innerKids) < 2 {
+	if len(innerKids) < 2 || innerKids[1].String_() != "prototype" {
 		return
 	}
-	if innerKids[0].Token() != rhino.NAME || innerKids[1].String_() != "prototype" {
-		return
+	var fn *jstype.FunctionType
+	var ownerName string
+	switch innerKids[0].Token() {
+	case rhino.NAME:
+		ownerName = innerKids[0].String_()
+		fn, _ = s.scope.GetRawDeclaredType(ownerName).(*jstype.FunctionType)
+	case rhino.GETPROP:
+		if gpK := innerKids[0].Children(); len(gpK) >= 2 && gpK[0].Token() == rhino.NAME {
+			ownerName = gpK[0].String_() + "." + gpK[1].String_()
+			fn, _ = s.scope.LookupNamespaceProp(gpK[0].String_(), gpK[1].String_()).(*jstype.FunctionType)
+		}
 	}
-	ownerName := innerKids[0].String_()
-	fn, ok := s.scope.GetRawDeclaredType(ownerName).(*jstype.FunctionType)
-	if !ok || fn.Instance == nil {
+	if fn == nil || fn.Instance == nil {
 		return
 	}
 	info := stmt.JSDocInfo()
@@ -912,12 +919,24 @@ func (s *SuperclassCheck) checkPrototypeAssign(stmt *rhino.Node, assign *rhino.N
 	if len(innerKids) < 2 {
 		return
 	}
-	if innerKids[0].Token() != rhino.NAME || innerKids[1].String_() != "prototype" {
+	if innerKids[1].String_() != "prototype" {
 		return
 	}
-	ownerName := innerKids[0].String_()
-	fn, ok := s.scope.GetRawDeclaredType(ownerName).(*jstype.FunctionType)
-	if !ok || fn.Instance == nil {
+	// Resolve constructor for both simple `Foo.prototype.bar` and namespace
+	// `goog.Sub.prototype.bar` patterns. Mirrors getLValueRootScope in Java.
+	var fn *jstype.FunctionType
+	var ownerName string
+	switch innerKids[0].Token() {
+	case rhino.NAME:
+		ownerName = innerKids[0].String_()
+		fn, _ = s.scope.GetRawDeclaredType(ownerName).(*jstype.FunctionType)
+	case rhino.GETPROP:
+		if gpK := innerKids[0].Children(); len(gpK) >= 2 && gpK[0].Token() == rhino.NAME {
+			ownerName = gpK[0].String_() + "." + gpK[1].String_()
+			fn, _ = s.scope.LookupNamespaceProp(gpK[0].String_(), gpK[1].String_()).(*jstype.FunctionType)
+		}
+	}
+	if fn == nil || fn.Instance == nil {
 		return
 	}
 	overrideType := s.inferAssignValue(stmt, assign, rhs, fn.Instance)

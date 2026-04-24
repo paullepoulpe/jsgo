@@ -662,6 +662,25 @@ func (p *Parser) finishFunction(jsdoc *rhino.JSDocInfo) (*rhino.Node, bool) {
 	}
 
 	p.scanner.SkipTrivia()
+	// Consume `/** T */` between `function` keyword and name as @return.
+	// Java's Parser treats inline JSDoc here as a return-type annotation.
+	if body, ok2 := p.scanner.ConsumeBlockComment(); ok2 {
+		if inline := parseInlineTypeJSDoc(body); inline != nil && inline.Type() != nil {
+			if jsdoc == nil {
+				jsdoc = &rhino.JSDocInfo{}
+			}
+			if jsdoc.ReturnType() == nil {
+				jsdoc.SetReturnType(inline.Type())
+				fn.SetJSDocInfo(jsdoc)
+			}
+		} else if jsdoc == nil {
+			if parsed := parsing.ParseJSDocInfo(body, p.scanner.Line()); parsed != nil {
+				jsdoc = parsed
+				fn.SetJSDocInfo(jsdoc)
+			}
+		}
+		p.scanner.SkipTrivia()
+	}
 	nameLine, nameCol := p.scanner.Line(), p.scanner.Col()
 	name, ok := p.scanner.ConsumeIdent()
 	nameNode := rhino.NewString(rhino.NAME, "")
@@ -930,6 +949,14 @@ func (p *Parser) parseClassMember(body *rhino.Node) {
 				p.scanner.Advance()
 				break
 			}
+			// Inline JSDoc on class method params: `fn(/** T */ x)`.
+			var paramDoc *rhino.JSDocInfo
+			if body2, ok2 := p.scanner.ConsumeBlockComment(); ok2 {
+				if inline := parseInlineTypeJSDoc(body2); inline != nil {
+					paramDoc = inline
+				}
+				p.scanner.SkipTrivia()
+			}
 			pLine, pCol := p.scanner.Line(), p.scanner.Col()
 			pname, ok := p.scanner.ConsumeIdent()
 			if !ok {
@@ -938,6 +965,9 @@ func (p *Parser) parseClassMember(body *rhino.Node) {
 			}
 			pNode := rhino.NewString(rhino.NAME, pname)
 			pNode.SetPos(pLine, pCol)
+			if paramDoc != nil {
+				pNode.SetJSDocInfo(paramDoc)
+			}
 			params.AddChildToBack(pNode)
 			p.scanner.SkipTrivia()
 			if p.scanner.ConsumeByte(',') {
