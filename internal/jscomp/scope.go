@@ -1039,6 +1039,13 @@ func (c *TypedScopeCreator) buildExpressionFunctionScope(fn *rhino.Node, parent 
 		return
 	}
 	info := fn.JSDocInfo()
+	// In the new pipeline, class methods have JSDoc on the MEMBER_FUNCTION_DEF
+	// wrapper, not the inner FUNCTION node. Fall back to parent's JSDoc.
+	if info == nil {
+		if p := fn.Parent(); p != nil && (p.Token() == rhino.MEMBER_FUNCTION_DEF || p.Token() == rhino.GETTER_DEF || p.Token() == rhino.SETTER_DEF) {
+			info = p.JSDocInfo()
+		}
+	}
 	nameNode := kids[0]
 	params := kids[1]
 	// Named function expression with a VAR parent — promote the
