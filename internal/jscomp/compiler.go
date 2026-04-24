@@ -95,14 +95,15 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	all = append(all, NewCheckConformance(path).Check(script)...)
 	all = append(all, NewCheckJSDoc(path).Check(script)...)
 	all = append(all, NewCheckTypeImportCodeReferences(path).Check(script)...)
-	// CheckClosureImports is registered here but runs with a stub
-	// ModuleMetadataMap (no namespace metadata). Full enforcement fires
-	// only after ModuleMetadataMap + ModuleLoader are ported. Until then
-	// the pass produces no diagnostics so it does not disturb the corpus.
-	all = append(all, NewCheckClosureImports(path, nil).Check(script)...)
-	// CheckMissingRequires requires a ModuleMetadataMap (module system not yet
-	// ported). Pass nil so the pass no-ops until the module system lands.
-	all = append(all, NewCheckMissingRequires(path, nil).Check(script)...)
+	// Build a single-file ModuleMetadataMap by scanning goog.provide/module/require
+	// calls in the script. This mirrors GatherModuleMetadata.java, which the Java
+	// compiler runs before CheckClosureImports and CheckMissingRequires.
+	moduleMetadata := cmrGatherModuleMetadata(path, script)
+	// Wire the real metadata into CheckClosureImports so its namespace-existence
+	// checks fire when goog.provide / goog.module declarations are present.
+	all = append(all, NewCheckClosureImports(path, cmrTocci(moduleMetadata)).Check(script)...)
+	// CheckMissingRequires now has a real single-file module graph.
+	all = append(all, NewCheckMissingRequires(path, moduleMetadata).Check(script)...)
 	// CheckGlobalThis is skipped when VarCheck / VariableReferenceCheck
 	// already detected a JSC_VAR_MULTIPLY_DECLARED_ERROR. Java's compiler
 	// aborts the suspiciousCode phase (which hosts CheckGlobalThis) when
