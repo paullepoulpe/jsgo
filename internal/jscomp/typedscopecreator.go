@@ -608,6 +608,17 @@ func (c *TypedScopeCreator) recordNamespaceAssignFromFunction(a *rhino.Node, sco
 				scope.recordNamespaceProp(lhsKids[0].String_(), lhsKids[1].String_(), fn, lhsKids[1])
 				return
 			}
+			// Typedef alias: `ns.alias = original` where original is a typedef NAME.
+			// Propagate the typedef into the namespace slot so `@type {ns.alias}`
+			// resolves to the same underlying type.
+			// Mirrors Java's TypedScopeCreator const-aliased typedef path.
+			if rhs.Token() == rhino.NAME {
+				if aliasedType := scope.LookupTypeAlias(rhs.String_()); aliasedType != nil {
+					qname := lhsKids[0].String_() + "." + lhsKids[1].String_()
+					scope.typeAliases[qname] = aliasedType
+					return
+				}
+			}
 		}
 	}
 	// Scalar literal assignments: `ns.x = 3` / `ns.x = "str"` / etc.
