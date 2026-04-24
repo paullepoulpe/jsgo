@@ -106,6 +106,7 @@ type Node struct {
 	jsdoc  *JSDocInfo
 	lineno int // 1-indexed, matches Node.getLineno()
 	charno int // 0-indexed, matches Node.getCharno()
+	length int // source length in characters, matches Node.getLength()
 
 	// jstypeOrColor mirrors Java's Node.jstypeOrColor: the compiler-inferred
 	// JSType (or Color in the colour-only pipeline). Stored as `any` to avoid
@@ -933,5 +934,480 @@ func (n *Node) GetRawString() string {
 		}
 	}
 	return ""
+}
+
+// ---------------- source length ------------------------------------------ //
+
+// GetLength ports Node.getLength() — the source length in characters.
+// Zero when not set (default).
+func (n *Node) GetLength() int { return n.length }
+
+// SetLength ports Node.setLength(int).
+func (n *Node) SetLength(l int) { n.length = l }
+
+// HasLength returns true when the node has a non-zero source length.
+// Convenience wrapper used by tests that mirror Java's assertNode.hasLength().
+func (n *Node) HasLength() bool { return n.length > 0 }
+
+// ---------------- additional source-info ---------------------------------- //
+
+// GetFirstFirstChild mirrors Java's Node.getFirstFirstChild(). Returns the
+// first child of the first child, or nil when n has fewer than two levels.
+func (n *Node) GetFirstFirstChild() *Node {
+	if n.first == nil {
+		return nil
+	}
+	return n.first.first
+}
+
+// GetOnlyChild mirrors Java's Node.getOnlyChild() — returns the sole child
+// when n has exactly one child. Panics if n has zero or more than one child.
+// Callers that are not certain should use FirstChild().
+func (n *Node) GetOnlyChild() *Node {
+	if n.first == nil || n.first != n.last {
+		panic("Node.GetOnlyChild: node does not have exactly one child")
+	}
+	return n.first
+}
+
+// IsDescendantOf mirrors Java's Node.isDescendantOf(Node) — true when n is
+// a descendant (not necessarily direct child) of the given ancestor.
+func (n *Node) IsDescendantOf(ancestor *Node) bool {
+	cur := n.parent
+	for cur != nil {
+		if cur == ancestor {
+			return true
+		}
+		cur = cur.parent
+	}
+	return false
+}
+
+// IsOnlyChildOf mirrors Java's Node.isOnlyChildOf — true when n is the only
+// child of possibleParent.
+func (n *Node) IsOnlyChildOf(possibleParent *Node) bool {
+	if possibleParent == nil {
+		return false
+	}
+	return possibleParent.first == n && possibleParent.last == n
+}
+
+// IsSecondChildOf mirrors Java's Node.isSecondChildOf.
+func (n *Node) IsSecondChildOf(possibleParent *Node) bool {
+	if possibleParent == nil {
+		return false
+	}
+	second := possibleParent.GetSecondChild()
+	return second != nil && second == n
+}
+
+// InsertAfter mirrors Java's Node.insertAfter(existing) — inserts n
+// into n's parent immediately after the existing sibling.
+func (n *Node) InsertAfter(existing *Node) {
+	if existing == nil || existing.parent == nil {
+		return
+	}
+	p := existing.parent
+	n.parent = p
+	n.previous = existing
+	n.next = existing.next
+	if existing.next != nil {
+		existing.next.previous = n
+	} else {
+		p.last = n
+	}
+	existing.next = n
+}
+
+// InsertBefore mirrors Java's Node.insertBefore(existing) — inserts n
+// into n's parent immediately before the existing sibling.
+func (n *Node) InsertBefore(existing *Node) {
+	if existing == nil || existing.parent == nil {
+		return
+	}
+	p := existing.parent
+	n.parent = p
+	n.next = existing
+	n.previous = existing.previous
+	if existing.previous != nil {
+		existing.previous.next = n
+	} else {
+		p.first = n
+	}
+	existing.previous = n
+}
+
+// RemoveFirstChild mirrors Java's Node.removeFirstChild() — detaches and
+// returns the first child, or nil if n has no children.
+func (n *Node) RemoveFirstChild() *Node {
+	if n.first == nil {
+		return nil
+	}
+	child := n.first
+	child.Detach()
+	return child
+}
+
+// GetChildAtIndex mirrors Java's Node.getChildAtIndex(int). Returns the child
+// at 0-based index i, or nil if out of bounds. O(n).
+func (n *Node) GetChildAtIndex(i int) *Node {
+	j := 0
+	for c := n.first; c != nil; c = c.next {
+		if j == i {
+			return c
+		}
+		j++
+	}
+	return nil
+}
+
+// GetIndexOfChild mirrors Java's Node.getIndexOfChild(Node). Returns the
+// 0-based index of child in n's child list, or -1 if not found. O(n).
+func (n *Node) GetIndexOfChild(child *Node) int {
+	i := 0
+	for c := n.first; c != nil; c = c.next {
+		if c == child {
+			return i
+		}
+		i++
+	}
+	return -1
+}
+
+// ---------------- bulk AST token predicates (1:1 Java port) -------------- //
+// Each mirrors the identically-named final boolean isXxx() in Node.java.
+
+// IsAdd mirrors Java's Node.isAdd().
+func (n *Node) IsAdd() bool { return n.token == ADD }
+
+// IsSub mirrors Java's Node.isSub().
+func (n *Node) IsSub() bool { return n.token == SUB }
+
+// IsAnd mirrors Java's Node.isAnd().
+func (n *Node) IsAnd() bool { return n.token == AND }
+
+// IsAssignAnd mirrors Java's Node.isAssignAnd().
+func (n *Node) IsAssignAnd() bool { return n.token == ASSIGN_AND }
+
+// IsArrayLit mirrors Java's Node.isArrayLit().
+func (n *Node) IsArrayLit() bool { return n.token == ARRAYLIT }
+
+// IsArrayPattern mirrors Java's Node.isArrayPattern().
+func (n *Node) IsArrayPattern() bool { return n.token == ARRAY_PATTERN }
+
+// IsAssign mirrors Java's Node.isAssign().
+func (n *Node) IsAssign() bool { return n.token == ASSIGN }
+
+// IsAssignAdd mirrors Java's Node.isAssignAdd().
+func (n *Node) IsAssignAdd() bool { return n.token == ASSIGN_ADD }
+
+// IsNormalBlock mirrors Java's Node.isNormalBlock() which returns isBlock().
+func (n *Node) IsNormalBlock() bool { return n.token == BLOCK }
+
+// IsRoot mirrors Java's Node.isRoot().
+func (n *Node) IsRoot() bool { return n.token == ROOT }
+
+// IsAwait mirrors Java's Node.isAwait().
+func (n *Node) IsAwait() bool { return n.token == AWAIT }
+
+// IsBitNot mirrors Java's Node.isBitNot().
+func (n *Node) IsBitNot() bool { return n.token == BITNOT }
+
+// IsBreak mirrors Java's Node.isBreak().
+func (n *Node) IsBreak() bool { return n.token == BREAK }
+
+// IsCase mirrors Java's Node.isCase().
+func (n *Node) IsCase() bool { return n.token == CASE }
+
+// IsCast mirrors Java's Node.isCast().
+func (n *Node) IsCast() bool { return n.token == CAST }
+
+// IsCatch mirrors Java's Node.isCatch().
+func (n *Node) IsCatch() bool { return n.token == CATCH }
+
+// IsClass mirrors Java's Node.isClass().
+func (n *Node) IsClass() bool { return n.token == CLASS }
+
+// IsComma mirrors Java's Node.isComma().
+func (n *Node) IsComma() bool { return n.token == COMMA }
+
+// IsContinue mirrors Java's Node.isContinue().
+func (n *Node) IsContinue() bool { return n.token == CONTINUE }
+
+// IsConst mirrors Java's Node.isConst().
+func (n *Node) IsConst() bool { return n.token == CONST }
+
+// IsDebugger mirrors Java's Node.isDebugger().
+func (n *Node) IsDebugger() bool { return n.token == DEBUGGER }
+
+// IsDec mirrors Java's Node.isDec().
+func (n *Node) IsDec() bool { return n.token == DEC }
+
+// IsDefaultCase mirrors Java's Node.isDefaultCase().
+func (n *Node) IsDefaultCase() bool { return n.token == DEFAULT_CASE }
+
+// IsDefaultValue mirrors Java's Node.isDefaultValue().
+func (n *Node) IsDefaultValue() bool { return n.token == DEFAULT_VALUE }
+
+// IsDelProp mirrors Java's Node.isDelProp().
+func (n *Node) IsDelProp() bool { return n.token == DELPROP }
+
+// IsDestructuringLhs mirrors Java's Node.isDestructuringLhs().
+func (n *Node) IsDestructuringLhs() bool { return n.token == DESTRUCTURING_LHS }
+
+// IsDo mirrors Java's Node.isDo().
+func (n *Node) IsDo() bool { return n.token == DO }
+
+// IsEmpty mirrors Java's Node.isEmpty().
+func (n *Node) IsEmpty() bool { return n.token == EMPTY }
+
+// IsExponent mirrors Java's Node.isExponent().
+func (n *Node) IsExponent() bool { return n.token == EXPONENT }
+
+// IsAssignExponent mirrors Java's Node.isAssignExponent().
+func (n *Node) IsAssignExponent() bool { return n.token == ASSIGN_EXPONENT }
+
+// IsExport mirrors Java's Node.isExport().
+func (n *Node) IsExport() bool { return n.token == EXPORT }
+
+// IsExportSpec mirrors Java's Node.isExportSpec().
+func (n *Node) IsExportSpec() bool { return n.token == EXPORT_SPEC }
+
+// IsExportSpecs mirrors Java's Node.isExportSpecs().
+func (n *Node) IsExportSpecs() bool { return n.token == EXPORT_SPECS }
+
+// IsExprResult mirrors Java's Node.isExprResult().
+func (n *Node) IsExprResult() bool { return n.token == EXPR_RESULT }
+
+// IsFalse mirrors Java's Node.isFalse().
+func (n *Node) IsFalse() bool { return n.token == FALSE }
+
+// IsVanillaFor mirrors Java's Node.isVanillaFor() — true for the plain FOR token.
+func (n *Node) IsVanillaFor() bool { return n.token == FOR }
+
+// IsForIn mirrors Java's Node.isForIn().
+func (n *Node) IsForIn() bool { return n.token == FOR_IN }
+
+// IsForOf mirrors Java's Node.isForOf().
+func (n *Node) IsForOf() bool { return n.token == FOR_OF }
+
+// IsForAwaitOf mirrors Java's Node.isForAwaitOf().
+func (n *Node) IsForAwaitOf() bool { return n.token == FOR_AWAIT_OF }
+
+// IsHook mirrors Java's Node.isHook() — true for the HOOK (ternary) token.
+func (n *Node) IsHook() bool { return n.token == HOOK }
+
+// IsIf mirrors Java's Node.isIf().
+func (n *Node) IsIf() bool { return n.token == IF }
+
+// IsImport mirrors Java's Node.isImport().
+func (n *Node) IsImport() bool { return n.token == IMPORT }
+
+// IsImportMeta mirrors Java's Node.isImportMeta().
+func (n *Node) IsImportMeta() bool { return n.token == IMPORT_META }
+
+// IsImportStar mirrors Java's Node.isImportStar().
+func (n *Node) IsImportStar() bool { return n.token == IMPORT_STAR }
+
+// IsImportSpec mirrors Java's Node.isImportSpec().
+func (n *Node) IsImportSpec() bool { return n.token == IMPORT_SPEC }
+
+// IsImportSpecs mirrors Java's Node.isImportSpecs().
+func (n *Node) IsImportSpecs() bool { return n.token == IMPORT_SPECS }
+
+// IsInc mirrors Java's Node.isInc().
+func (n *Node) IsInc() bool { return n.token == INC }
+
+// IsInstanceOf mirrors Java's Node.isInstanceOf().
+func (n *Node) IsInstanceOf() bool { return n.token == INSTANCEOF }
+
+// IsLabel mirrors Java's Node.isLabel().
+func (n *Node) IsLabel() bool { return n.token == LABEL }
+
+// IsLabelName mirrors Java's Node.isLabelName().
+func (n *Node) IsLabelName() bool { return n.token == LABEL_NAME }
+
+// IsLet mirrors Java's Node.isLet().
+func (n *Node) IsLet() bool { return n.token == LET }
+
+// IsMemberVariableDef mirrors Java's Node.isMemberVariableDef().
+// In Go this token is represented as MEMBER_FIELD_DEF (no separate MEMBER_VARIABLE_DEF).
+func (n *Node) IsMemberVariableDef() bool { return n.token == MEMBER_FIELD_DEF }
+
+// IsComputedFieldDef mirrors Java's Node.isComputedFieldDef().
+func (n *Node) IsComputedFieldDef() bool { return n.token == COMPUTED_PROP }
+
+// IsModuleBody mirrors Java's Node.isModuleBody().
+func (n *Node) IsModuleBody() bool { return n.token == MODULE_BODY }
+
+// IsNE mirrors Java's Node.isNE().
+func (n *Node) IsNE() bool { return n.token == NE }
+
+// IsSHNE mirrors Java's Node.isSHNE() — strict not-equal (!==).
+func (n *Node) IsSHNE() bool { return n.token == SHNE }
+
+// IsEQ mirrors Java's Node.isEQ() — loose equality (==).
+func (n *Node) IsEQ() bool { return n.token == EQ }
+
+// IsSHEQ mirrors Java's Node.isSHEQ() — strict equality (===).
+func (n *Node) IsSHEQ() bool { return n.token == SHEQ }
+
+// IsNeg mirrors Java's Node.isNeg() — unary negation.
+func (n *Node) IsNeg() bool { return n.token == NEG }
+
+// IsNot mirrors Java's Node.isNot() — logical NOT (!).
+func (n *Node) IsNot() bool { return n.token == NOT }
+
+// IsNull mirrors Java's Node.isNull().
+func (n *Node) IsNull() bool { return n.token == NULL }
+
+// IsNullishCoalesce mirrors Java's Node.isNullishCoalesce() — the ?? operator.
+func (n *Node) IsNullishCoalesce() bool { return n.token == COALESCE }
+
+// IsAssignNullishCoalesce mirrors Java's Node.isAssignNullishCoalesce() — ??=.
+func (n *Node) IsAssignNullishCoalesce() bool { return n.token == ASSIGN_COALESCE }
+
+// IsNumber mirrors Java's Node.isNumber().
+func (n *Node) IsNumber() bool { return n.token == NUMBER }
+
+// IsObjectLit mirrors Java's Node.isObjectLit().
+func (n *Node) IsObjectLit() bool { return n.token == OBJECTLIT }
+
+// IsObjectPattern mirrors Java's Node.isObjectPattern().
+func (n *Node) IsObjectPattern() bool { return n.token == OBJECT_PATTERN }
+
+// IsOr mirrors Java's Node.isOr() — logical OR (||).
+func (n *Node) IsOr() bool { return n.token == OR }
+
+// IsAssignOr mirrors Java's Node.isAssignOr() — ||=.
+func (n *Node) IsAssignOr() bool { return n.token == ASSIGN_OR }
+
+// IsParamList mirrors Java's Node.isParamList().
+func (n *Node) IsParamList() bool { return n.token == PARAM_LIST }
+
+// IsRegExp mirrors Java's Node.isRegExp().
+func (n *Node) IsRegExp() bool { return n.token == REGEXP }
+
+// IsRest mirrors Java's Node.isRest() — true for ITER_REST or OBJECT_REST.
+func (n *Node) IsRest() bool { return n.token == ITER_REST || n.token == OBJECT_REST }
+
+// IsObjectRest mirrors Java's Node.isObjectRest().
+func (n *Node) IsObjectRest() bool { return n.token == OBJECT_REST }
+
+// IsSuper mirrors Java's Node.isSuper().
+func (n *Node) IsSuper() bool { return n.token == SUPER }
+
+// IsSwitch mirrors Java's Node.isSwitch().
+func (n *Node) IsSwitch() bool { return n.token == SWITCH }
+
+// IsSwitchBody mirrors Java's Node.isSwitchBody().
+func (n *Node) IsSwitchBody() bool { return n.token == SWITCH_BODY }
+
+// IsTaggedTemplateLit mirrors Java's Node.isTaggedTemplateLit().
+func (n *Node) IsTaggedTemplateLit() bool { return n.token == TAGGED_TEMPLATELIT }
+
+// IsTemplateLit mirrors Java's Node.isTemplateLit().
+func (n *Node) IsTemplateLit() bool { return n.token == TEMPLATELIT }
+
+// IsTemplateLitString mirrors Java's Node.isTemplateLitString().
+func (n *Node) IsTemplateLitString() bool { return n.token == TEMPLATELIT_STRING }
+
+// IsTemplateLitSub mirrors Java's Node.isTemplateLitSub().
+func (n *Node) IsTemplateLitSub() bool { return n.token == TEMPLATELIT_SUB }
+
+// IsThis mirrors Java's Node.isThis().
+func (n *Node) IsThis() bool { return n.token == THIS }
+
+// IsThrow mirrors Java's Node.isThrow().
+func (n *Node) IsThrow() bool { return n.token == THROW }
+
+// IsTrue mirrors Java's Node.isTrue().
+func (n *Node) IsTrue() bool { return n.token == TRUE }
+
+// IsTry mirrors Java's Node.isTry().
+func (n *Node) IsTry() bool { return n.token == TRY }
+
+// IsTypeOf mirrors Java's Node.isTypeOf().
+func (n *Node) IsTypeOf() bool { return n.token == TYPEOF }
+
+// IsVar mirrors Java's Node.isVar().
+func (n *Node) IsVar() bool { return n.token == VAR }
+
+// IsVoid mirrors Java's Node.isVoid().
+func (n *Node) IsVoid() bool { return n.token == VOID }
+
+// IsWhile mirrors Java's Node.isWhile().
+func (n *Node) IsWhile() bool { return n.token == WHILE }
+
+// IsWith mirrors Java's Node.isWith().
+func (n *Node) IsWith() bool { return n.token == WITH }
+
+// IsYield mirrors Java's Node.isYield().
+func (n *Node) IsYield() bool { return n.token == YIELD }
+
+// IsDeclare mirrors Java's Node.isDeclare() — TypeScript declare modifier.
+func (n *Node) IsDeclare() bool { return n.token == DECLARE }
+
+// IsString mirrors Java's Node.isString() — same as isStringLit().
+func (n *Node) IsString() bool { return n.token == STRINGLIT }
+
+// IsGetter mirrors Java's Node.isGetterDef() — same as IsGetterDef.
+// Provided for callers using the Java name directly.
+func (n *Node) IsGetter() bool { return n.GetBooleanProp(PropGetterDef) }
+
+// IsSetter mirrors Java's Node.isSetterDef() — same as IsSetterDef.
+func (n *Node) IsSetter() bool { return n.GetBooleanProp(PropSetterDef) }
+
+// IsSyntheticBlock mirrors Java's Node.isSyntheticBlock() — true when the
+// PropSynthetic flag is set on a BLOCK node.
+func (n *Node) IsSyntheticBlock() bool {
+	return n.token == BLOCK && n.GetBooleanProp(PropSynthetic)
+}
+
+// SetSyntheticBlock mirrors Java's Node.setIsSyntheticBlock(boolean).
+func (n *Node) SetSyntheticBlock(b bool) { n.PutBooleanProp(PropSynthetic, b) }
+
+// IsUnscopedQualifiedName mirrors Java's Node.isUnscopedQualifiedName().
+// True for NAME (non-empty) and GETPROP whose receiver is an unscoped qualified name.
+func (n *Node) IsUnscopedQualifiedName() bool {
+	switch n.token {
+	case NAME:
+		return n.str != ""
+	case GETPROP:
+		if fc := n.FirstChild(); fc != nil {
+			return fc.IsUnscopedQualifiedName()
+		}
+		return false
+	}
+	return false
+}
+
+// IsValidAssignmentTarget mirrors Java's Node.isValidAssignmentTarget().
+func (n *Node) IsValidAssignmentTarget() bool {
+	switch n.token {
+	case NAME, GETPROP, GETELEM, ARRAY_PATTERN, OBJECT_PATTERN:
+		return true
+	}
+	return false
+}
+
+// GetDouble mirrors Java's Node.getDouble() — alias for Number().
+func (n *Node) GetDouble() float64 { return n.num }
+
+// SetDouble mirrors Java's Node.setDouble(double) — alias for setting num.
+func (n *Node) SetDouble(v float64) { n.num = v }
+
+// GetString mirrors Java's Node.getString() — alias for String_().
+func (n *Node) GetString() string { return n.str }
+
+// SetString_ already exists above as an alias. GetString is the Java name.
+
+// SetToken mirrors Java's Node.setToken(Token).
+func (n *Node) SetToken(tok Token) { n.token = tok }
+
+// HasOneChild returns true when n has exactly one child.
+// Mirrors Java's hasOneChild() check.
+func (n *Node) HasOneChild() bool {
+	return n.first != nil && n.first == n.last
 }
 
