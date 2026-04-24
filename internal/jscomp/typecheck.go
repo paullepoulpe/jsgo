@@ -1902,6 +1902,19 @@ func buildGlobalPropNameSet(global *TypedScope, script *rhino.Node) map[string]b
 					out[pk[1].String_()] = true
 				}
 			}
+		case rhino.EXPR_RESULT:
+			// Prototype/namespace stub declarations such as
+			// `Foo.prototype.bar;` or `ns.T.x;` are property-name
+			// declarations (not references). Collect the leaf property
+			// name so POSSIBLE_INEXISTENT_PROPERTY is not spuriously
+			// fired when the receiver type is Unknown / unresolved because
+			// the root object (e.g. `u`) was flagged as undeclared.
+			// Mirrors Java's recordPrototypeStub path in TypedScopeCreator.
+			if inner := n.FirstChild(); inner != nil && inner.Token() == rhino.GETPROP {
+				if pk := inner.Children(); len(pk) >= 2 {
+					out[pk[1].String_()] = true
+				}
+			}
 		case rhino.STRING_KEY:
 			if s := n.String_(); s != "" {
 				out[s] = true
