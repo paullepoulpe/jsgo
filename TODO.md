@@ -9,11 +9,21 @@ diagnostic sets. Nothing is out of scope.
 ## Porting discipline
 
 Every remaining item below must be delivered as a faithful 1:1 port
-of its Java counterpart, not a fresh implementation. Divergences
-accumulate into subtle bugs that are painful to unpick at scale;
-mirroring Java's structure makes behavioural mismatches surface at
-the same spot in the Go code as in the Java source and keeps the
-oracle usable as a debugger.
+of its Java counterpart, not a fresh implementation. The only
+deliberate decision on this project is to stick as closely as
+possible to the Java source. There are no "deliberate divergences",
+no "deliberate skips", no "deliberate architectural choices to do
+it differently". Every gap is an unfinished port that will be
+closed.
+
+Why: divergences accumulate into subtle bugs that are painful to
+unpick at scale. Mirroring Java's structure makes behavioural
+mismatches surface at the same spot in the Go code as in the Java
+source and keeps the oracle usable as a debugger. Every time we
+have taken a shortcut in this project, it has cost us more time
+re-inventing Java's logic ad hoc than it would have cost to port
+the Java code faithfully in the first place (see §3.5 for the
+parser/IRFactory case study).
 
 Concretely:
 
@@ -27,6 +37,11 @@ Concretely:
 - Preserve data-structure choices when they are observable
   (insertion-ordered maps, deterministic iteration, per-node
   property side tables, lattice shapes, visitor dispatch tables).
+- Preserve layering. Java's `Parser → ParseTree → IRFactory →
+  rhino.Node` pipeline is three layers for a reason; collapsing
+  them into one parser that emits IR directly costs us every time
+  we add a grammar form. Every layer Java has must have a Go
+  counterpart.
 - When Java itself has a `TODO` or flags something as in-development
   (e.g. `JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES`), port the
   in-development path faithfully — do not invent our own fix.
@@ -640,35 +655,75 @@ present. Missing: `traverseFunctionOutOfBand`,
   `want=[JSC_UNDEFINED_VARIABLE] got=[]` bucket and several
   `JSC_TYPE_MISMATCH` FPs.
 
-### 3.5 `internal/parser/`
+### 3.5 `internal/parser/` + parsing pipeline — **highest-priority debt**
 
-#### `internal/parser/scanner.go` — `parsing/parser/Scanner.java` (1375 LoC)
-**Status: narrow.** 632 LoC character-level scanner.
-- Missing: full `TokenType` enum; string-literal escapes
-  + template pieces; numeric literals
-  (hex/octal/binary/`_`-separators/`n` bigint suffix/decimal
-  edge cases); regex literals; comment/trivia preservation
-  through `JsDocTokenStream`; source-position stream.
+Java's parsing pipeline has three layers: `Parser.java` (emits
+`ParseTree` subclasses from `parsing/parser/trees/*`) →
+`IRFactory.java` (converts `ParseTree` → `rhino.Node` IR) →
+everything downstream consumes `rhino.Node`. jsgo currently has
+*one* layer — `parser.go` emits `rhino.Node` directly, with
+`ParseTree` and `IRFactory` missing entirely.
 
-#### `internal/parser/parser.go` — `parsing/parser/Parser.java` (3694 LoC)
-**Status: narrow.** 2561 LoC covering a JS subset tailored to the
-corpus fixtures.
-- Missing: array and object literals at expression position;
-  destructuring patterns (array+object, nested, default, rest);
-  spread/rest args and params; template literals + tagged templates;
-  regex literals as expressions; `GETELEM` expression form;
-  optional chaining (`?.`, `?.(`, `?.[`); `async`/`await`;
-  generator functions (`function*`, `yield`, `yield*`);
-  computed property syntax (`{[k]:v}`, `class { [k]() {} }`);
-  cast `(/** @type {T} */ (e))` as first-class grammar;
-  class-body: fields + static fields + accessors + private `#`
-  + static blocks; `for`/`for-in`/`for-of` with destructured
-  binding; `import`/`export` declarations (named, default,
-  namespace, re-export); `super.x`, `super(…)`; labeled
-  statements. ~86 tree node types under Java's
-  `parsing/parser/trees/` — Go side uses the rhino `Node` model
-  directly, so each syntactic form needs a dedicated materialiser
-  inside `parser.go` when porting `IRFactory.java`.
+**This has cost us real time.** Every grammar form we've added
+— cast expression (four failed attempts before one succeeded),
+destructuring, optional chaining, dynamic import, JSDoc attachment
+— has required reinventing the Java `IRFactory.transform*` logic
+ad hoc inside `parser.go`. The absence of the ParseTree layer
+means we cannot reference a single Java method when a new form is
+needed; we piece together the behaviour from multiple Java
+sources. The absence of `IRFactory` means JSDoc attachment, source-
+position tagging, synthetic-node creation, and cast-injection are
+scattered as hacks (`pendingCastDoc`, `inDeclInit`,
+`jsdocHasFunctionAnnotation`) instead of methodical per-tree
+dispatch.
+
+**The port-owed work to align with Java:**
+
+1. **`parsing/parser/trees/*.java` — 86 tree classes.** Port every
+   one as a thin typed struct under `internal/parser/trees/`.
+   Examples: `ArrayLiteralExpressionTree`, `BinaryOperatorTree`,
+   `CallExpressionTree`, `ClassDeclarationTree`,
+   `FunctionDeclarationTree`, `TemplateLiteralExpressionTree`,
+   etc. Each has typed child fields matching Java exactly. No
+   skeletons currently exist for these; generate on the next
+   `scripts/gen-skeletons.sh` run.
+2. **`parsing/parser/Parser.java` (3694 LoC, 264 methods) — full
+   1:1 port.** Rewrite `internal/parser/parser.go` from its
+   current 61 collapsed methods to Java's 264 methods, each
+   matching a single grammar production. The current file is ~60 %
+   of Java's surface collapsed into ¼ of the method count; it
+   must be unfolded. Parser should emit ParseTree, not rhino.Node.
+3. **`parsing/parser/Scanner.java` (1375 LoC) — full 1:1 port.**
+   Unfold `internal/parser/scanner.go` from its current 815 LoC
+   narrow scanner into the full Java class. Missing: full
+   `TokenType` enum; string-literal escape decoding; numeric-
+   literal edge cases; regex literal token; comment/trivia
+   preservation through `JsDocTokenStream`; source-position stream.
+4. **`IRFactory.java` (3900+ LoC) — full 1:1 port** as
+   `internal/jscomp/parsing/irfactory.go`. Every `transform*`
+   method gets a Go equivalent. JSDoc attachment,
+   `maybeInjectCastNode`, synthetic-node creation, source-position
+   tagging all move out of the parser into IRFactory.
+5. **Wire the pipeline.** `compiler.go` calls `Parser` → returns
+   `ParseTree` → calls `IRFactory` → returns `rhino.Node`. The
+   current `parser.go` becomes legacy; keep as fallback during
+   migration, delete after TypeCheck passes on IRFactory output.
+
+**Scope missing in the current narrow parser (will be ported as part
+of the full `Parser.java` port above):** array and object literals
+at expression position (partial); destructuring patterns;
+spread/rest args + params (partial); template literals and tagged
+templates; regex literals as expressions; `GETELEM` expression form;
+optional chaining (partial); `async`/`await`; generator functions
+(`function*`, `yield`, `yield*`); computed property syntax; cast
+expression (partial hack); class-body: fields + static fields +
+accessors + private `#` + static blocks; `for`/`for-in`/`for-of`
+with destructured binding; `import`/`export` declarations; `super`
+in all positions Java accepts; labeled statements.
+
+Treat these as port-owed, not feature-gaps. Do not add them
+one-by-one into the current `parser.go`; add them when
+`Parser.java` ports that grammar production.
 
 ### 3.6 `internal/diag/diag.go`
 **Status: subset.** 197 LoC. Mirrors the cut of
@@ -759,33 +814,37 @@ all in `skel/jscomp/`.
 
 ### 4.8 `jscomp.parsing.*`
 
-Full rewrites: `IRFactory` (3900+ LoC Java; gates on parser
-widening), `JsDocInfoParser`, `JsDocToken`, `JsDocTokenStream`,
-`ParserRunner`, `TypeTransformationParser`. No skeleton for
-`Config`, `AutoValue_Config`, `Annotation`, `FeatureCollector`,
-`ParserConfiguration`, `ParsingUtil` — generate on next
-`scripts/gen-skeletons.sh` run.
+Full 1:1 ports required for all of: `IRFactory` (3900+ LoC — the
+missing pipeline layer described in §3.5), `JsDocInfoParser`,
+`JsDocToken`, `JsDocTokenStream`, `ParserRunner`,
+`TypeTransformationParser`. Generate skeletons for `Config`,
+`AutoValue_Config`, `Annotation`, `FeatureCollector`,
+`ParserConfiguration`, `ParsingUtil` on the next
+`scripts/gen-skeletons.sh` run, then port them too.
 
 ### 4.9 `jscomp.parsing.parser.*` (the scanner/parser + 86 trees)
 
 Skeletons exist for `Scanner`, `Parser`, `Token`, `TokenType`,
 `IdentifierToken`, `LiteralToken`, `TemplateLiteralToken` under
-`skel/jscomp/parsing/parser/`. No skeletons for the 86 tree
-classes under `parsing/parser/trees/*.java` nor for
+`skel/jscomp/parsing/parser/`. Skeletons are missing for the 86
+tree classes under `parsing/parser/trees/*.java` and for
 `ClassOrObjectElementInfo`, `FeatureSet`, `Identifiers`,
 `Keywords`, `LineNumberScanner`, `PredefinedName`, `SourceFile`,
-`StringLiteralToken`, `util/*`. Go port currently materialises a
-trimmed tree directly on `rhino.Node` — either port every tree
-class 1:1 or keep the current approach and document the
-divergence.
+`StringLiteralToken`, `util/*`. Generate those skeletons next and
+port each class 1:1. The current narrow `internal/parser/parser.go`
+that materialises straight onto `rhino.Node` is the layering
+shortcut called out in §3.5; it will be replaced by the proper
+`Parser → ParseTree → IRFactory → rhino.Node` pipeline.
 
 ### 4.10 Notes on coverage
 
 - `CheckExtraRequiresPassConfig.java` — no skeleton; generate on
   the next `gen-skeletons.sh` run.
-- `CheckDeterministicTest` is not a Java file (inlined in
-  `TypeCheck.java`); Go's `checkdeterministictest.go` split it out
-  for locality. Merge back when `TypeCheck.java` is ported 1:1.
+- `CheckDeterministicTest` is not a separate Java file (Java keeps
+  the check inlined in `TypeCheck.java`); Go's
+  `checkdeterministictest.go` is a locally-split copy that must be
+  merged back into `typecheck.go` when the full `TypeCheck.java`
+  port lands.
 
 ---
 
