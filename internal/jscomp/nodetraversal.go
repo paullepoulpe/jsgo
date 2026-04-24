@@ -324,6 +324,63 @@ func (t *NodeTraversal) GetClosestHoistScopeRoot() *rhino.Node {
 	return t.global.GetRootNode()
 }
 
+// GetScopeCreator returns the TypedScopeCreator used by this traversal.
+// Mirrors NodeTraversal.getScopeCreator.
+func (t *NodeTraversal) GetScopeCreator() *TypedScopeCreator {
+	return t.creator
+}
+
+// GetTypedScope returns the current innermost TypedScope.
+// Mirrors NodeTraversal.getTypedScope.
+func (t *NodeTraversal) GetTypedScope() *TypedScope {
+	return t.CurrentScope()
+}
+
+// InGlobalScope reports whether the traversal is currently at the outermost
+// (global) scope depth.
+// Mirrors NodeTraversal.inGlobalScope.
+func (t *NodeTraversal) InGlobalScope() bool {
+	return len(t.scopes) == 1
+}
+
+// InFunctionBlockScope reports whether the current scope root is a FUNCTION
+// body BLOCK node.
+// Mirrors NodeTraversal.inFunctionBlockScope.
+func (t *NodeTraversal) InFunctionBlockScope() bool {
+	root := t.CurrentScope().GetRootNode()
+	return root != nil && root.IsBlock() &&
+		root.Parent() != nil && root.Parent().IsFunction()
+}
+
+// InGlobalHoistScope reports whether the current hoist scope is the global scope.
+// Mirrors NodeTraversal.inGlobalHoistScope.
+func (t *NodeTraversal) InGlobalHoistScope() bool {
+	for i := len(t.scopes) - 1; i >= 0; i-- {
+		if t.scopes[i].IsHoistScope() {
+			return t.scopes[i] == t.global
+		}
+	}
+	return true
+}
+
+// IsHoistScope reports whether the current scope is a hoist scope (function,
+// module body, or class static block).
+// Mirrors NodeTraversal.isHoistScope.
+func (t *NodeTraversal) IsHoistScope() bool {
+	return t.CurrentScope().IsHoistScope()
+}
+
+// GetEnclosingFunction returns the nearest enclosing function node,
+// searching from the current scope root upward.
+// Mirrors NodeTraversal.getEnclosingFunction.
+func (t *NodeTraversal) GetEnclosingFunction() *rhino.Node {
+	root := t.CurrentScope().GetRootNode()
+	if root == nil {
+		return nil
+	}
+	return NU.GetEnclosingFunction(root)
+}
+
 // Go-only: language-adapter — Java's traverseFunction is private; Go exposes
 // it for TypeCheck's out-of-band function re-traversal.
 func (t *NodeTraversal) TraverseFunctionOutOfBand(root *rhino.Node, scope *TypedScope) {
