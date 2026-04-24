@@ -85,8 +85,8 @@ type TypeValidator struct {
 type tvSubtypingMode int
 
 const (
-	tvSubtypingNormal                tvSubtypingMode = iota
-	tvSubtypingIgnoreNullUndefined   tvSubtypingMode = iota
+	tvSubtypingNormal              tvSubtypingMode = iota
+	tvSubtypingIgnoreNullUndefined tvSubtypingMode = iota
 )
 
 // NewTypeValidator constructs a TypeValidator. Mirrors Java's

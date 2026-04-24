@@ -87,6 +87,10 @@ const (
 	// PropOptEs6Typed mirrors Java's Node.OPT_ES6_TYPED — set on FUNCTION
 	// parameter nodes that are TypeScript optional parameters.
 	PropOptEs6Typed
+	// PropDeclaredTypeExpr holds the declared type AST node (a Node) for
+	// typed declarations. Mirrors Node.setDeclaredTypeExpression /
+	// Node.getDeclaredTypeExpression in Java.
+	PropDeclaredTypeExpr
 )
 
 type Node struct {

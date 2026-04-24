@@ -10,7 +10,7 @@ package rhino
 // associated item found at that position. Mirrors
 // com.google.javascript.rhino.SourcePosition<T>.
 type SourcePosition struct {
-	item       any
+	item        any
 	startLineno int
 	startCharno int
 	endLineno   int
