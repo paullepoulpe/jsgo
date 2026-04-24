@@ -2493,13 +2493,24 @@ func defineOnOpenObject(t jstype.JSType, prop string) {
 	if obj == nil || obj.Name == "" {
 		return
 	}
-	if obj.IsStruct || obj.IsStructural {
+	// Skip sealed surfaces: @struct forbids post-construction property
+	// addition; @interface is open-ended and handled separately.
+	// @record allows open-ended property writes — a `y.b = val` where
+	// y has a @record type registers `b` as an inferred property so
+	// subsequent reads (`x.b`) succeed without JSC_INEXISTENT_PROPERTY.
+	// Mirrors Java's TypeInference which tracks these writes and makes
+	// the property visible to TypeCheck. Only skip @interface and @struct
+	// (not @record) here.
+	if obj.IsStruct || (obj.IsStructural && !obj.IsRecord) {
 		return
 	}
 	if obj.HasProperty(prop) {
 		return
 	}
 	obj.DefineProperty(prop, jstype.Unknown)
+	if obj.IsRecord {
+		obj.MarkInferred(prop)
+	}
 }
 
 // Go-only: language-adapter — unwraps TemplatizedType to reach the base
