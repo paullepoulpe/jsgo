@@ -10,6 +10,7 @@ type ObjectRestTree struct {
 }
 
 // NewObjectRestTree constructs an ObjectRestTree.
+// Go-only: language-adapter
 func NewObjectRestTree(location SourceRange, assignmentTarget *ParseTree) *ObjectRestTree {
 	return &ObjectRestTree{
 		ParseTree:        ParseTree{Type: ParseTreeTypeObjectRest, Location: location},

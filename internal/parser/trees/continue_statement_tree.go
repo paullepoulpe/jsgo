@@ -8,6 +8,7 @@ type ContinueStatementTree struct {
 	Name *IdentifierToken
 }
 
+// Go-only: language-adapter
 func NewContinueStatementTree(location SourceRange, name *IdentifierToken) *ContinueStatementTree {
 	return &ContinueStatementTree{
 		ParseTree: ParseTree{Type: ParseTreeTypeContinueStatement, Location: location},

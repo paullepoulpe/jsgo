@@ -9,6 +9,7 @@ type NewTargetExpressionTree struct {
 }
 
 // NewNewTargetExpressionTree constructs a NewTargetExpressionTree.
+// Go-only: language-adapter
 func NewNewTargetExpressionTree(location SourceRange) *NewTargetExpressionTree {
 	return &NewTargetExpressionTree{
 		ParseTree: ParseTree{Type: ParseTreeTypeNewTargetExpression, Location: location},

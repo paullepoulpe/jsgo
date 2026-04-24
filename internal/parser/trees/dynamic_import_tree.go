@@ -11,6 +11,7 @@ type DynamicImportTree struct {
 }
 
 // NewDynamicImportTree constructs a DynamicImportTree.
+// Go-only: language-adapter
 func NewDynamicImportTree(location SourceRange, argument *ParseTree) *DynamicImportTree {
 	return &DynamicImportTree{
 		ParseTree: ParseTree{Type: ParseTreeTypeDynamicImportExpression, Location: location},

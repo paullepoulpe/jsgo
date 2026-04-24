@@ -10,6 +10,7 @@ type ArrayPatternTree struct {
 }
 
 // NewArrayPatternTree constructs an ArrayPatternTree.
+// Go-only: language-adapter
 func NewArrayPatternTree(location SourceRange, elements []*ParseTree) *ArrayPatternTree {
 	return &ArrayPatternTree{
 		ParseTree: ParseTree{Type: ParseTreeTypeArrayPattern, Location: location},

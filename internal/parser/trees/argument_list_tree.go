@@ -12,6 +12,7 @@ type ArgumentListTree struct {
 }
 
 // NewArgumentListTree constructs an ArgumentListTree.
+// Go-only: language-adapter
 func NewArgumentListTree(location SourceRange, arguments []*ParseTree, hasTrailingComma bool, commaPositions []SourcePosition) *ArgumentListTree {
 	return &ArgumentListTree{
 		ParseTree:        ParseTree{Type: ParseTreeTypeArgumentList, Location: location},

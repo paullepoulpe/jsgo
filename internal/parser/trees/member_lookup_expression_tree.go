@@ -12,6 +12,7 @@ type MemberLookupExpressionTree struct {
 }
 
 // NewMemberLookupExpressionTree constructs a MemberLookupExpressionTree.
+// Go-only: language-adapter
 func NewMemberLookupExpressionTree(location SourceRange, operand *ParseTree, memberExpression *ParseTree) *MemberLookupExpressionTree {
 	return &MemberLookupExpressionTree{
 		ParseTree:        ParseTree{Type: ParseTreeTypeMemberLookupExpression, Location: location},

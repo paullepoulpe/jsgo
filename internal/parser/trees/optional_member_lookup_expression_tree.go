@@ -14,6 +14,7 @@ type OptionalMemberLookupExpressionTree struct {
 }
 
 // NewOptionalMemberLookupExpressionTree constructs an OptionalMemberLookupExpressionTree.
+// Go-only: language-adapter
 func NewOptionalMemberLookupExpressionTree(location SourceRange, operand *ParseTree, memberExpression *ParseTree, isStartOfOptionalChain bool) *OptionalMemberLookupExpressionTree {
 	return &OptionalMemberLookupExpressionTree{
 		ParseTree:              ParseTree{Type: ParseTreeTypeOptChainMemberLookupExpression, Location: location},

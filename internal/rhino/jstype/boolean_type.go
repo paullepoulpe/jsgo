@@ -6,7 +6,10 @@ package jstype
 // All, and Unknown.
 type booleanType struct{}
 
+// Go-only: language-adapter
 func (booleanType) TypeName() string { return "boolean" }
+
+// Go-only: language-adapter
 func (booleanType) IsSubtypeOf(o JSType) bool {
 	if _, ok := o.(booleanType); ok {
 		return true

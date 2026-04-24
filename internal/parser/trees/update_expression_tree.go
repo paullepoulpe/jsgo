@@ -26,6 +26,7 @@ type UpdateExpressionTree struct {
 }
 
 // NewUpdateExpressionTree constructs an UpdateExpressionTree.
+// Go-only: language-adapter
 func NewUpdateExpressionTree(location SourceRange, operator *Token, operatorPosition OperatorPosition, operand *ParseTree) *UpdateExpressionTree {
 	return &UpdateExpressionTree{
 		ParseTree:        ParseTree{Type: ParseTreeTypeUpdateExpression, Location: location},
@@ -36,11 +37,13 @@ func NewUpdateExpressionTree(location SourceRange, operator *Token, operatorPosi
 }
 
 // NewPrefixUpdateExpressionTree constructs a prefix update expression, e.g. ++x.
+// Go-only: language-adapter
 func NewPrefixUpdateExpressionTree(location SourceRange, operator *Token, operand *ParseTree) *UpdateExpressionTree {
 	return NewUpdateExpressionTree(location, operator, OperatorPositionPrefix, operand)
 }
 
 // NewPostfixUpdateExpressionTree constructs a postfix update expression, e.g. x++.
+// Go-only: language-adapter
 func NewPostfixUpdateExpressionTree(location SourceRange, operator *Token, operand *ParseTree) *UpdateExpressionTree {
 	return NewUpdateExpressionTree(location, operator, OperatorPositionPostfix, operand)
 }

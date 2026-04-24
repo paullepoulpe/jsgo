@@ -12,6 +12,7 @@ type ConditionalExpressionTree struct {
 }
 
 // NewConditionalExpressionTree constructs a ConditionalExpressionTree.
+// Go-only: language-adapter
 func NewConditionalExpressionTree(location SourceRange, condition *ParseTree, left *ParseTree, right *ParseTree) *ConditionalExpressionTree {
 	return &ConditionalExpressionTree{
 		ParseTree: ParseTree{Type: ParseTreeTypeConditionalExpression, Location: location},

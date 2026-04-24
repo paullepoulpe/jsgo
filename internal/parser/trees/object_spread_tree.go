@@ -10,6 +10,7 @@ type ObjectSpreadTree struct {
 }
 
 // NewObjectSpreadTree constructs an ObjectSpreadTree.
+// Go-only: language-adapter
 func NewObjectSpreadTree(location SourceRange, expression *ParseTree) *ObjectSpreadTree {
 	return &ObjectSpreadTree{
 		ParseTree:  ParseTree{Type: ParseTreeTypeObjectSpread, Location: location},

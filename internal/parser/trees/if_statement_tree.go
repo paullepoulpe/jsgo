@@ -10,6 +10,7 @@ type IfStatementTree struct {
 	ElseClause *ParseTree
 }
 
+// Go-only: language-adapter
 func NewIfStatementTree(location SourceRange, condition *ParseTree, ifClause *ParseTree, elseClause *ParseTree) *IfStatementTree {
 	return &IfStatementTree{
 		ParseTree:  ParseTree{Type: ParseTreeTypeIfStatement, Location: location},

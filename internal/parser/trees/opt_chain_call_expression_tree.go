@@ -15,6 +15,7 @@ type OptChainCallExpressionTree struct {
 }
 
 // NewOptChainCallExpressionTree constructs an OptChainCallExpressionTree.
+// Go-only: language-adapter
 func NewOptChainCallExpressionTree(location SourceRange, operand *ParseTree, arguments *ArgumentListTree, isStartOfOptionalChain bool, hasTrailingComma bool) *OptChainCallExpressionTree {
 	return &OptChainCallExpressionTree{
 		ParseTree:              ParseTree{Type: ParseTreeTypeOptChainCallExpression, Location: location},

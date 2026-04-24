@@ -14,6 +14,7 @@ type GetAccessorTree struct {
 }
 
 // NewGetAccessorTree constructs a GetAccessorTree.
+// Go-only: language-adapter
 func NewGetAccessorTree(location SourceRange, propertyName *Token, isClassMember bool, isStatic bool, body *BlockTree) *GetAccessorTree {
 	return &GetAccessorTree{
 		ParseTree:     ParseTree{Type: ParseTreeTypeGetAccessor, Location: location},

@@ -11,6 +11,7 @@ type ComprehensionForTree struct {
 }
 
 // NewComprehensionForTree constructs a ComprehensionForTree.
+// Go-only: language-adapter
 func NewComprehensionForTree(location SourceRange, initializer *ParseTree, collection *ParseTree) *ComprehensionForTree {
 	return &ComprehensionForTree{
 		ParseTree:   ParseTree{Type: ParseTreeTypeComprehensionFor, Location: location},

@@ -12,6 +12,7 @@ type TemplateLiteralExpressionTree struct {
 }
 
 // NewTemplateLiteralExpressionTree constructs a TemplateLiteralExpressionTree.
+// Go-only: language-adapter
 func NewTemplateLiteralExpressionTree(location SourceRange, operand *ParseTree, elements []*ParseTree) *TemplateLiteralExpressionTree {
 	return &TemplateLiteralExpressionTree{
 		ParseTree: ParseTree{Type: ParseTreeTypeTemplateLiteralExpression, Location: location},

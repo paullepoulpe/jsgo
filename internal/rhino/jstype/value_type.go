@@ -38,6 +38,7 @@ type ValueType struct {
 // newValueType constructs a ValueType with the given display name.
 // Mirrors the Java constructor chain: ValueType(registry) →
 // super(registry) → eagerlyResolveToSelf().
+// Go-only: language-adapter
 func newValueType(displayName string) ValueType {
 	return ValueType{displayName: displayName}
 }
@@ -57,10 +58,12 @@ func (v ValueType) HasDisplayName() bool {
 
 // IsValueType is a marker that lets callers determine at runtime
 // whether a JSType was constructed as a ValueType.
+// Go-only: language-adapter
 func (v ValueType) IsValueType() bool { return true }
 
 // IsValueType reports whether t is (or embeds) a ValueType.
 // Analogous to an instanceof check in Java.
+// Go-only: language-adapter
 func IsValueType(t JSType) bool {
 	type valueTyper interface {
 		IsValueType() bool

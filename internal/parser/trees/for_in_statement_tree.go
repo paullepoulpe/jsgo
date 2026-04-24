@@ -10,6 +10,7 @@ type ForInStatementTree struct {
 	Body        *ParseTree
 }
 
+// Go-only: language-adapter
 func NewForInStatementTree(location SourceRange, initializer *ParseTree, collection *ParseTree, body *ParseTree) *ForInStatementTree {
 	return &ForInStatementTree{
 		ParseTree:   ParseTree{Type: ParseTreeTypeForInStatement, Location: location},

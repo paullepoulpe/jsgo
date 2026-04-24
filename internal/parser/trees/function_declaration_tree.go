@@ -40,6 +40,7 @@ type FunctionDeclarationBuilder struct {
 	isAsync             bool
 }
 
+// Go-only: language-adapter
 func NewFunctionDeclarationBuilder(kind FunctionDeclarationKind) *FunctionDeclarationBuilder {
 	return &FunctionDeclarationBuilder{kind: kind}
 }

@@ -12,6 +12,7 @@ type BinaryOperatorTree struct {
 }
 
 // NewBinaryOperatorTree constructs a BinaryOperatorTree.
+// Go-only: language-adapter
 func NewBinaryOperatorTree(location SourceRange, left *ParseTree, operator *Token, right *ParseTree) *BinaryOperatorTree {
 	return &BinaryOperatorTree{
 		ParseTree: ParseTree{Type: ParseTreeTypeBinaryOperator, Location: location},

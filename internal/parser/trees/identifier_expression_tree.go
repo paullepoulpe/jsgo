@@ -10,6 +10,7 @@ type IdentifierExpressionTree struct {
 }
 
 // NewIdentifierExpressionTree constructs an IdentifierExpressionTree.
+// Go-only: language-adapter
 func NewIdentifierExpressionTree(location SourceRange, identifierToken *IdentifierToken) *IdentifierExpressionTree {
 	return &IdentifierExpressionTree{
 		ParseTree:       ParseTree{Type: ParseTreeTypeIdentifierExpression, Location: location},

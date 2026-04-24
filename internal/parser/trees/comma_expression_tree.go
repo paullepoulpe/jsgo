@@ -10,6 +10,7 @@ type CommaExpressionTree struct {
 }
 
 // NewCommaExpressionTree constructs a CommaExpressionTree.
+// Go-only: language-adapter
 func NewCommaExpressionTree(location SourceRange, expressions []*ParseTree) *CommaExpressionTree {
 	return &CommaExpressionTree{
 		ParseTree:   ParseTree{Type: ParseTreeTypeCommaExpression, Location: location},

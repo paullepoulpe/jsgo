@@ -6,5 +6,8 @@ package jstype
 // every type is a subtype of Unknown, so IsSubtypeOf always returns true.
 type unknownType struct{}
 
-func (unknownType) TypeName() string          { return "?" }
+// Go-only: language-adapter
+func (unknownType) TypeName() string { return "?" }
+
+// Go-only: language-adapter
 func (unknownType) IsSubtypeOf(o JSType) bool { return true }
