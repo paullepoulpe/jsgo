@@ -6829,3 +6829,27 @@ func (l *TypeCheckDebugTypeLogger) close() { l.active = false }
 
 // maybeLogTypeOfNode ports TypeCheck.java:DebugTypeLogger.maybeLogTypeOfNode (line 3456).
 func (l *TypeCheckDebugTypeLogger) maybeLogTypeOfNode(n *rhino.Node) { _ = n }
+
+// SuggestionPair is the Go equivalent of Java's TypeCheck.SuggestionPair inner class.
+// It pairs a property name suggestion with its edit distance for typo-suggestion messages.
+type SuggestionPair struct {
+	Suggestion string
+	Distance   int
+}
+
+// suggestionPair ports TypeCheck.java:SuggestionPair.suggestionPair (line ~430).
+func (s *SuggestionPair) suggestionPair(suggestion string, distance int) SuggestionPair {
+	return SuggestionPair{Suggestion: suggestion, Distance: distance}
+}
+
+// typeInferencePass creates a new TypeInferencePass for the given scope.
+// Mirrors TypeCheck.java's construction of TypeInferencePass at line ~430.
+func typeInferencePass(scope *TypedScope) *TypeInferencePass {
+	return NewTypeInferencePass(scope)
+}
+
+// stringKey ports Java's Property.StringKey used for property name lookups.
+// In Java, Property.StringKey wraps a string; in Go, we use plain strings.
+func stringKey(name string) string {
+	return name
+}
