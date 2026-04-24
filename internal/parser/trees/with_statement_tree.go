@@ -9,6 +9,7 @@ type WithStatementTree struct {
 	Body       *ParseTree
 }
 
+// Go-only: language-adapter
 func NewWithStatementTree(location SourceRange, expression *ParseTree, body *ParseTree) *WithStatementTree {
 	return &WithStatementTree{
 		ParseTree:  ParseTree{Type: ParseTreeTypeWithStatement, Location: location},

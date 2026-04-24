@@ -12,6 +12,7 @@ type ArrayLiteralExpressionTree struct {
 }
 
 // NewArrayLiteralExpressionTree constructs an ArrayLiteralExpressionTree.
+// Go-only: language-adapter
 func NewArrayLiteralExpressionTree(location SourceRange, elements []*ParseTree, hasTrailingComma bool) *ArrayLiteralExpressionTree {
 	return &ArrayLiteralExpressionTree{
 		ParseTree:        ParseTree{Type: ParseTreeTypeArrayLiteralExpression, Location: location},

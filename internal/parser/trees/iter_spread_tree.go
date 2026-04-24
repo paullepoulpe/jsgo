@@ -11,6 +11,7 @@ type IterSpreadTree struct {
 }
 
 // NewIterSpreadTree constructs an IterSpreadTree.
+// Go-only: language-adapter
 func NewIterSpreadTree(location SourceRange, expression *ParseTree) *IterSpreadTree {
 	return &IterSpreadTree{
 		ParseTree:  ParseTree{Type: ParseTreeTypeIterSpread, Location: location},

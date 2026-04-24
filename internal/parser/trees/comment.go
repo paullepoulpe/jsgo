@@ -23,6 +23,7 @@ type Comment struct {
 }
 
 // NewComment constructs a Comment.
+// Go-only: language-adapter
 func NewComment(value string, location SourceRange, kind CommentType) *Comment {
 	return &Comment{Value: value, Location: location, Type: kind}
 }

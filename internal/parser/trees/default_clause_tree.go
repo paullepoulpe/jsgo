@@ -8,6 +8,7 @@ type DefaultClauseTree struct {
 	Statements []*ParseTree
 }
 
+// Go-only: language-adapter
 func NewDefaultClauseTree(location SourceRange, statements []*ParseTree) *DefaultClauseTree {
 	return &DefaultClauseTree{
 		ParseTree:  ParseTree{Type: ParseTreeTypeDefaultClause, Location: location},

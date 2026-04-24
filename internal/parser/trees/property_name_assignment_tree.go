@@ -12,6 +12,7 @@ type PropertyNameAssignmentTree struct {
 }
 
 // NewPropertyNameAssignmentTree constructs a PropertyNameAssignmentTree.
+// Go-only: language-adapter
 func NewPropertyNameAssignmentTree(location SourceRange, name *Token, value *ParseTree) *PropertyNameAssignmentTree {
 	return &PropertyNameAssignmentTree{
 		ParseTree: ParseTree{Type: ParseTreeTypePropertyNameAssignment, Location: location},

@@ -11,6 +11,7 @@ type MemberExpressionTree struct {
 }
 
 // NewMemberExpressionTree constructs a MemberExpressionTree.
+// Go-only: language-adapter
 func NewMemberExpressionTree(location SourceRange, operand *ParseTree, memberName *IdentifierToken) *MemberExpressionTree {
 	return &MemberExpressionTree{
 		ParseTree:  ParseTree{Type: ParseTreeTypeMemberExpression, Location: location},

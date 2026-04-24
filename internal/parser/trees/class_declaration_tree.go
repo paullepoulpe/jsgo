@@ -10,6 +10,7 @@ type ClassDeclarationTree struct {
 	Elements   []*ParseTree
 }
 
+// Go-only: language-adapter
 func NewClassDeclarationTree(location SourceRange, name *IdentifierToken, superClass *ParseTree, elements []*ParseTree) *ClassDeclarationTree {
 	return &ClassDeclarationTree{
 		ParseTree:  ParseTree{Type: ParseTreeTypeClassDeclaration, Location: location},

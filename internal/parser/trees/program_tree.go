@@ -11,6 +11,7 @@ type ProgramTree struct {
 }
 
 // NewProgramTree constructs a ProgramTree.
+// Go-only: language-adapter
 func NewProgramTree(location SourceRange, sourceElements []*ParseTree, sourceComments []Comment) *ProgramTree {
 	return &ProgramTree{
 		ParseTree:      ParseTree{Type: ParseTreeTypeProgram, Location: location},

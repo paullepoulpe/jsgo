@@ -14,6 +14,7 @@ type OptionalMemberExpressionTree struct {
 }
 
 // NewOptionalMemberExpressionTree constructs an OptionalMemberExpressionTree.
+// Go-only: language-adapter
 func NewOptionalMemberExpressionTree(location SourceRange, operand *ParseTree, memberName *IdentifierToken, isStartOfOptionalChain bool) *OptionalMemberExpressionTree {
 	return &OptionalMemberExpressionTree{
 		ParseTree:              ParseTree{Type: ParseTreeTypeOptChainMemberExpression, Location: location},

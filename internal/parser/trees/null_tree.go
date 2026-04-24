@@ -9,6 +9,7 @@ type NullTree struct {
 }
 
 // NewNullTree constructs a NullTree.
+// Go-only: language-adapter
 func NewNullTree(location SourceRange) *NullTree {
 	return &NullTree{
 		ParseTree: ParseTree{Type: ParseTreeTypeNull, Location: location},

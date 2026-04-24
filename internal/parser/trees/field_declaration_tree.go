@@ -13,6 +13,7 @@ type FieldDeclarationTree struct {
 }
 
 // NewFieldDeclarationTree constructs a FieldDeclarationTree.
+// Go-only: language-adapter
 func NewFieldDeclarationTree(location SourceRange, name *IdentifierToken, isStatic bool, initializer *ParseTree) *FieldDeclarationTree {
 	return &FieldDeclarationTree{
 		ParseTree:   ParseTree{Type: ParseTreeTypeFieldDeclaration, Location: location},

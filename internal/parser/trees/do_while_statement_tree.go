@@ -9,6 +9,7 @@ type DoWhileStatementTree struct {
 	Condition *ParseTree
 }
 
+// Go-only: language-adapter
 func NewDoWhileStatementTree(location SourceRange, body *ParseTree, condition *ParseTree) *DoWhileStatementTree {
 	return &DoWhileStatementTree{
 		ParseTree: ParseTree{Type: ParseTreeTypeDoWhileStatement, Location: location},

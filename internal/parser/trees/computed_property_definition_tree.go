@@ -12,6 +12,7 @@ type ComputedPropertyDefinitionTree struct {
 }
 
 // NewComputedPropertyDefinitionTree constructs a ComputedPropertyDefinitionTree.
+// Go-only: language-adapter
 func NewComputedPropertyDefinitionTree(location SourceRange, property *ParseTree, value *ParseTree) *ComputedPropertyDefinitionTree {
 	return &ComputedPropertyDefinitionTree{
 		ParseTree: ParseTree{Type: ParseTreeTypeComputedPropertyDefinition, Location: location},

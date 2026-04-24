@@ -9,6 +9,7 @@ type ExportSpecifierTree struct {
 	DestinationName *IdentifierToken
 }
 
+// Go-only: language-adapter
 func NewExportSpecifierTree(location SourceRange, importedName *IdentifierToken, destinationName *IdentifierToken) *ExportSpecifierTree {
 	return &ExportSpecifierTree{
 		ParseTree:       ParseTree{Type: ParseTreeTypeExportSpecifier, Location: location},

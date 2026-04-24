@@ -11,6 +11,7 @@ type TemplateLiteralPortionTree struct {
 }
 
 // NewTemplateLiteralPortionTree constructs a TemplateLiteralPortionTree.
+// Go-only: language-adapter
 func NewTemplateLiteralPortionTree(location SourceRange, value *Token) *TemplateLiteralPortionTree {
 	return &TemplateLiteralPortionTree{
 		ParseTree: ParseTree{Type: ParseTreeTypeTemplateLiteralPortion, Location: location},

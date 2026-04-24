@@ -8,6 +8,7 @@ type FinallyTree struct {
 	Block *ParseTree
 }
 
+// Go-only: language-adapter
 func NewFinallyTree(location SourceRange, block *ParseTree) *FinallyTree {
 	return &FinallyTree{
 		ParseTree: ParseTree{Type: ParseTreeTypeFinally, Location: location},

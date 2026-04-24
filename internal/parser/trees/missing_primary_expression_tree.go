@@ -10,6 +10,7 @@ type MissingPrimaryExpressionTree struct {
 }
 
 // NewMissingPrimaryExpressionTree constructs a MissingPrimaryExpressionTree.
+// Go-only: language-adapter
 func NewMissingPrimaryExpressionTree(location SourceRange) *MissingPrimaryExpressionTree {
 	return &MissingPrimaryExpressionTree{
 		ParseTree: ParseTree{Type: ParseTreeTypeMissingPrimaryExpression, Location: location},

@@ -9,6 +9,7 @@ type LabelledStatementTree struct {
 	Statement *ParseTree
 }
 
+// Go-only: language-adapter
 func NewLabelledStatementTree(location SourceRange, name *IdentifierToken, statement *ParseTree) *LabelledStatementTree {
 	return &LabelledStatementTree{
 		ParseTree: ParseTree{Type: ParseTreeTypeLabelledStatement, Location: location},

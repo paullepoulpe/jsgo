@@ -10,6 +10,7 @@ type TryStatementTree struct {
 	FinallyBlock *ParseTree
 }
 
+// Go-only: language-adapter
 func NewTryStatementTree(location SourceRange, body *ParseTree, catchBlock *ParseTree, finallyBlock *ParseTree) *TryStatementTree {
 	return &TryStatementTree{
 		ParseTree:    ParseTree{Type: ParseTreeTypeTryStatement, Location: location},

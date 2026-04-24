@@ -8,6 +8,7 @@ type BreakStatementTree struct {
 	Name *IdentifierToken
 }
 
+// Go-only: language-adapter
 func NewBreakStatementTree(location SourceRange, name *IdentifierToken) *BreakStatementTree {
 	return &BreakStatementTree{
 		ParseTree: ParseTree{Type: ParseTreeTypeBreakStatement, Location: location},
