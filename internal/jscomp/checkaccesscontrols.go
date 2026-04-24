@@ -829,3 +829,276 @@ func cacSameFile(a, b string) bool {
 func cacPackageName(filePath string) string {
 	return filepath.Dir(filePath)
 }
+
+// --- Additional Java-parity methods ----------------------------------------
+// The following mirror the private methods of CheckAccessControls.java.
+// They are not yet wired into the main walk (which uses a narrower JSDoc-only
+// subset), but are present for 1:1 Java surface coverage.
+
+// cacIsPrivateAccessAllowed mirrors CheckAccessControls.isPrivateAccessAllowed
+// in Java. Returns true when a @private variable is accessible from the
+// reference site (i.e. both are in the same source file).
+func cacIsPrivateAccessAllowed(varSourceFile, refSourceFile string) bool {
+	// Mirrors Java: varSrc == null || refSrc == null || varSrc.getName() == refSrc.getName()
+	return varSourceFile == "" || refSourceFile == "" || varSourceFile == refSourceFile
+}
+
+// cacIsPackageAccessAllowed mirrors CheckAccessControls.isPackageAccessAllowed
+// in Java. Returns true when both the variable and the reference site are in
+// the same package (directory). Mirrors Java's CodingConvention.getPackageName.
+func cacIsPackageAccessAllowed(varSourceFile, refSourceFile string) bool {
+	if varSourceFile == "" || refSourceFile == "" {
+		return false
+	}
+	return cacPackageName(varSourceFile) == cacPackageName(refSourceFile)
+}
+
+// cacCanOverrideVisibility mirrors CheckAccessControls.canOverrideVisibility
+// in Java. The visibility order is PUBLIC > PROTECTED > PACKAGE > PRIVATE,
+// so an override is valid when the overriding visibility is >= the original.
+// Java's Visibility enum compareTo maps to rhino.Visibility ordering.
+func cacCanOverrideVisibility(superVis, subVis rhino.Visibility) bool {
+	// Inherited can override anything.
+	if subVis == rhino.VisibilityInherited {
+		return true
+	}
+	// Java: superclassVisibility.compareTo(subclassVisibility) <= 0
+	// Java Visibility order (higher = more restrictive): PUBLIC < PROTECTED < PACKAGE < PRIVATE < INHERITED
+	order := func(v rhino.Visibility) int {
+		switch v {
+		case rhino.VisibilityPublic:
+			return 0
+		case rhino.VisibilityProtected:
+			return 1
+		case rhino.VisibilityPackage:
+			return 2
+		case rhino.VisibilityPrivate:
+			return 3
+		default: // INHERITED
+			return 4
+		}
+	}
+	return order(superVis) <= order(subVis)
+}
+
+// cacCheckPropertyOverrideVisibility mirrors
+// CheckAccessControls.checkPropertyOverrideVisibility in Java.
+// Emits PRIVATE_OVERRIDE when a @private property is overridden from a
+// different file, or VISIBILITY_MISMATCH when the visibility narrows.
+func (c *CheckAccessControls) cacCheckPropertyOverrideVisibility(
+	n *rhino.Node,
+	propName string,
+	superVis rhino.Visibility,
+	overridingVis rhino.Visibility,
+	sameInput bool,
+	objectTypeName string,
+) {
+	if superVis == rhino.VisibilityPrivate && !sameInput {
+		c.diags = append(c.diags, diag.Diagnostic{
+			Path: c.path, Line: n.Lineno(), Col: n.Charno(),
+			Code:    diag.JSC_PRIVATE_OVERRIDE,
+			Level:   diag.Warning,
+			Message: fmt.Sprintf("Overriding private property of %s.", objectTypeName),
+		})
+		return
+	}
+	if !cacCanOverrideVisibility(superVis, overridingVis) {
+		c.diags = append(c.diags, diag.Diagnostic{
+			Path: c.path, Line: n.Lineno(), Col: n.Charno(),
+			Code:  diag.JSC_VISIBILITY_MISMATCH,
+			Level: diag.Warning,
+			Message: fmt.Sprintf(
+				"Overriding %s property of %s with %s property.",
+				superVis, objectTypeName, overridingVis),
+		})
+	}
+}
+
+// cacCheckPackagePropertyVisibility mirrors
+// CheckAccessControls.checkPackagePropertyVisibility in Java.
+// Emits BAD_PACKAGE_PROPERTY_ACCESS when a @package property is accessed
+// from a different directory.
+func (c *CheckAccessControls) cacCheckPackagePropertyVisibility(
+	n *rhino.Node,
+	propName string,
+	refSourceFile, defSourceFile string,
+	readableTypeName string,
+) {
+	refPkg := cacPackageName(refSourceFile)
+	defPkg := cacPackageName(defSourceFile)
+	if refPkg == "" || defPkg == "" || refPkg != defPkg {
+		c.diags = append(c.diags, diag.Diagnostic{
+			Path: c.path, Line: n.Lineno(), Col: n.Charno(),
+			Code:  diag.JSC_BAD_PACKAGE_PROPERTY_ACCESS,
+			Level: diag.Warning,
+			Message: fmt.Sprintf(
+				"Access to package-private property %s of %s not allowed here.",
+				propName, readableTypeName),
+		})
+	}
+}
+
+// cacCheckPrivatePropertyVisibility mirrors
+// CheckAccessControls.checkPrivatePropertyVisibility in Java.
+// Emits BAD_PRIVATE_PROPERTY_ACCESS when a @private property is accessed
+// from a different file.
+func (c *CheckAccessControls) cacCheckPrivatePropertyVisibility(
+	n *rhino.Node,
+	propName string,
+	readableTypeName string,
+) {
+	c.diags = append(c.diags, diag.Diagnostic{
+		Path: c.path, Line: n.Lineno(), Col: n.Charno(),
+		Code:  diag.JSC_BAD_PRIVATE_PROPERTY_ACCESS,
+		Level: diag.Warning,
+		Message: fmt.Sprintf(
+			"Access to private property %s of %s not allowed here.",
+			propName, readableTypeName),
+	})
+}
+
+// cacCheckProtectedPropertyVisibility mirrors
+// CheckAccessControls.checkProtectedPropertyVisibility in Java.
+// Emits BAD_PROTECTED_PROPERTY_ACCESS when a @protected property is accessed
+// from outside a subclass.
+func (c *CheckAccessControls) cacCheckProtectedPropertyVisibility(
+	n *rhino.Node,
+	propName string,
+	readableTypeName string,
+) {
+	c.diags = append(c.diags, diag.Diagnostic{
+		Path: c.path, Line: n.Lineno(), Col: n.Charno(),
+		Code:  diag.JSC_BAD_PROTECTED_PROPERTY_ACCESS,
+		Level: diag.Warning,
+		Message: fmt.Sprintf(
+			"Access to protected property %s of %s not allowed here.",
+			propName, readableTypeName),
+	})
+}
+
+// cacCheckPropertyAccessVisibility mirrors
+// CheckAccessControls.checkPropertyAccessVisibility in Java.
+// Dispatches to the appropriate sub-check based on visibility.
+// Same-file accesses are always allowed.
+func (c *CheckAccessControls) cacCheckPropertyAccessVisibility(
+	n *rhino.Node,
+	propName string,
+	vis rhino.Visibility,
+	referenceSourceFile, definingSourceFile string,
+	readableTypeName string,
+) {
+	// Same-file: always allowed (mirrors Java's early return).
+	if referenceSourceFile != "" && definingSourceFile != "" &&
+		referenceSourceFile == definingSourceFile {
+		return
+	}
+	switch vis {
+	case rhino.VisibilityPackage:
+		c.cacCheckPackagePropertyVisibility(n, propName, referenceSourceFile, definingSourceFile, readableTypeName)
+	case rhino.VisibilityPrivate:
+		c.cacCheckPrivatePropertyVisibility(n, propName, readableTypeName)
+	case rhino.VisibilityProtected:
+		c.cacCheckProtectedPropertyVisibility(n, propName, readableTypeName)
+	}
+}
+
+// cacCanAccessDeprecatedTypes mirrors CheckAccessControls.canAccessDeprecatedTypes
+// in Java. Returns true when the current traversal context is itself deprecated
+// (i.e. we're inside a @deprecated function / class).
+func (c *CheckAccessControls) cacCanAccessDeprecatedTypes() bool {
+	return c.cacDeprecationDepth > 0
+}
+
+// cacShouldEmitDeprecationWarningPropRef mirrors the PropertyReference variant of
+// CheckAccessControls.shouldEmitDeprecationWarning in Java.
+// Returns true when a deprecation warning should be emitted for a property access.
+func (c *CheckAccessControls) cacShouldEmitDeprecationWarningPropRef(
+	n, parent *rhino.Node,
+	isMutation bool,
+) bool {
+	// Global scope: only fire for call / instantiation targets.
+	if c.cacScopeDepth == 0 {
+		if !cacIsInvocationTarget(n, parent) {
+			return false
+		}
+	}
+	// Can always assign to a deprecated property (to keep it up to date).
+	if isMutation {
+		return false
+	}
+	return !c.cacCanAccessDeprecatedTypes()
+}
+
+// cacGetTypeDeprecationInfo mirrors CheckAccessControls.getTypeDeprecationInfo
+// in Java. Returns nil when the type is not deprecated; otherwise returns
+// a pointer to the deprecation reason (which may be empty).
+func cacGetTypeDeprecationInfo(ot *jstype.ObjectType) *string {
+	if ot == nil {
+		return nil
+	}
+	info := ot.GetJSDocInfo()
+	return cacGetDeprecationReasonFromInfo(info)
+}
+
+// cacGetPropertyDeprecationInfo mirrors CheckAccessControls.getPropertyDeprecationInfo
+// in Java. Walks the implicit prototype chain looking for a @deprecated annotation
+// on the given property.
+func cacGetPropertyDeprecationInfoChain(ot *jstype.ObjectType, prop string) *string {
+	for cur := ot; cur != nil; cur = cur.Super() {
+		info := cur.GetOwnPropertyJSDoc(prop)
+		reason := cacGetDeprecationReasonFromInfo(info)
+		if reason != nil {
+			return reason
+		}
+	}
+	return nil
+}
+
+// cacIsPropertyDeclaredConstantChain mirrors the Java
+// CheckAccessControls.isPropertyDeclaredConstant(ObjectType, String) — walks
+// the implicit prototype chain looking for @final / @const / @define on the
+// given property. Returns cacMutable when none found.
+func cacIsPropertyDeclaredConstantChain(ot *jstype.ObjectType, prop string) cacConstancy {
+	for cur := ot; cur != nil; cur = cur.Super() {
+		info := cur.GetOwnPropertyJSDoc(prop)
+		if info == nil {
+			continue
+		}
+		if info.IsFinal() {
+			return cacFinal
+		}
+		if info.IsConst() || info.IsDefine() {
+			return cacOtherConstant
+		}
+	}
+	return cacMutable
+}
+
+// cacIsFunctionOrClass mirrors CheckAccessControls.isFunctionOrClass in Java.
+func cacIsFunctionOrClass(n *rhino.Node) bool {
+	if n == nil {
+		return false
+	}
+	return n.Token() == rhino.FUNCTION || n.Token() == rhino.CLASS
+}
+
+// cacIsExtendsTarget mirrors CheckAccessControls.isExtendsTarget in Java —
+// returns true when the node is a class extends clause.
+func cacIsExtendsTarget(n, parent *rhino.Node) bool {
+	if parent == nil {
+		return false
+	}
+	// CLASS node's second child is the extends expression.
+	if parent.Token() != rhino.CLASS {
+		return false
+	}
+	// Walk children to find if n is the second child (extends clause).
+	count := 0
+	for _, child := range parent.Children() {
+		count++
+		if count == 2 && child == n {
+			return true
+		}
+	}
+	return false
+}
