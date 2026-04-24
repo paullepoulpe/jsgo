@@ -50,11 +50,14 @@ type ObjectType struct {
 	IsStructural bool
 
 	// IsRecord is true for `@record` types specifically (not bare `@interface`).
-	// Java's FunctionType.isStructuralInterface() returns true only for @record;
-	// plain @interface uses nominal-compatible matching (requires explicit @implements).
 	// When IsRecord is true, structural duck-typing applies; when IsRecord is false
 	// but IsStructural is true, the interface requires nominal membership (super chain).
 	IsRecord bool
+
+	// IsInterface is true for `@interface` types (not `@record`). Interface
+	// types are open-ended: accessing an undeclared property on an interface
+	// variable does NOT fire JSC_INEXISTENT_PROPERTY.
+	IsInterface bool
 
 	// IsStruct / IsDict mirror ObjectType.isStruct() / isDict() in Java —
 	// flags set from `@struct` / `@dict` on the constructor JSDoc.

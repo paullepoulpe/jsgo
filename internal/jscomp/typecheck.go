@@ -576,9 +576,7 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 	case rhino.ASSIGN:
 		c.emit(c.visitAssign(n, scope))
 	case rhino.ASSIGN_AND, rhino.ASSIGN_OR, rhino.ASSIGN_COALESCE:
-		// Java: logical-assignment forms go through visitLogicalAssign
-		// (which in turn invokes visitAssign for the typecheck side).
-		c.emit(c.visitLogicalAssign(n, scope))
+		c.emit(c.visitShortCircuitAssign(n, scope))
 	case rhino.CALL:
 		c.emit(c.visitCall(n, scope))
 	case rhino.NEW:
@@ -600,9 +598,7 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 	case rhino.FOR_OF, rhino.FOR_AWAIT_OF:
 		c.emit(c.checkForOfTypes(n, scope))
 	case rhino.LSH, rhino.RSH, rhino.URSH, rhino.BITAND, rhino.BITOR, rhino.BITXOR, rhino.BITNOT,
-		// Java: compound assignment operators also route through visitBinaryOperator
-		// for the same operand-type checks as the bare binary ops.
-		rhino.ASSIGN_BITOR, rhino.ASSIGN_BITXOR, rhino.ASSIGN_BITAND,
+		rhino.ASSIGN_BITAND, rhino.ASSIGN_BITOR, rhino.ASSIGN_BITXOR,
 		rhino.ASSIGN_LSH, rhino.ASSIGN_RSH, rhino.ASSIGN_URSH:
 		c.emit(c.visitBitOp(n, scope))
 	case rhino.EQ, rhino.NE, rhino.SHEQ, rhino.SHNE:
@@ -999,11 +995,11 @@ func (c *TypeCheck) visitEnumInit(name, init *rhino.Node, scope *TypedScope) []d
 	}}
 }
 
-// visitLogicalAssign handles logical compound assignments (&&=, ||=, ??=).
-// Mirrors Java's TypeCheck.visitAssignmentOp: checks whether the RHS is
-// assignable to the LHS's declared type. These operators conditionally
-// assign the RHS to LHS only when LHS is truthy (&&=) or falsy (||=, ??=).
-func (c *TypeCheck) visitLogicalAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+// visitShortCircuitAssign handles `&&=`, `||=`, `??=` compound assignments.
+// Port of TypeCheck.java's visitAssign branch for ASSIGN_AND, ASSIGN_OR,
+// ASSIGN_COALESCE: checks that the RHS type is assignable to the declared
+// type of the LHS.
+func (c *TypeCheck) visitShortCircuitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := a.Children()
 	if len(kids) < 2 {
 		return nil
@@ -1717,10 +1713,11 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 			return nil
 		}
 	}
-	// Structural (@record) types are open surfaces: Java routes writes to
-	// unknown properties as LOOSE (STRICT_INEXISTENT_PROPERTY only), which
-	// is silenced in default mode. Skip writes on structural non-struct types.
-	if obj.IsStructural && !obj.IsStruct && isAssignLHS(n) {
+	// @interface types are open surfaces in default mode: Java routes
+	// unknown-property accesses on them as LOOSE (STRICT_INEXISTENT_PROPERTY
+	// only), which is silenced in default mode. Skip reads and writes on
+	// @interface types. @record types ARE closed — missing properties fire.
+	if obj.IsStructural && !obj.IsStruct && obj.IsInterface {
 		return nil
 	}
 	msg := fmt.Sprintf("Property %s never defined on %s", propName, obj.TypeName())
@@ -2194,18 +2191,13 @@ func (c *TypeCheck) visitReturn(ret *rhino.Node, scope *TypedScope) []diag.Diagn
 		return nil
 	}
 	info := functionJSDoc(enclosing)
-	if info == nil {
-		return nil
-	}
-	// Get declared return type from @return annotation or from @type {function(...):R}
 	var declared jstype.JSType
-	if info.ReturnType() != nil {
+	if info != nil && info.ReturnType() != nil {
 		declared = scope.ResolveExpr(info.ReturnType().TypeName)
-	} else if info.HasType() {
-		// `@type {function(...): R}` — extract R from the declared FunctionType.
-		// Java's TypeCheck finds the enclosing function's declared type and uses
-		// its return type for the inconsistent-return-type check.
-		if fn, ok := scope.ResolveExpr(info.Type().TypeName).(*jstype.FunctionType); ok {
+	} else if info != nil && info.HasType() {
+		// @type {function(...): T} annotation — extract return type from
+		// the declared function type.
+		if fn := enclosingFunctionType(enclosing, scope); fn != nil && fn.Return != nil {
 			declared = fn.Return
 		}
 	}
@@ -2391,6 +2383,23 @@ func diagPosForArg(n *rhino.Node) (int, int) {
 		}
 	}
 	return n.Lineno(), n.Charno()
+}
+
+// enclosingFunctionType returns the FunctionType from the scope for the
+// enclosing function node `fn`, if it was declared with `@type {function(...)}`
+// or `@return {T}`. Used to extract the return type when `@type {function():T}`
+// is used instead of separate `@return {T}` annotation.
+func enclosingFunctionType(fn *rhino.Node, scope *TypedScope) *jstype.FunctionType {
+	if fn == nil {
+		return nil
+	}
+	// Named function declaration: look up by function name.
+	if nameKid := fn.FirstChild(); nameKid != nil && nameKid.Token() == rhino.NAME && nameKid.String_() != "" {
+		if ft, ok := scope.GetRawDeclaredType(nameKid.String_()).(*jstype.FunctionType); ok {
+			return ft
+		}
+	}
+	return nil
 }
 
 // functionJSDoc returns the JSDocInfo attached to `fn`, or — for
@@ -2739,8 +2748,12 @@ func (c *TypeCheck) visitBitOp(n *rhino.Node, scope *TypedScope) []diag.Diagnost
 	infer := NewTypeInference(scope)
 	var out []diag.Diagnostic
 	op := bitOpSymbol(n.Token())
+	_ = n.Token() == rhino.LSH || n.Token() == rhino.RSH || n.Token() == rhino.URSH
+
 	// Unary BITNOT (~): one operand; emit at the operator node position
 	// to match Java's TypeCheck which points at the BITNOT expression.
+	// Java fires JSC_BAD_TYPE_FOR_BIT_OPERATION when the operand doesn't
+	// match number context. Void/null/boolean/object types don't match.
 	if n.Token() == rhino.BITNOT {
 		if len(kids) == 0 {
 			return nil
@@ -2761,10 +2774,7 @@ func (c *TypeCheck) visitBitOp(n *rhino.Node, scope *TypedScope) []diag.Diagnost
 	switch n.Token() {
 	case rhino.BITAND, rhino.BITOR, rhino.BITXOR,
 		rhino.ASSIGN_BITAND, rhino.ASSIGN_BITOR, rhino.ASSIGN_BITXOR:
-		// Java: validator.expectBitwiseable fires JSC_TYPE_MISMATCH when
-		// type is not a subtype of (string|number|boolean|null|undefined).
-		// Port: check left and right operands; fire JSC_TYPE_MISMATCH for
-		// each non-bitwiseable type (only first bad operand, matching Java).
+		// Bitwise operators fire JSC_TYPE_MISMATCH when not bitwiseable.
 		for i, k := range kids {
 			t := infer.InferType(k)
 			if !isBitwiseable(t) {
@@ -2774,12 +2784,11 @@ func (c *TypeCheck) visitBitOp(n *rhino.Node, scope *TypedScope) []diag.Diagnost
 				}
 				c.tv.expectCanAssignTo(k, t, bitwiseableType(), msg)
 				out = append(out, c.tvDrain()...)
-				break // first bad operand only
+				break
 			}
 		}
 	default:
-		// Shift operators (LSH, RSH, URSH, ASSIGN_LSH, ASSIGN_RSH, ASSIGN_URSH):
-		// Java fires JSC_BAD_TYPE_FOR_BIT_OPERATION when !matchesNumberContext.
+		// Shift operators: fire JSC_BAD_TYPE_FOR_BIT_OPERATION for non-numbers.
 		for _, k := range kids {
 			t := infer.InferType(k)
 			if isDefinitelyNotNumber(t) {
@@ -2788,12 +2797,13 @@ func (c *TypeCheck) visitBitOp(n *rhino.Node, scope *TypedScope) []diag.Diagnost
 					Code: diag.JSC_BAD_TYPE_FOR_BIT_OPERATION, Level: diag.Error,
 					Message: fmt.Sprintf("operator %s cannot be applied to %s", op, t.TypeName()),
 				})
-				break // report first bad operand only
+				break
 			}
 		}
 	}
 	return out
 }
+
 
 // bitwiseableType returns the union type (boolean|null|number|string|undefined)
 // that Java uses as the required type for bitwise operands.
@@ -2840,14 +2850,20 @@ func bitOpSymbol(t rhino.Token) string {
 		return ">>"
 	case rhino.URSH:
 		return ">>>"
-	case rhino.BITAND:
+	case rhino.BITAND, rhino.ASSIGN_BITAND:
 		return "&"
-	case rhino.BITOR:
+	case rhino.BITOR, rhino.ASSIGN_BITOR:
 		return "|"
-	case rhino.BITXOR:
+	case rhino.BITXOR, rhino.ASSIGN_BITXOR:
 		return "^"
 	case rhino.BITNOT:
 		return "~"
+	case rhino.ASSIGN_LSH:
+		return "<<="
+	case rhino.ASSIGN_RSH:
+		return ">>="
+	case rhino.ASSIGN_URSH:
+		return ">>>="
 	}
 	return "?"
 }
@@ -3898,9 +3914,12 @@ func isReasonableObjectPropertyKey(t jstype.JSType) bool {
 	if t == nil || isUnknownOrNil(t) {
 		return true
 	}
-	// Primitives and well-known stringifiable singletons.
+	// Primitives and well-known stringifiable/usable-as-key singletons.
+	// Symbol is a valid ES6 property key (not stringifiable but allowed
+	// as Object index). BigInt is also valid as a key.
 	switch t {
-	case jstype.Number, jstype.String, jstype.Boolean, jstype.Null, jstype.Void:
+	case jstype.Number, jstype.String, jstype.Boolean, jstype.Null, jstype.Void,
+		jstype.Symbol, jstype.BigInt:
 		return true
 	}
 	// EnumElementType — check underlying primitive.
@@ -3955,6 +3974,16 @@ func isReasonableObjectPropertyKey(t jstype.JSType) bool {
 	return false
 }
 
+// nativeObjectsWithNonUniqueToString is the set of built-in types whose
+// toString() is defined in our externs but produces non-unique output
+// (e.g. Object → "[object Object]", Array → "1,2,3"). These should NOT
+// be treated as reasonable Object keys even if HasProperty("toString").
+var nativeObjectsWithNonUniqueToString = map[string]bool{
+	"Object":   true,
+	"Array":    true,
+	"Function": true,
+}
+
 // classHasToString reports whether the ObjectType (or a non-native
 // ancestor) declares a user-defined toString() method. Native builtins
 // (Object, Array, …) don't count — their native toString gives "[object
@@ -3963,10 +3992,11 @@ func classHasToString(obj *jstype.ObjectType) bool {
 	if obj == nil {
 		return false
 	}
-	// Only user-registered toString matters. In our Go externs we do NOT
-	// register toString on native types (Object, Array, Function, …), so
-	// HasProperty("toString") will only return true when the user's own
-	// @constructor body or prototype defined it.
+	// Skip native builtins whose toString is non-unique. Java's
+	// classHasToString explicitly rejects Object/Array/Function.
+	if nativeObjectsWithNonUniqueToString[obj.Name] {
+		return false
+	}
 	return obj.HasProperty("toString")
 }
 
@@ -6102,7 +6132,11 @@ func (c *TypeCheck) checkPrototypeObjectLitAssign(ownerName string, lit *rhino.N
 		if superSlot == nil || overrideCompatible(ownSlot, superSlot) {
 			continue
 		}
+		// Java reports at different positions depending on whether this is an
+		// interface-to-interface mismatch (key node) or a class-to-class
+		// mismatch (function value node).
 		if fn.Instance.IsStructural || super.IsStructural {
+			// Interface: report at the property key node.
 			c.diags = append(c.diags, diag.Diagnostic{
 				Path: c.path, Line: kv.Lineno(), Col: kv.Charno(),
 				Code: diag.JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH, Level: diag.Error,
@@ -6110,8 +6144,9 @@ func (c *TypeCheck) checkPrototypeObjectLitAssign(ownerName string, lit *rhino.N
 					methodName, ownerName, super.TypeName(), superSlot.TypeName(), ownSlot.TypeName()),
 			})
 		} else {
+			// Constructor: report at the function value node.
 			c.diags = append(c.diags, diag.Diagnostic{
-				Path: c.path, Line: kv.Lineno(), Col: kv.Charno(),
+				Path: c.path, Line: child.Lineno(), Col: child.Charno(),
 				Code: diag.JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH, Level: diag.Error,
 				Message: fmt.Sprintf("mismatch of the %s property type and the type of the property it overrides from superclass %s\noriginal: %s\noverride: %s",
 					methodName, super.TypeName(), superSlot.TypeName(), ownSlot.TypeName()),

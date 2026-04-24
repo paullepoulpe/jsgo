@@ -460,6 +460,12 @@ func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 			if explicitNonNull {
 				alias = stripNullUndef(alias)
 			}
+			// If the alias resolved to Unknown (e.g. due to a cyclic typedef
+			// forward reference), Unknown absorbs the entire union — return it
+			// immediately. Mirrors Java's type lattice invariant.
+			if isJSUnknown(alias) {
+				return jstype.Unknown
+			}
 			members = append(members, alias)
 			continue
 		}
@@ -960,7 +966,24 @@ func syntheticReadonlyArrayType(rawTypeName string) jstype.JSType {
 	roInst := jstype.NewObjectType("ReadonlyArray")
 	roInst.DefineProperty("length", jstype.Number)
 	if startsWith(base, "ReadonlyArray<") {
-		// Parameterized: create TemplatizedType{ReadonlyArray, ?}.
+		// Parameterized: extract the type argument for accurate TypeName().
+		// e.g. "ReadonlyArray<number>" → targ = "number" → Number type.
+		closing := indexLastByte(base, '>')
+		if closing > len("ReadonlyArray<") {
+			inner := trimSpace(base[len("ReadonlyArray<"):closing])
+			// Use the registry/scope to resolve — but we don't have a scope
+			// here. Use a simple primitive lookup instead.
+			var targ jstype.JSType = jstype.Unknown
+			switch inner {
+			case "number":
+				targ = jstype.Number
+			case "string":
+				targ = jstype.String
+			case "boolean":
+				targ = jstype.Boolean
+			}
+			return jstype.NewTemplatizedType(roInst, []jstype.JSType{targ})
+		}
 		return jstype.NewTemplatizedType(roInst, []jstype.JSType{jstype.Unknown})
 	}
 	return roInst
@@ -1254,7 +1277,34 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 			}
 		}
 	}
+	// Pass 3: catch parameters always have type * (Unknown) in Java's
+	// TypedScopeCreator regardless of any same-named outer declaration.
+	// Walk the block to find CATCH nodes and unconditionally bind their
+	// parameter names to Unknown, overriding any shadowed outer binding.
+	// Mirrors Java's TypedScopeCreator.AbstractScopeBuilder.visitCatch
+	// which always assigns JSType.ALL to the catch parameter slot.
+	registerCatchParams(block, scope)
 	return scope
+}
+
+// registerCatchParams walks the AST tree rooted at block and for each
+// CATCH node unconditionally binds the parameter name to Unknown in
+// the given scope. This ensures catch parameters shadow outer
+// same-named declarations with *, matching Java's TypedScopeCreator.
+func registerCatchParams(block *rhino.Node, scope *TypedScope) {
+	if block == nil {
+		return
+	}
+	for _, child := range block.Children() {
+		if child.Token() == rhino.CATCH {
+			if first := child.FirstChild(); first != nil && first.Token() == rhino.NAME && first.String_() != "" {
+				scope.declared[first.String_()] = jstype.Unknown
+			}
+			registerCatchParams(child, scope)
+		} else if child.Token() != rhino.FUNCTION && child.Token() != rhino.CLASS {
+			registerCatchParams(child, scope)
+		}
+	}
 }
 
 // hoistDeclarations walks `block` collecting every VAR/LET/CONST /
@@ -1640,6 +1690,9 @@ func (c *TypedScopeCreator) recordNamespaceAssignFromFunction(a *rhino.Node, sco
 			ctor.Instance.IsStructural = true
 			ctor.Instance.IsRecord = info.IsRecord()
 		}
+		if info.IsInterface() {
+			ctor.Instance.IsInterface = true
+		}
 		if info.IsStruct() {
 			ctor.Instance.IsStruct = true
 		}
@@ -1928,6 +1981,9 @@ func (c *TypedScopeCreator) preregisterVarConstructor(v *rhino.Node, scope *Type
 		ct.Instance.IsStructural = true
 		ct.Instance.IsRecord = info.IsRecord()
 	}
+	if info.IsInterface() {
+		ct.Instance.IsInterface = true
+	}
 	scope.declared[name.String_()] = ct
 }
 
@@ -2082,6 +2138,9 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 	if info := cls.JSDocInfo(); info != nil && (info.IsRecord() || info.IsInterface()) {
 		inst.IsStructural = true
 		inst.IsRecord = info.IsRecord()
+		if info.IsInterface() {
+			inst.IsInterface = true
+		}
 	}
 	if info := cls.JSDocInfo(); info != nil {
 		if info.IsStruct() {
@@ -2550,6 +2609,9 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 				ct.Instance.IsStructural = true
 				ct.Instance.IsRecord = info.IsRecord()
 			}
+			if info.IsInterface() {
+				ct.Instance.IsInterface = true
+			}
 			scope.declared[name.String_()] = ct
 			return
 		}
@@ -2565,6 +2627,9 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 			if info.IsInterface() || info.IsRecord() {
 				fnType.Instance.IsStructural = true
 				fnType.Instance.IsRecord = info.IsRecord()
+			}
+			if info.IsInterface() {
+				fnType.Instance.IsInterface = true
 			}
 			if info.IsStruct() {
 				fnType.Instance.IsStruct = true
@@ -3022,6 +3087,9 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 		if info.IsInterface() || info.IsRecord() {
 			fnType.Instance.IsStructural = true
 			fnType.Instance.IsRecord = info.IsRecord()
+		}
+		if info.IsInterface() {
+			fnType.Instance.IsInterface = true
 		}
 		// Propagate @struct / @dict onto the instance so TypeCheck can
 		// gate JSC_ILLEGAL_PROPERTY_ACCESS at GETPROP / GETELEM sites.
