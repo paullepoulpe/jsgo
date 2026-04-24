@@ -30,3 +30,15 @@ func NewComment(value string, location SourceRange, kind CommentType) *Comment {
 
 // IsJsDoc mirrors Java's Comment.isJsDoc().
 func (c *Comment) IsJsDoc() bool { return c.Type == CommentTypeJSDoc }
+
+// GetAbsolutePosition mirrors Java's Comment.getAbsolutePosition().
+// Returns the start offset of the comment within the source file.
+func (c *Comment) GetAbsolutePosition() int {
+	return c.Location.Start.Offset
+}
+
+// GetLength mirrors Java's Comment.getLength().
+// Returns the length of the comment in characters.
+func (c *Comment) GetLength() int {
+	return c.Location.End.Offset - c.Location.Start.Offset
+}

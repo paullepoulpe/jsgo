@@ -6,7 +6,10 @@ package jstype
 // of itself, All, and Unknown.
 type nullType struct{}
 
+// Go-only: language-adapter
 func (nullType) TypeName() string { return "null" }
+
+// Go-only: language-adapter
 func (nullType) IsSubtypeOf(o JSType) bool {
 	if _, ok := o.(nullType); ok {
 		return true

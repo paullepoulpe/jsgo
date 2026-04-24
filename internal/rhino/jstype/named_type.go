@@ -82,6 +82,7 @@ type NamedTypeBuilder struct {
 
 // NewNamedTypeBuilder is the factory for NamedTypeBuilder.  Mirrors
 // NamedType.builder(registry, reference) in Java.
+// Go-only: language-adapter
 func NewNamedTypeBuilder(registry *Registry, referenceName string) *NamedTypeBuilder {
 	return &NamedTypeBuilder{
 		registry:       registry,
@@ -179,6 +180,7 @@ func (n *NamedType) setReferencedType(t JSType) {
 // TypeName mirrors JSType.toString() / NamedType.appendTo().  Follows
 // Java: when resolved, delegate; when unresolved, return the reference
 // string.
+// Go-only: language-adapter
 func (n *NamedType) TypeName() string {
 	if n.referencedType != nil {
 		return n.referencedType.TypeName()
@@ -189,6 +191,7 @@ func (n *NamedType) TypeName() string {
 // IsSubtypeOf mirrors NamedType → ProxyObjectType → JSType.isSubtypeOf.
 // An unresolved NamedType acts like Unknown (conservative: any other type
 // is accepted). Once resolved it delegates to the concrete type.
+// Go-only: language-adapter
 func (n *NamedType) IsSubtypeOf(other JSType) bool {
 	if n.referencedType != nil {
 		return n.referencedType.IsSubtypeOf(other)
@@ -228,6 +231,7 @@ func (n *NamedType) GetTemplateTypes() []JSType {
 // reference (e.g. "goog.module.Foo") through the closure-namespace registry.
 // Returns true when the lookup succeeds and the NamedType is now resolved.
 // Only called for TYPE_NAME resolution when the reference contains a dot.
+// Go-only: language-adapter
 func (n *NamedType) resolveViaClosureNamespace(reg *Registry) bool {
 	if n.resolutionKind != ResolutionKindTypeName {
 		return false

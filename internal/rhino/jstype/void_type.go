@@ -6,7 +6,10 @@ package jstype
 // and Unknown.  TypeName returns "undefined" to match Java's getDisplayName().
 type voidType struct{}
 
+// Go-only: language-adapter
 func (voidType) TypeName() string { return "undefined" }
+
+// Go-only: language-adapter
 func (voidType) IsSubtypeOf(o JSType) bool {
 	if _, ok := o.(voidType); ok {
 		return true
