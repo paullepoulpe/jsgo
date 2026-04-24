@@ -1742,6 +1742,16 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 			scope.declared[name.String_()] = enum
 			return
 		}
+		// Instance alias: `var y = x` where x is typed as a structural
+		// ObjectType (@record / @interface). Propagate the instance type
+		// so that subsequent `/** @type {T} */ y.prop = val` assignments
+		// in recordNamespaceAssign can register the property on the
+		// ObjectType. Mirrors Java's TypedScopeCreator which propagates
+		// variable types through assignments via getDeclaredType.
+		if obj, ok := scope.GetDeclaredType(init.String_()).(*jstype.ObjectType); ok && obj.IsStructural {
+			scope.declared[name.String_()] = obj
+			return
+		}
 	}
 	// `var foo = function bar(…){…}` — build a FunctionType from the
 	// function's shape even when JSDoc is absent. Java's TypedScopeCreator
