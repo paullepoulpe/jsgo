@@ -399,12 +399,23 @@ func (c *TypedScopeCreator) recordPrototypeAssign(a *rhino.Node, scope *TypedSco
 	if len(innerKids) < 2 {
 		return
 	}
-	if innerKids[0].Token() != rhino.NAME || innerKids[1].String_() != "prototype" {
+	if innerKids[1].String_() != "prototype" {
 		return
 	}
-	ownerName := innerKids[0].String_()
-	fn, ok := scope.declared[ownerName].(*jstype.FunctionType)
-	if !ok || fn.Instance == nil {
+	// Resolve the owner: either a simple NAME (`Foo`) or a two-segment
+	// namespace GETPROP (`goog.Foo`). Mirrors how Java's TypedScopeCreator
+	// handles qualified prototype assignments like `goog.Foo.prototype.bar`.
+	var fn *jstype.FunctionType
+	switch innerKids[0].Token() {
+	case rhino.NAME:
+		fn, _ = scope.declared[innerKids[0].String_()].(*jstype.FunctionType)
+	case rhino.GETPROP:
+		gpK := innerKids[0].Children()
+		if len(gpK) >= 2 && gpK[0].Token() == rhino.NAME {
+			fn, _ = scope.LookupNamespaceProp(gpK[0].String_(), gpK[1].String_()).(*jstype.FunctionType)
+		}
+	}
+	if fn == nil || fn.Instance == nil {
 		return
 	}
 	// Use a template-aware scope when the owner has @template params so

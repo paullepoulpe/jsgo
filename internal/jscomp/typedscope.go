@@ -610,6 +610,18 @@ func (s *TypedScope) LookupNominalType(name string) *jstype.ObjectType {
 			return fn.Instance
 		}
 	}
+	// Dotted name like "goog.Sub": check namespace props map.
+	if idx := strings.IndexByte(name, '.'); idx > 0 {
+		owner := name[:idx]
+		prop := name[idx+1:]
+		if m, ok := s.namespaceProps[owner]; ok {
+			if t, ok := m[prop]; ok {
+				if fn, ok := t.(*jstype.FunctionType); ok && fn.Instance != nil {
+					return fn.Instance
+				}
+			}
+		}
+	}
 	return s.parent.LookupNominalType(name)
 }
 
