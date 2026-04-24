@@ -19,13 +19,15 @@ import (
 // interface for a pass that doesn't need scope.
 type CheckJSDoc struct {
 	path      string
-	inExterns bool // TODO: wire real externs tracking when externs are loaded
+	src       string // raw source text (for checkJsDocInBlockComments)
+	inExterns bool   // TODO: wire real externs tracking when externs are loaded
 	diags     []diag.Diagnostic
 }
 
 // NewCheckJSDoc mirrors the Java constructor CheckJSDoc(AbstractCompiler).
-func NewCheckJSDoc(path string) *CheckJSDoc {
-	return &CheckJSDoc{path: path}
+// Go-only: language-adapter — takes path and src; Java uses AbstractCompiler which provides both.
+func NewCheckJSDoc(path, src string) *CheckJSDoc {
+	return &CheckJSDoc{path: path, src: src}
 }
 
 // Check is the entry point; mirrors CompilerPass.process(externs, root).
@@ -35,8 +37,134 @@ func NewCheckJSDoc(path string) *CheckJSDoc {
 func (c *CheckJSDoc) Check(script *rhino.Node) []diag.Diagnostic {
 	c.diags = nil
 	c.inExterns = false
+	if c.src != "" {
+		c.checkJsDocInBlockComments()
+	}
 	c.cjdWalk(script)
 	return c.diags
+}
+
+// checkJsDocInBlockComments mirrors CheckJSDoc.checkJsDocInBlockComments.
+// Scans the raw source for block comments (/* ... */, not JSDoc /** ... */)
+// that contain JSDoc-style @annotation patterns. Fires JSC_JSDOC_IN_BLOCK_COMMENT
+// when found, suggesting the user use /** instead of /*.
+// Java uses a regex: (/|(\n[ \t]*))\*[ \t]*@[a-zA-Z]+[ \t\n{]
+func (c *CheckJSDoc) checkJsDocInBlockComments() {
+	s := c.src
+	i := 0
+	for i < len(s) {
+		// Skip JSDoc comments /** ... */
+		if i+2 < len(s) && s[i] == '/' && s[i+1] == '*' && s[i+2] == '*' {
+			if n := strings.Index(s[i+3:], "*/"); n >= 0 {
+				i += n + 5
+			} else {
+				return
+			}
+			continue
+		}
+		// Find block comments /* ... */
+		if i+1 < len(s) && s[i] == '/' && s[i+1] == '*' {
+			commentStart := i
+			end := strings.Index(s[i+2:], "*/")
+			if end < 0 {
+				return
+			}
+			commentEnd := i + 2 + end
+			body := s[i+2 : commentEnd]
+			// Check for JSDoc pattern: (*[ \t]*@[a-zA-Z]+[ \t\n{]) or at line start
+			if cjdHasJSDocPattern(body) {
+				line, col := cjdLineCol(s, commentStart)
+				c.diags = append(c.diags, diag.Diagnostic{
+					Path:    c.path,
+					Line:    line,
+					Col:     col,
+					Code:    diag.JSC_JSDOC_IN_BLOCK_COMMENT,
+					Level:   diag.Warning,
+					Message: "Non-JSDoc comment has annotations. Did you mean to start it with '/**'?",
+				})
+			}
+			i = commentEnd + 2
+			continue
+		}
+		// Skip single-line comments
+		if i+1 < len(s) && s[i] == '/' && s[i+1] == '/' {
+			if n := strings.Index(s[i:], "\n"); n >= 0 {
+				i += n + 1
+			} else {
+				return
+			}
+			continue
+		}
+		i++
+	}
+}
+
+// cjdHasJSDocPattern mirrors Java's COMMENT_PATTERN:
+// (/|(\n[ \t]*))\*[ \t]*@[a-zA-Z]+[ \t\n{]
+// Checks if a block comment body contains JSDoc-style annotations.
+func cjdHasJSDocPattern(body string) bool {
+	for i := 0; i < len(body); i++ {
+		ch := body[i]
+		// Look for `*[ \t]*@[a-zA-Z]+` after a `/` or a newline+optional-space.
+		matchStar := false
+		if ch == '/' || ch == '\n' {
+			j := i + 1
+			// Skip optional whitespace after newline.
+			if ch == '\n' {
+				for j < len(body) && (body[j] == ' ' || body[j] == '\t') {
+					j++
+				}
+			}
+			// Must be `*`.
+			if j < len(body) && body[j] == '*' {
+				matchStar = true
+				j++
+			}
+			if !matchStar {
+				continue
+			}
+			// Skip optional whitespace.
+			for j < len(body) && (body[j] == ' ' || body[j] == '\t') {
+				j++
+			}
+			// Must be `@` followed by at least one letter.
+			if j >= len(body) || body[j] != '@' {
+				continue
+			}
+			j++ // consume '@'
+			if j >= len(body) || !((body[j] >= 'a' && body[j] <= 'z') || (body[j] >= 'A' && body[j] <= 'Z')) {
+				continue
+			}
+			// Read the annotation name.
+			for j < len(body) && ((body[j] >= 'a' && body[j] <= 'z') || (body[j] >= 'A' && body[j] <= 'Z')) {
+				j++
+			}
+			// Must be followed by space, tab, newline, or `{`.
+			if j < len(body) && (body[j] == ' ' || body[j] == '\t' || body[j] == '\n' || body[j] == '{') {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// cjdLineCol returns (line, col) for the absolute offset in src.
+// Go-only: language-adapter — Java uses Node.getLineno/getCharno; Go uses raw offset.
+func cjdLineCol(src string, off int) (int, int) {
+	if off > len(src) {
+		off = len(src)
+	}
+	line := 1
+	col := 0
+	for i := 0; i < off; i++ {
+		if src[i] == '\n' {
+			line++
+			col = 0
+		} else {
+			col++
+		}
+	}
+	return line, col
 }
 
 // cjdWalk is the post-order visit loop, mirroring
