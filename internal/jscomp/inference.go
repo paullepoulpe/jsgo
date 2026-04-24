@@ -2398,25 +2398,83 @@ func isPossibleMixinApplication(lvalue, rvalue *rhino.Node) bool {
 // addMissingInterfaceProperties ensures a mixin-application constructor
 // declares properties from all implemented interfaces. Port of
 // TypeInference.java#addMissingInterfaceProperties.
-// TODO(port): TypeInference.addMissingInterfaceProperties from TypeInference.java:1026
-// Reason: language-adapter
 func addMissingInterfaceProperties(constructor jstype.JSType) {
-	// Go: FunctionType.getImplementedInterfaces not yet available; no-op.
-	if constructor == nil {
+	if constructor == nil || !jstype.IsConstructorType(constructor) {
 		return
+	}
+	f, ok := constructor.(*jstype.FunctionType)
+	if !ok {
+		return
+	}
+	proto := f.GetPrototype()
+	if proto == nil {
+		return
+	}
+	for _, interf := range f.GetImplementedInterfaces() {
+		if interf == nil {
+			continue
+		}
+		for _, pname := range interf.MemberNames() {
+			if !proto.HasProperty(pname) {
+				ptype := interf.GetPropertyType(pname)
+				proto.DefineDeclaredProperty(pname, ptype, nil)
+			}
+		}
 	}
 }
 
 // inferPropertyTypesToMatchConstraint widens anonymous structural types
 // to satisfy a constraint. Port of
 // TypeInference.java#inferPropertyTypesToMatchConstraint.
-// TODO(port): TypeInference.inferPropertyTypesToMatchConstraint from TypeInference.java:2491
-// Reason: language-adapter
+// The Java implementation delegates to JSType.matchConstraint which, for
+// PrototypeObjectType, calls matchRecordTypeConstraint for each record-type
+// alternative in the constraint. We implement the same logic here.
 func inferPropertyTypesToMatchConstraint(typ, constraint jstype.JSType) {
-	// Go: mutable structural-type widening (ObjectType.defineInferredProperty)
-	// requires a concrete ObjectType ref not available in the expression-level port.
 	if typ == nil || constraint == nil {
 		return
+	}
+	// Only anonymous (non-named) object types benefit from constraint matching.
+	obj := jstype.ToMaybeObjectType(typ)
+	if obj == nil {
+		return
+	}
+	matchRecordTypeConstraint(obj, constraint)
+}
+
+// matchRecordTypeConstraint is the Go equivalent of
+// PrototypeObjectType.matchRecordTypeConstraint in Java. It widens obj's
+// inferred properties to include the record properties of constraintObj.
+func matchRecordTypeConstraint(obj *jstype.ObjectType, constraint jstype.JSType) {
+	if jstype.IsRecordType(constraint) {
+		constraintObj := jstype.ToMaybeObjectType(constraint)
+		if constraintObj != nil {
+			applyRecordConstraint(obj, constraintObj)
+		}
+	} else if u, ok := constraint.(*jstype.UnionType); ok {
+		for _, alt := range u.GetAlternates() {
+			if jstype.IsRecordType(alt) {
+				constraintObj := jstype.ToMaybeObjectType(alt)
+				if constraintObj != nil {
+					applyRecordConstraint(obj, constraintObj)
+				}
+			}
+		}
+	}
+}
+
+// applyRecordConstraint widens obj's properties to include each property of
+// constraintObj that is not already declared. Mirrors
+// PrototypeObjectType.matchRecordTypeConstraint(ObjectType) in Java.
+func applyRecordConstraint(obj *jstype.ObjectType, constraintObj *jstype.ObjectType) {
+	for _, prop := range constraintObj.GetOwnPropertyNames() {
+		propType := constraintObj.GetPropertyType(prop)
+		if !obj.IsPropertyTypeDeclared(prop) {
+			var typeToInfer jstype.JSType = propType
+			if !obj.HasProperty(prop) {
+				typeToInfer = jstype.GetLeastSupertype(jstype.Void, propType)
+			}
+			obj.DefineInferredProperty(prop, typeToInfer, nil)
+		}
 	}
 }
 
