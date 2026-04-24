@@ -736,17 +736,13 @@ func lastIndexByte(s string, b byte, end int) int {
 }
 
 // IsOptChainCall mirrors Java's Node.isOptChainCall().
-// Returns true iff the token is OPTCHAIN_CALL (not yet in this token set;
-// always false until OPTCHAIN_CALL is added to token.go).
-func (n *Node) IsOptChainCall() bool { return false }
+func (n *Node) IsOptChainCall() bool { return n.token == OPTCHAIN_CALL }
 
-// IsOptChainGetElem mirrors Java's Node.isOptChainGetElem(). Always false
-// until OPTCHAIN_GETELEM is added to token.go.
-func (n *Node) IsOptChainGetElem() bool { return false }
+// IsOptChainGetElem mirrors Java's Node.isOptChainGetElem().
+func (n *Node) IsOptChainGetElem() bool { return n.token == OPTCHAIN_GETELEM }
 
-// IsOptChainGetProp mirrors Java's Node.isOptChainGetProp(). Always false
-// until OPTCHAIN_GETPROP is added to token.go.
-func (n *Node) IsOptChainGetProp() bool { return false }
+// IsOptChainGetProp mirrors Java's Node.isOptChainGetProp().
+func (n *Node) IsOptChainGetProp() bool { return n.token == OPTCHAIN_GETPROP }
 
 // IsOptionalChainStart mirrors Java's Node.isOptionalChainStart() — true when
 // this OPTCHAIN node is the start of the chain (immediately after `?.`).

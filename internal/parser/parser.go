@@ -384,6 +384,273 @@ func (p *Parser) finishDeclStatement(declToken rhino.Token, jsdoc *rhino.JSDocIn
 	return declNode, true
 }
 
+// parseOneParam parses a single formal parameter, which may be:
+//   - a plain identifier (optionally with a leading inline JSDoc)
+//   - `...ident` rest parameter (ITER_REST child)
+//   - `[a, b]` array-destructuring pattern (ARRAY_PATTERN child)
+//   - `{a, b}` object-destructuring pattern (OBJECT_PATTERN child)
+//   - any of the above followed by `= default` (wrapped in DEFAULT_VALUE)
+//
+// Returns (node, isRest, ok). Mirrors Java's Parser.parseParameter.
+func (p *Parser) parseOneParam(inlineInfo *rhino.JSDocInfo) (pNode *rhino.Node, isRest bool, ok bool) {
+	pLine, pCol := p.scanner.Line(), p.scanner.Col()
+	// Rest parameter: `...ident` or `...[a,b]` / `...{a,b}`
+	if p.scanner.Peek() == '.' && p.scanner.PeekAt(1) == '.' && p.scanner.PeekAt(2) == '.' {
+		p.scanner.Advance()
+		p.scanner.Advance()
+		p.scanner.Advance()
+		p.scanner.SkipTrivia()
+		inner, innerOk := p.parsePatternOrIdent()
+		if !innerOk {
+			return nil, false, false
+		}
+		rest := rhino.New(rhino.ITER_REST)
+		rest.SetPos(pLine, pCol)
+		rest.AddChildToBack(inner)
+		return rest, true, true
+	}
+	// Array or object destructuring pattern.
+	if p.scanner.Peek() == '[' || p.scanner.Peek() == '{' {
+		pat, patOk := p.parsePatternOrIdent()
+		if !patOk {
+			return nil, false, false
+		}
+		pNode = pat
+	} else {
+		// Plain identifier.
+		pname, identOk := p.scanner.ConsumeIdent()
+		if !identOk {
+			return nil, false, false
+		}
+		pNode = rhino.NewString(rhino.NAME, pname)
+		pNode.SetPos(pLine, pCol)
+		if inlineInfo != nil {
+			pNode.SetJSDocInfo(inlineInfo)
+		}
+	}
+	// Default value: `param = expr`. For plain NAME params, consume and
+	// discard the default — the downstream checker is not yet DEFAULT_VALUE-
+	// aware and would misidentify the param. For destructuring patterns,
+	// emit DEFAULT_VALUE so pattern and default are both visible in the AST.
+	p.scanner.SkipTrivia()
+	if !p.scanner.AtEnd() && p.scanner.Peek() == '=' && p.scanner.PeekAt(1) != '=' && p.scanner.PeekAt(1) != '>' {
+		p.scanner.Advance() // '='
+		p.scanner.SkipTrivia()
+		dflt, dfltOk := p.tryAssignment()
+		if !dfltOk {
+			return pNode, false, true // keep param without default on failure
+		}
+		// Only wrap in DEFAULT_VALUE when pNode is a pattern — for plain
+		// NAME params the checker extracts the name directly, so just emit NAME.
+		if pNode.Token() == rhino.ARRAY_PATTERN || pNode.Token() == rhino.OBJECT_PATTERN {
+			dv := rhino.New(rhino.DEFAULT_VALUE)
+			dv.SetPos(pLine, pCol)
+			dv.AddChildToBack(pNode)
+			dv.AddChildToBack(dflt)
+			pNode = dv
+		}
+		_ = dflt // discard for NAME params
+	}
+	return pNode, false, true
+}
+
+// parsePatternOrIdent parses `[a, b, ...rest]` (ARRAY_PATTERN),
+// `{a, b: c, ...rest}` (OBJECT_PATTERN), or a plain identifier NAME.
+// Used for destructuring targets in param lists and decl statements.
+func (p *Parser) parsePatternOrIdent() (*rhino.Node, bool) {
+	pLine, pCol := p.scanner.Line(), p.scanner.Col()
+	if p.scanner.Peek() == '[' {
+		return p.parseArrayPattern(pLine, pCol)
+	}
+	if p.scanner.Peek() == '{' {
+		return p.parseObjectPattern(pLine, pCol)
+	}
+	ident, ok := p.scanner.ConsumeIdent()
+	if !ok {
+		return nil, false
+	}
+	n := rhino.NewString(rhino.NAME, ident)
+	n.SetPos(pLine, pCol)
+	return n, true
+}
+
+// parseArrayPattern parses `[a, b = dflt, ...rest]` → ARRAY_PATTERN.
+// Mirrors Java's parseArrayPattern. The opening `[` must be at cursor.
+func (p *Parser) parseArrayPattern(startLine, startCol int) (*rhino.Node, bool) {
+	p.scanner.Advance() // '['
+	pat := rhino.New(rhino.ARRAY_PATTERN)
+	pat.SetPos(startLine, startCol)
+	for {
+		p.scanner.SkipTrivia()
+		if p.scanner.AtEnd() {
+			return pat, true
+		}
+		if p.scanner.Peek() == ']' {
+			p.scanner.Advance()
+			return pat, true
+		}
+		// Elision (hole): `,` without element
+		if p.scanner.Peek() == ',' {
+			hole := rhino.New(rhino.UNDEFINED)
+			hole.SetPos(p.scanner.Line(), p.scanner.Col())
+			pat.AddChildToBack(hole)
+			p.scanner.Advance()
+			continue
+		}
+		// Rest element: `...ident`
+		if p.scanner.Peek() == '.' && p.scanner.PeekAt(1) == '.' && p.scanner.PeekAt(2) == '.' {
+			rLine, rCol := p.scanner.Line(), p.scanner.Col()
+			p.scanner.Advance(); p.scanner.Advance(); p.scanner.Advance()
+			p.scanner.SkipTrivia()
+			inner, ok := p.parsePatternOrIdent()
+			if !ok {
+				return pat, true
+			}
+			rest := rhino.New(rhino.ITER_REST)
+			rest.SetPos(rLine, rCol)
+			rest.AddChildToBack(inner)
+			pat.AddChildToBack(rest)
+			p.scanner.SkipTrivia()
+			p.scanner.ConsumeByte(']')
+			return pat, true
+		}
+		el, ok := p.parsePatternOrIdent()
+		if !ok {
+			return nil, false
+		}
+		// Default value on element: `[a = 1]`
+		p.scanner.SkipTrivia()
+		if !p.scanner.AtEnd() && p.scanner.Peek() == '=' && p.scanner.PeekAt(1) != '=' {
+			p.scanner.Advance()
+			p.scanner.SkipTrivia()
+			dflt, dfltOk := p.tryAssignment()
+			if dfltOk {
+				dv := rhino.New(rhino.DEFAULT_VALUE)
+				dv.SetPos(el.Lineno(), el.Charno())
+				dv.AddChildToBack(el)
+				dv.AddChildToBack(dflt)
+				el = dv
+			}
+		}
+		pat.AddChildToBack(el)
+		p.scanner.SkipTrivia()
+		if p.scanner.ConsumeByte(',') {
+			continue
+		}
+	}
+}
+
+// parseObjectPattern parses `{a, b: c, d = dflt, ...rest}` → OBJECT_PATTERN.
+// Mirrors Java's parseObjectPattern. The opening `{` must be at cursor.
+func (p *Parser) parseObjectPattern(startLine, startCol int) (*rhino.Node, bool) {
+	p.scanner.Advance() // '{'
+	pat := rhino.New(rhino.OBJECT_PATTERN)
+	pat.SetPos(startLine, startCol)
+	for {
+		p.scanner.SkipTrivia()
+		if p.scanner.AtEnd() {
+			return pat, true
+		}
+		if p.scanner.Peek() == '}' {
+			p.scanner.Advance()
+			return pat, true
+		}
+		// Rest property: `...ident`
+		if p.scanner.Peek() == '.' && p.scanner.PeekAt(1) == '.' && p.scanner.PeekAt(2) == '.' {
+			rLine, rCol := p.scanner.Line(), p.scanner.Col()
+			p.scanner.Advance(); p.scanner.Advance(); p.scanner.Advance()
+			p.scanner.SkipTrivia()
+			inner, ok := p.parsePatternOrIdent()
+			if !ok {
+				return pat, true
+			}
+			rest := rhino.New(rhino.OBJECT_REST)
+			rest.SetPos(rLine, rCol)
+			rest.AddChildToBack(inner)
+			pat.AddChildToBack(rest)
+			p.scanner.SkipTrivia()
+			p.scanner.ConsumeByte('}')
+			return pat, true
+		}
+		fLine, fCol := p.scanner.Line(), p.scanner.Col()
+		// Property name (identifier or string key)
+		var keyName string
+		c := p.scanner.Peek()
+		if c == '\'' || c == '"' {
+			p.scanner.Advance()
+			start := p.scanner.Pos()
+			for !p.scanner.AtEnd() && p.scanner.Peek() != c {
+				if p.scanner.Peek() == '\\' {
+					p.scanner.Advance()
+				}
+				p.scanner.Advance()
+			}
+			keyName = p.scanner.Text(start, p.scanner.Pos())
+			if !p.scanner.AtEnd() {
+				p.scanner.Advance()
+			}
+		} else {
+			k, ok := p.scanner.ConsumeIdent()
+			if !ok {
+				return nil, false
+			}
+			keyName = k
+		}
+		p.scanner.SkipTrivia()
+		key := rhino.NewString(rhino.STRING_KEY, keyName)
+		key.SetPos(fLine, fCol)
+		if p.scanner.ConsumeByte(':') {
+			// `key: pattern`
+			p.scanner.SkipTrivia()
+			val, ok := p.parsePatternOrIdent()
+			if !ok {
+				return nil, false
+			}
+			// default on the value side
+			p.scanner.SkipTrivia()
+			if !p.scanner.AtEnd() && p.scanner.Peek() == '=' && p.scanner.PeekAt(1) != '=' {
+				p.scanner.Advance()
+				p.scanner.SkipTrivia()
+				dflt, dfltOk := p.tryAssignment()
+				if dfltOk {
+					dv := rhino.New(rhino.DEFAULT_VALUE)
+					dv.SetPos(val.Lineno(), val.Charno())
+					dv.AddChildToBack(val)
+					dv.AddChildToBack(dflt)
+					val = dv
+				}
+			}
+			key.AddChildToBack(val)
+		} else if p.scanner.Peek() == '=' && p.scanner.PeekAt(1) != '=' {
+			// Shorthand with default: `{a = dflt}` → STRING_KEY(DEFAULT_VALUE(NAME, dflt))
+			p.scanner.Advance()
+			p.scanner.SkipTrivia()
+			dflt, dfltOk := p.tryAssignment()
+			ref := rhino.NewString(rhino.NAME, keyName)
+			ref.SetPos(fLine, fCol)
+			if dfltOk {
+				dv := rhino.New(rhino.DEFAULT_VALUE)
+				dv.SetPos(fLine, fCol)
+				dv.AddChildToBack(ref)
+				dv.AddChildToBack(dflt)
+				key.AddChildToBack(dv)
+			} else {
+				key.AddChildToBack(ref)
+			}
+		} else {
+			// Pure shorthand: `{a}` → STRING_KEY(NAME("a"))
+			ref := rhino.NewString(rhino.NAME, keyName)
+			ref.SetPos(fLine, fCol)
+			key.AddChildToBack(ref)
+		}
+		pat.AddChildToBack(key)
+		p.scanner.SkipTrivia()
+		if p.scanner.ConsumeByte(',') {
+			continue
+		}
+	}
+}
+
 // finishFunction parses `function NAME(params) { body }` after the
 // `function` keyword is consumed. Attaches the caller-provided JSDoc
 // (carrying @param / @return).
@@ -413,9 +680,7 @@ func (p *Parser) finishFunction(jsdoc *rhino.JSDocInfo) (*rhino.Node, bool) {
 		p.scanner.SkipTrivia()
 		// Inline JSDoc on parameters: `function f(/** T */ x)` — parse
 		// the brace body as an @type annotation and attach to the
-		// resulting param NAME node. Matches Java's Parser which stores
-		// the inline type on the param's JSDocInfo so the scope builder
-		// can pick it up even without an outer @param.
+		// resulting param NAME node.
 		var inlineInfo *rhino.JSDocInfo
 		if body, ok := p.scanner.ConsumeBlockComment(); ok {
 			if parsed := parseInlineTypeJSDoc(body); parsed != nil {
@@ -430,19 +695,20 @@ func (p *Parser) finishFunction(jsdoc *rhino.JSDocInfo) (*rhino.Node, bool) {
 			p.scanner.Advance()
 			break
 		}
-		pLine, pCol := p.scanner.Line(), p.scanner.Col()
-		pname, ok := p.scanner.ConsumeIdent()
+		pNode, isRest, ok := p.parseOneParam(inlineInfo)
 		if !ok {
 			p.scanner.SkipToStatementBoundary()
 			return fn, true
 		}
-		pNode := rhino.NewString(rhino.NAME, pname)
-		pNode.SetPos(pLine, pCol)
-		if inlineInfo != nil {
-			pNode.SetJSDocInfo(inlineInfo)
-		}
 		params.AddChildToBack(pNode)
 		p.scanner.SkipTrivia()
+		if isRest {
+			// rest must be last; consume the closing paren.
+			if p.scanner.Peek() == ')' {
+				p.scanner.Advance()
+			}
+			break
+		}
 		if p.scanner.ConsumeByte(',') {
 			continue
 		}
@@ -1597,15 +1863,101 @@ func (p *Parser) tryPostfix() (*rhino.Node, bool) {
 		expr = prim
 	}
 	// Postfix chain: property access (`.ident`), computed index access
-	// (`[expr]`) and call (`(args)`). Mirrors how Parser.java's
-	// parseMemberExpression flattens postfix operators into a left-leaning
-	// chain.
+	// (`[expr]`) and call (`(args)`), and optional chaining (`?.`).
+	// `inOptChain` tracks whether we are inside a `?.` chain so that
+	// continuation segments also emit OPTCHAIN_* nodes (isStartOfOptChain=false).
+	inOptChain := false
 	for {
 		p.scanner.SkipTrivia()
 		if p.scanner.AtEnd() {
 			return expr, true
 		}
 		c := p.scanner.Peek()
+		// Optional chaining: `?.` — peek next character to distinguish from `?:`.
+		if c == '?' && p.scanner.PeekAt(1) == '.' {
+			p.scanner.Advance() // '?'
+			p.scanner.Advance() // '.'
+			p.scanner.SkipTrivia()
+			isStart := !inOptChain
+			inOptChain = true
+			c2 := p.scanner.Peek()
+			switch {
+			case c2 == '(':
+				p.scanner.Advance()
+				call := rhino.New(rhino.OPTCHAIN_CALL)
+				call.SetPos(expr.Lineno(), expr.Charno())
+				call.SetIsOptionalChainStart(isStart)
+				call.AddChildToBack(expr)
+				p.parseArgList(call)
+				expr = call
+			case c2 == '[':
+				p.scanner.Advance(); p.scanner.SkipTrivia()
+				idxL, idxC := p.scanner.Line(), p.scanner.Col()
+				idx, ok := p.tryExpression()
+				if !ok { return nil, false }
+				idx.SetPos(idxL, idxC)
+				p.scanner.SkipTrivia(); p.scanner.ConsumeByte(']')
+				ge := rhino.New(rhino.OPTCHAIN_GETELEM)
+				ge.SetPos(expr.Lineno(), expr.Charno())
+				ge.SetIsOptionalChainStart(isStart)
+				ge.AddChildToBack(expr); ge.AddChildToBack(idx)
+				expr = ge
+			default:
+				pL, pC := p.scanner.Line(), p.scanner.Col()
+				id, ok := p.scanner.ConsumeIdent()
+				if !ok { return expr, true }
+				gp := rhino.New(rhino.OPTCHAIN_GETPROP)
+				gp.SetPos(expr.Lineno(), expr.Charno())
+				gp.SetIsOptionalChainStart(isStart)
+				gp.AddChildToBack(expr)
+				pn := rhino.NewString(rhino.STRINGLIT, id)
+				pn.SetPos(pL, pC)
+				gp.AddChildToBack(pn)
+				expr = gp
+			}
+			continue
+		}
+		// Inside an optional chain, `.prop` / `(args)` / `[idx]` emit
+		// OPTCHAIN_* continuation nodes (isStartOfOptChain=false).
+		if inOptChain && (c == '.' || c == '(' || c == '[') {
+			switch c {
+			case '.':
+				p.scanner.Advance(); p.scanner.SkipTrivia()
+				pL, pC := p.scanner.Line(), p.scanner.Col()
+				id, ok := p.scanner.ConsumeIdent()
+				if !ok { inOptChain = false; continue }
+				gp := rhino.New(rhino.OPTCHAIN_GETPROP)
+				gp.SetPos(expr.Lineno(), expr.Charno())
+				gp.SetIsOptionalChainStart(false)
+				gp.AddChildToBack(expr)
+				pn := rhino.NewString(rhino.STRINGLIT, id)
+				pn.SetPos(pL, pC)
+				gp.AddChildToBack(pn)
+				expr = gp
+			case '(':
+				p.scanner.Advance()
+				call := rhino.New(rhino.OPTCHAIN_CALL)
+				call.SetPos(expr.Lineno(), expr.Charno())
+				call.SetIsOptionalChainStart(false)
+				call.AddChildToBack(expr)
+				p.parseArgList(call)
+				expr = call
+			case '[':
+				p.scanner.Advance(); p.scanner.SkipTrivia()
+				idxL, idxC := p.scanner.Line(), p.scanner.Col()
+				idx, ok := p.tryExpression()
+				if !ok { return nil, false }
+				idx.SetPos(idxL, idxC)
+				p.scanner.SkipTrivia(); p.scanner.ConsumeByte(']')
+				ge := rhino.New(rhino.OPTCHAIN_GETELEM)
+				ge.SetPos(expr.Lineno(), expr.Charno())
+				ge.SetIsOptionalChainStart(false)
+				ge.AddChildToBack(expr); ge.AddChildToBack(idx)
+				expr = ge
+			}
+			continue
+		}
+		inOptChain = false // plain suffix resets chain tracking
 		if c == '.' {
 			p.scanner.Advance()
 			p.scanner.SkipTrivia()
@@ -1650,27 +2002,7 @@ func (p *Parser) tryPostfix() (*rhino.Node, bool) {
 			call := rhino.New(rhino.CALL)
 			call.SetPos(expr.Lineno(), expr.Charno())
 			call.AddChildToBack(expr)
-			for {
-				p.scanner.SkipTrivia()
-				if p.scanner.AtEnd() {
-					return nil, false
-				}
-				if p.scanner.Peek() == ')' {
-					p.scanner.Advance()
-					break
-				}
-				argLine, argCol := p.scanner.Line(), p.scanner.Col()
-				arg, ok := p.tryExpression()
-				if !ok {
-					return nil, false
-				}
-				arg.SetPos(argLine, argCol)
-				call.AddChildToBack(arg)
-				p.scanner.SkipTrivia()
-				if p.scanner.ConsumeByte(',') {
-					continue
-				}
-			}
+			p.parseArgList(call)
 			expr = call
 			continue
 		}
@@ -1694,6 +2026,49 @@ func (p *Parser) tryPostfix() (*rhino.Node, bool) {
 			continue
 		}
 		return expr, true
+	}
+}
+
+// parseArgList consumes `arg, arg, …)` into node, handling spread
+// (`...expr` → ITER_SPREAD child). The opening `(` must already be consumed.
+// Mirrors Java's parseArguments / parseAssignmentOrSpread.
+func (p *Parser) parseArgList(node *rhino.Node) {
+	for {
+		p.scanner.SkipTrivia()
+		if p.scanner.AtEnd() {
+			return
+		}
+		if p.scanner.Peek() == ')' {
+			p.scanner.Advance()
+			return
+		}
+		argLine, argCol := p.scanner.Line(), p.scanner.Col()
+		// Spread element: `...expr` → ITER_SPREAD(expr)
+		if p.scanner.Peek() == '.' && p.scanner.PeekAt(1) == '.' && p.scanner.PeekAt(2) == '.' {
+			p.scanner.Advance()
+			p.scanner.Advance()
+			p.scanner.Advance()
+			p.scanner.SkipTrivia()
+			operand, ok := p.tryAssignment()
+			if !ok {
+				return
+			}
+			spread := rhino.New(rhino.ITER_SPREAD)
+			spread.SetPos(argLine, argCol)
+			spread.AddChildToBack(operand)
+			node.AddChildToBack(spread)
+		} else {
+			arg, ok := p.tryExpression()
+			if !ok {
+				return
+			}
+			if arg.Lineno() == 0 && arg.Charno() == 0 {
+				arg.SetPos(argLine, argCol)
+			}
+			node.AddChildToBack(arg)
+		}
+		p.scanner.SkipTrivia()
+		p.scanner.ConsumeByte(',')
 	}
 }
 
@@ -2441,6 +2816,7 @@ func (p *Parser) extendWithProperty(base *rhino.Node) *rhino.Node {
 // Rewinds on failure so the caller can fall back to other expression
 // forms. Arrow functions surface as FUNCTION nodes so the same
 // scope/typecheck machinery applies to them.
+// Supports rest, destructuring, and default params via parseOneParam.
 func (p *Parser) tryArrow() (*rhino.Node, bool) {
 	save := p.scanner.Save()
 	rewind := func() {
@@ -2448,19 +2824,35 @@ func (p *Parser) tryArrow() (*rhino.Node, bool) {
 	}
 
 	startLine, startCol := p.scanner.Line(), p.scanner.Col()
-	var params []string
+	paramList := rhino.New(rhino.PARAM_LIST)
 
 	if p.scanner.ConsumeByte('(') {
 		p.scanner.SkipTrivia()
 		if !p.scanner.ConsumeByte(')') {
 			for {
-				ident, ok := p.scanner.ConsumeIdent()
+				p.scanner.SkipTrivia()
+				c := p.scanner.Peek()
+				// Only attempt parseOneParam when the next token looks like a
+				// param start. If not, rewind — this isn't an arrow function.
+				isParamStart := c == '.' || c == '[' || c == '{' ||
+					unicode.IsLetter(c) || c == '_' || c == '$'
+				if !isParamStart {
+					rewind()
+					return nil, false
+				}
+				pNode, isRest, ok := p.parseOneParam(nil)
 				if !ok {
 					rewind()
 					return nil, false
 				}
-				params = append(params, ident)
+				paramList.AddChildToBack(pNode)
 				p.scanner.SkipTrivia()
+				if isRest {
+					if p.scanner.Peek() == ')' {
+						p.scanner.Advance()
+					}
+					break
+				}
 				if p.scanner.ConsumeByte(',') {
 					p.scanner.SkipTrivia()
 					continue
@@ -2482,7 +2874,8 @@ func (p *Parser) tryArrow() (*rhino.Node, bool) {
 			rewind()
 			return nil, false
 		}
-		params = []string{ident}
+		pNode := rhino.NewString(rhino.NAME, ident)
+		paramList.AddChildToBack(pNode)
 	}
 
 	p.scanner.SkipTrivia()
@@ -2497,12 +2890,6 @@ func (p *Parser) tryArrow() (*rhino.Node, bool) {
 	nameNode := rhino.NewString(rhino.NAME, "")
 	nameNode.SetPos(startLine, startCol)
 	fn.AddChildToBack(nameNode)
-
-	paramList := rhino.New(rhino.PARAM_LIST)
-	for _, pn := range params {
-		pNode := rhino.NewString(rhino.NAME, pn)
-		paramList.AddChildToBack(pNode)
-	}
 	fn.AddChildToBack(paramList)
 
 	body := rhino.New(rhino.BLOCK)

@@ -191,7 +191,8 @@ func hasSideEffects(n *rhino.Node) bool {
 	// Definitely-effectful: calls may do anything; new constructs an
 	// object; assignments mutate a binding; increment / decrement
 	// mutate a LHS; delete mutates a property set.
-	case rhino.CALL, rhino.NEW, rhino.DELPROP,
+	// OPTCHAIN_CALL is treated like CALL — it may call a function.
+	case rhino.CALL, rhino.OPTCHAIN_CALL, rhino.NEW, rhino.DELPROP,
 		rhino.ASSIGN, rhino.ASSIGN_ADD, rhino.ASSIGN_SUB, rhino.ASSIGN_MUL,
 		rhino.ASSIGN_DIV, rhino.ASSIGN_MOD, rhino.ASSIGN_BITAND,
 		rhino.ASSIGN_BITOR, rhino.ASSIGN_BITXOR, rhino.ASSIGN_LSH,
