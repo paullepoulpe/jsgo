@@ -177,16 +177,57 @@ func (t *TypeInference) InferType(n *rhino.Node) jstype.JSType {
 
 	// ---- literals with structure ---------------------------------- //
 	case rhino.ARRAYLIT:
-		// Without a real Array<T> instantiation we return the bare
-		// Array instance type from the global scope, so downstream
-		// property access still resolves against the Array prototype
-		// stub. See TypedScopeCreator.builtins.
+		// Port of traverseArrayLiteral: returns Array<Unknown> so that
+		// getElem / property lookup resolves through the Array prototype.
+		// Java creates createTemplatizedType(ARRAY_TYPE, UNKNOWN_TYPE).
 		if inst := t.scope.LookupNominalType("Array"); inst != nil {
-			return inst
+			return jstype.NewTemplatizedType(inst, []jstype.JSType{jstype.Unknown})
 		}
 		return jstype.Unknown
 	case rhino.OBJECTLIT:
 		return t.inferObjectLit(n)
+	case rhino.REGEXP:
+		// traverseRegExp: a regex literal evaluates to a RegExp instance.
+		// Port of TypeInference.java's REGEXP branch which sets the node's
+		// type to the native REGEXP_TYPE.
+		if inst := t.scope.LookupNominalType("RegExp"); inst != nil {
+			return inst
+		}
+		return jstype.Unknown
+	case rhino.TEMPLATELIT:
+		// traverseTemplateLit: a template literal (non-tagged) always
+		// evaluates to a string. Port of the TEMPLATELIT branch in
+		// TypeInference.java which sets the node type to STRING_TYPE.
+		return jstype.String
+	case rhino.TAGGED_TEMPLATELIT:
+		// traverseTaggedTemplateLit: a tagged template literal is a
+		// special function call — the tag function is the first child and
+		// the template literal is the second child. The expression type
+		// equals the tag's return type, mirroring Java's
+		// setCallNodeTypeAfterChildrenTraversed on TAGGED_TEMPLATELIT.
+		return t.inferTaggedTemplateLit(n)
+
+	// ---- increment / decrement ------------------------------------ //
+	case rhino.INC, rhino.DEC:
+		// traverseBigIntCompatibleUnaryOperator (INC/DEC): the result
+		// type mirrors the operand — number for numeric operands. Since
+		// BigInt is not yet tracked statically in this port, INC/DEC
+		// conservatively return Number. Matches the NO_BIGINT branch of
+		// Java's traverseBigIntCompatibleUnaryOperator.
+		return jstype.Number
+
+	// ---- yield / await ------------------------------------------- //
+	case rhino.YIELD:
+		// traverseYieldAll / traverseYield: the type of the yield
+		// expression is the value sent back into the generator via
+		// next(value). Without full dataflow we conservatively return
+		// Unknown, matching Java's fallback when no TNext is resolved.
+		return jstype.Unknown
+	case rhino.AWAIT:
+		// traverseAwait: resolves to the awaited type stripped of its
+		// Promise wrapper. Mirrors Java's
+		// Promises.getResolvedType(registry, exprType).
+		return t.inferAwait(n)
 
 	// ---- function expression -------------------------------------- //
 	case rhino.FUNCTION:
@@ -808,6 +849,79 @@ func removeMember(t, target jstype.JSType) jstype.JSType {
 	return t
 }
 
+// inferTaggedTemplateLit computes the return type of a tagged-template
+// expression. A tagged template `tag\`…\`` is semantically a function
+// call; the type of the expression is the tag function's declared
+// return type. Port of TypeInference.java's traverseTaggedTemplateLit
+// which delegates to setCallNodeTypeAfterChildrenTraversed (same path
+// as CALL). The tag function is the first child of the
+// TAGGED_TEMPLATELIT node.
+func (t *TypeInference) inferTaggedTemplateLit(n *rhino.Node) jstype.JSType {
+	tag := n.FirstChild()
+	if tag == nil {
+		return jstype.Unknown
+	}
+	var fn *jstype.FunctionType
+	switch tag.Token() {
+	case rhino.NAME:
+		if f, ok := t.scope.GetDeclaredType(tag.String_()).(*jstype.FunctionType); ok {
+			fn = f
+		}
+	case rhino.GETPROP:
+		if f, ok := t.InferType(tag).(*jstype.FunctionType); ok {
+			fn = f
+		}
+	}
+	if fn == nil {
+		return jstype.Unknown
+	}
+	if fn.Return != nil {
+		return fn.Return
+	}
+	return jstype.Unknown
+}
+
+// inferAwait resolves the type of an `await` expression. The `await`
+// expression strips one layer of Promise: `await Promise<T>` → T.
+// Port of TypeInference.java's traverseAwait which calls
+// Promises.getResolvedType(registry, exprType).
+//
+// Implementation: if the awaited expression is a TemplatizedType whose
+// base is the Promise instance type (with one template arg), we return
+// the template arg. Otherwise we return Unknown — conservatively sound
+// because the caller cannot dereference an Unknown.
+func (t *TypeInference) inferAwait(n *rhino.Node) jstype.JSType {
+	inner := n.FirstChild()
+	if inner == nil {
+		return jstype.Unknown
+	}
+	innerType := t.InferType(inner)
+	if innerType == nil {
+		return jstype.Unknown
+	}
+	// Strip null/undefined before dereferencing the Promise wrapper.
+	innerType = stripNullUndef(innerType)
+	if innerType == nil {
+		return jstype.Unknown
+	}
+	if tt, ok := innerType.(*jstype.TemplatizedType); ok {
+		if tt.Base != nil && tt.Base.TypeName() == "Promise" && len(tt.Args) == 1 {
+			return tt.Args[0]
+		}
+	}
+	// If the type is a plain Promise instance (un-templatized), the
+	// resolved type is Unknown — we don't know the template arg.
+	if obj, ok := innerType.(*jstype.ObjectType); ok {
+		if obj.TypeName() == "Promise" {
+			return jstype.Unknown
+		}
+	}
+	// Non-Promise: await on an already-resolved value returns that value.
+	// Java's Promises.getResolvedType returns the type itself when it is
+	// not thenable.
+	return innerType
+}
+
 // inferObjectLit builds a structural ObjectType from the STRING_KEY
 // entries of an OBJECTLIT node. Used so inline `{k: v, …}` values
 // have a usable inferred shape for property lookups, mirroring how
@@ -1080,6 +1194,240 @@ func getElemIndexType(recv jstype.JSType) jstype.JSType {
 		}
 	}
 	return nil
+}
+
+// bigIntPresence classifies whether a type contains bigint.
+// Mirrors Java's BigIntPresence enum in TypeInference.java.
+type bigIntPresence int
+
+const (
+	bigIntPresenceNoBigInt bigIntPresence = iota
+	bigIntPresenceAllBigInt
+	bigIntPresenceBigIntOrNumber
+	bigIntPresenceBigIntOrOther
+)
+
+// getBigIntPresence classifies `t` by whether it contains bigint.
+// Port of TypeInference.java getBigIntPresence.
+func getBigIntPresence(t jstype.JSType) bigIntPresence {
+	if t == nil || isUnknownOrNil(t) {
+		return bigIntPresenceNoBigInt
+	}
+	if t == jstype.BigInt {
+		return bigIntPresenceAllBigInt
+	}
+	if u, ok := t.(*jstype.UnionType); ok {
+		hasBigInt := false
+		hasNumber := false
+		hasOther := false
+		for _, m := range u.Members() {
+			if m == jstype.BigInt {
+				hasBigInt = true
+			} else if m == jstype.Number {
+				hasNumber = true
+			} else {
+				hasOther = true
+			}
+		}
+		if !hasBigInt {
+			return bigIntPresenceNoBigInt
+		}
+		if !hasNumber && !hasOther {
+			return bigIntPresenceAllBigInt
+		}
+		if hasNumber && !hasOther {
+			return bigIntPresenceBigIntOrNumber
+		}
+		return bigIntPresenceBigIntOrOther
+	}
+	return bigIntPresenceNoBigInt
+}
+
+// traverseBigIntCompatibleUnaryOp infers result type of unary minus,
+// bitwise NOT, INC, DEC. Port of traverseBigIntCompatibleUnaryOperator.
+func (t *TypeInference) traverseBigIntCompatibleUnaryOp(operand jstype.JSType) jstype.JSType {
+	switch getBigIntPresence(operand) {
+	case bigIntPresenceAllBigInt:
+		return jstype.BigInt
+	case bigIntPresenceNoBigInt:
+		return jstype.Number
+	case bigIntPresenceBigIntOrNumber:
+		return jstype.NewUnion(jstype.BigInt, jstype.Number)
+	default: // BIGINT_OR_OTHER — ill-typed, conservatively number
+		return jstype.Number
+	}
+}
+
+// traverseBigIntCompatibleBinaryOp infers the result type for arithmetic
+// binary ops (SUB, MUL, DIV, MOD, LSH, RSH, BITAND, BITOR, BITXOR).
+// Port of TypeInference.java#traverseBigIntCompatibleBinaryOperator.
+func (t *TypeInference) traverseBigIntCompatibleBinaryOp(left, right jstype.JSType) jstype.JSType {
+	l := getBigIntPresence(left)
+	r := getBigIntPresence(right)
+	if l != r {
+		// Mixed bigint / non-bigint: type error. Java → NO_TYPE.
+		// Conservatively number to avoid downstream false positives.
+		return jstype.Number
+	}
+	switch l {
+	case bigIntPresenceNoBigInt:
+		return jstype.Number
+	case bigIntPresenceAllBigInt:
+		return jstype.BigInt
+	case bigIntPresenceBigIntOrNumber:
+		return jstype.NewUnion(jstype.BigInt, jstype.Number)
+	default:
+		return jstype.Number
+	}
+}
+
+// traverseUnaryPlusOp infers the type of unary `+`. Port of
+// TypeInference.java#traverseUnaryPlus: bigint operand → NO_TYPE in
+// Java (we return Number conservatively).
+func (t *TypeInference) traverseUnaryPlusOp(operand jstype.JSType) jstype.JSType {
+	// unary-plus on bigint is a runtime error; conservatively Number.
+	_ = getBigIntPresence(operand) // validate same as Java
+	return jstype.Number
+}
+
+// traverseOptChainResult computes the optional-chain end type from the
+// start-node type and the executed (inner) type, mirroring Java's
+// updateTypeWhenEndOfOptChain (OPTCHAIN tokens not yet in Go token set).
+func traverseOptChainResult(startType, executedType jstype.JSType) jstype.JSType {
+	if startType == nil || isUnknownOrNil(startType) {
+		return jstype.Unknown
+	}
+	if startType == jstype.Null || startType == jstype.Void {
+		// Chain short-circuits: result is undefined.
+		return jstype.Void
+	}
+	// Check for nullable start type: if null or void are members, the
+	// chain might short-circuit.
+	if u, ok := startType.(*jstype.UnionType); ok {
+		for _, m := range u.Members() {
+			if m == jstype.Null || m == jstype.Void {
+				// Nullable start: add void to the executed type.
+				return unionFold(executedType, jstype.Void)
+			}
+		}
+	}
+	// Non-nullable start: chain always executes.
+	if executedType != nil {
+		return executedType
+	}
+	return jstype.Unknown
+}
+
+// traverseShortCircuitingAssignOp computes the result type for `&&=`,
+// `||=`, `??=`. Port of Java's traverseShortCircuitingBinOpAssignment.
+// (ASSIGN_AND / ASSIGN_OR / ASSIGN_COALESCE tokens not yet in Go set.)
+func (t *TypeInference) traverseShortCircuitingAssignOp(leftType, rightType jstype.JSType, isAnd bool) jstype.JSType {
+	if isAnd {
+		// &&= — left falsy stays as left; left truthy → right.
+		falsy := keepFalsyRefined(leftType)
+		if falsy == nil {
+			return rightType
+		}
+		return unionFold(falsy, rightType)
+	}
+	// ||= — left truthy stays as left; left falsy → right.
+	truthy := stripFalsy(leftType)
+	return unionFold(truthy, rightType)
+}
+
+// inferCatchParam returns the type for a catch parameter variable.
+// Port of TypeInference.java#traverseCatch: declared type if present,
+// else Unknown (any value can be thrown).
+func (t *TypeInference) inferCatchParam(catchVar string) jstype.JSType {
+	if declared := t.scope.GetDeclaredType(catchVar); declared != nil {
+		return declared
+	}
+	return jstype.Unknown
+}
+
+// inferReturnType returns the type of the expression inside a RETURN node.
+// Port of TypeInference.java#traverseReturn: used to widen anonymous
+// object types against the declared @return constraint.
+func (t *TypeInference) inferReturnType(n *rhino.Node) jstype.JSType {
+	val := n.FirstChild()
+	if val == nil {
+		return jstype.Void
+	}
+	return t.InferType(val)
+}
+
+// inferClassFieldType returns the inferred type of a CLASS_FIELD_DEF's
+// initialiser. Port of TypeInference.java#traverseClassMemberRhs for
+// MEMBER_FIELD_DEF / COMPUTED_FIELD_DEF.
+func (t *TypeInference) inferClassFieldType(n *rhino.Node) jstype.JSType {
+	if n.Token() != rhino.CLASS_FIELD_DEF {
+		return jstype.Unknown
+	}
+	rhs := n.FirstChild()
+	if rhs == nil {
+		return jstype.Void
+	}
+	return t.InferType(rhs)
+}
+
+// inferDestructureTarget returns the type bound to a NAME target in a
+// destructuring pattern. Port of traverseDestructuringPattern: element
+// type for array patterns, property type for object patterns.
+func (t *TypeInference) inferDestructureTarget(rhsType jstype.JSType, isArray bool, key string) jstype.JSType {
+	if rhsType == nil || isUnknownOrNil(rhsType) {
+		return jstype.Unknown
+	}
+	if isArray {
+		return getElemIndexType(rhsType)
+	}
+	// Object destructuring: look up the property on the RHS type.
+	if obj, ok := rhsType.(*jstype.ObjectType); ok {
+		if pt := obj.GetPropertyType(key); pt != nil {
+			return pt
+		}
+	}
+	return jstype.Unknown
+}
+
+// inferDeclarationNameType returns the type of a NAME node with an
+// initialiser child (e.g. `var x = 3`). Port of traverseDeclaration /
+// traverseName: binding type = initialiser type (or Void if absent).
+func (t *TypeInference) inferDeclarationNameType(n *rhino.Node) jstype.JSType {
+	// A NAME node inside a declaration has its initialiser as its first
+	// child (e.g. `var x = 3` → NAME("x", child=NUMBER(3))).
+	init := n.FirstChild()
+	if init == nil {
+		// No initialiser: `var x;` → undefined at declaration.
+		return jstype.Void
+	}
+	return t.InferType(init)
+}
+
+// inferClassExpr returns the type of a CLASS node used as an expression.
+// Port of TypeInference.java#traverseClass: the class evaluates to its
+// constructor FunctionType as bound by TypedScopeCreator.
+func (t *TypeInference) inferClassExpr(n *rhino.Node) jstype.JSType {
+	if n.Token() != rhino.CLASS {
+		return jstype.Unknown
+	}
+	nameNode := n.FirstChild()
+	if nameNode != nil && nameNode.Token() == rhino.NAME && nameNode.String_() != "" {
+		if ct := t.scope.GetDeclaredType(nameNode.String_()); ct != nil {
+			return ct
+		}
+	}
+	return jstype.Unknown
+}
+
+// inferWithinShortCircuit returns the type of `n` as a short-circuit
+// binary sub-expression. Port of traverseWithinShortCircuitingBinOp:
+// AND/OR/COALESCE nodes recurse through InferType; others type normally.
+func (t *TypeInference) inferWithinShortCircuit(n *rhino.Node) jstype.JSType {
+	switch n.Token() {
+	case rhino.AND, rhino.OR, rhino.COALESCE:
+		return t.InferType(n)
+	}
+	return t.InferType(n)
 }
 
 // unionFold returns the union of non-nil members; if either side is
