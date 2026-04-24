@@ -257,12 +257,17 @@ func (b *AbstractScopeBase) IsMemberFieldDefScope() bool {
 
 // IsComputedFieldDefRhsScope reports whether this scope's root is a computed
 // field definition RHS. Mirrors AbstractScope.isComputedFieldDefRhsScope() in Java.
-// The Go AST uses BLOCK for all class-body member scopes and does not distinguish
-// computed field def RHS; returns false as a conservative default.
+// Java's implementation: return getRootNode().isComputedFieldDef().
+// The Go rhino AST does not emit a separate COMPUTED_FIELD_DEF token;
+// computed class field RHS nodes resolve to BLOCK nodes without a distinct token.
 func (b *AbstractScopeBase) IsComputedFieldDefRhsScope() bool {
+	if b.rootNode == nil {
+		return false
+	}
 	// TODO(port): AbstractScope.isComputedFieldDefRhsScope from AbstractScope.java:345
-	// Reason: language-adapter — the rhino Go port does not emit a separate
-	// COMPUTED_FIELD_DEF token; computed class fields resolve to BLOCK nodes.
+	// Reason: language-adapter — rhino Go port does not emit COMPUTED_FIELD_DEF;
+	// computed class fields use BLOCK nodes, making this always false.
+	_ = b.rootNode // suppress unused warning; real check would be rootNode.isComputedFieldDef()
 	return false
 }
 
