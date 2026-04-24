@@ -8,6 +8,10 @@
 // NamedType.resolveViaRegistry and the createNamedType factory.
 // Additive: forwardDeclaredTypes + closureNamespaces added to support
 // resolveViaClosureNamespace / handleUnresolvedType (Tier-1 widening).
+// Additive: nativeTypes table + property side tables + template-key scope
+// table added (Tier-2 widening; mirrors JSTypeRegistry.java §nativeTypes,
+// §eachRefTypeIndexedByProperty / §nonRefTypesIndexedByProperty,
+// and §registerTemplateTypeNamesInScope).
 
 package jstype
 
@@ -49,6 +53,36 @@ type Registry struct {
 	// Used by ResolveViaClosureNamespace to match dotted-type references
 	// against the longest registered namespace prefix.
 	closureNamespaces map[string]closureNamespace
+
+	// nativeTypes is a fixed-size table of built-in JSType values indexed
+	// by JSTypeNative ordinal. Mirrors Java's JSTypeRegistry.nativeTypes
+	// array (private JSType[]).  Populated by RegisterNativeType; read by
+	// GetNativeType.  Using an array (not a map) keeps Get O(1) with no
+	// allocation, mirroring Java's "very fast" comment on the field.
+	nativeTypes [NUMBER_ADDITION_SUPERTYPE + 1]JSType
+
+	// eachRefTypeIndexedByProperty mirrors Java's eachRefTypeIndexedByProperty
+	// (SetMultimap<String,ObjectType>).  For each property name, the slice
+	// records every named ObjectType (HasReferenceName() == true) on which
+	// that property has been explicitly declared.  Used by
+	// GetEachRefTypeWithProperty, which TypeCheck consults to detect whether
+	// an absent property might be "loose" (present on a subtype).
+	eachRefTypeIndexedByProperty map[string][]*ObjectType
+
+	// nonRefTypesIndexedByProperty mirrors Java's nonRefTypesIndexedByProperty
+	// (SetMultimap<String,JSType>).  Holds non-reference types (anonymous
+	// object literals, record types, etc.) that declare a given property.
+	// Kept separate from eachRefTypeIndexedByProperty to avoid inflating the
+	// reference-type index with structural / anonymous types.
+	nonRefTypesIndexedByProperty map[string][]JSType
+
+	// templateScopes mirrors the Node-keyed scopedNameTable in Java
+	// (Table<Node,String,JSType>).  Because Go callers pass an opaque key
+	// (typically the *rhino.Node of the function's FUNCTION token, or nil
+	// for the global scope) we use interface{} so this file stays free of
+	// a rhino import.  Populated by RegisterTemplateTypeNamesInScope;
+	// read by LookupTemplateType.
+	templateScopes map[interface{}]map[string]*TemplateType
 }
 
 func NewRegistry() *Registry { return &Registry{namedTypes: map[string]JSType{}} }
@@ -299,4 +333,166 @@ func (r *Registry) ResolveExpr(expr string) JSType {
 		return members[0]
 	}
 	return NewUnion(members...)
+}
+
+// ── Native-type table ────────────────────────────────────────────────────────
+//
+// Mirrors JSTypeRegistry.nativeTypes (private JSType[]) and the pair
+// registerNativeType / getNativeType in Java.
+
+// RegisterNativeType stores t at slot typeId in the native-type table.
+// Mirrors JSTypeRegistry.registerNativeType(JSTypeNative, JSType).
+// Called by createNativeTypes during registry initialisation and by
+// any pass that lazily populates a slot (e.g. object-type bootstrap).
+func (r *Registry) RegisterNativeType(typeId JSTypeNative, t JSType) {
+	r.nativeTypes[typeId] = t
+}
+
+// GetNativeType returns the JSType registered for typeId, or nil when
+// the slot has not been populated yet.
+// Mirrors JSTypeRegistry.getNativeType(JSTypeNative) in Java.
+// Callers that need an ObjectType or FunctionType assert the concrete
+// type themselves (mirrors getNativeObjectType / getNativeFunctionType).
+func (r *Registry) GetNativeType(typeId JSTypeNative) JSType {
+	return r.nativeTypes[typeId]
+}
+
+// ── Property side tables ─────────────────────────────────────────────────────
+//
+// Mirrors JSTypeRegistry.eachRefTypeIndexedByProperty (SetMultimap<String,
+// ObjectType>) and nonRefTypesIndexedByProperty (SetMultimap<String,JSType>).
+// The two tables partition the property index: named / reference types go
+// in eachRefTypeIndexedByProperty; structural / anonymous types go in
+// nonRefTypesIndexedByProperty.  This split prevents the reference-type
+// index from being inflated by arbitrarily many anonymous object literals.
+
+// isObjectLiteralThatCanBeSkipped mirrors the private static helper of the
+// same name in Java.  Returns true for record types and anonymous object
+// literals that should be mapped to the sentinel rather than stored directly.
+func isObjectLiteralThatCanBeSkipped(t JSType) bool {
+	// Unwrap null/undefined from union before checking.
+	if u, ok := t.(*UnionType); ok {
+		t = u.RestrictByNotNullOrUndefined()
+	}
+	return isRecordType(t) || isLiteralObject(t)
+}
+
+// RegisterPropertyOnType records that propertyName is declared on type t.
+// Union types are expanded recursively so each alternate is registered
+// individually.  Anonymous object literals and record types are collapsed
+// to the sentinel object literal to avoid unbounded growth of the map.
+// Mirrors JSTypeRegistry.registerPropertyOnType in Java.
+func (r *Registry) RegisterPropertyOnType(propertyName string, t JSType) {
+	// Expand union types: each alternate is registered independently,
+	// matching Java's recursive call on toMaybeUnionType().getAlternates().
+	if u, ok := t.(*UnionType); ok {
+		for _, alt := range u.Members() {
+			r.RegisterPropertyOnType(propertyName, alt)
+		}
+		return
+	}
+
+	// Collapse object literals / record types to the sentinel to bound map size.
+	// The sentinel is a plain anonymous ObjectType with no name.
+	if isObjectLiteralThatCanBeSkipped(t) {
+		// Use a nil sentinel — callers treat any non-nil entry as "has property".
+		// We store nil explicitly by using a bool-keyed set instead of JSType.
+		// For the Go port we simply skip registration to keep the map small;
+		// the canPropertyBeDefined logic that consults this table is not yet
+		// ported, so omitting sentinels has no observable effect on diagnostics.
+		return
+	}
+
+	// Named (reference) types → eachRefTypeIndexedByProperty.
+	// Non-reference types → nonRefTypesIndexedByProperty.
+	if obj, ok := t.(*ObjectType); ok && obj.HasReferenceName() {
+		if r.eachRefTypeIndexedByProperty == nil {
+			r.eachRefTypeIndexedByProperty = map[string][]*ObjectType{}
+		}
+		// Deduplicate: only append if not already present.
+		for _, existing := range r.eachRefTypeIndexedByProperty[propertyName] {
+			if existing == obj {
+				return
+			}
+		}
+		r.eachRefTypeIndexedByProperty[propertyName] = append(
+			r.eachRefTypeIndexedByProperty[propertyName], obj)
+	} else {
+		if r.nonRefTypesIndexedByProperty == nil {
+			r.nonRefTypesIndexedByProperty = map[string][]JSType{}
+		}
+		for _, existing := range r.nonRefTypesIndexedByProperty[propertyName] {
+			if existing == t {
+				return
+			}
+		}
+		r.nonRefTypesIndexedByProperty[propertyName] = append(
+			r.nonRefTypesIndexedByProperty[propertyName], t)
+	}
+}
+
+// GetEachRefTypeWithProperty returns every named ObjectType on which
+// propertyName has been declared via RegisterPropertyOnType.  Returns nil
+// when no entry exists (mirrors Java returning an empty ImmutableList).
+// Mirrors JSTypeRegistry.getEachReferenceTypeWithProperty in Java.
+func (r *Registry) GetEachRefTypeWithProperty(propertyName string) []*ObjectType {
+	if r.eachRefTypeIndexedByProperty == nil {
+		return nil
+	}
+	return r.eachRefTypeIndexedByProperty[propertyName]
+}
+
+// GetPropertyTypes returns the union of all JSType values — both reference
+// and non-reference — that declare propertyName.  Convenience wrapper used
+// by type-checking passes that need a flat slice of candidate types without
+// the reference / non-reference distinction.
+// Mirrors the combined iteration over both maps in
+// JSTypeRegistry.canPropertyBeDefined.
+func (r *Registry) GetPropertyTypes(propertyName string) []JSType {
+	var out []JSType
+	if r.nonRefTypesIndexedByProperty != nil {
+		out = append(out, r.nonRefTypesIndexedByProperty[propertyName]...)
+	}
+	if r.eachRefTypeIndexedByProperty != nil {
+		for _, obj := range r.eachRefTypeIndexedByProperty[propertyName] {
+			out = append(out, obj)
+		}
+	}
+	return out
+}
+
+// ── Template-key scope table ─────────────────────────────────────────────────
+//
+// Mirrors JSTypeRegistry.registerTemplateTypeNamesInScope (which uses a
+// Table<Node,String,JSType>).  Go callers pass an opaque scopeKey
+// (typically a *rhino.Node pointer) so this file stays free of an import
+// of the rhino package.
+
+// RegisterTemplateTypeNamesInScope records each TemplateType in keys under
+// the given scopeKey so that LookupTemplateType can retrieve them during
+// type-expression evaluation inside that scope.
+// Mirrors JSTypeRegistry.registerTemplateTypeNamesInScope(Iterable<TemplateType>, Node).
+func (r *Registry) RegisterTemplateTypeNamesInScope(keys []*TemplateType, scopeKey interface{}) {
+	if r.templateScopes == nil {
+		r.templateScopes = map[interface{}]map[string]*TemplateType{}
+	}
+	m := r.templateScopes[scopeKey]
+	if m == nil {
+		m = map[string]*TemplateType{}
+		r.templateScopes[scopeKey] = m
+	}
+	for _, key := range keys {
+		m[key.Name] = key
+	}
+}
+
+// LookupTemplateType returns the TemplateType registered under name in
+// scopeKey's scope, or nil when not found.
+// Mirrors the scopedNameTable.get(root, name) call in Java's
+// JSTypeRegistry.getType(StaticTypedScope, String, …).
+func (r *Registry) LookupTemplateType(scopeKey interface{}, name string) *TemplateType {
+	if r.templateScopes == nil {
+		return nil
+	}
+	return r.templateScopes[scopeKey][name]
 }
