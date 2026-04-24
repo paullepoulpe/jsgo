@@ -189,6 +189,18 @@ func (c *CheckSideEffects) reportUseless(stmt, expr *rhino.Node, top bool) {
 				return
 			}
 			// fall through to recursion for ternary/and/or branches
+		case rhino.EQ:
+			c.emitOpAt(stmt, "eq")
+			return
+		case rhino.NE:
+			c.emitOpAt(stmt, "ne")
+			return
+		case rhino.SHEQ:
+			c.emitOpAt(stmt, "sheq")
+			return
+		case rhino.SHNE:
+			c.emitOpAt(stmt, "shne")
+			return
 		}
 	}
 	if pure {

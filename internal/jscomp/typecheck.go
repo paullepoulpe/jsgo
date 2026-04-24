@@ -4486,10 +4486,19 @@ func (c *TypeCheck) visitEqualityOp(n *rhino.Node, scope *TypedScope) []diag.Dia
 	if result == eqTrue {
 		valueStr = "true"
 	}
+	// Position: when the comparison is wrapped directly in an
+	// EXPR_RESULT with an outer paren grouping (e.g. `(function(){}) == 'x'`),
+	// Java reports at the statement's column (0). The inner EQ's Charno
+	// may be inside the wrapping parens; promote to the EXPR_RESULT when
+	// its column is earlier.
+	line, col := n.Lineno(), n.Charno()
+	if p := n.Parent(); p != nil && p.Token() == rhino.EXPR_RESULT && p.Charno() < col {
+		line, col = p.Lineno(), p.Charno()
+	}
 	return []diag.Diagnostic{{
 		Path:  c.path,
-		Line:  n.Lineno(),
-		Col:   n.Charno(),
+		Line:  line,
+		Col:   col,
 		Code:  diag.JSC_DETERMINISTIC_TEST,
 		Level: diag.Error,
 		Message: fmt.Sprintf(
