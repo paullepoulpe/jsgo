@@ -328,7 +328,7 @@ func (c *CheckJSDoc) validateTypeAnnotations(n *rhino.Node, info *rhino.JSDocInf
 		valid = cjdIsFunctionDeclaration(n)
 	case rhino.NAME:
 		valid = cjdIsTypeAnnotationAllowedForName(n)
-	case rhino.STRING_KEY, rhino.CLASS_FIELD_DEF:
+	case rhino.STRING_KEY, rhino.CLASS_FIELD_DEF, rhino.MEMBER_FIELD_DEF:
 		// Object literal properties and class fields are valid.
 		valid = true
 	case rhino.VAR, rhino.LET, rhino.CONST:
