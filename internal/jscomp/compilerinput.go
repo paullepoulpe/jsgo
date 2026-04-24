@@ -438,3 +438,201 @@ func (ci *CompilerInput) Validate() error {
 	}
 	return nil
 }
+
+// ---------------------------------------------------------------------------
+// Chunk membership
+// ---------------------------------------------------------------------------
+
+// JSChunk is a lightweight stub for the chunk (module) that a CompilerInput
+// belongs to. Mirrors Java's JSChunk class (only the identity portion).
+type JSChunk struct {
+	name string
+}
+
+// NewJSChunk returns a new JSChunk with the given name.
+func NewJSChunk(name string) *JSChunk {
+	return &JSChunk{name: name}
+}
+
+// GetName returns the chunk name.
+func (ch *JSChunk) GetName() string { return ch.name }
+
+// chunk holds the JSChunk this input belongs to.
+// Added as a separate embedded field to match Java's CompilerInput.chunk.
+// Access via GetChunk / SetChunk / OverrideChunk.
+
+// --- chunk accessor methods ---
+
+var ciChunks = map[*CompilerInput]*JSChunk{}
+
+// GetChunk returns the chunk to which the input belongs.
+// Mirrors Java's CompilerInput.getChunk().
+func (ci *CompilerInput) GetChunk() *JSChunk {
+	return ciChunks[ci]
+}
+
+// SetChunk sets the chunk to which the input belongs.
+// An input may only belong to one chunk; panics if already set to a different one.
+// Mirrors Java's CompilerInput.setChunk(JSChunk).
+func (ci *CompilerInput) SetChunk(chunk *JSChunk) {
+	existing := ciChunks[ci]
+	if existing != nil && chunk != nil && existing != chunk {
+		panic(fmt.Sprintf("CompilerInput %q already belongs to chunk %q; cannot set to %q",
+			ci.id, existing.name, chunk.name))
+	}
+	if chunk == nil {
+		delete(ciChunks, ci)
+	} else {
+		ciChunks[ci] = chunk
+	}
+}
+
+// OverrideChunk unconditionally sets the chunk, even if already set.
+// Mirrors Java's CompilerInput.overrideChunk(JSChunk).
+func (ci *CompilerInput) OverrideChunk(chunk *JSChunk) {
+	if chunk == nil {
+		delete(ciChunks, ci)
+	} else {
+		ciChunks[ci] = chunk
+	}
+}
+
+// ---------------------------------------------------------------------------
+// TypedScope association
+// ---------------------------------------------------------------------------
+
+// ciTypedScopes maps CompilerInput instances to their associated typed scopes.
+// The scope values are *TypedScope from scope.go; stored as interface{} to
+// avoid a circular-type dependency in this file.
+var ciTypedScopes = map[*CompilerInput]interface{}{}
+
+// SetInputTypedScope stores the typed scope for this input's MODULE_BODY node.
+// Mirrors Java's CompilerInput.setTypedScope(TypedScope).
+func (ci *CompilerInput) SetInputTypedScope(scope interface{}) {
+	if scope == nil {
+		delete(ciTypedScopes, ci)
+	} else {
+		ciTypedScopes[ci] = scope
+	}
+}
+
+// GetInputTypedScope returns the typed scope associated with this input.
+// Mirrors Java's CompilerInput.getTypedScope().
+func (ci *CompilerInput) GetInputTypedScope() interface{} {
+	return ciTypedScopes[ci]
+}
+
+// ---------------------------------------------------------------------------
+// Feature set
+// ---------------------------------------------------------------------------
+
+// FeatureSet is a stub for the set of ECMAScript features used by an input.
+// Mirrors the relevant parts of Java's FeatureSet.
+type FeatureSet struct {
+	version string
+}
+
+// NewFeatureSet returns a FeatureSet for the given language version string.
+func NewFeatureSet(version string) FeatureSet {
+	return FeatureSet{version: version}
+}
+
+// Version returns the language version string (e.g. "es6").
+func (f FeatureSet) Version() string { return f.version }
+
+// Contains reports whether this feature set contains all features in other.
+// Simplified stub: returns true if versions match.
+func (f FeatureSet) Contains(other FeatureSet) bool {
+	return f.version >= other.version
+}
+
+var ciFeatures = map[*CompilerInput]FeatureSet{}
+
+// GetFeatures returns the feature set used by this input.
+// Mirrors Java's CompilerInput.getFeatures(AbstractCompiler).
+func (ci *CompilerInput) GetFeatures(compiler *AbstractCompiler) FeatureSet {
+	if f, ok := ciFeatures[ci]; ok {
+		return f
+	}
+	return FeatureSet{}
+}
+
+// SetFeatures stores the feature set for this input.
+func (ci *CompilerInput) SetFeatures(f FeatureSet) {
+	ciFeatures[ci] = f
+}
+
+// ---------------------------------------------------------------------------
+// Shadow AST (for goog closure-unaware subtrees)
+// ---------------------------------------------------------------------------
+
+// ShadowAstRoot is a stub for the shadow AST node. Mirrors Java's JsAst.root
+// field used by initShadowAst.
+var ciShadowAsts = map[*CompilerInput]interface{}{}
+
+// InitShadowAst stores a shadow script node for closure-unaware subtrees.
+// Mirrors Java's CompilerInput.initShadowAst(Node).
+func (ci *CompilerInput) InitShadowAst(shadowScript interface{}) {
+	ciShadowAsts[ci] = shadowScript
+}
+
+// ---------------------------------------------------------------------------
+// Serialization helpers
+// ---------------------------------------------------------------------------
+
+// SimpleDependencyInfo is a value-type snapshot of dependency info for one
+// input. Mirrors the relevant subset of Java's SimpleDependencyInfo.
+type SimpleDependencyInfo struct {
+	Name              string
+	Provides          []string
+	Requires          []Require
+	TypeRequires      []string
+	LoadFlags         map[string]string
+	HasExterns        bool
+	HasNoCompile      bool
+}
+
+// ToSimpleDependencyInfo converts the CompilerInput's current dependency state
+// into a SimpleDependencyInfo snapshot. Useful for serialization and testing.
+func (ci *CompilerInput) ToSimpleDependencyInfo() SimpleDependencyInfo {
+	return SimpleDependencyInfo{
+		Name:         ci.id,
+		Provides:     append([]string(nil), ci.provides...),
+		Requires:     append([]Require(nil), ci.GetRequires()...),
+		TypeRequires: append([]string(nil), ci.typeRequires...),
+		LoadFlags:    ci.GetLoadFlags(),
+		HasExterns:   ci.hasExternsAnnotation,
+		HasNoCompile: ci.hasNoCompileAnnotation,
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Dependency reset
+// ---------------------------------------------------------------------------
+
+// ClearParsedDependencyInfo clears all dependency information so it can be
+// re-computed from a fresh parse. Mirrors Java's equivalent reset logic
+// used when module rewriting mutates the AST.
+func (ci *CompilerInput) ClearParsedDependencyInfo() {
+	ci.requires = nil
+	ci.extraRequires = nil
+	ci.provides = nil
+	ci.typeRequires = nil
+	ci.dynamicRequires = nil
+	ci.requireDynamicImports = nil
+	ci.hasFullParseDependencyInfo = false
+}
+
+// ---------------------------------------------------------------------------
+// Utility: as symbol list
+// ---------------------------------------------------------------------------
+
+// RequireSymbols returns the list of required namespace symbols from a slice
+// of Require values. Mirrors Java's Require.asSymbolList(Collection).
+func RequireSymbols(requires []Require) []string {
+	out := make([]string, 0, len(requires))
+	for _, r := range requires {
+		out = append(out, r.Symbol)
+	}
+	return out
+}

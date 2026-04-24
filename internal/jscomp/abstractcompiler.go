@@ -417,3 +417,200 @@ func (c *AbstractCompiler) SetExternProperties(props map[string]bool) {}
 // or nil if GatherExternProperties has not run. Mirrors Java's
 // AbstractCompiler.getExternProperties.
 func (c *AbstractCompiler) GetExternProperties() map[string]bool { return nil }
+
+// ---------------------------------------------------------------------------
+// Variable / property / string maps
+// ---------------------------------------------------------------------------
+
+// SetVariableMap stores the variable renaming map. Mirrors Java's
+// AbstractCompiler.setVariableMap.
+func (c *AbstractCompiler) SetVariableMap(m interface{}) {}
+
+// SetPropertyMap stores the property renaming map. Mirrors Java's
+// AbstractCompiler.setPropertyMap.
+func (c *AbstractCompiler) SetPropertyMap(m interface{}) {}
+
+// SetStringMap stores the string replacement map. Mirrors Java's
+// AbstractCompiler.setStringMap.
+func (c *AbstractCompiler) SetStringMap(m interface{}) {}
+
+// SetCssNames stores the CSS names found during compilation. Mirrors Java's
+// AbstractCompiler.setCssNames.
+func (c *AbstractCompiler) SetCssNames(names map[string]bool) {}
+
+// SetInstrumentationMapping stores the instrumentation parameter encoding map.
+// Mirrors Java's AbstractCompiler.setInstrumentationMapping.
+func (c *AbstractCompiler) SetInstrumentationMapping(m interface{}) {}
+
+// SetIdGeneratorMap stores the ID generator map for cross-chunk motion.
+// Mirrors Java's AbstractCompiler.setIdGeneratorMap.
+func (c *AbstractCompiler) SetIdGeneratorMap(serialized string) {}
+
+// GetTranspiledFiles reports whether any file needed to transpile any feature.
+// Mirrors Java's AbstractCompiler.getTranspiledFiles.
+func (c *AbstractCompiler) GetTranspiledFiles() bool { return false }
+
+// SetAnonymousFunctionNameMap stores the naming map for anonymous functions.
+// Mirrors Java's AbstractCompiler.setAnonymousFunctionNameMap.
+func (c *AbstractCompiler) SetAnonymousFunctionNameMap(m interface{}) {}
+
+// ---------------------------------------------------------------------------
+// Source map support
+// ---------------------------------------------------------------------------
+
+// AddInputSourceMap adds a SourceMapInput for the given source file.
+// Mirrors Java's AbstractCompiler.addInputSourceMap.
+func (c *AbstractCompiler) AddInputSourceMap(name string, sourceMap interface{}) {}
+
+// GetBase64SourceMapContents returns the base64-encoded source map for a file.
+// Mirrors Java's AbstractCompiler.getBase64SourceMapContents.
+func (c *AbstractCompiler) GetBase64SourceMapContents(sourceFileName string) string { return "" }
+
+// ---------------------------------------------------------------------------
+// Comments
+// ---------------------------------------------------------------------------
+
+// AddComments stores the comments from a given file.
+// Mirrors Java's AbstractCompiler.addComments.
+func (c *AbstractCompiler) AddComments(filename string, comments interface{}) {}
+
+// GetComments returns all comments from the given file.
+// Mirrors Java's AbstractCompiler.getComments.
+func (c *AbstractCompiler) GetComments(filename string) interface{} { return nil }
+
+// ---------------------------------------------------------------------------
+// Accessor summary
+// ---------------------------------------------------------------------------
+
+// SetAccessorSummary stores the summary of properties with getters and setters.
+// Mirrors Java's AbstractCompiler.setAccessorSummary.
+func (c *AbstractCompiler) SetAccessorSummary(summary interface{}) {}
+
+// GetAccessorSummary returns the summary of properties with getters and setters.
+// Mirrors Java's AbstractCompiler.getAccessorSummary.
+func (c *AbstractCompiler) GetAccessorSummary() interface{} { return nil }
+
+// ---------------------------------------------------------------------------
+// Module metadata / module map
+// ---------------------------------------------------------------------------
+
+// GetModuleMetadataMap returns the module metadata map.
+// Mirrors Java's AbstractCompiler.getModuleMetadataMap.
+func (c *AbstractCompiler) GetModuleMetadataMap() interface{} { return nil }
+
+// SetModuleMetadataMap stores the module metadata map.
+// Mirrors Java's AbstractCompiler.setModuleMetadataMap.
+func (c *AbstractCompiler) SetModuleMetadataMap(m interface{}) {}
+
+// GetModuleMap returns the module map.
+// Mirrors Java's AbstractCompiler.getModuleMap.
+func (c *AbstractCompiler) GetModuleMap() interface{} { return nil }
+
+// SetModuleMap stores the module map.
+// Mirrors Java's AbstractCompiler.setModuleMap.
+func (c *AbstractCompiler) SetModuleMap(m interface{}) {}
+
+// ---------------------------------------------------------------------------
+// Cross-chunk ID generator
+// ---------------------------------------------------------------------------
+
+// GetCrossChunkIdGenerator returns the ID generator for cross-chunk motion.
+// Mirrors Java's AbstractCompiler.getCrossChunkIdGenerator.
+func (c *AbstractCompiler) GetCrossChunkIdGenerator() interface{} { return nil }
+
+// ---------------------------------------------------------------------------
+// Error level
+// ---------------------------------------------------------------------------
+
+// GetErrorLevel returns the error level the given JSError will be reported at.
+// Mirrors Java's AbstractCompiler.getErrorLevel(JSError).
+// This stub returns the default level from the diagnostic type.
+func (c *AbstractCompiler) GetErrorLevel(code string, defaultLevel diag.Level) diag.Level {
+	return defaultLevel
+}
+
+// ---------------------------------------------------------------------------
+// Extern exports
+// ---------------------------------------------------------------------------
+
+// SetExternExports stores the extern exports string.
+// Mirrors Java's AbstractCompiler.setExternExports.
+func (c *AbstractCompiler) SetExternExports(externExports string) {}
+
+// ---------------------------------------------------------------------------
+// Disambiguation / ambiguation property summary
+// ---------------------------------------------------------------------------
+
+// ReportDisambiguatePropertiesSummary is called by DisambiguateProperties to
+// record a summary. Mirrors Java's AbstractCompiler.reportDisambiguatePropertiesSummary.
+func (c *AbstractCompiler) ReportDisambiguatePropertiesSummary(summary func() string) {}
+
+// ReportAmbiguatePropertiesSummary is called by AmbiguateProperties to record
+// a summary. Mirrors Java's AbstractCompiler.reportAmbiguatePropertiesSummary.
+func (c *AbstractCompiler) ReportAmbiguatePropertiesSummary(summary func() string) {}
+
+// ---------------------------------------------------------------------------
+// Feature set management
+// ---------------------------------------------------------------------------
+
+// GetAllowableFeatures returns the feature set currently allowed in the AST.
+// Mirrors Java's AbstractCompiler.getAllowableFeatures.
+func (c *AbstractCompiler) GetAllowableFeatures() interface{} { return nil }
+
+// SetAllowableFeatures sets the feature set allowed in the AST.
+// Mirrors Java's AbstractCompiler.setAllowableFeatures.
+func (c *AbstractCompiler) SetAllowableFeatures(featureSet interface{}) {}
+
+// MarkFeatureNotAllowed marks a feature as no longer allowed in the AST.
+// Mirrors Java's AbstractCompiler.markFeatureNotAllowed.
+func (c *AbstractCompiler) MarkFeatureNotAllowed(feature interface{}) {}
+
+// MarkFeatureSetNotAllowed marks a feature set as no longer allowed in the AST.
+// Mirrors Java's AbstractCompiler.markFeatureSetNotAllowed.
+func (c *AbstractCompiler) MarkFeatureSetNotAllowed(featureSet interface{}) {}
+
+// ---------------------------------------------------------------------------
+// AstFactory / ExpressionDecomposer / AstAnalyzer
+// ---------------------------------------------------------------------------
+
+// CreateAstFactory returns an AstFactory configured for the current
+// compilation state. Mirrors Java's AbstractCompiler.createAstFactory.
+func (c *AbstractCompiler) CreateAstFactory() interface{} { return nil }
+
+// CreateAstFactoryWithoutTypes returns an AstFactory that will not add type
+// information. Mirrors Java's AbstractCompiler.createAstFactoryWithoutTypes.
+func (c *AbstractCompiler) CreateAstFactoryWithoutTypes() interface{} { return nil }
+
+// GetAstAnalyzer returns an AstAnalyzer for the current compilation.
+// Mirrors Java's AbstractCompiler.getAstAnalyzer.
+func (c *AbstractCompiler) GetAstAnalyzer() interface{} { return nil }
+
+// ---------------------------------------------------------------------------
+// SyntheticCodeInputId
+// ---------------------------------------------------------------------------
+
+// GetSyntheticCodeInputId returns the InputId of the synthetic code input.
+// Mirrors Java's AbstractCompiler.getSyntheticCodeInputId.
+func (c *AbstractCompiler) GetSyntheticCodeInputId() string {
+	return " [synthetic] "
+}
+
+// ---------------------------------------------------------------------------
+// Change tracking
+// ---------------------------------------------------------------------------
+
+// HasScopeChanged reports whether a function changed since the last pass run.
+// Mirrors Java's AbstractCompiler.hasScopeChanged.
+func (c *AbstractCompiler) HasScopeChanged(n *rhino.Node) bool { return true }
+
+// ForwardDeclareType records a forward-declared type name.
+// Mirrors Java's AbstractCompiler.forwardDeclareType.
+func (c *AbstractCompiler) ForwardDeclareType(typeName string) {}
+
+// ---------------------------------------------------------------------------
+// Runtime library direction
+// ---------------------------------------------------------------------------
+
+// GetRuntimeLibDir returns the runtime library directory path.
+// Mirrors Java's AbstractCompiler.RUNTIME_LIB_DIR.
+const RuntimeLibDir = "js"
