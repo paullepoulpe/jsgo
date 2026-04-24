@@ -306,6 +306,27 @@ func (t *NodeTraversal) TraverseAtScope(scopeRoot *rhino.Node, scope *TypedScope
 	t.scopes = t.scopes[:len(t.scopes)-len(ancestors)]
 }
 
+// GetScopeRoot returns the root AST node of the current innermost scope.
+// Mirrors Java's NodeTraversal.getScopeRoot() which returns
+// t.getScope().getRootNode(). In Go the TypedScope carries its root node
+// through the AbstractScopeBase embedded struct.
+func (t *NodeTraversal) GetScopeRoot() *rhino.Node {
+	return t.CurrentScope().GetRootNode()
+}
+
+// GetClosestHoistScopeRoot returns the root AST node of the nearest hoist
+// scope at or above the current scope. Mirrors
+// NodeTraversal.getClosestHoistScopeRoot() in Java.
+func (t *NodeTraversal) GetClosestHoistScopeRoot() *rhino.Node {
+	for i := len(t.scopes) - 1; i >= 0; i-- {
+		s := t.scopes[i]
+		if s.IsHoistScope() {
+			return s.GetRootNode()
+		}
+	}
+	return t.global.GetRootNode()
+}
+
 // TraverseFunctionOutOfBand traverses a FUNCTION node in isolation
 // using the provided pre-built scope.  This mirrors Java's private
 // traverseFunction helper but is exposed as a public entry point for

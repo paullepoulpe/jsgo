@@ -222,7 +222,6 @@ func defaultExternNames() map[string]bool {
 		// Thenable typedef is a type alias, not a var, so VarCheck
 		// doesn't need to know about it — it lives in typeAliases.
 		"Thenable",
-
 	}
 	out := make(map[string]bool, len(names))
 	for _, n := range names {

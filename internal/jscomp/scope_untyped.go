@@ -170,6 +170,15 @@ func (s *UntypedScope) HasSlot(name string) bool {
 	return s.GetSlot(name) != nil
 }
 
+// RemoveVar removes the variable with the given name from this scope.
+// Mirrors Scope.undeclare(Var) in Java. Used by SyntacticScopeCreator when
+// an implicit goog namespace is superseded by an explicit declaration.
+func (s *UntypedScope) RemoveVar(name string) {
+	if s.vars != nil {
+		delete(s.vars, name)
+	}
+}
+
 // GetVarIterable returns all non-implicit vars declared in this scope.
 // Mirrors AbstractScope.getVarIterable() in Java.
 func (s *UntypedScope) GetVarIterable() []*UntypedVar {

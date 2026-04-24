@@ -30,6 +30,10 @@ import (
 // pointer mirrors the Java scope chain used during name resolution.
 type TypedScope struct {
 	parent   *TypedScope
+	// rootNode is the AST node that roots this scope (the SCRIPT/FUNCTION/BLOCK
+	// node). It mirrors AbstractScope.getRootNode() in Java and is used by
+	// NodeTraversal.getScopeRoot(). May be nil for synthetic scopes.
+	rootNode *rhino.Node
 	declared map[string]jstype.JSType
 	// namespaceProps tracks `/** @type {T} */ obj.prop = …`
 	// declarations on plain-object bindings (`var goog = {}`).
@@ -105,6 +109,32 @@ func (s *TypedScope) WithoutRefinements(f func()) {
 	s.refinements = nil
 	f()
 	s.refinements = saved
+}
+
+// GetRootNode returns the AST node that roots this scope (SCRIPT/FUNCTION/BLOCK).
+// Mirrors AbstractScope.getRootNode() in Java. May be nil for synthetic scopes.
+func (s *TypedScope) GetRootNode() *rhino.Node {
+	if s == nil {
+		return nil
+	}
+	return s.rootNode
+}
+
+// IsHoistScope reports whether this scope is a hoist scope (function, global,
+// or module scope — as opposed to a block scope). Mirrors
+// AbstractScope.isHoistScope() in Java.
+func (s *TypedScope) IsHoistScope() bool {
+	if s == nil {
+		return false
+	}
+	if s.rootNode == nil {
+		return true // synthetic global scopes are hoist scopes
+	}
+	switch s.rootNode.Token() {
+	case rhino.FUNCTION, rhino.SCRIPT, rhino.ROOT, rhino.MODULE_BODY:
+		return true
+	}
+	return false
 }
 
 func (s *TypedScope) GetDeclaredType(name string) jstype.JSType {

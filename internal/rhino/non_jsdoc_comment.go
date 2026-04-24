@@ -21,11 +21,11 @@ type CommentPosition struct {
 // source location and contents. Mirrors
 // com.google.javascript.rhino.NonJSDocComment.
 type NonJSDocComment struct {
-	startPosition  CommentPosition
-	endPosition    CommentPosition
-	contents       string
+	startPosition     CommentPosition
+	endPosition       CommentPosition
+	contents          string
 	endsAsLineComment bool
-	isInline       bool
+	isInline          bool
 }
 
 // NewNonJSDocComment constructs a NonJSDocComment.

@@ -250,6 +250,26 @@ const (
 	IMPLEMENTS_MEMBERS // implements-clause member list on a class
 	DECLARE            // `declare` modifier (ambient declaration)
 	TYPE_ALIAS         // `type Foo = Bar`
+
+	// BIGINT mirrors Token.BIGINT — a BigInt literal node.
+	BIGINT
+	// OBJECT_SPREAD mirrors Token.OBJECT_SPREAD — `{...expr}` in object literals.
+	OBJECT_SPREAD
+
+	// TypeScript / Closure type AST tokens — mirrors Token.java §"TypeScript types".
+	STRING_TYPE        // string built-in type
+	BOOLEAN_TYPE       // boolean built-in type
+	NUMBER_TYPE        // number built-in type
+	PARAMETERIZED_TYPE // generic type application, e.g. Array<T>
+	UNION_TYPE         // union type, e.g. (number|string)
+	ANY_TYPE           // the unknown type {?}
+	VOID_TYPE          // void
+	NAMED_TYPE         // named / qualified type reference
+	OPTIONAL_PARAMETER // optional parameter type (TypeScript ?)
+	RECORD_TYPE        // record / structural type {a: number}
+	UNDEFINED_TYPE     // undefined type
+	ARRAY_TYPE         // array type shorthand T[]
+	FUNCTION_TYPE      // function type (not FUNCTION node — a type-AST node)
 )
 
 func (t Token) String() string {
@@ -522,6 +542,36 @@ func (t Token) String() string {
 		return "IMPLEMENTS_MEMBERS"
 	case DECLARE:
 		return "DECLARE"
+	case BIGINT:
+		return "BIGINT"
+	case OBJECT_SPREAD:
+		return "OBJECT_SPREAD"
+	case STRING_TYPE:
+		return "STRING_TYPE"
+	case BOOLEAN_TYPE:
+		return "BOOLEAN_TYPE"
+	case NUMBER_TYPE:
+		return "NUMBER_TYPE"
+	case PARAMETERIZED_TYPE:
+		return "PARAMETERIZED_TYPE"
+	case UNION_TYPE:
+		return "UNION_TYPE"
+	case ANY_TYPE:
+		return "ANY_TYPE"
+	case VOID_TYPE:
+		return "VOID_TYPE"
+	case NAMED_TYPE:
+		return "NAMED_TYPE"
+	case OPTIONAL_PARAMETER:
+		return "OPTIONAL_PARAMETER"
+	case RECORD_TYPE:
+		return "RECORD_TYPE"
+	case UNDEFINED_TYPE:
+		return "UNDEFINED_TYPE"
+	case ARRAY_TYPE:
+		return "ARRAY_TYPE"
+	case FUNCTION_TYPE:
+		return "FUNCTION_TYPE"
 	case TYPE_ALIAS:
 		return "TYPE_ALIAS"
 	}

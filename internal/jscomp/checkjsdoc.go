@@ -503,6 +503,7 @@ func (c *CheckJSDoc) validateClosurePrimitive(n *rhino.Node, info *rhino.JSDocIn
 //   - In externs (no effect there).
 //   - On prototype properties or non-static class fields.
 //   - On an assignment whose LHS root is not a NAME.
+//
 // ---------------------------------------------------------------------------
 func (c *CheckJSDoc) validateNoCollapse(n *rhino.Node, info *rhino.JSDocInfo) {
 	if info == nil || !info.IsNoCollapse() {
@@ -827,4 +828,3 @@ func cjdGetBestJSDocInfo(n *rhino.Node) *rhino.JSDocInfo {
 	}
 	return nil
 }
-
