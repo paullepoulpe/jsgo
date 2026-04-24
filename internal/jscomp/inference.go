@@ -973,10 +973,15 @@ func (t *TypeInference) inferAwait(n *rhino.Node) jstype.JSType {
 //
 // Getter/setter handling: when a STRING_KEY has a FUNCTION child
 // marked as a getter, the property type is the getter's declared
-// return type (or Unknown). This mirrors Java's TypedScopeCreator
-// determineGetterType / traverseObjectLiteral which records the
-// return type — not the function type — on the property slot.
-// Setter entries do not contribute a value-type and are skipped.
+// return type (or Unknown). Setter entries are skipped (Unknown).
+// Mirrors Java's TypedScopeCreator.determineGetterType /
+// traverseObjectLiteral which records the return type on the slot.
+//
+// When a key carries a @type or @return JSDoc annotation, the property
+// is registered as declared (DefineDeclaredProperty) so downstream
+// visitAssign can reject mismatched reassignments. Keys without JSDoc
+// are marked inferred (DefineInferredProperty) to allow open reassignment,
+// matching Java's TypeInference.traverseObjectLiteral semantics.
 func (t *TypeInference) inferObjectLit(n *rhino.Node) jstype.JSType {
 	obj := jstype.NewObjectType("")
 	obj.IsStructural = true
@@ -996,30 +1001,42 @@ func (t *TypeInference) inferObjectLit(n *rhino.Node) jstype.JSType {
 		if value == nil {
 			continue
 		}
+		propName := kv.String_()
+		// Getter / setter: property type is the getter's declared
+		// @return or Unknown for setters.
 		if value.Token() == rhino.FUNCTION {
 			if value.IsGetterDef() {
-				// Getter: property type is the declared return type.
-				// Port of TypedScopeCreator.determineGetterType:
-				// getterNode's JSDoc @return drives the slot type.
 				propType := jstype.JSType(jstype.Unknown)
 				if info := value.JSDocInfo(); info != nil && info.ReturnType() != nil {
 					if resolved := t.scope.ResolveExpr(info.ReturnType().TypeName); resolved != nil {
 						propType = resolved
 					}
 				}
-				obj.DefineProperty(kv.String_(), propType)
+				obj.DefineInferredProperty(propName, propType, kv)
 				continue
 			}
 			if value.IsSetterDef() {
-				// Setter-only property: the readable value type is
-				// Unknown (no return value). Java records the setter
-				// parameter type for conflict checks but does not
-				// expose it as the property's readable type.
-				obj.DefineProperty(kv.String_(), jstype.Unknown)
+				obj.DefineInferredProperty(propName, jstype.Unknown, kv)
 				continue
 			}
 		}
-		obj.DefineProperty(kv.String_(), t.InferType(value))
+		kvInfo := kv.JSDocInfo()
+		// @type {T} on the key: property is declared with type T.
+		if kvInfo != nil && kvInfo.HasType() {
+			if declared := t.scope.ResolveExpr(kvInfo.Type().TypeName); declared != nil {
+				obj.DefineDeclaredProperty(propName, declared, kv)
+				continue
+			}
+		}
+		// @return {T} on the key: property is declared with type function(): T.
+		if kvInfo != nil && kvInfo.ReturnType() != nil {
+			if ret := t.scope.ResolveExpr(kvInfo.ReturnType().TypeName); ret != nil {
+				obj.DefineDeclaredProperty(propName, jstype.NewFunctionType(nil, ret), kv)
+				continue
+			}
+		}
+		// No JSDoc annotation: inferred slot — allows open reassignment.
+		obj.DefineInferredProperty(propName, t.InferType(value), kv)
 	}
 	return obj
 }

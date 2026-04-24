@@ -579,6 +579,8 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitFunctionParams(n, scope))
 	case rhino.OBJECTLIT:
 		c.emit(c.visitObjectLit(n, scope))
+	case rhino.ARRAYLIT:
+		c.emit(c.visitArrayLit(n, scope))
 	case rhino.CAST:
 		c.emit(c.visitCast(n, scope))
 	case rhino.REGEXP:
@@ -1016,11 +1018,20 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 				// RHS (no @type JSDoc) — Java treats these as open surfaces
 				// where any subsequent assignment is allowed, matching the
 				// IsPropertyInferred guard on prototype properties.
+				// Exception: if the flow-scope object has a @type-annotated
+				// declared property (from an object literal key), the declared
+				// type takes precedence over the inferred namespace prop.
 				if scope.IsNamespacePropInferred(recvName, propName) {
-					return nil
+					if objCheck, ok2 := infer.InferType(recv).(*jstype.ObjectType); ok2 && objCheck.HasOwnDeclaredProperty(propName) {
+						declared = objCheck.GetPropertyType(propName)
+						ownerName = recvName
+					} else {
+						return nil
+					}
+				} else {
+					declared = t
+					ownerName = recvName
 				}
-				declared = t
-				ownerName = recvName
 			}
 		}
 		if declared == nil {
@@ -2986,9 +2997,11 @@ func isStringOperandOk(t jstype.JSType) bool {
 //   - JSC_LENDS_ON_NON_OBJECT when @lends names a non-object type.
 //   - JSC_ILLEGAL_OBJLIT_KEY when a @struct literal has a quoted key or
 //     a @dict literal has an unquoted key.
+//   - JSC_TYPE_MISMATCH when a JSDoc-annotated key's value is not assignable
+//     to the declared key type (mirrors Java's visitObjectOrClassLiteralKey).
 //
 // Mirrors Java's defineObjectLiteral (TypedScopeCreator) for @lends, and
-// visitObjectOrClassLiteralKey struct/dict gate (TypeCheck) for key checks.
+// visitObjectOrClassLiteralKey (TypeCheck) for key checks.
 func (c *TypeCheck) visitObjectLit(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	var out []diag.Diagnostic
 
@@ -3039,32 +3052,28 @@ func (c *TypeCheck) visitObjectLit(n *rhino.Node, scope *TypedScope) []diag.Diag
 		}
 	}
 
-	// struct/dict key checks.
 	infer := NewTypeInference(scope)
 	ownerType := infer.InferType(n)
 	obj := dereferencedObject(ownerType)
-	if obj == nil || (!obj.IsStruct && !obj.IsDict) {
-		return out
-	}
+
 	for key := n.FirstChild(); key != nil; key = key.Next() {
 		if key.Token() != rhino.STRING_KEY {
 			continue
 		}
-		if key.IsQuotedStringKey() {
-			// quoted key in @struct is illegal
-			if obj.IsStruct {
-				out = append(out, diag.Diagnostic{
-					Path:    c.path,
-					Line:    key.Lineno(),
-					Col:     key.Charno(),
-					Code:    diag.JSC_ILLEGAL_OBJLIT_KEY,
-					Level:   diag.Error,
-					Message: "Illegal key, the object literal is a struct",
-				})
-			}
-		} else {
-			// unquoted key in @dict is illegal
-			if obj.IsDict {
+		// struct/dict key form checks.
+		if obj != nil && (obj.IsStruct || obj.IsDict) {
+			if key.IsQuotedStringKey() {
+				if obj.IsStruct {
+					out = append(out, diag.Diagnostic{
+						Path:    c.path,
+						Line:    key.Lineno(),
+						Col:     key.Charno(),
+						Code:    diag.JSC_ILLEGAL_OBJLIT_KEY,
+						Level:   diag.Error,
+						Message: "Illegal key, the object literal is a struct",
+					})
+				}
+			} else if obj.IsDict {
 				out = append(out, diag.Diagnostic{
 					Path:    c.path,
 					Line:    key.Lineno(),
@@ -3075,8 +3084,111 @@ func (c *TypeCheck) visitObjectLit(n *rhino.Node, scope *TypedScope) []diag.Diag
 				})
 			}
 		}
+		// Key value type check: when the key carries a @type or @return JSDoc,
+		// verify the actual value is assignable to the declared key type.
+		// Mirrors Java's TypeCheck.visitObjectOrClassLiteralKey.
+		kvInfo := key.JSDocInfo()
+		if kvInfo == nil {
+			continue
+		}
+		var declaredKeyType jstype.JSType
+		if kvInfo.HasType() {
+			declaredKeyType = scope.ResolveExpr(kvInfo.Type().TypeName)
+		} else if kvInfo.ReturnType() != nil {
+			if ret := scope.ResolveExpr(kvInfo.ReturnType().TypeName); ret != nil {
+				declaredKeyType = jstype.NewFunctionType(nil, ret)
+			}
+		}
+		if declaredKeyType == nil {
+			continue
+		}
+		// Skip template types — open-type rule matches Java.
+		if _, isTpl := declaredKeyType.(*jstype.TemplateType); isTpl {
+			continue
+		}
+		value := key.FirstChild()
+		if value == nil {
+			continue
+		}
+		rightType := infer.InferType(value)
+		if jstype.IsSubtype(rightType, declaredKeyType) {
+			continue
+		}
+		propName := key.String_()
+		ownerName := ownerType.TypeName()
+		msg := fmt.Sprintf("assignment to property %s of %s\nfound   : %s\nrequired: %s",
+			propName, ownerName, rightType.TypeName(), declaredKeyType.TypeName())
+		out = append(out, diag.Diagnostic{
+			Path: c.path, Line: key.Lineno(), Col: key.Charno(),
+			Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error, Message: msg,
+		})
 	}
 	return out
+}
+
+// visitArrayLit checks each element of an array literal against the
+// contextual element type when the array is declared as Array<T>.
+// Mirrors Java's TypeCheck.visitArrayLit extended with element-type
+// contextual typing — fires JSC_TYPE_MISMATCH on mismatched elements.
+func (c *TypeCheck) visitArrayLit(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	elemType := arrayLitContextElemType(n, scope)
+	if elemType == nil {
+		return nil
+	}
+	// Template types: open-type rule — accept any element.
+	if _, isTpl := elemType.(*jstype.TemplateType); isTpl {
+		return nil
+	}
+	infer := NewTypeInference(scope)
+	var out []diag.Diagnostic
+	for elem := n.FirstChild(); elem != nil; elem = elem.Next() {
+		if elem.Token() == rhino.ITER_SPREAD {
+			continue
+		}
+		found := infer.InferType(elem)
+		if jstype.IsSubtype(found, elemType) {
+			continue
+		}
+		msg := fmt.Sprintf("array element\nfound   : %s\nrequired: %s",
+			found.TypeName(), elemType.TypeName())
+		out = append(out, diag.Diagnostic{
+			Path: c.path, Line: elem.Lineno(), Col: elem.Charno(),
+			Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error, Message: msg,
+		})
+	}
+	return out
+}
+
+// arrayLitContextElemType returns the declared element type T when the
+// array literal's context (parent node's declared type) is Array<T>.
+// Returns nil when no contextual element type can be determined.
+func arrayLitContextElemType(n *rhino.Node, scope *TypedScope) jstype.JSType {
+	parent := n.Parent()
+	if parent == nil {
+		return nil
+	}
+	var declaredType jstype.JSType
+	switch parent.Token() {
+	case rhino.NAME:
+		// Array literal is the initializer of a VAR/LET/CONST binding.
+		declaredType = scope.GetRawDeclaredType(parent.String_())
+	case rhino.ASSIGN:
+		// Array literal is the RHS of an assignment.
+		if lhs := parent.FirstChild(); lhs != nil && lhs.Token() == rhino.NAME {
+			declaredType = scope.GetRawDeclaredType(lhs.String_())
+		}
+	}
+	if declaredType == nil {
+		return nil
+	}
+	tt, ok := declaredType.(*jstype.TemplatizedType)
+	if !ok {
+		return nil
+	}
+	if tt.Base == nil || tt.Base.Name != "Array" || len(tt.Args) < 1 {
+		return nil
+	}
+	return tt.Args[0]
 }
 
 // ---- JSC_NON_STRINGIFIABLE_OBJECT_KEY branch -------------------- //
