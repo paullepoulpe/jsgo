@@ -574,6 +574,11 @@ type DataFlowAnalysis struct {
 	edgeOut  map[edgeKey]*FlowScope
 	transfer TransferFunction
 	initial  *FlowScope
+	// Escaped holds variable names that escape into nested closures.
+	// Port of DataFlowAnalysis.computeEscaped in Java: these names are
+	// "unflowable" and their flow-refined type must not override the
+	// declared type at read sites. Populated by installFlow in TypeCheck.
+	Escaped map[string]bool
 }
 
 // edgeKey identifies a directed CFG edge (from→to with branch label).

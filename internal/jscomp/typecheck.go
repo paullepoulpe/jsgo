@@ -295,6 +295,15 @@ func (c *TypeCheck) installFlow(root *rhino.Node, scope *TypedScope) *DataFlowAn
 	pass := NewTypeInferencePass(scope)
 	d := NewDataFlowAnalysis(cfg, EmptyFlowScope(), pass.Transfer)
 	d.Run()
+	// Port of DataFlowAnalysis.computeEscaped: identify variables declared
+	// in this function scope that escape into nested closures. Their
+	// flow-refined types are "unflowable" — we must not override the
+	// declared type with the narrowed flow type at read sites (mirrors
+	// TypeInference.java#isUnflowable / traverseName guard).
+	if root.Token() == rhino.FUNCTION {
+		escaped := ComputeEscaped(root, scope.LocalDeclaredNames())
+		d.Escaped = escaped.Escaped
+	}
 	c.flows[root] = d
 	return d
 }
@@ -639,7 +648,24 @@ func (c *TypeCheck) pushEnclosingFlow(n *rhino.Node, scope *TypedScope) func() {
 	if in == nil || len(in.types) == 0 {
 		return func() {}
 	}
-	scope.PushRefinement(in.types)
+	// Port of TypeInference.java#isUnflowable / traverseName guard:
+	// variables that escape into nested closures are "unflowable" — their
+	// flow-narrowed type must not override the declared type at read sites.
+	// Filter escaped names from the refinement map before pushing.
+	types := in.types
+	if len(d.Escaped) > 0 {
+		filtered := make(map[string]jstype.JSType, len(types))
+		for name, t := range types {
+			if !d.Escaped[name] {
+				filtered[name] = t
+			}
+		}
+		if len(filtered) == 0 {
+			return func() {}
+		}
+		types = filtered
+	}
+	scope.PushRefinement(types)
 	return scope.PopRefinement
 }
 
@@ -4337,17 +4363,15 @@ func (c *TypeCheck) visitEqualityOp(n *rhino.Node, scope *TypedScope) []diag.Dia
 	if len(kids) < 2 {
 		return nil
 	}
-	// Infer using declared (non-refined) types. Flow refinements can make
-	// a nullable type appear as null at a comparison site, which would
-	// produce false-positive deterministic-test errors. Java's checker
-	// uses the declared type from the type registry, not the flow-narrowed
-	// type. Temporarily suspend refinements to match that behaviour.
-	var leftType, rightType jstype.JSType
-	scope.WithoutRefinements(func() {
-		infer := NewTypeInference(scope)
-		leftType = infer.InferType(kids[0])
-		rightType = infer.InferType(kids[1])
-	})
+	// Java's TypeCheck.visitCompare uses getJSType(left)/getJSType(right),
+	// which returns the flow-refined type at the comparison site. After
+	// "x = null", flow narrows x to null, so "x == null" becomes null==null
+	// → eqTrue and fires JSC_DETERMINISTIC_TEST. Escaped variables (assigned
+	// in nested closures) are filtered from the flow refinements in
+	// pushEnclosingFlow, matching TypeInference.java#isUnflowable.
+	infer := NewTypeInference(scope)
+	leftType := infer.InferType(kids[0])
+	rightType := infer.InferType(kids[1])
 
 	// Java strips null/undefined before comparing (restrictByNotNullOrUndefined).
 	leftRestricted := equalityRestrictByNotNullOrUndefined(leftType)

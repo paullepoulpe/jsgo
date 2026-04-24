@@ -461,6 +461,20 @@ func (s *TypedScope) GetQualifiedRefinement(qname string) jstype.JSType {
 	return nil
 }
 
+// Go-only: language-adapter — LocalDeclaredNames returns the set of names
+// declared directly in this scope (not parents). Used by ComputeEscaped to
+// identify which variables belong to the function being analysed.
+func (s *TypedScope) LocalDeclaredNames() map[string]*rhino.Node {
+	if s == nil {
+		return nil
+	}
+	out := make(map[string]*rhino.Node, len(s.declared))
+	for name := range s.declared {
+		out[name] = nil // ComputeEscaped only needs the key set
+	}
+	return out
+}
+
 // Go-only: language-adapter — GetRawDeclaredType bypasses the Go refinement stack
 // to see the originally declared type; Java does not need this because FlowScope
 // and TypedScope are separate objects.
