@@ -165,6 +165,7 @@ type AbstractCompiler struct {
 	allowableFeatures interface{}
 }
 
+// Go-only: language-adapter
 // NewAbstractCompiler returns an AbstractCompiler with default options.
 func NewAbstractCompiler(opts *CompilerOptions) *AbstractCompiler {
 	if opts == nil {
@@ -232,7 +233,9 @@ func (c *AbstractCompiler) Report(d diag.Diagnostic) {
 	c.diagnostics = append(c.diagnostics, d)
 }
 
-// Diagnostics returns accumulated diagnostics.
+// Go-only: language-adapter
+// Diagnostics returns accumulated diagnostics. Java's Compiler uses
+// getErrorManager().generateReport() or iterates errors; Go uses a slice.
 func (c *AbstractCompiler) Diagnostics() []diag.Diagnostic {
 	return c.diagnostics
 }
@@ -315,6 +318,7 @@ func (c *AbstractCompiler) IsTypeRegistryCleared() bool {
 	return c.typeRegistryCleared
 }
 
+// Go-only: language-adapter
 // SetTypeRegistryCleared records that the JS type registry has been cleared.
 // Mirrors Java's Compiler.clearJSTypeRegistry() which sets typeRegistryCleared.
 func (c *AbstractCompiler) SetTypeRegistryCleared(cleared bool) {
@@ -335,6 +339,7 @@ func (c *AbstractCompiler) GetScriptNode(filename string) *rhino.Node {
 	return c.scriptsByFilename[filename]
 }
 
+// Go-only: language-adapter
 // RegisterScriptNode registers a SCRIPT-rooted node for the given filename.
 // Mirrors Java's Compiler.scriptNodeByFilename map population during parse.
 func (c *AbstractCompiler) RegisterScriptNode(filename string, n *rhino.Node) {
@@ -347,7 +352,10 @@ func (c *AbstractCompiler) RegisterScriptNode(filename string, n *rhino.Node) {
 // GetSourceFileByName looks up a source file by name.
 // Mirrors Java's AbstractCompiler.getSourceFileByName.
 // Returns nil until SourceFile is ported; source names are tracked via scriptsByFilename.
+// TODO(port): Compiler.getSourceFileByName(String) — requires SourceFile type port
 func (c *AbstractCompiler) GetSourceFileByName(sourceName string) interface{} {
+	// SourceFile not yet ported; check scriptsByFilename as a proxy.
+	_ = sourceName
 	return nil
 }
 
@@ -362,19 +370,26 @@ func (c *AbstractCompiler) PreferRegexParser() bool {
 // AbstractCompiler.parseSyntheticCode.
 // TODO(port): Compiler.parseSyntheticCode(String filename, String code)
 func (c *AbstractCompiler) ParseSyntheticCode(filename, code string) *rhino.Node {
+	// Not yet implemented; requires ParserRunner → AST construction outside JsAst.
+	_ = filename
+	_ = code
 	return nil
 }
 
 // ToSource prints the AST as source. Mirrors Java's AbstractCompiler.toSource.
-// TODO(port): Compiler.toSource()
+// TODO(port): Compiler.toSource() — requires CodePrinter port
 func (c *AbstractCompiler) ToSource() string {
+	// CodePrinter not yet ported. Java delegates to toSource(Node) with jsRoot.
+	_ = c.options
 	return ""
 }
 
 // ToSourceNode prints a single node to source. Mirrors Java's
 // AbstractCompiler.toSource(Node).
-// TODO(port): Compiler.toSource(Node root)
+// TODO(port): Compiler.toSource(Node root) — requires CodePrinter port
 func (c *AbstractCompiler) ToSourceNode(root *rhino.Node) string {
+	// Not yet implemented; requires CodePrinter which is not yet ported.
+	_ = root
 	return ""
 }
 
@@ -388,6 +403,7 @@ func (c *AbstractCompiler) GetNumberOfInputs() int {
 	return c.numberOfInputs
 }
 
+// Go-only: language-adapter
 // SetNumberOfInputs stores the total input count.
 // Mirrors Java's Compiler field numberOfInputs populated during init.
 func (c *AbstractCompiler) SetNumberOfInputs(n int) {
@@ -406,7 +422,8 @@ func (c *AbstractCompiler) GetModuleTypeByName(moduleName string) ModuleType {
 // ---------------------------------------------------------------------------
 
 // AddExportedNames records exported variable names. Mirrors Java's
-// AbstractCompiler.addExportedNames.
+// AbstractCompiler.addExportedNames. Note: Java uses Set<String> while Go uses
+// map[string]bool for idiomatic membership testing.
 func (c *AbstractCompiler) AddExportedNames(names map[string]bool) {
 	for n := range names {
 		c.exportedNames[n] = true
@@ -438,8 +455,10 @@ func (c *AbstractCompiler) GetDefineNames() map[string]bool {
 // Extern exports
 // ---------------------------------------------------------------------------
 
+// Go-only: language-adapter
 // GetExternExports returns the extern exports string.
-// Mirrors Java's Compiler.externExports field.
+// Mirrors Java's Compiler.externExports field. Java exposes this via
+// Compiler.toSource() rather than a direct getter.
 func (c *AbstractCompiler) GetExternExports() string {
 	return c.externExports
 }
@@ -507,6 +526,7 @@ func (c *AbstractCompiler) IsDebugLoggingEnabled() bool {
 	return c.debugLogEnabled
 }
 
+// Go-only: language-adapter
 // SetDebugLoggingEnabled enables or disables debug logging.
 // Mirrors Java's Compiler.isDebugLoggingEnabled (controlled by options.getDebugLogDirectory).
 func (c *AbstractCompiler) SetDebugLoggingEnabled(enabled bool) {
@@ -519,6 +539,7 @@ func (c *AbstractCompiler) GetDebugLogFilterList() []string {
 	return c.debugLogFilterList
 }
 
+// Go-only: language-adapter
 // SetDebugLogFilterList stores the debug-log filter list.
 // Mirrors Java's Compiler.getDebugLogFilterList (driven by options.getDebugLogDirectory).
 func (c *AbstractCompiler) SetDebugLogFilterList(list []string) {
@@ -595,8 +616,9 @@ func (c *AbstractCompiler) SetVariableMap(m interface{}) {
 	c.variableMap = m
 }
 
-// GetVariableMap returns the variable renaming map. Mirrors Java's
-// Compiler.variableMap field.
+// Go-only: language-adapter
+// GetVariableMap returns the variable renaming map. Java accesses the VariableMap
+// via Result.variableRenaming; Go exposes it directly.
 func (c *AbstractCompiler) GetVariableMap() interface{} {
 	return c.variableMap
 }
@@ -607,8 +629,9 @@ func (c *AbstractCompiler) SetPropertyMap(m interface{}) {
 	c.propertyMap = m
 }
 
-// GetPropertyMap returns the property renaming map. Mirrors Java's
-// Compiler.propertyMap field.
+// Go-only: language-adapter
+// GetPropertyMap returns the property renaming map. Java accesses the VariableMap
+// via Result.propertyRenaming; Go exposes it directly.
 func (c *AbstractCompiler) GetPropertyMap() interface{} {
 	return c.propertyMap
 }
@@ -619,8 +642,9 @@ func (c *AbstractCompiler) SetStringMap(m interface{}) {
 	c.stringMap = m
 }
 
+// Go-only: language-adapter
 // GetStringMap returns the string replacement map.
-// Mirrors Java's Compiler.stringMap field.
+// Java accesses this via Result.stringMap; Go exposes it directly.
 func (c *AbstractCompiler) GetStringMap() interface{} {
 	return c.stringMap
 }
@@ -631,8 +655,9 @@ func (c *AbstractCompiler) SetCssNames(names map[string]bool) {
 	c.cssNames = names
 }
 
+// Go-only: language-adapter
 // GetCssNames returns the CSS names found during compilation.
-// Mirrors Java's Compiler.cssNames field.
+// Java accesses this via Result.cssNames; Go exposes it directly.
 func (c *AbstractCompiler) GetCssNames() map[string]bool {
 	return c.cssNames
 }
@@ -649,8 +674,9 @@ func (c *AbstractCompiler) SetIdGeneratorMap(serialized string) {
 	c.idGeneratorMap = serialized
 }
 
+// Go-only: language-adapter
 // GetIdGeneratorMap returns the serialized ID generator map.
-// Mirrors Java's Compiler.idGeneratorMap field.
+// Java accesses this via Result.idRenaming; Go exposes it directly.
 func (c *AbstractCompiler) GetIdGeneratorMap() string {
 	return c.idGeneratorMap
 }
@@ -661,8 +687,9 @@ func (c *AbstractCompiler) GetTranspiledFiles() bool {
 	return c.transpiledFiles
 }
 
+// Go-only: language-adapter
 // SetTranspiledFiles stores whether any file needed transpilation.
-// Mirrors Java's Compiler.transpiledFiles field.
+// Java sets this field internally during transpilation passes.
 func (c *AbstractCompiler) SetTranspiledFiles(v bool) {
 	c.transpiledFiles = v
 }
@@ -673,8 +700,9 @@ func (c *AbstractCompiler) SetAnonymousFunctionNameMap(m interface{}) {
 	c.anonymousFunctionNameMap = m
 }
 
+// Go-only: language-adapter
 // GetAnonymousFunctionNameMap returns the anonymous function naming map.
-// Mirrors Java's Compiler.anonymousFunctionNameMap field.
+// Java accesses this via Result.functionNames; Go exposes it directly.
 func (c *AbstractCompiler) GetAnonymousFunctionNameMap() interface{} {
 	return c.anonymousFunctionNameMap
 }
@@ -692,8 +720,9 @@ func (c *AbstractCompiler) AddInputSourceMap(name string, sourceMap interface{})
 	c.inputSourceMaps[name] = sourceMap
 }
 
+// Go-only: language-adapter
 // GetInputSourceMap returns the SourceMapInput for the given source file, or nil.
-// Mirrors Java's Compiler.inputSourceMaps.get(name).
+// Java accesses inputSourceMaps directly in Compiler; Go needs an explicit getter.
 func (c *AbstractCompiler) GetInputSourceMap(name string) interface{} {
 	if c.inputSourceMaps == nil {
 		return nil
@@ -705,6 +734,8 @@ func (c *AbstractCompiler) GetInputSourceMap(name string) interface{} {
 // Mirrors Java's AbstractCompiler.getBase64SourceMapContents.
 // TODO(port): Compiler.getBase64SourceMapContents(String sourceFileName) — requires SourceMap port
 func (c *AbstractCompiler) GetBase64SourceMapContents(sourceFileName string) string {
+	// Not yet implemented; requires SourceMap / SourceMapInput types.
+	_ = sourceFileName
 	return ""
 }
 
@@ -785,8 +816,9 @@ func (c *AbstractCompiler) GetCrossChunkIdGenerator() interface{} {
 	return c.crossChunkIdGenerator
 }
 
+// Go-only: language-adapter
 // SetCrossChunkIdGenerator stores the cross-chunk ID generator.
-// Mirrors Java's Compiler.crossChunkIdGenerator field.
+// Java initialises this inside Compiler(); Go needs an explicit setter.
 func (c *AbstractCompiler) SetCrossChunkIdGenerator(gen interface{}) {
 	c.crossChunkIdGenerator = gen
 }
@@ -822,8 +854,9 @@ func (c *AbstractCompiler) ReportDisambiguatePropertiesSummary(summary func() st
 	c.disambiguatePropertiesSummary = summary
 }
 
+// Go-only: language-adapter
 // GetDisambiguatePropertiesSummary returns the recorded disambiguation summary.
-// Mirrors Java's Compiler.disambiguatePropertiesSummary field.
+// Java logs this via Tracer; Go exposes it as a string getter.
 func (c *AbstractCompiler) GetDisambiguatePropertiesSummary() string {
 	if c.disambiguatePropertiesSummary == nil {
 		return ""
@@ -837,8 +870,9 @@ func (c *AbstractCompiler) ReportAmbiguatePropertiesSummary(summary func() strin
 	c.ambiguatePropertiesSummary = summary
 }
 
+// Go-only: language-adapter
 // GetAmbiguatePropertiesSummary returns the recorded ambiguate summary.
-// Mirrors Java's Compiler.ambiguatePropertiesSummary field.
+// Java logs this via Tracer; Go exposes it as a string getter.
 func (c *AbstractCompiler) GetAmbiguatePropertiesSummary() string {
 	if c.ambiguatePropertiesSummary == nil {
 		return ""
@@ -888,6 +922,10 @@ func (c *AbstractCompiler) MarkFeatureSetNotAllowed(featureSet interface{}) {
 // compilation state. Mirrors Java's AbstractCompiler.createAstFactory.
 // TODO(port): Compiler.createAstFactory() — requires AstFactory port
 func (c *AbstractCompiler) CreateAstFactory() interface{} {
+	// AstFactory not yet ported. Java checks hasTypeCheckingRun() to decide
+	// whether to inject type information.
+	withTypes := c.HasTypeCheckingRun()
+	_ = withTypes
 	return nil
 }
 
@@ -895,6 +933,8 @@ func (c *AbstractCompiler) CreateAstFactory() interface{} {
 // information. Mirrors Java's AbstractCompiler.createAstFactoryWithoutTypes.
 // TODO(port): Compiler.createAstFactoryWithoutTypes() — requires AstFactory port
 func (c *AbstractCompiler) CreateAstFactoryWithoutTypes() interface{} {
+	// AstFactory not yet ported. Java creates AstFactory.createFactoryWithoutTypes().
+	_ = c.options
 	return nil
 }
 
@@ -902,6 +942,8 @@ func (c *AbstractCompiler) CreateAstFactoryWithoutTypes() interface{} {
 // Mirrors Java's AbstractCompiler.getAstAnalyzer.
 // TODO(port): Compiler.getAstAnalyzer() — requires AstAnalyzer port
 func (c *AbstractCompiler) GetAstAnalyzer() interface{} {
+	// AstAnalyzer not yet ported. Java creates new AstAnalyzer(this, options).
+	_ = c.options
 	return nil
 }
 
