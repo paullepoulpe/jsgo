@@ -301,6 +301,8 @@ Promise.all = function(iterable) {};
 Promise.race = function(iterable) {};
 /** @param {!Iterable} iterable @return {!Promise} */
 Promise.allSettled = function(iterable) {};
+/** @param {!Iterable} iterable @return {!Promise} */
+Promise.any = function(iterable) {};
 
 /**
  * @constructor
@@ -355,6 +357,23 @@ function WeakSet(opt_iter) {}
 /** @param {VALUE} value @return {!WeakSet<VALUE>} */ WeakSet.prototype.add = function(value) {};
 /** @param {VALUE} value @return {boolean} */ WeakSet.prototype.has = function(value) {};
 /** @param {VALUE} value @return {boolean} */ WeakSet.prototype.delete = function(value) {};
+
+/**
+ * @constructor
+ * @template T
+ * @param {T} target
+ */
+function WeakRef(target) {}
+/** @return {T|undefined} */ WeakRef.prototype.deref = function() {};
+
+/**
+ * @constructor
+ * @template T
+ * @param {function(T): void} callback
+ */
+function FinalizationRegistry(callback) {}
+/** @param {T} target @param {*} heldValue @param {*=} unregisterToken */ FinalizationRegistry.prototype.register = function(target, heldValue, unregisterToken) {};
+/** @param {*} unregisterToken @return {boolean} */ FinalizationRegistry.prototype.unregister = function(unregisterToken) {};
 
 /** @constructor */ function Proxy(target, handler) {}
 /** @const */ var Reflect;
@@ -575,9 +594,31 @@ Element.prototype.removeEventListener = function(type, listener, opt_capture) {}
 /** @constructor @extends {Element} */ function HTMLElement() {}
 /** @type {string} */ HTMLElement.prototype.style;
 /** @type {string} */ HTMLElement.prototype.innerText;
+/** @type {string} */ HTMLElement.prototype.title;
+/** @type {boolean} */ HTMLElement.prototype.hidden;
+/** @type {boolean} */ HTMLElement.prototype.draggable;
+/** @type {string} */ HTMLElement.prototype.lang;
+/** @type {string} */ HTMLElement.prototype.dir;
+/** @type {!DOMStringMap} */ HTMLElement.prototype.dataset;
+/** @type {number} */ HTMLElement.prototype.tabIndex;
+/** @type {number} */ HTMLElement.prototype.offsetWidth;
+/** @type {number} */ HTMLElement.prototype.offsetHeight;
+/** @type {number} */ HTMLElement.prototype.offsetTop;
+/** @type {number} */ HTMLElement.prototype.offsetLeft;
+/** @type {number} */ HTMLElement.prototype.scrollTop;
+/** @type {number} */ HTMLElement.prototype.scrollLeft;
+/** @type {number} */ HTMLElement.prototype.scrollWidth;
+/** @type {number} */ HTMLElement.prototype.scrollHeight;
+/** @type {number} */ HTMLElement.prototype.clientWidth;
+/** @type {number} */ HTMLElement.prototype.clientHeight;
 HTMLElement.prototype.click = function() {};
-HTMLElement.prototype.focus = function() {};
+/** @param {FocusOptions=} options */ HTMLElement.prototype.focus = function(options) {};
 HTMLElement.prototype.blur = function() {};
+/** @return {!DOMRect} */ HTMLElement.prototype.getBoundingClientRect = function() {};
+/** @param {*=} options */ HTMLElement.prototype.scrollIntoView = function(options) {};
+/** @return {boolean} */ HTMLElement.prototype.contains = function(other) {};
+HTMLElement.prototype.remove = function() {};
+/** @param {string} cls */ HTMLElement.prototype.dispatchEvent = function(evt) {};
 
 /** @constructor @extends {HTMLElement} */ function HTMLDivElement() {}
 /** @constructor @extends {HTMLElement} */ function HTMLSpanElement() {}
@@ -622,4 +663,121 @@ Window.prototype.clearTimeout = function(id) {};
 Window.prototype.clearInterval = function(id) {};
 Window.prototype.addEventListener = function(type, listener, opt_capture) {};
 Window.prototype.removeEventListener = function(type, listener, opt_capture) {};
+/** @return {*} */ Window.prototype.fetch = function(url, opt_init) {};
+/** @return {number} */ Window.prototype.requestAnimationFrame = function(cb) {};
+/** @return {void} */ Window.prototype.cancelAnimationFrame = function(id) {};
+/** @return {void} */ Window.prototype.cancelTimeout = function(id) {};
+/** @return {void} */ Window.prototype.postMessage = function(msg, targetOrigin, opt_transfer) {};
+Window.prototype.dispatchEvent = function(evt) {};
+Window.prototype.prompt = function(msg, opt_default) {};
+
+// ---- ES2022 / Web Platform additions ----------------------------- //
+
+/** @constructor */ function DOMRect() {}
+/** @type {number} */ DOMRect.prototype.x;
+/** @type {number} */ DOMRect.prototype.y;
+/** @type {number} */ DOMRect.prototype.width;
+/** @type {number} */ DOMRect.prototype.height;
+/** @type {number} */ DOMRect.prototype.top;
+/** @type {number} */ DOMRect.prototype.right;
+/** @type {number} */ DOMRect.prototype.bottom;
+/** @type {number} */ DOMRect.prototype.left;
+
+/** @constructor */ function DOMStringMap() {}
+
+/** @constructor */ function Response() {}
+/** @type {boolean} */ Response.prototype.ok;
+/** @type {number} */ Response.prototype.status;
+/** @type {string} */ Response.prototype.statusText;
+/** @type {string} */ Response.prototype.url;
+/** @type {boolean} */ Response.prototype.redirected;
+/** @type {string} */ Response.prototype.type;
+/** @return {!Promise} */ Response.prototype.json = function() {};
+/** @return {!Promise} */ Response.prototype.text = function() {};
+/** @return {!Promise} */ Response.prototype.arrayBuffer = function() {};
+/** @return {!Promise} */ Response.prototype.blob = function() {};
+/** @return {!Promise} */ Response.prototype.formData = function() {};
+
+/** @constructor */ function Request(input, opt_init) {}
+/** @type {string} */ Request.prototype.url;
+/** @type {string} */ Request.prototype.method;
+
+/** @constructor */ function Headers(opt_init) {}
+/** @param {string} name @return {string|null} */ Headers.prototype.get = function(name) {};
+/** @param {string} name @param {string} value */ Headers.prototype.set = function(name, value) {};
+/** @param {string} name @param {string} value */ Headers.prototype.append = function(name, value) {};
+/** @param {string} name */ Headers.prototype.delete = function(name) {};
+/** @param {string} name @return {boolean} */ Headers.prototype.has = function(name) {};
+
+/** @constructor */ function URL(url, opt_base) {}
+/** @type {string} */ URL.prototype.href;
+/** @type {string} */ URL.prototype.origin;
+/** @type {string} */ URL.prototype.protocol;
+/** @type {string} */ URL.prototype.host;
+/** @type {string} */ URL.prototype.hostname;
+/** @type {string} */ URL.prototype.port;
+/** @type {string} */ URL.prototype.pathname;
+/** @type {string} */ URL.prototype.search;
+/** @type {string} */ URL.prototype.hash;
+/** @type {string} */ URL.prototype.username;
+/** @type {string} */ URL.prototype.password;
+/** @return {string} */ URL.prototype.toString = function() {};
+URL.createObjectURL = function(obj) {};
+URL.revokeObjectURL = function(url) {};
+
+/** @constructor */ function URLSearchParams(opt_init) {}
+/** @param {string} name @return {string|null} */ URLSearchParams.prototype.get = function(name) {};
+/** @param {string} name @return {!Array<string>} */ URLSearchParams.prototype.getAll = function(name) {};
+/** @param {string} name @param {string} value */ URLSearchParams.prototype.set = function(name, value) {};
+/** @param {string} name @param {string} value */ URLSearchParams.prototype.append = function(name, value) {};
+/** @param {string} name */ URLSearchParams.prototype.delete = function(name) {};
+/** @param {string} name @return {boolean} */ URLSearchParams.prototype.has = function(name) {};
+/** @return {string} */ URLSearchParams.prototype.toString = function() {};
+
+/** @constructor */ function AbortController() {}
+/** @type {!AbortSignal} */ AbortController.prototype.signal;
+AbortController.prototype.abort = function() {};
+
+/** @constructor */ function AbortSignal() {}
+/** @type {boolean} */ AbortSignal.prototype.aborted;
+
+/** @constructor */ function MutationObserver(callback) {}
+MutationObserver.prototype.observe = function(target, options) {};
+MutationObserver.prototype.disconnect = function() {};
+
+/** @constructor */ function IntersectionObserver(callback, opt_options) {}
+IntersectionObserver.prototype.observe = function(target) {};
+IntersectionObserver.prototype.unobserve = function(target) {};
+IntersectionObserver.prototype.disconnect = function() {};
+
+/** @constructor */ function ResizeObserver(callback) {}
+ResizeObserver.prototype.observe = function(target, opt_options) {};
+ResizeObserver.prototype.unobserve = function(target) {};
+ResizeObserver.prototype.disconnect = function() {};
+
+/** @constructor */ function CustomEvent(type, opt_init) {}
+/** @type {*} */ CustomEvent.prototype.detail;
+
+/** @constructor @extends {HTMLElement} */ function HTMLCanvasElement() {}
+/** @type {number} */ HTMLCanvasElement.prototype.width;
+/** @type {number} */ HTMLCanvasElement.prototype.height;
+HTMLCanvasElement.prototype.getContext = function(type, opt_attrs) {};
+HTMLCanvasElement.prototype.toDataURL = function(opt_type, opt_quality) {};
+
+/** @constructor @extends {HTMLElement} */ function HTMLVideoElement() {}
+/** @type {string} */ HTMLVideoElement.prototype.src;
+/** @type {number} */ HTMLVideoElement.prototype.currentTime;
+/** @type {number} */ HTMLVideoElement.prototype.duration;
+/** @type {boolean} */ HTMLVideoElement.prototype.paused;
+/** @type {number} */ HTMLVideoElement.prototype.volume;
+HTMLVideoElement.prototype.play = function() {};
+HTMLVideoElement.prototype.pause = function() {};
+
+/** @constructor @extends {HTMLElement} */ function HTMLAudioElement() {}
+/** @type {string} */ HTMLAudioElement.prototype.src;
+/** @type {boolean} */ HTMLAudioElement.prototype.paused;
+/** @type {number} */ HTMLAudioElement.prototype.volume;
+HTMLAudioElement.prototype.play = function() {};
+HTMLAudioElement.prototype.pause = function() {};
+
 `
