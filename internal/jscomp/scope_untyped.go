@@ -38,8 +38,9 @@ type UntypedScope struct {
 	implicitVars map[ImplicitVar]*UntypedVar
 }
 
-// CreateGlobalUntypedScope creates a root scope at the given SCRIPT or ROOT node.
-// Mirrors Scope.createGlobalScope(Node) in Java.
+// Go-only: language-adapter — CreateGlobalUntypedScope is the Go name for
+// Scope.createGlobalScope(Node); the "Untyped" prefix distinguishes it from
+// the TypedScope factory CreateGlobalTypedScope.
 func CreateGlobalUntypedScope(rootNode *rhino.Node) *UntypedScope {
 	return &UntypedScope{
 		AbstractScopeBase: AbstractScopeBase{rootNode: rootNode},
@@ -48,8 +49,9 @@ func CreateGlobalUntypedScope(rootNode *rhino.Node) *UntypedScope {
 	}
 }
 
-// CreateChildUntypedScope creates a child scope under parent at rootNode.
-// Mirrors Scope.createChildScope(Scope, Node) in Java.
+// Go-only: language-adapter — CreateChildUntypedScope is the Go name for
+// Scope.createChildScope(Scope, Node); the "Untyped" prefix avoids collision
+// with the TypedScope child-creation path.
 func CreateChildUntypedScope(parent *UntypedScope, rootNode *rhino.Node) *UntypedScope {
 	return &UntypedScope{
 		AbstractScopeBase: AbstractScopeBase{rootNode: rootNode},
@@ -62,8 +64,9 @@ func CreateChildUntypedScope(parent *UntypedScope, rootNode *rhino.Node) *Untype
 // AbstractScope interface implementation
 // ---------------------------------------------------------------------------
 
-// GetParentScope satisfies AbstractScope.
-// Mirrors AbstractScope.getParentScope() / getParent() in Java.
+// Go-only: language-adapter — GetParentScope returns AbstractScope so UntypedScope
+// satisfies the AbstractScope interface; Java's getParentScope() is final on
+// AbstractScope and delegates to the concrete getParent().
 func (s *UntypedScope) GetParentScope() AbstractScope {
 	if s.parent == nil {
 		return nil
@@ -170,9 +173,9 @@ func (s *UntypedScope) HasSlot(name string) bool {
 	return s.GetSlot(name) != nil
 }
 
-// RemoveVar removes the variable with the given name from this scope.
-// Mirrors Scope.undeclare(Var) in Java. Used by SyntacticScopeCreator when
-// an implicit goog namespace is superseded by an explicit declaration.
+// Go-only: language-adapter — RemoveVar is the Go name for Scope.undeclare(Var);
+// it takes a string rather than a Var pointer since UntypedVar management
+// differs from Java's final undeclare(V var) which checks getScope() == this.
 func (s *UntypedScope) RemoveVar(name string) {
 	if s.vars != nil {
 		delete(s.vars, name)
@@ -216,9 +219,9 @@ func (s *UntypedScope) GetClosestHoistScope() *UntypedScope {
 	return nil
 }
 
-// getOrMakeImplicitVar lazily creates the implicit variable for the given
-// ImplicitVar kind and caches it. Mirrors AbstractScope.getOwnImplicitSlot
-// in Java.
+// Go-only: language-adapter — getOrMakeImplicitVar combines Java's
+// getOwnImplicitSlot(ImplicitVar) and makeImplicitVar(ImplicitVar) into
+// a single lazy-init helper; Java uses computeIfAbsent on the implicitVars map.
 func (s *UntypedScope) getOrMakeImplicitVar(iv ImplicitVar) *UntypedVar {
 	if s.implicitVars == nil {
 		s.implicitVars = make(map[ImplicitVar]*UntypedVar)

@@ -39,8 +39,8 @@ type UntypedVar struct {
 	scope *UntypedScope
 }
 
-// newUntypedVar creates a variable declared at nameNode in the given scope.
-// Mirrors the package-private Var constructor in Java.
+// Go-only: language-adapter — newUntypedVar is the Go constructor for UntypedVar;
+// Java uses the package-private Var(name, nameNode, scope, index, input, null) constructor.
 func newUntypedVar(name string, nameNode *rhino.Node, scope *UntypedScope, index int) *UntypedVar {
 	return &UntypedVar{
 		AbstractVarBase: AbstractVarBase{
@@ -52,9 +52,9 @@ func newUntypedVar(name string, nameNode *rhino.Node, scope *UntypedScope, index
 	}
 }
 
-// createImplicitGoogNamespace creates a Var that represents an implicit
-// goog.provide or legacy goog.module namespace (no real AST nameNode).
-// Mirrors Var.createImplicitGoogNamespace in Java.
+// Go-only: language-adapter — createUntypedImplicitGoogNamespace is the Go name for
+// the factory that Java calls Var.createImplicitGoogNamespace(name, scope, definition).
+// The "Untyped" prefix distinguishes it from a future TypedVar equivalent.
 func createUntypedImplicitGoogNamespace(name string, scope *UntypedScope, definition *rhino.Node) *UntypedVar {
 	return &UntypedVar{
 		AbstractVarBase: AbstractVarBase{

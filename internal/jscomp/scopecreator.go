@@ -44,23 +44,22 @@ type assertNoScopesCreated struct{}
 // that must not create scopes.
 var AssertNoUntypedScopesCreated UntypedScopeCreator = assertNoScopesCreated{}
 
-// CreateUntypedScope panics unconditionally.
-// Mirrors ScopeCreator.ASSERT_NO_SCOPES_CREATED.createScope in Java.
+// Go-only: language-adapter — CreateUntypedScope is the Go name for Java's
+// createScope; the "Untyped" prefix distinguishes it from the typed scope
+// creation path. Java uses a single createScope(Node, AbstractScope) signature.
 func (assertNoScopesCreated) CreateUntypedScope(_ *rhino.Node, _ *UntypedScope) *UntypedScope {
 	panic("ScopeCreator.ASSERT_NO_SCOPES_CREATED: no scopes may be created by this traversal")
 }
 
-// SimpleScopeCreator is a minimal UntypedScopeCreator that creates
-// UntypedScopes by walking the AST and recording variable declarations.
-// It mirrors the behaviour of SyntacticScopeCreator (which implements
-// ScopeCreator) but without the full JSDoc / implicit-namespace support.
-//
-// Mirrors com/google/javascript/jscomp/SyntacticScopeCreator.java (simplified).
+// Go-only: language-adapter — SimpleScopeCreator is a lightweight Go-only scope
+// creator used internally; Java uses SyntacticScopeCreator (a separate class)
+// for the full scope-building logic. The split exists because Go can't implement
+// the ScopeCreator interface with a stateful SyntacticScopeCreator directly.
 type SimpleScopeCreator struct{}
 
-// CreateUntypedScope creates a new UntypedScope for the given AST node.
-// Variables declared with var/let/const/function/class within that node
-// (at the appropriate hoist level) are declared in the new scope.
+// Go-only: language-adapter — CreateUntypedScope implements ScopeCreator.createScope
+// for UntypedScope; the "Untyped" prefix is a Go-only distinction since Java's
+// createScope returns AbstractScope<?> and the type is inferred at the call site.
 func (c SimpleScopeCreator) CreateUntypedScope(n *rhino.Node, parent *UntypedScope) *UntypedScope {
 	var scope *UntypedScope
 	if parent == nil {
@@ -72,8 +71,8 @@ func (c SimpleScopeCreator) CreateUntypedScope(n *rhino.Node, parent *UntypedSco
 	return scope
 }
 
-// walkAndDeclare visits the subtree rooted at n and declares variables into
-// scope. Only top-level (non-nested function/class) declarations are visited.
+// Go-only: language-adapter — walkAndDeclare implements the AST traversal for
+// SimpleScopeCreator; Java inlines this logic in SyntacticScopeCreator.declareLHS.
 func walkAndDeclare(n *rhino.Node, scope *UntypedScope) {
 	if n == nil {
 		return
@@ -102,7 +101,8 @@ func walkAndDeclare(n *rhino.Node, scope *UntypedScope) {
 	}
 }
 
-// declareNameDeclaration declares all NAME children of a VAR/LET/CONST node.
+// Go-only: language-adapter — declareNameDeclaration handles VAR/LET/CONST
+// children; Java's SyntacticScopeCreator.declareLHS handles this inline.
 func declareNameDeclaration(decl *rhino.Node, scope *UntypedScope) {
 	for child := decl.FirstChild(); child != nil; child = child.Next() {
 		if child.Token() == rhino.NAME && child.String_() != "" {

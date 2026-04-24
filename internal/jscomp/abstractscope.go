@@ -52,8 +52,9 @@ const (
 	ImplicitVarThis
 )
 
-// implicitVarName returns the JavaScript name for an ImplicitVar value.
-// Mirrors ImplicitVar.name in Java.
+// Go-only: language-adapter — implicitVarName provides the enum-constant name
+// as a function; Java accesses it as the ImplicitVar.name field directly since
+// Java enums are objects with accessible instance fields.
 func implicitVarName(v ImplicitVar) string {
 	switch v {
 	case ImplicitVarArguments:
@@ -68,9 +69,8 @@ func implicitVarName(v ImplicitVar) string {
 	return ""
 }
 
-// implicitVarOf maps a JavaScript name to its ImplicitVar constant, or
-// returns -1 if the name is not an implicit variable.
-// Mirrors ImplicitVar.of(String) in Java.
+// Go-only: language-adapter — implicitVarOf returns (value, ok) rather than
+// a nullable ImplicitVar; Java's ImplicitVar.of(String) returns @Nullable ImplicitVar.
 func implicitVarOf(name string) (ImplicitVar, bool) {
 	switch name {
 	case "arguments":
@@ -85,9 +85,10 @@ func implicitVarOf(name string) (ImplicitVar, bool) {
 	return 0, false
 }
 
-// implicitVarIsMadeByScope reports whether this kind of implicit variable
-// is created and owned by the given scope root node.
-// Mirrors ImplicitVar.isMadeByScope(AbstractScope) in Java.
+// Go-only: language-adapter — implicitVarIsMadeByScope takes a rootNode rather
+// than a full scope; Java's ImplicitVar.isMadeByScope(AbstractScope) calls scope
+// predicates directly on the scope object. The Go version accepts a Node to
+// avoid circular dependency between scope types.
 func implicitVarIsMadeByScope(v ImplicitVar, rootNode *rhino.Node) bool {
 	if rootNode == nil {
 		return false
@@ -257,9 +258,13 @@ func (b *AbstractScopeBase) IsMemberFieldDefScope() bool {
 }
 
 // IsComputedFieldDefRhsScope reports whether this scope's root is a computed
-// field definition RHS. Mirrors AbstractScope.isComputedFieldDefRhsScope.
-// Our AST does not have a dedicated COMPUTED_FIELD_DEF token; returns false.
+// field definition RHS. Mirrors AbstractScope.isComputedFieldDefRhsScope() in Java.
+// The Go AST uses BLOCK for all class-body member scopes and does not distinguish
+// computed field def RHS; returns false as a conservative default.
 func (b *AbstractScopeBase) IsComputedFieldDefRhsScope() bool {
+	// TODO(port): AbstractScope.isComputedFieldDefRhsScope from AbstractScope.java:345
+	// Reason: language-adapter — the rhino Go port does not emit a separate
+	// COMPUTED_FIELD_DEF token; computed class fields resolve to BLOCK nodes.
 	return false
 }
 
@@ -267,9 +272,8 @@ func (b *AbstractScopeBase) IsComputedFieldDefRhsScope() bool {
 // NodeUtil helpers used by AbstractScopeBase
 // ---------------------------------------------------------------------------
 
-// nodeCreatesBlockScope mirrors NodeUtil.createsBlockScope for the minimal set
-// of tokens we need.  The full Java version handles a wider token set; this is
-// the subset relevant to ES2015+ block scoping.
+// Go-only: language-adapter — nodeCreatesBlockScope wraps NodeUtil.createsBlockScope;
+// Java calls NodeUtil.createsBlockScope(n) directly as a static method.
 func nodeCreatesBlockScope(n *rhino.Node) bool {
 	if n == nil {
 		return false
@@ -283,9 +287,8 @@ func nodeCreatesBlockScope(n *rhino.Node) bool {
 	return false
 }
 
-// nodeIsClassStaticBlock reports whether n is the root of a class static
-// initializer block. Mirrors NodeUtil.isClassStaticBlock in Java.
-// Class static blocks are BLOCK nodes whose parent is CLASS_MEMBERS.
+// Go-only: language-adapter — nodeIsClassStaticBlock wraps NodeUtil.isClassStaticBlock;
+// Java calls NodeUtil.isClassStaticBlock(n) as a static method.
 func nodeIsClassStaticBlock(n *rhino.Node) bool {
 	if n == nil || n.Token() != rhino.BLOCK {
 		return false
@@ -294,9 +297,8 @@ func nodeIsClassStaticBlock(n *rhino.Node) bool {
 	return p != nil && p.Token() == rhino.CLASS_MEMBERS
 }
 
-// nodeIsValidCfgRoot reports whether n is a valid root for a ControlFlowGraph.
-// Valid roots are: FUNCTION, SCRIPT, MODULE_BODY, and class static blocks.
-// Mirrors NodeUtil.isValidCfgRoot in Java.
+// Go-only: language-adapter — nodeIsValidCfgRoot wraps NodeUtil.isValidCfgRoot;
+// Java calls NodeUtil.isValidCfgRoot(n) as a static method.
 func nodeIsValidCfgRoot(n *rhino.Node) bool {
 	if n == nil {
 		return false
@@ -308,13 +310,8 @@ func nodeIsValidCfgRoot(n *rhino.Node) bool {
 	return nodeIsClassStaticBlock(n)
 }
 
-// nodeIsNonArrowFunction reports whether n is a non-arrow FUNCTION node.
-// Arrow functions do not bind their own `this`/`arguments`/`super`.
-// Mirrors NodeUtil.isNonArrowFunction in Java.
-// We approximate: if the FUNCTION node's JSDoc or structure indicates arrow,
-// treat it as arrow. For now, we rely on parent context:
-// arrow functions have ARROW token in the parsed AST (if our parser emits one).
-// Fall back: all FUNCTION nodes are non-arrow unless the parent context differs.
+// Go-only: language-adapter — nodeIsNonArrowFunction wraps NodeUtil.isNonArrowFunction;
+// Java calls the static method directly while Go needs a package-level function.
 func nodeIsNonArrowFunction(n *rhino.Node) bool {
 	if n == nil {
 		return false
@@ -329,8 +326,9 @@ func nodeIsNonArrowFunction(n *rhino.Node) bool {
 // Scope-chain walk helpers (standalone, work on AbstractScope interface)
 // ---------------------------------------------------------------------------
 
-// ScopeContains reports whether `outer` contains or equals `inner`.
-// Mirrors AbstractScope.contains(S other) in Java.
+// Go-only: language-adapter — ScopeContains provides the AbstractScope.contains()
+// method as a standalone function so it works on the AbstractScope interface;
+// Java calls s.contains(other) as an instance method on a concrete scope type.
 func ScopeContains(outer, inner AbstractScope) bool {
 	for s := inner; s != nil; s = s.GetParentScope() {
 		if s == outer {
@@ -340,8 +338,8 @@ func ScopeContains(outer, inner AbstractScope) bool {
 	return false
 }
 
-// ScopeGetGlobalScope walks up to the global scope.
-// Mirrors AbstractScope.getGlobalScope() in Java.
+// Go-only: language-adapter — ScopeGetGlobalScope provides getGlobalScope() on
+// the AbstractScope interface; Java calls s.getGlobalScope() as a final instance method.
 func ScopeGetGlobalScope(s AbstractScope) AbstractScope {
 	for s.GetParentScope() != nil {
 		s = s.GetParentScope()
@@ -349,8 +347,8 @@ func ScopeGetGlobalScope(s AbstractScope) AbstractScope {
 	return s
 }
 
-// ScopeGetClosestHoistScope walks up to the nearest hoist scope.
-// Mirrors AbstractScope.getClosestHoistScope() in Java.
+// Go-only: language-adapter — ScopeGetClosestHoistScope provides getClosestHoistScope()
+// on the AbstractScope interface; Java uses a final instance method.
 func ScopeGetClosestHoistScope(s AbstractScope) AbstractScope {
 	for cur := s; cur != nil; cur = cur.GetParentScope() {
 		if cur.IsHoistScope() {
@@ -360,10 +358,9 @@ func ScopeGetClosestHoistScope(s AbstractScope) AbstractScope {
 	return nil
 }
 
-// ScopeGetClosestContainerScope returns the closest container (non-block) scope.
-// A container scope is any hoist scope that is not a function-block scope
-// (i.e. the FUNCTION node scope, global scope, or module scope).
-// Mirrors AbstractScope.getClosestContainerScope() in Java.
+// Go-only: language-adapter — ScopeGetClosestContainerScope provides
+// getClosestContainerScope() on the AbstractScope interface; Java uses a final
+// instance method on AbstractScope.
 func ScopeGetClosestContainerScope(s AbstractScope) AbstractScope {
 	scope := ScopeGetClosestHoistScope(s)
 	if scope == nil {
@@ -375,9 +372,9 @@ func ScopeGetClosestContainerScope(s AbstractScope) AbstractScope {
 	return scope
 }
 
-// ScopeGetClosestCfgRootScope walks up to the closest scope whose root is
-// a valid CFG root (FUNCTION, SCRIPT, MODULE_BODY, or static block).
-// Mirrors AbstractScope.getClosestCfgRootScope() in Java.
+// Go-only: language-adapter — ScopeGetClosestCfgRootScope provides
+// getClosestCfgRootScope() on the AbstractScope interface; Java uses a final
+// instance method on AbstractScope.
 func ScopeGetClosestCfgRootScope(s AbstractScope) AbstractScope {
 	for cur := s; cur != nil; cur = cur.GetParentScope() {
 		if cur.IsCfgRootScope() {
@@ -387,9 +384,8 @@ func ScopeGetClosestCfgRootScope(s AbstractScope) AbstractScope {
 	return s
 }
 
-// ScopeGetScopeOfThis returns the closest container scope in which `this`
-// is bound — either the global scope or the nearest non-arrow function scope.
-// Mirrors AbstractScope.getScopeOfThis() in Java.
+// Go-only: language-adapter — ScopeGetScopeOfThis provides getScopeOfThis()
+// on the AbstractScope interface; Java uses a final instance method on AbstractScope.
 func ScopeGetScopeOfThis(s AbstractScope) AbstractScope {
 	scope := ScopeGetClosestContainerScope(s)
 	for scope != nil && !scope.IsGlobal() && !scope.IsFunctionScope() {
@@ -398,8 +394,9 @@ func ScopeGetScopeOfThis(s AbstractScope) AbstractScope {
 	return scope
 }
 
-// ScopeGetCommonParent returns the nearest common ancestor of two scopes.
-// Mirrors AbstractScope.getCommonParent(S other) in Java.
+// Go-only: language-adapter — ScopeGetCommonParent provides getCommonParent()
+// on the AbstractScope interface; Java uses an instance method that returns S
+// (the concrete scope type).
 func ScopeGetCommonParent(a, b AbstractScope) AbstractScope {
 	left := a
 	right := b
@@ -419,9 +416,9 @@ func ScopeGetCommonParent(a, b AbstractScope) AbstractScope {
 	return nil
 }
 
-// ScopeHasSameContainerScope reports whether two scopes share the same
-// container scope (are in the same function, or both in the global scope).
-// Mirrors AbstractScope.hasSameContainerScope(S other) in Java.
+// Go-only: language-adapter — ScopeHasSameContainerScope provides
+// hasSameContainerScope() on the AbstractScope interface; Java uses an instance
+// method on AbstractScope that takes a concrete S typed other scope.
 func ScopeHasSameContainerScope(a, b AbstractScope) bool {
 	if a == b {
 		return true
