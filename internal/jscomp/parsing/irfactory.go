@@ -425,10 +425,38 @@ func (f *IRFactory) newNumberNode(v float64) *rhino.Node {
 // processAstRoot mirrors TransformDispatcher.processAstRoot(ProgramTree).
 func (f *IRFactory) processAstRoot(tree *trees.ProgramTree) *rhino.Node {
 	script := f.newNode(rhino.SCRIPT)
+	// Attach @fileoverview JSDoc to the SCRIPT node. Java's IRFactory
+	// attaches any @fileoverview comment to the root node.
+	// Only attach if the comment explicitly contains @fileoverview.
+	if f.src != "" {
+		for i := range f.jsdocComments {
+			c := &f.jsdocComments[i]
+			body := extractJSDocBody(c.Value)
+			// Only attach if this is a fileoverview comment (contains @fileoverview).
+			if isFileoverviewComment(body) {
+				startLine := c.Location.Start.Line + 1
+				jsdoc := ParseJSDocInfo(body, startLine)
+				if jsdoc != nil {
+					script.SetJSDocInfo(jsdoc)
+				}
+				break
+			}
+		}
+	}
 	for _, child := range tree.SourceElements {
 		script.AddChildToBack(f.Transform(child))
 	}
 	return script
+}
+
+// isFileoverviewComment reports whether a JSDoc comment body contains @fileoverview.
+func isFileoverviewComment(body string) bool {
+	for i := 0; i < len(body)-len("fileoverview"); i++ {
+		if body[i] == '@' && i+len("fileoverview") < len(body) && body[i+1:i+1+len("fileoverview")] == "fileoverview" {
+			return true
+		}
+	}
+	return false
 }
 
 // processBlock mirrors TransformDispatcher.processBlock(BlockTree).
