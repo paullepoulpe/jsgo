@@ -2673,16 +2673,34 @@ func bitwiseableType() jstype.JSType {
 	return jstype.NewUnion(jstype.Boolean, jstype.Null, jstype.Number, jstype.String, jstype.Void)
 }
 
-// isBitwiseable reports whether t is a subtype of
-// (boolean|null|number|string|undefined) — the valid bitwise operand types.
-// Mirrors Java's TypeValidator.expectBitwiseable which checks
-// !type.matchesNumberContext() && !type.isSubtypeOf(allBitwisableValueTypes).
+// isBitwiseable reports whether t is acceptable as a bitwise operand.
+// Mirrors Java's TypeValidator.expectBitwiseable:
+//   !type.matchesNumberContext() && !type.isSubtypeOf(allBitwisableValueTypes)
+// When either condition holds, the type is acceptable:
+//   - matchesNumberContext() is true for Number/Date/Boolean/String wrapper objects
+//     (they coerce to number). We approximate this by checking for known
+//     "coercible" object type names.
+//   - isSubtypeOf(string|number|boolean|null|undefined) is the primitive check.
 // When the type is Unknown, we assume it could be bitwiseable.
 func isBitwiseable(t jstype.JSType) bool {
 	if t == nil || isJSUnknown(t) {
 		return true
 	}
-	return jstype.IsSubtype(t, bitwiseableType())
+	if jstype.IsSubtype(t, bitwiseableType()) {
+		return true
+	}
+	// Approximate Java's matchesNumberContext() for wrapper object types
+	// (Number, Date, Boolean — they coerce to numbers in bitwise contexts).
+	// PrototypeObjectType.matchesNumberContext: isNumberObjectType() ||
+	//   isDateType() || isBooleanObjectType() || isStringObjectType() ||
+	//   hasOverriddenNativeProperty("valueOf")
+	if obj, ok := t.(*jstype.ObjectType); ok {
+		switch obj.TypeName() {
+		case "Number", "Date", "Boolean", "String":
+			return true
+		}
+	}
+	return false
 }
 
 // bitOpSymbol returns the textual operator for a bit-op token.
