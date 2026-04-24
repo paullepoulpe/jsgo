@@ -1601,6 +1601,7 @@ func (c *TypedScopeCreator) recordNamespaceAssignFromFunction(a *rhino.Node, sco
 		ctor := jstype.NewConstructorType(qname, paramTypes)
 		if info.IsInterface() || info.IsRecord() {
 			ctor.Instance.IsStructural = true
+			ctor.Instance.IsRecord = info.IsRecord()
 		}
 		if info.IsStruct() {
 			ctor.Instance.IsStruct = true
@@ -1888,6 +1889,7 @@ func (c *TypedScopeCreator) preregisterVarConstructor(v *rhino.Node, scope *Type
 	ct := jstype.NewConstructorType(name.String_(), nil)
 	if info.IsInterface() || info.IsRecord() {
 		ct.Instance.IsStructural = true
+		ct.Instance.IsRecord = info.IsRecord()
 	}
 	scope.declared[name.String_()] = ct
 }
@@ -2012,6 +2014,7 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 	// Mark as structural when the class carries @record or @interface.
 	if info := cls.JSDocInfo(); info != nil && (info.IsRecord() || info.IsInterface()) {
 		inst.IsStructural = true
+		inst.IsRecord = info.IsRecord()
 	}
 	if info := cls.JSDocInfo(); info != nil {
 		if info.IsStruct() {
@@ -2403,6 +2406,7 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 			ct := jstype.NewConstructorType(name.String_(), nil)
 			if info.IsInterface() || info.IsRecord() {
 				ct.Instance.IsStructural = true
+				ct.Instance.IsRecord = info.IsRecord()
 			}
 			scope.declared[name.String_()] = ct
 			return
@@ -2418,6 +2422,7 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 			fnType.SetJSDocInfo(info)
 			if info.IsInterface() || info.IsRecord() {
 				fnType.Instance.IsStructural = true
+				fnType.Instance.IsRecord = info.IsRecord()
 			}
 			if info.IsStruct() {
 				fnType.Instance.IsStruct = true
@@ -2800,6 +2805,7 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 		// Mark structural when annotated @record / @interface.
 		if info.IsInterface() || info.IsRecord() {
 			fnType.Instance.IsStructural = true
+			fnType.Instance.IsRecord = info.IsRecord()
 		}
 		// Propagate @struct / @dict onto the instance so TypeCheck can
 		// gate JSC_ILLEGAL_PROPERTY_ACCESS at GETPROP / GETELEM sites.
