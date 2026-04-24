@@ -626,6 +626,11 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		// Java: visitDynamicImport — checks that import(specifier) has a
 		// non-null, non-undefined string specifier.
 		c.emit(c.visitDynamicImport(n, scope))
+	case rhino.CASE:
+		// Java: validator.expectSwitchMatchesCase(n, switchConditionType, caseType).
+		// The CASE node is a child of SWITCH. The switch condition type is the
+		// type of the SWITCH's first child (the expression before the SWITCH_BODY).
+		c.emit(c.visitSwitchCase(n, parent, scope))
 	}
 	// Strict-mode operand checks — OFF by default, matching Java.
 	// These fire only when `--jscomp_warning=strictCheckTypes` is set.
@@ -2839,6 +2844,81 @@ func isWellKnownSymbolIndex(idx *rhino.Node) bool {
 	}
 	recv := kids[0]
 	return recv.Token() == rhino.NAME && recv.String_() == "Symbol"
+}
+
+// visitSwitchCase ports Java's TypeCheck CASE branch:
+//   validator.expectSwitchMatchesCase(n, switchConditionType, caseType)
+// Fires JSC_TYPE_MISMATCH "case expression doesn't match switch" when
+// the switch discriminant type and the case expression type are
+// incompatible (no common subtype via canTestForShallowEqualityWith).
+func (c *TypeCheck) visitSwitchCase(caseNode, switchNode *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	if switchNode == nil || switchNode.Token() != rhino.SWITCH {
+		return nil
+	}
+	discrim := switchNode.FirstChild()
+	if discrim == nil {
+		return nil
+	}
+	caseExpr := caseNode.FirstChild()
+	if caseExpr == nil {
+		return nil
+	}
+	infer := NewTypeInference(scope)
+	switchType := infer.InferType(discrim)
+	caseType := infer.InferType(caseExpr)
+	// Skip unknown types — can't prove incompatibility.
+	if isJSUnknown(switchType) || isJSUnknown(caseType) {
+		return nil
+	}
+	// canTestForShallowEqualityWith: types are comparable if at least one
+	// is a subtype of the other. If neither is a subtype → incompatible.
+	if jstype.IsSubtype(switchType, caseType) || jstype.IsSubtype(caseType, switchType) {
+		return nil
+	}
+	// Also allow if the types could share a common value (e.g. union types
+	// might have overlapping members).
+	if canShareCommonValue(switchType, caseType) {
+		return nil
+	}
+	msg := fmt.Sprintf("case expression doesn't match switch\nfound   : %s\nrequired: %s",
+		caseType.TypeName(), switchType.TypeName())
+	return []diag.Diagnostic{{
+		Path: c.path, Line: caseExpr.Lineno(), Col: caseExpr.Charno(),
+		Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error, Message: msg,
+	}}
+}
+
+// canShareCommonValue reports whether two types might overlap (share a common
+// value at runtime). Used to approximate Java's canTestForShallowEqualityWith:
+// fires when `getGreatestSubtype(a, b)` is empty (no common subtype).
+// We conservatively return true (allow) when we can't prove incompatibility.
+func canShareCommonValue(a, b jstype.JSType) bool {
+	// Union types: check if any member of one type overlaps with the other.
+	if u, ok := a.(*jstype.UnionType); ok {
+		for _, m := range u.Members() {
+			if canShareCommonValue(m, b) {
+				return true
+			}
+		}
+		return false
+	}
+	if u, ok := b.(*jstype.UnionType); ok {
+		for _, m := range u.Members() {
+			if canShareCommonValue(a, m) {
+				return true
+			}
+		}
+		return false
+	}
+	// Function types can always be compared (Java's function exception).
+	if _, ok := a.(*jstype.FunctionType); ok {
+		return true
+	}
+	if _, ok := b.(*jstype.FunctionType); ok {
+		return true
+	}
+	// Same type → can share value.
+	return jstype.IsSubtype(a, b) || jstype.IsSubtype(b, a)
 }
 
 // visitDynamicImport ports Java's TypeCheck.visitDynamicImport.
