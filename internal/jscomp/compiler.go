@@ -90,7 +90,6 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	tc.SetUndeclaredNames(varChecker.UndeclaredNames())
 	all = append(all, tc.Check(script)...)
 	all = append(all, NewCheckMissingReturn(path, scope).Check(script)...)
-	all = append(all, NewSuperclassCheck(path, creator, scope).Check(script)...)
 	all = append(all, NewCheckDupVarDecl(path, scope).Check(script)...)
 	all = append(all, NewCheckDuplicateMember(path).Check(script)...)
 	all = append(all, NewCheckSideEffects(path).Check(script)...)
