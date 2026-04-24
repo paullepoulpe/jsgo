@@ -57,10 +57,10 @@ Generated: auto-computed by tools/portcheck.
 | 38 | 45 | `jscomp/inference.go` | `jscomp/TypeInference.java` | 6% | 0 | 1.25 | 49 go-only fns |
 | 39 | 46 | `jscomp/symboltable.go` | `jscomp/SymbolTable.java` | 51% | 5 | 0.77 | 5 stubs; 54 go-only fns |
 | 40 | 46 | `diag/diagnostictype.go` | `jscomp/DiagnosticType.java` | 0% | 0 | 1.50 | 7 go-only fns |
-| 41 | 47 | `jscomp/parsing/jsdocinfoparser.go` | `jscomp/parsing/JsDocInfoParser.java` | 22% | 0 | 0.54 | 20 go-only fns |
-| 42 | 47 | `jscomp/checkclosureimports.go` | `jscomp/CheckClosureImports.java` | 14% | 0 | 1.06 | 22 go-only fns |
-| 43 | 48 | `rhino/closure_primitive.go` | `rhino/ClosurePrimitive.java` | 0% | 0 | 0.30 | 1 go-only fns |
-| 44 | 50 | `rhino/jsdoc.go` | `rhino/JSDocInfo.java` | 28% | 0 | 0.30 | 67 go-only fns |
+| 41 | 47 | `jscomp/checkclosureimports.go` | `jscomp/CheckClosureImports.java` | 14% | 0 | 1.06 | 22 go-only fns |
+| 42 | 48 | `rhino/closure_primitive.go` | `rhino/ClosurePrimitive.java` | 0% | 0 | 0.30 | 1 go-only fns |
+| 43 | 49 | `rhino/jsdoc.go` | `rhino/JSDocInfo.java` | 31% | 1 | 0.34 | 1 stubs; 68 go-only fns |
+| 44 | 49 | `jscomp/parsing/jsdocinfoparser.go` | `jscomp/parsing/JsDocInfoParser.java` | 27% | 0 | 0.57 | 21 go-only fns |
 | 45 | 50 | `jscomp/diagnosticgroup.go` | `jscomp/DiagnosticGroup.java` | 0% | 0 | 0.00 |  |
 | 46 | 50 | `jscomp/passnames.go` | `jscomp/PassNames.java` | 0% | 0 | 0.00 |  |
 | 47 | 50 | `jscomp/reverseabstractinterpreter.go` | `jscomp/type/ReverseAbstractInterpreter.java` | 0% | 0 | 0.00 |  |

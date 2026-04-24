@@ -1295,6 +1295,38 @@ func (p *JsDocInfoParser) eatUntilEOLIfNotAnnotation() JsDocToken {
 	}
 }
 
+// eatUntilEOLIfNotAnnotationFrom mirrors Java's
+// eatUntilEOLIfNotAnnotation(JsDocToken) — starts from the given token.
+// If token is ANNOTATION, returns it immediately; otherwise eats until EOL/EOC/EOF.
+func (p *JsDocInfoParser) eatUntilEOLIfNotAnnotationFrom(token JsDocToken) JsDocToken {
+	if token == JsDocTokenAnnotation {
+		return token
+	}
+	return p.eatTokensUntilEOL(token)
+}
+
+// eatTokensUntilEOL mirrors Java's eatTokensUntilEOL() — consumes tokens
+// until EOL, EOC, or EOF (but not ANNOTATION), then returns that terminating token.
+func (p *JsDocInfoParser) eatTokensUntilEOL(token JsDocToken) JsDocToken {
+	for {
+		switch token {
+		case JsDocTokenEOL, JsDocTokenEOC, JsDocTokenEOF:
+			return token
+		}
+		token = p.next()
+	}
+}
+
+// eatIfMatch mirrors Java's eatIfMatch(JsDocToken) — if the next token
+// matches, consume it and return true.
+func (p *JsDocInfoParser) eatIfMatch(tok JsDocToken) bool {
+	if p.match(tok) {
+		p.next()
+		return true
+	}
+	return false
+}
+
 // parseIdGeneratorTag ports Java's parseIdGeneratorTag: expects an optional
 // `{kind}` and records the id generator kind. Mirrors Java exactly.
 func (p *JsDocInfoParser) parseIdGeneratorTag(token JsDocToken) JsDocToken {
