@@ -267,11 +267,66 @@ func TestIsStringLiteralTernary(t *testing.T) {
 }
 
 func TestGetStringValue(t *testing.T) {
-	t.Skip("port gap: NodeUtil.getStringValue not ported")
+	check := func(expr, want string, wantOK bool) {
+		t.Helper()
+		got, ok := NU.GetStringValue(nuParseExpr(t, expr))
+		if ok != wantOK {
+			t.Errorf("GetStringValue(%q) ok=%v, want %v", expr, ok, wantOK)
+			return
+		}
+		if ok && got != want {
+			t.Errorf("GetStringValue(%q) = %q, want %q", expr, got, want)
+		}
+	}
+	check("true", "true", true)
+	check("10", "10", true)
+	check("1.0", "1", true)
+	check("-1.0", "-1", true)
+	// Large exponent — Java uses scientific notation
+	check("1.2323919403474454e+21", "1.2323919403474454e+21", true)
+	check("'0'", "0", true)
+	check("{}", "[object Object]", true)
+	check("[]", "", true)
+	check("false", "false", true)
+	check("null", "null", true)
+	check("0", "0", true)
+	check("''", "", true)
+	check("undefined", "undefined", true)
+	check("void 0", "undefined", true)
+	check("void foo()", "undefined", true)
+	check("NaN", "NaN", true)
+	check("Infinity", "Infinity", true)
+	check("x", "", false)
+	check("`Hello`", "Hello", true)
+	check("`Hello ${'foo'}`", "Hello foo", true)
+	check("`Hello ${name}`", "", false)
+	check("`${4} bananas`", "4 bananas", true)
+	check("`This is ${true}.`", "This is true.", true)
 }
 
 func TestGetArrayStringValue(t *testing.T) {
-	t.Skip("port gap: NodeUtil.getStringValue not ported")
+	check := func(expr, want string, wantOK bool) {
+		t.Helper()
+		got, ok := NU.GetStringValue(nuParseExpr(t, expr))
+		if ok != wantOK {
+			t.Errorf("GetStringValue(%q) ok=%v, want %v", expr, ok, wantOK)
+			return
+		}
+		if ok && got != want {
+			t.Errorf("GetStringValue(%q) = %q, want %q", expr, got, want)
+		}
+	}
+	check("[]", "", true)
+	check("['']", "", true)
+	check("[null]", "", true)
+	check("[undefined]", "", true)
+	check("[void 0]", "", true)
+	check("[NaN]", "NaN", true)
+	check("[,'']", ",", true)
+	check("[[''],[''],['']]", ",,", true)
+	check("[[1.0],[2.0]]", "1,2", true)
+	check("[a]", "", false)
+	check("[1,a]", "", false)
 }
 
 func TestMayBeObjectLitKey(t *testing.T) {

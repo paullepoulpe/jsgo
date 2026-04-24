@@ -33,6 +33,8 @@
 package jscomp
 
 import (
+	"math"
+	"strconv"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -1694,7 +1696,7 @@ func (nodeUtil) GetStringValue(n *rhino.Node) (string, bool) {
 		return "true", true
 	case rhino.NULL:
 		return "null", true
-	case rhino.VOID:
+	case rhino.VOID, rhino.UNDEFINED:
 		return "undefined", true
 	case rhino.NOT:
 		fc := n.FirstChild()
@@ -1711,8 +1713,82 @@ func (nodeUtil) GetStringValue(n *rhino.Node) (string, bool) {
 		return "true", true
 	case rhino.OBJECTLIT:
 		return "[object Object]", true
+	case rhino.NUMBER:
+		return numberToString(n.Number()), true
+	case rhino.NEG:
+		// Negation of a NUMBER literal: `-1.0` → `"-1"`.
+		fc := n.FirstChild()
+		if fc != nil && fc.Token() == rhino.NUMBER {
+			return numberToString(-fc.Number()), true
+		}
+		return "", false
+	case rhino.ARRAYLIT:
+		s, ok := arrayToString(n)
+		if !ok {
+			return "", false
+		}
+		return s, true
 	}
 	return "", false
+}
+
+// numberToString converts a float64 to the JavaScript string representation.
+// Mirrors com.google.javascript.rhino.jstype.TernaryValue.DToA.numberToString
+// for the common cases used by GetStringValue tests.
+func numberToString(v float64) string {
+	if math.IsNaN(v) {
+		return "NaN"
+	}
+	if math.IsInf(v, 1) {
+		return "Infinity"
+	}
+	if math.IsInf(v, -1) {
+		return "-Infinity"
+	}
+	// Use strconv.FormatFloat with shortest representation.
+	// JavaScript's Number.toString() uses scientific notation when the value
+	// is >= 1e21 or has many significant digits in the exponent.
+	abs := v
+	if abs < 0 {
+		abs = -abs
+	}
+	// Use 'e' (scientific) notation for very large / very small numbers,
+	// matching JavaScript's Number.toString() cutoff at 1e21.
+	if abs >= 1e21 || (abs > 0 && abs < 1e-6) {
+		s := strconv.FormatFloat(v, 'e', -1, 64)
+		// Go uses e.g. "1.2323919403474454e+21", JS uses same format.
+		return s
+	}
+	// 'f' format gives "10" for 10.0, "1" for 1.0, etc.
+	return strconv.FormatFloat(v, 'f', -1, 64)
+}
+
+// arrayToString mirrors Java's NodeUtil.arrayToString(Node) — converts an
+// ARRAYLIT to its JavaScript string representation (joining elements with ',').
+// Returns "", false when any element cannot be converted.
+func arrayToString(n *rhino.Node) (string, bool) {
+	var sb strings.Builder
+	first := true
+	for child := n.FirstChild(); child != nil; child = child.Next() {
+		if !first {
+			sb.WriteByte(',')
+		}
+		first = false
+		// null, undefined, empty → empty string.
+		if child.Token() == rhino.NULL || child.Token() == rhino.UNDEFINED ||
+			child.Token() == rhino.VOID || child.Token() == rhino.EMPTY {
+			continue
+		}
+		if child.Token() == rhino.NAME && (child.String_() == "undefined") {
+			continue
+		}
+		s, ok := NU.GetStringValue(child)
+		if !ok {
+			return "", false
+		}
+		sb.WriteString(s)
+	}
+	return sb.String(), true
 }
 
 // GetPrefixedName returns the string "prefix + name" for a NAME or GETPROP
