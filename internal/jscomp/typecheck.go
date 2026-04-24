@@ -2118,10 +2118,19 @@ func (c *TypeCheck) visitReturn(ret *rhino.Node, scope *TypedScope) []diag.Diagn
 		return nil
 	}
 	info := functionJSDoc(enclosing)
-	if info == nil || info.ReturnType() == nil {
+	var declared jstype.JSType
+	if info != nil && info.ReturnType() != nil {
+		declared = scope.ResolveExpr(info.ReturnType().TypeName)
+	} else if info != nil && info.HasType() {
+		// @type {function(...): T} annotation — extract return type from
+		// the declared function type (already resolved in the scope creator).
+		if fn := enclosingFunctionType(enclosing, scope); fn != nil && fn.Return != nil {
+			declared = fn.Return
+		}
+	}
+	if declared == nil {
 		return nil
 	}
-	declared := scope.ResolveExpr(info.ReturnType().TypeName)
 	retExpr := ret.FirstChild()
 	if retExpr == nil {
 		return nil
@@ -2287,6 +2296,23 @@ func diagPosForArg(n *rhino.Node) (int, int) {
 		}
 	}
 	return n.Lineno(), n.Charno()
+}
+
+// enclosingFunctionType returns the FunctionType from the scope for the
+// enclosing function node `fn`, if it was declared with `@type {function(...)}`
+// or `@return {T}`. Used to extract the return type when `@type {function():T}`
+// is used instead of separate `@return {T}` annotation.
+func enclosingFunctionType(fn *rhino.Node, scope *TypedScope) *jstype.FunctionType {
+	if fn == nil {
+		return nil
+	}
+	// Named function declaration: look up by function name.
+	if nameKid := fn.FirstChild(); nameKid != nil && nameKid.Token() == rhino.NAME && nameKid.String_() != "" {
+		if ft, ok := scope.GetRawDeclaredType(nameKid.String_()).(*jstype.FunctionType); ok {
+			return ft
+		}
+	}
+	return nil
 }
 
 // functionJSDoc returns the JSDocInfo attached to `fn`, or — for
