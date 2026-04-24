@@ -2608,13 +2608,8 @@ func (c *TypeCheck) visitFunctionParams(fn *rhino.Node, scope *TypedScope) []dia
 	return out
 }
 
-// visitBitOp ports Java's TypeCheck.visitBinaryOperator for bitwise ops.
-// Java splits into two groups:
-//  1. Shift operators (<<, >>, >>>, and compound forms): fire
-//     JSC_BAD_TYPE_FOR_BIT_OPERATION when !matchesNumberContext.
-//     BITNOT (~) is in this group (fires at operator node).
-//  2. Bitwise ops (&, |, ^, and compound forms): fire JSC_TYPE_MISMATCH
-//     via validator.expectBitwiseable (type must be string|number|bool|null|undefined).
+// Go-only: language-adapter — Go splits Java's visitBinaryOperator (TypeCheck.java:2949)
+// for bitwise tokens into this named function; Java handles all operators in one big switch.
 func (c *TypeCheck) visitBitOp(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := n.Children()
 	infer := NewTypeInference(scope)
@@ -2677,21 +2672,14 @@ func (c *TypeCheck) visitBitOp(n *rhino.Node, scope *TypedScope) []diag.Diagnost
 }
 
 
-// bitwiseableType returns the union type (boolean|null|number|string|undefined)
-// that Java uses as the required type for bitwise operands.
+// Go-only: language-adapter — helper for visitBitOp; Java's TypeValidator uses
+// the allBitwisableValueTypes constant; Go constructs the union on the fly.
 func bitwiseableType() jstype.JSType {
 	return jstype.NewUnion(jstype.Boolean, jstype.Null, jstype.Number, jstype.String, jstype.Void)
 }
 
-// isBitwiseable reports whether t is acceptable as a bitwise operand.
-// Mirrors Java's TypeValidator.expectBitwiseable:
-//   !type.matchesNumberContext() && !type.isSubtypeOf(allBitwisableValueTypes)
-// When either condition holds, the type is acceptable:
-//   - matchesNumberContext() is true for Number/Date/Boolean/String wrapper objects
-//     (they coerce to number). We approximate this by checking for known
-//     "coercible" object type names.
-//   - isSubtypeOf(string|number|boolean|null|undefined) is the primitive check.
-// When the type is Unknown, we assume it could be bitwiseable.
+// Go-only: language-adapter — predicate for visitBitOp; mirrors Java's
+// TypeValidator.expectBitwiseable check but as a standalone boolean predicate.
 func isBitwiseable(t jstype.JSType) bool {
 	if t == nil || isJSUnknown(t) {
 		return true
@@ -2713,7 +2701,8 @@ func isBitwiseable(t jstype.JSType) bool {
 	return false
 }
 
-// bitOpSymbol returns the textual operator for a bit-op token.
+// Go-only: language-adapter — maps Token to operator string for diagnostic messages;
+// Java uses n.getToken().toString() which is built into the AST node API.
 func bitOpSymbol(t rhino.Token) string {
 	switch t {
 	case rhino.LSH:
@@ -2740,9 +2729,9 @@ func bitOpSymbol(t rhino.Token) string {
 	return "?"
 }
 
-// visitTypeofComparison fires JSC_UNKNOWN_TYPEOF_VALUE when an EQ/NE/SHEQ/SHNE
-// expression compares typeof against a string that is not a valid typeof result.
-// Mirrors TypeCheck.java's call to validator.expectValidTypeofName.
+// Go-only: language-adapter — extracts Java's typeof-string validation inline
+// in visit() (TypeCheck.java:692-702, checkTypeofString call) into a named
+// function; Go routes EQ/NE/SHEQ/SHNE through a dedicated function.
 func (c *TypeCheck) visitTypeofComparison(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := n.Children()
 	if len(kids) != 2 {
@@ -2769,9 +2758,9 @@ func (c *TypeCheck) visitTypeofComparison(n *rhino.Node, scope *TypedScope) []di
 	}}
 }
 
-// isValidTypeofValue reports whether s is a string that typeof can return.
-// Java's TypeCheck also accepts "unknown" (used for the ? / all type in some
-// Closure patterns). Mirrors TypeCheck.java's VALID_TYPEOF_VALUES set.
+// Go-only: language-adapter — Go exposes Java's VALID_TYPEOF_VALUES set as a
+// predicate; in Java TypeCheck.checkTypeofString (line 1037) calls
+// NodeUtil.isValidIdentifier-style check via the validator.
 func isValidTypeofValue(s string) bool {
 	switch s {
 	case "undefined", "boolean", "number", "string", "function", "object", "bigint", "symbol", "unknown":
@@ -2780,10 +2769,9 @@ func isValidTypeofValue(s string) bool {
 	return false
 }
 
-// isWellKnownSymbolIndex reports whether `idx` is a GETPROP on the
-// \`Symbol\` builtin (e.g. \`Symbol.iterator\`, \`Symbol.asyncIterator\`).
-// Java's TypeCheck allows well-known symbols to index a @struct
-// receiver since they're the canonical protocol entry points.
+// Go-only: language-adapter — guards struct bracket-access check for Symbol.*
+// indices; Java's JSType.isSymbol() + allowedIndexType check is inline in
+// TypeValidator.expectIndexMatch; Go wraps it as a named predicate.
 func isWellKnownSymbolIndex(idx *rhino.Node) bool {
 	if idx == nil || idx.Token() != rhino.GETPROP {
 		return false
@@ -2796,11 +2784,9 @@ func isWellKnownSymbolIndex(idx *rhino.Node) bool {
 	return recv.Token() == rhino.NAME && recv.String_() == "Symbol"
 }
 
-// visitSwitchCase ports Java's TypeCheck CASE branch:
-//   validator.expectSwitchMatchesCase(n, switchConditionType, caseType)
-// Fires JSC_TYPE_MISMATCH "case expression doesn't match switch" when
-// the switch discriminant type and the case expression type are
-// incompatible (no common subtype via canTestForShallowEqualityWith).
+// Go-only: language-adapter — Go extracted Java's CASE branch (TypeCheck.java:815-820)
+// from visit() into a named function; Java calls validator.expectSwitchMatchesCase
+// inline in the switch case.
 func (c *TypeCheck) visitSwitchCase(caseNode, switchNode *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	if switchNode == nil || switchNode.Token() != rhino.SWITCH {
 		return nil
@@ -2838,10 +2824,8 @@ func (c *TypeCheck) visitSwitchCase(caseNode, switchNode *rhino.Node, scope *Typ
 	}}
 }
 
-// canShareCommonValue reports whether two types might overlap (share a common
-// value at runtime). Used to approximate Java's canTestForShallowEqualityWith:
-// fires when `getGreatestSubtype(a, b)` is empty (no common subtype).
-// We conservatively return true (allow) when we can't prove incompatibility.
+// Go-only: language-adapter — approximates Java's canTestForShallowEqualityWith
+// (JSType.java) which Go does not expose generically; used by visitSwitchCase.
 func canShareCommonValue(a, b jstype.JSType) bool {
 	// Union types: check if any member of one type overlaps with the other.
 	if u, ok := a.(*jstype.UnionType); ok {
@@ -2901,10 +2885,9 @@ func (c *TypeCheck) visitDynamicImport(n *rhino.Node, scope *TypedScope) []diag.
 	return nil
 }
 
-// isDefinitelyNotCallable reports whether `t` is a type that can
-// never be a function at runtime. Primitives (number, string,
-// boolean, null, void) qualify; a union does iff every member is
-// non-callable. Unknown / All stay callable-ambiguous.
+// Go-only: language-adapter — predicate for visitCall's NOT_FUNCTION_TYPE guard;
+// Java's TypeCheck calls couldBeAConstructor (line 2328) inline; Go wraps the
+// negation as a named predicate with explicit union handling.
 func isDefinitelyNotCallable(t jstype.JSType) bool {
 	if t == nil {
 		return false
@@ -2930,10 +2913,8 @@ func isDefinitelyNotCallable(t jstype.JSType) bool {
 	return false
 }
 
-// isDefinitelyNotNumber reports whether `t` is a primitive type
-// known to not be a number at runtime. Void, Null, Boolean, and
-// String are the non-numeric primitives; Unknown/All still allow
-// numeric values so they don't trigger.
+// Go-only: language-adapter — predicate for visitBitOp shift checks; no direct
+// Java named equivalent (Java uses matchesNumberContext inline).
 func isDefinitelyNotNumber(t jstype.JSType) bool {
 	if t == nil {
 		return false
@@ -2945,10 +2926,8 @@ func isDefinitelyNotNumber(t jstype.JSType) bool {
 	return false
 }
 
-// visitIn fires diagnostics for the IN operator:
-//  1. JSC_IN_USED_WITH_STRUCT when the RHS is a @struct receiver.
-//  2. JSC_TYPE_MISMATCH when the LHS is definitely not string /
-//     symbol / number (Java's requirement for the 'in' operand).
+// Go-only: language-adapter — extracts Java's IN case (TypeCheck.java:774-784)
+// from visit() into a named function.
 func (c *TypeCheck) visitIn(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := n.Children()
 	if len(kids) < 2 {
@@ -2978,10 +2957,8 @@ func (c *TypeCheck) visitIn(n *rhino.Node, scope *TypedScope) []diag.Diagnostic 
 	return out
 }
 
-// isDefinitelyNotInKey reports whether `t` is a type that's
-// definitely not a valid `X in Y` LHS. Java's TypeCheck accepts
-// String / Number / Symbol / Unknown / All / Null / Undefined;
-// only firmly-nominal FunctionType / ObjectType references fail.
+// Go-only: language-adapter — predicate for visitIn LHS check; Java's
+// TypeValidator.expectStringOrSymbol handles this inline.
 func isDefinitelyNotInKey(t jstype.JSType) bool {
 	if t == nil {
 		return false
@@ -2992,8 +2969,8 @@ func isDefinitelyNotInKey(t jstype.JSType) bool {
 	return false
 }
 
-// visitForIn fires JSC_IN_USED_WITH_STRUCT on `for (var k in struct)`.
-// Same rule as visitIn, but the AST shape is FOR_IN(var, iterable, body).
+// Go-only: language-adapter — extracts Java's FOR_IN case (TypeCheck.java:912-918)
+// from visit() into a named function.
 func (c *TypeCheck) visitForIn(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := n.Children()
 	if len(kids) < 2 {
@@ -3075,10 +3052,8 @@ func (c *TypeCheck) checkForOfTypes(n *rhino.Node, scope *TypedScope) []diag.Dia
 	return nil
 }
 
-// forOfIsIterableType reports whether t is known to be iterable in a
-// for-of context. Mirrors the set of types that pass Java's
-// expectAutoboxesToIterable, restricted to what jsgo's type model
-// can detect reliably.
+// Go-only: language-adapter — predicate for checkForOfTypes; Java's
+// TypeValidator.expectAutoboxesToIterable checks this inline via JSType.isIterable().
 func forOfIsIterableType(t jstype.JSType) bool {
 	// Primitive string is iterable (JS engines implement Symbol.iterator).
 	if t == jstype.String || t == jstype.All {
@@ -3113,12 +3088,9 @@ func forOfIsIterableType(t jstype.JSType) bool {
 	return false
 }
 
-// visitAdd ports TypeValidator.expectNumberOrString on the ADD
-// operator. JS `+` coerces to string whenever either side is
-// string-typed; a mismatch is reported only when BOTH sides are
-// incompatible (neither number nor string nor Unknown nor a union
-// whose members all satisfy the predicate). Matches Java's
-// conservative TypeValidator — Unknown / All silence.
+// Go-only: language-adapter — handles ADD under strict mode; Java's visitBinaryOperator
+// (TypeCheck.java:2949) routes ADD to TypeValidator.expectNumberOrString inline; Go
+// extracts it as a named function dispatched only when GroupStrictCheckTypes is on.
 func (c *TypeCheck) visitAdd(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := n.Children()
 	if len(kids) < 2 {
@@ -3147,12 +3119,7 @@ func (c *TypeCheck) visitAdd(n *rhino.Node, scope *TypedScope) []diag.Diagnostic
 	return out
 }
 
-// isAddOperandOk reports whether `t` is acceptable to JS `+`. Java's
-// TypeValidator rule: number, string, boolean (ToNumber coercion),
-// null / undefined (coerce to 0 / "undefined"), Unknown / All, or
-// any union whose members all pass the predicate. Object-ish types
-// implicitly coerce via ToPrimitive and Java doesn't flag them; we
-// do the same.
+// Go-only: language-adapter — predicate for visitAdd; no named Java equivalent.
 func isAddOperandOk(t jstype.JSType) bool {
 	if t == nil {
 		return true
@@ -3176,23 +3143,21 @@ func isAddOperandOk(t jstype.JSType) bool {
 	return true
 }
 
-// visitArithmetic ports TypeValidator.expectNumber for SUB / MUL /
-// DIV / MOD. Both operands must be numeric-compatible; mismatch
-// reports JSC_TYPE_MISMATCH at the offending operand.
+// Go-only: language-adapter — strict-mode SUB/MUL/DIV/MOD check routed to
+// visitNumericBinaryOp; Java's visitBinaryOperator (TypeCheck.java:2949) handles
+// these inline in one big switch.
 func (c *TypeCheck) visitArithmetic(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	return c.visitNumericBinaryOp(n, scope)
 }
 
-// visitBitwise ports the BITAND/BITOR/BITXOR/LSH/RSH/URSH branch —
-// same predicate as expectNumber.
+// Go-only: language-adapter — strict-mode bitwise check in the GroupStrictCheckTypes
+// branch; Java routes these through visitBinaryOperator inline.
 func (c *TypeCheck) visitBitwise(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	return c.visitNumericBinaryOp(n, scope)
 }
 
-// visitNumericBinaryOp walks both operands and emits
-// JSC_TYPE_MISMATCH "found: T\nrequired: number" when either side
-// is definitely non-numeric. Stays quiet for Unknown / All /
-// unions-with-number, matching Java's conservative default.
+// Go-only: language-adapter — shared numeric operand checker for visitArithmetic /
+// visitBitwise; Java calls TypeValidator.expectNumber directly for each operand.
 func (c *TypeCheck) visitNumericBinaryOp(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := n.Children()
 	if len(kids) < 2 {
@@ -3226,10 +3191,7 @@ func (c *TypeCheck) visitNumericBinaryOp(n *rhino.Node, scope *TypedScope) []dia
 	return out
 }
 
-// isNumericOperandOk reports whether `t` is arithmetic-compatible.
-// Java's TypeValidator treats null / undefined as coercible-to-0
-// and silences diagnostics for them; we do the same to keep
-// `var x; x + 1` quiet when x was declared but uninitialised.
+// Go-only: language-adapter — predicate for visitNumericBinaryOp; no named Java equivalent.
 func isNumericOperandOk(t jstype.JSType) bool {
 	if t == nil {
 		return true
@@ -3252,11 +3214,8 @@ func isNumericOperandOk(t jstype.JSType) bool {
 	return false
 }
 
-// visitRelationalDefault fires JSC_TYPE_MISMATCH on the default-
-// mode relational check: both \`<\` operands must be bigint-, number-
-// or string-compatible. Non-primitives (Object / FunctionType) are
-// definitively invalid. Matches Java's TypeCheck.visitBinaryOp
-// default-mode relational branch.
+// Go-only: language-adapter — default-mode relational operand check; Java handles
+// LT/LE/GT/GE inline in visit() at TypeCheck.java:738-772 without a named method.
 func (c *TypeCheck) visitRelationalDefault(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := n.Children()
 	if len(kids) < 2 {
@@ -3283,10 +3242,8 @@ func (c *TypeCheck) visitRelationalDefault(n *rhino.Node, scope *TypedScope) []d
 	return out
 }
 
-// isDefinitelyNotComparable reports whether \`t\` is a type that
-// definitely can't participate in a relational comparison. Objects
-// / functions / booleans are rejected; primitives and unknowns
-// stay quiet.
+// Go-only: language-adapter — predicate for visitRelationalDefault; no named Java
+// equivalent (Java uses JSType.isBigIntOrNumber inline).
 func isDefinitelyNotComparable(t jstype.JSType) bool {
 	if t == nil {
 		return false
@@ -3327,10 +3284,8 @@ func isDefinitelyNotComparable(t jstype.JSType) bool {
 	return false
 }
 
-// visitRelativeComparison ports TypeValidator.expectMatchingTypes
-// for LT / LE / GT / GE: both operands must be number-compatible
-// OR both string-compatible. Mismatch fires at the right-hand side
-// (Java's arbitrary-but-stable choice).
+// Go-only: language-adapter — strict-mode relational operand check; Java's
+// visitBinaryOperator handles LT/LE/GT/GE inline at TypeCheck.java:738-772.
 func (c *TypeCheck) visitRelativeComparison(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := n.Children()
 	if len(kids) < 2 {
@@ -3350,10 +3305,8 @@ func (c *TypeCheck) visitRelativeComparison(n *rhino.Node, scope *TypedScope) []
 	}}
 }
 
-// canCompareStrict reports whether two types may participate in a
-// relative comparison. Java narrows to "both number-compatible OR
-// both string-compatible", with Unknown / null / undefined always
-// accepted to avoid false-positives on partially-annotated code.
+// Go-only: language-adapter — predicate for visitRelativeComparison; Java's
+// TypeValidator.expectMatchingTypesStrict is called inline; Go wraps it.
 func canCompareStrict(a, b jstype.JSType) bool {
 	if a == nil || b == nil {
 		return true
@@ -3370,8 +3323,7 @@ func canCompareStrict(a, b jstype.JSType) bool {
 	return false
 }
 
-// isStringOperandOk is the string-mirror of isNumericOperandOk —
-// used by canCompareStrict when the LHS is string-shaped.
+// Go-only: language-adapter — predicate for canCompareStrict; no Java named equivalent.
 func isStringOperandOk(t jstype.JSType) bool {
 	if t == nil {
 		return true
@@ -3392,17 +3344,9 @@ func isStringOperandOk(t jstype.JSType) bool {
 
 // ---- visitObjectLit / visitArrayLit ----------------------------- //
 
-// visitObjectLit ports the OBJECTLIT branch of TypeCheck.java's visit().
-// It fires:
-//   - JSC_UNKNOWN_LENDS when @lends names an undeclared variable.
-//   - JSC_LENDS_ON_NON_OBJECT when @lends names a non-object type.
-//   - JSC_ILLEGAL_OBJLIT_KEY when a @struct literal has a quoted key or
-//     a @dict literal has an unquoted key.
-//   - JSC_TYPE_MISMATCH when a JSDoc-annotated key's value is not assignable
-//     to the declared key type (mirrors Java's visitObjectOrClassLiteralKey).
-//
-// Mirrors Java's defineObjectLiteral (TypedScopeCreator) for @lends, and
-// visitObjectOrClassLiteralKey (TypeCheck) for key checks.
+// Go-only: language-adapter — Go extracts Java's OBJECTLIT case (TypeCheck.java:925-936)
+// plus TypedScopeCreator's @lends handling into one named function; Java handles
+// these across two separate classes (TypeCheck + TypedScopeCreator).
 func (c *TypeCheck) visitObjectLit(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	var out []diag.Diagnostic
 
@@ -3583,10 +3527,9 @@ func (c *TypeCheck) visitObjectLit(n *rhino.Node, scope *TypedScope) []diag.Diag
 	return out
 }
 
-// visitArrayLit checks each element of an array literal against the
-// contextual element type when the array is declared as Array<T>.
-// Mirrors Java's TypeCheck.visitArrayLit extended with element-type
-// contextual typing — fires JSC_TYPE_MISMATCH on mismatched elements.
+// Go-only: language-adapter — Go extracts Java's ARRAYLIT case from visit()
+// (TypeCheck.java:639 `ARRAYLIT -> ensureTyped(n, ARRAY_TYPE)`) plus contextual
+// element-type checking that Java does not perform inline in TypeCheck.
 func (c *TypeCheck) visitArrayLit(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	elemType := arrayLitContextElemType(n, scope)
 	if elemType == nil {
@@ -3616,9 +3559,8 @@ func (c *TypeCheck) visitArrayLit(n *rhino.Node, scope *TypedScope) []diag.Diagn
 	return out
 }
 
-// arrayLitContextElemType returns the declared element type T when the
-// array literal's context (parent node's declared type) is Array<T>.
-// Returns nil when no contextual element type can be determined.
+// Go-only: language-adapter — helper for visitArrayLit; Java doesn't perform
+// contextual element-type inference in TypeCheck; Go adds it to reduce FPs.
 func arrayLitContextElemType(n *rhino.Node, scope *TypedScope) jstype.JSType {
 	parent := n.Parent()
 	if parent == nil {
