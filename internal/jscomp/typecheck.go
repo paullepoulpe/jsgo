@@ -1897,6 +1897,79 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 						Message: fmt.Sprintf("Property %s not defined on all member types of %s", propName, recvName),
 					}}
 				}
+				return nil
+			}
+			// Port of TypeCheck.java checkPropertyAccessHelper @ closure-compiler v20260415:
+			// when no member of the union has the property
+			// (canPropertyBeDefined → UNKNOWN → reportMissingProperty with
+			// strictReport=false), fire JSC_INEXISTENT_PROPERTY in default mode.
+			// Skip when any alternate is Unknown / All / global Object — Java's
+			// reportMissingProperty routes those through POSSIBLE_INEXISTENT_PROPERTY
+			// (lowConfidence) rather than INEXISTENT_PROPERTY.
+			if kind == jstype.HasPropertyAbsent && !isAssignLHS(n) &&
+				!isPropertyExistenceOrAbsenceTest(n) &&
+				!c.fileSuppressions["missingProperties"] {
+				lowConfidence := false
+				openSurface := false
+				recordPresent := false
+				for _, m := range u.GetAlternates() {
+					if m == jstype.Unknown || m == jstype.All {
+						lowConfidence = true
+						break
+					}
+					if _, ok := m.(*jstype.RecordType); ok {
+						recordPresent = true
+					}
+					if mo := dereferencedObject(m); mo != nil {
+						if mo.Name == "Object" {
+							lowConfidence = true
+							break
+						}
+						// Sparse extern types (Array, Date, Error, Map, …)
+						// have open property surfaces in jsgo. Java's
+						// canPropertyBeDefined falls through to the global
+						// nonRefTypesIndexedByProperty lookup which often
+						// returns LOOSE for these; mirror that by skipping.
+						if c.externTypes[mo] {
+							openSurface = true
+						}
+						// @record / @interface members keep open structural
+						// surfaces; a missing property on a record alternate
+						// in Java goes through droppedPropertiesOfUnions /
+						// LOOSE rather than UNKNOWN, so suppress to match.
+						if mo.IsStructural || mo.IsInterface {
+							recordPresent = true
+						}
+					}
+				}
+				if openSurface || recordPresent {
+					return nil
+				}
+				if !lowConfidence {
+					// `'prop' in obj` narrowing.
+					if qname := qualifiedName(n); qname != "" {
+						if scope.GetQualifiedRefinement(qname) != nil {
+							return nil
+						}
+					}
+					key := recvType.TypeName() + "." + propName
+					if c.inexistentReported[key] {
+						return nil
+					}
+					if c.inexistentReported == nil {
+						c.inexistentReported = map[string]bool{}
+					}
+					c.inexistentReported[key] = true
+					// Java's getReadableTypeName autoboxes primitive members
+					// (NumberType.autoboxesTo → NUMBER_OBJECT_TYPE, "Number"),
+					// so a union of `number|string` reads as `(Number|String)`.
+					// Mirror that here for the diagnostic message.
+					return []diag.Diagnostic{{
+						Path: c.path, Line: propNode.Lineno(), Col: propNode.Charno(),
+						Code: diag.JSC_INEXISTENT_PROPERTY, Level: diag.Error,
+						Message: fmt.Sprintf("Property %s never defined on %s", propName, autoboxedUnionReadableName(u)),
+					}}
+				}
 			}
 		}
 		return nil
@@ -2816,6 +2889,38 @@ func defineOnOpenObject(t jstype.JSType, prop string) {
 		return
 	}
 	obj.DefineProperty(prop, jstype.Unknown)
+}
+
+// autoboxedUnionReadableName builds a parenthesised union display name with
+// scalar primitive members swapped for their boxed display ("number"→"Number",
+// etc). Mirrors JSTypeRegistry.getReadableTypeName(Node) (dereference=true) →
+// JSType.autobox() → UnionType.toString() at closure-compiler v20260415.
+// Without registry-driven autoboxesTo, Go primitives keep their lowercase
+// names; this helper provides the boxed labels Java's diagnostics expect.
+func autoboxedUnionReadableName(u *jstype.UnionType) string {
+	parts := make([]string, 0, len(u.GetAlternates()))
+	for _, m := range u.GetAlternates() {
+		parts = append(parts, autoboxedReadableName(m))
+	}
+	return "(" + strings.Join(parts, "|") + ")"
+}
+
+// autoboxedReadableName returns the boxed display name for a scalar primitive
+// member, falling back to TypeName() for non-primitives.
+func autoboxedReadableName(t jstype.JSType) string {
+	switch t.TypeName() {
+	case "number":
+		return "Number"
+	case "string":
+		return "String"
+	case "boolean":
+		return "Boolean"
+	case "bigint":
+		return "BigInt"
+	case "symbol":
+		return "Symbol"
+	}
+	return t.TypeName()
 }
 
 // Go-only: language-adapter — unwraps TemplatizedType to reach the base
