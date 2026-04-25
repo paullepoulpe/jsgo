@@ -4841,11 +4841,18 @@ func (c *TypeCheck) visitRelativeComparison(n *rhino.Node, scope *TypedScope) []
 
 // Go-only: language-adapter — predicate for visitRelativeComparison; Java's
 // TypeValidator.expectMatchingTypesStrict is called inline; Go wraps it.
+// Mirrors expectMatchingTypesStrict: if either side is a subtype of the
+// other, the comparison is OK. The numeric/string fallback covers the
+// primitive cases where the lattice doesn't establish the subtype relation
+// (e.g. number vs boolean — both numeric-context).
 func canCompareStrict(a, b jstype.JSType) bool {
 	if a == nil || b == nil {
 		return true
 	}
 	if isUnknownOrNil(a) || isUnknownOrNil(b) {
+		return true
+	}
+	if jstype.IsSubtype(a, b) || jstype.IsSubtype(b, a) {
 		return true
 	}
 	if isNumericOperandOk(a) && isNumericOperandOk(b) {
