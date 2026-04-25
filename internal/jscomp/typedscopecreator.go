@@ -768,20 +768,26 @@ func (c *TypedScopeCreator) recordPrototypeAssign(a *rhino.Node, scope *TypedSco
 		}
 		resolveScope = &TypedScope{parent: scope, declared: map[string]jstype.JSType{}, typeAliases: aliases, registry: c.registry}
 	}
-	memberType := c.inferPrototypeValueType(a.JSDocInfo(), rhs, resolveScope, fn.Instance, propName)
+	// Port of NodeUtil.getBestJSDocInfo: the JSDoc for a prototype property
+	// assignment may be attached to the outer EXPR_RESULT rather than the ASSIGN
+	// node. Check both. Mirrors how Java's TypedScopeCreator uses
+	// NodeUtil.getBestJSDocInfo which walks up through ASSIGN and EXPR_RESULT.
+	assignInfo := a.JSDocInfo()
+	if assignInfo == nil {
+		if parent := a.Parent(); parent != nil && parent.Token() == rhino.EXPR_RESULT {
+			assignInfo = parent.JSDocInfo()
+		}
+	}
+	memberType := c.inferPrototypeValueType(assignInfo, rhs, resolveScope, fn.Instance, propName)
 	// Port of TypedScopeCreator.NormalScopeBuilder.defineSlot @ closure-compiler v20260415
 	// When a prototype property has an explicit @type annotation or is a
 	// method (function RHS), it is a declared slot: use DefineDeclaredProperty
 	// so that any prior inferred slot (e.g. from a constructor's `this.x = …`
 	// processed before the prototype declaration) is promoted to declared.
-	// This mirrors Java's order guarantee: Java's NormalScopeBuilder pre-pass
-	// registers all prototype declarations before processing constructor bodies,
-	// so declared slots always win. In Go's single-pass order, we achieve the
-	// same effect by having DefineDeclaredProperty clear the inferred flag on
-	// the existing slot. Literal-only prototype properties (no @type, no function
-	// body) remain inferred — Java treats those as open surfaces in default mode.
-	info := a.JSDocInfo()
-	isDeclared := (info != nil && info.HasType()) || rhs.Token() == rhino.FUNCTION
+	// Mirrors Java's NormalScopeBuilder pre-pass that registers prototype
+	// declarations before constructor bodies — DefineDeclaredProperty clears
+	// the inferred flag on the existing slot.
+	isDeclared := (assignInfo != nil && assignInfo.HasType()) || rhs.Token() == rhino.FUNCTION
 	if isDeclared {
 		fn.Instance.DefineDeclaredProperty(propName, memberType, a.Children()[0])
 	} else {
