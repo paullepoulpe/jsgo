@@ -4603,6 +4603,21 @@ func (c *TypeCheck) visitRelationalDefault(n *rhino.Node, scope *TypedScope) []d
 	return out
 }
 
+// isDefinitelyNumericish reports whether t is acceptable as the operand
+// of a numeric-mode relational comparison (Java's expectBigIntOrNumber):
+// Number, BigInt, or All / Unknown. Boolean coerces to number but Java's
+// strict mode rejects it. Mirrors TypeValidator.expectBigIntOrNumber.
+func isDefinitelyNumericish(t jstype.JSType) bool {
+	if t == nil {
+		return true
+	}
+	switch t {
+	case jstype.Number, jstype.BigInt, jstype.Unknown, jstype.All:
+		return true
+	}
+	return false
+}
+
 // isDefinitelyNumeric reports whether t is exactly Number or BigInt
 // (no other variants). Used by visitRelationalDefault to switch to
 // numeric-comparison mode when one operand is statically a number.
@@ -4644,7 +4659,9 @@ func isDefinitelyNotComparable(t jstype.JSType, numericMode bool) bool {
 		// vs primitive at the operand-type level — it only fires for
 		// non-primitive operands like Object / FunctionType / null /
 		// undefined / Symbol). Mirrors expectBigIntNumberOrString which
-		// accepts every primitive operand without complaint.
+		// accepts every primitive operand without complaint. The strict
+		// caller (visitRelativeComparison) handles the numeric-mode
+		// non-numeric-primitive case separately so it doesn't double-fire.
 		return false
 	case jstype.Void, jstype.Null:
 		// undefined/null: Java fires errors for these in numeric comparisons
@@ -4688,6 +4705,13 @@ func isDefinitelyNotComparable(t jstype.JSType, numericMode bool) bool {
 
 // Go-only: language-adapter — strict-mode relational operand check; Java's
 // visitBinaryOperator handles LT/LE/GT/GE inline at TypeCheck.java:738-772.
+// Two diagnostic shapes:
+//   1. When at least one side is statically numeric (Number/BigInt): the
+//      OTHER side must be numeric too. If not, fire
+//      "left/right side of numeric comparison" at that side.
+//   2. Otherwise: both sides must be matching primitives. Fire
+//      "expected matching types in comparison" at the right side.
+// Mirrors Java's expectBigIntOrNumber vs expectMatchingTypesStrict split.
 func (c *TypeCheck) visitRelativeComparison(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := n.Children()
 	if len(kids) < 2 {
@@ -4696,6 +4720,27 @@ func (c *TypeCheck) visitRelativeComparison(n *rhino.Node, scope *TypedScope) []
 	infer := NewTypeInference(scope)
 	l := infer.InferType(kids[0])
 	r := infer.InferType(kids[1])
+	numericMode := isDefinitelyNumeric(l) || isDefinitelyNumeric(r)
+	if numericMode {
+		var out []diag.Diagnostic
+		if !isUnknownOrNil(l) && !isDefinitelyNumericish(l) {
+			out = append(out, diag.Diagnostic{
+				Path: c.path, Line: kids[0].Lineno(), Col: kids[0].Charno(),
+				Code: diag.JSC_INVALID_OPERAND_TYPE, Level: diag.Warning,
+				Message: "left side of numeric comparison\nfound   : " +
+					l.TypeName() + "\nrequired: (bigint|number)",
+			})
+		}
+		if !isUnknownOrNil(r) && !isDefinitelyNumericish(r) {
+			out = append(out, diag.Diagnostic{
+				Path: c.path, Line: kids[1].Lineno(), Col: kids[1].Charno(),
+				Code: diag.JSC_INVALID_OPERAND_TYPE, Level: diag.Warning,
+				Message: "right side of numeric comparison\nfound   : " +
+					r.TypeName() + "\nrequired: (bigint|number)",
+			})
+		}
+		return out
+	}
 	if canCompareStrict(l, r) {
 		return nil
 	}
