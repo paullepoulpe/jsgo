@@ -5421,6 +5421,19 @@ func (c *TypeCheck) checkInterfaceConflictProperties(
 			continue
 		}
 		if jstype.IsSubtype(thisPropType, oPropType) || jstype.IsSubtype(oPropType, thisPropType) {
+			// Both sides may be unknown because the property type is a template
+			// parameter (e.g. `T`) bound to a different concrete type by each
+			// `@extends`. Java resolves this via TemplatizedType.findPropertyType;
+			// here we approximate by comparing the per-interface @template binding.
+			if c.templatePropertyConflict(interfaceType, old.obj, pname, displayName, old.display) {
+				c.diags = append(c.diags, diag.Diagnostic{
+					Path: c.path, Line: fn.Lineno(), Col: fn.Charno(),
+					Code: diag.JSC_INCOMPATIBLE_EXTENDED_PROPERTY_TYPE, Level: diag.Error,
+					Message: fmt.Sprintf(
+						"Interface %s has a property %s with incompatible types in its super interfaces %s and %s",
+						functionName, pname, old.display, displayName),
+				})
+			}
 			continue
 		}
 		c.diags = append(c.diags, diag.Diagnostic{
@@ -5453,6 +5466,66 @@ func (c *TypeCheck) checkInterfaceConflictProperties(
 		}
 		c.checkInterfaceConflictProperties(fn, functionName, properties, currentProperties, iType, b.TypeName)
 	}
+}
+
+// templatePropertyConflict implements a heuristic shim for Java's
+// TemplatizedType.findPropertyType when our ObjectType returns Unknown for a
+// property declared as a bare template parameter (e.g. `@type {T}`). Returns
+// true when both interfaces declare the property with their own @template key
+// AND the two `@extends` clauses bind that key to different, non-equivalent
+// type names. Mirrors the comparison Java performs between the two
+// instantiated property types after substitution.
+func (c *TypeCheck) templatePropertyConflict(iA, iB *jstype.ObjectType, pname, displayA, displayB string) bool {
+	bindA := templateBindingFromDisplay(displayA)
+	bindB := templateBindingFromDisplay(displayB)
+	if bindA == "" || bindB == "" || bindA == bindB {
+		return false
+	}
+	if !c.propertyTypeIsTemplateParam(iA, pname) || !c.propertyTypeIsTemplateParam(iB, pname) {
+		return false
+	}
+	return true
+}
+
+// propertyTypeIsTemplateParam reports whether the property `pname` on `obj`
+// is annotated with a bare type expression that names one of the interface's
+// own @template parameters. Falls back to an AST-level constructor-JSDoc scan
+// when the ObjectType itself does not carry a docInfo (the typical case for
+// stub interface types built before the @template tag is parsed).
+func (c *TypeCheck) propertyTypeIsTemplateParam(obj *jstype.ObjectType, pname string) bool {
+	pdoc := obj.GetPropertyJSDocInfo(pname)
+	if pdoc == nil || !pdoc.HasType() {
+		return false
+	}
+	expr := pdoc.Type()
+	if expr == nil || expr.TypeName == "" {
+		return false
+	}
+	ctorDoc := obj.GetJSDocInfo()
+	if ctorDoc == nil {
+		ctorDoc = c.findConstructorJSDoc(obj.TypeName())
+		if ctorDoc == nil {
+			return false
+		}
+	}
+	for _, name := range ctorDoc.TemplateNames() {
+		if name == expr.TypeName {
+			return true
+		}
+	}
+	return false
+}
+
+// templateBindingFromDisplay returns the inner argument list of a templatized
+// type name string, e.g. "Int0<number>" → "number". Returns "" when no
+// template arguments are present.
+func templateBindingFromDisplay(display string) string {
+	lt := strings.IndexByte(display, '<')
+	gt := strings.LastIndexByte(display, '>')
+	if lt < 0 || gt <= lt {
+		return ""
+	}
+	return strings.TrimSpace(display[lt+1 : gt])
 }
 
 // Go-only: language-adapter — strips template args for scope lookup; Java's
