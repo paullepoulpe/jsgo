@@ -154,21 +154,22 @@ func (c *CheckTypeImportCodeReferences) visit(n *rhino.Node) {
 }
 
 // isNameDeclaration reports whether n is a var/let/const statement.
-// Mirrors Java's NodeUtil.isNameDeclaration(Node).
-// TODO(port): NodeUtil.isNameDeclaration(Node) — package-level helper (NodeUtil.isNameDeclaration not yet ported here).
+// Mirrors Java's NodeUtil.isNameDeclaration(Node) (Node.java family of token
+// checks). The canonical Go port is rhino.Node.IsVar/IsLet/IsConst; this
+// helper is local to CheckTypeImportCodeReferences for naming clarity.
 func isNameDeclaration(n *rhino.Node) bool {
-	switch n.Token() {
-	case rhino.VAR, rhino.LET, rhino.CONST:
-		return true
+	if n == nil {
+		return false
 	}
-	return false
+	return n.IsVar() || n.IsLet() || n.IsConst()
 }
 
 // matchesGoogRequireType reports whether callNode is a call to
 // goog.requireType(…). Mirrors Java's
 // callNode.getFirstChild().matchesQualifiedName(GOOG_REQUIRE_TYPE)
 // where GOOG_REQUIRE_TYPE = IR.getprop(IR.name("goog"), "requireType").
-// TODO(port): Node.matchesQualifiedName(String) — qualified-name match helper (rhino.Node does not have matchesQualifiedName yet).
+// Delegates to rhino.Node.MatchesQualifiedNameStr (port of Java
+// Node.matchesQualifiedName(String)).
 func matchesGoogRequireType(callNode *rhino.Node) bool {
 	if callNode == nil || callNode.Token() != rhino.CALL {
 		return false
@@ -177,17 +178,5 @@ func matchesGoogRequireType(callNode *rhino.Node) bool {
 	if callee == nil {
 		return false
 	}
-	if callee == nil || callee.Token() != rhino.GETPROP {
-		return false
-	}
-	kids := callee.Children()
-	if len(kids) < 2 {
-		return false
-	}
-	obj := kids[0]
-	prop := kids[1]
-	if obj.Token() != rhino.NAME || obj.String_() != "goog" {
-		return false
-	}
-	return prop.String_() == "requireType"
+	return callee.MatchesQualifiedNameStr("goog.requireType")
 }
