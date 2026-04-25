@@ -2173,7 +2173,11 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 		// regardless of where the current LHS read appears.
 		propIsInferred := obj.IsPropertyInferred(propName) ||
 			(c.inferredWrites[obj] != nil && c.inferredWrites[obj][propName])
-		if isAssignLHS(n) && propIsInferred && !obj.IsStruct && !c.externTypes[obj] &&
+		// Object is the global root — Java explicitly fires STRICT_INEXISTENT_PROPERTY
+		// for inferred writes on Object (sparser-than-Java externs notwithstanding).
+		// Other extern stubs (Date, Error, …) keep their open surface to avoid FP storms.
+		externAllowed := !c.externTypes[obj] || obj.Name == "Object"
+		if isAssignLHS(n) && propIsInferred && !obj.IsStruct && externAllowed &&
 			!insideOwnConstructor(n, obj) &&
 			!propertyDefinedInOwnConstructor(obj, propName) &&
 			!isThisAccessInsideConstructor(n, obj) {

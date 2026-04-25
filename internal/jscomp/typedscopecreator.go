@@ -737,12 +737,26 @@ func (c *TypedScopeCreator) recordPrototypeAssign(a *rhino.Node, scope *TypedSco
 		resolveScope = &TypedScope{parent: scope, declared: map[string]jstype.JSType{}, typeAliases: aliases, registry: c.registry}
 	}
 	memberType := c.inferPrototypeValueType(a.JSDocInfo(), rhs, resolveScope, fn.Instance, propName)
-	fn.Instance.DefineProperty(propName, memberType)
-	// Literal-inferred prototype slots (no @type) don't participate
-	// in the subclass-override type-match check — Java treats them
-	// as open surface in default mode.
+	// Port of TypedScopeCreator.NormalScopeBuilder.defineSlot @ closure-compiler v20260415
+	// When a prototype property has an explicit @type annotation or is a
+	// method (function RHS), it is a declared slot: use DefineDeclaredProperty
+	// so that any prior inferred slot (e.g. from a constructor's `this.x = …`
+	// processed before the prototype declaration) is promoted to declared.
+	// This mirrors Java's order guarantee: Java's NormalScopeBuilder pre-pass
+	// registers all prototype declarations before processing constructor bodies,
+	// so declared slots always win. In Go's single-pass order, we achieve the
+	// same effect by having DefineDeclaredProperty clear the inferred flag on
+	// the existing slot. Literal-only prototype properties (no @type, no function
+	// body) remain inferred — Java treats those as open surfaces in default mode.
 	info := a.JSDocInfo()
-	if (info == nil || !info.HasType()) && rhs.Token() != rhino.FUNCTION {
+	isDeclared := (info != nil && info.HasType()) || rhs.Token() == rhino.FUNCTION
+	if isDeclared {
+		fn.Instance.DefineDeclaredProperty(propName, memberType, a.Children()[0])
+	} else {
+		fn.Instance.DefineProperty(propName, memberType)
+		// Literal-inferred prototype slots (no @type) don't participate
+		// in the subclass-override type-match check — Java treats them
+		// as open surface in default mode.
 		if t := literalType(rhs); !isJSUnknown(t) {
 			fn.Instance.MarkInferred(propName)
 		}
@@ -1245,7 +1259,15 @@ func (c *TypedScopeCreator) recordPrototypeStub(stmt *rhino.Node, getprop *rhino
 			t = jstype.NewFunctionTypeWithThis(paramTypes, ret, fn.Instance)
 		}
 	}
-	fn.Instance.DefineProperty(propName, t)
+	// Port of TypedScopeCreator.NormalScopeBuilder.defineSlot @ closure-compiler v20260415
+	// A stub with @type or @return is a declared slot; use DefineDeclaredProperty
+	// so any prior inferred slot (from a constructor's this.x = …) is promoted
+	// to declared. This matches the fix in recordPrototypeAssign above.
+	if info != nil && (info.HasType() || info.ReturnType() != nil || len(info.ParameterNames()) > 0) {
+		fn.Instance.DefineDeclaredProperty(propName, t, getprop)
+	} else {
+		fn.Instance.DefineProperty(propName, t)
+	}
 }
 
 // recordPrototypeObjectLit handles `X.prototype = {key: fn, …}` —
