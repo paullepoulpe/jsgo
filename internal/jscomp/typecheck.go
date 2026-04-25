@@ -1750,6 +1750,21 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 	}
 	obj := dereferencedObject(recvType)
 	if obj == nil {
+		// Port of TypeCheck.java checkPropertyAccessHelper: when the receiver
+		// is a union type, writing a new property to it is illegal if any
+		// alternate is a @struct. Mirrors Java's iteration over alternates
+		// and JSC_ILLEGAL_PROPERTY_CREATION_ON_UNION_TYPE emission.
+		if u, ok := recvType.(*jstype.UnionType); ok && isAssignLHS(n) {
+			for _, m := range u.GetAlternates() {
+				if mo := dereferencedObject(m); mo != nil && mo.IsStruct {
+					return []diag.Diagnostic{{
+						Path: c.path, Line: propNode.Lineno(), Col: propNode.Charno(),
+						Code: diag.JSC_ILLEGAL_PROPERTY_CREATION_ON_UNION_TYPE, Level: diag.Error,
+						Message: "Cannot add a property to an instance of union type.",
+					}}
+				}
+			}
+		}
 		// Port of TypeCheck.java reportMissingProperty with PropDefinitionKind.LOOSE_UNION:
 		// when the receiver is a union type and the property is present on some
 		// but not all members (MAYBE_PRESENT → LOOSE_UNION), emit
