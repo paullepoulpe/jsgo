@@ -1252,8 +1252,14 @@ func (c *TypedScopeCreator) recordPrototypeStub(stmt *rhino.Node, getprop *rhino
 	if !ok || fn.Instance == nil {
 		return
 	}
-	if fn.Instance.GetPropertyType(propName) != nil {
-		return // already declared by a prior assign
+	// Port of TypedScopeCreator.NormalScopeBuilder.defineSlot @ closure-compiler v20260415
+	// Only skip when the property is already DECLARED (not inferred) —
+	// a prior inferred slot from a constructor `this.x = …` must not
+	// block a later `/** @type {T} */ X.prototype.x;` stub, which should
+	// promote the slot to declared so TypeCheck fires JSC_TYPE_MISMATCH
+	// on the constructor's conflicting write.
+	if fn.Instance.HasOwnDeclaredProperty(propName) {
+		return // already explicitly declared — immutable
 	}
 	// Port of TypedScopeCreator.AbstractScopeBuilder.visitAssignmentSite:
 	// resolve JSDoc types in a template-aware scope so `@type {T}` on a

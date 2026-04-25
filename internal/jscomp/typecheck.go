@@ -1118,6 +1118,17 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 		if info := a.JSDocInfo(); info != nil && info.HasSuppression("duplicate") {
 			return nil
 		}
+		// `/** @constructor */ ns.Foo = …` declares ns.Foo as a constructor
+		// regardless of RHS shape. Java's TypeCheck doesn't fire the
+		// RHS-vs-slot mismatch on this form — the @constructor JSDoc is the
+		// source of truth, and the runtime value is trusted (often
+		// `someFactory()` whose return type the type system can't see
+		// inside). Mirrors Java's createFunctionTypeFromNodes branch where
+		// the RHS-vs-slot check is bypassed for type-tag JSDocs.
+		if info := a.JSDocInfo(); info != nil &&
+			(info.IsConstructor() || info.IsInterface() || info.IsRecord()) {
+			return nil
+		}
 		// ReadonlyArray guard (port of checkNotReadonlyPropertyAssignment).
 		// Java fires at the lhs (GETPROP) node; Java GETPROP charno is the
 		// property-name column, which corresponds to propKids[1] in Go.
