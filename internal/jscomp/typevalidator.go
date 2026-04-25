@@ -668,7 +668,10 @@ func tvMatchesStringContext(t jstype.JSType) bool {
 }
 
 // tvMatchesNumberContext mirrors JSType.matchesNumberContext(): types that
-// can be used where a number is expected.
+// can be used where a number is expected. Java's StringType.matchesNumberContext
+// returns true (strings coerce to number in numeric contexts), and TypeValidator
+// relies on that to suppress JSC_TYPE_MISMATCH on string operands while still
+// firing JSC_INVALID_OPERAND_TYPE in strict mode.
 func tvMatchesNumberContext(t jstype.JSType) bool {
 	if t == nil {
 		return false
@@ -677,7 +680,7 @@ func tvMatchesNumberContext(t jstype.JSType) bool {
 		return true
 	}
 	if t == jstype.Number || t == jstype.Boolean ||
-		t == jstype.Null || t == jstype.Void {
+		t == jstype.Null || t == jstype.String {
 		return true
 	}
 	if u, ok := t.(*jstype.UnionType); ok {
