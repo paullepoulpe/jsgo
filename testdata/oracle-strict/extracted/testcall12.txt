@@ -1,0 +1,15 @@
+testdata/fixtures/extracted/testcall12.js:6:9: ERROR - [JSC_TYPE_MISMATCH] inconsistent return type
+found   : *
+required: number
+  6|   return x && x.foo();
+              ^^^^^^^^^^^^
+
+testdata/fixtures/extracted/testcall12.js:6:16: ERROR - [JSC_POSSIBLE_INEXISTENT_PROPERTY] Property foo never defined on *
+
+This property is accessed on a "loose" type, but is not defined anywhere in the program, so it must not exist.
+  6|   return x && x.foo();
+                     ^^^
+
+2 error(s), 0 warning(s), 66.7% typed
+---EXIT---
+2

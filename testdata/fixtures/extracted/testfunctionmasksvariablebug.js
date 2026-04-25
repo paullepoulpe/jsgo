@@ -1,0 +1,1 @@
+var x = 4; var f = function x(b) { return b ? 1 : x(true); };

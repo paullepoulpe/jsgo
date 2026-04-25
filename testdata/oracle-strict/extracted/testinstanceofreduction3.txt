@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testinstanceofreduction3.js:2:19: WARNING - [JSC_INVALID_PARAM] Parse error. invalid param name "x\s"
+  2|  * @param {Object} x\s
+                        ^
+
+testdata/fixtures/extracted/testinstanceofreduction3.js:3:21: WARNING - [JSC_INVALID_PARAM] Parse error. invalid param name "y\s"
+  3|  * @param {Function} y\s
+                          ^
+
+0 error(s), 2 warning(s), 50.0% typed
+---EXIT---
+0

@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testarrayaccess4.js:1:54: ERROR - [JSC_TYPE_MISMATCH] restricted index type
+found   : Array
+required: number
+  1| /**@return {!Array}*/function foo(){};var bar = foo()[foo()];
+                                                           ^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

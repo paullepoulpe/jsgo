@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testbadextends1.js:3:13: ERROR - [JSC_UNRECOGNIZED_TYPE_ERROR] Bad type annotation. Unknown type not_base
+  3|  * @extends {not_base} */function derived() {}
+                  ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

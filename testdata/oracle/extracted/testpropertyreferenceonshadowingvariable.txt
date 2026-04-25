@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testpropertyreferenceonshadowingvariable.js:9:58: ERROR - [JSC_UNDEFINED_VARIABLE] variable unknown is undeclared
+   9|   const /** !Namespace */ ns = /** @type {!Namespace} */ (unknown);
+                                                                ^^^^^^^
+
+1 error(s), 0 warning(s)
+---EXIT---
+1

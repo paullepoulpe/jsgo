@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testpropertyinference6.js:2:8: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property x_ never defined on F
+  2| (new F).x_ = 3;
+             ^^
+
+testdata/fixtures/extracted/testpropertyinference6.js:4:43: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property x_ never defined on F
+  4| F.prototype.bar = function() { return this.x_; };
+                                                ^^
+
+0 error(s), 2 warning(s), 88.9% typed
+---EXIT---
+0

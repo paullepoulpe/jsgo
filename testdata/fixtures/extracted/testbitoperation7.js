@@ -1,0 +1,1 @@
+var x = null; x |= undefined; x &= 3; x ^= '3'; x |= true;

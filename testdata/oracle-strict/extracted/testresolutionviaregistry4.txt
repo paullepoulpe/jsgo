@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testresolutionviaregistry4.js:1:20: ERROR - [JSC_UNDEFINED_VARIABLE] variable u is undeclared
+  1| /** @constructor */ u.A = function() {};
+                         ^
+
+1 error(s), 0 warning(s)
+---EXIT---
+1

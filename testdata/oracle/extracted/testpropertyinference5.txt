@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testpropertyinference5.js:4:18: WARNING - [JSC_MISSING_RETURN_STATEMENT] Missing return statement. Function expected to return string.
+  4| F.prototype.bar = function() { if (this.x_) return this.x_; };
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+0 error(s), 1 warning(s), 84.6% typed
+---EXIT---
+0

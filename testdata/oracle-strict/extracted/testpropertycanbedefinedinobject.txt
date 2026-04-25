@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testpropertycanbedefinedinobject.js:4:4: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property bar never defined on Object
+  4| foo.bar();
+         ^^^
+
+0 error(s), 1 warning(s), 83.3% typed
+---EXIT---
+0

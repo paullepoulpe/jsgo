@@ -1,0 +1,96 @@
+// Port of com/google/javascript/jscomp/parsing/parser/trees/ParseTreeType.java
+// @ closure-compiler v20260415
+
+package trees
+
+// ParseTreeType enumerates the concrete parse-tree node kinds.
+// The name of each constant matches the class it applies to, in SCREAMING_SNAKE_CASE.
+type ParseTreeType int
+
+const (
+	ParseTreeTypeProgram ParseTreeType = iota
+	ParseTreeTypeFunctionDeclaration
+	ParseTreeTypeBlock
+	ParseTreeTypeVariableStatement
+	ParseTreeTypeVariableDeclaration
+	ParseTreeTypeEmptyStatement
+	ParseTreeTypeExpressionStatement
+	ParseTreeTypeIfStatement
+	ParseTreeTypeDoWhileStatement
+	ParseTreeTypeWhileStatement
+	ParseTreeTypeForInStatement
+	ParseTreeTypeForStatement
+	ParseTreeTypeVariableDeclarationList
+	ParseTreeTypeContinueStatement
+	ParseTreeTypeBreakStatement
+	ParseTreeTypeReturnStatement
+	ParseTreeTypeWithStatement
+	ParseTreeTypeCaseClause
+	ParseTreeTypeDefaultClause
+	ParseTreeTypeSwitchStatement
+	ParseTreeTypeLabelledStatement
+	ParseTreeTypeThrowStatement
+	ParseTreeTypeCatch
+	ParseTreeTypeTryStatement
+	ParseTreeTypeDebuggerStatement
+	ParseTreeTypeThisExpression
+	ParseTreeTypeIdentifierExpression
+	ParseTreeTypeLiteralExpression
+	ParseTreeTypeArrayLiteralExpression
+	ParseTreeTypeObjectLiteralExpression
+	ParseTreeTypeComprehension
+	ParseTreeTypeComprehensionIf
+	ParseTreeTypeComprehensionFor
+	ParseTreeTypeGetAccessor
+	ParseTreeTypeSetAccessor
+	ParseTreeTypePropertyNameAssignment
+	ParseTreeTypeComputedPropertyDefinition
+	ParseTreeTypeComputedPropertyGetter
+	ParseTreeTypeComputedPropertyMethod
+	ParseTreeTypeComputedPropertySetter
+	ParseTreeTypeMissingPrimaryExpression
+	ParseTreeTypeCommaExpression
+	ParseTreeTypeBinaryOperator
+	ParseTreeTypeConditionalExpression
+	ParseTreeTypeUnaryExpression
+	ParseTreeTypeUpdateExpression
+	ParseTreeTypeMemberExpression
+	ParseTreeTypeOptChainMemberExpression
+	ParseTreeTypeNewExpression
+	ParseTreeTypeArgumentList
+	ParseTreeTypeCallExpression
+	ParseTreeTypeOptChainCallExpression
+	ParseTreeTypeClassDeclaration
+	ParseTreeTypeMemberLookupExpression
+	ParseTreeTypeOptChainMemberLookupExpression
+	ParseTreeTypeParenExpression
+	ParseTreeTypeFinally
+	ParseTreeTypeSuperExpression
+	ParseTreeTypeArrayPattern
+	ParseTreeTypeObjectPattern
+	ParseTreeTypeFormalParameterList
+	ParseTreeTypeIterSpread
+	ParseTreeTypeObjectSpread
+	ParseTreeTypeNull
+	ParseTreeTypeIterRest
+	ParseTreeTypeObjectRest
+	ParseTreeTypeModuleImport
+	ParseTreeTypeExportDeclaration
+	ParseTreeTypeExportSpecifier
+	ParseTreeTypeImportDeclaration
+	ParseTreeTypeImportSpecifier
+	ParseTreeTypeForOfStatement
+	ParseTreeTypeForAwaitOfStatement
+	ParseTreeTypeYieldExpression
+	ParseTreeTypeDefaultParameter
+	ParseTreeTypeTemplateLiteralExpression
+	ParseTreeTypeTemplateLiteralPortion
+	ParseTreeTypeTemplateSubstitution
+	ParseTreeTypeOptionalParameter
+	ParseTreeTypeNewTargetExpression
+	ParseTreeTypeAwaitExpression
+	ParseTreeTypeDynamicImportExpression
+	ParseTreeTypeImportMetaExpression
+	ParseTreeTypeComputedPropertyField
+	ParseTreeTypeFieldDeclaration
+)

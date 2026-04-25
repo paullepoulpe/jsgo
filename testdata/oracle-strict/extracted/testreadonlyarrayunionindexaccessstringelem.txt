@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testreadonlyarrayunionindexaccessstringelem.js:2:32: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : string
+required: None
+  2| /** @const {!null} */ const b = a[0];
+                                     ^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

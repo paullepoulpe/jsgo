@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testatrecordonvarobjectliteral_warns.js:1:23: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : {}
+required: function(this:X): ?
+  1| /** @record */ var X = {};
+                            ^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

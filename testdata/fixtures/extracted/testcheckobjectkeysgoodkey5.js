@@ -1,0 +1,1 @@
+/** @type {!Object<undefined, number>} */ var k;

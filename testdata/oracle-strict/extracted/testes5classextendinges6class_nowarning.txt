@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testes5classextendinges6class_nowarning.js:3:10: ERROR - [JSC_UNDEFINED_VARIABLE] variable createSubclass is undeclared
+  3| const B = createSubclass(A);
+               ^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s)
+---EXIT---
+1

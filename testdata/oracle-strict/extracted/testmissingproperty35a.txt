@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testmissingproperty35a.js:4:44: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property specialProp never defined on (Foo|Bar)
+  4| /** @param {Foo|Bar} x */ function f(x) { x.specialProp = 1; }
+                                                 ^^^^^^^^^^^
+
+testdata/fixtures/extracted/testmissingproperty35a.js:5:51: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property specialProp never defined on (Bar|Baz)
+  5| /** @param {Bar|Baz} x */ function g(x) { return x.specialProp; }
+                                                        ^^^^^^^^^^^
+
+0 error(s), 2 warning(s), 88.9% typed
+---EXIT---
+0

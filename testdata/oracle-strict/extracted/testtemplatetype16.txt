@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testtemplatetype16.js:11:0: ERROR - [JSC_TYPE_MISMATCH] assignment
+found   : number
+required: Object
+  11| x = fn(new C());
+      ^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 90.9% typed
+---EXIT---
+1

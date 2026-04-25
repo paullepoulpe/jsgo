@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testtemplatetype22.js:10:8: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : Bar
+required: Qux
+  10| var x = new Bar();
+              ^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

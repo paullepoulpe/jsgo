@@ -1,0 +1,8 @@
+testdata/fixtures/extracted/testvalueusedastype.js:2:12: ERROR - [JSC_UNRECOGNIZED_TYPE_ERROR] Bad type annotation. Unknown type Foo
+It's possible that 'Foo' refers to a value, not a type.
+  2| /** @type {!Foo} */ var foo = 'foo';
+                 ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/teststringcomparison6.js:2:28: ERROR - [JSC_TYPE_MISMATCH] right side of comparison
+found   : undefined
+required: string
+  2| function foo() { if ('a' >= foo()) return; }
+                                 ^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

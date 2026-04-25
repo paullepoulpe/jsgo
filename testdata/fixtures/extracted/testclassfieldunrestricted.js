@@ -1,0 +1,1 @@
+/** @unrestricted */ class C { x = 2; }

@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testbooleanreduction4nullishcoalesce.js:3:1: WARNING - [JSC_USELESS_CODE] Suspicious code. This code lacks side-effects. Is there a bug?
+  3| (function(x) { return null ?? x ?? {} ; })
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+0 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+0

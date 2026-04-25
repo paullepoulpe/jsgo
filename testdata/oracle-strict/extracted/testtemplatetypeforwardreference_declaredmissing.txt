@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testtemplatetypeforwardreference_declaredmissing.js:1:13: ERROR - [JSC_UNRECOGNIZED_TYPE_ERROR] Bad type annotation. Unknown type Foo
+  1| /** @param {!Foo<DoesNotExist>} x */
+                  ^
+
+testdata/fixtures/extracted/testtemplatetypeforwardreference_declaredmissing.js:1:17: ERROR - [JSC_UNRECOGNIZED_TYPE_ERROR] Bad type annotation. Unknown type DoesNotExist
+  1| /** @param {!Foo<DoesNotExist>} x */
+                      ^
+
+2 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+2

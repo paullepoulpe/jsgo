@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testvar9.js:1:16: WARNING - [JSC_ENUM_INITIALIZER_NOT_ENUM] enum initializer must be an object literal or an enum
+  1| /** @enum */var a;
+                     ^
+
+0 error(s), 1 warning(s)
+---EXIT---
+0

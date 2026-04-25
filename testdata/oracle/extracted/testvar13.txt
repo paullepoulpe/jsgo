@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testvar13.js:1:27: ERROR - [JSC_VAR_MULTIPLY_DECLARED_ERROR] Variable a declared more than once. First occurrence: testdata/fixtures/extracted/testvar13.js:1:25
+  1| var /** @type {number} */a,a;
+                                ^
+
+1 error(s), 0 warning(s)
+---EXIT---
+1

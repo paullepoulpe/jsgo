@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testfunctionarguments17.js:1:12: ERROR - [JSC_UNRECOGNIZED_TYPE_ERROR] Bad type annotation. Unknown type booool
+  1| /** @param {booool|string} x */
+                 ^
+
+1 error(s), 0 warning(s), 75.0% typed
+---EXIT---
+1

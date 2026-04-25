@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testnullcheckavoidsinexistentpropertyerror.js:4:8: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property bar never defined on Foo
+  4| if (foo.bar != null) use(foo);
+             ^^^
+
+0 error(s), 1 warning(s), 90.0% typed
+---EXIT---
+0

@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testinonstruct.js:6:15: ERROR - [JSC_IN_USED_WITH_STRUCT] Cannot use the IN operator with structs
+  6| if ('prop' in (new Foo())) {}
+                    ^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

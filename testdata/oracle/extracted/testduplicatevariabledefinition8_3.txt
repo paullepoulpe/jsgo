@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testduplicatevariabledefinition8_3.js:6:32: ERROR - [JSC_DUP_VAR_DECLARATION_TYPE_MISMATCH] variable ns.x redefined with type {prop: string}, original definition at testdata/fixtures/extracted/testduplicatevariabledefinition8_3.js:5 with type rec
+  6| /** @type {{prop:string}} */ ns.x;
+                                     ^
+
+testdata/fixtures/extracted/testduplicatevariabledefinition8_3.js:9:23: ERROR - [JSC_DUP_VAR_DECLARATION_TYPE_MISMATCH] variable ns.y redefined with type rec, original definition at testdata/fixtures/extracted/testduplicatevariabledefinition8_3.js:8 with type {prop: number}
+   9| /** @type {!rec} */ ns.y;
+                             ^
+
+2 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+2

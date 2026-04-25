@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testgetpropdict5.js:5:23: ERROR - [JSC_ILLEGAL_PROPERTY_ACCESS] Cannot do '.' access on a dict
+  5| function Dict1(){ this.prop = 123; }
+                            ^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

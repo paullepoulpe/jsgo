@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testfunctionarguments12.js:1:27: ERROR - [JSC_INEXISTENT_PARAM] parameter foo does not appear in bar's parameter list
+  1| /** @param {String} foo  */function bar(baz){}
+                                ^^^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

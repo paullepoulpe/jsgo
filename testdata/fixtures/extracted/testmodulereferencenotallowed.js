@@ -1,0 +1,1 @@
+/** @param {./Foo} z */ function f(z) {}

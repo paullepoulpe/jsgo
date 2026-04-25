@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testtypeoftype_withlocaldeclaredvariableafterreassignment.js:6:10: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : null
+required: (number|string)
+  6|   var g = null
+               ^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

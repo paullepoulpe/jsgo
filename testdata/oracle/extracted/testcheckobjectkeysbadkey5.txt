@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testcheckobjectkeysbadkey5.js:1:47: ERROR - [JSC_NON_STRINGIFIABLE_OBJECT_KEY] Object type "Object<(Object|null),number>" contains non-stringifiable key and it may lead to an error. Please use ES6 Map instead or implement your own Map structure.
+  1| /** @type {(string|Object<Object, number>)} */ var k;
+                                                    ^^^^^^
+
+1 error(s), 0 warning(s)
+---EXIT---
+1

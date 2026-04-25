@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testtemplatetype21.js:7:8: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : Bar
+required: Foo
+  7| var x = new Bar();
+             ^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

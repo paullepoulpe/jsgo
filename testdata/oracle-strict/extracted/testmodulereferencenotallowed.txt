@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testmodulereferencenotallowed.js:1:12: ERROR - [JSC_UNRECOGNIZED_TYPE_ERROR] Bad type annotation. Unknown type ./Foo
+  1| /** @param {./Foo} z */ function f(z) {}
+                 ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

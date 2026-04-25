@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testhigherorderfunctions2.js:2:30: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : Date
+required: boolean
+  2| /** @type {boolean} */var a = f();
+                                   ^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

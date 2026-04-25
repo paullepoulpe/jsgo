@@ -1,0 +1,1 @@
+/** @type {Function} */ var a = function(){}

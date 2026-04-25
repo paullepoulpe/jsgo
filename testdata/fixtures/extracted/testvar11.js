@@ -1,0 +1,1 @@
+var /** @type {!Date} */foo = 'abc';

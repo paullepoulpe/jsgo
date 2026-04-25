@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testdeleteoperator2.js:6:20: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of f does not match formal parameter
+found   : number
+required: string
+  6|   if (x) { delete f(x)['a']; }
+                         ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

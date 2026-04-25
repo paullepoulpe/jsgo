@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/teststaticmethoddeclaration3.js:1:38: ERROR - [JSC_WRONG_ARGUMENT_COUNT] Function goog.foo: called with 1 argument(s). Function requires at least 0 argument(s) and no more than 0 argument(s).
+  1| var goog = goog || {}; function f() { goog.foo(true); }
+                                           ^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

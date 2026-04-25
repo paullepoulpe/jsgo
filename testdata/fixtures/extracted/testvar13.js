@@ -1,0 +1,1 @@
+var /** @type {number} */a,a;

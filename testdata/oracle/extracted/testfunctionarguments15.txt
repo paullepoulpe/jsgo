@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testfunctionarguments15.js:2:16: ERROR - [JSC_WRONG_ARGUMENT_COUNT] Function f: called with 2 argument(s). Function requires at least 1 argument(s) and no more than 1 argument(s).
+  2| function g(f) { f(1, 2); }
+                     ^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

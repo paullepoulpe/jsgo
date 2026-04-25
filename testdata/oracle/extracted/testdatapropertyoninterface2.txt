@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testdatapropertyoninterface2.js:8:12: ERROR - [JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH] mismatch of the x property on type C and the type of the property it overrides from interface T
+original: number
+override: string
+  8| C.prototype.x = 'foo';
+                 ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1
