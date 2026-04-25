@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testgoodimplements8.js:2:0: ERROR - [JSC_UNDEFINED_VARIABLE] variable MyInterface is undeclared
+  2| MyInterface = function() {};
+     ^^^^^^^^^^^
+
+testdata/fixtures/extracted/testgoodimplements8.js:9:0: ERROR - [JSC_UNDEFINED_VARIABLE] variable MyClass is undeclared
+   9| MyClass = function() {};
+      ^^^^^^^
+
+2 error(s), 0 warning(s)
+---EXIT---
+2

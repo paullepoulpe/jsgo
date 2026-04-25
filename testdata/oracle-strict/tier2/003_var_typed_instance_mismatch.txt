@@ -1,0 +1,9 @@
+testdata/fixtures/tier2/003_var_typed_instance_mismatch.js:4:8: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : string
+required: (Foo|null)
+  4| var f = 'hi';
+             ^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

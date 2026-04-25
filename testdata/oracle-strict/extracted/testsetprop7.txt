@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testsetprop7.js:7:4: ERROR - [JSC_ILLEGAL_PROPERTY_CREATION] Cannot add a property to a struct instance after it is constructed. (If you already declared the property, make sure to give it a type.)
+  7|   t.x = 123;
+         ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

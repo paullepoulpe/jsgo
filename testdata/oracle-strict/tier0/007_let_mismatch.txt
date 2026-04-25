@@ -1,0 +1,9 @@
+testdata/fixtures/tier0/007_let_mismatch.js:2:8: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : number
+required: string
+  2| let s = 3;
+             ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

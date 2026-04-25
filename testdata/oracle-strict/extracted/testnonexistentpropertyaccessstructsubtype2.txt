@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testnonexistentpropertyaccessstructsubtype2.js:10:15: ERROR - [JSC_INEXISTENT_PROPERTY] Property x never defined on Foo.prototype
+  10| var n = objlit.x;
+                     ^
+
+1 error(s), 0 warning(s), 88.9% typed
+---EXIT---
+1

@@ -1,0 +1,23 @@
+testdata/fixtures/extracted/testglobalthis2b.js:4:0: ERROR - [JSC_TYPE_MISMATCH] assignment to property alert of global this
+found   : number
+required: function(*): undefined
+  4| this.alert = 3;
+     ^^^^^^^^^^^^^^
+
+testdata/fixtures/extracted/testglobalthis2b.js:4:0: ERROR - [JSC_USED_GLOBAL_THIS] dangerous use of the global this object
+  4| this.alert = 3;
+     ^^^^
+
+testdata/fixtures/extracted/testglobalthis2b.js:5:21: ERROR - [JSC_USED_GLOBAL_THIS] dangerous use of the global this object
+  5| (new Bindow()).alert(this.alert)
+                          ^^^^
+
+testdata/fixtures/extracted/testglobalthis2b.js:5:26: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of Bindow.prototype.alert does not match formal parameter
+found   : function(*): undefined
+required: string
+  5| (new Bindow()).alert(this.alert)
+                               ^^^^^
+
+4 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+4

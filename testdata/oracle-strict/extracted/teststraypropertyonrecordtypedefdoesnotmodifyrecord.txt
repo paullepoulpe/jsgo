@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/teststraypropertyonrecordtypedefdoesnotmodifyrecord.js:7:12: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property NAME never defined on MyComponent
+  7| MyComponent.NAME = 'MyComponent';
+                 ^^^^
+
+0 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+0

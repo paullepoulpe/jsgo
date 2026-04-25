@@ -1,0 +1,1 @@
+/** @type {string} */var a = new String('hello');

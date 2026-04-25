@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testinstanceof1.js:2:4: ERROR - [JSC_UNDEFINED_VARIABLE] variable bar is undeclared
+  2| if (bar instanceof 3)return;}
+         ^^^
+
+1 error(s), 0 warning(s)
+---EXIT---
+1

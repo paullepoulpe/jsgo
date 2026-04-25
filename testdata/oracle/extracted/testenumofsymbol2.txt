@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testenumofsymbol2.js:7:5: ERROR - [JSC_TYPE_MISMATCH] restricted index type
+found   : ES<symbol>
+required: number
+  7| o[ES.A] = 1;
+          ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

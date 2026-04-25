@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testfunctioncall9.js:6:8: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of Foo.prototype.bar does not match formal parameter
+found   : number
+required: string
+  6| foo.bar(3);
+             ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

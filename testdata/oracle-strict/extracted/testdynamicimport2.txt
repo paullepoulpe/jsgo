@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testdynamicimport2.js:1:41: ERROR - [JSC_INVALID_MODULE_PATH] Invalid module path "foo.js" for resolution mode "BROWSER"
+  1| /** @type {Promise} */ var foo2 = import('foo.js');
+                                              ^
+
+1 error(s), 0 warning(s)
+---EXIT---
+1

@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testswitchcase8.js:9:14: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of g does not match formal parameter
+found   : string
+required: number
+   9|   switch (g(x.foo)) { case 3: return 3; }
+                    ^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

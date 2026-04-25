@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testtypeoftype_unknowntype.js:2:18: WARNING - [JSC_UNRECOGNIZED_TYPEOF_ERROR] Missing type for `typeof` value. The value must be declared and const.
+  2| /** @type {typeof x} */ var y;
+                       ^
+
+0 error(s), 1 warning(s)
+---EXIT---
+0

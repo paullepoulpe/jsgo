@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testinferredreturn4.js:2:0: ERROR - [JSC_TYPE_MISMATCH] assignment
+found   : function(): number
+required: function(): undefined
+  2| x = /** @type {function(): number} */ (function() { return 3; });
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

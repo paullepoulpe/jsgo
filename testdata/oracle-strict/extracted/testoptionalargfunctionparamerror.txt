@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testoptionalargfunctionparamerror.js:1:30: ERROR - [JSC_TYPE_PARSE_ERROR] Bad type annotation. variable length argument must be last. See https://github.com/google/closure-compiler/wiki/Annotating-JavaScript-for-the-Closure-Compiler for more information.
+  1| /** @param {function(...number, number=)} a */
+                                   ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

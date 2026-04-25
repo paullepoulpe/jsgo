@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testtemplatetype3.js:10:1: ERROR - [JSC_TYPE_MISMATCH] assignment
+found   : boolean
+required: string
+  10|  s = x;
+       ^^^^^
+
+1 error(s), 0 warning(s), 91.7% typed
+---EXIT---
+1

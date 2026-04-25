@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testbooleanautoboxing.js:1:30: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : boolean
+required: (Boolean|null)
+  1| /** @type {Boolean} */var a = true;
+                                   ^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

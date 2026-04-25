@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testmissingproperty41b.js:2:22: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property impossible never defined on (Array|Date)
+  2| function f(x) { if (x.impossible) x.impossible(); }
+                           ^^^^^^^^^^
+
+testdata/fixtures/extracted/testmissingproperty41b.js:2:36: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property impossible never defined on (Array|Date)
+  2| function f(x) { if (x.impossible) x.impossible(); }
+                                         ^^^^^^^^^^
+
+0 error(s), 2 warning(s), 60.0% typed
+---EXIT---
+0

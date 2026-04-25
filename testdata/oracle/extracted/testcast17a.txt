@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testcast17a.js:2:47: ERROR - [JSC_UNDEFINED_VARIABLE] variable y is undeclared
+  2| /** @type {Foo} */ var x = /** @type {Foo} */ (y)
+                                                    ^
+
+1 error(s), 0 warning(s)
+---EXIT---
+1

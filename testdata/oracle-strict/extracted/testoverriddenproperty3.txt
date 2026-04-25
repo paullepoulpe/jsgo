@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testoverriddenproperty3.js:10:0: ERROR - [JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH] mismatch of the data property type and the type of the property it overrides from superclass Foo
+original: string
+override: (Object|null|string)
+  10| SubFoo.prototype.data = null;
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

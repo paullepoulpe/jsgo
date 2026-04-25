@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testshadowedforwardreferencehoisted.js:3:27: ERROR - [JSC_UNDEFINED_VARIABLE] variable f is undeclared
+  3|   /** @type {C} */ var x = f();
+                                ^
+
+1 error(s), 0 warning(s)
+---EXIT---
+1

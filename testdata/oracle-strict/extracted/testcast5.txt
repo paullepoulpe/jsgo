@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testcast5.js:3:29: ERROR - [JSC_INVALID_CAST] invalid cast - must be a subtype or supertype
+from: bar
+to  : foo
+  3| var baz = /** @type {!foo} */(new bar);
+                                  ^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

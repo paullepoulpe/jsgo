@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testmultipleextendsinterface4.js:7:0: ERROR - [JSC_EXTENDS_NON_OBJECT] Int2 @extends non-object type number
+  7| function Int2() {};
+     ^^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

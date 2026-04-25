@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testoverriddenparams4.js:12:0: ERROR - [JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH] mismatch of the bar property type and the type of the property it overrides from superclass Foo
+original: function(...number): ?
+override: function(number): ?
+  12| SubFoo.prototype.bar = function(x) {};
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

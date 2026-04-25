@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testmultipleextendsinterface6.js:5:50: ERROR - [JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH] mismatch of the foo property on type Sub and the type of the property it overrides from interface Super2
+original: function(this:Super2, number): undefined
+override: function(this:Sub, string): undefined
+  5| /** @override @param {string} bar */Sub.prototype.foo =
+                                                       ^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

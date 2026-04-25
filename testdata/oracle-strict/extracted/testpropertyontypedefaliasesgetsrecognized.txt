@@ -1,0 +1,8 @@
+testdata/fixtures/extracted/testpropertyontypedefaliasesgetsrecognized.js:7:8: ERROR - [JSC_UNRECOGNIZED_TYPE_ERROR] Bad type annotation. Unknown type aAlias.b.c
+It's possible that 'aAlias.b.c' refers to a value, not a type.
+  7| var /** aAlias.b.c */ x;
+             ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

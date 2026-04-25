@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testoptimizepropertymap1.js:9:24: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property prop never defined on Function
+   9|   var /** null */ n = x.prop;
+                              ^^^^
+
+0 error(s), 1 warning(s), 87.5% typed
+---EXIT---
+0

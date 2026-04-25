@@ -1,0 +1,1 @@
+/** @type {!Object<!RegExp, number>} */ var k;

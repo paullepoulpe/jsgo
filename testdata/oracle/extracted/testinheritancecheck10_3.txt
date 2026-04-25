@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testinheritancecheck10_3.js:9:20: ERROR - [JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH] mismatch of the foo property type and the type of the property it overrides from superclass Root
+original: function(this:Root): number
+override: function(this:Sub): string
+   9|  @return {string} */Sub.prototype.foo =
+                          ^^^^^^^^^^^^^^^^^^^
+  10| function() { return "some string" };
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testdontdroppropertiesinunion7.js:4:25: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property b never defined on x
+  4| function g(x) { return x.b; }
+                              ^
+
+0 error(s), 1 warning(s), 75.0% typed
+---EXIT---
+0

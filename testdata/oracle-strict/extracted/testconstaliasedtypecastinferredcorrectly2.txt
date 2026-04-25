@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testconstaliasedtypecastinferredcorrectly2.js:10:20: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : number
+required: null
+  10| var /** null */ n = x.foo();
+                          ^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

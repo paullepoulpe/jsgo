@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testclassfieldtypeerror3.js:4:2: ERROR - [JSC_TYPE_MISMATCH] assignment to property x of obj.C
+found   : number
+required: string
+  4|   x = 2;
+       ^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

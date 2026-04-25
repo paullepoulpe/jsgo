@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testsetprop9.js:6:12: ERROR - [JSC_ILLEGAL_PROPERTY_CREATION] Cannot add a property to a struct instance after it is constructed. (If you already declared the property, make sure to give it a type.)
+  6| (new Foo()).x += 123;
+                 ^
+
+testdata/fixtures/extracted/testsetprop9.js:6:12: ERROR - [JSC_INEXISTENT_PROPERTY] Property x never defined on Foo
+  6| (new Foo()).x += 123;
+                 ^
+
+2 error(s), 0 warning(s), 66.7% typed
+---EXIT---
+2
