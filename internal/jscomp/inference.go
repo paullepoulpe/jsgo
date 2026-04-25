@@ -841,6 +841,18 @@ func (t *TypeInference) inferObjectLit(n *rhino.Node) jstype.JSType {
 				continue
 			}
 		}
+		// Method shorthand with @param / @return on the key: build a
+		// FunctionType from the FUNCTION's PARAM_LIST and the JSDoc, so
+		// downstream argument-type checks see the declared signature.
+		// Mirrors Java's IRFactory which forwards JSDoc on a method
+		// definition to the FUNCTION/MEMBER_FUNCTION_DEF node, after
+		// which TypedScopeCreator builds a typed FunctionType.
+		if value.Token() == rhino.FUNCTION && kvInfo != nil &&
+			(len(kvInfo.ParameterNames()) > 0 || kvInfo.ReturnType() != nil) {
+			fnType := t.inferFunctionExprWithJSDoc(value, kvInfo)
+			obj.DefineDeclaredProperty(propName, fnType, kv)
+			continue
+		}
 		// @return {T} on the key: property is declared with type function(): T.
 		if kvInfo != nil && kvInfo.ReturnType() != nil {
 			if ret := t.scope.ResolveExpr(kvInfo.ReturnType().TypeName); ret != nil {
@@ -859,11 +871,21 @@ func (t *TypeInference) inferObjectLit(n *rhino.Node) jstype.JSType {
 // node's @param/@return JSDoc. Mirrors how TypeInference.java treats
 // anonymous function literals as callable values.
 func (t *TypeInference) inferFunctionExpr(n *rhino.Node) jstype.JSType {
+	return t.inferFunctionExprWithJSDoc(n, n.JSDocInfo())
+}
+
+// inferFunctionExprWithJSDoc is like inferFunctionExpr but takes an
+// explicit JSDocInfo — used for method shorthand in object literals
+// where the JSDoc lives on the parent STRING_KEY rather than on the
+// FUNCTION node.
+// Go-only: language-adapter — Java attaches JSDoc to MEMBER_FUNCTION_DEF
+// directly so a single API suffices; the Go parser stores the JSDoc on
+// the surrounding STRING_KEY, requiring this two-arg form.
+func (t *TypeInference) inferFunctionExprWithJSDoc(n *rhino.Node, info *rhino.JSDocInfo) jstype.JSType {
 	kids := n.Children()
 	if len(kids) < 2 {
 		return jstype.Unknown
 	}
-	info := n.JSDocInfo()
 	params := kids[1]
 	var paramTypes []jstype.JSType
 	for _, p := range params.Children() {

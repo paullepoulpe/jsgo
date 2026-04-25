@@ -2507,6 +2507,16 @@ func (p *Parser) parseObjectLiteral() (*rhino.Node, bool) {
 			if !p.consumeObjectMethod(obj) {
 				return nil, false
 			}
+			// Attach the leading JSDoc (e.g. @param / @return) to the
+			// freshly emitted STRING_KEY so inferObjectLit can build a
+			// declared FunctionType from it. Mirrors Java's IRFactory,
+			// which sets JSDocInfo on the MEMBER_FUNCTION_DEF / FUNCTION
+			// node when the parser consumes a leading comment.
+			if entryDoc != nil {
+				if last := obj.LastChild(); last != nil && last.Token() == rhino.STRING_KEY {
+					last.SetJSDocInfo(entryDoc)
+				}
+			}
 			p.scanner.SkipTrivia()
 			if p.scanner.ConsumeByte(',') {
 				continue
