@@ -3317,6 +3317,103 @@ func (nodeUtil) Has(n *rhino.Node, pred func(*rhino.Node) bool, traverseChildren
 
 // FindPreorder returns the first node (pre-order) in the subtree of n that
 // satisfies pred, or nil. Children of non-matching nodes whose
+// IteratesImpureIterable reports whether evaluating n may trigger an
+// impure (side-effecting) iterator. Only called for nodes that
+// may iterate: ITER_SPREAD and ITER_REST.
+// Mirrors NodeUtil.iteratesImpureIterable (subset — YIELD/FOR_OF handled separately).
+func (nodeUtil) IteratesImpureIterable(n *rhino.Node) bool {
+	var iterable *rhino.Node
+	switch n.Token() {
+	case rhino.ITER_SPREAD:
+		iterable = n.FirstChild()
+	case rhino.ITER_REST:
+		// Rest in a PARAM_LIST is flat (no iteration); in ARRAY_PATTERN it iterates.
+		if p := n.Parent(); p != nil && p.IsParamList() {
+			return false
+		}
+		return true // conservative: assume impure iterable
+	default:
+		return false
+	}
+	if iterable == nil {
+		return true
+	}
+	// Only array/string/template literals are guaranteed pure iterables.
+	switch iterable.Token() {
+	case rhino.ARRAYLIT, rhino.STRINGLIT, rhino.TEMPLATELIT:
+		return false
+	}
+	return true
+}
+
+// EvaluatesToLocalValue reports whether n evaluates to a freshly created
+// value that cannot be aliased by a non-local name.
+// Mirrors NodeUtil.evaluatesToLocalValue (simplified: no AccessorSummary,
+// no type information).
+func (nodeUtil) EvaluatesToLocalValue(value *rhino.Node) bool {
+	if value == nil {
+		return false
+	}
+	switch value.Token() {
+	case rhino.ASSIGN:
+		return NU.IsImmutableValue(value.LastChild())
+	case rhino.COMMA:
+		return NU.EvaluatesToLocalValue(value.LastChild())
+	case rhino.AND, rhino.OR, rhino.COALESCE:
+		return NU.EvaluatesToLocalValue(value.FirstChild()) &&
+			NU.EvaluatesToLocalValue(value.LastChild())
+	case rhino.HOOK:
+		return NU.EvaluatesToLocalValue(value.GetSecondChild()) &&
+			NU.EvaluatesToLocalValue(value.LastChild())
+	case rhino.DYNAMIC_IMPORT:
+		return true // always returns a fresh Promise
+	case rhino.THIS, rhino.SUPER:
+		return false
+	case rhino.NAME:
+		return NU.IsImmutableValue(value)
+	case rhino.GETELEM, rhino.GETPROP, rhino.OPTCHAIN_GETELEM, rhino.OPTCHAIN_GETPROP:
+		return false
+	case rhino.CALL, rhino.OPTCHAIN_CALL:
+		// Only toString()-style method calls produce local string values;
+		// without type info we cannot confirm, so conservatively return false.
+		return false
+	case rhino.TAGGED_TEMPLATELIT:
+		return false
+	case rhino.NEW:
+		return value.IsOnlyModifiesThisCall()
+	case rhino.DELPROP, rhino.INC, rhino.DEC, rhino.CLASS, rhino.FUNCTION,
+		rhino.REGEXP, rhino.EMPTY, rhino.ARRAYLIT, rhino.OBJECTLIT, rhino.TEMPLATELIT:
+		return true
+	case rhino.CAST:
+		return NU.EvaluatesToLocalValue(value.FirstChild())
+	case rhino.ITER_SPREAD, rhino.OBJECT_SPREAD:
+		return false
+	case rhino.YIELD, rhino.AWAIT:
+		return false
+	default:
+		if value.Token().IsAssign() {
+			return false // logical-assignment ops: lhs may not be local
+		}
+		if isSimpleOperatorToken(value.Token()) || NU.IsImmutableValue(value) {
+			return true
+		}
+		return false // conservative
+	}
+}
+
+// AllArgsUnescapedLocal reports whether every argument to a CALL or NEW node
+// evaluates to a freshly created local value (cannot be aliased externally).
+// Mirrors NodeUtil.allArgsUnescapedLocal.
+func (nodeUtil) AllArgsUnescapedLocal(callOrNew *rhino.Node) bool {
+	// Arguments start at the second child (first child is the callee).
+	for arg := callOrNew.GetSecondChild(); arg != nil; arg = arg.Next() {
+		if !NU.EvaluatesToLocalValue(arg) {
+			return false
+		}
+	}
+	return true
+}
+
 // traverseChildrenPred returns false are skipped.
 // Mirrors NodeUtil.findPreorder.
 func (nodeUtil) FindPreorder(n *rhino.Node, pred func(*rhino.Node) bool, traverseChildrenPred func(*rhino.Node) bool) *rhino.Node {
