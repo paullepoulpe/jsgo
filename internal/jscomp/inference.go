@@ -108,11 +108,16 @@ func (t *TypeInference) inferGetProp(n *rhino.Node) jstype.JSType {
 		}
 	}
 	recvType := t.InferType(recv)
+	// Port of TemplatizedType.getPropertyType: when the receiver is a
+	// templatized type, delegate to tplt.GetPropertyType which applies
+	// the TemplateTypeReplacer, substituting concrete type args into the
+	// property's declared type (e.g. Array<string>.push returns string).
+	// Previously we stripped to tplt.Base losing the substitution.
 	if tplt, ok := recvType.(*jstype.TemplatizedType); ok {
-		// Dereference to the underlying ObjectType for property
-		// lookup. The template args don't influence which properties
-		// exist; they only matter when the property's own type
-		// references a TemplateType.
+		if pt := tplt.GetPropertyType(propName); pt != nil {
+			return pt
+		}
+		// Fall through to Base for properties not resolved via replacer.
 		recvType = tplt.Base
 	}
 	if obj, ok := recvType.(*jstype.ObjectType); ok {
@@ -170,6 +175,60 @@ func (t *TypeInference) inferCall(n *rhino.Node) jstype.JSType {
 			fn = f
 		}
 	case rhino.GETPROP:
+		// Port of FunctionType.getCallOrBindSignature: when the callee is
+		// f.call(…) or f.bind(…), infer the return type via GetCallOrBindSignature
+		// instead of treating "call"/"bind" as opaque GETPROP lookups (which
+		// return Unknown because FunctionType doesn't declare them as regular
+		// properties in the Go model).
+		gpKids := callee.Children()
+		if len(gpKids) >= 2 {
+			propName := gpKids[1].String_()
+			if propName == "call" {
+				recvType := t.InferType(gpKids[0])
+				if recvFn, ok := recvType.(*jstype.FunctionType); ok {
+					// f.call(thisArg, a, b, …) returns f's return type.
+					return recvFn.GetReturnType()
+				}
+			}
+			if propName == "bind" {
+				recvType := t.InferType(gpKids[0])
+				if recvFn, ok := recvType.(*jstype.FunctionType); ok {
+					// f.bind(thisArg, a1, a2, …) returns a new function with
+					// args[1..] pre-bound. Port of FunctionType.getBindReturnType.
+					// allArgs[0] = callee (GETPROP), allArgs[1..] = call args
+					// bindArgs[0] = thisArg, bindArgs[1..] = pre-bound args
+					allArgs := n.Children()
+					bindArgCount := len(allArgs) - 1 // total call args (including thisArg)
+					// Use rich parameters if available; fall back to flat Params.
+					if len(recvFn.GetParameters()) > 0 {
+						return recvFn.GetBindReturnType(bindArgCount)
+					}
+					// For functions built without rich parameters (from JSDoc or
+					// typedscopecreator), synthesise the bound result directly:
+					// strip bindArgCount-1 params (excluding thisArg) from Params.
+					// Variadic functions remain variadic after partial binding.
+					if recvFn.MaxArity >= jstype.MaxArgsUnlimited {
+						// Still variadic after binding — keep same element type.
+						return recvFn
+					}
+					stripped := recvFn.Params
+					if skip := bindArgCount - 1; skip > 0 && skip < len(stripped) {
+						stripped = stripped[skip:]
+					} else if skip := bindArgCount - 1; skip >= len(stripped) {
+						stripped = nil
+					}
+					return jstype.NewFunctionType(stripped, recvFn.Return)
+				}
+			}
+		}
+		if f, ok := t.InferType(callee).(*jstype.FunctionType); ok {
+			fn = f
+		}
+	default:
+		// Callee is a computed expression (e.g. a CALL result like `f.bind(…)(…)`).
+		// Infer the type of the callee expression to get the function type.
+		// Port of TypeInference.java traverseCall — Java evaluates any expression
+		// as a potential callee and retrieves the JSType via getJSType(child).
 		if f, ok := t.InferType(callee).(*jstype.FunctionType); ok {
 			fn = f
 		}
@@ -2298,7 +2357,12 @@ func (t *TypeInference) getPropertyType(objType jstype.JSType, propName string, 
 	if stripped == nil {
 		return jstype.Unknown
 	}
+	// Port of TemplatizedType.getPropertyType: delegate to the templatized
+	// type's GetPropertyType so the replacer applies concrete type args.
 	if tplt, ok := stripped.(*jstype.TemplatizedType); ok {
+		if pt := tplt.GetPropertyType(propName); pt != nil {
+			return pt
+		}
 		stripped = tplt.Base
 	}
 	if obj, ok := stripped.(*jstype.ObjectType); ok {

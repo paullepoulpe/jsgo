@@ -2615,16 +2615,38 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 	// TemplateTypeMap before resolving per-function annotations.
 	resolve, templateMap := c.templateResolver(scope, info)
 	var paramTypes []jstype.JSType
+	var richParams []jstype.Parameter
 	for _, p := range params.Children() {
 		var t jstype.JSType = jstype.Unknown
+		isRest := false
+		isOptional := false
 		// Inline param JSDoc (`function f(/** T */ x)`) wins over
 		// absence of an outer @param on the function.
 		if pj := p.JSDocInfo(); pj != nil && pj.HasType() {
 			t = scope.ResolveExpr(pj.Type().TypeName)
 		} else if pexpr := info.ParameterType(p.String_()); pexpr != nil {
-			t = resolve(pexpr.TypeName)
+			// Strip leading `...` from rest-param type names (e.g. `"...number"` →
+			// `"number"`). The JSDoc parser records the full `...T` string in the
+			// TypeName field; arity is handled separately via setArityFromParams.
+			// Port of Java's FunctionParamBuilder which strips the rest marker
+			// before resolving the element type.
+			typeName := pexpr.TypeName
+			if len(typeName) > 3 && typeName[:3] == "..." {
+				typeName = typeName[3:]
+			}
+			t = resolve(typeName)
+		}
+		// Determine if this param is rest ({...T}) or optional ({T=}).
+		// Port of FunctionParamBuilder.newParameter — mirrors how Java sets
+		// Parameter.isVariadic / isOptional from the JSDoc markers.
+		pName := p.String_()
+		if info.IsRestParam(pName) {
+			isRest = true
+		} else if info.IsOptionalParam(pName) {
+			isOptional = true
 		}
 		paramTypes = append(paramTypes, t)
+		richParams = append(richParams, jstype.NewParameter(t, isOptional, isRest))
 	}
 	// JS semantics for a function without `return expr` is to return
 	// `undefined`. When @return is absent we default to Void instead
@@ -2708,10 +2730,14 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 		if declFn, ok := scope.ResolveExpr(info.Type().TypeName).(*jstype.FunctionType); ok {
 			fnType = declFn
 		} else {
-			fnType = jstype.NewFunctionType(paramTypes, retType)
+			// Port of FunctionParamBuilder: use rich parameters when available
+			// so rest/optional flags are preserved on the FunctionType.
+			fnType = jstype.NewFunctionTypeFromParameters(richParams, retType)
 		}
 	} else {
-		fnType = jstype.NewFunctionType(paramTypes, retType)
+		// Port of FunctionParamBuilder: use rich parameters when available
+		// so rest/optional flags are preserved on the FunctionType.
+		fnType = jstype.NewFunctionTypeFromParameters(richParams, retType)
 	}
 	setArityFromParams(fnType, params, info)
 	if templateMap != nil {
