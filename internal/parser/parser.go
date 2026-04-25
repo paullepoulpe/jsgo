@@ -1876,6 +1876,38 @@ func (p *Parser) parseUnaryExpression() (*rhino.Node, bool) {
 		n.SetPos(startLine, startCol)
 		n.AddChildToBack(operand)
 		return n, true
+	case '+':
+		// `++x` prefix update expression — must precede the `+`/unary plus
+		// branch below.
+		if p.scanner.PeekAt(1) == '+' {
+			p.scanner.Advance()
+			p.scanner.Advance()
+			operand, ok := p.parseUnaryExpression()
+			if !ok {
+				return nil, false
+			}
+			n := rhino.New(rhino.INC)
+			n.SetPos(startLine, startCol)
+			n.AddChildToBack(operand)
+			return n, true
+		}
+	case '-':
+		// `--x` prefix update expression — must precede the `-`/unary minus
+		// branch below.
+		if p.scanner.PeekAt(1) == '-' {
+			p.scanner.Advance()
+			p.scanner.Advance()
+			operand, ok := p.parseUnaryExpression()
+			if !ok {
+				return nil, false
+			}
+			n := rhino.New(rhino.DEC)
+			n.SetPos(startLine, startCol)
+			n.AddChildToBack(operand)
+			return n, true
+		}
+	}
+	switch c {
 	case '-', '+':
 		// Only treat as unary when the next non-space char isn't a
 		// digit-shaped continuation of a binary op. tryBinary ensures
@@ -2133,6 +2165,32 @@ func (p *Parser) parseUpdateExpression() (*rhino.Node, bool) {
 			setFreeCallIfNeeded(tagged)
 			expr = tagged
 			continue
+		}
+		// Postfix update expression: `expr++` / `expr--`. Java's
+		// PostfixExpressionTree applies after the LHS chain. ASI: a line
+		// terminator before `++`/`--` cancels the postfix interpretation
+		// (parsed as a separate statement). For simplicity we rely on
+		// p.scanner.SkipTrivia handling whitespace; multi-line ASI is not
+		// fully ported here.
+		if c == '+' && p.scanner.PeekAt(1) == '+' {
+			p.scanner.Advance()
+			p.scanner.Advance()
+			n := rhino.New(rhino.INC)
+			n.SetPos(expr.Lineno(), expr.Charno())
+			n.AddChildToBack(expr)
+			n.PutBooleanProp(rhino.PropIncrDecr, true) // postfix marker
+			expr = n
+			return expr, true
+		}
+		if c == '-' && p.scanner.PeekAt(1) == '-' {
+			p.scanner.Advance()
+			p.scanner.Advance()
+			n := rhino.New(rhino.DEC)
+			n.SetPos(expr.Lineno(), expr.Charno())
+			n.AddChildToBack(expr)
+			n.PutBooleanProp(rhino.PropIncrDecr, true) // postfix marker
+			expr = n
+			return expr, true
 		}
 		return expr, true
 	}
