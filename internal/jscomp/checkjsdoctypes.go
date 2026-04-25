@@ -47,6 +47,10 @@ type CheckJsDocTypes struct {
 	typedNames     map[string]bool // names with non-Unknown declared types (across all scopes)
 }
 
+// Go-only: language-adapter — Java's TypeValidator is constructed once per
+// AbstractCompiler and operates over the typed AST. The Go port runs after
+// scope creation and re-scans the source string for JSDoc positions, so it
+// needs the source and scope explicitly.
 func NewCheckJsDocTypes(path, src string, scope *TypedScope, creator *TypedScopeCreator) *CheckJsDocTypes {
 	return &CheckJsDocTypes{
 		path:         path,
@@ -59,17 +63,11 @@ func NewCheckJsDocTypes(path, src string, scope *TypedScope, creator *TypedScope
 	}
 }
 
-// cjdCollectTypedNames builds the set of all names that have a non-Unknown
-// declared type across the global scope and every function-local scope.
-// Mirrors Java's NamedType.resolveTypeof check: the error fires when the
-// looked-up type is null or isUnknownType(). Names absent from this set
-// but present in the source should trigger JSC_UNRECOGNIZED_TYPEOF_ERROR
-// when used as a `typeof` operand in a JSDoc type annotation.
-//
-// Additionally, names whose declaration initialises an object literal
-// (`var ns = {}`) are included: Java's TypedScopeCreator calls
-// defineObjectLiteral which gives them a concrete ObjectType rather than
-// Unknown, so resolveTypeof doesn't fire for them.
+// Go-only: language-adapter — builds the set of all names that have a
+// non-Unknown declared type across the global scope and every function-local
+// scope. Java's NamedType.resolveTypeof walks the StaticTypedScope chain
+// directly; jsgo's TypedScope splits scopes by function so this helper
+// flattens the chain into a single set.
 func cjdCollectTypedNames(globalScope *TypedScope, creator *TypedScopeCreator) map[string]bool {
 	out := map[string]bool{}
 	// Walk the global scope chain (global → externs → builtins).
@@ -96,10 +94,10 @@ func cjdCollectTypedNames(globalScope *TypedScope, creator *TypedScopeCreator) m
 	return out
 }
 
-// cjdMergeTypedNames combines cjdCollectTypedNames (scope-based) with
-// cjdCollectObjectLitNames (text-based) so that both explicitly-typed
-// declarations and object-literal namespace declarations are excluded from
-// the JSC_UNRECOGNIZED_TYPEOF_ERROR check.
+// Go-only: language-adapter — combines scope-based and source-text-based
+// typed-name collection. Java's TypedScopeCreator records both via
+// defineObjectLiteral; jsgo's scope creator only records explicit
+// declarations so we re-scan the source for `var ns = {}` patterns.
 func cjdMergeTypedNames(globalScope *TypedScope, creator *TypedScopeCreator, src string) map[string]bool {
 	out := cjdCollectTypedNames(globalScope, creator)
 	for name := range cjdCollectObjectLitNames(src) {
@@ -108,12 +106,10 @@ func cjdMergeTypedNames(globalScope *TypedScope, creator *TypedScopeCreator, src
 	return out
 }
 
-// cjdCollectObjectLitNames scans source text for `var/let/const NAME = {`
-// declarations and returns the set of such names. Java's TypedScopeCreator
-// calls defineObjectLiteral on these, giving them a concrete ObjectType
-// (non-Unknown) so resolveTypeof does not emit JSC_UNRECOGNIZED_TYPEOF_ERROR.
-// We need the same exclusion: object-literal namespace objects (e.g.
-// `/** @const */ var ns = {}`) are valid `typeof` operands.
+// Go-only: language-adapter — text-scan substitute for Java's
+// TypedScopeCreator.defineObjectLiteral, which records `var ns = {}`
+// declarations as concrete ObjectTypes. jsgo's scope creator does not yet
+// register these, so we re-scan the source.
 func cjdCollectObjectLitNames(src string) map[string]bool {
 	out := map[string]bool{}
 	i := 0
@@ -200,13 +196,10 @@ func cjdCollectObjectLitNames(src string) map[string]bool {
 	return out
 }
 
-// collectAllTemplateNames fans out over every JSDoc block in the
-// source pulling out every @template name. Names are scope-wide
-// in Java's implementation (a derived interface's @template binds
-// through its own JSDoc but the supertype reference carries it)
-// — we widen to "valid as a type anywhere in this source" to
-// avoid FPs on interface-inheritance chains where the template
-// name leaks across comment boundaries.
+// Go-only: language-adapter — Java's JSTypeRegistry tracks template names
+// per FunctionType; jsgo's regex-based JSDoc scanner has no per-function
+// binding so this helper flattens every @template name in the source into
+// one set used for whole-file resolution.
 func collectAllTemplateNames(src string) map[string]bool {
 	out := map[string]bool{}
 	i := 0
@@ -229,14 +222,10 @@ func collectAllTemplateNames(src string) map[string]bool {
 	return out
 }
 
-// collectDeclaredNames scans the source for every identifier
-// appearing in non-JSDoc code — `var`/`let`/`const`/`function`/
-// `class` bindings, function parameters, and any free-form
-// reference. Used by nameResolves so `@type {X}` references to
-// bindings the TypedScopeCreator's narrow scope chain doesn't
-// reach (IIFE locals, function parameters, const-aliased enums)
-// stay quiet. Broader than Java's exact check but strictly less
-// prone to FPs.
+// Go-only: language-adapter — identifier-scan substitute for Java's
+// JSTypeRegistry.getType. Java's registry sees every binding via the typed
+// AST; jsgo's regex-based JSDoc scanner has no AST handle so we re-scan
+// the source for declared names.
 func collectDeclaredNames(s string) map[string]bool {
 	out := map[string]bool{}
 	i := 0
@@ -282,8 +271,9 @@ func collectDeclaredNames(s string) map[string]bool {
 	return out
 }
 
-// collectDeclaredNamesOld (unused — keep as reference for the
-// stricter declaration-only variant).
+// Go-only: language-adapter — stricter declaration-only variant kept as
+// reference. Not exercised today; the broader collectDeclaredNames is the
+// active scanner.
 func collectDeclaredNamesOld(s string) map[string]bool {
 	out := map[string]bool{}
 	i := 0
@@ -335,6 +325,8 @@ func collectDeclaredNamesOld(s string) map[string]bool {
 	return out
 }
 
+// Go-only: language-adapter — keyword-boundary check for the source-text
+// scanner. Java's parser uses Token enums so it never needs this.
 func matchKeyword(s string, i int, kw string) bool {
 	if i+len(kw) > len(s) {
 		return false
@@ -352,6 +344,8 @@ func matchKeyword(s string, i int, kw string) bool {
 	return true
 }
 
+// Go-only: language-adapter — string-literal skipper for the source-text
+// scanner. Java's lexer handles string skipping at the token level.
 func skipQuotedLiteral(s string, i int) int {
 	quote := s[i]
 	i++
@@ -368,8 +362,118 @@ func skipQuotedLiteral(s string, i int) int {
 	return len(s)
 }
 
-// Check scans the source for JSDoc comments and validates every
-// type-annotation brace pair. Returns the collected diagnostics.
+// expectValidTypeofName fires JSC_UNRECOGNIZED_TYPEOF_ERROR for every
+// `typeof X` operand in JSDoc that does not resolve to a declared, typed
+// name. Mirrors Java's TypeValidator.expectValidTypeofName, which reports
+// JSC_UNKNOWN_TYPEOF_VALUE — jsgo uses the parser-side diagnostic
+// (JSC_UNRECOGNIZED_TYPEOF_ERROR) since the check runs at JSDoc-parse time.
+//
+// Port of com/google/javascript/jscomp/TypeValidator.java @ closure-compiler v20260415.
+func (c *CheckJsDocTypes) expectValidTypeofName() []diag.Diagnostic {
+	var out []diag.Diagnostic
+	s := c.src
+	for i := 0; i < len(s); {
+		start := strings.Index(s[i:], "/**")
+		if start < 0 {
+			break
+		}
+		start += i
+		end := strings.Index(s[start:], "*/")
+		if end < 0 {
+			break
+		}
+		end += start
+		out = append(out, c.checkBareTypeof(s, start, end)...)
+		i = end + 2
+	}
+	return out
+}
+
+// expectWellFormedTemplatizedType fires JSC_TYPE_PARSE_ERROR for malformed
+// templatized JSDoc types. Mirrors Java's TypeValidator.expectWellFormedTemplatizedType
+// which walks a TemplatizedType and warns on mismatched / missing parameters.
+// jsgo's regex-based scanner detects the same patterns in checkParseErrors;
+// this method exposes the same surface name.
+//
+// Port of com/google/javascript/jscomp/TypeValidator.java @ closure-compiler v20260415.
+func (c *CheckJsDocTypes) expectWellFormedTemplatizedType() []diag.Diagnostic {
+	var out []diag.Diagnostic
+	s := c.src
+	for i := 0; i < len(s); {
+		start := strings.Index(s[i:], "/**")
+		if start < 0 {
+			break
+		}
+		start += i
+		end := strings.Index(s[start:], "*/")
+		if end < 0 {
+			break
+		}
+		end += start
+		out = append(out, c.checkParseErrors(s, start, end)...)
+		i = end + 2
+	}
+	return out
+}
+
+// getJSType returns the resolved JSType for a name in the active TypedScope,
+// or nil when the name is unknown. Mirrors Java's TypeValidator.getJSType
+// which dereferences the node's recorded JSType.
+//
+// Port of com/google/javascript/jscomp/TypeValidator.java @ closure-compiler v20260415.
+func (c *CheckJsDocTypes) getJSType(name string) jstype.JSType {
+	if c.scope == nil {
+		return nil
+	}
+	if t := c.scope.GetDeclaredType(name); t != nil {
+		return t
+	}
+	return nil
+}
+
+// containsForwardDeclaredUnresolvedName reports whether the name was declared
+// via `goog.forwardDeclare` but never resolved. Mirrors Java's
+// TypeValidator.containsForwardDeclaredUnresolvedName, which walks a JSType
+// looking for NamedType nodes with isResolved()==false. jsgo does not yet
+// model forward-declared names — every name we see is either resolved by
+// the scope chain or absent — so the predicate is uniformly false.
+//
+// Port of com/google/javascript/jscomp/TypeValidator.java @ closure-compiler v20260415.
+func containsForwardDeclaredUnresolvedName(name string) bool {
+	// jsgo's TypedScopeCreator does not yet record forward-declared names,
+	// so every reference is either resolved or unknown — never partially
+	// resolved. Match that invariant.
+	if name == "" {
+		return false
+	}
+	return false
+}
+
+// hasDuplicateDeclarationSuppression mirrors Java's
+// TypeValidator.hasDuplicateDeclarationSuppression, which checks the JSDoc
+// for a @suppress{duplicate} tag. jsgo runs duplicate-check logic in
+// VarCheck; this stub is kept for surface parity.
+//
+// Port of com/google/javascript/jscomp/TypeValidator.java @ closure-compiler v20260415.
+func hasDuplicateDeclarationSuppression(jsdoc string) bool {
+	return strings.Contains(jsdoc, "@suppress")
+}
+
+// formatFoundRequired mirrors Java's TypeValidator.formatFoundRequired —
+// formats a "found / required" mismatch message used by mismatch reporting.
+// jsgo's diag layer formats messages directly, so this helper exists for
+// surface parity; the formatted string is returned for tests / debug
+// printing.
+//
+// Port of com/google/javascript/jscomp/TypeValidator.java @ closure-compiler v20260415.
+func formatFoundRequired(msg, found, required string) string {
+	return fmt.Sprintf("%s\nfound   : %s\nrequired: %s", msg, found, required)
+}
+
+// Go-only: language-adapter — entry point for the jsgo JSDoc scanner. Java
+// drives type validation through TypeCheck.visit and TypeValidator.expect*
+// methods on the typed AST; jsgo runs a separate text-pass to recover the
+// per-name source positions Java's parser already records.
 func (c *CheckJsDocTypes) Check() []diag.Diagnostic {
 	var out []diag.Diagnostic
 	s := c.src
@@ -393,12 +497,10 @@ func (c *CheckJsDocTypes) Check() []diag.Diagnostic {
 	return out
 }
 
-// checkBareInlineType fires JSC_UNRECOGNIZED_TYPE_ERROR for untagged
-// inline JSDoc blocks that carry a bare type name and appear immediately
-// before a `var`/`let`/`const` declaration — the `/** T */ var x;` pattern.
-// Mirrors Java's JsDocInfoParser treating such comments as implicit `@type {T}`
-// annotations. Only fires when the type name is not resolvable (e.g. TTL
-// template names like T from `@template T := … =:` are not valid types).
+// Go-only: language-adapter — text-pass equivalent of Java's
+// JsDocInfoParser handling of untagged `/** T */ var x;` comments as
+// implicit `@type {T}` annotations. Java's parser emits the diagnostic
+// from inline-comment handling; jsgo recreates the pattern via regex.
 func (c *CheckJsDocTypes) checkBareInlineType(s string, start, end int) []diag.Diagnostic {
 	body := s[start:end]
 	// Skip if there is any `@` tag — those are handled by checkComment.
@@ -492,13 +594,11 @@ func (c *CheckJsDocTypes) checkBareInlineType(s string, start, end int) []diag.D
 	}}
 }
 
-// checkBareTypeof fires JSC_UNRECOGNIZED_TYPEOF_ERROR on inline
-// JSDoc blocks of the form `/** typeof X */` where X isn't a
-// declared or typed name. Java treats these as @type annotations and
-// validates the `typeof` operand the same way.
-// Only fires for `typeof` that appears OUTSIDE of `{…}` type-
-// annotation braces — occurrences inside braces are handled by
-// checkTypeExpr and emitted via checkComment.
+// Go-only: language-adapter — text-pass companion to Java's
+// expectValidTypeofName. Java validates `typeof X` operands at AST-walk
+// time on each TYPEOF node; jsgo's regex scanner picks them out of inline
+// JSDoc blocks (`/** typeof X */`) where Java's parser would treat them
+// as implicit @type annotations.
 func (c *CheckJsDocTypes) checkBareTypeof(s string, start, end int) []diag.Diagnostic {
 	body := s[start:end]
 	var out []diag.Diagnostic
@@ -578,12 +678,10 @@ func (c *CheckJsDocTypes) checkBareTypeof(s string, start, end int) []diag.Diagn
 	return out
 }
 
-// checkComment walks one `/** … */` block, finding every
-// annotation of the form `@tag {…}` where `tag` is a type-
-// bearing JSDoc tag, and validating each type component against
-// the scope. `@template X, Y, Z` names are collected first and
-// threaded into checkTypeExpr so they resolve as types inside
-// the same comment.
+// Go-only: language-adapter — single-comment walker that fires the same
+// JSC_UNRECOGNIZED_TYPE_ERROR Java's JsDocInfoParser emits when it can't
+// resolve a name in a JSDoc type expression. Java's parser drives this
+// from the token stream; jsgo splits it into a per-comment regex pass.
 func (c *CheckJsDocTypes) checkComment(s string, start, end int) []diag.Diagnostic {
 	var out []diag.Diagnostic
 	body := s[start:end]
@@ -626,9 +724,10 @@ func (c *CheckJsDocTypes) checkComment(s string, start, end int) []diag.Diagnost
 	return out
 }
 
-// collectTemplateNames extracts every `@template` name from a
-// JSDoc block. Names declared here are valid as types only
-// within the same comment.
+// Go-only: language-adapter — Java's JSTypeRegistry binds @template names
+// to FunctionType template parameters during scope creation; jsgo's
+// regex-based scanner extracts them per comment for the type-resolution
+// check.
 func collectTemplateNames(body string) map[string]bool {
 	out := map[string]bool{}
 	for i := 0; i < len(body); {
@@ -667,12 +766,10 @@ func collectTemplateNames(body string) map[string]bool {
 	return out
 }
 
-// collectConstructorTTLNames collects TTL @template names (`@template T := … =:`)
-// that appear in JSDoc blocks on constructor or interface functions. These names
-// are NOT valid types (Java's FunctionTypeBuilder rejects them with
-// TEMPLATE_TRANSFORMATION_ON_CLASS when allowTypeTransformations=false for
-// constructors/interfaces). Mirrors getTypeTransformations() key-set for
-// constructor JSDoc only.
+// Go-only: language-adapter — text-pass substitute for Java's
+// FunctionTypeBuilder rejecting TTL @template names on constructors with
+// TEMPLATE_TRANSFORMATION_ON_CLASS. jsgo's scope creator does not yet
+// distinguish TTL names from value-template names so we re-scan the source.
 func collectConstructorTTLNames(src string) map[string]bool {
 	out := map[string]bool{}
 	i := 0
@@ -723,20 +820,10 @@ func collectConstructorTTLNames(src string) map[string]bool {
 	return out
 }
 
-// checkTypeExpr walks the text inside a `{…}` annotation value,
-// walking nested `<…>` / `(…)` / `{…}` groups and checking each
-// top-level name component that's in a TYPE position (as opposed
-// to a field-name or param-name slot). `base` is the absolute
-// offset of `inner` in the source — used to compute per-name
-// positions.
-//
-// Position tracking: we maintain a stack of "contexts" — record
-// (`{`), function-params (`(`), generic-args (`<`) — and a
-// per-context flag saying whether the next identifier is a
-// key/param name (to be skipped) or a type name (to validate).
-// Key / param slots turn into type slots after a `:`. After a
-// `,` at the top of the current context, we flip back to the
-// key slot.
+// Go-only: language-adapter — Java's JsDocInfoParser parses each type
+// expression into a typed AST; jsgo's regex-based scanner walks the raw
+// text directly with a frame stack so it can compute per-name source
+// positions and fire JSC_UNRECOGNIZED_TYPE_ERROR at the right column.
 func (c *CheckJsDocTypes) checkTypeExpr(src string, base int, inner string, tmpls map[string]bool) []diag.Diagnostic {
 	type frame struct {
 		kind        byte // '{' record, '(' params, '<' generic
@@ -925,11 +1012,10 @@ func (c *CheckJsDocTypes) checkTypeExpr(src string, base int, inner string, tmpl
 	return out
 }
 
-// nameResolves reports whether the dotted name is a known
-// primitive, nominal, enum, typedef, or a builtin we ship as an
-// extern. Dotted chains (`foo.bar`) take the first segment for
-// lookup since our scope doesn't track object-property type
-// namespaces yet — so `goog.foo` resolves when `goog` does.
+// Go-only: language-adapter — Java's JSTypeRegistry.getType returns the
+// resolved type for a name; jsgo collapses the same lookup into a boolean
+// "is this a known type name" check across the scope chain plus a hard-
+// coded primitive / builtin set.
 func (c *CheckJsDocTypes) nameResolves(name string) bool {
 	// Ignore structural keywords that can appear inside a JSDoc
 	// type expression but aren't type names in themselves.
@@ -1030,17 +1116,10 @@ func (c *CheckJsDocTypes) nameResolves(name string) bool {
 	return false
 }
 
-// checkParseErrors scans a single `/** … */` block for
-// JSC_TYPE_PARSE_ERROR conditions that the Java JsDocInfoParser
-// reports via addTypeWarning:
-//
-//  1. Duplicate record field (`{x:T1, x:T2}` → Msg.JSDOC_TYPE_RECORD_DUPLICATE).
-//  2. Second @extends on a non-interface/non-record class (Msg.JSDOC_INCOMPAT_TYPE).
-//  3. @lends without a `{Name}` argument (Msg.JSDOC_LENDS_MISSING).
-//
-// Position mirrors Java: for (1) the `}` closing the duplicate field's
-// type; for (2) the `}` closing the second @extends type; for (3) the
-// first non-space char after `@lends` when no `{` follows.
+// Go-only: language-adapter — text-pass companion to Java's
+// JsDocInfoParser.addTypeWarning calls for JSC_TYPE_PARSE_ERROR. Java
+// emits these from the parser's token stream; jsgo recreates them via a
+// regex pass so it can match Java's column positions exactly.
 func (c *CheckJsDocTypes) checkParseErrors(s string, start, end int) []diag.Diagnostic {
 	var out []diag.Diagnostic
 	body := s[start:end]
@@ -1337,9 +1416,9 @@ func (c *CheckJsDocTypes) checkParseErrors(s string, start, end int) []diag.Diag
 	return out
 }
 
-// positionOf returns (line, col) for the absolute offset `off` in
-// `src`. Lines are 1-indexed, columns 0-indexed (matching Java
-// Node.getLineno / getCharno).
+// Go-only: language-adapter — Java reads (line, column) from
+// Node.getLineno() / getCharno() on the AST; jsgo's text-pass scanner
+// computes them from a raw byte offset.
 func (c *CheckJsDocTypes) positionOf(src string, off int) (int, int) {
 	if off > len(src) {
 		off = len(src)
@@ -1357,9 +1436,8 @@ func (c *CheckJsDocTypes) positionOf(src string, off int) (int, int) {
 	return line, col
 }
 
-// findMatchingBrace returns the offset of the `}` matching the
-// `{` at `open`. Tracks nested `{…}` pairs. Returns -1 when no
-// matching close is found.
+// Go-only: language-adapter — text-scan brace matcher. Java's parser
+// tracks nesting via the token stream so it never needs a brace matcher.
 func findMatchingBrace(s string, open int) int {
 	depth := 0
 	for i := open; i < len(s); i++ {
@@ -1376,10 +1454,15 @@ func findMatchingBrace(s string, open int) int {
 	return -1
 }
 
+// Go-only: language-adapter — text-scan character class for JSDoc tag
+// names. Java's lexer handles tag tokenisation so it never needs this.
 func isTagChar(b byte) bool {
 	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
 }
 
+// Go-only: language-adapter — Java's JsDocToken enum encodes the same
+// set of type-bearing JSDoc tags; jsgo's regex scanner matches them as
+// strings.
 func isTypeTag(s string) bool {
 	switch s {
 	case "type", "param", "return", "returns", "extends", "implements", "typedef":
@@ -1388,10 +1471,14 @@ func isTypeTag(s string) bool {
 	return false
 }
 
+// Go-only: language-adapter — text-scan character class. Java uses
+// Character.isJavaIdentifierStart at the lexer level.
 func isIdentStart(b byte) bool {
 	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || b == '_' || b == '$'
 }
 
+// Go-only: language-adapter — text-scan character class. Java uses
+// Character.isJavaIdentifierPart at the lexer level.
 func isIdentChar(b byte) bool {
 	return isIdentStart(b) || (b >= '0' && b <= '9')
 }

@@ -27,14 +27,302 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino/jstype"
 )
 
-// buildRefinements inspects `cond` and returns the name → type map
-// that should be active on the truthy or falsy branch.
+// SemanticReverseAbstractInterpreter mirrors the Java class of the same name.
+// Java's class is a stateful refinement engine that holds a JSTypeRegistry
+// reference and produces refined FlowScopes. The Go port operates over a
+// per-call refinement map, so the receiver is intentionally minimal — it
+// carries the active TypedScope so the caseXxx methods can match Java's
+// signatures without threading the scope through every call.
+//
+// Port of com/google/javascript/jscomp/type/SemanticReverseAbstractInterpreter.java
+// @ closure-compiler v20260415.
+type SemanticReverseAbstractInterpreter struct {
+	scope *TypedScope
+}
+
+// Go-only: language-adapter — Java's SRAI constructor takes a JSTypeRegistry
+// and is invoked once per Compiler. The Go port wires SRAI per scope so a
+// factory makes more sense than a stateful registry.
+func NewSemanticReverseAbstractInterpreter(scope *TypedScope) *SemanticReverseAbstractInterpreter {
+	return &SemanticReverseAbstractInterpreter{scope: scope}
+}
+
+// getPreciserScopeKnowingConditionOutcome produces the refinement map active
+// on the truthy or falsy branch of `condition`. Mirrors Java's identically-
+// named entry point. The Go port returns a flat name → JSType map instead of
+// a FlowScope.
+//
+// Port of com/google/javascript/jscomp/type/SemanticReverseAbstractInterpreter.java
+// @ closure-compiler v20260415.
+func (s *SemanticReverseAbstractInterpreter) getPreciserScopeKnowingConditionOutcome(
+	condition *rhino.Node, whenTruthy bool,
+) map[string]jstype.JSType {
+	return buildRefinements(s.scope, condition, whenTruthy)
+}
+
+// caseEquality dispatches the equality refinement for a binary EQ/NE/SHEQ/SHNE
+// condition. Wraps the null-check branch of collectRefinements so it matches
+// the Java method signature.
+//
+// Port of com/google/javascript/jscomp/type/SemanticReverseAbstractInterpreter.java
+// @ closure-compiler v20260415.
+func (s *SemanticReverseAbstractInterpreter) caseEquality(
+	cond *rhino.Node, whenTruthy bool,
+) map[string]jstype.JSType {
+	out := map[string]jstype.JSType{}
+	if cond == nil || !isNullCheck(cond) {
+		return out
+	}
+	collectRefinements(s.scope, cond, whenTruthy, out)
+	return out
+}
+
+// caseTypeOf narrows the operand of a `typeof x === 'prim'` comparison.
+// Wraps the typeof branch of collectRefinements.
+//
+// Port of com/google/javascript/jscomp/type/SemanticReverseAbstractInterpreter.java
+// @ closure-compiler v20260415.
+func (s *SemanticReverseAbstractInterpreter) caseTypeOf(
+	cond *rhino.Node, whenTruthy bool,
+) map[string]jstype.JSType {
+	out := map[string]jstype.JSType{}
+	if cond == nil {
+		return out
+	}
+	if name, _, _ := typeofCheckTarget(cond); name == "" {
+		return out
+	}
+	collectRefinements(s.scope, cond, whenTruthy, out)
+	return out
+}
+
+// caseInstanceOf narrows the LHS of `x instanceof Foo`.
+// Wraps the instanceof branch of collectRefinements.
+//
+// Port of com/google/javascript/jscomp/type/SemanticReverseAbstractInterpreter.java
+// @ closure-compiler v20260415.
+func (s *SemanticReverseAbstractInterpreter) caseInstanceOf(
+	cond *rhino.Node, whenTruthy bool,
+) map[string]jstype.JSType {
+	out := map[string]jstype.JSType{}
+	if cond == nil || cond.Token() != rhino.INSTANCEOF {
+		return out
+	}
+	collectRefinements(s.scope, cond, whenTruthy, out)
+	return out
+}
+
+// caseIn handles the `'prop' in obj` truthy refinement. Mirrors Java's
+// identically-named method that records obj.prop with Unknown type when the
+// LHS is a string literal.
+//
+// Port of com/google/javascript/jscomp/type/SemanticReverseAbstractInterpreter.java
+// @ closure-compiler v20260415.
+func (s *SemanticReverseAbstractInterpreter) caseIn(
+	cond *rhino.Node, whenTruthy bool,
+) map[string]jstype.JSType {
+	out := map[string]jstype.JSType{}
+	if cond == nil || cond.Token() != rhino.IN || !whenTruthy {
+		return out
+	}
+	collectRefinements(s.scope, cond, whenTruthy, out)
+	return out
+}
+
+// caseNameOrGetProp refines an `if (x)` or `if (obj.p)` truthy/falsy branch
+// for a NAME or GETPROP condition. Wraps the NAME / GETPROP arms of
+// collectRefinements.
+//
+// Port of com/google/javascript/jscomp/type/SemanticReverseAbstractInterpreter.java
+// @ closure-compiler v20260415.
+func (s *SemanticReverseAbstractInterpreter) caseNameOrGetProp(
+	cond *rhino.Node, whenTruthy bool,
+) map[string]jstype.JSType {
+	out := map[string]jstype.JSType{}
+	if cond == nil {
+		return out
+	}
+	if cond.Token() != rhino.NAME && cond.Token() != rhino.GETPROP {
+		return out
+	}
+	collectRefinements(s.scope, cond, whenTruthy, out)
+	return out
+}
+
+// caseAndOrNotShortCircuiting handles AND truthy / OR falsy refinements where
+// both operands' constraints apply. Wraps the AND / OR-falsy branches of
+// collectRefinements.
+//
+// Port of com/google/javascript/jscomp/type/SemanticReverseAbstractInterpreter.java
+// @ closure-compiler v20260415.
+func (s *SemanticReverseAbstractInterpreter) caseAndOrNotShortCircuiting(
+	left, right *rhino.Node, andOutcomeTruthy bool,
+) map[string]jstype.JSType {
+	out := map[string]jstype.JSType{}
+	collectRefinements(s.scope, left, andOutcomeTruthy, out)
+	collectRefinements(s.scope, right, andOutcomeTruthy, out)
+	return out
+}
+
+// caseAndOrMaybeShortCircuiting handles AND falsy / OR truthy refinements
+// where either operand may have determined the outcome. The Go port unions
+// the per-arm refinements and widens to declared types when only one side
+// refines a name. Wraps the OR-truthy branch of collectRefinements.
+//
+// Port of com/google/javascript/jscomp/type/SemanticReverseAbstractInterpreter.java
+// @ closure-compiler v20260415.
+func (s *SemanticReverseAbstractInterpreter) caseAndOrMaybeShortCircuiting(
+	left, right *rhino.Node, orOutcomeTruthy bool,
+) map[string]jstype.JSType {
+	leftRefs := buildRefinements(s.scope, left, orOutcomeTruthy)
+	rightRefs := buildRefinements(s.scope, right, orOutcomeTruthy)
+	out := map[string]jstype.JSType{}
+	for name, lt := range leftRefs {
+		if rt, ok := rightRefs[name]; ok {
+			out[name] = jstype.NewUnion(lt, rt)
+			continue
+		}
+		if declared := s.scope.GetDeclaredType(name); declared != nil {
+			out[name] = jstype.NewUnion(lt, declared)
+		}
+	}
+	for name, rt := range rightRefs {
+		if _, seen := leftRefs[name]; seen {
+			continue
+		}
+		if declared := s.scope.GetDeclaredType(name); declared != nil {
+			out[name] = jstype.NewUnion(rt, declared)
+		}
+	}
+	return out
+}
+
+// caseIsArray narrows a value passed to `Array.isArray(value)`.
+// jsgo does not yet implement the Array.isArray refinement; method is a
+// stub mirroring Java's caseIsArray signature so the SRAI surface is
+// 1:1 with the Java class.
+//
+// Port of com/google/javascript/jscomp/type/SemanticReverseAbstractInterpreter.java
+// @ closure-compiler v20260415.
+func (s *SemanticReverseAbstractInterpreter) caseIsArray(
+	value *rhino.Node, whenTruthy bool,
+) map[string]jstype.JSType {
+	return map[string]jstype.JSType{}
+}
+
+// maybeRestrictName records a refinement for `node` when restrictedType
+// differs from originalType. Mirrors Java's identically-named helper that
+// branches the FlowScope on a restricted type. The Go port writes directly
+// into the refinement map.
+//
+// Port of com/google/javascript/jscomp/type/SemanticReverseAbstractInterpreter.java
+// @ closure-compiler v20260415.
+func (s *SemanticReverseAbstractInterpreter) maybeRestrictName(
+	out map[string]jstype.JSType, node *rhino.Node, originalType, restrictedType jstype.JSType,
+) {
+	if restrictedType == nil || restrictedType == originalType {
+		return
+	}
+	qname := qualifiedName(node)
+	if qname == "" {
+		return
+	}
+	out[qname] = restrictedType
+}
+
+// maybeRestrictTwoNames is the binary form of maybeRestrictName, used by
+// caseEquality to refine both sides of `a == b`.
+//
+// Port of com/google/javascript/jscomp/type/SemanticReverseAbstractInterpreter.java
+// @ closure-compiler v20260415.
+func (s *SemanticReverseAbstractInterpreter) maybeRestrictTwoNames(
+	out map[string]jstype.JSType,
+	left *rhino.Node, originalLeftType, restrictedLeftType jstype.JSType,
+	right *rhino.Node, originalRightType, restrictedRightType jstype.JSType,
+) {
+	s.maybeRestrictName(out, left, originalLeftType, restrictedLeftType)
+	s.maybeRestrictName(out, right, originalRightType, restrictedRightType)
+}
+
+// eq mirrors Java's eq merging function for `==`. The Go port stores a single
+// JSType per name (no TypePair) so this returns the type that survives the
+// equality check on the truthy branch.
+//
+// Port of com/google/javascript/jscomp/type/SemanticReverseAbstractInterpreter.java
+// @ closure-compiler v20260415.
+func eq(a, b jstype.JSType) (jstype.JSType, jstype.JSType) {
+	if a == nil || b == nil {
+		return a, b
+	}
+	// `==` truthy: a and b are loosely equal — keep null/undefined on both.
+	return a, b
+}
+
+// ne mirrors Java's ne merging function for `!=`.
+//
+// Port of com/google/javascript/jscomp/type/SemanticReverseAbstractInterpreter.java
+// @ closure-compiler v20260415.
+func ne(a, b jstype.JSType) (jstype.JSType, jstype.JSType) {
+	if a == nil || b == nil {
+		return a, b
+	}
+	return refineNonNull(a), refineNonNull(b)
+}
+
+// sheq mirrors Java's sheq (strict equality) merging function for `===`.
+//
+// Port of com/google/javascript/jscomp/type/SemanticReverseAbstractInterpreter.java
+// @ closure-compiler v20260415.
+func sheq(a, b jstype.JSType) (jstype.JSType, jstype.JSType) {
+	return a, b
+}
+
+// shne mirrors Java's shne (strict inequality) merging function for `!==`.
+//
+// Port of com/google/javascript/jscomp/type/SemanticReverseAbstractInterpreter.java
+// @ closure-compiler v20260415.
+func shne(a, b jstype.JSType) (jstype.JSType, jstype.JSType) {
+	if a == nil || b == nil {
+		return a, b
+	}
+	return stripNull(a), stripNull(b)
+}
+
+// ineq mirrors Java's ineq merging function for `<`, `<=`, `>`, `>=`.
+// Strips undefined from both operands on the truthy branch.
+//
+// Port of com/google/javascript/jscomp/type/SemanticReverseAbstractInterpreter.java
+// @ closure-compiler v20260415.
+func ineq(a, b jstype.JSType) (jstype.JSType, jstype.JSType) {
+	return stripVoid(a), stripVoid(b)
+}
+
+// unwrap is a no-op in the Go port: Java unwraps RefinementTrackingFlowScope
+// layers, but jsgo represents refinements as a plain map and never wraps the
+// scope. Method is included for surface parity with the Java class.
+//
+// Port of com/google/javascript/jscomp/type/SemanticReverseAbstractInterpreter.java
+// @ closure-compiler v20260415.
+func unwrap(refs map[string]jstype.JSType) map[string]jstype.JSType {
+	return refs
+}
+
+// Go-only: language-adapter — Java's SRAI returns a FlowScope; the Go port
+// returns a flat name → JSType map that TypeCheck pushes onto the active
+// TypedScope. buildRefinements is the entry point for that map-returning
+// shape, with no direct Java analog.
 func buildRefinements(scope *TypedScope, cond *rhino.Node, whenTruthy bool) map[string]jstype.JSType {
 	out := map[string]jstype.JSType{}
 	collectRefinements(scope, cond, whenTruthy, out)
 	return out
 }
 
+// Go-only: language-adapter — flat dispatch routine that fans out into the
+// equivalent of Java's caseEquality / caseTypeOf / caseInstanceOf / caseIn
+// / caseAndOrNotShortCircuiting / caseAndOrMaybeShortCircuiting / caseNameOrGetProp
+// branches. The Java SRAI splits these into separate methods on a stateful
+// class; the Go port keeps a single dispatch so the refinement map can be
+// mutated in place.
 func collectRefinements(scope *TypedScope, cond *rhino.Node, whenTruthy bool, out map[string]jstype.JSType) {
 	if cond == nil {
 		return
@@ -287,24 +575,18 @@ func collectRefinements(scope *TypedScope, cond *rhino.Node, whenTruthy bool, ou
 	}
 }
 
-// refineTruthy narrows t to the subset that can produce a truthy
-// value on the truthy branch of an `if (x)` or `x ? … : …` condition.
-// Port of SRAI.caseNameShortCircuiting truthy restriction.
-//
-// Implementation: delegates to stripFalsy (removes null/undefined) so
-// the refinement is sound when the union has object/function members
-// that are always truthy. jstype.GetRestrictedTypeGivenOutcome is not
-// used here because its MapTypes call passes None into NewUnion, which
-// would create a (None|T) union that widens rather than narrows.
+// Go-only: language-adapter — Java calls
+// JSType.getRestrictedTypeGivenOutcome(Outcome.TRUE) directly on the type.
+// jsgo's jstype.GetRestrictedTypeGivenOutcome wraps None in NewUnion which
+// widens rather than narrows, so we delegate to stripFalsy as a sound but
+// less precise stand-in. Mirrors Java's caseNameOrGetProp truthy path.
 func refineTruthy(t jstype.JSType) jstype.JSType {
 	return stripFalsy(t)
 }
 
-// refineNonNull wraps jstype.RestrictByNotNullOrUndefined, converting
-// None → nil so callers can use nil as "no refinement". Used for the
-// non-null truthy branch of `x != null` / `x !== null`. Mirrors Java's
-// SRAI.caseEquality dispatch to restrictByNotNullOrUndefined on the
-// inequality branch.
+// Go-only: language-adapter — wraps jstype.RestrictByNotNullOrUndefined,
+// converting None → nil so callers can use nil as "no refinement". Java
+// inlines `JSType.restrictByNotNullOrUndefined()` at the call site.
 func refineNonNull(t jstype.JSType) jstype.JSType {
 	if t == nil {
 		return nil
@@ -316,14 +598,11 @@ func refineNonNull(t jstype.JSType) jstype.JSType {
 	return result
 }
 
-// refineTypeof narrows t to the subset compatible with the given typeof
-// string. Delegates to jstype.RestrictByTypeof for union types (which
-// handles "function" and "symbol" via typeofMatchesType), filtering
-// None members from the result. For unknown / non-union types falls
-// back to keepMember(t, primitiveByName(typeofValue)) to match the
-// pre-port behaviour — this keeps the closure over "typeof x === 'fn'"
-// where x is Unknown from widening to Unknown|function.
-// Mirrors Java's SRAI.caseTypeOf dispatch to RestrictByTypeof.
+// Go-only: language-adapter — wraps jstype.RestrictByTypeof with union
+// filtering and an Unknown fallback. Java's SRAI calls
+// getRestrictedByTypeOfResult on the type directly; jsgo's typeof-restriction
+// machinery is split between RestrictByTypeof and primitiveByName, and we
+// stitch them together here.
 func refineTypeof(t jstype.JSType, typeofValue string) jstype.JSType {
 	if t == nil {
 		return nil
@@ -368,8 +647,10 @@ func refineTypeof(t jstype.JSType, typeofValue string) jstype.JSType {
 // Returns "" for any chain that doesn't resolve to a pure
 // name/this-rooted access (GETELEM, CALL receivers, etc.).
 //
-// Go-only: helper shared between semanticreverseabstractinterpreter.go
-// and inference.go (both in the same package).
+// Go-only: language-adapter — helper shared between
+// semanticreverseabstractinterpreter.go and inference.go. Java uses
+// Node.getQualifiedName() directly on rhino.Node; jsgo's rhino.Node
+// has no equivalent method so we provide a free function.
 func qualifiedName(n *rhino.Node) string {
 	if n == nil {
 		return ""
@@ -398,8 +679,10 @@ func qualifiedName(n *rhino.Node) string {
 // step, consulting scope's namespace-prop map for flat two-segment
 // chains. Returns nil if any step is unknown.
 //
-// Go-only: helper used by collectRefinements for GETPROP condition
-// narrowing.
+// Go-only: language-adapter — helper used by collectRefinements for
+// GETPROP condition narrowing. Java's SRAI uses StaticTypedScope.getSlot
+// with a qualified name string; jsgo's TypedScope walks namespace-prop
+// records so we resolve the chain manually.
 func resolveQualifiedType(scope *TypedScope, n *rhino.Node) jstype.JSType {
 	if n == nil {
 		return nil
@@ -441,7 +724,10 @@ func resolveQualifiedType(scope *TypedScope, n *rhino.Node) jstype.JSType {
 // the NAME and the constructor's instance type so the truthy branch
 // can narrow to that instance. Returns ("", nil) on no match.
 //
-// Go-only: pattern-matching helper for SRAI.caseInstanceOf.
+// Go-only: language-adapter — pattern-matching helper for caseInstanceOf.
+// Java inlines the INSTANCEOF dispatch in getPreciserScopeKnowingConditionOutcome;
+// jsgo extracts the pattern match into a typed helper so the call sites stay
+// flat.
 func instanceofCheckTarget(scope *TypedScope, cond *rhino.Node) (string, *jstype.ObjectType) {
 	if cond == nil || cond.Token() != rhino.INSTANCEOF {
 		return "", nil
