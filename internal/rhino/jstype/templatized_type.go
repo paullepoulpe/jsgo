@@ -71,7 +71,14 @@ func NewTemplatizedType(base *ObjectType, args []JSType) *TemplatizedType {
 			// Build a base map with keys only (no values) — the empty-value
 			// form that objectType.getTemplateTypeMap() returns in Java.
 			baseMap := newTemplateTypeMap(nil, params, nil, nil)
-			t.templateTypeMap = baseMap.CopyFilledWithValues(args)
+			// Clip args to len(params) so mismatched JSDoc (e.g. @type {Foo<A,B>}
+			// when Foo has only one @template T) does not panic. Java handles this
+			// gracefully via the checkTemplate pass; Go clips defensively.
+			clippedArgs := args
+			if len(clippedArgs) > len(params) {
+				clippedArgs = clippedArgs[:len(params)]
+			}
+			t.templateTypeMap = baseMap.CopyFilledWithValues(clippedArgs)
 
 			// Resolve each param key through the filled map.
 			// Mirrors the ImmutableList.Builder loop in the Java constructor.
