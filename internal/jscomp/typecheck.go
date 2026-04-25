@@ -1104,7 +1104,21 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 		}
 		var declared jstype.JSType
 		var ownerName string
-		if recv.Token() == rhino.NAME {
+		// `this.X = …` at global scope resolves to the externs slot for
+		// global `X` (Window.X). Mirrors Closure's TypeCheck where the
+		// global this prototype is Window, so assignments to its
+		// properties type-check against the externs declaration. Only
+		// considers names declared in externs (not in the user's global
+		// scope) — a user redeclaration would already have triggered
+		// JSC_VAR_MULTIPLY_DECLARED_ERROR and Java skips further analysis
+		// on that file in that case.
+		if recv.Token() == rhino.THIS && scope.ThisType() == nil {
+			if t := scope.LookupExternsOnly(propName); t != nil {
+				declared = t
+				ownerName = "global this"
+			}
+		}
+		if declared == nil && recv.Token() == rhino.NAME {
 			if fn, ok := scope.GetDeclaredType(recv.String_()).(*jstype.FunctionType); ok && fn.Instance != nil {
 				if t := fn.Instance.GetStaticPropertyType(propName); t != nil {
 					declared = t
@@ -1205,10 +1219,14 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 		// analysis, TypeMismatch accumulation). Mirrors Java's TypeCheck.visitAssign
 		// calling typeValidator.expectCanAssignToPropertyOf(lhs, rhsType, propType, …).
 		// Position: use parent EXPR_RESULT when available (Java points at statement
-		// start for parenthesised receivers), falling back to lhs.
+		// start for parenthesised receivers), falling back to lhs. For `this.X`
+		// at global scope, Java reports at the THIS receiver — `lhs` (GETPROP)
+		// shares its column, so skip the EXPR_RESULT promotion.
 		posNode := lhs
-		if p := a.Parent(); p != nil && p.Token() == rhino.EXPR_RESULT {
-			posNode = p
+		if recv.Token() != rhino.THIS {
+			if p := a.Parent(); p != nil && p.Token() == rhino.EXPR_RESULT {
+				posNode = p
+			}
 		}
 		// `@implicitCast` on the property declaration opts the slot out of
 		// the assignment subtype check. Java's TypeValidator.expectCanAssignToPropertyOf
@@ -1219,7 +1237,11 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 				return nil
 			}
 		}
-		c.tv.expectCanAssignToPropertyOf(posNode, found, declared, ownerName, propName)
+		// Pass the receiver type so the validator can apply Java's
+		// `ownerType.isFunctionPrototypeType()` interface-method skip
+		// only when the assignment is on a `Foo.prototype` surface.
+		recvType := infer.InferType(recv)
+		c.tv.expectCanAssignToPropertyOf(posNode, found, declared, recvType, ownerName, propName)
 		return c.tvDrain()
 	case rhino.OBJECT_PATTERN, rhino.ARRAY_PATTERN:
 		infer := NewTypeInference(scope)

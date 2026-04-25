@@ -488,6 +488,31 @@ func (s *TypedScope) GetRawDeclaredType(name string) jstype.JSType {
 	return s.parent.GetRawDeclaredType(name)
 }
 
+// Go-only: language-adapter — LookupExternsOnly returns the declared type
+// for `name` only when the name is declared in an ancestor scope (the
+// externs surface) and NOT in the current scope. Used by inferGetProp /
+// visitAssign to resolve `this.X` against the externs Window.X without
+// picking up a user redeclaration that would otherwise trigger
+// JSC_VAR_MULTIPLY_DECLARED_ERROR. Java models this implicitly via the
+// global this object's implicit prototype chain (Window) — a user `var X`
+// would shadow the prototype slot, but the JSC_VAR_MULTIPLY_DECLARED_ERROR
+// short-circuit means TypeCheck never observes the shadowed lookup.
+func (s *TypedScope) LookupExternsOnly(name string) jstype.JSType {
+	if s == nil {
+		return nil
+	}
+	if _, ok := s.declared[name]; ok {
+		// Locally redeclared — let the multiply-declared error path
+		// own the diagnostic; don't hand back a type that would feed
+		// downstream TYPE_MISMATCH checks.
+		return nil
+	}
+	if s.parent == nil {
+		return nil
+	}
+	return s.parent.GetRawDeclaredType(name)
+}
+
 // Go-only: language-adapter — Registry() exposes the JSTypeRegistry pointer
 // held on the scope; in Java the registry is accessed via compiler.getTypeRegistry().
 func (s *TypedScope) Registry() *jstype.Registry { return s.registry }

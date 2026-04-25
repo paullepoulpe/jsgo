@@ -387,19 +387,27 @@ func (tv *TypeValidator) expectCanAssignTo(n *rhino.Node, rightType, leftType js
 // expectCanAssignToPropertyOf checks that `rightType` can be assigned to
 // a property `propName` owned by `ownerName` of type `leftType`.
 // Mirrors Java's TypeValidator.expectCanAssignToPropertyOf(Node, JSType, JSType, JSType, Supplier<String>, String).
-func (tv *TypeValidator) expectCanAssignToPropertyOf(n *rhino.Node, rightType, leftType jstype.JSType, ownerName string, propName string) bool {
+// `ownerType` is the type of the GETPROP receiver; Java uses
+// `ownerType.isFunctionPrototypeType()` to detect interface-prototype
+// assignments and skip the subtype mismatch for them.
+func (tv *TypeValidator) expectCanAssignToPropertyOf(n *rhino.Node, rightType, leftType, ownerType jstype.JSType, ownerName string, propName string) bool {
 	// Template types: always accept.
 	if _, ok := leftType.(*jstype.TemplateType); ok {
 		return true
 	}
 	if !jstype.IsSubtype(rightType, leftType) {
-		// Java skips interface methods: if ownerFn.isInterface() &&
-		// both types are functions. We approximate: if both are FunctionType,
-		// skip. (Interfaces carry no explicit flag in jsgo yet.)
-		if _, rf := rightType.(*jstype.FunctionType); rf {
-			if _, lf := leftType.(*jstype.FunctionType); lf {
-				// Possibly an interface method; stay quiet.
-				return true
+		// Java skips interface methods: if ownerType is a
+		// FunctionPrototypeType and both types are functions, stay
+		// quiet (port of TypeValidator.expectCanAssignToPropertyOf:
+		// `if (ownerType.isFunctionPrototypeType() && ownerFn.isInterface()
+		// && rightType.isFunctionType() && leftType.isFunctionType())`
+		// — jsgo lacks the interface flag, so we approximate using the
+		// FunctionPrototypeType test alone).
+		if isFunctionPrototypeType(ownerType) {
+			if _, rf := rightType.(*jstype.FunctionType); rf {
+				if _, lf := leftType.(*jstype.FunctionType); lf {
+					return true
+				}
 			}
 		}
 		tv.mismatch(n,
@@ -408,6 +416,19 @@ func (tv *TypeValidator) expectCanAssignToPropertyOf(n *rhino.Node, rightType, l
 		return false
 	}
 	return true
+}
+
+// Go-only: language-adapter — predicate matching Java's
+// ObjectType.isFunctionPrototypeType(). Returns true when the type is a
+// PrototypeObjectType whose ownerFunction is set (i.e. `Foo.prototype`).
+func isFunctionPrototypeType(t jstype.JSType) bool {
+	if t == nil {
+		return false
+	}
+	if p, ok := t.(*jstype.PrototypeObjectType); ok {
+		return p.IsFunctionPrototypeType()
+	}
+	return false
 }
 
 // expectArgumentMatchesParameter fires JSC_TYPE_MISMATCH when `argType`

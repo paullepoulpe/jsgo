@@ -50,6 +50,25 @@ func (t *TypeInference) inferGetProp(n *rhino.Node) jstype.JSType {
 	}
 	recv := kids[0]
 	propName := kids[1].String_()
+	// `this.X` at global scope resolves to the externs `X` declaration —
+	// the global this object's prototype is the Window externs surface,
+	// so `this.alert` reads the externs `alert` slot. Mirrors Closure's
+	// resolveAll() linking GLOBAL_THIS's implicit prototype to Window
+	// (jstype_resolver.go:206 documents the still-unported piece, but the
+	// observable type-lookup behaviour is reproducible by routing through
+	// the externs declared scope). Done before the qualified-refinement
+	// lookup because a rejected `this.X = …` assignment in global scope
+	// must not update the slot's read-back type — the externs slot still
+	// owns the property surface. Restricted to names declared only in
+	// externs (not in the user's global scope) so user redeclarations
+	// (`function alert(msg) {}`) don't supply the type for `this.alert`
+	// — Java suppresses TypeCheck on those redeclarations because the
+	// resulting JSC_VAR_MULTIPLY_DECLARED_ERROR aborts further analysis.
+	if recv.Token() == rhino.THIS && t.scope.ThisType() == nil {
+		if pt := t.scope.LookupExternsOnly(propName); pt != nil {
+			return pt
+		}
+	}
 	// Flow refinement for qualified names: `if (obj.prop) { … }`
 	// narrows obj.prop inside the then-branch. The narrowed type
 	// is keyed on the dotted name "obj.prop" in the refinement
