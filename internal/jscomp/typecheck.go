@@ -1217,8 +1217,22 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 			}
 		}
 		if declared == nil {
-			obj, ok := infer.InferType(recv).(*jstype.ObjectType)
-			if !ok {
+			// Port of TypeCheck.java visitAssign: receiver type resolution
+			// strips null/undefined (nullable unions like `F|null` from
+			// `/** @type {F} */` in default-mode Closure) before extracting
+			// the ObjectType, so `x.y.z = …` where `x.y: F|null` resolves
+			// the property lookup against F's instance type.
+			rawRecvType := infer.InferType(recv)
+			recvType := stripNullUndef(rawRecvType)
+			var obj *jstype.ObjectType
+			var ok bool
+			if obj, ok = recvType.(*jstype.ObjectType); !ok {
+				// Also handle TemplatizedType receivers (e.g. Array<Foo>).
+				if tt, ttok := recvType.(*jstype.TemplatizedType); ttok {
+					obj, ok = tt.Base, ttok
+				}
+			}
+			if !ok || obj == nil {
 				return nil
 			}
 			declared = obj.GetPropertyType(propName)
