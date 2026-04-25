@@ -286,7 +286,25 @@ func (c *TypeCheck) collectPropertyWritesIn(n *rhino.Node, scope *TypedScope) {
 				} else {
 					infer := NewTypeInference(scope)
 					recvType := stripNullUndef(infer.InferType(recv))
-					c.defineOnOpenObjectTracked(recvType, propName)
+					// Skip when the receiver is a NAME with a registered
+					// namespace prop for `propName` AND the resolved type
+					// is a structural @record. A `MyVar.PROP = …` on a
+					// record-typed binding declares a per-binding namespace
+					// surface — mutating the shared record type would
+					// falsely propagate to other bindings of the same
+					// record type (e.g. another `var Other: !Foo = {}`).
+					// Mirrors testStrayPropertyOnRecordInstanceDoesNotModifyRecord.
+					skipMutate := false
+					if recv.Token() == rhino.NAME {
+						if obj := dereferencedObject(recvType); obj != nil && obj.IsRecord {
+							if scope.LookupNamespaceProp(recv.String_(), propName) != nil {
+								skipMutate = true
+							}
+						}
+					}
+					if !skipMutate {
+						c.defineOnOpenObjectTracked(recvType, propName)
+					}
 				}
 			}
 		}

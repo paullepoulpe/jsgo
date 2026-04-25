@@ -898,8 +898,16 @@ func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 	}
 	nullable := false
 	if startsWith(expr, "?") {
-		nullable = true
-		expr = trimSpace(expr[1:])
+		// `?` followed by `|` is a bare-Unknown union member, not a
+		// nullable prefix on a real type. Leave the `?` in place so the
+		// union loop below handles it as Unknown. Mirrors how Java's
+		// JsDocInfoParser distinguishes between `?Foo` (nullable Foo) and
+		// `?` (the all-unknown wildcard) at parse time.
+		rest := trimSpace(expr[1:])
+		if !startsWith(rest, "|") {
+			nullable = true
+			expr = rest
+		}
 	}
 	// Inline function type: `function(T1,T2=,...T3):R`. Produced by
 	// JsDocInfoParser.parseFunctionType(). Mirrors how Java's
@@ -957,6 +965,13 @@ func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 		} else if startsWith(p, "?") {
 			explicitNullable = true
 			p = trimSpace(p[1:])
+			// Bare `?` member of a union (`?|undefined`, `string|?`):
+			// resolves to Unknown. Mirrors Java's JsDocInfoParser which
+			// emits a UNKNOWN_TYPE node for a standalone `?` token.
+			if p == "" {
+				members = append(members, jstype.Unknown)
+				continue
+			}
 		}
 		// Inline structural member: `{…}` inside a union.
 		if startsWith(p, "{") && balancedOuterBraces(p) {
