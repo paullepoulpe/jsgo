@@ -670,6 +670,12 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 			c.emit(c.visitStrictBitwise(n, scope))
 		case rhino.LT, rhino.LE, rhino.GT, rhino.GE:
 			c.emit(c.visitRelativeComparison(n, scope))
+		case rhino.BITNOT:
+			// Port of TypeValidator.expectNumber on visitBitwiseNOT
+			// @ closure-compiler v20260415 — strict-mode fires
+			// JSC_INVALID_OPERAND_TYPE "bitwise NOT" on non-number
+			// operands when default-mode visitBitOp didn't already flag.
+			c.emit(c.visitStrictBitNot(n, scope))
 		}
 	}
 	// Java's TypeCheck fires checkJsdocInfoContainsObjectWithBadKey on

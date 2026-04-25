@@ -101,3 +101,37 @@ func isShiftToken(t rhino.Token) bool {
 	}
 	return false
 }
+
+// visitStrictBitNot mirrors Java's TypeValidator.expectNumber on the
+// operand of BITNOT (`~x`). Fires JSC_INVALID_OPERAND_TYPE "bitwise NOT"
+// when the operand is not a strict subtype of number AND the operand
+// matches number context (string operands route through the strict
+// path; null/void/boolean operands are flagged by default-mode
+// visitBitOp via JSC_BAD_TYPE_FOR_BIT_OPERATION).
+//
+// Port of TypeCheck.java case BITNOT @ closure-compiler v20260415.
+func (c *TypeCheck) visitStrictBitNot(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	child := n.FirstChild()
+	if child == nil {
+		return nil
+	}
+	infer := NewTypeInference(scope)
+	t := infer.InferType(child)
+	if t == nil || isUnknownOrNil(t) {
+		return nil
+	}
+	// Skip operands the default-mode visitBitOp already flagged via
+	// JSC_BAD_TYPE_FOR_BIT_OPERATION (null/void/boolean). Mirrors Java's
+	// expectBitwiseable short-circuit before expectNumberStrict.
+	if isDefinitelyNotNumber(t) {
+		return nil
+	}
+	if jstype.IsSubtype(t, jstype.Number) {
+		return nil
+	}
+	return []diag.Diagnostic{{
+		Path: c.path, Line: n.Lineno(), Col: n.Charno(),
+		Code: diag.JSC_INVALID_OPERAND_TYPE, Level: diag.Warning,
+		Message: "bitwise NOT\nfound   : " + t.TypeName() + "\nrequired: number",
+	}}
+}
