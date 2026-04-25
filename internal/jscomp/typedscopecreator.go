@@ -445,7 +445,24 @@ func (c *TypedScopeCreator) buildExpressionFunctionScope(fn *rhino.Node, parent 
 	// works. Matches Java's AbstractScope.declareFunction. Build a
 	// FunctionType carrying the declared @param / @return so bar's
 	// call-sites type-check.
+	//
+	// Port of TypedScopeCreator.FunctionScopeBuilder.declareParameters @
+	// closure-compiler v20260415 — detect IIFE and collect argument nodes
+	// so positional params can be aliased to the caller's variable name,
+	// enabling `ns.prop` inside `(function(ns){...})(namespace)` to resolve
+	// against `namespace`'s declared property types.
+	var iifeArgNode *rhino.Node // first arg, advanced per-param below
+	if p := fn.Parent(); p != nil && p.Token() == rhino.CALL && p.FirstChild() == fn {
+		// fn is the invocation target of a CALL — this is an IIFE.
+		// iifeArgNode is the first argument (second child of CALL).
+		callKids := p.Children()
+		if len(callKids) >= 2 {
+			iifeArgNode = callKids[1]
+		}
+	}
 	var paramTypes []jstype.JSType
+	// iifeSpreaded is set when we encounter a spread arg and stop IIFE inference.
+	iifeSpreaded := false
 	for i, p := range params.Children() {
 		t := resolveParamType(info, p, parent)
 		// Fallback for `/** @type {function(A,B)} */ var foo = function(x,y)`
@@ -454,6 +471,24 @@ func (c *TypedScopeCreator) buildExpressionFunctionScope(fn *rhino.Node, parent 
 		if isJSUnknown(t) && i < len(funcTypeParams) && funcTypeParams[i] != nil {
 			t = funcTypeParams[i]
 		}
+		// Port of TypedScopeCreator.FunctionScopeBuilder.declareNamesInPositionalParameter
+		// @ closure-compiler v20260415 — when param type is unknown and we have
+		// an IIFE argument, register a namespace alias from the param name to the
+		// argument's qualified name so property lookups on the param (e.g. ns.prop)
+		// resolve against the argument's declared properties (e.g. namespace.prop).
+		if isJSUnknown(t) && iifeArgNode != nil && !iifeSpreaded && p.Token() == rhino.NAME {
+			if iifeArgNode.Token() == rhino.ITER_SPREAD {
+				// spread arg — stop inferring from IIFE args for remaining params.
+				iifeSpreaded = true
+			} else if argName := iifeArgNode.String_(); iifeArgNode.Token() == rhino.NAME && argName != "" {
+				// Register a namespace alias: param → arg.  This makes
+				// LookupNamespaceProp(paramName, propName) resolve through
+				// the alias to LookupNamespaceProp(argName, propName), so
+				// property assignments on `ns` inside the IIFE body are
+				// checked against the declared types on `namespace`.
+				local.RecordNamespaceAlias(p.String_(), argName)
+			}
+		}
 		paramTypes = append(paramTypes, t)
 		if p.Token() == rhino.NAME {
 			local.declared[p.String_()] = t
@@ -461,6 +496,9 @@ func (c *TypedScopeCreator) buildExpressionFunctionScope(fn *rhino.Node, parent 
 			// Destructuring param — collect all bound names as Unknown.
 			// resolveParamType returns Unknown for non-NAME params already.
 			collectPatternNames(p, local)
+		}
+		if iifeArgNode != nil {
+			iifeArgNode = iifeArgNode.Next()
 		}
 	}
 	funcName := ""
@@ -497,7 +535,83 @@ func (c *TypedScopeCreator) buildExpressionFunctionScope(fn *rhino.Node, parent 
 				local.typeAliases[k] = v
 			}
 		}
+		// Port of TypedScopeCreator.FunctionScopeBuilder.declareParameters (IIFE
+		// propagation) @ closure-compiler v20260415 — propagate namespace props
+		// recorded inside the IIFE body back to the enclosing (parent) scope under
+		// the canonical name, so uses of the original qualified name after the IIFE
+		// (e.g. `new namespace.Ctor(...)`) resolve to the types declared inside.
+		//
+		// Two cases:
+		//  A) Owner is a param alias (e.g. `ns` aliased to `namespace`): propagate
+		//     the props from `namespaceProps[ns]` → `parent.namespaceProps[namespace]`.
+		//  B) Owner is not locally declared in this function (e.g. `ns` captured from
+		//     outer scope in a no-arg IIFE): propagate to parent directly.
+		c.propagateIIFENamespaceProps(nested, local, parent)
 	}
+}
+
+// propagateIIFENamespaceProps lifts namespace-prop registrations made inside
+// an IIFE body (nested) into the enclosing scope (parent) so that uses of the
+// canonical name after the IIFE can resolve them.
+//
+// Port of TypedScopeCreator.FunctionScopeBuilder.declareNamesInPositionalParameter
+// @ closure-compiler v20260415 — Java stores props directly on ObjectType, which
+// is globally shared; Go stores them on TypedScope keyed by owner name, so an
+// explicit propagation step is needed to make them visible outside the IIFE.
+func (c *TypedScopeCreator) propagateIIFENamespaceProps(nested, local, parent *TypedScope) {
+	for owner, props := range nested.namespaceProps {
+		// Determine the canonical (parent-scope) name for this owner.
+		canonicalOwner := ""
+		if alias, ok := local.namespaceAliases[owner]; ok {
+			// Case A: owner is a param that has an IIFE alias (e.g. ns → namespace).
+			canonicalOwner = alias
+		} else if _, locallyDeclared := local.declared[owner]; !locallyDeclared {
+			// Case B: owner is not locally declared — it came from an outer scope
+			// (e.g. captured `ns` in a no-arg IIFE).
+			canonicalOwner = owner
+		}
+		if canonicalOwner == "" {
+			continue
+		}
+		for prop, t := range props {
+			// Only propagate if the parent doesn't already have a declared type
+			// for this prop (don't override explicit outer declarations).
+			if parent.LookupNamespaceProp(canonicalOwner, prop) == nil {
+				parent.recordNamespaceProp(canonicalOwner, prop, t, nil)
+			}
+		}
+	}
+}
+
+// preregisterIIFENamespaceProps is called during createScopeIn's Pass 1e to
+// hoist namespace-prop declarations from an IIFE body into the enclosing scope
+// BEFORE Pass 2 processes functions whose @param types might reference the
+// declared names (e.g. `@param {namespace.Ctor}`).
+//
+// The approach is to eagerly call buildExpressionFunctionScope for the IIFE
+// function, which (a) fully builds the IIFE body scope including constructor
+// types and prototype props, and (b) propagates them to the parent scope via
+// propagateIIFENamespaceProps. This mirrors Java's TypedScopeCreator which
+// processes ObjectType properties globally (not scope-locally).
+//
+// Port of TypedScopeCreator.FunctionScopeBuilder.declareParameters (IIFE
+// propagation) @ closure-compiler v20260415.
+func (c *TypedScopeCreator) preregisterIIFENamespaceProps(callNode *rhino.Node, scope *TypedScope) {
+	callKids := callNode.Children()
+	if len(callKids) < 1 {
+		return
+	}
+	fn := callKids[0]
+	if fn.Token() != rhino.FUNCTION {
+		return
+	}
+	// Only process if not already built.
+	if _, seen := c.Functions[fn]; seen {
+		return
+	}
+	// Eagerly build the IIFE function scope so namespace props declared
+	// inside the body are propagated to `scope` before Pass 2 runs.
+	c.buildExpressionFunctionScope(fn, scope)
 }
 
 // Go-only: language-adapter — builtins() builds a minimal synthetic externs scope;
@@ -599,6 +713,23 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 	for _, child := range hoisted {
 		if NU.IsNameDeclaration(child) {
 			c.preregisterNamespaceAlias(child, scope)
+		}
+	}
+	// Pass 1e: pre-scan IIFE bodies to hoist their namespace-prop
+	// declarations into the enclosing scope. This must happen before
+	// Pass 2 so that `@param {namespace.Ctor}` on a function declared
+	// after the IIFE can resolve the type. Mirrors how Java's
+	// TypedScopeCreator records ObjectType properties globally (the prop
+	// lives on the ObjectType itself, not on a scope-local map).
+	//
+	// Port of TypedScopeCreator.FunctionScopeBuilder.declareParameters
+	// (IIFE propagation) @ closure-compiler v20260415.
+	for _, child := range hoisted {
+		if child.Token() == rhino.EXPR_RESULT {
+			inner := child.FirstChild()
+			if inner != nil && (inner.Token() == rhino.CALL || inner.Token() == rhino.NEW) {
+				c.preregisterIIFENamespaceProps(inner, scope)
+			}
 		}
 	}
 	// Pass 2: record declarations + functions properly.
