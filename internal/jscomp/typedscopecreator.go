@@ -256,6 +256,50 @@ func (c *TypedScopeCreator) buildExpressionFunctionScope(fn *rhino.Node, parent 
 	}
 	nameNode := kids[0]
 	params := kids[1]
+	// Port of jscomp/NodeUtil.java::getBestJsDocInfoNodeInternal @ closure-compiler v20260415
+	// Anonymous FEE assigned to a VAR/LET/CONST: `var f = function(x) {}`.
+	// Java walks parent(NAME) → grandparent(VAR) to inherit JSDoc unconditionally.
+	// We guard with exact @param name matching (count + each name positionally)
+	// AND require all @param types to be non-union (no `|`) to avoid
+	// flow-narrowing FPs in fixtures that rely on subtype narrowing inside the
+	// FEE body (e.g. testbooleanreduction6 has `@param {Array|string|null} x`
+	// and the union type signals that narrowing is needed for correctness).
+	if info == nil && nameNode != nil && nameNode.String_() == "" {
+		if p := fn.Parent(); p != nil && p.Token() == rhino.NAME {
+			if gp := p.Parent(); gp != nil {
+				switch gp.Token() {
+				case rhino.VAR, rhino.LET, rhino.CONST, rhino.ASSIGN:
+					if gpInfo := gp.JSDocInfo(); gpInfo != nil {
+						jdocNames := gpInfo.ParameterNames()
+						feeParams := params.Children()
+						if len(jdocNames) == len(feeParams) {
+							match := true
+							for i, fp := range feeParams {
+								if fp.Token() != rhino.NAME || fp.String_() != jdocNames[i] {
+									match = false
+									break
+								}
+								// Reject if the @param type is a union — union-typed
+								// params often rely on flow narrowing inside the FEE
+								// body that our non-CFG inference cannot reproduce.
+								if expr := gpInfo.ParameterType(fp.String_()); expr != nil {
+									if resolved := parent.ResolveExpr(expr.TypeName); resolved != nil {
+										if _, isUnion := resolved.(*jstype.UnionType); isUnion {
+											match = false
+											break
+										}
+									}
+								}
+							}
+							if match {
+								info = gpInfo
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 	// Named function expression with a VAR parent — promote the
 	// VAR's @param / @return JSDoc so the named binding carries
 	// the declared signature inside its own body. Anonymous FEEs
