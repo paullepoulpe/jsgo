@@ -2324,19 +2324,30 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 			return nil
 		}
 	}
-	// @interface types are open surfaces in default mode: Java routes
-	// unknown-property accesses on them as LOOSE (STRICT_INEXISTENT_PROPERTY
-	// only), which is silenced in default mode. In strict mode, emit.
-	if obj.IsStructural && !obj.IsStruct && obj.IsInterface {
+	// @interface and @record types are open surfaces in default mode: Java
+	// routes unknown-property accesses on them as LOOSE (STRICT_INEXISTENT_PROPERTY
+	// only), which is silenced in default mode. In strict mode, emit. Skip
+	// LHS writes (Java's collectPropertyWrites extends the open surface
+	// during the pre-pass).
+	if obj.IsStructural && !obj.IsStruct {
+		if isAssignLHS(n) {
+			return nil
+		}
 		if c.opts != nil && c.opts.IsOn(GroupStrictCheckTypes) {
 			if c.inexistentReported == nil {
 				c.inexistentReported = map[string]bool{}
 			}
 			c.inexistentReported[key] = true
+			// Receiver display label: bare NAME → variable name (matches
+			// Java's getReadableTypeName); otherwise the type's name.
+			label := obj.TypeName()
+			if kids[0].Token() == rhino.NAME {
+				label = kids[0].String_()
+			}
 			return []diag.Diagnostic{{
 				Path: c.path, Line: propNode.Lineno(), Col: propNode.Charno(),
 				Code: diag.JSC_STRICT_INEXISTENT_PROPERTY, Level: diag.Warning,
-				Message: fmt.Sprintf("Property %s never defined on %s", propName, obj.TypeName()),
+				Message: fmt.Sprintf("Property %s never defined on %s", propName, label),
 			}}
 		}
 		return nil
@@ -3562,6 +3573,12 @@ func dereferencedObject(t jstype.JSType) *jstype.ObjectType {
 	}
 	if obj, ok := t.(*jstype.ObjectType); ok {
 		return obj
+	}
+	// RecordType embeds *ObjectType; expose the underlying object so the
+	// property-existence checks see record fields. Mirrors Java's
+	// RecordType.toObjectType() returning `this` (RecordType is-a ObjectType).
+	if rt, ok := t.(*jstype.RecordType); ok && rt != nil {
+		return rt.ObjectType
 	}
 	return nil
 }
