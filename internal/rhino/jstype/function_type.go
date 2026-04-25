@@ -198,6 +198,16 @@ type FunctionType struct {
 	// Only meaningful when kind == FunctionKindConstructor.
 	implementedInterfaces []*ObjectType
 
+	// implementedInterfaceTypes mirrors the templatized variant of
+	// implementedInterfaces — the parallel JSType slice preserves
+	// TemplatizedType arguments that Java's `(ObjectType) maybeInterType`
+	// downcast carries through implicitly (TemplatizedType IS-A
+	// ObjectType in Java; in the Go port the two are sibling types so we
+	// keep both representations). Indexed in lockstep with
+	// implementedInterfaces. Set by SetImplementedInterfaceTypes; nil
+	// when no templatized info was preserved.
+	implementedInterfaceTypes []JSType
+
 	// ownerFunction mirrors FunctionType for prototype methods — when
 	// this FunctionType is a method, ownerFunction points to the enclosing
 	// constructor FunctionType. Mirrors the Java relationship accessed via
@@ -326,7 +336,7 @@ func NewConstructorType(name string, params []JSType) *FunctionType {
 		ps[i] = NewParameter(t, false, false)
 	}
 	minArity, maxArity := computeArity(ps)
-	return &FunctionType{
+	fn := &FunctionType{
 		parameters:    ps,
 		returnType:    inst,
 		typeOfThis:    inst,
@@ -338,6 +348,8 @@ func NewConstructorType(name string, params []JSType) *FunctionType {
 		IsConstructor: true,
 		Instance:      inst,
 	}
+	inst.Ctor = fn
+	return fn
 }
 
 // NewConstructorTypeFromParameters is the rich variant of
@@ -345,7 +357,7 @@ func NewConstructorType(name string, params []JSType) *FunctionType {
 func NewConstructorTypeFromParameters(name string, params []Parameter) *FunctionType {
 	inst := NewObjectType(name)
 	minArity, maxArity := computeArity(params)
-	return &FunctionType{
+	fn := &FunctionType{
 		parameters:    params,
 		returnType:    inst,
 		typeOfThis:    inst,
@@ -357,6 +369,8 @@ func NewConstructorTypeFromParameters(name string, params []Parameter) *Function
 		IsConstructor: true,
 		Instance:      inst,
 	}
+	inst.Ctor = fn
+	return fn
 }
 
 // --- Java-equivalent accessors (new API) --------------------------------
@@ -532,6 +546,27 @@ func (f *FunctionType) SetImplementedInterfaces(ifaces []*ObjectType) {
 // Returns nil (not the empty slice) when none have been recorded.
 func (f *FunctionType) GetImplementedInterfaces() []*ObjectType {
 	return f.implementedInterfaces
+}
+
+// SetImplementedInterfaceTypes records the parallel templatized form
+// of each implemented interface (e.g. `Foo<string>`). Mirrors how Java
+// keeps TemplatizedType identity through the (ObjectType) cast in
+// FunctionTypeBuilder.inferImplementedInterfaces.
+//
+// Go-only: language-adapter — Java's TemplatizedType extends ObjectType
+// so the cast preserves the templatization; Go has TemplatizedType as a
+// sibling JSType, so we keep both views to allow IsSubtypeOf to do
+// arg-aware comparison.
+func (f *FunctionType) SetImplementedInterfaceTypes(types []JSType) {
+	f.implementedInterfaceTypes = types
+}
+
+// GetImplementedInterfaceTypes returns the parallel templatized list
+// recorded by SetImplementedInterfaceTypes; indexed in lockstep with
+// GetImplementedInterfaces. Returns nil when no templatized info was
+// preserved.
+func (f *FunctionType) GetImplementedInterfaceTypes() []JSType {
+	return f.implementedInterfaceTypes
 }
 
 // GetOwnerFunction mirrors the ownerFunction concept from Java —

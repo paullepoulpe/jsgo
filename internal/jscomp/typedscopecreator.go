@@ -1505,6 +1505,13 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 		}
 	}
 
+	// Wire @implements on ES6 class declarations. Mirrors Java's
+	// FunctionTypeBuilder.inferImplementedInterfaces flow when invoked
+	// from TypedScopeCreator's CLASS visitor.
+	if info := cls.JSDocInfo(); info != nil {
+		c.applyImplementedInterfaces(preStub, info, scope)
+	}
+
 	// Walk body: methods attach to the InstanceType (or the static
 	// slot when tagged `static`); fields attach with their declared
 	// @type to the same slot.
@@ -2342,6 +2349,110 @@ func (c *TypedScopeCreator) buildDeclaredFunctionConstructor(fn *rhino.Node, inf
 	return jstype.NewConstructorType(name, paramTypes)
 }
 
+// applyImplementedInterfaces resolves each `@implements {Foo}` JSDoc
+// expression on the supplied JSDocInfo to a *jstype.ObjectType and
+// stores the list on fnType via FunctionType.SetImplementedInterfaces,
+// mirroring Java's FunctionTypeBuilder.inferImplementedInterfaces flow
+// (FunctionTypeBuilder.java around line 493 in v20260415).
+//
+// A templatized expression like `Foo<string>` resolves via
+// scope.ResolveExpr to a *jstype.TemplatizedType; we record its Base
+// ObjectType (matching Java's `(ObjectType) maybeInterType` cast on a
+// TemplatizedType — TemplatizedType extends ObjectType in Java). When
+// resolution yields a non-object type (Unknown or primitive) we skip
+// the entry — Java's ImplementedTypeValidator emits a warning we don't
+// yet port.
+//
+// Port of jscomp/TypedScopeCreator.java @ closure-compiler v20260415
+// (FunctionTypeBuilder.inferImplementedInterfaces).
+func (c *TypedScopeCreator) applyImplementedInterfaces(fnType *jstype.FunctionType, info *rhino.JSDocInfo, scope *TypedScope) {
+	if fnType == nil || info == nil || !fnType.IsConstructor {
+		return
+	}
+	exprs := info.Implementations()
+	if len(exprs) == 0 {
+		return
+	}
+	var ifaces []*jstype.ObjectType
+	var ifaceTypes []jstype.JSType
+	for _, expr := range exprs {
+		if expr == nil {
+			continue
+		}
+		// Resolve and strip leading null/undefined union members:
+		// `@implements {Foo}` parses with implicit nullability in default
+		// mode (yielding `Foo|null`), but Java's evaluate() returns the raw
+		// ObjectType — strip the null/void members textually here.
+		resolved := scope.ResolveExpr(expr.TypeName)
+		nonNull := stripNullable(resolved)
+		iface := implementedInterfaceFromType(nonNull)
+		if iface == nil {
+			continue
+		}
+		ifaces = append(ifaces, iface)
+		ifaceTypes = append(ifaceTypes, nonNull)
+	}
+	if len(ifaces) > 0 {
+		fnType.SetImplementedInterfaces(ifaces)
+		fnType.SetImplementedInterfaceTypes(ifaceTypes)
+	}
+}
+
+// stripNullable peels off Null and Void union members so that a
+// nullable resolution like `Foo|null` collapses to `Foo`. Mirrors
+// Java's evaluate() which returns the raw ObjectType for a `@implements
+// {Foo}` annotation regardless of the JSDoc's nullability convention.
+func stripNullable(t jstype.JSType) jstype.JSType {
+	u, ok := t.(*jstype.UnionType)
+	if !ok || u == nil {
+		return t
+	}
+	var keep []jstype.JSType
+	for _, m := range u.GetAlternates() {
+		if m == jstype.Null || m == jstype.Void {
+			continue
+		}
+		keep = append(keep, m)
+	}
+	if len(keep) == 1 {
+		return keep[0]
+	}
+	if len(keep) == 0 {
+		return t
+	}
+	return jstype.NewUnion(keep...)
+}
+
+// implementedInterfaceFromType returns the nominal interface ObjectType
+// represented by the resolved JSDoc type, or nil when the type is not an
+// object/templatized/named-of-object form.  Mirrors the implicit
+// (ObjectType) cast Java performs in
+// FunctionTypeBuilder.inferImplementedInterfaces — except that the Go
+// port's ResolveExpr defaults to a nullable union for nominal names,
+// so we also peel off Null / Void members.
+func implementedInterfaceFromType(t jstype.JSType) *jstype.ObjectType {
+	switch v := t.(type) {
+	case *jstype.ObjectType:
+		return v
+	case *jstype.TemplatizedType:
+		if v != nil {
+			return v.Base
+		}
+	case *jstype.UnionType:
+		if v != nil {
+			for _, m := range v.GetAlternates() {
+				if m == jstype.Null || m == jstype.Void {
+					continue
+				}
+				if r := implementedInterfaceFromType(m); r != nil {
+					return r
+				}
+			}
+		}
+	}
+	return nil
+}
+
 // Go-only: language-adapter — recordFunction is a Go-only helper that records a FUNCTION node and builds its type; Java uses NormalScopeBuilder.visit for FUNCTION tokens and createFunctionTypeFromNodes.
 func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 	info := fn.JSDocInfo()
@@ -2432,6 +2543,18 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 		if info.IsDict() {
 			fnType.Instance.IsDict = true
 		}
+		// Refresh the Instance → Ctor back-pointer: the Pass-1 preStub
+		// had the Instance pointing to the stub FunctionType; now that
+		// fnType is the real ctor, update the back-link so
+		// ObjectType.IsSubtypeOf can reach this constructor's
+		// implementedInterfaces. Mirrors how Java's InstanceObjectType
+		// always carries its constructor reference.
+		fnType.Instance.Ctor = fnType
+		// Wire @implements: resolve each `@implements {Foo}` JSDoc
+		// expression to its ObjectType (or TemplatizedType base) and
+		// store on the FunctionType, mirroring Java's
+		// FunctionTypeBuilder.inferImplementedInterfaces.
+		c.applyImplementedInterfaces(fnType, info, scope)
 	} else if info.HasType() {
 		// `@type {function(this:T, …)}` on a plain function — resolve the
 		// declared type so typeOfThis is preserved. When the resolved type
