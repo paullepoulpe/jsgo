@@ -267,22 +267,13 @@ func (c *TypeCheck) collectPropertyWritesIn(n *rhino.Node, scope *TypedScope) {
 				recv := propKids[0]
 				propName := propKids[1].String_()
 				if recv.Token() == rhino.THIS {
-					// Subclass constructor body: `this.X = V` inside
-					// a `@constructor @extends {Foo}` function adds
-					// X to Foo's surface too. Java's type-inference
-					// propagates the write up the extends chain for
-					// read-site validation.
-					if enc := NU.GetEnclosingFunction(n); enc != nil {
-						if info := enc.JSDocInfo(); info != nil && info.IsConstructor() {
-							if base := info.BaseType(); base != nil {
-								if super := c.global.LookupNominalType(base.TypeName); super != nil {
-									if !super.HasProperty(propName) {
-										super.DefineProperty(propName, jstype.Unknown)
-									}
-								}
-							}
-						}
-					}
+					// Java does not propagate `this.X = V` up the @extends
+					// chain. Subclass writes register on the subclass instance
+					// only; read-site validation on the superclass treats
+					// the property as LOOSE (defined on a subtype, not the
+					// receiver) and emits STRICT_INEXISTENT_PROPERTY in strict
+					// mode via buildLoosePropertyIndex.
+					_ = NU
 				} else {
 					infer := NewTypeInference(scope)
 					recvType := stripNullUndef(infer.InferType(recv))
