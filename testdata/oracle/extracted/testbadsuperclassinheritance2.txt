@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testbadsuperclassinheritance2.js:9:0: ERROR - [JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH] mismatch of the myprop property type and the type of the property it overrides from superclass Foo
+original: number
+override: string
+   9| Bar.prototype.myprop = 'qwer';
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

@@ -1,0 +1,9 @@
+testdata/fixtures/tier0/008_const_mismatch.js:2:10: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : string
+required: number
+  2| const c = 'x';
+               ^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/teststringautoboxing.js:1:29: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : string
+required: (String|null)
+  1| /** @type {String} */var a = 'hello';
+                                  ^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

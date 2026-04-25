@@ -1,0 +1,1 @@
+/**@param {!Object} a*/ function f(a) {return a < 3;}

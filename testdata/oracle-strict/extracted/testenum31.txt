@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testenum31.js:2:41: ERROR - [JSC_TYPE_MISMATCH] inconsistent return type
+found   : enum{A}
+required: A<number>
+  2| /** @return {A} */ function f() { return A; }
+                                              ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

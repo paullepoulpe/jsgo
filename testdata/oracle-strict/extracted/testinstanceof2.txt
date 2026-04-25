@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testinstanceof2.js:2:4: ERROR - [JSC_TYPE_MISMATCH] deterministic instanceof yields false
+found   : undefined
+required: NoObject
+  2| if (foo() instanceof Object)return;}
+         ^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

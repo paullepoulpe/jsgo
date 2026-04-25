@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testmissingproperty30a.js:5:4: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property a never defined on *
+  5| f().a = 3;
+         ^
+
+testdata/fixtures/extracted/testmissingproperty30a.js:6:50: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property a never defined on Object
+  6| /** @param {Object} y */ function g(y) { return y.a; }
+                                                       ^
+
+0 error(s), 2 warning(s), 87.5% typed
+---EXIT---
+0

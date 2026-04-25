@@ -1,0 +1,1 @@
+var a = null; switch (typeof a) { case 'foo': }

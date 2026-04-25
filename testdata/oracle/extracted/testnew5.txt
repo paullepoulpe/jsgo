@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testnew5.js:1:16: ERROR - [JSC_NOT_A_CONSTRUCTOR] cannot instantiate non-constructor, found type: function(): undefined
+  1| function A(){}; new A();
+                     ^^^^^^^
+
+1 error(s), 0 warning(s), 66.7% typed
+---EXIT---
+1

@@ -1,0 +1,1 @@
+function f(/** symbol */ s) { return s in {}; }

@@ -1,0 +1,13 @@
+testdata/fixtures/extracted/testmethodinference8.js:7:0: ERROR - [JSC_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH] mismatch of the foo property type and the type of the property it overrides from superclass F
+original: function(this:F): undefined
+override: function(this:G, ?, ?): undefined
+  7| G.prototype.foo = function(opt_b, var_args) { };
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+testdata/fixtures/extracted/testmethodinference8.js:8:0: ERROR - [JSC_WRONG_ARGUMENT_COUNT] Function G.prototype.foo: called with 3 argument(s). Function requires at least 2 argument(s) and no more than 2 argument(s).
+  8| (new G()).foo(1, 2, 3);
+     ^^^^^^^^^^^^^^^^^^^^^^
+
+2 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+2

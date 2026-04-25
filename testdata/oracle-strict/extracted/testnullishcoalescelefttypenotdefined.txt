@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testnullishcoalescelefttypenotdefined.js:1:30: ERROR - [JSC_UNDEFINED_VARIABLE] variable x is undeclared
+  1| /** @type {number} */ var a = x ?? 1;
+                                   ^
+
+1 error(s), 0 warning(s)
+---EXIT---
+1

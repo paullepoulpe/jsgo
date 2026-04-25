@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testvar6.js:4:12: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : number
+required: Date
+  4|     var a = 7;
+                 ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

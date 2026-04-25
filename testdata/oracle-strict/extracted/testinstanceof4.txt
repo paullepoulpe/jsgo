@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testinstanceof4.js:1:31: WARNING - [JSC_MISSING_RETURN_STATEMENT] Missing return statement. Function expected to return (Object|null|number).
+  1| /**@return {(Object|number)} */function foo(){
+                                    ^^^^^^^^^^^^^^^
+  2| if (foo() instanceof Object)return 3;}
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+0 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+0

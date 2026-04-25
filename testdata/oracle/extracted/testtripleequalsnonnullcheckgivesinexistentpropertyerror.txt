@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testtripleequalsnonnullcheckgivesinexistentpropertyerror.js:4:8: ERROR - [JSC_INEXISTENT_PROPERTY] Property bar never defined on Foo
+  4| if (foo.bar !== null) use(foo);
+             ^^^
+
+1 error(s), 0 warning(s), 90.0% typed
+---EXIT---
+1

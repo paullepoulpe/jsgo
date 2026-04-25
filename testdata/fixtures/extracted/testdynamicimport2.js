@@ -1,0 +1,1 @@
+/** @type {Promise} */ var foo2 = import('foo.js');

@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testbackwardstypedefuse10.js:5:2: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of g does not match formal parameter
+found   : number
+required: goog.MyEnum<number>
+  5| g(1);
+       ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

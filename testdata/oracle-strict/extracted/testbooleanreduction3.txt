@@ -1,0 +1,15 @@
+testdata/fixtures/extracted/testbooleanreduction3.js:5:1: WARNING - [JSC_USELESS_CODE] Suspicious code. This code lacks side-effects. Is there a bug?
+  5| (function(s) {
+      ^^^^^^^^^^^^^
+  6|   return s && null && 3;
+     ^^^^^^^^^^^^^^^^^^^^^^^^
+  7| })
+     ^
+
+testdata/fixtures/extracted/testbooleanreduction3.js:6:9: WARNING - [JSC_SUSPICIOUS_LEFT_OPERAND_OF_LOGICAL_OPERATOR] Left operand of && operator is always falsy.
+  6|   return s && null && 3;
+              ^^^^^^^^^^^^^^
+
+0 error(s), 2 warning(s), 100.0% typed
+---EXIT---
+0

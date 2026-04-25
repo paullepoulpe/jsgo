@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testmissingproperty32.js:6:48: ERROR - [JSC_INEXISTENT_PROPERTY] Property a never defined on Date
+  6| /** @param {Date} y */ function g(y) { return y.a; }
+                                                     ^
+
+1 error(s), 0 warning(s), 87.5% typed
+---EXIT---
+1

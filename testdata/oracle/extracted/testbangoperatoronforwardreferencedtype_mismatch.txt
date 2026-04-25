@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testbangoperatoronforwardreferencedtype_mismatch.js:7:0: ERROR - [JSC_TYPE_MISMATCH] assignment
+found   : (null|number)
+required: number
+  7| x = y;
+     ^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

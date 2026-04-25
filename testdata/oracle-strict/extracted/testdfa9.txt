@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testdfa9.js:4:4: ERROR - [JSC_DETERMINISTIC_TEST] condition always evaluates to true
+left : null
+right: null
+  4| if (x == null) { return 0; } else { return 1; } }
+         ^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

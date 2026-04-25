@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testforof2.js:3:22: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of f does not match formal parameter
+found   : number
+required: boolean
+  3| for (let x of it) { f(x); }
+                           ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testbadconstructorcall.js:2:0: ERROR - [JSC_CONSTRUCTOR_NOT_CALLABLE] Constructor (typeof Foo) should be called with the "new" keyword
+  2| Foo();
+     ^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

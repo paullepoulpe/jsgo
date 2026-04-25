@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testclassinitializertypeinference.js:6:29: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of stringIdentity does not match formal parameter
+found   : number
+required: string
+  6| class C { x = stringIdentity(0); }
+                                  ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

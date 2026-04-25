@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testoptimizepropertymap7.js:7:11: ERROR - [JSC_INEXISTENT_PROPERTY] Property b never defined on y
+  7|   return y.b + 1;
+                ^
+
+1 error(s), 0 warning(s), 83.3% typed
+---EXIT---
+1

@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testunarypluswithunknowntype.js:1:23: WARNING - [JSC_USELESS_CODE] Suspicious code. The result of the 'pos' operator is not being used.
+  1| /** @type {?} */var x; +x;
+                            ^^
+
+0 error(s), 1 warning(s), 50.0% typed
+---EXIT---
+0

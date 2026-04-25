@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testiarraylikeaccess2.js:8:22: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : string
+required: null
+  8|   var /** null */ y = f(x);
+                           ^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

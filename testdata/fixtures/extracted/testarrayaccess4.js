@@ -1,0 +1,1 @@
+/**@return {!Array}*/function foo(){};var bar = foo()[foo()];

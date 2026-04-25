@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testinterfacenonemptyfunction.js:2:2: ERROR - [JSC_INTERFACE_METHOD_NOT_EMPTY] interface member functions must have an empty body
+  2| T.prototype.x = function() { return 'foo'; }
+       ^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

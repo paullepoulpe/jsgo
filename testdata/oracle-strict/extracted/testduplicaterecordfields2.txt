@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testduplicaterecordfields2.js:2:31: ERROR - [JSC_UNRECOGNIZED_TYPE_ERROR] Bad type annotation. Unknown type x
+  2|  * @param {{name:string,number:x,number:y}} a
+                                    ^
+
+testdata/fixtures/extracted/testduplicaterecordfields2.js:2:41: ERROR - [JSC_TYPE_PARSE_ERROR] Bad type annotation. Duplicate record field number. See https://github.com/google/closure-compiler/wiki/Annotating-JavaScript-for-the-Closure-Compiler for more information.
+  2|  * @param {{name:string,number:x,number:y}} a
+                                              ^
+
+2 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+2

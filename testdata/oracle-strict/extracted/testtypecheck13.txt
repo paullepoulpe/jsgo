@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testtypecheck13.js:1:35: ERROR - [JSC_TYPE_MISMATCH] assignment
+found   : RegExp
+required: (Number|String)
+  1| /**@type {!Number|!String}*/var i; i=/xx/;
+                                        ^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testoptimizepropertymap6.js:4:4: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property b never defined on y
+  4|   y.b = 123;
+         ^
+
+testdata/fixtures/extracted/testoptimizepropertymap6.js:7:24: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property b never defined on x
+  7|   var /** null */ n = x.b;
+                             ^
+
+0 error(s), 2 warning(s), 85.7% typed
+---EXIT---
+0

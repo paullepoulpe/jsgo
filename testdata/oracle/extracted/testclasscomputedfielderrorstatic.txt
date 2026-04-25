@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testclasscomputedfielderrorstatic.js:1:18: ERROR - [JSC_UNDEFINED_VARIABLE] variable x is undeclared
+  1| class C { static [x] = 2; }
+                       ^
+
+1 error(s), 0 warning(s)
+---EXIT---
+1

@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testsymbolcomparison12.js:6:26: ERROR - [JSC_DETERMINISTIC_TEST] condition always evaluates to false
+left : symbol
+right: E<Symbol>
+  6| function f(x, y) { return x === y; }
+                               ^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testvar7.js:1:21: ERROR - [JSC_MULTIPLE_VAR_DEF] declaration of multiple variables with shared type information
+  1| /** @type {number} */var a, b;
+                          ^^^^^^^^^
+
+1 error(s), 0 warning(s)
+---EXIT---
+1

@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testmissingproperty43.js:2:33: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property impossible never defined on x
+  2|  return /** @type {number} */ (x.impossible) && 1;
+                                      ^^^^^^^^^^
+
+0 error(s), 1 warning(s), 66.7% typed
+---EXIT---
+0

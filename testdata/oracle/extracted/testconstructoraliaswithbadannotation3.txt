@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testconstructoraliaswithbadannotation3.js:2:19: WARNING - [JSC_INCOMPATIBLE_ALIAS_ANNOTATION] Annotation @record on Bar incompatible with aliased type.
+  2| /** @record */ var Bar = Foo;
+                        ^^^^^^^^^
+
+0 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+0

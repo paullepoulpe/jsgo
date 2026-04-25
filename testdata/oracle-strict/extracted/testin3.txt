@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testin3.js:1:0: WARNING - [JSC_USELESS_CODE] Suspicious code. The result of the 'in' operator is not being used.
+  1| undefined in Object
+     ^^^^^^^^^^^^^^^^^^^
+
+0 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+0

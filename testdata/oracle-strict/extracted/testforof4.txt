@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testforof4.js:2:16: ERROR - [JSC_TYPE_MISMATCH] Can only iterate over a (non-null) Iterable type
+found   : Iterator<number,?,?>
+required: Iterable
+  2|   for (let x of it) {}
+                     ^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

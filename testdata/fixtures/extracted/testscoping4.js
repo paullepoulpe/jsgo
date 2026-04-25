@@ -1,0 +1,1 @@
+/** @type{Number}*/var b; if (true) /** @type{!String} */var b;

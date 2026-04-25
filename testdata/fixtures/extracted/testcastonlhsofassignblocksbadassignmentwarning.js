@@ -1,0 +1,1 @@
+var /** number */ x = 1; (/** @type {?} */ (x)) = 'foobar';

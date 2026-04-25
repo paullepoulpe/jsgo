@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testiife4.js:9:19: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of namespace.Ctor does not match formal parameter
+found   : boolean
+required: number
+   9| new namespace.Ctor(true);
+                         ^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

@@ -1,0 +1,1 @@
+/**@type {!Number|!String}*/var i; i=/xx/;

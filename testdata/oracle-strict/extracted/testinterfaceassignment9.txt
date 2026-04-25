@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testinterfaceassignment9.js:3:25: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : (I|null)
+required: I
+  3| /** @type {!I} */var i = f();
+                              ^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1
