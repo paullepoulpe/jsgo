@@ -343,9 +343,44 @@ func (c *TypedScopeCreator) createScopeIn(block *rhino.Node, parent *TypedScope)
 	// Pass 1b: record @typedef aliases. Typedefs resolve against the
 	// scope that now has nominal types pre-registered, so
 	// `@typedef {Foo|null}` can reference a Foo declared later.
+	// Also pre-register namespace typedef stubs (`/** @typedef {T} */ ns.Foo;`)
+	// and namespace @enum assigns (`/** @enum {T} */ ns.MyEnum = {…}`) so
+	// later JSDoc references in the same scope (including @param / @this on
+	// functions processed in Pass 2) resolve to the registered alias / enum.
+	// Mirrors how Java's TypedScopeCreator hoists typedef + enum slots
+	// during identifyEnumOrTypedefDeclaration before per-function JSDoc
+	// resolution happens.
 	for _, child := range hoisted {
 		if NU.IsNameDeclaration(child) {
 			c.recordTypedef(child, scope)
+		}
+		if child.Token() == rhino.EXPR_RESULT {
+			inner := child.FirstChild()
+			if inner != nil && inner.Token() == rhino.GETPROP {
+				c.recordNamespaceTypedefStub(child, inner, scope)
+			}
+		}
+	}
+	// Pass 1c: pre-register namespace @enum slots after typedef stubs are
+	// available, so an enum whose underlying type is a typedef
+	// (`/** @enum {ns.MyTypedef} */ ns.MyEnum = …`) picks up the resolved
+	// typedef even when the typedef stub appears later in source order.
+	for _, child := range hoisted {
+		if child.Token() == rhino.EXPR_RESULT {
+			inner := child.FirstChild()
+			if inner != nil && inner.Token() == rhino.ASSIGN {
+				c.preregisterNamespaceEnum(inner, scope)
+			}
+		}
+	}
+	// Pass 1d: pre-register namespace aliases (`const b = a;`) so dotted
+	// typedef references like `b.Foo` resolve through the alias chain to
+	// `a.Foo` even when the alias appears later in source than the
+	// declaration that references it. Mirrors how Java's StaticSlot
+	// resolution treats const-aliased namespaces transparently.
+	for _, child := range hoisted {
+		if NU.IsNameDeclaration(child) {
+			c.preregisterNamespaceAlias(child, scope)
 		}
 	}
 	// Pass 2: record declarations + functions properly.
@@ -1148,6 +1183,87 @@ func (c *TypedScopeCreator) preregisterEnum(v *rhino.Node, scope *TypedScope) {
 	scope.declared[name.String_()] = jstype.NewEnumType(name.String_(), underlying)
 }
 
+// preregisterNamespaceAlias records a `const ns2 = ns1` namespace
+// alias ahead of Pass 2, so dotted typedef references (`ns2.Foo`)
+// resolve through the alias chain to `ns1.Foo` even when the alias
+// declaration appears later in source than the reference. Only
+// the alias-registration side of recordOneDecl runs here; the value
+// slot is still finalised in Pass 2. Mirrors how Java's
+// StaticSlot scope chain treats const-aliased namespaces
+// transparently.
+// Go-only: language-adapter — preregisterNamespaceAlias is a Go-only helper that pre-registers `const b = a` namespace aliases; Java handles these via StaticSlot scope chain in JSTypeRegistry.
+func (c *TypedScopeCreator) preregisterNamespaceAlias(v *rhino.Node, scope *TypedScope) {
+	for _, name := range v.Children() {
+		if name.Token() != rhino.NAME || name.String_() == "" {
+			continue
+		}
+		init := name.FirstChild()
+		if init == nil || init.Token() != rhino.NAME || init.String_() == "" {
+			continue
+		}
+		if init.String_() == name.String_() {
+			continue
+		}
+		// Register only when the RHS already looks like a namespace —
+		// either it has namespaceProps directly, it's already an alias,
+		// or there's a typedef stub under that owner.
+		if scope.namespaceProps != nil && scope.namespaceProps[init.String_()] != nil ||
+			scope.LookupNamespaceAlias(init.String_()) != "" ||
+			scope.HasTypedefOwner(init.String_()) {
+			scope.RecordNamespaceAlias(name.String_(), init.String_())
+		}
+	}
+}
+
+// preregisterNamespaceEnum reserves a namespace-prop slot for a
+// `/** @enum {T} */ ns.MyEnum = {…}` declaration so forward `@type
+// {ns.MyEnum}` / `@param {ns.MyEnum}` references resolve to the
+// shared EnumType. Called from Pass 1b before Pass 2 wires per-
+// function JSDoc; the second-pass recordNamespaceAssign reuses the
+// same EnumType pointer to avoid double-registration. Mirrors how
+// Java's TypedScopeCreator hoists enum slots during
+// identifyEnumOrTypedefDeclaration.
+// Go-only: language-adapter — preregisterNamespaceEnum is a Go-only helper that pre-registers @enum ns.X declarations; Java uses NormalScopeBuilder.identifyEnumOrTypedefDeclaration.
+func (c *TypedScopeCreator) preregisterNamespaceEnum(a *rhino.Node, scope *TypedScope) {
+	info := a.JSDocInfo()
+	if info == nil || !info.IsEnum() {
+		return
+	}
+	kids := a.Children()
+	if len(kids) < 2 {
+		return
+	}
+	lhs := kids[0]
+	if lhs.Token() != rhino.GETPROP {
+		return
+	}
+	lhsKids := lhs.Children()
+	if len(lhsKids) < 2 || lhsKids[0].Token() != rhino.NAME {
+		return
+	}
+	ownerName := lhsKids[0].String_()
+	propName := lhsKids[1].String_()
+	// Don't overwrite if already registered.
+	if t := scope.LookupNamespaceProp(ownerName, propName); t != nil {
+		if _, ok := t.(*jstype.EnumType); ok {
+			return
+		}
+	}
+	var underlying jstype.JSType = jstype.Number
+	if expr := info.EnumParameterType(); expr != nil {
+		underlying = scope.ResolveExpr(expr.TypeName)
+	}
+	enum := jstype.NewEnumType(ownerName+"."+propName, underlying)
+	if kids[1].Token() == rhino.OBJECTLIT {
+		for _, kv := range kids[1].Children() {
+			if kv.Token() == rhino.STRING_KEY {
+				enum.Members[kv.String_()] = true
+			}
+		}
+	}
+	scope.recordNamespaceProp(ownerName, propName, enum, lhsKids[1])
+}
+
 // enumTypeArgPos finds the line/col of the type-argument inside
 // `@enum {TypeName}` on the given source line. Returns the name node's
 // own position as fallback. lineno is 1-indexed; returned col is 0-indexed.
@@ -1858,7 +1974,8 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 		// `ns1.Foo`. Mirrors how Java's StaticSlot scope chain treats
 		// the two names as referring to the same namespace object.
 		if init.String_() != "" && (scope.namespaceProps != nil && scope.namespaceProps[init.String_()] != nil ||
-			scope.LookupNamespaceAlias(init.String_()) != "") {
+			scope.LookupNamespaceAlias(init.String_()) != "" ||
+			scope.HasTypedefOwner(init.String_())) {
 			scope.RecordNamespaceAlias(name.String_(), init.String_())
 			// Fall through: still record the value slot below.
 		}
