@@ -1298,15 +1298,20 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 
 	// Wire @extends if present. Struct/dict flags propagate down the
 	// inheritance chain — Java's FunctionType carries them as sticky
-	// traits on the whole ancestry.
+	// traits on the whole ancestry. @unrestricted opts the class out
+	// of the propagation (mirrors Java's makesUnrestricted handling).
 	if superNode.String_() != "" {
 		if super := scope.LookupNominalType(superNode.String_()); super != nil {
 			inst.SetSuper(super)
-			if super.IsStruct {
-				inst.IsStruct = true
-			}
-			if super.IsDict {
-				inst.IsDict = true
+			info := cls.JSDocInfo()
+			isUnrestricted := info != nil && info.MakesUnrestricted()
+			if !isUnrestricted {
+				if super.IsStruct {
+					inst.IsStruct = true
+				}
+				if super.IsDict {
+					inst.IsDict = true
+				}
 			}
 		}
 	}

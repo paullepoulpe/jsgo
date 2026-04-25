@@ -5104,9 +5104,6 @@ func (c *TypeCheck) checkFunctionDictExtendsStruct(fn *rhino.Node) {
 // Java's checkStructDictSubtyping (TypeCheck.java:2515) handles both uniformly.
 func (c *TypeCheck) checkClassDictExtendsStruct(cls *rhino.Node) {
 	info := cls.JSDocInfo()
-	if info == nil || !info.IsDict() {
-		return
-	}
 	kids := cls.Children()
 	if len(kids) < 2 {
 		return
@@ -5119,22 +5116,33 @@ func (c *TypeCheck) checkClassDictExtendsStruct(cls *rhino.Node) {
 	if superNode == nil || superNode.String_() == "" {
 		return
 	}
-	// ES6 classes are @struct by default (unless explicitly @dict).
 	superName := superNode.String_()
 	super := c.global.LookupNominalType(superName)
+	// ES6 classes are @struct by default unless explicitly @dict or @unrestricted.
+	subIsDict := info != nil && info.IsDict()
+	subIsUnrestricted := info != nil && info.MakesUnrestricted()
+	subIsStruct := !subIsDict && !subIsUnrestricted
 	isSuperStruct := super != nil && super.IsStruct
+	isSuperDict := super != nil && super.IsDict
 	// Treat a plain ES6-class parent (no JSDoc) as struct-by-default.
 	if super != nil && !super.IsStruct && !super.IsDict && !super.IsStructural {
 		isSuperStruct = true
 	}
-	if !isSuperStruct {
+	if subIsDict && isSuperStruct {
+		c.diags = append(c.diags, diag.Diagnostic{
+			Path: c.path, Line: cls.Lineno(), Col: cls.Charno(),
+			Code: diag.JSC_DICT_EXTEND_STRUCT_TYPE, Level: diag.Error,
+			Message: fmt.Sprintf("@dict class %s cannot extend @struct class %s", name, superName),
+		})
 		return
 	}
-	c.diags = append(c.diags, diag.Diagnostic{
-		Path: c.path, Line: cls.Lineno(), Col: cls.Charno(),
-		Code: diag.JSC_DICT_EXTEND_STRUCT_TYPE, Level: diag.Error,
-		Message: fmt.Sprintf("@dict class %s cannot extend @struct class %s", name, superName),
-	})
+	if subIsStruct && isSuperDict {
+		c.diags = append(c.diags, diag.Diagnostic{
+			Path: c.path, Line: cls.Lineno(), Col: cls.Charno(),
+			Code: diag.JSC_DICT_EXTEND_STRUCT_TYPE, Level: diag.Error,
+			Message: fmt.Sprintf("@struct class %s cannot extend @dict class %s", name, superName),
+		})
+	}
 }
 
 // Go-only: language-adapter — Go extracted this guard from Java's
