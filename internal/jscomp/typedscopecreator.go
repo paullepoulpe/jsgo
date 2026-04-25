@@ -317,6 +317,23 @@ func (c *TypedScopeCreator) buildExpressionFunctionScope(fn *rhino.Node, parent 
 			}
 		}
 	}
+	// For anonymous functions (`var Foo = function(x) {...}`) with
+	// @param / @return JSDoc on the enclosing VAR, pick up the annotation
+	// so parameter types are resolved correctly. Mirrors NodeUtil.getBestJSDocInfo.
+	// Only applies when the JSDoc has explicit @param or @return annotations
+	// (not @type-only, which is handled via funcTypeParams below).
+	if info == nil {
+		if p := fn.Parent(); p != nil && p.Token() == rhino.NAME {
+			if gp := p.Parent(); gp != nil {
+				switch gp.Token() {
+				case rhino.VAR, rhino.LET, rhino.CONST, rhino.ASSIGN:
+					if gpInfo := gp.JSDocInfo(); gpInfo != nil && (gpInfo.ReturnType() != nil || len(gpInfo.ParameterNames()) > 0 || gpInfo.IsConstructor() || gpInfo.IsInterface() || gpInfo.IsRecord()) {
+						info = gpInfo
+					}
+				}
+			}
+		}
+	}
 	// `/** @type {function(A, B)} */ var foo = function(x, y) {…}` — the
 	// outer @type provides positional param types that should bind into
 	// the FEE's body so `f(y)` inside type-checks against the declared
@@ -376,6 +393,21 @@ func (c *TypedScopeCreator) buildExpressionFunctionScope(fn *rhino.Node, parent 
 				} else if fnT, ok := resolved.(*jstype.FunctionType); ok && fnT.Instance != nil {
 					explicitThis = fnT.Instance
 				}
+			}
+		}
+	}
+	// Port of FunctionTypeBuilder.inferThisType: for `/** @constructor */
+	// var Foo = function(x) {...}`, the function's `this` type is the
+	// constructor's instance type. Mirrors how Java's TypedScopeCreator
+	// sets typeOfThis to the FunctionType's instance during scope creation.
+	// Works even when `info` is nil (anonymous function with JSDoc on the
+	// VAR parent, not on the FUNCTION node itself).
+	if isAnonBoundary && explicitThis == nil {
+		if p := fn.Parent(); p != nil && p.Token() == rhino.NAME {
+			varName := p.String_()
+			if ft, ok := parent.GetDeclaredType(varName).(*jstype.FunctionType); ok && ft.Instance != nil {
+				explicitThis = ft.Instance
+				isAnonBoundary = false
 			}
 		}
 	}
