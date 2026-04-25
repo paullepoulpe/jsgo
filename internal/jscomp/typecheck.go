@@ -2937,12 +2937,61 @@ func propertyDefinedInOwnConstructor(obj *jstype.ObjectType, propName string) bo
 // function's @return annotation. The enclosing function is found by
 // walking Node parent links — mirroring how Java's TypeCheck tracks
 // the current function through NodeUtil.getEnclosingFunction.
+// functionParamTypesHaveUndeclaredRoot returns true when any @param type
+// annotation on `info` starts with a dotted name whose root segment is in the
+// undeclared-names set (e.g. `@param {u.T}` when `u` was flagged by VarCheck).
+//
+// When this is true, the parameter types for the enclosing function are
+// unreliable — the root object `u` is undeclared, so Java's VarCheck
+// synthesizes an extern for it with Unknown type, making every type resolved
+// through `u.X` effectively Unknown. Java's TypeCheck therefore never fires
+// JSC_TYPE_MISMATCH inside such a function (the param has Unknown type, so any
+// return expression is trivially assignable). Go mirrors this by returning nil
+// from visitReturn when any param type has an undeclared root.
+//
+// Port of VarCheck.java's createSynthesizedExternVar mechanism @ closure-compiler v20260415
+// Go-only: package-bridge — Java achieves the same via synthesized externs that
+// make u.T resolve to Unknown; Go checks the undeclaredNames set directly.
+func (c *TypeCheck) functionParamTypesHaveUndeclaredRoot(info *rhino.JSDocInfo) bool {
+	if len(c.undeclaredNames) == 0 || info == nil {
+		return false
+	}
+	for _, pname := range info.ParameterNames() {
+		pt := info.ParameterType(pname)
+		if pt == nil {
+			continue
+		}
+		typeName := strings.TrimSpace(pt.TypeName)
+		// Strip leading "!" (non-null) or "?" (nullable).
+		if len(typeName) > 0 && (typeName[0] == '!' || typeName[0] == '?') {
+			typeName = strings.TrimSpace(typeName[1:])
+		}
+		if dot := strings.IndexByte(typeName, '.'); dot > 0 {
+			root := typeName[:dot]
+			if c.undeclaredNames[root] {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (c *TypeCheck) visitReturn(ret *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	enclosing := NU.GetEnclosingFunction(ret)
 	if enclosing == nil {
 		return nil
 	}
 	info := functionJSDoc(enclosing)
+	// Suppress downstream JSC_TYPE_MISMATCH when any @param type of the
+	// enclosing function references an undeclared NAME root (e.g. @param
+	// {u.T} where `u` is undeclared). Java's VarCheck synthesizes an extern
+	// for `u` so all types resolved through `u.X` become Unknown — making
+	// the param type Unknown and suppressing any return-type mismatch that
+	// depends on the param's type. Mirrors VarCheck.createSynthesizedExternVar.
+	// Port of VarCheck.java @ closure-compiler v20260415
+	if c.functionParamTypesHaveUndeclaredRoot(info) {
+		return nil
+	}
 	var declared jstype.JSType
 	if info != nil && info.ReturnType() != nil {
 		declared = scope.ResolveExpr(info.ReturnType().TypeName)

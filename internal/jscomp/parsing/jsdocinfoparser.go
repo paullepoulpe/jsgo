@@ -684,6 +684,25 @@ func (p *JsDocInfoParser) parseTypeTag() JsDocToken {
 	t := p.next()
 	expr, next, ok := p.parseTypeExpressionAnnotation(t)
 	if !ok {
+		// Java's JsDocInfoParser also accepts an unbraced @type form
+		// (e.g. `@type null`, `@type !Date`) — the type expression is
+		// read directly from the token stream until end-of-line. Mirror
+		// that here so fixtures using this older syntax type-check.
+		if t == JsDocTokenString {
+			expr := p.stream.String_()
+			next := p.next()
+			// Allow trailing `<args>` / `|other` continuations on the
+			// same line (rare in unbraced form, but Java still parses).
+			for next == JsDocTokenString || next == JsDocTokenLeftCurly {
+				expr += p.stream.String_()
+				next = p.next()
+			}
+			if expr != "" {
+				p.info.SetType(rhino.NewJSTypeExpression(expr))
+				p.anyRecorded = true
+			}
+			return p.eatUntilEOLIfNotAnnotation()
+		}
 		return p.eatUntilEOLIfNotAnnotation()
 	}
 	p.info.SetType(rhino.NewJSTypeExpression(expr))
