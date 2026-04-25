@@ -38,6 +38,25 @@ type TypedScope struct {
 	// NodeTraversal.getScopeRoot(). May be nil for synthetic scopes.
 	rootNode *rhino.Node
 	declared map[string]jstype.JSType
+	// inferredSlots records names whose declared type was inferred
+	// from the initializer rather than pinned by JSDoc (`var x =
+	// function() {};` with no @type/@return). Mirrors Java's
+	// TypedVar.isTypeInferred() — TypeCheck.checkCanAssignToName-
+	// GetpropOrGetelem skips the assignment subtype check on these
+	// slots (TypeCheck.java:1250), and TypeInference.traverseAssign
+	// widens the slot via getLeastSupertype (TypeInference.java:1153)
+	// so that downstream reads see the joined type.
+	// Go-only: language-adapter — Java carries this on TypedVar; the
+	// Go port stores a parallel boolean map keyed by name.
+	inferredSlots map[string]bool
+	// isFunctionLocal flags scopes whose hoist root is a FUNCTION
+	// (i.e. nested inside a function body). The Go port leaves
+	// `rootNode` nil on the function and inner BLOCK scopes, so this
+	// flag is the cheapest way to distinguish "rooted in a function"
+	// from "rooted in the global SCRIPT" without re-plumbing every
+	// scope creator. Mirrors Java's AbstractScope.getRootNode pointing
+	// at the enclosing FUNCTION for nested scopes.
+	isFunctionLocal bool
 	// namespaceProps tracks `/** @type {T} */ obj.prop = …`
 	// declarations on plain-object bindings (`var goog = {}`).
 	// Keyed by owner-name → property-name → declared type. Kept
@@ -506,6 +525,55 @@ func (s *TypedScope) GetRawDeclaredType(name string) jstype.JSType {
 		return t
 	}
 	return s.parent.GetRawDeclaredType(name)
+}
+
+// MarkInferredSlot flags `name` as an inferred-typed slot. Mirrors
+// Java's SlotDefiner.allowLaterTypeInference(true) followed by
+// TypedVar construction with inferred=true (TypedScopeCreator.java:
+// 2196).
+// Go-only: language-adapter — the Go port records the inferred bit
+// on a parallel map rather than on a per-var struct.
+func (s *TypedScope) MarkInferredSlot(name string) {
+	if s == nil {
+		return
+	}
+	if s.inferredSlots == nil {
+		s.inferredSlots = make(map[string]bool)
+	}
+	s.inferredSlots[name] = true
+}
+
+// IsInferredSlot reports whether `name`'s declared type was inferred
+// from the initializer rather than pinned by JSDoc. Walks the parent
+// chain so locally inherited slots resolve against the scope that
+// owns the declaration. Mirrors Java's TypedVar.isTypeInferred().
+func (s *TypedScope) IsInferredSlot(name string) bool {
+	if s == nil {
+		return false
+	}
+	if _, ok := s.declared[name]; ok {
+		return s.inferredSlots[name]
+	}
+	return s.parent.IsInferredSlot(name)
+}
+
+// WidenInferredSlot updates the declared type of an inferred slot to
+// `t`. Walks the parent chain to mutate the scope that owns the
+// declaration. Mirrors Java's TypedVar.setType — called by
+// TypeInference.traverseAssign at TypeInference.java:1153 to broaden
+// an inferred slot via getLeastSupertype after each assignment.
+// No-op when `name` does not resolve to an inferred slot.
+func (s *TypedScope) WidenInferredSlot(name string, t jstype.JSType) {
+	if s == nil {
+		return
+	}
+	if _, ok := s.declared[name]; ok {
+		if s.inferredSlots[name] {
+			s.declared[name] = t
+		}
+		return
+	}
+	s.parent.WidenInferredSlot(name, t)
 }
 
 // Go-only: language-adapter — LookupExternsOnly returns the declared type

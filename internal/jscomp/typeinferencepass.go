@@ -100,6 +100,19 @@ func (p *TypeInferencePass) transferDecl(decl *rhino.Node, in *FlowScope) map[Br
 			if functionHasDeclaredShape(d) {
 				return map[Branch]*FlowScope{BranchUnconditional: in}
 			}
+			// For inferred function slots (`var x = function(){}`),
+			// the declared slot already encodes the precise return
+			// type that TypedScopeCreator derived from the body
+			// (Void when no explicit return, Unknown otherwise) —
+			// see TypedScopeCreator.recordOneDecl's FUNCTION-init
+			// branch. Bind the flow slot to the same FunctionType
+			// so that a later widening at an ASSIGN merges cleanly
+			// against `Void`, mirroring Java's TypedVar.getType()
+			// being the source of truth for both the slot and the
+			// flow lattice on entry.
+			if init.Token() == rhino.FUNCTION && p.scope.IsInferredSlot(name.String_()) {
+				return map[Branch]*FlowScope{BranchUnconditional: in.Bind(name.String_(), d)}
+			}
 		case *jstype.EnumType:
 			return map[Branch]*FlowScope{BranchUnconditional: in}
 		case *jstype.TemplatizedType:
@@ -173,8 +186,29 @@ func (p *TypeInferencePass) transferAssign(a *rhino.Node, in *FlowScope) map[Bra
 		// TypeCheck's subtype check on the ASSIGN itself would fire if
 		// the RHS truly couldn't fit. Matches Java's refuse-to-widen
 		// rule on named-slot assignments.
+		//
+		// Exception: when the slot is type-inferred (Java's
+		// TypedVar.isTypeInferred()), TypeInference.traverseAssign
+		// widens via getLeastSupertype (TypeInference.java:1153) so
+		// the slot can grow as new RHS types are seen. In jsgo we
+		// also widen the static slot so subsequent reads via
+		// GetRawDeclaredType see the joined type — without this,
+		// downstream use-site checks miss the broadened return type.
 		if declared := p.scope.GetRawDeclaredType(lhs.String_()); declared != nil {
 			if !jstype.IsSubtype(t, declared) {
+				if p.scope.IsInferredSlot(lhs.String_()) {
+					// Inferred-slot widening: TypeInference.traverseAssign
+					// at TypeInference.java:1153 calls var.setType
+					// (oldType.getLeastSupertype(resultType)) so the slot
+					// itself broadens. The flow scope keeps the precise
+					// RHS type via redeclareSimpleVar(scope, target,
+					// resultType) at TypeInference.java:1139 — only the
+					// merge at branch joins re-introduces the older
+					// alternatives.
+					widened := joinInferredSlot(declared, t)
+					p.scope.WidenInferredSlot(lhs.String_(), widened)
+					return map[Branch]*FlowScope{BranchUnconditional: in.inferSlotType(lhs.String_(), t)}
+				}
 				return map[Branch]*FlowScope{BranchUnconditional: in}
 			}
 		}

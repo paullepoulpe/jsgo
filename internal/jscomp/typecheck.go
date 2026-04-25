@@ -1075,6 +1075,15 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 		if declared == nil {
 			return nil
 		}
+		// Inferred-typed slots: Java's TypeCheck.checkCanAssignTo-
+		// NameGetpropOrGetelem returns early when the var is
+		// type-inferred (TypeCheck.java:1250 — `if (var.isType-
+		// Inferred()) return;`). The mismatch is still surfaced
+		// later at the use site, where the slot has been widened
+		// via TypeInference.traverseAssign's getLeastSupertype.
+		if scope.IsInferredSlot(lhs.String_()) {
+			return nil
+		}
 		found := infer.InferType(rhs)
 		// Route through TypeValidator.expectCanAssignTo so the canonical
 		// mismatch dispatcher runs (TemplateType skip, structural-property
