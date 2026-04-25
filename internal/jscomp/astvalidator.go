@@ -51,10 +51,6 @@ type AstValidator struct {
 	shouldValidateRequiredInlinings  bool
 }
 
-// Compiler is the minimal compiler context needed by AstValidator.
-// TODO: replace with the concrete Compiler once that port lands.
-type Compiler struct{}
-
 // Go-only: language-adapter — newAstValidatorFull is the internal constructor used by public New* funcs.
 func newAstValidatorFull(c *Compiler, h ViolationHandler, validateScripts, validateInlinings bool) *AstValidator {
 	return &AstValidator{
