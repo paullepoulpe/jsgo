@@ -745,8 +745,12 @@ func (c *TypedScopeCreator) recordPrototypeAssign(a *rhino.Node, scope *TypedSco
 		// per-param JSDoc, fall back to the parent slot's i-th param so
 		// the method body sees the inherited types. Mirrors Java's
 		// FunctionTypeBuilder.inferFromOverriddenFunction.
+		// Also check the current slot on fn.Instance (for re-declarations of
+		// the same method on the same class, not just superclass overrides).
 		var parentFn *jstype.FunctionType
-		if super := fn.Instance.Super(); super != nil {
+		if existing, ok := fn.Instance.GetPropertyType(propName).(*jstype.FunctionType); ok {
+			parentFn = existing
+		} else if super := fn.Instance.Super(); super != nil {
 			parentFn, _ = super.GetPropertyType(propName).(*jstype.FunctionType)
 		}
 		var ptypes []jstype.JSType
@@ -1264,7 +1268,11 @@ func (c *TypedScopeCreator) inferPrototypeValueType(info *rhino.JSDocInfo, rhs *
 		// types when the subclass JSDoc declares only @override.
 		var parentFn *jstype.FunctionType
 		if inst != nil && propName != "" {
-			if super := inst.Super(); super != nil {
+			// Check the current slot first (for re-declarations on the same class),
+			// then walk the super chain for @override inheritance.
+			if existing, ok := inst.GetPropertyType(propName).(*jstype.FunctionType); ok {
+				parentFn = existing
+			} else if super := inst.Super(); super != nil {
 				if pt, ok := super.GetPropertyType(propName).(*jstype.FunctionType); ok {
 					parentFn = pt
 				}
