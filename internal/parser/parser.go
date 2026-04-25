@@ -2257,6 +2257,17 @@ func (p *Parser) parsePrimaryExpression() (*rhino.Node, bool) {
 		}
 		return fn, ok
 	}
+	// Class expression: `class [Name] [extends Base] { … }` as an
+	// expression. Mirrors Parser.java's parseClassExpression which is
+	// invoked from parsePrimaryExpression when the cursor is on `class`.
+	clsLine, clsCol := p.scanner.Line(), p.scanner.Col()
+	if p.scanner.ConsumeKeyword("class") {
+		cls, ok := p.finishClass(leadingJSDoc)
+		if cls != nil {
+			cls.SetPos(clsLine, clsCol)
+		}
+		return cls, ok
+	}
 	c := p.scanner.Peek()
 	switch {
 	case c == '`':
