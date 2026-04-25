@@ -2267,14 +2267,27 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 		kids := init.Children()
 		if len(kids) >= 2 {
 			params := kids[1]
+			// Port of TypedScopeCreator.recordFunction: when the function
+			// has @template T, create a template-aware resolve scope so
+			// @param {T} and @return {T} resolve to TemplateType{T} instead
+			// of Unknown. Mirrors recordFunction's templateResolver usage.
+			resolve, templateMap := c.templateResolver(scope, info)
 			var paramTypes []jstype.JSType
 			for _, p := range params.Children() {
-				paramTypes = append(paramTypes, resolveParamType(info, p, scope))
+				var pt jstype.JSType = jstype.Unknown
+				if pj := p.JSDocInfo(); pj != nil && pj.HasType() {
+					pt = scope.ResolveExpr(pj.Type().TypeName)
+				} else if info != nil {
+					if expr := info.ParameterType(p.String_()); expr != nil {
+						pt = resolve(expr.TypeName)
+					}
+				}
+				paramTypes = append(paramTypes, pt)
 			}
 			var retType jstype.JSType = jstype.Void
 			if info != nil {
 				if r := info.ReturnType(); r != nil {
-					retType = scope.ResolveExpr(r.TypeName)
+					retType = resolve(r.TypeName)
 				} else if functionReturnsExplicitly(init) {
 					retType = jstype.Unknown
 				}
@@ -2283,6 +2296,15 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 			}
 			fnType := jstype.NewFunctionType(paramTypes, retType)
 			setArityFromParams(fnType, params, info)
+			// Wire @template keys so call-site unification can bind them.
+			if templateMap != nil {
+				fnType.TemplateTypes = make([]*jstype.TemplateType, 0, len(templateMap))
+				for _, tn := range info.TemplateNames() {
+					if tt := templateMap[tn]; tt != nil {
+						fnType.TemplateTypes = append(fnType.TemplateTypes, tt)
+					}
+				}
+			}
 			scope.declared[name.String_()] = fnType
 			// Mark the slot as inferred when (a) JSDoc didn't pin
 			// params or return, AND (b) the LHS is not global.
