@@ -68,7 +68,92 @@ func (c *TypedScopeCreator) CreateScope(script *rhino.Node) *TypedScope {
 func (c *TypedScopeCreator) createScopeInWithParent(script *rhino.Node, parent *TypedScope) *TypedScope {
 	scope := c.createScopeIn(script, parent)
 	c.registerNestedFunctions(script, scope)
+	c.registerLendsTargets(script, scope)
 	return scope
+}
+
+// Go-only: language-adapter — Java's TypedScopeCreator handles
+// `@lends {Foo.prototype}` on an OBJECTLIT inside its main NodeTraversal
+// callback (LendsToFunction case at TypedScopeCreator.java:2390+); jsgo
+// runs the scan as a separate post-pass so the visit order doesn't matter.
+//
+// For each OBJECTLIT carrying @lends, walk the keys and register them as
+// declared (or inferred when no @type JSDoc is present) properties on the
+// lends target's prototype slot.
+func (c *TypedScopeCreator) registerLendsTargets(n *rhino.Node, scope *TypedScope) {
+	if n == nil {
+		return
+	}
+	if n.Token() == rhino.OBJECTLIT {
+		c.applyLendsAnnotation(n, scope)
+	}
+	for _, child := range n.Children() {
+		c.registerLendsTargets(child, scope)
+	}
+}
+
+// Go-only: language-adapter — applies @lends to a single OBJECTLIT node.
+func (c *TypedScopeCreator) applyLendsAnnotation(obj *rhino.Node, scope *TypedScope) {
+	info := obj.JSDocInfo()
+	// Lends JSDoc may be attached to the OBJECTLIT or its parenthesized
+	// CAST wrapper — Java parses `/** @lends */ ({...})` as a JSDoc on
+	// the paren expression; the parser drops the paren but preserves the
+	// JSDoc. Try the parent CAST node when none is on the OBJECTLIT itself.
+	if info == nil || !info.HasLendsName() {
+		if p := obj.Parent(); p != nil {
+			if pi := p.JSDocInfo(); pi != nil && pi.HasLendsName() {
+				info = pi
+			}
+		}
+	}
+	if info == nil || !info.HasLendsName() {
+		return
+	}
+	target := info.LendsName()
+	if target == nil {
+		return
+	}
+	name := target.TypeName
+	// Strip an optional "!" non-nullable prefix.
+	if len(name) > 0 && name[0] == '!' {
+		name = name[1:]
+	}
+	// Resolve the target slot. Two shapes are common: `Foo.prototype`
+	// (instance prototype) and `Foo` (constructor / static surface).
+	var dest *jstype.ObjectType
+	if strings.HasSuffix(name, ".prototype") {
+		head := name[:len(name)-len(".prototype")]
+		if fn, ok := scope.GetDeclaredType(head).(*jstype.FunctionType); ok && fn.Instance != nil {
+			dest = fn.Instance
+		}
+	} else {
+		if fn, ok := scope.GetDeclaredType(name).(*jstype.FunctionType); ok && fn.Instance != nil {
+			dest = fn.Instance
+		}
+	}
+	if dest == nil {
+		return
+	}
+	for _, key := range obj.Children() {
+		if key.Token() != rhino.STRING_KEY && key.Token() != rhino.STRINGLIT {
+			continue
+		}
+		propName := key.String_()
+		if propName == "" {
+			continue
+		}
+		if dest.HasOwnProperty(propName) {
+			continue
+		}
+		var t jstype.JSType = jstype.Unknown
+		if val := key.FirstChild(); val != nil {
+			t = scope.inferExprType(val)
+			if t == nil {
+				t = jstype.Unknown
+			}
+		}
+		dest.DefineInferredProperty(propName, t, key)
+	}
 }
 
 // Go-only: language-adapter — createExternScope builds the externs scope from a
