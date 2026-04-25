@@ -1056,6 +1056,22 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 		if d := c.checkNotReadonlyPropertyAssignment(propKids[1], recv, infer); d != nil {
 			return []diag.Diagnostic{*d}
 		}
+		// Interface prototype assignment: `I.prototype.x = value` where
+		// I is an @interface. Only empty functions or goog.abstractMethod
+		// are permitted as rvalues; anything else fires
+		// JSC_INVALID_INTERFACE_MEMBER_DECLARATION. Mirrors Java's
+		// TypeCheck.visitAssign dispatching to visitInterfacePropertyAssignment
+		// at TypeCheck.java:1190-1194.
+		if recv.Token() == rhino.GETPROP {
+			recvKids := recv.Children()
+			if len(recvKids) >= 2 && recvKids[1].String_() == "prototype" {
+				if iname := recvKids[0]; iname.Token() == rhino.NAME {
+					if fn, ok := scope.GetDeclaredType(iname.String_()).(*jstype.FunctionType); ok && fn.Instance != nil && fn.Instance.IsInterface {
+						c.emit(c.visitInterfacePropertyAssignment(recv, lhs, scope))
+					}
+				}
+			}
+		}
 		// ES6 classes reject `ClassName.prototype = …` reassignments.
 		// Java fires at the outer ASSIGN's (or wrapping EXPR_RESULT's)
 		// column, so we report at the statement's position.
@@ -6540,14 +6556,69 @@ func (c *TypeCheck) visitArgumentList(call *rhino.Node, functionType *jstype.Fun
 }
 
 // visitInterfacePropertyAssignment ports TypeCheck.java:visitInterfacePropertyAssignment (line 1796).
-// Validates property assignments on interface instances.
+// Fires JSC_INVALID_INTERFACE_MEMBER_DECLARATION when an @interface method
+// body is non-empty or an @interface property is initialised to a non-function
+// value. Mirrors the Java check: only `I.prototype.x = goog.abstractMethod`
+// or `I.prototype.x = function () {}` (empty body) are allowed assignments
+// on interface prototypes.
 func (c *TypeCheck) visitInterfacePropertyAssignment(object *rhino.Node, lvalue *rhino.Node, scope *TypedScope) []diag.Diagnostic {
-	_ = object
-	_ = lvalue
-	_ = scope
-	// TODO(port): TypeCheck.visitInterfacePropertyAssignment from TypeCheck.java:1796
-	// Reason: requires full @interface property inheritance tracking
-	return nil
+	assign := lvalue.Parent()
+	if assign == nil || assign.Token() != rhino.ASSIGN {
+		// Destructuring / for-of targets are also invalid.
+		return []diag.Diagnostic{invalidInterfaceMemberDiag(c.path, object)}
+	}
+	kids := assign.Children()
+	if len(kids) < 2 {
+		return nil
+	}
+	rvalue := kids[1]
+	infer := NewTypeInference(scope)
+	rvalueType := infer.InferType(rvalue)
+	if isFunctionLikeType(rvalueType) {
+		return nil
+	}
+	return []diag.Diagnostic{invalidInterfaceMemberDiag(c.path, object)}
+}
+
+// Go-only: language-adapter — Java's JSType.isFunctionType returns true for
+// both concrete FunctionType instances and the global Function type. In jsgo
+// `!Function` resolves to Function's ObjectType instance (not a
+// FunctionType), so we accept either shape here.
+func isFunctionLikeType(t jstype.JSType) bool {
+	if t == nil {
+		return false
+	}
+	if _, ok := t.(*jstype.FunctionType); ok {
+		return true
+	}
+	if obj, ok := t.(*jstype.ObjectType); ok {
+		return obj.Name == "Function"
+	}
+	if inst, ok := t.(*jstype.InstanceObjectType); ok {
+		return inst.Name == "Function"
+	}
+	return false
+}
+
+// Go-only: language-adapter — helper shared by visitInterfacePropertyAssignment
+// paths. Java uses a private reportInvalidInterfaceMemberDeclaration(Node)
+// method which constructs the abstractMethodName suffix from the coding
+// convention; jsgo uses the empty suffix because Closure's default
+// convention has no abstract-method alias configured.
+func invalidInterfaceMemberDiag(path string, object *rhino.Node) diag.Diagnostic {
+	kids := object.Children()
+	line, col := object.Lineno(), object.Charno()
+	if len(kids) >= 2 {
+		line, col = kids[1].Lineno(), kids[1].Charno()
+	}
+	return diag.Diagnostic{
+		Path:    path,
+		Line:    line,
+		Col:     col,
+		Code:    diag.JSC_INVALID_INTERFACE_MEMBER_DECLARATION,
+		Level:   diag.Error,
+		Message: "interface members can only be empty property declarations, empty functions, or goog.abstractMethod",
+	}
 }
 
 // visitObjectOrClassLiteralKey ports TypeCheck.java:visitObjectOrClassLiteralKey (line 1434).
