@@ -666,10 +666,15 @@ func (f *FunctionType) GetBindReturnType(argsToBind int) *FunctionType {
 	return b.WithParameters(params).Build()
 }
 
-// getCallOrBindSignature mirrors FunctionType.getCallOrBindSignature(boolean) in Java.
+// GetCallOrBindSignature mirrors FunctionType.getCallOrBindSignature(boolean) in Java.
 // Constructs the synthetic .call() or .bind() signature for this function type.
 // Notice that "call" and "bind" have the same argument signature, except that
 // all the arguments of "bind" (except the first) are optional.
+func (f *FunctionType) GetCallOrBindSignature(isCall bool) *FunctionType {
+	return f.getCallOrBindSignature(isCall)
+}
+
+// getCallOrBindSignature is the internal implementation used by GetCallOrBindSignature.
 func (f *FunctionType) getCallOrBindSignature(isCall bool) *FunctionType {
 	isBind := !isCall
 
