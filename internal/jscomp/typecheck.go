@@ -629,8 +629,10 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		case rhino.SUB, rhino.MUL, rhino.DIV, rhino.MOD:
 			c.emit(c.visitArithmetic(n, scope))
 		case rhino.BITAND, rhino.BITOR, rhino.BITXOR,
-			rhino.LSH, rhino.RSH, rhino.URSH:
-			c.emit(c.visitBitwise(n, scope))
+			rhino.LSH, rhino.RSH, rhino.URSH,
+			rhino.ASSIGN_BITAND, rhino.ASSIGN_BITOR, rhino.ASSIGN_BITXOR,
+			rhino.ASSIGN_LSH, rhino.ASSIGN_RSH, rhino.ASSIGN_URSH:
+			c.emit(c.visitStrictBitwise(n, scope))
 		case rhino.LT, rhino.LE, rhino.GT, rhino.GE:
 			c.emit(c.visitRelativeComparison(n, scope))
 		}
