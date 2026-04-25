@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testtemplatetype12.js:17:36: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : B
+required: Foo<string>
+  17| /** @type {!Foo<string>} */ var b = new B();
+                                          ^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

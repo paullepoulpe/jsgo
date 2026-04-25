@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testenum7.js:2:24: ERROR - [JSC_INEXISTENT_ENUM_ELEMENT] element D does not exist on this enum
+  2| /** @type {a} */var b=a.D;
+                             ^
+
+1 error(s), 0 warning(s), 83.3% typed
+---EXIT---
+1

@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testtemplatedfunctioninunion1.js:7:49: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : Array<?>
+required: string
+  7| f([], function() { /** @type {string} */ var x = this });
+                                                      ^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testtypechecknodowncasttonumber.js:2:33: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : foo
+required: Number
+  2| /** @type {!Number} */ var bar = new foo();
+                                      ^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

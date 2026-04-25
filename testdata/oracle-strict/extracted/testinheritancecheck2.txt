@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testinheritancecheck2.js:4:16: ERROR - [JSC_UNKNOWN_OVERRIDE] property foo not defined on any superclass of Sub
+  4| /** @override */Sub.prototype.foo = function() {};
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testtypeoftype_withlocaldeclaredvariablewithhoistedfunction.js:6:4: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of g does not match formal parameter
+found   : null
+required: (number|string)
+  6|   g(null);
+         ^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

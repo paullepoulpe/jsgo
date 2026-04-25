@@ -1,0 +1,13 @@
+testdata/fixtures/extracted/testmismatchingoverridinginferredpropertybeforedeclaredproperty3.js:2:22: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property T never defined on Object
+  2| /** @constructor */ n.T = function() { this.x = ''; };
+                           ^
+
+testdata/fixtures/extracted/testmismatchingoverridinginferredpropertybeforedeclaredproperty3.js:2:39: ERROR - [JSC_TYPE_MISMATCH] assignment to property x of n.T
+found   : string
+required: number
+  2| /** @constructor */ n.T = function() { this.x = ''; };
+                                            ^^^^^^^^^^^
+
+1 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+1

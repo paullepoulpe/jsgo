@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testbadsupercall.js:11:10: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of super does not match formal parameter
+found   : number
+required: string
+  11|     super(5);
+                ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

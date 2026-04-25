@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testtypeoftype_enummismatch1.js:2:30: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : Foo<number>
+required: enum{Foo}
+  2| var /** typeof Foo */ x = Foo.A;
+                                   ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

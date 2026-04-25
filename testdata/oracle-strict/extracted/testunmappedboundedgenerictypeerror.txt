@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testunmappedboundedgenerictypeerror.js:2:3: ERROR - [JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES] Bounded generic semantics are currently still in development
+  2|  * @template {number|string} T
+        ^
+
+testdata/fixtures/extracted/testunmappedboundedgenerictypeerror.js:3:3: ERROR - [JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES] Bounded generic semantics are currently still in development
+  3|  * @template {number|null} S
+        ^
+
+2 error(s), 0 warning(s)
+---EXIT---
+2

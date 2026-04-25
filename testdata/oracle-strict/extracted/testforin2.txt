@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testforin2.js:6:4: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of f does not match formal parameter
+found   : E<string>
+required: boolean
+  6|   f(k);
+         ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

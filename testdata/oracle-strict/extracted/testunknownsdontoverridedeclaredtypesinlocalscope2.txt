@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testunknownsdontoverridedeclaredtypesinlocalscope2.js:9:11: ERROR - [JSC_TYPE_MISMATCH] inconsistent return type
+found   : string
+required: number
+   9|   return x.a;
+                 ^
+
+1 error(s), 0 warning(s), 91.7% typed
+---EXIT---
+1

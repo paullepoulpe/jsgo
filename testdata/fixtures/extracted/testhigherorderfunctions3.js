@@ -1,0 +1,1 @@
+/** @type {function(this:Array):Date} */var f; new f

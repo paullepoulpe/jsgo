@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testwarndatapropertyoninterface3.js:1:18: ERROR - [JSC_UNDEFINED_VARIABLE] variable u is undeclared
+  1| /** @interface */ u.T = function() {};
+                       ^
+
+1 error(s), 0 warning(s)
+---EXIT---
+1

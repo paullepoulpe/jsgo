@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testanonymousprototype1.js:3:2: ERROR - [JSC_WRONG_ARGUMENT_COUNT] Function ns.Foo.prototype.bar: called with 2 argument(s). Function requires at least 1 argument(s) and no more than 1 argument(s).
+  3|   this.bar(3, 5);
+       ^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

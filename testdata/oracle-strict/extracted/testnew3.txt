@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testnew3.js:1:0: WARNING - [JSC_USELESS_CODE] Suspicious code. This code lacks side-effects. Is there a bug?
+  1| new Date()
+     ^^^^^^^^^^
+
+0 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+0

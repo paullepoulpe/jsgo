@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testmissingproperty2a.js:3:38: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property b never defined on Foo
+  3| Foo.prototype.baz = function() { this.b = 3; };
+                                           ^
+
+testdata/fixtures/extracted/testmissingproperty2a.js:2:45: ERROR - [JSC_INEXISTENT_PROPERTY] Property a never defined on Foo
+  2| Foo.prototype.bar = function() { return this.a; };
+                                                  ^
+
+1 error(s), 1 warning(s), 90.9% typed
+---EXIT---
+1

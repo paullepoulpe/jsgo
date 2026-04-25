@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testtypecheck4.js:1:35: WARNING - [JSC_USELESS_CODE] Suspicious code. The result of the 'not' operator is not being used.
+  1| /**@return {void}*/function foo(){ !foo(); }
+                                        ^^^^^^
+
+0 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+0

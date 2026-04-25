@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testsetprop5.js:6:24: WARNING - [JSC_ILLEGAL_PROPERTY_CREATION_ON_UNION_TYPE] Cannot add a property to an instance of union type.
+  6| (true ? new Foo() : {}).x = 123;
+                             ^
+
+0 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+0

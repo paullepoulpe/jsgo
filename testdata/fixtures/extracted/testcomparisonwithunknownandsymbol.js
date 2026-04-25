@@ -1,0 +1,1 @@
+/** @type {symbol} */ var x; /** @type {?} */ var y; x < y

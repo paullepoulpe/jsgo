@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testscopedconstructors1.js:13:29: ERROR - [JSC_TYPE_MISMATCH] inconsistent return type
+found   : string
+required: number
+  13|   function baz(b) { return b.x; }
+                                   ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

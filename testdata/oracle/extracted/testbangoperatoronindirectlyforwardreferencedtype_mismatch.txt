@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testbangoperatoronindirectlyforwardreferencedtype_mismatch.js:4:8: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : (null|number)
+required: number
+  4| var x = f();
+             ^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

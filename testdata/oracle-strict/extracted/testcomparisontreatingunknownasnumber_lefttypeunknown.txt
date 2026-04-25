@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testcomparisontreatingunknownasnumber_lefttypeunknown.js:4:14: ERROR - [JSC_TYPE_MISMATCH] right side of comparison
+found   : Bar
+required: (bigint|number|string)
+  4|   return x < (new Bar);
+                   ^^^^^^^
+
+1 error(s), 0 warning(s), 83.3% typed
+---EXIT---
+1

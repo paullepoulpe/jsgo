@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testbadinterfaceextends3.js:3:18: ERROR - [JSC_CONFLICTING_EXTENDED_TYPE] B cannot extend this type; constructors can only extend constructors
+  3|  * @extends {A} */function B() {}
+                       ^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

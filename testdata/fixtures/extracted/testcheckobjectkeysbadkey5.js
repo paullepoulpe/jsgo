@@ -1,0 +1,1 @@
+/** @type {(string|Object<Object, number>)} */ var k;

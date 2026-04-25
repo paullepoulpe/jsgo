@@ -1,0 +1,1 @@
+function a(var_args,a) {}

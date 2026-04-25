@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testswitchcase_primitivedoesnotautobox.js:3:18: ERROR - [JSC_TYPE_MISMATCH] case expression doesn't match switch
+found   : string
+required: String
+  3| switch (a) { case 'A': }
+                       ^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

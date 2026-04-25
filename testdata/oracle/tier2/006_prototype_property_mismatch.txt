@@ -1,0 +1,9 @@
+testdata/fixtures/tier2/006_prototype_property_mismatch.js:6:0: ERROR - [JSC_TYPE_MISMATCH] assignment to property count of Foo
+found   : string
+required: number
+  6| f.count = 'hi';
+     ^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

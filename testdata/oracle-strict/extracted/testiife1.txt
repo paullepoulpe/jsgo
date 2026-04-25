@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testiife1.js:4:2: ERROR - [JSC_TYPE_MISMATCH] assignment to property prop of ns
+found   : boolean
+required: number
+  4|   ns.prop = true;
+       ^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

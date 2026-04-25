@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testconstructoralias1.js:5:26: ERROR - [JSC_TYPE_MISMATCH] inconsistent return type
+found   : number
+required: string
+  5|   return (new FooAlias()).bar; }
+                               ^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

@@ -1,0 +1,1 @@
+var lit = /** @struct */ { 'x': 1 };

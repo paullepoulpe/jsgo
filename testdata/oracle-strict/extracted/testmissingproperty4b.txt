@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testmissingproperty4b.js:2:10: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property b never defined on Foo
+  2| (new Foo).b = 3;
+               ^
+
+0 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+0

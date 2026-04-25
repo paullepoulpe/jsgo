@@ -1,0 +1,2 @@
+/** @interface */ u.T = function() {};
+u.T.prototype.x = function() {};

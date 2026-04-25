@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testduplicatestaticmethoddecl1.js:3:30: ERROR - [JSC_DUP_VAR_DECLARATION] variable goog.foo redefined, original definition at testdata/fixtures/extracted/testduplicatestaticmethoddecl1.js:2
+  3| /** @param {number} x */ goog.foo = function(x) {};
+                                   ^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

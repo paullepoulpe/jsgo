@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testmissingproperty36b.js:6:57: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property baz never defined on x
+  6| /** @param {{bar: number}} x */ function f(x) { return x.baz; }
+                                                              ^^^
+
+0 error(s), 1 warning(s), 90.9% typed
+---EXIT---
+0

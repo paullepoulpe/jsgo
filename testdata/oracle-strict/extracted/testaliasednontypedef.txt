@@ -1,0 +1,8 @@
+testdata/fixtures/extracted/testaliasednontypedef.js:3:11: ERROR - [JSC_UNRECOGNIZED_TYPE_ERROR] Bad type annotation. Unknown type alias
+It's possible that 'alias' refers to a value, not a type.
+  3| /** @type {alias} */ var x;
+                ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

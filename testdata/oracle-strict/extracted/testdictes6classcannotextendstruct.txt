@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testdictes6classcannotextendstruct.js:3:0: ERROR - [JSC_DICT_EXTEND_STRUCT_TYPE] @dict class DictChild cannot extend @struct class StructParent
+  3| class DictChild extends StructParent {
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  4|   ['prop']() {}
+     ^^^^^^^^^^^^^^^
+  5| }
+     ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

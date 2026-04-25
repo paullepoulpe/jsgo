@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testbitoperation2.js:1:42: ERROR - [JSC_BAD_TYPE_FOR_BIT_OPERATION] operator << cannot be applied to undefined
+  1| /**@return {void}*/function foo(){var a = foo()<<3;}
+                                               ^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

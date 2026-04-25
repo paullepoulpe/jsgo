@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testassignreadonlyarraylengthfails.js:2:4: ERROR - [JSC_PROPERTY_ASSIGNMENT_TO_READONLY_VALUE] Should not assign to a property of readonly type 'ReadonlyArray<number>'
+  2| foo.length = 0;
+         ^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

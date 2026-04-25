@@ -1,0 +1,1 @@
+function f(){ if (typeof 123 == 'numbr') return 321; }

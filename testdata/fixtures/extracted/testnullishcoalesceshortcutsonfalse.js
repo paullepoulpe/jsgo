@@ -1,0 +1,1 @@
+/**@type {boolean} */var x; x = false ?? undefined ?? [];

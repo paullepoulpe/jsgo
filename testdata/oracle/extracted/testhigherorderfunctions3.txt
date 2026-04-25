@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testhigherorderfunctions3.js:1:47: ERROR - [JSC_NOT_A_CONSTRUCTOR] cannot instantiate non-constructor, found type: function(this:Array): (Date|null)
+  1| /** @type {function(this:Array):Date} */var f; new f
+                                                    ^^^^^
+
+1 error(s), 0 warning(s), 50.0% typed
+---EXIT---
+1

@@ -1,0 +1,15 @@
+testdata/fixtures/extracted/testgetrop_interfacees6withouttypedeclaration.js:4:9: WARNING - [JSC_USELESS_CODE] Suspicious code. The result of the 'getprop' operator is not being used.
+  4|     this.foo;
+              ^^^
+
+testdata/fixtures/extracted/testgetrop_interfacees6withouttypedeclaration.js:4:9: ERROR - [JSC_INEXISTENT_PROPERTY] Property foo never defined on I
+  4|     this.foo;
+              ^^^
+
+testdata/fixtures/extracted/testgetrop_interfacees6withouttypedeclaration.js:8:2: ERROR - [JSC_ILLEGAL_PROPERTY_CREATION] Cannot add a property to a struct instance after it is constructed. (If you already declared the property, make sure to give it a type.)
+  8| v.foo = 5;
+       ^^^
+
+2 error(s), 1 warning(s), 88.9% typed
+---EXIT---
+2

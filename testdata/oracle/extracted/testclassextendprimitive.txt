@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testclassextendprimitive.js:1:41: ERROR - [JSC_UNDEFINED_VARIABLE] variable number is undeclared
+  1| /** @extends {number} */ class C extends number {}
+                                              ^^^^^^
+
+1 error(s), 0 warning(s)
+---EXIT---
+1

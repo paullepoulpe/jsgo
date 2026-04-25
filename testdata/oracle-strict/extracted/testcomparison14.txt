@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testcomparison14.js:2:26: ERROR - [JSC_TYPE_MISMATCH] inconsistent return type
+found   : boolean
+required: number
+  2| function f(x, y) { return x === y; }
+                               ^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

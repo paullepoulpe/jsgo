@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testpropertyinference10.js:8:22: ERROR - [JSC_TYPE_MISMATCH] assignment
+found   : number
+required: string
+  8| /** @type {string} */ h.prototype.bar_ = 1;
+                           ^^^^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 84.6% typed
+---EXIT---
+1

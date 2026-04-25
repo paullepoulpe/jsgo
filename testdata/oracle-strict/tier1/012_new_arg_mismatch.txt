@@ -1,0 +1,9 @@
+testdata/fixtures/tier1/012_new_arg_mismatch.js:6:8: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of Foo does not match formal parameter
+found   : string
+required: number
+  6| new Foo('hi');
+             ^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

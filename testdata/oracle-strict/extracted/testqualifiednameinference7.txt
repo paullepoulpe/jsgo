@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testqualifiednameinference7.js:7:15: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of ns.Foo does not match formal parameter
+found   : boolean
+required: number
+  7|   f(new ns.Foo(true));
+                    ^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testbooleanpreservation2.js:2:0: ERROR - [JSC_TYPE_MISMATCH] assignment
+found   : (boolean|string)
+required: string
+  2| x = (x == "a") || x;
+     ^^^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

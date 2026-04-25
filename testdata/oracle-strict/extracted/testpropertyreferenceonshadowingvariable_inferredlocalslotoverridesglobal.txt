@@ -1,0 +1,13 @@
+testdata/fixtures/extracted/testpropertyreferenceonshadowingvariable_inferredlocalslotoverridesglobal.js:7:5: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property fn never defined on Namespace
+  7|   ns.fn = function(/** string */ a) {};
+          ^^
+
+testdata/fixtures/extracted/testpropertyreferenceonshadowingvariable_inferredlocalslotoverridesglobal.js:9:8: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of ns.fn does not match formal parameter
+found   : number
+required: string
+   9|   ns.fn(0);
+              ^
+
+1 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+1

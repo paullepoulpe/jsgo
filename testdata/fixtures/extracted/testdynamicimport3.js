@@ -1,0 +1,1 @@
+/** @type {Promise<{default: number}>} */ var foo = import('foo.js');

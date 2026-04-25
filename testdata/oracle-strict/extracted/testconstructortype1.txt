@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testconstructortype1.js:2:24: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : Date
+required: Foo
+  2| /**@type{!Foo}*/var f = new Date();
+                             ^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

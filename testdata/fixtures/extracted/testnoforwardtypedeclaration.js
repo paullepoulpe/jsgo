@@ -1,0 +1,1 @@
+/** @param {MyType} x */ function f(x) {}

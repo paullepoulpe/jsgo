@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testtypeoftype_namespacedtypemissing.js:2:58: ERROR - [JSC_UNDEFINED_VARIABLE] variable x is undeclared
+  2| /** @const {typeof ns.Foo} */ var Foo = /** @type {?} */ (x);
+                                                               ^
+
+1 error(s), 0 warning(s)
+---EXIT---
+1

@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testextendedinterfacepropertiescompatibility6.js:12:0: ERROR - [JSC_INCOMPATIBLE_EXTENDED_PROPERTY_TYPE] Interface Int3 has a property foo with incompatible types in its super interfaces Int0 and Int1
+  12| function Int3() {};
+      ^^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

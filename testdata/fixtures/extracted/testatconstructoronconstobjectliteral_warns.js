@@ -1,0 +1,1 @@
+/** @constructor */ const X = {};

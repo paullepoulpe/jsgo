@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testbitoperation9.js:1:21: ERROR - [JSC_TYPE_MISMATCH] bad right operand to bitwise operator
+found   : {}
+required: (boolean|null|number|string|undefined)
+  1| var x = void 0; x |= {};
+                          ^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

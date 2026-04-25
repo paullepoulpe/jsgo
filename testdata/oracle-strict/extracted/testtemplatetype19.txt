@@ -1,0 +1,12 @@
+testdata/fixtures/extracted/testtemplatetype19.js:8:28: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : {
+  t: number,
+  u: string
+}
+required: null
+  8| /** @type {null} */ var x = fn(1, 'str');
+                                 ^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 75.0% typed
+---EXIT---
+1
