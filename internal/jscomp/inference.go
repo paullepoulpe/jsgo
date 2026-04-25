@@ -246,11 +246,21 @@ func (t *TypeInference) inferCall(n *rhino.Node) jstype.JSType {
 	// the last param element type is unified against ALL remaining
 	// actual args — mirrors Java's ...T rest handling where each extra
 	// arg contributes to the template binding via getLeastSupertype.
+	// Also strip null/void from union arg types before unification,
+	// matching Java's TemplateTypeReplacer's IGNORE_NULL_UNDEFINED mode
+	// so nullable args (Array<string>|null) bind T from the non-null part.
 	subs := jstype.NewCallSiteMap()
 	args := n.Children()[1:]
 	isVariadic := fn.MaxArity >= jstype.MaxArgsUnlimited
 	for i := 0; i < len(fn.Params) && i < len(args); i++ {
 		argType := t.InferType(args[i])
+		// Strip null/void from union arg types before template unification,
+		// matching Java's TemplateTypeReplacer which uses SubtypingMode
+		// IGNORE_NULL_UNDEFINED when resolving template type bindings.
+		argTypeNonNull := stripNullUndef(argType)
+		if argTypeNonNull != nil {
+			argType = argTypeNonNull
+		}
 		unifyTemplates(subs, fn.Params[i], argType)
 		if isVariadic && i == len(fn.Params)-1 {
 			for j := i + 1; j < len(args); j++ {
