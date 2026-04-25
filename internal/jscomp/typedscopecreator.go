@@ -273,6 +273,32 @@ func (c *TypedScopeCreator) buildExpressionFunctionScope(fn *rhino.Node, parent 
 			}
 		}
 	}
+	// `/** @type {function(A, B)} */ var foo = function(x, y) {…}` — the
+	// outer @type provides positional param types that should bind into
+	// the FEE's body so `f(y)` inside type-checks against the declared
+	// signature. The FEE remains JSDoc-less so flow narrowing stays
+	// disabled (handled in inference); we only seed a `funcTypeParams`
+	// slot so resolveParamType can fall back to the i-th declared type.
+	// Mirrors Java's FunctionTypeBuilder.inferFromOverriddenFunction
+	// path for the @type {function(...)} variant — see TypedScopeCreator
+	// processFunctionLiteral handling around the @type branch.
+	var funcTypeParams []jstype.JSType
+	if info == nil {
+		if p := fn.Parent(); p != nil && p.Token() == rhino.NAME {
+			if gp := p.Parent(); gp != nil {
+				switch gp.Token() {
+				case rhino.VAR, rhino.LET, rhino.CONST, rhino.ASSIGN:
+					if gpInfo := gp.JSDocInfo(); gpInfo != nil && gpInfo.HasType() {
+						if resolved := parent.ResolveExpr(gpInfo.Type().TypeName); resolved != nil {
+							if fnT, ok := resolved.(*jstype.FunctionType); ok {
+								funcTypeParams = fnT.Params
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 	// A non-arrow FUNCTION expression rebinds `this` at the call site
 	// rather than capturing the enclosing scope's `this`. Marking the
 	// local scope as a this-boundary stops ThisType() from walking
@@ -343,8 +369,14 @@ func (c *TypedScopeCreator) buildExpressionFunctionScope(fn *rhino.Node, parent 
 	// FunctionType carrying the declared @param / @return so bar's
 	// call-sites type-check.
 	var paramTypes []jstype.JSType
-	for _, p := range params.Children() {
+	for i, p := range params.Children() {
 		t := resolveParamType(info, p, parent)
+		// Fallback for `/** @type {function(A,B)} */ var foo = function(x,y)`
+		// — when no inline / outer @param resolved, use the i-th declared
+		// type from the outer @type's function-type expression.
+		if isJSUnknown(t) && i < len(funcTypeParams) && funcTypeParams[i] != nil {
+			t = funcTypeParams[i]
+		}
 		paramTypes = append(paramTypes, t)
 		if p.Token() == rhino.NAME {
 			local.declared[p.String_()] = t
