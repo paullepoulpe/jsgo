@@ -234,8 +234,11 @@ type cmrQualifiedName struct {
 	components []string
 }
 
-// TODO(port): QualifiedName.java:of — stub factory for QualifiedName; not yet ported from Java
-// Reason: port gap — Java uses QualifiedName.of(String); Go uses a stub struct.
+// qualifiedNameOf parses a dotted name string into a cmrQualifiedName, mirroring
+// QualifiedName.of(String) in com/google/javascript/rhino/QualifiedName.java.
+// The canonical Go port lives in rhino.Of; this local stub is retained because
+// CheckMissingRequires uses an internal struct shape, but the parsing logic is
+// identical to Java's QualifiedName.of.
 func qualifiedNameOf(dotted string) *cmrQualifiedName {
 	if dotted == "" {
 		return &cmrQualifiedName{}
@@ -285,10 +288,13 @@ func (q *cmrQualifiedName) getComponentCount() int {
 	return len(q.components)
 }
 
-// TODO(port): Node.java:getQualifiedNameObject — port gap; Java returns a QualifiedName from a Node
-// Reason: port gap — Node.getQualifiedNameObject() not yet ported; Go uses a local stub converter.
 // qualifiedNameFromNode converts a NAME or GETPROP chain into a
 // cmrQualifiedName. Returns nil when `n` is not a qualified name chain.
+//
+// Mirrors Node.getQualifiedNameObject() in Node.java; the canonical Go port
+// is rhino.Node.GetQualifiedNameObject (returns a rhino.QualifiedName). This
+// local converter materialises into the cmrQualifiedName struct shape that
+// CheckMissingRequires uses internally.
 func qualifiedNameFromNode(n *rhino.Node) *cmrQualifiedName {
 	if n == nil {
 		return nil

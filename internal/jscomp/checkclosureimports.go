@@ -565,68 +565,49 @@ func (c *CheckClosureImports) report(n *rhino.Node, code string, level diag.Leve
 
 // cciMatchesQualifiedName returns true when node is a GETPROP chain that
 // spells out the dotted `name` (e.g. "goog.require", "goog.module.get").
-// Mirrors Node.matchesQualifiedName(Node) in Java.
-// TODO(port): Node.matchesQualifiedName(Node) — qualified-name matcher (Java uses Node.matchesQualifiedName; rhino.Node does not have it yet).
+// Delegates to rhino.Node.MatchesQualifiedNameStr (port of Java Node.matchesQualifiedName(String)).
 func cciMatchesQualifiedName(n *rhino.Node, name string) bool {
 	if n == nil {
 		return false
 	}
-	return cciGetQualifiedName(n) == name
+	return n.MatchesQualifiedNameStr(name)
 }
 
 // cciGetQualifiedName reconstructs the dotted string from a GETPROP chain
 // or bare NAME. Returns "" for non-name nodes.
-// TODO(port): Node.getQualifiedName() — qualified-name builder (Java uses Node.getQualifiedName; rhino.Node does not have it yet).
+// Delegates to rhino.Node.GetQualifiedName (port of Java Node.getQualifiedName).
 func cciGetQualifiedName(n *rhino.Node) string {
 	if n == nil {
 		return ""
 	}
-	switch n.Token() {
-	case rhino.NAME:
-		return n.String_()
-	case rhino.GETPROP:
-		kids := n.Children()
-		if len(kids) >= 2 {
-			left := cciGetQualifiedName(kids[0])
-			if left == "" {
-				return ""
-			}
-			return left + "." + kids[1].String_()
-		}
-	}
-	return ""
+	return n.GetQualifiedName()
 }
 
 // cciHasTwoChildren returns true when n has exactly two children.
-// Mirrors call.hasTwoChildren() in Java.
-// TODO(port): Node.hasTwoChildren() — rhino.Node does not yet expose this method.
+// Delegates to rhino.Node.HasTwoChildren (port of Java Node.hasTwoChildren).
 func cciHasTwoChildren(n *rhino.Node) bool {
-	return n != nil && len(n.Children()) == 2
+	return n != nil && n.HasTwoChildren()
 }
 
 // cciSecondChild returns the second child of n, or nil.
-// Mirrors Node.getSecondChild() in Java.
-// TODO(port): Node.getSecondChild() — rhino.Node does not yet expose this method.
+// Delegates to rhino.Node.GetSecondChild (port of Java Node.getSecondChild).
 func cciSecondChild(n *rhino.Node) *rhino.Node {
-	kids := n.Children()
-	if len(kids) < 2 {
+	if n == nil {
 		return nil
 	}
-	return kids[1]
+	return n.GetSecondChild()
 }
 
 // cciHasOneChild returns true when n has exactly one child.
-// Mirrors Node.hasOneChild() in Java.
-// TODO(port): Node.hasOneChild() — rhino.Node does not yet expose this method.
+// Delegates to rhino.Node.HasOneChild (port of Java Node.hasOneChild).
 func cciHasOneChild(n *rhino.Node) bool {
-	return n != nil && len(n.Children()) == 1
+	return n != nil && n.HasOneChild()
 }
 
 // cciIsExprResult reports whether n is an EXPR_RESULT node.
-// Mirrors Node.isExprResult() in Java.
-// TODO(port): Node.isExprResult() — rhino.Node does not yet expose this method.
+// Delegates to rhino.Node.IsExprResult (port of Java Node.isExprResult).
 func cciIsExprResult(n *rhino.Node) bool {
-	return n != nil && n.Token() == rhino.EXPR_RESULT
+	return n != nil && n.IsExprResult()
 }
 
 // cciIsNameDecl reports whether n is VAR / LET / CONST.
@@ -641,50 +622,39 @@ func cciIsNameDecl(n *rhino.Node) bool {
 }
 
 // cciIsLet reports whether n is a LET declaration.
-// Mirrors Node.isLet() in Java.
-// TODO(port): Node.isLet() — rhino.Node does not yet expose this method.
+// Delegates to rhino.Node.IsLet (port of Java Node.isLet).
 func cciIsLet(n *rhino.Node) bool {
-	return n != nil && n.Token() == rhino.LET
+	return n != nil && n.IsLet()
 }
 
 // cciIsConst reports whether n is a CONST declaration.
-// Mirrors Node.isConst() in Java.
-// TODO(port): Node.isConst() — rhino.Node does not yet expose this method.
+// Delegates to rhino.Node.IsConst (port of Java Node.isConst).
 func cciIsConst(n *rhino.Node) bool {
-	return n != nil && n.Token() == rhino.CONST
+	return n != nil && n.IsConst()
 }
 
 // cciGrandParent returns n.Parent().Parent(), or nil.
-// Mirrors Node.getGrandparent() in Java.
-// TODO(port): Node.getGrandparent() — rhino.Node does not yet expose this method.
+// Delegates to rhino.Node.GetGrandparent (port of Java Node.getGrandparent).
 func cciGrandParent(n *rhino.Node) *rhino.Node {
 	if n == nil {
 		return nil
 	}
-	p := n.Parent()
-	if p == nil {
-		return nil
-	}
-	return p.Parent()
+	return n.GetGrandparent()
 }
 
 // isValidDestructuringLhs reports whether n represents a destructuring LHS
-// (i.e. the first child of a VAR/LET/CONST that is an OBJECTLIT or
-// array pattern used on the LHS of an initializer).
+// (i.e. the first child of a VAR/LET/CONST that is a DESTRUCTURING_LHS or
+// OBJECTLIT used on the LHS of an initializer).
 //
-// Java uses Token.DESTRUCTURING_LHS which our rhino subset doesn't carry;
-// we approximate by checking that the first child of a name-declaration
-// child is an OBJECTLIT.
-//
-// TODO: add DESTRUCTURING_LHS token to rhino when rhino.Node is extended.
-// TODO(port): Token.DESTRUCTURING_LHS — rhino token not yet ported; approximating with OBJECTLIT check.
+// Mirrors the Token.DESTRUCTURING_LHS check in Java; the legacy OBJECTLIT
+// fallback covers older AST shapes that haven't yet been normalised to
+// DESTRUCTURING_LHS.
 func isValidDestructuringLhs(n *rhino.Node) bool {
-	// Approximate: if the node itself is an OBJECTLIT it is acting as
-	// a destructuring LHS inside a var/let/const initializer.
 	if n == nil {
 		return false
 	}
-	return n.Token() == rhino.OBJECTLIT
+	t := n.Token()
+	return t == rhino.DESTRUCTURING_LHS || t == rhino.OBJECTLIT
 }
 
 // cciHasFunctionAncestor returns true when any ancestor of n is a FUNCTION
