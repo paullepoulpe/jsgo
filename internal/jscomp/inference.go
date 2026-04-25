@@ -240,10 +240,20 @@ func (t *TypeInference) inferCall(n *rhino.Node) jstype.JSType {
 		return fn.Return
 	}
 	// Build TemplateType → arg type map by walking the param slots.
+	// Port of TemplateTypeReplacer unification: strip null/void from the
+	// arg type before unifying so nullable types (e.g. Array<string>|null)
+	// resolve the template variable from the non-null component (Array<string>).
 	subs := jstype.NewCallSiteMap()
 	args := n.Children()[1:]
 	for i := 0; i < len(fn.Params) && i < len(args); i++ {
 		argType := t.InferType(args[i])
+		// Strip null/void from union arg types before template unification,
+		// matching Java's TemplateTypeReplacer which uses SubtypingMode
+		// IGNORE_NULL_UNDEFINED when resolving template type bindings.
+		argTypeNonNull := stripNullUndef(argType)
+		if argTypeNonNull != nil {
+			argType = argTypeNonNull
+		}
 		unifyTemplates(subs, fn.Params[i], argType)
 	}
 	return subs.Substitute(fn.Return)
