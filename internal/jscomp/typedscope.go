@@ -1296,6 +1296,12 @@ func (s *TypedScope) resolveObjectLiteralType(expr string) (*jstype.ObjectType, 
 	body := expr[1 : len(expr)-1]
 	obj := jstype.NewObjectType("")
 	obj.IsStructural = true
+	// Anonymous `{k: T}` JSDoc types are structural record types — Java's
+	// JsDocInfoParser.parseRecordType() produces RecordType which returns
+	// isStructuralType() == true (via FunctionType.isStructuralInterface()).
+	// Mark IsRecord so the subtype check applies duck-typing.
+	// Port of JSTypeRegistry @ closure-compiler v20260415.
+	obj.IsRecord = true
 	// Split on top-level commas; each piece is `key: expr`.
 	depth := 0
 	start := 0
