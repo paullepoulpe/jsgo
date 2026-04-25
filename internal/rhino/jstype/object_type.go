@@ -472,7 +472,12 @@ func (o *ObjectType) SealForInference() { o.sealedForInference = true }
 // for plain ObjectType; overridden by RecordType to return true.
 // Port of ObjectType.isRecordType() in Java (base-class default).
 func (o *ObjectType) IsRecordType() bool {
-	// Only RecordType overrides this to return true.
+	// ObjectType base-class default: only RecordType returns true.
+	// Java: JSType.isRecordType() base returns false; RecordType overrides.
+	// Check the IsRecord flag; plain ObjectType always has it false.
+	if o.IsRecord {
+		return true
+	}
 	return false
 }
 
@@ -665,20 +670,36 @@ func (o *ObjectType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
 // GetConstructor mirrors ObjectType.getConstructor() in Java.
 // Base-class default: plain ObjectType instances have no constructor.
 // InstanceObjectType overrides this via its embedded PrototypeObjectType chain.
-// Port of ObjectType.getConstructor() in Java (base-class default returns nil).
+// Port of ObjectType.getConstructor() in Java (abstract; base-class default returns null).
 func (o *ObjectType) GetConstructor() *FunctionType {
-	// ObjectType is the abstract base; constructor lives on InstanceObjectType.
+	// Java: abstract FunctionType getConstructor() — base returns null.
+	// The Ctor back-pointer is set on instances created by NewConstructorType;
+	// most plain ObjectType instances (anonymous literals, etc.) have Ctor == nil.
+	if o.Ctor != nil {
+		return o.Ctor
+	}
 	return nil
 }
 
 // GetSuperClassConstructor mirrors ObjectType.getSuperClassConstructor()
-// in Java — climbs two implicit-prototype levels to find the superclass
-// constructor. In the Go port: super.GetConstructor().
+// in Java — climbs TWO implicit-prototype levels to find the superclass
+// constructor. Java: getImplicitPrototype().getImplicitPrototype().getConstructor().
+// Port of ObjectType.getSuperClassConstructor() in Java.
 func (o *ObjectType) GetSuperClassConstructor() *FunctionType {
-	if o.super == nil {
+	// Java:
+	//   ObjectType iproto = getImplicitPrototype();
+	//   if (iproto == null) return null;
+	//   iproto = iproto.getImplicitPrototype();
+	//   return iproto == null ? null : iproto.getConstructor();
+	iproto := o.GetImplicitPrototype()
+	if iproto == nil {
 		return nil
 	}
-	return o.super.GetConstructor()
+	iproto = iproto.GetImplicitPrototype()
+	if iproto == nil {
+		return nil
+	}
+	return iproto.GetConstructor()
 }
 
 // GetImplicitPrototype mirrors ObjectType.getImplicitPrototype() in Java —
@@ -689,19 +710,33 @@ func (o *ObjectType) GetImplicitPrototype() *ObjectType {
 }
 
 // GetCtorImplementedInterfaces mirrors ObjectType.getCtorImplementedInterfaces()
-// in Java. Base-class default: ObjectType has no associated constructor.
-// InstanceObjectType overrides to return the constructor's implementedInterfaces.
-// Port of ObjectType.getCtorImplementedInterfaces() in Java (returns nil by default).
+// in Java. Base-class default: ObjectType has no associated constructor so the
+// set of implemented interfaces is empty. InstanceObjectType overrides to
+// return the constructor's implementedInterfaces.
+// Port of ObjectType.getCtorImplementedInterfaces() in Java (returns ImmutableSet.of()).
 func (o *ObjectType) GetCtorImplementedInterfaces() []*ObjectType {
-	return nil
+	// Java: return ImmutableSet.of() — empty, not null.
+	// The Go Ctor back-pointer lets us resolve this when wired.
+	if o.Ctor != nil {
+		return o.Ctor.GetImplementedInterfaces()
+	}
+	return []*ObjectType{}
 }
 
 // GetCtorExtendedInterfaces mirrors ObjectType.getCtorExtendedInterfaces() in
-// Java. Base-class default: ObjectType has no associated constructor.
-// InstanceObjectType overrides to return the constructor's extendedInterfaces.
-// Port of ObjectType.getCtorExtendedInterfaces() in Java (returns nil by default).
+// Java. Base-class default: ObjectType has no associated constructor so the set
+// of extended interfaces is empty. InstanceObjectType overrides to return the
+// constructor's extendedInterfaces.
+// Port of ObjectType.getCtorExtendedInterfaces() in Java (returns ImmutableSet.of()).
 func (o *ObjectType) GetCtorExtendedInterfaces() []*ObjectType {
-	return nil
+	// Java: return ImmutableSet.of() — empty, not null.
+	if o.Ctor != nil {
+		ifaces := extFor(o).extendedInterfaces
+		if ifaces != nil {
+			return ifaces
+		}
+	}
+	return []*ObjectType{}
 }
 
 // GetPropertyTypeMap mirrors ObjectType.getPropertyTypeMap() in Java.
@@ -745,17 +780,29 @@ func (o *ObjectType) GetPropertiesCount() int {
 // to the function that owns the prototype. Returns nil by default.
 // Port of ObjectType.getTypeOfThis() in Java (base-class default).
 func (o *ObjectType) GetTypeOfThis() JSType {
-	// Default: plain ObjectTypes don't have a "this" type. PrototypeObjectType
-	// and FunctionType override this to return the instance/this type.
+	// Java: public JSType getTypeOfThis() { return null; }
+	// PrototypeObjectType and FunctionType override to return the instance/this.
+	// The Ctor back-pointer lets a plain ObjectType resolve this when the
+	// constructor is wired; otherwise fall through to nil.
+	if o.Ctor != nil {
+		return o.Ctor.GetTypeOfThis()
+	}
 	return nil
 }
 
 // GetOwnerFunction mirrors ObjectType.getOwnerFunction() in Java.
 // Base-class default: plain ObjectType instances are not function prototypes.
 // PrototypeObjectType overrides this via its ownerFunction field.
-// Port of ObjectType.getOwnerFunction() in Java (base-class default returns nil).
+// Port of ObjectType.getOwnerFunction() in Java (base-class default returns null).
 func (o *ObjectType) GetOwnerFunction() *FunctionType {
-	// ObjectType is the abstract base; ownerFunction lives on PrototypeObjectType.
+	// Java: public FunctionType getOwnerFunction() { return null; }
+	// isFunctionPrototypeType() returns true iff getOwnerFunction() != null.
+	// Plain ObjectType is not a function prototype; PrototypeObjectType overrides.
+	// Ctor back-pointer: when this is the constructor's Instance object (which is
+	// distinct from the function prototype), return nil.
+	if o.Ctor == nil {
+		return nil
+	}
 	return nil
 }
 
@@ -766,7 +813,12 @@ func (o *ObjectType) IsObject() bool { return true }
 // Returns nil for plain ObjectTypes; overridden by EnumType.
 // Port of ObjectType.getEnumeratedTypeOfEnumObject() in Java (base-class default).
 func (o *ObjectType) GetEnumeratedTypeOfEnumObject() JSType {
+	// Java: public JSType getEnumeratedTypeOfEnumObject() { return null; }
 	// EnumType overrides this to return its element type's primitive type.
+	// Plain ObjectType is never an enum object type.
+	if o.IsInterface || o.IsRecord || o.IsStructural {
+		return nil
+	}
 	return nil
 }
 
@@ -850,13 +902,37 @@ func (o *ObjectType) IsPropertyInExterns(name string) bool {
 	return false
 }
 
-// IsUnknownType mirrors JSType.isUnknownType() — returns false for all
-// concrete ObjectType instances (only UnknownType returns true).
-// Port of default ObjectType.isUnknownType() in Java.
-// This is the base-class default; subclasses that model Unknown override this.
+// IsUnknownType mirrors ObjectType.isUnknownType() in Java — treats the type
+// as unknown when its implicit-prototype chain is unknown. Java uses a cached
+// `unknown` field (starts true, lazily cleared once the chain is resolved).
+// Port of ObjectType.isUnknownType() in Java.
 func (o *ObjectType) IsUnknownType() bool {
-	// ObjectType and its subclasses (except UnknownType) are always known.
-	return false
+	// Java:
+	//   if (unknown) {
+	//     ObjectType implicitProto = getImplicitPrototype();
+	//     if (implicitProto == null || implicitProto.isNativeObjectType()) {
+	//       unknown = false;
+	//       for (ObjectType iface : getCtorExtendedInterfaces()) {
+	//         if (iface.isUnknownType()) { unknown = true; break; }
+	//       }
+	//     } else { unknown = implicitProto.isUnknownType(); }
+	//   }
+	//   return unknown;
+	//
+	// In the Go port we don't cache the unknown flag; compute it directly.
+	// Walk the implicit-prototype chain: if any non-native ancestor is unknown,
+	// the type is unknown. For plain ObjectType the chain is the super pointer.
+	proto := o.GetImplicitPrototype()
+	if proto == nil || proto.IsNativeObjectType() {
+		// Check extended interfaces for unknown-ness.
+		for _, iface := range o.GetCtorExtendedInterfaces() {
+			if iface.IsUnknownType() {
+				return true
+			}
+		}
+		return false
+	}
+	return proto.IsUnknownType()
 }
 
 // HasCachedValues mirrors ObjectType.hasCachedValues() — returns whether
