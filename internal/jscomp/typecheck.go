@@ -4843,8 +4843,10 @@ func (c *TypeCheck) visitRelativeComparison(n *rhino.Node, scope *TypedScope) []
 	if canCompareStrict(l, r) {
 		return nil
 	}
+	// Java's expectMatchingTypesStrict points at the LHS operand of
+	// the relational expression (the BinaryOpNode's left child).
 	return []diag.Diagnostic{{
-		Path: c.path, Line: kids[1].Lineno(), Col: kids[1].Charno(),
+		Path: c.path, Line: kids[0].Lineno(), Col: kids[0].Charno(),
 		Code: diag.JSC_INVALID_OPERAND_TYPE, Level: diag.Warning,
 		Message: "expected matching types in comparison\nfound   : " +
 			r.TypeName() + "\nrequired: " + l.TypeName(),
