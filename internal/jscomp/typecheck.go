@@ -1210,6 +1210,15 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 		if p := a.Parent(); p != nil && p.Token() == rhino.EXPR_RESULT {
 			posNode = p
 		}
+		// `@implicitCast` on the property declaration opts the slot out of
+		// the assignment subtype check. Java's TypeValidator.expectCanAssignToPropertyOf
+		// returns early when ObjectType.isPropertyTypeImplicitlyCast is true.
+		// Look up the per-property JSDoc (if any) to honour the annotation.
+		if recvObj, ok := infer.InferType(recv).(*jstype.ObjectType); ok {
+			if pdoc := recvObj.GetPropertyJSDocInfo(propName); pdoc != nil && pdoc.IsImplicitCast() {
+				return nil
+			}
+		}
 		c.tv.expectCanAssignToPropertyOf(posNode, found, declared, ownerName, propName)
 		return c.tvDrain()
 	case rhino.OBJECT_PATTERN, rhino.ARRAY_PATTERN:
