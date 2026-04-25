@@ -856,6 +856,13 @@ func (c *TypedScopeCreator) recordPrototypeLiteralAssign(a *rhino.Node, scope *T
 // Go-only: language-adapter — Java's NormalScopeBuilder dispatches this inline.
 func (c *TypedScopeCreator) recordNamespaceAssign(a *rhino.Node, scope *TypedScope) {
 	info := a.JSDocInfo()
+	// Port of NodeUtil.getBestJSDocInfo: when the ASSIGN node has no JSDoc,
+	// try the parent EXPR_RESULT. Mirrors recordPrototypeAssign.
+	if info == nil {
+		if parent := a.Parent(); parent != nil && parent.Token() == rhino.EXPR_RESULT {
+			info = parent.JSDocInfo()
+		}
+	}
 	// No @type JSDoc — but if the RHS is a FUNCTION, infer a
 	// FunctionType from the JSDoc's @param / @return so arity
 	// checks work at call sites. Matches how Java's
