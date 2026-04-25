@@ -1701,12 +1701,11 @@ func (c *TypeCheck) visitCall(node *rhino.Node, scope *TypedScope) []diag.Diagno
 // Returns (diagnostics, true) when the pattern is matched (caller should return
 // those diagnostics directly), or (nil, false) when it is not.
 //
-// Go-only: language-adapter — visitCallOrBind ports
-// FunctionType.java:getCallOrBindSignature (lines 709-750) combined with
+// Port of FunctionType.java:getCallOrBindSignature (lines 709-750) combined with
 // TypeCheck.java:visitArgumentList (lines 2656-2660). Java lazily synthesises a
-// function type for "bind"/"call" via FunctionType polymorphism; the Go port
-// extracts the bind/call argument-checking into a named helper because Go's
-// FunctionType lacks a getCallOrBindSignature method.
+// function type for "bind"/"call" via FunctionType.getCallOrBindSignature and then
+// type-checks call arguments against the synthetic signature; we mirror that here
+// by calling fn.GetCallOrBindSignature(isCall) and checking args against the result.
 func (c *TypeCheck) visitCallOrBind(node *rhino.Node, callee *rhino.Node, args []*rhino.Node, infer *TypeInference) ([]diag.Diagnostic, bool) {
 	gpKids := callee.Children()
 	if len(gpKids) < 2 {
@@ -1723,32 +1722,36 @@ func (c *TypeCheck) visitCallOrBind(node *rhino.Node, callee *rhino.Node, args [
 	if !ok {
 		return nil, false
 	}
-	// args[0] is thisArg — not type-checked (Java also skips it).
-	// args[1..] are checked against recvFn.Params[0..].
-	if len(args) <= 1 {
-		// Only thisArg or nothing — nothing to check.
+	// Port of FunctionType.getCallOrBindSignature: obtain the synthetic
+	// signature for this .call() or .bind() invocation. The returned
+	// FunctionType has thisArg prepended as parameter 0; for .bind() all
+	// non-this parameters are made optional.
+	isCall := propName == "call"
+	synth := recvFn.GetCallOrBindSignature(isCall)
+	synthParams := synth.GetParameters()
+
+	if len(args) == 0 {
 		return nil, true
 	}
-	boundArgs := args[1:] // args after thisArg
-	params := recvFn.GetParameters()
-	isVariadic := recvFn.MaxArity >= jstype.MaxArgsUnlimited && len(recvFn.Params) > 0
-	var lastParamType jstype.JSType
-	if isVariadic {
-		lastParamType = recvFn.Params[len(recvFn.Params)-1]
-	}
+	isVariadic := synth.MaxArity >= jstype.MaxArgsUnlimited && len(synthParams) > 0
 	var out []diag.Diagnostic
-	for i, arg := range boundArgs {
-		var param jstype.JSType
-		if i < len(recvFn.Params) {
-			param = recvFn.Params[i]
-		} else if isVariadic {
-			param = lastParamType
-		} else {
-			break
+	for i, arg := range args {
+		// args[0] is thisArg (synth param 0) — Java skips type-checking it.
+		if i == 0 {
+			continue
 		}
+		// Resolve param index: for variadic functions, clamp to last param.
+		paramIdx := i
+		if i >= len(synthParams) {
+			if !isVariadic {
+				break
+			}
+			paramIdx = len(synthParams) - 1
+		}
+		param := synthParams[paramIdx]
 		found := infer.InferType(arg)
 		// Optional params accept undefined explicitly (mirrors Java).
-		if i < len(params) && params[i].IsOptional() && found == jstype.Void {
+		if param.IsOptional() && found == jstype.Void {
 			continue
 		}
 		posNode := arg
@@ -1757,8 +1760,8 @@ func (c *TypeCheck) visitCallOrBind(node *rhino.Node, callee *rhino.Node, args [
 				posNode = gk[1]
 			}
 		}
-		// Ordinal is i+2: 1-based, starting at 2 because arg 1 is thisArg.
-		c.tv.expectArgumentMatchesParameter(posNode, found, param, node, i+2)
+		// Ordinal is i+1: 1-based, where i=0 is thisArg (already skipped).
+		c.tv.expectArgumentMatchesParameter(posNode, found, param.GetJSType(), node, i+1)
 		out = append(out, c.tvDrain()...)
 	}
 	return out, true
