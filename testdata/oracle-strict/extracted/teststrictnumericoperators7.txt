@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/teststrictnumericoperators7.js:1:8: WARNING - [JSC_INVALID_OPERAND_TYPE] bitwise NOT
+found   : string
+required: number
+  1| var x = ~ 'asdf';
+             ^^^^^^^^
+
+0 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+0

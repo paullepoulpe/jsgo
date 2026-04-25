@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testassigncoalescenoassign.js:4:3: ERROR - [JSC_TYPE_MISMATCH] assignment
+found   : number
+required: string
+  4|    x ??= 5;
+        ^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

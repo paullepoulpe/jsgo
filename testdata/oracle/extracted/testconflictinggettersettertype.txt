@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testconflictinggettersettertype.js:6:6: ERROR - [JSC_CONFLICTING_GETTER_SETTER_TYPE] The types of the getter and setter for property 'value' do not match.
+getter type is: string
+setter type is: number
+  6|   set value(v) { }
+           ^^^^^
+
+1 error(s), 0 warning(s), 66.7% typed
+---EXIT---
+1

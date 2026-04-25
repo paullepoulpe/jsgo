@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testbadextends_withuniontype.js:11:0: ERROR - [JSC_EXTENDS_NON_OBJECT] Blah @extends non-object type (Bar|Foo)
+  11| class Blah {}
+      ^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

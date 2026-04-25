@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testin6.js:3:2: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of g does not match formal parameter
+found   : boolean
+required: number
+  3| g(1 in {});
+       ^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

@@ -1,0 +1,8 @@
+testdata/fixtures/extracted/testcast9.js:2:33: ERROR - [JSC_UNRECOGNIZED_TYPE_ERROR] Bad type annotation. Unknown type foo
+It's possible that 'foo' refers to a value, not a type.
+  2| function f() { return /** @type {foo} */ (new Object()); }
+                                      ^
+
+1 error(s), 0 warning(s), 80.0% typed
+---EXIT---
+1

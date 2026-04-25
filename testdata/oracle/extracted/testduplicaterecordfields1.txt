@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testduplicaterecordfields1.js:2:30: ERROR - [JSC_TYPE_PARSE_ERROR] Bad type annotation. Duplicate record field x. See https://github.com/google/closure-compiler/wiki/Annotating-JavaScript-for-the-Closure-Compiler for more information.
+  2|  * @param {{x:string, x:number}} a
+                                   ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

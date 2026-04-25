@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testfunctioncall8.js:4:29: ERROR - [JSC_UNDEFINED_VARIABLE] variable x is undeclared
+  4|   handler.apply(opt_context, x);
+                                  ^
+
+1 error(s), 0 warning(s)
+---EXIT---
+1

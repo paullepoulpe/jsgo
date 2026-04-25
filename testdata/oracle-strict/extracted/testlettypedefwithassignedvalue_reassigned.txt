@@ -1,0 +1,15 @@
+testdata/fixtures/extracted/testlettypedefwithassignedvalue_reassigned.js:2:11: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : {}
+required: None
+  2| let Type = {};
+                ^^
+
+testdata/fixtures/extracted/testlettypedefwithassignedvalue_reassigned.js:3:0: ERROR - [JSC_TYPE_MISMATCH] assignment
+found   : {x: number}
+required: None
+  3| Type = {x: 3};
+     ^^^^^^^^^^^^^
+
+2 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+2

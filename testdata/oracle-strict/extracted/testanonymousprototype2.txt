@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testanonymousprototype2.js:8:14: ERROR - [JSC_INTERFACE_METHOD_NOT_IMPLEMENTED] property foo on interface Foo is not implemented by type Bar
+  8|  */ var Bar = function() {};
+                   ^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

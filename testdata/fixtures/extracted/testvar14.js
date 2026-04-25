@@ -1,0 +1,1 @@
+/** @return {number} */ function f() { var x; return x; }

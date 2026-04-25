@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testnoforwardtypedeclaration.js:1:12: ERROR - [JSC_UNRECOGNIZED_TYPE_ERROR] Bad type annotation. Unknown type MyType
+  1| /** @param {MyType} x */ function f(x) {}
+                 ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

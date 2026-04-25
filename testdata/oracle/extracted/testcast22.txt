@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testcast22.js:2:29: ERROR - [JSC_INVALID_CAST] invalid cast - must be a subtype or supertype
+from: null
+to  : number
+  2| var y = /** @type {number} */(x);
+                                  ^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

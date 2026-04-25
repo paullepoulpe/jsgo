@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testclassfieldtypeerror2.js:6:4: ERROR - [JSC_TYPE_MISMATCH] assignment to property x of C
+found   : number
+required: string
+  6|     this.x = 1;
+         ^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

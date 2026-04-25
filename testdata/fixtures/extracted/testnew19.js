@@ -1,0 +1,1 @@
+/** @constructor @abstract */ var Foo = function() {}; var foo = new Foo();

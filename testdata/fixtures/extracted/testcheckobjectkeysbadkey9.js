@@ -1,0 +1,1 @@
+/** @type {function(!Object<!Object, number>)} */ var k;

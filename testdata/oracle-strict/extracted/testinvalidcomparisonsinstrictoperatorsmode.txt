@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testinvalidcomparisonsinstrictoperatorsmode.js:1:63: ERROR - [JSC_TYPE_MISMATCH] right side of comparison
+found   : undefined
+required: string
+  1| function f(/** (void|string) */ x, /** void */ y) { return x < y; }
+                                                                    ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

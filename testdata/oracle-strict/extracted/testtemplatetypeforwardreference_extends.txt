@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testtemplatetypeforwardreference_extends.js:1:31: ERROR - [JSC_UNRECOGNIZED_TYPE_ERROR] Bad type annotation. Unknown type Baz
+  1| /** @constructor @extends {Bar<Baz>} */
+                                    ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

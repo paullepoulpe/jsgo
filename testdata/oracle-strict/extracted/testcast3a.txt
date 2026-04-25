@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testcast3a.js:4:34: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : Base
+required: Derived
+  4| /** @type {!Derived} */ var baz = baseInstance;
+                                       ^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

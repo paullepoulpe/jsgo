@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testadd9.js:3:30: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : number
+required: string
+  3| /** @type {string} */ var c = a + b;
+                                   ^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

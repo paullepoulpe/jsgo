@@ -1,0 +1,12 @@
+testdata/fixtures/extracted/testdontdroppropertiesinunion6.js:3:22: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : ({
+  a: number,
+  b: string
+}|{a: number})
+required: null
+  3|   var /** null */ n = x;
+                           ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

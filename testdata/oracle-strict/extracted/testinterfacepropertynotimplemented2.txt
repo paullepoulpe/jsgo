@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testinterfacepropertynotimplemented2.js:6:22: ERROR - [JSC_INTERFACE_METHOD_NOT_IMPLEMENTED] property foo on interface Int is not implemented by type Foo
+  6|  @implements {Int2} */function Foo() {};
+                           ^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

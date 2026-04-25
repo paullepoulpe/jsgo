@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testenum5.js:1:27: ERROR - [JSC_TYPE_MISMATCH] assignment to property BB of enum{a}
+found   : string
+required: (String|null)
+  1| /**@enum {?String}*/var a={BB:'string'}
+                                ^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

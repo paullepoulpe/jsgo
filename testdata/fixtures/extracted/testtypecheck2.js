@@ -1,0 +1,1 @@
+/**@return {void}*/function foo(){ var x=foo(); x--; }

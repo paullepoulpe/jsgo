@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testoptimizepropertymap8.js:3:24: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property b never defined on x
+  3|   var /** null */ n = x.b;
+                             ^
+
+0 error(s), 1 warning(s), 75.0% typed
+---EXIT---
+0

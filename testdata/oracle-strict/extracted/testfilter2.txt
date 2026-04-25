@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testfilter2.js:10:13: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : Array<string>
+required: Array<number>
+  10| var result = filter(arr);
+                   ^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

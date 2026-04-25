@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testbadimplementsaconstructor.js:3:21: ERROR - [JSC_IMPLEMENTS_NON_INTERFACE] can only implement interfaces
+  3|  * @implements {A} */function B() {}
+                          ^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

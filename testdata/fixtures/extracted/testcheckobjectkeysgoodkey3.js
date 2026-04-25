@@ -1,0 +1,1 @@
+/** @type {!Object<boolean, number>} */ var k;

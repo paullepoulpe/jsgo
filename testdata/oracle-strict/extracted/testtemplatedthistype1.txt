@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testtemplatedthistype1.js:19:8: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of compute does not match formal parameter
+found   : Bar
+required: number
+  19| compute(g);
+              ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

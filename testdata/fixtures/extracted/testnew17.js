@@ -1,0 +1,1 @@
+var goog = {}; goog.x = 3; new goog.x

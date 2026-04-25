@@ -1,0 +1,8 @@
+testdata/fixtures/extracted/testpropertyonatypedefgetsresolved.js:7:9: ERROR - [JSC_UNRECOGNIZED_TYPE_ERROR] Bad type annotation. Unknown type abAlias.whatIsThis
+It's possible that 'abAlias.whatIsThis' refers to a value, not a type.
+  7| var /** !abAlias.whatIsThis */ y = 'foo';
+              ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

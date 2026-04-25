@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testnonnulltemplatedthis.js:13:9: ERROR - [JSC_UNDEFINED_VARIABLE] variable x is undeclared
+  13|   return x;
+               ^
+
+1 error(s), 0 warning(s)
+---EXIT---
+1

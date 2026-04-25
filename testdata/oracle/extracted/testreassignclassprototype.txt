@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testreassignclassprototype.js:2:0: ERROR - [JSC_REASSIGN_CLASS_PROTOTYPE] Reassigning a class prototype is not allowed
+  2| Foo.prototype = {};
+     ^^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s)
+---EXIT---
+1

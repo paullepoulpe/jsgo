@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testand10.js:2:45: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of takesNum does not match formal parameter
+found   : string
+required: number
+  2|   (x && (typeof x === 'string')) && takesNum(x);
+                                                  ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/teststaticmethoddeclaration1.js:1:41: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of F.foo does not match formal parameter
+found   : boolean
+required: number
+  1| /** @constructor */ function F() { F.foo(true); }
+                                              ^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

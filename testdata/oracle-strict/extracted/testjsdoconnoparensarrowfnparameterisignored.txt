@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testjsdoconnoparensarrowfnparameterisignored.js:5:48: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : string
+required: number
+  5| foo(/** number */ x =>  { var /** number */ y = x; });
+                                                     ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

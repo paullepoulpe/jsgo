@@ -1,0 +1,9 @@
+testdata/fixtures/tier2/008_class_method_arg_mismatch.js:7:9: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of Foo.prototype.method does not match formal parameter
+found   : string
+required: number
+  7| f.method('hi');
+              ^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

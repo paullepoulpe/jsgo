@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testdoubledeclaretemplatenameinfunctions.js:3:3: ERROR - [JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES] Bounded generic semantics are currently still in development
+  3|  * @template {boolean} T
+        ^
+
+testdata/fixtures/extracted/testdoubledeclaretemplatenameinfunctions.js:8:3: ERROR - [JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES] Bounded generic semantics are currently still in development
+  8|  * @template {string} T
+        ^
+
+2 error(s), 0 warning(s)
+---EXIT---
+2

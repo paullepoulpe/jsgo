@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testgetpropertytypeofuniontype_withmatchingtemplates.js:12:31: ERROR - [JSC_TYPE_MISMATCH] inconsistent return type
+found   : number
+required: string
+  12| var f = function(x) { return x.p; };
+                                     ^
+
+1 error(s), 0 warning(s), 81.8% typed
+---EXIT---
+1

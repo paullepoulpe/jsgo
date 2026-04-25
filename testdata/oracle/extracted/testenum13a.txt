@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testenum13a.js:2:30: ERROR - [JSC_TYPE_MISMATCH] incompatible enum element types
+found   : number
+required: string
+  2| /** @enum {string} */ var b = a;
+                                   ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testinwiththis_narrowspropertytype.js:7:14: ERROR - [JSC_INEXISTENT_PROPERTY] Property y never defined on Foo
+  7|   return this.y; // this access causes a warning
+                   ^
+
+1 error(s), 0 warning(s), 81.8% typed
+---EXIT---
+1

@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/teststrictnumericoperators2.js:1:12: WARNING - [JSC_INVALID_OPERAND_TYPE] right operand
+found   : string
+required: number
+  1| var x = 1 - 'asdf';
+                 ^^^^^^
+
+0 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+0

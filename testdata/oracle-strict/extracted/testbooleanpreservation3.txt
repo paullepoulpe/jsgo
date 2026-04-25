@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testbooleanpreservation3.js:3:28: ERROR - [JSC_DETERMINISTIC_TEST] condition always evaluates to false
+left : Function
+right: string
+  3| function f(x) { return x && x == "a"; }
+                                 ^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

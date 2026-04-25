@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testinheritpropfrommultipleinterfaces1.js:15:50: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : (number|string)
+required: null
+  15| function f(/** !Low */ x) { var /** null */ n = x.prop; }
+                                                        ^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

@@ -1,0 +1,13 @@
+testdata/fixtures/extracted/testdontdroppropertiesinunion1.js:3:24: WARNING - [JSC_STRICT_INEXISTENT_UNION_PROPERTY] Property b not defined on all member types of x
+  3|   var /** null */ n = x.b;
+                             ^
+
+testdata/fixtures/extracted/testdontdroppropertiesinunion1.js:3:24: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : string
+required: null
+  3|   var /** null */ n = x.b;
+                             ^
+
+1 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+1

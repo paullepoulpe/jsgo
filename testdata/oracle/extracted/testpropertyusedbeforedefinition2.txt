@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testpropertyusedbeforedefinition2.js:4:38: ERROR - [JSC_TYPE_MISMATCH] inconsistent return type
+found   : number
+required: string
+  4| n.T.prototype.f = function() { return this.g(); };
+                                           ^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

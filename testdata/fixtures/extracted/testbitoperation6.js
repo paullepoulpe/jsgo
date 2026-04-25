@@ -1,0 +1,1 @@
+/**@return {!Object}*/function foo(){var a = foo()&3;}
