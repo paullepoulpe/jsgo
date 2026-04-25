@@ -195,7 +195,15 @@ func (p *Parser) tryStatement() (*rhino.Node, bool) {
 		return p.parseReturnStatement(), true
 	}
 	if p.scanner.ConsumeKeyword("if") {
-		return p.parseIfStatement(), true
+		ifNode := p.parseIfStatement()
+		if ifNode != nil {
+			// Position the IF at the `if` keyword (Java's IRFactory
+			// uses the IfStatementTree's location.start). The legacy
+			// parser captured the position AFTER ConsumeKeyword, so
+			// override with the kw position recorded above.
+			ifNode.SetPos(kwLine, kwCol)
+		}
+		return ifNode, true
 	}
 	if p.scanner.ConsumeKeyword("while") {
 		return p.parseWhileStatement(), true

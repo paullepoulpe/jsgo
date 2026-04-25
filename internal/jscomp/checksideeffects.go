@@ -133,6 +133,24 @@ func (c *CheckSideEffects) visit(n *rhino.Node) {
 			}
 		}
 	}
+	// Mirror Java's CheckSideEffects.visit for IF statements whose entire
+	// body / else / condition subtree is side-effect-free. Java's logic
+	// reaches every node and fires when isExpressionResultUsed=false and
+	// !mayHaveSideEffects(n). For an IF inside a BLOCK, the result is
+	// never "used" (NodeUtil.isExpressionResultUsed returns false on BLOCK
+	// parent), so a fully-pure IF (e.g. `if (x.foo) {}`) becomes
+	// USELESS_CODE at the IF's own position. Top-level IFs (parent SCRIPT)
+	// fall into NodeUtil.isExpressionResultUsed's default branch which
+	// returns true, so Java does NOT fire — we restrict the same way.
+	if n.Token() == rhino.IF {
+		parent := n.Parent()
+		if parent != nil && parent.Token() == rhino.BLOCK {
+			cond := n.FirstChild()
+			if cond != nil && !c.rootedInUndeclared(cond) && !c.analyzer.MayHaveSideEffects(n) {
+				c.emitAt(n)
+			}
+		}
+	}
 	for _, child := range n.Children() {
 		c.visit(child)
 	}
