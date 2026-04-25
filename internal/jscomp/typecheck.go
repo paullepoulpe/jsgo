@@ -781,7 +781,7 @@ func (c *TypeCheck) visitVar(v *rhino.Node, scope *TypedScope) []diag.Diagnostic
 		return []diag.Diagnostic{{
 			Path: c.path, Line: v.Lineno(), Col: v.Charno(),
 			Code:    diag.JSC_MULTIPLE_VAR_DEF,
-			Level:   diag.Warning,
+			Level:   diag.Error,
 			Message: "declaration of multiple variables with shared type information",
 		}}
 	}
@@ -4091,7 +4091,7 @@ func (c *TypeCheck) visitTypeofComparison(n *rhino.Node, scope *TypedScope) []di
 	return []diag.Diagnostic{{
 		Path: c.path, Line: strNode.Lineno(), Col: strNode.Charno(),
 		Code:    diag.JSC_UNKNOWN_TYPEOF_VALUE,
-		Level:   diag.Warning,
+		Level:   diag.Error,
 		Message: fmt.Sprintf("unknown type: %s", val),
 	}}
 }
@@ -7586,7 +7586,7 @@ func (c *TypeCheck) checkTypeofString(n *rhino.Node, s string) {
 			Line:    n.Lineno(),
 			Col:     n.Charno(),
 			Code:    diag.JSC_UNKNOWN_TYPEOF_VALUE,
-			Level:   diag.Warning,
+			Level:   diag.Error,
 			Message: fmt.Sprintf("unknown typeof value %q", s),
 		})
 	}
