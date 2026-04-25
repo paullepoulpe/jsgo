@@ -1979,6 +1979,19 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 			scope.RecordNamespaceAlias(name.String_(), init.String_())
 			// Fall through: still record the value slot below.
 		}
+		// Go-only: language-adapter — instance alias for @record.
+		// `var y = x` where x is typed as a @record ObjectType:
+		// propagate the instance type so subsequent `y.prop = val`
+		// writes in collectPropertyWrites can register the property
+		// on the @record's open surface. Restricted to @record (not
+		// @interface) so interface aliasing keeps stricter property-
+		// existence checks. Mirrors Java's TypedScopeCreator which
+		// propagates variable types through assignments via
+		// getDeclaredType for structural types.
+		if obj, ok := scope.GetDeclaredType(init.String_()).(*jstype.ObjectType); ok && obj.IsStructural && obj.IsRecord {
+			scope.declared[name.String_()] = obj
+			return
+		}
 	}
 	// `var foo = function bar(…){…}` — build a FunctionType from the
 	// function's shape even when JSDoc is absent. Java's TypedScopeCreator
