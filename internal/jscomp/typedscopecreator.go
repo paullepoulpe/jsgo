@@ -1209,6 +1209,19 @@ func (c *TypedScopeCreator) recordPrototypeStub(stmt *rhino.Node, getprop *rhino
 	if fn.Instance.GetPropertyType(propName) != nil {
 		return // already declared by a prior assign
 	}
+	// Port of TypedScopeCreator.AbstractScopeBuilder.visitAssignmentSite:
+	// resolve JSDoc types in a template-aware scope so `@type {T}` on a
+	// stub declaration like `Foo.prototype.p;` resolves to TemplateType{T}
+	// instead of Unknown. Mirrors how recordPrototypeAssign creates a shim
+	// scope with the owner's @template names wired to TemplateType objects.
+	resolveScope := scope
+	if len(fn.TemplateTypes) > 0 {
+		aliases := make(map[string]jstype.JSType, len(fn.TemplateTypes))
+		for _, tt := range fn.TemplateTypes {
+			aliases[tt.Name] = tt
+		}
+		resolveScope = &TypedScope{parent: scope, declared: map[string]jstype.JSType{}, typeAliases: aliases, registry: c.registry}
+	}
 	var t jstype.JSType = jstype.Unknown
 	info := stmt.JSDocInfo()
 	if info == nil {
@@ -1216,18 +1229,18 @@ func (c *TypedScopeCreator) recordPrototypeStub(stmt *rhino.Node, getprop *rhino
 	}
 	if info != nil {
 		if info.HasType() {
-			t = scope.ResolveExpr(info.Type().TypeName)
+			t = resolveScope.ResolveExpr(info.Type().TypeName)
 		} else if info.ReturnType() != nil || len(info.ParameterNames()) > 0 {
 			// `/** @return {T} */ X.prototype.m;` — stubbed method.
 			var paramTypes []jstype.JSType
 			for _, n := range info.ParameterNames() {
 				if expr := info.ParameterType(n); expr != nil {
-					paramTypes = append(paramTypes, scope.ResolveExpr(expr.TypeName))
+					paramTypes = append(paramTypes, resolveScope.ResolveExpr(expr.TypeName))
 				}
 			}
 			var ret jstype.JSType = jstype.Unknown
 			if info.ReturnType() != nil {
-				ret = scope.ResolveExpr(info.ReturnType().TypeName)
+				ret = resolveScope.ResolveExpr(info.ReturnType().TypeName)
 			}
 			t = jstype.NewFunctionTypeWithThis(paramTypes, ret, fn.Instance)
 		}
