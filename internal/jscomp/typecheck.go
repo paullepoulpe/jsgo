@@ -1057,6 +1057,13 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 		}
 		propName := propKids[1].String_()
 		recv := propKids[0]
+		// `@suppress {duplicate}` on the assignment opts the slot out
+		// of redeclaration / type-mismatch checks. Mirrors how Java's
+		// TypeCheck consults the JSDoc suppression set before firing
+		// the assignment mismatch.
+		if info := a.JSDocInfo(); info != nil && info.HasSuppression("duplicate") {
+			return nil
+		}
 		// ReadonlyArray guard (port of checkNotReadonlyPropertyAssignment).
 		// Java fires at the lhs (GETPROP) node; Java GETPROP charno is the
 		// property-name column, which corresponds to propKids[1] in Go.
