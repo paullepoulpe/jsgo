@@ -120,6 +120,14 @@ type ObjectType struct {
 	// mirroring the Java class hierarchy:
 	//   InstanceObjectType.constructor  → InstanceObjectType.getConstructor()
 	//   PrototypeObjectType.ownerFunction → PrototypeObjectType.getOwnerFunction()
+	//
+	// Go-only: language-adapter — Ctor is a back-pointer set by
+	// NewConstructorType so that GetCtorImplementedInterfaces / IsSubtypeOf
+	// can reach the constructor's implementedInterfaces without a separate
+	// InstanceObjectType subclass. Java reaches the same data through
+	// InstanceObjectType.getConstructor(); the Go port collapses the
+	// hierarchy so we wire the back-reference here.
+	Ctor *FunctionType
 }
 
 // Go-only: language-adapter — NewObjectType — Go constructor; Java uses Builder pattern (PrototypeObjectType.Builder).
@@ -229,14 +237,41 @@ func (o *ObjectType) IsSubtypeOf(other JSType) bool {
 		// Foo<string> if A's super chain contains Foo's base instance.
 		// Mirrors Java's TemplatizedType.isSubtype where an uninstantiated
 		// type (without template args) is checked against the raw base.
-		// Template-argument invariance is not enforced here (matching Java's
-		// default-mode behaviour where concrete extends Foo<string> can be
-		// assigned to Foo<number> — TypeScript would reject but Closure
-		// doesn't in default mode).
+		// When `@implements {Foo<…>}` is present we also check template-arg
+		// invariance so `B implements Foo<number>` is NOT a subtype of
+		// `Foo<string>` (matching Closure's behaviour in both default and
+		// strict modes).
 		if tt.Base != nil {
 			for cur := o; cur != nil; cur = cur.super {
 				if cur == tt.Base {
 					return true
+				}
+				// Walk implemented interfaces declared on the constructor.
+				// Use the templatized variant when available so that
+				// `@implements {Foo<string>}` is distinguished from
+				// `@implements {Foo<number>}`. Mirrors Java's
+				// ObjectType.isSubtype delegating through
+				// FunctionType.implementedInterfaces (which there carries
+				// templatization implicitly through the ObjectType cast).
+				if cur.Ctor != nil {
+					tplList := cur.Ctor.GetImplementedInterfaceTypes()
+					ifaces := cur.Ctor.GetImplementedInterfaces()
+					for i, iface := range ifaces {
+						if iface != tt.Base {
+							continue
+						}
+						// Found the interface base; now verify args
+						// match against tt's args. When tplList isn't
+						// populated (e.g. raw `@implements {Foo}`),
+						// fall through to a permissive accept.
+						if i < len(tplList) {
+							if templateArgsCompatible(tplList[i], tt) {
+								return true
+							}
+							continue
+						}
+						return true
+					}
 				}
 			}
 		}
@@ -279,8 +314,75 @@ func (o *ObjectType) IsSubtypeOf(other JSType) bool {
 		if cur == target {
 			return true
 		}
+		// `@implements {Foo}` makes o a subtype of Foo (an interface).
+		// Walk the implementedInterfaces declared on each ancestor's
+		// constructor. Mirrors Java's ObjectType.isSubtype path through
+		// FunctionType.getImplementedInterfaces / getAllImplementedInterfaces.
+		if cur.Ctor != nil {
+			for _, iface := range cur.Ctor.GetImplementedInterfaces() {
+				if iface == target {
+					return true
+				}
+				// Walk the interface's own super chain too — `B implements Foo`
+				// where Foo extends Bar means B is also a subtype of Bar.
+				for sup := iface; sup != nil; sup = sup.super {
+					if sup == target {
+						return true
+					}
+				}
+			}
+		}
 	}
 	return false
+}
+
+// templateArgsCompatible reports whether the source's template args
+// match the target TemplatizedType's args. Used by IsSubtypeOf to
+// gate `@implements {Foo<…>}` matches: a source typed
+// `@implements {Foo<string>}` is NOT a subtype of `Foo<number>`.
+//
+// Mirrors Java's TemplatizedType.isSubtype path which delegates to
+// per-arg invariance via JSType.isEquivalentTo. Source can be a
+// TemplatizedType (when the JSDoc had `<…>` slots) or a plain
+// ObjectType (when raw); a plain ObjectType is treated as having
+// unknown args and is accepted permissively.
+func templateArgsCompatible(srcImpl JSType, target *TemplatizedType) bool {
+	srcTpl, _ := srcImpl.(*TemplatizedType)
+	if srcTpl == nil || len(srcTpl.Args) == 0 {
+		// Raw `@implements {Foo}` (no template args) or non-templatized
+		// resolution — accept permissively.
+		return true
+	}
+	if len(target.Args) == 0 {
+		return true
+	}
+	if len(srcTpl.Args) != len(target.Args) {
+		return false
+	}
+	for i, a := range srcTpl.Args {
+		t := target.Args[i]
+		if a == nil || t == nil {
+			continue
+		}
+		if isUnknown(a) || isUnknown(t) || isAll(a) || isAll(t) {
+			continue
+		}
+		// Treat TemplateType (uninstantiated @template parameter) as
+		// compatible with any arg — mirrors Closure's default-mode
+		// behaviour of widening unbound template parameters at
+		// call/assignment sites.
+		if _, ok := a.(*TemplateType); ok {
+			continue
+		}
+		if _, ok := t.(*TemplateType); ok {
+			continue
+		}
+		// Invariance: same identity in both directions.
+		if !IsSubtype(a, t) || !IsSubtype(t, a) {
+			return false
+		}
+	}
+	return true
 }
 
 // DefineProperty mirrors ObjectType.defineProperty(name, type). Later
