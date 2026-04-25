@@ -356,12 +356,13 @@ func (c *TypedScopeCreator) buildExpressionFunctionScope(fn *rhino.Node, parent 
 		}
 	}
 	local := &TypedScope{
-		parent:         parent,
-		declared:       make(map[string]jstype.JSType),
-		typeAliases:    make(map[string]jstype.JSType),
-		registry:       c.registry,
-		thisType:       explicitThis,
-		isThisBoundary: isAnonBoundary && explicitThis == nil,
+		parent:          parent,
+		declared:        make(map[string]jstype.JSType),
+		typeAliases:     make(map[string]jstype.JSType),
+		registry:        c.registry,
+		thisType:        explicitThis,
+		isThisBoundary:  isAnonBoundary && explicitThis == nil,
+		isFunctionLocal: true,
 	}
 	// Named function expression: `var foo = function bar(){ bar() }`
 	// binds `bar` inside the body so recursion + self-reference
@@ -410,6 +411,9 @@ func (c *TypedScopeCreator) buildExpressionFunctionScope(fn *rhino.Node, parent 
 			// (param / outer) binding when a name is already defined.
 			if !alreadyDefined || k == funcName {
 				local.declared[k] = v
+				if nested.inferredSlots[k] {
+					local.MarkInferredSlot(k)
+				}
 			}
 		}
 		for k, v := range nested.typeAliases {
@@ -1803,11 +1807,12 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 // Go-only: language-adapter — buildMethodScope is a Go-only helper that builds a parameter scope for a class method; Java uses NormalScopeBuilder and createScope(Node, AbstractScope) inline.
 func (c *TypedScopeCreator) buildMethodScope(fn *rhino.Node, inst *jstype.ObjectType, parent *TypedScope, ptypes []jstype.JSType) *TypedScope {
 	local := &TypedScope{
-		parent:      parent,
-		declared:    make(map[string]jstype.JSType),
-		typeAliases: make(map[string]jstype.JSType),
-		registry:    c.registry,
-		thisType:    inst,
+		parent:          parent,
+		declared:        make(map[string]jstype.JSType),
+		typeAliases:     make(map[string]jstype.JSType),
+		registry:        c.registry,
+		thisType:        inst,
+		isFunctionLocal: true,
 	}
 	kids := fn.Children()
 	if len(kids) < 2 {
@@ -1958,6 +1963,24 @@ func (c *TypedScopeCreator) recordDecl(v *rhino.Node, scope *TypedScope) {
 		}
 		c.recordOneDecl(v, child, scope)
 	}
+}
+
+// isLValueRootedInGlobalScope reports whether `scope` is the global
+// hoist scope (or an ancestor externs scope). Mirrors Java's
+// TypedScopeCreator.isLValueRootedInGlobalScope which walks to the
+// LValue's hoist scope and asks isGlobal(). The Go port marks each
+// function-local scope (and its nested block scopes inherit the flag
+// transitively via the parent walk).
+// Go-only: language-adapter — Java's AbstractScope.isGlobal() walks
+// the same chain via getParentScope; the Go port has no shared root
+// pointer so we walk via TypedScope.parent here.
+func isLValueRootedInGlobalScope(scope *TypedScope) bool {
+	for cur := scope; cur != nil; cur = cur.parent {
+		if cur.isFunctionLocal {
+			return false
+		}
+	}
+	return true
 }
 
 // recordOneDecl processes a single declaration binding. Split out
@@ -2206,6 +2229,21 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 			fnType := jstype.NewFunctionType(paramTypes, retType)
 			setArityFromParams(fnType, params, info)
 			scope.declared[name.String_()] = fnType
+			// Mark the slot as inferred when (a) JSDoc didn't pin
+			// params or return, AND (b) the LHS is not global.
+			// Mirrors Java's TypedScopeCreator.shouldUseFunctionLiteralType
+			// at TypedScopeCreator.java:1516 (`isLValueRootedInGlobalScope
+			// || !type.isReturnTypeInferred()`): a global var keeps the
+			// init's FunctionType as a *declared* slot (testinferredreturn4
+			// fires JSC_TYPE_MISMATCH on subsequent assignments), while a
+			// function-local var with a literal init carries an inferred
+			// return type — getDeclaredType returns null → allowLaterType-
+			// Inference(true) → assignment-mismatch is suppressed at the
+			// assign site (TypeCheck.java:1250) and surfaced at the
+			// downstream call site (testinferredreturn5/6).
+			if (info == nil || (info.ReturnType() == nil && len(info.ParameterNames()) == 0)) && !isLValueRootedInGlobalScope(scope) {
+				scope.MarkInferredSlot(name.String_())
+			}
 			return
 		}
 	}
@@ -2724,6 +2762,11 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 		declared: make(map[string]jstype.JSType),
 		registry: c.registry,
 		thisType: thisInst,
+		// Mark this scope as function-local so that
+		// isLValueRootedInGlobalScope can distinguish it from the
+		// global script scope. Mirrors Java's AbstractScope tracking
+		// of the rootNode (FUNCTION) and getHoistScope.
+		isFunctionLocal: true,
 	}
 	for i, p := range params.Children() {
 		if p.Token() == rhino.NAME {
@@ -2754,6 +2797,9 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 	for k, v := range nestedScope.declared {
 		if _, exists := localScope.declared[k]; !exists {
 			localScope.declared[k] = v
+			if nestedScope.inferredSlots[k] {
+				localScope.MarkInferredSlot(k)
+			}
 		}
 	}
 	c.Functions[fn] = localScope

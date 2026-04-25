@@ -1716,6 +1716,27 @@ func unionFold(a, b jstype.JSType) jstype.JSType {
 	return jstype.NewUnion(a, b)
 }
 
+// joinInferredSlot returns the join of two inferred slot types,
+// modelling Java's getLeastSupertype call inside TypeInference.
+// traverseAssign at TypeInference.java:1153. For two FunctionTypes
+// with the same arity it builds a new FunctionType whose return is
+// the union of returns (mirrors FunctionType.tryMergeFunctionPiecewise
+// at FunctionType.java:847). Falls back to a plain union otherwise.
+// Port of FunctionType.tryMergeFunctionPiecewise @ closure-compiler v20260415
+func joinInferredSlot(a, b jstype.JSType) jstype.JSType {
+	fa, aok := a.(*jstype.FunctionType)
+	fb, bok := b.(*jstype.FunctionType)
+	if aok && bok && len(fa.Params) == len(fb.Params) {
+		mergedParams := make([]jstype.JSType, len(fa.Params))
+		for i := range fa.Params {
+			mergedParams[i] = unionFold(fa.Params[i], fb.Params[i])
+		}
+		ret := unionFold(fa.Return, fb.Return)
+		return jstype.NewFunctionType(mergedParams, ret)
+	}
+	return unionFold(a, b)
+}
+
 // traverseAdd returns the inferred type of an ADD or ASSIGN_ADD node.
 // Port of TypeInference.java#traverseAdd: delegates to the shared
 // addition helper that inspects both child types.

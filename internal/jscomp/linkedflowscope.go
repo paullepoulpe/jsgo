@@ -276,7 +276,54 @@ func JoinFlowScopes(a, b *FlowScope) *FlowScope {
 			out.types[k] = va
 			continue
 		}
+		// Two FunctionTypes with the same arity merge piecewise so
+		// the joined slot stays callable. Mirrors FunctionType.try-
+		// MergeFunctionPiecewise (FunctionType.java:847) used by
+		// JSType.getLeastSupertype.
+		if fa, fok := va.(*jstype.FunctionType); fok {
+			if fb, fok2 := vb.(*jstype.FunctionType); fok2 && len(fa.Params) == len(fb.Params) {
+				out.types[k] = mergeFunctionTypePiecewise(fa, fb)
+				continue
+			}
+		}
 		out.types[k] = jstype.NewUnion(va, vb)
 	}
 	return out
+}
+
+// mergeFunctionTypePiecewise builds a FunctionType whose params and
+// return are the union of `fa` and `fb`'s corresponding components.
+// Port of FunctionType.tryMergeFunctionPiecewise @ closure-compiler v20260415.
+// Go-only: language-adapter — exposed at package level so JoinFlowScopes
+// can reuse the merge.
+func mergeFunctionTypePiecewise(fa, fb *jstype.FunctionType) *jstype.FunctionType {
+	mergedParams := make([]jstype.JSType, len(fa.Params))
+	for i := range fa.Params {
+		switch {
+		case fa.Params[i] == nil && fb.Params[i] == nil:
+			mergedParams[i] = nil
+		case fa.Params[i] == nil:
+			mergedParams[i] = fb.Params[i]
+		case fb.Params[i] == nil:
+			mergedParams[i] = fa.Params[i]
+		case fa.Params[i].TypeName() == fb.Params[i].TypeName():
+			mergedParams[i] = fa.Params[i]
+		default:
+			mergedParams[i] = jstype.NewUnion(fa.Params[i], fb.Params[i])
+		}
+	}
+	var ret jstype.JSType
+	switch {
+	case fa.Return == nil && fb.Return == nil:
+		ret = nil
+	case fa.Return == nil:
+		ret = fb.Return
+	case fb.Return == nil:
+		ret = fa.Return
+	case fa.Return.TypeName() == fb.Return.TypeName():
+		ret = fa.Return
+	default:
+		ret = jstype.NewUnion(fa.Return, fb.Return)
+	}
+	return jstype.NewFunctionType(mergedParams, ret)
 }
