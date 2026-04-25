@@ -6574,10 +6574,31 @@ func (c *TypeCheck) visitInterfacePropertyAssignment(object *rhino.Node, lvalue 
 	rvalue := kids[1]
 	infer := NewTypeInference(scope)
 	rvalueType := infer.InferType(rvalue)
-	if isFunctionLikeType(rvalueType) {
-		return nil
+	var out []diag.Diagnostic
+	if !isFunctionLikeType(rvalueType) {
+		return []diag.Diagnostic{invalidInterfaceMemberDiag(c.path, object)}
 	}
-	return []diag.Diagnostic{invalidInterfaceMemberDiag(c.path, object)}
+	// Mirrors Java TypeCheck.java:1816-1819: when the rvalue is a
+	// FUNCTION node with a non-empty body, emit
+	// JSC_INTERFACE_METHOD_NOT_EMPTY at the `object` (prototype) node.
+	if rvalue.Token() == rhino.FUNCTION {
+		if body := NU.GetFunctionBody(rvalue); body != nil && body.FirstChild() != nil {
+			kidsObj := object.Children()
+			line, col := object.Lineno(), object.Charno()
+			if len(kidsObj) >= 2 {
+				line, col = kidsObj[1].Lineno(), kidsObj[1].Charno()
+			}
+			out = append(out, diag.Diagnostic{
+				Path:    c.path,
+				Line:    line,
+				Col:     col,
+				Code:    diag.JSC_INTERFACE_METHOD_NOT_EMPTY,
+				Level:   diag.Error,
+				Message: "interface member functions must have an empty body",
+			})
+		}
+	}
+	return out
 }
 
 // Go-only: language-adapter — Java's JSType.isFunctionType returns true for
