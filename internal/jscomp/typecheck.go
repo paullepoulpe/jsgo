@@ -329,6 +329,15 @@ func (c *TypeCheck) installFlow(root *rhino.Node, scope *TypedScope) *DataFlowAn
 	}
 	cfg := BuildControlFlowGraph(root)
 	pass := NewTypeInferencePass(scope)
+	// Port of VarCheck.createSynthesizedExternVar mechanism: inject undeclared
+	// names so TypeInferencePass can narrow GETPROP slots to Unknown when the
+	// RHS of an assignment is an undeclared NAME. Mirrors Java's behaviour where
+	// undeclared variables have Unknown type (from the synthesized extern), which
+	// TypeInference.updateScopeForTypeChange propagates into qualified slots.
+	// Go-only: package-bridge — Java uses the synthesized extern; Go threads the set.
+	if len(c.undeclaredNames) > 0 {
+		pass.SetUndeclaredNames(c.undeclaredNames)
+	}
 	d := NewDataFlowAnalysis(cfg, EmptyFlowScope(), pass.Transfer)
 	d.Run()
 	// Port of DataFlowAnalysis.computeEscaped: identify variables declared
