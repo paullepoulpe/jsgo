@@ -1893,6 +1893,16 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 		// `undefined` is a special well-known value with type void.
 		if name.String_() == "undefined" {
 			scope.declared[name.String_()] = jstype.Void
+		} else if name.FirstChild() == nil && info == nil && v.Token() == rhino.VAR {
+			// Port of TypeInference.inferDeclarativelyUnboundVarsWithoutTypes
+			// (TypeInference.java around line 158): a `var x;` slot with no
+			// initializer and no @type gets entry type VOID. Java applies
+			// this through the flow lattice; jsgo records the same on the
+			// static slot since flow entry types for unbound locals are not
+			// tracked separately. Restricted to `var` because Java's
+			// getDeclarativelyUnboundVarsWithoutTypes only returns
+			// var-scoped slots — let/const TDZ semantics differ.
+			scope.declared[name.String_()] = jstype.Void
 		} else if p := v.Parent(); p != nil && p.Token() == rhino.FOR_IN {
 			// FOR_IN key type is string (property names of the object).
 			// Mirrors TypeInference.java case FOR_IN: iterKeyType = STRING_TYPE.

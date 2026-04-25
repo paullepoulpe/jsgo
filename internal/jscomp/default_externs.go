@@ -378,10 +378,11 @@ function FinalizationRegistry(callback) {}
 /** @constructor */ function Proxy(target, handler) {}
 /** @const */ var Reflect;
 
-// Symbol is intentionally NOT @constructor — new Symbol() is a
-// runtime TypeError. Declared as plain function so visitNew fires
-// JSC_NOT_A_CONSTRUCTOR. Static symbol props kept from the wider bundle.
-/** @return {symbol} */ function Symbol(opt_desc) {}
+// Symbol matches Closure's es3.js externs: @constructor + @return {symbol}.
+// new Symbol('x') throws at runtime, but the type system treats Symbol as
+// a constructor so !Symbol resolves to the wrapper instance type used by
+// SymbolType.testForEquality / canTestForShallowEqualityWith.
+/** @constructor @return {symbol} */ function Symbol(opt_desc) {}
 /** @type {symbol} */ Symbol.iterator;
 /** @type {symbol} */ Symbol.hasInstance;
 /** @type {symbol} */ Symbol.isConcatSpreadable;

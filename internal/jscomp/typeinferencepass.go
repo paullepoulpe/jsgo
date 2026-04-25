@@ -105,8 +105,22 @@ func (p *TypeInferencePass) transferDecl(decl *rhino.Node, in *FlowScope) map[Br
 		case *jstype.TemplatizedType:
 			// Preserve the declared generic binding — the init's
 			// bare Array / Map type would drop the template args,
-			// breaking \`arr[0]\`-style reads that rely on them.
+			// breaking `arr[0]`-style reads that rely on them.
 			return map[Branch]*FlowScope{BranchUnconditional: in}
+		case *jstype.UnionType:
+			// Preserve a declared union that contains a TemplatizedType
+			// member (e.g. `Array<undefined>|null` from `@type
+			// {Array<undefined>}` in legacy-nullable mode). The init's
+			// inferred type (`Array<unknown>` from `[]`) would
+			// degrade the template arg, masking element-type reads.
+			// Mirrors Java TypeInference.redeclareSimpleVar's
+			// "isVarTypeBetter" guard for var declarations whose RHS
+			// is not Null/Void and whose declared type is richer.
+			for _, m := range d.Members() {
+				if _, ok := m.(*jstype.TemplatizedType); ok {
+					return map[Branch]*FlowScope{BranchUnconditional: in}
+				}
+			}
 		}
 	}
 	return map[Branch]*FlowScope{BranchUnconditional: in.Bind(name.String_(), t)}
