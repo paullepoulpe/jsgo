@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testhook.js:1:47: ERROR - [JSC_UNDEFINED_VARIABLE] variable a is undeclared
+  1| /**@return {void}*/function foo(){ var x=foo()?a:b; }
+                                                    ^
+
+testdata/fixtures/extracted/testhook.js:1:49: ERROR - [JSC_UNDEFINED_VARIABLE] variable b is undeclared
+  1| /**@return {void}*/function foo(){ var x=foo()?a:b; }
+                                                      ^
+
+2 error(s), 0 warning(s)
+---EXIT---
+2

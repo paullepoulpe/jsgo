@@ -1,0 +1,13 @@
+testdata/fixtures/extracted/teststubmethoddeclarationdoesntblocktypechecking_2.js:10:14: WARNING - [JSC_USELESS_CODE] Suspicious code. The result of the 'getprop' operator is not being used.
+  10| Bar.prototype.method;
+                    ^^^^^^
+
+testdata/fixtures/extracted/teststubmethoddeclarationdoesntblocktypechecking_2.js:11:20: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : number
+required: null
+  11| var /** null */ n = (new Bar).method();
+                          ^^^^^^^^^^^^^^^^^^
+
+1 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+1

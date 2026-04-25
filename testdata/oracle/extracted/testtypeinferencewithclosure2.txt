@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testtypeinferencewithclosure2.js:5:9: ERROR - [JSC_DETERMINISTIC_TEST] condition always evaluates to false
+left : (null|string)
+right: number
+  5|   return x === 3;
+              ^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

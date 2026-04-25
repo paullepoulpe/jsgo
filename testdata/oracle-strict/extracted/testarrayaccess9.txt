@@ -1,0 +1,13 @@
+testdata/fixtures/extracted/testarrayaccess9.js:2:0: WARNING - [JSC_USELESS_CODE] Suspicious code. The result of the 'getelem' operator is not being used.
+  2| f()[{}]
+     ^^^^^^^
+
+testdata/fixtures/extracted/testarrayaccess9.js:2:4: ERROR - [JSC_TYPE_MISMATCH] restricted index type
+found   : {}
+required: number
+  2| f()[{}]
+         ^^
+
+1 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+1

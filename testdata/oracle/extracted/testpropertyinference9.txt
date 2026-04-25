@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testpropertyinference9.js:6:22: ERROR - [JSC_TYPE_MISMATCH] assignment
+found   : null
+required: number
+  6| /** @type {number} */ g.prototype.bar_ = null;
+                           ^^^^^^^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 87.5% typed
+---EXIT---
+1

@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testmissingproperty11.js:2:30: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property impossible never defined on Object
+  2| function foo(obj) { for (;obj.impossible;) { return true; } }
+                                   ^^^^^^^^^^
+
+0 error(s), 1 warning(s), 75.0% typed
+---EXIT---
+0

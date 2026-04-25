@@ -1,0 +1,8 @@
+testdata/fixtures/extracted/testparametershadowsnamespace.js:3:17: ERROR - [JSC_UNRECOGNIZED_TYPE_ERROR] Bad type annotation. Unknown type service.Service
+It's possible that a local variable called 'service' is shadowing the intended global namespace.
+  3|   /** @private {!service.Service} */
+                      ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

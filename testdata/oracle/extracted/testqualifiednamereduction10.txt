@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testqualifiednamereduction10.js:3:7: ERROR - [JSC_TYPE_MISMATCH] inconsistent return type
+found   : (number|string)
+required: string
+  3| return x.a ? x.a : 'a'; }
+            ^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

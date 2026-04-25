@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testinferredparam8.js:3:60: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : string
+required: number
+  3| foo(/** random JSDoc */ function(x) { var /** number */ n = x; });
+                                                                 ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

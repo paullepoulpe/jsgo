@@ -1,0 +1,1 @@
+/** @interface */ function T() {}; T.x;

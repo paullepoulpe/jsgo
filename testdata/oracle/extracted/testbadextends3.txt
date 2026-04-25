@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testbadextends3.js:1:24: ERROR - [JSC_EXTENDS_WITHOUT_TYPEDEF] @extends used without @constructor or @interface for base
+  1| /** @extends {Object} */function base() {}
+                             ^^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

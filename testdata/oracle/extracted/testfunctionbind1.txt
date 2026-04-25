@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testfunctionbind1.js:3:13: ERROR - [JSC_TYPE_MISMATCH] actual parameter 2 of f.bind does not match formal parameter
+found   : number
+required: string
+  3| f.bind(null, 3);
+                  ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

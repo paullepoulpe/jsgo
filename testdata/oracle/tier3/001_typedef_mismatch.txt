@@ -1,0 +1,9 @@
+testdata/fixtures/tier3/001_typedef_mismatch.js:5:8: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : boolean
+required: (number|string)
+  5| var x = true;
+             ^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

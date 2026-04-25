@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testtemplatetype6.js:9:33: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : number
+required: Object
+   9|   /** @type {!Object} */ var x = fn.call(null, arr, null);
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

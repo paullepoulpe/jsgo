@@ -1,0 +1,13 @@
+testdata/fixtures/extracted/testsuppresschecktypesonstatements.js:8:1: WARNING - [JSC_USELESS_CODE] Suspicious code. This code lacks side-effects. Is there a bug?
+  8| (0, takesString(undefined));
+      ^
+
+testdata/fixtures/extracted/testsuppresschecktypesonstatements.js:4:12: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of takesString does not match formal parameter
+found   : number
+required: string
+  4| takesString(0); // verify this is an error
+                 ^
+
+1 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+1

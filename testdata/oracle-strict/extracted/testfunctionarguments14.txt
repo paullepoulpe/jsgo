@@ -1,0 +1,15 @@
+testdata/fixtures/extracted/testfunctionarguments14.js:6:0: ERROR - [JSC_WRONG_ARGUMENT_COUNT] Function f: called with 1 argument(s). Function requires at least 3 argument(s) and no more than 3 argument(s).
+  6| f('3'); f('3', 2); f('3', 2, true); f('3', 2, true, false);
+     ^^^^^^
+
+testdata/fixtures/extracted/testfunctionarguments14.js:6:8: ERROR - [JSC_WRONG_ARGUMENT_COUNT] Function f: called with 2 argument(s). Function requires at least 3 argument(s) and no more than 3 argument(s).
+  6| f('3'); f('3', 2); f('3', 2, true); f('3', 2, true, false);
+             ^^^^^^^^^
+
+testdata/fixtures/extracted/testfunctionarguments14.js:6:36: ERROR - [JSC_WRONG_ARGUMENT_COUNT] Function f: called with 4 argument(s). Function requires at least 3 argument(s) and no more than 3 argument(s).
+  6| f('3'); f('3', 2); f('3', 2, true); f('3', 2, true, false);
+                                         ^^^^^^^^^^^^^^^^^^^^^^
+
+3 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+3

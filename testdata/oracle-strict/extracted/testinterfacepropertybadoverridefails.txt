@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testinterfacepropertybadoverridefails.js:6:14: ERROR - [JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH] mismatch of the foo property on type Sub and the type of the property it overrides from interface Super
+original: number
+override: string
+  6| Sub.prototype.foo;
+                   ^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

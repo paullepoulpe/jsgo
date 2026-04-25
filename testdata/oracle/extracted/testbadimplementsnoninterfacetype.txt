@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testbadimplementsnoninterfacetype.js:2:27: ERROR - [JSC_IMPLEMENTS_NON_INTERFACE] can only implement interfaces
+  2|  * @implements {Boolean} */function B() {}
+                                ^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

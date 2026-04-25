@@ -1,0 +1,1 @@
+/**@param {number} a*/ function f(a) {return a < 3;}

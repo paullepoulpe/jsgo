@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testclassfielddicterror.js:1:23: ERROR - [JSC_ILLEGAL_CLASS_KEY] Illegal key, the class is a dict
+  1| /** @dict */ class C { x=2; }
+                            ^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testmissingpropertyofunion1.js:6:13: ERROR - [JSC_INEXISTENT_PROPERTY] Property foo never defined on (Number|String)
+  6|   return obj.foo;
+                  ^^^
+
+1 error(s), 0 warning(s), 66.7% typed
+---EXIT---
+1

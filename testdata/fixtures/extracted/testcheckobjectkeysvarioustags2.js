@@ -1,0 +1,1 @@
+/** @param {!Object<!Object, number>} a */ var f = function(a) {};

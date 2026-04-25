@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testinferredreturn2.js:4:2: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of g does not match formal parameter
+found   : undefined
+required: number
+  4| g((new Foo()).bar());
+       ^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

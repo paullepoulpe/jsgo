@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testmismatchingoverridinginferredpropertybeforedeclaredproperty2.js:1:40: ERROR - [JSC_TYPE_MISMATCH] assignment to property x of T
+found   : string
+required: number
+  1| /** @constructor */var T = function() { this.x = ''; };
+                                             ^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

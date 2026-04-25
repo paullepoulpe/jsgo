@@ -1,0 +1,1 @@
+/** @struct */function Struct1() {}

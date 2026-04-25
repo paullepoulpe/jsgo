@@ -1,0 +1,19 @@
+// Port of com/google/javascript/jscomp/parsing/parser/trees/LabelledStatementTree.java
+// @ closure-compiler v20260415
+
+package trees
+
+type LabelledStatementTree struct {
+	ParseTree
+	Name      *IdentifierToken
+	Statement *ParseTree
+}
+
+// Go-only: language-adapter
+func NewLabelledStatementTree(location SourceRange, name *IdentifierToken, statement *ParseTree) *LabelledStatementTree {
+	return &LabelledStatementTree{
+		ParseTree: ParseTree{Type: ParseTreeTypeLabelledStatement, Location: location},
+		Name:      name,
+		Statement: statement,
+	}
+}

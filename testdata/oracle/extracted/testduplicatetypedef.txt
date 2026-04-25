@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testduplicatetypedef.js:3:30: ERROR - [JSC_DUP_VAR_DECLARATION_TYPE_MISMATCH] variable goog.Bar redefined with type None, original definition at testdata/fixtures/extracted/testduplicatetypedef.js:2 with type (typeof goog.Bar)
+  3| /** @typedef {number} */ goog.Bar;
+                                   ^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

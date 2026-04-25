@@ -1,0 +1,9 @@
+testdata/fixtures/tier0/011_reassign_mismatch.js:3:0: ERROR - [JSC_TYPE_MISMATCH] assignment
+found   : string
+required: number
+  3| x = 'hi';
+     ^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

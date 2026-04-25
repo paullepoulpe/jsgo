@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testnonexistentpropertyaccessonstructorobject.js:8:8: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property bar never defined on Object
+  8|   if (a.bar) { a.bar(); }
+             ^^^
+
+0 error(s), 1 warning(s), 66.7% typed
+---EXIT---
+0

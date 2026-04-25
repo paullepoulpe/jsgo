@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testgetelemstruct4.js:9:35: ERROR - [JSC_ILLEGAL_PROPERTY_ACCESS] Cannot do '[]' access on a struct
+   9| function takesStruct(x) { return x['prop']; }
+                                         ^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

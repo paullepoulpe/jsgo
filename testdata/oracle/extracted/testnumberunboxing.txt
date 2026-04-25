@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testnumberunboxing.js:1:29: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : Number
+required: number
+  1| /** @type {number} */var a = new Number(4);
+                                  ^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

@@ -1,0 +1,1 @@
+/**@param {string} a*/ function f(a) {return a < 'x';}

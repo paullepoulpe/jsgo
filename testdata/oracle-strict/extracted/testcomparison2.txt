@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testcomparison2.js:3:4: ERROR - [JSC_DETERMINISTIC_TEST] condition always evaluates to true
+left : number
+right: Date
+  3| if (a!==b) {}
+         ^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

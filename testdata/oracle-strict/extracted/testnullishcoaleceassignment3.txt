@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testnullishcoaleceassignment3.js:4:27: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : Array
+required: undefined
+  4|   var /** undefined */ y = x;
+                                ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

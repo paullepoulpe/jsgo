@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testcast16.js:3:25: ERROR - [JSC_TYPE_MISMATCH] assignment to property foo of {foo: string}
+found   : number
+required: string
+  3|   {/** @type {string} */ foo: 3});
+                              ^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

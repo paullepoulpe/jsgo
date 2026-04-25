@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testcast15.js:4:4: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property foo never defined on Object
+  4| f(x.foo);
+         ^^^
+
+testdata/fixtures/extracted/testcast15.js:5:5: ERROR - [JSC_INEXISTENT_PROPERTY] Property foo never defined on Array<?>
+  5| f([].foo);
+          ^^^
+
+1 error(s), 1 warning(s), 87.5% typed
+---EXIT---
+1

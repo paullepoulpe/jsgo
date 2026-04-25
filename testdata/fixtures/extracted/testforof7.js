@@ -1,0 +1,1 @@
+for (let elem of ['array', 'literal']) {}

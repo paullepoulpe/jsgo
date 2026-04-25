@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testissue1024a.js:3:4: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property prototype never defined on Object
+  3|   a.prototype = '__proto'
+         ^^^^^^^^^
+
+testdata/fixtures/extracted/testissue1024a.js:9:11: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property prototype never defined on Object
+   9|   return b.prototype
+                 ^^^^^^^^^
+
+0 error(s), 2 warning(s), 83.3% typed
+---EXIT---
+0

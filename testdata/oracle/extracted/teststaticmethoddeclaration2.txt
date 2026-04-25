@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/teststaticmethoddeclaration2.js:1:47: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of goog.foo does not match formal parameter
+found   : boolean
+required: number
+  1| var goog = goog || {}; function f() { goog.foo(true); }
+                                                    ^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

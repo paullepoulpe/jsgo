@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testinnerfunction2.js:6:9: ERROR - [JSC_TYPE_MISMATCH] inconsistent return type
+found   : (null|number)
+required: number
+  6|   return x;
+              ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

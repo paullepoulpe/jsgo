@@ -1,0 +1,13 @@
+testdata/fixtures/extracted/testmissingproperty19.js:2:29: WARNING - [JSC_USELESS_CODE] Suspicious code. This code lacks side-effects. Is there a bug?
+  2| function f(x) { if (x.bar) { if (x.foo) {} } else { x.foo(); } }
+                                  ^^^^^^^^^^^^^
+
+testdata/fixtures/extracted/testmissingproperty19.js:2:54: ERROR - [JSC_POSSIBLE_INEXISTENT_PROPERTY] Property foo never defined on Object
+
+This property is accessed on a "loose" type, but is not defined anywhere in the program, so it must not exist.
+  2| function f(x) { if (x.bar) { if (x.foo) {} } else { x.foo(); } }
+                                                           ^^^
+
+1 error(s), 1 warning(s), 57.1% typed
+---EXIT---
+1

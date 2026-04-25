@@ -1,0 +1,9 @@
+testdata/fixtures/tier0/001_type_mismatch_var.js:2:8: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : string
+required: number
+  2| var x = 'hello';
+             ^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

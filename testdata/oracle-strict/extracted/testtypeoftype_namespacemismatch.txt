@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testtypeoftype_namespacemismatch.js:2:25: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : {}
+required: {}
+  2| var /** typeof ns */ x = {};
+                              ^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

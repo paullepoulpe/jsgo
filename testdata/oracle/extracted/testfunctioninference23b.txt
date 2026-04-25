@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testfunctioninference23b.js:2:24: ERROR - [JSC_USED_GLOBAL_THIS] dangerous use of the global this object
+  2|   /** @type {number} */ this.prop = 3;
+                             ^^^^
+
+1 error(s), 0 warning(s), 66.7% typed
+---EXIT---
+1

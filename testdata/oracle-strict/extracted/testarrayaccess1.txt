@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testarrayaccess1.js:1:22: ERROR - [JSC_TYPE_MISMATCH] restricted index type
+found   : string
+required: number
+  1| var a = []; var b = a['hi'];
+                           ^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testmultipleextendsinterface3.js:9:24: ERROR - [JSC_INTERFACE_METHOD_NOT_IMPLEMENTED] property foo on interface Int1 is not implemented by type Foo
+   9|  * @implements {Int2} */function Foo() {};
+                              ^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

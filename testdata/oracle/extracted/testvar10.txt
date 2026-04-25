@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testvar10.js:1:32: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : string
+required: Number
+  1| /** @type {!Number} */var foo = 'abc';
+                                     ^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

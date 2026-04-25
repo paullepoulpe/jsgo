@@ -1,0 +1,15 @@
+testdata/fixtures/extracted/testannotatedobjectliteralinblocklessarrow3.js:3:0: WARNING - [JSC_USELESS_CODE] Suspicious code. This code lacks side-effects. Is there a bug?
+  3| () => f({/** @constructor */ g: G});
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+testdata/fixtures/extracted/testannotatedobjectliteralinblocklessarrow3.js:3:8: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of f does not match formal parameter
+found   : {g: (typeof G)}
+required: {g: function(): string}
+missing : []
+mismatch: [g]
+  3| () => f({/** @constructor */ g: G});
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+1 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+1

@@ -1,0 +1,1 @@
+var x = /** @type {foo} */ (new Object());

@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testfunctionliteraldefinedthisargument.js:7:17: WARNING - [JSC_USELESS_CODE] Suspicious code. This code lacks side-effects. Is there a bug?
+  7| baz(function() { this; }, {});
+                      ^^^^
+
+0 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+0

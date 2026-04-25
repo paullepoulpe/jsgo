@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testaliasedenum5.js:3:51: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of f does not match formal parameter
+found   : YourEnum<number>
+required: string
+  3| /** @param {string} x */ function f(x) {} f(MyEnum.FOO);
+                                                        ^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

@@ -1,0 +1,13 @@
+testdata/fixtures/extracted/testarrayaccess7.js:1:18: WARNING - [JSC_USELESS_CODE] Suspicious code. The result of the 'getelem' operator is not being used.
+  1| var bar = void 0; bar[0];
+                       ^^^^^^
+
+testdata/fixtures/extracted/testarrayaccess7.js:1:18: ERROR - [JSC_TYPE_MISMATCH] only arrays or objects can be accessed
+found   : undefined
+required: Object
+  1| var bar = void 0; bar[0];
+                       ^^^^^^
+
+1 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+1

@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testgetprop4.js:1:16: ERROR - [JSC_TYPE_MISMATCH] No properties on this expression
+found   : null
+required: Object
+  1| var x = null; x.prop = 3;
+                     ^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

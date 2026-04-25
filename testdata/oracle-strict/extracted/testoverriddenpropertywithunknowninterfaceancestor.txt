@@ -1,0 +1,13 @@
+testdata/fixtures/extracted/testoverriddenpropertywithunknowninterfaceancestor.js:1:25: ERROR - [JSC_UNRECOGNIZED_TYPE_ERROR] Bad type annotation. Unknown type Unknown
+  1| /** @interface @extends {Unknown}  */ function Foo() {}
+                              ^
+
+testdata/fixtures/extracted/testoverriddenpropertywithunknowninterfaceancestor.js:5:17: ERROR - [JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH] mismatch of the data property on type SubFoo and the type of the property it overrides from interface Foo
+original: string
+override: (Object|null|string)
+  5| SubFoo.prototype.data = null;
+                      ^^^^
+
+2 error(s), 0 warning(s), 87.5% typed
+---EXIT---
+2

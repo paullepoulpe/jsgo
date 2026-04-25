@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testinferredreturn8.js:6:25: ERROR - [JSC_TYPE_MISMATCH] inconsistent return type
+found   : number
+required: undefined
+  6|     function(x) { return 3; }
+                              ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

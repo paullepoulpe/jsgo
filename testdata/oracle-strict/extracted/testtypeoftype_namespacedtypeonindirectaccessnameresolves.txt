@@ -1,0 +1,13 @@
+testdata/fixtures/extracted/testtypeoftype_namespacedtypeonindirectaccessnameresolves.js:5:60: WARNING - [JSC_REFERENCE_BEFORE_DECLARE] Variable referenced before declaration: x
+  5| /** @const {typeof ns2.Foo} */ var Foo2 = /** @type {?} */ (x);
+                                                                 ^
+
+testdata/fixtures/extracted/testtypeoftype_namespacedtypeonindirectaccessnameresolves.js:6:28: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : ns1.Foo
+required: null
+  6| /** @type {null} */ var x = new Foo2();
+                                 ^^^^^^^^^^
+
+1 error(s), 1 warning(s), 87.5% typed
+---EXIT---
+1

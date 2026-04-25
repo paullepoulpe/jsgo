@@ -1,0 +1,1 @@
+/** @unrestricted */ class C { static x = 2; }

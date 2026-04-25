@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testarrayaccess6.js:1:10: ERROR - [JSC_TYPE_MISMATCH] only arrays or objects can be accessed
+found   : null
+required: Object
+  1| var bar = null[1];
+               ^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

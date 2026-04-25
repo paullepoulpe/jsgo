@@ -1,0 +1,1 @@
+/** @type {number} */var a = new Number(4);

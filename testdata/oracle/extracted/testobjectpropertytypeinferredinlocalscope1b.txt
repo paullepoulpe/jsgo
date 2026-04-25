@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testobjectpropertytypeinferredinlocalscope1b.js:4:0: WARNING - [JSC_MISSING_RETURN_STATEMENT] Missing return statement. Function expected to return string.
+  4| function f(o) {
+     ^^^^^^^^^^^^^^^
+  5|   o.x = 1;
+     ^^^^^^^^^^
+  6| }
+     ^
+
+0 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+0
