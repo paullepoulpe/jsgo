@@ -3703,6 +3703,10 @@ func isDefinitelyNotComparable(t jstype.JSType) bool {
 		// (expectBigIntOrNumber fails for null/undefined). Treat as not
 		// comparable so the default-mode relational check fires.
 		return true
+	case jstype.Symbol:
+		// symbol: Java fires JSC_TYPE_MISMATCH for relational ops.
+		// Mirrors expectBigIntNumberOrString which fails for SymbolType.
+		return true
 	}
 	if _, ok := t.(*jstype.FunctionType); ok {
 		return true
