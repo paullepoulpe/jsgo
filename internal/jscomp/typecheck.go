@@ -2245,8 +2245,21 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 			}
 			return nil
 		}
-		// Skip when the property is defined on a subtype (LOOSE).
+		// LOOSE: property is defined on a subtype but not the receiver.
+		// Java's canPropertyBeDefined returns LOOSE here →
+		// STRICT_INEXISTENT_PROPERTY only (default mode silent).
 		if c.looseProps[obj] != nil && c.looseProps[obj][propName] {
+			if c.opts != nil && c.opts.IsOn(GroupStrictCheckTypes) && !isAssignLHS(n) {
+				if c.inexistentReported == nil {
+					c.inexistentReported = map[string]bool{}
+				}
+				c.inexistentReported[key] = true
+				return []diag.Diagnostic{{
+					Path: c.path, Line: propNode.Lineno(), Col: propNode.Charno(),
+					Code: diag.JSC_STRICT_INEXISTENT_PROPERTY, Level: diag.Warning,
+					Message: fmt.Sprintf("Property %s never defined on %s", propName, obj.TypeName()),
+				}}
+			}
 			return nil
 		}
 		// Skip writes — collectPropertyWrites already extends the surface.

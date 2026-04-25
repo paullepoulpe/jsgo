@@ -998,6 +998,47 @@ func (c *TypedScopeCreator) recordNamespaceAssignFromFunction(a *rhino.Node, sco
 		}
 		return
 	}
+	// Port of TypedScopeCreator.NormalScopeBuilder.maybeDeclareQualifiedName @ closure-compiler v20260415
+	// When `/** @constructor */ ns.Foo = <non-function-literal>` is encountered
+	// (e.g. `ns.Foo = ns.create()`), Java's getDeclaredType still creates a
+	// FunctionType via createFunctionTypeFromNodes even when the RHS is not a
+	// function literal (isFnLiteral=false, fnRoot=null). Mirror that here: when
+	// JSDoc carries @constructor / @interface / @record and the LHS is a
+	// namespace GETPROP, register a ConstructorType regardless of RHS token.
+	if rhs.Token() != rhino.FUNCTION && lhs.Token() == rhino.GETPROP {
+		info2 := a.JSDocInfo()
+		if info2 != nil && (info2.IsConstructor() || info2.IsInterface() || info2.IsRecord()) {
+			lhsKids2 := lhs.Children()
+			if len(lhsKids2) >= 2 && lhsKids2[0].Token() == rhino.NAME {
+				recv2 := lhsKids2[0].String_()
+				propName2 := lhsKids2[1].String_()
+				if _, ok := scope.GetDeclaredType(recv2).(*jstype.FunctionType); !ok {
+					qname2 := recv2 + "." + propName2
+					ctor2 := jstype.NewConstructorType(qname2, nil)
+					if info2.IsInterface() || info2.IsRecord() {
+						ctor2.Instance.IsStructural = true
+						ctor2.Instance.IsRecord = info2.IsRecord()
+					}
+					if info2.IsInterface() {
+						ctor2.Instance.IsInterface = true
+					}
+					if info2.IsStruct() {
+						ctor2.Instance.IsStruct = true
+					}
+					if info2.IsDict() {
+						ctor2.Instance.IsDict = true
+					}
+					if base2 := info2.BaseType(); base2 != nil {
+						if super2 := scope.LookupNominalType(stripTypeArgs(base2.TypeName)); super2 != nil {
+							ctor2.Instance.SetSuper(super2)
+						}
+					}
+					scope.recordNamespaceProp(recv2, propName2, ctor2, lhsKids2[1])
+					return
+				}
+			}
+		}
+	}
 	if rhs.Token() != rhino.FUNCTION || lhs.Token() != rhino.GETPROP {
 		return
 	}
