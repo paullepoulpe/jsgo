@@ -2791,6 +2791,16 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 				fnType.TemplateTypes = append(fnType.TemplateTypes, tt)
 			}
 		}
+		// Port of FunctionType.getInstanceType().setTemplateTypeMap: wire the
+		// @template keys onto the Instance ObjectType so NewTemplatizedType can
+		// build a TemplateTypeReplacer for property-type substitution.
+		// In Java, JSTypeRegistry.FunctionTypeBuilder.buildAndResolve() calls
+		// getInstanceType().setTemplateTypeMap(templateTypeMap) which populates
+		// the [[Template]] keys on the instance; Go mirrors this by calling
+		// SetTypeParameters on the Instance ObjectType.
+		if fnType.Instance != nil && len(fnType.TemplateTypes) > 0 {
+			fnType.Instance.SetTypeParameters(fnType.TemplateTypes)
+		}
 	}
 	if name.String_() != "" {
 		scope.declared[name.String_()] = fnType
