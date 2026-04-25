@@ -150,6 +150,40 @@ func (r *scannerOnlyReporter) ReportWarning(position parser.SourcePosition, form
 	_ = position
 }
 
+// Go-only: language-adapter
+// scanBoundedGenericErrors walks the AST collecting every JSDocInfo's
+// BoundedTemplatePositions and emitting one
+// JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES per occurrence. Mirrors how
+// Java's JsDocInfoParser TEMPLATE branch records the diagnostic via
+// RhinoErrorReporter and halts subsequent compilation, so this
+// pre-pass shorts the pipeline before VarCheck runs.
+func scanBoundedGenericErrors(path string, script *rhino.Node) []diag.Diagnostic {
+	var out []diag.Diagnostic
+	var walk func(n *rhino.Node)
+	walk = func(n *rhino.Node) {
+		if n == nil {
+			return
+		}
+		if info := n.JSDocInfo(); info != nil {
+			for _, pos := range info.BoundedTemplatePositions() {
+				out = append(out, diag.Diagnostic{
+					Path:    path,
+					Line:    pos.Line,
+					Col:     pos.Col,
+					Code:    diag.JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES,
+					Level:   diag.Error,
+					Message: "Bounded generic semantics are currently still in development",
+				})
+			}
+		}
+		for _, c := range n.Children() {
+			walk(c)
+		}
+	}
+	walk(script)
+	return out
+}
+
 // Go-only: package-bridge
 // parseSource selects the parse path based on useNewPipeline.
 // It mirrors Compiler.parse(input) which calls ParserRunner.parse internally.
@@ -225,6 +259,15 @@ func CheckSourceWithOptions(path, src string, opts *CompilerOptions) ([]diag.Dia
 	script, err := parseSource(path, src)
 	if err != nil {
 		return nil, err
+	}
+	// Bounded-generic-types are a JSDoc parse error in Java's
+	// JsDocInfoParser (TEMPLATE branch). Java reports them via
+	// RhinoErrorReporter and stops compilation; jsgo runs a quick
+	// scan here so we don't run VarCheck and emit cascading
+	// JSC_UNDEFINED_VARIABLE on names whose declarations were
+	// skipped by the bounded-generics aborted parse.
+	if boundedDiags := scanBoundedGenericErrors(path, script); len(boundedDiags) > 0 {
+		return boundedDiags, nil
 	}
 	reg := jstype.NewRegistry()
 	creator := NewTypedScopeCreator(reg)
