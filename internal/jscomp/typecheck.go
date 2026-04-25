@@ -2713,6 +2713,18 @@ func (c *TypeCheck) visitReturn(ret *rhino.Node, scope *TypedScope) []diag.Diagn
 			declared = fn.Return
 		}
 	}
+	// @override return-type inheritance: when the enclosing function is an
+	// anonymous FEE assigned to `Foo.prototype.m`, fall back to the slot's
+	// FunctionType return — that signature already reflects @override
+	// inheritance from the parent slot (recordPrototypeAssign does the
+	// inheritance). Mirrors Java's TypeCheck.visitReturn which uses the
+	// FunctionType.getReturnType() of the enclosing function rather than
+	// raw JSDoc.
+	if declared == nil {
+		if fn := prototypeMethodReturnFromAssign(enclosing, scope); fn != nil {
+			declared = fn
+		}
+	}
 	if declared == nil {
 		return nil
 	}
@@ -2949,6 +2961,64 @@ func diagPosForArg(n *rhino.Node) (int, int) {
 		}
 	}
 	return n.Lineno(), n.Charno()
+}
+
+// prototypeMethodReturnFromAssign returns the declared return type when the
+// enclosing FUNCTION is the RHS of `X.prototype.m = function(...){…}`. The
+// slot's FunctionType already absorbs `@override` inheritance from the
+// parent class's slot (see typedscopecreator.inferPrototypeValueType), so
+// reading the return from the slot yields the inherited contract even
+// when the override JSDoc itself only carries `@override`.
+// Go-only: language-adapter — Java's TypeCheck reads the return from
+// FunctionType.getReturnType() directly because every method has a
+// FunctionType attached to its node; in Go we look up the slot.
+func prototypeMethodReturnFromAssign(fn *rhino.Node, scope *TypedScope) jstype.JSType {
+	if fn == nil {
+		return nil
+	}
+	parent := fn.Parent()
+	if parent == nil || parent.Token() != rhino.ASSIGN {
+		return nil
+	}
+	kids := parent.Children()
+	if len(kids) < 2 || kids[1] != fn {
+		return nil
+	}
+	lhs := kids[0]
+	if lhs.Token() != rhino.GETPROP {
+		return nil
+	}
+	lhsKids := lhs.Children()
+	if len(lhsKids) < 2 {
+		return nil
+	}
+	inner := lhsKids[0]
+	propName := lhsKids[1].String_()
+	if inner.Token() != rhino.GETPROP {
+		return nil
+	}
+	innerKids := inner.Children()
+	if len(innerKids) < 2 || innerKids[1].String_() != "prototype" {
+		return nil
+	}
+	var owner *jstype.FunctionType
+	switch innerKids[0].Token() {
+	case rhino.NAME:
+		owner, _ = scope.GetRawDeclaredType(innerKids[0].String_()).(*jstype.FunctionType)
+	case rhino.GETPROP:
+		gpK := innerKids[0].Children()
+		if len(gpK) >= 2 && gpK[0].Token() == rhino.NAME {
+			owner, _ = scope.LookupNamespaceProp(gpK[0].String_(), gpK[1].String_()).(*jstype.FunctionType)
+		}
+	}
+	if owner == nil || owner.Instance == nil {
+		return nil
+	}
+	slot, _ := owner.Instance.GetPropertyType(propName).(*jstype.FunctionType)
+	if slot == nil || slot.Return == nil {
+		return nil
+	}
+	return slot.Return
 }
 
 // Go-only: language-adapter — resolves a @type {function(...):T} annotation to
