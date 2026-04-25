@@ -3850,27 +3850,64 @@ func (c *TypeCheck) visitRelationalDefault(n *rhino.Node, scope *TypedScope) []d
 	infer := NewTypeInference(scope)
 	l := infer.InferType(kids[0])
 	r := infer.InferType(kids[1])
+	// Java's TypeCheck splits relational comparisons into "numeric" vs
+	// "string" mode. When at least one side is definitely numeric (and
+	// no side could be string), expectBigIntOrNumber rejects non-numeric
+	// operands — including the bare `Object` type. Otherwise the laxer
+	// expectBigIntNumberOrString accepts `Object` because its valueOf()
+	// can return a primitive.
+	numericMode := isDefinitelyNumeric(l) || isDefinitelyNumeric(r)
 	var out []diag.Diagnostic
-	if isDefinitelyNotComparable(l) {
+	if isDefinitelyNotComparable(l, numericMode) {
+		label := "left side of comparison"
+		req := "(bigint|number|string)"
+		if numericMode {
+			label = "left side of numeric comparison"
+			req = "(bigint|number)"
+		}
 		out = append(out, diag.Diagnostic{
 			Path: c.path, Line: kids[0].Lineno(), Col: kids[0].Charno(),
 			Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
-			Message: "left side of comparison\nfound   : " + l.TypeName() + "\nrequired: (bigint|number|string)",
+			Message: label + "\nfound   : " + l.TypeName() + "\nrequired: " + req,
 		})
 	}
-	if isDefinitelyNotComparable(r) {
+	if isDefinitelyNotComparable(r, numericMode) {
+		label := "right side of comparison"
+		req := "(bigint|number|string)"
+		if numericMode {
+			label = "right side of numeric comparison"
+			req = "(bigint|number)"
+		}
 		out = append(out, diag.Diagnostic{
 			Path: c.path, Line: kids[1].Lineno(), Col: kids[1].Charno(),
 			Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
-			Message: "right side of comparison\nfound   : " + r.TypeName() + "\nrequired: (bigint|number|string)",
+			Message: label + "\nfound   : " + r.TypeName() + "\nrequired: " + req,
 		})
 	}
 	return out
 }
 
+// isDefinitelyNumeric reports whether t is exactly Number or BigInt
+// (no other variants). Used by visitRelationalDefault to switch to
+// numeric-comparison mode when one operand is statically a number.
+// Mirrors Java's JSType.isBigIntOrNumber check inline in TypeCheck's
+// relational visitor.
+func isDefinitelyNumeric(t jstype.JSType) bool {
+	if t == nil {
+		return false
+	}
+	switch t {
+	case jstype.Number, jstype.BigInt:
+		return true
+	}
+	return false
+}
+
 // Go-only: language-adapter — predicate for visitRelationalDefault; no named Java
 // equivalent (Java uses JSType.isBigIntOrNumber inline).
-func isDefinitelyNotComparable(t jstype.JSType) bool {
+// `numericMode` selects between expectBigIntOrNumber (strict numeric)
+// and expectBigIntNumberOrString (laxer, allows Object-with-valueOf).
+func isDefinitelyNotComparable(t jstype.JSType, numericMode bool) bool {
 	if t == nil {
 		return false
 	}
@@ -3878,10 +3915,13 @@ func isDefinitelyNotComparable(t jstype.JSType) bool {
 		return false
 	}
 	switch t {
-	case jstype.Number, jstype.String, jstype.Boolean:
-		// boolean is coerced to 0/1 by JS, so it is comparable.
-		// Mirrors Java's TypeCheck which does not flag boolean operands
-		// for relational ops in default mode.
+	case jstype.Number, jstype.Boolean, jstype.String:
+		// All primitive operands are accepted in default-mode relational
+		// comparisons (Java's TypeCheck does not distinguish primitive
+		// vs primitive at the operand-type level — it only fires for
+		// non-primitive operands like Object / FunctionType / null /
+		// undefined / Symbol). Mirrors expectBigIntNumberOrString which
+		// accepts every primitive operand without complaint.
 		return false
 	case jstype.Void, jstype.Null:
 		// undefined/null: Java fires errors for these in numeric comparisons
@@ -3896,7 +3936,16 @@ func isDefinitelyNotComparable(t jstype.JSType) bool {
 	if _, ok := t.(*jstype.FunctionType); ok {
 		return true
 	}
-	if _, ok := t.(*jstype.ObjectType); ok {
+	if obj, ok := t.(*jstype.ObjectType); ok {
+		// The bare `Object` type has a `valueOf()` that can return a
+		// primitive, so Closure's expectBigIntNumberOrString accepts
+		// `Object` in default-mode comparisons. In numeric-mode
+		// comparisons, however, expectBigIntOrNumber rejects `Object`.
+		// Mirrors Java's TypeValidator dispatch between the two
+		// expectations based on whether either side is a definite number.
+		if obj.Name == "Object" && !numericMode {
+			return false
+		}
 		return true
 	}
 	// Union types: not comparable if any member is not comparable.
@@ -3904,7 +3953,7 @@ func isDefinitelyNotComparable(t jstype.JSType) bool {
 	if u, ok := t.(*jstype.UnionType); ok {
 		anyComparable := false
 		for _, m := range u.Members() {
-			if !isDefinitelyNotComparable(m) {
+			if !isDefinitelyNotComparable(m, numericMode) {
 				anyComparable = true
 				break
 			}

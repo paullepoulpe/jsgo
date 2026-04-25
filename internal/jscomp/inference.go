@@ -845,7 +845,15 @@ func (t *TypeInference) inferObjectLit(n *rhino.Node) jstype.JSType {
 		if value.Token() == rhino.FUNCTION {
 			if value.IsGetterDef() {
 				propType := jstype.JSType(jstype.Unknown)
-				if info := value.JSDocInfo(); info != nil && info.ReturnType() != nil {
+				// JSDoc may live on the STRING_KEY or the inner FUNCTION.
+				// Without a declared @return, the getter slot stays Unknown
+				// — matching Java's TypeInference behaviour where unannotated
+				// accessors don't constrain the property type.
+				info := kv.JSDocInfo()
+				if info == nil {
+					info = value.JSDocInfo()
+				}
+				if info != nil && info.ReturnType() != nil {
 					if resolved := t.scope.ResolveExpr(info.ReturnType().TypeName); resolved != nil {
 						propType = resolved
 					}
@@ -854,7 +862,36 @@ func (t *TypeInference) inferObjectLit(n *rhino.Node) jstype.JSType {
 				continue
 			}
 			if value.IsSetterDef() {
-				obj.DefineInferredProperty(propName, jstype.Unknown, kv)
+				// Setter property type is the declared @param type of the
+				// single formal parameter. Mirrors Java's TypedScopeCreator
+				// which records a setter's parameter type as the declared
+				// property type so subsequent `obj.prop = …` writes get
+				// checked against it. JSDoc may live on the STRING_KEY or
+				// on the inner FUNCTION (the JSDoc-on-key form is what
+				// the parser produces for `/** @param … */ set a(b){}`).
+				propType := jstype.JSType(jstype.Unknown)
+				info := kv.JSDocInfo()
+				if info == nil {
+					info = value.JSDocInfo()
+				}
+				if info != nil {
+					params := value.Children()
+					if len(params) >= 2 {
+						paramList := params[1]
+						if p := paramList.FirstChild(); p != nil {
+							if expr := info.ParameterType(p.String_()); expr != nil {
+								if resolved := t.scope.ResolveExpr(expr.TypeName); resolved != nil {
+									propType = resolved
+								}
+							}
+						}
+					}
+				}
+				if !isJSUnknown(propType) {
+					obj.DefineDeclaredProperty(propName, propType, kv)
+				} else {
+					obj.DefineInferredProperty(propName, propType, kv)
+				}
 				continue
 			}
 		}

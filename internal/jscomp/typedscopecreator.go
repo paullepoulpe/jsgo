@@ -206,6 +206,21 @@ func (c *TypedScopeCreator) buildExpressionFunctionScope(fn *rhino.Node, parent 
 			info = p.JSDocInfo()
 		}
 	}
+	// Anonymous function expression as the RHS of an ASSIGN
+	// (`this.foo = function() {}` or `obj.foo = function() {}`) — pick
+	// up the enclosing ASSIGN's JSDoc so a `@this {T}` annotation
+	// rebinds the function's `this`. Mirrors NodeUtil.getBestJSDocInfo
+	// which walks ASSIGN parents when the FUNCTION node carries none.
+	if info == nil {
+		if p := fn.Parent(); p != nil && p.Token() == rhino.ASSIGN {
+			info = p.JSDocInfo()
+			if info == nil {
+				if gp := p.Parent(); gp != nil && gp.Token() == rhino.EXPR_RESULT {
+					info = gp.JSDocInfo()
+				}
+			}
+		}
+	}
 	nameNode := kids[0]
 	params := kids[1]
 	// Named function expression with a VAR parent — promote the
@@ -225,11 +240,69 @@ func (c *TypedScopeCreator) buildExpressionFunctionScope(fn *rhino.Node, parent 
 			}
 		}
 	}
+	// A non-arrow FUNCTION expression rebinds `this` at the call site
+	// rather than capturing the enclosing scope's `this`. Marking the
+	// local scope as a this-boundary stops ThisType() from walking
+	// outward into a constructor / method scope, so `this.X = V`
+	// inside the inner function is checked as a global-this write
+	// rather than against the outer instance type. Arrow functions
+	// preserve outer `this` and so are NOT marked as boundaries.
+	// An @this JSDoc annotation pins this type explicitly — handled
+	// below by setting thisType, which takes precedence over the
+	// boundary flag.
+	isAnonBoundary := !fn.GetBooleanProp(rhino.PropArrowFn)
+	var explicitThis *jstype.ObjectType
+	if info != nil && info.HasThisType() {
+		if expr := info.GetThisType(); expr != nil {
+			if resolved := parent.ResolveExpr(expr.TypeName); resolved != nil {
+				// Bare `Date` — used without `!` — resolves to a nullable
+				// union; unwrap to find the underlying ObjectType.
+				if u, ok := resolved.(*jstype.UnionType); ok {
+					for _, m := range u.Members() {
+						if obj, ok := m.(*jstype.ObjectType); ok {
+							explicitThis = obj
+							break
+						}
+						if fnT, ok := m.(*jstype.FunctionType); ok && fnT.Instance != nil {
+							explicitThis = fnT.Instance
+							break
+						}
+					}
+				} else if obj, ok := resolved.(*jstype.ObjectType); ok {
+					explicitThis = obj
+				} else if fnT, ok := resolved.(*jstype.FunctionType); ok && fnT.Instance != nil {
+					explicitThis = fnT.Instance
+				}
+			}
+		}
+	}
+	// `function(){}.bind(this)` rebinds the inner `this` to the outer
+	// `this`. Detect the immediate-enclosing pattern
+	//   CALL(GETPROP(<this FUNCTION>, "bind"), THIS)
+	// and propagate the outer this through. Mirrors how Java's
+	// FunctionTypeBuilder.inferThisType honours bind-call rebinding.
+	if isAnonBoundary && explicitThis == nil {
+		if p := fn.Parent(); p != nil && p.Token() == rhino.GETPROP {
+			if propName := p.LastChild(); propName != nil && propName.String_() == "bind" {
+				if call := p.Parent(); call != nil && call.Token() == rhino.CALL {
+					// First arg of bind = the new `this`. CALL kids: callee, args...
+					if a1 := call.Children(); len(a1) >= 2 && a1[1].Token() == rhino.THIS {
+						if outer := parent.ThisType(); outer != nil {
+							explicitThis = outer
+							isAnonBoundary = false
+						}
+					}
+				}
+			}
+		}
+	}
 	local := &TypedScope{
-		parent:      parent,
-		declared:    make(map[string]jstype.JSType),
-		typeAliases: make(map[string]jstype.JSType),
-		registry:    c.registry,
+		parent:         parent,
+		declared:       make(map[string]jstype.JSType),
+		typeAliases:    make(map[string]jstype.JSType),
+		registry:       c.registry,
+		thisType:       explicitThis,
+		isThisBoundary: isAnonBoundary && explicitThis == nil,
 	}
 	// Named function expression: `var foo = function bar(){ bar() }`
 	// binds `bar` inside the body so recursion + self-reference
