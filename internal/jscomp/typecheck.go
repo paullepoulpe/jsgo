@@ -1783,6 +1783,22 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 		return nil
 	}
 	if obj.HasProperty(propName) {
+		// @record properties registered as inferred-only by
+		// collectPropertyWrites still emit JSC_STRICT_INEXISTENT_PROPERTY
+		// in strict mode: the surface is open at runtime but the lint
+		// surfaces unannotated property additions. Mirrors Java's
+		// TypeInference + TypeCheck split where inferred properties
+		// participate in default-mode reads but are LOOSE under
+		// STRICT_CHECK_TYPES.
+		if obj.IsRecord && obj.IsPropertyInferred(propName) {
+			if c.opts != nil && c.opts.IsOn(GroupStrictCheckTypes) {
+				return []diag.Diagnostic{{
+					Path: c.path, Line: propNode.Lineno(), Col: propNode.Charno(),
+					Code: diag.JSC_STRICT_INEXISTENT_PROPERTY, Level: diag.Warning,
+					Message: fmt.Sprintf("Property %s never defined on %s", propName, obj.TypeName()),
+				}}
+			}
+		}
 		return nil
 	}
 	// `'prop' in obj` narrowing (SRAI caseIn): if the caller guarded
@@ -2671,13 +2687,22 @@ func defineOnOpenObject(t jstype.JSType, prop string) {
 	if obj == nil || obj.Name == "" {
 		return
 	}
-	if obj.IsStruct || obj.IsStructural {
+	// @struct: sealed surface — property additions are forbidden.
+	// @interface: open-ended but routed through STRICT_INEXISTENT_PROPERTY.
+	// @record: open-ended structural type — property writes via
+	// `y.prop = val` register `prop` as inferred so subsequent reads
+	// (`x.prop`) succeed without JSC_INEXISTENT_PROPERTY. Mirrors Java's
+	// TypeInference which tracks these writes and exposes them to TypeCheck.
+	if obj.IsStruct || (obj.IsStructural && !obj.IsRecord) {
 		return
 	}
 	if obj.HasProperty(prop) {
 		return
 	}
 	obj.DefineProperty(prop, jstype.Unknown)
+	if obj.IsRecord {
+		obj.MarkInferred(prop)
+	}
 }
 
 // Go-only: language-adapter — unwraps TemplatizedType to reach the base
