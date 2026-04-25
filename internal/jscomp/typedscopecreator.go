@@ -753,13 +753,22 @@ func (c *TypedScopeCreator) recordPrototypeAssign(a *rhino.Node, scope *TypedSco
 	// we stamp it on the expression-function's scope directly.
 	if rhs.Token() == rhino.FUNCTION {
 		info := a.JSDocInfo()
-		// @override param-type inheritance: when the override has no
-		// per-param JSDoc, fall back to the parent slot's i-th param so
+		// Port of FunctionTypeBuilder.inferFromOverriddenFunction @ closure-compiler v20260415
+		// Param-type inheritance for the method body scope: when the override has
+		// no per-param JSDoc, fall back to the overridden slot's i-th param so
 		// the method body sees the inherited types. Mirrors Java's
-		// FunctionTypeBuilder.inferFromOverriddenFunction.
+		// FunctionTypeBuilder.inferFromOverriddenFunction and
+		// TypedScopeCreator.findOverriddenProperty (same-class slot first, then super).
 		var parentFn *jstype.FunctionType
-		if super := fn.Instance.Super(); super != nil {
-			parentFn, _ = super.GetPropertyType(propName).(*jstype.FunctionType)
+		// 1. Check the existing slot on the same instance (same-class re-assignment).
+		if existingFn, ok := fn.Instance.GetPropertyType(propName).(*jstype.FunctionType); ok && existingFn != nil {
+			parentFn = existingFn
+		}
+		// 2. Fall back to superclass slot.
+		if parentFn == nil {
+			if super := fn.Instance.Super(); super != nil {
+				parentFn, _ = super.GetPropertyType(propName).(*jstype.FunctionType)
+			}
 		}
 		var ptypes []jstype.JSType
 		params := rhs.Children()
@@ -1311,19 +1320,30 @@ func (c *TypedScopeCreator) inferPrototypeValueType(info *rhino.JSDocInfo, rhs *
 			return jstype.Unknown
 		}
 		params := kids[1]
-		// Look up the supertype's slot (if any) for @override inheritance.
-		// Mirrors Java's FunctionTypeBuilder.inferFromOverriddenFunction —
-		// the parent-slot's FunctionType supplies missing param / return
-		// types when the subclass JSDoc declares only @override.
+		// Port of FunctionTypeBuilder.inferFromOverriddenFunction @ closure-compiler v20260415
+		// Look up the overridden slot for param/return inheritance. Mirrors Java's
+		// TypedScopeCreator.findOverriddenProperty which checks:
+		//   1. ownerType.getPropertyType(propName) — same-class existing slot
+		//      (handles re-assignment of the same prototype slot without @override)
+		//   2. super.getPropertyType(propName) — superclass slot
+		//      (handles @override of inherited method)
 		var parentFn *jstype.FunctionType
 		if inst != nil && propName != "" {
-			if super := inst.Super(); super != nil {
-				if pt, ok := super.GetPropertyType(propName).(*jstype.FunctionType); ok {
-					parentFn = pt
+			// 1. Check the existing slot on the same instance (same-class re-assignment).
+			if existingFn, ok := inst.GetPropertyType(propName).(*jstype.FunctionType); ok && existingFn != nil {
+				parentFn = existingFn
+			}
+			// 2. Fall back to superclass slot when no same-class slot exists yet.
+			if parentFn == nil {
+				if super := inst.Super(); super != nil {
+					if pt, ok := super.GetPropertyType(propName).(*jstype.FunctionType); ok {
+						parentFn = pt
+					}
 				}
 			}
 		}
 		var paramTypes []jstype.JSType
+		literalParamCount := len(params.Children())
 		for i, p := range params.Children() {
 			pt := resolveParamType(info, p, scope)
 			// If the param has no JSDoc-supplied type and we're an
@@ -1332,6 +1352,19 @@ func (c *TypedScopeCreator) inferPrototypeValueType(info *rhino.JSDocInfo, rhs *
 				pt = parentFn.Params[i]
 			}
 			paramTypes = append(paramTypes, pt)
+		}
+		// Port of FunctionTypeBuilder.inferFromOverriddenFunction @ closure-compiler v20260415
+		// Clone any remaining parent params that aren't in the function literal,
+		// but make them optional (MaxArity extends, MinArity stays at literalParamCount).
+		// This lets the externally-visible FunctionType carry the inherited parameter
+		// types so call-site type-checking fires even when the override body declares
+		// fewer (or zero) parameters.
+		extraParentParams := 0
+		if parentFn != nil && literalParamCount < len(parentFn.Params) {
+			for i := literalParamCount; i < len(parentFn.Params); i++ {
+				paramTypes = append(paramTypes, parentFn.Params[i])
+				extraParentParams++
+			}
 		}
 		// Default return type: Void (undefined) when no @return JSDoc is
 		// present, matching recordFunction's Void-default policy and Java's
@@ -1360,6 +1393,13 @@ func (c *TypedScopeCreator) inferPrototypeValueType(info *rhino.JSDocInfo, rhs *
 		}
 		fnT := jstype.NewFunctionTypeWithThis(paramTypes, ret, typeOfThis)
 		setArityFromParams(fnT, params, info)
+		// Adjust arity for the extra inherited-but-optional parent params:
+		// MinArity stays at literalParamCount (the override may omit them);
+		// MaxArity extends to cover the inherited slots so call-site
+		// per-argument type checking reaches them.
+		if extraParentParams > 0 {
+			fnT.MaxArity = len(paramTypes)
+		}
 		return fnT
 	}
 	if info != nil && info.HasType() {
