@@ -616,6 +616,8 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		rhino.ASSIGN_BITAND, rhino.ASSIGN_BITOR, rhino.ASSIGN_BITXOR,
 		rhino.ASSIGN_LSH, rhino.ASSIGN_RSH, rhino.ASSIGN_URSH:
 		c.emit(c.visitBitOp(n, scope))
+	case rhino.INC, rhino.DEC:
+		c.emit(c.visitIncDec(n, scope))
 	case rhino.EQ, rhino.NE, rhino.SHEQ, rhino.SHNE:
 		c.emit(c.visitTypeofComparison(n, scope))
 		c.emit(c.visitEqualityOp(n, scope))
@@ -3649,6 +3651,30 @@ func (c *TypeCheck) visitUnaryPlus(n *rhino.Node, scope *TypedScope) []diag.Diag
 		}}
 	}
 	return nil
+}
+
+// visitIncDec ports TypeCheck.java:Visit case DEC, INC (TypeCheck.java:673):
+//   case DEC, INC -> {
+//     left = n.getFirstChild();
+//     checkPropCreation(left);
+//     if (getJSType(n).isNumber()) {
+//       validator.expectNumber(left, getJSType(left), "increment/decrement");
+//       ensureTyped(n, NUMBER_TYPE);
+//     } else {
+//       validator.expectBigIntOrNumber(left, getJSType(left), "increment/decrement");
+//     }
+//   }
+// Java's expectNumber routes string operands through both the loose
+// JSC_TYPE_MISMATCH and the strict JSC_INVALID_OPERAND_TYPE paths.
+func (c *TypeCheck) visitIncDec(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	left := n.FirstChild()
+	if left == nil {
+		return nil
+	}
+	infer := NewTypeInference(scope)
+	t := infer.InferType(left)
+	c.tv.expectNumber(left, t, "increment/decrement")
+	return c.tvDrain()
 }
 
 // visitUnaryMinus ports TypeCheck.java:visitUnaryMinus (line 987).
