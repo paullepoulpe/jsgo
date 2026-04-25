@@ -150,17 +150,56 @@ func (t *TemplatizedType) HasProperty(name string) bool {
 // IsSubtypeOf delegates to the underlying ObjectType — assignment
 // compatibility with concrete classes ignores template arguments
 // (Java's behaviour for invariant generics with structural wrapping).
+//
+// Template-arg comparison strips null/undefined before checking
+// subtype, mirroring Java's TemplateTypeMap.checkEquivalenceHelper
+// which always passes SubtypingMode.IGNORE_NULL_UNDEFINED when
+// recursing into invariant template arguments — this is the
+// "modulo null/undef" rule that holds independent of the outer
+// subtyping mode (see TypeCheckTest.testModuloNullUndefThatWorked
+// WithoutSpecialSubtypingRules*).
 func (t *TemplatizedType) IsSubtypeOf(o JSType) bool {
 	if other, ok := o.(*TemplatizedType); ok {
 		if !t.Base.IsSubtypeOf(other.Base) {
 			return false
 		}
 		for i := 0; i < len(t.Args) && i < len(other.Args); i++ {
-			if !IsSubtype(t.Args[i], other.Args[i]) {
+			a := stripNullUndef(t.Args[i])
+			b := stripNullUndef(other.Args[i])
+			if !IsSubtype(a, b) {
 				return false
 			}
 		}
 		return true
 	}
 	return t.Base.IsSubtypeOf(o)
+}
+
+// stripNullUndef removes Null and Void members from a UnionType, returning
+// the remaining type. Mirrors the null/undef stripping Java applies via
+// SubtypingMode.IGNORE_NULL_UNDEFINED when comparing template arguments.
+func stripNullUndef(t JSType) JSType {
+	if t == nil {
+		return t
+	}
+	if t == Null || t == Void {
+		return t
+	}
+	u, ok := t.(*UnionType)
+	if !ok {
+		return t
+	}
+	var members []JSType
+	for _, m := range u.members {
+		if m != Null && m != Void {
+			members = append(members, m)
+		}
+	}
+	if len(members) == 0 {
+		return t
+	}
+	if len(members) == 1 {
+		return members[0]
+	}
+	return &UnionType{members: members}
 }

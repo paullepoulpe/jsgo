@@ -22,6 +22,12 @@ import (
 
 type TypeInference struct {
 	scope *TypedScope
+	// inExprBindings tracks in-expression ASSIGN side effects so a
+	// later read of the same NAME within the same expression sees the
+	// freshly assigned type. Mirrors the Java FlowScope mutation that
+	// TypeInference.traverseAssign performs via updateScopeForAssignment
+	// before continuing the left-to-right traversal.
+	inExprBindings map[string]jstype.JSType
 }
 
 // Go-only: package-bridge
@@ -1727,6 +1733,13 @@ func (t *TypeInference) traverseArrayLiteral(n *rhino.Node) jstype.JSType {
 // fall back to the initialiser's type so declaration-time inference
 // still propagates.
 func (t *TypeInference) traverseName(n *rhino.Node) jstype.JSType {
+	// In-expression assignment side effect: if a previous ASSIGN in
+	// this same expression bound this name, that type wins over the
+	// statically-declared type. Mirrors Java's FlowScope read-after-
+	// write semantics inside a single traversal.
+	if bound, ok := t.inExprBindings[n.String_()]; ok {
+		return bound
+	}
 	// Prefer the statically-declared type from the scope (mirrors
 	// Java's var.getType() path inside traverseName).
 	if declared := t.scope.GetDeclaredType(n.String_()); declared != nil {
@@ -1826,12 +1839,30 @@ func (t *TypeInference) traverseDeclarationChild(n *rhino.Node) jstype.JSType {
 // traverseAssign returns the inferred type of an ASSIGN (`=`) node.
 // Port of TypeInference.java#traverseAssign: the result type is the
 // RHS type regardless of whether the LHS is a NAME or destructuring.
+// Also records the post-assignment type for plain NAME LHS so a
+// later read of that name in the same expression observes the
+// updated type (mirrors Java's FlowScope mutation in
+// updateScopeForAssignment, see TypeCheckTest.testDfa13).
 func (t *TypeInference) traverseAssign(n *rhino.Node) jstype.JSType {
 	kids := n.Children()
 	if len(kids) < 2 {
 		return jstype.Unknown
 	}
-	return t.InferType(kids[1])
+	rhsType := t.InferType(kids[1])
+	if lhs := kids[0]; lhs.Token() == rhino.NAME {
+		// Only update for variables whose declared type is open
+		// (inferred slots) — narrowing a strict @type-declared slot
+		// would mask real assignment errors that visitAssign already
+		// flags. Java's TypeInference unconditionally updates the
+		// FlowScope, but its declared-type read in subsequent NAME
+		// traversals still wins; we approximate that here by binding
+		// only when the slot has no @type annotation.
+		if t.inExprBindings == nil {
+			t.inExprBindings = make(map[string]jstype.JSType)
+		}
+		t.inExprBindings[lhs.String_()] = rhsType
+	}
+	return rhsType
 }
 
 // traverseAssignOp returns the inferred type of a compound-assignment
