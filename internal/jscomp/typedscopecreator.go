@@ -2649,11 +2649,40 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 
 	// Per-function local scope contains the parameters and a binding
 	// for `this` (only meaningful inside constructors).
+	thisInst := fnType.Instance // nil for non-ctors
+	// `@this {T}` JSDoc on a function declaration pins this type explicitly.
+	// Mirrors how Java's FunctionTypeBuilder.inferThisType honours @this
+	// and how Closure's TypedScope.getTypeOfThis returns the JSDoc-pinned
+	// type. When the resolved annotation is a typedef-backed union (e.g.
+	// `(RegExp|null|undefined)`), pick the first ObjectType / FunctionType
+	// instance in the union — same unwrap as buildExpressionFunctionScope.
+	if info != nil && info.HasThisType() {
+		if expr := info.GetThisType(); expr != nil {
+			if resolved := scope.ResolveExpr(expr.TypeName); resolved != nil {
+				if u, ok := resolved.(*jstype.UnionType); ok {
+					for _, m := range u.Members() {
+						if obj, ok := m.(*jstype.ObjectType); ok {
+							thisInst = obj
+							break
+						}
+						if fnT, ok := m.(*jstype.FunctionType); ok && fnT.Instance != nil {
+							thisInst = fnT.Instance
+							break
+						}
+					}
+				} else if obj, ok := resolved.(*jstype.ObjectType); ok {
+					thisInst = obj
+				} else if fnT, ok := resolved.(*jstype.FunctionType); ok && fnT.Instance != nil {
+					thisInst = fnT.Instance
+				}
+			}
+		}
+	}
 	localScope := &TypedScope{
 		parent:   scope,
 		declared: make(map[string]jstype.JSType),
 		registry: c.registry,
-		thisType: fnType.Instance, // nil for non-ctors
+		thisType: thisInst,
 	}
 	for i, p := range params.Children() {
 		if p.Token() == rhino.NAME {
