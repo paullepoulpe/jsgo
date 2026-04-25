@@ -2094,7 +2094,16 @@ func (p *Parser) parseUpdateExpression() (*rhino.Node, bool) {
 		if c == '(' {
 			p.scanner.Advance()
 			call := rhino.New(rhino.CALL)
-			call.SetPos(expr.Lineno(), expr.Charno())
+			// Java IRFactory: a fresh CallExpressionTree built in the suffix
+			// loop has its location starting at the original LHS start
+			// (parseLeftHandSideExpression captures `start` once before the
+			// loop). The CALL Node's position then comes from setSourceInfo
+			// against that tree, so it lands on the LHS start, not on the
+			// inner operand position. Mirrors getTreeLocation(start) in
+			// Parser.java's parseLeftHandSideExpression CallExpressionTree
+			// branch and IRFactory.transform's setSourceInfo on the fresh
+			// CALL node.
+			call.SetPos(newLine, newCol)
 			call.AddChildToBack(expr)
 			p.parseArguments(call)
 			setFreeCallIfNeeded(call)
