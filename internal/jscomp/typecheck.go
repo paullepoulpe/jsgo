@@ -3815,8 +3815,10 @@ func (c *TypeCheck) visitIncDec(n *rhino.Node, scope *TypedScope) []diag.Diagnos
 	}
 	infer := NewTypeInference(scope)
 	t := infer.InferType(left)
+	out := c.checkPropCreation(left, scope)
 	c.tv.expectNumber(left, t, "increment/decrement")
-	return c.tvDrain()
+	out = append(out, c.tvDrain()...)
+	return out
 }
 
 // visitUnaryMinus ports TypeCheck.java:visitUnaryMinus (line 987).
