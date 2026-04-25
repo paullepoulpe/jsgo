@@ -2380,14 +2380,33 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 		kids := init.Children()
 		if len(kids) >= 2 {
 			params := kids[1]
+			// @template-aware param/return resolution: use a shim scope
+			// where each @template name binds to a fresh TemplateType so
+			// `@param {Array<T>}` resolves to Array<TemplateType{T}>
+			// instead of Array<Unknown>. Mirrors Java's
+			// TypedScopeCreator.AbstractScopeBuilder which builds a
+			// per-function template scope before resolving JSDoc types.
+			resolveExpr := scope.ResolveExpr
+			var tmpls map[string]*jstype.TemplateType
+			if info != nil && len(info.TemplateNames()) > 0 {
+				resolveExpr, tmpls = c.templateResolver(scope, info)
+			}
 			var paramTypes []jstype.JSType
 			for _, p := range params.Children() {
-				paramTypes = append(paramTypes, resolveParamType(info, p, scope))
+				pt := jstype.JSType(jstype.Unknown)
+				if pj := p.JSDocInfo(); pj != nil && pj.HasType() {
+					pt = resolveExpr(pj.Type().TypeName)
+				} else if info != nil {
+					if expr := info.ParameterType(p.String_()); expr != nil {
+						pt = resolveExpr(expr.TypeName)
+					}
+				}
+				paramTypes = append(paramTypes, pt)
 			}
 			var retType jstype.JSType = jstype.Void
 			if info != nil {
 				if r := info.ReturnType(); r != nil {
-					retType = scope.ResolveExpr(r.TypeName)
+					retType = resolveExpr(r.TypeName)
 				} else if functionReturnsExplicitly(init) {
 					retType = jstype.Unknown
 				}
@@ -2395,6 +2414,16 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 				retType = jstype.Unknown
 			}
 			fnType := jstype.NewFunctionType(paramTypes, retType)
+			// Stash the @template TemplateTypes so call-site unification
+			// can substitute them with the inferred argument types.
+			// Mirrors FunctionType.setTemplateTypeMap in Java.
+			if len(tmpls) > 0 {
+				for _, tn := range info.TemplateNames() {
+					if tt := tmpls[tn]; tt != nil {
+						fnType.TemplateTypes = append(fnType.TemplateTypes, tt)
+					}
+				}
+			}
 			setArityFromParams(fnType, params, info)
 			scope.declared[name.String_()] = fnType
 			// Mark the slot as inferred when (a) JSDoc didn't pin
