@@ -2212,8 +2212,12 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 		// Object is the global root — Java explicitly fires STRICT_INEXISTENT_PROPERTY
 		// for inferred writes on Object (sparser-than-Java externs notwithstanding).
 		// Other extern stubs (Date, Error, …) keep their open surface to avoid FP storms.
+		// Skip Function-standard reflection names (prototype, call, apply, …):
+		// Java treats those as always-available on any function-shaped value
+		// — including Object — so writes to them are not flagged.
 		externAllowed := !c.externTypes[obj] || obj.Name == "Object"
 		if isAssignLHS(n) && propIsInferred && !obj.IsStruct && externAllowed &&
+			!isFunctionStandardProp(propName) &&
 			!insideOwnConstructor(n, obj) &&
 			!propertyDefinedInOwnConstructor(obj, propName) &&
 			!isThisAccessInsideConstructor(n, obj) {
