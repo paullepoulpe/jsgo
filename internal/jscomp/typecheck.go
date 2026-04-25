@@ -1748,6 +1748,85 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 		}
 		return nil
 	}
+	// FunctionType receiver: in Java FunctionType extends ObjectType,
+	// so `Foo.bar` checks Foo's own static-slot map (plus the implicit
+	// Function.prototype chain). jsgo's FunctionType doesn't embed
+	// ObjectType — static members live on the Instance ObjectType — so
+	// we replicate the Java check inline. Port of FunctionType.hasProperty
+	// + ObjectType.cast(childType) in TypeCheck.checkPropertyAccess.
+	//
+	// Restrictions to keep the check conservative:
+	//   - Receiver must be a NAME (not a GETPROP) — qualified-namespace
+	//     constructors like `ns.Outer` register their nested members on
+	//     the namespace map, not the FunctionType's Instance, so we'd
+	//     false-positive on `ns.Outer.Inner`.
+	//   - Skip interfaces: their nested-interface pattern (`I1.I2 = …`)
+	//     extends the surface in ways jsgo doesn't fully track yet.
+	if fn, ok := recvType.(*jstype.FunctionType); ok && fn.Instance != nil &&
+		fn.IsConstructor && !fn.IsInterface() && !fn.Instance.IsInterface &&
+		kids[0].Token() == rhino.NAME && !c.externTypes[fn.Instance] {
+		// Skip writes — collectPropertyWrites already extends the surface.
+		if isAssignLHS(n) {
+			return nil
+		}
+		// Existence/absence guards (`if (Foo.bar)`, `Foo.bar && …`):
+		// Java routes these through STRICT_INEXISTENT_PROPERTY only.
+		if isPropertyExistenceOrAbsenceTest(n) {
+			return nil
+		}
+		// `'prop' in Foo` narrowing.
+		if qname := qualifiedName(n); qname != "" {
+			if scope.GetQualifiedRefinement(qname) != nil {
+				return nil
+			}
+		}
+		if c.fileSuppressions["missingProperties"] {
+			return nil
+		}
+		// Standard Function-instance slots (Function.prototype + own
+		// FunctionType slots): always present on any function value.
+		if isFunctionStandardProp(propName) {
+			return nil
+		}
+		// User-declared static slot.
+		if fn.Instance.GetStaticPropertyType(propName) != nil {
+			return nil
+		}
+		// `@lends {Foo}` registers the lent keys via DefineInferredProperty
+		// on Foo's Instance (not the static slot). Treat those as defined
+		// for the static-access check too.
+		if fn.Instance.HasOwnProperty(propName) {
+			return nil
+		}
+		// User-declared namespace property attached via
+		// `/** @type {T} */ Foo.bar = …` or `Foo.Bar = function() {}`
+		// — tracked on the scope's namespace-prop map keyed on the
+		// receiver's qualified name (so both `Foo.bar` and
+		// `ns.Outer.Inner` resolve here).
+		if qname := qualifiedName(kids[0]); qname != "" {
+			if scope.LookupNamespaceProp(qname, propName) != nil {
+				return nil
+			}
+		}
+		// Dedup across the script.
+		ctorName := fn.Instance.Name
+		if ctorName == "" {
+			ctorName = "Function"
+		}
+		key := ctorName + "." + propName
+		if c.inexistentReported[key] {
+			return nil
+		}
+		if c.inexistentReported == nil {
+			c.inexistentReported = map[string]bool{}
+		}
+		c.inexistentReported[key] = true
+		return []diag.Diagnostic{{
+			Path: c.path, Line: propNode.Lineno(), Col: propNode.Charno(),
+			Code: diag.JSC_INEXISTENT_PROPERTY, Level: diag.Error,
+			Message: fmt.Sprintf("Property %s never defined on %s", propName, ctorName),
+		}}
+	}
 	obj := dereferencedObject(recvType)
 	if obj == nil {
 		// Port of TypeCheck.java reportMissingProperty with PropDefinitionKind.LOOSE_UNION:
@@ -2648,7 +2727,23 @@ func isNumberIndexOk(t jstype.JSType) bool {
 // externs surface is complete in jsgo; Java's full externs need no such guard.
 func isKnownSurfaceBuiltin(name string) bool {
 	switch name {
-	case "Array":
+	case "Array", "Date":
+		return true
+	}
+	return false
+}
+
+// Go-only: language-adapter — Java's FunctionType inherits these slots
+// from the Function.prototype native chain (call/apply/bind, etc.) and
+// from FunctionType itself (prototype, length, name). jsgo's FunctionType
+// has no inherited surface, so we whitelist the standard slots here to
+// keep `Foo.prototype`, `Foo.call`, `Foo.bind`, `Foo.apply`, `Foo.length`,
+// `Foo.name`, `Foo.toString` quiet when the constructor has no user
+// static of that name.
+func isFunctionStandardProp(name string) bool {
+	switch name {
+	case "prototype", "call", "apply", "bind", "length", "name",
+		"arguments", "caller", "toString", "constructor":
 		return true
 	}
 	return false
