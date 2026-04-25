@@ -2900,7 +2900,16 @@ func (c *TypeCheck) visitReturn(ret *rhino.Node, scope *TypedScope) []diag.Diagn
 	}
 	retExpr := ret.FirstChild()
 	if retExpr == nil {
-		return nil
+		// Bare `return;` — the implicit value is undefined. Java's
+		// TypeCheck.visitReturn (TypeCheck.java:1930) treats this as
+		// `return undefined`, so the mismatch fires when the declared
+		// return type doesn't admit undefined.
+		undef := jstype.Void
+		if jstype.IsSubtype(undef, declared) {
+			return nil
+		}
+		c.tv.expectCanAssignTo(ret, undef, declared, "inconsistent return type")
+		return c.tvDrain()
 	}
 	infer := NewTypeInference(scope)
 	found := infer.InferType(retExpr)
