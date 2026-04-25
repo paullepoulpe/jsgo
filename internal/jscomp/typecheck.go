@@ -2168,8 +2168,19 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 		// (sparse jsgo stubs — keep the surface open), and reads inside
 		// the receiver's own constructor (Java treats those as the
 		// definition site).
+		// Read check: also accept `this.X` reads inside a NON-constructor
+		// method body when X was registered as inferred via
+		// collectThisPropertiesIn (no inferredWrites side-band entry).
+		// This catches `Foo.prototype.bar = function(){return this.X;}`
+		// where X is set in another method but never declared.
+		readPropInferredThis := false
+		if kids[0].Token() == rhino.THIS && obj.IsPropertyInferred(propName) &&
+			!isThisAccessInsideConstructor(n, obj) &&
+			!propertyDefinedInOwnConstructor(obj, propName) {
+			readPropInferredThis = true
+		}
 		if !obj.IsStruct && !obj.IsStructural && !c.externTypes[obj] &&
-			c.inferredWrites[obj] != nil && c.inferredWrites[obj][propName] &&
+			((c.inferredWrites[obj] != nil && c.inferredWrites[obj][propName]) || readPropInferredThis) &&
 			!insideOwnConstructor(n, obj) &&
 			!propertyDefinedInOwnConstructor(obj, propName) &&
 			!isThisAccessInsideConstructor(n, obj) {
@@ -2889,7 +2900,13 @@ func propertyDefinedInOwnConstructor(obj *jstype.ObjectType, propName string) bo
 		return false
 	}
 	// defNode is typically the `this.x` GETPROP or the LHS NAME of the assign.
-	return insideOwnConstructor(defNode, obj)
+	// Try insideOwnConstructor first (matches by name); fall back to
+	// isThisAccessInsideConstructor which also handles anonymous-FEE
+	// constructors (@constructor JSDoc on the parent VAR/ASSIGN).
+	if insideOwnConstructor(defNode, obj) {
+		return true
+	}
+	return isThisAccessInsideConstructor(defNode, obj)
 }
 
 // visitReturn validates `return <expr>;` against the enclosing
