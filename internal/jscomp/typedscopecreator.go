@@ -724,13 +724,31 @@ func (c *TypedScopeCreator) recordPrototypeAssign(a *rhino.Node, scope *TypedSco
 		}
 		resolveScope = &TypedScope{parent: scope, declared: map[string]jstype.JSType{}, typeAliases: aliases, registry: c.registry}
 	}
-	memberType := c.inferPrototypeValueType(a.JSDocInfo(), rhs, resolveScope, fn.Instance, propName)
+	// Port of NodeUtil.getBestJSDocInfo: the JSDoc for a prototype property
+	// assignment may be attached to the outer EXPR_RESULT rather than the ASSIGN
+	// node. Check both. Mirrors how Java's TypedScopeCreator uses
+	// NodeUtil.getBestJSDocInfo which walks up through ASSIGN and EXPR_RESULT.
+	assignInfo := a.JSDocInfo()
+	if assignInfo == nil {
+		if parent := a.Parent(); parent != nil && parent.Token() == rhino.EXPR_RESULT {
+			assignInfo = parent.JSDocInfo()
+		}
+	}
+	memberType := c.inferPrototypeValueType(assignInfo, rhs, resolveScope, fn.Instance, propName)
 	fn.Instance.DefineProperty(propName, memberType)
+	// When the assignment has explicit @type JSDoc, clear the inferred flag
+	// if it was previously set by this.prop = … in the constructor body.
+	// Mirrors Java's PrototypeObjectType.defineProperty which marks slots
+	// "declared" (non-inferred) when a @type annotation is present.
+	if assignInfo != nil && (assignInfo.HasType() || rhs.Token() == rhino.FUNCTION) {
+		fn.Instance.ClearInferred(propName)
+	}
 	// Literal-inferred prototype slots (no @type) don't participate
 	// in the subclass-override type-match check — Java treats them
 	// as open surface in default mode.
-	info := a.JSDocInfo()
-	if (info == nil || !info.HasType()) && rhs.Token() != rhino.FUNCTION {
+	// Use assignInfo (which may come from the parent EXPR_RESULT) to determine
+	// whether the slot should be marked as inferred.
+	if (assignInfo == nil || !assignInfo.HasType()) && rhs.Token() != rhino.FUNCTION {
 		if t := literalType(rhs); !isJSUnknown(t) {
 			fn.Instance.MarkInferred(propName)
 		}
