@@ -327,36 +327,78 @@ func (nodeUtil) IsImmutableValue(n *rhino.Node) bool {
 
 // IsLiteralValue reports whether `n` is a literal value.  When
 // includeFunctions is true, function expressions also qualify.
-// Mirrors NodeUtil.isLiteralValue (Java).
+// Port of jscomp/NodeUtil.java @ closure-compiler v20260415 — isLiteralValue.
 func (nodeUtil) IsLiteralValue(n *rhino.Node, includeFunctions bool) bool {
 	if n == nil {
 		return false
 	}
 	switch n.Token() {
+	case rhino.CAST:
+		return NU.IsLiteralValue(n.FirstChild(), includeFunctions)
 	case rhino.ARRAYLIT:
-		for _, c := range n.Children() {
+		for c := n.FirstChild(); c != nil; c = c.Next() {
+			if !c.IsEmpty() && !NU.IsLiteralValue(c, includeFunctions) {
+				return false
+			}
+		}
+		return true
+	case rhino.REGEXP:
+		// Return true only if all descendants are const.
+		for c := n.FirstChild(); c != nil; c = c.Next() {
 			if !NU.IsLiteralValue(c, includeFunctions) {
 				return false
 			}
 		}
 		return true
 	case rhino.OBJECTLIT:
-		for _, c := range n.Children() {
+		for c := n.FirstChild(); c != nil; c = c.Next() {
 			switch c.Token() {
-			case rhino.STRING_KEY:
-				if fc := c.FirstChild(); fc != nil && !NU.IsLiteralValue(fc, includeFunctions) {
+			case rhino.MEMBER_FUNCTION_DEF, rhino.GETTER_DEF, rhino.SETTER_DEF:
+				// { methodName() {...} }
+				// { get propertyName() {...} }
+				// { set propertyName(value) {...} }
+				if !includeFunctions {
 					return false
 				}
+				// keep going
+			case rhino.COMPUTED_PROP:
+				// { [key_expression]: value, ... }
+				if !NU.IsLiteralValue(c.FirstChild(), includeFunctions) ||
+					!NU.IsLiteralValue(c.LastChild(), includeFunctions) {
+					return false
+				}
+				// keep going
+			case rhino.OBJECT_SPREAD:
+				if !NU.IsLiteralValue(c.GetOnlyChild(), includeFunctions) {
+					return false
+				}
+				// keep going
+			case rhino.STRING_KEY:
+				// { key: value, ... }
+				if !NU.IsLiteralValue(c.GetOnlyChild(), includeFunctions) {
+					return false
+				}
+				// keep going
 			default:
-				// computed / spread / getter / setter — conservatively false
+				// unexpected child — conservatively false
 				return false
 			}
 		}
 		return true
 	case rhino.FUNCTION:
 		return includeFunctions && !NU.IsFunctionDeclaration(n)
+	case rhino.TEMPLATELIT:
+		for c := n.FirstChild(); c != nil; c = c.Next() {
+			if c.IsTemplateLitSub() {
+				if !NU.IsLiteralValue(c.FirstChild(), includeFunctions) {
+					return false
+				}
+			}
+		}
+		return true
+	default:
+		return NU.IsImmutableValue(n)
 	}
-	return NU.IsImmutableValue(n)
 }
 
 // ---------------------------------------------------------------------------
@@ -783,25 +825,38 @@ func (nodeUtil) IsInFunction(n *rhino.Node) bool { return NU.GetEnclosingFunctio
 func (nodeUtil) IsInSyntheticScript(_ *rhino.Node) bool { return false }
 
 // IsLhsByDestructuring reports whether n is an LHS target in a destructuring pattern.
-// Mirrors NodeUtil.isLhsByDestructuring (Java).
+// Port of jscomp/NodeUtil.java @ closure-compiler v20260415 — isLhsByDestructuring.
 func (nodeUtil) IsLhsByDestructuring(n *rhino.Node) bool {
 	if n == nil {
 		return false
 	}
 	switch n.Token() {
 	case rhino.NAME, rhino.GETPROP, rhino.GETELEM:
-		p, gp := n.Parent(), n.GetGrandparent()
-		if p == nil {
-			return false
-		}
-		switch p.Token() {
-		case rhino.ITER_REST:
-			return true
-		case rhino.COMPUTED_PROP:
-			return !n.IsFirstChildOf(p) && gp != nil && gp.Token() == rhino.OBJECTLIT
-		case rhino.STRING_KEY:
-			return gp != nil && gp.Token() == rhino.OBJECTLIT
-		}
+		return isLhsByDestructuringHelper(n)
+	}
+	return false
+}
+
+// isLhsByDestructuringHelper is the private recursive helper.
+// Port of jscomp/NodeUtil.java @ closure-compiler v20260415 — isLhsByDestructuringHelper.
+func isLhsByDestructuringHelper(n *rhino.Node) bool {
+	parent := n.Parent()
+	grandparent := n.GetGrandparent()
+	if parent == nil {
+		return false
+	}
+	switch parent.Token() {
+	// `b` in `var [b] = ...`
+	// `b` in `var [...b] = ...`
+	case rhino.ARRAY_PATTERN, rhino.ITER_REST, rhino.OBJECT_REST:
+		return true
+	case rhino.COMPUTED_PROP:
+		return !n.IsFirstChildOf(parent) && grandparent != nil && grandparent.IsObjectPattern()
+	// the "b" in "var {a: b} = ..."
+	case rhino.STRING_KEY:
+		return grandparent != nil && grandparent.IsObjectPattern()
+	case rhino.DEFAULT_VALUE:
+		return n.IsFirstChildOf(parent) && isLhsByDestructuringHelper(parent)
 	}
 	return false
 }
@@ -2537,60 +2592,78 @@ const (
 	ValueTypeObject
 )
 
-// Go-only: package-bridge — Java's getKnownValueType is directly on NodeUtil;
-// this is an unexported wrapper to break the call cycle in Go.
-func getKnownValueTypePriv(n *rhino.Node) ValueType {
+// Go-only: package-bridge — Java name is mayBeString(ValueType) (package-private).
+func nuMayBeString(t ValueType) bool {
+	switch t {
+	case ValueTypeBoolean, ValueTypeNull, ValueTypeNumber, ValueTypeBigint, ValueTypeVoid:
+		return false
+	}
+	return true
+}
+
+// And returns a if a == b, otherwise Undetermined.
+// Port of jscomp/NodeUtil.java @ closure-compiler v20260415 — and(ValueType, ValueType).
+func (nodeUtil) And(a, b ValueType) ValueType {
+	if a == b {
+		return a
+	}
+	return ValueTypeUndetermined
+}
+
+// GetKnownValueType returns the known primitive value type of n, or
+// ValueTypeUndetermined when it cannot be determined statically.
+// Port of jscomp/NodeUtil.java @ closure-compiler v20260415 — getKnownValueType.
+func (nodeUtil) GetKnownValueType(n *rhino.Node) ValueType {
 	switch n.Token() {
 	case rhino.CAST:
-		return getKnownValueTypePriv(n.FirstChild())
+		return NU.GetKnownValueType(n.FirstChild())
 	case rhino.ASSIGN, rhino.COMMA:
-		return getKnownValueTypePriv(n.LastChild())
+		return NU.GetKnownValueType(n.LastChild())
 	case rhino.AND, rhino.OR, rhino.COALESCE,
 		rhino.ASSIGN_OR, rhino.ASSIGN_AND, rhino.ASSIGN_COALESCE:
-		a := getKnownValueTypePriv(n.FirstChild())
-		b := getKnownValueTypePriv(n.LastChild())
-		if a == b {
-			return a
-		}
-		return ValueTypeUndetermined
+		return NU.And(NU.GetKnownValueType(n.FirstChild()), NU.GetKnownValueType(n.LastChild()))
 	case rhino.HOOK:
-		a := getKnownValueTypePriv(n.GetSecondChild())
-		b := getKnownValueTypePriv(n.LastChild())
-		if a == b {
-			return a
-		}
-		return ValueTypeUndetermined
+		return NU.And(NU.GetKnownValueType(n.GetSecondChild()), NU.GetKnownValueType(n.LastChild()))
 	case rhino.ADD:
-		last := getKnownValueTypePriv(n.LastChild())
+		last := NU.GetKnownValueType(n.LastChild())
 		if last == ValueTypeString {
 			return ValueTypeString
 		}
-		first := getKnownValueTypePriv(n.FirstChild())
+		first := NU.GetKnownValueType(n.FirstChild())
 		if first == ValueTypeString {
 			return ValueTypeString
 		}
+		// There are some pretty weird cases for object types:
+		//   {} + [] === "0"
+		//   [] + {} === "[object Object]"
 		if first == ValueTypeObject || last == ValueTypeObject {
 			return ValueTypeUndetermined
 		}
-		if nuMayBeString(first) || nuMayBeString(last) {
-			return ValueTypeUndetermined
+		if !nuMayBeString(first) && !nuMayBeString(last) {
+			if first == ValueTypeBigint || last == ValueTypeBigint {
+				// If one operand is a BigInt, then the result is a BigInt or there's a type error
+				return ValueTypeBigint
+			}
+			// ADD used with compilations of null, undefined, boolean and number always result
+			// in numbers.
+			return ValueTypeNumber
 		}
-		if first == ValueTypeBigint || last == ValueTypeBigint {
-			return ValueTypeBigint
-		}
-		return ValueTypeNumber
+		return ValueTypeUndetermined
 	case rhino.ASSIGN_ADD:
-		last := getKnownValueTypePriv(n.LastChild())
+		last := NU.GetKnownValueType(n.LastChild())
 		if last == ValueTypeString {
 			return ValueTypeString
 		}
 		return ValueTypeUndetermined
 	case rhino.NAME:
-		s := n.GetString()
-		if s == "undefined" {
+		name := n.GetString()
+		if name == "undefined" {
 			return ValueTypeVoid
 		}
-		if s == "NaN" || s == "Infinity" {
+		if name == "NaN" {
+			return ValueTypeNumber
+		}
+		if name == "Infinity" {
 			return ValueTypeNumber
 		}
 		return ValueTypeUndetermined
@@ -2598,7 +2671,8 @@ func getKnownValueTypePriv(n *rhino.Node) ValueType {
 		rhino.ASSIGN_LSH, rhino.ASSIGN_RSH, rhino.ASSIGN_URSH,
 		rhino.ASSIGN_SUB, rhino.ASSIGN_MUL, rhino.ASSIGN_EXPONENT,
 		rhino.ASSIGN_DIV, rhino.ASSIGN_MOD:
-		if getKnownValueTypePriv(n.LastChild()) == ValueTypeBigint {
+		// assign operators could be using BIGINT or NUMBER
+		if NU.GetKnownValueType(n.LastChild()) == ValueTypeBigint {
 			return ValueTypeBigint
 		}
 		return ValueTypeNumber
@@ -2606,24 +2680,35 @@ func getKnownValueTypePriv(n *rhino.Node) ValueType {
 		return ValueTypeBigint
 	case rhino.BITOR, rhino.BITXOR, rhino.BITAND,
 		rhino.LSH, rhino.RSH, rhino.SUB, rhino.MUL, rhino.MOD, rhino.DIV, rhino.EXPONENT:
-		first := getKnownValueTypePriv(n.FirstChild())
-		last := getKnownValueTypePriv(n.LastChild())
+		// binary arithmetic operators could result in BIGINT or NUMBER
+		first := NU.GetKnownValueType(n.FirstChild())
+		last := NU.GetKnownValueType(n.LastChild())
 		if first == ValueTypeBigint || last == ValueTypeBigint {
 			return ValueTypeBigint
 		}
 		return ValueTypeNumber
 	case rhino.BITNOT, rhino.NEG:
-		if getKnownValueTypePriv(n.FirstChild()) == ValueTypeBigint {
+		// unary negation (bitwise or arithmetic) could be using BIGINT or NUMBER
+		if NU.GetKnownValueType(n.GetOnlyChild()) == ValueTypeBigint {
 			return ValueTypeBigint
 		}
 		return ValueTypeNumber
-	case rhino.INC, rhino.DEC, rhino.URSH, rhino.POS, rhino.NUMBER:
+	case rhino.INC, rhino.DEC:
+		// increment and decrement can only be used on variables, so we assume they're numbers
+		return ValueTypeNumber
+	case rhino.URSH, rhino.POS, rhino.NUMBER:
+		// unary + and unsigned right shift don't apply to bigint
 		return ValueTypeNumber
 	case rhino.TRUE, rhino.FALSE,
+		// Comparisons
 		rhino.EQ, rhino.NE, rhino.SHEQ, rhino.SHNE,
 		rhino.LT, rhino.GT, rhino.LE, rhino.GE,
+		// Queries
 		rhino.IN, rhino.INSTANCEOF,
-		rhino.NOT, rhino.DELPROP:
+		// Inversion
+		rhino.NOT,
+		// delete operator returns a boolean.
+		rhino.DELPROP:
 		return ValueTypeBoolean
 	case rhino.TYPEOF, rhino.STRINGLIT, rhino.TEMPLATELIT:
 		return ValueTypeString
@@ -2638,50 +2723,34 @@ func getKnownValueTypePriv(n *rhino.Node) ValueType {
 	}
 }
 
-// Go-only: package-bridge — Java name is mayBeString(ValueType) (package-private).
-func nuMayBeString(t ValueType) bool {
-	switch t {
-	case ValueTypeBoolean, ValueTypeNull, ValueTypeNumber, ValueTypeBigint, ValueTypeVoid:
-		return false
-	}
-	return true
-}
-
-// GetKnownValueType returns the known primitive value type of n, or
-// ValueTypeUndetermined when it cannot be determined statically.
-// Mirrors NodeUtil.getKnownValueType.
-func (nodeUtil) GetKnownValueType(n *rhino.Node) ValueType {
-	return getKnownValueTypePriv(n)
-}
-
 // IsNumericResult reports whether n always evaluates to a number.
 // Mirrors NodeUtil.isNumericResult.
 func (nodeUtil) IsNumericResult(n *rhino.Node) bool {
-	return getKnownValueTypePriv(n) == ValueTypeNumber
+	return NU.GetKnownValueType(n) == ValueTypeNumber
 }
 
 // IsBigIntResult reports whether n always evaluates to a bigint.
 // Mirrors NodeUtil.isBigIntResult.
 func (nodeUtil) IsBigIntResult(n *rhino.Node) bool {
-	return getKnownValueTypePriv(n) == ValueTypeBigint
+	return NU.GetKnownValueType(n) == ValueTypeBigint
 }
 
 // IsBooleanResult reports whether n always evaluates to a boolean.
 // Mirrors NodeUtil.isBooleanResult.
 func (nodeUtil) IsBooleanResult(n *rhino.Node) bool {
-	return getKnownValueTypePriv(n) == ValueTypeBoolean
+	return NU.GetKnownValueType(n) == ValueTypeBoolean
 }
 
 // IsStringResult reports whether n always evaluates to a string.
 // Mirrors NodeUtil.isStringResult.
 func (nodeUtil) IsStringResult(n *rhino.Node) bool {
-	return getKnownValueTypePriv(n) == ValueTypeString
+	return NU.GetKnownValueType(n) == ValueTypeString
 }
 
 // IsObjectResult reports whether n always evaluates to an object.
 // Mirrors NodeUtil.isObjectResult.
 func (nodeUtil) IsObjectResult(n *rhino.Node) bool {
-	return getKnownValueTypePriv(n) == ValueTypeObject
+	return NU.GetKnownValueType(n) == ValueTypeObject
 }
 
 // ---------------------------------------------------------------------------
@@ -3111,15 +3180,26 @@ func (nodeUtil) Precedence(typ rhino.Token) int {
 		return 17
 	case rhino.CALL, rhino.GETELEM, rhino.GETPROP,
 		rhino.OPTCHAIN_CALL, rhino.OPTCHAIN_GETELEM, rhino.OPTCHAIN_GETPROP,
+		rhino.NEW_TARGET, rhino.IMPORT_META,
+		// Data values
 		rhino.ARRAYLIT, rhino.ARRAY_PATTERN, rhino.DEFAULT_VALUE,
 		rhino.DESTRUCTURING_LHS, rhino.EMPTY, rhino.FALSE,
-		rhino.FUNCTION, rhino.CLASS, rhino.NAME, rhino.NULL,
+		rhino.FUNCTION, rhino.CLASS, rhino.INTERFACE, rhino.NAME, rhino.NULL,
 		rhino.NUMBER, rhino.BIGINT, rhino.OBJECTLIT, rhino.OBJECT_PATTERN,
 		rhino.REGEXP, rhino.ITER_REST, rhino.OBJECT_REST,
 		rhino.ITER_SPREAD, rhino.OBJECT_SPREAD, rhino.STRINGLIT, rhino.STRING_KEY,
 		rhino.THIS, rhino.SUPER, rhino.TRUE, rhino.TAGGED_TEMPLATELIT, rhino.TEMPLATELIT,
-		rhino.DYNAMIC_IMPORT:
+		rhino.DYNAMIC_IMPORT,
+		// Tokens from the type declaration AST
+		rhino.UNION_TYPE:
 		return 18
+	case rhino.FUNCTION_TYPE:
+		return 19
+	case rhino.ARRAY_TYPE, rhino.PARAMETERIZED_TYPE:
+		return 20
+	case rhino.STRING_TYPE, rhino.NUMBER_TYPE, rhino.BOOLEAN_TYPE, rhino.ANY_TYPE,
+		rhino.RECORD_TYPE, rhino.NAMED_TYPE, rhino.UNDEFINED_TYPE, rhino.VOID_TYPE:
+		return 21
 	case rhino.CAST:
 		return 22
 	default:
@@ -3155,10 +3235,40 @@ func (nodeUtil) NewDeclaration(lhs, rhs *rhino.Node, declarationType rhino.Token
 }
 
 // NewQName creates a NAME or GETPROP chain for the given dotted name.
-// This is the compiler-context-free version.
-// Mirrors NodeUtil.newQName (without compiler).
+// Port of jscomp/NodeUtil.java @ closure-compiler v20260415 — newQName (compiler-free variant).
+// Constant-key marking (requires compiler.getCodingConvention()) is omitted; use
+// the compiler-aware overload when that annotation is needed.
 func (nodeUtil) NewQName(name string) *rhino.Node {
-	return NU.NewQualifiedNameNode(name)
+	endPos := strings.IndexByte(name, '.')
+	if endPos == -1 {
+		endPos = len(name)
+	}
+
+	nodeName := name[:endPos]
+	var qname *rhino.Node
+	switch nodeName {
+	case "this":
+		qname = rhino.IRThis()
+	case "super":
+		qname = rhino.IRSuper()
+	default:
+		qname = rhino.NewString(rhino.NAME, nodeName)
+	}
+	qname.SetLength(endPos)
+
+	for startPos := endPos + 1; endPos < len(name); startPos = endPos + 1 {
+		endPos = strings.IndexByte(name[startPos:], '.')
+		if endPos == -1 {
+			endPos = len(name)
+		} else {
+			endPos += startPos
+		}
+		part := name[startPos:endPos]
+		qname = rhino.IRGetprop(qname, part)
+		qname.SetLength(len(part))
+	}
+
+	return qname
 }
 
 // NewPropertyAccess creates a GETPROP node for context.name.
