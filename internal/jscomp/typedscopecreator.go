@@ -159,10 +159,43 @@ func (c *TypedScopeCreator) applyLendsAnnotation(obj *rhino.Node, scope *TypedSc
 // Go-only: language-adapter — createExternScope builds the externs scope from a
 // vendored source string; Java's TypedScopeCreator receives a pre-parsed extern
 // AST from the compiler and does not need to parse externs separately.
+//
+// Loader strategy (mirrors AbstractCommandLineRunner.getBuiltinExterns +
+// DefaultExterns.prepareExterns at v20260415):
+//  1. When JSGO_USE_UPSTREAM_EXTERNS=1, parse Closure's upstream externs
+//     unzipped under .cache/closure-externs/ (populated by `make
+//     .cache/closure-compiler.jar`). Order matches Java:
+//     BUILTIN_LANG_EXTERNS, then BROWSER_EXTERN_DEP_ORDER, then the
+//     remaining browser/* in alphabetical order.
+//  2. Otherwise, parse defaultExternsSrc — the synthetic hand-curated
+//     bundle.
+//
+// The default path is the synthetic bundle because our type system's
+// IsSubtypeOf currently runs into infinite recursion on es3.js's
+// fully-templated Array/IArrayLike/Iterator hierarchy. The upstream
+// loader is wired up and the cache extraction is hermetic so future
+// changes that fix the recursion can flip the default just by
+// removing the env-var gate.
+//
+// We re-parse on every call (rather than caching the AST) because
+// scope building mutates per-AST-node state; sharing one externs
+// tree across compiles produces cyclic JSType refs.
 func (c *TypedScopeCreator) createExternScope() *TypedScope {
-	externScript, err := parseExternsSource(defaultExternsSrc)
+	src := defaultExternsSrc
+	if useUpstreamExterns() {
+		if upstream := upstreamExternsSource(); upstream != "" {
+			src = upstream
+		}
+	}
+	externScript, err := parseExternsSource(src)
 	if err != nil || externScript == nil {
-		return c.builtins()
+		// Last-ditch fallback to synthetic-only.
+		if src != defaultExternsSrc {
+			externScript, err = parseExternsSource(defaultExternsSrc)
+		}
+		if err != nil || externScript == nil {
+			return c.builtins()
+		}
 	}
 	scope := c.createScopeIn(externScript, c.builtins())
 	c.registerNestedFunctions(externScript, scope)

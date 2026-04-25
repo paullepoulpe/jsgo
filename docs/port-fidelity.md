@@ -6,10 +6,10 @@ Generated: auto-computed by tools/portcheck.
 
 | Metric | Value |
 |--------|-------|
-| Total files scored | 244 |
+| Total files scored | 245 |
 | Average score | 63.5 |
-| Std deviation | 10.7 |
-| Min score | 0.0 |
+| Std deviation | 10.3 |
+| Min score | 31.4 |
 | Median score | 59.5 |
 | Max score | 90.9 |
 
@@ -17,37 +17,37 @@ Generated: auto-computed by tools/portcheck.
 
 | Rank | Score | Go File | Java Source | Method Overlap % | Stub Count | LoC Ratio | Port Debt | Notes |
 |------|-------|---------|-------------|-----------------|------------|-----------|-----------|-------|
-| 1 | 0 | `jscomp/default_externs.go` | `` | 0% | 0 | 0.00 | 0 | missing Port of header |
-| 2 | 33 | `jscomp/checkjsdoctypes.go` | `jscomp/TypeValidator.java` | 0% | 0 | 1.33 | 0 | 23 go-only fns |
+| 1 | 31 | `jscomp/checkjsdoctypes.go` | `jscomp/TypeValidator.java` | 0% | 0 | 1.48 | 0 | 23 go-only fns |
+| 2 | 32 | `jscomp/externs_loader.go` | `jscomp/CommandLineRunner.java` | 0% | 0 | 0.07 | 0 | 5 go-only fns |
 | 3 | 34 | `jscomp/semanticreverseabstractinterpreter.go` | `jscomp/type/SemanticReverseAbstractInterpreter.java` | 0% | 0 | 0.73 | 0 | 8 go-only fns |
-| 4 | 41 | `rhino/type_declarations_ir.go` | `rhino/TypeDeclarationsIR.java` | 0% | 0 | 0.72 | 0 | 17 go-only fns |
-| 5 | 41 | `jscomp/compiler.go` | `jscomp/Compiler.java` | 0% | 0 | 0.04 | 0 |  |
-| 6 | 45 | `jscomp/parsing/jsdoctoken.go` | `jscomp/parsing/JsDocToken.java` | 0% | 0 | 1.50 | 0 |  |
-| 7 | 50 | `jscomp/diagnosticgroup.go` | `jscomp/DiagnosticGroup.java` | 0% | 0 | 0.00 | 0 |  |
-| 8 | 50 | `jscomp/reverseabstractinterpreter.go` | `jscomp/type/ReverseAbstractInterpreter.java` | 0% | 0 | 0.00 | 0 |  |
-| 9 | 50 | `rhino/jstype/jstype_class.go` | `rhino/jstype/JSTypeClass.java` | 0% | 0 | 0.00 | 0 |  |
-| 10 | 50 | `rhino/jstype/relationship_visitor.go` | `rhino/jstype/RelationshipVisitor.java` | 0% | 0 | 0.00 | 0 |  |
-| 11 | 50 | `rhino/static_ref.go` | `rhino/StaticRef.java` | 0% | 0 | 0.00 | 0 |  |
-| 12 | 50 | `rhino/static_slot.go` | `rhino/StaticSlot.java` | 0% | 0 | 0.00 | 0 |  |
-| 13 | 50 | `rhino/static_symbol_table.go` | `rhino/StaticSymbolTable.java` | 0% | 0 | 0.00 | 0 |  |
-| 14 | 50 | `rhino/token.go` | `rhino/Token.java` | 0% | 0 | 1.50 | 0 | 1 go-only fns |
-| 15 | 51 | `jscomp/nodenameextractor.go` | `jscomp/NodeNameExtractor.java` | 14% | 0 | 1.50 | 0 | 5 go-only fns |
-| 16 | 52 | `parser/trees/parse_tree.go` | `jscomp/parsing/parser/trees/ParseTree.java` | 3% | 0 | 0.02 | 0 |  |
-| 17 | 52 | `rhino/jstype/function_type.go` | `rhino/jstype/FunctionType.java` | 33% | 0 | 0.36 | 0 | 28 go-only fns |
-| 18 | 52 | `rhino/jstype/template_type.go` | `rhino/jstype/TemplateType.java` | 9% | 0 | 1.50 | 0 | 8 go-only fns |
-| 19 | 52 | `jscomp/var.go` | `jscomp/Var.java` | 0% | 0 | 0.77 | 0 |  |
-| 20 | 52 | `jscomp/scopecreator.go` | `jscomp/ScopeCreator.java` | 0% | 0 | 1.50 | 0 |  |
-| 21 | 53 | `jscomp/checkjsdoc.go` | `jscomp/CheckJSDoc.java` | 32% | 2 | 1.19 | 0 | 2 stubs; 23 go-only fns |
+| 4 | 37 | `jscomp/compiler.go` | `jscomp/Compiler.java` | 0% | 0 | 0.07 | 0 | 2 go-only fns |
+| 5 | 38 | `jscomp/default_externs.go` | `jscomp/CommandLineRunner.java` | 0% | 0 | 0.00 | 0 | 1 go-only fns |
+| 6 | 41 | `rhino/type_declarations_ir.go` | `rhino/TypeDeclarationsIR.java` | 0% | 0 | 0.72 | 0 | 17 go-only fns |
+| 7 | 45 | `jscomp/parsing/jsdoctoken.go` | `jscomp/parsing/JsDocToken.java` | 0% | 0 | 1.50 | 0 |  |
+| 8 | 50 | `jscomp/diagnosticgroup.go` | `jscomp/DiagnosticGroup.java` | 0% | 0 | 0.00 | 0 |  |
+| 9 | 50 | `jscomp/reverseabstractinterpreter.go` | `jscomp/type/ReverseAbstractInterpreter.java` | 0% | 0 | 0.00 | 0 |  |
+| 10 | 50 | `rhino/jstype/jstype_class.go` | `rhino/jstype/JSTypeClass.java` | 0% | 0 | 0.00 | 0 |  |
+| 11 | 50 | `rhino/jstype/relationship_visitor.go` | `rhino/jstype/RelationshipVisitor.java` | 0% | 0 | 0.00 | 0 |  |
+| 12 | 50 | `rhino/static_ref.go` | `rhino/StaticRef.java` | 0% | 0 | 0.00 | 0 |  |
+| 13 | 50 | `rhino/static_slot.go` | `rhino/StaticSlot.java` | 0% | 0 | 0.00 | 0 |  |
+| 14 | 50 | `rhino/static_symbol_table.go` | `rhino/StaticSymbolTable.java` | 0% | 0 | 0.00 | 0 |  |
+| 15 | 50 | `rhino/token.go` | `rhino/Token.java` | 0% | 0 | 1.50 | 0 | 1 go-only fns |
+| 16 | 51 | `jscomp/nodenameextractor.go` | `jscomp/NodeNameExtractor.java` | 14% | 0 | 1.50 | 0 | 5 go-only fns |
+| 17 | 52 | `parser/trees/parse_tree.go` | `jscomp/parsing/parser/trees/ParseTree.java` | 3% | 0 | 0.02 | 0 |  |
+| 18 | 52 | `rhino/jstype/function_type.go` | `rhino/jstype/FunctionType.java` | 33% | 0 | 0.36 | 0 | 28 go-only fns |
+| 19 | 52 | `rhino/jstype/template_type.go` | `rhino/jstype/TemplateType.java` | 9% | 0 | 1.50 | 0 | 8 go-only fns |
+| 20 | 52 | `jscomp/var.go` | `jscomp/Var.java` | 0% | 0 | 0.77 | 0 |  |
+| 21 | 52 | `jscomp/scopecreator.go` | `jscomp/ScopeCreator.java` | 0% | 0 | 1.50 | 0 |  |
 | 22 | 53 | `rhino/jstype/object_type.go` | `rhino/jstype/ObjectType.java` | 42% | 8 | 0.65 | 0 | 8 stubs; 2 go-only fns |
-| 23 | 53 | `rhino/jstype/templatized_type.go` | `rhino/jstype/TemplatizedType.java` | 15% | 0 | 0.49 | 0 | 9 go-only fns |
-| 24 | 53 | `jscomp/typeinferencepass.go` | `jscomp/TypeInferencePass.java` | 0% | 0 | 1.50 | 0 |  |
-| 25 | 53 | `rhino/jstype/object_type_ext.go` | `rhino/jstype/ObjectType.java` | 4% | 0 | 0.07 | 0 |  |
+| 23 | 53 | `jscomp/typeinferencepass.go` | `jscomp/TypeInferencePass.java` | 0% | 0 | 1.50 | 0 |  |
+| 24 | 53 | `rhino/jstype/object_type_ext.go` | `rhino/jstype/ObjectType.java` | 4% | 0 | 0.07 | 0 |  |
+| 25 | 53 | `rhino/jstype/templatized_type.go` | `rhino/jstype/TemplatizedType.java` | 14% | 0 | 0.66 | 0 | 10 go-only fns |
 | 26 | 54 | `rhino/jstype/property.go` | `rhino/jstype/Property.java` | 55% | 2 | 1.50 | 0 | 2 stubs; 14 go-only fns |
-| 27 | 54 | `jscomp/varcheck.go` | `jscomp/VarCheck.java` | 8% | 0 | 0.49 | 0 | 4 go-only fns |
-| 28 | 55 | `jscomp/typevalidator.go` | `jscomp/TypeValidator.java` | 43% | 2 | 0.72 | 0 | 2 stubs; 22 go-only fns |
+| 27 | 55 | `jscomp/typecheck.go` | `jscomp/TypeCheck.java` | 38% | 0 | 1.50 | 0 | 7 go-only fns |
+| 28 | 55 | `jscomp/typevalidator.go` | `jscomp/TypeValidator.java` | 42% | 2 | 0.74 | 0 | 2 stubs; 22 go-only fns |
 | 29 | 55 | `rhino/jstype/jstype.go` | `rhino/jstype/JSType.java` | 15% | 0 | 0.59 | 0 |  |
 | 30 | 56 | `jscomp/inferconsts.go` | `jscomp/InferConsts.java` | 0% | 0 | 1.50 | 0 |  |
-| 31 | 56 | `parser/parser.go` | `jscomp/parsing/parser/Parser.java` | 8% | 0 | 1.17 | 0 | 2 go-only fns |
+| 31 | 56 | `parser/parser.go` | `jscomp/parsing/parser/Parser.java` | 8% | 0 | 1.19 | 0 | 2 go-only fns |
 | 32 | 56 | `rhino/jstype/unknown_type.go` | `rhino/jstype/UnknownType.java` | 0% | 0 | 0.00 | 0 | tiny-wrapper(parent bonus 15) |
 | 33 | 57 | `rhino/ir.go` | `rhino/IR.java` | 0% | 0 | 0.30 | 0 |  |
 | 34 | 57 | `rhino/jstype/no_resolved_type.go` | `rhino/jstype/NoResolvedType.java` | 6% | 0 | 0.08 | 0 |  |
@@ -56,8 +56,8 @@ Generated: auto-computed by tools/portcheck.
 | 37 | 57 | `parser/trees/formal_parameter_list_tree.go` | `jscomp/parsing/parser/trees/FormalParameterListTree.java` | 0% | 0 | 0.22 | 0 | tiny-wrapper(parent bonus 0) |
 | 38 | 58 | `jscomp/checktypeimportcodereferences.go` | `jscomp/CheckTypeImportCodeReferences.java` | 11% | 0 | 1.50 | 4 | 4 port-debt |
 | 39 | 58 | `parser/trees/comprehension_tree.go` | `jscomp/parsing/parser/trees/ComprehensionTree.java` | 0% | 0 | 0.27 | 0 | tiny-wrapper(parent bonus 0) |
-| 40 | 58 | `parser/trees/update_expression_tree.go` | `jscomp/parsing/parser/trees/UpdateExpressionTree.java` | 0% | 0 | 0.30 | 0 | tiny-wrapper(parent bonus 0) |
-| 41 | 58 | `jscomp/checkregexp.go` | `jscomp/CheckRegExp.java` | 20% | 0 | 1.45 | 0 | 5 go-only fns |
+| 40 | 58 | `jscomp/checkjsdoc.go` | `jscomp/CheckJSDoc.java` | 50% | 0 | 1.50 | 0 | 19 go-only fns |
+| 41 | 58 | `parser/trees/update_expression_tree.go` | `jscomp/parsing/parser/trees/UpdateExpressionTree.java` | 0% | 0 | 0.30 | 0 | tiny-wrapper(parent bonus 0) |
 | 42 | 58 | `rhino/jstype/void_type.go` | `rhino/jstype/VoidType.java` | 1% | 0 | 0.06 | 0 | tiny-wrapper(parent bonus 15) |
 | 43 | 58 | `parser/trees/argument_list_tree.go` | `jscomp/parsing/parser/trees/ArgumentListTree.java` | 0% | 0 | 0.32 | 0 | tiny-wrapper(parent bonus 0) |
 | 44 | 58 | `parser/trees/class_declaration_tree.go` | `jscomp/parsing/parser/trees/ClassDeclarationTree.java` | 0% | 0 | 0.32 | 0 | tiny-wrapper(parent bonus 0) |
@@ -136,129 +136,130 @@ Generated: auto-computed by tools/portcheck.
 | 117 | 59 | `parser/trees/template_substitution_tree.go` | `jscomp/parsing/parser/trees/TemplateSubstitutionTree.java` | 0% | 0 | 0.44 | 0 | tiny-wrapper(parent bonus 0) |
 | 118 | 59 | `parser/trees/throw_statement_tree.go` | `jscomp/parsing/parser/trees/ThrowStatementTree.java` | 0% | 0 | 0.44 | 0 | tiny-wrapper(parent bonus 0) |
 | 119 | 59 | `parser/trees/variable_statement_tree.go` | `jscomp/parsing/parser/trees/VariableStatementTree.java` | 0% | 0 | 0.44 | 0 | tiny-wrapper(parent bonus 0) |
-| 120 | 60 | `parser/trees/call_expression_tree.go` | `jscomp/parsing/parser/trees/CallExpressionTree.java` | 0% | 0 | 0.45 | 0 | tiny-wrapper(parent bonus 0) |
-| 121 | 60 | `parser/trees/catch_tree.go` | `jscomp/parsing/parser/trees/CatchTree.java` | 0% | 0 | 0.45 | 0 | tiny-wrapper(parent bonus 0) |
-| 122 | 60 | `parser/trees/computed_property_method_tree.go` | `jscomp/parsing/parser/trees/ComputedPropertyMethodTree.java` | 0% | 0 | 0.45 | 0 | tiny-wrapper(parent bonus 0) |
-| 123 | 60 | `parser/trees/variable_declaration_tree.go` | `jscomp/parsing/parser/trees/VariableDeclarationTree.java` | 0% | 0 | 0.45 | 0 | tiny-wrapper(parent bonus 0) |
-| 124 | 60 | `parser/trees/while_statement_tree.go` | `jscomp/parsing/parser/trees/WhileStatementTree.java` | 0% | 0 | 0.45 | 0 | tiny-wrapper(parent bonus 0) |
-| 125 | 60 | `parser/trees/with_statement_tree.go` | `jscomp/parsing/parser/trees/WithStatementTree.java` | 0% | 0 | 0.45 | 0 | tiny-wrapper(parent bonus 0) |
-| 126 | 60 | `jscomp/varrefcheck.go` | `jscomp/VariableReferenceCheck.java` | 3% | 0 | 1.50 | 1 | 2 go-only fns; 1 port-debt |
-| 127 | 60 | `jscomp/defaultpassconfig.go` | `jscomp/DefaultPassConfig.java` | 17% | 0 | 0.61 | 0 |  |
-| 128 | 60 | `parser/trees/computed_property_field_tree.go` | `jscomp/parsing/parser/trees/ComputedPropertyFieldTree.java` | 0% | 0 | 1.50 | 0 | tiny-wrapper(parent bonus 0) |
-| 129 | 60 | `parser/trees/field_declaration_tree.go` | `jscomp/parsing/parser/trees/FieldDeclarationTree.java` | 0% | 0 | 1.50 | 0 | tiny-wrapper(parent bonus 0) |
-| 130 | 60 | `parser/trees/import_meta_expression_tree.go` | `jscomp/parsing/parser/trees/ImportMetaExpressionTree.java` | 0% | 0 | 1.50 | 0 | tiny-wrapper(parent bonus 0) |
-| 131 | 60 | `rhino/static_source_file.go` | `rhino/StaticSourceFile.java` | 45% | 0 | 0.19 | 0 |  |
-| 132 | 60 | `rhino/nominal_type_builder.go` | `rhino/NominalTypeBuilder.java` | 8% | 0 | 0.67 | 0 | 4 go-only fns |
-| 133 | 60 | `rhino/jstype/no_object_type.go` | `rhino/jstype/NoObjectType.java` | 25% | 1 | 0.00 | 0 | 1 stubs |
-| 134 | 61 | `jscomp/syntacticscopecreator.go` | `jscomp/SyntacticScopeCreator.java` | 26% | 2 | 1.41 | 0 | 2 stubs; 3 go-only fns |
-| 135 | 61 | `rhino/jstype/enum_element_type.go` | `rhino/jstype/EnumElementType.java` | 16% | 0 | 0.30 | 0 |  |
-| 136 | 61 | `jscomp/checkmissingreturn.go` | `jscomp/CheckMissingReturn.java` | 38% | 0 | 1.50 | 0 | 6 go-only fns |
-| 137 | 61 | `rhino/jstype/record_type.go` | `rhino/jstype/RecordType.java` | 31% | 0 | 1.50 | 0 | 5 go-only fns |
-| 138 | 61 | `jscomp/astvalidator.go` | `jscomp/AstValidator.java` | 31% | 0 | 0.24 | 0 | 2 go-only fns |
-| 139 | 62 | `rhino/qualified_name.go` | `rhino/QualifiedName.java` | 52% | 1 | 1.25 | 0 | 1 stubs; 6 go-only fns |
-| 140 | 62 | `rhino/jsdoc_info_builder.go` | `rhino/JSDocInfo.java` | 34% | 0 | 0.39 | 0 | 3 go-only fns |
-| 141 | 62 | `rhino/jstype/symbol_type.go` | `rhino/jstype/SymbolType.java` | 1% | 0 | 0.18 | 0 | tiny-wrapper(parent bonus 20); 2 go-only fns |
-| 142 | 62 | `jscomp/nodetraversal.go` | `jscomp/NodeTraversal.java` | 24% | 0 | 0.20 | 0 |  |
-| 143 | 62 | `jscomp/compileroptions.go` | `jscomp/CompilerOptions.java` | 21% | 0 | 0.33 | 0 |  |
-| 144 | 62 | `diag/diagnosticgroup.go` | `jscomp/DiagnosticGroup.java` | 25% | 0 | 1.41 | 0 | 5 go-only fns |
-| 145 | 62 | `rhino/jstype/arrow_type.go` | `rhino/jstype/ArrowType.java` | 24% | 0 | 0.51 | 0 | 4 go-only fns |
-| 146 | 63 | `jscomp/dotformatter.go` | `jscomp/DotFormatter.java` | 24% | 0 | 1.50 | 0 | 6 go-only fns |
-| 147 | 63 | `rhino/jstype/value_type.go` | `rhino/jstype/ValueType.java` | 8% | 0 | 0.22 | 0 |  |
-| 148 | 63 | `parser/parser_statements.go` | `jscomp/parsing/parser/Parser.java` | 23% | 0 | 0.36 | 0 |  |
-| 149 | 63 | `jscomp/parsing/jsdoctokenstream.go` | `jscomp/parsing/JsDocTokenStream.java` | 26% | 0 | 0.56 | 0 | 6 go-only fns |
-| 150 | 63 | `jscomp/checksuspiciouscode.go` | `jscomp/CheckSuspiciousCode.java` | 44% | 0 | 1.50 | 0 | 3 go-only fns |
-| 151 | 63 | `rhino/jstype/known_symbol_type.go` | `rhino/jstype/KnownSymbolType.java` | 12% | 0 | 0.40 | 0 | 3 go-only fns |
-| 152 | 63 | `jscomp/checkdebuggerstatement.go` | `jscomp/CheckDebuggerStatement.java` | 17% | 0 | 1.14 | 0 | 2 go-only fns |
-| 153 | 64 | `diag/diagnosticgroups.go` | `jscomp/DiagnosticGroups.java` | 33% | 0 | 0.53 | 0 | 5 go-only fns |
-| 154 | 64 | `jscomp/typedscope.go` | `jscomp/TypedScope.java` | 15% | 0 | 1.50 | 2 | 2 port-debt |
-| 155 | 64 | `rhino/jstype/named_type.go` | `rhino/jstype/NamedType.java` | 28% | 2 | 0.51 | 0 | 2 stubs |
-| 156 | 64 | `jscomp/typedscopecreator.go` | `jscomp/TypedScopeCreator.java` | 2% | 0 | 1.07 | 0 |  |
-| 157 | 64 | `rhino/jstype/no_type.go` | `rhino/jstype/NoType.java` | 40% | 1 | 0.00 | 0 | 1 stubs; 2 go-only fns |
-| 158 | 64 | `rhino/jstype/prototype_object_type.go` | `rhino/jstype/PrototypeObjectType.java` | 44% | 2 | 0.11 | 0 | 2 stubs; 1 go-only fns |
-| 159 | 64 | `jscomp/checkglobalthis.go` | `jscomp/CheckGlobalThis.java` | 33% | 0 | 1.50 | 0 | 2 go-only fns |
-| 160 | 64 | `jscomp/inferjsdocinfo.go` | `jscomp/InferJsDocInfo.java` | 8% | 0 | 1.50 | 0 |  |
-| 161 | 65 | `rhino/jstype/enum_type.go` | `rhino/jstype/EnumType.java` | 28% | 1 | 0.28 | 0 | 1 stubs |
-| 162 | 65 | `jscomp/closurereverseabstractinterpreter.go` | `jscomp/type/ClosureReverseAbstractInterpreter.java` | 22% | 0 | 1.50 | 0 |  |
-| 163 | 65 | `parser/trees/parse_tree_type.go` | `jscomp/parsing/parser/trees/ParseTreeType.java` | 0% | 0 | 0.00 | 0 |  |
-| 164 | 65 | `rhino/jstype/equivalence_method.go` | `rhino/jstype/EquivalenceMethod.java` | 0% | 0 | 0.00 | 0 |  |
-| 165 | 65 | `rhino/jstype/jstype_native.go` | `rhino/jstype/JSTypeNative.java` | 0% | 0 | 0.00 | 0 |  |
-| 166 | 65 | `rhino/jstype/union_type.go` | `rhino/jstype/UnionType.java` | 22% | 0 | 0.43 | 0 |  |
-| 167 | 65 | `jscomp/checksideeffects.go` | `jscomp/CheckSideEffects.java` | 33% | 0 | 1.50 | 0 |  |
-| 168 | 66 | `rhino/token_stream.go` | `rhino/TokenStream.java` | 33% | 0 | 1.50 | 0 | 3 go-only fns |
-| 169 | 67 | `jscomp/parserrunner.go` | `jscomp/parsing/ParserRunner.java` | 14% | 0 | 1.06 | 0 |  |
-| 170 | 67 | `jscomp/parsing/irfactory.go` | `jscomp/parsing/IRFactory.java` | 29% | 0 | 0.42 | 0 |  |
-| 171 | 67 | `jscomp/scoped_name.go` | `jscomp/ScopedName.java` | 20% | 0 | 1.50 | 0 | 4 go-only fns |
-| 172 | 67 | `rhino/jstype/instance_object_type.go` | `rhino/jstype/InstanceObjectType.java` | 59% | 3 | 1.50 | 0 | 3 stubs; 2 go-only fns |
-| 173 | 67 | `jscomp/ast_analyzer.go` | `jscomp/AstAnalyzer.java` | 40% | 0 | 0.37 | 0 | 2 go-only fns |
-| 174 | 68 | `rhino/closure_primitive.go` | `rhino/ClosurePrimitive.java` | 20% | 0 | 0.52 | 0 |  |
-| 175 | 68 | `jscomp/base/tri.go` | `jscomp/base/Tri.java` | 33% | 0 | 0.51 | 0 |  |
-| 176 | 69 | `jscomp/checkduplicatemember.go` | `jscomp/StrictModeCheck.java` | 19% | 0 | 1.34 | 1 | 1 port-debt |
-| 177 | 69 | `jscomp/linkedflowscope.go` | `jscomp/LinkedFlowScope.java` | 21% | 0 | 0.63 | 0 |  |
-| 178 | 69 | `jscomp/checkunreachablecode.go` | `jscomp/CheckUnreachableCode.java` | 36% | 0 | 1.50 | 0 |  |
-| 179 | 69 | `jscomp/passfactory.go` | `jscomp/PassFactory.java` | 43% | 0 | 1.50 | 0 | 2 go-only fns |
-| 180 | 69 | `rhino/jstype/big_int_type.go` | `rhino/jstype/BigIntType.java` | 38% | 1 | 1.50 | 0 | 1 stubs; 1 go-only fns |
-| 181 | 69 | `jscomp/typecheck.go` | `jscomp/TypeCheck.java` | 40% | 0 | 1.50 | 0 |  |
+| 120 | 60 | `jscomp/checksideeffects.go` | `jscomp/CheckSideEffects.java` | 29% | 0 | 1.50 | 0 | 2 go-only fns |
+| 121 | 60 | `parser/trees/call_expression_tree.go` | `jscomp/parsing/parser/trees/CallExpressionTree.java` | 0% | 0 | 0.45 | 0 | tiny-wrapper(parent bonus 0) |
+| 122 | 60 | `parser/trees/catch_tree.go` | `jscomp/parsing/parser/trees/CatchTree.java` | 0% | 0 | 0.45 | 0 | tiny-wrapper(parent bonus 0) |
+| 123 | 60 | `parser/trees/computed_property_method_tree.go` | `jscomp/parsing/parser/trees/ComputedPropertyMethodTree.java` | 0% | 0 | 0.45 | 0 | tiny-wrapper(parent bonus 0) |
+| 124 | 60 | `parser/trees/variable_declaration_tree.go` | `jscomp/parsing/parser/trees/VariableDeclarationTree.java` | 0% | 0 | 0.45 | 0 | tiny-wrapper(parent bonus 0) |
+| 125 | 60 | `parser/trees/while_statement_tree.go` | `jscomp/parsing/parser/trees/WhileStatementTree.java` | 0% | 0 | 0.45 | 0 | tiny-wrapper(parent bonus 0) |
+| 126 | 60 | `parser/trees/with_statement_tree.go` | `jscomp/parsing/parser/trees/WithStatementTree.java` | 0% | 0 | 0.45 | 0 | tiny-wrapper(parent bonus 0) |
+| 127 | 60 | `jscomp/varrefcheck.go` | `jscomp/VariableReferenceCheck.java` | 3% | 0 | 1.50 | 1 | 2 go-only fns; 1 port-debt |
+| 128 | 60 | `jscomp/defaultpassconfig.go` | `jscomp/DefaultPassConfig.java` | 17% | 0 | 0.61 | 0 |  |
+| 129 | 60 | `parser/trees/computed_property_field_tree.go` | `jscomp/parsing/parser/trees/ComputedPropertyFieldTree.java` | 0% | 0 | 1.50 | 0 | tiny-wrapper(parent bonus 0) |
+| 130 | 60 | `parser/trees/field_declaration_tree.go` | `jscomp/parsing/parser/trees/FieldDeclarationTree.java` | 0% | 0 | 1.50 | 0 | tiny-wrapper(parent bonus 0) |
+| 131 | 60 | `parser/trees/import_meta_expression_tree.go` | `jscomp/parsing/parser/trees/ImportMetaExpressionTree.java` | 0% | 0 | 1.50 | 0 | tiny-wrapper(parent bonus 0) |
+| 132 | 60 | `rhino/static_source_file.go` | `rhino/StaticSourceFile.java` | 45% | 0 | 0.19 | 0 |  |
+| 133 | 60 | `rhino/nominal_type_builder.go` | `rhino/NominalTypeBuilder.java` | 8% | 0 | 0.67 | 0 | 4 go-only fns |
+| 134 | 60 | `rhino/jstype/no_object_type.go` | `rhino/jstype/NoObjectType.java` | 25% | 1 | 0.00 | 0 | 1 stubs |
+| 135 | 61 | `jscomp/syntacticscopecreator.go` | `jscomp/SyntacticScopeCreator.java` | 26% | 2 | 1.41 | 0 | 2 stubs; 3 go-only fns |
+| 136 | 61 | `rhino/jstype/enum_element_type.go` | `rhino/jstype/EnumElementType.java` | 16% | 0 | 0.30 | 0 |  |
+| 137 | 61 | `jscomp/checkmissingreturn.go` | `jscomp/CheckMissingReturn.java` | 38% | 0 | 1.50 | 0 | 6 go-only fns |
+| 138 | 61 | `rhino/jstype/record_type.go` | `rhino/jstype/RecordType.java` | 31% | 0 | 1.50 | 0 | 5 go-only fns |
+| 139 | 61 | `jscomp/astvalidator.go` | `jscomp/AstValidator.java` | 31% | 0 | 0.24 | 0 | 2 go-only fns |
+| 140 | 62 | `rhino/qualified_name.go` | `rhino/QualifiedName.java` | 52% | 1 | 1.25 | 0 | 1 stubs; 6 go-only fns |
+| 141 | 62 | `rhino/jsdoc_info_builder.go` | `rhino/JSDocInfo.java` | 34% | 0 | 0.39 | 0 | 3 go-only fns |
+| 142 | 62 | `rhino/jstype/symbol_type.go` | `rhino/jstype/SymbolType.java` | 1% | 0 | 0.18 | 0 | tiny-wrapper(parent bonus 20); 2 go-only fns |
+| 143 | 62 | `jscomp/nodetraversal.go` | `jscomp/NodeTraversal.java` | 24% | 0 | 0.20 | 0 |  |
+| 144 | 62 | `jscomp/compileroptions.go` | `jscomp/CompilerOptions.java` | 21% | 0 | 0.33 | 0 |  |
+| 145 | 62 | `diag/diagnosticgroup.go` | `jscomp/DiagnosticGroup.java` | 25% | 0 | 1.41 | 0 | 5 go-only fns |
+| 146 | 62 | `rhino/jstype/arrow_type.go` | `rhino/jstype/ArrowType.java` | 24% | 0 | 0.51 | 0 | 4 go-only fns |
+| 147 | 63 | `jscomp/dotformatter.go` | `jscomp/DotFormatter.java` | 24% | 0 | 1.50 | 0 | 6 go-only fns |
+| 148 | 63 | `rhino/jstype/value_type.go` | `rhino/jstype/ValueType.java` | 8% | 0 | 0.22 | 0 |  |
+| 149 | 63 | `parser/parser_statements.go` | `jscomp/parsing/parser/Parser.java` | 23% | 0 | 0.36 | 0 |  |
+| 150 | 63 | `jscomp/parsing/jsdoctokenstream.go` | `jscomp/parsing/JsDocTokenStream.java` | 26% | 0 | 0.56 | 0 | 6 go-only fns |
+| 151 | 63 | `jscomp/checksuspiciouscode.go` | `jscomp/CheckSuspiciousCode.java` | 44% | 0 | 1.50 | 0 | 3 go-only fns |
+| 152 | 63 | `jscomp/typedscope.go` | `jscomp/TypedScope.java` | 14% | 0 | 1.50 | 2 | 2 port-debt |
+| 153 | 63 | `rhino/jstype/known_symbol_type.go` | `rhino/jstype/KnownSymbolType.java` | 12% | 0 | 0.40 | 0 | 3 go-only fns |
+| 154 | 63 | `jscomp/checkdebuggerstatement.go` | `jscomp/CheckDebuggerStatement.java` | 17% | 0 | 1.14 | 0 | 2 go-only fns |
+| 155 | 64 | `jscomp/typedscopecreator.go` | `jscomp/TypedScopeCreator.java` | 2% | 0 | 1.18 | 0 |  |
+| 156 | 64 | `diag/diagnosticgroups.go` | `jscomp/DiagnosticGroups.java` | 33% | 0 | 0.53 | 0 | 5 go-only fns |
+| 157 | 64 | `jscomp/checkregexp.go` | `jscomp/CheckRegExp.java` | 20% | 0 | 1.46 | 0 | 2 go-only fns |
+| 158 | 64 | `rhino/jstype/named_type.go` | `rhino/jstype/NamedType.java` | 28% | 2 | 0.51 | 0 | 2 stubs |
+| 159 | 64 | `rhino/jstype/no_type.go` | `rhino/jstype/NoType.java` | 40% | 1 | 0.00 | 0 | 1 stubs; 2 go-only fns |
+| 160 | 64 | `rhino/jstype/prototype_object_type.go` | `rhino/jstype/PrototypeObjectType.java` | 44% | 2 | 0.11 | 0 | 2 stubs; 1 go-only fns |
+| 161 | 64 | `jscomp/checkglobalthis.go` | `jscomp/CheckGlobalThis.java` | 33% | 0 | 1.50 | 0 | 2 go-only fns |
+| 162 | 64 | `jscomp/inferjsdocinfo.go` | `jscomp/InferJsDocInfo.java` | 8% | 0 | 1.50 | 0 |  |
+| 163 | 65 | `rhino/jstype/enum_type.go` | `rhino/jstype/EnumType.java` | 28% | 1 | 0.28 | 0 | 1 stubs |
+| 164 | 65 | `jscomp/closurereverseabstractinterpreter.go` | `jscomp/type/ClosureReverseAbstractInterpreter.java` | 22% | 0 | 1.50 | 0 |  |
+| 165 | 65 | `parser/trees/parse_tree_type.go` | `jscomp/parsing/parser/trees/ParseTreeType.java` | 0% | 0 | 0.00 | 0 |  |
+| 166 | 65 | `rhino/jstype/equivalence_method.go` | `rhino/jstype/EquivalenceMethod.java` | 0% | 0 | 0.00 | 0 |  |
+| 167 | 65 | `rhino/jstype/jstype_native.go` | `rhino/jstype/JSTypeNative.java` | 0% | 0 | 0.00 | 0 |  |
+| 168 | 66 | `rhino/jstype/union_type.go` | `rhino/jstype/UnionType.java` | 23% | 0 | 0.49 | 0 |  |
+| 169 | 66 | `rhino/token_stream.go` | `rhino/TokenStream.java` | 33% | 0 | 1.50 | 0 | 3 go-only fns |
+| 170 | 67 | `jscomp/parserrunner.go` | `jscomp/parsing/ParserRunner.java` | 14% | 0 | 1.06 | 0 |  |
+| 171 | 67 | `jscomp/parsing/irfactory.go` | `jscomp/parsing/IRFactory.java` | 29% | 0 | 0.42 | 0 |  |
+| 172 | 67 | `jscomp/scoped_name.go` | `jscomp/ScopedName.java` | 20% | 0 | 1.50 | 0 | 4 go-only fns |
+| 173 | 67 | `rhino/jstype/instance_object_type.go` | `rhino/jstype/InstanceObjectType.java` | 59% | 3 | 1.50 | 0 | 3 stubs; 2 go-only fns |
+| 174 | 67 | `jscomp/ast_analyzer.go` | `jscomp/AstAnalyzer.java` | 40% | 0 | 0.37 | 0 | 2 go-only fns |
+| 175 | 68 | `rhino/closure_primitive.go` | `rhino/ClosurePrimitive.java` | 20% | 0 | 0.52 | 0 |  |
+| 176 | 68 | `jscomp/base/tri.go` | `jscomp/base/Tri.java` | 33% | 0 | 0.51 | 0 |  |
+| 177 | 69 | `jscomp/checkduplicatemember.go` | `jscomp/StrictModeCheck.java` | 19% | 0 | 1.34 | 1 | 1 port-debt |
+| 178 | 69 | `jscomp/linkedflowscope.go` | `jscomp/LinkedFlowScope.java` | 21% | 0 | 0.63 | 0 |  |
+| 179 | 69 | `jscomp/checkunreachablecode.go` | `jscomp/CheckUnreachableCode.java` | 36% | 0 | 1.50 | 0 |  |
+| 180 | 69 | `jscomp/passfactory.go` | `jscomp/PassFactory.java` | 43% | 0 | 1.50 | 0 | 2 go-only fns |
+| 181 | 69 | `rhino/jstype/big_int_type.go` | `rhino/jstype/BigIntType.java` | 38% | 1 | 1.50 | 0 | 1 stubs; 1 go-only fns |
 | 182 | 69 | `rhino/input_id.go` | `rhino/InputId.java` | 29% | 0 | 0.23 | 0 | 1 go-only fns |
 | 183 | 69 | `jscomp/controlflowgraph.go` | `jscomp/ControlFlowGraph.java` | 29% | 0 | 1.33 | 0 |  |
 | 184 | 70 | `jscomp/scope_untyped.go` | `jscomp/Scope.java` | 19% | 0 | 1.27 | 0 |  |
 | 185 | 70 | `rhino/jstype/template_type_replacer.go` | `rhino/jstype/TemplateTypeReplacer.java` | 43% | 0 | 0.89 | 0 | 5 go-only fns |
-| 186 | 70 | `jscomp/parsing/jsdocinfoparser.go` | `jscomp/parsing/JsDocInfoParser.java` | 28% | 0 | 0.60 | 0 |  |
+| 186 | 70 | `jscomp/parsing/jsdocinfoparser.go` | `jscomp/parsing/JsDocInfoParser.java` | 29% | 0 | 0.60 | 0 |  |
 | 187 | 70 | `diag/diagnostictype.go` | `jscomp/DiagnosticType.java` | 16% | 0 | 1.50 | 0 |  |
-| 188 | 71 | `jscomp/checkclosureimports.go` | `jscomp/CheckClosureImports.java` | 32% | 0 | 1.08 | 17 | 17 port-debt |
-| 189 | 71 | `jscomp/checkmissingrequires.go` | `jscomp/CheckMissingRequires.java` | 39% | 0 | 1.33 | 8 | 8 port-debt |
-| 190 | 71 | `diag/allowlistwarningsguard.go` | `jscomp/AllowlistWarningsGuard.java` | 58% | 0 | 1.10 | 0 | 7 go-only fns |
-| 191 | 71 | `rhino/jstype/property_map.go` | `rhino/jstype/PropertyMap.java` | 62% | 0 | 1.19 | 0 | 7 go-only fns |
-| 192 | 72 | `rhino/jsdoc.go` | `rhino/JSDocInfo.java` | 31% | 0 | 0.35 | 0 |  |
-| 193 | 72 | `jscomp/nodeutil.go` | `jscomp/NodeUtil.java` | 40% | 1 | 0.62 | 0 | 1 stubs |
-| 194 | 72 | `rhino/jstype/subtype_checker.go` | `rhino/jstype/SubtypeChecker.java` | 46% | 0 | 0.48 | 0 | 2 go-only fns |
-| 195 | 72 | `rhino/jstype/equality_checker.go` | `rhino/jstype/EqualityChecker.java` | 38% | 0 | 0.98 | 0 | 4 go-only fns |
-| 196 | 72 | `jscomp/nodeiterators.go` | `jscomp/NodeIterators.java` | 44% | 0 | 1.23 | 0 | 4 go-only fns |
-| 197 | 72 | `rhino/jstype/template_type_map.go` | `rhino/jstype/TemplateTypeMap.java` | 61% | 0 | 0.99 | 0 | 7 go-only fns |
-| 198 | 72 | `jscomp/astmanipulations.go` | `jscomp/AstManipulations.java` | 50% | 0 | 0.22 | 0 |  |
-| 199 | 72 | `parser/scanner.go` | `jscomp/parsing/parser/Scanner.java` | 51% | 0 | 1.42 | 0 | 3 go-only fns |
-| 200 | 72 | `rhino/error_reporter.go` | `rhino/ErrorReporter.java` | 50% | 2 | 0.09 | 0 | 2 stubs |
-| 201 | 72 | `rhino/simple_source_file.go` | `rhino/SimpleSourceFile.java` | 50% | 2 | 1.50 | 0 | 2 stubs; 2 go-only fns |
-| 202 | 73 | `rhino/jstype/jstype_iterations.go` | `rhino/jstype/JSTypeIterations.java` | 43% | 0 | 1.11 | 0 | 3 go-only fns |
-| 203 | 73 | `rhino/jstype/type_string_builder.go` | `rhino/jstype/TypeStringBuilder.java` | 50% | 0 | 0.89 | 0 | 3 go-only fns |
-| 204 | 73 | `diag/jserror.go` | `jscomp/JSError.java` | 34% | 1 | 1.01 | 0 | 1 stubs |
-| 205 | 73 | `jscomp/abstractvar.go` | `jscomp/AbstractVar.java` | 57% | 0 | 0.70 | 0 | 5 go-only fns |
-| 206 | 74 | `jscomp/passconfig.go` | `jscomp/PassConfig.java` | 46% | 0 | 1.24 | 0 | 2 go-only fns |
-| 207 | 74 | `jscomp/checksuper.go` | `jscomp/CheckSuper.java` | 50% | 0 | 1.37 | 2 | 2 port-debt |
-| 208 | 74 | `rhino/jstype/boolean_literal_set.go` | `rhino/jstype/BooleanLiteralSet.java` | 43% | 0 | 0.53 | 0 | 1 go-only fns |
-| 209 | 75 | `parser/parser_new.go` | `jscomp/parsing/parser/Parser.java` | 41% | 0 | 0.68 | 0 |  |
-| 210 | 76 | `jscomp/inference.go` | `jscomp/TypeInference.java` | 47% | 0 | 1.44 | 2 | 2 port-debt |
-| 211 | 76 | `jscomp/typetransformation.go` | `jscomp/TypeTransformation.java` | 76% | 0 | 0.85 | 0 | 7 go-only fns |
-| 212 | 76 | `jscomp/abstractscope.go` | `jscomp/AbstractScope.java` | 33% | 0 | 1.27 | 0 |  |
-| 213 | 77 | `jscomp/controlflowanalysis.go` | `jscomp/ControlFlowAnalysis.java` | 41% | 0 | 1.14 | 0 |  |
-| 214 | 77 | `jscomp/typedvar.go` | `jscomp/TypedVar.java` | 57% | 0 | 0.16 | 0 | 2 go-only fns |
-| 215 | 77 | `jscomp/checkconformance.go` | `jscomp/CheckConformance.java` | 67% | 0 | 0.24 | 0 |  |
-| 216 | 77 | `jscomp/cfg.go` | `jscomp/ControlFlowGraph.java` | 44% | 1 | 0.95 | 0 | 1 stubs; 1 go-only fns |
-| 217 | 79 | `jscomp/compilerinput.go` | `jscomp/CompilerInput.java` | 45% | 0 | 0.36 | 1 | 1 port-debt |
-| 218 | 79 | `rhino/node.go` | `rhino/Node.java` | 60% | 0 | 0.36 | 0 | 1 go-only fns |
-| 219 | 79 | `jscomp/typemismatch.go` | `jscomp/TypeMismatch.java` | 56% | 0 | 1.45 | 0 | 1 go-only fns |
-| 220 | 80 | `jscomp/abstractmessageformatter.go` | `jscomp/AbstractMessageFormatter.java` | 55% | 0 | 0.45 | 0 | 1 go-only fns |
-| 221 | 80 | `rhino/jstype/proxy_object_type.go` | `rhino/jstype/ProxyObjectType.java` | 62% | 1 | 0.62 | 0 | 1 stubs |
-| 222 | 81 | `diag/abstractmessageformatter.go` | `jscomp/AbstractMessageFormatter.java` | 67% | 0 | 0.36 | 0 | 1 go-only fns |
-| 223 | 81 | `rhino/jstype/contains_upper_bound_super_type_visitor.go` | `rhino/jstype/ContainsUpperBoundSuperTypeVisitor.java` | 60% | 0 | 1.50 | 0 | 2 go-only fns |
-| 224 | 81 | `parser/trees/comment.go` | `jscomp/parsing/parser/trees/Comment.java` | 60% | 0 | 0.12 | 0 |  |
-| 225 | 81 | `jscomp/chainablereverseabstractinterpreter.go` | `jscomp/type/ChainableReverseAbstractInterpreter.java` | 65% | 0 | 0.77 | 0 |  |
-| 226 | 81 | `rhino/jstype_expr.go` | `rhino/JSTypeExpression.java` | 68% | 0 | 1.43 | 0 | 3 go-only fns |
-| 227 | 81 | `rhino/jstype/record_type_builder.go` | `rhino/jstype/RecordTypeBuilder.java` | 50% | 0 | 0.78 | 0 | 1 go-only fns |
-| 228 | 82 | `jscomp/astfactory.go` | `jscomp/AstFactory.java` | 62% | 0 | 0.38 | 0 |  |
-| 229 | 82 | `jscomp/abstractcompiler.go` | `jscomp/AbstractCompiler.java` | 57% | 0 | 1.50 | 18 | 18 port-debt |
-| 230 | 82 | `rhino/outcome.go` | `rhino/Outcome.java` | 60% | 0 | 0.40 | 0 | 1 go-only fns |
-| 231 | 83 | `jscomp/dataflow.go` | `jscomp/DataFlowAnalysis.java` | 57% | 0 | 1.50 | 0 |  |
-| 232 | 84 | `parser/trees/break_statement_tree.go` | `jscomp/parsing/parser/trees/BreakStatementTree.java` | 1% | 0 | 0.36 | 0 | tiny-wrapper(parent bonus 15) |
-| 233 | 84 | `parser/trees/continue_statement_tree.go` | `jscomp/parsing/parser/trees/ContinueStatementTree.java` | 1% | 0 | 0.36 | 0 | tiny-wrapper(parent bonus 15) |
-| 234 | 84 | `rhino/non_jsdoc_comment.go` | `rhino/NonJSDocComment.java` | 64% | 0 | 1.50 | 0 | 1 go-only fns |
-| 235 | 86 | `rhino/jstype/can_cast_to_visitor.go` | `rhino/jstype/CanCastToVisitor.java` | 79% | 0 | 1.17 | 0 | 2 go-only fns |
-| 236 | 86 | `parser/trees/function_declaration_tree.go` | `jscomp/parsing/parser/trees/FunctionDeclarationTree.java` | 75% | 0 | 0.37 | 0 |  |
-| 237 | 87 | `jscomp/basicblock.go` | `jscomp/BasicBlock.java` | 67% | 0 | 1.06 | 0 | 1 go-only fns |
-| 238 | 87 | `rhino/token_util.go` | `rhino/TokenUtil.java` | 80% | 0 | 1.47 | 0 |  |
-| 239 | 88 | `rhino/jstype/jstype_resolver.go` | `rhino/jstype/JSTypeResolver.java` | 80% | 1 | 0.97 | 0 | 1 stubs |
-| 240 | 88 | `rhino/jstype/function_param_builder.go` | `rhino/jstype/FunctionParamBuilder.java` | 75% | 0 | 0.97 | 0 | 2 go-only fns |
-| 241 | 88 | `rhino/jstype/visitor.go` | `rhino/jstype/Visitor.java` | 95% | 0 | 0.03 | 0 |  |
-| 242 | 89 | `rhino/source_position.go` | `rhino/SourcePosition.java` | 89% | 0 | 0.37 | 0 |  |
-| 243 | 90 | `jscomp/flowscope.go` | `jscomp/type/FlowScope.java` | 80% | 0 | 1.00 | 0 |  |
-| 244 | 91 | `jscomp/passlistbuilder.go` | `jscomp/PassListBuilder.java` | 76% | 0 | 1.12 | 0 | 1 go-only fns |
+| 188 | 71 | `jscomp/inference.go` | `jscomp/TypeInference.java` | 46% | 0 | 1.50 | 0 | 2 go-only fns |
+| 189 | 71 | `jscomp/checkclosureimports.go` | `jscomp/CheckClosureImports.java` | 32% | 0 | 1.08 | 17 | 17 port-debt |
+| 190 | 71 | `jscomp/varcheck.go` | `jscomp/VarCheck.java` | 32% | 0 | 0.60 | 0 | 1 go-only fns |
+| 191 | 71 | `jscomp/checkmissingrequires.go` | `jscomp/CheckMissingRequires.java` | 39% | 0 | 1.33 | 8 | 8 port-debt |
+| 192 | 71 | `diag/allowlistwarningsguard.go` | `jscomp/AllowlistWarningsGuard.java` | 58% | 0 | 1.10 | 0 | 7 go-only fns |
+| 193 | 71 | `rhino/jstype/property_map.go` | `rhino/jstype/PropertyMap.java` | 62% | 0 | 1.19 | 0 | 7 go-only fns |
+| 194 | 72 | `rhino/jsdoc.go` | `rhino/JSDocInfo.java` | 31% | 0 | 0.35 | 0 |  |
+| 195 | 72 | `jscomp/nodeutil.go` | `jscomp/NodeUtil.java` | 40% | 1 | 0.62 | 0 | 1 stubs |
+| 196 | 72 | `rhino/jstype/subtype_checker.go` | `rhino/jstype/SubtypeChecker.java` | 46% | 0 | 0.48 | 0 | 2 go-only fns |
+| 197 | 72 | `rhino/jstype/equality_checker.go` | `rhino/jstype/EqualityChecker.java` | 38% | 0 | 0.98 | 0 | 4 go-only fns |
+| 198 | 72 | `jscomp/nodeiterators.go` | `jscomp/NodeIterators.java` | 44% | 0 | 1.23 | 0 | 4 go-only fns |
+| 199 | 72 | `rhino/jstype/template_type_map.go` | `rhino/jstype/TemplateTypeMap.java` | 61% | 0 | 0.99 | 0 | 7 go-only fns |
+| 200 | 72 | `jscomp/astmanipulations.go` | `jscomp/AstManipulations.java` | 50% | 0 | 0.22 | 0 |  |
+| 201 | 72 | `parser/scanner.go` | `jscomp/parsing/parser/Scanner.java` | 51% | 0 | 1.42 | 0 | 3 go-only fns |
+| 202 | 72 | `rhino/error_reporter.go` | `rhino/ErrorReporter.java` | 50% | 2 | 0.09 | 0 | 2 stubs |
+| 203 | 72 | `rhino/simple_source_file.go` | `rhino/SimpleSourceFile.java` | 50% | 2 | 1.50 | 0 | 2 stubs; 2 go-only fns |
+| 204 | 73 | `rhino/jstype/jstype_iterations.go` | `rhino/jstype/JSTypeIterations.java` | 43% | 0 | 1.11 | 0 | 3 go-only fns |
+| 205 | 73 | `rhino/jstype/type_string_builder.go` | `rhino/jstype/TypeStringBuilder.java` | 50% | 0 | 0.89 | 0 | 3 go-only fns |
+| 206 | 73 | `diag/jserror.go` | `jscomp/JSError.java` | 34% | 1 | 1.01 | 0 | 1 stubs |
+| 207 | 73 | `jscomp/abstractvar.go` | `jscomp/AbstractVar.java` | 57% | 0 | 0.70 | 0 | 5 go-only fns |
+| 208 | 74 | `jscomp/passconfig.go` | `jscomp/PassConfig.java` | 46% | 0 | 1.24 | 0 | 2 go-only fns |
+| 209 | 74 | `jscomp/checksuper.go` | `jscomp/CheckSuper.java` | 50% | 0 | 1.37 | 2 | 2 port-debt |
+| 210 | 74 | `rhino/jstype/boolean_literal_set.go` | `rhino/jstype/BooleanLiteralSet.java` | 43% | 0 | 0.53 | 0 | 1 go-only fns |
+| 211 | 75 | `parser/parser_new.go` | `jscomp/parsing/parser/Parser.java` | 41% | 0 | 0.68 | 0 |  |
+| 212 | 76 | `jscomp/typetransformation.go` | `jscomp/TypeTransformation.java` | 76% | 0 | 0.85 | 0 | 7 go-only fns |
+| 213 | 76 | `jscomp/abstractscope.go` | `jscomp/AbstractScope.java` | 33% | 0 | 1.27 | 0 |  |
+| 214 | 77 | `jscomp/controlflowanalysis.go` | `jscomp/ControlFlowAnalysis.java` | 41% | 0 | 1.14 | 0 |  |
+| 215 | 77 | `jscomp/typedvar.go` | `jscomp/TypedVar.java` | 57% | 0 | 0.16 | 0 | 2 go-only fns |
+| 216 | 77 | `jscomp/checkconformance.go` | `jscomp/CheckConformance.java` | 67% | 0 | 0.24 | 0 |  |
+| 217 | 77 | `jscomp/cfg.go` | `jscomp/ControlFlowGraph.java` | 44% | 1 | 0.95 | 0 | 1 stubs; 1 go-only fns |
+| 218 | 79 | `jscomp/compilerinput.go` | `jscomp/CompilerInput.java` | 45% | 0 | 0.36 | 1 | 1 port-debt |
+| 219 | 79 | `rhino/node.go` | `rhino/Node.java` | 60% | 0 | 0.36 | 0 | 1 go-only fns |
+| 220 | 79 | `jscomp/typemismatch.go` | `jscomp/TypeMismatch.java` | 56% | 0 | 1.45 | 0 | 1 go-only fns |
+| 221 | 80 | `jscomp/abstractmessageformatter.go` | `jscomp/AbstractMessageFormatter.java` | 55% | 0 | 0.45 | 0 | 1 go-only fns |
+| 222 | 80 | `rhino/jstype/proxy_object_type.go` | `rhino/jstype/ProxyObjectType.java` | 62% | 1 | 0.62 | 0 | 1 stubs |
+| 223 | 81 | `diag/abstractmessageformatter.go` | `jscomp/AbstractMessageFormatter.java` | 67% | 0 | 0.36 | 0 | 1 go-only fns |
+| 224 | 81 | `rhino/jstype/contains_upper_bound_super_type_visitor.go` | `rhino/jstype/ContainsUpperBoundSuperTypeVisitor.java` | 60% | 0 | 1.50 | 0 | 2 go-only fns |
+| 225 | 81 | `parser/trees/comment.go` | `jscomp/parsing/parser/trees/Comment.java` | 60% | 0 | 0.12 | 0 |  |
+| 226 | 81 | `jscomp/chainablereverseabstractinterpreter.go` | `jscomp/type/ChainableReverseAbstractInterpreter.java` | 65% | 0 | 0.77 | 0 |  |
+| 227 | 81 | `rhino/jstype_expr.go` | `rhino/JSTypeExpression.java` | 68% | 0 | 1.43 | 0 | 3 go-only fns |
+| 228 | 81 | `rhino/jstype/record_type_builder.go` | `rhino/jstype/RecordTypeBuilder.java` | 50% | 0 | 0.78 | 0 | 1 go-only fns |
+| 229 | 82 | `jscomp/astfactory.go` | `jscomp/AstFactory.java` | 62% | 0 | 0.38 | 0 |  |
+| 230 | 82 | `jscomp/abstractcompiler.go` | `jscomp/AbstractCompiler.java` | 57% | 0 | 1.50 | 18 | 18 port-debt |
+| 231 | 82 | `rhino/outcome.go` | `rhino/Outcome.java` | 60% | 0 | 0.40 | 0 | 1 go-only fns |
+| 232 | 83 | `jscomp/dataflow.go` | `jscomp/DataFlowAnalysis.java` | 57% | 0 | 1.50 | 0 |  |
+| 233 | 84 | `parser/trees/break_statement_tree.go` | `jscomp/parsing/parser/trees/BreakStatementTree.java` | 1% | 0 | 0.36 | 0 | tiny-wrapper(parent bonus 15) |
+| 234 | 84 | `parser/trees/continue_statement_tree.go` | `jscomp/parsing/parser/trees/ContinueStatementTree.java` | 1% | 0 | 0.36 | 0 | tiny-wrapper(parent bonus 15) |
+| 235 | 84 | `rhino/non_jsdoc_comment.go` | `rhino/NonJSDocComment.java` | 64% | 0 | 1.50 | 0 | 1 go-only fns |
+| 236 | 86 | `rhino/jstype/can_cast_to_visitor.go` | `rhino/jstype/CanCastToVisitor.java` | 79% | 0 | 1.17 | 0 | 2 go-only fns |
+| 237 | 86 | `parser/trees/function_declaration_tree.go` | `jscomp/parsing/parser/trees/FunctionDeclarationTree.java` | 75% | 0 | 0.37 | 0 |  |
+| 238 | 87 | `jscomp/basicblock.go` | `jscomp/BasicBlock.java` | 67% | 0 | 1.06 | 0 | 1 go-only fns |
+| 239 | 87 | `rhino/token_util.go` | `rhino/TokenUtil.java` | 80% | 0 | 1.47 | 0 |  |
+| 240 | 88 | `rhino/jstype/jstype_resolver.go` | `rhino/jstype/JSTypeResolver.java` | 80% | 1 | 0.97 | 0 | 1 stubs |
+| 241 | 88 | `rhino/jstype/function_param_builder.go` | `rhino/jstype/FunctionParamBuilder.java` | 75% | 0 | 0.97 | 0 | 2 go-only fns |
+| 242 | 88 | `rhino/jstype/visitor.go` | `rhino/jstype/Visitor.java` | 95% | 0 | 0.03 | 0 |  |
+| 243 | 89 | `rhino/source_position.go` | `rhino/SourcePosition.java` | 89% | 0 | 0.37 | 0 |  |
+| 244 | 90 | `jscomp/flowscope.go` | `jscomp/type/FlowScope.java` | 80% | 0 | 1.00 | 0 |  |
+| 245 | 91 | `jscomp/passlistbuilder.go` | `jscomp/PassListBuilder.java` | 76% | 0 | 1.12 | 0 | 1 go-only fns |
 
