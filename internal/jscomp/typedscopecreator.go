@@ -3553,11 +3553,71 @@ func rtsCheckTypeExpr(path, src string, base int, inner string, tmpls, allTempla
 	}
 }
 
-// getLValueRootScope mirrors TypedScopeCreator.getLValueRootScope in Java.
-// Returns the scope in which the lvalue declaration belongs (VAR → hoist,
-// LET/CONST → block). In our flat-scope model this always returns scope.
-// Go-only: language-adapter — getLValueRootScope is a Go-only helper that returns the root scope for an LValue; Java uses TypedScopeCreator.getDeclaredType inline without a separate helper.
-func getLValueRootScope(_ *rhino.Node, scope *TypedScope) *TypedScope { return scope }
+// getLValueRootScope returns the scope that owns the binding at the root of n.
+// Port of jscomp/TypedScopeCreator.java @ closure-compiler v20260415
+// Mirrors NormalScopeBuilder.getLValueRootScope.
+func getLValueRootScope(n *rhino.Node, scope *TypedScope) *TypedScope {
+	// currentHoistScope in Java = closest enclosing hoist scope of currentScope.
+	hoistScope, _ := ScopeGetClosestHoistScope(scope).(*TypedScope)
+	if hoistScope == nil {
+		hoistScope = scope
+	}
+
+	root := getBestLValueRoot(n)
+	if root != nil {
+		if root.IsName() {
+			nameParent := root.Parent()
+			if nameParent != nil {
+				switch nameParent.Token() {
+				case rhino.VAR:
+					return hoistScope
+				case rhino.LET, rhino.CONST, rhino.CLASS, rhino.FUNCTION, rhino.PARAM_LIST, rhino.CATCH:
+					return scope
+				case rhino.ITER_REST, rhino.OBJECT_REST:
+					// TODO(bradfordcsmith): Handle array destructuring REST
+					return scope
+				default:
+					// If root is the module `exports` binding, use the current scope.
+					if root.String_() == VarExports && scope.IsModuleScope() {
+						return scope
+					}
+					if v := scope.GetVar(root.String_()); v != nil {
+						return v.GetScope()
+					}
+				}
+			}
+		} else if root.IsThis() || root.IsSuper() {
+			// Enclosing function scope, or global scope if not in a function.
+			if s, ok := ScopeGetScopeOfThis(hoistScope).(*TypedScope); ok && s != nil {
+				return s
+			}
+		}
+	}
+	if gs, ok := ScopeGetGlobalScope(hoistScope).(*TypedScope); ok && gs != nil {
+		return gs
+	}
+	return hoistScope
+}
+
+// getBestLValueRoot walks an lvalue node up through GETPROP/GETELEM/STRING_KEY
+// wrapping to find the NAME, THIS, or SUPER root.
+// Port of jscomp/TypedScopeCreator.java @ closure-compiler v20260415
+// Mirrors NodeUtil.getBestLValueRoot.
+func getBestLValueRoot(lValue *rhino.Node) *rhino.Node {
+	if lValue == nil {
+		return nil
+	}
+	switch lValue.Token() {
+	case rhino.STRING_KEY:
+		return getBestLValueRoot(NU.GetBestLValue(lValue.Parent()))
+	case rhino.GETPROP, rhino.GETELEM:
+		return getBestLValueRoot(lValue.FirstChild())
+	case rhino.THIS, rhino.SUPER, rhino.NAME:
+		return lValue
+	default:
+		return nil
+	}
+}
 
 // inferTypeForDestructuredTarget mirrors the narrow path in Java's
 // TypedScopeCreator: for `const {id} = obj`, returns the declared type of
