@@ -1387,6 +1387,7 @@ func (s *TypedScope) resolveFunctionTypeExpr(expr string) *jstype.FunctionType {
 	// (FunctionType.Kind.CONSTRUCTOR). `this:T` sets typeOfThis, which
 	// drives JSC_EXPECTED_THIS_TYPE and FunctionType.getTypeOfThis().
 	isCtor := false
+	var ctorReturnType jstype.JSType
 	var typeOfThis jstype.JSType
 	var positionalParts []string
 	for _, pp := range paramParts {
@@ -1394,6 +1395,13 @@ func (s *TypedScope) resolveFunctionTypeExpr(expr string) *jstype.FunctionType {
 		switch {
 		case startsWith(trimmed, "new:"):
 			isCtor = true
+			// Port of FunctionTypeAST handling for `new:T` pseudo-param:
+			// the type T specifies the instance type returned when called
+			// with `new`. Resolve it so traverseInstantiation can return T.
+			newTypeName := trimSpace(trimmed[4:])
+			if newTypeName != "" {
+				ctorReturnType = s.ResolveExpr(newTypeName)
+			}
 		case startsWith(trimmed, "this:"):
 			typeOfThis = s.ResolveExpr(trimmed[5:])
 		default:
@@ -1463,6 +1471,22 @@ func (s *TypedScope) resolveFunctionTypeExpr(expr string) *jstype.FunctionType {
 	// Mirrors FunctionType.builder.forConstructor() when new:T is present.
 	if isCtor {
 		fn.IsConstructor = true
+		// Port of JSTypeRegistry.createFunctionTypeWithNewType: when `new:T`
+		// is specified, set the Instance to T's ObjectType so `new f()` infers
+		// the instance type T (via traverseInstantiation). Mirrors how Java
+		// builds a CONSTRUCTOR kind FunctionType with T as the returned instance.
+		if ctorReturnType != nil {
+			// Strip null/undefined from nullable nominal types (e.g. `Array`
+			// resolves to `Array|null` by default; use the non-null base).
+			ctorNonNull := stripNullUndef(ctorReturnType)
+			if inst, ok := ctorNonNull.(*jstype.ObjectType); ok {
+				fn.Instance = inst
+			} else if tplt, ok := ctorNonNull.(*jstype.TemplatizedType); ok {
+				fn.Instance = tplt.Base
+			} else if fnT, ok := ctorNonNull.(*jstype.FunctionType); ok && fnT.Instance != nil {
+				fn.Instance = fnT.Instance
+			}
+		}
 	}
 	// Wire `this:T` through to the function's typeOfThis so
 	// EXPECTED_THIS_TYPE checks + call-site this binding fire correctly.
