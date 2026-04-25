@@ -2652,6 +2652,15 @@ func (c *TypeCheck) visitClassField(field *rhino.Node, parent *rhino.Node, scope
 		if gp.Token() == rhino.CLASS && gp.FirstChild() != nil {
 			className = gp.FirstChild().String_()
 		}
+		// Anonymous class: derive the name from the enclosing
+		// declaration / assignment. Mirrors Java's
+		// FunctionType.getInstanceType().toString() which reports the
+		// qualified name from the surrounding binding (e.g. `obj.C`
+		// for `obj.C = class { ... }`, or `Foo` for `var Foo = class
+		// { ... }`).
+		if className == "" && gp.Token() == rhino.CLASS {
+			className = anonClassQualifiedName(gp)
+		}
 	}
 	msg := fmt.Sprintf("assignment to property %s of %s\nfound   : %s\nrequired: %s",
 		name.String_(), className, found.TypeName(), declared.TypeName())
@@ -2663,6 +2672,58 @@ func (c *TypeCheck) visitClassField(field *rhino.Node, parent *rhino.Node, scope
 		Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error, Message: msg,
 	})
 	return out
+}
+
+// Go-only: language-adapter — anonClassQualifiedName resolves an anonymous
+// CLASS node's owner name from the surrounding declaration/assignment so
+// JSC_TYPE_MISMATCH messages mirror Java's FunctionType.getInstanceType()
+// output. Java derives this nominally via TypedScopeCreator's assignment
+// recording; Go walks the AST since the class is not registered when
+// anonymous.
+func anonClassQualifiedName(cls *rhino.Node) string {
+	if cls == nil {
+		return ""
+	}
+	p := cls.Parent()
+	if p == nil {
+		return ""
+	}
+	switch p.Token() {
+	case rhino.ASSIGN:
+		// `lhs = class { … }` — the LHS qualified name is the owner.
+		kids := p.Children()
+		if len(kids) >= 2 && kids[1] == cls {
+			return dottedNameOf(kids[0])
+		}
+	case rhino.NAME:
+		// `var Foo = class { … }` — the NAME is the owner.
+		return p.String_()
+	}
+	return ""
+}
+
+// Go-only: language-adapter — dottedNameOf walks a NAME / GETPROP chain
+// and produces the dotted source name (e.g. `obj.C` for the LHS of
+// `obj.C = …`). Mirrors how Java's NodeUtil.getBestLValueName recovers a
+// readable owner name without consulting the TypedScopeCreator.
+func dottedNameOf(n *rhino.Node) string {
+	if n == nil {
+		return ""
+	}
+	switch n.Token() {
+	case rhino.NAME:
+		return n.String_()
+	case rhino.GETPROP:
+		kids := n.Children()
+		if len(kids) >= 2 {
+			lhs := dottedNameOf(kids[0])
+			if lhs == "" {
+				return ""
+			}
+			return lhs + "." + kids[1].String_()
+		}
+	}
+	return ""
 }
 
 // Go-only: language-adapter — Go extracted COMPUTED_PROP handling from Java's
