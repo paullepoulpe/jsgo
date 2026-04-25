@@ -2978,6 +2978,7 @@ func (c *TypedScopeCreator) collectThisPropertiesIn(node *rhino.Node, inst *jsty
 						_ = hasInfoType
 					} else {
 						var t jstype.JSType = jstype.Unknown
+						declaredFromJSDoc := false
 						if hasInfoType {
 							t = existing
 							if t == nil {
@@ -2986,6 +2987,7 @@ func (c *TypedScopeCreator) collectThisPropertiesIn(node *rhino.Node, inst *jsty
 							declared := resolveTypeExpr(scope, c.registry, info.Type().TypeName)
 							if !isJSUnknown(declared) {
 								t = declared
+								declaredFromJSDoc = true
 							}
 						} else {
 							if existing == nil || isJSUnknown(existing) {
@@ -2995,7 +2997,11 @@ func (c *TypedScopeCreator) collectThisPropertiesIn(node *rhino.Node, inst *jsty
 								t = existing
 							}
 						}
-						inst.DefineProperty(prop.String_(), t)
+						if declaredFromJSDoc {
+							inst.DefineDeclaredProperty(prop.String_(), t, kids[0])
+						} else {
+							inst.DefineInferredProperty(prop.String_(), t, kids[0])
+						}
 					}
 				}
 			}

@@ -2130,6 +2130,56 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 				}}
 			}
 		}
+		// Reads on nominal @constructor types where the property exists
+		// only as an inferred slot (collectPropertyWrites side-band) —
+		// Java's canPropertyBeDefined returns LOOSE → STRICT_INEXISTENT_PROPERTY
+		// on reads as well as writes. Skip @struct (sealed surface, fires
+		// elsewhere), @interface (separate strict path below), externs
+		// (sparse jsgo stubs — keep the surface open), and reads inside
+		// the receiver's own constructor (Java treats those as the
+		// definition site).
+		if !obj.IsStruct && !obj.IsStructural && !c.externTypes[obj] &&
+			c.inferredWrites[obj] != nil && c.inferredWrites[obj][propName] &&
+			!insideOwnConstructor(n, obj) &&
+			!propertyDefinedInOwnConstructor(obj, propName) &&
+			!isThisAccessInsideConstructor(n, obj) {
+			if c.opts != nil && c.opts.IsOn(GroupStrictCheckTypes) {
+				return []diag.Diagnostic{{
+					Path: c.path, Line: propNode.Lineno(), Col: propNode.Charno(),
+					Code: diag.JSC_STRICT_INEXISTENT_PROPERTY, Level: diag.Warning,
+					Message: fmt.Sprintf("Property %s never defined on %s", propName, obj.TypeName()),
+				}}
+			}
+		}
+		// Port of TypeCheck.java#checkPropCreation (line 1269): assign-LHS
+		// writes to nominal types where the property exists only as an
+		// inferred slot (added via collectPropertyWrites) fire
+		// JSC_STRICT_INEXISTENT_PROPERTY in strict mode. Java's order is
+		// "check LHS, then register" — the LHS sees a LOOSE kind because
+		// the inferred write hasn't been recorded yet. jsgo registers
+		// first, so we mirror Java's diagnostic by gating on the
+		// inferred-write side-band (the slot's only origin is
+		// collectPropertyWrites). Skip @struct (routes through
+		// ILLEGAL_PROPERTY_CREATION below) and writes inside the receiver's
+		// own constructor (Java's canPropertyBeDefined returns KNOWN there
+		// because constructor `this.x = …` writes establish the surface).
+		// Also skip when the property's defining node already lives inside
+		// a constructor — Java treats those writes as declarations
+		// regardless of where the current LHS read appears.
+		propIsInferred := obj.IsPropertyInferred(propName) ||
+			(c.inferredWrites[obj] != nil && c.inferredWrites[obj][propName])
+		if isAssignLHS(n) && propIsInferred && !obj.IsStruct && !c.externTypes[obj] &&
+			!insideOwnConstructor(n, obj) &&
+			!propertyDefinedInOwnConstructor(obj, propName) &&
+			!isThisAccessInsideConstructor(n, obj) {
+			if c.opts != nil && c.opts.IsOn(GroupStrictCheckTypes) {
+				return []diag.Diagnostic{{
+					Path: c.path, Line: propNode.Lineno(), Col: propNode.Charno(),
+					Code: diag.JSC_STRICT_INEXISTENT_PROPERTY, Level: diag.Warning,
+					Message: fmt.Sprintf("Property %s never defined on %s", propName, obj.TypeName()),
+				}}
+			}
+		}
 		return nil
 	}
 	// `'prop' in obj` narrowing (SRAI caseIn): if the caller guarded
@@ -2687,6 +2737,35 @@ func insideOwnConstructor(n *rhino.Node, obj *jstype.ObjectType) bool {
 		if cur.Token() != rhino.FUNCTION {
 			continue
 		}
+		// ES6 class constructor: FUNCTION named "constructor" lives directly
+		// inside the CLASS body BLOCK. Match obj.Name against the CLASS's
+		// name (or, for class expressions assigned to a NAME, the LHS NAME).
+		if nameKid := cur.FirstChild(); nameKid != nil && nameKid.String_() == "constructor" {
+			cls := cur.Parent()
+			for cls != nil && cls.Token() != rhino.CLASS {
+				cls = cls.Parent()
+			}
+			if cls != nil {
+				clsName := ""
+				if nm := cls.FirstChild(); nm != nil && nm.Token() == rhino.NAME {
+					clsName = nm.String_()
+				}
+				if clsName == "" {
+					if up := cls.Parent(); up != nil {
+						if up.Token() == rhino.NAME {
+							clsName = up.String_()
+						} else if up.Token() == rhino.ASSIGN {
+							if lhs := up.FirstChild(); lhs != nil && lhs.Token() == rhino.NAME {
+								clsName = lhs.String_()
+							}
+						}
+					}
+				}
+				if clsName == obj.Name {
+					return true
+				}
+			}
+		}
 		info := cur.JSDocInfo()
 		if info == nil || !info.IsConstructor() {
 			continue
@@ -2700,6 +2779,70 @@ func insideOwnConstructor(n *rhino.Node, obj *jstype.ObjectType) bool {
 		}
 	}
 	return false
+}
+
+// isThisAccessInsideConstructor reports whether n is a `this.X` GETPROP
+// (read or write) appearing inside a FUNCTION body whose `this` resolves
+// to obj's instance. Used by the strict-mode check to suppress
+// STRICT_INEXISTENT_PROPERTY for in-constructor `this.X = …` writes
+// (and reads) on anonymous-FEE constructors where insideOwnConstructor
+// can't match by name. Mirrors how Java's TypeCheck treats the receiver's
+// own constructor as the property's definition site.
+func isThisAccessInsideConstructor(n *rhino.Node, obj *jstype.ObjectType) bool {
+	kids := n.Children()
+	if len(kids) < 1 || kids[0].Token() != rhino.THIS {
+		return false
+	}
+	for cur := n.Parent(); cur != nil; cur = cur.Parent() {
+		if cur.Token() != rhino.FUNCTION {
+			continue
+		}
+		// @constructor JSDoc on the FUNCTION itself (the named-function
+		// declaration form: `/** @constructor */ function Foo() {…}`).
+		if info := cur.JSDocInfo(); info != nil && info.IsConstructor() {
+			return true
+		}
+		// FEE assigned via `goog.A = function(){…}` or `var T = function(){…}`:
+		// the @constructor JSDoc lives on the parent ASSIGN/GETPROP/VAR,
+		// not on the FUNCTION. Walk a couple of parents to find it.
+		for p := cur.Parent(); p != nil; p = p.Parent() {
+			if info := p.JSDocInfo(); info != nil && info.IsConstructor() {
+				return true
+			}
+			if t := p.Token(); t == rhino.SCRIPT || t == rhino.BLOCK {
+				break
+			}
+		}
+		// ES6 class constructor: FUNCTION named "constructor" lives in a
+		// CLASS body. Any `this.X` inside is on the class instance, which
+		// matches obj's instance — return true unconditionally; obj's
+		// identity already gates the caller.
+		if nameKid := cur.FirstChild(); nameKid != nil && nameKid.String_() == "constructor" {
+			cls := cur.Parent()
+			for cls != nil && cls.Token() != rhino.CLASS {
+				cls = cls.Parent()
+			}
+			if cls != nil {
+				return true
+			}
+		}
+	}
+	_ = obj
+	return false
+}
+
+// propertyDefinedInOwnConstructor mirrors the "constructor `this.x = …`
+// writes establish the surface" rule: if the property's defining node is
+// a `this.<name>` GETPROP under obj's own constructor, treat it as a
+// declaration (Java's canPropertyBeDefined returns KNOWN). Used by the
+// strict-mode write-LHS check to suppress STRICT_INEXISTENT_PROPERTY.
+func propertyDefinedInOwnConstructor(obj *jstype.ObjectType, propName string) bool {
+	defNode := obj.GetPropertyNode(propName)
+	if defNode == nil {
+		return false
+	}
+	// defNode is typically the `this.x` GETPROP or the LHS NAME of the assign.
+	return insideOwnConstructor(defNode, obj)
 }
 
 // visitReturn validates `return <expr>;` against the enclosing
