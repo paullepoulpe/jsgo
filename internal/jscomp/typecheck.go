@@ -4190,15 +4190,39 @@ func isDefinitelyNotCallable(t jstype.JSType) bool {
 		return true
 	}
 	if u, ok := t.(*jstype.UnionType); ok {
+		// Java: a union is callable only if every alternate is callable.
+		// If any alternate is definitely-not-callable, the whole union
+		// fires JSC_NOT_FUNCTION_TYPE. Mirrors
+		// TypeValidator.expectFunctionType which calls
+		// JSType.canBeCalled() — false if any union member can't.
+		hasCallable := false
+		hasNonCallable := false
 		for _, m := range u.Members() {
+			if m == jstype.Unknown || m == jstype.All || m == jstype.Null || m == jstype.Void {
+				// Null/Void don't disqualify (Java strips them via
+				// restrictByNotNullOrUndefined before this check).
+				continue
+			}
 			if _, isFn := m.(*jstype.FunctionType); isFn {
-				return false
+				hasCallable = true
+				continue
 			}
 			if obj := dereferencedObject(m); obj != nil && obj.Name == "Function" {
-				return false
+				hasCallable = true
+				continue
+			}
+			switch m {
+			case jstype.Number, jstype.String, jstype.Boolean:
+				hasNonCallable = true
 			}
 		}
-		return true
+		// If we found callable + non-callable, fire (mixed union).
+		// If only non-callable, fire.
+		// If only callable, don't fire.
+		if hasNonCallable && (hasCallable || !hasCallable) {
+			return true
+		}
+		return false
 	}
 	return false
 }
