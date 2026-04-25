@@ -526,7 +526,47 @@ func (s *TypedScope) LookupTypeAlias(name string) jstype.JSType {
 	if t, ok := s.typeAliases[name]; ok {
 		return t
 	}
+	// Dotted alias resolution through namespaceAliases: `const b = a;`
+	// + `/** @typedef {T} */ a.Foo;` makes `b.Foo` resolve to `a.Foo`'s
+	// typedef target. Mirrors how Java's StaticSlot scope chain
+	// resolves typedef references through const-aliased namespaces.
+	if dot := strings.IndexByte(name, '.'); dot > 0 {
+		owner := name[:dot]
+		rest := name[dot+1:]
+		visited := map[string]bool{}
+		cur := owner
+		for !visited[cur] {
+			visited[cur] = true
+			next := ""
+			for sc := s; sc != nil; sc = sc.parent {
+				if a, ok := sc.namespaceAliases[cur]; ok && strings.IndexByte(a, '.') < 0 {
+					next = a
+					break
+				}
+			}
+			if next == "" {
+				break
+			}
+			cur = next
+			if t, ok := s.lookupTypeAliasExact(cur + "." + rest); ok {
+				return t
+			}
+		}
+	}
 	return s.parent.LookupTypeAlias(name)
+}
+
+// lookupTypeAliasExact searches the typeAliases map across the scope chain
+// for an exact key match. Returns (type, true) when found.
+// Go-only: language-adapter — lookupTypeAliasExact is a Go-only helper
+// for dotted-name typedef resolution; Java does this via JSTypeRegistry.
+func (s *TypedScope) lookupTypeAliasExact(name string) (jstype.JSType, bool) {
+	for sc := s; sc != nil; sc = sc.parent {
+		if t, ok := sc.typeAliases[name]; ok {
+			return t, true
+		}
+	}
+	return nil, false
 }
 
 // Go-only: language-adapter — LookupNamespaceProp provides qualified-name type
@@ -577,6 +617,16 @@ func (s *TypedScope) resolveAliasedNamespaceProp(aliasOwner, prop string) jstype
 				}
 			}
 		}
+		// Typedef-only namespace: `/** @typedef {T} */ a.Foo;` records
+		// the alias under `a.Foo` in typeAliases, not in namespaceProps.
+		// Surface it here so const-aliased namespaces (`const b = a;`
+		// → `b.Foo`) still resolve to the typedef target.
+		qname := cur + "." + prop
+		for sc := s; sc != nil; sc = sc.parent {
+			if t, ok := sc.typeAliases[qname]; ok {
+				return t
+			}
+		}
 		// Follow another alias hop, if any.
 		next := ""
 		for sc := s; sc != nil; sc = sc.parent {
@@ -606,6 +656,24 @@ func (s *TypedScope) RecordNamespaceAlias(alias, original string) {
 		s.namespaceAliases = map[string]string{}
 	}
 	s.namespaceAliases[alias] = original
+}
+
+// Go-only: language-adapter — HasTypedefOwner reports whether any
+// `@typedef` alias is recorded under a dotted name whose first segment
+// equals `owner`. Used to recognize a namespace whose only declared
+// surface is a typedef stub (e.g. `a.Foo` typedef-only namespace) so
+// `const b = a` still records the namespace alias path. Java tracks
+// this implicitly through JSTypeRegistry's typedef store.
+func (s *TypedScope) HasTypedefOwner(owner string) bool {
+	if s == nil || owner == "" {
+		return false
+	}
+	for k := range s.typeAliases {
+		if dot := strings.IndexByte(k, '.'); dot >= 0 && k[:dot] == owner {
+			return true
+		}
+	}
+	return s.parent.HasTypedefOwner(owner)
 }
 
 // Go-only: language-adapter — LookupNamespaceAlias returns the alias
