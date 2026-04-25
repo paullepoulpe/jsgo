@@ -159,6 +159,15 @@ func (o *ObjectType) IsPropertyInferred(name string) bool {
 	return o.inferredProps[name]
 }
 
+// Go-only: language-adapter — ClearInferred removes the inferred flag from `name`,
+// marking the property as declared. Called when an explicit @type JSDoc later
+// declares the same slot that was previously inferred from a this.prop assignment.
+func (o *ObjectType) ClearInferred(name string) {
+	if o.inferredProps != nil {
+		delete(o.inferredProps, name)
+	}
+}
+
 // Go-only: language-adapter — DefineStaticProperty — Go addition for static class members; Java tracks statics on FunctionType.
 // DefineStaticProperty mirrors ObjectType.defineStaticProperty — puts
 // the property on the constructor-owned slot rather than the instance
