@@ -480,3 +480,103 @@ func (u *UnionType) IsUnknownType() bool {
 	}
 	return false
 }
+
+// MatchesNumberContext ports UnionType.matchesNumberContext() — true when
+// any alternate may appear in a numeric context. Mirrors
+// `anyTypeMatches(JSType::matchesNumberContext, this)`.
+func (u *UnionType) MatchesNumberContext() bool {
+	for _, m := range u.members {
+		switch m.(type) {
+		case numberType, bigIntType, booleanType, nullType, voidType:
+			return true
+		}
+		if isUnknown(m) || isAll(m) {
+			return true
+		}
+	}
+	return false
+}
+
+// MatchesStringContext ports UnionType.matchesStringContext() — true when
+// any alternate may convert to String. Mirrors
+// `anyTypeMatches(JSType::matchesStringContext, this)`.
+func (u *UnionType) MatchesStringContext() bool {
+	// Java says: TODO reverse this logic — currently most types convert to
+	// String, so this returns true for every non-empty union.
+	return len(u.members) > 0
+}
+
+// MatchesSymbolContext ports UnionType.matchesSymbolContext() — true when
+// any alternate is a Symbol. Mirrors `anyTypeMatches(JSType::matchesSymbolContext, this)`.
+func (u *UnionType) MatchesSymbolContext() bool {
+	for _, m := range u.members {
+		if _, ok := m.(SymbolType); ok {
+			return true
+		}
+		if isUnknown(m) || isAll(m) {
+			return true
+		}
+	}
+	return false
+}
+
+// HasAnyTemplateTypesInternal ports UnionType.hasAnyTemplateTypesInternal()
+// — true when any alternate has @template parameters. Mirrors
+// `anyTypeMatches(JSType::hasAnyTemplateTypes, this)`.
+func (u *UnionType) HasAnyTemplateTypesInternal() bool {
+	for _, m := range u.members {
+		if _, ok := m.(*TemplateType); ok {
+			return true
+		}
+		if t, ok := m.(*TemplatizedType); ok && len(t.Args) > 0 {
+			for _, a := range t.Args {
+				if _, ok := a.(*TemplateType); ok {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// TestForEquality ports UnionType.testForEquality(JSType) — returns the
+// (Yes/No/Unknown) outcome of `this == that`. Mirrors the Java loop
+// that aggregates per-alternate `testForEquality` calls and returns
+// Unknown the moment two alternates disagree.
+func (u *UnionType) TestForEquality(that JSType) eqResult {
+	first := true
+	var result eqResult
+	for i := 0; i < len(u.members); i++ {
+		alt := u.members[i]
+		test := testForEquality(alt, that)
+		if first {
+			result = test
+			first = false
+		} else if result != test {
+			return eqUnknown
+		}
+	}
+	if first {
+		return eqUnknown
+	}
+	return result
+}
+
+// GetLeastSupertype ports UnionType.getLeastSupertype(JSType) — the union
+// override checks if `that` is a subtype of any alternate (excluding
+// unknowns) and short-circuits to `this`; otherwise delegates to the
+// generic `JSType.getLeastSupertype(this, that)`.
+func (u *UnionType) GetLeastSupertype(that JSType) JSType {
+	if !isUnknown(that) {
+		if _, ok := that.(*UnionType); !ok {
+			for i := 0; i < len(u.members); i++ {
+				alt := u.members[i]
+				if !isUnknown(alt) && IsSubtype(that, alt) {
+					return u
+				}
+			}
+		}
+	}
+	// Generic fallback: union of (this, that).
+	return NewUnion(u, that)
+}
