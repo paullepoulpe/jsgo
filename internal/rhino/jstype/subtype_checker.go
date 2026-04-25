@@ -319,23 +319,186 @@ func (s *SubtypeChecker) isSubtypeHelper(subtype, supertype JSType) bool {
 // isObjectSubtypeHelper handles object-to-object subtyping.
 // Port of SubtypeChecker.isObjectSubtypeHelper() in Java.
 func (s *SubtypeChecker) isObjectSubtypeHelper(subtype, supertype *ObjectType) bool {
-	// Structural subtyping for @record/@interface types.
-	if s.isUsingStructuralTyping != nil && *s.isUsingStructuralTyping && supertype.IsStructural {
+	// --- Template type checks ---
+	// Determine whether both sides are templatized to the same base type.
+	subTT := subtype.templatizedSelf
+	supTT := supertype.templatizedSelf
+	subAndSuperAreSameBaseType := false
+	if subTT != nil && supTT != nil && subTT.Base == supTT.Base {
+		subAndSuperAreSameBaseType = true
+	}
+	bivariantMatch := false
+
+	// Array, Object, and IArrayLike are exempt from template invariance
+	// (bivariant element types). Port of isBivariantType + meetVarianceConstraint.
+	if objectTypeIfNativeOf(supertype) != nil && bivariantTypeNames[supertype.GetReferenceName()] {
+		if subTT != nil && supTT != nil {
+			// Check bivariance for matching template args by position.
+			for i := 0; i < len(supTT.Args) && i < len(subTT.Args); i++ {
+				if !s.meetVarianceConstraint(varianceBivariant, subTT.Args[i], supTT.Args[i]) {
+					return false
+				}
+			}
+		}
+		bivariantMatch = true
+	}
+
+	// Find a single covariant template key for types like ReadonlyArray,
+	// Iterator, Generator, etc. In Go we use positional arg index 0.
+	covariantArgIdx := -1
+	if !bivariantMatch {
+		covariantArgIdx = covariantArgIndexOf(supertype)
+	}
+
+	if !subAndSuperAreSameBaseType &&
+		s.isUsingStructuralTyping != nil && *s.isUsingStructuralTyping &&
+		supertype.IsStructuralType() {
+		// Structural subtyping branch — must be done before templatization.
+		// Special case: Array subtype of ReadonlyArray is checked covariantly.
+		if covariantArgIdx == 0 && isNativeArrayObjectType(subtype) {
+			if subTT != nil && supTT != nil && covariantArgIdx < len(supTT.Args) {
+				subVal := JSType(nil)
+				if covariantArgIdx < len(subTT.Args) {
+					subVal = subTT.Args[covariantArgIdx]
+				}
+				superVal := supTT.Args[covariantArgIdx]
+				return s.meetVarianceConstraint(varianceCovariant, subVal, superVal)
+			}
+		}
 		return s.isStructuralSubtypeHelper(subtype, supertype, voidablePropsAreOptional)
 	}
 
-	// Every ObjectType is a subtype of the global Object.
-	if supertype.Name == "Object" {
+	// Template type submap check (invariant or covariant).
+	if !bivariantMatch {
+		if covariantArgIdx >= 0 {
+			// Covariant single-arg check.
+			if subTT != nil && supTT != nil {
+				if covariantArgIdx < len(supTT.Args) {
+					subVal := JSType(nil)
+					if covariantArgIdx < len(subTT.Args) {
+						subVal = subTT.Args[covariantArgIdx]
+					}
+					superVal := supTT.Args[covariantArgIdx]
+					if !s.meetVarianceConstraint(varianceCovariant, subVal, superVal) {
+						return false
+					}
+				}
+			}
+		} else if !s.isTypeMapSubmap(subtype, supertype) {
+			return false
+		}
+	}
+
+	// --- Interface chain walking ---
+	// Find all the interfaces implemented/extended by subtype and compare
+	// each one to the supertype. Port of the "Interfaces" block in Java.
+	subtypeCtor := subtype.GetConstructor()
+	supertypeCtor := supertype.GetConstructor()
+	if subtypeCtor != nil && subtypeCtor.IsInterface() {
+		for _, subtypeInterface := range subtype.GetCtorExtendedInterfaces() {
+			if s.isSubtypeCaching(subtypeInterface, supertype) {
+				return true
+			}
+		}
+	} else if supertypeCtor != nil && supertypeCtor.IsInterface() {
+		for _, subtypeInterface := range subtype.GetCtorImplementedInterfaces() {
+			if s.isSubtypeCaching(subtypeInterface, supertype) {
+				return true
+			}
+		}
+	}
+
+	// --- Nominal prototype-chain check ---
+	return supertype.IsImplicitPrototypeOf(subtype)
+}
+
+// objectTypeIfNativeOf returns obj if it is a native ObjectType, else nil.
+// Port of SubtypeChecker.getObjectTypeIfNative() in Java.
+func objectTypeIfNativeOf(obj *ObjectType) *ObjectType {
+	if obj != nil && obj.IsNativeObjectType() {
+		return obj
+	}
+	return nil
+}
+
+// isNativeArrayObjectType reports whether obj is the native Array type.
+// Port of SubtypeChecker.isNativeArrayType() in Java.
+func isNativeArrayObjectType(obj *ObjectType) bool {
+	return obj.IsNativeObjectType() && obj.GetReferenceName() == "Array"
+}
+
+// covariantArgIndexOf returns 0 when supertype uses single-arg covariant
+// template semantics (ReadonlyArray, Iterator, Generator, AsyncIterator,
+// Iterable, IteratorIterable, IIterableResult, AsyncIterable), or -1
+// otherwise. In Go the template args are positional so index 0 is used.
+// Port of SubtypeChecker.getTemplateKeyIfCovariantType() in Java.
+func covariantArgIndexOf(supertype *ObjectType) int {
+	native := objectTypeIfNativeOf(supertype)
+	if native == nil {
+		// IThenable covariance applies to non-native subtypes too in Java,
+		// but requires registry.getIThenableTemplate() which is not yet
+		// available in the Go port.  Fall through to invariant check.
+		return -1
+	}
+	switch native.GetReferenceName() {
+	case "ReadonlyArray", "Iterator", "Generator", "AsyncIterator",
+		"Iterable", "IteratorIterable", "IIterableResult", "AsyncIterable":
+		return 0
+	}
+	return -1
+}
+
+// isTypeMapSubmap checks that every template argument in supertype is matched
+// by an invariant-compatible argument in subtype.
+// Port of SubtypeChecker.isTypeMapSubmap() in Java.
+func (s *SubtypeChecker) isTypeMapSubmap(subtype, supertype *ObjectType) bool {
+	// Prototype types never have template type maps — assume true.
+	// Port of the isFunctionPrototypeType() early-return in Java.
+	// In Go, prototype objects have a non-nil ownerFunction (GetOwnerFunction).
+	if subtype.GetOwnerFunction() != nil {
 		return true
 	}
 
-	// Nominal: same type identity, or supertype is an ancestor.
-	for cur := subtype; cur != nil; cur = cur.super {
-		if cur == supertype {
-			return true
+	supTT := supertype.templatizedSelf
+	if supTT == nil {
+		// Supertype has no template args; nothing to check.
+		return true
+	}
+	subTT := subtype.templatizedSelf
+
+	for i, superVal := range supTT.Args {
+		subVal := JSType(nil)
+		if subTT != nil && i < len(subTT.Args) {
+			subVal = subTT.Args[i]
+		} else {
+			// Key not present in subtype map — loosenTypechecking is not
+			// modelled in Go yet; conservatively fail.
+			return false
+		}
+		if !s.meetVarianceConstraint(varianceInvariant, subVal, superVal) {
+			return false
 		}
 	}
-	return false
+	return true
+}
+
+// meetVarianceConstraint checks whether override is variance-compatible
+// with reference.  Port of SubtypeChecker.meetVarianceConstraint() in Java.
+func (s *SubtypeChecker) meetVarianceConstraint(variance subtypeVariance, override, reference JSType) bool {
+	switch variance {
+	case varianceCovariant:
+		return s.isSubtypeCaching(override, reference)
+	case varianceContravariant:
+		return s.isSubtypeCaching(reference, override)
+	case varianceBivariant:
+		return s.meetVarianceConstraint(varianceCovariant, reference, override) ||
+			s.meetVarianceConstraint(varianceContravariant, reference, override)
+	case varianceInvariant:
+		return s.meetVarianceConstraint(varianceCovariant, reference, override) &&
+			s.meetVarianceConstraint(varianceContravariant, reference, override)
+	default:
+		return false
+	}
 }
 
 // isStructuralSubtypeHelper handles structural subtype checking for @record types.

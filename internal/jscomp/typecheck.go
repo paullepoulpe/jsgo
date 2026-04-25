@@ -329,6 +329,15 @@ func (c *TypeCheck) installFlow(root *rhino.Node, scope *TypedScope) *DataFlowAn
 	}
 	cfg := BuildControlFlowGraph(root)
 	pass := NewTypeInferencePass(scope)
+	// Port of VarCheck.createSynthesizedExternVar mechanism: inject undeclared
+	// names so TypeInferencePass can narrow GETPROP slots to Unknown when the
+	// RHS of an assignment is an undeclared NAME. Mirrors Java's behaviour where
+	// undeclared variables have Unknown type (from the synthesized extern), which
+	// TypeInference.updateScopeForTypeChange propagates into qualified slots.
+	// Go-only: package-bridge — Java uses the synthesized extern; Go threads the set.
+	if len(c.undeclaredNames) > 0 {
+		pass.SetUndeclaredNames(c.undeclaredNames)
+	}
 	d := NewDataFlowAnalysis(cfg, EmptyFlowScope(), pass.Transfer)
 	d.Run()
 	// Port of DataFlowAnalysis.computeEscaped: identify variables declared
@@ -616,6 +625,8 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		rhino.ASSIGN_BITAND, rhino.ASSIGN_BITOR, rhino.ASSIGN_BITXOR,
 		rhino.ASSIGN_LSH, rhino.ASSIGN_RSH, rhino.ASSIGN_URSH:
 		c.emit(c.visitBitOp(n, scope))
+	case rhino.INC, rhino.DEC:
+		c.emit(c.visitIncDec(n, scope))
 	case rhino.EQ, rhino.NE, rhino.SHEQ, rhino.SHNE:
 		c.emit(c.visitTypeofComparison(n, scope))
 		c.emit(c.visitEqualityOp(n, scope))
@@ -1116,6 +1127,17 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 		if info := a.JSDocInfo(); info != nil && info.HasSuppression("duplicate") {
 			return nil
 		}
+		// `/** @constructor */ ns.Foo = …` declares ns.Foo as a constructor
+		// regardless of RHS shape. Java's TypeCheck doesn't fire the
+		// RHS-vs-slot mismatch on this form — the @constructor JSDoc is the
+		// source of truth, and the runtime value is trusted (often
+		// `someFactory()` whose return type the type system can't see
+		// inside). Mirrors Java's createFunctionTypeFromNodes branch where
+		// the RHS-vs-slot check is bypassed for type-tag JSDocs.
+		if info := a.JSDocInfo(); info != nil &&
+			(info.IsConstructor() || info.IsInterface() || info.IsRecord()) {
+			return nil
+		}
 		// ReadonlyArray guard (port of checkNotReadonlyPropertyAssignment).
 		// Java fires at the lhs (GETPROP) node; Java GETPROP charno is the
 		// property-name column, which corresponds to propKids[1] in Go.
@@ -1204,8 +1226,22 @@ func (c *TypeCheck) visitAssign(a *rhino.Node, scope *TypedScope) []diag.Diagnos
 			}
 		}
 		if declared == nil {
-			obj, ok := infer.InferType(recv).(*jstype.ObjectType)
-			if !ok {
+			// Port of TypeCheck.java visitAssign: receiver type resolution
+			// strips null/undefined (nullable unions like `F|null` from
+			// `/** @type {F} */` in default-mode Closure) before extracting
+			// the ObjectType, so `x.y.z = …` where `x.y: F|null` resolves
+			// the property lookup against F's instance type.
+			rawRecvType := infer.InferType(recv)
+			recvType := stripNullUndef(rawRecvType)
+			var obj *jstype.ObjectType
+			var ok bool
+			if obj, ok = recvType.(*jstype.ObjectType); !ok {
+				// Also handle TemplatizedType receivers (e.g. Array<Foo>).
+				if tt, ttok := recvType.(*jstype.TemplatizedType); ttok {
+					obj, ok = tt.Base, ttok
+				}
+			}
+			if !ok || obj == nil {
 				return nil
 			}
 			declared = obj.GetPropertyType(propName)
@@ -2133,6 +2169,75 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 				}}
 			}
 		}
+		// Reads on nominal @constructor types where the property exists
+		// only as an inferred slot (collectPropertyWrites side-band) —
+		// Java's canPropertyBeDefined returns LOOSE → STRICT_INEXISTENT_PROPERTY
+		// on reads as well as writes. Skip @struct (sealed surface, fires
+		// elsewhere), @interface (separate strict path below), externs
+		// (sparse jsgo stubs — keep the surface open), and reads inside
+		// the receiver's own constructor (Java treats those as the
+		// definition site).
+		// Read check: also accept `this.X` reads inside a NON-constructor
+		// method body when X was registered as inferred via
+		// collectThisPropertiesIn (no inferredWrites side-band entry).
+		// This catches `Foo.prototype.bar = function(){return this.X;}`
+		// where X is set in another method but never declared.
+		readPropInferredThis := false
+		if kids[0].Token() == rhino.THIS && obj.IsPropertyInferred(propName) &&
+			!isThisAccessInsideConstructor(n, obj) &&
+			!propertyDefinedInOwnConstructor(obj, propName) {
+			readPropInferredThis = true
+		}
+		if !obj.IsStruct && !obj.IsStructural && !c.externTypes[obj] &&
+			((c.inferredWrites[obj] != nil && c.inferredWrites[obj][propName]) || readPropInferredThis) &&
+			!insideOwnConstructor(n, obj) &&
+			!propertyDefinedInOwnConstructor(obj, propName) &&
+			!isThisAccessInsideConstructor(n, obj) {
+			if c.opts != nil && c.opts.IsOn(GroupStrictCheckTypes) {
+				return []diag.Diagnostic{{
+					Path: c.path, Line: propNode.Lineno(), Col: propNode.Charno(),
+					Code: diag.JSC_STRICT_INEXISTENT_PROPERTY, Level: diag.Warning,
+					Message: fmt.Sprintf("Property %s never defined on %s", propName, obj.TypeName()),
+				}}
+			}
+		}
+		// Port of TypeCheck.java#checkPropCreation (line 1269): assign-LHS
+		// writes to nominal types where the property exists only as an
+		// inferred slot (added via collectPropertyWrites) fire
+		// JSC_STRICT_INEXISTENT_PROPERTY in strict mode. Java's order is
+		// "check LHS, then register" — the LHS sees a LOOSE kind because
+		// the inferred write hasn't been recorded yet. jsgo registers
+		// first, so we mirror Java's diagnostic by gating on the
+		// inferred-write side-band (the slot's only origin is
+		// collectPropertyWrites). Skip @struct (routes through
+		// ILLEGAL_PROPERTY_CREATION below) and writes inside the receiver's
+		// own constructor (Java's canPropertyBeDefined returns KNOWN there
+		// because constructor `this.x = …` writes establish the surface).
+		// Also skip when the property's defining node already lives inside
+		// a constructor — Java treats those writes as declarations
+		// regardless of where the current LHS read appears.
+		propIsInferred := obj.IsPropertyInferred(propName) ||
+			(c.inferredWrites[obj] != nil && c.inferredWrites[obj][propName])
+		// Object is the global root — Java explicitly fires STRICT_INEXISTENT_PROPERTY
+		// for inferred writes on Object (sparser-than-Java externs notwithstanding).
+		// Other extern stubs (Date, Error, …) keep their open surface to avoid FP storms.
+		// Skip Function-standard reflection names (prototype, call, apply, …):
+		// Java treats those as always-available on any function-shaped value
+		// — including Object — so writes to them are not flagged.
+		externAllowed := !c.externTypes[obj] || obj.Name == "Object"
+		if isAssignLHS(n) && propIsInferred && !obj.IsStruct && externAllowed &&
+			!isFunctionStandardProp(propName) &&
+			!insideOwnConstructor(n, obj) &&
+			!propertyDefinedInOwnConstructor(obj, propName) &&
+			!isThisAccessInsideConstructor(n, obj) {
+			if c.opts != nil && c.opts.IsOn(GroupStrictCheckTypes) {
+				return []diag.Diagnostic{{
+					Path: c.path, Line: propNode.Lineno(), Col: propNode.Charno(),
+					Code: diag.JSC_STRICT_INEXISTENT_PROPERTY, Level: diag.Warning,
+					Message: fmt.Sprintf("Property %s never defined on %s", propName, obj.TypeName()),
+				}}
+			}
+		}
 		return nil
 	}
 	// `'prop' in obj` narrowing (SRAI caseIn): if the caller guarded
@@ -2193,8 +2298,21 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 			}
 			return nil
 		}
-		// Skip when the property is defined on a subtype (LOOSE).
+		// LOOSE: property is defined on a subtype but not the receiver.
+		// Java's canPropertyBeDefined returns LOOSE here →
+		// STRICT_INEXISTENT_PROPERTY only (default mode silent).
 		if c.looseProps[obj] != nil && c.looseProps[obj][propName] {
+			if c.opts != nil && c.opts.IsOn(GroupStrictCheckTypes) && !isAssignLHS(n) {
+				if c.inexistentReported == nil {
+					c.inexistentReported = map[string]bool{}
+				}
+				c.inexistentReported[key] = true
+				return []diag.Diagnostic{{
+					Path: c.path, Line: propNode.Lineno(), Col: propNode.Charno(),
+					Code: diag.JSC_STRICT_INEXISTENT_PROPERTY, Level: diag.Warning,
+					Message: fmt.Sprintf("Property %s never defined on %s", propName, obj.TypeName()),
+				}}
+			}
 			return nil
 		}
 		// Skip writes — collectPropertyWrites already extends the surface.
@@ -2219,19 +2337,30 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 			return nil
 		}
 	}
-	// @interface types are open surfaces in default mode: Java routes
-	// unknown-property accesses on them as LOOSE (STRICT_INEXISTENT_PROPERTY
-	// only), which is silenced in default mode. In strict mode, emit.
-	if obj.IsStructural && !obj.IsStruct && obj.IsInterface {
+	// @interface and @record types are open surfaces in default mode: Java
+	// routes unknown-property accesses on them as LOOSE (STRICT_INEXISTENT_PROPERTY
+	// only), which is silenced in default mode. In strict mode, emit. Skip
+	// LHS writes (Java's collectPropertyWrites extends the open surface
+	// during the pre-pass).
+	if obj.IsStructural && !obj.IsStruct {
+		if isAssignLHS(n) {
+			return nil
+		}
 		if c.opts != nil && c.opts.IsOn(GroupStrictCheckTypes) {
 			if c.inexistentReported == nil {
 				c.inexistentReported = map[string]bool{}
 			}
 			c.inexistentReported[key] = true
+			// Receiver display label: bare NAME → variable name (matches
+			// Java's getReadableTypeName); otherwise the type's name.
+			label := obj.TypeName()
+			if kids[0].Token() == rhino.NAME {
+				label = kids[0].String_()
+			}
 			return []diag.Diagnostic{{
 				Path: c.path, Line: propNode.Lineno(), Col: propNode.Charno(),
 				Code: diag.JSC_STRICT_INEXISTENT_PROPERTY, Level: diag.Warning,
-				Message: fmt.Sprintf("Property %s never defined on %s", propName, obj.TypeName()),
+				Message: fmt.Sprintf("Property %s never defined on %s", propName, label),
 			}}
 		}
 		return nil
@@ -2690,6 +2819,35 @@ func insideOwnConstructor(n *rhino.Node, obj *jstype.ObjectType) bool {
 		if cur.Token() != rhino.FUNCTION {
 			continue
 		}
+		// ES6 class constructor: FUNCTION named "constructor" lives directly
+		// inside the CLASS body BLOCK. Match obj.Name against the CLASS's
+		// name (or, for class expressions assigned to a NAME, the LHS NAME).
+		if nameKid := cur.FirstChild(); nameKid != nil && nameKid.String_() == "constructor" {
+			cls := cur.Parent()
+			for cls != nil && cls.Token() != rhino.CLASS {
+				cls = cls.Parent()
+			}
+			if cls != nil {
+				clsName := ""
+				if nm := cls.FirstChild(); nm != nil && nm.Token() == rhino.NAME {
+					clsName = nm.String_()
+				}
+				if clsName == "" {
+					if up := cls.Parent(); up != nil {
+						if up.Token() == rhino.NAME {
+							clsName = up.String_()
+						} else if up.Token() == rhino.ASSIGN {
+							if lhs := up.FirstChild(); lhs != nil && lhs.Token() == rhino.NAME {
+								clsName = lhs.String_()
+							}
+						}
+					}
+				}
+				if clsName == obj.Name {
+					return true
+				}
+			}
+		}
 		info := cur.JSDocInfo()
 		if info == nil || !info.IsConstructor() {
 			continue
@@ -2705,16 +2863,135 @@ func insideOwnConstructor(n *rhino.Node, obj *jstype.ObjectType) bool {
 	return false
 }
 
+// isThisAccessInsideConstructor reports whether n is a `this.X` GETPROP
+// (read or write) appearing inside a FUNCTION body whose `this` resolves
+// to obj's instance. Used by the strict-mode check to suppress
+// STRICT_INEXISTENT_PROPERTY for in-constructor `this.X = …` writes
+// (and reads) on anonymous-FEE constructors where insideOwnConstructor
+// can't match by name. Mirrors how Java's TypeCheck treats the receiver's
+// own constructor as the property's definition site.
+func isThisAccessInsideConstructor(n *rhino.Node, obj *jstype.ObjectType) bool {
+	kids := n.Children()
+	if len(kids) < 1 || kids[0].Token() != rhino.THIS {
+		return false
+	}
+	for cur := n.Parent(); cur != nil; cur = cur.Parent() {
+		if cur.Token() != rhino.FUNCTION {
+			continue
+		}
+		// @constructor JSDoc on the FUNCTION itself (the named-function
+		// declaration form: `/** @constructor */ function Foo() {…}`).
+		if info := cur.JSDocInfo(); info != nil && info.IsConstructor() {
+			return true
+		}
+		// FEE assigned via `goog.A = function(){…}` or `var T = function(){…}`:
+		// the @constructor JSDoc lives on the parent ASSIGN/GETPROP/VAR,
+		// not on the FUNCTION. Walk a couple of parents to find it.
+		for p := cur.Parent(); p != nil; p = p.Parent() {
+			if info := p.JSDocInfo(); info != nil && info.IsConstructor() {
+				return true
+			}
+			if t := p.Token(); t == rhino.SCRIPT || t == rhino.BLOCK {
+				break
+			}
+		}
+		// ES6 class constructor: FUNCTION named "constructor" lives in a
+		// CLASS body. Any `this.X` inside is on the class instance, which
+		// matches obj's instance — return true unconditionally; obj's
+		// identity already gates the caller.
+		if nameKid := cur.FirstChild(); nameKid != nil && nameKid.String_() == "constructor" {
+			cls := cur.Parent()
+			for cls != nil && cls.Token() != rhino.CLASS {
+				cls = cls.Parent()
+			}
+			if cls != nil {
+				return true
+			}
+		}
+	}
+	_ = obj
+	return false
+}
+
+// propertyDefinedInOwnConstructor mirrors the "constructor `this.x = …`
+// writes establish the surface" rule: if the property's defining node is
+// a `this.<name>` GETPROP under obj's own constructor, treat it as a
+// declaration (Java's canPropertyBeDefined returns KNOWN). Used by the
+// strict-mode write-LHS check to suppress STRICT_INEXISTENT_PROPERTY.
+func propertyDefinedInOwnConstructor(obj *jstype.ObjectType, propName string) bool {
+	defNode := obj.GetPropertyNode(propName)
+	if defNode == nil {
+		return false
+	}
+	// defNode is typically the `this.x` GETPROP or the LHS NAME of the assign.
+	// Try insideOwnConstructor first (matches by name); fall back to
+	// isThisAccessInsideConstructor which also handles anonymous-FEE
+	// constructors (@constructor JSDoc on the parent VAR/ASSIGN).
+	if insideOwnConstructor(defNode, obj) {
+		return true
+	}
+	return isThisAccessInsideConstructor(defNode, obj)
+}
+
 // visitReturn validates `return <expr>;` against the enclosing
 // function's @return annotation. The enclosing function is found by
 // walking Node parent links — mirroring how Java's TypeCheck tracks
 // the current function through NodeUtil.getEnclosingFunction.
+// functionParamTypesHaveUndeclaredRoot returns true when any @param type
+// annotation on `info` starts with a dotted name whose root segment is in the
+// undeclared-names set (e.g. `@param {u.T}` when `u` was flagged by VarCheck).
+//
+// When this is true, the parameter types for the enclosing function are
+// unreliable — the root object `u` is undeclared, so Java's VarCheck
+// synthesizes an extern for it with Unknown type, making every type resolved
+// through `u.X` effectively Unknown. Java's TypeCheck therefore never fires
+// JSC_TYPE_MISMATCH inside such a function (the param has Unknown type, so any
+// return expression is trivially assignable). Go mirrors this by returning nil
+// from visitReturn when any param type has an undeclared root.
+//
+// Port of VarCheck.java's createSynthesizedExternVar mechanism @ closure-compiler v20260415
+// Go-only: package-bridge — Java achieves the same via synthesized externs that
+// make u.T resolve to Unknown; Go checks the undeclaredNames set directly.
+func (c *TypeCheck) functionParamTypesHaveUndeclaredRoot(info *rhino.JSDocInfo) bool {
+	if len(c.undeclaredNames) == 0 || info == nil {
+		return false
+	}
+	for _, pname := range info.ParameterNames() {
+		pt := info.ParameterType(pname)
+		if pt == nil {
+			continue
+		}
+		typeName := strings.TrimSpace(pt.TypeName)
+		// Strip leading "!" (non-null) or "?" (nullable).
+		if len(typeName) > 0 && (typeName[0] == '!' || typeName[0] == '?') {
+			typeName = strings.TrimSpace(typeName[1:])
+		}
+		if dot := strings.IndexByte(typeName, '.'); dot > 0 {
+			root := typeName[:dot]
+			if c.undeclaredNames[root] {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (c *TypeCheck) visitReturn(ret *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	enclosing := NU.GetEnclosingFunction(ret)
 	if enclosing == nil {
 		return nil
 	}
 	info := functionJSDoc(enclosing)
+	// Suppress downstream JSC_TYPE_MISMATCH when any @param type of the
+	// enclosing function references an undeclared NAME root (e.g. @param
+	// {u.T} where `u` is undeclared). Java's VarCheck synthesizes an extern
+	// for `u` so all types resolved through `u.X` become Unknown — making
+	// the param type Unknown and suppressing any return-type mismatch that
+	// depends on the param's type. Mirrors VarCheck.createSynthesizedExternVar.
+	// Port of VarCheck.java @ closure-compiler v20260415
+	if c.functionParamTypesHaveUndeclaredRoot(info) {
+		return nil
+	}
 	var declared jstype.JSType
 	if info != nil && info.ReturnType() != nil {
 		declared = scope.ResolveExpr(info.ReturnType().TypeName)
@@ -2746,11 +3023,16 @@ func (c *TypeCheck) visitReturn(ret *rhino.Node, scope *TypedScope) []diag.Diagn
 	// non-void this fires JSC_TYPE_MISMATCH. Mirrors Java's treatment of
 	// an empty RETURN node as having type JSType.VOID_TYPE.
 	if retExpr == nil {
-		if declared != nil && declared != jstype.Void {
-			c.tv.expectCanAssignTo(ret, jstype.Void, declared, "inconsistent return type")
-			return c.tvDrain()
+		// Bare `return;` — the implicit value is undefined. Java's
+		// TypeCheck.visitReturn (TypeCheck.java:1930) treats this as
+		// `return undefined`, so the mismatch fires when the declared
+		// return type doesn't admit undefined.
+		undef := jstype.Void
+		if jstype.IsSubtype(undef, declared) {
+			return nil
 		}
-		return nil
+		c.tv.expectCanAssignTo(ret, undef, declared, "inconsistent return type")
+		return c.tvDrain()
 	}
 	infer := NewTypeInference(scope)
 	found := infer.InferType(retExpr)
@@ -3354,6 +3636,12 @@ func dereferencedObject(t jstype.JSType) *jstype.ObjectType {
 	if obj, ok := t.(*jstype.ObjectType); ok {
 		return obj
 	}
+	// RecordType embeds *ObjectType; expose the underlying object so the
+	// property-existence checks see record fields. Mirrors Java's
+	// RecordType.toObjectType() returning `this` (RecordType is-a ObjectType).
+	if rt, ok := t.(*jstype.RecordType); ok && rt != nil {
+		return rt.ObjectType
+	}
 	return nil
 }
 
@@ -3514,6 +3802,30 @@ func (c *TypeCheck) visitUnaryPlus(n *rhino.Node, scope *TypedScope) []diag.Diag
 		}}
 	}
 	return nil
+}
+
+// visitIncDec ports TypeCheck.java:Visit case DEC, INC (TypeCheck.java:673):
+//   case DEC, INC -> {
+//     left = n.getFirstChild();
+//     checkPropCreation(left);
+//     if (getJSType(n).isNumber()) {
+//       validator.expectNumber(left, getJSType(left), "increment/decrement");
+//       ensureTyped(n, NUMBER_TYPE);
+//     } else {
+//       validator.expectBigIntOrNumber(left, getJSType(left), "increment/decrement");
+//     }
+//   }
+// Java's expectNumber routes string operands through both the loose
+// JSC_TYPE_MISMATCH and the strict JSC_INVALID_OPERAND_TYPE paths.
+func (c *TypeCheck) visitIncDec(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
+	left := n.FirstChild()
+	if left == nil {
+		return nil
+	}
+	infer := NewTypeInference(scope)
+	t := infer.InferType(left)
+	c.tv.expectNumber(left, t, "increment/decrement")
+	return c.tvDrain()
 }
 
 // visitUnaryMinus ports TypeCheck.java:visitUnaryMinus (line 987).
@@ -3988,15 +4300,39 @@ func isDefinitelyNotCallable(t jstype.JSType) bool {
 		return true
 	}
 	if u, ok := t.(*jstype.UnionType); ok {
+		// Java: a union is callable only if every alternate is callable.
+		// If any alternate is definitely-not-callable, the whole union
+		// fires JSC_NOT_FUNCTION_TYPE. Mirrors
+		// TypeValidator.expectFunctionType which calls
+		// JSType.canBeCalled() — false if any union member can't.
+		hasCallable := false
+		hasNonCallable := false
 		for _, m := range u.Members() {
+			if m == jstype.Unknown || m == jstype.All || m == jstype.Null || m == jstype.Void {
+				// Null/Void don't disqualify (Java strips them via
+				// restrictByNotNullOrUndefined before this check).
+				continue
+			}
 			if _, isFn := m.(*jstype.FunctionType); isFn {
-				return false
+				hasCallable = true
+				continue
 			}
 			if obj := dereferencedObject(m); obj != nil && obj.Name == "Function" {
-				return false
+				hasCallable = true
+				continue
+			}
+			switch m {
+			case jstype.Number, jstype.String, jstype.Boolean:
+				hasNonCallable = true
 			}
 		}
-		return true
+		// If we found callable + non-callable, fire (mixed union).
+		// If only non-callable, fire.
+		// If only callable, don't fire.
+		if hasNonCallable && (hasCallable || !hasCallable) {
+			return true
+		}
+		return false
 	}
 	return false
 }
@@ -4363,6 +4699,21 @@ func (c *TypeCheck) visitRelationalDefault(n *rhino.Node, scope *TypedScope) []d
 	return out
 }
 
+// isDefinitelyNumericish reports whether t is acceptable as the operand
+// of a numeric-mode relational comparison (Java's expectBigIntOrNumber):
+// Number, BigInt, or All / Unknown. Boolean coerces to number but Java's
+// strict mode rejects it. Mirrors TypeValidator.expectBigIntOrNumber.
+func isDefinitelyNumericish(t jstype.JSType) bool {
+	if t == nil {
+		return true
+	}
+	switch t {
+	case jstype.Number, jstype.BigInt, jstype.Unknown, jstype.All:
+		return true
+	}
+	return false
+}
+
 // isDefinitelyNumeric reports whether t is exactly Number or BigInt
 // (no other variants). Used by visitRelationalDefault to switch to
 // numeric-comparison mode when one operand is statically a number.
@@ -4404,7 +4755,9 @@ func isDefinitelyNotComparable(t jstype.JSType, numericMode bool) bool {
 		// vs primitive at the operand-type level — it only fires for
 		// non-primitive operands like Object / FunctionType / null /
 		// undefined / Symbol). Mirrors expectBigIntNumberOrString which
-		// accepts every primitive operand without complaint.
+		// accepts every primitive operand without complaint. The strict
+		// caller (visitRelativeComparison) handles the numeric-mode
+		// non-numeric-primitive case separately so it doesn't double-fire.
 		return false
 	case jstype.Void, jstype.Null:
 		// undefined/null: Java fires errors for these in numeric comparisons
@@ -4448,6 +4801,13 @@ func isDefinitelyNotComparable(t jstype.JSType, numericMode bool) bool {
 
 // Go-only: language-adapter — strict-mode relational operand check; Java's
 // visitBinaryOperator handles LT/LE/GT/GE inline at TypeCheck.java:738-772.
+// Two diagnostic shapes:
+//   1. When at least one side is statically numeric (Number/BigInt): the
+//      OTHER side must be numeric too. If not, fire
+//      "left/right side of numeric comparison" at that side.
+//   2. Otherwise: both sides must be matching primitives. Fire
+//      "expected matching types in comparison" at the right side.
+// Mirrors Java's expectBigIntOrNumber vs expectMatchingTypesStrict split.
 func (c *TypeCheck) visitRelativeComparison(n *rhino.Node, scope *TypedScope) []diag.Diagnostic {
 	kids := n.Children()
 	if len(kids) < 2 {
@@ -4456,6 +4816,27 @@ func (c *TypeCheck) visitRelativeComparison(n *rhino.Node, scope *TypedScope) []
 	infer := NewTypeInference(scope)
 	l := infer.InferType(kids[0])
 	r := infer.InferType(kids[1])
+	numericMode := isDefinitelyNumeric(l) || isDefinitelyNumeric(r)
+	if numericMode {
+		var out []diag.Diagnostic
+		if !isUnknownOrNil(l) && !isDefinitelyNumericish(l) {
+			out = append(out, diag.Diagnostic{
+				Path: c.path, Line: kids[0].Lineno(), Col: kids[0].Charno(),
+				Code: diag.JSC_INVALID_OPERAND_TYPE, Level: diag.Warning,
+				Message: "left side of numeric comparison\nfound   : " +
+					l.TypeName() + "\nrequired: (bigint|number)",
+			})
+		}
+		if !isUnknownOrNil(r) && !isDefinitelyNumericish(r) {
+			out = append(out, diag.Diagnostic{
+				Path: c.path, Line: kids[1].Lineno(), Col: kids[1].Charno(),
+				Code: diag.JSC_INVALID_OPERAND_TYPE, Level: diag.Warning,
+				Message: "right side of numeric comparison\nfound   : " +
+					r.TypeName() + "\nrequired: (bigint|number)",
+			})
+		}
+		return out
+	}
 	if canCompareStrict(l, r) {
 		return nil
 	}

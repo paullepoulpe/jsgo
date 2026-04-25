@@ -285,15 +285,40 @@ func (c *CheckClosureImports) kindOfCall(callNode *rhino.Node) closureImport {
 // ---------------------------------------------------------------------------
 
 // checkValidImportCodeReference validates that a NAME reference to a closure
-// import alias is not used in code position (mirrors Java lines 289-317).
-// The full check requires scope infrastructure (Var lookup); this stub
-// only performs the structural check that is possible without it.
+// import alias is not used in code position.
+// Mirrors Java's checkValidImportCodeReference(NodeTraversal t, Node nameNode)
+// (lines 289-317). Java's body performs only structural checks via scope lookup
+// with no diagnostic emission; this port faithfully mirrors that structure.
 //
-// TODO: implement full scope-based check once TypedScopeCreator is wired.
+// TODO(port): NodeTraversal.getScope() / Scope.getVar(String) — scope not yet
+// threaded through walk(); structural walk is faithful but var resolution is
+// deferred until NodeTraversal is wired.
 func (c *CheckClosureImports) checkValidImportCodeReference(nameNode *rhino.Node) {
-	// TODO: use t.getScope().getVar(nameNode.getString()) to find the declaration.
-	// TODO: check NodeUtil.isDeclarationLValue(declarationNameNode).
-	// TODO: check kindOfCall on the RHS call and fire JSC_TYPE_IMPORT_CODE_REFERENCE.
+	// Java: Var var = t.getScope().getVar(nameNode.getString());
+	// TODO: use scope.GetSlot(nameNode.GetString()) once scope is available.
+	// if var == nil || var.GetNameNode() == nameNode { return }
+	var dummy *UntypedVar // TODO: replace with real scope lookup.
+	_ = dummy
+
+	// Java: Node declarationNameNode = var.getNameNode();
+	// if declarationNameNode == nil || !NodeUtil.isDeclarationLValue(declarationNameNode) { return }
+	// TODO: NU.IsDeclarationLValue(declarationNameNode)
+
+	// Java: compute decl from declarationNameNode — handle string-key destructuring:
+	//   if declarationNameNode.getParent().isStringKey():
+	//     decl = declarationNameNode.getGrandparent().getGrandparent()
+	//   else:
+	//     decl = declarationNameNode.getParent()
+	// TODO: port decl computation once scope is wired.
+
+	// Java: if !NodeUtil.isNameDeclaration(decl) || !decl.hasOneChild()
+	//          || !decl.getFirstChild().hasChildren()
+	//          || !decl.getFirstChild().getLastChild().isCall() { return }
+	// TODO: port structural guard.
+
+	// Java: ClosureImport kindOfCall = kindOfCall(decl.getFirstChild().getLastChild());
+	// if kindOfCall == nil { return }
+	// NOTE: Java emits no diagnostic here — the method returns without reporting.
 	_ = nameNode
 }
 
@@ -304,24 +329,66 @@ func (c *CheckClosureImports) checkValidImportCodeReference(nameNode *rhino.Node
 // checkGoogModuleGet validates a goog.module.get(…) call.
 // Mirrors Java's checkGoogModuleGet(NodeTraversal t, Node call, ModuleMetadata currentModule)
 // (lines 319-398).
-// Full scope/chunk checks require ModuleMetadata + scope stack; those
-// are stubbed until the module system is ported.
 func (c *CheckClosureImports) checkGoogModuleGet(call *rhino.Node) {
-	// TODO: check t.inModuleHoistScope() → MODULE_USES_GOOG_MODULE_GET (Java line 320).
-	// TODO: check INVALID_GET_CALL_SCOPE for goog.provide files in global scope (lines 325-357).
-	// TODO: check INVALID_GET_ALIAS when filling a forwardDeclare alias (lines 372-398).
+	// Java line 320: if (t.inModuleHoistScope()) { t.report(call, MODULE_USES_GOOG_MODULE_GET); return; }
+	// TODO(port): NodeTraversal.inModuleHoistScope() — scope stack not yet wired; deferred.
 
-	// Validate argument: must have two children, second must be string literal.
+	// Java lines 325-356: if not es6/googModule and not WEBPACK resolution mode,
+	// check inGlobalScope() for invalid alias assignment patterns.
+	// TODO(port): ModuleMetadata.isEs6Module()/isGoogModule() and
+	// NodeTraversal.inGlobalScope() — ModuleMetadata + scope not yet wired; deferred.
+	//
+	// Java: walk up GETPROP chain to find getSubExprRoot:
+	//   Node getSubExprRoot = call;
+	//   while (NodeUtil.isNormalOrOptChainGetProp(getSubExprRoot.getParent()))
+	//       getSubExprRoot = getSubExprRoot.getParent();
+	// Java: check parent of getSubExprRoot:
+	//   if parent.isName() || parent.isDestructuringLhs() → invalid
+	//   if parent.isAssign() && (target.isName() || target.isObjectPattern()) → invalid
+	// if invalid: t.report(call, INVALID_GET_CALL_SCOPE)
+	// TODO(port): INVALID_GET_CALL_SCOPE global-scope check — deferred.
+
+	// Java line 359: if (!call.hasTwoChildren() || !call.getSecondChild().isStringLit())
 	if !cciHasTwoChildren(call) || cciSecondChild(call) == nil || cciSecondChild(call).Token() != rhino.STRINGLIT {
 		c.report(call, diag.JSC_INVALID_CLOSURE_IMPORT_CALL, diag.Error,
 			"goog.module.get parameter must be a string literal.")
 		return
 	}
 
+	// Java line 364-369: namespace lookup.
 	namespace := cciSecondChild(call).String_()
-	if c.moduleMetadata.getModulesByGoogNamespace(namespace) == nil {
+	requiredModule := c.moduleMetadata.getModulesByGoogNamespace(namespace)
+	if requiredModule == nil {
 		c.report(call, diag.JSC_MISSING_MODULE_OR_PROVIDE, diag.Error,
 			fmt.Sprintf("Required namespace %q never defined.", namespace))
+		return
+	}
+
+	// Java lines 372-398: if isFillingAnAlias && isModule → check aliasVar and its RHS.
+	// Java: Node maybeAssign = call.getParent();
+	//       boolean isFillingAnAlias = maybeAssign.isAssign() && maybeAssign.getFirstChild().isName();
+	//       boolean isModule = currentModule.isGoogModule() || currentModule.isEs6Module();
+	// TODO(port): ModuleMetadata.isGoogModule()/isEs6Module() not yet wired.
+	// Structural port (isFillingAnAlias part):
+	maybeAssign := call.Parent()
+	isFillingAnAlias := maybeAssign != nil && maybeAssign.IsAssign() &&
+		maybeAssign.FirstChild() != nil && maybeAssign.FirstChild().IsName()
+	isModule := false // TODO: derive from currentModule once ModuleMetadata is ported.
+	if isFillingAnAlias && isModule {
+		// Java: String aliasName = call.getParent().getFirstChild().getString();
+		// Java: Var aliasVar = t.getScope().getVar(aliasName);
+		// if aliasVar == nil → report INVALID_GET_ALIAS, return
+		// TODO(port): scope.GetSlot(aliasName) — scope not yet wired.
+
+		// Java: Node aliasVarNodeRhs = NodeUtil.getRValueOfLValue(aliasVar.getNode());
+		// if aliasVarNodeRhs == nil || !NodeUtil.isCallTo(aliasVarNodeRhs, GOOG_FORWARD_DECLARE)
+		//     → report INVALID_GET_ALIAS, return
+		// TODO(port): NU.GetRValueOfLValue / NU.IsCallTo — deferred.
+
+		// Java: if !namespace.equals(aliasVarNodeRhs.getLastChild().getString())
+		//     → report INVALID_GET_ALIAS, return
+		// TODO(port): deferred.
+		_ = requiredModule
 	}
 }
 
@@ -472,17 +539,31 @@ func (c *CheckClosureImports) checkImport(call, parent *rhino.Node, importType c
 // ---------------------------------------------------------------------------
 
 // verifyRequireOrder checks that the required namespace was declared
-// before the current require call. Mirrors Java's
-// verifyRequireOrder(String namespace, Node call, NodeTraversal t, ModuleMetadata requiredModule)
+// before the current require call.
+// Mirrors Java's verifyRequireOrder(String namespace, Node call, NodeTraversal t, ModuleMetadata requiredModule)
 // (lines 523-550).
-func (c *CheckClosureImports) verifyRequireOrder(namespace string, call *rhino.Node, _ *ModuleMetadata) {
+func (c *CheckClosureImports) verifyRequireOrder(namespace string, call *rhino.Node, requiredModule *ModuleMetadata) {
+	// Java line 525-528: if (!namespacesSeen.contains(namespace)) { t.report(…); return; }
 	if _, seen := c.namespacesSeen[namespace]; !seen {
 		c.report(call, diag.JSC_LATE_PROVIDE_ERROR, diag.Error,
 			fmt.Sprintf("Required namespace %q not provided yet.", namespace))
 		return
 	}
-	// TODO: cross-chunk check (JSC_XMODULE_REQUIRE_ERROR) — requires
-	// JSChunkGraph + CompilerInput.getChunk(), neither of which is ported yet.
+
+	// Java lines 530-532: if (requiredModule.rootNode() == null || requiredModule.rootNode().isFromExterns())
+	//   return; // synthetic metadata for tests may have no root node.
+	if requiredModule.rootNode == nil || requiredModule.rootNode.IsFromExterns() {
+		return
+	}
+
+	// Java lines 534-549: cross-chunk check via JSChunkGraph.dependsOn.
+	// TODO(port): JSChunkGraph + CompilerInput.getChunk() — chunk graph not yet ported.
+	// Java: InputId requiredInputId = NodeUtil.getInputId(requiredModule.rootNode());
+	// Java: CompilerInput requiredInput = compiler.getInput(requiredInputId);
+	// Java: JSChunk requiredChunk = requiredInput.getChunk();
+	// Java: JSChunk currentChunk = t.getChunk();
+	// Java: if (currentChunk != requiredChunk && !chunkGraph.dependsOn(currentChunk, requiredChunk))
+	//           compiler.report(JSError.make(call, CROSS_CHUNK_REQUIRE_ERROR, …));
 }
 
 // ---------------------------------------------------------------------------

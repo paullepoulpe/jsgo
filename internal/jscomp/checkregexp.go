@@ -81,97 +81,31 @@ func (c *CheckRegExp) Check(script *rhino.Node) []diag.Diagnostic {
 // Go-only: language-adapter — Java's AbstractPostOrderCallback has this implicit; Go requires explicit impl.
 func (c *CheckRegExp) ShouldTraverse(_ *NodeTraversal, _, _ *rhino.Node) bool { return true }
 
-// Visit mirrors AbstractPostOrderCallback.visit — called after a node's
-// children have been visited.
+// Visit mirrors CheckRegExp.visit(NodeTraversal, Node, Node) — called
+// after a node's children have been visited (post-order).
 func (c *CheckRegExp) Visit(_ *NodeTraversal, n, parent *rhino.Node) {
-	c.visitNode(n, parent)
-}
-
-// walk drives a manual post-order traversal so CheckRegExp can be used
-// Go-only: language-adapter — Java uses NodeTraversal.traverse; Go uses recursive walk.
-// without a full NodeTraversal / TypedScopeCreator rig (no scope needed
-// for the REGEXP_REFERENCE check which only cares about NAME("RegExp")
-// references at the global level).
-func (c *CheckRegExp) walk(n, parent *rhino.Node) {
-	if n == nil {
-		return
-	}
-	for _, child := range n.Children() {
-		c.walk(child, n)
-	}
-	c.visitNode(n, parent)
-}
-
-// visitNode implements the Java visit() body: detect reference-name
-// "RegExp" usages that prevent regex optimization, and (when the parser
-// produces REGEXP nodes) validate regex syntax.
-//
-// NOTE: the jsgo parser does NOT yet produce a REGEXP token kind, so the
-// n.isRegExp() / JSC_MALFORMED_REGEXP branch is unreachable for now.
-// TODO: parser needs REGEXP token — add the validation branch once the
-// scanner produces regex literals as first-class AST nodes.
-func (c *CheckRegExp) visitNode(n, parent *rhino.Node) {
-	// Branch 1: NodeUtil.isReferenceName(n) — any NAME node that is a
-	// value reference (not a declaration binding site). We approximate
-	// this by checking for NAME token and skipping obvious binding sites.
 	if isRegExpReferenceName(n, parent) {
 		name := n.String_()
 		if name == "RegExp" {
-			// In Java: t.getScope().getVar(name) == null means the name is
-			// NOT locally declared — it resolves to the global RegExp.
-			// We use the same heuristic: if the identifier is declared in
-			// a local (non-extern) scope it shadows the global and is safe.
-			// Since CheckRegExp is a lightweight pass that doesn't carry a
-			// full TypedScopeCreator, we check whether it resolves to a
-			// local declaration by walking to a scope — but we don't have
-			// a traversal here. Instead we follow the same logic Java does:
-			// NAME nodes that are the first child of VAR/LET/CONST/FUNCTION/
-			// CLASS or a PARAM_LIST child are binding sites and were already
-			// filtered by isRegExpReferenceName. All remaining NAME("RegExp")
-			// nodes are references to the global. (Local re-declarations are
-			// handled at the binding site.)
+			// Java: t.getScope().getVar(name) == null — name not locally declared,
+			// so it resolves to the global RegExp constructor.
+			// Go-only: isRegExpReferenceName already filters binding sites; all
+			// remaining NAME("RegExp") nodes reference the global.
 			parentToken := rhino.ERROR
 			if parent != nil {
 				parentToken = parent.Token()
 			}
 			first := parent != nil && parent.FirstChild() == n
-
-			// Acceptable usage patterns (mirrors Java's !(...) condition):
-			//   new RegExp(...)
-			//   RegExp(...)
-			//   x instanceof RegExp
-			//   RegExp == x  /  RegExp != x  /  RegExp === x  /  RegExp !== x
-			//   case RegExp:
-			//   RegExp.safeProperty  (safeProperty in skiplist)
-			allowed := false
-			switch {
-			case parentToken == rhino.NEW && first:
-				allowed = true
-			case parentToken == rhino.CALL && first:
-				allowed = true
-			case parentToken == rhino.INSTANCEOF && !first:
-				allowed = true
-			case parentToken == rhino.EQ:
-				allowed = true
-			case parentToken == rhino.NE:
-				allowed = true
-			case parentToken == rhino.SHEQ:
-				allowed = true
-			case parentToken == rhino.SHNE:
-				allowed = true
-			case parentToken == rhino.CASE:
-				allowed = true
-			case parentToken == rhino.GETPROP && first:
-				// Accessing a property that is in the skiplist is OK; any
-				// other property access reveals global RegExp usage.
-				propName := ""
-				if kids := parent.Children(); len(kids) >= 2 {
-					propName = kids[1].String_()
-				}
-				allowed = regExpPropertySkiplist[propName]
-			}
-
-			if !allowed {
+			if !((parentToken == rhino.NEW && first) ||
+				(parentToken == rhino.CALL && first) ||
+				(parentToken == rhino.INSTANCEOF && !first) ||
+				parentToken == rhino.EQ ||
+				parentToken == rhino.NE ||
+				parentToken == rhino.SHEQ ||
+				parentToken == rhino.SHNE ||
+				parentToken == rhino.CASE ||
+				(parentToken == rhino.GETPROP && first &&
+					!regExpPropertySkiplist[parent.String_()])) {
 				if c.reportErrors {
 					c.diags = append(c.diags, diag.Diagnostic{
 						Path:    c.path,
@@ -185,20 +119,27 @@ func (c *CheckRegExp) visitNode(n, parent *rhino.Node) {
 				c.globalRegExpPropertiesUsed = true
 			}
 		}
+		// Check the syntax of regular expression patterns.
+	} else if c.reportErrors && n.Token() == rhino.REGEXP {
+		// Go-only: language-adapter — Java calls RegExpTree.parseRegExp(pattern, flags);
+		// no JS-compatible regex parser exists in Go yet, so JSC_MALFORMED_REGEXP
+		// is not emitted. TODO: port Java's RegExpTree or use a JS regex library.
+		// Java: pattern = n.getFirstChild().getString(), flags = n.hasTwoChildren() ? n.getLastChild().getString() : ""
+		// try { RegExpTree.parseRegExp(pattern, flags) } catch { t.report(n, MALFORMED_REGEXP, ex.getMessage()) }
 	}
+}
 
-	// Branch 2: n.isRegExp() — validate regex syntax.
-	// The jsgo parser DOES produce REGEXP tokens (the full literal is in
-	// n.String_(), e.g. "/abc/gi"). Java uses RegExpTree.parseRegExp(pattern,
-	// flags) from com.google.javascript.jscomp.regex. Go lacks a JS-compatible
-	// regex parser, so JSC_MALFORMED_REGEXP is not yet emitted.
-	// TODO(port): implement JS regex syntax validation when a JS regex library
-	// is available, or port Java's RegExpTree to Go.
-	if c.reportErrors && n.Token() == rhino.REGEXP {
-		// Placeholder — no JS regex validation library available yet.
-		// Java: pattern = n.getFirstChild().getString(), flags = n.hasTwoChildren() ? ... : ""
-		// try { RegExpTree.parseRegExp(pattern, flags) } catch { report MALFORMED_REGEXP }
+// walk drives a manual post-order traversal so CheckRegExp can be used
+// Go-only: language-adapter — Java uses NodeTraversal.traverse; Go uses recursive walk.
+// without a full NodeTraversal / TypedScopeCreator rig.
+func (c *CheckRegExp) walk(n, parent *rhino.Node) {
+	if n == nil {
+		return
 	}
+	for _, child := range n.Children() {
+		c.walk(child, n)
+	}
+	c.Visit(nil, n, parent)
 }
 
 // isRegExpReferenceName reports whether `n` is a NAME node that is a

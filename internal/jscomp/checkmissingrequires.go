@@ -666,8 +666,14 @@ func (c *CheckMissingRequires) visitNode(n *rhino.Node, currentModule *cmrModule
 // ---------------------------------------------------------------------------
 
 func (c *CheckMissingRequires) visitJsDocInfo(n *rhino.Node, currentModule *cmrModuleMetadata, info *rhino.JSDocInfo) {
-	// Collect template names before checking.
+	// Collect template parameter names before checking, so that annotations on
+	// the same node that reference the name are excluded from the check.
+	// Mirrors: templateParamNames.addAll(info.getTemplateTypeNames())
 	for _, name := range info.TemplateNames() {
+		c.templateParamNames[name] = true
+	}
+	// Mirrors: templateParamNames.addAll(info.getTypeTransformations().keySet())
+	for name := range info.GetTypeTransformations() {
 		c.templateParamNames[name] = true
 	}
 
@@ -688,7 +694,18 @@ func (c *CheckMissingRequires) visitJsDocInfo(n *rhino.Node, currentModule *cmrM
 	if td := info.TypedefType(); td != nil {
 		c.visitJsDocExpr(n, currentModule, td, cmrStrengthWeakType)
 	}
+	// @this requires a goog.requireType, not a goog.require.
+	// Mirrors: if (info.hasThisType()) visitJsDocExpr(..., WEAK_TYPE)
+	if info.HasThisType() {
+		if tt := info.GetThisType(); tt != nil {
+			c.visitJsDocExpr(n, currentModule, tt, cmrStrengthWeakType)
+		}
+	}
 	// @extends requires a strong require, not just a requireType.
+	// Java: if (info.hasBaseType()) visitJsDocExpr(..., IMPLEMENTS_EXTENDS)
+	//       for (expr : info.getExtendedInterfaces()) visitJsDocExpr(...)
+	// In Go, BaseTypes() covers both the single @extends (from BaseType())
+	// and multi-@extends (from interfaces); they are all stored in extendsAll.
 	for _, ext := range info.BaseTypes() {
 		c.visitJsDocExpr(n, currentModule, ext, cmrStrengthImplementsExtends)
 	}
@@ -698,19 +715,38 @@ func (c *CheckMissingRequires) visitJsDocInfo(n *rhino.Node, currentModule *cmrM
 	}
 }
 
-// visitJsDocExpr mirrors visitJsDocExpr.
-// JSTypeExpression in our port only carries a TypeName string (Tier-0
-// limitation). The Java side parses a full type AST and calls getAllTypeNodes().
-// Here we parse the dotted name directly from the TypeName field.
-//
-// TODO: when JSTypeExpression is upgraded to a Node-rooted parse tree,
-// iterate over all type nodes in the expression as Java does.
+// visitJsDocExpr mirrors Java's visitJsDocExpr.
+// Java iterates expr.getAllTypeNodes() — each STRINGLIT leaf in the type AST —
+// so compound types like Map<string, Foo> visit both "string" and "Foo".
+// We use GetAllTypeNodes() when a Node-rooted parse tree is available, and
+// fall back to TypeName (Tier-0) when the expression has no root node.
 func (c *CheckMissingRequires) visitJsDocExpr(n *rhino.Node, currentModule *cmrModuleMetadata, expr *rhino.JSTypeExpression, strength cmrStrength) {
-	if expr == nil || expr.TypeName == "" {
+	if expr == nil {
+		return
+	}
+	// Java: for (Node typeNode : expr.getAllTypeNodes()) {
+	//         visitQualifiedName(t, typeNode, currentModule,
+	//             QualifiedName.of(typeNode.getString()), referenceStrength);
+	//       }
+	typeNodes := expr.GetAllTypeNodes()
+	if len(typeNodes) > 0 {
+		// Node-rooted path: each STRINGLIT carries a dotted type name.
+		for _, typeNode := range typeNodes {
+			typeName := typeNode.String_()
+			if typeName == "" {
+				continue
+			}
+			qn := qualifiedNameOf(typeName)
+			c.visitQualifiedName(n, currentModule, qn, strength)
+		}
+		return
+	}
+	// Tier-0 fallback: no root node, use TypeName directly.
+	typeName := expr.TypeName
+	if typeName == "" {
 		return
 	}
 	// Strip template arguments, e.g. "Array<string>" → "Array".
-	typeName := expr.TypeName
 	if idx := strings.IndexByte(typeName, '<'); idx >= 0 {
 		typeName = typeName[:idx]
 	}
@@ -732,22 +768,48 @@ func (c *CheckMissingRequires) visitJsDocExpr(n *rhino.Node, currentModule *cmrM
 // namespace (e.g., `const {Bar} = goog.require('foo')` when 'foo.Bar' is
 // its own namespace).
 //
-// TODO: implement once Var / GoogRequire stubs are replaced with real
-// scope-based implementations. The logic (Java lines 301–381):
-//   1. Look up rootName in the current scope as a Var.
-//   2. If it is a local destructured goog.require with a property,
-//      check whether (namespace + "." + property) is its own namespace.
-//   3. If so, fire INCORRECT_NAMESPACE_ALIAS_REQUIRE /
-//      INCORRECT_NAMESPACE_ALIAS_REQUIRE_TYPE.
-func (c *CheckMissingRequires) visitMaybeDeclaration(_ *rhino.Node, currentModule *cmrModuleMetadata) {
-	if !currentModule.isModule() {
+// Mirrors Java CheckMissingRequires.visitMaybeDeclaration (lines 301–381).
+func (c *CheckMissingRequires) visitMaybeDeclaration(n *rhino.Node, currentFile *cmrModuleMetadata) {
+	// This check only makes sense in goog.module files.
+	if !currentFile.isModule() {
 		return
 	}
-	// Skip TypeScript-generated sources (mirrors Java isTypeScriptSource check).
+
+	// Currently, tsickle can introduce these.
+	// Mirrors: if (isTypeScriptSource(n)) return;
 	if isTypeScriptSource(c.path) {
 		return
 	}
-	// Scope-based Var lookup not yet implemented; returns without firing.
+
+	// TODO(port): NodeTraversal.getScope().getVar() — scope-based Var lookup not yet ported.
+	// Reason: TypedScope / NodeTraversal not ported; all downstream logic depends on var.isLocal()
+	// and NodeUtil.getGoogRequireInfo(var). Without scope resolution the check cannot fire.
+	// When scope is available, the remainder of the Java logic is:
+	//
+	//   rootName := n.String_()
+	//   var := scope.GetVar(rootName)
+	//   if var == nil { return }
+	//   declaration := var.getDeclaration()
+	//   if declaration == nil || declaration.getNode() != n { return }
+	//   if !var.getScope().isLocal() { return }
+	//   require := NodeUtil.getGoogRequireInfo(var)
+	//   if require == nil || require.property() == nil { return }
+	//   requiredFile := moduleByNamespace[require.namespace()]
+	//   if requiredFile == nil || !requiredFile.hasLegacyGoogNamespaces() { return }
+	//   reference := require.namespace() + "." + require.property()
+	//   qualifiedName := qualifiedNameOf(reference)
+	//   if !currentFile.containsNamespace(reference) {
+	//     alternateFile := moduleByNamespace[reference]
+	//     if alternateFile != nil && alternateFile.hasLegacyGoogNamespaces() {
+	//       strength := cmrStrengthCode; if !require.isStrongRequire() { strength = cmrStrengthWeakType }
+	//       if !hasAcceptableRequire(currentFile, qualifiedName, alternateFile, strength) {
+	//         code := cmrCodeIncorrectNSAliasRequire
+	//         if !require.isStrongRequire() { code = cmrCodeIncorrectNSAliasRequireType }
+	//         c.report(n, code, reference, "")
+	//       }
+	//     }
+	//   }
+	_ = n
 }
 
 // ---------------------------------------------------------------------------
@@ -796,10 +858,15 @@ func (c *CheckMissingRequires) visitQualifiedName(n *rhino.Node, currentFile *cm
 		return
 	}
 
-	// TODO: look up rootName in the current scope (requires Var stub to be
-	// populated). Java branches on whether the var is local to call
-	// checkMissingRequireThroughShortName vs checkMissingRequireThroughFullyQualifiedName.
-	// For now, always take the fully-qualified path (handles global references).
+	// TODO(port): NodeTraversal.getScope().getVar() — scope-based local-var lookup not yet ported.
+	// Reason: TypedScope not ported; Java branches here:
+	//   var := t.getScope().getVar(rootName)
+	//   if var != nil && var.getScope().isLocal() {
+	//     checkMissingRequireThroughShortName(t, n, var, currentFile, qualifiedName, referenceStrength)
+	//   } else {
+	//     checkMissingRequireThroughFullyQualifiedName(...)
+	//   }
+	// Without scope resolution we always take the fully-qualified path.
 	c.checkMissingRequireThroughFullyQualifiedName(n, currentFile, qualifiedName, referenceStrength)
 }
 
@@ -810,12 +877,7 @@ func (c *CheckMissingRequires) visitQualifiedName(n *rhino.Node, currentFile *cm
 // checkMissingRequireThroughShortName is called when the root of the
 // qualified name is a local variable that may be an alias for an imported namespace.
 //
-// TODO: implement once Var / GoogRequire / scope stubs are real. Java logic:
-//   1. Skip TypeScript sources.
-//   2. Determine inModule / inGoogScope.
-//   3. For simple names (no dots), return — already validated in visitMaybeDeclaration.
-//   4. Dispatch to checkMissingRequireThroughShortNameInGoogScope or
-//      checkMissingRequireThroughShortNameInModule.
+// Mirrors Java CheckMissingRequires.checkMissingRequireThroughShortName.
 func (c *CheckMissingRequires) checkMissingRequireThroughShortName(
 	n *rhino.Node,
 	localVar *cmrVar,
@@ -823,16 +885,39 @@ func (c *CheckMissingRequires) checkMissingRequireThroughShortName(
 	qualifiedName *cmrQualifiedName,
 	referenceStrength cmrStrength,
 ) {
-	// Skip TypeScript-generated sources (mirrors Java isTypeScriptSource check).
+	// Mirrors: if (isTypeScriptSource(n)) return;
 	if isTypeScriptSource(c.path) {
 		return
 	}
-	// Scope-based Var / GoogRequire resolution not yet implemented.
-	_ = n
-	_ = localVar
-	_ = currentFile
-	_ = qualifiedName
-	_ = referenceStrength
+
+	inModule := currentFile.isModule()
+	// inGoogScope: not in a module AND the var's scope root is a goog.scope body.
+	// Mirrors: boolean inGoogScope = !inModule && isGoogScopeBody(localVar.getScopeRoot());
+	inGoogScope := !inModule && isGoogScopeBody(localVar.getScopeRoot())
+
+	if !inModule && !inGoogScope {
+		// Don't worry about aliases outside of module files and goog.scopes for now.
+		return
+	}
+
+	// The qualified name *is* the root name if it is "simple".
+	// It is explicitly imported and we have already validated the import in
+	// visitMaybeDeclaration.
+	if qualifiedName.isSimple() {
+		return
+	}
+
+	if inGoogScope {
+		c.checkMissingRequireThroughShortNameInGoogScope(
+			n, localVar, currentFile, qualifiedName, referenceStrength)
+	} else {
+		// TODO(port): NodeUtil.getGoogRequireInfo — not yet ported.
+		// Reason: NodeUtil.GoogRequire record and getGoogRequireInfo() not yet ported.
+		// Java: checkMissingRequireThroughShortNameInModule(t, n,
+		//   NodeUtil.getGoogRequireInfo(localVar), currentFile, qualifiedName, referenceStrength)
+		c.checkMissingRequireThroughShortNameInModule(
+			n, nil, currentFile, qualifiedName, referenceStrength)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -841,9 +926,7 @@ func (c *CheckMissingRequires) checkMissingRequireThroughShortName(
 
 // checkMissingRequireThroughShortNameInGoogScope handles the goog.scope case.
 //
-// TODO: implement once Var stubs are real. Java logic handles two cases:
-//  1. Initial value is a qualified name (legacy namespace + optional extra props).
-//  2. Initial value is a goog.module.get call (+ optional extra props).
+// Mirrors Java CheckMissingRequires.checkMissingRequireThroughShortNameInGoogScope.
 func (c *CheckMissingRequires) checkMissingRequireThroughShortNameInGoogScope(
 	n *rhino.Node,
 	localVar *cmrVar,
@@ -851,11 +934,64 @@ func (c *CheckMissingRequires) checkMissingRequireThroughShortNameInGoogScope(
 	qualifiedName *cmrQualifiedName,
 	referenceStrength cmrStrength,
 ) {
-	_ = n
-	_ = localVar
-	_ = currentFile
-	_ = qualifiedName
-	_ = referenceStrength
+	initialValue := localVar.getInitialValue()
+	if initialValue == nil {
+		return
+	}
+
+	// Case (1): the initial value is a legacy namespace + potential extra properties.
+	// Mirrors: if (initialValue.isQualifiedName()) { ... }
+	if initialValue.Token() == rhino.NAME || initialValue.Token() == rhino.GETPROP {
+		if aliasedName := qualifiedNameFromNode(initialValue); aliasedName != nil {
+			normalizedQualifiedName := swapRootOfQualifiedName(qualifiedName, aliasedName)
+
+			// Find longest prefix match that is actually a provide/legacy namespace.
+			var originalImport *cmrModuleMetadata
+			for subName := aliasedName; subName != nil; subName = subName.getOwner() {
+				imported := c.moduleByNamespace[subName.join()]
+				if imported != nil {
+					originalImport = imported
+					break
+				}
+			}
+			c.checkNormalizedShortNameImport(
+				n, currentFile, originalImport, qualifiedName, normalizedQualifiedName, referenceStrength)
+			return
+		}
+	}
+
+	// Case (2): the initial value is a goog.module.get + potential extra properties.
+	// Mirrors: while (initialValue.isGetProp()) { initialValue = initialValue.getFirstChild(); }
+	cur := initialValue
+	for cur.Token() == rhino.GETPROP {
+		cur = cur.FirstChild()
+	}
+	if !isGoogModuleGetCall(cur) {
+		return
+	}
+	curKids := cur.Children()
+	if len(curKids) < 2 || curKids[1].Token() != rhino.STRINGLIT {
+		return
+	}
+	importedNamespace := curKids[1].String_()
+	originalImport := c.moduleByNamespace[importedNamespace]
+	if originalImport != nil && !originalImport.hasLegacyGoogNamespaces() {
+		// We trust the import from a non-legacy module, as they should not overlap.
+		return
+	}
+	// Build aliasedName from the namespace + any GETPROP chain after the goog.module.get call.
+	aliasedName := qualifiedNameOf(importedNamespace)
+	// Walk up GETPROP chain from cur's parent.
+	// Mirrors: for (Node prop = initialValue.getParent(); prop.isGetProp(); prop = prop.getParent())
+	for prop := cur.Parent(); prop != nil && prop.Token() == rhino.GETPROP; prop = prop.Parent() {
+		propKids := prop.Children()
+		if len(propKids) >= 2 {
+			aliasedName = aliasedName.getprop(propKids[1].String_())
+		}
+	}
+	normalizedQualifiedName := swapRootOfQualifiedName(qualifiedName, aliasedName)
+	c.checkNormalizedShortNameImport(
+		n, currentFile, originalImport, qualifiedName, normalizedQualifiedName, referenceStrength)
 }
 
 // ---------------------------------------------------------------------------
@@ -864,7 +1000,7 @@ func (c *CheckMissingRequires) checkMissingRequireThroughShortNameInGoogScope(
 
 // checkMissingRequireThroughShortNameInModule handles the goog.module case.
 //
-// TODO: implement once GoogRequire stubs are real.
+// Mirrors Java CheckMissingRequires.checkMissingRequireThroughShortNameInModule.
 func (c *CheckMissingRequires) checkMissingRequireThroughShortNameInModule(
 	n *rhino.Node,
 	require *cmrGoogRequire,
@@ -872,11 +1008,26 @@ func (c *CheckMissingRequires) checkMissingRequireThroughShortNameInModule(
 	qualifiedName *cmrQualifiedName,
 	referenceStrength cmrStrength,
 ) {
-	_ = n
-	_ = require
-	_ = currentFile
-	_ = qualifiedName
-	_ = referenceStrength
+	if require == nil {
+		// It is a local name, not an import.
+		// NOTE: this *could be a local alias* of an imported name, but at some
+		// point the only real fix is to not use goog.provide or
+		// goog.module.declareLegacyNamespace because it is always possible to
+		// obfuscate the use of the namespace.
+		return
+	}
+
+	originalRequiredFile := c.moduleByNamespace[require.namespace]
+	if originalRequiredFile == nil || !originalRequiredFile.hasLegacyGoogNamespaces() {
+		// We trust the import from a non-legacy module, as they should not overlap.
+		return
+	}
+
+	// Verify namespace usage.
+	normalizeQualifiedName := normalizeQualifiedNamePlusImport(qualifiedName, require)
+
+	c.checkNormalizedShortNameImport(
+		n, currentFile, originalRequiredFile, qualifiedName, normalizeQualifiedName, referenceStrength)
 }
 
 // ---------------------------------------------------------------------------

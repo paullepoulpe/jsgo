@@ -192,7 +192,11 @@ func (p *Parser) tryStatement() (*rhino.Node, bool) {
 		return p.finishDeclStatement(declToken, jsdoc, kwLine, kwCol)
 	}
 	if p.scanner.ConsumeKeyword("return") {
-		return p.parseReturnStatement(), true
+		ret := p.parseReturnStatement()
+		// Position RETURN at the `return` keyword. Java's IRFactory does
+		// the same via ReturnStatementTree.location.start.
+		ret.SetPos(kwLine, kwCol)
+		return ret, true
 	}
 	if p.scanner.ConsumeKeyword("if") {
 		ifNode := p.parseIfStatement()
