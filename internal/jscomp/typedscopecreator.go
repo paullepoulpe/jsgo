@@ -2467,7 +2467,12 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 	init := name.FirstChild()
 	if init != nil && init.Token() == rhino.NEW {
 		if callee := init.FirstChild(); callee != nil && callee.Token() == rhino.NAME {
-			if fn, ok := scope.declared[callee.String_()].(*jstype.FunctionType); ok && fn.Instance != nil {
+			// Use GetDeclaredType so the constructor lookup walks the
+			// scope chain — direct map access misses constructors defined
+			// in an enclosing scope. Mirrors Java's TypedScopeCreator,
+			// which calls scope.getVar() (chain-walking) rather than
+			// reading the local slot map directly.
+			if fn, ok := scope.GetDeclaredType(callee.String_()).(*jstype.FunctionType); ok && fn.Instance != nil {
 				scope.declared[name.String_()] = fn.Instance
 				return
 			}
