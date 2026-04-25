@@ -121,20 +121,11 @@ func (t *TypeInference) inferGetProp(n *rhino.Node) jstype.JSType {
 		}
 	}
 	if u, ok := recvType.(*jstype.UnionType); ok {
-		var members []jstype.JSType
-		for _, m := range u.Members() {
-			obj, ok := m.(*jstype.ObjectType)
-			if !ok {
-				return jstype.Unknown
-			}
-			pt := obj.GetPropertyType(propName)
-			if pt == nil {
-				return jstype.Unknown
-			}
-			members = append(members, pt)
-		}
-		if len(members) > 0 {
-			return jstype.NewUnion(members...)
+		// Port of UnionType.findPropertyTypeWithoutConsideringTemplateTypes:
+		// skip null/void members and members lacking the property; union
+		// the remaining property types via getLeastSupertype.
+		if pt := u.FindPropertyType(propName); pt != nil {
+			return pt
 		}
 	}
 	return jstype.Unknown

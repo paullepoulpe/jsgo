@@ -378,3 +378,105 @@ func (u *UnionType) IsObject() bool {
 	}
 	return len(u.members) > 0
 }
+
+// findPropertyTypeOwner is satisfied by types that can resolve a named
+// property to its JSType (returning nil when absent).
+type findPropertyTypeOwner interface {
+	GetPropertyType(name string) JSType
+}
+
+// FindPropertyType ports UnionType.findPropertyTypeWithoutConsideringTemplateTypes
+// (rhino/jstype/UnionType.java:213). Iterates alternates, skipping null/void
+// and members lacking the property, and returns the least-supertype of the
+// per-member property types. Returns nil when no member has the property.
+func (u *UnionType) FindPropertyType(propertyName string) JSType {
+	var propertyType JSType
+	for i := 0; i < len(u.members); i++ {
+		alternate := u.members[i]
+		// Filter out the null/undefined type — matches Java's `isNullType
+		// || isVoidType` skip. Java does this so a `?T` (T|null) read of a
+		// property defined on T doesn't lose the property.
+		if isNullType(alternate) || isVoidType(alternate) {
+			continue
+		}
+		var altPropertyType JSType
+		if owner, ok := alternate.(findPropertyTypeOwner); ok {
+			altPropertyType = owner.GetPropertyType(propertyName)
+		}
+		if altPropertyType == nil {
+			continue
+		}
+		if propertyType == nil {
+			propertyType = altPropertyType
+		} else {
+			// Java does propertyType.getLeastSupertype(altPropertyType);
+			// our rough equivalent is unioning the two and letting
+			// NewUnion's dedup collapse identical members.
+			propertyType = NewUnion(propertyType, altPropertyType)
+		}
+	}
+	return propertyType
+}
+
+// CanBeCalled ports UnionType.canBeCalled(): true iff every alternate can
+// be called. Mirrors `allTypesMatch(JSType::canBeCalled, this)`.
+func (u *UnionType) CanBeCalled() bool {
+	for _, m := range u.members {
+		// Function types and Unknown are callable; anything else isn't.
+		switch m.(type) {
+		case *FunctionType:
+			continue
+		default:
+			if isUnknown(m) {
+				continue
+			}
+			return false
+		}
+	}
+	return len(u.members) > 0
+}
+
+// IsStruct ports UnionType.isStruct() — true when any alternate is @struct.
+// Mirrors `anyTypeMatches(JSType::isStruct, this)`.
+func (u *UnionType) IsStruct() bool {
+	for _, m := range u.members {
+		if obj, ok := m.(*ObjectType); ok && obj.IsStruct {
+			return true
+		}
+	}
+	return false
+}
+
+// IsDict ports UnionType.isDict() — true when any alternate is @dict.
+// Mirrors `anyTypeMatches(JSType::isDict, this)`.
+func (u *UnionType) IsDict() bool {
+	for _, m := range u.members {
+		if obj, ok := m.(*ObjectType); ok && obj.IsDict {
+			return true
+		}
+	}
+	return false
+}
+
+// IsExplicitlyVoidable ports UnionType.isExplicitlyVoidable() — true when
+// any alternate is the explicit Void type (not the Unknown wildcard).
+// Mirrors `anyTypeMatches(JSType::isExplicitlyVoidable, this)`.
+func (u *UnionType) IsExplicitlyVoidable() bool {
+	for _, m := range u.members {
+		if isVoidType(m) {
+			return true
+		}
+	}
+	return false
+}
+
+// IsUnknownType ports UnionType.isUnknownType() — true when any alternate
+// is Unknown. Mirrors `anyTypeMatches(JSType::isUnknownType, this)`.
+func (u *UnionType) IsUnknownType() bool {
+	for _, m := range u.members {
+		if isUnknown(m) {
+			return true
+		}
+	}
+	return false
+}
