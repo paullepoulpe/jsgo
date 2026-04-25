@@ -152,6 +152,18 @@ func (v *VarCheck) checkName(t *NodeTraversal, n, parent *rhino.Node) {
 	if defaultExternNames()[name] {
 		return
 	}
+	// Named class expression: `class x { … new x … }`. The class's own
+	// name is bound inside its body but not in any outer scope. Java's
+	// SyntacticScopeCreator pushes a class scope holding this binding;
+	// jsgo doesn't yet, so we resolve it by walking the AST to find
+	// the enclosing CLASS whose first child matches `name`.
+	for cur := n.Parent(); cur != nil; cur = cur.Parent() {
+		if cur.Token() == rhino.CLASS {
+			if first := cur.FirstChild(); first != nil && first != n && first.String_() == name {
+				return
+			}
+		}
+	}
 	v.handleUndeclaredVariableRef(t, n)
 }
 
