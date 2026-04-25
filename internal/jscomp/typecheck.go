@@ -55,6 +55,13 @@ type TypeCheck struct {
 	// without tracking per-guard refinement state.
 	inexistentReported map[string]bool
 
+	// noPropsReported dedups "No properties on this expression"
+	// JSC_TYPE_MISMATCH emissions per receiver root name (NAME or
+	// qualified name). Java's TypeValidator.expectObject reports the
+	// mismatch through registerMismatchAndReport which dedupes by
+	// (location, found, required); we approximate per-root here.
+	noPropsReported map[string]bool
+
 	// fileSuppressions carries any @fileoverview @suppress {...}
 	// names captured pre-traversal. visitGetProp / visitReturn /
 	// etc. consult it to skip diagnostics the author opted out
@@ -1662,6 +1669,23 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 	// case) still flows through the INEXISTENT_PROPERTY rules
 	// below.
 	if rawRecv == jstype.Null || rawRecv == jstype.Void {
+		// Dedup: Java's TypeValidator only reports the mismatch once
+		// per receiver-root within a function body. Two consecutive
+		// `bar.x; bar.y;` accesses on a void-typed `bar` produce a
+		// single error in the oracle.
+		key := ""
+		if kids[0].Token() == rhino.NAME {
+			key = kids[0].String_()
+		}
+		if key != "" {
+			if c.noPropsReported == nil {
+				c.noPropsReported = map[string]bool{}
+			}
+			if c.noPropsReported[key] {
+				return nil
+			}
+			c.noPropsReported[key] = true
+		}
 		return []diag.Diagnostic{{
 			Path: c.path, Line: propNode.Lineno(), Col: propNode.Charno(),
 			Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
