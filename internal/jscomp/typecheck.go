@@ -4812,7 +4812,11 @@ func (c *TypeCheck) visitRelativeComparison(n *rhino.Node, scope *TypedScope) []
 	numericMode := isDefinitelyNumeric(l) || isDefinitelyNumeric(r)
 	if numericMode {
 		var out []diag.Diagnostic
-		if !isUnknownOrNil(l) && !isDefinitelyNumericish(l) {
+		// Suppress JSC_INVALID_OPERAND_TYPE on operands that visitRelationalDefault
+		// already flags via JSC_TYPE_MISMATCH (isDefinitelyNotComparable). Mirrors
+		// Java's TypeValidator.expectBigIntOrNumber which routes the loose path
+		// to JSC_TYPE_MISMATCH and skips the strict diagnostic on the same node.
+		if !isUnknownOrNil(l) && !isDefinitelyNumericish(l) && !isDefinitelyNotComparable(l, true) {
 			out = append(out, diag.Diagnostic{
 				Path: c.path, Line: kids[0].Lineno(), Col: kids[0].Charno(),
 				Code: diag.JSC_INVALID_OPERAND_TYPE, Level: diag.Warning,
@@ -4820,7 +4824,7 @@ func (c *TypeCheck) visitRelativeComparison(n *rhino.Node, scope *TypedScope) []
 					l.TypeName() + "\nrequired: (bigint|number)",
 			})
 		}
-		if !isUnknownOrNil(r) && !isDefinitelyNumericish(r) {
+		if !isUnknownOrNil(r) && !isDefinitelyNumericish(r) && !isDefinitelyNotComparable(r, true) {
 			out = append(out, diag.Diagnostic{
 				Path: c.path, Line: kids[1].Lineno(), Col: kids[1].Charno(),
 				Code: diag.JSC_INVALID_OPERAND_TYPE, Level: diag.Warning,
