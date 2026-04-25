@@ -1007,10 +1007,27 @@ func (f *FunctionType) TypeName() string {
 // implementation lands with the Tier-2 subtype work.
 func (f *FunctionType) IsSubtypeOf(o JSType) bool {
 	if g, ok := o.(*FunctionType); ok {
-		if len(f.Params) != len(g.Params) {
+		// Function subtyping: f is a subtype of g when f can be called
+		// wherever g is expected. f's required arity must be ≤ g's required
+		// arity (so any caller of g supplies enough args for f), and f's
+		// max arity must be ≥ g's max arity (so f accepts every arg the
+		// caller of g may pass). Extra optional params on f are fine —
+		// Java's @override allows adding optional parameters.
+		if f.MinArity > g.MinArity {
 			return false
 		}
-		for i := range f.Params {
+		if g.MaxArity > f.MaxArity {
+			return false
+		}
+		// Compare positional params up to min(len(f.Params), len(g.Params)).
+		// Java's structural function-type check is contravariant; jsgo's
+		// existing IsSubtype call here matches the prior permissive
+		// behaviour (param[i] of f must be subtype of param[i] of g).
+		minLen := len(f.Params)
+		if len(g.Params) < minLen {
+			minLen = len(g.Params)
+		}
+		for i := 0; i < minLen; i++ {
 			if !IsSubtype(f.Params[i], g.Params[i]) {
 				return false
 			}

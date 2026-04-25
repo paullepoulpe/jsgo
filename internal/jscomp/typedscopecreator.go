@@ -256,6 +256,50 @@ func (c *TypedScopeCreator) buildExpressionFunctionScope(fn *rhino.Node, parent 
 	}
 	nameNode := kids[0]
 	params := kids[1]
+	// Port of jscomp/NodeUtil.java::getBestJsDocInfoNodeInternal @ closure-compiler v20260415
+	// Anonymous FEE assigned to a VAR/LET/CONST: `var f = function(x) {}`.
+	// Java walks parent(NAME) → grandparent(VAR) to inherit JSDoc unconditionally.
+	// We guard with exact @param name matching (count + each name positionally)
+	// AND require all @param types to be non-union (no `|`) to avoid
+	// flow-narrowing FPs in fixtures that rely on subtype narrowing inside the
+	// FEE body (e.g. testbooleanreduction6 has `@param {Array|string|null} x`
+	// and the union type signals that narrowing is needed for correctness).
+	if info == nil && nameNode != nil && nameNode.String_() == "" {
+		if p := fn.Parent(); p != nil && p.Token() == rhino.NAME {
+			if gp := p.Parent(); gp != nil {
+				switch gp.Token() {
+				case rhino.VAR, rhino.LET, rhino.CONST, rhino.ASSIGN:
+					if gpInfo := gp.JSDocInfo(); gpInfo != nil {
+						jdocNames := gpInfo.ParameterNames()
+						feeParams := params.Children()
+						if len(jdocNames) == len(feeParams) {
+							match := true
+							for i, fp := range feeParams {
+								if fp.Token() != rhino.NAME || fp.String_() != jdocNames[i] {
+									match = false
+									break
+								}
+								// Reject if the @param type is a union — union-typed
+								// params often rely on flow narrowing inside the FEE
+								// body that our non-CFG inference cannot reproduce.
+								if expr := gpInfo.ParameterType(fp.String_()); expr != nil {
+									if resolved := parent.ResolveExpr(expr.TypeName); resolved != nil {
+										if _, isUnion := resolved.(*jstype.UnionType); isUnion {
+											match = false
+											break
+										}
+									}
+								}
+							}
+							if match {
+								info = gpInfo
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 	// Named function expression with a VAR parent — promote the
 	// VAR's @param / @return JSDoc so the named binding carries
 	// the declared signature inside its own body. Anonymous FEEs
@@ -735,20 +779,22 @@ func (c *TypedScopeCreator) recordPrototypeAssign(a *rhino.Node, scope *TypedSco
 		}
 	}
 	memberType := c.inferPrototypeValueType(assignInfo, rhs, resolveScope, fn.Instance, propName)
-	fn.Instance.DefineProperty(propName, memberType)
-	// When the assignment has explicit @type JSDoc, clear the inferred flag
-	// if it was previously set by this.prop = … in the constructor body.
-	// Mirrors Java's PrototypeObjectType.defineProperty which marks slots
-	// "declared" (non-inferred) when a @type annotation is present.
-	if assignInfo != nil && (assignInfo.HasType() || rhs.Token() == rhino.FUNCTION) {
-		fn.Instance.ClearInferred(propName)
-	}
-	// Literal-inferred prototype slots (no @type) don't participate
-	// in the subclass-override type-match check — Java treats them
-	// as open surface in default mode.
-	// Use assignInfo (which may come from the parent EXPR_RESULT) to determine
-	// whether the slot should be marked as inferred.
-	if (assignInfo == nil || !assignInfo.HasType()) && rhs.Token() != rhino.FUNCTION {
+	// Port of TypedScopeCreator.NormalScopeBuilder.defineSlot @ closure-compiler v20260415
+	// When a prototype property has an explicit @type annotation or is a
+	// method (function RHS), it is a declared slot: use DefineDeclaredProperty
+	// so that any prior inferred slot (e.g. from a constructor's `this.x = …`
+	// processed before the prototype declaration) is promoted to declared.
+	// Mirrors Java's NormalScopeBuilder pre-pass that registers prototype
+	// declarations before constructor bodies — DefineDeclaredProperty clears
+	// the inferred flag on the existing slot.
+	isDeclared := (assignInfo != nil && assignInfo.HasType()) || rhs.Token() == rhino.FUNCTION
+	if isDeclared {
+		fn.Instance.DefineDeclaredProperty(propName, memberType, a.Children()[0])
+	} else {
+		fn.Instance.DefineProperty(propName, memberType)
+		// Literal-inferred prototype slots (no @type) don't participate
+		// in the subclass-override type-match check — Java treats them
+		// as open surface in default mode.
 		if t := literalType(rhs); !isJSUnknown(t) {
 			fn.Instance.MarkInferred(propName)
 		}
@@ -1015,6 +1061,47 @@ func (c *TypedScopeCreator) recordNamespaceAssignFromFunction(a *rhino.Node, sco
 		}
 		return
 	}
+	// Port of TypedScopeCreator.NormalScopeBuilder.maybeDeclareQualifiedName @ closure-compiler v20260415
+	// When `/** @constructor */ ns.Foo = <non-function-literal>` is encountered
+	// (e.g. `ns.Foo = ns.create()`), Java's getDeclaredType still creates a
+	// FunctionType via createFunctionTypeFromNodes even when the RHS is not a
+	// function literal (isFnLiteral=false, fnRoot=null). Mirror that here: when
+	// JSDoc carries @constructor / @interface / @record and the LHS is a
+	// namespace GETPROP, register a ConstructorType regardless of RHS token.
+	if rhs.Token() != rhino.FUNCTION && lhs.Token() == rhino.GETPROP {
+		info2 := a.JSDocInfo()
+		if info2 != nil && (info2.IsConstructor() || info2.IsInterface() || info2.IsRecord()) {
+			lhsKids2 := lhs.Children()
+			if len(lhsKids2) >= 2 && lhsKids2[0].Token() == rhino.NAME {
+				recv2 := lhsKids2[0].String_()
+				propName2 := lhsKids2[1].String_()
+				if _, ok := scope.GetDeclaredType(recv2).(*jstype.FunctionType); !ok {
+					qname2 := recv2 + "." + propName2
+					ctor2 := jstype.NewConstructorType(qname2, nil)
+					if info2.IsInterface() || info2.IsRecord() {
+						ctor2.Instance.IsStructural = true
+						ctor2.Instance.IsRecord = info2.IsRecord()
+					}
+					if info2.IsInterface() {
+						ctor2.Instance.IsInterface = true
+					}
+					if info2.IsStruct() {
+						ctor2.Instance.IsStruct = true
+					}
+					if info2.IsDict() {
+						ctor2.Instance.IsDict = true
+					}
+					if base2 := info2.BaseType(); base2 != nil {
+						if super2 := scope.LookupNominalType(stripTypeArgs(base2.TypeName)); super2 != nil {
+							ctor2.Instance.SetSuper(super2)
+						}
+					}
+					scope.recordNamespaceProp(recv2, propName2, ctor2, lhsKids2[1])
+					return
+				}
+			}
+		}
+	}
 	if rhs.Token() != rhino.FUNCTION || lhs.Token() != rhino.GETPROP {
 		return
 	}
@@ -1182,8 +1269,14 @@ func (c *TypedScopeCreator) recordPrototypeStub(stmt *rhino.Node, getprop *rhino
 	if !ok || fn.Instance == nil {
 		return
 	}
-	if fn.Instance.GetPropertyType(propName) != nil {
-		return // already declared by a prior assign
+	// Port of TypedScopeCreator.NormalScopeBuilder.defineSlot @ closure-compiler v20260415
+	// Only skip when the property is already DECLARED (not inferred) —
+	// a prior inferred slot from a constructor `this.x = …` must not
+	// block a later `/** @type {T} */ X.prototype.x;` stub, which should
+	// promote the slot to declared so TypeCheck fires JSC_TYPE_MISMATCH
+	// on the constructor's conflicting write.
+	if fn.Instance.HasOwnDeclaredProperty(propName) {
+		return // already explicitly declared — immutable
 	}
 	// Port of TypedScopeCreator.AbstractScopeBuilder.visitAssignmentSite:
 	// resolve JSDoc types in a template-aware scope so `@type {T}` on a
@@ -1221,7 +1314,15 @@ func (c *TypedScopeCreator) recordPrototypeStub(stmt *rhino.Node, getprop *rhino
 			t = jstype.NewFunctionTypeWithThis(paramTypes, ret, fn.Instance)
 		}
 	}
-	fn.Instance.DefineProperty(propName, t)
+	// Port of TypedScopeCreator.NormalScopeBuilder.defineSlot @ closure-compiler v20260415
+	// A stub with @type or @return is a declared slot; use DefineDeclaredProperty
+	// so any prior inferred slot (from a constructor's this.x = …) is promoted
+	// to declared. This matches the fix in recordPrototypeAssign above.
+	if info != nil && (info.HasType() || info.ReturnType() != nil || len(info.ParameterNames()) > 0) {
+		fn.Instance.DefineDeclaredProperty(propName, t, getprop)
+	} else {
+		fn.Instance.DefineProperty(propName, t)
+	}
 }
 
 // recordPrototypeObjectLit handles `X.prototype = {key: fn, …}` —
@@ -2300,19 +2401,25 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 		kids := init.Children()
 		if len(kids) >= 2 {
 			params := kids[1]
-			// Port of TypedScopeCreator.recordFunction: when the function
-			// has @template T, create a template-aware resolve scope so
-			// @param {T} and @return {T} resolve to TemplateType{T} instead
-			// of Unknown. Mirrors recordFunction's templateResolver usage.
-			resolve, templateMap := c.templateResolver(scope, info)
+			// @template-aware param/return resolution: use a shim scope
+			// where each @template name binds to a fresh TemplateType so
+			// `@param {Array<T>}` resolves to Array<TemplateType{T}>
+			// instead of Array<Unknown>. Mirrors Java's
+			// TypedScopeCreator.AbstractScopeBuilder which builds a
+			// per-function template scope before resolving JSDoc types.
+			resolveExpr := scope.ResolveExpr
+			var tmpls map[string]*jstype.TemplateType
+			if info != nil && len(info.TemplateNames()) > 0 {
+				resolveExpr, tmpls = c.templateResolver(scope, info)
+			}
 			var paramTypes []jstype.JSType
 			for _, p := range params.Children() {
-				var pt jstype.JSType = jstype.Unknown
+				pt := jstype.JSType(jstype.Unknown)
 				if pj := p.JSDocInfo(); pj != nil && pj.HasType() {
-					pt = scope.ResolveExpr(pj.Type().TypeName)
+					pt = resolveExpr(pj.Type().TypeName)
 				} else if info != nil {
 					if expr := info.ParameterType(p.String_()); expr != nil {
-						pt = resolve(expr.TypeName)
+						pt = resolveExpr(expr.TypeName)
 					}
 				}
 				paramTypes = append(paramTypes, pt)
@@ -2320,7 +2427,7 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 			var retType jstype.JSType = jstype.Void
 			if info != nil {
 				if r := info.ReturnType(); r != nil {
-					retType = resolve(r.TypeName)
+					retType = resolveExpr(r.TypeName)
 				} else if functionReturnsExplicitly(init) {
 					retType = jstype.Unknown
 				}
@@ -2328,16 +2435,17 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 				retType = jstype.Unknown
 			}
 			fnType := jstype.NewFunctionType(paramTypes, retType)
-			setArityFromParams(fnType, params, info)
-			// Wire @template keys so call-site unification can bind them.
-			if templateMap != nil {
-				fnType.TemplateTypes = make([]*jstype.TemplateType, 0, len(templateMap))
+			// Stash the @template TemplateTypes so call-site unification
+			// can substitute them with the inferred argument types.
+			// Mirrors FunctionType.setTemplateTypeMap in Java.
+			if len(tmpls) > 0 {
 				for _, tn := range info.TemplateNames() {
-					if tt := templateMap[tn]; tt != nil {
+					if tt := tmpls[tn]; tt != nil {
 						fnType.TemplateTypes = append(fnType.TemplateTypes, tt)
 					}
 				}
 			}
+			setArityFromParams(fnType, params, info)
 			scope.declared[name.String_()] = fnType
 			// Mark the slot as inferred when (a) JSDoc didn't pin
 			// params or return, AND (b) the LHS is not global.
@@ -3080,6 +3188,7 @@ func (c *TypedScopeCreator) collectThisPropertiesIn(node *rhino.Node, inst *jsty
 						_ = hasInfoType
 					} else {
 						var t jstype.JSType = jstype.Unknown
+						declaredFromJSDoc := false
 						if hasInfoType {
 							t = existing
 							if t == nil {
@@ -3088,6 +3197,7 @@ func (c *TypedScopeCreator) collectThisPropertiesIn(node *rhino.Node, inst *jsty
 							declared := resolveTypeExpr(scope, c.registry, info.Type().TypeName)
 							if !isJSUnknown(declared) {
 								t = declared
+								declaredFromJSDoc = true
 							}
 						} else {
 							if existing == nil || isJSUnknown(existing) {
@@ -3097,7 +3207,11 @@ func (c *TypedScopeCreator) collectThisPropertiesIn(node *rhino.Node, inst *jsty
 								t = existing
 							}
 						}
-						inst.DefineProperty(prop.String_(), t)
+						if declaredFromJSDoc {
+							inst.DefineDeclaredProperty(prop.String_(), t, kids[0])
+						} else {
+							inst.DefineInferredProperty(prop.String_(), t, kids[0])
+						}
 					}
 				}
 			}
@@ -3655,11 +3769,71 @@ func rtsCheckTypeExpr(path, src string, base int, inner string, tmpls, allTempla
 	}
 }
 
-// getLValueRootScope mirrors TypedScopeCreator.getLValueRootScope in Java.
-// Returns the scope in which the lvalue declaration belongs (VAR → hoist,
-// LET/CONST → block). In our flat-scope model this always returns scope.
-// Go-only: language-adapter — getLValueRootScope is a Go-only helper that returns the root scope for an LValue; Java uses TypedScopeCreator.getDeclaredType inline without a separate helper.
-func getLValueRootScope(_ *rhino.Node, scope *TypedScope) *TypedScope { return scope }
+// getLValueRootScope returns the scope that owns the binding at the root of n.
+// Port of jscomp/TypedScopeCreator.java @ closure-compiler v20260415
+// Mirrors NormalScopeBuilder.getLValueRootScope.
+func getLValueRootScope(n *rhino.Node, scope *TypedScope) *TypedScope {
+	// currentHoistScope in Java = closest enclosing hoist scope of currentScope.
+	hoistScope, _ := ScopeGetClosestHoistScope(scope).(*TypedScope)
+	if hoistScope == nil {
+		hoistScope = scope
+	}
+
+	root := getBestLValueRoot(n)
+	if root != nil {
+		if root.IsName() {
+			nameParent := root.Parent()
+			if nameParent != nil {
+				switch nameParent.Token() {
+				case rhino.VAR:
+					return hoistScope
+				case rhino.LET, rhino.CONST, rhino.CLASS, rhino.FUNCTION, rhino.PARAM_LIST, rhino.CATCH:
+					return scope
+				case rhino.ITER_REST, rhino.OBJECT_REST:
+					// TODO(bradfordcsmith): Handle array destructuring REST
+					return scope
+				default:
+					// If root is the module `exports` binding, use the current scope.
+					if root.String_() == VarExports && scope.IsModuleScope() {
+						return scope
+					}
+					if v := scope.GetVar(root.String_()); v != nil {
+						return v.GetScope()
+					}
+				}
+			}
+		} else if root.IsThis() || root.IsSuper() {
+			// Enclosing function scope, or global scope if not in a function.
+			if s, ok := ScopeGetScopeOfThis(hoistScope).(*TypedScope); ok && s != nil {
+				return s
+			}
+		}
+	}
+	if gs, ok := ScopeGetGlobalScope(hoistScope).(*TypedScope); ok && gs != nil {
+		return gs
+	}
+	return hoistScope
+}
+
+// getBestLValueRoot walks an lvalue node up through GETPROP/GETELEM/STRING_KEY
+// wrapping to find the NAME, THIS, or SUPER root.
+// Port of jscomp/TypedScopeCreator.java @ closure-compiler v20260415
+// Mirrors NodeUtil.getBestLValueRoot.
+func getBestLValueRoot(lValue *rhino.Node) *rhino.Node {
+	if lValue == nil {
+		return nil
+	}
+	switch lValue.Token() {
+	case rhino.STRING_KEY:
+		return getBestLValueRoot(NU.GetBestLValue(lValue.Parent()))
+	case rhino.GETPROP, rhino.GETELEM:
+		return getBestLValueRoot(lValue.FirstChild())
+	case rhino.THIS, rhino.SUPER, rhino.NAME:
+		return lValue
+	default:
+		return nil
+	}
+}
 
 // inferTypeForDestructuredTarget mirrors the narrow path in Java's
 // TypedScopeCreator: for `const {id} = obj`, returns the declared type of

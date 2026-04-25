@@ -6,14 +6,26 @@
 // the type behaves like Unknown so analysis stays conservative.
 //
 // Subset ported: the fields, ResolutionKind, getReferenceName,
-// resolveViaRegistry, and the TypeName / IsSubtypeOf contract. The
-// full resolveInternal (TYPEOF, StaticTypedScope lookup, cycle checks)
-// is stubbed — they are exercised only by Tier-5+ tests; TODO markers
-// call the specific Java methods being deferred.
+// resolveViaRegistry, resolveTypeof, and the TypeName / IsSubtypeOf
+// contract.
 
 package jstype
 
 import "strings"
+
+// ResolutionScope mirrors the StaticTypedScope interface from Java as used
+// by NamedType.resolveTypeof. Only the one method called by resolveTypeof
+// is required; a full port of StaticTypedScope lives in internal/jscomp.
+//
+// Port of com/google/javascript/rhino/jstype/StaticTypedScope.java
+// (lookupQualifiedName default method) @ closure-compiler v20260415.
+// Go-only: language-adapter — accepts a dot-joined name string rather than
+// a QualifiedName object to avoid an import cycle with internal/rhino.
+type ResolutionScope interface {
+	// LookupQualifiedName mirrors StaticTypedScope.lookupQualifiedName(QualifiedName).
+	// The name is the dot-joined qualified name string (e.g. "goog.module.Foo").
+	LookupQualifiedName(name string) JSType
+}
 
 // ResolutionKind mirrors NamedType.ResolutionKind in Java.
 // NONE means the referenced type is already known (no lookup needed).
@@ -64,20 +76,32 @@ type NamedType struct {
 	// during resolution for now (Tier-5+; TODO: port the template-args
 	// substitution from NamedType.resolveInternal).
 	templateTypes []JSType
+
+	// resolutionScope mirrors NamedType.resolutionScope — the scope in which
+	// the typeof expression is resolved.  Set only when resolutionKind is
+	// TYPEOF.  Mirrors the StaticTypedScope field in Java's NamedType.
+	resolutionScope ResolutionScope
+
+	// validator mirrors NamedType.validator — an optional predicate applied to
+	// the resolved type in resolveTypeof / setReferencedAndResolvedType.
+	// In Java this is a Predicate<JSType>; in Go it is a plain func.
+	validator func(JSType) bool
 }
 
 // NamedTypeBuilder mirrors the Builder inner class in Java.  Call
 // NamedTypeBuilder.Build() to produce the NamedType.
 type NamedTypeBuilder struct {
-	registry       *Registry
-	referenceName  string
-	resolutionKind ResolutionKind
-	sourceName     string
-	lineno         int
-	charno         int
-	referencedType JSType
-	restrictByNull bool
-	templateTypes  []JSType
+	registry        *Registry
+	referenceName   string
+	resolutionKind  ResolutionKind
+	sourceName      string
+	lineno          int
+	charno          int
+	referencedType  JSType
+	restrictByNull  bool
+	templateTypes   []JSType
+	resolutionScope ResolutionScope
+	validator       func(JSType) bool
 }
 
 // NewNamedTypeBuilder is the factory for NamedTypeBuilder.  Mirrors
@@ -125,20 +149,36 @@ func (b *NamedTypeBuilder) SetTemplateTypes(tpls []JSType) *NamedTypeBuilder {
 	return b
 }
 
+// SetResolutionScope mirrors Builder.setResolutionScope.  Required when
+// resolutionKind is TYPEOF so that resolveTypeof can look up the name.
+func (b *NamedTypeBuilder) SetResolutionScope(scope ResolutionScope) *NamedTypeBuilder {
+	b.resolutionScope = scope
+	return b
+}
+
+// SetValidator mirrors Builder.setValidator.  The predicate is applied to
+// the resolved type inside resolveTypeof / setReferencedAndResolvedType.
+func (b *NamedTypeBuilder) SetValidator(v func(JSType) bool) *NamedTypeBuilder {
+	b.validator = v
+	return b
+}
+
 // Build mirrors Builder.build().  When resolutionKind is not NONE and
 // the registry has already seen a resolved type for this name, the
 // NamedType is immediately resolved.  Otherwise it is placed on the
 // registry's late-resolve worklist.
 func (b *NamedTypeBuilder) Build() *NamedType {
 	nt := &NamedType{
-		reference:      b.referenceName,
-		sourceName:     b.sourceName,
-		lineno:         b.lineno,
-		charno:         b.charno,
-		resolutionKind: b.resolutionKind,
-		referencedType: b.referencedType,
-		restrictByNull: b.restrictByNull,
-		templateTypes:  b.templateTypes,
+		reference:       b.referenceName,
+		sourceName:      b.sourceName,
+		lineno:          b.lineno,
+		charno:          b.charno,
+		resolutionKind:  b.resolutionKind,
+		referencedType:  b.referencedType,
+		restrictByNull:  b.restrictByNull,
+		templateTypes:   b.templateTypes,
+		resolutionScope: b.resolutionScope,
+		validator:       b.validator,
 	}
 	if b.registry != nil {
 		// Eagerly resolve when the registry already knows the type; if
@@ -282,13 +322,72 @@ func (n *NamedType) resolveViaRegistry(reg *Registry) bool {
 	return true
 }
 
-// resolveTypeof mirrors NamedType.resolveTypeof().  TYPEOF resolution
-// requires scope lookup and is deferred to Tier-5.
+// resolveTypeof mirrors NamedType.resolveTypeof(ErrorReporter) in Java.
+// Resolves a typeof expression by looking up the referenced name in
+// resolutionScope.  Returns true when this NamedType has TYPEOF
+// resolutionKind (regardless of whether the lookup succeeded), false when
+// the resolutionKind is not TYPEOF.
 //
-// TODO(Tier-5): implement typeof resolution via StaticTypedScope.
-func (n *NamedType) resolveTypeof(_ *Registry) bool {
-	// TYPEOF resolution is not yet implemented.
-	return false
+// Port of com/google/javascript/rhino/jstype/NamedType.java::resolveTypeof
+// @ closure-compiler v20260415.
+func (n *NamedType) resolveTypeof(reg *Registry) bool {
+	if n.resolutionKind != ResolutionKindTypeof {
+		return false
+	}
+
+	// TODO(sdh): require var to be const?
+	scopeName := strings.TrimPrefix(n.reference, "typeof ")
+	var typ JSType
+	if n.resolutionScope != nil {
+		typ = n.resolutionScope.LookupQualifiedName(scopeName)
+	}
+	if typ == nil || isUnknown(typ) {
+		if reg.IsForwardDeclaredType(scopeName) {
+			// Preserve the "typeof" as a NoResolvedType.
+			// This is depended on by Clutz so it can generate
+			// `typeof ImportedType` instead of `any` when ImportedType is
+			// not defined in the files it can see.
+			n.setReferencedType(NewNoResolvedType(n.GetReferenceName(), n.templateTypes))
+			if n.validator != nil {
+				n.validator(n.GetReferencedType())
+			}
+		} else {
+			n.warning("Missing type for `typeof` value. The value must be declared and const.")
+			n.setReferencedAndResolvedType(reg.GetNativeType(UNKNOWN_TYPE), reg)
+		}
+	} else {
+		if isLiteralObject(typ) {
+			// Create an extra layer of wrapping so that the "typeof" name is
+			// preserved for namespaces.  This is depended on by Clutz to
+			// prevent infinite loops in self-referential typeof types.
+			objlit := typ
+			typ = NewNamedTypeBuilder(reg, n.GetReferenceName()).
+				SetResolutionKind(ResolutionKindNone).
+				SetReferencedType(objlit).
+				Build()
+		}
+		n.setReferencedAndResolvedType(typ, reg)
+	}
+
+	return true
+}
+
+// setReferencedAndResolvedType mirrors NamedType.setReferencedAndResolvedType
+// in Java.  Applies restrictByNull, runs the validator, stores the resolved
+// type, and performs cycle checks (cycle checks are no-ops until Tier-5).
+//
+// Port of com/google/javascript/rhino/jstype/NamedType.java::setReferencedAndResolvedType
+// @ closure-compiler v20260415.
+func (n *NamedType) setReferencedAndResolvedType(typ JSType, _ *Registry) {
+	if n.restrictByNull {
+		typ = RestrictByNotNullOrUndefined(typ)
+	}
+	if n.validator != nil {
+		n.validator(typ)
+	}
+	n.setReferencedType(typ)
+	// checkEnumElementCycle and checkProtoCycle are no-ops until Tier-5
+	// cycle detection is ported.
 }
 
 // warning mirrors NamedType.warning().  Emits a diagnostic at the

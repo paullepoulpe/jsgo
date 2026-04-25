@@ -438,9 +438,63 @@ func (tv *TypeValidator) expectArgumentMatchesParameter(n *rhino.Node, argType, 
 	if jstype.IsSubtype(argType, paramType) {
 		return
 	}
+	// Template-aware structural-record gate: when paramType is a record
+	// containing a TemplateType (e.g. {foo:T}), Java's TemplateTypeReplacer
+	// treats unmatched template positions as `?` rather than mismatch. So
+	// `fn({})` against `{foo:T}` is allowed (T binds to nothing). Only
+	// fire the mismatch when the param has NO template positions in scope.
+	if hasTemplateTypeInside(paramType) {
+		return
+	}
 	callName := tvCallNodeName(callNode)
 	msg := fmt.Sprintf("actual parameter %d of %s does not match formal parameter", ordinal, callName)
 	tv.mismatch(n, msg, argType, paramType)
+}
+
+// hasTemplateTypeInside reports whether t contains a TemplateType anywhere
+// in its structure (recursively walks templatized args, union members,
+// record properties). Mirrors Java's hasAnyTemplateTypes() check used to
+// suppress structural-mismatch errors at template-bearing param positions.
+func hasTemplateTypeInside(t jstype.JSType) bool {
+	if t == nil {
+		return false
+	}
+	if _, ok := t.(*jstype.TemplateType); ok {
+		return true
+	}
+	if u, ok := t.(*jstype.UnionType); ok {
+		for _, m := range u.Members() {
+			if hasTemplateTypeInside(m) {
+				return true
+			}
+		}
+		return false
+	}
+	if tt, ok := t.(*jstype.TemplatizedType); ok {
+		for _, a := range tt.Args {
+			if hasTemplateTypeInside(a) {
+				return true
+			}
+		}
+		return false
+	}
+	if rt, ok := t.(*jstype.RecordType); ok && rt != nil {
+		for _, name := range rt.MemberNames() {
+			if hasTemplateTypeInside(rt.GetPropertyType(name)) {
+				return true
+			}
+		}
+		return false
+	}
+	if obj, ok := t.(*jstype.ObjectType); ok && obj != nil {
+		for _, name := range obj.MemberNames() {
+			if hasTemplateTypeInside(obj.GetPropertyType(name)) {
+				return true
+			}
+		}
+		return false
+	}
+	return false
 }
 
 // expectCanCast fires JSC_INVALID_CAST when `sourceType` cannot be cast

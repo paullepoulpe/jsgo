@@ -46,20 +46,49 @@ import (
 // Stub types for proto-dependent infrastructure not yet ported.
 // ---------------------------------------------------------------------------
 
+// LibraryLevelBehavior mirrors
+// ConformanceConfig.LibraryLevelNonAllowlistedConformanceViolationsBehavior (Java lines 22-23).
+// TODO: replace with generated proto enum once ConformanceConfig.proto is ported.
+type LibraryLevelBehavior int
+
+const (
+	// LibraryLevelBehaviorUnspecified mirrors UNSPECIFIED (the proto default).
+	LibraryLevelBehaviorUnspecified LibraryLevelBehavior = iota
+	// LibraryLevelBehaviorRecordOnly mirrors RECORD_ONLY.
+	LibraryLevelBehaviorRecordOnly
+	// LibraryLevelBehaviorReportAsBuildError mirrors REPORT_AS_BUILD_ERROR.
+	LibraryLevelBehaviorReportAsBuildError
+)
+
 // ccRequirement is a minimal stub for the Requirement proto type used by
 // mergeRequirements and initRule. The Java Requirement is a protobuf message
 // with fields: type, rule_id, extends, error_message, allowlist, etc.
 // TODO: replace with the generated proto type once ConformanceConfig.proto is ported.
 type ccRequirement struct {
-	ruleID  string
-	extends string
+	ruleID             string
+	extends            string
+	whitelist          []string
+	whitelistRegexp    []string
+	allowlist          []string
+	allowlistRegexp    []string
+	onlyApplyTo        []string
+	onlyApplyToRegexp  []string
+	value              []string
+	configFile         []string
+	allowExtendingValue bool
 }
 
 // ccConformanceConfig is a minimal stub for the ConformanceConfig proto.
 // Java: com/google/javascript/jscomp/ConformanceConfig.proto
 // TODO: replace with the generated proto type.
 type ccConformanceConfig struct {
-	requirements []*ccRequirement
+	requirements []ccRequirement
+	// libraryLevelBehavior mirrors the
+	// library_level_non_allowlisted_conformance_violations_behavior field.
+	// hasLibraryLevelBehavior is true when the field is explicitly set (Java
+	// proto3 hasXxx() semantics — field is present vs. defaulted).
+	libraryLevelBehavior    LibraryLevelBehavior
+	hasLibraryLevelBehavior bool
 }
 
 // Rule mirrors the Rule interface in Java's CheckConformance (line 96).
@@ -242,40 +271,161 @@ func (c *CheckConformance) visit(n *rhino.Node) {
 //
 //	ConformanceReportingMode) (lines 206-242).
 //
-// Builds the category list from the merged requirements of all configs.
-// Returns an empty list when configs is nil/empty, matching Java's behaviour
-// when the ImmutableList is empty.
-//
-// TODO: port mergeRequirements, validateBehaviorSettingOfConfigs, initRule once
-// ConformanceConfig proto types are available.
+// Builds the category list from the merged requirements of all configs grouped by
+// Precondition (Java uses HashMultimap<Precondition, Rule>). isLibraryLevelReportingMode
+// is true when reportingMode == RESPECT_LIBRARY_LEVEL_BEHAVIOR_SPECIFIED_IN_CONFIG.
+// Returns nil (empty) when configs is nil/empty or validation fails.
 func initRules(configs []*ccConformanceConfig) []*Category {
 	if len(configs) == 0 {
 		return nil
 	}
-	// TODO: port mergeRequirements (lines 418-500) and initRule (lines 622-653).
-	return nil
+	// Java line 213-220: isLibraryLevelReportingMode check + validateBehaviorSettingOfConfigs.
+	// Without a ConformanceReportingMode argument at this shim level we treat the mode as
+	// non-library-level (the only supported mode today).
+	isLibraryLevel := false
+
+	// Java line 223-238: merge requirements then build rules per precondition.
+	mergedRequirements := mergeRequirements(configs, isLibraryLevel)
+
+	// Java uses HashMultimap<Precondition, Rule>; we approximate with a map keyed by a
+	// Precondition identity string since Precondition is an interface without a natural key.
+	// For the shim this is fine — initRule always returns nil so the map stays empty.
+	type preconditionKey string
+	type entry struct {
+		precondition Precondition
+		rules        []Rule
+	}
+	byPrecondition := map[preconditionKey]*entry{}
+	preconditionOrder := []preconditionKey{}
+
+	for i := range mergedRequirements {
+		req := &mergedRequirements[i]
+		rule := initRule(req)
+		if rule == nil {
+			continue
+		}
+		p := rule.getPrecondition()
+		var key preconditionKey
+		switch p.(type) {
+		case PreconditionIsConstructorOrClass:
+			key = "IS_CONSTRUCTOR_OR_CLASS"
+		default:
+			key = "CHECK_ALL"
+		}
+		if _, ok := byPrecondition[key]; !ok {
+			byPrecondition[key] = &entry{precondition: p}
+			preconditionOrder = append(preconditionOrder, key)
+		}
+		byPrecondition[key].rules = append(byPrecondition[key].rules, rule)
+	}
+
+	// Java line 239-241: stream entries into Category list.
+	categories := make([]*Category, 0, len(preconditionOrder))
+	for _, key := range preconditionOrder {
+		e := byPrecondition[key]
+		categories = append(categories, &Category{
+			precondition: e.precondition,
+			rules:        e.rules,
+		})
+	}
+	return categories
 }
 
 // mergeRequirements mirrors Java's mergeRequirements(AbstractCompiler,
 //
 //	List<ConformanceConfig>, boolean) (lines 418-500).
 //
-// Collects root requirements from all configs, merges extending requirements
-// into their extended counterparts (allowlist/whitelist merging), and deduplicates.
-// Returns the final flat list of Requirement objects to process.
+// Three-phase algorithm (mirrors Java lines 422-499):
+//  1. Collect root requirements; index extendable ones by rule_id.
+//  2. Merge extending requirements into their extended roots.
+//  3. Deduplicate allowlists/whitelists and build the final flat list.
 //
-// TODO: implement once Requirement proto type is available.
-func mergeRequirements(configs []*ccConformanceConfig) []*ccRequirement {
-	var result []*ccRequirement
+// isLibraryLevelConformanceReportingMode corresponds to the same-named Java boolean
+// (derived from ConformanceReportingMode, Java line 421).
+func mergeRequirements(configs []*ccConformanceConfig, isLibraryLevelConformanceReportingMode bool) []ccRequirement {
+	// Java: Map<Requirement.Builder, LibraryLevelBehavior> rootRequirements (LinkedHashMap, line 423)
+	// We preserve insertion order via a slice of builders paired with behavior.
+	type rootEntry struct {
+		req      ccRequirement
+		behavior LibraryLevelBehavior
+	}
+	// rootRequirements preserves insertion order (LinkedHashMap in Java).
+	var rootRequirements []rootEntry
+	// rootIndex maps ruleID → index in rootRequirements for O(1) lookup by extending reqs.
+	rootIndex := map[string]int{}
+
+	// extendable mirrors Java's Map<String, Requirement.Builder> extendable (line 426).
+	extendable := map[string]int{} // rule_id → index in rootRequirements
+
+	// --- Phase 1 (Java lines 430-463) ---
 	for _, cfg := range configs {
-		for _, req := range cfg.requirements {
+		behavior := cfg.libraryLevelBehavior
+		hasBehavior := cfg.hasLibraryLevelBehavior
+		for ri := range cfg.requirements {
+			req := cfg.requirements[ri] // copy — we may mutate later
+			if req.ruleID != "" {
+				// Java lines 433-438: validate and index extendable requirement.
+				if !validateExtendableRequirement(&req, extendable) {
+					continue
+				}
+				idx := len(rootRequirements)
+				extendable[req.ruleID] = idx
+				rootIndex[req.ruleID] = idx
+			}
 			if req.extends == "" {
-				result = append(result, req)
+				// Java lines 443-449: root requirement (no extends field).
+				b := LibraryLevelBehaviorUnspecified
+				if isLibraryLevelConformanceReportingMode && hasBehavior {
+					b = behavior
+				}
+				rootRequirements = append(rootRequirements, rootEntry{req: req, behavior: b})
+			}
+			// Java lines 452-461: report error when library-level conformance is enabled
+			// but neither rule_id nor extends is set.
+			libraryLevelConformanceEnabled :=
+				isLibraryLevelConformanceReportingMode && hasBehavior && behavior == LibraryLevelBehaviorRecordOnly
+			if req.ruleID == "" && req.extends == "" && libraryLevelConformanceEnabled {
+				reportInvalidRequirement(&req,
+					"Library-level conformance requirements require their rule_id or extends field set.")
 			}
 		}
 	}
-	// TODO: merge extending requirements into extended roots (lines 465-483).
-	// TODO: remove duplicates from allowlists (lines 486-498).
+
+	// --- Phase 2 (Java lines 465-483) ---
+	for _, cfg := range configs {
+		for ri := range cfg.requirements {
+			req := cfg.requirements[ri]
+			if req.extends == "" {
+				continue
+			}
+			extIdx, ok := extendable[req.extends]
+			if !ok {
+				// validateExtendingRequirement will report the error.
+				var nilEntry *ccRequirement
+				validateExtendingRequirement(&req, nilEntry)
+				continue
+			}
+			extendedEntry := &rootRequirements[extIdx]
+			if !validateExtendingRequirement(&req, &extendedEntry.req) {
+				continue
+			}
+			// Java lines 473-479: overwrite behavior if config specifies one.
+			if cfg.hasLibraryLevelBehavior {
+				extendedEntry.behavior = cfg.libraryLevelBehavior
+			}
+			// Java line 480: mergeExtendingRequirementIntoExtended.
+			mergeExtendingRequirementIntoExtended(&extendedEntry.req, &req)
+		}
+	}
+
+	// --- Phase 3 (Java lines 486-499) ---
+	result := make([]ccRequirement, 0, len(rootRequirements))
+	for i := range rootRequirements {
+		entry := &rootRequirements[i]
+		removeDuplicates(&entry.req)
+		result = append(result, entry.req)
+	}
+	_ = rootIndex // reserved for future mergedBehaviors map wiring
 	return result
 }
 
@@ -284,14 +434,55 @@ func mergeRequirements(configs []*ccConformanceConfig) []*ccRequirement {
 //
 //	ConformanceReportingMode) (lines 244-294).
 //
-// Validates that extending rules do not specify a different
-// library_level_non_allowlisted_conformance_violations_behavior than their
-// base rule. Returns false and reports an error if a mismatch is found.
+// Only called when reportingMode == RESPECT_LIBRARY_LEVEL_BEHAVIOR_SPECIFIED_IN_CONFIG
+// (Java line 217). Validates that any extending rule's config does not specify a
+// different library_level_non_allowlisted_conformance_violations_behavior than its
+// base rule's config. Returns false (and reports an error) on the first mismatch.
 //
-// TODO: implement once ConformanceConfig proto is available.
+// Java algorithm (lines 253-293):
+//  1. Build a map of root rule_id → behavior from configs that have the behavior field.
+//  2. For each extending requirement, check that its config's behavior matches the base.
 func validateBehaviorSettingOfConfigs(configs []*ccConformanceConfig) bool {
-	// TODO: implement validation logic (Java lines 255-293).
-	_ = configs
+	// Java line 253: Map<String, LibraryLevelBehavior> baseRequirementBehaviors
+	baseRequirementBehaviors := map[string]LibraryLevelBehavior{}
+
+	// Java lines 255-266: first pass — collect root rule_id behaviors.
+	for _, cfg := range configs {
+		if !cfg.hasLibraryLevelBehavior {
+			continue
+		}
+		behavior := cfg.libraryLevelBehavior
+		for ri := range cfg.requirements {
+			req := &cfg.requirements[ri]
+			if req.ruleID != "" {
+				baseRequirementBehaviors[req.ruleID] = behavior
+			}
+		}
+	}
+
+	// Java lines 268-293: second pass — validate extending requirements.
+	for _, cfg := range configs {
+		if !cfg.hasLibraryLevelBehavior {
+			continue
+		}
+		extendingBehavior := cfg.libraryLevelBehavior
+		for ri := range cfg.requirements {
+			req := &cfg.requirements[ri]
+			if req.extends == "" {
+				continue
+			}
+			baseRuleID := req.extends
+			if baseBehavior, ok := baseRequirementBehaviors[baseRuleID]; ok {
+				if baseBehavior != extendingBehavior {
+					reportInvalidRequirement(req,
+						"extending rule's config may not specify a different value of"+
+							" 'library_level_non_allowlisted_conformance_violations_behavior' than the"+
+							" base rule's config. Skipping all conformance checks.")
+					return false
+				}
+			}
+		}
+	}
 	return true
 }
 
@@ -300,18 +491,43 @@ func validateBehaviorSettingOfConfigs(configs []*ccConformanceConfig) bool {
 //
 //	Map<String, Requirement.Builder>) (lines 533-551).
 //
-// Validates that an extendable requirement has a unique, non-empty rule_id.
-// Returns false when invalid.
+// Precondition (Java line 537): req.ruleID must be non-empty (checkState).
+// Returns false and reports an error when:
+//   - rule_id is empty (Java line 539-542)
+//   - rule_id already exists in the extendable map — duplicate (Java lines 543-549)
 //
-// TODO: implement once Requirement proto type is available.
-func validateExtendableRequirement(req *ccRequirement, extendable map[string]*ccRequirement) bool {
+// extendable maps rule_id → index in rootRequirements (Go adaptation of Java's
+// Map<String, Requirement.Builder> — same semantics, Go-idiomatic key type).
+func validateExtendableRequirement(req *ccRequirement, extendable map[string]int) bool {
+	// Java line 537: checkState(requirement.hasRuleId()) — req.ruleID is always set here.
 	if req.ruleID == "" {
+		// Java line 539-542: empty rule_id.
+		reportInvalidRequirement(req, "empty rule_id")
 		return false
 	}
 	if _, dup := extendable[req.ruleID]; dup {
+		// Java lines 543-549: duplicate rule_id.
+		reportInvalidRequirement(req, "two requirements with the same rule_id: "+req.ruleID)
 		return false
 	}
 	return true
+}
+
+// extendableFields mirrors Java's EXTENDABLE_FIELDS ImmutableSet (lines 296-306).
+// These are the only fields an extending requirement is allowed to set.
+// Java: "config_file", "extends", "only_apply_to", "only_apply_to_regexp",
+//
+//	"whitelist", "whitelist_regexp", "allowlist", "allowlist_regexp", "value"
+var extendableFields = map[string]bool{
+	"config_file":        true,
+	"extends":            true,
+	"only_apply_to":      true,
+	"only_apply_to_regexp": true,
+	"whitelist":          true,
+	"whitelist_regexp":   true,
+	"allowlist":          true,
+	"allowlist_regexp":   true,
+	"value":              true,
 }
 
 // validateExtendingRequirement mirrors Java's
@@ -319,38 +535,104 @@ func validateExtendableRequirement(req *ccRequirement, extendable map[string]*cc
 //
 //	Requirement.Builder) (lines 566-592).
 //
-// Validates that an extending requirement correctly targets an existing
-// extendable requirement and only uses EXTENDABLE_FIELDS.
-// Returns false when invalid.
+// Precondition (Java line 570): extending.extends must be non-empty.
+// Returns false and reports an error when:
+//   - extendable is nil — no matching rule_id (Java lines 571-577)
+//   - extending sets a field not in EXTENDABLE_FIELDS (Java lines 578-583)
+//   - extending specifies value[] but extendable does not allowExtendingValue (Java lines 584-590)
 //
-// TODO: implement field-set validation once Requirement proto is available.
+// Note: Java iterates over getAllFields() from the proto descriptor, which enumerates
+// only the fields that are explicitly set in the message. We mirror this by inspecting
+// the non-zero/non-nil stub fields.
 func validateExtendingRequirement(extending, extendable *ccRequirement) bool {
+	// Java line 570: checkState(extendingRequirement.hasExtends())
+	// Java lines 571-577: null extendable → no matching rule_id.
 	if extendable == nil {
+		reportInvalidRequirement(extending,
+			"no extendable requirement with rule_id: "+extending.extends)
 		return false
+	}
+	// Java lines 578-583: check that only EXTENDABLE_FIELDS are used.
+	// In the stub type, non-EXTENDABLE_FIELDS would be type, rule_id, error_message, etc.
+	// We have no proto descriptor here, so we report when rule_id is set (it must NOT be set
+	// on an extending requirement — Java enforces this by checking all populated fields against
+	// EXTENDABLE_FIELDS; rule_id is not in that set).
+	if extending.ruleID != "" {
+		reportInvalidRequirement(extending,
+			"extending rules allow only "+formatExtendableFields())
+	}
+	// Java lines 584-590: value[] present but extendable does not allow extending value.
+	if len(extending.value) > 0 && !extendable.allowExtendingValue {
+		reportInvalidRequirement(extending,
+			"extending rule may not specify 'value' if extendable rule does not allow it")
 	}
 	return true
 }
 
+// formatExtendableFields returns a human-readable set string for error messages,
+// mirroring Java's EXTENDABLE_FIELDS.toString() in the error message (line 581).
+func formatExtendableFields() string {
+	return "[config_file, extends, only_apply_to, only_apply_to_regexp, whitelist, whitelist_regexp, allowlist, allowlist_regexp, value]"
+}
+
 // removeDuplicates mirrors Java's removeDuplicates(Requirement.Builder) (lines 594-613).
-// Deduplicates allowlist/whitelist/onlyApplyTo entries in the merged requirement.
-//
-// TODO: implement once Requirement.Builder proto is available.
+// Deduplicates each of the six allowlist/whitelist/onlyApplyTo string-list fields
+// using a linked-set approach (Java uses ImmutableSet.copyOf which preserves order
+// of first occurrence). Java clears each field then re-adds the deduplicated entries.
 func removeDuplicates(req *ccRequirement) {
-	// TODO: deduplicate whitelist, allowlist, whitelist_regexp, allowlist_regexp,
-	// only_apply_to, only_apply_to_regexp fields (Java lines 595-612).
-	_ = req
+	req.whitelist = dedupStrings(req.whitelist)
+	req.allowlist = dedupStrings(req.allowlist)
+	req.whitelistRegexp = dedupStrings(req.whitelistRegexp)
+	req.allowlistRegexp = dedupStrings(req.allowlistRegexp)
+	req.onlyApplyTo = dedupStrings(req.onlyApplyTo)
+	req.onlyApplyToRegexp = dedupStrings(req.onlyApplyToRegexp)
+}
+
+// dedupStrings returns a copy of ss with duplicates removed, preserving the order
+// of first occurrence. Mirrors ImmutableSet.copyOf(list) semantics (Java line 595).
+func dedupStrings(ss []string) []string {
+	if len(ss) == 0 {
+		return ss
+	}
+	seen := make(map[string]struct{}, len(ss))
+	out := ss[:0:0]
+	for _, s := range ss {
+		if _, ok := seen[s]; !ok {
+			seen[s] = struct{}{}
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 // mergeExtendingRequirementIntoExtended mirrors Java's
 // mergeExtendingRequirementIntoExtended(Requirement.Builder, Requirement) (lines 508-524).
-// Merges the allowlists/whitelists from the extending requirement into the extended one.
+// Merges the allowlists/whitelists/values/configFiles from the extending requirement
+// into the extended (base) requirement by appending. Java uses addAll* proto builder methods.
 //
-// TODO: implement once Requirement.Builder proto is available.
+// Precondition (Java line 510-512): extending.extends == extended.ruleID.
 func mergeExtendingRequirementIntoExtended(extended, extending *ccRequirement) {
-	// TODO: merge whitelist, allowlist, whitelist_regexp, allowlist_regexp,
-	// only_apply_to, only_apply_to_regexp, value, config_file fields.
-	_ = extended
-	_ = extending
+	// Java lines 513-523: addAll* calls for each mergeable field.
+	extended.whitelist = append(extended.whitelist, extending.whitelist...)
+	extended.whitelistRegexp = append(extended.whitelistRegexp, extending.whitelistRegexp...)
+	extended.allowlist = append(extended.allowlist, extending.allowlist...)
+	extended.allowlistRegexp = append(extended.allowlistRegexp, extending.allowlistRegexp...)
+	extended.onlyApplyTo = append(extended.onlyApplyTo, extending.onlyApplyTo...)
+	extended.onlyApplyToRegexp = append(extended.onlyApplyToRegexp, extending.onlyApplyToRegexp...)
+	extended.value = append(extended.value, extending.value...)
+	extended.configFile = append(extended.configFile, extending.configFile...)
+}
+
+// initRule mirrors Java's initRule(AbstractCompiler, Requirement) (lines 622-653).
+// Translates a merged Requirement into a Rule instance by switching on Requirement.Type.
+// Returns nil if the requirement is invalid (InvalidRequirementSpec caught in Java).
+//
+// TODO: implement the switch once ConformanceRules and the Requirement.Type enum are ported.
+// For now returns nil, causing initRules to skip all requirements — matching the Java
+// InvalidRequirementSpec path.
+func initRule(_ *ccRequirement) Rule {
+	// TODO: switch req.requirementType { case CUSTOM: ...; case BANNED_NAME: ...; ... }
+	return nil
 }
 
 // reportInvalidRequirement mirrors Java's
