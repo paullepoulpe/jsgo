@@ -567,6 +567,10 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitGetProp(n, scope))
 	case rhino.GETELEM:
 		c.emit(c.visitGetElem(n, scope))
+	case rhino.OPTCHAIN_GETPROP:
+		c.emit(c.visitOptChainGetProp(n, scope))
+	case rhino.OPTCHAIN_GETELEM:
+		c.emit(c.visitOptChainGetElem(n, scope))
 	case rhino.CLASS_FIELD_DEF, rhino.MEMBER_FIELD_DEF:
 		c.emit(c.visitClassField(n, parent, scope))
 	case rhino.COMPUTED_PROP:
@@ -589,7 +593,9 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 	case rhino.LT, rhino.LE, rhino.GT, rhino.GE:
 		c.emit(c.visitRelationalDefault(n, scope))
 	case rhino.FUNCTION:
-		c.emit(c.visitFunctionParams(n, scope))
+		c.emit(c.visitFunction(n, scope))
+	case rhino.CLASS:
+		c.emit(c.visitClass(n, scope))
 	case rhino.OBJECTLIT:
 		c.emit(c.visitObjectLit(n, scope))
 	case rhino.ARRAYLIT:
@@ -600,6 +606,8 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 		c.emit(c.visitRegExpLit(n, scope))
 	case rhino.TEMPLATELIT:
 		c.emit(c.visitTemplateLit(n, scope))
+	case rhino.TAGGED_TEMPLATELIT:
+		c.emit(c.visitTaggedTemplateLit(n, scope))
 	case rhino.OBJECT_PATTERN:
 		c.emit(c.visitObjectPattern(n, scope))
 	case rhino.DYNAMIC_IMPORT:
@@ -1649,10 +1657,12 @@ func (c *TypeCheck) visitCall(node *rhino.Node, scope *TypedScope) []diag.Diagno
 // Returns (diagnostics, true) when the pattern is matched (caller should return
 // those diagnostics directly), or (nil, false) when it is not.
 //
-// Port of FunctionType.java:getCallOrBindSignature (lines 709-750) combined with
-// TypeCheck.java:visitArgumentList (lines 2656-2660): Java lazily synthesises a
-// function type for "bind"/"call" and then runs the standard argument-checking
-// loop against it; we replicate that here for the Go port.
+// Go-only: language-adapter — visitCallOrBind ports
+// FunctionType.java:getCallOrBindSignature (lines 709-750) combined with
+// TypeCheck.java:visitArgumentList (lines 2656-2660). Java lazily synthesises a
+// function type for "bind"/"call" via FunctionType polymorphism; the Go port
+// extracts the bind/call argument-checking into a named helper because Go's
+// FunctionType lacks a getCallOrBindSignature method.
 func (c *TypeCheck) visitCallOrBind(node *rhino.Node, callee *rhino.Node, args []*rhino.Node, infer *TypeInference) ([]diag.Diagnostic, bool) {
 	gpKids := callee.Children()
 	if len(gpKids) < 2 {
@@ -2999,12 +3009,12 @@ func defineOnOpenObject(t jstype.JSType, prop string) {
 	}
 }
 
-// autoboxedUnionReadableName builds a parenthesised union display name with
-// scalar primitive members swapped for their boxed display ("number"→"Number",
-// etc). Mirrors JSTypeRegistry.getReadableTypeName(Node) (dereference=true) →
-// JSType.autobox() → UnionType.toString() at closure-compiler v20260415.
-// Without registry-driven autoboxesTo, Go primitives keep their lowercase
-// names; this helper provides the boxed labels Java's diagnostics expect.
+// Go-only: language-adapter — autoboxedUnionReadableName builds a parenthesised
+// union display name with scalar primitive members swapped for their boxed
+// display ("number"→"Number", etc). Mirrors JSTypeRegistry.getReadableTypeName(Node)
+// (dereference=true) → JSType.autobox() → UnionType.toString() at closure-compiler
+// v20260415. Without registry-driven autoboxesTo, Go primitives keep their
+// lowercase names; this helper provides the boxed labels Java's diagnostics expect.
 func autoboxedUnionReadableName(u *jstype.UnionType) string {
 	parts := make([]string, 0, len(u.GetAlternates()))
 	for _, m := range u.GetAlternates() {
@@ -3013,8 +3023,10 @@ func autoboxedUnionReadableName(u *jstype.UnionType) string {
 	return "(" + strings.Join(parts, "|") + ")"
 }
 
-// autoboxedReadableName returns the boxed display name for a scalar primitive
-// member, falling back to TypeName() for non-primitives.
+// Go-only: language-adapter — autoboxedReadableName returns the boxed display
+// name for a scalar primitive member, falling back to TypeName() for non-primitives.
+// Java uses JSType.autobox() polymorphically; Go's primitive types lack that
+// dispatch so this helper centralises the lowercase→Boxed mapping.
 func autoboxedReadableName(t jstype.JSType) string {
 	switch t.TypeName() {
 	case "number":
@@ -5486,9 +5498,10 @@ func (c *TypeCheck) checkStructDictRequireConstructor(fn *rhino.Node) {
 	})
 }
 
-// checkExtendsWithoutTypedef ports FunctionTypeBuilder.java:469 — fires
-// JSC_EXTENDS_WITHOUT_TYPEDEF when a FUNCTION node carries @extends but
-// is neither @constructor nor @interface.
+// Go-only: language-adapter — checkExtendsWithoutTypedef ports
+// FunctionTypeBuilder.java:469. Java fires JSC_EXTENDS_WITHOUT_TYPEDEF inside
+// FunctionTypeBuilder during type construction; the Go port surfaces the same
+// diagnostic from TypeCheck because jsgo lacks the FunctionTypeBuilder pass.
 func (c *TypeCheck) checkExtendsWithoutTypedef(fn *rhino.Node) {
 	info := fn.JSDocInfo()
 	if info == nil {
@@ -5812,13 +5825,12 @@ func (c *TypeCheck) checkInterfaceConflictProperties(
 	}
 }
 
-// templatePropertyConflict implements a heuristic shim for Java's
-// TemplatizedType.findPropertyType when our ObjectType returns Unknown for a
-// property declared as a bare template parameter (e.g. `@type {T}`). Returns
-// true when both interfaces declare the property with their own @template key
-// AND the two `@extends` clauses bind that key to different, non-equivalent
-// type names. Mirrors the comparison Java performs between the two
-// instantiated property types after substitution.
+// Go-only: language-adapter — templatePropertyConflict implements a heuristic
+// shim for Java's TemplatizedType.findPropertyType when our ObjectType returns
+// Unknown for a property declared as a bare template parameter (e.g. `@type {T}`).
+// Java's polymorphic type substitution naturally compares the two instantiated
+// property types after substitution; jsgo's flatter type model needs an explicit
+// helper to compare display-string template bindings.
 func (c *TypeCheck) templatePropertyConflict(iA, iB *jstype.ObjectType, pname, displayA, displayB string) bool {
 	bindA := templateBindingFromDisplay(displayA)
 	bindB := templateBindingFromDisplay(displayB)
@@ -5831,11 +5843,11 @@ func (c *TypeCheck) templatePropertyConflict(iA, iB *jstype.ObjectType, pname, d
 	return true
 }
 
-// propertyTypeIsTemplateParam reports whether the property `pname` on `obj`
-// is annotated with a bare type expression that names one of the interface's
-// own @template parameters. Falls back to an AST-level constructor-JSDoc scan
-// when the ObjectType itself does not carry a docInfo (the typical case for
-// stub interface types built before the @template tag is parsed).
+// Go-only: language-adapter — propertyTypeIsTemplateParam reports whether the
+// property `pname` on `obj` is annotated with a bare type expression that names
+// one of the interface's own @template parameters. Java handles this via
+// TemplateTypeMap; jsgo's flatter model needs an explicit AST-level scan since
+// the ObjectType frequently lacks the @template metadata at check time.
 func (c *TypeCheck) propertyTypeIsTemplateParam(obj *jstype.ObjectType, pname string) bool {
 	pdoc := obj.GetPropertyJSDocInfo(pname)
 	if pdoc == nil || !pdoc.HasType() {
@@ -5860,9 +5872,10 @@ func (c *TypeCheck) propertyTypeIsTemplateParam(obj *jstype.ObjectType, pname st
 	return false
 }
 
-// templateBindingFromDisplay returns the inner argument list of a templatized
-// type name string, e.g. "Int0<number>" → "number". Returns "" when no
-// template arguments are present.
+// Go-only: language-adapter — templateBindingFromDisplay returns the inner
+// argument list of a templatized type name string, e.g. "Int0<number>" → "number".
+// Java reads the binding via TemplateTypeMap.getResolvedTemplateType; jsgo
+// extracts it from the display string when the type model lacks the binding map.
 func templateBindingFromDisplay(display string) string {
 	lt := strings.IndexByte(display, '<')
 	gt := strings.LastIndexByte(display, '>')
