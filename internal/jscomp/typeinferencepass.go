@@ -29,12 +29,30 @@ import (
 // by DataFlowAnalysis.
 type TypeInferencePass struct {
 	scope *TypedScope
+	// undeclaredNames mirrors TypeCheck.undeclaredNames — names that
+	// VarCheck flagged as undeclared. When the RHS of a GETPROP
+	// assignment is one of these names, Java's VarCheck synthesized an
+	// extern for it with Unknown type, and TypeInference.updateScopeForTypeChange
+	// narrows the slot to Unknown. Go's transferAssign guard skips
+	// Unknown-typed RHS expressions; this set lets us restore the Java
+	// behaviour for undeclared-name RHS specifically.
+	// Go-only: package-bridge — Java achieves the same via the synthesized extern.
+	undeclaredNames map[string]bool
 }
 
 // Go-only: language-adapter — Go constructor replacing Java's package-private TypeInferencePass constructor (Go has no package-private constructors).
 // jsgo collapses the full orchestration into a single transfer-function object.
 func NewTypeInferencePass(scope *TypedScope) *TypeInferencePass {
 	return &TypeInferencePass{scope: scope}
+}
+
+// SetUndeclaredNames injects VarCheck's undeclared-name set so that
+// transferAssign can narrow GETPROP slots to Unknown when the RHS is an
+// undeclared NAME. Mirrors Java VarCheck's createSynthesizedExternVar which
+// gives undeclared names Unknown type, causing TypeInference to narrow slots.
+// Go-only: package-bridge — Java uses the synthesized extern; Go uses this set.
+func (p *TypeInferencePass) SetUndeclaredNames(names map[string]bool) {
+	p.undeclaredNames = names
 }
 
 // Go-only: language-adapter — single Transfer entry-point (Java spreads logic across inferAllScopes/inferScope; Go unifies due to no method overloading).
@@ -271,8 +289,24 @@ func (p *TypeInferencePass) transferAssign(a *rhino.Node, in *FlowScope) map[Bra
 		// override `this.a : string` with `?`. Mirrors Java's
 		// updateScopeForTypeChange guard: it skips the slot update when
 		// the inferred type is wider than the declared type.
-		if t == jstype.All || t == jstype.Unknown {
+		//
+		// Exception: when the RHS is a NAME that VarCheck reported as
+		// undeclared, Java's VarCheck synthesizes an extern for it with
+		// Unknown type, and TypeInference.updateScopeForTypeChange DOES
+		// narrow the qualified slot to Unknown (the synthesized extern's
+		// type). Mirror that here by allowing Unknown narrowing when the
+		// RHS is specifically an undeclared NAME.
+		// Go-only: package-bridge — Java uses createSynthesizedExternVar;
+		// Go uses the undeclaredNames set injected via SetUndeclaredNames.
+		if t == jstype.All {
 			return map[Branch]*FlowScope{BranchUnconditional: in}
+		}
+		if t == jstype.Unknown {
+			// Only narrow when the RHS is an undeclared NAME — otherwise
+			// preserve the existing "don't narrow to Unknown" guard.
+			if rhs.Token() != rhino.NAME || !p.undeclaredNames[rhs.String_()] {
+				return map[Branch]*FlowScope{BranchUnconditional: in}
+			}
 		}
 		return map[Branch]*FlowScope{BranchUnconditional: in.inferQualifiedSlot(qname, t)}
 	default:
