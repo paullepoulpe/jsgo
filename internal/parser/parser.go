@@ -2158,9 +2158,11 @@ func (p *Parser) parseArguments(node *rhino.Node) {
 			if !ok {
 				return
 			}
-			if arg.Lineno() == 0 && arg.Charno() == 0 {
-				arg.SetPos(argLine, argCol)
-			}
+			// Argument's position should be the start of the argument
+			// expression (after any leading whitespace, including a leading
+			// `(` of a parenthesised receiver). Java reports the diagnostic
+			// at this position; mirrors var-init's unconditional SetPos.
+			arg.SetPos(argLine, argCol)
 			node.AddChildToBack(arg)
 		}
 		p.scanner.SkipTrivia()
