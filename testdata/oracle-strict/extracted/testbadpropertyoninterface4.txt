@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testbadpropertyoninterface4.js:1:37: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property x never defined on T
+  1| /** @interface */ function T() {}; T.x;
+                                          ^
+
+testdata/fixtures/extracted/testbadpropertyoninterface4.js:1:37: WARNING - [JSC_USELESS_CODE] Suspicious code. The result of the 'getprop' operator is not being used.
+  1| /** @interface */ function T() {}; T.x;
+                                          ^
+
+0 error(s), 2 warning(s), 66.7% typed
+---EXIT---
+0

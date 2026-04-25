@@ -1,0 +1,13 @@
+testdata/fixtures/extracted/testvar15nullishcoalesce.js:2:23: WARNING - [JSC_REFERENCE_BEFORE_DECLARE] Variable referenced before declaration: x
+  2| function f() { var x = x ?? {}; return x; }
+                            ^
+
+testdata/fixtures/extracted/testvar15nullishcoalesce.js:2:39: ERROR - [JSC_TYPE_MISMATCH] inconsistent return type
+found   : {}
+required: number
+  2| function f() { var x = x ?? {}; return x; }
+                                            ^
+
+1 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+1

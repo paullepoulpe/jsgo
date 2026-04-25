@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testduplicatevariabledefinition4.js:5:24: ERROR - [JSC_DUP_VAR_DECLARATION_TYPE_MISMATCH] variable ns.x redefined with type rec4, original definition at testdata/fixtures/extracted/testduplicatevariabledefinition4.js:4 with type rec3
+  5| /** @type {!rec4} */ ns.x;
+                             ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

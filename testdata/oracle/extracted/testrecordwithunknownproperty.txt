@@ -1,0 +1,14 @@
+testdata/fixtures/extracted/testrecordwithunknownproperty.js:4:41: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : Foo
+required: {
+  str: string,
+  unknown: ?
+}
+missing : [unknown]
+mismatch: []
+  4| var /** {str: string, unknown: ?} */ x = new Foo;
+                                              ^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

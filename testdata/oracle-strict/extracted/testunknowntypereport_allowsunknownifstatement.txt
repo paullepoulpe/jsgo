@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testunknowntypereport_allowsunknownifstatement.js:1:17: WARNING - [JSC_USELESS_CODE] Suspicious code. This code lacks side-effects. Is there a bug?
+  1| function id(x) { x; }
+                      ^
+
+0 error(s), 1 warning(s), 50.0% typed
+---EXIT---
+0

@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testadd15.js:3:31: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : (number|string)
+required: boolean
+  3| /** @type {boolean} */ var c = a + b();
+                                    ^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

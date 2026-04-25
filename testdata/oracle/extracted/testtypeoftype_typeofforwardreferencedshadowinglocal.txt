@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testtypeoftype_typeofforwardreferencedshadowinglocal.js:7:4: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of g does not match formal parameter
+found   : null
+required: number
+  7|   g(null);
+         ^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

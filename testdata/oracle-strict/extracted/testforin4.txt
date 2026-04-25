@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testforin4.js:5:4: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of f does not match formal parameter
+found   : (Array|null)
+required: boolean
+  5|   f(obj[k]);
+         ^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testgoogrequiredynamic_missingsources.js:8:3: ERROR - [JSC_UNDEFINED_VARIABLE] variable goog is undeclared
+  8|    goog.setImportHandlerInternalDoNotCallOrElse(() => Promise.resolve(null));
+        ^^^^
+
+testdata/fixtures/extracted/testgoogrequiredynamic_missingsources.js:14:24: ERROR - [JSC_UNDEFINED_VARIABLE] variable assertEquals is undeclared
+  14|        .then(({foo}) => assertEquals(foo, 12));
+                              ^^^^^^^^^^^^
+
+2 error(s), 0 warning(s)
+---EXIT---
+2

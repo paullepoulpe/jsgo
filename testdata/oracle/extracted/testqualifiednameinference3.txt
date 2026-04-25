@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testqualifiednameinference3.js:2:6: ERROR - [JSC_UNDEFINED_VARIABLE] variable c is undeclared
+  2| x.y = c;
+           ^
+
+1 error(s), 0 warning(s)
+---EXIT---
+1

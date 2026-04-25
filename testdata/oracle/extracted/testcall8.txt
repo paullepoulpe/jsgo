@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testcall8.js:2:0: ERROR - [JSC_NOT_FUNCTION_TYPE] (Function|number) expressions are not callable
+  2| f();
+     ^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

@@ -1,0 +1,13 @@
+testdata/fixtures/extracted/testimplementedinterfacepropertiesshouldfailonconflict.js:9:14: WARNING - [JSC_USELESS_CODE] Suspicious code. The result of the 'getprop' operator is not being used.
+   9| Foo.prototype.foo;
+                    ^^^
+
+testdata/fixtures/extracted/testimplementedinterfacepropertiesshouldfailonconflict.js:9:14: ERROR - [JSC_HIDDEN_INTERFACE_PROPERTY_MISMATCH] mismatch of the foo property on type Foo and the type of the property it overrides from interface Int1
+original: string
+override: number
+   9| Foo.prototype.foo;
+                    ^^^
+
+1 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+1

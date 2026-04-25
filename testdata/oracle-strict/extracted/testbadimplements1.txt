@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testbadimplements1.js:4:16: ERROR - [JSC_UNRECOGNIZED_TYPE_ERROR] Bad type annotation. Unknown type nonExistent
+  4|  * @implements {nonExistent}
+                     ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

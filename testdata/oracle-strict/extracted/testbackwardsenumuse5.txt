@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testbackwardsenumuse5.js:1:53: ERROR - [JSC_INEXISTENT_ENUM_ELEMENT] element BAR does not exist on this enum
+  1| /** @return {string} */ function f() { return MyEnum.BAR; }
+                                                          ^^^
+
+1 error(s), 0 warning(s), 83.3% typed
+---EXIT---
+1

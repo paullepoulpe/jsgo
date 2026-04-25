@@ -1,0 +1,1 @@
+/**@enum*/var a={BB:'string'}

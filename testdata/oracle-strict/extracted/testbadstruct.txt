@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testbadstruct.js:1:14: ERROR - [JSC_CONSTRUCTOR_REQUIRED] @struct used without @constructor for Struct1
+  1| /** @struct */function Struct1() {}
+                   ^^^^^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

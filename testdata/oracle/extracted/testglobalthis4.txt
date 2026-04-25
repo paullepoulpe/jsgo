@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testglobalthis4.js:2:4: ERROR - [JSC_VAR_MULTIPLY_DECLARED_ERROR] Variable alert declared more than once. First occurrence: externs.zip//window.js:89:9
+  2| var alert = function(msg) {};
+         ^^^^^^^^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s)
+---EXIT---
+1

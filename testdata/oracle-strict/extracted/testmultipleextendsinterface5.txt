@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testmultipleextendsinterface5.js:7:0: ERROR - [JSC_CONFLICTING_EXTENDED_TYPE] Int2 cannot extend this type; interfaces can only extend interfaces
+  7| function Int2() {};
+     ^^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

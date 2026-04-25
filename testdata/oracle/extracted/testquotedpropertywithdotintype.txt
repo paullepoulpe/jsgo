@@ -1,0 +1,8 @@
+testdata/fixtures/extracted/testquotedpropertywithdotintype.js:6:8: ERROR - [JSC_UNRECOGNIZED_TYPE_ERROR] Bad type annotation. Unknown type x.y.A
+It's possible that 'x.y.A' refers to a value, not a type.
+  6| var /** x.y.A */ a;
+             ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

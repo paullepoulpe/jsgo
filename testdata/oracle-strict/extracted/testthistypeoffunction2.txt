@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testthistypeoffunction2.js:3:0: ERROR - [JSC_EXPECTED_THIS_TYPE] "function(this:F): ?" must be called with a "this" type
+  3| f();
+     ^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

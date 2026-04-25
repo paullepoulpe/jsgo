@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testinterfaceinheritancecheck12.js:9:18: ERROR - [JSC_PARSE_ERROR] Parse error. Invalid escape sequence
+   9| /** @type {I} */\s
+                        ^
+
+1 error(s), 0 warning(s)
+---EXIT---
+1

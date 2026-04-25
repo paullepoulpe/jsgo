@@ -1,0 +1,1 @@
+/**@type {Number|null} */var x;x=null;x=10;

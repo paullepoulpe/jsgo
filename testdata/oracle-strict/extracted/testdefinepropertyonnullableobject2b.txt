@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testdefinepropertyonnullableobject2b.js:2:37: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property x never defined on T
+  2| /** @param {T} t */function f(t) { t.x = 1; }
+                                          ^
+
+0 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+0

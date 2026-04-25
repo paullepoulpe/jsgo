@@ -1,0 +1,13 @@
+testdata/fixtures/extracted/testgetprop1.js:1:41: WARNING - [JSC_USELESS_CODE] Suspicious code. The result of the 'getprop' operator is not being used.
+  1| /** @return {void}*/function foo(){foo().bar;}
+                                              ^^^
+
+testdata/fixtures/extracted/testgetprop1.js:1:41: ERROR - [JSC_TYPE_MISMATCH] No properties on this expression
+found   : undefined
+required: Object
+  1| /** @return {void}*/function foo(){foo().bar;}
+                                              ^^^
+
+1 error(s), 1 warning(s), 75.0% typed
+---EXIT---
+1

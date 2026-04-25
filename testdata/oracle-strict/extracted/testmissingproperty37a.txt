@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testmissingproperty37a.js:18:25: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property isVisible never defined on Foo
+  18| function g(x) { return x.isVisible; }
+                               ^^^^^^^^^
+
+0 error(s), 1 warning(s), 90.9% typed
+---EXIT---
+0

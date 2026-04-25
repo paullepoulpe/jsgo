@@ -1,0 +1,8 @@
+testdata/fixtures/extracted/testbadimplementsduplicateinterface1.js:9:0: ERROR - [JSC_SAME_INTERFACE_MULTIPLE_IMPLEMENTS] Cannot @implement the same interface more than once
+Repeated interface: Foo
+   9| function A() {}
+      ^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

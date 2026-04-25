@@ -1,0 +1,9 @@
+testdata/fixtures/tier1/007_call_param_via_ident.js:4:2: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of f does not match formal parameter
+found   : string
+required: number
+  4| f(s);
+       ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

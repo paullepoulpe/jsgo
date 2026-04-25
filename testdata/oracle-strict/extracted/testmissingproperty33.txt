@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testmissingproperty33.js:2:19: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property foo never defined on Object
+  2| function f(x) { !x.foo || x.foo(); }
+                        ^^^
+
+0 error(s), 1 warning(s), 50.0% typed
+---EXIT---
+0

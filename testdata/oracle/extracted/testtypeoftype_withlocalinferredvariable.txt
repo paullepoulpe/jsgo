@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testtypeoftype_withlocalinferredvariable.js:3:20: WARNING - [JSC_UNRECOGNIZED_TYPEOF_ERROR] Missing type for `typeof` value. The value must be declared and const.
+  3|   /** @type {typeof x} */
+                         ^
+
+0 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+0

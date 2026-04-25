@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testbadmultipleextendsclass.js:5:17: ERROR - [JSC_TYPE_PARSE_ERROR] Bad type annotation. type annotation incompatible with other annotations. See https://github.com/google/closure-compiler/wiki/Annotating-JavaScript-for-the-Closure-Compiler for more information.
+  5| * @extends {base2}
+                      ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

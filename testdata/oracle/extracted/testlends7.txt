@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testlends7.js:3:37: ERROR - [JSC_TYPE_PARSE_ERROR] Bad type annotation. expected closing } See https://github.com/google/closure-compiler/wiki/Annotating-JavaScript-for-the-Closure-Compiler for more information.
+  3| extend(Foo, /** @lends {Foo.prototype|Foo} */ ({bar: 1}));
+                                          ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

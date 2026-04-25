@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testmissingproperty31a.js:5:4: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property a never defined on (Array|Number)
+  5| f().a = 3;
+         ^
+
+0 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+0

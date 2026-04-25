@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testunionindexaccessoverlappingelem.js:2:37: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : (string|undefined)
+required: None
+  2| /** @const {!undefined} */ const b = a[0];
+                                          ^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testlocallyinferredglobalproperty1.js:4:15: ERROR - [JSC_TYPE_MISMATCH] assignment to property z of F
+found   : string
+required: number
+  4| function f() { x.y.z = 'abc'; }
+                    ^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

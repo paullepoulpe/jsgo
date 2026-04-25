@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testqualifiednameinference11.js:4:4: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property onload never defined on Foo
+  4|   x.onload = function() {
+         ^^^^^^
+
+testdata/fixtures/extracted/testqualifiednameinference11.js:5:6: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property onload never defined on Foo
+  5|     x.onload = null;
+           ^^^^^^
+
+0 error(s), 2 warning(s), 100.0% typed
+---EXIT---
+0

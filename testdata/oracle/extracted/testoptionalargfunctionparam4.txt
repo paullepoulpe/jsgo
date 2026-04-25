@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testoptionalargfunctionparam4.js:2:15: ERROR - [JSC_WRONG_ARGUMENT_COUNT] Function a: called with 2 argument(s). Function requires at least 0 argument(s) and no more than 1 argument(s).
+  2| function f(a) {a(3,4)};
+                    ^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

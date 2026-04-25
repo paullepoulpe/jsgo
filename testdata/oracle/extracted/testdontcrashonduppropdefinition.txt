@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testdontcrashonduppropdefinition.js:11:3: ERROR - [JSC_DUP_VAR_DECLARATION] variable ns.A redefined, original definition at testdata/fixtures/extracted/testdontcrashonduppropdefinition.js:6
+  11| ns.A = function() {};
+         ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

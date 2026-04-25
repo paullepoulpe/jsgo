@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testoptimizepropertymap2b.js:6:4: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property b never defined on y
+  6|   y.b = 123;
+         ^
+
+0 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+0

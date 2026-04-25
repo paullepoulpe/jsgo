@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testgetrop_interfacewithouttypedeclaration.js:4:12: WARNING - [JSC_USELESS_CODE] Suspicious code. The result of the 'getprop' operator is not being used.
+  4| I.prototype.foo;
+                 ^^^
+
+0 error(s), 1 warning(s), 87.5% typed
+---EXIT---
+0

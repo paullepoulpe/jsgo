@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testatconstructoronconstobjectliteral_warns.js:1:30: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : {}
+required: function(new:X): ?
+  1| /** @constructor */ const X = {};
+                                   ^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testtypecheck11.js:5:0: ERROR - [JSC_TYPE_MISMATCH] assignment
+found   : String
+required: Number
+  5| a = b;
+     ^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

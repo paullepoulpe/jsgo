@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testtemplatetypecollideswithparameter.js:5:0: ERROR - [JSC_DUP_VAR_DECLARATION_TYPE_MISMATCH] variable T redefined with type undefined, original definition at testdata/fixtures/extracted/testtemplatetypecollideswithparameter.js:5 with type T
+  5| function f(T) {}
+     ^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1
