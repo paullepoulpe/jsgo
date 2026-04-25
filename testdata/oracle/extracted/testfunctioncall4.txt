@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testfunctioncall4.js:3:44: ERROR - [JSC_TYPE_MISMATCH] actual parameter 2 of this.bar.call does not match formal parameter
+found   : string
+required: number
+  3| var Foo = function(x) { this.bar.call(null, x); };
+                                                 ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

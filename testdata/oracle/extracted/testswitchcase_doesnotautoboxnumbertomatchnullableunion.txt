@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testswitchcase_doesnotautoboxnumbertomatchnullableunion.js:2:8: ERROR - [JSC_UNDEFINED_VARIABLE] variable unknown is undeclared
+  2| var a = unknown;
+             ^^^^^^^
+
+1 error(s), 0 warning(s)
+---EXIT---
+1

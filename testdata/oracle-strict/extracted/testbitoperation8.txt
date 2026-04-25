@@ -1,0 +1,15 @@
+testdata/fixtures/extracted/testbitoperation8.js:1:16: WARNING - [JSC_INVALID_OPERAND_TYPE] bad left operand to bitwise operator
+found   : undefined
+required: number
+  1| var x = void 0; x |= new Number(3);
+                     ^
+
+testdata/fixtures/extracted/testbitoperation8.js:1:21: WARNING - [JSC_INVALID_OPERAND_TYPE] bad right operand to bitwise operator
+found   : Number
+required: number
+  1| var x = void 0; x |= new Number(3);
+                          ^^^^^^^^^^^^^
+
+0 error(s), 2 warning(s), 100.0% typed
+---EXIT---
+0

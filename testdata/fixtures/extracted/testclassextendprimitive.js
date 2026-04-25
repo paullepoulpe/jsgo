@@ -1,0 +1,1 @@
+/** @extends {number} */ class C extends number {}

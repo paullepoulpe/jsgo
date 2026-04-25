@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testtypecheck2.js:1:48: ERROR - [JSC_TYPE_MISMATCH] increment/decrement
+found   : undefined
+required: number
+  1| /**@return {void}*/function foo(){ var x=foo(); x--; }
+                                                     ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

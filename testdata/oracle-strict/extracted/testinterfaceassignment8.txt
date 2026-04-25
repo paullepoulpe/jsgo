@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testinterfaceassignment8.js:4:13: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property prototype never defined on Object
+  4| new Object().prototype = i.prototype;
+                  ^^^^^^^^^
+
+testdata/fixtures/extracted/testinterfaceassignment8.js:4:27: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property prototype never defined on I
+  4| new Object().prototype = i.prototype;
+                                ^^^^^^^^^
+
+0 error(s), 2 warning(s), 83.3% typed
+---EXIT---
+0

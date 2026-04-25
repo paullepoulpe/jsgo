@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testswitchcase_unknownswitchexprmatchesanycase.js:1:8: ERROR - [JSC_UNDEFINED_VARIABLE] variable unknown is undeclared
+  1| var a = unknown;
+             ^^^^^^^
+
+1 error(s), 0 warning(s)
+---EXIT---
+1

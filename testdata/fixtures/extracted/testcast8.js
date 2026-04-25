@@ -1,0 +1,1 @@
+function f() { return /** @type {foo} */ (new Object()); }

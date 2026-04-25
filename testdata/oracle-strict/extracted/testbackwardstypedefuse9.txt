@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testbackwardstypedefuse9.js:2:47: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of g does not match formal parameter
+found   : RegExp
+required: Array
+  2| /** @this {goog.MyTypedef} */ function f() { g(this); }
+                                                    ^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

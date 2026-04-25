@@ -1,0 +1,13 @@
+testdata/fixtures/extracted/testin4.js:1:0: WARNING - [JSC_USELESS_CODE] Suspicious code. The result of the 'in' operator is not being used.
+  1| Date in Object
+     ^^^^^^^^^^^^^^
+
+testdata/fixtures/extracted/testin4.js:1:0: ERROR - [JSC_TYPE_MISMATCH] left side of 'in'
+found   : (typeof Date)
+required: (string|symbol)
+  1| Date in Object
+     ^^^^
+
+1 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+1

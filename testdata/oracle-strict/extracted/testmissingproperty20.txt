@@ -1,0 +1,13 @@
+testdata/fixtures/extracted/testmissingproperty20.js:2:22: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property foo never defined on Object
+  2| function f(x) { if (x.foo) { } else { x.foo(); } }
+                           ^^^
+
+testdata/fixtures/extracted/testmissingproperty20.js:2:40: ERROR - [JSC_POSSIBLE_INEXISTENT_PROPERTY] Property foo never defined on Object
+
+This property is accessed on a "loose" type, but is not defined anywhere in the program, so it must not exist.
+  2| function f(x) { if (x.foo) { } else { x.foo(); } }
+                                             ^^^
+
+1 error(s), 1 warning(s), 60.0% typed
+---EXIT---
+1

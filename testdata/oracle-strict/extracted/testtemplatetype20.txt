@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testtemplatetype20.js:10:47: ERROR - [JSC_TYPE_MISMATCH] assignment to property x of C
+found   : number
+required: undefined
+  10| f(new C, /** @param {number} a */ function(a) {this.x = a;});
+                                                     ^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

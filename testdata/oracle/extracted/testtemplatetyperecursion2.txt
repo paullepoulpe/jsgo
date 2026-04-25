@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testtemplatetyperecursion2.js:8:0: WARNING - [JSC_REFERENCE_BEFORE_DECLARE] Variable referenced before declaration: fn
+  8| fn(x);
+     ^^
+
+0 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+0

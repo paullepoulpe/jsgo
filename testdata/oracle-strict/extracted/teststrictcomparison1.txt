@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/teststrictcomparison1.js:1:8: WARNING - [JSC_INVALID_OPERAND_TYPE] expected matching types in comparison
+found   : string
+required: boolean
+  1| var x = true < 'asdf';
+             ^^^^^^^^^^^^^
+
+0 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+0

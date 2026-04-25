@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testfunctionliteralundefinedthisargument.js:7:17: WARNING - [JSC_USELESS_CODE] Suspicious code. This code lacks side-effects. Is there a bug?
+  7| baz(function() { this; });
+                      ^^^^
+
+testdata/fixtures/extracted/testfunctionliteralundefinedthisargument.js:7:0: ERROR - [JSC_WRONG_ARGUMENT_COUNT] Function baz: called with 1 argument(s). Function requires at least 2 argument(s) and no more than 2 argument(s).
+  7| baz(function() { this; });
+     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+1 error(s), 1 warning(s), 75.0% typed
+---EXIT---
+1

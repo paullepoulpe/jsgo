@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testenumstaticmethod2.js:3:26: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of Foo.method does not match formal parameter
+found   : boolean
+required: number
+  3| function f() { Foo.method(true); }
+                               ^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

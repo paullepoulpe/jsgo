@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testbooleanunboxing.js:1:30: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : Boolean
+required: boolean
+  1| /** @type {boolean} */var a = new Boolean(false);
+                                   ^^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

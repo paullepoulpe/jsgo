@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testsymboliteratormethod.js:1:26: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : function(this:Array): IteratorIterable<?,?,?>
+required: number
+  1| const /** number */ num = [][Symbol.iterator];
+                               ^^^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

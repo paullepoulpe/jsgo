@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testcall3nullishcoalesce.js:2:11: ERROR - [JSC_UNRECOGNIZED_TYPE_ERROR] Bad type annotation. Unknown type some.unknown.type
+  2| /** @type {some.unknown.type} */var f1;
+                ^
+
+1 error(s), 0 warning(s), 25.0% typed
+---EXIT---
+1

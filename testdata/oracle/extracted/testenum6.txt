@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testenum6.js:2:25: ERROR - [JSC_TYPE_MISMATCH] assignment
+found   : a<number>
+required: Array
+  2| /**@type {!Array}*/var d;d=a.BB;
+                              ^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

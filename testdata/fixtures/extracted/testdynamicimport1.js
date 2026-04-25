@@ -1,0 +1,1 @@
+/** @type {number} */ var foo = import('foo.js');

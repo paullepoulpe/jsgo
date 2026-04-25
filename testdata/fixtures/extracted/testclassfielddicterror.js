@@ -1,0 +1,1 @@
+/** @dict */ class C { x=2; }

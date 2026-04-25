@@ -1,0 +1,1 @@
+var bar = void 0; bar[0];

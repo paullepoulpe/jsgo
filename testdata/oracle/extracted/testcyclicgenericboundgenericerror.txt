@@ -1,0 +1,15 @@
+testdata/fixtures/extracted/testcyclicgenericboundgenericerror.js:2:3: ERROR - [JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES] Bounded generic semantics are currently still in development
+  2|  * @template {S} T
+        ^
+
+testdata/fixtures/extracted/testcyclicgenericboundgenericerror.js:3:3: ERROR - [JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES] Bounded generic semantics are currently still in development
+  3|  * @template {T} U
+        ^
+
+testdata/fixtures/extracted/testcyclicgenericboundgenericerror.js:4:3: ERROR - [JSC_UNSUPPORTED_BOUNDED_GENERIC_TYPES] Bounded generic semantics are currently still in development
+  4|  * @template {U} S
+        ^
+
+3 error(s), 0 warning(s)
+---EXIT---
+3

@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testunknownprototypechain1.js:8:18: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property prototype never defined on Object
+  8|  c.prototype = co.prototype;
+                       ^^^^^^^^^
+
+0 error(s), 1 warning(s), 71.4% typed
+---EXIT---
+0

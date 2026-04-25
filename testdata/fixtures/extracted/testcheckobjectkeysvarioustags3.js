@@ -1,0 +1,1 @@
+/** @return {!Object<!Object, number>} */ var f = function() {return {}};

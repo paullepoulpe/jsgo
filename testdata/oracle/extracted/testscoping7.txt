@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testscoping7.js:2:19: ERROR - [JSC_TYPE_MISMATCH] assignment to property a of A
+found   : null
+required: A
+  2|   /** @type {!A} */this.a = null;
+                        ^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

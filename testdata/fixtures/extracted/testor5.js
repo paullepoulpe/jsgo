@@ -1,0 +1,1 @@
+/**@type {number} */var x;x=undefined || "a";

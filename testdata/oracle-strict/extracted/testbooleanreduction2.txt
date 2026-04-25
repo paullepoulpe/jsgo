@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testbooleanreduction2.js:5:1: WARNING - [JSC_USELESS_CODE] Suspicious code. This code lacks side-effects. Is there a bug?
+  5| (function(s) {
+      ^^^^^^^^^^^^^
+  6|   return ((s == 'a') && s) || 'b';
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  7| })
+     ^
+
+0 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+0

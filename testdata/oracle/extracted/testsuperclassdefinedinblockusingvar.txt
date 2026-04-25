@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testsuperclassdefinedinblockusingvar.js:11:24: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : number
+required: string
+  11|   var /** string */ y = x;
+                              ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

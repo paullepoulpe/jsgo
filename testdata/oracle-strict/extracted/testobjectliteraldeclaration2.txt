@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testobjectliteraldeclaration2.js:4:0: ERROR - [JSC_TYPE_MISMATCH] assignment to property abc of x
+found   : number
+required: boolean
+  4| x.abc = 0;
+     ^^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

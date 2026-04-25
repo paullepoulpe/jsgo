@@ -1,0 +1,13 @@
+testdata/fixtures/extracted/testdefinepropertyonobject.js:2:24: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property x never defined on Object
+  2| /** @type {number} */ n.x = 1;
+                             ^
+
+testdata/fixtures/extracted/testdefinepropertyonobject.js:3:48: ERROR - [JSC_TYPE_MISMATCH] inconsistent return type
+found   : number
+required: boolean
+  3| /** @return {boolean} */function f() { return n.x; }
+                                                     ^
+
+1 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+1

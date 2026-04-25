@@ -1,0 +1,13 @@
+testdata/fixtures/extracted/testcomparison7.js:3:0: WARNING - [JSC_USELESS_CODE] Suspicious code. The result of the 'eq' operator is not being used.
+  3| a == b
+     ^^^^^^
+
+testdata/fixtures/extracted/testcomparison7.js:3:0: ERROR - [JSC_DETERMINISTIC_TEST] condition always evaluates to true
+left : undefined
+right: undefined
+  3| a == b
+     ^^^^^^
+
+1 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+1

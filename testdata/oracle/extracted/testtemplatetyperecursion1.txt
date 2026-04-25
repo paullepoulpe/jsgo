@@ -1,0 +1,11 @@
+testdata/fixtures/extracted/testtemplatetyperecursion1.js:7:0: WARNING - [JSC_REFERENCE_BEFORE_DECLARE] Variable referenced before declaration: fn
+  7| fn(x);
+     ^^
+
+testdata/fixtures/extracted/testtemplatetyperecursion1.js:7:3: ERROR - [JSC_UNDEFINED_VARIABLE] variable x is undeclared
+  7| fn(x);
+        ^
+
+1 error(s), 1 warning(s)
+---EXIT---
+1

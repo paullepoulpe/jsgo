@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testfunctionmasksvariablebug.js:1:19: ERROR - [JSC_FUNCTION_MASKS_VARIABLE] function x masks variable (IE bug)
+  1| var x = 4; var f = function x(b) { return b ? 1 : x(true); };
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+1 error(s), 0 warning(s), 62.5% typed
+---EXIT---
+1

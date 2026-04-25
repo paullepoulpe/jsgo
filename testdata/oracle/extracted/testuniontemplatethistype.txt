@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testuniontemplatethistype.js:10:22: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of h does not match formal parameter
+found   : (Array|F|null)
+required: (F|null)
+  10| f(g(), function() { h(this); });
+                            ^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

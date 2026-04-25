@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testduplicatevariabledefinition8_7.js:5:27: ERROR - [JSC_UNDEFINED_VARIABLE] variable ns is undeclared
+  5| /** @type {rec<string>} */ ns.x;
+                                ^^
+
+1 error(s), 0 warning(s)
+---EXIT---
+1

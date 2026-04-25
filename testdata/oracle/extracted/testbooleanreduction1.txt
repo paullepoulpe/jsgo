@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testbooleanreduction1.js:1:31: WARNING - [JSC_SUSPICIOUS_LEFT_OPERAND_OF_LOGICAL_OPERATOR] Left operand of || operator is always falsy.
+  1| /**@type {string} */var x; x = null || "a";
+                                    ^^^^^^^^^^^
+
+0 error(s), 1 warning(s), 100.0% typed
+---EXIT---
+0

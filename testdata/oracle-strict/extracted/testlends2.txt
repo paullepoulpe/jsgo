@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testlends2.js:3:34: ERROR - [JSC_UNKNOWN_LENDS] Variable Foob not declared before @lends annotation.
+  3| extend(Foo, /** @lends {Foob} */ ({bar: 1}));
+                                       ^^^^^^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

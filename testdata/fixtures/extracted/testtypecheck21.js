@@ -1,0 +1,1 @@
+/** @type {Array<String>} */var foo;

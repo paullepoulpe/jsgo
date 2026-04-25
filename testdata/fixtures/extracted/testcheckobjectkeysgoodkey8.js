@@ -1,0 +1,1 @@
+/** @type {!Object<!Array, number>} */ var k;

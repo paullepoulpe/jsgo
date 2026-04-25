@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testvar5.js:3:34: ERROR - [JSC_TYPE_MISMATCH] initializing variable
+found   : string
+required: number
+  3| /** @type {number} */var a = goog.foo;
+                                       ^^^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

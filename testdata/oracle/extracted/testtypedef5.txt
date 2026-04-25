@@ -1,0 +1,9 @@
+testdata/fixtures/extracted/testtypedef5.js:5:26: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of f does not match formal parameter
+found   : number
+required: (A|B|null)
+  5| f(new A()); f(new B()); f(1);
+                               ^
+
+1 error(s), 0 warning(s), 100.0% typed
+---EXIT---
+1

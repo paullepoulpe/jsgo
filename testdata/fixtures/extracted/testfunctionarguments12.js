@@ -1,0 +1,1 @@
+/** @param {String} foo  */function bar(baz){}

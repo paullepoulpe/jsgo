@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testinterfaceinheritancecheck13.js:5:41: ERROR - [JSC_PARSE_ERROR] Parse error. Invalid escape sequence
+  5| /** @type {{bar : !Function}} */ var x;\s
+                                              ^
+
+1 error(s), 0 warning(s)
+---EXIT---
+1

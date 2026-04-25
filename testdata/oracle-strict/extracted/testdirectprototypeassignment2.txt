@@ -1,0 +1,7 @@
+testdata/fixtures/extracted/testdirectprototypeassignment2.js:6:59: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property foo never defined on Base
+  6| /** @return {string} */ function foo() { return (new Base).foo; }
+                                                                ^^^
+
+0 error(s), 1 warning(s), 91.7% typed
+---EXIT---
+0
