@@ -4627,8 +4627,15 @@ func isDefinitelyNotComparable(t jstype.JSType, numericMode bool) bool {
 	if t == nil {
 		return false
 	}
-	if t == jstype.Unknown || t == jstype.All {
+	// Unknown is never "definitely" not comparable.
+	if t == jstype.Unknown {
 		return false
+	}
+	// All (`*`) type: in numeric-mode comparisons Java's expectBigIntOrNumber
+	// fires for `*` because it does not match number|bigint specifically.
+	// In non-numeric mode, `*` is left alone (mirrors Java's laxer default).
+	if t == jstype.All {
+		return numericMode
 	}
 	switch t {
 	case jstype.Number, jstype.Boolean, jstype.String:
