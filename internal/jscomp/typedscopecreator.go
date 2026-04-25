@@ -688,7 +688,7 @@ func (c *TypedScopeCreator) recordPrototypeAssign(a *rhino.Node, scope *TypedSco
 		}
 		resolveScope = &TypedScope{parent: scope, declared: map[string]jstype.JSType{}, typeAliases: aliases, registry: c.registry}
 	}
-	memberType := c.inferPrototypeValueType(a.JSDocInfo(), rhs, resolveScope, fn.Instance)
+	memberType := c.inferPrototypeValueType(a.JSDocInfo(), rhs, resolveScope, fn.Instance, propName)
 	fn.Instance.DefineProperty(propName, memberType)
 	// Literal-inferred prototype slots (no @type) don't participate
 	// in the subclass-override type-match check — Java treats them
@@ -705,11 +705,23 @@ func (c *TypedScopeCreator) recordPrototypeAssign(a *rhino.Node, scope *TypedSco
 	// we stamp it on the expression-function's scope directly.
 	if rhs.Token() == rhino.FUNCTION {
 		info := a.JSDocInfo()
+		// @override param-type inheritance: when the override has no
+		// per-param JSDoc, fall back to the parent slot's i-th param so
+		// the method body sees the inherited types. Mirrors Java's
+		// FunctionTypeBuilder.inferFromOverriddenFunction.
+		var parentFn *jstype.FunctionType
+		if super := fn.Instance.Super(); super != nil {
+			parentFn, _ = super.GetPropertyType(propName).(*jstype.FunctionType)
+		}
 		var ptypes []jstype.JSType
 		params := rhs.Children()
 		if len(params) >= 2 {
-			for _, p := range params[1].Children() {
-				ptypes = append(ptypes, resolveParamType(info, p, scope))
+			for i, p := range params[1].Children() {
+				pt := resolveParamType(info, p, scope)
+				if isJSUnknown(pt) && parentFn != nil && i < len(parentFn.Params) {
+					pt = parentFn.Params[i]
+				}
+				ptypes = append(ptypes, pt)
 			}
 		}
 		c.Functions[rhs] = c.buildMethodScope(rhs, fn.Instance, scope, ptypes)
@@ -773,7 +785,7 @@ func (c *TypedScopeCreator) recordPrototypeLiteralAssign(a *rhino.Node, scope *T
 		if val == nil {
 			continue
 		}
-		memberType := c.inferPrototypeValueType(a.JSDocInfo(), val, scope, fn.Instance)
+		memberType := c.inferPrototypeValueType(a.JSDocInfo(), val, scope, fn.Instance, keyName)
 		fn.Instance.DefineProperty(keyName, memberType)
 		// Bind `this` inside method bodies so `this.x` type-checks.
 		if val.Token() == rhino.FUNCTION {
@@ -1166,7 +1178,7 @@ func (c *TypedScopeCreator) recordPrototypeObjectLit(a *rhino.Node, scope *Typed
 		if child == nil {
 			continue
 		}
-		memberType := c.inferPrototypeValueType(kv.JSDocInfo(), child, scope, fn.Instance)
+		memberType := c.inferPrototypeValueType(kv.JSDocInfo(), child, scope, fn.Instance, kv.String_())
 		fn.Instance.DefineProperty(kv.String_(), memberType)
 	}
 }
@@ -1178,8 +1190,12 @@ func (c *TypedScopeCreator) recordPrototypeObjectLit(a *rhino.Node, scope *Typed
 // inst is the constructor's InstanceType — when non-nil it is set as
 // typeOfThis on the resulting FunctionType so TypeCheck can emit
 // JSC_EXPECTED_THIS_TYPE when the method is called without a receiver.
+// propName is the prototype slot name and is used to inherit signature
+// parts from the superclass slot when the override carries `@override`
+// but lacks `@param` / `@return` (mirrors Java's
+// FunctionTypeBuilder.inferFromOverriddenFunction).
 // Go-only: language-adapter — inferPrototypeValueType is a Go-only helper that infers prototype member type as standalone method; Java inlines this in NormalScopeBuilder.defineObjectLiteral.
-func (c *TypedScopeCreator) inferPrototypeValueType(info *rhino.JSDocInfo, rhs *rhino.Node, scope *TypedScope, inst *jstype.ObjectType) jstype.JSType {
+func (c *TypedScopeCreator) inferPrototypeValueType(info *rhino.JSDocInfo, rhs *rhino.Node, scope *TypedScope, inst *jstype.ObjectType, propName string) jstype.JSType {
 	// When an explicit @type annotation is present it takes precedence
 	// over the FUNCTION-body parameter / return inference. Mirrors
 	// Java's TypedScopeCreator using JSDocInfo.getType() to override
@@ -1193,9 +1209,27 @@ func (c *TypedScopeCreator) inferPrototypeValueType(info *rhino.JSDocInfo, rhs *
 			return jstype.Unknown
 		}
 		params := kids[1]
+		// Look up the supertype's slot (if any) for @override inheritance.
+		// Mirrors Java's FunctionTypeBuilder.inferFromOverriddenFunction —
+		// the parent-slot's FunctionType supplies missing param / return
+		// types when the subclass JSDoc declares only @override.
+		var parentFn *jstype.FunctionType
+		if inst != nil && propName != "" {
+			if super := inst.Super(); super != nil {
+				if pt, ok := super.GetPropertyType(propName).(*jstype.FunctionType); ok {
+					parentFn = pt
+				}
+			}
+		}
 		var paramTypes []jstype.JSType
-		for _, p := range params.Children() {
-			paramTypes = append(paramTypes, resolveParamType(info, p, scope))
+		for i, p := range params.Children() {
+			pt := resolveParamType(info, p, scope)
+			// If the param has no JSDoc-supplied type and we're an
+			// @override, inherit from the parent-slot's i-th param.
+			if isJSUnknown(pt) && parentFn != nil && i < len(parentFn.Params) {
+				pt = parentFn.Params[i]
+			}
+			paramTypes = append(paramTypes, pt)
 		}
 		// Default return type: Void (undefined) when no @return JSDoc is
 		// present, matching recordFunction's Void-default policy and Java's
@@ -1206,6 +1240,13 @@ func (c *TypedScopeCreator) inferPrototypeValueType(info *rhino.JSDocInfo, rhs *
 			ret = scope.ResolveExpr(info.ReturnType().TypeName)
 		} else if functionReturnsExplicitly(rhs) {
 			ret = jstype.Unknown
+		}
+		// @override return-type inheritance: when the override declares no
+		// @return and the parent-slot has a non-Unknown return, adopt it
+		// so visitReturn checks against the inherited contract.
+		if parentFn != nil && parentFn.Return != nil && !isJSUnknown(parentFn.Return) &&
+			(info == nil || info.ReturnType() == nil) {
+			ret = parentFn.Return
 		}
 		// Set typeOfThis so EXPECTED_THIS_TYPE fires when the method is
 		// detached and called without a receiver. Mirrors Java's
