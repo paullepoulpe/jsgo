@@ -1808,7 +1808,7 @@ func (c *TypedScopeCreator) recordClass(cls *rhino.Node, scope *TypedScope) {
 	// FunctionTypeBuilder.inferImplementedInterfaces flow when invoked
 	// from TypedScopeCreator's CLASS visitor.
 	if info := cls.JSDocInfo(); info != nil {
-		c.applyImplementedInterfaces(preStub, info, scope)
+		c.applyImplementedInterfaces(preStub, info, scope.ResolveExpr)
 	}
 
 	// Walk body: methods attach to the InstanceType (or the static
@@ -2495,11 +2495,10 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 			// initializer and no @type gets entry type VOID. Java applies
 			// this through the flow lattice; jsgo records the same on the
 			// static slot since flow entry types for unbound locals are not
-			// tracked separately. The slot must be inferred so subsequent
-			// assignments widen the type via WidenInferredSlot — Java's
-			// TypedVar.isTypeInferred() returns true for these.
+			// tracked separately. Restricted to `var` because Java's
+			// getDeclarativelyUnboundVarsWithoutTypes only returns
+			// var-scoped slots — let/const TDZ semantics differ.
 			scope.declared[name.String_()] = jstype.Void
-			scope.MarkInferredSlot(name.String_())
 		} else if p := v.Parent(); p != nil && p.Token() == rhino.FOR_IN {
 			// FOR_IN key type is string (property names of the object).
 			// Mirrors TypeInference.java case FOR_IN: iterKeyType = STRING_TYPE.
@@ -2728,7 +2727,7 @@ func (c *TypedScopeCreator) buildDeclaredFunctionConstructor(fn *rhino.Node, inf
 //
 // Port of jscomp/TypedScopeCreator.java @ closure-compiler v20260415
 // (FunctionTypeBuilder.inferImplementedInterfaces).
-func (c *TypedScopeCreator) applyImplementedInterfaces(fnType *jstype.FunctionType, info *rhino.JSDocInfo, scope *TypedScope) {
+func (c *TypedScopeCreator) applyImplementedInterfaces(fnType *jstype.FunctionType, info *rhino.JSDocInfo, resolveExpr func(string) jstype.JSType) {
 	if fnType == nil || info == nil || !fnType.IsConstructor {
 		return
 	}
@@ -2746,7 +2745,11 @@ func (c *TypedScopeCreator) applyImplementedInterfaces(fnType *jstype.FunctionTy
 		// `@implements {Foo}` parses with implicit nullability in default
 		// mode (yielding `Foo|null`), but Java's evaluate() returns the raw
 		// ObjectType — strip the null/void members textually here.
-		resolved := scope.ResolveExpr(expr.TypeName)
+		// Use the template-aware resolver so that `@implements {IArrayLike<T>}`
+		// resolves T to the constructor's own TemplateType (not Unknown).
+		// Port of FunctionTypeBuilder.inferImplementedInterfaces
+		// @ closure-compiler v20260415.
+		resolved := resolveExpr(expr.TypeName)
 		nonNull := stripNullable(resolved)
 		iface := implementedInterfaceFromType(nonNull)
 		if iface == nil {
@@ -2939,7 +2942,9 @@ func (c *TypedScopeCreator) recordFunction(fn *rhino.Node, scope *TypedScope) {
 		// expression to its ObjectType (or TemplatizedType base) and
 		// store on the FunctionType, mirroring Java's
 		// FunctionTypeBuilder.inferImplementedInterfaces.
-		c.applyImplementedInterfaces(fnType, info, scope)
+		// Use the template-aware resolver so that @implements {IArrayLike<T>}
+		// stores IArrayLike<TemplateType{T}> rather than IArrayLike<Unknown>.
+		c.applyImplementedInterfaces(fnType, info, resolve)
 	} else if info.HasType() {
 		// `@type {function(this:T, …)}` on a plain function — resolve the
 		// declared type so typeOfThis is preserved. When the resolved type
