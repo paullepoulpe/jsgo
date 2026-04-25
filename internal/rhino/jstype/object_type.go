@@ -436,7 +436,13 @@ func (o *ObjectType) DefineInferredProperty(name string, t JSType, node *rhino.N
 	if o.propNodes == nil {
 		o.propNodes = map[string]*rhino.Node{}
 	}
-	o.propNodes[name] = node
+	// Preserve the FIRST defining node — Java's defineInferredProperty also
+	// records the original site, and downstream checks (strict-mode
+	// write-LHS) rely on knowing whether the property was first established
+	// inside a constructor body.
+	if _, ok := o.propNodes[name]; !ok {
+		o.propNodes[name] = node
+	}
 	return true
 }
 
