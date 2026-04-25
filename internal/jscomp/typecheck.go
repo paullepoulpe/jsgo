@@ -2741,7 +2741,15 @@ func (c *TypeCheck) visitReturn(ret *rhino.Node, scope *TypedScope) []diag.Diagn
 		return nil
 	}
 	retExpr := ret.FirstChild()
+	// Port of TypeCheck.java visitReturn: a bare `return;` (no expression)
+	// is typed as `undefined` (Void). When the declared return type is
+	// non-void this fires JSC_TYPE_MISMATCH. Mirrors Java's treatment of
+	// an empty RETURN node as having type JSType.VOID_TYPE.
 	if retExpr == nil {
+		if declared != nil && declared != jstype.Void {
+			c.tv.expectCanAssignTo(ret, jstype.Void, declared, "inconsistent return type")
+			return c.tvDrain()
+		}
 		return nil
 	}
 	infer := NewTypeInference(scope)
