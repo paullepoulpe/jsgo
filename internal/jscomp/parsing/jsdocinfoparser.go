@@ -1043,9 +1043,31 @@ func (p *JsDocInfoParser) parseBasicTypeExpression(token JsDocToken) (string, bo
 		if name == "function" {
 			return p.parseFunctionType()
 		}
+		if name == "typeof" {
+			return p.parseTypeofType()
+		}
 		return p.parseTypeName(name)
 	}
 	return "", false
+}
+
+// parseTypeofType: `typeof` NameExpression. The Java JsDocInfoParser
+// produces a TYPEOF Node whose only child is the operand name; we
+// emit `typeof <qname>` so ResolveExpr can recognise the prefix and
+// dispatch through the scope's namespace-alias map.
+// Mirrors com/google/javascript/jscomp/parsing/JsDocInfoParser.parseTypeofType.
+func (p *JsDocInfoParser) parseTypeofType() (string, bool) {
+	p.skipEOLs()
+	if !p.match(JsDocTokenString) {
+		return "", false
+	}
+	p.next()
+	operand := p.stream.String_()
+	// Allow a parenthesised operand: `typeof(X)`.
+	if operand == "" {
+		return "", false
+	}
+	return "typeof " + operand, true
 }
 
 // parseTypeName: IDENT possibly followed by `.<` generics. Emits the

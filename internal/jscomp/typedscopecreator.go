@@ -1796,6 +1796,16 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 			declared = jstype.Unknown
 		}
 		scope.declared[name.String_()] = declared
+		// `@const {typeof X}` records the new binding as a namespace
+		// alias of X. Subsequent `Y.prop` lookups walk through to X's
+		// namespace-prop map. Mirrors Java's behaviour where the TYPEOF
+		// resolution shares the StaticSlot with the original namespace.
+		if tn := strings.TrimSpace(info.Type().TypeName); strings.HasPrefix(tn, "typeof ") {
+			operand := strings.TrimSpace(strings.TrimPrefix(tn, "typeof"))
+			if operand != "" {
+				scope.RecordNamespaceAlias(name.String_(), operand)
+			}
+		}
 		return
 	}
 	// No @type: try to recover a sharper type from a simple initializer
@@ -1837,6 +1847,15 @@ func (c *TypedScopeCreator) recordOneDecl(v *rhino.Node, name *rhino.Node, scope
 		if enum, ok := scope.GetDeclaredType(init.String_()).(*jstype.EnumType); ok {
 			scope.declared[name.String_()] = enum
 			return
+		}
+		// Namespace alias: `const ns2 = ns1` where ns1 carries
+		// namespace props. Record the alias so `ns2.Foo` resolves to
+		// `ns1.Foo`. Mirrors how Java's StaticSlot scope chain treats
+		// the two names as referring to the same namespace object.
+		if init.String_() != "" && (scope.namespaceProps != nil && scope.namespaceProps[init.String_()] != nil ||
+			scope.LookupNamespaceAlias(init.String_()) != "") {
+			scope.RecordNamespaceAlias(name.String_(), init.String_())
+			// Fall through: still record the value slot below.
 		}
 	}
 	// `var foo = function bar(…){…}` — build a FunctionType from the

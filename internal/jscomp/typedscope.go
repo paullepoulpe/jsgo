@@ -63,6 +63,17 @@ type TypedScope struct {
 	// to value bindings. ResolveExpr checks this before the nominal
 	// / primitive registry.
 	typeAliases map[string]jstype.JSType
+	// namespaceAliases maps an alias-name to its source qualified name
+	// (`const ns2 = ns1` → "ns2" → "ns1"; `@const {typeof ns1} var ns
+	// = …` → "ns" → "ns1"; `@const {typeof ns2.Foo} var Foo2 = …` →
+	// "Foo2" → "ns2.Foo"). LookupNamespaceProp and ResolveExpr's
+	// dotted-name path consult this map so qualified names that
+	// reach through the alias see the original namespace's props.
+	// Go-only: language-adapter — Java handles this through
+	// JSTypeRegistry's TYPEOF resolution and StaticSlot scope chain;
+	// the Go port records aliases on TypedScope to keep the namespace-
+	// prop map a flat, owner-keyed structure.
+	namespaceAliases map[string]string
 	// thisType is the instance bound to `this` inside this scope. nil
 	// at the global / function scope; populated when entering a
 	// constructor body so `this.x = …` lands on the right ObjectType.
@@ -530,7 +541,84 @@ func (s *TypedScope) LookupNamespaceProp(owner, prop string) jstype.JSType {
 			return t
 		}
 	}
+	// Namespace alias: `const ns2 = ns1` or `@const {typeof ns1} var
+	// ns = …` redirects ns2/ns prop lookups through ns1's namespace
+	// prop map. Mirrors Java's StaticSlot resolution which sees both
+	// names as referring to the same underlying namespace object.
+	if alias, ok := s.namespaceAliases[owner]; ok {
+		if dot := strings.IndexByte(alias, '.'); dot >= 0 {
+			// Multi-segment alias: `@const {typeof ns2.Foo} var Foo2`
+			// → Foo2 aliases ns2.Foo. We can't compose owner.prop
+			// through that here; only the simple-root case applies.
+			_ = dot
+		} else if t := s.resolveAliasedNamespaceProp(alias, prop); t != nil {
+			return t
+		}
+	}
 	return s.parent.LookupNamespaceProp(owner, prop)
+}
+
+// resolveAliasedNamespaceProp walks the alias chain from `aliasOwner`
+// (a single-segment name) to look up `prop` in the original namespace.
+// Stops on unaliased owners or alias cycles. Used by LookupNamespaceProp
+// to reach through `const ns2 = ns1` / `@const {typeof ns1}` redirections.
+// Go-only: language-adapter — Java resolves this implicitly through
+// the StaticSlot scope chain; the Go port walks the alias map manually.
+func (s *TypedScope) resolveAliasedNamespaceProp(aliasOwner, prop string) jstype.JSType {
+	visited := map[string]bool{}
+	cur := aliasOwner
+	for !visited[cur] {
+		visited[cur] = true
+		// Check namespace props at this owner across the scope chain.
+		for sc := s; sc != nil; sc = sc.parent {
+			if m, ok := sc.namespaceProps[cur]; ok {
+				if t, ok := m[prop]; ok {
+					return t
+				}
+			}
+		}
+		// Follow another alias hop, if any.
+		next := ""
+		for sc := s; sc != nil; sc = sc.parent {
+			if a, ok := sc.namespaceAliases[cur]; ok && strings.IndexByte(a, '.') < 0 {
+				next = a
+				break
+			}
+		}
+		if next == "" {
+			return nil
+		}
+		cur = next
+	}
+	return nil
+}
+
+// Go-only: language-adapter — RecordNamespaceAlias registers an alias
+// from `alias` to `original` (which may be a single name or dotted
+// qname). Used by TypedScopeCreator for `const ns2 = ns1` and
+// `@const {typeof X} var Y = …`. Java handles the equivalent via the
+// JSTypeRegistry TYPEOF resolution + StaticSlot scope chain.
+func (s *TypedScope) RecordNamespaceAlias(alias, original string) {
+	if s == nil || alias == "" || original == "" || alias == original {
+		return
+	}
+	if s.namespaceAliases == nil {
+		s.namespaceAliases = map[string]string{}
+	}
+	s.namespaceAliases[alias] = original
+}
+
+// Go-only: language-adapter — LookupNamespaceAlias returns the alias
+// target for `name`, walking the scope chain. Empty string when not
+// aliased.
+func (s *TypedScope) LookupNamespaceAlias(name string) string {
+	if s == nil {
+		return ""
+	}
+	if a, ok := s.namespaceAliases[name]; ok {
+		return a
+	}
+	return s.parent.LookupNamespaceAlias(name)
 }
 
 // recordNamespaceProp remembers `owner.prop : t` on this scope.
@@ -645,6 +733,53 @@ func (s *TypedScope) ResolveExpr(expr string) jstype.JSType {
 	expr = trimSpace(expr)
 	if expr == "" || expr == "?" {
 		return jstype.Unknown
+	}
+	// `typeof X` / `typeof X.Y`: resolve the operand as a value qname and
+	// return its declared type. Java does this in JSTypeRegistry.case
+	// TYPEOF (createTypeFromCommentNode); the Go port matches the textual
+	// `typeof <qname>` produced by parseTypeofType.
+	if startsWith(expr, "typeof ") {
+		operand := trimSpace(expr[len("typeof "):])
+		if operand == "" {
+			return jstype.Unknown
+		}
+		// Single name: return its declared value type, falling back to
+		// any namespace-aliased target chain.
+		if dot := indexOfByte(operand, '.'); dot < 0 {
+			if t := s.GetDeclaredType(operand); t != nil && !isJSUnknown(t) {
+				return t
+			}
+			return jstype.Unknown
+		}
+		// Dotted qname: walk the dotted chain. First segment is a value
+		// binding; subsequent segments are namespace props (with alias
+		// follow-through).
+		first := operand[:indexOfByte(operand, '.')]
+		rest := operand[indexOfByte(operand, '.')+1:]
+		if t := s.LookupNamespaceProp(first, rest); t != nil {
+			return t
+		}
+		// Multi-segment fallback: walk one prop at a time.
+		segs := strings.Split(operand, ".")
+		var cur jstype.JSType = s.GetDeclaredType(segs[0])
+		owner := segs[0]
+		for i := 1; i < len(segs); i++ {
+			prop := segs[i]
+			if t := s.LookupNamespaceProp(owner, prop); t != nil {
+				cur = t
+			} else if obj, ok := cur.(*jstype.ObjectType); ok {
+				cur = obj.GetPropertyType(prop)
+			} else if fn, ok := cur.(*jstype.FunctionType); ok && fn.Instance != nil {
+				cur = fn.Instance.GetPropertyType(prop)
+			} else {
+				return jstype.Unknown
+			}
+			owner = owner + "." + prop
+		}
+		if cur == nil || isJSUnknown(cur) {
+			return jstype.Unknown
+		}
+		return cur
 	}
 	// Strip balanced outer grouping parens. Closure's JsDocInfoParser
 	// produces expressions like `(number|string)` when the union is
