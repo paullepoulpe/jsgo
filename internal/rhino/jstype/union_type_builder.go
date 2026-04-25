@@ -85,27 +85,73 @@ func (b *UnionTypeBuilder) AddAlternate(alternate JSType) *UnionTypeBuilder {
 		}
 	}
 
-	// Dedup: check against already-collected alternates.
+	// Dedup: check against already-collected alternates. Mirrors Java's
+	// Builder.addAlternate (UnionType.java:697) suffix loop.
 	for idx := 0; idx < len(b.alternates); idx++ {
+		removeCurrent := false
 		current := b.alternates[idx]
-		if isUnknown(current) {
+
+		// Unknown types: leave in the union and use equality dedup.
+		// Mirrors Java's `alternate.isUnknownType() || current.isUnknownType()
+		// || alternate.hasAnyTemplateTypes() || current.hasAnyTemplateTypes()` branch.
+		if isUnknown(current) || isUnknown(alternate) {
 			if alternate.TypeName() == current.TypeName() {
-				return b // same checked-unknown name, skip
+				return b // alternate is unnecessary
 			}
-			continue
-		}
-		if isUnknown(alternate) {
-			if alternate.TypeName() == current.TypeName() {
-				return b
+		} else if isTemplatizedJSType(alternate) || isTemplatizedJSType(current) {
+			// Templatized handling — Java cases 1-9 (UnionType.java:773-832).
+			//   Object is considered a subtype of Object<string>, but the
+			//   union should keep "Object", not "Object<string>".
+			altT, _ := alternate.(*TemplatizedType)
+			curT, _ := current.(*TemplatizedType)
+			if curT == nil {
+				// Cases 1-3: alternate is templatized, current is not.
+				if IsStrictSubtypeOf(alternate, current) {
+					// Case 1, 2: alternate is unnecessary.
+					return b
+				}
+				// Case 3: leave current, add alternate.
+			} else if altT == nil {
+				// Cases 4-6: current is templatized, alternate is not.
+				if IsStrictSubtypeOf(current, alternate) {
+					// Case 4, 5: alternate makes current obsolete.
+					removeCurrent = true
+				}
+				// Case 6: leave current, add alternate.
+			} else {
+				// Both are templatized. Cases 7-9.
+				if templatizedSameRaw(curT, altT) {
+					if alternate.TypeName() == current.TypeName() {
+						// Case 8: identical templatized — skip.
+						return b
+					}
+					// Case 7a: replace with a `?`-specialised alternate.
+					// Java passes ImmutableList.of() to specialise on `?`;
+					// the Go side approximates by setting Args to nil.
+					alternate = NewTemplatizedType(curT.Base, nil)
+					removeCurrent = true
+					// Case 7b (ReadonlyArray) — we don't have a special-case
+					// readonly type in jsgo yet, so we treat all same-raw
+					// templatized merges via the case-7a path.
+				}
+				// Case 9 / case 7b leave current, add alternate.
 			}
-			continue
-		}
-		if IsSubtype(alternate, current) {
-			// alternate is redundant (current is already wider)
+		} else if IsSubtype(alternate, current) {
+			// Alternate is unnecessary. Java also calls
+			// mayRegisterDroppedProperties(alternate, current) here for
+			// record types — Go has no central registry for that yet, so
+			// the call is omitted (the registry would track which
+			// properties got dropped during union construction so the
+			// strict-mode "don't drop properties in union" diagnostic can
+			// re-attach them. testdontdroppropertiesinunion* fixtures rely
+			// on this; closing them needs a registry-side hook).
 			return b
+		} else if IsSubtype(current, alternate) {
+			// Alternate makes current obsolete.
+			removeCurrent = true
 		}
-		if IsSubtype(current, alternate) {
-			// current is made redundant by the wider alternate — remove it
+
+		if removeCurrent {
 			b.alternates = append(b.alternates[:idx], b.alternates[idx+1:]...)
 			idx--
 		}
@@ -113,6 +159,21 @@ func (b *UnionTypeBuilder) AddAlternate(alternate JSType) *UnionTypeBuilder {
 
 	b.alternates = append(b.alternates, alternate)
 	return b
+}
+
+// isTemplatizedJSType reports whether t is a TemplatizedType. Mirrors
+// Java's JSType.isTemplatizedType() — used by Builder.addAlternate for the
+// case 1-9 branching.
+func isTemplatizedJSType(t JSType) bool {
+	_, ok := t.(*TemplatizedType)
+	return ok
+}
+
+// templatizedSameRaw reports whether two TemplatizedTypes share the same
+// Base ObjectType. Mirrors TemplatizedType.wrapsSameRawType
+// (TemplatizedType.java:163).
+func templatizedSameRaw(a, b *TemplatizedType) bool {
+	return a != nil && b != nil && a.Base != nil && a.Base == b.Base
 }
 
 // Build finalises the union and returns the collapsed JSType.
