@@ -1555,6 +1555,13 @@ func (c *TypeCheck) visitCall(node *rhino.Node, scope *TypedScope) []diag.Diagno
 	if isVariadic {
 		lastParamType = fn.Params[len(fn.Params)-1]
 	}
+	// Track assignments-to-NAME that occur in earlier sibling args so
+	// subsequent args see the freshly-assigned type. Mirrors Java's
+	// TypeInference flowing the FlowScope through expression children
+	// in source order: `g(x, x = 3, x)` — the third `x` reads number
+	// because the assignment mutated the flow scope between args.
+	// Without this, arg 3 would still see x's pre-call refined type.
+	var siblingRefinements map[string]jstype.JSType
 	for i, arg := range args {
 		var param jstype.JSType
 		if i < len(fn.Params) {
@@ -1565,7 +1572,28 @@ func (c *TypeCheck) visitCall(node *rhino.Node, scope *TypedScope) []diag.Diagno
 		} else {
 			break
 		}
+		// Push any sibling-arg assignment refinements collected from
+		// prior args so this arg's NAME lookups see the updated type.
+		var popSibling func()
+		if len(siblingRefinements) > 0 {
+			scope.PushRefinement(siblingRefinements)
+			popSibling = scope.PopRefinement
+		}
 		found := infer.InferType(arg)
+		if popSibling != nil {
+			popSibling()
+		}
+		// After this arg is processed, if the arg itself was an
+		// `x = expr` ASSIGN to a NAME, record the new flow type for x
+		// so later sibling args see it.
+		if arg.Token() == rhino.ASSIGN {
+			if ak := arg.Children(); len(ak) >= 2 && ak[0].Token() == rhino.NAME {
+				if siblingRefinements == nil {
+					siblingRefinements = map[string]jstype.JSType{}
+				}
+				siblingRefinements[ak[0].String_()] = found
+			}
+		}
 		// Optional parameters (JSDoc {=T}) accept `undefined` at the
 		// call site. Java's TypeCheck widens the effective required
 		// type to (T|undefined) for optional params, so passing
