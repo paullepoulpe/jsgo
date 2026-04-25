@@ -1,16 +1,20 @@
-// Port of com/google/javascript/jscomp/CommandLineRunner's externs
-// bundle + com/google/javascript/jscomp/DefaultExterns.js
-// @ closure-compiler v20260415 (narrow; hand-curated subset).
+// Port of com/google/javascript/jscomp/CommandLineRunner.java @ closure-compiler v20260415
+// (covers DefaultExterns.java's hand-curated fallback subset).
 //
-// Closure ships a collection of externs .js files (es6.js, html5.js,
-// w3c_dom1.js, …) that declare the shapes of the runtime environment
-// for the type checker. jsgo's pipeline loads this one synthetic
-// source as the "externs scope" parent of every user source —
-// matches how Compiler#compile accepts both externs and sources.
-// The content below is deliberately narrow: it declares the names
-// the TypeCheckTest corpus references at checker level (Disposable,
-// IArrayLike, IThenable, common DOM globals) without committing to a
-// full port of closure-compiler's externs .jar.
+// Default externs source. Today this synthetic bundle is the
+// active path — externs_loader.go provides the infrastructure for
+// loading Closure's upstream externs from the extracted jar
+// (.cache/closure-externs/), gated on JSGO_USE_UPSTREAM_EXTERNS=1.
+// The default stays synthetic because the upstream externs trip
+// IsSubtypeOf into infinite recursion on Array<T>/IArrayLike<T>;
+// once that recursion is fixed the gate can flip and this file
+// becomes pure fallback.
+//
+// The synthetic content below is deliberately narrow: it declares
+// the names the TypeCheckTest corpus references at checker level
+// (Disposable, IArrayLike, IThenable, common DOM globals). It does
+// NOT attempt to mirror the full upstream externs — that's the
+// loader's job.
 
 package jscomp
 
