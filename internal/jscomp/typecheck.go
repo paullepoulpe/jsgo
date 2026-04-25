@@ -79,6 +79,17 @@ type TypeCheck struct {
 	// property is loose.
 	looseProps map[*jstype.ObjectType]map[string]bool
 
+	// inferredWrites tracks properties that were added by
+	// collectPropertyWrites (Go-only pre-pass; Java handles these
+	// during TypedScopeCreator). We need to distinguish "DECLARED"
+	// from "registered via x.prop=…" for the strict-mode union check:
+	// when a union receiver has the property only via inferred writes
+	// and not declared on every alternate, Java routes the diagnostic
+	// through STRICT_INEXISTENT_PROPERTY (with the union readable name)
+	// rather than STRICT_INEXISTENT_UNION_PROPERTY. Mirrors Java's
+	// canPropertyBeDefined LOOSE vs LOOSE_UNION distinction.
+	inferredWrites map[*jstype.ObjectType]map[string]bool
+
 	// externTypes is the set of ObjectType instances registered in the
 	// externs scope (Object, Function, Date, Error, etc.). In Java these
 	// types have full property surfaces populated from closure-compiler's
@@ -275,7 +286,7 @@ func (c *TypeCheck) collectPropertyWritesIn(n *rhino.Node, scope *TypedScope) {
 				} else {
 					infer := NewTypeInference(scope)
 					recvType := stripNullUndef(infer.InferType(recv))
-					defineOnOpenObject(recvType, propName)
+					c.defineOnOpenObjectTracked(recvType, propName)
 				}
 			}
 		}
@@ -630,6 +641,10 @@ func (c *TypeCheck) Visit(t *NodeTraversal, n, parent *rhino.Node) {
 			c.emit(c.visitArithmetic(n, scope))
 		case rhino.BITAND, rhino.BITOR, rhino.BITXOR,
 			rhino.LSH, rhino.RSH, rhino.URSH,
+			// Compound bitwise assignment ops route through the same
+			// expectBitwiseable → expectNumberStrict path in Java's
+			// TypeValidator (visitBinaryOperator @ TypeCheck.java:2949);
+			// jsgo's strict dispatch must include them too.
 			rhino.ASSIGN_BITAND, rhino.ASSIGN_BITOR, rhino.ASSIGN_BITXOR,
 			rhino.ASSIGN_LSH, rhino.ASSIGN_RSH, rhino.ASSIGN_URSH:
 			c.emit(c.visitStrictBitwise(n, scope))
@@ -1913,8 +1928,68 @@ func (c *TypeCheck) visitGetProp(n *rhino.Node, scope *TypedScope) []diag.Diagno
 		// Mirrors canPropertyBeDefined + reportMissingProperty w/ isKnownToUnionMember=true.
 		if u, ok := recvType.(*jstype.UnionType); ok {
 			kind := u.GetPropertyKind(propName)
+			// ASSIGN-LHS on a union where every alternate has the property only
+			// via collectPropertyWrites (inferred), not declared. Java's order is
+			// "check LHS, then register" — so the LHS sees ABSENT and fires
+			// STRICT_INEXISTENT_PROPERTY. jsgo registers first, so the kind here
+			// is HasProperty (or MaybePresent when not every alternate is open).
+			// Either way, if the LHS reaches this point and every alternate that
+			// claims the property only has it via inferredWrites, surface the
+			// strict diagnostic to match Java. Mirrors
+			// TypeCheck.java#checkPropertyAccessHelper at v20260415.
+			if isAssignLHS(n) && c.opts != nil && c.opts.IsOn(GroupStrictCheckTypes) &&
+				kind != jstype.HasPropertyAbsent &&
+				c.allMaybePresentMembersInferred(u, propName) {
+				return []diag.Diagnostic{{
+					Path:    c.path,
+					Line:    propNode.Lineno(),
+					Col:     propNode.Charno(),
+					Code:    diag.JSC_STRICT_INEXISTENT_PROPERTY,
+					Level:   diag.Warning,
+					Message: fmt.Sprintf("Property %s never defined on %s", propName, autoboxedUnionReadableName(u)),
+				}}
+			}
 			if kind == jstype.HasPropertyMaybePresent {
 				if c.opts != nil && c.opts.IsOn(GroupStrictCheckTypes) {
+					// ASSIGN-LHS context: jsgo's collectPropertyWrites pass runs
+					// BEFORE checkPropertyAccessHelper, so by the time we check
+					// `f().a = …` the write has already added `a` to the open
+					// alternate(s) of the union. Java's TypeCheck checks the LHS
+					// FIRST and only registers the loose write afterwards, so it
+					// sees the property as ABSENT on every alternate and routes
+					// through STRICT_INEXISTENT_PROPERTY (with the union readable
+					// name) — never STRICT_INEXISTENT_UNION_PROPERTY for writes.
+					// Mirrors TypeCheck.java reportMissingProperty(strictReport=true,
+					// isKnownToUnionMember=false) when the access is an assign LHS.
+					if isAssignLHS(n) {
+						return []diag.Diagnostic{{
+							Path:    c.path,
+							Line:    propNode.Lineno(),
+							Col:     propNode.Charno(),
+							Code:    diag.JSC_STRICT_INEXISTENT_PROPERTY,
+							Level:   diag.Warning,
+							Message: fmt.Sprintf("Property %s never defined on %s", propName, autoboxedUnionReadableName(u)),
+						}}
+					}
+					// Java's canPropertyBeDefined distinguishes LOOSE vs LOOSE_UNION:
+					// LOOSE_UNION fires only when at least one alternate has the
+					// property as a DECLARED slot. If every alternate that "has" the
+					// property has it only via collectPropertyWrites (inferred-write
+					// tag), Java falls back to LOOSE → STRICT_INEXISTENT_PROPERTY
+					// with the union readable name. This matches the
+					// missingproperty35a/b oracle where `Foo|Bar specialProp = 1`
+					// adds `specialProp` to Foo and Bar as inferred, then a read on
+					// `Bar|Baz x.specialProp` fires the LOOSE form, not LOOSE_UNION.
+					if c.allMaybePresentMembersInferred(u, propName) {
+						return []diag.Diagnostic{{
+							Path:    c.path,
+							Line:    propNode.Lineno(),
+							Col:     propNode.Charno(),
+							Code:    diag.JSC_STRICT_INEXISTENT_PROPERTY,
+							Level:   diag.Warning,
+							Message: fmt.Sprintf("Property %s never defined on %s", propName, autoboxedUnionReadableName(u)),
+						}}
+					}
 					// Readable receiver name: use the variable name when the
 					// receiver node is a NAME (mirrors Java's getReadableTypeName(objNode)
 					// which falls back to n.getQualifiedName()).
@@ -2332,12 +2407,12 @@ func isInGuardedBranch(n *rhino.Node, recvName, propName string) bool {
 // weaker POSSIBLE variant directly since STRICT_ is silenced in default mode.
 func (c *TypeCheck) checkPossibleInexistent(n, recvNode *rhino.Node, propName string, recvType jstype.JSType) []diag.Diagnostic {
 	if isAssignLHS(n) {
-		return nil
+		return c.checkPossibleInexistentStrictOnly(n, recvNode, propName, recvType)
 	}
 	if p := n.Parent(); p != nil {
 		switch p.Token() {
 		case rhino.EXPR_RESULT:
-			return nil
+			return c.checkPossibleInexistentStrictOnly(n, recvNode, propName, recvType)
 		case rhino.CAST:
 			// `/** @type {T} */ (x.prop)` — the explicit cast overrides the
 			// type; suppress the existence check. Port of Java's visitCast
@@ -2351,7 +2426,7 @@ func (c *TypeCheck) checkPossibleInexistent(n, recvNode *rhino.Node, propName st
 		return nil
 	}
 	if isPropertyExistenceOrAbsenceTest(n) {
-		return nil
+		return c.checkPossibleInexistentStrictOnly(n, recvNode, propName, recvType)
 	}
 	if c.globalPropNames[propName] {
 		return nil
@@ -2387,6 +2462,52 @@ func (c *TypeCheck) checkPossibleInexistent(n, recvNode *rhino.Node, propName st
 		Path: c.path, Line: kids[1].Lineno(), Col: kids[1].Charno(),
 		Code: diag.JSC_POSSIBLE_INEXISTENT_PROPERTY, Level: diag.Error,
 		Message: fmt.Sprintf("Property %s never defined on %s", propName, label),
+	}}
+}
+
+// Go-only: language-adapter — strict-only emission point that mirrors Java's
+// reportMissingProperty(strictReport=true) routing for the silenced default-mode
+// contexts (assign-LHS / EXPR_RESULT / property-existence tests). The check
+// only fires for the global Object receiver — the only "low confidence" type
+// we ship that Java's TypeValidator routes through STRICT_INEXISTENT_PROPERTY
+// in these contexts. Unknown/All receivers stay silenced to avoid the FP storm
+// jsgo's sparser type lattice produces on inferred parameters.
+func (c *TypeCheck) checkPossibleInexistentStrictOnly(n, recvNode *rhino.Node, propName string, recvType jstype.JSType) []diag.Diagnostic {
+	if c.opts == nil || !c.opts.IsOn(GroupStrictCheckTypes) {
+		return nil
+	}
+	obj := dereferencedObject(recvType)
+	if obj == nil || obj.Name != "Object" {
+		// Non-Object low-confidence receivers (Unknown, All, …) stay silenced:
+		// Java's STRICT_INEXISTENT_PROPERTY does fire on them too, but jsgo's
+		// type lattice infers Unknown for many cases Java types more precisely,
+		// so we only narrow to the named Object receiver.
+		return nil
+	}
+	if p := n.Parent(); p != nil && p.Token() == rhino.CAST {
+		return nil
+	}
+	recvName := ""
+	if recvNode != nil && recvNode.Token() == rhino.NAME {
+		recvName = recvNode.String_()
+	}
+	if len(c.undeclaredNames) > 0 {
+		root := rootOfGetProp(n)
+		if root != nil && root.Token() == rhino.NAME && c.undeclaredNames[root.String_()] {
+			return nil
+		}
+	}
+	if recvName != "" && isInGuardedBranch(n, recvName, propName) {
+		return nil
+	}
+	kids := n.Children()
+	if len(kids) < 2 {
+		return nil
+	}
+	return []diag.Diagnostic{{
+		Path: c.path, Line: kids[1].Lineno(), Col: kids[1].Charno(),
+		Code: diag.JSC_STRICT_INEXISTENT_PROPERTY, Level: diag.Warning,
+		Message: fmt.Sprintf("Property %s never defined on %s", propName, obj.TypeName()),
 	}}
 }
 
@@ -3009,6 +3130,73 @@ func defineOnOpenObject(t jstype.JSType, prop string) {
 	if obj.IsRecord {
 		obj.MarkInferred(prop)
 	}
+}
+
+// Go-only: package-bridge — defineOnOpenObject wrapper that also records the
+// (objectType, propName) pair in c.inferredWrites so the strict-mode union
+// check can distinguish DECLARED vs collectPropertyWrites-inferred properties.
+// Java's canPropertyBeDefined consults the OwnerFunction's slot map directly,
+// which already carries the inferred bit; jsgo tracks it side-band because the
+// write pass runs before TypeCheck.
+func (c *TypeCheck) defineOnOpenObjectTracked(t jstype.JSType, prop string) {
+	c.recordInferredWrite(t, prop)
+	defineOnOpenObject(t, prop)
+}
+
+// Go-only: language-adapter — predicate for the strict-mode union-property
+// check that distinguishes Java's LOOSE vs LOOSE_UNION cases. Returns true iff
+// every alternate of `u` that DOES carry `prop` carries it only as an
+// inferred (collectPropertyWrites-registered) slot — not declared. In that
+// case Java's canPropertyBeDefined returns LOOSE (not LOOSE_UNION), routing
+// the diagnostic through STRICT_INEXISTENT_PROPERTY with a union readable name.
+func (c *TypeCheck) allMaybePresentMembersInferred(u *jstype.UnionType, prop string) bool {
+	any := false
+	for _, m := range u.GetAlternates() {
+		obj := dereferencedObject(m)
+		if obj == nil || !obj.HasProperty(prop) {
+			continue
+		}
+		any = true
+		if c.inferredWrites[obj] == nil || !c.inferredWrites[obj][prop] {
+			return false
+		}
+	}
+	return any
+}
+
+// Go-only: package-bridge — recursively records inferred-write tags on every
+// open-object alternate of `t` so the union-property check can later identify
+// which alternates only have the property via the loose-write surface.
+func (c *TypeCheck) recordInferredWrite(t jstype.JSType, prop string) {
+	if t == nil {
+		return
+	}
+	if u, ok := t.(*jstype.UnionType); ok {
+		for _, m := range u.Members() {
+			c.recordInferredWrite(m, prop)
+		}
+		return
+	}
+	obj := dereferencedObject(t)
+	if obj == nil || obj.Name == "" {
+		return
+	}
+	if obj.IsStruct || (obj.IsStructural && !obj.IsRecord) {
+		return
+	}
+	// Only record types that DIDN'T already declare the property —
+	// matches the gate in defineOnOpenObject so c.inferredWrites
+	// stays a strict subset of "added by this pass".
+	if obj.HasProperty(prop) {
+		return
+	}
+	if c.inferredWrites == nil {
+		c.inferredWrites = map[*jstype.ObjectType]map[string]bool{}
+	}
+	if c.inferredWrites[obj] == nil {
+		c.inferredWrites[obj] = map[string]bool{}
+	}
+	c.inferredWrites[obj][prop] = true
 }
 
 // Go-only: language-adapter — autoboxedUnionReadableName builds a parenthesised
