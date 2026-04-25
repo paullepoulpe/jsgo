@@ -3306,8 +3306,22 @@ func (c *TypeCheck) visitIn(n *rhino.Node, scope *TypedScope) []diag.Diagnostic 
 	}
 	lhs, rhs := kids[0], kids[1]
 	infer := NewTypeInference(scope)
-	recv := stripNullUndef(infer.InferType(rhs))
+	rawRhs := infer.InferType(rhs)
+	recv := stripNullUndef(rawRhs)
 	var out []diag.Diagnostic
+	// Java's TypeValidator.expectObject fires JSC_TYPE_MISMATCH "'in' requires
+	// an object" when the RHS type is definitely null or undefined. Mirrors
+	// TypeCheck.java:784 where visitCall routes the RHS through
+	// validator.expectObject(n, rt, "'in' requires an object").
+	if rawRhs == jstype.Null || rawRhs == jstype.Void {
+		out = append(out, diag.Diagnostic{
+			Path: c.path, Line: n.Lineno(), Col: n.Charno(),
+			Code: diag.JSC_TYPE_MISMATCH, Level: diag.Error,
+			Message: fmt.Sprintf(
+				"'in' requires an object\nfound   : %s\nrequired: Object",
+				rawRhs.TypeName()),
+		})
+	}
 	lt := infer.InferType(lhs)
 	if isDefinitelyNotInKey(lt) {
 		out = append(out, diag.Diagnostic{
