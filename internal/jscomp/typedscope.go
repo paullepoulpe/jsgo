@@ -78,6 +78,15 @@ type TypedScope struct {
 	// at the global / function scope; populated when entering a
 	// constructor body so `this.x = …` lands on the right ObjectType.
 	thisType *jstype.ObjectType
+	// isThisBoundary is true on non-arrow FUNCTION scopes whose `this`
+	// is rebound at the call site (anonymous function expressions). When
+	// set, ThisType() stops walking outward instead of inheriting the
+	// enclosing scope's `this`. Mirrors how a `function() {}` inside a
+	// constructor does not capture the constructor's `this` — only
+	// arrow functions do. Without this guard, `this.X = V` inside a
+	// nested anon function would incorrectly type-check against the
+	// outer constructor's instance type.
+	isThisBoundary bool
 	registry *jstype.Registry
 	// refinements is a stack of overlays applied on top of `declared`
 	// when GetDeclaredType is called. TypeCheck pushes a frame when
@@ -537,6 +546,9 @@ func (s *TypedScope) ThisType() *jstype.ObjectType {
 	}
 	if s.thisType != nil {
 		return s.thisType
+	}
+	if s.isThisBoundary {
+		return nil
 	}
 	return s.parent.ThisType()
 }

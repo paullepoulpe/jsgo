@@ -640,14 +640,20 @@ func (p *JsDocInfoParser) parseModifiesTag(token JsDocToken) JsDocToken {
 }
 
 // parseThisTag ports the @this branch of the Java parseAnnotation:
-// consumes the optional `{Type}` argument and marks the JSDocInfo as
-// having a @this annotation. Mirrors Java's JsDocInfoParser handling
-// of @this — which simply records it as hasThisType (the actual type
-// expression is not resolved by CheckGlobalThis, only its presence matters).
+// consumes the optional `{Type}` argument and records both the
+// has-this flag and the resolved type expression on the JSDocInfo.
+// Mirrors Java's JsDocInfoParser which calls recordThisType so
+// downstream TypedScopeCreator can rebind `this` inside the function.
 // Go-only: language-adapter — Java handles THIS inline in the parseAnnotation switch; Go extracts it to a dedicated method.
 func (p *JsDocInfoParser) parseThisTag() JsDocToken {
 	p.info.SetHasThisType(true)
 	p.anyRecorded = true
+	p.skipEOLs()
+	t := p.next()
+	if expr, next, ok := p.parseTypeExpressionAnnotation(t); ok {
+		p.info.SetThisType(rhino.NewJSTypeExpression(expr))
+		return next
+	}
 	return p.eatUntilEOLIfNotAnnotation()
 }
 

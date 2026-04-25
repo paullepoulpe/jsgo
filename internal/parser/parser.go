@@ -2656,9 +2656,17 @@ func (p *Parser) looksLikeObjectMethod() bool {
 // Go-only: language-adapter — object method consumer (Java uses parseMethodDefinition + parseObjectLiteralMethodDeclaration; Go unifies).
 func (p *Parser) consumeObjectMethod(obj *rhino.Node) bool {
 	keyLine, keyCol := p.scanner.Line(), p.scanner.Col()
-	// Swallow the `get` / `set` prefix if present; we don't mark the
-	// kind today, matching our coarse method-shorthand handling.
-	_ = p.scanner.ConsumeKeyword("get") || p.scanner.ConsumeKeyword("set")
+	// Track whether the prefix is `get` / `set` so the produced FUNCTION
+	// can be marked as an accessor. Mirrors Java's IRFactory.processGetAccessor /
+	// processSetAccessor which emit GETTER_DEF / SETTER_DEF nodes; in this
+	// coarser parser we tag the inner FUNCTION via PropGetterDef /
+	// PropSetterDef so downstream type inference treats accessors as
+	// property reads/writes rather than function-valued slots.
+	isGetter := p.scanner.ConsumeKeyword("get")
+	isSetter := false
+	if !isGetter {
+		isSetter = p.scanner.ConsumeKeyword("set")
+	}
 	p.scanner.SkipTrivia()
 	name, ok := p.scanner.ConsumeIdent()
 	if !ok {
@@ -2699,6 +2707,11 @@ func (p *Parser) consumeObjectMethod(obj *rhino.Node) bool {
 	}
 	fn := rhino.New(rhino.FUNCTION)
 	fn.SetPos(keyLine, keyCol)
+	if isGetter {
+		fn.PutBooleanProp(rhino.PropGetterDef, true)
+	} else if isSetter {
+		fn.PutBooleanProp(rhino.PropSetterDef, true)
+	}
 	nameInFn := rhino.NewString(rhino.NAME, "")
 	nameInFn.SetPos(keyLine, keyCol)
 	fn.AddChildToBack(nameInFn)
