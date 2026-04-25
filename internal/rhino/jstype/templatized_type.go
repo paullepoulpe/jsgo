@@ -450,6 +450,49 @@ func (t *TemplatizedType) GetTemplateArg(key *TemplateType) JSType {
 	return nil
 }
 
+// --- Resolved-implementation lookup ---------------------------------------
+
+// FindResolvedImplementationOf returns a TemplatizedType for targetBase if
+// this TemplatizedType directly implements or transitively extends
+// targetBase with concrete template args.
+//
+// The lookup applies this type's replacer to each entry in
+// Ctor.GetImplementedInterfaceTypes() (the raw @implements expressions)
+// so that template variables are substituted with the concrete values
+// bound on this instance.  For example, Array<string> applying replacer
+// {T→string} to IArrayLike<T> yields IArrayLike<string>.
+//
+// Go-only: language-adapter — mirrors the Java mechanism where
+// TemplatizedType's TemplateTypeMap includes all ancestor template keys;
+// Go stores only the direct @implements expressions and applies the replacer
+// lazily here.  Port of the argTypeMap.getResolvedTemplateType(key) path
+// inside InvocationTemplateTypeMatcher.matchTemplateTypesRecursive
+// @ closure-compiler v20260415.
+func (t *TemplatizedType) FindResolvedImplementationOf(targetBase *ObjectType) *TemplatizedType {
+	if t.Base == nil || targetBase == nil {
+		return nil
+	}
+	if t.replacer == nil {
+		return nil
+	}
+	ctor := t.Base.GetConstructor()
+	if ctor == nil {
+		return nil
+	}
+	for _, raw := range ctor.GetImplementedInterfaceTypes() {
+		if raw == nil {
+			continue
+		}
+		resolved := visitJSType(t.replacer, raw)
+		if tt, ok := resolved.(*TemplatizedType); ok {
+			if tt.Base == targetBase {
+				return tt
+			}
+		}
+	}
+	return nil
+}
+
 // --- Delegation helpers ---------------------------------------------------
 
 // MatchesObjectContext delegates to the base ObjectType.

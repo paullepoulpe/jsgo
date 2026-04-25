@@ -296,9 +296,36 @@ func unifyTemplates(subs *jstype.CallSiteMap, param, arg jstype.JSType) {
 		// number. When the arg side isn't itself templatized (e.g.
 		// arg is plain Array because we haven't tracked the element
 		// type), fall back to no binding.
+		//
+		// When bases differ (e.g. param=IArrayLike<T>, arg=Array<string>
+		// or param=Iterable<T>, arg=Generator<string>), Java's
+		// InvocationTemplateTypeMatcher looks up the param's template
+		// key in the arg's TemplateTypeMap (which includes ancestor
+		// keys because Java wires template maps through the full
+		// inheritance chain).  Go instead:
+		//   1. Walks the arg's @implements chain with the replacer applied
+		//      (FindResolvedImplementationOf) to find an instantiation of
+		//      pt.Base — handles Array→IArrayLike etc.
+		//   2. Falls back to a positional-arg match for native covariant
+		//      types whose VALUE parameter is always at index 0
+		//      (Generator→Iterable, Generator→Iterator, etc.) — mirrors
+		//      the covariantArgIndexOf logic in SubtypeChecker.
+		// Port of InvocationTemplateTypeMatcher.matchTemplateTypesRecursive
+		// @ closure-compiler v20260415.
 		var argArgs []jstype.JSType
-		if at, ok := arg.(*jstype.TemplatizedType); ok && at.Base == pt.Base {
-			argArgs = at.Args
+		if at, ok := arg.(*jstype.TemplatizedType); ok {
+			if at.Base == pt.Base {
+				argArgs = at.Args
+			} else {
+				// Try @implements chain first.
+				if resolved := at.FindResolvedImplementationOf(pt.Base); resolved != nil {
+					argArgs = resolved.Args
+				} else if nativeCovariantSubtype(at.Base, pt.Base) {
+					// Positional fallback for native covariant iterator types
+					// (Generator→Iterable, Generator→Iterator, etc.).
+					argArgs = at.Args
+				}
+			}
 		}
 		for i, p := range pt.Args {
 			var a jstype.JSType
@@ -322,6 +349,71 @@ func unifyTemplates(subs *jstype.CallSiteMap, param, arg jstype.JSType) {
 		unifyTemplates(subs, pf.Return, af.Return)
 		return
 	}
+}
+
+// nativeCovariantSubtype reports whether sub is a known native subtype of sup
+// based on the inheritance relationships hard-coded in Java's JSTypeRegistry.
+// In Java these relationships are wired via setExtendedInterfaces / setImplementedInterfaces
+// so that the TemplateTypeMap of a subtype includes the supertype's template
+// keys.  Go does not build that composite map, so we replicate the name-based
+// relationships here for use during template-type inference.
+//
+// Established by JSTypeRegistry @ closure-compiler v20260415:
+//   Generator  extends IteratorIterable
+//   IteratorIterable extends Iterable + Iterator
+//   ReadonlyArray extends IArrayLike + Iterable
+//   Array implements ReadonlyArray (→ IArrayLike + Iterable)
+//
+// Port of JSTypeRegistry.initializeBuiltInTypes() @ closure-compiler v20260415
+// (the setExtendedInterfaces / setImplementedInterfaces calls that wire native
+// iterator types into each other's template maps).
+func nativeCovariantSubtype(sub, sup *jstype.ObjectType) bool {
+	if sub == nil || sup == nil {
+		return false
+	}
+	subName := sub.GetReferenceName()
+	supName := sup.GetReferenceName()
+	if subName == "" || supName == "" {
+		return false
+	}
+	// Quick identity check.
+	if subName == supName {
+		return true
+	}
+	// Map: sub → set of supertypes it natively extends/implements.
+	switch subName {
+	case "Generator":
+		switch supName {
+		case "IteratorIterable", "Iterable", "Iterator":
+			return true
+		}
+	case "IteratorIterable":
+		switch supName {
+		case "Iterable", "Iterator":
+			return true
+		}
+	case "ReadonlyArray":
+		switch supName {
+		case "IArrayLike", "Iterable":
+			return true
+		}
+	case "Array":
+		switch supName {
+		case "IArrayLike", "Iterable", "ReadonlyArray":
+			return true
+		}
+	case "AsyncGenerator":
+		switch supName {
+		case "AsyncIteratorIterable", "AsyncIterable", "AsyncIterator":
+			return true
+		}
+	case "AsyncIteratorIterable":
+		switch supName {
+		case "AsyncIterable", "AsyncIterator":
+			return true
+		}
+	}
+	return false
 }
 
 // Go-only: language-adapter
