@@ -1393,6 +1393,16 @@ func (c *TypedScopeCreator) inferPrototypeValueType(info *rhino.JSDocInfo, rhs *
 			}
 			paramTypes = append(paramTypes, pt)
 		}
+		// Port of FunctionTypeBuilder.inferFromOverriddenFunction: when the
+		// @override has FEWER declared params than the parent, inherit the
+		// remaining parent param types. Mirrors Java's behaviour where
+		// SubFoo.prototype.bar = function() {} with @override picks up all
+		// params from Foo.prototype.bar.
+		if parentFn != nil && (info == nil || info.IsOverride()) {
+			for i := len(paramTypes); i < len(parentFn.Params); i++ {
+				paramTypes = append(paramTypes, parentFn.Params[i])
+			}
+		}
 		// Default return type: Void (undefined) when no @return JSDoc is
 		// present, matching recordFunction's Void-default policy and Java's
 		// FunctionTypeBuilder.inferReturnType. Functions with an explicit
