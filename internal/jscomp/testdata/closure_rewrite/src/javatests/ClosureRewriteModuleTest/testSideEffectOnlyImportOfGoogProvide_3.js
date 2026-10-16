@@ -1,0 +1,1 @@
+goog.provide('ns.c'); alert('hello world');

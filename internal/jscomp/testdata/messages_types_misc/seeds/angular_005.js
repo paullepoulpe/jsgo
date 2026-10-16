@@ -1,0 +1,1 @@
+var ns = {}; ns.fn = function (a, b) {}

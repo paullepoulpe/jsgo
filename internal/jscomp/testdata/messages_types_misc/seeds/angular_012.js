@@ -1,0 +1,1 @@
+const fn = function (a, b) {}

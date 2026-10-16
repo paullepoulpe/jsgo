@@ -1,0 +1,1 @@
+const {getLogger} = goog.debug.Logger;

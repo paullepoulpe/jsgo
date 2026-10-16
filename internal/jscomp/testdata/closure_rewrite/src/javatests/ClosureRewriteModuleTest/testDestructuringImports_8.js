@@ -1,0 +1,1 @@
+goog.provide('ns.b'); /** @constructor */ ns.b.Foo = function() {};

@@ -1,0 +1,1 @@
+var x = goog$debug$Logger.getLogger('a.b.c'); y.info(a); x.info(a);

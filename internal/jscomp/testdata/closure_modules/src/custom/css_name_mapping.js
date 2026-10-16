@@ -1,0 +1,11 @@
+goog.provide('custom.css');
+goog.setCssNameMapping({'goog-menu': 'a', 'goog-menu-item': 'b'});
+goog.setCssNameMapping({'goog': 'a', 'menu': 'b', 'goog-menu': 'c-d'}, 'BY_WHOLE');
+goog.setCssNameMapping({'goog': 'a', 'menu': 'b', 'goog-menu': 'a-b'}, 'BY_WHOLE');
+goog.setCssNameMapping({'goog': 'a'}, 'BY_SOMETHING');
+goog.setCssNameMapping({'goog': 1});
+goog.setCssNameMapping('x');
+goog.setCssNameMapping({'a': 'b'}, 1);
+goog.setCssNameMapping({'a': 'b'}, 'BY_PART', 3);
+goog.setCssNameMapping();
+goog.setCssNameMapping({'--var-x': 'y', 'a-b': 'c'});

@@ -1,0 +1,1 @@
+if(x)var logger=null;else foo()

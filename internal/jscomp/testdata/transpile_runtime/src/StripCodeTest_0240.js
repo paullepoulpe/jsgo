@@ -1,0 +1,1 @@
+var x = {}; x[new goog$debug$Logger()] = 3;

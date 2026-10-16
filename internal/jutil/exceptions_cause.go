@@ -16,3 +16,11 @@ func NewAssertionErrorWithCause(cause Throwable) *AssertionError {
 	InitThrowable(e, "java.lang.AssertionError", msgPtr(cause.Error()), cause)
 	return e
 }
+
+// NewIllegalStateExceptionWithMessageAndCause is new
+// IllegalStateException(String message, Throwable cause).
+func NewIllegalStateExceptionWithMessageAndCause(message string, cause Throwable) *IllegalStateException {
+	e := &IllegalStateException{}
+	InitThrowable(e, "java.lang.IllegalStateException", &message, cause)
+	return e
+}

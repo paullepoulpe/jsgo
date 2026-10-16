@@ -41,6 +41,21 @@ func (m *LinkedIdentityHashMap[K, V]) Get(key K) V {
 	return entry.value
 }
 
+// Lookup is Get plus whether the key is present.
+//
+// Go-only: language-adapter — Java's get returns null for a missing key. A V
+// without nil (int for a Java Integer value) cannot express that: Get then
+// returns 0 for both a missing key and a present 0. Lookup reports presence,
+// like jutil.LinkedHashMap.Lookup, for the callers that test get(k) != null.
+func (m *LinkedIdentityHashMap[K, V]) Lookup(key K) (V, bool) {
+	entry := m.innerMap[key]
+	if entry == nil {
+		var zero V
+		return zero, false
+	}
+	return entry.value, true
+}
+
 // Put associates value with key and returns the previous value (zero if
 // none).
 //
@@ -64,8 +79,10 @@ func (m *LinkedIdentityHashMap[K, V]) Put(key K, value V) V {
 //
 // Java: LinkedIdentityHashMap.computeIfAbsent(K, Function<? super K, ? extends V>)
 func (m *LinkedIdentityHashMap[K, V]) ComputeIfAbsent(key K, fn func(K) V) V {
-	oldValue := m.Get(key)
-	if !jutil.IsNil(oldValue) {
+	// Go-only: language-adapter — Java's get(key) != null: present and not
+	// null (Get alone would read a missing key as a present 0 for an int V).
+	oldValue, ok := m.Lookup(key)
+	if ok && !jutil.IsNil(oldValue) {
 		return oldValue
 	}
 
@@ -79,8 +96,10 @@ func (m *LinkedIdentityHashMap[K, V]) ComputeIfAbsent(key K, fn func(K) V) V {
 //
 // Java: LinkedIdentityHashMap.merge(K, V, BiFunction<? super V, ? super V, ? extends V>)
 func (m *LinkedIdentityHashMap[K, V]) Merge(key K, value V, fn func(V, V) V) V {
-	oldValue := m.Get(key)
-	if jutil.IsNil(oldValue) {
+	// Go-only: language-adapter — Java's get(key) == null: missing or null
+	// (see ComputeIfAbsent).
+	oldValue, ok := m.Lookup(key)
+	if !ok || jutil.IsNil(oldValue) {
 		m.Put(key, value)
 		return value
 	}

@@ -1,0 +1,1 @@
+a.b.MSG_FOO_ALIAS = c.d.MSG_FOO;

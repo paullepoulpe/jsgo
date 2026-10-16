@@ -1,0 +1,1 @@
+var a = function(d, e, f) {}; goog.exportSymbol('foobar', a)

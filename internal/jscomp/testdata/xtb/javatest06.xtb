@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE translationbundle SYSTEM "translationbundle.dtd">
+<translationbundle lang="ru_RU">
+<translation id="123456">{USER_GENDER,select,female{Hello <ph name="USER_IDENTIFIER"/>.}male{Hello <ph name="USER_IDENTIFIER"/>.}other{Hello <ph name="USER_IDENTIFIER"/>.}}</translation>
+<translation id="123457"><ph name="START_PARAGRAPH"/>p1<ph name="END_PARAGRAPH"/><ph name="START_PARAGRAPH"/>p1<ph name="END_PARAGRAPH"/></translation></translationbundle>

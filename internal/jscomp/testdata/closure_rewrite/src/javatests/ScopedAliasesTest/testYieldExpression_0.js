@@ -1,0 +1,1 @@
+var foo = goog.bar; var f = function*() {yield foo;};

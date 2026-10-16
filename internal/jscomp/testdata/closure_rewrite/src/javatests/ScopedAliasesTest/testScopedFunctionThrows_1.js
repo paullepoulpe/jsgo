@@ -1,0 +1,1 @@
+goog.f = function() { throw 'error'; };

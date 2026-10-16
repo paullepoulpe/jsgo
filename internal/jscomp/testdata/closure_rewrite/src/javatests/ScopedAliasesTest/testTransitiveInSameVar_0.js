@@ -1,0 +1,1 @@
+var d = goog.dom, DIV = d.TagName.DIV;d.createElement(DIV);

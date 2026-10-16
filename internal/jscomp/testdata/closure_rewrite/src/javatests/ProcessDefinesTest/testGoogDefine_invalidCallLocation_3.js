@@ -1,0 +1,1 @@
+function f() { const debug = goog.define('goog.DEBUG', true); }

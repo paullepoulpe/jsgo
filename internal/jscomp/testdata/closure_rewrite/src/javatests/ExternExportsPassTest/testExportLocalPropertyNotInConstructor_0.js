@@ -1,0 +1,1 @@
+/** @this {?} */ function f() { /** @export */ this.x = 5;} goog.exportSymbol('f', f);

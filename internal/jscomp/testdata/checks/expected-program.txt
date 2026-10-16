@@ -1,0 +1,101 @@
+# program 8 files
+## parse
+## CheckMissingRequires
+WARNING JSC_MISSING_REQUIRE user_load_module.js:4:10 @117+1 'a.b' references a fully qualified namespace, which is disallowed by the style guide.\u000aPlease add a goog.require, assign or destructure it into an alias, and use the alias instead.\u000aNamespace defined in a_provide.js.
+WARNING JSC_MISSING_REQUIRE_IN_PROVIDES_FILE user_load_module.js:7:14 @158+6 'a.legacy' references a namespace which was not required by this file.\u000aPlease add a goog.require.\u000aNamespace defined in a_legacy.js.
+WARNING JSC_MISSING_REQUIRE user_module.js:6:8 @190+1 'a.b' references a fully qualified namespace, which is disallowed by the style guide.\u000aPlease add a goog.require, assign or destructure it into an alias, and use the alias instead.\u000aNamespace defined in a_provide.js.
+WARNING JSC_MISSING_REQUIRE_TYPE user_module.js:8:12 @221+8 'a.legacy' references a fully qualified namespace, which is disallowed by the style guide.\u000aPlease add a goog.requireType, assign or destructure it into an alias, and use the alias instead.\u000aNamespace defined in a_legacy.js.
+WARNING JSC_MISSING_REQUIRE_IN_PROVIDES_FILE user_provide.js:4:16 @91+1 'a.b' references a namespace which was not required by this file.\u000aPlease add a goog.require.\u000aNamespace defined in a_provide.js.
+WARNING JSC_MISSING_REQUIRE_TYPE_IN_PROVIDES_FILE user_provide.js:5:11 @107+5 'a.b' references a namespace which was not required by this file.\u000aPlease add a goog.requireType.\u000aNamespace defined in a_provide.js.
+ERROR JSC_NON_LEGACY_GOOG_MODULE_REFERENCE user_provide.js:7:14 @169+1 'a.mod' references the name of a module without goog.declareLegacyNamespace(), which is not actually defined. Use goog.module.get() instead.
+WARNING JSC_MISSING_REQUIRE_IN_PROVIDES_FILE user_provide.js:8:10 @182+6 'a.legacy' references a namespace which was not required by this file.\u000aPlease add a goog.require.\u000aNamespace defined in a_legacy.js.
+WARNING JSC_MISSING_REQUIRE_IN_PROVIDES_FILE user_provide.js:9:14 @204+7 'a.b.Sub' references a namespace which was not required by this file.\u000aPlease add a goog.require.\u000aNamespace defined in a_provide.js.
+WARNING JSC_MISSING_REQUIRE_IN_PROVIDES_FILE user_provide.js:9:53 @243+3 'a.b.Sub' references a namespace which was not required by this file.\u000aPlease add a goog.require.\u000aNamespace defined in a_provide.js.
+WARNING JSC_MISSING_REQUIRE_FOR_GOOG_MODULE_GET user_scope.js:7:10 @126+24 'a.mod' references a namespace which was not required by this file.\u000aPlease add a goog.require.
+WARNING JSC_MISSING_REQUIRE_FOR_GOOG_MODULE_GET user_scope.js:8:11 @163+27 'a.legacy' references a namespace which was not required by this file.\u000aPlease add a goog.require.
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+ERROR JSC_TYPE_IMPORT_CODE_REFERENCE user_module.js:12:7 @353+5 Cannot reference goog.requireType()'d name Thing outside of a type annotation.
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+ERROR JSC_UNDEFINED_VARIABLE a_legacy.js:1:0 @0+4 variable goog is undeclared
+ERROR JSC_UNDEFINED_VARIABLE user_module.js:12:0 @346+3 variable use is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 33] [feature_set: []]
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME goog
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME use
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+## ConstCheck
+## VarCheckValidity
+## ForbidDynamicImportUsage

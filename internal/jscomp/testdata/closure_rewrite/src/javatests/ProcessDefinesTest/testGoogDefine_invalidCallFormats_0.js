@@ -1,0 +1,1 @@
+name.two = goog.define('name.2', 1);

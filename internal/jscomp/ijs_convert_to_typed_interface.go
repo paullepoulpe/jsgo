@@ -1,0 +1,662 @@
+// Port of com/google/javascript/jscomp/ijs/ConvertToTypedInterface.java @ closure-compiler v20260415
+
+/*
+ * Copyright 2016 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package jscomp
+
+import (
+	"slices"
+	"strings"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
+)
+
+// ConvertToTypedInterface: the goal of this pass is to shrink the AST,
+// preserving only typing, not behavior.
+//
+// To do this, it does things like removing function/method bodies, rvalues
+// that are not needed, expressions that are not declarations, etc.
+//
+// This is conceptually similar to the ijar tool[1] that bazel uses to shrink
+// jars into minimal versions that can be used equivalently for compilation
+// of downstream dependencies.
+//
+// [1] https://github.com/bazelbuild/bazel/blob/master/third_party/ijar/README.txt
+type ConvertToTypedInterface struct {
+	compiler AbstractCompiler
+}
+
+var ConvertToTypedInterface_CONSTANT_WITH_SUGGESTED_TYPE = DiagnosticType_Warning(
+	"JSC_CONSTANT_WITH_SUGGESTED_TYPE",
+	"Constants in top-level should have types explicitly specified.\n"+
+		"You may want specify this type as:\t@const '{'{0}'}'")
+
+var ConvertToTypedInterface_CONSTANT_WITHOUT_EXPLICIT_TYPE = DiagnosticType_Warning(
+	"JSC_CONSTANT_WITHOUT_EXPLICIT_TYPE",
+	"Constants in top-level should have types explicitly specified.")
+
+var ConvertToTypedInterface_GOOG_SCOPE_HIDDEN_TYPE = DiagnosticType_Warning(
+	"JSC_GOOG_SCOPE_HIDDEN_TYPE",
+	"Found a goog.scope local type declaration.\n"+
+		"If you can't yet migrate this file to goog.module, use a /** @private */"+
+		" declaration within the goog.provide namespace.")
+
+var convertToTypedInterface_CALLS_TO_PRESERVE = jutil.NewLinkedHashSet[string](
+	"Polymer",
+	"goog.addSingletonGetter",
+	"goog.define",
+	"goog.forwardDeclare",
+	"goog.module",
+	"goog.module.declareLegacyNamespace",
+	"goog.declareModuleId",
+	"goog.provide",
+	"goog.require",
+	"goog.requireType")
+
+// Java: ConvertToTypedInterface(AbstractCompiler)
+func NewConvertToTypedInterface(compiler AbstractCompiler) *ConvertToTypedInterface {
+	c := &ConvertToTypedInterface{}
+	c.compiler = compiler
+	return c
+}
+
+// Java: ConvertToTypedInterface.maybeReport(AbstractCompiler, Node, DiagnosticType, String...)
+func ConvertToTypedInterface_MaybeReport(
+	compiler AbstractCompiler, node *rhino.Node, diagnostic *DiagnosticType, fillers ...string) {
+	sourceName := *NodeUtil_GetSourceName(node)
+	if strings.HasSuffix(sourceName, "_test.js") ||
+		strings.HasSuffix(sourceName, "_test.closure.js") ||
+		strings.HasSuffix(sourceName, "_test.tsx.cl.js") {
+		// Allow _test.js files and their tsickle generated
+		// equivalents to avoid emitting errors at .i.js generation time.
+		// We expect these files to not be consumed by any other downstream libraries.
+		return
+	}
+	compiler.Report(JSError_MakeWithNode(node, diagnostic, fillers...))
+}
+
+// Java: ConvertToTypedInterface.maybeWarnForConstWithoutExplicitType(AbstractCompiler, PotentialDeclaration)
+func ConvertToTypedInterface_MaybeWarnForConstWithoutExplicitType(
+	compiler AbstractCompiler, decl PotentialDeclaration) {
+	if decl.IsConstToBeInferred() &&
+		!decl.GetLhs().IsFromExterns() &&
+		!JsdocUtil_IsPrivate(decl.GetJsDoc()) {
+
+		nameNode := decl.GetLhs()
+		if nameNode.GetJSType() == nil {
+			ConvertToTypedInterface_MaybeReport(compiler, nameNode, ConvertToTypedInterface_CONSTANT_WITHOUT_EXPLICIT_TYPE)
+		} else {
+			ConvertToTypedInterface_MaybeReport(
+				compiler,
+				nameNode,
+				ConvertToTypedInterface_CONSTANT_WITH_SUGGESTED_TYPE,
+				nameNode.GetJSType().ToAnnotationString(rhino.JSType_Nullability_EXPLICIT))
+		}
+	}
+}
+
+// Java: ConvertToTypedInterface.process(Node, Node)
+func (c *ConvertToTypedInterface) Process(externs *rhino.Node, root *rhino.Node) {
+	for script := root.GetFirstChild(); script != nil; script = script.GetNext() {
+		c.ProcessFile(script)
+	}
+}
+
+// Java: ConvertToTypedInterface.processFile(Node)
+func (c *ConvertToTypedInterface) ProcessFile(scriptNode *rhino.Node) {
+	jutil.CheckArgument(scriptNode.IsScript())
+	sourceFileName := scriptNode.GetSourceFileName()
+	if AbstractCompiler_IsFillFileName(*sourceFileName) {
+		scriptNode.Detach()
+		return
+	}
+
+	scriptJsDoc := scriptNode.GetJSDocInfo()
+	if scriptJsDoc != nil && scriptJsDoc.IsClosureUnawareCode() {
+		// If we are generating type summary files, then those files won't contain the method content
+		// from within the closure-unaware section, and the entire file effectively becomes
+		// closure-aware again (as it is generated code that describes a module shape).
+		scriptJsDocBuilder := scriptJsDoc.ToBuilder()
+		scriptJsDocBuilder.RemoveClosureUnawareCode()
+		scriptNode.SetJSDocInfo(scriptJsDocBuilder.Build())
+	}
+
+	currentFile := NewFileInfo()
+	NodeTraversal_Traverse(c.compiler, scriptNode, NewConvertToTypedInterface_RemoveNonDeclarations())
+	NodeTraversal_Traverse(c.compiler, scriptNode, NewConvertToTypedInterface_PropagateConstJsdoc(currentFile))
+	NewConvertToTypedInterface_SimplifyDeclarations(c.compiler, currentFile).SimplifyAll()
+}
+
+// Java: ConvertToTypedInterface.findNameDeclaration(Scope, Node)
+func ConvertToTypedInterface_FindNameDeclaration(scope *Scope, rhs *rhino.Node) *Var {
+	if !rhs.IsName() {
+		return nil
+	}
+	return scope.GetVar(rhs.GetString())
+}
+
+// ConvertToTypedInterface_RemoveNonDeclarations is the private static nested
+// callback ConvertToTypedInterface.RemoveNonDeclarations.
+type ConvertToTypedInterface_RemoveNonDeclarations struct {
+	_ byte // Go-only: language-adapter — distinct identity
+}
+
+var convertToTypedInterface_RemoveNonDeclarations_GOOG_SCOPE = rhino.QualifiedName_Of("goog.scope")
+
+// Java: ConvertToTypedInterface.RemoveNonDeclarations()
+func NewConvertToTypedInterface_RemoveNonDeclarations() *ConvertToTypedInterface_RemoveNonDeclarations {
+	return &ConvertToTypedInterface_RemoveNonDeclarations{}
+}
+
+// Java: ConvertToTypedInterface.RemoveNonDeclarations.shouldTraverse(NodeTraversal, Node, Node)
+func (r *ConvertToTypedInterface_RemoveNonDeclarations) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+	switch n.GetToken() {
+	case rhino.Token_FUNCTION:
+		if !ClassUtil_IsConstructor(n) || !ClassUtil_HasNamedClass(n) {
+			body := n.GetLastChild()
+			if !body.IsBlock() || body.HasChildren() {
+				t.ReportCodeChangeWithNode(body)
+				body.ReplaceWith(rhino.IR_Block().Srcref(body))
+				NodeUtil_MarkFunctionsDeleted(body, t.GetCompiler())
+			}
+		}
+		return true
+	case rhino.Token_MEMBER_FIELD_DEF:
+		if ClassUtil_IsMemberFieldDefInsideClassWithName(n) {
+			return true
+		}
+		// We will remove fields in anonymous classes
+		NodeUtil_DeleteNode(n, t.GetCompiler())
+		return false
+	case rhino.Token_EXPR_RESULT:
+		expr := n.GetFirstChild()
+		switch expr.GetToken() {
+		case rhino.Token_CALL:
+			callee := expr.GetFirstChild()
+			jutil.CheckState(!convertToTypedInterface_RemoveNonDeclarations_GOOG_SCOPE.Matches(callee))
+			if qname := callee.GetQualifiedName(); qname != nil && convertToTypedInterface_CALLS_TO_PRESERVE.Contains(*qname) {
+				return true
+			}
+			NodeUtil_DeleteNode(n, t.GetCompiler())
+			return false
+		case rhino.Token_ASSIGN:
+			if ConvertToTypedInterface_ShouldPreserveAssignment(expr, t) {
+				return true
+			}
+			NodeUtil_DeleteNode(n, t.GetCompiler())
+			return false
+		case rhino.Token_GETPROP:
+			if !expr.IsQualifiedName() || expr.GetJSDocInfo() == nil {
+				NodeUtil_DeleteNode(n, t.GetCompiler())
+				return false
+			}
+			return true
+		case rhino.Token_GETELEM:
+			if ConvertToTypedInterface_IsSymbolProp(expr.GetSecondChild()) && expr.GetJSDocInfo() != nil {
+				return true
+			}
+
+			NodeUtil_DeleteNode(n, t.GetCompiler())
+			return false
+		default:
+			NodeUtil_DeleteNode(n, t.GetCompiler())
+			return false
+		}
+	case rhino.Token_COMPUTED_PROP:
+		if ClassUtil_IsComputedMemberInsideClassWithName(n) {
+			return true
+		}
+		if !NodeUtil_IsLhsByDestructuring(n.GetSecondChild()) {
+			NodeUtil_DeleteNode(n, t.GetCompiler())
+		}
+		return false
+	case rhino.Token_COMPUTED_FIELD_DEF:
+		if ClassUtil_IsComputedMemberInsideClassWithName(n) {
+			return true
+		}
+		NodeUtil_DeleteNode(n, t.GetCompiler())
+		return false
+	case rhino.Token_THROW, rhino.Token_RETURN, rhino.Token_BREAK, rhino.Token_CONTINUE, rhino.Token_DEBUGGER, rhino.Token_EMPTY:
+		if NodeUtil_IsStatementParent(parent) {
+			NodeUtil_DeleteNode(n, t.GetCompiler())
+		}
+		return false
+	case rhino.Token_LABEL, rhino.Token_IF, rhino.Token_SWITCH, rhino.Token_CASE, rhino.Token_WHILE:
+		// First child can't have declaration. Statement itself will be removed post-order.
+		NodeUtil_DeleteNode(n.GetFirstChild(), t.GetCompiler())
+		return true
+	case rhino.Token_TRY, rhino.Token_DO:
+		// Second child can't have declarations. Statement itself will be removed post-order.
+		NodeUtil_DeleteNode(n.GetSecondChild(), t.GetCompiler())
+		return true
+	case rhino.Token_FOR:
+		NodeUtil_DeleteNode(n.GetSecondChild(), t.GetCompiler())
+		// fall-through
+		fallthrough
+	case rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_FOR_IN:
+		NodeUtil_DeleteNode(n.GetSecondChild(), t.GetCompiler())
+		initializer := n.RemoveFirstChild()
+		if initializer.IsVar() {
+			n.GetLastChild().AddChildToFront(initializer)
+		}
+		return true
+	case rhino.Token_CONST, rhino.Token_LET:
+		if !t.InGlobalScope() && !t.InModuleScope() {
+			NodeUtil_RemoveChild(parent, n)
+			t.ReportCodeChangeWithNode(parent)
+			return false
+		}
+		return true
+	case rhino.Token_VAR:
+		if !t.InGlobalHoistScope() && !t.InModuleHoistScope() {
+			NodeUtil_RemoveChild(parent, n)
+			t.ReportCodeChangeWithNode(parent)
+			return false
+		}
+		return true
+	case rhino.Token_MODULE_BODY, rhino.Token_CLASS, rhino.Token_DEFAULT_CASE, rhino.Token_BLOCK, rhino.Token_EXPORT, rhino.Token_IMPORT:
+		return true
+	default:
+		jutil.CheckStateMsg1(!NodeUtil_IsStatement(n), "%s", n.GetToken())
+		return true
+	}
+}
+
+// Java: ConvertToTypedInterface.RemoveNonDeclarations.visit(NodeTraversal, Node, Node)
+func (r *ConvertToTypedInterface_RemoveNonDeclarations) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+	switch n.GetToken() {
+	case rhino.Token_TRY, rhino.Token_LABEL, rhino.Token_DEFAULT_CASE, rhino.Token_CASE, rhino.Token_DO, rhino.Token_WHILE,
+		rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_IF:
+		if n.HasParent() {
+			children := n.RemoveChildren()
+			parent.AddChildrenAfter(children, n)
+			// We don't need the special valid-AST-preserving behavior of `NodeUtil.removeChild()`
+			// here. We always want to remove exactly and only `n`, so we use `n.detach()`.
+			//
+			// Also, the shouldTraverse() method intentionally puts the AST in an invalid state
+			// by moving children to parents where they are not valid temporarily.
+			// `NodeUtil.removeChild()` would throw an exception here if it noticed the invalid AST
+			// state.
+			n.Detach()
+			t.ReportCodeChange()
+		}
+	case rhino.Token_SWITCH:
+		// shouldTraverse() removed the switch condition already, so we just need to handle the
+		// cases.
+		if n.HasParent() {
+			if !n.HasOneChild() {
+				jutil.CheckStateMsg1(false, "malfrmed sWITCH %s", n.ToStringTree())
+			}
+			children := n.GetFirstChild().RemoveChildren()
+			parent.AddChildrenAfter(children, n)
+			n.Detach()
+			t.ReportCodeChange()
+		}
+	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
+		ConvertToTypedInterface_RemoveNonDeclarations_SplitNameDeclarationsAndRemoveDestructuring(n, t)
+	case rhino.Token_BLOCK:
+		if !parent.IsFunction() {
+			parent.AddChildrenAfter(n.RemoveChildren(), n)
+			n.Detach()
+			t.ReportCodeChangeWithNode(parent)
+		}
+	default:
+	}
+}
+
+// ConvertToTypedInterface_RemoveNonDeclarations_SplitNameDeclarationsAndRemoveDestructuring
+// does three simplifications to const/let/var nodes.
+//
+//   - Splits them so that each declaration is a separate statement.
+//   - Removes non-import and non-alias destructuring statements, which we
+//     assume are not type declarations.
+//   - Moves inline JSDoc annotations onto the declaration nodes.
+//
+// Java: ConvertToTypedInterface.RemoveNonDeclarations.splitNameDeclarationsAndRemoveDestructuring(Node, NodeTraversal)
+func ConvertToTypedInterface_RemoveNonDeclarations_SplitNameDeclarationsAndRemoveDestructuring(n *rhino.Node, t *NodeTraversal) {
+	jutil.CheckArgument(NodeUtil_IsNameDeclaration(n))
+	sharedJsdoc := n.GetJSDocInfo()
+	isExport := n.GetParent().IsExport()
+	statement := n
+	if isExport {
+		statement = n.GetParent()
+	}
+	for n.HasChildren() {
+		lhsToSplit := n.GetLastChild()
+		nameJsdoc := lhsToSplit.GetJSDocInfo()
+		lhsToSplit.SetJSDocInfo(nil)
+		mergedJsdoc := JsdocUtil_MergeJsdocs(sharedJsdoc, nameJsdoc)
+		if n.HasOneChild() {
+			n.SetJSDocInfo(mergedJsdoc)
+			return
+		}
+		// A name declaration with more than one LHS is split into separate declarations.
+		var rhs *rhino.Node
+		if lhsToSplit.HasChildren() {
+			rhs = lhsToSplit.RemoveFirstChild()
+		}
+		newDeclaration :=
+			NodeUtil_NewDeclaration(lhsToSplit.Detach(), rhs, n.GetToken()).Srcref(n)
+		newDeclaration.SetJSDocInfo(mergedJsdoc)
+		if isExport {
+			newDeclaration = rhino.IR_Export(newDeclaration).Srcref(statement)
+		}
+		newDeclaration.InsertAfter(statement)
+		t.ReportCodeChange()
+	}
+}
+
+// ConvertToTypedInterface_PropagateConstJsdoc is the private static nested
+// class ConvertToTypedInterface.PropagateConstJsdoc.
+type ConvertToTypedInterface_PropagateConstJsdoc struct {
+	ProcessConstJsdocCallbackBase
+}
+
+// Java: ConvertToTypedInterface.PropagateConstJsdoc(FileInfo)
+func NewConvertToTypedInterface_PropagateConstJsdoc(currentFile *FileInfo) *ConvertToTypedInterface_PropagateConstJsdoc {
+	p := &ConvertToTypedInterface_PropagateConstJsdoc{}
+	p.InitProcessConstJsdocCallbackBase(p, currentFile)
+	return p
+}
+
+// Java: ConvertToTypedInterface.PropagateConstJsdoc.processConstWithRhs(NodeTraversal, Node)
+func (p *ConvertToTypedInterface_PropagateConstJsdoc) ProcessConstWithRhs(t *NodeTraversal, nameNode *rhino.Node) {
+	jutil.CheckArgumentMsg1(
+		nameNode.IsQualifiedName() ||
+			nameNode.IsStringKey() ||
+			nameNode.IsDestructuringLhs() ||
+			nameNode.IsMemberFieldDef(),
+		"%s",
+		nameNode)
+	jsdocNode := NodeUtil_GetBestJSDocInfoNode(nameNode)
+	originalJsdoc := jsdocNode.GetJSDocInfo()
+	rhs := NodeUtil_GetRValueOfLValue(nameNode)
+	newJsdoc := JsdocUtil_GetJSDocForRhs(rhs, originalJsdoc)
+	if newJsdoc == nil && ClassUtil_IsThisPropInsideClassWithName(nameNode) {
+		decl := ConvertToTypedInterface_FindNameDeclaration(t.GetScope(), rhs)
+		newJsdoc = JsdocUtil_GetJSDocForName(decl, originalJsdoc)
+	}
+	if newJsdoc != nil {
+		jsdocNode.SetJSDocInfo(newJsdoc)
+		t.ReportCodeChange()
+	}
+}
+
+// ConvertToTypedInterface_SimplifyDeclarations is the private static nested
+// class ConvertToTypedInterface.SimplifyDeclarations.
+type ConvertToTypedInterface_SimplifyDeclarations struct {
+	compiler    AbstractCompiler
+	currentFile *FileInfo
+}
+
+// ConvertToTypedInterface_SimplifyDeclarations_TypingLevel lists the levels
+// of JSDoc, starting from those most likely to be on the canonical
+// declaration.
+//
+// Java: ConvertToTypedInterface.SimplifyDeclarations.TypingLevel
+type ConvertToTypedInterface_SimplifyDeclarations_TypingLevel int32
+
+const (
+	ConvertToTypedInterface_SimplifyDeclarations_TypingLevel_TYPED_JSDOC_DECLARATION ConvertToTypedInterface_SimplifyDeclarations_TypingLevel = iota
+	ConvertToTypedInterface_SimplifyDeclarations_TypingLevel_UNTYPED_JSDOC_DECLARATION
+	ConvertToTypedInterface_SimplifyDeclarations_TypingLevel_NO_JSDOC
+)
+
+var convertToTypedInterface_SimplifyDeclarations_TypingLevel_names = [...]string{
+	"TYPED_JSDOC_DECLARATION", "UNTYPED_JSDOC_DECLARATION", "NO_JSDOC",
+}
+
+// Java: ConvertToTypedInterface.SimplifyDeclarations.TypingLevel.values()
+func ConvertToTypedInterface_SimplifyDeclarations_TypingLevel_values() []ConvertToTypedInterface_SimplifyDeclarations_TypingLevel {
+	return []ConvertToTypedInterface_SimplifyDeclarations_TypingLevel{
+		ConvertToTypedInterface_SimplifyDeclarations_TypingLevel_TYPED_JSDOC_DECLARATION,
+		ConvertToTypedInterface_SimplifyDeclarations_TypingLevel_UNTYPED_JSDOC_DECLARATION,
+		ConvertToTypedInterface_SimplifyDeclarations_TypingLevel_NO_JSDOC,
+	}
+}
+
+// String is Enum.name().
+func (l ConvertToTypedInterface_SimplifyDeclarations_TypingLevel) String() string {
+	return convertToTypedInterface_SimplifyDeclarations_TypingLevel_names[l]
+}
+
+// Java: ConvertToTypedInterface.SimplifyDeclarations.countDots(String)
+func ConvertToTypedInterface_SimplifyDeclarations_CountDots(name string) int {
+	// '.' is ASCII: counting it in the WTF-8 bytes counts the UTF-16 units alike.
+	return strings.Count(name, ".")
+}
+
+// ConvertToTypedInterface_SimplifyDeclarations_SHORT_TO_LONG is
+// comparing(SimplifyDeclarations::countDots).
+var ConvertToTypedInterface_SimplifyDeclarations_SHORT_TO_LONG = func(a, b string) int {
+	return ConvertToTypedInterface_SimplifyDeclarations_CountDots(a) - ConvertToTypedInterface_SimplifyDeclarations_CountDots(b)
+}
+
+// convertToTypedInterface_SimplifyDeclarations_typingLevel is the key
+// extractor of DECLARATIONS_FIRST.
+func convertToTypedInterface_SimplifyDeclarations_typingLevel(decl PotentialDeclaration) ConvertToTypedInterface_SimplifyDeclarations_TypingLevel {
+	jsdoc := decl.GetJsDoc()
+	if jsdoc == nil {
+		return ConvertToTypedInterface_SimplifyDeclarations_TypingLevel_NO_JSDOC
+	}
+	if len(jsdoc.GetTypeNodes()) == 0 {
+		return ConvertToTypedInterface_SimplifyDeclarations_TypingLevel_UNTYPED_JSDOC_DECLARATION
+	}
+	return ConvertToTypedInterface_SimplifyDeclarations_TypingLevel_TYPED_JSDOC_DECLARATION
+}
+
+// ConvertToTypedInterface_SimplifyDeclarations_DECLARATIONS_FIRST is
+// comparing(decl -> <its TypingLevel>), enums comparing by ordinal.
+var ConvertToTypedInterface_SimplifyDeclarations_DECLARATIONS_FIRST = func(a, b PotentialDeclaration) int {
+	return int(convertToTypedInterface_SimplifyDeclarations_typingLevel(a)) - int(convertToTypedInterface_SimplifyDeclarations_typingLevel(b))
+}
+
+// Java: ConvertToTypedInterface.SimplifyDeclarations(AbstractCompiler, FileInfo)
+func NewConvertToTypedInterface_SimplifyDeclarations(compiler AbstractCompiler, currentFile *FileInfo) *ConvertToTypedInterface_SimplifyDeclarations {
+	s := &ConvertToTypedInterface_SimplifyDeclarations{}
+	s.compiler = compiler
+	s.currentFile = currentFile
+	return s
+}
+
+// Java: ConvertToTypedInterface.SimplifyDeclarations.removeDuplicateDeclarations()
+func (s *ConvertToTypedInterface_SimplifyDeclarations) RemoveDuplicateDeclarations() {
+	for name := range s.currentFile.GetDeclarations().KeySet() {
+		if strings.HasPrefix(name, "this.") {
+			continue
+		}
+		// declList is the live List view: List.sort (stable) sorts the multimap's values.
+		declList := s.currentFile.GetDeclarations().Get(name)
+		slices.SortStableFunc(declList, ConvertToTypedInterface_SimplifyDeclarations_DECLARATIONS_FIRST)
+		for len(declList) > 1 {
+			// Don't remove the first declaration (at index 0)
+			decl := declList[1]
+			// declList.remove(1): the value at index 1 is the first one identical to decl.
+			s.currentFile.GetDeclarations().Remove(name, decl)
+			declList = s.currentFile.GetDeclarations().Get(name)
+			decl.Remove(s.compiler)
+		}
+	}
+}
+
+// Java: ConvertToTypedInterface.SimplifyDeclarations.simplifyAll()
+func (s *ConvertToTypedInterface_SimplifyDeclarations) SimplifyAll() {
+	// Remove duplicate assignments to the same symbol
+	s.RemoveDuplicateDeclarations()
+
+	// Simplify all names in the top-level scope.
+	seenNames := slices.Collect(s.currentFile.GetDeclarations().KeySet())
+	slices.SortStableFunc(seenNames, ConvertToTypedInterface_SimplifyDeclarations_SHORT_TO_LONG)
+
+	for _, name := range seenNames {
+		for _, decl := range s.currentFile.GetDeclarations().Get(name) {
+			s.ProcessDeclaration(name, decl)
+		}
+	}
+}
+
+// Java: ConvertToTypedInterface.SimplifyDeclarations.processDeclaration(String, PotentialDeclaration)
+func (s *ConvertToTypedInterface_SimplifyDeclarations) ProcessDeclaration(name string, decl PotentialDeclaration) {
+	if s.ShouldRemove(name, decl) {
+		decl.Remove(s.compiler)
+		return
+	}
+
+	if decl.BreakDownDestructure(s.compiler) {
+		ConvertToTypedInterface_MaybeReport(s.compiler, decl.GetLhs(), ConvertToTypedInterface_CONSTANT_WITHOUT_EXPLICIT_TYPE)
+	}
+
+	if decl.GetRhs() != nil && decl.GetRhs().IsFunction() {
+		s.ProcessFunction(decl.GetRhs())
+	} else if decl.GetRhs() != nil && ConvertToTypedInterface_SimplifyDeclarations_IsClass(decl.GetRhs()) {
+		s.ProcessClass(decl.GetRhs())
+	}
+	s.SetUndeclaredToUnusableType(decl)
+	decl.Simplify(s.compiler)
+}
+
+// Java: ConvertToTypedInterface.SimplifyDeclarations.processClass(Node)
+func (s *ConvertToTypedInterface_SimplifyDeclarations) ProcessClass(n *rhino.Node) {
+	jutil.CheckArgument(ConvertToTypedInterface_SimplifyDeclarations_IsClass(n))
+	for member := n.GetLastChild().GetFirstChild(); member != nil; {
+		next := member.GetNext()
+		switch member.GetToken() {
+		case rhino.Token_MEMBER_FIELD_DEF, rhino.Token_COMPUTED_FIELD_DEF:
+			// MEMBER_FIELD_DEF's are handled in ProcessConstJsdocCallback which is called in the
+			// traversal by its subclass PropogateConstJsdoc.
+			// If no jsdoc is present on the MEMBER_FIELD_DEF, we will be add a Jsdoc in
+			// `setUndeclaredToUnusableType()`.
+			// No further simplification is needed for MEMBER_FIELD_DEF's when we call
+			// `simplifyAll()` so we will break.
+		case rhino.Token_EMPTY:
+			// a lonely `;` in a class body can just be deleted.
+			NodeUtil_DeleteNode(member, s.compiler)
+		case rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
+			s.ProcessFunction(member.GetLastChild())
+		case rhino.Token_COMPUTED_PROP:
+			jutil.CheckStateMsg1(
+				member.GetSecondChild().IsFunction(),
+				"Non-function computed class member: %s",
+				member)
+			s.ProcessFunction(member.GetSecondChild())
+		default:
+			panic(jutil.NewAssertionError(
+				member.GetToken().String() + " should not be handled by processClass"))
+		}
+		member = next
+	}
+}
+
+// Java: ConvertToTypedInterface.SimplifyDeclarations.processFunction(Node)
+func (s *ConvertToTypedInterface_SimplifyDeclarations) ProcessFunction(n *rhino.Node) {
+	jutil.CheckArgument(n.IsFunction())
+	s.ProcessFunctionParameters(n.GetSecondChild())
+}
+
+// Java: ConvertToTypedInterface.SimplifyDeclarations.processFunctionParameters(Node)
+func (s *ConvertToTypedInterface_SimplifyDeclarations) ProcessFunctionParameters(paramList *rhino.Node) {
+	jutil.CheckArgument(paramList.IsParamList())
+	for arg := paramList.GetFirstChild(); arg != nil; arg = arg.GetNext() {
+		if arg.IsDefaultValue() {
+			rhs := arg.GetLastChild()
+			if rhs.IsCall() &&
+				RewriteCallerCodeLocation_GOOG_CALLER_LOCATION_QUALIFIED_NAME.Matches(
+					rhs.GetFirstChild()) {
+				continue
+			}
+			rhs.ReplaceWith(NodeUtil_NewUndefinedNode(rhs))
+			s.compiler.ReportChangeToEnclosingScope(arg)
+		}
+	}
+}
+
+// Java: ConvertToTypedInterface.SimplifyDeclarations.isClass(Node)
+func ConvertToTypedInterface_SimplifyDeclarations_IsClass(n *rhino.Node) bool {
+	return n.IsClass()
+}
+
+// Java: ConvertToTypedInterface.SimplifyDeclarations.rootName(String)
+func ConvertToTypedInterface_SimplifyDeclarations_RootName(qualifiedName string) string {
+	dotIndex := jutil.StringIndexOfChar(qualifiedName, '.')
+	if dotIndex == -1 {
+		return qualifiedName
+	}
+	return jutil.StringSubstring(qualifiedName, 0, dotIndex)
+}
+
+// Java: ConvertToTypedInterface.SimplifyDeclarations.shouldRemove(String, PotentialDeclaration)
+func (s *ConvertToTypedInterface_SimplifyDeclarations) ShouldRemove(name string, decl PotentialDeclaration) bool {
+	if decl.IsDetached() {
+		return true
+	}
+	if strings.HasPrefix(ConvertToTypedInterface_SimplifyDeclarations_RootName(name), "$jscomp") {
+		// These are created by goog.scope processing, but clash with each other
+		// and should not be depended on.
+		if (decl.GetRhs() != nil && decl.GetRhs().IsClass()) ||
+			(decl.GetJsDoc() != nil && decl.GetJsDoc().ContainsTypeDefinition()) {
+			ConvertToTypedInterface_MaybeReport(s.compiler, decl.GetLhs(), ConvertToTypedInterface_GOOG_SCOPE_HIDDEN_TYPE)
+		}
+		return true
+	}
+	// This looks like an update rather than a declaration in this file.
+	return !strings.HasPrefix(name, "this.") &&
+		!decl.IsDefiniteDeclaration(s.compiler) &&
+		!decl.GetLhs().IsMemberFieldDef() &&
+		!s.currentFile.IsPrefixProvided(name) &&
+		!s.currentFile.IsStrictPrefixDeclared(name)
+}
+
+// Java: ConvertToTypedInterface.SimplifyDeclarations.setUndeclaredToUnusableType(PotentialDeclaration)
+func (s *ConvertToTypedInterface_SimplifyDeclarations) SetUndeclaredToUnusableType(decl PotentialDeclaration) {
+	nameNode := decl.GetLhs()
+	jsdoc := decl.GetJsDoc()
+	if decl.ShouldPreserve() ||
+		NodeUtil_IsNamespaceDecl(nameNode) ||
+		(decl.GetRhs() != nil && NodeUtil_IsCallTo(decl.GetRhs(), "Symbol")) ||
+		(jsdoc != nil && jsdoc.ContainsDeclaration() && !decl.IsConstToBeInferred()) {
+		return
+	}
+	ConvertToTypedInterface_MaybeWarnForConstWithoutExplicitType(s.compiler, decl)
+	jsdocNode := NodeUtil_GetBestJSDocInfoNode(nameNode)
+	jsdocNode.SetJSDocInfo(JsdocUtil_GetUnusableTypeJSDoc(jsdoc))
+}
+
+// Java: ConvertToTypedInterface.isSymbolProp(Node)
+func ConvertToTypedInterface_IsSymbolProp(lhs *rhino.Node) bool {
+	return lhs.IsGetProp() && lhs.GetFirstChild().MatchesName("Symbol")
+}
+
+// Java: ConvertToTypedInterface.shouldPreserveAssignment(Node, NodeTraversal)
+func ConvertToTypedInterface_ShouldPreserveAssignment(expr *rhino.Node, t *NodeTraversal) bool {
+	lhs := expr.GetFirstChild()
+	// Ignore assignments in function bodies, unless they're also a constructor with a this. prop.
+	if !t.InGlobalHoistScope() && !t.InModuleHoistScope() {
+		return ClassUtil_IsThisPropInsideClassWithName(lhs)
+	}
+
+	// Well-known symbol properties, like Foo.prototype[Symbol.iterator] = function() {};
+	if lhs.IsGetElem() && ConvertToTypedInterface_IsSymbolProp(lhs.GetSecondChild()) {
+		return lhs.GetFirstChild().IsQualifiedName()
+	}
+	// Assignments to names don't have global typechecking side-effects even within the 'hoist
+	// scope'
+	if lhs.IsName() {
+		return t.InGlobalScope() || t.InModuleScope()
+	}
+	return lhs.IsQualifiedName()
+}

@@ -1,0 +1,1 @@
+function foo() {/** @define {boolean} */var DEF=true;};

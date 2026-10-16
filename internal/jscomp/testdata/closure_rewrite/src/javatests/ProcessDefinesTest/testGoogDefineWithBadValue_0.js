@@ -1,0 +1,1 @@
+/** @define {boolean} */ var DEF = goog.define('DEF_XYZ', new Boolean(true));

@@ -1,0 +1,1 @@
+goog.requireType('symbol');

@@ -3592,54 +3592,53 @@ func nuh_assertNotLhsByDestructuring(t *testing.T, n *rhino.Node) {
 }
 
 func TestNodeUtil_AssortedTests_TestNewQName1(t *testing.T) {
-	t.Skip("needs GoogleCodingConvention, Compiler.init")
-	// Compiler compiler = new Compiler();
-	// CompilerOptions options = new CompilerOptions();
-	// options.setCodingConvention(new GoogleCodingConvention());
-	// compiler.init(ImmutableList.<SourceFile>of(), ImmutableList.<SourceFile>of(), options);
-	// Node actual = NodeUtil.newQName(compiler, "ns.prop");
-	// Node expected = IR.getprop(IR.name("ns"), "prop");
-	// assertNode(actual).isEqualTo(expected);
+	defer SkipIfPendingPort(t) // Compiler.init reaches passes not ported yet
+	compiler := NewCompiler()
+	options := NewCompilerOptions()
+	options.SetCodingConvention(NewGoogleCodingConvention())
+	compiler.Init([]*SourceFile{}, []*SourceFile{}, options)
+	actual := NodeUtil_NewQName(compiler, "ns.prop")
+	expected := rhino.IR_Getprop(rhino.IR_Name("ns"), "prop")
+	nuAssertNode(t, actual).IsEqualTo(expected)
 }
 
 func TestNodeUtil_AssortedTests_TestNewQualifiedNameNode2(t *testing.T) {
-	t.Skip("needs GoogleCodingConvention, Compiler.init")
-	// Compiler compiler = new Compiler();
-	// CompilerOptions options = new CompilerOptions();
-	// options.setCodingConvention(new GoogleCodingConvention());
-	// compiler.init(ImmutableList.<SourceFile>of(), ImmutableList.<SourceFile>of(), options);
-	// Node actual = NodeUtil.newQName(compiler, "this.prop");
-	// Node expected = IR.getprop(IR.thisNode(), "prop");
-	// assertNode(actual).isEqualTo(expected);
+	defer SkipIfPendingPort(t) // Compiler.init reaches passes not ported yet
+	compiler := NewCompiler()
+	options := NewCompilerOptions()
+	options.SetCodingConvention(NewGoogleCodingConvention())
+	compiler.Init([]*SourceFile{}, []*SourceFile{}, options)
+	actual := NodeUtil_NewQName(compiler, "this.prop")
+	expected := rhino.IR_Getprop(rhino.IR_ThisNode(), "prop")
+	nuAssertNode(t, actual).IsEqualTo(expected)
 }
 
 func TestNodeUtil_AssortedTests_TestNewQNameDeclarationWithQualifiedName(t *testing.T) {
-	t.Skip("needs GoogleCodingConvention, Compiler.init")
+	defer SkipIfPendingPort(t) // Compiler.init reaches passes not ported yet
 	nuAssertNode(t, nuh_createNewQNameDeclaration(t, "ns.prop", rhino.IR_Number(0), rhino.Token_VAR)).IsEqualTo(rhino.IR_ExprResult(rhino.IR_Assign(rhino.IR_Getprop(rhino.IR_Name("ns"), "prop"), rhino.IR_Number(0))))
 }
 
 func TestNodeUtil_AssortedTests_TestNewQNameDeclarationWithVar(t *testing.T) {
-	t.Skip("needs GoogleCodingConvention, Compiler.init")
+	defer SkipIfPendingPort(t) // Compiler.init reaches passes not ported yet
 	nuAssertNode(t, nuh_createNewQNameDeclaration(t, "x", rhino.IR_Number(0), rhino.Token_VAR)).IsEqualTo(rhino.IR_VarWithValue(rhino.IR_Name("x"), rhino.IR_Number(0)))
 }
 
 func TestNodeUtil_AssortedTests_TestNewQNameDeclarationWithLet(t *testing.T) {
-	t.Skip("needs GoogleCodingConvention, Compiler.init")
+	defer SkipIfPendingPort(t) // Compiler.init reaches passes not ported yet
 	nuAssertNode(t, nuh_createNewQNameDeclaration(t, "x", rhino.IR_Number(0), rhino.Token_LET)).IsEqualTo(rhino.IR_LetWithValue(rhino.IR_Name("x"), rhino.IR_Number(0)))
 }
 
 func TestNodeUtil_AssortedTests_TestNewQNameDeclarationWithConst(t *testing.T) {
-	t.Skip("needs GoogleCodingConvention, Compiler.init")
+	defer SkipIfPendingPort(t) // Compiler.init reaches passes not ported yet
 	nuAssertNode(t, nuh_createNewQNameDeclaration(t, "x", rhino.IR_Number(0), rhino.Token_CONST)).IsEqualTo(rhino.IR_ConstNode(rhino.IR_Name("x"), rhino.IR_Number(0)))
 }
 
 func nuh_createNewQNameDeclaration(t *testing.T, name string, value *rhino.Node, type_ rhino.Token) *rhino.Node {
-	// Compiler compiler = new Compiler();
-	// CompilerOptions options = new CompilerOptions();
-	// options.setCodingConvention(new GoogleCodingConvention());
-	// compiler.init(ImmutableList.<SourceFile>of(), ImmutableList.<SourceFile>of(), options);
-	// return NodeUtil.newQNameDeclaration(compiler, name, value, null, type);
-	panic("needs GoogleCodingConvention, Compiler.init")
+	compiler := NewCompiler()
+	options := NewCompilerOptions()
+	options.SetCodingConvention(NewGoogleCodingConvention())
+	compiler.Init([]*SourceFile{}, []*SourceFile{}, options)
+	return NodeUtil_NewQNameDeclarationWithType(compiler, name, value, nil, type_)
 }
 
 func TestNodeUtil_AssortedTests_TestGetBestJsDocInfoForClasses(t *testing.T) {
@@ -4321,6 +4320,7 @@ func TestNodeUtil_GetEndOfOptChainTests_BreakingOutOfOptChain(t *testing.T) {
 // ==== CreateSynthesizedExternsSymbolTests (extends CompilerTestCase)
 
 func TestNodeUtil_CreateSynthesizedExternsSymbolTests_Test(t *testing.T) {
+	defer SkipIfPendingPort(t) // Compiler.init reaches passes not ported yet
 	t.Skip("needs CompilerTestCase")
 	// getProcessor(compiler) returns a CompilerPass whose process(externs, srcs) calls
 	// NodeUtil.createSynthesizedExternsSymbol(compiler, "TEST_NAME").
@@ -4939,5 +4939,23 @@ func TestNodeUtil_GoogRequireRecordMethods(t *testing.T) {
 			nuAssertThat(t, c.r.Equals(d.r)).IsEqualTo(i == j)
 		}
 		nuAssertThat(t, c.r.Equals(NewNodeUtil_GoogRequire(c.r.Namespace(), c.r.Property(), c.r.IsStrongRequire()))).IsTrue()
+	}
+}
+
+// Go-only: test-helper — not in NodeUtilTest. new ArrayList<>(set) is an empty
+// list, never null, and a nil slice is Java null to the callers of
+// getParentChangeScopeNodes and removeNestedChangeScopeNodes.
+func TestNodeUtil_GoOnly_ChangeScopeNodesEmptyIsNotNull(t *testing.T) {
+	if NodeUtil_GetParentChangeScopeNodes([]*rhino.Node{}) == nil {
+		t.Error("getParentChangeScopeNodes(empty) returned null")
+	}
+	if NodeUtil_RemoveNestedChangeScopeNodes([]*rhino.Node{}) == nil {
+		t.Error("removeNestedChangeScopeNodes(empty) returned null")
+	}
+	script := rhino.IR_Script()
+	fn := rhino.IR_Function(rhino.IR_Name("f"), rhino.IR_ParamList(), rhino.IR_Block())
+	script.AddChildToBack(fn)
+	if got := NodeUtil_RemoveNestedChangeScopeNodes([]*rhino.Node{fn, script}); len(got) != 1 || got[0] != script {
+		t.Errorf("removeNestedChangeScopeNodes([f, SCRIPT]) = %v, want [SCRIPT]", got)
 	}
 }

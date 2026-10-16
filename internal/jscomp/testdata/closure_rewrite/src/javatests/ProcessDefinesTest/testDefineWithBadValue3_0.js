@@ -1,0 +1,1 @@
+let x = 'x'; /** @define {string} */ var DEF = x;

@@ -1,0 +1,1 @@
+                                             var alias; alias = 3 + 4;

@@ -1,0 +1,1 @@
+function f() { return goog.module.get('a.b.c'); }

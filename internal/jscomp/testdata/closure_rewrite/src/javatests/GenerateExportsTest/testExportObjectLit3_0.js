@@ -1,0 +1,1 @@
+var E = {/** @export */ set A(v) {}, B:2};

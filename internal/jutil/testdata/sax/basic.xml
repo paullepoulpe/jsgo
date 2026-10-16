@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE translationbundle SYSTEM "translationbundle.dtd">
+<translationbundle lang="fr">
+<translation id="1">a &amp; b &lt;c&gt; d</translation>
+<translation id="2">line1
+line2
+line3
+line4 <ph name="X"/> after</translation>
+<translation id="3"><![CDATA[x<y]]>z ]] ok</translation>
+<translation id="4">&#65;&#x42;C café 😀</translation>
+</translationbundle>

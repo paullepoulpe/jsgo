@@ -1,0 +1,1 @@
+/** @export */ G = class {}; foo();

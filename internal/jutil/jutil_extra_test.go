@@ -309,3 +309,25 @@ func TestParseException(t *testing.T) {
 		t.Error("ParseException not caught as a checked exception")
 	}
 }
+
+func TestSplitterOnCharOmitEmptyStrings(t *testing.T) {
+	got := Splitter_OnCharOmitEmptyStrings("\na b\n\n c\n", '\n')
+	want := []string{"a b", " c"}
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+	if got := Splitter_OnCharOmitEmptyStrings("", ' '); len(got) != 0 {
+		t.Fatalf("got %q", got)
+	}
+	if got := Splitter_OnCharOmitEmptyStrings("  x  y ", ' '); len(got) != 2 || got[0] != "x" || got[1] != "y" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestSetMultimapContainsEntry(t *testing.T) {
+	mm := NewSetMultimap[string, string]()
+	mm.Put("a", "x")
+	if !mm.ContainsEntry("a", "x") || mm.ContainsEntry("a", "y") || mm.ContainsEntry("b", "x") {
+		t.Fatal("ContainsEntry")
+	}
+}

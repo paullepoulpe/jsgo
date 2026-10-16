@@ -1,0 +1,1 @@
+const five = goog.define(5);

@@ -1,0 +1,1 @@
+var x = 10, y = 9; goog.getX = function () { return x + y; }

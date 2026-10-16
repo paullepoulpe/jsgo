@@ -1,0 +1,513 @@
+// Port of com/google/javascript/jscomp/MustBeReachingVariableDef.java @ closure-compiler v20260415
+
+/*
+ * Copyright 2008 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package jscomp
+
+import (
+	"iter"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
+)
+
+// MustBeReachingVariableDef computes must-be-reaching definition for all
+// uses of each variable.
+//
+// A definition of A in `A = foo()` is a must-be-reaching definition of the
+// use of A in `alert(A)` if all paths from entry node to the use pass
+// through that definition and it is the last definition before the use.
+//
+// By definition, a must-be-reaching definition for a given use is always a
+// single definition and it "dominates" that use (i.e. always must execute
+// before that use).
+type MustBeReachingVariableDef struct {
+	DataFlowAnalysisBase[*rhino.Node, *MustBeReachingVariableDef_MustDef]
+
+	// The scope of the function that we are analyzing.
+	compiler AbstractCompiler
+	// Go-only: language-adapter — Var overrides equals/hashCode (ScopedName),
+	// hence the Object set.
+	escaped     *jutil.ObjectLinkedHashSet[*Var]
+	allVarsInFn *jutil.LinkedHashMap[string, *Var]
+}
+
+// Java: MustBeReachingVariableDef(ControlFlowGraph<Node>, AbstractCompiler, Set<Var>, Map<String, Var>)
+func NewMustBeReachingVariableDef(
+	cfg ControlFlowGraph[*rhino.Node],
+	compiler AbstractCompiler,
+	escaped *jutil.ObjectLinkedHashSet[*Var],
+	allVarsInFn *jutil.LinkedHashMap[string, *Var]) *MustBeReachingVariableDef {
+	d := &MustBeReachingVariableDef{}
+	d.InitDataFlowAnalysisBase(d, cfg)
+	d.compiler = compiler
+	d.escaped = escaped
+	d.allVarsInFn = allVarsInFn
+	return d
+}
+
+// MustBeReachingVariableDef_Definition is an abstraction of a local variable
+// definition. It represents the node which a local variable is defined as
+// well as a set of other local variables that this definition reads from.
+// For example N: a = b + foo.bar(c). The definition node will be N, the
+// depending set would be {b,c}.
+type MustBeReachingVariableDef_Definition struct {
+	node *rhino.Node
+	// Go-only: language-adapter — Var overrides equals/hashCode (ScopedName),
+	// hence the Object set.
+	depends             *jutil.ObjectLinkedHashSet[*Var]
+	unknownDependencies bool
+}
+
+// Java: MustBeReachingVariableDef.Definition(Node)
+func NewMustBeReachingVariableDef_Definition(node *rhino.Node) *MustBeReachingVariableDef_Definition {
+	return &MustBeReachingVariableDef_Definition{
+		node:                node,
+		depends:             jutil.NewObjectLinkedHashSet[*Var](),
+		unknownDependencies: false,
+	}
+}
+
+// Java: MustBeReachingVariableDef.Definition.equals(Object)
+func (d *MustBeReachingVariableDef_Definition) Equals(other any) bool {
+	otherDef, ok := other.(*MustBeReachingVariableDef_Definition)
+	if !ok || otherDef == nil {
+		return false
+	}
+	// If the var has the same definition node we can assume they have the
+	// same depends set.
+	return otherDef.node == d.node
+}
+
+// Java: MustBeReachingVariableDef.Definition.toString()
+func (d *MustBeReachingVariableDef_Definition) String() string {
+	return "Definition@" + jutil.ToJavaString(d.node)
+}
+
+// Java: MustBeReachingVariableDef.Definition.hashCode()
+func (d *MustBeReachingVariableDef_Definition) HashCode() int32 {
+	return jutil.ObjectHashCode(d.node)
+}
+
+// MustBeReachingVariableDef_MustDef is the must reaching definition lattice
+// representation. It captures a product lattice for each local
+// (non-escaped) variable. The sub-lattice is a n + 2 element lattice with
+// all the Definition in the program, TOP and BOTTOM.
+//
+// Since this is a Must-Define analysis, BOTTOM represents the case where
+// there might be more than one reaching definition for the variable.
+//
+// (TOP) / | | \ N1 N2 N3 ....Nn \ | | / (BOTTOM)
+type MustBeReachingVariableDef_MustDef struct {
+	// TODO(user): Use bit vector instead of maps might get better
+	// performance. Change it after this is tested to be fully functional.
+
+	// When a Var "A" = "TOP", "A" does not exist in reachingDef's keySet.
+	// When a Var "A" = Node N, "A" maps to that node.
+	// When a Var "A" = "BOTTOM", "A" maps to null.
+	//
+	// Go-only: language-adapter — Var overrides equals/hashCode (ScopedName),
+	// hence the Object map.
+	reachingDef *jutil.ObjectLinkedHashMap[*Var, *MustBeReachingVariableDef_Definition]
+}
+
+// Java: MustBeReachingVariableDef.MustDef()
+func NewMustBeReachingVariableDef_MustDef() *MustBeReachingVariableDef_MustDef {
+	return &MustBeReachingVariableDef_MustDef{
+		reachingDef: jutil.NewObjectLinkedHashMap[*Var, *MustBeReachingVariableDef_Definition](),
+	}
+}
+
+// Java: MustBeReachingVariableDef.MustDef(Collection<Var>)
+func NewMustBeReachingVariableDef_MustDefWithVars(vars iter.Seq[*Var]) *MustBeReachingVariableDef_MustDef {
+	m := NewMustBeReachingVariableDef_MustDef()
+	for var_ := range vars {
+		m.reachingDef.Put(var_, NewMustBeReachingVariableDef_Definition(var_.GetScope().(*Scope).GetRootNode()))
+	}
+	return m
+}
+
+// NewMustBeReachingVariableDef_MustDefCopy is the copy constructor.
+//
+// other: the constructed object is a replicated copy of this element.
+//
+// Java: MustBeReachingVariableDef.MustDef(MustDef)
+func NewMustBeReachingVariableDef_MustDefCopy(other *MustBeReachingVariableDef_MustDef) *MustBeReachingVariableDef_MustDef {
+	m := NewMustBeReachingVariableDef_MustDef()
+	for k, v := range other.reachingDef.All() {
+		m.reachingDef.Put(k, v)
+	}
+	return m
+}
+
+// Java: MustBeReachingVariableDef.MustDef.equals(Object)
+func (m *MustBeReachingVariableDef_MustDef) Equals(other any) bool {
+	mustDef, ok := other.(*MustBeReachingVariableDef_MustDef)
+	return ok && mustDef != nil && mustDef.reachingDef.Equals(m.reachingDef)
+}
+
+// Java: MustBeReachingVariableDef.MustDef.hashCode()
+func (m *MustBeReachingVariableDef_MustDef) HashCode() int32 {
+	return m.reachingDef.HashCode()
+}
+
+// MustBeReachingVariableDef_MustDefJoin is the FlowJoiner of this analysis.
+type MustBeReachingVariableDef_MustDefJoin struct {
+	result    *MustBeReachingVariableDef_MustDef
+	resultMap *jutil.ObjectLinkedHashMap[*Var, *MustBeReachingVariableDef_Definition]
+}
+
+// Java: MustBeReachingVariableDef.MustDefJoin()
+func NewMustBeReachingVariableDef_MustDefJoin() *MustBeReachingVariableDef_MustDefJoin {
+	j := &MustBeReachingVariableDef_MustDefJoin{result: NewMustBeReachingVariableDef_MustDef()}
+	j.resultMap = j.result.reachingDef
+	return j
+}
+
+// Java: MustBeReachingVariableDef.MustDefJoin.joinFlow(MustDef)
+func (j *MustBeReachingVariableDef_MustDefJoin) JoinFlow(input *MustBeReachingVariableDef_MustDef) {
+	for var_, def := range input.reachingDef.All() {
+		j.MergeVarDef(var_, def)
+	}
+}
+
+// Java: MustBeReachingVariableDef.MustDefJoin.mergeVarDef(Var, Definition)
+func (j *MustBeReachingVariableDef_MustDefJoin) MergeVarDef(var_ *Var, def *MustBeReachingVariableDef_Definition) {
+	var resultDef *MustBeReachingVariableDef_Definition
+	if def == nil {
+		resultDef = nil
+	} else if !j.resultMap.ContainsKey(var_) {
+		resultDef = def
+	} else if def.Equals(j.resultMap.Get(var_)) {
+		return
+	} else {
+		resultDef = nil
+	}
+	j.resultMap.Put(var_, resultDef)
+}
+
+// Java: MustBeReachingVariableDef.MustDefJoin.finish()
+func (j *MustBeReachingVariableDef_MustDefJoin) Finish() *MustBeReachingVariableDef_MustDef {
+	return j.result
+}
+
+// Java: MustBeReachingVariableDef.isForward()
+func (d *MustBeReachingVariableDef) IsForward() bool {
+	return true
+}
+
+// Java: MustBeReachingVariableDef.createEntryLattice()
+func (d *MustBeReachingVariableDef) CreateEntryLattice() *MustBeReachingVariableDef_MustDef {
+	return NewMustBeReachingVariableDef_MustDefWithVars(d.allVarsInFn.Values())
+}
+
+// Java: MustBeReachingVariableDef.createInitialEstimateLattice()
+func (d *MustBeReachingVariableDef) CreateInitialEstimateLattice() *MustBeReachingVariableDef_MustDef {
+	return NewMustBeReachingVariableDef_MustDef()
+}
+
+// Java: MustBeReachingVariableDef.createFlowJoiner()
+func (d *MustBeReachingVariableDef) CreateFlowJoiner() DataFlowAnalysis_FlowJoiner[*MustBeReachingVariableDef_MustDef] {
+	return NewMustBeReachingVariableDef_MustDefJoin()
+}
+
+// Java: MustBeReachingVariableDef.flowThrough(Node, MustDef)
+func (d *MustBeReachingVariableDef) FlowThrough(n *rhino.Node, input *MustBeReachingVariableDef_MustDef) *MustBeReachingVariableDef_MustDef {
+	// TODO(user): We are doing a straight copy from input to output. There
+	// might be some opportunities to cut down overhead.
+	output := NewMustBeReachingVariableDef_MustDefCopy(input)
+	// TODO(user): This must know about ON_EX edges but it should handle
+	// it better than what we did in liveness. Because we are in a forward mode,
+	// we can used the branched forward analysis.
+	d.ComputeMustDef(n, n, output, false)
+	return output
+}
+
+// ComputeMustDef: n is the node in question; cfgNode the node to add;
+// conditional true if the definition is not always executed.
+//
+// Java: MustBeReachingVariableDef.computeMustDef(Node, Node, MustDef, boolean)
+func (d *MustBeReachingVariableDef) ComputeMustDef(n *rhino.Node, cfgNode *rhino.Node, output *MustBeReachingVariableDef_MustDef, conditional bool) {
+	switch n.GetToken() {
+	case rhino.Token_BLOCK, rhino.Token_ROOT, rhino.Token_FUNCTION:
+		return
+	case rhino.Token_WHILE, rhino.Token_DO, rhino.Token_IF, rhino.Token_FOR:
+		d.ComputeMustDef(NodeUtil_GetConditionExpression(n), cfgNode, output, conditional)
+		return
+	case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
+		// for(x in y) {...}
+		lhs := n.GetFirstChild()
+		rhs := lhs.GetNext()
+		if NodeUtil_IsNameDeclaration(lhs) {
+			lhs = lhs.GetLastChild() // for(var x in y) {...}
+		}
+		if lhs.IsName() {
+			// TODO(lharker): This doesn't seem right - given for (x in y), the value set to x isn't y
+			d.AddToDefIfLocal(lhs.GetString(), cfgNode, rhs, output)
+		} else if lhs.IsDestructuringLhs() {
+			lhs = lhs.GetFirstChild()
+		}
+		if lhs.IsDestructuringPattern() {
+			d.ComputeMustDef(lhs, cfgNode, output, true)
+		}
+		return
+	case rhino.Token_OPTCHAIN_GETPROP:
+		d.ComputeMustDef(n.GetFirstChild(), cfgNode, output, conditional)
+		return
+	case rhino.Token_AND, rhino.Token_OR, rhino.Token_COALESCE, rhino.Token_OPTCHAIN_GETELEM:
+		d.ComputeMustDef(n.GetFirstChild(), cfgNode, output, conditional)
+		d.ComputeMustDef(n.GetLastChild(), cfgNode, output, true)
+		return
+	case rhino.Token_OPTCHAIN_CALL:
+		d.ComputeMustDef(n.GetFirstChild(), cfgNode, output, conditional)
+		for c := n.GetSecondChild(); c != nil; c = c.GetNext() {
+			d.ComputeMustDef(c, cfgNode, output, true)
+		}
+		return
+	case rhino.Token_HOOK:
+		d.ComputeMustDef(n.GetFirstChild(), cfgNode, output, conditional)
+		d.ComputeMustDef(n.GetSecondChild(), cfgNode, output, true)
+		d.ComputeMustDef(n.GetLastChild(), cfgNode, output, true)
+		return
+	case rhino.Token_LET, rhino.Token_CONST, rhino.Token_VAR:
+		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+			if c.HasChildren() {
+				if c.IsName() {
+					d.ComputeMustDef(c.GetFirstChild(), cfgNode, output, conditional)
+					var defNode *rhino.Node
+					if !conditional {
+						defNode = cfgNode
+					}
+					d.AddToDefIfLocal(c.GetString(), defNode, c.GetFirstChild(), output)
+				} else {
+					jutil.CheckStateMsg1(c.IsDestructuringLhs(), "%s", c)
+					d.ComputeMustDef(c.GetSecondChild(), cfgNode, output, conditional)
+					d.ComputeMustDef(c.GetFirstChild(), cfgNode, output, conditional)
+				}
+			}
+		}
+		return
+	case rhino.Token_DEFAULT_VALUE:
+		if n.GetFirstChild().IsDestructuringPattern() {
+			d.ComputeMustDef(n.GetSecondChild(), cfgNode, output, true)
+			d.ComputeMustDef(n.GetFirstChild(), cfgNode, output, conditional)
+		} else if n.GetFirstChild().IsName() {
+			d.ComputeMustDef(n.GetSecondChild(), cfgNode, output, true)
+			var defNode *rhino.Node
+			if !conditional {
+				defNode = cfgNode
+			}
+			d.AddToDefIfLocal(n.GetFirstChild().GetString(), defNode, nil, output)
+		} else {
+			d.ComputeMustDef(n.GetFirstChild(), cfgNode, output, conditional)
+			d.ComputeMustDef(n.GetSecondChild(), cfgNode, output, true)
+		}
+	case rhino.Token_NAME:
+		if NodeUtil_IsLhsByDestructuring(n) {
+			var defNode *rhino.Node
+			if !conditional {
+				defNode = cfgNode
+			}
+			d.AddToDefIfLocal(n.GetString(), defNode, nil, output)
+		} else if "arguments" == n.GetString() {
+			d.EscapeParameters(output)
+		}
+		return
+	default:
+		if NodeUtil_IsAssignmentOp(n) {
+			if n.GetFirstChild().IsName() {
+				name := n.GetFirstChild()
+				d.ComputeMustDef(name.GetNext(), cfgNode, output, conditional)
+				var defNode *rhino.Node
+				if !conditional {
+					defNode = cfgNode
+				}
+				d.AddToDefIfLocal(name.GetString(), defNode, n.GetLastChild(), output)
+				return
+			} else if NodeUtil_IsNormalGet(n.GetFirstChild()) {
+				// Treat all assignments to arguments as redefining the
+				// parameters itself.
+				obj := n.GetFirstFirstChild()
+				if obj.IsName() && "arguments" == obj.GetString() {
+					// TODO(user): More accuracy can be introduced
+					// i.e. We know exactly what arguments[x] is if x is a constant
+					// number.
+					d.EscapeParameters(output)
+				}
+			} else if n.GetFirstChild().IsDestructuringPattern() {
+				d.ComputeMustDef(n.GetSecondChild(), cfgNode, output, conditional)
+				d.ComputeMustDef(n.GetFirstChild(), cfgNode, output, conditional)
+				return
+			}
+		}
+
+		// DEC and INC actually defines the variable.
+		if n.IsDec() || n.IsInc() {
+			target := n.GetFirstChild()
+			if target.IsName() {
+				var defNode *rhino.Node
+				if !conditional {
+					defNode = cfgNode
+				}
+				d.AddToDefIfLocal(target.GetString(), defNode, nil, output)
+				return
+			}
+		}
+
+		for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
+			d.ComputeMustDef(c, cfgNode, output, conditional)
+		}
+	}
+}
+
+// AddToDefIfLocal sets the variable lattice for the given name to the node
+// value in the def lattice. Do nothing if the variable name is one of the
+// escaped variable.
+//
+// node is the CFG node where the definition should be record to; nil if
+// this is a conditional define.
+//
+// Java: MustBeReachingVariableDef.addToDefIfLocal(String, Node, Node, MustDef)
+func (d *MustBeReachingVariableDef) AddToDefIfLocal(
+	name string, node *rhino.Node, rValue *rhino.Node, def *MustBeReachingVariableDef_MustDef) {
+	var_ := d.allVarsInFn.Get(name)
+
+	// var might be null if the variable is defined in the externs
+	if var_ == nil {
+		return
+	}
+
+	for key, otherDef := range def.reachingDef.All() {
+		if otherDef == nil {
+			continue
+		}
+		if otherDef.depends.Contains(var_) {
+			def.reachingDef.Put(key, nil)
+		}
+	}
+
+	if !d.escaped.Contains(var_) {
+		if node == nil {
+			def.reachingDef.Put(var_, nil)
+		} else {
+			definition := NewMustBeReachingVariableDef_Definition(node)
+			if rValue != nil {
+				d.ComputeDependence(definition, rValue)
+			}
+			def.reachingDef.Put(var_, definition)
+		}
+	}
+}
+
+// Java: MustBeReachingVariableDef.escapeParameters(MustDef)
+func (d *MustBeReachingVariableDef) EscapeParameters(output *MustBeReachingVariableDef_MustDef) {
+	for v := range d.allVarsInFn.Values() {
+		if MustBeReachingVariableDef_IsParameter(v) {
+			// Assume we no longer know where the parameter comes from
+			// anymore.
+			output.reachingDef.Put(v, nil)
+		}
+	}
+
+	// Also, assume we no longer know anything that depends on a parameter.
+	for key, value := range output.reachingDef.All() {
+		if value == nil {
+			continue
+		}
+		for dep := range value.depends.All() {
+			if MustBeReachingVariableDef_IsParameter(dep) {
+				output.reachingDef.Put(key, nil)
+				break
+			}
+		}
+	}
+}
+
+// Java: MustBeReachingVariableDef.isParameter(Var)
+func MustBeReachingVariableDef_IsParameter(v *Var) bool {
+	return v.IsParam()
+}
+
+// ComputeDependence computes all the local variables that rValue reads from
+// and store that in the def's depends set.
+//
+// Java: MustBeReachingVariableDef.computeDependence(Definition, Node)
+func (d *MustBeReachingVariableDef) ComputeDependence(def *MustBeReachingVariableDef_Definition, rValue *rhino.Node) {
+	NodeTraversal_Traverse(
+		d.compiler,
+		rValue,
+		&mustBeReachingVariableDef_dependenceCallback{outer: d, def: def})
+}
+
+// mustBeReachingVariableDef_dependenceCallback is the anonymous
+// AbstractCfgNodeTraversalCallback of computeDependence.
+type mustBeReachingVariableDef_dependenceCallback struct {
+	ControlFlowGraph_AbstractCfgNodeTraversalCallbackBase
+	outer *MustBeReachingVariableDef
+	def   *MustBeReachingVariableDef_Definition
+}
+
+// Java: MustBeReachingVariableDef.computeDependence(...).new AbstractCfgNodeTraversalCallback() {...}.visit(NodeTraversal, Node, Node)
+func (c *mustBeReachingVariableDef_dependenceCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+	if n.IsName() {
+		dep := c.outer.allVarsInFn.Get(n.GetString())
+		if dep == nil {
+			c.def.unknownDependencies = true
+		} else {
+			c.def.depends.Add(dep)
+		}
+	}
+}
+
+// GetDef gets the must-be-reaching definition of a given use node.
+//
+// name is the name of the variable. It can only be names of local variable
+// that are not function parameters, escaped variables or variables declared
+// in catch. useNode is the location of the use where the definition
+// reaches.
+//
+// Java: MustBeReachingVariableDef.getDef(String, Node)
+func (d *MustBeReachingVariableDef) GetDef(name string, useNode *rhino.Node) *MustBeReachingVariableDef_Definition {
+	jutil.CheckArgument(d.GetCfg().HasNode(useNode))
+	n := d.GetCfg().GetNode(useNode)
+	state := n.GetAnnotation().(*DataFlowAnalysis_LinearFlowState[*MustBeReachingVariableDef_MustDef])
+	return state.GetIn().reachingDef.Get(d.allVarsInFn.Get(name))
+}
+
+// Java: MustBeReachingVariableDef.getDefNode(String, Node)
+func (d *MustBeReachingVariableDef) GetDefNode(name string, useNode *rhino.Node) *rhino.Node {
+	def := d.GetDef(name, useNode)
+	if def == nil {
+		return nil
+	}
+	return def.node
+}
+
+// Java: MustBeReachingVariableDef.dependsOnOuterScopeVars(Definition)
+func (d *MustBeReachingVariableDef) DependsOnOuterScopeVars(def *MustBeReachingVariableDef_Definition) bool {
+	if def.unknownDependencies {
+		return true
+	}
+
+	for s := range def.depends.All() {
+		// Don't inline try catch
+		if s.GetScope().(*Scope).IsCatchScope() {
+			return true
+		}
+	}
+	return false
+}

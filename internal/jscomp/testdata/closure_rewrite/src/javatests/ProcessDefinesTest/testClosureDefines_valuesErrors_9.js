@@ -1,0 +1,1 @@
+CLOSURE_DEFINES['FOO'] = a;

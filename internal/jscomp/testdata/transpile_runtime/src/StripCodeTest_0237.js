@@ -1,0 +1,1 @@
+(new goog$debug$Logger()).foo().bar = 2;

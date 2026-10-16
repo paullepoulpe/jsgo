@@ -1,0 +1,1 @@
+exports = {MSG_FOO: MSG_FOO};

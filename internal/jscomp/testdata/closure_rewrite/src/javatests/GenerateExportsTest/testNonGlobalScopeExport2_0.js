@@ -1,0 +1,1 @@
+var x = {/** @export */ A:function() {}}

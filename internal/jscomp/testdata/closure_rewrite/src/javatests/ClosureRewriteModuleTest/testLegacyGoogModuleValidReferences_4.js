@@ -1,0 +1,1 @@
+/** @const */ var module$exports$x$y$z={}; goog.require('a.b.c'); use(a.b.c);

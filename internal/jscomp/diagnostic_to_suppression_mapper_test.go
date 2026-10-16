@@ -4,9 +4,11 @@ package jscomp
 
 import (
 	"bytes"
+	"encoding/json"
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/parsing"
 )
 
 func jsaStr(s string) *string { return &s }
@@ -40,7 +42,29 @@ func TestDiagnosticToSuppressionMapper_CreateSuppressionMap_choosesArbitrarySupp
 }
 
 func TestDiagnosticToSuppressionMapper_PrintSuppressionMap_asJson_printsValidJson(t *testing.T) {
-	t.Skip("needs DiagnosticGroups")
+	var myOut bytes.Buffer
+	old := jutil.System_Out()
+	jutil.System_SetOut(jutil.NewPrintStream(&myOut))
+	defer jutil.System_SetOut(old)
+
+	mapper := NewDiagnosticToSuppressionMapper(
+		parsing.ParserRunner_GetSuppressionNames(), DiagnosticGroups_GetRegisteredGroups())
+	mapper.PrintSuppressions(DiagnosticToSuppressionMapper_OutputFormat_JSON)
+
+	var suppressions map[string]string
+	if err := json.Unmarshal(myOut.Bytes(), &suppressions); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	// Java: assertThat(suppressions).isEqualTo(mapper.createSuppressionMap()) (Map equality)
+	expected := mapper.CreateSuppressionMap()
+	jsaEq(t, len(suppressions), expected.Size())
+	for k, v := range expected.All() {
+		got, ok := suppressions[k]
+		if !ok || got != v {
+			t.Errorf("suppressions[%q] = %q (present %v), want %q", k, got, ok, v)
+		}
+	}
 }
 
 // Go-only: extra coverage — the JSON output for a small map.

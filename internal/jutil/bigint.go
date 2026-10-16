@@ -181,3 +181,30 @@ func BigIntegerShiftLeft(x *big.Int, n int32) *big.Int {
 	}
 	return new(big.Int).Lsh(x, uint(n))
 }
+
+// bigIntegerBitLength is BigInteger.bitLength(): the number of bits of the
+// minimal two's-complement representation, excluding the sign bit.
+func bigIntegerBitLength(x *big.Int) int {
+	if x.Sign() >= 0 {
+		return x.BitLen()
+	}
+	return new(big.Int).Sub(new(big.Int).Neg(x), BigInteger_ONE).BitLen()
+}
+
+// BigIntegerIntValueExact is BigInteger.intValueExact(): the value as an
+// int, or an ArithmeticException if it does not fit.
+func BigIntegerIntValueExact(x *big.Int) int32 {
+	if bigIntegerBitLength(x) <= 31 {
+		return int32(x.Int64())
+	}
+	panic(NewArithmeticException("BigInteger out of int range"))
+}
+
+// BigIntegerMod is BigInteger.mod(BigInteger): the non-negative remainder
+// for a positive modulus, and an ArithmeticException otherwise.
+func BigIntegerMod(x, m *big.Int) *big.Int {
+	if m.Sign() <= 0 {
+		panic(NewArithmeticException("BigInteger: modulus not positive"))
+	}
+	return new(big.Int).Mod(x, m)
+}

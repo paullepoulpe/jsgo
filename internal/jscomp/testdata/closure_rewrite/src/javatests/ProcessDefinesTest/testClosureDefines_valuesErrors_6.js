@@ -1,0 +1,1 @@
+var CLOSURE_DEFINES = {'TEMPLATE': `template`};

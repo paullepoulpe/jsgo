@@ -1,0 +1,1 @@
+/** @define {boolean} */var DEF=true;externMethod();DEF=false

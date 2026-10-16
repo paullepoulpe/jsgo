@@ -1,0 +1,1 @@
+foo.bar = goog.events.getUniqueId('foo_bar')

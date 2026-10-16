@@ -1,0 +1,1 @@
+var CLOSURE_DEFINES = {'javascript.angular2.ENABLE_ZONES': true};

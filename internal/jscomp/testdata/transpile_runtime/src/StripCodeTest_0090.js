@@ -1,0 +1,1 @@
+const {Logger} = goog$debug; Logger;

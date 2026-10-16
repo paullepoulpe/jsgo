@@ -1,0 +1,1 @@
+/** @define {boolean} */ var DEF = new Boolean(true);

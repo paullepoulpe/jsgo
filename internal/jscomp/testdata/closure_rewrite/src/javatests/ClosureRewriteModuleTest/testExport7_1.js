@@ -1,0 +1,1 @@
+/** @constructor @const */ var module$exports$ns$a = function() {};

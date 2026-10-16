@@ -1,0 +1,1 @@
+class Class { set x(v) {} };

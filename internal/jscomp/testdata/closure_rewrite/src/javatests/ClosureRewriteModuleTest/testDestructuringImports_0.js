@@ -1,0 +1,1 @@
+goog.module('ns.b'); /** @constructor */ exports.Foo = function() {};

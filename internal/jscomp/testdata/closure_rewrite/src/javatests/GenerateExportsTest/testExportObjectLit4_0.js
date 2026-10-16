@@ -1,0 +1,1 @@
+var E = {/** @export */ A:function() {}, B:2};

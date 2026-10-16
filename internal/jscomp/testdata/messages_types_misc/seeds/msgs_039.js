@@ -1,0 +1,1 @@
+/** @desc Hello */ var MSG_HELLO = goog.getMsg(`hello ${name}`);

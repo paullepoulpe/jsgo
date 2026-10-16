@@ -1,0 +1,1 @@
+var bar = goog.bar; var Foo = {bar};

@@ -1,0 +1,1 @@
+var ns = {}; /** @ngInject */ ns.fn = function (a, b) {}

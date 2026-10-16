@@ -1,0 +1,4 @@
+(function() {
+  var ns = {};
+  /** @ngInject */ var fn = ns.func = function (a, b) {}
+})()

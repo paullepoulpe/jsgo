@@ -1,0 +1,1 @@
+/** @define {boolean} */ const B = goog.define('a.B', false);

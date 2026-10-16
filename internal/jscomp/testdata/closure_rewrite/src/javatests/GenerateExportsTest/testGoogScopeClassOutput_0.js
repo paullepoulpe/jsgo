@@ -1,0 +1,1 @@
+/** @export */ $jscomp.scope.foo = /** @export */ class {}

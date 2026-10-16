@@ -1,0 +1,1 @@
+goog.debug.DebugWindowFoo=1

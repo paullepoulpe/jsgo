@@ -1,0 +1,1 @@
+goog.getMsg('a')

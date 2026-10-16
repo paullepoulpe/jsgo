@@ -1,0 +1,1 @@
+function foo() {} let foo$bar = (new goog$debug$Logger()).foo();

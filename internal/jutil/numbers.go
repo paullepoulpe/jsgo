@@ -36,6 +36,11 @@ func D2L(d float64) int64 {
 	return int64(d)
 }
 
+// DRem is Java's double remainder `a % b`: the IEEE 754 "fmod" result, with
+// the sign of a and a magnitude below |b| (NaN if a is infinite, b is zero
+// or either is NaN; a if b is infinite). It is exact, like Go's math.Mod.
+func DRem(a, b float64) float64 { return math.Mod(a, b) }
+
 // Shl32 is Java's int `x << n` (shift distance masked to 5 bits).
 func Shl32(x int32, n int64) int32 { return x << (uint64(n) & 31) }
 

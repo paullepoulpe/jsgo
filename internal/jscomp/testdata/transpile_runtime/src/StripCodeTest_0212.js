@@ -1,0 +1,1 @@
+a=function(traceZZZ){};a.prototype.z=function(){}

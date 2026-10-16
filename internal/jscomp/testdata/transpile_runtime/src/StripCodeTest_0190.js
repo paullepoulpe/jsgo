@@ -1,0 +1,1 @@
+goog$debug$DebugWindow$Foo=1

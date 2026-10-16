@@ -1,0 +1,1 @@
+class C {static {/** @define {boolean} */ const DEF=true;}}

@@ -1019,7 +1019,7 @@ func (b *CompilerTestCaseBase) EnsureLibraryInjected(resourceName string) {
 }
 
 // Test is every overload of Java's test(...), chosen from the argument
-// types:
+// types (a String expected may be a string or a *string, nil for null):
 //
 //	test(String js, String expected)
 //	    Verifies that the compiler pass's JS output matches the expected
@@ -1036,11 +1036,11 @@ func (b *CompilerTestCaseBase) EnsureLibraryInjected(resourceName string) {
 // Java: CompilerTestCase.test(TestPart...)
 func (b *CompilerTestCaseBase) Test(args ...any) {
 	switch {
-	case compilerTestCase_argsAre(args, "string", "string"):
-		js, expected := args[0].(string), args[1].(string)
+	case compilerTestCase_argsAre(args, "string", "String"):
+		js, expected := args[0].(string), compilerTestCase_nullableString(args[1])
 		b.self.Test(CompilerTestCase_Srcs(js), CompilerTestCase_Expected_(expected))
-	case compilerTestCase_argsAre(args, "string", "string", "Diagnostic"):
-		js, expected, diagnostic := args[0].(string), args[1].(string), args[2].(*CompilerTestCase_Diagnostic)
+	case compilerTestCase_argsAre(args, "string", "String", "Diagnostic"):
+		js, expected, diagnostic := args[0].(string), compilerTestCase_nullableString(args[1]), args[2].(*CompilerTestCase_Diagnostic)
 		b.self.Test(CompilerTestCase_Externs_(b.defaultExternsInputs), CompilerTestCase_Srcs(js), CompilerTestCase_Expected_(expected), diagnostic)
 	default:
 		b.testInternalParts(compilerTestCase_testParts("test", args))
@@ -2630,6 +2630,11 @@ func compilerTestCase_argsAre(args []any, kinds ...string) bool {
 			_, ok = args[i].(string)
 		case "*string":
 			_, ok = args[i].(*string)
+		case "String": // a Java String parameter that may be null: string or *string
+			switch args[i].(type) {
+			case string, *string:
+				ok = true
+			}
 		case "[]string":
 			_, ok = args[i].([]string)
 		case "DiagnosticType":
@@ -2686,6 +2691,16 @@ func compilerTestCase_diagnostics(method string, args []any) []*CompilerTestCase
 		compilerTestCase_noOverload(method, args)
 	}
 	return ds
+}
+
+// compilerTestCase_nullableString is a "String" argument (string or
+// *string) as a nullable *string.
+func compilerTestCase_nullableString(v any) *string {
+	if p, ok := v.(*string); ok {
+		return p
+	}
+	s := v.(string)
+	return &s
 }
 
 // compilerTestCase_noOverload is a call that javac would have rejected.

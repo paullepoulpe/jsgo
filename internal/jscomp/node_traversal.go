@@ -790,12 +790,10 @@ func (t *NodeTraversal) ThrowUnexpectedException(unexpectedException jutil.Throw
 		message = &m
 	}
 	// Go-only: language-adapter — AbstractCompiler.throwInternalError takes a
-	// Go string, in which "" stands for a null message.
-	msg := ""
-	if message != nil {
-		msg = *message
-	}
-	t.compiler.ThrowInternalError(msg, unexpectedException)
+	// Go string. A null message (an exception without one, outside any script)
+	// is passed as "null": Compiler.throwInternalError only concatenates it,
+	// which renders a null String as "null".
+	t.compiler.ThrowInternalError(jutil.ToJavaString(message), unexpectedException)
 }
 
 // Java: NodeTraversal.formatNodeContext(String, Node)

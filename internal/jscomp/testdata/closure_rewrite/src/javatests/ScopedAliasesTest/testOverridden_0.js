@@ -1,0 +1,1 @@
+goog.x = function(g) {g.z()};

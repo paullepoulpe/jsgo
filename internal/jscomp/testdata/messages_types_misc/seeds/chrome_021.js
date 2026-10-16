@@ -1,0 +1,1 @@
+Object.defineProperty(a.b, 'c', {});

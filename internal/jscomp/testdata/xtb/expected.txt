@@ -1,0 +1,315 @@
+== crlf.xtb
+message 10
+  key=10
+  id=10
+  anonymous=false external=false empty=false
+  source=<null>
+  desc=<null>
+  meaning=<null>
+  alternateId=<null>
+  parts=["eins\u000azwei", "\u000adrei"]
+  jsPlaceholders=[]
+  examples={}
+  originalCode={}
+message 11
+  key=11
+  id=11
+  anonymous=false external=false empty=false
+  source=<null>
+  desc=<null>
+  meaning=<null>
+  alternateId=<null>
+  parts=[PH(a_1|A_1), "x", PH(b_2|B_2)]
+  jsPlaceholders=[a_1, b_2]
+  examples={}
+  originalCode={}
+== dup_ids.xtb
+message 40
+  key=40
+  id=40
+  anonymous=false external=false empty=false
+  source=<null>
+  desc=<null>
+  meaning=<null>
+  alternateId=<null>
+  parts=["second"]
+  jsPlaceholders=[]
+  examples={}
+  originalCode={}
+== entities.xtb
+message 1
+  key=1
+  id=1
+  anonymous=false external=false empty=false
+  source=<null>
+  desc=<null>
+  meaning=<null>
+  alternateId=<null>
+  parts=["a ", "&", " b ", "<", "c", ">", " d ", """, "e", "'"]
+  jsPlaceholders=[]
+  examples={}
+  originalCode={}
+message 2
+  key=2
+  id=2
+  anonymous=false external=false empty=false
+  source=<null>
+  desc=<null>
+  meaning=<null>
+  alternateId=<null>
+  parts=["line1\u000aline2", "\u000aline3\u000aline4 ", PH(x|X), " after"]
+  jsPlaceholders=[x]
+  examples={}
+  originalCode={}
+message 3
+  key=3
+  id=3
+  anonymous=false external=false empty=false
+  source=<null>
+  desc=<null>
+  meaning=<null>
+  alternateId=<null>
+  parts=["x<y", "z ]] ok"]
+  jsPlaceholders=[]
+  examples={}
+  originalCode={}
+message 4
+  key=4
+  id=4
+  anonymous=false external=false empty=false
+  source=<null>
+  desc=<null>
+  meaning=<null>
+  alternateId=<null>
+  parts=["A", "B", "C caf\u00e9 \ud83d\ude00", " end"]
+  jsPlaceholders=[]
+  examples={}
+  originalCode={}
+message 5
+  key=5
+  id=5
+  anonymous=false external=false empty=true
+  source=<null>
+  desc=<null>
+  meaning=<null>
+  alternateId=<null>
+  parts=[""]
+  jsPlaceholders=[]
+  examples={}
+  originalCode={}
+message 6
+  key=6
+  id=6
+  anonymous=false external=false empty=false
+  source=<null>
+  desc=<null>
+  meaning=<null>
+  alternateId=<null>
+  parts=["  "]
+  jsPlaceholders=[]
+  examples={}
+  originalCode={}
+message 7
+  key=7
+  id=7
+  anonymous=false external=false empty=false
+  source=<null>
+  desc=<null>
+  meaning=<null>
+  alternateId=<null>
+  parts=[PH(only|ONLY)]
+  jsPlaceholders=[only]
+  examples={}
+  originalCode={}
+message 8
+  key=8
+  id=8
+  anonymous=false external=false empty=false
+  source=<null>
+  desc=<null>
+  meaning=<null>
+  alternateId=<null>
+  parts=["a", "b", "c"]
+  jsPlaceholders=[]
+  examples={}
+  originalCode={}
+== err_malformed.xtb
+exception java.lang.RuntimeException cause org.xml.sax.SAXParseException
+== err_nested.xtb
+exception java.lang.IllegalStateException <null>
+== err_noid.xtb
+exception java.lang.IllegalStateException <null>
+== err_nolang.xtb
+exception java.lang.IllegalStateException <null>
+== err_ph_outside.xtb
+exception java.lang.IllegalStateException <null>
+== gender_mixed.xtb
+message 20
+  key=20
+  id=20
+  anonymous=false external=false empty=false
+  source=<null>
+  desc=<null>
+  meaning=<null>
+  alternateId=<null>
+  parts=["pre "]
+  jsPlaceholders=[n]
+  examples={}
+  originalCode={}
+  gender MASCULINE ["El ", PH(n|N)]
+  gender FEMININE ["La ", PH(n|N)]
+  gender OTHER ["Le ", "&", " ", PH(n|N), "\u000ax", " post"]
+message 21
+  key=21
+  id=21
+  anonymous=false external=false empty=false
+  source=<null>
+  desc=<null>
+  meaning=<null>
+  alternateId=<null>
+  parts=["plain"]
+  jsPlaceholders=[]
+  examples={}
+  originalCode={}
+== javatest01.xtb
+message 7639678437384034548
+  key=7639678437384034548
+  id=7639678437384034548
+  anonymous=false external=false empty=false
+  source=<null>
+  desc=<null>
+  meaning=<null>
+  alternateId=<null>
+  parts=["descargar"]
+  jsPlaceholders=[]
+  examples={}
+  originalCode={}
+message 2398375912250604550
+  key=2398375912250604550
+  id=2398375912250604550
+  anonymous=false external=false empty=false
+  source=<null>
+  desc=<null>
+  meaning=<null>
+  alternateId=<null>
+  parts=["Se han\u000aignorado ", PH(num|NUM), " conversaciones."]
+  jsPlaceholders=[num]
+  examples={}
+  originalCode={}
+message 6323937743550839320
+  key=6323937743550839320
+  id=6323937743550839320
+  anonymous=false external=false empty=false
+  source=<null>
+  desc=<null>
+  meaning=<null>
+  alternateId=<null>
+  parts=[PH(pStart|P_START), "Si, puede ", PH(linkStart_1_3|LINK_START_1_3), "hacer clic", PH(linkEnd_1_3|LINK_END_1_3), " para utilizar.", PH(pEnd|P_END), PH(pStart|P_START), "Esperamos poder ampliar.", PH(pEnd|P_END)]
+  jsPlaceholders=[pStart, linkStart_1_3, linkEnd_1_3, pEnd]
+  examples={}
+  originalCode={}
+message 3945720239421293834
+  key=3945720239421293834
+  id=3945720239421293834
+  anonymous=false external=false empty=true
+  source=<null>
+  desc=<null>
+  meaning=<null>
+  alternateId=<null>
+  parts=[""]
+  jsPlaceholders=[]
+  examples={}
+  originalCode={}
+== javatest02.xtb
+message 7639678437384034548
+  key=7639678437384034548
+  id=7639678437384034548
+  anonymous=false external=false empty=false
+  source=<null>
+  desc=<null>
+  meaning=<null>
+  alternateId=<null>
+  parts=["\u000a"]
+  jsPlaceholders=[]
+  examples={}
+  originalCode={}
+  gender MASCULINE ["Bienvenido!"]
+  gender FEMININE ["Bienvenida!"]
+  gender NEUTER ["Te damos la bienvenida!"]
+  gender OTHER ["Te damos la bienvenida! - OTHER"]
+== javatest03.xtb
+message 7639678437384034548
+  key=7639678437384034548
+  id=7639678437384034548
+  anonymous=false external=false empty=false
+  source=<null>
+  desc=<null>
+  meaning=<null>
+  alternateId=<null>
+  parts=["\u000a"]
+  jsPlaceholders=[name]
+  examples={}
+  originalCode={}
+  gender MASCULINE ["Bienvenido, ", PH(name|NAME)]
+  gender FEMININE ["Bienvenida, ", PH(name|NAME)]
+  gender NEUTER ["Te damos la bienvenida, ", PH(name|NAME)]
+  gender OTHER ["Te damos la bienvenida - OTHER, ", PH(name|NAME)]
+== javatest04.xtb
+message 7639678437384034548
+  key=7639678437384034548
+  id=7639678437384034548
+  anonymous=false external=false empty=false
+  source=<null>
+  desc=<null>
+  meaning=<null>
+  alternateId=<null>
+  parts=["\u000a"]
+  jsPlaceholders=[name]
+  examples={}
+  originalCode={}
+  gender MASCULINE ["Bienvenido, ", PH(name|NAME)]
+  gender FEMININE ["Bienvenida, ", PH(name|NAME)]
+  gender NEUTER ["Te damos la bienvenida, ", PH(name|NAME)]
+  gender OTHER ["Te damos la bienvenida - OTHER, ", PH(name|NAME)]
+== javatest05.xtb
+exception java.lang.IllegalStateException Gender case must be one of the following: MASCULINE, FEMININE, NEUTER, or OTHER.
+== javatest06.xtb
+message 123456
+  key=123456
+  id=123456
+  anonymous=false external=false empty=false
+  source=<null>
+  desc=<null>
+  meaning=<null>
+  alternateId=<null>
+  parts=["{USER_GENDER,select,female{Hello ", PH(userIdentifier|USER_IDENTIFIER), ".}male{Hello ", PH(userIdentifier|USER_IDENTIFIER), ".}other{Hello ", PH(userIdentifier|USER_IDENTIFIER), ".}}"]
+  jsPlaceholders=[userIdentifier]
+  examples={}
+  originalCode={}
+message 123457
+  key=123457
+  id=123457
+  anonymous=false external=false empty=false
+  source=<null>
+  desc=<null>
+  meaning=<null>
+  alternateId=<null>
+  parts=[PH(startParagraph|START_PARAGRAPH), "p1", PH(endParagraph|END_PARAGRAPH), PH(startParagraph|START_PARAGRAPH), "p1", PH(endParagraph|END_PARAGRAPH)]
+  jsPlaceholders=[startParagraph, endParagraph]
+  examples={}
+  originalCode={}
+== javatest07.xtb
+exception java.lang.RuntimeException cause org.xml.sax.SAXParseException
+== no_branch_match.xtb
+message 30
+  key=30
+  id=30
+  anonymous=false external=false empty=false
+  source=<null>
+  desc=<null>
+  meaning=<null>
+  alternateId=<null>
+  parts=["A", "B"]
+  jsPlaceholders=[]
+  examples={}
+  originalCode={}

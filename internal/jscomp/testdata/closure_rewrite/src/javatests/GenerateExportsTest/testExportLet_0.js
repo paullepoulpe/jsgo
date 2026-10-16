@@ -1,0 +1,1 @@
+/** @export */let FOO = 5

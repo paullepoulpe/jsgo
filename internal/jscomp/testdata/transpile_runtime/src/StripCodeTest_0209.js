@@ -1,0 +1,1 @@
+var logger=null;if(x)logger[f];else foo()

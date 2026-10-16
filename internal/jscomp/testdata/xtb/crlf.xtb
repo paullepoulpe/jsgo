@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE translationbundle SYSTEM "translationbundle.dtd">
+<!-- padding so that the messages are past the first read buffers of the JDK parser ............................................................................................. -->
+<translationbundle lang="de">
+<translation id="10">eins
+zweidrei</translation>
+<translation id="11"><ph name="A_1"/>x<ph name="B_2"/></translation>
+</translationbundle>

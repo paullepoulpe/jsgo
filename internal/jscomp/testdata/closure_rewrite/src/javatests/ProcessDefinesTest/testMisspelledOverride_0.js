@@ -1,0 +1,1 @@
+/** @define {boolean} */ var DEF_BAD_OVERRIDE = true

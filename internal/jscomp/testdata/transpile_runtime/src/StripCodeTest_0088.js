@@ -1,0 +1,1 @@
+const logger = opt_logger || goog$debug$LogManager.getRoot();

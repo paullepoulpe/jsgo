@@ -30,3 +30,28 @@ func (mm *ListMultimap[K, V]) RemoveAll(k K) []V {
 	mm.size -= len(vs)
 	return vs
 }
+
+// Remove is Multimap.remove(Object, Object) on a list multimap: removes the
+// first value of k that equals v (ObjectsEquals), and k itself when that
+// leaves it with no values; returns whether a value was removed.
+func (mm *ListMultimap[K, V]) Remove(k K, v V) bool {
+	vs, ok := mm.m.Lookup(k)
+	if !ok {
+		return false
+	}
+	for i, e := range vs {
+		if ObjectsEquals(e, v) {
+			if len(vs) == 1 {
+				mm.m.Remove(k)
+			} else {
+				rest := make([]V, 0, len(vs)-1)
+				rest = append(rest, vs[:i]...)
+				rest = append(rest, vs[i+1:]...)
+				mm.m.Put(k, rest)
+			}
+			mm.size--
+			return true
+		}
+	}
+	return false
+}

@@ -1,0 +1,1 @@
+/** @define {number} */ const DEF=0

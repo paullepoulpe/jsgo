@@ -207,6 +207,17 @@ func JsMessage_GrammaticalGenderCase_values() []JsMessage_GrammaticalGenderCase 
 	}
 }
 
+// JsMessage_GrammaticalGenderCase_ValueOf is GrammaticalGenderCase.valueOf(String).
+func JsMessage_GrammaticalGenderCase_ValueOf(name string) JsMessage_GrammaticalGenderCase {
+	for i, n := range jsMessage_GrammaticalGenderCase_names {
+		if n == name {
+			return JsMessage_GrammaticalGenderCase(i)
+		}
+	}
+	panic(jutil.NewIllegalArgumentExceptionMsg(
+		"No enum constant com.google.javascript.jscomp.JsMessage.GrammaticalGenderCase." + name))
+}
+
 // Name is Enum.name().
 func (g JsMessage_GrammaticalGenderCase) Name() string {
 	return jsMessage_GrammaticalGenderCase_names[g]

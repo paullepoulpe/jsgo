@@ -1,0 +1,1 @@
+/** @export */ var $jscomp$scope$m1146332801$0$Foo = /** @export */ class {}

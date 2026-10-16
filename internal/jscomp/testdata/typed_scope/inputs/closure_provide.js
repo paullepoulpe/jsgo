@@ -1,0 +1,11 @@
+var goog = {};
+goog.provide = function(ns) {};
+goog.require = function(ns) {};
+goog.provide('a.b.c');
+goog.provide('a.b.d');
+goog.provide('x');
+/** @constructor */ a.b.c.Foo = function() {};
+a.b.d = {};
+/** @const */ a.b.d.VAL = 3;
+x = function() { return 1; };
+/** @param {!a.b.c.Foo} f */ a.b.d.use = function(f) {};

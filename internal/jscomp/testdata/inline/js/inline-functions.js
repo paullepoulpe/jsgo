@@ -1,0 +1,14 @@
+function foo() { return 1; } var x = foo();
+function bar(a) { return a + a; } var y = bar(2); var y2 = bar(z());
+function baz(a, b) { var t = a * b; return t + 1; } var w = baz(1, 2); baz(3, 4);
+var fx = function(q) { return q * 2; }; use(fx(3));
+(function() { use(1); })();
+(function(a) { use(a); }).call(this, 5);
+function rec(n) { return n ? rec(n - 1) : 0; } rec(3);
+function withThis() { return this.x; } use(withThis.call(this));
+function multi(a) { if (a) { return 1; } return 2; } var m = multi(cond());
+function outer() { function innerFn() { return 2; } return innerFn() + innerFn(); } use(outer());
+function noop() {} noop(); var u = noop();
+function side() { chg(); return 3; } var s1 = 1 + side();
+/** @noinline */ function keep() { return 9; } use(keep());
+function f2(a) { a = a + 1; return a; } use(f2(1));

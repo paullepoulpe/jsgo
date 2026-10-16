@@ -1,0 +1,10 @@
+goog.provide('user');
+goog.require('a.mod');
+goog.requireType('a.legacy');
+var x = new a.b.C();
+/** @type {a.b.C} */ var y;
+/** @type {a.legacy} */ var w;
+var z = a.mod.X;
+var v = a.legacy;
+/** @extends {a.b.Sub} */ user.K = class extends a.b.Sub {};
+var g = goog.module.get('a.mod');

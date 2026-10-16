@@ -117,11 +117,10 @@ type Compiler struct {
 	//
 	// Go-only: language-adapter — Java HashMap order. A ConcurrentHashMap
 	// keyed by String whose values() are iterated (to add each input source
-	// map's sourcesContent). JavaHashMap has HashMap's order, which is
-	// ConcurrentHashMap's except around a table resize (ConcurrentHashMap
-	// grows one entry earlier and reorders bins when it does); the order is
-	// only observable when two input source maps carry different contents
-	// for the same source.
+	// map's sourcesContent). JavaHashMap gives HashMap's iteration order;
+	// ConcurrentHashMap's order is unspecified and need not match it. The
+	// order is only observable when two input source maps carry different
+	// contents for the same source.
 	inputSourceMaps *jutil.JavaHashMap[string, *SourceMapInput]
 
 	// Map from filenames to lists of all the comments in each file.

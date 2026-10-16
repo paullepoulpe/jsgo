@@ -1,0 +1,1 @@
+/** @const */ var module$exports$mid = module$exports$ns$base;

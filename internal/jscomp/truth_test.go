@@ -114,7 +114,24 @@ func truthEqual(a, b any) bool {
 			return ia == ib
 		}
 	}
+	if truthIsSet(a) && truthIsSet(b) {
+		// Set.equals: the same elements in any order.
+		return jutil.ObjectsEquals(a, b)
+	}
 	return rhinotesting.Equal(a, b)
+}
+
+// truthIsSet reports whether v is one of the jutil java.util.Set types
+// (whose Equals is Set.equals).
+func truthIsSet(v any) bool {
+	if jutil.IsNil(v) {
+		return false
+	}
+	if _, ok := v.(interface{ Equals(any) bool }); !ok {
+		return false
+	}
+	name := reflect.TypeOf(v).String()
+	return strings.HasPrefix(name, "*jutil.") && strings.Contains(name, "Set[")
 }
 
 // truthNormalize maps Go stand-ins to the Java values they represent: a
@@ -487,6 +504,11 @@ func (s *Subject) HasLength(n int) {
 
 func (s *Subject) listOf(v any) []any {
 	v = truthNormalize(v)
+	if truthIsSlice(v) {
+		// A nil slice is the Go empty list.
+		l, _ := rhinotesting.AsList(v)
+		return l
+	}
 	if jutil.IsNil(v) {
 		return nil
 	}
@@ -498,10 +520,16 @@ func (s *Subject) listOf(v any) []any {
 }
 
 func (s *Subject) list() []any {
-	if jutil.IsNil(truthNormalize(s.actual)) {
+	if v := truthNormalize(s.actual); jutil.IsNil(v) && !truthIsSlice(v) {
 		s.failf("expected a collection, but was null")
 	}
 	return s.listOf(s.actual)
+}
+
+// truthIsSlice reports whether v is a Go slice (nil included): a Java list
+// whose nil value the ports use for the empty list.
+func truthIsSlice(v any) bool {
+	return v != nil && reflect.TypeOf(v).Kind() == reflect.Slice
 }
 
 // size is the size of a string (UTF-16 units), collection or map.

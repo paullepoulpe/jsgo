@@ -5,7 +5,9 @@ package jscomp
 import "testing"
 
 func TestDiagnosticGroup_Registration(t *testing.T) {
-	t.Skip("needs DiagnosticGroups")
+	dg := NewDiagnosticGroups()
+	_ = dg // Java calls the static forName through this instance.
+	jsaEq(t, DiagnosticGroups_ForName("deprecated"), DiagnosticGroups_DEPRECATED)
 }
 
 // Go-only: extra coverage — groups, composite groups and forType singletons.

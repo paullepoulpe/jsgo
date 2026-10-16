@@ -1,0 +1,1 @@
+import './closure/goog.js'; use(goog.bad);

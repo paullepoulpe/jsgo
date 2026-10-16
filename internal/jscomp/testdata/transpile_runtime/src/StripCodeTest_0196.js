@@ -1,0 +1,1 @@
+class Formatter extends goog.debug.Formatter {}

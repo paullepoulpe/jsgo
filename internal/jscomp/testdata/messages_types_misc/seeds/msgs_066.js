@@ -1,0 +1,1 @@
+var MSG_FOO = goog.getMsg('{$foo}:', {});

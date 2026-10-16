@@ -1,0 +1,15 @@
+three@0.186.1/package/src/nodes/lighting/RectAreaLightNode.js
+typescript@5.6.3/package/lib/typingsInstaller.js
+three@0.186.1/package/src/nodes/utils/ConvertNode.js
+zone.js@0.16.3/package/fesm2015/task-tracking.js
+three@0.186.1/package/src/renderers/common/Attributes.js
+google-closure-library@20230802.0.0/package/closure/goog/async/throttle.js
+rxjs@7.8.2/package/dist/esm/internal/Subject.js
+three@0.186.1/package/src/extras/curves/EllipseCurve.js
+google-closure-library@20230802.0.0/package/closure/goog/html/safestylesheet.js
+@angular/core@19.2.14/package/schematics/bundles/ng_decorators-B5HCqr20.cjs
+google-closure-library@20230802.0.0/package/closure/goog/singleton/singleton.js
+three@0.186.1/package/src/math/FrustumArray.js
+zone.js@0.16.3/package/fesm2015/jasmine-patch.js
+test262-parser-tests@0.0.5/package/early/356c693116e8584c.js
+test262-parser-tests@0.0.5/package/fail/4ee75fab1ccee715.js

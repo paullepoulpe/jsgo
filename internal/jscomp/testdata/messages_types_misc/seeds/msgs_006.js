@@ -1,0 +1,1 @@
+/** @desc Hello */ const MSG_HELLO = goog.getMsg('a')

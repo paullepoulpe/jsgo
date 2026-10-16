@@ -1,0 +1,1 @@
+const d = goog.dom; d.createElement(DIV);

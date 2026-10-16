@@ -1,0 +1,1 @@
+var window;function f(){}window.f;

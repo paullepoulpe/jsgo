@@ -7,30 +7,45 @@ import (
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// DiagnosticGroups is not ported in this wave: the groups the tests use are
-// replaced by stand-ins with the same names and with distinct diagnostic
-// types of the same default levels (the guards only depend on group
-// membership).
+// Java: TypeCheck.DETERMINISTIC_TEST, CheckAccessControls.DEPRECATED_NAME,
+// BAR_WARNING and the DiagnosticGroups the tests use.
 var (
-	jsaWgDETERMINISTIC_TEST = DiagnosticType_Warning("JSC_DETERMINISTIC_TEST", "deterministic test")
-	jsaWgDEPRECATED_NAME    = DiagnosticType_Disabled("JSC_DEPRECATED_VAR", "Variable {0} has been deprecated.")
+	jsaWgDETERMINISTIC_TEST *DiagnosticType
+	jsaWgDEPRECATED_NAME    *DiagnosticType
 
-	jsaWgACCESS_CONTROLS = NewDiagnosticGroupWithName(jsaStr("visibility"),
-		DiagnosticType_Warning("JSC_BAD_PRIVATE_GLOBAL_ACCESS", "x"),
-		DiagnosticType_Warning("JSC_BAD_PRIVATE_PROPERTY_ACCESS", "x"))
-	jsaWgVISIBILITY           = jsaWgACCESS_CONTROLS
-	jsaWgDEPRECATED           = NewDiagnosticGroupWithName(jsaStr("deprecated"), jsaWgDEPRECATED_NAME)
-	jsaWgCHECK_TYPES          = NewDiagnosticGroupWithName(jsaStr("checkTypes"), jsaWgDETERMINISTIC_TEST, DiagnosticType_Warning("JSC_TYPE_MISMATCH", "x"))
-	jsaWgMESSAGE_DESCRIPTIONS = NewDiagnosticGroupWithName(jsaStr("msgDescriptions"), DiagnosticType_Disabled("JSC_MSG_HAS_NO_DESCRIPTION", "x"))
+	jsaWgACCESS_CONTROLS      *DiagnosticGroup
+	jsaWgVISIBILITY           *DiagnosticGroup
+	jsaWgDEPRECATED           *DiagnosticGroup
+	jsaWgCHECK_TYPES          *DiagnosticGroup
+	jsaWgMESSAGE_DESCRIPTIONS *DiagnosticGroup
 
 	jsaWgBAR_WARNING = DiagnosticType_Warning("BAR", "Bar description")
 
-	jsaWgVisibilityOff     = NewDiagnosticGroupWarningsGuard(jsaWgACCESS_CONTROLS, CheckLevel_OFF)
-	jsaWgVisibilityWarning = NewDiagnosticGroupWarningsGuard(jsaWgACCESS_CONTROLS, CheckLevel_WARNING)
+	jsaWgVisibilityOff     WarningsGuard
+	jsaWgVisibilityWarning WarningsGuard
 )
+
+// Go-only: language-adapter — the DiagnosticGroups static fields are assigned
+// from diagnostic_groups.go's init() (Java static initializer order), so the
+// test's static fields that read them are assigned from an init() that runs
+// after it.
+func init() {
+	jsaWgDETERMINISTIC_TEST = TypeCheck_DETERMINISTIC_TEST
+	jsaWgDEPRECATED_NAME = CheckAccessControls_DEPRECATED_NAME
+
+	jsaWgACCESS_CONTROLS = DiagnosticGroups_ACCESS_CONTROLS
+	jsaWgVISIBILITY = DiagnosticGroups_VISIBILITY
+	jsaWgDEPRECATED = DiagnosticGroups_DEPRECATED
+	jsaWgCHECK_TYPES = DiagnosticGroups_CHECK_TYPES
+	jsaWgMESSAGE_DESCRIPTIONS = DiagnosticGroups_MESSAGE_DESCRIPTIONS
+
+	jsaWgVisibilityOff = NewDiagnosticGroupWarningsGuard(DiagnosticGroups_ACCESS_CONTROLS, CheckLevel_OFF)
+	jsaWgVisibilityWarning = NewDiagnosticGroupWarningsGuard(DiagnosticGroups_ACCESS_CONTROLS, CheckLevel_WARNING)
+}
 
 func jsaWgLevelIs(t *testing.T, got *CheckLevel, want *CheckLevel, ctx ...any) {
 	t.Helper()
@@ -256,43 +271,195 @@ func TestWarningsGuard_DiagnosticGuard4(t *testing.T) {
 }
 
 func TestWarningsGuard_SuppressGuard1(t *testing.T) {
-	t.Skip("needs SuppressDocWarningsGuard, Compiler")
+	defer SkipIfPendingPort(t) // the real Compiler reaches passes not ported yet
+	m := jutil.NewLinkedHashMap[string, *DiagnosticGroup]()
+	m.Put("deprecated", NewDiagnosticGroup(jsaWgBAR_WARNING))
+	compiler := NewCompiler()
+	var guard WarningsGuard = NewSuppressDocWarningsGuard(compiler, m)
+
+	code := compiler.ParseTestCode(
+		"/** @suppress {deprecated} */ function f() { a; }\n" +
+			"function g() { b; }\n")
+	jsaWgLevelIs(t, guard.Level(JSError_MakeWithNode(code, jsaWgBAR_WARNING)), nil)
+	jsaWgLevelIs(t, guard.Level(JSError_MakeWithNode(jsaWgFindNameNode(code, "a"), jsaWgBAR_WARNING)), jsaWgOFF)
+	jsaWgLevelIs(t, guard.Level(JSError_MakeWithNode(jsaWgFindNameNode(code, "b"), jsaWgBAR_WARNING)), nil)
 }
+
 func TestWarningsGuard_SuppressGuard2(t *testing.T) {
-	t.Skip("needs SuppressDocWarningsGuard, Compiler")
+	defer SkipIfPendingPort(t) // the real Compiler reaches passes not ported yet
+	m := jutil.NewLinkedHashMap[string, *DiagnosticGroup]()
+	m.Put("deprecated", NewDiagnosticGroup(jsaWgBAR_WARNING))
+	compiler := NewCompiler()
+	var guard WarningsGuard = NewSuppressDocWarningsGuard(compiler, m)
+
+	code := compiler.ParseTestCode(
+		"/** @fileoverview \n" +
+			" * @suppress {deprecated} */ function f() { a; }\n" +
+			"function g() { b; }\n")
+	jsaWgLevelIs(t, guard.Level(JSError_MakeWithNode(jsaWgFindNameNode(code, "a"), jsaWgBAR_WARNING)), jsaWgOFF)
+	jsaWgLevelIs(t, guard.Level(JSError_MakeWithNode(jsaWgFindNameNode(code, "b"), jsaWgBAR_WARNING)), jsaWgOFF)
 }
+
 func TestWarningsGuard_SuppressGuard3(t *testing.T) {
-	t.Skip("needs SuppressDocWarningsGuard, Compiler")
+	defer SkipIfPendingPort(t) // the real Compiler reaches passes not ported yet
+	m := jutil.NewLinkedHashMap[string, *DiagnosticGroup]()
+	m.Put("deprecated", NewDiagnosticGroup(jsaWgBAR_WARNING))
+	compiler := NewCompiler()
+	var guard WarningsGuard = NewSuppressDocWarningsGuard(compiler, m)
+
+	code := compiler.ParseTestCode("/** @suppress {deprecated} */ var f = function() { a; }")
+	jsaWgLevelIs(t, guard.Level(JSError_MakeWithNode(jsaWgFindNameNode(code, "a"), jsaWgBAR_WARNING)), jsaWgOFF)
 }
+
 func TestWarningsGuard_SuppressGuard_strictMissingPropertyOnUnionTypes(t *testing.T) {
-	t.Skip("needs SuppressDocWarningsGuard, Compiler")
+	defer SkipIfPendingPort(t) // the real Compiler reaches passes not ported yet
+	compiler := NewCompiler()
+	var guard WarningsGuard = NewSuppressDocWarningsGuard(compiler, DiagnosticGroups_GetRegisteredGroups())
+
+	code := compiler.ParseTestCode(
+		"class C {}\n" +
+			"class D{}\n" +
+			"/** @type {(C|D)} */\n" +
+			"let obj;\n" +
+			"/** @suppress {strictMissingProperties} */\n" +
+			"obj.prop\n")
+	jsaWgLevelIs(t,
+		guard.Level(
+			JSError_MakeWithNode(
+				jsaWgFindGetPropNode(code, "prop"), TypeCheck_ILLEGAL_PROPERTY_CREATION_ON_UNION_TYPE)),
+		jsaWgOFF)
 }
+
 func TestWarningsGuard_SuppressGuard4(t *testing.T) {
-	t.Skip("needs SuppressDocWarningsGuard, Compiler")
+	defer SkipIfPendingPort(t) // the real Compiler reaches passes not ported yet
+	m := jutil.NewLinkedHashMap[string, *DiagnosticGroup]()
+	m.Put("deprecated", NewDiagnosticGroup(jsaWgBAR_WARNING))
+	compiler := NewCompiler()
+	var guard WarningsGuard = NewSuppressDocWarningsGuard(compiler, m)
+
+	code := compiler.ParseTestCode(
+		"var goog = {};\n" +
+			"/** @suppress {deprecated} */ goog.f = function() { a; }\n")
+	jsaWgLevelIs(t, guard.Level(JSError_MakeWithNode(jsaWgFindNameNode(code, "a"), jsaWgBAR_WARNING)), jsaWgOFF)
 }
+
 func TestWarningsGuard_SuppressGuard5(t *testing.T) {
-	t.Skip("needs SuppressDocWarningsGuard, Compiler")
+	defer SkipIfPendingPort(t) // the real Compiler reaches passes not ported yet
+	m := jutil.NewLinkedHashMap[string, *DiagnosticGroup]()
+	m.Put("deprecated", NewDiagnosticGroup(jsaWgBAR_WARNING))
+	compiler := NewCompiler()
+	var guard WarningsGuard = NewSuppressDocWarningsGuard(compiler, m)
+
+	code := compiler.ParseTestCode(
+		"var goog = {};\n" +
+			"goog.f = function() { /** @suppress {deprecated} */ (a); }\n")
+
+	jsaWgLevelIs(t, guard.Level(JSError_MakeWithNode(jsaWgFindNameNode(code, "a"), jsaWgBAR_WARNING)), jsaWgOFF)
 }
+
 func TestWarningsGuard_SuppressGuard6(t *testing.T) {
-	t.Skip("needs SuppressDocWarningsGuard, Compiler")
+	defer SkipIfPendingPort(t) // the real Compiler reaches passes not ported yet
+	m := jutil.NewLinkedHashMap[string, *DiagnosticGroup]()
+	m.Put("deprecated", NewDiagnosticGroup(jsaWgBAR_WARNING))
+	compiler := NewCompiler()
+	var guard WarningsGuard = NewSuppressDocWarningsGuard(compiler, m)
+
+	code := compiler.ParseTestCode("/** @fileoverview @suppress {deprecated} */\n console.log(a);")
+
+	jsaWgLevelIs(t, guard.Level(JSError_MakeWithNode(jsaWgFindNameNode(code, "a"), jsaWgBAR_WARNING)), jsaWgOFF)
 }
+
 func TestWarningsGuard_SuppressGuard7(t *testing.T) {
-	t.Skip("needs SuppressDocWarningsGuard, Compiler")
+	defer SkipIfPendingPort(t) // the real Compiler reaches passes not ported yet
+	m := jutil.NewLinkedHashMap[string, *DiagnosticGroup]()
+	m.Put("deprecated", NewDiagnosticGroup(jsaWgBAR_WARNING))
+	compiler := NewCompiler()
+	var guard WarningsGuard = NewSuppressDocWarningsGuard(compiler, m)
+
+	code := compiler.ParseTestCode("console.log(/** @suppress {deprecated} */ (a));")
+
+	// We don't care about @suppress annotations within nested expressions
+	jsaWgLevelIs(t, guard.Level(JSError_MakeWithNode(jsaWgFindNameNode(code, "a"), jsaWgBAR_WARNING)), nil)
 }
+
 func TestWarningsGuard_SuppressDocGuard_appliesSuppressionsOnComputedPropMethod_toPropNameExpression(t *testing.T) {
-	t.Skip("needs SuppressDocWarningsGuard, Compiler")
+	defer SkipIfPendingPort(t) // the real Compiler reaches passes not ported yet
+	m := jutil.NewLinkedHashMap[string, *DiagnosticGroup]()
+	m.Put("deprecated", NewDiagnosticGroup(jsaWgBAR_WARNING))
+
+	compiler := NewCompiler()
+	var guard WarningsGuard = NewSuppressDocWarningsGuard(compiler, m)
+
+	code := compiler.ParseTestCode(
+		"class Foo {\n" +
+			"  /** @suppress {deprecated} */\n" +
+			"  [a]() { }\n" +
+			"}\n")
+
+	jsaWgLevelIs(t, guard.Level(JSError_MakeWithNode(jsaWgFindNameNode(code, "a"), jsaWgBAR_WARNING)), jsaWgOFF)
 }
+
 func TestWarningsGuard_SuppressGuard_onCompoundAssignment(t *testing.T) {
-	t.Skip("needs SuppressDocWarningsGuard, Compiler")
+	defer SkipIfPendingPort(t) // the real Compiler reaches passes not ported yet
+	compiler := NewCompiler()
+	m := jutil.NewLinkedHashMap[string, *DiagnosticGroup]()
+	m.Put("deprecated", NewDiagnosticGroup(jsaWgBAR_WARNING))
+	var guard WarningsGuard = NewSuppressDocWarningsGuard(compiler, m)
+
+	code := compiler.ParseTestCode(
+		"var goog = {};\n" +
+			"/** @suppress {deprecated} */ goog.f += a\n")
+	jsaWgLevelIs(t, guard.Level(JSError_MakeWithNode(jsaWgFindNameNode(code, "a"), jsaWgBAR_WARNING)), jsaWgOFF)
 }
+
 func TestWarningsGuard_SuppressGuard_onDetachedNode(t *testing.T) {
-	t.Skip("needs SuppressDocWarningsGuard, Compiler")
+	defer SkipIfPendingPort(t) // the real Compiler reaches passes not ported yet
+	compiler := NewCompiler()
+	m := jutil.NewLinkedHashMap[string, *DiagnosticGroup]()
+	m.Put("deprecated", NewDiagnosticGroup(jsaWgBAR_WARNING))
+	var guard WarningsGuard = NewSuppressDocWarningsGuard(compiler, m)
+
+	code := compiler.ParseTestCode("/** @fileoverview @suppress {deprecated} */\n\nvar x;")
+	// Create an error that has the right source file, but no parents.
+	// This is the state of JSDoc nodes.
+	error := jsaWgMakeError(code.GetSourceFileName())
+	jsaWgLevelIs(t, guard.Level(error), jsaWgOFF)
 }
 
 func TestWarningsGuard_ComposeGuardCycle(t *testing.T) {
 	guard := NewComposeWarningsGuard(jsaWgVisibilityOff, jsaWgVisibilityWarning)
 	guard.AddGuard(guard)
 	jsaEq(t, guard.String(), "DiagnosticGroup<visibility>(WARNING), DiagnosticGroup<visibility>(OFF)")
+}
+
+// Java: WarningsGuardTest.findNameNode(Node, String)
+func jsaWgFindNameNode(root *rhino.Node, name string) *rhino.Node {
+	if root.IsName() && root.GetString() == name {
+		return root
+	}
+
+	for n := root.GetFirstChild(); n != nil; n = n.GetNext() {
+		result := jsaWgFindNameNode(n, name)
+		if result != nil {
+			return result
+		}
+	}
+	return nil
+}
+
+// Java: WarningsGuardTest.findGetPropNode(Node, String)
+func jsaWgFindGetPropNode(root *rhino.Node, name string) *rhino.Node {
+	if root.IsGetProp() && root.GetString() == name {
+		return root
+	}
+
+	for n := root.GetFirstChild(); n != nil; n = n.GetNext() {
+		result := jsaWgFindGetPropNode(n, name)
+		if result != nil {
+			return result
+		}
+	}
+	return nil
 }
 
 func jsaWgMakeError(sourcePath *string) *JSError {

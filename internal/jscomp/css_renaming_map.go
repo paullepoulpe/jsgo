@@ -18,6 +18,10 @@
 
 package jscomp
 
+import (
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
+
 // CssRenamingMap is the interface used by ReplaceCssNames to substitute
 // CSS class names.
 type CssRenamingMap interface {
@@ -50,6 +54,17 @@ func (s CssRenamingMap_Style) String() string { return s.Name() }
 
 // Ordinal is Enum.ordinal().
 func (s CssRenamingMap_Style) Ordinal() int { return int(s) }
+
+// CssRenamingMap_Style_ValueOf is Style.valueOf(String).
+func CssRenamingMap_Style_ValueOf(name string) CssRenamingMap_Style {
+	for i, n := range cssRenamingMap_Style_names {
+		if n == name {
+			return CssRenamingMap_Style(i)
+		}
+	}
+	panic(jutil.NewIllegalArgumentExceptionMsg(
+		"No enum constant com.google.javascript.jscomp.CssRenamingMap.Style." + name))
+}
 
 // CssRenamingMap_ByPart is the ByPart renaming map: an abstract class whose
 // subclasses embed CssRenamingMap_ByPartBase and implement Get.

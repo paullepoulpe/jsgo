@@ -192,6 +192,9 @@ func (r *renderer) class(w *bytes.Buffer, p *PClass) {
 				label = r.javaSig(&methodRef{owner: c, m: ref.m, index: ref.index})
 			}
 			fmt.Fprintf(w, "// Java: %s\nfunc (%s) %s(%s)%s {\n\tpanic(&PendingPort{Signature: %s})\n}\n\n", label, recv, m.goName, params, results, strconv.Quote(label))
+		case MAsAdapter:
+			label := g.javaClassLabel(c) + " as " + javaDotted(m.asType)
+			fmt.Fprintf(w, "// Go-only: language-adapter — %s\nfunc (%s) %s() %s {\n\tpanic(&PendingPort{Signature: %s})\n}\n\n", label, recv, m.goName, r.goType(&JType{Kind: JClass, Class: m.asType}), strconv.Quote(label))
 		}
 	}
 }

@@ -1,0 +1,1 @@
+DEF=false;var b=false,/** @define {boolean} */DEF=true,c=false

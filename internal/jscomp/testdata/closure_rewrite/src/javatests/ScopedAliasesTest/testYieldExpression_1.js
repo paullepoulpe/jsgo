@@ -1,0 +1,1 @@
+var $jscomp$scope$m1146332801$0$f = function*() {yield goog.bar;};

@@ -1,0 +1,1 @@
+function tag(...a) {}; tag`hello`;

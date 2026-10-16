@@ -1,0 +1,1 @@
+goog.scope(function(a, b, c) {})

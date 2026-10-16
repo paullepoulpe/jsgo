@@ -1,0 +1,1 @@
+let goog$formatter=function(){}; goog$formatter$inherits(goog$debug$FormatterFoo)

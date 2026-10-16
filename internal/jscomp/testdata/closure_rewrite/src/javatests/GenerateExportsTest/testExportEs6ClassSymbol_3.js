@@ -1,0 +1,1 @@
+/** @export */ G = class {}; goog.exportSymbol('G', G); foo();

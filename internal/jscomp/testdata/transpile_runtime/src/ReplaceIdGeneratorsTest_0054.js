@@ -1,0 +1,1 @@
+/** @idGenerator {consistent} */ cid = function() {}; f1 = cid('f1'); f1 = cid('f1')

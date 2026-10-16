@@ -1,0 +1,1 @@
+foo.bar = 'foo_bar$0'

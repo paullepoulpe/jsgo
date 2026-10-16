@@ -1,0 +1,1 @@
+foo.bar = {a: id('foo')}

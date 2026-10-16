@@ -1,0 +1,1 @@
+/** @define {boolean} */ const DEF = true

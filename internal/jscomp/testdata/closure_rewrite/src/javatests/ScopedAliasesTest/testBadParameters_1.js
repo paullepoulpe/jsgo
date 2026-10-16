@@ -1,0 +1,1 @@
+goog.scope(10)

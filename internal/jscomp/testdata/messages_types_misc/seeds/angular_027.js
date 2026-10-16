@@ -1,0 +1,1 @@
+class FnClass {/** @ngInject */ constructor(a, b) {}}

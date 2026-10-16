@@ -1,0 +1,1 @@
+/** @constructor */ var a = function() {}; goog.exportSymbol('foobar', a)

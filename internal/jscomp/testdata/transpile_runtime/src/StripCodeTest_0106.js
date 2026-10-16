@@ -1,0 +1,1 @@
+const x = (0, goog.log.getLogger)('a.b.c');

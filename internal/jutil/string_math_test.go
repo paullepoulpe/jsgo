@@ -33,7 +33,7 @@ func doubleFromBits(t *testing.T, s string) float64 {
 	return math.Float64frombits(b)
 }
 
-func TestJavaMathMatchesJava(t *testing.T) {
+func TestStringMathVectorsMatchJava(t *testing.T) {
 	for _, r := range stringMathRows(t, "round", 1000) {
 		a := doubleFromBits(t, r[0])
 		want, err := strconv.ParseInt(r[1], 10, 64)

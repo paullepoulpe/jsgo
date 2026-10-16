@@ -1,0 +1,1 @@
+alert(goog.module('ns.a'));

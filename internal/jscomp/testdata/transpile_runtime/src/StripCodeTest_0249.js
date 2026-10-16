@@ -1,0 +1,1 @@
+var x = function() {}; var y = {}; x(y[null]);

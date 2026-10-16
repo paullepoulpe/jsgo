@@ -1,0 +1,1 @@
+DEF=false;const b=false,/** @define {boolean} */DEF=true,c=false

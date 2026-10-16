@@ -75,5 +75,14 @@ func (mm *SetMultimap[K, V]) Entries() iter.Seq2[K, V] {
 	}
 }
 
+// Values lists the values of Entries(), in that order (Multimap.values()).
+func (mm *SetMultimap[K, V]) Values() []V {
+	out := make([]V, 0, mm.size)
+	for _, v := range mm.Entries() {
+		out = append(out, v)
+	}
+	return out
+}
+
 // String renders like Multimap.toString(): "{k1=[v1, v2], k2=[v3]}".
 func (mm *SetMultimap[K, V]) String() string { return mm.m.String() }

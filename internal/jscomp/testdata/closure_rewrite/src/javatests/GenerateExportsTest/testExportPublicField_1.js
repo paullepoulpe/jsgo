@@ -1,0 +1,1 @@
+class Bar { /** @export */ MSG = 'str'; }

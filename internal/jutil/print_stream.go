@@ -1,6 +1,9 @@
 package jutil
 
-import "io"
+import (
+	"io"
+	"os"
+)
 
 // Go-only: language-adapter — java.io.PrintStream over a Go io.Writer,
 // encoding with UTF-8 (unpaired surrogates become '?', as the JDK encoder
@@ -80,4 +83,38 @@ func (p *PrintStream) Flush() {
 func (p *PrintStream) CheckError() bool {
 	p.Flush()
 	return p.trouble
+}
+
+// Write is PrintStream.write(byte[]) (which PrintStream inherits from
+// FilterOutputStream and implements with write(byte[], int, int)): the
+// bytes are written unchanged and, as PrintStream never throws, an I/O error
+// only sets the flag that CheckError reports. It makes a *PrintStream an
+// io.Writer, for code taking an OutputStream.
+func (p *PrintStream) Write(b []byte) (int, error) {
+	if _, err := p.out.Write(b); err != nil {
+		p.trouble = true
+	}
+	return len(b), nil
+}
+
+// NewPrintStreamFromFile is new PrintStream(File): it creates (or
+// truncates) the file, and panics with FileNotFoundException when it cannot.
+func NewPrintStreamFromFile(file *File) *PrintStream {
+	f, err := os.OpenFile(file.GetPath(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666)
+	if err != nil {
+		panic(FileNotFoundExceptionFromError(err, file.GetPath()))
+	}
+	return NewPrintStream(f)
+}
+
+// Close is PrintStream.close(): flushes the stream and closes the
+// underlying stream, if it can be closed. Like PrintStream, it never
+// throws.
+func (p *PrintStream) Close() {
+	p.Flush()
+	if c, ok := p.out.(io.Closer); ok {
+		if err := c.Close(); err != nil {
+			p.trouble = true
+		}
+	}
 }

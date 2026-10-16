@@ -1,0 +1,1808 @@
+# file const_module.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+ERROR JSC_UNDEFINED_VARIABLE const_module.js:1:0 @0+4 variable goog is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 32] [feature_set: []]
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME goog
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+## ConstCheck
+WARNING JSC_CONSTANT_REASSIGNED_VALUE_ERROR const_module.js:3:0 @31+11 constant exports assigned a value more than once.\u000aOriginal definition at const_module.js
+WARNING JSC_CONSTANT_REASSIGNED_VALUE_ERROR const_module.js:5:0 @57+5 constant x assigned a value more than once.\u000aOriginal definition at const_module.js:4
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file consts.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+ERROR JSC_UNDEFINED_VARIABLE consts.js:10:0 @127+3 variable FOO is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 32] [feature_set: []]
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME FOO [is_constant_name: 1]
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+## ConstCheck
+WARNING JSC_CONSTANT_REASSIGNED_VALUE_ERROR consts.js:2:0 @13+5 constant a assigned a value more than once.\u000aOriginal definition at consts.js:1
+WARNING JSC_CONSTANT_REASSIGNED_VALUE_ERROR consts.js:3:0 @20+3 constant a assigned a value more than once.\u000aOriginal definition at consts.js:1
+WARNING JSC_CONSTANT_REASSIGNED_VALUE_ERROR consts.js:11:0 @136+7 constant FOO assigned a value more than once.\u000aOriginal definition at null:-1
+WARNING JSC_CONSTANT_REASSIGNED_VALUE_ERROR consts.js:14:28 @200+5 constant e assigned a value more than once.\u000aOriginal definition at consts.js:14
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file debugger.js
+## parse
+## CheckDebuggerStatement
+WARNING JSC_DEBUGGER_STATEMENT_PRESENT debugger.js:1:15 @15+9 Using the debugger statement can halt your application if the user has a JavaScript debugger running.\u000aTo disable this check when you want to do debugging, you can suppress this message like this:\u000a  /** @suppress {checkDebuggerStatement} */\u000a  debugger;
+WARNING JSC_DEBUGGER_STATEMENT_PRESENT debugger.js:2:0 @27+9 Using the debugger statement can halt your application if the user has a JavaScript debugger running.\u000aTo disable this check when you want to do debugging, you can suppress this message like this:\u000a  /** @suppress {checkDebuggerStatement} */\u000a  debugger;
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 31] [feature_set: []]
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+## ConstCheck
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file dynamic_import.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 31] [feature_set: []]
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+## ConstCheck
+## VarCheckValidity
+## ForbidDynamicImportUsage
+ERROR JSC_DYNAMIC_IMPORT_USAGE dynamic_import.js:1:0 @0+18 Dynamic import expressions cannot be transpiled.
+ERROR JSC_DYNAMIC_IMPORT_USAGE dynamic_import.js:2:37 @57+13 Dynamic import expressions cannot be transpiled.
+# file es_module.js
+## parse
+## CheckDebuggerStatement
+WARNING JSC_DEBUGGER_STATEMENT_PRESENT es_module.js:8:0 @165+9 Using the debugger statement can halt your application if the user has a JavaScript debugger running.\u000aTo disable this check when you want to do debugging, you can suppress this message like this:\u000a  /** @suppress {checkDebuggerStatement} */\u000a  debugger;
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+ERROR JSC_UNDEFINED_VARIABLE es_module.js:4:8 @87+5 variable undef is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 32] [feature_set: []]
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME undef
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+## ConstCheck
+WARNING JSC_CONSTANT_REASSIGNED_VALUE_ERROR es_module.js:7:0 @158+5 constant k assigned a value more than once.\u000aOriginal definition at es_module.js:6
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file externs_like.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+ERROR JSC_VAR_MULTIPLY_DECLARED_ERROR externs_like.js:11:4 @247+2 Variable ns declared more than once. First occurrence: externs_like.js:1:18
+ERROR JSC_UNDEFINED_VARIABLE externs_like.js:3:8 @65+1 variable b is undeclared
+ERROR JSC_UNDEFINED_VARIABLE externs_like.js:4:13 @81+3 variable foo is undeclared
+ERROR JSC_UNDEFINED_VARIABLE externs_like.js:5:25 @111+5 variable Other is undeclared
+ERROR JSC_UNDEFINED_VARIABLE externs_like.js:6:0 @118+13 variable undefinedName is undeclared
+ERROR JSC_UNDEFINED_VARIABLE externs_like.js:7:0 @142+4 variable goog is undeclared
+ERROR JSC_UNDEFINED_VARIABLE externs_like.js:8:15 @185+1 variable q is undeclared
+ERROR JSC_UNDEFINED_VARIABLE externs_like.js:9:17 @208+3 variable obj is undeclared
+ERROR JSC_UNDEFINED_VARIABLE externs_like.js:10:25 @238+3 variable arr is undeclared
+ERROR JSC_UNDEFINED_VARIABLE externs_like.js:12:6 @257+1 variable z is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 40] [feature_set: []]
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME b
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME foo
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME Other
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME undefinedName
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME goog
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME q
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME obj
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME arr
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME z
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+## ConstCheck
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file global_this.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+WARNING JSC_USED_GLOBAL_THIS global_this.js:1:0 @0+4 dangerous use of the global this object
+WARNING JSC_USED_GLOBAL_THIS global_this.js:2:8 @20+4 dangerous use of the global this object
+WARNING JSC_USED_GLOBAL_THIS global_this.js:3:15 @43+4 dangerous use of the global this object
+WARNING JSC_USED_GLOBAL_THIS global_this.js:6:25 @175+4 dangerous use of the global this object
+WARNING JSC_USED_GLOBAL_THIS global_this.js:7:5 @196+4 dangerous use of the global this object
+WARNING JSC_USED_GLOBAL_THIS global_this.js:8:18 @227+4 dangerous use of the global this object
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+ERROR JSC_UNDEFINED_VARIABLE global_this.js:13:0 @472+3 variable foo is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 32] [feature_set: []]
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME foo
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+## ConstCheck
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file goog_scope.js
+## parse
+## CheckDebuggerStatement
+WARNING JSC_DEBUGGER_STATEMENT_PRESENT goog_scope.js:5:2 @73+9 Using the debugger statement can halt your application if the user has a JavaScript debugger running.\u000aTo disable this check when you want to do debugging, you can suppress this message like this:\u000a  /** @suppress {checkDebuggerStatement} */\u000a  debugger;
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+ERROR JSC_UNDEFINED_VARIABLE goog_scope.js:1:0 @0+4 variable goog is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 32] [feature_set: []]
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME goog
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+## ConstCheck
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file j2cl.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+ERROR JSC_UNDEFINED_VARIABLE j2cl.js:1:8 @8+1 variable x is undeclared
+ERROR JSC_UNDEFINED_VARIABLE j2cl.js:1:14 @14+1 variable y is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 33] [feature_set: []]
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME x
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME y
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+## ConstCheck
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file misc.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+WARNING JSC_USED_GLOBAL_THIS misc.js:8:6 @189+4 dangerous use of the global this object
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+ERROR JSC_UNDEFINED_VARIABLE misc.js:2:20 @34+1 variable x is undeclared
+ERROR JSC_UNDEFINED_VARIABLE misc.js:3:31 @70+5 variable other is undeclared
+ERROR JSC_UNDEFINED_VARIABLE misc.js:4:21 @102+6 variable Object is undeclared
+ERROR JSC_UNDEFINED_VARIABLE misc.js:4:36 @117+1 variable o is undeclared
+ERROR JSC_UNDEFINED_VARIABLE misc.js:4:42 @123+3 variable use is undeclared
+ERROR JSC_UNDEFINED_VARIABLE misc.js:7:6 @180+1 variable y is undeclared
+ERROR JSC_UNDEFINED_VARIABLE misc.js:10:48 @310+4 variable comp is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 37] [feature_set: []]
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME x
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME other
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME Object
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME o
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME use
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME y
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME comp
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+## ConstCheck
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file missing_return.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+ERROR JSC_UNDEFINED_VARIABLE missing_return.js:4:49 @226+5 variable Error is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 31] [feature_set: []]
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME Error
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+## ConstCheck
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file parse_error.js
+## parse
+ERROR JSC_PARSE_ERROR parse_error.js:1:9 @-1+0 Parse error. primary expression expected
+# parse-errors
+# file regexp.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+WARNING JSC_REGEXP_REFERENCE regexp.js:1:8 @8+6 References to the global RegExp object prevents optimization of regular expressions.
+WARNING JSC_REGEXP_REFERENCE regexp.js:2:0 @16+6 References to the global RegExp object prevents optimization of regular expressions.
+WARNING JSC_MALFORMED_REGEXP regexp.js:9:9 @140+5 Malformed Regular Expression: Unclosed parenthetical group: (b
+WARNING JSC_MALFORMED_REGEXP regexp.js:10:11 @158+7 Malformed Regular Expression: 122 > 97
+= globalRegExpPropertiesUsed=true
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+ERROR JSC_UNDEFINED_VARIABLE regexp.js:1:8 @8+6 variable RegExp is undeclared
+ERROR JSC_UNDEFINED_VARIABLE regexp.js:6:0 @69+1 variable x is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 32] [feature_set: []]
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME RegExp
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME x
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+## ConstCheck
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file strict.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+WARNING JSC_USE_OF_WITH strict.js:1:0 @0+11 The with statement cannot be used in strict mode.
+WARNING JSC_ARGUMENTS_ASSIGNMENT strict.js:7:22 @152+13 the "arguments" object cannot be reassigned in strict mode
+WARNING JSC_EVAL_ASSIGNMENT strict.js:7:37 @167+8 the "eval" object cannot be reassigned in strict mode
+WARNING JSC_DELETE_VARIABLE strict.js:9:7 @197+8 variables, functions, and arguments cannot be deleted in strict mode
+WARNING JSC_DUPLICATE_MEMBER strict.js:12:58 @338+1 Class or object literal contains duplicate member "c". In non-strict code, the last duplicate will overwrite the others.
+WARNING JSC_DUPLICATE_MEMBER strict.js:12:58 @338+1 Class or object literal contains duplicate member "c". In non-strict code, the last duplicate will overwrite the others.
+WARNING JSC_DUPLICATE_MEMBER strict.js:12:25 @305+1 Class or object literal contains duplicate member "b". In non-strict code, the last duplicate will overwrite the others.
+WARNING JSC_DUPLICATE_MEMBER strict.js:12:9 @289+1 Class or object literal contains duplicate member "a". In non-strict code, the last duplicate will overwrite the others.
+WARNING JSC_DUPLICATE_MEMBER strict.js:12:9 @289+1 Class or object literal contains duplicate member "a". In non-strict code, the last duplicate will overwrite the others.
+WARNING JSC_DUPLICATE_MEMBER strict.js:13:53 @398+1 Class or object literal contains duplicate member "n". In non-strict code, the last duplicate will overwrite the others.
+WARNING JSC_DUPLICATE_MEMBER strict.js:13:10 @355+1 Class or object literal contains duplicate member "m". In non-strict code, the last duplicate will overwrite the others.
+WARNING JSC_DUPLICATE_MEMBER strict.js:13:10 @355+1 Class or object literal contains duplicate member "m". In non-strict code, the last duplicate will overwrite the others.
+WARNING JSC_EVAL_DECLARATION strict.js:3:4 @52+4 "eval" cannot be redeclared in strict mode
+WARNING JSC_ARGUMENTS_DECLARATION strict.js:4:9 @67+9 "arguments" cannot be redeclared in strict mode
+WARNING JSC_EVAL_DECLARATION strict.js:5:11 @93+4 "eval" cannot be redeclared in strict mode
+WARNING JSC_ARGUMENTS_DECLARATION strict.js:6:14 @116+9 "arguments" cannot be redeclared in strict mode
+WARNING JSC_ARGUMENTS_CALLEE_FORBIDDEN strict.js:11:32 @251+6 "arguments.callee" cannot be used in strict mode
+WARNING JSC_ARGUMENTS_CALLER_FORBIDDEN strict.js:11:51 @270+6 "arguments.caller" cannot be used in strict mode
+## SourceInfoCheck
+## CheckUnreachableCode
+WARNING JSC_UNREACHABLE_CODE strict.js:6:7 @109+20 unreachable code
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+ERROR JSC_UNDEFINED_VARIABLE strict.js:1:6 @6+1 variable a is undeclared
+ERROR JSC_UNDEFINED_VARIABLE strict.js:2:30 @42+1 variable b is undeclared
+ERROR JSC_UNDEFINED_VARIABLE strict.js:8:7 @187+1 variable x is undeclared
+ERROR JSC_UNDEFINED_VARIABLE strict.js:12:58 @338+1 variable c is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 35] [feature_set: []]
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME a
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME b
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME x
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME c
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+## ConstCheck
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file super.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+ERROR JSC_THIS_BEFORE_SUPER super.js:3:18 @49+4 cannot access this before calling super()
+ERROR JSC_SUPER_ACCESS_BEFORE_SUPER_CONSTRUCTOR super.js:6:18 @112+5 cannot access super properties before calling super()
+ERROR JSC_MISSING_CALL_TO_SUPER super.js:9:2 @160+11 constructor is missing a call to super()
+ERROR JSC_INVALID_SUPER_CALL super.js:15:18 @261+5 super() not allowed except in the constructor of a subclass
+ERROR JSC_INVALID_SUPER_CALL_WITH_SUGGESTION super.js:16:13 @285+5 super() not allowed here. Did you mean super.method?
+ERROR JSC_INVALID_SUPER_CALL_WITH_SUGGESTION super.js:17:12 @308+5 super() not allowed here. Did you mean super.g?
+ERROR JSC_INVALID_SUPER_CALL super.js:18:17 @346+5 super() not allowed except in the constructor of a subclass
+ERROR JSC_SUPER_CALL_IN_ARROW super.js:21:34 @413+5 closure-compiler does not allow calls to `super()` in arrow functions
+ERROR JSC_SUPER_ACCESS_BEFORE_SUPER_CONSTRUCTOR super.js:24:34 @485+5 cannot access super properties before calling super()
+ERROR JSC_INVALID_SUPER_CALL super.js:26:25 @532+5 super() not allowed except in the constructor of a subclass
+ERROR JSC_INVALID_SUPER_ACCESS super.js:27:19 @565+5 'super' may only be accessed within a method
+ERROR JSC_INVALID_SUPER_CALL super.js:27:28 @574+5 super() not allowed except in the constructor of a subclass
+ERROR JSC_INVALID_SUPER_ACCESS super.js:28:0 @585+5 'super' may only be accessed within a method
+ERROR JSC_INVALID_SUPER_CALL super.js:29:55 @649+5 super() not allowed except in the constructor of a subclass
+ERROR JSC_INVALID_SUPER_USAGE super.js:31:23 @771+5 'super' may only be used in a call or property access
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+ERROR JSC_UNDEFINED_VARIABLE super.js:18:3 @332+8 variable computed is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 32] [feature_set: []]
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME computed
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+## ConstCheck
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file suspicious.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+WARNING JSC_SUSPICIOUS_SEMICOLON suspicious.js:1:6 @6+1 If this if/for/while really shouldn't have a body, use {}
+WARNING JSC_SUSPICIOUS_SEMICOLON suspicious.js:2:14 @29+1 If this if/for/while really shouldn't have a body, use {}
+WARNING JSC_SUSPICIOUS_SEMICOLON suspicious.js:3:9 @40+1 If this if/for/while really shouldn't have a body, use {}
+WARNING JSC_SUSPICIOUS_SEMICOLON suspicious.js:4:8 @50+1 If this if/for/while really shouldn't have a body, use {}
+WARNING JSC_SUSPICIOUS_SEMICOLON suspicious.js:5:16 @68+1 If this if/for/while really shouldn't have a body, use {}
+WARNING JSC_SUSPICIOUS_SEMICOLON suspicious.js:6:16 @86+1 If this if/for/while really shouldn't have a body, use {}
+WARNING JSC_SUSPICIOUS_SEMICOLON suspicious.js:7:44 @132+1 If this if/for/while really shouldn't have a body, use {}
+WARNING JSC_SUSPICIOUS_NAN suspicious.js:8:4 @140+8 Comparison against NaN is always false. Did you mean isNaN()?
+WARNING JSC_SUSPICIOUS_NAN suspicious.js:9:4 @157+9 Comparison against NaN is always false. Did you mean isNaN()?
+WARNING JSC_SUSPICIOUS_NAN suspicious.js:10:4 @175+14 Comparison against NaN is always false. Did you mean isNaN()?
+WARNING JSC_SUSPICIOUS_IN suspicious.js:11:4 @198+8 Use of the "in" keyword on non-object types throws an exception.
+WARNING JSC_SUSPICIOUS_INSTANCEOF_LEFT suspicious.js:12:4 @215+19 "instanceof" with left non-object operand is always false.
+WARNING JSC_SUSPICIOUS_NEGATED_LEFT_OPERAND_OF_IN_OPERATOR suspicious.js:14:4 @268+2 Suspicious negated left operand of in operator.
+WARNING JSC_SUSPICIOUS_LEFT_OPERAND_OF_LOGICAL_OPERATOR suspicious.js:15:9 @289+11 Left operand of && operator is always truthy.
+WARNING JSC_SUSPICIOUS_LEFT_OPERAND_OF_LOGICAL_OPERATOR suspicious.js:16:9 @311+8 Left operand of || operator is always falsy.
+WARNING JSC_SUSPICIOUS_LEFT_OPERAND_OF_LOGICAL_OPERATOR suspicious.js:17:9 @330+16 Left operand of && operator is always falsy.
+WARNING JSC_SUSPICIOUS_LEFT_OPERAND_OF_LOGICAL_OPERATOR suspicious.js:18:9 @357+16 Left operand of || operator is always truthy.
+WARNING JSC_SUSPICIOUS_LEFT_OPERAND_OF_LOGICAL_OPERATOR suspicious.js:19:9 @384+18 Left operand of || operator is always truthy.
+WARNING JSC_SUSPICIOUS_LEFT_OPERAND_OF_LOGICAL_OPERATOR suspicious.js:20:9 @413+8 Left operand of && operator is always falsy.
+WARNING SUSPICIOUS_BREAKING_OUT_OF_OPTIONAL_CHAIN suspicious.js:21:13 @436+1 Suspicious breaking out of optional chain. May result in TypeError if optional chain is undefined.
+WARNING SUSPICIOUS_BREAKING_OUT_OF_OPTIONAL_CHAIN suspicious.js:22:13 @455+1 Suspicious breaking out of optional chain. May result in TypeError if optional chain is undefined.
+WARNING SUSPICIOUS_BREAKING_OUT_OF_OPTIONAL_CHAIN suspicious.js:23:10 @471+6 Suspicious breaking out of optional chain. May result in TypeError if optional chain is undefined.
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+WARNING JSC_UNREACHABLE_CODE suspicious.js:5:0 @52+17 unreachable code
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+ERROR JSC_UNDEFINED_VARIABLE suspicious.js:1:4 @4+1 variable x is undeclared
+ERROR JSC_UNDEFINED_VARIABLE suspicious.js:1:8 @8+3 variable act is undeclared
+ERROR JSC_UNDEFINED_VARIABLE suspicious.js:5:14 @66+1 variable o is undeclared
+ERROR JSC_UNDEFINED_VARIABLE suspicious.js:8:9 @145+3 variable NaN is undeclared
+ERROR JSC_UNDEFINED_VARIABLE suspicious.js:9:12 @165+1 variable y is undeclared
+ERROR JSC_UNDEFINED_VARIABLE suspicious.js:10:8 @179+6 variable Number is undeclared
+ERROR JSC_UNDEFINED_VARIABLE suspicious.js:12:17 @228+6 variable Object is undeclared
+ERROR JSC_UNDEFINED_VARIABLE suspicious.js:15:17 @297+1 variable f is undeclared
+ERROR JSC_UNDEFINED_VARIABLE suspicious.js:17:10 @331+1 variable a is undeclared
+ERROR JSC_UNDEFINED_VARIABLE suspicious.js:17:24 @345+1 variable b is undeclared
+ERROR JSC_UNDEFINED_VARIABLE suspicious.js:23:18 @479+1 variable c is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 39] [feature_set: []]
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME x
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME act
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME o
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME NaN
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME y
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME Number
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME Object
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME f
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME a
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME b
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME c
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+## ConstCheck
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file type_import.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+ERROR JSC_TYPE_IMPORT_CODE_REFERENCE type_import.js:6:4 @163+3 Cannot reference goog.requireType()'d name Foo outside of a type annotation.
+ERROR JSC_TYPE_IMPORT_CODE_REFERENCE type_import.js:7:0 @170+3 Cannot reference goog.requireType()'d name Bar outside of a type annotation.
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+ERROR JSC_UNDEFINED_VARIABLE type_import.js:1:0 @0+4 variable goog is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 32] [feature_set: []]
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME goog
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+## ConstCheck
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file typeof_dup.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 31] [feature_set: []]
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+## ConstCheck
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file unreachable.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+WARNING JSC_UNREACHABLE_CODE unreachable.js:1:23 @23+10 unreachable code
+WARNING JSC_UNREACHABLE_CODE unreachable.js:2:24 @60+6 unreachable code
+WARNING JSC_UNREACHABLE_CODE unreachable.js:3:31 @100+6 unreachable code
+WARNING JSC_UNREACHABLE_CODE unreachable.js:4:26 @135+10 unreachable code
+WARNING JSC_UNREACHABLE_CODE unreachable.js:10:39 @437+12 unreachable code
+WARNING JSC_UNREACHABLE_CODE unreachable.js:11:28 @480+7 unreachable code
+WARNING JSC_UNREACHABLE_CODE unreachable.js:12:64 @555+7 unreachable code
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+ERROR JSC_UNDEFINED_VARIABLE unreachable.js:2:24 @60+3 variable foo is undeclared
+ERROR JSC_UNDEFINED_VARIABLE unreachable.js:3:31 @100+3 variable bar is undeclared
+ERROR JSC_UNDEFINED_VARIABLE unreachable.js:4:28 @137+3 variable baz is undeclared
+ERROR JSC_UNDEFINED_VARIABLE unreachable.js:5:35 @183+3 variable qux is undeclared
+ERROR JSC_UNDEFINED_VARIABLE unreachable.js:6:47 @239+4 variable quux is undeclared
+ERROR JSC_UNDEFINED_VARIABLE unreachable.js:8:23 @301+1 variable x is undeclared
+ERROR JSC_UNDEFINED_VARIABLE unreachable.js:9:41 @374+7 variable cleanup is undeclared
+ERROR JSC_UNDEFINED_VARIABLE unreachable.js:9:54 @387+5 variable after is undeclared
+ERROR JSC_UNDEFINED_VARIABLE unreachable.js:10:41 @439+5 variable other is undeclared
+ERROR JSC_UNDEFINED_VARIABLE unreachable.js:11:28 @480+4 variable dead is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 41] [feature_set: []]
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME foo
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME bar
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME baz
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME qux
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME quux
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME x
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME cleanup
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME after
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME other
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME dead
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+## ConstCheck
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file vars.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+WARNING JSC_ARGUMENTS_DECLARATION vars.js:9:19 @192+9 "arguments" cannot be redeclared in strict mode
+## SourceInfoCheck
+## CheckUnreachableCode
+WARNING JSC_UNREACHABLE_CODE vars.js:18:7 @470+14 unreachable code
+WARNING JSC_UNREACHABLE_CODE vars.js:18:29 @492+14 unreachable code
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+ERROR JSC_VAR_MULTIPLY_DECLARED_ERROR vars.js:6:11 @124+1 Variable c declared more than once. First occurrence: vars.js:6:4
+ERROR JSC_BLOCK_SCOPED_DECL_MULTIPLY_DECLARED_ERROR vars.js:7:11 @138+1 Block-scoped variable d declared more than once. First occurrence: vars.js:7:4
+ERROR JSC_VAR_MULTIPLY_DECLARED_ERROR vars.js:8:25 @166+1 Variable e declared more than once. First occurrence: vars.js:8:9
+ERROR JSC_UNDEFINED_VARIABLE vars.js:1:0 @0+1 variable x is undeclared
+ERROR JSC_UNDEFINED_VARIABLE vars.js:2:8 @15+1 variable z is undeclared
+ERROR JSC_UNDEFINED_VARIABLE vars.js:3:22 @40+1 variable w is undeclared
+ERROR JSC_UNDEFINED_VARIABLE vars.js:5:23 @110+1 variable a is undeclared
+ERROR JSC_UNDEFINED_VARIABLE vars.js:11:18 @248+3 variable BAR is undeclared
+ERROR JSC_UNDEFINED_VARIABLE vars.js:14:20 @340+6 variable spread is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 38] [feature_set: []]
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME x
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME z
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME w
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME undeclared
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME a
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME BAR [is_constant_name: 1]
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME spread
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+## ConstCheck
+WARNING JSC_CONSTANT_REASSIGNED_VALUE_ERROR vars.js:11:27 @257+7 constant BAR assigned a value more than once.\u000aOriginal definition at null:-1
+## VarCheckValidity
+## ForbidDynamicImportUsage

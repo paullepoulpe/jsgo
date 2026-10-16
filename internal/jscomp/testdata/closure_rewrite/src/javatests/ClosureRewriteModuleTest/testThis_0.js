@@ -1,0 +1,2 @@
+goog.module('a');
+this;

@@ -1,0 +1,4981 @@
+simple	41	41	61
+simple	42	42	62
+simple	43	43	63
+simple	44	44	64
+simple	45	45	65
+simple	46	46	66
+simple	47	47	67
+simple	48	48	68
+simple	49	49	69
+simple	4a	4a	6a
+simple	4b	4b	6b
+simple	4c	4c	6c
+simple	4d	4d	6d
+simple	4e	4e	6e
+simple	4f	4f	6f
+simple	50	50	70
+simple	51	51	71
+simple	52	52	72
+simple	53	53	73
+simple	54	54	74
+simple	55	55	75
+simple	56	56	76
+simple	57	57	77
+simple	58	58	78
+simple	59	59	79
+simple	5a	5a	7a
+simple	61	41	61
+simple	62	42	62
+simple	63	43	63
+simple	64	44	64
+simple	65	45	65
+simple	66	46	66
+simple	67	47	67
+simple	68	48	68
+simple	69	49	69
+simple	6a	4a	6a
+simple	6b	4b	6b
+simple	6c	4c	6c
+simple	6d	4d	6d
+simple	6e	4e	6e
+simple	6f	4f	6f
+simple	70	50	70
+simple	71	51	71
+simple	72	52	72
+simple	73	53	73
+simple	74	54	74
+simple	75	55	75
+simple	76	56	76
+simple	77	57	77
+simple	78	58	78
+simple	79	59	79
+simple	7a	5a	7a
+simple	b5	39c	b5
+simple	c0	c0	e0
+simple	c1	c1	e1
+simple	c2	c2	e2
+simple	c3	c3	e3
+simple	c4	c4	e4
+simple	c5	c5	e5
+simple	c6	c6	e6
+simple	c7	c7	e7
+simple	c8	c8	e8
+simple	c9	c9	e9
+simple	ca	ca	ea
+simple	cb	cb	eb
+simple	cc	cc	ec
+simple	cd	cd	ed
+simple	ce	ce	ee
+simple	cf	cf	ef
+simple	d0	d0	f0
+simple	d1	d1	f1
+simple	d2	d2	f2
+simple	d3	d3	f3
+simple	d4	d4	f4
+simple	d5	d5	f5
+simple	d6	d6	f6
+simple	d8	d8	f8
+simple	d9	d9	f9
+simple	da	da	fa
+simple	db	db	fb
+simple	dc	dc	fc
+simple	dd	dd	fd
+simple	de	de	fe
+upper	df	u00530053
+simple	e0	c0	e0
+simple	e1	c1	e1
+simple	e2	c2	e2
+simple	e3	c3	e3
+simple	e4	c4	e4
+simple	e5	c5	e5
+simple	e6	c6	e6
+simple	e7	c7	e7
+simple	e8	c8	e8
+simple	e9	c9	e9
+simple	ea	ca	ea
+simple	eb	cb	eb
+simple	ec	cc	ec
+simple	ed	cd	ed
+simple	ee	ce	ee
+simple	ef	cf	ef
+simple	f0	d0	f0
+simple	f1	d1	f1
+simple	f2	d2	f2
+simple	f3	d3	f3
+simple	f4	d4	f4
+simple	f5	d5	f5
+simple	f6	d6	f6
+simple	f8	d8	f8
+simple	f9	d9	f9
+simple	fa	da	fa
+simple	fb	db	fb
+simple	fc	dc	fc
+simple	fd	dd	fd
+simple	fe	de	fe
+simple	ff	178	ff
+simple	100	100	101
+simple	101	100	101
+simple	102	102	103
+simple	103	102	103
+simple	104	104	105
+simple	105	104	105
+simple	106	106	107
+simple	107	106	107
+simple	108	108	109
+simple	109	108	109
+simple	10a	10a	10b
+simple	10b	10a	10b
+simple	10c	10c	10d
+simple	10d	10c	10d
+simple	10e	10e	10f
+simple	10f	10e	10f
+simple	110	110	111
+simple	111	110	111
+simple	112	112	113
+simple	113	112	113
+simple	114	114	115
+simple	115	114	115
+simple	116	116	117
+simple	117	116	117
+simple	118	118	119
+simple	119	118	119
+simple	11a	11a	11b
+simple	11b	11a	11b
+simple	11c	11c	11d
+simple	11d	11c	11d
+simple	11e	11e	11f
+simple	11f	11e	11f
+simple	120	120	121
+simple	121	120	121
+simple	122	122	123
+simple	123	122	123
+simple	124	124	125
+simple	125	124	125
+simple	126	126	127
+simple	127	126	127
+simple	128	128	129
+simple	129	128	129
+simple	12a	12a	12b
+simple	12b	12a	12b
+simple	12c	12c	12d
+simple	12d	12c	12d
+simple	12e	12e	12f
+simple	12f	12e	12f
+simple	130	130	69
+simple	131	49	131
+simple	132	132	133
+simple	133	132	133
+simple	134	134	135
+simple	135	134	135
+simple	136	136	137
+simple	137	136	137
+simple	139	139	13a
+simple	13a	139	13a
+simple	13b	13b	13c
+simple	13c	13b	13c
+simple	13d	13d	13e
+simple	13e	13d	13e
+simple	13f	13f	140
+simple	140	13f	140
+simple	141	141	142
+simple	142	141	142
+simple	143	143	144
+simple	144	143	144
+simple	145	145	146
+simple	146	145	146
+simple	147	147	148
+simple	148	147	148
+upper	149	u02bc004e
+simple	14a	14a	14b
+simple	14b	14a	14b
+simple	14c	14c	14d
+simple	14d	14c	14d
+simple	14e	14e	14f
+simple	14f	14e	14f
+simple	150	150	151
+simple	151	150	151
+simple	152	152	153
+simple	153	152	153
+simple	154	154	155
+simple	155	154	155
+simple	156	156	157
+simple	157	156	157
+simple	158	158	159
+simple	159	158	159
+simple	15a	15a	15b
+simple	15b	15a	15b
+simple	15c	15c	15d
+simple	15d	15c	15d
+simple	15e	15e	15f
+simple	15f	15e	15f
+simple	160	160	161
+simple	161	160	161
+simple	162	162	163
+simple	163	162	163
+simple	164	164	165
+simple	165	164	165
+simple	166	166	167
+simple	167	166	167
+simple	168	168	169
+simple	169	168	169
+simple	16a	16a	16b
+simple	16b	16a	16b
+simple	16c	16c	16d
+simple	16d	16c	16d
+simple	16e	16e	16f
+simple	16f	16e	16f
+simple	170	170	171
+simple	171	170	171
+simple	172	172	173
+simple	173	172	173
+simple	174	174	175
+simple	175	174	175
+simple	176	176	177
+simple	177	176	177
+simple	178	178	ff
+simple	179	179	17a
+simple	17a	179	17a
+simple	17b	17b	17c
+simple	17c	17b	17c
+simple	17d	17d	17e
+simple	17e	17d	17e
+simple	17f	53	17f
+simple	180	243	180
+simple	181	181	253
+simple	182	182	183
+simple	183	182	183
+simple	184	184	185
+simple	185	184	185
+simple	186	186	254
+simple	187	187	188
+simple	188	187	188
+simple	189	189	256
+simple	18a	18a	257
+simple	18b	18b	18c
+simple	18c	18b	18c
+simple	18e	18e	1dd
+simple	18f	18f	259
+simple	190	190	25b
+simple	191	191	192
+simple	192	191	192
+simple	193	193	260
+simple	194	194	263
+simple	195	1f6	195
+simple	196	196	269
+simple	197	197	268
+simple	198	198	199
+simple	199	198	199
+simple	19a	23d	19a
+simple	19c	19c	26f
+simple	19d	19d	272
+simple	19e	220	19e
+simple	19f	19f	275
+simple	1a0	1a0	1a1
+simple	1a1	1a0	1a1
+simple	1a2	1a2	1a3
+simple	1a3	1a2	1a3
+simple	1a4	1a4	1a5
+simple	1a5	1a4	1a5
+simple	1a6	1a6	280
+simple	1a7	1a7	1a8
+simple	1a8	1a7	1a8
+simple	1a9	1a9	283
+simple	1ac	1ac	1ad
+simple	1ad	1ac	1ad
+simple	1ae	1ae	288
+simple	1af	1af	1b0
+simple	1b0	1af	1b0
+simple	1b1	1b1	28a
+simple	1b2	1b2	28b
+simple	1b3	1b3	1b4
+simple	1b4	1b3	1b4
+simple	1b5	1b5	1b6
+simple	1b6	1b5	1b6
+simple	1b7	1b7	292
+simple	1b8	1b8	1b9
+simple	1b9	1b8	1b9
+simple	1bc	1bc	1bd
+simple	1bd	1bc	1bd
+simple	1bf	1f7	1bf
+simple	1c4	1c4	1c6
+simple	1c5	1c4	1c6
+simple	1c6	1c4	1c6
+simple	1c7	1c7	1c9
+simple	1c8	1c7	1c9
+simple	1c9	1c7	1c9
+simple	1ca	1ca	1cc
+simple	1cb	1ca	1cc
+simple	1cc	1ca	1cc
+simple	1cd	1cd	1ce
+simple	1ce	1cd	1ce
+simple	1cf	1cf	1d0
+simple	1d0	1cf	1d0
+simple	1d1	1d1	1d2
+simple	1d2	1d1	1d2
+simple	1d3	1d3	1d4
+simple	1d4	1d3	1d4
+simple	1d5	1d5	1d6
+simple	1d6	1d5	1d6
+simple	1d7	1d7	1d8
+simple	1d8	1d7	1d8
+simple	1d9	1d9	1da
+simple	1da	1d9	1da
+simple	1db	1db	1dc
+simple	1dc	1db	1dc
+simple	1dd	18e	1dd
+simple	1de	1de	1df
+simple	1df	1de	1df
+simple	1e0	1e0	1e1
+simple	1e1	1e0	1e1
+simple	1e2	1e2	1e3
+simple	1e3	1e2	1e3
+simple	1e4	1e4	1e5
+simple	1e5	1e4	1e5
+simple	1e6	1e6	1e7
+simple	1e7	1e6	1e7
+simple	1e8	1e8	1e9
+simple	1e9	1e8	1e9
+simple	1ea	1ea	1eb
+simple	1eb	1ea	1eb
+simple	1ec	1ec	1ed
+simple	1ed	1ec	1ed
+simple	1ee	1ee	1ef
+simple	1ef	1ee	1ef
+upper	1f0	u004a030c
+simple	1f1	1f1	1f3
+simple	1f2	1f1	1f3
+simple	1f3	1f1	1f3
+simple	1f4	1f4	1f5
+simple	1f5	1f4	1f5
+simple	1f6	1f6	195
+simple	1f7	1f7	1bf
+simple	1f8	1f8	1f9
+simple	1f9	1f8	1f9
+simple	1fa	1fa	1fb
+simple	1fb	1fa	1fb
+simple	1fc	1fc	1fd
+simple	1fd	1fc	1fd
+simple	1fe	1fe	1ff
+simple	1ff	1fe	1ff
+simple	200	200	201
+simple	201	200	201
+simple	202	202	203
+simple	203	202	203
+simple	204	204	205
+simple	205	204	205
+simple	206	206	207
+simple	207	206	207
+simple	208	208	209
+simple	209	208	209
+simple	20a	20a	20b
+simple	20b	20a	20b
+simple	20c	20c	20d
+simple	20d	20c	20d
+simple	20e	20e	20f
+simple	20f	20e	20f
+simple	210	210	211
+simple	211	210	211
+simple	212	212	213
+simple	213	212	213
+simple	214	214	215
+simple	215	214	215
+simple	216	216	217
+simple	217	216	217
+simple	218	218	219
+simple	219	218	219
+simple	21a	21a	21b
+simple	21b	21a	21b
+simple	21c	21c	21d
+simple	21d	21c	21d
+simple	21e	21e	21f
+simple	21f	21e	21f
+simple	220	220	19e
+simple	222	222	223
+simple	223	222	223
+simple	224	224	225
+simple	225	224	225
+simple	226	226	227
+simple	227	226	227
+simple	228	228	229
+simple	229	228	229
+simple	22a	22a	22b
+simple	22b	22a	22b
+simple	22c	22c	22d
+simple	22d	22c	22d
+simple	22e	22e	22f
+simple	22f	22e	22f
+simple	230	230	231
+simple	231	230	231
+simple	232	232	233
+simple	233	232	233
+simple	23a	23a	2c65
+simple	23b	23b	23c
+simple	23c	23b	23c
+simple	23d	23d	19a
+simple	23e	23e	2c66
+simple	23f	2c7e	23f
+simple	240	2c7f	240
+simple	241	241	242
+simple	242	241	242
+simple	243	243	180
+simple	244	244	289
+simple	245	245	28c
+simple	246	246	247
+simple	247	246	247
+simple	248	248	249
+simple	249	248	249
+simple	24a	24a	24b
+simple	24b	24a	24b
+simple	24c	24c	24d
+simple	24d	24c	24d
+simple	24e	24e	24f
+simple	24f	24e	24f
+simple	250	2c6f	250
+simple	251	2c6d	251
+simple	252	2c70	252
+simple	253	181	253
+simple	254	186	254
+simple	256	189	256
+simple	257	18a	257
+simple	259	18f	259
+simple	25b	190	25b
+simple	25c	a7ab	25c
+simple	260	193	260
+simple	261	a7ac	261
+simple	263	194	263
+simple	265	a78d	265
+simple	266	a7aa	266
+simple	268	197	268
+simple	269	196	269
+simple	26a	a7ae	26a
+simple	26b	2c62	26b
+simple	26c	a7ad	26c
+simple	26f	19c	26f
+simple	271	2c6e	271
+simple	272	19d	272
+simple	275	19f	275
+simple	27d	2c64	27d
+simple	280	1a6	280
+simple	282	a7c5	282
+simple	283	1a9	283
+simple	287	a7b1	287
+simple	288	1ae	288
+simple	289	244	289
+simple	28a	1b1	28a
+simple	28b	1b2	28b
+simple	28c	245	28c
+simple	292	1b7	292
+simple	29d	a7b2	29d
+simple	29e	a7b0	29e
+simple	345	399	345
+simple	370	370	371
+simple	371	370	371
+simple	372	372	373
+simple	373	372	373
+simple	376	376	377
+simple	377	376	377
+simple	37b	3fd	37b
+simple	37c	3fe	37c
+simple	37d	3ff	37d
+simple	37f	37f	3f3
+simple	386	386	3ac
+simple	388	388	3ad
+simple	389	389	3ae
+simple	38a	38a	3af
+simple	38c	38c	3cc
+simple	38e	38e	3cd
+simple	38f	38f	3ce
+upper	390	u039903080301
+simple	391	391	3b1
+simple	392	392	3b2
+simple	393	393	3b3
+simple	394	394	3b4
+simple	395	395	3b5
+simple	396	396	3b6
+simple	397	397	3b7
+simple	398	398	3b8
+simple	399	399	3b9
+simple	39a	39a	3ba
+simple	39b	39b	3bb
+simple	39c	39c	3bc
+simple	39d	39d	3bd
+simple	39e	39e	3be
+simple	39f	39f	3bf
+simple	3a0	3a0	3c0
+simple	3a1	3a1	3c1
+simple	3a3	3a3	3c3
+simple	3a4	3a4	3c4
+simple	3a5	3a5	3c5
+simple	3a6	3a6	3c6
+simple	3a7	3a7	3c7
+simple	3a8	3a8	3c8
+simple	3a9	3a9	3c9
+simple	3aa	3aa	3ca
+simple	3ab	3ab	3cb
+simple	3ac	386	3ac
+simple	3ad	388	3ad
+simple	3ae	389	3ae
+simple	3af	38a	3af
+upper	3b0	u03a503080301
+simple	3b1	391	3b1
+simple	3b2	392	3b2
+simple	3b3	393	3b3
+simple	3b4	394	3b4
+simple	3b5	395	3b5
+simple	3b6	396	3b6
+simple	3b7	397	3b7
+simple	3b8	398	3b8
+simple	3b9	399	3b9
+simple	3ba	39a	3ba
+simple	3bb	39b	3bb
+simple	3bc	39c	3bc
+simple	3bd	39d	3bd
+simple	3be	39e	3be
+simple	3bf	39f	3bf
+simple	3c0	3a0	3c0
+simple	3c1	3a1	3c1
+simple	3c2	3a3	3c2
+simple	3c3	3a3	3c3
+simple	3c4	3a4	3c4
+simple	3c5	3a5	3c5
+simple	3c6	3a6	3c6
+simple	3c7	3a7	3c7
+simple	3c8	3a8	3c8
+simple	3c9	3a9	3c9
+simple	3ca	3aa	3ca
+simple	3cb	3ab	3cb
+simple	3cc	38c	3cc
+simple	3cd	38e	3cd
+simple	3ce	38f	3ce
+simple	3cf	3cf	3d7
+simple	3d0	392	3d0
+simple	3d1	398	3d1
+simple	3d5	3a6	3d5
+simple	3d6	3a0	3d6
+simple	3d7	3cf	3d7
+simple	3d8	3d8	3d9
+simple	3d9	3d8	3d9
+simple	3da	3da	3db
+simple	3db	3da	3db
+simple	3dc	3dc	3dd
+simple	3dd	3dc	3dd
+simple	3de	3de	3df
+simple	3df	3de	3df
+simple	3e0	3e0	3e1
+simple	3e1	3e0	3e1
+simple	3e2	3e2	3e3
+simple	3e3	3e2	3e3
+simple	3e4	3e4	3e5
+simple	3e5	3e4	3e5
+simple	3e6	3e6	3e7
+simple	3e7	3e6	3e7
+simple	3e8	3e8	3e9
+simple	3e9	3e8	3e9
+simple	3ea	3ea	3eb
+simple	3eb	3ea	3eb
+simple	3ec	3ec	3ed
+simple	3ed	3ec	3ed
+simple	3ee	3ee	3ef
+simple	3ef	3ee	3ef
+simple	3f0	39a	3f0
+simple	3f1	3a1	3f1
+simple	3f2	3f9	3f2
+simple	3f3	37f	3f3
+simple	3f4	3f4	3b8
+simple	3f5	395	3f5
+simple	3f7	3f7	3f8
+simple	3f8	3f7	3f8
+simple	3f9	3f9	3f2
+simple	3fa	3fa	3fb
+simple	3fb	3fa	3fb
+simple	3fd	3fd	37b
+simple	3fe	3fe	37c
+simple	3ff	3ff	37d
+simple	400	400	450
+simple	401	401	451
+simple	402	402	452
+simple	403	403	453
+simple	404	404	454
+simple	405	405	455
+simple	406	406	456
+simple	407	407	457
+simple	408	408	458
+simple	409	409	459
+simple	40a	40a	45a
+simple	40b	40b	45b
+simple	40c	40c	45c
+simple	40d	40d	45d
+simple	40e	40e	45e
+simple	40f	40f	45f
+simple	410	410	430
+simple	411	411	431
+simple	412	412	432
+simple	413	413	433
+simple	414	414	434
+simple	415	415	435
+simple	416	416	436
+simple	417	417	437
+simple	418	418	438
+simple	419	419	439
+simple	41a	41a	43a
+simple	41b	41b	43b
+simple	41c	41c	43c
+simple	41d	41d	43d
+simple	41e	41e	43e
+simple	41f	41f	43f
+simple	420	420	440
+simple	421	421	441
+simple	422	422	442
+simple	423	423	443
+simple	424	424	444
+simple	425	425	445
+simple	426	426	446
+simple	427	427	447
+simple	428	428	448
+simple	429	429	449
+simple	42a	42a	44a
+simple	42b	42b	44b
+simple	42c	42c	44c
+simple	42d	42d	44d
+simple	42e	42e	44e
+simple	42f	42f	44f
+simple	430	410	430
+simple	431	411	431
+simple	432	412	432
+simple	433	413	433
+simple	434	414	434
+simple	435	415	435
+simple	436	416	436
+simple	437	417	437
+simple	438	418	438
+simple	439	419	439
+simple	43a	41a	43a
+simple	43b	41b	43b
+simple	43c	41c	43c
+simple	43d	41d	43d
+simple	43e	41e	43e
+simple	43f	41f	43f
+simple	440	420	440
+simple	441	421	441
+simple	442	422	442
+simple	443	423	443
+simple	444	424	444
+simple	445	425	445
+simple	446	426	446
+simple	447	427	447
+simple	448	428	448
+simple	449	429	449
+simple	44a	42a	44a
+simple	44b	42b	44b
+simple	44c	42c	44c
+simple	44d	42d	44d
+simple	44e	42e	44e
+simple	44f	42f	44f
+simple	450	400	450
+simple	451	401	451
+simple	452	402	452
+simple	453	403	453
+simple	454	404	454
+simple	455	405	455
+simple	456	406	456
+simple	457	407	457
+simple	458	408	458
+simple	459	409	459
+simple	45a	40a	45a
+simple	45b	40b	45b
+simple	45c	40c	45c
+simple	45d	40d	45d
+simple	45e	40e	45e
+simple	45f	40f	45f
+simple	460	460	461
+simple	461	460	461
+simple	462	462	463
+simple	463	462	463
+simple	464	464	465
+simple	465	464	465
+simple	466	466	467
+simple	467	466	467
+simple	468	468	469
+simple	469	468	469
+simple	46a	46a	46b
+simple	46b	46a	46b
+simple	46c	46c	46d
+simple	46d	46c	46d
+simple	46e	46e	46f
+simple	46f	46e	46f
+simple	470	470	471
+simple	471	470	471
+simple	472	472	473
+simple	473	472	473
+simple	474	474	475
+simple	475	474	475
+simple	476	476	477
+simple	477	476	477
+simple	478	478	479
+simple	479	478	479
+simple	47a	47a	47b
+simple	47b	47a	47b
+simple	47c	47c	47d
+simple	47d	47c	47d
+simple	47e	47e	47f
+simple	47f	47e	47f
+simple	480	480	481
+simple	481	480	481
+simple	48a	48a	48b
+simple	48b	48a	48b
+simple	48c	48c	48d
+simple	48d	48c	48d
+simple	48e	48e	48f
+simple	48f	48e	48f
+simple	490	490	491
+simple	491	490	491
+simple	492	492	493
+simple	493	492	493
+simple	494	494	495
+simple	495	494	495
+simple	496	496	497
+simple	497	496	497
+simple	498	498	499
+simple	499	498	499
+simple	49a	49a	49b
+simple	49b	49a	49b
+simple	49c	49c	49d
+simple	49d	49c	49d
+simple	49e	49e	49f
+simple	49f	49e	49f
+simple	4a0	4a0	4a1
+simple	4a1	4a0	4a1
+simple	4a2	4a2	4a3
+simple	4a3	4a2	4a3
+simple	4a4	4a4	4a5
+simple	4a5	4a4	4a5
+simple	4a6	4a6	4a7
+simple	4a7	4a6	4a7
+simple	4a8	4a8	4a9
+simple	4a9	4a8	4a9
+simple	4aa	4aa	4ab
+simple	4ab	4aa	4ab
+simple	4ac	4ac	4ad
+simple	4ad	4ac	4ad
+simple	4ae	4ae	4af
+simple	4af	4ae	4af
+simple	4b0	4b0	4b1
+simple	4b1	4b0	4b1
+simple	4b2	4b2	4b3
+simple	4b3	4b2	4b3
+simple	4b4	4b4	4b5
+simple	4b5	4b4	4b5
+simple	4b6	4b6	4b7
+simple	4b7	4b6	4b7
+simple	4b8	4b8	4b9
+simple	4b9	4b8	4b9
+simple	4ba	4ba	4bb
+simple	4bb	4ba	4bb
+simple	4bc	4bc	4bd
+simple	4bd	4bc	4bd
+simple	4be	4be	4bf
+simple	4bf	4be	4bf
+simple	4c0	4c0	4cf
+simple	4c1	4c1	4c2
+simple	4c2	4c1	4c2
+simple	4c3	4c3	4c4
+simple	4c4	4c3	4c4
+simple	4c5	4c5	4c6
+simple	4c6	4c5	4c6
+simple	4c7	4c7	4c8
+simple	4c8	4c7	4c8
+simple	4c9	4c9	4ca
+simple	4ca	4c9	4ca
+simple	4cb	4cb	4cc
+simple	4cc	4cb	4cc
+simple	4cd	4cd	4ce
+simple	4ce	4cd	4ce
+simple	4cf	4c0	4cf
+simple	4d0	4d0	4d1
+simple	4d1	4d0	4d1
+simple	4d2	4d2	4d3
+simple	4d3	4d2	4d3
+simple	4d4	4d4	4d5
+simple	4d5	4d4	4d5
+simple	4d6	4d6	4d7
+simple	4d7	4d6	4d7
+simple	4d8	4d8	4d9
+simple	4d9	4d8	4d9
+simple	4da	4da	4db
+simple	4db	4da	4db
+simple	4dc	4dc	4dd
+simple	4dd	4dc	4dd
+simple	4de	4de	4df
+simple	4df	4de	4df
+simple	4e0	4e0	4e1
+simple	4e1	4e0	4e1
+simple	4e2	4e2	4e3
+simple	4e3	4e2	4e3
+simple	4e4	4e4	4e5
+simple	4e5	4e4	4e5
+simple	4e6	4e6	4e7
+simple	4e7	4e6	4e7
+simple	4e8	4e8	4e9
+simple	4e9	4e8	4e9
+simple	4ea	4ea	4eb
+simple	4eb	4ea	4eb
+simple	4ec	4ec	4ed
+simple	4ed	4ec	4ed
+simple	4ee	4ee	4ef
+simple	4ef	4ee	4ef
+simple	4f0	4f0	4f1
+simple	4f1	4f0	4f1
+simple	4f2	4f2	4f3
+simple	4f3	4f2	4f3
+simple	4f4	4f4	4f5
+simple	4f5	4f4	4f5
+simple	4f6	4f6	4f7
+simple	4f7	4f6	4f7
+simple	4f8	4f8	4f9
+simple	4f9	4f8	4f9
+simple	4fa	4fa	4fb
+simple	4fb	4fa	4fb
+simple	4fc	4fc	4fd
+simple	4fd	4fc	4fd
+simple	4fe	4fe	4ff
+simple	4ff	4fe	4ff
+simple	500	500	501
+simple	501	500	501
+simple	502	502	503
+simple	503	502	503
+simple	504	504	505
+simple	505	504	505
+simple	506	506	507
+simple	507	506	507
+simple	508	508	509
+simple	509	508	509
+simple	50a	50a	50b
+simple	50b	50a	50b
+simple	50c	50c	50d
+simple	50d	50c	50d
+simple	50e	50e	50f
+simple	50f	50e	50f
+simple	510	510	511
+simple	511	510	511
+simple	512	512	513
+simple	513	512	513
+simple	514	514	515
+simple	515	514	515
+simple	516	516	517
+simple	517	516	517
+simple	518	518	519
+simple	519	518	519
+simple	51a	51a	51b
+simple	51b	51a	51b
+simple	51c	51c	51d
+simple	51d	51c	51d
+simple	51e	51e	51f
+simple	51f	51e	51f
+simple	520	520	521
+simple	521	520	521
+simple	522	522	523
+simple	523	522	523
+simple	524	524	525
+simple	525	524	525
+simple	526	526	527
+simple	527	526	527
+simple	528	528	529
+simple	529	528	529
+simple	52a	52a	52b
+simple	52b	52a	52b
+simple	52c	52c	52d
+simple	52d	52c	52d
+simple	52e	52e	52f
+simple	52f	52e	52f
+simple	531	531	561
+simple	532	532	562
+simple	533	533	563
+simple	534	534	564
+simple	535	535	565
+simple	536	536	566
+simple	537	537	567
+simple	538	538	568
+simple	539	539	569
+simple	53a	53a	56a
+simple	53b	53b	56b
+simple	53c	53c	56c
+simple	53d	53d	56d
+simple	53e	53e	56e
+simple	53f	53f	56f
+simple	540	540	570
+simple	541	541	571
+simple	542	542	572
+simple	543	543	573
+simple	544	544	574
+simple	545	545	575
+simple	546	546	576
+simple	547	547	577
+simple	548	548	578
+simple	549	549	579
+simple	54a	54a	57a
+simple	54b	54b	57b
+simple	54c	54c	57c
+simple	54d	54d	57d
+simple	54e	54e	57e
+simple	54f	54f	57f
+simple	550	550	580
+simple	551	551	581
+simple	552	552	582
+simple	553	553	583
+simple	554	554	584
+simple	555	555	585
+simple	556	556	586
+simple	561	531	561
+simple	562	532	562
+simple	563	533	563
+simple	564	534	564
+simple	565	535	565
+simple	566	536	566
+simple	567	537	567
+simple	568	538	568
+simple	569	539	569
+simple	56a	53a	56a
+simple	56b	53b	56b
+simple	56c	53c	56c
+simple	56d	53d	56d
+simple	56e	53e	56e
+simple	56f	53f	56f
+simple	570	540	570
+simple	571	541	571
+simple	572	542	572
+simple	573	543	573
+simple	574	544	574
+simple	575	545	575
+simple	576	546	576
+simple	577	547	577
+simple	578	548	578
+simple	579	549	579
+simple	57a	54a	57a
+simple	57b	54b	57b
+simple	57c	54c	57c
+simple	57d	54d	57d
+simple	57e	54e	57e
+simple	57f	54f	57f
+simple	580	550	580
+simple	581	551	581
+simple	582	552	582
+simple	583	553	583
+simple	584	554	584
+simple	585	555	585
+simple	586	556	586
+upper	587	u05350552
+simple	10a0	10a0	2d00
+simple	10a1	10a1	2d01
+simple	10a2	10a2	2d02
+simple	10a3	10a3	2d03
+simple	10a4	10a4	2d04
+simple	10a5	10a5	2d05
+simple	10a6	10a6	2d06
+simple	10a7	10a7	2d07
+simple	10a8	10a8	2d08
+simple	10a9	10a9	2d09
+simple	10aa	10aa	2d0a
+simple	10ab	10ab	2d0b
+simple	10ac	10ac	2d0c
+simple	10ad	10ad	2d0d
+simple	10ae	10ae	2d0e
+simple	10af	10af	2d0f
+simple	10b0	10b0	2d10
+simple	10b1	10b1	2d11
+simple	10b2	10b2	2d12
+simple	10b3	10b3	2d13
+simple	10b4	10b4	2d14
+simple	10b5	10b5	2d15
+simple	10b6	10b6	2d16
+simple	10b7	10b7	2d17
+simple	10b8	10b8	2d18
+simple	10b9	10b9	2d19
+simple	10ba	10ba	2d1a
+simple	10bb	10bb	2d1b
+simple	10bc	10bc	2d1c
+simple	10bd	10bd	2d1d
+simple	10be	10be	2d1e
+simple	10bf	10bf	2d1f
+simple	10c0	10c0	2d20
+simple	10c1	10c1	2d21
+simple	10c2	10c2	2d22
+simple	10c3	10c3	2d23
+simple	10c4	10c4	2d24
+simple	10c5	10c5	2d25
+simple	10c7	10c7	2d27
+simple	10cd	10cd	2d2d
+simple	10d0	1c90	10d0
+simple	10d1	1c91	10d1
+simple	10d2	1c92	10d2
+simple	10d3	1c93	10d3
+simple	10d4	1c94	10d4
+simple	10d5	1c95	10d5
+simple	10d6	1c96	10d6
+simple	10d7	1c97	10d7
+simple	10d8	1c98	10d8
+simple	10d9	1c99	10d9
+simple	10da	1c9a	10da
+simple	10db	1c9b	10db
+simple	10dc	1c9c	10dc
+simple	10dd	1c9d	10dd
+simple	10de	1c9e	10de
+simple	10df	1c9f	10df
+simple	10e0	1ca0	10e0
+simple	10e1	1ca1	10e1
+simple	10e2	1ca2	10e2
+simple	10e3	1ca3	10e3
+simple	10e4	1ca4	10e4
+simple	10e5	1ca5	10e5
+simple	10e6	1ca6	10e6
+simple	10e7	1ca7	10e7
+simple	10e8	1ca8	10e8
+simple	10e9	1ca9	10e9
+simple	10ea	1caa	10ea
+simple	10eb	1cab	10eb
+simple	10ec	1cac	10ec
+simple	10ed	1cad	10ed
+simple	10ee	1cae	10ee
+simple	10ef	1caf	10ef
+simple	10f0	1cb0	10f0
+simple	10f1	1cb1	10f1
+simple	10f2	1cb2	10f2
+simple	10f3	1cb3	10f3
+simple	10f4	1cb4	10f4
+simple	10f5	1cb5	10f5
+simple	10f6	1cb6	10f6
+simple	10f7	1cb7	10f7
+simple	10f8	1cb8	10f8
+simple	10f9	1cb9	10f9
+simple	10fa	1cba	10fa
+simple	10fd	1cbd	10fd
+simple	10fe	1cbe	10fe
+simple	10ff	1cbf	10ff
+simple	13a0	13a0	ab70
+simple	13a1	13a1	ab71
+simple	13a2	13a2	ab72
+simple	13a3	13a3	ab73
+simple	13a4	13a4	ab74
+simple	13a5	13a5	ab75
+simple	13a6	13a6	ab76
+simple	13a7	13a7	ab77
+simple	13a8	13a8	ab78
+simple	13a9	13a9	ab79
+simple	13aa	13aa	ab7a
+simple	13ab	13ab	ab7b
+simple	13ac	13ac	ab7c
+simple	13ad	13ad	ab7d
+simple	13ae	13ae	ab7e
+simple	13af	13af	ab7f
+simple	13b0	13b0	ab80
+simple	13b1	13b1	ab81
+simple	13b2	13b2	ab82
+simple	13b3	13b3	ab83
+simple	13b4	13b4	ab84
+simple	13b5	13b5	ab85
+simple	13b6	13b6	ab86
+simple	13b7	13b7	ab87
+simple	13b8	13b8	ab88
+simple	13b9	13b9	ab89
+simple	13ba	13ba	ab8a
+simple	13bb	13bb	ab8b
+simple	13bc	13bc	ab8c
+simple	13bd	13bd	ab8d
+simple	13be	13be	ab8e
+simple	13bf	13bf	ab8f
+simple	13c0	13c0	ab90
+simple	13c1	13c1	ab91
+simple	13c2	13c2	ab92
+simple	13c3	13c3	ab93
+simple	13c4	13c4	ab94
+simple	13c5	13c5	ab95
+simple	13c6	13c6	ab96
+simple	13c7	13c7	ab97
+simple	13c8	13c8	ab98
+simple	13c9	13c9	ab99
+simple	13ca	13ca	ab9a
+simple	13cb	13cb	ab9b
+simple	13cc	13cc	ab9c
+simple	13cd	13cd	ab9d
+simple	13ce	13ce	ab9e
+simple	13cf	13cf	ab9f
+simple	13d0	13d0	aba0
+simple	13d1	13d1	aba1
+simple	13d2	13d2	aba2
+simple	13d3	13d3	aba3
+simple	13d4	13d4	aba4
+simple	13d5	13d5	aba5
+simple	13d6	13d6	aba6
+simple	13d7	13d7	aba7
+simple	13d8	13d8	aba8
+simple	13d9	13d9	aba9
+simple	13da	13da	abaa
+simple	13db	13db	abab
+simple	13dc	13dc	abac
+simple	13dd	13dd	abad
+simple	13de	13de	abae
+simple	13df	13df	abaf
+simple	13e0	13e0	abb0
+simple	13e1	13e1	abb1
+simple	13e2	13e2	abb2
+simple	13e3	13e3	abb3
+simple	13e4	13e4	abb4
+simple	13e5	13e5	abb5
+simple	13e6	13e6	abb6
+simple	13e7	13e7	abb7
+simple	13e8	13e8	abb8
+simple	13e9	13e9	abb9
+simple	13ea	13ea	abba
+simple	13eb	13eb	abbb
+simple	13ec	13ec	abbc
+simple	13ed	13ed	abbd
+simple	13ee	13ee	abbe
+simple	13ef	13ef	abbf
+simple	13f0	13f0	13f8
+simple	13f1	13f1	13f9
+simple	13f2	13f2	13fa
+simple	13f3	13f3	13fb
+simple	13f4	13f4	13fc
+simple	13f5	13f5	13fd
+simple	13f8	13f0	13f8
+simple	13f9	13f1	13f9
+simple	13fa	13f2	13fa
+simple	13fb	13f3	13fb
+simple	13fc	13f4	13fc
+simple	13fd	13f5	13fd
+simple	1c80	412	1c80
+simple	1c81	414	1c81
+simple	1c82	41e	1c82
+simple	1c83	421	1c83
+simple	1c84	422	1c84
+simple	1c85	422	1c85
+simple	1c86	42a	1c86
+simple	1c87	462	1c87
+simple	1c88	a64a	1c88
+simple	1c90	1c90	10d0
+simple	1c91	1c91	10d1
+simple	1c92	1c92	10d2
+simple	1c93	1c93	10d3
+simple	1c94	1c94	10d4
+simple	1c95	1c95	10d5
+simple	1c96	1c96	10d6
+simple	1c97	1c97	10d7
+simple	1c98	1c98	10d8
+simple	1c99	1c99	10d9
+simple	1c9a	1c9a	10da
+simple	1c9b	1c9b	10db
+simple	1c9c	1c9c	10dc
+simple	1c9d	1c9d	10dd
+simple	1c9e	1c9e	10de
+simple	1c9f	1c9f	10df
+simple	1ca0	1ca0	10e0
+simple	1ca1	1ca1	10e1
+simple	1ca2	1ca2	10e2
+simple	1ca3	1ca3	10e3
+simple	1ca4	1ca4	10e4
+simple	1ca5	1ca5	10e5
+simple	1ca6	1ca6	10e6
+simple	1ca7	1ca7	10e7
+simple	1ca8	1ca8	10e8
+simple	1ca9	1ca9	10e9
+simple	1caa	1caa	10ea
+simple	1cab	1cab	10eb
+simple	1cac	1cac	10ec
+simple	1cad	1cad	10ed
+simple	1cae	1cae	10ee
+simple	1caf	1caf	10ef
+simple	1cb0	1cb0	10f0
+simple	1cb1	1cb1	10f1
+simple	1cb2	1cb2	10f2
+simple	1cb3	1cb3	10f3
+simple	1cb4	1cb4	10f4
+simple	1cb5	1cb5	10f5
+simple	1cb6	1cb6	10f6
+simple	1cb7	1cb7	10f7
+simple	1cb8	1cb8	10f8
+simple	1cb9	1cb9	10f9
+simple	1cba	1cba	10fa
+simple	1cbd	1cbd	10fd
+simple	1cbe	1cbe	10fe
+simple	1cbf	1cbf	10ff
+simple	1d79	a77d	1d79
+simple	1d7d	2c63	1d7d
+simple	1d8e	a7c6	1d8e
+simple	1e00	1e00	1e01
+simple	1e01	1e00	1e01
+simple	1e02	1e02	1e03
+simple	1e03	1e02	1e03
+simple	1e04	1e04	1e05
+simple	1e05	1e04	1e05
+simple	1e06	1e06	1e07
+simple	1e07	1e06	1e07
+simple	1e08	1e08	1e09
+simple	1e09	1e08	1e09
+simple	1e0a	1e0a	1e0b
+simple	1e0b	1e0a	1e0b
+simple	1e0c	1e0c	1e0d
+simple	1e0d	1e0c	1e0d
+simple	1e0e	1e0e	1e0f
+simple	1e0f	1e0e	1e0f
+simple	1e10	1e10	1e11
+simple	1e11	1e10	1e11
+simple	1e12	1e12	1e13
+simple	1e13	1e12	1e13
+simple	1e14	1e14	1e15
+simple	1e15	1e14	1e15
+simple	1e16	1e16	1e17
+simple	1e17	1e16	1e17
+simple	1e18	1e18	1e19
+simple	1e19	1e18	1e19
+simple	1e1a	1e1a	1e1b
+simple	1e1b	1e1a	1e1b
+simple	1e1c	1e1c	1e1d
+simple	1e1d	1e1c	1e1d
+simple	1e1e	1e1e	1e1f
+simple	1e1f	1e1e	1e1f
+simple	1e20	1e20	1e21
+simple	1e21	1e20	1e21
+simple	1e22	1e22	1e23
+simple	1e23	1e22	1e23
+simple	1e24	1e24	1e25
+simple	1e25	1e24	1e25
+simple	1e26	1e26	1e27
+simple	1e27	1e26	1e27
+simple	1e28	1e28	1e29
+simple	1e29	1e28	1e29
+simple	1e2a	1e2a	1e2b
+simple	1e2b	1e2a	1e2b
+simple	1e2c	1e2c	1e2d
+simple	1e2d	1e2c	1e2d
+simple	1e2e	1e2e	1e2f
+simple	1e2f	1e2e	1e2f
+simple	1e30	1e30	1e31
+simple	1e31	1e30	1e31
+simple	1e32	1e32	1e33
+simple	1e33	1e32	1e33
+simple	1e34	1e34	1e35
+simple	1e35	1e34	1e35
+simple	1e36	1e36	1e37
+simple	1e37	1e36	1e37
+simple	1e38	1e38	1e39
+simple	1e39	1e38	1e39
+simple	1e3a	1e3a	1e3b
+simple	1e3b	1e3a	1e3b
+simple	1e3c	1e3c	1e3d
+simple	1e3d	1e3c	1e3d
+simple	1e3e	1e3e	1e3f
+simple	1e3f	1e3e	1e3f
+simple	1e40	1e40	1e41
+simple	1e41	1e40	1e41
+simple	1e42	1e42	1e43
+simple	1e43	1e42	1e43
+simple	1e44	1e44	1e45
+simple	1e45	1e44	1e45
+simple	1e46	1e46	1e47
+simple	1e47	1e46	1e47
+simple	1e48	1e48	1e49
+simple	1e49	1e48	1e49
+simple	1e4a	1e4a	1e4b
+simple	1e4b	1e4a	1e4b
+simple	1e4c	1e4c	1e4d
+simple	1e4d	1e4c	1e4d
+simple	1e4e	1e4e	1e4f
+simple	1e4f	1e4e	1e4f
+simple	1e50	1e50	1e51
+simple	1e51	1e50	1e51
+simple	1e52	1e52	1e53
+simple	1e53	1e52	1e53
+simple	1e54	1e54	1e55
+simple	1e55	1e54	1e55
+simple	1e56	1e56	1e57
+simple	1e57	1e56	1e57
+simple	1e58	1e58	1e59
+simple	1e59	1e58	1e59
+simple	1e5a	1e5a	1e5b
+simple	1e5b	1e5a	1e5b
+simple	1e5c	1e5c	1e5d
+simple	1e5d	1e5c	1e5d
+simple	1e5e	1e5e	1e5f
+simple	1e5f	1e5e	1e5f
+simple	1e60	1e60	1e61
+simple	1e61	1e60	1e61
+simple	1e62	1e62	1e63
+simple	1e63	1e62	1e63
+simple	1e64	1e64	1e65
+simple	1e65	1e64	1e65
+simple	1e66	1e66	1e67
+simple	1e67	1e66	1e67
+simple	1e68	1e68	1e69
+simple	1e69	1e68	1e69
+simple	1e6a	1e6a	1e6b
+simple	1e6b	1e6a	1e6b
+simple	1e6c	1e6c	1e6d
+simple	1e6d	1e6c	1e6d
+simple	1e6e	1e6e	1e6f
+simple	1e6f	1e6e	1e6f
+simple	1e70	1e70	1e71
+simple	1e71	1e70	1e71
+simple	1e72	1e72	1e73
+simple	1e73	1e72	1e73
+simple	1e74	1e74	1e75
+simple	1e75	1e74	1e75
+simple	1e76	1e76	1e77
+simple	1e77	1e76	1e77
+simple	1e78	1e78	1e79
+simple	1e79	1e78	1e79
+simple	1e7a	1e7a	1e7b
+simple	1e7b	1e7a	1e7b
+simple	1e7c	1e7c	1e7d
+simple	1e7d	1e7c	1e7d
+simple	1e7e	1e7e	1e7f
+simple	1e7f	1e7e	1e7f
+simple	1e80	1e80	1e81
+simple	1e81	1e80	1e81
+simple	1e82	1e82	1e83
+simple	1e83	1e82	1e83
+simple	1e84	1e84	1e85
+simple	1e85	1e84	1e85
+simple	1e86	1e86	1e87
+simple	1e87	1e86	1e87
+simple	1e88	1e88	1e89
+simple	1e89	1e88	1e89
+simple	1e8a	1e8a	1e8b
+simple	1e8b	1e8a	1e8b
+simple	1e8c	1e8c	1e8d
+simple	1e8d	1e8c	1e8d
+simple	1e8e	1e8e	1e8f
+simple	1e8f	1e8e	1e8f
+simple	1e90	1e90	1e91
+simple	1e91	1e90	1e91
+simple	1e92	1e92	1e93
+simple	1e93	1e92	1e93
+simple	1e94	1e94	1e95
+simple	1e95	1e94	1e95
+upper	1e96	u00480331
+upper	1e97	u00540308
+upper	1e98	u0057030a
+upper	1e99	u0059030a
+upper	1e9a	u004102be
+simple	1e9b	1e60	1e9b
+simple	1e9e	1e9e	df
+simple	1ea0	1ea0	1ea1
+simple	1ea1	1ea0	1ea1
+simple	1ea2	1ea2	1ea3
+simple	1ea3	1ea2	1ea3
+simple	1ea4	1ea4	1ea5
+simple	1ea5	1ea4	1ea5
+simple	1ea6	1ea6	1ea7
+simple	1ea7	1ea6	1ea7
+simple	1ea8	1ea8	1ea9
+simple	1ea9	1ea8	1ea9
+simple	1eaa	1eaa	1eab
+simple	1eab	1eaa	1eab
+simple	1eac	1eac	1ead
+simple	1ead	1eac	1ead
+simple	1eae	1eae	1eaf
+simple	1eaf	1eae	1eaf
+simple	1eb0	1eb0	1eb1
+simple	1eb1	1eb0	1eb1
+simple	1eb2	1eb2	1eb3
+simple	1eb3	1eb2	1eb3
+simple	1eb4	1eb4	1eb5
+simple	1eb5	1eb4	1eb5
+simple	1eb6	1eb6	1eb7
+simple	1eb7	1eb6	1eb7
+simple	1eb8	1eb8	1eb9
+simple	1eb9	1eb8	1eb9
+simple	1eba	1eba	1ebb
+simple	1ebb	1eba	1ebb
+simple	1ebc	1ebc	1ebd
+simple	1ebd	1ebc	1ebd
+simple	1ebe	1ebe	1ebf
+simple	1ebf	1ebe	1ebf
+simple	1ec0	1ec0	1ec1
+simple	1ec1	1ec0	1ec1
+simple	1ec2	1ec2	1ec3
+simple	1ec3	1ec2	1ec3
+simple	1ec4	1ec4	1ec5
+simple	1ec5	1ec4	1ec5
+simple	1ec6	1ec6	1ec7
+simple	1ec7	1ec6	1ec7
+simple	1ec8	1ec8	1ec9
+simple	1ec9	1ec8	1ec9
+simple	1eca	1eca	1ecb
+simple	1ecb	1eca	1ecb
+simple	1ecc	1ecc	1ecd
+simple	1ecd	1ecc	1ecd
+simple	1ece	1ece	1ecf
+simple	1ecf	1ece	1ecf
+simple	1ed0	1ed0	1ed1
+simple	1ed1	1ed0	1ed1
+simple	1ed2	1ed2	1ed3
+simple	1ed3	1ed2	1ed3
+simple	1ed4	1ed4	1ed5
+simple	1ed5	1ed4	1ed5
+simple	1ed6	1ed6	1ed7
+simple	1ed7	1ed6	1ed7
+simple	1ed8	1ed8	1ed9
+simple	1ed9	1ed8	1ed9
+simple	1eda	1eda	1edb
+simple	1edb	1eda	1edb
+simple	1edc	1edc	1edd
+simple	1edd	1edc	1edd
+simple	1ede	1ede	1edf
+simple	1edf	1ede	1edf
+simple	1ee0	1ee0	1ee1
+simple	1ee1	1ee0	1ee1
+simple	1ee2	1ee2	1ee3
+simple	1ee3	1ee2	1ee3
+simple	1ee4	1ee4	1ee5
+simple	1ee5	1ee4	1ee5
+simple	1ee6	1ee6	1ee7
+simple	1ee7	1ee6	1ee7
+simple	1ee8	1ee8	1ee9
+simple	1ee9	1ee8	1ee9
+simple	1eea	1eea	1eeb
+simple	1eeb	1eea	1eeb
+simple	1eec	1eec	1eed
+simple	1eed	1eec	1eed
+simple	1eee	1eee	1eef
+simple	1eef	1eee	1eef
+simple	1ef0	1ef0	1ef1
+simple	1ef1	1ef0	1ef1
+simple	1ef2	1ef2	1ef3
+simple	1ef3	1ef2	1ef3
+simple	1ef4	1ef4	1ef5
+simple	1ef5	1ef4	1ef5
+simple	1ef6	1ef6	1ef7
+simple	1ef7	1ef6	1ef7
+simple	1ef8	1ef8	1ef9
+simple	1ef9	1ef8	1ef9
+simple	1efa	1efa	1efb
+simple	1efb	1efa	1efb
+simple	1efc	1efc	1efd
+simple	1efd	1efc	1efd
+simple	1efe	1efe	1eff
+simple	1eff	1efe	1eff
+simple	1f00	1f08	1f00
+simple	1f01	1f09	1f01
+simple	1f02	1f0a	1f02
+simple	1f03	1f0b	1f03
+simple	1f04	1f0c	1f04
+simple	1f05	1f0d	1f05
+simple	1f06	1f0e	1f06
+simple	1f07	1f0f	1f07
+simple	1f08	1f08	1f00
+simple	1f09	1f09	1f01
+simple	1f0a	1f0a	1f02
+simple	1f0b	1f0b	1f03
+simple	1f0c	1f0c	1f04
+simple	1f0d	1f0d	1f05
+simple	1f0e	1f0e	1f06
+simple	1f0f	1f0f	1f07
+simple	1f10	1f18	1f10
+simple	1f11	1f19	1f11
+simple	1f12	1f1a	1f12
+simple	1f13	1f1b	1f13
+simple	1f14	1f1c	1f14
+simple	1f15	1f1d	1f15
+simple	1f18	1f18	1f10
+simple	1f19	1f19	1f11
+simple	1f1a	1f1a	1f12
+simple	1f1b	1f1b	1f13
+simple	1f1c	1f1c	1f14
+simple	1f1d	1f1d	1f15
+simple	1f20	1f28	1f20
+simple	1f21	1f29	1f21
+simple	1f22	1f2a	1f22
+simple	1f23	1f2b	1f23
+simple	1f24	1f2c	1f24
+simple	1f25	1f2d	1f25
+simple	1f26	1f2e	1f26
+simple	1f27	1f2f	1f27
+simple	1f28	1f28	1f20
+simple	1f29	1f29	1f21
+simple	1f2a	1f2a	1f22
+simple	1f2b	1f2b	1f23
+simple	1f2c	1f2c	1f24
+simple	1f2d	1f2d	1f25
+simple	1f2e	1f2e	1f26
+simple	1f2f	1f2f	1f27
+simple	1f30	1f38	1f30
+simple	1f31	1f39	1f31
+simple	1f32	1f3a	1f32
+simple	1f33	1f3b	1f33
+simple	1f34	1f3c	1f34
+simple	1f35	1f3d	1f35
+simple	1f36	1f3e	1f36
+simple	1f37	1f3f	1f37
+simple	1f38	1f38	1f30
+simple	1f39	1f39	1f31
+simple	1f3a	1f3a	1f32
+simple	1f3b	1f3b	1f33
+simple	1f3c	1f3c	1f34
+simple	1f3d	1f3d	1f35
+simple	1f3e	1f3e	1f36
+simple	1f3f	1f3f	1f37
+simple	1f40	1f48	1f40
+simple	1f41	1f49	1f41
+simple	1f42	1f4a	1f42
+simple	1f43	1f4b	1f43
+simple	1f44	1f4c	1f44
+simple	1f45	1f4d	1f45
+simple	1f48	1f48	1f40
+simple	1f49	1f49	1f41
+simple	1f4a	1f4a	1f42
+simple	1f4b	1f4b	1f43
+simple	1f4c	1f4c	1f44
+simple	1f4d	1f4d	1f45
+upper	1f50	u03a50313
+simple	1f51	1f59	1f51
+upper	1f52	u03a503130300
+simple	1f53	1f5b	1f53
+upper	1f54	u03a503130301
+simple	1f55	1f5d	1f55
+upper	1f56	u03a503130342
+simple	1f57	1f5f	1f57
+simple	1f59	1f59	1f51
+simple	1f5b	1f5b	1f53
+simple	1f5d	1f5d	1f55
+simple	1f5f	1f5f	1f57
+simple	1f60	1f68	1f60
+simple	1f61	1f69	1f61
+simple	1f62	1f6a	1f62
+simple	1f63	1f6b	1f63
+simple	1f64	1f6c	1f64
+simple	1f65	1f6d	1f65
+simple	1f66	1f6e	1f66
+simple	1f67	1f6f	1f67
+simple	1f68	1f68	1f60
+simple	1f69	1f69	1f61
+simple	1f6a	1f6a	1f62
+simple	1f6b	1f6b	1f63
+simple	1f6c	1f6c	1f64
+simple	1f6d	1f6d	1f65
+simple	1f6e	1f6e	1f66
+simple	1f6f	1f6f	1f67
+simple	1f70	1fba	1f70
+simple	1f71	1fbb	1f71
+simple	1f72	1fc8	1f72
+simple	1f73	1fc9	1f73
+simple	1f74	1fca	1f74
+simple	1f75	1fcb	1f75
+simple	1f76	1fda	1f76
+simple	1f77	1fdb	1f77
+simple	1f78	1ff8	1f78
+simple	1f79	1ff9	1f79
+simple	1f7a	1fea	1f7a
+simple	1f7b	1feb	1f7b
+simple	1f7c	1ffa	1f7c
+simple	1f7d	1ffb	1f7d
+simple	1f80	1f88	1f80
+upper	1f80	u1f080399
+simple	1f81	1f89	1f81
+upper	1f81	u1f090399
+simple	1f82	1f8a	1f82
+upper	1f82	u1f0a0399
+simple	1f83	1f8b	1f83
+upper	1f83	u1f0b0399
+simple	1f84	1f8c	1f84
+upper	1f84	u1f0c0399
+simple	1f85	1f8d	1f85
+upper	1f85	u1f0d0399
+simple	1f86	1f8e	1f86
+upper	1f86	u1f0e0399
+simple	1f87	1f8f	1f87
+upper	1f87	u1f0f0399
+simple	1f88	1f88	1f80
+upper	1f88	u1f080399
+simple	1f89	1f89	1f81
+upper	1f89	u1f090399
+simple	1f8a	1f8a	1f82
+upper	1f8a	u1f0a0399
+simple	1f8b	1f8b	1f83
+upper	1f8b	u1f0b0399
+simple	1f8c	1f8c	1f84
+upper	1f8c	u1f0c0399
+simple	1f8d	1f8d	1f85
+upper	1f8d	u1f0d0399
+simple	1f8e	1f8e	1f86
+upper	1f8e	u1f0e0399
+simple	1f8f	1f8f	1f87
+upper	1f8f	u1f0f0399
+simple	1f90	1f98	1f90
+upper	1f90	u1f280399
+simple	1f91	1f99	1f91
+upper	1f91	u1f290399
+simple	1f92	1f9a	1f92
+upper	1f92	u1f2a0399
+simple	1f93	1f9b	1f93
+upper	1f93	u1f2b0399
+simple	1f94	1f9c	1f94
+upper	1f94	u1f2c0399
+simple	1f95	1f9d	1f95
+upper	1f95	u1f2d0399
+simple	1f96	1f9e	1f96
+upper	1f96	u1f2e0399
+simple	1f97	1f9f	1f97
+upper	1f97	u1f2f0399
+simple	1f98	1f98	1f90
+upper	1f98	u1f280399
+simple	1f99	1f99	1f91
+upper	1f99	u1f290399
+simple	1f9a	1f9a	1f92
+upper	1f9a	u1f2a0399
+simple	1f9b	1f9b	1f93
+upper	1f9b	u1f2b0399
+simple	1f9c	1f9c	1f94
+upper	1f9c	u1f2c0399
+simple	1f9d	1f9d	1f95
+upper	1f9d	u1f2d0399
+simple	1f9e	1f9e	1f96
+upper	1f9e	u1f2e0399
+simple	1f9f	1f9f	1f97
+upper	1f9f	u1f2f0399
+simple	1fa0	1fa8	1fa0
+upper	1fa0	u1f680399
+simple	1fa1	1fa9	1fa1
+upper	1fa1	u1f690399
+simple	1fa2	1faa	1fa2
+upper	1fa2	u1f6a0399
+simple	1fa3	1fab	1fa3
+upper	1fa3	u1f6b0399
+simple	1fa4	1fac	1fa4
+upper	1fa4	u1f6c0399
+simple	1fa5	1fad	1fa5
+upper	1fa5	u1f6d0399
+simple	1fa6	1fae	1fa6
+upper	1fa6	u1f6e0399
+simple	1fa7	1faf	1fa7
+upper	1fa7	u1f6f0399
+simple	1fa8	1fa8	1fa0
+upper	1fa8	u1f680399
+simple	1fa9	1fa9	1fa1
+upper	1fa9	u1f690399
+simple	1faa	1faa	1fa2
+upper	1faa	u1f6a0399
+simple	1fab	1fab	1fa3
+upper	1fab	u1f6b0399
+simple	1fac	1fac	1fa4
+upper	1fac	u1f6c0399
+simple	1fad	1fad	1fa5
+upper	1fad	u1f6d0399
+simple	1fae	1fae	1fa6
+upper	1fae	u1f6e0399
+simple	1faf	1faf	1fa7
+upper	1faf	u1f6f0399
+simple	1fb0	1fb8	1fb0
+simple	1fb1	1fb9	1fb1
+upper	1fb2	u1fba0399
+simple	1fb3	1fbc	1fb3
+upper	1fb3	u03910399
+upper	1fb4	u03860399
+upper	1fb6	u03910342
+upper	1fb7	u039103420399
+simple	1fb8	1fb8	1fb0
+simple	1fb9	1fb9	1fb1
+simple	1fba	1fba	1f70
+simple	1fbb	1fbb	1f71
+simple	1fbc	1fbc	1fb3
+upper	1fbc	u03910399
+simple	1fbe	399	1fbe
+upper	1fc2	u1fca0399
+simple	1fc3	1fcc	1fc3
+upper	1fc3	u03970399
+upper	1fc4	u03890399
+upper	1fc6	u03970342
+upper	1fc7	u039703420399
+simple	1fc8	1fc8	1f72
+simple	1fc9	1fc9	1f73
+simple	1fca	1fca	1f74
+simple	1fcb	1fcb	1f75
+simple	1fcc	1fcc	1fc3
+upper	1fcc	u03970399
+simple	1fd0	1fd8	1fd0
+simple	1fd1	1fd9	1fd1
+upper	1fd2	u039903080300
+upper	1fd3	u039903080301
+upper	1fd6	u03990342
+upper	1fd7	u039903080342
+simple	1fd8	1fd8	1fd0
+simple	1fd9	1fd9	1fd1
+simple	1fda	1fda	1f76
+simple	1fdb	1fdb	1f77
+simple	1fe0	1fe8	1fe0
+simple	1fe1	1fe9	1fe1
+upper	1fe2	u03a503080300
+upper	1fe3	u03a503080301
+upper	1fe4	u03a10313
+simple	1fe5	1fec	1fe5
+upper	1fe6	u03a50342
+upper	1fe7	u03a503080342
+simple	1fe8	1fe8	1fe0
+simple	1fe9	1fe9	1fe1
+simple	1fea	1fea	1f7a
+simple	1feb	1feb	1f7b
+simple	1fec	1fec	1fe5
+upper	1ff2	u1ffa0399
+simple	1ff3	1ffc	1ff3
+upper	1ff3	u03a90399
+upper	1ff4	u038f0399
+upper	1ff6	u03a90342
+upper	1ff7	u03a903420399
+simple	1ff8	1ff8	1f78
+simple	1ff9	1ff9	1f79
+simple	1ffa	1ffa	1f7c
+simple	1ffb	1ffb	1f7d
+simple	1ffc	1ffc	1ff3
+upper	1ffc	u03a90399
+simple	2126	2126	3c9
+simple	212a	212a	6b
+simple	212b	212b	e5
+simple	2132	2132	214e
+simple	214e	2132	214e
+simple	2160	2160	2170
+simple	2161	2161	2171
+simple	2162	2162	2172
+simple	2163	2163	2173
+simple	2164	2164	2174
+simple	2165	2165	2175
+simple	2166	2166	2176
+simple	2167	2167	2177
+simple	2168	2168	2178
+simple	2169	2169	2179
+simple	216a	216a	217a
+simple	216b	216b	217b
+simple	216c	216c	217c
+simple	216d	216d	217d
+simple	216e	216e	217e
+simple	216f	216f	217f
+simple	2170	2160	2170
+simple	2171	2161	2171
+simple	2172	2162	2172
+simple	2173	2163	2173
+simple	2174	2164	2174
+simple	2175	2165	2175
+simple	2176	2166	2176
+simple	2177	2167	2177
+simple	2178	2168	2178
+simple	2179	2169	2179
+simple	217a	216a	217a
+simple	217b	216b	217b
+simple	217c	216c	217c
+simple	217d	216d	217d
+simple	217e	216e	217e
+simple	217f	216f	217f
+simple	2183	2183	2184
+simple	2184	2183	2184
+simple	24b6	24b6	24d0
+simple	24b7	24b7	24d1
+simple	24b8	24b8	24d2
+simple	24b9	24b9	24d3
+simple	24ba	24ba	24d4
+simple	24bb	24bb	24d5
+simple	24bc	24bc	24d6
+simple	24bd	24bd	24d7
+simple	24be	24be	24d8
+simple	24bf	24bf	24d9
+simple	24c0	24c0	24da
+simple	24c1	24c1	24db
+simple	24c2	24c2	24dc
+simple	24c3	24c3	24dd
+simple	24c4	24c4	24de
+simple	24c5	24c5	24df
+simple	24c6	24c6	24e0
+simple	24c7	24c7	24e1
+simple	24c8	24c8	24e2
+simple	24c9	24c9	24e3
+simple	24ca	24ca	24e4
+simple	24cb	24cb	24e5
+simple	24cc	24cc	24e6
+simple	24cd	24cd	24e7
+simple	24ce	24ce	24e8
+simple	24cf	24cf	24e9
+simple	24d0	24b6	24d0
+simple	24d1	24b7	24d1
+simple	24d2	24b8	24d2
+simple	24d3	24b9	24d3
+simple	24d4	24ba	24d4
+simple	24d5	24bb	24d5
+simple	24d6	24bc	24d6
+simple	24d7	24bd	24d7
+simple	24d8	24be	24d8
+simple	24d9	24bf	24d9
+simple	24da	24c0	24da
+simple	24db	24c1	24db
+simple	24dc	24c2	24dc
+simple	24dd	24c3	24dd
+simple	24de	24c4	24de
+simple	24df	24c5	24df
+simple	24e0	24c6	24e0
+simple	24e1	24c7	24e1
+simple	24e2	24c8	24e2
+simple	24e3	24c9	24e3
+simple	24e4	24ca	24e4
+simple	24e5	24cb	24e5
+simple	24e6	24cc	24e6
+simple	24e7	24cd	24e7
+simple	24e8	24ce	24e8
+simple	24e9	24cf	24e9
+simple	2c00	2c00	2c30
+simple	2c01	2c01	2c31
+simple	2c02	2c02	2c32
+simple	2c03	2c03	2c33
+simple	2c04	2c04	2c34
+simple	2c05	2c05	2c35
+simple	2c06	2c06	2c36
+simple	2c07	2c07	2c37
+simple	2c08	2c08	2c38
+simple	2c09	2c09	2c39
+simple	2c0a	2c0a	2c3a
+simple	2c0b	2c0b	2c3b
+simple	2c0c	2c0c	2c3c
+simple	2c0d	2c0d	2c3d
+simple	2c0e	2c0e	2c3e
+simple	2c0f	2c0f	2c3f
+simple	2c10	2c10	2c40
+simple	2c11	2c11	2c41
+simple	2c12	2c12	2c42
+simple	2c13	2c13	2c43
+simple	2c14	2c14	2c44
+simple	2c15	2c15	2c45
+simple	2c16	2c16	2c46
+simple	2c17	2c17	2c47
+simple	2c18	2c18	2c48
+simple	2c19	2c19	2c49
+simple	2c1a	2c1a	2c4a
+simple	2c1b	2c1b	2c4b
+simple	2c1c	2c1c	2c4c
+simple	2c1d	2c1d	2c4d
+simple	2c1e	2c1e	2c4e
+simple	2c1f	2c1f	2c4f
+simple	2c20	2c20	2c50
+simple	2c21	2c21	2c51
+simple	2c22	2c22	2c52
+simple	2c23	2c23	2c53
+simple	2c24	2c24	2c54
+simple	2c25	2c25	2c55
+simple	2c26	2c26	2c56
+simple	2c27	2c27	2c57
+simple	2c28	2c28	2c58
+simple	2c29	2c29	2c59
+simple	2c2a	2c2a	2c5a
+simple	2c2b	2c2b	2c5b
+simple	2c2c	2c2c	2c5c
+simple	2c2d	2c2d	2c5d
+simple	2c2e	2c2e	2c5e
+simple	2c2f	2c2f	2c5f
+simple	2c30	2c00	2c30
+simple	2c31	2c01	2c31
+simple	2c32	2c02	2c32
+simple	2c33	2c03	2c33
+simple	2c34	2c04	2c34
+simple	2c35	2c05	2c35
+simple	2c36	2c06	2c36
+simple	2c37	2c07	2c37
+simple	2c38	2c08	2c38
+simple	2c39	2c09	2c39
+simple	2c3a	2c0a	2c3a
+simple	2c3b	2c0b	2c3b
+simple	2c3c	2c0c	2c3c
+simple	2c3d	2c0d	2c3d
+simple	2c3e	2c0e	2c3e
+simple	2c3f	2c0f	2c3f
+simple	2c40	2c10	2c40
+simple	2c41	2c11	2c41
+simple	2c42	2c12	2c42
+simple	2c43	2c13	2c43
+simple	2c44	2c14	2c44
+simple	2c45	2c15	2c45
+simple	2c46	2c16	2c46
+simple	2c47	2c17	2c47
+simple	2c48	2c18	2c48
+simple	2c49	2c19	2c49
+simple	2c4a	2c1a	2c4a
+simple	2c4b	2c1b	2c4b
+simple	2c4c	2c1c	2c4c
+simple	2c4d	2c1d	2c4d
+simple	2c4e	2c1e	2c4e
+simple	2c4f	2c1f	2c4f
+simple	2c50	2c20	2c50
+simple	2c51	2c21	2c51
+simple	2c52	2c22	2c52
+simple	2c53	2c23	2c53
+simple	2c54	2c24	2c54
+simple	2c55	2c25	2c55
+simple	2c56	2c26	2c56
+simple	2c57	2c27	2c57
+simple	2c58	2c28	2c58
+simple	2c59	2c29	2c59
+simple	2c5a	2c2a	2c5a
+simple	2c5b	2c2b	2c5b
+simple	2c5c	2c2c	2c5c
+simple	2c5d	2c2d	2c5d
+simple	2c5e	2c2e	2c5e
+simple	2c5f	2c2f	2c5f
+simple	2c60	2c60	2c61
+simple	2c61	2c60	2c61
+simple	2c62	2c62	26b
+simple	2c63	2c63	1d7d
+simple	2c64	2c64	27d
+simple	2c65	23a	2c65
+simple	2c66	23e	2c66
+simple	2c67	2c67	2c68
+simple	2c68	2c67	2c68
+simple	2c69	2c69	2c6a
+simple	2c6a	2c69	2c6a
+simple	2c6b	2c6b	2c6c
+simple	2c6c	2c6b	2c6c
+simple	2c6d	2c6d	251
+simple	2c6e	2c6e	271
+simple	2c6f	2c6f	250
+simple	2c70	2c70	252
+simple	2c72	2c72	2c73
+simple	2c73	2c72	2c73
+simple	2c75	2c75	2c76
+simple	2c76	2c75	2c76
+simple	2c7e	2c7e	23f
+simple	2c7f	2c7f	240
+simple	2c80	2c80	2c81
+simple	2c81	2c80	2c81
+simple	2c82	2c82	2c83
+simple	2c83	2c82	2c83
+simple	2c84	2c84	2c85
+simple	2c85	2c84	2c85
+simple	2c86	2c86	2c87
+simple	2c87	2c86	2c87
+simple	2c88	2c88	2c89
+simple	2c89	2c88	2c89
+simple	2c8a	2c8a	2c8b
+simple	2c8b	2c8a	2c8b
+simple	2c8c	2c8c	2c8d
+simple	2c8d	2c8c	2c8d
+simple	2c8e	2c8e	2c8f
+simple	2c8f	2c8e	2c8f
+simple	2c90	2c90	2c91
+simple	2c91	2c90	2c91
+simple	2c92	2c92	2c93
+simple	2c93	2c92	2c93
+simple	2c94	2c94	2c95
+simple	2c95	2c94	2c95
+simple	2c96	2c96	2c97
+simple	2c97	2c96	2c97
+simple	2c98	2c98	2c99
+simple	2c99	2c98	2c99
+simple	2c9a	2c9a	2c9b
+simple	2c9b	2c9a	2c9b
+simple	2c9c	2c9c	2c9d
+simple	2c9d	2c9c	2c9d
+simple	2c9e	2c9e	2c9f
+simple	2c9f	2c9e	2c9f
+simple	2ca0	2ca0	2ca1
+simple	2ca1	2ca0	2ca1
+simple	2ca2	2ca2	2ca3
+simple	2ca3	2ca2	2ca3
+simple	2ca4	2ca4	2ca5
+simple	2ca5	2ca4	2ca5
+simple	2ca6	2ca6	2ca7
+simple	2ca7	2ca6	2ca7
+simple	2ca8	2ca8	2ca9
+simple	2ca9	2ca8	2ca9
+simple	2caa	2caa	2cab
+simple	2cab	2caa	2cab
+simple	2cac	2cac	2cad
+simple	2cad	2cac	2cad
+simple	2cae	2cae	2caf
+simple	2caf	2cae	2caf
+simple	2cb0	2cb0	2cb1
+simple	2cb1	2cb0	2cb1
+simple	2cb2	2cb2	2cb3
+simple	2cb3	2cb2	2cb3
+simple	2cb4	2cb4	2cb5
+simple	2cb5	2cb4	2cb5
+simple	2cb6	2cb6	2cb7
+simple	2cb7	2cb6	2cb7
+simple	2cb8	2cb8	2cb9
+simple	2cb9	2cb8	2cb9
+simple	2cba	2cba	2cbb
+simple	2cbb	2cba	2cbb
+simple	2cbc	2cbc	2cbd
+simple	2cbd	2cbc	2cbd
+simple	2cbe	2cbe	2cbf
+simple	2cbf	2cbe	2cbf
+simple	2cc0	2cc0	2cc1
+simple	2cc1	2cc0	2cc1
+simple	2cc2	2cc2	2cc3
+simple	2cc3	2cc2	2cc3
+simple	2cc4	2cc4	2cc5
+simple	2cc5	2cc4	2cc5
+simple	2cc6	2cc6	2cc7
+simple	2cc7	2cc6	2cc7
+simple	2cc8	2cc8	2cc9
+simple	2cc9	2cc8	2cc9
+simple	2cca	2cca	2ccb
+simple	2ccb	2cca	2ccb
+simple	2ccc	2ccc	2ccd
+simple	2ccd	2ccc	2ccd
+simple	2cce	2cce	2ccf
+simple	2ccf	2cce	2ccf
+simple	2cd0	2cd0	2cd1
+simple	2cd1	2cd0	2cd1
+simple	2cd2	2cd2	2cd3
+simple	2cd3	2cd2	2cd3
+simple	2cd4	2cd4	2cd5
+simple	2cd5	2cd4	2cd5
+simple	2cd6	2cd6	2cd7
+simple	2cd7	2cd6	2cd7
+simple	2cd8	2cd8	2cd9
+simple	2cd9	2cd8	2cd9
+simple	2cda	2cda	2cdb
+simple	2cdb	2cda	2cdb
+simple	2cdc	2cdc	2cdd
+simple	2cdd	2cdc	2cdd
+simple	2cde	2cde	2cdf
+simple	2cdf	2cde	2cdf
+simple	2ce0	2ce0	2ce1
+simple	2ce1	2ce0	2ce1
+simple	2ce2	2ce2	2ce3
+simple	2ce3	2ce2	2ce3
+simple	2ceb	2ceb	2cec
+simple	2cec	2ceb	2cec
+simple	2ced	2ced	2cee
+simple	2cee	2ced	2cee
+simple	2cf2	2cf2	2cf3
+simple	2cf3	2cf2	2cf3
+simple	2d00	10a0	2d00
+simple	2d01	10a1	2d01
+simple	2d02	10a2	2d02
+simple	2d03	10a3	2d03
+simple	2d04	10a4	2d04
+simple	2d05	10a5	2d05
+simple	2d06	10a6	2d06
+simple	2d07	10a7	2d07
+simple	2d08	10a8	2d08
+simple	2d09	10a9	2d09
+simple	2d0a	10aa	2d0a
+simple	2d0b	10ab	2d0b
+simple	2d0c	10ac	2d0c
+simple	2d0d	10ad	2d0d
+simple	2d0e	10ae	2d0e
+simple	2d0f	10af	2d0f
+simple	2d10	10b0	2d10
+simple	2d11	10b1	2d11
+simple	2d12	10b2	2d12
+simple	2d13	10b3	2d13
+simple	2d14	10b4	2d14
+simple	2d15	10b5	2d15
+simple	2d16	10b6	2d16
+simple	2d17	10b7	2d17
+simple	2d18	10b8	2d18
+simple	2d19	10b9	2d19
+simple	2d1a	10ba	2d1a
+simple	2d1b	10bb	2d1b
+simple	2d1c	10bc	2d1c
+simple	2d1d	10bd	2d1d
+simple	2d1e	10be	2d1e
+simple	2d1f	10bf	2d1f
+simple	2d20	10c0	2d20
+simple	2d21	10c1	2d21
+simple	2d22	10c2	2d22
+simple	2d23	10c3	2d23
+simple	2d24	10c4	2d24
+simple	2d25	10c5	2d25
+simple	2d27	10c7	2d27
+simple	2d2d	10cd	2d2d
+simple	a640	a640	a641
+simple	a641	a640	a641
+simple	a642	a642	a643
+simple	a643	a642	a643
+simple	a644	a644	a645
+simple	a645	a644	a645
+simple	a646	a646	a647
+simple	a647	a646	a647
+simple	a648	a648	a649
+simple	a649	a648	a649
+simple	a64a	a64a	a64b
+simple	a64b	a64a	a64b
+simple	a64c	a64c	a64d
+simple	a64d	a64c	a64d
+simple	a64e	a64e	a64f
+simple	a64f	a64e	a64f
+simple	a650	a650	a651
+simple	a651	a650	a651
+simple	a652	a652	a653
+simple	a653	a652	a653
+simple	a654	a654	a655
+simple	a655	a654	a655
+simple	a656	a656	a657
+simple	a657	a656	a657
+simple	a658	a658	a659
+simple	a659	a658	a659
+simple	a65a	a65a	a65b
+simple	a65b	a65a	a65b
+simple	a65c	a65c	a65d
+simple	a65d	a65c	a65d
+simple	a65e	a65e	a65f
+simple	a65f	a65e	a65f
+simple	a660	a660	a661
+simple	a661	a660	a661
+simple	a662	a662	a663
+simple	a663	a662	a663
+simple	a664	a664	a665
+simple	a665	a664	a665
+simple	a666	a666	a667
+simple	a667	a666	a667
+simple	a668	a668	a669
+simple	a669	a668	a669
+simple	a66a	a66a	a66b
+simple	a66b	a66a	a66b
+simple	a66c	a66c	a66d
+simple	a66d	a66c	a66d
+simple	a680	a680	a681
+simple	a681	a680	a681
+simple	a682	a682	a683
+simple	a683	a682	a683
+simple	a684	a684	a685
+simple	a685	a684	a685
+simple	a686	a686	a687
+simple	a687	a686	a687
+simple	a688	a688	a689
+simple	a689	a688	a689
+simple	a68a	a68a	a68b
+simple	a68b	a68a	a68b
+simple	a68c	a68c	a68d
+simple	a68d	a68c	a68d
+simple	a68e	a68e	a68f
+simple	a68f	a68e	a68f
+simple	a690	a690	a691
+simple	a691	a690	a691
+simple	a692	a692	a693
+simple	a693	a692	a693
+simple	a694	a694	a695
+simple	a695	a694	a695
+simple	a696	a696	a697
+simple	a697	a696	a697
+simple	a698	a698	a699
+simple	a699	a698	a699
+simple	a69a	a69a	a69b
+simple	a69b	a69a	a69b
+simple	a722	a722	a723
+simple	a723	a722	a723
+simple	a724	a724	a725
+simple	a725	a724	a725
+simple	a726	a726	a727
+simple	a727	a726	a727
+simple	a728	a728	a729
+simple	a729	a728	a729
+simple	a72a	a72a	a72b
+simple	a72b	a72a	a72b
+simple	a72c	a72c	a72d
+simple	a72d	a72c	a72d
+simple	a72e	a72e	a72f
+simple	a72f	a72e	a72f
+simple	a732	a732	a733
+simple	a733	a732	a733
+simple	a734	a734	a735
+simple	a735	a734	a735
+simple	a736	a736	a737
+simple	a737	a736	a737
+simple	a738	a738	a739
+simple	a739	a738	a739
+simple	a73a	a73a	a73b
+simple	a73b	a73a	a73b
+simple	a73c	a73c	a73d
+simple	a73d	a73c	a73d
+simple	a73e	a73e	a73f
+simple	a73f	a73e	a73f
+simple	a740	a740	a741
+simple	a741	a740	a741
+simple	a742	a742	a743
+simple	a743	a742	a743
+simple	a744	a744	a745
+simple	a745	a744	a745
+simple	a746	a746	a747
+simple	a747	a746	a747
+simple	a748	a748	a749
+simple	a749	a748	a749
+simple	a74a	a74a	a74b
+simple	a74b	a74a	a74b
+simple	a74c	a74c	a74d
+simple	a74d	a74c	a74d
+simple	a74e	a74e	a74f
+simple	a74f	a74e	a74f
+simple	a750	a750	a751
+simple	a751	a750	a751
+simple	a752	a752	a753
+simple	a753	a752	a753
+simple	a754	a754	a755
+simple	a755	a754	a755
+simple	a756	a756	a757
+simple	a757	a756	a757
+simple	a758	a758	a759
+simple	a759	a758	a759
+simple	a75a	a75a	a75b
+simple	a75b	a75a	a75b
+simple	a75c	a75c	a75d
+simple	a75d	a75c	a75d
+simple	a75e	a75e	a75f
+simple	a75f	a75e	a75f
+simple	a760	a760	a761
+simple	a761	a760	a761
+simple	a762	a762	a763
+simple	a763	a762	a763
+simple	a764	a764	a765
+simple	a765	a764	a765
+simple	a766	a766	a767
+simple	a767	a766	a767
+simple	a768	a768	a769
+simple	a769	a768	a769
+simple	a76a	a76a	a76b
+simple	a76b	a76a	a76b
+simple	a76c	a76c	a76d
+simple	a76d	a76c	a76d
+simple	a76e	a76e	a76f
+simple	a76f	a76e	a76f
+simple	a779	a779	a77a
+simple	a77a	a779	a77a
+simple	a77b	a77b	a77c
+simple	a77c	a77b	a77c
+simple	a77d	a77d	1d79
+simple	a77e	a77e	a77f
+simple	a77f	a77e	a77f
+simple	a780	a780	a781
+simple	a781	a780	a781
+simple	a782	a782	a783
+simple	a783	a782	a783
+simple	a784	a784	a785
+simple	a785	a784	a785
+simple	a786	a786	a787
+simple	a787	a786	a787
+simple	a78b	a78b	a78c
+simple	a78c	a78b	a78c
+simple	a78d	a78d	265
+simple	a790	a790	a791
+simple	a791	a790	a791
+simple	a792	a792	a793
+simple	a793	a792	a793
+simple	a794	a7c4	a794
+simple	a796	a796	a797
+simple	a797	a796	a797
+simple	a798	a798	a799
+simple	a799	a798	a799
+simple	a79a	a79a	a79b
+simple	a79b	a79a	a79b
+simple	a79c	a79c	a79d
+simple	a79d	a79c	a79d
+simple	a79e	a79e	a79f
+simple	a79f	a79e	a79f
+simple	a7a0	a7a0	a7a1
+simple	a7a1	a7a0	a7a1
+simple	a7a2	a7a2	a7a3
+simple	a7a3	a7a2	a7a3
+simple	a7a4	a7a4	a7a5
+simple	a7a5	a7a4	a7a5
+simple	a7a6	a7a6	a7a7
+simple	a7a7	a7a6	a7a7
+simple	a7a8	a7a8	a7a9
+simple	a7a9	a7a8	a7a9
+simple	a7aa	a7aa	266
+simple	a7ab	a7ab	25c
+simple	a7ac	a7ac	261
+simple	a7ad	a7ad	26c
+simple	a7ae	a7ae	26a
+simple	a7b0	a7b0	29e
+simple	a7b1	a7b1	287
+simple	a7b2	a7b2	29d
+simple	a7b3	a7b3	ab53
+simple	a7b4	a7b4	a7b5
+simple	a7b5	a7b4	a7b5
+simple	a7b6	a7b6	a7b7
+simple	a7b7	a7b6	a7b7
+simple	a7b8	a7b8	a7b9
+simple	a7b9	a7b8	a7b9
+simple	a7ba	a7ba	a7bb
+simple	a7bb	a7ba	a7bb
+simple	a7bc	a7bc	a7bd
+simple	a7bd	a7bc	a7bd
+simple	a7be	a7be	a7bf
+simple	a7bf	a7be	a7bf
+simple	a7c0	a7c0	a7c1
+simple	a7c1	a7c0	a7c1
+simple	a7c2	a7c2	a7c3
+simple	a7c3	a7c2	a7c3
+simple	a7c4	a7c4	a794
+simple	a7c5	a7c5	282
+simple	a7c6	a7c6	1d8e
+simple	a7c7	a7c7	a7c8
+simple	a7c8	a7c7	a7c8
+simple	a7c9	a7c9	a7ca
+simple	a7ca	a7c9	a7ca
+simple	a7d0	a7d0	a7d1
+simple	a7d1	a7d0	a7d1
+simple	a7d6	a7d6	a7d7
+simple	a7d7	a7d6	a7d7
+simple	a7d8	a7d8	a7d9
+simple	a7d9	a7d8	a7d9
+simple	a7f5	a7f5	a7f6
+simple	a7f6	a7f5	a7f6
+simple	ab53	a7b3	ab53
+simple	ab70	13a0	ab70
+simple	ab71	13a1	ab71
+simple	ab72	13a2	ab72
+simple	ab73	13a3	ab73
+simple	ab74	13a4	ab74
+simple	ab75	13a5	ab75
+simple	ab76	13a6	ab76
+simple	ab77	13a7	ab77
+simple	ab78	13a8	ab78
+simple	ab79	13a9	ab79
+simple	ab7a	13aa	ab7a
+simple	ab7b	13ab	ab7b
+simple	ab7c	13ac	ab7c
+simple	ab7d	13ad	ab7d
+simple	ab7e	13ae	ab7e
+simple	ab7f	13af	ab7f
+simple	ab80	13b0	ab80
+simple	ab81	13b1	ab81
+simple	ab82	13b2	ab82
+simple	ab83	13b3	ab83
+simple	ab84	13b4	ab84
+simple	ab85	13b5	ab85
+simple	ab86	13b6	ab86
+simple	ab87	13b7	ab87
+simple	ab88	13b8	ab88
+simple	ab89	13b9	ab89
+simple	ab8a	13ba	ab8a
+simple	ab8b	13bb	ab8b
+simple	ab8c	13bc	ab8c
+simple	ab8d	13bd	ab8d
+simple	ab8e	13be	ab8e
+simple	ab8f	13bf	ab8f
+simple	ab90	13c0	ab90
+simple	ab91	13c1	ab91
+simple	ab92	13c2	ab92
+simple	ab93	13c3	ab93
+simple	ab94	13c4	ab94
+simple	ab95	13c5	ab95
+simple	ab96	13c6	ab96
+simple	ab97	13c7	ab97
+simple	ab98	13c8	ab98
+simple	ab99	13c9	ab99
+simple	ab9a	13ca	ab9a
+simple	ab9b	13cb	ab9b
+simple	ab9c	13cc	ab9c
+simple	ab9d	13cd	ab9d
+simple	ab9e	13ce	ab9e
+simple	ab9f	13cf	ab9f
+simple	aba0	13d0	aba0
+simple	aba1	13d1	aba1
+simple	aba2	13d2	aba2
+simple	aba3	13d3	aba3
+simple	aba4	13d4	aba4
+simple	aba5	13d5	aba5
+simple	aba6	13d6	aba6
+simple	aba7	13d7	aba7
+simple	aba8	13d8	aba8
+simple	aba9	13d9	aba9
+simple	abaa	13da	abaa
+simple	abab	13db	abab
+simple	abac	13dc	abac
+simple	abad	13dd	abad
+simple	abae	13de	abae
+simple	abaf	13df	abaf
+simple	abb0	13e0	abb0
+simple	abb1	13e1	abb1
+simple	abb2	13e2	abb2
+simple	abb3	13e3	abb3
+simple	abb4	13e4	abb4
+simple	abb5	13e5	abb5
+simple	abb6	13e6	abb6
+simple	abb7	13e7	abb7
+simple	abb8	13e8	abb8
+simple	abb9	13e9	abb9
+simple	abba	13ea	abba
+simple	abbb	13eb	abbb
+simple	abbc	13ec	abbc
+simple	abbd	13ed	abbd
+simple	abbe	13ee	abbe
+simple	abbf	13ef	abbf
+upper	fb00	u00460046
+upper	fb01	u00460049
+upper	fb02	u0046004c
+upper	fb03	u004600460049
+upper	fb04	u00460046004c
+upper	fb05	u00530054
+upper	fb06	u00530054
+upper	fb13	u05440546
+upper	fb14	u05440535
+upper	fb15	u0544053b
+upper	fb16	u054e0546
+upper	fb17	u0544053d
+simple	ff21	ff21	ff41
+simple	ff22	ff22	ff42
+simple	ff23	ff23	ff43
+simple	ff24	ff24	ff44
+simple	ff25	ff25	ff45
+simple	ff26	ff26	ff46
+simple	ff27	ff27	ff47
+simple	ff28	ff28	ff48
+simple	ff29	ff29	ff49
+simple	ff2a	ff2a	ff4a
+simple	ff2b	ff2b	ff4b
+simple	ff2c	ff2c	ff4c
+simple	ff2d	ff2d	ff4d
+simple	ff2e	ff2e	ff4e
+simple	ff2f	ff2f	ff4f
+simple	ff30	ff30	ff50
+simple	ff31	ff31	ff51
+simple	ff32	ff32	ff52
+simple	ff33	ff33	ff53
+simple	ff34	ff34	ff54
+simple	ff35	ff35	ff55
+simple	ff36	ff36	ff56
+simple	ff37	ff37	ff57
+simple	ff38	ff38	ff58
+simple	ff39	ff39	ff59
+simple	ff3a	ff3a	ff5a
+simple	ff41	ff21	ff41
+simple	ff42	ff22	ff42
+simple	ff43	ff23	ff43
+simple	ff44	ff24	ff44
+simple	ff45	ff25	ff45
+simple	ff46	ff26	ff46
+simple	ff47	ff27	ff47
+simple	ff48	ff28	ff48
+simple	ff49	ff29	ff49
+simple	ff4a	ff2a	ff4a
+simple	ff4b	ff2b	ff4b
+simple	ff4c	ff2c	ff4c
+simple	ff4d	ff2d	ff4d
+simple	ff4e	ff2e	ff4e
+simple	ff4f	ff2f	ff4f
+simple	ff50	ff30	ff50
+simple	ff51	ff31	ff51
+simple	ff52	ff32	ff52
+simple	ff53	ff33	ff53
+simple	ff54	ff34	ff54
+simple	ff55	ff35	ff55
+simple	ff56	ff36	ff56
+simple	ff57	ff37	ff57
+simple	ff58	ff38	ff58
+simple	ff59	ff39	ff59
+simple	ff5a	ff3a	ff5a
+simple	10400	10400	10428
+simple	10401	10401	10429
+simple	10402	10402	1042a
+simple	10403	10403	1042b
+simple	10404	10404	1042c
+simple	10405	10405	1042d
+simple	10406	10406	1042e
+simple	10407	10407	1042f
+simple	10408	10408	10430
+simple	10409	10409	10431
+simple	1040a	1040a	10432
+simple	1040b	1040b	10433
+simple	1040c	1040c	10434
+simple	1040d	1040d	10435
+simple	1040e	1040e	10436
+simple	1040f	1040f	10437
+simple	10410	10410	10438
+simple	10411	10411	10439
+simple	10412	10412	1043a
+simple	10413	10413	1043b
+simple	10414	10414	1043c
+simple	10415	10415	1043d
+simple	10416	10416	1043e
+simple	10417	10417	1043f
+simple	10418	10418	10440
+simple	10419	10419	10441
+simple	1041a	1041a	10442
+simple	1041b	1041b	10443
+simple	1041c	1041c	10444
+simple	1041d	1041d	10445
+simple	1041e	1041e	10446
+simple	1041f	1041f	10447
+simple	10420	10420	10448
+simple	10421	10421	10449
+simple	10422	10422	1044a
+simple	10423	10423	1044b
+simple	10424	10424	1044c
+simple	10425	10425	1044d
+simple	10426	10426	1044e
+simple	10427	10427	1044f
+simple	10428	10400	10428
+simple	10429	10401	10429
+simple	1042a	10402	1042a
+simple	1042b	10403	1042b
+simple	1042c	10404	1042c
+simple	1042d	10405	1042d
+simple	1042e	10406	1042e
+simple	1042f	10407	1042f
+simple	10430	10408	10430
+simple	10431	10409	10431
+simple	10432	1040a	10432
+simple	10433	1040b	10433
+simple	10434	1040c	10434
+simple	10435	1040d	10435
+simple	10436	1040e	10436
+simple	10437	1040f	10437
+simple	10438	10410	10438
+simple	10439	10411	10439
+simple	1043a	10412	1043a
+simple	1043b	10413	1043b
+simple	1043c	10414	1043c
+simple	1043d	10415	1043d
+simple	1043e	10416	1043e
+simple	1043f	10417	1043f
+simple	10440	10418	10440
+simple	10441	10419	10441
+simple	10442	1041a	10442
+simple	10443	1041b	10443
+simple	10444	1041c	10444
+simple	10445	1041d	10445
+simple	10446	1041e	10446
+simple	10447	1041f	10447
+simple	10448	10420	10448
+simple	10449	10421	10449
+simple	1044a	10422	1044a
+simple	1044b	10423	1044b
+simple	1044c	10424	1044c
+simple	1044d	10425	1044d
+simple	1044e	10426	1044e
+simple	1044f	10427	1044f
+simple	104b0	104b0	104d8
+simple	104b1	104b1	104d9
+simple	104b2	104b2	104da
+simple	104b3	104b3	104db
+simple	104b4	104b4	104dc
+simple	104b5	104b5	104dd
+simple	104b6	104b6	104de
+simple	104b7	104b7	104df
+simple	104b8	104b8	104e0
+simple	104b9	104b9	104e1
+simple	104ba	104ba	104e2
+simple	104bb	104bb	104e3
+simple	104bc	104bc	104e4
+simple	104bd	104bd	104e5
+simple	104be	104be	104e6
+simple	104bf	104bf	104e7
+simple	104c0	104c0	104e8
+simple	104c1	104c1	104e9
+simple	104c2	104c2	104ea
+simple	104c3	104c3	104eb
+simple	104c4	104c4	104ec
+simple	104c5	104c5	104ed
+simple	104c6	104c6	104ee
+simple	104c7	104c7	104ef
+simple	104c8	104c8	104f0
+simple	104c9	104c9	104f1
+simple	104ca	104ca	104f2
+simple	104cb	104cb	104f3
+simple	104cc	104cc	104f4
+simple	104cd	104cd	104f5
+simple	104ce	104ce	104f6
+simple	104cf	104cf	104f7
+simple	104d0	104d0	104f8
+simple	104d1	104d1	104f9
+simple	104d2	104d2	104fa
+simple	104d3	104d3	104fb
+simple	104d8	104b0	104d8
+simple	104d9	104b1	104d9
+simple	104da	104b2	104da
+simple	104db	104b3	104db
+simple	104dc	104b4	104dc
+simple	104dd	104b5	104dd
+simple	104de	104b6	104de
+simple	104df	104b7	104df
+simple	104e0	104b8	104e0
+simple	104e1	104b9	104e1
+simple	104e2	104ba	104e2
+simple	104e3	104bb	104e3
+simple	104e4	104bc	104e4
+simple	104e5	104bd	104e5
+simple	104e6	104be	104e6
+simple	104e7	104bf	104e7
+simple	104e8	104c0	104e8
+simple	104e9	104c1	104e9
+simple	104ea	104c2	104ea
+simple	104eb	104c3	104eb
+simple	104ec	104c4	104ec
+simple	104ed	104c5	104ed
+simple	104ee	104c6	104ee
+simple	104ef	104c7	104ef
+simple	104f0	104c8	104f0
+simple	104f1	104c9	104f1
+simple	104f2	104ca	104f2
+simple	104f3	104cb	104f3
+simple	104f4	104cc	104f4
+simple	104f5	104cd	104f5
+simple	104f6	104ce	104f6
+simple	104f7	104cf	104f7
+simple	104f8	104d0	104f8
+simple	104f9	104d1	104f9
+simple	104fa	104d2	104fa
+simple	104fb	104d3	104fb
+simple	10570	10570	10597
+simple	10571	10571	10598
+simple	10572	10572	10599
+simple	10573	10573	1059a
+simple	10574	10574	1059b
+simple	10575	10575	1059c
+simple	10576	10576	1059d
+simple	10577	10577	1059e
+simple	10578	10578	1059f
+simple	10579	10579	105a0
+simple	1057a	1057a	105a1
+simple	1057c	1057c	105a3
+simple	1057d	1057d	105a4
+simple	1057e	1057e	105a5
+simple	1057f	1057f	105a6
+simple	10580	10580	105a7
+simple	10581	10581	105a8
+simple	10582	10582	105a9
+simple	10583	10583	105aa
+simple	10584	10584	105ab
+simple	10585	10585	105ac
+simple	10586	10586	105ad
+simple	10587	10587	105ae
+simple	10588	10588	105af
+simple	10589	10589	105b0
+simple	1058a	1058a	105b1
+simple	1058c	1058c	105b3
+simple	1058d	1058d	105b4
+simple	1058e	1058e	105b5
+simple	1058f	1058f	105b6
+simple	10590	10590	105b7
+simple	10591	10591	105b8
+simple	10592	10592	105b9
+simple	10594	10594	105bb
+simple	10595	10595	105bc
+simple	10597	10570	10597
+simple	10598	10571	10598
+simple	10599	10572	10599
+simple	1059a	10573	1059a
+simple	1059b	10574	1059b
+simple	1059c	10575	1059c
+simple	1059d	10576	1059d
+simple	1059e	10577	1059e
+simple	1059f	10578	1059f
+simple	105a0	10579	105a0
+simple	105a1	1057a	105a1
+simple	105a3	1057c	105a3
+simple	105a4	1057d	105a4
+simple	105a5	1057e	105a5
+simple	105a6	1057f	105a6
+simple	105a7	10580	105a7
+simple	105a8	10581	105a8
+simple	105a9	10582	105a9
+simple	105aa	10583	105aa
+simple	105ab	10584	105ab
+simple	105ac	10585	105ac
+simple	105ad	10586	105ad
+simple	105ae	10587	105ae
+simple	105af	10588	105af
+simple	105b0	10589	105b0
+simple	105b1	1058a	105b1
+simple	105b3	1058c	105b3
+simple	105b4	1058d	105b4
+simple	105b5	1058e	105b5
+simple	105b6	1058f	105b6
+simple	105b7	10590	105b7
+simple	105b8	10591	105b8
+simple	105b9	10592	105b9
+simple	105bb	10594	105bb
+simple	105bc	10595	105bc
+simple	10c80	10c80	10cc0
+simple	10c81	10c81	10cc1
+simple	10c82	10c82	10cc2
+simple	10c83	10c83	10cc3
+simple	10c84	10c84	10cc4
+simple	10c85	10c85	10cc5
+simple	10c86	10c86	10cc6
+simple	10c87	10c87	10cc7
+simple	10c88	10c88	10cc8
+simple	10c89	10c89	10cc9
+simple	10c8a	10c8a	10cca
+simple	10c8b	10c8b	10ccb
+simple	10c8c	10c8c	10ccc
+simple	10c8d	10c8d	10ccd
+simple	10c8e	10c8e	10cce
+simple	10c8f	10c8f	10ccf
+simple	10c90	10c90	10cd0
+simple	10c91	10c91	10cd1
+simple	10c92	10c92	10cd2
+simple	10c93	10c93	10cd3
+simple	10c94	10c94	10cd4
+simple	10c95	10c95	10cd5
+simple	10c96	10c96	10cd6
+simple	10c97	10c97	10cd7
+simple	10c98	10c98	10cd8
+simple	10c99	10c99	10cd9
+simple	10c9a	10c9a	10cda
+simple	10c9b	10c9b	10cdb
+simple	10c9c	10c9c	10cdc
+simple	10c9d	10c9d	10cdd
+simple	10c9e	10c9e	10cde
+simple	10c9f	10c9f	10cdf
+simple	10ca0	10ca0	10ce0
+simple	10ca1	10ca1	10ce1
+simple	10ca2	10ca2	10ce2
+simple	10ca3	10ca3	10ce3
+simple	10ca4	10ca4	10ce4
+simple	10ca5	10ca5	10ce5
+simple	10ca6	10ca6	10ce6
+simple	10ca7	10ca7	10ce7
+simple	10ca8	10ca8	10ce8
+simple	10ca9	10ca9	10ce9
+simple	10caa	10caa	10cea
+simple	10cab	10cab	10ceb
+simple	10cac	10cac	10cec
+simple	10cad	10cad	10ced
+simple	10cae	10cae	10cee
+simple	10caf	10caf	10cef
+simple	10cb0	10cb0	10cf0
+simple	10cb1	10cb1	10cf1
+simple	10cb2	10cb2	10cf2
+simple	10cc0	10c80	10cc0
+simple	10cc1	10c81	10cc1
+simple	10cc2	10c82	10cc2
+simple	10cc3	10c83	10cc3
+simple	10cc4	10c84	10cc4
+simple	10cc5	10c85	10cc5
+simple	10cc6	10c86	10cc6
+simple	10cc7	10c87	10cc7
+simple	10cc8	10c88	10cc8
+simple	10cc9	10c89	10cc9
+simple	10cca	10c8a	10cca
+simple	10ccb	10c8b	10ccb
+simple	10ccc	10c8c	10ccc
+simple	10ccd	10c8d	10ccd
+simple	10cce	10c8e	10cce
+simple	10ccf	10c8f	10ccf
+simple	10cd0	10c90	10cd0
+simple	10cd1	10c91	10cd1
+simple	10cd2	10c92	10cd2
+simple	10cd3	10c93	10cd3
+simple	10cd4	10c94	10cd4
+simple	10cd5	10c95	10cd5
+simple	10cd6	10c96	10cd6
+simple	10cd7	10c97	10cd7
+simple	10cd8	10c98	10cd8
+simple	10cd9	10c99	10cd9
+simple	10cda	10c9a	10cda
+simple	10cdb	10c9b	10cdb
+simple	10cdc	10c9c	10cdc
+simple	10cdd	10c9d	10cdd
+simple	10cde	10c9e	10cde
+simple	10cdf	10c9f	10cdf
+simple	10ce0	10ca0	10ce0
+simple	10ce1	10ca1	10ce1
+simple	10ce2	10ca2	10ce2
+simple	10ce3	10ca3	10ce3
+simple	10ce4	10ca4	10ce4
+simple	10ce5	10ca5	10ce5
+simple	10ce6	10ca6	10ce6
+simple	10ce7	10ca7	10ce7
+simple	10ce8	10ca8	10ce8
+simple	10ce9	10ca9	10ce9
+simple	10cea	10caa	10cea
+simple	10ceb	10cab	10ceb
+simple	10cec	10cac	10cec
+simple	10ced	10cad	10ced
+simple	10cee	10cae	10cee
+simple	10cef	10caf	10cef
+simple	10cf0	10cb0	10cf0
+simple	10cf1	10cb1	10cf1
+simple	10cf2	10cb2	10cf2
+simple	118a0	118a0	118c0
+simple	118a1	118a1	118c1
+simple	118a2	118a2	118c2
+simple	118a3	118a3	118c3
+simple	118a4	118a4	118c4
+simple	118a5	118a5	118c5
+simple	118a6	118a6	118c6
+simple	118a7	118a7	118c7
+simple	118a8	118a8	118c8
+simple	118a9	118a9	118c9
+simple	118aa	118aa	118ca
+simple	118ab	118ab	118cb
+simple	118ac	118ac	118cc
+simple	118ad	118ad	118cd
+simple	118ae	118ae	118ce
+simple	118af	118af	118cf
+simple	118b0	118b0	118d0
+simple	118b1	118b1	118d1
+simple	118b2	118b2	118d2
+simple	118b3	118b3	118d3
+simple	118b4	118b4	118d4
+simple	118b5	118b5	118d5
+simple	118b6	118b6	118d6
+simple	118b7	118b7	118d7
+simple	118b8	118b8	118d8
+simple	118b9	118b9	118d9
+simple	118ba	118ba	118da
+simple	118bb	118bb	118db
+simple	118bc	118bc	118dc
+simple	118bd	118bd	118dd
+simple	118be	118be	118de
+simple	118bf	118bf	118df
+simple	118c0	118a0	118c0
+simple	118c1	118a1	118c1
+simple	118c2	118a2	118c2
+simple	118c3	118a3	118c3
+simple	118c4	118a4	118c4
+simple	118c5	118a5	118c5
+simple	118c6	118a6	118c6
+simple	118c7	118a7	118c7
+simple	118c8	118a8	118c8
+simple	118c9	118a9	118c9
+simple	118ca	118aa	118ca
+simple	118cb	118ab	118cb
+simple	118cc	118ac	118cc
+simple	118cd	118ad	118cd
+simple	118ce	118ae	118ce
+simple	118cf	118af	118cf
+simple	118d0	118b0	118d0
+simple	118d1	118b1	118d1
+simple	118d2	118b2	118d2
+simple	118d3	118b3	118d3
+simple	118d4	118b4	118d4
+simple	118d5	118b5	118d5
+simple	118d6	118b6	118d6
+simple	118d7	118b7	118d7
+simple	118d8	118b8	118d8
+simple	118d9	118b9	118d9
+simple	118da	118ba	118da
+simple	118db	118bb	118db
+simple	118dc	118bc	118dc
+simple	118dd	118bd	118dd
+simple	118de	118be	118de
+simple	118df	118bf	118df
+simple	16e40	16e40	16e60
+simple	16e41	16e41	16e61
+simple	16e42	16e42	16e62
+simple	16e43	16e43	16e63
+simple	16e44	16e44	16e64
+simple	16e45	16e45	16e65
+simple	16e46	16e46	16e66
+simple	16e47	16e47	16e67
+simple	16e48	16e48	16e68
+simple	16e49	16e49	16e69
+simple	16e4a	16e4a	16e6a
+simple	16e4b	16e4b	16e6b
+simple	16e4c	16e4c	16e6c
+simple	16e4d	16e4d	16e6d
+simple	16e4e	16e4e	16e6e
+simple	16e4f	16e4f	16e6f
+simple	16e50	16e50	16e70
+simple	16e51	16e51	16e71
+simple	16e52	16e52	16e72
+simple	16e53	16e53	16e73
+simple	16e54	16e54	16e74
+simple	16e55	16e55	16e75
+simple	16e56	16e56	16e76
+simple	16e57	16e57	16e77
+simple	16e58	16e58	16e78
+simple	16e59	16e59	16e79
+simple	16e5a	16e5a	16e7a
+simple	16e5b	16e5b	16e7b
+simple	16e5c	16e5c	16e7c
+simple	16e5d	16e5d	16e7d
+simple	16e5e	16e5e	16e7e
+simple	16e5f	16e5f	16e7f
+simple	16e60	16e40	16e60
+simple	16e61	16e41	16e61
+simple	16e62	16e42	16e62
+simple	16e63	16e43	16e63
+simple	16e64	16e44	16e64
+simple	16e65	16e45	16e65
+simple	16e66	16e46	16e66
+simple	16e67	16e47	16e67
+simple	16e68	16e48	16e68
+simple	16e69	16e49	16e69
+simple	16e6a	16e4a	16e6a
+simple	16e6b	16e4b	16e6b
+simple	16e6c	16e4c	16e6c
+simple	16e6d	16e4d	16e6d
+simple	16e6e	16e4e	16e6e
+simple	16e6f	16e4f	16e6f
+simple	16e70	16e50	16e70
+simple	16e71	16e51	16e71
+simple	16e72	16e52	16e72
+simple	16e73	16e53	16e73
+simple	16e74	16e54	16e74
+simple	16e75	16e55	16e75
+simple	16e76	16e56	16e76
+simple	16e77	16e57	16e77
+simple	16e78	16e58	16e78
+simple	16e79	16e59	16e79
+simple	16e7a	16e5a	16e7a
+simple	16e7b	16e5b	16e7b
+simple	16e7c	16e5c	16e7c
+simple	16e7d	16e5d	16e7d
+simple	16e7e	16e5e	16e7e
+simple	16e7f	16e5f	16e7f
+simple	1e900	1e900	1e922
+simple	1e901	1e901	1e923
+simple	1e902	1e902	1e924
+simple	1e903	1e903	1e925
+simple	1e904	1e904	1e926
+simple	1e905	1e905	1e927
+simple	1e906	1e906	1e928
+simple	1e907	1e907	1e929
+simple	1e908	1e908	1e92a
+simple	1e909	1e909	1e92b
+simple	1e90a	1e90a	1e92c
+simple	1e90b	1e90b	1e92d
+simple	1e90c	1e90c	1e92e
+simple	1e90d	1e90d	1e92f
+simple	1e90e	1e90e	1e930
+simple	1e90f	1e90f	1e931
+simple	1e910	1e910	1e932
+simple	1e911	1e911	1e933
+simple	1e912	1e912	1e934
+simple	1e913	1e913	1e935
+simple	1e914	1e914	1e936
+simple	1e915	1e915	1e937
+simple	1e916	1e916	1e938
+simple	1e917	1e917	1e939
+simple	1e918	1e918	1e93a
+simple	1e919	1e919	1e93b
+simple	1e91a	1e91a	1e93c
+simple	1e91b	1e91b	1e93d
+simple	1e91c	1e91c	1e93e
+simple	1e91d	1e91d	1e93f
+simple	1e91e	1e91e	1e940
+simple	1e91f	1e91f	1e941
+simple	1e920	1e920	1e942
+simple	1e921	1e921	1e943
+simple	1e922	1e900	1e922
+simple	1e923	1e901	1e923
+simple	1e924	1e902	1e924
+simple	1e925	1e903	1e925
+simple	1e926	1e904	1e926
+simple	1e927	1e905	1e927
+simple	1e928	1e906	1e928
+simple	1e929	1e907	1e929
+simple	1e92a	1e908	1e92a
+simple	1e92b	1e909	1e92b
+simple	1e92c	1e90a	1e92c
+simple	1e92d	1e90b	1e92d
+simple	1e92e	1e90c	1e92e
+simple	1e92f	1e90d	1e92f
+simple	1e930	1e90e	1e930
+simple	1e931	1e90f	1e931
+simple	1e932	1e910	1e932
+simple	1e933	1e911	1e933
+simple	1e934	1e912	1e934
+simple	1e935	1e913	1e935
+simple	1e936	1e914	1e936
+simple	1e937	1e915	1e937
+simple	1e938	1e916	1e938
+simple	1e939	1e917	1e939
+simple	1e93a	1e918	1e93a
+simple	1e93b	1e919	1e93b
+simple	1e93c	1e91a	1e93c
+simple	1e93d	1e91b	1e93d
+simple	1e93e	1e91c	1e93e
+simple	1e93f	1e91d	1e93f
+simple	1e940	1e91e	1e940
+simple	1e941	1e91f	1e941
+simple	1e942	1e920	1e942
+simple	1e943	1e921	1e943
+string	ud801dc281e9e00df0587fb0000310130d83d03c2	ud801dc001e9e00530053053505520046004600310130d83d03a3
+string	u05870130d801dc00	u053505520130d801dc00
+string	ud801dc280020d801dc00005a005a	ud801dc000020d801dc00005a005a
+string	u	u
+string	ud801dc2801c505870130fb00	ud801dc0001c405350552013000460046
+string	u03c203c200310031fb0001490587d801dc00de00	u03a303a3003100310046004602bc004e05350552d801dc00de00
+string	u03c2de00d801dc00	u03a3de00d801dc00
+string	u00df005a	u00530053005a
+string	u05870587d83d03c20149006103c2005ade00	u0535055205350552d83d03a302bc004e004103a3005ade00
+string	u01c503c2005a01490020d83d0130	u01c403a3005a02bc004e0020d83d0130
+string	ud83d	ud83d
+string	u01c5005a	u01c4005a
+string	u03c2	u03a3
+string	u03c20130de000130003103c201490130	u03a30130de000130003103a302bc004e0130
+string	u01c5	u01c4
+string	u005a00dffb00	u005a0053005300460046
+string	u003100df01c5de0000df01490020d83d	u00310053005301c4de000053005302bc004e0020d83d
+string	u	u
+string	ude00	ude00
+string	u005a	u005a
+string	u01301e9e0031005a03c201c51e9e0130	u01301e9e0031005a03a301c41e9e0130
+string	ud83d	ud83d
+string	ude00013000df0031	ude000130005300530031
+string	ude00013000df0149d801dc28	ude0001300053005302bc004ed801dc00
+string	u01c501300587014900df014900dfde00	u01c401300535055202bc004e0053005302bc004e00530053de00
+string	u01c50587d801dc280061fb001e9e0149fb00	u01c405350552d801dc000041004600461e9e02bc004e00460046
+string	ud83d	ud83d
+string	u01c5d801dc000130003101300020	u01c4d801dc000130003101300020
+string	u0061058700200061d801dc00	u00410535055200200041d801dc00
+string	u	u
+string	u1e9e1e9ed801dc00005ade00d801dc280061	u1e9e1e9ed801dc00005ade00d801dc000041
+string	u0587d83d0061	u05350552d83d0041
+string	u0149005a05870031058701c5	u02bc004e005a0535055200310535055201c4
+string	u	u
+string	ufb000130	u004600460130
+string	u0130	u0130
+string	u0587005a	u05350552005a
+string	u01c503c2d801dc0001c501c501c5d801dc280031d801dc28	u01c403a3d801dc0001c401c401c4d801dc000031d801dc00
+string	u0149	u02bc004e
+string	ud801dc000587d801dc2801491e9ed801dc000149de00	ud801dc0005350552d801dc0002bc004e1e9ed801dc0002bc004ede00
+string	u01c5d801dc281e9e0031d801dc28d83dd801dc281e9e01c5	u01c4d801dc001e9e0031d801dc00d83dd801dc001e9e01c4
+string	u01300587	u013005350552
+string	u0061014901c500df0020d801dc28	u004102bc004e01c4005300530020d801dc00
+string	u0020fb0001490020	u00200046004602bc004e0020
+string	u1e9ed801dc280061	u1e9ed801dc000041
+string	ud801dc28d801dc2801c5014900dffb00fb001e9e	ud801dc00d801dc0001c402bc004e0053005300460046004600461e9e
+string	u01c5d801dc2800df00df	u01c4d801dc000053005300530053
+string	ufb000149d83d0020de0001c5d801dc28	u0046004602bc004ed83d0020de0001c4d801dc00
+string	u1e9efb00	u1e9e00460046
+string	u00df0061	u005300530041
+string	u005a0020013001c50587d801dc00	u005a0020013001c405350552d801dc00
+string	u01490149014900df	u02bc004e02bc004e02bc004e00530053
+string	ud801dc00de001e9e0149006105870031005a03c2	ud801dc00de001e9e02bc004e0041053505520031005a03a3
+string	u005a01490149	u005a02bc004e02bc004e
+string	u0130d83d00df00201e9e005a	u0130d83d0053005300201e9e005a
+string	ud83d01c5d801dc00d83d00610061	ud83d01c4d801dc00d83d00410041
+string	ufb0000df006101491e9e	u0046004600530053004102bc004e1e9e
+string	u1e9e	u1e9e
+string	ude001e9e0130d801dc28	ude001e9e0130d801dc00
+string	u05871e9e	u053505521e9e
+string	u0587d83dd83d0061d801dc00005a	u05350552d83dd83d0041d801dc00005a
+string	u006103c200dfd83d	u004103a300530053d83d
+string	u006103c203c200200130fb00	u004103a303a30020013000460046
+string	u0020058701c5d801dc001e9e01c500310061	u00200535055201c4d801dc001e9e01c400310041
+string	ude000130d801dc281e9e0149d83dde00d83d	ude000130d801dc001e9e02bc004ed83dde00d83d
+string	u0031	u0031
+string	ud801dc28005a00310587	ud801dc00005a003105350552
+string	ude0000310149d801dc0003c2	ude00003102bc004ed801dc0003a3
+string	u1e9ed83d0031005ad801dc00	u1e9ed83d0031005ad801dc00
+string	ud801dc000061d83d01c50130fb00d801dc28006101c5	ud801dc000041d83d01c4013000460046d801dc00004101c4
+string	u058703c203c20031	u0535055203a303a30031
+string	u0031d801dc0001c501c5005a	u0031d801dc0001c401c4005a
+string	u01c50149d801dc0000200130005afb00d801dc28	u01c402bc004ed801dc0000200130005a00460046d801dc00
+string	u005ade0003c200dfd801dc28	u005ade0003a300530053d801dc00
+string	ude00d83d	ude00d83d
+string	u1e9e0061002000df00dfd801dc0003c2	u1e9e004100200053005300530053d801dc0003a3
+string	u01c503c2005a01490149d801dc28d801dc00	u01c403a3005a02bc004e02bc004ed801dc00d801dc00
+string	u	u
+string	u01300130	u01300130
+string	ud801dc00d801dc28013003c2	ud801dc00d801dc00013003a3
+string	u	u
+string	ud801dc00fb000130	ud801dc00004600460130
+string	u05870031005ad83d00df0061058700200031	u053505520031005ad83d0053005300410535055200200031
+string	ufb0005871e9e00311e9e1e9ed801dc00d801dc28	u00460046053505521e9e00311e9e1e9ed801dc00d801dc00
+string	u0061de0003c2de000020d801dc000149de00d83d	u0041de0003a3de000020d801dc0002bc004ede00d83d
+string	u1e9efb00de00fb0003c2	u1e9e00460046de000046004603a3
+string	u1e9e0061fb0003c2	u1e9e00410046004603a3
+string	ud801dc001e9e00611e9efb00	ud801dc001e9e00411e9e00460046
+string	u00dfd83d1e9e003103c201300061	u00530053d83d1e9e003103a301300041
+string	u01c50020005a014901300031d801dc00d801dc00	u01c40020005a02bc004e01300031d801dc00d801dc00
+string	u01c5d801dc28	u01c4d801dc00
+string	u005a	u005a
+string	u0149d801dc28d801dc00	u02bc004ed801dc00d801dc00
+string	u03c2d83dde00d83d01491e9ed801dc28de00d83d	u03a3d83dde00d83d02bc004e1e9ed801dc00de00d83d
+string	ud83dde00de000149fb00006103c20587	ud83dde00de0002bc004e00460046004103a305350552
+string	ude00d801dc00005a	ude00d801dc00005a
+string	u0020d801dc000031fb00d801dc00	u0020d801dc00003100460046d801dc00
+string	u1e9e005ade00	u1e9e005ade00
+string	u01300149	u013002bc004e
+string	u1e9e	u1e9e
+string	u00dfd801dc28de000031d83dd801dc28d83d	u00530053d801dc00de000031d83dd801dc00d83d
+string	u03c2	u03a3
+string	u01c5005ad801dc000031005a0031	u01c4005ad801dc000031005a0031
+string	u005a1e9ed801dc2803c2d801dc28	u005a1e9ed801dc0003a3d801dc00
+string	u01c501c503c2005a	u01c401c403a3005a
+string	ude000020d83d0130d801dc00d801dc00de00	ude000020d83d0130d801dc00d801dc00de00
+string	ude0000dfd801dc281e9e	ude0000530053d801dc001e9e
+string	ud83d01c51e9e	ud83d01c41e9e
+string	u01c500df	u01c400530053
+string	u03c2	u03a3
+string	u003103c20061005a0020d801dc28de0001c5	u003103a30041005a0020d801dc00de0001c4
+string	u1e9e01490130d801dc00fb000130005a	u1e9e02bc004e0130d801dc00004600460130005a
+string	u01490130002000df03c2006100610061	u02bc004e013000200053005303a3004100410041
+string	u0061	u0041
+string	u005a00dffb000031de000031	u005a00530053004600460031de000031
+string	u0587005a01301e9ed801dc280149d83d	u05350552005a01301e9ed801dc0002bc004ed83d
+string	u002000310130d801dc2803c20587	u002000310130d801dc0003a305350552
+string	u0149d801dc00	u02bc004ed801dc00
+string	u002003c2006103c200df	u002003a3004103a300530053
+string	ud83d	ud83d
+string	ude0000311e9ed801dc000061d801dc00fb001e9e	ude0000311e9ed801dc000041d801dc00004600461e9e
+string	ud801dc00	ud801dc00
+string	u01c5d83dd801dc00005a1e9e01490020	u01c4d83dd801dc00005a1e9e02bc004e0020
+string	u	u
+string	ufb0005871e9e00dffb0001c5	u00460046053505521e9e005300530046004601c4
+string	u03c2de00	u03a3de00
+string	u03c2058700200587	u03a305350552002005350552
+string	u00dfde0003c2005ad801dc0000df	u00530053de0003a3005ad801dc0000530053
+string	u0061	u0041
+string	u00df01c50031d801dc00	u0053005301c40031d801dc00
+string	ud801dc00005a0020d801dc28	ud801dc00005a0020d801dc00
+string	u0020d801dc000130	u0020d801dc000130
+string	ud801dc000031003101c500df0020006103c201c5	ud801dc000031003101c4005300530020004103a301c4
+string	u	u
+string	u0149de00d83dd83d	u02bc004ede00d83dd83d
+string	u	u
+string	ud801dc2803c21e9e01c5	ud801dc0003a31e9e01c4
+string	ude00fb00d801dc00fb000587	ude0000460046d801dc000046004605350552
+string	u00df01c501c501c50061d801dc2800df005a	u0053005301c401c401c40041d801dc0000530053005a
+string	u1e9e0031fb00fb00fb00	u1e9e0031004600460046004600460046
+string	u00dfd83dde0003c2	u00530053d83dde0003a3
+string	u002000dfd801dc00	u002000530053d801dc00
+string	u0061de0001c505870020	u0041de0001c4053505520020
+string	ud801dc00	ud801dc00
+string	ud801dc001e9ed83d	ud801dc001e9ed83d
+string	u00310587014901490149d83dd801dc0000310020	u00310535055202bc004e02bc004e02bc004ed83dd801dc0000310020
+string	ude0005870149013001301e9e005a1e9e	ude000535055202bc004e013001301e9e005a1e9e
+string	u03c200200587de00d83dde00058701c500df	u03a3002005350552de00d83dde000535055201c400530053
+string	ufb00fb00d801dc0003c2d801dc000020	u0046004600460046d801dc0003a3d801dc000020
+string	u01490130fb00d83d005ad801dc280031de00d801dc28	u02bc004e013000460046d83d005ad801dc000031de00d801dc00
+string	ude0000df014901c50149fb0003c21e9e	ude000053005302bc004e01c402bc004e0046004603a31e9e
+string	u005a0587003101c503c201c5d801dc00	u005a05350552003101c403a301c4d801dc00
+string	u01300587003101301e9e0149d83d0149d83d	u013005350552003101301e9e02bc004ed83d02bc004ed83d
+string	u03c20149	u03a302bc004e
+string	u03c200df0061	u03a3005300530041
+string	u00200587	u002005350552
+string	ud801dc28d801dc000020005a002000df	ud801dc00d801dc000020005a002000530053
+string	u1e9e01c5	u1e9e01c4
+string	u	u
+string	u005a0020	u005a0020
+string	ud83d	ud83d
+string	u0130fb001e9e0061	u0130004600461e9e0041
+string	u014903c2014900df00df01c500311e9e	u02bc004e03a302bc004e005300530053005301c400311e9e
+string	ud83d013000df	ud83d013000530053
+string	ufb00fb00006103c200200587	u0046004600460046004103a3002005350552
+string	u1e9e0149d801dc00d801dc000149d83d	u1e9e02bc004ed801dc00d801dc0002bc004ed83d
+string	ud83d1e9e014903c20020d801dc0001c5	ud83d1e9e02bc004e03a30020d801dc0001c4
+string	u	u
+string	u00dfd801dc2800dfd83d0130d801dc00014900df	u00530053d801dc0000530053d83d0130d801dc0002bc004e00530053
+string	u01c503c200610149	u01c403a3004102bc004e
+string	u	u
+string	ude000587	ude0005350552
+string	u1e9e	u1e9e
+string	u013003c2d801dc0003c2	u013003a3d801dc0003a3
+string	u	u
+string	ufb00005a03c203c2013003c20020	u00460046005a03a303a3013003a30020
+string	u03c2d83d005ade0001c5	u03a3d83d005ade0001c4
+string	ud801dc000149	ud801dc0002bc004e
+string	u1e9e0149de0000201e9e05870061	u1e9e02bc004ede0000201e9e053505520041
+string	u0149d83d00df002000610061	u02bc004ed83d00530053002000410041
+string	u01490031	u02bc004e0031
+string	u006101c5	u004101c4
+string	u	u
+string	u01491e9e0149d83d	u02bc004e1e9e02bc004ed83d
+string	u1e9e00dfd801dc000149014905871e9ede00	u1e9e00530053d801dc0002bc004e02bc004e053505521e9ede00
+string	ufb00fb000587002005870061d83d0061	u0046004600460046053505520020053505520041d83d0041
+string	u00310130005a	u00310130005a
+string	u01c5013001c5d801dc0001491e9ed801dc28d801dc2800df	u01c4013001c4d801dc0002bc004e1e9ed801dc00d801dc0000530053
+string	u01c5	u01c4
+string	ud83dfb00	ud83d00460046
+string	ud801dc280061d801dc00	ud801dc000041d801dc00
+string	ude00	ude00
+string	u00310020d83d005a	u00310020d83d005a
+string	u00df0587de00005a005a	u0053005305350552de00005a005a
+string	u00dffb0000200020de0003c21e9ede00	u005300530046004600200020de0003a31e9ede00
+string	ud83d	ud83d
+string	u00df0031d801dc0001c50587fb00	u005300530031d801dc0001c40535055200460046
+string	u	u
+string	ud801dc00002001c5d801dc00fb00	ud801dc00002001c4d801dc0000460046
+string	u01300020005a058701c5d801dc28de00fb0001c5	u01300020005a0535055201c4d801dc00de000046004601c4
+string	ud801dc28003101c503c2d83d00df	ud801dc00003101c403a3d83d00530053
+string	u006100610149014901490020005ad801dc281e9e	u0041004102bc004e02bc004e02bc004e0020005ad801dc001e9e
+string	u03c2de000031de00de00de00	u03a3de000031de00de00de00
+string	u005a00200130fb0003c20130d801dc2801490130	u005a002001300046004603a30130d801dc0002bc004e0130
+string	u	u
+string	u0130005a03c203c2de00d801dc28014900dfd83d	u0130005a03a303a3de00d801dc0002bc004e00530053d83d
+string	u0149	u02bc004e
+string	u01300587013001c5	u013005350552013001c4
+string	u	u
+string	u03c2d801dc0000dffb000061	u03a3d801dc0000530053004600460041
+string	u03c20587fb00d801dc280130	u03a30535055200460046d801dc000130
+string	u	u
+string	ud801dc2803c2003103c20130fb00	ud801dc0003a3003103a3013000460046
+string	ufb00d801dc000020005a0020d801dc00	u00460046d801dc000020005a0020d801dc00
+string	ud83d0020005a005a03c203c2	ud83d0020005a005a03a303a3
+string	u0020de0000df01300149d801dc0003c2	u0020de0000530053013002bc004ed801dc0003a3
+string	u0061002000df1e9e058705870587	u00410020005300531e9e053505520535055205350552
+string	u005a0020de00d801dc281e9e	u005a0020de00d801dc001e9e
+string	ude000587d801dc00	ude0005350552d801dc00
+string	u0130013003c2	u0130013003a3
+string	u	u
+string	u00df006101c5	u00530053004101c4
+string	u005a0130d801dc00fb00	u005a0130d801dc0000460046
+string	ud83dd801dc0000df005a	ud83dd801dc0000530053005a
+string	ufb00de000149de00d801dc0000dfd801dc00	u00460046de0002bc004ede00d801dc0000530053d801dc00
+string	u002001c5fb000020d83d1e9e0587d801dc28	u002001c4004600460020d83d1e9e05350552d801dc00
+string	u01c5	u01c4
+string	u05870149d83d0031	u0535055202bc004ed83d0031
+string	ud83d	ud83d
+string	u0031	u0031
+string	u014900610061	u02bc004e00410041
+string	u0130	u0130
+string	u01c5	u01c4
+string	u0149de0001301e9e	u02bc004ede0001301e9e
+string	u006100dfd801dc00005a1e9ed801dc280061	u004100530053d801dc00005a1e9ed801dc000041
+string	u0061	u0041
+string	u0130d801dc28005ad801dc280149d801dc2801490031	u0130d801dc00005ad801dc0002bc004ed801dc0002bc004e0031
+string	u005a005a005a0031	u005a005a005a0031
+string	u0020fb00de0000310149	u002000460046de00003102bc004e
+string	u	u
+string	u03c201c50130fb000061d801dc00058700310020	u03a301c40130004600460041d801dc000535055200310020
+string	u1e9ed801dc0000610031	u1e9ed801dc0000410031
+string	u	u
+string	u0031006100610587fb00d801dc2803c2d801dc28de00	u0031004100410535055200460046d801dc0003a3d801dc00de00
+string	ud801dc00d801dc000587d83dd801dc28d801dc00d801dc00	ud801dc00d801dc0005350552d83dd801dc00d801dc00d801dc00
+string	u00310031	u00310031
+string	u0130d83dd801dc2800df0031fb00de00	u0130d83dd801dc0000530053003100460046de00
+string	u01c5d801dc00de00	u01c4d801dc00de00
+string	u	u
+string	ud801dc28	ud801dc00
+string	u1e9efb000130d801dc00	u1e9e004600460130d801dc00
+string	ude00005a	ude00005a
+string	ude000031005ade0001c5014901490061d83d	ude000031005ade0001c402bc004e02bc004e0041d83d
+string	u1e9e1e9ede00	u1e9e1e9ede00
+string	u005a01c5002001300031de000130	u005a01c4002001300031de000130
+string	u005a03c2002003c2014901c5d83d005a0130	u005a03a3002003a302bc004e01c4d83d005a0130
+string	u0061	u0041
+string	u1e9ed801dc00005ad801dc0001c5	u1e9ed801dc00005ad801dc0001c4
+string	u	u
+string	ud801dc28de0000610149de0001490061d83dde00	ud801dc00de00004102bc004ede0002bc004e0041d83dde00
+string	u005a0130de00005a1e9ed801dc2803c20130	u005a0130de00005a1e9ed801dc0003a30130
+string	ufb0005871e9efb00de0001300061de00	u00460046053505521e9e00460046de0001300041de00
+string	u	u
+string	u014905871e9e03c2	u02bc004e053505521e9e03a3
+string	ud801dc280130	ud801dc000130
+string	ud801dc28	ud801dc00
+string	u0587003103c200df03c2	u05350552003103a30053005303a3
+string	u005a0149d83d00df0061d83dfb00de00	u005a02bc004ed83d005300530041d83d00460046de00
+string	u014900610130	u02bc004e00410130
+string	u01c50031	u01c40031
+string	u1e9e00610031005a03c2	u1e9e00410031005a03a3
+string	u00200130003103c2005a	u00200130003103a3005a
+string	u0031fb00006100dffb000130	u003100460046004100530053004600460130
+string	ude001e9e01c5	ude001e9e01c4
+string	u01490149006103c21e9e	u02bc004e02bc004e004103a31e9e
+string	u006101490020005a00200149de000130d801dc28	u004102bc004e0020005a002002bc004ede000130d801dc00
+string	ud801dc280587014903c2de00	ud801dc000535055202bc004e03a3de00
+string	ud801dc28d83d00611e9e	ud801dc00d83d00411e9e
+string	u00df0149d801dc00	u0053005302bc004ed801dc00
+string	u0587005ad83d	u05350552005ad83d
+string	u1e9ede00d801dc000149005a	u1e9ede00d801dc0002bc004e005a
+string	u0031d801dc28	u0031d801dc00
+string	u03c20149de0001300130fb00d83dd801dc00	u03a302bc004ede000130013000460046d83dd801dc00
+string	u00df005a	u00530053005a
+string	u0061d83dd83d1e9e00df0020	u0041d83dd83d1e9e005300530020
+string	u0020d801dc0001300020d801dc00	u0020d801dc0001300020d801dc00
+string	u0031de00003100df0149d801dc00	u0031de0000310053005302bc004ed801dc00
+string	u	u
+string	u002005870587	u00200535055205350552
+string	u01301e9e006100610587	u01301e9e0041004105350552
+string	u03c2	u03a3
+string	u0149d801dc28fb00fb00	u02bc004ed801dc000046004600460046
+string	u01c5d801dc00005a	u01c4d801dc00005a
+string	u002001c503c20061d801dc00005ad801dc28005ad801dc00	u002001c403a30041d801dc00005ad801dc00005ad801dc00
+string	u005a0020	u005a0020
+string	ud801dc2803c2003100dfd801dc280149	ud801dc0003a3003100530053d801dc0002bc004e
+string	u01300031003101c5	u01300031003101c4
+string	ude000587d801dc00d83d00df0149fb00de000020	ude0005350552d801dc00d83d0053005302bc004e00460046de000020
+string	u1e9e00dfd801dc0000311e9e1e9ed801dc28	u1e9e00530053d801dc0000311e9e1e9ed801dc00
+string	ud801dc00d83d00200587	ud801dc00d83d002005350552
+string	ude0000dfde0003c21e9e01c5d801dc00d83d	ude0000530053de0003a31e9e01c4d801dc00d83d
+string	ud801dc280130d83d	ud801dc000130d83d
+string	u058705870130d83d003100df1e9e1e9e	u05350552053505520130d83d0031005300531e9e1e9e
+string	u005a0130	u005a0130
+string	ude00013003c2006101c500dfd83d0020d83d	ude00013003a3004101c400530053d83d0020d83d
+string	ud83d00200031de00	ud83d00200031de00
+string	u00df005a	u00530053005a
+string	u03c20149	u03a302bc004e
+string	ud83d0149014903c2005a	ud83d02bc004e02bc004e03a3005a
+string	u00df01c5fb000149d801dc000587	u0053005301c40046004602bc004ed801dc0005350552
+string	u	u
+string	ude00d83dd801dc28d801dc00d801dc00de0000df	ude00d83dd801dc00d801dc00d801dc00de0000530053
+string	u002003c2006101490020	u002003a3004102bc004e0020
+string	ude0003c2005ad801dc00002000df	ude0003a3005ad801dc00002000530053
+string	u0130d801dc0000311e9e	u0130d801dc0000311e9e
+string	ud801dc0005870130de00d801dc28	ud801dc00053505520130de00d801dc00
+string	u0587006100200020014901c5d83d01c5	u0535055200410020002002bc004e01c4d83d01c4
+string	u01c505870061d83d	u01c4053505520041d83d
+string	ud83d0587005ade00fb001e9e0149	ud83d05350552005ade00004600461e9e02bc004e
+string	u013000df	u013000530053
+string	u01490130058700310587	u02bc004e013005350552003105350552
+string	u014901300020fb00fb0000df0130de000587	u02bc004e013000200046004600460046005300530130de0005350552
+string	u0587005a00200149	u05350552005a002002bc004e
+string	u0587de0003c2de00de000031d83d0031	u05350552de0003a3de00de000031d83d0031
+string	ude000020de00fb000061	ude000020de00004600460041
+string	u0130d801dc00fb0000201e9e0587	u0130d801dc000046004600201e9e05350552
+string	ufb0003c2d801dc2800df1e9efb000149003103c2	u0046004603a3d801dc00005300531e9e0046004602bc004e003103a3
+string	ud801dc280061de000031	ud801dc000041de000031
+string	u0061de00	u0041de00
+string	u	u
+string	ufb000587058701c5	u00460046053505520535055201c4
+string	u0061	u0041
+string	ude00fb00013003c2	ude0000460046013003a3
+string	u0061	u0041
+string	u01c5	u01c4
+string	u03c201c500df1e9ed801dc00	u03a301c4005300531e9ed801dc00
+string	ud801dc0000df0149	ud801dc000053005302bc004e
+string	u005a01c51e9e0587d83dfb00	u005a01c41e9e05350552d83d00460046
+string	ud801dc0003c20061de000149d801dc000031	ud801dc0003a30041de0002bc004ed801dc000031
+string	ud83d0149d83d0061	ud83d02bc004ed83d0041
+string	u	u
+string	u	u
+string	u0031d83d1e9e1e9e01c500df	u0031d83d1e9e1e9e01c400530053
+string	ude0001300020d83d002003c2	ude0001300020d83d002003a3
+string	u05871e9e005a1e9e005a058703c2	u053505521e9e005a1e9e005a0535055203a3
+string	u01c503c2d801dc28d801dc28d801dc281e9e03c2d83dfb00	u01c403a3d801dc00d801dc00d801dc001e9e03a3d83d00460046
+string	u002000610061d801dc00d801dc00	u002000410041d801dc00d801dc00
+string	u058703c201490587	u0535055203a302bc004e05350552
+string	u0587de00fb0000610587003101c5	u05350552de0000460046004105350552003101c4
+string	ud801dc28006100dfde00d801dc2801490031	ud801dc00004100530053de00d801dc0002bc004e0031
+string	u0130d801dc280149	u0130d801dc0002bc004e
+string	u00200020013001c5de000149	u00200020013001c4de0002bc004e
+string	u00610587	u004105350552
+string	u03c2d801dc28	u03a3d801dc00
+string	u00dffb0003c20031006100df0061	u005300530046004603a300310041005300530041
+string	u0587014901c50587fb00d83d0130d801dc28	u0535055202bc004e01c40535055200460046d83d0130d801dc00
+string	u0149d801dc28	u02bc004ed801dc00
+string	u00df0587d801dc281e9e1e9e1e9e	u0053005305350552d801dc001e9e1e9e1e9e
+string	u005a0149d83d005a014903c2	u005a02bc004ed83d005a02bc004e03a3
+string	u1e9e05870149d801dc00005a	u1e9e0535055202bc004ed801dc00005a
+string	u002000df0061fb000061013001c503c2	u0020005300530041004600460041013001c403a3
+string	u0130058700201e9e0130d801dc28de00	u01300535055200201e9e0130d801dc00de00
+string	ud801dc28d801dc28003100dfd801dc2800df0061	ud801dc00d801dc00003100530053d801dc00005300530041
+string	ude00003101c50587d801dc28fb00	ude00003101c405350552d801dc0000460046
+string	u00df013001300130d801dc00d801dc28d801dc00013000df	u00530053013001300130d801dc00d801dc00d801dc00013000530053
+string	ud801dc00de0001c5fb0000200130	ud801dc00de0001c40046004600200130
+string	ud801dc00d83dd801dc280130005a0031d801dc2801c50061	ud801dc00d83dd801dc000130005a0031d801dc0001c40041
+string	ud801dc280031fb0000df03c2	ud801dc000031004600460053005303a3
+string	u006105870061005a03c21e9e	u0041053505520041005a03a31e9e
+string	u058701c503c2d801dc281e9e	u0535055201c403a3d801dc001e9e
+string	u0149d83d03c2005a0061	u02bc004ed83d03a3005a0041
+string	u005a005ade0001c50149	u005a005ade0001c402bc004e
+string	ud801dc0003c200610130003103c2005a0130	ud801dc0003a300410130003103a3005a0130
+string	ude00de000031d801dc2800311e9e05870130d801dc28	ude00de000031d801dc0000311e9e053505520130d801dc00
+string	ud801dc00013000df00dfd801dc000031d801dc00005a	ud801dc0001300053005300530053d801dc000031d801dc00005a
+string	ude00d801dc2800df	ude00d801dc0000530053
+string	u0020005a00df00dfde00d83d005ade0001c5	u0020005a0053005300530053de00d83d005ade0001c4
+string	u0061fb00	u004100460046
+string	u0020058700dfd801dc00d801dc280031de00	u00200535055200530053d801dc00d801dc000031de00
+string	u013001300020d83dd801dc001e9e0020	u013001300020d83dd801dc001e9e0020
+string	u0031	u0031
+string	u00610020de000020d801dc2800610020	u00410020de000020d801dc0000410020
+string	ud801dc28058700dfd83d005a01c5	ud801dc000535055200530053d83d005a01c4
+string	u1e9ed801dc281e9e	u1e9ed801dc001e9e
+string	u1e9e0149d801dc28fb00005a0149d801dc2801300020	u1e9e02bc004ed801dc0000460046005a02bc004ed801dc0001300020
+string	u03c2	u03a3
+string	u002001c501c5014901c503c20020005a0130	u002001c401c402bc004e01c403a30020005a0130
+string	u0061014901490130d801dc00d801dc00	u004102bc004e02bc004e0130d801dc00d801dc00
+string	u	u
+string	u002003c2	u002003a3
+string	u058701c503c20020	u0535055201c403a30020
+string	ude000031fb00d801dc00	ude00003100460046d801dc00
+string	u	u
+string	ud801dc28fb00013001490130	ud801dc0000460046013002bc004e0130
+string	u01c501c5058701c5	u01c401c40535055201c4
+string	u0020006100dffb00fb000149d83d0130	u0020004100530053004600460046004602bc004ed83d0130
+string	u1e9ed83dd801dc000031fb001e9e	u1e9ed83dd801dc000031004600461e9e
+string	u00dfd83dd801dc00d801dc2803c2005a0061005a005a	u00530053d83dd801dc00d801dc0003a3005a0041005a005a
+string	u006103c21e9e0061	u004103a31e9e0041
+string	u0587005ade00fb00d801dc00d801dc28	u05350552005ade0000460046d801dc00d801dc00
+string	u03c21e9e00200031d801dc000130	u03a31e9e00200031d801dc000130
+string	u	u
+string	ud83d	ud83d
+string	u005a005a05870149005afb00	u005a005a0535055202bc004e005a00460046
+string	u0031d801dc281e9ed801dc28058703c20130	u0031d801dc001e9ed801dc000535055203a30130
+string	ude00013000df00dfd801dc28	ude0001300053005300530053d801dc00
+string	u	u
+string	u0587005a0587fb00	u05350552005a0535055200460046
+string	u	u
+string	u	u
+string	ud801dc280031d801dc00	ud801dc000031d801dc00
+string	u03c2d83d1e9e005a014900310149d801dc00	u03a3d83d1e9e005a02bc004e003102bc004ed801dc00
+string	u01300031005a	u01300031005a
+string	u005a03c2d83d	u005a03a3d83d
+string	u0020de000031	u0020de000031
+string	u0031005a003100df00201e9e	u0031005a00310053005300201e9e
+string	u	u
+string	ud801dc00d83d03c2de00de00d801dc28fb0000310031	ud801dc00d83d03a3de00de00d801dc000046004600310031
+string	ud801dc280587	ud801dc0005350552
+string	ufb00058700dfd801dc00	u004600460535055200530053d801dc00
+string	u01300587de0001490020d801dc000149	u013005350552de0002bc004e0020d801dc0002bc004e
+string	u03c2014900610020013000200061d801dc28	u03a302bc004e00410020013000200041d801dc00
+string	u0031fb00d801dc281e9e01c5	u003100460046d801dc001e9e01c4
+string	u0587	u05350552
+string	ud83dd83d014903c2	ud83dd83d02bc004e03a3
+string	u	u
+string	u003100df0149003100dfd801dc0001490587	u00310053005302bc004e003100530053d801dc0002bc004e05350552
+string	u005a	u005a
+string	u014903c2	u02bc004e03a3
+string	u005a03c203c2d801dc0003c20031fb00005a	u005a03a303a3d801dc0003a3003100460046005a
+string	ufb0001c501c5005ad801dc0000df1e9ede00	u0046004601c401c4005ad801dc00005300531e9ede00
+string	u00310020de00	u00310020de00
+string	u0061013001c5	u0041013001c4
+string	u005ad801dc000149d83d005a	u005ad801dc0002bc004ed83d005a
+string	u01c503c20587005a005a	u01c403a305350552005a005a
+string	u	u
+string	u0149d801dc000061005a0149005a058703c20130	u02bc004ed801dc000041005a02bc004e005a0535055203a30130
+string	u0130fb0003c2	u01300046004603a3
+string	u0587d801dc280587de001e9ed801dc28005ad801dc00	u05350552d801dc0005350552de001e9ed801dc00005ad801dc00
+string	u006101300031005a005a0149fb00	u004101300031005a005a02bc004e00460046
+string	ud801dc28	ud801dc00
+string	u00610587005afb001e9e0149	u004105350552005a004600461e9e02bc004e
+string	u005a03c2002000200020fb00	u005a03a300200020002000460046
+string	ud83dfb001e9e	ud83d004600461e9e
+string	ud801dc280130d801dc00fb00d801dc280020005a00200020	ud801dc000130d801dc0000460046d801dc000020005a00200020
+string	u1e9e	u1e9e
+string	u1e9e	u1e9e
+string	ud801dc00de00d801dc2803c20031	ud801dc00de00d801dc0003a30031
+string	u013003c21e9efb000587	u013003a31e9e0046004605350552
+string	u0130005ad83dd801dc28	u0130005ad83dd801dc00
+string	u0149d801dc0000200061de00	u02bc004ed801dc0000200041de00
+string	u00dfd801dc000130d801dc00	u00530053d801dc000130d801dc00
+string	u013000df00df0130d83d0031d83d0130	u013000530053005300530130d83d0031d83d0130
+string	u03c2	u03a3
+string	ud801dc281e9ed83dd801dc2805870020	ud801dc001e9ed83dd801dc00053505520020
+string	u014901c500df0031	u02bc004e01c4005300530031
+string	u03c2013001c501c50061	u03a3013001c401c40041
+string	u005a	u005a
+string	u002001300061de000587	u002001300041de0005350552
+string	u0061	u0041
+string	ude00002003c21e9e00df	ude00002003a31e9e00530053
+string	u00df1e9efb0000df	u005300531e9e0046004600530053
+string	ud801dc0003c200df002001490031005a05870130	ud801dc0003a300530053002002bc004e0031005a053505520130
+string	u005ad801dc001e9e0020	u005ad801dc001e9e0020
+string	u0061	u0041
+string	ude0000200061de0000dfde00005a1e9e	ude0000200041de0000530053de00005a1e9e
+string	u0149005a0130d801dc28d801dc28	u02bc004e005a0130d801dc00d801dc00
+string	ud801dc28de0001c5	ud801dc00de0001c4
+string	ud83d005ad83d0587	ud83d005ad83d05350552
+string	u0130fb00	u013000460046
+string	u003101c5fb00013000310031	u003101c400460046013000310031
+string	u03c200310149003101491e9e002003c20587	u03a3003102bc004e003102bc004e1e9e002003a305350552
+string	u0061fb0001c500df	u00410046004601c400530053
+string	u00dfd83d	u00530053d83d
+string	u1e9ed801dc00d801dc001e9e058701491e9e	u1e9ed801dc00d801dc001e9e0535055202bc004e1e9e
+string	u0031d801dc00	u0031d801dc00
+string	u01c5de0001c5d801dc00d801dc000587	u01c4de0001c4d801dc00d801dc0005350552
+string	u00df0020	u005300530020
+string	u1e9ede00	u1e9ede00
+string	u0149d801dc0000df	u02bc004ed801dc0000530053
+string	u	u
+string	u005a01301e9e01490149d83d0149	u005a01301e9e02bc004e02bc004ed83d02bc004e
+string	u003100df0130d83dd801dc000149003101c5	u0031005300530130d83dd801dc0002bc004e003101c4
+string	u013000311e9e006101490061d83dde00d83d	u013000311e9e004102bc004e0041d83dde00d83d
+string	u003103c200610587	u003103a3004105350552
+string	ufb000020d801dc0000df058703c20130	u004600460020d801dc00005300530535055203a30130
+string	u03c2	u03a3
+string	u0031d83d	u0031d83d
+string	u0031	u0031
+string	ud83d003100311e9e01c5	ud83d003100311e9e01c4
+string	u	u
+string	u1e9e03c203c2	u1e9e03a303a3
+string	u00df003100df1e9e	u005300530031005300531e9e
+string	u00610149d83d	u004102bc004ed83d
+string	u00311e9e05870587005a0031d801dc000020	u00311e9e0535055205350552005a0031d801dc000020
+string	ud801dc28	ud801dc00
+string	u0149d83d	u02bc004ed83d
+string	u00df	u00530053
+string	ude00	ude00
+string	u058705870149fb00	u053505520535055202bc004e00460046
+string	u014901c5fb00d83d013000dfd801dc000149	u02bc004e01c400460046d83d013000530053d801dc0002bc004e
+string	u00df00dffb00	u005300530053005300460046
+string	u01300061fb000149	u013000410046004602bc004e
+string	ud801dc001e9efb0001c50149003105871e9e01c5	ud801dc001e9e0046004601c402bc004e0031053505521e9e01c4
+string	ud801dc000061	ud801dc000041
+string	u	u
+string	u00df0149fb00006100200587de00	u0053005302bc004e004600460041002005350552de00
+string	u0061de00de000149fb0000310130005a	u0041de00de0002bc004e0046004600310130005a
+string	ud801dc00005a01c50149fb0001300149	ud801dc00005a01c402bc004e00460046013002bc004e
+string	u01c5d83d014900611e9e058701300020	u01c4d83d02bc004e00411e9e0535055201300020
+string	u002001c5fb000020014900dfd801dc0000610130	u002001c400460046002002bc004e00530053d801dc0000410130
+string	ud801dc000130005a03c21e9efb00	ud801dc000130005a03a31e9e00460046
+string	ude000020006101490587	ude000020004102bc004e05350552
+string	u0587d801dc28de00	u05350552d801dc00de00
+string	u	u
+string	u01c5	u01c4
+string	ude00fb0000200149d83d005ad83d	ude0000460046002002bc004ed83d005ad83d
+string	ud801dc00	ud801dc00
+string	u	u
+string	u00df	u00530053
+string	ud801dc0003c20061	ud801dc0003a30041
+string	u01c5fb000061de000149	u01c4004600460041de0002bc004e
+string	u00dfde00006100610149d83d	u00530053de000041004102bc004ed83d
+string	u00610587058701c5	u0041053505520535055201c4
+string	ude00de00	ude00de00
+string	ufb00006103c2d801dc280061d83d01c503c2	u00460046004103a3d801dc000041d83d01c403a3
+string	u0061058703c201c5014901490587005a0061	u00410535055203a301c402bc004e02bc004e05350552005a0041
+string	u	u
+string	u01c5	u01c4
+string	ud801dc000031d801dc28	ud801dc000031d801dc00
+string	u01300020006101c500310061fb00002003c2	u01300020004101c40031004100460046002003a3
+string	u0020d801dc00d83dd83d0130fb000061	u0020d801dc00d83dd83d0130004600460041
+string	u	u
+string	ufb00005a00df058700df	u00460046005a005300530535055200530053
+string	ud801dc281e9e0130002001491e9e	ud801dc001e9e0130002002bc004e1e9e
+string	u005a01c5	u005a01c4
+string	u1e9e03c2005a005a0031	u1e9e03a3005a005a0031
+string	u03c200dfd801dc28006100df0130	u03a300530053d801dc000041005300530130
+string	u	u
+string	u00610130de000149	u00410130de0002bc004e
+string	ud801dc28014901c5006101300587d83d005a	ud801dc0002bc004e01c40041013005350552d83d005a
+string	ud801dc28d801dc00013001c5d801dc00	ud801dc00d801dc00013001c4d801dc00
+string	u00df1e9e1e9e0130	u005300531e9e1e9e0130
+string	u05871e9ed801dc280587d801dc000130	u053505521e9ed801dc0005350552d801dc000130
+string	ufb0003c201c51e9e006103c20587fb00	u0046004603a301c41e9e004103a30535055200460046
+string	u0061d801dc0001c51e9ed801dc28d801dc00	u0041d801dc0001c41e9ed801dc00d801dc00
+string	ufb00006100df01300020d83d1e9e0020	u0046004600410053005301300020d83d1e9e0020
+string	u005ad83d0130d801dc0001c501c50061de000587	u005ad83d0130d801dc0001c401c40041de0005350552
+string	u01c503c2	u01c403a3
+string	u003103c20061d801dc000061d83d03c2	u003103a30041d801dc000041d83d03a3
+string	u0149d83d00200031014901301e9efb00de00	u02bc004ed83d0020003102bc004e01301e9e00460046de00
+string	ud83d0020	ud83d0020
+string	u0149d801dc00d801dc000061002003c21e9e0130	u02bc004ed801dc00d801dc000041002003a31e9e0130
+string	u	u
+string	ud801dc000587013000dfde00de00	ud801dc0005350552013000530053de00de00
+string	u03c2d801dc00d83d	u03a3d801dc00d83d
+string	u005a01300061de001e9e01c503c2de00	u005a01300041de001e9e01c403a3de00
+string	ude00d801dc00d801dc00005a	ude00d801dc00d801dc00005a
+string	u00dffb00005ad801dc000149d83d0020	u0053005300460046005ad801dc0002bc004ed83d0020
+string	u0149fb00de00d83d1e9e003101c50587	u02bc004e00460046de00d83d1e9e003101c405350552
+string	ude00	ude00
+string	u0587	u05350552
+string	u058700df	u0535055200530053
+string	ud83dd801dc28	ud83dd801dc00
+string	u0130d83d00df0587	u0130d83d0053005305350552
+string	u0020058700200149	u002005350552002002bc004e
+string	u014903c2d801dc28d801dc0000dfd801dc28d801dc00d801dc00	u02bc004e03a3d801dc00d801dc0000530053d801dc00d801dc00d801dc00
+string	u1e9e01c5003100df0587	u1e9e01c400310053005305350552
+string	u0149d801dc0000df005a0149	u02bc004ed801dc0000530053005a02bc004e
+string	u	u
+string	u1e9e00dfd801dc0000dfd83d	u1e9e00530053d801dc0000530053d83d
+string	u1e9e01c5d801dc28	u1e9e01c4d801dc00
+string	u01c51e9e0061003101c50149	u01c41e9e0041003101c402bc004e
+string	u0031014905870130	u003102bc004e053505520130
+string	u	u
+string	u0020d801dc00013001490031d801dc00fb00	u0020d801dc00013002bc004e0031d801dc0000460046
+string	u01c5006103c20149	u01c4004103a302bc004e
+string	u0061005a002000200031	u0041005a002000200031
+string	u1e9e0149fb0005870149	u1e9e02bc004e004600460535055202bc004e
+string	u0149fb000149fb0000dfd801dc28	u02bc004e0046004602bc004e0046004600530053d801dc00
+string	u013001c5d801dc00de00	u013001c4d801dc00de00
+string	u005a	u005a
+string	u0031	u0031
+string	ud801dc280031fb000061de000130d801dc281e9e01c5	ud801dc000031004600460041de000130d801dc001e9e01c4
+string	u00df013001c5	u00530053013001c4
+string	u0031013001301e9ed801dc0001c5	u0031013001301e9ed801dc0001c4
+string	u1e9e03c200df00df013000310061	u1e9e03a30053005300530053013000310041
+string	u00610130d801dc0000dfde000061de001e9e01c5	u00410130d801dc0000530053de000041de001e9e01c4
+string	u0587	u05350552
+string	ude001e9efb0001c503c205870130	ude001e9e0046004601c403a3053505520130
+string	ude0000310149de0000df00df1e9ede00	ude00003102bc004ede0000530053005300531e9ede00
+string	u	u
+string	u00df00201e9e0031d83d	u0053005300201e9e0031d83d
+string	u	u
+string	ud801dc00005a0587d83d	ud801dc00005a05350552d83d
+string	u03c21e9ed801dc00	u03a31e9ed801dc00
+string	u014903c2de000061fb000587	u02bc004e03a3de0000410046004605350552
+string	u0061fb00d801dc2803c2d83dd801dc28fb00	u004100460046d801dc0003a3d83dd801dc0000460046
+string	u0587	u05350552
+string	ud83d03c200df006101c503c2d801dc28	ud83d03a300530053004101c403a3d801dc00
+string	ufb00	u00460046
+string	u	u
+string	u00df0020fb0001c50587	u0053005300200046004601c405350552
+string	u0149d83dfb0003c2d801dc00005afb00d83d0130	u02bc004ed83d0046004603a3d801dc00005a00460046d83d0130
+string	ud801dc00005a058701301e9e005a	ud801dc00005a0535055201301e9e005a
+string	ud801dc00d801dc28d801dc0005870130d83d01c5	ud801dc00d801dc00d801dc00053505520130d83d01c4
+string	u03c200df0130d801dc00d801dc00005a0130	u03a3005300530130d801dc00d801dc00005a0130
+string	u002005870061d801dc2801c50149	u0020053505520041d801dc0001c402bc004e
+string	u00df013000df	u00530053013000530053
+string	ud801dc28fb00de00006103c201c5de0000df	ud801dc0000460046de00004103a301c4de0000530053
+string	u05870587	u0535055205350552
+string	u01c5	u01c4
+string	u0020	u0020
+string	u00200020	u00200020
+string	u00310031d801dc280587de0001c5fb0000df	u00310031d801dc0005350552de0001c40046004600530053
+string	ude00d801dc2800200130013000200587	ude00d801dc00002001300130002005350552
+string	u058701c5fb000061de0003c20020	u0535055201c4004600460041de0003a30020
+string	u0130de001e9e1e9e0149003100310130	u0130de001e9e1e9e02bc004e003100310130
+string	ude000587	ude0005350552
+string	ud801dc00	ud801dc00
+string	ud801dc28005a01c5005ad801dc28de0001490061	ud801dc00005a01c4005ad801dc00de0002bc004e0041
+string	u0031	u0031
+string	u0020d83d005a01c5d801dc00	u0020d83d005a01c4d801dc00
+string	u013003c2d801dc28de000020de00003100201e9e	u013003a3d801dc00de000020de00003100201e9e
+string	u003101c5014903c200200061	u003101c402bc004e03a300200041
+string	u00310061d801dc28	u00310041d801dc00
+string	u1e9e00df1e9e	u1e9e005300531e9e
+string	u1e9ed801dc28003100df	u1e9ed801dc00003100530053
+string	ud801dc280031013003c2005a01c5	ud801dc000031013003a3005a01c4
+string	u0061	u0041
+string	u00df003101c5	u00530053003101c4
+string	u00201e9e01c500df0130fb0001c50149	u00201e9e01c40053005301300046004601c402bc004e
+string	u	u
+string	u005a01c500df	u005a01c400530053
+string	u	u
+string	u01c5	u01c4
+string	ud801dc00fb00005ad83dd83d0031de00de00	ud801dc0000460046005ad83dd83d0031de00de00
+string	u0020005ad83d01301e9e05870061	u0020005ad83d01301e9e053505520041
+string	ud801dc000020	ud801dc000020
+string	ufb000587	u0046004605350552
+string	u01490587d83d0020005a058703c2	u02bc004e05350552d83d0020005a0535055203a3
+string	u01c5d83d03c2d83d1e9ed801dc000031d801dc28d801dc28	u01c4d83d03a3d83d1e9ed801dc000031d801dc00d801dc00
+string	u0130d801dc00	u0130d801dc00
+string	u01c50031d801dc00005a	u01c40031d801dc00005a
+string	u01c5de00002000df03c2002001490149	u01c4de0000200053005303a3002002bc004e02bc004e
+string	u	u
+string	ude00d83d014900dfd801dc00d801dc280061d83d	ude00d83d02bc004e00530053d801dc00d801dc000041d83d
+string	u03c2de00d801dc00005a00df	u03a3de00d801dc00005a00530053
+string	u0061	u0041
+string	u002000610130de000061	u002000410130de000041
+string	ud801dc00014901c503c20031de000061de000149	ud801dc0002bc004e01c403a30031de000041de0002bc004e
+string	ud801dc00fb00d801dc00fb00005a	ud801dc0000460046d801dc0000460046005a
+string	u01c501300061006103c20061d83d03c2	u01c401300041004103a30041d83d03a3
+string	u1e9e0061	u1e9e0041
+string	u	u
+string	u01c5fb000149d83d0587002003c2de00	u01c40046004602bc004ed83d05350552002003a3de00
+string	u	u
+string	u1e9efb000061058700dfd801dc00fb00005a	u1e9e0046004600410535055200530053d801dc0000460046005a
+string	u00611e9e03c2d801dc00	u00411e9e03a3d801dc00
+string	u03c21e9e	u03a31e9e
+string	ud801dc00005a00df03c2fb0005871e9e0587d801dc28	ud801dc00005a0053005303a300460046053505521e9e05350552d801dc00
+string	u058701490587058700610061d83dde00	u0535055202bc004e053505520535055200410041d83dde00
+string	ude001e9ede00	ude001e9ede00
+string	u058701c5d801dc2800dfd801dc280020d801dc00	u0535055201c4d801dc0000530053d801dc000020d801dc00
+string	u058703c2d801dc00	u0535055203a3d801dc00
+string	u00dfd83d	u00530053d83d
+string	ude0000310149005a1e9e	ude00003102bc004e005a1e9e
+string	u0130d83d1e9e0587d801dc28fb00006101c5	u0130d83d1e9e05350552d801dc0000460046004101c4
+string	u	u
+string	u006101c5de00	u004101c4de00
+string	u	u
+string	u003100610149005a	u0031004102bc004e005a
+string	u01c500df00df0020	u01c400530053005300530020
+string	u1e9e013001c500610130d83d1e9ed83d	u1e9e013001c400410130d83d1e9ed83d
+string	ufb00d801dc000061005ade0000311e9ed801dc00	u00460046d801dc000041005ade0000311e9ed801dc00
+string	u005a0031003101301e9ed801dc00	u005a0031003101301e9ed801dc00
+string	ud83d1e9e	ud83d1e9e
+string	ud801dc00fb00d83d003101c5	ud801dc0000460046d83d003101c4
+string	ud83d01301e9e01301e9ed801dc00d801dc28	ud83d01301e9e01301e9ed801dc00d801dc00
+string	u	u
+string	u01c5fb0001c50020d801dc28	u01c40046004601c40020d801dc00
+string	ud801dc28	ud801dc00
+string	u014903c201c5006100df0130fb0000310587	u02bc004e03a301c4004100530053013000460046003105350552
+string	u0031d801dc28d801dc28	u0031d801dc00d801dc00
+string	u03c20149fb001e9e01300587	u03a302bc004e004600461e9e013005350552
+string	u0031d801dc00de0003c20061fb00de0001c5	u0031d801dc00de0003a3004100460046de0001c4
+string	ud801dc28014901300031	ud801dc0002bc004e01300031
+string	ud801dc280061d801dc281e9e006100310130	ud801dc000041d801dc001e9e004100310130
+string	ud801dc28005a05870020d801dc000149	ud801dc00005a053505520020d801dc0002bc004e
+string	u003100df005a	u003100530053005a
+string	u	u
+string	ud801dc0003c200610587	ud801dc0003a3004105350552
+string	u013000df	u013000530053
+string	ud83d1e9e1e9e01c5005a	ud83d1e9e1e9e01c4005a
+string	u005ad83d03c201c50031	u005ad83d03a301c40031
+string	u03c2006103c20149fb000130	u03a3004103a302bc004e004600460130
+string	ufb00de001e9e1e9efb0001c503c2	u00460046de001e9e1e9e0046004601c403a3
+string	u00610020de0003c20130005a0061fb00	u00410020de0003a30130005a004100460046
+string	ufb0001c5	u0046004601c4
+string	u01490031	u02bc004e0031
+string	u01c5de00d801dc0000df03c20149	u01c4de00d801dc000053005303a302bc004e
+string	ufb000061	u004600460041
+string	ude0003c201c5d801dc00d801dc2803c21e9e0031	ude0003a301c4d801dc00d801dc0003a31e9e0031
+string	ufb00	u00460046
+string	u01c5de00	u01c4de00
+string	u014901491e9efb000031de000130	u02bc004e02bc004e1e9e004600460031de000130
+string	u05871e9ed801dc28d801dc28005a00dfd801dc00fb00	u053505521e9ed801dc00d801dc00005a00530053d801dc0000460046
+string	u00dfd83d0587d801dc2800df013005870061	u00530053d83d05350552d801dc00005300530130053505520041
+string	ufb0001490061	u0046004602bc004e0041
+string	ufb0003c2003101c5d83d003100df	u0046004603a3003101c4d83d003100530053
+string	u002000df0061d83dd83d03c200df	u0020005300530041d83dd83d03a300530053
+string	u005ad83dfb00d83d01490020	u005ad83d00460046d83d02bc004e0020
+string	u05870031	u053505520031
+string	u00df0061d83d01c5d83dd83d1e9e	u005300530041d83d01c4d83dd83d1e9e
+string	u0020d83d01300020	u0020d83d01300020
+string	ud83d03c201300031d801dc28fb0001c5d83d0020	ud83d03a301300031d801dc000046004601c4d83d0020
+string	u1e9efb000031d801dc28de00d801dc001e9e	u1e9e004600460031d801dc00de00d801dc001e9e
+string	u005afb000020d801dc00	u005a004600460020d801dc00
+string	u1e9e01c5fb000130fb00d801dc28	u1e9e01c400460046013000460046d801dc00
+string	u0020d801dc280587fb00d801dc2803c2	u0020d801dc000535055200460046d801dc0003a3
+string	u03c20061	u03a30041
+string	u005ad801dc00005a01490020	u005ad801dc00005a02bc004e0020
+string	u00df	u00530053
+string	u00311e9e005a003100610061d801dc00	u00311e9e005a003100410041d801dc00
+string	u00610020002000200031de00003100310061	u00410020002000200031de00003100310041
+string	ud801dc000587006101300061006103c2	ud801dc0005350552004101300041004103a3
+string	ud801dc0000610587d801dc00d83dd801dc28d83d	ud801dc00004105350552d801dc00d83dd801dc00d83d
+string	ud801dc00	ud801dc00
+string	u03c20061d801dc2803c20149d801dc28	u03a30041d801dc0003a302bc004ed801dc00
+string	u0130	u0130
+string	ude00005a0061005a03c2de00fb00	ude00005a0041005a03a3de0000460046
+string	ud801dc0000310031058700200020	ud801dc00003100310535055200200020
+string	u	u
+string	u0130d801dc2805870061002001c5	u0130d801dc00053505520041002001c4
+string	ud83dd801dc2803c2de00	ud83dd801dc0003a3de00
+string	ud801dc00	ud801dc00
+string	u005a	u005a
+string	u00dffb0000201e9e0031d801dc0001c5	u005300530046004600201e9e0031d801dc0001c4
+string	u1e9e014900200031	u1e9e02bc004e00200031
+string	u03c203c20149fb00d83d0061	u03a303a302bc004e00460046d83d0041
+string	u	u
+string	u00310130d801dc280587	u00310130d801dc0005350552
+string	u05871e9ed801dc281e9e	u053505521e9ed801dc001e9e
+string	u0061fb00013001300587	u0041004600460130013005350552
+string	ud83d	ud83d
+string	ud801dc0003c2de0001c503c2d801dc28	ud801dc0003a3de0001c403a3d801dc00
+string	u	u
+string	ud83dd801dc00005ad801dc00d801dc28fb00d83d0587	ud83dd801dc00005ad801dc00d801dc0000460046d83d05350552
+string	u005ade00d83d03c2	u005ade00d83d03a3
+string	u0587	u05350552
+string	u00df002003c205870149de00	u00530053002003a30535055202bc004ede00
+string	u0031fb00005ad83d	u003100460046005ad83d
+string	u00310020de00	u00310020de00
+string	u01c500df0061d801dc280031005a005a0587de00	u01c4005300530041d801dc000031005a005a05350552de00
+string	u1e9e03c201c5d801dc28005ad83d005a	u1e9e03a301c4d801dc00005ad83d005a
+string	u005ad83d013001c5d801dc28	u005ad83d013001c4d801dc00
+string	ude00	ude00
+string	u03c2	u03a3
+string	u014903c2	u02bc004e03a3
+string	u0031de001e9e	u0031de001e9e
+string	u1e9ed83d00dfd83dd83d01c5	u1e9ed83d00530053d83dd83d01c4
+string	u0031fb001e9ed801dc280149de0000df	u0031004600461e9ed801dc0002bc004ede0000530053
+string	u0149d801dc0003c20020d801dc0000310130	u02bc004ed801dc0003a30020d801dc0000310130
+string	u03c2de00	u03a3de00
+string	ud801dc00de00d801dc28058700df002000df	ud801dc00de00d801dc000535055200530053002000530053
+string	u005a01c5de000130005afb000061d83d	u005a01c4de000130005a004600460041d83d
+string	ud83d0130002000df0587005a	ud83d013000200053005305350552005a
+string	u0587d83d0149d801dc00005a0020	u05350552d83d02bc004ed801dc00005a0020
+string	u00df058700310130fb00003100dffb00	u0053005305350552003101300046004600310053005300460046
+string	ud801dc0003c20061fb00fb00005ad83d	ud801dc0003a300410046004600460046005ad83d
+string	u03c2d801dc0003c2	u03a3d801dc0003a3
+string	u002000dfd83d1e9e1e9e03c200200130d801dc00	u002000530053d83d1e9e1e9e03a300200130d801dc00
+string	u1e9e01c5	u1e9e01c4
+string	ud801dc00fb00014900df0587d801dc00d83d	ud801dc000046004602bc004e0053005305350552d801dc00d83d
+string	u0061d83d0587d801dc280587005ad83d0031de00	u0041d83d05350552d801dc0005350552005ad83d0031de00
+string	u	u
+string	ud801dc0001490130058700310031005a	ud801dc0002bc004e01300535055200310031005a
+string	u03c20061003101490587de00d801dc00de00	u03a30041003102bc004e05350552de00d801dc00de00
+string	u0149005ade0003c2fb00de00	u02bc004e005ade0003a300460046de00
+string	u01c5	u01c4
+string	ufb00014903c2	u0046004602bc004e03a3
+string	u003101c5d801dc000587de00	u003101c4d801dc0005350552de00
+string	u005ade000130d801dc2800200020	u005ade000130d801dc0000200020
+string	u	u
+string	ude00	ude00
+string	ud83d01c501c50587d83d	ud83d01c401c405350552d83d
+string	ude00fb0001301e9e	ude000046004601301e9e
+string	u00df0149	u0053005302bc004e
+string	ud83d01c50061	ud83d01c40041
+string	u	u
+string	u1e9e00310587003100df005ad801dc00003100df	u1e9e003105350552003100530053005ad801dc00003100530053
+string	u01301e9ed801dc28d801dc00d83d03c2	u01301e9ed801dc00d801dc00d83d03a3
+string	u0031d801dc2801c5de000031	u0031d801dc0001c4de000031
+string	ud801dc00d801dc28d801dc001e9e	ud801dc00d801dc00d801dc001e9e
+string	u00dfd801dc00de0003c2d83d	u00530053d801dc00de0003a3d83d
+string	u1e9e0149058700dfd801dc00002000df005a	u1e9e02bc004e0535055200530053d801dc00002000530053005a
+string	u01c5	u01c4
+string	u05870587d83d1e9e1e9e	u0535055205350552d83d1e9e1e9e
+string	u006100df	u004100530053
+string	u0130003103c20149	u0130003103a302bc004e
+string	u00df014903c20020	u0053005302bc004e03a30020
+string	u	u
+string	u00610061	u00410041
+string	u	u
+string	u00df005afb000020	u00530053005a004600460020
+string	ufb00013000310587	u004600460130003105350552
+string	u0587de000149	u05350552de0002bc004e
+string	u01c501c5	u01c401c4
+string	u	u
+string	ud83d00df005afb0003c2005a005ad801dc00d83d	ud83d00530053005a0046004603a3005a005ad801dc00d83d
+string	u005a00df1e9e00df01c5003100df1e9e	u005a005300531e9e0053005301c40031005300531e9e
+string	u0020014900df00610130d801dc00d83d1e9e005a	u002002bc004e0053005300410130d801dc00d83d1e9e005a
+string	u01c51e9e0587de001e9e005ad83dd801dc00	u01c41e9e05350552de001e9e005ad83dd801dc00
+string	ud801dc2800dfd801dc00058701c5d801dc28	ud801dc0000530053d801dc000535055201c4d801dc00
+string	u00df	u00530053
+string	u00df1e9e0020d801dc00fb000020d83d0020fb00	u005300531e9e0020d801dc00004600460020d83d002000460046
+string	u01c5005a1e9e058700df	u01c4005a1e9e0535055200530053
+string	u0020fb00	u002000460046
+string	u0587013001c5	u05350552013001c4
+string	u0587de00d801dc00	u05350552de00d801dc00
+string	u	u
+string	ude00d801dc00de00005a0031005a	ude00d801dc00de00005a0031005a
+string	u	u
+string	u03c2de00de0003c20031005a0061fb00	u03a3de00de0003a30031005a004100460046
+string	u0149003101490031fb00de00d801dc000020	u02bc004e003102bc004e003100460046de00d801dc000020
+string	u00df01c50587de00d801dc28	u0053005301c405350552de00d801dc00
+string	u1e9e1e9e005afb000020de00d801dc280149	u1e9e1e9e005a004600460020de00d801dc0002bc004e
+string	ud801dc28	ud801dc00
+string	u0061d801dc28	u0041d801dc00
+string	ud801dc280061058701491e9ed801dc280130005a0020	ud801dc0000410535055202bc004e1e9ed801dc000130005a0020
+string	u03c2	u03a3
+string	u0149006103c20031005a0149d801dc0003c20020	u02bc004e004103a30031005a02bc004ed801dc0003a30020
+string	ude00002001c501c500610130058700df	ude00002001c401c4004101300535055200530053
+string	ud801dc280031de00de00d801dc000130d83d006100df	ud801dc000031de00de00d801dc000130d83d004100530053
+string	u01300130	u01300130
+string	ud83d1e9e01c5d801dc28006100df	ud83d1e9e01c4d801dc00004100530053
+string	u005a1e9e01c50061d801dc0001c5005a00dfde00	u005a1e9e01c40041d801dc0001c4005a00530053de00
+string	u00310587	u003105350552
+string	u005a00200020	u005a00200020
+string	u005a005a005afb0000311e9e	u005a005a005a0046004600311e9e
+string	u01c5	u01c4
+string	u005a005ade0000df00dfde00013000df0149	u005a005ade000053005300530053de0001300053005302bc004e
+string	u00200031d801dc28	u00200031d801dc00
+string	u1e9e005ade00013001300587003101c5	u1e9e005ade000130013005350552003101c4
+string	ufb00d801dc2801490020	u00460046d801dc0002bc004e0020
+string	ud801dc00d801dc28	ud801dc00d801dc00
+string	u0149d801dc28	u02bc004ed801dc00
+string	u00310031	u00310031
+string	u005afb00	u005a00460046
+string	u0031058700df00311e9e058700df	u0031053505520053005300311e9e0535055200530053
+string	u005a0587002000310587	u005a053505520020003105350552
+string	u01c5d801dc28fb00	u01c4d801dc0000460046
+string	u0061058701c503c200df	u00410535055201c403a300530053
+string	u	u
+string	u058701c51e9e0061d801dc28	u0535055201c41e9e0041d801dc00
+string	u00df005ad801dc0000610149fb00d801dc28	u00530053005ad801dc00004102bc004e00460046d801dc00
+string	ud801dc000130fb00d801dc28	ud801dc00013000460046d801dc00
+string	u00df00201e9efb00fb00d801dc2801c503c2	u0053005300201e9e0046004600460046d801dc0001c403a3
+string	ud801dc280130fb000031	ud801dc000130004600460031
+string	ud83dd801dc28	ud83dd801dc00
+string	u0587005a0031fb00d83d002001c50149	u05350552005a003100460046d83d002001c402bc004e
+string	u	u
+string	u0020	u0020
+string	ude0000dfd801dc000130d801dc28d801dc28005a	ude0000530053d801dc000130d801dc00d801dc00005a
+string	u00310587d83d1e9ed801dc0000200020	u003105350552d83d1e9ed801dc0000200020
+string	ud83d	ud83d
+string	u01c5	u01c4
+string	u00df005ad83d0587fb00	u00530053005ad83d0535055200460046
+string	u00df1e9efb000031005ad801dc28	u005300531e9e004600460031005ad801dc00
+string	u0031	u0031
+string	u0020	u0020
+string	u	u
+string	u	u
+string	ud83d0130d801dc001e9e	ud83d0130d801dc001e9e
+string	u002003c2005ade001e9e	u002003a3005ade001e9e
+string	u1e9e01c5005a00df00df	u1e9e01c4005a0053005300530053
+string	u	u
+string	u005ad83dde0000dfde00de00d801dc0001c50031	u005ad83dde0000530053de00de00d801dc0001c40031
+string	ude00d801dc28	ude00d801dc00
+string	u1e9e01c5	u1e9e01c4
+string	u1e9e0130d801dc28de0001490149	u1e9e0130d801dc00de0002bc004e02bc004e
+string	ud801dc2803c20061fb00d801dc2803c2	ud801dc0003a3004100460046d801dc0003a3
+string	u0130de00	u0130de00
+string	u	u
+string	u	u
+string	u03c2005a0061003101c5	u03a3005a0041003101c4
+string	u0031005a00311e9ed801dc28	u0031005a00311e9ed801dc00
+string	u006100df0130de0000201e9e	u0041005300530130de0000201e9e
+string	u03c2005a0020d801dc0003c20061d801dc2801c503c2	u03a3005a0020d801dc0003a30041d801dc0001c403a3
+string	ufb0000310020fb00d83d05870061fb000031	u004600460031002000460046d83d053505520041004600460031
+string	u	u
+string	u0587de00	u05350552de00
+string	ud801dc281e9e01c500311e9e03c2	ud801dc001e9e01c400311e9e03a3
+string	u1e9e006100310130	u1e9e004100310130
+string	u005ade00fb00005a0020de0001490587	u005ade0000460046005a0020de0002bc004e05350552
+string	u	u
+string	u01490587d801dc00005a0149	u02bc004e05350552d801dc00005a02bc004e
+string	u005a	u005a
+string	ufb00fb00d801dc280130de00	u0046004600460046d801dc000130de00
+string	ufb001e9e00df	u004600461e9e00530053
+string	u002005870061	u0020053505520041
+string	u005a0149	u005a02bc004e
+string	u00df0587005a	u0053005305350552005a
+string	u0587	u05350552
+string	ude00fb000149d801dc2803c2de0000df	ude000046004602bc004ed801dc0003a3de0000530053
+string	ufb00005a0587	u00460046005a05350552
+string	u01c5005a00df00610587	u01c4005a00530053004105350552
+string	u01490587	u02bc004e05350552
+string	ud83dde0001c5fb000130005a014903c21e9e	ud83dde0001c4004600460130005a02bc004e03a31e9e
+string	u058700df0020005ad83d005a	u05350552005300530020005ad83d005a
+string	u03c2d801dc2803c2005a	u03a3d801dc0003a3005a
+string	u01c50031005a03c2d801dc0000311e9e	u01c40031005a03a3d801dc0000311e9e
+string	u0031	u0031
+string	ud801dc280020d801dc28d801dc0001c5fb000031d801dc28	ud801dc000020d801dc00d801dc0001c4004600460031d801dc00
+string	u013000610061fb00d83dd801dc0001c51e9e03c2	u01300041004100460046d83dd801dc0001c41e9e03a3
+string	u002001c5fb0000dfd801dc0005871e9e	u002001c40046004600530053d801dc00053505521e9e
+string	u0587de000020	u05350552de000020
+string	ud801dc0000201e9e0587d801dc0001490149	ud801dc0000201e9e05350552d801dc0002bc004e02bc004e
+string	u0149d801dc000130	u02bc004ed801dc000130
+string	ud83d00610061005a0020005a01490149	ud83d00410041005a0020005a02bc004e02bc004e
+string	u014900df0130005a03c203c2d801dc00005afb00	u02bc004e005300530130005a03a303a3d801dc00005a00460046
+string	ud801dc2801c50149d801dc28de00fb000130005a0020	ud801dc0001c402bc004ed801dc00de00004600460130005a0020
+string	ude00	ude00
+string	u01c5de00de0001300061d801dc28014900df	u01c4de00de0001300041d801dc0002bc004e00530053
+string	u0031d83d0587	u0031d83d05350552
+string	u1e9ed801dc281e9e00310031	u1e9ed801dc001e9e00310031
+string	u005a006103c21e9ed801dc000130fb000587de00	u005a004103a31e9ed801dc0001300046004605350552de00
+string	ud83d	ud83d
+string	u01c501c50061	u01c401c40041
+string	ude00058700310130de00d801dc00	ude000535055200310130de00d801dc00
+string	u01c50020d801dc00d83d00610061	u01c40020d801dc00d83d00410041
+string	ud801dc28d801dc0000200130005ad83d0031fb00d801dc28	ud801dc00d801dc0000200130005ad83d003100460046d801dc00
+string	u0587	u05350552
+string	u	u
+string	u0061013000610061d801dc28de00	u0041013000410041d801dc00de00
+string	u03c201490061fb00003100df0020	u03a302bc004e0041004600460031005300530020
+string	u	u
+string	u01300587d801dc0000dfd801dc281e9e00dffb0000df	u013005350552d801dc0000530053d801dc001e9e005300530046004600530053
+string	u002000df	u002000530053
+string	ude0003c2002000610020	ude0003a3002000410020
+string	u0130d801dc28fb00d801dc0003c2006103c2	u0130d801dc0000460046d801dc0003a3004103a3
+string	ud801dc28005a0020d801dc2800310061	ud801dc00005a0020d801dc0000310041
+string	u03c2	u03a3
+string	u00df0031	u005300530031
+string	u0061fb00005a00dfd83dd801dc00fb000061	u004100460046005a00530053d83dd801dc00004600460041
+string	u03c2058700610587003103c2	u03a305350552004105350552003103a3
+string	u03c20020d801dc2803c201c5fb00de00	u03a30020d801dc0003a301c400460046de00
+string	u0031d801dc2800df005a	u0031d801dc0000530053005a
+string	u01301e9e03c20031	u01301e9e03a30031
+string	u01c50020	u01c40020
+string	u0020de0000311e9e00200031005a	u0020de0000311e9e00200031005a
+string	ufb001e9e00df	u004600461e9e00530053
+string	u01490587	u02bc004e05350552
+string	u006101c5	u004101c4
+string	u03c2006101c50031d83d03c2005a0061	u03a3004101c40031d83d03a3005a0041
+string	ufb00de0003c2005a058700dffb000149d83d	u00460046de0003a3005a05350552005300530046004602bc004ed83d
+string	u0031	u0031
+string	u0061	u0041
+string	u058700310130	u0535055200310130
+string	u03c2d83d1e9e	u03a3d83d1e9e
+string	u0587002001c501c503c2	u05350552002001c401c403a3
+string	u0031d801dc00de0000df058705870061003101c5	u0031d801dc00de000053005305350552053505520041003101c4
+string	u05870020005afb00d83d0020	u053505520020005a00460046d83d0020
+string	u01c5d801dc000149005a00df	u01c4d801dc0002bc004e005a00530053
+string	u01c50031de00d801dc000130de00	u01c40031de00d801dc000130de00
+string	u	u
+string	u1e9e	u1e9e
+string	u0149d801dc00d801dc28	u02bc004ed801dc00d801dc00
+string	ude00d801dc00fb0001490149	ude00d801dc000046004602bc004e02bc004e
+string	ud801dc280031d801dc280061d801dc00006105871e9e	ud801dc000031d801dc000041d801dc000041053505521e9e
+string	ufb001e9e002000dfd801dc00	u004600461e9e002000530053d801dc00
+string	u00201e9ed83d005ade00	u00201e9ed83d005ade00
+string	ude00d801dc28002001c50587d83d	ude00d801dc00002001c405350552d83d
+string	u01c5003100dfd801dc00d83d0020d801dc00de000061	u01c4003100530053d801dc00d83d0020d801dc00de000041
+string	ud801dc000020	ud801dc000020
+string	u03c2d801dc0003c2d801dc0003c200df	u03a3d801dc0003a3d801dc0003a300530053
+string	u0130	u0130
+string	ud83dd801dc0000311e9e003101c5	ud83dd801dc0000311e9e003101c4
+string	u00dffb0001c50061	u005300530046004601c40041
+string	u0031d801dc00de00	u0031d801dc00de00
+string	u01300061fb00d801dc28de00	u0130004100460046d801dc00de00
+string	u0130d801dc281e9e01c50130	u0130d801dc001e9e01c40130
+string	u00310020d801dc000130005a0061d801dc000031d83d	u00310020d801dc000130005a0041d801dc000031d83d
+string	ude00de00fb00002001c5	ude00de0000460046002001c4
+string	u0020006103c2006100df0587d801dc000061	u0020004103a300410053005305350552d801dc000041
+string	u005a0061005a0149005a0587	u005a0041005a02bc004e005a05350552
+string	u03c20587d801dc00de000061	u03a305350552d801dc00de000041
+string	u	u
+string	ud801dc00002000610020002001c5d801dc00	ud801dc00002000410020002001c4d801dc00
+string	u03c2d801dc00de00d801dc000587d83dd801dc28	u03a3d801dc00de00d801dc0005350552d83dd801dc00
+string	ud83d1e9ede0000310130	ud83d1e9ede0000310130
+string	u005a00df0130d83d0149	u005a005300530130d83d02bc004e
+string	u03c2	u03a3
+string	u005a0031d801dc00	u005a0031d801dc00
+string	ude000130005a03c2d801dc28d801dc00d801dc000130	ude000130005a03a3d801dc00d801dc00d801dc000130
+string	u1e9ed801dc281e9ed801dc00005a03c2	u1e9ed801dc001e9ed801dc00005a03a3
+string	ud801dc00	ud801dc00
+string	ud801dc00d83d01c51e9e0149d83dd83dfb00	ud801dc00d83d01c41e9e02bc004ed83dd83d00460046
+string	u013003c2fb00	u013003a300460046
+string	u1e9e1e9ed83d	u1e9e1e9ed83d
+string	u1e9ed83d	u1e9ed83d
+string	u01491e9ede00de00d801dc00de00005ade00005a	u02bc004e1e9ede00de00d801dc00de00005ade00005a
+string	ufb0001c5	u0046004601c4
+string	ud801dc000020	ud801dc000020
+string	u	u
+string	ud83d0031003101c50587d83dd801dc28de00	ud83d0031003101c405350552d83dd801dc00de00
+string	ud801dc2803c203c2	ud801dc0003a303a3
+string	u0020d801dc28d801dc2803c2d83d00200130	u0020d801dc00d801dc0003a3d83d00200130
+string	u0130fb0003c200200130fb00	u01300046004603a30020013000460046
+string	u014903c2de0001300587d83dd83d1e9e0587	u02bc004e03a3de00013005350552d83dd83d1e9e05350552
+string	u006100df058701c5002003c2	u0041005300530535055201c4002003a3
+string	ufb0001c5013003c2d801dc00005a03c2	u0046004601c4013003a3d801dc00005a03a3
+string	u0061	u0041
+string	u002001490149	u002002bc004e02bc004e
+string	u0020d801dc00fb00005a005afb000020	u0020d801dc0000460046005a005a004600460020
+string	u0149	u02bc004e
+string	u00dfd83d014900610130de00de00	u00530053d83d02bc004e00410130de00de00
+string	u	u
+string	ud83dfb000031005a	ud83d004600460031005a
+string	ufb001e9e00df0149de00de00	u004600461e9e0053005302bc004ede00de00
+string	ude00005ad83d0020	ude00005ad83d0020
+string	u03c2003100311e9efb000031	u03a3003100311e9e004600460031
+string	u00200031fb00	u0020003100460046
+string	u	u
+string	u0149fb00	u02bc004e00460046
+string	u005a0031005a0587d801dc28	u005a0031005a05350552d801dc00
+string	u03c2d801dc280061fb00de00	u03a3d801dc00004100460046de00
+string	u01c5fb00fb00fb00	u01c4004600460046004600460046
+string	u	u
+string	ud801dc00de00d83d	ud801dc00de00d83d
+string	ud801dc000149014903c201490020fb00005afb00	ud801dc0002bc004e02bc004e03a302bc004e002000460046005a00460046
+string	u03c2fb000020d801dc280061003101c5	u03a3004600460020d801dc000041003101c4
+string	ude0003c20020d83d00310149	ude0003a30020d83d003102bc004e
+string	u	u
+string	u0031005ad801dc280031d801dc28	u0031005ad801dc000031d801dc00
+string	u01300020	u01300020
+string	u0061	u0041
+string	ud801dc00fb00006100df00df	ud801dc000046004600410053005300530053
+string	u002000df00200061	u00200053005300200041
+string	u002000df005a005ad801dc0000200020	u002000530053005a005ad801dc0000200020
+string	u0130d83dd801dc0001c501300061	u0130d83dd801dc0001c401300041
+string	ufb0000201e9e	u0046004600201e9e
+string	ud801dc0001c503c2d801dc28014903c2	ud801dc0001c403a3d801dc0002bc004e03a3
+string	ude0001c5005a005a01490130fb000587	ude0001c4005a005a02bc004e01300046004605350552
+string	u005a	u005a
+string	u058703c2fb000031	u0535055203a3004600460031
+string	u03c2fb00005ad801dc2801c5	u03a300460046005ad801dc0001c4
+string	ud801dc28	ud801dc00
+string	u0587de00005ad83d1e9e	u05350552de00005ad83d1e9e
+string	u058703c2de000130fb00	u0535055203a3de00013000460046
+string	u0020d801dc00002003c20130fb0000201e9e	u0020d801dc00002003a301300046004600201e9e
+string	u00df0149013001c501c5002001490149d801dc00	u0053005302bc004e013001c401c4002002bc004e02bc004ed801dc00
+string	u03c201c503c2de0000df0149	u03a301c403a3de000053005302bc004e
+string	u006103c2d801dc28058700dfd801dc0003c20130	u004103a3d801dc000535055200530053d801dc0003a30130
+string	u0031058701c5fb00	u00310535055201c400460046
+string	ud83d	ud83d
+string	u03c201490587013003c200df	u03a302bc004e05350552013003a300530053
+string	u1e9e014900dfde00002000df005a00df0020	u1e9e02bc004e00530053de00002000530053005a005300530020
+string	ud83d00310587de00fb00005a01300587	ud83d003105350552de0000460046005a013005350552
+string	u01c503c20130d801dc00d801dc000031005a1e9e	u01c403a30130d801dc00d801dc000031005a1e9e
+string	ud801dc00005a005a	ud801dc00005a005a
+string	u	u
+string	ud801dc0003c2058700df0130fb00	ud801dc0003a30535055200530053013000460046
+string	u	u
+string	u0587005a0020002001c5d801dc281e9e	u05350552005a0020002001c4d801dc001e9e
+string	u03c2014900df0130	u03a302bc004e005300530130
+string	ufb0003c2d83d0020d83dde0005870587	u0046004603a3d83d0020d83dde000535055205350552
+string	ude00006101c5014901c5	ude00004101c402bc004e01c4
+string	u1e9e03c2005ad83d0130fb00d801dc28de0000df	u1e9e03a3005ad83d013000460046d801dc00de0000530053
+string	u0149d83d00dffb00	u02bc004ed83d0053005300460046
+string	u01c5d83dd83d0020d83d00df	u01c4d83dd83d0020d83d00530053
+string	u00df005a0587	u00530053005a05350552
+string	u	u
+string	u0587d801dc000149d801dc0001490130	u05350552d801dc0002bc004ed801dc0002bc004e0130
+string	ud801dc000031013000df	ud801dc000031013000530053
+string	u0130d801dc001e9ede0001c5fb00005a	u0130d801dc001e9ede0001c400460046005a
+string	u058701c5d801dc0003c2	u0535055201c4d801dc0003a3
+string	u1e9e	u1e9e
+string	ud83d002000df0587fb00d801dc00002005870061	ud83d0020005300530535055200460046d801dc000020053505520041
+string	ude0001c50149fb00005a	ude0001c402bc004e00460046005a
+string	u00df1e9ede00fb001e9e0130	u005300531e9ede00004600461e9e0130
+string	u0031	u0031
+string	u	u
+string	u0130de00d83dd83d005a	u0130de00d83dd83d005a
+string	ude00de00de00fb00005a	ude00de00de0000460046005a
+string	ufb00fb00fb0003c2d83d013000df	u00460046004600460046004603a3d83d013000530053
+string	u03c2d801dc00d801dc2801c503c21e9e0149	u03a3d801dc00d801dc0001c403a31e9e02bc004e
+string	u0130	u0130
+string	u0587d801dc00d801dc0000610031de00d83dde0001c5	u05350552d801dc00d801dc0000410031de00d83dde0001c4
+string	u0020de0000200061d801dc000130	u0020de0000200041d801dc000130
+string	u	u
+string	u	u
+string	u00dfd83d013000df0061	u00530053d83d0130005300530041
+string	u01c50061	u01c40041
+string	u005a00200149005a	u005a002002bc004e005a
+string	u1e9e00200587	u1e9e002005350552
+string	u01490587d801dc0000200061d801dc28014900df0020	u02bc004e05350552d801dc0000200041d801dc0002bc004e005300530020
+string	u0130de001e9e00df00200061	u0130de001e9e0053005300200041
+string	ud801dc00	ud801dc00
+string	u0130d801dc2805870020006101c50031	u0130d801dc00053505520020004101c40031
+string	u00201e9e01301e9e03c20031d83d	u00201e9e01301e9e03a30031d83d
+string	u	u
+string	u	u
+string	u	u
+string	u03c20149003103c2014900dfde00	u03a302bc004e003103a302bc004e00530053de00
+string	u058703c201490031d801dc0001c501c503c2fb00	u0535055203a302bc004e0031d801dc0001c401c403a300460046
+string	u01c5	u01c4
+string	ud801dc000149013003c2de000031005a	ud801dc0002bc004e013003a3de000031005a
+string	u002003c2	u002003a3
+string	ud83dde001e9e	ud83dde001e9e
+string	u00df0061de00	u005300530041de00
+string	u	u
+string	u0130005ade00	u0130005ade00
+string	u	u
+string	u005a01300587de00de000130	u005a013005350552de00de000130
+string	u	u
+string	ufb00	u00460046
+string	u002003c200200149005a	u002003a3002002bc004e005a
+string	u00611e9e01c5	u00411e9e01c4
+string	ude0000df013001c5	ude0000530053013001c4
+string	u	u
+string	ud801dc00058700df1e9e1e9e01c5	ud801dc0005350552005300531e9e1e9e01c4
+string	u0031003103c2d83d01490587fb000587	u0031003103a3d83d02bc004e053505520046004605350552
+string	u05870149014901c5	u0535055202bc004e02bc004e01c4
+string	u0020d801dc28005a	u0020d801dc00005a
+string	u005a002001c51e9e005a1e9e006100610587	u005a002001c41e9e005a1e9e0041004105350552
+string	ufb00de00058700dffb0005870061	u00460046de00053505520053005300460046053505520041
+string	ud801dc2800df0149005a1e9e00df058700df	ud801dc000053005302bc004e005a1e9e005300530535055200530053
+string	u	u
+string	u005a0061	u005a0041
+string	u0031058701300130014901490149fb00	u0031053505520130013002bc004e02bc004e02bc004e00460046
+string	ude0000dfd801dc28005a	ude0000530053d801dc00005a
+string	u0587014900dfde00005a	u0535055202bc004e00530053de00005a
+string	u0020013000dfde000020006101c5	u0020013000530053de000020004101c4
+string	u014901490130de00fb00005a	u02bc004e02bc004e0130de0000460046005a
+string	ude00	ude00
+string	u002000dfd801dc28005a05870061d83d	u002000530053d801dc00005a053505520041d83d
+string	ufb001e9e1e9e0061fb00	u004600461e9e1e9e004100460046
+string	u0149	u02bc004e
+string	u00df0149d83d03c201c5fb000020	u0053005302bc004ed83d03a301c4004600460020
+string	u005ad801dc28d83dde0000df003100df	u005ad801dc00d83dde0000530053003100530053
+string	u	u
+string	u00dfd83d005a1e9e002003c2013000310061	u00530053d83d005a1e9e002003a3013000310041
+string	u	u
+string	ufb00014900df0061d83d0031	u0046004602bc004e005300530041d83d0031
+string	u03c2	u03a3
+string	ud801dc00	ud801dc00
+string	ud801dc2803c20020d801dc0000df	ud801dc0003a30020d801dc0000530053
+string	ud801dc280587d801dc0001491e9e01c50149014903c2	ud801dc0005350552d801dc0002bc004e1e9e01c402bc004e02bc004e03a3
+string	ud801dc000031fb00003100311e9e0061	ud801dc00003100460046003100311e9e0041
+string	u00df00df0587	u005300530053005305350552
+string	ufb00058703c200dfd83d	u004600460535055203a300530053d83d
+string	u005a0149	u005a02bc004e
+string	ud801dc280130d801dc000031fb0001c51e9e1e9e	ud801dc000130d801dc0000310046004601c41e9e1e9e
+string	ud801dc0001c501c51e9e	ud801dc0001c401c41e9e
+string	u013001c500311e9e1e9efb00	u013001c400311e9e1e9e00460046
+string	ud83d03c2005afb00058703c20149003103c2	ud83d03a3005a004600460535055203a302bc004e003103a3
+string	ud801dc280130	ud801dc000130
+string	u	u
+string	u0031d801dc00fb00de00005afb00d801dc00	u0031d801dc0000460046de00005a00460046d801dc00
+string	u005ad83dd83dd801dc28006100610031	u005ad83dd83dd801dc00004100410031
+string	u03c2006100df005ad83dd801dc28d801dc00	u03a3004100530053005ad83dd801dc00d801dc00
+string	u1e9e006101c5005ad801dc28fb0003c2005a0149	u1e9e004101c4005ad801dc000046004603a3005a02bc004e
+string	u0061de00d83d0149	u0041de00d83d02bc004e
+string	ude00d801dc280587	ude00d801dc0005350552
+string	u0587de00	u05350552de00
+string	u005a03c201300587005ade0003c2	u005a03a3013005350552005ade0003a3
+string	u00311e9e01c501c5fb00	u00311e9e01c401c400460046
+string	u1e9efb0001c5de00	u1e9e0046004601c4de00
+string	u003101300031	u003101300031
+string	u058700dfd801dc281e9e0149d83dd801dc28d801dc28de00	u0535055200530053d801dc001e9e02bc004ed83dd801dc00d801dc00de00
+string	ude00058705870149	ude00053505520535055202bc004e
+string	u	u
+string	u03c2d801dc0000200020	u03a3d801dc0000200020
+string	u00dfd801dc00fb0003c2de001e9e	u00530053d801dc000046004603a3de001e9e
+string	ud83dd801dc000587058700df005ad83d1e9e1e9e	ud83dd801dc00053505520535055200530053005ad83d1e9e1e9e
+string	ufb00014900dffb00d83d00df013001c50020	u0046004602bc004e0053005300460046d83d00530053013001c40020
+string	u00df05870130	u00530053053505520130
+string	ud801dc2800dfd83d03c2d801dc000031	ud801dc0000530053d83d03a3d801dc000031
+string	u00610587	u004105350552
+string	u0031005afb00	u0031005a00460046
+string	u01301e9ed801dc280031fb00	u01301e9ed801dc00003100460046
+string	u0587fb0001c5d801dc280031d801dc280587d801dc280031	u053505520046004601c4d801dc000031d801dc0005350552d801dc000031
+string	u1e9e0149d801dc28	u1e9e02bc004ed801dc00
+string	u013000df1e9e0587005a01c50149014903c2	u0130005300531e9e05350552005a01c402bc004e02bc004e03a3
+string	u	u
+string	ud801dc28	ud801dc00
+string	u01c503c2fb0000200031d801dc00d83d013000df	u01c403a30046004600200031d801dc00d83d013000530053
+string	ud801dc001e9ed801dc0001c5002000310020	ud801dc001e9ed801dc0001c4002000310020
+string	u0031	u0031
+string	ude00003101c5	ude00003101c4
+string	u0061014901c5d83dd801dc28005a0020	u004102bc004e01c4d83dd801dc00005a0020
+string	u0031d83d	u0031d83d
+string	u00df0020d83dde00	u005300530020d83dde00
+string	u01c5005ad83d1e9e03c2058700df0587d801dc00	u01c4005ad83d1e9e03a3053505520053005305350552d801dc00
+string	u1e9e05871e9e	u1e9e053505521e9e
+string	ud83d0020013001c50031d801dc28fb0000df	ud83d0020013001c40031d801dc000046004600530053
+string	u00200020d801dc00d801dc281e9e03c2	u00200020d801dc00d801dc001e9e03a3
+string	u0149005a	u02bc004e005a
+string	u1e9ed801dc280061fb0001490031005a0031005a	u1e9ed801dc0000410046004602bc004e0031005a0031005a
+string	u003100201e9e1e9e0130de00	u003100201e9e1e9e0130de00
+string	ude00fb00d83d0031	ude0000460046d83d0031
+string	ud83d00df003103c2	ud83d00530053003103a3
+string	u0020	u0020
+string	u005ad801dc2801c500610061d83dd801dc00	u005ad801dc0001c400410041d83dd801dc00
+string	u1e9e01c5d83d1e9e002000200031	u1e9e01c4d83d1e9e002000200031
+string	u014903c2005ad801dc280061d83d	u02bc004e03a3005ad801dc000041d83d
+string	u	u
+string	u0020	u0020
+string	u00df0149	u0053005302bc004e
+string	u	u
+string	ufb000587d801dc00	u0046004605350552d801dc00
+string	u0130d83dfb00d801dc2801300130d801dc28	u0130d83d00460046d801dc0001300130d801dc00
+string	u006100201e9e058701c50061d801dc00de00	u004100201e9e0535055201c40041d801dc00de00
+string	u0149d801dc28	u02bc004ed801dc00
+string	u0130006100311e9e	u0130004100311e9e
+string	u1e9e	u1e9e
+string	ufb00	u00460046
+string	u	u
+string	u0130	u0130
+string	ud801dc280587d801dc00013000df0587fb00	ud801dc0005350552d801dc000130005300530535055200460046
+string	u	u
+string	u0020d801dc00	u0020d801dc00
+string	ud83dd801dc0001c50130de000020d801dc280020	ud83dd801dc0001c40130de000020d801dc000020
+string	u00df1e9ed801dc28	u005300531e9ed801dc00
+string	u03c2fb0003c20587d801dc0001c5	u03a30046004603a305350552d801dc0001c4
+string	u01491e9e	u02bc004e1e9e
+string	u00610061d801dc0001300149fb000149	u00410041d801dc00013002bc004e0046004602bc004e
+string	u005a03c203c200200020006101c5	u005a03a303a300200020004101c4
+string	u006103c2de00fb0001491e9e058700200061	u004103a3de000046004602bc004e1e9e0535055200200041
+string	u01c50020	u01c40020
+string	u1e9ed83dd801dc280031005a00df	u1e9ed83dd801dc000031005a00530053
+string	u0130005a05870031d801dc281e9e0149d801dc28	u0130005a053505520031d801dc001e9e02bc004ed801dc00
+string	u1e9ede00005ade00de00d83d002000df	u1e9ede00005ade00de00d83d002000530053
+string	ud801dc00	ud801dc00
+string	u0587005a0031	u05350552005a0031
+string	u	u
+string	ud83d0587	ud83d05350552
+string	u006101c500200031d801dc281e9e0061	u004101c400200031d801dc001e9e0041
+string	u0020fb00fb00d801dc280149	u00200046004600460046d801dc0002bc004e
+string	ud83d0130	ud83d0130
+string	u03c201c5013003c2de000149	u03a301c4013003a3de0002bc004e
+string	u0587005a014901490149d801dc280130d83d	u05350552005a02bc004e02bc004e02bc004ed801dc000130d83d
+string	ud83dfb0000dfd801dc2803c200610149	ud83d0046004600530053d801dc0003a3004102bc004e
+string	u0149	u02bc004e
+string	u03c21e9e003101c5fb0001300587d801dc00	u03a31e9e003101c400460046013005350552d801dc00
+string	u0061d801dc281e9e0587005a00610031	u0041d801dc001e9e05350552005a00410031
+string	u01c5d83dd801dc00d801dc00de00002000610061d83d	u01c4d83dd801dc00d801dc00de00002000410041d83d
+string	u00dfd801dc2801490020de00d801dc00	u00530053d801dc0002bc004e0020de00d801dc00
+string	u1e9e0020d801dc28de0000dfde00005ad83d03c2	u1e9e0020d801dc00de0000530053de00005ad83d03a3
+string	u	u
+string	u05871e9e00610020	u053505521e9e00410020
+string	u013001c500610587fb00d801dc28	u013001c400410535055200460046d801dc00
+string	u0061d801dc00d83dd83dd83d	u0041d801dc00d83dd83dd83d
+string	u0149de000130d801dc280130d801dc000061	u02bc004ede000130d801dc000130d801dc000041
+string	u0587	u05350552
+string	u0149014900610130d83d	u02bc004e02bc004e00410130d83d
+string	u0031fb00058701c5006101490130005a0130	u0031004600460535055201c4004102bc004e0130005a0130
+string	u005a	u005a
+string	u002001c5	u002001c4
+string	u00200061d801dc2803c203c2d801dc280031	u00200041d801dc0003a303a3d801dc000031
+string	u005a0020	u005a0020
+string	u0031de00	u0031de00
+string	u03c2d83d1e9e01c51e9e0061d83d005a005a	u03a3d83d1e9e01c41e9e0041d83d005a005a
+string	ud801dc280061	ud801dc000041
+string	u002001c5	u002001c4
+string	u0061fb00013001491e9e01c501c5	u004100460046013002bc004e1e9e01c401c4
+string	u0061d801dc00fb00fb000149d83d	u0041d801dc00004600460046004602bc004ed83d
+string	u00200149d83d0061	u002002bc004ed83d0041
+string	u03c2de00de00de000587d801dc28d801dc2800200061	u03a3de00de00de0005350552d801dc00d801dc0000200041
+string	u0020006100df00df003100df1e9e00200149	u0020004100530053005300530031005300531e9e002002bc004e
+string	u0061de00	u0041de00
+string	u0149d801dc2805871e9e03c201c5d83d	u02bc004ed801dc00053505521e9e03a301c4d83d
+string	ufb0001c5	u0046004601c4
+string	u005a1e9e0020	u005a1e9e0020
+string	u1e9e003103c2d801dc2803c20130	u1e9e003103a3d801dc0003a30130
+string	u0587d801dc28d801dc2800df01c50061	u05350552d801dc00d801dc000053005301c40041
+string	u006100dfd801dc280061	u004100530053d801dc000041
+string	ud801dc280061d801dc0005870130d83d	ud801dc000041d801dc00053505520130d83d
+string	u00dfde000031d801dc280130	u00530053de000031d801dc000130
+string	ud801dc28de00d801dc00	ud801dc00de00d801dc00
+string	ud83d0149de0003c2	ud83d02bc004ede0003a3
+string	u01300587006103c2005a	u013005350552004103a3005a
+string	ud801dc000130	ud801dc000130
+string	u0061	u0041
+string	u1e9e00dfd801dc28005a003105870130d801dc2800df	u1e9e00530053d801dc00005a0031053505520130d801dc0000530053
+string	ud83d	ud83d
+string	u003101c5005a1e9e013001c50020	u003101c4005a1e9e013001c40020
+string	u006101c5	u004101c4
+string	ud801dc000587	ud801dc0005350552
+string	u03c2005a00610020005a005a00200130	u03a3005a00410020005a005a00200130
+string	ud801dc00d801dc00	ud801dc00d801dc00
+string	ud801dc00fb00	ud801dc0000460046
+string	u005a1e9e00df	u005a1e9e00530053
+string	ufb00d83dde00d83d	u00460046d83dde00d83d
+string	ude000020d83dfb00d83d1e9e	ude000020d83d00460046d83d1e9e
+string	u1e9efb00	u1e9e00460046
+string	u03c20020de000061	u03a30020de000041
+string	u0031	u0031
+string	u0020	u0020
+string	u01c5d83d	u01c4d83d
+string	u014900df00dfd801dc0003c2de00d801dc0000df0149	u02bc004e0053005300530053d801dc0003a3de00d801dc000053005302bc004e
+string	u006100df013003c2fb00006103c2fb000149	u004100530053013003a300460046004103a30046004602bc004e
+string	u0061005ade001e9e0130014901c5	u0041005ade001e9e013002bc004e01c4
+string	u005a03c2fb00de00de00d801dc28	u005a03a300460046de00de00d801dc00
+string	u0130d83dd801dc28	u0130d83dd801dc00
+string	ud83d	ud83d
+string	u1e9e0130d83d00dffb0005871e9ede001e9e	u1e9e0130d83d0053005300460046053505521e9ede001e9e
+string	u01300020fb000149fb00d801dc2801c5fb00	u013000200046004602bc004e00460046d801dc0001c400460046
+string	u1e9ede00	u1e9ede00
+string	u1e9e1e9e00df005a1e9e	u1e9e1e9e00530053005a1e9e
+string	u0031	u0031
+string	ud83d0061005a	ud83d0041005a
+string	u0061005a00200031d83d1e9ed801dc0000200061	u0041005a00200031d83d1e9ed801dc0000200041
+string	u01c51e9e03c20061005a01c5d801dc0000df1e9e	u01c41e9e03a30041005a01c4d801dc00005300531e9e
+string	u03c20020	u03a30020
+string	u005a01490587fb0000610031	u005a02bc004e053505520046004600410031
+string	u01491e9e	u02bc004e1e9e
+string	u003101c5fb001e9e1e9e1e9e00200031	u003101c4004600461e9e1e9e1e9e00200031
+string	u0031006100610149	u00310041004102bc004e
+string	ude00de0000200031d801dc0003c205870061	ude00de0000200031d801dc0003a3053505520041
+string	ud83dd83d	ud83dd83d
+string	u00dffb0001c5d801dc2801c5	u005300530046004601c4d801dc0001c4
+string	u	u
+string	u01491e9e	u02bc004e1e9e
+string	ud83d03c2006101301e9e00310587	ud83d03a3004101301e9e003105350552
+string	u0587fb00de000587fb00de001e9ed801dc281e9e	u0535055200460046de000535055200460046de001e9ed801dc001e9e
+string	u	u
+string	ude00d801dc001e9e00310020	ude00d801dc001e9e00310020
+string	ud83d0587006100df	ud83d05350552004100530053
+string	u01c5d801dc000149	u01c4d801dc0002bc004e
+string	ufb0001c50130005a006101300061	u0046004601c40130005a004101300041
+string	ud83d03c2	ud83d03a3
+string	u0020014901c5	u002002bc004e01c4
+string	u	u
+string	u01c5fb00d83dd801dc281e9e002000610149	u01c400460046d83dd801dc001e9e0020004102bc004e
+string	u002005871e9ede00de00	u0020053505521e9ede00de00
+string	u1e9ede00d801dc00d801dc00fb00006101300149	u1e9ede00d801dc00d801dc00004600460041013002bc004e
+string	ud801dc00d83d	ud801dc00d83d
+string	u0587d801dc28fb0001c5	u05350552d801dc000046004601c4
+string	u00dfd801dc00	u00530053d801dc00
+string	u00611e9e005a	u00411e9e005a
+string	u1e9ed801dc00de00058700df00df	u1e9ed801dc00de00053505520053005300530053
+string	u0020fb00d801dc000149	u002000460046d801dc0002bc004e
+string	u003100df00df03c2d83d0031005a01c5	u0031005300530053005303a3d83d0031005a01c4
+string	u0149d801dc00014903c2013000610587de00	u02bc004ed801dc0002bc004e03a30130004105350552de00
+string	u	u
+string	u0130d83d0130d83dd83d	u0130d83d0130d83dd83d
+string	u0130058703c2005a0031	u01300535055203a3005a0031
+string	ud801dc0003c21e9e	ud801dc0003a31e9e
+string	ufb00	u00460046
+string	u005ad801dc28d801dc2801c5d801dc280020	u005ad801dc00d801dc0001c4d801dc000020
+string	ud801dc0005870587006100610031013001c5	ud801dc000535055205350552004100410031013001c4
+string	u1e9ed801dc00d801dc0000df0020d801dc00005a0031de00	u1e9ed801dc00d801dc00005300530020d801dc00005a0031de00
+string	u	u
+string	u058700310061fb0000201e9e	u05350552003100410046004600201e9e
+string	u0020d801dc28	u0020d801dc00
+string	ufb00	u00460046
+string	u1e9e01300149005a00200149005a03c20031	u1e9e013002bc004e005a002002bc004e005a03a30031
+string	u	u
+string	u03c20587d801dc2803c21e9ed801dc00	u03a305350552d801dc0003a31e9ed801dc00
+string	u003101c50020d801dc28	u003101c40020d801dc00
+string	ude0000df1e9e0149de0001490020fb00	ude00005300531e9e02bc004ede0002bc004e002000460046
+string	ud83d03c2005a03c2	ud83d03a3005a03a3
+string	ud83d005ade00	ud83d005ade00
+string	u	u
+string	ud801dc00	ud801dc00
+string	u00310061005a	u00310041005a
+string	ud801dc000130de00fb0000df0587	ud801dc000130de00004600460053005305350552
+string	u1e9e0020002000df03c20587005a03c2	u1e9e002000200053005303a305350552005a03a3
+string	u0130005a0031013000200031fb00	u0130005a003101300020003100460046
+string	u01300020d801dc000031	u01300020d801dc000031
+string	ud801dc00d83d0130fb000020d83dd83d0149	ud801dc00d83d0130004600460020d83dd83d02bc004e
+string	u01c501c5002001c503c2d83d	u01c401c4002001c403a3d83d
+string	u01c5d801dc28d801dc00005a	u01c4d801dc00d801dc00005a
+string	u013001490587de00d801dc28	u013002bc004e05350552de00d801dc00
+string	u0587d801dc000149d801dc00d83d00df0061d801dc0001c5	u05350552d801dc0002bc004ed801dc00d83d005300530041d801dc0001c4
+string	u014900dffb00d83dde0003c2de00005a	u02bc004e0053005300460046d83dde0003a3de00005a
+string	u0020d801dc000031	u0020d801dc000031
+string	u00610130	u00410130
+string	ufb0000df014900310149fb00	u004600460053005302bc004e003102bc004e00460046
+string	ud801dc00003101c5d801dc2800df0061	ud801dc00003101c4d801dc00005300530041
+string	ud801dc0000df01490130	ud801dc000053005302bc004e0130
+string	u1e9e1e9ed801dc2800df0130de00	u1e9e1e9ed801dc00005300530130de00
+string	ud801dc28	ud801dc00
+string	u0031	u0031
+string	ufb00de00058701300020fb00	u00460046de00053505520130002000460046
+string	u0130fb0001301e9efb00005a	u01300046004601301e9e00460046005a
+string	u01c51e9e00200130d83d005a005a1e9e0130	u01c41e9e00200130d83d005a005a1e9e0130
+string	u0587d83d03c200df005a0149de00	u05350552d83d03a300530053005a02bc004ede00
+string	u	u
+string	u00200587005ad801dc000061	u002005350552005ad801dc000041
+string	ud801dc2800df	ud801dc0000530053
+string	u0130	u0130
+string	u	u
+string	ufb00005a00200587d801dc00005a	u00460046005a002005350552d801dc00005a
+string	u003103c2d83d0587de0000df0061d83d	u003103a3d83d05350552de00005300530041d83d
+string	u005a0020fb00d801dc0000dffb00de00	u005a002000460046d801dc000053005300460046de00
+string	ud801dc000149	ud801dc0002bc004e
+string	u0020d83d014900311e9e	u0020d83d02bc004e00311e9e
+string	ud801dc0001c500311e9e01490031	ud801dc0001c400311e9e02bc004e0031
+string	u005a013000df00200020d801dc0003c2de0000df	u005a01300053005300200020d801dc0003a3de0000530053
+string	ufb00fb0001490130d801dc28	u004600460046004602bc004e0130d801dc00
+string	u0149	u02bc004e
+string	u05870031013001c50587de00	u053505520031013001c405350552de00
+string	u0061d801dc2801300130	u0041d801dc0001300130
+string	u01490020	u02bc004e0020
+string	u0020003101c5	u0020003101c4
+string	u0587d801dc28d83dfb00058700df03c2	u05350552d801dc00d83d00460046053505520053005303a3
+string	u003101c5	u003101c4
+string	u00610130fb00014903c2d801dc28	u004101300046004602bc004e03a3d801dc00
+string	u01c50061de00	u01c40041de00
+string	ud83d00df00dfd83d0061d801dc280031005a	ud83d0053005300530053d83d0041d801dc000031005a
+string	u	u
+string	u0149fb0001490149d801dc00	u02bc004e0046004602bc004e02bc004ed801dc00
+string	u0149d801dc28d83dd83d0149fb00	u02bc004ed801dc00d83dd83d02bc004e00460046
+string	u03c2de000587d83d0587	u03a3de0005350552d83d05350552
+string	u013000310061013000310130005a	u013000310041013000310130005a
+string	u0061013001c51e9e1e9efb0000df0149	u0041013001c41e9e1e9e004600460053005302bc004e
+string	u	u
+string	u0130d801dc280061	u0130d801dc000041
+string	ud801dc280587d801dc0000dfd801dc00fb00	ud801dc0005350552d801dc0000530053d801dc0000460046
+string	ud83d	ud83d
+string	u01c5d83dd83d005a	u01c4d83dd83d005a
+string	u0020	u0020
+string	u00610149013005870020006100df1e9e	u004102bc004e01300535055200200041005300531e9e
+string	u0587005ad83d01c5d801dc0003c20031d83dd83d	u05350552005ad83d01c4d801dc0003a30031d83dd83d
+string	u005a0149d83dd83d01c50587d801dc0003c2	u005a02bc004ed83dd83d01c405350552d801dc0003a3
+string	u00df00201e9e	u0053005300201e9e
+string	u005ad801dc00d801dc000587058700200130d801dc00fb00	u005ad801dc00d801dc00053505520535055200200130d801dc0000460046
+string	u0149fb00fb00	u02bc004e0046004600460046
+string	u0130de00	u0130de00
+string	u00201e9e005a1e9e05870149005a005a00df	u00201e9e005a1e9e0535055202bc004e005a005a00530053
+string	u01c5fb001e9e03c2	u01c4004600461e9e03a3
+string	u0149002000200031	u02bc004e002000200031
+string	u	u
+string	u0587005ad801dc28d801dc28d83dd801dc00	u05350552005ad801dc00d801dc00d83dd801dc00
+string	u03c2de0003c2	u03a3de0003a3
+string	u05870149	u0535055202bc004e
+string	ufb00	u00460046
+string	ud801dc28	ud801dc00
+string	u0020d83d002000310587d83dde0000610020	u0020d83d0020003105350552d83dde0000410020
+string	u01c51e9efb000149013003c203c2	u01c41e9e0046004602bc004e013003a303a3
+string	u01300031002001c500dfd83dde001e9e0031	u01300031002001c400530053d83dde001e9e0031
+string	ufb0000610149	u00460046004102bc004e
+string	u00df013001c5d83d	u00530053013001c4d83d
+string	u0149d801dc28d801dc000149d801dc28	u02bc004ed801dc00d801dc0002bc004ed801dc00
+string	u01c5d801dc2801c500df1e9e00310587d801dc00	u01c4d801dc0001c4005300531e9e003105350552d801dc00
+string	u058701c5d801dc00fb0005870149d83d0130	u0535055201c4d801dc00004600460535055202bc004ed83d0130
+string	ude000061	ude000041
+string	u00df	u00530053
+string	u1e9ed801dc28	u1e9ed801dc00
+string	ude00d801dc28d801dc28d801dc00d801dc2803c21e9ed801dc28	ude00d801dc00d801dc00d801dc00d801dc0003a31e9ed801dc00
+string	ud83dd801dc0001c5de0001c5002001c5de00	ud83dd801dc0001c4de0001c4002001c4de00
+string	u	u
+string	u00df1e9e03c2	u005300531e9e03a3
+string	ud83d0020005a	ud83d0020005a
+string	ude000149	ude0002bc004e
+string	u	u
+string	u013001300061	u013001300041
+string	u1e9ed801dc0000310020fb00	u1e9ed801dc000031002000460046
+string	u	u
+string	u	u
+string	u0061fb001e9ede000031fb0001490061de00	u0041004600461e9ede0000310046004602bc004e0041de00
+string	u0031	u0031
+string	u0031005a0031	u0031005a0031
+string	ud83dfb0003c2d83d0587	ud83d0046004603a3d83d05350552
+string	u	u
+string	ud801dc001e9e0587de00de000587d801dc00fb0001c5	ud801dc001e9e05350552de00de0005350552d801dc000046004601c4
+string	u005a1e9e	u005a1e9e
+string	u005ad83d003100dfd83d	u005ad83d003100530053d83d
+string	u0061de001e9e0587d801dc000031d801dc28	u0041de001e9e05350552d801dc000031d801dc00
+string	u00dffb00de0000310061fb0001c50061	u0053005300460046de00003100410046004601c40041
+string	u0031de00d83dde000149d83dd801dc00	u0031de00d83dde0002bc004ed83dd801dc00
+string	u01490130	u02bc004e0130
+string	u0061003100dfd801dc28fb00de0003c2d801dc280149	u0041003100530053d801dc0000460046de0003a3d801dc0002bc004e
+string	ud801dc00de000031de0001c5d801dc28d801dc2801300031	ud801dc00de000031de0001c4d801dc00d801dc0001300031
+string	ud801dc00	ud801dc00
+string	u0061de0003c2005ad801dc28005a	u0041de0003a3005ad801dc00005a
+string	u0149003101300149	u02bc004e0031013002bc004e
+string	ude000061fb000587d83d00df03c20130	ude0000410046004605350552d83d0053005303a30130
+string	u00df00200020	u0053005300200020
+string	u005a00200130d801dc2800df0061	u005a00200130d801dc00005300530041
+string	ude00d801dc280587d83d05870149002000200020	ude00d801dc0005350552d83d0535055202bc004e002000200020
+string	u03c20020005a	u03a30020005a
+string	ud801dc2800df0130	ud801dc00005300530130
+string	u03c2	u03a3
+string	ud801dc2803c2	ud801dc0003a3
+string	u005afb0003c2005a	u005a0046004603a3005a
+string	u05871e9e	u053505521e9e
+string	u00dfde00	u00530053de00
+string	ude00013000dffb00d801dc00d801dc000130	ude0001300053005300460046d801dc00d801dc000130
+string	u1e9e00310031	u1e9e00310031
+string	u00310061d801dc00d801dc00d801dc28	u00310041d801dc00d801dc00d801dc00
+string	u00df00dfd83d0130005a0587005a	u0053005300530053d83d0130005a05350552005a
+string	u01300020	u01300020
+string	u1e9e01301e9ed801dc2800df003101301e9ed801dc00	u1e9e01301e9ed801dc0000530053003101301e9ed801dc00
+string	u0587d83d00200149de00de00	u05350552d83d002002bc004ede00de00
+string	ud801dc2800310020d83d0031fb00d801dc00	ud801dc0000310020d83d003100460046d801dc00
+string	u00dfd83d01c51e9ed801dc00d801dc28	u00530053d83d01c41e9ed801dc00d801dc00
+string	u03c2	u03a3
+string	u005a005a	u005a005a
+string	u1e9ed801dc00d83d0130d83d01490020	u1e9ed801dc00d83d0130d83d02bc004e0020
+string	ud801dc2801490061006105871e9e00610061	ud801dc0002bc004e00410041053505521e9e00410041
+string	ufb00014901491e9efb000061fb000020	u0046004602bc004e02bc004e1e9e004600460041004600460020
+string	u01c5fb0001490061d801dc000020	u01c40046004602bc004e0041d801dc000020
+string	u1e9e1e9e005a00201e9e1e9e013003c2	u1e9e1e9e005a00201e9e1e9e013003a3
+string	u005afb000587de00d801dc28de00	u005a0046004605350552de00d801dc00de00
+string	u0587	u05350552
+string	u0149	u02bc004e
+string	ud801dc00de001e9e00200061d83d014900df	ud801dc00de001e9e00200041d83d02bc004e00530053
+string	ude00002000610149	ude000020004102bc004e
+string	u00df0061005ad83dd801dc28	u005300530041005ad83dd801dc00
+string	ud801dc00d801dc00fb00002001c5d801dc280020d801dc00	ud801dc00d801dc0000460046002001c4d801dc000020d801dc00
+string	u03c2006100df00df005a1e9ed801dc28	u03a300410053005300530053005a1e9ed801dc00
+string	ud83d	ud83d
+string	u00df0020d801dc00005a	u005300530020d801dc00005a
+string	ud801dc280031d801dc00d83d03c2003100df005a	ud801dc000031d801dc00d83d03a3003100530053005a
+string	u0130	u0130
+string	ude00005a	ude00005a
+string	u03c203c205871e9e	u03a303a3053505521e9e
+string	u03c2fb00d801dc28	u03a300460046d801dc00
+string	u03c2013001300031d83d00611e9ed801dc000020	u03a3013001300031d83d00411e9ed801dc000020
+string	ud801dc28fb00d83d0031fb00	ud801dc0000460046d83d003100460046
+string	u00310149d801dc0000310149d801dc281e9e00df	u003102bc004ed801dc00003102bc004ed801dc001e9e00530053
+string	ude000130d801dc00d83d	ude000130d801dc00d83d
+string	ude000061d801dc00d801dc28	ude000041d801dc00d801dc00
+string	u	u
+string	ud83d1e9efb00	ud83d1e9e00460046
+string	u005afb0001491e9e	u005a0046004602bc004e1e9e
+string	u03c2d83d	u03a3d83d
+string	u005a0020d801dc2801c501c50130	u005a0020d801dc0001c401c40130
+string	u0130de00	u0130de00
+string	u00df03c2005a003101c5	u0053005303a3005a003101c4
+string	ud801dc2803c2002001c503c200610149d801dc28	ud801dc0003a3002001c403a3004102bc004ed801dc00
+string	u0061de0003c205870130d801dc000061d801dc28	u0041de0003a3053505520130d801dc000041d801dc00
+string	u00200061003101c50020d801dc0000df	u00200041003101c40020d801dc0000530053
+string	u	u
+string	u0130	u0130
+string	u006101c5d83dd801dc2801c5d83d005a	u004101c4d83dd801dc0001c4d83d005a
+string	ud801dc280587d83dd801dc281e9e	ud801dc0005350552d83dd801dc001e9e
+string	u01c5	u01c4
+string	u1e9e0587de0000610061fb00de00de00d83d	u1e9e05350552de000041004100460046de00de00d83d
+string	u1e9e	u1e9e
+string	ud83d01c5d801dc00d801dc2803c201c5006101c5	ud83d01c4d801dc00d801dc0003a301c4004101c4
+string	u01490061002005870130d83d005a03c20149	u02bc004e00410020053505520130d83d005a03a302bc004e
+string	ud801dc28058705870587fb00d801dc0000201e9ed801dc00	ud801dc0005350552053505520535055200460046d801dc0000201e9ed801dc00
+string	ud801dc001e9e006103c2d801dc280587d83dfb00d83d	ud801dc001e9e004103a3d801dc0005350552d83d00460046d83d
+string	u1e9e00df0031de000149de000130005a	u1e9e005300530031de0002bc004ede000130005a
+string	u01c5	u01c4
+string	u	u
+string	u002000200130	u002000200130
+string	u0020014901490587d801dc28	u002002bc004e02bc004e05350552d801dc00
+string	u	u
+string	u00310031014901c51e9ed83d00dfd801dc00	u0031003102bc004e01c41e9ed83d00530053d801dc00
+string	u00df005ad801dc28de0000df	u00530053005ad801dc00de0000530053
+string	u00311e9e	u00311e9e
+string	u0587	u05350552
+string	u014901c5014900610587	u02bc004e01c402bc004e004105350552
+string	u058703c203c2005a05871e9ed83dd801dc00d801dc00	u0535055203a303a3005a053505521e9ed83dd801dc00d801dc00
+string	u0587d801dc00	u05350552d801dc00
+string	u	u
+string	ufb0001c5fb000587	u0046004601c40046004605350552
+string	u1e9e00dfd801dc0000df	u1e9e00530053d801dc0000530053
+string	u	u
+string	u1e9ed83d05870587fb00d83d00310031	u1e9ed83d053505520535055200460046d83d00310031
+string	u0061	u0041
+string	u03c201c5	u03a301c4
+string	ufb000149	u0046004602bc004e
+string	u0061	u0041
+string	u00311e9efb00fb00de00d83d01c5	u00311e9e0046004600460046de00d83d01c4
+string	ufb00d83dd83dd801dc2801c50031fb000031	u00460046d83dd83dd801dc0001c40031004600460031
+string	u0130d801dc0003c200310149fb00	u0130d801dc0003a3003102bc004e00460046
+string	u00610061d801dc0000df005a03c2d83d0061	u00410041d801dc0000530053005a03a3d83d0041
+string	u01c5002001c5	u01c4002001c4
+string	u0149d801dc2801490587fb0001490020	u02bc004ed801dc0002bc004e053505520046004602bc004e0020
+string	ufb00de00d83dd801dc000020	u00460046de00d83dd801dc000020
+string	u00df014900df03c2fb00	u0053005302bc004e0053005303a300460046
+string	u0061	u0041
+string	u014901c50149fb00	u02bc004e01c402bc004e00460046
+string	u006101491e9e003101c51e9efb0000201e9e	u004102bc004e1e9e003101c41e9e0046004600201e9e
+string	u01c5de000020fb00d801dc00	u01c4de00002000460046d801dc00
+string	u	u
+string	u00200061005a0031005a006101c5d801dc28d83d	u00200041005a0031005a004101c4d801dc00d83d
+string	u01c50149de000031d801dc28005a	u01c402bc004ede000031d801dc00005a
+string	u0149002001c50020005a0130	u02bc004e002001c40020005a0130
+string	ufb00d801dc281e9efb00	u00460046d801dc001e9e00460046
+string	u1e9e	u1e9e
+string	u00df0031d801dc28002000df	u005300530031d801dc00002000530053
+string	u005a03c2003100df0031d801dc00fb00006100df	u005a03a30031005300530031d801dc0000460046004100530053
+string	ufb00	u00460046
+string	u1e9e00df0130006100df058700df	u1e9e0053005301300041005300530535055200530053
+string	u002003c20149	u002003a302bc004e
+string	u05870020058703c2005a	u0535055200200535055203a3005a
+string	u0061d801dc28	u0041d801dc00
+string	u01c5005ad801dc00fb00	u01c4005ad801dc0000460046
+string	u	u
+string	u01c501c5006101300020	u01c401c4004101300020
+string	u00df005afb0000610031fb00	u00530053005a004600460041003100460046
+string	u01300061d83d005a03c203c2de0001c5fb00	u01300041d83d005a03a303a3de0001c400460046
+string	u013000df01c5de0000200061	u01300053005301c4de0000200041
+string	u1e9e006103c2	u1e9e004103a3
+string	u0149d801dc0000df014900611e9e0031	u02bc004ed801dc000053005302bc004e00411e9e0031
+string	u	u
+string	u00df1e9e01c501c5d801dc00de000020	u005300531e9e01c401c4d801dc00de000020
+string	ude000149	ude0002bc004e
+string	u003101c5d801dc280149d83d05870031	u003101c4d801dc0002bc004ed83d053505520031
+string	ud801dc280020	ud801dc000020
+string	ud801dc28	ud801dc00
+string	ufb00d83d1e9e00df	u00460046d83d1e9e00530053
+string	ud801dc000031de000149d801dc000587de0003c20587	ud801dc000031de0002bc004ed801dc0005350552de0003a305350552
+string	u	u
+string	u	u
+string	u00dfd83dde0001c5d83d03c203c2	u00530053d83dde0001c4d83d03a303a3
+string	ud83d013003c2	ud83d013003a3
+string	u05870149d801dc000061005a00df01c5	u0535055202bc004ed801dc000041005a0053005301c4
+string	u0020	u0020
+string	ude000020	ude000020
+string	u00df0020	u005300530020
+string	ud801dc280130d801dc0003c20031	ud801dc000130d801dc0003a30031
+string	u00df03c200200130	u0053005303a300200130
+string	u005a	u005a
+string	u00df	u00530053
+string	u0020058703c20130	u00200535055203a30130
+string	u014901300587d801dc0003c203c200200020	u02bc004e013005350552d801dc0003a303a300200020
+string	u0020d83dd801dc28de00	u0020d83dd801dc00de00
+string	u0130	u0130
+string	u03c2d801dc280130de00	u03a3d801dc000130de00
+string	u03c2	u03a3
+string	u014900df0020005a01301e9e	u02bc004e005300530020005a01301e9e
+string	ude00005a00df03c20130003100df	ude00005a0053005303a30130003100530053
+string	u002001490031d801dc00005a006101c500df	u002002bc004e0031d801dc00005a004101c400530053
+string	u005ade00	u005ade00
+string	u03c201c50130	u03a301c40130
+string	u1e9ed801dc000149	u1e9ed801dc0002bc004e
+string	ude0003c2de000031	ude0003a3de000031
+string	u00610587d801dc0001c50031	u004105350552d801dc0001c40031
+string	ufb00014901301e9ed801dc0001c5	u0046004602bc004e01301e9ed801dc0001c4
+string	u	u
+string	u005a00dfd801dc2801c5006101c5	u005a00530053d801dc0001c4004101c4
+string	u058701300587005ad801dc0003c20587	u05350552013005350552005ad801dc0003a305350552
+string	u1e9ed801dc28	u1e9ed801dc00
+string	u002003c2de00	u002003a3de00
+string	ude0001c5fb0000df005a0130	ude0001c40046004600530053005a0130
+string	u03c201300130d801dc2803c2de000149d801dc28	u03a301300130d801dc0003a3de0002bc004ed801dc00
+string	u1e9e01c50020de00005a01c5	u1e9e01c40020de00005a01c4
+string	u00310061d83dfb00	u00310041d83d00460046
+string	u01c5d801dc001e9e1e9e03c2	u01c4d801dc001e9e1e9e03a3
+string	ud801dc280020d801dc2800610031fb00d801dc28	ud801dc000020d801dc000041003100460046d801dc00
+string	u01490149d83d005ad83d005ad83d00611e9e	u02bc004e02bc004ed83d005ad83d005ad83d00411e9e
+string	u00310020d801dc00005ade00d801dc00fb00d801dc00005a	u00310020d801dc00005ade00d801dc0000460046d801dc00005a
+string	ud801dc28fb0001c5058701c5013001c5005a03c2	ud801dc000046004601c40535055201c4013001c4005a03a3
+string	u01c5	u01c4
+string	u00310587	u003105350552
+string	u	u
+string	ud801dc000587005a002000df00200149d801dc00	ud801dc0005350552005a002000530053002002bc004ed801dc00
+string	ud83d0587d801dc00	ud83d05350552d801dc00
+string	u00df0149d801dc000130de00013000310130	u0053005302bc004ed801dc000130de00013000310130
+string	u01c50061d801dc00005ad801dc280031	u01c40041d801dc00005ad801dc000031
+string	u0587d801dc0001c503c2	u05350552d801dc0001c403a3
+string	u006100df0031005ade00d801dc28	u0041005300530031005ade00d801dc00
+string	u0149	u02bc004e
+string	u1e9e	u1e9e
+string	ud801dc000130d801dc0001c50031	ud801dc000130d801dc0001c40031
+string	u00df00dffb00	u005300530053005300460046
+string	u00dfd801dc28fb00d801dc0000df0587	u00530053d801dc0000460046d801dc000053005305350552
+string	u0587d801dc28d83d03c2	u05350552d801dc00d83d03a3
+string	u	u
+string	ufb00d801dc28d83dd801dc00005ade00	u00460046d801dc00d83dd801dc00005ade00
+string	u	u
+string	u003101491e9e	u003102bc004e1e9e
+string	ud801dc2803c201490061005a	ud801dc0003a302bc004e0041005a
+string	ufb0000df00df003100dfd83d1e9e	u004600460053005300530053003100530053d83d1e9e
+string	ud801dc28003103c2005a0020fb00d801dc00	ud801dc00003103a3005a002000460046d801dc00
+string	ud801dc00002003c2d801dc00005ade00	ud801dc00002003a3d801dc00005ade00
+string	u0031	u0031
+string	ude00d83d00dfde000020d801dc0001c503c2	ude00d83d00530053de000020d801dc0001c403a3
+string	u0130d83d0031005a0149	u0130d83d0031005a02bc004e
+string	u0020014901c50020005a03c20587	u002002bc004e01c40020005a03a305350552
+string	ud801dc00	ud801dc00
+string	u005a006101301e9e	u005a004101301e9e
+string	u03c2005a	u03a3005a
+string	ude0001300031	ude0001300031
+string	u0061de0005871e9e03c2	u0041de00053505521e9e03a3
+string	u0130d801dc2803c201491e9e1e9e005a	u0130d801dc0003a302bc004e1e9e1e9e005a
+string	u0061005a	u0041005a
+string	u013000200061d801dc28	u013000200041d801dc00
+string	ufb0000dfd801dc000031	u0046004600530053d801dc000031
+string	u1e9e0587006103c20587fb0000df0587de00	u1e9e05350552004103a305350552004600460053005305350552de00
+string	u01c51e9e	u01c41e9e
+string	ud801dc28d83d01300061d801dc0000201e9ed801dc28d801dc00	ud801dc00d83d01300041d801dc0000201e9ed801dc00d801dc00
+string	u	u
+string	u005ad83d0130d801dc2803c21e9e	u005ad83d0130d801dc0003a31e9e
+string	u0031	u0031
+string	u	u
+string	ufb0001c5006103c2d83d05870149	u0046004601c4004103a3d83d0535055202bc004e
+string	u0130de000587de0001c5	u0130de0005350552de0001c4
+string	u005a058700201e9e0031fb0003c2	u005a0535055200201e9e00310046004603a3
+string	ud801dc00	ud801dc00
+string	u005a1e9e00310031005a	u005a1e9e00310031005a
+string	ud83d0031003100310587	ud83d00310031003105350552
+string	u01301e9e0149fb00	u01301e9e02bc004e00460046
+string	u0587d801dc280061014903c20587	u05350552d801dc00004102bc004e03a305350552
+string	u002001c503c2d83d0587	u002001c403a3d83d05350552
+string	ud801dc00de000149d801dc00d801dc00	ud801dc00de0002bc004ed801dc00d801dc00
+string	u01490587014900dfd801dc00d801dc28	u02bc004e0535055202bc004e00530053d801dc00d801dc00
+string	u1e9e0587de00	u1e9e05350552de00
+string	ude0001c503c200df	ude0001c403a300530053
+string	ud83d00dfde0001c5	ud83d00530053de0001c4
+string	u006101c501c5d83d005a03c2	u004101c401c4d83d005a03a3
+string	ud83d01490130d801dc280061d83d0149	ud83d02bc004e0130d801dc000041d83d02bc004e
+string	u	u
+string	ufb00	u00460046
+string	u1e9e03c2	u1e9e03a3
+string	u01c5005a0130d83d0031	u01c4005a0130d83d0031
+string	ude0003c2d801dc28058701c50061	ude0003a3d801dc000535055201c40041
+string	u03c21e9e00df	u03a31e9e00530053
+string	ud801dc2800df0587005ad83dfb00	ud801dc000053005305350552005ad83d00460046
+string	u03c2fb00	u03a300460046
+string	ud83d00610130de0001c50130002003c2fb00	ud83d00410130de0001c40130002003a300460046
+string	u03c2de00	u03a3de00
+string	u	u
+string	ud801dc28d801dc00fb0003c2	ud801dc00d801dc000046004603a3
+string	u0061d801dc28005ad801dc2800dfde00	u0041d801dc00005ad801dc0000530053de00
+string	u0130014901490061fb00	u013002bc004e02bc004e004100460046
+string	u0020003103c205870587d83d0149d801dc00	u0020003103a30535055205350552d83d02bc004ed801dc00
+string	u	u
+string	ud801dc0000dffb000130	ud801dc0000530053004600460130
+string	ufb0000200031de0001c5	u0046004600200031de0001c4
+string	u00311e9ed83d	u00311e9ed83d
+string	ud801dc281e9ed801dc28002001c50020	ud801dc001e9ed801dc00002001c40020
+string	u0149d83d0020058700310130	u02bc004ed83d00200535055200310130
+string	ud83d01c5	ud83d01c4
+string	u0130005a0061de00	u0130005a0041de00
+string	u0020005afb00	u0020005a00460046
+string	u00df0061058700310587	u00530053004105350552003105350552
+string	ufb00d83d005ad801dc2800df01c503c2de000149	u00460046d83d005ad801dc000053005301c403a3de0002bc004e
+string	u	u
+string	ude00005a00df1e9e01c500610130d801dc00	ude00005a005300531e9e01c400410130d801dc00
+string	ude0001c51e9e01c501c5	ude0001c41e9e01c401c4
+string	ud801dc000061006103c2005ad801dc0000df005a	ud801dc000041004103a3005ad801dc0000530053005a
+string	u	u
+string	ude00	ude00
+string	ud83dd83dd801dc280149d801dc0001c503c203c2	ud83dd83dd801dc0002bc004ed801dc0001c403a303a3
+string	u	u
+string	ude00fb00013001c5d801dc28005a014900310020	ude0000460046013001c4d801dc00005a02bc004e00310020
+string	u005a0149d83d	u005a02bc004ed83d
+string	u0031de0000201e9e	u0031de0000201e9e
+string	u0130014901c5	u013002bc004e01c4
+string	ude00	ude00
+string	u01490587005a03c2	u02bc004e05350552005a03a3
+string	u003101c5d83d	u003101c4d83d
+string	ud801dc00	ud801dc00
+string	u0061d801dc28	u0041d801dc00
+string	ude000020d83d03c2	ude000020d83d03a3
+string	ude0000310149d801dc0003c2fb00d83d0061	ude00003102bc004ed801dc0003a300460046d83d0041
+string	ud801dc2801c5fb000587	ud801dc0001c40046004605350552
+string	ufb00de000031005a0061fb00d83d01c5	u00460046de000031005a004100460046d83d01c4
+string	u01c5d83dd83d	u01c4d83dd83d
+string	ude000020	ude000020
+string	u0130d801dc0003c20149d801dc28de00d801dc2800200130	u0130d801dc0003a302bc004ed801dc00de00d801dc0000200130
+string	ud801dc00d83d03c2002000dfde00	ud801dc00d83d03a3002000530053de00
+string	u05870149fb0000dffb001e9e005a01c5	u0535055202bc004e0046004600530053004600461e9e005a01c4
+string	ud83d01300061006101c503c21e9ed801dc28de00	ud83d01300041004101c403a31e9ed801dc00de00
+string	u005a005a0031005ad801dc00d83d1e9e	u005a005a0031005ad801dc00d83d1e9e
+string	u1e9e0031d83dd801dc00d801dc28	u1e9e0031d83dd801dc00d801dc00
+string	u005a01490020	u005a02bc004e0020
+string	u1e9ed801dc2801300587d83d00df	u1e9ed801dc00013005350552d83d00530053
+string	u01490020	u02bc004e0020
+string	ud83d0149005a0031005a00df03c2	ud83d02bc004e005a0031005a0053005303a3
+string	u	u
+string	u00310587de00d801dc28de00fb00	u003105350552de00d801dc00de0000460046
+string	ud801dc0000310020	ud801dc0000310020
+string	u	u
+string	u00310130de00	u00310130de00
+string	ufb00	u00460046
+string	u03c2	u03a3
+string	u00df	u00530053
+string	ud801dc2803c20061	ud801dc0003a30041
+string	ud83d002001c5	ud83d002001c4
+string	u	u
+string	u	u
+string	ud801dc28de001e9e00df1e9ed801dc00005a1e9e	ud801dc00de001e9e005300531e9ed801dc00005a1e9e
+string	u1e9e1e9e013001c50020d801dc28	u1e9e1e9e013001c40020d801dc00
+string	ufb000587	u0046004605350552
+string	u0061d83d005a01491e9ed801dc00d83dd83d	u0041d83d005a02bc004e1e9ed801dc00d83dd83d
+string	u1e9e	u1e9e
+string	u0061058700df006103c200200020d801dc28fb00	u00410535055200530053004103a300200020d801dc0000460046
+string	u03c201c5014901301e9ed83dd801dc00006100df	u03a301c402bc004e01301e9ed83dd801dc00004100530053
+string	ufb00013000310587d83d0031	u004600460130003105350552d83d0031
+string	u005a	u005a
+string	u0149	u02bc004e
+string	ude00de0001c5002000df01c500df0130	ude00de0001c400200053005301c4005300530130
+string	u0130	u0130
+string	ud801dc281e9e0587	ud801dc001e9e05350552
+string	ufb00	u00460046
+string	u03c2d83d0149d801dc0001c5fb00	u03a3d83d02bc004ed801dc0001c400460046
+string	u014903c2d83dde0001490031	u02bc004e03a3d83dde0002bc004e0031
+string	u	u
+string	u00df01c5de00d83d	u0053005301c4de00d83d
+string	u00310130d801dc00de00fb00	u00310130d801dc00de0000460046
+string	ude00de00	ude00de00
+string	u0061002001301e9e01490061d801dc0001c5	u0041002001301e9e02bc004e0041d801dc0001c4
+string	u0061	u0041
+string	u00dfd83d002000dfd801dc2800200587013003c2	u00530053d83d002000530053d801dc00002005350552013003a3
+string	u0061006100df005a	u0041004100530053005a
+string	u0130d801dc2803c2	u0130d801dc0003a3
+string	u00df03c21e9e0587	u0053005303a31e9e05350552
+string	u1e9ede00	u1e9ede00
+string	ud801dc00de00fb0003c205871e9e0130	ud801dc00de000046004603a3053505521e9e0130
+string	ud801dc0001c501c503c2d83d0020	ud801dc0001c401c403a3d83d0020
+string	ud801dc000130d83d0020005a05870020fb001e9e	ud801dc000130d83d0020005a053505520020004600461e9e
+string	u	u
+string	u058700df014901490020005ad801dc00	u053505520053005302bc004e02bc004e0020005ad801dc00
+string	u00df1e9e01c51e9e005a0587	u005300531e9e01c41e9e005a05350552
+string	u00df005a014900311e9efb00de00d801dc00	u00530053005a02bc004e00311e9e00460046de00d801dc00
+string	u03c2d83d	u03a3d83d
+string	u005ade000149	u005ade0002bc004e
+string	u014905870587d801dc000020013001c503c20149	u02bc004e0535055205350552d801dc000020013001c403a302bc004e
+string	u	u
+string	u03c201490130de00	u03a302bc004e0130de00
+string	ude00d83d	ude00d83d
+string	ud801dc0005870130	ud801dc00053505520130
+string	u014900df00df0061005a0587	u02bc004e00530053005300530041005a05350552
+string	u013000311e9e0587	u013000311e9e05350552
+string	ud801dc2800df01c5d83d005a03c2de00	ud801dc000053005301c4d83d005a03a3de00
+string	u0149fb00	u02bc004e00460046
+string	u01c501300020fb00de000020	u01c40130002000460046de000020
+string	ud83d00dffb0001c5d83dd801dc00003100df	ud83d005300530046004601c4d83dd801dc00003100530053
+string	ude000061d801dc0000dfd83d	ude000041d801dc0000530053d83d
+string	u005a1e9e	u005a1e9e
+string	ud83d03c20149013005870149	ud83d03a302bc004e01300535055202bc004e
+string	u	u
+string	u00610149	u004102bc004e
+string	u	u
+string	ufb00	u00460046
+string	u00df0020de0000611e9e	u005300530020de0000411e9e
+string	u00df002001490587005ad83d0061d801dc00	u00530053002002bc004e05350552005ad83d0041d801dc00
+string	ud83d01c5	ud83d01c4
+string	u0061d801dc280130	u0041d801dc000130
+string	u005a005a0020d801dc00fb0005870020	u005a005a0020d801dc0000460046053505520020
+string	u05870020de000149de0001c501c5	u053505520020de0002bc004ede0001c401c4
+string	ufb00d83d00200587005ad801dc00	u00460046d83d002005350552005ad801dc00
+string	u01c503c20587fb000149d801dc00	u01c403a3053505520046004602bc004ed801dc00
+string	ud83d0149fb0003c2005ad801dc28d801dc28	ud83d02bc004e0046004603a3005ad801dc00d801dc00
+string	u	u
+string	u05870020014903c2	u05350552002002bc004e03a3
+string	u003100df0149	u00310053005302bc004e
+string	u03c20031005a006103c20031	u03a30031005a004103a30031
+string	u005a00200130de0000310031d83d058703c2	u005a00200130de0000310031d83d0535055203a3
+string	u	u
+string	u00200149005a00df	u002002bc004e005a00530053
+string	ud83dde0003c2d801dc28d801dc00de00	ud83dde0003a3d801dc00d801dc00de00
+string	ud801dc0001c5058700df00310020	ud801dc0001c4053505520053005300310020
+string	u006101c5de00	u004101c4de00
+string	u	u
+string	u0031fb000587058700310149	u0031004600460535055205350552003102bc004e
+string	u00df0149005ad801dc281e9e0587de00	u0053005302bc004e005ad801dc001e9e05350552de00
+string	u0587006100df00df01c5d83d005a	u053505520041005300530053005301c4d83d005a
+string	u	u
+string	u00611e9e	u00411e9e
+string	ud83d002000310149058701300031	ud83d0020003102bc004e0535055201300031
+string	u1e9e01c51e9e00df	u1e9e01c41e9e00530053
+string	u0020003105871e9e	u00200031053505521e9e
+string	u	u
+string	u	u
+string	u00310587014901c5	u00310535055202bc004e01c4
+string	u01c5d83d01c50031de000130d801dc28	u01c4d83d01c40031de000130d801dc00
+string	u0149	u02bc004e
+string	ud801dc28014900201e9ed801dc2803c201490149	ud801dc0002bc004e00201e9ed801dc0003a302bc004e02bc004e
+string	u00dfd801dc280130	u00530053d801dc000130
+string	u	u
+string	ude00d801dc28d801dc28	ude00d801dc00d801dc00
+string	ufb0001c5	u0046004601c4
+string	u03c2058701c5005a0020d83d	u03a30535055201c4005a0020d83d
+string	u005a0149005a00df01300061	u005a02bc004e005a0053005301300041
+string	ufb00002000610061d801dc280149	u00460046002000410041d801dc0002bc004e
+string	ud83d0149005a00610130	ud83d02bc004e005a00410130
+string	u00200149d801dc00de00d801dc000031fb00de00	u002002bc004ed801dc00de00d801dc00003100460046de00
+string	u0149de00fb00d83d01c5	u02bc004ede0000460046d83d01c4
+string	u005a0587005a0061	u005a05350552005a0041
+string	u0061d801dc0001c5	u0041d801dc0001c4
+string	u0587de00005a	u05350552de00005a
+string	ud801dc0003c201490130d801dc001e9e01300031de00	ud801dc0003a302bc004e0130d801dc001e9e01300031de00
+string	ud801dc28d801dc28d801dc281e9e00200149d801dc001e9e	ud801dc00d801dc00d801dc001e9e002002bc004ed801dc001e9e
+string	u002003c2d801dc2800df01c501490130	u002003a3d801dc000053005301c402bc004e0130
+string	u03c2	u03a3
+string	u0031d801dc2803c2	u0031d801dc0003a3
+string	u	u
+string	u0031d801dc280149d83d0031de00d801dc281e9e	u0031d801dc0002bc004ed83d0031de00d801dc001e9e
+string	u0149d83d1e9e0020003101c50149	u02bc004ed83d1e9e0020003101c402bc004e
+string	ude001e9e1e9e	ude001e9e1e9e
+string	ufb00fb000149d801dc280149	u004600460046004602bc004ed801dc0002bc004e
+string	u03c201c5	u03a301c4
+string	u01300061	u01300041
+string	u014900df003100df002001c505870031	u02bc004e00530053003100530053002001c4053505520031
+string	u005a005a003100df	u005a005a003100530053
+string	u0031d801dc28d801dc2801c5005a	u0031d801dc00d801dc0001c4005a
+string	ude0000df	ude0000530053
+string	u	u
+string	ude00de000031de00	ude00de000031de00
+string	u006103c2d801dc0000df	u004103a3d801dc0000530053
+string	ufb00005a	u00460046005a
+string	u01c5	u01c4
+string	u03c21e9e01c5	u03a31e9e01c4
+string	u	u
+string	u058701c5	u0535055201c4
+string	ude00fb000020	ude00004600460020
+string	ud83dd801dc28	ud83dd801dc00
+string	u03c2005a	u03a3005a
+string	u01c51e9e0130	u01c41e9e0130
+string	u01490587003100310587	u02bc004e053505520031003105350552
+string	u05871e9ed801dc28de001e9e	u053505521e9ed801dc00de001e9e
+string	ud801dc28d801dc00d83d0031d801dc280149	ud801dc00d801dc00d83d0031d801dc0002bc004e
+string	u014903c2002001c503c2	u02bc004e03a3002001c403a3
+string	u00200061d801dc28	u00200041d801dc00
+string	u0020	u0020
+string	u	u
+string	ud83d013000df03c201c50130058700df0587	ud83d01300053005303a301c40130053505520053005305350552
+string	u0031	u0031
+string	ud801dc00de00d801dc28013001c5003101490020	ud801dc00de00d801dc00013001c4003102bc004e0020
+string	u	u
+string	u00dffb00d801dc00d801dc0001c50587d801dc000061	u0053005300460046d801dc00d801dc0001c405350552d801dc000041
+string	u03c2de00058700611e9e005a01300031	u03a3de000535055200411e9e005a01300031
+string	u1e9e03c2de000149	u1e9e03a3de0002bc004e
+string	u	u
+string	u013001c500df0149de00005ad83d0130	u013001c40053005302bc004ede00005ad83d0130
+string	u005ade00d801dc28fb0001300587de000031	u005ade00d801dc0000460046013005350552de000031
+string	u1e9e0587fb00002000200587	u1e9e05350552004600460020002005350552
+string	u0587005ad83d0130d801dc00d801dc00058701490061	u05350552005ad83d0130d801dc00d801dc000535055202bc004e0041
+string	u013000310020	u013000310020
+string	u058700201e9ed801dc00	u0535055200201e9ed801dc00
+string	u0587013001490031de0000dfd801dc28	u05350552013002bc004e0031de0000530053d801dc00
+string	u005a	u005a
+string	u1e9e005a0149d801dc000130005a0130	u1e9e005a02bc004ed801dc000130005a0130
+string	u00dfd801dc2805870031de00de0003c20130	u00530053d801dc00053505520031de00de0003a30130
+string	u00610061	u00410041
+string	u0061d83d00610020	u0041d83d00410020
+string	ud801dc2800df0149	ud801dc000053005302bc004e
+string	u0061d83dd801dc0001c501c5d83d0130fb00	u0041d83dd801dc0001c401c4d83d013000460046
+string	u005a	u005a
+string	u	u
+string	u014900dfd83d03c20587d801dc00003101c5	u02bc004e00530053d83d03a305350552d801dc00003101c4
+string	ude000149d801dc00d801dc000130	ude0002bc004ed801dc00d801dc000130
+string	ud83d0020de00fb00d801dc00d801dc00	ud83d0020de0000460046d801dc00d801dc00
+string	u058701c5	u0535055201c4
+string	u058701490149d801dc2800df0031002000df	u0535055202bc004e02bc004ed801dc00005300530031002000530053
+string	u	u
+string	u1e9e00200031d83d0031d83dd801dc28	u1e9e00200031d83d0031d83dd801dc00
+string	u0061d801dc0005870587d801dc00de00de00de000061	u0041d801dc000535055205350552d801dc00de00de00de000041
+string	u005ad83d0020de00d801dc2800610149	u005ad83d0020de00d801dc00004102bc004e
+string	u00df0020fb000130de0001c5de0000df	u005300530020004600460130de0001c4de0000530053
+string	ud801dc0001c5005a01c50061d801dc000031	ud801dc0001c4005a01c40041d801dc000031
+string	u1e9e0061005ad801dc28	u1e9e0041005ad801dc00
+string	ufb000130005a0020	u004600460130005a0020
+string	u005a03c2	u005a03a3
+string	ud801dc00005a003105870031d801dc28	ud801dc00005a0031053505520031d801dc00
+string	u	u
+string	u1e9e013000310031	u1e9e013000310031
+string	u002001490020003101c5014901c51e9e1e9e	u002002bc004e0020003101c402bc004e01c41e9e1e9e
+string	u006105871e9e01301e9e00201e9e0020	u0041053505521e9e01301e9e00201e9e0020
+string	u0130de001e9e01300061d801dc00fb001e9e	u0130de001e9e01300041d801dc00004600461e9e
+string	ud801dc00	ud801dc00
+string	u0130014901c51e9efb00d801dc280149005ade00	u013002bc004e01c41e9e00460046d801dc0002bc004e005ade00
+string	ufb00de00002005870149fb00005a01c5	u00460046de0000200535055202bc004e00460046005a01c4
+string	ufb00	u00460046
+string	u00dfd801dc00014903c21e9efb000130	u00530053d801dc0002bc004e03a31e9e004600460130
+string	ud801dc2803c2	ud801dc0003a3
+string	ud801dc280061fb00de0003c21e9e0130	ud801dc00004100460046de0003a31e9e0130
+string	u01c51e9e00310031d801dc000587d83d03c2	u01c41e9e00310031d801dc0005350552d83d03a3
+string	ud83d	ud83d
+string	u0130de00de00d801dc280020	u0130de00de00d801dc000020
+string	u03c20149014901c500df03c2fb00	u03a302bc004e02bc004e01c40053005303a300460046
+string	ufb0003c2d801dc0000df01c5	u0046004603a3d801dc000053005301c4
+string	ufb00d801dc00d801dc000061	u00460046d801dc00d801dc000041
+string	ud83d01c50020005a00dfde000149d801dc28	ud83d01c40020005a00530053de0002bc004ed801dc00
+string	u0587d83d002000df	u05350552d83d002000530053
+string	u1e9e0130fb001e9e05870149014903c2	u1e9e0130004600461e9e0535055202bc004e02bc004e03a3
+string	u	u
+string	ud801dc0001491e9e00310587	ud801dc0002bc004e1e9e003105350552
+string	u0149	u02bc004e
+string	u00df1e9e03c2	u005300531e9e03a3
+string	u	u
+string	u	u
+string	u0061002000611e9e	u0041002000411e9e
+string	u	u
+string	u0061	u0041
+string	u00dffb00fb00d801dc280020de00	u005300530046004600460046d801dc000020de00
+string	u1e9e	u1e9e
+string	u01c50149013000df0061d801dc2801490587	u01c402bc004e0130005300530041d801dc0002bc004e05350552
+string	u0587058701c5de0001c501c5de00	u053505520535055201c4de0001c401c4de00
+string	ude000587d801dc00	ude0005350552d801dc00
+string	u	u
+string	ude00	ude00
+string	ud801dc28005a	ud801dc00005a
+string	u	u
+string	u002001c501c501c501c5de00005a00611e9e	u002001c401c401c401c4de00005a00411e9e
+string	u00df00df	u0053005300530053
+string	u	u
+string	u0587	u05350552

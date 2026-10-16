@@ -1,0 +1,1 @@
+goog$debug$Logger=function(name){this.name_=name}

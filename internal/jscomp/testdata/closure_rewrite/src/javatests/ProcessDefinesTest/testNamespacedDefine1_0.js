@@ -1,0 +1,1 @@
+var a = {}; /** @define {boolean} */ a.B = false; a.B = true;

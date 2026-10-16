@@ -1,0 +1,1 @@
+const foo = goog.readToggleInternalDoNotCallDirectly();

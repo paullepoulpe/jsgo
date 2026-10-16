@@ -23,6 +23,7 @@ const (
 	MMethod
 	MField
 	MGoIfaceMethod // a method required by a ported Go interface the class implements
+	MAsAdapter     // a Go-only As<Interface>() adapter returning the class as one of its interfaces
 )
 
 // PMember is one pending declaration of a class.
@@ -34,6 +35,8 @@ type PMember struct {
 	// For MGoIfaceMethod: the method's Go signature and the interface.
 	goSig   *types.Signature
 	goIface string
+	// For MAsAdapter: the Java interface (internal name) it returns.
+	asType string
 }
 
 // PClass is a pending Java class.
@@ -368,6 +371,21 @@ func (g *Gen) resolveMember(n *need) bool {
 			return true
 		}
 	}
+	// A Go-only As<Interface>() adapter (PORTING.md: a Java class whose
+	// methods for two interfaces collide in Go returns itself as one of them
+	// through such a method).
+	if want, ok := strings.CutPrefix(n.name, "As"); ok && site.called && want != "" {
+		for _, s := range g.model.supertypes(c) {
+			sc := g.model.classes[s]
+			if sc == nil || sc.Access&accInterface == 0 {
+				continue
+			}
+			if goName := g.model.goNames[s]; goName == want || strings.HasSuffix(goName, "_"+want) {
+				p.members[n.name] = &PMember{kind: MAsAdapter, goName: n.name, asType: s}
+				return true
+			}
+		}
+	}
 	// Methods of the class and its supertypes.
 	mname := ""
 	visit := func(cls *ClassInfo) {
@@ -550,6 +568,17 @@ func (g *Gen) compatible(at types.Type, pt *JType) int {
 			return 1
 		}
 		return 0
+	}
+	// A Go slice stands for the Java collections that map to []T (emit.go).
+	if _, isSlice := at.Underlying().(*types.Slice); isSlice {
+		switch pt.Class {
+		case "java/util/Collection", "java/util/List", "java/util/Queue", "java/util/Deque",
+			"com/google/common/collect/ImmutableList", "com/google/common/collect/ImmutableCollection",
+			"java/util/stream/Stream", "com/google/common/collect/FluentIterable", "java/util/SortedSet",
+			"com/google/common/collect/ImmutableSortedSet":
+			return 1
+		}
+		return -1
 	}
 	// A class: compare with the Java class of the Go type.
 	jc := g.javaClassOfGoType(at)

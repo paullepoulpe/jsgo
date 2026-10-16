@@ -1,0 +1,1 @@
+var MSG_HELLO = goog.getMsg('a' + + 'b')

@@ -1,0 +1,1 @@
+/** @desc text */ var MSG_FOO = goog.getMsg('');
