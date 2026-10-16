@@ -453,9 +453,7 @@ Done:
   - Re-run with a new seed and 350 extra type expressions from the
     held-out corpus (230,953 lines): identical.
 
-In progress, in parallel (wave 3, PLAN.md §5):
-
-- The jscomp core SCC (37 files), in five groups, integrated afterwards:
+- **Wave 3 complete: the jscomp core SCC (37 files, ~15.7K Java SLOC).**
   - g1: NodeUtil;
   - g2: AstFactory, AstAnalyzer, ExpressionDecomposer,
     MakeDeclaredNamesUnique, OptionalChainRewriter;
@@ -464,20 +462,58 @@ In progress, in parallel (wave 3, PLAN.md §5):
   - g4: NodeTraversal, scopes, references;
   - g5: ControlFlowAnalysis, TypeValidator.
 
-  Each group prepares an API-sweep oracle over the corpus that runs at
-  integration.
+  Each group ported its Java tests (1,155 jscomp tests pass; 192 wait
+  for `Compiler`/`CompilerTestCase`) and wrote an API-sweep oracle with
+  zero diffs on the corpus. Re-checked independently on 1,015 held-out
+  files and with fresh seeds: identical, except one TypeValidator scenario
+  that needs SuppressDocWarningsGuard (ported in wave 5, not yet merged).
+- **`jutil.JavaHashMap` / `JavaHashSet` / `HashMultimap`:** JDK 21 hash
+  iteration order (tree bins included) and the shaded Guava factories, for
+  Closure sites that iterate hash collections with value-hashed keys.
+  Verified on fresh-seed vectors.
 
-In progress, in parallel (wave 4, started before the core lands; each
-cluster translates against the core's predicted Go names and compiles
-once the core is integrated):
+In progress, in parallel (waves 4 and 5; each cluster translates against
+the predicted Go names of what it calls, and compiles once its
+dependencies are on main):
 
-- jscomp level 11 (145 files, 27K SLOC) in eight clusters: the printer
-  (CodePrinter, CodeGenerator; M2), AstValidator and pass infrastructure,
-  lint, checks, Closure primitives and modules, simple optimizations,
-  transpilation helpers and runtime libraries, messages/types/misc.
-  Each cluster ports its Java unit tests and a per-pass corpus oracle.
+- jscomp level 11 (145 files, 27K SLOC) in eight clusters. Finished on
+  their branches, waiting to be merged after the harness:
+  - the printer (CodePrinter, CodeGenerator): byte-identical to Java on all
+    14,690 corpus files in 18 printer configurations, source maps included
+    (M2 print oracle);
+  - AstValidator and pass infrastructure: identical on 14,688 of 14,690
+    files; the 2 others differ by one warning that the real Compiler
+    suppresses;
+  - lint, checks, simple optimizations, transpilation helpers.
+
+  Still running: Closure primitives and modules, messages/types/misc.
 - The harness: `Compiler`, `DefaultPassConfig`, `NestedCompilerRunner`,
   `TranspileAndOptimizeClosureUnaware`, and the `CompilerTestCase` test
-  base class. Passes that are not yet ported come from the generated
-  forward declarations sanctioned in PORTING.md, so `CompilerTestCase`
-  tests can run before every pass exists.
+  base class. Classes that are not ported yet are declared by the
+  generated `internal/jscomp/pending_gen.go` (PORTING.md), which covers
+  every file of the package. It is committed and regenerated at each
+  merge, so main always builds.
+- jscomp levels 12–18 (wave 5, 13 clusters).
+  - Finished: Normalize, PhaseOptimizer, PassConfig, DiagnosticGroups,
+    warnings guards, coding conventions.
+  - Running: TypedScopeCreator + TypeCheck/TypeInference, peephole,
+    inlining and collapsing, RemoveUnusedCode and friends, Closure module
+    rewriting.
+  - Queued: ES modules, transpilation (2 clusters), checks and
+    conformance, Polymer/J2CL, renaming/misc.
+- Pacing: about 8 agents at a time. With 20, the API limit ran out in about
+  80 minutes and the 4-CPU machine reached a load average of 46.
+
+Open decisions for the repository owner:
+
+- **JDK-derived tables in jutil.** Java's `String.toLowerCase` lowercases a
+  Greek capital sigma by Java's own word-break rules
+  (`ConditionalSpecialCasing` with the legacy `BreakIterator`).
+  `PeepholeReplaceKnownMethods` folds `"…".toLowerCase()` this way, so it
+  can reach output.
+  - An exact port exists on branch `port/l11-transpile-runtime` (commit
+    3f70d99). It embeds word-break tables extracted from JDK 21 and logic
+    transcribed from `sun.text.RuleBasedBreakIterator`, both GPLv2 with
+    Classpath Exception. It is kept off main pending your decision.
+  - Main uses a black-box model fitted to the JDK's output. It matches
+    except in rare sigma + combining-mark / format-character contexts.
