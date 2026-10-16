@@ -164,3 +164,83 @@ func TestTreeRangeSetAgainstModel(t *testing.T) {
 		Range_Closed(2, 1, cmp)
 	}()
 }
+
+func TestMissingResourceException(t *testing.T) {
+	var caught IMissingResourceException
+	Try(func() {
+		panic(NewMissingResourceException("Can't find resource", "B", "k"))
+	}, func(e IMissingResourceException) { caught = e })
+	if caught == nil {
+		t.Fatal("not caught")
+	}
+	e := caught.(*MissingResourceException)
+	if e.Error() != "java.util.MissingResourceException: Can't find resource" || e.GetKey() != "k" || e.GetClassName() != "B" {
+		t.Errorf("got %q %q %q", e.Error(), e.GetKey(), e.GetClassName())
+	}
+	var asRuntime IRuntimeException
+	Try(func() { panic(NewMissingResourceException("m", "B", "k")) }, func(e IRuntimeException) { asRuntime = e })
+	if asRuntime == nil {
+		t.Error("MissingResourceException is not a RuntimeException")
+	}
+}
+
+func TestCharMatcherWhitespace(t *testing.T) {
+	want := map[uint16]bool{}
+	for _, u := range StringToUTF16(charMatcherWhitespaceTable) {
+		want[u] = true
+	}
+	if len(want) != 25 {
+		t.Fatalf("table has %d distinct chars", len(want))
+	}
+	for c := 0; c < 0x10000; c++ {
+		if got := CharMatcher_Whitespace_Matches(uint16(c)); got != want[uint16(c)] {
+			t.Errorf("whitespace().matches(%#x) = %v", c, got)
+		}
+	}
+}
+
+func TestSplitterOnCharTrimResults(t *testing.T) {
+	for _, tc := range []struct {
+		in   string
+		want []string
+	}{
+		{"", []string{""}},
+		{"a", []string{"a"}},
+		{"a,b", []string{"a", "b"}},
+		{" a , b ,", []string{"a", "b", ""}},
+		{",,", []string{"", "", ""}},
+		{" x　,\u0001y", []string{"x", "\u0001y"}},
+	} {
+		got := Splitter_OnCharTrimResults(tc.in, ',')
+		if strings.Join(got, "|") != strings.Join(tc.want, "|") || len(got) != len(tc.want) {
+			t.Errorf("split(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestRuntimeExceptionWithMessageAndCause(t *testing.T) {
+	cause := NewIllegalStateExceptionMsg("inner")
+	e := NewRuntimeExceptionWithMessageAndCause("outer", cause)
+	if e.Error() != "java.lang.RuntimeException: outer" || e.GetMessage() != "outer" || e.GetCause() != Throwable(cause) {
+		t.Errorf("got %q %q %v", e.Error(), e.GetMessage(), e.GetCause())
+	}
+}
+
+func TestTreeSet(t *testing.T) {
+	s := NewTreeSet(StringCompareTo)
+	if !s.IsEmpty() || !s.Add("b") || !s.Add("a") || s.Add("b") || !s.Add("\U0001F600") || !s.Add("￿") {
+		t.Fatal("add")
+	}
+	if got := s.String(); got != "[a, b, \U0001F600, ￿]" {
+		t.Errorf("order %q (UTF-16 order puts the surrogate pair before U+FFFF)", got)
+	}
+	o := NewTreeSet(StringCompareTo)
+	o.Add("c")
+	o.Add("a")
+	if !s.AddAll(o.All()) || s.AddAll(o.All()) || s.Size() != 5 || !s.Contains("c") || s.Contains("d") {
+		t.Errorf("addAll/contains: %v", s)
+	}
+	if !s.Remove("a") || s.Remove("a") || s.Size() != 4 {
+		t.Errorf("remove: %v", s)
+	}
+}
