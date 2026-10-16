@@ -4,6 +4,10 @@ Per-milestone performance checks (PLAN.md §6). Every comparison runs the
 same layer of both implementations on the same inputs. Both outputs are
 first verified identical by the oracles.
 
+The end-to-end benchmark (whole CLI invocations, overall and per phase,
+behind a byte-for-byte correctness gate) is `tools/bench/bench.py`; see
+[tools/bench/README.md](../tools/bench/README.md).
+
 ## M1 — parser (`internal/parser` vs `parsing.parser.Parser.parseProgram`)
 
 Harnesses:
