@@ -1,0 +1,1 @@
+const x = 1; function foo() { const y = 2; }

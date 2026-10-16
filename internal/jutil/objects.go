@@ -45,6 +45,10 @@ func ObjectsEquals(a, b any) bool {
 	case float32:
 		y, ok := b.(float32)
 		return ok && floatBits(x) == floatBits(y)
+	case *string:
+		// A nullable Java String (non-null here): String.equals.
+		y, ok := b.(*string)
+		return ok && *x == *y
 	}
 	ta, tb := reflect.TypeOf(a), reflect.TypeOf(b)
 	if ta != tb {
@@ -93,6 +97,9 @@ func ObjectHashCode(v any) int32 {
 	switch x := v.(type) {
 	case string:
 		return StringHashCode(x)
+	case *string:
+		// A nullable Java String (non-null here).
+		return StringHashCode(*x)
 	case bool:
 		if x {
 			return 1231

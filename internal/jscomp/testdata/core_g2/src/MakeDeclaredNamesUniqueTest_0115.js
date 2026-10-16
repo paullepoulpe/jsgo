@@ -1,0 +1,1 @@
+function f() {var CONST = 3; var ACONST = 2;}
