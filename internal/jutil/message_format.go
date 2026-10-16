@@ -115,79 +115,120 @@ func MessageFormat_Format(pattern string, arguments []any) string {
 	return NewMessageFormat(pattern).Format(arguments)
 }
 
-// ApplyPattern is MessageFormat.applyPattern(String).
+// ApplyPattern is MessageFormat.applyPattern(String). The pattern is read
+// in two alternating stages: mfLiteralText reads text up to the next
+// element, mfElementText reads that element; each element is checked and
+// built as soon as it is read, so the first bad one decides the exception.
 func (m *MessageFormat) ApplyPattern(pattern string) {
-	p := StringToUTF16(pattern)
-	var parts [4][]uint16
-	part := 0
-	inQuote := false
-	depth := 0
+	src := StringToUTF16(pattern)
 	var elements []mfElement
-	for i := 0; i < len(p); i++ {
-		c := p[i]
-		if part == 0 {
-			switch {
-			case c == '\'':
-				if i+1 < len(p) && p[i+1] == '\'' {
-					parts[0] = append(parts[0], c)
-					i++
-				} else {
-					inQuote = !inQuote
-				}
-			case c == '{' && !inQuote:
-				part = 1
-			default:
-				parts[0] = append(parts[0], c)
-			}
-			continue
+	var tail []uint16
+	for at := 0; ; {
+		text, open := mfLiteralText(src, at)
+		if open < 0 {
+			tail = text
+			break
 		}
-		if inQuote {
-			parts[part] = append(parts[part], c)
-			if c == '\'' {
-				inQuote = false
+		body, next, nested := mfElementText(src, open)
+		if next < 0 {
+			if !nested {
+				panic(NewIllegalArgumentExceptionMsg("Unmatched braces in the pattern."))
 			}
-			continue
+			// Observed (black-box): when the pattern ends inside nested
+			// braces of an element, that element is silently dropped and
+			// the text before it becomes the tail.
+			tail = text
+			break
 		}
-		switch c {
-		case ',':
-			if part < 3 {
-				part++
-			} else {
-				parts[part] = append(parts[part], c)
-			}
-		case '{':
-			depth++
-			parts[part] = append(parts[part], c)
-		case '}':
-			if depth > 0 {
-				depth--
-				parts[part] = append(parts[part], c)
-				continue
-			}
-			elements = append(elements, mfMakeElement(parts))
-			for k := range parts {
-				parts[k] = nil
-			}
-			part = 0
-		case ' ':
-			if part != 2 || len(parts[2]) > 0 {
-				parts[part] = append(parts[part], c)
-			}
-		case '\'':
-			inQuote = true
-			parts[part] = append(parts[part], c)
-		default:
-			parts[part] = append(parts[part], c)
-		}
+		index, kind, style := mfElementParts(body)
+		elements = append(elements, mfMakeElement([4][]uint16{text, index, kind, style}))
+		at = next
 	}
-	if part != 0 && depth == 0 {
-		panic(NewIllegalArgumentExceptionMsg("Unmatched braces in the pattern."))
-	}
-	// Observed behaviour (black-box): a pattern that ends inside nested
-	// braces of an element is not an error; that element is dropped.
-	m.pattern = p
+	m.pattern = src
 	m.elements = elements
-	m.tail = StringFromUTF16(parts[0])
+	m.tail = StringFromUTF16(tail)
+}
+
+// mfLiteralText reads the literal text of src from offset at: "”" stands
+// for one quote, a lone quote opens or closes a quoted run (and is not part
+// of the text), and outside quoted runs '{' starts an element. It returns
+// the text and the offset just after that '{', or -1 when src ended first.
+func mfLiteralText(src []uint16, at int) ([]uint16, int) {
+	var text []uint16
+	quoted := false
+	for i := at; i < len(src); i++ {
+		switch c := src[i]; {
+		case c == '\'' && i+1 < len(src) && src[i+1] == '\'':
+			text = append(text, c)
+			i++
+		case c == '\'':
+			quoted = !quoted
+		case c == '{' && !quoted:
+			return text, i + 1
+		default:
+			text = append(text, c)
+		}
+	}
+	return text, -1
+}
+
+// mfElementText reads an element whose '{' is just before offset at: its
+// raw text, quotes included, up to the '}' that closes it. Braces in quoted
+// runs do not count, other braces nest. It returns the text and the offset
+// after the closing '}', or next = -1 when src ends first; nested then says
+// whether it ended inside nested braces.
+func mfElementText(src []uint16, at int) (body []uint16, next int, nested bool) {
+	level := 0
+	quoted := false
+	for i := at; i < len(src); i++ {
+		c := src[i]
+		switch {
+		case quoted:
+			quoted = c != '\''
+		case c == '\'':
+			quoted = true
+		case c == '{':
+			level++
+		case c == '}' && level == 0:
+			return src[at:i], i + 1, false
+		case c == '}':
+			level--
+		}
+	}
+	return nil, -1, level > 0
+}
+
+// mfElementParts splits the raw text of an element into its index, type
+// and style at its first two commas outside quoted runs (header: they count
+// even inside nested braces; later commas belong to the style), and drops
+// the spaces that start the type.
+func mfElementParts(body []uint16) (index, kind, style []uint16) {
+	var cuts [2]int
+	found := 0
+	quoted := false
+	for i, c := range body {
+		switch {
+		case quoted:
+			quoted = c != '\''
+		case c == '\'':
+			quoted = true
+		case c == ',' && found < 2:
+			cuts[found] = i
+			found++
+		}
+	}
+	switch found {
+	case 0:
+		return body, nil, nil
+	case 1:
+		index, kind = body[:cuts[0]], body[cuts[0]+1:]
+	default:
+		index, kind, style = body[:cuts[0]], body[cuts[0]+1:cuts[1]], body[cuts[1]+1:]
+	}
+	for len(kind) > 0 && kind[0] == ' ' {
+		kind = kind[1:]
+	}
+	return index, kind, style
 }
 
 // mfMakeElement builds the element read into parts (prefix, index, type,
@@ -402,76 +443,87 @@ func (e *mfElement) formatNumber(n mfNum) string {
 // ---------------------------------------------------------------------------
 // ChoiceFormat (see its Javadoc).
 //
-// Observed behaviour (black-box): the pattern is read as limit '#' (or '≤',
-// or '<' for the next larger double) followed by a format, choices being
-// separated by '|'; quotes work as in MessageFormat. A limit is the text
-// "∞" or "-∞", or else Double.parseDouble of the text (so it is trimmed);
-// an empty limit, or a '#', '≤' or '<' inside a format, is an error, and
-// so is a limit that is not above the previous one. A '|' adds a choice
-// with the current limit (0 before the first one) and the format read so
-// far, even when no limit was given ("|1#a" has the choices 0 → "" and
-// 1 → "a"); a limit text that is not finished by '#' is kept for the next
-// one ("1#a|2|3#c" gives 23 → "c"), and is dropped at the end. Formatting
-// picks the last choice whose limit is <= the number, or the first one
-// (also for NaN); with no choices at all it throws
-// ArrayIndexOutOfBoundsException.
+// Observed behaviour (black-box): a choice is a limit, a relation and a
+// format, and choices are separated by '|'. The relation is '#' (the limit
+// itself), U+2264 LESS-THAN OR EQUAL TO (the same) or '<' (the least double
+// above the limit). Quoting is MessageFormat's. The limit text is "∞",
+// "-∞", or anything Double.parseDouble accepts (it trims). Errors: a
+// relation with no limit text before it (which includes a relation inside
+// a format), and a limit that does not exceed the one before it. The
+// separator commits a choice from what has been read, even without a
+// relation: the last limit (0 if none yet) with the format text so far
+// ("|1#a" makes 0 → "" and 1 → "a"). Limit text with no relation after it
+// carries over to the next limit ("1#a|2|3#c" makes 23 → "c"), or is
+// ignored at the end. Formatting picks the last choice whose limit is <=
+// the number, else the first one (NaN too); with no choice at all it
+// throws ArrayIndexOutOfBoundsException.
 
 type mfChoice struct {
 	limits  []float64
 	formats []string
 }
 
+// mfParseChoice reads a ChoiceFormat pattern. It alternates between
+// reading limit text and reading a format: a relation character closes the
+// limit (mfCloseLimit) and opens a format, a separator commits the choice
+// read so far, and an open format is committed at the end.
 func mfParseChoice(p []uint16) *mfChoice {
 	ch := &mfChoice{}
-	var limitText, formatText []uint16
-	inFormat := false
-	inQuote := false
-	current := 0.0
+	var limitText, format []uint16
+	limit := 0.0 // the limit of the choice being read
+	formatOpen := false
+	commit := func() {
+		ch.limits = append(ch.limits, limit)
+		ch.formats = append(ch.formats, StringFromUTF16(format))
+		format = nil
+	}
+	quoted := false
 	for i := 0; i < len(p); i++ {
 		c := p[i]
-		if c == '\'' {
-			if i+1 < len(p) && p[i+1] == '\'' {
-				i++
-			} else {
-				inQuote = !inQuote
-				continue
-			}
-		} else if !inQuote {
-			switch c {
-			case '#', '<', 0x2264:
-				if len(limitText) == 0 {
-					panic(NewIllegalArgumentExceptionMsg("Each interval must contain a number before a format"))
-				}
-				limit := mfChoiceLimit(StringFromUTF16(limitText))
-				if c == '<' {
-					limit = mfNextDouble(limit)
-				}
-				if len(ch.limits) > 0 && limit <= current {
-					panic(NewIllegalArgumentExceptionMsg("Incorrect order of intervals, must be in ascending order"))
-				}
-				current = limit
-				limitText = nil
-				inFormat = true
-				continue
-			case '|':
-				ch.limits = append(ch.limits, current)
-				ch.formats = append(ch.formats, StringFromUTF16(formatText))
-				formatText = nil
-				inFormat = false
-				continue
-			}
+		switch {
+		case c == '\'' && i+1 < len(p) && p[i+1] == '\'':
+			i++ // one literal quote, kept below
+		case c == '\'':
+			quoted = !quoted
+			continue
+		case quoted:
+		case c == '|':
+			commit()
+			formatOpen = false
+			continue
+		case c == '#' || c == '<' || c == 0x2264:
+			limit = mfCloseLimit(limitText, c == '<', limit, len(ch.limits) > 0)
+			limitText = nil
+			formatOpen = true
+			continue
 		}
-		if inFormat {
-			formatText = append(formatText, c)
+		if formatOpen {
+			format = append(format, c)
 		} else {
 			limitText = append(limitText, c)
 		}
 	}
-	if inFormat {
-		ch.limits = append(ch.limits, current)
-		ch.formats = append(ch.formats, StringFromUTF16(formatText))
+	if formatOpen {
+		commit()
 	}
 	return ch
+}
+
+// mfCloseLimit turns limit text into the limit of a choice: the parsed
+// value, or the next double above it for a strict relation. With an
+// earlier choice, the limit must exceed prev, the limit read before.
+func mfCloseLimit(text []uint16, strict bool, prev float64, earlier bool) float64 {
+	if len(text) == 0 {
+		panic(NewIllegalArgumentExceptionMsg("Each interval must contain a number before a format"))
+	}
+	v := mfChoiceLimit(StringFromUTF16(text))
+	if strict {
+		v = mfNextDouble(v)
+	}
+	if earlier && v <= prev {
+		panic(NewIllegalArgumentExceptionMsg("Incorrect order of intervals, must be in ascending order"))
+	}
+	return v
 }
 
 func mfChoiceLimit(s string) float64 {
