@@ -1,0 +1,200 @@
+default	null	null
+default	string	"a\\u003cb\\u003e\\u0026\\u0027\\u003d\\"\\\\\\u2028\\u2029\\u0001\\t\\n\\b\\f\\r/\u00e9\ud83d\ude00"
+default	loneSurrogate	"\ud800x\udc00"
+default	int	42
+default	long	-7
+default	short	3
+default	byte	-1
+default	intMin	-2147483648
+default	longMax	9223372036854775807
+default	double1	1.0
+default	double0.1	0.1
+default	double1e21	1.0E21
+default	doubleNegZero	-0.0
+default	double1e-7	1.0E-7
+default	double123456789	1.23456789E8
+default	double1e7	1.0E7
+default	doubleMin	4.9E-324
+default	doubleNaN	java.lang.IllegalArgumentException: NaN is not a valid double value as per JSON specification. To override this behavior, use GsonBuilder.serializeSpecialFloatingPointValues() method.
+default	doubleInf	java.lang.IllegalArgumentException: -Infinity is not a valid double value as per JSON specification. To override this behavior, use GsonBuilder.serializeSpecialFloatingPointValues() method.
+default	char	"x"
+default	charLS	"\\u2028"
+default	charQuote	"\\""
+default	true	true
+default	listMixed	[1,"a",null,true]
+default	listEmpty	[]
+default	listNested	[[1],[]]
+default	intArray	[1,2,3]
+default	stringArray	["x",null]
+default	map	{"a":1,"c":[1,2],"d":"\\u003c"}
+default	mapIntKeys	{"3":"x","1":"y"}
+default	mapNullKey	{"null":1}
+default	enum	"GREEN"
+default	enumList	["RED","GREEN"]
+default	enumKeyMap	{"RED":1}
+default	enumSet	["RED","GREEN"]
+default	point	{"x":1,"name":"p\\u003cq\\u003e","list":[1,2],"d":0.5,"c":"c","b":true,"l":1099511627776}
+default	point3	{"z":9,"m":{"k":1},"x":1,"name":"p\\u003cq\\u003e","list":[1,2],"d":0.5,"c":"c","b":true,"l":1099511627776}
+default	holderNull	{}
+default	holderPoint	{"value":{"x":1,"name":"p\\u003cq\\u003e","list":[1,2],"d":0.5,"c":"c","b":true,"l":1099511627776}}
+default	holderList	{"value":[1]}
+default	ableList	{"v":[0]}
+default	ableNull	{}
+default	ableString	{"v":"\\u003c"}
+default	ableInList	[{"v":{"a":1}}]
+default	holderAble	{"value":{"v":1}}
+default	jsonTree	{"a":1,"b":[true,null],"c":"\\u003cx\\u003e"}
+default	nested	[{"x":[{}]}]
+default	treeMap	{"a":2,"b":1}
+default	linkedHashSet	["b","a"]
+default	arrayList	[3,1]
+builder	null	null
+builder	string	"a\\u003cb\\u003e\\u0026\\u0027\\u003d\\"\\\\\\u2028\\u2029\\u0001\\t\\n\\b\\f\\r/\u00e9\ud83d\ude00"
+builder	loneSurrogate	"\ud800x\udc00"
+builder	int	42
+builder	long	-7
+builder	short	3
+builder	byte	-1
+builder	intMin	-2147483648
+builder	longMax	9223372036854775807
+builder	double1	1.0
+builder	double0.1	0.1
+builder	double1e21	1.0E21
+builder	doubleNegZero	-0.0
+builder	double1e-7	1.0E-7
+builder	double123456789	1.23456789E8
+builder	double1e7	1.0E7
+builder	doubleMin	4.9E-324
+builder	doubleNaN	java.lang.IllegalArgumentException: NaN is not a valid double value as per JSON specification. To override this behavior, use GsonBuilder.serializeSpecialFloatingPointValues() method.
+builder	doubleInf	java.lang.IllegalArgumentException: -Infinity is not a valid double value as per JSON specification. To override this behavior, use GsonBuilder.serializeSpecialFloatingPointValues() method.
+builder	char	"x"
+builder	charLS	"\\u2028"
+builder	charQuote	"\\""
+builder	true	true
+builder	listMixed	[1,"a",null,true]
+builder	listEmpty	[]
+builder	listNested	[[1],[]]
+builder	intArray	[1,2,3]
+builder	stringArray	["x",null]
+builder	map	{"a":1,"c":[1,2],"d":"\\u003c"}
+builder	mapIntKeys	{"3":"x","1":"y"}
+builder	mapNullKey	{"null":1}
+builder	enum	"GREEN"
+builder	enumList	["RED","GREEN"]
+builder	enumKeyMap	{"RED":1}
+builder	enumSet	["RED","GREEN"]
+builder	point	{"x":1,"name":"p\\u003cq\\u003e","list":[1,2],"d":0.5,"c":"c","b":true,"l":1099511627776}
+builder	point3	{"z":9,"m":{"k":1},"x":1,"name":"p\\u003cq\\u003e","list":[1,2],"d":0.5,"c":"c","b":true,"l":1099511627776}
+builder	holderNull	{}
+builder	holderPoint	{"value":{"x":1,"name":"p\\u003cq\\u003e","list":[1,2],"d":0.5,"c":"c","b":true,"l":1099511627776}}
+builder	holderList	{"value":[1]}
+builder	ableList	{"v":[0]}
+builder	ableNull	{}
+builder	ableString	{"v":"\\u003c"}
+builder	ableInList	[{"v":{"a":1}}]
+builder	holderAble	{"value":{"v":1}}
+builder	jsonTree	{"a":1,"b":[true,null],"c":"\\u003cx\\u003e"}
+builder	nested	[{"x":[{}]}]
+builder	treeMap	{"a":2,"b":1}
+builder	linkedHashSet	["b","a"]
+builder	arrayList	[3,1]
+noHtmlPretty	null	null
+noHtmlPretty	string	"a<b>&'=\\"\\\\\\u2028\\u2029\\u0001\\t\\n\\b\\f\\r/\u00e9\ud83d\ude00"
+noHtmlPretty	loneSurrogate	"\ud800x\udc00"
+noHtmlPretty	int	42
+noHtmlPretty	long	-7
+noHtmlPretty	short	3
+noHtmlPretty	byte	-1
+noHtmlPretty	intMin	-2147483648
+noHtmlPretty	longMax	9223372036854775807
+noHtmlPretty	double1	1.0
+noHtmlPretty	double0.1	0.1
+noHtmlPretty	double1e21	1.0E21
+noHtmlPretty	doubleNegZero	-0.0
+noHtmlPretty	double1e-7	1.0E-7
+noHtmlPretty	double123456789	1.23456789E8
+noHtmlPretty	double1e7	1.0E7
+noHtmlPretty	doubleMin	4.9E-324
+noHtmlPretty	doubleNaN	java.lang.IllegalArgumentException: NaN is not a valid double value as per JSON specification. To override this behavior, use GsonBuilder.serializeSpecialFloatingPointValues() method.
+noHtmlPretty	doubleInf	java.lang.IllegalArgumentException: -Infinity is not a valid double value as per JSON specification. To override this behavior, use GsonBuilder.serializeSpecialFloatingPointValues() method.
+noHtmlPretty	char	"x"
+noHtmlPretty	charLS	"\\u2028"
+noHtmlPretty	charQuote	"\\""
+noHtmlPretty	true	true
+noHtmlPretty	listMixed	[\u000a  1,\u000a  "a",\u000a  null,\u000a  true\u000a]
+noHtmlPretty	listEmpty	[]
+noHtmlPretty	listNested	[\u000a  [\u000a    1\u000a  ],\u000a  []\u000a]
+noHtmlPretty	intArray	[\u000a  1,\u000a  2,\u000a  3\u000a]
+noHtmlPretty	stringArray	[\u000a  "x",\u000a  null\u000a]
+noHtmlPretty	map	{\u000a  "a": 1,\u000a  "c": [\u000a    1,\u000a    2\u000a  ],\u000a  "d": "<"\u000a}
+noHtmlPretty	mapIntKeys	{\u000a  "3": "x",\u000a  "1": "y"\u000a}
+noHtmlPretty	mapNullKey	{\u000a  "null": 1\u000a}
+noHtmlPretty	enum	"GREEN"
+noHtmlPretty	enumList	[\u000a  "RED",\u000a  "GREEN"\u000a]
+noHtmlPretty	enumKeyMap	{\u000a  "RED": 1\u000a}
+noHtmlPretty	enumSet	[\u000a  "RED",\u000a  "GREEN"\u000a]
+noHtmlPretty	point	{\u000a  "x": 1,\u000a  "name": "p<q>",\u000a  "list": [\u000a    1,\u000a    2\u000a  ],\u000a  "d": 0.5,\u000a  "c": "c",\u000a  "b": true,\u000a  "l": 1099511627776\u000a}
+noHtmlPretty	point3	{\u000a  "z": 9,\u000a  "m": {\u000a    "k": 1\u000a  },\u000a  "x": 1,\u000a  "name": "p<q>",\u000a  "list": [\u000a    1,\u000a    2\u000a  ],\u000a  "d": 0.5,\u000a  "c": "c",\u000a  "b": true,\u000a  "l": 1099511627776\u000a}
+noHtmlPretty	holderNull	{}
+noHtmlPretty	holderPoint	{\u000a  "value": {\u000a    "x": 1,\u000a    "name": "p<q>",\u000a    "list": [\u000a      1,\u000a      2\u000a    ],\u000a    "d": 0.5,\u000a    "c": "c",\u000a    "b": true,\u000a    "l": 1099511627776\u000a  }\u000a}
+noHtmlPretty	holderList	{\u000a  "value": [\u000a    1\u000a  ]\u000a}
+noHtmlPretty	ableList	{\u000a  "v": [\u000a    0\u000a  ]\u000a}
+noHtmlPretty	ableNull	{}
+noHtmlPretty	ableString	{\u000a  "v": "<"\u000a}
+noHtmlPretty	ableInList	[\u000a  {\u000a    "v": {\u000a      "a": 1\u000a    }\u000a  }\u000a]
+noHtmlPretty	holderAble	{\u000a  "value": {\u000a    "v": 1\u000a  }\u000a}
+noHtmlPretty	jsonTree	{\u000a  "a": 1,\u000a  "b": [\u000a    true,\u000a    null\u000a  ],\u000a  "c": "<x>"\u000a}
+noHtmlPretty	nested	[\u000a  {\u000a    "x": [\u000a      {}\u000a    ]\u000a  }\u000a]
+noHtmlPretty	treeMap	{\u000a  "a": 2,\u000a  "b": 1\u000a}
+noHtmlPretty	linkedHashSet	[\u000a  "b",\u000a  "a"\u000a]
+noHtmlPretty	arrayList	[\u000a  3,\u000a  1\u000a]
+serializeNulls	null	null
+serializeNulls	string	"a\\u003cb\\u003e\\u0026\\u0027\\u003d\\"\\\\\\u2028\\u2029\\u0001\\t\\n\\b\\f\\r/\u00e9\ud83d\ude00"
+serializeNulls	loneSurrogate	"\ud800x\udc00"
+serializeNulls	int	42
+serializeNulls	long	-7
+serializeNulls	short	3
+serializeNulls	byte	-1
+serializeNulls	intMin	-2147483648
+serializeNulls	longMax	9223372036854775807
+serializeNulls	double1	1.0
+serializeNulls	double0.1	0.1
+serializeNulls	double1e21	1.0E21
+serializeNulls	doubleNegZero	-0.0
+serializeNulls	double1e-7	1.0E-7
+serializeNulls	double123456789	1.23456789E8
+serializeNulls	double1e7	1.0E7
+serializeNulls	doubleMin	4.9E-324
+serializeNulls	doubleNaN	java.lang.IllegalArgumentException: NaN is not a valid double value as per JSON specification. To override this behavior, use GsonBuilder.serializeSpecialFloatingPointValues() method.
+serializeNulls	doubleInf	java.lang.IllegalArgumentException: -Infinity is not a valid double value as per JSON specification. To override this behavior, use GsonBuilder.serializeSpecialFloatingPointValues() method.
+serializeNulls	char	"x"
+serializeNulls	charLS	"\\u2028"
+serializeNulls	charQuote	"\\""
+serializeNulls	true	true
+serializeNulls	listMixed	[1,"a",null,true]
+serializeNulls	listEmpty	[]
+serializeNulls	listNested	[[1],[]]
+serializeNulls	intArray	[1,2,3]
+serializeNulls	stringArray	["x",null]
+serializeNulls	map	{"a":1,"b":null,"c":[1,2],"d":"\\u003c"}
+serializeNulls	mapIntKeys	{"3":"x","1":"y"}
+serializeNulls	mapNullKey	{"null":1}
+serializeNulls	enum	"GREEN"
+serializeNulls	enumList	["RED","GREEN"]
+serializeNulls	enumKeyMap	{"RED":1}
+serializeNulls	enumSet	["RED","GREEN"]
+serializeNulls	point	{"x":1,"name":"p\\u003cq\\u003e","missing":null,"list":[1,2],"d":0.5,"c":"c","b":true,"l":1099511627776}
+serializeNulls	point3	{"z":9,"m":{"k":1},"x":1,"name":"p\\u003cq\\u003e","missing":null,"list":[1,2],"d":0.5,"c":"c","b":true,"l":1099511627776}
+serializeNulls	holderNull	{"value":null}
+serializeNulls	holderPoint	{"value":{"x":1,"name":"p\\u003cq\\u003e","missing":null,"list":[1,2],"d":0.5,"c":"c","b":true,"l":1099511627776}}
+serializeNulls	holderList	{"value":[1]}
+serializeNulls	ableList	{"v":[0]}
+serializeNulls	ableNull	{"v":null}
+serializeNulls	ableString	{"v":"\\u003c"}
+serializeNulls	ableInList	[{"v":{"a":1}}]
+serializeNulls	holderAble	{"value":{"v":1}}
+serializeNulls	jsonTree	{"a":1,"b":[true,null],"c":"\\u003cx\\u003e"}
+serializeNulls	nested	[{"x":[{}]}]
+serializeNulls	treeMap	{"a":2,"b":1}
+serializeNulls	linkedHashSet	["b","a"]
+serializeNulls	arrayList	[3,1]

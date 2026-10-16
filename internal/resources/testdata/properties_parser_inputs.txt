@@ -1,0 +1,76 @@
+
+\u000a
+\u000a\u000a
+\u000d\u000a
+\u000d
+a=b
+a=b\u000a
+a=b\u000a\u000a\u000a
+\u000aa=b
+\u000a\u000aa=1\u000a
+a = b 
+ a : b
+  a  =   b  c  
+a b
+a  b c
+a
+a\u000a
+ a
+#c\u000aa=b
+#a=b
+!a=b
+ #a=b
+!
+#
+a=b\\\u000ac
+a=b\\\u000a   c\\
+a=b\\
+a=b\\\u000a
+a=b\\\u000a\\\u000a
+a=b\\\\
+a=b\\\\\u000ac=d
+a=\\\u000a  x\\\u000a  y
+a=b\u000d\u000ac=d
+a=b\u000d\u000a\u000d\u000a
+a=b\u000d\u000d\u000ac=d
+a=b\u000dc=d
+a=b\u000a\u000dc=d
+a=1\u000aa=2
+a=1\u000ab=2\u000aa=3
+a:1\u000aa=1
+k\u0009with tab=1
+k\u00091
+=value
+:
+=
+ 
+   
+ = 
+a:b=c
+a=b=c
+a:=b
+\u00e9=\u00fc
+\u043a\u043b\u044e\u0447=\u0437\u043d\u0430\u0447\u0435\u043d\u0438\u0435
+\u00e9 \u00fc
+a=\ud800
+a=\u1f600
+a=b\\\u000a#c
+a=b\\\u000a!c
+x=\\\u000a\u000a
+x=\\\u000a \u000a
+a=b \\\u000a  c
+a=\\u0041
+a\\=b=c
+a\\:b
+a=  
+a=\u0009 b
+\u0009a=b
+a =\u000a b
+@resource:com/google/javascript/jscomp/parsing/ParserConfig.properties
+@resource:com/google/javascript/jscomp/jarjar/org/kohsuke/args4j/Messages.properties
+@resource:com/google/javascript/jscomp/jarjar/org/kohsuke/args4j/Messages_ru.properties
+@resource:com/google/javascript/jscomp/jarjar/org/kohsuke/args4j/spi/Messages_de.properties
+@resource:com/google/javascript/jscomp/jarjar/org/apache/tools/ant/taskdefs/defaults.properties
+@resource:build-data.properties
+@resource:com/google/javascript/jscomp/js/polyfills.txt
+@resource:com/google/javascript/jscomp/js/transpilation_libs.txt
