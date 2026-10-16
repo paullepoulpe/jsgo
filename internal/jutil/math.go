@@ -10,44 +10,48 @@ import (
 	"sync"
 )
 
-// MathMax is Math.max(double, double) (see its Javadoc): NaN when either
-// argument is NaN, and +0.0 is taken to be greater than -0.0, which `>`
-// alone does not distinguish.
+// MathMax is Math.max(double, double). Javadoc: the result is NaN when
+// either argument is, and negative zero counts as less than positive zero
+// (which Go's comparison operators treat as equal).
 //
 // Observed behaviour (black-box, JDK 21): a single NaN argument is returned
-// with its bits unchanged. With two NaNs the JDK returns the first in the
-// interpreter and may return the second once the caller is JIT-compiled;
-// this returns the first, as MathMin does.
+// with its bits unchanged. Given two NaNs the JDK's interpreter returns the
+// first, but JIT-compiled callers may get the second; this port always
+// returns the first (MathMin does the same).
 func MathMax(a, b float64) float64 {
-	if a != a { // a is NaN
+	switch {
+	case math.IsNaN(a):
 		return a
-	}
-	if b != b {
+	case math.IsNaN(b):
 		return b
-	}
-	if a == 0 && b == 0 {
-		// Both zeros: the result is -0.0 only when both are -0.0.
-		if math.Signbit(a) {
-			return b
+	case a == 0 && b == 0:
+		// Two zeros: the one without the sign bit, if there is one.
+		if math.Signbit(b) {
+			return a
 		}
-		return a
-	}
-	if a >= b {
+		return b
+	case a > b:
 		return a
 	}
 	return b
 }
 
-// MathMin is Math.min(double, double): NaN if either argument is NaN (the
-// first one if both are), and -0.0 below +0.0.
+// MathMin is Math.min(double, double). Javadoc: the result is NaN when
+// either argument is, and negative zero counts as less than positive zero.
+// NaN arguments are handled as in MathMax.
 func MathMin(a, b float64) float64 {
-	if a != a { // a is NaN
+	switch {
+	case math.IsNaN(a):
 		return a
-	}
-	if a == 0 && b == 0 && math.Float64bits(b) == math.Float64bits(math.Copysign(0, -1)) {
+	case math.IsNaN(b):
 		return b
-	}
-	if a <= b {
+	case a == 0 && b == 0:
+		// Two zeros: the one with the sign bit, if there is one.
+		if math.Signbit(a) {
+			return a
+		}
+		return b
+	case a < b:
 		return a
 	}
 	return b
