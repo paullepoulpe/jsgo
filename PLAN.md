@@ -384,6 +384,20 @@ Done:
     corpus parse, against Java's 5.9 s cold and 2.2 s warm.
   - Go has no warm-up cost and uses ~4× less memory.
 
+- **Wave 1 complete:**
+  - **`internal/sourcemap`:** all 19 classes.
+    - Differential oracle on the generator and consumer API: 50,572
+      results identical.
+    - Independently re-run with a new seed: 84,012 identical.
+  - **`internal/regex`:**
+    - 253,105 regex patterns identical to Java, including every literal in
+      the corpus.
+    - Independently re-checked on 1,196 new pattern/flag combinations.
+  - **`internal/diagnostic`, `internal/resources`:** the jar's JS
+    resources are embedded.
+  - **`internal/jutil`:** consolidated across branches (one helper per
+    Java class, all tested against JDK-generated vectors).
+
 In progress, in parallel (wave 2, PLAN.md §5):
 
 - `internal/parsing`:
@@ -392,5 +406,6 @@ In progress, in parallel (wave 2, PLAN.md §5):
     (14,690 + 1,488 + 544 + 59 Java dumps ready).
 - `rhino/jstype`, against a type-algebra oracle.
 - jscomp levels 0–9, in two dependency-closed groups (89 + 81 files).
-- `internal/sourcemap`, `internal/regex`, `internal/diagnostic`,
-  `internal/resources`.
+- `internal/parsing`, part 1, JsDocInfoParser + Config, is finished: zero
+  diffs on 61,726 corpus JSDoc comments in all five JsDocParsing modes. It
+  lands together with IRFactory.

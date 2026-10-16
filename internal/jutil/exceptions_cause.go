@@ -7,3 +7,12 @@ func NewRuntimeExceptionWithMessageAndCause(message string, cause Throwable) *Ru
 	InitThrowable(e, "java.lang.RuntimeException", &message, cause)
 	return e
 }
+
+// NewAssertionErrorWithCause is new AssertionError(Object detailMessage)
+// with a Throwable: the message is the cause's toString() and the cause is
+// set.
+func NewAssertionErrorWithCause(cause Throwable) *AssertionError {
+	e := &AssertionError{}
+	InitThrowable(e, "java.lang.AssertionError", msgPtr(cause.Error()), cause)
+	return e
+}
