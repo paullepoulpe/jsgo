@@ -77,7 +77,39 @@ python3 -I tools/bench/measure.py java.rusage java -Xss1g -cp .cache/closure-com
 PARSEBENCH_CPUPROFILE=parse.pprof .cache/bench-build/parsebench 2 .cache/corpus @.cache/corpus-files.txt /dev/null
 ```
 
+## M1 — full front end (`internal/parsing.ParserRunner_Parse` vs `parsing.ParserRunner.parse`)
+
+Parser + IRFactory + JsDocInfoParser, with the compiler's own
+`parsing.Config` (ES_NEXT, TYPES_ONLY, STOP_AFTER_ERROR, STRICT).
+
+- **Harness:** `parsebench --mode=runner` and `ParseBench --mode=runner`.
+- **Setup:** same corpus and machine caveats as above. Three porting agents
+  were running during the measurement.
+- **Sanity check:** both report the same 1,157 errors.
+
+| Per full-corpus pass | Go | Java, 1st iteration (cold JIT) | Java, steady state (iters 3–8) |
+|---|---:|---:|---:|
+| Wall time | 12.0–13.9 s | 9.2 s | 4.2–5.0 s |
+| Allocated | 4.31 GB | 4.11 GB | 4.08 GB |
+| GCs / GC pause | 44 / ~5 ms | 14 / 522 ms | 5–6 / 70–160 ms |
+| Whole process, 8 iterations: wall / CPU / peak RSS | 103 s / 128 s / 689 MB | | 43 s / 64 s / 1.5 GB |
+
+**Findings:**
+
+- **Allocation volume now matches Java's (4.3 vs 4.1 GB).** The remaining
+  gap, 1.3× cold Java and ~2.7× warm Java, is allocation *cost* and code
+  generation, not wasted allocation.
+- **The profile has no new avoidable hot spot of the boxing kind.** Two
+  structural items are recorded below.
+
 ### Known hot spots to revisit after parity
+
+- **`rhino.RhinoStringPool`: ~7% of front-end CPU.** It interns every
+  identifier through Go's `unique.Make`, which is the faithful analogue of
+  Guava's `Interners.newWeakInterner()`, but its trie and weak-pointer
+  bookkeeping are expensive. Go compares strings by value, so a
+  per-compilation strong interner would behave identically and could
+  replace it.
 
 - `rhino.TokenStream_IsKeyword` converts every NAME to UTF-16. That is
   ~5% of `ParserRunner.parse` allocations (found while porting IRFactory).
