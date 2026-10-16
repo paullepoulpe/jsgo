@@ -1,0 +1,106 @@
+github.com/paullepoulpe/jsgo
+
+This repository is a Go translation of Google Closure Compiler v20260415
+(https://github.com/google/closure-compiler) and of the parts of Closure's
+Java dependencies that the compiler uses. Each translated file is covered by
+the licence of the work it translates. The full licence texts are in
+LICENSES/.
+
+The repository's original code (code that translates none of the works
+below, such as the tools under tools/ and the Java library behaviour in
+internal/jutil that is written from public specifications) is not yet
+under any licence: its owner has not chosen one. This file grants no
+licence for it.
+
+A translated file names its source on its first line, either
+"// Port of <path> ..." or "// Derived from <path> ...", and carries the
+copyright and licence notice of that source after it.
+"go run ./tools/licenses -check" (part of "make vet") enforces this for
+the third-party projects below.
+
+
+Closure Compiler v20260415 -- Apache License 2.0 (LICENSES/Apache-2.0.txt)
+  Copyright The Closure Compiler Authors.
+  Translated from it: the files under internal/ whose first line names a
+  Closure source ("// Port of com/google/javascript/...",
+  "// Port of com/google/debugging/..." or the same under test/), apart
+  from the Rhino-derived files below, and the protobuf messages that
+  tools/oracle/java/ProtoGoGen.java generates from Closure's descriptors
+  (the generated internal/jscomp/proto_*.go files).
+  Copied from it: the JavaScript runtime under
+  internal/resources/com/google/javascript/jscomp/js/, and test inputs
+  taken from Closure's tests (testdata/ and the testdata/ directories
+  under internal/).
+  Closure Compiler v20260415 has no NOTICE file.
+
+
+Rhino-derived files -- Mozilla Public License 1.1 only (LICENSES/MPL-1.1.txt)
+  The Original Code is Rhino code, released May 6, 1999. The Initial
+  Developer of the Original Code is Netscape Communications Corporation.
+  Portions created by the Initial Developer are Copyright (C) 1997-1999 the
+  Initial Developer. All Rights Reserved.
+  Closure Compiler ships its Rhino-derived sources (Node, Token, IR,
+  JSDocInfo, the jstype package, DToA and their tests) under a dual
+  licence. This repository uses them under the MPL 1.1 only.
+  Modifications: these files were translated from the Java sources of
+  Closure Compiler v20260415 into Go, starting in 2026. The git history
+  records each change and its date.
+  Files: those whose header carries the MPL 1.1 licence block
+  (git grep -l "Mozilla Public License"). They are most files in
+  internal/rhino (including the jstype_*.go files) and
+  internal/rhino/rhinotesting, internal/dtoa/d_to_a.go (which also keeps
+  David M. Gay's dtoa notice) and internal/jscomp/node_subject_test.go.
+
+
+Guava 33.4.6-jre -- Apache License 2.0 (LICENSES/Apache-2.0.txt)
+  Copyright The Guava Authors. Guava has no NOTICE file.
+  internal/jutil/ascii.go           com/google/common/base/Ascii.java
+  internal/jutil/case_format.go     com/google/common/base/CaseFormat.java
+  internal/jutil/percent_escaper.go com/google/common/net/PercentEscaper.java,
+                                    com/google/common/escape/UnicodeEscaper.java
+  internal/jutil/farmhash.go        com/google/common/hash/FarmHashFingerprint64.java
+  internal/jutil/cache_builder.go   com/google/common/cache/LocalCache.java (parts)
+  internal/jutil/murmur3.go         com/google/common/hash/Murmur3_128HashFunction.java
+                                    (parts; MurmurHash3 itself is in the
+                                    public domain)
+
+
+Gson 2.9.1 -- Apache License 2.0 (LICENSES/Apache-2.0.txt)
+  Copyright Google Inc. Gson has no NOTICE file.
+  internal/jutil/gson.go, gson_builder.go, gson_exceptions.go,
+  gson_json_element.go, gson_json_reader.go, gson_json_writer.go,
+  gson_json_writer_long.go, gson_to_json.go and type_adapter.go
+  (com/google/gson/...; each file names its sources).
+
+
+protobuf-java 4.30.2 -- BSD 3-Clause License (LICENSES/BSD-3-Clause-protobuf.txt)
+  Copyright 2008 Google Inc. All rights reserved.
+  internal/jscomp/proto_runtime.go: protoTextBytes is
+  com/google/protobuf/TextFormatEscaper.java's escapeBytes.
+
+
+args4j 2.33 -- MIT License (LICENSES/MIT-args4j.txt)
+  Copyright (c) 2013 Kohsuke Kawaguchi and other contributors.
+  internal/args4j, once the port of Closure's command-line tools adds it:
+  the args4j command-line parser that those tools use.
+
+
+Test data
+  internal/resources/testdata/properties_parser.txt contains a copy of
+  org/apache/tools/ant/taskdefs/defaults.properties from Apache Ant 1.10.11
+  (Apache License 2.0), which the pinned closure-compiler.jar bundles.
+  Ant's NOTICE reads:
+
+    Apache Ant
+    Copyright 1999-2021 The Apache Software Foundation
+
+    This product includes software developed at
+    The Apache Software Foundation (https://www.apache.org/).
+
+    The <sync> task is based on code Copyright (c) 2002, Landmark
+    Graphics Corp that has been kindly donated to the Apache Software
+    Foundation.
+
+  Some test inputs are third-party JavaScript packages, kept in
+  <package>@<version> directories under internal/jscomp/testdata/*/src.
+  Each is under its own licence, which this file does not yet reproduce.
