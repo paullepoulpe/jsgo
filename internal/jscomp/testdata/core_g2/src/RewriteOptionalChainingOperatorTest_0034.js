@@ -1,0 +1,1 @@
+let a = fun?.(num).obj.ary[obj?.getNum()]

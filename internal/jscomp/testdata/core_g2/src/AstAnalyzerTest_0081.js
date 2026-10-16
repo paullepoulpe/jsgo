@@ -1,0 +1,1 @@
+(function() { return n; })().foo = 4

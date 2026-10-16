@@ -1,0 +1,1 @@
+var result$jscomp$0 = foo(); result$jscomp$0?.x

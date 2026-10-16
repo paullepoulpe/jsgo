@@ -1,0 +1,1 @@
+function f() {const CONST = 3; const ACONST = 2;}

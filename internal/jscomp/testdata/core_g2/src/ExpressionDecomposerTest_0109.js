@@ -1,0 +1,1 @@
+var d; ({c: d = 4} = condition ? y() :  {c: 1});

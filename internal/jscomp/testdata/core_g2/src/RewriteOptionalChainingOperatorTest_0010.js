@@ -1,0 +1,1 @@
+obj?.obj.obj?.fun(obj.getNum())

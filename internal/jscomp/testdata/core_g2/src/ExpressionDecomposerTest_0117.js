@@ -1,0 +1,1 @@
+const obj = {f(x) {}}; obj.f(`${foo()}`);

@@ -1,0 +1,1 @@
+alert(fn(first(), second(), third()));

@@ -1,0 +1,1 @@
+Math.sin(...`templatelit ${unsafe()}`)

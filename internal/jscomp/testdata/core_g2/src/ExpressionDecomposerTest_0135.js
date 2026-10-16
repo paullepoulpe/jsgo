@@ -1,0 +1,1 @@
+var result$jscomp$0 = foo(); x = result$jscomp$0 || 1

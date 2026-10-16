@@ -1,0 +1,1 @@
+var CONST = 3; var b = CONST;
