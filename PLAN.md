@@ -5,9 +5,9 @@ same command-line flags, same JavaScript output, same source maps, same
 diagnostics — so that existing Closure users can switch binaries.
 
 **Verdict:** feasible, but not with the approach the repository had been
-following. The first attempt (now in [`legacy/`](legacy/)) is a
-fixture-tuned type checker that does not generalise; it is frozen for
-reference. Work has restarted as a bottom-up, whole-file, 1:1 port of the
+following. The first attempt was a fixture-tuned type checker that does
+not generalise, and it has been removed. It remains in git history at
+commit `c05fc09`. Work has restarted as a bottom-up, whole-file, 1:1 port of the
 pinned Java release, verified layer by layer against the Java compiler
 itself. The rest of this document gives the evidence for both halves of that
 verdict and the roadmap.
@@ -91,7 +91,7 @@ Other observations on new inputs:
 ### Root causes
 
 An independent read of the code against the Java source found the following
-(details in the session report; examples are reproducible at legacy
+(details in the session report; examples are reproducible at
 `c05fc09`):
 
 1. **Development was driven by fixtures, top-down.** Each change made some
@@ -247,8 +247,8 @@ Done:
       byte-identical to the per-process oracles;
     - the package-SCC generator;
     - the pinned 14,690-file corpus.
-  - The legacy tree has been moved to `legacy/` unchanged (its harness still
-    reports 93.70% / 90.17%).
+  - The first attempt has been deleted; it is available at `c05fc09`.
+    Its fixtures and oracles stay in `testdata/`.
 
 - **M1, part 1: `internal/parser`.**
   - All 104 files of `jscomp.parsing.parser` (+ `trees`, `util`) are

@@ -6,7 +6,7 @@ all: build vet test
 build:
 	go build ./...
 
-# The new port is vetted strictly; the frozen legacy tree is only built and tested.
+# Vet everything under internal/ (the whole port).
 vet:
 	go vet ./internal/...
 

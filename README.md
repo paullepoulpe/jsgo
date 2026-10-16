@@ -10,7 +10,7 @@ Java compiler itself on large corpora.
 - [PLAN.md](PLAN.md) — feasibility assessment, strategy and roadmap.
 - [PORTING.md](PORTING.md) — the translation contract every ported file follows.
 - [tools/oracle/](tools/oracle/) — tools that extract ground truth from the Java compiler.
-- [legacy/](legacy/) — the earlier type-checker-only attempt, frozen for reference.
+- [testdata/](testdata/) — Closure type-check fixtures and their Java oracles (acceptance set for the type checker, M7).
 
 ```sh
 make            # build, vet, test
