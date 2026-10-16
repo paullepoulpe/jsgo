@@ -787,11 +787,14 @@ def report(out_dir, md_path, preliminary=True):
                 s.append("- jsgo: PENDING, it reaches pending ports: "
                          + "; ".join(f"`{k}`" + (f" ({v}×)" if len(jobs) > 1 else "") for k, v in sigs[:5]) + ".")
             elif gate.get("status") == "DIFF":
-                s.append("- jsgo: DIFF. First differences:")
+                s.append("- jsgo: DIFF.")
+            if gate.get("diffs"):
+                s.append("- jsgo differs from Java" + (" (first invocations)" if len(jobs) > 1 else "") + ":")
                 for d in gate["diffs"][:5]:
+                    where = f"`{jobs[d['job']][-1]}`, " if len(jobs) > 1 else ""
                     for k, v in d["detail"].items():
-                        s.append(f"  - job {d['job']}, {k}: {v}")
-            elif gate.get("status") == "MATCH":
+                        s.append(f"  - {where}{k}: {v}")
+            if gate.get("status") == "MATCH":
                 s.append("- jsgo: MATCH (stdout, stderr, exit status and output files byte-identical).")
         s.append("")
         s += phase_table(trace, status == "MATCH")
@@ -895,7 +898,7 @@ def phase_table(trace, show_ratio):
         return statistics.median(vals) if vals else None
     key = cols[0]
     rows = sorted(allp, key=lambda p: -(pmed(key, p) or 0))
-    out += ["<details><summary>Per pass (ms, median; runs per compile)</summary>", "",
+    out += ["<details><summary>Per pass (ms, median; runs = times the pass ran in one run of the task)</summary>", "",
             "| Pass | Phase | Runs | " + " | ".join(label(c) for c in cols) + " |",
             "|---|---|---|" + "---|" * len(cols)]
     for p in rows:
