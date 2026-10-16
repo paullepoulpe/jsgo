@@ -618,7 +618,7 @@ func (v *AstValidator) ExpectSomeTypeInformation(n *rhino.Node) {
 			v.Violation(
 				"Type information missing"+
 					"\n"+
-					v.compiler.ToSource(NodeUtil_GetEnclosingStatement(n)),
+					v.compiler.ToSourceOfNode(NodeUtil_GetEnclosingStatement(n)),
 				n)
 		}
 	case AstValidator_TypeInfoValidation_COLOR:
@@ -626,7 +626,7 @@ func (v *AstValidator) ExpectSomeTypeInformation(n *rhino.Node) {
 			v.Violation(
 				"Color information missing"+
 					"\n"+
-					v.compiler.ToSource(NodeUtil_GetEnclosingStatement(n)),
+					v.compiler.ToSourceOfNode(NodeUtil_GetEnclosingStatement(n)),
 				n)
 		}
 	case AstValidator_TypeInfoValidation_NONE:

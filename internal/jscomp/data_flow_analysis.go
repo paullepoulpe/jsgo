@@ -463,7 +463,7 @@ func (s *DataFlowAnalysis_LinearFlowState[L]) String() string {
 // Java: DataFlowAnalysis.computeEscaped(Scope, Set<Var>, AbstractCompiler, ScopeCreator, Map<String, Var>)
 func DataFlowAnalysis_ComputeEscaped(
 	jsScope *Scope,
-	escaped *jutil.LinkedHashSet[*Var],
+	escaped *jutil.ObjectLinkedHashSet[*Var],
 	compiler AbstractCompiler,
 	scopeCreator ScopeCreator,
 	allVarsInFn *jutil.LinkedHashMap[string, *Var]) {
@@ -495,7 +495,7 @@ type dataFlowAnalysis_escapedFinder struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 
 	jsScope *Scope
-	escaped *jutil.LinkedHashSet[*Var]
+	escaped *jutil.ObjectLinkedHashSet[*Var]
 }
 
 // Java: DataFlowAnalysis.computeEscaped(...).new AbstractPostOrderCallback() {...}.visit(NodeTraversal, Node, Node)
@@ -512,7 +512,9 @@ func (f *dataFlowAnalysis_escapedFinder) Visit(t *NodeTraversal, n *rhino.Node, 
 		return
 	}
 
-	variableCfgScope := var_.GetScope().GetClosestCfgRootScope()
+	// AbstractVar.getScope() returns S (here Scope); see abstract_scope.go.
+	varScope, _ := var_.GetScope().(*Scope)
+	variableCfgScope := varScope.GetClosestCfgRootScope()
 
 	// If the current examined scope and var decleration scope are different
 	// then var is 'not escaped'.
