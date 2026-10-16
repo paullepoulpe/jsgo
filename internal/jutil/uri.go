@@ -140,7 +140,7 @@ func (u *URI) Equals(ob any) bool {
 		return true
 	}
 	if u.IsOpaque() != o.IsOpaque() ||
-		!uriEqualIgnoringCase(u.scheme, o.scheme) ||
+		!uriSameIgnoringASCIICase(u.scheme, o.scheme) ||
 		!uriEqualEscapes(u.fragment, o.fragment) {
 		return false
 	}
@@ -162,34 +162,65 @@ func (u *URI) Equals(ob any) bool {
 	if u.host == nil {
 		return uriEqualEscapes(u.authority, o.authority)
 	}
-	return uriEqualEscapes(u.userInfo, o.userInfo) && uriEqualIgnoringCase(u.host, o.host) && u.port == o.port
+	return uriEqualEscapes(u.userInfo, o.userInfo) && uriSameIgnoringASCIICase(u.host, o.host) && u.port == o.port
 }
 
-// HashCode is URI.hashCode() (see the observed behaviour above).
+// uriHashPart is one component in the hashCode fold, and whether it is
+// folded char by char after lower-casing (scheme and host) rather than as a
+// whole with its escapes normalised.
+type uriHashPart struct {
+	s     *string
+	lower bool
+}
+
+// HashCode is URI.hashCode(): a fold over the components in the order the
+// hashCode bullet of the file comment lists, and then, for a server-based
+// authority, 1949 times the port added on.
 func (u *URI) HashCode() int32 {
 	if u.hashed {
 		return u.hash
 	}
-	h := uriHashIgnoringCase(0, u.scheme)
-	h = uriHashEscapes(h, u.fragment)
-	if u.IsOpaque() {
-		h = uriHashEscapes(h, u.ssp)
-	} else {
-		h = uriHashEscapes(h, u.path)
-		h = uriHashEscapes(h, u.query)
-		if u.host != nil {
-			h = uriHashEscapes(h, u.userInfo)
-			h = uriHashIgnoringCase(h, u.host)
-			h += 1949 * int32(u.port)
+	var parts [6]uriHashPart
+	n := 0
+	add := func(s *string, lower bool) {
+		parts[n] = uriHashPart{s, lower}
+		n++
+	}
+	add(u.scheme, true)
+	add(u.fragment, false)
+	serverBased := false
+	switch {
+	case u.IsOpaque():
+		add(u.ssp, false)
+	case u.host != nil:
+		add(u.path, false)
+		add(u.query, false)
+		add(u.userInfo, false)
+		add(u.host, true)
+		serverBased = true
+	default:
+		add(u.path, false)
+		add(u.query, false)
+		add(u.authority, false)
+	}
+	var h int32
+	for _, p := range parts[:n] {
+		if p.lower {
+			h = uriFoldLowerASCII(h, p.s)
 		} else {
-			h = uriHashEscapes(h, u.authority)
+			h = uriHashEscapes(h, p.s)
 		}
+	}
+	if serverBased {
+		h += 1949 * int32(u.port)
 	}
 	u.hash, u.hashed = h, true
 	return h
 }
 
-func uriHashIgnoringCase(h int32, s *string) int32 {
+// uriFoldLowerASCII folds the UTF-16 units of s, ASCII letters lower-cased,
+// into h as 31*h + unit; a nil s leaves h as it is.
+func uriFoldLowerASCII(h int32, s *string) int32 {
 	if s == nil {
 		return h
 	}
@@ -199,6 +230,8 @@ func uriHashIgnoringCase(h int32, s *string) int32 {
 	return h
 }
 
+// uriHashEscapes folds s into h as 127*h + its String.hashCode, taken with
+// the two hex digits after each '%' upper-cased; a nil s leaves h alone.
 func uriHashEscapes(h int32, s *string) int32 {
 	if s == nil {
 		return h
@@ -231,7 +264,9 @@ func uriUpperASCII(c uint16) uint16 {
 	return c
 }
 
-func uriEqualIgnoringCase(a, b *string) bool {
+// uriSameIgnoringASCIICase compares two optional components, treating
+// ASCII letters of either case as equal.
+func uriSameIgnoringASCIICase(a, b *string) bool {
 	if a == nil || b == nil {
 		return a == b
 	}
