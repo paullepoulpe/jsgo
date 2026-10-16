@@ -160,7 +160,10 @@ func (l IRFactory_LineAndColumn) CompareTo(o IRFactory_LineAndColumn) int {
 	return irFactory_compareInt(l.column, o.column)
 }
 
-// irFactory_compareInt is Integer.compare(int, int).
+// irFactory_compareInt is Integer.compare(int, int), the comparison of
+// Comparator.comparingInt.
+//
+// Go-only: language-adapter — JDK method.
 func irFactory_compareInt(x, y int) int {
 	if x < y {
 		return -1
@@ -189,6 +192,9 @@ func (l IRFactory_LineAndColumn) String() string {
 
 // irFactory_LineAndColumn_compare is the natural ordering of LineAndColumn
 // (Comparable.compareTo) as a comparator.
+//
+// Go-only: language-adapter — TreeRangeSet<LineAndColumn> orders by
+// Comparable; the jutil TreeRangeSet takes the comparator.
 func irFactory_LineAndColumn_compare(a, b IRFactory_LineAndColumn) int { return a.CompareTo(b) }
 
 // Java: IRFactory(StaticSourceFile, Config, ErrorReporter, ImmutableList<Comment>, SourceFile, JsDocInfoParser.JsDocSourceKind)
@@ -238,7 +244,8 @@ func NewIRFactory(
 	return f
 }
 
-// The CommentTracker filters of the IRFactory constructor.
+// The CommentTracker filters of the IRFactory constructor (the lambdas
+// (c) -> c.type == Comment.Type.JSDOC and (c) -> c.type != Comment.Type.JSDOC).
 func irFactory_isJsdocComment(c *parser.Comment) bool    { return c.Type == parser.Comment_Type_JSDOC }
 func irFactory_isNonJsdocComment(c *parser.Comment) bool { return c.Type != parser.Comment_Type_JSDOC }
 
@@ -4057,6 +4064,8 @@ func IRFactory_FindNodeTypeInExpression(expressionNode *rhino.Node, token rhino.
 
 // irFactory_substring is String.substring(begin, end) on a string given as
 // its UTF-16 code units.
+//
+// Go-only: language-adapter — Java String API on UTF-16 code units.
 func irFactory_substring(units []uint16, begin, end int) string {
 	if begin < 0 || end > len(units) || begin > end {
 		panic(jutil.NewStringIndexOutOfBoundsException(begin, end))
@@ -4066,6 +4075,8 @@ func irFactory_substring(units []uint16, begin, end int) string {
 
 // irFactory_charAt is String.charAt(int) on a string given as its UTF-16
 // code units.
+//
+// Go-only: language-adapter — Java String API on UTF-16 code units.
 func irFactory_charAt(units []uint16, index int) uint16 {
 	if index < 0 || index >= len(units) {
 		panic(jutil.NewStringIndexOutOfBoundsException(index, len(units)))
@@ -4075,6 +4086,8 @@ func irFactory_charAt(units []uint16, index int) uint16 {
 
 // irFactory_indexOf is String.indexOf(int ch, int fromIndex) on a string
 // given as its UTF-16 code units.
+//
+// Go-only: language-adapter — Java String API on UTF-16 code units.
 func irFactory_indexOf(units []uint16, ch uint16, fromIndex int) int {
 	if fromIndex < 0 {
 		fromIndex = 0
@@ -4300,6 +4313,8 @@ func irFactory_substringWithoutQuotes(value string) string {
 }
 
 // irFactory_appendCodePoint is StringBuilder.append(Character.toChars(int)).
+//
+// Go-only: language-adapter — JDK methods on UTF-16 code units.
 func irFactory_appendCodePoint(units []uint16, codePoint int32) []uint16 {
 	if codePoint < 0 || codePoint > 0x10ffff {
 		panic(jutil.NewIllegalArgumentExceptionMsg(
