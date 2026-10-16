@@ -1,0 +1,40 @@
+function f(a, b = 1, {c, d: [e, f] = []} = {}, ...rest) {}
+function* g() { yield; yield 1; yield* h(); var x = yield a, y = (yield b) + 1; }
+async function* ag() { yield await x; for await (const y of z) yield y; }
+var arrow = (a = 1, {b} = {}, [c] = [], ...d) => {};
+var single = a => a;
+var noArgs = () => {};
+var asyncArrow = async a => await a;
+var call = f(...args, a, ...b);
+var opt = a?.b?.c?.(d)?.[e];
+var optCall = a?.();
+var del = delete a?.b;
+var ev = eval("x"), ev2 = (0, eval)("x"), ev3 = window.eval("x");
+var free = (0, a.b)(), free2 = (0, a[b])(), free3 = (0, a?.b)();
+var seq = (a, b, c);
+var nested = [[[]]];
+var {a: {b: {c: deep}}, ...others} = obj;
+var [x1, [y1, ...z1], ...w1] = arr;
+({a: x2, b: y2 = 1} = obj);
+[x3 = 1, ...y3] = arr;
+var getset = {get a() { return 1; }, set a(v) {}};
+label: x();
+var nt = function () { return new.target; };
+var str = String(a) + Number(b);
+var tagged = f`x`;
+var paren = (a);
+var commaInArgs = f((a, b), c);
+var commaInArray = [(a, b), c];
+var commaInObj = {a: (b, c)};
+var inExpr = 'a' in b;
+var instance = a instanceof b;
+var voided = void 0, typed = typeof a;
+var unary = -a + +b - ~c + !d;
+var cond = a ? (b, c) : d;
+var assignInCond = (a = b) ? 1 : 2;
+var arrowInCond = a ? () => 1 : () => 2;
+var arrowCall = (() => 1)();
+var arrowMember = (() => 1).x;
+var arrowOr = a || (() => 1);
+var arrowNew = new (() => 1);
+var awaitArrow = async () => await (() => 1);

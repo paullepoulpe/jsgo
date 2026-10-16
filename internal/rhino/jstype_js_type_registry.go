@@ -141,7 +141,7 @@ type JSTypeRegistry struct {
 	// Types that have been "forward-declared." If these types are not
 	// declared anywhere in the binary, we shouldn't try to type-check them at
 	// all.
-	forwardDeclaredTypes *jutil.LinkedHashSet[string]
+	forwardDeclaredTypes jutil.Set[string]
 
 	// A map of properties to the types on which those properties have been
 	// declared. "Reference" types are excluded because those already exist in
@@ -207,7 +207,7 @@ func NewJSTypeRegistry(reporter ErrorReporter) *JSTypeRegistry {
 // populated with the built-in types.
 //
 // Java: JSTypeRegistry(ErrorReporter, Set<String>)
-func NewJSTypeRegistryWithForwardDeclaredTypes(reporter ErrorReporter, forwardDeclaredTypes *jutil.LinkedHashSet[string]) *JSTypeRegistry {
+func NewJSTypeRegistryWithForwardDeclaredTypes(reporter ErrorReporter, forwardDeclaredTypes jutil.Set[string]) *JSTypeRegistry {
 	r := &JSTypeRegistry{
 		scopedNameTable:                jutil.NewLinkedHashMap[*Node, *jutil.LinkedHashMap[string, JSType]](),
 		closureNamespaces:              jutil.NewLinkedHashMap[string, *JSTypeRegistry_ClosureNamespace](),

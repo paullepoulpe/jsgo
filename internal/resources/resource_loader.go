@@ -134,3 +134,13 @@ func resourceLoader_charStreamsToString(stream []byte) string {
 	}
 	return string(stream)
 }
+
+// ResourceLoader_GetResourceAsStream is clazz.getResourceAsStream(path) for
+// the callers of Class.getResourceAsStream outside this class (e.g.
+// Compiler): the resource's bytes, or nil (Java null) when there is none.
+//
+// Go-only: language-adapter — Class.getResourceAsStream over the embedded
+// resources.
+func ResourceLoader_GetResourceAsStream(clazz string, path string) []byte {
+	return resourceLoader_getResourceAsStream(clazz, path)
+}

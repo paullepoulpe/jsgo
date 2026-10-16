@@ -915,3 +915,67 @@ func (u *UsingCorrespondence) DoesNotContain(excluded any) {
 		}
 	}
 }
+
+// Fact is com.google.common.truth.Fact: a key and an optional value of a
+// failure message.
+type Fact struct {
+	key   string
+	value *string
+}
+
+// Fact_Fact is Fact.fact(key, value): the value is rendered with
+// String.valueOf.
+func Fact_Fact(key string, value any) Fact {
+	v := show(value)
+	return Fact{key: key, value: &v}
+}
+
+// Fact_SimpleFact is Fact.simpleFact(key): a fact with no value.
+func Fact_SimpleFact(key string) Fact {
+	return Fact{key: key}
+}
+
+// fact_makeMessage is Fact.makeMessage: the facts one per line, values
+// aligned after the longest key, or each multi-line value indented on the
+// lines after its key.
+func fact_makeMessage(messages []string, facts []Fact) string {
+	longestKeyLength := 0
+	seenNewlineInValue := false
+	for _, f := range facts {
+		if f.value != nil {
+			longestKeyLength = max(longestKeyLength, len(f.key))
+			seenNewlineInValue = seenNewlineInValue || strings.Contains(*f.value, "\n")
+		}
+	}
+	var b strings.Builder
+	for _, m := range messages {
+		b.WriteString(m)
+		b.WriteString("\n")
+	}
+	for _, f := range facts {
+		if f.value == nil {
+			b.WriteString(f.key)
+		} else if seenNewlineInValue {
+			b.WriteString(f.key)
+			b.WriteString(":\n    ")
+			b.WriteString(strings.ReplaceAll(*f.value, "\n", "\n    "))
+		} else {
+			b.WriteString(f.key)
+			b.WriteString(strings.Repeat(" ", longestKeyLength-len(f.key)))
+			b.WriteString(": ")
+			b.WriteString(*f.value)
+		}
+		b.WriteString("\n")
+	}
+	return strings.TrimSuffix(b.String(), "\n")
+}
+
+// FailWithoutActual is Subject.failWithoutActual(Fact, Fact...): fails
+// with the given facts (after the AssertWithMessage message, if any).
+func (s *Subject) FailWithoutActual(facts ...Fact) {
+	var messages []string
+	if s.message != "" {
+		messages = append(messages, s.message)
+	}
+	panic(jutil.NewAssertionError(fact_makeMessage(messages, facts)))
+}

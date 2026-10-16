@@ -237,7 +237,7 @@ func (d *diffState) run(op []*string) {
 			NewFilePosition(atoi(op[5]), atoi(op[6])),
 			NewFilePosition(atoi(op[7]), atoi(op[8])))
 	case "gcontent":
-		d.g.AddSourcesContent(*op[1], *op[2])
+		d.g.AddSourcesContent(*op[1], op[2])
 	case "gext":
 		var value any
 		switch *op[2] {
