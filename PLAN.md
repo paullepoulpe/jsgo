@@ -417,6 +417,12 @@ Done:
     are ported. The only skips need `rhino/jstype`, plus one Java
     stack-overflow case that Go cannot reproduce.
 
+- **jscomp levels 0–9, group B** (80 files: graph library, messages,
+  name generators, variable maps, tracer, code consumer, …).
+  - Merged with 26 ported Java test classes.
+  - Zero diffs on 4,042 seeded differential cases. Re-run with a new
+    seed: zero diffs.
+
 In progress, in parallel (wave 2, PLAN.md §5):
 - `rhino/jstype`, against a type-algebra oracle.
-- jscomp levels 0–9, in two dependency-closed groups (89 + 81 files).
+- jscomp levels 0–9, group A (89 files: diagnostics, error managers, deps/modules, serialization basics).
