@@ -28,9 +28,8 @@ package jscomp
 // The Java side parses with ParserRunner.parse and the parsing.Config of a
 // Compiler whose options have language_in ECMASCRIPT_NEXT, sets the SCRIPT's
 // InputId, puts it under a ROOT and registers a CompilerInput for it with the
-// Compiler's private putCompilerInput; scopeDumpCompiler is that Compiler:
-// the test compiler for those options, whose getInput(InputId) also finds the
-// registered input, as Compiler.getInput does.
+// Compiler's private putCompilerInput; so does the Go side, with the test
+// compiler.
 
 import (
 	"bufio"
@@ -49,34 +48,11 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// scopeDumpCompiler is the Java Compiler after putCompilerInput: getInput
-// returns the registered inputs (Compiler.inputsById).
-type scopeDumpCompiler struct {
-	AbstractCompiler
-	inputsById map[string]*CompilerInput
-}
-
-func (c *scopeDumpCompiler) GetInput(id *rhino.InputId) *CompilerInput {
-	if id == nil {
-		return nil
-	}
-	return c.inputsById[id.GetIdName()]
-}
-
-// putCompilerInput is Compiler.putCompilerInput(CompilerInput).
-func (c *scopeDumpCompiler) putCompilerInput(input *CompilerInput) {
-	input.SetCompiler(c)
-	c.inputsById[input.GetInputId().GetIdName()] = input
-}
-
 // newScopeDumpCompiler is ScopeDump.newCompiler.
-func newScopeDumpCompiler() *scopeDumpCompiler {
+func newScopeDumpCompiler() *testCompiler {
 	options := NewCompilerOptions()
 	options.SetLanguageIn(CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
-	return &scopeDumpCompiler{
-		AbstractCompiler: newTestCompiler(options),
-		inputsById:       map[string]*CompilerInput{},
-	}
+	return newTestCompiler(options).(*testCompiler)
 }
 
 // scopeDumpParserConfig is Compiler.getParserConfig(ConfigContext.DEFAULT)

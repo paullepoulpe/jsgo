@@ -13,7 +13,7 @@ import (
 // newSyntacticScopeCreatorTest is its setUp.
 type syntacticScopeCreatorTest struct {
 	t              *testing.T
-	compiler       *scopeTestCompiler
+	compiler       *testCompiler
 	scopeCreator   *SyntacticScopeCreator
 	redeclarations map[string]int // the HashMultiset<String>
 }
@@ -34,11 +34,14 @@ func newSyntacticScopeCreatorTest_RecordingRedeclarationHandler(
 	return &syntacticScopeCreatorTest_RecordingRedeclarationHandler{s: s}
 }
 
-// getRoot is SyntacticScopeCreatorTest.getRoot. (Its check that the
-// compiler reported no errors needs the Compiler's error manager; the inputs
-// are valid code.)
+// Java: SyntacticScopeCreatorTest.getRoot(String)
 func (s *syntacticScopeCreatorTest) getRoot(js string) *rhino.Node {
-	return s.compiler.parseTestCode(js)
+	s.t.Helper()
+	root := s.compiler.ParseTestCode(js)
+	if errors := s.compiler.GetErrors(); len(errors) != 0 {
+		s.t.Fatalf("parse errors: %v", errors)
+	}
+	return root
 }
 
 // getScope is a helper to create a top-level scope from a JavaScript
@@ -51,7 +54,7 @@ func (s *syntacticScopeCreatorTest) getScope(js string) *Scope {
 func newSyntacticScopeCreatorTest(t *testing.T) *syntacticScopeCreatorTest {
 	s := &syntacticScopeCreatorTest{t: t}
 	options := NewCompilerOptions()
-	s.compiler = newScopeTestCompiler(options)
+	s.compiler = scopeTestNewCompiler(options)
 	s.redeclarations = map[string]int{}
 	handler := newSyntacticScopeCreatorTest_RecordingRedeclarationHandler(s)
 	s.scopeCreator = NewSyntacticScopeCreatorWithRedeclarationHandler(s.compiler, handler)
