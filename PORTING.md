@@ -249,8 +249,10 @@ behaviour. Use the `internal/jutil` helpers.
     through `Iterator()`.
   - A `HashMap`/`HashSet`/hash multimap that is only looked up (`get`,
     `contains`, `put`, `remove`, never iterated), or whose keys are
-    identity-hashed (`Node`, `Var`, `JSType`, enums, plain objects: Java's
-    own order is then nondeterministic, so Closure cannot depend on it)
+    identity-hashed (`Node`, `Var`, enums, plain objects: Java's own order
+    is then nondeterministic, so Closure cannot depend on it; `JSType` is
+    mixed, with identity hashes for constructors, `AllType`, `NoObjectType`
+    and others, so treat it as identity-hashed)
     stays `*jutil.LinkedHashMap`/`LinkedHashSet` or an insertion-ordered
     multimap. A hash multimap with identity-hashed keys but value-hashed
     values whose value order is observable needs `HashMultimap`. When it is
