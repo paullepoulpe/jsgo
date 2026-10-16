@@ -19,12 +19,36 @@ for p in pkgs:
         if f.endswith('.java'):
             files[f[:-5] if p == 'jscomp' else p.split('/')[-1] + '/' + f[:-5]] = os.path.join(d, f)
 def strip(src):
-    src = re.sub(r'/\*.*?\*/', ' ', src, flags=re.S)
-    src = re.sub(r'//[^\n]*', ' ', src)
-    src = re.sub(r'"""(.*?)"""', '""', src, flags=re.S)
-    src = re.sub(r'"(\\.|[^"\\\n])*"', '""', src)
-    src = re.sub(r"'(\\.|[^'\\\n])*'", "''", src)
-    return src
+    """Blanks out comments, string/char literals and text blocks with a single
+    left-to-right scan (regexes applied pass by pass mis-handle '"' and
+    apostrophes inside strings, and silently drop real code)."""
+    out = []
+    i, n = 0, len(src)
+    while i < n:
+        c = src[i]
+        if src.startswith('//', i):
+            j = src.find('\n', i)
+            i = n if j < 0 else j
+        elif src.startswith('/*', i):
+            j = src.find('*/', i + 2)
+            i = n if j < 0 else j + 2
+            out.append(' ')
+        elif src.startswith('"""', i):
+            j = src.find('"""', i + 3)
+            while j > 0 and src[j - 1] == '\\':
+                j = src.find('"""', j + 1)
+            i = n if j < 0 else j + 3
+            out.append('""')
+        elif c == '"' or c == "'":
+            j = i + 1
+            while j < n and src[j] != c and src[j] != '\n':
+                j += 2 if src[j] == '\\' else 1
+            i = j + 1
+            out.append(c + c)
+        else:
+            out.append(c)
+            i += 1
+    return ''.join(out)
 def sloc(src):
     return sum(1 for l in src.split('\n') if l.strip())
 simple = {}  # simple class name -> key
