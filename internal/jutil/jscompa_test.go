@@ -374,3 +374,20 @@ func TestHashBasedTableOrder(t *testing.T) {
 		t.Errorf("size/containsRow/row")
 	}
 }
+
+func TestImmutableListBuilder(t *testing.T) {
+	b := ImmutableList_Builder_[*int]()
+	x := 1
+	b.Add(&x)
+	first := b.Build()
+	b.AddAll([]*int{&x})
+	if len(first) != 1 || len(b.Build()) != 2 || ImmutableList_Builder_[string]().Build() == nil {
+		t.Errorf("builder")
+	}
+	defer func() {
+		if _, ok := recover().(*NullPointerException); !ok {
+			t.Errorf("expected NPE")
+		}
+	}()
+	b.Add(nil)
+}
