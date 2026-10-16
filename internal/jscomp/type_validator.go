@@ -873,7 +873,9 @@ func (v *TypeValidator) ExpectUndeclaredVariable(
 		// was made in TypedScopeCreator#createInitialScope and is a
 		// native type. We should redeclare it at the new input site.
 		if var_.GetInput() == nil {
-			s := var_.GetScope()
+			// Go-only: language-adapter — getScope() returns S (TypedScope)
+			// in Java; the Go method keeps rhino.StaticScope (see AbstractVar).
+			s := var_.GetScope().(*TypedScope)
 			s.Undeclare(var_)
 			newVar = s.Declare(variableName, n, varType, input, false)
 
