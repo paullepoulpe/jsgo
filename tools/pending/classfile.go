@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"strconv"
 	"strings"
 	"unicode/utf16"
 
@@ -306,10 +307,20 @@ func parseClass(data []byte) (*ClassInfo, error) {
 		m.ParamNames = paramNames(m, mp, lvt)
 		c.Methods = append(c.Methods, m)
 	}
+	var bootstraps [][]uint16
 	readAttrs(func(name string, body []byte) {
 		switch name {
 		case "Signature":
 			c.Signature = utf(binary.BigEndian.Uint16(body))
+		case "BootstrapMethods":
+			br := &classReader{b: body}
+			for k := int(br.u2()); k > 0; k-- {
+				bsm := []uint16{br.u2()}
+				for j := int(br.u2()); j > 0; j-- {
+					bsm = append(bsm, br.u2())
+				}
+				bootstraps = append(bootstraps, bsm)
+			}
 		case "InnerClasses":
 			cnt := int(binary.BigEndian.Uint16(body))
 			for j := 0; j < cnt; j++ {
@@ -342,7 +353,7 @@ func parseClass(data []byte) (*ClassInfo, error) {
 	}
 	for _, m := range c.Methods {
 		if m.Name == "<clinit>" {
-			scanStaticInit(c, cp, m.code)
+			scanStaticInit(c, cp, bootstraps, m.code)
 		}
 	}
 	return c, nil
@@ -495,11 +506,13 @@ func opcodeLength(code []byte, pc int) int {
 // DiagnosticType.error|warning|disabled("KEY", "format")` (the format may be
 // built with JSCompStrings.lines) and `DiagnosticType.make("KEY",
 // CheckLevel.L, "format")` from <clinit>.
-func scanStaticInit(c *ClassInfo, cp []cpEntry, code []byte) {
+func scanStaticInit(c *ClassInfo, cp []cpEntry, bootstraps [][]uint16, code []byte) {
 	// A tiny abstract interpreter over <clinit>: string and int constants,
-	// String[] varargs arrays, CheckLevel constants, JSCompStrings.lines and
-	// the DiagnosticType factories. Any other instruction clears the stack,
-	// so only initializers built entirely from those are recovered.
+	// String[] varargs arrays, CheckLevel constants, JSCompStrings.lines,
+	// String.replace, string concatenation (invokedynamic
+	// makeConcatWithConstants) and the DiagnosticType factories. Any other
+	// instruction clears the stack, so only initializers built entirely from
+	// those are recovered.
 	type value struct {
 		kind  byte // 's' string, 'i' int, 'a' String[], 'l' CheckLevel, 'd' DiagnosticType expression
 		s     string
@@ -607,6 +620,76 @@ func scanStaticInit(c *ClassInfo, cp []cpEntry, code []byte) {
 			default:
 				stack = stack[:0]
 			}
+		case op == 182: // invokevirtual
+			owner, name, desc := ref(binary.BigEndian.Uint16(code[pc+1:]))
+			if owner == "java/lang/String" && name == "replace" && desc == "(Ljava/lang/CharSequence;Ljava/lang/CharSequence;)Ljava/lang/String;" {
+				repl, target, recv := pop(), pop(), pop()
+				if recv != nil && recv.kind == 's' && target != nil && target.kind == 's' && target.s != "" && repl != nil && repl.kind == 's' {
+					push(&value{kind: 's', s: strings.ReplaceAll(recv.s, target.s, repl.s)})
+				} else {
+					push(nil)
+				}
+			} else {
+				stack = stack[:0]
+			}
+		case op == 186: // invokedynamic
+			indy := cp[binary.BigEndian.Uint16(code[pc+1:])]
+			nt := cp[indy.b]
+			desc := cp[nt.b].str
+			var bsm []uint16
+			if int(indy.a) < len(bootstraps) {
+				bsm = bootstraps[indy.a]
+			}
+			concat := false
+			if len(bsm) >= 2 {
+				mh := cp[bsm[0]]
+				owner, name, _ := ref(mh.b)
+				concat = owner == "java/lang/invoke/StringConcatFactory" && name == "makeConcatWithConstants" && cp[bsm[1]].tag == 8
+			}
+			if !concat {
+				stack = stack[:0]
+				continue
+			}
+			args := make([]*value, descParamCount(desc))
+			for i := len(args) - 1; i >= 0; i-- {
+				args[i] = pop()
+			}
+			recipe := cp[cp[bsm[1]].a].str
+			var b strings.Builder
+			ok := true
+			nextArg, nextConst := 0, 2
+			for i := 0; i < len(recipe) && ok; i++ {
+				switch recipe[i] {
+				case 1:
+					if nextArg >= len(args) || args[nextArg] == nil {
+						ok = false
+						break
+					}
+					switch v := args[nextArg]; v.kind {
+					case 's':
+						b.WriteString(v.s)
+					case 'i':
+						b.WriteString(strconv.Itoa(v.i))
+					default:
+						ok = false
+					}
+					nextArg++
+				case 2:
+					if nextConst >= len(bsm) || cp[bsm[nextConst]].tag != 8 {
+						ok = false
+						break
+					}
+					b.WriteString(cp[cp[bsm[nextConst]].a].str)
+					nextConst++
+				default:
+					b.WriteByte(recipe[i])
+				}
+			}
+			if ok {
+				push(&value{kind: 's', s: b.String()})
+			} else {
+				push(nil)
+			}
 		case op == 179: // putstatic
 			fowner, fname, _ := ref(binary.BigEndian.Uint16(code[pc+1:]))
 			v := pop()
@@ -617,6 +700,21 @@ func scanStaticInit(c *ClassInfo, cp []cpEntry, code []byte) {
 			stack = stack[:0]
 		}
 	}
+}
+
+// descParamCount counts the parameters of a method descriptor.
+func descParamCount(desc string) int {
+	n := 0
+	for i := 1; i < len(desc) && desc[i] != ')'; i++ {
+		for desc[i] == '[' {
+			i++
+		}
+		if desc[i] == 'L' {
+			i = strings.IndexByte(desc[i:], ';') + i
+		}
+		n++
+	}
+	return n
 }
 
 // readJar parses every class of the given package prefixes in the jar.
