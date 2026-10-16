@@ -51,7 +51,13 @@ type WarningsGuard interface {
 
 // WarningsGuardBase holds the base implementations of WarningsGuard;
 // subclasses embed it.
-type WarningsGuardBase struct{}
+type WarningsGuardBase struct {
+	// Go-only: language-adapter — Java compares guards by identity
+	// (ComposeWarningsGuard keys them in a map and orders them in a
+	// TreeSet), but pointers to distinct zero-size Go values may be equal,
+	// so the base keeps every guard (e.g. StrictWarningsGuard) non-zero-size.
+	_ byte
+}
 
 const warningsGuard_serialVersionUID int64 = 1
 
