@@ -107,6 +107,15 @@ func CharacterIsDigit(ch uint16) bool {
 	return unicode.Is(unicode.Nd, rune(ch))
 }
 
+// CharacterIsUpperCase is Character.isUpperCase(char): per its Javadoc,
+// general category Lu or the Unicode property Other_Uppercase.
+func CharacterIsUpperCase(ch uint16) bool {
+	if ch < 0x80 {
+		return ch >= 'A' && ch <= 'Z'
+	}
+	return unicode.In(rune(ch), unicode.Lu, unicode.Other_Uppercase)
+}
+
 func isSurrogate(ch uint16) bool { return ch >= 0xD800 && ch <= 0xDFFF }
 
 // Character_MIN_RADIX / Character_MAX_RADIX are Character.MIN_RADIX/MAX_RADIX.
