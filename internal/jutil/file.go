@@ -10,27 +10,28 @@ type File struct {
 	path string
 }
 
-// NewFile is new File(String pathname): the pathname is normalized like
-// UnixFileSystem.normalize (duplicate separators and a trailing separator
-// are removed).
+// NewFile is new File(String pathname). The pathname is normalized as
+// observed through File.getPath() (file_test.go): runs of '/' collapse to
+// one and a trailing '/' is dropped, except in the root path "/".
 func NewFile(pathname string) *File {
 	return &File{path: fileNormalize(pathname)}
 }
 
+// fileNormalize drops the empty names of a '/'-separated pathname, keeping
+// a leading '/'.
 func fileNormalize(pathname string) string {
-	var sb strings.Builder
-	prev := byte(0)
-	for i := 0; i < len(pathname); i++ {
-		c := pathname[i]
-		if c == '/' && prev == '/' {
-			continue
-		}
-		sb.WriteByte(c)
-		prev = c
+	if !strings.Contains(pathname, "//") && (len(pathname) <= 1 || !strings.HasSuffix(pathname, "/")) {
+		return pathname
 	}
-	s := sb.String()
-	if len(s) > 1 && strings.HasSuffix(s, "/") {
-		s = s[:len(s)-1]
+	var names []string
+	for _, name := range strings.Split(pathname, "/") {
+		if name != "" {
+			names = append(names, name)
+		}
+	}
+	s := strings.Join(names, "/")
+	if strings.HasPrefix(pathname, "/") {
+		s = "/" + s
 	}
 	return s
 }

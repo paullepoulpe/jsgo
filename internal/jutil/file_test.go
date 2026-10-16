@@ -32,7 +32,10 @@ func TestFileCharSourceReadLines(t *testing.T) {
 			t.Errorf("readLines(%q) = %q, want %q", in, sb.String(), want)
 		}
 	}
-	for in, want := range map[string]string{"a//b/": "a/b", "/": "/", "": "", "//x//": "/x"} {
+	for in, want := range map[string]string{
+		"a//b/": "a/b", "/": "/", "": "", "//x//": "/x",
+		"a//b": "a/b", "a/": "a", "///": "/", "//": "/", "a///": "a", "./a/": "./a", "a/./b": "a/./b",
+	} {
 		if got := NewFile(in).GetPath(); got != want {
 			t.Errorf("new File(%q).getPath() = %q, want %q", in, got, want)
 		}

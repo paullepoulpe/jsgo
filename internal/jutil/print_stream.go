@@ -12,8 +12,8 @@ import (
 
 // PrintStream is java.io.PrintStream.
 type PrintStream struct {
-	out     io.Writer
-	trouble bool
+	out           io.Writer
+	errorOccurred bool
 }
 
 // NewPrintStream is new PrintStream(OutputStream).
@@ -23,7 +23,7 @@ func NewPrintStream(out io.Writer) *PrintStream {
 
 func (p *PrintStream) write(s string) {
 	if _, err := p.out.Write(StringGetBytesUTF8(s)); err != nil {
-		p.trouble = true
+		p.errorOccurred = true
 	}
 }
 
@@ -74,7 +74,7 @@ func (p *PrintStream) AppendCharacter(c uint16) { p.write(StringFromChar(c)) }
 func (p *PrintStream) Flush() {
 	if f, ok := p.out.(interface{ Flush() error }); ok {
 		if err := f.Flush(); err != nil {
-			p.trouble = true
+			p.errorOccurred = true
 		}
 	}
 }
@@ -82,7 +82,7 @@ func (p *PrintStream) Flush() {
 // CheckError is PrintStream.checkError().
 func (p *PrintStream) CheckError() bool {
 	p.Flush()
-	return p.trouble
+	return p.errorOccurred
 }
 
 // Write is PrintStream.write(byte[]) (which PrintStream inherits from
@@ -92,7 +92,7 @@ func (p *PrintStream) CheckError() bool {
 // io.Writer, for code taking an OutputStream.
 func (p *PrintStream) Write(b []byte) (int, error) {
 	if _, err := p.out.Write(b); err != nil {
-		p.trouble = true
+		p.errorOccurred = true
 	}
 	return len(b), nil
 }
@@ -114,7 +114,7 @@ func (p *PrintStream) Close() {
 	p.Flush()
 	if c, ok := p.out.(io.Closer); ok {
 		if err := c.Close(); err != nil {
-			p.trouble = true
+			p.errorOccurred = true
 		}
 	}
 }

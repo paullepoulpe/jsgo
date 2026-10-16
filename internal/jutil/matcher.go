@@ -112,13 +112,13 @@ func (m *Matcher) Find() bool {
 // GroupCount is Matcher.groupCount().
 func (m *Matcher) GroupCount() int { return m.p.groups }
 
-func (m *Matcher) checkMatch() {
+func (m *Matcher) requireMatch() {
 	if m.groups == nil {
 		panic(NewIllegalStateExceptionMsg("No match found"))
 	}
 }
 
-func (m *Matcher) checkGroup(group int) {
+func (m *Matcher) requireGroupIndex(group int) {
 	if group < 0 || group > m.GroupCount() {
 		panic(NewIndexOutOfBoundsException("No group " + itoa(group)))
 	}
@@ -126,20 +126,20 @@ func (m *Matcher) checkGroup(group int) {
 
 // Start is Matcher.start(): the UTF-16 index of the start of the match.
 func (m *Matcher) Start() int {
-	m.checkMatch()
+	m.requireMatch()
 	return StringLength(m.input[:m.groups[0]])
 }
 
 // End is Matcher.end(): the UTF-16 index after the end of the match.
 func (m *Matcher) End() int {
-	m.checkMatch()
+	m.requireMatch()
 	return StringLength(m.input[:m.groups[1]])
 }
 
 // StartGroup is Matcher.start(int): -1 when the group did not match.
 func (m *Matcher) StartGroup(group int) int {
-	m.checkMatch()
-	m.checkGroup(group)
+	m.requireMatch()
+	m.requireGroupIndex(group)
 	if m.groups[2*group] < 0 {
 		return -1
 	}
@@ -148,8 +148,8 @@ func (m *Matcher) StartGroup(group int) int {
 
 // EndGroup is Matcher.end(int): -1 when the group did not match.
 func (m *Matcher) EndGroup(group int) int {
-	m.checkMatch()
-	m.checkGroup(group)
+	m.requireMatch()
+	m.requireGroupIndex(group)
 	if m.groups[2*group+1] < 0 {
 		return -1
 	}
@@ -159,8 +159,8 @@ func (m *Matcher) EndGroup(group int) int {
 // Group is Matcher.group(int): nil when the group did not take part in the
 // match.
 func (m *Matcher) Group(group int) *string {
-	m.checkMatch()
-	m.checkGroup(group)
+	m.requireMatch()
+	m.requireGroupIndex(group)
 	if m.groups[2*group] < 0 {
 		return nil
 	}
@@ -204,7 +204,7 @@ func (m *Matcher) GroupAll() string {
 //     starts with digit character", and finally "No group with name
 //     {<name>}" for a well-formed name that the pattern does not define.
 func (m *Matcher) appendReplacement(sb *strings.Builder, appendPos int, replacement string) {
-	m.checkMatch()
+	m.requireMatch()
 	sb.WriteString(m.input[appendPos:m.groups[0]])
 	r := replacement
 	// Every special character is ASCII, so scanning the WTF-8 bytes is
@@ -257,7 +257,7 @@ func (m *Matcher) appendReplacement(sb *strings.Builder, appendPos int, replacem
 					group = longer
 					i++
 				}
-				m.checkGroup(group)
+				m.requireGroupIndex(group)
 			default:
 				panic(NewIllegalArgumentExceptionMsg("Illegal group reference"))
 			}

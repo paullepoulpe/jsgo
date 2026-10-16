@@ -7,11 +7,12 @@ import (
 
 // Go-only: language-adapter — java.io.OutputStreamWriter with the UTF-8
 // charset (or a UTF-8 CharsetEncoder) and CodingErrorAction.REPLACE, over a
-// Go io.WriteCloser. Like the JDK's StreamEncoder, a high surrogate at the
-// end of one write is kept until the next one (so that a pair split
-// between writes is encoded whole), and an unpaired surrogate is encoded as
-// the replacement byte '?'. Bytes are written through immediately (the
-// JDK's 8 KiB byte buffer only changes when they reach the stream).
+// Go io.WriteCloser. Observed behaviour (writers_test.go, against JDK 21's
+// public API): a high surrogate that ends one write pairs with a low
+// surrogate that starts the next, so a pair split between writes is encoded
+// whole, and an unpaired surrogate is encoded as the replacement byte '?'.
+// Bytes are written through immediately (Java buffers them, which only
+// changes when they reach the stream).
 
 // OutputStreamWriter is java.io.OutputStreamWriter.
 type OutputStreamWriter struct {
@@ -29,7 +30,7 @@ func NewOutputStreamWriter(out io.WriteCloser) *OutputStreamWriter {
 	return &OutputStreamWriter{out: out}
 }
 
-func (w *OutputStreamWriter) ensureOpen() {
+func (w *OutputStreamWriter) checkOpen() {
 	if w.closed {
 		panic(NewIOException("Stream closed"))
 	}
@@ -37,7 +38,7 @@ func (w *OutputStreamWriter) ensureOpen() {
 
 // Write is OutputStreamWriter.write(String).
 func (w *OutputStreamWriter) Write(s string) {
-	w.ensureOpen()
+	w.checkOpen()
 	units := StringToUTF16(s)
 	if w.hasPendingHighSurrogate {
 		units = append([]uint16{w.pendingHighSurrogate}, units...)
@@ -79,7 +80,7 @@ func (w *OutputStreamWriter) writeBytes(b []byte) {
 // Flush is OutputStreamWriter.flush(); the bytes are already in the stream
 // (see above).
 func (w *OutputStreamWriter) Flush() {
-	w.ensureOpen()
+	w.checkOpen()
 }
 
 // Close is OutputStreamWriter.close(): an unpaired high surrogate left
