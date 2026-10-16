@@ -626,9 +626,9 @@ func TestJsDocDumpOracle(t *testing.T) {
 	}
 	diffDir := os.Getenv("JSDOC_DIFF_DIR")
 	type result struct {
-		rel, diff, got      string
-		missing             bool
-		comments, same      int
+		rel, diff, got string
+		missing        bool
+		comments, same int
 	}
 	results := make([]result, len(rels))
 	var wg sync.WaitGroup
