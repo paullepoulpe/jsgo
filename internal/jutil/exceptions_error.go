@@ -15,6 +15,13 @@ type IError interface {
 	javaLangError()
 }
 
+// NewJavaLangError is new Error(String message).
+func NewJavaLangError(message string) *JavaLangError {
+	e := &JavaLangError{}
+	InitThrowable(e, "java.lang.Error", msgPtr(message), nil)
+	return e
+}
+
 // AssertionError is java.lang.AssertionError.
 type AssertionError struct{ JavaLangError }
 
