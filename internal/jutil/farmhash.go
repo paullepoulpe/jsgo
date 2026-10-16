@@ -34,6 +34,19 @@ func (h *FarmHashFingerprint64Hasher) PutLong(v int64) *FarmHashFingerprint64Has
 	return h
 }
 
+// PutInt is Hasher.putInt(int): four little-endian bytes.
+func (h *FarmHashFingerprint64Hasher) PutInt(v int32) *FarmHashFingerprint64Hasher {
+	h.buf = binary.LittleEndian.AppendUint32(h.buf, uint32(v))
+	return h
+}
+
+// PutStringUTF8 is Hasher.putString(CharSequence, StandardCharsets.UTF_8):
+// the bytes of String.getBytes(UTF_8) (unpaired surrogates become '?').
+func (h *FarmHashFingerprint64Hasher) PutStringUTF8(s string) *FarmHashFingerprint64Hasher {
+	h.buf = append(h.buf, StringGetBytesUTF8(s)...)
+	return h
+}
+
 // PutBytes is Hasher.putBytes(byte[]).
 func (h *FarmHashFingerprint64Hasher) PutBytes(b []byte) *FarmHashFingerprint64Hasher {
 	h.buf = append(h.buf, b...)
