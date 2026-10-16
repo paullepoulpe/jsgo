@@ -1045,7 +1045,9 @@ func (v *TypeValidator) CheckPropertyType(
 func (v *TypeValidator) ExpectAbstractMethodsImplemented(n *rhino.Node, ctorType rhino.FunctionType) {
 	jutil.CheckArgument(ctorType.IsConstructor())
 
-	abstractMethodSuperTypeMap := jutil.NewLinkedHashMap[rhino.Property_Key, rhino.ObjectType]()
+	// Go-only: language-adapter — an ObjectLinkedHashMap, since Property.Key
+	// compares with equals()/hashCode() (a SymbolKey through its symbol type).
+	abstractMethodSuperTypeMap := jutil.NewObjectLinkedHashMap[rhino.Property_Key, rhino.ObjectType]()
 	currSuperCtor := ctorType.GetSuperClassConstructor()
 	if currSuperCtor == nil || !currSuperCtor.IsAbstract() {
 		return
