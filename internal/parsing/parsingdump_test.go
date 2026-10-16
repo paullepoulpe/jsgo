@@ -8,7 +8,17 @@ package parsing
 // comments, and every message sent to the rhino ErrorReporter.
 //
 //   - TestParsingDumpGolden compares against the checked-in Java dumps in
-//     testdata/parse/ (always runs).
+//     testdata/parse/<config>/<rel>.parse.gz of the sources in
+//     testdata/parse/src/<rel> (always runs): IRFactory-specific inputs
+//     (closure-unaware code, comment attachment, validations, literals) under
+//     every JsDocParsing mode, ES3/ES5/ES2015 and KEEP_GOING, and broken
+//     inputs under KEEP_GOING. Regenerate a directory with
+//       java -Xss1g -cp closure-compiler.jar:<build> ParsingDump --gzip <options> \
+//         testdata/parse/<config> testdata/parse/src <rel>...
+//     where <options> is "" (default), --keep-going, --keep-going
+//     --jsdoc-mode=INCLUDE_ALL_COMMENTS, --jsdoc-mode=<MODE> (include-*,
+//     license-comments-only), --lang=<MODE> (ecmascript*), or --lang=ECMASCRIPT3
+//     --keep-going --jsdoc-mode=INCLUDE_ALL_COMMENTS.
 //   - TestParsingDumpOracle compares a whole set when PARSE_ROOT (the root of
 //     the sources) and PARSE_ORACLE_DIR (the ParsingDump output for it, as
 //     <rel>.parse or <rel>.parse.gz) are set; PARSE_FILES optionally names a
@@ -259,33 +269,44 @@ func firstDiff(want, got string) string {
 }
 
 func TestParsingDumpGolden(t *testing.T) {
-	var files []string
-	err := filepath.Walk("testdata/parse", func(path string, info os.FileInfo, err error) error {
-		if err == nil && !info.IsDir() && strings.HasSuffix(path, ".js") {
-			files = append(files, path)
-		}
-		return nil
-	})
+	const root = "testdata/parse"
+	modes, err := os.ReadDir(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(files) == 0 {
-		t.Fatal("no golden files")
+	n := 0
+	for _, mode := range modes {
+		if !mode.IsDir() || mode.Name() == "src" {
+			continue
+		}
+		dir := filepath.Join(root, mode.Name())
+		err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+			if err != nil || info.IsDir() || !strings.HasSuffix(path, ".parse.gz") {
+				return err
+			}
+			rel, _ := filepath.Rel(dir, strings.TrimSuffix(path, ".parse.gz"))
+			rel = filepath.ToSlash(rel) // the Java dumps were made with this name
+			src, err := os.ReadFile(filepath.Join(root, "src", rel))
+			if err != nil {
+				return err
+			}
+			want, err := readDump(strings.TrimSuffix(path, ".gz"))
+			if err != nil {
+				return err
+			}
+			n++
+			got := dumpParsing(rel, string(src), configFromDump(want))
+			if same, w, g := sameDump(want, got); !same {
+				t.Errorf("%s/%s: dump differs from Java at %s", mode.Name(), rel, firstDiff(w, g))
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
-	for _, f := range files {
-		rel, _ := filepath.Rel("testdata/parse", f) // the Java dumps were made with this name
-		src, err := os.ReadFile(f)
-		if err != nil {
-			t.Fatal(err)
-		}
-		want, err := readDump(f + ".parse")
-		if err != nil {
-			t.Fatal(err)
-		}
-		got := dumpParsing(filepath.ToSlash(rel), string(src), configFromDump(want))
-		if same, w, g := sameDump(want, got); !same {
-			t.Errorf("%s: dump differs from Java at %s", rel, firstDiff(w, g))
-		}
+	if n < 100 {
+		t.Fatalf("only %d golden dumps", n)
 	}
 }
 

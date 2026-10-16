@@ -1,0 +1,2 @@
+/** @closureUnaware */ (
+  function() {}).call(globalThis);
