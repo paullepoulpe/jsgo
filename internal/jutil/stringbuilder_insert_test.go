@@ -29,3 +29,24 @@ func TestStringBuilderInsert(t *testing.T) {
 		}()
 	}
 }
+
+// new StringBuilder(int) starts empty; appends past the capacity keep
+// every unit.
+func TestStringBuilderWithCapacity(t *testing.T) {
+	b := NewStringBuilderWithCapacity(4)
+	for i := 0; i < 100; i++ {
+		b.Append("ab").AppendChar('c')
+	}
+	b.Append("é😀")
+	if b.Length() != 303 || b.CharAt(299) != 'c' || b.CharAt(300) != 0xE9 {
+		t.Errorf("length %d", b.Length())
+	}
+	func() {
+		defer func() {
+			if _, ok := recover().(*NegativeArraySizeException); !ok {
+				t.Errorf("new StringBuilder(-1): want NegativeArraySizeException")
+			}
+		}()
+		NewStringBuilderWithCapacity(-1)
+	}()
+}

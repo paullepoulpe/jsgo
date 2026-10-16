@@ -12,6 +12,29 @@ type StringBuilder struct {
 // NewStringBuilder is new StringBuilder().
 func NewStringBuilder() *StringBuilder { return &StringBuilder{} }
 
+// NewStringBuilderWithCapacity is new StringBuilder(int capacity).
+func NewStringBuilderWithCapacity(capacity int) *StringBuilder {
+	if capacity < 0 {
+		panic(NewNegativeArraySizeException(strconv.Itoa(capacity)))
+	}
+	return &StringBuilder{units: make([]uint16, 0, capacity)}
+}
+
+// grow makes room for n more units with Java's AbstractStringBuilder
+// policy (the capacity at least doubles), so that appending a long text
+// piece by piece copies it a bounded number of times, as in Java.
+func (b *StringBuilder) grow(n int) {
+	if need := len(b.units) + n; need > cap(b.units) {
+		newCap := 2*cap(b.units) + 2
+		if newCap < need {
+			newCap = need
+		}
+		units := make([]uint16, len(b.units), newCap)
+		copy(units, b.units)
+		b.units = units
+	}
+}
+
 // NewStringBuilderFrom is new StringBuilder(String).
 func NewStringBuilderFrom(s string) *StringBuilder {
 	return &StringBuilder{units: StringToUTF16(s)}
@@ -21,17 +44,21 @@ func NewStringBuilderFrom(s string) *StringBuilder {
 // String.valueOf).
 func (b *StringBuilder) Append(s string) *StringBuilder {
 	if isASCII(s) {
+		b.grow(len(s))
 		for i := 0; i < len(s); i++ {
 			b.units = append(b.units, uint16(s[i]))
 		}
 		return b
 	}
-	b.units = append(b.units, StringToUTF16(s)...)
+	u := StringToUTF16(s)
+	b.grow(len(u))
+	b.units = append(b.units, u...)
 	return b
 }
 
 // AppendChar is StringBuilder.append(char).
 func (b *StringBuilder) AppendChar(c uint16) *StringBuilder {
+	b.grow(1)
 	b.units = append(b.units, c)
 	return b
 }
@@ -80,6 +107,7 @@ func (b *StringBuilder) Insert(offset int, s string) *StringBuilder {
 	n := len(b.units)
 	// Shift the tail in place (amortized growth, as Java's
 	// AbstractStringBuilder does) instead of copying the whole buffer.
+	b.grow(len(u))
 	b.units = append(b.units, u...)
 	copy(b.units[offset+len(u):], b.units[offset:n])
 	copy(b.units[offset:], u)
@@ -92,6 +120,7 @@ func (b *StringBuilder) InsertChar(offset int, c uint16) *StringBuilder {
 		panic(NewStringIndexOutOfBoundsException(offset, len(b.units)))
 	}
 	n := len(b.units)
+	b.grow(1)
 	b.units = append(b.units, 0)
 	copy(b.units[offset+1:], b.units[offset:n])
 	b.units[offset] = c
