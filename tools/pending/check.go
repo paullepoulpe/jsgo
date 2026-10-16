@@ -41,6 +41,11 @@ func loadGoPackage(dir, generated string) (*goPackage, error) {
 		if e.IsDir() || !strings.HasSuffix(name, ".go") || name == generated {
 			continue
 		}
+		// Files excluded by build constraints (e.g. a test waiting for a
+		// port behind a //go:build tag) are not part of the package.
+		if ok, err := build.Default.MatchFile(dir, name); err != nil || !ok {
+			continue
+		}
 		f, err := parser.ParseFile(p.fset, filepath.Join(dir, name), nil, parser.ParseComments)
 		if err != nil {
 			return nil, err

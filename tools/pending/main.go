@@ -11,7 +11,8 @@
 // names by PORTING.md's naming rules (overloads are told apart by the call
 // site's arity and argument types), reads that member's signature from the
 // pinned jar, and declares it with the Go types the ports use. Bodies panic
-// with "pending port: <Java signature>". It repeats until nothing new
+// with &PendingPort{"<Java signature>"} ("pending port: ..."), which
+// RunJUnit4 reports as a skip. It repeats until nothing new
 // resolves (a declared return type lets the next selector resolve), so the
 // result holds exactly the members the root files use. Classes that have a
 // real port (a "// Port of" header names their Java file, or their Go type

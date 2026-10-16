@@ -32,6 +32,7 @@ func sourceInformationAnnotatorTestOriginalName(n *rhino.Node) string {
 }
 
 func TestSourceInformationAnnotator_PreserveAnnotatedName(t *testing.T) {
+	defer SkipIfPendingPort(t) // new Compiler() needs ClosureCodingConvention
 	root := rhino.NewNode(rhino.Token_SCRIPT)
 	name := rhino.Node_NewString("foo")
 	bar := "bar"
@@ -45,6 +46,7 @@ func TestSourceInformationAnnotator_PreserveAnnotatedName(t *testing.T) {
 }
 
 func TestSourceInformationAnnotator_SetOriginalGetpropNames(t *testing.T) {
+	defer SkipIfPendingPort(t) // new Compiler() needs ClosureCodingConvention
 	root := rhino.NewNode(rhino.Token_SCRIPT)
 	getprop := rhino.IR_Getprop(rhino.IR_Name("x"), "y")
 	root.AddChildToBack(rhino.IR_ExprResult(getprop))
@@ -57,6 +59,7 @@ func TestSourceInformationAnnotator_SetOriginalGetpropNames(t *testing.T) {
 }
 
 func TestSourceInformationAnnotator_SetOriginalOptChainGetpropNames(t *testing.T) {
+	defer SkipIfPendingPort(t) // new Compiler() needs ClosureCodingConvention
 	root := rhino.NewNode(rhino.Token_SCRIPT)
 	getprop := rhino.IR_StartOptChainGetprop(rhino.IR_Name("x"), "y")
 	root.AddChildToBack(rhino.IR_ExprResult(getprop))
@@ -70,6 +73,7 @@ func TestSourceInformationAnnotator_SetOriginalOptChainGetpropNames(t *testing.T
 
 // Java: SourceInformationAnnotatorTest.doesNotSetOriginalStringName()
 func TestSourceInformationAnnotator_DoesNotSetOriginalStringName(t *testing.T) {
+	defer SkipIfPendingPort(t) // new Compiler() needs ClosureCodingConvention
 	root := rhino.NewNode(rhino.Token_SCRIPT)
 	string_ := rhino.IR_String("x")
 	root.AddChildToBack(rhino.IR_ExprResult(string_))
