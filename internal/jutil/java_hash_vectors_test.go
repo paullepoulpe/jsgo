@@ -487,7 +487,7 @@ func jhReplayMap[K any](t *testing.T, si int, sc [][]string, p jhPool[K], cov *j
 				k, _ := it.Next()
 				vis = append(vis, strconv.Itoa(p.index(k)))
 				if i%mod == rem {
-					if it.current.rb != nil {
+					if it.lastReturned.rb != nil {
 						cov.treeIterRemove++
 					}
 					it.Remove()
