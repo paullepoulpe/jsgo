@@ -1,42 +1,18 @@
 # jsgo
 
-A Go port of Google Closure Compiler's type checker, inspired by
-tsgo (TypeScript → Go). jsgo aims to produce the same diagnostics
-as `closure-compiler --checks_only` on the same source — modulo
-message strings; only `(path, line, col, code)` tuples are part of
-the conformance check.
+A Go port of [Google Closure Compiler](https://github.com/google/closure-compiler),
+aiming to be a drop-in replacement: same flags, same output, same diagnostics.
 
-Currently at **1200/1444 = 83.10%** on an extracted benchmark of
-`TypeCheckTest.java` cases (1105/1444 = 76.52% under
-`--jscomp_warning=strictCheckTypes`); Tier-0..Tier-3 hand-authored
-corpora are all at 100%.
+The port is a whole-file, 1:1 translation of the pinned Java release
+(**v20260415**), built bottom-up and verified layer by layer against the
+Java compiler itself on large corpora.
 
-## Documents
-
-- [SPEC.md](SPEC.md) — the MVP contract, tiered corpora, and
-  enforced guardrails.
-- [ARCHITECTURE.md](ARCHITECTURE.md) — port philosophy, code layout
-  mapping to Java, pass pipeline, harness.
-- [TODO.md](TODO.md) — exhaustive list of remaining Java ports
-  needed to reach 100% parity with closure-compiler on the
-  extracted corpus.
-
-## Usage
+- [PLAN.md](PLAN.md) — feasibility assessment, strategy and roadmap.
+- [PORTING.md](PORTING.md) — the translation contract every ported file follows.
+- [tools/oracle/](tools/oracle/) — tools that extract ground truth from the Java compiler.
+- [legacy/](legacy/) — the earlier type-checker-only attempt, frozen for reference.
 
 ```sh
-go build -o bin/jsgo ./cmd/jsgo
-./bin/jsgo typecheck testdata/fixtures/tier0/001_type_mismatch_var.js
+make            # build, vet, test
+make oracle-tools   # fetch the pinned jar/sources and build the Java oracle tools (needs a JDK)
 ```
-
-## Development
-
-```sh
-make all                    # build + go test + ci-guards
-make oracle                 # regenerate cached Java oracles (needs JDK)
-go run ./tools/extract_fixtures <TypeCheckTest.java> testdata/fixtures/extracted
-```
-
-Guardrails are enforced by `scripts/ci-guards.sh` — pure-Go runtime,
-no oracle leakage into source, every `internal/` Go file traces to
-a real closure-compiler Java source. See [SPEC.md](SPEC.md) for the
-full list.

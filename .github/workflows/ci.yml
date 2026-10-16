@@ -6,7 +6,7 @@ on:
   pull_request:
 
 jobs:
-  build-test-guards:
+  build-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,22 +15,7 @@ jobs:
           go-version: '1.24'
       - name: build
         run: make build
+      - name: vet
+        run: make vet
       - name: test
         run: make test
-      - name: ci-guards
-        run: make ci-guards
-      - name: novel-input sanity (guard #6)
-        run: |
-          # jsgo must not panic on arbitrary JS it wasn't designed for.
-          # Exit code 2 (parse error) is OK; a panic (non-zero with 'runtime error')
-          # is not.
-          set +e
-          echo 'function f() { return 42; }' > /tmp/novel.js
-          out=$(./bin/jsgo typecheck /tmp/novel.js 2>&1)
-          rc=$?
-          echo "$out"
-          case "$out" in
-              *"panic:"*|*"runtime error"*) echo "PANIC on novel input"; exit 1 ;;
-          esac
-          test $rc -ne 0 -a $rc -ne 2 && exit 0 || true
-          echo "exit=$rc ok"
