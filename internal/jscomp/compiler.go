@@ -3910,7 +3910,7 @@ func (c *Compiler) GetBase64SourceMapContents(sourceFileName string) *string {
 	}
 	if sourceMappingURL != nil && strings.HasSuffix(*sourceMappingURL, ".inline.map") {
 		unencoded := sourceMapInput.GetRawSourceMapContents() // This is the sourcemap.
-		encoded := jutil.BaseEncoding_Base64().Encode([]byte(unencoded))
+		encoded := jutil.BaseEncoding_Base64().Encode([]byte(*unencoded))
 		return &encoded
 	}
 	return nil
