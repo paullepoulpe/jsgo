@@ -267,9 +267,22 @@ behaviour. Use the `internal/jutil` helpers.
     depends on it).
   - Keys with custom `equals`/`hashCode` need the `jutil` hashed variants;
     a Go map would compare pointers instead.
-- **Regex.** `java.util.regex` is not RE2. Each of the ~52 uses must be
-  checked for backreferences/lookaround and ported with an equivalent
-  matcher where needed.
+- **Regex.** `java.util.regex` is not RE2, and the differences are not only
+  backreferences and lookaround:
+  - Java's `\s` includes `\x0B`;
+  - Java's `.` also excludes `\r`, `\u0085`, `\u2028` and `\u2029`;
+  - without MULTILINE, Java's `$` also matches before a final line
+    terminator;
+  - `matches()`, `lookingAt()` and `find()` differ, as do `split` and
+    `replaceAll` replacement syntax.
+
+  So every `Pattern`/`Matcher`/`String.matches`/`replaceAll`/`split(regex)`
+  goes through `jutil.Pattern` (and its Matcher and String helpers), which
+  translates Java syntax and semantics and panics on constructs it cannot
+  express. Do not import Go's `regexp` in ported code. Where `jutil.Pattern`
+  lacks a construct, extend it (jutil-only commit with JDK vectors) or write
+  an equivalent hand matcher marked `// Go-only: language-adapter —
+  <construct>`.
 
 ### Extending `jutil` when several ports run in parallel
 
