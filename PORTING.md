@@ -133,8 +133,29 @@ trailing underscore (`type_`, `func_`, `range_`, `len_`).
   superclass struct (ultimately `jutil.ThrowableBase`) and declare their own
   marker interface.
 - Guava `Preconditions.checkState/checkArgument/checkNotNull` →
-  `jutil.CheckState`, `jutil.CheckArgument`, `jutil.CheckNotNull` (with
-  `...Msg` variants). These are behaviour, not decoration: keep every one.
+  `jutil.CheckState`, `jutil.CheckArgument`, `jutil.CheckNotNull`. These are
+  behaviour, not decoration: keep every one.
+  - With a message template, use the fixed-arity form matching the number
+    of template arguments:
+    - `jutil.CheckStateMsg1/2/3`;
+    - `jutil.CheckArgumentMsg1/2/3`;
+    - `jutil.CheckNotNullMsg1/2`.
+  - Use the variadic `...Msg` form only for 4+ arguments. The variadic form
+    boxes every argument on every call, even when the check passes. It cost
+    8% of parse time before it was fixed. These forms mirror Guava's own
+    non-varargs overloads.
+- Allocation is the main cost of a line-for-line port in Go. The JVM's
+  escape analysis removes allocations that Go keeps. So, in code that runs
+  per node, per token or per character:
+  - do not pass `...any`;
+  - do not convert to `any`;
+  - do not create closures for `jutil.Try`;
+  - do not build strings eagerly for messages that are only needed on
+    failure.
+
+  Keep such costs on the failure path, as `jutil` does. Measure with
+  `tools/bench` before optimising anything else; behaviour must not change
+  (the oracles stay at zero diffs).
 - `switch` with fallthrough → Go `switch` with explicit `fallthrough`;
   Java switch expressions → a Go `switch` assigning a variable.
 - Labeled `break`/`continue` map directly.

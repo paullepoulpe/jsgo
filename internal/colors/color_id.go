@@ -67,7 +67,7 @@ func ColorId_FromAscii(str string) ColorId {
 
 // Java: ColorId.fromBytesAt(T, int, ByteAt<T>)
 func ColorId_FromBytesAt[T any](source T, length int, byteAt ColorId_ByteAt[T]) ColorId {
-	jutil.CheckStateMsg(length <= 8, "%s", length)
+	jutil.CheckStateMsg1(length <= 8, "%s", length)
 
 	var rightAligned int64 = 0
 	for i := 0; i < length; i++ {
@@ -196,6 +196,6 @@ type ColorId_ByteAt[T any] func(source T, index int) int8
 // Java: ColorId.ASCII_AT
 var ColorId_ASCII_AT ColorId_ByteAt[string] = func(s string, i int) int8 {
 	c := jutil.StringCodePointAt(s, i)
-	jutil.CheckStateMsg(0 <= c && c < 128, "%s", c)
+	jutil.CheckStateMsg1(0 <= c && c < 128, "%s", c)
 	return int8(c)
 }

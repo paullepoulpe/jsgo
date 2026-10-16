@@ -68,11 +68,12 @@ func IR_Export(declaration *Node) *Node {
 
 // Java: IR.importNode(Node, Node, Node)
 func IR_ImportNode(name *Node, importSpecs *Node, moduleIdentifier *Node) *Node {
-	jutil.CheckStateMsg(name.IsName() || name.IsEmpty(), "%s", name)
-	jutil.CheckStateMsg(
+	jutil.CheckStateMsg1(name.IsName() || name.IsEmpty(), "%s", name)
+	jutil.CheckStateMsg1(
 		importSpecs.IsImportSpec() || importSpecs.IsImportStar() || importSpecs.IsEmpty(),
 		"%s", importSpecs)
-	jutil.CheckStateMsg(moduleIdentifier.IsStringLit(), "%s", moduleIdentifier)
+
+	jutil.CheckStateMsg1(moduleIdentifier.IsStringLit(), "%s", moduleIdentifier)
 	return NewNodeWith3Children(Token_IMPORT, name, importSpecs, moduleIdentifier)
 }
 
@@ -126,7 +127,7 @@ func IR_Block() *Node {
 
 // Java: IR.block(Node)
 func IR_BlockOfNode(stmt *Node) *Node {
-	jutil.CheckStateMsg(IR_MayBeStatement(stmt), "Block node cannot contain %s", stmt.GetToken())
+	jutil.CheckStateMsg1(IR_MayBeStatement(stmt), "Block node cannot contain %s", stmt.GetToken())
 	return NewNodeWithChild(Token_BLOCK, stmt)
 }
 
@@ -208,7 +209,7 @@ func IR_ConstNode(lhs *Node, value *Node) *Node {
 
 // Java: IR.declaration(Node, Token)
 func IR_Declaration(lhs *Node, type_ Token) *Node {
-	jutil.CheckStateMsg(lhs.IsName() || lhs.IsDestructuringPattern() || lhs.IsDestructuringLhs(), "%s", lhs)
+	jutil.CheckStateMsg1(lhs.IsName() || lhs.IsDestructuringPattern() || lhs.IsDestructuringLhs(), "%s", lhs)
 	if lhs.IsDestructuringPattern() {
 		lhs = NewNodeWithChild(Token_DESTRUCTURING_LHS, lhs)
 	}
@@ -223,7 +224,7 @@ func IR_DeclarationWithValue(lhs *Node, value *Node, type_ Token) *Node {
 		jutil.CheckState(lhs.IsArrayPattern() || lhs.IsObjectPattern())
 		lhs = NewNodeWithChild(Token_DESTRUCTURING_LHS, lhs)
 	}
-	jutil.CheckStateMsg(IR_MayBeExpression(value), "%s can't be an expression", value)
+	jutil.CheckStateMsg1(IR_MayBeExpression(value), "%s can't be an expression", value)
 
 	lhs.AddChildToBack(value)
 	return NewNodeWithChild(type_, lhs)
@@ -260,7 +261,7 @@ func IR_ThrowNode(expr *Node) *Node {
 
 // Java: IR.exprResult(Node)
 func IR_ExprResult(expr *Node) *Node {
-	jutil.CheckStateMsg(IR_MayBeExpression(expr), "%s", expr)
+	jutil.CheckStateMsg1(IR_MayBeExpression(expr), "%s", expr)
 	return NewNodeWithChild(Token_EXPR_RESULT, expr)
 }
 
@@ -413,7 +414,7 @@ func IR_ContinueNodeWithLabel(name *Node) *Node {
 func IR_Call(target *Node, args ...*Node) *Node {
 	call := NewNodeWithChild(Token_CALL, target)
 	for _, arg := range args {
-		jutil.CheckStateMsg(IR_MayBeExpression(arg) || arg.IsSpread(), "%s", arg)
+		jutil.CheckStateMsg1(IR_MayBeExpression(arg) || arg.IsSpread(), "%s", arg)
 		call.AddChildToBack(arg)
 	}
 	return call
@@ -423,7 +424,7 @@ func IR_Call(target *Node, args ...*Node) *Node {
 func IR_StartOptChainCall(target *Node, args ...*Node) *Node {
 	call := NewNodeWithChild(Token_OPTCHAIN_CALL, target)
 	for _, arg := range args {
-		jutil.CheckStateMsg(IR_MayBeExpression(arg) || arg.IsSpread(), "%s", arg)
+		jutil.CheckStateMsg1(IR_MayBeExpression(arg) || arg.IsSpread(), "%s", arg)
 		call.AddChildToBack(arg)
 	}
 	call.SetIsOptionalChainStart(true)
@@ -434,7 +435,7 @@ func IR_StartOptChainCall(target *Node, args ...*Node) *Node {
 func IR_ContinueOptChainCall(target *Node, args ...*Node) *Node {
 	call := NewNodeWithChild(Token_OPTCHAIN_CALL, target)
 	for _, arg := range args {
-		jutil.CheckStateMsg(IR_MayBeExpression(arg) || arg.IsSpread(), "%s", arg)
+		jutil.CheckStateMsg1(IR_MayBeExpression(arg) || arg.IsSpread(), "%s", arg)
 		call.AddChildToBack(arg)
 	}
 	call.SetIsOptionalChainStart(false)
@@ -445,7 +446,7 @@ func IR_ContinueOptChainCall(target *Node, args ...*Node) *Node {
 func IR_NewNode(target *Node, args ...*Node) *Node {
 	newcall := NewNodeWithChild(Token_NEW, target)
 	for _, arg := range args {
-		jutil.CheckStateMsg(IR_MayBeExpression(arg) || arg.IsSpread(), "%s", arg)
+		jutil.CheckStateMsg1(IR_MayBeExpression(arg) || arg.IsSpread(), "%s", arg)
 		newcall.AddChildToBack(arg)
 	}
 	return newcall
@@ -453,14 +454,15 @@ func IR_NewNode(target *Node, args ...*Node) *Node {
 
 // Java: IR.name(String)
 func IR_Name(name string) *Node {
-	jutil.CheckStateMsg(
+	jutil.CheckStateMsg1(
 		jutil.StringIndexOfChar(name, '.') == -1, "Invalid name '%s'. Did you mean to use NodeUtil.newQName?", name)
+
 	return Node_NewStringWithToken(Token_NAME, name)
 }
 
 // Java: IR.startOptChainGetprop(Node, String)
 func IR_StartOptChainGetprop(target *Node, prop string) *Node {
-	jutil.CheckStateMsg(IR_MayBeExpression(target), "%s", target)
+	jutil.CheckStateMsg1(IR_MayBeExpression(target), "%s", target)
 	optChainGetProp := Node_NewStringWithToken(Token_OPTCHAIN_GETPROP, prop)
 	optChainGetProp.AddChildToBack(target)
 	optChainGetProp.SetIsOptionalChainStart(true)
@@ -469,7 +471,7 @@ func IR_StartOptChainGetprop(target *Node, prop string) *Node {
 
 // Java: IR.continueOptChainGetprop(Node, String)
 func IR_ContinueOptChainGetprop(target *Node, prop string) *Node {
-	jutil.CheckStateMsg(IR_MayBeExpression(target), "%s", target)
+	jutil.CheckStateMsg1(IR_MayBeExpression(target), "%s", target)
 	optChainGetProp := Node_NewStringWithToken(Token_OPTCHAIN_GETPROP, prop)
 	optChainGetProp.AddChildToBack(target)
 	optChainGetProp.SetIsOptionalChainStart(false)
@@ -496,8 +498,8 @@ func IR_GetpropWithMoreProps(target *Node, prop string, moreProps ...string) *No
 
 // Java: IR.startOptChainGetelem(Node, Node)
 func IR_StartOptChainGetelem(target *Node, elem *Node) *Node {
-	jutil.CheckStateMsg(IR_MayBeExpression(target), "%s", target)
-	jutil.CheckStateMsg(IR_MayBeExpression(elem), "%s", elem)
+	jutil.CheckStateMsg1(IR_MayBeExpression(target), "%s", target)
+	jutil.CheckStateMsg1(IR_MayBeExpression(elem), "%s", elem)
 	optChainGetElem := NewNodeWith2Children(Token_OPTCHAIN_GETELEM, target, elem)
 	optChainGetElem.SetIsOptionalChainStart(true)
 	return optChainGetElem
@@ -505,8 +507,8 @@ func IR_StartOptChainGetelem(target *Node, elem *Node) *Node {
 
 // Java: IR.continueOptChainGetelem(Node, Node)
 func IR_ContinueOptChainGetelem(target *Node, elem *Node) *Node {
-	jutil.CheckStateMsg(IR_MayBeExpression(target), "%s", target)
-	jutil.CheckStateMsg(IR_MayBeExpression(elem), "%s", elem)
+	jutil.CheckStateMsg1(IR_MayBeExpression(target), "%s", target)
+	jutil.CheckStateMsg1(IR_MayBeExpression(elem), "%s", elem)
 	optChainGetElem := NewNodeWith2Children(Token_OPTCHAIN_GETELEM, target, elem)
 	optChainGetElem.SetIsOptionalChainStart(false)
 	return optChainGetElem
@@ -527,8 +529,8 @@ func IR_Delprop(target *Node) *Node {
 
 // Java: IR.assign(Node, Node)
 func IR_Assign(target *Node, expr *Node) *Node {
-	jutil.CheckStateMsg(target.IsValidAssignmentTarget(), "%s", target)
-	jutil.CheckStateMsg(IR_MayBeExpression(expr), "%s", expr)
+	jutil.CheckStateMsg1(target.IsValidAssignmentTarget(), "%s", target)
+	jutil.CheckStateMsg1(IR_MayBeExpression(expr), "%s", expr)
 	return NewNodeWith2Children(Token_ASSIGN, target, expr)
 }
 
@@ -739,8 +741,8 @@ func IR_ArrayPattern(keys ...*Node) *Node {
 
 // Java: IR.computedProp(Node, Node)
 func IR_ComputedProp(key *Node, value *Node) *Node {
-	jutil.CheckStateMsg(IR_MayBeExpression(key), "%s", key)
-	jutil.CheckStateMsg(IR_MayBeExpression(value), "%s", value)
+	jutil.CheckStateMsg1(IR_MayBeExpression(key), "%s", key)
+	jutil.CheckStateMsg1(IR_MayBeExpression(value), "%s", value)
 	return NewNodeWith2Children(Token_COMPUTED_PROP, key, value)
 }
 
@@ -762,7 +764,7 @@ func IR_Arraylit(exprs ...*Node) *Node {
 func IR_ArraylitOfIterable(exprs iter.Seq[*Node]) *Node {
 	arraylit := NewNode(Token_ARRAYLIT)
 	for expr := range exprs {
-		jutil.CheckStateMsg(IR_MayBeExpressionOrEmpty(expr) || expr.IsSpread(), "%s", expr)
+		jutil.CheckStateMsg1(IR_MayBeExpressionOrEmpty(expr) || expr.IsSpread(), "%s", expr)
 		arraylit.AddChildToBack(expr)
 	}
 	return arraylit
@@ -825,13 +827,13 @@ func IR_TemplateLiteralSubstitution(child *Node) *Node {
 
 // Java: IR.iterRest(Node)
 func IR_IterRest(target *Node) *Node {
-	jutil.CheckStateMsg(target.IsValidAssignmentTarget(), "%s", target)
+	jutil.CheckStateMsg1(target.IsValidAssignmentTarget(), "%s", target)
 	return NewNodeWithChild(Token_ITER_REST, target)
 }
 
 // Java: IR.objectRest(Node)
 func IR_ObjectRest(target *Node) *Node {
-	jutil.CheckStateMsg(target.IsValidAssignmentTarget(), "%s", target)
+	jutil.CheckStateMsg1(target.IsValidAssignmentTarget(), "%s", target)
 	return NewNodeWithChild(Token_OBJECT_REST, target)
 }
 
@@ -886,15 +888,15 @@ func IR_MemberFunctionDef(name string, function *Node) *Node {
 
 // Java: IR.number(double)
 func IR_Number(d float64) *Node {
-	jutil.CheckStateMsg(!math.IsNaN(d), "%s", d)
-	jutil.CheckStateMsg(base.JSCompDoubles_IsPositive(d), "%s", d)
+	jutil.CheckStateMsg1(!math.IsNaN(d), "%s", d)
+	jutil.CheckStateMsg1(base.JSCompDoubles_IsPositive(d), "%s", d)
 	return Node_NewNumber(d)
 }
 
 // Java: IR.bigint(BigInteger)
 func IR_Bigint(b *big.Int) *Node {
 	jutil.CheckNotNull(b)
-	jutil.CheckStateMsg(b.Sign() >= 0, "%s", b)
+	jutil.CheckStateMsg1(b.Sign() >= 0, "%s", b)
 	return Node_NewBigInt(b)
 }
 
@@ -932,8 +934,8 @@ func IR_ImportMeta() *Node {
 
 // Java: IR.binaryOp(Token, Node, Node)
 func IR_BinaryOp(token Token, expr1 *Node, expr2 *Node) *Node {
-	jutil.CheckStateMsg(IR_MayBeExpression(expr1), "%s", expr1)
-	jutil.CheckStateMsg(IR_MayBeExpression(expr2), "%s", expr2)
+	jutil.CheckStateMsg1(IR_MayBeExpression(expr1), "%s", expr1)
+	jutil.CheckStateMsg1(IR_MayBeExpression(expr2), "%s", expr2)
 	return NewNodeWith2Children(token, expr1, expr2)
 }
 

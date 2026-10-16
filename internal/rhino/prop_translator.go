@@ -41,8 +41,9 @@ func PropTranslator_SetProps() {
 		protoProp := PropTranslator_SerializeProp(rhinoProp)
 		if protoProp != nil {
 			// Boolean props are stored as a bitset, see Node#deserializeProperties
-			jutil.CheckStateMsg(
+			jutil.CheckStateMsg2(
 				protoProp.GetNumber() < 63, "enum %s value %s", *protoProp, protoProp.GetNumber())
+
 			p := rhinoProp
 			PropTranslator_protoToRhinoProp[protoProp.Ordinal()] = &p
 			PropTranslator_rhinoToProtoProp[rhinoProp.Ordinal()] = protoProp
@@ -170,10 +171,11 @@ func PropTranslator_CheckUnexpectedNullProtoProps() {
 			// this is a special case where the property is a Node pointer, not a boolean
 		default:
 			// everything else should be a 1-to-1 match with a boolean property
-			jutil.CheckStateMsg(
+			jutil.CheckStateMsg1(
 				PropTranslator_protoToRhinoProp[protoProp.Ordinal()] != nil,
 				"Hit unhandled node property: %s",
 				protoProp)
+
 		}
 	}
 }

@@ -818,12 +818,13 @@ func (n *Node) AddChildToFront(child *Node) {
 
 // Java: Node.addChildToBack(Node)
 func (n *Node) AddChildToBack(child *Node) {
-	jutil.CheckArgumentMsg(
+	jutil.CheckArgumentMsg3(
 		child.parent == nil,
 		"Cannot add already-owned child node.\nChild: %s\nExisting parent: %s\nNew parent: %s",
 		child,
 		child.parent,
 		n)
+
 	jutil.CheckArgument(child.next == nil)
 	jutil.CheckArgument(child.previous == nil)
 
@@ -856,7 +857,7 @@ func (n *Node) AddChildrenToFront(children *Node) {
 	}
 	// NOTE: If there is only one sibling, its previous pointer must point to
 	// itself. Null indicates a fully detached node.
-	jutil.CheckNotNullMsg(children.previous, "%s", children)
+	jutil.CheckNotNullMsg1(children.previous, "%s", children)
 	for child := children; child != nil; child = child.next {
 		jutil.CheckArgument(child.parent == nil)
 		child.parent = n
@@ -939,7 +940,7 @@ func (n *Node) AddChildrenAfter(children *Node, node *Node) {
 	jutil.CheckArgument(node == nil || node.parent == n)
 	// NOTE: If there is only one sibling, its previous pointer must point to
 	// itself. Null indicates a fully detached node.
-	jutil.CheckNotNullMsg(children.previous, "%s", children)
+	jutil.CheckNotNullMsg1(children.previous, "%s", children)
 	if node == nil {
 		n.AddChildrenToFront(children)
 		return
@@ -1043,14 +1044,14 @@ func (n *Node) Detach() *Node {
 
 // Java: Node.CheckAttached()
 func (n *Node) CheckAttached() {
-	jutil.CheckStateMsg(n.parent != nil, "Has no parent: %s", n)
+	jutil.CheckStateMsg1(n.parent != nil, "Has no parent: %s", n)
 }
 
 // Java: Node.CheckDetached()
 func (n *Node) CheckDetached() {
-	jutil.CheckStateMsg(n.parent == nil, "Has parent: %s", n)
-	jutil.CheckStateMsg(n.next == nil, "Has next: %s", n)
-	jutil.CheckStateMsg(n.previous == nil, "Has previous: %s", n)
+	jutil.CheckStateMsg1(n.parent == nil, "Has parent: %s", n)
+	jutil.CheckStateMsg1(n.next == nil, "Has next: %s", n)
+	jutil.CheckStateMsg1(n.previous == nil, "Has previous: %s", n)
 }
 
 // RemoveFirstChild removes the first child of Node. Equivalent to:
@@ -1155,7 +1156,7 @@ func (n *Node) ValidateProperties(violationMessageConsumer func(string)) {
 		prop := Node_propValues[propListItem.propType]
 		// Catch it if the definition of Prop ever changes so that the ordinals
 		// don't line up.
-		jutil.CheckStateMsg(prop.Ordinal() == int(propListItem.propType), "ordinal doesn't match: %s", prop)
+		jutil.CheckStateMsg1(prop.Ordinal() == int(propListItem.propType), "ordinal doesn't match: %s", prop)
 
 		// TODO(bradfordcsmith): This is not yet an exhaustive list of
 		// validations. Other validations should be added as it is found useful
@@ -1399,7 +1400,7 @@ func (n *Node) GetPropListDebugString() string {
 // Java: Node.deserializeProperties(long, boolean)
 func (n *Node) DeserializeProperties(propSet int64, isInClosureUnawareSubtree bool) {
 	if n.IsRoot() {
-		jutil.CheckStateMsg(n.propListHead == nil, "%s", n.propListHead)
+		jutil.CheckStateMsg1(n.propListHead == nil, "%s", n.propListHead)
 	} else {
 		jutil.CheckStateMsg(
 			n.ValidatePropListTailOrdering(isInClosureUnawareSubtree),
@@ -1468,7 +1469,7 @@ func (n *Node) DeserializeProperties(propSet int64, isInClosureUnawareSubtree bo
 		// `checkState()` triggers warning messages from some code analysis
 		// tools.
 		func(errorMessage string) {
-			jutil.CheckStateMsg(false, "deserialize error: %s: %s", errorMessage, n)
+			jutil.CheckStateMsg2(false, "deserialize error: %s: %s", errorMessage, n)
 		})
 }
 
@@ -1550,8 +1551,8 @@ func (n *Node) GetDouble() float64 {
 
 // Java: Node.setDouble(double)
 func (n *Node) SetDouble(x float64) {
-	jutil.CheckStateMsg(!math.IsNaN(x), "%s", x)
-	jutil.CheckStateMsg(base.JSCompDoubles_IsPositive(x), "%s", x)
+	jutil.CheckStateMsg1(!math.IsNaN(x), "%s", x)
+	jutil.CheckStateMsg1(base.JSCompDoubles_IsPositive(x), "%s", x)
 	n.node_castKind(node_kindNumber)
 	n.number = x
 }
@@ -1565,7 +1566,7 @@ func (n *Node) GetBigInt() *big.Int {
 // Java: Node.setBigInt(BigInteger)
 func (n *Node) SetBigInt(number *big.Int) {
 	jutil.CheckNotNull(number)
-	jutil.CheckStateMsg(number.Sign() >= 0, "%s", number)
+	jutil.CheckStateMsg1(number.Sign() >= 0, "%s", number)
 	n.node_castKind(node_kindBigInt)
 	n.bigint = number
 }
@@ -3251,13 +3252,13 @@ func (n *Node) GetJSType() JSType {
 //
 // Java: Node.getJSTypeRequired()
 func (n *Node) GetJSTypeRequired() JSType {
-	return jutil.CheckNotNullMsg(n.GetJSType(), "no jstypeOrColor: %s", n)
+	return jutil.CheckNotNullMsg1(n.GetJSType(), "no jstypeOrColor: %s", n)
 }
 
 // Java: Node.setJSType(JSType)
 func (n *Node) SetJSType(x JSType) *Node {
 	_, isJSType := n.jstypeOrColor.(JSType)
-	jutil.CheckStateMsg(n.jstypeOrColor == nil || isJSType, "%s", n)
+	jutil.CheckStateMsg1(n.jstypeOrColor == nil || isJSType, "%s", n)
 	if jutil.IsNil(x) {
 		n.jstypeOrColor = nil
 	} else {
@@ -3281,7 +3282,7 @@ func (n *Node) GetColor() *colors.Color {
 // Java: Node.setColor(Color)
 func (n *Node) SetColor(x *colors.Color) *Node {
 	_, isColor := n.jstypeOrColor.(*colors.Color)
-	jutil.CheckStateMsg(n.jstypeOrColor == nil || isColor, "%s", n)
+	jutil.CheckStateMsg1(n.jstypeOrColor == nil || isColor, "%s", n)
 	if x == nil {
 		n.jstypeOrColor = nil
 	} else {
@@ -3413,12 +3414,12 @@ func (n *Node) IsSyntheticBlock() bool {
 
 // Java: Node.setIsSynthesizedUnfulfilledNameDeclaration(boolean)
 func (n *Node) SetIsSynthesizedUnfulfilledNameDeclaration(val bool) {
-	jutil.CheckStateMsg(
+	jutil.CheckStateMsg1(
 		n.token == Token_VAR && n.HasOneChild() && n.GetFirstChild().IsName(),
-		// we could relax this restriction if VarCheck wanted to generate other
-		// forms of synthetic externs
+
 		"Expected all synthetic unfulfilled declarations to be `var <name>`, found %s",
 		n)
+
 	n.PutBooleanProp(Node_Prop_SYNTHESIZED_UNFULFILLED_NAME_DECLARATION, val)
 }
 
@@ -3624,7 +3625,7 @@ func (n *Node) HasTrailingComma() bool {
 //
 // Java: Node.setSideEffectFlags(int)
 func (n *Node) SetSideEffectFlags(flags int32) {
-	jutil.CheckStateMsg(
+	jutil.CheckStateMsg1(
 		n.IsCall() || n.IsOptChainCall() || n.IsNew() || n.IsTaggedTemplateLit(),
 		"Side-effect flags can only be set on invocation nodes; got %s",
 		n)
@@ -3874,10 +3875,11 @@ func (n *Node) SetConstantVarFlag(flag int32, value bool) {
 //
 // Java: Node.isDeclaredConstantVar()
 func (n *Node) IsDeclaredConstantVar() bool {
-	jutil.CheckStateMsg(
+	jutil.CheckStateMsg1(
 		n.IsName() || n.IsImportStar(),
 		"Should only be called on name or import * nodes. Found %s",
 		n)
+
 	return Node_AnyBitSet(n.GetConstantVarFlags(), Node_ConstantVarFlags_DECLARED)
 }
 
@@ -3887,10 +3889,11 @@ func (n *Node) IsDeclaredConstantVar() bool {
 //
 // Java: Node.setDeclaredConstantVar(boolean)
 func (n *Node) SetDeclaredConstantVar(value bool) {
-	jutil.CheckStateMsg(
+	jutil.CheckStateMsg1(
 		n.IsName() || n.IsImportStar(),
 		"Should only be called on name or import * nodes. Found %s",
 		n)
+
 	n.SetConstantVarFlag(Node_ConstantVarFlags_DECLARED, value)
 }
 
@@ -3907,10 +3910,11 @@ func (n *Node) SetDeclaredConstantVar(value bool) {
 //
 // Java: Node.isInferredConstantVar()
 func (n *Node) IsInferredConstantVar() bool {
-	jutil.CheckStateMsg(
+	jutil.CheckStateMsg1(
 		n.IsName() || n.IsImportStar(),
 		"Should only be called on name or import * nodes. Found %s",
 		n)
+
 	return Node_AnyBitSet(n.GetConstantVarFlags(), Node_ConstantVarFlags_INFERRED)
 }
 
@@ -3920,10 +3924,11 @@ func (n *Node) IsInferredConstantVar() bool {
 //
 // Java: Node.setInferredConstantVar(boolean)
 func (n *Node) SetInferredConstantVar(value bool) {
-	jutil.CheckStateMsg(
+	jutil.CheckStateMsg1(
 		n.IsName() || n.IsImportStar(),
 		"Should only be called on name or import * nodes. Found %s",
 		n)
+
 	n.SetConstantVarFlag(Node_ConstantVarFlags_INFERRED, value)
 }
 
@@ -3934,7 +3939,7 @@ func (n *Node) IsQuotedStringKey() bool {
 
 // Java: Node.setQuotedStringKey()
 func (n *Node) SetQuotedStringKey() {
-	jutil.CheckStateMsg(n.kind == node_kindString, "%s", n)
+	jutil.CheckStateMsg1(n.kind == node_kindString, "%s", n)
 	n.PutBooleanProp(Node_Prop_QUOTED, true)
 }
 
@@ -3945,7 +3950,7 @@ func (n *Node) IsPrivateIdentifier() bool {
 
 // Java: Node.setPrivateIdentifier()
 func (n *Node) SetPrivateIdentifier() {
-	jutil.CheckStateMsg(n.kind == node_kindString, "%s", n)
+	jutil.CheckStateMsg1(n.kind == node_kindString, "%s", n)
 	jutil.CheckState(strings.HasPrefix(n.GetString(), "#"))
 	n.PutBooleanProp(Node_Prop_PRIVATE_IDENTIFIER, true)
 }

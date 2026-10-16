@@ -198,7 +198,7 @@ func (c *Color) IsPrimitive() bool {
 	 * Avoid the design headache about whether unions are primitives. The union *color* isn't
 	 * primitive, but the *value* held by a union reference may be.
 	 */
-	jutil.CheckStateMsg(!c.IsUnion(), "%s", c)
+	jutil.CheckStateMsg1(!c.IsUnion(), "%s", c)
 	return StandardColors_PRIMITIVE_COLORS.ContainsKey(c.GetId())
 }
 
@@ -492,17 +492,17 @@ func (b *Color_Builder) BuildInternal() *Color {
 // Java: Color.Builder.build()
 func (b *Color_Builder) Build() *Color {
 	result := b.BuildInternal()
-	jutil.CheckStateMsg(result.GetUnionElements().IsEmpty(), "%s", result)
-	jutil.CheckStateMsg(result.GetBoxId() == nil, "%s", result)
-	jutil.CheckStateMsg(!StandardColors_AXIOMATIC_COLORS.ContainsKey(result.GetId()), "%s", result)
+	jutil.CheckStateMsg1(result.GetUnionElements().IsEmpty(), "%s", result)
+	jutil.CheckStateMsg1(result.GetBoxId() == nil, "%s", result)
+	jutil.CheckStateMsg1(!StandardColors_AXIOMATIC_COLORS.ContainsKey(result.GetId()), "%s", result)
 	return result
 }
 
 // Java: Color.Builder.buildUnion()
 func (b *Color_Builder) BuildUnion() *Color {
 	result := b.BuildInternal()
-	jutil.CheckStateMsg(result.GetUnionElements().Size() > 1, "%s", result)
-	jutil.CheckStateMsg(result.GetBoxId() == nil, "%s", result)
+	jutil.CheckStateMsg1(result.GetUnionElements().Size() > 1, "%s", result)
+	jutil.CheckStateMsg1(result.GetBoxId() == nil, "%s", result)
 	return result
 }
 
@@ -511,6 +511,6 @@ func (b *Color_Builder) BuildAxiomatic() *Color {
 	jutil.CheckStateMsg(StandardColors_AXIOMATIC_COLORS == nil, "StandardColors are all defined")
 
 	result := b.BuildInternal()
-	jutil.CheckStateMsg(result.GetUnionElements().IsEmpty(), "%s", result)
+	jutil.CheckStateMsg1(result.GetUnionElements().IsEmpty(), "%s", result)
 	return result
 }

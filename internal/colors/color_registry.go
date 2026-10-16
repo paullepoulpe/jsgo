@@ -29,7 +29,7 @@ func NewColorRegistry(builder *ColorRegistry_Builder) *ColorRegistry {
 // Java: ColorRegistry.get(ColorId)
 func (r *ColorRegistry) Get(id ColorId) *Color {
 	// checkNotNull(id): ColorId is a Go value type and cannot be null.
-	return jutil.CheckNotNullMsg(r.nativeColors.Get(id), "Missing Color for %s", id)
+	return jutil.CheckNotNullMsg1(r.nativeColors.Get(id), "Missing Color for %s", id)
 }
 
 // GetDisambiguationSupertypes returns the colors directly above `x` in the
@@ -74,7 +74,7 @@ func NewColorRegistry_Builder() *ColorRegistry_Builder {
 
 // Java: ColorRegistry.Builder.setNativeColor(Color)
 func (b *ColorRegistry_Builder) SetNativeColor(x *Color) *ColorRegistry_Builder {
-	jutil.CheckStateMsg(ColorRegistry_REQUIRED_IDS.Contains(x.GetId()), "%s", x)
+	jutil.CheckStateMsg1(ColorRegistry_REQUIRED_IDS.Contains(x.GetId()), "%s", x)
 	b.nativeColors.Put(x.GetId(), x)
 	return b
 }
