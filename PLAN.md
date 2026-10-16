@@ -460,4 +460,18 @@ In progress, in parallel (wave 3, PLAN.md §5):
 - The 15 jscomp files below the core that need the type system: the
   reverse abstract interpreters, FlowScope, TypeMismatch, CodingConvention,
   …
-- jscomp levels 0–9, group A (89 files: diagnostics, error managers, deps/modules, serialization basics).
+
+In progress, in parallel (wave 4, started before the core lands; each
+cluster translates against the core's predicted Go names and compiles
+once the core is integrated):
+
+- jscomp level 11 (145 files, 27K SLOC) in eight clusters: the printer
+  (CodePrinter, CodeGenerator; M2), AstValidator and pass infrastructure,
+  lint, checks, Closure primitives and modules, simple optimizations,
+  transpilation helpers and runtime libraries, messages/types/misc.
+  Each cluster ports its Java unit tests and a per-pass corpus oracle.
+- The harness: `Compiler`, `DefaultPassConfig`, `NestedCompilerRunner`,
+  `TranspileAndOptimizeClosureUnaware`, and the `CompilerTestCase` test
+  base class. Passes that are not yet ported come from the generated
+  forward declarations sanctioned in PORTING.md, so `CompilerTestCase`
+  tests can run before every pass exists.
