@@ -1,0 +1,1 @@
+() => { let tmp0; return foo((tmp0 = a) == null ? void 0 : tmp0.b);}

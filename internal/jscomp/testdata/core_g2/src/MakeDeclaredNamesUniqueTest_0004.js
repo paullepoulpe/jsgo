@@ -1,0 +1,1 @@
+var foo; var x = function foo(){var foo;}

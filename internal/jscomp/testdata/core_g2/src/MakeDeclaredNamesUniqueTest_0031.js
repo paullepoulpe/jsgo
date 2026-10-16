@@ -1,0 +1,1 @@
+var a = function foo(){foo()};var b = function foo(){foo()};

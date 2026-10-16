@@ -1,0 +1,1 @@
+'a'.replace(/a/, function (s) {alert(s)})

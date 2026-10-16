@@ -1,0 +1,1 @@
+class A{constructor(){var result$jscomp$0=foo();super(result$jscomp$0)}}

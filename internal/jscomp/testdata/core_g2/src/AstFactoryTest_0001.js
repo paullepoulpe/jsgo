@@ -1,0 +1,1 @@
+/** @type {string} */ const X = 'hi';

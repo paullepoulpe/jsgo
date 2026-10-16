@@ -1,0 +1,1 @@
+LABEL: for (x = goo() + foo();;) {}

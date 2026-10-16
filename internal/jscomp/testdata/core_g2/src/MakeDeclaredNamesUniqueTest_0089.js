@@ -1,0 +1,1 @@
+var a$jscomp$unique_0 = function foo$jscomp$unique_1(){foo$jscomp$unique_1()};

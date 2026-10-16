@@ -1,0 +1,1 @@
+function *f() { return x.y(yield 1); }

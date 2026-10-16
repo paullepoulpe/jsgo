@@ -1,0 +1,1 @@
+let tmp0; (p = (tmp0 = a) == null ? void 0 : tmp0.b) => { return p;}

@@ -1,0 +1,1 @@
+var XX = {}; y = (XX.a += foo()) + XX.a

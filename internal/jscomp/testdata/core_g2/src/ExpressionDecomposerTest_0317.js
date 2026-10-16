@@ -1,0 +1,1 @@
+var temp_const$jscomp$0 = foo(); ` ${ temp_const$jscomp$0 + goo() } `;
