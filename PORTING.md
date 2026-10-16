@@ -37,9 +37,24 @@ Java file it ports, right after its `// Port of` line. Closure ships the
 Rhino-derived files under `com/google/javascript/rhino` under a dual
 licence: MPL 1.1, or alternatively GPL 2.0. This repository uses them under
 the MPL 1.1 only. Their ports carry the MPL 1.1 notice with the GPL
-alternative removed. `go run ./tools/licenses` writes those notices, and
-`go run ./tools/licenses -check`, run by `make vet`, fails if any tracked
-file mentions the GPL.
+alternative removed. `go run ./tools/licenses` writes those notices.
+
+The same rule applies to ports of Guava, Gson, protobuf-java or args4j
+code, at the versions the pinned jar ships (Guava 33.4.6-jre, Gson 2.9.1,
+protobuf-java 4.30.2, args4j 2.33):
+- A translation starts with `// Port of <path> (<project> <version>)`,
+  followed by the upstream file's own copyright and licence header.
+- A file that only borrows a function starts instead with a short
+  `// Derived from <path> (<project> <version>)` block. The block says
+  what is derived, and gives the copyright line and the licence, with a
+  pointer to its text under `LICENSES/`.
+- Code written from the documentation needs neither.
+
+List each such file in `NOTICE`. `go run ./tools/licenses -check`, run by
+`make vet`, fails in three cases:
+- a tracked file mentions the GPL;
+- a file names a third-party source without that project's notice;
+- `NOTICE` or a licence text under `LICENSES/` is missing.
 
 ## 1. Unit of work
 
