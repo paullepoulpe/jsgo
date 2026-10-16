@@ -37,7 +37,7 @@ func NewLineNumberScanner(sourceFile *SourceFile) *LineNumberScanner {
 //
 // Java: LineNumberScanner.getSourcePosition(int)
 func (l *LineNumberScanner) GetSourcePosition(offset int) *SourcePosition {
-	jutil.CheckArgumentMsg(
+	jutil.CheckArgumentMsg2(
 		offset >= l.lastLineStart,
 		"Must call rewindTo before calling getSourcePosition for an earlier line (%s < %s)",
 		offset,

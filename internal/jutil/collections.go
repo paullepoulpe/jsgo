@@ -58,14 +58,23 @@ func (l *ArrayList[T]) AddAll(es ...T) bool {
 }
 
 func (l *ArrayList[T]) checkIndex(index int) {
-	if index < 0 || index >= len(l.elems) {
-		panic(NewIndexOutOfBoundsException(LenientFormat("Index %s out of bounds for length %s", index, len(l.elems))))
+	if uint(index) >= uint(len(l.elems)) {
+		l.indexOutOfBounds(index)
 	}
+}
+
+// indexOutOfBounds is kept out of line so that the checks above inline.
+//
+//go:noinline
+func (l *ArrayList[T]) indexOutOfBounds(index int) {
+	panic(NewIndexOutOfBoundsException(LenientFormat("Index %s out of bounds for length %s", index, len(l.elems))))
 }
 
 // Get is List.get(int).
 func (l *ArrayList[T]) Get(index int) T {
-	l.checkIndex(index)
+	if uint(index) >= uint(len(l.elems)) {
+		l.indexOutOfBounds(index)
+	}
 	return l.elems[index]
 }
 

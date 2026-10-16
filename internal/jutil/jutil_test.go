@@ -172,3 +172,18 @@ func TestLenientFormat(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestFixedArityPreconditionsDoNotAllocate(t *testing.T) {
+	x, y := int64(123456), 654321
+	if n := testing.AllocsPerRun(100, func() {
+		CheckArgumentMsg2(true, "a %s b %s", x, y)
+		CheckStateMsg3(true, "%s %s %s", x, y, "s")
+	}); n != 0 {
+		t.Fatalf("success path allocates %v times", n)
+	}
+	var got string
+	Try(func() { CheckArgumentMsg2(false, "a %s b %s", x, y) }, func(e IIllegalArgumentException) { got = e.GetMessage() })
+	if got != "a 123456 b 654321" {
+		t.Fatalf("message %q", got)
+	}
+}

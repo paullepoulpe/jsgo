@@ -8,7 +8,8 @@
 // on one goroutine, with the configuration the compiler uses for
 // --language_in=ECMASCRIPT_NEXT. "thread_cpu_ms" is not measurable per
 // goroutine in Go, so it repeats process CPU time (which, as on the JVM side,
-// includes the garbage collector's background workers).
+// includes the garbage collector's background workers). Set
+// PARSEBENCH_CPUPROFILE=<file> to write a pprof CPU profile.
 package main
 
 import (
@@ -17,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"syscall"
@@ -70,6 +72,14 @@ func main() {
 		}
 		contents[i] = string(b)
 		totalChars += jutil.StringLength(contents[i])
+	}
+	if prof := os.Getenv("PARSEBENCH_CPUPROFILE"); prof != "" {
+		pf, err := os.Create(prof)
+		if err != nil {
+			panic(err)
+		}
+		_ = pprof.StartCPUProfile(pf)
+		defer pprof.StopCPUProfile()
 	}
 	config := parser.NewParser_ConfigWithMode(parser.Parser_Config_Mode_ES8_OR_GREATER, true)
 
