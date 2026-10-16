@@ -71,11 +71,6 @@ func TestNewBigIntegerFromStringRadixMatchesJava(t *testing.T) {
 		radix, _ := strconv.Atoi(r[1])
 		got := catchOutcome(func() string { return NewBigIntegerFromStringRadix(in, radix).String() })
 		want := r[2]
-		if strings.HasPrefix(want, "E:NumberFormatException:") && strings.HasPrefix(got, "E:NumberFormatException:") {
-			// The message for a bad digit names the digit group Java was parsing;
-			// only the exception class is compared.
-			continue
-		}
 		if got != want {
 			t.Errorf("new BigInteger(%q, %d) = %s, Java %s", in, radix, got, want)
 		}

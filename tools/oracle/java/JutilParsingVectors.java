@@ -2,7 +2,7 @@
 // internal/parsing (parse_double.tsv, bigint_radix.tsv, properties.tsv).
 //   javac -d .cache/oracle-build tools/oracle/java/JutilParsingVectors.java
 //   java -cp .cache/oracle-build JutilParsingVectors internal/jutil/testdata \
-//       internal/parsing/ParserConfig.properties
+//       internal/parsing/ParserConfig.properties [seed]
 // Strings are written as "x" + the hex of their UTF-16 code units.
 import java.io.PrintStream;
 import java.io.StringReader;
@@ -23,7 +23,7 @@ public class JutilParsingVectors {
 
   public static void main(String[] args) throws Exception {
     Path out = Paths.get(args[0]);
-    Random r = new Random(4242);
+    Random r = new Random(args.length > 2 ? Long.parseLong(args[2]) : 4242);
 
     List<String> doubles = new ArrayList<>(List.of(
         "", " ", "0", "-0", "+0", "1", "1.", ".5", ".", "-", "+", "1e", "1e+", "1e-5", "1E5", "1e400",
