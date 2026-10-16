@@ -92,12 +92,12 @@ func TestSourceFile_LineOffset(t *testing.T) {
 // Go-only: extra coverage — offsets and "byte" counts are UTF-16 units, as
 // in Java.
 func TestSourceFile_NonAsciiOffsets(t *testing.T) {
-	f := SourceFile_FromCode("test.js", "'é\U0001F600';\nx\n")
+	f := SourceFile_FromCode("test.js", "'\u00e9\U0001F600';\nx\n")
 	jsaEq(t, f.GetLineOffset(2), 7)
 	jsaEq(t, f.GetNumBytes(), 9)
 	jsaEq(t, f.GetLineOfOffset(6), 1)
 	jsaEq(t, f.GetLineOfOffset(7), 2)
-	jsaEq(t, *f.GetLine(1), "'é\U0001F600';")
+	jsaEq(t, *f.GetLine(1), "'\u00e9\U0001F600';")
 	jsaEq(t, *f.GetLine(2), "x")
 }
 
