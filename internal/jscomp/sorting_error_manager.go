@@ -111,12 +111,12 @@ func (m *SortingErrorManagerBase) GetWarningCount() int {
 
 // Java: SortingErrorManager.getErrors()
 func (m *SortingErrorManagerBase) GetErrors() []*JSError {
-	return m.filterToListOf(CheckLevel_ERROR)
+	return m.FilterToListOf(CheckLevel_ERROR)
 }
 
 // Java: SortingErrorManager.getWarnings()
 func (m *SortingErrorManagerBase) GetWarnings() []*JSError {
-	return m.filterToListOf(CheckLevel_WARNING)
+	return m.FilterToListOf(CheckLevel_WARNING)
 }
 
 // Java: SortingErrorManager.getSortedDiagnostics()
@@ -137,7 +137,7 @@ func (m *SortingErrorManagerBase) GetTypedPercent() float64 {
 }
 
 // Java: SortingErrorManager.filterToListOf(CheckLevel)
-func (m *SortingErrorManagerBase) filterToListOf(level CheckLevel) []*JSError {
+func (m *SortingErrorManagerBase) FilterToListOf(level CheckLevel) []*JSError {
 	out := []*JSError{}
 	for e := range m.messages.All() {
 		if e.Level != nil && *e.Level == level {

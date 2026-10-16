@@ -70,16 +70,16 @@ func (f *LightweightMessageFormatter) SetIncludeLevel(includeLevel bool) *Lightw
 
 // Java: LightweightMessageFormatter.formatError(JSError)
 func (f *LightweightMessageFormatter) FormatError(error *JSError) string {
-	return f.format(error, false)
+	return f.Format(error, false)
 }
 
 // Java: LightweightMessageFormatter.formatWarning(JSError)
 func (f *LightweightMessageFormatter) FormatWarning(warning *JSError) string {
-	return f.format(warning, true)
+	return f.Format(warning, true)
 }
 
 // Java: LightweightMessageFormatter.format(JSError, boolean)
-func (f *LightweightMessageFormatter) format(error *JSError, warning bool) string {
+func (f *LightweightMessageFormatter) Format(error *JSError, warning bool) string {
 	source := f.GetSource()
 	sourceName := error.SourceName()
 	lineNumber := error.GetLineNumber()
@@ -133,7 +133,7 @@ func (f *LightweightMessageFormatter) format(error *JSError, warning bool) strin
 		format = SourceExcerptProvider_SourceExcerpt_LINE
 	}
 	sourceExcerptWithPosition :=
-		f.getExcerptWithPositionAndFormat(
+		f.GetExcerptWithPositionAndFormat(
 			error, sourceName, lineNumber, charno, format)
 
 	b.WriteString(sourceExcerptWithPosition)
@@ -143,7 +143,7 @@ func (f *LightweightMessageFormatter) format(error *JSError, warning bool) strin
 
 // Java: LightweightMessageFormatter.getExcerptWithPosition(JSError)
 func (f *LightweightMessageFormatter) GetExcerptWithPosition(error *JSError) string {
-	return f.getExcerptWithPositionAndLength(
+	return f.GetExcerptWithPositionAndLength(
 		error,
 		error.SourceName(),
 		error.GetLineNumber(),
@@ -153,14 +153,14 @@ func (f *LightweightMessageFormatter) GetExcerptWithPosition(error *JSError) str
 }
 
 // Java: LightweightMessageFormatter.getExcerptWithPosition(JSError, String, int, int, SourceExcerpt)
-func (f *LightweightMessageFormatter) getExcerptWithPositionAndFormat(
+func (f *LightweightMessageFormatter) GetExcerptWithPositionAndFormat(
 	error *JSError, sourceName *string, lineNumber int, charno int, format SourceExcerptProvider_SourceExcerpt) string {
 	nodeLength := error.Length()
-	return f.getExcerptWithPositionAndLength(error, sourceName, lineNumber, charno, nodeLength, format)
+	return f.GetExcerptWithPositionAndLength(error, sourceName, lineNumber, charno, nodeLength, format)
 }
 
 // Java: LightweightMessageFormatter.getExcerptWithPosition(JSError, String, int, int, int, SourceExcerpt)
-func (f *LightweightMessageFormatter) getExcerptWithPositionAndLength(
+func (f *LightweightMessageFormatter) GetExcerptWithPositionAndLength(
 	error *JSError,
 	sourceName *string,
 	lineNumber int,
@@ -184,7 +184,7 @@ func (f *LightweightMessageFormatter) getExcerptWithPositionAndLength(
 		return ""
 	}
 
-	success := f.padSourceExcerpt(error, *sourceExcerpt, charno, length, format, &b)
+	success := f.PadSourceExcerpt(error, *sourceExcerpt, charno, length, format, &b)
 	if success {
 		return b.String()
 	}
@@ -194,7 +194,7 @@ func (f *LightweightMessageFormatter) getExcerptWithPositionAndLength(
 }
 
 // Java: LightweightMessageFormatter.padSourceExcerpt(JSError, String, int, int, SourceExcerpt, StringBuilder)
-func (f *LightweightMessageFormatter) padSourceExcerpt(
+func (f *LightweightMessageFormatter) PadSourceExcerpt(
 	error *JSError,
 	sourceExcerpt string,
 	charno int,
@@ -203,7 +203,7 @@ func (f *LightweightMessageFormatter) padSourceExcerpt(
 	b *strings.Builder) bool {
 	if format == SourceExcerptProvider_SourceExcerpt_FULL {
 		if charno >= 0 {
-			success := f.padMultipleLines(charno, sourceExcerpt, b, error.Node())
+			success := f.PadMultipleLines(charno, sourceExcerpt, b, error.Node())
 			if !success {
 				return false
 			}
@@ -218,7 +218,7 @@ func (f *LightweightMessageFormatter) padSourceExcerpt(
 		// charno == sourceExcerpt.length() means something is missing
 		// at the end of the line
 		if format == SourceExcerptProvider_SourceExcerpt_LINE && 0 <= charno && charno <= jutil.StringLength(sourceExcerpt) {
-			success := f.padLine(charno, sourceExcerpt, b, length, error.Node())
+			success := f.PadLine(charno, sourceExcerpt, b, length, error.Node())
 			if !success {
 				return false
 			}
@@ -244,7 +244,7 @@ func lightweightMessageFormatter_appendPosition(
 	}
 }
 
-// padLine appends the given excerpt, attempting to add "^^^^" highlighting
+// PadLine appends the given excerpt, attempting to add "^^^^" highlighting
 // to the parts of the excerpt covered by the given error node.
 //
 // charno is the (positive) charno representing the index into the first
@@ -256,7 +256,7 @@ func lightweightMessageFormatter_appendPosition(
 // the builder's contents should be discarded).
 //
 // Java: LightweightMessageFormatter.padLine(int, String, StringBuilder, int, Node)
-func (f *LightweightMessageFormatter) padLine(
+func (f *LightweightMessageFormatter) PadLine(
 	charno int, sourceExcerpt string, b *strings.Builder, errLength int, errorNode *rhino.Node) bool {
 	// This can occur when somehow code is requesting to "pad" a line that is shorter than the
 	// starting charno where we will insert '^' characters.
@@ -288,7 +288,7 @@ func (f *LightweightMessageFormatter) padLine(
 	return true
 }
 
-// padMultipleLines appends lines from the given excerpt, attempting to add
+// PadMultipleLines appends lines from the given excerpt, attempting to add
 // "^^^^" highlighting to the parts of the excerpt covered by the given error
 // node.
 //
@@ -302,13 +302,13 @@ func (f *LightweightMessageFormatter) padLine(
 // discarded).
 //
 // Java: LightweightMessageFormatter.padMultipleLines(int, String, StringBuilder, Node)
-func (f *LightweightMessageFormatter) padMultipleLines(
+func (f *LightweightMessageFormatter) PadMultipleLines(
 	startCharno int, sourceExcerpt string, b *strings.Builder, errorNode *rhino.Node) bool {
 	if errorNode == nil {
 		b.WriteString(sourceExcerpt)
 		b.WriteString("\n")
 		charWithLineNumberOffset := startCharno + jutil.StringIndexOfChar(sourceExcerpt, '|') + 2
-		return f.padLine(charWithLineNumberOffset, sourceExcerpt, b, -1, nil)
+		return f.PadLine(charWithLineNumberOffset, sourceExcerpt, b, -1, nil)
 	}
 	lines := strings.Split(sourceExcerpt, "\n")
 	requiresTruncation := len(lines) > lightweightMessageFormatter_MAX_MULTILINE_ERROR_LENGTH
@@ -330,7 +330,7 @@ func (f *LightweightMessageFormatter) padMultipleLines(
 		if shouldPrintLine {
 			b.WriteString(line)
 			b.WriteString("\n")
-			success := f.padLine(charWithLineNumberOffset, line, b, remainingLength, errorNode)
+			success := f.PadLine(charWithLineNumberOffset, line, b, remainingLength, errorNode)
 			if !success {
 				return false
 			}

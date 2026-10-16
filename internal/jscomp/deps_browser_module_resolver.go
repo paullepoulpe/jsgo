@@ -50,7 +50,7 @@ func (r *BrowserModuleResolver) ResolveJsModule(
 		return nil
 	}
 
-	loadAddress := r.locate(scriptAddress, moduleAddress)
+	loadAddress := r.Locate(scriptAddress, moduleAddress)
 	if loadAddress == nil {
 		r.errorHandler.Report(
 			CheckLevel_WARNING.Ptr(),
@@ -66,5 +66,5 @@ func (r *BrowserModuleResolver) ResolveJsModuleSilently(scriptAddress string, mo
 	if ModuleLoader_IsAmbiguousIdentifier(moduleAddress) {
 		return nil
 	}
-	return r.locate(scriptAddress, moduleAddress)
+	return r.Locate(scriptAddress, moduleAddress)
 }

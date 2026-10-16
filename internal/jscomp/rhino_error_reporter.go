@@ -176,7 +176,7 @@ func rhinoErrorReporter_replacePlaceHolders(s string) *jutil.Pattern {
 }
 
 // Java: RhinoErrorReporter(ErrorHandler)
-func (r *RhinoErrorReporterBase) initRhinoErrorReporterBase(internalReporter ErrorHandler) {
+func (r *RhinoErrorReporterBase) InitRhinoErrorReporterBase(internalReporter ErrorHandler) {
 	r.internalReporter = internalReporter
 }
 
@@ -247,7 +247,7 @@ var _ rhino.ErrorReporter = (*rhinoErrorReporter_OldRhinoErrorReporter)(nil)
 // Java: RhinoErrorReporter.OldRhinoErrorReporter(ErrorHandler)
 func newRhinoErrorReporter_OldRhinoErrorReporter(internalReporter ErrorHandler) *rhinoErrorReporter_OldRhinoErrorReporter {
 	r := &rhinoErrorReporter_OldRhinoErrorReporter{}
-	r.initRhinoErrorReporterBase(internalReporter)
+	r.InitRhinoErrorReporterBase(internalReporter)
 	return r
 }
 

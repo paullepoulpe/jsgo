@@ -260,7 +260,7 @@ func (b *JSError_Builder) Build() *JSError {
 
 // JSError_Builder_ creates a new builder (JSError.builder): type is the
 // associated DiagnosticType; arguments are the formatting arguments used to
-// format the DiagnosticType's description.
+// Format the DiagnosticType's description.
 //
 // Go-only: language-adapter — the trailing underscore keeps the mechanical
 // name JSError_Builder for the nested Builder type.

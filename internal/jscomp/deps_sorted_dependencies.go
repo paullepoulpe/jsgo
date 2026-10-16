@@ -47,7 +47,7 @@ func NewSortedDependencies[InputT DependencyInfo](userOrderedInputs []InputT) *S
 		importedInputByImportingInput: jutil.NewSetMultimap[InputT, InputT](),
 	}
 	d.userOrderedInputs.AddAll(userOrderedInputs...)
-	d.processInputs()
+	d.ProcessInputs()
 	return d
 }
 
@@ -189,21 +189,21 @@ func (d *SortedDependencies[InputT]) MaybeGetInputProviding(symbol string) Input
 	return d.nonExportingInputs.Get(ModuleNames_FileToModuleName(symbol))
 }
 
-func (d *SortedDependencies[InputT]) orderInput(input InputT) {
+func (d *SortedDependencies[InputT]) OrderInput(input InputT) {
 	if d.completedInputs.Contains(input) {
 		return
 	}
 
 	d.completedInputs.Add(input)
 	for importedInput := range d.importedInputByImportingInput.Get(input).All() {
-		d.orderInput(importedInput)
+		d.OrderInput(importedInput)
 	}
 
 	// Emit an input after its imports have been emitted.
 	d.importOrderedInputs.Add(input)
 }
 
-func (d *SortedDependencies[InputT]) processInputs() {
+func (d *SortedDependencies[InputT]) ProcessInputs() {
 	// Index.
 	for userOrderedInput := range d.userOrderedInputs.All() {
 		provides := userOrderedInput.GetProvides()
@@ -240,7 +240,7 @@ func (d *SortedDependencies[InputT]) processInputs() {
 	for userOrderedInput := range d.userOrderedInputs.All() {
 		// Traverse the graph starting from this input and record any
 		// newly-reached inputs.
-		d.orderInput(userOrderedInput)
+		d.OrderInput(userOrderedInput)
 	}
 
 	// Free temporary indexes.

@@ -71,7 +71,7 @@ var abstractMessageFormatter_Color_controlCharacter = [...]string{
 }
 
 // Java: AbstractMessageFormatter.Color.getControlCharacter()
-func (c abstractMessageFormatter_Color) getControlCharacter() string {
+func (c abstractMessageFormatter_Color) GetControlCharacter() string {
 	return abstractMessageFormatter_Color_controlCharacter[c]
 }
 
@@ -79,9 +79,9 @@ func (c abstractMessageFormatter_Color) getControlCharacter() string {
 func (f *AbstractMessageFormatterBase) GetLevelName(level CheckLevel) string {
 	switch level {
 	case CheckLevel_ERROR:
-		return f.maybeColorize("ERROR", abstractMessageFormatter_Color_ERROR)
+		return f.MaybeColorize("ERROR", abstractMessageFormatter_Color_ERROR)
 	case CheckLevel_WARNING:
-		return f.maybeColorize("WARNING", abstractMessageFormatter_Color_WARNING)
+		return f.MaybeColorize("WARNING", abstractMessageFormatter_Color_WARNING)
 	default:
 		return level.String()
 	}
@@ -92,15 +92,15 @@ func (f *AbstractMessageFormatterBase) MaybeEmbolden(text string) string {
 	if !f.colorize {
 		return text
 	}
-	return abstractMessageFormatter_Color_BOLD.getControlCharacter() +
-		text + abstractMessageFormatter_Color_UNBOLD.getControlCharacter()
+	return abstractMessageFormatter_Color_BOLD.GetControlCharacter() +
+		text + abstractMessageFormatter_Color_UNBOLD.GetControlCharacter()
 }
 
 // Java: AbstractMessageFormatter.maybeColorize(String, Color)
-func (f *AbstractMessageFormatterBase) maybeColorize(text string, color abstractMessageFormatter_Color) string {
+func (f *AbstractMessageFormatterBase) MaybeColorize(text string, color abstractMessageFormatter_Color) string {
 	if !f.colorize {
 		return text
 	}
-	return color.getControlCharacter() +
-		text + abstractMessageFormatter_Color_NO_COLOR.getControlCharacter()
+	return color.GetControlCharacter() +
+		text + abstractMessageFormatter_Color_NO_COLOR.GetControlCharacter()
 }

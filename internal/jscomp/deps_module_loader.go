@@ -143,12 +143,12 @@ func newModuleLoader(builder *ModuleLoader_Builder) *ModuleLoader {
 	if !builder.moduleRootsSet {
 		panic(jutil.NewNullPointerException())
 	}
-	l.moduleRootPaths = l.createRootPaths(builder.moduleRoots)
+	l.moduleRootPaths = l.CreateRootPaths(builder.moduleRoots)
 
 	if !builder.inputsSet {
 		panic(jutil.NewNullPointerException())
 	}
-	modulePaths := l.resolvePaths(builder.inputs)
+	modulePaths := l.ResolvePaths(builder.inputs)
 	l.moduleResolver =
 		builder.factory.Create(
 			modulePaths, l.moduleRootPaths, l.errorHandler, l.pathEscaper)
@@ -280,11 +280,11 @@ func ModuleLoader_IsPathIdentifier(name string) bool {
 	return strings.Contains(name, ModuleLoader_MODULE_SLASH)
 }
 
-// createRootPaths normalizes the given root paths, which are path prefixes
+// CreateRootPaths normalizes the given root paths, which are path prefixes
 // to be removed from a module path when resolved.
 //
 // Java: ModuleLoader.createRootPaths(Iterable<String>)
-func (l *ModuleLoader) createRootPaths(roots []string) []string {
+func (l *ModuleLoader) CreateRootPaths(roots []string) []string {
 	var paths []string
 	for _, root := range roots {
 		n := l.pathEscaper.Escape(l.pathResolver.Apply(root))
@@ -298,11 +298,11 @@ func (l *ModuleLoader) createRootPaths(roots []string) []string {
 	return slices.CompactFunc(paths, func(a, b string) bool { return moduleLoader_BEST_MATCH_PATH_ORDERING(a, b) == 0 })
 }
 
-// resolvePaths returns the list of normalized modules, which always have a
+// ResolvePaths returns the list of normalized modules, which always have a
 // leading slash.
 //
 // Java: ModuleLoader.resolvePaths(Iterable<? extends DependencyInfo>)
-func (l *ModuleLoader) resolvePaths(inputs []DependencyInfo) *jutil.LinkedHashSet[string] {
+func (l *ModuleLoader) ResolvePaths(inputs []DependencyInfo) *jutil.LinkedHashSet[string] {
 	var paths []string
 	for _, input := range inputs {
 		p := l.pathEscaper.Escape(l.pathResolver.Apply(input.GetName()))

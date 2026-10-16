@@ -31,7 +31,7 @@ type JSCompZipFileCache struct{}
 //
 // Java: JSCompZipFileCache.getEntryStream(String, String)
 func JSCompZipFileCache_GetEntryStream(zipName string, entryName string) io.Reader {
-	return jSCompZipFileCache_zipFileCache.GetUnchecked(zipName).getEntryStream(entryName)
+	return jSCompZipFileCache_zipFileCache.GetUnchecked(zipName).GetEntryStream(entryName)
 }
 
 // Go-only: language-adapter — there are no Java system properties; the
@@ -43,7 +43,7 @@ var jSCompZipFileCache_zipFileCache = jutil.CacheBuilder_Build(
 		MaximumSize(jSCompZipFileCache_ZIP_CACHE_SIZE).
 		RemovalListener(func(key, value any) {
 			jutil.Try(func() {
-				value.(*JSCompZipFileCache_CachedZipFile).maybeClose()
+				value.(*JSCompZipFileCache_CachedZipFile).MaybeClose()
 			}, func(e jutil.IIOException) {
 				panic(jutil.NewRuntimeExceptionWithCause(e))
 			})
@@ -64,8 +64,8 @@ func newJSCompZipFileCache_CachedZipFile(zipName string) *JSCompZipFileCache_Cac
 }
 
 // Java: JSCompZipFileCache.CachedZipFile.getEntryStream(String)
-func (z *JSCompZipFileCache_CachedZipFile) getEntryStream(entryName string) io.Reader {
-	z.refreshIfNeeded()
+func (z *JSCompZipFileCache_CachedZipFile) GetEntryStream(entryName string) io.Reader {
+	z.RefreshIfNeeded()
 	entry := jSCompZipFileCache_getEntry(z.zipFile, entryName)
 	if entry == nil {
 		panic(jutil.NewNullPointerExceptionMsg(jutil.LenientFormat("%s!/%s", z.path, entryName)))
@@ -111,7 +111,7 @@ func jSCompZipFileCache_ioException(err error, path string) jutil.Throwable {
 }
 
 // Java: JSCompZipFileCache.CachedZipFile.refreshIfNeeded()
-func (z *JSCompZipFileCache_CachedZipFile) refreshIfNeeded() {
+func (z *JSCompZipFileCache_CachedZipFile) RefreshIfNeeded() {
 	info, err := os.Stat(z.path.String())
 	if err != nil {
 		panic(jSCompZipFileCache_ioException(err, z.path.String()))
@@ -127,7 +127,7 @@ func (z *JSCompZipFileCache_CachedZipFile) refreshIfNeeded() {
 		return
 	}
 
-	z.maybeClose()
+	z.MaybeClose()
 	zf, err := zip.OpenReader(z.path.String())
 	if err != nil {
 		panic(jSCompZipFileCache_ioException(err, z.path.String()))
@@ -137,7 +137,7 @@ func (z *JSCompZipFileCache_CachedZipFile) refreshIfNeeded() {
 }
 
 // Java: JSCompZipFileCache.CachedZipFile.maybeClose()
-func (z *JSCompZipFileCache_CachedZipFile) maybeClose() {
+func (z *JSCompZipFileCache_CachedZipFile) MaybeClose() {
 	if z.zipFile != nil {
 		if err := z.zipFile.Close(); err != nil {
 			panic(jSCompZipFileCache_ioException(err, z.path.String()))

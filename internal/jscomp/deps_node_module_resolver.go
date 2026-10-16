@@ -153,18 +153,18 @@ func NewNodeModuleResolver(
 	if packageJsonMainEntries == nil {
 		r.packageJsonMainEntries = jutil.NewLinkedHashMap[string, string]()
 	} else {
-		r.packageJsonMainEntries = r.buildPackageJsonMainEntries(packageJsonMainEntries)
+		r.packageJsonMainEntries = r.BuildPackageJsonMainEntries(packageJsonMainEntries)
 	}
 	return r
 }
 
-// buildPackageJsonMainEntries takes packageJsonMainEntries, a map with keys
+// BuildPackageJsonMainEntries takes packageJsonMainEntries, a map with keys
 // that are package.json file paths and values which are the "main" entry
 // from the package.json. "main" entries are absolute paths rooted from the
 // folder containing the package.json file.
 //
 // Java: NodeModuleResolver.buildPackageJsonMainEntries(Map<String, String>)
-func (r *NodeModuleResolver) buildPackageJsonMainEntries(
+func (r *NodeModuleResolver) BuildPackageJsonMainEntries(
 	packageJsonMainEntries *jutil.LinkedHashMap[string, string]) *jutil.LinkedHashMap[string, string] {
 	builder := jutil.NewLinkedHashMap[string, string]()
 	for entryKey, value := range packageJsonMainEntries.All() {
@@ -193,7 +193,7 @@ func (r *NodeModuleResolver) GetPackageJsonMainEntries() *jutil.LinkedHashMap[st
 // Java: NodeModuleResolver.resolveJsModule(String, String, String, int, int)
 func (r *NodeModuleResolver) ResolveJsModule(
 	scriptAddress string, moduleAddress string, sourcename string, lineno int, colno int) *string {
-	loadAddress := r.internalResolveJsModule(scriptAddress, moduleAddress)
+	loadAddress := r.InternalResolveJsModule(scriptAddress, moduleAddress)
 
 	if loadAddress == nil {
 		r.errorHandler.Report(
@@ -204,13 +204,13 @@ func (r *NodeModuleResolver) ResolveJsModule(
 }
 
 // Java: NodeModuleResolver.internalResolveJsModule(String, String)
-func (r *NodeModuleResolver) internalResolveJsModule(scriptAddress string, moduleAddress string) *string {
+func (r *NodeModuleResolver) InternalResolveJsModule(scriptAddress string, moduleAddress string) *string {
 	var loadAddress *string
 	if ModuleLoader_IsAbsoluteIdentifier(moduleAddress) ||
 		ModuleLoader_IsRelativeIdentifier(moduleAddress) {
-		loadAddress = r.resolveJsModuleNodeFileOrDirectory(scriptAddress, moduleAddress)
+		loadAddress = r.ResolveJsModuleNodeFileOrDirectory(scriptAddress, moduleAddress)
 	} else {
-		loadAddress = r.resolveJsModuleFromRegistry(scriptAddress, moduleAddress)
+		loadAddress = r.ResolveJsModuleFromRegistry(scriptAddress, moduleAddress)
 	}
 
 	return loadAddress
@@ -220,7 +220,7 @@ func (r *NodeModuleResolver) internalResolveJsModule(scriptAddress string, modul
 //
 // Java: NodeModuleResolver.resolveJsModuleSilently(String, String)
 func (r *NodeModuleResolver) ResolveJsModuleSilently(scriptAddress string, moduleAddress string) *string {
-	return r.internalResolveJsModule(scriptAddress, moduleAddress)
+	return r.InternalResolveJsModule(scriptAddress, moduleAddress)
 }
 
 // ResolveJsModuleFile may return nil.
@@ -229,7 +229,7 @@ func (r *NodeModuleResolver) ResolveJsModuleSilently(scriptAddress string, modul
 func (r *NodeModuleResolver) ResolveJsModuleFile(scriptAddress string, moduleAddress string) *string {
 	for _, extension := range nodeModuleResolver_FILE_EXTENSIONS_TO_SEARCH {
 		moduleAddressCandidate := moduleAddress + extension
-		canonicalizedCandidatePath := r.canonicalizePath(scriptAddress, moduleAddressCandidate)
+		canonicalizedCandidatePath := r.CanonicalizePath(scriptAddress, moduleAddressCandidate)
 
 		// Also look for mappings in packageJsonMainEntries because browser field
 		// advanced usage allows to override / skip specific files, including
@@ -242,7 +242,7 @@ func (r *NodeModuleResolver) ResolveJsModuleFile(scriptAddress string, moduleAdd
 			}
 		}
 
-		loadAddress := r.locate(scriptAddress, moduleAddressCandidate)
+		loadAddress := r.Locate(scriptAddress, moduleAddressCandidate)
 		if loadAddress != nil {
 			return loadAddress
 		}
@@ -252,18 +252,18 @@ func (r *NodeModuleResolver) ResolveJsModuleFile(scriptAddress string, moduleAdd
 }
 
 // Java: NodeModuleResolver.resolveJsModuleNodeFileOrDirectory(String, String)
-func (r *NodeModuleResolver) resolveJsModuleNodeFileOrDirectory(
+func (r *NodeModuleResolver) ResolveJsModuleNodeFileOrDirectory(
 	scriptAddress string, moduleAddress string) *string {
 	var loadAddress *string
 	loadAddress = r.ResolveJsModuleFile(scriptAddress, moduleAddress)
 	if loadAddress == nil {
-		loadAddress = r.resolveJsModuleNodeDirectory(scriptAddress, moduleAddress)
+		loadAddress = r.ResolveJsModuleNodeDirectory(scriptAddress, moduleAddress)
 	}
 	return loadAddress
 }
 
 // Java: NodeModuleResolver.resolveJsModuleNodeDirectory(String, String)
-func (r *NodeModuleResolver) resolveJsModuleNodeDirectory(
+func (r *NodeModuleResolver) ResolveJsModuleNodeDirectory(
 	scriptAddress string, moduleAddress string) *string {
 	if strings.HasSuffix(moduleAddress, ModuleLoader_MODULE_SLASH) {
 		moduleAddress = moduleAddress[0 : len(moduleAddress)-1]
@@ -271,7 +271,7 @@ func (r *NodeModuleResolver) resolveJsModuleNodeDirectory(
 
 	// Load as a file
 	for i := 0; i < len(nodeModuleResolver_FILES_TO_SEARCH); i++ {
-		loadAddress := r.locate(scriptAddress, moduleAddress+nodeModuleResolver_FILES_TO_SEARCH[i])
+		loadAddress := r.Locate(scriptAddress, moduleAddress+nodeModuleResolver_FILES_TO_SEARCH[i])
 		if loadAddress != nil {
 			if nodeModuleResolver_FILES_TO_SEARCH[i] == ModuleLoader_MODULE_SLASH+"package.json" {
 				if r.packageJsonMainEntries.ContainsKey(*loadAddress) {
@@ -287,7 +287,7 @@ func (r *NodeModuleResolver) resolveJsModuleNodeDirectory(
 }
 
 // Java: NodeModuleResolver.resolveJsModuleFromRegistry(String, String)
-func (r *NodeModuleResolver) resolveJsModuleFromRegistry(scriptAddress string, moduleAddress string) *string {
+func (r *NodeModuleResolver) ResolveJsModuleFromRegistry(scriptAddress string, moduleAddress string) *string {
 	prefix := ""
 	if ModuleLoader_IsAmbiguousIdentifier(scriptAddress) {
 		prefix = ModuleLoader_MODULE_SLASH
@@ -304,7 +304,7 @@ func (r *NodeModuleResolver) resolveJsModuleFromRegistry(scriptAddress string, m
 		loadAddress := r.ResolveJsModuleFile(scriptAddress, fullModulePath)
 		if loadAddress == nil {
 			// Load as a directory
-			loadAddress = r.resolveJsModuleNodeDirectory(scriptAddress, fullModulePath)
+			loadAddress = r.ResolveJsModuleNodeDirectory(scriptAddress, fullModulePath)
 		}
 
 		if loadAddress != nil {

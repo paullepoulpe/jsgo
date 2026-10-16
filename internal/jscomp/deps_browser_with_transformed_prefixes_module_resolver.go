@@ -123,11 +123,11 @@ func NewBrowserWithTransformedPrefixesModuleResolver(
 	return r
 }
 
-// replacePathPrefixes may return nil when moduleAddress is nil in Java;
+// ReplacePathPrefixes may return nil when moduleAddress is nil in Java;
 // Go strings are never null.
 //
 // Java: BrowserWithTransformedPrefixesModuleResolver.replacePathPrefixes(String)
-func (r *BrowserWithTransformedPrefixesModuleResolver) replacePathPrefixes(moduleAddress string) string {
+func (r *BrowserWithTransformedPrefixesModuleResolver) ReplacePathPrefixes(moduleAddress string) string {
 	transformedAddress := moduleAddress
 	for _, prefixReplacement := range r.prefixReplacements {
 		if strings.HasPrefix(moduleAddress, prefixReplacement.Prefix()) {
@@ -145,7 +145,7 @@ func (r *BrowserWithTransformedPrefixesModuleResolver) replacePathPrefixes(modul
 // Java: BrowserWithTransformedPrefixesModuleResolver.resolveJsModule(String, String, String, int, int)
 func (r *BrowserWithTransformedPrefixesModuleResolver) ResolveJsModule(
 	scriptAddress string, moduleAddress string, sourcename string, lineno int, colno int) *string {
-	transformedAddress := r.replacePathPrefixes(moduleAddress)
+	transformedAddress := r.ReplacePathPrefixes(moduleAddress)
 	replaced := transformedAddress != moduleAddress
 	// If ambiguous after the loop it was not transformed and the original moduleAddress is
 	// ambiguous with an unrecognized prefix. Allow transformed paths to be ambiguous after
@@ -164,14 +164,14 @@ func (r *BrowserWithTransformedPrefixesModuleResolver) ResolveJsModule(
 	}
 	// A null load address is not an error for this resolver, because it is expected that the
 	// module may be supplied at runtime.
-	return r.locate(scriptAddress, transformedAddress)
+	return r.Locate(scriptAddress, transformedAddress)
 }
 
 // ResolveJsModuleSilently may return nil.
 //
 // Java: BrowserWithTransformedPrefixesModuleResolver.resolveJsModuleSilently(String, String)
 func (r *BrowserWithTransformedPrefixesModuleResolver) ResolveJsModuleSilently(scriptAddress string, moduleAddress string) *string {
-	transformedAddress := r.replacePathPrefixes(moduleAddress)
+	transformedAddress := r.ReplacePathPrefixes(moduleAddress)
 	replaced := transformedAddress != moduleAddress
 	// If ambiguous after the loop it was not transformed and the original moduleAddress is
 	// ambiguous with an unrecognized prefix. Allow transformed paths to be ambiguous after
@@ -179,7 +179,7 @@ func (r *BrowserWithTransformedPrefixesModuleResolver) ResolveJsModuleSilently(s
 	if !replaced && ModuleLoader_IsAmbiguousIdentifier(transformedAddress) {
 		return nil
 	}
-	return r.locate(scriptAddress, transformedAddress)
+	return r.Locate(scriptAddress, transformedAddress)
 }
 
 // Java: BrowserWithTransformedPrefixesModuleResolver.resolveModuleAsPath(String, String)

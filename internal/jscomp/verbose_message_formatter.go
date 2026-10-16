@@ -25,16 +25,16 @@ func NewVerboseMessageFormatter(source SourceExcerptProvider) *VerboseMessageFor
 
 // Java: VerboseMessageFormatter.formatError(JSError)
 func (f *VerboseMessageFormatter) FormatError(error *JSError) string {
-	return f.GetLevelName(CheckLevel_ERROR) + ": " + f.format(error)
+	return f.GetLevelName(CheckLevel_ERROR) + ": " + f.Format(error)
 }
 
 // Java: VerboseMessageFormatter.formatWarning(JSError)
 func (f *VerboseMessageFormatter) FormatWarning(warning *JSError) string {
-	return f.GetLevelName(CheckLevel_WARNING) + ": " + f.format(warning)
+	return f.GetLevelName(CheckLevel_WARNING) + ": " + f.Format(warning)
 }
 
 // Java: VerboseMessageFormatter.format(JSError)
-func (f *VerboseMessageFormatter) format(message *JSError) string {
+func (f *VerboseMessageFormatter) Format(message *JSError) string {
 	description := message.Description()
 	sourceName := message.SourceName()
 	lineNumber := message.GetLineNumber()

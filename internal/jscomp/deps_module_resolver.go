@@ -84,12 +84,12 @@ func (r *ModuleResolverBase) ResolveModuleAsPath(scriptAddress string, moduleAdd
 	return ModuleLoader_Normalize(path, r.moduleRootPaths)
 }
 
-// locate locates the module with the given name, but returns nil if there
+// Locate locates the module with the given name, but returns nil if there
 // is no JS file in the expected location.
 //
 // Java: ModuleResolver.locate(String, String)
-func (r *ModuleResolverBase) locate(scriptAddress string, name string) *string {
-	canonicalizedPath := r.canonicalizePath(scriptAddress, name)
+func (r *ModuleResolverBase) Locate(scriptAddress string, name string) *string {
+	canonicalizedPath := r.CanonicalizePath(scriptAddress, name)
 
 	normalizedPath := canonicalizedPath
 	if ModuleLoader_IsAmbiguousIdentifier(canonicalizedPath) {
@@ -116,11 +116,11 @@ func (r *ModuleResolverBase) locate(scriptAddress string, name string) *string {
 	return nil
 }
 
-// canonicalizePath normalizes a module path reference. Includes escaping
+// CanonicalizePath normalizes a module path reference. Includes escaping
 // special characters and converting relative paths to absolute references.
 //
 // Java: ModuleResolver.canonicalizePath(String, String)
-func (r *ModuleResolverBase) canonicalizePath(scriptAddress string, moduleAddress string) string {
+func (r *ModuleResolverBase) CanonicalizePath(scriptAddress string, moduleAddress string) string {
 	path := r.pathEscaper.Escape(moduleAddress)
 	if ModuleLoader_IsRelativeIdentifier(moduleAddress) {
 		ourPath := scriptAddress

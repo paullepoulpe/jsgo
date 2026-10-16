@@ -104,11 +104,11 @@ func newColorPool_ShardView(
 // Java: ColorPool.ShardView.getColor(int)
 func (s *ColorPool_ShardView) GetColor(pointer int) *colors.Color {
 	jutil.CheckStateMsg1(s.colorPool != nil, "%s", s)
-	return s.colorPool.GetColor(s.getId(pointer))
+	return s.colorPool.GetColor(s.GetId(pointer))
 }
 
 // Java: ColorPool.ShardView.getId(int)
-func (s *ColorPool_ShardView) getId(untrimmedOffset int) colors.ColorId {
+func (s *ColorPool_ShardView) GetId(untrimmedOffset int) colors.ColorId {
 	if TypePointers_IsAxiomatic(untrimmedOffset) {
 		return TypePointers_OFFSET_TO_AXIOMATIC_COLOR[untrimmedOffset].GetId()
 	} else {
@@ -117,7 +117,7 @@ func (s *ColorPool_ShardView) getId(untrimmedOffset int) colors.ColorId {
 }
 
 // Java: ColorPool.ShardView.updateStateAfterColorPoolIsBuilt(ColorPool)
-func (s *ColorPool_ShardView) updateStateAfterColorPoolIsBuilt(colorPool *ColorPool) {
+func (s *ColorPool_ShardView) UpdateStateAfterColorPoolIsBuilt(colorPool *ColorPool) {
 	s.colorPool = colorPool
 	s.typePool = nil
 	s.stringPool = nil
@@ -135,7 +135,7 @@ func ColorPool_Builder_() *ColorPool_Builder {
 
 // Java: ColorPool.fromOnlyShardForTesting(TypePool, StringPool)
 func ColorPool_FromOnlyShardForTesting(typePool *TypePool, stringPool *StringPool) *ColorPool {
-	return ColorPool_Builder_().AddShardAnd(typePool, stringPool).forTesting().Build()
+	return ColorPool_Builder_().AddShardAnd(typePool, stringPool).ForTesting().Build()
 }
 
 // ColorPool_Builder collects TypePools and other data into ShardViews and
@@ -171,7 +171,7 @@ func (b *ColorPool_Builder) AddShardAnd(typePool *TypePool, stringPool *StringPo
 }
 
 // Java: ColorPool.Builder.forTesting()
-func (b *ColorPool_Builder) forTesting() *ColorPool_Builder {
+func (b *ColorPool_Builder) ForTesting() *ColorPool_Builder {
 	b.forTesting_ = true
 	return b
 }
@@ -193,7 +193,7 @@ func (b *ColorPool_Builder) AddShard(typePool *TypePool, stringPool *StringPool)
 	if typePool.HasDebugInfo() {
 		for _, m := range typePool.GetDebugInfo().GetMismatchList() {
 			for _, pointer := range m.GetInvolvedColorList() {
-				b.registry.AddMismatchLocation(shard.getId(int(pointer)), m.GetSourceRef())
+				b.registry.AddMismatchLocation(shard.GetId(int(pointer)), m.GetSourceRef())
 			}
 		}
 	}
@@ -205,7 +205,7 @@ func (b *ColorPool_Builder) AddShard(typePool *TypePool, stringPool *StringPool)
 func (b *ColorPool_Builder) Build() *ColorPool {
 	jutil.CheckStateMsg(b.idToProto.IsEmpty(), "build has already been called")
 
-	b.forEachShard(
+	b.ForEachShard(
 		func(shard *ColorPool_ShardView) {
 			for i := 0; i < shard.typePool.GetTypeCount(); i++ {
 				id := shard.trimmedOffsetToId[i]
@@ -219,7 +219,7 @@ func (b *ColorPool_Builder) Build() *ColorPool {
 	}
 
 	for id := range b.idToProto.RowKeySet() {
-		b.lookupOrReconcileColor(id)
+		b.LookupOrReconcileColor(id)
 	}
 
 	for colorId := range colors.ColorRegistry_REQUIRED_IDS.All() {
@@ -228,33 +228,33 @@ func (b *ColorPool_Builder) Build() *ColorPool {
 				colorId, func(unused colors.ColorId) *colors.Color { return colors.Color_SingleBuilder().SetId(colorId).Build() }))
 	}
 
-	b.forEachShard(
+	b.ForEachShard(
 		func(shard *ColorPool_ShardView) {
 			for _, edge := range shard.typePool.GetDisambiguationEdgesList() {
 				b.registry.AddDisambiguationEdge(
-					b.idToColor.Get(shard.getId(colorPool_validatePointer(int(edge.GetSubtype()), shard))), //
-					b.idToColor.Get(shard.getId(colorPool_validatePointer(int(edge.GetSupertype()), shard))))
+					b.idToColor.Get(shard.GetId(colorPool_validatePointer(int(edge.GetSubtype()), shard))), //
+					b.idToColor.Get(shard.GetId(colorPool_validatePointer(int(edge.GetSupertype()), shard))))
 			}
 		})
 
 	shardViewsForTesting := []*ColorPool_ShardView{}
 	if b.forTesting_ {
-		b.forEachShard(func(shard *ColorPool_ShardView) { shardViewsForTesting = append(shardViewsForTesting, shard) })
+		b.ForEachShard(func(shard *ColorPool_ShardView) { shardViewsForTesting = append(shardViewsForTesting, shard) })
 	}
 
 	colorPool := newColorPool(b.idToColor, b.registry.Build(), shardViewsForTesting)
 
-	b.forEachShard(func(shard *ColorPool_ShardView) { shard.updateStateAfterColorPoolIsBuilt(colorPool) })
+	b.ForEachShard(func(shard *ColorPool_ShardView) { shard.UpdateStateAfterColorPoolIsBuilt(colorPool) })
 	return colorPool
 }
 
 // Java: ColorPool.Builder.forEachShard(Consumer<ShardView>)
-func (b *ColorPool_Builder) forEachShard(fn func(*ColorPool_ShardView)) {
+func (b *ColorPool_Builder) ForEachShard(fn func(*ColorPool_ShardView)) {
 	b.protoToShard.ForEach(func(unused *TypePool, shard *ColorPool_ShardView) { fn(shard) })
 }
 
 // Java: ColorPool.Builder.lookupOrReconcileColor(ColorId)
-func (b *ColorPool_Builder) lookupOrReconcileColor(id colors.ColorId) *colors.Color {
+func (b *ColorPool_Builder) LookupOrReconcileColor(id colors.ColorId) *colors.Color {
 	b.reconcilationDebugStack = append(b.reconcilationDebugStack, id)
 	defer func() {
 		b.reconcilationDebugStack = b.reconcilationDebugStack[:len(b.reconcilationDebugStack)-1]
@@ -283,9 +283,9 @@ func (b *ColorPool_Builder) lookupOrReconcileColor(id colors.ColorId) *colors.Co
 	var result *colors.Color
 	switch sample.GetKindCase() {
 	case TypeProto_KindCase_OBJECT:
-		result = b.reconcileObjectProtos(id, viewToProto)
+		result = b.ReconcileObjectProtos(id, viewToProto)
 	case TypeProto_KindCase_UNION:
-		result = b.reconcileUnionProtos(id, viewToProto)
+		result = b.ReconcileUnionProtos(id, viewToProto)
 	default:
 		panic(jutil.NewAssertionError(sample.String()))
 	}
@@ -296,7 +296,7 @@ func (b *ColorPool_Builder) lookupOrReconcileColor(id colors.ColorId) *colors.Co
 }
 
 // Java: ColorPool.Builder.reconcileObjectProtos(ColorId, Map<ShardView, TypeProto>)
-func (b *ColorPool_Builder) reconcileObjectProtos(id colors.ColorId, viewToProto *jutil.LinkedHashMap[*ColorPool_ShardView, *TypeProto]) *colors.Color {
+func (b *ColorPool_Builder) ReconcileObjectProtos(id colors.ColorId, viewToProto *jutil.LinkedHashMap[*ColorPool_ShardView, *TypeProto]) *colors.Color {
 	instanceColors := jutil.NewObjectLinkedHashSet[*colors.Color]()
 	prototypes := jutil.NewObjectLinkedHashSet[*colors.Color]()
 	ownProperties := jutil.NewLinkedHashSet[string]()
@@ -312,7 +312,7 @@ func (b *ColorPool_Builder) reconcileObjectProtos(id colors.ColorId, viewToProto
 		instanceTypeIds := objProto.GetInstanceTypeList()
 		for i := 0; i < len(instanceTypeIds); i++ {
 			instanceTypePointer := instanceTypeIds[i]
-			instanceColors.Add(b.lookupOrReconcileColor(shard.getId(int(instanceTypePointer))))
+			instanceColors.Add(b.LookupOrReconcileColor(shard.GetId(int(instanceTypePointer))))
 		}
 
 		isClosureAssertBool := objProto.GetClosureAssert()
@@ -329,7 +329,7 @@ func (b *ColorPool_Builder) reconcileObjectProtos(id colors.ColorId, viewToProto
 		prototypeIds := objProto.GetPrototypeList()
 		for i := 0; i < len(prototypeIds); i++ {
 			prototypePointer := prototypeIds[i]
-			prototypes.Add(b.lookupOrReconcileColor(shard.getId(int(prototypePointer))))
+			prototypes.Add(b.LookupOrReconcileColor(shard.GetId(int(prototypePointer))))
 		}
 		for i := 0; i < objProto.GetOwnPropertyCount(); i++ {
 			ownProperties.Add(shard.stringPool.Get(int(objProto.GetOwnProperty(i))))
@@ -349,15 +349,15 @@ func (b *ColorPool_Builder) reconcileObjectProtos(id colors.ColorId, viewToProto
 }
 
 // Java: ColorPool.Builder.reconcileUnionProtos(ColorId, Map<ShardView, TypeProto>)
-func (b *ColorPool_Builder) reconcileUnionProtos(id colors.ColorId, viewToProto *jutil.LinkedHashMap[*ColorPool_ShardView, *TypeProto]) *colors.Color {
+func (b *ColorPool_Builder) ReconcileUnionProtos(id colors.ColorId, viewToProto *jutil.LinkedHashMap[*ColorPool_ShardView, *TypeProto]) *colors.Color {
 	union := jutil.NewObjectLinkedHashSet[*colors.Color]()
 	for shard, proto := range viewToProto.All() {
 		jutil.CheckStateMsg1(proto.HasUnion(), "%s", proto)
 		unionMemberList := proto.GetUnion().GetUnionMemberList()
 		for i := 0; i < len(unionMemberList); i++ {
 			memberPointer := unionMemberList[i]
-			memberId := shard.getId(int(memberPointer))
-			member := b.lookupOrReconcileColor(memberId)
+			memberId := shard.GetId(int(memberPointer))
+			member := b.LookupOrReconcileColor(memberId)
 			MalformedTypedAstException_CheckWellFormedWithParam(!member.IsUnion(), "Reconciling union with non-union", proto)
 			union.Add(member)
 		}

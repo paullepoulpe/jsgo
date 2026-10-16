@@ -28,10 +28,10 @@ func NewCheckTypeSummaryWarningsGuard(level CheckLevel) *CheckTypeSummaryWarning
 // Java: CheckTypeSummaryWarningsGuard.level(JSError)
 func (g *CheckTypeSummaryWarningsGuard) Level(error *JSError) *CheckLevel {
 	jutil.CheckNotNull(error)
-	if !g.shouldDemoteIfTypeSummary(error) {
+	if !g.ShouldDemoteIfTypeSummary(error) {
 		return nil
 	}
-	if g.inTypeSummary(error) {
+	if g.InTypeSummary(error) {
 		return g.level.Ptr()
 	}
 	return nil
@@ -43,19 +43,19 @@ func (g *CheckTypeSummaryWarningsGuard) GetPriority() int {
 	return WarningsGuard_Priority_SUPPRESS_BY_ALLOWLIST.GetValue()
 }
 
-// inTypeSummary returns whether the given error was produced inside a type
+// InTypeSummary returns whether the given error was produced inside a type
 // summary file.
 //
 // Java: CheckTypeSummaryWarningsGuard.inTypeSummary(JSError)
-func (g *CheckTypeSummaryWarningsGuard) inTypeSummary(error *JSError) bool {
+func (g *CheckTypeSummaryWarningsGuard) InTypeSummary(error *JSError) bool {
 	return error.SourceName() != nil && strings.HasSuffix(*error.SourceName(), ".i.js")
 }
 
-// shouldDemoteIfTypeSummary returns whether the given error should be
+// ShouldDemoteIfTypeSummary returns whether the given error should be
 // demoted even if in a type summary file.
 //
 // Java: CheckTypeSummaryWarningsGuard.shouldDemoteIfTypeSummary(JSError)
-func (g *CheckTypeSummaryWarningsGuard) shouldDemoteIfTypeSummary(error *JSError) bool {
+func (g *CheckTypeSummaryWarningsGuard) ShouldDemoteIfTypeSummary(error *JSError) bool {
 	// TODO(b/215776774): also skip demoting DUPLICATE_MODULE and DUPLICATE_NAMESPACE errors.
 	// DUPLICATE_NAMESPACE_AND_MODULE is only special-cased because it was easier to land.
 	return !error.Type().Equals(ClosurePrimitiveErrors_DUPLICATE_NAMESPACE_AND_MODULE)

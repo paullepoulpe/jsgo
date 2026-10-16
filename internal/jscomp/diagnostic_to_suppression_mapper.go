@@ -78,7 +78,7 @@ func (m *DiagnosticToSuppressionMapper) CreateSuppressionMap() *jutil.TreeMap[st
 		for diagnosticType := range group.GetTypes().All() {
 			// Map.merge(key, value, remappingFunction)
 			if old, ok := diagnosticToSuppression.Lookup(diagnosticType); ok {
-				diagnosticToSuppression.Put(diagnosticType, m.preferMoreTargetedGroup(old, suppression))
+				diagnosticToSuppression.Put(diagnosticType, m.PreferMoreTargetedGroup(old, suppression))
 			} else {
 				diagnosticToSuppression.Put(diagnosticType, suppression)
 			}
@@ -94,10 +94,10 @@ func (m *DiagnosticToSuppressionMapper) CreateSuppressionMap() *jutil.TreeMap[st
 	return result
 }
 
-// preferMoreTargetedGroup uses a more targeted suppression if one exists.
+// PreferMoreTargetedGroup uses a more targeted suppression if one exists.
 //
 // Java: DiagnosticToSuppressionMapper.preferMoreTargetedGroup(String, String)
-func (m *DiagnosticToSuppressionMapper) preferMoreTargetedGroup(next string, current string) string {
+func (m *DiagnosticToSuppressionMapper) PreferMoreTargetedGroup(next string, current string) string {
 	nextGroup := m.diagnosticGroups.Get(next)
 	currentGroup := m.diagnosticGroups.Get(current)
 	if nextGroup.GetTypes().Size() < currentGroup.GetTypes().Size() {

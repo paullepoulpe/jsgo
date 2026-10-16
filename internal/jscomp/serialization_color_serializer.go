@@ -126,7 +126,7 @@ func (s *ColorSerializer) GenerateTypePool(
 	for i := TypePointers_UntrimOffset(0); i < s.colorsInSerializedOrder.Size(); i++ {
 		color := s.colorsInSerializedOrder.Get(i)
 		typePointer := s.colorIdToTypePointer.Get(color.GetId())
-		typePoolBuilder.AddType(s.generateTypeProto(color))
+		typePoolBuilder.AddType(s.GenerateTypeProto(color))
 		for supertype := range getDisambiguationSupertypesFn(color).All() {
 			typePoolBuilder.
 				AddDisambiguationEdgesBuilder().
@@ -166,7 +166,7 @@ func (s *ColorSerializer) GenerateTypePool(
 	return typePoolBuilder.Build()
 }
 
-func (s *ColorSerializer) generateTypeProto(color *colors.Color) *TypeProto {
+func (s *ColorSerializer) GenerateTypeProto(color *colors.Color) *TypeProto {
 	typeProtoBuilder := TypeProto_NewBuilder()
 	if color.IsUnion() {
 		typeProtoBuilder.GetUnionBuilder().AddAllUnionMember(colorSerializer_int32s(s.AddColors(color.GetUnionElements().ToSlice())))
@@ -179,13 +179,13 @@ func (s *ColorSerializer) generateTypeProto(color *colors.Color) *TypeProto {
 			AddAllInstanceType(colorSerializer_int32s(s.AddColors(color.GetInstanceColors().ToSlice()))).
 			AddAllPrototype(colorSerializer_int32s(s.AddColors(color.GetPrototypes().ToSlice()))).
 			SetMarkedConstructor(color.IsConstructor()).
-			AddAllOwnProperty(colorSerializer_int32s(s.getOwnPropertyStringPoolOffsets(color))).
+			AddAllOwnProperty(colorSerializer_int32s(s.GetOwnPropertyStringPoolOffsets(color))).
 			SetClosureAssert(color.IsClosureAssert())
 	}
 	return typeProtoBuilder.Build()
 }
 
-func (s *ColorSerializer) getOwnPropertyStringPoolOffsets(color *colors.Color) []int {
+func (s *ColorSerializer) GetOwnPropertyStringPoolOffsets(color *colors.Color) []int {
 	var builder []int
 	for ownProperty := range color.GetOwnProperties().All() {
 		// The client code may know that some properties are unused in the

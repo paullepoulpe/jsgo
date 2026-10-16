@@ -86,13 +86,13 @@ func (f *SourceFile) IsStubSourceFileForAlreadyProvidedInput() bool {
 	return f.isStubSourceFileForAlreadyProvidedInput
 }
 
-func (f *SourceFile) setIsStubSourceFileForAlreadyProvidedInput(isStubSourceFileForAlreadyProvidedInput bool) {
+func (f *SourceFile) SetIsStubSourceFileForAlreadyProvidedInput(isStubSourceFileForAlreadyProvidedInput bool) {
 	f.isStubSourceFileForAlreadyProvidedInput = isStubSourceFileForAlreadyProvidedInput
 }
 
 // Java: SourceFile.getLineOffset(int)
 func (f *SourceFile) GetLineOffset(lineno int) int {
-	f.findLineOffsets()
+	f.FindLineOffsets()
 	if lineno < 1 || lineno > len(f.lineOffsets) {
 		panic(jutil.NewIllegalArgumentExceptionMsg(
 			"Expected line number between 1 and " + strconv.Itoa(len(f.lineOffsets)) + "\nActual: " + strconv.Itoa(lineno)))
@@ -168,7 +168,7 @@ func sourceFile_unitsOfByte(b byte) int {
 	return 1
 }
 
-func (f *SourceFile) findLineOffsets() {
+func (f *SourceFile) FindLineOffsets() {
 	if f.lineOffsets != nil {
 		return
 	}
@@ -220,7 +220,7 @@ func (f *SourceFile) GetCode() string {
 		// Only synchronize if we need to
 		// Make sure another thread hasn't loaded the code while we waited.
 		if f.code == nil {
-			f.setCodeAndDoBookkeeping(jutil.StringPtr(f.loader.LoadUncachedCode()))
+			f.SetCodeAndDoBookkeeping(jutil.StringPtr(f.loader.LoadUncachedCode()))
 		}
 	}
 	return *f.code
@@ -230,7 +230,7 @@ func (f *SourceFile) GetCode() string {
 //
 // Deprecated.
 func (f *SourceFile) SetCodeDeprecated(code string) {
-	f.setCodeAndDoBookkeeping(&code)
+	f.SetCodeAndDoBookkeeping(&code)
 }
 
 // GetCodeReader gets a reader for the code in this source file. It panics
@@ -251,7 +251,7 @@ func (f *SourceFile) GetCodeReader() jutil.JavaReader {
 	return jutil.NewStringReader(f.GetCode())
 }
 
-func (f *SourceFile) setCodeAndDoBookkeeping(sourceCode *string) {
+func (f *SourceFile) SetCodeAndDoBookkeeping(sourceCode *string) {
 	f.code = nil
 	// Force recalculation of all of these values when they are requested.
 	f.lineOffsets = nil
@@ -294,7 +294,7 @@ func (f *SourceFile) GetOriginalPath() string {
 //
 // Java: SourceFile.clearCachedSource()
 func (f *SourceFile) ClearCachedSource() {
-	f.setCodeAndDoBookkeeping(nil)
+	f.SetCodeAndDoBookkeeping(nil)
 }
 
 // Java: SourceFile.hasSourceInMemory()
@@ -337,7 +337,7 @@ func (f *SourceFile) MarkAsClosureUnawareCode() {
 
 // Java: SourceFile.getLineOfOffset(int)
 func (f *SourceFile) GetLineOfOffset(offset int) int {
-	f.findLineOffsets()
+	f.FindLineOffsets()
 	search := jutil.ArraysBinarySearchInts(f.lineOffsets, offset)
 	if search >= 0 {
 		return search + 1 // lines are 1-based.
@@ -369,7 +369,7 @@ func (f *SourceFile) GetLine(lineNumber int) *string {
 	if failed {
 		return nil
 	}
-	f.findLineOffsets()
+	f.FindLineOffsets()
 	if lineNumber > len(f.lineOffsets) {
 		return nil
 	}
@@ -413,7 +413,7 @@ func (f *SourceFile) GetLines(lineNumber int, length int) Region {
 	if failed {
 		return nil
 	}
-	f.findLineOffsets()
+	f.FindLineOffsets()
 	if lineNumber > len(f.lineOffsets) {
 		return nil
 	}
@@ -790,12 +790,12 @@ func (b *SourceFile_Builder) WithCharset(charset *jutil.Charset) *SourceFile_Bui
 
 // Java: SourceFile.Builder.withPath(String)
 func (b *SourceFile_Builder) WithPath(path string) *SourceFile_Builder {
-	return b.withPathInternal(path, nil)
+	return b.WithPathInternal(path, nil)
 }
 
 // Java: SourceFile.Builder.withPath(Path)
 func (b *SourceFile_Builder) WithPathFromPath(path *jutil.Path) *SourceFile_Builder {
-	return b.withPathInternal(path.String(), path)
+	return b.WithPathInternal(path.String(), path)
 }
 
 // Java: SourceFile.Builder.withContent(String)
@@ -863,7 +863,7 @@ func (b *SourceFile_Builder) Build() *SourceFile {
 
 	if b.isStubSourceFileForAlreadyProvidedInput {
 		file := newSourceFile(NewSourceFile_CodeLoader_StubSourceFileCodeLoader(), displayPath, b.kind)
-		file.setIsStubSourceFileForAlreadyProvidedInput(true)
+		file.SetIsStubSourceFileForAlreadyProvidedInput(true)
 		return file
 	}
 
@@ -897,7 +897,7 @@ func sourceFile_nullableString(s *string) string {
 	return *s
 }
 
-func (b *SourceFile_Builder) withPathInternal(path string, pathWithFilesystem *jutil.Path) *SourceFile_Builder {
+func (b *SourceFile_Builder) WithPathInternal(path string, pathWithFilesystem *jutil.Path) *SourceFile_Builder {
 	// Check if this path should be inferred as a ZIP entry path.
 	bangSlashIndex := strings.Index(path, sourceFile_BANG_SLASH)
 	if bangSlashIndex >= 0 {
@@ -1011,7 +1011,7 @@ func NewSourceFile_CodeLoader_OnDisk(relativePath *jutil.Path, c *jutil.Charset)
 func (l *SourceFile_CodeLoader_OnDisk) LoadUncachedCode() string {
 	var result string
 	jutil.Try(func() {
-		result = jutil.Files_ReadString(l.relativePath, l.getCharset())
+		result = jutil.Files_ReadString(l.relativePath, l.GetCharset())
 	}, func(e jutil.ICharacterCodingException) {
 		msg := "Failed to read: " + l.relativePath.String() + ", is this input UTF-8 encoded?"
 		ex := &jutil.IOException{}
@@ -1023,10 +1023,10 @@ func (l *SourceFile_CodeLoader_OnDisk) LoadUncachedCode() string {
 
 // Java: SourceFile.CodeLoader.OnDisk.openUncachedReader()
 func (l *SourceFile_CodeLoader_OnDisk) OpenUncachedReader() jutil.JavaReader {
-	return jutil.Files_NewBufferedReader(l.relativePath, l.getCharset())
+	return jutil.Files_NewBufferedReader(l.relativePath, l.GetCharset())
 }
 
-func (l *SourceFile_CodeLoader_OnDisk) getCharset() *jutil.Charset {
+func (l *SourceFile_CodeLoader_OnDisk) GetCharset() *jutil.Charset {
 	return jutil.Charset_ForName(l.serializableCharset)
 }
 
@@ -1039,7 +1039,7 @@ func (l *SourceFile_CodeLoader_OnDisk) ToProtoLocationBuilder(fileName string) *
 	}
 	// save space by not serializing UTF_8 (the default charset)
 	charset := l.serializableCharset
-	if l.getCharset() == jutil.StandardCharsets_UTF_8 {
+	if l.GetCharset() == jutil.StandardCharsets_UTF_8 {
 		charset = ""
 	}
 	return SourceFileProto_NewBuilder().
@@ -1070,10 +1070,10 @@ func (l *SourceFile_CodeLoader_AtZip) LoadUncachedCode() string {
 // Java: SourceFile.CodeLoader.AtZip.openUncachedReader()
 func (l *SourceFile_CodeLoader_AtZip) OpenUncachedReader() jutil.JavaReader {
 	return jutil.NewInputStreamReader(
-		JSCompZipFileCache_GetEntryStream(l.zipName, l.entryName), l.getCharset())
+		JSCompZipFileCache_GetEntryStream(l.zipName, l.entryName), l.GetCharset())
 }
 
-func (l *SourceFile_CodeLoader_AtZip) getCharset() *jutil.Charset {
+func (l *SourceFile_CodeLoader_AtZip) GetCharset() *jutil.Charset {
 	return jutil.Charset_ForName(l.serializableCharset)
 }
 
@@ -1081,7 +1081,7 @@ func (l *SourceFile_CodeLoader_AtZip) getCharset() *jutil.Charset {
 func (l *SourceFile_CodeLoader_AtZip) ToProtoLocationBuilder(fileName string) *SourceFileProto_Builder {
 	// save space by not serializing UTF_8 (the default charset)
 	charset := l.serializableCharset
-	if l.getCharset() == jutil.StandardCharsets_UTF_8 {
+	if l.GetCharset() == jutil.StandardCharsets_UTF_8 {
 		charset = ""
 	}
 	return SourceFileProto_NewBuilder().

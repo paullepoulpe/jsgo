@@ -38,7 +38,7 @@ type composeWarningsGuard_GuardComparator struct {
 }
 
 // Java: ComposeWarningsGuard.GuardComparator.compare(WarningsGuard, WarningsGuard)
-func (c *composeWarningsGuard_GuardComparator) compare(a, b WarningsGuard) int {
+func (c *composeWarningsGuard_GuardComparator) Compare(a, b WarningsGuard) int {
 	priorityDiff := a.GetPriority() - b.GetPriority()
 	if priorityDiff != 0 {
 		return priorityDiff
@@ -61,7 +61,7 @@ func composeWarningsGuard_intValue(m *jutil.LinkedHashMap[WarningsGuard, int], g
 func newComposeWarningsGuardBase() *ComposeWarningsGuard {
 	g := &ComposeWarningsGuard{orderOfAddition: jutil.NewLinkedHashMap[WarningsGuard, int]()}
 	cmp := &composeWarningsGuard_GuardComparator{orderOfAddition: g.orderOfAddition}
-	g.guardComparator = cmp.compare
+	g.guardComparator = cmp.Compare
 	g.guards = jutil.NewTreeSet(g.guardComparator)
 	return g
 }
@@ -69,7 +69,7 @@ func newComposeWarningsGuardBase() *ComposeWarningsGuard {
 // Java: ComposeWarningsGuard(List<WarningsGuard>)
 func NewComposeWarningsGuardFromList(guards []WarningsGuard) *ComposeWarningsGuard {
 	g := newComposeWarningsGuardBase()
-	g.addGuards(guards)
+	g.AddGuards(guards)
 	return g
 }
 
@@ -92,7 +92,7 @@ func (g *ComposeWarningsGuard) AddGuard(guard WarningsGuard) {
 		for x := range composeGuard.guards.Descending() {
 			reversed = append(reversed, x)
 		}
-		g.addGuards(reversed)
+		g.AddGuards(reversed)
 	} else {
 		g.numberOfAdds++
 		g.orderOfAddition.Put(guard, g.numberOfAdds)
@@ -102,7 +102,7 @@ func (g *ComposeWarningsGuard) AddGuard(guard WarningsGuard) {
 }
 
 // Java: ComposeWarningsGuard.addGuards(Iterable<WarningsGuard>)
-func (g *ComposeWarningsGuard) addGuards(guards []WarningsGuard) {
+func (g *ComposeWarningsGuard) AddGuards(guards []WarningsGuard) {
 	for _, guard := range guards {
 		g.AddGuard(guard)
 	}
@@ -127,8 +127,8 @@ func (g *ComposeWarningsGuard) Level(error *JSError) *CheckLevel {
 // Java: ComposeWarningsGuard.mustRunChecks(DiagnosticGroup)
 func (g *ComposeWarningsGuard) MustRunChecks(group *DiagnosticGroup) base.Tri {
 	// TODO(b/189635620): Merge these helper methods. Why are they asymmetric?
-	enable := g.enables(group)
-	disable := g.disables(group)
+	enable := g.Enables(group)
+	disable := g.Disables(group)
 	jutil.CheckStateMsg2(!enable || !disable, "%s applied to %s", g, group)
 	if enable {
 		return base.Tri_TRUE
@@ -140,7 +140,7 @@ func (g *ComposeWarningsGuard) MustRunChecks(group *DiagnosticGroup) base.Tri {
 }
 
 // Java: ComposeWarningsGuard.disables(DiagnosticGroup)
-func (g *ComposeWarningsGuard) disables(group *DiagnosticGroup) bool {
+func (g *ComposeWarningsGuard) Disables(group *DiagnosticGroup) bool {
 nextSingleton:
 	for type_ := range group.GetTypes().All() {
 		singleton := DiagnosticGroup_ForType(type_)
@@ -159,7 +159,7 @@ nextSingleton:
 }
 
 // Java: ComposeWarningsGuard.enables(DiagnosticGroup)
-func (g *ComposeWarningsGuard) enables(group *DiagnosticGroup) bool {
+func (g *ComposeWarningsGuard) Enables(group *DiagnosticGroup) bool {
 	for guard := range g.guards.All() {
 		switch guard.MustRunChecks(group) {
 		case base.Tri_TRUE:
