@@ -346,9 +346,9 @@ func (f *LightweightMessageFormatter) padMultipleLines(
 // LightweightMessageFormatter_LineNumberingFormatter formats a region by
 // appending line numbers in front, e.g.
 //
-//	   9| if (foo) {
-//	  10|   alert('bar');
-//	  11| }
+//	 9| if (foo) {
+//	10|   alert('bar');
+//	11| }
 //
 // and return line excerpt without any modification.
 type LightweightMessageFormatter_LineNumberingFormatter struct{}
