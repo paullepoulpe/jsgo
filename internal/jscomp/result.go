@@ -35,8 +35,8 @@ type Result struct {
 	instrumentationMappings *VariableMap                 // nil is null
 	sourceMap               *SourceMap                   // nil is null
 	cssNames                *jutil.LinkedHashSet[string] // nil is null
-	externExport            string
-	idGeneratorMap          *string // nil is null
+	externExport            *string                      // nil is null
+	idGeneratorMap          *string                      // nil is null
 	transpiledFiles         bool
 }
 
@@ -50,7 +50,7 @@ func NewResultWithAllMaps(
 	stringMap *VariableMap,
 	instrumentationMappings *VariableMap,
 	sourceMap *SourceMap,
-	externExport string,
+	externExport *string,
 	cssNames *jutil.LinkedHashSet[string],
 	idGeneratorMap *string,
 	transpiledFiles bool) *Result {
@@ -81,7 +81,7 @@ func NewResult(
 	propertyMap *VariableMap,
 	namedAnonFunctionMap *VariableMap,
 	sourceMap *SourceMap,
-	externExport string) *Result {
+	externExport *string) *Result {
 	return NewResultWithAllMaps(
 		errors,
 		warnings,
@@ -117,7 +117,7 @@ func Result_PruneResultForPartialCompilation(result *Result) *Result {
 		/* stringMap= */ nil,
 		/* instrumentationMappings= */ emptyVariableMap,
 		/* sourceMap= */ nil,
-		/* externExport= */ "",
+		/* externExport= */ jutil.StringPtr(""),
 		/* cssNames= */ nil,
 		/* idGeneratorMap= */ nil,
 		/* transpiledFiles= */ false)
