@@ -227,12 +227,77 @@ M2.
 | M6 | SIMPLE_OPTIMIZATIONS passes | 20k | **byte-identical `SIMPLE` output** on corpus |
 | M7 | Type system and type checking (`rhino/jstype`, TypedScopeCreator, TypeInference, TypeCheck, conformance) | 25k | diagnostics identical on corpus and on all extracted Closure type-check tests (including the 1,444 + 544 fixtures already in this repo) |
 | M8 | ADVANCED_OPTIMIZATIONS (collapse/rename/disambiguate properties, devirtualization, cross-chunk motion) | 21k | **byte-identical `ADVANCED` output** on corpus |
-| M9 | Remainder: serialization (TypedAST), instrumentation, remaining flags; then performance work | 6k+ | full CLI parity |
+| M9 | Remainder: serialization (TypedAST), instrumentation, remaining flags; then performance work | 6k+ | full CLI parity; benchmark report vs Java (§6), overall and per phase |
 
 The legacy fixtures and oracles in `testdata/` remain valid and become the
 M7 acceptance set.
 
-## 6. Status
+## 6. Benchmarking against the Java compiler
+
+Once the port is a drop-in replacement, benchmark it against the pinned
+Java compiler on a representative set of tasks. Report overall numbers and
+numbers per compilation phase.
+
+**Tasks.** Each one is a real CLI invocation, run with identical flags on
+both compilers:
+
+| Task | Inputs | Mode |
+|---|---|---|
+| Typed app build | Closure Library-based app with deps (`goog.module`/`goog.provide`) | `ADVANCED`, type checking on, source maps |
+| Large plain-JS bundle | three.js, lodash, react-dom, TypeScript's `typescript.js` (9 MB) | `SIMPLE` |
+| Modern code down-levelling | rxjs, Angular, core-js | `--language_out=ECMASCRIPT5`, `WHITESPACE_ONLY` and `SIMPLE` |
+| Checks only | Closure Library | `--checks_only` with `checkTypes` |
+| Many small invocations | 1,000 single-file compiles | `SIMPLE` (startup-dominated; models per-file build steps) |
+
+**Correctness gate.** A run only counts if both compilers produce
+byte-identical output, source maps and diagnostics. Otherwise the speed
+comparison is meaningless.
+
+**Measurements.** For each run, record:
+
+- wall-clock time;
+- CPU time;
+- peak RSS.
+
+Each figure is the median of N runs plus its spread, on a quiet, pinned
+machine.
+
+The Java compiler gets two rows:
+
+- **cold:** `java -jar`, the way most users run it;
+- **warm:** the same invocation repeated in one JVM (`CliBatch`), which
+  models build-system persistent workers and isolates JIT warm-up from
+  steady-state speed.
+
+Both use default JVM and Go GC settings.
+
+**Per phase.** Closure's `--tracer_mode=TIMING_ONLY` makes
+`PerformanceTracker` report time per pass. Because the Go port is 1:1,
+including `PerformanceTracker` and `PhaseOptimizer`, it runs the same passes
+under the same names and emits the same report. The per-pass tables
+therefore line up exactly. Passes are also rolled up into phases:
+
+- parse;
+- checks;
+- type checking;
+- transpilation;
+- optimization loop;
+- renaming;
+- code printing and source maps.
+
+**Earlier, per milestone.** A line-for-line port inherits Java's allocation
+patterns, and the first attempt showed that a single quadratic pass can
+make Go slower than the JVM. So each layer is benchmarked as it lands:
+
+- **M1:** parse the 14,690-file corpus;
+- **M2:** parse and print it;
+- **later milestones:** the passes they add.
+
+This way a slow foundation (e.g. node allocation, ordered maps, UTF-16
+conversion) is caught before everything else is built on it. The full
+benchmark above becomes the M9 acceptance report.
+
+## 7. Status
 
 Done:
 
