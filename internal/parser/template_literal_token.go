@@ -32,16 +32,22 @@ const (
 var templateLiteralToken_ErrorLevel_names = [...]string{"WARNING", "ERROR"}
 
 // TemplateLiteralToken_ErrorLevel_values is ErrorLevel.values().
+//
+// Java: TemplateLiteralToken.ErrorLevel.values()
 func TemplateLiteralToken_ErrorLevel_values() []TemplateLiteralToken_ErrorLevel {
 	return []TemplateLiteralToken_ErrorLevel{TemplateLiteralToken_ErrorLevel_WARNING, TemplateLiteralToken_ErrorLevel_ERROR}
 }
 
 // Name is Enum.name().
+//
+// Java: TemplateLiteralToken.ErrorLevel.name()
 func (e TemplateLiteralToken_ErrorLevel) Name() string {
 	return templateLiteralToken_ErrorLevel_names[e]
 }
 
 // String is Enum.toString().
+//
+// Java: TemplateLiteralToken.ErrorLevel.toString()
 func (e TemplateLiteralToken_ErrorLevel) String() string { return e.Name() }
 
 // NewTemplateLiteralToken constructs a TemplateLiteralToken.

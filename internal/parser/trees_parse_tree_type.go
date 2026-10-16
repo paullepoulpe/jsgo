@@ -186,6 +186,8 @@ var parseTreeType_names = [...]string{
 }
 
 // ParseTreeType_values is ParseTreeType.values().
+//
+// Java: ParseTreeType.values()
 func ParseTreeType_values() []ParseTreeType {
 	values := make([]ParseTreeType, len(parseTreeType_names))
 	for i := range values {
@@ -195,7 +197,11 @@ func ParseTreeType_values() []ParseTreeType {
 }
 
 // Name is Enum.name().
+//
+// Java: ParseTreeType.name()
 func (t ParseTreeType) Name() string { return parseTreeType_names[t] }
 
 // String is Enum.toString().
+//
+// Java: ParseTreeType.toString()
 func (t ParseTreeType) String() string { return t.Name() }

@@ -33,6 +33,8 @@ const (
 var functionDeclarationTree_Kind_names = [...]string{"DECLARATION", "EXPRESSION", "MEMBER", "ARROW"}
 
 // FunctionDeclarationTree_Kind_values is Kind.values().
+//
+// Java: FunctionDeclarationTree.Kind.values()
 func FunctionDeclarationTree_Kind_values() []FunctionDeclarationTree_Kind {
 	return []FunctionDeclarationTree_Kind{
 		FunctionDeclarationTree_Kind_DECLARATION,
@@ -43,9 +45,13 @@ func FunctionDeclarationTree_Kind_values() []FunctionDeclarationTree_Kind {
 }
 
 // Name is Enum.name().
+//
+// Java: FunctionDeclarationTree.Kind.name()
 func (k FunctionDeclarationTree_Kind) Name() string { return functionDeclarationTree_Kind_names[k] }
 
 // String is Enum.toString().
+//
+// Java: FunctionDeclarationTree.Kind.toString()
 func (k FunctionDeclarationTree_Kind) String() string { return k.Name() }
 
 // FunctionDeclarationTree_NewBuilder returns a builder for a function of the

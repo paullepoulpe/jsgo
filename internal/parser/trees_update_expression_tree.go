@@ -28,16 +28,22 @@ const (
 var updateExpressionTree_OperatorPosition_names = [...]string{"PREFIX", "POSTFIX"}
 
 // UpdateExpressionTree_OperatorPosition_values is OperatorPosition.values().
+//
+// Java: UpdateExpressionTree.OperatorPosition.values()
 func UpdateExpressionTree_OperatorPosition_values() []UpdateExpressionTree_OperatorPosition {
 	return []UpdateExpressionTree_OperatorPosition{UpdateExpressionTree_OperatorPosition_PREFIX, UpdateExpressionTree_OperatorPosition_POSTFIX}
 }
 
 // Name is Enum.name().
+//
+// Java: UpdateExpressionTree.OperatorPosition.name()
 func (p UpdateExpressionTree_OperatorPosition) Name() string {
 	return updateExpressionTree_OperatorPosition_names[p]
 }
 
 // String is Enum.toString().
+//
+// Java: UpdateExpressionTree.OperatorPosition.toString()
 func (p UpdateExpressionTree_OperatorPosition) String() string { return p.Name() }
 
 // NewUpdateExpressionTree constructs a UpdateExpressionTree.

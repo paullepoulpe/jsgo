@@ -798,6 +798,8 @@ func (s *Scanner) ScanPostZero(beginToken int) Token {
 }
 
 // bigIntOrNumber is the Java conditional `isBigInt ? TokenType.BIGINT : TokenType.NUMBER`.
+//
+// Go-only: language-adapter — Java's conditional operator.
 func bigIntOrNumber(isBigInt bool) TokenType {
 	if isBigInt {
 		return TokenType_BIGINT
@@ -1482,4 +1484,5 @@ func (r *Scanner_SkipTemplateCharactersResult) HasError() bool {
 // values, which are pointers here.
 func stringPtr(s string) *string { return &s }
 
+// errorLevelPtr returns a non-nil (non-Java-null) ErrorLevel.
 func errorLevelPtr(l TemplateLiteralToken_ErrorLevel) *TemplateLiteralToken_ErrorLevel { return &l }

@@ -44,6 +44,8 @@ func (t *TokenBase) InitTokenBase(self Token, type_ TokenType, location *SourceR
 }
 
 // GetTokenBase returns the base struct (field access through the interface).
+//
+// Go-only: language-adapter — field access through the interface (PORTING.md §4).
 func (t *TokenBase) GetTokenBase() *TokenBase {
 	return t
 }

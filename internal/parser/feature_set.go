@@ -175,6 +175,8 @@ var featureSet_LangVersion_names = [...]string{
 }
 
 // FeatureSet_LangVersion_values is LangVersion.values().
+//
+// Java: FeatureSet.LangVersion.values()
 func FeatureSet_LangVersion_values() []FeatureSet_LangVersion {
 	values := make([]FeatureSet_LangVersion, len(featureSet_LangVersion_names))
 	for i := range values {
@@ -184,9 +186,13 @@ func FeatureSet_LangVersion_values() []FeatureSet_LangVersion {
 }
 
 // Name is Enum.name().
+//
+// Java: FeatureSet.LangVersion.name()
 func (v FeatureSet_LangVersion) Name() string { return featureSet_LangVersion_names[v] }
 
 // String is Enum.toString().
+//
+// Java: FeatureSet.LangVersion.toString()
 func (v FeatureSet_LangVersion) String() string { return v.Name() }
 
 // Features returns the features introduced by this version.
@@ -526,6 +532,8 @@ var featureSet_Feature_version = [...]FeatureSet_LangVersion{
 }
 
 // FeatureSet_Feature_values is Feature.values().
+//
+// Java: FeatureSet.Feature.values()
 func FeatureSet_Feature_values() []FeatureSet_Feature {
 	values := make([]FeatureSet_Feature, len(featureSet_Feature_names))
 	for i := range values {
@@ -535,6 +543,8 @@ func FeatureSet_Feature_values() []FeatureSet_Feature {
 }
 
 // Name is Enum.name().
+//
+// Java: FeatureSet.Feature.name()
 func (f FeatureSet_Feature) Name() string { return featureSet_Feature_names[f] }
 
 // String returns the feature's human-readable name.

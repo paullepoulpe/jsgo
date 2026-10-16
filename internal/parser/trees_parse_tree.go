@@ -134,6 +134,8 @@ func (t *ParseTreeBase) InitParseTreeBase(self ParseTree, type_ ParseTreeType, l
 
 // GetParseTreeBase returns the base struct (field access through the
 // interface).
+//
+// Go-only: language-adapter — field access through the interface (PORTING.md §4).
 func (t *ParseTreeBase) GetParseTreeBase() *ParseTreeBase {
 	return t
 }

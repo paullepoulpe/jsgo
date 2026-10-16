@@ -33,14 +33,20 @@ const (
 var comment_Type_names = [...]string{"BLOCK", "LINE", "JSDOC", "SHEBANG", "IMPORTANT"}
 
 // Comment_Type_values is Comment.Type.values().
+//
+// Java: Comment.Type.values()
 func Comment_Type_values() []Comment_Type {
 	return []Comment_Type{Comment_Type_BLOCK, Comment_Type_LINE, Comment_Type_JSDOC, Comment_Type_SHEBANG, Comment_Type_IMPORTANT}
 }
 
 // Name is Enum.name().
+//
+// Java: Comment.Type.name()
 func (t Comment_Type) Name() string { return comment_Type_names[t] }
 
 // String is Enum.toString().
+//
+// Java: Comment.Type.toString()
 func (t Comment_Type) String() string { return t.Name() }
 
 // NewComment constructs a Comment.

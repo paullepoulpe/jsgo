@@ -391,6 +391,8 @@ var tokenType_value = [...]string{
 }
 
 // TokenType_values is TokenType.values().
+//
+// Java: TokenType.values()
 func TokenType_values() []TokenType {
 	values := make([]TokenType, len(tokenType_names))
 	for i := range values {
@@ -400,6 +402,8 @@ func TokenType_values() []TokenType {
 }
 
 // Name is Enum.name().
+//
+// Java: TokenType.name()
 func (t TokenType) Name() string {
 	return tokenType_names[t]
 }

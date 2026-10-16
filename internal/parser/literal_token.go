@@ -47,6 +47,8 @@ func (t *LiteralTokenBase) InitLiteralTokenBase(self LiteralToken, type_ TokenTy
 
 // GetLiteralTokenBase returns the base struct (field access through the
 // interface).
+//
+// Go-only: language-adapter — field access through the interface (PORTING.md §4).
 func (t *LiteralTokenBase) GetLiteralTokenBase() *LiteralTokenBase {
 	return t
 }

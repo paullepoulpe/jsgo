@@ -74,6 +74,8 @@ var parser_FunctionFlavor_names = [...]string{"NORMAL", "GENERATOR", "ASYNCHRONO
 var parser_FunctionFlavor_isGenerator = [...]bool{false, true, false, true}
 
 // Parser_FunctionFlavor_values is FunctionFlavor.values().
+//
+// Java: Parser.FunctionFlavor.values()
 func Parser_FunctionFlavor_values() []Parser_FunctionFlavor {
 	return []Parser_FunctionFlavor{
 		Parser_FunctionFlavor_NORMAL,
@@ -84,12 +86,18 @@ func Parser_FunctionFlavor_values() []Parser_FunctionFlavor {
 }
 
 // Name is Enum.name().
+//
+// Java: Parser.FunctionFlavor.name()
 func (f Parser_FunctionFlavor) Name() string { return parser_FunctionFlavor_names[f] }
 
 // String is Enum.toString().
+//
+// Java: Parser.FunctionFlavor.toString()
 func (f Parser_FunctionFlavor) String() string { return f.Name() }
 
 // IsGenerator is the Java field FunctionFlavor.isGenerator.
+//
+// Java: field Parser.FunctionFlavor.isGenerator
 func (f Parser_FunctionFlavor) IsGenerator() bool { return parser_FunctionFlavor_isGenerator[f] }
 
 // NewParser constructs a Parser.
@@ -129,6 +137,8 @@ const (
 var parser_Config_Mode_names = [...]string{"ES3", "ES5", "ES6_OR_ES7", "ES8_OR_GREATER"}
 
 // Parser_Config_Mode_values is Mode.values().
+//
+// Java: Parser.Config.Mode.values()
 func Parser_Config_Mode_values() []Parser_Config_Mode {
 	return []Parser_Config_Mode{
 		Parser_Config_Mode_ES3,
@@ -139,9 +149,13 @@ func Parser_Config_Mode_values() []Parser_Config_Mode {
 }
 
 // Name is Enum.name().
+//
+// Java: Parser.Config.Mode.name()
 func (m Parser_Config_Mode) Name() string { return parser_Config_Mode_names[m] }
 
 // String is Enum.toString().
+//
+// Java: Parser.Config.Mode.toString()
 func (m Parser_Config_Mode) String() string { return m.Name() }
 
 // NewParser_Config constructs the default Config (ES8_OR_GREATER, sloppy).
@@ -712,6 +726,8 @@ func (p *Parser) ParseMethodDefinition(elementInfo *ClassOrObjectElementInfo, is
 
 // functionFlavorOf is the Java conditional `cond ? ifTrue : ifFalse` over
 // FunctionFlavor values.
+//
+// Go-only: language-adapter — Java's conditional operator.
 func functionFlavorOf(cond bool, ifTrue, ifFalse Parser_FunctionFlavor) Parser_FunctionFlavor {
 	if cond {
 		return ifTrue
@@ -2368,14 +2384,20 @@ const (
 var parser_Expression_names = [...]string{"NO_IN", "NORMAL"}
 
 // Parser_Expression_values is Expression.values().
+//
+// Java: Parser.Expression.values()
 func Parser_Expression_values() []Parser_Expression {
 	return []Parser_Expression{Parser_Expression_NO_IN, Parser_Expression_NORMAL}
 }
 
 // Name is Enum.name().
+//
+// Java: Parser.Expression.name()
 func (e Parser_Expression) Name() string { return parser_Expression_names[e] }
 
 // String is Enum.toString().
+//
+// Java: Parser.Expression.toString()
 func (e Parser_Expression) String() string { return e.Name() }
 
 // 11.14 Expressions
@@ -3436,14 +3458,20 @@ const (
 var parser_PatternKind_names = [...]string{"INITIALIZER", "ANY"}
 
 // Parser_PatternKind_values is PatternKind.values().
+//
+// Java: Parser.PatternKind.values()
 func Parser_PatternKind_values() []Parser_PatternKind {
 	return []Parser_PatternKind{Parser_PatternKind_INITIALIZER, Parser_PatternKind_ANY}
 }
 
 // Name is Enum.name().
+//
+// Java: Parser.PatternKind.name()
 func (k Parser_PatternKind) Name() string { return parser_PatternKind_names[k] }
 
 // String is Enum.toString().
+//
+// Java: Parser.PatternKind.toString()
 func (k Parser_PatternKind) String() string { return k.Name() }
 
 // Java: Parser.peekPatternStart()
@@ -4016,6 +4044,7 @@ func (p *Parser) RecordFeatureUsed(feature FeatureSet_Feature) *Parser {
 // pointers to interfaces, so that Java null stays a nil interface (a typed
 // nil pointer in an interface would compare non-nil).
 
+// identifierTokenAsToken widens a possibly-nil *IdentifierToken to Token.
 func identifierTokenAsToken(t *IdentifierToken) Token {
 	if t == nil {
 		return nil
@@ -4023,6 +4052,8 @@ func identifierTokenAsToken(t *IdentifierToken) Token {
 	return t
 }
 
+// variableDeclarationListAsParseTree widens a possibly-nil
+// *VariableDeclarationListTree to ParseTree.
 func variableDeclarationListAsParseTree(t *VariableDeclarationListTree) ParseTree {
 	if t == nil {
 		return nil

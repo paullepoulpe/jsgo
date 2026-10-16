@@ -122,6 +122,7 @@ var (
 	keywords_constants [len(keywords_names)]Keywords
 )
 
+// Java: Keywords static initializer
 func init() {
 	// Go-only: language-adapter — KEYWORDS_BY_NAME is only ever looked up,
 	// never iterated, so a Go map is order-safe; KEYWORDS_BY_TYPE is an
@@ -140,6 +141,8 @@ func init() {
 }
 
 // Keywords_values is Keywords.values().
+//
+// Java: Keywords.values()
 func Keywords_values() []Keywords {
 	values := make([]Keywords, len(keywords_names))
 	for i := range values {
@@ -149,16 +152,22 @@ func Keywords_values() []Keywords {
 }
 
 // Name is Enum.name().
+//
+// Java: Keywords.name()
 func (k Keywords) Name() string {
 	return keywords_names[k]
 }
 
 // Value is the Java field Keywords.value.
+//
+// Java: field Keywords.value
 func (k Keywords) Value() string {
 	return keywords_value[k]
 }
 
 // Type is the Java field Keywords.type.
+//
+// Java: field Keywords.type
 func (k Keywords) Type() TokenType {
 	return keywords_type[k]
 }

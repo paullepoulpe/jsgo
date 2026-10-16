@@ -34,6 +34,8 @@ func (e *ErrorReporterBase) InitErrorReporterBase(self ErrorReporter) {
 }
 
 // GetErrorReporterBase returns the base struct.
+//
+// Go-only: language-adapter — field access through the interface (PORTING.md §4).
 func (e *ErrorReporterBase) GetErrorReporterBase() *ErrorReporterBase {
 	return e
 }

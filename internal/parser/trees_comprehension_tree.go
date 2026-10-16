@@ -25,16 +25,22 @@ const (
 var comprehensionTree_ComprehensionType_names = [...]string{"ARRAY", "GENERATOR"}
 
 // ComprehensionTree_ComprehensionType_values is ComprehensionType.values().
+//
+// Java: ComprehensionTree.ComprehensionType.values()
 func ComprehensionTree_ComprehensionType_values() []ComprehensionTree_ComprehensionType {
 	return []ComprehensionTree_ComprehensionType{ComprehensionTree_ComprehensionType_ARRAY, ComprehensionTree_ComprehensionType_GENERATOR}
 }
 
 // Name is Enum.name().
+//
+// Java: ComprehensionTree.ComprehensionType.name()
 func (t ComprehensionTree_ComprehensionType) Name() string {
 	return comprehensionTree_ComprehensionType_names[t]
 }
 
 // String is Enum.toString().
+//
+// Java: ComprehensionTree.ComprehensionType.toString()
 func (t ComprehensionTree_ComprehensionType) String() string { return t.Name() }
 
 // NewComprehensionTree constructs a ComprehensionTree.
