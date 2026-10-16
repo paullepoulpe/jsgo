@@ -125,7 +125,12 @@ trailing underscore (`type_`, `func_`, `range_`, `len_`).
   package function `Foo_Method(f Foo, ...)` or a `FooDefaults` struct to
   embed.
 - **Anonymous classes and lambdas** → Go closures, or a small unexported
-  struct when the interface has several methods.
+  struct when the interface has several methods. A single-method interface
+  `Foo` that Java code implements with lambdas gets one adapter next to the
+  interface: `type FooFunc func(...)` whose method calls it (e.g.
+  `CompilerPassFunc`, `NodeUtil_VisitorFunc`), marked
+  `// Go-only: language-adapter`. Whoever ports the interface writes it; until
+  then, call it by that name.
 - **Enums** → `type Foo int32` + `Foo_CONSTANT` consts in Java ordinal
   order, plus `Foo_values()`, `String()` (Java `name()`), and switch-based
   methods for enum bodies. Enum fields → lookup tables indexed by ordinal.
@@ -217,12 +222,45 @@ behaviour. Use the `internal/jutil` helpers.
   - `ArrayList`/`List` that is mutated after being shared →
     `*jutil.ArrayList[T]`; `ImmutableList`, `List.of`, and lists never
     mutated after construction → `[]T`.
-  - `LinkedHashMap`, `ImmutableMap`, `HashMap` → `*jutil.LinkedHashMap[K,V]`;
-    `LinkedHashSet`, `ImmutableSet`, `HashSet` → `*jutil.LinkedHashSet[T]`.
-    A plain Java `HashMap`/`HashSet` whose iteration order is observable
-    needs Java's hash order (only ~10 such sites exist in Closure); flag it
-    with `// Go-only: language-adapter — Java HashMap order` and raise it
-    rather than guessing.
+  - `LinkedHashMap`, `ImmutableMap` → `*jutil.LinkedHashMap[K,V]`;
+    `LinkedHashSet`, `ImmutableSet` → `*jutil.LinkedHashSet[T]`.
+  - `HashMap`, `HashSet`, Guava `HashMultimap`, `MultimapBuilder.hashKeys()
+    .hashSetValues()`, and the Guava hash factories (`Maps.newHashMap*`,
+    `Sets.newHashSet*`) → `*jutil.JavaHashMap[K,V]`, `*jutil.JavaHashSet[T]`,
+    `*jutil.HashMultimap[K,V]` (`Maps_NewHashMap*`, `Sets_NewHashSet*`,
+    `HashMultimap_Create*`, `MultimapBuilder_HashKeys_HashSetValues`), when
+    both hold:
+    - the collection is iterated: directly, through a copy
+      (`new ArrayList<>(set)`, `ImmutableList.copyOf`), a stream, `toString`,
+      `Sets.intersection`/`difference` over it, or a multimap's `keySet`,
+      `values`, `entries`, `asMap` or `get(k)`;
+    - its keys (for a multimap: its keys or its values) hash by value:
+      `String`, boxed primitives, value classes and AutoValue types, lists of
+      those.
+
+    These reproduce the JDK 21 / shaded Guava iteration order bit for bit
+    (table growth, bin order, tree bins), verified against vectors from
+    `tools/oracle/java/JutilJavaHashVectors.java`. Use the constructor that
+    matches the Java one: the initial capacity and the factory change the
+    order. Keys hash with `ObjectHashCode` and compare with `ObjectsEquals`,
+    so value classes need `Equals`/`HashCode` (and `CompareTo(T) int` if
+    the Java class is `Comparable` of itself). Structural changes during
+    iteration throw `ConcurrentModificationException` as in Java; remove
+    through `Iterator()`.
+  - A `HashMap`/`HashSet`/hash multimap that is only looked up (`get`,
+    `contains`, `put`, `remove`, never iterated), or whose keys are
+    identity-hashed (`Node`, `Var`, enums, plain objects: Java's own order
+    is then nondeterministic, so Closure cannot depend on it; `JSType` is
+    mixed, with identity hashes for constructors, `AllType`, `NoObjectType`
+    and others, so treat it as identity-hashed)
+    stays `*jutil.LinkedHashMap`/`LinkedHashSet` or an insertion-ordered
+    multimap. A hash multimap with identity-hashed keys but value-hashed
+    values whose value order is observable needs `HashMultimap`. When it is
+    unclear whether the order is observable, flag the site with
+    `// Go-only: language-adapter — Java HashMap order` and raise it rather
+    than guessing.
+  - Guava `HashBasedTable` is `LinkedHashMap`-backed (rows and columns in
+    insertion order) in the pinned Guava → `*jutil.HashBasedTable`.
   - `TreeMap`/`TreeSet` → sorted `jutil` structures with the same
     comparator. `IdentityHashMap` → `jutil.LinkedHashMap` keyed by pointer
     (Java's own iteration order there is not deterministic, so Closure never
