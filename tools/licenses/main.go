@@ -47,8 +47,9 @@ var gplPattern = regexp.MustCompile(`(?i)(general` + ` public licen[cs]e|\b(?:l)
 
 // exempt are the tracked files allowed to mention the GPL: they state the rule.
 var exempt = map[string]bool{
-	"PORTING.md": true,
-	"PLAN.md":    true,
+	"PORTING.md":             true,
+	"PLAN.md":                true,
+	"tools/licenses/main.go": true,
 }
 
 var portOf = regexp.MustCompile(`^// Port of (com/google/[^ ]+\.java)`)
