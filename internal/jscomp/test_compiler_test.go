@@ -171,7 +171,9 @@ func newTestCompiler(options *CompilerOptions) AbstractCompiler {
 	return c
 }
 
-// newTestCompilerUninitialized is `new Compiler()` (no options yet).
+// newTestCompilerUninitialized is `new Compiler()` (no options yet; like
+// Compiler, it initializes default options when getErrorManager(), report()
+// or the parse methods are called first).
 func newTestCompilerUninitialized() *testCompiler {
 	c := &testCompiler{
 		externs:                   []*CompilerInput{},
@@ -314,6 +316,17 @@ func (c *testCompiler) initOptions(options *CompilerOptions) {
 // are not ported (J2clSuppressWarningsGuard, SuppressDocWarningsGuard).
 func (c *testCompiler) initWarningsGuard(warningsGuard WarningsGuard) {
 	c.warningsGuard = NewComposeWarningsGuard(NewClosureUnawareCodeWarningsGuard(), warningsGuard)
+}
+
+// Java: Compiler.initCompilerOptionsIfTesting()
+func (c *testCompiler) initCompilerOptionsIfTesting() {
+	if c.options == nil {
+		// initialization for tests that don't initialize the compiler
+		// by the normal mechanisms.
+		c.initOptions(NewCompilerOptions())
+		// allow tests to use unsupported features.
+		c.options.SetLanguage(CompilerOptions_LanguageMode_UNSUPPORTED)
+	}
 }
 
 // Java: Compiler.initBasedOnOptions()
@@ -537,7 +550,7 @@ func (c *testCompiler) Report(error *JSError) {
 	}
 
 	if level.IsOn() {
-		// initCompilerOptionsIfTesting(): options are always set here.
+		c.initCompilerOptionsIfTesting()
 		if c.GetOptions().GetErrorHandler() != nil {
 			c.GetOptions().GetErrorHandler().Report(level.Ptr(), error)
 		}
@@ -636,12 +649,14 @@ func (c *testCompiler) SetExternExports(externExports string) {
 }
 
 func (c *testCompiler) ParseSyntheticCode(fileName string, js string) *rhino.Node {
+	c.initCompilerOptionsIfTesting()
 	source := SourceFile_FromCode(testCompiler_SYNTHETIC_FILE_NAME_PREFIX+fileName+"] ", js)
 	c.addFilesToSourceMap([]*SourceFile{source})
 	return c.parseCodeHelper(source)
 }
 
 func (c *testCompiler) ParseTestCode(js string) *rhino.Node {
+	c.initCompilerOptionsIfTesting()
 	c.initBasedOnOptions()
 	// NOTE: The file name used here is important, because at least Es6RewriteClassTest expects
 	// it to match the default name used by the CompilerTestCase class for the source file
@@ -650,6 +665,7 @@ func (c *testCompiler) ParseTestCode(js string) *rhino.Node {
 }
 
 func (c *testCompiler) ParseTestCodeOfList(code []string) *rhino.Node {
+	c.initCompilerOptionsIfTesting()
 	c.initBasedOnOptions()
 	srcs := make([]*SourceFile, len(code))
 	for index, value := range code {
@@ -826,7 +842,9 @@ func (c *testCompiler) createConfig(mode parsing.Config_LanguageMode, strictMode
 }
 
 func (c *testCompiler) GetErrorManager() ErrorManager {
-	// options are always set here.
+	if c.options == nil {
+		c.initOptions(NewCompilerOptions())
+	}
 	return c.errorManager
 }
 
