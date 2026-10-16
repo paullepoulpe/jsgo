@@ -4,13 +4,13 @@
 //
 // Build/run (see tools/oracle/README.md):
 //   javac -cp closure-compiler.jar -d build ParseTreeDump.java
-//   java -cp closure-compiler.jar:build ParseTreeDump [--gzip] <outdir> <root> <rel-file>... | @<listfile>
+//   java -cp closure-compiler.jar:build ParseTreeDump [--gzip] [--lang=<LanguageMode>] <outdir> <root> <rel-file>... | @<listfile>
 //
 // For each <rel-file> (relative to <root>) writes <outdir>/<rel-file>.ptree (or .ptree.gz). The Go
 // port's dumper (internal/parser/parsetreedump_test.go) must reproduce this format byte for byte.
 //
 // The parser is constructed exactly as ParserRunner.parse does for the compiler's default
-// configuration with --language_in=ECMASCRIPT_NEXT: the parsing.Config comes from
+// configuration with --language_in=ECMASCRIPT_NEXT (or the --lang given): the parsing.Config comes from
 // Compiler.getParserConfig(ConfigContext.DEFAULT) and the parser.Parser.Config from
 // ParserRunner.newParserConfig(config) (both called reflectively, so nothing is re-derived here).
 //
@@ -57,6 +57,7 @@ import java.util.zip.GZIPOutputStream;
 
 public final class ParseTreeDump {
   private static Parser.Config parserConfig;
+  private static CompilerOptions.LanguageMode languageIn = CompilerOptions.LanguageMode.ECMASCRIPT_NEXT;
 
   public static void main(String[] args) throws Exception {
     boolean gzip = false;
@@ -64,6 +65,8 @@ public final class ParseTreeDump {
     for (String a : args) {
       if (a.equals("--gzip")) {
         gzip = true;
+      } else if (a.startsWith("--lang=")) {
+        languageIn = CompilerOptions.LanguageMode.valueOf(a.substring("--lang=".length()));
       } else if (a.startsWith("@")) {
         for (String line : Files.readAllLines(Paths.get(a.substring(1)), StandardCharsets.UTF_8)) {
           if (!line.isEmpty()) {
@@ -115,7 +118,7 @@ public final class ParseTreeDump {
     com.google.javascript.jscomp.Compiler compiler =
         new com.google.javascript.jscomp.Compiler(new PrintStream(OutputStream.nullOutputStream()));
     CompilerOptions options = new CompilerOptions();
-    options.setLanguageIn(CompilerOptions.LanguageMode.ECMASCRIPT_NEXT);
+    options.setLanguageIn(languageIn);
     compiler.initOptions(options);
     Class<?> ctxClass = Class.forName("com.google.javascript.jscomp.AbstractCompiler$ConfigContext");
     Object defaultCtx = null;

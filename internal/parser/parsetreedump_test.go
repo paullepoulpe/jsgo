@@ -7,7 +7,9 @@ package parser
 // as a diff).
 //
 //   - TestParseTreeGolden compares against the checked-in Java dumps in
-//     testdata/ptree (always runs).
+//     testdata/ptree/<lang>/ (always runs); es_next/ uses the default
+//     configuration, es5/ and es3/ were dumped with --lang=ECMASCRIPT5 /
+//     ECMASCRIPT3 (sloppy mode, older Parser.Config modes).
 //   - TestParseTreeOracle compares a whole corpus when PTREE_CORPUS (the
 //     corpus root) and PTREE_ORACLE_DIR (the ParseTreeDump output for it) are
 //     set; PTREE_FILES optionally names a file listing the relative paths
@@ -60,12 +62,37 @@ func (r *recordingErrorReporter) ReportWarning(location *SourcePosition, message
 	r.lines = append(r.lines, "WARNING "+dumpPosition(location, r.file)+" "+dumpQuote(message))
 }
 
-// dumpParseTree parses src (named name) and returns the dump.
-func dumpParseTree(name, src string) string {
+// configFromDump returns the Parser.Config whose fields the "# config" line
+// of a Java dump shows (the Java side derives it from a --lang through
+// ParserRunner; the Go dump prints the fields of the config built here, so a
+// wrong reconstruction shows up as a diff on that line).
+func configFromDump(dump string) *Parser_Config {
+	first, _, _ := strings.Cut(dump, "\n")
+	if !strings.HasPrefix(first, "# config ") {
+		return defaultParserConfig()
+	}
+	fields := map[string]bool{}
+	for _, kv := range strings.Fields(strings.TrimPrefix(first, "# config ")) {
+		k, v, _ := strings.Cut(kv, "=")
+		fields[k] = v == "true"
+	}
+	mode := Parser_Config_Mode_ES5
+	switch {
+	case fields["atLeast8"]:
+		mode = Parser_Config_Mode_ES8_OR_GREATER
+	case fields["atLeast6"]:
+		mode = Parser_Config_Mode_ES6_OR_ES7
+	case fields["warnTrailingCommas"]:
+		mode = Parser_Config_Mode_ES3
+	}
+	return NewParser_ConfigWithMode(mode, fields["isStrictMode"])
+}
+
+// dumpParseTree parses src (named name) with config and returns the dump.
+func dumpParseTree(name, src string, config *Parser_Config) string {
 	var sb strings.Builder
 	file := NewSourceFile(name, src)
 	reporter := newRecordingErrorReporter(file)
-	config := defaultParserConfig()
 	sb.WriteString("# config")
 	cv := reflect.ValueOf(config).Elem()
 	for _, f := range sortedStructFields(cv.Type()) {
@@ -384,7 +411,7 @@ func firstDiff(want, got string) string {
 }
 
 func TestParseTreeGolden(t *testing.T) {
-	files, err := filepath.Glob("testdata/ptree/*.js")
+	files, err := filepath.Glob("testdata/ptree/*/*.js")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -392,7 +419,7 @@ func TestParseTreeGolden(t *testing.T) {
 		t.Fatal("no golden files")
 	}
 	for _, f := range files {
-		name := filepath.Base(f)
+		name := filepath.Base(f) // the Java dumps were made with the file's base name
 		src, err := os.ReadFile(f)
 		if err != nil {
 			t.Fatal(err)
@@ -401,7 +428,7 @@ func TestParseTreeGolden(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		got := dumpParseTree(name, string(src))
+		got := dumpParseTree(name, string(src), configFromDump(want))
 		if got != want {
 			t.Errorf("%s: dump differs from Java at %s", name, firstDiff(want, got))
 		}
@@ -464,7 +491,7 @@ func TestParseTreeOracle(t *testing.T) {
 					t.Error(err)
 					continue
 				}
-				got := dumpParseTree(rel, string(src))
+				got := dumpParseTree(rel, string(src), configFromDump(want))
 				if got != want {
 					results[i] = result{rel: rel, diff: firstDiff(want, got), got: got}
 				}
