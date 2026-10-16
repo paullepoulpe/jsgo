@@ -232,6 +232,49 @@ M2.
 The legacy fixtures and oracles in `testdata/` remain valid and become the
 M7 acceptance set.
 
+### Porting order: dependency waves, run in parallel
+
+The milestones above are verification checkpoints. The *porting* order
+follows the dependency graph, which is much wider than the milestone list
+suggests. The 556 files of the Go `jscomp` package condense into 460
+strongly connected components, from 137.7k non-blank, non-comment lines of
+Java. `tools/oracle/jscompdeps.py` computes them, and
+[docs/port-waves.md](docs/port-waves.md) lists every file by level.
+
+The structure:
+
+- **One core SCC:** 37 files, 15.7k lines. It contains `NodeUtil`,
+  `CompilerOptions`, `AstFactory`, `NodeTraversal`, the scope classes,
+  `AstAnalyzer`, `ControlFlowAnalysis`, `TypeValidator`, `SourceMap`, …
+- **Below it:** ~180 small files, 17k lines (error managers, warnings
+  guards, graphs, deps/modules, serialization).
+- **Above it:** a very wide layer of ~300 files and ~85k lines (levels
+  11–18). This holds the printer, every check, transpilation pass and
+  optimization.
+
+Two consequences:
+
+- **The type system moves early.** The core references `TypedScope`,
+  `TypedVar`, `TypeValidator` and `JSTypeRegistry`, so `rhino/jstype` (10k
+  lines) is ported alongside `parsing`, right after rhino core. Type
+  *checking* (`TypeCheck`, `TypeInference`, `TypedScopeCreator`) stays at
+  its natural level.
+- **The printer needs the core.** `CodePrinter` (level 13) depends on
+  `NodeUtil`, `CompilerOptions` and `SourceMap`. M2 is therefore verified
+  after the core lands.
+
+| Wave | Contents | Parallelism |
+|---|---|---|
+| 1 | `parser` (done); `rhino` core, `base`, `dtoa`, `colors`; `sourcemap`; `regex`, `diagnostic`, `resources` | one agent per package |
+| 2 | `parsing` (IRFactory, JsDocInfoParser, …); `rhino/jstype`; jscomp levels 0–9 | ~6 agents |
+| 3 | jscomp core SCC | ~4 agents coding against each other's mechanically predictable names, then one integration pass |
+| 4 | jscomp levels 11–18 | 10–20 agents, by pass family |
+| 5 | `Compiler`, `DefaultPassConfig`, `AbstractCommandLineRunner`, `CommandLineRunner` | 1–2 agents |
+
+Each wave starts as soon as the files it depends on are merged, not when a
+milestone is declared done. Verification (unit tests, oracles) follows each
+merge.
+
 ## 6. Benchmarking against the Java compiler
 
 Once the port is a drop-in replacement, benchmark it against the pinned
