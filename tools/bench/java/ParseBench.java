@@ -1,8 +1,10 @@
-// Benchmark: the pinned Java Closure Compiler's parser (parsing.parser.Parser.parseProgram, the
-// layer ported in internal/parser) over a corpus, K times in one JVM.
+// Benchmark: the pinned Java Closure Compiler's front end over a corpus, K times in one JVM.
+//   --mode=parser (default): parsing.parser.Parser.parseProgram (internal/parser)
+//   --mode=runner: parsing.ParserRunner.parse, i.e. Parser + IRFactory + JsDocInfoParser,
+//                  with the compiler's own parsing.Config (internal/parsing)
 //
 //   javac -cp closure-compiler.jar -d build ParseBench.java
-//   java -Xss1g -cp closure-compiler.jar:build ParseBench <iters> <root> @<listfile> <per-file-tsv>
+//   java -Xss1g -cp closure-compiler.jar:build ParseBench [--mode=runner] <iters> <root> @<listfile> <per-file-tsv>
 //
 // All files are read into memory first. Each iteration parses every file once, single-threaded,
 // with the parser configuration the compiler uses for --language_in=ECMASCRIPT_NEXT. Per iteration
@@ -27,7 +29,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class ParseBench {
-  public static void main(String[] args) throws Exception {
+  public static void main(String[] argv) throws Exception {
+    boolean runner = argv.length > 0 && argv[0].equals("--mode=runner");
+    String[] args = runner || (argv.length > 0 && argv[0].equals("--mode=parser"))
+        ? java.util.Arrays.copyOfRange(argv, 1, argv.length) : argv;
     int iters = Integer.parseInt(args[0]);
     Path root = Paths.get(args[1]);
     List<String> names = new ArrayList<>();
@@ -45,12 +50,23 @@ public final class ParseBench {
       totalChars += s.length();
     }
     Parser.Config config = defaultParserConfig();
+    com.google.javascript.jscomp.parsing.Config runnerConfig = compilerConfig();
+    com.google.javascript.rhino.ErrorReporter rhinoReporter =
+        new com.google.javascript.rhino.ErrorReporter() {
+          @Override
+          public void warning(String message, String sourceName, int line, int lineOffset) {}
+
+          @Override
+          public void error(String message, String sourceName, int line, int lineOffset) {
+            runnerErrors[0]++;
+          }
+        };
     com.sun.management.ThreadMXBean threads =
         (com.sun.management.ThreadMXBean) ManagementFactory.getThreadMXBean();
     com.sun.management.OperatingSystemMXBean os =
         (com.sun.management.OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
     long tid = Thread.currentThread().getId();
-    System.out.println("# java files=" + names.size() + " utf16_chars=" + totalChars);
+    System.out.println("# java mode=" + (runner ? "runner" : "parser") + " files=" + names.size() + " utf16_chars=" + totalChars);
     System.out.println("iter\twall_ms\tthread_cpu_ms\tprocess_cpu_ms\talloc_mb\tgc_count\tgc_ms");
     long[] last = new long[names.size()];
     int errors = 0;
@@ -67,6 +83,15 @@ public final class ParseBench {
       errors = 0;
       for (int i = 0; i < names.size(); i++) {
         long t0 = System.nanoTime();
+        if (runner) {
+          runnerErrors[0] = 0;
+          com.google.javascript.jscomp.parsing.ParserRunner.parse(
+              com.google.javascript.jscomp.SourceFile.fromCode(names.get(i), contents.get(i)),
+              contents.get(i), runnerConfig, rhinoReporter);
+          errors += runnerErrors[0];
+          last[i] = System.nanoTime() - t0;
+          continue;
+        }
         SourceFile file = new SourceFile(names.get(i), contents.get(i));
         int[] errs = new int[1];
         ErrorReporter reporter =
@@ -102,6 +127,28 @@ public final class ParseBench {
       sb.append(names.get(i)).append('\t').append(contents.get(i).length()).append('\t').append(last[i]).append('\n');
     }
     Files.writeString(perFile, sb.toString(), StandardCharsets.UTF_8);
+  }
+
+  private static final int[] runnerErrors = new int[1];
+
+  /** The parsing.Config CompilerInput passes to ParserRunner.parse (as ParsingDump.java). */
+  private static com.google.javascript.jscomp.parsing.Config compilerConfig() throws Exception {
+    com.google.javascript.jscomp.Compiler compiler =
+        new com.google.javascript.jscomp.Compiler(new PrintStream(OutputStream.nullOutputStream()));
+    CompilerOptions options = new CompilerOptions();
+    options.setLanguageIn(CompilerOptions.LanguageMode.ECMASCRIPT_NEXT);
+    compiler.initOptions(options);
+    Class<?> ctxClass = Class.forName("com.google.javascript.jscomp.AbstractCompiler$ConfigContext");
+    Object defaultCtx = null;
+    for (Object c : ctxClass.getEnumConstants()) {
+      if (((Enum<?>) c).name().equals("DEFAULT")) {
+        defaultCtx = c;
+      }
+    }
+    Method getParserConfig =
+        com.google.javascript.jscomp.Compiler.class.getDeclaredMethod("getParserConfig", ctxClass);
+    getParserConfig.setAccessible(true);
+    return (com.google.javascript.jscomp.parsing.Config) getParserConfig.invoke(compiler, defaultCtx);
   }
 
   /** Same configuration as tools/oracle/java/ParseTreeDump (what ParserRunner.parse uses). */
