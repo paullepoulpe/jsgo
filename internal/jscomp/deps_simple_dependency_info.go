@@ -69,7 +69,9 @@ func (d *SimpleDependencyInfo) GetHasExternsAnnotation() bool { return d.hasExte
 func (d *SimpleDependencyInfo) GetHasNoCompileAnnotation() bool { return d.hasNoCompileAnnotation }
 
 // Java: DependencyInfo.getRequiredSymbols()
-func (d *SimpleDependencyInfo) GetRequiredSymbols() []string { return DependencyInfo_GetRequiredSymbols(d) }
+func (d *SimpleDependencyInfo) GetRequiredSymbols() []string {
+	return DependencyInfo_GetRequiredSymbols(d)
+}
 
 // Java: DependencyInfo.isEs6Module()
 func (d *SimpleDependencyInfo) IsEs6Module() bool { return DependencyInfo_IsEs6Module(d) }
