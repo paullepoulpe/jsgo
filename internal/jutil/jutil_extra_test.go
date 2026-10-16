@@ -299,3 +299,13 @@ func TestBufferedReaderReadLine(t *testing.T) {
 		}
 	}
 }
+
+func TestParseException(t *testing.T) {
+	caught := false
+	Try(func() { panic(NewParseException("Bad line: x", 0)) }, func(e IException) {
+		caught = e.Error() == "java.text.ParseException: Bad line: x"
+	})
+	if !caught {
+		t.Error("ParseException not caught as a checked exception")
+	}
+}
