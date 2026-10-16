@@ -315,3 +315,90 @@ func TestPatternTranslation(t *testing.T) {
 		}
 	}
 }
+
+func TestCharsetDecodeMatchesJava(t *testing.T) {
+	rows := readTSV(t, "jscompa_decode.tsv")
+	if len(rows) < 1000 {
+		t.Fatalf("only %d vectors", len(rows))
+	}
+	for _, r := range rows {
+		cs := Charset_ForName(r[0])
+		b, err := hex.DecodeString(r[1])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := escVector(cs.Decode(b)); got != r[2] {
+			t.Errorf("new String(%s, %s) = %q, want %q", r[1], r[0], got, r[2])
+		}
+		var strict string
+		func() {
+			defer func() {
+				if x := recover(); x != nil {
+					if m, ok := x.(*MalformedInputException); ok {
+						strict = "MALFORMED:" + strconv.Itoa(m.GetInputLength())
+						return
+					}
+					panic(x)
+				}
+			}()
+			strict = escVector(cs.DecodeStrict(b))
+		}()
+		if strict != r[3] {
+			t.Errorf("strict decode of %s as %s = %q, want %q", r[1], r[0], strict, r[3])
+		}
+	}
+}
+
+func TestCharsetDecodeUTF16ReversedMark(t *testing.T) {
+	// Checked against JDK 21: U+FFFE is decoded, not reported as malformed.
+	for in, want := range map[string]string{"0041fffe": "A\ufffe", "fefffffe0041": "\ufffeA", "fffefeff": "\ufffe"} {
+		b, _ := hex.DecodeString(in)
+		if got := StandardCharsets_UTF_16.Decode(b); got != want {
+			t.Errorf("%s: got %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestHashBasedTableOrder(t *testing.T) {
+	tb := HashBasedTable_Create[string, string, int]()
+	tb.Put("r1", "c1", 1)
+	tb.Put("r2", "c1", 2)
+	tb.Put("r1", "c2", 3)
+	if old := tb.Put("r1", "c1", 4); old != 1 {
+		t.Errorf("old = %d", old)
+	}
+	if got := tb.String(); got != "{r1={c1=4, c2=3}, r2={c1=2}}" {
+		t.Errorf("toString = %s", got)
+	}
+	if tb.Size() != 3 || !tb.ContainsRow("r2") || tb.ContainsRow("c1") || tb.Row("r3").Size() != 0 {
+		t.Errorf("size/containsRow/row")
+	}
+}
+
+func TestImmutableListBuilder(t *testing.T) {
+	b := ImmutableList_Builder_[*int]()
+	x := 1
+	b.Add(&x)
+	first := b.Build()
+	b.AddAll([]*int{&x})
+	if len(first) != 1 || len(b.Build()) != 2 || ImmutableList_Builder_[string]().Build() == nil {
+		t.Errorf("builder")
+	}
+	defer func() {
+		if _, ok := recover().(*NullPointerException); !ok {
+			t.Errorf("expected NPE")
+		}
+	}()
+	b.Add(nil)
+}
+
+func TestJsonWriterValueLong(t *testing.T) {
+	var sb strings.Builder
+	w := NewJsonWriter(&sb)
+	w.BeginArray().ValueLong(-5).ValueLong(9007199254740993).EndArray()
+	w.Flush()
+	w.Close()
+	if sb.String() != "[-5,9007199254740993]" {
+		t.Errorf("got %s", sb.String())
+	}
+}
