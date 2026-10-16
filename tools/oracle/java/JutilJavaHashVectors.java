@@ -1,4 +1,6 @@
-// Generates internal/jutil/testdata/java_hash_{map,set,multimap}.tsv: random
+// Generates internal/jutil/testdata/java_hash_{map,set,multimap}.tsv (and
+// java_hash_map_compute.tsv, from an RNG of its own so that the other files do
+// not depend on it): random
 // operation sequences on java.util.HashMap / HashSet (as the JDK running
 // closure-compiler.jar implements them), the shaded Guava hash factories
 // (Maps.newHashMap*, Sets.newHashSet*) and HashMultimap / MultimapBuilder
@@ -776,6 +778,94 @@ public class JutilJavaHashVectors {
     line("E", m.size(), m.hashCode(), "-");
   }
 
+  /**
+   * Tree bins driven by computeIfAbsent/compute/merge (which insert at the head of a list bin,
+   * convert it at 8 keys and grow the table before the operation), removals through compute
+   * returning null, large putAll sources into small tables, clones (also of an empty map with a
+   * custom load factor), clears and iterator removals.
+   */
+  @SuppressWarnings("unchecked")
+  static void computeScenario(Pool p, int nOps) {
+    line("B", p.type, p.encoded());
+    int[] val = {1};
+    HashMap<Object, Integer> m;
+    if (r.nextInt(4) == 0) {
+      int n = r.nextInt(40);
+      float lf = new float[] {0.25f, 0.5f, 1f, 2f, 0.9f}[r.nextInt(5)];
+      line("C", "cl", n, lf);
+      m = new HashMap<>(n, lf);
+      line("cln");
+      m = (HashMap<Object, Integer>) m.clone();
+    } else {
+      m = newMap(p, val);
+    }
+    int untilDump = 1 + r.nextInt(4);
+    for (int op = 0; op < nOps; op++) {
+      int k = r.nextInt(p.keys.size());
+      Object key = p.key(k);
+      Integer x = val[0]++;
+      switch (r.nextInt(20)) {
+        case 0, 1, 2, 3 -> {
+          Integer y = r.nextInt(6) == 0 ? null : x;
+          line("ca", k, v(y), v(m.computeIfAbsent(key, kk -> y)));
+        }
+        case 4, 5, 6 -> {
+          Integer y = r.nextInt(4) == 0 ? null : x;
+          line("co", k, v(y), v(m.compute(key, (kk, old) -> y)));
+        }
+        case 7, 8, 9 -> line("mg", k, x, v(m.merge(key, x, JutilJavaHashVectors::mergeFn)));
+        case 10 -> {
+          Integer y = r.nextInt(3) == 0 ? null : x;
+          line("cp", k, v(y), v(m.computeIfPresent(key, (kk, old) -> y)));
+        }
+        case 11 -> {
+          LinkedHashMap<Object, Integer> src = new LinkedHashMap<>();
+          String s = srcList(p, r.nextInt(r.nextBoolean() ? 20 : 120), src, val);
+          m.putAll(src);
+          line("pa", s);
+        }
+        case 12 -> {
+          line("cln");
+          m = (HashMap<Object, Integer>) m.clone();
+        }
+        case 13 -> {
+          if (r.nextInt(5) == 0) {
+            line("x");
+            m.clear();
+          } else {
+            line("r", k, v(m.remove(key)));
+          }
+        }
+        case 14 -> {
+          int mod = 2 + r.nextInt(4);
+          int rem = r.nextInt(mod);
+          StringBuilder vis = new StringBuilder();
+          Iterator<Map.Entry<Object, Integer>> it = m.entrySet().iterator();
+          for (int i = 0; it.hasNext(); i++) {
+            Map.Entry<Object, Integer> e = it.next();
+            if (vis.length() > 0) {
+              vis.append(',');
+            }
+            vis.append(p.idx(e.getKey()));
+            if (i % mod == rem) {
+              it.remove();
+            }
+          }
+          line("ir", mod, rem, vis);
+        }
+        case 15 -> line("r", k, v(m.remove(key)));
+        case 16 -> line("pi", k, x, v(m.putIfAbsent(key, x)));
+        default -> line("p", k, x, v(m.put(key, x)));
+      }
+      if (--untilDump == 0) {
+        line("D", mapDump(p, m));
+        untilDump = 1 + r.nextInt(4) + m.size() / 16;
+      }
+    }
+    line("D", mapDump(p, m));
+    line("E", m.size(), m.hashCode(), m.size() <= 16 ? esc(m.toString()) : "-");
+  }
+
   // ---------------------------------------------------------------------------
   // HashSet scenarios
 
@@ -1049,6 +1139,28 @@ public class JutilJavaHashVectors {
         treeScenario(pool);
       }
     }
+
+    Random main = r;
+    r = new Random(seed ^ 0x5DEECE66DL);
+    try (PrintStream p =
+        new PrintStream(
+            Files.newOutputStream(out.resolve("java_hash_map_compute.tsv")),
+            false,
+            StandardCharsets.UTF_8)) {
+      ps = p;
+      for (int i = 0; i < 100; i++) {
+        Pool pool =
+            switch (i % 6) {
+              case 0, 1 -> stringPool(1);
+              case 2 -> stringPool(2);
+              case 3 -> cpPool();
+              case 4 -> i % 4 == 0 ? mixedPool() : npPool();
+              default -> anyPool();
+            };
+        computeScenario(pool, 30 + r.nextInt(150));
+      }
+    }
+    r = main;
 
     try (PrintStream p =
         new PrintStream(

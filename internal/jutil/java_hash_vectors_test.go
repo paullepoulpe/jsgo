@@ -296,16 +296,17 @@ type jhCoverage struct {
 func jhTreeBins[K any, V any](m *JavaHashMap[K, V]) int {
 	n := 0
 	for _, e := range m.table {
-		if e != nil && e.tree != nil {
+		if e != nil && e.rb != nil {
 			n++
 		}
 	}
 	return n
 }
 
-// jhCheck verifies HashMap's invariants: every node in the right bin, size,
-// and for tree bins the red-black properties, parent links, hash ordering
-// and prev links along the chain (TreeNode.checkInvariants).
+// jhCheck verifies the invariants of JavaHashMap's representation: every
+// node in its bin, the size, every bin either a list or a tree bin, and for
+// tree bins the chain's prev links, the red-black properties, parent links,
+// hash order, and that the tree holds exactly the chain's nodes.
 func jhCheck[K any, V any](t *testing.T, ctx string, m *JavaHashMap[K, V]) {
 	t.Helper()
 	count := 0
@@ -314,17 +315,19 @@ func jhCheck[K any, V any](t *testing.T, ctx string, m *JavaHashMap[K, V]) {
 		if e == nil {
 			continue
 		}
-		isTree := e.tree != nil
+		isTree := e.rb != nil
 		var prev *hashMapNode[K, V]
+		chain := map[*hashMapNode[K, V]]bool{}
 		for x := e; x != nil; x = x.next {
 			count++
+			chain[x] = true
 			if x.hash&(n-1) != int32(i) {
 				t.Fatalf("%s: node in wrong bin", ctx)
 			}
-			if (x.tree != nil) != isTree {
+			if (x.rb != nil) != isTree {
 				t.Fatalf("%s: mixed tree/list bin", ctx)
 			}
-			if isTree && x.tree.prev != prev {
+			if isTree && x.rb.prev != prev {
 				t.Fatalf("%s: bad prev link", ctx)
 			}
 			prev = x
@@ -333,7 +336,7 @@ func jhCheck[K any, V any](t *testing.T, ctx string, m *JavaHashMap[K, V]) {
 			continue
 		}
 		root := e.root()
-		if root.tree.red {
+		if root.rb.red {
 			t.Fatalf("%s: red root", ctx)
 		}
 		inTree := 0
@@ -343,32 +346,31 @@ func jhCheck[K any, V any](t *testing.T, ctx string, m *JavaHashMap[K, V]) {
 				return 1
 			}
 			inTree++
-			l, r := x.tree.left, x.tree.right
-			if l != nil && (l.tree.parent != x || l.hash > x.hash) {
+			if !chain[x] {
+				t.Fatalf("%s: tree node not in the chain", ctx)
+			}
+			l, r := x.rb.left, x.rb.right
+			if l != nil && (l.rb.parent != x || l.hash > x.hash) {
 				t.Fatalf("%s: bad left child", ctx)
 			}
-			if r != nil && (r.tree.parent != x || r.hash < x.hash) {
+			if r != nil && (r.rb.parent != x || r.hash < x.hash) {
 				t.Fatalf("%s: bad right child", ctx)
 			}
-			if x.tree.red && (javaHashMapIsRed(l) || javaHashMapIsRed(r)) {
+			if x.rb.red && (javaHashMapIsRed(l) || javaHashMapIsRed(r)) {
 				t.Fatalf("%s: red node with red child", ctx)
 			}
 			bl, br := walk(l), walk(r)
 			if bl != br {
 				t.Fatalf("%s: unequal black heights", ctx)
 			}
-			if !x.tree.red {
+			if !x.rb.red {
 				bl++
 			}
 			return bl
 		}
 		walk(root)
-		chain := 0
-		for x := e; x != nil; x = x.next {
-			chain++
-		}
-		if chain != inTree {
-			t.Fatalf("%s: tree has %d nodes, chain %d", ctx, inTree, chain)
+		if len(chain) != inTree {
+			t.Fatalf("%s: tree has %d nodes, chain %d", ctx, inTree, len(chain))
 		}
 	}
 	if count != m.size {
@@ -381,7 +383,10 @@ func jhCheck[K any, V any](t *testing.T, ctx string, m *JavaHashMap[K, V]) {
 
 func TestJavaHashMapMatchesJDK(t *testing.T) {
 	var cov jhCoverage
-	for si, sc := range jhScenarios(t, "java_hash_map.tsv", 180) {
+	scenarios := jhScenarios(t, "java_hash_map.tsv", 180)
+	// The compute-driven family (JutilJavaHashVectors.computeScenario).
+	scenarios = append(scenarios, jhScenarios(t, "java_hash_map_compute.tsv", 90)...)
+	for si, sc := range scenarios {
 		jhWithPool(t, sc[0][1], sc[0][2], func(p any) {
 			switch p := p.(type) {
 			case jhPool[string]:
@@ -482,7 +487,7 @@ func jhReplayMap[K any](t *testing.T, si int, sc [][]string, p jhPool[K], cov *j
 				k, _ := it.Next()
 				vis = append(vis, strconv.Itoa(p.index(k)))
 				if i%mod == rem {
-					if it.current.tree != nil {
+					if it.current.rb != nil {
 						cov.treeIterRemove++
 					}
 					it.Remove()
