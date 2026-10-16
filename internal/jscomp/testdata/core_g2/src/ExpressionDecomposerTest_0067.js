@@ -1,0 +1,1 @@
+function *f() { for (let x of yield y) {} }

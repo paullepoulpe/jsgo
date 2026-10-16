@@ -1,0 +1,1 @@
+var [c = 4] = condition ? y() :  [c = 2];

@@ -1,0 +1,1 @@
+if (1) { function f(){} } else { function f$jscomp$1(){} }

@@ -1,0 +1,1 @@
+(obj?.ary[getNum()]).obj.ary

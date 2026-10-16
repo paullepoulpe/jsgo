@@ -1,0 +1,1 @@
+delete this?.obj?.num;

@@ -740,6 +740,16 @@ func (t CompilerInput_ModuleType) String() string { return compilerInput_ModuleT
 // Ordinal is Enum.ordinal().
 func (t CompilerInput_ModuleType) Ordinal() int { return int(t) }
 
+var compilerInput_ModuleType_ptrs = CompilerInput_ModuleType_values()
+
+// Ptr returns the canonical pointer to t.
+//
+// Go-only: language-adapter — a nullable Java ModuleType reference is a
+// *CompilerInput_ModuleType; nil is null.
+func (t CompilerInput_ModuleType) Ptr() *CompilerInput_ModuleType {
+	return &compilerInput_ModuleType_ptrs[t]
+}
+
 // Java: CompilerInput.getFeatures(AbstractCompiler)
 func (c *CompilerInput) GetFeatures(compiler AbstractCompiler) *parser.FeatureSet {
 	_ = c.ast.GetAstRoot(compiler) // parse if required

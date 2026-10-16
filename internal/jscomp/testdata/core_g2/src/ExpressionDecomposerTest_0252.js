@@ -1,0 +1,1 @@
+var result$jscomp$0 = class X {}; console.log(1, 2, result$jscomp$0);

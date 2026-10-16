@@ -1,0 +1,1 @@
+for (const x = foo(), y = 5;;) {}

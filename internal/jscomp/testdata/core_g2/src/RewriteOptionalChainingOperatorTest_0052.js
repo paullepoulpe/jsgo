@@ -1,0 +1,1 @@
+delete getFun()?.(num).num

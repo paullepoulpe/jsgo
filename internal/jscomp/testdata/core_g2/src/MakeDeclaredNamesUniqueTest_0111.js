@@ -1,0 +1,1 @@
+const a$jscomp$1 = 1;

@@ -1,0 +1,1298 @@
+#### extra/goog_module.js
+goog.module('a.b.c');
+goog.module.declareLegacyNamespace();
+goog.setTestOnly();
+const {x, y: z} = goog.require('foo.bar');
+const T = goog.requireType('foo.T');
+const F = goog.forwardDeclare('foo.F');
+const D = goog.requireDynamic('foo.D');
+let mod = goog.module.get('foo.baz');
+goog.weakUsage(x);
+goog$weakUsage(z);
+exports.a = 1;
+exports = {x, z};
+#### extra/goog_provide.js
+goog.provide('a.b');
+goog.require('c.d');
+/** @const */ var a = a || {};
+/** @const */ a.b = a.b || {};
+/** @constructor */ a.b.C = function() {};
+a.b.C.prototype.m = function() { return this.x; };
+a.b.C.prototype.n = 3;
+a.b.C.prototype = {};
+/** @enum {string} */ a.b.E = {X: 'x'};
+/** @typedef {number} */ a.b.T;
+#### extra/load_module.js
+goog.loadModule(function(exports) {
+  goog.module('x.y');
+  exports.z = 1;
+  return exports;
+});
+goog.loadModule('goog.module("q");');
+#### extra/define_properties.js
+Object.defineProperties(Foo.prototype, {a: {get: function() {}}, 'b': {value: 1}, [c]: {}});
+$jscomp.global.Object.defineProperties(X, {y: {}});
+$jscomp$global.Object.defineProperty(X, 'y', {});
+Object.defineProperty(X, 'z', {value: 1});
+Object.defineProperty(X, 'z');
+#### extra/strings_numbers.js
+x = ['', ' ', '\v1', ' 0x1F ', '0X10', '-0x1', '+0x1', 'infinity', '-infinity', 'Infinity', '1e3',
+  '0b101', '0o17', '0B1', '١٢', '١٢', ' 1 ', '1n', '00', '.5', '5.', 'abc',
+  '0x', '0xG', '﻿7﻿', '\ud800', '\udc00x', '1_000', 'NaN', '-NaN', ' -12 '];
+y = [null, undefined, void 0, true, false, NaN, Infinity, -Infinity, 0, -0, 1.5, 1e21, 0x10,
+  10n, 0n, -5n, ~5n, ~1, -(-1), +'3', +[], +{}, !0, !1, !'', !'a', `a${1}b`, `${'x'}`, `\u{61}`,
+  [1, null, , undefined, 'a', [2, 3]], [[]], [{}], {}, /a/g, typeof x, [1, -2], [`a`]];
+z = 1n + 2n; z = 'a' + 1; z = 1 + 2; z = {} + []; z = null + true; z = 1 - 'a'; z = 1n * x;
+z = a >>> 1; z = ~a; z = -a; z = a ** 2; z += 'x'; z += 1; z -= 1n; z |= x; z ??= 'a'; z ||= 1;
+z &&= {}; z = a ? 'x' : 'y'; z = a ? 1 : 'y'; z = a || 'b'; z = a && 1; z = a ?? 1; z = (a, 'b');
+#### extra/template_escape.js
+tag`\unicode and \u{55}`;
+x = `${a}${b}`;
+y = `\x41`;
+String.raw`\xyz`;
+#### extra/optional_chains.js
+a?.b.c?.d;
+a?.b.c();
+(a?.b).c;
+a?.(x?.y.z);
+a?.[0]?.(1).b;
+x = a?.b?.toString();
+x = a.b.toString();
+x = a['toString']();
+x = a?.['toString']();
+x = a[0]();
+#### extra/classes.js
+class A extends B {
+  constructor() { super(); this.x = 1; }
+  static s() { return super.s(); }
+  get g() { return 1; }
+  set g(v) {}
+  ['c' + d]() {}
+  get ['e']() {}
+  static { var q = 1; function f() {} }
+  f = 1;
+  static sf = this;
+  ['cf'] = 2;
+  #p = 3;
+  m() { return () => this; }
+}
+var C = class D {};
+x.E = class F {};
+x.G = class {};
+export default class {}
+#### extra/functions.js
+function f(a, b = 1, ...c) { return arguments; }
+var g = function h({d, e: [ff]} = {}) { return () => arguments; };
+x.y = function() { return function() { return arguments; }; };
+var o = {m() {}, get n() { return 1; }, set n(v) {}, 'q': function() {}, 1: function() {}, [r]: function() {}, get: function() {}, set: function() {}};
+(function() {})();
+(function k() {})();
+if (x) function l() {}
+lbl: function m() {}
+lbl2: lbl3: function n2() {}
+{ function p() {} }
+async function* ag() { yield* [1]; yield 2; await x; for await (const z of y) {} }
+new.target;
+#### extra/declarations.js
+var a = 1, b, [c, d] = e, {f, g: h, ...i} = j;
+let k = 1;
+const l = 2;
+for (var m in n) {}
+for (let [o, p] of q) {}
+for (r.s in t) {}
+for ({u} of v) {}
+try {} catch ({w}) {} finally {}
+try {} catch (x) {}
+try {} finally {}
+[y, z.zz, ...aa] = bb;
+({cc, dd: ee, [ff]: gg = 1, ...hh} = ii);
+x++; --y; delete z.a; z.b = 1; z['c'] = 2; z.d += 1;
+#### extra/imports_exports.js
+import def, {a, b as c} from './m.js';
+import * as ns from './n.js';
+import './side.js';
+export {a, c as d};
+export {e as f} from './o.js';
+export * from './p.js';
+export const g = 1;
+export function h() {}
+export default function() {}
+import.meta.url;
+import('./q.js');
+#### extra/control.js
+if (a) b; else c;
+while (d) { e; }
+do { f; } while (g);
+for (h = 0; h < 1; h++) { i; }
+for (;;) {}
+switch (j) { case 1: k; break; default: l; }
+with (m) { n; }
+label: { break label; }
+outer: for (;;) { continue outer; }
+o ? p : q;
+r && s || t;
+(0, eval)('x');
+(0, a.b)(c);
+(0, a)``;
+x = (y, z);
+throw u;
+debugger;
+#### extra/externs_like.js
+/** @const */ var ns = {};
+/** @type {number} */ ns.x;
+/** @param {string} a @return {number} */ ns.f = function(a) {};
+/** @type {string} */ var s = 'x', t = 'y';
+var u = /** @type {number} */ (v);
+/** @return {T} @template T */ function w(/** number */ p1, /** string= */ p2) {}
+#### extra/use_strict.js
+'use strict';
+var eval2 = 1;
+x = this;
+#### extra/nan_checks.js
+x = NaN; x = 0/0; x = Number.NaN; x = 1/0; x = 0/1; x = Number['NaN'];
+#### nodeutiltest/0001.js
+(
+#### nodeutiltest/0002.js
+(null ?? undefined);
+#### nodeutiltest/0003.js
+(null ?? null);
+#### nodeutiltest/0004.js
+(undefined ?? undefined);
+#### nodeutiltest/0005.js
+(undefined ?? null);
+#### nodeutiltest/0006.js
+(0 ?? undefined);
+#### nodeutiltest/0007.js
+(x?.y);
+#### nodeutiltest/0008.js
+(x?.[y]);
+#### nodeutiltest/0009.js
+(x?.());
+#### nodeutiltest/0010.js
+(x.y?.z);
+#### nodeutiltest/0011.js
+(x.y?.[z]);
+#### nodeutiltest/0012.js
+(x.y?.(z));
+#### nodeutiltest/0013.js
+(x.y?.z.foo.bar);
+#### nodeutiltest/0014.js
+(10);
+#### nodeutiltest/0015.js
+(-10);
+#### nodeutiltest/0016.js
+([10, 20]);
+#### nodeutiltest/0017.js
+({'a': 20});
+#### nodeutiltest/0018.js
+([10, , 1.0, [undefined], 'a']);
+#### nodeutiltest/0019.js
+(/abc/);
+#### nodeutiltest/0020.js
+("string");
+#### nodeutiltest/0021.js
+('aaa');
+#### nodeutiltest/0022.js
+(null);
+#### nodeutiltest/0023.js
+(undefined);
+#### nodeutiltest/0024.js
+(void 0);
+#### nodeutiltest/0025.js
+(abc);
+#### nodeutiltest/0026.js
+([10, foo(), 20]);
+#### nodeutiltest/0027.js
+(foo());
+#### nodeutiltest/0028.js
+(c + d);
+#### nodeutiltest/0029.js
+({'a': foo()});
+#### nodeutiltest/0030.js
+(void foo());
+#### nodeutiltest/0031.js
+('b');
+#### nodeutiltest/0032.js
+(`b`);
+#### nodeutiltest/0033.js
+(`foo${bar}`);
+#### nodeutiltest/0034.js
+(b);
+#### nodeutiltest/0035.js
+('b' + 'c');
+#### nodeutiltest/0036.js
+(b + 'c');
+#### nodeutiltest/0037.js
+('b' + c);
+#### nodeutiltest/0038.js
+(a ? 'b' : 'c');
+#### nodeutiltest/0039.js
+(a ? b : 'c');
+#### nodeutiltest/0040.js
+(a ? 'b' : c);
+#### nodeutiltest/0041.js
+(a ? b : c);
+#### nodeutiltest/0042.js
+(true);
+#### nodeutiltest/0043.js
+(1.0);
+#### nodeutiltest/0044.js
+(-1.0);
+#### nodeutiltest/0045.js
+(1.2323919403474454e+21);
+#### nodeutiltest/0046.js
+('0');
+#### nodeutiltest/0047.js
+(/a/);
+#### nodeutiltest/0048.js
+({});
+#### nodeutiltest/0049.js
+([]);
+#### nodeutiltest/0050.js
+(false);
+#### nodeutiltest/0051.js
+(0);
+#### nodeutiltest/0052.js
+(1n);
+#### nodeutiltest/0053.js
+('');
+#### nodeutiltest/0054.js
+(NaN);
+#### nodeutiltest/0055.js
+(Infinity);
+#### nodeutiltest/0056.js
+(x);
+#### nodeutiltest/0057.js
+(`Hello`);
+#### nodeutiltest/0058.js
+(`Hello ${'foo'}`);
+#### nodeutiltest/0059.js
+(`Hello ${name}`);
+#### nodeutiltest/0060.js
+(`${4} bananas`);
+#### nodeutiltest/0061.js
+(`This is ${true}.`);
+#### nodeutiltest/0062.js
+(`${'hello'} ${name}`);
+#### nodeutiltest/0063.js
+(['']);
+#### nodeutiltest/0064.js
+([null]);
+#### nodeutiltest/0065.js
+([undefined]);
+#### nodeutiltest/0066.js
+([void 0]);
+#### nodeutiltest/0067.js
+([NaN]);
+#### nodeutiltest/0068.js
+([,'']);
+#### nodeutiltest/0069.js
+([[''],[''],['']]);
+#### nodeutiltest/0070.js
+([[1.0],[2.0]]);
+#### nodeutiltest/0071.js
+([a]);
+#### nodeutiltest/0072.js
+([1,a]);
+#### nodeutiltest/0073.js
+(({}));
+#### nodeutiltest/0074.js
+(a);
+#### nodeutiltest/0075.js
+('a');
+#### nodeutiltest/0076.js
+(1);
+#### nodeutiltest/0077.js
+(({a: 1}));
+#### nodeutiltest/0078.js
+(({1: 1}));
+#### nodeutiltest/0079.js
+(({get a(){}}));
+#### nodeutiltest/0080.js
+(({set a(b){}}));
+#### nodeutiltest/0081.js
+(({['a']: 1}));
+#### nodeutiltest/0082.js
+(({a} = {}));
+#### nodeutiltest/0083.js
+((class { a() {} }));
+#### nodeutiltest/0084.js
+function name(){}
+#### nodeutiltest/0085.js
+var name = function(){}
+#### nodeutiltest/0086.js
+qualified.name = function(){}
+#### nodeutiltest/0087.js
+var name2 = function name1(){}
+#### nodeutiltest/0088.js
+qualified.name2 = function name1(){}
+#### nodeutiltest/0089.js
+function func(){}
+#### nodeutiltest/0090.js
+var obj = {memFunc(){}}
+#### nodeutiltest/0091.js
+const ns = {};
+#### nodeutiltest/0092.js
+
+#### nodeutiltest/0093.js
+function foo(){}
+#### nodeutiltest/0094.js
+class C { constructor() {} }
+#### nodeutiltest/0095.js
+({ foo() {} })
+#### nodeutiltest/0096.js
+var x = function(){}
+#### nodeutiltest/0097.js
+export function f() {}
+#### nodeutiltest/0098.js
+export default function() {}
+#### nodeutiltest/0099.js
+export default function foo() {}
+#### nodeutiltest/0100.js
+export default (foo) => { alert(foo); }
+#### nodeutiltest/0101.js
+{ function foo(){} }
+#### nodeutiltest/0102.js
+class C { static { function foo(){} } }
+#### nodeutiltest/0103.js
+function foo(){ class C { static { function a(){} } } }
+#### nodeutiltest/0104.js
+class C { a() {} }
+#### nodeutiltest/0105.js
+class C { static a() {} }
+#### nodeutiltest/0106.js
+({ set foo(v) {} })
+#### nodeutiltest/0107.js
+({ get foo() {} })
+#### nodeutiltest/0108.js
+({ [foo]() {} })
+#### nodeutiltest/0109.js
+class Foo {}
+#### nodeutiltest/0110.js
+var Foo = class {}
+#### nodeutiltest/0111.js
+var Foo = class Foo{}
+#### nodeutiltest/0112.js
+export default class Foo {}
+#### nodeutiltest/0113.js
+export class Foo {}
+#### nodeutiltest/0114.js
+export default class {}
+#### nodeutiltest/0115.js
+this
+#### nodeutiltest/0116.js
+this;function foo(){}(this)
+#### nodeutiltest/0117.js
+var foo = function(){}
+#### nodeutiltest/0118.js
+undefined
+#### nodeutiltest/0119.js
+undefined;function foo(){}(undefined)
+#### nodeutiltest/0120.js
+goo.foo
+#### nodeutiltest/0121.js
+var foo;
+#### nodeutiltest/0122.js
+var foo,goo;
+#### nodeutiltest/0123.js
+foo();
+#### nodeutiltest/0124.js
+function f(){var foo;}
+#### nodeutiltest/0125.js
+var goo;function f(){var foo;}
+#### nodeutiltest/0126.js
+export {localName as exportName};
+#### nodeutiltest/0127.js
+let bar; export {bar};
+#### nodeutiltest/0128.js
+export {bar as baz} from './foo.js';
+#### nodeutiltest/0129.js
+import {exportName as localName} from './foo.js';
+#### nodeutiltest/0130.js
+import {bar} from './foo.js';
+#### nodeutiltest/0131.js
+if (x) foo(); else boo();
+#### nodeutiltest/0132.js
+(function foo() {})
+#### nodeutiltest/0133.js
+function foo() {}
+#### nodeutiltest/0134.js
+{{x()}}
+#### nodeutiltest/0135.js
+try {foo()} catch(e) {} finally {}
+#### nodeutiltest/0136.js
+import foo from './foo';
+#### nodeutiltest/0137.js
+function f(p1) {}
+#### nodeutiltest/0138.js
+function f(p1 = 0, p2) {}
+#### nodeutiltest/0139.js
+var foo, goo, hoo
+#### nodeutiltest/0140.js
+var foo, hoo
+#### nodeutiltest/0141.js
+var hoo
+#### nodeutiltest/0142.js
+let foo, goo, hoo
+#### nodeutiltest/0143.js
+let foo, hoo
+#### nodeutiltest/0144.js
+let hoo
+#### nodeutiltest/0145.js
+foo: goo()
+#### nodeutiltest/0146.js
+achoo: foo: goo()
+#### nodeutiltest/0147.js
+var {a, b, c} = {a:1, b:2, c:3}
+#### nodeutiltest/0148.js
+var [a, b] = [1, 2]
+#### nodeutiltest/0149.js
+for(var a=0;a<0;a++)foo()
+#### nodeutiltest/0150.js
+for(a in ack)foo();
+#### nodeutiltest/0151.js
+{{a();b();}}
+#### nodeutiltest/0152.js
+foo:{a();}
+#### nodeutiltest/0153.js
+foo:{a();boo()}
+#### nodeutiltest/0154.js
+{const module$exports$Foo=class{}}
+#### nodeutiltest/0155.js
+{a(); let x;}
+#### nodeutiltest/0156.js
+{a(); f(); var x; {const y = 2;}}
+#### nodeutiltest/0157.js
+(x());
+#### nodeutiltest/0158.js
+(this);
+#### nodeutiltest/0159.js
+(arguments);
+#### nodeutiltest/0160.js
+(new x());
+#### nodeutiltest/0161.js
+((new x()).y);
+#### nodeutiltest/0162.js
+((new x())['y']);
+#### nodeutiltest/0163.js
+([x]);
+#### nodeutiltest/0164.js
+({'a':x});
+#### nodeutiltest/0165.js
+({'a': {'b': 2}});
+#### nodeutiltest/0166.js
+({'a': {'b': global}});
+#### nodeutiltest/0167.js
+({get someGetter() { return 1; }});
+#### nodeutiltest/0168.js
+({get someGetter() { return global; }});
+#### nodeutiltest/0169.js
+({set someSetter(value) {}});
+#### nodeutiltest/0170.js
+({[someComputedProperty]: {}});
+#### nodeutiltest/0171.js
+({[someComputedProperty]: global});
+#### nodeutiltest/0172.js
+({[someComputedProperty]: {'a':x}});
+#### nodeutiltest/0173.js
+({[someComputedProperty]: {'a':1}});
+#### nodeutiltest/0174.js
+(++x);
+#### nodeutiltest/0175.js
+(--x);
+#### nodeutiltest/0176.js
+(x++);
+#### nodeutiltest/0177.js
+(x--);
+#### nodeutiltest/0178.js
+(x=1);
+#### nodeutiltest/0179.js
+(x=[]);
+#### nodeutiltest/0180.js
+(x=y);
+#### nodeutiltest/0181.js
+(x+=y);
+#### nodeutiltest/0182.js
+(x*=y);
+#### nodeutiltest/0183.js
+(x==y);
+#### nodeutiltest/0184.js
+(x!=y);
+#### nodeutiltest/0185.js
+(x>y);
+#### nodeutiltest/0186.js
+((1,2));
+#### nodeutiltest/0187.js
+((x,1));
+#### nodeutiltest/0188.js
+((x,y));
+#### nodeutiltest/0189.js
+(1||2);
+#### nodeutiltest/0190.js
+(x||1);
+#### nodeutiltest/0191.js
+(x||y);
+#### nodeutiltest/0192.js
+(1||y);
+#### nodeutiltest/0193.js
+(1&&2);
+#### nodeutiltest/0194.js
+(x&&1);
+#### nodeutiltest/0195.js
+(x&&y);
+#### nodeutiltest/0196.js
+(1&&y);
+#### nodeutiltest/0197.js
+(x||=1);
+#### nodeutiltest/0198.js
+(x&&=1);
+#### nodeutiltest/0199.js
+(x??=1);
+#### nodeutiltest/0200.js
+(x?1:2);
+#### nodeutiltest/0201.js
+(x?x:2);
+#### nodeutiltest/0202.js
+(x?1:x);
+#### nodeutiltest/0203.js
+(x?x:y);
+#### nodeutiltest/0204.js
+(!y);
+#### nodeutiltest/0205.js
+(~y);
+#### nodeutiltest/0206.js
+(y + 1);
+#### nodeutiltest/0207.js
+(y + z);
+#### nodeutiltest/0208.js
+(y * z);
+#### nodeutiltest/0209.js
+('a' in x);
+#### nodeutiltest/0210.js
+(typeof x);
+#### nodeutiltest/0211.js
+(x instanceof y);
+#### nodeutiltest/0212.js
+(void x);
+#### nodeutiltest/0213.js
+({}.x);
+#### nodeutiltest/0214.js
+({}.toString());
+#### nodeutiltest/0215.js
+(o.toString());
+#### nodeutiltest/0216.js
+(o.valueOf());
+#### nodeutiltest/0217.js
+(delete a.b);
+#### nodeutiltest/0218.js
+(import('./foo.js'));
+#### nodeutiltest/0219.js
+(`hello`);
+#### nodeutiltest/0220.js
+(`hello ${name}`);
+#### nodeutiltest/0221.js
+(`${'name'}`);
+#### nodeutiltest/0222.js
+(tag`simple string`);
+#### nodeutiltest/0223.js
+(tag`string with ${replacement()}`);
+#### nodeutiltest/0224.js
+([...x]);
+#### nodeutiltest/0225.js
+({...x});
+#### nodeutiltest/0226.js
+async function f() { await someAsyncAction(); }
+#### nodeutiltest/0227.js
+async function f() { await {then:function() { return p }}; }
+#### nodeutiltest/0228.js
+async function f() { await 5; }
+#### nodeutiltest/0229.js
+function *f() { yield; }
+#### nodeutiltest/0230.js
+function *f() { yield 'something'; }
+#### nodeutiltest/0231.js
+(x?.toString());
+#### nodeutiltest/0232.js
+(022);
+#### nodeutiltest/0233.js
+('\uFEFF1');
+#### nodeutiltest/0234.js
+(' ');
+#### nodeutiltest/0235.js
+(' \t');
+#### nodeutiltest/0236.js
+('+0');
+#### nodeutiltest/0237.js
+('-0');
+#### nodeutiltest/0238.js
+('+2');
+#### nodeutiltest/0239.js
+('-1.6');
+#### nodeutiltest/0240.js
+('16');
+#### nodeutiltest/0241.js
+(' 16 ');
+#### nodeutiltest/0242.js
+('123e2');
+#### nodeutiltest/0243.js
+('123E2');
+#### nodeutiltest/0244.js
+('123e-2');
+#### nodeutiltest/0245.js
+('123E-2');
+#### nodeutiltest/0246.js
+('-123e-2');
+#### nodeutiltest/0247.js
+('-123E-2');
+#### nodeutiltest/0248.js
+('+123e-2');
+#### nodeutiltest/0249.js
+('+123E-2');
+#### nodeutiltest/0250.js
+('+123e+2');
+#### nodeutiltest/0251.js
+('+123E+2');
+#### nodeutiltest/0252.js
+('0xf');
+#### nodeutiltest/0253.js
+('0xF');
+#### nodeutiltest/0254.js
+('-0xf');
+#### nodeutiltest/0255.js
+('-0xF');
+#### nodeutiltest/0256.js
+('+0xf');
+#### nodeutiltest/0257.js
+('+0xF');
+#### nodeutiltest/0258.js
+('0X10');
+#### nodeutiltest/0259.js
+('0X10.8');
+#### nodeutiltest/0260.js
+('077');
+#### nodeutiltest/0261.js
+('-077');
+#### nodeutiltest/0262.js
+('-077.5');
+#### nodeutiltest/0263.js
+('-Infinity');
+#### nodeutiltest/0264.js
+('Infinity');
+#### nodeutiltest/0265.js
+('+Infinity');
+#### nodeutiltest/0266.js
+('-infinity');
+#### nodeutiltest/0267.js
+('infinity');
+#### nodeutiltest/0268.js
+('+infinity');
+#### nodeutiltest/0269.js
+('NaN');
+#### nodeutiltest/0270.js
+('some unknown string');
+#### nodeutiltest/0271.js
+('123 blah');
+#### nodeutiltest/0272.js
+(-1);
+#### nodeutiltest/0273.js
+(+1);
+#### nodeutiltest/0274.js
+(22);
+#### nodeutiltest/0275.js
+(0x22);
+#### nodeutiltest/0276.js
+(-0.1);
+#### nodeutiltest/0277.js
+(-0.0);
+#### nodeutiltest/0278.js
+(~1);
+#### nodeutiltest/0279.js
+(~-1);
+#### nodeutiltest/0280.js
+(~22);
+#### nodeutiltest/0281.js
+(~022);
+#### nodeutiltest/0282.js
+(~0.0);
+#### nodeutiltest/0283.js
+(~0.1);
+#### nodeutiltest/0284.js
+(~NaN);
+#### nodeutiltest/0285.js
+(~Infinity);
+#### nodeutiltest/0286.js
+(void f);
+#### nodeutiltest/0287.js
+(void f());
+#### nodeutiltest/0288.js
+(-Infinity);
+#### nodeutiltest/0289.js
+(infinity);
+#### nodeutiltest/0290.js
+(-infinity);
+#### nodeutiltest/0291.js
+(x.y);
+#### nodeutiltest/0292.js
+(1/2);
+#### nodeutiltest/0293.js
+(1-2);
+#### nodeutiltest/0294.js
+([1]);
+#### nodeutiltest/0295.js
+(``);
+#### nodeutiltest/0296.js
+('1');
+#### nodeutiltest/0297.js
+('1n');
+#### nodeutiltest/0298.js
+(' 1 ');
+#### nodeutiltest/0299.js
+('10');
+#### nodeutiltest/0300.js
+('+10');
+#### nodeutiltest/0301.js
+('-10');
+#### nodeutiltest/0302.js
+('   +10');
+#### nodeutiltest/0303.js
+('   -10');
+#### nodeutiltest/0304.js
+('0xa');
+#### nodeutiltest/0305.js
+('0XA');
+#### nodeutiltest/0306.js
+('0o12');
+#### nodeutiltest/0307.js
+('0O12');
+#### nodeutiltest/0308.js
+('0b1010');
+#### nodeutiltest/0309.js
+('0B1010');
+#### nodeutiltest/0310.js
+('+0oF');
+#### nodeutiltest/0311.js
+('-0oF');
+#### nodeutiltest/0312.js
+('+0bF');
+#### nodeutiltest/0313.js
+('-0bF');
+#### nodeutiltest/0314.js
+('1.5');
+#### nodeutiltest/0315.js
+(+true);
+#### nodeutiltest/0316.js
+(a << b);
+#### nodeutiltest/0317.js
+(a >> b);
+#### nodeutiltest/0318.js
+(a << 2);
+#### nodeutiltest/0319.js
+(a >> 2);
+#### nodeutiltest/0320.js
+(a >>> b);
+#### nodeutiltest/0321.js
+(a == b);
+#### nodeutiltest/0322.js
+(a != b);
+#### nodeutiltest/0323.js
+(a === b);
+#### nodeutiltest/0324.js
+(a !== b);
+#### nodeutiltest/0325.js
+(a < b);
+#### nodeutiltest/0326.js
+(a > b);
+#### nodeutiltest/0327.js
+(a <= b);
+#### nodeutiltest/0328.js
+(a >= b);
+#### nodeutiltest/0329.js
+(a in b);
+#### nodeutiltest/0330.js
+(a instanceof b);
+#### nodeutiltest/0331.js
+('a'+b);
+#### nodeutiltest/0332.js
+(a+'b');
+#### nodeutiltest/0333.js
+(a+b);
+#### nodeutiltest/0334.js
+(a());
+#### nodeutiltest/0335.js
+(''.a);
+#### nodeutiltest/0336.js
+(a.b);
+#### nodeutiltest/0337.js
+(a.b());
+#### nodeutiltest/0338.js
+(a().b());
+#### nodeutiltest/0339.js
+(new a());
+#### nodeutiltest/0340.js
+(([1,2]));
+#### nodeutiltest/0341.js
+(({a:1}));
+#### nodeutiltest/0342.js
+(1 && 2);
+#### nodeutiltest/0343.js
+(1 || 2);
+#### nodeutiltest/0344.js
+(a ? 2 : 3);
+#### nodeutiltest/0345.js
+(a,1);
+#### nodeutiltest/0346.js
+(a=1);
+#### nodeutiltest/0347.js
+(a += 1);
+#### nodeutiltest/0348.js
+(a -= 1);
+#### nodeutiltest/0349.js
+(a *= 1);
+#### nodeutiltest/0350.js
+(--a);
+#### nodeutiltest/0351.js
+(++a);
+#### nodeutiltest/0352.js
+(a++);
+#### nodeutiltest/0353.js
+(a--);
+#### nodeutiltest/0354.js
+(-1n);
+#### nodeutiltest/0355.js
+(a *= 1n);
+#### nodeutiltest/0356.js
+(a * 1n);
+#### nodeutiltest/0357.js
+(1n * a);
+#### nodeutiltest/0358.js
+(a * b);
+#### nodeutiltest/0359.js
+('a'+1n);
+#### nodeutiltest/0360.js
+(1n+'b');
+#### nodeutiltest/0361.js
+(1n + 2n);
+#### nodeutiltest/0362.js
+(a += 1n);
+#### nodeutiltest/0363.js
+(+a);
+#### nodeutiltest/0364.js
+(a * b + 1n);
+#### nodeutiltest/0365.js
+(a * b * 1n);
+#### nodeutiltest/0366.js
+(a * b + c * 1n);
+#### nodeutiltest/0367.js
+(a * b + c * d);
+#### nodeutiltest/0368.js
+(a * ~b * -c * d * 1n);
+#### nodeutiltest/0369.js
+(a * 1 * b * c * d * 1n);
+#### nodeutiltest/0370.js
+(a * b * +c * d * 1n);
+#### nodeutiltest/0371.js
+(a * b >> c * d * 1n);
+#### nodeutiltest/0372.js
+(a * b >>> c * d * 1n);
+#### nodeutiltest/0373.js
+(void 0n);
+#### nodeutiltest/0374.js
+(a == 1n);
+#### nodeutiltest/0375.js
+(a != 1n);
+#### nodeutiltest/0376.js
+(a === 1n);
+#### nodeutiltest/0377.js
+(a !== 1n);
+#### nodeutiltest/0378.js
+(a < 1n);
+#### nodeutiltest/0379.js
+(a > 1n);
+#### nodeutiltest/0380.js
+(a <= 1n);
+#### nodeutiltest/0381.js
+(a >= 1n);
+#### nodeutiltest/0382.js
+(a in 1n);
+#### nodeutiltest/0383.js
+(a instanceof 1n);
+#### nodeutiltest/0384.js
+(([1n,2n]));
+#### nodeutiltest/0385.js
+(({a:1n}));
+#### nodeutiltest/0386.js
+(1n && 2n);
+#### nodeutiltest/0387.js
+(1n || 2n);
+#### nodeutiltest/0388.js
+(a ? 2n : 3n);
+#### nodeutiltest/0389.js
+(a,1n);
+#### nodeutiltest/0390.js
+(a=1n);
+#### nodeutiltest/0391.js
+(delete a);
+#### nodeutiltest/0392.js
+(([true,false]));
+#### nodeutiltest/0393.js
+(({a:true}));
+#### nodeutiltest/0394.js
+(true && false);
+#### nodeutiltest/0395.js
+(true || false);
+#### nodeutiltest/0396.js
+(a ? true : false);
+#### nodeutiltest/0397.js
+(a,true);
+#### nodeutiltest/0398.js
+(a=true);
+#### nodeutiltest/0399.js
+(1 ? 2 : 3);
+#### nodeutiltest/0400.js
+(1,2);
+#### nodeutiltest/0401.js
+(1+1);
+#### nodeutiltest/0402.js
+(true+true);
+#### nodeutiltest/0403.js
+(null+null);
+#### nodeutiltest/0404.js
+(NaN+NaN);
+#### nodeutiltest/0405.js
+(({}+1));
+#### nodeutiltest/0406.js
+((1+{}));
+#### nodeutiltest/0407.js
+(([]+1));
+#### nodeutiltest/0408.js
+((1+[]));
+#### nodeutiltest/0409.js
+(a += 'x');
+#### nodeutiltest/0410.js
+(`x`);
+#### nodeutiltest/0411.js
+(`a${b}c`);
+#### nodeutiltest/0412.js
+({},true);
+#### nodeutiltest/0413.js
+(a ? true : {});
+#### nodeutiltest/0414.js
+(true && {});
+#### nodeutiltest/0415.js
+(true || {});
+#### nodeutiltest/0416.js
+(new a.b());
+#### nodeutiltest/0417.js
+(a={});
+#### nodeutiltest/0418.js
+([] && {});
+#### nodeutiltest/0419.js
+([] || {});
+#### nodeutiltest/0420.js
+(a ? [] : {});
+#### nodeutiltest/0421.js
+({},[]);
+#### nodeutiltest/0422.js
+(/a/g);
+#### nodeutiltest/0423.js
+var x = {[computedProp] : 5};
+#### nodeutiltest/0424.js
+class Foo { ['computedField'] = 5}
+#### nodeutiltest/0425.js
+var [x] = rhs;
+#### nodeutiltest/0426.js
+var [x, y] = rhs;
+#### nodeutiltest/0427.js
+var [y, x] = rhs;
+#### nodeutiltest/0428.js
+var {x: x} = rhs;
+#### nodeutiltest/0429.js
+var {y: x} = rhs;
+#### nodeutiltest/0430.js
+var {x} = rhs;
+#### nodeutiltest/0431.js
+var [x] = 'rhs';
+#### nodeutiltest/0432.js
+var [x, y] = 'rhs';
+#### nodeutiltest/0433.js
+var [y, x] = 'rhs';
+#### nodeutiltest/0434.js
+var {x: x} = 'rhs';
+#### nodeutiltest/0435.js
+var {y: x} = 'rhs';
+#### nodeutiltest/0436.js
+var {x} = 'rhs';
+#### nodeutiltest/0437.js
+(0/0);
+#### nodeutiltest/0438.js
+(1/0);
+#### nodeutiltest/0439.js
+(0/1);
+#### nodeutiltest/0440.js
+var x;
+#### nodeutiltest/0441.js
+var w, x;
+#### nodeutiltest/0442.js
+var [...x] = y;
+#### nodeutiltest/0443.js
+var x = y;
+#### nodeutiltest/0444.js
+x++;
+#### nodeutiltest/0445.js
+function f(x) {}
+#### nodeutiltest/0446.js
+function f(x = 3) {}
+#### nodeutiltest/0447.js
+({x} = obj)
+#### nodeutiltest/0448.js
+([x] = obj)
+#### nodeutiltest/0449.js
+function foo (...x) {}
+#### nodeutiltest/0450.js
+({[0]: x} = obj)
+#### nodeutiltest/0451.js
+var a = x;
+#### nodeutiltest/0452.js
+f(...x);
+#### nodeutiltest/0453.js
+var a = [...x];
+#### nodeutiltest/0454.js
+/** some */ let A;
+#### nodeutiltest/0455.js
+/** some */ class A {}
+#### nodeutiltest/0456.js
+/** some */ const x = class A {}
+#### nodeutiltest/0457.js
+/** some */ const x = class {}
+#### nodeutiltest/0458.js
+/** some */ const x = function A() {}
+#### nodeutiltest/0459.js
+/** some */ export function A() {}
+#### nodeutiltest/0460.js
+var x = 1;
+#### nodeutiltest/0461.js
+let x = 1;
+#### nodeutiltest/0462.js
+const x = 1;
+#### nodeutiltest/0463.js
+/** @const */ var x = 1;
+#### nodeutiltest/0464.js
+var /** @const */ x = 1;
+#### nodeutiltest/0465.js
+var x, /** @const */ y = 1;
+#### nodeutiltest/0466.js
+class C {x = 2;}
+#### nodeutiltest/0467.js
+class C {/** @const */ x = 2;}
+#### nodeutiltest/0468.js
+class C { [x] = 2;}
+#### nodeutiltest/0469.js
+class C { /** @const */ [x] = 2;}
+#### nodeutiltest/0470.js
+/** @const */ x.y = a.b;
+#### nodeutiltest/0471.js
+x.Y = a.b;
+#### nodeutiltest/0472.js
+x.y = a.b;
+#### nodeutiltest/0473.js
+/** @const */ x.y;
+#### nodeutiltest/0474.js
+var [a, b] = obj;
+#### nodeutiltest/0475.js
+var {a: c, b: d} = obj;
+#### nodeutiltest/0476.js
+var {a, b} = obj;
+#### nodeutiltest/0477.js
+var {a = defaultValue} = obj;
+#### nodeutiltest/0478.js
+var {a: b = defaultValue} = obj;
+#### nodeutiltest/0479.js
+var [a  = defaultValue] = arr;
+#### nodeutiltest/0480.js
+var [a, [b, c]] = obj;
+#### nodeutiltest/0481.js
+var {a: e, b: {c: f, d: g}} = obj;
+#### nodeutiltest/0482.js
+var [a, b] = [c, d];
+#### nodeutiltest/0483.js
+var {a: c, b: d} = {a: 1, b: 2};
+#### nodeutiltest/0484.js
+for ([a, b] of X){}
+#### nodeutiltest/0485.js
+function fn([a, b] = [c, d]){}
+#### nodeutiltest/0486.js
+function fn(a, b, ...rest){}
+#### nodeutiltest/0487.js
+for ([{a: b}] of c) {}
+#### nodeutiltest/0488.js
+for ([{a: b}] in c) {}
+#### nodeutiltest/0489.js
+for (var [{a: b}] = [{a: 1}];;) {}
+#### nodeutiltest/0490.js
+for ([a] of c) {}
+#### nodeutiltest/0491.js
+for ([a] in c) {}
+#### nodeutiltest/0492.js
+for (var [a] = [1];;) {}
+#### nodeutiltest/0493.js
+for (let [a] = [1];;) {}
+#### nodeutiltest/0494.js
+for (const [a] = [1];;) {}
+#### nodeutiltest/0495.js
+var [...a] = obj;
+#### nodeutiltest/0496.js
+([...this.x] = obj);
+#### nodeutiltest/0497.js
+var {['a']:a} = obj;
+#### nodeutiltest/0498.js
+var {['a']: a = 1} = obj;
+#### nodeutiltest/0499.js
+try {} catch([a]) {}
+#### nodeutiltest/0500.js
+var {...rest} = obj;
+#### nodeutiltest/0501.js
+/** @export */ class Foo {}
+#### nodeutiltest/0502.js
+/** @export */ var Foo = class {}
+#### nodeutiltest/0503.js
+/** @export */ var Foo = class Bar {}
+#### nodeutiltest/0504.js
+var Foo_1; /** @export */ let Foo = Foo_1 = class Foo {}
+#### nodeutiltest/0505.js
+class C { /** @export */ foo() {} }
+#### nodeutiltest/0506.js
+class C { /** @export */ [computedMethod]() {} }
+#### nodeutiltest/0507.js
+/** @constructor */ export class Foo {}
+#### nodeutiltest/0508.js
+/** @constructor */ export function Foo() {}
+#### nodeutiltest/0509.js
+/** @constructor */ export var Foo = function() {}
+#### nodeutiltest/0510.js
+/** @constructor */ export let Foo = function() {}
+#### nodeutiltest/0511.js
+function f(/** string */ x) {}
+#### nodeutiltest/0512.js
+/** @param {string} x */ function f(x) {}
+#### nodeutiltest/0513.js
+/** @param {...number} x */ function f(...x) {}
+#### nodeutiltest/0514.js
+/** @param {number=} x */ function f(x = -1) {}
+#### nodeutiltest/0515.js
+/** @constructor */ function Foo() {}
+#### nodeutiltest/0516.js
+/** @constructor */ var Foo = function() {}
+#### nodeutiltest/0517.js
+var x = {}; /** @constructor */ x.Foo = function() {}
+#### nodeutiltest/0518.js
+class Foo { constructor() {} }
+#### nodeutiltest/0519.js
+class Foo { static constructor() {} }
+#### nodeutiltest/0520.js
+let Foo = { constructor() {} }
+#### nodeutiltest/0521.js
+function Foo() {}
+#### nodeutiltest/0522.js
+var Foo = function() {}
+#### nodeutiltest/0523.js
+var x = {}; x.Foo = function() {};
+#### nodeutiltest/0524.js
+function constructor() {}
+#### nodeutiltest/0525.js
+class Foo { bar() {} }
+#### nodeutiltest/0526.js
+class Foo { method() {} constructor() {} static constructor() {} };
+#### nodeutiltest/0527.js
+class Foo { method() {} static constructor() {} }
+#### nodeutiltest/0528.js
+Object.defineProperty(this, 'bar', {get: function() {}});
+#### nodeutiltest/0529.js
+Object.defineProperty(this, 'bar', {set: function() {}});
+#### nodeutiltest/0530.js
+Object.defineProperties(this, {bar: {get: function() {}}});
+#### nodeutiltest/0531.js
+Object.defineProperties(this, {bar: {set: function() {}}});
+#### nodeutiltest/0532.js
+var x = {get bar() {}};
+#### nodeutiltest/0533.js
+var x = {set bar(z) {}};
+#### nodeutiltest/0534.js
+Object.defineProperties(this, {});
+#### nodeutiltest/0535.js
+Object.defineProperties(this, foo);
+#### nodeutiltest/0536.js
+$jscomp.global.Object.defineProperties(this, foo);
+#### nodeutiltest/0537.js
+$jscomp$global.Object.defineProperties(this, foo);
+#### nodeutiltest/0538.js
+Object.defineProperties(this, {}, foo);
+#### nodeutiltest/0539.js
+Object.defineProperties(this);
+#### nodeutiltest/0540.js
+Object.defineProperties();
+#### nodeutiltest/0541.js
+Object.defineProperty(this, 'foo', {});
+#### nodeutiltest/0542.js
+Object.defineProperty(this, 'foo', foo);
+#### nodeutiltest/0543.js
+$jscomp.global.Object.defineProperty(this, 'foo', foo);
+#### nodeutiltest/0544.js
+$jscomp$global.Object.defineProperty(this, 'foo', foo);
+#### nodeutiltest/0545.js
+Object.defineProperty(this, {});
+#### nodeutiltest/0546.js
+Object.defineProperty(this);
+#### nodeutiltest/0547.js
+Object.defineProperty();
+#### nodeutiltest/0548.js
+(function() {return () => arguments});
+#### nodeutiltest/0549.js
+(function(a = arguments.length) {});
+#### nodeutiltest/0550.js
+(() => arguments);
+#### nodeutiltest/0551.js
+(!x);
+#### nodeutiltest/0552.js
+(5 + x);
+#### nodeutiltest/0553.js
+(5 && x);
+#### nodeutiltest/0554.js
+(5 || x);
+#### nodeutiltest/0555.js
+(x = 5);
+#### nodeutiltest/0556.js
+(--y);
+#### nodeutiltest/0557.js
+(y in x);
+#### nodeutiltest/0558.js
+(x[y]);
+#### nodeutiltest/0559.js
+foo()
+#### nodeutiltest/0560.js
+foo.bar()
+#### nodeutiltest/0561.js
+foo[0]()
+#### nodeutiltest/0562.js
+a.b.c.foo()
+#### nodeutiltest/0563.js
+({valueOf: () => {}}.valueOf());
+#### nodeutiltest/0564.js
+const Foo = goog.module.get('a.b.c.Foo');
+#### nodeutiltest/0565.js
+const Foo = goog.require('a.b.c.Foo');
+#### nodeutiltest/0566.js
+goog.loadModule(function(exports) { goog.module('a.b'); return exports; });
+#### nodeutiltest/0567.js
+(a?.b?.(x?.y));
+#### nodeutiltest/0568.js
+(a?.b.x?.y);
+#### nodeutiltest/0569.js
+(a?.b?.(c.x?.y));
+#### nodeutiltest/0570.js
+(a?.b(x?.y).c);
+#### nodeutiltest/0571.js
+(a?.b(x?.y, c, d).e);
+#### nodeutiltest/0572.js
+const x = 1;
+const y = 2;
+
