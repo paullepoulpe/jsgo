@@ -217,12 +217,43 @@ behaviour. Use the `internal/jutil` helpers.
   - `ArrayList`/`List` that is mutated after being shared →
     `*jutil.ArrayList[T]`; `ImmutableList`, `List.of`, and lists never
     mutated after construction → `[]T`.
-  - `LinkedHashMap`, `ImmutableMap`, `HashMap` → `*jutil.LinkedHashMap[K,V]`;
-    `LinkedHashSet`, `ImmutableSet`, `HashSet` → `*jutil.LinkedHashSet[T]`.
-    A plain Java `HashMap`/`HashSet` whose iteration order is observable
-    needs Java's hash order (only ~10 such sites exist in Closure); flag it
-    with `// Go-only: language-adapter — Java HashMap order` and raise it
-    rather than guessing.
+  - `LinkedHashMap`, `ImmutableMap` → `*jutil.LinkedHashMap[K,V]`;
+    `LinkedHashSet`, `ImmutableSet` → `*jutil.LinkedHashSet[T]`.
+  - `HashMap`, `HashSet`, Guava `HashMultimap`, `MultimapBuilder.hashKeys()
+    .hashSetValues()`, and the Guava hash factories (`Maps.newHashMap*`,
+    `Sets.newHashSet*`) → `*jutil.JavaHashMap[K,V]`, `*jutil.JavaHashSet[T]`,
+    `*jutil.HashMultimap[K,V]` (`Maps_NewHashMap*`, `Sets_NewHashSet*`,
+    `HashMultimap_Create*`, `MultimapBuilder_HashKeys_HashSetValues`), when
+    both hold:
+    - the collection is iterated: directly, through a copy
+      (`new ArrayList<>(set)`, `ImmutableList.copyOf`), a stream, `toString`,
+      `Sets.intersection`/`difference` over it, or a multimap's `keySet`,
+      `values`, `entries`, `asMap` or `get(k)`;
+    - its keys (for a multimap: its keys or its values) hash by value:
+      `String`, boxed primitives, value classes and AutoValue types, lists of
+      those.
+
+    These reproduce the JDK 21 / shaded Guava iteration order bit for bit
+    (table growth, bin order, tree bins), verified against vectors from
+    `tools/oracle/java/JutilJavaHashVectors.java`. Use the constructor that
+    matches the Java one: the initial capacity and the factory change the
+    order. Keys hash with `ObjectHashCode` and compare with `ObjectsEquals`,
+    so value classes need `Equals`/`HashCode` (and `CompareTo(T) int` if
+    the Java class is `Comparable` of itself). Structural changes during
+    iteration throw `ConcurrentModificationException` as in Java; remove
+    through `Iterator()`.
+  - A `HashMap`/`HashSet`/hash multimap that is only looked up (`get`,
+    `contains`, `put`, `remove`, never iterated), or whose keys are
+    identity-hashed (`Node`, `Var`, `JSType`, enums, plain objects: Java's
+    own order is then nondeterministic, so Closure cannot depend on it)
+    stays `*jutil.LinkedHashMap`/`LinkedHashSet` or an insertion-ordered
+    multimap. A hash multimap with identity-hashed keys but value-hashed
+    values whose value order is observable needs `HashMultimap`. When it is
+    unclear whether the order is observable, flag the site with
+    `// Go-only: language-adapter — Java HashMap order` and raise it rather
+    than guessing.
+  - Guava `HashBasedTable` is `LinkedHashMap`-backed (rows and columns in
+    insertion order) in the pinned Guava → `*jutil.HashBasedTable`.
   - `TreeMap`/`TreeSet` → sorted `jutil` structures with the same
     comparator. `IdentityHashMap` → `jutil.LinkedHashMap` keyed by pointer
     (Java's own iteration order there is not deterministic, so Closure never
