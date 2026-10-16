@@ -1,0 +1,1 @@
+var fn = function f(f){f = 1}

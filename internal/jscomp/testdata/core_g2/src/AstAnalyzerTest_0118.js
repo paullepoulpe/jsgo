@@ -1,0 +1,1 @@
+new Object(...`templatelit ${safe}`)

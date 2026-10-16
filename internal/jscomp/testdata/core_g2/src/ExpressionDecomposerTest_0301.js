@@ -1,0 +1,1 @@
+var result$jscomp$0=foo();var x = {get a() {}, b: result$jscomp$0};

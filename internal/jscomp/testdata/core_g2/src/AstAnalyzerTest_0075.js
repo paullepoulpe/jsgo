@@ -1,0 +1,1 @@
+tempFunc = templateFunction`template`

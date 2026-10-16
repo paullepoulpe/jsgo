@@ -1,0 +1,1 @@
+function *f() { return { a: yield 1, c: foo(yield 2, yield 3) }; }

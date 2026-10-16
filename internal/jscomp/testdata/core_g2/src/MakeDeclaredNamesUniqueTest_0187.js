@@ -1,0 +1,1 @@
+import {a as a$jscomp$1} from './foo.js'; let b = a$jscomp$1;

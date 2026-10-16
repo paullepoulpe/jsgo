@@ -1,0 +1,1 @@
+[...`templatelit ${safe}`]

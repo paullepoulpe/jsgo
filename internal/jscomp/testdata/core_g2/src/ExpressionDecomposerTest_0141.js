@@ -1,0 +1,1 @@
+var result$jscomp$0 = foo(); const {a, b} = result$jscomp$0;
