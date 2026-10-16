@@ -327,7 +327,7 @@ func (e *ExpressionDecomposer) ExposeExpressionWithRoot(expressionRoot *rhino.No
 func (e *ExpressionDecomposer) RewriteAllContainingOptionalChains(subExpression *rhino.Node) {
 	optChainRewriterBuilder :=
 		OptionalChainRewriter_Builder_(e.compiler).
-			SetTmpVarNameCreator(e.GetTempConstantValueName).
+			SetTmpVarNameCreator(OptionalChainRewriter_TmpVarNameCreatorFunc(e.GetTempConstantValueName)).
 			SetScope(e.scope)
 	// Rewriting the chains changes the shape of the AST in a way that would interfere
 	// with the simple traversal from child to parent done here, so we'll traverse
@@ -1310,7 +1310,7 @@ func (e *ExpressionDecomposer) IsExpressionTreeUnsafe(tree *rhino.Node, followin
 			return false
 		}
 		// This is a superset of "AstAnalyzer.mayHaveSideEffects".
-		return NodeUtil_CanBeSideEffectedWithKnownConstants(tree, e.knownConstantFunctions, e.scope)
+		return NodeUtil_CanBeSideEffectedWithScope(tree, e.knownConstantFunctions, e.scope)
 	} else {
 		// The function called doesn't have side-effects but check to see if there
 		// are side-effects that that may affect it.
