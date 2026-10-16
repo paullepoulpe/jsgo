@@ -125,6 +125,13 @@ trailing underscore (`type_`, `func_`, `range_`, `len_`).
 
 - `null` → `nil`. Never store a typed nil pointer in an interface variable
   (Go's `iface != nil` would then be true where Java's `x != null` is false).
+- Object identity: Java gives every `new` a distinct identity. In Go,
+  pointers to *zero-size* structs may compare equal. A class with no fields
+  (common for stateless strategy objects, guards and passes) that is ever
+  compared by identity, or used as a map/set key, must have a non-zero
+  size. Give its base struct a one-byte field, marked
+  `// Go-only: language-adapter — distinct identity`. Wave 2 found this in
+  `ComposeWarningsGuard`, where two guards collapsed into one.
 - Exceptions: `throw new X(..)` → `panic(NewX(..))`; `try/catch` →
   `jutil.Try(func() {...}, func(e jutil.IRuntimeException) {...})`, where
   the marker interface gives Java's catch-by-subclass semantics;

@@ -423,6 +423,19 @@ Done:
   - Zero diffs on 4,042 seeded differential cases. Re-run with a new
     seed: zero diffs.
 
+- **Type system: `rhino/jstype` (55 files) in `internal/rhino`.**
+  - 13 Java test classes ported (331 cases).
+  - Type-algebra oracle: 283 types × ~120 facts, plus 11 operations over
+    all 80,089 ordered pairs. Identical.
+  - Independently verified on real code: every JSDoc type expression in
+    the corpus and in the held-out corpus (124,116 expressions) evaluates
+    to an identical type, with identical predicates and relations.
+- **`jutil` exception mapping:** Go runtime faults now surface as the Java
+  exception the JVM throws (nil → NullPointerException, index →
+  ArrayIndexOutOfBoundsException, …).
+
 In progress, in parallel (wave 2, PLAN.md §5):
-- `rhino/jstype`, against a type-algebra oracle.
+- The 15 jscomp files below the core that need the type system: the
+  reverse abstract interpreters, FlowScope, TypeMismatch, …
+- Un-skipping the parsing tests that waited for jstype.
 - jscomp levels 0–9, group A (89 files: diagnostics, error managers, deps/modules, serialization basics).
