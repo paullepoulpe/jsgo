@@ -138,6 +138,8 @@ func splitSci(s string) (string, int) {
 // ToJavaString is String.valueOf(Object) for values flowing through Java
 // string concatenation or formatting: nil → "null", float64 →
 // Double.toString, uint16 (Java char) → the character, Stringer → String().
+// A pointer to a string, bool or number is a nullable Java String or boxed
+// primitive (Integer, Boolean, ...): non-nil, it prints its value.
 func ToJavaString(v any) string {
 	if IsNil(v) {
 		return "null"
@@ -148,6 +150,24 @@ func ToJavaString(v any) string {
 	case *string:
 		// A nullable Java String (non-null here).
 		return *x
+	case *bool:
+		return ToJavaString(*x)
+	case *int:
+		return ToJavaString(*x)
+	case *int8:
+		return ToJavaString(*x)
+	case *int16:
+		return ToJavaString(*x)
+	case *int32:
+		return ToJavaString(*x)
+	case *int64:
+		return ToJavaString(*x)
+	case *float32:
+		return ToJavaString(*x)
+	case *float64:
+		return ToJavaString(*x)
+	case *uint16:
+		return ToJavaString(*x)
 	case float64:
 		return DoubleToString(x)
 	case float32:
