@@ -384,13 +384,45 @@ Done:
     corpus parse, against Java's 5.9 s cold and 2.2 s warm.
   - Go has no warm-up cost and uses ~4× less memory.
 
-In progress, in parallel (wave 2, PLAN.md §5):
+- **Wave 1 complete:**
+  - **`internal/sourcemap`:** all 19 classes.
+    - Differential oracle on the generator and consumer API: 50,572
+      results identical.
+    - Independently re-run with a new seed: 84,012 identical.
+  - **`internal/regex`:**
+    - 253,105 regex patterns identical to Java, including every literal in
+      the corpus.
+    - Independently re-checked on 1,196 new pattern/flag combinations.
+  - **`internal/diagnostic`, `internal/resources`:** the jar's JS
+    resources are embedded.
+  - **`internal/jutil`:** consolidated across branches (one helper per
+    Java class, all tested against JDK-generated vectors).
 
-- `internal/parsing`:
-  - JsDocInfoParser + Config;
-  - IRFactory + ParserRunner, against the `ParsingDump` oracle
-    (14,690 + 1,488 + 544 + 59 Java dumps ready).
+- **M1 front end complete: `internal/parsing`.**
+  - Ported: IRFactory, ParserRunner, JsDocInfoParser, JsDocTokenStream,
+    TypeTransformationParser, Config, FeatureCollector, ….
+  - `ParserRunner.parse` output is byte-identical to Java's
+    (`ParsingDump`). That covers the AST with JSDoc, features, comments and
+    every error and warning, on:
+    - the 14,690-file corpus;
+    - the 1,488 fixtures and 544 held-out fixtures;
+    - 59 adversarial inputs;
+    - all JsDocParsing modes, ES3, ES5 and ES2015;
+    - KEEP_GOING;
+    - 29,892 broken mutants.
+  - Independently re-verified on a **fresh held-out corpus**
+    (`tools/oracle/corpus-holdout.txt`): 10,145 real-world files from 16
+    npm packages never used during porting. 10,145 of 10,145 identical.
+  - Closure's own `ParserTest` (649 tests) and `JsDocInfoParserTest` (778)
+    are ported. The only skips need `rhino/jstype`, plus one Java
+    stack-overflow case that Go cannot reproduce.
+
+- **jscomp levels 0–9, group B** (80 files: graph library, messages,
+  name generators, variable maps, tracer, code consumer, …).
+  - Merged with 26 ported Java test classes.
+  - Zero diffs on 4,042 seeded differential cases. Re-run with a new
+    seed: zero diffs.
+
+In progress, in parallel (wave 2, PLAN.md §5):
 - `rhino/jstype`, against a type-algebra oracle.
-- jscomp levels 0–9, in two dependency-closed groups (89 + 81 files).
-- `internal/sourcemap`, `internal/regex`, `internal/diagnostic`,
-  `internal/resources`.
+- jscomp levels 0–9, group A (89 files: diagnostics, error managers, deps/modules, serialization basics).

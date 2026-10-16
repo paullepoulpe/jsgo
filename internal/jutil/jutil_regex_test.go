@@ -132,6 +132,20 @@ func TestImmutableMapBuilderMatchesGuava(t *testing.T) {
 		}, "java.lang.IllegalArgumentException: Multiple entries with same key: b=3 and b=2"},
 		{func() { NewImmutableMapBuilder[int, int]().Put(1, 2).Put(1, 3).BuildOrThrow() },
 			"java.lang.IllegalArgumentException: Multiple entries with same key: 1=3 and 1=2"},
+		// Vectors from the shaded Guava 33.4.6 in the pinned jar.
+		{func() { immutableMapBuilderOf("k1", "j2", "k3").BuildOrThrow() },
+			"java.lang.IllegalArgumentException: Multiple entries with same key: k=3 and k=1"},
+		{func() { immutableMapBuilderOf("k1", "j2", "j3", "k4").BuildOrThrow() },
+			"java.lang.IllegalArgumentException: Multiple entries with same key: j=3 and j=2"},
+		{func() { immutableMapBuilderOf("k1", "k2", "k3").BuildOrThrow() },
+			"java.lang.IllegalArgumentException: Multiple entries with same key: k=3 and k=2"},
+		{func() { immutableMapBuilderOf("a1", "b2", "c3", "a4", "b5").BuildOrThrow() },
+			"java.lang.IllegalArgumentException: Multiple entries with same key: b=5 and b=2"},
+		{func() { immutableMapBuilderOf("a1", "b2", "c3", "b4", "a5").BuildOrThrow() },
+			"java.lang.IllegalArgumentException: Multiple entries with same key: b=4 and b=2"},
+		{func() {
+			immutableMapBuilderOf("a1", "b2", "a3", "c4", "d5", "e6", "f7", "g8", "h9", "b0").BuildOrThrow()
+		}, "java.lang.IllegalArgumentException: Multiple entries with same key: b=0 and b=2"},
 		{func() { NewImmutableMapBuilder[string, *int]().Put("a", nil) },
 			"java.lang.NullPointerException: null value in entry: a=null"},
 		{func() { NewImmutableMapBuilder[*int, string]().Put(nil, "v") },
@@ -145,4 +159,13 @@ func TestImmutableMapBuilderMatchesGuava(t *testing.T) {
 	if got := NewImmutableMapBuilder[string, string]().Put("z", "1").Put("a", "2").BuildOrThrow().String(); got != "{z=1, a=2}" {
 		t.Errorf("got %s", got)
 	}
+}
+
+// immutableMapBuilderOf puts "kv" pairs (one-character key, rest value).
+func immutableMapBuilderOf(entries ...string) *ImmutableMapBuilder[string, string] {
+	b := NewImmutableMapBuilder[string, string]()
+	for _, e := range entries {
+		b.Put(e[:1], e[1:])
+	}
+	return b
 }

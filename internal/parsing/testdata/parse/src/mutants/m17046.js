@@ -1,0 +1,1 @@
+export ({ get a()yield  { }, }get a() { } })

@@ -1,0 +1,1 @@
+/** @type {function(!Object<!Oct, number>)} */ var k;

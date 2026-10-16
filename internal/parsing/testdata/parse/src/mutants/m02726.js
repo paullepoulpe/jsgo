@@ -1,0 +1,1 @@
+(function (ield* 1 })

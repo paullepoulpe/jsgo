@@ -1,8 +1,12 @@
-// Command parsebench benchmarks the ported parser (internal/parser,
-// Parser.ParseProgram) over a corpus, K times in one process. It is the Go
-// counterpart of tools/bench/java/ParseBench.java and prints the same columns.
+// Command parsebench benchmarks the ported front end over a corpus, K times in
+// one process. It is the Go counterpart of tools/bench/java/ParseBench.java and
+// prints the same columns.
 //
-//	go run ./tools/bench/parsebench <iters> <root> @<listfile> <per-file-tsv>
+//	--mode=parser (default): internal/parser Parser.ParseProgram
+//	--mode=runner: internal/parsing ParserRunner_Parse (Parser + IRFactory +
+//	               JsDocInfoParser) with the compiler's parsing.Config
+//
+//	go run ./tools/bench/parsebench [--mode=runner] <iters> <root> @<listfile> <per-file-tsv>
 //
 // All files are read into memory first. Each iteration parses every file once
 // on one goroutine, with the configuration the compiler uses for
@@ -26,7 +30,16 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
+	"github.com/paullepoulpe/jsgo/internal/parsing"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+type rhinoCountingReporter struct{ errors int }
+
+func (r *rhinoCountingReporter) Warning(message, sourceName string, line, lineOffset int) {}
+func (r *rhinoCountingReporter) Error(message, sourceName string, line, lineOffset int) {
+	r.errors++
+}
 
 type countingReporter struct {
 	parser.ErrorReporterBase
@@ -46,10 +59,16 @@ func processCPU() time.Duration {
 }
 
 func main() {
-	iters, _ := strconv.Atoi(os.Args[1])
-	root := os.Args[2]
-	listFile := strings.TrimPrefix(os.Args[3], "@")
-	perFile := os.Args[4]
+	args := os.Args[1:]
+	runner := false
+	if len(args) > 0 && strings.HasPrefix(args[0], "--mode=") {
+		runner = args[0] == "--mode=runner"
+		args = args[1:]
+	}
+	iters, _ := strconv.Atoi(args[0])
+	root := args[1]
+	listFile := strings.TrimPrefix(args[2], "@")
+	perFile := args[3]
 
 	f, err := os.Open(listFile)
 	if err != nil {
@@ -81,9 +100,16 @@ func main() {
 		_ = pprof.StartCPUProfile(pf)
 		defer pprof.StopCPUProfile()
 	}
+	runnerConfig := parsing.ParserRunner_CreateConfigWithModes(parsing.Config_LanguageMode_ES_NEXT,
+		parsing.Config_JsDocParsing_TYPES_ONLY, parsing.Config_RunMode_STOP_AFTER_ERROR, nil, true,
+		parsing.Config_StrictMode_STRICT)
 	config := parser.NewParser_ConfigWithMode(parser.Parser_Config_Mode_ES8_OR_GREATER, true)
 
-	fmt.Printf("# go files=%d utf16_chars=%d GOMAXPROCS=%d GOGC=%s\n", len(names), totalChars, runtime.GOMAXPROCS(0), os.Getenv("GOGC"))
+	mode := "parser"
+	if runner {
+		mode = "runner"
+	}
+	fmt.Printf("# go mode=%s files=%d utf16_chars=%d GOMAXPROCS=%d GOGC=%s\n", mode, len(names), totalChars, runtime.GOMAXPROCS(0), os.Getenv("GOGC"))
 	fmt.Println("iter\twall_ms\tthread_cpu_ms\tprocess_cpu_ms\talloc_mb\tgc_count\tgc_ms")
 	last := make([]time.Duration, len(names))
 	errors := 0
@@ -96,6 +122,14 @@ func main() {
 		errors = 0
 		for i := range names {
 			t0 := time.Now()
+			if runner {
+				rr := &rhinoCountingReporter{}
+				parsing.ParserRunner_Parse(rhino.NewSimpleSourceFile(names[i], rhino.StaticSourceFile_SourceKind_STRONG),
+					contents[i], runnerConfig, rr)
+				errors += rr.errors
+				last[i] = time.Since(t0)
+				continue
+			}
 			file := parser.NewSourceFile(names[i], contents[i])
 			r := &countingReporter{}
 			r.InitErrorReporterBase(r)

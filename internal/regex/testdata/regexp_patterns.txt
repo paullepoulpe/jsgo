@@ -1,0 +1,4173 @@
+	
+	i
+	g
+	m
+	u
+	y
+	s
+	d
+	v
+	gimsuyd
+	iu
+	im
+	ii
+	z
+(?:)	
+(?:)	i
+(?:)	g
+(?:)	m
+(?:)	u
+(?:)	y
+(?:)	s
+(?:)	d
+(?:)	v
+(?:)	gimsuyd
+(?:)	iu
+(?:)	im
+(?:)	ii
+(?:)	z
+a	
+a	i
+a	g
+a	m
+a	u
+a	y
+a	s
+a	d
+a	v
+a	gimsuyd
+a	iu
+a	im
+a	ii
+a	z
+abc	
+abc	i
+abc	g
+abc	m
+abc	u
+abc	y
+abc	s
+abc	d
+abc	v
+abc	gimsuyd
+abc	iu
+abc	im
+abc	ii
+abc	z
+foo bar	
+foo bar	i
+foo bar	g
+foo bar	m
+foo bar	u
+foo bar	y
+foo bar	s
+foo bar	d
+foo bar	v
+foo bar	gimsuyd
+foo bar	iu
+foo bar	im
+foo bar	ii
+foo bar	z
+/	
+/	i
+/	g
+/	m
+/	u
+/	y
+/	s
+/	d
+/	v
+/	gimsuyd
+/	iu
+/	im
+/	ii
+/	z
+\\/	
+\\/	i
+\\/	g
+\\/	m
+\\/	u
+\\/	y
+\\/	s
+\\/	d
+\\/	v
+\\/	gimsuyd
+\\/	iu
+\\/	im
+\\/	ii
+\\/	z
+a/b	
+a/b	i
+a/b	g
+a/b	m
+a/b	u
+a/b	y
+a/b	s
+a/b	d
+a/b	v
+a/b	gimsuyd
+a/b	iu
+a/b	im
+a/b	ii
+a/b	z
+]	
+]	i
+]	g
+]	m
+]	u
+]	y
+]	s
+]	d
+]	v
+]	gimsuyd
+]	iu
+]	im
+]	ii
+]	z
+}	
+}	i
+}	g
+}	m
+}	u
+}	y
+}	s
+}	d
+}	v
+}	gimsuyd
+}	iu
+}	im
+}	ii
+}	z
+{	
+{	i
+{	g
+{	m
+{	u
+{	y
+{	s
+{	d
+{	v
+{	gimsuyd
+{	iu
+{	im
+{	ii
+{	z
+-	
+-	i
+-	g
+-	m
+-	u
+-	y
+-	s
+-	d
+-	v
+-	gimsuyd
+-	iu
+-	im
+-	ii
+-	z
+^	
+^	i
+^	g
+^	m
+^	u
+^	y
+^	s
+^	d
+^	v
+^	gimsuyd
+^	iu
+^	im
+^	ii
+^	z
+$	
+$	i
+$	g
+$	m
+$	u
+$	y
+$	s
+$	d
+$	v
+$	gimsuyd
+$	iu
+$	im
+$	ii
+$	z
+.	
+.	i
+.	g
+.	m
+.	u
+.	y
+.	s
+.	d
+.	v
+.	gimsuyd
+.	iu
+.	im
+.	ii
+.	z
+|	
+|	i
+|	g
+|	m
+|	u
+|	y
+|	s
+|	d
+|	v
+|	gimsuyd
+|	iu
+|	im
+|	ii
+|	z
+||	
+||	i
+||	g
+||	m
+||	u
+||	y
+||	s
+||	d
+||	v
+||	gimsuyd
+||	iu
+||	im
+||	ii
+||	z
+a||b	
+a||b	i
+a||b	g
+a||b	m
+a||b	u
+a||b	y
+a||b	s
+a||b	d
+a||b	v
+a||b	gimsuyd
+a||b	iu
+a||b	im
+a||b	ii
+a||b	z
+|a	
+|a	i
+|a	g
+|a	m
+|a	u
+|a	y
+|a	s
+|a	d
+|a	v
+|a	gimsuyd
+|a	iu
+|a	im
+|a	ii
+|a	z
+a|	
+a|	i
+a|	g
+a|	m
+a|	u
+a|	y
+a|	s
+a|	d
+a|	v
+a|	gimsuyd
+a|	iu
+a|	im
+a|	ii
+a|	z
+a|b	
+a|b	i
+a|b	g
+a|b	m
+a|b	u
+a|b	y
+a|b	s
+a|b	d
+a|b	v
+a|b	gimsuyd
+a|b	iu
+a|b	im
+a|b	ii
+a|b	z
+a|b|c	
+a|b|c	i
+a|b|c	g
+a|b|c	m
+a|b|c	u
+a|b|c	y
+a|b|c	s
+a|b|c	d
+a|b|c	v
+a|b|c	gimsuyd
+a|b|c	iu
+a|b|c	im
+a|b|c	ii
+a|b|c	z
+a|bc|d	
+a|bc|d	i
+a|bc|d	g
+a|bc|d	m
+a|bc|d	u
+a|bc|d	y
+a|bc|d	s
+a|bc|d	d
+a|bc|d	v
+a|bc|d	gimsuyd
+a|bc|d	iu
+a|bc|d	im
+a|bc|d	ii
+a|bc|d	z
+\\b	
+\\b	u
+\\b	i
+\\B	
+\\B	u
+\\B	i
+\\d	
+\\d	u
+\\d	i
+\\D	
+\\D	u
+\\D	i
+\\s	
+\\s	u
+\\s	i
+\\S	
+\\S	u
+\\S	i
+\\w	
+\\w	u
+\\w	i
+\\W	
+\\W	u
+\\W	i
+\\t	
+\\t	u
+\\t	i
+\\n	
+\\n	u
+\\n	i
+\\r	
+\\r	u
+\\r	i
+\\f	
+\\f	u
+\\f	i
+\\v	
+\\v	u
+\\v	i
+\\0	
+\\0	u
+\\0	i
+\\00	
+\\00	u
+\\00	i
+\\000	
+\\000	u
+\\000	i
+\\0000	
+\\0000	u
+\\0000	i
+\\07	
+\\07	u
+\\07	i
+\\08	
+\\08	u
+\\08	i
+\\1	
+\\1	u
+\\1	i
+\\2	
+\\2	u
+\\2	i
+\\7	
+\\7	u
+\\7	i
+\\8	
+\\8	u
+\\8	i
+\\9	
+\\9	u
+\\9	i
+\\12	
+\\12	u
+\\12	i
+\\41	
+\\41	u
+\\41	i
+\\377	
+\\377	u
+\\377	i
+\\400	
+\\400	u
+\\400	i
+\\x41	
+\\x41	u
+\\x41	i
+\\x4	
+\\x4	u
+\\x4	i
+\\x	
+\\x	u
+\\x	i
+\\xg1	
+\\xg1	u
+\\xg1	i
+\\u0041	
+\\u0041	u
+\\u0041	i
+\\u004	
+\\u004	u
+\\u004	i
+\\u	
+\\u	u
+\\u	i
+\\u{41}	
+\\u{41}	u
+\\u{41}	i
+\\u{}	
+\\u{}	u
+\\u{}	i
+\\u{110000}	
+\\u{110000}	u
+\\u{110000}	i
+\\u{10FFFF}	
+\\u{10FFFF}	u
+\\u{10FFFF}	i
+\\u{FFFFFFFF}	
+\\u{FFFFFFFF}	u
+\\u{FFFFFFFF}	i
+\\u{1F600}	
+\\u{1F600}	u
+\\u{1F600}	i
+\\u{0}	
+\\u{0}	u
+\\u{0}	i
+\\u{00000041}	
+\\u{00000041}	u
+\\u{00000041}	i
+\\u{d800}	
+\\u{d800}	u
+\\u{d800}	i
+\\u{zz}	
+\\u{zz}	u
+\\u{zz}	i
+\\u{41	
+\\u{41	u
+\\u{41	i
+\\c	
+\\c	u
+\\c	i
+\\cA	
+\\cA	u
+\\cA	i
+\\cz	
+\\cz	u
+\\cz	i
+\\c1	
+\\c1	u
+\\c1	i
+\\k	
+\\k	u
+\\k	i
+\\k<	
+\\k<	u
+\\k<	i
+\\k<a	
+\\k<a	u
+\\k<a	i
+\\k<a>	
+\\k<a>	u
+\\k<a>	i
+\\p	
+\\p	u
+\\p	i
+\\P	
+\\P	u
+\\P	i
+\\p{	
+\\p{	u
+\\p{	i
+\\p{L	
+\\p{L	u
+\\p{L	i
+\\p{L}	
+\\p{L}	u
+\\p{L}	i
+\\P{L}	
+\\P{L}	u
+\\P{L}	i
+\\p{L=	
+\\p{L=	u
+\\p{L=	i
+\\p{L=x	
+\\p{L=x	u
+\\p{L=x	i
+\\p{L=x}	
+\\p{L=x}	u
+\\p{L=x}	i
+\\p{=x}	
+\\p{=x}	u
+\\p{=x}	i
+\\p{}	
+\\p{}	u
+\\p{}	i
+\\pL	
+\\pL	u
+\\pL	i
+\\p{Script=Greek}	
+\\p{Script=Greek}	u
+\\p{Script=Greek}	i
+\\p{Script_Extensions=Latin}	
+\\p{Script_Extensions=Latin}	u
+\\p{Script_Extensions=Latin}	i
+\\p{ASCII_Hex_Digit}	
+\\p{ASCII_Hex_Digit}	u
+\\p{ASCII_Hex_Digit}	i
+\\p{L-x}	
+\\p{L-x}	u
+\\p{L-x}	i
+\\p{L}x	
+\\p{L}x	u
+\\p{L}x	i
+\\\\	
+\\\\	u
+\\\\	i
+\\.	
+\\.	u
+\\.	i
+\\*	
+\\*	u
+\\*	i
+\\+	
+\\+	u
+\\+	i
+\\?	
+\\?	u
+\\?	i
+\\(	
+\\(	u
+\\(	i
+\\)	
+\\)	u
+\\)	i
+\\[	
+\\[	u
+\\[	i
+\\]	
+\\]	u
+\\]	i
+\\{	
+\\{	u
+\\{	i
+\\}	
+\\}	u
+\\}	i
+\\|	
+\\|	u
+\\|	i
+\\^	
+\\^	u
+\\^	i
+\\$	
+\\$	u
+\\$	i
+\\-	
+\\-	u
+\\-	i
+\\ 	
+\\ 	u
+\\ 	i
+\\q	
+\\q	u
+\\q	i
+\\e	
+\\e	u
+\\e	i
+\\a	
+\\a	u
+\\a	i
+\\z	
+\\z	u
+\\z	i
+\\\u00e9	
+\\\u00e9	u
+\\\u00e9	i
+\\\u4e2d	
+\\\u4e2d	u
+\\\u4e2d	i
+\\\u00a0	
+\\\u00a0	u
+\\\u00a0	i
+\\\u2028	
+\\\u2028	u
+\\\u2028	i
+\\\ud800	
+\\\ud800	u
+\\\ud800	i
+\\\ud83d\ude00	
+\\\ud83d\ude00	u
+\\\ud83d\ude00	i
+\\	
+\\	u
+a\\	
+a\\	u
+[\\	
+[\\	u
+[a\\	
+[a\\	u
+(\\	
+(\\	u
+\\\\\\	
+\\\\\\	u
+[]	
+[]	i
+[]	u
+[]	iu
+[^]	
+[^]	i
+[^]	u
+[^]	iu
+[abc]	
+[abc]	i
+[abc]	u
+[abc]	iu
+[^abc]	
+[^abc]	i
+[^abc]	u
+[^abc]	iu
+[a-z]	
+[a-z]	i
+[a-z]	u
+[a-z]	iu
+[z-a]	
+[z-a]	i
+[z-a]	u
+[z-a]	iu
+[a-a]	
+[a-a]	i
+[a-a]	u
+[a-a]	iu
+[a-b]	
+[a-b]	i
+[a-b]	u
+[a-b]	iu
+[a-]	
+[a-]	i
+[a-]	u
+[a-]	iu
+[-a]	
+[-a]	i
+[-a]	u
+[-a]	iu
+[-]	
+[-]	i
+[-]	u
+[-]	iu
+[--]	
+[--]	i
+[--]	u
+[--]	iu
+[---]	
+[---]	i
+[---]	u
+[---]	iu
+[a-\\d]	
+[a-\\d]	i
+[a-\\d]	u
+[a-\\d]	iu
+[\\d-z]	
+[\\d-z]	i
+[\\d-z]	u
+[\\d-z]	iu
+[\\b]	
+[\\b]	i
+[\\b]	u
+[\\b]	iu
+[\\B]	
+[\\B]	i
+[\\B]	u
+[\\B]	iu
+[\\-]	
+[\\-]	i
+[\\-]	u
+[\\-]	iu
+[\\]]	
+[\\]]	i
+[\\]]	u
+[\\]]	iu
+[^\\]]	
+[^\\]]	i
+[^\\]]	u
+[^\\]]	iu
+[]abc]	
+[]abc]	i
+[]abc]	u
+[]abc]	iu
+[\\s\\S]	
+[\\s\\S]	i
+[\\s\\S]	u
+[\\s\\S]	iu
+[\\w\\W]	
+[\\w\\W]	i
+[\\w\\W]	u
+[\\w\\W]	iu
+[^\\s]	
+[^\\s]	i
+[^\\s]	u
+[^\\s]	iu
+[^\\S]	
+[^\\S]	i
+[^\\S]	u
+[^\\S]	iu
+[\\d\\D]	
+[\\d\\D]	i
+[\\d\\D]	u
+[\\d\\D]	iu
+[.]	
+[.]	i
+[.]	u
+[.]	iu
+[$^]	
+[$^]	i
+[$^]	u
+[$^]	iu
+[^^]	
+[^^]	i
+[^^]	u
+[^^]	iu
+[\\^]	
+[\\^]	i
+[\\^]	u
+[\\^]	iu
+[a^]	
+[a^]	i
+[a^]	u
+[a^]	iu
+[\\u0100-\\uffff]	
+[\\u0100-\\uffff]	i
+[\\u0100-\\uffff]	u
+[\\u0100-\\uffff]	iu
+[\\x00-\\x7f]	
+[\\x00-\\x7f]	i
+[\\x00-\\x7f]	u
+[\\x00-\\x7f]	iu
+[\\x00-\\uffff]	
+[\\x00-\\uffff]	i
+[\\x00-\\uffff]	u
+[\\x00-\\uffff]	iu
+[^\\x00-\\uffff]	
+[^\\x00-\\uffff]	i
+[^\\x00-\\uffff]	u
+[^\\x00-\\uffff]	iu
+[\\u{1F600}-\\u{1F64F}]	
+[\\u{1F600}-\\u{1F64F}]	i
+[\\u{1F600}-\\u{1F64F}]	u
+[\\u{1F600}-\\u{1F64F}]	iu
+[\\u{10000}-\\u{10FFFF}]	
+[\\u{10000}-\\u{10FFFF}]	i
+[\\u{10000}-\\u{10FFFF}]	u
+[\\u{10000}-\\u{10FFFF}]	iu
+[a-zA-Z0-9_]	
+[a-zA-Z0-9_]	i
+[a-zA-Z0-9_]	u
+[a-zA-Z0-9_]	iu
+[a-zA-Z0-9_$]	
+[a-zA-Z0-9_$]	i
+[a-zA-Z0-9_$]	u
+[a-zA-Z0-9_$]	iu
+[0-9a-f]	
+[0-9a-f]	i
+[0-9a-f]	u
+[0-9a-f]	iu
+[0-9a-fA-F]	
+[0-9a-fA-F]	i
+[0-9a-fA-F]	u
+[0-9a-fA-F]	iu
+[A-Z]	
+[A-Z]	i
+[A-Z]	u
+[A-Z]	iu
+[K]	
+[K]	i
+[K]	u
+[K]	iu
+[k]	
+[k]	i
+[k]	u
+[k]	iu
+[\\u212a]	
+[\\u212a]	i
+[\\u212a]	u
+[\\u212a]	iu
+[\u017f]	
+[\u017f]	i
+[\u017f]	u
+[\u017f]	iu
+[s]	
+[s]	i
+[s]	u
+[s]	iu
+[\u00b5]	
+[\u00b5]	i
+[\u00b5]	u
+[\u00b5]	iu
+[\u00ff]	
+[\u00ff]	i
+[\u00ff]	u
+[\u00ff]	iu
+[\u00df]	
+[\u00df]	i
+[\u00df]	u
+[\u00df]	iu
+[\u0130\u0131]	
+[\u0130\u0131]	i
+[\u0130\u0131]	u
+[\u0130\u0131]	iu
+[\u03c3\u03c2]	
+[\u03c3\u03c2]	i
+[\u03c3\u03c2]	u
+[\u03c3\u03c2]	iu
+[\u03a3]	
+[\u03a3]	i
+[\u03a3]	u
+[\u03a3]	iu
+[\u01c5]	
+[\u01c5]	i
+[\u01c5]	u
+[\u01c5]	iu
+[\u03a9]	
+[\u03a9]	i
+[\u03a9]	u
+[\u03a9]	iu
+[\\u2126]	
+[\\u2126]	i
+[\\u2126]	u
+[\\u2126]	iu
+[\u00c5]	
+[\u00c5]	i
+[\u00c5]	u
+[\u00c5]	iu
+[\\u212b]	
+[\\u212b]	i
+[\\u212b]	u
+[\\u212b]	iu
+[\u2170-\u217f]	
+[\u2170-\u217f]	i
+[\u2170-\u217f]	u
+[\u2170-\u217f]	iu
+[\u24d0-\u24e9]	
+[\u24d0-\u24e9]	i
+[\u24d0-\u24e9]	u
+[\u24d0-\u24e9]	iu
+[\uff21-\uff3a]	
+[\uff21-\uff3a]	i
+[\uff21-\uff3a]	u
+[\uff21-\uff3a]	iu
+[\u13a0-\u13f4]	
+[\u13a0-\u13f4]	i
+[\u13a0-\u13f4]	u
+[\u13a0-\u13f4]	iu
+[\\u10a0-\\u10c5]	
+[\\u10a0-\\u10c5]	i
+[\\u10a0-\\u10c5]	u
+[\\u10a0-\\u10c5]	iu
+[\\u2c00-\\u2c2e]	
+[\\u2c00-\\u2c2e]	i
+[\\u2c00-\\u2c2e]	u
+[\\u2c00-\\u2c2e]	iu
+[abc	
+[abc	i
+[abc	u
+[abc	iu
+[	
+[	i
+[	u
+[	iu
+[^	
+[^	i
+[^	u
+[^	iu
+[\\	i
+[\\	iu
+[a-	
+[a-	i
+[a-	u
+[a-	iu
+[a-\\	
+[a-\\	i
+[a-\\	u
+[a-\\	iu
+[\\0]	
+[\\0]	i
+[\\0]	u
+[\\0]	iu
+[\\00]	
+[\\00]	i
+[\\00]	u
+[\\00]	iu
+[\\000]	
+[\\000]	i
+[\\000]	u
+[\\000]	iu
+[\\1]	
+[\\1]	i
+[\\1]	u
+[\\1]	iu
+[\\12]	
+[\\12]	i
+[\\12]	u
+[\\12]	iu
+[\\123]	
+[\\123]	i
+[\\123]	u
+[\\123]	iu
+[\\400]	
+[\\400]	i
+[\\400]	u
+[\\400]	iu
+[\\777]	
+[\\777]	i
+[\\777]	u
+[\\777]	iu
+[\\8]	
+[\\8]	i
+[\\8]	u
+[\\8]	iu
+[\\9]	
+[\\9]	i
+[\\9]	u
+[\\9]	iu
+[\\c]	
+[\\c]	i
+[\\c]	u
+[\\c]	iu
+[\\cA]	
+[\\cA]	i
+[\\cA]	u
+[\\cA]	iu
+[\\k]	
+[\\k]	i
+[\\k]	u
+[\\k]	iu
+[\\p{L}]	
+[\\p{L}]	i
+[\\p{L}]	u
+[\\p{L}]	iu
+[\\P{L}]	
+[\\P{L}]	i
+[\\P{L}]	u
+[\\P{L}]	iu
+[\\u2028\\u2029]	
+[\\u2028\\u2029]	i
+[\\u2028\\u2029]	u
+[\\u2028\\u2029]	iu
+[\\u00a0]	
+[\\u00a0]	i
+[\\u00a0]	u
+[\\u00a0]	iu
+[\\s\\u00a0]	
+[\\s\\u00a0]	i
+[\\s\\u00a0]	u
+[\\s\\u00a0]	iu
+[\\u00a0-\\u00a1]	
+[\\u00a0-\\u00a1]	i
+[\\u00a0-\\u00a1]	u
+[\\u00a0-\\u00a1]	iu
+[\\u2000-\\u200a]	
+[\\u2000-\\u200a]	i
+[\\u2000-\\u200a]	u
+[\\u2000-\\u200a]	iu
+[\\u2000-\\u200b]	
+[\\u2000-\\u200b]	i
+[\\u2000-\\u200b]	u
+[\\u2000-\\u200b]	iu
+[\\t\\n\\v\\f\\r ]	
+[\\t\\n\\v\\f\\r ]	i
+[\\t\\n\\v\\f\\r ]	u
+[\\t\\n\\v\\f\\r ]	iu
+[\\ufeff]	
+[\\ufeff]	i
+[\\ufeff]	u
+[\\ufeff]	iu
+[\\u1680\\u180e]	
+[\\u1680\\u180e]	i
+[\\u1680\\u180e]	u
+[\\u1680\\u180e]	iu
+[^\\u2028]	
+[^\\u2028]	i
+[^\\u2028]	u
+[^\\u2028]	iu
+[\\n\\r\\u2028\\u2029]	
+[\\n\\r\\u2028\\u2029]	i
+[\\n\\r\\u2028\\u2029]	u
+[\\n\\r\\u2028\\u2029]	iu
+[^\\n\\r\\u2028\\u2029]	
+[^\\n\\r\\u2028\\u2029]	i
+[^\\n\\r\\u2028\\u2029]	u
+[^\\n\\r\\u2028\\u2029]	iu
+[\\S\\u00a0]	
+[\\S\\u00a0]	i
+[\\S\\u00a0]	u
+[\\S\\u00a0]	iu
+[^\\s\\u00a0]	
+[^\\s\\u00a0]	i
+[^\\s\\u00a0]	u
+[^\\s\\u00a0]	iu
+[\\w-]	
+[\\w-]	i
+[\\w-]	u
+[\\w-]	iu
+[\\w$]	
+[\\w$]	i
+[\\w$]	u
+[\\w$]	iu
+[^\\w$]	
+[^\\w$]	i
+[^\\w$]	u
+[^\\w$]	iu
+[\\W\\d]	
+[\\W\\d]	i
+[\\W\\d]	u
+[\\W\\d]	iu
+[_\\W]	
+[_\\W]	i
+[_\\W]	u
+[_\\W]	iu
+[\\d_a-zA-Z]	
+[\\d_a-zA-Z]	i
+[\\d_a-zA-Z]	u
+[\\d_a-zA-Z]	iu
+[^\\d_a-zA-Z]	
+[^\\d_a-zA-Z]	i
+[^\\d_a-zA-Z]	u
+[^\\d_a-zA-Z]	iu
+[\\x00-\\x1f]	
+[\\x00-\\x1f]	i
+[\\x00-\\x1f]	u
+[\\x00-\\x1f]	iu
+[\\x7f-\\xff]	
+[\\x7f-\\xff]	i
+[\\x7f-\\xff]	u
+[\\x7f-\\xff]	iu
+[\\x20-\\x7e]	
+[\\x20-\\x7e]	i
+[\\x20-\\x7e]	u
+[\\x20-\\x7e]	iu
+[ -~]	
+[ -~]	i
+[ -~]	u
+[ -~]	iu
+[\\x08]	
+[\\x08]	i
+[\\x08]	u
+[\\x08]	iu
+[\\b-\\n]	
+[\\b-\\n]	i
+[\\b-\\n]	u
+[\\b-\\n]	iu
+[!-/:-@[-`{-~]	
+[!-/:-@[-`{-~]	i
+[!-/:-@[-`{-~]	u
+[!-/:-@[-`{-~]	iu
+[\\[\\]\\\\]	
+[\\[\\]\\\\]	i
+[\\[\\]\\\\]	u
+[\\[\\]\\\\]	iu
+[/]	
+[/]	i
+[/]	u
+[/]	iu
+[\\/]	
+[\\/]	i
+[\\/]	u
+[\\/]	iu
+[a-c-e]	
+[a-c-e]	i
+[a-c-e]	u
+[a-c-e]	iu
+[a\\-c]	
+[a\\-c]	i
+[a\\-c]	u
+[a\\-c]	iu
+[\\da-]	
+[\\da-]	i
+[\\da-]	u
+[\\da-]	iu
+[-\\d]	
+[-\\d]	i
+[-\\d]	u
+[-\\d]	iu
+[\\ud800]	
+[\\ud800]	i
+[\\ud800]	u
+[\\ud800]	iu
+[\\ud800-\\udbff]	
+[\\ud800-\\udbff]	i
+[\\ud800-\\udbff]	u
+[\\ud800-\\udbff]	iu
+[\\ud800-\\udfff]	
+[\\ud800-\\udfff]	i
+[\\ud800-\\udfff]	u
+[\\ud800-\\udfff]	iu
+[\ud83d\ude00]	
+[\ud83d\ude00]	i
+[\ud83d\ude00]	u
+[\ud83d\ude00]	iu
+[\ud83d\ude00-\ud83d\ude02]	
+[\ud83d\ude00-\ud83d\ude02]	i
+[\ud83d\ude00-\ud83d\ude02]	u
+[\ud83d\ude00-\ud83d\ude02]	iu
+[\\uD83D\\uDE00]	
+[\\uD83D\\uDE00]	i
+[\\uD83D\\uDE00]	u
+[\\uD83D\\uDE00]	iu
+[\u00e9-\u00fc]	
+[\u00e9-\u00fc]	i
+[\u00e9-\u00fc]	u
+[\u00e9-\u00fc]	iu
+[\u00c0-\u00ff]	
+[\u00c0-\u00ff]	i
+[\u00c0-\u00ff]	u
+[\u00c0-\u00ff]	iu
+[\\u0130]	
+[\\u0130]	i
+[\\u0130]	u
+[\\u0130]	iu
+[\\u0131]	
+[\\u0131]	i
+[\\u0131]	u
+[\\u0131]	iu
+[\\u017f]	
+[\\u017f]	i
+[\\u017f]	u
+[\\u017f]	iu
+[\\u1e9e]	
+[\\u1e9e]	i
+[\\u1e9e]	u
+[\\u1e9e]	iu
+[\\u03c2]	
+[\\u03c2]	i
+[\\u03c2]	u
+[\\u03c2]	iu
+[\\u1fbe]	
+[\\u1fbe]	i
+[\\u1fbe]	u
+[\\u1fbe]	iu
+[\\u0345]	
+[\\u0345]	i
+[\\u0345]	u
+[\\u0345]	iu
+[\\u0390]	
+[\\u0390]	i
+[\\u0390]	u
+[\\u0390]	iu
+[\\u1e9b]	
+[\\u1e9b]	i
+[\\u1e9b]	u
+[\\u1e9b]	iu
+[\\u2160-\\u217f]	
+[\\u2160-\\u217f]	i
+[\\u2160-\\u217f]	u
+[\\u2160-\\u217f]	iu
+[\\u24b6-\\u24e9]	
+[\\u24b6-\\u24e9]	i
+[\\u24b6-\\u24e9]	u
+[\\u24b6-\\u24e9]	iu
+[\\uff21-\\uff5a]	
+[\\uff21-\\uff5a]	i
+[\\uff21-\\uff5a]	u
+[\\uff21-\\uff5a]	iu
+[\\u0400-\\u04ff]	
+[\\u0400-\\u04ff]	i
+[\\u0400-\\u04ff]	u
+[\\u0400-\\u04ff]	iu
+[\\u0531-\\u0587]	
+[\\u0531-\\u0587]	i
+[\\u0531-\\u0587]	u
+[\\u0531-\\u0587]	iu
+[\\u1f00-\\u1fff]	
+[\\u1f00-\\u1fff]	i
+[\\u1f00-\\u1fff]	u
+[\\u1f00-\\u1fff]	iu
+[\\u0180-\\u024f]	
+[\\u0180-\\u024f]	i
+[\\u0180-\\u024f]	u
+[\\u0180-\\u024f]	iu
+[\\u0250-\\u02af]	
+[\\u0250-\\u02af]	i
+[\\u0250-\\u02af]	u
+[\\u0250-\\u02af]	iu
+[\\u2c60-\\u2c7f]	
+[\\u2c60-\\u2c7f]	i
+[\\u2c60-\\u2c7f]	u
+[\\u2c60-\\u2c7f]	iu
+[\\u2d00-\\u2d25]	
+[\\u2d00-\\u2d25]	i
+[\\u2d00-\\u2d25]	u
+[\\u2d00-\\u2d25]	iu
+[\\u1d7d]	
+[\\u1d7d]	i
+[\\u1d7d]	u
+[\\u1d7d]	iu
+[\\u2c63]	
+[\\u2c63]	i
+[\\u2c63]	u
+[\\u2c63]	iu
+(a)	
+(a)	i
+(a)	u
+(?:a)	
+(?:a)	i
+(?:a)	u
+(?=a)	
+(?=a)	i
+(?=a)	u
+(?!a)	
+(?!a)	i
+(?!a)	u
+(?<=a)	
+(?<=a)	i
+(?<=a)	u
+(?<!a)	
+(?<!a)	i
+(?<!a)	u
+(?<n>a)	
+(?<n>a)	i
+(?<n>a)	u
+(?<n>a)\\k<n>	
+(?<n>a)\\k<n>	i
+(?<n>a)\\k<n>	u
+(?<n>a)\\k<m>	
+(?<n>a)\\k<m>	i
+(?<n>a)\\k<m>	u
+(?<n)	
+(?<n)	i
+(?<n)	u
+(?<1>)	
+(?<1>)	i
+(?<1>)	u
+(?<\u00e9>a)	
+(?<\u00e9>a)	i
+(?<\u00e9>a)	u
+(?<\u4e2d>a)\\k<\u4e2d>	
+(?<\u4e2d>a)\\k<\u4e2d>	i
+(?<\u4e2d>a)\\k<\u4e2d>	u
+(?<$>a)	
+(?<$>a)	i
+(?<$>a)	u
+(?<a$b_9>x)	
+(?<a$b_9>x)	i
+(?<a$b_9>x)	u
+(?<a-b>x)	
+(?<a-b>x)	i
+(?<a-b>x)	u
+(?<a\u0301>x)	
+(?<a\u0301>x)	i
+(?<a\u0301>x)	u
+(?<a\u0663>x)	
+(?<a\u0663>x)	i
+(?<a\u0663>x)	u
+(?<\ud83d\ude00>x)	
+(?<\ud83d\ude00>x)	i
+(?<\ud83d\ude00>x)	u
+(?P<n>x)	
+(?P<n>x)	i
+(?P<n>x)	u
+(?#c)	
+(?#c)	i
+(?#c)	u
+(?i)	
+(?i)	i
+(?i)	u
+(?i:a)	
+(?i:a)	i
+(?i:a)	u
+(	
+(	i
+(	u
+)	
+)	i
+)	u
+a)	
+a)	i
+a)	u
+(a	
+(a	i
+(a	u
+((a)	
+((a)	i
+((a)	u
+(?	
+(?	i
+(?	u
+(?<	
+(?<	i
+(?<	u
+(?<=	
+(?<=	i
+(?<=	u
+(?<!	
+(?<!	i
+(?<!	u
+(?<n>	
+(?<n>	i
+(?<n>	u
+(?<n	
+(?<n	i
+(?<n	u
+(?=	
+(?=	i
+(?=	u
+(?:	
+(?:	i
+(?:	u
+()	
+()	i
+()	u
+(())	
+(())	i
+(())	u
+(?:(?:))	
+(?:(?:))	i
+(?:(?:))	u
+(?=)	
+(?=)	i
+(?=)	u
+(?!)	
+(?!)	i
+(?!)	u
+(?<=)	
+(?<=)	i
+(?<=)	u
+(?<!)	
+(?<!)	i
+(?<!)	u
+(?<a>x)|(?<a>y)	
+(?<a>x)|(?<a>y)	i
+(?<a>x)|(?<a>y)	u
+(?<a>x)(?<a>y)	
+(?<a>x)(?<a>y)	i
+(?<a>x)(?<a>y)	u
+\\k<a>(?<a>x)	
+\\k<a>(?<a>x)	i
+\\k<a>(?<a>x)	u
+(?<a>\\k<a>)	
+(?<a>\\k<a>)	i
+(?<a>\\k<a>)	u
+(?<a>.)\\k<b>	
+(?<a>.)\\k<b>	i
+(?<a>.)\\k<b>	u
+(?<a>.)\\k<a	
+(?<a>.)\\k<a	i
+(?<a>.)\\k<a	u
+\\k<1>(?<a>)	
+\\k<1>(?<a>)	i
+\\k<1>(?<a>)	u
+[\\k<a>](?<a>)	
+[\\k<a>](?<a>)	i
+[\\k<a>](?<a>)	u
+(?<a>)[\\k<a>]	
+(?<a>)[\\k<a>]	i
+(?<a>)[\\k<a>]	u
+a(?=b)c	
+a(?=b)c	i
+a(?=b)c	u
+(?!a|b)	
+(?!a|b)	i
+(?!a|b)	u
+(?=(a))\\1	
+(?=(a))\\1	i
+(?=(a))\\1	u
+((((((((((a))))))))))\\10	
+((((((((((a))))))))))\\10	i
+((((((((((a))))))))))\\10	u
+((((((((((a))))))))))\\11	
+((((((((((a))))))))))\\11	i
+((((((((((a))))))))))\\11	u
+(a)(b)(c)(d)(e)(f)(g)(h)(i)(j)\\10	
+(a)(b)(c)(d)(e)(f)(g)(h)(i)(j)\\10	i
+(a)(b)(c)(d)(e)(f)(g)(h)(i)(j)\\10	u
+(a)(b)(c)(d)(e)(f)(g)(h)(i)(j)\\100	
+(a)(b)(c)(d)(e)(f)(g)(h)(i)(j)\\100	i
+(a)(b)(c)(d)(e)(f)(g)(h)(i)(j)\\100	u
+(a)\\10	
+(a)\\10	i
+(a)\\10	u
+(a)\\1	
+(a)\\1	i
+(a)\\1	u
+(a\\1)	
+(a\\1)	i
+(a\\1)	u
+\\1(a)	
+\\1(a)	i
+\\1(a)	u
+(a)|\\1	
+(a)|\\1	i
+(a)|\\1	u
+(a)\\8	
+(a)\\8	i
+(a)\\8	u
+(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)\\99	
+(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)\\99	i
+(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)\\99	u
+(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)\\99	
+(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)\\99	i
+(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)\\99	u
+(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)\\100	
+(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)\\100	i
+(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)(a)\\100	u
+a*	
+a*	i
+a+	
+a+	i
+a?	
+a?	i
+a*?	
+a*?	i
+a+?	
+a+?	i
+a??	
+a??	i
+a{2}	
+a{2}	i
+a{2,}	
+a{2,}	i
+a{2,3}	
+a{2,3}	i
+a{,3}	
+a{,3}	i
+a{3,2}	
+a{3,2}	i
+a{x}	
+a{x}	i
+a{	
+a{	i
+a{2	
+a{2	i
+a{2,	
+a{2,	i
+a{2,3	
+a{2,3	i
+a{-1}	
+a{-1}	i
+a{+2}	
+a{+2}	i
+a{+2,+3}	
+a{+2,+3}	i
+a{ 2}	
+a{ 2}	i
+a{2 }	
+a{2 }	i
+a{0}	
+a{0}	i
+a{0,0}	
+a{0,0}	i
+a{1}	
+a{1}	i
+a{1,1}	
+a{1,1}	i
+a{0,1}	
+a{0,1}	i
+a{1,}	
+a{1,}	i
+a{0,}	
+a{0,}	i
+a{2147483647}	
+a{2147483647}	i
+a{2147483646,2147483647}	
+a{2147483646,2147483647}	i
+a{2147483648}	
+a{2147483648}	i
+a{99999999999999}	
+a{99999999999999}	i
+a{1,2147483647}	
+a{1,2147483647}	i
+a{0,2147483647}	
+a{0,2147483647}	i
+a{2147483647,}	
+a{2147483647,}	i
+(a){2}	
+(a){2}	i
+(?:ab){2}	
+(?:ab){2}	i
+ab{2}c	
+ab{2}c	i
+a**	
+a**	i
+a*+	
+a*+	i
+*a	
+*a	i
+*	
+*	i
++	
++	i
+?	
+?	i
+{2}	
+{2}	i
+{}	
+{}	i
+{1}	
+{1}	i
+{,}	
+{,}	i
+a{}	
+a{}	i
+x{2}{3}	
+x{2}{3}	i
+a{2}?	
+a{2}?	i
+a{2}??	
+a{2}??	i
+(a|b){3,5}?	
+(a|b){3,5}?	i
+\\d{3}	
+\\d{3}	i
+[abc]{2}	
+[abc]{2}	i
+.{2,}	
+.{2,}	i
+a{\u0661\u0662}	
+a{\u0661\u0662}	i
+a{\u0966}	
+a{\u0966}	i
+a{0x10}	
+a{0x10}	i
+a{1e2}	
+a{1e2}	i
+a{01}	
+a{01}	i
+a{007,008}	
+a{007,008}	i
+(?:a{2}){3}	
+(?:a{2}){3}	i
+(?:a*)*	
+(?:a*)*	i
+(?:a+)+?	
+(?:a+)+?	i
+(?:a{2,3}){4,5}	
+(?:a{2,3}){4,5}	i
+a{1,2}a{3,4}	
+a{1,2}a{3,4}	i
+a+?a+	
+a+?a+	i
+a{2147483647}a	
+a{2147483647}a	i
+(?:a{65536}){65536}	
+(?:a{65536}){65536}	i
+(?:a{2147483647}){2}	
+(?:a{2147483647}){2}	i
+(?:a{2}){1073741824}	
+(?:a{2}){1073741824}	i
+aaaa	
+aaaa	i
+a{2}a{3}	
+a{2}a{3}	i
+a*a*	
+a*a*	i
+a*?a*?	
+a*?a*?	i
+a*a*?	
+a*a*?	i
+aa+	
+aa+	i
+a+a	
+a+a	i
+abab	
+abab	i
+(?:ab)(?:ab)	
+(?:ab)(?:ab)	i
+(?:ab)+(?:ab)	
+(?:ab)+(?:ab)	i
+(a)(a)	
+(a)(a)	i
+(a){2}(a)	
+(a){2}(a)	i
+a{3}b{3}	
+a{3}b{3}	i
+a{10}	
+a{10}	i
+ab{10}	
+ab{10}	i
+(?:ab){10}	
+(?:ab){10}	i
+(?:abc){2}	
+(?:abc){2}	i
+(?:abc){3}	
+(?:abc){3}	i
+x(?:ab){2,}	
+x(?:ab){2,}	i
+\\1{2}	
+\\1{2}	i
+(a)\\1{2}	
+(a)\\1{2}	i
+(a)\\1{3,}	
+(a)\\1{3,}	i
+\\b+	
+\\b+	i
+^*	
+^*	i
+$+	
+$+	i
+(?=a)*	
+(?=a)*	i
+(?!a){2}	
+(?!a){2}	i
+(?<=a)?	
+(?<=a)?	i
+a{2}{	
+a{2}{	i
+{(?:0,})	
+{(?:0,})	i
+a{(?:2})	
+a{(?:2})	i
+(.)\\1(?:0)	
+(.)\\1(?:0)	i
+(.)\\1(?:\\d)	
+(.)\\1(?:\\d)	i
+\\{2}	
+\\{2}	i
+x\\{2}	
+x\\{2}	i
+a{2}0	
+a{2}0	i
+(a)\\1(?:10)	
+(a)\\1(?:10)	i
+((((((((((a))))))))))\\1(?:0)	
+((((((((((a))))))))))\\1(?:0)	i
+a{1}{2}	
+a{1}{2}	i
+.*	
+.*	i
+.+?	
+.+?	i
+.?	
+.?	i
+[^]*	
+[^]*	i
+[\\s\\S]*?	
+[\\s\\S]*?	i
+a|[bc]	
+a|[bc]	i
+a|\\d	
+a|\\d	i
+(a|b)|c	
+(a|b)|c	i
+foo|bar|foo	
+foo|bar|foo	i
+foo|foo|bar	
+foo|foo|bar	i
+foo|foo	
+foo|foo	i
+[a]|[b]	
+[a]|[b]	i
+a|a	
+a|a	i
+a|a|a	
+a|a|a	i
+(a)|(a)	
+(a)|(a)	i
+(?:a|b)c	
+(?:a|b)c	i
+x(?:a|b)	
+x(?:a|b)	i
+(?:a|b)(?:c|d)	
+(?:a|b)(?:c|d)	i
+[a-z]|[A-Z]	
+[a-z]|[A-Z]	i
+a|A	
+a|A	i
+a|b|A|B	
+a|b|A|B	i
+xyz|xyz	
+xyz|xyz	i
+(?:)|a	
+(?:)|a	i
+a|(?:)	
+a|(?:)	i
+\\w|\\W	
+\\w|\\W	i
+[^\\s\\S]	
+[^\\s\\S]	i
+[\\d\\D]|x	
+[\\d\\D]|x	i
+.|\\n	
+.|\\n	i
+.|[\\r\\n]	
+.|[\\r\\n]	i
+.|\\r|\\n|\\u2028|\\u2029	
+.|\\r|\\n|\\u2028|\\u2029	i
+(?!)|a	
+(?!)|a	i
+a|(?!)	
+a|(?!)	i
+[]|a	
+[]|a	i
+a|[]	
+a|[]	i
+\\s|\\u00a0	
+\\s|\\u00a0	i
+\\u00a0|\\s	
+\\u00a0|\\s	i
+a|\\u00a0|b	
+a|\\u00a0|b	i
+\\u2028|\\u2029|\\n	
+\\u2028|\\u2029|\\n	i
+\\d|_|[a-z]|[A-Z]	
+\\d|_|[a-z]|[A-Z]	i
+-|a|b	
+-|a|b	i
+^|$	
+^|$	i
+a|b|c|d|e|f	
+a|b|c|d|e|f	i
+ab|ac|ad	
+ab|ac|ad	i
+a|bc|d|e	
+a|bc|d|e	i
+(?:a|b)|(?:c|d)	
+(?:a|b)|(?:c|d)	i
+(?:a|(?:b|c))	
+(?:a|(?:b|c))	i
+a(?:)b	
+a(?:)b	i
+(?:)(?:)	
+(?:)(?:)	i
+a(?:b(?:c))	
+a(?:b(?:c))	i
+\\x00|\\x01|\\x02	
+\\x00|\\x01|\\x02	i
+\u00e9|\u00e8|\u00ea	
+\u00e9|\u00e8|\u00ea	i
+\\ud800|\\udc00	
+\\ud800|\\udc00	i
+\ud83d\ude00|\ud83d\ude01	
+\ud83d\ude00|\ud83d\ude01	i
+^a$	
+^a$	m
+^a$	i
+^$	
+^$	m
+^$	i
+\\^	m
+a^b	
+a^b	m
+a^b	i
+(^a$)	
+(^a$)	m
+(^a$)	i
+^a|b$	
+^a|b$	m
+^a|b$	i
+^(?:a)$	
+^(?:a)$	m
+^(?:a)$	i
+^a	
+^a	m
+^a	i
+a$	
+a$	m
+a$	i
+^a$|^b$	
+^a$|^b$	m
+^a$|^b$	i
+^^	
+^^	m
+^^	i
+$$	
+$$	m
+$$	i
+^a$b	
+^a$b	m
+^a$b	i
+ABC	
+ABC	i
+ABC	u
+AbC	
+AbC	i
+AbC	u
+\u00c0\u00c9\u00ce	
+\u00c0\u00c9\u00ce	i
+\u00c0\u00c9\u00ce	u
+\u00e0\u00e9\u00ee	
+\u00e0\u00e9\u00ee	i
+\u00e0\u00e9\u00ee	u
+\u01c5\u01c8\u01cb	
+\u01c5\u01c8\u01cb	i
+\u01c5\u01c8\u01cb	u
+\u00df	
+\u00df	i
+\u00df	u
+\u0130	
+\u0130	i
+\u0130	u
+\u0131	
+\u0131	i
+\u0131	u
+\u03c3\u03c2	
+\u03c3\u03c2	i
+\u03c3\u03c2	u
+\u03a3	
+\u03a3	i
+\u03a3	u
+\u017f	
+\u017f	i
+\u017f	u
+\\u212a	
+\\u212a	i
+\\u212a	u
+K	
+K	i
+K	u
+\u00b5	
+\u00b5	i
+\u00b5	u
+\u039c	
+\u039c	i
+\u039c	u
+\\u2126	
+\\u2126	i
+\\u2126	u
+\u03a9	
+\u03a9	i
+\u03a9	u
+\\u212b	
+\\u212b	i
+\\u212b	u
+\u2170	
+\u2170	i
+\u2170	u
+\u2160	
+\u2160	i
+\u2160	u
+\u24d0	
+\u24d0	i
+\u24d0	u
+\u24b6	
+\u24b6	i
+\u24b6	u
+\uff21	
+\uff21	i
+\uff21	u
+\uff41	
+\uff41	i
+\uff41	u
+\u13a0	
+\u13a0	i
+\u13a0	u
+\uab70	
+\uab70	i
+\uab70	u
+\u01f0	
+\u01f0	i
+\u01f0	u
+\u0149	
+\u0149	i
+\u0149	u
+\u00ff	
+\u00ff	i
+\u00ff	u
+\u0178	
+\u0178	i
+\u0178	u
+\u1fb3	
+\u1fb3	i
+\u1fb3	u
+\u1fbc	
+\u1fbc	i
+\u1fbc	u
+\ufb00	
+\ufb00	i
+\ufb00	u
+\u1e9e	
+\u1e9e	i
+\u1e9e	u
+\u03d0	
+\u03d0	i
+\u03d0	u
+\u03d1	
+\u03d1	i
+\u03d1	u
+\u03d5	
+\u03d5	i
+\u03d5	u
+\u03d6	
+\u03d6	i
+\u03d6	u
+\u03f0	
+\u03f0	i
+\u03f0	u
+\u03f1	
+\u03f1	i
+\u03f1	u
+\u03f5	
+\u03f5	i
+\u03f5	u
+\u1c80	
+\u1c80	i
+\u1c80	u
+\u10a0	
+\u10a0	i
+\u10a0	u
+\u2d00	
+\u2d00	i
+\u2d00	u
+\u2c00	
+\u2c00	i
+\u2c00	u
+\u2c30	
+\u2c30	i
+\u2c30	u
+\u2c6d	
+\u2c6d	i
+\u2c6d	u
+\u0251	
+\u0251	i
+\u0251	u
+\u2c7e	
+\u2c7e	i
+\u2c7e	u
+\u023f	
+\u023f	i
+\u023f	u
+\u1d7d	
+\u1d7d	i
+\u1d7d	u
+\u2c63	
+\u2c63	i
+\u2c63	u
+\u026b	
+\u026b	i
+\u026b	u
+\u2c62	
+\u2c62	i
+\u2c62	u
+\u027d	
+\u027d	i
+\u027d	u
+\u2c64	
+\u2c64	i
+\u2c64	u
+\u01c4	
+\u01c4	i
+\u01c4	u
+\u01c6	
+\u01c6	i
+\u01c6	u
+\u023a	
+\u023a	i
+\u023a	u
+\u2c65	
+\u2c65	i
+\u2c65	u
+\u023e	
+\u023e	i
+\u023e	u
+\u2c66	
+\u2c66	i
+\u2c66	u
+0123	
+0123	i
+0123	u
+_$	
+_$	i
+_$	u
+\\ud801\\udc00	
+\\ud801\\udc00	i
+\\ud801\\udc00	u
+\ud801\udc00	
+\ud801\udc00	i
+\ud801\udc00	u
+\ud801\udc28	
+\ud801\udc28	i
+\ud801\udc28	u
+a\ud83d\ude00b	
+a\ud83d\ude00b	i
+a\ud83d\ude00b	u
+\\$\\^\\*\\(\\)\\+\\[\\|\\.\\/\\?	
+\\{1	
+a\\{1\\}	
+\\x7f	
+\\x80	
+\\xff	
+\\u0100	
+\\uffff	
+\\x1f	
+\\x20	
+\\t\\n\\r\\f\\v	
+\\x08	
+\\x0b	
+\\x0c	
+\\x00a	
+\\0a	
+\\01	
+\\x001	
+[\\p{L}--[a-z]]	v
+[\\p{L}--[a-z]]	u
+[\\p{L}--[a-z]]	
+[[a]]	v
+[[a]]	u
+[[a]]	
+[\\q{abc}]	v
+[\\q{abc}]	u
+[\\q{abc}]	
+[a&&b]	v
+[a&&b]	u
+[a&&b]	
+[\\p{RGI_Emoji}]	v
+[\\p{RGI_Emoji}]	u
+[\\p{RGI_Emoji}]	
+(?i:a)	v
+(?-i:a)	v
+(?-i:a)	u
+(?-i:a)	
+\\p{RGI_Emoji}	v
+\\p{RGI_Emoji}	u
+\\p{RGI_Emoji}	
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	
+(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:(?:a))))))))))))))))))))))))))))))))))))))))))))))))))	
+((((((((((((((((((((((((((((((((((((((((((((((((((a))))))))))))))))))))))))))))))))))))))))))))))))))	
+[ !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[^_`abcdefghijklmnopqrstuvwxyz{|}~]	
+[ !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[^_`abcdefghijklmnopqrstuvwxyz{|}~]	i
+a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z	
+a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z	i
+w0|w1|w2|w3|w4|w5|w6|w7|w8|w9|w10|w11|w12|w13|w14|w15|w16|w17|w18|w19|w20|w21|w22|w23|w24|w25|w26|w27|w28|w29|w30|w31|w32|w33|w34|w35|w36|w37|w38|w39|w40|w41|w42|w43|w44|w45|w46|w47|w48|w49|w50|w51|w52|w53|w54|w55|w56|w57|w58|w59|w60|w61|w62|w63|w64|w65|w66|w67|w68|w69|w70|w71|w72|w73|w74|w75|w76|w77|w78|w79|w80|w81|w82|w83|w84|w85|w86|w87|w88|w89|w90|w91|w92|w93|w94|w95|w96|w97|w98|w99	
+\\u{ffffff}	u
+\\u{0000000}	u
+\\u{000000001}	u
+[.,;!?\\n]$	
+\\n	gm
+^function\\s+\\S+\\(\\)\\s*{[\\s\\S]+\\.apply\\(this,\\s*(arguments|(?:[^()]+\\(\\[\\],)?[^()]+\\(arguments\\).*)\\)	
+^class\\s+[A-Za-z\\d$_]*\\s*extends\\s+[^{]+{	
+^class\\s+[A-Za-z\\d$_]*\\s*extends\\s+[^{]+{[\\s\\S]*constructor\\s*\\(	
+^class\\s+[A-Za-z\\d$_]*\\s*extends\\s+[^{]+{[\\s\\S]*constructor\\s*\\(\\)\\s*{[^}]*super\\(\\.\\.\\.arguments\\)	
+<	g
+\\s	gm
+^(?!javascript:)(?:[a-z0-9+.-]+:|[^&:\\/?#]*(?:[\\/?#]|$))	i
+[\\uD800-\\uDBFF][\\uDC00-\\uDFFF]	g
+([^#-~ |!])	g
+&	g
+>	g
+^>|^->|<!--|-->|--!>|<!-$	g
+(<|>)	g
+[$@]	g
+([A-Z])	g
+\\s+	gm
+(f|n)(\\d*)	g
+^[^.]*\\.?	
+_	g
+\ufffd(\\d+):?\\d*\ufffd	gi
+({\\s*\ufffd\\d+:?\\d*\ufffd\\s*,\\s*\\S{6}\\s*,[\\s\\S]*})	gi
+\ufffd(\\d+)\ufffd	
+^\\s*(\ufffd\\d+:?\\d*\ufffd)\\s*,\\s*(select|plural)\\s*,	
+\ufffd\\/?\\*(\\d+:\\d+)\ufffd	gi
+\ufffd(\\/?[#*]\\d+):?\\d*\ufffd	gi
+\\uE500	g
+\\s*(?:=)?(\\w+)\\s*	
+[{}]	g
+\\[(\ufffd.+?\ufffd?)\\]	
+\\[(\ufffd.+?\ufffd?)\\]|(\ufffd\\/?\\*\\d+:\\d+\ufffd)	g
+({\\s*)(VAR_(PLURAL|SELECT)(_\\d+)?)(\\s*,)	g
+{([A-Z0-9_]+)}	g
+\ufffdI18N_EXP_(ICU(_\\d+)?)\ufffd	g
+\\/\\*	
+\\d+:(\\d+)	
+d\\d+	
+Macintosh	
+iPhone|iPad|iPod	
+\\s*;\\s*	
+^ {4}	gm
+\\\\	g
+\\$	g
+^:	
+:	g
+`	g
+\\${	g
+\\/\\*|\\*\\/	
+@	g
+\\n	g
+-+([a-z0-9])	g
+^([1-9]|1[0-8])\\.	
+'|\\\\|\\n|\\r|\\$	g
+^[$A-Z_][0-9A-Z_$]*$	i
+"	g
+'	g
+[^A-Z0-9_]	g
+^\\d+$	
+[-.]	
+\\s+	
+@	
+^\\s*$	
+[<>]	
+^[{}]$	
+&(#|[a-z])	i
+^\\/\\/	
+\\W	g
+(^@(?:-webkit-)?keyframes(?:\\s+))(['"]?)(.+)\\2(\\s*)$	
+^(\\s*)(['"]?)(.+?)\\2(\\s*)$	
+(^|\\s+|,)(?:(?:(['"])((?:\\\\\\\\|\\\\\\2|(?!\\2).)+)\\2)|(-?[A-Za-z][\\w\\-]*))(?=[,\\s]|$)	g
+((?:^|\\s+|;)(?:-webkit-)?animation\\s*:\\s*),*([^;]+)	g
+((?:^|\\s+|;)(?:-webkit-)?animation-name(?:\\s*):(?:\\s*))([^;]+)	g
+ ?,(?!(?:[^)(]*(?:\\([^)(]*(?:\\([^)(]*(?:\\([^)(]*\\)[^)(]*)*\\)[^)(]*)*\\)[^)(]*)*\\))) ?	
+\\[	g
+\\]	g
+([^:\\)]*)(:*)(.*)	
+\\[is=([^\\]]*)\\]	g
+([^:]*)(:*)([\\s\\S]*)	
+( |>|\\+|~(?!=))(?!([^)(]*(?:\\([^)(]*(?:\\([^)(]*(?:\\([^)(]*\\)[^)(]*)*\\)[^)(]*)*\\)[^)(]*)*\\)))\\s*	g
+__esc-ph-(\\d+)__	
+[a-fA-F\\d]	
+(\\[[^\\]]*\\])	g
+(\\\\.)	g
+(:nth-[-\\w]+)(\\([^)]+\\))	g
+__(?:ph|esc-ph)-(\\d+)__	g
+:(where|is)\\(	gi
+polyfill-next-selector[^}]*content:[\\s]*?(['"])(.*?)\\1[;\\s]*}([^{]*?){	gim
+(polyfill-rule)[^}]*(content:[\\s]*(['"])(.*?)\\3)[;\\s]*[^}]*}	gim
+(polyfill-unscoped-rule)[^}]*(content:[\\s]*(['"])(.*?)\\3)[;\\s]*[^}]*}	gim
+-shadowcsshost-no-combinator([^\\s,]*)	
+::shadow	g
+::content	g
+\\/shadow-deep\\/	g
+\\/shadow\\/	g
+(?:>>>)|(?:\\/deep\\/)|(?:::ng-deep)	g
+-shadowcsshost	gim
+:host	gim
+:host-context	gim
+\\r?\\n	g
+\\/\\*[\\s\\S]*?\\*\\/	g
+\\/\\*\\s*#\\s*source(Mapping)?URL=	g
+((?:^|[^\\\\])(?:\\\\\\\\)*)\\\\(?=['"])	g
+[a-z][A-Z]	g
+\\r\\n?	g
+&([^;]+);	g
+^#x[a-f0-9]+$	i
+^#\\d+$	
+^[0-9a-f]+$	i
+^[+-]?[\\d\\.]+([a-z]*)$	
+[^A-Z0-9]	g
+\\/\\/[\\s\\S]*i18n[\\s\\S]*\\([\\s\\S]*ph[\\s\\S]*=[\\s\\S]*("|')([\\s\\S]*?)\\1[\\s\\S]*\\)	g
+[^A-Za-z0-9]	g
+\\s+	g
+^([^:/?#]+):	
+^\\s*([0-9A-Za-z_$]*)\\s+of\\s+([\\S\\s]*)	
+^track\\s+([\\S\\s]*)	
+^(as\\s+)(.*)	
+^else[^\\S\\r\\n]+if	
+^let\\s+([\\S\\s]*)	
+(\\s*)(\\S+)(\\s*)	
+^\\s$	
+^\\d+\\.?\\d*(ms|s)?$	
+^prefetch\\s+when\\s	
+^prefetch\\s+on\\s	
+^hydrate\\s+when\\s	
+^hydrate\\s+on\\s	
+^hydrate\\s+never(\\s*)$	
+^minimum\\s	
+^after\\s	
+^when\\s	
+^on\\s	
+^(?:(bind-)|(let-)|(ref-|#)|(on-)|(bindon-)|(@))(.*)$	
+^data-	i
+^(?:\\[([^\\]]+)\\])|(?:\\(([^\\)]+)\\))$	
+^i18n:?	
+(?:\\.d)?\\.ts$|\\.js$	
+\\w	g
+\\.tsx?$	i
+\\.d\\.ts$	i
+\\$\\d+$	
+^[a-z0-9_]+$	i
+^(\\d+),(\\d+)$	
+^\\t+	
+^ {2,}	
+^ +	
+[/\\\\]	
+\\w	
+^[^\\r\\n]	gm
+\\$(\\$|&|\\d+)	g
+^:xhtml:	
+\\.tsx?$	
+\\s	
+^\\uFEFF	
+\\s*let\\s	
+\\r|\\n	
+^\\s*@(if|switch|case|default|for)|^\\s*\\}\\s@else	
+^\\s*<([a-z0-9]+)(?![^>]*\\/>)[^>]*>?	
+="([^"]|\\\\")*$	
+='([^']|\\\\')*$	
+^\\s*([^><]|\\\\")*"	
+^\\s*([^><]|\\\\')*'	
+^\\s*\\}\\s*$|^\\s*\\}\\s@else	
+\\s*<\\/([a-zA-Z0-9\\-_]+)\\s*>	m
+^\\s*([a-zA-Z0-9\\-_\\[\\]]+)?=?"?([^\u201d<]+)?"?\\s?\\/>$	
+^\\s*([a-zA-Z0-9\\-_\\[\\]]+)?=?"?([^\u201d\\/<]+)?"?\\s?>$	
+\\s*<([a-zA-Z0-9]+)(?![^>]*\\/>)[^>]*>.*<\\/([a-zA-Z0-9\\-_]+)\\s*>	
+\\S	
+=\\s*(count|index|first|last|even|odd)	gm
+(count|index|first|last|even|odd)\\s+as	gm
+\\s+as\\s+	
+[^\\w\\d];?\\s*then	gm
+[^\\w\\d];?\\s*else	gm
+;\\s*let	g
+[^a-z0-9]	g
+[^a-zA-Z0-9/_]	g
+\\/	g
+\\s+@fileoverview\\s+	i
+^[a-z]	
+[A-Z]	
+@(?=(Injectable|Component|Directive|Pipe|NgModule|Input|Output|HostBinding|HostListener|Inject|Optional|Self|Host|SkipSelf|ViewChild|ViewChildren|ContentChild|ContentChildren))	g
+_NG_AT_	g
+['"]	g
+\\.js$	
+(\\.scss|\\.sass|\\.less|\\.styl)$	
+\\bsemver\\b	i
+^[0-9]+$	
+^[=v]+	
+\\.d\\.ts$	
+(^|\\/)node_modules\\/	
+\\.ts$	
+testing\\/catalyst(\\/(fake_)?async)?$	
+^BrowserAnimationsModule|NoopAnimationsModule$	
+node_modules|\\.ngtypecheck\\.ts	
+\\r\\n|[\\r\\n\\u2028\\u2029]	
+(?:\\s|\\/\\/.*|\\/\\*[^]*?\\*\\/)*	g
+(?:[^\\S\\n\\r\\u2028\\u2029]|\\/\\/.*|\\/\\*.*?\\*\\/)*	g
+^[0-7]+	
+[_n]	g
+[89]	
+[_mn]	g
+\\*?\\s*@((?:no)?flow)\\b	
+[\\uD800-\\uDFFF]	u
+in(?:stanceof)?	y
+^in(stanceof)?$	
+\\r\\n?|\\n|\\u2028|\\u2029	
+[\\u1680\\u2000-\\u200a\\u202f\\u205f\\u3000\\ufeff]	
+ 	g
+(?:[\\uD800-\\uDBFF](?![\\uDC00-\\uDFFF])|(?:[^\\uD800-\\uDBFF]|^)[\\uDC00-\\uDFFF])	
+^(?:'((?:\\\\[^]|[^'\\\\])*?)'|"((?:\\\\[^]|[^"\\\\])*?)")	
+[(`.[+\\-/*%<>=,?^&]	
+\\bstack\\b.*\\b(exceeded|overflow)\\b	i
+\\btoo much recursion\\b	i
+^--ecma(\\d+)$	
+\\(\\d+:\\d+\\)$	
+.	
+firefox\\/(\\d+)	i
+MSIE|Trident	
+ipad|iphone|ipod	i
+applewebkit	i
+web0s(?!.*chrome)	i
+Edge\\/(\\d+)	
+Chrome\\/(\\d+)	
+AppleWebKit\\/(\\d+)\\.	
+\\n\\s*at [^:]*:[^\\n]*	
+a	
+\\$([$&'`]|\\d{1,2}|<[^>]*>)	g
+\\$([$&'`]|\\d{1,2})	g
+^\\s*(?:class|function)\\b	
+#|\\.prototype\\.	
+^Symbol\\(([^)]*)\\).*$	
+^[+-]?0x	i
+^[\\da-f]{4}$	i
+^[\\u0000-\\u001F]$	
+native code	
+b*	g
+()??	
+MSIE .\\.	
+Version\\/10(?:\\.\\d+){1,2}(?: [\\w./]+)?(?: Mobile\\/\\w+)? Safari\\/	
+[^\\0-\\u007E]	
+[.\\u3002\\uFF0E\\uFF61]	g
+\\d+	
+[\\S\\s]{2}	g
+[\\uD800-\\uDBFF][\\uDC00-\\uDFFF]|[\\uD800-\\uDFFF]	g
+[\\w*+\\-./@]	
+function\\b(?:\\s|\\/\\*[\\S\\s]*?\\*\\/|\\/\\/[^\\n\\r]*[\\n\\r]+)*([^\\s(/]*)	
+^\\d$	
+^[1-9]$	
+^[\\d-]$	
+^[\\t\\n\\r ]$	
+[\\uD800-\\uDFFF]	g
+^[\\uD800-\\uDBFF]$	
+^[\\uDC00-\\uDFFF]$	
+^\\?<[^\\s\\d!#%&*+<=>@^][^\\s!#%&*+<=>@^]*>	
+a	g
+s	g
+y	g
+^[0-9a-z]	i
+^[$()*+./?[\\\\\\]^{|}]	
+[ac]	
+(?:)	
+(b)*	
+(?:ab)*	
+(.?)(.?)	
+()()	
+.?	
+^Symbol\\((.*)\\)[^)]+$	
+^[\\da-f]{2}$	i
+^\\s*class\\b	
+^[0-9a-z]+(\\.[0-9a-z]+)?$	
+([\\n\\u2028\\u2029]|\\r\\n?)	g
+[^\\d+/a-z]	i
+[\\t\\n\\f\\r ]+	g
+[=]{1,2}$	
+\\+	g
+[!'()~]|%20	g
+[a-z]	i
+[\\d+\\-.a-z]	i
+\\d	
+^0x	i
+^[0-7]+$	
+^[\\da-f]+$	i
+[\\u0000-\\u0020#%/:<>?@[\\\\\\]^|\\u007F]	
+[\\0\\t\\n\\r #/:<>?@[\\\\\\]^|]	
+^[\\u0000-\\u0020]+	
+(^|[^\\u0000-\\u0020])[\\u0000-\\u0020]+$	
+[\\t\\n\\r]	g
+[^\\u0000-\\u007F]	
+\\u001B\\[\\d+m	g
+[\\s.]	
+^|\\s+	
+^#([0-9a-f]{3,8})$	
+[-+]?(?:\\d+\\.?\\d*|\\.?\\d+)(?:[eE][-+]?\\d+)?	g
+""	g
+^([-+]\\d{2})?\\d{4}(-\\d{2}(-\\d{2})?)?(T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{3})?)?(Z|[-+]\\d{2}:\\d{2})?)?$	
+-	g
+T	
+,	g
+[0-9]	g
+^(?:(.)?([<>=^]))?([+\\-( ])?([$#])?(0)?(\\d+)?(,)?(\\.\\d+)?(~)?([a-z%])?$	i
+[boxX]	
+[%p]	
+[defgprs%]	
+[gprs]	
+^\\s*\\d+	
+^%	
+[\\\\^$*+?|[\\]().{}]	g
+^(Z)|([+-]\\d\\d)(?::?(\\d\\d))?	
+^Line [0-9]*: 	
+[\\xAA\\xB5\\xBA\\xC0-\\xD6\\xD8-\\xF6\\xF8-\\u02C1\\u02C6-\\u02D1\\u02E0-\\u02E4\\u02EC\\u02EE\\u0370-\\u0374\\u0376\\u0377\\u037A-\\u037D\\u037F\\u0386\\u0388-\\u038A\\u038C\\u038E-\\u03A1\\u03A3-\\u03F5\\u03F7-\\u0481\\u048A-\\u052F\\u0531-\\u0556\\u0559\\u0561-\\u0587\\u05D0-\\u05EA\\u05F0-\\u05F2\\u0620-\\u064A\\u066E\\u066F\\u0671-\\u06D3\\u06D5\\u06E5\\u06E6\\u06EE\\u06EF\\u06FA-\\u06FC\\u06FF\\u0710\\u0712-\\u072F\\u074D-\\u07A5\\u07B1\\u07CA-\\u07EA\\u07F4\\u07F5\\u07FA\\u0800-\\u0815\\u081A\\u0824\\u0828\\u0840-\\u0858\\u08A0-\\u08B4\\u0904-\\u0939\\u093D\\u0950\\u0958-\\u0961\\u0971-\\u0980\\u0985-\\u098C\\u098F\\u0990\\u0993-\\u09A8\\u09AA-\\u09B0\\u09B2\\u09B6-\\u09B9\\u09BD\\u09CE\\u09DC\\u09DD\\u09DF-\\u09E1\\u09F0\\u09F1\\u0A05-\\u0A0A\\u0A0F\\u0A10\\u0A13-\\u0A28\\u0A2A-\\u0A30\\u0A32\\u0A33\\u0A35\\u0A36\\u0A38\\u0A39\\u0A59-\\u0A5C\\u0A5E\\u0A72-\\u0A74\\u0A85-\\u0A8D\\u0A8F-\\u0A91\\u0A93-\\u0AA8\\u0AAA-\\u0AB0\\u0AB2\\u0AB3\\u0AB5-\\u0AB9\\u0ABD\\u0AD0\\u0AE0\\u0AE1\\u0AF9\\u0B05-\\u0B0C\\u0B0F\\u0B10\\u0B13-\\u0B28\\u0B2A-\\u0B30\\u0B32\\u0B33\\u0B35-\\u0B39\\u0B3D\\u0B5C\\u0B5D\\u0B5F-\\u0B61\\u0B71\\u0B83\\u0B85-\\u0B8A\\u0B8E-\\u0B90\\u0B92-\\u0B95\\u0B99\\u0B9A\\u0B9C\\u0B9E\\u0B9F\\u0BA3\\u0BA4\\u0BA8-\\u0BAA\\u0BAE-\\u0BB9\\u0BD0\\u0C05-\\u0C0C\\u0C0E-\\u0C10\\u0C12-\\u0C28\\u0C2A-\\u0C39\\u0C3D\\u0C58-\\u0C5A\\u0C60\\u0C61\\u0C85-\\u0C8C\\u0C8E-\\u0C90\\u0C92-\\u0CA8\\u0CAA-\\u0CB3\\u0CB5-\\u0CB9\\u0CBD\\u0CDE\\u0CE0\\u0CE1\\u0CF1\\u0CF2\\u0D05-\\u0D0C\\u0D0E-\\u0D10\\u0D12-\\u0D3A\\u0D3D\\u0D4E\\u0D5F-\\u0D61\\u0D7A-\\u0D7F\\u0D85-\\u0D96\\u0D9A-\\u0DB1\\u0DB3-\\u0DBB\\u0DBD\\u0DC0-\\u0DC6\\u0E01-\\u0E30\\u0E32\\u0E33\\u0E40-\\u0E46\\u0E81\\u0E82\\u0E84\\u0E87\\u0E88\\u0E8A\\u0E8D\\u0E94-\\u0E97\\u0E99-\\u0E9F\\u0EA1-\\u0EA3\\u0EA5\\u0EA7\\u0EAA\\u0EAB\\u0EAD-\\u0EB0\\u0EB2\\u0EB3\\u0EBD\\u0EC0-\\u0EC4\\u0EC6\\u0EDC-\\u0EDF\\u0F00\\u0F40-\\u0F47\\u0F49-\\u0F6C\\u0F88-\\u0F8C\\u1000-\\u102A\\u103F\\u1050-\\u1055\\u105A-\\u105D\\u1061\\u1065\\u1066\\u106E-\\u1070\\u1075-\\u1081\\u108E\\u10A0-\\u10C5\\u10C7\\u10CD\\u10D0-\\u10FA\\u10FC-\\u1248\\u124A-\\u124D\\u1250-\\u1256\\u1258\\u125A-\\u125D\\u1260-\\u1288\\u128A-\\u128D\\u1290-\\u12B0\\u12B2-\\u12B5\\u12B8-\\u12BE\\u12C0\\u12C2-\\u12C5\\u12C8-\\u12D6\\u12D8-\\u1310\\u1312-\\u1315\\u1318-\\u135A\\u1380-\\u138F\\u13A0-\\u13F5\\u13F8-\\u13FD\\u1401-\\u166C\\u166F-\\u167F\\u1681-\\u169A\\u16A0-\\u16EA\\u16EE-\\u16F8\\u1700-\\u170C\\u170E-\\u1711\\u1720-\\u1731\\u1740-\\u1751\\u1760-\\u176C\\u176E-\\u1770\\u1780-\\u17B3\\u17D7\\u17DC\\u1820-\\u1877\\u1880-\\u18A8\\u18AA\\u18B0-\\u18F5\\u1900-\\u191E\\u1950-\\u196D\\u1970-\\u1974\\u1980-\\u19AB\\u19B0-\\u19C9\\u1A00-\\u1A16\\u1A20-\\u1A54\\u1AA7\\u1B05-\\u1B33\\u1B45-\\u1B4B\\u1B83-\\u1BA0\\u1BAE\\u1BAF\\u1BBA-\\u1BE5\\u1C00-\\u1C23\\u1C4D-\\u1C4F\\u1C5A-\\u1C7D\\u1CE9-\\u1CEC\\u1CEE-\\u1CF1\\u1CF5\\u1CF6\\u1D00-\\u1DBF\\u1E00-\\u1F15\\u1F18-\\u1F1D\\u1F20-\\u1F45\\u1F48-\\u1F4D\\u1F50-\\u1F57\\u1F59\\u1F5B\\u1F5D\\u1F5F-\\u1F7D\\u1F80-\\u1FB4\\u1FB6-\\u1FBC\\u1FBE\\u1FC2-\\u1FC4\\u1FC6-\\u1FCC\\u1FD0-\\u1FD3\\u1FD6-\\u1FDB\\u1FE0-\\u1FEC\\u1FF2-\\u1FF4\\u1FF6-\\u1FFC\\u2071\\u207F\\u2090-\\u209C\\u2102\\u2107\\u210A-\\u2113\\u2115\\u2118-\\u211D\\u2124\\u2126\\u2128\\u212A-\\u2139\\u213C-\\u213F\\u2145-\\u2149\\u214E\\u2160-\\u2188\\u2C00-\\u2C2E\\u2C30-\\u2C5E\\u2C60-\\u2CE4\\u2CEB-\\u2CEE\\u2CF2\\u2CF3\\u2D00-\\u2D25\\u2D27\\u2D2D\\u2D30-\\u2D67\\u2D6F\\u2D80-\\u2D96\\u2DA0-\\u2DA6\\u2DA8-\\u2DAE\\u2DB0-\\u2DB6\\u2DB8-\\u2DBE\\u2DC0-\\u2DC6\\u2DC8-\\u2DCE\\u2DD0-\\u2DD6\\u2DD8-\\u2DDE\\u3005-\\u3007\\u3021-\\u3029\\u3031-\\u3035\\u3038-\\u303C\\u3041-\\u3096\\u309B-\\u309F\\u30A1-\\u30FA\\u30FC-\\u30FF\\u3105-\\u312D\\u3131-\\u318E\\u31A0-\\u31BA\\u31F0-\\u31FF\\u3400-\\u4DB5\\u4E00-\\u9FD5\\uA000-\\uA48C\\uA4D0-\\uA4FD\\uA500-\\uA60C\\uA610-\\uA61F\\uA62A\\uA62B\\uA640-\\uA66E\\uA67F-\\uA69D\\uA6A0-\\uA6EF\\uA717-\\uA71F\\uA722-\\uA788\\uA78B-\\uA7AD\\uA7B0-\\uA7B7\\uA7F7-\\uA801\\uA803-\\uA805\\uA807-\\uA80A\\uA80C-\\uA822\\uA840-\\uA873\\uA882-\\uA8B3\\uA8F2-\\uA8F7\\uA8FB\\uA8FD\\uA90A-\\uA925\\uA930-\\uA946\\uA960-\\uA97C\\uA984-\\uA9B2\\uA9CF\\uA9E0-\\uA9E4\\uA9E6-\\uA9EF\\uA9FA-\\uA9FE\\uAA00-\\uAA28\\uAA40-\\uAA42\\uAA44-\\uAA4B\\uAA60-\\uAA76\\uAA7A\\uAA7E-\\uAAAF\\uAAB1\\uAAB5\\uAAB6\\uAAB9-\\uAABD\\uAAC0\\uAAC2\\uAADB-\\uAADD\\uAAE0-\\uAAEA\\uAAF2-\\uAAF4\\uAB01-\\uAB06\\uAB09-\\uAB0E\\uAB11-\\uAB16\\uAB20-\\uAB26\\uAB28-\\uAB2E\\uAB30-\\uAB5A\\uAB5C-\\uAB65\\uAB70-\\uABE2\\uAC00-\\uD7A3\\uD7B0-\\uD7C6\\uD7CB-\\uD7FB\\uF900-\\uFA6D\\uFA70-\\uFAD9\\uFB00-\\uFB06\\uFB13-\\uFB17\\uFB1D\\uFB1F-\\uFB28\\uFB2A-\\uFB36\\uFB38-\\uFB3C\\uFB3E\\uFB40\\uFB41\\uFB43\\uFB44\\uFB46-\\uFBB1\\uFBD3-\\uFD3D\\uFD50-\\uFD8F\\uFD92-\\uFDC7\\uFDF0-\\uFDFB\\uFE70-\\uFE74\\uFE76-\\uFEFC\\uFF21-\\uFF3A\\uFF41-\\uFF5A\\uFF66-\\uFFBE\\uFFC2-\\uFFC7\\uFFCA-\\uFFCF\\uFFD2-\\uFFD7\\uFFDA-\\uFFDC]|\\uD800[\\uDC00-\\uDC0B\\uDC0D-\\uDC26\\uDC28-\\uDC3A\\uDC3C\\uDC3D\\uDC3F-\\uDC4D\\uDC50-\\uDC5D\\uDC80-\\uDCFA\\uDD40-\\uDD74\\uDE80-\\uDE9C\\uDEA0-\\uDED0\\uDF00-\\uDF1F\\uDF30-\\uDF4A\\uDF50-\\uDF75\\uDF80-\\uDF9D\\uDFA0-\\uDFC3\\uDFC8-\\uDFCF\\uDFD1-\\uDFD5]|\\uD801[\\uDC00-\\uDC9D\\uDD00-\\uDD27\\uDD30-\\uDD63\\uDE00-\\uDF36\\uDF40-\\uDF55\\uDF60-\\uDF67]|\\uD802[\\uDC00-\\uDC05\\uDC08\\uDC0A-\\uDC35\\uDC37\\uDC38\\uDC3C\\uDC3F-\\uDC55\\uDC60-\\uDC76\\uDC80-\\uDC9E\\uDCE0-\\uDCF2\\uDCF4\\uDCF5\\uDD00-\\uDD15\\uDD20-\\uDD39\\uDD80-\\uDDB7\\uDDBE\\uDDBF\\uDE00\\uDE10-\\uDE13\\uDE15-\\uDE17\\uDE19-\\uDE33\\uDE60-\\uDE7C\\uDE80-\\uDE9C\\uDEC0-\\uDEC7\\uDEC9-\\uDEE4\\uDF00-\\uDF35\\uDF40-\\uDF55\\uDF60-\\uDF72\\uDF80-\\uDF91]|\\uD803[\\uDC00-\\uDC48\\uDC80-\\uDCB2\\uDCC0-\\uDCF2]|\\uD804[\\uDC03-\\uDC37\\uDC83-\\uDCAF\\uDCD0-\\uDCE8\\uDD03-\\uDD26\\uDD50-\\uDD72\\uDD76\\uDD83-\\uDDB2\\uDDC1-\\uDDC4\\uDDDA\\uDDDC\\uDE00-\\uDE11\\uDE13-\\uDE2B\\uDE80-\\uDE86\\uDE88\\uDE8A-\\uDE8D\\uDE8F-\\uDE9D\\uDE9F-\\uDEA8\\uDEB0-\\uDEDE\\uDF05-\\uDF0C\\uDF0F\\uDF10\\uDF13-\\uDF28\\uDF2A-\\uDF30\\uDF32\\uDF33\\uDF35-\\uDF39\\uDF3D\\uDF50\\uDF5D-\\uDF61]|\\uD805[\\uDC80-\\uDCAF\\uDCC4\\uDCC5\\uDCC7\\uDD80-\\uDDAE\\uDDD8-\\uDDDB\\uDE00-\\uDE2F\\uDE44\\uDE80-\\uDEAA\\uDF00-\\uDF19]|\\uD806[\\uDCA0-\\uDCDF\\uDCFF\\uDEC0-\\uDEF8]|\\uD808[\\uDC00-\\uDF99]|\\uD809[\\uDC00-\\uDC6E\\uDC80-\\uDD43]|[\\uD80C\\uD840-\\uD868\\uD86A-\\uD86C\\uD86F-\\uD872][\\uDC00-\\uDFFF]|\\uD80D[\\uDC00-\\uDC2E]|\\uD811[\\uDC00-\\uDE46]|\\uD81A[\\uDC00-\\uDE38\\uDE40-\\uDE5E\\uDED0-\\uDEED\\uDF00-\\uDF2F\\uDF40-\\uDF43\\uDF63-\\uDF77\\uDF7D-\\uDF8F]|\\uD81B[\\uDF00-\\uDF44\\uDF50\\uDF93-\\uDF9F]|\\uD82C[\\uDC00\\uDC01]|\\uD82F[\\uDC00-\\uDC6A\\uDC70-\\uDC7C\\uDC80-\\uDC88\\uDC90-\\uDC99]|\\uD835[\\uDC00-\\uDC54\\uDC56-\\uDC9C\\uDC9E\\uDC9F\\uDCA2\\uDCA5\\uDCA6\\uDCA9-\\uDCAC\\uDCAE-\\uDCB9\\uDCBB\\uDCBD-\\uDCC3\\uDCC5-\\uDD05\\uDD07-\\uDD0A\\uDD0D-\\uDD14\\uDD16-\\uDD1C\\uDD1E-\\uDD39\\uDD3B-\\uDD3E\\uDD40-\\uDD44\\uDD46\\uDD4A-\\uDD50\\uDD52-\\uDEA5\\uDEA8-\\uDEC0\\uDEC2-\\uDEDA\\uDEDC-\\uDEFA\\uDEFC-\\uDF14\\uDF16-\\uDF34\\uDF36-\\uDF4E\\uDF50-\\uDF6E\\uDF70-\\uDF88\\uDF8A-\\uDFA8\\uDFAA-\\uDFC2\\uDFC4-\\uDFCB]|\\uD83A[\\uDC00-\\uDCC4]|\\uD83B[\\uDE00-\\uDE03\\uDE05-\\uDE1F\\uDE21\\uDE22\\uDE24\\uDE27\\uDE29-\\uDE32\\uDE34-\\uDE37\\uDE39\\uDE3B\\uDE42\\uDE47\\uDE49\\uDE4B\\uDE4D-\\uDE4F\\uDE51\\uDE52\\uDE54\\uDE57\\uDE59\\uDE5B\\uDE5D\\uDE5F\\uDE61\\uDE62\\uDE64\\uDE67-\\uDE6A\\uDE6C-\\uDE72\\uDE74-\\uDE77\\uDE79-\\uDE7C\\uDE7E\\uDE80-\\uDE89\\uDE8B-\\uDE9B\\uDEA1-\\uDEA3\\uDEA5-\\uDEA9\\uDEAB-\\uDEBB]|\\uD869[\\uDC00-\\uDED6\\uDF00-\\uDFFF]|\\uD86D[\\uDC00-\\uDF34\\uDF40-\\uDFFF]|\\uD86E[\\uDC00-\\uDC1D\\uDC20-\\uDFFF]|\\uD873[\\uDC00-\\uDEA1]|\\uD87E[\\uDC00-\\uDE1D]	
+[\\xAA\\xB5\\xB7\\xBA\\xC0-\\xD6\\xD8-\\xF6\\xF8-\\u02C1\\u02C6-\\u02D1\\u02E0-\\u02E4\\u02EC\\u02EE\\u0300-\\u0374\\u0376\\u0377\\u037A-\\u037D\\u037F\\u0386-\\u038A\\u038C\\u038E-\\u03A1\\u03A3-\\u03F5\\u03F7-\\u0481\\u0483-\\u0487\\u048A-\\u052F\\u0531-\\u0556\\u0559\\u0561-\\u0587\\u0591-\\u05BD\\u05BF\\u05C1\\u05C2\\u05C4\\u05C5\\u05C7\\u05D0-\\u05EA\\u05F0-\\u05F2\\u0610-\\u061A\\u0620-\\u0669\\u066E-\\u06D3\\u06D5-\\u06DC\\u06DF-\\u06E8\\u06EA-\\u06FC\\u06FF\\u0710-\\u074A\\u074D-\\u07B1\\u07C0-\\u07F5\\u07FA\\u0800-\\u082D\\u0840-\\u085B\\u08A0-\\u08B4\\u08E3-\\u0963\\u0966-\\u096F\\u0971-\\u0983\\u0985-\\u098C\\u098F\\u0990\\u0993-\\u09A8\\u09AA-\\u09B0\\u09B2\\u09B6-\\u09B9\\u09BC-\\u09C4\\u09C7\\u09C8\\u09CB-\\u09CE\\u09D7\\u09DC\\u09DD\\u09DF-\\u09E3\\u09E6-\\u09F1\\u0A01-\\u0A03\\u0A05-\\u0A0A\\u0A0F\\u0A10\\u0A13-\\u0A28\\u0A2A-\\u0A30\\u0A32\\u0A33\\u0A35\\u0A36\\u0A38\\u0A39\\u0A3C\\u0A3E-\\u0A42\\u0A47\\u0A48\\u0A4B-\\u0A4D\\u0A51\\u0A59-\\u0A5C\\u0A5E\\u0A66-\\u0A75\\u0A81-\\u0A83\\u0A85-\\u0A8D\\u0A8F-\\u0A91\\u0A93-\\u0AA8\\u0AAA-\\u0AB0\\u0AB2\\u0AB3\\u0AB5-\\u0AB9\\u0ABC-\\u0AC5\\u0AC7-\\u0AC9\\u0ACB-\\u0ACD\\u0AD0\\u0AE0-\\u0AE3\\u0AE6-\\u0AEF\\u0AF9\\u0B01-\\u0B03\\u0B05-\\u0B0C\\u0B0F\\u0B10\\u0B13-\\u0B28\\u0B2A-\\u0B30\\u0B32\\u0B33\\u0B35-\\u0B39\\u0B3C-\\u0B44\\u0B47\\u0B48\\u0B4B-\\u0B4D\\u0B56\\u0B57\\u0B5C\\u0B5D\\u0B5F-\\u0B63\\u0B66-\\u0B6F\\u0B71\\u0B82\\u0B83\\u0B85-\\u0B8A\\u0B8E-\\u0B90\\u0B92-\\u0B95\\u0B99\\u0B9A\\u0B9C\\u0B9E\\u0B9F\\u0BA3\\u0BA4\\u0BA8-\\u0BAA\\u0BAE-\\u0BB9\\u0BBE-\\u0BC2\\u0BC6-\\u0BC8\\u0BCA-\\u0BCD\\u0BD0\\u0BD7\\u0BE6-\\u0BEF\\u0C00-\\u0C03\\u0C05-\\u0C0C\\u0C0E-\\u0C10\\u0C12-\\u0C28\\u0C2A-\\u0C39\\u0C3D-\\u0C44\\u0C46-\\u0C48\\u0C4A-\\u0C4D\\u0C55\\u0C56\\u0C58-\\u0C5A\\u0C60-\\u0C63\\u0C66-\\u0C6F\\u0C81-\\u0C83\\u0C85-\\u0C8C\\u0C8E-\\u0C90\\u0C92-\\u0CA8\\u0CAA-\\u0CB3\\u0CB5-\\u0CB9\\u0CBC-\\u0CC4\\u0CC6-\\u0CC8\\u0CCA-\\u0CCD\\u0CD5\\u0CD6\\u0CDE\\u0CE0-\\u0CE3\\u0CE6-\\u0CEF\\u0CF1\\u0CF2\\u0D01-\\u0D03\\u0D05-\\u0D0C\\u0D0E-\\u0D10\\u0D12-\\u0D3A\\u0D3D-\\u0D44\\u0D46-\\u0D48\\u0D4A-\\u0D4E\\u0D57\\u0D5F-\\u0D63\\u0D66-\\u0D6F\\u0D7A-\\u0D7F\\u0D82\\u0D83\\u0D85-\\u0D96\\u0D9A-\\u0DB1\\u0DB3-\\u0DBB\\u0DBD\\u0DC0-\\u0DC6\\u0DCA\\u0DCF-\\u0DD4\\u0DD6\\u0DD8-\\u0DDF\\u0DE6-\\u0DEF\\u0DF2\\u0DF3\\u0E01-\\u0E3A\\u0E40-\\u0E4E\\u0E50-\\u0E59\\u0E81\\u0E82\\u0E84\\u0E87\\u0E88\\u0E8A\\u0E8D\\u0E94-\\u0E97\\u0E99-\\u0E9F\\u0EA1-\\u0EA3\\u0EA5\\u0EA7\\u0EAA\\u0EAB\\u0EAD-\\u0EB9\\u0EBB-\\u0EBD\\u0EC0-\\u0EC4\\u0EC6\\u0EC8-\\u0ECD\\u0ED0-\\u0ED9\\u0EDC-\\u0EDF\\u0F00\\u0F18\\u0F19\\u0F20-\\u0F29\\u0F35\\u0F37\\u0F39\\u0F3E-\\u0F47\\u0F49-\\u0F6C\\u0F71-\\u0F84\\u0F86-\\u0F97\\u0F99-\\u0FBC\\u0FC6\\u1000-\\u1049\\u1050-\\u109D\\u10A0-\\u10C5\\u10C7\\u10CD\\u10D0-\\u10FA\\u10FC-\\u1248\\u124A-\\u124D\\u1250-\\u1256\\u1258\\u125A-\\u125D\\u1260-\\u1288\\u128A-\\u128D\\u1290-\\u12B0\\u12B2-\\u12B5\\u12B8-\\u12BE\\u12C0\\u12C2-\\u12C5\\u12C8-\\u12D6\\u12D8-\\u1310\\u1312-\\u1315\\u1318-\\u135A\\u135D-\\u135F\\u1369-\\u1371\\u1380-\\u138F\\u13A0-\\u13F5\\u13F8-\\u13FD\\u1401-\\u166C\\u166F-\\u167F\\u1681-\\u169A\\u16A0-\\u16EA\\u16EE-\\u16F8\\u1700-\\u170C\\u170E-\\u1714\\u1720-\\u1734\\u1740-\\u1753\\u1760-\\u176C\\u176E-\\u1770\\u1772\\u1773\\u1780-\\u17D3\\u17D7\\u17DC\\u17DD\\u17E0-\\u17E9\\u180B-\\u180D\\u1810-\\u1819\\u1820-\\u1877\\u1880-\\u18AA\\u18B0-\\u18F5\\u1900-\\u191E\\u1920-\\u192B\\u1930-\\u193B\\u1946-\\u196D\\u1970-\\u1974\\u1980-\\u19AB\\u19B0-\\u19C9\\u19D0-\\u19DA\\u1A00-\\u1A1B\\u1A20-\\u1A5E\\u1A60-\\u1A7C\\u1A7F-\\u1A89\\u1A90-\\u1A99\\u1AA7\\u1AB0-\\u1ABD\\u1B00-\\u1B4B\\u1B50-\\u1B59\\u1B6B-\\u1B73\\u1B80-\\u1BF3\\u1C00-\\u1C37\\u1C40-\\u1C49\\u1C4D-\\u1C7D\\u1CD0-\\u1CD2\\u1CD4-\\u1CF6\\u1CF8\\u1CF9\\u1D00-\\u1DF5\\u1DFC-\\u1F15\\u1F18-\\u1F1D\\u1F20-\\u1F45\\u1F48-\\u1F4D\\u1F50-\\u1F57\\u1F59\\u1F5B\\u1F5D\\u1F5F-\\u1F7D\\u1F80-\\u1FB4\\u1FB6-\\u1FBC\\u1FBE\\u1FC2-\\u1FC4\\u1FC6-\\u1FCC\\u1FD0-\\u1FD3\\u1FD6-\\u1FDB\\u1FE0-\\u1FEC\\u1FF2-\\u1FF4\\u1FF6-\\u1FFC\\u200C\\u200D\\u203F\\u2040\\u2054\\u2071\\u207F\\u2090-\\u209C\\u20D0-\\u20DC\\u20E1\\u20E5-\\u20F0\\u2102\\u2107\\u210A-\\u2113\\u2115\\u2118-\\u211D\\u2124\\u2126\\u2128\\u212A-\\u2139\\u213C-\\u213F\\u2145-\\u2149\\u214E\\u2160-\\u2188\\u2C00-\\u2C2E\\u2C30-\\u2C5E\\u2C60-\\u2CE4\\u2CEB-\\u2CF3\\u2D00-\\u2D25\\u2D27\\u2D2D\\u2D30-\\u2D67\\u2D6F\\u2D7F-\\u2D96\\u2DA0-\\u2DA6\\u2DA8-\\u2DAE\\u2DB0-\\u2DB6\\u2DB8-\\u2DBE\\u2DC0-\\u2DC6\\u2DC8-\\u2DCE\\u2DD0-\\u2DD6\\u2DD8-\\u2DDE\\u2DE0-\\u2DFF\\u3005-\\u3007\\u3021-\\u302F\\u3031-\\u3035\\u3038-\\u303C\\u3041-\\u3096\\u3099-\\u309F\\u30A1-\\u30FA\\u30FC-\\u30FF\\u3105-\\u312D\\u3131-\\u318E\\u31A0-\\u31BA\\u31F0-\\u31FF\\u3400-\\u4DB5\\u4E00-\\u9FD5\\uA000-\\uA48C\\uA4D0-\\uA4FD\\uA500-\\uA60C\\uA610-\\uA62B\\uA640-\\uA66F\\uA674-\\uA67D\\uA67F-\\uA6F1\\uA717-\\uA71F\\uA722-\\uA788\\uA78B-\\uA7AD\\uA7B0-\\uA7B7\\uA7F7-\\uA827\\uA840-\\uA873\\uA880-\\uA8C4\\uA8D0-\\uA8D9\\uA8E0-\\uA8F7\\uA8FB\\uA8FD\\uA900-\\uA92D\\uA930-\\uA953\\uA960-\\uA97C\\uA980-\\uA9C0\\uA9CF-\\uA9D9\\uA9E0-\\uA9FE\\uAA00-\\uAA36\\uAA40-\\uAA4D\\uAA50-\\uAA59\\uAA60-\\uAA76\\uAA7A-\\uAAC2\\uAADB-\\uAADD\\uAAE0-\\uAAEF\\uAAF2-\\uAAF6\\uAB01-\\uAB06\\uAB09-\\uAB0E\\uAB11-\\uAB16\\uAB20-\\uAB26\\uAB28-\\uAB2E\\uAB30-\\uAB5A\\uAB5C-\\uAB65\\uAB70-\\uABEA\\uABEC\\uABED\\uABF0-\\uABF9\\uAC00-\\uD7A3\\uD7B0-\\uD7C6\\uD7CB-\\uD7FB\\uF900-\\uFA6D\\uFA70-\\uFAD9\\uFB00-\\uFB06\\uFB13-\\uFB17\\uFB1D-\\uFB28\\uFB2A-\\uFB36\\uFB38-\\uFB3C\\uFB3E\\uFB40\\uFB41\\uFB43\\uFB44\\uFB46-\\uFBB1\\uFBD3-\\uFD3D\\uFD50-\\uFD8F\\uFD92-\\uFDC7\\uFDF0-\\uFDFB\\uFE00-\\uFE0F\\uFE20-\\uFE2F\\uFE33\\uFE34\\uFE4D-\\uFE4F\\uFE70-\\uFE74\\uFE76-\\uFEFC\\uFF10-\\uFF19\\uFF21-\\uFF3A\\uFF3F\\uFF41-\\uFF5A\\uFF66-\\uFFBE\\uFFC2-\\uFFC7\\uFFCA-\\uFFCF\\uFFD2-\\uFFD7\\uFFDA-\\uFFDC]|\\uD800[\\uDC00-\\uDC0B\\uDC0D-\\uDC26\\uDC28-\\uDC3A\\uDC3C\\uDC3D\\uDC3F-\\uDC4D\\uDC50-\\uDC5D\\uDC80-\\uDCFA\\uDD40-\\uDD74\\uDDFD\\uDE80-\\uDE9C\\uDEA0-\\uDED0\\uDEE0\\uDF00-\\uDF1F\\uDF30-\\uDF4A\\uDF50-\\uDF7A\\uDF80-\\uDF9D\\uDFA0-\\uDFC3\\uDFC8-\\uDFCF\\uDFD1-\\uDFD5]|\\uD801[\\uDC00-\\uDC9D\\uDCA0-\\uDCA9\\uDD00-\\uDD27\\uDD30-\\uDD63\\uDE00-\\uDF36\\uDF40-\\uDF55\\uDF60-\\uDF67]|\\uD802[\\uDC00-\\uDC05\\uDC08\\uDC0A-\\uDC35\\uDC37\\uDC38\\uDC3C\\uDC3F-\\uDC55\\uDC60-\\uDC76\\uDC80-\\uDC9E\\uDCE0-\\uDCF2\\uDCF4\\uDCF5\\uDD00-\\uDD15\\uDD20-\\uDD39\\uDD80-\\uDDB7\\uDDBE\\uDDBF\\uDE00-\\uDE03\\uDE05\\uDE06\\uDE0C-\\uDE13\\uDE15-\\uDE17\\uDE19-\\uDE33\\uDE38-\\uDE3A\\uDE3F\\uDE60-\\uDE7C\\uDE80-\\uDE9C\\uDEC0-\\uDEC7\\uDEC9-\\uDEE6\\uDF00-\\uDF35\\uDF40-\\uDF55\\uDF60-\\uDF72\\uDF80-\\uDF91]|\\uD803[\\uDC00-\\uDC48\\uDC80-\\uDCB2\\uDCC0-\\uDCF2]|\\uD804[\\uDC00-\\uDC46\\uDC66-\\uDC6F\\uDC7F-\\uDCBA\\uDCD0-\\uDCE8\\uDCF0-\\uDCF9\\uDD00-\\uDD34\\uDD36-\\uDD3F\\uDD50-\\uDD73\\uDD76\\uDD80-\\uDDC4\\uDDCA-\\uDDCC\\uDDD0-\\uDDDA\\uDDDC\\uDE00-\\uDE11\\uDE13-\\uDE37\\uDE80-\\uDE86\\uDE88\\uDE8A-\\uDE8D\\uDE8F-\\uDE9D\\uDE9F-\\uDEA8\\uDEB0-\\uDEEA\\uDEF0-\\uDEF9\\uDF00-\\uDF03\\uDF05-\\uDF0C\\uDF0F\\uDF10\\uDF13-\\uDF28\\uDF2A-\\uDF30\\uDF32\\uDF33\\uDF35-\\uDF39\\uDF3C-\\uDF44\\uDF47\\uDF48\\uDF4B-\\uDF4D\\uDF50\\uDF57\\uDF5D-\\uDF63\\uDF66-\\uDF6C\\uDF70-\\uDF74]|\\uD805[\\uDC80-\\uDCC5\\uDCC7\\uDCD0-\\uDCD9\\uDD80-\\uDDB5\\uDDB8-\\uDDC0\\uDDD8-\\uDDDD\\uDE00-\\uDE40\\uDE44\\uDE50-\\uDE59\\uDE80-\\uDEB7\\uDEC0-\\uDEC9\\uDF00-\\uDF19\\uDF1D-\\uDF2B\\uDF30-\\uDF39]|\\uD806[\\uDCA0-\\uDCE9\\uDCFF\\uDEC0-\\uDEF8]|\\uD808[\\uDC00-\\uDF99]|\\uD809[\\uDC00-\\uDC6E\\uDC80-\\uDD43]|[\\uD80C\\uD840-\\uD868\\uD86A-\\uD86C\\uD86F-\\uD872][\\uDC00-\\uDFFF]|\\uD80D[\\uDC00-\\uDC2E]|\\uD811[\\uDC00-\\uDE46]|\\uD81A[\\uDC00-\\uDE38\\uDE40-\\uDE5E\\uDE60-\\uDE69\\uDED0-\\uDEED\\uDEF0-\\uDEF4\\uDF00-\\uDF36\\uDF40-\\uDF43\\uDF50-\\uDF59\\uDF63-\\uDF77\\uDF7D-\\uDF8F]|\\uD81B[\\uDF00-\\uDF44\\uDF50-\\uDF7E\\uDF8F-\\uDF9F]|\\uD82C[\\uDC00\\uDC01]|\\uD82F[\\uDC00-\\uDC6A\\uDC70-\\uDC7C\\uDC80-\\uDC88\\uDC90-\\uDC99\\uDC9D\\uDC9E]|\\uD834[\\uDD65-\\uDD69\\uDD6D-\\uDD72\\uDD7B-\\uDD82\\uDD85-\\uDD8B\\uDDAA-\\uDDAD\\uDE42-\\uDE44]|\\uD835[\\uDC00-\\uDC54\\uDC56-\\uDC9C\\uDC9E\\uDC9F\\uDCA2\\uDCA5\\uDCA6\\uDCA9-\\uDCAC\\uDCAE-\\uDCB9\\uDCBB\\uDCBD-\\uDCC3\\uDCC5-\\uDD05\\uDD07-\\uDD0A\\uDD0D-\\uDD14\\uDD16-\\uDD1C\\uDD1E-\\uDD39\\uDD3B-\\uDD3E\\uDD40-\\uDD44\\uDD46\\uDD4A-\\uDD50\\uDD52-\\uDEA5\\uDEA8-\\uDEC0\\uDEC2-\\uDEDA\\uDEDC-\\uDEFA\\uDEFC-\\uDF14\\uDF16-\\uDF34\\uDF36-\\uDF4E\\uDF50-\\uDF6E\\uDF70-\\uDF88\\uDF8A-\\uDFA8\\uDFAA-\\uDFC2\\uDFC4-\\uDFCB\\uDFCE-\\uDFFF]|\\uD836[\\uDE00-\\uDE36\\uDE3B-\\uDE6C\\uDE75\\uDE84\\uDE9B-\\uDE9F\\uDEA1-\\uDEAF]|\\uD83A[\\uDC00-\\uDCC4\\uDCD0-\\uDCD6]|\\uD83B[\\uDE00-\\uDE03\\uDE05-\\uDE1F\\uDE21\\uDE22\\uDE24\\uDE27\\uDE29-\\uDE32\\uDE34-\\uDE37\\uDE39\\uDE3B\\uDE42\\uDE47\\uDE49\\uDE4B\\uDE4D-\\uDE4F\\uDE51\\uDE52\\uDE54\\uDE57\\uDE59\\uDE5B\\uDE5D\\uDE5F\\uDE61\\uDE62\\uDE64\\uDE67-\\uDE6A\\uDE6C-\\uDE72\\uDE74-\\uDE77\\uDE79-\\uDE7C\\uDE7E\\uDE80-\\uDE89\\uDE8B-\\uDE9B\\uDEA1-\\uDEA3\\uDEA5-\\uDEA9\\uDEAB-\\uDEBB]|\\uD869[\\uDC00-\\uDED6\\uDF00-\\uDFFF]|\\uD86D[\\uDC00-\\uDF34\\uDF40-\\uDFFF]|\\uD86E[\\uDC00-\\uDC1D\\uDC20-\\uDFFF]|\\uD873[\\uDC00-\\uDEA1]|\\uD87E[\\uDC00-\\uDE1D]|\\uDB40[\\uDD00-\\uDDEF]	
+%(\\d)	g
+\\\\u\\{([0-9a-fA-F]+)\\}|\\\\u([a-fA-F0-9]{4})	g
+^[\\w+/_-]+[=]{0,2}$	
+^[a-zA-Z_$][a-zA-Z0-9._$]*$	
+&lt;	g
+&gt;	g
+&apos;	g
+&quot;	g
+&amp;	g
+\\{\\$([^}]+)}	g
+Edge\\/(\\d+)(\\.\\d)*	i
+<\\/(SCRIPT)	ig
+\\bdeps.js$	
+#(.)(.)(.)(.)	
+^#(?:[0-9a-f]{4}){1,2}$	i
+^#[0-9a-f]{8}$	
+(0|[1-9]\\d{0,2})	
+(0|1|0\\.\\d{1,10}|1\\.0{1,10})	
+#(.)(.)(.)	
+^#(?:[0-9a-f]{3}){1,2}$	i
+^(?:rgb)?\\((0|[1-9]\\d{0,2}),\\s?(0|[1-9]\\d{0,2}),\\s?(0|[1-9]\\d{0,2})\\)$	i
+\\s*-closure-parent-stylesheet:\\s*\\[object\\];?\\s*	gi
+\\s*-closure-rule-index:\\s*[\\d]+;?\\s*	gi
+^([^\\{]+)\\{([^\\{]+)\\}	
+([^\\/\\?]+)[^\\/]*$	
+a(:(link|visited|active|hover))?	
+([^\\{]+)\\{	
+\\}[^\\}]*$	g
+,\\s*	gm
+(^|;|{)\\s*color:([^;]+);	g
+[#\\.]	
+(?=[#\\.])	
+^(-?)([0-9]+)([a-z]*|%)	
+^(\\d{2})(?::?(\\d{2})(?::?(\\d{2})(\\.\\d+)?)?)?$	
+Z|(?:([-+])(\\d{2})(?::?(\\d{2}))?)$	
+[0-9\\u0660-\\u0669\\u06f0-\\u06f9]	g
+function\\s+([^\\(]+)	m
+\\f	g
+\\r	g
+\\t	g
+[\\s\\-\\.,]	g
+[;=\\s]	g
+\\s*,\\s*	
+^https?:\\/\\/	i
+\\W	
+\\S+	g
+-[a-z]	
+ \\xAD 	g
+\\xAD	g
+\\u200B	g
+ +	g
+^\\s*	
+(\\r\\n|\\r|\\n)	g
+^image\\/.*	g
+<span\\s+id="?goog_\\d+"?><\\/span>	ig
+^\\s*<td\\b	i
+^\\s*<tr\\b	i
+^\\s*<tbody\\b	i
+^\\s*<li\\b	i
+^\\s*<script	i
+:	
+^[^:\\/?#.]+:	
+[^\\w\\d\\-\\u0100-\\uffff.%]	
+<(\\/?)strong([^\\w])	gi
+<(\\/?)em([^\\w])	gi
+<br([^\\/>]*)\\/?>	gi
+<br([^\\/>]*)\\/?>(?!<\\/(div|p)>)	gi
+<(\\/?)p	gi
+insert(un)?orderedlist	i
+^-(moz|webkit)-	
+^(DIV|TR|LI|BLOCKQUOTE|H\\d|PRE|XMP)	
+&nbsp;	g
+\\r\\n	g
+^[\\t\\n\\r]|[\\t\\n\\r]$	g
+^[ \\t\\r\\n]+	
+[ \\t\\r\\n]+$	
+\\\\"	g
+\\\\\\\\	g
+^(-?\\d+\\.?\\d*)([KMGTPEZYkmun]?)B?$	
+(?:<!--.*?-->|<!.*?>|<(\\/?)(\\w+)[^<>]*>|[^<]+|<)	g
+^\\s*?( *\\S)	
+\\s+$	
+^\\r?\\n	
+\\/ul	i
+\\r?\\n$	
+\\\\.	g
+(::[^\\s\\+>~\\.\\[:]+|:first-line|:first-letter|:before|:after)	gi
+(:[\\w-]+\\([^\\)]*\\))	gi
+(:[^\\s\\+>~\\.\\[:]+)	g
+[\\*\\s\\+>~]	g
+[#\\.]	g
+([^\\s\\+>~\\.\\[:]+)	g
+^[a-zA-Z0-9-]+$	
+^on	i
+^[-_a-zA-Z0-9]+$	
+[\\\\"]	g
+[{;}]	
+^[-_a-zA-Z0-9]$	
+^(['"])(.*)\\1$	
+('|")((?!\\1)[^\\r\\n\\f\\\\]|\\\\[\\s\\S])*\\1	g
+^[-_a-zA-Z0-9#.:* ,>+~[\\]()=\\\\^$|]+$	
+^data:(.*);base64,[a-z0-9+\\/]+=*$	i
+(%0A|%0D)	g
+[?&]body=	gi
+[?&]body=([^&]*)	
+^(?:[a-z0-9\\-_.~]|%[0-9a-f]{2})+$	i
+^chrome-extension:\\/\\/([^\\/]+)\\/	
+^moz-extension:\\/\\/([^\\/]+)\\/	
+^ms-browser-extension:\\/\\/([^\\/]+)\\/	
+^(?:(?:https?|mailto|ftp):|[^:/?#]*(?:[/?#]|$))	i
+^data:	i
+[\\n\\f\\r"'()*<>]	g
+"|'	
+([\\-\\w]+)\\(	g
+^-(?:apple|css|epub|khtml|moz|mso?|o|rim|wap|webkit|xv)-(?=[a-z])	i
+[a-zA-Z][\\w-:\\.]*	
+\\\\['"]	
+^[a-zA-Z][\\w-:\\.]*$	
+(?:\\s+)	
+%{(\\w+)}	g
+^([^?#]*)(\\?[^#]*)?(#[\\s\\S]*)?	
+[\\t\\n ]+	g
+^(?:abbr|acronym|address|b|em|i|small|strong|su[bp]|u)$	i
+<[!\\/]?([a-z0-9]+)([\\/ ][^>]*)?>	gi
+<[^>]*>|&[^;]+;	g
+^http:\\/\\/.*	
+(\\(.*?\\)+)|(\\[.*?\\]+)|(\\{.*?\\}+)|(<.*?>+)	g
+<\\w+	
+:\\s*([.\\d][.\\w]*)\\s+([.\\d][.\\w]*)\\s+([.\\d][.\\w]*)\\s+([.\\d][.\\w]*)	g
+left	gi
+right	gi
+%%%%	g
+([\\u0591-\\u05f2])"	g
+([\\u0591-\\u05f2])'	g
+[\\d\\u06f0-\\u06f9]	
+0.00	g
+[a-zA-Z]	
+^'(?:[^']|'')*('|$)	
+^(?:G+|y+|Y+|M+|k+|S+|E+|a+|b+|B+|h+|K+|H+|c+|L+|Q+|d+|m+|s+|v+|V+|w+|z+|Z+)	
+^[^'GyYMkSEabBhKHcLQdmsvVwzZ]+	
+\\u200f	g
+''	g
+[^EMd]*yy*[^EMd]*	
+^[ \\t\\xA0\\u1680\\u180e\\u2000-\\u200a\\u202f\\u205f\\u3000]	
+^[\\s\\xA0\\u1680\\u180e\\u2000-\\u200a\\u202f\\u205f\\u3000]+	
+#	g
+^\\s*(\\w+)\\s*,\\s*plural\\s*,(?:\\s*offset:(\\d+))?	
+^\\s*(\\w+)\\s*,\\s*selectordinal\\s*,	
+^\\s*(\\w+)\\s*,\\s*select\\s*,	
+^\\s*\\w+\\s*	
+\\s	g
+\\{\\$([^}]+)}	
+\\{([a-z_]\\w*)}	ig
+[\\uD800-\\uDBFF][\\uDC00-\\uDFFF]|[^!-<>@-^`-~]	g
+[\\uD800-\\uDBFF][\\uDC00-\\uDFFF]|[^!#-<>@-^`-~]	g
+ |\\u202f	g
+\\u202f	g
+([^0]*)(0+)(.*)	
+\\\\["\\\\\\/bfnrtu]	g
+(?:"[^"\\\\\\n\\r\\u2028\\u2029\\x00-\\x08\\x0a-\\x1f]*"|true|false|null|-?\\d+(?:\\.\\d*)?(?:[eE][+\\-]?\\d+)?)[\\s\\u2028\\u2029]*(?=:|,|]|}|$)	g
+(?:^|:|,)(?:[\\s\\u2028\\u2029]*\\[)+	g
+^[\\],:{}\\s\\u2028\\u2029]*$	
+\\uffff	
+[\\\\"\\x00-\\x1f\\x7f-\\uffff]	g
+[\\\\"\\x00-\\x1f\\x7f-\\xff]	g
+[\\r\\n]+	g
+"closure_uid_\\d+"	g
+{ 	g
+\\/\\/([^\\/]+)\\/	
+rv: *([\\d\\.]*)	
+MSIE +([\\d\\.]+)	
+Trident\\/(\\d.\\d)	
+Trident\\/([^\\s;]+)	
+Windows (?:NT|Phone) ([0-9.]+)	
+(?:iPhone|iPod|iPad|CPU)\\s+OS\\s+(\\S+)	
+Mac OS X ([0-9_.]+)	
+(?:KaiOS)\\/(\\S+)	i
+Android\\s+([^\\);]+)(\\)|;)	
+(?:CrOS\\s+(?:i686|x86_64)\\s+([0-9.]+))	
+Trident	
+MSIE	
+^\\w{2,3}([-_]|$)	
+[_-]	g
+[-_]([a-zA-Z]{2}|\\d{3})([-_]|$)	
+[-_]	g
+^[a-zA-Z]{4}$	
+[-_]([a-z]{2,})	
+^([^:]*):(.*)	
+[;=\\s]	
+[;\\r\\n]	
+[\\/\\\\<>:?*"|%`]	g
+%	g
+^attachment *; *filename="(.*)"$	i
+\\\\(.)	g
+^[0-9.]*$	
+^([a-fA-F0-9]*:){2}[a-fA-F0-9:.]*$	
+^https?$	i
+^https?:\\/\\/	
+[%:|]	g
+%[0-9a-f]{2}	gi
+\\-	g
+^-?[0-9]+$	
+---end---	
+^-?[a-zA-Z][a-zA-Z0-9_]*	
+^(0x[0-9a-f]+)|(([-])?[0-9][0-9]*(\\.?[0-9]+)?(e[+-]?[0-9]+|[f])?)	
+^#.*	
+^{	
+^}	
+^<	
+^>	
+^\\[	
+^\\]	
+^,	
+^;	
+^\\s	
+^-?inf(?:inity)?f?$	i
+^nanf?$	i
+[@{]|^\\s*$	
+{	
+^<(body|caption|col|colgroup|head|html|tr|td|th|tbody|thead|tfoot)>	i
+DIV	g
+[.!~*'()%]	g
+\\.	g
+^[\\s\\xa0]*$	
+^[\\s\\xa0]*([\\s\\S]*?)[\\s\\xa0]*$	
+\\x00	g
+[\\x00&<>"']	
+  	g
+(\\d*)(\\D*)(.*)	
+(^|[\\n\\r\\t ]) 	g
+(\\t+)	g
+^\\/+$	
+\\/+$	
+\\.+	g
+[\\s\\xa0]+	g
+^\\s+|\\s+$	g
+[^\\t\\n\\r ]	
+[^a-zA-Z]	
+[^0-9]	
+[^a-zA-Z0-9]	
+(\\r\\n|\\r|\\n)+	g
+\\xa0|\\s	g
+\\xa0|[ \\t]+	g
+[\\t\\r\\n ]+	g
+^[\\t\\r\\n ]+|[\\t\\r\\n ]+$	g
+^[\\s\\xa0]+	
+[\\s\\xa0]+$	
+\\d+|\\D+	g
+\\d+|\\.\\d+|\\D+	g
+e	g
+&([^;\\s<&]+);?	g
+(^|[\\n ]) 	g
+([-()\\[\\]{}+?*.$\\^|,:#<!\\\\])	g
+\\x08	g
+^[a-z]+([A-Z][a-z]*)*$	
+^([A-Z][a-z]*)+$	
+\\-([a-z])	g
+^\\s*-?0x	i
+%([0\\- \\+]*)(\\d+)?(\\.(\\d+))?([%sfdiu])	g
+alpha\\(opacity=([\\d.]+)\\)	
+^\\d+px?$	
+[^\\d]+$	
+\\s*([\\w-]+)\\s*:(.+)	
+function\\s*([^( ]+)\\(	
+^[1-9][0-9]*$	
+(?:\\?|&)times=([^?&]+)	i
+^\\[\\[(.+)\\]\\]	
+^(\\[\\[.+\\]\\])?([\\s\\S]*)	
+\\.html$	
+_(\\d+)of(\\d+)_test\\.(js|html)	
+\\s*$	
+\\s*(\\bat\\b)?\\s*(goog\\.labs\\.testing\\.EnvironmentTestCase_\\.)?goog\\.testing\\.(Continuation_\\.(prototype\\.)?run|TestCase\\.(prototype\\.)?(execute|cycleTests|startNextBatch_|safeRunTest_|invokeFunction_?))	
+%2C	g
+.*\\/	
+\\.html.*$	
+PASSED	
+SKIPPED	
+FAILED	
+ERROR	
+NO TESTS RUN	
+\\S+\\s+(test.*)\\s+: (FAILED|ERROR|PASSED)	
+runTests=([^&]*)	
+[^A-Za-z0-9._]	
+%20	g
+.+(?=\\.)	
+^\\W	
+^file:\\/\\/\\/	
+flickr(.*)spaceball.gif$	
+^\\S+:\\/\\/\\S*$	
+_	
+\\bnofollow\\b	i
+^(.+),[ ]*([^,]*)$	
+^#?[0-9a-f]{8}$	i
+^#?[0-9a-f]{6}$	i
+[ +]*\\+[ +]*	g
+[ ]+	g
+:$	
+%25	g
+%25([0-9a-fA-F]{2})	g
+[#\\/\\?@]	g
+[#\\?:]	g
+[#\\?]	g
+[#\\?@]	g
+#|$	
+[?&]($|#)	
+[!()~']|(%20)	g
+\\d	g
+Windows NT ([0-9.]+)	
+1[0|1][_.][0-9_.]+	
+(?:iPhone|CPU)\\s+OS\\s+(\\S+)	
+Firefox\\/([0-9.]+)	
+CriOS\\/([0-9.]+)	
+Chrome\\/([0-9.]+)	
+Version\\/([0-9.]+)	
+Version\\/(\\S+).*Mobile\\/(\\S+)	
+Android\\s+([0-9.]+)	
+rv:([^\\);]+)(\\)|;)	
+Edge\\/([\\d\\.]+)	
+\\b(?:MSIE|rv)[: ]([^\\);]+)(\\)|;)	
+WebKit\\/(\\S+)	
+(?:Version)[ \\/]?(\\S+)	
+^[^\\n]*\\n	
+^[^\\n]+(\\n   [^\\n]+)+	
+^\\.|this\\b	
+[\\x00-\\x1f\\\\"\\u2028\\u2029<\\ud800-\\udfff]	
+<(?=!--|\\/?script)	gi
+\\u2028	g
+\\u2029	g
+[\\ud800-\\udfff]	g
+^(\\.?\\.\\/)*	g
+^this(?:\\.|$)	
+^\\.\\/	
+^\\.$	
+^\\[.*\\]$	
+^\\{\\{~?!-?-?	
+-?-?~?\\}\\}$	
+\\*	
+^[a-zA-Z_$][0-9a-zA-Z_$]*$	
+(?:\\r\\n?|\\n).*	g
+(?:\\r\\n?|\\n)	g
+\\r?\\n?	
+\\\\'	g
+\\\\([\\\\\\]])	g
+^(?:[^\\x00]*?(?=(\\{\\{)))	
+^(?:[^\\x00]+)	
+^(?:[^\\x00]{2,}?(?=(\\{\\{|\\\\\\{\\{|\\\\\\\\\\{\\{|$)))	
+^(?:\\{\\{\\{\\{(?=[^\\/]))	
+^(?:\\{\\{\\{\\{\\/[^\\s!"#%-,\\.\\/;->@\\[-\\^`\\{-~]+(?=[=}\\s\\/.])\\}\\}\\}\\})	
+^(?:[^\\x00]+?(?=(\\{\\{\\{\\{)))	
+^(?:[\\s\\S]*?--(~)?\\}\\})	
+^(?:\\()	
+^(?:\\))	
+^(?:\\{\\{\\{\\{)	
+^(?:\\}\\}\\}\\})	
+^(?:\\{\\{(~)?>)	
+^(?:\\{\\{(~)?#>)	
+^(?:\\{\\{(~)?#\\*?)	
+^(?:\\{\\{(~)?\\/)	
+^(?:\\{\\{(~)?\\^\\s*(~)?\\}\\})	
+^(?:\\{\\{(~)?\\s*else\\s*(~)?\\}\\})	
+^(?:\\{\\{(~)?\\^)	
+^(?:\\{\\{(~)?\\s*else\\b)	
+^(?:\\{\\{(~)?\\{)	
+^(?:\\{\\{(~)?&)	
+^(?:\\{\\{(~)?!--)	
+^(?:\\{\\{(~)?![\\s\\S]*?\\}\\})	
+^(?:\\{\\{(~)?\\*?)	
+^(?:=)	
+^(?:\\.\\.)	
+^(?:\\.(?=([=~}\\s\\/.)|])))	
+^(?:[\\/.])	
+^(?:\\s+)	
+^(?:\\}(~)?\\}\\})	
+^(?:(~)?\\}\\})	
+^(?:"(\\\\["]|[^"])*")	
+^(?:'(\\\\[']|[^'])*')	
+^(?:@)	
+^(?:true(?=([~}\\s)])))	
+^(?:false(?=([~}\\s)])))	
+^(?:undefined(?=([~}\\s)])))	
+^(?:null(?=([~}\\s)])))	
+^(?:-?[0-9]+(?:\\.[0-9]+)?(?=([~}\\s)])))	
+^(?:as\\s+\\|)	
+^(?:\\|)	
+^(?:([^\\s!"#%-,\\.\\/;->@\\[-\\^`\\{-~]+(?=([=~}\\s\\/.)|]))))	
+^(?:\\[(\\\\\\]|[^\\]])*\\])	
+^(?:.)	
+^(?:$)	
+(?:^|[^ \\t])([ \\t]+)$	
+(?:^|\\S)[^\\S\\n]*\\n\\s*$	
+^\\s*$|(?:^|\\S)[^\\S\\n]*\\n\\s*$	
+^\\s*?\\r?\\n	
+^\\s*?(\\r?\\n|$)	
+^\\s+	
+^[ \\t]*\\r?\\n?	
+(^|\\S)\\s+$	
+(^|[^ \\t])[ \\t]+$	
+[&<>"'`=]	g
+[&<>"'`=]	
+x	
+[\\\\^$*+?.():=!|{}\\-[\\]]	g
+^[A-Za-z_$][A-Za-z0-9_$]*(\\.[A-Za-z_$][A-Za-z0-9_$]*)*$	
+[\\r\\n\\u2028\\u2029]	g
+HTML$	i
+\\D	g
+([\\0-\\x1f\\x7f]|^-?\\d)|^-$|[^\\x80-\\uFFFF\\w-]	g
+^(?:input|select|textarea|button)$	i
+^h\\d$	i
+^(?:#([\\w-]+)|(\\w+)|\\.([\\w-]+))$	
+[+~]	
+^<([a-z][^\\/\\0>:\\x20\\t\\r\\n\\f]*)[\\x20\\t\\r\\n\\f]*\\/?>(?:<\\/\\1>|)$	i
+^(?:\\s*(<[\\w\\W]+>)[^>]*|#([\\w-]+))$	
+^(?:parents|prev(?:Until|All))	
+[^\\x20\\t\\r\\n\\f]+	g
+^(Eval|Internal|Range|Reference|Syntax|Type|URI)Error$	
+^-ms-	
+-([a-z])	g
+^(?:\\{[\\w\\W]*\\}|\\[[\\w\\W]*\\])$	
+[A-Z]	g
+[+-]?(?:\\d*\\.|)\\d+(?:[eE][+-]?\\d+|)	
+^(?:checkbox|radio)$	i
+<([a-z][^\\/\\0>\\x20\\t\\r\\n\\f]*)	i
+^$|^module$|\\/(?:java|ecma)script	i
+<|&#?\\w+;	
+^([^.]*)(?:\\.(.+)|)	
+<script|<style|<link	i
+checked\\s*(?:[^=]|=\\s*.checked.)	i
+^\\s*<!\\[CDATA\\[|\\]\\]>\\s*$	g
+^--	
+^(none|table(?!-c[ea]).+)	
+^(?:toggle|show|hide)$	
+queueHooks$	
+\\w+	g
+^(?:a|area)$	i
+\\?	
+^(?:focusinfocus|focusoutblur)$	
+\\[\\]$	
+^(?:submit|button|image|reset|file)$	i
+^(?:input|select|textarea|keygen)	i
+#.*$	
+([?&])_=[^&]*	
+^(.*?):[ \\t]*([^\\r\\n]*)$	mg
+^(?:about|app|app-storage|.+-extension|file|res|widget):$	
+^(?:GET|HEAD)$	
+\\bxml\\b	
+\\bhtml	
+\\bjson\\b	
+\\b(?:java|ecma)script\\b	
+(=)\\?(?=&|$)|\\?\\?	
+^[\\s\\uFEFF\\xA0]+|([^\\s\\uFEFF\\xA0])[\\s\\uFEFF\\xA0]+$	g
+^(.*?):[ \\t]*([^\\r\\n]*)$	gm
+^[\\x20\\t\\r\\n\\f]*[>+~]	
+[^\\x00-\\x2f\\x3a-\\x40\\x5b-\\x60\\x7b-\\x7f]+	g
+[\\\\^$.*+?()[\\]{}|]	g
+^\\[object .+?Constructor\\]$	
+hasOwnProperty|(function).*?(?=\\\\\\()| for .+?(?=\\\\\\])	g
+\\w*$	
+\\{\\n\\/\\* \\[wrapped with (.+)\\] \\*	
+,? & 	
+[a-z][A-Z]|[A-Z]{2}[a-z]|[0-9][a-zA-Z]|[a-zA-Z][0-9]|[^a-zA-Z0-9 ]	
+\\{(?:\\n\\/\\* \\[wrapped with .+\\] \\*\\/)?\\n?	
+^(?:0|[1-9]\\d*)$	
+\\.|\\[(?:[^[\\]]*|(["'])(?:(?!\\1)[^\\\\]|\\\\.)*?\\1)\\]	
+^\\w*$	
+[^.]+$	
+<%-([\\s\\S]+?)%>	g
+<%([\\s\\S]+?)%>	g
+<%=([\\s\\S]+?)%>	g
+[^.[\\]]+|\\[(?:(-?\\d+(?:\\.\\d+)?)|(["'])((?:(?!\\2)[^\\\\]|\\\\.)*?)\\2)\\]|(?=(?:\\.|\\[\\])(?:\\.|\\[\\]|$))	g
+\\\\(\\\\)?	g
+[&<>"']	g
+^(?:replace|split)$	
+^(?:push|sort|unshift)$	
+^(?:pop|join|replace|shift)$	
+[\\xc0-\\xd6\\xd8-\\xf6\\xf8-\\xff\\u0100-\\u017f]	g
+\\b__p \\+= '';	g
+\\b(__p \\+=) '' \\+	g
+(__e\\(.*?\\)|\\b__t\\)) \\+\\n'';	g
+&(?:amp|lt|gt|quot|#39);	g
+[()=,{}\\[\\]\\/\\s]	
+\\$\\{([^\\\\}]*(?:\\\\.[^\\\\}]*)*)\\}	g
+^[-+]0x[0-9a-f]+$	i
+^0b[01]+$	i
+^0o[0-7]+$	i
+($^)	
+['\\n\\r\\u2028\\u2029\\\\]	g
+^(?:filter|find|map|reject)|While$	
+^(?:head|last)$	
+^find	
+^(?:pop|shift)$	
+^--(no-)?	
+^~	
+(\\w)-(\\w)	g
+^(?: {1,4}| {0,3}\\t)	gm
+\\\\([\\[\\]])	g
+^(\\s+)(?:```)	
+#$	
+^ 	
+ $	
+[^ ]	
+^[ \\t]*$	
+\\n[ \\t]*\\n[ \\t]*$	
+^ {0,3}>	
+\\n {0,3}((?:=+|-+) *)(?=\\n|$)	g
+^ {0,3}>[ \\t]?	gm
+^ {1,4}(?=( {4})*[^ ])	g
+^\\[[ xX]\\] 	
+^\\[[ xX]\\] +	
+\\n.*\\n	
+^<(.*)>$	
+[:|]	
+^\\||\\| *$	g
+\\n[ \\t]*$	
+^ *-+: *$	
+^ *:-+: *$	
+^ *:-+ *$	
+^<a 	i
+^<\\/a>	i
+^<(pre|code|kbd|script)(\\s|>)	i
+^<\\/(pre|code|kbd|script)(\\s|>)	i
+>$	
+^([^'"]*[^\\s])\\s+(['"])(.*)\\2	
+[\\p{L}\\p{N}]	u
+[&<>"']	
+[<>"']|&(?!(#\\d{1,7}|#[Xx][a-fA-F0-9]{1,6}|\\w+);)	
+[<>"']|&(?!(#\\d{1,7}|#[Xx][a-fA-F0-9]{1,6}|\\w+);)	g
+&(#(?:\\d+)|(?:#x[0-9A-Fa-f]+)|(?:\\w+));?	ig
+(^|[^\\[])\\^	g
+\\|	g
+ \\|	
+\\\\\\|	g
+\\r\\n|\\r	g
+^ +$	gm
+^\\S*	
+\\n$	
+^(?:[ \\t]*(?:\\n|$))+	
+^((?: {4}| {0,3}\\t)[^\\n]+(?:\\n(?:[ \\t]*(?:\\n|$))*)?)+	
+^ {0,3}(`{3,}(?=[^`\\n]*(?:\\n|$))|~{3,})([^\\n]*)(?:\\n|$)(?:|([\\s\\S]*?)(?:\\n|$))(?: {0,3}\\1[~`]* *(?=\\n|$)|$)	
+^ {0,3}((?:-[\\t ]*){3,}|(?:_[ \\t]*){3,}|(?:\\*[ \\t]*){3,})(?:\\n+|$)	
+^ {0,3}(#{1,6})(?=\\s|$)(.*)(?:\\n+|$)	
+(?:[*+-]|\\d{1,9}[.)])	
+^(?!bull |blockCode|fences|blockquote|heading|html|table)((?:.|\\n(?!\\s*?\\n|bull |blockCode|fences|blockquote|heading|html|table))+?)\\n {0,3}(=+|-+) *(?:\\n+|$)	
+bull	g
+blockCode	g
+(?: {4}| {0,3}\\t)	
+fences	g
+ {0,3}(?:`{3,}|~{3,})	
+blockquote	g
+ {0,3}>	
+heading	g
+ {0,3}#{1,6}	
+html	g
+ {0,3}<[^\\n>]+>\\n	
+\\|table	g
+table	g
+ {0,3}\\|?(?:[:\\- ]*\\|)+[:\\- ]*\\n	
+^([^\\n]+(?:\\n(?!hr|heading|lheading|blockquote|fences|list|html|table| +\\n)[^\\n]+)*)	
+^[^\\n]+	
+(?!\\s*\\])(?:\\\\.|[^\\[\\]\\\\])+	
+^ {0,3}\\[(label)\\]: *(?:\\n[ \\t]*)?([^<\\s][^\\s]*|<.*?>)(?:(?: +(?:\\n[ \\t]*)?| *\\n[ \\t]*)(title))? *(?:\\n+|$)	
+(?:"(?:\\\\"?|[^"\\\\])*"|'[^'\\n]*(?:\\n[^'\\n]+)*\\n?'|\\([^()]*\\))	
+^( {0,3}bull)([ \\t][^\\n]+?)?(?:\\n|$)	
+<!--(?:-?>|[\\s\\S]*?(?:-->|$))	
+ +[a-zA-Z:_][\\w.:-]*(?: *= *"[^"\\n]*"| *= *'[^'\\n]*'| *= *[^\\s"'=<>`]+)?	
+^( {0,3}> ?(paragraph|[^\\n]*)(?:\\n|$))+	
+tag	g
+^ *\\[([^\\]]+)\\]: *<?([^\\s>]+)>?(?: +(["(][^\\n]+[")]))? *(?:\\n+|$)	
+^(#{1,6})(.*)(?:\\n+|$)	
+^(.+?)\\n {0,3}(=+|-+) *(?:\\n+|$)	
+^\\\\([!"#$%&'()*+,\\-./:;<=>?@\\[\\]\\\\^_`{|}~])	
+^(`+)([^`]|[^`][\\s\\S]*?[^`])\\1(?!`)	
+^( {2,}|\\\\)\\n(?!\\s*$)	
+^(`+|[^`])(?:(?= {2,}\\n)|[\\s\\S]*?(?:(?=[\\\\<!\\[`*_]|\\b_|$)|[^ ](?= {2,}\\n)))	
+[\\p{P}\\p{S}]	u
+[\\s\\p{P}\\p{S}]	u
+[^\\s\\p{P}\\p{S}]	u
+^((?![*_])punctSpace)	
+punctSpace	g
+(?!~)[\\p{P}\\p{S}]	u
+(?!~)[\\s\\p{P}\\p{S}]	u
+(?:[^\\s\\p{P}\\p{S}]|~)	u
+\\[[^[\\]]*?\\]\\((?:\\\\.|[^\\\\\\(\\)]|\\((?:\\\\.|[^\\\\\\(\\)])*\\))*\\)|`[^`]*?`|<[^<>]*?>	g
+^(?:\\*+(?:((?!\\*)punct)|[^\\s*]))|^_+(?:((?!_)punct)|([^\\s_]))	
+punct	g
+notPunctSpace	g
+\\\\(punct)	
+^<(scheme:[^\\s\\x00-\\x1f<>]*|email)>	
+[a-zA-Z][a-zA-Z0-9+.-]{1,31}	
+[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+(@)[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+(?![-_])	
+\\s+[a-zA-Z:_][\\w.:-]*(?:\\s*=\\s*"[^"]*"|\\s*=\\s*'[^']*'|\\s*=\\s*[^\\s"'=<>`]+)?	
+(?:\\[(?:\\\\.|[^\\[\\]\\\\])*\\]|\\\\.|`[^`]*`|[^\\[\\]\\\\`])*?	
+^!?\\[(label)\\]\\(\\s*(href)(?:(?:[ \\t]*(?:\\n[ \\t]*)?)(title))?\\s*\\)	
+<(?:\\\\.|[^\\n<>\\\\])+>|[^ \\t\\n\\x00-\\x1f]*	
+"(?:\\\\"?|[^"\\\\])*"|'(?:\\\\'?|[^'\\\\])*'|\\((?:\\\\\\)?|[^)\\\\])*\\)	
+^!?\\[(label)\\]\\[(ref)\\]	
+^!?\\[(ref)\\](?:\\[\\])?	
+^!?\\[(label)\\]\\((.*?)\\)	
+^!?\\[(label)\\]\\s*\\[([^\\]]*)\\]	
+^((?:ftp|https?):\\/\\/|www\\.)(?:[a-zA-Z0-9\\-]+\\.?)+[^\\s<]*|^email	
+[A-Za-z0-9._+-]+(@)[a-zA-Z0-9-_]+(?:\\.[a-zA-Z0-9-_]*[a-zA-Z0-9])+(?![-_])	
+(?:[^?!.,:;*_'"~()&]+|\\([^)]*\\)|&(?![a-zA-Z0-9]+;$)|[?!.,:;*_'"~)]+(?!$))+	
+^(~~?)(?=[^\\s~])((?:\\\\.|[^\\\\])*?(?:\\\\.|[^\\s~\\\\]))\\1(?=[^~]|$)	
+^([`~]+|[^`~])(?:(?= {2,}\\n)|(?=[a-zA-Z0-9.!#$%&'*+\\/=?_`{\\|}~-]+@)|[\\s\\S]*?(?:(?=[\\\\<!\\[`*~_]|\\b_|https?:\\/\\/|ftp:\\/\\/|www\\.|$)|[^ ](?= {2,}\\n)|[^a-zA-Z0-9.!#$%&'*+\\/=?_`{\\|}~-](?=[a-zA-Z0-9.!#$%&'*+\\/=?_`{\\|}~-]+@)))	
+\\{2,\\}	g
+vm|nm	i
+^nm$	i
+\\d{1,2}(ste|de)	
+\u1325\u12cb\u1275|\u12a8\u1230\u12d3\u1275	
+\\d{1,2}(\u129b)	
+%d	i
+\u0635|\u0645	
+\u060c	g
+[\u0663\u0664\u0665\u0666\u0667\u0668\u0669\u0660]	g
+[\u0661\u0662](?![\\u062a\\u0643])	g
+[\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669\u0660]	g
+gec\u0259|s\u0259h\u0259r|g\u00fcnd\u00fcz|ax\u015fam	
+^(g\u00fcnd\u00fcz|ax\u015fam)$	
+\\d{1,2}-(\u0131nc\u0131|inci|nci|\u00fcnc\u00fc|nc\u0131|uncu)	
+\\[ ?[\u0423\u0443\u045e] ?(?:\u043c\u0456\u043d\u0443\u043b\u0443\u044e|\u043d\u0430\u0441\u0442\u0443\u043f\u043d\u0443\u044e)? ?\\] ?dddd	
+\u043d\u043e\u0447\u044b|\u0440\u0430\u043d\u0456\u0446\u044b|\u0434\u043d\u044f|\u0432\u0435\u0447\u0430\u0440\u0430	
+^(\u0434\u043d\u044f|\u0432\u0435\u0447\u0430\u0440\u0430)$	
+\\d{1,2}-(\u0456|\u044b|\u0433\u0430)	
+\\d{1,2}-(\u0435\u0432|\u0435\u043d|\u0442\u0438|\u0432\u0438|\u0440\u0438|\u043c\u0438)	
+[\u09e7\u09e8\u09e9\u09ea\u09eb\u09ec\u09ed\u09ee\u09ef\u09e6]	g
+\u09b0\u09be\u09a4|\u09ad\u09cb\u09b0|\u09b8\u0995\u09be\u09b2|\u09a6\u09c1\u09aa\u09c1\u09b0|\u09ac\u09bf\u0995\u09be\u09b2|\u09b8\u09a8\u09cd\u09a7\u09cd\u09af\u09be|\u09b0\u09be\u09a4	
+\u09b0\u09be\u09a4|\u09b8\u0995\u09be\u09b2|\u09a6\u09c1\u09aa\u09c1\u09b0|\u09ac\u09bf\u0995\u09be\u09b2|\u09b0\u09be\u09a4	
+^(\u0f5f\u0fb3\u0f0b\\d{1,2})	
+[\u0f21\u0f22\u0f23\u0f24\u0f25\u0f26\u0f27\u0f28\u0f29\u0f20]	g
+\u0f58\u0f5a\u0f53\u0f0b\u0f58\u0f7c|\u0f5e\u0f7c\u0f42\u0f66\u0f0b\u0f40\u0f66|\u0f49\u0f72\u0f53\u0f0b\u0f42\u0f74\u0f44|\u0f51\u0f42\u0f7c\u0f44\u0f0b\u0f51\u0f42|\u0f58\u0f5a\u0f53\u0f0b\u0f58\u0f7c	
+^gen	i
+^c[\u02bc']hwe	i
+^meu	i
+^ebr	i
+^mae	i
+^(mez|eve)	i
+^gou	i
+^eos	i
+^gwe	i
+^her	i
+^du	i
+^ker	i
+^(genver|c[\u02bc']hwevrer|meurzh|ebrel|mae|mezheven|gouere|eost|gwengolo|here|du|kerzu|gen|c[\u02bc']hwe|meu|ebr|mae|eve|gou|eos|gwe|her|du|ker)	i
+^(genver|c[\u02bc']hwevrer|meurzh|ebrel|mae|mezheven|gouere|eost|gwengolo|here|du|kerzu)	i
+^(gen|c[\u02bc']hwe|meu|ebr|mae|eve|gou|eos|gwe|her|du|ker)	i
+^sul	i
+^lun	i
+^meurzh	i
+^merc[\u02bc']her	i
+^yaou	i
+^gwener	i
+^sadorn	i
+^Sul	i
+^Lun	i
+^Meu	i
+^Mer	i
+^Yao	i
+^Gwe	i
+^Sad	i
+^Su	i
+^Lu	i
+^Me([^r]|$)	i
+^Ya	i
+^Gw	i
+^Sa	i
+\\d{1,2}(a\u00f1|vet)	
+a.m.|g.m.	
+\\d{1,2}\\.	
+D[oD]?(\\s)+MMMM	
+\\d{1,2}(r|n|t|\u00e8|a)	
+DD?[o.]?(\\[[^\\[\\]]*\\]|\\s)+MMMM	
+^led	i
+^\u00fano	i
+^b\u0159e	i
+^dub	i
+^kv\u011b	i
+^(\u010dvn|\u010derven$|\u010dervna)	i
+^(\u010dvc|\u010dervenec|\u010dervence)	i
+^srp	i
+^z\u00e1\u0159	i
+^\u0159\u00edj	i
+^lis	i
+^pro	i
+^(leden|\u00fanor|b\u0159ezen|duben|kv\u011bten|\u010dervenec|\u010dervence|\u010derven|\u010dervna|srpen|z\u00e1\u0159\u00ed|\u0159\u00edjen|listopad|prosinec|led|\u00fano|b\u0159e|dub|kv\u011b|\u010dvn|\u010dvc|srp|z\u00e1\u0159|\u0159\u00edj|lis|pro)	i
+^(leden|ledna|\u00fanora|\u00fanor|b\u0159ezen|b\u0159ezna|duben|dubna|kv\u011bten|kv\u011btna|\u010dervenec|\u010dervence|\u010derven|\u010dervna|srpen|srpna|z\u00e1\u0159\u00ed|\u0159\u00edjen|\u0159\u00edjna|listopadu|listopad|prosinec|prosince)	i
+^(led|\u00fano|b\u0159e|dub|kv\u011b|\u010dvn|\u010dvc|srp|z\u00e1\u0159|\u0159\u00edj|lis|pro)	i
+\u0441\u0435\u0445\u0435\u0442$	i
+\u04ab\u0443\u043b$	i
+\\d{1,2}-\u043c\u04d7\u0448	
+\\d{1,2}(fed|ain|af|il|ydd|ed|eg)	
+^j\u00e4n	i
+^feb	i
+^m\u00e4r	i
+^apr	i
+^mai	i
+^jun	i
+^jul	i
+^aug	i
+^sep	i
+^okt	i
+^nov	i
+^dez	i
+^(J\u00e4nner|Februar|M\u00e4rz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember|J\u00e4n\\.?|Feb\\.?|M\u00e4r\\.?|Apr\\.?|Jun\\.?|Jul\\.?|Aug\\.?|Sep\\.?|Okt\\.?|Nov\\.?|Dez\\.?)	i
+^(J\u00e4nner|Februar|M\u00e4rz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)	i
+^(J\u00e4n\\.?|Feb\\.?|M\u00e4rz|M\u00e4r\\.?|Apr\\.?|Mai|Juni|Jun\\.?|Juli|Jul\\.?|Aug\\.?|Sep\\.?|Okt\\.?|Nov\\.?|Dez\\.?)	i
+^jan	i
+^(Januar|Februar|M\u00e4rz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember|Jan\\.?|Feb\\.?|M\u00e4r\\.?|Apr\\.?|Jun\\.?|Jul\\.?|Aug\\.?|Sep\\.?|Okt\\.?|Nov\\.?|Dez\\.?)	i
+^(Januar|Februar|M\u00e4rz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)	i
+^(Jan\\.?|Feb\\.?|M\u00e4rz|M\u00e4r\\.?|Apr\\.?|Mai|Juni|Jun\\.?|Juli|Jul\\.?|Aug\\.?|Sep\\.?|Okt\\.?|Nov\\.?|Dez\\.?)	i
+\u0789\u0786|\u0789\u078a	
+D	
+[\u03a0\u039c]\\.?\u039c?\\.?	i
+\\d{1,2}\u03b7	
+\\d{1,2}(st|nd|rd|th)	
+[ap]\\.t\\.m	i
+\\d{1,2}a	
+^ene	i
+^mar	i
+^abr	i
+^may	i
+^ago	i
+^oct	i
+^dic	i
+^(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre|ene\\.?|feb\\.?|mar\\.?|abr\\.?|may\\.?|jun\\.?|jul\\.?|ago\\.?|sep\\.?|oct\\.?|nov\\.?|dic\\.?)	i
+-MMM-	
+^(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)	i
+^(ene\\.?|feb\\.?|mar\\.?|abr\\.?|may\\.?|jun\\.?|jul\\.?|ago\\.?|sep\\.?|oct\\.?|nov\\.?|dic\\.?)	i
+\\d{1,2}\u00ba	
+\u0642\u0628\u0644 \u0627\u0632 \u0638\u0647\u0631|\u0628\u0639\u062f \u0627\u0632 \u0638\u0647\u0631	
+\u0628\u0639\u062f \u0627\u0632 \u0638\u0647\u0631	
+[\u06f0-\u06f9]	g
+\\d{1,2}\u0645	
+\\d{1,2}	
+\\d{1,2}(er|e)	
+^(janvier|f\u00e9vrier|mars|avril|mai|juin|juillet|ao\u00fbt|septembre|octobre|novembre|d\u00e9cembre)	i
+(janv\\.?|f\u00e9vr\\.?|mars|avr\\.?|mai|juin|juil\\.?|ao\u00fbt|sept\\.?|oct\\.?|nov\\.?|d\u00e9c\\.?)	i
+(janv\\.?|f\u00e9vr\\.?|mars|avr\\.?|mai|juin|juil\\.?|ao\u00fbt|sept\\.?|oct\\.?|nov\\.?|d\u00e9c\\.?|janvier|f\u00e9vrier|mars|avril|mai|juin|juillet|ao\u00fbt|septembre|octobre|novembre|d\u00e9cembre)	i
+^janv	i
+^f\u00e9vr	i
+^mars	i
+^avr	i
+^juin	i
+^juil	i
+^ao\u00fbt	i
+^sept	i
+^d\u00e9c	i
+\\d{1,2}(er|)	
+\\d{1,2}(d|na|mh)	
+MMMM(\\s)+D[oD]?	
+\\d{1,2}(\u0935\u0947\u0930)	
+\u0930\u093e\u0924\u0940|\u0938\u0915\u093e\u0933\u0940\u0902|\u0926\u0928\u092a\u093e\u0930\u093e\u0902|\u0938\u093e\u0902\u091c\u0947	
+\\d{1,2}(er)	
+rati|sokallim|donparam|sanje	
+[\u0ae7\u0ae8\u0ae9\u0aea\u0aeb\u0aec\u0aed\u0aee\u0aef\u0ae6]	g
+\u0ab0\u0abe\u0aa4|\u0aac\u0aaa\u0acb\u0ab0|\u0ab8\u0ab5\u0abe\u0ab0|\u0ab8\u0abe\u0a82\u0a9c	
+\u05d0\u05d7\u05d4"\u05e6|\u05dc\u05e4\u05e0\u05d4"\u05e6|\u05d0\u05d7\u05e8\u05d9 \u05d4\u05e6\u05d4\u05e8\u05d9\u05d9\u05dd|\u05dc\u05e4\u05e0\u05d9 \u05d4\u05e6\u05d4\u05e8\u05d9\u05d9\u05dd|\u05dc\u05e4\u05e0\u05d5\u05ea \u05d1\u05d5\u05e7\u05e8|\u05d1\u05d1\u05d5\u05e7\u05e8|\u05d1\u05e2\u05e8\u05d1	i
+^(\u05d0\u05d7\u05d4"\u05e6|\u05d0\u05d7\u05e8\u05d9 \u05d4\u05e6\u05d4\u05e8\u05d9\u05d9\u05dd|\u05d1\u05e2\u05e8\u05d1)$	
+^\u091c\u0928	i
+^\u092b\u093c\u0930|\u092b\u0930	i
+^\u092e\u093e\u0930\u094d\u091a	i
+^\u0905\u092a\u094d\u0930\u0948	i
+^\u092e\u0908	i
+^\u091c\u0942\u0928	i
+^\u091c\u0941\u0932	i
+^\u0905\u0917	i
+^\u0938\u093f\u0924\u0902|\u0938\u093f\u0924	i
+^\u0905\u0915\u094d\u091f\u0942	i
+^\u0928\u0935|\u0928\u0935\u0902	i
+^\u0926\u093f\u0938\u0902|\u0926\u093f\u0938	i
+^\u092b\u093c\u0930	i
+^\u0938\u093f\u0924	i
+^\u0928\u0935	i
+^\u0926\u093f\u0938	i
+^(\u091c\u0928\u0935\u0930\u0940|\u091c\u0928\\.?|\u092b\u093c\u0930\u0935\u0930\u0940|\u092b\u0930\u0935\u0930\u0940|\u092b\u093c\u0930\\.?|\u092e\u093e\u0930\u094d\u091a?|\u0905\u092a\u094d\u0930\u0948\u0932|\u0905\u092a\u094d\u0930\u0948\\.?|\u092e\u0908?|\u091c\u0942\u0928?|\u091c\u0941\u0932\u093e\u0908|\u091c\u0941\u0932\\.?|\u0905\u0917\u0938\u094d\u0924|\u0905\u0917\\.?|\u0938\u093f\u0924\u092e\u094d\u092c\u0930|\u0938\u093f\u0924\u0902\u092c\u0930|\u0938\u093f\u0924\\.?|\u0905\u0915\u094d\u091f\u0942\u092c\u0930|\u0905\u0915\u094d\u091f\u0942\\.?|\u0928\u0935\u092e\u094d\u092c\u0930|\u0928\u0935\u0902\u092c\u0930|\u0928\u0935\\.?|\u0926\u093f\u0938\u092e\u094d\u092c\u0930|\u0926\u093f\u0938\u0902\u092c\u0930|\u0926\u093f\u0938\\.?)	i
+^(\u091c\u0928\u0935\u0930\u0940?|\u092b\u093c\u0930\u0935\u0930\u0940|\u092b\u0930\u0935\u0930\u0940?|\u092e\u093e\u0930\u094d\u091a?|\u0905\u092a\u094d\u0930\u0948\u0932?|\u092e\u0908?|\u091c\u0942\u0928?|\u091c\u0941\u0932\u093e\u0908?|\u0905\u0917\u0938\u094d\u0924?|\u0938\u093f\u0924\u092e\u094d\u092c\u0930|\u0938\u093f\u0924\u0902\u092c\u0930|\u0938\u093f\u0924?\\.?|\u0905\u0915\u094d\u091f\u0942\u092c\u0930|\u0905\u0915\u094d\u091f\u0942\\.?|\u0928\u0935\u092e\u094d\u092c\u0930|\u0928\u0935\u0902\u092c\u0930?|\u0926\u093f\u0938\u092e\u094d\u092c\u0930|\u0926\u093f\u0938\u0902\u092c\u0930?)	i
+^(\u091c\u0928\\.?|\u092b\u093c\u0930\\.?|\u092e\u093e\u0930\u094d\u091a?|\u0905\u092a\u094d\u0930\u0948\\.?|\u092e\u0908?|\u091c\u0942\u0928?|\u091c\u0941\u0932\\.?|\u0905\u0917\\.?|\u0938\u093f\u0924\\.?|\u0905\u0915\u094d\u091f\u0942\\.?|\u0928\u0935\\.?|\u0926\u093f\u0938\\.?)	i
+[\u0967\u0968\u0969\u096a\u096b\u096c\u096d\u096e\u096f\u0966]	g
+\u0930\u093e\u0924|\u0938\u0941\u092c\u0939|\u0926\u094b\u092a\u0939\u0930|\u0936\u093e\u092e	
+de|du	i
+\u0563\u056b\u0577\u0565\u0580\u057e\u0561|\u0561\u057c\u0561\u057e\u0578\u057f\u057e\u0561|\u0581\u0565\u0580\u0565\u056f\u057e\u0561|\u0565\u0580\u0565\u056f\u0578\u0575\u0561\u0576	
+^(\u0581\u0565\u0580\u0565\u056f\u057e\u0561|\u0565\u0580\u0565\u056f\u0578\u0575\u0561\u0576)$	
+\\d{1,2}|\\d{1,2}-(\u056b\u0576|\u0580\u0564)	
+^agustus|^agu|^agt	i
+^agustus$	i
+^agu$|^agt$	i
+pagi|siang|sore|malam	
+^[0-9].+$	
+(\u5143|\\d+)\u5e74	
+\u5348\u524d|\u5348\u5f8c	i
+\\d{1,2}\u65e5	
+enjing|siyang|sonten|ndalu	
+(\u10ec\u10d8\u10dc\u10d0|\u10e8\u10d4\u10db\u10d3\u10d4\u10d2)	
+(\u10ec\u10d0\u10db|\u10ec\u10e3\u10d7|\u10e1\u10d0\u10d0\u10d7|\u10ec\u10d4\u10da|\u10d3\u10e6|\u10d7\u10d5)(\u10d8|\u10d4)	
+(\u10ec\u10d0\u10db\u10d8|\u10ec\u10e3\u10d7\u10d8|\u10e1\u10d0\u10d0\u10d7\u10d8|\u10d3\u10e6\u10d4|\u10d7\u10d5\u10d4)	
+(\u10d8|\u10d4)$	
+\u10ec\u10d4\u10da\u10d8	
+\u10ec\u10d4\u10da\u10d8$	
+0|1-\u10da\u10d8|\u10db\u10d4-\\d{1,2}|\\d{1,2}-\u10d4	
+\\d{1,2}-(\u0448\u0456|\u0448\u044b)	
+\u1796\u17d2\u179a\u17b9\u1780|\u179b\u17d2\u1784\u17b6\u1785	
+\u1791\u17b8\\d{1,2}	
+[\u17e1\u17e2\u17e3\u17e4\u17e5\u17e6\u17e7\u17e8\u17e9\u17e0]	g
+[\u0ce7\u0ce8\u0ce9\u0cea\u0ceb\u0cec\u0ced\u0cee\u0cef\u0ce6]	g
+\u0cb0\u0cbe\u0ca4\u0ccd\u0cb0\u0cbf|\u0cac\u0cc6\u0cb3\u0cbf\u0c97\u0ccd\u0c97\u0cc6|\u0cae\u0ca7\u0ccd\u0caf\u0cbe\u0cb9\u0ccd\u0ca8|\u0cb8\u0c82\u0c9c\u0cc6	
+\\d{1,2}(\u0ca8\u0cc6\u0cd5)	
+\\d{1,2}(\uc77c|\uc6d4|\uc8fc)	
+\uc624\uc804|\uc624\ud6c4	
+bn|BN|pn|PN	
+\\d{1,2}(?:y\u00ea|\u00ea|\\.)	
+\u0626\u06ce\u0648\u0627\u0631\u0647\u200c|\u0628\u0647\u200c\u06cc\u0627\u0646\u06cc	
+\u0626\u06ce\u0648\u0627\u0631\u0647\u200c	
+\\d{1,2}-(\u0447\u0438|\u0447\u044b|\u0447\u04af|\u0447\u0443)	
+\u0e95\u0ead\u0e99\u0ec0\u0e8a\u0ebb\u0ec9\u0eb2|\u0e95\u0ead\u0e99\u0ec1\u0ea5\u0e87	
+(\u0e97\u0eb5\u0ec8)\\d{1,2}	
+D[oD]?(\\[[^\\[\\]]*\\]|\\s)+MMMM?|MMMM?(\\[[^\\[\\]]*\\]|\\s)+D[oD]?	
+dddd HH:mm	
+\\d{1,2}-oji	
+(?:['a-z\\u0101\\u014D\\u016B]+\\-?){1,3}	i
+(?:['a-z\\u0101\\u014D\\u016B]+\\-?){1,2}	i
+\u0d30\u0d3e\u0d24\u0d4d\u0d30\u0d3f|\u0d30\u0d3e\u0d35\u0d3f\u0d32\u0d46|\u0d09\u0d1a\u0d4d\u0d1a \u0d15\u0d34\u0d3f\u0d1e\u0d4d\u0d1e\u0d4d|\u0d35\u0d48\u0d15\u0d41\u0d28\u0d4d\u0d28\u0d47\u0d30\u0d02|\u0d30\u0d3e\u0d24\u0d4d\u0d30\u0d3f	i
+\u04ae\u04e8|\u04ae\u0425	i
+\\d{1,2} \u04e9\u0434\u04e9\u0440	
+\u092a\u0939\u093e\u091f\u0947|\u0938\u0915\u093e\u0933\u0940|\u0926\u0941\u092a\u093e\u0930\u0940|\u0938\u093e\u092f\u0902\u0915\u093e\u0933\u0940|\u0930\u093e\u0924\u094d\u0930\u0940	
+pagi|tengahari|petang|malam	
+[\u1041\u1042\u1043\u1044\u1045\u1046\u1047\u1048\u1049\u1040]	g
+\u0930\u093e\u0924\u093f|\u092c\u093f\u0939\u093e\u0928|\u0926\u093f\u0909\u0901\u0938\u094b|\u0938\u093e\u0901\u091d	
+^(maart|mrt\\.?)$	i
+^mei$	i
+^jun[i.]?$	i
+^jul[i.]?$	i
+^dec	i
+^(januari|februari|maart|april|mei|ju[nl]i|augustus|september|oktober|november|december|jan\\.?|feb\\.?|mrt\\.?|apr\\.?|ju[nl]\\.?|aug\\.?|sep\\.?|okt\\.?|nov\\.?|dec\\.?)	i
+^(januari|februari|maart|april|mei|ju[nl]i|augustus|september|oktober|november|december)	i
+^(jan\\.?|feb\\.?|mrt\\.?|apr\\.?|mei|ju[nl]\\.?|aug\\.?|sep\\.?|okt\\.?|nov\\.?|dec\\.?)	i
+[\u0a67\u0a68\u0a69\u0a6a\u0a6b\u0a6c\u0a6d\u0a6e\u0a6f\u0a66]	g
+\u0a30\u0a3e\u0a24|\u0a38\u0a35\u0a47\u0a30|\u0a26\u0a41\u0a2a\u0a39\u0a3f\u0a30|\u0a38\u0a3c\u0a3e\u0a2e	
+^sty	i
+^lut	i
+^kwi	i
+^maj	i
+^cze	i
+^lip	i
+^sie	i
+^wrz	i
+^pa\u017a	i
+^gru	i
+D\\.? MMMM	
+D[oD]?(\\[[^\\[\\]]*\\]|\\s|,)+MMMM?	
+^\u062c\u0646\u0648\u0631\u064a$	i
+^(\u0641\u0628\u0631\u0648\u0631\u064a|\u0641\u06d0\u0628\u0631\u0648\u0631\u064a)$	i
+^\u0645\u0627\u0631\u0686$	i
+^\u0627\u067e\u0631\u06cc\u0644$	i
+^\u0645\u06cd$	i
+^\u062c\u0648\u0646$	i
+^\u062c\u0648\u0644\u0627\u06cc$	i
+^\u0627\u06ab\u0633\u062a$	i
+^(\u0633\u067e\u062a\u0645\u0628\u0631|\u0633\u06d0\u067e\u062a\u0645\u0628\u0631)$	i
+^\u0627\u06a9\u062a\u0648\u0628\u0631$	i
+^\u0646\u0648\u0645\u0628\u0631$	i
+^\u062f\u0633\u0645\u0628\u0631$	i
+^(\u062c\u0646\u0648\u0631\u064a|\u0641\u0628\u0631\u0648\u0631\u064a|\u0641\u06d0\u0628\u0631\u0648\u0631\u064a|\u0645\u0627\u0631\u0686|\u0627\u067e\u0631\u06cc\u0644|\u0645\u06cd|\u062c\u0648\u0646|\u062c\u0648\u0644\u0627\u06cc|\u0627\u06ab\u0633\u062a|\u0633\u067e\u062a\u0645\u0628\u0631|\u0633\u06d0\u067e\u062a\u0645\u0628\u0631|\u0627\u06a9\u062a\u0648\u0628\u0631|\u0646\u0648\u0645\u0628\u0631|\u062f\u0633\u0645\u0628\u0631)	i
+\u063a\\.\u0645|\u063a\\.\u0648\\.	
+^\u044f\u043d\u0432	i
+^\u0444\u0435\u0432	i
+^\u043c\u0430\u0440	i
+^\u0430\u043f\u0440	i
+^\u043c\u0430[\u0439\u044f]	i
+^\u0438\u044e\u043d	i
+^\u0438\u044e\u043b	i
+^\u0430\u0432\u0433	i
+^\u0441\u0435\u043d	i
+^\u043e\u043a\u0442	i
+^\u043d\u043e\u044f	i
+^\u0434\u0435\u043a	i
+\\[ ?[\u0412\u0432] ?(?:\u043f\u0440\u043e\u0448\u043b\u0443\u044e|\u0441\u043b\u0435\u0434\u0443\u044e\u0449\u0443\u044e|\u044d\u0442\u0443)? ?] ?dddd	
+^(\u044f\u043d\u0432\u0430\u0440[\u044c\u044f]|\u044f\u043d\u0432\\.?|\u0444\u0435\u0432\u0440\u0430\u043b[\u044c\u044f]|\u0444\u0435\u0432\u0440?\\.?|\u043c\u0430\u0440\u0442\u0430?|\u043c\u0430\u0440\\.?|\u0430\u043f\u0440\u0435\u043b[\u044c\u044f]|\u0430\u043f\u0440\\.?|\u043c\u0430[\u0439\u044f]|\u0438\u044e\u043d[\u044c\u044f]|\u0438\u044e\u043d\\.?|\u0438\u044e\u043b[\u044c\u044f]|\u0438\u044e\u043b\\.?|\u0430\u0432\u0433\u0443\u0441\u0442\u0430?|\u0430\u0432\u0433\\.?|\u0441\u0435\u043d\u0442\u044f\u0431\u0440[\u044c\u044f]|\u0441\u0435\u043d\u0442?\\.?|\u043e\u043a\u0442\u044f\u0431\u0440[\u044c\u044f]|\u043e\u043a\u0442\\.?|\u043d\u043e\u044f\u0431\u0440[\u044c\u044f]|\u043d\u043e\u044f\u0431?\\.?|\u0434\u0435\u043a\u0430\u0431\u0440[\u044c\u044f]|\u0434\u0435\u043a\\.?)	i
+^(\u044f\u043d\u0432\u0430\u0440[\u044f\u044c]|\u0444\u0435\u0432\u0440\u0430\u043b[\u044f\u044c]|\u043c\u0430\u0440\u0442\u0430?|\u0430\u043f\u0440\u0435\u043b[\u044f\u044c]|\u043c\u0430[\u044f\u0439]|\u0438\u044e\u043d[\u044f\u044c]|\u0438\u044e\u043b[\u044f\u044c]|\u0430\u0432\u0433\u0443\u0441\u0442\u0430?|\u0441\u0435\u043d\u0442\u044f\u0431\u0440[\u044f\u044c]|\u043e\u043a\u0442\u044f\u0431\u0440[\u044f\u044c]|\u043d\u043e\u044f\u0431\u0440[\u044f\u044c]|\u0434\u0435\u043a\u0430\u0431\u0440[\u044f\u044c])	i
+^(\u044f\u043d\u0432\\.|\u0444\u0435\u0432\u0440?\\.|\u043c\u0430\u0440[\u0442.]|\u0430\u043f\u0440\\.|\u043c\u0430[\u044f\u0439]|\u0438\u044e\u043d[\u044c\u044f.]|\u0438\u044e\u043b[\u044c\u044f.]|\u0430\u0432\u0433\\.|\u0441\u0435\u043d\u0442?\\.|\u043e\u043a\u0442\\.|\u043d\u043e\u044f\u0431?\\.|\u0434\u0435\u043a\\.)	i
+\u043d\u043e\u0447\u0438|\u0443\u0442\u0440\u0430|\u0434\u043d\u044f|\u0432\u0435\u0447\u0435\u0440\u0430	i
+^(\u0434\u043d\u044f|\u0432\u0435\u0447\u0435\u0440\u0430)$	
+\\d{1,2}-(\u0439|\u0433\u043e|\u044f)	
+\u0635\u0628\u062d|\u0634\u0627\u0645	
+\\d{1,2} \u0dc0\u0dd0\u0db1\u0dd2	
+\u0db4\u0dd9\u0dbb \u0dc0\u0dbb\u0dd4|\u0db4\u0dc3\u0dca \u0dc0\u0dbb\u0dd4|\u0db4\u0dd9.\u0dc0|\u0db4.\u0dc0.	
+PD|MD	
+ekuseni|emini|entsambama|ebusuku	
+\\d{1,2}(:e|:a)	
+\\d{1,2}\u0bb5\u0ba4\u0bc1	
+[\u0be7\u0be8\u0be9\u0bea\u0beb\u0bec\u0bed\u0bee\u0bef\u0be6]	g
+\u0baf\u0bbe\u0bae\u0bae\u0bcd|\u0bb5\u0bc8\u0b95\u0bb1\u0bc8|\u0b95\u0bbe\u0bb2\u0bc8|\u0ba8\u0ba3\u0bcd\u0baa\u0b95\u0bb2\u0bcd|\u0b8e\u0bb1\u0bcd\u0baa\u0bbe\u0b9f\u0bc1|\u0bae\u0bbe\u0bb2\u0bc8	
+\\d{1,2}\u0c35	
+\u0c30\u0c3e\u0c24\u0c4d\u0c30\u0c3f|\u0c09\u0c26\u0c2f\u0c02|\u0c2e\u0c27\u0c4d\u0c2f\u0c3e\u0c39\u0c4d\u0c28\u0c02|\u0c38\u0c3e\u0c2f\u0c02\u0c24\u0c4d\u0c30\u0c02	
+\u0448\u0430\u0431|\u0441\u0443\u0431\u04b3|\u0440\u04ef\u0437|\u0431\u0435\u0433\u043e\u04b3	
+\\d{1,2}-(\u0443\u043c|\u044e\u043c)	
+\u0e01\u0e48\u0e2d\u0e19\u0e40\u0e17\u0e35\u0e48\u0e22\u0e07|\u0e2b\u0e25\u0e31\u0e07\u0e40\u0e17\u0e35\u0e48\u0e22\u0e07	
+\u00f6\u00f6|\u00d6\u00d6|\u00f6s|\u00d6S	
+d'o|d'a	i
+\u064a\u06d0\u0631\u0649\u0645 \u0643\u06d0\u0686\u06d5|\u0633\u06d5\u06be\u06d5\u0631|\u0686\u06c8\u0634\u062a\u0649\u0646 \u0628\u06c7\u0631\u06c7\u0646|\u0686\u06c8\u0634|\u0686\u06c8\u0634\u062a\u0649\u0646 \u0643\u06d0\u064a\u0649\u0646|\u0643\u06d5\u0686	
+\\d{1,2}(-\u0643\u06c8\u0646\u0649|-\u0626\u0627\u064a|-\u06be\u06d5\u067e\u062a\u06d5)	
+(\\[[\u0412\u0432\u0423\u0443]\\]) ?dddd	
+\\[?(?:\u043c\u0438\u043d\u0443\u043b\u043e\u0457|\u043d\u0430\u0441\u0442\u0443\u043f\u043d\u043e\u0457)? ?\\] ?dddd	
+\u043d\u043e\u0447\u0456|\u0440\u0430\u043d\u043a\u0443|\u0434\u043d\u044f|\u0432\u0435\u0447\u043e\u0440\u0430	
+^(\u0434\u043d\u044f|\u0432\u0435\u0447\u043e\u0440\u0430)$	
+\\d{1,2}-(\u0439|\u0433\u043e)	
+sa|ch	i
+^ch$	i
+\\d{1,2}(th|st|nd|rd)	
+\u1ecdj\u1ecd\u0301\\s\\d{1,2}	
+\u51cc\u6668|\u65e9\u4e0a|\u4e0a\u5348|\u4e2d\u5348|\u4e0b\u5348|\u665a\u4e0a	
+\\d{1,2}(\u65e5|\u6708|\u5468)	
+\\d{1,2}(\u65e5|\u6708|\u9031)	
+(\\[[^\\[]*\\])|(\\\\e)|(\\\\)?(eHHmm|[Hh]mm(ss)?|Mo|MM?M?M?|Do|DDDo|DD?D?D?|ddd?d?|do?|w[o|w]?|W[o|W]?|Qo?|N{1,5}|YYYYYY|YYYYY|YYYY|YY|y{2,4}|yo?|gg(ggg?)?|GG(GGG?)?|e|E|a|A|hh?|HH?|kk?|mm?|ss?|S{1,9}|x|X|zz?|ZZ?|.)	g
+(\\[[^\\[]*\\])|(\\\\)?(LTS|LT|LL?L?L?|l{1,4})	g
+\\[[\\s\\S]	
+^\\[|\\]$	g
+\\d\\d	
+\\d{3}	
+\\d{4}	
+[+-]?\\d{6}	
+\\d\\d?	
+\\d\\d\\d\\d?	
+\\d\\d\\d\\d\\d\\d?	
+\\d{1,3}	
+\\d{1,4}	
+[+-]?\\d{1,6}	
+[+-]?\\d+	
+Z|[+-]\\d\\d:?\\d\\d	gi
+Z|[+-]\\d\\d(?::?\\d\\d)?	gi
+[+-]?\\d+(\\.\\d{1,3})?	
+[0-9]{0,256}['a-z\\u00A0-\\u05FF\\u0700-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFF07\\uFF10-\\uFFEF]{1,256}|[\\u0600-\\u06FF\\/]{1,256}(\\s*?[\\u0600-\\u06FF]{1,256}){1,2}	i
+^[1-9]\\d?	
+^([1-9]\\d|\\d)	
+\\\\(\\[)|\\\\(\\])|\\[([^\\]\\[]*)\\]|\\\\(.)	g
+[-\\/\\\\^$*+?.()|[\\]{}]	g
+D[oD]?(\\[[^\\[\\]]*\\]|\\s)+MMMM?	
+%s	i
+[ap]\\.?m?\\.?	i
+^[a-z0-9]+(?:-[a-z0-9]+)*$	
+^\\s*((?:[+-]\\d{6}|\\d{4})-(?:\\d\\d-\\d\\d|W\\d\\d-\\d|W\\d\\d|\\d\\d\\d|\\d\\d))(?:(T| )(\\d\\d(?::\\d\\d(?::\\d\\d(?:[.,]\\d+)?)?)?)([+-]\\d\\d(?::?\\d\\d)?|\\s*Z)?)?$	
+^\\s*((?:[+-]\\d{6}|\\d{4})(?:\\d\\d\\d\\d|W\\d\\d\\d|W\\d\\d|\\d\\d\\d|\\d\\d|))(?:(T| )(\\d\\d(?:\\d\\d(?:\\d\\d(?:[.,]\\d+)?)?)?)([+-]\\d\\d(?::?\\d\\d)?|\\s*Z)?)?$	
+Z|[+-]\\d\\d(?::?\\d\\d)?	
+[+-]\\d{6}-\\d\\d-\\d\\d	
+\\d{4}-\\d\\d-\\d\\d	
+\\d{4}-W\\d\\d-\\d	
+\\d{4}-W\\d\\d	
+\\d{4}-\\d{3}	
+\\d{4}-\\d\\d	
+[+-]\\d{10}	
+\\d{8}	
+\\d{4}W\\d{3}	
+\\d{4}W\\d{2}	
+\\d{7}	
+\\d{6}	
+\\d\\d:\\d\\d:\\d\\d\\.\\d+	
+\\d\\d:\\d\\d:\\d\\d,\\d+	
+\\d\\d:\\d\\d:\\d\\d	
+\\d\\d:\\d\\d	
+\\d\\d\\d\\d\\d\\d\\.\\d+	
+\\d\\d\\d\\d\\d\\d,\\d+	
+\\d\\d\\d\\d\\d\\d	
+\\d\\d\\d\\d	
+^\\/?Date\\((-?\\d+)	i
+^(?:(Mon|Tue|Wed|Thu|Fri|Sat|Sun),?\\s)?(\\d{1,2})\\s(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\s(\\d{2,4})\\s(\\d\\d):(\\d\\d)(?::(\\d\\d))?\\s(?:(UT|GMT|[ECMP][SD]T)|([Zz])|([+-]\\d{4}))$	
+\\([^()]*\\)|[\\n\\t]	g
+(\\s\\s+)	g
+^\\s\\s*	
+\\s\\s*$	
+([\\+\\-]|\\d\\d)	gi
+^(-|\\+)?(?:(\\d*)[. ])?(\\d+):(\\d+)(?::(\\d+)(\\.\\d*)?)?$	
+^(-|\\+)?P(?:([-+]?[0-9,.]*)Y)?(?:([-+]?[0-9,.]*)M)?(?:([-+]?[0-9,.]*)W)?(?:([-+]?[0-9,.]*)D)?(?:T(?:([-+]?[0-9,.]*)H)?(?:([-+]?[0-9,.]*)M)?(?:([-+]?[0-9,.]*)S)?)?$	
+\\.?0+$	
+\\u1325\\u12cb\\u1275|\\u12a8\\u1230\\u12d3\\u1275	
+\\d{1,2}(\\u129b)	
+\\u0635|\\u0645	
+\\u060c	g
+[\\u0663\\u0664\\u0665\\u0666\\u0667\\u0668\\u0669\\u0660]	g
+[\\u0661\\u0662](?![\\u062a\\u0643])	g
+[\\u0661\\u0662\\u0663\\u0664\\u0665\\u0666\\u0667\\u0668\\u0669\\u0660]	g
+gec\\u0259|s\\u0259h\\u0259r|g\\xfcnd\\xfcz|ax\\u015fam	
+^(g\\xfcnd\\xfcz|ax\\u015fam)$	
+\\d{1,2}-(\\u0131nc\\u0131|inci|nci|\\xfcnc\\xfc|nc\\u0131|uncu)	
+\\[ ?[\\u0423\\u0443\\u045e] ?(?:\\u043c\\u0456\\u043d\\u0443\\u043b\\u0443\\u044e|\\u043d\\u0430\\u0441\\u0442\\u0443\\u043f\\u043d\\u0443\\u044e)? ?\\] ?dddd	
+\\u043d\\u043e\\u0447\\u044b|\\u0440\\u0430\\u043d\\u0456\\u0446\\u044b|\\u0434\\u043d\\u044f|\\u0432\\u0435\\u0447\\u0430\\u0440\\u0430	
+^(\\u0434\\u043d\\u044f|\\u0432\\u0435\\u0447\\u0430\\u0440\\u0430)$	
+\\d{1,2}-(\\u0456|\\u044b|\\u0433\\u0430)	
+\\d{1,2}-(\\u0435\\u0432|\\u0435\\u043d|\\u0442\\u0438|\\u0432\\u0438|\\u0440\\u0438|\\u043c\\u0438)	
+[\\u09e7\\u09e8\\u09e9\\u09ea\\u09eb\\u09ec\\u09ed\\u09ee\\u09ef\\u09e6]	g
+\\u09b0\\u09be\\u09a4|\\u09ad\\u09cb\\u09b0|\\u09b8\\u0995\\u09be\\u09b2|\\u09a6\\u09c1\\u09aa\\u09c1\\u09b0|\\u09ac\\u09bf\\u0995\\u09be\\u09b2|\\u09b8\\u09a8\\u09cd\\u09a7\\u09cd\\u09af\\u09be|\\u09b0\\u09be\\u09a4	
+\\u09b0\\u09be\\u09a4|\\u09b8\\u0995\\u09be\\u09b2|\\u09a6\\u09c1\\u09aa\\u09c1\\u09b0|\\u09ac\\u09bf\\u0995\\u09be\\u09b2|\\u09b0\\u09be\\u09a4	
+^(\\u0f5f\\u0fb3\\u0f0b\\d{1,2})	
+[\\u0f21\\u0f22\\u0f23\\u0f24\\u0f25\\u0f26\\u0f27\\u0f28\\u0f29\\u0f20]	g
+\\u0f58\\u0f5a\\u0f53\\u0f0b\\u0f58\\u0f7c|\\u0f5e\\u0f7c\\u0f42\\u0f66\\u0f0b\\u0f40\\u0f66|\\u0f49\\u0f72\\u0f53\\u0f0b\\u0f42\\u0f74\\u0f44|\\u0f51\\u0f42\\u0f7c\\u0f44\\u0f0b\\u0f51\\u0f42|\\u0f58\\u0f5a\\u0f53\\u0f0b\\u0f58\\u0f7c	
+^c[\\u02bc']hwe	i
+^(genver|c[\\u02bc']hwevrer|meurzh|ebrel|mae|mezheven|gouere|eost|gwengolo|here|du|kerzu|gen|c[\\u02bc']hwe|meu|ebr|mae|eve|gou|eos|gwe|her|du|ker)	i
+^merc[\\u02bc']her	i
+^(genver|c[\\u02bc']hwevrer|meurzh|ebrel|mae|mezheven|gouere|eost|gwengolo|here|du|kerzu)	i
+^(gen|c[\\u02bc']hwe|meu|ebr|mae|eve|gou|eos|gwe|her|du|ker)	i
+\\d{1,2}(a\\xf1|vet)	
+\\d{1,2}(r|n|t|\\xe8|a)	
+^\\xfano	i
+^b\\u0159e	i
+^kv\\u011b	i
+^(\\u010dvn|\\u010derven$|\\u010dervna)	i
+^(\\u010dvc|\\u010dervenec|\\u010dervence)	i
+^z\\xe1\\u0159	i
+^\\u0159\\xedj	i
+^(leden|\\xfanor|b\\u0159ezen|duben|kv\\u011bten|\\u010dervenec|\\u010dervence|\\u010derven|\\u010dervna|srpen|z\\xe1\\u0159\\xed|\\u0159\\xedjen|listopad|prosinec|led|\\xfano|b\\u0159e|dub|kv\\u011b|\\u010dvn|\\u010dvc|srp|z\\xe1\\u0159|\\u0159\\xedj|lis|pro)	i
+^(leden|ledna|\\xfanora|\\xfanor|b\\u0159ezen|b\\u0159ezna|duben|dubna|kv\\u011bten|kv\\u011btna|\\u010dervenec|\\u010dervence|\\u010derven|\\u010dervna|srpen|srpna|z\\xe1\\u0159\\xed|\\u0159\\xedjen|\\u0159\\xedjna|listopadu|listopad|prosinec|prosince)	i
+^(led|\\xfano|b\\u0159e|dub|kv\\u011b|\\u010dvn|\\u010dvc|srp|z\\xe1\\u0159|\\u0159\\xedj|lis|pro)	i
+\\u0441\\u0435\\u0445\\u0435\\u0442$	i
+\\u04ab\\u0443\\u043b$	i
+\\d{1,2}-\\u043c\\u04d7\\u0448	
+^j\\xe4n	i
+^m\\xe4r	i
+^(J\\xe4nner|Februar|M\\xe4rz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember|J\\xe4n\\.?|Feb\\.?|M\\xe4r\\.?|Apr\\.?|Jun\\.?|Jul\\.?|Aug\\.?|Sep\\.?|Okt\\.?|Nov\\.?|Dez\\.?)	i
+^(J\\xe4nner|Februar|M\\xe4rz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)	i
+^(J\\xe4n\\.?|Feb\\.?|M\\xe4rz|M\\xe4r\\.?|Apr\\.?|Mai|Juni|Jun\\.?|Juli|Jul\\.?|Aug\\.?|Sep\\.?|Okt\\.?|Nov\\.?|Dez\\.?)	i
+^(Januar|Februar|M\\xe4rz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember|Jan\\.?|Feb\\.?|M\\xe4r\\.?|Apr\\.?|Jun\\.?|Jul\\.?|Aug\\.?|Sep\\.?|Okt\\.?|Nov\\.?|Dez\\.?)	i
+^(Januar|Februar|M\\xe4rz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)	i
+^(Jan\\.?|Feb\\.?|M\\xe4rz|M\\xe4r\\.?|Apr\\.?|Mai|Juni|Jun\\.?|Juli|Jul\\.?|Aug\\.?|Sep\\.?|Okt\\.?|Nov\\.?|Dez\\.?)	i
+\\u0789\\u0786|\\u0789\\u078a	
+[\\u03a0\\u039c]\\.?\\u039c?\\.?	i
+\\d{1,2}\\u03b7	
+\\d{1,2}\\xba	
+\\u0642\\u0628\\u0644 \\u0627\\u0632 \\u0638\\u0647\\u0631|\\u0628\\u0639\\u062f \\u0627\\u0632 \\u0638\\u0647\\u0631	
+\\u0628\\u0639\\u062f \\u0627\\u0632 \\u0638\\u0647\\u0631	
+[\\u06f0-\\u06f9]	g
+\\d{1,2}\\u0645	
+(janv\\.?|f\\xe9vr\\.?|mars|avr\\.?|mai|juin|juil\\.?|ao\\xfbt|sept\\.?|oct\\.?|nov\\.?|d\\xe9c\\.?|janvier|f\\xe9vrier|mars|avril|mai|juin|juillet|ao\\xfbt|septembre|octobre|novembre|d\\xe9cembre)	i
+^f\\xe9vr	i
+^ao\\xfbt	i
+^d\\xe9c	i
+^(janvier|f\\xe9vrier|mars|avril|mai|juin|juillet|ao\\xfbt|septembre|octobre|novembre|d\\xe9cembre)	i
+(janv\\.?|f\\xe9vr\\.?|mars|avr\\.?|mai|juin|juil\\.?|ao\\xfbt|sept\\.?|oct\\.?|nov\\.?|d\\xe9c\\.?)	i
+\\d{1,2}(\\u0935\\u0947\\u0930)	
+\\u0930\\u093e\\u0924\\u0940|\\u0938\\u0915\\u093e\\u0933\\u0940\\u0902|\\u0926\\u0928\\u092a\\u093e\\u0930\\u093e\\u0902|\\u0938\\u093e\\u0902\\u091c\\u0947	
+[\\u0ae7\\u0ae8\\u0ae9\\u0aea\\u0aeb\\u0aec\\u0aed\\u0aee\\u0aef\\u0ae6]	g
+\\u0ab0\\u0abe\\u0aa4|\\u0aac\\u0aaa\\u0acb\\u0ab0|\\u0ab8\\u0ab5\\u0abe\\u0ab0|\\u0ab8\\u0abe\\u0a82\\u0a9c	
+\\u05d0\\u05d7\\u05d4"\\u05e6|\\u05dc\\u05e4\\u05e0\\u05d4"\\u05e6|\\u05d0\\u05d7\\u05e8\\u05d9 \\u05d4\\u05e6\\u05d4\\u05e8\\u05d9\\u05d9\\u05dd|\\u05dc\\u05e4\\u05e0\\u05d9 \\u05d4\\u05e6\\u05d4\\u05e8\\u05d9\\u05d9\\u05dd|\\u05dc\\u05e4\\u05e0\\u05d5\\u05ea \\u05d1\\u05d5\\u05e7\\u05e8|\\u05d1\\u05d1\\u05d5\\u05e7\\u05e8|\\u05d1\\u05e2\\u05e8\\u05d1	i
+^(\\u05d0\\u05d7\\u05d4"\\u05e6|\\u05d0\\u05d7\\u05e8\\u05d9 \\u05d4\\u05e6\\u05d4\\u05e8\\u05d9\\u05d9\\u05dd|\\u05d1\\u05e2\\u05e8\\u05d1)$	
+^\\u091c\\u0928	i
+^\\u092b\\u093c\\u0930|\\u092b\\u0930	i
+^\\u092e\\u093e\\u0930\\u094d\\u091a	i
+^\\u0905\\u092a\\u094d\\u0930\\u0948	i
+^\\u092e\\u0908	i
+^\\u091c\\u0942\\u0928	i
+^\\u091c\\u0941\\u0932	i
+^\\u0905\\u0917	i
+^\\u0938\\u093f\\u0924\\u0902|\\u0938\\u093f\\u0924	i
+^\\u0905\\u0915\\u094d\\u091f\\u0942	i
+^\\u0928\\u0935|\\u0928\\u0935\\u0902	i
+^\\u0926\\u093f\\u0938\\u0902|\\u0926\\u093f\\u0938	i
+^\\u092b\\u093c\\u0930	i
+^\\u0938\\u093f\\u0924	i
+^\\u0928\\u0935	i
+^\\u0926\\u093f\\u0938	i
+^(\\u091c\\u0928\\u0935\\u0930\\u0940|\\u091c\\u0928\\.?|\\u092b\\u093c\\u0930\\u0935\\u0930\\u0940|\\u092b\\u0930\\u0935\\u0930\\u0940|\\u092b\\u093c\\u0930\\.?|\\u092e\\u093e\\u0930\\u094d\\u091a?|\\u0905\\u092a\\u094d\\u0930\\u0948\\u0932|\\u0905\\u092a\\u094d\\u0930\\u0948\\.?|\\u092e\\u0908?|\\u091c\\u0942\\u0928?|\\u091c\\u0941\\u0932\\u093e\\u0908|\\u091c\\u0941\\u0932\\.?|\\u0905\\u0917\\u0938\\u094d\\u0924|\\u0905\\u0917\\.?|\\u0938\\u093f\\u0924\\u092e\\u094d\\u092c\\u0930|\\u0938\\u093f\\u0924\\u0902\\u092c\\u0930|\\u0938\\u093f\\u0924\\.?|\\u0905\\u0915\\u094d\\u091f\\u0942\\u092c\\u0930|\\u0905\\u0915\\u094d\\u091f\\u0942\\.?|\\u0928\\u0935\\u092e\\u094d\\u092c\\u0930|\\u0928\\u0935\\u0902\\u092c\\u0930|\\u0928\\u0935\\.?|\\u0926\\u093f\\u0938\\u092e\\u094d\\u092c\\u0930|\\u0926\\u093f\\u0938\\u0902\\u092c\\u0930|\\u0926\\u093f\\u0938\\.?)	i
+^(\\u091c\\u0928\\u0935\\u0930\\u0940?|\\u092b\\u093c\\u0930\\u0935\\u0930\\u0940|\\u092b\\u0930\\u0935\\u0930\\u0940?|\\u092e\\u093e\\u0930\\u094d\\u091a?|\\u0905\\u092a\\u094d\\u0930\\u0948\\u0932?|\\u092e\\u0908?|\\u091c\\u0942\\u0928?|\\u091c\\u0941\\u0932\\u093e\\u0908?|\\u0905\\u0917\\u0938\\u094d\\u0924?|\\u0938\\u093f\\u0924\\u092e\\u094d\\u092c\\u0930|\\u0938\\u093f\\u0924\\u0902\\u092c\\u0930|\\u0938\\u093f\\u0924?\\.?|\\u0905\\u0915\\u094d\\u091f\\u0942\\u092c\\u0930|\\u0905\\u0915\\u094d\\u091f\\u0942\\.?|\\u0928\\u0935\\u092e\\u094d\\u092c\\u0930|\\u0928\\u0935\\u0902\\u092c\\u0930?|\\u0926\\u093f\\u0938\\u092e\\u094d\\u092c\\u0930|\\u0926\\u093f\\u0938\\u0902\\u092c\\u0930?)	i
+^(\\u091c\\u0928\\.?|\\u092b\\u093c\\u0930\\.?|\\u092e\\u093e\\u0930\\u094d\\u091a?|\\u0905\\u092a\\u094d\\u0930\\u0948\\.?|\\u092e\\u0908?|\\u091c\\u0942\\u0928?|\\u091c\\u0941\\u0932\\.?|\\u0905\\u0917\\.?|\\u0938\\u093f\\u0924\\.?|\\u0905\\u0915\\u094d\\u091f\\u0942\\.?|\\u0928\\u0935\\.?|\\u0926\\u093f\\u0938\\.?)	i
+[\\u0967\\u0968\\u0969\\u096a\\u096b\\u096c\\u096d\\u096e\\u096f\\u0966]	g
+\\u0930\\u093e\\u0924|\\u0938\\u0941\\u092c\\u0939|\\u0926\\u094b\\u092a\\u0939\\u0930|\\u0936\\u093e\\u092e	
+\\u0563\\u056b\\u0577\\u0565\\u0580\\u057e\\u0561|\\u0561\\u057c\\u0561\\u057e\\u0578\\u057f\\u057e\\u0561|\\u0581\\u0565\\u0580\\u0565\\u056f\\u057e\\u0561|\\u0565\\u0580\\u0565\\u056f\\u0578\\u0575\\u0561\\u0576	
+^(\\u0581\\u0565\\u0580\\u0565\\u056f\\u057e\\u0561|\\u0565\\u0580\\u0565\\u056f\\u0578\\u0575\\u0561\\u0576)$	
+\\d{1,2}|\\d{1,2}-(\\u056b\\u0576|\\u0580\\u0564)	
+(\\u5143|\\d+)\\u5e74	
+\\u5348\\u524d|\\u5348\\u5f8c	i
+\\d{1,2}\\u65e5	
+(\\u10ec\\u10d8\\u10dc\\u10d0|\\u10e8\\u10d4\\u10db\\u10d3\\u10d4\\u10d2)	
+(\\u10ec\\u10d0\\u10db|\\u10ec\\u10e3\\u10d7|\\u10e1\\u10d0\\u10d0\\u10d7|\\u10ec\\u10d4\\u10da|\\u10d3\\u10e6|\\u10d7\\u10d5)(\\u10d8|\\u10d4)	
+(\\u10ec\\u10d0\\u10db\\u10d8|\\u10ec\\u10e3\\u10d7\\u10d8|\\u10e1\\u10d0\\u10d0\\u10d7\\u10d8|\\u10d3\\u10e6\\u10d4|\\u10d7\\u10d5\\u10d4)	
+(\\u10d8|\\u10d4)$	
+\\u10ec\\u10d4\\u10da\\u10d8	
+\\u10ec\\u10d4\\u10da\\u10d8$	
+0|1-\\u10da\\u10d8|\\u10db\\u10d4-\\d{1,2}|\\d{1,2}-\\u10d4	
+\\d{1,2}-(\\u0448\\u0456|\\u0448\\u044b)	
+\\u1796\\u17d2\\u179a\\u17b9\\u1780|\\u179b\\u17d2\\u1784\\u17b6\\u1785	
+\\u1791\\u17b8\\d{1,2}	
+[\\u17e1\\u17e2\\u17e3\\u17e4\\u17e5\\u17e6\\u17e7\\u17e8\\u17e9\\u17e0]	g
+[\\u0ce7\\u0ce8\\u0ce9\\u0cea\\u0ceb\\u0cec\\u0ced\\u0cee\\u0cef\\u0ce6]	g
+\\u0cb0\\u0cbe\\u0ca4\\u0ccd\\u0cb0\\u0cbf|\\u0cac\\u0cc6\\u0cb3\\u0cbf\\u0c97\\u0ccd\\u0c97\\u0cc6|\\u0cae\\u0ca7\\u0ccd\\u0caf\\u0cbe\\u0cb9\\u0ccd\\u0ca8|\\u0cb8\\u0c82\\u0c9c\\u0cc6	
+\\d{1,2}(\\u0ca8\\u0cc6\\u0cd5)	
+\\d{1,2}(\\uc77c|\\uc6d4|\\uc8fc)	
+\\uc624\\uc804|\\uc624\\ud6c4	
+\\d{1,2}(?:y\\xea|\\xea|\\.)	
+\\u0626\\u06ce\\u0648\\u0627\\u0631\\u0647\\u200c|\\u0628\\u0647\\u200c\\u06cc\\u0627\\u0646\\u06cc	
+\\u0626\\u06ce\\u0648\\u0627\\u0631\\u0647\\u200c	
+\\d{1,2}-(\\u0447\\u0438|\\u0447\\u044b|\\u0447\\u04af|\\u0447\\u0443)	
+\\u0e95\\u0ead\\u0e99\\u0ec0\\u0e8a\\u0ebb\\u0ec9\\u0eb2|\\u0e95\\u0ead\\u0e99\\u0ec1\\u0ea5\\u0e87	
+(\\u0e97\\u0eb5\\u0ec8)\\d{1,2}	
+\\u0d30\\u0d3e\\u0d24\\u0d4d\\u0d30\\u0d3f|\\u0d30\\u0d3e\\u0d35\\u0d3f\\u0d32\\u0d46|\\u0d09\\u0d1a\\u0d4d\\u0d1a \\u0d15\\u0d34\\u0d3f\\u0d1e\\u0d4d\\u0d1e\\u0d4d|\\u0d35\\u0d48\\u0d15\\u0d41\\u0d28\\u0d4d\\u0d28\\u0d47\\u0d30\\u0d02|\\u0d30\\u0d3e\\u0d24\\u0d4d\\u0d30\\u0d3f	i
+\\u04ae\\u04e8|\\u04ae\\u0425	i
+\\d{1,2} \\u04e9\\u0434\\u04e9\\u0440	
+\\u092a\\u0939\\u093e\\u091f\\u0947|\\u0938\\u0915\\u093e\\u0933\\u0940|\\u0926\\u0941\\u092a\\u093e\\u0930\\u0940|\\u0938\\u093e\\u092f\\u0902\\u0915\\u093e\\u0933\\u0940|\\u0930\\u093e\\u0924\\u094d\\u0930\\u0940	
+[\\u1041\\u1042\\u1043\\u1044\\u1045\\u1046\\u1047\\u1048\\u1049\\u1040]	g
+\\u0930\\u093e\\u0924\\u093f|\\u092c\\u093f\\u0939\\u093e\\u0928|\\u0926\\u093f\\u0909\\u0901\\u0938\\u094b|\\u0938\\u093e\\u0901\\u091d	
+[\\u0a67\\u0a68\\u0a69\\u0a6a\\u0a6b\\u0a6c\\u0a6d\\u0a6e\\u0a6f\\u0a66]	g
+\\u0a30\\u0a3e\\u0a24|\\u0a38\\u0a35\\u0a47\\u0a30|\\u0a26\\u0a41\\u0a2a\\u0a39\\u0a3f\\u0a30|\\u0a38\\u0a3c\\u0a3e\\u0a2e	
+^pa\\u017a	i
+^\\u062c\\u0646\\u0648\\u0631\\u064a$	i
+^(\\u0641\\u0628\\u0631\\u0648\\u0631\\u064a|\\u0641\\u06d0\\u0628\\u0631\\u0648\\u0631\\u064a)$	i
+^\\u0645\\u0627\\u0631\\u0686$	i
+^\\u0627\\u067e\\u0631\\u06cc\\u0644$	i
+^\\u0645\\u06cd$	i
+^\\u062c\\u0648\\u0646$	i
+^\\u062c\\u0648\\u0644\\u0627\\u06cc$	i
+^\\u0627\\u06ab\\u0633\\u062a$	i
+^(\\u0633\\u067e\\u062a\\u0645\\u0628\\u0631|\\u0633\\u06d0\\u067e\\u062a\\u0645\\u0628\\u0631)$	i
+^\\u0627\\u06a9\\u062a\\u0648\\u0628\\u0631$	i
+^\\u0646\\u0648\\u0645\\u0628\\u0631$	i
+^\\u062f\\u0633\\u0645\\u0628\\u0631$	i
+^(\\u062c\\u0646\\u0648\\u0631\\u064a|\\u0641\\u0628\\u0631\\u0648\\u0631\\u064a|\\u0641\\u06d0\\u0628\\u0631\\u0648\\u0631\\u064a|\\u0645\\u0627\\u0631\\u0686|\\u0627\\u067e\\u0631\\u06cc\\u0644|\\u0645\\u06cd|\\u062c\\u0648\\u0646|\\u062c\\u0648\\u0644\\u0627\\u06cc|\\u0627\\u06ab\\u0633\\u062a|\\u0633\\u067e\\u062a\\u0645\\u0628\\u0631|\\u0633\\u06d0\\u067e\\u062a\\u0645\\u0628\\u0631|\\u0627\\u06a9\\u062a\\u0648\\u0628\\u0631|\\u0646\\u0648\\u0645\\u0628\\u0631|\\u062f\\u0633\\u0645\\u0628\\u0631)	i
+\\u063a\\.\\u0645|\\u063a\\.\\u0648\\.	
+^\\u044f\\u043d\\u0432	i
+^\\u0444\\u0435\\u0432	i
+^\\u043c\\u0430\\u0440	i
+^\\u0430\\u043f\\u0440	i
+^\\u043c\\u0430[\\u0439\\u044f]	i
+^\\u0438\\u044e\\u043d	i
+^\\u0438\\u044e\\u043b	i
+^\\u0430\\u0432\\u0433	i
+^\\u0441\\u0435\\u043d	i
+^\\u043e\\u043a\\u0442	i
+^\\u043d\\u043e\\u044f	i
+^\\u0434\\u0435\\u043a	i
+\\[ ?[\\u0412\\u0432] ?(?:\\u043f\\u0440\\u043e\\u0448\\u043b\\u0443\\u044e|\\u0441\\u043b\\u0435\\u0434\\u0443\\u044e\\u0449\\u0443\\u044e|\\u044d\\u0442\\u0443)? ?] ?dddd	
+^(\\u044f\\u043d\\u0432\\u0430\\u0440[\\u044c\\u044f]|\\u044f\\u043d\\u0432\\.?|\\u0444\\u0435\\u0432\\u0440\\u0430\\u043b[\\u044c\\u044f]|\\u0444\\u0435\\u0432\\u0440?\\.?|\\u043c\\u0430\\u0440\\u0442\\u0430?|\\u043c\\u0430\\u0440\\.?|\\u0430\\u043f\\u0440\\u0435\\u043b[\\u044c\\u044f]|\\u0430\\u043f\\u0440\\.?|\\u043c\\u0430[\\u0439\\u044f]|\\u0438\\u044e\\u043d[\\u044c\\u044f]|\\u0438\\u044e\\u043d\\.?|\\u0438\\u044e\\u043b[\\u044c\\u044f]|\\u0438\\u044e\\u043b\\.?|\\u0430\\u0432\\u0433\\u0443\\u0441\\u0442\\u0430?|\\u0430\\u0432\\u0433\\.?|\\u0441\\u0435\\u043d\\u0442\\u044f\\u0431\\u0440[\\u044c\\u044f]|\\u0441\\u0435\\u043d\\u0442?\\.?|\\u043e\\u043a\\u0442\\u044f\\u0431\\u0440[\\u044c\\u044f]|\\u043e\\u043a\\u0442\\.?|\\u043d\\u043e\\u044f\\u0431\\u0440[\\u044c\\u044f]|\\u043d\\u043e\\u044f\\u0431?\\.?|\\u0434\\u0435\\u043a\\u0430\\u0431\\u0440[\\u044c\\u044f]|\\u0434\\u0435\\u043a\\.?)	i
+^(\\u044f\\u043d\\u0432\\u0430\\u0440[\\u044f\\u044c]|\\u0444\\u0435\\u0432\\u0440\\u0430\\u043b[\\u044f\\u044c]|\\u043c\\u0430\\u0440\\u0442\\u0430?|\\u0430\\u043f\\u0440\\u0435\\u043b[\\u044f\\u044c]|\\u043c\\u0430[\\u044f\\u0439]|\\u0438\\u044e\\u043d[\\u044f\\u044c]|\\u0438\\u044e\\u043b[\\u044f\\u044c]|\\u0430\\u0432\\u0433\\u0443\\u0441\\u0442\\u0430?|\\u0441\\u0435\\u043d\\u0442\\u044f\\u0431\\u0440[\\u044f\\u044c]|\\u043e\\u043a\\u0442\\u044f\\u0431\\u0440[\\u044f\\u044c]|\\u043d\\u043e\\u044f\\u0431\\u0440[\\u044f\\u044c]|\\u0434\\u0435\\u043a\\u0430\\u0431\\u0440[\\u044f\\u044c])	i
+^(\\u044f\\u043d\\u0432\\.|\\u0444\\u0435\\u0432\\u0440?\\.|\\u043c\\u0430\\u0440[\\u0442.]|\\u0430\\u043f\\u0440\\.|\\u043c\\u0430[\\u044f\\u0439]|\\u0438\\u044e\\u043d[\\u044c\\u044f.]|\\u0438\\u044e\\u043b[\\u044c\\u044f.]|\\u0430\\u0432\\u0433\\.|\\u0441\\u0435\\u043d\\u0442?\\.|\\u043e\\u043a\\u0442\\.|\\u043d\\u043e\\u044f\\u0431?\\.|\\u0434\\u0435\\u043a\\.)	i
+\\u043d\\u043e\\u0447\\u0438|\\u0443\\u0442\\u0440\\u0430|\\u0434\\u043d\\u044f|\\u0432\\u0435\\u0447\\u0435\\u0440\\u0430	i
+^(\\u0434\\u043d\\u044f|\\u0432\\u0435\\u0447\\u0435\\u0440\\u0430)$	
+\\d{1,2}-(\\u0439|\\u0433\\u043e|\\u044f)	
+\\u0635\\u0628\\u062d|\\u0634\\u0627\\u0645	
+\\d{1,2} \\u0dc0\\u0dd0\\u0db1\\u0dd2	
+\\u0db4\\u0dd9\\u0dbb \\u0dc0\\u0dbb\\u0dd4|\\u0db4\\u0dc3\\u0dca \\u0dc0\\u0dbb\\u0dd4|\\u0db4\\u0dd9.\\u0dc0|\\u0db4.\\u0dc0.	
+\\d{1,2}\\u0bb5\\u0ba4\\u0bc1	
+[\\u0be7\\u0be8\\u0be9\\u0bea\\u0beb\\u0bec\\u0bed\\u0bee\\u0bef\\u0be6]	g
+\\u0baf\\u0bbe\\u0bae\\u0bae\\u0bcd|\\u0bb5\\u0bc8\\u0b95\\u0bb1\\u0bc8|\\u0b95\\u0bbe\\u0bb2\\u0bc8|\\u0ba8\\u0ba3\\u0bcd\\u0baa\\u0b95\\u0bb2\\u0bcd|\\u0b8e\\u0bb1\\u0bcd\\u0baa\\u0bbe\\u0b9f\\u0bc1|\\u0bae\\u0bbe\\u0bb2\\u0bc8	
+\\d{1,2}\\u0c35	
+\\u0c30\\u0c3e\\u0c24\\u0c4d\\u0c30\\u0c3f|\\u0c09\\u0c26\\u0c2f\\u0c02|\\u0c2e\\u0c27\\u0c4d\\u0c2f\\u0c3e\\u0c39\\u0c4d\\u0c28\\u0c02|\\u0c38\\u0c3e\\u0c2f\\u0c02\\u0c24\\u0c4d\\u0c30\\u0c02	
+\\u0448\\u0430\\u0431|\\u0441\\u0443\\u0431\\u04b3|\\u0440\\u04ef\\u0437|\\u0431\\u0435\\u0433\\u043e\\u04b3	
+\\d{1,2}-(\\u0443\\u043c|\\u044e\\u043c)	
+\\u0e01\\u0e48\\u0e2d\\u0e19\\u0e40\\u0e17\\u0e35\\u0e48\\u0e22\\u0e07|\\u0e2b\\u0e25\\u0e31\\u0e07\\u0e40\\u0e17\\u0e35\\u0e48\\u0e22\\u0e07	
+\\xf6\\xf6|\\xd6\\xd6|\\xf6s|\\xd6S	
+\\u064a\\u06d0\\u0631\\u0649\\u0645 \\u0643\\u06d0\\u0686\\u06d5|\\u0633\\u06d5\\u06be\\u06d5\\u0631|\\u0686\\u06c8\\u0634\\u062a\\u0649\\u0646 \\u0628\\u06c7\\u0631\\u06c7\\u0646|\\u0686\\u06c8\\u0634|\\u0686\\u06c8\\u0634\\u062a\\u0649\\u0646 \\u0643\\u06d0\\u064a\\u0649\\u0646|\\u0643\\u06d5\\u0686	
+\\d{1,2}(-\\u0643\\u06c8\\u0646\\u0649|-\\u0626\\u0627\\u064a|-\\u06be\\u06d5\\u067e\\u062a\\u06d5)	
+(\\[[\\u0412\\u0432\\u0423\\u0443]\\]) ?dddd	
+\\[?(?:\\u043c\\u0438\\u043d\\u0443\\u043b\\u043e\\u0457|\\u043d\\u0430\\u0441\\u0442\\u0443\\u043f\\u043d\\u043e\\u0457)? ?\\] ?dddd	
+\\u043d\\u043e\\u0447\\u0456|\\u0440\\u0430\\u043d\\u043a\\u0443|\\u0434\\u043d\\u044f|\\u0432\\u0435\\u0447\\u043e\\u0440\\u0430	
+^(\\u0434\\u043d\\u044f|\\u0432\\u0435\\u0447\\u043e\\u0440\\u0430)$	
+\\d{1,2}-(\\u0439|\\u0433\\u043e)	
+\\u1ecdj\\u1ecd\\u0301\\s\\d{1,2}	
+\\u51cc\\u6668|\\u65e9\\u4e0a|\\u4e0a\\u5348|\\u4e2d\\u5348|\\u4e0b\\u5348|\\u665a\\u4e0a	
+\\d{1,2}(\\u65e5|\\u6708|\\u5468)	
+\\d{1,2}(\\u65e5|\\u6708|\\u9031)	
+^(?:accent|alignment|arabic|baseline|cap|clip(?!PathU)|color|dominant|fill|flood|font|glyph(?!R)|horiz|image(!S)|letter|lighting|marker(?!H|W|U)|overline|paint|pointer|shape|stop|strikethrough|stroke|text(?!L)|transform|underline|unicode|units|v|vector|vert|word|writing|x(?!C))[A-Z]	
+^on(Ani|Tra|Tou|BeforeInp|Compo)	
+[A-Z0-9]	g
+fil|che|rad	
+fil|che|ra	
+^(address|article|aside|blockquote|details|div|dl|fieldset|figcaption|figure|footer|form|h1|h2|h3|h4|h5|h6|header|hgroup|hr|main|menu|nav|ol|p|pre|search|section|table|ul)$	
+acit|ex(?:s|g|n|p|$)|rph|grid|ows|mnc|ntw|ine[ch]|zoo|^ord|itera	i
+xlink(H|:h)	
+sName$	
+(PointerCapture)$|Capture$	i
+["&<]	
+[\\-:]([a-z])	g
+^on.	
+^on[^A-Z]	
+^(?:webkit|moz|o)[A-Z]	
+-(.)	g
+;\\s*$	
+["'&<>]	
+^ms-	
+^[\\u0000-\\u001F ]*j[\\r\\n\\t]*a[\\r\\n\\t]*v[\\r\\n\\t]*a[\\r\\n\\t]*s[\\r\\n\\t]*c[\\r\\n\\t]*r[\\r\\n\\t]*i[\\r\\n\\t]*p[\\r\\n\\t]*t[\\r\\n\\t]*:	i
+(<\\/|<)(s)(cript)	gi
+^[a-zA-Z][a-zA-Z:_\\.\\-\\d]*$	
+[<\\u2028\\u2029]	g
+\\n( *(at )?)	
+^[:A-Z_a-z\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD][:A-Z_a-z\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD\\-.0-9\\u00B7\\u0300-\\u036F\\u203F-\\u2040]*$	
+\\u0000|\\uFFFD	g
+^(https?|file):$	
+^[0-9]$	
+^([0-9]+(?:\\.[0-9]+)?)(ms|s|m) 	
+^[ ]+	
+[|#]	
+{(.+?)}	g
+[\\0\\n\\r\\u2028\\u2029]	g
+(?:^|[^\\\\])(?:\\\\{2})*$	
+^[\\\\/|\\0\\s\\w^$.[\\]()]*$	
+[$A-Z_a-z\\xAA\\xB5\\xBA\\xC0-\\xD6\\xD8-\\xF6\\xF8-\\u02C1\\u02C6-\\u02D1\\u02E0-\\u02E4\\u02EC\\u02EE\\u0370-\\u0374\\u0376\\u0377\\u037A-\\u037D\\u037F\\u0386\\u0388-\\u038A\\u038C\\u038E-\\u03A1\\u03A3-\\u03F5\\u03F7-\\u0481\\u048A-\\u052F\\u0531-\\u0556\\u0559\\u0561-\\u0587\\u05D0-\\u05EA\\u05F0-\\u05F2\\u0620-\\u064A\\u066E\\u066F\\u0671-\\u06D3\\u06D5\\u06E5\\u06E6\\u06EE\\u06EF\\u06FA-\\u06FC\\u06FF\\u0710\\u0712-\\u072F\\u074D-\\u07A5\\u07B1\\u07CA-\\u07EA\\u07F4\\u07F5\\u07FA\\u0800-\\u0815\\u081A\\u0824\\u0828\\u0840-\\u0858\\u08A0-\\u08B4\\u0904-\\u0939\\u093D\\u0950\\u0958-\\u0961\\u0971-\\u0980\\u0985-\\u098C\\u098F\\u0990\\u0993-\\u09A8\\u09AA-\\u09B0\\u09B2\\u09B6-\\u09B9\\u09BD\\u09CE\\u09DC\\u09DD\\u09DF-\\u09E1\\u09F0\\u09F1\\u0A05-\\u0A0A\\u0A0F\\u0A10\\u0A13-\\u0A28\\u0A2A-\\u0A30\\u0A32\\u0A33\\u0A35\\u0A36\\u0A38\\u0A39\\u0A59-\\u0A5C\\u0A5E\\u0A72-\\u0A74\\u0A85-\\u0A8D\\u0A8F-\\u0A91\\u0A93-\\u0AA8\\u0AAA-\\u0AB0\\u0AB2\\u0AB3\\u0AB5-\\u0AB9\\u0ABD\\u0AD0\\u0AE0\\u0AE1\\u0AF9\\u0B05-\\u0B0C\\u0B0F\\u0B10\\u0B13-\\u0B28\\u0B2A-\\u0B30\\u0B32\\u0B33\\u0B35-\\u0B39\\u0B3D\\u0B5C\\u0B5D\\u0B5F-\\u0B61\\u0B71\\u0B83\\u0B85-\\u0B8A\\u0B8E-\\u0B90\\u0B92-\\u0B95\\u0B99\\u0B9A\\u0B9C\\u0B9E\\u0B9F\\u0BA3\\u0BA4\\u0BA8-\\u0BAA\\u0BAE-\\u0BB9\\u0BD0\\u0C05-\\u0C0C\\u0C0E-\\u0C10\\u0C12-\\u0C28\\u0C2A-\\u0C39\\u0C3D\\u0C58-\\u0C5A\\u0C60\\u0C61\\u0C85-\\u0C8C\\u0C8E-\\u0C90\\u0C92-\\u0CA8\\u0CAA-\\u0CB3\\u0CB5-\\u0CB9\\u0CBD\\u0CDE\\u0CE0\\u0CE1\\u0CF1\\u0CF2\\u0D05-\\u0D0C\\u0D0E-\\u0D10\\u0D12-\\u0D3A\\u0D3D\\u0D4E\\u0D5F-\\u0D61\\u0D7A-\\u0D7F\\u0D85-\\u0D96\\u0D9A-\\u0DB1\\u0DB3-\\u0DBB\\u0DBD\\u0DC0-\\u0DC6\\u0E01-\\u0E30\\u0E32\\u0E33\\u0E40-\\u0E46\\u0E81\\u0E82\\u0E84\\u0E87\\u0E88\\u0E8A\\u0E8D\\u0E94-\\u0E97\\u0E99-\\u0E9F\\u0EA1-\\u0EA3\\u0EA5\\u0EA7\\u0EAA\\u0EAB\\u0EAD-\\u0EB0\\u0EB2\\u0EB3\\u0EBD\\u0EC0-\\u0EC4\\u0EC6\\u0EDC-\\u0EDF\\u0F00\\u0F40-\\u0F47\\u0F49-\\u0F6C\\u0F88-\\u0F8C\\u1000-\\u102A\\u103F\\u1050-\\u1055\\u105A-\\u105D\\u1061\\u1065\\u1066\\u106E-\\u1070\\u1075-\\u1081\\u108E\\u10A0-\\u10C5\\u10C7\\u10CD\\u10D0-\\u10FA\\u10FC-\\u1248\\u124A-\\u124D\\u1250-\\u1256\\u1258\\u125A-\\u125D\\u1260-\\u1288\\u128A-\\u128D\\u1290-\\u12B0\\u12B2-\\u12B5\\u12B8-\\u12BE\\u12C0\\u12C2-\\u12C5\\u12C8-\\u12D6\\u12D8-\\u1310\\u1312-\\u1315\\u1318-\\u135A\\u1380-\\u138F\\u13A0-\\u13F5\\u13F8-\\u13FD\\u1401-\\u166C\\u166F-\\u167F\\u1681-\\u169A\\u16A0-\\u16EA\\u16EE-\\u16F8\\u1700-\\u170C\\u170E-\\u1711\\u1720-\\u1731\\u1740-\\u1751\\u1760-\\u176C\\u176E-\\u1770\\u1780-\\u17B3\\u17D7\\u17DC\\u1820-\\u1877\\u1880-\\u18A8\\u18AA\\u18B0-\\u18F5\\u1900-\\u191E\\u1950-\\u196D\\u1970-\\u1974\\u1980-\\u19AB\\u19B0-\\u19C9\\u1A00-\\u1A16\\u1A20-\\u1A54\\u1AA7\\u1B05-\\u1B33\\u1B45-\\u1B4B\\u1B83-\\u1BA0\\u1BAE\\u1BAF\\u1BBA-\\u1BE5\\u1C00-\\u1C23\\u1C4D-\\u1C4F\\u1C5A-\\u1C7D\\u1CE9-\\u1CEC\\u1CEE-\\u1CF1\\u1CF5\\u1CF6\\u1D00-\\u1DBF\\u1E00-\\u1F15\\u1F18-\\u1F1D\\u1F20-\\u1F45\\u1F48-\\u1F4D\\u1F50-\\u1F57\\u1F59\\u1F5B\\u1F5D\\u1F5F-\\u1F7D\\u1F80-\\u1FB4\\u1FB6-\\u1FBC\\u1FBE\\u1FC2-\\u1FC4\\u1FC6-\\u1FCC\\u1FD0-\\u1FD3\\u1FD6-\\u1FDB\\u1FE0-\\u1FEC\\u1FF2-\\u1FF4\\u1FF6-\\u1FFC\\u2071\\u207F\\u2090-\\u209C\\u2102\\u2107\\u210A-\\u2113\\u2115\\u2118-\\u211D\\u2124\\u2126\\u2128\\u212A-\\u2139\\u213C-\\u213F\\u2145-\\u2149\\u214E\\u2160-\\u2188\\u2C00-\\u2C2E\\u2C30-\\u2C5E\\u2C60-\\u2CE4\\u2CEB-\\u2CEE\\u2CF2\\u2CF3\\u2D00-\\u2D25\\u2D27\\u2D2D\\u2D30-\\u2D67\\u2D6F\\u2D80-\\u2D96\\u2DA0-\\u2DA6\\u2DA8-\\u2DAE\\u2DB0-\\u2DB6\\u2DB8-\\u2DBE\\u2DC0-\\u2DC6\\u2DC8-\\u2DCE\\u2DD0-\\u2DD6\\u2DD8-\\u2DDE\\u3005-\\u3007\\u3021-\\u3029\\u3031-\\u3035\\u3038-\\u303C\\u3041-\\u3096\\u309B-\\u309F\\u30A1-\\u30FA\\u30FC-\\u30FF\\u3105-\\u312D\\u3131-\\u318E\\u31A0-\\u31BA\\u31F0-\\u31FF\\u3400-\\u4DB5\\u4E00-\\u9FD5\\uA000-\\uA48C\\uA4D0-\\uA4FD\\uA500-\\uA60C\\uA610-\\uA61F\\uA62A\\uA62B\\uA640-\\uA66E\\uA67F-\\uA69D\\uA6A0-\\uA6EF\\uA717-\\uA71F\\uA722-\\uA788\\uA78B-\\uA7AD\\uA7B0-\\uA7B7\\uA7F7-\\uA801\\uA803-\\uA805\\uA807-\\uA80A\\uA80C-\\uA822\\uA840-\\uA873\\uA882-\\uA8B3\\uA8F2-\\uA8F7\\uA8FB\\uA8FD\\uA90A-\\uA925\\uA930-\\uA946\\uA960-\\uA97C\\uA984-\\uA9B2\\uA9CF\\uA9E0-\\uA9E4\\uA9E6-\\uA9EF\\uA9FA-\\uA9FE\\uAA00-\\uAA28\\uAA40-\\uAA42\\uAA44-\\uAA4B\\uAA60-\\uAA76\\uAA7A\\uAA7E-\\uAAAF\\uAAB1\\uAAB5\\uAAB6\\uAAB9-\\uAABD\\uAAC0\\uAAC2\\uAADB-\\uAADD\\uAAE0-\\uAAEA\\uAAF2-\\uAAF4\\uAB01-\\uAB06\\uAB09-\\uAB0E\\uAB11-\\uAB16\\uAB20-\\uAB26\\uAB28-\\uAB2E\\uAB30-\\uAB5A\\uAB5C-\\uAB65\\uAB70-\\uABE2\\uAC00-\\uD7A3\\uD7B0-\\uD7C6\\uD7CB-\\uD7FB\\uF900-\\uFA6D\\uFA70-\\uFAD9\\uFB00-\\uFB06\\uFB13-\\uFB17\\uFB1D\\uFB1F-\\uFB28\\uFB2A-\\uFB36\\uFB38-\\uFB3C\\uFB3E\\uFB40\\uFB41\\uFB43\\uFB44\\uFB46-\\uFBB1\\uFBD3-\\uFD3D\\uFD50-\\uFD8F\\uFD92-\\uFDC7\\uFDF0-\\uFDFB\\uFE70-\\uFE74\\uFE76-\\uFEFC\\uFF21-\\uFF3A\\uFF41-\\uFF5A\\uFF66-\\uFFBE\\uFFC2-\\uFFC7\\uFFCA-\\uFFCF\\uFFD2-\\uFFD7\\uFFDA-\\uFFDC]|\\uD800[\\uDC00-\\uDC0B\\uDC0D-\\uDC26\\uDC28-\\uDC3A\\uDC3C\\uDC3D\\uDC3F-\\uDC4D\\uDC50-\\uDC5D\\uDC80-\\uDCFA\\uDD40-\\uDD74\\uDE80-\\uDE9C\\uDEA0-\\uDED0\\uDF00-\\uDF1F\\uDF30-\\uDF4A\\uDF50-\\uDF75\\uDF80-\\uDF9D\\uDFA0-\\uDFC3\\uDFC8-\\uDFCF\\uDFD1-\\uDFD5]|\\uD801[\\uDC00-\\uDC9D\\uDD00-\\uDD27\\uDD30-\\uDD63\\uDE00-\\uDF36\\uDF40-\\uDF55\\uDF60-\\uDF67]|\\uD802[\\uDC00-\\uDC05\\uDC08\\uDC0A-\\uDC35\\uDC37\\uDC38\\uDC3C\\uDC3F-\\uDC55\\uDC60-\\uDC76\\uDC80-\\uDC9E\\uDCE0-\\uDCF2\\uDCF4\\uDCF5\\uDD00-\\uDD15\\uDD20-\\uDD39\\uDD80-\\uDDB7\\uDDBE\\uDDBF\\uDE00\\uDE10-\\uDE13\\uDE15-\\uDE17\\uDE19-\\uDE33\\uDE60-\\uDE7C\\uDE80-\\uDE9C\\uDEC0-\\uDEC7\\uDEC9-\\uDEE4\\uDF00-\\uDF35\\uDF40-\\uDF55\\uDF60-\\uDF72\\uDF80-\\uDF91]|\\uD803[\\uDC00-\\uDC48\\uDC80-\\uDCB2\\uDCC0-\\uDCF2]|\\uD804[\\uDC03-\\uDC37\\uDC83-\\uDCAF\\uDCD0-\\uDCE8\\uDD03-\\uDD26\\uDD50-\\uDD72\\uDD76\\uDD83-\\uDDB2\\uDDC1-\\uDDC4\\uDDDA\\uDDDC\\uDE00-\\uDE11\\uDE13-\\uDE2B\\uDE80-\\uDE86\\uDE88\\uDE8A-\\uDE8D\\uDE8F-\\uDE9D\\uDE9F-\\uDEA8\\uDEB0-\\uDEDE\\uDF05-\\uDF0C\\uDF0F\\uDF10\\uDF13-\\uDF28\\uDF2A-\\uDF30\\uDF32\\uDF33\\uDF35-\\uDF39\\uDF3D\\uDF50\\uDF5D-\\uDF61]|\\uD805[\\uDC80-\\uDCAF\\uDCC4\\uDCC5\\uDCC7\\uDD80-\\uDDAE\\uDDD8-\\uDDDB\\uDE00-\\uDE2F\\uDE44\\uDE80-\\uDEAA\\uDF00-\\uDF19]|\\uD806[\\uDCA0-\\uDCDF\\uDCFF\\uDEC0-\\uDEF8]|\\uD808[\\uDC00-\\uDF99]|\\uD809[\\uDC00-\\uDC6E\\uDC80-\\uDD43]|[\\uD80C\\uD840-\\uD868\\uD86A-\\uD86C\\uD86F-\\uD872][\\uDC00-\\uDFFF]|\\uD80D[\\uDC00-\\uDC2E]|\\uD811[\\uDC00-\\uDE46]|\\uD81A[\\uDC00-\\uDE38\\uDE40-\\uDE5E\\uDED0-\\uDEED\\uDF00-\\uDF2F\\uDF40-\\uDF43\\uDF63-\\uDF77\\uDF7D-\\uDF8F]|\\uD81B[\\uDF00-\\uDF44\\uDF50\\uDF93-\\uDF9F]|\\uD82C[\\uDC00\\uDC01]|\\uD82F[\\uDC00-\\uDC6A\\uDC70-\\uDC7C\\uDC80-\\uDC88\\uDC90-\\uDC99]|\\uD835[\\uDC00-\\uDC54\\uDC56-\\uDC9C\\uDC9E\\uDC9F\\uDCA2\\uDCA5\\uDCA6\\uDCA9-\\uDCAC\\uDCAE-\\uDCB9\\uDCBB\\uDCBD-\\uDCC3\\uDCC5-\\uDD05\\uDD07-\\uDD0A\\uDD0D-\\uDD14\\uDD16-\\uDD1C\\uDD1E-\\uDD39\\uDD3B-\\uDD3E\\uDD40-\\uDD44\\uDD46\\uDD4A-\\uDD50\\uDD52-\\uDEA5\\uDEA8-\\uDEC0\\uDEC2-\\uDEDA\\uDEDC-\\uDEFA\\uDEFC-\\uDF14\\uDF16-\\uDF34\\uDF36-\\uDF4E\\uDF50-\\uDF6E\\uDF70-\\uDF88\\uDF8A-\\uDFA8\\uDFAA-\\uDFC2\\uDFC4-\\uDFCB]|\\uD83A[\\uDC00-\\uDCC4]|\\uD83B[\\uDE00-\\uDE03\\uDE05-\\uDE1F\\uDE21\\uDE22\\uDE24\\uDE27\\uDE29-\\uDE32\\uDE34-\\uDE37\\uDE39\\uDE3B\\uDE42\\uDE47\\uDE49\\uDE4B\\uDE4D-\\uDE4F\\uDE51\\uDE52\\uDE54\\uDE57\\uDE59\\uDE5B\\uDE5D\\uDE5F\\uDE61\\uDE62\\uDE64\\uDE67-\\uDE6A\\uDE6C-\\uDE72\\uDE74-\\uDE77\\uDE79-\\uDE7C\\uDE7E\\uDE80-\\uDE89\\uDE8B-\\uDE9B\\uDEA1-\\uDEA3\\uDEA5-\\uDEA9\\uDEAB-\\uDEBB]|\\uD869[\\uDC00-\\uDED6\\uDF00-\\uDFFF]|\\uD86D[\\uDC00-\\uDF34\\uDF40-\\uDFFF]|\\uD86E[\\uDC00-\\uDC1D\\uDC20-\\uDFFF]|\\uD873[\\uDC00-\\uDEA1]|\\uD87E[\\uDC00-\\uDE1D]	
+(?:[$0-9A-Z_a-z\\xAA\\xB5\\xB7\\xBA\\xC0-\\xD6\\xD8-\\xF6\\xF8-\\u02C1\\u02C6-\\u02D1\\u02E0-\\u02E4\\u02EC\\u02EE\\u0300-\\u0374\\u0376\\u0377\\u037A-\\u037D\\u037F\\u0386-\\u038A\\u038C\\u038E-\\u03A1\\u03A3-\\u03F5\\u03F7-\\u0481\\u0483-\\u0487\\u048A-\\u052F\\u0531-\\u0556\\u0559\\u0561-\\u0587\\u0591-\\u05BD\\u05BF\\u05C1\\u05C2\\u05C4\\u05C5\\u05C7\\u05D0-\\u05EA\\u05F0-\\u05F2\\u0610-\\u061A\\u0620-\\u0669\\u066E-\\u06D3\\u06D5-\\u06DC\\u06DF-\\u06E8\\u06EA-\\u06FC\\u06FF\\u0710-\\u074A\\u074D-\\u07B1\\u07C0-\\u07F5\\u07FA\\u0800-\\u082D\\u0840-\\u085B\\u08A0-\\u08B4\\u08E3-\\u0963\\u0966-\\u096F\\u0971-\\u0983\\u0985-\\u098C\\u098F\\u0990\\u0993-\\u09A8\\u09AA-\\u09B0\\u09B2\\u09B6-\\u09B9\\u09BC-\\u09C4\\u09C7\\u09C8\\u09CB-\\u09CE\\u09D7\\u09DC\\u09DD\\u09DF-\\u09E3\\u09E6-\\u09F1\\u0A01-\\u0A03\\u0A05-\\u0A0A\\u0A0F\\u0A10\\u0A13-\\u0A28\\u0A2A-\\u0A30\\u0A32\\u0A33\\u0A35\\u0A36\\u0A38\\u0A39\\u0A3C\\u0A3E-\\u0A42\\u0A47\\u0A48\\u0A4B-\\u0A4D\\u0A51\\u0A59-\\u0A5C\\u0A5E\\u0A66-\\u0A75\\u0A81-\\u0A83\\u0A85-\\u0A8D\\u0A8F-\\u0A91\\u0A93-\\u0AA8\\u0AAA-\\u0AB0\\u0AB2\\u0AB3\\u0AB5-\\u0AB9\\u0ABC-\\u0AC5\\u0AC7-\\u0AC9\\u0ACB-\\u0ACD\\u0AD0\\u0AE0-\\u0AE3\\u0AE6-\\u0AEF\\u0AF9\\u0B01-\\u0B03\\u0B05-\\u0B0C\\u0B0F\\u0B10\\u0B13-\\u0B28\\u0B2A-\\u0B30\\u0B32\\u0B33\\u0B35-\\u0B39\\u0B3C-\\u0B44\\u0B47\\u0B48\\u0B4B-\\u0B4D\\u0B56\\u0B57\\u0B5C\\u0B5D\\u0B5F-\\u0B63\\u0B66-\\u0B6F\\u0B71\\u0B82\\u0B83\\u0B85-\\u0B8A\\u0B8E-\\u0B90\\u0B92-\\u0B95\\u0B99\\u0B9A\\u0B9C\\u0B9E\\u0B9F\\u0BA3\\u0BA4\\u0BA8-\\u0BAA\\u0BAE-\\u0BB9\\u0BBE-\\u0BC2\\u0BC6-\\u0BC8\\u0BCA-\\u0BCD\\u0BD0\\u0BD7\\u0BE6-\\u0BEF\\u0C00-\\u0C03\\u0C05-\\u0C0C\\u0C0E-\\u0C10\\u0C12-\\u0C28\\u0C2A-\\u0C39\\u0C3D-\\u0C44\\u0C46-\\u0C48\\u0C4A-\\u0C4D\\u0C55\\u0C56\\u0C58-\\u0C5A\\u0C60-\\u0C63\\u0C66-\\u0C6F\\u0C81-\\u0C83\\u0C85-\\u0C8C\\u0C8E-\\u0C90\\u0C92-\\u0CA8\\u0CAA-\\u0CB3\\u0CB5-\\u0CB9\\u0CBC-\\u0CC4\\u0CC6-\\u0CC8\\u0CCA-\\u0CCD\\u0CD5\\u0CD6\\u0CDE\\u0CE0-\\u0CE3\\u0CE6-\\u0CEF\\u0CF1\\u0CF2\\u0D01-\\u0D03\\u0D05-\\u0D0C\\u0D0E-\\u0D10\\u0D12-\\u0D3A\\u0D3D-\\u0D44\\u0D46-\\u0D48\\u0D4A-\\u0D4E\\u0D57\\u0D5F-\\u0D63\\u0D66-\\u0D6F\\u0D7A-\\u0D7F\\u0D82\\u0D83\\u0D85-\\u0D96\\u0D9A-\\u0DB1\\u0DB3-\\u0DBB\\u0DBD\\u0DC0-\\u0DC6\\u0DCA\\u0DCF-\\u0DD4\\u0DD6\\u0DD8-\\u0DDF\\u0DE6-\\u0DEF\\u0DF2\\u0DF3\\u0E01-\\u0E3A\\u0E40-\\u0E4E\\u0E50-\\u0E59\\u0E81\\u0E82\\u0E84\\u0E87\\u0E88\\u0E8A\\u0E8D\\u0E94-\\u0E97\\u0E99-\\u0E9F\\u0EA1-\\u0EA3\\u0EA5\\u0EA7\\u0EAA\\u0EAB\\u0EAD-\\u0EB9\\u0EBB-\\u0EBD\\u0EC0-\\u0EC4\\u0EC6\\u0EC8-\\u0ECD\\u0ED0-\\u0ED9\\u0EDC-\\u0EDF\\u0F00\\u0F18\\u0F19\\u0F20-\\u0F29\\u0F35\\u0F37\\u0F39\\u0F3E-\\u0F47\\u0F49-\\u0F6C\\u0F71-\\u0F84\\u0F86-\\u0F97\\u0F99-\\u0FBC\\u0FC6\\u1000-\\u1049\\u1050-\\u109D\\u10A0-\\u10C5\\u10C7\\u10CD\\u10D0-\\u10FA\\u10FC-\\u1248\\u124A-\\u124D\\u1250-\\u1256\\u1258\\u125A-\\u125D\\u1260-\\u1288\\u128A-\\u128D\\u1290-\\u12B0\\u12B2-\\u12B5\\u12B8-\\u12BE\\u12C0\\u12C2-\\u12C5\\u12C8-\\u12D6\\u12D8-\\u1310\\u1312-\\u1315\\u1318-\\u135A\\u135D-\\u135F\\u1369-\\u1371\\u1380-\\u138F\\u13A0-\\u13F5\\u13F8-\\u13FD\\u1401-\\u166C\\u166F-\\u167F\\u1681-\\u169A\\u16A0-\\u16EA\\u16EE-\\u16F8\\u1700-\\u170C\\u170E-\\u1714\\u1720-\\u1734\\u1740-\\u1753\\u1760-\\u176C\\u176E-\\u1770\\u1772\\u1773\\u1780-\\u17D3\\u17D7\\u17DC\\u17DD\\u17E0-\\u17E9\\u180B-\\u180D\\u1810-\\u1819\\u1820-\\u1877\\u1880-\\u18AA\\u18B0-\\u18F5\\u1900-\\u191E\\u1920-\\u192B\\u1930-\\u193B\\u1946-\\u196D\\u1970-\\u1974\\u1980-\\u19AB\\u19B0-\\u19C9\\u19D0-\\u19DA\\u1A00-\\u1A1B\\u1A20-\\u1A5E\\u1A60-\\u1A7C\\u1A7F-\\u1A89\\u1A90-\\u1A99\\u1AA7\\u1AB0-\\u1ABD\\u1B00-\\u1B4B\\u1B50-\\u1B59\\u1B6B-\\u1B73\\u1B80-\\u1BF3\\u1C00-\\u1C37\\u1C40-\\u1C49\\u1C4D-\\u1C7D\\u1CD0-\\u1CD2\\u1CD4-\\u1CF6\\u1CF8\\u1CF9\\u1D00-\\u1DF5\\u1DFC-\\u1F15\\u1F18-\\u1F1D\\u1F20-\\u1F45\\u1F48-\\u1F4D\\u1F50-\\u1F57\\u1F59\\u1F5B\\u1F5D\\u1F5F-\\u1F7D\\u1F80-\\u1FB4\\u1FB6-\\u1FBC\\u1FBE\\u1FC2-\\u1FC4\\u1FC6-\\u1FCC\\u1FD0-\\u1FD3\\u1FD6-\\u1FDB\\u1FE0-\\u1FEC\\u1FF2-\\u1FF4\\u1FF6-\\u1FFC\\u200C\\u200D\\u203F\\u2040\\u2054\\u2071\\u207F\\u2090-\\u209C\\u20D0-\\u20DC\\u20E1\\u20E5-\\u20F0\\u2102\\u2107\\u210A-\\u2113\\u2115\\u2118-\\u211D\\u2124\\u2126\\u2128\\u212A-\\u2139\\u213C-\\u213F\\u2145-\\u2149\\u214E\\u2160-\\u2188\\u2C00-\\u2C2E\\u2C30-\\u2C5E\\u2C60-\\u2CE4\\u2CEB-\\u2CF3\\u2D00-\\u2D25\\u2D27\\u2D2D\\u2D30-\\u2D67\\u2D6F\\u2D7F-\\u2D96\\u2DA0-\\u2DA6\\u2DA8-\\u2DAE\\u2DB0-\\u2DB6\\u2DB8-\\u2DBE\\u2DC0-\\u2DC6\\u2DC8-\\u2DCE\\u2DD0-\\u2DD6\\u2DD8-\\u2DDE\\u2DE0-\\u2DFF\\u3005-\\u3007\\u3021-\\u302F\\u3031-\\u3035\\u3038-\\u303C\\u3041-\\u3096\\u3099-\\u309F\\u30A1-\\u30FA\\u30FC-\\u30FF\\u3105-\\u312D\\u3131-\\u318E\\u31A0-\\u31BA\\u31F0-\\u31FF\\u3400-\\u4DB5\\u4E00-\\u9FD5\\uA000-\\uA48C\\uA4D0-\\uA4FD\\uA500-\\uA60C\\uA610-\\uA62B\\uA640-\\uA66F\\uA674-\\uA67D\\uA67F-\\uA6F1\\uA717-\\uA71F\\uA722-\\uA788\\uA78B-\\uA7AD\\uA7B0-\\uA7B7\\uA7F7-\\uA827\\uA840-\\uA873\\uA880-\\uA8C4\\uA8D0-\\uA8D9\\uA8E0-\\uA8F7\\uA8FB\\uA8FD\\uA900-\\uA92D\\uA930-\\uA953\\uA960-\\uA97C\\uA980-\\uA9C0\\uA9CF-\\uA9D9\\uA9E0-\\uA9FE\\uAA00-\\uAA36\\uAA40-\\uAA4D\\uAA50-\\uAA59\\uAA60-\\uAA76\\uAA7A-\\uAAC2\\uAADB-\\uAADD\\uAAE0-\\uAAEF\\uAAF2-\\uAAF6\\uAB01-\\uAB06\\uAB09-\\uAB0E\\uAB11-\\uAB16\\uAB20-\\uAB26\\uAB28-\\uAB2E\\uAB30-\\uAB5A\\uAB5C-\\uAB65\\uAB70-\\uABEA\\uABEC\\uABED\\uABF0-\\uABF9\\uAC00-\\uD7A3\\uD7B0-\\uD7C6\\uD7CB-\\uD7FB\\uF900-\\uFA6D\\uFA70-\\uFAD9\\uFB00-\\uFB06\\uFB13-\\uFB17\\uFB1D-\\uFB28\\uFB2A-\\uFB36\\uFB38-\\uFB3C\\uFB3E\\uFB40\\uFB41\\uFB43\\uFB44\\uFB46-\\uFBB1\\uFBD3-\\uFD3D\\uFD50-\\uFD8F\\uFD92-\\uFDC7\\uFDF0-\\uFDFB\\uFE00-\\uFE0F\\uFE20-\\uFE2F\\uFE33\\uFE34\\uFE4D-\\uFE4F\\uFE70-\\uFE74\\uFE76-\\uFEFC\\uFF10-\\uFF19\\uFF21-\\uFF3A\\uFF3F\\uFF41-\\uFF5A\\uFF66-\\uFFBE\\uFFC2-\\uFFC7\\uFFCA-\\uFFCF\\uFFD2-\\uFFD7\\uFFDA-\\uFFDC]|\\uD800[\\uDC00-\\uDC0B\\uDC0D-\\uDC26\\uDC28-\\uDC3A\\uDC3C\\uDC3D\\uDC3F-\\uDC4D\\uDC50-\\uDC5D\\uDC80-\\uDCFA\\uDD40-\\uDD74\\uDDFD\\uDE80-\\uDE9C\\uDEA0-\\uDED0\\uDEE0\\uDF00-\\uDF1F\\uDF30-\\uDF4A\\uDF50-\\uDF7A\\uDF80-\\uDF9D\\uDFA0-\\uDFC3\\uDFC8-\\uDFCF\\uDFD1-\\uDFD5]|\\uD801[\\uDC00-\\uDC9D\\uDCA0-\\uDCA9\\uDD00-\\uDD27\\uDD30-\\uDD63\\uDE00-\\uDF36\\uDF40-\\uDF55\\uDF60-\\uDF67]|\\uD802[\\uDC00-\\uDC05\\uDC08\\uDC0A-\\uDC35\\uDC37\\uDC38\\uDC3C\\uDC3F-\\uDC55\\uDC60-\\uDC76\\uDC80-\\uDC9E\\uDCE0-\\uDCF2\\uDCF4\\uDCF5\\uDD00-\\uDD15\\uDD20-\\uDD39\\uDD80-\\uDDB7\\uDDBE\\uDDBF\\uDE00-\\uDE03\\uDE05\\uDE06\\uDE0C-\\uDE13\\uDE15-\\uDE17\\uDE19-\\uDE33\\uDE38-\\uDE3A\\uDE3F\\uDE60-\\uDE7C\\uDE80-\\uDE9C\\uDEC0-\\uDEC7\\uDEC9-\\uDEE6\\uDF00-\\uDF35\\uDF40-\\uDF55\\uDF60-\\uDF72\\uDF80-\\uDF91]|\\uD803[\\uDC00-\\uDC48\\uDC80-\\uDCB2\\uDCC0-\\uDCF2]|\\uD804[\\uDC00-\\uDC46\\uDC66-\\uDC6F\\uDC7F-\\uDCBA\\uDCD0-\\uDCE8\\uDCF0-\\uDCF9\\uDD00-\\uDD34\\uDD36-\\uDD3F\\uDD50-\\uDD73\\uDD76\\uDD80-\\uDDC4\\uDDCA-\\uDDCC\\uDDD0-\\uDDDA\\uDDDC\\uDE00-\\uDE11\\uDE13-\\uDE37\\uDE80-\\uDE86\\uDE88\\uDE8A-\\uDE8D\\uDE8F-\\uDE9D\\uDE9F-\\uDEA8\\uDEB0-\\uDEEA\\uDEF0-\\uDEF9\\uDF00-\\uDF03\\uDF05-\\uDF0C\\uDF0F\\uDF10\\uDF13-\\uDF28\\uDF2A-\\uDF30\\uDF32\\uDF33\\uDF35-\\uDF39\\uDF3C-\\uDF44\\uDF47\\uDF48\\uDF4B-\\uDF4D\\uDF50\\uDF57\\uDF5D-\\uDF63\\uDF66-\\uDF6C\\uDF70-\\uDF74]|\\uD805[\\uDC80-\\uDCC5\\uDCC7\\uDCD0-\\uDCD9\\uDD80-\\uDDB5\\uDDB8-\\uDDC0\\uDDD8-\\uDDDD\\uDE00-\\uDE40\\uDE44\\uDE50-\\uDE59\\uDE80-\\uDEB7\\uDEC0-\\uDEC9\\uDF00-\\uDF19\\uDF1D-\\uDF2B\\uDF30-\\uDF39]|\\uD806[\\uDCA0-\\uDCE9\\uDCFF\\uDEC0-\\uDEF8]|\\uD808[\\uDC00-\\uDF99]|\\uD809[\\uDC00-\\uDC6E\\uDC80-\\uDD43]|[\\uD80C\\uD840-\\uD868\\uD86A-\\uD86C\\uD86F-\\uD872][\\uDC00-\\uDFFF]|\\uD80D[\\uDC00-\\uDC2E]|\\uD811[\\uDC00-\\uDE46]|\\uD81A[\\uDC00-\\uDE38\\uDE40-\\uDE5E\\uDE60-\\uDE69\\uDED0-\\uDEED\\uDEF0-\\uDEF4\\uDF00-\\uDF36\\uDF40-\\uDF43\\uDF50-\\uDF59\\uDF63-\\uDF77\\uDF7D-\\uDF8F]|\\uD81B[\\uDF00-\\uDF44\\uDF50-\\uDF7E\\uDF8F-\\uDF9F]|\\uD82C[\\uDC00\\uDC01]|\\uD82F[\\uDC00-\\uDC6A\\uDC70-\\uDC7C\\uDC80-\\uDC88\\uDC90-\\uDC99\\uDC9D\\uDC9E]|\\uD834[\\uDD65-\\uDD69\\uDD6D-\\uDD72\\uDD7B-\\uDD82\\uDD85-\\uDD8B\\uDDAA-\\uDDAD\\uDE42-\\uDE44]|\\uD835[\\uDC00-\\uDC54\\uDC56-\\uDC9C\\uDC9E\\uDC9F\\uDCA2\\uDCA5\\uDCA6\\uDCA9-\\uDCAC\\uDCAE-\\uDCB9\\uDCBB\\uDCBD-\\uDCC3\\uDCC5-\\uDD05\\uDD07-\\uDD0A\\uDD0D-\\uDD14\\uDD16-\\uDD1C\\uDD1E-\\uDD39\\uDD3B-\\uDD3E\\uDD40-\\uDD44\\uDD46\\uDD4A-\\uDD50\\uDD52-\\uDEA5\\uDEA8-\\uDEC0\\uDEC2-\\uDEDA\\uDEDC-\\uDEFA\\uDEFC-\\uDF14\\uDF16-\\uDF34\\uDF36-\\uDF4E\\uDF50-\\uDF6E\\uDF70-\\uDF88\\uDF8A-\\uDFA8\\uDFAA-\\uDFC2\\uDFC4-\\uDFCB\\uDFCE-\\uDFFF]|\\uD836[\\uDE00-\\uDE36\\uDE3B-\\uDE6C\\uDE75\\uDE84\\uDE9B-\\uDE9F\\uDEA1-\\uDEAF]|\\uD83A[\\uDC00-\\uDCC4\\uDCD0-\\uDCD6]|\\uD83B[\\uDE00-\\uDE03\\uDE05-\\uDE1F\\uDE21\\uDE22\\uDE24\\uDE27\\uDE29-\\uDE32\\uDE34-\\uDE37\\uDE39\\uDE3B\\uDE42\\uDE47\\uDE49\\uDE4B\\uDE4D-\\uDE4F\\uDE51\\uDE52\\uDE54\\uDE57\\uDE59\\uDE5B\\uDE5D\\uDE5F\\uDE61\\uDE62\\uDE64\\uDE67-\\uDE6A\\uDE6C-\\uDE72\\uDE74-\\uDE77\\uDE79-\\uDE7C\\uDE7E\\uDE80-\\uDE89\\uDE8B-\\uDE9B\\uDEA1-\\uDEA3\\uDEA5-\\uDEA9\\uDEAB-\\uDEBB]|\\uD869[\\uDC00-\\uDED6\\uDF00-\\uDFFF]|\\uD86D[\\uDC00-\\uDF34\\uDF40-\\uDFFF]|\\uD86E[\\uDC00-\\uDC1D\\uDC20-\\uDFFF]|\\uD873[\\uDC00-\\uDEA1]|\\uD87E[\\uDC00-\\uDE1D]|\\uDB40[\\uDD00-\\uDDEF])+	
+^[a-z_$][a-z0-9_$]*$	i
+[\\ud800-\\udfff]	
+^0x[0-9a-f]+$	i
+^0[0-7]+$	
+^\\d*\\.?\\d*(?:e[+-]?\\d*(?:\\d\\.?|\\.?\\d)\\d*)?$	i
+^(0[xob])?[0-9a-f]+n$	i
+\\r\\n|\\r|\\u2028|\\u2029	g
+^[\\u0000-\\u007F]$	
+^\\/(.*)\\/(\\w*)$	
+[@#]__	
+[@#]__PURE__	
+[@#]__INLINE__	
+[@#]__NOINLINE__	
+[@#]__KEY__	
+[@#]__MANGLE_PROP__	
+[@#]__(PURE|INLINE|NOINLINE)__	
+@preserve|@copyright|@lic|@cc_on|^\\**!	i
+^\\/.*\\/[a-zA-Z]*$	
+[\\ud800-\\udbff][\\udc00-\\udfff]	g
+[\\u0000-\\u001f\\u007f-\\uffff]	g
+[\\ud800-\\udbff][\\udc00-\\udfff]|([\\ud800-\\udbff]|[\\udc00-\\udfff])	g
+[\\\\\\b\\f\\n\\r\\v\\t\\x22\\x27\\u2028\\u2029\\0\\ufeff]	g
+[0-9]	
+\\x27	g
+\\x22	g
+<\\x2f(script)([>\\/\\t\\n\\f\\r ])	gi
+\\x3c!--	g
+--\\x3e	g
+[\\s;})]	
+^\\s+$	
+\\r?\\n	
+(<\\s*\\/\\s*)(script)	i
+\\r\\n?|[\\n\\u2028\\u2029]|\\s*$	g
+comment[134]	
+^0	
+[xa-f.)]	i
+^[a-z]	i
+[+-]$	
+^[+-]	
+(<\\s*\\/\\s*script)	i
+^\\s*script	i
+^\\w	
+^0\\.	
+^\\.0+	
+0+$	
+^(\\d)\\.(\\d+)e(-?\\d+)$	
+(?:^[^a-z_$]|[^a-z0-9_$])	ig
+^[A-Z]	
+strict	
+keep_assign	
+,	
+funcs	
+vars	
+^{|}$	g
+=$	
+^VarDef$	
+^(Const|Let|Var)$	
+^Export$	
+^-?[0-9]+(\\.[0-9]+)?(e[+-][0-9]+)?$	
+(?:^|[^.])\\/\\/# sourceMappingURL=data:application\\/json(;[\\w=-]*)?;base64,([+/0-9A-Za-z]*=*)\\s*$	
+\\S	g
+^\\S*?Error:	
+[*?]	
+[.+^$[\\]\\\\(){}]	g
+\\*	g
+\\?	g
+^\\$	
+[a-z]	z
+\\u{110000}	u
+.	a
+.	ii
+\\1	u
+[a-z]	
+{*	u
+[	]
+(?!.){0,}?	u
+}?	u
+[P QR]	
+p	
+[a-c]	i
+=3	
+test	
+(()(?:\\2)((\\4)))	
+  foo	
+foo\\/bar	
+[\\uD834\\uDF06-\\uD834\\uDF08a-z]	u
+[\\s-\\w]	
+[\\u{0000000000000061}-\\u{7A}]	u
+\\uD834\\uDF06\\u{1d306}	u
+[x-z]	i
+foo	
+[\\]/]	
+(?=.)*	
+[a-z]	u
+\\0	
+[a-z]	gimuy
+[P QR]	i
+\\.\\/\\\\	u
+[a-z]	gim
+=([^=\\s])+	g
+((((((((((((.))))))))))))\\12	
+[--]	
+[-a-b-]	
+ 1 	
+[a-z]	y
+[a-z]	g
+[-a-]	
+(?!.){0,}?	
+0	g
+{}	
+\\uDF06	u
+q	
+[]	
+}	
+a	i
+42	g
+\\uD834	u
+[-\\-]	u
+=	
+[\\w-\\s]	
+.{.}	
+[\\u{61}-b][\\u0061-b][a-\\u{62}][a-\\u0062]\\u{1ffff}	u
+foobar	
+^(\\w+)\\(([^\\)]*)\\)	
+^\\s*(\\d+)\\s*,\\s*(\\d+)\\s*,\\s*(\\d+)\\s*(?:,\\s*(\\d*\\.?\\d+)\\s*)?$	
+^\\s*(\\d+)%\\s*,\\s*(\\d+)%\\s*,\\s*(\\d+)%\\s*(?:,\\s*(\\d*\\.?\\d+)\\s*)?$	
+^\\s*(\\d*\\.?\\d+)\\s*,\\s*(\\d*\\.?\\d+)%\\s*,\\s*(\\d*\\.?\\d+)%\\s*(?:,\\s*(\\d*\\.?\\d+)\\s*)?$	
+^#([A-Fa-f\\d]+)$	
+^([\\w-]*?)([\\d]+)$	
+charset="?([^;"\\s]*)"?	i
+^\\/	
+(^https?:\\/\\/[^\\/]+).*	i
+^(https?:)?\\/\\/	i
+^data:.*,.*$	i
+^blob:.*$	i
+^(\\/\\/)|([a-z]+:(\\/\\/)?)	i
+((?:WC+[\\/:])*)	
+(WCOD+)?	
+(?:\\.(WC+)(?:\\[(.+)\\])?)?	
+\\.(WC+)(?:\\[(.+)\\])?	
+(\\w+)(\\])?(\\[|\\.)?	g
+ERROR: 0:(\\d+)	
+NUM_SUN_LIGHTS	g
+NUM_DIR_LIGHTS	g
+NUM_SPOT_LIGHTS	g
+NUM_SPOT_LIGHT_MAPS	g
+NUM_SPOT_LIGHT_COORDS	g
+NUM_RECT_AREA_LIGHTS	g
+NUM_POINT_LIGHTS	g
+NUM_HEMI_LIGHTS	g
+NUM_SUN_LIGHT_SHADOWS	g
+NUM_DIR_LIGHT_SHADOWS	g
+NUM_SPOT_LIGHT_SHADOWS_WITH_MAPS	g
+NUM_SPOT_LIGHT_SHADOWS	g
+NUM_POINT_LIGHT_SHADOWS	g
+NUM_CLIPPING_PLANES	g
+UNION_CLIPPING_PLANES	g
+^[ \\t]*#include +<([\\w\\d./]+)>	gm
+#pragma unroll_loop_start\\s+for\\s*\\(\\s*int\\s+i\\s*=\\s*(\\d+)\\s*;\\s*i\\s*<\\s*(\\d+)\\s*;\\s*i\\s*\\+\\+\\s*\\)\\s*{([\\s\\S]+?)}\\s+#pragma unroll_loop_end	g
+\\[\\s*i\\s*\\]	g
+UNROLLED_LOOP_INDEX	g
+^WebGL (\\d)	
+^OpenGL ES (\\d)	
+OculusBrowser	g
+^StackTrace\\.js$	
+^TSLCore\\.js$	
+^.*Node\\.js$	
+^three\\.webgpu.*\\.js$	
+(?:at\\s+(.+?)\\s+\\()?(?:(.+?)@)?([^@\\s()]+):(\\d+):(\\d+)	
+[iu]?vec\\d	
+mat\\d	
+float	
+uint	
+int	
+float|int|uint|bool	
+vec2	
+vec3	
+vec4	
+mat2	
+mat3	
+mat4	
+float|u?int	
+r|s	g
+g|t	g
+b|p	g
+a|q	g
+^\\t	mg
+^sampler	
+mat	
+\\t|;	g
+^(?:is[A-Z]|_)|^(?:id|uuid|version|type|userData|clippingPlanes)$	
+^(is[A-Z]|_)|^(visible|version|uuid|name|opacity|userData)$	
+^out	
+vec\\d	
+(b|i|u|)(vec|mat)([2-4])	
+int|uint|(i|u)vec	
+vec([2-4])	
+^\\s*(highp|mediump|lowp)?\\s*([a-z_0-9]+)\\s*([a-z_0-9]+)?\\s*\\(([\\s\\S]*?)\\)	i
+[a-z_0-9]+	ig
+^(?:\\s*\\/\\/[^\\r\\n]*|\\s*\\/\\*[\\s\\S]*?\\*\\/|\\s*)+	
+^[iu]	
+^(.*):f(\\d+)$	
+^[fn]*\\s*([a-z_0-9]+)?\\s*\\(([\\s\\S]*?)\\)\\s*[\\->]*\\s*([a-z_0-9]+(?:<[\\s\\S]+?>)?)	i
+([a-z_0-9]+)\\s*:\\s*([a-z_0-9]+(?:<[\\s\\S]+?>)?)	ig
+Firefox|Deno	g
+^(int|uint|ivec|uvec)	
+Android	
+[&<>]	g
+^(POSITION|NORMAL|TANGENT|TEXCOORD_\\d+|COLOR_\\d+|JOINTS_\\d+|WEIGHTS_\\d+)$	
+[^A-Za-z0-9_]	g
+^[0-9]	
+\\.cube$	i
+TITLE\\s+"?([^"]+)"?	i
+\\n|^	g
+^([\\w\\.]+:\\s)	
+(".*?"|'.*?'|`.*?`)	g
+^("|'|`)	
+^rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)(?:,\\s*[\\d.]+)?\\)$	
+android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini	i
+([a-z0-9])([A-Z])	g
+### (.*?)(?:\\r?\\n|$)	g
+\\*\\*(.*?)\\*\\*	g
+[?#].*	
+[^a-zA-Z0-9_]	g
+p	g
+^Error(:[^\\n]*)?\\n	
+[0-9a-fA-F]	
+[1-9]	
+[^\\\\][\\$]	
+[^\\\\[][\\^]|^\\^	
+\\n|\\r\\n?	g
+full|onlyStart	i
+full	i
+onlyStart	i
+onlyOffset	i
+NOT_APPLICABLE	
+[ \\t]+	g
+\\s\\s+	g
+none	i
+[^A-Za-z0-9\\+\\/=]	g
+^ktx	i
+(#|0x)?([a-f0-9]{6})	i
+rgb\\(\\s*(\\d*)\\s*,\\s*(\\d*)\\s*,\\s*(\\d*)\\s*\\)	
+^#?([a-f0-9])([a-f0-9])([a-f0-9])$	i
+_rels\\/.rels$	
+3D\\/_rels\\/.*\\.model\\.rels$	
+^3D\\/[^\\/]*\\.model$	
+^3D\\/.*\\/.*\\.model$	
+^3D\\/Textures?\\/.*	
+^xmlns:(.+)$	
+[\\s]+	
+S|R|T|DeformPercent	
+X	
+Y	
+Z	
+DeformPercent	
+[\\r\\n]+	
+^[\\s\\t]*;	
+^[\\s\\t]*$	
+^[^\\s\\t}]	
+^"	
+"$	
+^(\\w+)::	
+,$	
+FBXVersion: (\\d+)	
+;.+	g
+^KHR_gaussian_splatting:SH_DEGREE_([1-3])_COEF_	
+\\.jpe?g($|\\?)	i
+^data:image\\/jpeg	
+\\.webp($|\\?)	i
+^data:image\\/webp	
+\\.ktx2($|\\?)	i
+^data:image\\/ktx2	
+^((?!chrome|android).)*safari	i
+Version\\/(\\d+)	
+Firefox\\/([0-9]+)\\.	
+^ply([\\s\\S]*?)end_header	
+^property\\s+\\S+\\s+(\\S+)\\s*$	
+^f_rest_\\d+$	
+\\r\\n|\\r|\\n	
+^#\\?(\\S+)	
+^\\s*GAMMA\\s*=\\s*(\\d+(\\.\\d+)?)\\s*$	
+^\\s*EXPOSURE\\s*=\\s*(\\d+(\\.\\d+)?)\\s*$	
+^\\s*FORMAT=(\\S+)\\s*$	
+^\\s*\\-Y\\s+(\\d+)\\s+\\+X\\s+(\\d+)\\s*$	
+primitive	i
+^0 !COLOUR	
+[\\n\\r]	g
+^[\\d ]+$	m
+^([\\d.e+-]+) +([\\d.e+-]+) +([\\d.e+-]+) *$	gm
+TITLE +"([^"]*)"	
+LUT_3D_SIZE +(\\d+)	
+DOMAIN_MIN +([\\d.]+) +([\\d.]+) +([\\d.]+)	
+DOMAIN_MAX +([\\d.]+) +([\\d.]+) +([\\d.]+)	
+\\.mtlx\\.zip$	i
+NRRD\\d+	
+^#	
+(.*):(.*)	
+\\(.*?\\)	g
+^[og]\\s*(.+)?	
+^mtllib 	
+^usemtl 	
+^usemap 	
+\\\\\\n	g
+[\\r\\n]DATA\\s(\\S*)\\s	i
+^#.*	gm
+^VERSION (.*)	im
+^FIELDS (.*)	im
+^SIZE (.*)	im
+^TYPE (.*)	im
+^COUNT (.*)	im
+^WIDTH (.*)	im
+^HEIGHT (.*)	im
+^VIEWPOINT (.*)	im
+^POINTS (.*)	im
+^ply([\\s\\S]*)end_header(\\r\\n|\\r|\\n)	
+end_header\\s+(\\S[\\s\\S]*\\S|\\S)\\s*$	
+^ply\\r\\n	
+solid([\\s\\S]*?)endsolid	g
+facet([\\s\\S]*?)endfacet	g
+solid\\s(.+)	
+[\\s]+([+-]?(?:\\d*)(?:\\.\\d*)?(?:[eE][+-]?\\d+)?)	
+[a-df-z][^a-df-z]*	ig
+,	gm
+([+-]?\\d*\\.?\\d+(?:e[+-]?\\d+)?)(?:,|\\s)([+-]?\\d*\\.?\\d+(?:e[+-]?\\d+)?)	g
+[ \\t\\r\\n,.\\-+]	
+[ \\t\\r\\n]	
+[\\d]	
+[-+]	
+\\.	
+e	i
+[01]	
+^\\s*url\\(\\s*(?:["']\\s*)?#([^)'"\\s]+)(?:\\s*["'])?\\s*\\)\\s*$	
+rgb\\(([^)]+)\\)	
+[^\\x30-\\x39\\0-\\x20\\x22\\x27\\x23\\x2b\\x2c\\x2d\\x2e\\x5b\\x5d\\x5c\\x7b\\x7d][^\\0-\\x20\\x22\\x27\\x23\\x2b\\x2c\\x2d\\x2e\\x5b\\x5d\\x5c\\x7b\\x7d]*[\\.][^\\x30-\\x39\\0-\\x20\\x22\\x27\\x23\\x2b\\x2c\\x2d\\x2e\\x5b\\x5d\\x5c\\x7b\\x7d][^\\0-\\x20\\x22\\x27\\x23\\x2b\\x2c\\x2d\\x2e\\x5b\\x5d\\x5c\\x7b\\x7d]*	
+[^\\x30-\\x39\\0-\\x20\\x22\\x27\\x23\\x2b\\x2c\\x2d\\x2e\\x5b\\x5d\\x5c\\x7b\\x7d]([^\\0-\\x20\\x22\\x27\\x23\\x2b\\x2c\\x2e\\x5b\\x5d\\x5c\\x7b\\x7d])*	
+#VRML.*	
+DEF	
+USE	
+ROUTE	
+TO	
+"(?:[^\\\\"]|\\\\[bfnrtv"\\\\/]|\\\\u[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F])*"	
+0[xX][0-9a-fA-F]+	
+[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?	
+TRUE	
+FALSE	
+NULL	
+\\[	
+]	
+#.*	
+[ ,\\s]	
+'|"	g
+^[^\\d.\\s-]+	
+^(\\d+)\\s+([\\s\\d]*)	
+^POINTS 	
+^POLYGONS 	
+^TRIANGLE_STRIPS 	
+^POINT_DATA[ ]+(\\d+)	
+^CELL_DATA[ ]+(\\d+)	
+^COLOR_SCALARS[ ]+(\\w+)[ ]+3	
+^NORMALS[ ]+(\\w+)[ ]+(\\w+)	
+\\)	
+^\\.?\\/	
+^\\/+	
+\\.svg(?:$|[?#])	i
+^UV(\\d+)$	
+[,|\\s]	
+^def\\s+(?:(\\w+)\\s+)?"?([^"]+)"?$	
+^string\\s+(\\w+)$	
+^(?:uniform\\s+)?(\\w+(?:\\[\\])?)\\s+(.+)$	
+^[\\d.]+$	
+[<>]	g
+[\\[\\]]	g
+\\(	g
+\\)	g
+[()]	g
+^(.+?)\\/\\{(\\w+)=(\\w+)\\}\\/(.+)$	
+@([^@]+)@(?:<([^>]+)>)?	
+@([^@]+)@(?:<([^>]+)>)?	g
+<|>	g
+^<|>$	g
+([a-z]+)_?(\\d+)	i
+(Android|iPad|iPhone|iPod)	g
+void\\s*main\\s*\\(\\)\\s*\\{	
+DEPTH_TO_VIEW_Z	g
+^(=|\\+=|-=|\\*=|\\/=|%=|<<=|>>=|>>>=|&=|\\^=|\\|=)$	
+^(\\+\\+|--)$	
+^((\\t| )\\n*)+	
+^\\n+	
+^\\/\\*[\\s\\S]*?\\*\\/	
+^\\/\\/.*?(?=\\n|$)	
+^((0x\\w+)|(\\.?\\d+\\.?\\d*((e-?\\d+)|\\w)?))	
+^("((?:[^"\\\\]|\\\\.)*)")	
+^('((?:[^'\\\\]|\\\\.)*)')	
+^[A-Za-z](\\w|\\.)*	
+\\\\\\$	g
+^(0x)	
+u$|U$	
+f|e|\\.	
+u|U|i$	
+f$	
+^(in|out|inout)$	
+defined\\s*\\(\\s*(\\w+)\\s*\\)	g
+defined\\s+(\\w+)	g
+\\b([A-Za-z_]\\w*)\\b	g
+^[\\d\\s+\\-*/%&|^!=<>~()]+$	
+^#\\s*(\\w+)(?:\\s+(.*))?$	
+\\/\\/.*$	
+\\/\\*.*?\\*\\/	g
+^(\\w+)\\((.*?)\\)\\s*(.*)$	
+^(\\w+)(?:\\s+(.*))?$	
+^(true|false|-?(\\d|\\.\\d))	
+^(void|bool|float|u?int|mat[234]|mat[234]x[234]|(u|i|b)?vec[234])$	
+^(i?int)$	
+^(i|u)?vec([234])$	
+.*vec[234]	
+#version 300 es	
+^http:	
+WebXRViewer\\/	i
+[^\\u0130\\u0131\\u00DFa-z0-9\\\\/:\\-_. ]+	g
+^function\\s+([\\w$]+)\\s*\\(	
+(?:,[\\s\\w]+:[^,]+)+\\]$	
+^(0|[1-9]\\d*)(?:\\.(0|[1-9]\\d*)(?:\\.(0|[1-9]\\d*)(?:-([a-z0-9-.]+))?(?:\\+([a-z0-9-.]+))?)?)?$	i
+^(?:0|[1-9]\\d*|[a-z-][a-z0-9-]*)(?:\\.(?:0|[1-9]\\d*|[a-z-][a-z0-9-]*))*$	i
+^(?:0|[1-9]\\d*|[a-z-][a-z0-9-]*)$	i
+^[a-z0-9-]+(?:\\.[a-z0-9-]+)*$	i
+^[a-z0-9-]+$	i
+\\|\\|	
+^([x*0]|[1-9]\\d*)(?:\\.([x*0]|[1-9]\\d*)(?:\\.([x*0]|[1-9]\\d*)(?:-([a-z0-9-.]+))?(?:\\+([a-z0-9-.]+))?)?)?$	i
+^\\s*([a-z0-9-+.*]+)\\s+-\\s+([a-z0-9-+.*]+)\\s*$	i
+^([~^<>=]|<=|>=)?\\s*([a-z0-9-+.*]+)$	i
+^native |^\\([^)]+\\)$|^(?:internal[\\\\/]|[\\w\\s]+(?:\\.js)?$)	
+^--(?:inspect|debug)(?:-brk)?(?:=\\d+)?$	i
+^development$	i
+^\\.\\.?(?:$|[\\\\/])	
+\\/\\.\\/	g
+\\/\\/|(?:^|\\/)\\.\\.?(?:$|\\/)	
+^\\/\\/\\/?\\s*@(ts-expect-error|ts-ignore)	
+^(?:\\/|\\*)*\\s*@(ts-expect-error|ts-ignore)	
+@(?:see|link)	i
+^#!.*	
+^([a-z]+)(?:[_-]([a-z]+))?$	
+\\r\\n|\\n|\\r	
+^\\s*\\*	
+^(\\d)	
+^\\/\\/\\/\\s*<reference\\s+path\\s*=\\s*(?:'[^']*'|"[^"]*").*?\\/>	
+^\\/\\/\\/\\s*<reference\\s+types\\s*=\\s*(?:'[^']*'|"[^"]*").*?\\/>	
+^\\/\\/\\/\\s*<reference\\s+lib\\s*=\\s*(?:'[^']*'|"[^"]*").*?\\/>	
+^\\/\\/\\/\\s*<amd-dependency\\s+path\\s*=\\s*(?:'[^']*'|"[^"]*").*?\\/>	
+^\\/\\/\\/\\s*<amd-module\\s+(?:\\S.*?)??\\/>	
+^\\/\\/\\/\\s*<reference\\s+no-default-lib\\s*=\\s*(?:'[^']*'|"[^"]*")\\s*\\/>	
+\\$\\{	g
+[\\\\"\\u0000-\\u001f\\u2028\\u2029\\u0085]	g
+[\\\\'\\u0000-\\u001f\\u2028\\u2029\\u0085]	g
+\\r\\n|[\\\\`\\u0000-\\u001f\\u2028\\u2029\\u0085]	g
+[^\\u0000-\\u007F]	g
+["\\u0000-\\u001f\\u2028\\u2029\\u0085]	g
+['\\u0000-\\u001f\\u2028\\u2029\\u0085]	g
+\\{(\\d+)\\}	g
+[^\\w\\s/]	g
+[.*?]	
+^\\/\\/\\/\\s*<(\\S+)\\s.*?\\/>	m
+^\\/\\/\\/?\\s*@([^\\s:]+)((?:[^\\S\\r\\n]|:).*)?$	m
+@(\\S+)(\\s+(?:\\S.*)?)?$	gm
+(?:^|\\/)\\*\\*\\/?$	
+^[^*?]*(?=\\/[^/]*[*?])	
+[^iu]	g
+^".+"$	
+[^a-z0-9]	gi
+^(?:EventTarget|Node|(?:HTML[a-zA-Z]*)?Element)$	
+\\/\\/[@#] source[M]appingURL=(.+)\\r?\\n?$	
+^\\/\\/[@#] source[M]appingURL=(.+)\\r?\\n?$	
+^\\s*(\\/\\/[@#] .*)?$	
+\\*\\/	g
+&((#((\\d+)|x([\\da-fA-F]+)))|(\\w+));	g
+^[A-Z_]\\w*$	i
+\\r\\n?|\\n	
+.	g
+^\\s*\\/\\/.*$	
+import|require	g
+[a-z]:	i
+[a-z]\\$$	i
+^users$	i
+^workspaces$	i
+^--((?:debug|inspect)(?:-brk)?)(?:=(\\d+))?$	
+^@([^/]+)\\/([^/]+)$	
+^\\/\\/\\/\\s*<	
+^(\\/\\/\\/\\s*)(<)(?:(\\S+)((?:[^/]|\\/[^>])*)(\\/>)?)?	m
+(\\s)(\\S+)(\\s*)(=)(\\s*)('[^']+'|"[^"]+")	g
+^data:(?:application\\/json;charset=[uU][tT][fF]-8;base64,([A-Za-z0-9+/=]+)$)?	
+\\\\?(?:\\r?\\n|[\\r\\u2028\\u2029])	g
+\\\\.|[$`]	g
+^function_scope_(\\d+)$	
+^constant_scope_(\\d+)$	
+[-[\\]/{}()*+?.\\\\^$|]	g
+(?:\\/{2,}\\s*)	
+(?:\\/\\*+\\s*)	
+(?:^(?:\\s|\\*)*)	
+(?:$|\\*\\/)	
+(?:.*?)	
+[*/\\s]	
+`extends (.*)`	
+'(.*)'	
+[^*|\\s(/)]	
+^(\\/\\/\\/\\s*<reference\\s+(path|types)\\s*=\\s*(?:'|"))([^\\x03"]*)$	
+^https?$	
+^#(end)?region(.*)\\r?$	
+dev\\/null\\/inferredProject\\d+\\*	
+jquery(-[\\d.]+)?(\\.intellisense)?(\\.min)?\\.js$	i
+^(.*\\/winjs-[.\\d]+)\\/js\\/base\\.js$	i
+^(.*\\/kendo(-ui)?)\\/kendo\\.all(\\.min)?\\.js$	i
+^(.*\\/office\\/1)\\/excel-\\d+\\.debug\\.js$	i
+^(.*\\/_references\\.js)$	i
+^.+[.-]min\\.js$	
+[\\\\/]\\.\\.?(?:$|[\\\\/])	
+[-/\\\\^$*+?.()|[\\]{}]	g
+\\r|\\n	g
+\\[native code\\]	
+\\[object ((I|Ui)nt(8|16|32)|Float(32|64)|Uint8Clamped|Big(I|Ui)nt64)Array\\]	
+(.)^	
+\\\\|'|\\r|\\n|\\u2028|\\u2029	g
+^\\s*(\\w|\\$)+\\s*$	
+[^\\ud800-\\udfff]|[\\ud800-\\udbff][\\udc00-\\udfff]|[\\ud800-\\udfff]	g
+-(\\w)	g
+\\B([A-Z])	g
+a-zA-Z\\u00B7\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u203F-\\u2040\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD	
+msie|trident	
+iphone|ipad|ipod|ios	
+chrome\\/\\d+	
+phantomjs	
+firefox\\/(\\d+)	
+^hook:	
+(?:^|[-_])(\\w)	g
+([^/\\\\]+)\\.vue$	
+^(String|Number|Boolean|Function|Symbol|BigInt)$	
+^\\s*function (\\w+)	
+HTMLUnknownElement	
+[\\w).+\\-_$\\]]	
+;(?![^(]*\\))	g
+:(.+)	
+\\s*!important$	
+\\b(transform|all)(,|$)	
+\\d-keep-alive$	
+transform$	
+\\{\\{((?:.|\\r?\\n)+?)\\}\\}	g
+[-.*+?^${}()|[\\]\\/\\\\]	g
+^\\s*([^\\s"'<>\\/=]+)(?:\\s*(=)\\s*(?:"([^"]*)"+|'([^']*)'+|([^\\s"'=<>`]+)))?	
+^\\s*((?:v-[\\w-]+:|@|:|#)\\[[^=]+?\\][^\\s"'<>\\/=]*)(?:\\s*(=)\\s*(?:"([^"]*)"+|'([^']*)'+|([^\\s"'=<>`]+)))?	
+^\\s*(\\/?)>	
+^<!DOCTYPE [^>]+>	i
+^<!\\--	
+^<!\\[	
+&(?:lt|gt|quot|amp|#39);	g
+&(?:lt|gt|quot|amp|#39|#10|#9);	g
+<!\\--([\\s\\S]*?)-->	g
+<!\\[CDATA\\[([\\s\\S]*?)]]>	g
+^@|^v-on:	
+^v-|^@|^:|^#	
+([\\s\\S]*?)\\s+(?:in|of)\\s+([\\s\\S]*)	
+,([^,\\}\\]]*)(?:,([^,\\}\\]]*))?$	
+^\\(|\\)$	g
+:(.*)$	
+^:|^\\.|^v-bind:	
+\\.[^.\\]]+(?=[^\\]]*$)	g
+^v-slot(:|$)|^#	
+[\\r\\n]	
+[ \\f\\t\\r\\n]+	g
+[\\s"'<>\\/=]	
+^xmlns:NS\\d+	
+^NS\\d+:	
+^([\\w$_]+|\\([^)]*?\\))\\s*=>|^function(?:\\s+[\\w$]+)?\\s*\\(	
+\\([^)]*?\\);*$	
+^[A-Za-z_$][\\w$]*(?:\\.[A-Za-z_$][\\w$]*|\\['[^']*?']|\\["[^"]*?"]|\\[\\d+]|\\[[A-Za-z_$][\\w$]*])*$	
+'(?:[^'\\\\]|\\\\.)*'|"(?:[^"\\\\]|\\\\.)*"|`(?:[^`\\\\]|\\\\.)*\\$\\{|\\}(?:[^`\\\\]|\\\\.)*`|`(?:[^`\\\\]|\\\\.)*`	g
+unsafe-eval|CSP	
+^(\\r?\\n)*[\\t\\s]	
+^(j|t)sx?$	
+Function(?:Expression|Declaration)$|Method$	
+[\\x01-\\x7F]	g
+[\\x01-\\t\\x0B\\f\\x0E-\\x1F\\x7F\\x81\\x8D\\x8F\\x90\\x9D\\xA0-\\uFFFF]	g
+<\\u20D2|=\\u20E5|>\\u20D2|\\u205F\\u200A|\\u219D\\u0338|\\u2202\\u0338|\\u2220\\u20D2|\\u2229\\uFE00|\\u222A\\uFE00|\\u223C\\u20D2|\\u223D\\u0331|\\u223E\\u0333|\\u2242\\u0338|\\u224B\\u0338|\\u224D\\u20D2|\\u224E\\u0338|\\u224F\\u0338|\\u2250\\u0338|\\u2261\\u20E5|\\u2264\\u20D2|\\u2265\\u20D2|\\u2266\\u0338|\\u2267\\u0338|\\u2268\\uFE00|\\u2269\\uFE00|\\u226A\\u0338|\\u226A\\u20D2|\\u226B\\u0338|\\u226B\\u20D2|\\u227F\\u0338|\\u2282\\u20D2|\\u2283\\u20D2|\\u228A\\uFE00|\\u228B\\uFE00|\\u228F\\u0338|\\u2290\\u0338|\\u2293\\uFE00|\\u2294\\uFE00|\\u22B4\\u20D2|\\u22B5\\u20D2|\\u22D8\\u0338|\\u22D9\\u0338|\\u22DA\\uFE00|\\u22DB\\uFE00|\\u22F5\\u0338|\\u22F9\\u0338|\\u2933\\u0338|\\u29CF\\u0338|\\u29D0\\u0338|\\u2A6D\\u0338|\\u2A70\\u0338|\\u2A7D\\u0338|\\u2A7E\\u0338|\\u2AA1\\u0338|\\u2AA2\\u0338|\\u2AAC\\uFE00|\\u2AAD\\uFE00|\\u2AAF\\u0338|\\u2AB0\\u0338|\\u2AC5\\u0338|\\u2AC6\\u0338|\\u2ACB\\uFE00|\\u2ACC\\uFE00|\\u2AFD\\u20E5|[\\xA0-\\u0113\\u0116-\\u0122\\u0124-\\u012B\\u012E-\\u014D\\u0150-\\u017E\\u0192\\u01B5\\u01F5\\u0237\\u02C6\\u02C7\\u02D8-\\u02DD\\u0311\\u0391-\\u03A1\\u03A3-\\u03A9\\u03B1-\\u03C9\\u03D1\\u03D2\\u03D5\\u03D6\\u03DC\\u03DD\\u03F0\\u03F1\\u03F5\\u03F6\\u0401-\\u040C\\u040E-\\u044F\\u0451-\\u045C\\u045E\\u045F\\u2002-\\u2005\\u2007-\\u2010\\u2013-\\u2016\\u2018-\\u201A\\u201C-\\u201E\\u2020-\\u2022\\u2025\\u2026\\u2030-\\u2035\\u2039\\u203A\\u203E\\u2041\\u2043\\u2044\\u204F\\u2057\\u205F-\\u2063\\u20AC\\u20DB\\u20DC\\u2102\\u2105\\u210A-\\u2113\\u2115-\\u211E\\u2122\\u2124\\u2127-\\u2129\\u212C\\u212D\\u212F-\\u2131\\u2133-\\u2138\\u2145-\\u2148\\u2153-\\u215E\\u2190-\\u219B\\u219D-\\u21A7\\u21A9-\\u21AE\\u21B0-\\u21B3\\u21B5-\\u21B7\\u21BA-\\u21DB\\u21DD\\u21E4\\u21E5\\u21F5\\u21FD-\\u2205\\u2207-\\u2209\\u220B\\u220C\\u220F-\\u2214\\u2216-\\u2218\\u221A\\u221D-\\u2238\\u223A-\\u2257\\u2259\\u225A\\u225C\\u225F-\\u2262\\u2264-\\u228B\\u228D-\\u229B\\u229D-\\u22A5\\u22A7-\\u22B0\\u22B2-\\u22BB\\u22BD-\\u22DB\\u22DE-\\u22E3\\u22E6-\\u22F7\\u22F9-\\u22FE\\u2305\\u2306\\u2308-\\u2310\\u2312\\u2313\\u2315\\u2316\\u231C-\\u231F\\u2322\\u2323\\u232D\\u232E\\u2336\\u233D\\u233F\\u237C\\u23B0\\u23B1\\u23B4-\\u23B6\\u23DC-\\u23DF\\u23E2\\u23E7\\u2423\\u24C8\\u2500\\u2502\\u250C\\u2510\\u2514\\u2518\\u251C\\u2524\\u252C\\u2534\\u253C\\u2550-\\u256C\\u2580\\u2584\\u2588\\u2591-\\u2593\\u25A1\\u25AA\\u25AB\\u25AD\\u25AE\\u25B1\\u25B3-\\u25B5\\u25B8\\u25B9\\u25BD-\\u25BF\\u25C2\\u25C3\\u25CA\\u25CB\\u25EC\\u25EF\\u25F8-\\u25FC\\u2605\\u2606\\u260E\\u2640\\u2642\\u2660\\u2663\\u2665\\u2666\\u266A\\u266D-\\u266F\\u2713\\u2717\\u2720\\u2736\\u2758\\u2772\\u2773\\u27C8\\u27C9\\u27E6-\\u27ED\\u27F5-\\u27FA\\u27FC\\u27FF\\u2902-\\u2905\\u290C-\\u2913\\u2916\\u2919-\\u2920\\u2923-\\u292A\\u2933\\u2935-\\u2939\\u293C\\u293D\\u2945\\u2948-\\u294B\\u294E-\\u2976\\u2978\\u2979\\u297B-\\u297F\\u2985\\u2986\\u298B-\\u2996\\u299A\\u299C\\u299D\\u29A4-\\u29B7\\u29B9\\u29BB\\u29BC\\u29BE-\\u29C5\\u29C9\\u29CD-\\u29D0\\u29DC-\\u29DE\\u29E3-\\u29E5\\u29EB\\u29F4\\u29F6\\u2A00-\\u2A02\\u2A04\\u2A06\\u2A0C\\u2A0D\\u2A10-\\u2A17\\u2A22-\\u2A27\\u2A29\\u2A2A\\u2A2D-\\u2A31\\u2A33-\\u2A3C\\u2A3F\\u2A40\\u2A42-\\u2A4D\\u2A50\\u2A53-\\u2A58\\u2A5A-\\u2A5D\\u2A5F\\u2A66\\u2A6A\\u2A6D-\\u2A75\\u2A77-\\u2A9A\\u2A9D-\\u2AA2\\u2AA4-\\u2AB0\\u2AB3-\\u2AC8\\u2ACB\\u2ACC\\u2ACF-\\u2ADB\\u2AE4\\u2AE6-\\u2AE9\\u2AEB-\\u2AF3\\u2AFD\\uFB00-\\uFB04]|\\uD835[\\uDC9C\\uDC9E\\uDC9F\\uDCA2\\uDCA5\\uDCA6\\uDCA9-\\uDCAC\\uDCAE-\\uDCB9\\uDCBB\\uDCBD-\\uDCC3\\uDCC5-\\uDCCF\\uDD04\\uDD05\\uDD07-\\uDD0A\\uDD0D-\\uDD14\\uDD16-\\uDD1C\\uDD1E-\\uDD39\\uDD3B-\\uDD3E\\uDD40-\\uDD44\\uDD46\\uDD4A-\\uDD50\\uDD52-\\uDD6B]	g
+["&'<>`]	g
+&#(?:[xX][^a-fA-F0-9]|[^0-9xX])	
+[\\0-\\x08\\x0B\\x0E-\\x1F\\x7F-\\x9F\\uFDD0-\\uFDEF\\uFFFE\\uFFFF]|[\\uD83F\\uD87F\\uD8BF\\uD8FF\\uD93F\\uD97F\\uD9BF\\uD9FF\\uDA3F\\uDA7F\\uDABF\\uDAFF\\uDB3F\\uDB7F\\uDBBF\\uDBFF][\\uDFFE\\uDFFF]|[\\uD800-\\uDBFF](?![\\uDC00-\\uDFFF])|(?:[^\\uD800-\\uDBFF]|^)[\\uDC00-\\uDFFF]	
+&(CounterClockwiseContourIntegral|DoubleLongLeftRightArrow|ClockwiseContourIntegral|NotNestedGreaterGreater|NotSquareSupersetEqual|DiacriticalDoubleAcute|NotRightTriangleEqual|NotSucceedsSlantEqual|NotPrecedesSlantEqual|CloseCurlyDoubleQuote|NegativeVeryThinSpace|DoubleContourIntegral|FilledVerySmallSquare|CapitalDifferentialD|OpenCurlyDoubleQuote|EmptyVerySmallSquare|NestedGreaterGreater|DoubleLongRightArrow|NotLeftTriangleEqual|NotGreaterSlantEqual|ReverseUpEquilibrium|DoubleLeftRightArrow|NotSquareSubsetEqual|NotDoubleVerticalBar|RightArrowLeftArrow|NotGreaterFullEqual|NotRightTriangleBar|SquareSupersetEqual|DownLeftRightVector|DoubleLongLeftArrow|leftrightsquigarrow|LeftArrowRightArrow|NegativeMediumSpace|blacktriangleright|RightDownVectorBar|PrecedesSlantEqual|RightDoubleBracket|SucceedsSlantEqual|NotLeftTriangleBar|RightTriangleEqual|SquareIntersection|RightDownTeeVector|ReverseEquilibrium|NegativeThickSpace|longleftrightarrow|Longleftrightarrow|LongLeftRightArrow|DownRightTeeVector|DownRightVectorBar|GreaterSlantEqual|SquareSubsetEqual|LeftDownVectorBar|LeftDoubleBracket|VerticalSeparator|rightleftharpoons|NotGreaterGreater|NotSquareSuperset|blacktriangleleft|blacktriangledown|NegativeThinSpace|LeftDownTeeVector|NotLessSlantEqual|leftrightharpoons|DoubleUpDownArrow|DoubleVerticalBar|LeftTriangleEqual|FilledSmallSquare|twoheadrightarrow|NotNestedLessLess|DownLeftTeeVector|DownLeftVectorBar|RightAngleBracket|NotTildeFullEqual|NotReverseElement|RightUpDownVector|DiacriticalTilde|NotSucceedsTilde|circlearrowright|NotPrecedesEqual|rightharpoondown|DoubleRightArrow|NotSucceedsEqual|NonBreakingSpace|NotRightTriangle|LessEqualGreater|RightUpTeeVector|LeftAngleBracket|GreaterFullEqual|DownArrowUpArrow|RightUpVectorBar|twoheadleftarrow|GreaterEqualLess|downharpoonright|RightTriangleBar|ntrianglerighteq|NotSupersetEqual|LeftUpDownVector|DiacriticalAcute|rightrightarrows|vartriangleright|UpArrowDownArrow|DiacriticalGrave|UnderParenthesis|EmptySmallSquare|LeftUpVectorBar|leftrightarrows|DownRightVector|downharpoonleft|trianglerighteq|ShortRightArrow|OverParenthesis|DoubleLeftArrow|DoubleDownArrow|NotSquareSubset|bigtriangledown|ntrianglelefteq|UpperRightArrow|curvearrowright|vartriangleleft|NotLeftTriangle|nleftrightarrow|LowerRightArrow|NotHumpDownHump|NotGreaterTilde|rightthreetimes|LeftUpTeeVector|NotGreaterEqual|straightepsilon|LeftTriangleBar|rightsquigarrow|ContourIntegral|rightleftarrows|CloseCurlyQuote|RightDownVector|LeftRightVector|nLeftrightarrow|leftharpoondown|circlearrowleft|SquareSuperset|OpenCurlyQuote|hookrightarrow|HorizontalLine|DiacriticalDot|NotLessGreater|ntriangleright|DoubleRightTee|InvisibleComma|InvisibleTimes|LowerLeftArrow|DownLeftVector|NotSubsetEqual|curvearrowleft|trianglelefteq|NotVerticalBar|TildeFullEqual|downdownarrows|NotGreaterLess|RightTeeVector|ZeroWidthSpace|looparrowright|LongRightArrow|doublebarwedge|ShortLeftArrow|ShortDownArrow|RightVectorBar|GreaterGreater|ReverseElement|rightharpoonup|LessSlantEqual|leftthreetimes|upharpoonright|rightarrowtail|LeftDownVector|Longrightarrow|NestedLessLess|UpperLeftArrow|nshortparallel|leftleftarrows|leftrightarrow|Leftrightarrow|LeftRightArrow|longrightarrow|upharpoonleft|RightArrowBar|ApplyFunction|LeftTeeVector|leftarrowtail|NotEqualTilde|varsubsetneqq|varsupsetneqq|RightTeeArrow|SucceedsEqual|SucceedsTilde|LeftVectorBar|SupersetEqual|hookleftarrow|DifferentialD|VerticalTilde|VeryThinSpace|blacktriangle|bigtriangleup|LessFullEqual|divideontimes|leftharpoonup|UpEquilibrium|ntriangleleft|RightTriangle|measuredangle|shortparallel|longleftarrow|Longleftarrow|LongLeftArrow|DoubleLeftTee|Poincareplane|PrecedesEqual|triangleright|DoubleUpArrow|RightUpVector|fallingdotseq|looparrowleft|PrecedesTilde|NotTildeEqual|NotTildeTilde|smallsetminus|Proportional|triangleleft|triangledown|UnderBracket|NotHumpEqual|exponentiale|ExponentialE|NotLessTilde|HilbertSpace|RightCeiling|blacklozenge|varsupsetneq|HumpDownHump|GreaterEqual|VerticalLine|LeftTeeArrow|NotLessEqual|DownTeeArrow|LeftTriangle|varsubsetneq|Intersection|NotCongruent|DownArrowBar|LeftUpVector|LeftArrowBar|risingdotseq|GreaterTilde|RoundImplies|SquareSubset|ShortUpArrow|NotSuperset|quaternions|precnapprox|backepsilon|preccurlyeq|OverBracket|blacksquare|MediumSpace|VerticalBar|circledcirc|circleddash|CircleMinus|CircleTimes|LessGreater|curlyeqprec|curlyeqsucc|diamondsuit|UpDownArrow|Updownarrow|RuleDelayed|Rrightarrow|updownarrow|RightVector|nRightarrow|nrightarrow|eqslantless|LeftCeiling|Equilibrium|SmallCircle|expectation|NotSucceeds|thickapprox|GreaterLess|SquareUnion|NotPrecedes|NotLessLess|straightphi|succnapprox|succcurlyeq|SubsetEqual|sqsupseteq|Proportion|Laplacetrf|ImaginaryI|supsetneqq|NotGreater|gtreqqless|NotElement|ThickSpace|TildeEqual|TildeTilde|Fouriertrf|rmoustache|EqualTilde|eqslantgtr|UnderBrace|LeftVector|UpArrowBar|nLeftarrow|nsubseteqq|subsetneqq|nsupseteqq|nleftarrow|succapprox|lessapprox|UpTeeArrow|upuparrows|curlywedge|lesseqqgtr|varepsilon|varnothing|RightFloor|complement|CirclePlus|sqsubseteq|Lleftarrow|circledast|RightArrow|Rightarrow|rightarrow|lmoustache|Bernoullis|precapprox|mapstoleft|mapstodown|longmapsto|dotsquare|downarrow|DoubleDot|nsubseteq|supsetneq|leftarrow|nsupseteq|subsetneq|ThinSpace|ngeqslant|subseteqq|HumpEqual|NotSubset|triangleq|NotCupCap|lesseqgtr|heartsuit|TripleDot|Leftarrow|Coproduct|Congruent|varpropto|complexes|gvertneqq|LeftArrow|LessTilde|supseteqq|MinusPlus|CircleDot|nleqslant|NotExists|gtreqless|nparallel|UnionPlus|LeftFloor|checkmark|CenterDot|centerdot|Mellintrf|gtrapprox|bigotimes|OverBrace|spadesuit|therefore|pitchfork|rationals|PlusMinus|Backslash|Therefore|DownBreve|backsimeq|backprime|DownArrow|nshortmid|Downarrow|lvertneqq|eqvparsl|imagline|imagpart|infintie|integers|Integral|intercal|LessLess|Uarrocir|intlarhk|sqsupset|angmsdaf|sqsubset|llcorner|vartheta|cupbrcap|lnapprox|Superset|SuchThat|succnsim|succneqq|angmsdag|biguplus|curlyvee|trpezium|Succeeds|NotTilde|bigwedge|angmsdah|angrtvbd|triminus|cwconint|fpartint|lrcorner|smeparsl|subseteq|urcorner|lurdshar|laemptyv|DDotrahd|approxeq|ldrushar|awconint|mapstoup|backcong|shortmid|triangle|geqslant|gesdotol|timesbar|circledR|circledS|setminus|multimap|naturals|scpolint|ncongdot|RightTee|boxminus|gnapprox|boxtimes|andslope|thicksim|angmsdaa|varsigma|cirfnint|rtriltri|angmsdab|rppolint|angmsdac|barwedge|drbkarow|clubsuit|thetasym|bsolhsub|capbrcup|dzigrarr|doteqdot|DotEqual|dotminus|UnderBar|NotEqual|realpart|otimesas|ulcorner|hksearow|hkswarow|parallel|PartialD|elinters|emptyset|plusacir|bbrktbrk|angmsdad|pointint|bigoplus|angmsdae|Precedes|bigsqcup|varkappa|notindot|supseteq|precneqq|precnsim|profalar|profline|profsurf|leqslant|lesdotor|raemptyv|subplus|notnivb|notnivc|subrarr|zigrarr|vzigzag|submult|subedot|Element|between|cirscir|larrbfs|larrsim|lotimes|lbrksld|lbrkslu|lozenge|ldrdhar|dbkarow|bigcirc|epsilon|simrarr|simplus|ltquest|Epsilon|luruhar|gtquest|maltese|npolint|eqcolon|npreceq|bigodot|ddagger|gtrless|bnequiv|harrcir|ddotseq|equivDD|backsim|demptyv|nsqsube|nsqsupe|Upsilon|nsubset|upsilon|minusdu|nsucceq|swarrow|nsupset|coloneq|searrow|boxplus|napprox|natural|asympeq|alefsym|congdot|nearrow|bigstar|diamond|supplus|tritime|LeftTee|nvinfin|triplus|NewLine|nvltrie|nvrtrie|nwarrow|nexists|Diamond|ruluhar|Implies|supmult|angzarr|suplarr|suphsub|questeq|because|digamma|Because|olcross|bemptyv|omicron|Omicron|rotimes|NoBreak|intprod|angrtvb|orderof|uwangle|suphsol|lesdoto|orslope|DownTee|realine|cudarrl|rdldhar|OverBar|supedot|lessdot|supdsub|topfork|succsim|rbrkslu|rbrksld|pertenk|cudarrr|isindot|planckh|lessgtr|pluscir|gesdoto|plussim|plustwo|lesssim|cularrp|rarrsim|Cayleys|notinva|notinvb|notinvc|UpArrow|Uparrow|uparrow|NotLess|dwangle|precsim|Product|curarrm|Cconint|dotplus|rarrbfs|ccupssm|Cedilla|cemptyv|notniva|quatint|frac35|frac38|frac45|frac56|frac58|frac78|tridot|xoplus|gacute|gammad|Gammad|lfisht|lfloor|bigcup|sqsupe|gbreve|Gbreve|lharul|sqsube|sqcups|Gcedil|apacir|llhard|lmidot|Lmidot|lmoust|andand|sqcaps|approx|Abreve|spades|circeq|tprime|divide|topcir|Assign|topbot|gesdot|divonx|xuplus|timesd|gesles|atilde|solbar|SOFTcy|loplus|timesb|lowast|lowbar|dlcorn|dlcrop|softcy|dollar|lparlt|thksim|lrhard|Atilde|lsaquo|smashp|bigvee|thinsp|wreath|bkarow|lsquor|lstrok|Lstrok|lthree|ltimes|ltlarr|DotDot|simdot|ltrPar|weierp|xsqcup|angmsd|sigmav|sigmaf|zeetrf|Zcaron|zcaron|mapsto|vsupne|thetav|cirmid|marker|mcomma|Zacute|vsubnE|there4|gtlPar|vsubne|bottom|gtrarr|SHCHcy|shchcy|midast|midcir|middot|minusb|minusd|gtrdot|bowtie|sfrown|mnplus|models|colone|seswar|Colone|mstpos|searhk|gtrsim|nacute|Nacute|boxbox|telrec|hairsp|Tcedil|nbumpe|scnsim|ncaron|Ncaron|ncedil|Ncedil|hamilt|Scedil|nearhk|hardcy|HARDcy|tcedil|Tcaron|commat|nequiv|nesear|tcaron|target|hearts|nexist|varrho|scedil|Scaron|scaron|hellip|Sacute|sacute|hercon|swnwar|compfn|rtimes|rthree|rsquor|rsaquo|zacute|wedgeq|homtht|barvee|barwed|Barwed|rpargt|horbar|conint|swarhk|roplus|nltrie|hslash|hstrok|Hstrok|rmoust|Conint|bprime|hybull|hyphen|iacute|Iacute|supsup|supsub|supsim|varphi|coprod|brvbar|agrave|Supset|supset|igrave|Igrave|notinE|Agrave|iiiint|iinfin|copysr|wedbar|Verbar|vangrt|becaus|incare|verbar|inodot|bullet|drcorn|intcal|drcrop|cularr|vellip|Utilde|bumpeq|cupcap|dstrok|Dstrok|CupCap|cupcup|cupdot|eacute|Eacute|supdot|iquest|easter|ecaron|Ecaron|ecolon|isinsv|utilde|itilde|Itilde|curarr|succeq|Bumpeq|cacute|ulcrop|nparsl|Cacute|nprcue|egrave|Egrave|nrarrc|nrarrw|subsup|subsub|nrtrie|jsercy|nsccue|Jsercy|kappav|kcedil|Kcedil|subsim|ulcorn|nsimeq|egsdot|veebar|kgreen|capand|elsdot|Subset|subset|curren|aacute|lacute|Lacute|emptyv|ntilde|Ntilde|lagran|lambda|Lambda|capcap|Ugrave|langle|subdot|emsp13|numero|emsp14|nvdash|nvDash|nVdash|nVDash|ugrave|ufisht|nvHarr|larrfs|nvlArr|larrhk|larrlp|larrpl|nvrArr|Udblac|nwarhk|larrtl|nwnear|oacute|Oacute|latail|lAtail|sstarf|lbrace|odblac|Odblac|lbrack|udblac|odsold|eparsl|lcaron|Lcaron|ograve|Ograve|lcedil|Lcedil|Aacute|ssmile|ssetmn|squarf|ldquor|capcup|ominus|cylcty|rharul|eqcirc|dagger|rfloor|rfisht|Dagger|daleth|equals|origof|capdot|equest|dcaron|Dcaron|rdquor|oslash|Oslash|otilde|Otilde|otimes|Otimes|urcrop|Ubreve|ubreve|Yacute|Uacute|uacute|Rcedil|rcedil|urcorn|parsim|Rcaron|Vdashl|rcaron|Tstrok|percnt|period|permil|Exists|yacute|rbrack|rbrace|phmmat|ccaron|Ccaron|planck|ccedil|plankv|tstrok|female|plusdo|plusdu|ffilig|plusmn|ffllig|Ccedil|rAtail|dfisht|bernou|ratail|Rarrtl|rarrtl|angsph|rarrpl|rarrlp|rarrhk|xwedge|xotime|forall|ForAll|Vvdash|vsupnE|preceq|bigcap|frac12|frac13|frac14|primes|rarrfs|prnsim|frac15|Square|frac16|square|lesdot|frac18|frac23|propto|prurel|rarrap|rangle|puncsp|frac25|Racute|qprime|racute|lesges|frac34|abreve|AElig|eqsim|utdot|setmn|urtri|Equal|Uring|seArr|uring|searr|dashv|Dashv|mumap|nabla|iogon|Iogon|sdote|sdotb|scsim|napid|napos|equiv|natur|Acirc|dblac|erarr|nbump|iprod|erDot|ucirc|awint|esdot|angrt|ncong|isinE|scnap|Scirc|scirc|ndash|isins|Ubrcy|nearr|neArr|isinv|nedot|ubrcy|acute|Ycirc|iukcy|Iukcy|xutri|nesim|caret|jcirc|Jcirc|caron|twixt|ddarr|sccue|exist|jmath|sbquo|ngeqq|angst|ccaps|lceil|ngsim|UpTee|delta|Delta|rtrif|nharr|nhArr|nhpar|rtrie|jukcy|Jukcy|kappa|rsquo|Kappa|nlarr|nlArr|TSHcy|rrarr|aogon|Aogon|fflig|xrarr|tshcy|ccirc|nleqq|filig|upsih|nless|dharl|nlsim|fjlig|ropar|nltri|dharr|robrk|roarr|fllig|fltns|roang|rnmid|subnE|subne|lAarr|trisb|Ccirc|acirc|ccups|blank|VDash|forkv|Vdash|langd|cedil|blk12|blk14|laquo|strns|diams|notin|vDash|larrb|blk34|block|disin|uplus|vdash|vBarv|aelig|starf|Wedge|check|xrArr|lates|lbarr|lBarr|notni|lbbrk|bcong|frasl|lbrke|frown|vrtri|vprop|vnsup|gamma|Gamma|wedge|xodot|bdquo|srarr|doteq|ldquo|boxdl|boxdL|gcirc|Gcirc|boxDl|boxDL|boxdr|boxdR|boxDr|TRADE|trade|rlhar|boxDR|vnsub|npart|vltri|rlarr|boxhd|boxhD|nprec|gescc|nrarr|nrArr|boxHd|boxHD|boxhu|boxhU|nrtri|boxHu|clubs|boxHU|times|colon|Colon|gimel|xlArr|Tilde|nsime|tilde|nsmid|nspar|THORN|thorn|xlarr|nsube|nsubE|thkap|xhArr|comma|nsucc|boxul|boxuL|nsupe|nsupE|gneqq|gnsim|boxUl|boxUL|grave|boxur|boxuR|boxUr|boxUR|lescc|angle|bepsi|boxvh|varpi|boxvH|numsp|Theta|gsime|gsiml|theta|boxVh|boxVH|boxvl|gtcir|gtdot|boxvL|boxVl|boxVL|crarr|cross|Cross|nvsim|boxvr|nwarr|nwArr|sqsup|dtdot|Uogon|lhard|lharu|dtrif|ocirc|Ocirc|lhblk|duarr|odash|sqsub|Hacek|sqcup|llarr|duhar|oelig|OElig|ofcir|boxvR|uogon|lltri|boxVr|csube|uuarr|ohbar|csupe|ctdot|olarr|olcir|harrw|oline|sqcap|omacr|Omacr|omega|Omega|boxVR|aleph|lneqq|lnsim|loang|loarr|rharu|lobrk|hcirc|operp|oplus|rhard|Hcirc|orarr|Union|order|ecirc|Ecirc|cuepr|szlig|cuesc|breve|reals|eDDot|Breve|hoarr|lopar|utrif|rdquo|Umacr|umacr|efDot|swArr|ultri|alpha|rceil|ovbar|swarr|Wcirc|wcirc|smtes|smile|bsemi|lrarr|aring|parsl|lrhar|bsime|uhblk|lrtri|cupor|Aring|uharr|uharl|slarr|rbrke|bsolb|lsime|rbbrk|RBarr|lsimg|phone|rBarr|rbarr|icirc|lsquo|Icirc|emacr|Emacr|ratio|simne|plusb|simlE|simgE|simeq|pluse|ltcir|ltdot|empty|xharr|xdtri|iexcl|Alpha|ltrie|rarrw|pound|ltrif|xcirc|bumpe|prcue|bumpE|asymp|amacr|cuvee|Sigma|sigma|iiint|udhar|iiota|ijlig|IJlig|supnE|imacr|Imacr|prime|Prime|image|prnap|eogon|Eogon|rarrc|mdash|mDDot|cuwed|imath|supne|imped|Amacr|udarr|prsim|micro|rarrb|cwint|raquo|infin|eplus|range|rangd|Ucirc|radic|minus|amalg|veeeq|rAarr|epsiv|ycirc|quest|sharp|quot|zwnj|Qscr|race|qscr|Qopf|qopf|qint|rang|Rang|Zscr|zscr|Zopf|zopf|rarr|rArr|Rarr|Pscr|pscr|prop|prod|prnE|prec|ZHcy|zhcy|prap|Zeta|zeta|Popf|popf|Zdot|plus|zdot|Yuml|yuml|phiv|YUcy|yucy|Yscr|yscr|perp|Yopf|yopf|part|para|YIcy|Ouml|rcub|yicy|YAcy|rdca|ouml|osol|Oscr|rdsh|yacy|real|oscr|xvee|andd|rect|andv|Xscr|oror|ordm|ordf|xscr|ange|aopf|Aopf|rHar|Xopf|opar|Oopf|xopf|xnis|rhov|oopf|omid|xmap|oint|apid|apos|ogon|ascr|Ascr|odot|odiv|xcup|xcap|ocir|oast|nvlt|nvle|nvgt|nvge|nvap|Wscr|wscr|auml|ntlg|ntgl|nsup|nsub|nsim|Nscr|nscr|nsce|Wopf|ring|npre|wopf|npar|Auml|Barv|bbrk|Nopf|nopf|nmid|nLtv|beta|ropf|Ropf|Beta|beth|nles|rpar|nleq|bnot|bNot|nldr|NJcy|rscr|Rscr|Vscr|vscr|rsqb|njcy|bopf|nisd|Bopf|rtri|Vopf|nGtv|ngtr|vopf|boxh|boxH|boxv|nges|ngeq|boxV|bscr|scap|Bscr|bsim|Vert|vert|bsol|bull|bump|caps|cdot|ncup|scnE|ncap|nbsp|napE|Cdot|cent|sdot|Vbar|nang|vBar|chcy|Mscr|mscr|sect|semi|CHcy|Mopf|mopf|sext|circ|cire|mldr|mlcp|cirE|comp|shcy|SHcy|vArr|varr|cong|copf|Copf|copy|COPY|malt|male|macr|lvnE|cscr|ltri|sime|ltcc|simg|Cscr|siml|csub|Uuml|lsqb|lsim|uuml|csup|Lscr|lscr|utri|smid|lpar|cups|smte|lozf|darr|Lopf|Uscr|solb|lopf|sopf|Sopf|lneq|uscr|spar|dArr|lnap|Darr|dash|Sqrt|LJcy|ljcy|lHar|dHar|Upsi|upsi|diam|lesg|djcy|DJcy|leqq|dopf|Dopf|dscr|Dscr|dscy|ldsh|ldca|squf|DScy|sscr|Sscr|dsol|lcub|late|star|Star|Uopf|Larr|lArr|larr|uopf|dtri|dzcy|sube|subE|Lang|lang|Kscr|kscr|Kopf|kopf|KJcy|kjcy|KHcy|khcy|DZcy|ecir|edot|eDot|Jscr|jscr|succ|Jopf|jopf|Edot|uHar|emsp|ensp|Iuml|iuml|eopf|isin|Iscr|iscr|Eopf|epar|sung|epsi|escr|sup1|sup2|sup3|Iota|iota|supe|supE|Iopf|iopf|IOcy|iocy|Escr|esim|Esim|imof|Uarr|QUOT|uArr|uarr|euml|IEcy|iecy|Idot|Euml|euro|excl|Hscr|hscr|Hopf|hopf|TScy|tscy|Tscr|hbar|tscr|flat|tbrk|fnof|hArr|harr|half|fopf|Fopf|tdot|gvnE|fork|trie|gtcc|fscr|Fscr|gdot|gsim|Gscr|gscr|Gopf|gopf|gneq|Gdot|tosa|gnap|Topf|topf|geqq|toea|GJcy|gjcy|tint|gesl|mid|Sfr|ggg|top|ges|gla|glE|glj|geq|gne|gEl|gel|gnE|Gcy|gcy|gap|Tfr|tfr|Tcy|tcy|Hat|Tau|Ffr|tau|Tab|hfr|Hfr|ffr|Fcy|fcy|icy|Icy|iff|ETH|eth|ifr|Ifr|Eta|eta|int|Int|Sup|sup|ucy|Ucy|Sum|sum|jcy|ENG|ufr|Ufr|eng|Jcy|jfr|els|ell|egs|Efr|efr|Jfr|uml|kcy|Kcy|Ecy|ecy|kfr|Kfr|lap|Sub|sub|lat|lcy|Lcy|leg|Dot|dot|lEg|leq|les|squ|div|die|lfr|Lfr|lgE|Dfr|dfr|Del|deg|Dcy|dcy|lne|lnE|sol|loz|smt|Cup|lrm|cup|lsh|Lsh|sim|shy|map|Map|mcy|Mcy|mfr|Mfr|mho|gfr|Gfr|sfr|cir|Chi|chi|nap|Cfr|vcy|Vcy|cfr|Scy|scy|ncy|Ncy|vee|Vee|Cap|cap|nfr|scE|sce|Nfr|nge|ngE|nGg|vfr|Vfr|ngt|bot|nGt|nis|niv|Rsh|rsh|nle|nlE|bne|Bfr|bfr|nLl|nlt|nLt|Bcy|bcy|not|Not|rlm|wfr|Wfr|npr|nsc|num|ocy|ast|Ocy|ofr|xfr|Xfr|Ofr|ogt|ohm|apE|olt|Rho|ape|rho|Rfr|rfr|ord|REG|ang|reg|orv|And|and|AMP|Rcy|amp|Afr|ycy|Ycy|yen|yfr|Yfr|rcy|par|pcy|Pcy|pfr|Pfr|phi|Phi|afr|Acy|acy|zcy|Zcy|piv|acE|acd|zfr|Zfr|pre|prE|psi|Psi|qfr|Qfr|zwj|Or|ge|Gg|gt|gg|el|oS|lt|Lt|LT|Re|lg|gl|eg|ne|Im|it|le|DD|wp|wr|nu|Nu|dd|lE|Sc|sc|pi|Pi|ee|af|ll|Ll|rx|gE|xi|pm|Xi|ic|pr|Pr|in|ni|mp|mu|ac|Mu|or|ap|Gt|GT|ii);|&(Aacute|Agrave|Atilde|Ccedil|Eacute|Egrave|Iacute|Igrave|Ntilde|Oacute|Ograve|Oslash|Otilde|Uacute|Ugrave|Yacute|aacute|agrave|atilde|brvbar|ccedil|curren|divide|eacute|egrave|frac12|frac14|frac34|iacute|igrave|iquest|middot|ntilde|oacute|ograve|oslash|otilde|plusmn|uacute|ugrave|yacute|AElig|Acirc|Aring|Ecirc|Icirc|Ocirc|THORN|Ucirc|acirc|acute|aelig|aring|cedil|ecirc|icirc|iexcl|laquo|micro|ocirc|pound|raquo|szlig|thorn|times|ucirc|Auml|COPY|Euml|Iuml|Ouml|QUOT|Uuml|auml|cent|copy|euml|iuml|macr|nbsp|ordf|ordm|ouml|para|quot|sect|sup1|sup2|sup3|uuml|yuml|AMP|ETH|REG|amp|deg|eth|not|reg|shy|uml|yen|GT|LT|gt|lt)(?!;)([=a-zA-Z0-9]?)|&#([0-9]+)(;?)|&#[xX]([a-fA-F0-9]+)(;?)|&([0-9a-zA-Z]+)	g
+&gt;\\u20D2	g
+&lt;\\u20D2	g
+&#x66;&#x6A;	g
+([^\\w-])	g
+v-bind\\s*\\(	g
+\\/\\*([\\s\\S]*?)\\*\\/	g
+((?:^|\\n|;)\\s*)export(\\s*)default	
+((?:^|\\n|;)\\s*)export(.+)(?:as)?(\\s*)default	s
+((?:^|\\n|;)\\s*)export\\s+default\\s+class\\s+([\\w$]+)	
+^data-v-	
+([^/\\\\]+)\\.\\w+$	
+ as\\s+\\w|<.*>|:	
+'[^']*'|"[^"]*"	g
+`[^`]+`	g
+\\${[^}]+}	g
+^(?:\\/\\/)?\\s*$	
+^(https?:)?\\/\\/	
+^\\s*data:	i
+( |\\\\t|\\\\n|\\\\f|\\\\r)+	g
+ \\+ ""$	
+[<>"&]	g
+^"(?:[^"\\\\]|\\\\.)*"$|^'(?:[^'\\\\]|\\\\.)*'$	
+^'|'$	g
+\\s__(render|staticRenderFns)__\\s	g
+\\\\	
+^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$	
+[ -,\\.\\/:-@\\[-\\^`\\{-~]	
+[ -,\\.\\/:-@\\[\\]\\^`\\{-~]	
+(^|\\\\+)?(\\\\[A-F0-9]{1,6})\\x20(?![a-fA-F0-9\\x20])	g
+[\\t\\n\\f\\r\\x0B]	
+^-[-\\d]	
+^('|")([^]*)\\1$	
+[^']	g
+[^"]	g
+^\\d+\\.\\d+%$	
+^[aeiou]	
+^ +$	
+^(-\\w+-)?animation-name$	
+^(-\\w+-)?animation$	
+-?keyframes$	
+[^\\w\\d]	g
+^\\s*at\\s+	
+\\n	
+:\\d+:\\d+	
