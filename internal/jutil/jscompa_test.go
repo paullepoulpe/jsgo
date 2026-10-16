@@ -391,3 +391,14 @@ func TestImmutableListBuilder(t *testing.T) {
 	}()
 	b.Add(nil)
 }
+
+func TestJsonWriterValueLong(t *testing.T) {
+	var sb strings.Builder
+	w := NewJsonWriter(&sb)
+	w.BeginArray().ValueLong(-5).ValueLong(9007199254740993).EndArray()
+	w.Flush()
+	w.Close()
+	if sb.String() != "[-5,9007199254740993]" {
+		t.Errorf("got %s", sb.String())
+	}
+}
