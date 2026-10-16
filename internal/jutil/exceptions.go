@@ -2,7 +2,10 @@ package jutil
 
 import (
 	"fmt"
+	"regexp"
 	"runtime"
+	"strconv"
+	"strings"
 )
 
 // Go-only: language-adapter — Java exceptions as Go panics.
@@ -230,9 +233,7 @@ func AsThrowable(r any) Throwable {
 	case Throwable:
 		return v
 	case runtime.Error:
-		e := &RuntimeException{}
-		InitThrowable(e, "java.lang.RuntimeException", msgPtr(v.Error()), nil)
-		return e
+		return runtimeErrorAsThrowable(v)
 	case error:
 		e := &RuntimeException{}
 		InitThrowable(e, "java.lang.RuntimeException", msgPtr(v.Error()), nil)
@@ -242,6 +243,44 @@ func AsThrowable(r any) Throwable {
 		InitThrowable(e, "java.lang.RuntimeException", msgPtr(fmt.Sprint(v)), nil)
 		return e
 	}
+}
+
+var goIndexOutOfRange = regexp.MustCompile(`index out of range \[(-?\d+)\] with length (\d+)`)
+
+// runtimeErrorAsThrowable maps a Go runtime fault to the Java exception the
+// same faulty operation throws on the JVM, so that `catch
+// (NullPointerException e)` / `catch (IndexOutOfBoundsException e)` sites
+// behave as in Java. Messages follow the JDK where the JDK's message is fixed;
+// the JVM's "helpful" NullPointerException messages describe Java bytecode
+// and cannot be reproduced, so a nil dereference carries no message.
+func runtimeErrorAsThrowable(v runtime.Error) Throwable {
+	msg := v.Error()
+	switch {
+	case strings.Contains(msg, "nil pointer dereference"):
+		return NewNullPointerException()
+	case strings.Contains(msg, "index out of range"):
+		if m := goIndexOutOfRange.FindStringSubmatch(msg); m != nil {
+			i, _ := strconv.Atoi(m[1])
+			n, _ := strconv.Atoi(m[2])
+			return NewArrayIndexOutOfBoundsExceptionForLength(i, n)
+		}
+		e := &ArrayIndexOutOfBoundsException{}
+		InitThrowable(e, "java.lang.ArrayIndexOutOfBoundsException", msgPtr(msg), nil)
+		return e
+	case strings.Contains(msg, "slice bounds out of range"):
+		e := &ArrayIndexOutOfBoundsException{}
+		InitThrowable(e, "java.lang.ArrayIndexOutOfBoundsException", msgPtr(msg), nil)
+		return e
+	case strings.Contains(msg, "integer divide by zero"):
+		return NewArithmeticException("/ by zero")
+	case strings.Contains(msg, "interface conversion"):
+		e := &ClassCastException{}
+		InitThrowable(e, "java.lang.ClassCastException", msgPtr(msg), nil)
+		return e
+	}
+	e := &RuntimeException{}
+	InitThrowable(e, "java.lang.RuntimeException", msgPtr(msg), nil)
+	return e
 }
 
 // Try runs body and, if it throws an exception assignable to E, runs handler
