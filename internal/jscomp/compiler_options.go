@@ -1416,6 +1416,8 @@ func NewCompilerOptions() *CompilerOptions {
 		jutil.Pattern_Compile("^((.*/)?google3/)?(/?(blaze|bazel)-out/[^/]+/(bin|genfiles)/)?")
 	o.wrapGoogModulesForWhitespaceOnly = true
 	o.enableModuleRewriting = true
+	o.unknownDefinesToIgnore = []string{}
+	o.es6ModuleTranspilation = CompilerOptions_Es6ModuleTranspilation_COMPILE
 	// Constructor body.
 	// Accepted language
 	o.languageIn = CompilerOptions_LanguageMode_STABLE_IN
@@ -4508,6 +4510,8 @@ func compilerOptions_toJavaString(value any) string {
 		return "Optional.of(" + compilerOptions_toJavaString(v.value) + ")"
 	case *bool:
 		return jutil.ToJavaString(*v)
+	case *string:
+		return *v
 	case string, bool, int, int32, int64, float64:
 		return jutil.ToJavaString(v)
 	case fmt.Stringer:
