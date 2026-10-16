@@ -21,7 +21,7 @@ import (
 //   - a '-' or '+' anywhere after the first char → "Illegal embedded sign
 //     character";
 //   - a char that is not a digit → the message of Integer.parseInt (see
-//     numberFormatForInputString) for the group of digits that contains it.
+//     badNumberInput) for the group of digits that contains it.
 //     After the leading zeros, the digits are split into groups of
 //     bigIntegerRadixGroup(radix) chars, the first group taking the
 //     remainder (or a whole group), and the first bad group is named.
@@ -61,7 +61,7 @@ func NewBigIntegerFromStringRadix(s string, radix int) *big.Int {
 		for i := from; i < to; i++ {
 			d := CharacterDigit(digits[i], radix)
 			if d < 0 {
-				panic(numberFormatForInputString(StringFromUTF16(digits[from:to]), radix))
+				panic(badNumberInput(StringFromUTF16(digits[from:to]), radix))
 			}
 			text[i] = "0123456789abcdefghijklmnopqrstuvwxyz"[d]
 		}

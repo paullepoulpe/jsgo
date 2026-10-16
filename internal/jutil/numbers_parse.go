@@ -23,7 +23,7 @@ func LongParseLong(s string, radix int) int64 {
 	checkParseRadix(radix)
 	v, ok := parseRadixInteger(s, radix, math.MaxInt64)
 	if !ok {
-		panic(numberFormatForInputString(s, radix))
+		panic(badNumberInput(s, radix))
 	}
 	return v
 }

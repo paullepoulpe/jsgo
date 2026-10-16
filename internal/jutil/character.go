@@ -178,23 +178,21 @@ func decimalDigitValue(r rune) int {
 // Javadoc: an optional leading '-' or '+' (only when more characters
 // follow), then one or more characters that Character.digit accepts in
 // radix; the value must fit in an int. Failures throw NumberFormatException
-// (messages: checkParseRadix, numberFormatForInputString).
+// (messages: checkParseRadix, badNumberInput).
 func IntegerParseInt(s string, radix int) int32 {
 	checkParseRadix(radix)
 	v, ok := parseRadixInteger(s, radix, math.MaxInt32)
 	if !ok {
-		panic(numberFormatForInputString(s, radix))
+		panic(badNumberInput(s, radix))
 	}
 	return int32(v)
 }
 
-// numberFormatForInputString is the NumberFormatException that
-// Integer.parseInt, Long.parseLong and new BigInteger(String, int) throw for
-// a string that is not a number in radix.
-//
-// Observed behaviour (black-box): the message quotes the string as given and
-// names the radix unless it is 10.
-func numberFormatForInputString(s string, radix int) *NumberFormatException {
+// badNumberInput builds the NumberFormatException with which
+// Integer.parseInt, Long.parseLong and new BigInteger(String, int) reject s
+// as a number in radix. Observed (black-box): the message quotes s
+// unchanged, and adds the radix when it is not 10.
+func badNumberInput(s string, radix int) *NumberFormatException {
 	msg := "For input string: \"" + s + "\""
 	if radix != 10 {
 		msg += " under radix " + itoa(radix)
