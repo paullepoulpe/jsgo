@@ -77,17 +77,25 @@ func (b *StringBuilder) Insert(offset int, s string) *StringBuilder {
 		panic(NewStringIndexOutOfBoundsException(offset, len(b.units)))
 	}
 	u := StringToUTF16(s)
-	out := make([]uint16, 0, len(b.units)+len(u))
-	out = append(out, b.units[:offset]...)
-	out = append(out, u...)
-	out = append(out, b.units[offset:]...)
-	b.units = out
+	n := len(b.units)
+	// Shift the tail in place (amortized growth, as Java's
+	// AbstractStringBuilder does) instead of copying the whole buffer.
+	b.units = append(b.units, u...)
+	copy(b.units[offset+len(u):], b.units[offset:n])
+	copy(b.units[offset:], u)
 	return b
 }
 
 // InsertChar is StringBuilder.insert(int, char).
 func (b *StringBuilder) InsertChar(offset int, c uint16) *StringBuilder {
-	return b.Insert(offset, StringFromChar(c))
+	if offset < 0 || offset > len(b.units) {
+		panic(NewStringIndexOutOfBoundsException(offset, len(b.units)))
+	}
+	n := len(b.units)
+	b.units = append(b.units, 0)
+	copy(b.units[offset+1:], b.units[offset:n])
+	b.units[offset] = c
+	return b
 }
 
 // String is StringBuilder.toString().

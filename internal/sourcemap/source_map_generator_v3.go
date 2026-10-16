@@ -23,7 +23,7 @@ type SourceMapGeneratorV3 struct {
 	sourceFileMap *jutil.LinkedHashMap[string, int]
 
 	// A map of source names to source file contents
-	sourceFileContentMap *jutil.LinkedHashMap[string, string]
+	sourceFileContentMap *jutil.LinkedHashMap[string, *string]
 
 	// A map of source names to source name index
 	originalNameMap *jutil.LinkedHashMap[string, int]
@@ -79,7 +79,7 @@ const SourceMapGeneratorV3_UNMAPPED = -1
 func NewSourceMapGeneratorV3() *SourceMapGeneratorV3 {
 	g := &SourceMapGeneratorV3{}
 	g.sourceFileMap = jutil.NewLinkedHashMap[string, int]()
-	g.sourceFileContentMap = jutil.NewLinkedHashMap[string, string]()
+	g.sourceFileContentMap = jutil.NewLinkedHashMap[string, *string]()
 	g.originalNameMap = jutil.NewLinkedHashMap[string, int]()
 	g.lastSourceFile = nil
 	g.lastSourceFileIndex = -1
@@ -221,7 +221,7 @@ func (g *SourceMapGeneratorV3) AddMapping(
 }
 
 // Java: SourceMapGeneratorV3.addSourcesContent(String, String)
-func (g *SourceMapGeneratorV3) AddSourcesContent(source string, content string) {
+func (g *SourceMapGeneratorV3) AddSourcesContent(source string, content *string) {
 	g.sourceFileContentMap.Put(source, content)
 }
 
@@ -444,9 +444,9 @@ func (g *SourceMapGeneratorV3) AddSourcesContentMap(out io.StringWriter) {
 
 	for key, index := range g.sourceFileMap.All() {
 		jutil.CheckState(index < size)
-		content, ok := g.sourceFileContentMap.Lookup(key)
-		if ok {
-			contents[index] = content
+		content := g.sourceFileContentMap.Get(key)
+		if content != nil {
+			contents[index] = *content
 			found = true
 		}
 	}

@@ -408,6 +408,16 @@ var node_kindClassNames = [...]string{
 	"com.google.javascript.rhino.Node$TemplateLiteralSubstringNode",
 }
 
+// GetClassName is `getClass().getName()`: the name of the Java class this
+// node is an instance of (Node or one of its folded private subclasses).
+//
+// Go-only: language-adapter — Java code compares `node.getClass()` with
+// `Node.class` (CodeGenerator); the folded subclasses have no Go type of
+// their own.
+func (n *Node) GetClassName() string {
+	return node_kindClassNames[n.kind]
+}
+
 // node_castKind is the Java cast `((XNode) this)`: it throws a
 // ClassCastException unless n is of the given kind.
 func (n *Node) node_castKind(k node_kind) {

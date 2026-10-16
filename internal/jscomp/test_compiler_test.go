@@ -783,7 +783,7 @@ func (c *testCompiler) parseCodeHelperOfList(srcs []*SourceFile) *rhino.Node {
 func (c *testCompiler) addFilesToSourceMap(files []*SourceFile) {
 	if c.GetOptions().GetSourceMapIncludeSourcesContent() && c.sourceMap != nil {
 		for _, file := range files {
-			c.sourceMap.AddSourceFile(file.GetName(), file.GetCode())
+			c.sourceMap.AddSourceFile(file.GetName(), jutil.StringPtr(file.GetCode()))
 		}
 	}
 }

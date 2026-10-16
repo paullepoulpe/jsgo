@@ -1,0 +1,12 @@
+var r1 = /a\/b/g;
+var r2 = /[/]/;
+var r3 = /\u2028|\u2029/u;
+var r4 = /caf\u00e9/i;
+var r4b = /café/;
+var r5 = /<\/script>/;
+var r6 = /=&<>/;
+var r7 = x / /re/.y;
+var r8 = /\\/;
+var r9 = /["'`$]/gimsuy;
+var r10 = /(?<name>a)\k<name>/u;
+var r11 = a / b / c;
