@@ -4914,3 +4914,30 @@ func nuh_isValidPropertyName(t *testing.T, s string) bool {
 func nuh_isValidQualifiedName(t *testing.T, s string) bool {
 	return NodeUtil_IsValidQualifiedNameFeatureSet(parser.FeatureSet_ES3, s)
 }
+
+// Go-only: the record methods of NodeUtil.GoogRequire (equals, hashCode,
+// toString), against values printed by the JDK 21 for the same records.
+func TestNodeUtil_GoogRequireRecordMethods(t *testing.T) {
+	cases := []struct {
+		r        *NodeUtil_GoogRequire
+		hashCode int32
+		str      string
+	}{
+		{NodeUtil_GoogRequire_FromNamespace("d.Foo", true), -58942997,
+			"GoogRequire[namespace=d.Foo, property=null, isStrongRequire=true]"},
+		{NodeUtil_GoogRequire_FromNamespace("d.Foo", false), -58942991,
+			"GoogRequire[namespace=d.Foo, property=null, isStrongRequire=false]"},
+		{NodeUtil_GoogRequire_FromNamespaceAndProperty("d.Foo", "Bar", true), -56880040,
+			"GoogRequire[namespace=d.Foo, property=Bar, isStrongRequire=true]"},
+		{NodeUtil_GoogRequire_FromNamespaceAndProperty("", "é", false), 8460,
+			"GoogRequire[namespace=, property=é, isStrongRequire=false]"},
+	}
+	for i, c := range cases {
+		nuAssertThat(t, c.r.HashCode()).IsEqualTo(c.hashCode)
+		nuAssertThat(t, c.r.String()).IsEqualTo(c.str)
+		for j, d := range cases {
+			nuAssertThat(t, c.r.Equals(d.r)).IsEqualTo(i == j)
+		}
+		nuAssertThat(t, c.r.Equals(NewNodeUtil_GoogRequire(c.r.Namespace(), c.r.Property(), c.r.IsStrongRequire()))).IsTrue()
+	}
+}
