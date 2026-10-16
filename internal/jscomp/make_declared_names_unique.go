@@ -464,7 +464,9 @@ func (d *MakeDeclaredNamesUnique_ContextualRenameInverter_DeclaredVariableInfo) 
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.DeclaredVariableInfo.getScopeDepth()
 func (d *MakeDeclaredNamesUnique_ContextualRenameInverter_DeclaredVariableInfo) GetScopeDepth() int {
-	return d.var_.GetScope().GetDepth()
+	// Go-only: language-adapter — AbstractVar.getScope() returns the StaticScope
+	// interface (see abstract_scope.go); a Var's scope is a *Scope.
+	return d.var_.GetScope().(*Scope).GetDepth()
 }
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.DeclaredVariableInfo.addPotentialConflict(MakeDeclaredNamesUnique.ContextualRenameInverter.VariableInfo)
