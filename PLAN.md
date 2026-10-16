@@ -434,8 +434,30 @@ Done:
   exception the JVM throws (nil → NullPointerException, index →
   ArrayIndexOutOfBoundsException, …).
 
-In progress, in parallel (wave 2, PLAN.md §5):
+- **jscomp levels 0–9, group A (89 files):** diagnostics, error managers
+  and formatters, warnings guards, SourceFile, deps/modules, protobuf
+  classes.
+  - 21 Java test classes ported.
+  - 8,946 differential checks, zero diffs; this found one real bug (Go
+    zero-size-struct identity, now a PORTING.md rule).
+  - Re-run with a new seed over the held-out corpus: 8,885 checks, zero
+    diffs.
+- **Wave 2 is complete**, apart from the type-dependent files listed below.
+
+In progress, in parallel (wave 3, PLAN.md §5):
+
+- The jscomp core SCC (37 files), in five groups, integrated afterwards:
+  - g1: NodeUtil;
+  - g2: AstFactory, AstAnalyzer, ExpressionDecomposer,
+    MakeDeclaredNamesUnique, OptionalChainRewriter;
+  - g3: CompilerOptions, AbstractCompiler, CompilerInput, JSChunk/Graph,
+    deps parsers, SourceMap;
+  - g4: NodeTraversal, scopes, references;
+  - g5: ControlFlowAnalysis, TypeValidator.
+
+  Each group prepares an API-sweep oracle over the corpus that runs at
+  integration.
 - The 15 jscomp files below the core that need the type system: the
-  reverse abstract interpreters, FlowScope, TypeMismatch, …
-- Un-skipping the parsing tests that waited for jstype.
+  reverse abstract interpreters, FlowScope, TypeMismatch, CodingConvention,
+  …
 - jscomp levels 0–9, group A (89 files: diagnostics, error managers, deps/modules, serialization basics).
