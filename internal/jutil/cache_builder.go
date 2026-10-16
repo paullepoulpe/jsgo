@@ -1,3 +1,11 @@
+// Derived from com/google/common/cache/LocalCache.java (Guava 33.4.6-jre):
+// the segment sizing of the LocalCache constructor (in CacheBuilder_Build)
+// and LocalCache.rehash (cacheRehash). The rest of this file emulates
+// CacheBuilder, CacheBuilderSpec and LoadingCache from their documentation.
+//
+// Copyright (C) 2009 The Guava Authors
+// Licensed under the Apache License, Version 2.0; see LICENSES/Apache-2.0.txt.
+
 package jutil
 
 import (

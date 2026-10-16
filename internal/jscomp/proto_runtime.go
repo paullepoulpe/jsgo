@@ -1,3 +1,16 @@
+// Derived from com/google/protobuf/TextFormatEscaper.java
+// (protobuf-java 4.30.2): protoTextBytes is its escapeBytes. The notice of
+// that file:
+//
+// Protocol Buffers - Google's data interchange format
+// Copyright 2008 Google Inc.  All rights reserved.
+//
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file or at
+// https://developers.google.com/open-source/licenses/bsd
+//
+// Here that LICENSE file is LICENSES/BSD-3-Clause-protobuf.txt.
+
 // Runtime support for the reconstructed protobuf messages (proto_*.go).
 //
 // Go-only: language-adapter — generated protobuf classes are a leaf package
@@ -374,6 +387,8 @@ func protoTextBool(v bool) string      { return strconv.FormatBool(v) }
 func protoTextDouble(v float64) string { return jutil.DoubleToString(v) }
 
 // protoTextBytes is "\"" + TextFormat.escapeBytes(b) + "\"".
+// The escaping is protobuf's TextFormatEscaper.escapeBytes (BSD-3-Clause;
+// see the notice at the top of this file).
 func protoTextBytes(b []byte) string {
 	var sb strings.Builder
 	sb.WriteByte('"')

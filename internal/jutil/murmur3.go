@@ -1,3 +1,13 @@
+// Derived from com/google/common/hash/Murmur3_128HashFunction.java
+// (Guava 33.4.6-jre): murmur3x64_128 and its helpers follow Guava's
+// Murmur3_128Hasher (mixK1, mixK2, fmix64, and processRemaining's mixing of
+// both halves of a partial block). MurmurHash3 itself was written by Austin
+// Appleby, who placed it in the public domain. The Hasher and HashCode API
+// around it is emulated from Guava's documentation.
+//
+// Copyright (C) 2011 The Guava Authors
+// Licensed under the Apache License, Version 2.0; see LICENSES/Apache-2.0.txt.
+
 package jutil
 
 import (
