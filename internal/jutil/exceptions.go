@@ -282,3 +282,109 @@ func tryCatch[E any](body func()) (caught E, ok bool) {
 func Throw(t Throwable) {
 	panic(t)
 }
+
+// ArrayIndexOutOfBoundsException is java.lang.ArrayIndexOutOfBoundsException.
+type ArrayIndexOutOfBoundsException struct{ IndexOutOfBoundsException }
+
+func (*ArrayIndexOutOfBoundsException) arrayIndexOutOfBoundsException() {}
+
+type IArrayIndexOutOfBoundsException interface {
+	IIndexOutOfBoundsException
+	arrayIndexOutOfBoundsException()
+}
+
+// NewArrayIndexOutOfBoundsException is new ArrayIndexOutOfBoundsException(int index).
+func NewArrayIndexOutOfBoundsException(index int) *ArrayIndexOutOfBoundsException {
+	e := &ArrayIndexOutOfBoundsException{}
+	InitThrowable(e, "java.lang.ArrayIndexOutOfBoundsException",
+		msgPtr(fmt.Sprintf("Array index out of range: %d", index)), nil)
+	return e
+}
+
+// NewArrayIndexOutOfBoundsExceptionForLength is the exception the JVM throws
+// for an out-of-range array access ("Index i out of bounds for length n").
+func NewArrayIndexOutOfBoundsExceptionForLength(index, length int) *ArrayIndexOutOfBoundsException {
+	e := &ArrayIndexOutOfBoundsException{}
+	InitThrowable(e, "java.lang.ArrayIndexOutOfBoundsException",
+		msgPtr(fmt.Sprintf("Index %d out of bounds for length %d", index, length)), nil)
+	return e
+}
+
+// ClassCastException is java.lang.ClassCastException.
+type ClassCastException struct{ RuntimeException }
+
+func (*ClassCastException) classCastException() {}
+
+type IClassCastException interface {
+	IRuntimeException
+	classCastException()
+}
+
+// NewClassCastException is the exception the JVM throws for a failed
+// reference cast `(To) obj`; the message names both classes like the JVM's.
+func NewClassCastException(from, to string) *ClassCastException {
+	e := &ClassCastException{}
+	InitThrowable(e, "java.lang.ClassCastException",
+		msgPtr("class "+from+" cannot be cast to class "+to), nil)
+	return e
+}
+
+// NoSuchElementException is java.util.NoSuchElementException.
+type NoSuchElementException struct{ RuntimeException }
+
+func (*NoSuchElementException) noSuchElementException() {}
+
+type INoSuchElementException interface {
+	IRuntimeException
+	noSuchElementException()
+}
+
+func NewNoSuchElementException() *NoSuchElementException {
+	e := &NoSuchElementException{}
+	InitThrowable(e, "java.util.NoSuchElementException", nil, nil)
+	return e
+}
+
+func NewNoSuchElementExceptionMsg(message string) *NoSuchElementException {
+	e := &NoSuchElementException{}
+	InitThrowable(e, "java.util.NoSuchElementException", msgPtr(message), nil)
+	return e
+}
+
+// JavaError is java.lang.Error (not a RuntimeException: `catch
+// (RuntimeException e)` sites do not see it). It is not named Error so that
+// embedding it does not shadow the error interface's Error() method.
+type JavaError struct{ ThrowableBase }
+
+func (*JavaError) javaError() {}
+
+// IError matches java.lang.Error and all its subclasses.
+type IError interface {
+	Throwable
+	javaError()
+}
+
+// AssertionError is java.lang.AssertionError.
+type AssertionError struct{ JavaError }
+
+func (*AssertionError) assertionError() {}
+
+type IAssertionError interface {
+	IError
+	assertionError()
+}
+
+// NewAssertionError is new AssertionError().
+func NewAssertionError() *AssertionError {
+	e := &AssertionError{}
+	InitThrowable(e, "java.lang.AssertionError", nil, nil)
+	return e
+}
+
+// NewAssertionErrorMsg is new AssertionError(Object detailMessage) for a
+// String message.
+func NewAssertionErrorMsg(message string) *AssertionError {
+	e := &AssertionError{}
+	InitThrowable(e, "java.lang.AssertionError", msgPtr(message), nil)
+	return e
+}
