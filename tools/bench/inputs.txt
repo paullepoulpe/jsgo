@@ -1,0 +1,21 @@
+# Third-party inputs of the end-to-end benchmark (PLAN.md §6). Fetched by
+# tools/bench/fetch-inputs.sh into .cache/bench-inputs/<name>@<version>/;
+# never committed. Every entry is pinned to an exact version and checksum:
+#
+#   npm <name> <version> <sha512 integrity of the registry tarball>
+#       extracted from the tarball's package/ directory
+#   git <name> <version> <url> <commit> <tree> <sha256 of the file listing>
+#       a depth-1 clone of tag <version>; <commit> and its <tree> must match,
+#       and so must the sha256 of `sha256sum` over every file, sorted by path
+#       (LC_ALL=C), .git excluded
+#
+# kind name                version   checksum(s)
+git  closure-library       v20230802 https://github.com/google/closure-library ccf3f1dcd7258ff413406daa45bad79277d40afd acb78d0242bb63ddd248d54d22c3d45e132d87db ae459453e1e46f580884dc20c0251aa6f99f149a873c1ba64793db099b87c698
+npm  three                 0.159.0   sha512-eCmhlLGbBgucuo4VEA9IO3Qpc7dh8Bd4VKzr7WfW4+8hMcIfoAVi1ev0pJYN9PTTsCslbcKgBwr2wNZ1EvLInA==
+npm  lodash                4.17.21   sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg==
+npm  react-dom             18.3.1    sha512-5m4nQKp+rZRb09LNH59GM4BxTh9251/ylbKIbpe7TpGxfJ+9kv6BLkLBXIjjspbgbnIBNqlI23tRnTWT0snUIw==
+npm  typescript            5.6.3     sha512-hjcS1mhfuyi4WW8IWtjP7brDrG2cuDZukyrYrSauoXGNgx0S7zceP07adYkJycEr56BOUTNPzbInooiN3fn1qw==
+npm  rxjs                  7.8.2     sha512-dhKf903U/PQZY6boNNtAGdWbG85WAbjT/1xYoZIC7FAY0yWapOBQVsVrDl58W86//e1VpMNBtRV4MaXfdMySFA==
+npm  @angular/core         16.2.12   sha512-GLLlDeke/NjroaLYOks0uyzFVo6HyLl7VOm0K1QpLXnYvW63W9Ql/T3yguRZa7tRkOAeFZ3jw+1wnBD4O8MoUA==
+npm  core-js               3.50.0    sha512-BRWgOLKkFeCgRudR6zrs8p9XJZcE14grzKMMssoYrk6krtuEZ7MTKPIY5RzOnqsEKIR9kst7wNzphttraT+Yqw==
+npm  tslib                 2.8.1     sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==
