@@ -1,0 +1,1 @@
+function f(){var f$jscomp$1; f$jscomp$1 = 1}

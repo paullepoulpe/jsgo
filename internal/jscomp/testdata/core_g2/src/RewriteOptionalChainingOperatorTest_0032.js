@@ -1,0 +1,1 @@
+while(obj = ary?.[obj?.getNum()]) {}

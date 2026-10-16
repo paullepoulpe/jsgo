@@ -1,0 +1,1 @@
+function f(){ var result$jscomp$0 = foo(); return result$jscomp$0;}
