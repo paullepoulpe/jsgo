@@ -935,6 +935,55 @@ func nodeUtilSweepSplit(r io.Reader) (map[string]string, []string, error) {
 	return chunks, order, sc.Err()
 }
 
+// nodeUtilSweepChunks returns an iterator over the per-file chunks of a
+// NodeUtilSweep output: each call returns the next chunk's "# file" header
+// and the whole chunk (header included).
+func nodeUtilSweepChunks(r io.Reader) func() (string, string, bool) {
+	br := bufio.NewReaderSize(r, 1<<20)
+	var pending string
+	done := false
+	return func() (string, string, bool) {
+		if done && pending == "" {
+			return "", "", false
+		}
+		var sb strings.Builder
+		header := pending
+		if header != "" {
+			sb.WriteString(header)
+			sb.WriteByte('\n')
+		}
+		pending = ""
+		for {
+			l, err := br.ReadString('\n')
+			if l == "" && err != nil {
+				done = true
+				break
+			}
+			l = strings.TrimSuffix(l, "\n")
+			if strings.HasPrefix(l, "# file ") {
+				if header == "" {
+					header = l
+					sb.WriteString(l)
+					sb.WriteByte('\n')
+					continue
+				}
+				pending = l
+				break
+			}
+			sb.WriteString(l)
+			sb.WriteByte('\n')
+			if err != nil {
+				done = true
+				break
+			}
+		}
+		if header == "" {
+			return "", "", false
+		}
+		return header, sb.String(), true
+	}
+}
+
 func nodeUtilSweepOpen(path string) (io.ReadCloser, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -1092,18 +1141,19 @@ func TestNodeUtilSweepOracle(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer rc.Close()
-	want, _, err := nodeUtilSweepSplit(rc)
-	if err != nil {
-		t.Fatal(err)
-	}
+	// The oracle is read one file chunk at a time, in the order of the list
+	// (the corpus output is too large to hold in memory).
+	chunks := nodeUtilSweepChunks(rc)
 	diffs := 0
 	nodeUtilSweep(t, root, files, func(s *nodeUtilSweeper, name, got string) {
-		w, ok := want[nodeUtilSweepEscape(name)]
-		w = s.mask(w)
+		header, w, ok := chunks()
 		if !ok {
-			t.Errorf("%s: missing from the oracle", name)
-			return
+			t.Fatalf("%s: the oracle ends before this file", name)
 		}
+		if header != "# file "+nodeUtilSweepEscape(name) {
+			t.Fatalf("%s: the oracle has %q here; the list and the oracle differ", name, header)
+		}
+		w = s.mask(w)
 		if got != w {
 			diffs++
 			if diffs <= maxDiffs {
