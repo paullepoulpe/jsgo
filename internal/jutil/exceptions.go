@@ -282,3 +282,124 @@ func tryCatch[E any](body func()) (caught E, ok bool) {
 func Throw(t Throwable) {
 	panic(t)
 }
+
+// ArrayIndexOutOfBoundsException is java.lang.ArrayIndexOutOfBoundsException.
+type ArrayIndexOutOfBoundsException struct{ IndexOutOfBoundsException }
+
+func (*ArrayIndexOutOfBoundsException) arrayIndexOutOfBoundsException() {}
+
+type IArrayIndexOutOfBoundsException interface {
+	IIndexOutOfBoundsException
+	arrayIndexOutOfBoundsException()
+}
+
+// NewArrayIndexOutOfBoundsException is new ArrayIndexOutOfBoundsException(int index).
+func NewArrayIndexOutOfBoundsException(index int) *ArrayIndexOutOfBoundsException {
+	e := &ArrayIndexOutOfBoundsException{}
+	InitThrowable(e, "java.lang.ArrayIndexOutOfBoundsException",
+		msgPtr(fmt.Sprintf("Array index out of range: %d", index)), nil)
+	return e
+}
+
+// NewArrayIndexOutOfBoundsExceptionForLength is the exception the JVM throws
+// for an out-of-range array access ("Index i out of bounds for length n").
+func NewArrayIndexOutOfBoundsExceptionForLength(index, length int) *ArrayIndexOutOfBoundsException {
+	e := &ArrayIndexOutOfBoundsException{}
+	InitThrowable(e, "java.lang.ArrayIndexOutOfBoundsException",
+		msgPtr(fmt.Sprintf("Index %d out of bounds for length %d", index, length)), nil)
+	return e
+}
+
+// ClassCastException is java.lang.ClassCastException.
+type ClassCastException struct{ RuntimeException }
+
+func (*ClassCastException) classCastException() {}
+
+type IClassCastException interface {
+	IRuntimeException
+	classCastException()
+}
+
+// NewClassCastException is the exception the JVM throws for a failed
+// reference cast `(To) obj`; the message names both classes like the JVM's.
+func NewClassCastException(from, to string) *ClassCastException {
+	e := &ClassCastException{}
+	InitThrowable(e, "java.lang.ClassCastException",
+		msgPtr("class "+from+" cannot be cast to class "+to), nil)
+	return e
+}
+
+// NoSuchElementException is java.util.NoSuchElementException.
+type NoSuchElementException struct{ RuntimeException }
+
+func (*NoSuchElementException) noSuchElementException() {}
+
+type INoSuchElementException interface {
+	IRuntimeException
+	noSuchElementException()
+}
+
+func NewNoSuchElementException() *NoSuchElementException {
+	e := &NoSuchElementException{}
+	InitThrowable(e, "java.util.NoSuchElementException", nil, nil)
+	return e
+}
+
+func NewNoSuchElementExceptionMsg(message string) *NoSuchElementException {
+	e := &NoSuchElementException{}
+	InitThrowable(e, "java.util.NoSuchElementException", msgPtr(message), nil)
+	return e
+}
+
+// ArithmeticException is java.lang.ArithmeticException.
+type ArithmeticException struct{ RuntimeException }
+
+func (*ArithmeticException) arithmeticException() {}
+
+type IArithmeticException interface {
+	IRuntimeException
+	arithmeticException()
+}
+
+func NewArithmeticException(message string) *ArithmeticException {
+	e := &ArithmeticException{}
+	InitThrowable(e, "java.lang.ArithmeticException", msgPtr(message), nil)
+	return e
+}
+
+// JavaException is java.lang.Exception, as the base of checked exceptions
+// (named like JavaLangError so that it reads unambiguously next to Go's
+// error). jutil's RuntimeException does not embed it: a Java `catch
+// (Exception e)` that must also see RuntimeExceptions catches Throwable.
+type JavaException struct{ ThrowableBase }
+
+func (*JavaException) javaException() {}
+
+// IException matches the checked exceptions (JavaException subclasses).
+type IException interface {
+	Throwable
+	javaException()
+}
+
+// IOException is java.io.IOException.
+type IOException struct{ JavaException }
+
+func (*IOException) ioException() {}
+
+type IIOException interface {
+	IException
+	ioException()
+}
+
+func NewIOException(message string) *IOException {
+	e := &IOException{}
+	InitThrowable(e, "java.io.IOException", msgPtr(message), nil)
+	return e
+}
+
+// NewIOExceptionWithCause is new IOException(Throwable cause).
+func NewIOExceptionWithCause(cause Throwable) *IOException {
+	e := &IOException{}
+	InitThrowable(e, "java.io.IOException", nil, cause)
+	return e
+}

@@ -145,6 +145,9 @@ func ToJavaString(v any) string {
 	switch x := v.(type) {
 	case string:
 		return x
+	case *string:
+		// A nullable Java String (non-null here).
+		return *x
 	case float64:
 		return DoubleToString(x)
 	case float32:
@@ -173,3 +176,31 @@ func ToJavaString(v any) string {
 	}
 	return fmt.Sprint(v)
 }
+
+// DoubleCompare is Double.compare(double, double): numeric order, with -0.0
+// below 0.0 and NaN above everything (and equal to itself).
+func DoubleCompare(a, b float64) int {
+	if a < b {
+		return -1
+	}
+	if a > b {
+		return 1
+	}
+	ab, bb := int64(doubleBits(a)), int64(doubleBits(b))
+	switch {
+	case ab == bb:
+		return 0
+	case ab < bb:
+		return -1
+	}
+	return 1
+}
+
+// DoubleToLongBits is Double.doubleToLongBits(double).
+func DoubleToLongBits(d float64) int64 { return int64(doubleBits(d)) }
+
+// DoubleToRawLongBits is Double.doubleToRawLongBits(double).
+func DoubleToRawLongBits(d float64) int64 { return int64(math.Float64bits(d)) }
+
+// LongBitsToDouble is Double.longBitsToDouble(long).
+func LongBitsToDouble(bits int64) float64 { return math.Float64frombits(uint64(bits)) }

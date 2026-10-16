@@ -258,9 +258,11 @@ func (h *LinkedHashMap[K, V]) Put(k K, v V) V {
 	return zero
 }
 
-// PutIfAbsent is Map.putIfAbsent; returns the existing value if present.
+// PutIfAbsent is Map.putIfAbsent: if the key is absent or mapped to null
+// (jutil.IsNil) it is (re)mapped to v and null is returned; otherwise the
+// current value is returned.
 func (h *LinkedHashMap[K, V]) PutIfAbsent(k K, v V) V {
-	if e, ok := h.m[k]; ok {
+	if e, ok := h.m[k]; ok && !IsNil(e.value) {
 		return e.value
 	}
 	h.Put(k, v)
@@ -449,3 +451,479 @@ func (s *LinkedHashSet[T]) ToSlice() []T { return slices.Collect(s.All()) }
 
 // String renders like AbstractCollection.toString(): "[a, b]".
 func (s *LinkedHashSet[T]) String() string { return CollectionToString(s.ToSlice()) }
+
+// ---------------------------------------------------------------------------
+// Collection / Map markers and value equality
+
+// JavaCollection is implemented by the jutil types that model a
+// java.util.Collection, so that `x instanceof Collection` can be expressed
+// as a Go type assertion.
+type JavaCollection interface {
+	Size() int
+	IsEmpty() bool
+	javaCollection()
+}
+
+// JavaMap is implemented by the jutil types that model a java.util.Map.
+type JavaMap interface {
+	Size() int
+	IsEmpty() bool
+	javaMap()
+}
+
+func (*ArrayList[T]) javaCollection()           {}
+func (*LinkedHashSet[T]) javaCollection()       {}
+func (*LinkedHashMap[K, V]) javaMap()           {}
+func (*ObjectLinkedHashSet[T]) javaCollection() {}
+func (*ObjectLinkedHashMap[K, V]) javaMap()     {}
+func (*TreeMap[K, V]) javaMap()                 {}
+
+// javaList is implemented by list types so that List.equals can compare
+// across implementations.
+type javaList interface {
+	javaListElems() []any
+}
+
+func (l *ArrayList[T]) javaListElems() []any {
+	out := make([]any, len(l.elems))
+	for i, e := range l.elems {
+		out[i] = e
+	}
+	return out
+}
+
+// Equals is List.equals(Object): same size and pairwise Objects.equals.
+func (l *ArrayList[T]) Equals(o any) bool {
+	if any(l) == o {
+		return true
+	}
+	other, ok := o.(javaList)
+	if !ok || IsNil(o) {
+		return false
+	}
+	oe := other.javaListElems()
+	if len(oe) != len(l.elems) {
+		return false
+	}
+	for i, e := range l.elems {
+		if !ObjectsEquals(e, oe[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// HashCode is List.hashCode().
+func (l *ArrayList[T]) HashCode() int32 {
+	var h int32 = 1
+	for _, e := range l.elems {
+		h = 31*h + ObjectHashCode(e)
+	}
+	return h
+}
+
+// javaSet is implemented by set types so that Set.equals can compare across
+// implementations.
+type javaSet interface {
+	Size() int
+	containsAny(e any) bool
+}
+
+func (s *LinkedHashSet[T]) containsAny(e any) bool {
+	x, ok := e.(T)
+	return ok && s.Contains(x)
+}
+
+// Equals is Set.equals(Object): same size and every element contained.
+func (s *LinkedHashSet[T]) Equals(o any) bool {
+	if any(s) == o {
+		return true
+	}
+	other, ok := o.(javaSet)
+	if !ok || IsNil(o) || other.Size() != s.Size() {
+		return false
+	}
+	for e := range s.All() {
+		if !other.containsAny(e) {
+			return false
+		}
+	}
+	return true
+}
+
+// HashCode is Set.hashCode(): the sum of the element hash codes.
+func (s *LinkedHashSet[T]) HashCode() int32 {
+	var h int32
+	for e := range s.All() {
+		h += ObjectHashCode(e)
+	}
+	return h
+}
+
+// javaMapEntries is implemented by map types so that Map.equals can compare
+// across implementations.
+type javaMapEntries interface {
+	Size() int
+	lookupAny(k any) (any, bool)
+}
+
+func (h *LinkedHashMap[K, V]) lookupAny(k any) (any, bool) {
+	key, ok := k.(K)
+	if !ok {
+		return nil, false
+	}
+	return h.Lookup(key)
+}
+
+// Equals is Map.equals(Object): same size and equal values for every key.
+func (h *LinkedHashMap[K, V]) Equals(o any) bool {
+	if any(h) == o {
+		return true
+	}
+	other, ok := o.(javaMapEntries)
+	if !ok || IsNil(o) || other.Size() != h.Size() {
+		return false
+	}
+	for k, v := range h.All() {
+		ov, present := other.lookupAny(k)
+		if !present || !ObjectsEquals(v, ov) {
+			return false
+		}
+	}
+	return true
+}
+
+// HashCode is Map.hashCode(): the sum of key^value hash codes.
+func (h *LinkedHashMap[K, V]) HashCode() int32 {
+	var sum int32
+	for k, v := range h.All() {
+		sum += ObjectHashCode(k) ^ ObjectHashCode(v)
+	}
+	return sum
+}
+
+// NewLinkedHashMapFrom is new LinkedHashMap<>(map) / ImmutableMap.copyOf.
+func NewLinkedHashMapFrom[K comparable, V any](src *LinkedHashMap[K, V]) *LinkedHashMap[K, V] {
+	out := NewLinkedHashMap[K, V]()
+	for k, v := range src.All() {
+		out.Put(k, v)
+	}
+	return out
+}
+
+// ---------------------------------------------------------------------------
+// ObjectLinkedHashMap / ObjectLinkedHashSet
+
+type olhmEntry[K any, V any] struct {
+	key        K
+	hash       int32
+	value      V
+	prev, next *olhmEntry[K, V]
+	removed    bool
+}
+
+// ObjectLinkedHashMap is java.util.LinkedHashMap (and Guava ImmutableMap)
+// for keys whose classes override equals()/hashCode(): keys are compared
+// with ObjectsEquals and hashed with ObjectHashCode instead of Go ==.
+// Iteration is in insertion order.
+type ObjectLinkedHashMap[K any, V any] struct {
+	buckets    map[int32][]*olhmEntry[K, V]
+	size       int
+	head, tail *olhmEntry[K, V]
+}
+
+// NewObjectLinkedHashMap returns an empty map.
+func NewObjectLinkedHashMap[K any, V any]() *ObjectLinkedHashMap[K, V] {
+	return &ObjectLinkedHashMap[K, V]{buckets: make(map[int32][]*olhmEntry[K, V])}
+}
+
+func (h *ObjectLinkedHashMap[K, V]) find(k K) (*olhmEntry[K, V], int32) {
+	hash := ObjectHashCode(k)
+	if h == nil {
+		return nil, hash
+	}
+	for _, e := range h.buckets[hash] {
+		if ObjectsEquals(e.key, k) {
+			return e, hash
+		}
+	}
+	return nil, hash
+}
+
+func (h *ObjectLinkedHashMap[K, V]) Size() int {
+	if h == nil {
+		return 0
+	}
+	return h.size
+}
+func (h *ObjectLinkedHashMap[K, V]) IsEmpty() bool { return h.Size() == 0 }
+
+// Get is Map.get: the zero value (Java null) when absent.
+func (h *ObjectLinkedHashMap[K, V]) Get(k K) V {
+	v, _ := h.Lookup(k)
+	return v
+}
+
+// Lookup returns the value and whether the key is present.
+func (h *ObjectLinkedHashMap[K, V]) Lookup(k K) (V, bool) {
+	if e, _ := h.find(k); e != nil {
+		return e.value, true
+	}
+	var zero V
+	return zero, false
+}
+
+// ContainsKey is Map.containsKey.
+func (h *ObjectLinkedHashMap[K, V]) ContainsKey(k K) bool {
+	e, _ := h.find(k)
+	return e != nil
+}
+
+// Put is Map.put; re-putting an existing key keeps its position (and its
+// original key object). Returns the previous value (zero if none).
+func (h *ObjectLinkedHashMap[K, V]) Put(k K, v V) V {
+	e, hash := h.find(k)
+	if e != nil {
+		old := e.value
+		e.value = v
+		return old
+	}
+	e = &olhmEntry[K, V]{key: k, hash: hash, value: v, prev: h.tail}
+	if h.tail != nil {
+		h.tail.next = e
+	} else {
+		h.head = e
+	}
+	h.tail = e
+	h.buckets[hash] = append(h.buckets[hash], e)
+	h.size++
+	var zero V
+	return zero
+}
+
+// Remove is Map.remove; returns the removed value (zero if absent).
+func (h *ObjectLinkedHashMap[K, V]) Remove(k K) V {
+	e, hash := h.find(k)
+	if e == nil {
+		var zero V
+		return zero
+	}
+	b := h.buckets[hash]
+	for i, x := range b {
+		if x == e {
+			h.buckets[hash] = append(b[:i:i], b[i+1:]...)
+			break
+		}
+	}
+	if len(h.buckets[hash]) == 0 {
+		delete(h.buckets, hash)
+	}
+	h.size--
+	e.removed = true
+	if e.prev != nil {
+		e.prev.next = e.next
+	} else {
+		h.head = e.next
+	}
+	if e.next != nil {
+		e.next.prev = e.prev
+	} else {
+		h.tail = e.prev
+	}
+	return e.value
+}
+
+// All iterates entries in insertion order.
+func (h *ObjectLinkedHashMap[K, V]) All() iter.Seq2[K, V] {
+	return func(yield func(K, V) bool) {
+		if h == nil {
+			return
+		}
+		for e := h.head; e != nil; e = e.next {
+			if e.removed {
+				continue
+			}
+			if !yield(e.key, e.value) {
+				return
+			}
+		}
+	}
+}
+
+// Keys iterates keys in insertion order.
+func (h *ObjectLinkedHashMap[K, V]) Keys() iter.Seq[K] {
+	return func(yield func(K) bool) {
+		for k := range h.All() {
+			if !yield(k) {
+				return
+			}
+		}
+	}
+}
+
+// Values iterates values in insertion order.
+func (h *ObjectLinkedHashMap[K, V]) Values() iter.Seq[V] {
+	return func(yield func(V) bool) {
+		for _, v := range h.All() {
+			if !yield(v) {
+				return
+			}
+		}
+	}
+}
+
+// KeySlice returns the keys in insertion order.
+func (h *ObjectLinkedHashMap[K, V]) KeySlice() []K { return slices.Collect(h.Keys()) }
+
+func (h *ObjectLinkedHashMap[K, V]) lookupAny(k any) (any, bool) {
+	key, ok := k.(K)
+	if !ok {
+		return nil, false
+	}
+	return h.Lookup(key)
+}
+
+// Equals is Map.equals(Object).
+func (h *ObjectLinkedHashMap[K, V]) Equals(o any) bool {
+	if any(h) == o {
+		return true
+	}
+	other, ok := o.(javaMapEntries)
+	if !ok || IsNil(o) || other.Size() != h.Size() {
+		return false
+	}
+	for k, v := range h.All() {
+		ov, present := other.lookupAny(k)
+		if !present || !ObjectsEquals(v, ov) {
+			return false
+		}
+	}
+	return true
+}
+
+// HashCode is Map.hashCode().
+func (h *ObjectLinkedHashMap[K, V]) HashCode() int32 {
+	var sum int32
+	for k, v := range h.All() {
+		sum += ObjectHashCode(k) ^ ObjectHashCode(v)
+	}
+	return sum
+}
+
+// String renders like AbstractMap.toString().
+func (h *ObjectLinkedHashMap[K, V]) String() string {
+	var sb strings.Builder
+	sb.WriteByte('{')
+	first := true
+	for k, v := range h.All() {
+		if !first {
+			sb.WriteString(", ")
+		}
+		first = false
+		sb.WriteString(ToJavaString(k))
+		sb.WriteByte('=')
+		sb.WriteString(ToJavaString(v))
+	}
+	sb.WriteByte('}')
+	return sb.String()
+}
+
+// ObjectLinkedHashSet is java.util.LinkedHashSet (and Guava ImmutableSet)
+// for elements whose classes override equals()/hashCode().
+type ObjectLinkedHashSet[T any] struct {
+	m *ObjectLinkedHashMap[T, struct{}]
+}
+
+// NewObjectLinkedHashSet returns a set containing elems in order.
+func NewObjectLinkedHashSet[T any](elems ...T) *ObjectLinkedHashSet[T] {
+	s := &ObjectLinkedHashSet[T]{m: NewObjectLinkedHashMap[T, struct{}]()}
+	for _, e := range elems {
+		s.Add(e)
+	}
+	return s
+}
+
+func (s *ObjectLinkedHashSet[T]) Size() int {
+	if s == nil {
+		return 0
+	}
+	return s.m.Size()
+}
+func (s *ObjectLinkedHashSet[T]) IsEmpty() bool { return s.Size() == 0 }
+
+// Add is Set.add; reports whether the set changed.
+func (s *ObjectLinkedHashSet[T]) Add(e T) bool {
+	if s.m.ContainsKey(e) {
+		return false
+	}
+	s.m.Put(e, struct{}{})
+	return true
+}
+
+// AddAll adds every element of the sequence; reports whether the set changed.
+func (s *ObjectLinkedHashSet[T]) AddAll(es iter.Seq[T]) bool {
+	changed := false
+	for e := range es {
+		if s.Add(e) {
+			changed = true
+		}
+	}
+	return changed
+}
+
+// Contains is Set.contains.
+func (s *ObjectLinkedHashSet[T]) Contains(e T) bool { return s != nil && s.m.ContainsKey(e) }
+
+// Remove is Set.remove.
+func (s *ObjectLinkedHashSet[T]) Remove(e T) bool {
+	if !s.m.ContainsKey(e) {
+		return false
+	}
+	s.m.Remove(e)
+	return true
+}
+
+// All iterates in insertion order.
+func (s *ObjectLinkedHashSet[T]) All() iter.Seq[T] {
+	if s == nil {
+		return func(func(T) bool) {}
+	}
+	return s.m.Keys()
+}
+
+// ToSlice returns the elements in insertion order.
+func (s *ObjectLinkedHashSet[T]) ToSlice() []T { return slices.Collect(s.All()) }
+
+func (s *ObjectLinkedHashSet[T]) containsAny(e any) bool {
+	x, ok := e.(T)
+	return ok && s.Contains(x)
+}
+
+// Equals is Set.equals(Object).
+func (s *ObjectLinkedHashSet[T]) Equals(o any) bool {
+	if any(s) == o {
+		return true
+	}
+	other, ok := o.(javaSet)
+	if !ok || IsNil(o) || other.Size() != s.Size() {
+		return false
+	}
+	for e := range s.All() {
+		if !other.containsAny(e) {
+			return false
+		}
+	}
+	return true
+}
+
+// HashCode is Set.hashCode().
+func (s *ObjectLinkedHashSet[T]) HashCode() int32 {
+	var h int32
+	for e := range s.All() {
+		h += ObjectHashCode(e)
+	}
+	return h
+}
+
+// String renders like AbstractCollection.toString().
+func (s *ObjectLinkedHashSet[T]) String() string { return CollectionToString(s.ToSlice()) }

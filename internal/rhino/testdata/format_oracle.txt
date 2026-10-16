@@ -1,0 +1,224 @@
+=== numbers
+tree	ARRAYLIT\n    NUMBER 0.0\n    NUMBER 1.0\n    NUMBER 0.5\n    NUMBER 100.0\n    NUMBER 1.0E21\n    NUMBER 1.0E-7\n    NUMBER 0.001\n    NUMBER 1.0E7\n    NUMBER 1.23456789E8\n    NUMBER 1234567.125\n    NUMBER 1.7976931348623157E308\n    NUMBER 4.9E-324\n    NUMBER 2.5E-5\n    NUMBER 9.007199254740992E15\n    NUMBER 0.1\n    NUMBER 1.0E300\n
+str	ARRAYLIT
+node0	ARRAYLIT
+node1	NUMBER 0.0
+node1	NUMBER 1.0
+node1	NUMBER 0.5
+node1	NUMBER 100.0
+node1	NUMBER 1.0E21
+node1	NUMBER 1.0E-7
+node1	NUMBER 0.001
+node1	NUMBER 1.0E7
+node1	NUMBER 1.23456789E8
+node1	NUMBER 1234567.125
+node1	NUMBER 1.7976931348623157E308
+node1	NUMBER 4.9E-324
+node1	NUMBER 2.5E-5
+node1	NUMBER 9.007199254740992E15
+node1	NUMBER 0.1
+node1	NUMBER 1.0E300
+json	{"token":"ARRAYLIT","children":[{"token":"NUMBER","number":"0.0"},{"token":"NUMBER","number":"1.0"},{"token":"NUMBER","number":"0.5"},{"token":"NUMBER","number":"100.0"},{"token":"NUMBER","number":"1.0E21"},{"token":"NUMBER","number":"1.0E-7"},{"token":"NUMBER","number":"0.001"},{"token":"NUMBER","number":"1.0E7"},{"token":"NUMBER","number":"1.23456789E8"},{"token":"NUMBER","number":"1234567.125"},{"token":"NUMBER","number":"1.7976931348623157E308"},{"token":"NUMBER","number":"4.9E-324"},{"token":"NUMBER","number":"2.5E-5"},{"token":"NUMBER","number":"9.007199254740992E15"},{"token":"NUMBER","number":"0.1"},{"token":"NUMBER","number":"1.0E300"}]}
+dtoa	0
+dtoa	1
+dtoa	0.5
+dtoa	100
+dtoa	1e+21
+dtoa	1e-7
+dtoa	0.001
+dtoa	10000000
+dtoa	123456789
+dtoa	1234567.125
+dtoa	1.7976931348623157e+308
+dtoa	5e-324
+dtoa	0.000025
+dtoa	9007199254740992
+dtoa	0.1
+dtoa	1e+300
+=== strings
+tree	ARRAYLIT\n    STRINGLIT \n    STRINGLIT plain\n    STRINGLIT h\u00e9llo\n    STRINGLIT \ud83d\ude00\n    STRINGLIT lone\ud800x\n    STRINGLIT tab\u0009nl\nq"b\\\n    STRINGLIT \u2028\n    TEMPLATELIT_STRING\n    TEMPLATELIT_STRING\n    BIGINT\n
+str	ARRAYLIT
+node0	ARRAYLIT
+node1	STRINGLIT 
+node1	STRINGLIT plain
+node1	STRINGLIT h\u00e9llo
+node1	STRINGLIT \ud83d\ude00
+node1	STRINGLIT lone\ud800x
+node1	STRINGLIT tab\u0009nl\nq"b\\
+node1	STRINGLIT \u2028
+node1	TEMPLATELIT_STRING
+node1	TEMPLATELIT_STRING
+node1	BIGINT
+json	{"token":"ARRAYLIT","children":[{"token":"STRINGLIT","string":""},{"token":"STRINGLIT","string":"plain"},{"token":"STRINGLIT","string":"h\u00e9llo"},{"token":"STRINGLIT","string":"\ud83d\ude00"},{"token":"STRINGLIT","string":"lone\ud800x"},{"token":"STRINGLIT","string":"tab\u0009nl\nq"b\\"},{"token":"STRINGLIT","string":"\u2028"},{"token":"TEMPLATELIT_STRING"},{"token":"TEMPLATELIT_STRING"},{"token":"BIGINT"}]}
+=== function
+tree	ROOT\n    SCRIPT 1:0  [length: 100] [use_strict: 1] [source_file: ext.js] [goog_module: 1] [feature_set: [RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma, array destructuring, array pattern rest, arrow function, binary literal, block-scoped function declaration, class, class getters/setters, computed property, const declaration, default parameter, for-of loop, generator, let declaration, member declaration, new.target, object destructuring, octal literal, RegExp flag 'u', RegExp flag 'y', rest parameter, shorthand object property, spread expression, super, template literal]]\n        FUNCTION f 3:4  [length: 27] [source_file: src.js]\n            NAME f 3:13  [length: 1] [source_file: src.js]\n            PARAM_LIST\n                NAME p 3:15  [input_id: InputId: src.js] [original_name: origP]\n            BLOCK\n                RETURN\n                    NAME p\n
+str	ROOT
+node0	ROOT
+node1	SCRIPT 1:0  [length: 100] [use_strict: 1] [source_file: ext.js] [goog_module: 1] [feature_set: [RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma, array destructuring, array pattern rest, arrow function, binary literal, block-scoped function declaration, class, class getters/setters, computed property, const declaration, default parameter, for-of loop, generator, let declaration, member declaration, new.target, object destructuring, octal literal, RegExp flag 'u', RegExp flag 'y', rest parameter, shorthand object property, spread expression, super, template literal]]
+node2	FUNCTION f 3:4  [length: 27] [source_file: src.js]
+node3	NAME f 3:13  [length: 1] [source_file: src.js]
+node3	PARAM_LIST
+node4	NAME p 3:15  [input_id: InputId: src.js] [original_name: origP]
+node3	BLOCK
+node4	RETURN
+node5	NAME p
+json	{"token":"ROOT","children":[{"token":"SCRIPT","sourceLocation":{"line":1,"col":0,"length":100},"props":{"use_strict":"1","source_file":"ext.js","goog_module":"1","feature_set":"[RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma, array destructuring, array pattern rest, arrow function, binary literal, block-scoped function declaration, class, class getters/setters, computed property, const declaration, default parameter, for-of loop, generator, let declaration, member declaration, new.target, object destructuring, octal literal, RegExp flag 'u', RegExp flag 'y', rest parameter, shorthand object property, spread expression, super, template literal]"},"children":[{"token":"FUNCTION","functionName":"f","sourceLocation":{"line":3,"col":4,"length":27},"props":{"source_file":"src.js"},"children":[{"token":"NAME","string":"f","sourceLocation":{"line":3,"col":13,"length":1},"props":{"source_file":"src.js"}},{"token":"PARAM_LIST","children":[{"token":"NAME","string":"p","sourceLocation":{"line":3,"col":15},"original_name":"origP","props":{"input_id":"InputId: src.js"}}]},{"token":"BLOCK","children":[{"token":"RETURN","children":[{"token":"NAME","string":"p"}]}]}]}]}]}
+location	src.js:3:13
+sourceOffset	-2147483644
+=== misc
+tree	BLOCK\n    FUNCTION <invalid> 7:4095 \n    NAME u [length: 4]\n
+str	BLOCK
+node0	BLOCK
+node1	FUNCTION <invalid> 7:4095 
+node1	NAME u [length: 4]
+json	{"token":"BLOCK","children":[{"token":"FUNCTION","functionName":"<invalid>","sourceLocation":{"line":7,"col":4095}},{"token":"NAME","string":"u"}]}
+=== props
+tree	BLOCK\n    EXPR_RESULT\n        NAME paren [is_parenthesized: 1]\n    EXPR_RESULT\n        INC [incrdecr: 1]\n            NAME i\n    EXPR_RESULT\n        DEC\n            NAME j\n    EXPR_RESULT\n        OBJECTLIT\n            STRING_KEY q [quoted: 1]\n                NUMBER 1.0\n            STRING_KEY s\n                NUMBER 2.0\n    BLOCK [synthetic: 1] [added_block: 1]\n    EXPR_RESULT\n        CALL [side_effect_flags: 10] [direct_eval: 1] [free_call: 1]\n            NAME g\n            NAME a\n    EXPR_RESULT\n        CALL [side_effect_flags: 13]\n            NAME h\n    VAR\n        NAME C [is_constant_name: 1] [is_namespace: 1] [change_time: 7] [constant_var_flags: 3] [non_indexable: 1] [deleted: 1] [module_alias: 1] [is_unused_parameter: 1] [module_export: 1]\n            NUMBER 3.0\n    FUNCTION gen [generator_fn: 1] [async_fn: 1] [is_generator_marker: 1] [is_generator_safe: 1]\n        NAME gen\n        PARAM_LIST\n        BLOCK\n    EXPR_RESULT\n        FUNCTION  [arrow_fn: 1]\n            NAME \n            PARAM_LIST\n            NUMBER 1.0\n    EXPR_RESULT\n        YIELD [yield_all: 1]\n            NAME it\n    CLASS [reflected_object: 1] [is_typescript_abstract: 1]\n        NAME K\n        EMPTY\n        CLASS_MEMBERS\n            MEMBER_FUNCTION_DEF m [static_member: 1]\n                FUNCTION \n                    NAME \n                    PARAM_LIST\n                    BLOCK\n            COMPUTED_PROP [computed_prop_method: 1] [computed_prop_getter: 1] [computed_prop_setter: 1] [computed_prop_variable: 1]\n                STRINGLIT k\n                NUMBER 1.0\n    EXPORT [export_default: 1] [export_all_from: 1] [es6_module: 1]\n    EXPR_RESULT\n        OBJECTLIT\n            STRING_KEY sh [is_shorthand_property: 1]\n                NAME sh\n    EXPR_RESULT\n        OPTCHAIN_CALL\n            OPTCHAIN_GETPROP p [start_of_opt_chain: 1]\n                NAME o\n    EXPR_RESULT\n        ARRAYLIT [trailing_comma: 1]\n            NUMBER 1.0\n    VAR [synthesized_unfulfilled_name_declaration: 1]\n        NAME synth\n    EXPR_RESULT\n        OBJECTLIT\n            STRING_KEY #priv [private_identifier: 1]\n    EXPR_RESULT\n        NAME typed [declared_type_expr: NUMBER_TYPE] [opt_es6_typed: 1] [generic_type: GENERIC_TYPE_LIST] [implements: IMPLEMENTS] [construct_signature: 1] [access_modifier: public]\n    EXPR_RESULT\n        NAME colored [color_from_cast: 1] : Color{id=d081722c, prototypes=[], instanceColors=[], invalidating=false, propertiesKeepOriginalName=false, constructor=false, ownProperties=[], boxId=34ba2fb1, closureAssert=false, unionElements=[]}\n    EXPR_RESULT\n        NAME host [is_shadow_host]\n            ROOT\n                SCRIPT\n                    EXPR_RESULT\n                        NAME shadowed\n    EXPR_RESULT\n        NAME unaware [source_file: unaware.js] [is_in_closure_unaware_subtree: 1]\n    EXPR_RESULT\n        NAME commented [non_jsdoc_comment: NonJSDocComment : // c] [trailing_non_jsdoc_comment: NonJSDocComment : /* t */]\n    EXPR_RESULT\n        NAME odd [quoted: -42] [access_modifier: -0.0] [feature_set: NaN]\n
+str	BLOCK
+node0	BLOCK
+node1	EXPR_RESULT
+node2	NAME paren [is_parenthesized: 1]
+node1	EXPR_RESULT
+node2	INC [incrdecr: 1]
+node3	NAME i
+node1	EXPR_RESULT
+node2	DEC
+node3	NAME j
+node1	EXPR_RESULT
+node2	OBJECTLIT
+node3	STRING_KEY q [quoted: 1]
+node4	NUMBER 1.0
+node3	STRING_KEY s
+node4	NUMBER 2.0
+node1	BLOCK [synthetic: 1] [added_block: 1]
+node1	EXPR_RESULT
+node2	CALL [side_effect_flags: 10] [direct_eval: 1] [free_call: 1]
+node3	NAME g
+node3	NAME a
+node1	EXPR_RESULT
+node2	CALL [side_effect_flags: 13]
+node3	NAME h
+node1	VAR
+node2	NAME C [is_constant_name: 1] [is_namespace: 1] [change_time: 7] [constant_var_flags: 3] [non_indexable: 1] [deleted: 1] [module_alias: 1] [is_unused_parameter: 1] [module_export: 1]
+node3	NUMBER 3.0
+node1	FUNCTION gen [generator_fn: 1] [async_fn: 1] [is_generator_marker: 1] [is_generator_safe: 1]
+node2	NAME gen
+node2	PARAM_LIST
+node2	BLOCK
+node1	EXPR_RESULT
+node2	FUNCTION  [arrow_fn: 1]
+node3	NAME 
+node3	PARAM_LIST
+node3	NUMBER 1.0
+node1	EXPR_RESULT
+node2	YIELD [yield_all: 1]
+node3	NAME it
+node1	CLASS [reflected_object: 1] [is_typescript_abstract: 1]
+node2	NAME K
+node2	EMPTY
+node2	CLASS_MEMBERS
+node3	MEMBER_FUNCTION_DEF m [static_member: 1]
+node4	FUNCTION 
+node5	NAME 
+node5	PARAM_LIST
+node5	BLOCK
+node3	COMPUTED_PROP [computed_prop_method: 1] [computed_prop_getter: 1] [computed_prop_setter: 1] [computed_prop_variable: 1]
+node4	STRINGLIT k
+node4	NUMBER 1.0
+node1	EXPORT [export_default: 1] [export_all_from: 1] [es6_module: 1]
+node1	EXPR_RESULT
+node2	OBJECTLIT
+node3	STRING_KEY sh [is_shorthand_property: 1]
+node4	NAME sh
+node1	EXPR_RESULT
+node2	OPTCHAIN_CALL
+node3	OPTCHAIN_GETPROP p [start_of_opt_chain: 1]
+node4	NAME o
+node1	EXPR_RESULT
+node2	ARRAYLIT [trailing_comma: 1]
+node3	NUMBER 1.0
+node1	VAR [synthesized_unfulfilled_name_declaration: 1]
+node2	NAME synth
+node1	EXPR_RESULT
+node2	OBJECTLIT
+node3	STRING_KEY #priv [private_identifier: 1]
+node1	EXPR_RESULT
+node2	NAME typed [declared_type_expr: NUMBER_TYPE] [opt_es6_typed: 1] [generic_type: GENERIC_TYPE_LIST] [implements: IMPLEMENTS] [construct_signature: 1] [access_modifier: public]
+node1	EXPR_RESULT
+node2	NAME colored [color_from_cast: 1]
+node1	EXPR_RESULT
+node2	NAME host [is_shadow_host]
+node1	EXPR_RESULT
+node2	NAME unaware [source_file: unaware.js] [is_in_closure_unaware_subtree: 1]
+node1	EXPR_RESULT
+node2	NAME commented [non_jsdoc_comment: NonJSDocComment : // c] [trailing_non_jsdoc_comment: NonJSDocComment : /* t */]
+node1	EXPR_RESULT
+node2	NAME odd [quoted: -42] [access_modifier: -0.0] [feature_set: NaN]
+json	{"token":"BLOCK","children":[{"token":"EXPR_RESULT","children":[{"token":"NAME","string":"paren","props":{"is_parenthesized":"1"}}]},{"token":"EXPR_RESULT","children":[{"token":"INC","props":{"incrdecr":"1"},"children":[{"token":"NAME","string":"i"}]}]},{"token":"EXPR_RESULT","children":[{"token":"DEC","children":[{"token":"NAME","string":"j"}]}]},{"token":"EXPR_RESULT","children":[{"token":"OBJECTLIT","children":[{"token":"STRING_KEY","string":"q","props":{"quoted":"1"},"children":[{"token":"NUMBER","number":"1.0"}]},{"token":"STRING_KEY","string":"s","children":[{"token":"NUMBER","number":"2.0"}]}]}]},{"token":"BLOCK","props":{"synthetic":"1","added_block":"1"}},{"token":"EXPR_RESULT","children":[{"token":"CALL","props":{"side_effect_flags":"10","direct_eval":"1","free_call":"1"},"children":[{"token":"NAME","string":"g"},{"token":"NAME","string":"a"}]}]},{"token":"EXPR_RESULT","children":[{"token":"CALL","props":{"side_effect_flags":"13"},"children":[{"token":"NAME","string":"h"}]}]},{"token":"VAR","children":[{"token":"NAME","string":"C","props":{"is_constant_name":"1","is_namespace":"1","change_time":"7","constant_var_flags":"3","non_indexable":"1","deleted":"1","module_alias":"1","is_unused_parameter":"1","module_export":"1"},"children":[{"token":"NUMBER","number":"3.0"}]}]},{"token":"FUNCTION","functionName":"gen","props":{"generator_fn":"1","async_fn":"1","is_generator_marker":"1","is_generator_safe":"1"},"children":[{"token":"NAME","string":"gen"},{"token":"PARAM_LIST"},{"token":"BLOCK"}]},{"token":"EXPR_RESULT","children":[{"token":"FUNCTION","functionName":"","props":{"arrow_fn":"1"},"children":[{"token":"NAME","string":""},{"token":"PARAM_LIST"},{"token":"NUMBER","number":"1.0"}]}]},{"token":"EXPR_RESULT","children":[{"token":"YIELD","props":{"yield_all":"1"},"children":[{"token":"NAME","string":"it"}]}]},{"token":"CLASS","props":{"reflected_object":"1","is_typescript_abstract":"1"},"children":[{"token":"NAME","string":"K"},{"token":"EMPTY"},{"token":"CLASS_MEMBERS","children":[{"token":"MEMBER_FUNCTION_DEF","string":"m","props":{"static_member":"1"},"children":[{"token":"FUNCTION","functionName":"","children":[{"token":"NAME","string":""},{"token":"PARAM_LIST"},{"token":"BLOCK"}]}]},{"token":"COMPUTED_PROP","props":{"computed_prop_method":"1","computed_prop_getter":"1","computed_prop_setter":"1","computed_prop_variable":"1"},"children":[{"token":"STRINGLIT","string":"k"},{"token":"NUMBER","number":"1.0"}]}]}]},{"token":"EXPORT","props":{"export_default":"1","export_all_from":"1","es6_module":"1"}},{"token":"EXPR_RESULT","children":[{"token":"OBJECTLIT","children":[{"token":"STRING_KEY","string":"sh","props":{"is_shorthand_property":"1"},"children":[{"token":"NAME","string":"sh"}]}]}]},{"token":"EXPR_RESULT","children":[{"token":"OPTCHAIN_CALL","children":[{"token":"OPTCHAIN_GETPROP","string":"p","props":{"start_of_opt_chain":"1"},"children":[{"token":"NAME","string":"o"}]}]}]},{"token":"EXPR_RESULT","children":[{"token":"ARRAYLIT","props":{"trailing_comma":"1"},"children":[{"token":"NUMBER","number":"1.0"}]}]},{"token":"VAR","props":{"synthesized_unfulfilled_name_declaration":"1"},"children":[{"token":"NAME","string":"synth"}]},{"token":"EXPR_RESULT","children":[{"token":"OBJECTLIT","children":[{"token":"STRING_KEY","string":"#priv","props":{"private_identifier":"1"}}]}]},{"token":"EXPR_RESULT","children":[{"token":"NAME","string":"typed","props":{"declared_type_expr":"NUMBER_TYPE","opt_es6_typed":"1","generic_type":"GENERIC_TYPE_LIST","implements":"IMPLEMENTS","construct_signature":"1","access_modifier":"public"}}]},{"token":"EXPR_RESULT","children":[{"token":"NAME","string":"colored","props":{"color_from_cast":"1"},"typeString":"Color{id=d081722c, prototypes=[], instanceColors=[], invalidating=false, propertiesKeepOriginalName=false, constructor=false, ownProperties=[], boxId=34ba2fb1, closureAssert=false, unionElements=[]}"}]},{"token":"EXPR_RESULT","children":[{"token":"NAME","string":"host","props":{"closure_unaware_shadow":"ROOT"}}]},{"token":"EXPR_RESULT","children":[{"token":"NAME","string":"unaware","props":{"source_file":"unaware.js","is_in_closure_unaware_subtree":"1"}}]},{"token":"EXPR_RESULT","children":[{"token":"NAME","string":"commented","props":{"non_jsdoc_comment":"NonJSDocComment : // c","trailing_non_jsdoc_comment":"NonJSDocComment : /* t */"}}]},{"token":"EXPR_RESULT","children":[{"token":"NAME","string":"odd","props":{"quoted":"-42","access_modifier":"-0.0","feature_set":"NaN"}}]}]}
+=== jsdocNodes
+tree	BLOCK\n    VAR [jsdoc_info: JSDocInfo{bitset=1504, bit:const=true, bit:deprecated=true, bit:export=true, bit:noinline=true, visibility=PRIVATE, type=type: BANG\n    STRINGLIT Foo\n, idGenerator=UNIQUE, deprecationReason=old, license=MIT extra, suppressions={[visibility, checkTypes]=because, [missingRequire]=}, closurePrimitiveId=asserts.fail, mods=ns, tsType=[number], perFileClosureUnawareMode=WHITESPACE}]\n        NAME x\n            NUMBER 1.0\n    EXPR_RESULT\n        CAST [jsdoc_info: JSDocInfo{bitset=1504, bit:const=true, bit:deprecated=true, bit:export=true, bit:noinline=true, visibility=PRIVATE, type=type: BANG\n    STRINGLIT Foo\n, idGenerator=UNIQUE, deprecationReason=old, license=MIT extra, suppressions={[visibility, checkTypes]=because, [missingRequire]=}, closurePrimitiveId=asserts.fail, mods=ns, tsType=[number], perFileClosureUnawareMode=WHITESPACE}]\n            NAME y\n
+str	BLOCK
+node0	BLOCK
+node1	VAR [jsdoc_info: JSDocInfo{bitset=1504, bit:const=true, bit:deprecated=true, bit:export=true, bit:noinline=true, visibility=PRIVATE, type=type: BANG\n    STRINGLIT Foo\n, idGenerator=UNIQUE, deprecationReason=old, license=MIT extra, suppressions={[visibility, checkTypes]=because, [missingRequire]=}, closurePrimitiveId=asserts.fail, mods=ns, tsType=[number], perFileClosureUnawareMode=WHITESPACE}]
+jsdoc1	JSDocInfo{bitset=1504, bit:const=true, bit:deprecated=true, bit:export=true, bit:noinline=true, visibility=PRIVATE, type=type: BANG\n    STRINGLIT Foo\n, idGenerator=UNIQUE, deprecationReason=old, license=MIT extra, suppressions={[visibility, checkTypes]=because, [missingRequire]=}, closurePrimitiveId=asserts.fail, mods=ns, tsType=[number], perFileClosureUnawareMode=WHITESPACE}
+node2	NAME x
+node3	NUMBER 1.0
+node1	EXPR_RESULT
+node2	CAST [jsdoc_info: JSDocInfo{bitset=1504, bit:const=true, bit:deprecated=true, bit:export=true, bit:noinline=true, visibility=PRIVATE, type=type: BANG\n    STRINGLIT Foo\n, idGenerator=UNIQUE, deprecationReason=old, license=MIT extra, suppressions={[visibility, checkTypes]=because, [missingRequire]=}, closurePrimitiveId=asserts.fail, mods=ns, tsType=[number], perFileClosureUnawareMode=WHITESPACE}]
+jsdoc2	JSDocInfo{bitset=1504, bit:const=true, bit:deprecated=true, bit:export=true, bit:noinline=true, visibility=PRIVATE, type=type: BANG\n    STRINGLIT Foo\n, idGenerator=UNIQUE, deprecationReason=old, license=MIT extra, suppressions={[visibility, checkTypes]=because, [missingRequire]=}, closurePrimitiveId=asserts.fail, mods=ns, tsType=[number], perFileClosureUnawareMode=WHITESPACE}
+node3	NAME y
+json	{"token":"BLOCK","children":[{"token":"VAR","props":{"jsdoc_info":"JSDocInfo{bitset=1504, bit:const=true, bit:deprecated=true, bit:export=true, bit:noinline=true, visibility=PRIVATE, type=type: BANG\\n    STRINGLIT Foo\\n, idGenerator=UNIQUE, deprecationReason=old, license=MIT extra, suppressions={[visibility, checkTypes]=because, [missingRequire]=}, closurePrimitiveId=asserts.fail, mods=ns, tsType=[number], perFileClosureUnawareMode=WHITESPACE}"},"children":[{"token":"NAME","string":"x","children":[{"token":"NUMBER","number":"1.0"}]}]},{"token":"EXPR_RESULT","children":[{"token":"CAST","props":{"jsdoc_info":"JSDocInfo{bitset=1504, bit:const=true, bit:deprecated=true, bit:export=true, bit:noinline=true, visibility=PRIVATE, type=type: BANG\\n    STRINGLIT Foo\\n, idGenerator=UNIQUE, deprecationReason=old, license=MIT extra, suppressions={[visibility, checkTypes]=because, [missingRequire]=}, closurePrimitiveId=asserts.fail, mods=ns, tsType=[number], perFileClosureUnawareMode=WHITESPACE}"},"children":[{"token":"NAME","string":"y"}]}]}]}
+=== functionDoc
+verbose	JSDocInfo{bitset=4003, bit:inlineType=true, bit:includeDocumentation=true, bit:implicitcast=true, returnType=type: STRINGLIT boolean\n, thisType=type: BANG\n    STRINGLIT Bar\n, originalCommentPosition=42, idGenerator=STABLE, parameters={a=type: STRINGLIT string\n, b=type: EQUALS\n    STRINGLIT number\n}, throws=[{Error} when bad], templateTypeNames={T=type: QMARK [source_file: <IMPLICIT_TEMPLATE_BOUND>]\n, U=type: STRINGLIT Object\n}, typeTransformations={R=NAME ttl}, description=desc, meaning=meaning, alternateMessageId=alt, modifies=[this, arguments], sourceComment=/** original */, parameterDescriptions={a=the a}, blockDescription=block, returnDescription=whether, authors=[me], sees=[http://example.com]}
+paramNames	[a, b]
+paramB	type: EQUALS\n    STRINGLIT number\n
+templates	[T, U]
+typeNodes	6
+modifiesThis	true
+suppressions	[visibility, checkTypes, missingRequire]
+suppressionsMap	{[visibility, checkTypes]=because, [missingRequire]=}
+visibility	PRIVATE
+license	MIT extra
+clone	JSDocInfo{bitset=4002, bit:includeDocumentation=true, bit:implicitcast=true, returnType=type: STRINGLIT boolean\n, thisType=type: BANG\n    STRINGLIT Bar\n, originalCommentPosition=42, idGenerator=STABLE, parameters={a=type: STRINGLIT string\n, b=type: EQUALS\n    STRINGLIT number\n}, throws=[{Error} when bad], templateTypeNames={T=type: QMARK [source_file: <IMPLICIT_TEMPLATE_BOUND>]\n, U=type: STRINGLIT Object\n}, typeTransformations={R=NAME ttl}, description=desc, meaning=meaning, alternateMessageId=alt, modifies=[this, arguments], sourceComment=/** original */, parameterDescriptions={a=the a}, blockDescription=block, returnDescription=whether, authors=[me], sees=[http://example.com]}
+equivalent	true
+=== ctorDoc
+verbose	JSDocInfo{bitset=80c84202848, bit:constructor=true, bit:final=true, bit:enhancedNamespace=true, bit:fileoverview=true, bit:struct=true, bit:pureOrBreakMyCode=true, bit:ngInject=true, bit:polymer=true, bit:customElement=true, bit:logTypeInCompiler=true, baseType=type: BANG\n    STRINGLIT Base\n, extendedInterfaces=[type: BANG\n    STRINGLIT I1\n, type: BANG\n    STRINGLIT I2\n], enhance=enh}
+=== interfaceDoc
+verbose	JSDocInfo{bitset=200, bit:interface=true, visibility=PACKAGE, extendedInterfaces=[type: BANG\n    STRINGLIT Parent\n]}
+=== enumDoc
+verbose	JSDocInfo{enumParameterType=type: STRINGLIT number\n}
+=== typedefDoc
+verbose	JSDocInfo{typedefType=type: STRINGLIT Object\n, idGenerator=XID}
+=== defineDoc
+verbose	JSDocInfo{bitset=10, bit:define=true, type=type: STRINGLIT boolean\n, description=define}
+=== emptyAlways
+verbose	JSDocInfo{}
+=== emptyNull
+verbose	null
+=== bitsDoc
+verbose	JSDocInfo{bitset=77359d702a0, bit:typeSummary=true, bit:override=true, bit:interface=true, bit:externs=true, bit:nocompile=true, bit:nodts=true, bit:usedViaDotConstructor=true, bit:dict=true, bit:nocollapse=true, bit:record=true, bit:collapsibleOrBreakMyCode=true, bit:nocoverage=true, bit:encourageInlining=true, bit:wizAction=true, bit:polymerBehavior=true, bit:mixinClass=true, bit:mixinFunction=true, bit:sassGeneratedCssTs=true, bit:provideGoog=true, bit:provideAlreadyProvided=true, bit:wizCallback=true, idGenerator=CONSISTENT}
+=== fileoverviewDoc
+verbose	JSDocInfo{bitset=2002, bit:includeDocumentation=true, bit:fileoverview=true, fileoverviewDescription=the file, perFileClosureUnawareMode=UNSPECIFIED}
+=== colors
+number	Color{id=d081722c, prototypes=[], instanceColors=[], invalidating=false, propertiesKeepOriginalName=false, constructor=false, ownProperties=[], boxId=34ba2fb1, closureAssert=false, unionElements=[]}
+unknown	Color{id=0, prototypes=[], instanceColors=[], invalidating=true, propertiesKeepOriginalName=false, constructor=false, ownProperties=[], boxId=null, closureAssert=false, unionElements=[]}
+union	Color{id=8068b9e5f1f8b57a, prototypes=[], instanceColors=[], invalidating=false, propertiesKeepOriginalName=false, constructor=false, ownProperties=[], boxId=null, closureAssert=false, unionElements=[Color{id=d081722c, prototypes=[], instanceColors=[], invalidating=false, propertiesKeepOriginalName=false, constructor=false, ownProperties=[], boxId=34ba2fb1, closureAssert=false, unionElements=[]}, Color{id=8c4d8f65, prototypes=[], instanceColors=[], invalidating=false, propertiesKeepOriginalName=false, constructor=false, ownProperties=[], boxId=186008a9, closureAssert=false, unionElements=[]}, Color{id=22b49f69, prototypes=[], instanceColors=[], invalidating=false, propertiesKeepOriginalName=false, constructor=false, ownProperties=[], boxId=null, closureAssert=false, unionElements=[]}]}
+unionMinusNull	Color{id=b1ab07907f193a31, prototypes=[], instanceColors=[], invalidating=false, propertiesKeepOriginalName=false, constructor=false, ownProperties=[], boxId=null, closureAssert=false, unionElements=[Color{id=d081722c, prototypes=[], instanceColors=[], invalidating=false, propertiesKeepOriginalName=false, constructor=false, ownProperties=[], boxId=34ba2fb1, closureAssert=false, unionElements=[]}, Color{id=8c4d8f65, prototypes=[], instanceColors=[], invalidating=false, propertiesKeepOriginalName=false, constructor=false, ownProperties=[], boxId=186008a9, closureAssert=false, unionElements=[]}]}
+custom	Color{id=466f6f, prototypes=[], instanceColors=[Color{id=d081722c, prototypes=[], instanceColors=[], invalidating=false, propertiesKeepOriginalName=false, constructor=false, ownProperties=[], boxId=34ba2fb1, closureAssert=false, unionElements=[]}], invalidating=false, propertiesKeepOriginalName=false, constructor=true, ownProperties=[a, b], boxId=null, closureAssert=false, unionElements=[]}
+customHash	1066600383
+unionHash	1703581702
+=== colorNode
+tree	NAME c : Color{id=8068b9e5f1f8b57a, prototypes=[], instanceColors=[], invalidating=false, propertiesKeepOriginalName=false, constructor=false, ownProperties=[], boxId=null, closureAssert=false, unionElements=[Color{id=d081722c, prototypes=[], instanceColors=[], invalidating=false, propertiesKeepOriginalName=false, constructor=false, ownProperties=[], boxId=34ba2fb1, closureAssert=false, unionElements=[]}, Color{id=8c4d8f65, prototypes=[], instanceColors=[], invalidating=false, propertiesKeepOriginalName=false, constructor=false, ownProperties=[], boxId=186008a9, closureAssert=false, unionElements=[]}, Color{id=22b49f69, prototypes=[], instanceColors=[], invalidating=false, propertiesKeepOriginalName=false, constructor=false, ownProperties=[], boxId=null, closureAssert=false, unionElements=[]}]}\n
+str	NAME c : Color{id=8068b9e5f1f8b57a, prototypes=[], instanceColors=[], invalidating=false, propertiesKeepOriginalName=false, constructor=false, ownProperties=[], boxId=null, closureAssert=false, unionElements=[Color{id=d081722c, prototypes=[], instanceColors=[], invalidating=false, propertiesKeepOriginalName=false, constructor=false, ownProperties=[], boxId=34ba2fb1, closureAssert=false, unionElements=[]}, Color{id=8c4d8f65, prototypes=[], instanceColors=[], invalidating=false, propertiesKeepOriginalName=false, constructor=false, ownProperties=[], boxId=186008a9, closureAssert=false, unionElements=[]}, Color{id=22b49f69, prototypes=[], instanceColors=[], invalidating=false, propertiesKeepOriginalName=false, constructor=false, ownProperties=[], boxId=null, closureAssert=false, unionElements=[]}]}
+node0	NAME c
+json	{"token":"NAME","string":"c","typeString":"Color{id=8068b9e5f1f8b57a, prototypes=[], instanceColors=[], invalidating=false, propertiesKeepOriginalName=false, constructor=false, ownProperties=[], boxId=null, closureAssert=false, unionElements=[Color{id=d081722c, prototypes=[], instanceColors=[], invalidating=false, propertiesKeepOriginalName=false, constructor=false, ownProperties=[], boxId=34ba2fb1, closureAssert=false, unionElements=[]}, Color{id=8c4d8f65, prototypes=[], instanceColors=[], invalidating=false, propertiesKeepOriginalName=false, constructor=false, ownProperties=[], boxId=186008a9, closureAssert=false, unionElements=[]}, Color{id=22b49f69, prototypes=[], instanceColors=[], invalidating=false, propertiesKeepOriginalName=false, constructor=false, ownProperties=[], boxId=null, closureAssert=false, unionElements=[]}]}"}
+=== qnames
+qname	this.a.b
+origQname	this.origA.b
+qobj	this.a.b
+of	x|y|z
+propList	CHANGE_TIME->DELETED->NON_INDEXABLE->IS_UNUSED_PARAMETER->MODULE_EXPORT->MODULE_ALIAS->CONSTANT_VAR_FLAGS->IS_NAMESPACE->IS_CONSTANT_NAME
+serialized	1878200000c0
+sideEffects	Side effects: global args 
+tokens	180
+msg	Invalid x
