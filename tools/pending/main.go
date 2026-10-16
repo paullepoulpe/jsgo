@@ -1,10 +1,12 @@
 // Command pending generates internal/jscomp/pending_gen.go: Go declarations
-// for the not-yet-ported Java classes that the compiler's top level and the
-// CompilerTestCase harness reference (PORTING.md §1, the one sanctioned
-// exception).
+// for the not-yet-ported Java classes that the files of package
+// internal/jscomp (tests included) reference (PORTING.md §1, the one
+// sanctioned exception), so that the package builds, vets and tests while
+// the port proceeds.
 //
 // It type-checks package internal/jscomp without pending_gen.go, collects
-// from the root files (-roots) every identifier that does not resolve and
+// from the root files (-roots, by default every non-generated file) every
+// identifier that does not resolve and
 // every selector on a pending type, maps each back to the Java member it
 // names by PORTING.md's naming rules (overloads are told apart by the call
 // site's arity and argument types), reads that member's signature from the
@@ -21,6 +23,7 @@
 //	go run ./tools/pending           # regenerate internal/jscomp/pending_gen.go
 //	go run ./tools/pending -check    # fail if the file is stale or duplicates a real declaration
 //	go run ./tools/pending -v        # also list the references it could not resolve
+//	go run ./tools/pending -roots compiler.go,'*_test.go'   # only those files' references
 package main
 
 import (
@@ -39,28 +42,15 @@ import (
 
 const generatedName = "pending_gen.go"
 
-// defaultRoots are the files whose references are forward-declared: the
-// top-level SCC (Compiler, DefaultPassConfig, NestedCompilerRunner,
-// TranspileAndOptimizeClosureUnaware) and the test harness.
-var defaultRoots = []string{
-	"compiler.go",
-	"default_pass_config.go",
-	"nested_compiler_runner.go",
-	"transpile_and_optimize_closure_unaware.go",
-	"compiler_test_case_test.go",
-	"compiler_type_test_case_test.go",
-	"compiler_test_case_utils_test.go",
-	"unit_test_utils_test.go",
-	"junit4_test.go",
-	"truth_test.go",
-	"node_subject_test.go",
-	"testing_*_test.go",
-}
+// allRoots makes every non-generated file of the package (tests included)
+// a root: main must build, vet and test while files refer to classes that
+// are not ported yet.
+const allRoots = "all"
 
 func main() {
 	dir := flag.String("dir", "internal/jscomp", "the Go package directory")
 	jar := flag.String("jar", "", "the pinned closure-compiler jar (default: .cache/closure-compiler.jar of this checkout or of the main worktree)")
-	roots := flag.String("roots", strings.Join(defaultRoots, ","), "comma-separated root file names or globs (in -dir)")
+	roots := flag.String("roots", allRoots, `comma-separated root file names or globs (in -dir), or "all" for every non-generated file`)
 	check := flag.Bool("check", false, "only check: fail if "+generatedName+" is stale or declares something a real file declares")
 	verbose := flag.Bool("v", false, "list unresolved references")
 	flag.Parse()
@@ -75,28 +65,36 @@ func main() {
 }
 
 func run(dir, jar string, rootPatterns []string, check, verbose bool) error {
+	pkg, err := loadGoPackage(dir, generatedName)
+	if err != nil {
+		return err
+	}
+	outPath := filepath.Join(dir, generatedName)
+	if check {
+		if err := checkDuplicates(pkg, outPath); err != nil {
+			return err
+		}
+		if !fileExists(jar) {
+			// Without the pinned jar (tools/oracle/fetch.sh) only the
+			// duplicate check can run.
+			fmt.Fprintf(os.Stderr, "pending: %s not found; checked for duplicate declarations only\n", jar)
+			return nil
+		}
+	}
 	classes, err := readJar(jar, []string{"com/google/javascript/", "com/google/debugging/"})
 	if err != nil {
 		return err
 	}
 	model := newModel(classes)
-	pkg, err := loadGoPackage(dir, generatedName)
-	if err != nil {
-		return err
-	}
 	roots := map[string]bool{}
 	for name := range pkg.files {
 		for _, pat := range rootPatterns {
-			if ok, _ := filepath.Match(strings.TrimSpace(pat), name); ok {
+			pat = strings.TrimSpace(pat)
+			if pat == allRoots {
+				roots[name] = true
+			} else if ok, _ := filepath.Match(pat, name); ok {
 				roots[name] = true
 			}
-		}
-	}
-	outPath := filepath.Join(dir, generatedName)
-
-	if check {
-		if err := checkDuplicates(pkg, outPath); err != nil {
-			return err
 		}
 	}
 
