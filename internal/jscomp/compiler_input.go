@@ -41,11 +41,11 @@ type CompilerInput struct {
 	ast *CompilerInput_JsAst
 
 	// DependencyInfo to delegate to.
-	dependencyInfo        DependencyInfo
-	extraRequires         []*DependencyInfo_Require
-	extraProvides         []string
-	orderedRequires       []*DependencyInfo_Require
-	dynamicRequires       []string
+	dependencyInfo  DependencyInfo
+	extraRequires   []*DependencyInfo_Require
+	extraProvides   []string
+	orderedRequires []*DependencyInfo_Require
+	dynamicRequires []string
 	// Modules imported by goog.requireDynamic()
 	requireDynamicImports      []string
 	hasFullParseDependencyInfo bool
