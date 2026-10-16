@@ -15,16 +15,23 @@ package jutil
 // GsonBuildConfig_VERSION is GsonBuildConfig.VERSION of the shaded Gson.
 const GsonBuildConfig_VERSION = "2.9.1"
 
-// Gson is com.google.gson.Gson with its default configuration.
+// Gson is com.google.gson.Gson with its default configuration, or the
+// configuration of a GsonBuilder (gson_to_json.go).
 type Gson struct {
 	lenient bool
+
+	// The GsonBuilder settings that Gson.toJson reads (gson_to_json.go).
+	serializeNulls     bool
+	htmlSafe           bool
+	prettyPrinting     bool
+	factoriesToBeAdded []*gson_typeHierarchyFactory
 }
 
 // NewGson is new Gson().
 //
 // Java: Gson()
 func NewGson() *Gson {
-	return &Gson{lenient: false}
+	return &Gson{lenient: false, htmlSafe: true}
 }
 
 // gsonRequestedType identifies the Class passed to fromJson.
