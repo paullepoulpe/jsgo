@@ -17,14 +17,21 @@
 // Test sources are fetched once from the pinned tag on GitHub into
 // .cache/closure-test-src.
 //
-// With -check, it only verifies that no tracked file mentions the GPL,
-// other than the documents that state this rule. It needs no network or
-// cache, so CI can run it.
+// With -check, it only verifies, without network or cache (so CI can run
+// it), that:
+//   - no tracked file mentions the GPL, other than the documents that
+//     state this rule;
+//   - every tracked Go file that names a Guava, Gson, protobuf-java or
+//     args4j source in a "// Port of <path>" or "// Derived from <path>"
+//     line carries that project's copyright and licence notice before its
+//     package clause (thirdparty.go), and every such line before a
+//     package clause names a Closure source or one of those projects;
+//   - NOTICE and the licence texts under LICENSES/ exist.
 //
 // Usage:
 //
-//	go run ./tools/licenses          # rewrite the notices
-//	go run ./tools/licenses -check   # fail if any tracked file mentions the GPL
+//	go run ./tools/licenses          # rewrite the notices, then check
+//	go run ./tools/licenses -check   # check only
 package main
 
 import (
@@ -55,7 +62,7 @@ var exempt = map[string]bool{
 var portOf = regexp.MustCompile(`^// Port of (com/google/[^ ]+\.java)`)
 
 func main() {
-	check := flag.Bool("check", false, "only check that no tracked file mentions the GPL")
+	check := flag.Bool("check", false, "only check: no GPL mention, third-party notices, NOTICE and LICENSES/")
 	flag.Parse()
 	files, err := trackedFiles()
 	if err != nil {
@@ -77,27 +84,47 @@ func main() {
 		}
 		fmt.Printf("licenses: %d files updated\n", n)
 	}
-	var bad []string
+	var bad, problems []string
+	ported := map[string]int{}
 	for _, f := range files {
-		if exempt[f] {
-			continue
-		}
 		b, err := os.ReadFile(f)
 		if err != nil {
 			continue // deleted in the working tree
 		}
-		if gplPattern.Match(b) {
+		if !exempt[f] && gplPattern.Match(b) {
 			bad = append(bad, f)
 		}
+		if strings.HasSuffix(f, ".go") {
+			p, us := checkNotices(f, b)
+			problems = append(problems, p...)
+			for _, u := range us {
+				ported[u.project]++
+			}
+		}
 	}
+	problems = append(problems, checkRequiredFiles()...)
 	if len(bad) > 0 {
 		fmt.Fprintf(os.Stderr, "licenses: %d tracked files mention the GPL (PORTING.md: no GPL code, anywhere):\n", len(bad))
 		for _, f := range bad {
 			fmt.Fprintln(os.Stderr, "  "+f)
 		}
+	}
+	if len(problems) > 0 {
+		fmt.Fprintf(os.Stderr, "licenses: %d licence-notice problems (PORTING.md: licence notices):\n", len(problems))
+		for _, p := range problems {
+			fmt.Fprintln(os.Stderr, "  "+p)
+		}
+	}
+	if len(bad) > 0 || len(problems) > 0 {
 		os.Exit(1)
 	}
-	fmt.Println("licenses: no tracked file mentions the GPL")
+	var counts []string
+	for _, u := range thirdParty {
+		if n := ported[u.project]; n > 0 {
+			counts = append(counts, fmt.Sprintf("%s %d", u.project, n))
+		}
+	}
+	fmt.Printf("licenses: no tracked file mentions the GPL; third-party notices present (%s); NOTICE and LICENSES/ present\n", strings.Join(counts, ", "))
 }
 
 func trackedFiles() ([]string, error) {
