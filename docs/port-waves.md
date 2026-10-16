@@ -6,16 +6,15 @@ depends only on lower levels (and on packages below `jscomp`: `rhino` incl. `jst
 parallel. Multi-file SCCs (marked) must be ported together: their files reference
 each other.
 
-556 files, 137748 SLOC, 460 SCCs.
+556 files, 138124 SLOC, 457 SCCs.
 
-## Level 0: 63 files, 4085 SLOC
+## Level 0: 62 files, 3870 SLOC
 
 - Tracer (501)
 - **SCC of 2 files (242 SLOC):** deps/AutoValue_DependencyInfo_Require (122), deps/DependencyInfo (120)
 - JvmMetrics (233)
 - CodeConsumer (231)
 - DestructuredTarget (220)
-- JSDocInfoPrinter (215)
 - VariableMap (157)
 - IdMappingUtil (143)
 - JsIterables (121)
@@ -207,20 +206,20 @@ each other.
 - **SCC of 3 files (60 SLOC):** modules/UnresolvedModule (41), modules/ExportTrace (11), modules/ModuleRequestResolver (8)
 - modules/ModuleMap (32)
 
-## Level 10: 37 files, 15700 SLOC
+## Level 10: 37 files, 15716 SLOC
 
-- **SCC of 37 files (15700 SLOC):** NodeUtil (3862), CompilerOptions (2303), AstFactory (1116), NodeTraversal (983), TypeValidator (879), ControlFlowAnalysis (679), ExpressionDecomposer (627), MakeDeclaredNamesUnique (603), JSChunkGraph (551), CompilerInput (478), AstAnalyzer (366), AbstractScope (309), SyntacticScopeCreator (275), deps/JsFileRegexParser (250), deps/JsFileLineParser (234), AbstractVar (212), ReferenceCollector (206), TypedScope (203), SourceMap (195), JSChunk (192), AbstractCompiler (189), OptionalChainRewriter (163), Reference (157), ReferenceCollection (157), LazyParsedDependencyInfo (91), TypedVar (81), Scope (75), ControlFlowGraph (73), AutoBuilder_AstAnalyzer_Options_Builder (67), Var (31), refactoring/NodeMetadata (24), MemoizedScopeCreator (23), UniqueIdSupplier (17), ScopeCreator (13), CompilerInputProvider (7), refactoring/Matcher (5), ReferenceMap (4)
+- **SCC of 37 files (15716 SLOC):** NodeUtil (3862), CompilerOptions (2303), AstFactory (1116), NodeTraversal (983), TypeValidator (879), ControlFlowAnalysis (679), ExpressionDecomposer (627), MakeDeclaredNamesUnique (603), JSChunkGraph (551), CompilerInput (478), AstAnalyzer (366), AbstractScope (309), SyntacticScopeCreator (275), deps/JsFileLineParser (250), deps/JsFileRegexParser (250), AbstractVar (212), ReferenceCollector (206), TypedScope (203), SourceMap (195), JSChunk (192), AbstractCompiler (189), OptionalChainRewriter (163), Reference (157), ReferenceCollection (157), LazyParsedDependencyInfo (91), TypedVar (81), Scope (75), ControlFlowGraph (73), AutoBuilder_AstAnalyzer_Options_Builder (67), Var (31), refactoring/NodeMetadata (24), MemoizedScopeCreator (23), UniqueIdSupplier (17), ScopeCreator (13), CompilerInputProvider (7), refactoring/Matcher (5), ReferenceMap (4)
 
-## Level 11: 142 files, 25655 SLOC
+## Level 11: 145 files, 27048 SLOC
 
-- CodeGenerator (1853)
+- **SCC of 4 files (3199 SLOC):** CodeGenerator (1853), CodePrinter (574), JSDocInfoPrinter (462), TypedCodeGenerator (310)
 - AstValidator (1810)
 - JsMessageVisitor (1039)
 - TypeTransformation (585)
 - AnalyzePrototypeProperties (566)
 - ProcessClosurePrimitives (565)
+- ProcessClosureProvidesAndRequires (563)
 - CheckMissingRequires (554)
-- ProcessClosureProvidesAndRequires (534)
 - StripCode (523)
 - ClosureCheckModule (484)
 - ReplaceIdGenerators (443)
@@ -250,12 +249,12 @@ each other.
 - instrumentation/ProductionCoverageInstrumentationCallback (213)
 - ConcretizeStaticInheritanceForInlining (207)
 - ExportTestFunctions (202)
+- ExtraRequireRemover (202)
 - InlineProperties (202)
 - AngularPass (200)
 - DotFormatter (195)
 - lint/CheckExtraRequires (189)
 - XtbMessageBundle (189)
-- ExtraRequireRemover (184)
 - Denormalize (182)
 - RewriteCallerCodeLocation (180)
 - InferJSDocInfo (179)
@@ -354,7 +353,7 @@ each other.
 - ErrorPass (17)
 - refactoring/Match (16)
 
-## Level 12: 70 files, 25148 SLOC
+## Level 12: 70 files, 25292 SLOC
 
 - GlobalNamespace (1688)
 - SymbolTable (1575)
@@ -374,6 +373,7 @@ each other.
 - PeepholeSubstituteAlternateSyntax (449)
 - disambiguate/AmbiguateProperties (443)
 - **SCC of 3 files (430 SLOC):** instrumentation/BranchCoverageInstrumentationCallback (186), instrumentation/CoverageInstrumentationPass (126), instrumentation/CoverageInstrumentationCallback (118)
+- ExternExportsPass (405)
 - InstrumentAsyncContext (397)
 - ReplaceCssNames (395)
 - lint/CheckJSDocStyle (368)
@@ -390,7 +390,6 @@ each other.
 - ReplaceStrings (283)
 - OptimizeConstructors (280)
 - LiveVariablesAnalysis (265)
-- TypedCodeGenerator (261)
 - PolyfillUsageFinder (253)
 - MaybeReachingVariableUse (250)
 - InlineSimpleMethods (235)
@@ -420,7 +419,7 @@ each other.
 - refactoring/JsSourceMatcher (19)
 - CompileMetricsRecorderInterface (7)
 
-## Level 13: 43 files, 25012 SLOC
+## Level 13: 43 files, 25102 SLOC
 
 - **SCC of 5 files (7891 SLOC):** TypedScopeCreator (2481), TypeCheck (2411), TypeInference (1984), FunctionTypeBuilder (881), TypeInferencePass (134)
 - **SCC of 2 files (2640 SLOC):** ConformanceRules (2254), CheckConformance (386)
@@ -430,9 +429,9 @@ each other.
 - PeepholeRemoveDeadCode (1098)
 - PeepholeReplaceKnownMethods (925)
 - ProcessDefines (691)
+- refactoring/SuggestedFix (664)
 - FunctionInjector (648)
 - Es6ConvertSuperConstructorCalls (578)
-- CodePrinter (574)
 - FlowSensitiveInlineVariables (452)
 - CoalesceVariableNames (380)
 - PerformanceTracker (367)
@@ -456,43 +455,41 @@ each other.
 - J2clAssertRemovalPass (32)
 - DummyCompileMetricsRecorder (11)
 
-## Level 14: 15 files, 7322 SLOC
+## Level 14: 16 files, 6771 SLOC
 
 - InlineAndCollapseProperties (1507)
 - InlineFunctions (935)
 - Es6RewriteModules (776)
-- refactoring/SuggestedFix (664)
-- CheckJSDoc (591)
+- CheckJSDoc (608)
 - CrossChunkCodeMotion (541)
 - GatherModuleMetadata (490)
-- ExternExportsPass (405)
 - J2clPropertyInlinerPass (358)
+- refactoring/ErrorToFixMapper (345)
 - RewriteDynamicImports (311)
 - PhaseOptimizer (304)
 - J2clPass (175)
+- refactoring/ApplySuggestedFixes (141)
 - J2clUtilGetDefineRewriterPass (132)
 - ijs/ProcessConstJsdocCallback (114)
 - ConformancePassConfig (19)
+- refactoring/Scanner (15)
 
-## Level 15: 10 files, 2322 SLOC
+## Level 15: 9 files, 1973 SLOC
 
 - ijs/ConvertToTypedInterface (497)
 - CheckClosureImports (407)
-- refactoring/ErrorToFixMapper (345)
 - Es6RewriteModulesToCommonJsModules (341)
 - RewriteGoogJsImports (261)
 - FindModuleDependencies (200)
-- refactoring/ApplySuggestedFixes (141)
+- refactoring/FixingErrorManager (104)
 - Es6RelativizeImportPaths (77)
+- refactoring/JsFlumeCallback (48)
 - Es6RewriteScriptsToModules (38)
-- refactoring/Scanner (15)
 
-## Level 16: 25 files, 7224 SLOC
+## Level 16: 23 files, 7072 SLOC
 
 - **SCC of 22 files (6526 SLOC):** Es6RewriteGenerators (1367), Es6RewriteDestructuring (672), Es6NormalizeClasses (668), RewriteAsyncIteration (615), Es6RewriteBlockScopedDeclaration (460), Es6RewriteClass (454), TranspilationPasses (402), RewriteAsyncFunctions (374), Es6RewriteRestAndSpread (249), Es6ConvertSuper (194), LateEs6ToEs3Converter (164), AutoBuilder_Es6RewriteClass_ClassDeclarationMetadata_Builder (160), Es7RewriteExponentialOperator (153), Es6ForOfConverter (112), Es6RewriteArrowFunction (81), AutoBuilder_Es6RewriteClass_ClassProperty_Builder (72), PeepholeTranspilationsPass (71), RewriteObjectSpread (67), RewriteNullishCoalesceOperator (58), RewriteOptionalChainingOperator (53), Es6RewriteBlockScopedFunctionDeclaration (42), RewriteLogicalAssignmentOperatorsPass (38)
 - DiagnosticGroups (546)
-- refactoring/FixingErrorManager (104)
-- refactoring/JsFlumeCallback (48)
 
 ## Level 17: 6 files, 557 SLOC
 

@@ -372,8 +372,25 @@ Done:
   - Independently re-checked on a fresh corpus sample, the 544 held-out
     fixtures and 59 new adversarial inputs.
 
-In progress:
+- **M1, part 2: `internal/rhino` core, `internal/base`, `internal/dtoa`,
+  `internal/colors`.**
+  - Node, JSDocInfo, IR and the rest, ported with the Java unit tests
+    (IRTest, NodeTest, JSDocInfoTest, QualifiedNameTest, HamtPMapTest, …).
+  - Formatting matches Java on a differential oracle.
+  - DToA matches Java on 65,675 numbers.
+- **First benchmark** ([docs/benchmarks.md](docs/benchmarks.md)): the
+  ported parser against Java's.
+  - After allocation fixes that are now conventions, Go takes 6.6 s per
+    corpus parse, against Java's 5.9 s cold and 2.2 s warm.
+  - Go has no warm-up cost and uses ~4× less memory.
 
-- **M1, part 2.** `internal/rhino` core + `base`/`dtoa`/`colors`. Next come
-  `internal/parsing` (IRFactory, JsDocInfoParser) and the Go AST dump wired
-  to the corpus oracle.
+In progress, in parallel (wave 2, PLAN.md §5):
+
+- `internal/parsing`:
+  - JsDocInfoParser + Config;
+  - IRFactory + ParserRunner, against the `ParsingDump` oracle
+    (14,690 + 1,488 + 544 + 59 Java dumps ready).
+- `rhino/jstype`, against a type-algebra oracle.
+- jscomp levels 0–9, in two dependency-closed groups (89 + 81 files).
+- `internal/sourcemap`, `internal/regex`, `internal/diagnostic`,
+  `internal/resources`.
