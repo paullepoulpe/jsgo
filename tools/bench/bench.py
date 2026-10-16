@@ -802,6 +802,11 @@ def report(out_dir, md_path, preliminary=True):
             if crashes:
                 s.append("- jsgo crashes (Go runtime): " + "; ".join(
                     f"`{k}`" + (f" ({v}×)" if len(jobs) > 1 else "") for k, v in crashes.items()) + ".")
+                if len(jobs) == 1:
+                    frames = pending_frames(read_text(os.path.join(tdir, "jsgo", "run-1", "stderr")))
+                    if frames:
+                        s.append("  Its stacks also hold a pending port being unwound: "
+                                 + ", ".join(f"`{f}`" for f in frames) + " (pending_gen.go).")
             if gate.get("diffs"):
                 s.append("- jsgo differs from Java" + (" (first invocations)" if len(jobs) > 1 else "") + ":")
                 for d in gate["diffs"][:5]:
@@ -860,6 +865,18 @@ def report(out_dir, md_path, preliminary=True):
     return text
 
 
+def pending_frames(text):
+    """Pending-port declarations (pending_gen.go) on the stacks of a crash dump."""
+    lines = text.split("\n")
+    out = []
+    for i in range(1, len(lines)):
+        if "/pending_gen.go:" in lines[i]:
+            fn = lines[i - 1].rsplit("/", 1)[-1].split("(")[0]
+            if fn not in out:
+                out.append(fn)
+    return out
+
+
 def gate_crashes(gate, tdir, njobs):
     """The gate's Go runtime crashes; for results gated before they were recorded, from jsgo's stderr."""
     if "crashes" in gate:
@@ -874,6 +891,8 @@ def gate_crashes(gate, tdir, njobs):
 
 def phase_table(trace, show_ratio):
     cols = [c for c in ("java-cold", "java-warm", "jsgo") if trace.get(c)]
+    missing = [c for c in cols if not any(r.get("reports", 1) for r in trace[c])]
+    cols = [c for c in cols if c not in missing]
     if not cols:
         return ["(no per-phase data)", ""]
     med = {}
@@ -899,7 +918,7 @@ def phase_table(trace, show_ratio):
         traced = sum(v for k, v in med[c].items() if k not in ("startup", "code printing and source maps",
                                                                "untraced (inside tracker)"))
         notes.append(f"{label(c)}: {r0.get('reports', 0)}/{r0.get('jobs', 1)} report(s) parsed per run, "
-                     f"{len(r0['passes'])} distinct passes, passes cover {100 * traced / tot[c]:.0f}% of the time"
+                     f"{len(r0['passes'])} distinct passes, passes cover {100 * traced / tot[c] if tot[c] else 0:.0f}% of the time"
                      + (f"; unmapped: {', '.join(r0['unmapped'])}" if r0["unmapped"] else ""))
     names = {c: {p: s["runs"] for p, s in trace[c][0]["passes"].items()} for c in cols}
     if "java-cold" in names and "jsgo" in names:
@@ -912,6 +931,8 @@ def phase_table(trace, show_ratio):
     if "java-cold" in names and "java-warm" in names:
         same = names["java-cold"] == names["java-warm"]
         notes.append("Pass line-up Java cold vs warm: " + ("identical." if same else "differs."))
+    for c in missing:
+        notes.append(f"{label(c)}: no tracer report in any trace run (it stopped before printing one).")
     out += ["- " + n for n in notes] + [""]
     # Per-pass details.
     allp = set()
