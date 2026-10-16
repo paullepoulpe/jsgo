@@ -250,9 +250,22 @@ Done:
   - The legacy tree has been moved to `legacy/` unchanged (its harness still
     reports 93.70% / 90.17%).
 
+- **M1, part 1: `internal/parser`.**
+  - All 104 files of `jscomp.parsing.parser` (+ `trees`, `util`) are
+    ported: 11.1k lines of Go for 10.1k of Java, with 22 marked language
+    adapters.
+  - The Java parse tree, diagnostics and comment list are reproduced byte
+    for byte (`tools/oracle/java/ParseTreeDump.java`), with zero diffs on:
+    - the 14,690-file corpus;
+    - the 1,488 fixtures;
+    - 29,892 randomly broken variants;
+
+    under the ES_NEXT, ES5 and ES3 configurations.
+  - Independently re-checked on a fresh corpus sample, the 544 held-out
+    fixtures and 59 new adversarial inputs.
+
 In progress:
 
-- **M1.** Porting `internal/parser` (Scanner, Parser, parse trees) and
-  `internal/rhino` core + `base`/`dtoa`/`colors` in parallel. Next come
+- **M1, part 2.** `internal/rhino` core + `base`/`dtoa`/`colors`. Next come
   `internal/parsing` (IRFactory, JsDocInfoParser) and the Go AST dump wired
   to the corpus oracle.
