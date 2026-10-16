@@ -17,7 +17,9 @@ package jscomp
 //     ModuleLoader.EMPTY, turning off type-based optimizations without type
 //     checking, preferRegexParser, and the flag-combination checks: as in
 //     Java.
-//   - reconcileOptionsWithGuards needs DiagnosticGroups; the
+//   - reconcileOptionsWithGuards needs DiagnosticGroups, which is not
+//     ported: see testCompiler.reconcileOptionsWithGuards for the part that
+//     is done (the parse-time diagnostics are turned off as in Java). The
 //     validateRequiredInlinings step needs InlineFunctions; the
 //     assumeForwardDeclaredForMissingTypes set needs a "contains everything"
 //     Set. These are not done (the options keep their values), and
@@ -32,6 +34,7 @@ package jscomp
 
 import (
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -257,8 +260,8 @@ func (c *testCompiler) initOptions(options *CompilerOptions) {
 
 	c.moduleLoader = ModuleLoader_EMPTY
 
-	// reconcileOptionsWithGuards() and the validateRequiredInlinings switch:
-	// not done (DiagnosticGroups, InlineFunctions).
+	c.reconcileOptionsWithGuards()
+	// The validateRequiredInlinings switch: not done (InlineFunctions).
 
 	// Turn off type-based optimizations when type checking is off
 	if !options.IsTypecheckingEnabled() {
@@ -309,6 +312,90 @@ func (c *testCompiler) initOptions(options *CompilerOptions) {
 		panic(jutil.NewIllegalArgumentExceptionMsg(
 			"Invalid flag combination: dead assignment elimination is incompatible with" +
 				" setPolymerPass(true)."))
+	}
+}
+
+// The DiagnosticGroups that Compiler.reconcileOptionsWithGuards uses and
+// whose DiagnosticTypes are ported, rebuilt as DiagnosticGroups registers
+// them (DiagnosticGroups is not ported; they are not registered by name).
+var (
+	// Java: DiagnosticGroups.BOUNDED_GENERICS
+	testCompiler_BOUNDED_GENERICS = NewDiagnosticGroupWithName(jutil.StringPtr("boundedGenerics"),
+		RhinoErrorReporter_UNSUPPORTED_BOUNDED_GENERIC_TYPES,
+		RhinoErrorReporter_BOUNDED_GENERIC_TYPE_ERROR)
+	// Java: DiagnosticGroups.MISSING_PROVIDE
+	testCompiler_MISSING_PROVIDE = NewDiagnosticGroupWithName(jutil.StringPtr("missingProvide"),
+		ClosurePrimitiveErrors_MISSING_MODULE_OR_PROVIDE_FOR_FORWARD_DECLARE)
+)
+
+// testCompiler_isReconcileGuard reports whether guard is one of the OFF
+// guards reconcileOptionsWithGuards adds (for TYPE_PARSE_ERROR,
+// BOUNDED_GENERICS or MISSING_PROVIDE). Such a guard neither enables nor
+// disables DiagnosticGroups.CHECK_TYPES: an OFF guard never enables, and
+// CHECK_TYPES has types (TypeCheck's, TypeValidator's) outside those groups.
+func testCompiler_isReconcileGuard(guard WarningsGuard) bool {
+	g, ok := guard.(*DiagnosticGroupWarningsGuard)
+	if !ok || g.level.IsOn() {
+		return false
+	}
+	for t := range g.group.GetTypes().All() {
+		if t != RhinoErrorReporter_TYPE_PARSE_ERROR && !testCompiler_BOUNDED_GENERICS.MatchesType(t) &&
+			!testCompiler_MISSING_PROVIDE.MatchesType(t) {
+			return false
+		}
+	}
+	return true
+}
+
+// Java: Compiler.reconcileOptionsWithGuards()
+//
+// DiagnosticGroups is not ported, so this is the part of the method its
+// ported groups allow:
+//   - CHECK_TYPES: options.enables/disables(CHECK_TYPES) are false when the
+//     options' warnings guard holds no guard or only the guards this method
+//     adds (testCompiler_isReconcileGuard); any other guard makes this panic.
+//     With checkTypes off, TYPE_PARSE_ERROR and BOUNDED_GENERICS are turned
+//     off as in Java.
+//   - CHECK_VARIABLES (VarCheck, VariableReferenceCheck) and
+//     ARTIFICIAL_FUNCTION_PURITY_VALIDATION (PureFunctionIdentifier): their
+//     DiagnosticTypes are not ported, so no ported code reports them; their
+//     guards are not added (the options' warnings guard lacks those
+//     entries), and disambiguateProperties makes this panic.
+//   - MISSING_PROVIDE for skipNonTranspilationPasses: as in Java.
+func (c *testCompiler) reconcileOptionsWithGuards() {
+	options := c.options
+	guard, ok := options.GetWarningsGuard().(*ComposeWarningsGuard)
+	if !ok || slices.ContainsFunc(guard.GetGuards(), func(g WarningsGuard) bool {
+		return !testCompiler_isReconcileGuard(g)
+	}) {
+		panic("test compiler: reconcileOptionsWithGuards with warning levels set needs " +
+			"DiagnosticGroups.CHECK_TYPES")
+	}
+	// DiagnosticGroups override the plain checkTypes option.
+	if !options.GetCheckTypes() {
+		// If DiagnosticGroups did not override the plain checkTypes
+		// option, and checkTypes is disabled, then turn off the
+		// parser type warnings.
+		options.SetWarningLevel(
+			DiagnosticGroup_ForType(RhinoErrorReporter_TYPE_PARSE_ERROR), CheckLevel_OFF)
+	}
+
+	if !options.GetCheckTypes() {
+		options.SetWarningLevel(testCompiler_BOUNDED_GENERICS, CheckLevel_OFF)
+	}
+
+	// CHECK_VARIABLES: not done (see above).
+
+	// If we're in transpile-only mode, we don't need to check for missing requires unless the user
+	// explicitly enables missing-provide checks.
+	if options.GetSkipNonTranspilationPasses() &&
+		!options.Enables(testCompiler_MISSING_PROVIDE) {
+		options.SetWarningLevel(testCompiler_MISSING_PROVIDE, CheckLevel_OFF)
+	}
+
+	if options.ShouldDisambiguateProperties() {
+		panic("test compiler: reconcileOptionsWithGuards with disambiguateProperties needs " +
+			"DiagnosticGroups.ARTIFICIAL_FUNCTION_PURITY_VALIDATION")
 	}
 }
 
