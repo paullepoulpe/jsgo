@@ -504,16 +504,11 @@ dependencies are on main):
 - Pacing: about 8 agents at a time. With 20, the API limit ran out in about
   80 minutes and the 4-CPU machine reached a load average of 46.
 
-Open decisions for the repository owner:
+Decided by the repository owner:
 
-- **JDK-derived tables in jutil.** Java's `String.toLowerCase` lowercases a
-  Greek capital sigma by Java's own word-break rules
-  (`ConditionalSpecialCasing` with the legacy `BreakIterator`).
-  `PeepholeReplaceKnownMethods` folds `"…".toLowerCase()` this way, so it
-  can reach output.
-  - An exact port exists on branch `port/l11-transpile-runtime` (commit
-    3f70d99). It embeds word-break tables extracted from JDK 21 and logic
-    transcribed from `sun.text.RuleBasedBreakIterator`, both GPLv2 with
-    Classpath Exception. It is kept off main pending your decision.
-  - Main uses a black-box model fitted to the JDK's output. It matches
-    except in rare sigma + combining-mark / format-character contexts.
+- **No GPL code anywhere** (PORTING.md). An exact port of the JDK's
+  word-break iterator (for Java's `toLowerCase` final-sigma rule) was
+  removed from every branch; it never reached main. A licence audit of
+  `internal/jutil` and every other place that reproduces JDK behaviour is
+  under way. Anything found to derive from JDK sources will be rewritten
+  from the public specification.

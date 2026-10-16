@@ -10,6 +10,28 @@ The one-line summary: **translate whole Java files, top to bottom,
 mechanically; adapt only where Go cannot express the Java; never add
 behaviour that the Java does not have.**
 
+**No GPL code, anywhere.** What we translate is Closure Compiler itself
+(Apache 2.0), plus the parts of Guava (Apache 2.0), Gson (Apache 2.0),
+args4j (MIT) and protobuf (BSD) that it uses. The JDK is GPLv2 with the
+Classpath Exception, and **no JDK code may enter this repository** in any
+form:
+- no translation of JDK source files;
+- no translation of `javap` disassembly of JDK classes;
+- no tables or data extracted from JDK internals (reflection on `sun.*`,
+  `jdk.internal.*` and the like).
+
+Where Go must reproduce Java library behaviour (`internal/jutil`), write it
+from the public specification:
+- the Javadoc;
+- the JLS;
+- Unicode and IETF standards;
+- published algorithms.
+
+Then verify it black-box against outputs that the JDK's public API prints
+(vector generators under `tools/oracle/java`). Don't open the JDK's source
+while writing such code. If exact behaviour cannot be specified that way,
+stop and raise it; never fall back to the JDK's code.
+
 ## 1. Unit of work
 
 - One Java top-level class (with all of its nested classes) → one Go file.
