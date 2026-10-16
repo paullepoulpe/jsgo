@@ -398,14 +398,25 @@ Done:
   - **`internal/jutil`:** consolidated across branches (one helper per
     Java class, all tested against JDK-generated vectors).
 
-In progress, in parallel (wave 2, PLAN.md §5):
+- **M1 front end complete: `internal/parsing`.**
+  - Ported: IRFactory, ParserRunner, JsDocInfoParser, JsDocTokenStream,
+    TypeTransformationParser, Config, FeatureCollector, ….
+  - `ParserRunner.parse` output is byte-identical to Java's
+    (`ParsingDump`). That covers the AST with JSDoc, features, comments and
+    every error and warning, on:
+    - the 14,690-file corpus;
+    - the 1,488 fixtures and 544 held-out fixtures;
+    - 59 adversarial inputs;
+    - all JsDocParsing modes, ES3, ES5 and ES2015;
+    - KEEP_GOING;
+    - 29,892 broken mutants.
+  - Independently re-verified on a **fresh held-out corpus**
+    (`tools/oracle/corpus-holdout.txt`): 10,145 real-world files from 16
+    npm packages never used during porting. 10,145 of 10,145 identical.
+  - Closure's own `ParserTest` (649 tests) and `JsDocInfoParserTest` (778)
+    are ported. The only skips need `rhino/jstype`, plus one Java
+    stack-overflow case that Go cannot reproduce.
 
-- `internal/parsing`:
-  - JsDocInfoParser + Config;
-  - IRFactory + ParserRunner, against the `ParsingDump` oracle
-    (14,690 + 1,488 + 544 + 59 Java dumps ready).
+In progress, in parallel (wave 2, PLAN.md §5):
 - `rhino/jstype`, against a type-algebra oracle.
 - jscomp levels 0–9, in two dependency-closed groups (89 + 81 files).
-- `internal/parsing`, part 1, JsDocInfoParser + Config, is finished: zero
-  diffs on 61,726 corpus JSDoc comments in all five JsDocParsing modes. It
-  lands together with IRFactory.

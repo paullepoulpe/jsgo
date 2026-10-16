@@ -1,0 +1,1 @@
+funcetion hello() { 'use strict'; 021; }export 
