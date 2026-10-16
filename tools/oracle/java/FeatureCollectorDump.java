@@ -22,6 +22,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import jsgo.oracle.CorpusExclusions;
 
 public final class FeatureCollectorDump {
   public static void main(String[] args) throws Exception {
@@ -39,6 +40,7 @@ public final class FeatureCollectorDump {
         files.add(f);
       }
     }
+    CorpusExclusions.removeFrom(files); // tools/oracle/gpl-excluded-corpus.txt
     com.google.javascript.jscomp.Compiler compiler =
         new com.google.javascript.jscomp.Compiler(new PrintStream(OutputStream.nullOutputStream()));
     CompilerOptions options = new CompilerOptions();

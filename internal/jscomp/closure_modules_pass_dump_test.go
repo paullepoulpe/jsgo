@@ -19,7 +19,6 @@ package jscomp
 // file sections].
 
 import (
-	"bufio"
 	"compress/gzip"
 	"crypto/sha256"
 	"fmt"
@@ -32,6 +31,7 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/tools/oracle/corpus"
 )
 
 type closureModulesDump struct {
@@ -423,21 +423,15 @@ func closureModulesReadGz(t *testing.T, path string) string {
 	return string(b)
 }
 
+// closureModulesReadList reads a file list, without the files of
+// tools/oracle/gpl-excluded-corpus.txt.
 func closureModulesReadList(t *testing.T, path string) []string {
 	t.Helper()
-	f, err := os.Open(path)
+	files, err := corpus.ReadList(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
-	var out []string
-	s := bufio.NewScanner(f)
-	for s.Scan() {
-		if l := s.Text(); l != "" {
-			out = append(out, l)
-		}
-	}
-	return out
+	return files
 }
 
 // closureModulesCompare dumps every file and compares it with its Java section.

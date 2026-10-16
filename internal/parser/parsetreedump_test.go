@@ -31,6 +31,7 @@ import (
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/tools/oracle/corpus"
 )
 
 // defaultParserConfig is the Parser.Config that ParserRunner.parse builds for
@@ -467,6 +468,7 @@ func TestParseTreeOracle(t *testing.T) {
 		})
 		sort.Strings(rels)
 	}
+	rels = corpus.Filter(rels) // tools/oracle/gpl-excluded-corpus.txt
 	diffDir := os.Getenv("PTREE_DIFF_DIR")
 	type result struct {
 		rel, diff, got string

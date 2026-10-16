@@ -60,6 +60,7 @@ import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.zip.GZIPOutputStream;
+import jsgo.oracle.CorpusExclusions;
 
 public final class NodeUtilSweep {
   private static final QualifiedName GOOG_MODULE_GET = QualifiedName.of("goog.module.get");
@@ -113,6 +114,7 @@ public final class NodeUtilSweep {
           files.add(f);
         }
       }
+      CorpusExclusions.removeFrom(files); // tools/oracle/gpl-excluded-corpus.txt
       for (String rel : files) {
         sources.add(null);
       }

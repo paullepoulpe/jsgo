@@ -20,6 +20,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import jsgo.oracle.CorpusExclusions;
 
 public final class AstDump {
   public static void main(String[] args) throws IOException {
@@ -37,6 +38,7 @@ public final class AstDump {
     }
     Path outDir = Paths.get(rest.get(0));
     Path root = Paths.get(rest.get(1));
+    CorpusExclusions.removeFrom(rest.subList(2, rest.size())); // tools/oracle/gpl-excluded-corpus.txt
     for (String rel : rest.subList(2, rest.size())) {
       Path out = outDir.resolve(rel + ".ast");
       Files.createDirectories(out.getParent());

@@ -49,6 +49,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parsing"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/tools/oracle/corpus"
 )
 
 // lintChecksDumpCheck is one lint check: its name and how to run it over
@@ -305,16 +306,13 @@ func lintChecksDumpCompare(t *testing.T, oracle string, root string, files []str
 	}
 }
 
+// lintChecksDumpReadList reads a file list, without the files of
+// tools/oracle/gpl-excluded-corpus.txt.
 func lintChecksDumpReadList(t testing.TB, path string) []string {
-	data, err := os.ReadFile(path)
+	t.Helper()
+	files, err := corpus.ReadList(path)
 	if err != nil {
 		t.Fatal(err)
-	}
-	var files []string
-	for _, l := range strings.Split(string(data), "\n") {
-		if l != "" {
-			files = append(files, l)
-		}
 	}
 	return files
 }

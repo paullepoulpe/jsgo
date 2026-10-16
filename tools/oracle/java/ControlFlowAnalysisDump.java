@@ -65,6 +65,7 @@ import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.zip.GZIPOutputStream;
+import jsgo.oracle.CorpusExclusions;
 
 public final class ControlFlowAnalysisDump {
   private static final Constructor<ControlFlowAnalysis> CTOR;
@@ -103,6 +104,7 @@ public final class ControlFlowAnalysisDump {
         files.add(f);
       }
     }
+    CorpusExclusions.removeFrom(files); // tools/oracle/gpl-excluded-corpus.txt
     Compiler compiler = new Compiler(new PrintStream(OutputStream.nullOutputStream()));
     CompilerOptions options = new CompilerOptions();
     options.setLanguageIn(CompilerOptions.LanguageMode.ECMASCRIPT_NEXT);

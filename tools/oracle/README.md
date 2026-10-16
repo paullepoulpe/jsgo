@@ -54,6 +54,7 @@ CP=.cache/closure-compiler.jar:.cache/oracle-build
 | `java/PeepholeDump.java` | jscomp (peephole passes) | per file and per configuration (each of PeepholeFoldConstants, PeepholeMinimizeConditions, PeepholeSubstituteAlternateSyntax and PeepholeReplaceKnownMethods early and late, PeepholeRemoveDeadCode, PeepholeCollectPropertyAssignments, MinimizeExitPoints, StatementFusion, ExploitAssigns alone in a `PeepholeOptimizationsPass`, ConvertToDottedProperties, DefaultPassConfig's `peepholeOptimizations` and `latePeepholeOptimizations` sequences, plus the bare normalized input), on a fresh `Compiler` (default options, ECMASCRIPT_NEXT) after CompilerTestCase's accessor summary and `Normalize.createNormalizeForOptimizations`: the pass's diagnostics, any exception, the `toStringTree()` and the BIGINT values; the SHA-256 of each block (`--full`: the block). In package `com.google.javascript.jscomp`: `java -Xss1g -XX:-ShowCodeDetailsInExceptionMessages -cp $CP com.google.javascript.jscomp.PeepholeDump [--full] [--configs=a,b] <out.gz> <root> <rel-file>...\|@<listfile>`; the Go side is `internal/jscomp/peephole_oracle_test.go` (golden `testdata/peephole/golden.txt.gz`; `PEEPHOLE_ORACLE`, `PEEPHOLE_ROOT`, `PEEPHOLE_EVERY`, `PEEPHOLE_DIFF_DIR`). |
 | `java/ClosureRewritePassDump.java` | jscomp w5-closure-modules (`ClosureRewriteModule`, `ScopedAliases`, `CheckClosureImports`, `RewriteGoogJsImports`, `modules/ModuleMapCreator` with `EsModuleProcessor`/`ClosureModuleProcessor`/`NonEsModuleProcessor`, `ProcessDefines`, `ClosureCodeRemoval`, `GenerateExports`, `ExternExportsPass`) | per file (or, with `--program`, all files in one compilation), each pass on a fresh `Compiler` (`init` + `parse`, ECMASCRIPT_NEXT in, NO_TRANSPILE out) after what `DefaultPassConfig` runs before it (synthesized externs input, `GatherModuleMetadata`, `ModuleMapCreator`): the diagnostics it adds, its exception (a `NullPointerException` by class only), the SHA-256 of `jsRoot`/`externsRoot.toStringTree()` (`--full`: the trees), the resolved module map (modules, namespaces, bindings, exports), the define names (`ProcessDefines` in its three modes with a fixed `--define` map), the exported names and the generated externs. In package `com.google.javascript.jscomp`: `java -Xss1g -cp $CP com.google.javascript.jscomp.ClosureRewritePassDump [--full] [--program] <out.gz> <root> <rel-file>...\|--list=<listfile>`; the Go side is `internal/jscomp/closure_rewrite_pass_dump_test.go` (goldens in `internal/jscomp/testdata/closure_rewrite/`; `CLOSURE_REWRITE_ORACLE`, `CLOSURE_REWRITE_ROOT`, `CLOSURE_REWRITE_FILES`, `CLOSURE_REWRITE_PROGRAM`, `CLOSURE_REWRITE_FULL`, `CLOSURE_REWRITE_DIFF_DIR`). |
 | `corpus.txt`, `corpus.sh` | — | 23 pinned npm packages (14,690 .js/.mjs/.cjs files: Closure Library, test262 parser tests, three.js, core-js, TypeScript, React, Angular, …), sha512-verified against the registry |
+| `gpl-excluded-corpus.txt`, `corpus/`, `java/CorpusExclusions.java` | — | corpus files that no golden, dump or list may use, and the Go and Java helpers that skip them (see [Excluded corpus files](#excluded-corpus-files)) |
 | `pkgscc.py` | — | the Java package SCCs that define the Go package layout (PORTING.md §2) |
 
 The Go side of each oracle (e.g. the Go `rhino.Node` dump) must reproduce the
@@ -69,3 +70,30 @@ xargs -a .cache/corpus-files.txt -d '\n' java -Xmx3g -Xss16m -cp $CP AstDump .ca
 
 Note for Go-side dumpers: Java's `PrintStream` encodes a lone surrogate as `?`,
 so WTF-8 strings must be written with lone surrogates replaced by `?`.
+
+## Excluded corpus files
+
+`gpl-excluded-corpus.txt` lists the corpus files whose licence PORTING.md does
+not allow in this repository: today the 44 sparse-matrix files of
+mathjs@15.2.0 (held-out corpus), which derive from CSparse. It holds paths
+only. Goldens made from these files would contain their code, so they are
+kept out at every step:
+
+- Java: every tool that reads corpus files (`<rel-file>...`, `@<listfile>` or
+  `--list=<listfile>`) passes its list through
+  `CorpusExclusions.removeFrom(...)` before dumping anything, and says on
+  stderr how many files it skipped. The class reads the list from the current
+  directory or the nearest parent that has `tools/oracle/` (or from
+  `-Djsgo.excludedCorpus=<path>`); without it the tool stops.
+- Go: the mirror tests read their file lists with `corpus.ReadList` (package
+  `tools/oracle/corpus`), pass corpus directory walks through `corpus.Filter`
+  and test single paths with `corpus.IsExcluded`. A new oracle test that
+  reads a list or walks a corpus must do the same; a new Java tool must call
+  `CorpusExclusions.removeFrom`.
+- `go run ./tools/licenses -check` (part of `make vet`) fails if a tracked
+  file, gzip files decompressed, mentions one of these files.
+
+A path names an excluded file when it is the file's path inside its npm
+package (the part after `<name>@<version>/package/`) or ends with `/`
+followed by it, so the match holds whatever the corpus root. To exclude
+another file, add its corpus-relative path to the list.

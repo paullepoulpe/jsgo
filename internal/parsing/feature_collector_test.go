@@ -21,6 +21,7 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/tools/oracle/corpus"
 )
 
 // collectFeatures is FeatureCollectorDump's per-file line.
@@ -51,6 +52,9 @@ func compareFeatureCollector(t *testing.T, root, tsv string) {
 	for sc.Scan() {
 		want := sc.Text()
 		rel, _, _ := strings.Cut(want, "\t")
+		if corpus.IsExcluded(rel) { // tools/oracle/gpl-excluded-corpus.txt
+			continue
+		}
 		src, err := os.ReadFile(filepath.Join(root, rel))
 		if err != nil {
 			t.Fatal(err)

@@ -77,6 +77,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPOutputStream;
+import jsgo.oracle.CorpusExclusions;
 
 public final class JsDocDump {
   private static CompilerOptions.LanguageMode languageIn =
@@ -108,6 +109,7 @@ public final class JsDocDump {
         rest.add(a);
       }
     }
+    CorpusExclusions.removeFrom(rest.subList(2, rest.size())); // tools/oracle/gpl-excluded-corpus.txt
     final boolean gz = gzip;
     Thread t =
         new Thread(

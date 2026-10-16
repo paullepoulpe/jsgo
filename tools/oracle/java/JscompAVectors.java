@@ -48,6 +48,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import jsgo.oracle.CorpusExclusions;
 
 public class JscompAVectors {
   static final Random r = new Random(20260415);
@@ -983,6 +984,7 @@ public class JscompAVectors {
   public static void main(String[] args) throws Exception {
     Path corpus = Paths.get(args[0]);
     List<String> corpusNames = Files.readAllLines(Paths.get(args[1]));
+    CorpusExclusions.removeFrom(corpusNames); // tools/oracle/gpl-excluded-corpus.txt
     out = new PrintStream(Files.newOutputStream(Paths.get(args[2])), true, StandardCharsets.UTF_8);
     List<String> picked = new ArrayList<>();
     for (int i = 0; i < 32; i++) {

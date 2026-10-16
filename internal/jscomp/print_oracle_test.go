@@ -43,6 +43,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parsing"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/tools/oracle/corpus"
 )
 
 // printDumpOptions are PrintDump's command-line options.
@@ -460,6 +461,7 @@ func TestPrintDumpOracle(t *testing.T) {
 		})
 		sort.Strings(rels)
 	}
+	rels = corpus.Filter(rels) // tools/oracle/gpl-excluded-corpus.txt
 	diffDir := os.Getenv("PRINT_DIFF_DIR")
 	type result struct {
 		rel, diff, got string

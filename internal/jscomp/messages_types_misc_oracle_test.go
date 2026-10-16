@@ -31,6 +31,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parsing"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/tools/oracle/corpus"
 )
 
 func l11msgEscape(s string) string {
@@ -524,17 +525,13 @@ func l11msgRunCorpusMode(t *testing.T, mode string, root string, files []string,
 	l11msgCompareSections(t, mode, want, got, maxDiffs)
 }
 
+// l11msgReadList reads a file list, without the files of
+// tools/oracle/gpl-excluded-corpus.txt.
 func l11msgReadList(t *testing.T, path string) []string {
 	t.Helper()
-	data, err := os.ReadFile(path)
+	files, err := corpus.ReadList(path)
 	if err != nil {
 		t.Fatal(err)
-	}
-	var files []string
-	for _, l := range strings.Split(string(data), "\n") {
-		if l != "" {
-			files = append(files, l)
-		}
 	}
 	return files
 }

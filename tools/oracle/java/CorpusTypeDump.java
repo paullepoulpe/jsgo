@@ -32,6 +32,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.GZIPOutputStream;
+import jsgo.oracle.CorpusExclusions;
 
 public final class CorpusTypeDump {
   public static void main(String[] args) throws Exception {
@@ -58,6 +59,7 @@ public final class CorpusTypeDump {
         files.add(f);
       }
     }
+    CorpusExclusions.removeFrom(files); // tools/oracle/gpl-excluded-corpus.txt
     Config config = compilerParserConfig();
     for (String rel : files) {
       StringBuilder sb = new StringBuilder();
