@@ -614,10 +614,10 @@ func (d *scopeDumper) memoized(compiler AbstractCompiler, root *rhino.Node) {
 	}))
 }
 
-// scopeDumpReadFiles splits gzipped dumps into their "# file" sections.
-func scopeDumpReadFiles(t *testing.T, paths ...string) (names []string, sections map[string]string) {
+// scopeDumpReadFiles streams the "# file" sections of gzipped dumps to
+// each(name, section), in order.
+func scopeDumpReadFiles(t *testing.T, each func(name, section string), paths ...string) {
 	t.Helper()
-	sections = map[string]string{}
 	for _, path := range paths {
 		f, err := os.Open(path)
 		if err != nil {
@@ -633,7 +633,7 @@ func scopeDumpReadFiles(t *testing.T, paths ...string) (names []string, sections
 		var sb strings.Builder
 		flush := func() {
 			if cur != "" {
-				sections[cur] = sb.String()
+				each(cur, sb.String())
 			}
 			sb.Reset()
 		}
@@ -642,7 +642,6 @@ func scopeDumpReadFiles(t *testing.T, paths ...string) (names []string, sections
 			if strings.HasPrefix(l, "# file ") {
 				flush()
 				cur = l[len("# file "):]
-				names = append(names, cur)
 			}
 			sb.WriteString(l)
 			sb.WriteByte('\n')
@@ -653,7 +652,6 @@ func scopeDumpReadFiles(t *testing.T, paths ...string) (names []string, sections
 		flush()
 		f.Close()
 	}
-	return names, sections
 }
 
 func scopeDumpFirstDiff(want, got string) string {
@@ -674,65 +672,69 @@ func scopeDumpFirstDiff(want, got string) string {
 }
 
 // scopeDumpCompare dumps every file of the Java dumps for which rootFor
-// returns a root and compares.
+// returns a root and compares (streaming: only differences are kept).
 func scopeDumpCompare(t *testing.T, rootFor func(name string) string, paths ...string) {
-	all, sections := scopeDumpReadFiles(t, paths...)
-	if len(all) == 0 {
-		t.Fatalf("no files in %v", paths)
-	}
-	var names []string
-	for _, name := range all {
-		if rootFor(name) != "" {
-			names = append(names, name)
-		}
-	}
 	diffDir := os.Getenv("SCOPE_DIFF_DIR")
-	type result struct{ diff, got string }
-	results := make([]result, len(names))
+	type job struct{ name, want string }
+	type result struct{ name, diff, got string }
+	jobs := make(chan job, runtime.NumCPU())
+	results := make(chan result, runtime.NumCPU())
 	var wg sync.WaitGroup
-	work := make(chan int)
 	for w := 0; w < runtime.NumCPU(); w++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			d := &scopeDumper{}
-			for i := range work {
-				name := names[i]
-				src, err := os.ReadFile(filepath.Join(rootFor(name), name))
+			for j := range jobs {
+				src, err := os.ReadFile(filepath.Join(rootFor(j.name), j.name))
 				if err != nil {
-					results[i] = result{diff: err.Error()}
+					results <- result{name: j.name, diff: err.Error()}
 					continue
 				}
-				got := d.dumpOne(name, string(src))
-				if want := sections[name]; got != want {
-					results[i] = result{diff: scopeDumpFirstDiff(want, got), got: got}
+				got := d.dumpOne(j.name, string(src))
+				if got != j.want {
+					results <- result{name: j.name, diff: scopeDumpFirstDiff(j.want, got), got: got}
+				} else {
+					results <- result{name: j.name}
 				}
 			}
 		}()
 	}
-	for i := range names {
-		work <- i
-	}
-	close(work)
+	compared, failures := 0, 0
+	done := make(chan struct{})
+	go func() {
+		for r := range results {
+			compared++
+			if r.diff == "" {
+				continue
+			}
+			failures++
+			if failures <= 20 {
+				t.Errorf("%s: differs from Java at %s", r.name, r.diff)
+			}
+			if diffDir != "" && r.got != "" {
+				out := filepath.Join(diffDir, r.name+".go.scope")
+				os.MkdirAll(filepath.Dir(out), 0o755)
+				os.WriteFile(out, []byte(r.got), 0o644)
+			}
+		}
+		close(done)
+	}()
+	scopeDumpReadFiles(t, func(name, section string) {
+		if rootFor(name) != "" {
+			jobs <- job{name, section}
+		}
+	}, paths...)
+	close(jobs)
 	wg.Wait()
-	failures := 0
-	for i, r := range results {
-		if r.diff == "" {
-			continue
-		}
-		failures++
-		if failures <= 20 {
-			t.Errorf("%s: differs from Java at %s", names[i], r.diff)
-		}
-		if diffDir != "" && r.got != "" {
-			out := filepath.Join(diffDir, names[i]+".go.scope")
-			os.MkdirAll(filepath.Dir(out), 0o755)
-			os.WriteFile(out, []byte(r.got), 0o644)
-		}
+	close(results)
+	<-done
+	if compared == 0 {
+		t.Fatalf("no files compared in %v", paths)
 	}
-	t.Logf("compared %d files: %d differ", len(names), failures)
+	t.Logf("compared %d files: %d differ", compared, failures)
 	if failures > 0 {
-		t.Errorf("%d of %d files differ", failures, len(names))
+		t.Errorf("%d of %d files differ", failures, compared)
 	}
 }
 
