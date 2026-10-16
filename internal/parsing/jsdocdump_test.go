@@ -518,9 +518,8 @@ func jsdocSections(dump string) []string {
 
 // jsdocCompare compares a Go dump with a Java dump section by section.
 // It returns the number of comment sections in the Java dump, how many of
-// them are identical, how many differ only because TypeTransformationParser
-// is not ported yet, and the first differing section pair.
-func jsdocCompare(want, got string) (comments, same, ttl int, firstDiff string) {
+// them are identical, and the first differing section pair.
+func jsdocCompare(want, got string) (comments, same int, firstDiff string) {
 	ws, gs := jsdocSections(want), jsdocSections(got)
 	for i, w := range ws {
 		isComment := strings.HasPrefix(w, "# comment ")
@@ -537,10 +536,6 @@ func jsdocCompare(want, got string) (comments, same, ttl int, firstDiff string) 
 			}
 			continue
 		}
-		if isComment && strings.Contains(g, pendingTTLMarker) {
-			ttl++
-			continue
-		}
 		if firstDiff == "" {
 			firstDiff = "want:\n" + w + "got:\n" + g
 		}
@@ -551,17 +546,13 @@ func jsdocCompare(want, got string) (comments, same, ttl int, firstDiff string) 
 	return
 }
 
-// pendingTTLMarker is the message JsDocInfoParser.parseTtlAst panics with
-// until TypeTransformationParser is merged from port/irfactory.
-const pendingTTLMarker = "TypeTransformationParser is not ported yet"
-
 func TestJsDocDumpGolden(t *testing.T) {
 	srcDir := filepath.Join("testdata", "jsdoc", "src")
 	modes, err := os.ReadDir(filepath.Join("testdata", "jsdoc"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	total, totalSame, totalTTL := 0, 0, 0
+	total, totalSame := 0, 0
 	for _, mode := range modes {
 		if !mode.IsDir() || mode.Name() == "src" {
 			continue
@@ -589,16 +580,15 @@ func TestJsDocDumpGolden(t *testing.T) {
 				t.Fatalf("%s: %v", d, err)
 			}
 			got := dumpJsDoc(rel, string(src), config)
-			comments, same, ttl, diff := jsdocCompare(string(want), got)
+			comments, same, diff := jsdocCompare(string(want), got)
 			total += comments
 			totalSame += same
-			totalTTL += ttl
 			if diff != "" {
 				t.Errorf("%s/%s: %s", mode.Name(), rel, diff)
 			}
 		}
 	}
-	t.Logf("%d comments, %d identical, %d skipped (needs TypeTransformationParser)", total, totalSame, totalTTL)
+	t.Logf("%d comments, %d identical", total, totalSame)
 }
 
 func TestJsDocDumpOracle(t *testing.T) {
@@ -638,7 +628,7 @@ func TestJsDocDumpOracle(t *testing.T) {
 	type result struct {
 		rel, diff, got      string
 		missing             bool
-		comments, same, ttl int
+		comments, same      int
 	}
 	results := make([]result, len(rels))
 	var wg sync.WaitGroup
@@ -665,8 +655,8 @@ func TestJsDocDumpOracle(t *testing.T) {
 					continue
 				}
 				got := dumpJsDoc(rel, string(src), config)
-				comments, same, ttl, diff := jsdocCompare(want, got)
-				results[i] = result{rel: rel, diff: diff, got: got, comments: comments, same: same, ttl: ttl}
+				comments, same, diff := jsdocCompare(want, got)
+				results[i] = result{rel: rel, diff: diff, got: got, comments: comments, same: same}
 			}
 		}()
 	}
@@ -675,7 +665,7 @@ func TestJsDocDumpOracle(t *testing.T) {
 	}
 	close(work)
 	wg.Wait()
-	files, missing, differ, comments, same, ttl := 0, 0, 0, 0, 0, 0
+	files, missing, differ, comments, same := 0, 0, 0, 0, 0
 	for _, r := range results {
 		if r.missing {
 			missing++
@@ -684,7 +674,6 @@ func TestJsDocDumpOracle(t *testing.T) {
 		files++
 		comments += r.comments
 		same += r.same
-		ttl += r.ttl
 		if r.diff != "" {
 			differ++
 			if differ <= 20 {
@@ -697,6 +686,6 @@ func TestJsDocDumpOracle(t *testing.T) {
 			}
 		}
 	}
-	t.Logf("%d files (%d differ, %d without oracle output); %d comments: %d identical, %d skipped (needs TypeTransformationParser), %d differ",
-		files, differ, missing, comments, same, ttl, comments-same-ttl)
+	t.Logf("%d files (%d differ, %d without oracle output); %d comments: %d identical, %d differ",
+		files, differ, missing, comments, same, comments-same)
 }

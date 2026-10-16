@@ -8,10 +8,7 @@ package parsing
 // ...). rhino/jstype is not ported yet, so every such comparison is recorded
 // (with the Java expression of the expected type) instead of evaluated, and a
 // test that reached one ends with t.Skip("needs rhino/jstype") after all of
-// its other assertions have run. Likewise a test that reaches a @template
-// type transformation skips with "needs TypeTransformationParser", and one
-// that calls parseFull (ParserRunner.parse) skips with "needs ParserRunner";
-// both are ported on port/irfactory.
+// its other assertions have run.
 
 import (
 	"fmt"
@@ -41,60 +38,18 @@ type jsDocInfoParserTest struct {
 	needsJSType []string
 }
 
-// jsDocInfoParserTest_defaultAnnotationNames and
-// jsDocInfoParserTest_defaultSuppressionNames are
-// ParserRunner.createConfig(LanguageMode.ECMASCRIPT3, null,
-// StrictMode.SLOPPY).annotationNames() / .suppressionNames(), dumped from the
-// pinned jar (ParserRunner reads them from ParserConfig.properties). Replace
-// them with the ParserRunner call once ParserRunner is merged.
-var jsDocInfoParserTest_defaultAnnotationNames = []string{
-	"ngInject", "abstract", "alternateMessageId", "argument", "author", "closurePrimitive",
-	"closureUnaware", "const", "collapsibleOrBreakMyCode", "constant", "constructor",
-	"customElement", "copyright", "define", "deprecated", "desc", "dict", "requireInlining",
-	"encourageInlining", "enum", "enhance", "export", "extends", "externs", "fileoverview",
-	"final", "idGenerator", "implements", "implicitCast", "inheritDoc", "interface", "record",
-	"lends", "license", "logTypeInCompiler", "mayhaveextraedge", "meaning", "mixinClass",
-	"mixinFunction", "modifies", "mods", "nocollapse", "nocompile", "nocoverage", "nodts",
-	"noinline", "nosideeffects", "override", "owner", "package", "param", "polymer",
-	"polymerBehavior", "preserve", "private", "protected", "provideGoog",
-	"provideAlreadyProvided", "public", "pureOrBreakMyCode", "return", "returns",
-	"sassGeneratedCssTs", "see", "soyModule", "soyTemplate", "struct", "suppress", "template",
-	"this", "throws", "type", "typedef", "typeSummary", "unrestricted", "usedViaDotConstructor",
-	"wizaction", "tsType", "wizAnalyzer", "wizcallback", "addon", "alias", "animations",
-	"appliesMixin", "async", "augments", "base", "borrows", "bug", "channel", "class",
-	"classdesc", "codepen", "config", "constructs", "default", "delcall", "deltemplate",
-	"delegate", "demo", "description", "docsNotRequired", "docs-private", "element",
-	"enhanceable", "event", "eventOf", "eventType", "example", "exception", "exec", "exportDoc",
-	"exportInterface", "field", "file", "fires", "function", "global", "hassoydelcall",
-	"hassoydeltemplate", "hideconstructor", "hidden", "id", "ignore", "inner", "instance", "jsx",
-	"jsxFrag", "kind", "link", "member", "memberOf", "memberof", "method", "methodOf", "mixes",
-	"mixin", "modName", "moddedBy", "model", "module", "multiElement", "name", "namespace",
-	"ngdoc", "parent", "pintomodule", "preserveTry", "priority", "property", "propertyOf",
-	"pseudoElement", "readonly", "requirecss", "requires", "requireExtern", "restrict", "scope",
-	"since", "static", "summary", "supported", "todo", "transaction", "tsweep", "tutorial",
-	"url", "usage", "version", "virtual", "visibility", "wizSupportsSymbolicLookup",
-}
-
-var jsDocInfoParserTest_defaultSuppressionNames = []string{
-	"accessControls", "checkDebuggerStatement", "checkEs5InheritanceCorrectnessConditions",
-	"checkPrototypalTypes", "checkRegExp", "checkTypes", "checkVars", "closureClassChecks",
-	"closureDepMethodUsageChecks", "const", "constantProperty", "dangerousUnrecognizedTypeError",
-	"deprecated", "duplicate", "es5Strict", "externsValidation", "extraProvide", "extraRequire",
-	"globalThis", "invalidCasts", "lateProvide", "lintChecks", "lintVarDeclarations",
-	"messageConventions", "misplacedTypeAnnotation", "missingOverride", "missingPolyfill",
-	"missingProperties", "missingProvide", "missingRequire", "missingReturn", "moduleLoad",
-	"msgDescriptions", "nonStandardJsDocs", "partialAlias", "polymer", "reportUnknownTypes",
-	"strictCheckTypes", "strictMissingProperties", "strictModuleDepCheck",
-	"strictPrimitiveOperators", "suspiciousCode", "transitionalSuspiciousCodeWarnings",
-	"undefinedNames", "undefinedVars", "underscore", "unknownDefines", "untranspilableFeatures",
-	"unusedLocalVariables", "useOfGoogProvide", "uselessCode", "visibility", "with",
-}
-
 // newJsDocInfoParserTest is setUp().
 func newJsDocInfoParserTest(t *testing.T) *jsDocInfoParserTest {
 	jt := &jsDocInfoParserTest{t: t}
-	jt.extraAnnotations = jutil.NewLinkedHashSet(jsDocInfoParserTest_defaultAnnotationNames...)
-	jt.extraSuppressions = jutil.NewLinkedHashSet(jsDocInfoParserTest_defaultSuppressionNames...)
+	// Go-only: language-adapter — new HashSet<>(...): the sets are only
+	// queried and passed to Config.Builder, so insertion order stands in for
+	// HashSet order.
+	jt.extraAnnotations = jutil.NewLinkedHashSet(
+		ParserRunner_CreateConfig(Config_LanguageMode_ECMASCRIPT3, nil, Config_StrictMode_SLOPPY).
+			AnnotationNames().ToSlice()...)
+	jt.extraSuppressions = jutil.NewLinkedHashSet(
+		ParserRunner_CreateConfig(Config_LanguageMode_ECMASCRIPT3, nil, Config_StrictMode_SLOPPY).
+			SuppressionNames().ToSlice()...)
 
 	jt.extraSuppressions.Add("x")
 	jt.extraSuppressions.Add("y")
@@ -113,15 +68,6 @@ func newJsDocInfoParserTest(t *testing.T) *jsDocInfoParserTest {
 // not-yet-ported dependency is reported as skipped, unless it already
 // failed.
 func (jt *jsDocInfoParserTest) done() {
-	if r := recover(); r != nil {
-		if t, ok := r.(jutil.Throwable); ok && strings.Contains(t.GetMessage(), pendingTTLMarker) {
-			if !jt.t.Failed() {
-				jt.t.Skip("needs TypeTransformationParser (port/irfactory)")
-			}
-			return
-		}
-		panic(r)
-	}
 	if len(jt.needsJSType) > 0 && !jt.t.Failed() {
 		jt.t.Skip("needs rhino/jstype: " + strings.Join(jt.needsJSType, "; "))
 	}
@@ -312,13 +258,25 @@ func (jt *jsDocInfoParserTest) assertAnnotationMarker(
 	return nil
 }
 
-// parseFull needs ParserRunner.parse (IRFactory), which is ported on
-// port/irfactory.
-//
 // Java: JsDocInfoParserTest.parseFull(String, String...)
 func (jt *jsDocInfoParserTest) parseFull(code string, warnings ...string) *rhino.Node {
-	jt.t.Skip("needs ParserRunner (port/irfactory)")
-	return nil
+	jt.t.Helper()
+	testErrorReporter := newTestErrorReporter().expectAllWarnings(warnings...)
+	config := Config_Builder_().
+		SetExtraAnnotationNames(jt.extraAnnotations.All()).
+		SetJsDocParsingMode(Config_JsDocParsing_INCLUDE_DESCRIPTIONS_NO_WHITESPACE).
+		SetRunMode(Config_RunMode_KEEP_GOING).
+		SetSuppressionNames(jt.extraSuppressions.All()).
+		SetLanguageMode(Config_LanguageMode_ECMASCRIPT3).
+		SetParseInlineSourceMaps(true).
+		SetStrictMode(Config_StrictMode_SLOPPY).
+		Build()
+
+	result := ParserRunner_Parse(
+		rhino.NewSimpleSourceFile("source", rhino.StaticSourceFile_SourceKind_STRONG), code, config, testErrorReporter)
+
+	testErrorReporter.verifyHasEncounteredAllWarningsAndErrors(jt.t)
+	return result.Ast
 }
 
 // Java: JsDocInfoParserTest.parseFileOverviewWithoutDoc(String, String...)
