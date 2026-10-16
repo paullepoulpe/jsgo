@@ -20,7 +20,9 @@
 // With -check, it only verifies, without network or cache (so CI can run
 // it), that:
 //   - no tracked file mentions the GPL, other than the documents that
-//     state this rule;
+//     state this rule. A gzip file is checked decompressed, a file in
+//     another compressed format is an error, and other binary files are
+//     skipped (content.go);
 //   - every tracked Go file that names a Guava, Gson, protobuf-java or
 //     args4j source in a "// Port of <path>" or "// Derived from <path>"
 //     line carries that project's copyright and licence notice before its
@@ -54,9 +56,10 @@ var gplPattern = regexp.MustCompile(`(?i)(general` + ` public licen[cs]e|\b(?:l)
 
 // exempt are the tracked files allowed to mention the GPL: they state the rule.
 var exempt = map[string]bool{
-	"PORTING.md":             true,
-	"PLAN.md":                true,
-	"tools/licenses/main.go": true,
+	"PORTING.md":                true,
+	"PLAN.md":                   true,
+	"tools/licenses/main.go":    true,
+	"tools/licenses/content.go": true,
 }
 
 var portOf = regexp.MustCompile(`^// Port of (com/google/[^ ]+\.java)`)
@@ -86,12 +89,19 @@ func main() {
 	}
 	var bad, problems []string
 	ported := map[string]int{}
+	skipped := 0
 	for _, f := range files {
 		b, err := os.ReadFile(f)
 		if err != nil {
 			continue // deleted in the working tree
 		}
-		if !exempt[f] && gplPattern.Match(b) {
+		text, skip, err := fileText(f, b)
+		switch {
+		case err != nil:
+			problems = append(problems, err.Error())
+		case skip:
+			skipped++
+		case !exempt[f] && mentionsGPL(text):
 			bad = append(bad, f)
 		}
 		if strings.HasSuffix(f, ".go") {
@@ -124,7 +134,7 @@ func main() {
 			counts = append(counts, fmt.Sprintf("%s %d", u.project, n))
 		}
 	}
-	fmt.Printf("licenses: no tracked file mentions the GPL; third-party notices present (%s); NOTICE and LICENSES/ present\n", strings.Join(counts, ", "))
+	fmt.Printf("licenses: no tracked file mentions the GPL (gzip files decompressed, %d other binary files skipped); third-party notices present (%s); NOTICE and LICENSES/ present\n", skipped, strings.Join(counts, ", "))
 }
 
 func trackedFiles() ([]string, error) {
