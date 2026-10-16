@@ -145,6 +145,9 @@ func ToJavaString(v any) string {
 	switch x := v.(type) {
 	case string:
 		return x
+	case *string:
+		// A nullable Java String (non-null here).
+		return *x
 	case float64:
 		return DoubleToString(x)
 	case float32:

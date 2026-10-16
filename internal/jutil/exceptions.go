@@ -404,3 +404,42 @@ func NewArithmeticException(message string) *ArithmeticException {
 	InitThrowable(e, "java.lang.ArithmeticException", msgPtr(message), nil)
 	return e
 }
+
+// JavaException is java.lang.Exception (checked exceptions that are not
+// RuntimeExceptions). It is not named Exception for symmetry with JavaError.
+type JavaException struct{ ThrowableBase }
+
+func (*JavaException) javaException() {}
+
+// IException matches java.lang.Exception and all its subclasses (including
+// RuntimeExceptions only if they also implement it, which jutil's do not:
+// Java's RuntimeException extends Exception, but ported code never catches
+// a RuntimeException through `catch (Exception e)` without also handling
+// RuntimeException; use Throwable for that).
+type IException interface {
+	Throwable
+	javaException()
+}
+
+// IOException is java.io.IOException.
+type IOException struct{ JavaException }
+
+func (*IOException) ioException() {}
+
+type IIOException interface {
+	IException
+	ioException()
+}
+
+func NewIOException(message string) *IOException {
+	e := &IOException{}
+	InitThrowable(e, "java.io.IOException", msgPtr(message), nil)
+	return e
+}
+
+// NewIOExceptionWithCause is new IOException(Throwable cause).
+func NewIOExceptionWithCause(cause Throwable) *IOException {
+	e := &IOException{}
+	InitThrowable(e, "java.io.IOException", nil, cause)
+	return e
+}

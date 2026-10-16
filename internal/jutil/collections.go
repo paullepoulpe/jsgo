@@ -249,9 +249,11 @@ func (h *LinkedHashMap[K, V]) Put(k K, v V) V {
 	return zero
 }
 
-// PutIfAbsent is Map.putIfAbsent; returns the existing value if present.
+// PutIfAbsent is Map.putIfAbsent: if the key is absent or mapped to null
+// (jutil.IsNil) it is (re)mapped to v and null is returned; otherwise the
+// current value is returned.
 func (h *LinkedHashMap[K, V]) PutIfAbsent(k K, v V) V {
-	if e, ok := h.m[k]; ok {
+	if e, ok := h.m[k]; ok && !IsNil(e.value) {
 		return e.value
 	}
 	h.Put(k, v)
