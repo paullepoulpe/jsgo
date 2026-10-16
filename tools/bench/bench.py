@@ -47,6 +47,8 @@ SAMPLE_MAX_BYTES = 256 * 1024
 PHASES = ["startup", "parse", "checks", "type checking", "transpilation", "optimization loop",
           "renaming", "other passes", "untraced (inside tracker)", "code printing and source maps"]
 PENDING_RE = re.compile(r"pending port: (.*?)(?: \[recovered\])*$", re.M)
+# A Go runtime crash (as opposed to Java-style diagnostics or an uncaught Java exception).
+CRASH_RE = re.compile(r"^(?:panic: |fatal error: )(.*?)(?: \[recovered\])*$", re.M)
 # Variables that would change the JVM's or the Go runtime's defaults.
 JAVA_ENV_DROP = ("JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS", "JDK_JAVA_OPTIONS")
 GO_ENV_DROP = ("GOGC", "GOMEMLIMIT", "GOMAXPROCS", "GODEBUG")
@@ -283,7 +285,7 @@ class Runner:
         for i in range(1, runs + 1):
             if do_java:
                 cold.append(self.measure_cold(task, jobs, tdir, "java-cold", i, self.java_cold_argv, self.java_env))
-            if do_jsgo and jsgo_status != "PENDING":
+            if do_jsgo and jsgo_status not in ("PENDING", "CRASH"):
                 r = self.measure_cold(task, jobs, tdir, "jsgo", i, lambda args: [self.jsgo] + args, self.go_env)
                 jsgo.append(r)
                 if i == 1:
@@ -299,7 +301,7 @@ class Runner:
             save(os.path.join(tdir, "java-warm.json"), warm)
 
         if not a.skip_trace:
-            self.trace(task, jobs, tdir, do_java, do_jsgo and jsgo_status != "PENDING")
+            self.trace(task, jobs, tdir, do_java, do_jsgo and jsgo_status not in ("PENDING", "CRASH"))
 
     def measure_cold(self, task, jobs, tdir, who, i, argv_of, env):
         """One run of the task: every invocation once, as separate processes."""
@@ -347,7 +349,7 @@ class Runner:
             save(os.path.join(tdir, "gate.json"), info)
             return None
         counts = {"MATCH": 0, "DIFF": 0, "PENDING": 0}
-        pending_sigs, diffs = {}, []
+        pending_sigs, diffs, crashes = {}, [], {}
         for j in range(len(jobs)):
             ref = artifacts(task, ref_dir, j, single)
             got = artifacts(task, got_dir, j, single)
@@ -360,14 +362,21 @@ class Runner:
             bad = [k for k in ref if not same_file(ref[k], got[k])]
             if bad:
                 counts["DIFF"] += 1
+                c = CRASH_RE.search(err)
+                if c:
+                    crashes[c.group(1)] = crashes.get(c.group(1), 0) + 1
                 if len(diffs) < 20:
                     diffs.append({"job": j, "artifacts": bad, "detail": {k: describe_diff(ref[k], got[k]) for k in bad}})
             else:
                 counts["MATCH"] += 1
         status = "MATCH" if counts["MATCH"] == len(jobs) else ("PENDING" if counts["PENDING"] else "DIFF")
-        info = {"status": status, "counts": counts, "pending": pending_sigs, "diffs": diffs}
+        info = {"status": status, "counts": counts, "pending": pending_sigs, "crashes": crashes, "diffs": diffs}
         save(os.path.join(tdir, "gate.json"), info)
-        print(f"   gate: {status} {counts}" + (f" {next(iter(pending_sigs))}" if pending_sigs else ""), flush=True)
+        print(f"   gate: {status} {counts}" + (f" {next(iter(pending_sigs))}" if pending_sigs else "")
+              + (f" crashes: {crashes}" if crashes else ""), flush=True)
+        # A jsgo that crashes (or is pending) on every invocation is not timed further.
+        if status == "DIFF" and sum(crashes.values()) == len(jobs):
+            return "CRASH"
         return status
 
     def check_java_runs(self, task, jobs, tdir, cold):
@@ -737,12 +746,14 @@ def report(out_dir, md_path, preliminary=True):
         w_cpu = stat([i["cpu_ms"] / 1000 for i in w_meas])
         w_rss = warm["peak_rss_mb"] if warm else None
         status = (gate or {}).get("status") or ("not run" if not jsgo else "–")
+        crashes = gate_crashes(gate, tdir, len(jobs)) if gate else {}
+        crashed_all = status == "DIFF" and sum(crashes.values()) == len(jobs)
         g_wall = g_cpu = g_rss = None
-        if jsgo and jsgo.get("runs") and status in ("MATCH", "DIFF"):
+        if jsgo and jsgo.get("runs") and status in ("MATCH", "DIFF") and not crashed_all:
             g_wall = stat([r["wall_s"] for r in jsgo["runs"]])
             g_cpu = stat([r["cpu_s"] for r in jsgo["runs"]])
             g_rss = stat([r["rss_mb"] for r in jsgo["runs"]])
-        status_cell = status
+        status_cell = status + (" (jsgo crashes)" if crashed_all else "")
         if gate and gate.get("counts") and len(jobs) > 1:
             c = gate["counts"]
             status_cell += f" ({c['MATCH']}/{c['DIFF']}/{c['PENDING']} match/diff/pending)"
@@ -787,7 +798,10 @@ def report(out_dir, md_path, preliminary=True):
                 s.append("- jsgo: PENDING, it reaches pending ports: "
                          + "; ".join(f"`{k}`" + (f" ({v}×)" if len(jobs) > 1 else "") for k, v in sigs[:5]) + ".")
             elif gate.get("status") == "DIFF":
-                s.append("- jsgo: DIFF.")
+                s.append("- jsgo: DIFF." + (" It is not timed: it crashes." if crashed_all else ""))
+            if crashes:
+                s.append("- jsgo crashes (Go runtime): " + "; ".join(
+                    f"`{k}`" + (f" ({v}×)" if len(jobs) > 1 else "") for k, v in crashes.items()) + ".")
             if gate.get("diffs"):
                 s.append("- jsgo differs from Java" + (" (first invocations)" if len(jobs) > 1 else "") + ":")
                 for d in gate["diffs"][:5]:
@@ -844,6 +858,18 @@ def report(out_dir, md_path, preliminary=True):
         with open(md_path, "w") as f:
             f.write(text)
     return text
+
+
+def gate_crashes(gate, tdir, njobs):
+    """The gate's Go runtime crashes; for results gated before they were recorded, from jsgo's stderr."""
+    if "crashes" in gate:
+        return gate["crashes"]
+    out = {}
+    if njobs == 1 and gate.get("status") == "DIFF":
+        c = CRASH_RE.search(read_text(os.path.join(tdir, "jsgo", "run-1", "stderr")))
+        if c:
+            out[c.group(1)] = 1
+    return out
 
 
 def phase_table(trace, show_ratio):
