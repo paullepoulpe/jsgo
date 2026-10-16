@@ -351,7 +351,7 @@ func TestCharsetDecodeMatchesJava(t *testing.T) {
 
 func TestCharsetDecodeUTF16ReversedMark(t *testing.T) {
 	// Checked against JDK 21: U+FFFE is decoded, not reported as malformed.
-	for in, want := range map[string]string{"0041fffe": "A￾", "fefffffe0041": "￾A", "fffefeff": "￾"} {
+	for in, want := range map[string]string{"0041fffe": "A\ufffe", "fefffffe0041": "\ufffeA", "fffefeff": "\ufffe"} {
 		b, _ := hex.DecodeString(in)
 		if got := StandardCharsets_UTF_16.Decode(b); got != want {
 			t.Errorf("%s: got %q, want %q", in, got, want)
