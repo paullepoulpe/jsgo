@@ -1,0 +1,143 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+ERROR 0:17@17 "Empty unicode escape"
+ERROR 1:16@44 "Hex digit expected"
+ERROR 2:16@65 "Invalid escape sequence"
+ERROR 3:16@85 "Invalid escape sequence"
+ERROR 4:18@106 "Hex digit expected"
+WARNING 5:18@127 "Unnecessary escape: '\\q' is equivalent to just 'q'"
+ERROR 6:15@160 "Hex digit expected"
+# features "[]"
+# sourceMapURL null
+# comments
+[]
+# tree
+ProgramTree PROGRAM 0:0@0-7:0@165
+ sourceComments=[]
+ sourceElements=[7]
+  VariableStatementTree VARIABLE_STATEMENT 0:0@0-0:27@27
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 0:0@0-0:26@26
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 0:4@4-0:26@26
+      initializer=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 0:10@10-0:26@26
+       elements=[1]
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 0:10@10-0:26@26
+         value=TemplateLiteralToken NO_SUBSTITUTION_TEMPLATE 0:10@10-0:26@26
+          errorLevel=ERROR
+          errorMessage="Empty unicode escape"
+          errorPosition=0:17@17
+          value="bad \\u{} escape"
+       operand=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:4@4-0:6@6
+       identifierToken=IdentifierToken IDENTIFIER 0:4@4-0:6@6
+        privateIdentifier=false
+        value="e1"
+  VariableStatementTree VARIABLE_STATEMENT 1:0@28-1:20@48
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 1:0@28-1:19@47
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 1:4@32-1:19@47
+      initializer=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 1:10@38-1:19@47
+       elements=[1]
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 1:10@38-1:19@47
+         value=TemplateLiteralToken NO_SUBSTITUTION_TEMPLATE 1:10@38-1:19@47
+          errorLevel=ERROR
+          errorMessage="Hex digit expected"
+          errorPosition=1:16@44
+          value="bad \\xZZ"
+       operand=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:4@32-1:6@34
+       identifierToken=IdentifierToken IDENTIFIER 1:4@32-1:6@34
+        privateIdentifier=false
+        value="e2"
+  VariableStatementTree VARIABLE_STATEMENT 2:0@49-2:19@68
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 2:0@49-2:18@67
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 2:4@53-2:18@67
+      initializer=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 2:10@59-2:18@67
+       elements=[1]
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 2:10@59-2:18@67
+         value=TemplateLiteralToken NO_SUBSTITUTION_TEMPLATE 2:10@59-2:18@67
+          errorLevel=ERROR
+          errorMessage="Invalid escape sequence"
+          errorPosition=2:16@65
+          value="bad \\01"
+       operand=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:4@53-2:6@55
+       identifierToken=IdentifierToken IDENTIFIER 2:4@53-2:6@55
+        privateIdentifier=false
+        value="e3"
+  VariableStatementTree VARIABLE_STATEMENT 3:0@69-3:18@87
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 3:0@69-3:17@86
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 3:4@73-3:17@86
+      initializer=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 3:10@79-3:17@86
+       elements=[1]
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 3:10@79-3:17@86
+         value=TemplateLiteralToken NO_SUBSTITUTION_TEMPLATE 3:10@79-3:17@86
+          errorLevel=ERROR
+          errorMessage="Invalid escape sequence"
+          errorPosition=3:16@85
+          value="bad \\1"
+       operand=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:4@73-3:6@75
+       identifierToken=IdentifierToken IDENTIFIER 3:4@73-3:6@75
+        privateIdentifier=false
+        value="e4"
+  VariableStatementTree VARIABLE_STATEMENT 4:0@88-4:20@108
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 4:0@88-4:19@107
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 4:4@92-4:19@107
+      initializer=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 4:10@98-4:19@107
+       elements=[1]
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 4:10@98-4:19@107
+         value=TemplateLiteralToken NO_SUBSTITUTION_TEMPLATE 4:10@98-4:19@107
+          errorLevel=ERROR
+          errorMessage="Hex digit expected"
+          errorPosition=4:18@106
+          value="bad \\u12"
+       operand=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 4:4@92-4:6@94
+       identifierToken=IdentifierToken IDENTIFIER 4:4@92-4:6@94
+        privateIdentifier=false
+        value="e5"
+  VariableStatementTree VARIABLE_STATEMENT 5:0@109-5:35@144
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 5:0@109-5:34@143
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 5:4@113-5:34@143
+      initializer=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 5:10@119-5:34@143
+       elements=[1]
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 5:10@119-5:34@143
+         value=TemplateLiteralToken NO_SUBSTITUTION_TEMPLATE 5:10@119-5:34@143
+          errorLevel=WARNING
+          errorMessage="Unnecessary escape: '\\q' is equivalent to just 'q'"
+          errorPosition=5:18@127
+          value="first \\q then \\1 second"
+       operand=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 5:4@113-5:6@115
+       identifierToken=IdentifierToken IDENTIFIER 5:4@113-5:6@115
+        privateIdentifier=false
+        value="e6"
+  VariableStatementTree VARIABLE_STATEMENT 6:0@145-6:19@164
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 6:0@145-6:18@163
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 6:4@149-6:18@163
+      initializer=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 6:10@155-6:18@163
+       elements=[1]
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 6:10@155-6:18@163
+         value=TemplateLiteralToken NO_SUBSTITUTION_TEMPLATE 6:10@155-6:18@163
+          errorLevel=ERROR
+          errorMessage="Hex digit expected"
+          errorPosition=6:15@160
+          value="\\u{12G}"
+       operand=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 6:4@149-6:6@151
+       identifierToken=IdentifierToken IDENTIFIER 6:4@149-6:6@151
+        privateIdentifier=false
+        value="e7"

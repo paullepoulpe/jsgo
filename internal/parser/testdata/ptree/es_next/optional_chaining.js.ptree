@@ -1,0 +1,290 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+ERROR 8:5@80 "template literal cannot be used within optional chaining"
+ERROR 8:5@80 "Semi-colon expected"
+ERROR 9:4@88 "template literal cannot be used within optional chaining"
+ERROR 9:4@88 "template literal cannot be used within optional chaining"
+ERROR 9:4@88 "Semi-colon expected"
+ERROR 10:6@98 "':' expected"
+ERROR 13:5@125 "Optional chaining is forbidden in construction contexts."
+ERROR 13:5@125 "Semi-colon expected"
+ERROR 13:7@127 "primary expression expected"
+ERROR 13:7@127 "Semi-colon expected"
+ERROR 14:5@137 "Optional chaining is forbidden in super?."
+# features "[]"
+# sourceMapURL null
+# comments
+[]
+# tree
+ProgramTree PROGRAM 0:0@0-17:0@170
+ sourceComments=[]
+ sourceElements=[20]
+  ExpressionStatementTree EXPRESSION_STATEMENT 0:0@0-0:5@5
+   expression=OptionalMemberExpressionTree OPT_CHAIN_MEMBER_EXPRESSION 0:0@0-0:4@4
+    isStartOfOptionalChain=true
+    memberName=IdentifierToken IDENTIFIER 0:3@3-0:4@4
+     privateIdentifier=false
+     value="b"
+    operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:0@0-0:1@1
+     identifierToken=IdentifierToken IDENTIFIER 0:0@0-0:1@1
+      privateIdentifier=false
+      value="a"
+  ExpressionStatementTree EXPRESSION_STATEMENT 1:0@6-1:7@13
+   expression=OptionalMemberLookupExpressionTree OPT_CHAIN_MEMBER_LOOKUP_EXPRESSION 1:0@6-1:6@12
+    isStartOfOptionalChain=true
+    memberExpression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:4@10-1:5@11
+     identifierToken=IdentifierToken IDENTIFIER 1:4@10-1:5@11
+      privateIdentifier=false
+      value="b"
+    operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:0@6-1:1@7
+     identifierToken=IdentifierToken IDENTIFIER 1:0@6-1:1@7
+      privateIdentifier=false
+      value="a"
+  ExpressionStatementTree EXPRESSION_STATEMENT 2:0@14-2:7@21
+   expression=OptChainCallExpressionTree OPT_CHAIN_CALL_EXPRESSION 2:0@14-2:6@20
+    arguments=ArgumentListTree ARGUMENT_LIST 2:3@17-2:6@20
+     arguments=[1]
+      IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:4@18-2:5@19
+       identifierToken=IdentifierToken IDENTIFIER 2:4@18-2:5@19
+        privateIdentifier=false
+        value="b"
+     commaPositions=[]
+     hasTrailingComma=false
+    hasTrailingComma=false
+    isStartOfOptionalChain=true
+    operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:0@14-2:1@15
+     identifierToken=IdentifierToken IDENTIFIER 2:0@14-2:1@15
+      privateIdentifier=false
+      value="a"
+  ExpressionStatementTree EXPRESSION_STATEMENT 3:0@22-3:9@31
+   expression=OptionalMemberExpressionTree OPT_CHAIN_MEMBER_EXPRESSION 3:0@22-3:8@30
+    isStartOfOptionalChain=false
+    memberName=IdentifierToken IDENTIFIER 3:7@29-3:8@30
+     privateIdentifier=false
+     value="d"
+    operand=OptionalMemberExpressionTree OPT_CHAIN_MEMBER_EXPRESSION 3:0@22-3:6@28
+     isStartOfOptionalChain=false
+     memberName=IdentifierToken IDENTIFIER 3:5@27-3:6@28
+      privateIdentifier=false
+      value="c"
+     operand=OptionalMemberExpressionTree OPT_CHAIN_MEMBER_EXPRESSION 3:0@22-3:4@26
+      isStartOfOptionalChain=true
+      memberName=IdentifierToken IDENTIFIER 3:3@25-3:4@26
+       privateIdentifier=false
+       value="b"
+      operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:0@22-3:1@23
+       identifierToken=IdentifierToken IDENTIFIER 3:0@22-3:1@23
+        privateIdentifier=false
+        value="a"
+  ExpressionStatementTree EXPRESSION_STATEMENT 4:0@32-4:11@43
+   expression=OptChainCallExpressionTree OPT_CHAIN_CALL_EXPRESSION 4:0@32-4:10@42
+    arguments=ArgumentListTree ARGUMENT_LIST 4:7@39-4:10@42
+     arguments=[1]
+      IdentifierExpressionTree IDENTIFIER_EXPRESSION 4:8@40-4:9@41
+       identifierToken=IdentifierToken IDENTIFIER 4:8@40-4:9@41
+        privateIdentifier=false
+        value="d"
+     commaPositions=[]
+     hasTrailingComma=false
+    hasTrailingComma=false
+    isStartOfOptionalChain=false
+    operand=OptionalMemberLookupExpressionTree OPT_CHAIN_MEMBER_LOOKUP_EXPRESSION 4:0@32-4:7@39
+     isStartOfOptionalChain=false
+     memberExpression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 4:5@37-4:6@38
+      identifierToken=IdentifierToken IDENTIFIER 4:5@37-4:6@38
+       privateIdentifier=false
+       value="c"
+     operand=OptionalMemberExpressionTree OPT_CHAIN_MEMBER_EXPRESSION 4:0@32-4:4@36
+      isStartOfOptionalChain=true
+      memberName=IdentifierToken IDENTIFIER 4:3@35-4:4@36
+       privateIdentifier=false
+       value="b"
+      operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 4:0@32-4:1@33
+       identifierToken=IdentifierToken IDENTIFIER 4:0@32-4:1@33
+        privateIdentifier=false
+        value="a"
+  ExpressionStatementTree EXPRESSION_STATEMENT 5:0@44-5:12@56
+   expression=OptChainCallExpressionTree OPT_CHAIN_CALL_EXPRESSION 5:0@44-5:11@55
+    arguments=ArgumentListTree ARGUMENT_LIST 5:9@53-5:11@55
+     arguments=[]
+     commaPositions=[]
+     hasTrailingComma=false
+    hasTrailingComma=false
+    isStartOfOptionalChain=true
+    operand=OptionalMemberExpressionTree OPT_CHAIN_MEMBER_EXPRESSION 5:0@44-5:7@51
+     isStartOfOptionalChain=true
+     memberName=IdentifierToken IDENTIFIER 5:6@50-5:7@51
+      privateIdentifier=false
+      value="c"
+     operand=OptionalMemberExpressionTree OPT_CHAIN_MEMBER_EXPRESSION 5:0@44-5:4@48
+      isStartOfOptionalChain=true
+      memberName=IdentifierToken IDENTIFIER 5:3@47-5:4@48
+       privateIdentifier=false
+       value="b"
+      operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 5:0@44-5:1@45
+       identifierToken=IdentifierToken IDENTIFIER 5:0@44-5:1@45
+        privateIdentifier=false
+        value="a"
+  ExpressionStatementTree EXPRESSION_STATEMENT 6:0@57-6:7@64
+   expression=OptionalMemberExpressionTree OPT_CHAIN_MEMBER_EXPRESSION 6:0@57-6:6@63
+    isStartOfOptionalChain=true
+    memberName=IdentifierToken IDENTIFIER 6:5@62-6:6@63
+     privateIdentifier=false
+     value="c"
+    operand=MemberExpressionTree MEMBER_EXPRESSION 6:0@57-6:3@60
+     memberName=IdentifierToken IDENTIFIER 6:2@59-6:3@60
+      privateIdentifier=false
+      value="b"
+     operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 6:0@57-6:1@58
+      identifierToken=IdentifierToken IDENTIFIER 6:0@57-6:1@58
+       privateIdentifier=false
+       value="a"
+  ExpressionStatementTree EXPRESSION_STATEMENT 7:0@65-7:9@74
+   expression=MemberExpressionTree MEMBER_EXPRESSION 7:0@65-7:8@73
+    memberName=IdentifierToken IDENTIFIER 7:7@72-7:8@73
+     privateIdentifier=false
+     value="c"
+    operand=ParenExpressionTree PAREN_EXPRESSION 7:0@65-7:6@71
+     expression=OptionalMemberExpressionTree OPT_CHAIN_MEMBER_EXPRESSION 7:1@66-7:5@70
+      isStartOfOptionalChain=true
+      memberName=IdentifierToken IDENTIFIER 7:4@69-7:5@70
+       privateIdentifier=false
+       value="b"
+      operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 7:1@66-7:2@67
+       identifierToken=IdentifierToken IDENTIFIER 7:1@66-7:2@67
+        privateIdentifier=false
+        value="a"
+  ExpressionStatementTree EXPRESSION_STATEMENT 8:0@75-8:4@79
+   expression=OptionalMemberExpressionTree OPT_CHAIN_MEMBER_EXPRESSION 8:0@75-8:4@79
+    isStartOfOptionalChain=true
+    memberName=IdentifierToken IDENTIFIER 8:3@78-8:4@79
+     privateIdentifier=false
+     value="b"
+    operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 8:0@75-8:1@76
+     identifierToken=IdentifierToken IDENTIFIER 8:0@75-8:1@76
+      privateIdentifier=false
+      value="a"
+  ExpressionStatementTree EXPRESSION_STATEMENT 8:5@80-8:8@83
+   expression=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 8:5@80-8:7@82
+    elements=[1]
+     TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 8:5@80-8:7@82
+      value=TemplateLiteralToken NO_SUBSTITUTION_TEMPLATE 8:5@80-8:7@82
+       errorLevel=null
+       errorMessage=null
+       errorPosition=8:5@80
+       value="t"
+    operand=null
+  ExpressionStatementTree EXPRESSION_STATEMENT 9:0@84-9:3@87
+   expression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 9:0@84-9:1@85
+    identifierToken=IdentifierToken IDENTIFIER 9:0@84-9:1@85
+     privateIdentifier=false
+     value="a"
+  ExpressionStatementTree EXPRESSION_STATEMENT 9:4@88-9:7@91
+   expression=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 9:4@88-9:6@90
+    elements=[1]
+     TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 9:4@88-9:6@90
+      value=TemplateLiteralToken NO_SUBSTITUTION_TEMPLATE 9:4@88-9:6@90
+       errorLevel=null
+       errorMessage=null
+       errorPosition=9:4@88
+       value="t"
+    operand=null
+  ExpressionStatementTree EXPRESSION_STATEMENT 10:0@92-11:11@111
+   expression=ConditionalExpressionTree CONDITIONAL_EXPRESSION 10:0@92-11:10@110
+    condition=IdentifierExpressionTree IDENTIFIER_EXPRESSION 10:0@92-10:1@93
+     identifierToken=IdentifierToken IDENTIFIER 10:0@92-10:1@93
+      privateIdentifier=false
+      value="a"
+    left=LiteralExpressionTree LITERAL_EXPRESSION 10:2@94-10:6@98
+     literalToken=LiteralToken NUMBER 10:2@94-10:6@98
+      value=".123"
+    right=ConditionalExpressionTree CONDITIONAL_EXPRESSION 11:0@100-11:10@110
+     condition=IdentifierExpressionTree IDENTIFIER_EXPRESSION 11:0@100-11:1@101
+      identifierToken=IdentifierToken IDENTIFIER 11:0@100-11:1@101
+       privateIdentifier=false
+       value="x"
+     left=LiteralExpressionTree LITERAL_EXPRESSION 11:4@104-11:6@106
+      literalToken=LiteralToken NUMBER 11:4@104-11:6@106
+       value=".5"
+     right=LiteralExpressionTree LITERAL_EXPRESSION 11:9@109-11:10@110
+      literalToken=LiteralToken NUMBER 11:9@109-11:10@110
+       value="1"
+  ExpressionStatementTree EXPRESSION_STATEMENT 12:0@112-12:7@119
+   expression=ConditionalExpressionTree CONDITIONAL_EXPRESSION 12:0@112-12:6@118
+    condition=IdentifierExpressionTree IDENTIFIER_EXPRESSION 12:0@112-12:1@113
+     identifierToken=IdentifierToken IDENTIFIER 12:0@112-12:1@113
+      privateIdentifier=false
+      value="x"
+    left=LiteralExpressionTree LITERAL_EXPRESSION 12:2@114-12:4@116
+     literalToken=LiteralToken NUMBER 12:2@114-12:4@116
+      value=".5"
+    right=LiteralExpressionTree LITERAL_EXPRESSION 12:5@117-12:6@118
+     literalToken=LiteralToken NUMBER 12:5@117-12:6@118
+      value="1"
+  ExpressionStatementTree EXPRESSION_STATEMENT 13:0@120-13:5@125
+   expression=NewExpressionTree NEW_EXPRESSION 13:0@120-13:5@125
+    arguments=null
+    hasTrailingComma=false
+    operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 13:4@124-13:5@125
+     identifierToken=IdentifierToken IDENTIFIER 13:4@124-13:5@125
+      privateIdentifier=false
+      value="a"
+  ExpressionStatementTree EXPRESSION_STATEMENT 13:5@125-13:7@127
+   expression=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 13:5@125-13:7@127
+  ExpressionStatementTree EXPRESSION_STATEMENT 13:7@127-13:11@131
+   expression=CallExpressionTree CALL_EXPRESSION 13:7@127-13:10@130
+    arguments=ArgumentListTree ARGUMENT_LIST 13:8@128-13:10@130
+     arguments=[]
+     commaPositions=[]
+     hasTrailingComma=false
+    operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 13:7@127-13:8@128
+     identifierToken=IdentifierToken IDENTIFIER 13:7@127-13:8@128
+      privateIdentifier=false
+      value="b"
+  ExpressionStatementTree EXPRESSION_STATEMENT 14:0@132-14:9@141
+   expression=OptionalMemberExpressionTree OPT_CHAIN_MEMBER_EXPRESSION 14:0@132-14:8@140
+    isStartOfOptionalChain=true
+    memberName=IdentifierToken IDENTIFIER 14:7@139-14:8@140
+     privateIdentifier=false
+     value="x"
+    operand=SuperExpressionTree SUPER_EXPRESSION 14:0@132-14:5@137
+  ExpressionStatementTree EXPRESSION_STATEMENT 15:0@142-15:19@161
+   expression=OptionalMemberExpressionTree OPT_CHAIN_MEMBER_EXPRESSION 15:0@142-15:18@160
+    isStartOfOptionalChain=true
+    memberName=IdentifierToken IDENTIFIER 15:17@159-15:18@160
+     privateIdentifier=false
+     value="d"
+    operand=OptChainCallExpressionTree OPT_CHAIN_CALL_EXPRESSION 15:0@142-15:15@157
+     arguments=ArgumentListTree ARGUMENT_LIST 15:10@152-15:15@157
+      arguments=[1]
+       LiteralExpressionTree LITERAL_EXPRESSION 15:11@153-15:14@156
+        literalToken=StringLiteralToken STRING 15:11@153-15:14@156
+         hasUnescapedUnicodeLineOrParagraphSeparator=false
+         value="\"c\""
+      commaPositions=[]
+      hasTrailingComma=false
+     hasTrailingComma=false
+     isStartOfOptionalChain=true
+     operand=OptionalMemberLookupExpressionTree OPT_CHAIN_MEMBER_LOOKUP_EXPRESSION 15:0@142-15:8@150
+      isStartOfOptionalChain=true
+      memberExpression=LiteralExpressionTree LITERAL_EXPRESSION 15:4@146-15:7@149
+       literalToken=StringLiteralToken STRING 15:4@146-15:7@149
+        hasUnescapedUnicodeLineOrParagraphSeparator=false
+        value="\"b\""
+      operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 15:0@142-15:1@143
+       identifierToken=IdentifierToken IDENTIFIER 15:0@142-15:1@143
+        privateIdentifier=false
+        value="a"
+  ExpressionStatementTree EXPRESSION_STATEMENT 16:0@162-16:7@169
+   expression=UpdateExpressionTree UPDATE_EXPRESSION 16:0@162-16:6@168
+    operand=OptionalMemberExpressionTree OPT_CHAIN_MEMBER_EXPRESSION 16:0@162-16:4@166
+     isStartOfOptionalChain=true
+     memberName=IdentifierToken IDENTIFIER 16:3@165-16:4@166
+      privateIdentifier=false
+      value="b"
+     operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 16:0@162-16:1@163
+      identifierToken=IdentifierToken IDENTIFIER 16:0@162-16:1@163
+       privateIdentifier=false
+       value="a"
+    operator=Token PLUS_PLUS 16:4@166-16:6@168
+    operatorPosition=POSTFIX

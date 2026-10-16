@@ -1,0 +1,191 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+ERROR 12:23@164 "yield* requires an expression"
+ERROR 13:25@193 "primary expression expected"
+# features "[]"
+# sourceMapURL null
+# comments
+[]
+# tree
+ProgramTree PROGRAM 0:0@0-15:0@242
+ sourceComments=[]
+ sourceElements=[4]
+  FunctionDeclarationTree FUNCTION_DECLARATION 0:0@0-11:1@140
+   formalParameterList=FormalParameterListTree FORMAL_PARAMETER_LIST 0:11@11-0:13@13
+    commaPositions=[]
+    hasTrailingComma=false
+    parameters=[]
+   functionBody=BlockTree BLOCK 0:14@14-11:1@140
+    statements=[9]
+     ExpressionStatementTree EXPRESSION_STATEMENT 1:2@18-1:8@24
+      expression=YieldExpressionTree YIELD_EXPRESSION 1:2@18-1:7@23
+       expression=null
+       isYieldAll=false
+     ExpressionStatementTree EXPRESSION_STATEMENT 2:2@27-2:10@35
+      expression=YieldExpressionTree YIELD_EXPRESSION 2:2@27-2:9@34
+       expression=LiteralExpressionTree LITERAL_EXPRESSION 2:8@33-2:9@34
+        literalToken=LiteralToken NUMBER 2:8@33-2:9@34
+         value="1"
+       isYieldAll=false
+     ExpressionStatementTree EXPRESSION_STATEMENT 3:2@38-3:13@49
+      expression=YieldExpressionTree YIELD_EXPRESSION 3:2@38-3:12@48
+       expression=CallExpressionTree CALL_EXPRESSION 3:9@45-3:12@48
+        arguments=ArgumentListTree ARGUMENT_LIST 3:10@46-3:12@48
+         arguments=[]
+         commaPositions=[]
+         hasTrailingComma=false
+        operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:9@45-3:10@46
+         identifierToken=IdentifierToken IDENTIFIER 3:9@45-3:10@46
+          privateIdentifier=false
+          value="g"
+       isYieldAll=true
+     VariableStatementTree VARIABLE_STATEMENT 4:2@52-4:16@66
+      declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 4:2@52-4:15@65
+       declarationType=VAR
+       declarations=[1]
+        VariableDeclarationTree VARIABLE_DECLARATION 4:6@56-4:15@65
+         initializer=YieldExpressionTree YIELD_EXPRESSION 4:10@60-4:15@65
+          expression=null
+          isYieldAll=false
+         lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 4:6@56-4:7@57
+          identifierToken=IdentifierToken IDENTIFIER 4:6@56-4:7@57
+           privateIdentifier=false
+           value="x"
+     VariableStatementTree VARIABLE_STATEMENT 5:2@69-5:21@88
+      declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 5:2@69-5:20@87
+       declarationType=VAR
+       declarations=[2]
+        VariableDeclarationTree VARIABLE_DECLARATION 5:6@73-5:17@84
+         initializer=YieldExpressionTree YIELD_EXPRESSION 5:10@77-5:17@84
+          expression=LiteralExpressionTree LITERAL_EXPRESSION 5:16@83-5:17@84
+           literalToken=LiteralToken NUMBER 5:16@83-5:17@84
+            value="2"
+          isYieldAll=false
+         lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 5:6@73-5:7@74
+          identifierToken=IdentifierToken IDENTIFIER 5:6@73-5:7@74
+           privateIdentifier=false
+           value="y"
+        VariableDeclarationTree VARIABLE_DECLARATION 5:19@86-5:20@87
+         initializer=null
+         lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 5:19@86-5:20@87
+          identifierToken=IdentifierToken IDENTIFIER 5:19@86-5:20@87
+           privateIdentifier=false
+           value="z"
+     ExpressionStatementTree EXPRESSION_STATEMENT 6:2@91-6:20@109
+      expression=CallExpressionTree CALL_EXPRESSION 6:2@91-6:19@108
+       arguments=ArgumentListTree ARGUMENT_LIST 6:3@92-6:19@108
+        arguments=[2]
+         YieldExpressionTree YIELD_EXPRESSION 6:4@93-6:9@98
+          expression=null
+          isYieldAll=false
+         YieldExpressionTree YIELD_EXPRESSION 6:11@100-6:18@107
+          expression=LiteralExpressionTree LITERAL_EXPRESSION 6:17@106-6:18@107
+           literalToken=LiteralToken NUMBER 6:17@106-6:18@107
+            value="3"
+          isYieldAll=false
+        commaPositions=[1]
+         6:9@98
+        hasTrailingComma=false
+       operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 6:2@91-6:3@92
+        identifierToken=IdentifierToken IDENTIFIER 6:2@91-6:3@92
+         privateIdentifier=false
+         value="f"
+     ExpressionStatementTree EXPRESSION_STATEMENT 7:2@112-7:7@117
+      expression=YieldExpressionTree YIELD_EXPRESSION 7:2@112-7:7@117
+       expression=null
+       isYieldAll=false
+     ExpressionStatementTree EXPRESSION_STATEMENT 8:2@120-8:4@122
+      expression=LiteralExpressionTree LITERAL_EXPRESSION 8:2@120-8:3@121
+       literalToken=LiteralToken NUMBER 8:2@120-8:3@121
+        value="4"
+     ExpressionStatementTree EXPRESSION_STATEMENT 9:2@125-10:6@138
+      expression=YieldExpressionTree YIELD_EXPRESSION 9:2@125-10:5@137
+       expression=CallExpressionTree CALL_EXPRESSION 10:2@134-10:5@137
+        arguments=ArgumentListTree ARGUMENT_LIST 10:3@135-10:5@137
+         arguments=[]
+         commaPositions=[]
+         hasTrailingComma=false
+        operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 10:2@134-10:3@135
+         identifierToken=IdentifierToken IDENTIFIER 10:2@134-10:3@135
+          privateIdentifier=false
+          value="g"
+       isYieldAll=true
+   isAsync=false
+   isClassMember=false
+   isGenerator=true
+   isOptional=false
+   isStatic=false
+   kind=DECLARATION
+   name=IdentifierToken IDENTIFIER 0:10@10-0:11@11
+    privateIdentifier=false
+    value="g"
+  FunctionDeclarationTree FUNCTION_DECLARATION 12:0@141-12:26@167
+   formalParameterList=FormalParameterListTree FORMAL_PARAMETER_LIST 12:11@152-12:13@154
+    commaPositions=[]
+    hasTrailingComma=false
+    parameters=[]
+   functionBody=BlockTree BLOCK 12:14@155-12:26@167
+    statements=[1]
+     ExpressionStatementTree EXPRESSION_STATEMENT 12:16@157-12:24@165
+      expression=YieldExpressionTree YIELD_EXPRESSION 12:16@157-12:22@163
+       expression=null
+       isYieldAll=true
+   isAsync=false
+   isClassMember=false
+   isGenerator=true
+   isOptional=false
+   isStatic=false
+   kind=DECLARATION
+   name=IdentifierToken IDENTIFIER 12:10@151-12:11@152
+    privateIdentifier=false
+    value="h"
+  FunctionDeclarationTree FUNCTION_DECLARATION 13:0@168-13:28@196
+   formalParameterList=FormalParameterListTree FORMAL_PARAMETER_LIST 13:15@183-13:17@185
+    commaPositions=[]
+    hasTrailingComma=false
+    parameters=[]
+   functionBody=BlockTree BLOCK 13:18@186-13:28@196
+    statements=[1]
+     ExpressionStatementTree EXPRESSION_STATEMENT 13:20@188-13:26@194
+      expression=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 13:20@188-13:25@193
+   isAsync=false
+   isClassMember=false
+   isGenerator=false
+   isOptional=false
+   isStatic=false
+   kind=DECLARATION
+   name=IdentifierToken IDENTIFIER 13:9@177-13:15@183
+    privateIdentifier=false
+    value="notGen"
+  VariableStatementTree VARIABLE_STATEMENT 14:0@197-14:44@241
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 14:0@197-14:43@240
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 14:4@201-14:43@240
+      initializer=FunctionDeclarationTree FUNCTION_DECLARATION 14:10@207-14:43@240
+       formalParameterList=FormalParameterListTree FORMAL_PARAMETER_LIST 14:20@217-14:22@219
+        commaPositions=[]
+        hasTrailingComma=false
+        parameters=[]
+       functionBody=BlockTree BLOCK 14:23@220-14:43@240
+        statements=[1]
+         ExpressionStatementTree EXPRESSION_STATEMENT 14:25@222-14:41@238
+          expression=YieldExpressionTree YIELD_EXPRESSION 14:25@222-14:40@237
+           expression=ParenExpressionTree PAREN_EXPRESSION 14:31@228-14:40@237
+            expression=YieldExpressionTree YIELD_EXPRESSION 14:32@229-14:39@236
+             expression=LiteralExpressionTree LITERAL_EXPRESSION 14:38@235-14:39@236
+              literalToken=LiteralToken NUMBER 14:38@235-14:39@236
+               value="1"
+             isYieldAll=false
+           isYieldAll=false
+       isAsync=false
+       isClassMember=false
+       isGenerator=true
+       isOptional=false
+       isStatic=false
+       kind=EXPRESSION
+       name=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 14:4@201-14:7@204
+       identifierToken=IdentifierToken IDENTIFIER 14:4@201-14:7@204
+        privateIdentifier=false
+        value="gen"

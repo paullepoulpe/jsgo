@@ -1,0 +1,18 @@
+a = b + c - d * e / f % g;
+a = b << c >> d >>> e;
+a = b < c > d <= e >= f;
+a = b == c != d === e !== f;
+a = b & c | d ^ e;
+a = b && c || d;
+a = !b, ~c, -d, +e, typeof f, void g, delete h.i;
+a += 1; a -= 1; a *= 1; a /= 1; a %= 1; a <<= 1; a >>= 1; a >>>= 1; a &= 1; a |= 1; a ^= 1;
+a = b instanceof C;
+a = 'x' in b;
+a++; a--; ++a; --a;
+a = (b, c, d);
+a = b ? c : d;
+a = - -b;
+a = + +b;
+a = !!b;
+a = b++ + ++c;
+a = b-- - --c;

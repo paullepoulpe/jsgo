@@ -1,0 +1,358 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+# features "[getters, setters, trailing comma, object literals with spread]"
+# sourceMapURL null
+# comments
+[]
+# tree
+ProgramTree PROGRAM 0:0@0-31:0@400
+ sourceComments=[]
+ sourceElements=[2]
+  VariableStatementTree VARIABLE_STATEMENT 0:0@0-29:2@370
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 0:0@0-29:1@369
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 0:4@4-29:1@369
+      initializer=ObjectLiteralExpressionTree OBJECT_LITERAL_EXPRESSION 0:8@8-29:1@369
+       hasTrailingComma=true
+       propertyNameAndValues=[28]
+        PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 1:2@12-1:6@16
+         name=IdentifierToken IDENTIFIER 1:2@12-1:3@13
+          privateIdentifier=false
+          value="a"
+         value=LiteralExpressionTree LITERAL_EXPRESSION 1:5@15-1:6@16
+          literalToken=LiteralToken NUMBER 1:5@15-1:6@16
+           value="1"
+        PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 2:2@20-2:8@26
+         name=StringLiteralToken STRING 2:2@20-2:5@23
+          hasUnescapedUnicodeLineOrParagraphSeparator=false
+          value="'b'"
+         value=LiteralExpressionTree LITERAL_EXPRESSION 2:7@25-2:8@26
+          literalToken=LiteralToken NUMBER 2:7@25-2:8@26
+           value="2"
+        PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 3:2@30-3:6@34
+         name=LiteralToken NUMBER 3:2@30-3:3@31
+          value="3"
+         value=LiteralExpressionTree LITERAL_EXPRESSION 3:5@33-3:6@34
+          literalToken=LiteralToken NUMBER 3:5@33-3:6@34
+           value="3"
+        PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 4:2@38-4:7@43
+         name=LiteralToken BIGINT 4:2@38-4:4@40
+          value="4n"
+         value=LiteralExpressionTree LITERAL_EXPRESSION 4:6@42-4:7@43
+          literalToken=LiteralToken NUMBER 4:6@42-4:7@43
+           value="4"
+        ComputedPropertyDefinitionTree COMPUTED_PROPERTY_DEFINITION 5:2@47-5:8@53
+         property=IdentifierExpressionTree IDENTIFIER_EXPRESSION 5:3@48-5:4@49
+          identifierToken=IdentifierToken IDENTIFIER 5:3@48-5:4@49
+           privateIdentifier=false
+           value="c"
+         value=LiteralExpressionTree LITERAL_EXPRESSION 5:7@52-5:8@53
+          literalToken=LiteralToken NUMBER 5:7@52-5:8@53
+           value="5"
+        PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 6:2@57-6:3@58
+         name=IdentifierToken IDENTIFIER 6:2@57-6:3@58
+          privateIdentifier=false
+          value="d"
+         value=null
+        FunctionDeclarationTree FUNCTION_DECLARATION 7:2@62-7:8@68
+         formalParameterList=FormalParameterListTree FORMAL_PARAMETER_LIST 7:3@63-7:5@65
+          commaPositions=[]
+          hasTrailingComma=false
+          parameters=[]
+         functionBody=BlockTree BLOCK 7:6@66-7:8@68
+          statements=[]
+         isAsync=false
+         isClassMember=false
+         isGenerator=false
+         isOptional=false
+         isStatic=false
+         kind=MEMBER
+         name=IdentifierToken IDENTIFIER 7:2@62-7:3@63
+          privateIdentifier=false
+          value="e"
+        FunctionDeclarationTree FUNCTION_DECLARATION 8:2@72-8:9@79
+         formalParameterList=FormalParameterListTree FORMAL_PARAMETER_LIST 8:4@74-8:6@76
+          commaPositions=[]
+          hasTrailingComma=false
+          parameters=[]
+         functionBody=BlockTree BLOCK 8:7@77-8:9@79
+          statements=[]
+         isAsync=false
+         isClassMember=false
+         isGenerator=true
+         isOptional=false
+         isStatic=false
+         kind=MEMBER
+         name=IdentifierToken IDENTIFIER 8:3@73-8:4@74
+          privateIdentifier=false
+          value="f"
+        FunctionDeclarationTree FUNCTION_DECLARATION 9:8@89-9:14@95
+         formalParameterList=FormalParameterListTree FORMAL_PARAMETER_LIST 9:9@90-9:11@92
+          commaPositions=[]
+          hasTrailingComma=false
+          parameters=[]
+         functionBody=BlockTree BLOCK 9:12@93-9:14@95
+          statements=[]
+         isAsync=true
+         isClassMember=false
+         isGenerator=false
+         isOptional=false
+         isStatic=false
+         kind=MEMBER
+         name=IdentifierToken IDENTIFIER 9:8@89-9:9@90
+          privateIdentifier=false
+          value="g"
+        FunctionDeclarationTree FUNCTION_DECLARATION 10:9@106-10:15@112
+         formalParameterList=FormalParameterListTree FORMAL_PARAMETER_LIST 10:10@107-10:12@109
+          commaPositions=[]
+          hasTrailingComma=false
+          parameters=[]
+         functionBody=BlockTree BLOCK 10:13@110-10:15@112
+          statements=[]
+         isAsync=true
+         isClassMember=false
+         isGenerator=true
+         isOptional=false
+         isStatic=false
+         kind=MEMBER
+         name=IdentifierToken IDENTIFIER 10:9@106-10:10@107
+          privateIdentifier=false
+          value="h"
+        GetAccessorTree GET_ACCESSOR 11:2@116-11:23@137
+         body=BlockTree BLOCK 11:10@124-11:23@137
+          statements=[1]
+           ReturnStatementTree RETURN_STATEMENT 11:12@126-11:21@135
+            expression=LiteralExpressionTree LITERAL_EXPRESSION 11:19@133-11:20@134
+             literalToken=LiteralToken NUMBER 11:19@133-11:20@134
+              value="1"
+         isClassMember=false
+         isStatic=false
+         propertyName=IdentifierToken IDENTIFIER 11:6@120-11:7@121
+          privateIdentifier=false
+          value="i"
+        SetAccessorTree SET_ACCESSOR 12:2@141-12:13@152
+         body=BlockTree BLOCK 12:11@150-12:13@152
+          statements=[]
+         isClassMember=false
+         isStatic=false
+         parameter=FormalParameterListTree FORMAL_PARAMETER_LIST 12:7@146-12:10@149
+          commaPositions=[]
+          hasTrailingComma=false
+          parameters=[1]
+           IdentifierExpressionTree IDENTIFIER_EXPRESSION 12:8@147-12:9@148
+            identifierToken=IdentifierToken IDENTIFIER 12:8@147-12:9@148
+             privateIdentifier=false
+             value="v"
+         propertyName=IdentifierToken IDENTIFIER 12:6@145-12:7@146
+          privateIdentifier=false
+          value="i"
+        ComputedPropertyGetterTree COMPUTED_PROPERTY_GETTER 13:2@156-13:14@168
+         body=BlockTree BLOCK 13:12@166-13:14@168
+          statements=[]
+         isStatic=false
+         property=IdentifierExpressionTree IDENTIFIER_EXPRESSION 13:7@161-13:8@162
+          identifierToken=IdentifierToken IDENTIFIER 13:7@161-13:8@162
+           privateIdentifier=false
+           value="j"
+        ComputedPropertySetterTree COMPUTED_PROPERTY_SETTER 14:2@172-14:15@185
+         body=BlockTree BLOCK 14:13@183-14:15@185
+          statements=[]
+         isStatic=false
+         parameter=FormalParameterListTree FORMAL_PARAMETER_LIST 14:9@179-14:12@182
+          commaPositions=[]
+          hasTrailingComma=false
+          parameters=[1]
+           IdentifierExpressionTree IDENTIFIER_EXPRESSION 14:10@180-14:11@181
+            identifierToken=IdentifierToken IDENTIFIER 14:10@180-14:11@181
+             privateIdentifier=false
+             value="v"
+         property=IdentifierExpressionTree IDENTIFIER_EXPRESSION 14:7@177-14:8@178
+          identifierToken=IdentifierToken IDENTIFIER 14:7@177-14:8@178
+           privateIdentifier=false
+           value="j"
+        GetAccessorTree GET_ACCESSOR 15:2@189-15:14@201
+         body=BlockTree BLOCK 15:12@199-15:14@201
+          statements=[]
+         isClassMember=false
+         isStatic=false
+         propertyName=StringLiteralToken STRING 15:6@193-15:9@196
+          hasUnescapedUnicodeLineOrParagraphSeparator=false
+          value="'k'"
+        SetAccessorTree SET_ACCESSOR 16:2@205-16:13@216
+         body=BlockTree BLOCK 16:11@214-16:13@216
+          statements=[]
+         isClassMember=false
+         isStatic=false
+         parameter=FormalParameterListTree FORMAL_PARAMETER_LIST 16:7@210-16:10@213
+          commaPositions=[]
+          hasTrailingComma=false
+          parameters=[1]
+           IdentifierExpressionTree IDENTIFIER_EXPRESSION 16:8@211-16:9@212
+            identifierToken=IdentifierToken IDENTIFIER 16:8@211-16:9@212
+             privateIdentifier=false
+             value="v"
+         propertyName=LiteralToken NUMBER 16:6@209-16:7@210
+          value="5"
+        PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 17:2@220-17:10@228
+         name=IdentifierToken IDENTIFIER 17:2@220-17:7@225
+          privateIdentifier=false
+          value="async"
+         value=LiteralExpressionTree LITERAL_EXPRESSION 17:9@227-17:10@228
+          literalToken=LiteralToken NUMBER 17:9@227-17:10@228
+           value="1"
+        PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 18:2@232-18:8@238
+         name=IdentifierToken IDENTIFIER 18:2@232-18:5@235
+          privateIdentifier=false
+          value="get"
+         value=LiteralExpressionTree LITERAL_EXPRESSION 18:7@237-18:8@238
+          literalToken=LiteralToken NUMBER 18:7@237-18:8@238
+           value="2"
+        PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 19:2@242-19:8@248
+         name=IdentifierToken IDENTIFIER 19:2@242-19:5@245
+          privateIdentifier=false
+          value="set"
+         value=LiteralExpressionTree LITERAL_EXPRESSION 19:7@247-19:8@248
+          literalToken=LiteralToken NUMBER 19:7@247-19:8@248
+           value="3"
+        PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 20:2@252-20:11@261
+         name=IdentifierToken IDENTIFIER 20:2@252-20:8@258
+          privateIdentifier=false
+          value="static"
+         value=LiteralExpressionTree LITERAL_EXPRESSION 20:10@260-20:11@261
+          literalToken=LiteralToken NUMBER 20:10@260-20:11@261
+           value="4"
+        PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 21:2@265-21:7@270
+         name=IdentifierToken IDENTIFIER 21:2@265-21:4@267
+          privateIdentifier=false
+          value="if"
+         value=LiteralExpressionTree LITERAL_EXPRESSION 21:6@269-21:7@270
+          literalToken=LiteralToken NUMBER 21:6@269-21:7@270
+           value="5"
+        PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 22:2@274-22:10@282
+         name=IdentifierToken IDENTIFIER 22:2@274-22:7@279
+          privateIdentifier=false
+          value="class"
+         value=LiteralExpressionTree LITERAL_EXPRESSION 22:9@281-22:10@282
+          literalToken=LiteralToken NUMBER 22:9@281-22:10@282
+           value="6"
+        PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 23:2@286-23:8@292
+         name=IdentifierToken IDENTIFIER 23:2@286-23:5@289
+          privateIdentifier=false
+          value="new"
+         value=LiteralExpressionTree LITERAL_EXPRESSION 23:7@291-23:8@292
+          literalToken=LiteralToken NUMBER 23:7@291-23:8@292
+           value="7"
+        ComputedPropertyMethodTree COMPUTED_PROPERTY_METHOD 24:2@296-24:11@305
+         method=FunctionDeclarationTree FUNCTION_DECLARATION 24:2@296-24:11@305
+          formalParameterList=FormalParameterListTree FORMAL_PARAMETER_LIST 24:6@300-24:8@302
+           commaPositions=[]
+           hasTrailingComma=false
+           parameters=[]
+          functionBody=BlockTree BLOCK 24:9@303-24:11@305
+           statements=[]
+          isAsync=false
+          isClassMember=false
+          isGenerator=true
+          isOptional=false
+          isStatic=false
+          kind=EXPRESSION
+          name=null
+         property=IdentifierExpressionTree IDENTIFIER_EXPRESSION 24:4@298-24:5@299
+          identifierToken=IdentifierToken IDENTIFIER 24:4@298-24:5@299
+           privateIdentifier=false
+           value="l"
+        ComputedPropertyMethodTree COMPUTED_PROPERTY_METHOD 25:2@309-25:11@318
+         method=FunctionDeclarationTree FUNCTION_DECLARATION 25:2@309-25:11@318
+          formalParameterList=FormalParameterListTree FORMAL_PARAMETER_LIST 25:6@313-25:8@315
+           commaPositions=[]
+           hasTrailingComma=false
+           parameters=[]
+          functionBody=BlockTree BLOCK 25:9@316-25:11@318
+           statements=[]
+          isAsync=false
+          isClassMember=false
+          isGenerator=true
+          isOptional=false
+          isStatic=false
+          kind=EXPRESSION
+          name=null
+         property=LiteralExpressionTree LITERAL_EXPRESSION 25:3@310-25:6@313
+          literalToken=StringLiteralToken STRING 25:3@310-25:6@313
+           hasUnescapedUnicodeLineOrParagraphSeparator=false
+           value="'m'"
+        ComputedPropertyMethodTree COMPUTED_PROPERTY_METHOD 26:8@328-26:16@336
+         method=FunctionDeclarationTree FUNCTION_DECLARATION 26:8@328-26:16@336
+          formalParameterList=FormalParameterListTree FORMAL_PARAMETER_LIST 26:11@331-26:13@333
+           commaPositions=[]
+           hasTrailingComma=false
+           parameters=[]
+          functionBody=BlockTree BLOCK 26:14@334-26:16@336
+           statements=[]
+          isAsync=true
+          isClassMember=false
+          isGenerator=false
+          isOptional=false
+          isStatic=false
+          kind=EXPRESSION
+          name=null
+         property=LiteralExpressionTree LITERAL_EXPRESSION 26:8@328-26:11@331
+          literalToken=StringLiteralToken STRING 26:8@328-26:11@331
+           hasUnescapedUnicodeLineOrParagraphSeparator=false
+           value="'n'"
+        ObjectSpreadTree OBJECT_SPREAD 27:2@340-27:9@347
+         expression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 27:5@343-27:9@347
+          identifierToken=IdentifierToken IDENTIFIER 27:5@343-27:9@347
+           privateIdentifier=false
+           value="rest"
+        PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 28:2@351-28:17@366
+         name=IdentifierToken IDENTIFIER 28:2@351-28:11@360
+          privateIdentifier=false
+          value="__proto__"
+         value=LiteralExpressionTree LITERAL_EXPRESSION 28:13@362-28:17@366
+          literalToken=Token NULL 28:13@362-28:17@366
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:4@4-0:5@5
+       identifierToken=IdentifierToken IDENTIFIER 0:4@4-0:5@5
+        privateIdentifier=false
+        value="o"
+  VariableStatementTree VARIABLE_STATEMENT 30:0@371-30:28@399
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 30:0@371-30:27@398
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 30:4@375-30:27@398
+      initializer=ObjectLiteralExpressionTree OBJECT_LITERAL_EXPRESSION 30:8@379-30:27@398
+       hasTrailingComma=false
+       propertyNameAndValues=[3]
+        PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 30:9@380-30:10@381
+         name=IdentifierToken IDENTIFIER 30:9@380-30:10@381
+          privateIdentifier=false
+          value="a"
+         value=null
+        PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 30:12@383-30:13@384
+         name=IdentifierToken IDENTIFIER 30:12@383-30:13@384
+          privateIdentifier=false
+          value="b"
+         value=null
+        PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 30:15@386-30:26@397
+         name=IdentifierToken IDENTIFIER 30:15@386-30:16@387
+          privateIdentifier=false
+          value="c"
+         value=ObjectLiteralExpressionTree OBJECT_LITERAL_EXPRESSION 30:18@389-30:26@397
+          hasTrailingComma=false
+          propertyNameAndValues=[1]
+           PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 30:19@390-30:25@396
+            name=IdentifierToken IDENTIFIER 30:19@390-30:20@391
+             privateIdentifier=false
+             value="d"
+            value=ObjectLiteralExpressionTree OBJECT_LITERAL_EXPRESSION 30:22@393-30:25@396
+             hasTrailingComma=false
+             propertyNameAndValues=[1]
+              PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 30:23@394-30:24@395
+               name=IdentifierToken IDENTIFIER 30:23@394-30:24@395
+                privateIdentifier=false
+                value="e"
+               value=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 30:4@375-30:5@376
+       identifierToken=IdentifierToken IDENTIFIER 30:4@375-30:5@376
+        privateIdentifier=false
+        value="p"

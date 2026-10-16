@@ -1,0 +1,305 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+# features "[]"
+# sourceMapURL null
+# comments
+[]
+# tree
+ProgramTree PROGRAM 0:0@0-5:0@286
+ sourceComments=[]
+ sourceElements=[5]
+  VariableStatementTree VARIABLE_STATEMENT 0:0@0-0:70@70
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 0:0@0-0:69@69
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 0:4@4-0:69@69
+      initializer=ParenExpressionTree PAREN_EXPRESSION 0:8@8-0:69@69
+       expression=ParenExpressionTree PAREN_EXPRESSION 0:9@9-0:68@68
+        expression=ParenExpressionTree PAREN_EXPRESSION 0:10@10-0:67@67
+         expression=ParenExpressionTree PAREN_EXPRESSION 0:11@11-0:66@66
+          expression=ParenExpressionTree PAREN_EXPRESSION 0:12@12-0:65@65
+           expression=ParenExpressionTree PAREN_EXPRESSION 0:13@13-0:64@64
+            expression=ParenExpressionTree PAREN_EXPRESSION 0:14@14-0:63@63
+             expression=ParenExpressionTree PAREN_EXPRESSION 0:15@15-0:62@62
+              expression=ParenExpressionTree PAREN_EXPRESSION 0:16@16-0:61@61
+               expression=ParenExpressionTree PAREN_EXPRESSION 0:17@17-0:60@60
+                expression=ParenExpressionTree PAREN_EXPRESSION 0:18@18-0:59@59
+                 expression=ParenExpressionTree PAREN_EXPRESSION 0:19@19-0:58@58
+                  expression=ParenExpressionTree PAREN_EXPRESSION 0:20@20-0:57@57
+                   expression=ParenExpressionTree PAREN_EXPRESSION 0:21@21-0:56@56
+                    expression=ParenExpressionTree PAREN_EXPRESSION 0:22@22-0:55@55
+                     expression=ParenExpressionTree PAREN_EXPRESSION 0:23@23-0:54@54
+                      expression=ParenExpressionTree PAREN_EXPRESSION 0:24@24-0:53@53
+                       expression=ParenExpressionTree PAREN_EXPRESSION 0:25@25-0:52@52
+                        expression=ParenExpressionTree PAREN_EXPRESSION 0:26@26-0:51@51
+                         expression=ParenExpressionTree PAREN_EXPRESSION 0:27@27-0:50@50
+                          expression=ParenExpressionTree PAREN_EXPRESSION 0:28@28-0:49@49
+                           expression=ParenExpressionTree PAREN_EXPRESSION 0:29@29-0:48@48
+                            expression=ParenExpressionTree PAREN_EXPRESSION 0:30@30-0:47@47
+                             expression=ParenExpressionTree PAREN_EXPRESSION 0:31@31-0:46@46
+                              expression=ParenExpressionTree PAREN_EXPRESSION 0:32@32-0:45@45
+                               expression=ParenExpressionTree PAREN_EXPRESSION 0:33@33-0:44@44
+                                expression=ParenExpressionTree PAREN_EXPRESSION 0:34@34-0:43@43
+                                 expression=ParenExpressionTree PAREN_EXPRESSION 0:35@35-0:42@42
+                                  expression=ParenExpressionTree PAREN_EXPRESSION 0:36@36-0:41@41
+                                   expression=ParenExpressionTree PAREN_EXPRESSION 0:37@37-0:40@40
+                                    expression=LiteralExpressionTree LITERAL_EXPRESSION 0:38@38-0:39@39
+                                     literalToken=LiteralToken NUMBER 0:38@38-0:39@39
+                                      value="1"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:4@4-0:5@5
+       identifierToken=IdentifierToken IDENTIFIER 0:4@4-0:5@5
+        privateIdentifier=false
+        value="x"
+  VariableStatementTree VARIABLE_STATEMENT 1:0@71-1:50@121
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 1:0@71-1:49@120
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 1:4@75-1:49@120
+      initializer=ArrayLiteralExpressionTree ARRAY_LITERAL_EXPRESSION 1:8@79-1:49@120
+       elements=[1]
+        ArrayLiteralExpressionTree ARRAY_LITERAL_EXPRESSION 1:9@80-1:48@119
+         elements=[1]
+          ArrayLiteralExpressionTree ARRAY_LITERAL_EXPRESSION 1:10@81-1:47@118
+           elements=[1]
+            ArrayLiteralExpressionTree ARRAY_LITERAL_EXPRESSION 1:11@82-1:46@117
+             elements=[1]
+              ArrayLiteralExpressionTree ARRAY_LITERAL_EXPRESSION 1:12@83-1:45@116
+               elements=[1]
+                ArrayLiteralExpressionTree ARRAY_LITERAL_EXPRESSION 1:13@84-1:44@115
+                 elements=[1]
+                  ArrayLiteralExpressionTree ARRAY_LITERAL_EXPRESSION 1:14@85-1:43@114
+                   elements=[1]
+                    ArrayLiteralExpressionTree ARRAY_LITERAL_EXPRESSION 1:15@86-1:42@113
+                     elements=[1]
+                      ArrayLiteralExpressionTree ARRAY_LITERAL_EXPRESSION 1:16@87-1:41@112
+                       elements=[1]
+                        ArrayLiteralExpressionTree ARRAY_LITERAL_EXPRESSION 1:17@88-1:40@111
+                         elements=[1]
+                          ArrayLiteralExpressionTree ARRAY_LITERAL_EXPRESSION 1:18@89-1:39@110
+                           elements=[1]
+                            ArrayLiteralExpressionTree ARRAY_LITERAL_EXPRESSION 1:19@90-1:38@109
+                             elements=[1]
+                              ArrayLiteralExpressionTree ARRAY_LITERAL_EXPRESSION 1:20@91-1:37@108
+                               elements=[1]
+                                ArrayLiteralExpressionTree ARRAY_LITERAL_EXPRESSION 1:21@92-1:36@107
+                                 elements=[1]
+                                  ArrayLiteralExpressionTree ARRAY_LITERAL_EXPRESSION 1:22@93-1:35@106
+                                   elements=[1]
+                                    ArrayLiteralExpressionTree ARRAY_LITERAL_EXPRESSION 1:23@94-1:34@105
+                                     elements=[1]
+                                      ArrayLiteralExpressionTree ARRAY_LITERAL_EXPRESSION 1:24@95-1:33@104
+                                       elements=[1]
+                                        ArrayLiteralExpressionTree ARRAY_LITERAL_EXPRESSION 1:25@96-1:32@103
+                                         elements=[1]
+                                          ArrayLiteralExpressionTree ARRAY_LITERAL_EXPRESSION 1:26@97-1:31@102
+                                           elements=[1]
+                                            ArrayLiteralExpressionTree ARRAY_LITERAL_EXPRESSION 1:27@98-1:30@101
+                                             elements=[1]
+                                              LiteralExpressionTree LITERAL_EXPRESSION 1:28@99-1:29@100
+                                               literalToken=LiteralToken NUMBER 1:28@99-1:29@100
+                                                value="1"
+                                             hasTrailingComma=false
+                                           hasTrailingComma=false
+                                         hasTrailingComma=false
+                                       hasTrailingComma=false
+                                     hasTrailingComma=false
+                                   hasTrailingComma=false
+                                 hasTrailingComma=false
+                               hasTrailingComma=false
+                             hasTrailingComma=false
+                           hasTrailingComma=false
+                         hasTrailingComma=false
+                       hasTrailingComma=false
+                     hasTrailingComma=false
+                   hasTrailingComma=false
+                 hasTrailingComma=false
+               hasTrailingComma=false
+             hasTrailingComma=false
+           hasTrailingComma=false
+         hasTrailingComma=false
+       hasTrailingComma=false
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:4@75-1:5@76
+       identifierToken=IdentifierToken IDENTIFIER 1:4@75-1:5@76
+        privateIdentifier=false
+        value="y"
+  VariableStatementTree VARIABLE_STATEMENT 2:0@122-2:60@182
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 2:0@122-2:59@181
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 2:4@126-2:59@181
+      initializer=ObjectLiteralExpressionTree OBJECT_LITERAL_EXPRESSION 2:8@130-2:59@181
+       hasTrailingComma=false
+       propertyNameAndValues=[1]
+        PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 2:9@131-2:58@180
+         name=IdentifierToken IDENTIFIER 2:9@131-2:10@132
+          privateIdentifier=false
+          value="a"
+         value=ObjectLiteralExpressionTree OBJECT_LITERAL_EXPRESSION 2:12@134-2:58@180
+          hasTrailingComma=false
+          propertyNameAndValues=[1]
+           PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 2:13@135-2:57@179
+            name=IdentifierToken IDENTIFIER 2:13@135-2:14@136
+             privateIdentifier=false
+             value="a"
+            value=ObjectLiteralExpressionTree OBJECT_LITERAL_EXPRESSION 2:16@138-2:57@179
+             hasTrailingComma=false
+             propertyNameAndValues=[1]
+              PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 2:17@139-2:56@178
+               name=IdentifierToken IDENTIFIER 2:17@139-2:18@140
+                privateIdentifier=false
+                value="a"
+               value=ObjectLiteralExpressionTree OBJECT_LITERAL_EXPRESSION 2:20@142-2:56@178
+                hasTrailingComma=false
+                propertyNameAndValues=[1]
+                 PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 2:21@143-2:55@177
+                  name=IdentifierToken IDENTIFIER 2:21@143-2:22@144
+                   privateIdentifier=false
+                   value="a"
+                  value=ObjectLiteralExpressionTree OBJECT_LITERAL_EXPRESSION 2:24@146-2:55@177
+                   hasTrailingComma=false
+                   propertyNameAndValues=[1]
+                    PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 2:25@147-2:54@176
+                     name=IdentifierToken IDENTIFIER 2:25@147-2:26@148
+                      privateIdentifier=false
+                      value="a"
+                     value=ObjectLiteralExpressionTree OBJECT_LITERAL_EXPRESSION 2:28@150-2:54@176
+                      hasTrailingComma=false
+                      propertyNameAndValues=[1]
+                       PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 2:29@151-2:53@175
+                        name=IdentifierToken IDENTIFIER 2:29@151-2:30@152
+                         privateIdentifier=false
+                         value="a"
+                        value=ObjectLiteralExpressionTree OBJECT_LITERAL_EXPRESSION 2:32@154-2:53@175
+                         hasTrailingComma=false
+                         propertyNameAndValues=[1]
+                          PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 2:33@155-2:52@174
+                           name=IdentifierToken IDENTIFIER 2:33@155-2:34@156
+                            privateIdentifier=false
+                            value="a"
+                           value=ObjectLiteralExpressionTree OBJECT_LITERAL_EXPRESSION 2:36@158-2:52@174
+                            hasTrailingComma=false
+                            propertyNameAndValues=[1]
+                             PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 2:37@159-2:51@173
+                              name=IdentifierToken IDENTIFIER 2:37@159-2:38@160
+                               privateIdentifier=false
+                               value="a"
+                              value=ObjectLiteralExpressionTree OBJECT_LITERAL_EXPRESSION 2:40@162-2:51@173
+                               hasTrailingComma=false
+                               propertyNameAndValues=[1]
+                                PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 2:41@163-2:50@172
+                                 name=IdentifierToken IDENTIFIER 2:41@163-2:42@164
+                                  privateIdentifier=false
+                                  value="a"
+                                 value=ObjectLiteralExpressionTree OBJECT_LITERAL_EXPRESSION 2:44@166-2:50@172
+                                  hasTrailingComma=false
+                                  propertyNameAndValues=[1]
+                                   PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 2:45@167-2:49@171
+                                    name=IdentifierToken IDENTIFIER 2:45@167-2:46@168
+                                     privateIdentifier=false
+                                     value="a"
+                                    value=LiteralExpressionTree LITERAL_EXPRESSION 2:48@170-2:49@171
+                                     literalToken=LiteralToken NUMBER 2:48@170-2:49@171
+                                      value="1"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:4@126-2:5@127
+       identifierToken=IdentifierToken IDENTIFIER 2:4@126-2:5@127
+        privateIdentifier=false
+        value="z"
+  IfStatementTree IF_STATEMENT 3:0@183-3:59@242
+   condition=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:4@187-3:5@188
+    identifierToken=IdentifierToken IDENTIFIER 3:4@187-3:5@188
+     privateIdentifier=false
+     value="a"
+   elseClause=null
+   ifClause=BlockTree BLOCK 3:7@190-3:59@242
+    statements=[1]
+     IfStatementTree IF_STATEMENT 3:9@192-3:57@240
+      condition=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:13@196-3:14@197
+       identifierToken=IdentifierToken IDENTIFIER 3:13@196-3:14@197
+        privateIdentifier=false
+        value="b"
+      elseClause=null
+      ifClause=BlockTree BLOCK 3:16@199-3:57@240
+       statements=[1]
+        IfStatementTree IF_STATEMENT 3:18@201-3:55@238
+         condition=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:22@205-3:23@206
+          identifierToken=IdentifierToken IDENTIFIER 3:22@205-3:23@206
+           privateIdentifier=false
+           value="c"
+         elseClause=null
+         ifClause=BlockTree BLOCK 3:25@208-3:55@238
+          statements=[1]
+           IfStatementTree IF_STATEMENT 3:27@210-3:53@236
+            condition=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:31@214-3:32@215
+             identifierToken=IdentifierToken IDENTIFIER 3:31@214-3:32@215
+              privateIdentifier=false
+              value="d"
+            elseClause=null
+            ifClause=BlockTree BLOCK 3:34@217-3:53@236
+             statements=[1]
+              IfStatementTree IF_STATEMENT 3:36@219-3:51@234
+               condition=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:40@223-3:41@224
+                identifierToken=IdentifierToken IDENTIFIER 3:40@223-3:41@224
+                 privateIdentifier=false
+                 value="e"
+               elseClause=null
+               ifClause=BlockTree BLOCK 3:43@226-3:51@234
+                statements=[1]
+                 ExpressionStatementTree EXPRESSION_STATEMENT 3:45@228-3:49@232
+                  expression=CallExpressionTree CALL_EXPRESSION 3:45@228-3:48@231
+                   arguments=ArgumentListTree ARGUMENT_LIST 3:46@229-3:48@231
+                    arguments=[]
+                    commaPositions=[]
+                    hasTrailingComma=false
+                   operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:45@228-3:46@229
+                    identifierToken=IdentifierToken IDENTIFIER 3:45@228-3:46@229
+                     privateIdentifier=false
+                     value="f"
+  VariableStatementTree VARIABLE_STATEMENT 4:0@243-4:42@285
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 4:0@243-4:41@284
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 4:4@247-4:41@284
+      initializer=ConditionalExpressionTree CONDITIONAL_EXPRESSION 4:8@251-4:41@284
+       condition=IdentifierExpressionTree IDENTIFIER_EXPRESSION 4:8@251-4:9@252
+        identifierToken=IdentifierToken IDENTIFIER 4:8@251-4:9@252
+         privateIdentifier=false
+         value="a"
+       left=ConditionalExpressionTree CONDITIONAL_EXPRESSION 4:12@255-4:37@280
+        condition=IdentifierExpressionTree IDENTIFIER_EXPRESSION 4:12@255-4:13@256
+         identifierToken=IdentifierToken IDENTIFIER 4:12@255-4:13@256
+          privateIdentifier=false
+          value="b"
+        left=ConditionalExpressionTree CONDITIONAL_EXPRESSION 4:16@259-4:33@276
+         condition=IdentifierExpressionTree IDENTIFIER_EXPRESSION 4:16@259-4:17@260
+          identifierToken=IdentifierToken IDENTIFIER 4:16@259-4:17@260
+           privateIdentifier=false
+           value="c"
+         left=ConditionalExpressionTree CONDITIONAL_EXPRESSION 4:20@263-4:29@272
+          condition=IdentifierExpressionTree IDENTIFIER_EXPRESSION 4:20@263-4:21@264
+           identifierToken=IdentifierToken IDENTIFIER 4:20@263-4:21@264
+            privateIdentifier=false
+            value="d"
+          left=IdentifierExpressionTree IDENTIFIER_EXPRESSION 4:24@267-4:25@268
+           identifierToken=IdentifierToken IDENTIFIER 4:24@267-4:25@268
+            privateIdentifier=false
+            value="e"
+          right=IdentifierExpressionTree IDENTIFIER_EXPRESSION 4:28@271-4:29@272
+           identifierToken=IdentifierToken IDENTIFIER 4:28@271-4:29@272
+            privateIdentifier=false
+            value="f"
+         right=IdentifierExpressionTree IDENTIFIER_EXPRESSION 4:32@275-4:33@276
+          identifierToken=IdentifierToken IDENTIFIER 4:32@275-4:33@276
+           privateIdentifier=false
+           value="g"
+        right=IdentifierExpressionTree IDENTIFIER_EXPRESSION 4:36@279-4:37@280
+         identifierToken=IdentifierToken IDENTIFIER 4:36@279-4:37@280
+          privateIdentifier=false
+          value="h"
+       right=IdentifierExpressionTree IDENTIFIER_EXPRESSION 4:40@283-4:41@284
+        identifierToken=IdentifierToken IDENTIFIER 4:40@283-4:41@284
+         privateIdentifier=false
+         value="i"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 4:4@247-4:5@248
+       identifierToken=IdentifierToken IDENTIFIER 4:4@247-4:5@248
+        privateIdentifier=false
+        value="w"

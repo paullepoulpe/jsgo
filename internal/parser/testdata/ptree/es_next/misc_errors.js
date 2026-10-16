@@ -1,0 +1,20 @@
+var a = @;
+var b = #;
+var c = x #!y;
+var d = (;
+var e = );
+var f = { a: };
+var g = ();
+var h = (...a);
+var i = a +;
+a + = b;
+a = = b;
+1 = 2;
+a + b = c;
+(a, b) = c;
+++a = b;
+x => {} ();
+a
+=> b;
+(a.b) => c;
+(1) => 2;

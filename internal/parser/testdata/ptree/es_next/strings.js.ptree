@@ -1,0 +1,206 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+WARNING 4:24@168 "Unnecessary escape: '\\a' is equivalent to just 'a'"
+WARNING 4:27@171 "Unnecessary escape: '\\d' is equivalent to just 'd'"
+WARNING 4:33@177 "Unnecessary escape: '\\%' is equivalent to just '%'"
+ERROR 12:14@395 "Hex digit expected"
+ERROR 12:14@395 "Unterminated string literal"
+ERROR 12:14@395 "Semi-colon expected"
+WARNING 13:13@411 "Unnecessary escape: '\\\u00E9' is equivalent to just '\u00E9'"
+WARNING 14:0@414 "Unnecessary escape: '\\\u2028' is equivalent to just '\u2028'"
+WARNING 15:13@430 "Unnecessary escape: '\\\uD83D' is equivalent to just '\uD83D'"
+# features "[]"
+# sourceMapURL null
+# comments
+[]
+# tree
+ProgramTree PROGRAM 0:0@0-16:0@434
+ sourceComments=[]
+ sourceElements=[15]
+  VariableStatementTree VARIABLE_STATEMENT 0:0@0-0:18@18
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 0:0@0-0:17@17
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 0:4@4-0:17@17
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 0:9@9-0:17@17
+       literalToken=StringLiteralToken STRING 0:9@9-0:17@17
+        hasUnescapedUnicodeLineOrParagraphSeparator=false
+        value="\"double\""
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:4@4-0:6@6
+       identifierToken=IdentifierToken IDENTIFIER 0:4@4-0:6@6
+        privateIdentifier=false
+        value="s1"
+  VariableStatementTree VARIABLE_STATEMENT 1:0@19-1:18@37
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 1:0@19-1:17@36
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 1:4@23-1:17@36
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 1:9@28-1:17@36
+       literalToken=StringLiteralToken STRING 1:9@28-1:17@36
+        hasUnescapedUnicodeLineOrParagraphSeparator=false
+        value="'single'"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:4@23-1:6@25
+       identifierToken=IdentifierToken IDENTIFIER 1:4@23-1:6@25
+        privateIdentifier=false
+        value="s2"
+  VariableStatementTree VARIABLE_STATEMENT 2:0@38-2:48@86
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 2:0@38-2:47@85
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 2:4@42-2:47@85
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 2:9@47-2:47@85
+       literalToken=StringLiteralToken STRING 2:9@47-2:47@85
+        hasUnescapedUnicodeLineOrParagraphSeparator=false
+        value="\"esc \\n \\r \\t \\b \\f \\v \\0 \\\\ \\\" \\' \\`\""
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:4@42-2:6@44
+       identifierToken=IdentifierToken IDENTIFIER 2:4@42-2:6@44
+        privateIdentifier=false
+        value="s3"
+  VariableStatementTree VARIABLE_STATEMENT 3:0@87-3:56@143
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 3:0@87-3:55@142
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 3:4@91-3:55@142
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 3:9@96-3:55@142
+       literalToken=StringLiteralToken STRING 3:9@96-3:55@142
+        hasUnescapedUnicodeLineOrParagraphSeparator=false
+        value="\"hex \\x41 unicode \\u0041 \\u{1F600} \\u{10FFFF}\""
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:4@91-3:6@93
+       identifierToken=IdentifierToken IDENTIFIER 3:4@91-3:6@93
+        privateIdentifier=false
+        value="s4"
+  VariableStatementTree VARIABLE_STATEMENT 4:0@144-4:35@179
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 4:0@144-4:34@178
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 4:4@148-4:34@178
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 4:9@153-4:34@178
+       literalToken=StringLiteralToken STRING 4:9@153-4:34@178
+        hasUnescapedUnicodeLineOrParagraphSeparator=false
+        value="\"unnecessary \\a \\d \\/ \\%\""
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 4:4@148-4:6@150
+       identifierToken=IdentifierToken IDENTIFIER 4:4@148-4:6@150
+        privateIdentifier=false
+        value="s5"
+  VariableStatementTree VARIABLE_STATEMENT 5:0@180-6:14@211
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 5:0@180-6:13@210
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 5:4@184-6:13@210
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 5:9@189-6:13@210
+       literalToken=StringLiteralToken STRING 5:9@189-6:13@210
+        hasUnescapedUnicodeLineOrParagraphSeparator=false
+        value="'line \\\u000Acontinuation'"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 5:4@184-5:6@186
+       identifierToken=IdentifierToken IDENTIFIER 5:4@184-5:6@186
+        privateIdentifier=false
+        value="s6"
+  VariableStatementTree VARIABLE_STATEMENT 7:0@212-7:74@286
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 7:0@212-7:73@285
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 7:4@216-7:73@285
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 7:9@221-7:73@285
+       literalToken=StringLiteralToken STRING 7:9@221-7:73@285
+        hasUnescapedUnicodeLineOrParagraphSeparator=false
+        value="\"emoji \uD83D\uDE00 and surrogate escapes \\uD83D\\uDE00 lone \\uD800 \\uDFFF\""
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 7:4@216-7:6@218
+       identifierToken=IdentifierToken IDENTIFIER 7:4@216-7:6@218
+        privateIdentifier=false
+        value="s7"
+  VariableStatementTree VARIABLE_STATEMENT 8:0@287-8:31@318
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 8:0@287-8:30@317
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 8:4@291-8:30@317
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 8:9@296-8:30@317
+       literalToken=StringLiteralToken STRING 8:9@296-8:30@317
+        hasUnescapedUnicodeLineOrParagraphSeparator=false
+        value="\"ls \\u2028 ps \\u2029\""
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 8:4@291-8:6@293
+       identifierToken=IdentifierToken IDENTIFIER 8:4@291-8:6@293
+        privateIdentifier=false
+        value="s8"
+  VariableStatementTree VARIABLE_STATEMENT 9:0@319-9:12@331
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 9:0@319-9:11@330
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 9:4@323-9:11@330
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 9:9@328-9:11@330
+       literalToken=StringLiteralToken STRING 9:9@328-9:11@330
+        hasUnescapedUnicodeLineOrParagraphSeparator=false
+        value="\"\""
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 9:4@323-9:6@325
+       identifierToken=IdentifierToken IDENTIFIER 9:4@323-9:6@325
+        privateIdentifier=false
+        value="s9"
+  VariableStatementTree VARIABLE_STATEMENT 10:0@332-10:27@359
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 10:0@332-10:26@358
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 10:4@336-10:26@358
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 10:10@342-10:26@358
+       literalToken=StringLiteralToken STRING 10:10@342-10:26@358
+        hasUnescapedUnicodeLineOrParagraphSeparator=false
+        value="'quote \" inside'"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 10:4@336-10:7@339
+       identifierToken=IdentifierToken IDENTIFIER 10:4@336-10:7@339
+        privateIdentifier=false
+        value="s10"
+  VariableStatementTree VARIABLE_STATEMENT 11:0@360-11:20@380
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 11:0@360-11:19@379
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 11:4@364-11:19@379
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 11:10@370-11:19@379
+       literalToken=StringLiteralToken STRING 11:10@370-11:19@379
+        hasUnescapedUnicodeLineOrParagraphSeparator=false
+        value="\"tab\u0009raw\""
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 11:4@364-11:7@367
+       identifierToken=IdentifierToken IDENTIFIER 11:4@364-11:7@367
+        privateIdentifier=false
+        value="s11"
+  VariableStatementTree VARIABLE_STATEMENT 12:0@381-12:14@395
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 12:0@381-12:14@395
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 12:4@385-12:14@395
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 12:10@391-12:14@395
+       literalToken=StringLiteralToken STRING 12:10@391-12:14@395
+        hasUnescapedUnicodeLineOrParagraphSeparator=false
+        value="\"\\x4"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 12:4@385-12:7@388
+       identifierToken=IdentifierToken IDENTIFIER 12:4@385-12:7@388
+        privateIdentifier=false
+        value="s12"
+  ExpressionStatementTree EXPRESSION_STATEMENT 12:14@395-12:16@397
+   expression=LiteralExpressionTree LITERAL_EXPRESSION 12:14@395-12:16@397
+    literalToken=StringLiteralToken STRING 12:14@395-12:16@397
+     hasUnescapedUnicodeLineOrParagraphSeparator=false
+     value="\";"
+  VariableStatementTree VARIABLE_STATEMENT 13:0@398-14:2@416
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 13:0@398-14:1@415
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 13:4@402-14:1@415
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 13:10@408-14:1@415
+       literalToken=StringLiteralToken STRING 13:10@408-14:1@415
+        hasUnescapedUnicodeLineOrParagraphSeparator=false
+        value="\"\\\u00E9 \\\u2028\""
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 13:4@402-13:7@405
+       identifierToken=IdentifierToken IDENTIFIER 13:4@402-13:7@405
+        privateIdentifier=false
+        value="s13"
+  VariableStatementTree VARIABLE_STATEMENT 15:0@417-15:16@433
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 15:0@417-15:15@432
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 15:4@421-15:15@432
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 15:10@427-15:15@432
+       literalToken=StringLiteralToken STRING 15:10@427-15:15@432
+        hasUnescapedUnicodeLineOrParagraphSeparator=false
+        value="\"\\\uD83D\uDE00\""
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 15:4@421-15:7@424
+       identifierToken=IdentifierToken IDENTIFIER 15:4@421-15:7@424
+        privateIdentifier=false
+        value="s14"

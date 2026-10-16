@@ -1,0 +1,85 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+ERROR 1:21@42 "for-await-of is the only allowed asynchronous iteration"
+ERROR 2:22@75 "for-await-of statement may not have more than one variable declaration"
+ERROR 3:23@109 "for-await-of statement may not have initializer"
+# features "[]"
+# sourceMapURL null
+# comments
+[]
+# tree
+ProgramTree PROGRAM 0:0@0-5:0@122
+ sourceComments=[]
+ sourceElements=[1]
+  FunctionDeclarationTree FUNCTION_DECLARATION 0:0@0-4:1@121
+   formalParameterList=FormalParameterListTree FORMAL_PARAMETER_LIST 0:16@16-0:18@18
+    commaPositions=[]
+    hasTrailingComma=false
+    parameters=[]
+   functionBody=BlockTree BLOCK 0:19@19-4:1@121
+    statements=[3]
+     ForInStatementTree FOR_IN_STATEMENT 1:2@23-1:31@52
+      body=BlockTree BLOCK 1:29@50-1:31@52
+       statements=[]
+      collection=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:24@45-1:27@48
+       identifierToken=IdentifierToken IDENTIFIER 1:24@45-1:27@48
+        privateIdentifier=false
+        value="obj"
+      initializer=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 1:13@34-1:20@41
+       declarationType=CONST
+       declarations=[1]
+        VariableDeclarationTree VARIABLE_DECLARATION 1:19@40-1:20@41
+         initializer=null
+         lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:19@40-1:20@41
+          identifierToken=IdentifierToken IDENTIFIER 1:19@40-1:20@41
+           privateIdentifier=false
+           value="x"
+     ForAwaitOfStatementTree FOR_AWAIT_OF_STATEMENT 2:2@55-2:32@85
+      body=BlockTree BLOCK 2:30@83-2:32@85
+       statements=[]
+      collection=IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:25@78-2:28@81
+       identifierToken=IdentifierToken IDENTIFIER 2:25@78-2:28@81
+        privateIdentifier=false
+        value="arr"
+      initializer=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 2:13@66-2:21@74
+       declarationType=VAR
+       declarations=[2]
+        VariableDeclarationTree VARIABLE_DECLARATION 2:17@70-2:18@71
+         initializer=null
+         lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:17@70-2:18@71
+          identifierToken=IdentifierToken IDENTIFIER 2:17@70-2:18@71
+           privateIdentifier=false
+           value="y"
+        VariableDeclarationTree VARIABLE_DECLARATION 2:20@73-2:21@74
+         initializer=null
+         lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:20@73-2:21@74
+          identifierToken=IdentifierToken IDENTIFIER 2:20@73-2:21@74
+           privateIdentifier=false
+           value="z"
+     ForAwaitOfStatementTree FOR_AWAIT_OF_STATEMENT 3:2@88-3:33@119
+      body=BlockTree BLOCK 3:31@117-3:33@119
+       statements=[]
+      collection=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:26@112-3:29@115
+       identifierToken=IdentifierToken IDENTIFIER 3:26@112-3:29@115
+        privateIdentifier=false
+        value="arr"
+      initializer=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 3:13@99-3:22@108
+       declarationType=LET
+       declarations=[1]
+        VariableDeclarationTree VARIABLE_DECLARATION 3:17@103-3:22@108
+         initializer=LiteralExpressionTree LITERAL_EXPRESSION 3:21@107-3:22@108
+          literalToken=LiteralToken NUMBER 3:21@107-3:22@108
+           value="1"
+         lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:17@103-3:18@104
+          identifierToken=IdentifierToken IDENTIFIER 3:17@103-3:18@104
+           privateIdentifier=false
+           value="w"
+   isAsync=true
+   isClassMember=false
+   isGenerator=false
+   isOptional=false
+   isStatic=false
+   kind=DECLARATION
+   name=IdentifierToken IDENTIFIER 0:15@15-0:16@16
+    privateIdentifier=false
+    value="f"

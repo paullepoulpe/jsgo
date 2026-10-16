@@ -1,0 +1,393 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+# features "[Dynamic module import]"
+# sourceMapURL null
+# comments
+[]
+# tree
+ProgramTree PROGRAM 0:0@0-26:0@644
+ sourceComments=[]
+ sourceElements=[26]
+  ImportDeclarationTree IMPORT_DECLARATION 0:0@0-0:21@21
+   defaultBindingIdentifier=null
+   importSpecifierList=null
+   moduleSpecifier=StringLiteralToken STRING 0:7@7-0:20@20
+    hasUnescapedUnicodeLineOrParagraphSeparator=false
+    value="'side-effect'"
+   nameSpaceImportIdentifier=null
+  ImportDeclarationTree IMPORT_DECLARATION 1:0@22-1:22@44
+   defaultBindingIdentifier=IdentifierToken IDENTIFIER 1:7@29-1:10@32
+    privateIdentifier=false
+    value="def"
+   importSpecifierList=null
+   moduleSpecifier=StringLiteralToken STRING 1:16@38-1:21@43
+    hasUnescapedUnicodeLineOrParagraphSeparator=false
+    value="'mod'"
+   nameSpaceImportIdentifier=null
+  ImportDeclarationTree IMPORT_DECLARATION 2:0@45-2:26@71
+   defaultBindingIdentifier=null
+   importSpecifierList=null
+   moduleSpecifier=StringLiteralToken STRING 2:20@65-2:25@70
+    hasUnescapedUnicodeLineOrParagraphSeparator=false
+    value="'mod'"
+   nameSpaceImportIdentifier=IdentifierToken IDENTIFIER 2:12@57-2:14@59
+    privateIdentifier=false
+    value="ns"
+  ImportDeclarationTree IMPORT_DECLARATION 3:0@72-3:44@116
+   defaultBindingIdentifier=null
+   importSpecifierList=[3]
+    ImportSpecifierTree IMPORT_SPECIFIER 3:8@80-3:9@81
+     destinationName=null
+     importedName=IdentifierToken IDENTIFIER 3:8@80-3:9@81
+      privateIdentifier=false
+      value="a"
+    ImportSpecifierTree IMPORT_SPECIFIER 3:11@83-3:17@89
+     destinationName=IdentifierToken IDENTIFIER 3:16@88-3:17@89
+      privateIdentifier=false
+      value="c"
+     importedName=IdentifierToken IDENTIFIER 3:11@83-3:12@84
+      privateIdentifier=false
+      value="b"
+    ImportSpecifierTree IMPORT_SPECIFIER 3:19@91-3:31@103
+     destinationName=IdentifierToken IDENTIFIER 3:30@102-3:31@103
+      privateIdentifier=false
+      value="d"
+     importedName=IdentifierToken IDENTIFIER 3:19@91-3:26@98
+      privateIdentifier=false
+      value="default"
+   moduleSpecifier=StringLiteralToken STRING 3:38@110-3:43@115
+    hasUnescapedUnicodeLineOrParagraphSeparator=false
+    value="'mod'"
+   nameSpaceImportIdentifier=null
+  ImportDeclarationTree IMPORT_DECLARATION 4:0@117-4:28@145
+   defaultBindingIdentifier=IdentifierToken IDENTIFIER 4:7@124-4:11@128
+    privateIdentifier=false
+    value="def2"
+   importSpecifierList=[1]
+    ImportSpecifierTree IMPORT_SPECIFIER 4:14@131-4:15@132
+     destinationName=null
+     importedName=IdentifierToken IDENTIFIER 4:14@131-4:15@132
+      privateIdentifier=false
+      value="e"
+   moduleSpecifier=StringLiteralToken STRING 4:22@139-4:27@144
+    hasUnescapedUnicodeLineOrParagraphSeparator=false
+    value="'mod'"
+   nameSpaceImportIdentifier=null
+  ImportDeclarationTree IMPORT_DECLARATION 5:0@146-5:33@179
+   defaultBindingIdentifier=IdentifierToken IDENTIFIER 5:7@153-5:11@157
+    privateIdentifier=false
+    value="def3"
+   importSpecifierList=null
+   moduleSpecifier=StringLiteralToken STRING 5:27@173-5:32@178
+    hasUnescapedUnicodeLineOrParagraphSeparator=false
+    value="'mod'"
+   nameSpaceImportIdentifier=IdentifierToken IDENTIFIER 5:18@164-5:21@167
+    privateIdentifier=false
+    value="ns2"
+  ImportDeclarationTree IMPORT_DECLARATION 6:0@180-6:21@201
+   defaultBindingIdentifier=null
+   importSpecifierList=[]
+   moduleSpecifier=StringLiteralToken STRING 6:15@195-6:20@200
+    hasUnescapedUnicodeLineOrParagraphSeparator=false
+    value="'mod'"
+   nameSpaceImportIdentifier=null
+  ImportDeclarationTree IMPORT_DECLARATION 7:0@202-7:23@225
+   defaultBindingIdentifier=null
+   importSpecifierList=[1]
+    ImportSpecifierTree IMPORT_SPECIFIER 7:8@210-7:9@211
+     destinationName=null
+     importedName=IdentifierToken IDENTIFIER 7:8@210-7:9@211
+      privateIdentifier=false
+      value="f"
+   moduleSpecifier=StringLiteralToken STRING 7:17@219-7:22@224
+    hasUnescapedUnicodeLineOrParagraphSeparator=false
+    value="'mod'"
+   nameSpaceImportIdentifier=null
+  ImportDeclarationTree IMPORT_DECLARATION 8:0@226-8:28@254
+   defaultBindingIdentifier=null
+   importSpecifierList=[1]
+    ImportSpecifierTree IMPORT_SPECIFIER 8:8@234-8:15@241
+     destinationName=IdentifierToken IDENTIFIER 8:14@240-8:15@241
+      privateIdentifier=false
+      value="g"
+     importedName=IdentifierToken IDENTIFIER 8:8@234-8:10@236
+      privateIdentifier=false
+      value="if"
+   moduleSpecifier=StringLiteralToken STRING 8:22@248-8:27@253
+    hasUnescapedUnicodeLineOrParagraphSeparator=false
+    value="'mod'"
+   nameSpaceImportIdentifier=null
+  ExportDeclarationTree EXPORT_DECLARATION 9:0@255-9:17@272
+   declaration=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 9:7@262-9:16@271
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 9:11@266-9:16@271
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 9:15@270-9:16@271
+       literalToken=LiteralToken NUMBER 9:15@270-9:16@271
+        value="1"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 9:11@266-9:12@267
+       identifierToken=IdentifierToken IDENTIFIER 9:11@266-9:12@267
+        privateIdentifier=false
+        value="v"
+   exportSpecifierList=null
+   from=null
+   isDefault=false
+   isExportAll=false
+  ExportDeclarationTree EXPORT_DECLARATION 10:0@273-10:17@290
+   declaration=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 10:7@280-10:16@289
+    declarationType=LET
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 10:11@284-10:16@289
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 10:15@288-10:16@289
+       literalToken=LiteralToken NUMBER 10:15@288-10:16@289
+        value="2"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 10:11@284-10:12@285
+       identifierToken=IdentifierToken IDENTIFIER 10:11@284-10:12@285
+        privateIdentifier=false
+        value="l"
+   exportSpecifierList=null
+   from=null
+   isDefault=false
+   isExportAll=false
+  ExportDeclarationTree EXPORT_DECLARATION 11:0@291-11:19@310
+   declaration=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 11:7@298-11:18@309
+    declarationType=CONST
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 11:13@304-11:18@309
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 11:17@308-11:18@309
+       literalToken=LiteralToken NUMBER 11:17@308-11:18@309
+        value="3"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 11:13@304-11:14@305
+       identifierToken=IdentifierToken IDENTIFIER 11:13@304-11:14@305
+        privateIdentifier=false
+        value="k"
+   exportSpecifierList=null
+   from=null
+   isDefault=false
+   isExportAll=false
+  ExportDeclarationTree EXPORT_DECLARATION 12:0@311-12:23@334
+   declaration=FunctionDeclarationTree FUNCTION_DECLARATION 12:7@318-12:23@334
+    formalParameterList=FormalParameterListTree FORMAL_PARAMETER_LIST 12:18@329-12:20@331
+     commaPositions=[]
+     hasTrailingComma=false
+     parameters=[]
+    functionBody=BlockTree BLOCK 12:21@332-12:23@334
+     statements=[]
+    isAsync=false
+    isClassMember=false
+    isGenerator=false
+    isOptional=false
+    isStatic=false
+    kind=DECLARATION
+    name=IdentifierToken IDENTIFIER 12:16@327-12:18@329
+     privateIdentifier=false
+     value="fn"
+   exportSpecifierList=null
+   from=null
+   isDefault=false
+   isExportAll=false
+  ExportDeclarationTree EXPORT_DECLARATION 13:0@335-13:25@360
+   declaration=FunctionDeclarationTree FUNCTION_DECLARATION 13:7@342-13:25@360
+    formalParameterList=FormalParameterListTree FORMAL_PARAMETER_LIST 13:20@355-13:22@357
+     commaPositions=[]
+     hasTrailingComma=false
+     parameters=[]
+    functionBody=BlockTree BLOCK 13:23@358-13:25@360
+     statements=[]
+    isAsync=false
+    isClassMember=false
+    isGenerator=true
+    isOptional=false
+    isStatic=false
+    kind=DECLARATION
+    name=IdentifierToken IDENTIFIER 13:17@352-13:20@355
+     privateIdentifier=false
+     value="gfn"
+   exportSpecifierList=null
+   from=null
+   isDefault=false
+   isExportAll=false
+  ExportDeclarationTree EXPORT_DECLARATION 14:0@361-14:30@391
+   declaration=FunctionDeclarationTree FUNCTION_DECLARATION 14:7@368-14:30@391
+    formalParameterList=FormalParameterListTree FORMAL_PARAMETER_LIST 14:25@386-14:27@388
+     commaPositions=[]
+     hasTrailingComma=false
+     parameters=[]
+    functionBody=BlockTree BLOCK 14:28@389-14:30@391
+     statements=[]
+    isAsync=true
+    isClassMember=false
+    isGenerator=false
+    isOptional=false
+    isStatic=false
+    kind=DECLARATION
+    name=IdentifierToken IDENTIFIER 14:22@383-14:25@386
+     privateIdentifier=false
+     value="afn"
+   exportSpecifierList=null
+   from=null
+   isDefault=false
+   isExportAll=false
+  ExportDeclarationTree EXPORT_DECLARATION 15:0@392-15:19@411
+   declaration=ClassDeclarationTree CLASS_DECLARATION 15:7@399-15:19@411
+    elements=[]
+    name=IdentifierToken IDENTIFIER 15:13@405-15:16@408
+     privateIdentifier=false
+     value="Cls"
+    superClass=null
+   exportSpecifierList=null
+   from=null
+   isDefault=false
+   isExportAll=false
+  ExportDeclarationTree EXPORT_DECLARATION 16:0@412-16:20@432
+   declaration=null
+   exportSpecifierList=[2]
+    ExportSpecifierTree EXPORT_SPECIFIER 16:8@420-16:15@427
+     destinationName=IdentifierToken IDENTIFIER 16:13@425-16:15@427
+      privateIdentifier=false
+      value="v2"
+     importedName=IdentifierToken IDENTIFIER 16:8@420-16:9@421
+      privateIdentifier=false
+      value="v"
+    ExportSpecifierTree EXPORT_SPECIFIER 16:17@429-16:18@430
+     destinationName=null
+     importedName=IdentifierToken IDENTIFIER 16:17@429-16:18@430
+      privateIdentifier=false
+      value="l"
+   from=null
+   isDefault=false
+   isExportAll=false
+  ExportDeclarationTree EXPORT_DECLARATION 17:0@433-17:22@455
+   declaration=null
+   exportSpecifierList=[1]
+    ExportSpecifierTree EXPORT_SPECIFIER 17:8@441-17:20@453
+     destinationName=IdentifierToken IDENTIFIER 17:13@446-17:20@453
+      privateIdentifier=false
+      value="default"
+     importedName=IdentifierToken IDENTIFIER 17:8@441-17:9@442
+      privateIdentifier=false
+      value="k"
+   from=null
+   isDefault=false
+   isExportAll=false
+  ExportDeclarationTree EXPORT_DECLARATION 18:0@456-18:27@483
+   declaration=null
+   exportSpecifierList=[1]
+    ExportSpecifierTree EXPORT_SPECIFIER 18:8@464-18:14@470
+     destinationName=IdentifierToken IDENTIFIER 18:13@469-18:14@470
+      privateIdentifier=false
+      value="y"
+     importedName=IdentifierToken IDENTIFIER 18:8@464-18:9@465
+      privateIdentifier=false
+      value="x"
+   from=StringLiteralToken STRING 18:21@477-18:26@482
+    hasUnescapedUnicodeLineOrParagraphSeparator=false
+    value="'mod'"
+   isDefault=false
+   isExportAll=false
+  ExportDeclarationTree EXPORT_DECLARATION 19:0@484-19:20@504
+   declaration=null
+   exportSpecifierList=null
+   from=StringLiteralToken STRING 19:14@498-19:19@503
+    hasUnescapedUnicodeLineOrParagraphSeparator=false
+    value="'mod'"
+   isDefault=false
+   isExportAll=true
+  ExportDeclarationTree EXPORT_DECLARATION 20:0@505-20:10@515
+   declaration=null
+   exportSpecifierList=[]
+   from=null
+   isDefault=false
+   isExportAll=false
+  ExportDeclarationTree EXPORT_DECLARATION 21:0@516-21:29@545
+   declaration=FunctionDeclarationTree FUNCTION_DECLARATION 21:15@531-21:29@545
+    formalParameterList=FormalParameterListTree FORMAL_PARAMETER_LIST 21:24@540-21:26@542
+     commaPositions=[]
+     hasTrailingComma=false
+     parameters=[]
+    functionBody=BlockTree BLOCK 21:27@543-21:29@545
+     statements=[]
+    isAsync=false
+    isClassMember=false
+    isGenerator=false
+    isOptional=false
+    isStatic=false
+    kind=EXPRESSION
+    name=null
+   exportSpecifierList=null
+   from=null
+   isDefault=true
+   isExportAll=false
+  VariableStatementTree VARIABLE_STATEMENT 22:0@546-22:20@566
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 22:0@546-22:19@565
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 22:4@550-22:19@565
+      initializer=ImportMetaExpressionTree IMPORT_META_EXPRESSION 22:8@554-22:19@565
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 22:4@550-22:5@551
+       identifierToken=IdentifierToken IDENTIFIER 22:4@550-22:5@551
+        privateIdentifier=false
+        value="m"
+  VariableStatementTree VARIABLE_STATEMENT 23:0@567-23:24@591
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 23:0@567-23:23@590
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 23:4@571-23:23@590
+      initializer=MemberExpressionTree MEMBER_EXPRESSION 23:8@575-23:23@590
+       memberName=IdentifierToken IDENTIFIER 23:20@587-23:23@590
+        privateIdentifier=false
+        value="url"
+       operand=ImportMetaExpressionTree IMPORT_META_EXPRESSION 23:8@575-23:19@586
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 23:4@571-23:5@572
+       identifierToken=IdentifierToken IDENTIFIER 23:4@571-23:5@572
+        privateIdentifier=false
+        value="u"
+  VariableStatementTree VARIABLE_STATEMENT 24:0@592-24:22@614
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 24:0@592-24:21@613
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 24:4@596-24:21@613
+      initializer=DynamicImportTree DYNAMIC_IMPORT_EXPRESSION 24:8@600-24:21@613
+       argument=LiteralExpressionTree LITERAL_EXPRESSION 24:15@607-24:20@612
+        literalToken=StringLiteralToken STRING 24:15@607-24:20@612
+         hasUnescapedUnicodeLineOrParagraphSeparator=false
+         value="'dyn'"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 24:4@596-24:5@597
+       identifierToken=IdentifierToken IDENTIFIER 24:4@596-24:5@597
+        privateIdentifier=false
+        value="p"
+  ExpressionStatementTree EXPRESSION_STATEMENT 25:0@615-25:28@643
+   expression=CallExpressionTree CALL_EXPRESSION 25:0@615-25:27@642
+    arguments=ArgumentListTree ARGUMENT_LIST 25:19@634-25:27@642
+     arguments=[1]
+      FunctionDeclarationTree FUNCTION_DECLARATION 25:20@635-25:26@641
+       formalParameterList=FormalParameterListTree FORMAL_PARAMETER_LIST 25:20@635-25:21@636
+        commaPositions=[]
+        hasTrailingComma=false
+        parameters=[1]
+         IdentifierExpressionTree IDENTIFIER_EXPRESSION 25:20@635-25:21@636
+          identifierToken=IdentifierToken IDENTIFIER 25:20@635-25:21@636
+           privateIdentifier=false
+           value="x"
+       functionBody=IdentifierExpressionTree IDENTIFIER_EXPRESSION 25:25@640-25:26@641
+        identifierToken=IdentifierToken IDENTIFIER 25:25@640-25:26@641
+         privateIdentifier=false
+         value="x"
+       isAsync=false
+       isClassMember=false
+       isGenerator=false
+       isOptional=false
+       isStatic=false
+       kind=ARROW
+       name=null
+     commaPositions=[]
+     hasTrailingComma=false
+    operand=MemberExpressionTree MEMBER_EXPRESSION 25:0@615-25:19@634
+     memberName=IdentifierToken IDENTIFIER 25:15@630-25:19@634
+      privateIdentifier=false
+      value="then"
+     operand=DynamicImportTree DYNAMIC_IMPORT_EXPRESSION 25:0@615-25:14@629
+      argument=LiteralExpressionTree LITERAL_EXPRESSION 25:7@622-25:13@628
+       literalToken=StringLiteralToken STRING 25:7@622-25:13@628
+        hasUnescapedUnicodeLineOrParagraphSeparator=false
+        value="'dyn2'"

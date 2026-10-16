@@ -1,0 +1,40 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+ERROR 0:17@17 "Unterminated template literal"
+# features "[]"
+# sourceMapURL null
+# comments
+[]
+# tree
+ProgramTree PROGRAM 0:0@0-1:0@22
+ sourceComments=[]
+ sourceElements=[1]
+  VariableStatementTree VARIABLE_STATEMENT 0:0@0-1:0@22
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 0:0@0-1:0@22
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 0:4@4-1:0@22
+      initializer=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 0:9@9-1:0@22
+       elements=[3]
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 0:9@9-0:15@15
+         value=TemplateLiteralToken TEMPLATE_HEAD 0:9@9-0:15@15
+          errorLevel=null
+          errorMessage=null
+          errorPosition=0:9@9
+          value="abc "
+        TemplateSubstitutionTree TEMPLATE_SUBSTITUTION 0:15@15-0:16@16
+         expression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:15@15-0:16@16
+          identifierToken=IdentifierToken IDENTIFIER 0:15@15-0:16@16
+           privateIdentifier=false
+           value="y"
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 0:17@17-1:0@22
+         value=TemplateLiteralToken TEMPLATE_TAIL 0:17@17-1:0@22
+          errorLevel=null
+          errorMessage=null
+          errorPosition=0:17@17
+          value=" def\u000A"
+       operand=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:4@4-0:5@5
+       identifierToken=IdentifierToken IDENTIFIER 0:4@4-0:5@5
+        privateIdentifier=false
+        value="x"
