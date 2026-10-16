@@ -1,0 +1,3000 @@
+s	,a,,,\u00e9	1	1	1\u0001,a,,,\u00e9
+s	\u00e9,,\u00e9 \r\u00e9,,\r\n	7	3	3\u0001\u0001,,\u0001 \r\u00e9,,\r\n
+s	 \u00e9\u00e9a,	2	1	1\u0001 \u00e9\u00e9a,
+s	a \u00e9b,,,	12	0	7\u0001a\u0001 \u0001\u00e9\u0001\u0001,\u0001,\u0001,
+s	\r	3	-1	1\u0001\r
+s	;	1	2	1\u0001;
+s	;,aa,aab; 	12	0	10\u0001;\u0001,\u0001a\u0001a\u0001,\u0001a\u0001a\u0001\u0001;\u0001 
+s	\rb,\u00e9b	0	-1	1\u0001\rb,\u00e9b
+s	\u00e9 ,,\ud83d\ude00\n	6	2	2\u0001\u00e9 \u0001,\ud83d\ude00\n
+s		0	3	1\u0001
+s	\nb\ud83d\ude00\r\n	4	3	3\u0001\u0001b\ud83d\ude00\u0001
+s	;\ud83d\ude00\u00e9	5	2	2\u0001\u0001\ud83d\ude00\u00e9
+s	\naa	12	2	2\u0001\n\u0001aa
+s	\u00e9	14	1	1\u0001\u00e9
+s	\r\n ,,a,,	4	2	2\u0001\u0001,,a,,
+s	b 	11	1	1\u0001b 
+s	 \r\ud83d\ude00b,,\u00e9,	9	-1	2\u0001 \r\ud83d\ude00\u0001,,\u00e9,
+s	\r\n,,	0	3	2\u0001\u0001,,
+s		10	0	1\u0001
+s		4	1	1\u0001
+s	\r\r\n\u00e9 \u00e9	1	-1	1\u0001\r\r\n\u00e9 \u00e9
+s	a\u00e9,,a\u00e9	13	1	1\u0001a\u00e9,,a\u00e9
+s	,,,	3	-1	4\u0001\u0001\u0001\u0001
+s	\r\n\ud83d\ude00	2	0	1\u0001\r\n\ud83d\ude00
+s	\r\n,,;,,	4	2	2\u0001\u0001,,;,,
+s	\nb;\r\n\rb\r\n	0	-1	4\u0001\u0001b;\u0001\rb\u0001
+s	b;\ud83d\ude00\r 	8	2	2\u0001b;\u0001\r 
+s	aaaa\r\n;\r\n	14	2	2\u0001a\u0001aaa\r\n;\r\n
+s	,,\r\n\n\u00e9,	13	3	3\u0001\u0001\u0001\r\n\n\u00e9,
+s	\n,,\r\n	7	2	1\u0001\n,,\r\n
+s	,	13	3	3\u0001\u0001\u0001
+s	ba\r	6	1	1\u0001ba\r
+s	\n \r	8	2	1\u0001\n \r
+s	\nb,\r\n	8	1	1\u0001\nb,\r\n
+s	,,	15	3	3\u0001\u0001\u0001
+s	b\u00e9\ra 	4	1	1\u0001b\u00e9\ra 
+s	ba\r\n\r\naa,	6	-1	2\u0001ba\r\n\r\naa\u0001
+s		15	3	1\u0001
+s		1	3	1\u0001
+s	,\r\naab	8	3	2\u0001\u0001\r\naab
+s	,aaa \n	11	1	1\u0001,aaa \n
+s	bbb\r\n	12	2	2\u0001\u0001bb\r\n
+s	,,\r\n\r\naaaa	13	1	1\u0001,,\r\n\r\naaaa
+s	;;	1	2	1\u0001;;
+s	\ud83d\ude00\n	2	2	1\u0001\ud83d\ude00\n
+s	b;\n	14	-1	4\u0001b\u0001;\u0001\n\u0001
+s	ab\n	11	1	1\u0001ab\n
+s	\r,,,,\u00e9\n\r\n	4	1	1\u0001\r,,,,\u00e9\n\r\n
+s	,\r\r\n\n,b	2	2	2\u0001\u0001\r\r\n\n,b
+s	\r\ud83d\ude00	3	-1	1\u0001\r\ud83d\ude00
+s		6	-1	1\u0001
+s	b\r\ud83d\ude00\n  \u00e9a	1	3	1\u0001b\r\ud83d\ude00\n  \u00e9a
+s	bb\r;\u00e9,,\r	2	1	1\u0001bb\r;\u00e9,,\r
+s	,b\n\u00e9a\r\naa\n	11	-1	11\u0001,\u0001b\u0001\n\u0001\u00e9\u0001a\u0001\r\u0001\n\u0001a\u0001a\u0001\n\u0001
+s	,\u00e9\u00e9	6	-1	2\u0001\u0001\u00e9\u00e9
+s	\n\ra,\rb	2	0	2\u0001\n\ra\u0001\rb
+s	\r\ud83d\ude00;\n\ud83d\ude00,	8	1	1\u0001\r\ud83d\ude00;\n\ud83d\ude00,
+s	\naaaa;\r\n	15	3	3\u0001\n\u0001a\u0001aaa;\r\n
+s	\r\r\ud83d\ude00\r\n;;;b	1	-1	1\u0001\r\r\ud83d\ude00\r\n;;;b
+s	a	2	2	1\u0001a
+s		15	1	1\u0001
+s	\n\r\n\r\nb,\ud83d\ude00	3	1	1\u0001\n\r\n\r\nb,\ud83d\ude00
+s	aa,baa,	10	0	6\u0001\u0001\u0001,\u0001b\u0001\u0001,
+s	,,,,;,\u00e9\r\n 	7	1	1\u0001,,,,;,\u00e9\r\n 
+s	 	12	2	2\u0001 \u0001
+s	,,\u00e9a	3	2	2\u0001\u0001,\u00e9a
+s	bbb\u00e9\r\nb;	6	1	1\u0001bbb\u00e9\r\nb;
+s	,\n\u00e9;\r\r\n	1	0	2\u0001\u0001\n\u00e9;\r\r\n
+s	b;\u00e9	6	-1	1\u0001b;\u00e9
+s	 	11	2	2\u0001 \u0001
+s		14	3	1\u0001
+s	b	4	-1	1\u0001b
+s		14	2	1\u0001
+s	\u00e9\u00e9	5	0	1\u0001\u00e9\u00e9
+s		0	3	1\u0001
+s	\n,aaa\r\n\n	15	-1	9\u0001\n\u0001\u0001a\u0001a\u0001a\u0001\r\u0001\n\u0001\n\u0001
+s	\ud83d\ude00\r\n;,;\nb;	8	2	2\u0001\u0001\r\n;,;\nb;
+s	\r;b\u00e9\ud83d\ude00\r\n\r\n	0	0	1\u0001\r;b\u00e9\ud83d\ude00
+s	\u00e9\ud83d\ude00 	2	2	1\u0001\u00e9\ud83d\ude00 
+s	\r\n;;ab;a,	11	1	1\u0001\r\n;;ab;a,
+s	b;;	1	-1	1\u0001b;;
+s	\ud83d\ude00\n\ud83d\ude00\n, 	4	0	3\u0001\ud83d\ude00\u0001\ud83d\ude00\u0001,
+s	\u00e9\u00e9b\n\ra,,	5	2	2\u0001\u00e9\u00e9b\n\ra\u0001,
+s	\r\na\ud83d\ude00,,\r\n\r\n	9	2	2\u0001\r\n\u0001\ud83d\ude00,,\r\n\r\n
+s	b,,\ud83d\ude00a,,a\u00e9\n	7	0	2\u0001b,,\ud83d\ude00a,,a\u0001\n
+s	aa;	11	3	3\u0001a\u0001a\u0001;
+s	,a,\n\u00e9\ud83d\ude00b	0	1	1\u0001,a,\n\u00e9\ud83d\ude00b
+s	aa \r\nb\n	11	0	7\u0001a\u0001a\u0001 \u0001\r\u0001\n\u0001b\u0001\n
+s	; bbaa	15	2	2\u0001;\u0001 bbaa
+s	b\n\r\n,,\n\r\n	3	1	1\u0001b\n\r\n,,\n\r\n
+s	b,,\n,,\r\n\r;	8	1	1\u0001b,,\n,,\r\n\r;
+s		12	3	1\u0001
+s	\n\ud83d\ude00\r\n\r\u00e9,,;	4	1	1\u0001\n\ud83d\ude00\r\n\r\u00e9,,;
+s	\n,;,\r;\n	1	3	3\u0001\n\u0001;\u0001\r;\n
+s		4	-1	1\u0001
+s	\n	9	2	1\u0001\n
+s	\r\naaaab ,,\r\n\u00e9	13	-1	14\u0001\r\u0001\n\u0001a\u0001a\u0001a\u0001a\u0001b\u0001 \u0001\u0001\u0001\r\u0001\n\u0001\u00e9\u0001
+s	\r,\ud83d\ude00\r\n\nb,,	6	1	1\u0001\r,\ud83d\ude00\r\n\nb,,
+s	,\ud83d\ude00\r\ra	0	-1	1\u0001,\ud83d\ude00\r\ra
+s	 aa	15	-1	4\u0001 \u0001a\u0001a\u0001
+s	aa\n,	10	2	2\u0001\u0001\n,
+s		3	1	1\u0001
+s	aa,a,,,	11	1	1\u0001aa,a,,,
+s	,,\raba	3	-1	3\u0001\u0001\u0001\raba
+s	\r\n\r\u00e9\n	9	-1	1\u0001\r\n\r\u00e9\n
+s	\naa\n;\r	2	2	1\u0001\naa\n;\r
+s	\u00e9;	7	-1	2\u0001\u0001;
+s	baa	13	-1	4\u0001b\u0001a\u0001a\u0001
+s	\r\naaa	12	1	1\u0001\r\naaa
+s	,,,	11	-1	4\u0001,\u0001,\u0001,\u0001
+s	 aa \n,	11	2	2\u0001 \u0001aa \n,
+s		5	1	1\u0001
+s	\nb,,,,	6	0	1\u0001\nb
+s	b,,; \r\n;	11	1	1\u0001b,,; \r\n;
+s	\r\n,;\u00e9	4	1	1\u0001\r\n,;\u00e9
+s	\n\r\n\r\u00e9b; \r\n	0	1	1\u0001\n\r\n\r\u00e9b; \r\n
+s	a	2	0	1\u0001a
+s	\n\r\n,,\u00e9;\u00e9\n,,	14	1	1\u0001\n\r\n,,\u00e9;\u00e9\n,,
+s	,	6	1	1\u0001,
+s	,;\n	12	0	3\u0001,\u0001;\u0001\n
+s	a	4	-1	1\u0001a
+s	\u00e9\ud83d\ude00 ,,,\n;	6	3	3\u0001\u00e9\ud83d\ude00 \u0001\u0001,\n;
+s	;\r\r\n,,ab\n\u00e9	7	-1	2\u0001;\r\r\n,,ab\n\u0001
+s	 \ud83d\ude00bb;\r	2	3	1\u0001 \ud83d\ude00bb;\r
+s	aa, ;,,\u00e9	11	1	1\u0001aa, ;,,\u00e9
+s	\u00e9	12	2	2\u0001\u00e9\u0001
+s	,,\u00e9	7	0	1\u0001,,
+s	b\u00e9ab;,,aa	13	3	3\u0001b\u0001\u00e9\u0001ab;,,aa
+s	b\n,,\r\n	3	-1	3\u0001b\n\u0001\u0001\r\n
+s	\ud83d\ude00a	9	-1	2\u0001\ud83d\ude00\u0001
+s	\r\n,\u00e9ab\n	7	0	2\u0001\r\n,\u0001ab\n
+s	,;,,	7	-1	1\u0001,;,,
+s	\r\n\r, 	3	0	2\u0001\r\n\r\u0001 
+s	aa\r\na,,aa;b\u00e9	15	-1	12\u0001a\u0001a\u0001\r\u0001\n\u0001a\u0001\u0001a\u0001a\u0001;\u0001b\u0001\u00e9\u0001
+s	 ba,,,\na,,	13	0	8\u0001 \u0001b\u0001a\u0001\u0001\u0001\u0001\n\u0001a
+s	\r, 	5	1	1\u0001\r, 
+s	,,\r\n  	4	0	1\u0001,,
+s	 ;\n	13	0	3\u0001 \u0001;\u0001\n
+s	 ,,b	9	2	2\u0001 ,,\u0001
+s	a\r\nb\r\naa 	13	0	9\u0001a\u0001\r\u0001\n\u0001b\u0001\r\u0001\n\u0001a\u0001a\u0001 
+s		10	1	1\u0001
+s	a 	6	1	1\u0001a 
+s	 	13	0	1\u0001 
+s	b\r\n;	13	1	1\u0001b\r\n;
+s	\u00e9\ud83d\ude00,a,,bb	1	0	4\u0001\u00e9\ud83d\ude00\u0001a\u0001\u0001bb
+s		13	3	1\u0001
+s	\ud83d\ude00\ud83d\ude00\ud83d\ude00\u00e9ab;	6	1	1\u0001\ud83d\ude00\ud83d\ude00\ud83d\ude00\u00e9ab;
+s	 \r\nb,b\u00e9;\r\n	8	2	2\u0001 \r\nb\u0001b\u00e9;\r\n
+s	\r\nb	14	2	2\u0001\r\u0001\nb
+s	,,ba\u00e9\r\naa	10	0	7\u0001,\u0001,\u0001b\u0001\u0001\u00e9\u0001\r\u0001\n
+s	\na,\n 	1	1	1\u0001\na,\n 
+s		12	0	1\u0001
+s	,\r\n,,b	1	0	4\u0001\u0001\r\n\u0001\u0001b
+s	\r\n;\nbb;\u00e9	1	3	1\u0001\r\n;\nbb;\u00e9
+s	b\r\n	14	2	2\u0001b\u0001\r\n
+s	,,\n\ud83d\ude00,\r , 	4	2	2\u0001,,\u0001\ud83d\ude00,\r , 
+s	,,,; ;;,,\r\n	6	-1	6\u0001\u0001\u0001\u0001; ;;\u0001\u0001\r\n
+s	\n,aa,,,,b	15	-1	7\u0001\n\u0001\u0001a\u0001a\u0001\u0001b\u0001
+s	\r\nab\r\n\r\n,	7	-1	1\u0001\r\nab\r\n\r\n,
+s	\n,,\r\r\u00e9;	3	3	3\u0001\n\u0001\u0001\r\r\u00e9;
+s	\r\n,,;ba	12	-1	8\u0001\r\u0001\n\u0001,\u0001,\u0001;\u0001\u0001a\u0001
+s	\n;	9	0	1\u0001\n;
+s	a,\u00e9,,\n	11	2	2\u0001a\u0001,\u00e9,,\n
+s	a\r\n,\n	1	-1	2\u0001a\r\n\u0001\n
+s		2	2	1\u0001
+s		14	1	1\u0001
+s	 \n,,\r\n,aa,,,,	13	3	3\u0001 \u0001\n\u0001,\r\n,aa,,,,
+s	\ud83d\ude00  ,,,,a	9	0	1\u0001\ud83d\ude00  ,,,,
+s	,,b\u00e9ab\u00e9,,;	12	0	10\u0001,\u0001,\u0001\u0001\u00e9\u0001a\u0001\u0001\u00e9\u0001,\u0001,\u0001;
+s	 ;	0	0	1\u0001 ;
+s	a	6	0	1\u0001a
+s	a\n \r\nb	1	1	1\u0001a\n \r\nb
+s	a;a;a;	15	-1	7\u0001a\u0001;\u0001a\u0001;\u0001a\u0001;\u0001
+s	\u00e9	13	0	1\u0001\u00e9
+s	\r\n\u00e9 \r ;\u00e9	6	0	1\u0001\r\n\u00e9 \r ;\u00e9
+s	a\n\r\r	7	3	1\u0001a\n\r\r
+s	,,\n\r\n\r\n	4	-1	2\u0001,,\u0001
+s		13	0	1\u0001
+s	a,,\r\nb\r\n\na	4	3	3\u0001a,,\u0001b\u0001a
+s	,,\ud83d\ude00,,\u00e9,	1	-1	6\u0001\u0001\u0001\ud83d\ude00\u0001\u0001\u00e9\u0001
+s	\ud83d\ude00b,,,,	1	-1	5\u0001\ud83d\ude00b\u0001\u0001\u0001\u0001
+s	\n\r\n\ud83d\ude00\n\ud83d\ude00\n,,\r\n	0	2	2\u0001\u0001\r\n\ud83d\ude00\n\ud83d\ude00\n,,\r\n
+s	,\ud83d\ude00\r\n,,,a\u00e9	2	3	3\u0001\u0001\ud83d\ude00\r\n\u0001a\u00e9
+s	\nb\u00e9	9	1	1\u0001\nb\u00e9
+s	,,;,bb\u00e9a\n	10	3	3\u0001,\u0001,\u0001;,bb\u00e9a\n
+s	\r\n \r\n\u00e9\ud83d\ude00b\n	7	2	2\u0001\r\n \r\n\u0001\ud83d\ude00b\n
+s	,,, ,b\n;	0	1	1\u0001,,, ,b\n;
+s	 \n,b	10	1	1\u0001 \n,b
+s	,,\u00e9,,\u00e9	14	2	2\u0001,\u0001,\u00e9,,\u00e9
+s	bb,,\n,,,,,\r\n	13	0	12\u0001b\u0001b\u0001\u0001\u0001\n\u0001\u0001\u0001\u0001\u0001\u0001\r\u0001\n
+s	;,;b	13	-1	5\u0001;\u0001\u0001;\u0001b\u0001
+s	\r\n\n	5	3	1\u0001\r\n\n
+s		10	0	1\u0001
+s	 \r\nb\n;;	15	2	2\u0001 \u0001\r\nb\n;;
+s	; \u00e9\n\u00e9	15	3	3\u0001;\u0001 \u0001\u00e9\n\u00e9
+s	\ud83d\ude00;\r\n \ud83d\ude00	7	-1	1\u0001\ud83d\ude00;\r\n \ud83d\ude00
+s	\r	1	1	1\u0001\r
+s	\ud83d\ude00\u00e9,,;\ud83d\ude00\ud83d\ude00	4	2	1\u0001\ud83d\ude00\u00e9,,;\ud83d\ude00\ud83d\ude00
+s	;aa;; \n\r\n\n	10	0	9\u0001;\u0001\u0001;\u0001;\u0001 \u0001\n\u0001\r\u0001\n\u0001\n
+s		10	-1	1\u0001
+s	\r\nb,;;ba	2	-1	2\u0001\r\nb\u0001;;ba
+s	\ra\u00e9,,,b\u00e9	8	1	1\u0001\ra\u00e9,,,b\u00e9
+s		0	2	1\u0001
+s	\ud83d\ude00\ud83d\ude00 ,\ud83d\ude00\nb	0	2	2\u0001\ud83d\ude00\ud83d\ude00 ,\ud83d\ude00\u0001b
+s	\n	6	1	1\u0001\n
+s	\u00e9;\u00e9bb\u00e9	5	2	2\u0001\u00e9\u0001\u00e9bb\u00e9
+s		9	3	1\u0001
+s	 \r\n	6	-1	1\u0001 \r\n
+s		13	-1	1\u0001
+s	\r\r	8	-1	1\u0001\r\r
+s	\n\u00e9\nb	12	-1	5\u0001\n\u0001\u00e9\u0001\n\u0001\u0001
+s	,a,,\n\ud83d\ude00	1	-1	4\u0001\u0001a\u0001\u0001\n\ud83d\ude00
+s	\u00e9\r\n \u00e9\u00e9\r\n\n	11	3	3\u0001\u00e9\u0001\r\u0001\n \u00e9\u00e9\r\n\n
+s	,\n\r\n\r\n \n	11	0	8\u0001,\u0001\n\u0001\r\u0001\n\u0001\r\u0001\n\u0001 \u0001\n
+s	,,b,	11	2	2\u0001,\u0001,b,
+s		13	1	1\u0001
+s	b\nb	2	3	1\u0001b\nb
+s	\ud83d\ude00	4	1	1\u0001\ud83d\ude00
+s		10	-1	1\u0001
+s		8	2	1\u0001
+s	aa;\n	1	1	1\u0001aa;\n
+s	aa;,ba ,	0	-1	1\u0001aa;,ba ,
+s	\r\n ,, 	4	1	1\u0001\r\n ,, 
+s	 ;\r\n,	1	2	2\u0001 ;\r\n\u0001
+s	aa	9	1	1\u0001aa
+s		10	-1	1\u0001
+s	,\ud83d\ude00\n,\n,	2	2	2\u0001\u0001\ud83d\ude00\n,\n,
+s	a;\u00e9 	5	0	2\u0001a\u0001\u00e9 
+s		2	1	1\u0001
+s	;\u00e9 \u00e9\u00e9\r\n\r\na	0	2	2\u0001;\u00e9 \u00e9\u00e9\u0001\r\na
+s	;;	7	2	1\u0001;;
+s	 a,,;;\u00e9	11	3	3\u0001 \u0001a\u0001,,;;\u00e9
+s	\n\r\n,,;a	7	2	1\u0001\n\r\n,,;a
+s	aa\r\nb	13	1	1\u0001aa\r\nb
+s	a\r\n,;	11	2	2\u0001a\u0001\r\n,;
+s	\r\n;\r	9	-1	1\u0001\r\n;\r
+s	aab	14	-1	4\u0001a\u0001a\u0001b\u0001
+s	 	7	3	1\u0001 
+s	,,	10	1	1\u0001,,
+s	,,,\n	0	1	1\u0001,,,\n
+s	\n\ud83d\ude00\ud83d\ude00,;,,	4	3	2\u0001\u0001\ud83d\ude00\ud83d\ude00,;,,
+s	\ud83d\ude00;\r\n,aa, 	1	-1	3\u0001\ud83d\ude00;\r\n\u0001aa\u0001 
+s	\r\n\u00e9b,	8	2	2\u0001\r\n\u00e9b\u0001
+s	b,,aa ;	5	3	3\u0001b\u0001\u0001aa ;
+s	\r\na\ud83d\ude00a\r\u00e9	4	3	3\u0001\u0001a\ud83d\ude00a\u0001\u00e9
+s	,,aa,,aa;	10	-1	8\u0001,\u0001,\u0001\u0001,\u0001,\u0001\u0001;\u0001
+s	\r\n\u00e9;	11	1	1\u0001\r\n\u00e9;
+s	,\nb,,; 	11	-1	8\u0001,\u0001\n\u0001b\u0001,\u0001,\u0001;\u0001 \u0001
+s	b\r\n,,,,	2	3	2\u0001b\r\n\u0001
+s	a\n,\r	5	-1	2\u0001a\n\u0001\r
+s	 \u00e9 \naa;	6	3	1\u0001 \u00e9 \naa;
+s	 \r\n\r\n\nb\r\nb	12	0	9\u0001 \u0001\r\u0001\n\u0001\r\u0001\n\u0001\n\u0001\u0001\r\u0001\n
+s	,, \r\n	13	-1	7\u0001\u0001\u0001\u0001 \u0001\r\u0001\n\u0001
+s	aa,	10	1	1\u0001aa,
+s	\u00e9	8	3	1\u0001\u00e9
+s	,	2	3	2\u0001\u0001
+s	a \r\n;\r,\r 	0	3	2\u0001a \u0001;\r,\r 
+s	;;	6	3	1\u0001;;
+s		14	2	1\u0001
+s	\r	6	3	1\u0001\r
+s	\ud83d\ude00,  \ud83d\ude00\r\n\n	1	2	2\u0001\ud83d\ude00\u0001  \ud83d\ude00\r\n\n
+s	\u00e9	0	0	1\u0001\u00e9
+s	, ,,\r\n\ud83d\ude00\ud83d\ude00	9	-1	1\u0001, ,,\r\n\ud83d\ude00\ud83d\ude00
+s	\n\u00e9 \u00e9	15	-1	5\u0001\n\u0001\u00e9\u0001 \u0001\u00e9\u0001
+s		11	3	1\u0001
+s	a;, 	15	2	2\u0001a\u0001;, 
+s	\ra\r\n\n	5	0	1\u0001\ra\r\n\n
+s	,,,	4	3	1\u0001,,,
+s	\ud83d\ude00b	5	1	1\u0001\ud83d\ude00b
+s	 ,   b\r\n;	8	1	1\u0001 ,   b\r\n;
+s	 ;;\n,\u00e9\r\n	13	0	8\u0001 \u0001;\u0001;\u0001\n\u0001\u0001\u00e9\u0001\r\u0001\n
+s		3	-1	1\u0001
+s		2	0	1\u0001
+s	\n,,\u00e9\u00e9\u00e9	10	1	1\u0001\n,,\u00e9\u00e9\u00e9
+s	\r\n \r\n\u00e9,\u00e9	1	-1	2\u0001\r\n \r\n\u00e9\u0001\u00e9
+s	\ud83d\ude00a,a,,,	3	3	3\u0001\ud83d\ude00a\u0001a\u0001,,
+s	\r\n\u00e9,b\n,	7	3	2\u0001\r\n\u0001,b\n,
+s	a\r	7	0	1\u0001a\r
+s	,,\ud83d\ude00\u00e9\n;\ud83d\ude00	1	2	2\u0001\u0001,\ud83d\ude00\u00e9\n;\ud83d\ude00
+s	\n,	3	1	1\u0001\n,
+s	b\ud83d\ude00\r	2	2	1\u0001b\ud83d\ude00\r
+s	,\u00e9\r\ud83d\ude00\n,,a	9	-1	2\u0001,\u00e9\r\ud83d\ude00\n,,\u0001
+s	\ud83d\ude00	5	-1	1\u0001\ud83d\ude00
+s	\r\n\u00e9\u00e9aaa	13	-1	8\u0001\r\u0001\n\u0001\u00e9\u0001\u00e9\u0001a\u0001a\u0001a\u0001
+s	;\r\n,,;aa	10	2	2\u0001;\u0001\r\n,,;aa
+s	\r\n,,	2	0	1\u0001\r\n
+s	\r\n ,b,b\r\n	7	3	1\u0001\r\n ,b,b\r\n
+s	  ab,,	11	-1	7\u0001 \u0001 \u0001a\u0001b\u0001,\u0001,\u0001
+s	aa\r\u00e9a 	3	3	1\u0001aa\r\u00e9a 
+s	\u00e9a;  \ud83d\ude00,,	9	2	2\u0001\u00e9\u0001;  \ud83d\ude00,,
+s	a \ud83d\ude00\r\n\ud83d\ude00	2	0	1\u0001a \ud83d\ude00\r\n\ud83d\ude00
+s	\r\n\r\nb \u00e9a;	11	0	9\u0001\r\u0001\n\u0001\r\u0001\n\u0001b\u0001 \u0001\u00e9\u0001a\u0001;
+s	a	6	0	1\u0001a
+s	\r\ud83d\ude00,,\rb b\n	4	1	1\u0001\r\ud83d\ude00,,\rb b\n
+s	 \r\n\n\ud83d\ude00\r,\ud83d\ude00	9	2	1\u0001 \r\n\n\ud83d\ude00\r,\ud83d\ude00
+s	aa,\na,;,,	14	0	9\u0001a\u0001a\u0001,\u0001\n\u0001a\u0001,\u0001;\u0001,\u0001,
+s	b,\u00e9a,,,	13	0	4\u0001b\u0001\u0001\u00e9\u0001a
+s	\u00e9;	13	1	1\u0001\u00e9;
+s	\r\n\nab\n	10	2	2\u0001\r\u0001\n\nab\n
+s	\ud83d\ude00\ud83d\ude00\r	6	-1	1\u0001\ud83d\ude00\ud83d\ude00\r
+s		9	1	1\u0001
+s	ba,,\u00e9 ,,	13	0	6\u0001b\u0001a\u0001\u0001\u0001\u00e9\u0001 
+s	a\n	10	2	2\u0001\u0001\n
+s	\n\r\u00e9\ud83d\ude00\ud83d\ude00\ud83d\ude00	1	2	1\u0001\n\r\u00e9\ud83d\ude00\ud83d\ude00\ud83d\ude00
+s	\r	4	2	2\u0001\u0001
+s	\u00e9 b\r\r\r\n\u00e9 	0	3	2\u0001\u00e9 b\r\r\u0001\u00e9 
+s	\n,,\u00e9\ra	2	3	2\u0001\n\u0001\u00e9\ra
+s	b\ud83d\ude00\n,\r\n 	9	2	2\u0001\u0001\ud83d\ude00\n,\r\n 
+s	\n\n,,b\rb	2	1	1\u0001\n\n,,b\rb
+s	ab	0	3	1\u0001ab
+s	\ud83d\ude00,,\n,\r	5	-1	4\u0001\ud83d\ude00\u0001\u0001\n\u0001\r
+s	\ud83d\ude00\u00e9,,\r\r,,	0	3	1\u0001\ud83d\ude00\u00e9,,\r\r,,
+s		14	2	1\u0001
+s	\u00e9	2	1	1\u0001\u00e9
+s	, 	14	1	1\u0001, 
+s	,,\r\n\r\nb\u00e9,,	8	-1	5\u0001\u0001\u0001\r\n\r\nb\u00e9\u0001\u0001
+s	;\ud83d\ude00\u00e9ba	7	1	1\u0001;\ud83d\ude00\u00e9ba
+s	\r\n\n 	15	1	1\u0001\r\n\n 
+s	,,,a,,\n	2	2	2\u0001\u0001a,,\n
+s	 ;	6	2	1\u0001 ;
+s	,;a	15	0	4\u0001\u0001\u0001;\u0001a
+s	\u00e9 aaaba\r\n	11	3	3\u0001\u00e9\u0001 \u0001aaaba\r\n
+s	,,	15	1	1\u0001,,
+s	\r,\u00e9,;	5	2	2\u0001\r\u0001\u00e9,;
+s		5	3	1\u0001
+s	,;;,, \r\n aa	11	3	3\u0001,\u0001;\u0001;,, \r\n aa
+s	,,,;	14	1	1\u0001,,,;
+s	b;  ;,,;	10	2	2\u0001b\u0001;  ;,,;
+s	,\r\ra\r\n\u00e9	6	3	2\u0001\u0001\r\ra\r\n\u00e9
+s	,	4	2	1\u0001,
+s	 \na\r\nab	8	0	1\u0001 \na\r\nab
+s		9	0	1\u0001
+s	,,;\u00e9aa,,	1	0	3\u0001\u0001\u0001;\u00e9aa
+s	,aa\u00e9aa;aa,,	13	3	3\u0001\u0001\u0001aa\u00e9aa;aa,,
+s	 \rb	8	1	1\u0001 \rb
+s		0	1	1\u0001
+s	a	7	2	1\u0001a
+s	,a\r,,	3	-1	4\u0001\u0001a\r\u0001\u0001
+s	 \nb	13	3	3\u0001 \u0001\n\u0001b
+s	 aa  a\r\n	11	0	8\u0001 \u0001a\u0001a\u0001 \u0001 \u0001a\u0001\r\u0001\n
+s	\n\ra ,;,,	0	1	1\u0001\n\ra ,;,,
+s	aa\r\na;b,	10	0	8\u0001\u0001\u0001\r\u0001\n\u0001\u0001;\u0001b\u0001,
+s	 ,,,\u00e9	11	2	2\u0001 \u0001,,,\u00e9
+s		6	0	1\u0001
+s	\r\n	4	1	1\u0001\r\n
+s	aa,,, \u00e9a\u00e9	3	3	3\u0001aa\u0001\u0001, \u00e9a\u00e9
+s	 \r,,\n\ud83d\ude00	9	1	1\u0001 \r,,\n\ud83d\ude00
+s		7	3	1\u0001
+s	\r\n\u00e9aa;	15	1	1\u0001\r\n\u00e9aa;
+s		4	3	1\u0001
+s	 \r	1	2	1\u0001 \r
+s	\n ;	7	3	1\u0001\n ;
+s		5	-1	1\u0001
+s		4	-1	1\u0001
+s	\r\r\n,,	9	3	1\u0001\r\r\n,,
+s		3	0	1\u0001
+s	a	5	2	1\u0001a
+s	aaaa aa\n;\r\n	10	1	1\u0001aaaa aa\n;\r\n
+s	\u00e9 \r\u00e9\ud83d\ude00\n	7	3	3\u0001\u0001 \r\u0001\ud83d\ude00\n
+s	,\u00e9 \r\r	3	-1	2\u0001\u0001\u00e9 \r\r
+s	aa\naaaa,,b,	15	0	9\u0001a\u0001a\u0001\n\u0001a\u0001a\u0001a\u0001a\u0001\u0001b
+s	\ud83d\ude00; ;\n,\n	6	3	2\u0001\ud83d\ude00; ;\n\u0001\n
+s	  \u00e9;\n,,	11	1	1\u0001  \u00e9;\n,,
+s	b\r\na\n,;\ud83d\ude00	6	0	2\u0001b\r\na\n\u0001;\ud83d\ude00
+s	ab,,	10	-1	6\u0001\u0001\u0001b\u0001,\u0001,\u0001
+s	 b\nb	1	2	1\u0001 b\nb
+s		3	2	1\u0001
+s	\u00e9 b,,\u00e9b\u00e9,	13	2	2\u0001\u00e9\u0001 b,,\u00e9b\u00e9,
+s	aaa,,\r\na,b	15	2	2\u0001a\u0001aa,,\r\na,b
+s	\u00e9 b\ud83d\ude00\nba	6	1	1\u0001\u00e9 b\ud83d\ude00\nba
+s	 ,,a;	4	2	2\u0001\u0001,,a;
+s	,	12	3	2\u0001,\u0001
+s	,,\n\r\n b	9	0	1\u0001,,\n\r\n 
+s	\u00e9;	5	0	1\u0001\u00e9
+s	\n\n\r\n	3	2	1\u0001\n\n\r\n
+s	\ud83d\ude00\r \r\n,,\ud83d\ude00	4	2	2\u0001\ud83d\ude00\u0001,,\ud83d\ude00
+s	,,\r\n\n\nb;	5	2	2\u0001\u0001,\r\n\n\nb;
+s	\u00e9\n;,,\n  \n	14	0	9\u0001\u00e9\u0001\n\u0001;\u0001,\u0001,\u0001\n\u0001 \u0001 \u0001\n
+s		1	2	1\u0001
+s	,\u00e9\rbaa;	5	1	1\u0001,\u00e9\rbaa;
+s	,,,,\r\nb	9	0	1\u0001,,,,\r\n
+s		3	1	1\u0001
+s	,,	8	3	3\u0001\u0001\u0001
+s	\ud83d\ude00\ud83d\ude00,\u00e9\r a\r	4	1	1\u0001\ud83d\ude00\ud83d\ude00,\u00e9\r a\r
+s	,,,,;\ud83d\ude00	1	-1	5\u0001\u0001\u0001\u0001\u0001;\ud83d\ude00
+s		11	-1	1\u0001
+s	ab	9	3	3\u0001\u0001\u0001
+s	,,,	1	3	3\u0001\u0001\u0001,
+s	, aa\n	11	2	2\u0001,\u0001 aa\n
+s	;\r\n	14	0	3\u0001;\u0001\r\u0001\n
+s	,,	12	-1	3\u0001,\u0001,\u0001
+s	\r\n,\r\na	9	0	1\u0001\r\n,\r\n
+s		11	2	1\u0001
+s	, \r;\r\n	6	1	1\u0001, \r;\r\n
+s	bba;a\u00e9\r	3	-1	2\u0001bba\u0001a\u00e9\r
+s	\r\n	9	3	1\u0001\r\n
+s	;,,a\u00e9	11	2	2\u0001;\u0001,,a\u00e9
+s	 \nab a\n,	15	2	2\u0001 \u0001\nab a\n,
+s	,,,\u00e9\r\nb\u00e9,	1	2	2\u0001\u0001,,\u00e9\r\nb\u00e9,
+s	;aaa\u00e9	15	-1	6\u0001;\u0001a\u0001a\u0001a\u0001\u00e9\u0001
+s	;,,\naa,,\u00e9a\n	12	2	2\u0001;\u0001,,\naa,,\u00e9a\n
+s	a\r\n,,a\u00e9	8	0	3\u0001a\r\n\u0001\u0001a\u00e9
+s	\n,aa  ,,a 	12	2	2\u0001\n\u0001,aa  ,,a 
+s	;\r\na,a;	11	3	3\u0001;\u0001\r\u0001\na,a;
+s	\n \ud83d\ude00,,,\r\n	8	2	2\u0001\n \u0001,,,\r\n
+s	,,\r\n\ud83d\ude00b\u00e9\r;	5	3	3\u0001\u0001\u0001\r\n\ud83d\ude00b\u00e9\r;
+s		0	3	1\u0001
+s	,b\r\n\rab\ud83d\ude00\r\n	3	3	2\u0001\u0001b\r\n\rab\ud83d\ude00\r\n
+s	,b\n	10	2	2\u0001,\u0001b\n
+s	aa\n 	15	2	2\u0001a\u0001a\n 
+s	\r\n,	2	0	1\u0001\r\n
+s	;,,a	6	1	1\u0001;,,a
+s		15	0	1\u0001
+s	\ud83d\ude00	4	3	1\u0001\ud83d\ude00
+s	\r\n\n b,,	13	2	2\u0001\r\u0001\n\n b,,
+s	a	1	2	1\u0001a
+s	\r\n\n ,	3	1	1\u0001\r\n\n ,
+s	aab,,;  	12	1	1\u0001aab,,;  
+s	\n;a,, \r\ud83d\ude00b	2	1	1\u0001\n;a,, \r\ud83d\ude00b
+s	b	7	3	1\u0001b
+s		8	3	1\u0001
+s		2	1	1\u0001
+s	\n\u00e9  ;\u00e9\r\n\n	10	0	9\u0001\n\u0001\u00e9\u0001 \u0001 \u0001;\u0001\u00e9\u0001\r\u0001\n\u0001\n
+s	  aaaa,\u00e9\n 	14	0	10\u0001 \u0001 \u0001a\u0001a\u0001a\u0001a\u0001,\u0001\u00e9\u0001\n\u0001 
+s	;a,\r\n	8	2	2\u0001;a\u0001\r\n
+s	\r\n,	3	-1	2\u0001\r\n\u0001
+s	;\n,,b aa	10	2	2\u0001;\u0001\n,,b aa
+s	;\n;,, \u00e9\n	0	-1	3\u0001;\u0001;,, \u00e9\u0001
+s	\u00e9aa,,,	15	-1	5\u0001\u00e9\u0001a\u0001a\u0001\u0001
+s	\r\n	2	3	1\u0001\r\n
+s		3	1	1\u0001
+s	aab,\r\n,	11	0	7\u0001a\u0001a\u0001b\u0001,\u0001\r\u0001\n\u0001,
+s	 a\r\n,,;\r,b	5	3	3\u0001 a\r\n\u0001\u0001;\r,b
+s		5	0	1\u0001
+s		4	2	1\u0001
+s	\r\r\n;b\r,,\u00e9\u00e9	8	1	1\u0001\r\r\n;b\r,,\u00e9\u00e9
+s	;\u00e9\n\ud83d\ude00	3	-1	2\u0001\u0001\u00e9\n\ud83d\ude00
+s	;\u00e9ba;\r\n,	5	1	1\u0001;\u00e9ba;\r\n,
+s	bb	3	1	1\u0001bb
+s	,,\ud83d\ude00b	4	-1	1\u0001,,\ud83d\ude00b
+s	 \r\n\ud83d\ude00 ,,\n	5	1	1\u0001 \r\n\ud83d\ude00 ,,\n
+s		9	0	1\u0001
+s	b\n,,,,b,,	5	2	2\u0001b\n\u0001,,,b,,
+s	,; 	15	-1	5\u0001\u0001\u0001;\u0001 \u0001
+s	a\ud83d\ude00\r\u00e9	5	-1	1\u0001a\ud83d\ude00\r\u00e9
+s		14	3	1\u0001
+s	b\n\r\n\n;bbb	2	1	1\u0001b\n\r\n\n;bbb
+s	baa	14	-1	4\u0001b\u0001a\u0001a\u0001
+s		11	0	1\u0001
+s	\r\n,,bb\ud83d\ude00 ,,\n	5	3	3\u0001\r\n\u0001\u0001bb\ud83d\ude00 ,,\n
+s	b\u00e9aa,a	14	1	1\u0001b\u00e9aa,a
+s	,\r\ra\r\n\r	2	0	2\u0001\u0001\r\ra\r\n\r
+s		3	3	1\u0001
+s	aba\ud83d\ude00a\r	0	-1	1\u0001aba\ud83d\ude00a\r
+s	aa,,	1	2	2\u0001aa\u0001,
+s	b	15	2	2\u0001b\u0001
+s	;\r\u00e9;,	1	2	2\u0001;\r\u00e9;\u0001
+s		2	0	1\u0001
+s	;,,\ud83d\ude00 a\u00e9b	1	-1	3\u0001;\u0001\u0001\ud83d\ude00 a\u00e9b
+s	\r\n\n\r\nb\ud83d\ude00a	8	2	2\u0001\r\n\n\r\nb\u0001a
+s		8	3	1\u0001
+s	\r\n\r\n,	3	2	2\u0001\r\n\r\n\u0001
+s	\n;a	3	1	1\u0001\n;a
+s	\r\n\u00e9b \n	9	3	2\u0001\r\n\u00e9\u0001 \n
+s	\na;;;	5	3	3\u0001\na\u0001\u0001;
+s	aa\u00e9b;,,\u00e9	10	1	1\u0001aa\u00e9b;,,\u00e9
+s	;\u00e9\u00e9 ,,\ud83d\ude00\ud83d\ude00\u00e9	8	3	3\u0001;\u00e9\u00e9 \u0001\u0001\ud83d\ude00\ud83d\ude00\u00e9
+s	\r\n,	11	3	3\u0001\r\u0001\n\u0001,
+s	\rb\n	3	-1	1\u0001\rb\n
+s	a	1	2	1\u0001a
+s	b,, \n	3	-1	3\u0001b\u0001\u0001 \n
+s	, ,a	5	3	3\u0001\u0001 \u0001a
+s	;,\ud83d\ude00a\n,,,	8	2	2\u0001;\u0001\ud83d\ude00a\n,,,
+s	 ,,	5	1	1\u0001 ,,
+s	 \r\r\n\u00e9\r\n\r	0	0	3\u0001 \r\u0001\u00e9\u0001\r
+s		4	3	1\u0001
+s	\n,,;b\ud83d\ude00	1	1	1\u0001\n,,;b\ud83d\ude00
+s	,\n	15	-1	4\u0001\u0001\u0001\n\u0001
+s	,ababb	12	3	3\u0001,\u0001a\u0001abb
+s	,,,,;b\u00e9,aa 	11	-1	12\u0001,\u0001,\u0001,\u0001,\u0001;\u0001b\u0001\u00e9\u0001,\u0001a\u0001a\u0001 \u0001
+s	\ud83d\ude00	7	1	1\u0001\ud83d\ude00
+s	b\u00e9,\ud83d\ude00  a	7	-1	2\u0001b\u0001,\ud83d\ude00  a
+s	\r\n\u00e9	0	3	2\u0001\u0001\u00e9
+s	 \r\n,,ba\r\n,,	11	2	2\u0001 \u0001\r\n,,ba\r\n,,
+s		14	2	1\u0001
+s	 \r\u00e9a	2	-1	1\u0001 \r\u00e9a
+s	bb,,;aa\r\nb	12	-1	12\u0001\u0001\u0001\u0001,\u0001,\u0001;\u0001a\u0001a\u0001\r\u0001\n\u0001\u0001
+s	\r\n\u00e9\u00e9    	7	-1	3\u0001\r\n\u0001\u0001    
+s	,\r\n,,	14	0	5\u0001,\u0001\r\u0001\n\u0001,\u0001,
+s	a\u00e9\n,, 	14	1	1\u0001a\u00e9\n,, 
+s	\u00e9 	3	2	1\u0001\u00e9 
+s	\n ,,	3	1	1\u0001\n ,,
+s	\n\u00e9\u00e9aa	12	0	5\u0001\n\u0001\u00e9\u0001\u00e9\u0001a\u0001a
+s	b,, \n\u00e9	7	2	2\u0001b,, \n\u0001
+s	;\u00e9\r\n \n	12	2	2\u0001;\u0001\u00e9\r\n \n
+s	\naa\n;	11	2	2\u0001\n\u0001aa\n;
+s	\u00e9b\r	0	0	1\u0001\u00e9b\r
+s	;,,\r	7	0	1\u0001;,,\r
+s		13	-1	1\u0001
+s	,,aa\r\n	4	0	1\u0001,,aa
+s	\ud83d\ude00	6	3	1\u0001\ud83d\ude00
+s	\u00e9a,\ud83d\ude00\r\n 	7	0	2\u0001\u0001a,\ud83d\ude00\r\n 
+s	;b\n\r\n\naa	8	1	1\u0001;b\n\r\n\naa
+s	\n,;	6	3	2\u0001\n\u0001;
+s	\ud83d\ude00\u00e9	9	1	1\u0001\ud83d\ude00\u00e9
+s		0	1	1\u0001
+s	;b\u00e9\r\ud83d\ude00\r\n	0	1	1\u0001;b\u00e9\r\ud83d\ude00\r\n
+s	 ba\r\n	10	2	2\u0001 \u0001ba\r\n
+s	;a;	2	3	1\u0001;a;
+s	,b\r	0	-1	1\u0001,b\r
+s	b,,;,,	12	-1	8\u0001\u0001\u0001,\u0001,\u0001;\u0001,\u0001,\u0001
+s	;,	11	0	2\u0001;\u0001,
+s	\r\ud83d\ude00\ud83d\ude00,a\ud83d\ude00\r	4	2	2\u0001\u0001\ud83d\ude00\ud83d\ude00,a\ud83d\ude00\r
+s		3	0	1\u0001
+s	a	12	-1	2\u0001a\u0001
+s	\u00e9\r ;\u00e9 	7	1	1\u0001\u00e9\r ;\u00e9 
+s	bb;;\r\n	9	3	3\u0001\u0001\u0001;;\r\n
+s	,,,a\u00e9\r\n\r	5	0	4\u0001\u0001\u0001\u0001a\u00e9\r\n\r
+s	\r\n;a	15	1	1\u0001\r\n;a
+s	; ,,a	14	-1	6\u0001;\u0001 \u0001,\u0001,\u0001a\u0001
+s	,\r\nb\na	14	0	6\u0001,\u0001\r\u0001\n\u0001b\u0001\n\u0001a
+s	\u00e9,;b\u00e9	13	-1	6\u0001\u00e9\u0001\u0001;\u0001b\u0001\u00e9\u0001
+s	 a;\r \u00e9 \u00e9	9	2	2\u0001 \u0001;\r \u00e9 \u00e9
+s	,,a; ,	12	-1	7\u0001,\u0001,\u0001a\u0001;\u0001 \u0001,\u0001
+s	,	0	1	1\u0001,
+s	,,	12	3	3\u0001,\u0001,\u0001
+s	a ,,\r\n\u00e9	7	1	1\u0001a ,,\r\n\u00e9
+s		0	3	1\u0001
+s	\r\n\r\n\r\n	14	-1	7\u0001\r\u0001\n\u0001\r\u0001\n\u0001\r\u0001\n\u0001
+s	,\u00e9,\r\n\n aa	13	1	1\u0001,\u00e9,\r\n\n aa
+s		7	-1	1\u0001
+s	 \u00e9,,\r\n	6	2	2\u0001 \u00e9\u0001,\r\n
+s		15	1	1\u0001
+s	,\u00e9	7	-1	2\u0001,\u0001
+s	a\naa	11	0	4\u0001a\u0001\n\u0001a\u0001a
+s	a	5	1	1\u0001a
+s	\u00e9\n ,,\r\n	0	3	3\u0001\u00e9\u0001 ,,\u0001
+s	,,aa;,,	13	3	3\u0001\u0001\u0001aa;,,
+s		6	0	1\u0001
+s	 ,,\n,,aa\r\n	11	3	3\u0001 \u0001,\u0001,\n,,aa\r\n
+s	\r,,;,,  \u00e9\r\n	1	3	3\u0001\r\u0001\u0001;,,  \u00e9\r\n
+s	,,;,;a\r\n;	10	3	3\u0001,\u0001,\u0001;,;a\r\n;
+s	 a;	4	3	2\u0001\u0001a;
+s	\r\na	6	-1	1\u0001\r\na
+s	 ;,aa\n	11	0	6\u0001 \u0001;\u0001,\u0001a\u0001a\u0001\n
+s	\nb,\u00e9,,,	10	-1	8\u0001\n\u0001b\u0001,\u0001\u00e9\u0001,\u0001,\u0001,\u0001
+s	aa\r\n,,,	11	-1	8\u0001a\u0001a\u0001\r\u0001\n\u0001,\u0001,\u0001,\u0001
+s	\r,,\r\n	6	2	2\u0001\r\u0001,\r\n
+s	a	14	0	1\u0001a
+s	;,,;  	10	2	2\u0001;\u0001,,;  
+s	 \r	9	1	1\u0001 \r
+s	\n\r\n,,\r\ud83d\ude00	7	2	1\u0001\n\r\n,,\r\ud83d\ude00
+s	\r\n;\n	13	3	3\u0001\r\u0001\n\u0001;\n
+s	,,	15	-1	3\u0001\u0001\u0001
+s	;;,,\ud83d\ude00;b	2	2	2\u0001;;\u0001\ud83d\ude00;b
+s		11	1	1\u0001
+s	a\r\na\u00e9	13	3	3\u0001a\u0001\r\u0001\na\u00e9
+s	;aa,;,	10	1	1\u0001;aa,;,
+s	\r\n\r	3	3	1\u0001\r\n\r
+s		5	0	1\u0001
+s	 a;,\u00e9ba	3	1	1\u0001 a;,\u00e9ba
+s		13	2	1\u0001
+s	\ud83d\ude00ba	7	0	1\u0001\ud83d\ude00ba
+s	\ra,,a\r\n\r\na	3	0	3\u0001\ra\u0001\u0001a\r\n\r\na
+s	aa\r\n\r\n, 	14	3	3\u0001a\u0001a\u0001\r\n\r\n, 
+s	,;,a	8	3	3\u0001\u0001;\u0001a
+s	b\u00e9b,,\u00e9b\u00e9,,	4	-1	1\u0001b\u00e9b,,\u00e9b\u00e9,,
+s	\r\n	6	3	1\u0001\r\n
+s	,	3	2	2\u0001\u0001
+s	\r\n\ud83d\ude00b \r\r\n,,\n	7	0	1\u0001\r\n\ud83d\ude00b \r\r\n,,\n
+s	bb,\n	0	-1	2\u0001bb,\u0001
+s	\r,b; ;ab	1	0	2\u0001\r\u0001b; ;ab
+s		15	3	1\u0001
+s	\r\naa\r\na, aab	10	-1	11\u0001\r\u0001\n\u0001\u0001\r\u0001\n\u0001\u0001,\u0001 \u0001\u0001b\u0001
+s	,	8	2	2\u0001\u0001
+s	\r\n;,,,\u00e9,	11	0	8\u0001\r\u0001\n\u0001;\u0001,\u0001,\u0001,\u0001\u00e9\u0001,
+s	\u00e9\r\n 	11	3	3\u0001\u00e9\u0001\r\u0001\n 
+s	\naa\n\ud83d\ude00	3	1	1\u0001\naa\n\ud83d\ude00
+s	\n\r\ud83d\ude00;\r\ud83d\ude00,	0	2	2\u0001\u0001\r\ud83d\ude00;\r\ud83d\ude00,
+s	\u00e9\r\n;\r	6	1	1\u0001\u00e9\r\n;\r
+s	\na\u00e9	9	1	1\u0001\na\u00e9
+s	b\r\naa\r\n	13	3	3\u0001b\u0001\r\u0001\naa\r\n
+s	a,, ,,	0	0	1\u0001a,, ,,
+s	aa\r\nb	10	3	3\u0001\u0001\u0001\r\nb
+s	 ,,a,;\n,	11	3	3\u0001 \u0001,\u0001,a,;\n,
+s	a\r \u00e9	8	2	1\u0001a\r \u00e9
+s	\n\r\n aa\r\nb	13	1	1\u0001\n\r\n aa\r\nb
+s	,	6	3	2\u0001\u0001
+s	 ;aa \u00e9	13	1	1\u0001 ;aa \u00e9
+s	b	14	-1	2\u0001b\u0001
+s	,,,\r\n 	5	2	2\u0001\u0001,,\r\n 
+s	,\r\ud83d\ude00\r\n\r ,\r	0	2	2\u0001,\r\ud83d\ude00\u0001\r ,\r
+s	a ,,	0	1	1\u0001a ,,
+s	\u00e9 	5	2	1\u0001\u00e9 
+s	\n	10	-1	2\u0001\n\u0001
+s	\u00e9,,\ud83d\ude00\ud83d\ude00;\r\r\na	7	-1	2\u0001\u0001,,\ud83d\ude00\ud83d\ude00;\r\r\na
+s		11	0	1\u0001
+s	a\n,\r	6	1	1\u0001a\n,\r
+s	bbaa,,	15	2	2\u0001b\u0001baa,,
+s	\r\n, 	8	0	2\u0001\r\n\u0001 
+s	\n\nba;b;	15	-1	8\u0001\n\u0001\n\u0001b\u0001a\u0001;\u0001b\u0001;\u0001
+s	aab,ba	14	0	6\u0001a\u0001a\u0001b\u0001,\u0001b\u0001a
+s	a\u00e9b ;\ud83d\ude00,,	4	-1	2\u0001a\u00e9b\u0001;\ud83d\ude00,,
+s	\r\n\r\n 	1	2	1\u0001\r\n\r\n 
+s	;;\r\n\r\r\n	4	1	1\u0001;;\r\n\r\r\n
+s		8	1	1\u0001
+s	b\r\nb a,\r\naa	10	3	3\u0001b\u0001\r\u0001\nb a,\r\naa
+s	\u00e9\u00e9;\r\n	10	1	1\u0001\u00e9\u00e9;\r\n
+s	; a\r\n ,\u00e9aa	15	1	1\u0001; a\r\n ,\u00e9aa
+s		14	3	1\u0001
+s	  	9	1	1\u0001  
+s	\ud83d\ude00	4	-1	1\u0001\ud83d\ude00
+s	;\u00e9\r\n aa	2	2	1\u0001;\u00e9\r\n aa
+s	a	6	3	1\u0001a
+s	\n,,;,,,,a,	11	2	2\u0001\n\u0001,,;,,,,a,
+s	b;a	0	0	1\u0001b;a
+s	,,,\n,,aa,,,;	10	2	2\u0001,\u0001,,\n,,aa,,,;
+s	,	11	2	2\u0001,\u0001
+s	a,,\r\n,,\n 	9	0	2\u0001\u0001,,\r\n,,\n 
+s	,,,\n\r\nb\r\n\n	3	0	4\u0001\u0001\u0001\u0001\n\r\nb\r\n\n
+s	\r\nb\n\n\r\n	6	0	1\u0001\r\nb\n\n\r\n
+s	 ,,\ud83d\ude00\ud83d\ude00\n,,	9	2	1\u0001 ,,\ud83d\ude00\ud83d\ude00\n,,
+s	,	13	-1	3\u0001\u0001\u0001
+s	\n,,\u00e9;\n 	12	3	3\u0001\n\u0001,\u0001,\u00e9;\n 
+s		12	0	1\u0001
+s	,a	0	0	1\u0001,a
+s	b\r\n\n	6	1	1\u0001b\r\n\n
+s	,,aab\u00e9	14	0	6\u0001,\u0001,\u0001a\u0001a\u0001b\u0001\u00e9
+s	,\u00e9;\n,,	3	0	3\u0001\u0001\u00e9\u0001\n
+s	 aa\u00e9\n;b\r\n\n	10	-1	10\u0001 \u0001\u0001\u00e9\u0001\n\u0001;\u0001b\u0001\r\u0001\n\u0001\n\u0001
+s	,\u00e9\n,,,,	11	0	7\u0001,\u0001\u00e9\u0001\n\u0001,\u0001,\u0001,\u0001,
+s	a	9	2	2\u0001\u0001
+s	\ud83d\ude00,,bb\n	5	0	3\u0001\ud83d\ude00\u0001\u0001bb\n
+s	\n,	9	0	1\u0001\n,
+s	aa\r\nba	11	2	2\u0001a\u0001a\r\nba
+s	,\r\n\r\n\nb	4	3	2\u0001,\u0001b
+s	\n	5	0	1\u0001\n
+s	;	6	1	1\u0001;
+s	;\ud83d\ude00\ud83d\ude00	3	0	2\u0001\u0001\ud83d\ude00\ud83d\ude00
+s	,,;aa\ud83d\ude00	9	3	3\u0001,,;\u0001\u0001\ud83d\ude00
+s	,b\rb\r\n\n \n	6	3	2\u0001\u0001b\rb\r\n\n \n
+s	,,a	5	0	3\u0001\u0001\u0001a
+s	 a\u00e9, 	10	-1	6\u0001 \u0001\u0001\u00e9\u0001,\u0001 \u0001
+s	 aa	13	2	2\u0001 \u0001aa
+s	b	12	3	3\u0001\u0001\u0001
+s		1	3	1\u0001
+s	;,,\naa	13	1	1\u0001;,,\naa
+s	\ud83d\ude00;a\ud83d\ude00a,	7	0	1\u0001\ud83d\ude00;a\ud83d\ude00a,
+s	\r,,a	2	-1	2\u0001\r\u0001a
+s	a\n;	1	2	1\u0001a\n;
+s	b ,\u00e9\ud83d\ude00	0	0	1\u0001b ,\u00e9\ud83d\ude00
+s	b\r	0	1	1\u0001b\r
+s	b\n	8	0	1\u0001b\n
+s	b;b,,  ;;	3	0	4\u0001b\u0001b\u0001\u0001  
+s	\n\u00e9\u00e9\u00e9 \r\n 	10	1	1\u0001\n\u00e9\u00e9\u00e9 \r\n 
+s	,;	8	2	2\u0001\u0001;
+s	,,,a,, 	11	-1	8\u0001,\u0001,\u0001,\u0001a\u0001,\u0001,\u0001 \u0001
+s	\n,,,,\r\r\ud83d\ude00;	9	-1	1\u0001\n,,,,\r\r\ud83d\ude00;
+s	b\r\naa,	12	3	3\u0001\u0001\u0001\r\naa,
+s	\r\n\r\na\u00e9\n\r\naa	11	-1	12\u0001\r\u0001\n\u0001\r\u0001\n\u0001a\u0001\u00e9\u0001\n\u0001\r\u0001\n\u0001a\u0001a\u0001
+s	ab,, 	7	-1	1\u0001ab,, 
+s	,a	13	-1	4\u0001\u0001\u0001a\u0001
+s	;,,a \n\r\n\u00e9	12	0	9\u0001;\u0001,\u0001,\u0001a\u0001 \u0001\n\u0001\r\u0001\n\u0001\u00e9
+s	\r\ud83d\ude00a \n	1	3	1\u0001\r\ud83d\ude00a \n
+s	a	13	2	2\u0001a\u0001
+s	a	4	2	1\u0001a
+s	b \u00e9a\ud83d\ude00\ud83d\ude00	5	3	1\u0001b \u00e9a\ud83d\ude00\ud83d\ude00
+s	\ud83d\ude00\n a\ra	3	0	1\u0001\ud83d\ude00\n a\ra
+s	\u00e9\n,,	1	-1	3\u0001\u00e9\n\u0001\u0001
+s	,;aa,,a\naa,,	10	1	1\u0001,;aa,,a\naa,,
+s	,,ab; \n	3	1	1\u0001,,ab; \n
+s	a\ud83d\ude00 \n	9	0	2\u0001\u0001\ud83d\ude00 \n
+s	aa\ud83d\ude00 	5	1	1\u0001aa\ud83d\ude00 
+s	,a\rb	6	1	1\u0001,a\rb
+s	b,,,,aaaaa;\r\n	13	1	1\u0001b,,,,aaaaa;\r\n
+s	bb, ,	4	1	1\u0001bb, ,
+s	;,,,	15	3	3\u0001;\u0001\u0001
+s	a\u00e9  \u00e9	11	0	5\u0001a\u0001\u00e9\u0001 \u0001 \u0001\u00e9
+s	,,,\u00e9baa	15	0	6\u0001\u0001\u0001\u00e9\u0001b\u0001a\u0001a
+s	;a;,,,,	10	0	7\u0001;\u0001\u0001;\u0001,\u0001,\u0001,\u0001,
+s	,  \r;\ud83d\ude00\ud83d\ude00\ud83d\ude00	1	2	2\u0001\u0001  \r;\ud83d\ude00\ud83d\ude00\ud83d\ude00
+s	b\n\u00e9 aaa\ud83d\ude00	2	0	1\u0001b\n\u00e9 aaa\ud83d\ude00
+s	 ,;	11	-1	4\u0001 \u0001,\u0001;\u0001
+s	;\n\rba	4	0	2\u0001;\u0001ba
+s	\r\n \r\na	1	1	1\u0001\r\n \r\na
+s	\ud83d\ude00bb	6	-1	1\u0001\ud83d\ude00bb
+s		9	1	1\u0001
+s	\ud83d\ude00,	9	3	1\u0001\ud83d\ude00,
+s	\u00e9b\n	13	2	2\u0001\u00e9\u0001b\n
+s		0	3	1\u0001
+s		4	3	1\u0001
+s	 \r\n	12	-1	4\u0001 \u0001\r\u0001\n\u0001
+s	b,;\r\n	12	2	2\u0001\u0001,;\r\n
+s	\u00e9,,	15	-1	3\u0001\u00e9\u0001\u0001
+s	,;	7	1	1\u0001,;
+s	 \u00e9,,	8	3	3\u0001 \u00e9\u0001\u0001
+s	a\n\u00e9\r\n,,,aa\r\n	15	-1	11\u0001a\u0001\n\u0001\u00e9\u0001\r\u0001\n\u0001\u0001a\u0001a\u0001\r\u0001\n\u0001
+s	\r\n\u00e9b\r\n	5	0	1\u0001\r\n\u00e9b\r\n
+s	\n	10	2	2\u0001\n\u0001
+s	 \u00e9\ud83d\ude00\r,,\r	5	2	2\u0001 \u00e9\ud83d\ude00\r\u0001,\r
+s	a,,	2	0	1\u0001a
+s	\n	3	0	1\u0001\n
+s		12	3	1\u0001
+s	a\u00e9	11	-1	3\u0001a\u0001\u00e9\u0001
+s	\ud83d\ude00	1	3	1\u0001\ud83d\ude00
+s	 b;\u00e9a\u00e9aa	14	-1	9\u0001 \u0001b\u0001;\u0001\u00e9\u0001a\u0001\u00e9\u0001a\u0001a\u0001
+s	ba\r,,	7	2	1\u0001ba\r,,
+s	,a;;\u00e9\r\ud83d\ude00\ud83d\ude00	7	1	1\u0001,a;;\u00e9\r\ud83d\ude00\ud83d\ude00
+s	a\n,	4	2	2\u0001a\u0001,
+s	b b\n	5	3	1\u0001b b\n
+s	a\n\n	5	2	1\u0001a\n\n
+s	a	11	0	1\u0001a
+s	;	2	2	1\u0001;
+s	\ud83d\ude00,,\ud83d\ude00\r\r\n\n;	4	0	2\u0001\ud83d\ude00,,\ud83d\ude00\u0001;
+s	aa;\u00e9 \u00e9aa	12	3	3\u0001a\u0001a\u0001;\u00e9 \u00e9aa
+s	 ,,,b	15	-1	4\u0001 \u0001\u0001b\u0001
+s	\na,,	10	0	4\u0001\n\u0001\u0001,\u0001,
+s	\ud83d\ude00\u00e9	9	1	1\u0001\ud83d\ude00\u00e9
+s	,,;\r\n	0	3	2\u0001,,;\u0001
+s	\n\r\n\u00e9\u00e9a	11	2	2\u0001\n\u0001\r\n\u00e9\u00e9a
+s	\ud83d\ude00\u00e9;\u00e9	5	3	2\u0001\ud83d\ude00\u00e9\u0001\u00e9
+s	\r\u00e9\u00e9,,b;\u00e9	4	3	2\u0001\u0001\u00e9\u00e9,,b;\u00e9
+s	; \r\n 	6	3	1\u0001; \r\n 
+s		9	-1	1\u0001
+s	\u00e9\u00e9;\r\n a\u00e9,,	10	3	3\u0001\u00e9\u0001\u00e9\u0001;\r\n a\u00e9,,
+s	 \n,,\u00e9\u00e9	10	0	6\u0001 \u0001\n\u0001,\u0001,\u0001\u00e9\u0001\u00e9
+s		12	-1	1\u0001
+s	\n,, \r\r\n\ud83d\ude00\r\n	9	3	1\u0001\n,, \r\r\n\ud83d\ude00\r\n
+s	,\r\n\r,\u00e9	7	0	1\u0001,\r\n\r,
+s	\u00e9a;aaa \r\n	14	-1	10\u0001\u00e9\u0001a\u0001;\u0001a\u0001a\u0001a\u0001 \u0001\r\u0001\n\u0001
+s		0	2	1\u0001
+s	\r\nbb\r\n\ud83d\ude00\u00e9	0	2	2\u0001\u0001bb\r\n\ud83d\ude00\u00e9
+s	\r	2	0	1\u0001\r
+s	\r\n	9	3	1\u0001\r\n
+s		11	0	1\u0001
+s	\r\rb	4	-1	2\u0001\u0001b
+s	\r\n \u00e9\u00e9 ,,,	3	1	1\u0001\r\n \u00e9\u00e9 ,,,
+s	b\n\r\n	11	3	3\u0001b\u0001\n\u0001\r\n
+s	 	9	3	1\u0001 
+s	\r\nba	7	3	1\u0001\r\nba
+s	\ud83d\ude00	1	2	1\u0001\ud83d\ude00
+s	,aa\na	15	3	3\u0001\u0001\u0001aa\na
+s	,,,\n;	6	3	3\u0001\u0001\u0001,\n;
+s	\n,,,,\r\n;	12	2	2\u0001\n\u0001,,,,\r\n;
+s	ab,;a	13	2	2\u0001a\u0001b,;a
+s	;\r\n\u00e9;\n;aa\n	11	3	3\u0001;\u0001\r\u0001\n\u00e9;\n;aa\n
+s	bb	13	0	2\u0001b\u0001b
+s	,, \u00e9;\n	13	1	1\u0001,, \u00e9;\n
+s	;  \r	3	0	2\u0001\u0001  \r
+s	\rba\rb\ud83d\ude00,,	7	-1	1\u0001\rba\rb\ud83d\ude00,,
+s	a,,	5	1	1\u0001a,,
+s	aa	11	0	2\u0001a\u0001a
+s	a;	9	3	2\u0001\u0001;
+s	 ;	13	2	2\u0001 \u0001;
+s		1	0	1\u0001
+s	  \u00e9\n,,b,,	12	1	1\u0001  \u00e9\n,,b,,
+s	b\n;	13	2	2\u0001b\u0001\n;
+s	 	9	3	1\u0001 
+s	\r\n,,,	15	-1	4\u0001\r\u0001\n\u0001\u0001
+s	\r\nb	7	3	1\u0001\r\nb
+s	,,\u00e9;;aaaaaa	11	1	1\u0001,,\u00e9;;aaaaaa
+s	a\n\u00e9b\ud83d\ude00\ud83d\ude00\u00e9,	9	2	2\u0001\u0001\n\u00e9b\ud83d\ude00\ud83d\ude00\u00e9,
+s		8	2	1\u0001
+s	\n\u00e9b\r \rb	1	0	1\u0001\n\u00e9b\r \rb
+s	a;,,,	14	0	5\u0001a\u0001;\u0001,\u0001,\u0001,
+s	,,\r\n;aab,, 	12	1	1\u0001,,\r\n;aab,, 
+s	  ,,\r\n;;	5	0	3\u0001  \u0001\u0001\r\n
+s	\r\n\u00e9\u00e9\u00e9;\u00e9	12	2	2\u0001\r\u0001\n\u00e9\u00e9\u00e9;\u00e9
+s	;a\n\r\n\u00e9;b	14	2	2\u0001;\u0001a\n\r\n\u00e9;b
+s	\r\n,,b,a;,	6	1	1\u0001\r\n,,b,a;,
+s	 ;\r,,	5	3	3\u0001 \u0001\r\u0001,
+s	ab\naab\r	6	3	1\u0001ab\naab\r
+s	,\ud83d\ude00\rb ,	5	1	1\u0001,\ud83d\ude00\rb ,
+s		12	2	1\u0001
+s	a\u00e9\r\nb\r\n\r	1	1	1\u0001a\u00e9\r\nb\r\n\r
+s	\r\na	6	2	1\u0001\r\na
+s	\u00e9\r\n	4	3	2\u0001\u00e9\u0001
+s	\u00e9\n\n;aa	13	-1	7\u0001\u00e9\u0001\n\u0001\n\u0001;\u0001a\u0001a\u0001
+s	,,,,,; \n;,	13	3	3\u0001\u0001\u0001,,,; \n;,
+s	\u00e9,,,	1	0	1\u0001\u00e9
+s	\u00e9	9	0	1\u0001\u00e9
+s	,\r;\r\n\nb,	1	0	2\u0001\u0001\r;\r\n\nb
+s	a,,aaa  	11	1	1\u0001a,,aaa  
+s	\nb	8	1	1\u0001\nb
+s	 ;\n\r\n\nb\u00e9	12	-1	9\u0001 \u0001;\u0001\n\u0001\r\u0001\n\u0001\n\u0001\u0001\u00e9\u0001
+s	aaaa a,ba	10	3	3\u0001\u0001\u0001 a,ba
+s	\n	7	2	1\u0001\n
+s	 bbb	7	-1	1\u0001 bbb
+s	,,b\r\n\r\n\r	2	0	2\u0001\u0001b\r\n\r\n\r
+s	\ud83d\ude00;	0	0	1\u0001\ud83d\ude00;
+s	\u00e9;b ;b,	9	3	3\u0001\u00e9;\u0001 ;\u0001,
+s		3	2	1\u0001
+s		13	3	1\u0001
+s	;\ud83d\ude00	7	3	1\u0001;\ud83d\ude00
+s	a\r\r,\n\u00e9	9	2	2\u0001\u0001\r\r,\n\u00e9
+s	;aaaa	11	3	3\u0001;\u0001a\u0001aaa
+s	b,,	1	-1	3\u0001b\u0001\u0001
+s	,;	10	2	2\u0001,\u0001;
+s	\r,,a\r	3	3	3\u0001\r\u0001\u0001a\r
+s	,\u00e9,,,;\n\n	15	0	7\u0001\u0001\u0001\u00e9\u0001\u0001;\u0001\n\u0001\n
+s	;b,,\n\u00e9	15	0	5\u0001;\u0001b\u0001\u0001\n\u0001\u00e9
+s	b;aa ,\n;a	13	0	9\u0001b\u0001;\u0001a\u0001a\u0001 \u0001\u0001\n\u0001;\u0001a
+s	\r\n\nb;\n	1	2	1\u0001\r\n\nb;\n
+s	,\ra\r; \ud83d\ude00,	6	-1	3\u0001\u0001\ra\r; \ud83d\ude00\u0001
+s		3	2	1\u0001
+s	, 	11	-1	3\u0001,\u0001 \u0001
+s	,,	14	1	1\u0001,,
+s	b\r\n\u00e9a\u00e9	12	0	7\u0001\u0001\u0001\r\u0001\n\u0001\u00e9\u0001a\u0001\u00e9
+s	 \n	6	3	1\u0001 \n
+s	\r\n\r\n,,	0	3	3\u0001\u0001\u0001,,
+s	;a,,baa\r\n	11	-1	10\u0001;\u0001a\u0001,\u0001,\u0001b\u0001a\u0001a\u0001\r\u0001\n\u0001
+s	b\r\n	10	0	3\u0001b\u0001\r\u0001\n
+s	ab	9	2	2\u0001\u0001b
+s	\u00e9	7	-1	2\u0001\u0001
+s	a\rb	8	0	1\u0001a\rb
+s	, ,,\ud83d\ude00a\r\r\n	7	1	1\u0001, ,,\ud83d\ude00a\r\r\n
+s	,,,b,a\u00e9;\u00e9	12	0	9\u0001,\u0001,\u0001,\u0001\u0001,\u0001a\u0001\u00e9\u0001;\u0001\u00e9
+s	\r\n\n	6	2	1\u0001\r\n\n
+s	,;;aa,, 	12	3	3\u0001,\u0001;\u0001;aa,, 
+s	,b,	1	0	2\u0001\u0001b
+s	b,,\n\ud83d\ude00	3	-1	3\u0001b\u0001\u0001\n\ud83d\ude00
+s	\r\n\r\n\ud83d\ude00\n	8	2	2\u0001\r\n\r\n\u0001\n
+s	,\r\n,,,,	11	3	3\u0001,\u0001\r\u0001\n,,,,
+s	,, \ra\ud83d\ude00\n\u00e9	6	3	3\u0001\u0001\u0001 \ra\ud83d\ude00\n\u00e9
+s	\n\u00e9 ,, \u00e9\n;	6	3	3\u0001\n\u00e9 \u0001\u0001 \u00e9\n;
+s	 \u00e9\u00e9,\u00e9b\na	7	-1	4\u0001 \u0001\u0001,\u0001b\na
+s	a\r\n	13	3	3\u0001a\u0001\r\u0001\n
+s	b	11	1	1\u0001b
+s	 \r,, 	4	1	1\u0001 \r,, 
+s	\r\r\n;	6	3	1\u0001\r\r\n;
+s	\ra\r\n	4	1	1\u0001\ra\r\n
+s	;\u00e9 ,b\r	1	2	2\u0001;\u00e9 \u0001b\r
+s	\ud83d\ude00,	2	1	1\u0001\ud83d\ude00,
+s	\r\n\u00e9b\r	4	3	3\u0001\u0001\u00e9b\u0001
+s	bbaaaaa\n;,	10	0	6\u0001b\u0001b\u0001\u0001\n\u0001;\u0001,
+s	\n\n	12	0	2\u0001\n\u0001\n
+s		10	0	1\u0001
+s		8	2	1\u0001
+s	\n\r \r\n\n\r	3	3	1\u0001\n\r \r\n\n\r
+s	\u00e9\u00e9aa,,	14	3	3\u0001\u00e9\u0001\u00e9\u0001aa,,
+s	;\r\n	13	1	1\u0001;\r\n
+s	a,\rb\u00e9a\r\n\ud83d\ude00	1	0	2\u0001a\u0001\rb\u00e9a\r\n\ud83d\ude00
+s	,,, a\u00e9\n ,	5	1	1\u0001,,, a\u00e9\n ,
+s	  \r\n\n\ud83d\ude00,;\n	8	2	2\u0001  \r\n\n\u0001,;\n
+s	a;\n	2	1	1\u0001a;\n
+s	\r\n	14	1	1\u0001\r\n
+s	\u00e9\na\ud83d\ude00\r\n	7	3	2\u0001\u0001\na\ud83d\ude00\r\n
+s	\ud83d\ude00\r\u00e9 b,,	1	-1	3\u0001\ud83d\ude00\r\u00e9 b\u0001\u0001
+s	\u00e9,\n\u00e9\ud83d\ude00\u00e9b,	8	0	3\u0001\u00e9\u0001\n\u00e9\u0001\u00e9b
+s	a\u00e9\ud83d\ude00\u00e9 b	3	1	1\u0001a\u00e9\ud83d\ude00\u00e9 b
+s	a	5	0	1\u0001a
+s	baa\u00e9\n\r\n\r\n\n	10	1	1\u0001baa\u00e9\n\r\n\r\n\n
+s	;	0	0	1\u0001;
+s	,,,,	5	0	0
+s	;,\u00e9\r\n\r\n\ud83d\ude00\r\n	9	3	1\u0001;,\u00e9\r\n\r\n\ud83d\ude00\r\n
+s	\n\ra	4	-1	2\u0001\u0001a
+s	b\ud83d\ude00;\r\n ;ba	5	0	3\u0001b\ud83d\ude00\u0001\r\n \u0001ba
+s	a	7	3	1\u0001a
+s	;\r\n\r\n\u00e9b\u00e9\n\r\n	11	0	11\u0001;\u0001\r\u0001\n\u0001\r\u0001\n\u0001\u00e9\u0001b\u0001\u00e9\u0001\n\u0001\r\u0001\n
+s	\r\na\n	1	0	1\u0001\r\na\n
+s	a; \ud83d\ude00\ud83d\ude00\r 	0	3	1\u0001a; \ud83d\ude00\ud83d\ude00\r 
+s	\r\n\na;,,\r\n\n	4	3	3\u0001\u0001a;,,\u0001
+s	\r,\r,\r\n\u00e9	2	0	3\u0001\r\u0001\r\u0001\r\n\u00e9
+s	\n,,,,a	8	-1	5\u0001\n\u0001\u0001\u0001\u0001a
+s	,,b ,\u00e9	10	2	2\u0001,\u0001,b ,\u00e9
+s	,,\r\nb\naa\r\n;,	13	1	1\u0001,,\r\nb\naa\r\n;,
+s	\u00e9;\ud83d\ude00\r\n ;\n\n	9	-1	1\u0001\u00e9;\ud83d\ude00\r\n ;\n\n
+s	b\n\u00e9	8	0	1\u0001b\n\u00e9
+s		12	-1	1\u0001
+s	a\u00e9 \u00e9,aa	14	3	3\u0001a\u0001\u00e9\u0001 \u00e9,aa
+s	\r\naa,b \n,,	12	2	2\u0001\r\u0001\naa,b \n,,
+s	aab; ,, a	10	-1	10\u0001\u0001\u0001b\u0001;\u0001 \u0001,\u0001,\u0001 \u0001\u0001
+s	\u00e9,,a,,a	10	0	6\u0001\u00e9\u0001,\u0001,\u0001\u0001,\u0001,
+s	\r\nab 	14	2	2\u0001\r\u0001\nab 
+s	\r\n aab,aaab	12	3	3\u0001\r\u0001\n\u0001 aab,aaab
+s	aa;aaaa	14	2	2\u0001a\u0001a;aaaa
+s		11	1	1\u0001
+s	a\r\n	4	1	1\u0001a\r\n
+s	 \n;,;\u00e9,\r\n	11	1	1\u0001 \n;,;\u00e9,\r\n
+s	\r\n\ud83d\ude00b	1	0	1\u0001\r\n\ud83d\ude00b
+s	\n,,,,,\naa	12	3	3\u0001\n\u0001,\u0001,,,,\naa
+s	,\r\n,,;,,aa;;	14	3	3\u0001,\u0001\r\u0001\n,,;,,aa;;
+s		12	3	1\u0001
+s	\r\ud83d\ude00,, b\u00e9	3	3	3\u0001\r\ud83d\ude00\u0001\u0001 b\u00e9
+s	 	1	3	1\u0001 
+s	 	3	2	1\u0001 
+s	;\u00e9b\nb\r\n\r,	3	0	2\u0001\u0001\u00e9b\nb\r\n\r
+s	\n\ud83d\ude00\u00e9\u00e9\u00e9\ud83d\ude00	1	-1	1\u0001\n\ud83d\ude00\u00e9\u00e9\u00e9\ud83d\ude00
+s	\n\n,,a\r\n\r\n\r	9	0	2\u0001\n\n,,\u0001\r\n\r\n\r
+s	,,,,	12	-1	5\u0001,\u0001,\u0001,\u0001,\u0001
+s		3	-1	1\u0001
+s	,\ra	8	-1	2\u0001\u0001\ra
+s	aaa;	12	2	2\u0001a\u0001aa;
+s	\ud83d\ude00,,;\r\n	3	2	2\u0001\ud83d\ude00\u0001,;\r\n
+s	\rb\ud83d\ude00\r 	2	-1	1\u0001\rb\ud83d\ude00\r 
+s	\ud83d\ude00\r	9	0	1\u0001\ud83d\ude00\r
+s	b	15	2	2\u0001b\u0001
+s	\r\n	6	2	1\u0001\r\n
+s	\n\u00e9  	9	-1	1\u0001\n\u00e9  
+s	\r\n\r\n,\n	14	3	3\u0001\r\u0001\n\u0001\r\n,\n
+s	\r,\n\r\r\n	2	3	2\u0001\r\u0001\n\r\r\n
+s	,,;	14	-1	4\u0001,\u0001,\u0001;\u0001
+s	 ;;\r\na	14	2	2\u0001 \u0001;;\r\na
+s	\r\n\n,\r\n	11	1	1\u0001\r\n\n,\r\n
+s		8	2	1\u0001
+s	 ;	0	0	1\u0001 ;
+s	,;	1	0	2\u0001\u0001;
+s		7	-1	1\u0001
+s	a	1	-1	1\u0001a
+s	aa	2	3	1\u0001aa
+s	,,\u00e9b	14	0	4\u0001,\u0001,\u0001\u00e9\u0001b
+s		15	2	1\u0001
+s	 \r\n\r\na b	14	3	3\u0001 \u0001\r\u0001\n\r\na b
+s		9	2	1\u0001
+s	,\n	1	-1	2\u0001\u0001\n
+s	\ud83d\ude00b\n\r	4	3	2\u0001\ud83d\ude00b\u0001
+s		5	3	1\u0001
+s	\n\ud83d\ude00\r,,\n	9	0	1\u0001\n\ud83d\ude00\r,,\n
+s	 b,, 	15	-1	5\u0001 \u0001b\u0001\u0001 \u0001
+s	\r	4	2	2\u0001\u0001
+s	\n	13	1	1\u0001\n
+s	\rb\r,,,, ;\ud83d\ude00	5	1	1\u0001\rb\r,,,, ;\ud83d\ude00
+s	\u00e9,\r\n\ud83d\ude00	1	2	2\u0001\u00e9\u0001\r\n\ud83d\ude00
+s	\r ;a\r\n	8	1	1\u0001\r ;a\r\n
+s	;,,b;\r\r\n\ud83d\ude00,,	7	-1	1\u0001;,,b;\r\r\n\ud83d\ude00,,
+s	,\rb\u00e9\r,,\u00e9	7	3	3\u0001,\rb\u0001\r,,\u0001
+s	a; 	10	2	2\u0001\u0001; 
+s	,,;;\raa\n	6	1	1\u0001,,;;\raa\n
+s	\r\u00e9\u00e9 ;	0	0	1\u0001\r\u00e9\u00e9 ;
+s	 \r\n ,\n,b\ud83d\ude00	6	1	1\u0001 \r\n ,\n,b\ud83d\ude00
+s	b,,;a\n,	14	-1	8\u0001b\u0001,\u0001,\u0001;\u0001a\u0001\n\u0001,\u0001
+s	\n\ud83d\ude00\ud83d\ude00a	2	-1	1\u0001\n\ud83d\ude00\ud83d\ude00a
+s	aa\u00e9aa\u00e9\r\n	10	1	1\u0001aa\u00e9aa\u00e9\r\n
+s	b\r;\ud83d\ude00,\u00e9	7	1	1\u0001b\r;\ud83d\ude00,\u00e9
+s	\ud83d\ude00,b	0	0	1\u0001\ud83d\ude00,b
+s	,,,,\ud83d\ude00,,,	2	3	3\u0001\u0001\ud83d\ude00\u0001
+s	a,,b\ud83d\ude00;	7	3	1\u0001a,,b\ud83d\ude00;
+s	\r\ud83d\ude00\ud83d\ude00aaa\r\n	9	2	2\u0001\r\ud83d\ude00\ud83d\ude00\u0001aa\r\n
+s		10	1	1\u0001
+s	 ;\u00e9	9	0	1\u0001 ;\u00e9
+s	\ud83d\ude00	3	0	1\u0001\ud83d\ude00
+s	\n	6	-1	1\u0001\n
+s	,,\r\n,,,\ud83d\ude00\n 	5	1	1\u0001,,\r\n,,,\ud83d\ude00\n 
+s	,;	4	0	1\u0001,;
+s	aa; aa	14	2	2\u0001a\u0001a; aa
+s	\r,,\ud83d\ude00\r,,b b	0	3	1\u0001\r,,\ud83d\ude00\r,,b b
+s	\nb,	8	0	1\u0001\nb
+s	,,,,\n\u00e9 a	2	2	2\u0001\u0001\n\u00e9 a
+s	aa\n ,aa\r\n	12	-1	10\u0001a\u0001a\u0001\n\u0001 \u0001,\u0001a\u0001a\u0001\r\u0001\n\u0001
+s	\n,,\n	12	0	4\u0001\n\u0001,\u0001,\u0001\n
+s	\r\n\n\n;\r\n	7	2	1\u0001\r\n\n\n;\r\n
+s	a\r	5	2	1\u0001a\r
+s		5	2	1\u0001
+s	\u00e9	13	0	1\u0001\u00e9
+s	;	11	2	2\u0001;\u0001
+s	,,b ,,	6	3	3\u0001\u0001\u0001b ,,
+s	;aa; \r\n,; 	14	1	1\u0001;aa; \r\n,; 
+s	 ;\r\n\r\n\n\r\n	15	2	2\u0001 \u0001;\r\n\r\n\n\r\n
+s	\ud83d\ude00b \u00e9 ,,	9	1	1\u0001\ud83d\ude00b \u00e9 ,,
+s	bb\r\n\na\n\r\n 	13	1	1\u0001bb\r\n\na\n\r\n 
+s	aaaa	12	1	1\u0001aaaa
+s	;\r\n ,;	9	-1	1\u0001;\r\n ,;
+s	\ud83d\ude00\ud83d\ude00 	4	2	2\u0001\ud83d\ude00\ud83d\ude00\u0001
+s	\r\n,\n\u00e9\r\n,	7	0	2\u0001\r\n,\n\u0001\r\n,
+s	\r\n,,\u00e9\r \u00e9\u00e9	3	1	1\u0001\r\n,,\u00e9\r \u00e9\u00e9
+s	 \u00e9	9	2	1\u0001 \u00e9
+s	\u00e9 	9	-1	1\u0001\u00e9 
+s	 ;,,b a,b	11	0	9\u0001 \u0001;\u0001,\u0001,\u0001b\u0001 \u0001a\u0001,\u0001b
+s	\ud83d\ude00,,	5	3	3\u0001\ud83d\ude00\u0001\u0001
+s	\r\n,, ,,\r\n,	14	1	1\u0001\r\n,, ,,\r\n,
+s	,,aa ,,a\r\n	13	1	1\u0001,,aa ,,a\r\n
+s	\u00e9\r 	2	3	1\u0001\u00e9\r 
+s	,aaaa,,  aa	15	0	11\u0001\u0001\u0001a\u0001a\u0001a\u0001a\u0001\u0001 \u0001 \u0001a\u0001a
+s	\n,b;;;	5	1	1\u0001\n,b;;;
+s	,,\u00e9\u00e9\u00e9\n\u00e9,,	3	-1	5\u0001\u0001\u0001\u00e9\u00e9\u00e9\n\u00e9\u0001\u0001
+s	\u00e9	13	-1	2\u0001\u00e9\u0001
+s		6	1	1\u0001
+s		2	0	1\u0001
+s	aaaaaa a,,;	10	-1	8\u0001\u0001\u0001 \u0001\u0001,\u0001,\u0001;\u0001
+s	,,	15	1	1\u0001,,
+s	,\na 	6	2	2\u0001\u0001\na 
+s	,,,\n;;,\n	15	0	7\u0001\u0001\u0001\n\u0001;\u0001;\u0001\u0001\n
+s	\n;\r\r\ud83d\ude00a,,\n	8	0	4\u0001\n;\r\r\u0001a\u0001\u0001\n
+s	b\n\ud83d\ude00,,\n\r\n\u00e9,	0	3	3\u0001b\u0001\ud83d\ude00,,\u0001\r\n\u00e9,
+s	,,\n,,\r\n\u00e9,	7	0	2\u0001,,\n,,\r\n\u0001,
+s	baaa\r\n	15	-1	7\u0001b\u0001a\u0001a\u0001a\u0001\r\u0001\n\u0001
+s	,,,,\u00e9,\ud83d\ude00	9	-1	1\u0001,,,,\u00e9,\ud83d\ude00
+s	\n\r\n,\u00e9	1	3	2\u0001\n\r\n\u0001\u00e9
+s	\u00e9\u00e9,,,,; b	9	-1	2\u0001\u00e9\u00e9,,,,; \u0001
+s	,ab	6	-1	2\u0001\u0001ab
+s	,;\r\n	11	0	4\u0001,\u0001;\u0001\r\u0001\n
+s	b\naa\ud83d\ude00	0	1	1\u0001b\naa\ud83d\ude00
+s	a,b; \n\r	2	0	2\u0001a\u0001b; \n\r
+s	\r\n	8	1	1\u0001\r\n
+s	\n	7	0	1\u0001\n
+s	a ;\r\n\u00e9;aa	5	2	2\u0001a \u0001\r\n\u00e9;aa
+s	 a	12	0	2\u0001 \u0001a
+s	a;	10	1	1\u0001a;
+s	\u00e9\n;\n 	0	0	3\u0001\u00e9\u0001;\u0001 
+s	\r\n	7	2	1\u0001\r\n
+s	\u00e9\ud83d\ude00b\u00e9a\r \u00e9	2	1	1\u0001\u00e9\ud83d\ude00b\u00e9a\r \u00e9
+s	\ud83d\ude00,,b\r	9	2	2\u0001\ud83d\ude00,,\u0001\r
+s	;,,\r\n\r\n\n	15	0	7\u0001;\u0001\u0001\r\u0001\n\u0001\r\u0001\n\u0001\n
+s	\n	15	-1	2\u0001\n\u0001
+s		1	3	1\u0001
+s	\ud83d\ude00\nb,, 	0	1	1\u0001\ud83d\ude00\nb,, 
+s		14	3	1\u0001
+s	\n\ud83d\ude00\r ,	9	0	1\u0001\n\ud83d\ude00\r ,
+s		1	2	1\u0001
+s	a\u00e9\r	3	2	1\u0001a\u00e9\r
+s	\r\n \u00e9 ab	0	1	1\u0001\r\n \u00e9 ab
+s	\r\n,	7	0	1\u0001\r\n,
+s	;a,,b	5	2	2\u0001\u0001a,,b
+s	\n\u00e9aba,a;	0	-1	2\u0001\u0001\u00e9aba,a;
+s	\r\n b\n\u00e9aa,\n	15	-1	11\u0001\r\u0001\n\u0001 \u0001b\u0001\n\u0001\u00e9\u0001a\u0001a\u0001\u0001\n\u0001
+s	;,,\n	12	2	2\u0001;\u0001,,\n
+s	;b\n,;\r\nb	13	1	1\u0001;b\n,;\r\nb
+s	;\n\u00e9\u00e9\u00e9a\u00e9\r	1	2	1\u0001;\n\u00e9\u00e9\u00e9a\u00e9\r
+s	a	10	2	2\u0001\u0001
+s		5	-1	1\u0001
+s	b;\u00e9\u00e9	9	2	2\u0001\u0001;\u00e9\u00e9
+s	\n\u00e9	1	0	1\u0001\n\u00e9
+s	;	7	-1	1\u0001;
+s	;\r\n\r\n,,\r\n	15	0	8\u0001;\u0001\r\u0001\n\u0001\r\u0001\n\u0001\u0001\r\u0001\n
+s	;;;;\n,,b	9	-1	2\u0001;;;;\n,,\u0001
+s	\u00e9\ud83d\ude00	5	0	1\u0001\u00e9\ud83d\ude00
+s	\r\r\r\r;,\ud83d\ude00	3	0	3\u0001\r\r\r\r\u0001\u0001\ud83d\ude00
+s	 ,,b	14	1	1\u0001 ,,b
+s	;\n\r\nb	1	0	1\u0001;\n\r\nb
+s	aaa\u00e9;	13	-1	6\u0001a\u0001a\u0001a\u0001\u00e9\u0001;\u0001
+s	,\r\n,,,,aa\n,,	13	2	2\u0001\u0001\r\n,,,,aa\n,,
+s	 b\r\n,,,	15	0	4\u0001 \u0001b\u0001\r\u0001\n
+s		10	1	1\u0001
+s	\r\na	5	0	1\u0001\r\na
+s	\u00e9\r;\u00e9\r	1	0	1\u0001\u00e9\r;\u00e9\r
+s	\ud83d\ude00\u00e9,,,;\r;	7	1	1\u0001\ud83d\ude00\u00e9,,,;\r;
+s		14	1	1\u0001
+s	b a\u00e9,,	8	-1	3\u0001b a\u00e9\u0001\u0001
+s	aa,;	14	2	2\u0001a\u0001a,;
+s	b\u00e9\u00e9;\u00e9\r\n,, 	13	2	2\u0001b\u0001\u00e9\u00e9;\u00e9\r\n,, 
+s	\naa;,, a	12	0	8\u0001\n\u0001a\u0001a\u0001;\u0001,\u0001,\u0001 \u0001a
+s	\u00e9\r\n,	1	-1	2\u0001\u00e9\r\n\u0001
+s	a,,\u00e9\r	7	3	2\u0001a,,\u0001\r
+s	 	13	-1	2\u0001 \u0001
+s	 \ud83d\ude00;	7	1	1\u0001 \ud83d\ude00;
+s		3	0	1\u0001
+s	b\n 	7	2	1\u0001b\n 
+s	,a\r\n	1	1	1\u0001,a\r\n
+s		11	1	1\u0001
+s	\r\nbb\n\n\ud83d\ude00,	8	3	3\u0001\r\nbb\n\n\u0001\u0001
+s	;,,a,,\r\n\r\n	4	-1	2\u0001;,,a,,\u0001
+s	\r\n\u00e9,,,,\u00e9aa\n	12	-1	12\u0001\r\u0001\n\u0001\u00e9\u0001,\u0001,\u0001,\u0001,\u0001\u00e9\u0001a\u0001a\u0001\n\u0001
+s	\nb \r\n\r\n	11	1	1\u0001\nb \r\n\r\n
+s	 \r\nb ;\rb	1	-1	1\u0001 \r\nb ;\rb
+s	,a,,abb	1	0	4\u0001\u0001a\u0001\u0001abb
+s	a\r\n\n;	11	1	1\u0001a\r\n\n;
+s	\ud83d\ude00\r\n;	2	3	1\u0001\ud83d\ude00\r\n;
+s		14	1	1\u0001
+s	\n\n\ud83d\ude00\u00e9\r,\ud83d\ude00	4	-1	3\u0001\u0001\ud83d\ude00\u00e9\u0001,\ud83d\ude00
+s	;\r\na\ud83d\ude00	9	0	2\u0001;\r\n\u0001\ud83d\ude00
+s	\n\r\n\r\n,b	11	1	1\u0001\n\r\n\r\n,b
+s	\u00e9,,	15	3	3\u0001\u00e9\u0001\u0001
+s	\ud83d\ude00\r\nb 	5	1	1\u0001\ud83d\ude00\r\nb 
+s	,\ud83d\ude00;	4	3	1\u0001,\ud83d\ude00;
+s	\r\nb;\u00e9a\r;	6	0	1\u0001\r\nb;\u00e9a\r;
+s	,a	0	2	1\u0001,a
+s	a	11	-1	2\u0001a\u0001
+s	,;\ud83d\ude00\r\ud83d\ude00\n\r\n	1	-1	2\u0001\u0001;\ud83d\ude00\r\ud83d\ude00\n\r\n
+s	\r\na\ud83d\ude00\r\n	2	0	1\u0001\r\na\ud83d\ude00\r\n
+s	bb\ud83d\ude00 b,, 	2	-1	2\u0001bb\ud83d\ude00 b\u0001 
+s	\r\ud83d\ude00\u00e9a	3	3	1\u0001\r\ud83d\ude00\u00e9a
+s	\na, ,;;,	0	-1	2\u0001\u0001a, ,;;,
+s	a  baa	12	0	6\u0001a\u0001 \u0001 \u0001\u0001a\u0001a
+s	\nb	4	0	2\u0001\u0001b
+s	\n;	11	3	3\u0001\n\u0001;\u0001
+s	 ,\r\n;\r\n,,\ud83d\ude00	2	3	3\u0001 \u0001\r\n;\r\n\u0001\ud83d\ude00
+s	a a\u00e9,,\u00e9,	14	1	1\u0001a a\u00e9,,\u00e9,
+s	a ba	9	-1	4\u0001\u0001 \u0001\u0001
+s	baa,;b 	13	1	1\u0001baa,;b 
+s	,,,, ab;\u00e9b	0	3	1\u0001,,,, ab;\u00e9b
+s	;\r,,a\r;a	3	0	5\u0001\u0001\r\u0001\u0001a\r\u0001a
+s	a 	3	-1	1\u0001a 
+s	\n\ud83d\ude00 a\r\na\ud83d\ude00	4	1	1\u0001\n\ud83d\ude00 a\r\na\ud83d\ude00
+s	b,,,,,	13	1	1\u0001b,,,,,
+s	\u00e9	4	1	1\u0001\u00e9
+s	,,,,a,,\n;	2	-1	3\u0001\u0001a\u0001\n;
+s	 b ;,,\n,	1	-1	4\u0001 b ;\u0001\u0001\n\u0001
+s	\ud83d\ude00\u00e9\r	3	0	1\u0001\ud83d\ude00\u00e9\r
+s	\r\n\u00e9\ud83d\ude00b,,\rb	1	-1	3\u0001\r\n\u00e9\ud83d\ude00b\u0001\u0001\rb
+s	 ;	11	0	2\u0001 \u0001;
+s	,  \u00e9 \u00e9\r\n	3	2	2\u0001\u0001  \u00e9 \u00e9\r\n
+s	,\r\r	2	3	2\u0001\u0001\r\r
+s	,,\n a;b\r\n	15	-1	10\u0001\u0001\u0001\n\u0001 \u0001a\u0001;\u0001b\u0001\r\u0001\n\u0001
+s	;	12	2	2\u0001;\u0001
+s	,\u00e9	5	2	2\u0001\u0001\u00e9
+s	,,\r\n,; 	10	2	2\u0001,\u0001,\r\n,; 
+s	,,b,	8	3	3\u0001\u0001\u0001b,
+s	\ud83d\ude00 \n;,	4	-1	2\u0001\ud83d\ude00\u0001;,
+s	\r\na ;	7	0	1\u0001\r\na ;
+s	,,,\r\n	10	3	3\u0001,\u0001,\u0001,\r\n
+s	\u00e9aa;	11	2	2\u0001\u00e9\u0001aa;
+s	,,\r,,bba;,,	3	-1	8\u0001\u0001\u0001\r\u0001\u0001bba\u0001\u0001\u0001
+s	b\n\r	9	0	2\u0001\u0001\n\r
+s		15	1	1\u0001
+s	,a ,,;	13	-1	8\u0001\u0001\u0001a\u0001 \u0001\u0001\u0001;\u0001
+s		15	2	1\u0001
+s	 \n	3	3	1\u0001 \n
+s	\n\n\n\r ,,	2	0	1\u0001\n\n\n\r 
+s	,,\r;,,b\ud83d\ude00\r	4	3	3\u0001,,\u0001;,,b\ud83d\ude00\u0001
+s	\ud83d\ude00a,b \r\n\n	9	-1	3\u0001\ud83d\ude00\u0001,\u0001 \r\n\n
+s	\n;\n,;;	15	-1	7\u0001\n\u0001;\u0001\n\u0001\u0001;\u0001;\u0001
+s	\u00e9b,,,aa\u00e9a	15	3	3\u0001\u00e9\u0001b\u0001aa\u00e9a
+s	 \ud83d\ude00\r \u00e9;;	3	-1	3\u0001 \ud83d\ude00\r \u00e9\u0001\u0001
+s	a,,	11	0	3\u0001a\u0001,\u0001,
+s	,aa;b\u00e9 , 	15	2	2\u0001\u0001aa;b\u00e9 , 
+s	\ra\n	8	2	1\u0001\ra\n
+s	,;aa b;,,	13	2	2\u0001\u0001;aa b;,,
+s	\ud83d\ude00b,b\r\n	1	-1	2\u0001\ud83d\ude00b\u0001b\r\n
+s	,,,\ud83d\ude00\r\n\r\n	8	-1	5\u0001\u0001\u0001\u0001\u0001\r\n\r\n
+s		12	0	1\u0001
+s	; \n	2	3	1\u0001; \n
+s	b	10	3	2\u0001b\u0001
+s	\r\n,\ud83d\ude00\r\n	9	2	1\u0001\r\n,\ud83d\ude00\r\n
+s	,,\n\r\n\n	12	3	3\u0001,\u0001,\u0001\n\r\n\n
+s	\ud83d\ude00a; \r	2	2	1\u0001\ud83d\ude00a; \r
+s	\r\ud83d\ude00	0	0	1\u0001\r\ud83d\ude00
+s	 b,,\r\n\r\n	2	0	2\u0001 b\u0001\r\n\r\n
+s	bba\r\r a;	5	3	2\u0001bba\r\r a\u0001
+s		9	3	1\u0001
+s	\ud83d\ude00b \u00e9,,	4	-1	2\u0001\ud83d\ude00b\u0001\u00e9,,
+s		12	2	1\u0001
+s	\u00e9 \nab	5	0	1\u0001\u00e9 \nab
+s	 \u00e9	3	1	1\u0001 \u00e9
+s	\ud83d\ude00,	1	2	2\u0001\ud83d\ude00\u0001
+s	bb\u00e9	13	1	1\u0001bb\u00e9
+s	,b 	15	2	2\u0001\u0001b 
+s	aa,;a\r\n	12	1	1\u0001aa,;a\r\n
+s	,\u00e9\u00e9,,	9	-1	1\u0001,\u00e9\u00e9,,
+s	,	11	-1	2\u0001,\u0001
+s	 \u00e9,,\ud83d\ude00	1	0	3\u0001 \u00e9\u0001\u0001\ud83d\ude00
+s	a\u00e9;	10	-1	5\u0001\u0001\u0001\u00e9\u0001;\u0001
+s	\u00e9a\u00e9,\n\r\n\u00e9;	1	2	2\u0001\u00e9a\u00e9\u0001\n\r\n\u00e9;
+s	,,\r\nb,\n\nb	7	3	1\u0001,,\r\nb,\n\nb
+s	\u00e9 	6	0	1\u0001\u00e9 
+s	\r\n	13	0	2\u0001\r\u0001\n
+s	\r\n\r\n,	12	0	5\u0001\r\u0001\n\u0001\r\u0001\n\u0001,
+s	, a\n\u00e9	14	0	5\u0001,\u0001 \u0001a\u0001\n\u0001\u00e9
+s	b,b\r	8	-1	2\u0001b\u0001b\r
+s	b\r\ud83d\ude00\n\ra \ud83d\ude00	4	-1	4\u0001b\u0001\ud83d\ude00\u0001a\u0001\ud83d\ude00
+s	 ,,	10	3	3\u0001 \u0001,\u0001,
+s	aa,,\r\naa	15	2	2\u0001a\u0001a,,\r\naa
+s		11	0	1\u0001
+s	a	10	0	0
+s	aaabb	12	3	3\u0001a\u0001a\u0001abb
+s	ba a	12	1	1\u0001ba a
+s	\r\n\ud83d\ude00,	3	1	1\u0001\r\n\ud83d\ude00,
+s	;b\r\n\ud83d\ude00\n	5	3	2\u0001\u0001b\r\n\ud83d\ude00\n
+s	,\u00e9ab,\u00e9	8	-1	3\u0001\u0001\u00e9ab\u0001\u00e9
+s		4	3	1\u0001
+s	 ,,\r\n,;\ud83d\ude00b\r	9	1	1\u0001 ,,\r\n,;\ud83d\ude00b\r
+s	b  ba	13	2	2\u0001b\u0001  ba
+s	a	3	2	1\u0001a
+s		2	0	1\u0001
+s	, \r\n\ud83d\ude00\u00e9	4	2	2\u0001,\u0001\ud83d\ude00\u00e9
+s	,,\ra;a	9	3	3\u0001,,\r\u0001;\u0001
+s	;a\u00e9 ,,	3	1	1\u0001;a\u00e9 ,,
+s	\ud83d\ude00\ud83d\ude00a	4	3	1\u0001\ud83d\ude00\ud83d\ude00a
+s	\ud83d\ude00	7	0	1\u0001\ud83d\ude00
+s	\u00e9 \n	2	3	1\u0001\u00e9 \n
+s	,;b,,;\u00e9\u00e9	12	1	1\u0001,;b,,;\u00e9\u00e9
+s	\u00e9\r\n\u00e9	11	-1	5\u0001\u00e9\u0001\r\u0001\n\u0001\u00e9\u0001
+s	,,\n bb,,\ud83d\ude00\u00e9	9	2	2\u0001,,\n \u0001b,,\ud83d\ude00\u00e9
+s	b	12	1	1\u0001b
+s	\n \ud83d\ude00\r\n	8	3	2\u0001\n \u0001\r\n
+s	;; \r\n\r\n\ud83d\ude00\ud83d\ude00	5	2	2\u0001\u0001; \r\n\r\n\ud83d\ude00\ud83d\ude00
+s	\r,,\r\n,,\ud83d\ude00\u00e9a	6	0	5\u0001\r\u0001\u0001\r\n\u0001\u0001\ud83d\ude00\u00e9a
+s	\r 	4	3	2\u0001\u0001
+s	\r\n	13	0	2\u0001\r\u0001\n
+s	b ,,b\n	4	2	2\u0001b\u0001,,b\n
+s		3	0	1\u0001
+s	aa	11	2	2\u0001a\u0001a
+s	\n;;\n\n	11	1	1\u0001\n;;\n\n
+s	b,\r\n;\r\n;aaa	13	2	2\u0001b\u0001\r\n;\r\n;aaa
+s	 \r\n,, \r\n	6	2	2\u0001 \r\n\u0001, \r\n
+s	;b,aa,,a 	15	1	1\u0001;b,aa,,a 
+s		14	-1	1\u0001
+s	\n \n\r\naa	13	3	3\u0001\n\u0001 \u0001\n\r\naa
+s	\ud83d\ude00,,\u00e9a\r	3	2	2\u0001\ud83d\ude00\u0001,\u00e9a\r
+s	,,aaaa\n,,\u00e9;b	13	2	2\u0001\u0001,aaaa\n,,\u00e9;b
+s	\u00e9\r\n, b\n	6	3	2\u0001\u00e9\r\n\u0001 b\n
+s	,,a\ud83d\ude00\rb\ud83d\ude00\ud83d\ude00,,	1	3	3\u0001\u0001\u0001a\ud83d\ude00\rb\ud83d\ude00\ud83d\ude00,,
+s	\u00e9;a\ud83d\ude00\r	4	0	1\u0001\u00e9;a\ud83d\ude00
+s	; \r\n	10	2	2\u0001;\u0001 \r\n
+s	 ,,b\n \r\n,,	1	0	3\u0001 \u0001\u0001b\n \r\n
+s	;,,b\r\n	0	2	2\u0001;,,b\u0001
+s	,,,aaa;;	11	1	1\u0001,,,aaa;;
+s	\n\r\n ;	14	-1	6\u0001\n\u0001\r\u0001\n\u0001 \u0001;\u0001
+s	,;,,,,\n\r\ud83d\ude00	7	1	1\u0001,;,,,,\n\r\ud83d\ude00
+s	,,\r\r\n,,\u00e9	9	3	1\u0001,,\r\r\n,,\u00e9
+s	\u00e9\r\r\n\n,,	4	-1	2\u0001\u00e9\u0001,,
+s	aa\u00e9\ud83d\ude00b	4	3	1\u0001aa\u00e9\ud83d\ude00b
+s	\n,;	13	2	2\u0001\n\u0001;
+s	\u00e9 \ud83d\ude00\r\n,	0	-1	2\u0001\u00e9 \ud83d\ude00\u0001,
+s	,,	12	2	2\u0001,\u0001,
+s	bbaaaaaa,,\u00e9	15	-1	11\u0001b\u0001b\u0001a\u0001a\u0001a\u0001a\u0001a\u0001a\u0001\u0001\u00e9\u0001
+s	;aa\r\n,, 	14	-1	9\u0001;\u0001a\u0001a\u0001\r\u0001\n\u0001,\u0001,\u0001 \u0001
+s	,a;\n \r\na\u00e9	11	2	2\u0001,\u0001a;\n \r\na\u00e9
+s	b	4	3	1\u0001b
+s	aaab	12	-1	5\u0001a\u0001a\u0001a\u0001\u0001
+s	\ud83d\ude00\n ;;a	8	3	2\u0001\u0001\n ;;a
+s	\rb\n\r\n,,,,	9	2	2\u0001\r\u0001\n\r\n,,,,
+s	; \u00e9; \n	7	-1	2\u0001; \u0001; \n
+s		3	-1	1\u0001
+s	 a\n\r,	9	1	1\u0001 a\n\r,
+s	\ud83d\ude00\r\n\u00e9,,\u00e9	4	2	2\u0001\ud83d\ude00\u0001\u00e9,,\u00e9
+s	a \r\n	14	-1	5\u0001a\u0001 \u0001\r\u0001\n\u0001
+s	 , 	15	3	3\u0001 \u0001\u0001 
+s	 a\nb;;	11	3	3\u0001 \u0001a\u0001\nb;;
+s	;;\ud83d\ude00;,,\u00e9b\r\n	8	2	2\u0001;;\u0001;,,\u00e9b\r\n
+s	a\r,	3	1	1\u0001a\r,
+s	\r	9	0	1\u0001\r
+s		10	2	1\u0001
+s		13	-1	1\u0001
+s	,,;\nb;aaaa	12	1	1\u0001,,;\nb;aaaa
+s	\r\n\u00e9,\r\n,	2	1	1\u0001\r\n\u00e9,\r\n,
+s	,,	2	1	1\u0001,,
+s	,,,\u00e9aa\u00e9	15	2	2\u0001\u0001\u00e9aa\u00e9
+s	;,,;	1	3	3\u0001;\u0001\u0001;
+s	a\r\n,,b 	11	3	3\u0001a\u0001\r\u0001\n,,b 
+s	,,,aa\r\n\u00e9	11	0	8\u0001,\u0001,\u0001,\u0001a\u0001a\u0001\r\u0001\n\u0001\u00e9
+s	b \r\n	13	0	4\u0001b\u0001 \u0001\r\u0001\n
+s	;\u00e9	3	2	2\u0001\u0001\u00e9
+s	\u00e9;	7	3	2\u0001\u0001;
+s	\u00e9;bb\ud83d\ude00,,a	6	3	3\u0001\u00e9;bb\ud83d\ude00\u0001\u0001a
+s	,,	4	2	1\u0001,,
+s	a\u00e9	14	2	2\u0001a\u0001\u00e9
+s	\n	15	2	2\u0001\n\u0001
+s	,aa b\r\naaa	10	2	2\u0001,\u0001 b\r\naaa
+s		12	1	1\u0001
+s	, a	12	3	3\u0001,\u0001 \u0001a
+s	 ,,,\na\r;	9	-1	2\u0001 ,,,\n\u0001\r;
+s	\na\r,\r\n\r\n,	5	-1	3\u0001\na\r\u0001\r\n\r\n\u0001
+s		12	0	1\u0001
+s	b	6	3	1\u0001b
+s	\r\n	8	3	1\u0001\r\n
+s	b\ud83d\ude00\ud83d\ude00;,,,\n,	5	1	1\u0001b\ud83d\ude00\ud83d\ude00;,,,\n,
+s	\r \r\r\ud83d\ude00\r\n	6	0	1\u0001\r \r\r\ud83d\ude00\r\n
+s	,,\n\ud83d\ude00\r	3	-1	3\u0001\u0001\u0001\n\ud83d\ude00\r
+s	\ud83d\ude00;	2	-1	1\u0001\ud83d\ude00;
+s	 a\u00e9 ba;	4	-1	3\u0001\u0001a\u00e9\u0001ba;
+s	\u00e9,a\r\n\n\u00e9,\r\n	0	0	3\u0001\u00e9,a\u0001\u0001\u00e9,
+s	\n,;\n\n\n	8	3	2\u0001\n\u0001;\n\n\n
+s		6	0	1\u0001
+s		6	2	1\u0001
+s	;;\r\n	15	3	3\u0001;\u0001;\u0001\r\n
+s	b;b;,,	6	2	2\u0001b;b;\u0001,
+s	b	11	3	2\u0001b\u0001
+s		12	0	1\u0001
+s	,aaa	10	1	1\u0001,aaa
+s	\r\n\r;	5	2	2\u0001\r\n\r\u0001
+s	\r\n\u00e9b 	6	3	1\u0001\r\n\u00e9b 
+s	b\n,a	13	2	2\u0001b\u0001\n,a
+s	\ud83d\ude00	7	1	1\u0001\ud83d\ude00
+s	\ud83d\ude00;;;\rb\n;	8	2	2\u0001\u0001;;;\rb\n;
+s	 ,\r\n \r\n	5	3	2\u0001 \u0001\r\n \r\n
+s	 	0	1	1\u0001 
+s	a	11	3	2\u0001a\u0001
+s	\u00e9	7	1	1\u0001\u00e9
+s	\u00e9\n	6	1	1\u0001\u00e9\n
+s	\n ,,\u00e9b	2	0	2\u0001\n \u0001\u00e9b
+s	,,,,a\r\n b	0	3	2\u0001,,,,a\u0001 b
+s	,,,a\r\n	2	2	2\u0001\u0001a\r\n
+s	b	11	1	1\u0001b
+s	\r\n,\r\n;aab;	3	1	1\u0001\r\n,\r\n;aab;
+s		1	-1	1\u0001
+s	bb;a\r\n	12	1	1\u0001bb;a\r\n
+s	\naba	12	3	3\u0001\n\u0001a\u0001a
+s	,,bb\u00e9\nb 	4	1	1\u0001,,bb\u00e9\nb 
+s	aa\r\r\r	0	3	1\u0001aa\r\r\r
+s	\u00e9,\u00e9,b b	11	2	2\u0001\u00e9\u0001,\u00e9,b b
+s	\u00e9,,aa,,\u00e9	14	2	2\u0001\u00e9\u0001,,aa,,\u00e9
+s	\n\r\n\r\n\u00e9aa\u00e9\u00e9aa	13	0	12\u0001\n\u0001\r\u0001\n\u0001\r\u0001\n\u0001\u00e9\u0001a\u0001a\u0001\u00e9\u0001\u00e9\u0001a\u0001a
+s	,,\u00e9	15	1	1\u0001,,\u00e9
+s		3	0	1\u0001
+s	 aa\u00e9\n	10	-1	5\u0001 \u0001\u0001\u00e9\u0001\n\u0001
+s		8	-1	1\u0001
+s	\r\n\u00e9aa\n	10	2	2\u0001\r\u0001\n\u00e9aa\n
+s	,, ;	0	1	1\u0001,, ;
+s	,,	4	0	1\u0001,,
+s	\ud83d\ude00\r	9	0	1\u0001\ud83d\ude00\r
+s	b;;ba;,	0	2	1\u0001b;;ba;,
+s	\n,,b,,b	0	-1	2\u0001\u0001,,b,,b
+s		6	-1	1\u0001
+s	\r\nb, ;  	11	-1	9\u0001\r\u0001\n\u0001b\u0001,\u0001 \u0001;\u0001 \u0001 \u0001
+s	\r\n\r\nb ,,; \r	1	-1	3\u0001\r\n\r\nb \u0001\u0001; \r
+s	;;;a	11	3	3\u0001;\u0001;\u0001;a
+s	,;\r\nb	2	1	1\u0001,;\r\nb
+s	a	4	3	1\u0001a
+s	\u00e9	1	-1	1\u0001\u00e9
+s	\u00e9;,,\u00e9	12	1	1\u0001\u00e9;,,\u00e9
+s		10	1	1\u0001
+s		10	3	1\u0001
+s		7	0	1\u0001
+s		4	3	1\u0001
+s	\u00e9,\r\n; 	14	0	6\u0001\u00e9\u0001,\u0001\r\u0001\n\u0001;\u0001 
+s	 ,	15	2	2\u0001 \u0001
+s	,aa\r\n	12	0	5\u0001,\u0001a\u0001a\u0001\r\u0001\n
+s	;\r\na 	10	3	3\u0001;\u0001\r\u0001\na 
+s	,,\u00e9	3	3	3\u0001\u0001\u0001\u00e9
+s	 \n  ,	0	2	2\u0001 \u0001  ,
+s	\n \r	5	-1	1\u0001\n \r
+s	,;;,b\u00e9 	11	1	1\u0001,;;,b\u00e9 
+s	\u00e9	0	0	1\u0001\u00e9
+s	  \ud83d\ude00\r\n ab	1	2	1\u0001  \ud83d\ude00\r\n ab
+s	;a,,;	12	2	2\u0001;\u0001a,,;
+s	\r\n;b,,,	10	2	2\u0001\r\u0001\n;b,,,
+s		14	1	1\u0001
+s	;a;\r\n	4	1	1\u0001;a;\r\n
+s	;,,	12	2	2\u0001;\u0001,,
+s	,\n,\ud83d\ude00aa\r\n,,	8	0	4\u0001\u0001\n\u0001\u0001aa\r\n
+s		9	3	1\u0001
+s	 ,\r\nbb	14	0	6\u0001 \u0001,\u0001\r\u0001\n\u0001b\u0001b
+s	a;,,\n\r\n\r\na	15	3	3\u0001a\u0001;\u0001\n\r\n\r\na
+s	a\r	4	3	2\u0001a\u0001
+s	,,a,a\u00e9 ;aa	11	0	10\u0001,\u0001,\u0001a\u0001,\u0001a\u0001\u00e9\u0001 \u0001;\u0001a\u0001a
+s	,\n\n\n;	14	-1	6\u0001,\u0001\n\u0001\n\u0001\n\u0001;\u0001
+s	\r\n\u00e9 	0	2	2\u0001\u0001\u00e9 
+s	aa\ra\r\n,	6	2	2\u0001aa\ra\r\n\u0001
+s	\n,aa \n,	15	3	3\u0001\n\u0001\u0001aa \n,
+s	 b\u00e9	8	-1	1\u0001 b\u00e9
+s	a\n,a\r\n,	11	1	1\u0001a\n,a\r\n,
+s	a \u00e9a\ud83d\ude00	2	1	1\u0001a \u00e9a\ud83d\ude00
+s	baa a,,a\u00e9aa	11	0	11\u0001b\u0001a\u0001a\u0001 \u0001a\u0001,\u0001,\u0001a\u0001\u00e9\u0001a\u0001a
+s	a,,b	4	1	1\u0001a,,b
+s	ba\u00e9 	1	1	1\u0001ba\u00e9 
+s	,\ud83d\ude00\r\n;bb\r\n,	7	1	1\u0001,\ud83d\ude00\r\n;bb\r\n,
+s		10	-1	1\u0001
+s	\ud83d\ude00\ud83d\ude00\n\n,\na\r	8	3	3\u0001\u0001\u0001\n\n,\na\r
+s	abb\n\n	2	-1	1\u0001abb\n\n
+s	\r; \r\na;	4	1	1\u0001\r; \r\na;
+s	\ud83d\ude00,,,,\ud83d\ude00\ud83d\ude00\r\n\r 	2	2	2\u0001\ud83d\ude00\u0001\ud83d\ude00\ud83d\ude00\r\n\r 
+s	a \u00e9\ud83d\ude00	7	0	2\u0001a \u0001\ud83d\ude00
+s	\ud83d\ude00\r\r\n\r,\n	4	3	3\u0001\ud83d\ude00\u0001,\u0001
+s	\u00e9	11	1	1\u0001\u00e9
+s	  	8	2	1\u0001  
+s	,,\ud83d\ude00	9	0	1\u0001,,\ud83d\ude00
+s	,,a,	4	0	1\u0001,,a,
+s	\r\n, 	1	0	2\u0001\r\n\u0001 
+s	,,	8	2	2\u0001\u0001,
+s	 \u00e9	4	0	2\u0001\u0001\u00e9
+s	;\na\u00e9b	5	1	1\u0001;\na\u00e9b
+s	\n;b\r\ud83d\ude00	3	0	2\u0001\n\u0001b\r\ud83d\ude00
+s	a\n\u00e9;a	13	2	2\u0001a\u0001\n\u00e9;a
+s	 \ud83d\ude00\n\u00e9\u00e9 ,,	8	1	1\u0001 \ud83d\ude00\n\u00e9\u00e9 ,,
+s	; 	9	2	1\u0001; 
+s	\r,a\nb\n\ud83d\ude00\r	3	2	2\u0001\r\u0001a\nb\n\ud83d\ude00\r
+s		12	0	1\u0001
+s	a;\r\n	5	0	2\u0001a\u0001\r\n
+s		1	2	1\u0001
+s	,\u00e9;,,,\r\n	4	0	1\u0001,\u00e9;,,,
+s	\n\u00e9; b;a 	15	1	1\u0001\n\u00e9; b;a 
+s		4	0	1\u0001
+s	;\n	6	3	1\u0001;\n
+s	a;\u00e9,\n,	14	1	1\u0001a;\u00e9,\n,
+s	\n \ud83d\ude00 \r\n\ud83d\ude00\ud83d\ude00	5	1	1\u0001\n \ud83d\ude00 \r\n\ud83d\ude00\ud83d\ude00
+s		2	3	1\u0001
+s	ab\r,\u00e9\r\n	8	3	2\u0001ab\r\u0001\u00e9\r\n
+s	,a	6	0	2\u0001\u0001a
+s		7	-1	1\u0001
+s	\n\r\n,,,\n \r	5	1	1\u0001\n\r\n,,,\n \r
+s	\naaa	12	0	4\u0001\n\u0001a\u0001a\u0001a
+s	   b\n	2	0	1\u0001   b\n
+s	\r\n	14	2	2\u0001\r\u0001\n
+s	,,	8	1	1\u0001,,
+s	\u00e9\ud83d\ude00a	4	-1	1\u0001\u00e9\ud83d\ude00a
+s	,,\ud83d\ude00b\ud83d\ude00\rab	4	1	1\u0001,,\ud83d\ude00b\ud83d\ude00\rab
+s	\r ;\r\n\r\nb	1	-1	1\u0001\r ;\r\n\r\nb
+s	,	14	2	2\u0001,\u0001
+s	a\r\na	7	-1	1\u0001a\r\na
+s	,,aa  \n	10	3	3\u0001,\u0001,\u0001  \n
+s	a,,\r\n	6	1	1\u0001a,,\r\n
+s	,,,,\r\n	9	-1	1\u0001,,,,\r\n
+s	\naa	12	2	2\u0001\n\u0001aa
+s	\r\n 	1	3	1\u0001\r\n 
+s	\u00e9\r\nb\ud83d\ude00\ud83d\ude00	5	-1	1\u0001\u00e9\r\nb\ud83d\ude00\ud83d\ude00
+s	aa	14	1	1\u0001aa
+s	a,\r;a	0	2	1\u0001a,\r;a
+s	,,,\n;	14	3	3\u0001,\u0001,\u0001,\n;
+s	\ud83d\ude00\ra,	3	0	1\u0001\ud83d\ude00\ra
+s	\ud83d\ude00a\u00e9aa	1	-1	1\u0001\ud83d\ude00a\u00e9aa
+s	,aa; b	13	-1	8\u0001\u0001\u0001a\u0001a\u0001;\u0001 \u0001b\u0001
+s	a;a	8	-1	1\u0001a;a
+s	\u00e9,,\n,,,\r\n	12	3	3\u0001\u00e9\u0001,\u0001,\n,,,\r\n
+s		0	3	1\u0001
+s	b 	2	1	1\u0001b 
+s	; ;\n;	9	3	1\u0001; ;\n;
+s	a	3	1	1\u0001a
+s	,aaaa,;\r\naaa	15	0	13\u0001\u0001\u0001a\u0001a\u0001a\u0001a\u0001\u0001;\u0001\r\u0001\n\u0001a\u0001a\u0001a
+s	\u00e9b\ud83d\ude00,b	4	1	1\u0001\u00e9b\ud83d\ude00,b
+s	;	9	3	1\u0001;
+s	\ud83d\ude00,\u00e9 ,\n	1	1	1\u0001\ud83d\ude00,\u00e9 ,\n
+s	\r\na,,,\ud83d\ude00,\n\r	6	1	1\u0001\r\na,,,\ud83d\ude00,\n\r
+s	,a;,,	2	2	2\u0001\u0001a;,,
+s	\r\n\ud83d\ude00\r\n,\ud83d\ude00,a\ud83d\ude00	5	-1	3\u0001\r\n\ud83d\ude00\r\n\u0001\ud83d\ude00\u0001a\ud83d\ude00
+s	\u00e9	8	2	1\u0001\u00e9
+s		0	0	1\u0001
+s	; \n,,;ba	10	3	3\u0001;\u0001 \u0001\n,,;ba
+s	b,b\u00e9\u00e9\n	2	0	2\u0001b\u0001b\u00e9\u00e9\n
+s	\r\n\u00e9	8	3	1\u0001\r\n\u00e9
+s		2	-1	1\u0001
+s	\u00e9,b \r	8	1	1\u0001\u00e9,b \r
+s	,; ; 	10	-1	6\u0001,\u0001;\u0001 \u0001;\u0001 \u0001
+s	\r\n \n\r\n	15	1	1\u0001\r\n \n\r\n
+s	\n;\u00e9\ud83d\ude00	8	2	2\u0001\n;\u00e9\u0001
+s	,\ud83d\ude00\ud83d\ude00\u00e9;	3	-1	3\u0001\u0001\ud83d\ude00\ud83d\ude00\u00e9\u0001
+s	\n\r\ud83d\ude00,,ab	6	2	2\u0001\n\r\ud83d\ude00\u0001,ab
+s	b, 	6	-1	2\u0001b\u0001 
+s	\u00e9aa,,	15	1	1\u0001\u00e9aa,,
+s	\r;\r,,;b\ud83d\ude00\r	6	3	3\u0001\r;\r\u0001\u0001;b\ud83d\ude00\r
+s		7	-1	1\u0001
+s	\r\raa\ud83d\ude00	5	0	1\u0001\r\raa\ud83d\ude00
+s	,,\r\n \u00e9\r\n\n\r\n	8	1	1\u0001,,\r\n \u00e9\r\n\n\r\n
+s	\ud83d\ude00\ud83d\ude00\r\n\u00e9	6	2	1\u0001\ud83d\ude00\ud83d\ude00\r\n\u00e9
+s	b\r\n,,\nb	1	1	1\u0001b\r\n,,\nb
+s	 \u00e9\n\ud83d\ude00a ab	3	1	1\u0001 \u00e9\n\ud83d\ude00a ab
+s	,a\u00e9;b\r\n;\u00e9	10	3	3\u0001,\u0001\u0001\u00e9;b\r\n;\u00e9
+s	\r,,;\n,\ud83d\ude00\ud83d\ude00,,	0	3	2\u0001\r,,;\u0001,\ud83d\ude00\ud83d\ude00,,
+s	b,,	5	1	1\u0001b,,
+s	\r\n\r	4	2	2\u0001\u0001
+s	b\r \ud83d\ude00, a	7	0	1\u0001b\r \ud83d\ude00, a
+s	;;	1	2	1\u0001;;
+s		12	2	1\u0001
+s	; ,a;	2	-1	2\u0001; \u0001a;
+s	 \ud83d\ude00b\r\n\u00e9b	0	-1	2\u0001 \ud83d\ude00b\u0001\u00e9b
+s	\rbb	9	2	2\u0001\r\u0001b
+s	\u00e9a	12	3	3\u0001\u00e9\u0001a\u0001
+s		1	2	1\u0001
+s	;,b,,,,	15	1	1\u0001;,b,,,,
+s	\ud83d\ude00,,\r	3	0	3\u0001\ud83d\ude00\u0001\u0001\r
+s	b,, ,,	9	-1	2\u0001\u0001,, ,,
+s	\u00e9b\ra\u00e9	5	1	1\u0001\u00e9b\ra\u00e9
+s	a,aaaa\r\nbaa;	14	0	12\u0001a\u0001,\u0001a\u0001a\u0001a\u0001a\u0001\r\u0001\n\u0001b\u0001a\u0001a\u0001;
+s	\r\n\u00e9\n,,a	11	3	3\u0001\r\u0001\n\u0001\u00e9\n,,a
+s	\r\n\u00e9 aa	2	0	1\u0001\r\n\u00e9 aa
+s	\ud83d\ude00;\u00e9, \r\n\r	7	0	2\u0001\ud83d\ude00;\u0001, \r\n\r
+s		12	-1	1\u0001
+s	;;\ud83d\ude00,b	7	-1	1\u0001;;\ud83d\ude00,b
+s	a,,	7	-1	1\u0001a,,
+s	\r\n\r\n\ud83d\ude00\ud83d\ude00,\u00e9,,	9	1	1\u0001\r\n\r\n\ud83d\ude00\ud83d\ude00,\u00e9,,
+s	ab	8	-1	1\u0001ab
+s	;\u00e9,,	3	-1	4\u0001\u0001\u00e9\u0001\u0001
+s	a;,,\ud83d\ude00,,	6	0	3\u0001a;\u0001\u0001\ud83d\ude00
+s	;\n,aa\n	12	-1	7\u0001;\u0001\n\u0001,\u0001a\u0001a\u0001\n\u0001
+s	 \n\u00e9a\r\n	14	1	1\u0001 \n\u00e9a\r\n
+s	b;;\n;\n,,	7	-1	1\u0001b;;\n;\n,,
+s	\ud83d\ude00;a \r	7	2	1\u0001\ud83d\ude00;a \r
+s	;\r\n	10	1	1\u0001;\r\n
+s		2	1	1\u0001
+s	 a\r\n;a\n	3	-1	2\u0001 a\r\n\u0001a\n
+s	\r,;\rb\r\r\u00e9	2	0	2\u0001\r\u0001;\rb\r\r\u00e9
+s	,,	4	-1	1\u0001,,
+s	,\u00e9\u00e9	4	-1	1\u0001,\u00e9\u00e9
+s	 \u00e9,,;\u00e9,	4	3	2\u0001\u0001\u00e9,,;\u00e9,
+s	,,	1	0	0
+s	\n ,,,,\r\r\n\u00e9	6	3	3\u0001\n \u0001\u0001,,\r\r\n\u00e9
+s	\ud83d\ude00\r\n	2	2	1\u0001\ud83d\ude00\r\n
+s	 ;,,\u00e9\u00e9	14	0	6\u0001 \u0001;\u0001,\u0001,\u0001\u00e9\u0001\u00e9
+s	;,\ud83d\ude00 \n	2	0	2\u0001;\u0001\ud83d\ude00 \n
+s		7	3	1\u0001
+s	,;	14	3	3\u0001,\u0001;\u0001
+s	,,\u00e9\r\n\r\u00e9,,	5	3	3\u0001\u0001\u0001\u00e9\r\n\r\u00e9,,
+s	;;;\r\n\u00e9\ud83d\ude00	4	2	2\u0001;;;\u0001\u00e9\ud83d\ude00
+s	a a;,,b;	9	1	1\u0001a a;,,b;
+s	;\n	14	1	1\u0001;\n
+s	,,\r\n\nb\r\n	6	3	3\u0001\u0001\u0001\r\n\nb\r\n
+s	\naa,,\u00e9aa	10	0	5\u0001\n\u0001\u0001,\u0001,\u0001\u00e9
+s	b  \ud83d\ude00\r  	3	-1	1\u0001b  \ud83d\ude00\r  
+s	\ud83d\ude00bb\ud83d\ude00\n	5	-1	1\u0001\ud83d\ude00bb\ud83d\ude00\n
+s	;;;;	3	1	1\u0001;;;;
+s		6	3	1\u0001
+s	  ,\ud83d\ude00\ud83d\ude00\ud83d\ude00	8	0	1\u0001  
+s	aa,,\r\nb	13	0	7\u0001a\u0001a\u0001\u0001\u0001\r\u0001\n\u0001b
+s	\u00e9,,,,,	9	1	1\u0001\u00e9,,,,,
+s	,,, 	14	-1	5\u0001,\u0001,\u0001,\u0001 \u0001
+s	\u00e9\r\ud83d\ude00\ud83d\ude00	2	3	1\u0001\u00e9\r\ud83d\ude00\ud83d\ude00
+s	ab\r\n\r\r\n\u00e9\r;	8	0	1\u0001ab\r\n\r\r\n\u00e9\r;
+s		8	1	1\u0001
+s	;\r\n,, 	14	-1	7\u0001;\u0001\r\u0001\n\u0001,\u0001,\u0001 \u0001
+s	,,	13	-1	4\u0001\u0001\u0001\u0001
+s		5	1	1\u0001
+s	;\ud83d\ude00	5	1	1\u0001;\ud83d\ude00
+s	\rb	4	3	2\u0001\u0001b
+s	\r;\r\ud83d\ude00 \n	0	1	1\u0001\r;\r\ud83d\ude00 \n
+s	\u00e9\u00e9	1	2	1\u0001\u00e9\u00e9
+s	a,,,\rbba\ud83d\ude00	1	0	4\u0001a\u0001\u0001\u0001\rbba\ud83d\ude00
+s	\u00e9;\u00e9	9	1	1\u0001\u00e9;\u00e9
+s	;;\r,,	9	2	1\u0001;;\r,,
+s		4	1	1\u0001
+s	\nb	1	2	1\u0001\nb
+s	baab\n\u00e9,,ba	11	2	2\u0001b\u0001aab\n\u00e9,,ba
+s	b	1	2	1\u0001b
+s	\n	9	1	1\u0001\n
+s	 ,\u00e9,,,;\n	11	2	2\u0001 \u0001,\u00e9,,,;\n
+s	 \r\n	3	-1	1\u0001 \r\n
+s	\ud83d\ude00\r,	9	3	1\u0001\ud83d\ude00\r,
+s	a\nab	1	3	1\u0001a\nab
+s	\u00e9\ud83d\ude00,,;,,	7	1	1\u0001\u00e9\ud83d\ude00,,;,,
+s	\r\n,;,,\ud83d\ude00\ud83d\ude00a,	7	0	1\u0001\r\n,;,,\ud83d\ude00\ud83d\ude00a,
+s		6	-1	1\u0001
+s	,a	10	1	1\u0001,a
+s	\u00e9	0	1	1\u0001\u00e9
+s		9	0	1\u0001
+s		13	0	1\u0001
+s	,,\ud83d\ude00\r	5	-1	3\u0001\u0001\u0001\ud83d\ude00\r
+s	\u00e9a ab\r\n	14	-1	8\u0001\u00e9\u0001a\u0001 \u0001a\u0001b\u0001\r\u0001\n\u0001
+s	\u00e9\r\n\u00e9\n	3	3	1\u0001\u00e9\r\n\u00e9\n
+s	a\ud83d\ude00\r\n,,\r\n	6	2	2\u0001a\ud83d\ude00\r\n\u0001,\r\n
+s	,,\r\nb,,,,\ud83d\ude00,,	2	0	3\u0001\u0001\r\nb\u0001\ud83d\ude00
+s	b	15	3	2\u0001b\u0001
+s	,,a\r b\r\n\r	2	2	2\u0001\u0001a\r b\r\n\r
+s		2	-1	1\u0001
+s	\r,\n,,	5	2	2\u0001\r\u0001\n,,
+s	,	10	0	1\u0001,
+s	,, ;\r 	0	3	1\u0001,, ;\r 
+s	\ud83d\ude00,,a\r\r\n,,b	1	0	5\u0001\ud83d\ude00\u0001\u0001a\r\r\n\u0001\u0001b
+s	b\ud83d\ude00,\u00e9\ud83d\ude00	8	1	1\u0001b\ud83d\ude00,\u00e9\ud83d\ude00
+s	\ud83d\ude00\r\n\n	6	2	1\u0001\ud83d\ude00\r\n\n
+s	\ud83d\ude00\ud83d\ude00\u00e9,,b	5	3	3\u0001\ud83d\ude00\ud83d\ude00\u00e9\u0001\u0001b
+s	bb\u00e9,,a	14	-1	7\u0001b\u0001b\u0001\u00e9\u0001,\u0001,\u0001a\u0001
+s	a;\r\ud83d\ude00,,,,	3	0	2\u0001a\u0001\r\ud83d\ude00
+s		13	2	1\u0001
+s	,,a,,aa	11	1	1\u0001,,a,,aa
+s	\r\naa\r\n\r\n;,	0	1	1\u0001\r\naa\r\n\r\n;,
+s	 aa\r\n;	13	2	2\u0001 \u0001aa\r\n;
+s	;\r\n\r ;	4	-1	2\u0001;\u0001;
+s	\r\n\u00e9	1	1	1\u0001\r\n\u00e9
+s	\r\n\n\r\r\n\r\n	4	0	0
+s	 b\r\naa\r\n\n	12	2	2\u0001 \u0001\r\naa\r\n\n
+s	,\naa,,\r\n	15	0	8\u0001\u0001\u0001\n\u0001a\u0001a\u0001\u0001\r\u0001\n
+s	b\r\naa;	12	-1	8\u0001\u0001\u0001\r\u0001\n\u0001a\u0001a\u0001;\u0001
+s	\u00e9;	11	-1	3\u0001\u00e9\u0001;\u0001
+s	 \u00e9\r\na\u00e9;,,	10	3	3\u0001 \u0001\u00e9\u0001\r\na\u00e9;,,
+s	,, ;,,\r\n	5	3	3\u0001\u0001\u0001 ;,,\r\n
+s	\na	4	2	2\u0001\u0001a
+s	\n	13	2	2\u0001\n\u0001
+s	\r\nbaab\u00e9	15	1	1\u0001\r\nbaab\u00e9
+s	\u00e9\r\n,,;,	0	3	2\u0001\u00e9\u0001,,;,
+s	aa,,\n\r\n\r\na\r\nb	10	2	2\u0001\u0001,,\n\r\n\r\na\r\nb
+s	;	4	-1	1\u0001;
+s	\u00e9	13	-1	2\u0001\u00e9\u0001
+s	 b,,	8	3	3\u0001 b\u0001\u0001
+s	 	3	3	1\u0001 
+s	 a\u00e9a;	0	1	1\u0001 a\u00e9a;
+s	a\r\n\u00e9 ,,	13	1	1\u0001a\r\n\u00e9 ,,
+s	b;;\r	4	1	1\u0001b;;\r
+s		9	1	1\u0001
+s	aa	14	3	3\u0001a\u0001a\u0001
+s	 b\n bba	14	2	2\u0001 \u0001b\n bba
+s	b\u00e9,	14	2	2\u0001b\u0001\u00e9,
+s	\na,\r\n\r\nb	12	1	1\u0001\na,\r\n\r\nb
+s	,\u00e9\r,,bb;	4	0	2\u0001,\u00e9\u0001,,bb;
+s	\u00e9,\ud83d\ude00 b\r\r\n	8	2	2\u0001\u00e9\u0001\ud83d\ude00 b\r\r\n
+s	;	15	3	2\u0001;\u0001
+s	\r,,	3	-1	3\u0001\r\u0001\u0001
+s	,\n;b \n\u00e9\u00e9	11	2	2\u0001,\u0001\n;b \n\u00e9\u00e9
+s	a,,\n\n,,	7	0	1\u0001a,,\n\n,,
+s	\r\r\n	4	0	0
+s	b,,,	13	3	3\u0001b\u0001\u0001,
+s	\n,,,	15	0	1\u0001\n
+s	a\n\r\n\r\n	12	1	1\u0001a\n\r\n\r\n
+s	a b,,\u00e9\n	2	3	2\u0001a b\u0001\u00e9\n
+s	\r\nb,aa,,\n\u00e9\u00e9	13	-1	12\u0001\r\u0001\n\u0001b\u0001\u0001a\u0001a\u0001\u0001\u0001\n\u0001\u00e9\u0001\u00e9\u0001
+s		6	1	1\u0001
+s	b;	15	0	2\u0001b\u0001;
+s	\u00e9,;;	13	2	2\u0001\u00e9\u0001;;
+s	b \ud83d\ude00;\u00e9\n,,	3	3	3\u0001b \ud83d\ude00\u0001\u00e9\n\u0001,
+s	,,a	3	1	1\u0001,,a
+s		10	1	1\u0001
+s	\ud83d\ude00a\u00e9 \ud83d\ude00\u00e9,	0	1	1\u0001\ud83d\ude00a\u00e9 \ud83d\ude00\u00e9,
+s	\u00e9,;\r\n\u00e9\n	7	1	1\u0001\u00e9,;\r\n\u00e9\n
+s	,\r\naa ;	12	0	7\u0001,\u0001\r\u0001\n\u0001a\u0001a\u0001 \u0001;
+s	\ud83d\ude00 	6	3	1\u0001\ud83d\ude00 
+s		10	2	1\u0001
+s	\nb \n\r	9	-1	2\u0001\n\u0001 \n\r
+s	;	7	1	1\u0001;
+s	baaab\r\n	12	0	8\u0001\u0001\u0001a\u0001a\u0001a\u0001\u0001\r\u0001\n
+s	;\ud83d\ude00\r\n \r\ud83d\ude00,;	2	2	2\u0001;\ud83d\ude00\r\n \r\ud83d\ude00\u0001;
+s		12	0	1\u0001
+s	b\r\n	14	1	1\u0001b\r\n
+s	\u00e9	11	2	2\u0001\u00e9\u0001
+s	;\rab	8	-1	1\u0001;\rab
+s	;;	8	1	1\u0001;;
+s	\u00e9,,,\nab	7	1	1\u0001\u00e9,,,\nab
+s	ab	3	1	1\u0001ab
+s	b	2	-1	1\u0001b
+s	\ud83d\ude00,,	8	2	2\u0001\u0001,,
+s	a ab;	14	0	5\u0001a\u0001 \u0001a\u0001b\u0001;
+s	\n,a; ,,,	8	-1	5\u0001\n\u0001a; \u0001\u0001\u0001
+s	a\r\u00e9\n\r\n\r\n\ud83d\ude00	0	2	2\u0001a\r\u00e9\u0001\r\n\r\n\ud83d\ude00
+s	\r\n\ud83d\ude00a;	2	-1	1\u0001\r\n\ud83d\ude00a;
+s	 \ud83d\ude00,\u00e9\u00e9,,\n	2	3	3\u0001 \ud83d\ude00\u0001\u00e9\u00e9\u0001\n
+s	aa;\r\n	13	3	3\u0001a\u0001a\u0001;\r\n
+s	,,	13	-1	4\u0001\u0001\u0001\u0001
+s	\r\n;aa\r\na \u00e9	11	3	3\u0001\r\u0001\n\u0001;aa\r\na \u00e9
+s	,b,,;	3	-1	5\u0001\u0001b\u0001\u0001\u0001
+s		5	-1	1\u0001
+s	 ,,	6	3	3\u0001 \u0001\u0001
+s	,,,,;;	12	2	2\u0001,\u0001,,,;;
+s	 \naab,,;	15	0	7\u0001 \u0001\n\u0001a\u0001a\u0001b\u0001\u0001;
+s	\r\r\n\n	4	2	2\u0001\u0001
+s	\r\n;,,,,,,\r\n\n	6	0	7\u0001\r\n;\u0001\u0001\u0001\u0001\u0001\u0001\r\n\n
+s	;	10	0	1\u0001;
+s	\r\n\n\r\n ,	12	-1	8\u0001\r\u0001\n\u0001\n\u0001\r\u0001\n\u0001 \u0001,\u0001
+s	aa\u00e9 ba,	12	0	7\u0001a\u0001a\u0001\u00e9\u0001 \u0001\u0001a\u0001,
+s	,,	3	3	3\u0001\u0001\u0001
+s	\n;,	7	1	1\u0001\n;,
+s	\nba,;	15	-1	6\u0001\n\u0001b\u0001a\u0001\u0001;\u0001
+s	,\r\n ;	10	1	1\u0001,\r\n ;
+s	a	12	3	2\u0001a\u0001
+s	;,\n\u00e9\n b	9	-1	2\u0001;,\n\u00e9\n \u0001
+s		11	3	1\u0001
+s	\n, \n\n,,,,\n	11	2	2\u0001\n\u0001, \n\n,,,,\n
+s		15	0	1\u0001
+s	\ud83d\ude00\r\n;\r\n,,,,a\r	7	1	1\u0001\ud83d\ude00\r\n;\r\n,,,,a\r
+s		0	2	1\u0001
+s	\u00e9,, ,,;b\r\na	2	1	1\u0001\u00e9,, ,,;b\r\na
+s	,,b,aa;	14	1	1\u0001,,b,aa;
+s		0	-1	1\u0001
+s	,b\r\naab\r\n	13	2	2\u0001\u0001b\r\naab\r\n
+s	b\r\n	10	0	3\u0001b\u0001\r\u0001\n
+s		1	-1	1\u0001
+s	,\n\ud83d\ude00\u00e9\n 	5	3	2\u0001\u0001\n\ud83d\ude00\u00e9\n 
+s	a\nb,,,\u00e9,,	2	2	2\u0001a\nb\u0001\u00e9,,
+s	\r \n\r\ud83d\ude00a	1	-1	1\u0001\r \n\r\ud83d\ude00a
+s	\ud83d\ude00,,\r\r b	1	1	1\u0001\ud83d\ude00,,\r\r b
+s	;\n\u00e9a	0	1	1\u0001;\n\u00e9a
+s	 \r\n;,,,\nba	9	2	2\u0001 \r\n;,,,\n\u0001a
+s	 ;b \n\n	7	1	1\u0001 ;b \n\n
+s		9	-1	1\u0001
+s	 ;\r\u00e9	9	-1	1\u0001 ;\r\u00e9
+s	\r\na\n;	12	0	5\u0001\r\u0001\n\u0001a\u0001\n\u0001;
+s	\n\r\n\u00e9;aa;	13	-1	9\u0001\n\u0001\r\u0001\n\u0001\u00e9\u0001;\u0001a\u0001a\u0001;\u0001
+s	\u00e9	13	3	2\u0001\u00e9\u0001
+s	b\r\n\n,,,	4	3	2\u0001b\u0001,,,
+s	\n	14	-1	2\u0001\n\u0001
+s		12	-1	1\u0001
+s	 \n	9	1	1\u0001 \n
+s		5	1	1\u0001
+s	b\u00e9\r\n	11	1	1\u0001b\u00e9\r\n
+s	\ud83d\ude00 \u00e9;,\r	1	2	2\u0001\ud83d\ude00 \u00e9;\u0001\r
+s	\n ,,\ud83d\ude00	6	1	1\u0001\n ,,\ud83d\ude00
+s	\r\n,,\n \r\n,,b;	15	3	3\u0001\r\u0001\n\u0001\n \r\n,,b;
+s	,,\u00e9b,\r\n\n	1	2	2\u0001\u0001,\u00e9b,\r\n\n
+s	\r\na\r\n\n	12	0	6\u0001\r\u0001\n\u0001a\u0001\r\u0001\n\u0001\n
+s	\n,a ;,b,	11	3	3\u0001\n\u0001,\u0001a ;,b,
+s	aa;\r\n	10	1	1\u0001aa;\r\n
+s	\r\nab;\ud83d\ude00	8	1	1\u0001\r\nab;\ud83d\ude00
+s	,\r\n;, \u00e9,, 	11	2	2\u0001,\u0001\r\n;, \u00e9,, 
+s		15	3	1\u0001
+s	 	10	1	1\u0001 
+s	\n,,\r\n\r\n,,,;	12	1	1\u0001\n,,\r\n\r\n,,,;
+s	\r\n,\n b,,,,aa	13	-1	13\u0001\r\u0001\n\u0001\u0001\n\u0001 \u0001b\u0001\u0001\u0001\u0001\u0001a\u0001a\u0001
+s	,,	4	2	1\u0001,,
+s	a 	13	2	2\u0001a\u0001 
+s	,,\u00e9 \ud83d\ude00\u00e9\r	5	2	2\u0001\u0001,\u00e9 \ud83d\ude00\u00e9\r
+s	\u00e9\ud83d\ude00b	0	1	1\u0001\u00e9\ud83d\ude00b
+s	\ud83d\ude00aa,,b;	2	2	2\u0001\ud83d\ude00aa\u0001b;
+s	\na	5	3	1\u0001\na
+s	;;\u00e9	10	3	3\u0001;\u0001;\u0001\u00e9
+s	a,, 	14	0	4\u0001a\u0001,\u0001,\u0001 
+s	\n\n;	9	1	1\u0001\n\n;
+s	a\r\n\u00e9,,	15	1	1\u0001a\r\n\u00e9,,
+s	 aa;\n\r\n\n,b	13	1	1\u0001 aa;\n\r\n\n,b
+s	\u00e9\ud83d\ude00\r\r\n\r\r	5	1	1\u0001\u00e9\ud83d\ude00\r\r\n\r\r
+s	\r; \u00e9	9	0	1\u0001\r; \u00e9
+s	,	9	0	1\u0001,
+s	,,\u00e9aa\u00e9\u00e9\r\n	12	1	1\u0001,,\u00e9aa\u00e9\u00e9\r\n
+s	\u00e9a	5	1	1\u0001\u00e9a
+s	aa \n,,	11	1	1\u0001aa \n,,
+s	,, ,,\n\ud83d\ude00\ud83d\ude00\nb	9	-1	2\u0001,, ,,\n\ud83d\ude00\ud83d\ude00\n\u0001
+s	; \r\n,b \r\n\n	3	1	1\u0001; \r\n,b \r\n\n
+s	\ud83d\ude00\ud83d\ude00;\n\nb	0	1	1\u0001\ud83d\ude00\ud83d\ude00;\n\nb
+s	\r\na\na,,b	13	1	1\u0001\r\na\na,,b
+s	a	14	3	2\u0001a\u0001
+s	a\u00e9	1	1	1\u0001a\u00e9
+s	, 	5	1	1\u0001, 
+s	bb\u00e9;,,,	6	1	1\u0001bb\u00e9;,,,
+s	\n,,\u00e9ab\r\n	4	0	2\u0001\u0001,,\u00e9ab
+s	\nab\r\naaaa\u00e9\n	15	2	2\u0001\n\u0001ab\r\naaaa\u00e9\n
+s	 \n\u00e9\ud83d\ude00\n\u00e9 	4	3	3\u0001\u0001\u00e9\ud83d\ude00\u0001\u00e9 
+s	\n;\r\naa	12	0	6\u0001\n\u0001;\u0001\r\u0001\n\u0001a\u0001a
+s	\rb\r\ud83d\ude00\r\n  \r	1	1	1\u0001\rb\r\ud83d\ude00\r\n  \r
+s	\r\n	6	-1	1\u0001\r\n
+s		2	0	1\u0001
+s	,b\n\r\n\r\n	12	3	3\u0001,\u0001\u0001\n\r\n\r\n
+s	 aa,,\u00e9\n	3	2	2\u0001 aa\u0001,\u00e9\n
+s	 \u00e9	11	3	3\u0001 \u0001\u00e9\u0001
+s	,\u00e9	14	0	2\u0001,\u0001\u00e9
+s	,,\r\n	15	2	2\u0001\u0001\r\n
+s	\r\n\r,,a\u00e9\ud83d\ude00	1	3	3\u0001\r\n\r\u0001\u0001a\u00e9\ud83d\ude00
+s	\ud83d\ude00\r b\r	6	1	1\u0001\ud83d\ude00\r b\r
+s	 	9	0	1\u0001 
+s	\r\n\ud83d\ude00	8	0	1\u0001\r\n
+s	 bb\r 	0	2	1\u0001 bb\r 
+s	;\u00e9	3	1	1\u0001;\u00e9
+s	\n \n	13	-1	4\u0001\n\u0001 \u0001\n\u0001
+s	 ;;\ud83d\ude00\u00e9 ,\r\n	3	3	3\u0001 \u0001\u0001\ud83d\ude00\u00e9 ,\r\n
+s	,	7	0	1\u0001,
+s	 ,	12	2	2\u0001 \u0001,
+s	,,b,aa ;\r\n	11	0	10\u0001,\u0001,\u0001b\u0001,\u0001a\u0001a\u0001 \u0001;\u0001\r\u0001\n
+s	baa\r\nb;b;a	15	1	1\u0001baa\r\nb;b;a
+s	a	0	1	1\u0001a
+s	bb\r \u00e9	0	-1	1\u0001bb\r \u00e9
+s	 \r\n	2	0	1\u0001 \r\n
+s	 , b	6	-1	2\u0001 \u0001 b
+s	,\r\n	0	1	1\u0001,\r\n
+s	\n	12	0	1\u0001\n
+s	b	15	1	1\u0001b
+s	;ba\r,\n,,\ud83d\ude00	2	1	1\u0001;ba\r,\n,,\ud83d\ude00
+s	\r\n	0	0	0
+s		9	2	1\u0001
+s	;\nba	10	0	3\u0001;\u0001\n\u0001b
+s	\r\n;,\r\r	6	0	2\u0001\r\n;\u0001\r\r
+s	a\na,,\r\naaa\r\n	10	2	2\u0001\u0001\na,,\r\naaa\r\n
+s	;;\ud83d\ude00	1	2	1\u0001;;\ud83d\ude00
+s	\ud83d\ude00b,, \r	3	3	3\u0001\ud83d\ude00b\u0001\u0001 \r
+s		8	3	1\u0001
+s		7	1	1\u0001
+s	\r\nb\u00e9	15	-1	5\u0001\r\u0001\n\u0001b\u0001\u00e9\u0001
+s	;\n	13	1	1\u0001;\n
+s	,,,,,\r,a\r\n	6	-1	7\u0001\u0001\u0001\u0001\u0001\u0001\r\u0001a\r\n
+s	ba\r\u00e9\ud83d\ude00	7	-1	2\u0001ba\r\u0001\ud83d\ude00
+s	b\ud83d\ude00\ud83d\ude00\r\n\ud83d\ude00 	5	-1	1\u0001b\ud83d\ude00\ud83d\ude00\r\n\ud83d\ude00 
+s		12	-1	1\u0001
+s	,,	4	0	1\u0001,,
+s	aaaa\u00e9 aa	11	2	2\u0001a\u0001aaa\u00e9 aa
+s	\n,,,,\n	11	2	2\u0001\n\u0001,,,,\n
+s		0	0	1\u0001
+s	;	2	3	1\u0001;
+s	\n,aa \r\n,	14	0	8\u0001\n\u0001,\u0001a\u0001a\u0001 \u0001\r\u0001\n\u0001,
+s	,,a;,,aa;aa	15	3	3\u0001\u0001\u0001a;,,aa;aa
+s	,,,,,	8	2	2\u0001\u0001,,,,
+s	,, 	4	0	1\u0001,,
+s	a\r\n	8	1	1\u0001a\r\n
+s	, \rb\r\n,,\n\ud83d\ude00	1	1	1\u0001, \rb\r\n,,\n\ud83d\ude00
+s	\u00e9,,,,b\u00e9	8	2	2\u0001\u00e9\u0001,,,b\u00e9
+s	\u00e9,,; 	15	1	1\u0001\u00e9,,; 
+s	,,b\u00e9,a	6	3	3\u0001\u0001\u0001b\u00e9,a
+s	\r\naa,,\n,,,,b	12	2	2\u0001\r\u0001\naa,,\n,,,,b
+s	 	15	-1	2\u0001 \u0001
+s	 \u00e9,,,,\n,	8	-1	6\u0001 \u00e9\u0001\u0001\u0001\u0001\n\u0001
+s	;,, 	13	-1	5\u0001;\u0001\u0001\u0001 \u0001
+s	,,,, ,,a\u00e9	7	-1	2\u0001,,,, ,,a\u0001
+s		8	-1	1\u0001
+s	aaa,,,	12	3	3\u0001a\u0001a\u0001a,,,
+s	a\na\r,	2	2	2\u0001a\na\r\u0001
+s	b\u00e9 	1	2	1\u0001b\u00e9 
+s	;aa\u00e9 	10	2	2\u0001;\u0001\u00e9 
+s	 	5	3	1\u0001 
+s	a\r\n\u00e9,,;\u00e9	9	1	1\u0001a\r\n\u00e9,,;\u00e9
+s	\n \r\nb 	14	0	6\u0001\n\u0001 \u0001\r\u0001\n\u0001b\u0001 
+s	\u00e9\ud83d\ude00\ud83d\ude00,,\ud83d\ude00,,;	1	2	2\u0001\u00e9\ud83d\ude00\ud83d\ude00\u0001,\ud83d\ude00,,;
+s	,\u00e9,;	8	3	3\u0001\u0001\u00e9\u0001;
+s	;	13	2	2\u0001;\u0001
+s	\n;,,b	4	0	2\u0001\u0001;,,b
+s	\ud83d\ude00bb\r\n,\u00e9\u00e9;	7	-1	3\u0001\ud83d\ude00bb\r\n,\u0001\u0001;
+s	b\n\rb;\n	9	1	1\u0001b\n\rb;\n
+s	 \u00e9b,,\u00e9	0	0	1\u0001 \u00e9b,,\u00e9
+s	 ;\ud83d\ude00	1	3	1\u0001 ;\ud83d\ude00
+s	b,\u00e9\u00e9	0	1	1\u0001b,\u00e9\u00e9
+s	, \ud83d\ude00	9	2	1\u0001, \ud83d\ude00
+s	\u00e9	13	2	2\u0001\u00e9\u0001
+s	;,\r\n\u00e9\n\ud83d\ude00\ud83d\ude00b	0	2	2\u0001;,\u0001\u00e9\n\ud83d\ude00\ud83d\ude00b
+s	ba\n	14	3	3\u0001b\u0001a\u0001\n
+s	,,\r\n  \r\u00e9\u00e9\r	3	0	3\u0001\u0001\u0001\r\n  \r\u00e9\u00e9\r
+s	b\u00e9;\r\n;;	11	-1	8\u0001b\u0001\u00e9\u0001;\u0001\r\u0001\n\u0001;\u0001;\u0001
+s	\r,\r\n	1	1	1\u0001\r,\r\n
+s	b\r\n\r\n\ud83d\ude00\r\n\ud83d\ude00	3	0	1\u0001b\r\n\r\n\ud83d\ude00\r\n\ud83d\ude00
+s	a \u00e9\r\n\r\r\n\r	1	1	1\u0001a \u00e9\r\n\r\r\n\r
+s		1	2	1\u0001
+s	\u00e9,\n,aa;	13	2	2\u0001\u00e9\u0001\n,aa;
+s	 a\r\r\n	0	2	2\u0001 a\r\u0001
+s	,,,	8	0	0
+s	a\r	2	3	1\u0001a\r
+s	,\ud83d\ude00\u00e9, ;	5	1	1\u0001,\ud83d\ude00\u00e9, ;
+s	,;	0	-1	1\u0001,;
+s	aaaab\r\n,,aa	10	1	1\u0001aaaab\r\n,,aa
+s		10	3	1\u0001
+s	\u00e9;,,,,,,,\n\r\n	12	1	1\u0001\u00e9;,,,,,,,\n\r\n
+s		6	0	1\u0001
+s	\u00e9	2	-1	1\u0001\u00e9
+s	ab\ud83d\ude00	1	-1	1\u0001ab\ud83d\ude00
+s	;\u00e9	12	3	3\u0001;\u0001\u00e9\u0001
+s	;	11	-1	2\u0001;\u0001
+s	b ab 	2	-1	1\u0001b ab 
+s	b,\u00e9b	2	2	2\u0001b\u0001\u00e9b
+s	\u00e9	2	-1	1\u0001\u00e9
+s	\n \n aa,aa	11	3	3\u0001\n\u0001 \u0001\n aa,aa
+s	\n	5	3	1\u0001\n
+s	\n,,b\n,aa	10	1	1\u0001\n,,b\n,aa
+s	a\r	0	0	1\u0001a\r
+s	a ;	10	3	3\u0001\u0001\u0001 ;
+s	,,,, \r,,\r 	7	0	1\u0001,,,, \r,,\r 
+s	\n\ud83d\ude00ba \u00e9,,,,	2	-1	2\u0001\n\ud83d\ude00ba \u00e9\u0001
+s	;	10	0	1\u0001;
+s		12	1	1\u0001
+s	 ab	0	-1	1\u0001 ab
+s	\r\n;\r	6	2	1\u0001\r\n;\r
+s	\u00e9\na\ud83d\ude00b,,	6	-1	3\u0001\u00e9\na\ud83d\ude00b\u0001\u0001
+s	a;,	1	0	1\u0001a;
+s	aaaba,\ud83d\ude00,,	4	-1	1\u0001aaaba,\ud83d\ude00,,
+s	\n;\u00e9aa\u00e9,,,,	12	-1	11\u0001\n\u0001;\u0001\u00e9\u0001a\u0001a\u0001\u00e9\u0001,\u0001,\u0001,\u0001,\u0001
+s	\r\n,;;aa	13	3	3\u0001\r\u0001\n\u0001;;aa
+s	;aaaa, ,	11	2	2\u0001;\u0001aaaa, ,
+s	\r\r	6	1	1\u0001\r\r
+s		3	3	1\u0001
+s	\r\n ,, 	14	3	3\u0001\r\u0001\n\u0001 ,, 
+s	; ab\r\n,	2	1	1\u0001; ab\r\n,
+s	a,,	2	3	2\u0001a\u0001
+s	ab,aa	12	0	5\u0001a\u0001\u0001,\u0001a\u0001a
+s	\r\n \ud83d\ude00a\ra\ud83d\ude00	8	1	1\u0001\r\n \ud83d\ude00a\ra\ud83d\ude00
+s	\n	7	3	1\u0001\n
+s	\r\n	11	0	2\u0001\r\u0001\n
+s	b b\u00e9baa	15	-1	8\u0001b\u0001 \u0001b\u0001\u00e9\u0001b\u0001a\u0001a\u0001
+s	 ,a\r\naa\u00e9,,b	12	1	1\u0001 ,a\r\naa\u00e9,,b
+s	,	2	2	2\u0001\u0001
+s	,, ,,,a;	15	-1	7\u0001\u0001\u0001 \u0001\u0001a\u0001;\u0001
+s	a,,,,;	11	3	3\u0001a\u0001,\u0001,,,;
+s		15	3	1\u0001
+s	 \n\r\n\r 	8	1	1\u0001 \n\r\n\r 
+s	\n	14	-1	2\u0001\n\u0001
+s	\n 	15	1	1\u0001\n 
+s	b,,,,a\r,,;	6	2	2\u0001b\u0001,,,a\r,,;
+s		4	0	1\u0001
+s	, a\r\n\n\r\nb	1	-1	2\u0001\u0001 a\r\n\n\r\nb
+s	 	5	0	1\u0001 
+s	\r\nb	0	3	2\u0001\u0001b
+s		6	1	1\u0001
+s	,\r\n	6	0	2\u0001\u0001\r\n
+s	\u00e9; 	4	2	2\u0001\u00e9;\u0001
+s		8	1	1\u0001
+s	 ;a	13	1	1\u0001 ;a
+s	,,, \r\naa	11	-1	9\u0001,\u0001,\u0001,\u0001 \u0001\r\u0001\n\u0001a\u0001a\u0001
+s	,,baaa	15	0	6\u0001\u0001\u0001b\u0001a\u0001a\u0001a
+s	\u00e9b\u00e9	10	0	3\u0001\u00e9\u0001b\u0001\u00e9
+s	 \r\n,aa;aa	15	0	9\u0001 \u0001\r\u0001\n\u0001\u0001a\u0001a\u0001;\u0001a\u0001a
+s	a;bb,,	15	3	3\u0001a\u0001;\u0001bb,,
+s	 ,	6	0	1\u0001 
+s	\n,	2	2	2\u0001\n\u0001
+s	\n,, ;aaa;a	10	1	1\u0001\n,, ;aaa;a
+s	;,,b\ud83d\ude00	1	2	2\u0001;\u0001,b\ud83d\ude00
+s		0	2	1\u0001
+s	\r\n\r\n,	4	-1	2\u0001\u0001,
+s	;\ud83d\ude00b\n,b\r\n	7	3	1\u0001;\ud83d\ude00b\n,b\r\n
+s	aa,\u00e9	15	-1	5\u0001a\u0001a\u0001\u0001\u00e9\u0001
+s	\ud83d\ude00\ud83d\ude00	1	-1	1\u0001\ud83d\ude00\ud83d\ude00
+s	b,,\r\n	12	-1	7\u0001\u0001\u0001,\u0001,\u0001\r\u0001\n\u0001
+s		15	0	1\u0001
+s	 	12	0	1\u0001 
+s	,	6	-1	2\u0001\u0001
+s	,,	2	0	0
+s	a\r\n,	10	-1	6\u0001\u0001\u0001\r\u0001\n\u0001,\u0001
+s	\r,,\r\n ,\r,,a	0	2	2\u0001\r,,\u0001 ,\r,,a
+s		2	3	1\u0001
+s	b\r\n,,\n\r	1	1	1\u0001b\r\n,,\n\r
+s	b	4	2	1\u0001b
+s		4	-1	1\u0001
+s	 	14	3	2\u0001 \u0001
+s	 \naa ,\n\r\n	13	-1	10\u0001 \u0001\n\u0001a\u0001a\u0001 \u0001\u0001\n\u0001\r\u0001\n\u0001
+s	  aaaab\u00e9\r\nb	14	3	3\u0001 \u0001 \u0001aaaab\u00e9\r\nb
+s		6	-1	1\u0001
+s	\ud83d\ude00,,\u00e9b\rba	6	2	2\u0001\ud83d\ude00\u0001,\u00e9b\rba
+s	\u00e9 \n	12	2	2\u0001\u00e9\u0001 \n
+s	;	9	2	1\u0001;
+s	\u00e9a;aaaa	12	3	3\u0001\u00e9\u0001a\u0001;aaaa
+s		1	1	1\u0001
+s	 \u00e9;\n\u00e9\n\r\n	13	0	8\u0001 \u0001\u00e9\u0001;\u0001\n\u0001\u00e9\u0001\n\u0001\r\u0001\n
+s	bb,a,	3	0	2\u0001bb\u0001a
+s	,,b	0	-1	1\u0001,,b
+s	\u00e9a\r\na	5	2	1\u0001\u00e9a\r\na
+s	\u00e9\na	10	0	2\u0001\u00e9\u0001\n
+s	\ud83d\ude00\u00e9b	4	3	1\u0001\ud83d\ude00\u00e9b
+s	a	12	0	1\u0001a
+s	\n;\r;\r\n\r\n\r 	9	2	1\u0001\n;\r;\r\n\r\n\r 
+s	\u00e9	12	-1	2\u0001\u00e9\u0001
+s	\ud83d\ude00	6	3	1\u0001\ud83d\ude00
+s		2	1	1\u0001
+s	\n\u00e9aa	3	3	1\u0001\n\u00e9aa
+s	;ba,,, \u00e9\u00e9	4	2	2\u0001;ba,,,\u0001\u00e9\u00e9
+s	,a;,,\n\u00e9b	5	-1	5\u0001\u0001a\u0001\u0001\u0001\n\u00e9b
+s	\n,,\n\u00e9;\u00e9	2	2	2\u0001\n\u0001\n\u00e9;\u00e9
+s	,,,,,b\u00e9;\n,	7	2	2\u0001,,,,,b\u0001;\n,
+s	a	3	2	1\u0001a
+s	\nb\n\u00e9\r\n	0	3	3\u0001\u0001b\u0001\u00e9\r\n
+s	b,,\r\n	13	0	5\u0001b\u0001\u0001\u0001\r\u0001\n
+s	b\r\n;	0	-1	2\u0001b\u0001;
+s	\u00e9\ud83d\ude00	0	-1	1\u0001\u00e9\ud83d\ude00
+s	\r\r\u00e9b;	3	0	1\u0001\r\r\u00e9b
+s	\r\na	0	0	2\u0001\u0001a
+s	\n 	12	2	2\u0001\n\u0001 
+s	\u00e9;\ud83d\ude00	9	0	1\u0001\u00e9;\ud83d\ude00
+s	,,	9	3	1\u0001,,
+s	;baa	14	3	3\u0001;\u0001b\u0001aa
+s	, a\ud83d\ude00	5	3	2\u0001\u0001 a\ud83d\ude00
+s	\n	2	2	1\u0001\n
+s	,,,\u00e9 \r\n\n\u00e9,	7	1	1\u0001,,,\u00e9 \r\n\n\u00e9,
+s	;a	14	0	2\u0001;\u0001a
+s	 	5	-1	1\u0001 
+s	\ud83d\ude00\r\n\ud83d\ude00bb	3	0	1\u0001\ud83d\ude00\r\n\ud83d\ude00bb
+s	aa;a  	10	0	6\u0001\u0001\u0001;\u0001\u0001 \u0001 
+s	,, ,\nb	13	0	7\u0001\u0001\u0001\u0001 \u0001\u0001\n\u0001b
+s	 ,b\r\n\u00e9,,\n	15	2	2\u0001 \u0001b\r\n\u00e9,,\n
+s	aa;\r\na\r\r	0	3	2\u0001aa;\u0001a\r\r
+s	\r\n\u00e9aa,,\r\nb	10	3	3\u0001\r\u0001\n\u0001\u00e9aa,,\r\nb
+s	\r\n;aa	14	0	5\u0001\r\u0001\n\u0001;\u0001a\u0001a
+s	,,\r	5	-1	3\u0001\u0001\u0001\r
+s	aa,	14	0	3\u0001a\u0001a\u0001,
+s	   b	14	2	2\u0001 \u0001  b
+s	,,\n,,\naaa 	12	1	1\u0001,,\n,,\naaa 
+s	,\u00e9;\n	3	-1	3\u0001\u0001\u00e9\u0001\n
+s	\r\n,,b\u00e9	14	2	2\u0001\r\u0001\n,,b\u00e9
+s	\naaa	11	2	2\u0001\n\u0001aaa
+s	;;\n;\u00e9 b,,	13	-1	10\u0001;\u0001;\u0001\n\u0001;\u0001\u00e9\u0001 \u0001b\u0001\u0001\u0001
+s	a,\n ;\ud83d\ude00;\r\n	6	0	2\u0001a\u0001\n ;\ud83d\ude00;\r\n
+s	a\u00e9\na,,	12	1	1\u0001a\u00e9\na,,
+s	\r\n;,	14	2	2\u0001\r\u0001\n;,
+s	aa\r,	2	2	2\u0001aa\r\u0001
+s		12	-1	1\u0001
+s	\r,,\n\u00e9,,	5	3	3\u0001\r\u0001\u0001\n\u00e9,,
+s		14	1	1\u0001
+s	b,, ,\r\n;aa	11	0	10\u0001b\u0001,\u0001,\u0001 \u0001,\u0001\r\u0001\n\u0001;\u0001a\u0001a
+s		6	-1	1\u0001
+s	\r\n\r\n	9	-1	1\u0001\r\n\r\n
+s	\n\n	10	1	1\u0001\n\n
+s	\u00e9a\r\n\ud83d\ude00\n,,\ud83d\ude00	1	3	3\u0001\u00e9a\r\n\ud83d\ude00\n\u0001\u0001\ud83d\ude00
+s	;\u00e9;\r\n;	15	2	2\u0001;\u0001\u00e9;\r\n;
+s	b\r\r,\ud83d\ude00\ra	3	3	2\u0001b\r\r\u0001\ud83d\ude00\ra
+s	\r \ud83d\ude00b,,b	7	1	1\u0001\r \ud83d\ude00b,,b
+s	 ,,\u00e9,\ud83d\ude00,,	0	1	1\u0001 ,,\u00e9,\ud83d\ude00,,
+s	b	1	3	1\u0001b
+s	\ud83d\ude00b;\n,\ud83d\ude00	5	3	3\u0001\ud83d\ude00b\u0001\n\u0001\ud83d\ude00
+s	;baa	12	-1	5\u0001;\u0001\u0001a\u0001a\u0001
+s	b\n,,;\nab	5	3	3\u0001b\n\u0001\u0001;\nab
+s	,\u00e9a,\n	1	0	3\u0001\u0001\u00e9a\u0001\n
+s	a\ud83d\ude00	3	1	1\u0001a\ud83d\ude00
+s	b \u00e9\r;	4	0	3\u0001b\u0001\u00e9\u0001;
+s	a\r\n\n	13	3	3\u0001a\u0001\r\u0001\n\n
+s	\u00e9a\ra\r\n	9	-1	3\u0001\u00e9\u0001\r\u0001\r\n
+s		5	-1	1\u0001
+s	;,,a,,  	6	2	2\u0001;\u0001,a,,  
+s		0	-1	1\u0001
+s	\r,,\r\n	7	2	1\u0001\r,,\r\n
+s	,;,,;,a	6	2	2\u0001\u0001;,,;,a
+s	b ,	9	3	2\u0001\u0001 ,
+s	\r\n	8	1	1\u0001\r\n
+s	;\ud83d\ude00\r\n	9	0	1\u0001;\ud83d\ude00\r\n
+s	\u00e9\ra,\r\n;,,	0	2	2\u0001\u00e9\ra,\u0001;,,
+s	; a  a	0	1	1\u0001; a  a
+s		5	2	1\u0001
+s	  	9	-1	1\u0001  
+s	\u00e9\n,  	0	3	2\u0001\u00e9\u0001,  
+s	b\r\nbb	4	2	2\u0001b\u0001bb
+s	,a	13	0	3\u0001\u0001\u0001a
+s		2	1	1\u0001
+s		10	1	1\u0001
+s	\u00e9,\n\n	9	0	1\u0001\u00e9,\n\n
+s		9	1	1\u0001
+s	\r\n	13	3	3\u0001\r\u0001\n\u0001
+s	\n,,\r\u00e9\n,	3	-1	4\u0001\n\u0001\u0001\r\u00e9\n\u0001
+s	\r	6	-1	1\u0001\r
+s	\r\n,,,,\r\n\r	0	2	2\u0001\u0001,,,,\r\n\r
+s	\rab\ud83d\ude00,	5	0	1\u0001\rab\ud83d\ude00
+s	 a	14	3	3\u0001 \u0001a\u0001
+s	a \r\u00e9	9	0	2\u0001\u0001 \r\u00e9
+s	,;\ra\ud83d\ude00	2	0	2\u0001\u0001;\ra\ud83d\ude00
+s	\na	5	3	1\u0001\na
+s	\n  \na,,\r\r	7	3	1\u0001\n  \na,,\r\r
+s		2	0	1\u0001
+s	\r\na,,a; 	10	0	8\u0001\r\u0001\n\u0001\u0001,\u0001,\u0001\u0001;\u0001 
+s	,,,,b\ud83d\ude00\r, 	1	-1	6\u0001\u0001\u0001\u0001\u0001b\ud83d\ude00\r\u0001 
+s	b,,, \ud83d\ude00\r\n\ud83d\ude00	6	3	3\u0001b\u0001\u0001, \ud83d\ude00\r\n\ud83d\ude00
+s	 ;\r;a,,\u00e9;	1	-1	3\u0001 ;\r;a\u0001\u0001\u00e9;
+s	a,a\r\n\n	1	3	2\u0001a\u0001a\r\n\n
+s	\u00e9\r\n	6	1	1\u0001\u00e9\r\n
+s	\na\n\na\r\n	4	1	1\u0001\na\n\na\r\n
+s	 \u00e9,,b	0	2	1\u0001 \u00e9,,b
+s	,aa;a,;	3	2	2\u0001\u0001aa;a,;
+s	\r\n;ba\u00e9\u00e9\ud83d\ude00\ud83d\ude00	3	1	1\u0001\r\n;ba\u00e9\u00e9\ud83d\ude00\ud83d\ude00
+s	\rb,,\n,, \r\n	6	1	1\u0001\rb,,\n,, \r\n
+s	aa\r\n,,b	14	0	7\u0001a\u0001a\u0001\r\u0001\n\u0001,\u0001,\u0001b
+s	,,\ud83d\ude00\r\n\r\n	9	1	1\u0001,,\ud83d\ude00\r\n\r\n
+s	;aabaa	10	-1	5\u0001;\u0001\u0001b\u0001\u0001
+s	a	2	2	1\u0001a
+s	\u00e9 ,,\n\u00e9\u00e9a	10	1	1\u0001\u00e9 ,,\n\u00e9\u00e9a
+s	\u00e9;,, 	5	0	4\u0001\u00e9\u0001\u0001\u0001 
+s	baaaa,,,,a\r\n	11	0	12\u0001b\u0001a\u0001a\u0001a\u0001a\u0001,\u0001,\u0001,\u0001,\u0001a\u0001\r\u0001\n
+s	,\n,\r\n \n\r	7	0	1\u0001,\n,\r\n \n\r
+s	\u00e9\nbb \u00e9a	3	1	1\u0001\u00e9\nbb \u00e9a
+s	\u00e9\u00e9\r\n\u00e9\n;	15	0	7\u0001\u00e9\u0001\u00e9\u0001\r\u0001\n\u0001\u00e9\u0001\n\u0001;
+s	\r\n\ud83d\ude00;,b	5	0	3\u0001\r\n\ud83d\ude00\u0001\u0001b
+s	bb,	5	1	1\u0001bb,
+s	\u00e9aa,,;,\r\n	14	-1	10\u0001\u00e9\u0001a\u0001a\u0001,\u0001,\u0001;\u0001,\u0001\r\u0001\n\u0001
+s	\ud83d\ude00;\r\n\u00e9 ; 	4	3	3\u0001\ud83d\ude00;\u0001\u00e9\u0001; 
+s	;	6	3	1\u0001;
+s		14	0	1\u0001
+s	,, ,\r\n	14	0	6\u0001,\u0001,\u0001 \u0001,\u0001\r\u0001\n
+s	 \r\n	14	3	3\u0001 \u0001\r\u0001\n
+s	a \ud83d\ude00a,,	9	0	3\u0001\u0001 \ud83d\ude00\u0001,,
+s	b	12	0	0
+s	aab\r\na 	10	1	1\u0001aab\r\na 
+s	b\nb\r\n\u00e9	5	3	1\u0001b\nb\r\n\u00e9
+s		12	3	1\u0001
+s	\u00e9,,,,a\r\n;	14	3	3\u0001\u00e9\u0001,\u0001,,,a\r\n;
+s	 b;,	1	3	2\u0001 b;\u0001
+s	\u00e9b\n	9	0	2\u0001\u00e9\u0001\n
+s	aa aa,\r\n	15	0	8\u0001a\u0001a\u0001 \u0001a\u0001a\u0001\u0001\r\u0001\n
+s		0	3	1\u0001
+s	\r\n	3	3	1\u0001\r\n
+s		1	3	1\u0001
+s	 , ;\r\n\r\n\u00e9	4	-1	4\u0001\u0001,\u0001;\u0001\u00e9
+s	;,	9	2	1\u0001;,
+s	\r\n\r\n	14	3	3\u0001\r\u0001\n\u0001\r\n
+s	\r\n\r,\n\n,\n	4	2	2\u0001\u0001,\n\n,\n
+s	,b\r\n\u00e9\rb,	6	0	2\u0001\u0001b\r\n\u00e9\rb
+s	;	14	1	1\u0001;
+s		3	0	1\u0001
+s		3	2	1\u0001
+s	\n\ud83d\ude00, b\ud83d\ude00\na	1	0	2\u0001\n\ud83d\ude00\u0001 b\ud83d\ude00\na
+s	,\u00e9;,,,,	6	1	1\u0001,\u00e9;,,,,
+s	 	12	-1	2\u0001 \u0001
+s		9	-1	1\u0001
+s	\r\n,a;	2	-1	2\u0001\r\n\u0001a;
+s	\u00e9a\r\n\u00e9\u00e9\u00e9,,	7	3	3\u0001\u0001a\r\n\u0001\u00e9\u00e9,,
+s	\ud83d\ude00\r\n\r\n	5	2	1\u0001\ud83d\ude00\r\n\r\n
+s	aa\u00e9\r\naa,,,aa	15	0	10\u0001a\u0001a\u0001\u00e9\u0001\r\u0001\n\u0001a\u0001a\u0001\u0001a\u0001a
+s	;\u00e9\u00e9\n,,ba	8	2	2\u0001;\u00e9\u00e9\n\u0001,ba
+s	\u00e9;	0	3	1\u0001\u00e9;
+s	b\r\n	3	-1	1\u0001b\r\n
+s	,\r\n\ud83d\ude00	4	3	2\u0001,\u0001\ud83d\ude00
+s		9	2	1\u0001
+s		2	-1	1\u0001
+s	\u00e9b	12	-1	3\u0001\u00e9\u0001\u0001
+s	;	12	3	2\u0001;\u0001
+s	,,,,\ud83d\ude00\u00e9a	3	1	1\u0001,,,,\ud83d\ude00\u00e9a
+s	\u00e9a\ud83d\ude00,	6	3	2\u0001\u00e9a\ud83d\ude00\u0001
+s	aa\r\n	15	2	2\u0001a\u0001a\r\n
+s	\u00e9,	3	2	2\u0001\u00e9\u0001
+s	 ,,aa\u00e9,b	10	0	7\u0001 \u0001,\u0001,\u0001\u0001\u00e9\u0001,\u0001b
+s	\r\n,\u00e9a\r\n	14	2	2\u0001\r\u0001\n,\u00e9a\r\n
+s	\r,,\u00e9\r\n\n\r	0	1	1\u0001\r,,\u00e9\r\n\n\r
+s	  aa\n,,	14	0	7\u0001 \u0001 \u0001a\u0001a\u0001\n\u0001,\u0001,
+s	,,;b\n	15	1	1\u0001,,;b\n
+s	 ,,\n,,\r\u00e9;\n	6	0	5\u0001 \u0001\u0001\n\u0001\u0001\r\u00e9;\n
+s	\u00e9\n,,\r	2	-1	2\u0001\u00e9\n\u0001\r
+s		12	3	1\u0001
+s	 	9	2	1\u0001 
+s	;a\u00e9\ud83d\ude00\r\nbb,	8	-1	3\u0001;a\u00e9\u0001\r\nbb\u0001
+s	\u00e9,b ,,\n	14	2	2\u0001\u00e9\u0001,b ,,\n
+s	,a\n\rb\n	3	3	2\u0001\u0001a\n\rb\n
+s	a\u00e9 a	2	3	1\u0001a\u00e9 a
+s	a ;\n,,\u00e9b	10	3	3\u0001\u0001\u0001 ;\n,,\u00e9b
+s	,,,a\ud83d\ude00\n\n,;	3	0	4\u0001\u0001\u0001\u0001a\ud83d\ude00\n\n
+s	b	15	1	1\u0001b
+s	;	13	1	1\u0001;
+s	\u00e9\u00e9,,	13	3	3\u0001\u00e9\u0001\u00e9\u0001,
+s	\n,,b;	13	2	2\u0001\n\u0001,b;
+s	;\n\u00e9	6	-1	1\u0001;\n\u00e9
+s	, ,,\n\n	1	0	4\u0001\u0001 \u0001\u0001\n\n
+s	,\r\r\n;b ,,	1	1	1\u0001,\r\r\n;b ,,
+s	\u00e9\r\ud83d\ude00\r\nb	0	-1	2\u0001\u00e9\r\ud83d\ude00\u0001b
+s	b;,	1	2	2\u0001b;\u0001
+s		10	-1	1\u0001
+s	, ,;\n	2	2	2\u0001\u0001 ,;\n
+s	,;;\u00e9;aa\n	11	2	2\u0001,\u0001;;\u00e9;aa\n
+s	,\ud83d\ude00b ,,\r	6	2	2\u0001\u0001\ud83d\ude00b ,,\r
+s	a\ud83d\ude00\n;\r\n	5	-1	2\u0001a\ud83d\ude00\n\u0001\r\n
+s		14	0	1\u0001
+s	\u00e9\u00e9	1	3	1\u0001\u00e9\u00e9
+s		14	-1	1\u0001
+s	\u00e9a,,,\u00e9\u00e9ab	14	1	1\u0001\u00e9a,,,\u00e9\u00e9ab
+s	b;	14	1	1\u0001b;
+s	 \u00e9 ;,,aa;	12	1	1\u0001 \u00e9 ;,,aa;
+s	a   	8	1	1\u0001a   
+s	,,,,,aa\u00e9\r\n,,	13	3	3\u0001\u0001\u0001,,,aa\u00e9\r\n,,
+s	,aa\r,, a	4	0	3\u0001,aa\u0001,,\u0001a
+s		5	2	1\u0001
+s	 aa\r\n	11	3	3\u0001 \u0001a\u0001a\r\n
+s	;,aa \u00e9 b	13	3	3\u0001;\u0001\u0001aa \u00e9 b
+s	\r\n, a;aaa\u00e9	14	2	2\u0001\r\u0001\n, a;aaa\u00e9
+s	\r,,\r\nb	3	-1	3\u0001\r\u0001\u0001\r\nb
+s	,,, 	11	1	1\u0001,,, 
+s	\r\r\ud83d\ude00aa	7	-1	1\u0001\r\r\ud83d\ude00aa
+s	;,,b\r\nb	0	1	1\u0001;,,b\r\nb
+s	\u00e9b\r\n;a\u00e9, 	13	3	3\u0001\u00e9\u0001b\u0001\r\n;a\u00e9, 
+s	,	4	3	1\u0001,
+s	,\na\n,,,, 	11	0	9\u0001,\u0001\n\u0001a\u0001\n\u0001,\u0001,\u0001,\u0001,\u0001 
+s	,,	13	0	0
+s	,, ;	10	0	4\u0001,\u0001,\u0001 \u0001;
+s	a\n;\u00e9 aa\u00e9aa	11	3	3\u0001a\u0001\n\u0001;\u00e9 aa\u00e9aa
+s	,\ud83d\ude00b\rb	0	-1	1\u0001,\ud83d\ude00b\rb
+s	 ,b,,;ab\r\n	10	3	3\u0001 \u0001,\u0001b,,;ab\r\n
+s	,\r\n\r\n	11	0	5\u0001,\u0001\r\u0001\n\u0001\r\u0001\n
+s	 \u00e9;\ud83d\ude00	4	0	2\u0001\u0001\u00e9;\ud83d\ude00
+s	 \ud83d\ude00 \u00e9,,\ud83d\ude00\u00e9\n	5	-1	3\u0001 \ud83d\ude00 \u00e9\u0001\u0001\ud83d\ude00\u00e9\n
+s		2	2	1\u0001
+s	aaaa\n \r\n	14	1	1\u0001aaaa\n \r\n
+s	\r\n\r,,\ud83d\ude00; 	9	-1	1\u0001\r\n\r,,\ud83d\ude00; 
+s	,,,	5	2	2\u0001\u0001,,
+s	\na\n\r\n;b	11	0	7\u0001\n\u0001a\u0001\n\u0001\r\u0001\n\u0001;\u0001b
+s	; ;;\u00e9a	4	2	2\u0001;\u0001;;\u00e9a
+s	\u00e9;	13	3	3\u0001\u00e9\u0001;\u0001
+s	 \r\na\r\n b	6	2	1\u0001 \r\na\r\n b
+s	\r\n\r\r\n\ra\n\r\n	0	-1	5\u0001\u0001\r\u0001\ra\u0001\u0001
+s	\n,\u00e9\u00e9\r\n	12	2	2\u0001\n\u0001,\u00e9\u00e9\r\n
+s	,\n	7	1	1\u0001,\n
+s	a\ud83d\ude00\ud83d\ude00\nb	6	-1	1\u0001a\ud83d\ude00\ud83d\ude00\nb
+s	\r\n\n ,	9	-1	1\u0001\r\n\n ,
+s	\u00e9;\r\r\n,,\ud83d\ude00  	7	-1	2\u0001\u0001;\r\r\n,,\ud83d\ude00  
+s	\r\naa	3	-1	1\u0001\r\naa
+s	\u00e9	15	2	2\u0001\u00e9\u0001
+s	,	15	1	1\u0001,
+s	 	10	-1	2\u0001 \u0001
+s	b\r\n;a	13	2	2\u0001b\u0001\r\n;a
+s		1	2	1\u0001
+s	b,;	8	-1	2\u0001b\u0001;
+s		13	2	1\u0001
+s		15	0	1\u0001
+s		11	2	1\u0001
+s	\u00e9\r\n,,\u00e9,	6	0	3\u0001\u00e9\r\n\u0001\u0001\u00e9
+s	,,\r\r\n	2	-1	2\u0001\u0001\r\r\n
+s	 \ud83d\ude00,,	6	2	2\u0001 \ud83d\ude00\u0001,
+s	;; \r\n,, 	12	1	1\u0001;; \r\n,, 
+s	b	5	0	1\u0001b
+s	 ;,,	3	3	3\u0001 \u0001\u0001,
+s	\r a\u00e9\rb,,,,	7	1	1\u0001\r a\u00e9\rb,,,,
+s		10	1	1\u0001
+s	\ud83d\ude00	5	2	1\u0001\ud83d\ude00
+s	\n;\r\n,,b\n	8	-1	3\u0001\n;\r\n\u0001\u0001b\n
+s	;	3	2	2\u0001\u0001
+s	;;,,\r\n;;	8	0	3\u0001;;\u0001\u0001\r\n;;
+s	\ud83d\ude00a	5	2	1\u0001\ud83d\ude00a
+s	;	15	2	2\u0001;\u0001
+s	\r\n;b\n\r\na;\r	1	2	1\u0001\r\n;b\n\r\na;\r
+s	,bb\n,,b;,	4	0	2\u0001,bb\u0001,,b;,
+s	ab\u00e9,,,\r\n	13	2	2\u0001a\u0001b\u00e9,,,\r\n
+s	\ud83d\ude00\u00e9\r\n	2	3	1\u0001\ud83d\ude00\u00e9\r\n
+s	;\ud83d\ude00b	1	-1	1\u0001;\ud83d\ude00b
+s		9	1	1\u0001
+s	a,	2	0	1\u0001a
+s	,\r\n;a;\u00e9a,,	0	0	2\u0001,\u0001;a;\u00e9a,,
+s	 b,,\raa\r,	9	2	2\u0001 \u0001,,\raa\r,
+s	 ,;\nb\r\n\r\u00e9	1	3	2\u0001 \u0001;\nb\r\n\r\u00e9
+s	b\u00e9\r\u00e9 b\r	0	0	1\u0001b\u00e9\r\u00e9 b\r
+s	\r\n\r\n\r\ud83d\ude00b ,,	5	3	3\u0001\r\n\r\n\r\ud83d\ude00b \u0001\u0001
+s	b;,,\r\r\n	1	3	3\u0001b;\u0001\u0001\r\r\n
+s		12	3	1\u0001
+s	\u00e9,,;\ud83d\ude00b	1	2	2\u0001\u00e9\u0001,;\ud83d\ude00b
+s	;	4	1	1\u0001;
+s	\r\u00e9,,,,\r\n\r\r\n	4	1	1\u0001\r\u00e9,,,,\r\n\r\r\n
+s	;;;\na\u00e9	15	1	1\u0001;;;\na\u00e9
+s		9	-1	1\u0001
+s	a;	8	-1	1\u0001a;
+s	 \u00e9,	5	0	1\u0001 \u00e9
+s	aa\u00e9\u00e9 aa	15	0	7\u0001a\u0001a\u0001\u00e9\u0001\u00e9\u0001 \u0001a\u0001a
+s	ba,,\r \u00e9	3	0	3\u0001ba\u0001\u0001\r \u00e9
+s	,,\n\u00e9aaaaa\nb	10	-1	8\u0001,\u0001,\u0001\n\u0001\u00e9\u0001\u0001\n\u0001b\u0001
+s	\r\n\n,,b,,;,a	6	-1	6\u0001\r\n\n\u0001\u0001b\u0001\u0001;\u0001a
+s	\na,,\nb,,a,	7	-1	1\u0001\na,,\nb,,a,
+s	\r\n	5	3	1\u0001\r\n
+s	\n,,,,a \r\n,,\r\n	10	-1	14\u0001\n\u0001,\u0001,\u0001,\u0001,\u0001\u0001 \u0001\r\u0001\n\u0001,\u0001,\u0001\r\u0001\n\u0001
+s	,,;,,,,	14	1	1\u0001,,;,,,,
+s	aa	5	0	1\u0001aa
+s	,,,,a;\n	5	3	3\u0001\u0001\u0001,,a;\n
+s	,,	6	-1	3\u0001\u0001\u0001
+s	;,	10	1	1\u0001;,
+s	,, ;;\u00e9;	10	1	1\u0001,, ;;\u00e9;
+s	;\u00e9\r, 	5	0	3\u0001\u0001\u00e9\r\u0001 
+s	  \r\n\ud83d\ude00\r\u00e9	7	-1	2\u0001  \r\n\ud83d\ude00\r\u0001
+s	\r\n\r\n,,,,\n;	3	2	2\u0001\r\n\r\n\u0001,,,\n;
+s	a \r\n\r\n\r\na 	13	1	1\u0001a \r\n\r\n\r\na 
+s	\ud83d\ude00a\ud83d\ude00,,;	6	3	3\u0001\ud83d\ude00a\ud83d\ude00\u0001\u0001;
+s	a,aa\r\n	12	2	2\u0001a\u0001,aa\r\n
+s	 \u00e9,,a	7	-1	2\u0001 \u0001,,a
+s	;	5	0	0
+s	\ra	5	-1	1\u0001\ra
+s	b,,\r\naa b,,\r\n	11	2	2\u0001b\u0001,,\r\naa b,,\r\n
+s	\r\n b\u00e9;\u00e9a	15	-1	9\u0001\r\u0001\n\u0001 \u0001b\u0001\u00e9\u0001;\u0001\u00e9\u0001a\u0001
+s	,\n\n,,a	3	1	1\u0001,\n\n,,a
+s	a	10	1	1\u0001a
+s	\r\n\r\n\ud83d\ude00,b	1	2	2\u0001\r\n\r\n\ud83d\ude00\u0001b
+s	baaa,,	10	2	2\u0001b\u0001,,
+s	,,	7	-1	1\u0001,,
+s	\u00e9\r,,,,,,a,	1	1	1\u0001\u00e9\r,,,,,,a,
+s	\r\na,, ;;;;	11	2	2\u0001\r\u0001\na,, ;;;;
+s	;ba;,,\u00e9aa	14	0	9\u0001;\u0001b\u0001a\u0001;\u0001,\u0001,\u0001\u00e9\u0001a\u0001a
+s	;\r\n	0	0	1\u0001;
+s		11	1	1\u0001
+s	\n\ud83d\ude00\n,,,	2	1	1\u0001\n\ud83d\ude00\n,,,
+s	\r\n\n	10	0	3\u0001\r\u0001\n\u0001\n
+s	\u00e9;b\na	10	3	3\u0001\u00e9\u0001;\u0001b\na
+s	b;a;,,	13	-1	7\u0001b\u0001;\u0001a\u0001;\u0001\u0001\u0001
+s	 a;,,,,,\r\n\ud83d\ude00	3	3	3\u0001 a\u0001\u0001,,,,\r\n\ud83d\ude00
+s	aaaa\n \r\n,,aaa	11	3	3\u0001a\u0001a\u0001aa\n \r\n,,aaa
+s	aab\n;\u00e9\r\n	12	-1	9\u0001a\u0001a\u0001\u0001\n\u0001;\u0001\u00e9\u0001\r\u0001\n\u0001
+s	\ud83d\ude00\r\n \u00e9\rb\na	3	1	1\u0001\ud83d\ude00\r\n \u00e9\rb\na
+s	 \ra\n\r	5	0	1\u0001 \ra\n\r
+s		13	2	1\u0001
+s	,	15	3	3\u0001\u0001\u0001
+s	\u00e9;\r,,,,\r\na\u00e9	4	0	3\u0001\u00e9;\u0001,,,,\u0001a\u00e9
+s	\ud83d\ude00	3	1	1\u0001\ud83d\ude00
+s	\ud83d\ude00\r\r\n,,\ra	2	0	2\u0001\ud83d\ude00\r\r\n\u0001\ra
+s	\r\ud83d\ude00a\r\ud83d\ude00\n,,\r	4	2	2\u0001\u0001\ud83d\ude00a\r\ud83d\ude00\n,,\r
+s	 \u00e9;\ud83d\ude00\ud83d\ude00\r\n	9	0	1\u0001 \u00e9;\ud83d\ude00\ud83d\ude00\r\n
+s		6	0	1\u0001
+s	,aba\u00e9\r\n;,	13	3	3\u0001\u0001\u0001aba\u00e9\r\n;,
+s	aaaa \u00e9	11	1	1\u0001aaaa \u00e9
+s	,,,\nb	9	2	2\u0001,,,\n\u0001
+s	\r\na;b,,\ud83d\ude00	5	-1	4\u0001\r\na\u0001b\u0001\u0001\ud83d\ude00
+s	,,,,b\r\n\n\n\r\n	12	2	2\u0001,\u0001,,,b\r\n\n\n\r\n
+s	;, aaaa	10	3	3\u0001;\u0001,\u0001 aaaa
+s		8	0	1\u0001
+s	a\r\naa	11	0	5\u0001a\u0001\r\u0001\n\u0001a\u0001a
+s	\r\n \ud83d\ude00,\ud83d\ude00a,,b	3	2	2\u0001\r\n \ud83d\ude00\u0001\ud83d\ude00a,,b
+s		6	1	1\u0001
+s	aa 	10	2	2\u0001\u0001 
+s	,,\u00e9a	7	3	2\u0001,,\u0001a
+s	\ud83d\ude00\u00e9,,,,\u00e9,	2	0	2\u0001\ud83d\ude00\u00e9\u0001\u00e9
+s	bb, ,	12	1	1\u0001bb, ,
+s	\u00e9,,\u00e9;\u00e9; 	7	-1	4\u0001\u0001,,\u0001;\u0001; 
+s	,b	2	-1	2\u0001\u0001b
+s	,\r\nab,	8	0	2\u0001\u0001\r\nab
+s	,\n, ;\nbb	10	-1	9\u0001,\u0001\n\u0001,\u0001 \u0001;\u0001\n\u0001b\u0001b\u0001
+s	,,\u00e9\r\r,\u00e9	1	2	2\u0001\u0001,\u00e9\r\r,\u00e9
+s	ba\r\n;;\r\r\r\n	1	1	1\u0001ba\r\n;;\r\r\r\n
+s	aa,aaa	11	-1	7\u0001a\u0001a\u0001,\u0001a\u0001a\u0001a\u0001
+s	\u00e9	9	1	1\u0001\u00e9
+s	\u00e9	15	1	1\u0001\u00e9
+s	aa\n	4	3	2\u0001aa\u0001
+s	\r\n	5	2	1\u0001\r\n
+s	;\r\nba\r	8	3	1\u0001;\r\nba\r
+s	\r\naa 	12	-1	6\u0001\r\u0001\n\u0001a\u0001a\u0001 \u0001
+s		3	0	1\u0001
+s	\n ,, ;b,,\n	12	2	2\u0001\n\u0001 ,, ;b,,\n
+s	\n,,, b\n	14	2	2\u0001\n\u0001,,, b\n
+s	;b,	5	2	2\u0001\u0001b,
+s	\ra,\r\nbb	2	-1	2\u0001\ra\u0001\r\nbb
+s		3	0	1\u0001
+s	 ;	9	1	1\u0001 ;
+s	 ,, ,,,,\ud83d\ude00 	9	1	1\u0001 ,, ,,,,\ud83d\ude00 
+s	aa	10	3	3\u0001\u0001\u0001
+s	\u00e9\u00e9a,aa,,\r\n	15	-1	10\u0001\u00e9\u0001\u00e9\u0001a\u0001\u0001a\u0001a\u0001\u0001\r\u0001\n\u0001
+s	\ra\n\u00e9\ud83d\ude00	7	1	1\u0001\ra\n\u00e9\ud83d\ude00
+s	\n\n,,a,,\n\r\n\u00e9	12	0	11\u0001\n\u0001\n\u0001,\u0001,\u0001a\u0001,\u0001,\u0001\n\u0001\r\u0001\n\u0001\u00e9
+s	b\ud83d\ude00\r\rb\n a	2	-1	1\u0001b\ud83d\ude00\r\rb\n a
+s	\n\r\n	4	2	2\u0001\u0001
+s	,\naaaa\u00e9,,,a	12	-1	12\u0001,\u0001\n\u0001a\u0001a\u0001a\u0001a\u0001\u00e9\u0001,\u0001,\u0001,\u0001a\u0001
+s	a\na\r\n\ud83d\ude00b\u00e9\ud83d\ude00	0	1	1\u0001a\na\r\n\ud83d\ude00b\u00e9\ud83d\ude00
+s	,,a  ,bb\n	1	2	2\u0001\u0001,a  ,bb\n
+s	\nb,,	4	2	2\u0001\u0001b,,
+s		1	-1	1\u0001
+s		6	3	1\u0001
+s	;aa,\u00e9aabaa,,	11	3	3\u0001;\u0001a\u0001a,\u00e9aabaa,,
+s	,,\n\r\n\r\n	13	2	2\u0001\u0001,\n\r\n\r\n
+s	aabaa,	12	3	3\u0001a\u0001a\u0001aa,
+s	\r\r\r\na\u00e9\u00e9,	3	1	1\u0001\r\r\r\na\u00e9\u00e9,
+s	\n\r\n\r,a\ud83d\ude00	6	2	2\u0001\n\r\n\r\u0001a\ud83d\ude00
+s	\r\n	0	3	2\u0001\u0001
+s	b,,,ba\ud83d\ude00b,,	1	1	1\u0001b,,,ba\ud83d\ude00b,,
+s	 \n	1	3	1\u0001 \n
+s	\ud83d\ude00bb,,\r\n	3	-1	3\u0001\ud83d\ude00bb\u0001\u0001\r\n
+s	\n\r\u00e9;,,,\r\n\u00e9	4	0	3\u0001\u0001\u00e9;,,,\u0001\u00e9
+s	,,	14	0	2\u0001,\u0001,
+s	,	15	-1	3\u0001\u0001\u0001
+s	\r\n	9	3	1\u0001\r\n
+s	\u00e9aa; a\r\n	15	2	2\u0001\u00e9\u0001aa; a\r\n
+s	a;,,	12	-1	5\u0001a\u0001;\u0001,\u0001,\u0001
+s	a\u00e9	7	0	1\u0001a
+s	aab b	10	-1	6\u0001\u0001\u0001b\u0001 \u0001b\u0001
+s	\nb	6	1	1\u0001\nb
+s	,\r\n;a	10	1	1\u0001,\r\n;a
+s	\u00e9a	6	2	1\u0001\u00e9a
+s	,,,\r\n,,	11	-1	8\u0001,\u0001,\u0001,\u0001\r\u0001\n\u0001,\u0001,\u0001
+s	,a\n \n \r\n	9	2	2\u0001,\u0001\n \n \r\n
+s	baaaa\u00e9\n\r\n	13	2	2\u0001b\u0001aaaa\u00e9\n\r\n
+s		13	0	1\u0001
+s	a\u00e9 a	11	1	1\u0001a\u00e9 a
+s	;\r,,\r\n	0	2	2\u0001;\r,,\u0001
+s	 \r\n\ud83d\ude00,,\ud83d\ude00\r\n	2	2	2\u0001 \r\n\ud83d\ude00\u0001\ud83d\ude00\r\n
+s		4	-1	1\u0001
+s	\r\nb a	13	0	5\u0001\r\u0001\n\u0001b\u0001 \u0001a
+s	\u00e9 b,,	1	-1	3\u0001\u00e9 b\u0001\u0001
+s		11	2	1\u0001
+s	\naa	14	-1	4\u0001\n\u0001a\u0001a\u0001
+s		3	2	1\u0001
+s	,b,,a,,\r\n\n 	3	1	1\u0001,b,,a,,\r\n\n 
+s	;	3	2	2\u0001\u0001
+s	\ud83d\ude00\n\u00e9\u00e9a;,	1	3	2\u0001\ud83d\ude00\n\u00e9\u00e9a;\u0001
+s	;\u00e9\n\ud83d\ude00\r\n\r,	5	3	3\u0001\u0001\u00e9\n\ud83d\ude00\r\n\r\u0001
+s	,,;	5	1	1\u0001,,;
+s	,\ud83d\ude00	8	2	2\u0001\u0001\ud83d\ude00
+s	\r\n\u00e9	9	3	1\u0001\r\n\u00e9
+s	,,;\r\na,,	1	2	2\u0001\u0001,;\r\na,,
+s	\r\r,,\r\n\n	7	2	1\u0001\r\r,,\r\n\n
+s	\r\r\rb	3	-1	1\u0001\r\r\rb
+s	\r\n	15	2	2\u0001\r\u0001\n
+s	\r\n,,\ud83d\ude00\r\n,\u00e9	0	-1	3\u0001\u0001,,\ud83d\ude00\u0001,\u00e9
+s	b,,,\n	8	-1	4\u0001b\u0001\u0001\u0001\n
+s	,,	1	0	0
+s		7	3	1\u0001
+s	\r;b,\n\ud83d\ude00	8	-1	3\u0001\r;b\u0001\n\u0001
+s	aaaa\r\n;\r\n	14	1	1\u0001aaaa\r\n;\r\n
+s		14	1	1\u0001
+s	\r\n \r,	0	2	2\u0001\u0001 \r,
+s	\u00e9, 	10	3	3\u0001\u00e9\u0001,\u0001 
+s	\ud83d\ude00,  \r\n,aa	0	2	2\u0001\ud83d\ude00,  \u0001,aa
+s	b\naaa\r\n\u00e9\r\n	11	1	1\u0001b\naaa\r\n\u00e9\r\n
+s	a\r\nb\n;	3	3	2\u0001a\r\nb\n\u0001
+s	; a ,, 	7	2	1\u0001; a ,, 
+s	\r\nb,aa	11	0	6\u0001\r\u0001\n\u0001b\u0001,\u0001a\u0001a
+s	a\n\u00e9;	1	1	1\u0001a\n\u00e9;
+s	\r\n;a,;\ud83d\ude00;	0	2	2\u0001\u0001;a,;\ud83d\ude00;
+s	\ud83d\ude00\ud83d\ude00\r\n\u00e9,,\r\n b	6	0	3\u0001\ud83d\ude00\ud83d\ude00\r\n\u00e9\u0001\u0001\r\n b
+s	 \r\n\u00e9\u00e9 \ud83d\ude00	0	1	1\u0001 \r\n\u00e9\u00e9 \ud83d\ude00
+s	\r\n\u00e9;;	3	1	1\u0001\r\n\u00e9;;
+s	;b,,,,\u00e9	10	0	7\u0001;\u0001b\u0001,\u0001,\u0001,\u0001,\u0001\u00e9
+s		8	3	1\u0001
+s		14	3	1\u0001
+s		11	2	1\u0001
+s	,b;baa	15	-1	8\u0001\u0001\u0001b\u0001;\u0001b\u0001a\u0001a\u0001
+s		11	1	1\u0001
+s	;,,,,a\ud83d\ude00	6	-1	5\u0001;\u0001\u0001\u0001\u0001a\ud83d\ude00
+s		1	0	1\u0001
+s	,	15	-1	3\u0001\u0001\u0001
+s	;	8	-1	1\u0001;
+s		13	-1	1\u0001
+s	,,,aaaaaa;a	14	0	11\u0001,\u0001,\u0001,\u0001a\u0001a\u0001a\u0001a\u0001a\u0001a\u0001;\u0001a
+s	\r\n\r\nab\r\n,,;\u00e9	14	0	12\u0001\r\u0001\n\u0001\r\u0001\n\u0001a\u0001b\u0001\r\u0001\n\u0001,\u0001,\u0001;\u0001\u00e9
+s	aa,,aa,,\u00e9	15	0	7\u0001a\u0001a\u0001\u0001a\u0001a\u0001\u0001\u00e9
+s	a\r;\na	4	2	2\u0001a\u0001;\na
+s	 a,,	2	2	2\u0001 a\u0001
+s	\r\n	13	2	2\u0001\r\u0001\n
+s	,,\r\na,,	11	0	7\u0001,\u0001,\u0001\r\u0001\n\u0001a\u0001,\u0001,
+s	\u00e9a, \ud83d\ude00\ud83d\ude00	9	3	2\u0001\u00e9\u0001, \ud83d\ude00\ud83d\ude00
+s	\r\n\r\n\u00e9;,,,\ud83d\ude00;	5	3	3\u0001\r\n\r\n\u00e9\u0001\u0001,,\ud83d\ude00;
+s	,	12	1	1\u0001,
+s	\r\na\n,aa\u00e9\u00e9	10	1	1\u0001\r\na\n,aa\u00e9\u00e9
+s	\n,,\r\n ,,	9	2	1\u0001\n,,\r\n ,,
+s		3	0	1\u0001
+s	\r	7	-1	1\u0001\r
+s	,;,,	7	-1	1\u0001,;,,
+s	 aa\u00e9 \u00e9a\ud83d\ude00	7	1	1\u0001 aa\u00e9 \u00e9a\ud83d\ude00
+s		10	-1	1\u0001
+s	\ud83d\ude00,	4	3	1\u0001\ud83d\ude00,
+s	 \r\n;	14	0	4\u0001 \u0001\r\u0001\n\u0001;
+s	,,,\ud83d\ude00a\u00e9b,	5	-1	5\u0001\u0001\u0001\u0001\ud83d\ude00a\u00e9b\u0001
+s	 \u00e9b,\n;	10	-1	7\u0001 \u0001\u00e9\u0001b\u0001,\u0001\n\u0001;\u0001
+s	\n \ud83d\ude00	3	2	1\u0001\n \ud83d\ude00
+s	b,,	7	1	1\u0001b,,
+s	,\r	4	-1	2\u0001,\u0001
+s	\r\n\u00e9\n \ud83d\ude00\u00e9  	2	2	1\u0001\r\n\u00e9\n \ud83d\ude00\u00e9  
+s		3	3	1\u0001
+s	,,;\ud83d\ude00,b	3	2	2\u0001\u0001,;\ud83d\ude00,b
+s	\ud83d\ude00	1	1	1\u0001\ud83d\ude00
+s	a	9	1	1\u0001a
+s	aa,,,a	12	0	6\u0001a\u0001a\u0001,\u0001,\u0001,\u0001a
+s	;,bb	1	2	2\u0001;\u0001bb
+s	   	0	3	1\u0001   
+s	\r\n;a	15	2	2\u0001\r\u0001\n;a
+s	\r\n\u00e9; 	0	3	2\u0001\u0001\u00e9; 
+s	\r\naa;,aaba	15	-1	11\u0001\r\u0001\n\u0001a\u0001a\u0001;\u0001\u0001a\u0001a\u0001b\u0001a\u0001
+s	\u00e9,,b\u00e9\n	1	3	3\u0001\u00e9\u0001\u0001b\u00e9\n
+s	\ud83d\ude00b	9	3	2\u0001\ud83d\ude00\u0001
+s	,b;,	7	2	1\u0001,b;,
+s	;\ud83d\ude00,,;	8	-1	4\u0001;\u0001\u0001\u0001;
+s	\u00e9b\r\n,,b	4	0	2\u0001\u00e9b\u0001,,b
+s	  \r 	1	1	1\u0001  \r 
+s	 a\n \r\n,	1	2	2\u0001 a\n \r\n\u0001
+s	\n\r \u00e9,,\ud83d\ude00\n	6	-1	3\u0001\n\r \u00e9\u0001\u0001\ud83d\ude00\n
+s	b\ra	3	0	1\u0001b\ra
+s	;\n 	12	3	3\u0001;\u0001\n\u0001 
+s		15	0	1\u0001
+s	\ud83d\ude00 ;\r\ud83d\ude00,;,	6	3	3\u0001\ud83d\ude00 ;\r\ud83d\ude00\u0001;\u0001
+s	;	9	-1	1\u0001;
+s	,,;a	15	1	1\u0001,,;a
+s	ba	14	2	2\u0001b\u0001a
+s	;aaaa;\r\n	12	3	3\u0001;\u0001a\u0001aaa;\r\n
+s	, 	6	0	2\u0001\u0001 
+s	 \u00e9\n\n\n\n	15	-1	7\u0001 \u0001\u00e9\u0001\n\u0001\n\u0001\n\u0001\n\u0001
+s	\r\n,,,b\n,,\n	12	-1	11\u0001\r\u0001\n\u0001,\u0001,\u0001,\u0001\u0001\n\u0001,\u0001,\u0001\n\u0001
+s	,	12	1	1\u0001,
+s	b\u00e9;\ud83d\ude00\r\n,	9	3	2\u0001\u0001\u00e9;\ud83d\ude00\r\n,
+s	a ;	15	-1	4\u0001a\u0001 \u0001;\u0001
+s	\r\n	6	2	1\u0001\r\n
+s	 \u00e9;\r\n	1	0	1\u0001 \u00e9;\r\n
+s	 b,	2	1	1\u0001 b,
+s	\n\n,,; ;\u00e9	14	1	1\u0001\n\n,,; ;\u00e9
+s		15	-1	1\u0001
+s		1	0	1\u0001
+s		2	3	1\u0001
+s	,, b 	4	3	3\u0001,,\u0001b\u0001
+s	aa,,,,,a	10	-1	9\u0001\u0001\u0001,\u0001,\u0001,\u0001,\u0001,\u0001\u0001
+s	a;a;	2	-1	1\u0001a;a;
+s	,,\r\nb	15	3	3\u0001\u0001\u0001\r\nb
+s	b,\u00e9\r\n\n\r	2	1	1\u0001b,\u00e9\r\n\n\r
+s	\ud83d\ude00\ud83d\ude00\r\r\nb,,	0	-1	2\u0001\ud83d\ude00\ud83d\ude00\r\u0001b,,
+s	\n	12	1	1\u0001\n
+s	;;	13	-1	3\u0001;\u0001;\u0001
+s	\n ,,\n;,\u00e9	2	0	3\u0001\n \u0001\n;\u0001\u00e9
+s	,\u00e9	5	-1	2\u0001\u0001\u00e9
+s	 \n	6	0	1\u0001 \n
+s	 \u00e9\n 	13	-1	5\u0001 \u0001\u00e9\u0001\n\u0001 \u0001
+s	\r\n;\u00e9\u00e9\r\n\u00e9	3	-1	2\u0001\r\n\u0001\u00e9\u00e9\r\n\u00e9
+s	aa,,\r\naa	15	1	1\u0001aa,,\r\naa
+s	,a\u00e9,,,,,\ud83d\ude00 	2	1	1\u0001,a\u00e9,,,,,\ud83d\ude00 
+s	b,\r\n\rb\ra	7	-1	1\u0001b,\r\n\rb\ra
+s	 \n \r\n;a	3	1	1\u0001 \n \r\n;a
+s	,,\n\naa aa	14	-1	10\u0001,\u0001,\u0001\n\u0001\n\u0001a\u0001a\u0001 \u0001a\u0001a\u0001
+s	\u00e9,,	3	-1	3\u0001\u00e9\u0001\u0001
+s	\r\na	10	-1	4\u0001\r\u0001\n\u0001\u0001
+s	\na;ba	10	-1	6\u0001\n\u0001\u0001;\u0001b\u0001\u0001
+s	;aaaa\r\n	12	2	2\u0001;\u0001aaaa\r\n
+s	aa\r\n,,;;aa	12	1	1\u0001aa\r\n,,;;aa
+s	;\r\n\ud83d\ude00ab	0	-1	2\u0001;\u0001\ud83d\ude00ab
+s		3	0	1\u0001
+s	\r;	3	0	1\u0001\r
+s		5	3	1\u0001
+s	aaabaa	11	3	3\u0001a\u0001a\u0001abaa
+s	\u00e9b, ;, a	10	0	7\u0001\u00e9\u0001b\u0001,\u0001 \u0001;\u0001,\u0001 
+s		13	2	1\u0001
+s	;b\r\n\r\nb,,\ud83d\ude00	5	0	4\u0001\u0001b\r\n\r\nb\u0001\u0001\ud83d\ude00
+s	 ,,\n\u00e9,\n,\n	13	0	9\u0001 \u0001\u0001\u0001\n\u0001\u00e9\u0001\u0001\n\u0001\u0001\n
+s	,\u00e9 \u00e9,,;;,	15	3	3\u0001\u0001\u0001\u00e9 \u00e9,,;;,
+s	\r\n\ud83d\ude00b\rb\u00e9b	3	-1	1\u0001\r\n\ud83d\ude00b\rb\u00e9b
+s	\u00e9\r\r	4	3	2\u0001\u00e9\u0001
+s	\r\ud83d\ude00,\n,	8	0	3\u0001\r\u0001\u0001\n
+s	\ud83d\ude00\u00e9;\r\n	0	3	2\u0001\ud83d\ude00\u00e9;\u0001
+s	a,	9	0	2\u0001\u0001,
+s	,	5	1	1\u0001,
+s	aa;b ;\n \r\n	11	0	10\u0001a\u0001a\u0001;\u0001b\u0001 \u0001;\u0001\n\u0001 \u0001\r\u0001\n
+s	,,\r\n	7	1	1\u0001,,\r\n
+s	 \nb,,\r 	3	-1	3\u0001 \nb\u0001\u0001\r 
+s	\n  	13	3	3\u0001\n\u0001 \u0001 
+s	;\u00e9,a	6	2	2\u0001;\u00e9\u0001a
+s	\u00e9 ,\u00e9aaab	12	0	7\u0001\u00e9\u0001 \u0001,\u0001\u00e9\u0001a\u0001a\u0001a
+s	b,,,\r	1	0	4\u0001b\u0001\u0001\u0001\r
+s	a	9	3	2\u0001\u0001
+s	b	1	1	1\u0001b
+s	a\u00e9\ud83d\ude00\r\n\r\n\n\u00e9\u00e9	6	0	1\u0001a\u00e9\ud83d\ude00\r\n\r\n\n\u00e9\u00e9
+s	a	3	2	1\u0001a
+s	\r	7	1	1\u0001\r
+s	,\n\r\n;	13	2	2\u0001\u0001\n\r\n;
+s	aa,\u00e9; \u00e9	8	3	2\u0001aa\u0001\u00e9; \u00e9
+s		0	-1	1\u0001
+s	,	6	0	0
+s	,,,\u00e9\ud83d\ude00\ud83d\ude00	9	-1	1\u0001,,,\u00e9\ud83d\ude00\ud83d\ude00
+s	 \ud83d\ude00a,,;;\u00e9	7	2	2\u0001 \ud83d\ude00a,,;;\u0001
+s	\n\ra\u00e9	4	2	2\u0001\u0001a\u00e9
+s	b;,\u00e9\r\n	5	-1	3\u0001b\u0001\u0001\u00e9\r\n
+s	\r\n\r\n,b \u00e9	1	1	1\u0001\r\n\r\n,b \u00e9
+s	\r\n\u00e9,,\r;\ud83d\ude00	9	3	1\u0001\r\n\u00e9,,\r;\ud83d\ude00
+s	,,\n;a	12	-1	6\u0001,\u0001,\u0001\n\u0001;\u0001a\u0001
+s	\n,,;,\u00e9bb	3	2	2\u0001\n\u0001,;,\u00e9bb
+s	\nb\r\ud83d\ude00 \r\n	0	-1	3\u0001\u0001b\r\ud83d\ude00 \u0001
+s	\r,,	2	-1	2\u0001\r\u0001
+s	\u00e9\ud83d\ude00\ud83d\ude00\ud83d\ude00a\u00e9 	4	0	1\u0001\u00e9\ud83d\ude00\ud83d\ude00\ud83d\ude00a\u00e9
+s	,	15	1	1\u0001,
+s	\n\r\n 	12	2	2\u0001\n\u0001\r\n 
+s	,,,,,,,a,;	15	3	3\u0001\u0001\u0001a,;
+s		12	0	1\u0001
+s	\u00e9\u00e9b\u00e9\u00e9	9	-1	2\u0001\u00e9\u00e9\u0001\u00e9\u00e9
+s	\r,,	9	2	1\u0001\r,,
+s	\u00e9\r\n\r\n\u00e9aa	0	2	2\u0001\u00e9\u0001\r\n\u00e9aa
+s	b\ud83d\ude00\r\n;\r\n	3	-1	2\u0001b\ud83d\ude00\r\n\u0001\r\n
+s	\r;	3	0	1\u0001\r
+s	\n,,,,,,\r\n\u00e9\r\n	14	1	1\u0001\n,,,,,,\r\n\u00e9\r\n
+s	 \r\n,,\u00e9	2	-1	2\u0001 \r\n\u0001\u00e9
+s		12	3	1\u0001
+s		1	-1	1\u0001
+s	\naa,\n\r\n	13	3	3\u0001\n\u0001a\u0001a,\n\r\n
+s	\u00e9b\n\u00e9	1	1	1\u0001\u00e9b\n\u00e9
+s	b\r\n\ud83d\ude00;;\r\n\u00e9\n	2	3	1\u0001b\r\n\ud83d\ude00;;\r\n\u00e9\n
+s	\r\n\r\n\u00e9\u00e9	3	3	1\u0001\r\n\r\n\u00e9\u00e9
+s	\ud83d\ude00a\n,b,,a;	0	3	2\u0001\ud83d\ude00a\u0001,b,,a;
+s	\ud83d\ude00;	2	3	1\u0001\ud83d\ude00;
+s		12	2	1\u0001
+s	 b\ud83d\ude00\ud83d\ude00bb\n\r	8	-1	3\u0001 b\u0001\u0001bb\n\r
+s	\r\nb	2	1	1\u0001\r\nb
+s	,	3	-1	2\u0001\u0001
+s	,,	2	0	0
+s	aa 	13	1	1\u0001aa 
+s	;b,\r\n\u00e9aa\u00e9\r\n	15	2	2\u0001;\u0001b,\r\n\u00e9aa\u00e9\r\n
+s	\u00e9\n,,aa,b\r\n	10	0	9\u0001\u00e9\u0001\n\u0001,\u0001,\u0001\u0001,\u0001b\u0001\r\u0001\n
+s		10	3	1\u0001
+s	;b;;;\u00e9a	11	1	1\u0001;b;;;\u00e9a
+s	 \r,,a	7	0	1\u0001 \r,,a
+s		9	3	1\u0001
+s	,,,,a\u00e9	12	0	6\u0001,\u0001,\u0001,\u0001,\u0001a\u0001\u00e9
+s	,ab\r\n	5	-1	2\u0001\u0001ab\r\n
+s	;;\r\n\r\na;	8	0	1\u0001;;\r\n\r\na;
+s	\ud83d\ude00\u00e9\u00e9\r\n\n;\u00e9a	5	-1	2\u0001\ud83d\ude00\u00e9\u00e9\r\n\n\u0001\u00e9a
+s		12	3	1\u0001
+s	a\r,\u00e9,,,\n	0	-1	2\u0001a\r,\u00e9,,,\u0001
+s	\u00e9a,aa	10	2	2\u0001\u00e9\u0001,aa
+s	 aa\n b	3	1	1\u0001 aa\n b
+s		7	0	1\u0001
+s	,, \r\r	0	2	1\u0001,, \r\r
+s	,,	15	2	2\u0001\u0001
+s	\r\n\r\ud83d\ude00\r\u00e9	1	0	1\u0001\r\n\r\ud83d\ude00\r\u00e9
+s	aaa \naaaa,,\r\n	10	0	9\u0001\u0001\u0001 \u0001\n\u0001\u0001,\u0001,\u0001\r\u0001\n
+s	a\r\n,a,aa,a	10	1	1\u0001a\r\n,a,aa,a
+s	 ,,a\u00e9b\ud83d\ude00\ud83d\ude00	4	1	1\u0001 ,,a\u00e9b\ud83d\ude00\ud83d\ude00
+s		4	0	1\u0001
+s	\n\u00e9\ud83d\ude00\na\r\n\u00e9	4	0	4\u0001\u0001\u00e9\ud83d\ude00\u0001a\u0001\u00e9
+s	\naa;b	13	2	2\u0001\n\u0001aa;b
+s	\u00e9,,\u00e9,\ud83d\ude00\r\nb	9	0	1\u0001\u00e9,,\u00e9,\ud83d\ude00\r\n
+s	\r\nb	11	1	1\u0001\r\nb
+s	;\n,,b	10	2	2\u0001;\u0001\n,,b
+s	\u00e9\r\n\u00e9	1	0	1\u0001\u00e9\r\n\u00e9
+s	a \ud83d\ude00,,a	8	0	4\u0001a \u0001\u0001\u0001a
+s	\r\n aa	15	2	2\u0001\r\u0001\n aa
+s	b ,\u00e9 \nb	10	2	2\u0001b\u0001 ,\u00e9 \nb
+s	,	5	2	2\u0001\u0001
+s	\r\naa\r	0	3	2\u0001\u0001aa\r
+s	\ud83d\ude00	8	-1	2\u0001\u0001
+s	,\n\r\r\n,ba\r	1	1	1\u0001,\n\r\r\n,ba\r
+s	aaaaaa\u00e9	11	3	3\u0001a\u0001a\u0001aaaa\u00e9
+s		8	1	1\u0001
+s	\ud83d\ude00\n\r\r\n\n	7	2	1\u0001\ud83d\ude00\n\r\r\n\n
+s	\r\n\u00e9,,  a,,b	12	0	10\u0001\r\u0001\n\u0001\u00e9\u0001,\u0001,\u0001 \u0001 \u0001a\u0001,\u0001,
+s	\u00e9,\u00e9	12	-1	4\u0001\u00e9\u0001,\u0001\u00e9\u0001
+s	,\n\n\n	11	3	3\u0001,\u0001\n\u0001\n\n
+s	a\nb,,,	10	3	3\u0001\u0001\u0001\nb,,,
+s	\u00e9\u00e9	2	2	1\u0001\u00e9\u00e9
+s	\r\r\n\r\nb\r\n\nb	2	0	1\u0001\r\r\n\r\nb\r\n\nb
+s	\n,,,	0	0	2\u0001\u0001,,,
+s	b	12	2	2\u0001\u0001
+s	\u00e9\r\r\n 	5	2	1\u0001\u00e9\r\r\n 
+s	aa\u00e9\n\n;	11	0	6\u0001a\u0001a\u0001\u00e9\u0001\n\u0001\n\u0001;
+s	 aa ;aaa	12	-1	9\u0001 \u0001a\u0001a\u0001 \u0001;\u0001a\u0001a\u0001a\u0001
+s	a	14	1	1\u0001a
+s	\n \u00e9,\n	7	2	2\u0001\n \u0001,\n
+s	\n\r\n\u00e9	3	2	1\u0001\n\r\n\u00e9
+s	aa\r\n,	10	0	5\u0001\u0001\u0001\r\u0001\n\u0001,
+s	\r\n\u00e9a,\u00e9	12	0	6\u0001\r\u0001\n\u0001\u00e9\u0001a\u0001,\u0001\u00e9
+s	\naa;	5	1	1\u0001\naa;
+s	,,,\u00e9,,,	13	2	2\u0001\u0001,,\u00e9,,,
+s		11	1	1\u0001
+s	,, ;\r\n\na,,	8	-1	5\u0001\u0001\u0001 ;\r\n\na\u0001\u0001
+s	,,\r\na\n\u00e9\r\n, 	12	1	1\u0001,,\r\na\n\u00e9\r\n, 
+s	a,,	11	2	2\u0001a\u0001,,
+s		9	-1	1\u0001
+s	,,\r\n\u00e9	10	-1	6\u0001,\u0001,\u0001\r\u0001\n\u0001\u00e9\u0001
+s		13	3	1\u0001
+s	,,b,,,a	11	2	2\u0001,\u0001,b,,,a
+s	\u00e9\ud83d\ude00;	1	2	1\u0001\u00e9\ud83d\ude00;
+s	a \u00e9a,,,;aa	12	0	10\u0001a\u0001 \u0001\u00e9\u0001a\u0001,\u0001,\u0001,\u0001;\u0001a\u0001a
+s	\u00e9; \u00e9\r\n,\n,	10	3	3\u0001\u00e9\u0001;\u0001 \u00e9\r\n,\n,
+s	\u00e9bb	11	0	3\u0001\u00e9\u0001b\u0001b
+s	;\na\r\n,,,aa	15	1	1\u0001;\na\r\n,,,aa
+s	;\ud83d\ude00b\ra\r\n\n	7	2	1\u0001;\ud83d\ude00b\ra\r\n\n
+s	\n\u00e9\r\n,\u00e9	10	2	2\u0001\n\u0001\u00e9\r\n,\u00e9
+s	,,b\r\ud83d\ude00\r	6	-1	3\u0001\u0001\u0001b\r\ud83d\ude00\r
+s	\n,,	2	2	2\u0001\n\u0001
+s	b \n	1	-1	1\u0001b \n
+s	 \r\r\naaa	1	2	1\u0001 \r\r\naaa
+s	\r 	9	0	1\u0001\r 
+s	\ud83d\ude00;\r\n	5	3	2\u0001\ud83d\ude00\u0001\r\n
+s	b	2	2	1\u0001b
+s	;,\n\nb,,\ud83d\ude00\r\n	5	0	5\u0001\u0001\u0001\n\nb\u0001\u0001\ud83d\ude00\r\n
+s	,\n;\r\n	5	0	3\u0001\u0001\n\u0001\r\n
+s	b,	11	1	1\u0001b,
+s	b\u00e9\n	12	2	2\u0001\u0001\u00e9\n
+s	\n	0	2	2\u0001\u0001
+s	  \u00e9,,,	15	3	3\u0001 \u0001 \u0001\u00e9,,,
+s	\u00e9\r\n\rb\r\n	1	2	1\u0001\u00e9\r\n\rb\r\n
+s	;\ud83d\ude00	0	-1	1\u0001;\ud83d\ude00
+s	\r\nb\n	13	-1	5\u0001\r\u0001\n\u0001b\u0001\n\u0001
+s	\r\n,,	11	3	3\u0001\r\u0001\n\u0001,,
+s		5	2	1\u0001
+s		12	2	1\u0001
+s	a\u00e9\r\nb;bb\u00e9	15	-1	10\u0001a\u0001\u00e9\u0001\r\u0001\n\u0001b\u0001;\u0001b\u0001b\u0001\u00e9\u0001
+s	,,;\r\nb;,,a	5	0	7\u0001\u0001\u0001\u0001\r\nb\u0001\u0001\u0001a
+s	;	0	2	1\u0001;
+s	,,b,\nb\n  	9	3	3\u0001,,\u0001,\n\u0001\n  
+s	\r	8	0	1\u0001\r
+s		12	0	1\u0001
+s	\r	9	2	1\u0001\r
+s	 \r\n,	11	1	1\u0001 \r\n,
+s	\ud83d\ude00;	4	-1	1\u0001\ud83d\ude00;
+s		14	1	1\u0001
+s	,,\r\nb	15	1	1\u0001,,\r\nb
+s	 \n \u00e9,,	15	0	4\u0001 \u0001\n\u0001 \u0001\u00e9
+s	b b	8	2	1\u0001b b
+s	\ud83d\ude00\u00e9\r\n	5	1	1\u0001\ud83d\ude00\u00e9\r\n
+s	\ud83d\ude00\n	9	1	1\u0001\ud83d\ude00\n
+s	b\r,\r\n	7	-1	1\u0001b\r,\r\n
+s	,,;	13	2	2\u0001\u0001,;
+s	a\ud83d\ude00;b\n\ra\ud83d\ude00	3	2	2\u0001a\ud83d\ude00\u0001b\n\ra\ud83d\ude00
+s	b	12	3	3\u0001\u0001\u0001
+s	\u00e9aa\u00e9,	14	0	5\u0001\u00e9\u0001a\u0001a\u0001\u00e9\u0001,
+s	\u00e9\u00e9,a,,b	6	0	4\u0001\u00e9\u00e9\u0001a\u0001\u0001b
+s	,,b\n\u00e9;,,a	11	2	2\u0001,\u0001,b\n\u00e9;,,a
+s	bbb\r\n	3	0	1\u0001bbb\r\n
+s	,,,a \n	10	-1	7\u0001,\u0001,\u0001,\u0001\u0001 \u0001\n\u0001
+s		11	3	1\u0001
+s	\ud83d\ude00	8	3	2\u0001\u0001
+s	,,,;\r\n,b	8	0	5\u0001\u0001\u0001\u0001;\r\n\u0001b
+s	,,\u00e9a\u00e9\r;	8	2	2\u0001\u0001,\u00e9a\u00e9\r;
+s	b\r\n\ud83d\ude00\r;,,	8	2	2\u0001b\r\n\u0001\r;,,
+s		6	3	1\u0001
+s	\u00e9,\n 	11	1	1\u0001\u00e9,\n 
+s	a ;ba	9	0	2\u0001\u0001 ;
+s	\r\na  baa 	12	-1	10\u0001\r\u0001\n\u0001a\u0001 \u0001 \u0001\u0001a\u0001a\u0001 \u0001
+s		5	-1	1\u0001
+s	;;,b ,\r\n,	4	3	3\u0001;;,b\u0001,\u0001,
+s	\u00e9	10	2	2\u0001\u00e9\u0001
+s		10	-1	1\u0001
+s	,\r\n\r\nb	9	1	1\u0001,\r\n\r\nb
+s	\ud83d\ude00b,\u00e9 \r	1	-1	2\u0001\ud83d\ude00b\u0001\u00e9 \r
+s	,,\n,	2	3	3\u0001\u0001\n\u0001
+s		14	-1	1\u0001
+s		1	-1	1\u0001
+s	\r\n	13	2	2\u0001\r\u0001\n
+s		2	-1	1\u0001
+s	,b,aa,,\na\r\n	13	2	2\u0001\u0001b,aa,,\na\r\n
+s	\u00e9	13	-1	2\u0001\u00e9\u0001
+s	,,\r\n\u00e9b\r	0	1	1\u0001,,\r\n\u00e9b\r
+s	bbaa	4	0	1\u0001bbaa
+s		5	2	1\u0001
+s	b\n,\r\n\r\u00e9 	9	3	2\u0001\u0001\n,\r\n\r\u00e9 
+s	\ud83d\ude00\r\n\ud83d\ude00\r\n;;	7	2	1\u0001\ud83d\ude00\r\n\ud83d\ude00\r\n;;
+s	\n	8	2	1\u0001\n
+s		1	0	1\u0001
+s	a ;\u00e9\r\n	10	3	3\u0001\u0001\u0001 ;\u00e9\r\n
+s	\u00e9\u00e9b\r\ud83d\ude00\n\r\na	0	1	1\u0001\u00e9\u00e9b\r\ud83d\ude00\n\r\na
+s	,, a,,\r\n\r	4	1	1\u0001,, a,,\r\n\r
+s	b\ud83d\ude00\r\n \n;;;	2	1	1\u0001b\ud83d\ude00\r\n \n;;;
+s	bb\n	15	2	2\u0001b\u0001b\n
+s		14	2	1\u0001
+s	,,,\u00e9  \r\n;\n	4	0	2\u0001,,,\u00e9\u0001;
+s	\naa\n;	10	3	3\u0001\n\u0001\u0001\n;
+s		14	0	1\u0001
+s	,,	11	2	2\u0001,\u0001,
+s	\u00e9	12	2	2\u0001\u00e9\u0001
+s	b\rb\ud83d\ude00	9	-1	3\u0001\u0001\r\u0001\ud83d\ude00
+s	aa\na\r\n	10	0	6\u0001\u0001\u0001\n\u0001\u0001\r\u0001\n
+s	\n\u00e9\n\n\ud83d\ude00,,,	7	-1	2\u0001\n\u0001\n\n\ud83d\ude00,,,
+s	;;  b\n	6	3	1\u0001;;  b\n
+s		12	3	1\u0001
+s	,,a ,,a	12	-1	8\u0001,\u0001,\u0001a\u0001 \u0001,\u0001,\u0001a\u0001
+s	a\r\n 	10	0	5\u0001\u0001\u0001\r\u0001\n\u0001 
+s	,,aa\n,,	10	-1	7\u0001,\u0001,\u0001\u0001\n\u0001,\u0001,\u0001
+s	\ud83d\ude00;	0	2	1\u0001\ud83d\ude00;
+s	\u00e9a\r\n	8	-1	1\u0001\u00e9a\r\n
+s	a\u00e9\n\n\r	7	3	2\u0001a\u0001\n\n\r
+s	;\u00e9\n \u00e9\r	7	1	1\u0001;\u00e9\n \u00e9\r
+s	,\n,,b	8	1	1\u0001,\n,,b
+s	aa	2	3	1\u0001aa
+s	 ,,, \na\r\u00e9	8	2	2\u0001 \u0001,, \na\r\u00e9
+s	\ud83d\ude00b\r,,,\ud83d\ude00;;	3	0	4\u0001\ud83d\ude00b\r\u0001\u0001\u0001\ud83d\ude00
+s	\na\u00e9aa	6	2	1\u0001\na\u00e9aa
+s	\u00e9\r\n\ud83d\ude00\r\r,\ud83d\ude00a	3	1	1\u0001\u00e9\r\n\ud83d\ude00\r\r,\ud83d\ude00a
+s	\u00e9aaa	15	3	3\u0001\u00e9\u0001a\u0001aa
+s	\u00e9;	1	1	1\u0001\u00e9;
+s		2	1	1\u0001
+s	;a\r\u00e9\r\n,b	2	1	1\u0001;a\r\u00e9\r\n,b
+s	\r\nb,\r\n;\u00e9aab	11	0	11\u0001\r\u0001\n\u0001b\u0001,\u0001\r\u0001\n\u0001;\u0001\u00e9\u0001a\u0001a\u0001b
+s	,,	2	0	0
+s	b\u00e9\ud83d\ude00\u00e9 	1	3	1\u0001b\u00e9\ud83d\ude00\u00e9 
+s	\ud83d\ude00\na	6	3	1\u0001\ud83d\ude00\na
+s	,,,	2	2	2\u0001\u0001
+s	a,,,\rb	5	3	3\u0001a\u0001\u0001,\rb
+s	\ud83d\ude00\u00e9b;\r\n,,,,,	0	0	2\u0001\ud83d\ude00\u00e9b;\u0001,,,,,
+s	\r\n	0	-1	2\u0001\u0001
+s	a\r\n  \u00e9\ud83d\ude00,;	1	3	2\u0001a\r\n  \u00e9\ud83d\ude00\u0001;
+s	,b  	10	-1	5\u0001,\u0001b\u0001 \u0001 \u0001
+s	\na	6	1	1\u0001\na
+s	 \n \ud83d\ude00	3	1	1\u0001 \n \ud83d\ude00
+s	,b\n b; 	4	1	1\u0001,b\n b; 
+s	a, ,,\u00e9	8	2	2\u0001a\u0001 ,,\u00e9
+s	aaaaa;b\n	14	2	2\u0001a\u0001aaaa;b\n
+s	\r\n\r,,\ud83d\ude00\r;b\r\n	8	-1	4\u0001\r\n\r\u0001\u0001\u0001\r;b\r\n
+s	\r\n \ud83d\ude00;	6	3	1\u0001\r\n \ud83d\ude00;
+s	\r,,b;,\nb	9	2	2\u0001\r,,\u0001;,\nb
+s	b\ud83d\ude00\ud83d\ude00	4	-1	1\u0001b\ud83d\ude00\ud83d\ude00
+s	,,\ud83d\ude00;	7	-1	1\u0001,,\ud83d\ude00;
+s	bb \r\n\n;ab	12	3	3\u0001\u0001\u0001 \r\n\n;ab
+s		2	2	1\u0001
+s	aa aa	10	3	3\u0001\u0001\u0001 aa
+s	\r\n	15	1	1\u0001\r\n
+s	;a	5	3	2\u0001\u0001a
+s	\u00e9\u00e9b\n;,	9	0	2\u0001\u00e9\u00e9\u0001\n;,
+s		15	3	1\u0001
+s	;;,,	8	-1	3\u0001;;\u0001\u0001
+s	\nb	13	1	1\u0001\nb
+s	\r\n\r\ud83d\ude00\r\nb	3	0	1\u0001\r\n\r\ud83d\ude00\r\nb
+s	\ud83d\ude00a\r\n,\r\n	1	1	1\u0001\ud83d\ude00a\r\n,\r\n
+s	,	11	0	1\u0001,
+s	 b;a	5	-1	2\u0001 b\u0001a
+s	 ,,;;, aaaa	13	1	1\u0001 ,,;;, aaaa
+s	\r;bb,,	3	2	2\u0001\r\u0001bb,,
+s	b\ud83d\ude00ba,	9	0	4\u0001\u0001\ud83d\ude00\u0001\u0001,
+s	,,ab,,a	7	3	1\u0001,,ab,,a
+s	\u00e9;\ud83d\ude00\n	2	-1	1\u0001\u00e9;\ud83d\ude00\n
+s	,b,,	4	-1	1\u0001,b,,
+s	b	11	1	1\u0001b
+s	a\ud83d\ude00\r\n,\ud83d\ude00	7	2	1\u0001a\ud83d\ude00\r\n,\ud83d\ude00
+s	\r\naaaa\r\n	12	0	8\u0001\r\u0001\n\u0001a\u0001a\u0001a\u0001a\u0001\r\u0001\n
+s	,,\r\r\n	5	2	2\u0001\u0001,\r\r\n
+s	aa\r\n,,; 	13	3	3\u0001a\u0001a\u0001\r\n,,; 
+s	ab\u00e9,a\ud83d\ude00	8	-1	3\u0001ab\u00e9\u0001a\u0001
+s	\r\n \u00e9,,,,,b\r\n	5	1	1\u0001\r\n \u00e9,,,,,b\r\n
+s	ba\n\n\u00e9,	8	-1	2\u0001ba\n\n\u00e9\u0001
+s	b\n	2	-1	1\u0001b\n
+s	\u00e9\n; 	3	1	1\u0001\u00e9\n; 
+s	\u00e9\r\n,  	5	0	2\u0001\u00e9\r\n\u0001  
+s	, 	14	3	3\u0001,\u0001 \u0001
+s		10	1	1\u0001
+s	a\r\n,,\n	2	3	2\u0001a\r\n\u0001\n
+s	\r,\u00e9, ,	6	1	1\u0001\r,\u00e9, ,
+s	 ,,aaaa ;	10	2	2\u0001 \u0001,,aaaa ;
+s	\r\n\r\n\ud83d\ude00	1	3	1\u0001\r\n\r\n\ud83d\ude00
+s	\n\u00e9,,;;\r\u00e9\u00e9	8	0	3\u0001\n\u00e9\u0001\u0001;;\r\u00e9\u00e9
+s	;	0	1	1\u0001;
+s	\r\n\r\n	9	3	1\u0001\r\n\r\n
+s	\r\n	15	2	2\u0001\r\u0001\n
+s	,\u00e9	2	0	2\u0001\u0001\u00e9
+s		6	-1	1\u0001
+s	\r\n a	14	3	3\u0001\r\u0001\n\u0001 a
+s	;a\r\r\n;bb	9	-1	4\u0001;\u0001\r\r\n;\u0001\u0001
+s	\r\n\r\u00e9,,\n ,,	4	3	3\u0001\u0001\u00e9,,\u0001,,
+s	b,,\r	2	0	2\u0001b\u0001\r
+s	;a	3	2	2\u0001\u0001a
+s		9	0	1\u0001
+s	\ud83d\ude00\r\n\r\n;	3	2	2\u0001\ud83d\ude00\r\n\r\n\u0001
+s	\n\u00e9a\r\nb 	13	1	1\u0001\n\u00e9a\r\nb 
+s	b	2	-1	1\u0001b
+s	 \n\u00e9\u00e9	11	-1	5\u0001 \u0001\n\u0001\u00e9\u0001\u00e9\u0001
+s	\n\n;\n\r	1	1	1\u0001\n\n;\n\r
+s	;\naa\r\n	11	-1	7\u0001;\u0001\n\u0001a\u0001a\u0001\r\u0001\n\u0001
+s	\ud83d\ude00\ud83d\ude00\u00e9	1	3	1\u0001\ud83d\ude00\ud83d\ude00\u00e9
+s	,\n\ud83d\ude00	5	2	2\u0001\u0001\n\ud83d\ude00
+s	b,b	4	0	1\u0001b,b
+s	;;\r\r\n,,;\r\n	9	2	1\u0001;;\r\r\n,,;\r\n
+s	,	12	2	2\u0001,\u0001
+s	,,,,aa;aaa\n	13	1	1\u0001,,,,aa;aaa\n
+s	a	8	0	1\u0001a
+s	 \n\r\u00e9,,\n\n	9	2	1\u0001 \n\r\u00e9,,\n\n
+s	,\r\r,,\u00e9\r\n\ud83d\ude00a	1	2	2\u0001\u0001\r\r,,\u00e9\r\n\ud83d\ude00a
+s	, ,\n\r\n\r;	3	2	2\u0001\u0001 ,\n\r\n\r;
+s	 	10	-1	2\u0001 \u0001
+s	, 	11	0	2\u0001,\u0001 
+s	,aaaa\r\naaa	10	3	3\u0001,\u0001\u0001\r\naaa
+s		6	-1	1\u0001
+s	;,\r\n\naa	12	1	1\u0001;,\r\n\naa
+s	aa\u00e9aa	11	2	2\u0001a\u0001a\u00e9aa
+s	\r\n;\r	6	-1	1\u0001\r\n;\r
+s	,\n;\r\naa,,a	7	3	1\u0001,\n;\r\naa,,a
+s	;;\u00e9\u00e9a\r,	0	3	1\u0001;;\u00e9\u00e9a\r,
+s	,, aa\r\n	13	1	1\u0001,, aa\r\n
+s	 \r	9	1	1\u0001 \r
+s	 b	2	3	1\u0001 b
+s	\n	5	2	1\u0001\n
+s	,\ud83d\ude00;b\r	1	-1	2\u0001\u0001\ud83d\ude00;b\r
+s	\u00e9,;	8	3	2\u0001\u00e9\u0001;
+s	;\r\r\n;a	2	2	1\u0001;\r\r\n;a
+s		10	3	1\u0001
+s	\r\n\r\n b	9	-1	2\u0001\r\n\r\n \u0001
+s	\r\na\u00e9\r\n,,\n 	1	0	3\u0001\r\na\u00e9\r\n\u0001\u0001\n 
+s	;\n;\u00e9\n	7	2	2\u0001;\n;\u0001\n
+s	,,,,	13	2	2\u0001\u0001,,,
+s	,\r\na\r\n	14	3	3\u0001,\u0001\r\u0001\na\r\n
+s	b 	6	3	1\u0001b 
+s	, \n;	9	1	1\u0001, \n;
+s	\r\n;\rba	6	3	1\u0001\r\n;\rba
+s	,,\naab	14	-1	7\u0001,\u0001,\u0001\n\u0001a\u0001a\u0001b\u0001
+s	\ud83d\ude00\r;\ud83d\ude00\r\nba\ud83d\ude00	3	1	1\u0001\ud83d\ude00\r;\ud83d\ude00\r\nba\ud83d\ude00
+s	,,ba\r\u00e9	3	0	3\u0001\u0001\u0001ba\r\u00e9
+s		12	0	1\u0001
+s	aa	11	1	1\u0001aa
+s	\u00e9\n,\r\r	8	-1	2\u0001\u00e9\n\u0001\r\r
+s	;b\u00e9	1	2	1\u0001;b\u00e9
+s	,,;a;	13	-1	7\u0001\u0001\u0001\u0001;\u0001a\u0001;\u0001
+s	,	11	2	2\u0001,\u0001
+s	,,	0	-1	1\u0001,,
+s	aaaaab,	11	2	2\u0001a\u0001aaaab,
+s		7	1	1\u0001
+s	\r,,a\n,\ud83d\ude00	2	0	3\u0001\r\u0001a\n\u0001\ud83d\ude00
+s	\n,,;\u00e9 aa	10	0	6\u0001\n\u0001,\u0001,\u0001;\u0001\u00e9\u0001 
+s	,,a\u00e9b\u00e9;\r\na	6	3	3\u0001\u0001\u0001a\u00e9b\u00e9;\r\na
+s	;\r\n\r\n\u00e9a;	13	3	3\u0001;\u0001\r\u0001\n\r\n\u00e9a;
+s	\r\r\n;\ud83d\ude00\n;\u00e9b	8	3	2\u0001\r\r\n;\u0001\n;\u00e9b
+s	,ba,,\r	0	3	1\u0001,ba,,\r
+s		4	1	1\u0001
+s	,aa,,\r\n	14	2	2\u0001,\u0001aa,,\r\n
+s	 ,b	4	2	2\u0001\u0001,b
+s	,,\u00e9	11	0	3\u0001,\u0001,\u0001\u00e9
+s	\r\n\ud83d\ude00b\r\n 	4	2	2\u0001\u0001\ud83d\ude00b\r\n 
+s	,,,,baa	14	2	2\u0001,\u0001,,,baa
+s	;\r\n,\u00e9,	12	2	2\u0001;\u0001\r\n,\u00e9,
+s	,\ra,b;,\r	9	2	2\u0001,\r\u0001,b;,\r
+s	\r\n\ud83d\ude00,,,,	5	3	3\u0001\r\n\ud83d\ude00\u0001\u0001,,
+s	\ud83d\ude00	3	1	1\u0001\ud83d\ude00
+s		8	2	1\u0001
+s	 \r\naa\u00e9a	13	3	3\u0001 \u0001\r\u0001\naa\u00e9a
+s	,,,b,\u00e9aa;\r\n	15	1	1\u0001,,,b,\u00e9aa;\r\n
+s	,,,,ab	2	0	2\u0001\u0001ab
+s	\r\nb  	10	2	2\u0001\r\u0001\nb  
+s	\r \u00e9\n\r	1	3	1\u0001\r \u00e9\n\r
+s	,,b\r\n\nb	6	1	1\u0001,,b\r\n\nb
+s	\r\n	14	1	1\u0001\r\n
+s	;\r\n\r\nb\u00e9	14	3	3\u0001;\u0001\r\u0001\n\r\nb\u00e9
+s	\r\n	5	0	1\u0001\r\n
+s	\r\n;bb\n,,,	8	0	1\u0001\r\n;bb\n
+s	,;;,b,,	7	0	1\u0001,;;,b,,
+s	\r\na\r\n,	13	1	1\u0001\r\na\r\n,
+s	;;;\u00e9\u00e9	14	0	5\u0001;\u0001;\u0001;\u0001\u00e9\u0001\u00e9
+s	,\ud83d\ude00a\r\n,a\r,,	6	0	3\u0001\u0001\ud83d\ude00a\r\n\u0001a\r
+s	,,bab\u00e9; 	1	3	3\u0001\u0001\u0001bab\u00e9; 
+s	,\ud83d\ude00\u00e9\u00e9\r\ud83d\ude00 	2	-1	2\u0001\u0001\ud83d\ude00\u00e9\u00e9\r\ud83d\ude00 
+s	;	3	1	1\u0001;
+s		12	3	1\u0001
+s	 ,  \u00e9	14	-1	6\u0001 \u0001,\u0001 \u0001 \u0001\u00e9\u0001
+s	\ud83d\ude00\ud83d\ude00	3	-1	1\u0001\ud83d\ude00\ud83d\ude00
+s	a,,aba\r\na	12	-1	10\u0001a\u0001,\u0001,\u0001a\u0001\u0001a\u0001\r\u0001\n\u0001a\u0001
+s	\rb	4	1	1\u0001\rb
+s	\r\n\n\r\n,\r\n \n	14	-1	11\u0001\r\u0001\n\u0001\n\u0001\r\u0001\n\u0001,\u0001\r\u0001\n\u0001 \u0001\n\u0001
+s	\n   aa,,	10	3	3\u0001\n\u0001 \u0001  aa,,
+s	,	1	3	2\u0001\u0001
+s	,\u00e9b; \n\u00e9b	9	3	3\u0001,\u00e9\u0001; \n\u00e9\u0001
+s	,	13	1	1\u0001,
+s	\u00e9b\u00e9\u00e9,, b;	7	-1	4\u0001\u0001b\u0001\u0001,, b;
+s	\u00e9a ,,\r\n\n,,b	13	1	1\u0001\u00e9a ,,\r\n\n,,b
+s	aa ,,	11	0	5\u0001a\u0001a\u0001 \u0001,\u0001,
+s	 \n;\r\ud83d\ude00	0	3	2\u0001 \u0001;\r\ud83d\ude00
+s	aa\n ;	11	1	1\u0001aa\n ;
+s	aaa\r\n	10	3	3\u0001\u0001\u0001\r\n
+s	aa;aa \u00e9aa	10	1	1\u0001aa;aa \u00e9aa
+s	a;\r\n\u00e9\u00e9	15	1	1\u0001a;\r\n\u00e9\u00e9
+s	aa aa\u00e9\r\na\u00e9	11	3	3\u0001a\u0001a\u0001 aa\u00e9\r\na\u00e9
+s	,, \ud83d\ude00 	4	0	2\u0001,,\u0001\ud83d\ude00
+s		6	0	1\u0001
+s	;\r,\n,\n	7	3	1\u0001;\r,\n,\n
+s		5	2	1\u0001
+s		13	3	1\u0001
+s	;\ud83d\ude00;\r\n,\n\r\n	7	0	1\u0001;\ud83d\ude00;\r\n,\n\r\n
+s	 \r\n 	14	1	1\u0001 \r\n 
+s	;\r\n;\ud83d\ude00	4	1	1\u0001;\r\n;\ud83d\ude00
+s	\r\naaab,\r\n;b	11	3	3\u0001\r\u0001\n\u0001aaab,\r\n;b
+s	\ud83d\ude00\u00e9;	3	1	1\u0001\ud83d\ude00\u00e9;
+s	\r\n	9	2	1\u0001\r\n
+s	\r\nb	3	1	1\u0001\r\nb
+s	\r	4	3	2\u0001\u0001
+s	,,\r\n	5	-1	3\u0001\u0001\u0001\r\n
+s	\ud83d\ude00\r;	7	-1	1\u0001\ud83d\ude00\r;
+s	a;aa\u00e9\u00e9,\u00e9aa	15	0	10\u0001a\u0001;\u0001a\u0001a\u0001\u00e9\u0001\u00e9\u0001\u0001\u00e9\u0001a\u0001a
+s	aa,; \r\n aa\r\n	10	0	11\u0001\u0001\u0001,\u0001;\u0001 \u0001\r\u0001\n\u0001 \u0001\u0001\r\u0001\n
+s	a\n,;	12	2	2\u0001a\u0001\n,;
+s		2	0	1\u0001
+s	\u00e9	6	3	1\u0001\u00e9
+s	,,\r\n\r	9	1	1\u0001,,\r\n\r
+s	b\u00e9b;\r\n \r\n\r	3	3	2\u0001b\u00e9b\u0001\r\n \r\n\r
+s	 ;\n 	11	1	1\u0001 ;\n 
+s	;b\u00e9aaab;	10	2	2\u0001;\u0001b\u00e9aaab;
+s	\r\na	4	-1	2\u0001\u0001a
+s	bb\r\n\r\n,	7	2	1\u0001bb\r\n\r\n,
+s	\ud83d\ude00\u00e9,\r\n \u00e9	6	-1	2\u0001\ud83d\ude00\u00e9\u0001\r\n \u00e9
+s	b\n;\r ,,\r	9	2	2\u0001\u0001\n;\r ,,\r
+s	 b\u00e9,\r\n\na,,	14	3	3\u0001 \u0001b\u0001\u00e9,\r\n\na,,
+s	;\r,,\nb	6	-1	3\u0001;\r\u0001\u0001\nb
+s	,,\n\r\n\u00e9,aa,,	12	0	11\u0001,\u0001,\u0001\n\u0001\r\u0001\n\u0001\u00e9\u0001,\u0001a\u0001a\u0001,\u0001,
+s	,aa\r\n\u00e9aa	13	1	1\u0001,aa\r\n\u00e9aa
+s	\n\n;\nb 	13	1	1\u0001\n\n;\nb 
+s	 ,;\u00e9	12	-1	5\u0001 \u0001,\u0001;\u0001\u00e9\u0001
+s	b,	9	3	2\u0001\u0001,
+s	ab,,\u00e9\u00e9	2	-1	2\u0001ab\u0001\u00e9\u00e9
+s	\u00e9a;,	8	1	1\u0001\u00e9a;,
+s	\ud83d\ude00;;	6	1	1\u0001\ud83d\ude00;;
+s	\r\n,,\n\u00e9\r	3	2	2\u0001\r\n\u0001,\n\u00e9\r
+s	\n\r; a,,,\r\n	3	0	5\u0001\n\r\u0001 a\u0001\u0001\u0001\r\n
+s	b	4	3	1\u0001b
+s	;;\r\u00e9\ud83d\ude00	2	1	1\u0001;;\r\u00e9\ud83d\ude00
+s	aa;;	14	1	1\u0001aa;;
+s	,,aa\n,,baa	12	-1	11\u0001,\u0001,\u0001a\u0001a\u0001\n\u0001,\u0001,\u0001\u0001a\u0001a\u0001
+s	\r\n\u00e9 \u00e9\r;a\n	2	2	1\u0001\r\n\u00e9 \u00e9\r;a\n
+s		3	-1	1\u0001
+s	\r\n\r\ud83d\ude00,\u00e9	3	3	2\u0001\r\n\r\ud83d\ude00\u0001\u00e9
+s	, \nb,,a\r\n\u00e9	12	1	1\u0001, \nb,,a\r\n\u00e9
+s	\r\ud83d\ude00,	8	-1	3\u0001\r\u0001\u0001
+s	 \n	0	3	2\u0001 \u0001
+s		7	2	1\u0001
+s	\u00e9 \n\r\nb	5	-1	1\u0001\u00e9 \n\r\nb
+s	\rbb \nb	9	2	2\u0001\r\u0001b \nb
+s	b; \ra\u00e9,,	6	0	1\u0001b; \ra\u00e9
+s		0	1	1\u0001
+s	b 	0	-1	1\u0001b 
+s	,,  	13	3	3\u0001\u0001\u0001  
+s	a;\n	9	1	1\u0001a;\n
+s	,,aa	15	1	1\u0001,,aa
+s	\r,\ud83d\ude00a\n\u00e9	6	1	1\u0001\r,\ud83d\ude00a\n\u00e9
+s	a ,;\ud83d\ude00,,	0	2	1\u0001a ,;\ud83d\ude00,,
+s	\u00e9 aa,a	11	3	3\u0001\u00e9\u0001 \u0001aa,a
+s		8	1	1\u0001
+s		4	2	1\u0001
+s	\ud83d\ude00	1	3	1\u0001\ud83d\ude00
+s	\ud83d\ude00	1	0	1\u0001\ud83d\ude00
+s	,;aa\u00e9	11	0	5\u0001,\u0001;\u0001a\u0001a\u0001\u00e9
+s	\nb\u00e9a,\n,,	2	3	3\u0001\nb\u00e9a\u0001\n\u0001
+s	,,ba	8	2	2\u0001\u0001,ba
+s	\r\naa	11	-1	5\u0001\r\u0001\n\u0001a\u0001a\u0001
+s	,a,,,,	13	1	1\u0001,a,,,,
+s	\r,\ud83d\ude00\r\n\n,	3	1	1\u0001\r,\ud83d\ude00\r\n\n,
+s	\u00e9	7	2	2\u0001\u0001
+s	\ud83d\ude00b;;	1	1	1\u0001\ud83d\ude00b;;
+s	;b,,,b\r\n	2	0	2\u0001;b\u0001b\r\n
+s	\r\n ,\r\n	12	0	6\u0001\r\u0001\n\u0001 \u0001,\u0001\r\u0001\n
+s	b\u00e9;aab\r\nb\n	11	0	10\u0001b\u0001\u00e9\u0001;\u0001a\u0001a\u0001b\u0001\r\u0001\n\u0001b\u0001\n
+s	\nbaa,,,,,,\r\n;	14	-1	14\u0001\n\u0001b\u0001a\u0001a\u0001,\u0001,\u0001,\u0001,\u0001,\u0001,\u0001\r\u0001\n\u0001;\u0001
+s	,\naa\u00e9,,b	1	0	4\u0001\u0001\naa\u00e9\u0001\u0001b
+s	\u00e9\ud83d\ude00	7	-1	2\u0001\u0001\ud83d\ude00
+s	\n\n	8	2	1\u0001\n\n
+s	b\r\na\n\r\n,,\r\n	5	-1	3\u0001b\r\na\n\r\n\u0001\u0001\r\n
+s	\n\r\n 	0	-1	3\u0001\u0001\u0001 
+s	a,, \n	10	1	1\u0001a,, \n
+s	\ud83d\ude00;,;	5	0	1\u0001\ud83d\ude00
+s	;b\n \u00e9a	1	0	1\u0001;b\n \u00e9a
+s	\u00e9a;\r,	3	1	1\u0001\u00e9a;\r,
+s	\n	11	3	2\u0001\n\u0001
+s	\r\n;	12	2	2\u0001\r\u0001\n;
+s	;b;,\r,b	1	1	1\u0001;b;,\r,b
+s	aa\n\u00e9aaaa	13	3	3\u0001a\u0001a\u0001\n\u00e9aaaa
+s	;\r\n  \n	14	1	1\u0001;\r\n  \n
+s	\n;b	9	1	1\u0001\n;b
+s	 ,	10	1	1\u0001 ,
+s	b\n\u00e9	9	3	2\u0001\u0001\n\u00e9
+s	,\u00e9 \r\n\u00e9\r\n,,	7	3	3\u0001,\u0001 \r\n\u0001\r\n,,
+s	; \nab\r;\n	0	1	1\u0001; \nab\r;\n
+s		3	2	1\u0001
+s	,, \r\n;\r\n\u00e9;,,	13	-1	14\u0001\u0001\u0001\u0001 \u0001\r\u0001\n\u0001;\u0001\r\u0001\n\u0001\u00e9\u0001;\u0001\u0001\u0001
+s	 aa a 	12	0	6\u0001 \u0001a\u0001a\u0001 \u0001a\u0001 
+s	bb, ,,,\n	5	0	5\u0001bb\u0001 \u0001\u0001\u0001\n
+s	\r\na;,,aa;,	11	0	10\u0001\r\u0001\n\u0001a\u0001;\u0001,\u0001,\u0001a\u0001a\u0001;\u0001,
+s	\r\n	0	0	0
+s	\rbba\r	3	2	1\u0001\rbba\r
+s		3	0	1\u0001
+s	a \n,aa,,,a	14	3	3\u0001a\u0001 \u0001\n,aa,,,a
+s	\r\n\r\n	12	0	4\u0001\r\u0001\n\u0001\r\u0001\n
+s	\u00e9\naaa\n 	15	3	3\u0001\u00e9\u0001\n\u0001aaa\n 
+s	\u00e9	8	0	1\u0001\u00e9
+s	\r\naaaaa;\u00e9 ,	10	2	2\u0001\r\u0001\naaaaa;\u00e9 ,
+s	\ud83d\ude00\u00e9	4	-1	1\u0001\ud83d\ude00\u00e9
+s	a\r\r\u00e9\r\n	9	2	2\u0001\u0001\r\r\u00e9\r\n
+s	b,,\u00e9\u00e9\u00e9\ud83d\ude00\r,,	8	3	3\u0001b\u0001\u0001\u00e9\u00e9\u00e9\ud83d\ude00\r,,
+s	\n\u00e9a; ,	8	2	2\u0001\n\u00e9a; \u0001
+s	 \n\ud83d\ude00 ;b	9	0	1\u0001 \n\ud83d\ude00 ;
+s	\u00e9;,,aa,,,	12	1	1\u0001\u00e9;,,aa,,,
+s		2	0	1\u0001
+s		11	1	1\u0001
+s	\r\n,\u00e9aa	10	-1	6\u0001\r\u0001\n\u0001,\u0001\u00e9\u0001\u0001
+s	 \n,\n,,	11	3	3\u0001 \u0001\n\u0001,\n,,
+s	aa 	0	0	1\u0001aa 
+s		2	1	1\u0001
+s	\u00e9,,\r\nb	4	3	2\u0001\u00e9,,\u0001b
+s	a a\r,,;	6	-1	3\u0001a a\r\u0001\u0001;
+s	 	11	0	1\u0001 
+s	 \r\n\u00e9\u00e9 ,	5	0	1\u0001 \r\n\u00e9\u00e9 
+s	aab\r\nb,\u00e9aa	15	3	3\u0001a\u0001a\u0001b\r\nb,\u00e9aa
+s		2	3	1\u0001
+s	aaaa;,,,,aaa;	15	-1	11\u0001a\u0001a\u0001a\u0001a\u0001;\u0001\u0001a\u0001a\u0001a\u0001;\u0001
+s	a;, ,a	6	2	2\u0001a;\u0001 ,a
+s	\r\n\ud83d\ude00	6	1	1\u0001\r\n\ud83d\ude00
+s	\ud83d\ude00,,	6	-1	3\u0001\ud83d\ude00\u0001\u0001
+s	b;\ud83d\ude00\r\n\ud83d\ude00\ud83d\ude00\ud83d\ude00	3	1	1\u0001b;\ud83d\ude00\r\n\ud83d\ude00\ud83d\ude00\ud83d\ude00
+s		11	1	1\u0001
+s	b ;	13	2	2\u0001b\u0001 ;
+s	,,,,a;,\n\n	2	1	1\u0001,,,,a;,\n\n
+s	\r\ud83d\ude00\rbb	2	1	1\u0001\r\ud83d\ude00\rbb
+s	\r\n\r\nbab	10	1	1\u0001\r\n\r\nbab
+s	\r\nb\n,\r,	5	3	3\u0001\r\nb\n\u0001\r\u0001
+s	bb,;b;\n,,	4	-1	2\u0001bb,;b;\u0001,,
+s	\r\u00e9\r\n\r,,\r;,	0	3	2\u0001\r\u00e9\u0001\r,,\r;,
+s	,\r\n\r\n	14	1	1\u0001,\r\n\r\n
+s	\ud83d\ude00\r\n,,\r	1	1	1\u0001\ud83d\ude00\r\n,,\r
+s	\r\n\ud83d\ude00;\r\n	0	3	3\u0001\u0001\ud83d\ude00;\u0001
+s	\r\n\n\ud83d\ude00\r\n\r\n	2	1	1\u0001\r\n\n\ud83d\ude00\r\n\r\n
+s	ba,,\u00e9\r\n\r\n	5	1	1\u0001ba,,\u00e9\r\n\r\n
+s	b,,\nb	6	-1	3\u0001b\u0001\u0001\nb
+s	\n\r	2	2	1\u0001\n\r
+s	a	12	3	2\u0001a\u0001
+s	a;	13	-1	3\u0001a\u0001;\u0001
+s	,,\r\n,,\r	7	-1	1\u0001,,\r\n,,\r
+s	b\ud83d\ude00ab\r	4	3	2\u0001b\ud83d\ude00ab\u0001
+s	a,,\n\n,,aa	12	2	2\u0001a\u0001,,\n\n,,aa
+s	a 	14	0	2\u0001a\u0001 
+s	\ud83d\ude00a\u00e9\r  	2	3	1\u0001\ud83d\ude00a\u00e9\r  
+s	b	4	-1	1\u0001b
+s	\n\r\n,,;\r\n\r\n	13	2	2\u0001\n\u0001\r\n,,;\r\n\r\n
+s	\raa,,b; \u00e9	9	2	2\u0001\r\u0001a,,b; \u00e9
+s	,\r\naa	10	-1	5\u0001,\u0001\r\u0001\n\u0001\u0001
+s	\ud83d\ude00\u00e9\n\n  \n\ud83d\ude00	4	-1	2\u0001\ud83d\ude00\u00e9\u0001\ud83d\ude00
