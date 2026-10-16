@@ -16,7 +16,9 @@
 
 package jutil
 
-// Go-only: language-adapter — com.google.common.base.Ascii.
+// Go-only: language-adapter — com.google.common.base.Ascii. Its case
+// conversions change only the ASCII letters A-Z / a-z and leave every other
+// char unchanged.
 
 // asciiCaseMask is Ascii.CASE_MASK.
 const asciiCaseMask = 0x20
@@ -52,4 +54,26 @@ func AsciiEqualsIgnoreCase(s1, s2 string) bool {
 // lower-case and makes it zero-indexed and unsigned (by casting to char).
 func asciiGetAlphaIndex(c uint16) uint16 {
 	return (c | asciiCaseMask) - 'a'
+}
+
+// Ascii_ToLowerCase is Ascii.toLowerCase(String).
+func Ascii_ToLowerCase(s string) string {
+	b := []byte(s)
+	for i, c := range b {
+		if c >= 'A' && c <= 'Z' {
+			b[i] = c + ('a' - 'A')
+		}
+	}
+	return string(b)
+}
+
+// Ascii_ToUpperCase is Ascii.toUpperCase(String).
+func Ascii_ToUpperCase(s string) string {
+	b := []byte(s)
+	for i, c := range b {
+		if c >= 'a' && c <= 'z' {
+			b[i] = c - ('a' - 'A')
+		}
+	}
+	return string(b)
 }

@@ -20,9 +20,9 @@
 // With -check, it only verifies, without network or cache (so CI can run
 // it), that:
 //   - no tracked file mentions the GPL, other than the documents that
-//     state this rule. A gzip file is checked decompressed, a file in
-//     another compressed format is an error, and other binary files are
-//     skipped (content.go);
+//     state this rule. A gzip file is checked decompressed, a zip or jar
+//     archive member by member, a file in another compressed format is an
+//     error, and other binary files are skipped (content.go);
 //   - every tracked Go file that names a Guava, Gson, protobuf-java or
 //     args4j source in a "// Port of <path>" or "// Derived from <path>"
 //     line carries that project's copyright and licence notice before its
@@ -163,7 +163,7 @@ func main() {
 			counts = append(counts, fmt.Sprintf("%s %d", u.project, n))
 		}
 	}
-	fmt.Printf("licenses: no tracked file mentions the GPL or one of the %d excluded corpus files (gzip files decompressed, %d other binary files skipped); third-party notices present (%s); test-data packages licensed; NOTICE and LICENSES/ present\n", len(excluded), skipped, strings.Join(counts, ", "))
+	fmt.Printf("licenses: no tracked file mentions the GPL or one of the %d excluded corpus files (gzip and zip files decompressed, %d other binary files skipped); third-party notices present (%s); test-data packages licensed; NOTICE and LICENSES/ present\n", len(excluded), skipped, strings.Join(counts, ", "))
 }
 
 func trackedFiles() ([]string, error) {

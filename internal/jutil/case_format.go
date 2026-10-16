@@ -16,6 +16,8 @@
 
 package jutil
 
+import "strings"
+
 // Go-only: language-adapter — Guava's com.google.common.base.CaseFormat
 // conversions not covered by CaseFormat_UpperUnderscoreToLowerCamel.
 
@@ -67,4 +69,44 @@ func CaseFormat_LowerCamelToUpperUnderscore(s string) string {
 		return upper(units)
 	}
 	return out.Append(upper(units[i:])).String()
+}
+
+// CaseFormat_LowerHyphenToUpperCamel is Guava's
+// CaseFormat.LOWER_HYPHEN.to(CaseFormat.UPPER_CAMEL, s): words end at each
+// '-', each is normalized by UPPER_CAMEL (first char Ascii.toUpperCase, the
+// rest Ascii.toLowerCase) and they are joined without a separator. This is
+// Guava's CaseFormat.convert, step for step. Its boundaries and case changes
+// touch ASCII only, so it works on the WTF-8 bytes directly.
+func CaseFormat_LowerHyphenToUpperCamel(s string) string {
+	firstCharOnlyToUpper := func(word string) string {
+		if word == "" {
+			return word
+		}
+		b := []byte(StringToLowerCaseASCII(word))
+		if c := word[0]; c >= 'a' && c <= 'z' {
+			b[0] = c - ('a' - 'A')
+		} else {
+			b[0] = c
+		}
+		return string(b)
+	}
+	var out []byte
+	i := 0
+	j := -1
+	for {
+		j++
+		k := strings.IndexByte(s[j:], '-')
+		if k == -1 {
+			break
+		}
+		j += k
+		// i == 0: the first word (normalizeFirstWord is normalizeWord for UPPER_CAMEL).
+		out = append(out, firstCharOnlyToUpper(s[i:j])...)
+		// UPPER_CAMEL's wordSeparator is "".
+		i = j + 1 // + LOWER_HYPHEN's wordSeparator.length()
+	}
+	if i == 0 {
+		return firstCharOnlyToUpper(s)
+	}
+	return string(append(out, firstCharOnlyToUpper(s[i:])...))
 }

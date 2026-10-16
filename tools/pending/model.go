@@ -229,7 +229,7 @@ func (m *Model) methodsNamed(c *ClassInfo, name string, static bool) []methodRef
 				continue
 			}
 			seenDesc[mi.Desc] = true
-			out = append(out, methodRef{cls, mi, i})
+			out = append(out, methodRef{owner: cls, m: mi, index: i})
 		}
 	}
 	visit(c)
@@ -264,6 +264,9 @@ type methodRef struct {
 	owner *ClassInfo
 	m     *MethodInfo
 	index int
+	// listResultArrayList: the method returns a java.util.List that a call
+	// site uses as a *jutil.ArrayList (callSite.resultSelected).
+	listResultArrayList bool
 }
 
 type fieldRef struct {

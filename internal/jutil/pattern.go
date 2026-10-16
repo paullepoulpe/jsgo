@@ -7,6 +7,8 @@ package jutil
 //   - `.` excludes Java's line terminators (\n, \r, \u0085,  ,  ),
 //     not only \n as in RE2;
 //   - \s, \S (and \s inside classes) are Java's [ \t\n\x0B\f\r];
+//   - \v, \h (also inside classes), \V and \H are the vertical and
+//     horizontal whitespace classes of the Pattern Javadoc;
 //   - \Q...\E quoting is resolved here;
 //   - Matcher.matches() anchors the whole input;
 //   - `^` and `$` keep their default (non-MULTILINE) Java meaning, see
@@ -83,13 +85,19 @@ type javaRegexInfo struct {
 const javaDotClass = `[^\n\r\x{85}\x{2028}\x{2029}]`
 const javaSpaceChars = `\t\n\x0B\f\r `
 
+// javaVerticalSpaceChars and javaHorizontalSpaceChars are the classes \v and
+// \h of the Pattern Javadoc: [\n\x0B\f\r\x85\u2028\u2029] and
+// [ \t\xA0\u1680\u180e\u2000-\u200a\u202f\u205f\u3000].
+const javaVerticalSpaceChars = `\n\x0B\f\r\x{85}\x{2028}\x{2029}`
+const javaHorizontalSpaceChars = ` \t\x{A0}\x{1680}\x{180E}\x{2000}-\x{200A}\x{202F}\x{205F}\x{3000}`
+
 // Pattern_Compile is Pattern.compile(String).
 func Pattern_Compile(regex string) *Pattern {
 	whole, info := translateJavaRegex(regex, javaRegexMode{anchored: true})
 	p := &Pattern{
 		pattern: regex,
 		groups:  info.groups,
-		full:    regexp.MustCompile(`^(?:` + whole + `)$`),
+		full:    compileTranslatedJavaRegex(regex, `^(?:`+whole+`)$`),
 	}
 	for resumed := range 2 {
 		for crlf := range 2 {
@@ -100,7 +108,7 @@ func Pattern_Compile(regex string) *Pattern {
 				p.searchers[resumed][1] = p.searchers[resumed][0]
 			default:
 				t, ti := translateJavaRegex(regex, javaRegexMode{resumed: resumed == 1, crlf: crlf == 1})
-				p.searchers[resumed][crlf] = searcher{regexp.MustCompile(t), ti.marks}
+				p.searchers[resumed][crlf] = searcher{compileTranslatedJavaRegex(regex, t), ti.marks}
 			}
 		}
 	}
@@ -247,7 +255,7 @@ func translateJavaRegex(regex string, mode javaRegexMode) (string, javaRegexInfo
 		switch {
 		case c == '\\':
 			if i+1 >= n {
-				panic(NewIllegalArgumentExceptionMsg("Unexpected internal error near index " + itoa(n) + "\n" + regex))
+				panic(NewPatternSyntaxException("Unexpected internal error", regex, n))
 			}
 			i++
 			e := rs[i]
@@ -289,6 +297,25 @@ func translateJavaRegex(regex string, mode javaRegexMode) (string, javaRegexInfo
 					unsupportedJavaRegex(regex, `\S in class`)
 				}
 				sb.WriteString(`[^` + javaSpaceChars + `]`)
+			case e == 'v' || e == 'h':
+				chars := javaVerticalSpaceChars
+				if e == 'h' {
+					chars = javaHorizontalSpaceChars
+				}
+				if inClass {
+					sb.WriteString(chars)
+				} else {
+					sb.WriteString(`[` + chars + `]`)
+				}
+			case e == 'V' || e == 'H':
+				if inClass {
+					unsupportedJavaRegex(regex, `\`+string(e)+` in class`)
+				}
+				chars := javaVerticalSpaceChars
+				if e == 'H' {
+					chars = javaHorizontalSpaceChars
+				}
+				sb.WriteString(`[^` + chars + `]`)
 			case e == 'd' || e == 'D' || e == 'w' || e == 'W' || e == 't' || e == 'n' || e == 'r' || e == 'f':
 				sb.WriteByte('\\')
 				sb.WriteRune(e)
@@ -299,10 +326,10 @@ func translateJavaRegex(regex string, mode javaRegexMode) (string, javaRegexInfo
 			case e == '0' || (e >= '1' && e <= '9') || e == 'k':
 				unsupportedJavaRegex(regex, "back-reference or octal escape")
 			case e == 'b' || e == 'B' || e == 'z' || e == 'Z' || e == 'G' || e == 'A' || e == 'R' || e == 'X' ||
-				e == 'h' || e == 'H' || e == 'v' || e == 'V' || e == 'p' || e == 'P' || e == 'x' || e == 'u' || e == 'c' || e == 'N':
+				e == 'p' || e == 'P' || e == 'x' || e == 'u' || e == 'c' || e == 'N':
 				unsupportedJavaRegex(regex, `\`+string(e))
 			case (e >= 'a' && e <= 'z') || (e >= 'A' && e <= 'Z'):
-				panic(NewIllegalArgumentExceptionMsg("Illegal/unsupported escape sequence near index " + itoa(i) + "\n" + regex))
+				panic(NewPatternSyntaxException("Illegal/unsupported escape sequence", regex, i))
 			default:
 				sb.WriteString(regexp.QuoteMeta(string(e)))
 			}
@@ -396,7 +423,7 @@ func translateJavaRegex(regex string, mode javaRegexMode) (string, javaRegexInfo
 		}
 	}
 	if inClass {
-		panic(NewIllegalArgumentExceptionMsg("Unclosed character class near index " + itoa(n-1) + "\n" + regex))
+		panic(NewPatternSyntaxException("Unclosed character class", regex, n-1))
 	}
 	return sb.String(), info
 }

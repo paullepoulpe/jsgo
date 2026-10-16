@@ -1,6 +1,7 @@
 package main
 
 import (
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"fmt"
@@ -18,9 +19,13 @@ import (
 //     error): its decompressed contents, every member. Matching the raw
 //     bytes would find chance matches in the compressed data and miss the
 //     text;
+//   - a zip or jar archive (by magic number or name): the text of each of
+//     its files, read the same way (so a gzip member is decompressed and a
+//     binary member skipped), one after the other. A file that is not a
+//     valid archive is an error;
 //   - a file in another compressed or archive format (by magic number or
-//     name: zip and jar, bzip2, xz, zstd, 7z): an error, since the checks
-//     cannot read it. None is tracked; decompress it, or teach fileText;
+//     name: bzip2, xz, zstd, 7z): an error, since the checks cannot read
+//     it. None is tracked; decompress it, or teach fileText;
 //   - any other binary file: skip is true, and the checks skip it. A file
 //     is binary when it has a NUL byte in its first 8000 bytes (git's
 //     rule) and is not valid UTF-8 (some JavaScript test inputs hold a
@@ -42,6 +47,12 @@ func fileText(name string, b []byte) (text []byte, skip bool, err error) {
 	if ext == ".gz" || ext == ".tgz" {
 		return nil, false, fmt.Errorf("%s: named like a gzip file but is not one", name)
 	}
+	for _, f := range archiveFormats {
+		if f.is(b) || ext == f.ext {
+			text, err := archiveText(name, f.name, b)
+			return text, false, err
+		}
+	}
 	for _, f := range compressedFormats {
 		if f.is(b) || ext == f.ext {
 			return nil, false, fmt.Errorf("%s: %s file: the checks cannot read it (decompress it, or add the format to tools/licenses/content.go)", name, f.name)
@@ -51,6 +62,40 @@ func fileText(name string, b []byte) (text []byte, skip bool, err error) {
 		return nil, true, nil
 	}
 	return b, false, nil
+}
+
+// archiveText is fileText for a zip archive (kind "zip" or "jar") named
+// name: the texts of its files, each followed by a newline.
+func archiveText(name, kind string, b []byte) ([]byte, error) {
+	zr, err := zip.NewReader(bytes.NewReader(b), int64(len(b)))
+	if err != nil {
+		return nil, fmt.Errorf("%s: %s file: %v", name, kind, err)
+	}
+	var out []byte
+	for _, f := range zr.File {
+		if f.FileInfo().IsDir() {
+			continue
+		}
+		rc, err := f.Open()
+		if err != nil {
+			return nil, fmt.Errorf("%s: %s: %v", name, f.Name, err)
+		}
+		data, err := io.ReadAll(rc)
+		rc.Close()
+		if err != nil {
+			return nil, fmt.Errorf("%s: %s: %v", name, f.Name, err)
+		}
+		text, skip, err := fileText(name+"!/"+f.Name, data)
+		if err != nil {
+			return nil, err
+		}
+		if skip {
+			continue
+		}
+		out = append(out, text...)
+		out = append(out, '\n')
+	}
+	return out, nil
 }
 
 // mentionsGPL reports whether text mentions the GPL. The name of the list
@@ -118,14 +163,21 @@ func (x *excludedIndex) mentioned(text []byte) []string {
 
 var gzipMagic = []byte{0x1f, 0x8b}
 
-// compressedFormats are the formats fileText recognises but cannot read:
-// their name extension, and a test of their first bytes.
-var compressedFormats = []struct {
+// fileFormat is a format fileText recognises: its name extension, and a
+// test of its first bytes.
+type fileFormat struct {
 	name, ext string
 	is        func(b []byte) bool
-}{
+}
+
+// archiveFormats are the zip-based archives fileText reads (archiveText).
+var archiveFormats = []fileFormat{
 	{"zip", ".zip", prefix("PK\x03\x04")},
 	{"jar", ".jar", prefix("PK\x03\x04")},
+}
+
+// compressedFormats are the formats fileText recognises but cannot read.
+var compressedFormats = []fileFormat{
 	{"bzip2", ".bz2", func(b []byte) bool { return len(b) > 3 && prefix("BZh")(b) && '1' <= b[3] && b[3] <= '9' }},
 	{"xz", ".xz", prefix("\xfd7zXZ\x00")},
 	{"zstd", ".zst", prefix("\x28\xb5\x2f\xfd")},

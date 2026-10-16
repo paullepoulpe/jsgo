@@ -1,0 +1,5558 @@
+=== PolymerPassTest-000.input.js 281
+/** @constructor */
+var Element = function() {};
+/** @constructor @extends {Element} */
+var HTMLElement = function() {};
+/** @constructor @extends {HTMLElement} */
+var HTMLInputElement = function() {};
+/** @constructor @extends {HTMLElement} */
+var PolymerElement = function() {};
+
+=== PolymerPassTest-001.input.js 1457
+/**
+ * @typedef {{
+ *   type: !Function,
+ *   value: (* | undefined),
+ *   readOnly: (boolean | undefined),
+ *   computed: (string | undefined),
+ *   reflectToAttribute: (boolean | undefined),
+ *   notify: (boolean | undefined),
+ *   observer: (string | function(this:?, ?, ?) | undefined)
+ * }}
+ */
+let PolymerElementPropertiesMeta;
+
+/**
+ * @typedef {Object<string, !Function|!PolymerElementPropertiesMeta>}
+ */
+let PolymerElementProperties;
+/** @type {!Object} */
+PolymerElement.prototype.$;
+PolymerElement.prototype.created = function() {};
+PolymerElement.prototype.ready = function() {};
+PolymerElement.prototype.attached = function() {};
+PolymerElement.prototype.domReady = function() {};
+PolymerElement.prototype.detached = function() {};
+/**
+ * Call the callback after a timeout. Calling job again with the same name
+ * resets the timer but will not result in additional calls to callback.
+ *
+ * @param {string} name
+ * @param {Function} callback
+ * @param {number} timeoutMillis The minimum delay in milliseconds before
+ *     calling the callback.
+ */
+PolymerElement.prototype.job = function(name, callback, timeoutMillis) {};
+/**
+ * @param a {!Object}
+ * @return {!Function}
+ */
+var Polymer = function(a) {};
+// In the actual code Polymer.Element comes from a mixin. This definition is simplified.
+/**
+ * @polymer
+ */
+Polymer.Element = class {};
+
+/** @type {!Object<string, !Element>} */
+Polymer.Element.prototype.$;
+var alert = function(msg) {};
+
+=== PolymerPassTest-002.input.js 817
+/** @constructor @extends {HTMLInputElement} */
+var PolymerInputElement = function() {};
+/** @type {!Object} */
+PolymerInputElement.prototype.$;
+PolymerInputElement.prototype.created = function() {};
+PolymerInputElement.prototype.ready = function() {};
+PolymerInputElement.prototype.attached = function() {};
+PolymerInputElement.prototype.domReady = function() {};
+PolymerInputElement.prototype.detached = function() {};
+/**
+ * Call the callback after a timeout. Calling job again with the same name
+ * resets the timer but will not result in additional calls to callback.
+ *
+ * @param {string} name
+ * @param {Function} callback
+ * @param {number} timeoutMillis The minimum delay in milliseconds before
+ *     calling the callback.
+ */
+PolymerInputElement.prototype.job = function(name, callback, timeoutMillis) {};
+
+=== PolymerPassTest-003.input.js 162
+goog.loadModule(function(exports) {
+  goog.module('ytu.app.ui.shared.YtuIcon');
+  YtuIcon = Polymer({is: 'ytu-icon' });
+  exports = YtuIcon;
+  return exports;
+})
+
+=== PolymerPassTest-004.input.js 321
+goog.loadModule(function(exports) {
+goog.module('ytu.app.ui.shared.YtuIcon');
+/**
+ * @constructor
+ * @extends {PolymerElement}
+ * @implements {PolymerYtuIconInterface$UID$0}
+ */
+  var YtuIcon = function(){}
+  YtuIcon = Polymer(/** @lends {YtuIcon.prototype} */ {is:"ytu-icon"});
+  exports = YtuIcon;
+  return exports;
+})
+
+=== PolymerPassTest-005.input.js 131
+goog.loadModule(function(exports) {
+  goog.module('ytu.app.ui.shared.YtuIcon');
+  Polymer({is: 'ytu-icon' });
+  return exports;
+})
+
+=== PolymerPassTest-006.input.js 151
+/**
+ * @constructor
+ * @extends {PolymerElement}
+ * @implements {PolymerYtuIconElementInterface$m1176578414$0}
+ */
+  var YtuIconElement = function(){}
+
+=== PolymerPassTest-007.input.js 168
+goog.loadModule(function(exports) {
+goog.module('ytu.app.ui.shared.YtuIcon');
+  Polymer(/** @lends {YtuIconElement.prototype} */ {is:"ytu-icon"});
+  return exports;
+})
+
+=== PolymerPassTest-008.input.js 66
+goog.module('modOne');
+exports = Polymer({
+  is: 'x-element',
+});
+
+=== PolymerPassTest-009.input.js 335
+goog.module('modOne');
+/** @constructor @extends {PolymerElement}
+ * @implements {PolymerexportsForPolymer$jscomp0Interface$UID$0}
+ */
+var exportsForPolymer$jscomp0 = function() {};
+exportsForPolymer$jscomp0 = Polymer(
+  /** @lends {exportsForPolymer$jscomp0.prototype} */ {
+  is: 'x-element',
+});
+exports = exportsForPolymer$jscomp0;
+
+=== PolymerPassTest-010.input.js 106
+goog.loadModule(function(exports) {
+goog.module('modOne');
+exports = Polymer({
+  is: 'x-element',
+});
+});
+
+=== PolymerPassTest-011.input.js 375
+goog.loadModule(function(exports) {
+goog.module('modOne');
+/** @constructor @extends {PolymerElement}
+ * @implements {PolymerexportsForPolymer$jscomp0Interface$UID$0}
+ */
+var exportsForPolymer$jscomp0 = function() {};
+exportsForPolymer$jscomp0 = Polymer(
+  /** @lends {exportsForPolymer$jscomp0.prototype} */ {
+  is: 'x-element',
+});
+exports = exportsForPolymer$jscomp0;
+});
+
+=== PolymerPassTest-012.input.js 71
+goog.module('modOne');
+const Button = Polymer({
+  is: 'x-element',
+});
+
+=== PolymerPassTest-013.input.js 71
+goog.module('modTwo');
+const Button = Polymer({
+  is: 'y-element',
+});
+
+=== PolymerPassTest-014.input.js 215
+goog.module('modOne');
+/** @constructor @extends {PolymerElement} @implements {PolymerButtonInterface$UID$0} */
+var Button = function() {};
+Button = Polymer(/** @lends {Button.prototype} */ {
+  is: 'x-element',
+});
+
+=== PolymerPassTest-015.input.js 215
+goog.module('modTwo');
+/** @constructor @extends {PolymerElement} @implements {PolymerButtonInterface$UID$0} */
+var Button = function() {};
+Button = Polymer(/** @lends {Button.prototype} */ {
+  is: 'y-element',
+});
+
+=== PolymerPassTest-016.input.js 61
+goog.module('mod');
+var X = Polymer({
+  is: 'x-element',
+});
+
+=== PolymerPassTest-017.input.js 192
+goog.module('mod');
+/** @constructor @extends {PolymerElement} @implements {PolymerXInterface$UID$0} */
+var X = function() {};
+X = Polymer(/** @lends {X.prototype} */ {
+  is: 'x-element',
+});
+
+=== PolymerPassTest-018.input.js 53
+goog.module('mod');
+Polymer({
+  is: 'x-element',
+});
+
+=== PolymerPassTest-019.input.js 153
+/**
+ * @constructor
+ * @extends {PolymerElement}
+ * @implements {PolymerXElementElementInterface$m1176578414$0}
+ */
+var XElementElement = function() {};
+
+=== PolymerPassTest-020.input.js 95
+goog.module('mod');
+Polymer(/** @lends {XElementElement.prototype} */ {
+  is: 'x-element',
+});
+
+=== PolymerPassTest-021.input.js 273
+goog.module('mod');
+goog.module.declareLegacyNamespace()
+const CancelOfferRenderer = goog.require('a.UnpluggedCancelOfferRenderer');
+const {Property} = goog.require('a.mod');
+Polymer(
+ {is:'ytu-cancel-offer', properties:{
+/** @type {CancelOfferRenderer} */
+data:Object}});
+
+=== PolymerPassTest-022.input.js 315
+/**
+ * @constructor @extends {PolymerElement}
+ * @implements {PolymerYtuCancelOfferElementInterface$m1176578413$0}
+ */
+var YtuCancelOfferElement = function() {};
+CLOSURE_EXTERNS
+goog.provide('a.UnpluggedCancelOfferRenderer');
+goog.provide('a.b');
+/** @constructor */ a.UnpluggedCancelOfferRenderer = function() {};
+
+=== PolymerPassTest-023.input.js 409
+goog.module('mod');
+goog.module.declareLegacyNamespace()
+const CancelOfferRenderer = goog.require('a.UnpluggedCancelOfferRenderer');
+const {Property} = goog.require('a.mod');
+/** @type {CancelOfferRenderer} */ YtuCancelOfferElement.prototype.data;
+Polymer(/** @lends {YtuCancelOfferElement.prototype} */ {
+  is:'ytu-cancel-offer',
+  properties: $jscomp.reflectObject(YtuCancelOfferElement, {data:Object})
+});
+
+=== PolymerPassTest-024.input.js 219
+goog.module('mod');
+goog.setTestOnly()
+const CancelOfferRenderer = goog.require('a.UnpluggedCancelOfferRenderer');
+Polymer(
+ {is:'ytu-cancel-offer', properties:{
+   /** @type {CancelOfferRenderer} */
+   data:Object}});
+
+=== PolymerPassTest-025.input.js 288
+/** @constructor @extends {PolymerElement} @implements
+ {PolymerYtuCancelOfferElementInterface$m1176578414$0} */
+var YtuCancelOfferElement = function() {};
+CLOSURE_EXTERNS
+goog.provide('a.UnpluggedCancelOfferRenderer');
+/** @constructor */ a.UnpluggedCancelOfferRenderer = function() {};
+
+=== PolymerPassTest-026.input.js 355
+goog.module('mod');
+goog.setTestOnly()
+const CancelOfferRenderer = goog.require('a.UnpluggedCancelOfferRenderer');
+/** @type {CancelOfferRenderer} */
+YtuCancelOfferElement.prototype.data;
+Polymer(
+/** @lends {YtuCancelOfferElement.prototype} */
+ {
+    is:'ytu-cancel-offer',
+    properties: $jscomp.reflectObject(YtuCancelOfferElement, {data:Object})
+});
+
+=== PolymerPassTest-027.input.js 53
+var X = Polymer({
+  is: 'x-element',
+});
+export {X};
+
+=== PolymerPassTest-028.input.js 182
+/** @constructor @extends {PolymerElement} @implements {PolymerXInterface$UID$0} */
+var X = function() {};
+X = Polymer(/** @lends {X.prototype} */ {
+  is: 'x-element',})
+export {X};
+
+=== PolymerPassTest-029.input.js 60
+var PI = 3.14
+Polymer({
+  is: 'x-element',
+});
+export {PI};
+
+=== PolymerPassTest-030.input.js 100
+var PI = 3.14
+Polymer(/** @lends {XElementElement.prototype} */ {
+  is: 'x-element',})
+export {PI};
+
+=== PolymerPassTest-031.input.js 87
+goog.module('mod');
+(function() {
+  var X = Polymer({
+    is: 'x-element',
+  });
+})();
+
+=== PolymerPassTest-032.input.js 220
+goog.module('mod');
+(function() {
+/** @constructor @extends {PolymerElement} @implements {PolymerXInterface$UID$0} */
+var X = function() {};
+    X = Polymer(/** @lends {X.prototype} */ {
+    is: 'x-element',
+  });
+})();
+
+=== PolymerPassTest-033.input.js 79
+goog.module('mod');
+(function() {
+  Polymer({
+    is: 'x-element',
+  });
+})();
+
+=== PolymerPassTest-034.input.js 123
+goog.module('mod');
+(function() {
+    Polymer(/** @lends {XElementElement.prototype} */ {
+    is: 'x-element',
+  });
+})();
+
+=== PolymerPassTest-035.input.js 185
+goog.module('mod');
+const Component = goog.require('a');
+goog.forwardDeclare('something.else');
+const someLocal = (function() { return 0; })();
+var X = Polymer({
+  is: 'x-element',
+});
+
+=== PolymerPassTest-036.input.js 316
+goog.module('mod');
+const Component = goog.require('a');
+goog.forwardDeclare('something.else');
+const someLocal = (function() { return 0; })();
+/** @constructor @extends {PolymerElement} @implements {PolymerXInterface$UID$0} */
+var X = function() {};
+X = Polymer(/** @lends {X.prototype} */ {
+  is: 'x-element',
+});
+
+=== PolymerPassTest-037.input.js 177
+goog.module('mod');
+const Component = goog.require('a');
+goog.forwardDeclare('something.else');
+const someLocal = (function() { return 0; })();
+Polymer({
+  is: 'x-element',
+});
+
+=== PolymerPassTest-038.input.js 143
+/** @constructor @extends {PolymerElement} @implements {PolymerXElementElementInterface$m1176578414$0} */
+var XElementElement = function() {};
+
+=== PolymerPassTest-039.input.js 219
+goog.module('mod');
+const Component = goog.require('a');
+goog.forwardDeclare('something.else');
+const someLocal = (function() { return 0; })();
+Polymer(/** @lends {XElementElement.prototype} */ {
+  is: 'x-element',
+});
+
+=== PolymerPassTest-040.input.js 41
+var X = Polymer({
+  is: 'x-element',
+});
+
+=== PolymerPassTest-041.input.js 172
+/** @constructor @extends {PolymerElement} @implements {PolymerXInterface$UID$0} */
+var X = function() {};
+X = Polymer(/** @lends {X.prototype} */ {
+  is: 'x-element',
+});
+
+=== PolymerPassTest-042.input.js 126
+var X = class extends Polymer.Element {
+  static get is() { return 'x-element'; }
+  static get properties() { return {}; }
+};
+
+=== PolymerPassTest-043.input.js 267
+/** @implements {PolymerXInterface$UID$0} */
+var X = class extends Polymer.Element {
+  /** @return {string} */
+  static get is() { return 'x-element'; }
+  /** @return {PolymerElementProperties} */
+  static get properties() { return $jscomp.reflectObject(X, {}); }
+};
+
+=== PolymerPassTest-044.input.js 41
+let X = Polymer({
+  is: 'x-element',
+});
+
+=== PolymerPassTest-045.input.js 176
+/**
+ * @constructor
+ * @implements {PolymerXInterface$UID$0}
+ * @extends {PolymerElement}
+ */
+var X = function() {};
+X = Polymer(/** @lends {X.prototype} */ {is:'x-element'});
+
+=== PolymerPassTest-046.input.js 127
+let X = class extends Polymer.Element {
+  static get is() { return 'x-element'; }
+  static get properties() { return { }; }
+};
+
+=== PolymerPassTest-047.input.js 267
+/** @implements {PolymerXInterface$UID$0} */
+let X = class extends Polymer.Element {
+  /** @return {string} */
+  static get is() { return 'x-element'; }
+  /** @return {PolymerElementProperties} */
+  static get properties() { return $jscomp.reflectObject(X, {}); }
+};
+
+=== PolymerPassTest-048.input.js 43
+const X = Polymer({
+  is: 'x-element',
+});
+
+=== PolymerPassTest-049.input.js 169
+/**
+ * @constructor
+ * @extends {PolymerElement}
+ * @implements {PolymerXInterface$UID$0}
+ */
+var X=function(){};X=Polymer(/** @lends {X.prototype} */ {is:"x-element"})
+
+=== PolymerPassTest-050.input.js 128
+const X = class extends Polymer.Element {
+  static get is() { return 'x-element'; }
+  static get properties() { return {}; }
+};
+
+=== PolymerPassTest-051.input.js 269
+/** @implements {PolymerXInterface$UID$0} */
+const X = class extends Polymer.Element {
+  /** @return {string} */
+  static get is() { return 'x-element'; }
+  /** @return {PolymerElementProperties} */
+  static get properties() { return $jscomp.reflectObject(X, {}); }
+};
+
+=== PolymerPassTest-052.input.js 25
+Polymer({
+  is: 'x',
+});
+
+=== PolymerPassTest-053.input.js 188
+/**
+ * @implements {PolymerXElementInterface$UID$0}
+ * @constructor @extends {PolymerElement}
+ */
+var XElement = function() {};
+Polymer(/** @lends {XElement.prototype} */ {
+  is: 'x',
+});
+
+=== PolymerPassTest-054.input.js 65
+/** @const */ var x = {};
+x.Z = Polymer({
+  is: 'x-element',
+});
+
+=== PolymerPassTest-055.input.js 202
+/** @const */ var x = {};
+/** @constructor @extends {PolymerElement} @implements {Polymerx_ZInterface$UID$0} */
+x.Z = function() {};
+x.Z = Polymer(/** @lends {x.Z.prototype} */ {
+  is: 'x-element',
+});
+
+=== PolymerPassTest-056.input.js 138
+const x = {};
+x.Z = class extends Polymer.Element {
+  static get is() { return 'x-element'; }
+  static get properties() { return {}; }
+};
+
+=== PolymerPassTest-057.input.js 283
+const x = {};
+/** @implements {Polymerx_ZInterface$UID$0} */
+x.Z = class extends Polymer.Element {
+  /** @return {string} */
+  static get is() { return 'x-element'; }
+  /** @return {PolymerElementProperties} */
+  static get properties() { return $jscomp.reflectObject(x.Z, {}); }
+};
+
+=== PolymerPassTest-058.input.js 51
+var x = {};
+x.Z = Polymer({
+  is: 'x-element',
+});
+
+=== PolymerPassTest-059.input.js 188
+var x = {};
+/** @constructor @extends {PolymerElement} @implements {Polymerx_ZInterface$UID$0} */
+x.Z = function() {};
+x.Z = Polymer(/** @lends {x.Z.prototype} */ {
+  is: 'x-element',
+});
+
+=== PolymerPassTest-060.input.js 80
+var X = Polymer({is:'x-element', [name + (() => 42)]: function() {return 42;}});
+=== PolymerPassTest-061.input.js 236
+/** @constructor @extends {PolymerElement} @implements {PolymerXInterface$UID$0} */
+var X = function() {}
+
+X = Polymer(/** @lends {X.prototype} */{
+  is: 'x-element',
+  /** @this {X} */
+  [name + (()=>42)]: function() {return 42;},
+});
+
+=== PolymerPassTest-062.input.js 130
+/** @const */ var x = {};
+(function() {
+  x.Z = Polymer({
+    is: 'x-element',
+    sayHi: function() { alert('hi'); },
+  });
+})()
+
+=== PolymerPassTest-063.input.js 333
+/** @const */ var x = {};
+(function() {
+  /** @constructor @extends {PolymerElement} @implements {Polymerx_ZInterface$UID$0}*/
+  x.Z = function() {};
+  x.Z = Polymer(/** @lends {x.Z.prototype} */ {
+    is: 'x-element',
+    /** @this {x.Z} */
+    sayHi: function() { alert('hi'); },
+  });
+  /** @export */
+  x.Z.prototype.sayHi;
+})()
+
+=== PolymerPassTest-064.input.js 166
+const x = {};
+(function() {
+  x.Z = class extends Polymer.Element {
+    static get is() { return 'x-element'; }
+    static get properties() { return {}; }
+  };
+})();
+
+=== PolymerPassTest-065.input.js 317
+const x = {};
+(function() {
+  /** @implements {Polymerx_ZInterface$UID$0} */
+  x.Z = class extends Polymer.Element {
+    /** @return {string} */
+    static get is() { return 'x-element'; }
+    /** @return {PolymerElementProperties} */
+    static get properties() { return $jscomp.reflectObject(x.Z, {}); }
+  };
+})();
+
+=== PolymerPassTest-066.input.js 90
+(function() {
+  Polymer({
+    is: 'x',
+    sayHi: function() { alert('hi'); },
+  });
+})()
+
+=== PolymerPassTest-067.input.js 326
+/**
+ * @constructor @extends {PolymerElement}
+ * @implements {PolymerXElementInterface$UID$0}
+ */
+var XElement = function() {};
+(function() {
+  Polymer(/** @lends {XElement.prototype} */ {
+    is: 'x',
+    /** @this {XElement} */
+    sayHi: function() { alert('hi'); },
+  });
+  /** @export */
+  XElement.prototype.sayHi;
+})()
+
+=== PolymerPassTest-068.input.js 156
+(function() {
+  const X = class extends Polymer.Element {
+    static get is() { return 'x-element'; }
+    static get properties() { return {}; }
+  };
+})();
+
+=== PolymerPassTest-069.input.js 303
+(function() {
+  /** @implements {PolymerXInterface$UID$0} */
+  const X = class extends Polymer.Element {
+    /** @return {string} */
+    static get is() { return 'x-element'; }
+    /** @return {PolymerElementProperties} */
+    static get properties() { return $jscomp.reflectObject(X, {}); }
+  };
+})();
+
+=== PolymerPassTest-070.input.js 98
+(function() {
+  Polymer({
+    is: 'foo-thing',
+    sayHi: function() { alert('hi'); },
+  });
+})()
+
+=== PolymerPassTest-071.input.js 369
+/**
+ * @constructor @extends {PolymerElement}
+ * @implements {PolymerFooThingElementInterface$UID$0}
+ */
+var FooThingElement = function() {};
+(function() {
+  Polymer(/** @lends {FooThingElement.prototype} */ {
+    is: 'foo-thing',
+    /** @this {FooThingElement} */
+    sayHi: function() { alert('hi'); },
+  });
+  /** @export */
+  FooThingElement.prototype.sayHi;
+})()
+
+=== PolymerPassTest-072.input.js 136
+var X = Polymer({
+  is: 'x-element',
+  /**
+   * @param {string} name
+   */
+  factoryImpl: function(name) { alert('hi, ' + name); },
+});
+
+=== PolymerPassTest-073.input.js 327
+/**
+ * @param {string} name
+ * @constructor @extends {PolymerElement}
+ * @implements {PolymerXInterface$UID$0}
+ */
+var X = function(name) { alert('hi, ' + name); };
+X = Polymer(/** @lends {X.prototype} */ {
+  is: 'x-element',
+  factoryImpl: function(name) { alert('hi, ' + name); },
+});
+/** @export */
+X.prototype.factoryImpl;
+
+=== PolymerPassTest-074.input.js 126
+var X = Polymer({
+  is: 'x-element',
+  /**
+   * @param {string} name
+   */
+  factoryImpl(name) { alert('hi, ' + name); },
+});
+
+=== PolymerPassTest-075.input.js 318
+/**
+ * @param {string} name
+ * @constructor @extends {PolymerElement}
+ * @implements {PolymerXInterface$UID$0}
+ */
+var X = function(name) { alert('hi, ' + name); };
+
+X = Polymer(/** @lends {X.prototype} */ {
+  is: 'x-element',
+  factoryImpl(name) { alert('hi, ' + name); },
+});
+/** @export */
+X.prototype.factoryImpl;
+
+=== PolymerPassTest-076.input.js 161
+var X = Polymer({
+  is: 'x-element',
+  listeners: {
+    'click': 'handleClick',
+  },
+
+  handleClick: function(e) {
+    alert('Thank you for clicking');
+  },
+});
+
+=== PolymerPassTest-077.input.js 350
+/** @constructor @extends {PolymerElement} @implements {PolymerXInterface$UID$0}*/
+var X = function() {};
+X = Polymer(/** @lends {X.prototype} */ {
+  is: 'x-element',
+  listeners: {
+    'click': 'handleClick',
+  },
+
+  /** @this {X} */
+  handleClick: function(e) {
+    alert('Thank you for clicking');
+  },
+});
+/** @export */
+X.prototype.handleClick;
+
+=== PolymerPassTest-078.input.js 138
+class X extends Polymer.Element {
+  static get is() { return 'x-element'; }
+  handleClick(e) {
+    alert('Thank you for clicking');
+  }
+}
+
+=== PolymerPassTest-079.input.js 249
+/** @implements {PolymerXInterface$UID$0} */
+class X extends Polymer.Element {
+  /** @return {string} */
+  static get is() { return 'x-element'; }
+  handleClick(e) {
+    alert('Thank you for clicking');
+  }
+}
+/** @export */
+X.prototype.handleClick;
+
+=== PolymerPassTest-080.input.js 270
+var X = Polymer({
+  is: 'x-element',
+  listeners: {
+    click: 'handleClick',
+    'foo-bar': 'handleClick',
+  },
+  hostAttributes: {
+    role: 'button',
+    'foo-bar': 'done',
+    blah: 1,
+  },
+
+  handleClick: function(e) {
+    alert('Thank you for clicking');
+  },
+});
+
+=== PolymerPassTest-081.input.js 465
+/** @constructor @extends {PolymerElement} @implements {PolymerXInterface$UID$0}*/
+var X = function() {};
+X = Polymer(/** @lends {X.prototype} */ {
+  is: 'x-element',
+  listeners: {
+    'click': 'handleClick',
+    'foo-bar': 'handleClick',
+  },
+  hostAttributes: {
+    'role': 'button',
+    'foo-bar': 'done',
+    'blah': 1,
+  },
+
+  /** @this {X} */
+  handleClick: function(e) {
+    alert('Thank you for clicking');
+  },
+});
+/** @export */
+X.prototype.handleClick;
+
+=== PolymerPassTest-082.input.js 159
+/** @polymerBehavior */
+exports.CheckedOnTapBehavior = {
+  listeners: {tap: 'onTap'},
+  hostAttributes: {foo: 1},
+  onTap() {
+    this.checked = true;
+  },
+};
+
+=== PolymerPassTest-083.input.js 229
+/** @polymerBehavior @nocollapse */
+exports.CheckedOnTapBehavior = {
+  listeners: {'tap': 'onTap'},
+  hostAttributes: {'foo': 1},
+  /** @suppress {checkTypes|globalThis|visibility} */
+  onTap() {
+    this.checked = true;
+  },
+};
+
+=== PolymerPassTest-084.input.js 51
+Polymer({
+  is: 'x-input',
+  extends: 'input',
+});
+
+=== PolymerPassTest-085.input.js 234
+/**
+ * @constructor @extends {PolymerInputElement}
+ * @implements {PolymerXInputElementInterface$UID$0}
+ */
+var XInputElement = function() {};
+Polymer(/** @lends {XInputElement.prototype} */ {
+  is: 'x-input',
+  extends: 'input',
+});
+
+=== PolymerPassTest-086.input.js 83
+/** @interface */
+var PolymerXInputElementInterface$m1146332801$0 = function() {};
+
+=== PolymerPassTest-087.input.js 54
+Polymer({
+  is: 'x-input',
+  extends: 'nonexist',
+});
+
+=== PolymerPassTest-088.input.js 102
+Polymer({
+  is: 'x-input',
+  extends: 'input',
+});
+Polymer({
+  is: 'y-input',
+  extends: 'input',
+});
+
+=== PolymerPassTest-089.input.js 166
+/** @interface */
+var PolymerXInputElementInterface$m1146332801$0 = function() {};
+/** @interface */
+var PolymerYInputElementInterface$m1146332801$1 = function() {};
+
+=== PolymerPassTest-090.input.js 286
+/** @constructor */
+var User = function() {};
+/** @const */ var a = {};
+a.B = Polymer({
+  is: 'x-element',
+  properties: {
+    /** @type {!User} @private */
+    user_: Object,
+    pets: {
+      type: Array,
+      notify: true,
+    },
+    name: String,
+    thingToDo: Function,
+  },
+});
+
+=== PolymerPassTest-091.input.js 601
+/** @constructor */
+var User = function() {};
+/** @const */ var a = {};
+/** @constructor @extends {PolymerElement} @implements {Polymera_BInterface$UID$0}*/
+a.B = function() {};
+/** @type {!User} @private */
+a.B.prototype.user_;
+/** @type {!Array} */
+a.B.prototype.pets;
+/** @type {string} */
+a.B.prototype.name;
+/** @type {!Function} */
+a.B.prototype.thingToDo;
+a.B = Polymer(/** @lends {a.B.prototype} */ {
+  is: 'x-element',
+  properties: $jscomp.reflectObject(a.B, {
+    user_: Object,
+    pets: {
+      type: Array,
+      notify: true,
+    },
+    name: String,
+    thingToDo: Function,
+  }),
+});
+
+=== PolymerPassTest-092.input.js 363
+/** @constructor */
+var User = function() {};
+var a = {};
+a.B = class extends Polymer.Element {
+  static get is() { return 'x-element'; }
+  static get properties() {
+    return {
+      /** @type {!User} @private */
+      user_: Object,
+      pets: {
+        type: Array,
+        notify: true,
+      },
+      name: String,
+      thingToDo: Function,
+    };
+  }
+};
+
+=== PolymerPassTest-093.input.js 657
+/** @constructor */
+var User = function() {};
+var a = {};
+/** @implements {Polymera_BInterface$UID$0} */
+a.B = class extends Polymer.Element {
+  /** @return {string} */
+  static get is() { return 'x-element'; }
+  /** @return {PolymerElementProperties} */
+  static get properties() {
+    return $jscomp.reflectObject(a.B, {
+      user_: Object,
+      pets: {
+        type: Array,
+        notify: true,
+      },
+      name: String,
+      thingToDo: Function,
+    });
+  }
+};
+/** @type {!User} @private */
+a.B.prototype.user_;
+/** @type {!Array} */
+a.B.prototype.pets;
+/** @type {string} */
+a.B.prototype.name;
+/** @type {!Function} */
+a.B.prototype.thingToDo;
+
+=== PolymerPassTest-094.input.js 379
+/** @constructor */
+var User = function() {};
+/** @const */ var a = {};
+a.B = Polymer({
+  is: 'x-element',
+  properties: {
+    /** @type {!User} @private */
+    user_: {
+      type: Object,
+      value: function() { return new User(); },
+    },
+    pets: {
+      type: Array,
+      notify: true,
+      value: function() { return [this.name]; },
+    },
+    name: String,
+  },
+});
+
+=== PolymerPassTest-095.input.js 727
+/** @constructor */
+var User = function() {};
+/** @const */ var a = {};
+/** @constructor @extends {PolymerElement} @implements {Polymera_BInterface$UID$0}*/
+a.B = function() {};
+/** @type {!User} @private */
+a.B.prototype.user_;
+/** @type {!Array} */
+a.B.prototype.pets;
+/** @type {string} */
+a.B.prototype.name;
+a.B = Polymer(/** @lends {a.B.prototype} */ {
+  is: 'x-element',
+  properties: $jscomp.reflectObject(a.B, {
+    user_: {
+      type: Object,
+      /** @this {a.B} @return {!User} */
+      value: function() { return new User(); },
+    },
+    pets: {
+      type: Array,
+      notify: true,
+      /** @this {a.B} @return {!Array} */
+      value: function() { return [this.name]; },
+    },
+    name: String,
+  }),
+});
+
+=== PolymerPassTest-096.input.js 476
+/** @constructor */
+var User = function() {};
+/** @const */ var a = {};
+a.B = class extends Polymer.Element {
+  static get is() { return 'x-element'; }
+  static get properties() {
+    return {
+      /** @type {!User} @private */
+      user_: {
+        type: Object,
+        value: function() { return new User(); },
+      },
+      pets: {
+        type: Array,
+        notify: true,
+        value: function() { return [this.name]; },
+      },
+      name: String,
+    };
+  }
+};
+
+=== PolymerPassTest-097.input.js 807
+/** @constructor */
+var User = function() {};
+/** @const */ var a = {};
+/** @implements {Polymera_BInterface$UID$0} */
+a.B = class extends Polymer.Element {
+  /** @return {string} */
+  static get is() { return 'x-element'; }
+  /** @return {PolymerElementProperties} */
+  static get properties() {
+    return $jscomp.reflectObject(a.B, {
+      user_: {
+        type: Object,
+        /** @this {a.B} @return {!User} */
+        value: function() { return new User(); },
+      },
+      pets: {
+        type: Array,
+        notify: true,
+        /** @this {a.B} @return {!Array} */
+        value: function() { return [this.name]; },
+      },
+      name: String,
+    });
+  }
+};
+/** @type {!User} @private */
+a.B.prototype.user_;
+/** @type {!Array} */
+a.B.prototype.pets;
+/** @type {string} */
+a.B.prototype.name;
+
+=== PolymerPassTest-098.input.js 190
+/** @constructor */
+var User = function() {};
+var ES6Test = Polymer({
+  is: 'x-element',
+  properties: {
+    user: {
+      type: Object,
+      value() { return new User();},
+    },
+  },
+});
+
+=== PolymerPassTest-099.input.js 475
+/** @constructor */
+var User = function() {};
+
+/**
+ * @constructor @extends {PolymerElement}
+ * @implements {PolymerES6TestInterface$UID$0}
+ */
+var ES6Test = function() {};
+/** @type {!Object} */
+ES6Test.prototype.user;
+
+ES6Test = Polymer(/** @lends {ES6Test.prototype} */ {
+  is: 'x-element',
+  properties: $jscomp.reflectObject(ES6Test, {
+    user: {
+      type: Object,
+      /** @this {ES6Test} @return {!Object} */
+      value() { return new User(); },
+    },
+  }),
+});
+
+=== PolymerPassTest-100.input.js 442
+/** @constructor */
+var User = function() {};
+var a = {};
+a.B = class extends Polymer.Element {
+  static get is() { return 'x-element'; }
+  static get properties() {
+    return {
+      /** @type {!User} @private */
+      user_: {
+        type: Object,
+        value() { return new User(); },
+      },
+      pets: {
+        type: Array,
+        notify: true,
+        value() { return [this.name]; },
+      },
+      name: String,
+    };
+  }
+};
+
+=== PolymerPassTest-101.input.js 773
+/** @constructor */
+var User = function() {};
+var a = {};
+/** @implements {Polymera_BInterface$UID$0} */
+a.B = class extends Polymer.Element {
+  /** @return {string} */
+  static get is() { return 'x-element'; }
+  /** @return {PolymerElementProperties} */
+  static get properties() {
+    return $jscomp.reflectObject(a.B, {
+      user_: {
+        type: Object,
+        /** @this {a.B} @return {!User} */
+        value() { return new User(); },
+      },
+      pets: {
+        type: Array,
+        notify: true,
+        /** @this {a.B} @return {!Array} */
+        value() { return [this.name]; },
+      },
+      name: String,
+    });
+  }
+};
+/** @type {!User} @private */
+a.B.prototype.user_;
+/** @type {!Array} */
+a.B.prototype.pets;
+/** @type {string} */
+a.B.prototype.name;
+
+=== PolymerPassTest-102.input.js 219
+/** @const */ var a = {};
+a.B = Polymer({
+  is: 'x-element',
+  properties: {
+    /** @type {!Array<string>} */
+    pets: {
+      type: Array,
+      readOnly: true,
+    },
+    /** @private */
+    name_: String,
+  },
+});
+
+=== PolymerPassTest-103.input.js 517
+/** @const */ var a = {};
+/** @constructor @extends {PolymerElement} @implements {Polymera_BInterface$UID$0} */
+a.B = function() {};
+/** @type {!Array<string>} */
+a.B.prototype.pets;
+/** @private {string} */
+a.B.prototype.name_;
+/*** @param {!Array<string>} pets @override */
+a.B.prototype._setPets = function(pets) {};
+a.B = Polymer(/** @lends {a.B.prototype} */ {
+  is: 'x-element',
+  properties: $jscomp.reflectObject(a.B, {
+    pets: {
+      type: Array,
+      readOnly: true,
+    },
+    name_: String,
+  }),
+});
+
+=== PolymerPassTest-104.input.js 289
+/** @interface */
+var Polymera_BInterface$m1146332801$0 = function() {};
+/** @type {?} */
+Polymera_BInterface$m1146332801$0.prototype.pets;
+/** @private {?} */
+Polymera_BInterface$m1146332801$0.prototype.name_;
+/** @param {?} pets **/
+Polymera_BInterface$m1146332801$0.prototype._setPets;
+
+=== PolymerPassTest-105.input.js 196
+class A extends Polymer.Element {
+  static get is() { return 'a-element'; }
+  static get properties() {
+    return {
+      pets: {
+        type: Array,
+        readOnly: true
+      }
+    };
+  }
+}
+
+=== PolymerPassTest-106.input.js 212
+/** @interface */
+var PolymerAInterface$m1146332801$0 = function() {};
+/** @type {?} */
+PolymerAInterface$m1146332801$0.prototype.pets;
+/** @param {?} pets **/
+PolymerAInterface$m1146332801$0.prototype._setPets;
+
+=== PolymerPassTest-107.input.js 454
+/** @implements {PolymerAInterface$UID$0} */
+class A extends Polymer.Element {
+  /** @return {string} */ static get is() { return 'a-element'; }
+  /** @return {PolymerElementProperties} */ static get properties() {
+    return $jscomp.reflectObject(A, {
+      pets: {
+        type: Array,
+        readOnly: true
+      }
+    });
+  }
+}
+/** @type {!Array} */
+A.prototype.pets;
+/*** @param {!Array} pets @override */
+A.prototype._setPets = function(pets) {};
+
+=== PolymerPassTest-108.input.js 191
+(function() {
+  Polymer({
+    is: 'foo',
+    properties: {
+     /** @type {{randomProperty: string}} */
+     value: Object
+  }
+  });
+})();
+
+const obj = {randomProperty: 0, otherProperty: 1};
+
+=== PolymerPassTest-109.input.js 402
+/**
+* @constructor
+* @extends {PolymerElement}
+* @implements {PolymerFooElementInterface$UID$0}
+*/
+var FooElement=function(){};
+(function(){
+   /** @type {{randomProperty:string}} */
+   FooElement.prototype.value;
+   Polymer(/** @lends {FooElement.prototype} */ {
+     is:"foo",
+     properties: $jscomp.reflectObject(FooElement, {value:Object})
+   })})();
+const obj={randomProperty:0,otherProperty:1}
+
+=== PolymerPassTest-110.input.js 207
+/** @interface */ var PolymerFooElementInterface$m1146332801$0=function(){};
+/** @type {{randomProperty:?}} */ var PolymerDummyVar0;
+/** @type {?} */ PolymerFooElementInterface$m1146332801$0.prototype.value
+
+=== PolymerPassTest-111.input.js 250
+/** @const */ var a = {};
+a.B = Polymer({
+  is: 'x-element',
+  properties: {
+    /** @type {!Array<string>} */
+    pets: {
+      type: Array,
+      readOnly: false,
+    },
+    name: {
+      type: String,
+      reflectToAttribute: true
+    }
+  },
+});
+
+=== PolymerPassTest-112.input.js 481
+/** @const */ var a = {};
+/** @constructor @extends {PolymerElement} @implements {Polymera_BInterface$m1146332801$0} */
+a.B = function() {};
+/** @type {!Array<string>} */
+a.B.prototype.pets;
+/** @type {string} */
+a.B.prototype.name;
+a.B = Polymer(/** @lends {a.B.prototype} */ {
+  is: 'x-element',
+  properties: $jscomp.reflectObject(a.B, {
+    pets: {
+      type: Array,
+      readOnly: false,
+    },
+    name: {
+      type: String,
+      reflectToAttribute: true
+    }
+  }),
+});
+
+=== PolymerPassTest-113.input.js 207
+/** @interface */
+var Polymera_BInterface$m1146332801$0 = function() {};
+/** @type {?} */
+Polymera_BInterface$m1146332801$0.prototype.pets;
+/** @type {?} */
+Polymera_BInterface$m1146332801$0.prototype.name;
+
+=== PolymerPassTest-114.input.js 133
+class FooElement extends Polymer.Element {
+  static get is() { return 'x-element'; }
+  static get observers() {
+    return [];
+  }
+}
+
+=== PolymerPassTest-115.input.js 247
+/** @implements {PolymerFooElementInterface$UID$0} */
+class FooElement extends Polymer.Element {
+  /** @return {string} */
+  static get is() { return 'x-element'; }
+  /** @return {!Array<string>} */
+  static get observers() {
+    return [];
+  }
+}
+
+=== PolymerPassTest-116.input.js 81
+var ES6Test = Polymer({
+  is: 'x-element',
+  sayHi() {
+    alert('hi');
+  },
+});
+
+=== PolymerPassTest-117.input.js 303
+/**
+ * @constructor @extends {PolymerElement}
+ * @implements {PolymerES6TestInterface$UID$0}
+ */
+var ES6Test = function() {};
+
+ES6Test = Polymer(/** @lends {ES6Test.prototype} */ {
+  is: 'x-element',
+  /** @this {ES6Test} */
+  sayHi() {
+    alert('hi');
+  },
+});
+/** @export */
+ES6Test.prototype.sayHi;
+
+=== PolymerPassTest-118.input.js 66
+var ES6Test = Polymer({
+  is: 'x-element',
+  sayHi: () => 42,
+});
+
+=== PolymerPassTest-119.input.js 288
+/**
+ * @constructor @extends {PolymerElement}
+ * @implements {PolymerES6TestInterface$UID$0}
+ */
+var ES6Test = function() {};
+
+ES6Test = Polymer(/** @lends {ES6Test.prototype} */ {
+  is: 'x-element',
+  /** @this {ES6Test} */
+  sayHi: () => 42,
+});
+/** @export */
+ES6Test.prototype.sayHi;
+
+=== PolymerPassTest-120.input.js 199
+var es6 = {};
+(function() {
+  class Foo {}
+  /** @polymerBehavior */
+  es6.Behavior = {
+    sayHi: () => new Foo(),
+  };
+})();
+es6.Test = Polymer({
+  is: 'x-element',
+  behaviors: [es6.Behavior]
+});
+
+=== PolymerPassTest-121.input.js 534
+var es6 = {};
+
+(function() {
+  class Foo {}
+  /** @polymerBehavior @nocollapse */
+  es6.Behavior = {
+    /** @suppress {checkTypes,globalThis,visibility} */
+    sayHi: () => new Foo(),
+  };
+})();
+
+/**
+ * @constructor @extends {PolymerElement}
+ * @implements {Polymeres6_TestInterface$UID$0}
+ */
+es6.Test = function() {};
+/**
+ * @return {?}
+ */
+es6.Test.prototype.sayHi = () => void 0;
+
+es6.Test = Polymer(/** @lends {es6.Test.prototype} */ {
+  is: 'x-element',
+  behaviors: [es6.Behavior]
+});
+/** @export */
+es6.Test.prototype.sayHi;
+
+=== PolymerPassTest-122.input.js 117
+var ES6Test = Polymer({
+  is: 'x-element',
+  /** @override */
+  created() {
+    alert('Shorthand created');
+  },
+});
+
+=== PolymerPassTest-123.input.js 332
+/**
+ * @constructor @extends {PolymerElement}
+ * @implements {PolymerES6TestInterface$UID$0}
+ */
+var ES6Test = function() {};
+
+ES6Test = Polymer(/** @lends {ES6Test.prototype} */ {
+  is: 'x-element',
+  /** @override @this {ES6Test} */
+  created() {
+    alert('Shorthand created');
+  },
+});
+/** @export */
+ES6Test.prototype.created;
+
+=== PolymerPassTest-124.input.js 82
+var ESTest = Polymer({
+  is: 'x-element',
+  sayHi() {
+    return [1, 2];
+  },
+});
+
+=== PolymerPassTest-125.input.js 299
+/**
+ * @constructor @extends {PolymerElement}
+ * @implements {PolymerESTestInterface$UID$0}
+ */
+var ESTest = function() {};
+
+ESTest = Polymer(/** @lends {ESTest.prototype} */ {
+  is: 'x-element',
+  /** @this {ESTest} */
+  sayHi() {
+    return [1, 2];
+  },
+});
+/** @export */
+ESTest.prototype.sayHi;
+
+=== PolymerPassTest-126.input.js 301
+var X = Polymer({
+  is: 'x-element',
+  sayHi: function() {
+    alert('hi');
+  },
+  /** @override */
+  created: function() {
+    this.sayHi();
+    this.sayHelloTo_('Tester');
+  },
+  /**
+   * @param {string} name
+   * @private
+   */
+  sayHelloTo_: function(name) {
+    alert('Hello, ' + name);
+  },
+});
+
+=== PolymerPassTest-127.input.js 595
+/** @constructor @extends {PolymerElement} @implements {PolymerXInterface$UID$0} */
+var X = function() {};
+X = Polymer(/** @lends {X.prototype} */ {
+  is: 'x-element',
+  /** @this {X} */
+  sayHi: function() {
+    alert('hi');
+  },
+  /** @override @this {X} */
+  created: function() {
+    this.sayHi();
+    this.sayHelloTo_('Tester');
+  },
+  /**
+   * @param {string} name
+   * @private
+   * @this {X}
+   */
+  sayHelloTo_: function(name) {
+    alert('Hello, ' + name);
+  },
+});
+/** @export @private */
+X.prototype.sayHelloTo_;
+/** @export */
+X.prototype.created;
+/** @export */
+X.prototype.sayHi;
+
+=== PolymerPassTest-128.input.js 298
+class Foo extends Polymer.Element {
+  static get is() { return 'x-element'; }
+  sayHi() {
+    alert('hi');
+  }
+  connectedCallback() {
+    this.sayHi();
+    this.sayHelloTo_('Tester');
+  }
+  /**
+   * @param {string} name
+   * @private
+   */
+  sayHelloTo_(name) {
+    alert('Hello, ' + name);
+  }
+}
+
+=== PolymerPassTest-129.input.js 506
+/** @implements {PolymerFooInterface$UID$0} */
+class Foo extends Polymer.Element {
+  /** @return {string} */
+  static get is() { return 'x-element'; }
+  sayHi() {
+    alert('hi');
+  }
+  connectedCallback() {
+    this.sayHi();
+    this.sayHelloTo_('Tester');
+  }
+  /**
+   * @param {string} name
+   * @private
+   */
+  sayHelloTo_(name) {
+    alert('Hello, ' + name);
+  }
+}
+/** @export @private */
+Foo.prototype.sayHelloTo_;
+/** @export */
+Foo.prototype.connectedCallback;
+/** @export */
+Foo.prototype.sayHi;
+
+=== PolymerPassTest-130.input.js 638
+/** @constructor */
+var SomeType = function() {};
+SomeType.prototype.toggle = function() {};
+SomeType.prototype.switch = function() {};
+SomeType.prototype.touch = function() {};
+var X = Polymer({
+  is: 'x-element',
+  properties: {
+    /** @type {!HTMLElement} */
+    propName: {
+      type: Object,
+      value: function() { return this.$.id; },
+    },
+  },
+  sayHi: function() {
+    this.$.checkbox.toggle();
+  },
+  /** @override */
+  created: function() {
+    this.sayHi();
+    this.$.radioButton.switch();
+  },
+  /**
+   * @param {string} name
+   * @private
+   */
+  sayHelloTo_: function(name) {
+    this.$.otherThing.touch();
+  },
+});
+
+=== PolymerPassTest-131.input.js 1034
+/** @constructor */
+var SomeType = function() {};
+SomeType.prototype.toggle = function() {};
+SomeType.prototype.switch = function() {};
+SomeType.prototype.touch = function() {};
+/** @constructor @extends {PolymerElement} @implements {PolymerXInterface$UID$0} */
+var X = function() {};
+/** @type {!HTMLElement} */
+X.prototype.propName;
+X = Polymer(/** @lends {X.prototype} */ {
+  is: 'x-element',
+  properties: $jscomp.reflectObject(X, {
+    propName: {
+      type: Object,
+      /** @this {X} @return {!HTMLElement} */
+      value: function() { return this.$['id']; },
+    },
+  }),
+  /** @this {X} */
+  sayHi: function() {
+    this.$['checkbox'].toggle();
+  },
+  /** @override @this {X} */
+  created: function() {
+    this.sayHi();
+    this.$['radioButton'].switch();
+  },
+  /**
+   * @param {string} name
+   * @private
+   * @this {X}
+   */
+  sayHelloTo_: function(name) {
+    this.$['otherThing'].touch();
+  },
+});
+/** @export @private */
+X.prototype.sayHelloTo_;
+/** @export */
+X.prototype.created;
+/** @export */
+X.prototype.sayHi;
+
+=== PolymerPassTest-132.input.js 548
+class Foo extends Polymer.Element {
+  static get is() { return 'x-element'; }
+  static get properties() {
+    return {
+      /** @type {!HTMLElement} */
+      propName: {
+        type: Object,
+        value: function() {
+          return /** @type {!HTMLElement} */ (this.$['id']);
+        },
+      }
+    };
+  }
+  sayHi() {
+    this.$.checkbox.toggle();
+  }
+  connectedCallback() {
+    this.sayHi();
+    this.$.radioButton.switch();
+  }
+  /**
+   * @param {string} name
+   * @private
+   */
+  sayHelloTo_(name) {
+    this.$.otherThing.touch();
+  }
+}
+
+=== PolymerPassTest-133.input.js 905
+/** @implements {PolymerFooInterface$UID$0} */
+class Foo extends Polymer.Element {
+  /** @return {string} */
+  static get is() { return 'x-element'; }
+  /** @return {PolymerElementProperties} */
+  static get properties() {
+    return $jscomp.reflectObject(Foo, {
+      propName: {
+        type: Object,
+        /** @this {Foo} @return {!HTMLElement} */
+        value: function() {
+          return /** @type {!HTMLElement} */ (this.$['id']);
+        },
+      }
+    });
+  }
+  sayHi() {
+    this.$['checkbox'].toggle();
+  }
+  connectedCallback() {
+    this.sayHi();
+    this.$['radioButton'].switch();
+  }
+  /**
+   * @param {string} name
+   * @private
+   */
+  sayHelloTo_(name) {
+    this.$['otherThing'].touch();
+  }
+}
+/** @type {!HTMLElement} */
+Foo.prototype.propName;
+/** @export @private */
+Foo.prototype.sayHelloTo_;
+/** @export */
+Foo.prototype.connectedCallback;
+/** @export */
+Foo.prototype.sayHi;
+
+=== PolymerPassTest-134.input.js 187
+/** @constructor */
+var SomeType = function() {};
+SomeType.prototype.toggle = function() {};
+var ES6Test = Polymer({
+  is: 'x-element',
+  sayHi() {
+    this.$.checkbox.toggle();
+  },
+});
+
+=== PolymerPassTest-135.input.js 413
+/** @constructor */
+var SomeType = function() {};
+SomeType.prototype.toggle = function() {};
+
+/**
+ * @constructor @extends {PolymerElement}
+ * @implements {PolymerES6TestInterface$UID$0}
+ */
+var ES6Test = function() {};
+
+ES6Test = Polymer(/** @lends {ES6Test.prototype} */ {
+  is: 'x-element',
+  /** @this {ES6Test} */
+  sayHi() {
+    this.$['checkbox'].toggle();
+  },
+});
+/** @export */
+ES6Test.prototype.sayHi;
+
+=== PolymerPassTest-136.input.js 396
+class ReceiverHelper {
+  constructor() {}
+  foo() {}
+};
+class Receiver {
+  constructor() {
+    this.$ = new ReceiverHelper();
+  }
+  toggle(el) {
+    el.toggle();
+  }
+};
+var ES6Test = Polymer({
+  is: 'x-element',
+  sayHi() {
+    const receiver = new Receiver();
+    receiver.$.foo();
+    toggle(this.$.checkbox);
+    receiver.toggle(this.$.checkbox);
+  },
+  toggle(el) {
+    el.toggle();
+  },
+});
+
+=== PolymerPassTest-137.input.js 690
+class ReceiverHelper {
+  constructor() {}
+  foo() {}
+};
+class Receiver {
+  constructor() {
+    this.$ = new ReceiverHelper();
+  }
+  toggle(el) {
+    el.toggle();
+  }
+};
+/**
+ * @constructor @extends {PolymerElement}
+ * @implements {PolymerES6TestInterface$UID$0}
+ */
+var ES6Test = function() {};
+
+ES6Test = Polymer(/** @lends {ES6Test.prototype} */ {
+  is: 'x-element',
+  /** @this {ES6Test} */
+  sayHi() {
+    const receiver = new Receiver();
+    receiver.$.foo();
+    toggle(this.$['checkbox']);
+    receiver.toggle(this.$['checkbox']);
+  },
+  /** @this {ES6Test} */
+  toggle(el) {
+    el.toggle();
+  },
+});
+/** @export */
+ES6Test.prototype.toggle;
+/** @export */
+ES6Test.prototype.sayHi;
+
+=== PolymerPassTest-138.input.js 468
+/** @constructor */
+var FunObject = function() {};
+/** @polymerBehavior */
+var FunBehavior = {
+  properties: {
+    /** @type {!FunObject} */
+    funThing: {
+      type: Object,
+    }
+  },
+};
+var A = Polymer({
+  is: 'x-element',
+  properties: {
+    pets: {
+      type: Array,
+      notify: true,
+    },
+    name: String,
+  },
+  behaviors: [ FunBehavior ],
+});
+var B = Polymer({
+  is: 'y-element',
+  properties: {
+    foo: String,
+  },
+  behaviors: [ FunBehavior ],
+});
+
+=== PolymerPassTest-139.input.js 984
+/** @constructor */
+var FunObject = function() {};
+/** @polymerBehavior @nocollapse */
+var FunBehavior = {
+  properties: {
+    funThing: {
+      type: Object,
+    }
+  },
+};
+/** @constructor @extends {PolymerElement} @implements {PolymerAInterface$UID$0}*/
+var A = function() {};
+/** @type {!FunObject} */
+A.prototype.funThing;
+/** @type {!Array} */
+A.prototype.pets;
+/** @type {string} */
+A.prototype.name;
+A = Polymer(/** @lends {A.prototype} */ {
+  is: 'x-element',
+  properties: $jscomp.reflectObject(A, {
+    pets: {
+      type: Array,
+      notify: true,
+    },
+    name: String,
+  }),
+  behaviors: [ FunBehavior ],
+});
+/** @constructor @extends {PolymerElement} @implements {PolymerBInterface$m1146332801$1*/
+var B = function() {};
+/** @type {!FunObject} */
+B.prototype.funThing;
+/** @type {string} */
+B.prototype.foo;
+B = Polymer(/** @lends {B.prototype} */ {
+  is: 'y-element',
+  properties: $jscomp.reflectObject(B, {
+    foo: String,
+  }),
+  behaviors: [ FunBehavior ],
+});
+
+=== PolymerPassTest-140.input.js 322
+goog.module('Data');
+
+class Item {
+
+}
+
+exports.Item = Item;
+
+/**
+
+ * A Polymer behavior providing common data access and formatting methods.
+
+ * @polymerBehavior
+
+ */
+
+exports.SummaryDataBehavior = {
+
+  /**
+
+   * @param {?Item} item
+
+   * @export
+
+   */
+
+  getValue(item) {
+
+    return this.getItemValue_(item);
+
+  },
+
+};
+
+=== PolymerPassTest-141.input.js 142
+goog.module('Client');
+const Data = goog.require('Data');
+var A = Polymer({
+  is: 'x-element',
+  behaviors: [ Data.SummaryDataBehavior ],
+});
+
+=== PolymerPassTest-142.input.js 338
+goog.module('Data');
+const foo = goog.require('foo');
+class Item {}
+exports.Item = Item;
+/** @polymerBehavior */
+exports.SummaryDataBehavior = {
+  properties: {
+    /** @type {!Item} */
+    ABC: {type: Object},
+    /** @type {!foo.Item<string>} */
+    DEF: {type: Object}
+  },
+  /** @return {?Item} */
+  get x() {
+    return null;
+  }
+};
+
+=== PolymerPassTest-143.input.js 133
+goog.module("client");
+const Data = goog.require('Data');
+
+var A = Polymer({
+  is: 'x',
+  behaviors: [Data.SummaryDataBehavior],
+});
+
+=== PolymerPassTest-144.input.js 648
+/** @polymerBehavior */
+var FunBehavior = {
+  properties: {
+    /** @type {boolean} */
+    isFun: {
+      type: Boolean,
+      value: true,
+    }
+  },
+  listeners: {
+    click: 'doSomethingFun',
+  },
+  /** @type {string} */
+  foo: 'hooray',
+
+  /** @return {number} */
+  get someNumber() {
+    return 5*7+2;
+  },
+  /** @param {string} funAmount */
+  doSomethingFun: function(funAmount) { alert('Something ' + funAmount + ' fun!'); },
+  /** @override */
+  created: function() {}
+};
+var A = Polymer({
+  is: 'x-element',
+  properties: {
+    pets: {
+      type: Array,
+      notify: true,
+    },
+    name: String,
+  },
+  behaviors: [ FunBehavior ],
+});
+
+=== PolymerPassTest-145.input.js 1377
+/**
+ * @nocollapse
+ * @polymerBehavior
+ */
+var FunBehavior = {
+  properties: {
+    isFun: {
+      type: Boolean,
+      value: true,
+    }
+  },
+  listeners: {
+    'click': 'doSomethingFun',
+  },
+  /** @type {string} */
+  foo: 'hooray',
+
+  /**
+   * @return {number}
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  get someNumber() {
+    return 5 * 7 + 2;
+  },
+  /**
+   * @param {string} funAmount
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  doSomethingFun: function(funAmount) {
+    alert('Something ' + funAmount + ' fun!');
+  },
+  /**
+   * @override
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  created: function() {}
+};
+/**
+ * @constructor
+ * @extends {PolymerElement}
+ * @implements {PolymerAInterface$UID$0}
+ */
+var A = function() {};
+/** @type {boolean} */
+A.prototype.isFun;
+/** @type {!Array} */
+A.prototype.pets;
+/** @type {string} */
+A.prototype.name;
+/**
+ * @param {string} funAmount
+ */
+A.prototype.doSomethingFun = function(funAmount) {
+  alert('Something ' + funAmount + ' fun!');
+};
+/** @type {string} */
+A.prototype.foo;
+/** @type {number} */
+A.prototype.someNumber;
+A = Polymer(/** @lends {A.prototype} */ {
+  is: 'x-element',
+  properties: $jscomp.reflectObject(A, {
+    pets: {
+      type: Array,
+      notify: true,
+    },
+    name: String,
+  }),
+  behaviors: [FunBehavior],
+});
+/** @export */
+A.prototype.doSomethingFun;
+
+=== PolymerPassTest-146.input.js 248
+/** @polymerBehavior */
+var MyBehavior = {
+  properties: {
+    behaviorProperty: Boolean
+  }
+};
+var BehaviorAlias1 = MyBehavior;
+var BehaviorAlias2 = BehaviorAlias1;
+var MyElement = Polymer({
+  is: 'my-element',
+  behaviors: [ BehaviorAlias2 ]
+});
+
+=== PolymerPassTest-147.input.js 485
+/** @polymerBehavior @nocollapse */
+var MyBehavior = {
+  properties: {
+    behaviorProperty: Boolean
+  }
+};
+var BehaviorAlias1 = MyBehavior;
+var BehaviorAlias2 = BehaviorAlias1;
+/**
+ * @constructor
+ * @extends {PolymerElement}
+ * @implements {PolymerMyElementInterface$UID$0}
+ */
+var MyElement = function(){};
+/** @type {boolean} */
+MyElement.prototype.behaviorProperty;
+MyElement = Polymer(/** @lends {MyElement.prototype} */ {
+  is: 'my-element',
+  behaviors: [ BehaviorAlias2 ]
+});
+
+=== PolymerPassTest-148.input.js 100
+/** @polymerBehavior */
+var FunBehavior = {
+  /** @protected */
+  doSomethingFun: function() {},
+};
+
+=== PolymerPassTest-149.input.js 138
+var A = Polymer({
+  is: 'x-element',
+  callBehaviorMethod: function() {
+    this.doSomethingFun();
+  },
+  behaviors: [ FunBehavior ],
+});
+
+=== PolymerPassTest-150.input.js 177
+/**
+ * @nocollapse
+ * @polymerBehavior
+ */
+var FunBehavior = {
+  /**
+   * @protected
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  doSomethingFun: function() {},
+};
+
+=== PolymerPassTest-151.input.js 453
+/**
+ * @constructor
+ * @extends {PolymerElement}
+ * @implements {PolymerAInterface$UID$0}
+ */
+var A = function() {};
+
+/**
+ * @public
+ */
+A.prototype.doSomethingFun = function(){};
+
+A = Polymer(/** @lends {A.prototype} */ {
+  is: 'x-element',
+  /** @this {A} */
+  callBehaviorMethod: function(){ this.doSomethingFun(); },
+  behaviors: [FunBehavior],
+})
+/** @export */
+A.prototype.callBehaviorMethod;
+/** @export @protected */
+A.prototype.doSomethingFun;
+
+=== PolymerPassTest-152.input.js 98
+/** @polymerBehavior */
+var FunBehavior = {
+  /** @private */
+  doSomethingFun: function() {},
+};
+
+=== PolymerPassTest-153.input.js 476
+/** @polymerBehavior */
+var FunBehavior = {
+  /** @param {string} funAmount */
+  doSomethingFun: function(funAmount) { alert('Something ' + funAmount + ' fun!'); },
+};
+var A = Polymer({
+  is: 'x-element',
+  properties: {
+    pets: {
+      type: Array,
+      notify: true,
+    },
+    name: String,
+  },
+  /** @param {string} funAmount */
+  doSomethingFun: function(funAmount) {
+    alert('Element doing something' + funAmount + ' fun!');
+  },
+  behaviors: [ FunBehavior ],
+});
+
+=== PolymerPassTest-154.input.js 870
+/**
+ * @nocollapse
+ * @polymerBehavior
+ */
+var FunBehavior = {
+  /**
+   * @param {string} funAmount
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  doSomethingFun: function(funAmount) {
+    alert('Something ' + funAmount + ' fun!');
+  },
+};
+/**
+ * @constructor
+ * @extends {PolymerElement}
+ * @implements {PolymerAInterface$UID$0}
+ */
+var A = function() {};
+/** @type {!Array} */
+A.prototype.pets;
+/** @type {string} */
+A.prototype.name;
+A = Polymer(/** @lends {A.prototype} */ {
+  is: 'x-element',
+  properties: $jscomp.reflectObject(A, {
+    pets: {
+      type: Array,
+      notify: true,
+    },
+    name: String,
+  }),
+  /**
+   * @this {A}
+   * @param {string} funAmount
+   */
+  doSomethingFun: function(funAmount) {
+    alert('Element doing something' + funAmount + ' fun!');
+  },
+  behaviors: [FunBehavior],
+});
+/** @export */
+A.prototype.doSomethingFun;
+
+=== PolymerPassTest-155.input.js 399
+/** @polymerBehavior */
+var FunBehavior = {
+  /** @param {string} funAmount */
+  doSomethingFun(funAmount) { alert('Something ' + funAmount + ' fun!'); },
+};
+
+var A = Polymer({
+  is: 'x-element',
+  properties: {
+    name: String,
+  },
+  /** @param {string} funAmount */
+  doSomethingFun(funAmount) {
+    alert('Element doing something' + funAmount + ' fun!');
+  },
+  behaviors: [ FunBehavior ],
+});
+
+=== PolymerPassTest-156.input.js 755
+/**
+ * @nocollapse
+ * @polymerBehavior
+ */
+var FunBehavior = {
+  /**
+   * @param {string} funAmount
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  doSomethingFun(funAmount) {
+    alert("Something " + funAmount + " fun!");
+  },
+};
+
+/**
+ * @constructor
+ * @extends {PolymerElement}
+ * @implements {PolymerAInterface$UID$0}
+ */
+var A = function() {};
+
+/** @type {string} */
+A.prototype.name;
+
+A = Polymer(/** @lends {A.prototype} */ {
+  is: "x-element",
+  properties: $jscomp.reflectObject(A, {
+    name: String,
+  }),
+  /**
+   * @this {A}
+   * @param {string} funAmount
+   */
+  doSomethingFun(funAmount) {
+    alert("Element doing something" + funAmount + " fun!");
+  },
+  behaviors: [FunBehavior],
+});
+/** @export */
+A.prototype.doSomethingFun;
+
+=== PolymerPassTest-157.input.js 457
+/** @polymerBehavior */
+var FunBehavior = {
+  properties: {
+    /** @type {boolean} */
+    isFun: {
+      type: Boolean,
+      value: true,
+    },
+    funObject: {
+      type: Object,
+      value: function() { return {fun: this.isFun }; },
+    },
+    funArray: {
+      type: Array,
+      value: function() { return [this.isFun]; },
+    },
+  },
+};
+var A = Polymer({
+  is: 'x-element',
+  properties: {
+    name: String,
+  },
+  behaviors: [ FunBehavior ],
+});
+
+=== PolymerPassTest-158.input.js 886
+/** @polymerBehavior @nocollapse */
+var FunBehavior = {
+  properties: {
+    isFun: {
+      type: Boolean,
+      value: true,
+    },
+    funObject: {
+      type: Object,
+      /** @suppress {checkTypes|globalThis|visibility} */
+      value: function() { return {fun: this.isFun }; },
+    },
+    funArray: {
+      type: Array,
+      /** @suppress {checkTypes|globalThis|visibility} */
+      value: function() { return [this.isFun]; },
+    },
+  },
+};
+/** @constructor @extends {PolymerElement} @implements {PolymerAInterface$UID$0}*/
+var A = function() {};
+/** @type {boolean} */
+A.prototype.isFun;
+/** @type {!Object} */
+A.prototype.funObject;
+/** @type {!Array} */
+A.prototype.funArray;
+/** @type {string} */
+A.prototype.name;
+A = Polymer(/** @lends {A.prototype} */ {
+  is: 'x-element',
+  properties: $jscomp.reflectObject(A, {
+    name: String,
+  }),
+  behaviors: [ FunBehavior ],
+});
+
+=== PolymerPassTest-159.input.js 983
+/** @polymerBehavior */
+var FunBehavior = {
+  properties: {
+    isFun: Boolean
+  },
+  /** @param {string} funAmount */
+  doSomethingFun: function(funAmount) { alert('Something ' + funAmount + ' fun!'); },
+  /** @override */
+  created: function() {}
+};
+/** @polymerBehavior */
+var RadBehavior = {
+  properties: {
+    howRad: Number
+  },
+  /** @param {number} radAmount */
+  doSomethingRad: function(radAmount) { alert('Something ' + radAmount + ' rad!'); },
+  /** @override */
+  ready: function() {}
+};
+/** @polymerBehavior */
+var SuperCoolBehaviors = [FunBehavior, RadBehavior];
+/** @polymerBehavior */
+var BoringBehavior = {
+  properties: {
+    boringString: String
+  },
+  /** @param {boolean} boredYet */
+  doSomething: function(boredYet) { alert(boredYet + ' ' + this.boringString); },
+};
+var A = Polymer({
+  is: 'x-element',
+  properties: {
+    pets: {
+      type: Array,
+      notify: true,
+    },
+    name: String,
+  },
+  behaviors: [ SuperCoolBehaviors, BoringBehavior ],
+});
+
+=== PolymerPassTest-160.input.js 2274
+/**
+ * @nocollapse
+ * @polymerBehavior
+ */
+var FunBehavior = {
+  properties: {
+    isFun: Boolean
+  },
+  /**
+   * @param {string} funAmount
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  doSomethingFun: function(funAmount) {
+    alert('Something ' + funAmount + ' fun!');
+  },
+  /**
+   * @override
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  created: function() {}
+};
+/**
+ * @nocollapse
+ * @polymerBehavior
+ */
+var RadBehavior = {
+  properties: {
+    howRad: Number
+  },
+  /**
+   * @param {number} radAmount
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  doSomethingRad: function(radAmount) {
+    alert('Something ' + radAmount + ' rad!');
+  },
+  /**
+   * @override
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  ready: function() {}
+};
+/**
+ * @nocollapse
+ * @polymerBehavior
+ */
+var SuperCoolBehaviors = [FunBehavior, RadBehavior];
+/**
+ * @nocollapse
+ * @polymerBehavior
+ */
+var BoringBehavior = {
+  properties: {
+    boringString: String
+  },
+  /**
+   * @param {boolean} boredYet
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  doSomething: function(boredYet) {
+    alert(boredYet + ' ' + this.boringString);
+  },
+};
+/**
+ * @constructor
+ * @extends {PolymerElement}
+ * @implements {PolymerAInterface$UID$0}
+ */
+var A = function() {};
+/** @type {boolean} */
+A.prototype.isFun;
+/** @type {number} */
+A.prototype.howRad;
+/** @type {string} */
+A.prototype.boringString;
+/** @type {!Array} */
+A.prototype.pets;
+/** @type {string} */
+A.prototype.name;
+/**
+ * @param {string} funAmount
+ */
+A.prototype.doSomethingFun = function(funAmount) {
+  alert('Something ' + funAmount + ' fun!');
+};
+/**
+ * @param {number} radAmount
+ */
+A.prototype.doSomethingRad = function(radAmount) {
+  alert('Something ' + radAmount + ' rad!');
+};
+/**
+ * @param {boolean} boredYet
+ */
+A.prototype.doSomething = function(boredYet) {
+  alert(boredYet + ' ' + this.boringString);
+};
+A = Polymer(/** @lends {A.prototype} */ {
+  is: 'x-element',
+  properties: $jscomp.reflectObject(A, {
+    pets: {
+      type: Array,
+      notify: true,
+    },
+    name: String,
+  }),
+  behaviors: [SuperCoolBehaviors, BoringBehavior],
+});
+/** @export */
+A.prototype.doSomething;
+/** @export */
+A.prototype.doSomethingRad;
+/** @export */
+A.prototype.doSomethingFun;
+
+=== PolymerPassTest-161.input.js 699
+/** @polymerBehavior */
+var FunBehavior = {
+  properties: {
+    isFun: Boolean
+  },
+  /** @param {string} funAmount */
+  doSomethingFun: function(funAmount) { alert('Something ' + funAmount + ' fun!'); },
+  /** @override */
+  created: function() {}
+};
+/** @polymerBehavior */
+var SuperCoolBehaviors = [FunBehavior, {
+  properties: {
+    howRad: Number
+  },
+  /** @param {number} radAmount */
+  doSomethingRad: function(radAmount) { alert('Something ' + radAmount + ' rad!'); },
+  /** @override */
+  ready: function() {}
+}];
+var A = Polymer({
+  is: 'x-element',
+  properties: {
+    pets: {
+      type: Array,
+      notify: true,
+    },
+    name: String,
+  },
+  behaviors: [ SuperCoolBehaviors ],
+});
+
+=== PolymerPassTest-162.input.js 1704
+/**
+ * @nocollapse
+ * @polymerBehavior
+ */
+var FunBehavior = {
+  properties: {
+    isFun: Boolean
+  },
+  /**
+   * @param {string} funAmount
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  doSomethingFun: function(funAmount) {
+    alert('Something ' + funAmount + ' fun!');
+  },
+  /**
+   * @override
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  created: function() {}
+};
+/**
+ * @nocollapse
+ * @polymerBehavior
+ */
+var SuperCoolBehaviors = [
+  FunBehavior, {
+    properties: {
+      howRad: Number
+    },
+    /**
+     * @param {number} radAmount
+     * @suppress {checkTypes,globalThis,visibility}
+     */
+    doSomethingRad: function(radAmount) {
+      alert('Something ' + radAmount + ' rad!');
+    },
+    /**
+     * @override
+     * @suppress {checkTypes,globalThis,visibility}
+     */
+    ready: function() {}
+  }
+];
+/**
+ * @constructor
+ * @extends {PolymerElement}
+ * @implements {PolymerAInterface$UID$0}
+ */
+var A = function() {};
+/** @type {boolean} */
+A.prototype.isFun;
+/** @type {number} */
+A.prototype.howRad;
+/** @type {!Array} */
+A.prototype.pets;
+/** @type {string} */
+A.prototype.name;
+/**
+ * @param {string} funAmount
+ */
+A.prototype.doSomethingFun = function(funAmount) {
+  alert('Something ' + funAmount + ' fun!');
+};
+/**
+ * @param {number} radAmount
+ */
+A.prototype.doSomethingRad = function(radAmount) {
+  alert('Something ' + radAmount + ' rad!');
+};
+A = Polymer(/** @lends {A.prototype} */ {
+  is: 'x-element',
+  properties: $jscomp.reflectObject(A, {
+    pets: {
+      type: Array,
+      notify: true,
+    },
+    name: String,
+  }),
+  behaviors: [SuperCoolBehaviors],
+});
+/** @export */
+A.prototype.doSomethingRad;
+/** @export */
+A.prototype.doSomethingFun;
+
+=== PolymerPassTest-163.input.js 155
+/** @polymerBehavior */
+var FunBehavior = {
+  properties: {
+    isFun: Boolean
+  },
+}
+var A = Polymer({
+  is: 'x-element',
+  behaviors: [ FunBehavior]
+});
+
+=== PolymerPassTest-164.input.js 341
+/** @polymerBehavior @nocollapse */
+var FunBehavior = {
+  properties: {
+    isFun: Boolean
+  },
+}
+/** @constructor @extends {PolymerElement} @implements {PolymerAInterface$UID$0}*/
+var A = function() {};
+/** @type {boolean} */
+A.prototype.isFun;
+A = Polymer(/** @lends {A.prototype} */ {
+  is: 'x-element',
+  behaviors: [ FunBehavior ],
+});
+
+=== PolymerPassTest-165.input.js 226
+/** @polymerBehavior */
+var FunBehavior = {
+  properties: {
+    isFun: Boolean
+  },
+}
+/** @polymerBehavior */
+var SuperCoolBehaviors = [FunBehavior];
+var A = Polymer({
+  is: 'x-element',
+  behaviors: [ SuperCoolBehaviors]
+});
+
+=== PolymerPassTest-166.input.js 424
+/** @polymerBehavior @nocollapse */
+var FunBehavior = {
+  properties: {
+    isFun: Boolean
+  },
+}
+/** @polymerBehavior @nocollapse */
+var SuperCoolBehaviors = [FunBehavior];
+/** @constructor @extends {PolymerElement} @implements {PolymerAInterface$UID$0}*/
+var A = function() {};
+/** @type {boolean} */
+A.prototype.isFun;
+A = Polymer(/** @lends {A.prototype} */ {
+  is: 'x-element',
+  behaviors: [ SuperCoolBehaviors ],
+});
+
+=== PolymerPassTest-167.input.js 568
+/** @polymerBehavior */
+var FunBehavior = {
+  properties: {
+    computedProp: {
+      type: String,
+      computed: 'quotedProp(prop1, prop2)',
+    },
+    observedProp: {
+      type: String,
+      observer: 'observeProp',
+    },
+  },
+  observers: [
+    'observeList(item1, item2)',
+    'observeAnotherList(item3)',
+  ],
+  'quotedProp': function(prop1, prop2) {},
+  observeProp() {},
+  observeList: function(item1, item2) {},
+  observeAnotherList(item3) {},
+  unreferencedMethod: function() {},
+};
+var A = Polymer({
+  is: 'x-element',
+  behaviors: [ FunBehavior ],
+});
+
+=== PolymerPassTest-168.input.js 1732
+/**
+ * @polymerBehavior
+ * @nocollapse
+ * @polymerBehavior
+ */
+var FunBehavior = {
+  properties: {
+    computedProp: {
+      type: String,
+      computed: 'quotedProp(prop1, prop2)',
+    },
+    observedProp: {
+      type: String,
+      observer: 'observeProp',
+    },
+  },
+  observers: [
+    'observeList(item1, item2)',
+    'observeAnotherList(item3)',
+  ],
+  /**
+   * @export
+   * @nocollapse
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  'quotedProp': function(prop1, prop2) {},
+  /**
+   * @export
+   * @nocollapse
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  observeProp() {},
+  /**
+   * @export
+   * @nocollapse
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  observeList: function(item1, item2) {},
+  /**
+   * @export
+   * @nocollapse
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  observeAnotherList(item3) {},
+  /**
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  unreferencedMethod: function() {},
+};
+/**
+ * @constructor
+ * @extends {PolymerElement}
+ * @implements {PolymerAInterface$UID$0}
+ */
+var A = function() {};
+/** @type {string} */
+A.prototype.computedProp;
+/** @type {string} */
+A.prototype.observedProp;
+A.prototype.quotedProp = function(prop1, prop2) {};
+A.prototype.observeProp = function() {};
+A.prototype.observeList = function(item1, item2) {};
+A.prototype.observeAnotherList = function(item3) {};
+A.prototype.unreferencedMethod = function() {};
+A = Polymer(/** @lends {A.prototype} */ {
+  is: 'x-element',
+  behaviors: [FunBehavior],
+});
+/** @export */
+A.prototype.unreferencedMethod;
+/** @export */
+A.prototype.observeAnotherList;
+/** @export */
+A.prototype.observeList;
+/** @export */
+A.prototype.observeProp;
+/** @export */
+A.prototype.quotedProp;
+
+=== PolymerPassTest-169.input.js 962
+/** @polymerBehavior */
+var FunBehavior = {
+  properties: {
+    isFun: Boolean
+  },
+  /** @param {boolean} boredYet */
+  doSomething: function(boredYet) { alert(boredYet + ' ' + this.isFun); },
+  /** @override */
+  created: function() {}
+};
+/** @polymerBehavior */
+var RadBehavior = {
+  properties: {
+    howRad: Number
+  },
+  /** @param {boolean} boredYet */
+  doSomething: function(boredYet) { alert(boredYet + ' ' + this.howRad); },
+  /** @override */
+  ready: function() {}
+};
+/** @polymerBehavior */
+var SuperCoolBehaviors = [FunBehavior, RadBehavior];
+/** @polymerBehavior */
+var BoringBehavior = {
+  properties: {
+    boringString: String
+  },
+  /** @param {boolean} boredYet */
+  doSomething: function(boredYet) { alert(boredYet + ' ' + this.boringString); },
+};
+var A = Polymer({
+  is: 'x-element',
+  properties: {
+    pets: {
+      type: Array,
+      notify: true,
+    },
+    name: String,
+  },
+  behaviors: [ SuperCoolBehaviors, BoringBehavior ],
+});
+
+=== PolymerPassTest-170.input.js 1895
+/**
+ * @nocollapse
+ * @polymerBehavior
+ */
+var FunBehavior = {
+  properties: {
+    isFun: Boolean
+  },
+  /**
+   * @param {boolean} boredYet
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  doSomething: function(boredYet) {
+    alert(boredYet + ' ' + this.isFun);
+  },
+  /**
+   * @override
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  created: function() {}
+};
+/**
+ * @nocollapse
+ * @polymerBehavior
+ */
+var RadBehavior = {
+  properties: {
+    howRad: Number
+  },
+  /**
+   * @param {boolean} boredYet
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  doSomething: function(boredYet) {
+    alert(boredYet + ' ' + this.howRad);
+  },
+  /**
+   * @override
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  ready: function() {}
+};
+/**
+ * @nocollapse
+ * @polymerBehavior
+ */
+var SuperCoolBehaviors = [FunBehavior, RadBehavior];
+/**
+ * @nocollapse
+ * @polymerBehavior
+ */
+var BoringBehavior = {
+  properties: {
+    boringString: String
+  },
+  /**
+   * @param {boolean} boredYet
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  doSomething: function(boredYet) {
+    alert(boredYet + ' ' + this.boringString);
+  },
+};
+/**
+ * @constructor
+ * @extends {PolymerElement}
+ * @implements {PolymerAInterface$UID$0}
+ */
+var A = function() {};
+/** @type {boolean} */
+A.prototype.isFun;
+/** @type {number} */
+A.prototype.howRad;
+/** @type {string} */
+A.prototype.boringString;
+/** @type {!Array} */
+A.prototype.pets;
+/** @type {string} */
+A.prototype.name;
+/**
+ * @param {boolean} boredYet
+ */
+A.prototype.doSomething = function(boredYet) {
+  alert(boredYet + ' ' + this.boringString);
+};
+A = Polymer(/** @lends {A.prototype} */ {
+  is: 'x-element',
+  properties: $jscomp.reflectObject(A, {
+    pets: {
+      type: Array,
+      notify: true,
+    },
+    name: String,
+  }),
+  behaviors: [SuperCoolBehaviors, BoringBehavior],
+});
+/** @export */
+A.prototype.doSomething;
+
+=== PolymerPassTest-171.input.js 850
+/** @polymerBehavior */
+var FunBehavior = {
+  properties: {
+    isFun: Boolean
+  },
+  /** @param {boolean} boredYet */
+  doSomething(boredYet) { alert(boredYet + ' ' + this.isFun); },
+};
+
+/** @polymerBehavior */
+var RadBehavior = {
+  properties: {
+    howRad: Number
+  },
+  /** @param {boolean} boredYet */
+  doSomething(boredYet) { alert(boredYet + ' ' + this.howRad); },
+};
+
+/** @polymerBehavior */
+var SuperCoolBehaviors = [FunBehavior, RadBehavior];
+
+/** @polymerBehavior */
+var BoringBehavior = {
+  properties: {
+    boringString: String
+  },
+  /** @param {boolean} boredYet */
+  doSomething(boredYet) { alert(boredYet + ' ' + this.boringString); },
+};
+
+var A = Polymer({
+  is: 'x-element',
+  properties: {
+    pets: {
+      type: Array,
+      notify: true,
+    },
+    name: String,
+  },
+  behaviors: [ SuperCoolBehaviors, BoringBehavior ],
+});
+
+=== PolymerPassTest-172.input.js 1668
+/**
+ * @nocollapse
+ * @polymerBehavior
+ */
+var FunBehavior = {
+  properties: {
+    isFun: Boolean
+  },
+  /**
+   * @param {boolean} boredYet
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  doSomething(boredYet) {
+    alert(boredYet + ' ' + this.isFun);
+  },
+};
+
+/**
+ * @nocollapse
+ * @polymerBehavior
+ */
+var RadBehavior = {
+  properties: {
+    howRad: Number
+  },
+  /**
+   * @param {boolean} boredYet
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  doSomething(boredYet) {
+    alert(boredYet + ' ' + this.howRad);
+  },
+};
+
+/**
+ * @nocollapse
+ * @polymerBehavior
+ */
+var SuperCoolBehaviors = [FunBehavior, RadBehavior];
+/**
+ * @nocollapse
+ * @polymerBehavior
+ */
+var BoringBehavior = {
+  properties: {
+    boringString: String
+  },
+  /**
+   * @param {boolean} boredYet
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  doSomething(boredYet) {
+    alert(boredYet + ' ' + this.boringString);
+  },
+};
+
+/**
+ * @constructor
+ * @extends {PolymerElement}
+ * @implements {PolymerAInterface$UID$0}
+ */
+var A = function() {};
+
+/** @type {boolean} */
+A.prototype.isFun;
+/** @type {number} */
+A.prototype.howRad;
+/** @type {string} */
+A.prototype.boringString;
+/** @type {!Array} */
+A.prototype.pets;
+/** @type {string} */
+A.prototype.name;
+/**
+ * @param {boolean} boredYet
+ */
+A.prototype.doSomething = function(boredYet) {
+  alert(boredYet + ' ' + this.boringString);
+};
+
+A = Polymer(/** @lends {A.prototype} */ {
+  is: 'x-element',
+  properties: $jscomp.reflectObject(A, {
+    pets: {
+      type: Array,
+      notify: true,
+    },
+    name: String,
+  }),
+  behaviors: [SuperCoolBehaviors, BoringBehavior],
+});
+/** @export */
+A.prototype.doSomething;
+
+=== PolymerPassTest-173.input.js 464
+/** @polymerBehavior */
+var FunBehavior = {
+  properties: {
+    isFun: {
+      type: Boolean,
+      readOnly: true,
+    },
+  },
+  /** @param {string} funAmount */
+  doSomethingFun: function(funAmount) { alert('Something ' + funAmount + ' fun!'); },
+  /** @override */
+  created: function() {}
+};
+var A = Polymer({
+  is: 'x-element',
+  properties: {
+    pets: {
+      type: Array,
+      notify: true,
+    },
+    name: String,
+  },
+  behaviors: [ FunBehavior ],
+});
+
+=== PolymerPassTest-174.input.js 1162
+/**
+ * @nocollapse
+ * @polymerBehavior
+ */
+var FunBehavior = {
+  properties: {
+    isFun: {
+      type: Boolean,
+      readOnly: true,
+    },
+  },
+  /**
+   * @param {string} funAmount
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  doSomethingFun: function(funAmount) {
+    alert('Something ' + funAmount + ' fun!');
+  },
+  /**
+   * @override
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  created: function() {}
+};
+/**
+ * @constructor
+ * @extends {PolymerElement}
+ * @implements {PolymerAInterface$UID$0}
+ */
+var A = function() {};
+/** @type {boolean} */
+A.prototype.isFun;
+/** @type {!Array} */
+A.prototype.pets;
+/** @type {string} */
+A.prototype.name;
+/**
+ * @param {string} funAmount
+ */
+A.prototype.doSomethingFun = function(funAmount) {
+  alert('Something ' + funAmount + ' fun!');
+};
+/**
+ * @param {boolean} isFun
+ * @override
+ */
+A.prototype._setIsFun = function(isFun) {};
+A = Polymer(/** @lends {A.prototype} */ {
+  is: 'x-element',
+  properties: $jscomp.reflectObject(A, {
+    pets: {
+      type: Array,
+      notify: true,
+    },
+    name: String,
+  }),
+  behaviors: [FunBehavior],
+});
+/** @export */
+A.prototype.doSomethingFun;
+
+=== PolymerPassTest-175.input.js 345
+/** @interface */
+var PolymerAInterface$m1146332801$0 = function() {};
+/** @type {?} */
+PolymerAInterface$m1146332801$0.prototype.isFun;
+/** @type {?} */
+PolymerAInterface$m1146332801$0.prototype.pets;
+/** @type {?} */
+PolymerAInterface$m1146332801$0.prototype.name;
+/** @param {?} isFun **/
+PolymerAInterface$m1146332801$0.prototype._setIsFun;
+
+=== PolymerPassTest-176.input.js 680
+(function() {
+  /** @polymerBehavior */
+  Polymer.FunBehavior = {
+    properties: {
+      /** @type {boolean} */
+      isFun: {
+        type: Boolean,
+        value: true,
+      }
+    },
+    /** @type {string} */
+    foo: 'hooray',
+    /** @return {number} */
+    get someNumber() {
+      return 5*7+2;
+    },
+    /** @param {string} funAmount */
+    doSomethingFun: function(funAmount) {
+      alert('Something ' + funAmount + ' fun!');
+    },
+    /** @override */
+    created: function() {}
+  };
+})();
+var A = Polymer({
+  is: 'x-element',
+  properties: {
+    pets: {
+      type: Array,
+      notify: true,
+    },
+    name: String,
+  },
+  behaviors: [ Polymer.FunBehavior ],
+});
+
+=== PolymerPassTest-177.input.js 1326
+(function() {
+/**
+ * @nocollapse
+ * @polymerBehavior
+ */
+Polymer.FunBehavior = {
+  properties: {
+    isFun: {
+      type: Boolean,
+      value: true,
+    }
+  },
+  /** @type {string} */
+  foo: 'hooray',
+  /**
+   * @return {number}
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  get someNumber() {
+    return 5 * 7 + 2;
+  },
+  /**
+   * @param {string} funAmount
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  doSomethingFun: function(funAmount) {
+    alert('Something ' + funAmount + ' fun!');
+  },
+  /**
+   * @override
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  created: function() {}
+};
+})();
+/**
+ * @constructor
+ * @extends {PolymerElement}
+ * @implements {PolymerAInterface$UID$0}
+ */
+var A = function() {};
+/** @type {boolean} */
+A.prototype.isFun;
+/** @type {!Array} */
+A.prototype.pets;
+/** @type {string} */
+A.prototype.name;
+/**
+ * @param {string} funAmount
+ * @return {?}
+ */
+A.prototype.doSomethingFun = function(funAmount) {};
+/** @type {string} */
+A.prototype.foo;
+/** @type {number} */
+A.prototype.someNumber;
+A = Polymer(/** @lends {A.prototype} */ {
+  is: 'x-element',
+  properties: $jscomp.reflectObject(A, {
+    pets: {
+      type: Array,
+      notify: true,
+    },
+    name: String,
+  }),
+  behaviors: [Polymer.FunBehavior],
+});
+/** @export */
+A.prototype.doSomethingFun;
+
+=== PolymerPassTest-178.input.js 287
+(function() {
+  /** @polymerBehavior */
+  Polymer.FunBehavior = {
+    properties: { // no annotation /** @type {number} */
+      isFun: {
+        type: Boolean,
+        value: true,
+      }
+    },
+  };
+})();
+var A = Polymer({
+  is: 'x-element',
+  behaviors: [ Polymer.FunBehavior ],
+});
+
+=== PolymerPassTest-179.input.js 432
+(function() {
+  /** @polymerBehavior @nocollapse */
+  Polymer.FunBehavior = {
+    properties: {
+      isFun: {
+        type: Boolean,
+        value: true,
+      }
+    },
+  };
+})();
+/** @constructor @extends {PolymerElement} @implements {PolymerAInterface$UID$0}*/
+var A = function() {};
+/** @type {boolean} */
+A.prototype.isFun;
+A = Polymer(/** @lends {A.prototype} */ {
+  is: 'x-element',
+  behaviors: [ Polymer.FunBehavior ],
+});
+
+=== PolymerPassTest-180.input.js 882
+goog.module('behaviors.CoolBehavior');
+goog.module.declareLegacyNamespace();
+const MODULE_LOCAL = 0;
+/** @polymerBehavior */
+Polymer.FunBehavior = {
+  /** @param {string} funAmount */
+  doSomethingFun: function(funAmount) {
+    alert(MODULE_LOCAL);
+    alert('Something ' + funAmount + ' fun!');
+  },
+  /** @override */
+  created: function() {}
+};
+/** @polymerBehavior */
+Polymer.VeryFunBehavior = [
+  Polymer.FunBehavior,
+  {
+    doSomethingVeryFun: function(a, [b], c, veryFun = MODULE_LOCAL) {
+      alert(MODULE_LOCAL);
+      alert('Something very ' + veryFunAmount + ' fun!');
+    },
+    /** @override */
+    created: function() {}
+  }
+]
+/** @polymerBehavior */
+exports = {
+  /** @param {string} coolAmount */
+  doSomethingCool: function(coolAmount) {
+    alert(MODULE_LOCAL);
+    alert('Something ' + funAmount + ' cool!');
+  },
+  /** @override */
+  created: function() {}
+};
+
+=== PolymerPassTest-181.input.js 186
+goog.require('behaviors.CoolBehavior');
+var A = Polymer({
+  is: 'x-element',
+  properties: {
+    name: String,
+  },
+  behaviors: [ Polymer.VeryFunBehavior, behaviors.CoolBehavior ],
+});
+
+=== PolymerPassTest-182.input.js 1303
+goog.module("behaviors.CoolBehavior");
+goog.module.declareLegacyNamespace();
+const MODULE_LOCAL = 0;
+/**
+ * @nocollapse
+ * @polymerBehavior
+ */
+Polymer.FunBehavior = {
+  /**
+   * @param {string} funAmount
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  doSomethingFun:function(funAmount) {
+    alert(MODULE_LOCAL);
+    alert("Something " + funAmount + " fun!");
+  },
+  /**
+   * @override
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  created: function() {}
+};
+/**
+ * @nocollapse
+ * @polymerBehavior
+ */
+Polymer.VeryFunBehavior = [
+  Polymer.FunBehavior,
+  {
+    /**
+     * @suppress {checkTypes,globalThis,visibility}
+     */
+    doSomethingVeryFun: function(a, [b], c, veryFun = MODULE_LOCAL) {
+      alert(MODULE_LOCAL);
+      alert("Something very " + veryFunAmount + " fun!");
+    },
+    /**
+     * @override
+     * @suppress {checkTypes,globalThis,visibility}
+     */
+    created: function() {}
+  }
+];
+/**
+ * @nocollapse
+ * @polymerBehavior
+ */
+exports = {
+  /**
+   * @param {string} coolAmount
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  doSomethingCool: function(coolAmount) {
+    alert(MODULE_LOCAL);
+    alert("Something " + funAmount + " cool!");
+  },
+  /**
+   * @override
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  created: function() {}
+};
+
+=== PolymerPassTest-183.input.js 843
+goog.require('behaviors.CoolBehavior');
+/** @constructor @extends {PolymerElement} @implements {PolymerAInterface$UID$0}*/
+var A = function() {};
+/** @type {string} */ A.prototype.name;
+/**
+ * @param {string} funAmount
+ * @return {?}
+ */
+A.prototype.doSomethingFun = function(funAmount) {};
+/**
+ * @return {?}
+ */
+A.prototype.doSomethingVeryFun =
+    function(a, param$polymer$1, c, veryFun = void 0) {};
+/**
+ * @param {string} coolAmount
+ * @return {?}
+ */
+A.prototype.doSomethingCool = function(coolAmount) {};
+A = Polymer(/** @lends {A.prototype} */ {
+  is: 'x-element',
+  properties: $jscomp.reflectObject(A, {
+    name: String,
+  }),
+  behaviors: [ Polymer.VeryFunBehavior, behaviors.CoolBehavior ],
+});
+/** @export */
+A.prototype.doSomethingCool;
+/** @export */
+A.prototype.doSomethingVeryFun;
+/** @export */
+A.prototype.doSomethingFun;
+
+=== PolymerPassTest-184.input.js 337
+goog.module('behaviors.CoolBehavior');
+goog.module.declareLegacyNamespace();
+const MODULE_LOCAL = 0;
+/** @polymerBehavior */
+exports = {
+  doSomethingCool: function([coolAmount = MODULE_LOCAL] = [], ...[more]) {
+    alert(MODULE_LOCAL);
+    alert('Something ' + funAmount + ' cool!');
+  },
+  /** @override */
+  created: function() {}
+};
+
+=== PolymerPassTest-185.input.js 161
+goog.require('behaviors.CoolBehavior');
+var A = Polymer({
+  is: 'x-element',
+  properties: {
+    name: String,
+  },
+  behaviors: [ behaviors.CoolBehavior ],
+});
+
+=== PolymerPassTest-186.input.js 476
+goog.module("behaviors.CoolBehavior");
+goog.module.declareLegacyNamespace();
+const MODULE_LOCAL = 0;
+/**
+ * @nocollapse
+ * @polymerBehavior
+ */
+exports = {
+  /**
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  doSomethingCool: function([coolAmount = MODULE_LOCAL] = [], ...[more]) {
+    alert(MODULE_LOCAL);
+    alert("Something " + funAmount + " cool!");
+  },
+  /**
+   * @override
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  created: function() {}
+};
+
+=== PolymerPassTest-187.input.js 517
+goog.require('behaviors.CoolBehavior');
+/** @constructor @extends {PolymerElement} @implements {PolymerAInterface$UID$0}*/
+var A = function() {};
+/** @type {string} */ A.prototype.name;
+/**
+ * @return {?}
+ */
+A.prototype.doSomethingCool =
+    function(param$polymer$0 = void 0, ...param$polymer$1) {};
+A = Polymer(/** @lends {A.prototype} */ {
+  is: 'x-element',
+  properties: $jscomp.reflectObject(A, {
+    name: String,
+  }),
+  behaviors: [ behaviors.CoolBehavior ],
+});
+/** @export */
+A.prototype.doSomethingCool;
+
+=== PolymerPassTest-188.input.js 769
+/** @polymerBehavior */
+var FunBehavior = {
+  properties: {
+    isFun: Boolean
+  },
+  /** @param {string} funAmount */
+  doSomethingFun: function(funAmount) { alert('Something ' + funAmount + ' fun!'); },
+  /** @override */
+  created: function() {}
+};
+
+/** @polymerBehavior */
+var RadBehavior = {
+  properties: {
+    howRad: Number
+  },
+  /** @param {number} radAmount */
+  doSomethingRad: function(radAmount) { alert('Something ' + radAmount + ' rad!'); },
+  /** @override */
+  ready: function() {}
+};
+
+/** @polymerBehavior */
+var SuperCoolBehaviors = [FunBehavior, RadBehavior];
+var A = Polymer({
+  is: 'x-element',
+  properties: {
+    pets: {
+      type: Array,
+      notify: true,
+    },
+    name: String,
+  },
+  behaviors: [ SuperCoolBehaviors, FunBehavior ],
+});
+
+=== PolymerPassTest-189.input.js 1755
+/**
+ * @nocollapse
+ * @polymerBehavior
+ */
+var FunBehavior = {
+  properties: {
+    isFun: Boolean
+  },
+  /**
+   * @param {string} funAmount
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  doSomethingFun: function(funAmount) {
+    alert('Something ' + funAmount + ' fun!');
+  },
+  /**
+   * @override
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  created: function() {}
+};
+/**
+ * @nocollapse
+ * @polymerBehavior
+ */
+var RadBehavior = {
+  properties: {
+    howRad: Number
+  },
+  /**
+   * @param {number} radAmount
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  doSomethingRad: function(radAmount) {
+    alert('Something ' + radAmount + ' rad!');
+  },
+  /**
+   * @override
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  ready: function() {}
+};
+/**
+ * @nocollapse
+ * @polymerBehavior
+ */
+var SuperCoolBehaviors = [FunBehavior, RadBehavior];
+/**
+ * @constructor
+ * @extends {PolymerElement}
+ * @implements {PolymerAInterface$UID$0}
+ */
+var A = function() {};
+/** @type {boolean} */
+A.prototype.isFun;
+/** @type {number} */
+A.prototype.howRad;
+/** @type {!Array} */
+A.prototype.pets;
+/** @type {string} */
+A.prototype.name;
+/**
+ * @param {number} radAmount
+ */
+A.prototype.doSomethingRad = function(radAmount) {
+  alert('Something ' + radAmount + ' rad!');
+};
+/**
+ * @param {string} funAmount
+ */
+A.prototype.doSomethingFun = function(funAmount) {
+  alert('Something ' + funAmount + ' fun!');
+};
+A = Polymer(/** @lends {A.prototype} */ {
+  is: 'x-element',
+  properties: $jscomp.reflectObject(A, {
+    pets: {
+      type: Array,
+      notify: true,
+    },
+    name: String,
+  }),
+  behaviors: [SuperCoolBehaviors, FunBehavior],
+});
+/** @export */
+A.prototype.doSomethingRad;
+/** @export */
+A.prototype.doSomethingFun;
+
+=== PolymerPassTest-190.input.js 24
+var x = Polymer('blah');
+=== PolymerPassTest-191.input.js 31
+var x = Polymer('foo-bar', {});
+=== PolymerPassTest-192.input.js 27
+var x = Polymer({},'blah');
+=== PolymerPassTest-193.input.js 20
+var x = Polymer({});
+=== PolymerPassTest-194.input.js 125
+var x = class extends Polymer.Element {
+  static get is() { return 'x-element'; }
+  static get properties() { return '' }
+};
+
+=== PolymerPassTest-195.input.js 118
+var x = class extends Polymer.Element {
+  static get is() { return 'x-element'; }
+  get properties() { return {} }
+};
+
+=== PolymerPassTest-196.input.js 73
+Polymer({
+  is: 'x-element',
+  properties: {
+    isHappy: true,
+  },
+});
+
+=== PolymerPassTest-197.input.js 95
+Polymer({
+  is: 'x-element',
+  properties: {
+    isHappy: {
+      value: true,
+    },
+  },
+});
+
+=== PolymerPassTest-198.input.js 144
+var foo = {};
+foo.bar = {};
+Polymer({
+  is: 'x-element',
+  properties: {
+    isHappy: {
+      type: foo.Bar,
+      value: true,
+    },
+  },
+});
+
+=== PolymerPassTest-199.input.js 158
+var x = class extends Polymer.Element {
+  static get is() { return 'x-element'; }
+  static get properties() {
+    return {
+      isHappy: true,
+    };
+  }
+};
+
+=== PolymerPassTest-200.input.js 183
+var x = class extends Polymer.Element {
+  static get is() { return 'x-element'; }
+  static get properties() {
+    return {
+      isHappy: {
+        value: true,
+      }
+    };
+  }
+};
+
+=== PolymerPassTest-201.input.js 206
+var x = class extends Polymer.Element {
+  static get is() { return 'x-element'; }
+  static get properties() {
+    return {
+      isHappy: {
+        type: foo.Bar,
+        value: true,
+      }
+    };
+  }
+};
+
+=== PolymerPassTest-202.input.js 125
+(function() {
+  var isNotGloabl = {};
+  Polymer({
+    is: 'x-element',
+    behaviors: [
+      isNotGlobal
+    ],
+  });
+})();
+
+=== PolymerPassTest-203.input.js 120
+var foo = {};
+(function() {
+  Polymer({
+    is: 'x-element',
+    behaviors: [
+      foo.IsNotDefined
+    ],
+  });
+})();
+
+=== PolymerPassTest-204.input.js 120
+var foo = {};
+foo.Bar;
+(function() {
+  Polymer({
+    is: 'x-element',
+    behaviors: [
+      foo.Bar
+    ],
+  });
+})();
+
+=== PolymerPassTest-205.input.js 70
+Polymer({
+  is: 'x-element',
+  behaviors: [
+    DoesNotExist
+  ],
+});
+
+=== PolymerPassTest-206.input.js 138
+var FunBehavior = {
+  /** @override */
+  created: function() {}
+};
+var A = Polymer({
+  is: 'x-element',
+  behaviors: [ FunBehavior ],
+});
+
+=== PolymerPassTest-207.input.js 154
+var X = Polymer({
+  is: 'x-element',
+  properties: {
+    isHappy: Boolean,
+  },
+  /** @override */
+  created: function() {
+    this.isHappy = 7;
+  },
+});
+
+=== PolymerPassTest-208.input.js 401
+/** @constructor @extends {PolymerElement} @implements {PolymerXInterface$UID$0} */
+var X = function() {};
+/** @type {boolean} */
+X.prototype.isHappy;
+X = Polymer(/** @lends {X.prototype} */ {
+  is: 'x-element',
+  properties: $jscomp.reflectObject(X, {
+    isHappy: Boolean,
+  }),
+  /** @override @this {X} */
+  created: function() {
+    this.isHappy = 7;
+  },
+});
+/** @export */
+X.prototype.created;
+
+=== PolymerPassTest-209.input.js 343
+var X = Polymer({
+  is: 'x-element',
+  funcWithES6() {
+    var tag = 'tagged';
+    alert(`${tag}Template`);
+    var taggedTemp = `${tag}Template`;
+    var arrFunc = () => 42;
+    var num = arrFunc();
+    var obj = {one: 1, two: 2, three: 3};
+    var {one, two, three} = obj;
+    var arr = [1, 2, 3];
+    var [eins, zwei, drei] = arr;
+  },
+});
+
+=== PolymerPassTest-210.input.js 533
+/** @constructor @extends {PolymerElement} @implements {PolymerXInterface$UID$0} */
+var X = function() {};
+X = Polymer(/** @lends {X.prototype} */ {
+  is: 'x-element',
+  /** @this {X} */
+  funcWithES6() {
+    var tag = 'tagged';
+    alert(`${tag}Template`);
+    var taggedTemp = `${tag}Template`;
+    var arrFunc = () => 42;
+    var num = arrFunc();
+    var obj = {one: 1, two: 2, three: 3};
+    var {one, two, three} = obj;
+    var arr = [1, 2, 3];
+    var [eins, zwei, drei] = arr;
+  },
+});
+/** @export */
+X.prototype.funcWithES6;
+
+=== PolymerPassTest-211.input.js 364
+class Bar {}
+/** @constructor */
+var User = function() {};
+/** @polymer */
+class Foo extends Bar {
+  static get is() { return 'x-element'; }
+  static get properties() {
+    return {
+      /** @type {!User} @private */
+      user_: Object,
+      pets: {
+        type: Array,
+        notify: true,
+      },
+      name: String,
+      thingToDo: Function
+    };
+  }
+}
+
+=== PolymerPassTest-212.input.js 651
+class Bar {}
+/** @constructor */
+var User = function() {};
+/** @polymer @implements {PolymerFooInterface$UID$0} */
+class Foo extends Bar {
+  /** @return {string} */
+  static get is() { return 'x-element'; }
+  /** @return {PolymerElementProperties} */
+  static get properties() {
+    return $jscomp.reflectObject(Foo, {
+      user_: Object,
+      pets: {
+        type: Array,
+        notify: true,
+      },
+      name: String,
+      thingToDo: Function
+    });
+  }
+}
+/** @type {!User} @private */
+Foo.prototype.user_;
+/** @type {!Array} */
+Foo.prototype.pets;
+/** @type {string} */
+Foo.prototype.name;
+/** @type {!Function} */
+Foo.prototype.thingToDo;
+
+=== PolymerPassTest-213.input.js 377
+class Foo {}
+/** @constructor */
+var User = function() {};
+var a = {};
+/** @polymer */
+a.B = class extends Foo {
+  static get is() { return 'x-element'; }
+  static get properties() {
+    return {
+      /** @type {!User} @private */
+      user_: Object,
+      pets: {
+      type: Array,
+        notify: true,
+      },
+      name: String,
+      thingToDo: Function
+    };
+  }
+};
+
+=== PolymerPassTest-214.input.js 667
+class Foo {}
+/** @constructor */
+var User = function() {};
+var a = {};
+/** @polymer @implements {Polymera_BInterface$UID$0} */
+a.B = class extends Foo {
+  /** @return {string} */
+  static get is() { return 'x-element'; }
+  /** @return {PolymerElementProperties} */
+  static get properties() {
+    return $jscomp.reflectObject(a.B, {
+      user_: Object,
+      pets: {
+        type: Array,
+        notify: true,
+      },
+      name: String,
+      thingToDo: Function,
+    });
+  }
+};
+/** @type {!User} @private */
+a.B.prototype.user_;
+/** @type {!Array} */
+a.B.prototype.pets;
+/** @type {string} */
+a.B.prototype.name;
+/** @type {!Function} */
+a.B.prototype.thingToDo;
+
+=== PolymerPassTest-215.input.js 367
+class Foo {}
+/** @interface */
+function User() {};
+/** @type {boolean} */ User.prototype.id;
+var a = {};
+/**
+ * @polymer
+ * @implements {User}
+ */
+a.B = class extends Foo {
+  static get is() { return 'x-element'; }
+  static get properties() {
+    return {
+      id: Boolean,
+      other: {
+        type: String,
+        reflectToAttribute: true
+      }
+    };
+  }
+};
+
+=== PolymerPassTest-216.input.js 592
+class Foo {}
+/** @interface */
+function User() {};
+/** @type {boolean} */ User.prototype.id;
+var a = {};
+/**
+ * @polymer
+ * @implements {User}
+ * @implements {Polymera_BInterface$UID$0}
+ */
+a.B = class extends Foo {
+  /** @return {string} */
+  static get is() { return 'x-element'; }
+  /** @return {PolymerElementProperties} */
+  static get properties() {
+    return $jscomp.reflectObject(a.B, {
+      id: Boolean,
+      other: {
+        type: String,
+        reflectToAttribute: true
+      }
+    });
+  }
+};
+/** @type {boolean} */
+a.B.prototype.id;
+/** @type {string} */
+a.B.prototype.other;
+
+=== PolymerPassTest-217.input.js 362
+/** @constructor */
+var User = function() {};
+var a = {};
+a.B = class extends Polymer.Element {
+  static get is() { return 'x-element'; }
+  static get properties() {
+    return {
+      /** @type {!User} @private */
+      user_: Object,
+      pets: {
+        type: Array,
+        notify: true,
+      },
+      name: String,
+      thingToDo: Function
+    };
+  }
+};
+
+=== PolymerPassTest-218.input.js 657
+/** @constructor */
+var User = function() {};
+var a = {};
+/** @implements {Polymera_BInterface$UID$0} */
+a.B = class extends Polymer.Element {
+  /** @return {string} */
+  static get is() { return 'x-element'; }
+  /** @return {PolymerElementProperties} */
+  static get properties() {
+    return  $jscomp.reflectObject(a.B, {
+      user_: Object,
+      pets: {
+        type: Array,
+        notify: true,
+      },
+      name: String,
+      thingToDo: Function
+    });
+  }
+};
+/** @type {!User} @private */
+a.B.prototype.user_;
+/** @type {!Array} */
+a.B.prototype.pets;
+/** @type {string} */
+a.B.prototype.name;
+/** @type {!Function} */
+a.B.prototype.thingToDo;
+
+=== PolymerPassTest-219.input.js 262
+/** @constructor */
+var User = function() {};
+var A = Polymer({
+  is: 'x-element',
+  properties: {
+    /** @type {!User} @private */
+    user_: Object,
+    pets: {
+      type: Array,
+      notify: true,
+    },
+    name: String,
+    thingToDo: Function,
+  },
+});
+
+=== PolymerPassTest-220.input.js 561
+/** @constructor */
+var User = function() {};
+/** @constructor @extends {PolymerElement} @implements {PolymerAInterface$UID$0}*/
+var A = function() {};
+/** @type {!User} @private */
+A.prototype.user_;
+/** @type {!Array} */
+A.prototype.pets;
+/** @type {string} */
+A.prototype.name;
+/** @type {!Function} */
+A.prototype.thingToDo;
+A = Polymer(/** @lends {A.prototype} */ {
+  is: 'x-element',
+  properties: $jscomp.reflectObject(A, {
+    user_: Object,
+    pets: {
+      type: Array,
+      notify: true,
+    },
+    name: String,
+    thingToDo: Function,
+  }),
+});
+
+=== PolymerPassTest-221.input.js 355
+/** @constructor */
+var User = function() {};
+const A = class extends Polymer.Element {
+  static get is() { return 'x-element'; }
+  static get properties() {
+    return {
+      /** @type {!User} @private */
+      user_: Object,
+      pets: {
+        type: Array,
+        notify: true,
+      },
+      name: String,
+      thingToDo: Function,
+    };
+  }
+};
+
+=== PolymerPassTest-222.input.js 637
+/** @constructor */
+var User = function() {};
+/** @implements {PolymerAInterface$UID$0} */
+const A = class extends Polymer.Element {
+  /** @return {string} */
+  static get is() { return 'x-element'; }
+  /** @return {PolymerElementProperties} */
+  static get properties() {
+    return $jscomp.reflectObject(A, {
+      user_: Object,
+      pets: {
+        type: Array,
+        notify: true,
+      },
+      name: String,
+      thingToDo: Function,
+    });
+  }
+};
+/** @type {!User} @private */
+A.prototype.user_;
+/** @type {!Array} */
+A.prototype.pets;
+/** @type {string} */
+A.prototype.name;
+/** @type {!Function} */
+A.prototype.thingToDo;
+
+=== PolymerPassTest-223.input.js 254
+/** @constructor */
+var User = function() {};
+Polymer({
+  is: 'x-element',
+  properties: {
+    /** @type {!User} @private */
+    user_: Object,
+    pets: {
+      type: Array,
+      notify: true,
+    },
+    name: String,
+    thingToDo: Function,
+  },
+});
+
+=== PolymerPassTest-224.input.js 677
+/** @constructor */
+var User = function() {};
+/**
+ * @constructor @extends {PolymerElement}
+ * @implements {PolymerXElementElementInterface$UID$0}
+ */
+var XElementElement = function() {};
+/** @type {!User} @private */
+XElementElement.prototype.user_;
+/** @type {!Array} */
+XElementElement.prototype.pets;
+/** @type {string} */
+XElementElement.prototype.name;
+/** @type {!Function} */
+XElementElement.prototype.thingToDo;
+Polymer(/** @lends {XElementElement.prototype} */ {
+  is: 'x-element',
+  properties: $jscomp.reflectObject(XElementElement, {
+    user_: Object,
+    pets: {
+      type: Array,
+      notify: true,
+    },
+    name: String,
+    thingToDo: Function,
+  }),
+});
+
+=== PolymerPassTest-225.input.js 353
+/** @constructor */
+var User = function() {};
+class XElement extends Polymer.Element {
+  static get is() { return 'x-element'; }
+  static get properties() {
+    return {
+      /** @type {!User} @private */
+      user_: Object,
+      pets: {
+        type: Array,
+        notify: true,
+      },
+      name: String,
+      thingToDo: Function,
+    };
+  }
+}
+
+=== PolymerPassTest-226.input.js 677
+/** @constructor */
+var User = function() {};
+/** @implements {PolymerXElementInterface$UID$0} */
+class XElement extends Polymer.Element {
+  /** @return {string} */
+  static get is() { return 'x-element'; }
+  /** @return {PolymerElementProperties} */
+  static get properties() {
+    return $jscomp.reflectObject(XElement, {
+      user_: Object,
+      pets: {
+        type: Array,
+        notify: true,
+      },
+      name: String,
+      thingToDo: Function,
+    });
+  }
+}
+/** @type {!User} @private */
+XElement.prototype.user_;
+/** @type {!Array} */
+XElement.prototype.pets;
+/** @type {string} */
+XElement.prototype.name;
+/** @type {!Function} */
+XElement.prototype.thingToDo;
+
+=== PolymerPassTest-227.input.js 106
+class TestElement extends PolymerElement {
+  /** @public */ method1() {}
+  /** @private */ method2() {}
+}
+
+=== PolymerPassTest-228.input.js 270
+/** @implements {PolymerTestElementInterface$UID$0} */
+class TestElement extends PolymerElement {
+  /** @public */ method1() {}
+  /** @private */ method2() {}
+}
+/** @private @export */ TestElement.prototype.method2;
+/** @public @export */ TestElement.prototype.method1;
+
+=== PolymerPassTest-229.input.js 99
+Polymer({
+  is: 'test-element',
+  /** @public */ method1() {},
+  /** @private */ method2() {},
+});
+
+=== PolymerPassTest-230.input.js 472
+/**
+ * @constructor
+ * @extends {PolymerElement}
+ * @implements {PolymerTestElementElementInterface$UID$0}
+ */
+var TestElementElement = function() {};
+Polymer(/** @lends {TestElementElement.prototype} */ {
+  is: "test-element",
+  /** @public @this {TestElementElement} */ method1() {},
+  /** @private @this {TestElementElement} */ method2() {},
+});
+/** @private @export */ TestElementElement.prototype.method2;
+/** @public @export */ TestElementElement.prototype.method1;
+
+=== PolymerPassTest-231.input.js 660
+/** @polymerBehavior */
+const Behavior1 = {
+  /** @public */ onAll: function() {},
+  /**
+   * @public
+// Note we include this @return annotation to test that we aren't including @return,
+// @param and other redundant JSDoc in our generated @export statements, since that
+// would cause a re-declaration error.
+   * @return {void}
+   */
+   onBehavior1: function() {},
+};
+/** @polymerBehavior */
+const Behavior2 = {
+  /** @private */ onAll: function() {},
+  /** @private */ onBehavior2: function() {},
+};
+Polymer({
+  is: 'test-element',
+  behaviors: [Behavior1, Behavior2],
+  /** @private */ onAll: function() {},
+  /** @private */ onElement: function() {},
+});
+
+=== PolymerPassTest-232.input.js 1423
+/**
+ * @nocollapse
+ * @polymerBehavior
+ */
+const Behavior1 = {
+  /**
+   * @public
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  onAll: function() {},
+  /**
+   * @public
+   * @return {void}
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  onBehavior1: function() {},
+};
+/**
+ * @nocollapse
+ * @polymerBehavior
+ */
+const Behavior2 = {
+  /**
+   * @private
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  onAll: function() {},
+  /**
+   * @private
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  onBehavior2: function() {},
+};
+/**
+ * @constructor
+ * @extends {PolymerElement}
+ * @implements {PolymerTestElementElementInterface$UID$0}
+ */
+var TestElementElement = function() {};
+/**
+ * @public
+ * @return {void}
+ */
+TestElementElement.prototype.onBehavior1 = function() {};
+/** @private */
+TestElementElement.prototype.onBehavior2 = function() {};
+Polymer(/** @lends {TestElementElement.prototype} */ {
+  is: "test-element",
+  behaviors: [Behavior1, Behavior2],
+  /**
+   * @private
+   * @this {TestElementElement}
+   */
+  onAll: function() {},
+  /**
+   * @private
+   * @this {TestElementElement}
+   */
+  onElement: function() {},
+});
+/** @private @export */
+TestElementElement.prototype.onElement;
+/** @private @export */
+TestElementElement.prototype.onBehavior2;
+/** @public @export */
+TestElementElement.prototype.onBehavior1;
+/** @private @export */
+TestElementElement.prototype.onAll;
+
+=== PolymerPassTest-233.input.js 498
+/** @constructor */
+var User = function() {};
+class XElement extends Polymer.Element {
+  static get is() { return 'x-element'; }
+  static get properties() {
+    return {
+      /** @type {!User} @private */
+      user_: Object,
+      pets: {
+        type: Array,
+        observer: '_petsChanged'
+      },
+      name: {
+        type: String,
+        observer: '_nameChanged'
+      },
+      thingToDo: Function,
+    };
+  }
+  _petsChanged(newValue, oldValue) {}
+  _nameChanged(newValue, oldValue) {}
+}
+
+=== PolymerPassTest-234.input.js 951
+/** @constructor */
+var User = function() {};
+/** @implements {PolymerXElementInterface$UID$0} */
+class XElement extends Polymer.Element {
+  /** @return {string} */
+  static get is() { return 'x-element'; }
+  /** @return {PolymerElementProperties} */
+  static get properties() {
+    return $jscomp.reflectObject(XElement, {
+      user_: Object,
+      pets: {
+        type: Array,
+        observer: XElement.prototype._petsChanged
+      },
+      name: {
+        type: String,
+        observer: XElement.prototype._nameChanged
+      },
+      thingToDo: Function,
+    });
+  }
+  _petsChanged(newValue, oldValue) {}
+  _nameChanged(newValue, oldValue) {}
+}
+/** @type {!User} @private */
+XElement.prototype.user_;
+/** @type {!Array} */
+XElement.prototype.pets;
+/** @type {string} */
+XElement.prototype.name;
+/** @type {!Function} */
+XElement.prototype.thingToDo;
+/** @export */
+XElement.prototype._nameChanged;
+/** @export */
+XElement.prototype._petsChanged
+
+=== PolymerPassTest-235.input.js 507
+/** @constructor */
+var User = function() {};
+var a = {};
+a.B = class extends Polymer.Element {
+  static get is() { return 'x-element'; }
+  static get properties() {
+    return {
+      /** @type {!User} @private */
+      user_: Object,
+      pets: {
+        type: Array,
+        observer: '_petsChanged'
+      },
+      name: {
+        type: String,
+        observer: '_nameChanged'
+      },
+      thingToDo: Function
+    };
+  }
+  _petsChanged(newValue, oldValue) {}
+  _nameChanged(newValue, oldValue) {}
+};
+
+=== PolymerPassTest-236.input.js 911
+/** @constructor */
+var User = function() {};
+var a = {};
+/** @implements {Polymera_BInterface$UID$0} */
+a.B = class extends Polymer.Element {
+  /** @return {string} */
+  static get is() { return 'x-element'; }
+  /** @return {PolymerElementProperties} */
+  static get properties() {
+    return  $jscomp.reflectObject(a.B, {
+      user_: Object,
+      pets: {
+        type: Array,
+        observer: a.B.prototype._petsChanged
+      },
+      name: {
+        type: String,
+        observer: a.B.prototype._nameChanged
+      },
+      thingToDo: Function
+    });
+  }
+  _petsChanged(newValue, oldValue) {}
+  _nameChanged(newValue, oldValue) {}
+};
+/** @type {!User} @private */
+a.B.prototype.user_;
+/** @type {!Array} */
+a.B.prototype.pets;
+/** @type {string} */
+a.B.prototype.name;
+/** @type {!Function} */
+a.B.prototype.thingToDo;
+/** @export */
+a.B.prototype._nameChanged;
+/** @export */
+a.B.prototype._petsChanged
+
+=== PolymerPassTest-237.input.js 500
+/** @constructor */
+var User = function() {};
+const A = class extends Polymer.Element {
+  static get is() { return 'x-element'; }
+  static get properties() {
+    return {
+      /** @type {!User} @private */
+      user_: Object,
+      pets: {
+        type: Array,
+        observer: '_petsChanged'
+      },
+      name: {
+        type: String,
+        observer: '_nameChanged'
+      },
+      thingToDo: Function,
+    };
+  }
+  _petsChanged(newValue, oldValue) {}
+  _nameChanged(newValue, oldValue) {}
+};
+
+=== PolymerPassTest-238.input.js 883
+/** @constructor */
+var User = function() {};
+/** @implements {PolymerAInterface$UID$0} */
+const A = class extends Polymer.Element {
+  /** @return {string} */
+  static get is() { return 'x-element'; }
+  /** @return {PolymerElementProperties} */
+  static get properties() {
+    return $jscomp.reflectObject(A, {
+      user_: Object,
+      pets: {
+        type: Array,
+        observer: A.prototype._petsChanged
+      },
+      name: {
+        type: String,
+        observer: A.prototype._nameChanged
+      },
+      thingToDo: Function,
+    });
+  }
+  _petsChanged(newValue, oldValue) {}
+  _nameChanged(newValue, oldValue) {}
+};
+/** @type {!User} @private */
+A.prototype.user_;
+/** @type {!Array} */
+A.prototype.pets;
+/** @type {string} */
+A.prototype.name;
+/** @type {!Function} */
+A.prototype.thingToDo;
+/** @export */
+A.prototype._nameChanged;
+/** @export */
+A.prototype._petsChanged
+
+=== PolymerPassTest-239.input.js 497
+/** @constructor */
+var User = function() {};
+class XElement extends Polymer.Element {
+  static get is() { return 'x-element'; }
+  static get properties() {
+    return {
+      /** @type {!User} @private */
+      user_: Object,
+      pets: {
+        type: Array,
+        computed: '_computePets()'
+      },
+      name: {
+        type: String,
+        computed: '_computeName(user_, thingToDo)'
+      },
+      thingToDo: Function,
+    };
+  }
+  _computePets() {}
+  _computeName(user, thingToDo) {}
+}
+
+=== PolymerPassTest-240.input.js 917
+/** @constructor */
+var User = function() {};
+/** @implements {PolymerXElementInterface$UID$0} */
+class XElement extends Polymer.Element {
+  /** @return {string} */
+  static get is() { return 'x-element'; }
+  /** @return {PolymerElementProperties} */
+  static get properties() {
+    return $jscomp.reflectObject(XElement, {
+      user_: Object,
+      pets: {
+        type: Array,
+        computed: '_computePets()'
+      },
+      name: {
+        type: String,
+        computed: '_computeName(user_, thingToDo)'
+      },
+      thingToDo: Function,
+    });
+  }
+  _computePets() {}
+  _computeName(user, thingToDo) {}
+}
+/** @type {!User} @private */
+XElement.prototype.user_;
+/** @type {!Array} */
+XElement.prototype.pets;
+/** @type {string} */
+XElement.prototype.name;
+/** @type {!Function} */
+XElement.prototype.thingToDo;
+/** @export */
+XElement.prototype._computeName;
+/** @export */
+XElement.prototype._computePets;
+
+=== PolymerPassTest-241.input.js 493
+/** @constructor */
+var User = function() {};
+/** @type {string} */ User.prototype.id;
+class XElement extends Polymer.Element {
+  static get is() { return 'x-element'; }
+  static get properties() {
+    return {
+      /** @type {!User} @private */
+      user_: Object,
+      pets: Array,
+      name: {
+        type: String,
+        computed: '_computeName("user", 12.0, user_.id, user_.*)'
+      },
+      thingToDo: Function,
+    };
+  }
+  _computePets() {}
+  _computeName(user, thingToDo) {}
+}
+
+=== PolymerPassTest-242.input.js 913
+/** @constructor */
+var User = function() {};
+/** @type {string} */ User.prototype.id;
+/** @implements {PolymerXElementInterface$UID$0} */
+class XElement extends Polymer.Element {
+  /** @return {string} */
+  static get is() { return 'x-element'; }
+  /** @return {PolymerElementProperties} */
+  static get properties() {
+    return $jscomp.reflectObject(XElement, {
+      user_: Object,
+      pets: Array,
+      name: {
+        type: String,
+        computed: '_computeName("user", 12.0, user_.id, user_.*)'
+      },
+      thingToDo: Function,
+    });
+  }
+  _computePets() {}
+  _computeName(user, thingToDo) {}
+}
+/** @type {!User} @private */
+XElement.prototype.user_;
+/** @type {!Array} */
+XElement.prototype.pets;
+/** @type {string} */
+XElement.prototype.name;
+/** @type {!Function} */
+XElement.prototype.thingToDo;
+/** @export */
+XElement.prototype._computeName;
+/** @export */
+XElement.prototype._computePets;
+
+=== PolymerPassTest-243.input.js 483
+/** @constructor */
+var User = function() {};
+/** @type {string} */ User.prototype.id;
+class XElement extends Polymer.Element {
+  static get is() { return 'x-element'; }
+  static get properties() {
+    return {
+      /** @type {!User} @private */
+      user_: Object,
+      pets: Array,
+      name: {
+        type: String,
+        computed: '_computeName("user", 12.0, user_.id'
+      },
+      thingToDo: Function,
+    };
+  }
+  _computePets() {}
+  _computeName(user, thingToDo) {}
+}
+
+=== PolymerPassTest-244.input.js 467
+/** @constructor */
+var User = function() {};
+/** @type {string} */ User.prototype.id;
+class XElement extends Polymer.Element {
+  static get is() { return 'x-element'; }
+  static get properties() {
+    return {
+      /** @type {!User} @private */
+      user_: Object,
+      pets: Array,
+      name: {
+        type: String,
+        computed: '_computeName("user)'
+      },
+      thingToDo: Function,
+    };
+  }
+  _computePets() {}
+  _computeName(user, thingToDo) {}
+}
+
+=== PolymerPassTest-245.input.js 507
+/** @constructor */
+var User = function() {};
+class XElement extends Polymer.Element {
+  static get is() { return 'x-element'; }
+  static get properties() {
+    return {
+      /** @type {!User} @private */
+      user_: Object,
+      pets: Array,
+      name: String,
+      thingToDo: Function,
+    };
+  }
+  static get observers() {
+    return [
+      '_userChanged(user_)',
+      '_userOrThingToDoChanged(user_, thingToDo)'
+    ];
+  }
+  _userChanged(user_) {}
+  _userOrThingToDoChanged(user, thingToDo) {}
+}
+
+=== PolymerPassTest-246.input.js 972
+/** @constructor */
+var User = function() {};
+/** @implements {PolymerXElementInterface$UID$0} */
+class XElement extends Polymer.Element {
+  /** @return {string} */
+  static get is() { return 'x-element'; }
+  /** @return {PolymerElementProperties} */
+  static get properties() {
+    return $jscomp.reflectObject(XElement, {
+      user_: Object,
+      pets: Array,
+      name: String,
+      thingToDo: Function,
+    });
+  }
+  /** @return {!Array<string>} */
+  static get observers() {
+    return [
+      '_userChanged(user_)',
+      '_userOrThingToDoChanged(user_, thingToDo)'
+    ];
+  }
+  _userChanged(user_) {}
+  _userOrThingToDoChanged(user, thingToDo) {}
+}
+/** @type {!User} @private */
+XElement.prototype.user_;
+/** @type {!Array} */
+XElement.prototype.pets;
+/** @type {string} */
+XElement.prototype.name;
+/** @type {!Function} */
+XElement.prototype.thingToDo;
+/** @export */
+XElement.prototype._userOrThingToDoChanged;
+/** @export */
+XElement.prototype._userChanged;
+
+=== PolymerPassTest-247.input.js 132
+export let PaperMenuButton = Polymer({
+  is: 'paper-menu-button',
+  properties: {
+    opened: {type: Boolean, value: false}
+  }
+});
+
+=== PolymerPassTest-248.input.js 425
+/** @constructor @extends {PolymerElement}
+ * @implements {PolymerPaperMenuButtonInterface$UID$0}
+ */
+var PaperMenuButton = function() {};
+/** @type {boolean} */
+PaperMenuButton.prototype.opened;
+PaperMenuButton = Polymer(/** @lends {PaperMenuButton.prototype} */ {
+  is: 'paper-menu-button',
+  properties: $jscomp.reflectObject(PaperMenuButton, {
+    opened: {type: Boolean, value: false}
+  })
+});
+export {PaperMenuButton};
+
+=== PolymerPassTest-249.input.js 143
+/** @typeSummary */
+Polymer({
+  is: 'foo',
+  properties: {
+    opened: {type: Boolean, value: false}
+  },
+  toggle: function() {}
+})
+export {}
+
+=== PolymerPassTest-250.input.js 211
+/** @typeSummary */
+goog.loadModule(function(exports) {
+goog.module('a.b.c');
+Polymer({
+  is: 'foo',
+  properties: {
+    opened: {type: Boolean, value: false}
+  },
+  toggle: function() {}
+})
+return exports;
+});
+
+=== PolymerPassTest-251.input.js 231
+/** @typeSummary */
+goog.loadModule(function(exports) {
+goog.module('SomeBehavior');
+/** @polymerBehavior */
+exports = {
+  properties: {
+    opened: {type: Boolean, value: false}
+  },
+  toggle: function() {}
+};
+return exports;
+});
+
+=== PolymerPassTest-252.input.js 291
+/** @typeSummary */
+goog.loadModule(function(exports) {
+goog.module('a.b.c');
+const SomeBehavior = goog.require('SomeBehavior');
+Polymer({
+  is: 'foo',
+  behaviors: [SomeBehavior],
+  properties: {
+    opened: {type: Boolean, value: false}
+  },
+  toggle: function() {}
+})
+return exports;
+});
+
+=== PolymerPassTest-253.input.js 37
+var FooElement;
+Polymer({is: 'foo'})
+
+=== PolymerPassTest-254.input.js 39
+goog.module('m');
+Polymer({is: 'foo'})
+
+=== PolymerPassTest-255.input.js 55
+goog.module('m');
+var FooElement;
+Polymer({is: 'foo'})
+
+=== PolymerPassTest-256.input.js 38
+var FooElement = Polymer({is: 'foo'});
+=== PolymerPassTest-257.input.js 72
+goog.module('m');
+const Foo = Polymer({is: 'foo'});
+var PolymerElement;
+
+=== PolymerPassTest-258.input.js 246
+/** @polymerBehavior */
+var PtGaUXBehavior = {
+ _abc: function() {
+    if (true) {}
+ }
+}
+function func() {
+ if (true) {
+   Polymer({
+     is: 'pt-test-component',
+     behaviors: [PtGaUXBehavior],
+     properties: {disabled: Boolean}
+   });
+ }
+}
+
+=== PolymerPassTest-259.input.js 990
+/**
+ * @constructor
+ * @extends {PolymerElement}
+ * @implements {PolymerPtTestComponentElementInterface$m1176578414$0}
+ */
+// This `var PtTestComponentElement = ...` is placed before any
+// `PtTestComponentElement.prototype.<...>` calls. We don't want to access
+// properties on `PtTestComponentElement` before it is defined.
+var PtTestComponentElement = function() {
+};
+/**
+ * @polymerBehavior
+ * @nocollapse
+ * @polymerBehavior
+ */
+var PtGaUXBehavior = {/**
+ * @suppress {checkTypes,globalThis,visibility}
+ */
+_abc:function() {
+  if (true) {
+  }
+}};
+function func() {
+  if (true) {
+    Polymer(/** @lends {PtTestComponentElement.prototype} */
+    {is:"pt-test-component", behaviors:[PtGaUXBehavior], properties:$jscomp.reflectObject(PtTestComponentElement, {disabled:Boolean})});
+    /** @export */
+    PtTestComponentElement.prototype._abc;
+  }
+}
+/** @type {boolean} */
+PtTestComponentElement.prototype.disabled;
+PtTestComponentElement.prototype._abc = function() {
+  if (true) {
+  }
+};
+
+=== PolymerPassTest-260.input.js 650
+class C extends Polymer.Element {
+  static get is() { return 'x-element'; }
+
+  static get properties() {
+    return {
+      explicitProp: {
+        type: Number,
+      },
+    };
+  }
+
+  constructor() {
+    super();
+    this.explicitProp = 1;
+    this.implicitProp = 2;
+    // Note: This will also be detected as a method.
+    this.implicitMethod = () => {};
+    this.privateProp = 3;
+  }
+}
+if (false) {
+  /** @public @type {number} */
+  C.prototype.explicitProp;
+  /** @public @type {number} */
+  C.prototype.implicitProp;
+  /** @public @type {function()} */
+  C.prototype.implicitMethod;
+  /** @private @type {number} */
+  C.prototype.privateProp;
+}
+
+=== PolymerPassTest-261.input.js 863
+/**
+ * @implements {PolymerCInterface$UID$0}
+ */
+class C extends Polymer.Element {
+  /**
+   * @return {string}
+   */
+  static get is() {
+    return "x-element";
+  }
+  /**
+   * @return {PolymerElementProperties}
+   */
+  static get properties() {
+    return $jscomp.reflectObject(C, {explicitProp:{type:Number,},});
+  }
+  constructor() {
+    super();
+    this.explicitProp = 1;
+    this.implicitProp = 2;
+    this.implicitMethod = () => {};
+    this.privateProp = 3;
+  }
+}
+/** @type {number} */
+C.prototype.explicitProp;
+/** @export */
+C.prototype.implicitMethod;
+/** @export */
+C.prototype.constructor;
+if (false) {
+  /** @export @type {number} */
+  C.prototype.explicitProp;
+  /** @export @type {number} */
+  C.prototype.implicitProp;
+  /** @export @type {function()} */
+  C.prototype.implicitMethod;
+  /** @private @type {number} */
+  C.prototype.privateProp;
+}
+
+=== PolymerPassTest-262.input.js 378
+class C extends Polymer.Element {
+  static get is() { return 'x-element'; }
+
+  constructor() {
+    super();
+    this.explicitProp = 1;
+  }
+}
+if (false) {
+  /** @public @type {number} */
+  C.prototype.explicitProp;
+}
+
+// Not a Polymer element
+class D {
+  constructor() {
+    this.explicitProp = 1;
+  }
+}
+if (false) {
+  /** @public @type {number} */
+  D.prototype.explicitProp;
+}
+
+=== PolymerPassTest-263.input.js 480
+/**
+ * @implements {PolymerCInterface$UID$0}
+ */
+class C extends Polymer.Element {
+  /**
+   * @return {string}
+   */
+  static get is() {
+    return "x-element";
+  }
+  constructor() {
+    super();
+    this.explicitProp = 1;
+  }
+}
+/** @export */
+C.prototype.constructor;
+if (false) {
+  /** @export @type {number} */
+  C.prototype.explicitProp;
+}
+class D {
+  constructor() {
+    this.explicitProp = 1;
+  }
+}
+if (false) {
+  /** @public @type {number} */
+  D.prototype.explicitProp;
+}
+
+=== PolymerBehaviorExtractorTest-000.input.js 886
+/** @polymerBehavior */
+var FunBehavior = {
+  properties: {
+    isFun: Boolean
+  },
+  /** @param {string} funAmount */
+  doSomethingFun: function(funAmount) { alert('Something ' + funAmount + ' fun!'); },
+  /** @override */
+  created: function() {}
+};
+/** @polymerBehavior */
+var RadBehavior = {
+  properties: {
+    howRad: Number
+  },
+  /** @param {number} radAmount */
+  doSomethingRad: function(radAmount) { alert('Something ' + radAmount + ' rad!'); },
+  /** @override */
+  ready: function() {}
+};
+/** @polymerBehavior */
+var SuperCoolBehaviors = [FunBehavior, RadBehavior];
+/** @polymerBehavior */
+var BoringBehavior = {
+  properties: {
+    boringString: String
+  },
+  /** @param {boolean} boredYet */
+  doSomething: function(boredYet) { alert(boredYet + ' ' + this.boringString); },
+};
+var A = Polymer({
+  is: 'x-element',
+  behaviors: [ SuperCoolBehaviors, BoringBehavior ],
+});
+
+=== PolymerBehaviorExtractorTest-001.input.js 1002
+goog.provide('my.project.RadBehavior');
+goog.provide('my.project.FunBehavior');
+/** @polymerBehavior */
+my.project.FunBehavior = {
+  properties: {
+    isFun: Boolean
+  },
+  /** @param {string} funAmount */
+  doSomethingFun: function(funAmount) { alert('Something ' + funAmount + ' fun!'); },
+  /** @override */
+  created: function() {}
+};
+/** @polymerBehavior */
+my.project.RadBehavior = {
+  properties: {
+    howRad: Number
+  },
+  /** @param {number} radAmount */
+  doSomethingRad: function(radAmount) { alert('Something ' + radAmount + ' rad!'); },
+  /** @override */
+  ready: function() {}
+};
+/** @polymerBehavior */
+var SuperCoolBehaviors = [my.project.FunBehavior, my.project.RadBehavior];
+/** @polymerBehavior */
+var BoringBehavior = {
+  properties: {
+    boringString: String
+  },
+  /** @param {boolean} boredYet */
+  doSomething: function(boredYet) { alert(boredYet + ' ' + this.boringString); },
+};
+var A = Polymer({
+  is: 'x-element',
+  behaviors: [ SuperCoolBehaviors, BoringBehavior ],
+});
+
+=== PolymerBehaviorExtractorTest-002.input.js 22
+function Polymer() {}
+
+=== PolymerBehaviorExtractorTest-003.input.js 76
+import {RadBehavior} from './testcode1';
+Polymer.RadBehavior = RadBehavior;
+
+=== PolymerBehaviorExtractorTest-004.input.js 73
+/** @polymerBehavior */
+export const RadBehavior = [ RadBehaviorLocal ];
+
+=== PolymerBehaviorExtractorTest-005.input.js 177
+/** @polymerBehavior */
+export const RadBehavior = {
+  /** @param {number} radAmount */
+  doSomethingRad: function(radAmount) { alert('Something ' + radAmount + ' rad!'); },
+};
+
+=== PolymerBehaviorExtractorTest-006.input.js 323
+goog.module('modules.rad.RadBehavior');
+goog.module.declareLegacyNamespace();
+/** @polymerBehavior */
+exports = {
+  properties: {
+    howRad: Number
+  },
+  /** @param {number} radAmount */
+  doSomethingRad:
+    function(radAmount) { alert('Something ' + radAmount + 'rad!'); },
+  /** @override */
+  ready: function() {}
+};
+
+=== PolymerBehaviorExtractorTest-007.input.js 241
+/** @polymerBehavior */
+LHS = {
+  properties: {
+    howRad: Number
+  },
+  /** @param {number} radAmount */
+  doSomethingRad:
+    function(radAmount) { alert('Something ' + radAmount + 'rad!'); },
+  /** @override */
+  ready: function() {}
+};
+
+=== PolymerBehaviorExtractorTest-008.input.js 73
+var A = Polymer({
+  is: 'x-element',
+  behaviors: [ BEHAVIOR_NAME ],
+});
+
+=== PolymerBehaviorExtractorTest-009.input.js 602
+/** @polymerBehavior */
+var FunBehavior = {
+  properties: {
+    isFun: Boolean
+  },
+  /** @param {string} funAmount */
+  doSomethingFun: function(funAmount) { alert('Something ' + funAmount + ' fun!'); },
+  /** @override */
+  created: function() {}
+};
+/** @polymerBehavior */
+var SuperCoolBehaviors = [FunBehavior, {
+  properties: {
+    howRad: Number
+  },
+  /** @param {number} radAmount */
+  doSomethingRad: function(radAmount) { alert('Something ' + radAmount + ' rad!'); },
+  /** @override */
+  ready: function() {}
+}];
+var A = Polymer({
+  is: 'x-element',
+  behaviors: [ SuperCoolBehaviors ],
+});
+
+=== PolymerBehaviorExtractorTest-010.input.js 181
+/** @polymerBehavior */
+var FunBehavior = {
+  is: 'fun-behavior',
+
+  properties: {
+    isFun: Boolean
+  },
+};
+var A = Polymer({
+  is: 'x-element',
+  behaviors: [ FunBehavior ],
+});
+
+=== PolymerClassDefinitionTest-000.input.js 585
+/** @polymerBehavior */
+var FunBehavior = {
+  properties: {
+    /** @type {boolean} */
+    isFun: {
+      type: Boolean,
+      value: true,
+    }
+  },
+  listeners: {
+    click: 'doSomethingFun',
+  },
+  /** @type {string} */
+  foo: 'hooray',
+
+  /** @param {string} funAmount */
+  doSomethingFun: function(funAmount) {
+    alert('Something ' + funAmount + ' fun!');
+  },
+
+  /** @override */
+  created: function() {}
+};
+var A = Polymer({
+  is: 'x-element',
+  properties: {
+    pets: {
+      type: Array,
+      notify: true,
+    },
+    name: String,
+  },
+  behaviors: [ FunBehavior ],
+});
+
+=== PolymerClassDefinitionTest-001.input.js 215
+class A extends Polymer.Element {
+  static get is() { return 'x-element'; }
+  static get properties() {
+    return {
+      pets: {
+        type: Array,
+        notify: true,
+      },
+      name: String
+    };
+  }
+}
+
+=== PolymerClassDefinitionTest-002.input.js 406
+class A extends Polymer.Element {
+  static get is() { return 'x-element'; }
+  method() {}
+  /** @type {function()} */
+  fieldWithFunction = function() {};
+  fieldWithArrowFunction = () => {};
+  fieldWithNumber = 1;
+  fieldWithoutInitializer;
+  constructor() {
+    super();
+    this.propertyWithFunction = function() {};
+    this.propertyWithArrowFunction = () => {};
+    this.propertyWithNumber = 2;
+  }
+}
+
+=== PolymerClassDefinitionTest-003.input.js 31
+var A = Polymer({
+  is: x,
+});
+
+=== PolymerClassDefinitionTest-004.input.js 23
+Polymer({
+  is: x,
+});
+
+=== PolymerClassDefinitionTest-005.input.js 29
+Polymer({
+  is: foo.bar,
+});
+
+=== PolymerClassDefinitionTest-006.input.js 30
+Polymer({
+  is: this.bar,
+});
+
+=== PolymerPassSuppressBehaviorsAndProtectKeysTest-000.input.js 1021
+/** @constructor */
+var HTMLElement = function() {};
+/** @constructor @extends {HTMLElement} */
+var HTMLInputElement = function() {};
+/** @constructor @extends {HTMLElement} */
+var PolymerElement = function() {};
+/** @type {!Object} */
+PolymerElement.prototype.$;
+PolymerElement.prototype.created = function() {};
+PolymerElement.prototype.ready = function() {};
+PolymerElement.prototype.attached = function() {};
+PolymerElement.prototype.domReady = function() {};
+PolymerElement.prototype.detached = function() {};
+/**
+ * Call the callback after a timeout. Calling job again with the same name
+ * resets the timer but will not result in additional calls to callback.
+ *
+ * @param {string} name
+ * @param {Function} callback
+ * @param {number} timeoutMillis The minimum delay in milliseconds before
+ *     calling the callback.
+ */
+PolymerElement.prototype.job = function(name, callback, timeoutMillis) {};
+/**
+ * @param a {!Object}
+ * @return {!function()}
+ */
+var Polymer = function(a) {};
+var alert = function(msg) {};
+
+=== PolymerPassSuppressBehaviorsAndProtectKeysTest-001.input.js 303
+/** @polymerBehavior */
+var FunBehavior = {
+  properties: {
+    /** @type {boolean} */
+    isFun: {
+      type: Boolean,
+      value: true,
+    },
+    /** @type {!Element} */
+    funObject: {
+      type: Object,
+    },
+    /** @type {!Array<String>} */
+    funArray: {
+      type: Array,
+    },
+  },
+};
+
+=== PolymerPassSuppressBehaviorsAndProtectKeysTest-002.input.js 226
+/** @polymerBehavior @nocollapse */
+var FunBehavior = {
+  properties: {
+    isFun: {
+      type: Boolean,
+      value: true,
+    },
+    funObject: {
+      type: Object,
+    },
+    funArray: {
+      type: Array,
+    },
+  },
+};
+
+=== PolymerPassSuppressBehaviorsAndProtectKeysTest-003.input.js 320
+/** @polymerBehavior */
+var FunBehavior = {
+  properties: {
+    isFun: {
+      type: Boolean,
+      value: true,
+    },
+    funObject: {
+      type: Object,
+      value: function() { return {fun: this.isFun }; },
+    },
+    funArray: {
+      type: Array,
+      value: function() { return [this.isFun]; },
+    },
+  },
+};
+
+=== PolymerPassSuppressBehaviorsAndProtectKeysTest-004.input.js 448
+/** @polymerBehavior @nocollapse */
+var FunBehavior = {
+  properties: {
+    isFun: {
+      type: Boolean,
+      value: true,
+    },
+    funObject: {
+      type: Object,
+      /** @suppress {checkTypes|globalThis|visibility} */
+      value: function() { return {fun: this.isFun }; },
+    },
+    funArray: {
+      type: Array,
+      /** @suppress {checkTypes|globalThis|visibility} */
+      value: function() { return [this.isFun]; },
+    },
+  },
+};
+
+=== PolymerPassSuppressBehaviorsAndProtectKeysTest-005.input.js 49
+/** @polymerBehavior */
+const FunBehavior = {
+};
+
+=== PolymerPassSuppressBehaviorsAndProtectKeysTest-006.input.js 61
+/** @polymerBehavior @nocollapse */
+const FunBehavior = {
+};
+
+=== PolymerPassSuppressBehaviorsAndProtectKeysTest-007.input.js 47
+/** @polymerBehavior */
+let FunBehavior = {
+};
+
+=== PolymerPassSuppressBehaviorsAndProtectKeysTest-008.input.js 59
+/** @polymerBehavior @nocollapse */
+let FunBehavior = {
+};
+
+=== PolymerPassSuppressBehaviorsAndProtectKeysTest-009.input.js 40
+/** @polymerBehavior */ let FunBehavior;
+=== PolymerPassSuppressBehaviorsAndProtectKeysTest-010.input.js 457
+/** @polymerBehavior */
+var FunBehavior = {
+  properties: {
+    computedProp: {
+      computed: 'quotedProp(prop1, prop2)',
+    },
+    observedProp: {
+      observer: 'observeProp',
+    },
+  },
+  observers: [
+    'observeList(item1, item2)',
+    'observeAnotherList(item3)',
+  ],
+  'quotedProp': function(prop1, prop2) {},
+  observeProp() {},
+  observeList: function(item1, item2) {},
+  observeAnotherList(item3) {},
+  unreferencedMethod: function() {},
+};
+
+=== PolymerPassSuppressBehaviorsAndProtectKeysTest-011.input.js 926
+/**
+ * @polymerBehavior
+ * @nocollapse
+ * @polymerBehavior
+ */
+var FunBehavior = {
+  properties: {
+    computedProp: {
+      computed: 'quotedProp(prop1, prop2)',
+    },
+    observedProp: {
+      observer: 'observeProp',
+    },
+  },
+  observers: [
+    'observeList(item1, item2)',
+    'observeAnotherList(item3)',
+  ],
+  /**
+   * @export
+   * @nocollapse
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  'quotedProp': function(prop1, prop2) {},
+  /**
+   * @export
+   * @nocollapse
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  observeProp() {},
+  /**
+   * @export
+   * @nocollapse
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  observeList: function(item1, item2) {},
+  /**
+   * @export
+   * @nocollapse
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  observeAnotherList(item3) {},
+  /**
+   * @suppress {checkTypes,globalThis,visibility}
+   */
+  unreferencedMethod: function() {},
+};
+

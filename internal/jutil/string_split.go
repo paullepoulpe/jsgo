@@ -23,3 +23,22 @@ func StringSplitLiteral(s, sep string) []string {
 	}
 	return parts[:n]
 }
+
+// StringSplitLiteralLimit is s.split(regex, limit) where regex matches
+// exactly the non-empty literal sep. With limit > 0 there are at most limit
+// parts, the last holding the rest of the input, and trailing empty strings
+// are kept; with limit == 0 it is StringSplitLiteral; with limit < 0 every
+// part is returned, trailing empty strings included. Without an occurrence
+// of sep the result is s itself.
+func StringSplitLiteralLimit(s, sep string, limit int) []string {
+	if limit == 0 {
+		return StringSplitLiteral(s, sep)
+	}
+	if sep == "" {
+		panic(NewIllegalArgumentExceptionMsg("StringSplitLiteralLimit: empty separator"))
+	}
+	if limit < 0 {
+		return strings.Split(s, sep)
+	}
+	return strings.SplitN(s, sep, limit)
+}

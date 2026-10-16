@@ -64,6 +64,7 @@ import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.zip.GZIPOutputStream;
 import jsgo.oracle.CorpusExclusions;
 
@@ -262,10 +263,19 @@ public final class TranspileBDump {
    * messages (of the exception or any cause), which describe Java bytecode, are replaced by "null"
    * (the Go port's nil dereference carries no message).
    */
+  /**
+   * The JVM's helpful NullPointerException messages (JEP 358), e.g. {@code Cannot invoke "..."
+   * because "x" is null}; explicit messages (Preconditions.checkNotNull(x, "msg")) are kept.
+   */
+  private static final Pattern HELPFUL_NPE_MESSAGE =
+      Pattern.compile("Cannot (invoke|read|load|store|assign|throw|enter|exit) .* because .* is null");
+
   private static String exception(Throwable t) {
     String message = String.valueOf(t.getMessage());
     for (Throwable c = t; c != null; c = c.getCause()) {
-      if (c instanceof NullPointerException && c.getMessage() != null) {
+      if (c instanceof NullPointerException
+          && c.getMessage() != null
+          && HELPFUL_NPE_MESSAGE.matcher(c.getMessage()).matches()) {
         message = message.replace(c.getMessage(), "null");
       }
     }

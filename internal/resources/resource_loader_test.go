@@ -64,6 +64,9 @@ func TestEmbeddedResourcesAreValidUTF8(t *testing.T) {
 		if err != nil {
 			return err
 		}
+		if path == "externs.zip" {
+			return nil // a binary resource
+		}
 		if !utf8.Valid(data) {
 			t.Errorf("%s is not valid UTF-8", path)
 		}
@@ -72,9 +75,10 @@ func TestEmbeddedResourcesAreValidUTF8(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// unzip -Z1 closure-compiler.jar 'com/google/javascript/jscomp/js/*' minus directories and .class files.
-	if n != 157 {
-		t.Errorf("%d embedded resources, want 157", n)
+	// unzip -Z1 closure-compiler.jar 'com/google/javascript/jscomp/js/*' minus directories and .class files,
+	// plus externs.zip.
+	if n != 158 {
+		t.Errorf("%d embedded resources, want 158", n)
 	}
 }
 

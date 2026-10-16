@@ -366,7 +366,16 @@ func (r *renderer) methodParts(ref *methodRef, static bool) (string, string) {
 	}
 	result := ""
 	if ref.m.Name != "<init>" && !(sig.Result.Kind == JPrim && sig.Result.Prim == 'V') {
-		result = " " + r.goTypeNullable(sig.Result, ref.m.NullableReturn)
+		rt := sig.Result
+		if ref.listResultArrayList && rt.Kind == JClass && rt.Class == "java/util/List" {
+			// A List the callers use as a *jutil.ArrayList: the port's type
+			// for a list mutated after it is shared (PORTING.md §6), which
+			// a []T result cannot be.
+			arrayList := *rt
+			arrayList.Class = "java/util/ArrayList"
+			rt = &arrayList
+		}
+		result = " " + r.goTypeNullable(rt, ref.m.NullableReturn)
 	}
 	_ = static
 	return strings.Join(params, ", "), result

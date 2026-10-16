@@ -50,3 +50,12 @@ func (b *ImmutableMapBuilder[K, V]) BuildOrThrow() *LinkedHashMap[K, V] {
 	}
 	return m
 }
+
+// PutAll is ImmutableMap.Builder.putAll(Map): puts each entry of m, in its
+// iteration order.
+func (b *ImmutableMapBuilder[K, V]) PutAll(m *LinkedHashMap[K, V]) *ImmutableMapBuilder[K, V] {
+	for k, v := range m.All() {
+		b.Put(k, v)
+	}
+	return b
+}

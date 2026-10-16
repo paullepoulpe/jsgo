@@ -68,21 +68,24 @@ Guava 33.4.6-jre -- Apache License 2.0 (LICENSES/Apache-2.0.txt)
 Gson 2.9.1 -- Apache License 2.0 (LICENSES/Apache-2.0.txt)
   Copyright Google Inc. Gson has no NOTICE file.
   internal/jutil/gson.go, gson_builder.go, gson_exceptions.go,
-  gson_json_element.go, gson_json_reader.go, gson_json_writer.go,
-  gson_json_writer_long.go, gson_to_json.go and type_adapter.go
-  (com/google/gson/...; each file names its sources).
+  gson_from_json_reflective.go, gson_json_element.go,
+  gson_json_reader.go, gson_json_writer.go, gson_json_writer_long.go,
+  gson_to_json.go and type_adapter.go (com/google/gson/...; each file
+  names its sources).
 
 
 protobuf-java 4.30.2 -- BSD 3-Clause License (LICENSES/BSD-3-Clause-protobuf.txt)
   Copyright 2008 Google Inc. All rights reserved.
   internal/jscomp/proto_runtime.go: protoTextBytes is
   com/google/protobuf/TextFormatEscaper.java's escapeBytes.
+  internal/jscomp/proto_text_format.go: com/google/protobuf/TextFormat.java
+  (the parser).
 
 
 args4j 2.33 -- MIT License (LICENSES/MIT-args4j.txt)
   Copyright (c) 2013 Kohsuke Kawaguchi and other contributors.
-  internal/args4j, once the port of Closure's command-line tools adds it:
-  the args4j command-line parser that those tools use.
+  internal/args4j: the args4j command-line parser that Closure's
+  command-line tools use.
 
 
 Test data

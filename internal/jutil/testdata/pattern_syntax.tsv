@@ -1,0 +1,61 @@
+(	PSE	Unclosed group	1	Unclosed group near index 1\n(
+)	PSE	Unmatched closing ')'	-1	Unmatched closing ')'\n)
+[	PSE	Unclosed character class	0	Unclosed character class near index 0\n[\n^
+]	OK
+*	PSE	Dangling meta character '*'	0	Dangling meta character '*' near index 0\n*\n^
++	PSE	Dangling meta character '+'	0	Dangling meta character '+' near index 0\n+\n^
+?	PSE	Dangling meta character '?'	0	Dangling meta character '?' near index 0\n?\n^
+a{	PSE	Illegal repetition	2	Illegal repetition near index 2\na{
+a{1	PSE	Unclosed counted closure	3	Unclosed counted closure near index 3\na{1
+a{1,	PSE	Unclosed counted closure	4	Unclosed counted closure near index 4\na{1,
+a{2}	OK
+{	PSE	Illegal repetition	1	Illegal repetition near index 1\n{
+}	OK
+\\	PSE	Unescaped trailing backslash	1	Unescaped trailing backslash near index 1\n\\
+a**	PSE	Dangling meta character '*'	2	Dangling meta character '*' near index 2\na**\n  ^
+a++	OK
+a*?	OK
+a??	OK
+x{2}{3}	OK
+a{1001}	OK
+a{2,1}	PSE	Illegal repetition range	5	Illegal repetition range near index 5\na{2,1}\n     ^
+(eval|(|x)	PSE	Unclosed group	10	Unclosed group near index 10\n(eval|(|x)
+(a))	PSE	Unmatched closing ')'	2	Unmatched closing ')' near index 2\n(a))\n  ^
+((a)	PSE	Unclosed group	4	Unclosed group near index 4\n((a)
+[a-	PSE	Illegal character range	3	Illegal character range near index 3\n[a-
+[a-]	OK
+[]	PSE	Unclosed character class	1	Unclosed character class near index 1\n[]\n ^
+[^]	PSE	Unclosed character class	2	Unclosed character class near index 2\n[^]\n  ^
+[z-a]	PSE	Illegal character range	3	Illegal character range near index 3\n[z-a]\n   ^
+\\q	PSE	Illegal/unsupported escape sequence	1	Illegal/unsupported escape sequence near index 1\n\\q\n ^
+\\y	PSE	Illegal/unsupported escape sequence	1	Illegal/unsupported escape sequence near index 1\n\\y\n ^
+a\\	PSE	Unescaped trailing backslash	2	Unescaped trailing backslash near index 2\na\\
+(?:	PSE	Unclosed group	3	Unclosed group near index 3\n(?:
+(?:a	PSE	Unclosed group	4	Unclosed group near index 4\n(?:a
+(?:a)	OK
+|	OK
+a|	OK
+()	OK
+(|)	OK
+[\\]	PSE	Unclosed character class	2	Unclosed character class near index 2\n[\\]\n  ^
+[\\]]	OK
+^*	OK
+$*	OK
+.*\\.closure\\.js	OK
+.*\\.tsx\\.cl\\.js	OK
+(.*blah.*)	OK
+(foo|bar)	OK
+javascript/closure/.*	OK
+\\.js$	OK
+a{,2}	PSE	Illegal repetition	2	Illegal repetition near index 2\na{,2}\n  ^
+a{ 1}	PSE	Illegal repetition	2	Illegal repetition near index 2\na{ 1}\n  ^
+\\d+	OK
+[[a]]	OK
+[a&&b]	OK
+x*{2}	OK
+(*)	PSE	Dangling meta character '*'	1	Dangling meta character '*' near index 1\n(*)\n ^
+(+a)	PSE	Dangling meta character '+'	1	Dangling meta character '+' near index 1\n(+a)\n ^
+a|*	PSE	Dangling meta character '*'	2	Dangling meta character '*' near index 2\na|*\n  ^
+[a-\\d]	PSE	Illegal character range	4	Illegal character range near index 4\n[a-\\d]\n    ^
+\\Qab	OK
+\\Qa(\\E(	PSE	Unclosed group	4	Unclosed group near index 4\n\\Qa(\\E(\n    ^

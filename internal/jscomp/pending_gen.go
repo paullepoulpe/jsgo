@@ -16,253 +16,31 @@ package jscomp
 
 import (
 	"io"
+	"iter"
 
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// CheckAccessControls is pending.
+// AmbiguateProperties is pending.
 //
-// Java class: com.google.javascript.jscomp.CheckAccessControls
-type CheckAccessControls struct {
+// Java class: com.google.javascript.jscomp.disambiguate.AmbiguateProperties
+type AmbiguateProperties struct {
 }
 
-// Java: CheckAccessControls.DEPRECATED_NAME
-var CheckAccessControls_DEPRECATED_NAME = DiagnosticType_Disabled("JSC_DEPRECATED_VAR", "Variable {0} has been deprecated.")
-
-// Java: CheckAccessControls.DEPRECATED_NAME_REASON
-var CheckAccessControls_DEPRECATED_NAME_REASON = DiagnosticType_Disabled("JSC_DEPRECATED_VAR_REASON", "Variable {0} has been deprecated: {1}")
-
-// Java: CheckAccessControls.DEPRECATED_PROP
-var CheckAccessControls_DEPRECATED_PROP = DiagnosticType_Disabled("JSC_DEPRECATED_PROP", "Property {0} of type {1} has been deprecated.")
-
-// Java: CheckAccessControls.DEPRECATED_PROP_REASON
-var CheckAccessControls_DEPRECATED_PROP_REASON = DiagnosticType_Disabled("JSC_DEPRECATED_PROP_REASON", "Property {0} of type {1} has been deprecated: {2}")
-
-// Java: CheckAccessControls.DEPRECATED_CLASS
-var CheckAccessControls_DEPRECATED_CLASS = DiagnosticType_Disabled("JSC_DEPRECATED_CLASS", "Class {0} has been deprecated.")
-
-// Java: CheckAccessControls.DEPRECATED_CLASS_REASON
-var CheckAccessControls_DEPRECATED_CLASS_REASON = DiagnosticType_Disabled("JSC_DEPRECATED_CLASS_REASON", "Class {0} has been deprecated: {1}")
-
-// Java: CheckAccessControls.BAD_PACKAGE_PROPERTY_ACCESS
-var CheckAccessControls_BAD_PACKAGE_PROPERTY_ACCESS = DiagnosticType_Error("JSC_BAD_PACKAGE_PROPERTY_ACCESS", "Access to package-private property {0} of {1} not allowed here.")
-
-// Java: CheckAccessControls.BAD_PRIVATE_GLOBAL_ACCESS
-var CheckAccessControls_BAD_PRIVATE_GLOBAL_ACCESS = DiagnosticType_Error("JSC_BAD_PRIVATE_GLOBAL_ACCESS", "Access to private variable {0} not allowed outside file {1}.")
-
-// Java: CheckAccessControls.BAD_PRIVATE_PROPERTY_ACCESS
-var CheckAccessControls_BAD_PRIVATE_PROPERTY_ACCESS = DiagnosticType_Warning("JSC_BAD_PRIVATE_PROPERTY_ACCESS", "Access to private property {0} of {1} not allowed here.")
-
-// Java: CheckAccessControls.BAD_PROTECTED_PROPERTY_ACCESS
-var CheckAccessControls_BAD_PROTECTED_PROPERTY_ACCESS = DiagnosticType_Warning("JSC_BAD_PROTECTED_PROPERTY_ACCESS", "Access to protected property {0} of {1} not allowed here.")
-
-// Java: CheckAccessControls.PRIVATE_OVERRIDE
-var CheckAccessControls_PRIVATE_OVERRIDE = DiagnosticType_Warning("JSC_PRIVATE_OVERRIDE", "Overriding private property of {0}.")
-
-// Java: CheckAccessControls.EXTEND_FINAL_CLASS
-var CheckAccessControls_EXTEND_FINAL_CLASS = DiagnosticType_Error("JSC_EXTEND_FINAL_CLASS", "{0} is not allowed to extend final class {1}.")
-
-// Java: CheckAccessControls.VISIBILITY_MISMATCH
-var CheckAccessControls_VISIBILITY_MISMATCH = DiagnosticType_Warning("JSC_VISIBILITY_MISMATCH", "Overriding {0} property of {1} with {2} property.")
-
-// Java: CheckAccessControls.CONST_PROPERTY_REASSIGNED_VALUE
-var CheckAccessControls_CONST_PROPERTY_REASSIGNED_VALUE = DiagnosticType_Warning("JSC_CONSTANT_PROPERTY_REASSIGNED_VALUE", "constant property {0} assigned a value more than once\nInitialized at {1}")
-
-// Java: CheckAccessControls.FINAL_PROPERTY_OVERRIDDEN
-var CheckAccessControls_FINAL_PROPERTY_OVERRIDDEN = DiagnosticType_Warning("JSC_FINAL_PROPERTY_OVERRIDDEN", "@final method or property {0} overridden\nInitialized at {1}")
-
-// Java: CheckAccessControls.CONST_PROPERTY_DELETED
-var CheckAccessControls_CONST_PROPERTY_DELETED = DiagnosticType_Warning("JSC_CONSTANT_PROPERTY_DELETED", "constant property {0} cannot be deleted")
-
-// Java: CheckAccessControls(AbstractCompiler)
-func NewCheckAccessControls(compiler AbstractCompiler) *CheckAccessControls {
-	panic(&PendingPort{Signature: "CheckAccessControls(AbstractCompiler)"})
+// Java: AmbiguateProperties(AbstractCompiler, Set<Character>, Set<Character>, Set<String>)
+func NewAmbiguateProperties(compiler AbstractCompiler, reservedFirstCharacters *jutil.LinkedHashSet[uint16], reservedNonFirstCharacters *jutil.LinkedHashSet[uint16], externProperties *jutil.LinkedHashSet[string]) *AmbiguateProperties {
+	panic(&PendingPort{Signature: "AmbiguateProperties(AbstractCompiler, Set<Character>, Set<Character>, Set<String>)"})
 }
 
-// Java: CheckAccessControls.process(Node, Node)
-func (*CheckAccessControls) Process(externs *rhino.Node, root *rhino.Node) {
-	panic(&PendingPort{Signature: "CheckAccessControls.process(Node, Node)"})
+// Java: AmbiguateProperties.process(Node, Node)
+func (*AmbiguateProperties) Process(externs *rhino.Node, root *rhino.Node) {
+	panic(&PendingPort{Signature: "AmbiguateProperties.process(Node, Node)"})
 }
 
-// Java: CheckAccessControls.shouldTraverse(NodeTraversal, Node, Node)
-func (*CheckAccessControls) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
-	panic(&PendingPort{Signature: "CheckAccessControls.shouldTraverse(NodeTraversal, Node, Node)"})
-}
-
-// Java: CheckAccessControls.visit(NodeTraversal, Node, Node)
-func (*CheckAccessControls) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
-	panic(&PendingPort{Signature: "CheckAccessControls.visit(NodeTraversal, Node, Node)"})
-}
-
-// CheckConformance is pending.
-//
-// Java class: com.google.javascript.jscomp.CheckConformance
-type CheckConformance struct {
-}
-
-// Java: CheckConformance.CONFORMANCE_ERROR
-var CheckConformance_CONFORMANCE_ERROR = DiagnosticType_Error("JSC_CONFORMANCE_ERROR", "Violation: {0}{1}{2}")
-
-// Java: CheckConformance.CONFORMANCE_VIOLATION
-var CheckConformance_CONFORMANCE_VIOLATION = DiagnosticType_Warning("JSC_CONFORMANCE_VIOLATION", "Violation: {0}{1}{2}")
-
-// Java: CheckConformance.CONFORMANCE_POSSIBLE_VIOLATION
-var CheckConformance_CONFORMANCE_POSSIBLE_VIOLATION = DiagnosticType_Warning("JSC_CONFORMANCE_POSSIBLE_VIOLATION", "Possible violation: {0}{1}{2}")
-
-// Java: CheckConformance.process(Node, Node)
-func (*CheckConformance) Process(externs *rhino.Node, root *rhino.Node) {
-	panic(&PendingPort{Signature: "CheckConformance.process(Node, Node)"})
-}
-
-// Java: CheckConformance.shouldTraverse(NodeTraversal, Node, Node)
-func (*CheckConformance) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
-	panic(&PendingPort{Signature: "CheckConformance.shouldTraverse(NodeTraversal, Node, Node)"})
-}
-
-// Java: CheckConformance.visit(NodeTraversal, Node, Node)
-func (*CheckConformance) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
-	panic(&PendingPort{Signature: "CheckConformance.visit(NodeTraversal, Node, Node)"})
-}
-
-// CheckJSDoc is pending.
-//
-// Java class: com.google.javascript.jscomp.CheckJSDoc
-type CheckJSDoc struct {
-}
-
-// Java: CheckJSDoc.MISPLACED_MSG_ANNOTATION
-var CheckJSDoc_MISPLACED_MSG_ANNOTATION = DiagnosticType_Disabled("JSC_MISPLACED_MSG_ANNOTATION", "Misplaced message annotation. @desc, @meaning, and @alternateMessageId annotations should be only on message nodes.\nMessage constants must be prefixed with 'MSG_'.")
-
-// Java: CheckJSDoc.MISPLACED_ANNOTATION
-var CheckJSDoc_MISPLACED_ANNOTATION = DiagnosticType_Warning("JSC_MISPLACED_ANNOTATION", "Misplaced {0} annotation. {1}")
-
-// Java: CheckJSDoc.ANNOTATION_DEPRECATED
-var CheckJSDoc_ANNOTATION_DEPRECATED = DiagnosticType_Warning("JSC_ANNOTATION_DEPRECATED", "The {0} annotation is deprecated. {1}")
-
-// Java: CheckJSDoc.DISALLOWED_MEMBER_JSDOC
-var CheckJSDoc_DISALLOWED_MEMBER_JSDOC = DiagnosticType_Warning("JSC_DISALLOWED_MEMBER_JSDOC", "Class level JSDocs (@interface, @extends, etc.) are not allowed on class members")
-
-// Java: CheckJSDoc.ARROW_FUNCTION_AS_CONSTRUCTOR
-var CheckJSDoc_ARROW_FUNCTION_AS_CONSTRUCTOR = DiagnosticType_Error("JSC_ARROW_FUNCTION_AS_CONSTRUCTOR", "Arrow functions cannot be used as constructors")
-
-// Java: CheckJSDoc.BAD_REST_PARAMETER_ANNOTATION
-var CheckJSDoc_BAD_REST_PARAMETER_ANNOTATION = DiagnosticType_Warning("JSC_BAD_REST_PARAMETER_ANNOTATION", "Missing \"...\" in type annotation for rest parameter.")
-
-// Java: CheckJSDoc.DEFAULT_PARAM_MUST_BE_MARKED_OPTIONAL
-var CheckJSDoc_DEFAULT_PARAM_MUST_BE_MARKED_OPTIONAL = DiagnosticType_Error("JSC_DEFAULT_PARAM_MUST_BE_MARKED_OPTIONAL", "Inline JSDoc on default parameters must be marked as optional")
-
-// Java: CheckJSDoc.INVALID_NO_SIDE_EFFECT_ANNOTATION
-var CheckJSDoc_INVALID_NO_SIDE_EFFECT_ANNOTATION = DiagnosticType_Error("JSC_INVALID_NO_SIDE_EFFECT_ANNOTATION", "@nosideeffects may only appear in externs files.")
-
-// Java: CheckJSDoc.INVALID_MODIFIES_ANNOTATION
-var CheckJSDoc_INVALID_MODIFIES_ANNOTATION = DiagnosticType_Error("JSC_INVALID_MODIFIES_ANNOTATION", "@modifies may only appear in externs files.")
-
-// Java: CheckJSDoc.MISPLACED_SUPPRESS
-var CheckJSDoc_MISPLACED_SUPPRESS = DiagnosticType_Warning("JSC_MISPLACED_SUPPRESS", "@suppress annotation not allowed here. See https://github.com/google/closure-compiler/wiki/@suppress-annotations")
-
-// Java: CheckJSDoc.JSDOC_IN_BLOCK_COMMENT
-var CheckJSDoc_JSDOC_IN_BLOCK_COMMENT = DiagnosticType_Warning("JSC_JSDOC_IN_BLOCK_COMMENT", "Non-JSDoc comment has annotations. Did you mean to start it with '/**'?")
-
-// Java: CheckJSDoc.JSDOC_ON_RETURN
-var CheckJSDoc_JSDOC_ON_RETURN = DiagnosticType_Warning("JSC_JSDOC_ON_RETURN", "JSDoc annotations are not supported on return.")
-
-// Java: CheckJSDoc.process(Node, Node)
-func (*CheckJSDoc) Process(externs *rhino.Node, root *rhino.Node) {
-	panic(&PendingPort{Signature: "CheckJSDoc.process(Node, Node)"})
-}
-
-// Java: CheckJSDoc.shouldTraverse(NodeTraversal, Node, Node)
-func (*CheckJSDoc) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
-	panic(&PendingPort{Signature: "CheckJSDoc.shouldTraverse(NodeTraversal, Node, Node)"})
-}
-
-// Java: CheckJSDoc.visit(NodeTraversal, Node, Node)
-func (*CheckJSDoc) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
-	panic(&PendingPort{Signature: "CheckJSDoc.visit(NodeTraversal, Node, Node)"})
-}
-
-// CheckJSDocStyle is pending.
-//
-// Java class: com.google.javascript.jscomp.lint.CheckJSDocStyle
-type CheckJSDocStyle struct {
-}
-
-// Java: CheckJSDocStyle.CLASS_DISALLOWED_JSDOC
-var CheckJSDocStyle_CLASS_DISALLOWED_JSDOC = DiagnosticType_Disabled("JSC_CLASS_DISALLOWED_JSDOC", "@constructor annotations are redundant on classes.")
-
-// Java: CheckJSDocStyle.MISSING_JSDOC
-var CheckJSDocStyle_MISSING_JSDOC = DiagnosticType_Disabled("JSC_MISSING_JSDOC", "Function must have JSDoc.")
-
-// Java: CheckJSDocStyle.INCORRECT_ANNOTATION_ON_GETTER_SETTER
-var CheckJSDocStyle_INCORRECT_ANNOTATION_ON_GETTER_SETTER = DiagnosticType_Disabled("JSC_TYPE_ON_GETTER_SETTER", "Getters and setters must not have @type annotations. Did you mean @return or @param instead?")
-
-// Java: CheckJSDocStyle.MISSING_PARAMETER_JSDOC
-var CheckJSDocStyle_MISSING_PARAMETER_JSDOC = DiagnosticType_Disabled("JSC_MISSING_PARAMETER_JSDOC", "Parameter must have JSDoc.{0}")
-
-// Java: CheckJSDocStyle.MIXED_PARAM_JSDOC_STYLES
-var CheckJSDocStyle_MIXED_PARAM_JSDOC_STYLES = DiagnosticType_Disabled("JSC_MIXED_PARAM_JSDOC_STYLES", "Functions may not use both @param annotations and inline JSDoc")
-
-// Java: CheckJSDocStyle.MISSING_RETURN_JSDOC
-var CheckJSDocStyle_MISSING_RETURN_JSDOC = DiagnosticType_Disabled("JSC_MISSING_RETURN_JSDOC", "Function that returns a value must have JSDoc indicating the return type.{0}")
-
-// Java: CheckJSDocStyle.OPTIONAL_PARAM_NOT_MARKED_OPTIONAL
-var CheckJSDocStyle_OPTIONAL_PARAM_NOT_MARKED_OPTIONAL = DiagnosticType_Disabled("JSC_OPTIONAL_PARAM_NOT_MARKED_OPTIONAL", "Parameter {0} is optional so it must have a JSDoc type ending with ''=''")
-
-// Java: CheckJSDocStyle.WRONG_NUMBER_OF_PARAMS
-var CheckJSDocStyle_WRONG_NUMBER_OF_PARAMS = DiagnosticType_Disabled("JSC_WRONG_NUMBER_OF_PARAMS", "Wrong number of @param annotations")
-
-// Java: CheckJSDocStyle.INCORRECT_PARAM_NAME
-var CheckJSDocStyle_INCORRECT_PARAM_NAME = DiagnosticType_Disabled("JSC_INCORRECT_PARAM_NAME", "Incorrect param name. Are your @param annotations in the wrong order?")
-
-// Java: CheckJSDocStyle.EXTERNS_FILES_SHOULD_BE_ANNOTATED
-var CheckJSDocStyle_EXTERNS_FILES_SHOULD_BE_ANNOTATED = DiagnosticType_Disabled("JSC_EXTERNS_FILES_SHOULD_BE_ANNOTATED", "Externs files should be annotated with @externs in the @fileoverview block.")
-
-// Java: CheckJSDocStyle.LICENSE_CONTAINS_AT_EXTERNS
-var CheckJSDocStyle_LICENSE_CONTAINS_AT_EXTERNS = DiagnosticType_Disabled("JSC_LICENSE_CONTAINS_AT_EXTERNS", "@license block contains an @externs annotation, which will be parsed as plain license text instead of an actual @externs annotation. You probably meant to put @externs in a separate @fileoverview block.")
-
-// Java: CheckJSDocStyle.PREFER_BACKTICKS_TO_AT_SIGN_CODE
-var CheckJSDocStyle_PREFER_BACKTICKS_TO_AT_SIGN_CODE = DiagnosticType_Disabled("JSC_PREFER_BACKTICKS_TO_AT_SIGN_CODE", "Use `some_code` instead of '{'@code some_code'}'.")
-
-// Java: CheckJSDocStyle.LINT_DIAGNOSTICS
-var CheckJSDocStyle_LINT_DIAGNOSTICS = NewDiagnosticGroup(CheckJSDocStyle_CLASS_DISALLOWED_JSDOC, CheckJSDocStyle_MISSING_JSDOC, CheckJSDocStyle_INCORRECT_ANNOTATION_ON_GETTER_SETTER, CheckJSDocStyle_MISSING_PARAMETER_JSDOC, CheckJSDocStyle_MIXED_PARAM_JSDOC_STYLES, CheckJSDocStyle_MISSING_RETURN_JSDOC, CheckJSDocStyle_OPTIONAL_PARAM_NOT_MARKED_OPTIONAL, CheckJSDocStyle_WRONG_NUMBER_OF_PARAMS, CheckJSDocStyle_INCORRECT_PARAM_NAME, CheckJSDocStyle_EXTERNS_FILES_SHOULD_BE_ANNOTATED, CheckJSDocStyle_LICENSE_CONTAINS_AT_EXTERNS, CheckJSDocStyle_PREFER_BACKTICKS_TO_AT_SIGN_CODE)
-
-// Java: CheckJSDocStyle.process(Node, Node)
-func (*CheckJSDocStyle) Process(externs *rhino.Node, root *rhino.Node) {
-	panic(&PendingPort{Signature: "CheckJSDocStyle.process(Node, Node)"})
-}
-
-// Java: CheckJSDocStyle.shouldTraverse(NodeTraversal, Node, Node)
-func (*CheckJSDocStyle) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
-	panic(&PendingPort{Signature: "CheckJSDocStyle.shouldTraverse(NodeTraversal, Node, Node)"})
-}
-
-// Java: CheckJSDocStyle.visit(NodeTraversal, Node, Node)
-func (*CheckJSDocStyle) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
-	panic(&PendingPort{Signature: "CheckJSDocStyle.visit(NodeTraversal, Node, Node)"})
-}
-
-// CheckSideEffects is pending.
-//
-// Java class: com.google.javascript.jscomp.CheckSideEffects
-type CheckSideEffects struct {
-}
-
-// Java: CheckSideEffects.USELESS_CODE_ERROR
-var CheckSideEffects_USELESS_CODE_ERROR = DiagnosticType_Warning("JSC_USELESS_CODE", "Suspicious code. {0}")
-
-// Java: CheckSideEffects.process(Node, Node)
-func (*CheckSideEffects) Process(externs *rhino.Node, root *rhino.Node) {
-	panic(&PendingPort{Signature: "CheckSideEffects.process(Node, Node)"})
-}
-
-// Java: CheckSideEffects.shouldTraverse(NodeTraversal, Node, Node)
-func (*CheckSideEffects) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
-	panic(&PendingPort{Signature: "CheckSideEffects.shouldTraverse(NodeTraversal, Node, Node)"})
-}
-
-// Java: CheckSideEffects.visit(NodeTraversal, Node, Node)
-func (*CheckSideEffects) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
-	panic(&PendingPort{Signature: "CheckSideEffects.visit(NodeTraversal, Node, Node)"})
+// Java: ApplySuggestedFixes.applySuggestedFixesToFiles(Iterable<SuggestedFix>)
+func ApplySuggestedFixes_ApplySuggestedFixesToFiles(fixes iter.Seq[*SuggestedFix]) {
+	panic(&PendingPort{Signature: "ApplySuggestedFixes.applySuggestedFixesToFiles(Iterable<SuggestedFix>)"})
 }
 
 // ConvertTypesToColors is pending.
@@ -305,63 +83,8 @@ type CoverageInstrumentationPass_CoverageReach int32
 // Java: CoverageInstrumentationPass.CoverageReach.ALL (ordinal 0)
 const CoverageInstrumentationPass_CoverageReach_ALL CoverageInstrumentationPass_CoverageReach = 0
 
-// DefaultPassConfig is pending.
-//
-// Java class: com.google.javascript.jscomp.DefaultPassConfig
-type DefaultPassConfig struct {
-	// Java: PassFactory DefaultPassConfig.inferTypes
-	inferTypes *PassFactory
-}
-
-// Java: DefaultPassConfig(CompilerOptions)
-func NewDefaultPassConfig(options *CompilerOptions) *DefaultPassConfig {
-	panic(&PendingPort{Signature: "DefaultPassConfig(CompilerOptions)"})
-}
-
-// Java: DefaultPassConfig.getPreprocessorSymbolTable()
-func (*DefaultPassConfig) GetPreprocessorSymbolTable() *PreprocessorSymbolTable {
-	panic(&PendingPort{Signature: "DefaultPassConfig.getPreprocessorSymbolTable()"})
-}
-
-// Java: DefaultPassConfig.getBasePassConfig()
-func (*DefaultPassConfig) GetBasePassConfig() PassConfig {
-	panic(&PendingPort{Signature: "DefaultPassConfig.getBasePassConfig()"})
-}
-
-// Java: DefaultPassConfig.getChecks()
-func (*DefaultPassConfig) GetChecks() *PassListBuilder {
-	panic(&PendingPort{Signature: "DefaultPassConfig.getChecks()"})
-}
-
-// Java: DefaultPassConfig.getFinalizations()
-func (*DefaultPassConfig) GetFinalizations() *PassListBuilder {
-	panic(&PendingPort{Signature: "DefaultPassConfig.getFinalizations()"})
-}
-
-// Java: DefaultPassConfig.getOptimizations()
-func (*DefaultPassConfig) GetOptimizations() *PassListBuilder {
-	panic(&PendingPort{Signature: "DefaultPassConfig.getOptimizations()"})
-}
-
-// Java: DefaultPassConfig.getPassConfigBase (for PassConfig)
-func (*DefaultPassConfig) GetPassConfigBase() *PassConfigBase {
-	panic(&PendingPort{Signature: "DefaultPassConfig.getPassConfigBase (for PassConfig)"})
-}
-
-// Java: DefaultPassConfig.getPassGraph()
-func (*DefaultPassConfig) GetPassGraph() GraphvizGraph {
-	panic(&PendingPort{Signature: "DefaultPassConfig.getPassGraph()"})
-}
-
-// Java: DefaultPassConfig.getTranspileOnlyPasses()
-func (*DefaultPassConfig) GetTranspileOnlyPasses() *PassListBuilder {
-	panic(&PendingPort{Signature: "DefaultPassConfig.getTranspileOnlyPasses()"})
-}
-
-// Java: DefaultPassConfig.getWhitespaceOnlyPasses()
-func (*DefaultPassConfig) GetWhitespaceOnlyPasses() *PassListBuilder {
-	panic(&PendingPort{Signature: "DefaultPassConfig.getWhitespaceOnlyPasses()"})
-}
+// Java: CoverageInstrumentationPass.CoverageReach.CONDITIONAL (ordinal 1)
+const CoverageInstrumentationPass_CoverageReach_CONDITIONAL CoverageInstrumentationPass_CoverageReach = 1
 
 // DisambiguateProperties is pending.
 //
@@ -372,61 +95,324 @@ type DisambiguateProperties struct {
 // Java: DisambiguateProperties.PROPERTY_INVALIDATION
 var DisambiguateProperties_PROPERTY_INVALIDATION = DiagnosticType_Error("JSC_DISAMBIGUATE2_PROPERTY_INVALIDATION", "Property ''{0}'' was required to be disambiguated but was invalidated.{1}")
 
+// Java: DisambiguateProperties(AbstractCompiler, ImmutableSet<String>)
+func NewDisambiguateProperties(compiler AbstractCompiler, propertiesThatMustDisambiguate *jutil.LinkedHashSet[string]) *DisambiguateProperties {
+	panic(&PendingPort{Signature: "DisambiguateProperties(AbstractCompiler, ImmutableSet<String>)"})
+}
+
 // Java: DisambiguateProperties.process(Node, Node)
 func (*DisambiguateProperties) Process(externs *rhino.Node, root *rhino.Node) {
 	panic(&PendingPort{Signature: "DisambiguateProperties.process(Node, Node)"})
 }
 
-// J2clSourceFileChecker is pending.
+// FixingErrorManager is pending.
 //
-// Java class: com.google.javascript.jscomp.J2clSourceFileChecker
-type J2clSourceFileChecker struct {
+// Java class: com.google.javascript.refactoring.FixingErrorManager
+type FixingErrorManager struct {
 }
 
-// Java: J2clSourceFileChecker.markToRunJ2clPasses(AbstractCompiler)
-func J2clSourceFileChecker_MarkToRunJ2clPasses(compiler AbstractCompiler) {
-	panic(&PendingPort{Signature: "J2clSourceFileChecker.markToRunJ2clPasses(AbstractCompiler)"})
+// Java: FixingErrorManager(ImmutableSet<DiagnosticType>)
+func NewFixingErrorManagerWithUnfixableErrors(unfixableErrors *jutil.LinkedHashSet[*DiagnosticType]) *FixingErrorManager {
+	panic(&PendingPort{Signature: "FixingErrorManager(ImmutableSet<DiagnosticType>)"})
 }
 
-// Java: J2clSourceFileChecker.shouldRunJ2clPasses(AbstractCompiler)
-func J2clSourceFileChecker_ShouldRunJ2clPasses(compiler AbstractCompiler) bool {
-	panic(&PendingPort{Signature: "J2clSourceFileChecker.shouldRunJ2clPasses(AbstractCompiler)"})
+// Java: FixingErrorManager.setCompiler(AbstractCompiler)
+func (*FixingErrorManager) SetCompiler(compiler AbstractCompiler) {
+	panic(&PendingPort{Signature: "FixingErrorManager.setCompiler(AbstractCompiler)"})
 }
 
-// Java: J2clSourceFileChecker.process(Node, Node)
-func (*J2clSourceFileChecker) Process(externs *rhino.Node, root *rhino.Node) {
-	panic(&PendingPort{Signature: "J2clSourceFileChecker.process(Node, Node)"})
+// Java: FixingErrorManager.getSureFixes()
+func (*FixingErrorManager) GetSureFixes() []*SuggestedFix {
+	panic(&PendingPort{Signature: "FixingErrorManager.getSureFixes()"})
 }
 
-// PolymerPass is pending.
+// Java: FixingErrorManager.generateReport()
+func (*FixingErrorManager) GenerateReport() {
+	panic(&PendingPort{Signature: "FixingErrorManager.generateReport()"})
+}
+
+// Java: FixingErrorManager.getBasicErrorManagerBase (for BasicErrorManager)
+func (*FixingErrorManager) GetBasicErrorManagerBase() *BasicErrorManagerBase {
+	panic(&PendingPort{Signature: "FixingErrorManager.getBasicErrorManagerBase (for BasicErrorManager)"})
+}
+
+// Java: FixingErrorManager.getErrorCount()
+func (*FixingErrorManager) GetErrorCount() int {
+	panic(&PendingPort{Signature: "FixingErrorManager.getErrorCount()"})
+}
+
+// Java: FixingErrorManager.getErrors()
+func (*FixingErrorManager) GetErrors() []*JSError {
+	panic(&PendingPort{Signature: "FixingErrorManager.getErrors()"})
+}
+
+// Java: FixingErrorManager.getSortedDiagnostics()
+func (*FixingErrorManager) GetSortedDiagnostics() []*SortingErrorManager_ErrorWithLevel {
+	panic(&PendingPort{Signature: "FixingErrorManager.getSortedDiagnostics()"})
+}
+
+// Java: FixingErrorManager.getSortingErrorManagerBase (for BasicErrorManager)
+func (*FixingErrorManager) GetSortingErrorManagerBase() *SortingErrorManagerBase {
+	panic(&PendingPort{Signature: "FixingErrorManager.getSortingErrorManagerBase (for BasicErrorManager)"})
+}
+
+// Java: FixingErrorManager.getTypedPercent()
+func (*FixingErrorManager) GetTypedPercent() float64 {
+	panic(&PendingPort{Signature: "FixingErrorManager.getTypedPercent()"})
+}
+
+// Java: FixingErrorManager.getWarningCount()
+func (*FixingErrorManager) GetWarningCount() int {
+	panic(&PendingPort{Signature: "FixingErrorManager.getWarningCount()"})
+}
+
+// Java: FixingErrorManager.getWarnings()
+func (*FixingErrorManager) GetWarnings() []*JSError {
+	panic(&PendingPort{Signature: "FixingErrorManager.getWarnings()"})
+}
+
+// Java: FixingErrorManager.hasHaltingErrors()
+func (*FixingErrorManager) HasHaltingErrors() bool {
+	panic(&PendingPort{Signature: "FixingErrorManager.hasHaltingErrors()"})
+}
+
+// Java: FixingErrorManager.printSummary()
+func (*FixingErrorManager) PrintSummary() {
+	panic(&PendingPort{Signature: "FixingErrorManager.printSummary()"})
+}
+
+// Java: FixingErrorManager.println(CheckLevel, JSError)
+func (*FixingErrorManager) Println(level *CheckLevel, error *JSError) {
+	panic(&PendingPort{Signature: "FixingErrorManager.println(CheckLevel, JSError)"})
+}
+
+// Java: FixingErrorManager.report(CheckLevel, JSError)
+func (*FixingErrorManager) Report(level *CheckLevel, error *JSError) {
+	panic(&PendingPort{Signature: "FixingErrorManager.report(CheckLevel, JSError)"})
+}
+
+// Java: FixingErrorManager.setTypedPercent(double)
+func (*FixingErrorManager) SetTypedPercent(typedPercent float64) {
+	panic(&PendingPort{Signature: "FixingErrorManager.setTypedPercent(double)"})
+}
+
+// Java: FixingErrorManager.shouldReportConformanceViolation(Requirement, Optional<RequirementScopeEntry>, JSError, ConformanceConfig.LibraryLevelNonAllowlistedConformanceViolationsBehavior, boolean)
+func (*FixingErrorManager) ShouldReportConformanceViolation(requirement *Requirement, allowlistEntry *RequirementScopeEntry, diagnostic *JSError, behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior, isAllowlisted bool) bool {
+	panic(&PendingPort{Signature: "FixingErrorManager.shouldReportConformanceViolation(Requirement, Optional<RequirementScopeEntry>, JSError, ConformanceConfig.LibraryLevelNonAllowlistedConformanceViolationsBehavior, boolean)"})
+}
+
+// JsFlumeCallback is pending.
 //
-// Java class: com.google.javascript.jscomp.PolymerPass
-type PolymerPass struct {
+// Java class: com.google.javascript.refactoring.JsFlumeCallback
+type JsFlumeCallback struct {
 }
 
-// Java: PolymerPass(AbstractCompiler)
-func NewPolymerPass(compiler AbstractCompiler) *PolymerPass {
-	panic(&PendingPort{Signature: "PolymerPass(AbstractCompiler)"})
+// Java: JsFlumeCallback(Scanner, Pattern)
+func NewJsFlumeCallback(scanner Scanner, includeFilePattern *jutil.Pattern) *JsFlumeCallback {
+	panic(&PendingPort{Signature: "JsFlumeCallback(Scanner, Pattern)"})
 }
 
-// Java: PolymerPass.process(Node, Node)
-func (*PolymerPass) Process(externs *rhino.Node, root *rhino.Node) {
-	panic(&PendingPort{Signature: "PolymerPass.process(Node, Node)"})
+// Java: JsFlumeCallback.getMatches()
+func (*JsFlumeCallback) GetMatches() *jutil.ArrayList[*Match] {
+	panic(&PendingPort{Signature: "JsFlumeCallback.getMatches()"})
 }
 
-// Java: PolymerPass.shouldTraverse(NodeTraversal, Node, Node)
-func (*PolymerPass) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
-	panic(&PendingPort{Signature: "PolymerPass.shouldTraverse(NodeTraversal, Node, Node)"})
+// Java: JsFlumeCallback.getFixes()
+func (*JsFlumeCallback) GetFixes() *jutil.ArrayList[*SuggestedFix] {
+	panic(&PendingPort{Signature: "JsFlumeCallback.getFixes()"})
 }
 
-// Java: PolymerPass.visit(NodeTraversal, Node, Node)
-func (*PolymerPass) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
-	panic(&PendingPort{Signature: "PolymerPass.visit(NodeTraversal, Node, Node)"})
+// Java: JsFlumeCallback.shouldTraverse(NodeTraversal, Node, Node)
+func (*JsFlumeCallback) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+	panic(&PendingPort{Signature: "JsFlumeCallback.shouldTraverse(NodeTraversal, Node, Node)"})
 }
 
-// Java: RefactoringDriver.getCompilerOptions()
-func RefactoringDriver_GetCompilerOptions() *CompilerOptions {
-	panic(&PendingPort{Signature: "RefactoringDriver.getCompilerOptions()"})
+// Java: JsFlumeCallback.visit(NodeTraversal, Node, Node)
+func (*JsFlumeCallback) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+	panic(&PendingPort{Signature: "JsFlumeCallback.visit(NodeTraversal, Node, Node)"})
+}
+
+// RenameProperties is pending.
+//
+// Java class: com.google.javascript.jscomp.RenameProperties
+type RenameProperties struct {
+}
+
+// Java: RenameProperties(AbstractCompiler, boolean, VariableMap, Set<Character>, Set<Character>, NameGenerator)
+func NewRenameProperties(compiler AbstractCompiler, generatePseudoNames bool, prevUsedPropertyMap *VariableMap, reservedFirstCharacters *jutil.LinkedHashSet[uint16], reservedNonFirstCharacters *jutil.LinkedHashSet[uint16], nameGenerator NameGenerator) *RenameProperties {
+	panic(&PendingPort{Signature: "RenameProperties(AbstractCompiler, boolean, VariableMap, Set<Character>, Set<Character>, NameGenerator)"})
+}
+
+// Java: RenameProperties.getPropertyMap()
+func (*RenameProperties) GetPropertyMap() *VariableMap {
+	panic(&PendingPort{Signature: "RenameProperties.getPropertyMap()"})
+}
+
+// Java: RenameProperties.process(Node, Node)
+func (*RenameProperties) Process(externs *rhino.Node, root *rhino.Node) {
+	panic(&PendingPort{Signature: "RenameProperties.process(Node, Node)"})
+}
+
+// ReplaceCssNames is pending.
+//
+// Java class: com.google.javascript.jscomp.ReplaceCssNames
+type ReplaceCssNames struct {
+}
+
+// Java: ReplaceCssNames(AbstractCompiler, CssRenamingMap, ReplaceCssNames.CssNameCollector, Set<String>)
+func NewReplaceCssNames(compiler AbstractCompiler, symbolMap CssRenamingMap, cssNameCollector ReplaceCssNames_CssNameCollector, skiplist *jutil.LinkedHashSet[string]) *ReplaceCssNames {
+	panic(&PendingPort{Signature: "ReplaceCssNames(AbstractCompiler, CssRenamingMap, ReplaceCssNames.CssNameCollector, Set<String>)"})
+}
+
+// Java: ReplaceCssNames.process(Node, Node)
+func (*ReplaceCssNames) Process(externs *rhino.Node, root *rhino.Node) {
+	panic(&PendingPort{Signature: "ReplaceCssNames.process(Node, Node)"})
+}
+
+// ReplaceCssNames_CssNameCollector is pending.
+//
+// Java class: com.google.javascript.jscomp.ReplaceCssNames.CssNameCollector
+//
+// Java: ReplaceCssNames.CssNameCollector.add(String) (functional interface)
+type ReplaceCssNames_CssNameCollector func(className string)
+
+// ReplaceMessages is pending.
+//
+// Java class: com.google.javascript.jscomp.ReplaceMessages
+type ReplaceMessages struct {
+}
+
+// Java: ReplaceMessages(AbstractCompiler, MessageBundle, boolean)
+func NewReplaceMessages(compiler AbstractCompiler, bundle MessageBundle, strictReplacement bool) *ReplaceMessages {
+	panic(&PendingPort{Signature: "ReplaceMessages(AbstractCompiler, MessageBundle, boolean)"})
+}
+
+// Java: ReplaceMessages.getMsgProtectionPass()
+func (*ReplaceMessages) GetMsgProtectionPass() CompilerPass {
+	panic(&PendingPort{Signature: "ReplaceMessages.getMsgProtectionPass()"})
+}
+
+// Java: ReplaceMessages.getReplacementCompletionPass()
+func (*ReplaceMessages) GetReplacementCompletionPass() CompilerPass {
+	panic(&PendingPort{Signature: "ReplaceMessages.getReplacementCompletionPass()"})
+}
+
+// Java: ReplaceMessages.getFullReplacementPass()
+func (*ReplaceMessages) GetFullReplacementPass() CompilerPass {
+	panic(&PendingPort{Signature: "ReplaceMessages.getFullReplacementPass()"})
+}
+
+// ReplaceMessagesForChrome is pending.
+//
+// Java class: com.google.javascript.jscomp.ReplaceMessagesForChrome
+type ReplaceMessagesForChrome struct {
+}
+
+// Java: ReplaceMessagesForChrome(AbstractCompiler, JsMessage.IdGenerator)
+func NewReplaceMessagesForChrome(compiler AbstractCompiler, idGenerator JsMessage_IdGenerator) *ReplaceMessagesForChrome {
+	panic(&PendingPort{Signature: "ReplaceMessagesForChrome(AbstractCompiler, JsMessage.IdGenerator)"})
+}
+
+// Java: ReplaceMessagesForChrome.checkNode(Node, Token)
+func (*ReplaceMessagesForChrome) CheckNode(node *rhino.Node, type_ rhino.Token) {
+	panic(&PendingPort{Signature: "ReplaceMessagesForChrome.checkNode(Node, Token)"})
+}
+
+// Java: ReplaceMessagesForChrome.getJsMessageVisitorBase (for JsMessageVisitor)
+func (*ReplaceMessagesForChrome) GetJsMessageVisitorBase() *JsMessageVisitorBase {
+	panic(&PendingPort{Signature: "ReplaceMessagesForChrome.getJsMessageVisitorBase (for JsMessageVisitor)"})
+}
+
+// Java: ReplaceMessagesForChrome.isMessageName(String)
+func (*ReplaceMessagesForChrome) IsMessageName(identifier string) bool {
+	panic(&PendingPort{Signature: "ReplaceMessagesForChrome.isMessageName(String)"})
+}
+
+// Java: ReplaceMessagesForChrome.process(Node, Node)
+func (*ReplaceMessagesForChrome) Process(externs *rhino.Node, root *rhino.Node) {
+	panic(&PendingPort{Signature: "ReplaceMessagesForChrome.process(Node, Node)"})
+}
+
+// Java: ReplaceMessagesForChrome.processIcuTemplateDefinition(IcuTemplateDefinition)
+func (*ReplaceMessagesForChrome) ProcessIcuTemplateDefinition(definition IcuTemplateDefinition) {
+	panic(&PendingPort{Signature: "ReplaceMessagesForChrome.processIcuTemplateDefinition(IcuTemplateDefinition)"})
+}
+
+// Java: ReplaceMessagesForChrome.processJsMessageDefinition(JsMessageDefinition)
+func (*ReplaceMessagesForChrome) ProcessJsMessageDefinition(definition JsMessageDefinition) {
+	panic(&PendingPort{Signature: "ReplaceMessagesForChrome.processJsMessageDefinition(JsMessageDefinition)"})
+}
+
+// Java: ReplaceMessagesForChrome.processMessageFallback(Node, JsMessage, JsMessage)
+func (*ReplaceMessagesForChrome) ProcessMessageFallback(callNode *rhino.Node, message1 *JsMessage, message2 *JsMessage) {
+	panic(&PendingPort{Signature: "ReplaceMessagesForChrome.processMessageFallback(Node, JsMessage, JsMessage)"})
+}
+
+// Java: ReplaceMessagesForChrome.shouldTraverse(NodeTraversal, Node, Node)
+func (*ReplaceMessagesForChrome) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+	panic(&PendingPort{Signature: "ReplaceMessagesForChrome.shouldTraverse(NodeTraversal, Node, Node)"})
+}
+
+// Java: ReplaceMessagesForChrome.visit(NodeTraversal, Node, Node)
+func (*ReplaceMessagesForChrome) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+	panic(&PendingPort{Signature: "ReplaceMessagesForChrome.visit(NodeTraversal, Node, Node)"})
+}
+
+// ReplaceStrings is pending.
+//
+// Java class: com.google.javascript.jscomp.ReplaceStrings
+type ReplaceStrings struct {
+}
+
+// Java: ReplaceStrings(AbstractCompiler, String, List<String>)
+func NewReplaceStrings(compiler AbstractCompiler, placeholderToken string, functionsToInspect []string) *ReplaceStrings {
+	panic(&PendingPort{Signature: "ReplaceStrings(AbstractCompiler, String, List<String>)"})
+}
+
+// Java: ReplaceStrings.getStringMap()
+func (*ReplaceStrings) GetStringMap() *VariableMap {
+	panic(&PendingPort{Signature: "ReplaceStrings.getStringMap()"})
+}
+
+// Java: ReplaceStrings.process(Node, Node)
+func (*ReplaceStrings) Process(externs *rhino.Node, root *rhino.Node) {
+	panic(&PendingPort{Signature: "ReplaceStrings.process(Node, Node)"})
+}
+
+// Java: ReplaceStrings.shouldTraverse(NodeTraversal, Node, Node)
+func (*ReplaceStrings) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+	panic(&PendingPort{Signature: "ReplaceStrings.shouldTraverse(NodeTraversal, Node, Node)"})
+}
+
+// Java: ReplaceStrings.visit(NodeTraversal, Node, Node)
+func (*ReplaceStrings) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+	panic(&PendingPort{Signature: "ReplaceStrings.visit(NodeTraversal, Node, Node)"})
+}
+
+// RescopeGlobalSymbols is pending.
+//
+// Java class: com.google.javascript.jscomp.RescopeGlobalSymbols
+type RescopeGlobalSymbols struct {
+}
+
+// Java: RescopeGlobalSymbols(AbstractCompiler, String, boolean)
+func NewRescopeGlobalSymbols(compiler AbstractCompiler, globalSymbolNamespace string, assumeCrossChunkNames bool) *RescopeGlobalSymbols {
+	panic(&PendingPort{Signature: "RescopeGlobalSymbols(AbstractCompiler, String, boolean)"})
+}
+
+// Java: RescopeGlobalSymbols.process(Node, Node)
+func (*RescopeGlobalSymbols) Process(externs *rhino.Node, root *rhino.Node) {
+	panic(&PendingPort{Signature: "RescopeGlobalSymbols.process(Node, Node)"})
+}
+
+// Scanner is pending.
+//
+// Java class: com.google.javascript.refactoring.Scanner
+type Scanner interface {
+	// Java: Scanner.matches(Node, NodeMetadata)
+	Matches(node *rhino.Node, t *NodeMetadata) bool
+	// Java: Scanner.processAllMatches(Collection<Match>)
+	ProcessAllMatches(matches []*Match) []*SuggestedFix
 }
 
 // SerializeTypedAstPass is pending.
@@ -445,9 +431,20 @@ func SerializeTypedAstPass_CreateFromOutputStream(c AbstractCompiler, out io.Wri
 	panic(&PendingPort{Signature: "SerializeTypedAstPass.createFromOutputStream(AbstractCompiler, OutputStream, SerializationOptions)"})
 }
 
+// Java: SerializeTypedAstPass.createFromPath(AbstractCompiler, Path, SerializationOptions)
+func SerializeTypedAstPass_CreateFromPath(compiler AbstractCompiler, outputPath *jutil.Path, serializationOptions *SerializationOptions) *SerializeTypedAstPass {
+	panic(&PendingPort{Signature: "SerializeTypedAstPass.createFromPath(AbstractCompiler, Path, SerializationOptions)"})
+}
+
 // Java: SerializeTypedAstPass.process(Node, Node)
 func (*SerializeTypedAstPass) Process(externs *rhino.Node, root *rhino.Node) {
 	panic(&PendingPort{Signature: "SerializeTypedAstPass.process(Node, Node)"})
+}
+
+// SuggestedFix is pending.
+//
+// Java class: com.google.javascript.refactoring.SuggestedFix
+type SuggestedFix struct {
 }
 
 // SymbolTable is pending.
@@ -524,24 +521,4 @@ func (*SymbolTable) FlattenGoogModuleExports() {
 // Java: SymbolTable.removeGeneratedSymbols()
 func (*SymbolTable) RemoveGeneratedSymbols() {
 	panic(&PendingPort{Signature: "SymbolTable.removeGeneratedSymbols()"})
-}
-
-// VariableReferenceCheck is pending.
-//
-// Java class: com.google.javascript.jscomp.VariableReferenceCheck
-type VariableReferenceCheck struct {
-}
-
-// Java: VariableReferenceCheck.EARLY_REFERENCE
-var VariableReferenceCheck_EARLY_REFERENCE = DiagnosticType_Warning("JSC_REFERENCE_BEFORE_DECLARE", "Variable referenced before declaration: {0}")
-
-// Java: VariableReferenceCheck.REDECLARED_VARIABLE
-var VariableReferenceCheck_REDECLARED_VARIABLE = DiagnosticType_Warning("JSC_REDECLARED_VARIABLE", "Redeclared variable: {0}")
-
-// Java: VariableReferenceCheck.UNUSED_LOCAL_ASSIGNMENT
-var VariableReferenceCheck_UNUSED_LOCAL_ASSIGNMENT = DiagnosticType_Disabled("JSC_UNUSED_LOCAL_ASSIGNMENT", "Value assigned to local variable {0} is never read")
-
-// Java: VariableReferenceCheck.process(Node, Node)
-func (*VariableReferenceCheck) Process(externs *rhino.Node, root *rhino.Node) {
-	panic(&PendingPort{Signature: "VariableReferenceCheck.process(Node, Node)"})
 }

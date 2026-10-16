@@ -1,6 +1,7 @@
 package main
 
 import (
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"slices"
@@ -16,6 +17,26 @@ func gz(t *testing.T, s string) []byte {
 	zw := gzip.NewWriter(&buf)
 	if _, err := zw.Write([]byte(s)); err != nil {
 		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+// zipOf returns a zip archive holding the given files, in order.
+func zipOf(t *testing.T, files ...[2]string) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for _, f := range files {
+		w, err := zw.Create(f[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.Write([]byte(f[1])); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if err := zw.Close(); err != nil {
 		t.Fatal(err)
@@ -54,6 +75,8 @@ func TestFileText(t *testing.T) {
 		{name: "c.gz", in: []byte("not gzip"), err: "named like a gzip file"},
 		{name: "d.gz", in: gz(t, "truncated text")[:12], err: "d.gz"},
 		{name: "e.zip", in: []byte("PK\x03\x04rest"), err: "zip file"},
+		{name: "externs.zip", in: zipOf(t, [2]string{"a.js", "var a;"}, [2]string{"dir/b.js", "// under the " + gplWord}), want: "var a;\n// under the " + gplWord + "\n", mentions: true},
+		{name: "nested.jar", in: zipOf(t, [2]string{"x.txt.gz", string(gz(t, "inner text"))}, [2]string{"y.bin", "\x00\xff\xfe"}), want: "inner text\n"},
 		{name: "f.bin", in: []byte("PK\x03\x04rest"), err: "zip file"},
 		{name: "g.jar", in: []byte("anything"), err: "jar file"},
 		{name: "h.dat", in: []byte("BZh91AY&SY"), err: "bzip2 file"},
