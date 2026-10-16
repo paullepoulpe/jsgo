@@ -1,6 +1,6 @@
 // Generates internal/jutil/testdata/priority_queue.tsv: java.util.PriorityQueue
 // with a comparator, driven by random op scripts.
-//   java -cp .cache/closure-compiler.jar:.cache/oracle-build JutilPriorityQueueVectors internal/jutil/testdata
+//   java -cp .cache/closure-compiler.jar:.cache/oracle-build JutilPriorityQueueVectors internal/jutil/testdata [seed]
 //
 // Elements are objects {key, id} (ids 0, 1, 2, ... in insertion order); the
 // comparator looks at the key only, so many elements tie and the order in
@@ -32,7 +32,7 @@ public class JutilPriorityQueueVectors {
 
   public static void main(String[] args) throws Exception {
     Path out = Paths.get(args[0]);
-    Random r = new Random(20260415);
+    Random r = new Random(args.length > 1 ? Long.parseLong(args[1]) : 20260415L);
     try (PrintStream ps =
         new PrintStream(Files.newOutputStream(out.resolve("priority_queue.tsv")))) {
       for (int k = 0; k < 600; k++) {
