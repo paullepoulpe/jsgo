@@ -1,0 +1,222 @@
+declare-again Var a{number}|scope=global|type=number|inferred=false|index=6|node=NAME|input=typed.js|extern=false
+bad-child !java.lang.IllegalArgumentException
+scope global depth=0 parent=null bottom=false module=null this=Object count=6 global=global
+  vars [a, a.b, u, arguments, f, C]
+  unbound [u]
+  args null
+  a get=Var a{number}|scope=global|type=number|inferred=false|index=6|node=NAME|input=typed.js|extern=false slot=Var a{number}|scope=global|type=number|inferred=false|index=6|node=NAME|input=typed.js|extern=false own=Var a{number}|scope=global|type=number|inferred=false|index=6|node=NAME|input=typed.js|extern=false hasOwn=true has=true topmost=global
+  a.b get=Var a.b{string}|scope=global|type=string|inferred=true|index=1|node=GETPROP|input=typed.js|extern=false slot=Var a.b{string}|scope=global|type=string|inferred=true|index=1|node=GETPROP|input=typed.js|extern=false own=Var a.b{string}|scope=global|type=string|inferred=true|index=1|node=GETPROP|input=typed.js|extern=false hasOwn=true has=true topmost=global
+  a.c get=null slot=null own=null hasOwn=false has=false topmost=null
+  b get=null slot=null own=null hasOwn=false has=false topmost=null
+  x get=null slot=null own=null hasOwn=false has=false topmost=null
+  u get=Var u{null}|scope=global|type=null|inferred=false|index=2|node=NAME|input=typed.js|extern=false slot=Var u{null}|scope=global|type=null|inferred=false|index=2|node=NAME|input=typed.js|extern=false own=Var u{null}|scope=global|type=null|inferred=false|index=2|node=NAME|input=typed.js|extern=false hasOwn=true has=true topmost=global
+  z get=null slot=null own=null hasOwn=false has=false topmost=null
+  w get=null slot=null own=null hasOwn=false has=false topmost=null
+  this get=null slot=null own=null hasOwn=false has=false topmost=null
+  super get=null slot=null own=null hasOwn=false has=false topmost=null
+  arguments get=Var arguments{Object}|scope=global|type=Object|inferred=false|index=3|node=NAME|input=<non-file>|extern=true slot=Var arguments{Object}|scope=global|type=Object|inferred=false|index=3|node=NAME|input=<non-file>|extern=true own=Var arguments{Object}|scope=global|type=Object|inferred=false|index=3|node=NAME|input=<non-file>|extern=true hasOwn=true has=true topmost=global
+  exports get=null slot=null own=null hasOwn=false has=false topmost=null
+  f get=Var f{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=4|node=NAME|input=typed.js|extern=false slot=Var f{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=4|node=NAME|input=typed.js|extern=false own=Var f{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=4|node=NAME|input=typed.js|extern=false hasOwn=true has=true topmost=global
+  C get=Var C{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=5|node=NAME|input=typed.js|extern=false slot=Var C{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=5|node=NAME|input=typed.js|extern=false own=Var C{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=5|node=NAME|input=typed.js|extern=false hasOwn=true has=true topmost=global
+  ns a number lookup=number
+  ns a.b null lookup=null
+  ns a.b.c null lookup=null
+  ns f function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string lookup=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string
+  ns nope null lookup=null
+scope fScope depth=1 parent=global bottom=false module=null this=Date count=1 global=global
+  vars [x]
+  unbound []
+  args Var arguments{Object}|scope=fScope|type=Object|inferred=false|index=-1|node=null|input=<non-file>|extern=true
+  a get=Var a{number}|scope=global|type=number|inferred=false|index=6|node=NAME|input=typed.js|extern=false slot=Var a{number}|scope=global|type=number|inferred=false|index=6|node=NAME|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  a.b get=Var a.b{string}|scope=global|type=string|inferred=true|index=1|node=GETPROP|input=typed.js|extern=false slot=Var a.b{string}|scope=global|type=string|inferred=true|index=1|node=GETPROP|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  a.c get=null slot=null own=null hasOwn=false has=false topmost=null
+  b get=null slot=null own=null hasOwn=false has=false topmost=null
+  x get=Var x{null}|scope=fScope|type=null|inferred=true|index=0|node=NAME|input=typed.js|extern=false slot=Var x{null}|scope=fScope|type=null|inferred=true|index=0|node=NAME|input=typed.js|extern=false own=Var x{null}|scope=fScope|type=null|inferred=true|index=0|node=NAME|input=typed.js|extern=false hasOwn=true has=true topmost=fScope
+  u get=Var u{null}|scope=global|type=null|inferred=false|index=2|node=NAME|input=typed.js|extern=false slot=Var u{null}|scope=global|type=null|inferred=false|index=2|node=NAME|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  z get=null slot=null own=null hasOwn=false has=false topmost=null
+  w get=null slot=null own=null hasOwn=false has=false topmost=null
+  this get=Var this{Date}|scope=fScope|type=Date|inferred=false|index=-1|node=null|input=<non-file>|extern=true slot=Var this{Date}|scope=fScope|type=Date|inferred=false|index=-1|node=null|input=<non-file>|extern=true own=Var this{Date}|scope=fScope|type=Date|inferred=false|index=-1|node=null|input=<non-file>|extern=true hasOwn=true has=true topmost=fScope
+  super get=Var super{Object}|scope=fScope|type=Object|inferred=false|index=-1|node=null|input=<non-file>|extern=true slot=Var super{Object}|scope=fScope|type=Object|inferred=false|index=-1|node=null|input=<non-file>|extern=true own=Var super{Object}|scope=fScope|type=Object|inferred=false|index=-1|node=null|input=<non-file>|extern=true hasOwn=true has=true topmost=fScope
+  arguments get=Var arguments{Object}|scope=fScope|type=Object|inferred=false|index=-1|node=null|input=<non-file>|extern=true slot=Var arguments{Object}|scope=fScope|type=Object|inferred=false|index=-1|node=null|input=<non-file>|extern=true own=Var arguments{Object}|scope=fScope|type=Object|inferred=false|index=-1|node=null|input=<non-file>|extern=true hasOwn=true has=true topmost=fScope
+  exports get=null slot=null own=null hasOwn=false has=false topmost=null
+  f get=Var f{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=4|node=NAME|input=typed.js|extern=false slot=Var f{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=4|node=NAME|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  C get=Var C{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=5|node=NAME|input=typed.js|extern=false slot=Var C{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=5|node=NAME|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  ns a number lookup=number
+  ns a.b null lookup=null
+  ns a.b.c null lookup=null
+  ns f function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string lookup=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string
+  ns nope null lookup=null
+scope fBlock depth=2 parent=fScope bottom=false module=null this=Date count=2 global=global
+  vars [a, u]
+  unbound [u]
+  args Var arguments{Object}|scope=fScope|type=Object|inferred=false|index=-1|node=null|input=<non-file>|extern=true
+  a get=Var a{boolean}|scope=fBlock|type=boolean|inferred=false|index=0|node=NAME|input=typed.js|extern=false slot=Var a{boolean}|scope=fBlock|type=boolean|inferred=false|index=0|node=NAME|input=typed.js|extern=false own=Var a{boolean}|scope=fBlock|type=boolean|inferred=false|index=0|node=NAME|input=typed.js|extern=false hasOwn=true has=true topmost=fBlock
+  a.b get=null slot=null own=null hasOwn=false has=true topmost=global
+  a.c get=null slot=null own=null hasOwn=false has=false topmost=null
+  b get=null slot=null own=null hasOwn=false has=false topmost=null
+  x get=Var x{null}|scope=fScope|type=null|inferred=true|index=0|node=NAME|input=typed.js|extern=false slot=Var x{null}|scope=fScope|type=null|inferred=true|index=0|node=NAME|input=typed.js|extern=false own=null hasOwn=false has=true topmost=fScope
+  u get=Var u{null}|scope=fBlock|type=null|inferred=false|index=1|node=NAME|input=typed.js|extern=false slot=Var u{null}|scope=fBlock|type=null|inferred=false|index=1|node=NAME|input=typed.js|extern=false own=Var u{null}|scope=fBlock|type=null|inferred=false|index=1|node=NAME|input=typed.js|extern=false hasOwn=true has=true topmost=fBlock
+  z get=null slot=null own=null hasOwn=false has=false topmost=fBlock
+  w get=null slot=null own=null hasOwn=false has=false topmost=null
+  this get=Var this{Date}|scope=fScope|type=Date|inferred=false|index=-1|node=null|input=<non-file>|extern=true slot=Var this{Date}|scope=fScope|type=Date|inferred=false|index=-1|node=null|input=<non-file>|extern=true own=null hasOwn=false has=true topmost=fScope
+  super get=Var super{Object}|scope=fScope|type=Object|inferred=false|index=-1|node=null|input=<non-file>|extern=true slot=Var super{Object}|scope=fScope|type=Object|inferred=false|index=-1|node=null|input=<non-file>|extern=true own=null hasOwn=false has=true topmost=fScope
+  arguments get=Var arguments{Object}|scope=fScope|type=Object|inferred=false|index=-1|node=null|input=<non-file>|extern=true slot=Var arguments{Object}|scope=fScope|type=Object|inferred=false|index=-1|node=null|input=<non-file>|extern=true own=null hasOwn=false has=true topmost=fScope
+  exports get=null slot=null own=null hasOwn=false has=false topmost=null
+  f get=Var f{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=4|node=NAME|input=typed.js|extern=false slot=Var f{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=4|node=NAME|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  C get=Var C{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=5|node=NAME|input=typed.js|extern=false slot=Var C{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=5|node=NAME|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  ns a boolean lookup=boolean
+  ns a.b null lookup=null
+  ns a.b.c null lookup=null
+  ns f function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string lookup=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string
+  ns nope null lookup=null
+scope clsScope depth=1 parent=global bottom=false module=null this=Object count=0 global=global
+  vars []
+  unbound []
+  args null
+  a get=Var a{number}|scope=global|type=number|inferred=false|index=6|node=NAME|input=typed.js|extern=false slot=Var a{number}|scope=global|type=number|inferred=false|index=6|node=NAME|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  a.b get=Var a.b{string}|scope=global|type=string|inferred=true|index=1|node=GETPROP|input=typed.js|extern=false slot=Var a.b{string}|scope=global|type=string|inferred=true|index=1|node=GETPROP|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  a.c get=null slot=null own=null hasOwn=false has=false topmost=null
+  b get=null slot=null own=null hasOwn=false has=false topmost=null
+  x get=null slot=null own=null hasOwn=false has=false topmost=null
+  u get=Var u{null}|scope=global|type=null|inferred=false|index=2|node=NAME|input=typed.js|extern=false slot=Var u{null}|scope=global|type=null|inferred=false|index=2|node=NAME|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  z get=null slot=null own=null hasOwn=false has=false topmost=null
+  w get=null slot=null own=null hasOwn=false has=false topmost=null
+  this get=null slot=null own=null hasOwn=false has=false topmost=null
+  super get=null slot=null own=null hasOwn=false has=false topmost=null
+  arguments get=Var arguments{Object}|scope=global|type=Object|inferred=false|index=3|node=NAME|input=<non-file>|extern=true slot=Var arguments{Object}|scope=global|type=Object|inferred=false|index=3|node=NAME|input=<non-file>|extern=true own=null hasOwn=false has=true topmost=global
+  exports get=null slot=null own=null hasOwn=false has=false topmost=null
+  f get=Var f{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=4|node=NAME|input=typed.js|extern=false slot=Var f{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=4|node=NAME|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  C get=Var C{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=5|node=NAME|input=typed.js|extern=false slot=Var C{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=5|node=NAME|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  ns a number lookup=number
+  ns a.b null lookup=null
+  ns a.b.c null lookup=null
+  ns f function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string lookup=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string
+  ns nope null lookup=null
+scope mScope depth=2 parent=clsScope bottom=false module=null this=null count=0 global=global
+  vars []
+  unbound []
+  args Var arguments{Object}|scope=mScope|type=Object|inferred=false|index=-1|node=null|input=<non-file>|extern=true
+  a get=Var a{number}|scope=global|type=number|inferred=false|index=6|node=NAME|input=typed.js|extern=false slot=Var a{number}|scope=global|type=number|inferred=false|index=6|node=NAME|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  a.b get=Var a.b{string}|scope=global|type=string|inferred=true|index=1|node=GETPROP|input=typed.js|extern=false slot=Var a.b{string}|scope=global|type=string|inferred=true|index=1|node=GETPROP|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  a.c get=null slot=null own=null hasOwn=false has=false topmost=null
+  b get=null slot=null own=null hasOwn=false has=false topmost=null
+  x get=null slot=null own=null hasOwn=false has=false topmost=null
+  u get=Var u{null}|scope=global|type=null|inferred=false|index=2|node=NAME|input=typed.js|extern=false slot=Var u{null}|scope=global|type=null|inferred=false|index=2|node=NAME|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  z get=null slot=null own=null hasOwn=false has=false topmost=null
+  w get=null slot=null own=null hasOwn=false has=false topmost=null
+  this get=Var this{null}|scope=mScope|type=null|inferred=false|index=-1|node=null|input=<non-file>|extern=true slot=Var this{null}|scope=mScope|type=null|inferred=false|index=-1|node=null|input=<non-file>|extern=true own=Var this{null}|scope=mScope|type=null|inferred=false|index=-1|node=null|input=<non-file>|extern=true hasOwn=true has=true topmost=mScope
+  super get=Var super{null}|scope=mScope|type=null|inferred=false|index=-1|node=null|input=<non-file>|extern=true slot=Var super{null}|scope=mScope|type=null|inferred=false|index=-1|node=null|input=<non-file>|extern=true own=Var super{null}|scope=mScope|type=null|inferred=false|index=-1|node=null|input=<non-file>|extern=true hasOwn=true has=true topmost=mScope
+  arguments get=Var arguments{Object}|scope=mScope|type=Object|inferred=false|index=-1|node=null|input=<non-file>|extern=true slot=Var arguments{Object}|scope=mScope|type=Object|inferred=false|index=-1|node=null|input=<non-file>|extern=true own=Var arguments{Object}|scope=mScope|type=Object|inferred=false|index=-1|node=null|input=<non-file>|extern=true hasOwn=true has=true topmost=mScope
+  exports get=null slot=null own=null hasOwn=false has=false topmost=null
+  f get=Var f{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=4|node=NAME|input=typed.js|extern=false slot=Var f{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=4|node=NAME|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  C get=Var C{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=5|node=NAME|input=typed.js|extern=false slot=Var C{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=5|node=NAME|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  ns a number lookup=number
+  ns a.b null lookup=null
+  ns a.b.c null lookup=null
+  ns f function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string lookup=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string
+  ns nope null lookup=null
+scope sbScope depth=2 parent=clsScope bottom=false module=null this=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string count=0 global=global
+  vars []
+  unbound []
+  args null
+  a get=Var a{number}|scope=global|type=number|inferred=false|index=6|node=NAME|input=typed.js|extern=false slot=Var a{number}|scope=global|type=number|inferred=false|index=6|node=NAME|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  a.b get=Var a.b{string}|scope=global|type=string|inferred=true|index=1|node=GETPROP|input=typed.js|extern=false slot=Var a.b{string}|scope=global|type=string|inferred=true|index=1|node=GETPROP|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  a.c get=null slot=null own=null hasOwn=false has=false topmost=null
+  b get=null slot=null own=null hasOwn=false has=false topmost=null
+  x get=null slot=null own=null hasOwn=false has=false topmost=null
+  u get=Var u{null}|scope=global|type=null|inferred=false|index=2|node=NAME|input=typed.js|extern=false slot=Var u{null}|scope=global|type=null|inferred=false|index=2|node=NAME|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  z get=null slot=null own=null hasOwn=false has=false topmost=null
+  w get=null slot=null own=null hasOwn=false has=false topmost=null
+  this get=Var this{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=sbScope|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=-1|node=null|input=<non-file>|extern=true slot=Var this{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=sbScope|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=-1|node=null|input=<non-file>|extern=true own=Var this{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=sbScope|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=-1|node=null|input=<non-file>|extern=true hasOwn=true has=true topmost=sbScope
+  super get=Var super{Function.prototype}|scope=sbScope|type=Function.prototype|inferred=false|index=-1|node=null|input=<non-file>|extern=true slot=Var super{Function.prototype}|scope=sbScope|type=Function.prototype|inferred=false|index=-1|node=null|input=<non-file>|extern=true own=Var super{Function.prototype}|scope=sbScope|type=Function.prototype|inferred=false|index=-1|node=null|input=<non-file>|extern=true hasOwn=true has=true topmost=sbScope
+  arguments get=Var arguments{Object}|scope=global|type=Object|inferred=false|index=3|node=NAME|input=<non-file>|extern=true slot=Var arguments{Object}|scope=global|type=Object|inferred=false|index=3|node=NAME|input=<non-file>|extern=true own=null hasOwn=false has=true topmost=global
+  exports get=null slot=null own=null hasOwn=false has=false topmost=null
+  f get=Var f{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=4|node=NAME|input=typed.js|extern=false slot=Var f{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=4|node=NAME|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  C get=Var C{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=5|node=NAME|input=typed.js|extern=false slot=Var C{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=5|node=NAME|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  ns a number lookup=number
+  ns a.b null lookup=null
+  ns a.b.c null lookup=null
+  ns f function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string lookup=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string
+  ns nope null lookup=null
+scope fldScope depth=2 parent=clsScope bottom=false module=null this=Date count=0 global=global
+  vars []
+  unbound []
+  args null
+  a get=Var a{number}|scope=global|type=number|inferred=false|index=6|node=NAME|input=typed.js|extern=false slot=Var a{number}|scope=global|type=number|inferred=false|index=6|node=NAME|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  a.b get=Var a.b{string}|scope=global|type=string|inferred=true|index=1|node=GETPROP|input=typed.js|extern=false slot=Var a.b{string}|scope=global|type=string|inferred=true|index=1|node=GETPROP|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  a.c get=null slot=null own=null hasOwn=false has=false topmost=null
+  b get=null slot=null own=null hasOwn=false has=false topmost=null
+  x get=null slot=null own=null hasOwn=false has=false topmost=null
+  u get=Var u{null}|scope=global|type=null|inferred=false|index=2|node=NAME|input=typed.js|extern=false slot=Var u{null}|scope=global|type=null|inferred=false|index=2|node=NAME|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  z get=null slot=null own=null hasOwn=false has=false topmost=null
+  w get=null slot=null own=null hasOwn=false has=false topmost=null
+  this get=Var this{Date}|scope=fldScope|type=Date|inferred=false|index=-1|node=null|input=<non-file>|extern=true slot=Var this{Date}|scope=fldScope|type=Date|inferred=false|index=-1|node=null|input=<non-file>|extern=true own=Var this{Date}|scope=fldScope|type=Date|inferred=false|index=-1|node=null|input=<non-file>|extern=true hasOwn=true has=true topmost=fldScope
+  super get=Var super{Object}|scope=fldScope|type=Object|inferred=false|index=-1|node=null|input=<non-file>|extern=true slot=Var super{Object}|scope=fldScope|type=Object|inferred=false|index=-1|node=null|input=<non-file>|extern=true own=Var super{Object}|scope=fldScope|type=Object|inferred=false|index=-1|node=null|input=<non-file>|extern=true hasOwn=true has=true topmost=fldScope
+  arguments get=Var arguments{Object}|scope=global|type=Object|inferred=false|index=3|node=NAME|input=<non-file>|extern=true slot=Var arguments{Object}|scope=global|type=Object|inferred=false|index=3|node=NAME|input=<non-file>|extern=true own=null hasOwn=false has=true topmost=global
+  exports get=null slot=null own=null hasOwn=false has=false topmost=null
+  f get=Var f{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=4|node=NAME|input=typed.js|extern=false slot=Var f{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=4|node=NAME|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  C get=Var C{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=5|node=NAME|input=typed.js|extern=false slot=Var C{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=5|node=NAME|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  ns a number lookup=number
+  ns a.b null lookup=null
+  ns a.b.c null lookup=null
+  ns f function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string lookup=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string
+  ns nope null lookup=null
+scope sfldScope depth=2 parent=clsScope bottom=false module=null this=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string count=0 global=global
+  vars []
+  unbound []
+  args null
+  a get=Var a{number}|scope=global|type=number|inferred=false|index=6|node=NAME|input=typed.js|extern=false slot=Var a{number}|scope=global|type=number|inferred=false|index=6|node=NAME|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  a.b get=Var a.b{string}|scope=global|type=string|inferred=true|index=1|node=GETPROP|input=typed.js|extern=false slot=Var a.b{string}|scope=global|type=string|inferred=true|index=1|node=GETPROP|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  a.c get=null slot=null own=null hasOwn=false has=false topmost=null
+  b get=null slot=null own=null hasOwn=false has=false topmost=null
+  x get=null slot=null own=null hasOwn=false has=false topmost=null
+  u get=Var u{null}|scope=global|type=null|inferred=false|index=2|node=NAME|input=typed.js|extern=false slot=Var u{null}|scope=global|type=null|inferred=false|index=2|node=NAME|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  z get=null slot=null own=null hasOwn=false has=false topmost=null
+  w get=null slot=null own=null hasOwn=false has=false topmost=null
+  this get=Var this{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=sfldScope|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=-1|node=null|input=<non-file>|extern=true slot=Var this{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=sfldScope|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=-1|node=null|input=<non-file>|extern=true own=Var this{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=sfldScope|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=-1|node=null|input=<non-file>|extern=true hasOwn=true has=true topmost=sfldScope
+  super get=Var super{Function.prototype}|scope=sfldScope|type=Function.prototype|inferred=false|index=-1|node=null|input=<non-file>|extern=true slot=Var super{Function.prototype}|scope=sfldScope|type=Function.prototype|inferred=false|index=-1|node=null|input=<non-file>|extern=true own=Var super{Function.prototype}|scope=sfldScope|type=Function.prototype|inferred=false|index=-1|node=null|input=<non-file>|extern=true hasOwn=true has=true topmost=sfldScope
+  arguments get=Var arguments{Object}|scope=global|type=Object|inferred=false|index=3|node=NAME|input=<non-file>|extern=true slot=Var arguments{Object}|scope=global|type=Object|inferred=false|index=3|node=NAME|input=<non-file>|extern=true own=null hasOwn=false has=true topmost=global
+  exports get=null slot=null own=null hasOwn=false has=false topmost=null
+  f get=Var f{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=4|node=NAME|input=typed.js|extern=false slot=Var f{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=4|node=NAME|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  C get=Var C{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=5|node=NAME|input=typed.js|extern=false slot=Var C{function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string}|scope=global|type=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string|inferred=false|index=5|node=NAME|input=typed.js|extern=false own=null hasOwn=false has=true topmost=global
+  ns a number lookup=number
+  ns a.b null lookup=null
+  ns a.b.c null lookup=null
+  ns f function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string lookup=function(new:Date, ?=, ?=, ?=, ?=, ?=, ?=, ?=): string
+  ns nope null lookup=null
+scope bottom depth=0 parent=null bottom=true module=null this=null count=0 global=bottom
+  vars []
+  unbound []
+  args null
+  a get=null slot=null own=null hasOwn=false has=false topmost=null
+  a.b get=null slot=null own=null hasOwn=false has=false topmost=null
+  a.c get=null slot=null own=null hasOwn=false has=false topmost=null
+  b get=null slot=null own=null hasOwn=false has=false topmost=null
+  x get=null slot=null own=null hasOwn=false has=false topmost=null
+  u get=null slot=null own=null hasOwn=false has=false topmost=null
+  z get=null slot=null own=null hasOwn=false has=false topmost=null
+  w get=null slot=null own=null hasOwn=false has=false topmost=null
+  this get=null slot=null own=null hasOwn=false has=false topmost=null
+  super get=null slot=null own=null hasOwn=false has=false topmost=null
+  arguments get=null slot=null own=null hasOwn=false has=false topmost=null
+  exports get=null slot=null own=null hasOwn=false has=false topmost=null
+  f get=null slot=null own=null hasOwn=false has=false topmost=null
+  C get=null slot=null own=null hasOwn=false has=false topmost=null
+  ns a null lookup=null
+  ns a.b null lookup=null
+  ns a.b.c null lookup=null
+  ns f null lookup=null
+  ns nope null lookup=null
+validate fBlock !java.lang.IllegalStateException
+validate fBlock !java.lang.IllegalStateException
+validate global ok
+u Var u{number}|scope=global|type=number|inferred=false|index=2|node=NAME|input=typed.js|extern=false escaped=true once=false
+u once=true symbol=true decl=true
+undeclare ok
+after-undeclare Var u{number}|scope=global|type=number|inferred=false|index=2|node=NAME|input=typed.js|extern=false
+undeclare-foreign !java.lang.IllegalStateException
+bad-name-node !java.lang.IllegalArgumentException
+this-var Var this{Date}|scope=fScope|type=Date|inferred=false|index=-1|node=null|input=<non-file>|extern=true type=Date
+super-var Var super{null}|scope=mScope|type=null|inferred=false|index=-1|node=null|input=<non-file>|extern=true
+contains true false common=global
+hoist fBlock container=fScope sameContainer=true

@@ -43,14 +43,22 @@ type OptionalChainRewriter struct {
 
 // OptionalChainRewriter_TmpVarNameCreator creates unique names to be used
 // for temporary variables.
+type OptionalChainRewriter_TmpVarNameCreator interface {
+	// CreateTmpVarName creates a unique temporary variable name each time it
+	// is called.
+	//
+	// Java: OptionalChainRewriter.TmpVarNameCreator.createTmpVarName()
+	CreateTmpVarName() string
+}
+
+// OptionalChainRewriter_TmpVarNameCreatorFunc lets a func (a Java lambda or
+// method reference) be a TmpVarNameCreator.
 //
-// CreateTmpVarName (calling the func) creates a unique temporary variable
-// name each time it is called.
-//
-// Go-only: language-adapter — the single-method interface
-// (createTmpVarName()) is a func type, so that lambdas and method
-// references are plain Go funcs.
-type OptionalChainRewriter_TmpVarNameCreator func() string
+// Go-only: language-adapter
+type OptionalChainRewriter_TmpVarNameCreatorFunc func() string
+
+// CreateTmpVarName calls f.
+func (f OptionalChainRewriter_TmpVarNameCreatorFunc) CreateTmpVarName() string { return f() }
 
 // OptionalChainRewriter_Builder is OptionalChainRewriter.Builder.
 type OptionalChainRewriter_Builder struct {
@@ -368,7 +376,7 @@ func (o *OptionalChainRewriter) GetSubExprNameNode(subExpr *rhino.Node) *rhino.N
 //
 // Java: OptionalChainRewriter.declareTempVarName(Node)
 func (o *OptionalChainRewriter) DeclareTempVarName(valueNode *rhino.Node) string {
-	tempVarName := o.tmpVarNameCreator()
+	tempVarName := o.tmpVarNameCreator.CreateTmpVarName()
 	declarationStatement :=
 		o.astFactory.CreateSingleLetNameDeclaration(tempVarName).SrcrefTree(valueNode)
 	declarationStatement.GetFirstChild().SetInferredConstantVar(true)

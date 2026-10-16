@@ -816,7 +816,12 @@ public final class TypeValidatorDump {
     CompilerInput input1 = new CompilerInput(SourceFile.fromCode("first.js", ""));
     CompilerInput input2 = new CompilerInput(SourceFile.fromCode("second.js", ""));
     String[] names = {"a", "b", "c", "d", "e", "f", "g"};
-    for (int s = 0; s < names.length; s++) {
+    // The @suppress {duplicate} case (5) runs last: its outcome depends on SuppressDocWarningsGuard.
+    int[] order = {0, 1, 2, 3, 4, 6, 5};
+    for (int s : order) {
+      if (s == 5) {
+        line("suppression scenario (SuppressDocWarningsGuard)");
+      }
       String name = names[s];
       Node oldName = IR.name(name);
       Node oldDecl;
