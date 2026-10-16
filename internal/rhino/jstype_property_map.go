@@ -256,6 +256,46 @@ func (k *PropertyMap_AllKeys) StringKeys() []string { return k.stringKeys }
 // Java: PropertyMap.AllKeys.knownSymbolKeys()
 func (k *PropertyMap_AllKeys) KnownSymbolKeys() []*KnownSymbolType { return k.knownSymbolKeys }
 
+// Equals is the record's component-wise equality; both components are
+// sets.
+//
+// Java: PropertyMap.AllKeys.equals(Object)
+func (k *PropertyMap_AllKeys) Equals(o any) bool {
+	other, ok := o.(*PropertyMap_AllKeys)
+	if !ok || other == nil {
+		return false
+	}
+	return propertyMap_setsEqual(k.stringKeys, other.stringKeys) &&
+		propertyMap_setsEqual(k.knownSymbolKeys, other.knownSymbolKeys)
+}
+
+// HashCode is the record's hash of its components.
+//
+// Java: PropertyMap.AllKeys.hashCode()
+func (k *PropertyMap_AllKeys) HashCode() int32 {
+	return 31*jutil.SetHashCode(k.stringKeys) + jutil.SetHashCode(k.knownSymbolKeys)
+}
+
+// propertyMap_setsEqual is Set.equals for two duplicate-free slices.
+func propertyMap_setsEqual[T any](a, b []T) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for _, x := range a {
+		found := false
+		for _, y := range b {
+			if jutil.ObjectsEquals(x, y) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
 // Java: PropertyMap.CollectAllAncestors(LinkedHashSet<PropertyMap>)
 func (m *PropertyMap) CollectAllAncestors(ancestors *jutil.LinkedHashSet[*PropertyMap]) {
 	if !ancestors.Add(m) {
