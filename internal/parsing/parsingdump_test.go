@@ -157,6 +157,10 @@ func dumpTree(line func(string), n *rhino.Node, level int) {
 	if info := n.GetJSDocInfo(); info != nil {
 		line(indent + "  @jsdoc " + info.ToStringVerbose())
 	}
+	if shadow := n.GetClosureUnawareShadow(); shadow != nil {
+		line(indent + "  @shadow")
+		dumpTree(line, shadow, level+1)
+	}
 	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
 		dumpTree(line, c, level+1)
 	}
