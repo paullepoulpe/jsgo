@@ -1,0 +1,1 @@
+function f() {} if (1) { function f(){} function f(){} }

@@ -1,0 +1,1 @@
+function f(a$jscomp$1, b$jscomp$2) {}

@@ -1,0 +1,1 @@
+throw bar() && foo();

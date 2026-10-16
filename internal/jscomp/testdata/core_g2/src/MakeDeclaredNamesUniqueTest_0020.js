@@ -1,0 +1,1 @@
+var a;function foo(a$jscomp$1){var b;a$jscomp$1}
