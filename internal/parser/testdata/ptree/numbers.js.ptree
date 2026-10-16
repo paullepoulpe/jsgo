@@ -1,0 +1,177 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+ERROR 1:15@103 "Hex Integer Literal must contain at least one digit"
+ERROR 3:30@209 "',' expected"
+# features "[bigint, numeric separator]"
+# sourceMapURL null
+# comments
+[]
+# tree
+ProgramTree PROGRAM 0:0@0-7:0@273
+ sourceComments=[]
+ sourceElements=[4]
+  VariableStatementTree VARIABLE_STATEMENT 0:0@0-3:34@213
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 0:0@0-3:33@212
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 0:4@4-3:33@212
+      initializer=ArrayLiteralExpressionTree ARRAY_LITERAL_EXPRESSION 0:8@8-3:33@212
+       elements=[33]
+        LiteralExpressionTree LITERAL_EXPRESSION 0:9@9-0:10@10
+         literalToken=LiteralToken NUMBER 0:9@9-0:10@10
+          value="0"
+        LiteralExpressionTree LITERAL_EXPRESSION 0:12@12-0:13@13
+         literalToken=LiteralToken NUMBER 0:12@12-0:13@13
+          value="1"
+        LiteralExpressionTree LITERAL_EXPRESSION 0:15@15-0:18@18
+         literalToken=LiteralToken NUMBER 0:15@15-0:18@18
+          value="123"
+        LiteralExpressionTree LITERAL_EXPRESSION 0:20@20-0:23@23
+         literalToken=LiteralToken NUMBER 0:20@20-0:23@23
+          value="1.5"
+        LiteralExpressionTree LITERAL_EXPRESSION 0:25@25-0:27@27
+         literalToken=LiteralToken NUMBER 0:25@25-0:27@27
+          value=".5"
+        LiteralExpressionTree LITERAL_EXPRESSION 0:29@29-0:31@31
+         literalToken=LiteralToken NUMBER 0:29@29-0:31@31
+          value="5."
+        LiteralExpressionTree LITERAL_EXPRESSION 0:33@33-0:37@37
+         literalToken=LiteralToken NUMBER 0:33@33-0:37@37
+          value="1e10"
+        LiteralExpressionTree LITERAL_EXPRESSION 0:39@39-0:43@43
+         literalToken=LiteralToken NUMBER 0:39@39-0:43@43
+          value="1E-5"
+        LiteralExpressionTree LITERAL_EXPRESSION 0:45@45-0:51@51
+         literalToken=LiteralToken NUMBER 0:45@45-0:51@51
+          value="1.5e+3"
+        LiteralExpressionTree LITERAL_EXPRESSION 0:53@53-0:57@57
+         literalToken=LiteralToken NUMBER 0:53@53-0:57@57
+          value="0x1F"
+        LiteralExpressionTree LITERAL_EXPRESSION 0:59@59-0:63@63
+         literalToken=LiteralToken NUMBER 0:59@59-0:63@63
+          value="0XaB"
+        LiteralExpressionTree LITERAL_EXPRESSION 0:65@65-0:69@69
+         literalToken=LiteralToken NUMBER 0:65@65-0:69@69
+          value="0o17"
+        LiteralExpressionTree LITERAL_EXPRESSION 0:71@71-0:74@74
+         literalToken=LiteralToken NUMBER 0:71@71-0:74@74
+          value="0O7"
+        LiteralExpressionTree LITERAL_EXPRESSION 0:76@76-0:81@81
+         literalToken=LiteralToken NUMBER 0:76@76-0:81@81
+          value="0b101"
+        LiteralExpressionTree LITERAL_EXPRESSION 0:83@83-0:86@86
+         literalToken=LiteralToken NUMBER 0:83@83-0:86@86
+          value="0B1"
+        LiteralExpressionTree LITERAL_EXPRESSION 1:2@90-1:11@99
+         literalToken=LiteralToken NUMBER 1:2@90-1:11@99
+          value="1_000_000"
+        LiteralExpressionTree LITERAL_EXPRESSION 1:13@101-1:17@105
+         literalToken=LiteralToken NUMBER 1:13@101-1:17@105
+          value="0x_1"
+        LiteralExpressionTree LITERAL_EXPRESSION 1:19@107-1:26@114
+         literalToken=LiteralToken NUMBER 1:19@107-1:26@114
+          value="0xFF_FF"
+        LiteralExpressionTree LITERAL_EXPRESSION 1:28@116-1:33@121
+         literalToken=LiteralToken NUMBER 1:28@116-1:33@121
+          value="0b1_0"
+        LiteralExpressionTree LITERAL_EXPRESSION 1:35@123-1:40@128
+         literalToken=LiteralToken NUMBER 1:35@123-1:40@128
+          value="0o7_7"
+        LiteralExpressionTree LITERAL_EXPRESSION 1:42@130-1:53@141
+         literalToken=LiteralToken NUMBER 1:42@130-1:53@141
+          value="1_0.0_1e1_0"
+        LiteralExpressionTree LITERAL_EXPRESSION 2:2@145-2:5@148
+         literalToken=LiteralToken BIGINT 2:2@145-2:5@148
+          value="10n"
+        LiteralExpressionTree LITERAL_EXPRESSION 2:7@150-2:9@152
+         literalToken=LiteralToken BIGINT 2:7@150-2:9@152
+          value="0n"
+        LiteralExpressionTree LITERAL_EXPRESSION 2:11@154-2:16@159
+         literalToken=LiteralToken BIGINT 2:11@154-2:16@159
+          value="0x1Fn"
+        LiteralExpressionTree LITERAL_EXPRESSION 2:18@161-2:22@165
+         literalToken=LiteralToken BIGINT 2:18@161-2:22@165
+          value="0o7n"
+        LiteralExpressionTree LITERAL_EXPRESSION 2:24@167-2:28@171
+         literalToken=LiteralToken BIGINT 2:24@167-2:28@171
+          value="0b1n"
+        LiteralExpressionTree LITERAL_EXPRESSION 2:30@173-2:34@177
+         literalToken=LiteralToken BIGINT 2:30@173-2:34@177
+          value="1_0n"
+        LiteralExpressionTree LITERAL_EXPRESSION 3:2@181-3:6@185
+         literalToken=LiteralToken NUMBER 3:2@181-3:6@185
+          value="0777"
+        LiteralExpressionTree LITERAL_EXPRESSION 3:8@187-3:10@189
+         literalToken=LiteralToken NUMBER 3:8@187-3:10@189
+          value="08"
+        LiteralExpressionTree LITERAL_EXPRESSION 3:12@191-3:16@195
+         literalToken=LiteralToken NUMBER 3:12@191-3:16@195
+          value="09.5"
+        LiteralExpressionTree LITERAL_EXPRESSION 3:18@197-3:20@199
+         literalToken=LiteralToken NUMBER 3:18@197-3:20@199
+          value="00"
+        LiteralExpressionTree LITERAL_EXPRESSION 3:22@201-3:25@204
+         literalToken=LiteralToken NUMBER 3:22@201-3:25@204
+          value="0.0"
+        LiteralExpressionTree LITERAL_EXPRESSION 3:27@206-3:30@209
+         literalToken=LiteralToken NUMBER 3:27@206-3:30@209
+          value="012"
+       hasTrailingComma=false
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:4@4-0:5@5
+       identifierToken=IdentifierToken IDENTIFIER 0:4@4-0:5@5
+        privateIdentifier=false
+        value="n"
+  VariableStatementTree VARIABLE_STATEMENT 4:0@214-4:22@236
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 4:0@214-4:21@235
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 4:4@218-4:21@235
+      initializer=CallExpressionTree CALL_EXPRESSION 4:8@222-4:21@235
+       arguments=ArgumentListTree ARGUMENT_LIST 4:19@233-4:21@235
+        arguments=[]
+        commaPositions=[]
+        hasTrailingComma=false
+       operand=MemberExpressionTree MEMBER_EXPRESSION 4:8@222-4:19@233
+        memberName=IdentifierToken IDENTIFIER 4:11@225-4:19@233
+         privateIdentifier=false
+         value="toString"
+        operand=LiteralExpressionTree LITERAL_EXPRESSION 4:8@222-4:10@224
+         literalToken=LiteralToken NUMBER 4:8@222-4:10@224
+          value="1."
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 4:4@218-4:5@219
+       identifierToken=IdentifierToken IDENTIFIER 4:4@218-4:5@219
+        privateIdentifier=false
+        value="m"
+  VariableStatementTree VARIABLE_STATEMENT 5:0@237-5:22@259
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 5:0@237-5:21@258
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 5:4@241-5:21@258
+      initializer=CallExpressionTree CALL_EXPRESSION 5:8@245-5:21@258
+       arguments=ArgumentListTree ARGUMENT_LIST 5:19@256-5:21@258
+        arguments=[]
+        commaPositions=[]
+        hasTrailingComma=false
+       operand=MemberExpressionTree MEMBER_EXPRESSION 5:8@245-5:19@256
+        memberName=IdentifierToken IDENTIFIER 5:11@248-5:19@256
+         privateIdentifier=false
+         value="toString"
+        operand=LiteralExpressionTree LITERAL_EXPRESSION 5:8@245-5:9@246
+         literalToken=LiteralToken NUMBER 5:8@245-5:9@246
+          value="1"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 5:4@241-5:5@242
+       identifierToken=IdentifierToken IDENTIFIER 5:4@241-5:5@242
+        privateIdentifier=false
+        value="k"
+  VariableStatementTree VARIABLE_STATEMENT 6:0@260-6:12@272
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 6:0@260-6:11@271
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 6:4@264-6:11@271
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 6:8@268-6:11@271
+       literalToken=LiteralToken NUMBER 6:8@268-6:11@271
+        value="0x\u0663"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 6:4@264-6:5@265
+       identifierToken=IdentifierToken IDENTIFIER 6:4@264-6:5@265
+        privateIdentifier=false
+        value="j"

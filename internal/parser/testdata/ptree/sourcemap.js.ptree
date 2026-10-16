@@ -1,0 +1,38 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+# features "[]"
+# sourceMapURL "second.map"
+# comments
+[2]
+ Comment
+  location=1:0@11-1:70@81
+  type=LINE
+  value="//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozfQ=="
+ Comment
+  location=2:0@82-2:31@113
+  type=LINE
+  value="//# sourceMappingURL=second.map"
+# tree
+ProgramTree PROGRAM 0:0@0-3:0@114
+ sourceComments=[2]
+  Comment
+   location=1:0@11-1:70@81
+   type=LINE
+   value="//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozfQ=="
+  Comment
+   location=2:0@82-2:31@113
+   type=LINE
+   value="//# sourceMappingURL=second.map"
+ sourceElements=[1]
+  VariableStatementTree VARIABLE_STATEMENT 0:0@0-0:10@10
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 0:0@0-0:9@9
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 0:4@4-0:9@9
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 0:8@8-0:9@9
+       literalToken=LiteralToken NUMBER 0:8@8-0:9@9
+        value="1"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:4@4-0:5@5
+       identifierToken=IdentifierToken IDENTIFIER 0:4@4-0:5@5
+        privateIdentifier=false
+        value="a"

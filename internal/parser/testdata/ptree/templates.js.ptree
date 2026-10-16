@@ -1,0 +1,396 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+WARNING 8:12@237 "Unnecessary escape: \"\\'\" is equivalent to just \"'\""
+WARNING 9:12@252 "Unnecessary escape: '\\a' is equivalent to just 'a'"
+# features "[]"
+# sourceMapURL null
+# comments
+[]
+# tree
+ProgramTree PROGRAM 0:0@0-17:0@440
+ sourceComments=[]
+ sourceElements=[15]
+  VariableStatementTree VARIABLE_STATEMENT 0:0@0-0:17@17
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 0:0@0-0:16@16
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 0:4@4-0:16@16
+      initializer=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 0:10@10-0:16@16
+       elements=[1]
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 0:10@10-0:16@16
+         value=TemplateLiteralToken NO_SUBSTITUTION_TEMPLATE 0:10@10-0:16@16
+          errorLevel=null
+          errorMessage=null
+          errorPosition=0:10@10
+          value="plain"
+       operand=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:4@4-0:6@6
+       identifierToken=IdentifierToken IDENTIFIER 0:4@4-0:6@6
+        privateIdentifier=false
+        value="t1"
+  VariableStatementTree VARIABLE_STATEMENT 1:0@18-1:23@41
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 1:0@18-1:22@40
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 1:4@22-1:22@40
+      initializer=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 1:10@28-1:22@40
+       elements=[5]
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 1:10@28-1:13@31
+         value=TemplateLiteralToken TEMPLATE_HEAD 1:10@28-1:13@31
+          errorLevel=null
+          errorMessage=null
+          errorPosition=1:10@28
+          value="a"
+        TemplateSubstitutionTree TEMPLATE_SUBSTITUTION 1:13@31-1:14@32
+         expression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:13@31-1:14@32
+          identifierToken=IdentifierToken IDENTIFIER 1:13@31-1:14@32
+           privateIdentifier=false
+           value="b"
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 1:15@33-1:18@36
+         value=TemplateLiteralToken TEMPLATE_MIDDLE 1:15@33-1:18@36
+          errorLevel=null
+          errorMessage=null
+          errorPosition=1:15@33
+          value="c"
+        TemplateSubstitutionTree TEMPLATE_SUBSTITUTION 1:18@36-1:19@37
+         expression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:18@36-1:19@37
+          identifierToken=IdentifierToken IDENTIFIER 1:18@36-1:19@37
+           privateIdentifier=false
+           value="d"
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 1:20@38-1:22@40
+         value=TemplateLiteralToken TEMPLATE_TAIL 1:20@38-1:22@40
+          errorLevel=null
+          errorMessage=null
+          errorPosition=1:20@38
+          value="e"
+       operand=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:4@22-1:6@24
+       identifierToken=IdentifierToken IDENTIFIER 1:4@22-1:6@24
+        privateIdentifier=false
+        value="t2"
+  VariableStatementTree VARIABLE_STATEMENT 2:0@42-2:40@82
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 2:0@42-2:39@81
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 2:4@46-2:39@81
+      initializer=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 2:10@52-2:39@81
+       elements=[3]
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 2:10@52-2:19@61
+         value=TemplateLiteralToken TEMPLATE_HEAD 2:10@52-2:19@61
+          errorLevel=null
+          errorMessage=null
+          errorPosition=2:10@52
+          value="nested "
+        TemplateSubstitutionTree TEMPLATE_SUBSTITUTION 2:20@62-2:31@73
+         expression=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 2:20@62-2:31@73
+          elements=[3]
+           TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 2:20@62-2:28@70
+            value=TemplateLiteralToken TEMPLATE_HEAD 2:20@62-2:28@70
+             errorLevel=null
+             errorMessage=null
+             errorPosition=2:20@62
+             value="inner "
+           TemplateSubstitutionTree TEMPLATE_SUBSTITUTION 2:28@70-2:29@71
+            expression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:28@70-2:29@71
+             identifierToken=IdentifierToken IDENTIFIER 2:28@70-2:29@71
+              privateIdentifier=false
+              value="x"
+           TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 2:30@72-2:31@73
+            value=TemplateLiteralToken TEMPLATE_TAIL 2:30@72-2:31@73
+             errorLevel=null
+             errorMessage=null
+             errorPosition=2:30@72
+             value=""
+          operand=null
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 2:32@74-2:39@81
+         value=TemplateLiteralToken TEMPLATE_TAIL 2:32@74-2:39@81
+          errorLevel=null
+          errorMessage=null
+          errorPosition=2:32@74
+          value=" outer"
+       operand=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:4@46-2:6@48
+       identifierToken=IdentifierToken IDENTIFIER 2:4@46-2:6@48
+        privateIdentifier=false
+        value="t3"
+  VariableStatementTree VARIABLE_STATEMENT 3:0@83-3:44@127
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 3:0@83-3:43@126
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 3:4@87-3:43@126
+      initializer=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 3:9@92-3:43@126
+       elements=[3]
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 3:13@96-3:19@102
+         value=TemplateLiteralToken TEMPLATE_HEAD 3:13@96-3:19@102
+          errorLevel=null
+          errorMessage=null
+          errorPosition=3:13@96
+          value="raw "
+        TemplateSubstitutionTree TEMPLATE_SUBSTITUTION 3:19@102-3:20@103
+         expression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:19@102-3:20@103
+          identifierToken=IdentifierToken IDENTIFIER 3:19@102-3:20@103
+           privateIdentifier=false
+           value="x"
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 3:21@104-3:43@126
+         value=TemplateLiteralToken TEMPLATE_TAIL 3:21@104-3:43@126
+          errorLevel=ERROR
+          errorMessage="Hex digit expected"
+          errorPosition=3:24@107
+          value=" \\unicode and \\xerror"
+       operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:9@92-3:12@95
+        identifierToken=IdentifierToken IDENTIFIER 3:9@92-3:12@95
+         privateIdentifier=false
+         value="tag"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:4@87-3:6@89
+       identifierToken=IdentifierToken IDENTIFIER 3:4@87-3:6@89
+        privateIdentifier=false
+        value="t4"
+  VariableStatementTree VARIABLE_STATEMENT 4:0@128-4:59@187
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 4:0@128-4:58@186
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 4:4@132-4:58@186
+      initializer=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 4:10@138-4:58@186
+       elements=[1]
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 4:10@138-4:58@186
+         value=TemplateLiteralToken NO_SUBSTITUTION_TEMPLATE 4:10@138-4:58@186
+          errorLevel=null
+          errorMessage=null
+          errorPosition=4:10@138
+          value="escapes \\n \\t \\\\ \\` \\$ \\u0041 \\u{1F600} \\x41 \\0"
+       operand=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 4:4@132-4:6@134
+       identifierToken=IdentifierToken IDENTIFIER 4:4@132-4:6@134
+        privateIdentifier=false
+        value="t5"
+  VariableStatementTree VARIABLE_STATEMENT 5:0@188-7:6@224
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 5:0@188-7:5@223
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 5:4@192-7:5@223
+      initializer=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 5:10@198-7:5@223
+       elements=[1]
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 5:10@198-7:5@223
+         value=TemplateLiteralToken NO_SUBSTITUTION_TEMPLATE 5:10@198-7:5@223
+          errorLevel=null
+          errorMessage=null
+          errorPosition=5:10@198
+          value="line\u000Acontinuation \\\u000Adone"
+       operand=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 5:4@192-5:6@194
+       identifierToken=IdentifierToken IDENTIFIER 5:4@192-5:6@194
+        privateIdentifier=false
+        value="t6"
+  VariableStatementTree VARIABLE_STATEMENT 8:0@225-8:14@239
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 8:0@225-8:13@238
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 8:4@229-8:13@238
+      initializer=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 8:10@235-8:13@238
+       elements=[1]
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 8:10@235-8:13@238
+         value=TemplateLiteralToken NO_SUBSTITUTION_TEMPLATE 8:10@235-8:13@238
+          errorLevel=WARNING
+          errorMessage="Unnecessary escape: \"\\'\" is equivalent to just \"'\""
+          errorPosition=8:12@237
+          value="\\'"
+       operand=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 8:4@229-8:6@231
+       identifierToken=IdentifierToken IDENTIFIER 8:4@229-8:6@231
+        privateIdentifier=false
+        value="t7"
+  VariableStatementTree VARIABLE_STATEMENT 9:0@240-9:14@254
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 9:0@240-9:13@253
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 9:4@244-9:13@253
+      initializer=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 9:10@250-9:13@253
+       elements=[1]
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 9:10@250-9:13@253
+         value=TemplateLiteralToken NO_SUBSTITUTION_TEMPLATE 9:10@250-9:13@253
+          errorLevel=WARNING
+          errorMessage="Unnecessary escape: '\\a' is equivalent to just 'a'"
+          errorPosition=9:12@252
+          value="\\a"
+       operand=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 9:4@244-9:6@246
+       identifierToken=IdentifierToken IDENTIFIER 9:4@244-9:6@246
+        privateIdentifier=false
+        value="t8"
+  VariableStatementTree VARIABLE_STATEMENT 10:0@255-10:25@280
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 10:0@255-10:24@279
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 10:4@259-10:24@279
+      initializer=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 10:9@264-10:24@279
+       elements=[1]
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 10:13@268-10:24@279
+         value=TemplateLiteralToken NO_SUBSTITUTION_TEMPLATE 10:13@268-10:24@279
+          errorLevel=null
+          errorMessage=null
+          errorPosition=10:13@268
+          value="member tag"
+       operand=MemberExpressionTree MEMBER_EXPRESSION 10:9@264-10:12@267
+        memberName=IdentifierToken IDENTIFIER 10:11@266-10:12@267
+         privateIdentifier=false
+         value="b"
+        operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 10:9@264-10:10@265
+         identifierToken=IdentifierToken IDENTIFIER 10:9@264-10:10@265
+          privateIdentifier=false
+          value="a"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 10:4@259-10:6@261
+       identifierToken=IdentifierToken IDENTIFIER 10:4@259-10:6@261
+        privateIdentifier=false
+        value="t9"
+  VariableStatementTree VARIABLE_STATEMENT 11:0@281-11:24@305
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 11:0@281-11:23@304
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 11:4@285-11:23@304
+      initializer=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 11:10@291-11:23@304
+       elements=[1]
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 11:14@295-11:23@304
+         value=TemplateLiteralToken NO_SUBSTITUTION_TEMPLATE 11:14@295-11:23@304
+          errorLevel=null
+          errorMessage=null
+          errorPosition=11:14@295
+          value="call tag"
+       operand=CallExpressionTree CALL_EXPRESSION 11:10@291-11:13@294
+        arguments=ArgumentListTree ARGUMENT_LIST 11:11@292-11:13@294
+         arguments=[]
+         commaPositions=[]
+         hasTrailingComma=false
+        operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 11:10@291-11:11@292
+         identifierToken=IdentifierToken IDENTIFIER 11:10@291-11:11@292
+          privateIdentifier=false
+          value="f"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 11:4@285-11:7@288
+       identifierToken=IdentifierToken IDENTIFIER 11:4@285-11:7@288
+        privateIdentifier=false
+        value="t10"
+  VariableStatementTree VARIABLE_STATEMENT 12:0@306-12:21@327
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 12:0@306-12:20@326
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 12:4@310-12:20@326
+      initializer=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 12:11@317-12:20@326
+       elements=[5]
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 12:11@317-12:13@319
+         value=TemplateLiteralToken TEMPLATE_HEAD 12:11@317-12:13@319
+          errorLevel=null
+          errorMessage=null
+          errorPosition=12:11@317
+          value=""
+        TemplateSubstitutionTree TEMPLATE_SUBSTITUTION 12:13@319-12:14@320
+         expression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 12:13@319-12:14@320
+          identifierToken=IdentifierToken IDENTIFIER 12:13@319-12:14@320
+           privateIdentifier=false
+           value="a"
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 12:15@321-12:17@323
+         value=TemplateLiteralToken TEMPLATE_MIDDLE 12:15@321-12:17@323
+          errorLevel=null
+          errorMessage=null
+          errorPosition=12:15@321
+          value=""
+        TemplateSubstitutionTree TEMPLATE_SUBSTITUTION 12:17@323-12:18@324
+         expression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 12:17@323-12:18@324
+          identifierToken=IdentifierToken IDENTIFIER 12:17@323-12:18@324
+           privateIdentifier=false
+           value="b"
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 12:19@325-12:20@326
+         value=TemplateLiteralToken TEMPLATE_TAIL 12:19@325-12:20@326
+          errorLevel=null
+          errorMessage=null
+          errorPosition=12:19@325
+          value=""
+       operand=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 12:4@310-12:7@313
+       identifierToken=IdentifierToken IDENTIFIER 12:4@310-12:7@313
+        privateIdentifier=false
+        value="t11"
+  VariableStatementTree VARIABLE_STATEMENT 13:0@328-13:13@341
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 13:0@328-13:12@340
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 13:4@332-13:12@340
+      initializer=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 13:11@339-13:12@340
+       elements=[1]
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 13:11@339-13:12@340
+         value=TemplateLiteralToken NO_SUBSTITUTION_TEMPLATE 13:11@339-13:12@340
+          errorLevel=null
+          errorMessage=null
+          errorPosition=13:11@339
+          value=""
+       operand=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 13:4@332-13:7@335
+       identifierToken=IdentifierToken IDENTIFIER 13:4@332-13:7@335
+        privateIdentifier=false
+        value="t12"
+  VariableStatementTree VARIABLE_STATEMENT 14:0@342-14:29@371
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 14:0@342-14:28@370
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 14:4@346-14:28@370
+      initializer=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 14:11@353-14:28@370
+       elements=[3]
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 14:11@353-14:21@363
+         value=TemplateLiteralToken TEMPLATE_HEAD 14:11@353-14:21@363
+          errorLevel=null
+          errorMessage=null
+          errorPosition=14:11@353
+          value="$notsub "
+        TemplateSubstitutionTree TEMPLATE_SUBSTITUTION 14:21@363-14:24@366
+         expression=LiteralExpressionTree LITERAL_EXPRESSION 14:21@363-14:24@366
+          literalToken=StringLiteralToken STRING 14:21@363-14:24@366
+           hasUnescapedUnicodeLineOrParagraphSeparator=false
+           value="'$'"
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 14:25@367-14:28@370
+         value=TemplateLiteralToken TEMPLATE_TAIL 14:25@367-14:28@370
+          errorLevel=null
+          errorMessage=null
+          errorPosition=14:25@367
+          value=" $"
+       operand=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 14:4@346-14:7@349
+       identifierToken=IdentifierToken IDENTIFIER 14:4@346-14:7@349
+        privateIdentifier=false
+        value="t13"
+  VariableStatementTree VARIABLE_STATEMENT 15:0@372-15:31@403
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 15:0@372-15:30@402
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 15:4@376-15:30@402
+      initializer=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 15:10@382-15:30@402
+       elements=[1]
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 15:14@386-15:30@402
+         value=TemplateLiteralToken NO_SUBSTITUTION_TEMPLATE 15:14@386-15:30@402
+          errorLevel=ERROR
+          errorMessage="Empty unicode escape"
+          errorPosition=15:17@389
+          value="\\u{} \\xz \\01 \\1"
+       operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 15:10@382-15:13@385
+        identifierToken=IdentifierToken IDENTIFIER 15:10@382-15:13@385
+         privateIdentifier=false
+         value="tag"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 15:4@376-15:7@379
+       identifierToken=IdentifierToken IDENTIFIER 15:4@376-15:7@379
+        privateIdentifier=false
+        value="t14"
+  VariableStatementTree VARIABLE_STATEMENT 16:0@404-16:35@439
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 16:0@404-16:34@438
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 16:4@408-16:34@438
+      initializer=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 16:11@415-16:34@438
+       elements=[1]
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 16:11@415-16:34@438
+         value=TemplateLiteralToken NO_SUBSTITUTION_TEMPLATE 16:11@415-16:34@438
+          errorLevel=null
+          errorMessage=null
+          errorPosition=16:11@415
+          value="\\u{110000} \\u{0000041}"
+       operand=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 16:4@408-16:7@411
+       identifierToken=IdentifierToken IDENTIFIER 16:4@408-16:7@411
+        privateIdentifier=false
+        value="t15"

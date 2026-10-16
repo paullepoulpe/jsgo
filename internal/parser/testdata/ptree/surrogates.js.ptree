@@ -1,0 +1,137 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+ERROR 3:4@92 "Character '\uD835' (U+D835) is not a valid identifier start char"
+ERROR 3:4@92 "'identifier' expected"
+ERROR 3:4@92 "Semi-colon expected"
+ERROR 3:5@93 "primary expression expected"
+ERROR 3:5@93 "Character '\uDC65' (U+DC65) is not a valid identifier start char"
+ERROR 3:5@93 "Semi-colon expected"
+ERROR 3:6@94 "primary expression expected"
+ERROR 3:7@95 "invalid assignment target"
+ERROR 3:7@95 "Semi-colon expected"
+ERROR 3:8@96 "primary expression expected"
+ERROR 3:9@97 "Semi-colon expected"
+ERROR 4:15@115 "primary expression expected"
+ERROR 4:15@115 "Character '\uD83D' (U+D83D) is not a valid identifier start char"
+ERROR 4:15@115 "Semi-colon expected"
+ERROR 4:16@116 "primary expression expected"
+ERROR 4:16@116 "Character '\uDE00' (U+DE00) is not a valid identifier start char"
+ERROR 4:16@116 "Semi-colon expected"
+ERROR 4:17@117 "primary expression expected"
+ERROR 4:18@118 "Unterminated template literal"
+# features "[]"
+# sourceMapURL null
+# comments
+[2]
+ Comment
+  location=1:0@18-1:34@52
+  type=LINE
+  value="// comment with emoji \uD83D\uDE00 then code"
+ Comment
+  location=2:15@68-2:23@76
+  type=BLOCK
+  value="/* \uD83D\uDCA9 */"
+# tree
+ProgramTree PROGRAM 0:0@0-6:0@135
+ sourceComments=[2]
+  Comment
+   location=1:0@18-1:34@52
+   type=LINE
+   value="// comment with emoji \uD83D\uDE00 then code"
+  Comment
+   location=2:15@68-2:23@76
+   type=BLOCK
+   value="/* \uD83D\uDCA9 */"
+ sourceElements=[12]
+  VariableStatementTree VARIABLE_STATEMENT 0:0@0-0:17@17
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 0:0@0-0:16@16
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 0:4@4-0:16@16
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 0:12@12-0:16@16
+       literalToken=StringLiteralToken STRING 0:12@12-0:16@16
+        hasUnescapedUnicodeLineOrParagraphSeparator=false
+        value="\"\uD83D\uDE00\""
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:4@4-0:9@9
+       identifierToken=IdentifierToken IDENTIFIER 0:4@4-0:9@9
+        privateIdentifier=false
+        value="emoji"
+  VariableStatementTree VARIABLE_STATEMENT 2:0@53-2:14@67
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 2:0@53-2:13@66
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 2:4@57-2:13@66
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 2:12@65-2:13@66
+       literalToken=LiteralToken NUMBER 2:12@65-2:13@66
+        value="1"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:4@57-2:9@62
+       identifierToken=IdentifierToken IDENTIFIER 2:4@57-2:9@62
+        privateIdentifier=false
+        value="after"
+  VariableStatementTree VARIABLE_STATEMENT 2:24@77-2:34@87
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 2:24@77-2:33@86
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 2:28@81-2:33@86
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 2:32@85-2:33@86
+       literalToken=LiteralToken NUMBER 2:32@85-2:33@86
+        value="2"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:28@81-2:29@82
+       identifierToken=IdentifierToken IDENTIFIER 2:28@81-2:29@82
+        privateIdentifier=false
+        value="z"
+  VariableStatementTree VARIABLE_STATEMENT 3:0@88-3:3@91
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 3:0@88-3:3@91
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 3:4@92-3:3@91
+      initializer=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:4@92-3:3@91
+       identifierToken=null
+  ExpressionStatementTree EXPRESSION_STATEMENT 3:4@92-3:5@93
+   expression=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 3:4@92-3:5@93
+  ExpressionStatementTree EXPRESSION_STATEMENT 3:5@93-3:6@94
+   expression=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 3:7@95-3:6@94
+  ExpressionStatementTree EXPRESSION_STATEMENT 3:7@95-3:8@96
+   expression=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 3:7@95-3:8@96
+  ExpressionStatementTree EXPRESSION_STATEMENT 3:9@97-3:11@99
+   expression=LiteralExpressionTree LITERAL_EXPRESSION 3:9@97-3:10@98
+    literalToken=LiteralToken NUMBER 3:9@97-3:10@98
+     value="3"
+  VariableStatementTree VARIABLE_STATEMENT 4:0@100-4:14@114
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 4:0@100-4:14@114
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 4:4@104-4:14@114
+      initializer=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 4:9@109-4:14@114
+       elements=[2]
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 4:9@109-4:13@113
+         value=TemplateLiteralToken TEMPLATE_HEAD 4:9@109-4:13@113
+          errorLevel=null
+          errorMessage=null
+          errorPosition=4:9@109
+          value="\uD83D\uDE00"
+        TemplateSubstitutionTree TEMPLATE_SUBSTITUTION 4:13@113-4:14@114
+         expression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 4:13@113-4:14@114
+          identifierToken=IdentifierToken IDENTIFIER 4:13@113-4:14@114
+           privateIdentifier=false
+           value="a"
+       operand=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 4:4@104-4:5@105
+       identifierToken=IdentifierToken IDENTIFIER 4:4@104-4:5@105
+        privateIdentifier=false
+        value="t"
+  ExpressionStatementTree EXPRESSION_STATEMENT 4:14@114-4:15@115
+   expression=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 4:14@114-4:15@115
+  ExpressionStatementTree EXPRESSION_STATEMENT 4:15@115-4:16@116
+   expression=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 4:15@115-4:16@116
+  ExpressionStatementTree EXPRESSION_STATEMENT 4:16@116-6:0@135
+   expression=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 4:16@116-6:0@135
+    elements=[1]
+     TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 4:18@118-6:0@135
+      value=TemplateLiteralToken NO_SUBSTITUTION_TEMPLATE 4:18@118-6:0@135
+       errorLevel=null
+       errorMessage=null
+       errorPosition=4:18@118
+       value=";\u000Avar r = /\uD83D\uDE00/u;\u000A"
+    operand=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 4:16@116-4:17@117

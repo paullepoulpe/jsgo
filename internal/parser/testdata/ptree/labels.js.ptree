@@ -1,0 +1,102 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+ERROR 8:5@151 "primary expression expected"
+ERROR 8:5@151 "Semi-colon expected"
+ERROR 8:6@152 "primary expression expected"
+ERROR 8:7@153 "Semi-colon expected"
+# features "[]"
+# sourceMapURL null
+# comments
+[]
+# tree
+ProgramTree PROGRAM 0:0@0-9:0@156
+ sourceComments=[]
+ sourceElements=[6]
+  LabelledStatementTree LABELLED_STATEMENT 0:0@0-0:6@6
+   name=IdentifierToken IDENTIFIER 0:0@0-0:5@5
+    privateIdentifier=false
+    value="outer"
+   statement=ForStatementTree FOR_STATEMENT 0:7@7-5:1@110
+    body=BlockTree BLOCK 0:35@35-5:1@110
+     statements=[1]
+      LabelledStatementTree LABELLED_STATEMENT 1:2@39-1:8@45
+       name=IdentifierToken IDENTIFIER 1:2@39-1:7@44
+        privateIdentifier=false
+        value="inner"
+       statement=WhileStatementTree WHILE_STATEMENT 1:9@46-4:3@108
+        body=BlockTree BLOCK 1:22@59-4:3@108
+         statements=[2]
+          IfStatementTree IF_STATEMENT 2:4@65-2:26@87
+           condition=IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:8@69-2:9@70
+            identifierToken=IdentifierToken IDENTIFIER 2:8@69-2:9@70
+             privateIdentifier=false
+             value="i"
+           elseClause=null
+           ifClause=ContinueStatementTree CONTINUE_STATEMENT 2:11@72-2:26@87
+            name=IdentifierToken IDENTIFIER 2:20@81-2:25@86
+             privateIdentifier=false
+             value="outer"
+          BreakStatementTree BREAK_STATEMENT 3:4@92-3:16@104
+           name=IdentifierToken IDENTIFIER 3:10@98-3:15@103
+            privateIdentifier=false
+            value="inner"
+        condition=LiteralExpressionTree LITERAL_EXPRESSION 1:16@53-1:20@57
+         literalToken=Token TRUE 1:16@53-1:20@57
+    condition=BinaryOperatorTree BINARY_OPERATOR 0:23@23-0:28@28
+     left=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:23@23-0:24@24
+      identifierToken=IdentifierToken IDENTIFIER 0:23@23-0:24@24
+       privateIdentifier=false
+       value="i"
+     operator=Token OPEN_ANGLE 0:25@25-0:26@26
+     right=LiteralExpressionTree LITERAL_EXPRESSION 0:27@27-0:28@28
+      literalToken=LiteralToken NUMBER 0:27@27-0:28@28
+       value="1"
+    increment=UpdateExpressionTree UPDATE_EXPRESSION 0:30@30-0:33@33
+     operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:30@30-0:31@31
+      identifierToken=IdentifierToken IDENTIFIER 0:30@30-0:31@31
+       privateIdentifier=false
+       value="i"
+     operator=Token PLUS_PLUS 0:31@31-0:33@33
+     operatorPosition=POSTFIX
+    initializer=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 0:12@12-0:21@21
+     declarationType=VAR
+     declarations=[1]
+      VariableDeclarationTree VARIABLE_DECLARATION 0:16@16-0:21@21
+       initializer=LiteralExpressionTree LITERAL_EXPRESSION 0:20@20-0:21@21
+        literalToken=LiteralToken NUMBER 0:20@20-0:21@21
+         value="0"
+       lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:16@16-0:17@17
+        identifierToken=IdentifierToken IDENTIFIER 0:16@16-0:17@17
+         privateIdentifier=false
+         value="i"
+  LabelledStatementTree LABELLED_STATEMENT 6:0@111-6:6@117
+   name=IdentifierToken IDENTIFIER 6:0@111-6:5@116
+    privateIdentifier=false
+    value="block"
+   statement=BlockTree BLOCK 6:7@118-6:23@134
+    statements=[1]
+     BreakStatementTree BREAK_STATEMENT 6:9@120-6:21@132
+      name=IdentifierToken IDENTIFIER 6:15@126-6:20@131
+       privateIdentifier=false
+       value="block"
+  LabelledStatementTree LABELLED_STATEMENT 7:0@135-7:2@137
+   name=IdentifierToken IDENTIFIER 7:0@135-7:1@136
+    privateIdentifier=false
+    value="a"
+   statement=LabelledStatementTree LABELLED_STATEMENT 7:3@138-7:5@140
+    name=IdentifierToken IDENTIFIER 7:3@138-7:4@139
+     privateIdentifier=false
+     value="b"
+    statement=LabelledStatementTree LABELLED_STATEMENT 7:6@141-7:8@143
+     name=IdentifierToken IDENTIFIER 7:6@141-7:7@142
+      privateIdentifier=false
+      value="c"
+     statement=EmptyStatementTree EMPTY_STATEMENT 7:9@144-7:10@145
+  ExpressionStatementTree EXPRESSION_STATEMENT 8:0@146-8:5@151
+   expression=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 8:0@146-8:5@151
+  ExpressionStatementTree EXPRESSION_STATEMENT 8:5@151-8:6@152
+   expression=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 8:5@151-8:6@152
+  ExpressionStatementTree EXPRESSION_STATEMENT 8:7@153-8:9@155
+   expression=LiteralExpressionTree LITERAL_EXPRESSION 8:7@153-8:8@154
+    literalToken=LiteralToken NUMBER 8:7@153-8:8@154
+     value="1"

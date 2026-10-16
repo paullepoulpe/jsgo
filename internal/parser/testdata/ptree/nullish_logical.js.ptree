@@ -1,0 +1,206 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+ERROR 4:7@58 "Logical OR and logical AND require parentheses when used with '??'"
+ERROR 5:7@71 "Logical OR and logical AND require parentheses when used with '??'"
+ERROR 5:7@71 "Semi-colon expected"
+ERROR 5:9@73 "primary expression expected"
+ERROR 5:10@74 "Semi-colon expected"
+# features "[]"
+# sourceMapURL null
+# comments
+[]
+# tree
+ProgramTree PROGRAM 0:0@0-12:0@150
+ sourceComments=[]
+ sourceElements=[14]
+  ExpressionStatementTree EXPRESSION_STATEMENT 0:0@0-0:7@7
+   expression=BinaryOperatorTree BINARY_OPERATOR 0:0@0-0:6@6
+    left=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:0@0-0:1@1
+     identifierToken=IdentifierToken IDENTIFIER 0:0@0-0:1@1
+      privateIdentifier=false
+      value="a"
+    operator=Token QUESTION_QUESTION 0:2@2-0:4@4
+    right=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:5@5-0:6@6
+     identifierToken=IdentifierToken IDENTIFIER 0:5@5-0:6@6
+      privateIdentifier=false
+      value="b"
+  ExpressionStatementTree EXPRESSION_STATEMENT 1:0@8-1:12@20
+   expression=BinaryOperatorTree BINARY_OPERATOR 1:0@8-1:11@19
+    left=BinaryOperatorTree BINARY_OPERATOR 1:0@8-1:6@14
+     left=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:0@8-1:1@9
+      identifierToken=IdentifierToken IDENTIFIER 1:0@8-1:1@9
+       privateIdentifier=false
+       value="a"
+     operator=Token QUESTION_QUESTION 1:2@10-1:4@12
+     right=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:5@13-1:6@14
+      identifierToken=IdentifierToken IDENTIFIER 1:5@13-1:6@14
+       privateIdentifier=false
+       value="b"
+    operator=Token QUESTION_QUESTION 1:7@15-1:9@17
+    right=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:10@18-1:11@19
+     identifierToken=IdentifierToken IDENTIFIER 1:10@18-1:11@19
+      privateIdentifier=false
+      value="c"
+  ExpressionStatementTree EXPRESSION_STATEMENT 2:0@21-2:14@35
+   expression=BinaryOperatorTree BINARY_OPERATOR 2:0@21-2:13@34
+    left=ParenExpressionTree PAREN_EXPRESSION 2:0@21-2:8@29
+     expression=BinaryOperatorTree BINARY_OPERATOR 2:1@22-2:7@28
+      left=IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:1@22-2:2@23
+       identifierToken=IdentifierToken IDENTIFIER 2:1@22-2:2@23
+        privateIdentifier=false
+        value="a"
+      operator=Token OR 2:3@24-2:5@26
+      right=IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:6@27-2:7@28
+       identifierToken=IdentifierToken IDENTIFIER 2:6@27-2:7@28
+        privateIdentifier=false
+        value="b"
+    operator=Token QUESTION_QUESTION 2:9@30-2:11@32
+    right=IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:12@33-2:13@34
+     identifierToken=IdentifierToken IDENTIFIER 2:12@33-2:13@34
+      privateIdentifier=false
+      value="c"
+  ExpressionStatementTree EXPRESSION_STATEMENT 3:0@36-3:14@50
+   expression=BinaryOperatorTree BINARY_OPERATOR 3:0@36-3:13@49
+    left=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:0@36-3:1@37
+     identifierToken=IdentifierToken IDENTIFIER 3:0@36-3:1@37
+      privateIdentifier=false
+      value="a"
+    operator=Token QUESTION_QUESTION 3:2@38-3:4@40
+    right=ParenExpressionTree PAREN_EXPRESSION 3:5@41-3:13@49
+     expression=BinaryOperatorTree BINARY_OPERATOR 3:6@42-3:12@48
+      left=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:6@42-3:7@43
+       identifierToken=IdentifierToken IDENTIFIER 3:6@42-3:7@43
+        privateIdentifier=false
+        value="b"
+      operator=Token AND 3:8@44-3:10@46
+      right=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:11@47-3:12@48
+       identifierToken=IdentifierToken IDENTIFIER 3:11@47-3:12@48
+        privateIdentifier=false
+        value="c"
+  ExpressionStatementTree EXPRESSION_STATEMENT 4:0@51-4:12@63
+   expression=BinaryOperatorTree BINARY_OPERATOR 4:0@51-4:11@62
+    left=BinaryOperatorTree BINARY_OPERATOR 4:0@51-4:6@57
+     left=IdentifierExpressionTree IDENTIFIER_EXPRESSION 4:0@51-4:1@52
+      identifierToken=IdentifierToken IDENTIFIER 4:0@51-4:1@52
+       privateIdentifier=false
+       value="a"
+     operator=Token OR 4:2@53-4:4@55
+     right=IdentifierExpressionTree IDENTIFIER_EXPRESSION 4:5@56-4:6@57
+      identifierToken=IdentifierToken IDENTIFIER 4:5@56-4:6@57
+       privateIdentifier=false
+       value="b"
+    operator=Token QUESTION_QUESTION 4:7@58-4:9@60
+    right=IdentifierExpressionTree IDENTIFIER_EXPRESSION 4:10@61-4:11@62
+     identifierToken=IdentifierToken IDENTIFIER 4:10@61-4:11@62
+      privateIdentifier=false
+      value="c"
+  ExpressionStatementTree EXPRESSION_STATEMENT 5:0@64-5:6@70
+   expression=BinaryOperatorTree BINARY_OPERATOR 5:0@64-5:6@70
+    left=IdentifierExpressionTree IDENTIFIER_EXPRESSION 5:0@64-5:1@65
+     identifierToken=IdentifierToken IDENTIFIER 5:0@64-5:1@65
+      privateIdentifier=false
+      value="a"
+    operator=Token QUESTION_QUESTION 5:2@66-5:4@68
+    right=IdentifierExpressionTree IDENTIFIER_EXPRESSION 5:5@69-5:6@70
+     identifierToken=IdentifierToken IDENTIFIER 5:5@69-5:6@70
+      privateIdentifier=false
+      value="b"
+  ExpressionStatementTree EXPRESSION_STATEMENT 5:7@71-5:9@73
+   expression=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 5:7@71-5:9@73
+  ExpressionStatementTree EXPRESSION_STATEMENT 5:10@74-5:12@76
+   expression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 5:10@74-5:11@75
+    identifierToken=IdentifierToken IDENTIFIER 5:10@74-5:11@75
+     privateIdentifier=false
+     value="c"
+  ExpressionStatementTree EXPRESSION_STATEMENT 6:0@77-6:8@85
+   expression=BinaryOperatorTree BINARY_OPERATOR 6:0@77-6:7@84
+    left=IdentifierExpressionTree IDENTIFIER_EXPRESSION 6:0@77-6:1@78
+     identifierToken=IdentifierToken IDENTIFIER 6:0@77-6:1@78
+      privateIdentifier=false
+      value="a"
+    operator=Token QUESTION_QUESTION_EQUAL 6:2@79-6:5@82
+    right=IdentifierExpressionTree IDENTIFIER_EXPRESSION 6:6@83-6:7@84
+     identifierToken=IdentifierToken IDENTIFIER 6:6@83-6:7@84
+      privateIdentifier=false
+      value="b"
+  ExpressionStatementTree EXPRESSION_STATEMENT 7:0@86-7:8@94
+   expression=BinaryOperatorTree BINARY_OPERATOR 7:0@86-7:7@93
+    left=IdentifierExpressionTree IDENTIFIER_EXPRESSION 7:0@86-7:1@87
+     identifierToken=IdentifierToken IDENTIFIER 7:0@86-7:1@87
+      privateIdentifier=false
+      value="a"
+    operator=Token OR_EQUAL 7:2@88-7:5@91
+    right=IdentifierExpressionTree IDENTIFIER_EXPRESSION 7:6@92-7:7@93
+     identifierToken=IdentifierToken IDENTIFIER 7:6@92-7:7@93
+      privateIdentifier=false
+      value="b"
+  ExpressionStatementTree EXPRESSION_STATEMENT 8:0@95-8:8@103
+   expression=BinaryOperatorTree BINARY_OPERATOR 8:0@95-8:7@102
+    left=IdentifierExpressionTree IDENTIFIER_EXPRESSION 8:0@95-8:1@96
+     identifierToken=IdentifierToken IDENTIFIER 8:0@95-8:1@96
+      privateIdentifier=false
+      value="a"
+    operator=Token AND_EQUAL 8:2@97-8:5@100
+    right=IdentifierExpressionTree IDENTIFIER_EXPRESSION 8:6@101-8:7@102
+     identifierToken=IdentifierToken IDENTIFIER 8:6@101-8:7@102
+      privateIdentifier=false
+      value="b"
+  ExpressionStatementTree EXPRESSION_STATEMENT 9:0@104-9:10@114
+   expression=BinaryOperatorTree BINARY_OPERATOR 9:0@104-9:9@113
+    left=MemberExpressionTree MEMBER_EXPRESSION 9:0@104-9:3@107
+     memberName=IdentifierToken IDENTIFIER 9:2@106-9:3@107
+      privateIdentifier=false
+      value="b"
+     operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 9:0@104-9:1@105
+      identifierToken=IdentifierToken IDENTIFIER 9:0@104-9:1@105
+       privateIdentifier=false
+       value="a"
+    operator=Token QUESTION_QUESTION_EQUAL 9:4@108-9:7@111
+    right=IdentifierExpressionTree IDENTIFIER_EXPRESSION 9:8@112-9:9@113
+     identifierToken=IdentifierToken IDENTIFIER 9:8@112-9:9@113
+      privateIdentifier=false
+      value="c"
+  ExpressionStatementTree EXPRESSION_STATEMENT 10:0@115-10:11@126
+   expression=BinaryOperatorTree BINARY_OPERATOR 10:0@115-10:10@125
+    left=MemberLookupExpressionTree MEMBER_LOOKUP_EXPRESSION 10:0@115-10:4@119
+     memberExpression=LiteralExpressionTree LITERAL_EXPRESSION 10:2@117-10:3@118
+      literalToken=LiteralToken NUMBER 10:2@117-10:3@118
+       value="0"
+     operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 10:0@115-10:1@116
+      identifierToken=IdentifierToken IDENTIFIER 10:0@115-10:1@116
+       privateIdentifier=false
+       value="a"
+    operator=Token OR_EQUAL 10:5@120-10:8@123
+    right=IdentifierExpressionTree IDENTIFIER_EXPRESSION 10:9@124-10:10@125
+     identifierToken=IdentifierToken IDENTIFIER 10:9@124-10:10@125
+      privateIdentifier=false
+      value="d"
+  ExpressionStatementTree EXPRESSION_STATEMENT 11:0@127-11:22@149
+   expression=BinaryOperatorTree BINARY_OPERATOR 11:0@127-11:21@148
+    left=IdentifierExpressionTree IDENTIFIER_EXPRESSION 11:0@127-11:1@128
+     identifierToken=IdentifierToken IDENTIFIER 11:0@127-11:1@128
+      privateIdentifier=false
+      value="a"
+    operator=Token EQUAL 11:2@129-11:3@130
+    right=ConditionalExpressionTree CONDITIONAL_EXPRESSION 11:4@131-11:21@148
+     condition=IdentifierExpressionTree IDENTIFIER_EXPRESSION 11:4@131-11:5@132
+      identifierToken=IdentifierToken IDENTIFIER 11:4@131-11:5@132
+       privateIdentifier=false
+       value="b"
+     left=IdentifierExpressionTree IDENTIFIER_EXPRESSION 11:8@135-11:9@136
+      identifierToken=IdentifierToken IDENTIFIER 11:8@135-11:9@136
+       privateIdentifier=false
+       value="c"
+     right=ConditionalExpressionTree CONDITIONAL_EXPRESSION 11:12@139-11:21@148
+      condition=IdentifierExpressionTree IDENTIFIER_EXPRESSION 11:12@139-11:13@140
+       identifierToken=IdentifierToken IDENTIFIER 11:12@139-11:13@140
+        privateIdentifier=false
+        value="d"
+      left=IdentifierExpressionTree IDENTIFIER_EXPRESSION 11:16@143-11:17@144
+       identifierToken=IdentifierToken IDENTIFIER 11:16@143-11:17@144
+        privateIdentifier=false
+        value="e"
+      right=IdentifierExpressionTree IDENTIFIER_EXPRESSION 11:20@147-11:21@148
+       identifierToken=IdentifierToken IDENTIFIER 11:20@147-11:21@148
+        privateIdentifier=false
+        value="f"
