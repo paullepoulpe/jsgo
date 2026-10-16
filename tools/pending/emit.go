@@ -281,6 +281,37 @@ func (r *renderer) javaSig(ref *methodRef) string {
 	return label + "." + ref.m.Name + "(" + params + ")"
 }
 
+// hasVariance reports whether a parameter type's type arguments (or array
+// element) contain a type variable or a bounded wildcard.
+func hasVariance(t *JType) bool {
+	var inner func(t *JType) bool
+	inner = func(t *JType) bool {
+		switch t.Kind {
+		case JTypeVar:
+			return true
+		case JWildcard:
+			return t.Bound != nil
+		case JArray:
+			return inner(t.Elem)
+		}
+		for _, a := range t.Args {
+			if inner(a) {
+				return true
+			}
+		}
+		return false
+	}
+	if t.Kind == JArray {
+		return inner(t.Elem)
+	}
+	for _, a := range t.Args {
+		if inner(a) {
+			return true
+		}
+	}
+	return false
+}
+
 var goKeywords = map[string]bool{}
 
 func init() {
@@ -317,6 +348,11 @@ func (r *renderer) methodParts(ref *methodRef, static bool) (string, string) {
 		var gt string
 		if ref.m.Access&accVarargs != 0 && i == len(sig.Params)-1 && pt.Kind == JArray {
 			gt = "..." + r.goType(pt.Elem)
+		} else if hasVariance(pt) {
+			// Go has no variance: a Collection<? extends Foo> or a
+			// StaticSymbolTable<S, R> parameter accepts any concrete
+			// instantiation in Java, so the declaration takes any.
+			gt = "any"
 		} else {
 			gt = r.goTypeNullable(pt, ref.m.NullableParams[i])
 		}
@@ -454,7 +490,7 @@ func (r *renderer) goType(t *JType) string {
 		return jutil("*jutil.BiMap[" + arg(0) + ", " + arg(1) + "]")
 	case "com/google/common/collect/Table", "com/google/common/collect/HashBasedTable":
 		return jutil("*jutil.HashBasedTable[" + arg(0) + ", " + arg(1) + ", " + arg(2) + "]")
-	case "java/util/Optional":
+	case "java/util/Optional", "com/google/common/base/Optional":
 		a := arg(0)
 		if a == "string" || a == "int" || a == "bool" || a == "int64" || a == "float64" {
 			return "*" + a
