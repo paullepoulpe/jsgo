@@ -1,0 +1,52 @@
+split/			1
+splitnm			1
+split/	/		0
+splitnm	/	/	1
+split/	//		0
+splitnm	//	//	1
+split/	a	a	1
+splitnm	a	a	1
+split/	/a	|a	2
+splitnm	/a	/a	1
+split/	a/	a	1
+splitnm	a/	a/	1
+split/	a//b	a||b	3
+splitnm	a//b	a//b	1
+split/	/a/b/	|a|b	3
+splitnm	/a/b/	/a/b/	1
+split/	x/node_modules/y	x|node_modules|y	3
+splitnm	x/node_modules/y	x|y	2
+split/	/node_modules/	|node_modules	2
+splitnm	/node_modules/		0
+split/	/node_modules/a/node_modules/b.js	|node_modules|a|node_modules|b.js	5
+splitnm	/node_modules/a/node_modules/b.js	|a|b.js	3
+split/	a/node_modules	a|node_modules	2
+splitnm	a/node_modules	a/node_modules	1
+b64d		
+b64d	YQ	61
+b64d	YQ==	61
+b64d	YQ=	61
+b64d	YQ=====	61
+b64d	YWI	6162
+b64d	YWJj	616263
+b64d	Y	EXC:java.lang.IllegalArgumentException:com.google.javascript.jscomp.jarjar.com.google.common.io.BaseEncoding$DecodingException: Invalid input length 1
+b64d	Y===	EXC:java.lang.IllegalArgumentException:com.google.javascript.jscomp.jarjar.com.google.common.io.BaseEncoding$DecodingException: Invalid input length 1
+b64d	eyJ2ZXJzaW9uIjozfQ==	7b2276657273696f6e223a337d
+b64d	a b	EXC:java.lang.IllegalArgumentException:com.google.javascript.jscomp.jarjar.com.google.common.io.BaseEncoding$DecodingException: Unrecognized character: 0x20
+b64d	a\nb	EXC:java.lang.IllegalArgumentException:com.google.javascript.jscomp.jarjar.com.google.common.io.BaseEncoding$DecodingException: Unrecognized character: 0xa
+b64d	\u00e9	EXC:java.lang.IllegalArgumentException:com.google.javascript.jscomp.jarjar.com.google.common.io.BaseEncoding$DecodingException: Invalid input length 1
+b64d	@@@@	EXC:java.lang.IllegalArgumentException:com.google.javascript.jscomp.jarjar.com.google.common.io.BaseEncoding$DecodingException: Unrecognized character: @
+b64d	YW\u007fJ	EXC:java.lang.IllegalArgumentException:com.google.javascript.jscomp.jarjar.com.google.common.io.BaseEncoding$DecodingException: Unrecognized character: 0x7f
+b64d	YW!J	EXC:java.lang.IllegalArgumentException:com.google.javascript.jscomp.jarjar.com.google.common.io.BaseEncoding$DecodingException: Unrecognized character: !
+pe		
+pe	abc	abc
+pe	a b	a%20b
+pe	{"version":3,"file":"x.js"}	%7B%22version%22%3A3%2C%22file%22%3A%22x.js%22%7D
+pe	\u00e9\u4e2d\ud83d\ude00	%C3%A9%E4%B8%AD%F0%9F%98%80
+pe	-_.*~!	-_.*%7E%21
+pe	a\ud800	EXC:java.lang.IllegalArgumentException:Trailing high surrogate at end of input
+pe	\udc00a	EXC:java.lang.IllegalArgumentException:Unexpected low surrogate character '\udc00' with value 56320 at index 0 in '\udc00a'
+pe	\ud800a	EXC:java.lang.IllegalArgumentException:Expected low surrogate but got char 'a' with value 97 at index 1 in '\ud800a'
+pe	%+&=/:;	%25%2B%26%3D%2F%3A%3B
+ms	[a x 3, b x 2, c]
+ms	[]

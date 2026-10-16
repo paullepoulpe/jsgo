@@ -1,0 +1,1752 @@
+of		|null||1||0|false
+rel			
+sib			
+sw			true,true,0
+rel		/	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib		/	/
+sw		/	false,false,-1
+rel		//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib		//	/
+sw		//	false,false,-1
+rel		a	a
+sib		a	a
+sw		a	false,false,-1
+rel		a/	a
+sib		a/	a
+sw		a/	false,false,-1
+rel		a//b	a/b
+sib		a//b	a/b
+sw		a//b	false,false,-1
+rel		/a/b/c.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib		/a/b/c.js	/a/b/c.js
+sw		/a/b/c.js	false,false,-1
+rel		./a.js	./a.js
+sib		./a.js	a.js
+sw		./a.js	false,false,-1
+rel		../a.js	../a.js
+sib		../a.js	../a.js
+sw		../a.js	false,false,-1
+rel		a/./b/../c	a/./b/../c
+sib		a/./b/../c	a/c
+sw		a/./b/../c	false,false,-1
+rel		/../a	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib		/../a	/a
+sw		/../a	false,false,-1
+rel		a/b/../../..	a/b/../../..
+sib		a/b/../../..	..
+sw		a/b/../../..	false,false,-1
+rel		foo/bar/baz.js	foo/bar/baz.js
+sib		foo/bar/baz.js	foo/bar/baz.js
+sw		foo/bar/baz.js	false,false,-1
+rel		/foo/./bar//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib		/foo/./bar//	/foo/bar
+sw		/foo/./bar//	false,false,-1
+rel		m0.js	m0.js
+sib		m0.js	m0.js
+sw		m0.js	false,false,-1
+rel		../../x/y	../../x/y
+sib		../../x/y	../../x/y
+sw		../../x/y	false,false,-1
+rel		.	.
+sib		.	
+sw		.	false,false,-1
+rel		..	..
+sib		..	..
+sw		..	false,false,-1
+rel		./	.
+sib		./	
+sw		./	false,false,-1
+rel		a/..	a/..
+sib		a/..	
+sw		a/..	false,false,-1
+rel		/a/b/../../../c	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib		/a/b/../../../c	/c
+sw		/a/b/../../../c	false,false,-1
+rel		x/y/z	x/y/z
+sib		x/y/z	x/y/z
+sw		x/y/z	false,false,-1
+rel		\u00e9/f	\u00e9/f
+sib		\u00e9/f	\u00e9/f
+sw		\u00e9/f	false,false,-1
+rel		a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib		a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw		a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+of	/	/|null|null|0|/|47|true
+rel	/		EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/		
+sw	/		false,false,1
+rel	/	/	
+sib	/	/	/
+sw	/	/	true,true,0
+rel	/	//	
+sib	/	//	/
+sw	/	//	true,true,0
+rel	/	a	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/	a	a
+sw	/	a	false,false,-1
+rel	/	a/	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/	a/	a
+sw	/	a/	false,false,-1
+rel	/	a//b	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/	a//b	a/b
+sw	/	a//b	false,false,-1
+rel	/	/a/b/c.js	a/b/c.js
+sib	/	/a/b/c.js	/a/b/c.js
+sw	/	/a/b/c.js	false,false,-1
+rel	/	./a.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/	./a.js	a.js
+sw	/	./a.js	false,false,1
+rel	/	../a.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/	../a.js	../a.js
+sw	/	../a.js	false,false,1
+rel	/	a/./b/../c	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/	a/./b/../c	a/c
+sw	/	a/./b/../c	false,false,-1
+rel	/	/../a	a
+sib	/	/../a	/a
+sw	/	/../a	false,false,-1
+rel	/	a/b/../../..	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/	a/b/../../..	..
+sw	/	a/b/../../..	false,false,-1
+rel	/	foo/bar/baz.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/	foo/bar/baz.js	foo/bar/baz.js
+sw	/	foo/bar/baz.js	false,false,-1
+rel	/	/foo/./bar//	foo/bar
+sib	/	/foo/./bar//	/foo/bar
+sw	/	/foo/./bar//	false,false,-1
+rel	/	m0.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/	m0.js	m0.js
+sw	/	m0.js	false,false,-1
+rel	/	../../x/y	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/	../../x/y	../../x/y
+sw	/	../../x/y	false,false,1
+rel	/	.	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/	.	
+sw	/	.	false,false,1
+rel	/	..	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/	..	..
+sw	/	..	false,false,1
+rel	/	./	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/	./	
+sw	/	./	false,false,1
+rel	/	a/..	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/	a/..	
+sw	/	a/..	false,false,-1
+rel	/	/a/b/../../../c	c
+sib	/	/a/b/../../../c	/c
+sw	/	/a/b/../../../c	false,false,-1
+rel	/	x/y/z	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/	x/y/z	x/y/z
+sw	/	x/y/z	false,false,-1
+rel	/	\u00e9/f	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/	\u00e9/f	\u00e9/f
+sw	/	\u00e9/f	false,false,-1
+rel	/	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	/	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	/	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+of	//	/|null|null|0|/|47|true
+rel	//		EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	//		
+sw	//		false,false,1
+rel	//	/	
+sib	//	/	/
+sw	//	/	true,true,0
+rel	//	//	
+sib	//	//	/
+sw	//	//	true,true,0
+rel	//	a	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	//	a	a
+sw	//	a	false,false,-1
+rel	//	a/	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	//	a/	a
+sw	//	a/	false,false,-1
+rel	//	a//b	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	//	a//b	a/b
+sw	//	a//b	false,false,-1
+rel	//	/a/b/c.js	a/b/c.js
+sib	//	/a/b/c.js	/a/b/c.js
+sw	//	/a/b/c.js	false,false,-1
+rel	//	./a.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	//	./a.js	a.js
+sw	//	./a.js	false,false,1
+rel	//	../a.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	//	../a.js	../a.js
+sw	//	../a.js	false,false,1
+rel	//	a/./b/../c	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	//	a/./b/../c	a/c
+sw	//	a/./b/../c	false,false,-1
+rel	//	/../a	a
+sib	//	/../a	/a
+sw	//	/../a	false,false,-1
+rel	//	a/b/../../..	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	//	a/b/../../..	..
+sw	//	a/b/../../..	false,false,-1
+rel	//	foo/bar/baz.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	//	foo/bar/baz.js	foo/bar/baz.js
+sw	//	foo/bar/baz.js	false,false,-1
+rel	//	/foo/./bar//	foo/bar
+sib	//	/foo/./bar//	/foo/bar
+sw	//	/foo/./bar//	false,false,-1
+rel	//	m0.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	//	m0.js	m0.js
+sw	//	m0.js	false,false,-1
+rel	//	../../x/y	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	//	../../x/y	../../x/y
+sw	//	../../x/y	false,false,1
+rel	//	.	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	//	.	
+sw	//	.	false,false,1
+rel	//	..	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	//	..	..
+sw	//	..	false,false,1
+rel	//	./	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	//	./	
+sw	//	./	false,false,1
+rel	//	a/..	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	//	a/..	
+sw	//	a/..	false,false,-1
+rel	//	/a/b/../../../c	c
+sib	//	/a/b/../../../c	/c
+sw	//	/a/b/../../../c	false,false,-1
+rel	//	x/y/z	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	//	x/y/z	x/y/z
+sw	//	x/y/z	false,false,-1
+rel	//	\u00e9/f	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	//	\u00e9/f	\u00e9/f
+sw	//	\u00e9/f	false,false,-1
+rel	//	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	//	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	//	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+of	a	a|null|a|1|a|97|false
+rel	a		..
+sib	a		
+sw	a		false,false,1
+rel	a	/	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a	/	/
+sw	a	/	false,false,1
+rel	a	//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a	//	/
+sw	a	//	false,false,1
+rel	a	a	
+sib	a	a	a
+sw	a	a	true,true,0
+rel	a	a/	
+sib	a	a/	a
+sw	a	a/	true,true,0
+rel	a	a//b	b
+sib	a	a//b	a/b
+sw	a	a//b	false,false,-1
+rel	a	/a/b/c.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a	/a/b/c.js	/a/b/c.js
+sw	a	/a/b/c.js	false,false,1
+rel	a	./a.js	../a.js
+sib	a	./a.js	a.js
+sw	a	./a.js	false,false,1
+rel	a	../a.js	../../a.js
+sib	a	../a.js	../a.js
+sw	a	../a.js	false,false,1
+rel	a	a/./b/../c	c
+sib	a	a/./b/../c	a/c
+sw	a	a/./b/../c	false,false,-1
+rel	a	/../a	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a	/../a	/a
+sw	a	/../a	false,false,1
+rel	a	a/b/../../..	../..
+sib	a	a/b/../../..	..
+sw	a	a/b/../../..	false,false,-1
+rel	a	foo/bar/baz.js	../foo/bar/baz.js
+sib	a	foo/bar/baz.js	foo/bar/baz.js
+sw	a	foo/bar/baz.js	false,false,-1
+rel	a	/foo/./bar//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a	/foo/./bar//	/foo/bar
+sw	a	/foo/./bar//	false,false,1
+rel	a	m0.js	../m0.js
+sib	a	m0.js	m0.js
+sw	a	m0.js	false,false,-1
+rel	a	../../x/y	../../../x/y
+sib	a	../../x/y	../../x/y
+sw	a	../../x/y	false,false,1
+rel	a	.	..
+sib	a	.	
+sw	a	.	false,false,1
+rel	a	..	../..
+sib	a	..	..
+sw	a	..	false,false,1
+rel	a	./	..
+sib	a	./	
+sw	a	./	false,false,1
+rel	a	a/..	..
+sib	a	a/..	
+sw	a	a/..	false,false,-1
+rel	a	/a/b/../../../c	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a	/a/b/../../../c	/c
+sw	a	/a/b/../../../c	false,false,1
+rel	a	x/y/z	../x/y/z
+sib	a	x/y/z	x/y/z
+sw	a	x/y/z	false,false,-1
+rel	a	\u00e9/f	../\u00e9/f
+sib	a	\u00e9/f	\u00e9/f
+sw	a	\u00e9/f	false,false,-1
+rel	a	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	a	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	a	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+of	a/	a|null|a|1|a|97|false
+rel	a/		..
+sib	a/		
+sw	a/		false,false,1
+rel	a/	/	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a/	/	/
+sw	a/	/	false,false,1
+rel	a/	//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a/	//	/
+sw	a/	//	false,false,1
+rel	a/	a	
+sib	a/	a	a
+sw	a/	a	true,true,0
+rel	a/	a/	
+sib	a/	a/	a
+sw	a/	a/	true,true,0
+rel	a/	a//b	b
+sib	a/	a//b	a/b
+sw	a/	a//b	false,false,-1
+rel	a/	/a/b/c.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a/	/a/b/c.js	/a/b/c.js
+sw	a/	/a/b/c.js	false,false,1
+rel	a/	./a.js	../a.js
+sib	a/	./a.js	a.js
+sw	a/	./a.js	false,false,1
+rel	a/	../a.js	../../a.js
+sib	a/	../a.js	../a.js
+sw	a/	../a.js	false,false,1
+rel	a/	a/./b/../c	c
+sib	a/	a/./b/../c	a/c
+sw	a/	a/./b/../c	false,false,-1
+rel	a/	/../a	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a/	/../a	/a
+sw	a/	/../a	false,false,1
+rel	a/	a/b/../../..	../..
+sib	a/	a/b/../../..	..
+sw	a/	a/b/../../..	false,false,-1
+rel	a/	foo/bar/baz.js	../foo/bar/baz.js
+sib	a/	foo/bar/baz.js	foo/bar/baz.js
+sw	a/	foo/bar/baz.js	false,false,-1
+rel	a/	/foo/./bar//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a/	/foo/./bar//	/foo/bar
+sw	a/	/foo/./bar//	false,false,1
+rel	a/	m0.js	../m0.js
+sib	a/	m0.js	m0.js
+sw	a/	m0.js	false,false,-1
+rel	a/	../../x/y	../../../x/y
+sib	a/	../../x/y	../../x/y
+sw	a/	../../x/y	false,false,1
+rel	a/	.	..
+sib	a/	.	
+sw	a/	.	false,false,1
+rel	a/	..	../..
+sib	a/	..	..
+sw	a/	..	false,false,1
+rel	a/	./	..
+sib	a/	./	
+sw	a/	./	false,false,1
+rel	a/	a/..	..
+sib	a/	a/..	
+sw	a/	a/..	false,false,-1
+rel	a/	/a/b/../../../c	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a/	/a/b/../../../c	/c
+sw	a/	/a/b/../../../c	false,false,1
+rel	a/	x/y/z	../x/y/z
+sib	a/	x/y/z	x/y/z
+sw	a/	x/y/z	false,false,-1
+rel	a/	\u00e9/f	../\u00e9/f
+sib	a/	\u00e9/f	\u00e9/f
+sw	a/	\u00e9/f	false,false,-1
+rel	a/	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	a/	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	a/	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+of	a//b	a/b|a|b|2|a/b|94772|false
+rel	a//b		../..
+sib	a//b		a
+sw	a//b		false,false,1
+rel	a//b	/	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a//b	/	/
+sw	a//b	/	false,false,1
+rel	a//b	//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a//b	//	/
+sw	a//b	//	false,false,1
+rel	a//b	a	..
+sib	a//b	a	a/a
+sw	a//b	a	true,false,1
+rel	a//b	a/	..
+sib	a//b	a/	a/a
+sw	a//b	a/	true,false,1
+rel	a//b	a//b	
+sib	a//b	a//b	a/a/b
+sw	a//b	a//b	true,true,0
+rel	a//b	/a/b/c.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a//b	/a/b/c.js	/a/b/c.js
+sw	a//b	/a/b/c.js	false,false,1
+rel	a//b	./a.js	../../a.js
+sib	a//b	./a.js	a/a.js
+sw	a//b	./a.js	false,false,1
+rel	a//b	../a.js	../../../a.js
+sib	a//b	../a.js	a.js
+sw	a//b	../a.js	false,false,1
+rel	a//b	a/./b/../c	../c
+sib	a//b	a/./b/../c	a/a/c
+sw	a//b	a/./b/../c	false,false,1
+rel	a//b	/../a	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a//b	/../a	/a
+sw	a//b	/../a	false,false,1
+rel	a//b	a/b/../../..	../../..
+sib	a//b	a/b/../../..	
+sw	a//b	a/b/../../..	false,false,-1
+rel	a//b	foo/bar/baz.js	../../foo/bar/baz.js
+sib	a//b	foo/bar/baz.js	a/foo/bar/baz.js
+sw	a//b	foo/bar/baz.js	false,false,-1
+rel	a//b	/foo/./bar//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a//b	/foo/./bar//	/foo/bar
+sw	a//b	/foo/./bar//	false,false,1
+rel	a//b	m0.js	../../m0.js
+sib	a//b	m0.js	a/m0.js
+sw	a//b	m0.js	false,false,-1
+rel	a//b	../../x/y	../../../../x/y
+sib	a//b	../../x/y	../x/y
+sw	a//b	../../x/y	false,false,1
+rel	a//b	.	../..
+sib	a//b	.	a
+sw	a//b	.	false,false,1
+rel	a//b	..	../../..
+sib	a//b	..	
+sw	a//b	..	false,false,1
+rel	a//b	./	../..
+sib	a//b	./	a
+sw	a//b	./	false,false,1
+rel	a//b	a/..	../..
+sib	a//b	a/..	a
+sw	a//b	a/..	false,false,1
+rel	a//b	/a/b/../../../c	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a//b	/a/b/../../../c	/c
+sw	a//b	/a/b/../../../c	false,false,1
+rel	a//b	x/y/z	../../x/y/z
+sib	a//b	x/y/z	a/x/y/z
+sw	a//b	x/y/z	false,false,-1
+rel	a//b	\u00e9/f	../../\u00e9/f
+sib	a//b	\u00e9/f	a/\u00e9/f
+sw	a//b	\u00e9/f	false,false,-1
+rel	a//b	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	a//b	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	a//b	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+of	/a/b/c.js	/a/b/c.js|/a/b|c.js|3|/a/b/c.js|-182043938|true
+rel	/a/b/c.js		EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/c.js		/a/b
+sw	/a/b/c.js		false,false,1
+rel	/a/b/c.js	/	../../..
+sib	/a/b/c.js	/	/
+sw	/a/b/c.js	/	true,false,1
+rel	/a/b/c.js	//	../../..
+sib	/a/b/c.js	//	/
+sw	/a/b/c.js	//	true,false,1
+rel	/a/b/c.js	a	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/c.js	a	/a/b/a
+sw	/a/b/c.js	a	false,false,-1
+rel	/a/b/c.js	a/	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/c.js	a/	/a/b/a
+sw	/a/b/c.js	a/	false,false,-1
+rel	/a/b/c.js	a//b	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/c.js	a//b	/a/b/a/b
+sw	/a/b/c.js	a//b	false,false,-1
+rel	/a/b/c.js	/a/b/c.js	
+sib	/a/b/c.js	/a/b/c.js	/a/b/c.js
+sw	/a/b/c.js	/a/b/c.js	true,true,0
+rel	/a/b/c.js	./a.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/c.js	./a.js	/a/b/a.js
+sw	/a/b/c.js	./a.js	false,false,1
+rel	/a/b/c.js	../a.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/c.js	../a.js	/a/a.js
+sw	/a/b/c.js	../a.js	false,false,1
+rel	/a/b/c.js	a/./b/../c	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/c.js	a/./b/../c	/a/b/a/c
+sw	/a/b/c.js	a/./b/../c	false,false,-1
+rel	/a/b/c.js	/../a	../..
+sib	/a/b/c.js	/../a	/a
+sw	/a/b/c.js	/../a	false,false,1
+rel	/a/b/c.js	a/b/../../..	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/c.js	a/b/../../..	/a
+sw	/a/b/c.js	a/b/../../..	false,false,-1
+rel	/a/b/c.js	foo/bar/baz.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/c.js	foo/bar/baz.js	/a/b/foo/bar/baz.js
+sw	/a/b/c.js	foo/bar/baz.js	false,false,-1
+rel	/a/b/c.js	/foo/./bar//	../../../foo/bar
+sib	/a/b/c.js	/foo/./bar//	/foo/bar
+sw	/a/b/c.js	/foo/./bar//	false,false,-1
+rel	/a/b/c.js	m0.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/c.js	m0.js	/a/b/m0.js
+sw	/a/b/c.js	m0.js	false,false,-1
+rel	/a/b/c.js	../../x/y	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/c.js	../../x/y	/x/y
+sw	/a/b/c.js	../../x/y	false,false,1
+rel	/a/b/c.js	.	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/c.js	.	/a/b
+sw	/a/b/c.js	.	false,false,1
+rel	/a/b/c.js	..	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/c.js	..	/a
+sw	/a/b/c.js	..	false,false,1
+rel	/a/b/c.js	./	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/c.js	./	/a/b
+sw	/a/b/c.js	./	false,false,1
+rel	/a/b/c.js	a/..	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/c.js	a/..	/a/b
+sw	/a/b/c.js	a/..	false,false,-1
+rel	/a/b/c.js	/a/b/../../../c	../../../c
+sib	/a/b/c.js	/a/b/../../../c	/c
+sw	/a/b/c.js	/a/b/../../../c	false,false,1
+rel	/a/b/c.js	x/y/z	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/c.js	x/y/z	/a/b/x/y/z
+sw	/a/b/c.js	x/y/z	false,false,-1
+rel	/a/b/c.js	\u00e9/f	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/c.js	\u00e9/f	/a/b/\u00e9/f
+sw	/a/b/c.js	\u00e9/f	false,false,-1
+rel	/a/b/c.js	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	/a/b/c.js	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	/a/b/c.js	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+of	./a.js	./a.js|.|a.js|2|a.js|1363283767|false
+rel	./a.js		..
+sib	./a.js		
+sw	./a.js		false,false,1
+rel	./a.js	/	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	./a.js	/	/
+sw	./a.js	/	false,false,-1
+rel	./a.js	//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	./a.js	//	/
+sw	./a.js	//	false,false,-1
+rel	./a.js	a	../a
+sib	./a.js	a	a
+sw	./a.js	a	false,false,-1
+rel	./a.js	a/	../a
+sib	./a.js	a/	a
+sw	./a.js	a/	false,false,-1
+rel	./a.js	a//b	../a/b
+sib	./a.js	a//b	a/b
+sw	./a.js	a//b	false,false,-1
+rel	./a.js	/a/b/c.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	./a.js	/a/b/c.js	/a/b/c.js
+sw	./a.js	/a/b/c.js	false,false,-1
+rel	./a.js	./a.js	
+sib	./a.js	./a.js	a.js
+sw	./a.js	./a.js	true,true,0
+rel	./a.js	../a.js	../../a.js
+sib	./a.js	../a.js	../a.js
+sw	./a.js	../a.js	false,false,1
+rel	./a.js	a/./b/../c	../a/c
+sib	./a.js	a/./b/../c	a/c
+sw	./a.js	a/./b/../c	false,false,-1
+rel	./a.js	/../a	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	./a.js	/../a	/a
+sw	./a.js	/../a	false,false,-1
+rel	./a.js	a/b/../../..	../..
+sib	./a.js	a/b/../../..	..
+sw	./a.js	a/b/../../..	false,false,-1
+rel	./a.js	foo/bar/baz.js	../foo/bar/baz.js
+sib	./a.js	foo/bar/baz.js	foo/bar/baz.js
+sw	./a.js	foo/bar/baz.js	false,false,-1
+rel	./a.js	/foo/./bar//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	./a.js	/foo/./bar//	/foo/bar
+sw	./a.js	/foo/./bar//	false,false,-1
+rel	./a.js	m0.js	../m0.js
+sib	./a.js	m0.js	m0.js
+sw	./a.js	m0.js	false,false,-1
+rel	./a.js	../../x/y	../../../x/y
+sib	./a.js	../../x/y	../../x/y
+sw	./a.js	../../x/y	false,false,1
+rel	./a.js	.	..
+sib	./a.js	.	
+sw	./a.js	.	true,false,1
+rel	./a.js	..	../..
+sib	./a.js	..	..
+sw	./a.js	..	false,false,1
+rel	./a.js	./	..
+sib	./a.js	./	
+sw	./a.js	./	true,false,1
+rel	./a.js	a/..	..
+sib	./a.js	a/..	
+sw	./a.js	a/..	false,false,-1
+rel	./a.js	/a/b/../../../c	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	./a.js	/a/b/../../../c	/c
+sw	./a.js	/a/b/../../../c	false,false,-1
+rel	./a.js	x/y/z	../x/y/z
+sib	./a.js	x/y/z	x/y/z
+sw	./a.js	x/y/z	false,false,-1
+rel	./a.js	\u00e9/f	../\u00e9/f
+sib	./a.js	\u00e9/f	\u00e9/f
+sw	./a.js	\u00e9/f	false,false,-1
+rel	./a.js	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	./a.js	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	./a.js	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+of	../a.js	../a.js|..|a.js|2|../a.js|-761219867|false
+rel	../a.js		EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from ../a.js to 
+sib	../a.js		..
+sw	../a.js		false,false,1
+rel	../a.js	/	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	../a.js	/	/
+sw	../a.js	/	false,false,-1
+rel	../a.js	//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	../a.js	//	/
+sw	../a.js	//	false,false,-1
+rel	../a.js	a	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from ../a.js to a
+sib	../a.js	a	../a
+sw	../a.js	a	false,false,-1
+rel	../a.js	a/	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from ../a.js to a
+sib	../a.js	a/	../a
+sw	../a.js	a/	false,false,-1
+rel	../a.js	a//b	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from ../a.js to a/b
+sib	../a.js	a//b	../a/b
+sw	../a.js	a//b	false,false,-1
+rel	../a.js	/a/b/c.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	../a.js	/a/b/c.js	/a/b/c.js
+sw	../a.js	/a/b/c.js	false,false,-1
+rel	../a.js	./a.js	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from ../a.js to ./a.js
+sib	../a.js	./a.js	../a.js
+sw	../a.js	./a.js	false,false,-1
+rel	../a.js	../a.js	
+sib	../a.js	../a.js	../../a.js
+sw	../a.js	../a.js	true,true,0
+rel	../a.js	a/./b/../c	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from ../a.js to a/./b/../c
+sib	../a.js	a/./b/../c	../a/c
+sw	../a.js	a/./b/../c	false,false,-1
+rel	../a.js	/../a	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	../a.js	/../a	/a
+sw	../a.js	/../a	false,false,-1
+rel	../a.js	a/b/../../..	..
+sib	../a.js	a/b/../../..	../..
+sw	../a.js	a/b/../../..	false,false,-1
+rel	../a.js	foo/bar/baz.js	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from ../a.js to foo/bar/baz.js
+sib	../a.js	foo/bar/baz.js	../foo/bar/baz.js
+sw	../a.js	foo/bar/baz.js	false,false,-1
+rel	../a.js	/foo/./bar//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	../a.js	/foo/./bar//	/foo/bar
+sw	../a.js	/foo/./bar//	false,false,-1
+rel	../a.js	m0.js	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from ../a.js to m0.js
+sib	../a.js	m0.js	../m0.js
+sw	../a.js	m0.js	false,false,-1
+rel	../a.js	../../x/y	../../x/y
+sib	../a.js	../../x/y	../../../x/y
+sw	../a.js	../../x/y	false,false,1
+rel	../a.js	.	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from ../a.js to .
+sib	../a.js	.	..
+sw	../a.js	.	false,false,1
+rel	../a.js	..	..
+sib	../a.js	..	../..
+sw	../a.js	..	true,false,1
+rel	../a.js	./	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from ../a.js to .
+sib	../a.js	./	..
+sw	../a.js	./	false,false,1
+rel	../a.js	a/..	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from ../a.js to a/..
+sib	../a.js	a/..	..
+sw	../a.js	a/..	false,false,-1
+rel	../a.js	/a/b/../../../c	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	../a.js	/a/b/../../../c	/c
+sw	../a.js	/a/b/../../../c	false,false,-1
+rel	../a.js	x/y/z	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from ../a.js to x/y/z
+sib	../a.js	x/y/z	../x/y/z
+sw	../a.js	x/y/z	false,false,-1
+rel	../a.js	\u00e9/f	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from ../a.js to \u00e9/f
+sib	../a.js	\u00e9/f	../\u00e9/f
+sw	../a.js	\u00e9/f	false,false,-1
+rel	../a.js	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	../a.js	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	../a.js	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+of	a/./b/../c	a/./b/../c|a/./b/..|c|5|a/c|-754579376|false
+rel	a/./b/../c		../..
+sib	a/./b/../c		a
+sw	a/./b/../c		false,false,1
+rel	a/./b/../c	/	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a/./b/../c	/	/
+sw	a/./b/../c	/	false,false,1
+rel	a/./b/../c	//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a/./b/../c	//	/
+sw	a/./b/../c	//	false,false,1
+rel	a/./b/../c	a	..
+sib	a/./b/../c	a	a/a
+sw	a/./b/../c	a	true,false,1
+rel	a/./b/../c	a/	..
+sib	a/./b/../c	a/	a/a
+sw	a/./b/../c	a/	true,false,1
+rel	a/./b/../c	a//b	../b
+sib	a/./b/../c	a//b	a/a/b
+sw	a/./b/../c	a//b	false,false,-1
+rel	a/./b/../c	/a/b/c.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a/./b/../c	/a/b/c.js	/a/b/c.js
+sw	a/./b/../c	/a/b/c.js	false,false,1
+rel	a/./b/../c	./a.js	../../a.js
+sib	a/./b/../c	./a.js	a/a.js
+sw	a/./b/../c	./a.js	false,false,1
+rel	a/./b/../c	../a.js	../../../a.js
+sib	a/./b/../c	../a.js	a.js
+sw	a/./b/../c	../a.js	false,false,1
+rel	a/./b/../c	a/./b/../c	
+sib	a/./b/../c	a/./b/../c	a/a/c
+sw	a/./b/../c	a/./b/../c	true,true,0
+rel	a/./b/../c	/../a	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a/./b/../c	/../a	/a
+sw	a/./b/../c	/../a	false,false,1
+rel	a/./b/../c	a/b/../../..	../../..
+sib	a/./b/../c	a/b/../../..	
+sw	a/./b/../c	a/b/../../..	false,false,-1
+rel	a/./b/../c	foo/bar/baz.js	../../foo/bar/baz.js
+sib	a/./b/../c	foo/bar/baz.js	a/foo/bar/baz.js
+sw	a/./b/../c	foo/bar/baz.js	false,false,-1
+rel	a/./b/../c	/foo/./bar//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a/./b/../c	/foo/./bar//	/foo/bar
+sw	a/./b/../c	/foo/./bar//	false,false,1
+rel	a/./b/../c	m0.js	../../m0.js
+sib	a/./b/../c	m0.js	a/m0.js
+sw	a/./b/../c	m0.js	false,false,-1
+rel	a/./b/../c	../../x/y	../../../../x/y
+sib	a/./b/../c	../../x/y	../x/y
+sw	a/./b/../c	../../x/y	false,false,1
+rel	a/./b/../c	.	../..
+sib	a/./b/../c	.	a
+sw	a/./b/../c	.	false,false,1
+rel	a/./b/../c	..	../../..
+sib	a/./b/../c	..	
+sw	a/./b/../c	..	false,false,1
+rel	a/./b/../c	./	../..
+sib	a/./b/../c	./	a
+sw	a/./b/../c	./	false,false,1
+rel	a/./b/../c	a/..	../..
+sib	a/./b/../c	a/..	a
+sw	a/./b/../c	a/..	false,false,1
+rel	a/./b/../c	/a/b/../../../c	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a/./b/../c	/a/b/../../../c	/c
+sw	a/./b/../c	/a/b/../../../c	false,false,1
+rel	a/./b/../c	x/y/z	../../x/y/z
+sib	a/./b/../c	x/y/z	a/x/y/z
+sw	a/./b/../c	x/y/z	false,false,-1
+rel	a/./b/../c	\u00e9/f	../../\u00e9/f
+sib	a/./b/../c	\u00e9/f	a/\u00e9/f
+sw	a/./b/../c	\u00e9/f	false,false,-1
+rel	a/./b/../c	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	a/./b/../c	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	a/./b/../c	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+of	/../a	/../a|/..|a|2|/a|44821633|true
+rel	/../a		EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/../a		/
+sw	/../a		false,false,1
+rel	/../a	/	..
+sib	/../a	/	/
+sw	/../a	/	true,false,1
+rel	/../a	//	..
+sib	/../a	//	/
+sw	/../a	//	true,false,1
+rel	/../a	a	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/../a	a	/a
+sw	/../a	a	false,true,-1
+rel	/../a	a/	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/../a	a/	/a
+sw	/../a	a/	false,true,-1
+rel	/../a	a//b	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/../a	a//b	/a/b
+sw	/../a	a//b	false,false,-1
+rel	/../a	/a/b/c.js	b/c.js
+sib	/../a	/a/b/c.js	/a/b/c.js
+sw	/../a	/a/b/c.js	false,false,-1
+rel	/../a	./a.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/../a	./a.js	/a.js
+sw	/../a	./a.js	false,false,1
+rel	/../a	../a.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/../a	../a.js	/a.js
+sw	/../a	../a.js	false,false,1
+rel	/../a	a/./b/../c	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/../a	a/./b/../c	/a/c
+sw	/../a	a/./b/../c	false,false,-1
+rel	/../a	/../a	
+sib	/../a	/../a	/a
+sw	/../a	/../a	true,true,0
+rel	/../a	a/b/../../..	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/../a	a/b/../../..	/
+sw	/../a	a/b/../../..	false,false,-1
+rel	/../a	foo/bar/baz.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/../a	foo/bar/baz.js	/foo/bar/baz.js
+sw	/../a	foo/bar/baz.js	false,false,-1
+rel	/../a	/foo/./bar//	../foo/bar
+sib	/../a	/foo/./bar//	/foo/bar
+sw	/../a	/foo/./bar//	false,false,-1
+rel	/../a	m0.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/../a	m0.js	/m0.js
+sw	/../a	m0.js	false,false,-1
+rel	/../a	../../x/y	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/../a	../../x/y	/x/y
+sw	/../a	../../x/y	false,false,1
+rel	/../a	.	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/../a	.	/
+sw	/../a	.	false,false,1
+rel	/../a	..	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/../a	..	/
+sw	/../a	..	false,false,1
+rel	/../a	./	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/../a	./	/
+sw	/../a	./	false,false,1
+rel	/../a	a/..	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/../a	a/..	/
+sw	/../a	a/..	false,false,-1
+rel	/../a	/a/b/../../../c	../c
+sib	/../a	/a/b/../../../c	/c
+sw	/../a	/a/b/../../../c	false,false,-1
+rel	/../a	x/y/z	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/../a	x/y/z	/x/y/z
+sw	/../a	x/y/z	false,false,-1
+rel	/../a	\u00e9/f	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/../a	\u00e9/f	/\u00e9/f
+sw	/../a	\u00e9/f	false,false,-1
+rel	/../a	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	/../a	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	/../a	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+of	a/b/../../..	a/b/../../..|a/b/../..|..|5|..|2074115291|false
+rel	a/b/../../..		EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from a/b/../../.. to 
+sib	a/b/../../..		
+sw	a/b/../../..		false,false,1
+rel	a/b/../../..	/	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a/b/../../..	/	/
+sw	a/b/../../..	/	false,false,1
+rel	a/b/../../..	//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a/b/../../..	//	/
+sw	a/b/../../..	//	false,false,1
+rel	a/b/../../..	a	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from a/b/../../.. to a
+sib	a/b/../../..	a	a
+sw	a/b/../../..	a	true,false,1
+rel	a/b/../../..	a/	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from a/b/../../.. to a
+sib	a/b/../../..	a/	a
+sw	a/b/../../..	a/	true,false,1
+rel	a/b/../../..	a//b	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from a/b/../../.. to a/b
+sib	a/b/../../..	a//b	a/b
+sw	a/b/../../..	a//b	true,false,1
+rel	a/b/../../..	/a/b/c.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a/b/../../..	/a/b/c.js	/a/b/c.js
+sw	a/b/../../..	/a/b/c.js	false,false,1
+rel	a/b/../../..	./a.js	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from a/b/../../.. to ./a.js
+sib	a/b/../../..	./a.js	a.js
+sw	a/b/../../..	./a.js	false,false,1
+rel	a/b/../../..	../a.js	a.js
+sib	a/b/../../..	../a.js	../a.js
+sw	a/b/../../..	../a.js	false,false,1
+rel	a/b/../../..	a/./b/../c	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from a/b/../../.. to a/./b/../c
+sib	a/b/../../..	a/./b/../c	a/c
+sw	a/b/../../..	a/./b/../c	false,false,1
+rel	a/b/../../..	/../a	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a/b/../../..	/../a	/a
+sw	a/b/../../..	/../a	false,false,1
+rel	a/b/../../..	a/b/../../..	
+sib	a/b/../../..	a/b/../../..	..
+sw	a/b/../../..	a/b/../../..	true,true,0
+rel	a/b/../../..	foo/bar/baz.js	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from a/b/../../.. to foo/bar/baz.js
+sib	a/b/../../..	foo/bar/baz.js	foo/bar/baz.js
+sw	a/b/../../..	foo/bar/baz.js	false,false,-1
+rel	a/b/../../..	/foo/./bar//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a/b/../../..	/foo/./bar//	/foo/bar
+sw	a/b/../../..	/foo/./bar//	false,false,1
+rel	a/b/../../..	m0.js	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from a/b/../../.. to m0.js
+sib	a/b/../../..	m0.js	m0.js
+sw	a/b/../../..	m0.js	false,false,-1
+rel	a/b/../../..	../../x/y	../x/y
+sib	a/b/../../..	../../x/y	../../x/y
+sw	a/b/../../..	../../x/y	false,false,1
+rel	a/b/../../..	.	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from a/b/../../.. to .
+sib	a/b/../../..	.	
+sw	a/b/../../..	.	false,false,1
+rel	a/b/../../..	..	
+sib	a/b/../../..	..	..
+sw	a/b/../../..	..	false,true,1
+rel	a/b/../../..	./	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from a/b/../../.. to .
+sib	a/b/../../..	./	
+sw	a/b/../../..	./	false,false,1
+rel	a/b/../../..	a/..	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from a/b/../../.. to a/..
+sib	a/b/../../..	a/..	
+sw	a/b/../../..	a/..	false,false,1
+rel	a/b/../../..	/a/b/../../../c	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a/b/../../..	/a/b/../../../c	/c
+sw	a/b/../../..	/a/b/../../../c	false,false,1
+rel	a/b/../../..	x/y/z	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from a/b/../../.. to x/y/z
+sib	a/b/../../..	x/y/z	x/y/z
+sw	a/b/../../..	x/y/z	false,false,-1
+rel	a/b/../../..	\u00e9/f	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from a/b/../../.. to \u00e9/f
+sib	a/b/../../..	\u00e9/f	\u00e9/f
+sw	a/b/../../..	\u00e9/f	false,false,-1
+rel	a/b/../../..	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	a/b/../../..	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	a/b/../../..	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+of	foo/bar/baz.js	foo/bar/baz.js|foo/bar|baz.js|3|foo/bar/baz.js|1821502049|false
+rel	foo/bar/baz.js		../../..
+sib	foo/bar/baz.js		foo/bar
+sw	foo/bar/baz.js		false,false,1
+rel	foo/bar/baz.js	/	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	foo/bar/baz.js	/	/
+sw	foo/bar/baz.js	/	false,false,1
+rel	foo/bar/baz.js	//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	foo/bar/baz.js	//	/
+sw	foo/bar/baz.js	//	false,false,1
+rel	foo/bar/baz.js	a	../../../a
+sib	foo/bar/baz.js	a	foo/bar/a
+sw	foo/bar/baz.js	a	false,false,1
+rel	foo/bar/baz.js	a/	../../../a
+sib	foo/bar/baz.js	a/	foo/bar/a
+sw	foo/bar/baz.js	a/	false,false,1
+rel	foo/bar/baz.js	a//b	../../../a/b
+sib	foo/bar/baz.js	a//b	foo/bar/a/b
+sw	foo/bar/baz.js	a//b	false,false,1
+rel	foo/bar/baz.js	/a/b/c.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	foo/bar/baz.js	/a/b/c.js	/a/b/c.js
+sw	foo/bar/baz.js	/a/b/c.js	false,false,1
+rel	foo/bar/baz.js	./a.js	../../../a.js
+sib	foo/bar/baz.js	./a.js	foo/bar/a.js
+sw	foo/bar/baz.js	./a.js	false,false,1
+rel	foo/bar/baz.js	../a.js	../../../../a.js
+sib	foo/bar/baz.js	../a.js	foo/a.js
+sw	foo/bar/baz.js	../a.js	false,false,1
+rel	foo/bar/baz.js	a/./b/../c	../../../a/c
+sib	foo/bar/baz.js	a/./b/../c	foo/bar/a/c
+sw	foo/bar/baz.js	a/./b/../c	false,false,1
+rel	foo/bar/baz.js	/../a	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	foo/bar/baz.js	/../a	/a
+sw	foo/bar/baz.js	/../a	false,false,1
+rel	foo/bar/baz.js	a/b/../../..	../../../..
+sib	foo/bar/baz.js	a/b/../../..	foo
+sw	foo/bar/baz.js	a/b/../../..	false,false,1
+rel	foo/bar/baz.js	foo/bar/baz.js	
+sib	foo/bar/baz.js	foo/bar/baz.js	foo/bar/foo/bar/baz.js
+sw	foo/bar/baz.js	foo/bar/baz.js	true,true,0
+rel	foo/bar/baz.js	/foo/./bar//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	foo/bar/baz.js	/foo/./bar//	/foo/bar
+sw	foo/bar/baz.js	/foo/./bar//	false,false,1
+rel	foo/bar/baz.js	m0.js	../../../m0.js
+sib	foo/bar/baz.js	m0.js	foo/bar/m0.js
+sw	foo/bar/baz.js	m0.js	false,false,-1
+rel	foo/bar/baz.js	../../x/y	../../../../../x/y
+sib	foo/bar/baz.js	../../x/y	x/y
+sw	foo/bar/baz.js	../../x/y	false,false,1
+rel	foo/bar/baz.js	.	../../..
+sib	foo/bar/baz.js	.	foo/bar
+sw	foo/bar/baz.js	.	false,false,1
+rel	foo/bar/baz.js	..	../../../..
+sib	foo/bar/baz.js	..	foo
+sw	foo/bar/baz.js	..	false,false,1
+rel	foo/bar/baz.js	./	../../..
+sib	foo/bar/baz.js	./	foo/bar
+sw	foo/bar/baz.js	./	false,false,1
+rel	foo/bar/baz.js	a/..	../../..
+sib	foo/bar/baz.js	a/..	foo/bar
+sw	foo/bar/baz.js	a/..	false,false,1
+rel	foo/bar/baz.js	/a/b/../../../c	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	foo/bar/baz.js	/a/b/../../../c	/c
+sw	foo/bar/baz.js	/a/b/../../../c	false,false,1
+rel	foo/bar/baz.js	x/y/z	../../../x/y/z
+sib	foo/bar/baz.js	x/y/z	foo/bar/x/y/z
+sw	foo/bar/baz.js	x/y/z	false,false,-1
+rel	foo/bar/baz.js	\u00e9/f	../../../\u00e9/f
+sib	foo/bar/baz.js	\u00e9/f	foo/bar/\u00e9/f
+sw	foo/bar/baz.js	\u00e9/f	false,false,-1
+rel	foo/bar/baz.js	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	foo/bar/baz.js	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	foo/bar/baz.js	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+of	/foo/./bar//	/foo/./bar|/foo/.|bar|3|/foo/bar|973667546|true
+rel	/foo/./bar//		EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/foo/./bar//		/foo
+sw	/foo/./bar//		false,false,1
+rel	/foo/./bar//	/	../..
+sib	/foo/./bar//	/	/
+sw	/foo/./bar//	/	true,false,1
+rel	/foo/./bar//	//	../..
+sib	/foo/./bar//	//	/
+sw	/foo/./bar//	//	true,false,1
+rel	/foo/./bar//	a	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/foo/./bar//	a	/foo/a
+sw	/foo/./bar//	a	false,false,-1
+rel	/foo/./bar//	a/	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/foo/./bar//	a/	/foo/a
+sw	/foo/./bar//	a/	false,false,-1
+rel	/foo/./bar//	a//b	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/foo/./bar//	a//b	/foo/a/b
+sw	/foo/./bar//	a//b	false,false,-1
+rel	/foo/./bar//	/a/b/c.js	../../a/b/c.js
+sib	/foo/./bar//	/a/b/c.js	/a/b/c.js
+sw	/foo/./bar//	/a/b/c.js	false,false,1
+rel	/foo/./bar//	./a.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/foo/./bar//	./a.js	/foo/a.js
+sw	/foo/./bar//	./a.js	false,false,1
+rel	/foo/./bar//	../a.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/foo/./bar//	../a.js	/a.js
+sw	/foo/./bar//	../a.js	false,false,1
+rel	/foo/./bar//	a/./b/../c	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/foo/./bar//	a/./b/../c	/foo/a/c
+sw	/foo/./bar//	a/./b/../c	false,false,-1
+rel	/foo/./bar//	/../a	../../a
+sib	/foo/./bar//	/../a	/a
+sw	/foo/./bar//	/../a	false,false,1
+rel	/foo/./bar//	a/b/../../..	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/foo/./bar//	a/b/../../..	/
+sw	/foo/./bar//	a/b/../../..	false,false,-1
+rel	/foo/./bar//	foo/bar/baz.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/foo/./bar//	foo/bar/baz.js	/foo/foo/bar/baz.js
+sw	/foo/./bar//	foo/bar/baz.js	false,false,-1
+rel	/foo/./bar//	/foo/./bar//	
+sib	/foo/./bar//	/foo/./bar//	/foo/bar
+sw	/foo/./bar//	/foo/./bar//	true,true,0
+rel	/foo/./bar//	m0.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/foo/./bar//	m0.js	/foo/m0.js
+sw	/foo/./bar//	m0.js	false,false,-1
+rel	/foo/./bar//	../../x/y	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/foo/./bar//	../../x/y	/x/y
+sw	/foo/./bar//	../../x/y	false,false,1
+rel	/foo/./bar//	.	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/foo/./bar//	.	/foo
+sw	/foo/./bar//	.	false,false,1
+rel	/foo/./bar//	..	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/foo/./bar//	..	/
+sw	/foo/./bar//	..	false,false,1
+rel	/foo/./bar//	./	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/foo/./bar//	./	/foo
+sw	/foo/./bar//	./	false,false,1
+rel	/foo/./bar//	a/..	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/foo/./bar//	a/..	/foo
+sw	/foo/./bar//	a/..	false,false,-1
+rel	/foo/./bar//	/a/b/../../../c	../../c
+sib	/foo/./bar//	/a/b/../../../c	/c
+sw	/foo/./bar//	/a/b/../../../c	false,false,1
+rel	/foo/./bar//	x/y/z	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/foo/./bar//	x/y/z	/foo/x/y/z
+sw	/foo/./bar//	x/y/z	false,false,-1
+rel	/foo/./bar//	\u00e9/f	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/foo/./bar//	\u00e9/f	/foo/\u00e9/f
+sw	/foo/./bar//	\u00e9/f	false,false,-1
+rel	/foo/./bar//	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	/foo/./bar//	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	/foo/./bar//	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+of	m0.js	m0.js|null|m0.js|1|m0.js|102141364|false
+rel	m0.js		..
+sib	m0.js		
+sw	m0.js		false,false,1
+rel	m0.js	/	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	m0.js	/	/
+sw	m0.js	/	false,false,1
+rel	m0.js	//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	m0.js	//	/
+sw	m0.js	//	false,false,1
+rel	m0.js	a	../a
+sib	m0.js	a	a
+sw	m0.js	a	false,false,1
+rel	m0.js	a/	../a
+sib	m0.js	a/	a
+sw	m0.js	a/	false,false,1
+rel	m0.js	a//b	../a/b
+sib	m0.js	a//b	a/b
+sw	m0.js	a//b	false,false,1
+rel	m0.js	/a/b/c.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	m0.js	/a/b/c.js	/a/b/c.js
+sw	m0.js	/a/b/c.js	false,false,1
+rel	m0.js	./a.js	../a.js
+sib	m0.js	./a.js	a.js
+sw	m0.js	./a.js	false,false,1
+rel	m0.js	../a.js	../../a.js
+sib	m0.js	../a.js	../a.js
+sw	m0.js	../a.js	false,false,1
+rel	m0.js	a/./b/../c	../a/c
+sib	m0.js	a/./b/../c	a/c
+sw	m0.js	a/./b/../c	false,false,1
+rel	m0.js	/../a	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	m0.js	/../a	/a
+sw	m0.js	/../a	false,false,1
+rel	m0.js	a/b/../../..	../..
+sib	m0.js	a/b/../../..	..
+sw	m0.js	a/b/../../..	false,false,1
+rel	m0.js	foo/bar/baz.js	../foo/bar/baz.js
+sib	m0.js	foo/bar/baz.js	foo/bar/baz.js
+sw	m0.js	foo/bar/baz.js	false,false,1
+rel	m0.js	/foo/./bar//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	m0.js	/foo/./bar//	/foo/bar
+sw	m0.js	/foo/./bar//	false,false,1
+rel	m0.js	m0.js	
+sib	m0.js	m0.js	m0.js
+sw	m0.js	m0.js	true,true,0
+rel	m0.js	../../x/y	../../../x/y
+sib	m0.js	../../x/y	../../x/y
+sw	m0.js	../../x/y	false,false,1
+rel	m0.js	.	..
+sib	m0.js	.	
+sw	m0.js	.	false,false,1
+rel	m0.js	..	../..
+sib	m0.js	..	..
+sw	m0.js	..	false,false,1
+rel	m0.js	./	..
+sib	m0.js	./	
+sw	m0.js	./	false,false,1
+rel	m0.js	a/..	..
+sib	m0.js	a/..	
+sw	m0.js	a/..	false,false,1
+rel	m0.js	/a/b/../../../c	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	m0.js	/a/b/../../../c	/c
+sw	m0.js	/a/b/../../../c	false,false,1
+rel	m0.js	x/y/z	../x/y/z
+sib	m0.js	x/y/z	x/y/z
+sw	m0.js	x/y/z	false,false,-1
+rel	m0.js	\u00e9/f	../\u00e9/f
+sib	m0.js	\u00e9/f	\u00e9/f
+sw	m0.js	\u00e9/f	false,false,-1
+rel	m0.js	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	m0.js	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	m0.js	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+of	../../x/y	../../x/y|../../x|y|4|../../x/y|1445277442|false
+rel	../../x/y		EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from ../../x/y to 
+sib	../../x/y		../../x
+sw	../../x/y		false,false,1
+rel	../../x/y	/	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	../../x/y	/	/
+sw	../../x/y	/	false,false,-1
+rel	../../x/y	//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	../../x/y	//	/
+sw	../../x/y	//	false,false,-1
+rel	../../x/y	a	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from ../../x/y to a
+sib	../../x/y	a	../../x/a
+sw	../../x/y	a	false,false,-1
+rel	../../x/y	a/	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from ../../x/y to a
+sib	../../x/y	a/	../../x/a
+sw	../../x/y	a/	false,false,-1
+rel	../../x/y	a//b	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from ../../x/y to a/b
+sib	../../x/y	a//b	../../x/a/b
+sw	../../x/y	a//b	false,false,-1
+rel	../../x/y	/a/b/c.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	../../x/y	/a/b/c.js	/a/b/c.js
+sw	../../x/y	/a/b/c.js	false,false,-1
+rel	../../x/y	./a.js	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from ../../x/y to ./a.js
+sib	../../x/y	./a.js	../../x/a.js
+sw	../../x/y	./a.js	false,false,-1
+rel	../../x/y	../a.js	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from ../../x/y to ../a.js
+sib	../../x/y	../a.js	../../a.js
+sw	../../x/y	../a.js	false,false,-1
+rel	../../x/y	a/./b/../c	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from ../../x/y to a/./b/../c
+sib	../../x/y	a/./b/../c	../../x/a/c
+sw	../../x/y	a/./b/../c	false,false,-1
+rel	../../x/y	/../a	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	../../x/y	/../a	/a
+sw	../../x/y	/../a	false,false,-1
+rel	../../x/y	a/b/../../..	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from ../../x/y to a/b/../../..
+sib	../../x/y	a/b/../../..	../..
+sw	../../x/y	a/b/../../..	false,false,-1
+rel	../../x/y	foo/bar/baz.js	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from ../../x/y to foo/bar/baz.js
+sib	../../x/y	foo/bar/baz.js	../../x/foo/bar/baz.js
+sw	../../x/y	foo/bar/baz.js	false,false,-1
+rel	../../x/y	/foo/./bar//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	../../x/y	/foo/./bar//	/foo/bar
+sw	../../x/y	/foo/./bar//	false,false,-1
+rel	../../x/y	m0.js	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from ../../x/y to m0.js
+sib	../../x/y	m0.js	../../x/m0.js
+sw	../../x/y	m0.js	false,false,-1
+rel	../../x/y	../../x/y	
+sib	../../x/y	../../x/y	../../../x/y
+sw	../../x/y	../../x/y	true,true,0
+rel	../../x/y	.	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from ../../x/y to .
+sib	../../x/y	.	../../x
+sw	../../x/y	.	false,false,1
+rel	../../x/y	..	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from ../../x/y to ..
+sib	../../x/y	..	../..
+sw	../../x/y	..	true,false,1
+rel	../../x/y	./	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from ../../x/y to .
+sib	../../x/y	./	../../x
+sw	../../x/y	./	false,false,1
+rel	../../x/y	a/..	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from ../../x/y to a/..
+sib	../../x/y	a/..	../../x
+sw	../../x/y	a/..	false,false,-1
+rel	../../x/y	/a/b/../../../c	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	../../x/y	/a/b/../../../c	/c
+sw	../../x/y	/a/b/../../../c	false,false,-1
+rel	../../x/y	x/y/z	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from ../../x/y to x/y/z
+sib	../../x/y	x/y/z	../../x/x/y/z
+sw	../../x/y	x/y/z	false,false,-1
+rel	../../x/y	\u00e9/f	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from ../../x/y to \u00e9/f
+sib	../../x/y	\u00e9/f	../../x/\u00e9/f
+sw	../../x/y	\u00e9/f	false,false,-1
+rel	../../x/y	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	../../x/y	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	../../x/y	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+of	.	.|null|.|1||46|false
+rel	.		
+sib	.		
+sw	.		false,false,1
+rel	.	/	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	.	/	/
+sw	.	/	false,false,-1
+rel	.	//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	.	//	/
+sw	.	//	false,false,-1
+rel	.	a	a
+sib	.	a	a
+sw	.	a	false,false,-1
+rel	.	a/	a
+sib	.	a/	a
+sw	.	a/	false,false,-1
+rel	.	a//b	a/b
+sib	.	a//b	a/b
+sw	.	a//b	false,false,-1
+rel	.	/a/b/c.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	.	/a/b/c.js	/a/b/c.js
+sw	.	/a/b/c.js	false,false,-1
+rel	.	./a.js	a.js
+sib	.	./a.js	a.js
+sw	.	./a.js	false,false,-1
+rel	.	../a.js	../a.js
+sib	.	../a.js	../a.js
+sw	.	../a.js	false,false,-1
+rel	.	a/./b/../c	a/c
+sib	.	a/./b/../c	a/c
+sw	.	a/./b/../c	false,false,-1
+rel	.	/../a	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	.	/../a	/a
+sw	.	/../a	false,false,-1
+rel	.	a/b/../../..	..
+sib	.	a/b/../../..	..
+sw	.	a/b/../../..	false,false,-1
+rel	.	foo/bar/baz.js	foo/bar/baz.js
+sib	.	foo/bar/baz.js	foo/bar/baz.js
+sw	.	foo/bar/baz.js	false,false,-1
+rel	.	/foo/./bar//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	.	/foo/./bar//	/foo/bar
+sw	.	/foo/./bar//	false,false,-1
+rel	.	m0.js	m0.js
+sib	.	m0.js	m0.js
+sw	.	m0.js	false,false,-1
+rel	.	../../x/y	../../x/y
+sib	.	../../x/y	../../x/y
+sw	.	../../x/y	false,false,-1
+rel	.	.	
+sib	.	.	
+sw	.	.	true,true,0
+rel	.	..	..
+sib	.	..	..
+sw	.	..	false,false,-1
+rel	.	./	
+sib	.	./	
+sw	.	./	true,true,0
+rel	.	a/..	
+sib	.	a/..	
+sw	.	a/..	false,false,-1
+rel	.	/a/b/../../../c	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	.	/a/b/../../../c	/c
+sw	.	/a/b/../../../c	false,false,-1
+rel	.	x/y/z	x/y/z
+sib	.	x/y/z	x/y/z
+sw	.	x/y/z	false,false,-1
+rel	.	\u00e9/f	\u00e9/f
+sib	.	\u00e9/f	\u00e9/f
+sw	.	\u00e9/f	false,false,-1
+rel	.	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	.	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	.	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+of	..	..|null|..|1|..|1472|false
+rel	..		EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from .. to 
+sib	..		
+sw	..		false,false,1
+rel	..	/	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	..	/	/
+sw	..	/	false,false,-1
+rel	..	//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	..	//	/
+sw	..	//	false,false,-1
+rel	..	a	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from .. to a
+sib	..	a	a
+sw	..	a	false,false,-1
+rel	..	a/	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from .. to a
+sib	..	a/	a
+sw	..	a/	false,false,-1
+rel	..	a//b	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from .. to a/b
+sib	..	a//b	a/b
+sw	..	a//b	false,false,-1
+rel	..	/a/b/c.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	..	/a/b/c.js	/a/b/c.js
+sw	..	/a/b/c.js	false,false,-1
+rel	..	./a.js	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from .. to ./a.js
+sib	..	./a.js	a.js
+sw	..	./a.js	false,false,-1
+rel	..	../a.js	a.js
+sib	..	../a.js	../a.js
+sw	..	../a.js	false,false,-1
+rel	..	a/./b/../c	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from .. to a/./b/../c
+sib	..	a/./b/../c	a/c
+sw	..	a/./b/../c	false,false,-1
+rel	..	/../a	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	..	/../a	/a
+sw	..	/../a	false,false,-1
+rel	..	a/b/../../..	
+sib	..	a/b/../../..	..
+sw	..	a/b/../../..	false,false,-1
+rel	..	foo/bar/baz.js	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from .. to foo/bar/baz.js
+sib	..	foo/bar/baz.js	foo/bar/baz.js
+sw	..	foo/bar/baz.js	false,false,-1
+rel	..	/foo/./bar//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	..	/foo/./bar//	/foo/bar
+sw	..	/foo/./bar//	false,false,-1
+rel	..	m0.js	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from .. to m0.js
+sib	..	m0.js	m0.js
+sw	..	m0.js	false,false,-1
+rel	..	../../x/y	../x/y
+sib	..	../../x/y	../../x/y
+sw	..	../../x/y	false,false,-1
+rel	..	.	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from .. to .
+sib	..	.	
+sw	..	.	false,false,1
+rel	..	..	
+sib	..	..	..
+sw	..	..	true,true,0
+rel	..	./	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from .. to .
+sib	..	./	
+sw	..	./	false,false,1
+rel	..	a/..	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from .. to a/..
+sib	..	a/..	
+sw	..	a/..	false,false,-1
+rel	..	/a/b/../../../c	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	..	/a/b/../../../c	/c
+sw	..	/a/b/../../../c	false,false,-1
+rel	..	x/y/z	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from .. to x/y/z
+sib	..	x/y/z	x/y/z
+sw	..	x/y/z	false,false,-1
+rel	..	\u00e9/f	EXC:java.lang.IllegalArgumentException:Unable to compute relative  path from .. to \u00e9/f
+sib	..	\u00e9/f	\u00e9/f
+sw	..	\u00e9/f	false,false,-1
+rel	..	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	..	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	..	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+of	./	.|null|.|1||46|false
+rel	./		
+sib	./		
+sw	./		false,false,1
+rel	./	/	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	./	/	/
+sw	./	/	false,false,-1
+rel	./	//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	./	//	/
+sw	./	//	false,false,-1
+rel	./	a	a
+sib	./	a	a
+sw	./	a	false,false,-1
+rel	./	a/	a
+sib	./	a/	a
+sw	./	a/	false,false,-1
+rel	./	a//b	a/b
+sib	./	a//b	a/b
+sw	./	a//b	false,false,-1
+rel	./	/a/b/c.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	./	/a/b/c.js	/a/b/c.js
+sw	./	/a/b/c.js	false,false,-1
+rel	./	./a.js	a.js
+sib	./	./a.js	a.js
+sw	./	./a.js	false,false,-1
+rel	./	../a.js	../a.js
+sib	./	../a.js	../a.js
+sw	./	../a.js	false,false,-1
+rel	./	a/./b/../c	a/c
+sib	./	a/./b/../c	a/c
+sw	./	a/./b/../c	false,false,-1
+rel	./	/../a	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	./	/../a	/a
+sw	./	/../a	false,false,-1
+rel	./	a/b/../../..	..
+sib	./	a/b/../../..	..
+sw	./	a/b/../../..	false,false,-1
+rel	./	foo/bar/baz.js	foo/bar/baz.js
+sib	./	foo/bar/baz.js	foo/bar/baz.js
+sw	./	foo/bar/baz.js	false,false,-1
+rel	./	/foo/./bar//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	./	/foo/./bar//	/foo/bar
+sw	./	/foo/./bar//	false,false,-1
+rel	./	m0.js	m0.js
+sib	./	m0.js	m0.js
+sw	./	m0.js	false,false,-1
+rel	./	../../x/y	../../x/y
+sib	./	../../x/y	../../x/y
+sw	./	../../x/y	false,false,-1
+rel	./	.	
+sib	./	.	
+sw	./	.	true,true,0
+rel	./	..	..
+sib	./	..	..
+sw	./	..	false,false,-1
+rel	./	./	
+sib	./	./	
+sw	./	./	true,true,0
+rel	./	a/..	
+sib	./	a/..	
+sw	./	a/..	false,false,-1
+rel	./	/a/b/../../../c	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	./	/a/b/../../../c	/c
+sw	./	/a/b/../../../c	false,false,-1
+rel	./	x/y/z	x/y/z
+sib	./	x/y/z	x/y/z
+sw	./	x/y/z	false,false,-1
+rel	./	\u00e9/f	\u00e9/f
+sib	./	\u00e9/f	\u00e9/f
+sw	./	\u00e9/f	false,false,-1
+rel	./	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	./	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	./	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+of	a/..	a/..|a|..|2||2936366|false
+rel	a/..		
+sib	a/..		a
+sw	a/..		false,false,1
+rel	a/..	/	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a/..	/	/
+sw	a/..	/	false,false,1
+rel	a/..	//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a/..	//	/
+sw	a/..	//	false,false,1
+rel	a/..	a	a
+sib	a/..	a	a/a
+sw	a/..	a	true,false,1
+rel	a/..	a/	a
+sib	a/..	a/	a/a
+sw	a/..	a/	true,false,1
+rel	a/..	a//b	a/b
+sib	a/..	a//b	a/a/b
+sw	a/..	a//b	false,false,-1
+rel	a/..	/a/b/c.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a/..	/a/b/c.js	/a/b/c.js
+sw	a/..	/a/b/c.js	false,false,1
+rel	a/..	./a.js	a.js
+sib	a/..	./a.js	a/a.js
+sw	a/..	./a.js	false,false,1
+rel	a/..	../a.js	../a.js
+sib	a/..	../a.js	a.js
+sw	a/..	../a.js	false,false,1
+rel	a/..	a/./b/../c	a/c
+sib	a/..	a/./b/../c	a/a/c
+sw	a/..	a/./b/../c	false,false,-1
+rel	a/..	/../a	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a/..	/../a	/a
+sw	a/..	/../a	false,false,1
+rel	a/..	a/b/../../..	..
+sib	a/..	a/b/../../..	
+sw	a/..	a/b/../../..	false,false,-1
+rel	a/..	foo/bar/baz.js	foo/bar/baz.js
+sib	a/..	foo/bar/baz.js	a/foo/bar/baz.js
+sw	a/..	foo/bar/baz.js	false,false,-1
+rel	a/..	/foo/./bar//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a/..	/foo/./bar//	/foo/bar
+sw	a/..	/foo/./bar//	false,false,1
+rel	a/..	m0.js	m0.js
+sib	a/..	m0.js	a/m0.js
+sw	a/..	m0.js	false,false,-1
+rel	a/..	../../x/y	../../x/y
+sib	a/..	../../x/y	../x/y
+sw	a/..	../../x/y	false,false,1
+rel	a/..	.	
+sib	a/..	.	a
+sw	a/..	.	false,false,1
+rel	a/..	..	..
+sib	a/..	..	
+sw	a/..	..	false,true,1
+rel	a/..	./	
+sib	a/..	./	a
+sw	a/..	./	false,false,1
+rel	a/..	a/..	
+sib	a/..	a/..	a
+sw	a/..	a/..	true,true,0
+rel	a/..	/a/b/../../../c	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	a/..	/a/b/../../../c	/c
+sw	a/..	/a/b/../../../c	false,false,1
+rel	a/..	x/y/z	x/y/z
+sib	a/..	x/y/z	a/x/y/z
+sw	a/..	x/y/z	false,false,-1
+rel	a/..	\u00e9/f	\u00e9/f
+sib	a/..	\u00e9/f	a/\u00e9/f
+sw	a/..	\u00e9/f	false,false,-1
+rel	a/..	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	a/..	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	a/..	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+of	/a/b/../../../c	/a/b/../../../c|/a/b/../../..|c|6|/c|-1799538146|true
+rel	/a/b/../../../c		EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/../../../c		/
+sw	/a/b/../../../c		false,false,1
+rel	/a/b/../../../c	/	..
+sib	/a/b/../../../c	/	/
+sw	/a/b/../../../c	/	true,false,1
+rel	/a/b/../../../c	//	..
+sib	/a/b/../../../c	//	/
+sw	/a/b/../../../c	//	true,false,1
+rel	/a/b/../../../c	a	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/../../../c	a	/a
+sw	/a/b/../../../c	a	false,false,-1
+rel	/a/b/../../../c	a/	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/../../../c	a/	/a
+sw	/a/b/../../../c	a/	false,false,-1
+rel	/a/b/../../../c	a//b	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/../../../c	a//b	/a/b
+sw	/a/b/../../../c	a//b	false,false,-1
+rel	/a/b/../../../c	/a/b/c.js	../a/b/c.js
+sib	/a/b/../../../c	/a/b/c.js	/a/b/c.js
+sw	/a/b/../../../c	/a/b/c.js	false,false,-1
+rel	/a/b/../../../c	./a.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/../../../c	./a.js	/a.js
+sw	/a/b/../../../c	./a.js	false,false,1
+rel	/a/b/../../../c	../a.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/../../../c	../a.js	/a.js
+sw	/a/b/../../../c	../a.js	false,false,1
+rel	/a/b/../../../c	a/./b/../c	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/../../../c	a/./b/../c	/a/c
+sw	/a/b/../../../c	a/./b/../c	false,false,-1
+rel	/a/b/../../../c	/../a	../a
+sib	/a/b/../../../c	/../a	/a
+sw	/a/b/../../../c	/../a	false,false,1
+rel	/a/b/../../../c	a/b/../../..	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/../../../c	a/b/../../..	/
+sw	/a/b/../../../c	a/b/../../..	false,false,-1
+rel	/a/b/../../../c	foo/bar/baz.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/../../../c	foo/bar/baz.js	/foo/bar/baz.js
+sw	/a/b/../../../c	foo/bar/baz.js	false,false,-1
+rel	/a/b/../../../c	/foo/./bar//	../foo/bar
+sib	/a/b/../../../c	/foo/./bar//	/foo/bar
+sw	/a/b/../../../c	/foo/./bar//	false,false,-1
+rel	/a/b/../../../c	m0.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/../../../c	m0.js	/m0.js
+sw	/a/b/../../../c	m0.js	false,false,-1
+rel	/a/b/../../../c	../../x/y	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/../../../c	../../x/y	/x/y
+sw	/a/b/../../../c	../../x/y	false,false,1
+rel	/a/b/../../../c	.	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/../../../c	.	/
+sw	/a/b/../../../c	.	false,false,1
+rel	/a/b/../../../c	..	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/../../../c	..	/
+sw	/a/b/../../../c	..	false,false,1
+rel	/a/b/../../../c	./	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/../../../c	./	/
+sw	/a/b/../../../c	./	false,false,1
+rel	/a/b/../../../c	a/..	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/../../../c	a/..	/
+sw	/a/b/../../../c	a/..	false,false,-1
+rel	/a/b/../../../c	/a/b/../../../c	
+sib	/a/b/../../../c	/a/b/../../../c	/c
+sw	/a/b/../../../c	/a/b/../../../c	true,true,0
+rel	/a/b/../../../c	x/y/z	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/../../../c	x/y/z	/x/y/z
+sw	/a/b/../../../c	x/y/z	false,false,-1
+rel	/a/b/../../../c	\u00e9/f	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	/a/b/../../../c	\u00e9/f	/\u00e9/f
+sw	/a/b/../../../c	\u00e9/f	false,false,-1
+rel	/a/b/../../../c	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	/a/b/../../../c	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	/a/b/../../../c	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+of	x/y/z	x/y/z|x/y|z|3|x/y/z|112340557|false
+rel	x/y/z		../../..
+sib	x/y/z		x/y
+sw	x/y/z		false,false,1
+rel	x/y/z	/	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	x/y/z	/	/
+sw	x/y/z	/	false,false,1
+rel	x/y/z	//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	x/y/z	//	/
+sw	x/y/z	//	false,false,1
+rel	x/y/z	a	../../../a
+sib	x/y/z	a	x/y/a
+sw	x/y/z	a	false,false,1
+rel	x/y/z	a/	../../../a
+sib	x/y/z	a/	x/y/a
+sw	x/y/z	a/	false,false,1
+rel	x/y/z	a//b	../../../a/b
+sib	x/y/z	a//b	x/y/a/b
+sw	x/y/z	a//b	false,false,1
+rel	x/y/z	/a/b/c.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	x/y/z	/a/b/c.js	/a/b/c.js
+sw	x/y/z	/a/b/c.js	false,false,1
+rel	x/y/z	./a.js	../../../a.js
+sib	x/y/z	./a.js	x/y/a.js
+sw	x/y/z	./a.js	false,false,1
+rel	x/y/z	../a.js	../../../../a.js
+sib	x/y/z	../a.js	x/a.js
+sw	x/y/z	../a.js	false,false,1
+rel	x/y/z	a/./b/../c	../../../a/c
+sib	x/y/z	a/./b/../c	x/y/a/c
+sw	x/y/z	a/./b/../c	false,false,1
+rel	x/y/z	/../a	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	x/y/z	/../a	/a
+sw	x/y/z	/../a	false,false,1
+rel	x/y/z	a/b/../../..	../../../..
+sib	x/y/z	a/b/../../..	x
+sw	x/y/z	a/b/../../..	false,false,1
+rel	x/y/z	foo/bar/baz.js	../../../foo/bar/baz.js
+sib	x/y/z	foo/bar/baz.js	x/y/foo/bar/baz.js
+sw	x/y/z	foo/bar/baz.js	false,false,1
+rel	x/y/z	/foo/./bar//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	x/y/z	/foo/./bar//	/foo/bar
+sw	x/y/z	/foo/./bar//	false,false,1
+rel	x/y/z	m0.js	../../../m0.js
+sib	x/y/z	m0.js	x/y/m0.js
+sw	x/y/z	m0.js	false,false,1
+rel	x/y/z	../../x/y	../../../../../x/y
+sib	x/y/z	../../x/y	x/y
+sw	x/y/z	../../x/y	false,false,1
+rel	x/y/z	.	../../..
+sib	x/y/z	.	x/y
+sw	x/y/z	.	false,false,1
+rel	x/y/z	..	../../../..
+sib	x/y/z	..	x
+sw	x/y/z	..	false,false,1
+rel	x/y/z	./	../../..
+sib	x/y/z	./	x/y
+sw	x/y/z	./	false,false,1
+rel	x/y/z	a/..	../../..
+sib	x/y/z	a/..	x/y
+sw	x/y/z	a/..	false,false,1
+rel	x/y/z	/a/b/../../../c	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	x/y/z	/a/b/../../../c	/c
+sw	x/y/z	/a/b/../../../c	false,false,1
+rel	x/y/z	x/y/z	
+sib	x/y/z	x/y/z	x/y/x/y/z
+sw	x/y/z	x/y/z	true,true,0
+rel	x/y/z	\u00e9/f	../../../\u00e9/f
+sib	x/y/z	\u00e9/f	x/y/\u00e9/f
+sw	x/y/z	\u00e9/f	false,false,-1
+rel	x/y/z	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	x/y/z	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	x/y/z	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+of	\u00e9/f	\u00e9/f|\u00e9|f|2|\u00e9/f|5973213|false
+rel	\u00e9/f		../..
+sib	\u00e9/f		\u00e9
+sw	\u00e9/f		false,false,1
+rel	\u00e9/f	/	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	\u00e9/f	/	/
+sw	\u00e9/f	/	false,false,1
+rel	\u00e9/f	//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	\u00e9/f	//	/
+sw	\u00e9/f	//	false,false,1
+rel	\u00e9/f	a	../../a
+sib	\u00e9/f	a	\u00e9/a
+sw	\u00e9/f	a	false,false,1
+rel	\u00e9/f	a/	../../a
+sib	\u00e9/f	a/	\u00e9/a
+sw	\u00e9/f	a/	false,false,1
+rel	\u00e9/f	a//b	../../a/b
+sib	\u00e9/f	a//b	\u00e9/a/b
+sw	\u00e9/f	a//b	false,false,1
+rel	\u00e9/f	/a/b/c.js	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	\u00e9/f	/a/b/c.js	/a/b/c.js
+sw	\u00e9/f	/a/b/c.js	false,false,1
+rel	\u00e9/f	./a.js	../../a.js
+sib	\u00e9/f	./a.js	\u00e9/a.js
+sw	\u00e9/f	./a.js	false,false,1
+rel	\u00e9/f	../a.js	../../../a.js
+sib	\u00e9/f	../a.js	a.js
+sw	\u00e9/f	../a.js	false,false,1
+rel	\u00e9/f	a/./b/../c	../../a/c
+sib	\u00e9/f	a/./b/../c	\u00e9/a/c
+sw	\u00e9/f	a/./b/../c	false,false,1
+rel	\u00e9/f	/../a	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	\u00e9/f	/../a	/a
+sw	\u00e9/f	/../a	false,false,1
+rel	\u00e9/f	a/b/../../..	../../..
+sib	\u00e9/f	a/b/../../..	
+sw	\u00e9/f	a/b/../../..	false,false,1
+rel	\u00e9/f	foo/bar/baz.js	../../foo/bar/baz.js
+sib	\u00e9/f	foo/bar/baz.js	\u00e9/foo/bar/baz.js
+sw	\u00e9/f	foo/bar/baz.js	false,false,1
+rel	\u00e9/f	/foo/./bar//	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	\u00e9/f	/foo/./bar//	/foo/bar
+sw	\u00e9/f	/foo/./bar//	false,false,1
+rel	\u00e9/f	m0.js	../../m0.js
+sib	\u00e9/f	m0.js	\u00e9/m0.js
+sw	\u00e9/f	m0.js	false,false,1
+rel	\u00e9/f	../../x/y	../../../../x/y
+sib	\u00e9/f	../../x/y	../x/y
+sw	\u00e9/f	../../x/y	false,false,1
+rel	\u00e9/f	.	../..
+sib	\u00e9/f	.	\u00e9
+sw	\u00e9/f	.	false,false,1
+rel	\u00e9/f	..	../../..
+sib	\u00e9/f	..	
+sw	\u00e9/f	..	false,false,1
+rel	\u00e9/f	./	../..
+sib	\u00e9/f	./	\u00e9
+sw	\u00e9/f	./	false,false,1
+rel	\u00e9/f	a/..	../..
+sib	\u00e9/f	a/..	\u00e9
+sw	\u00e9/f	a/..	false,false,1
+rel	\u00e9/f	/a/b/../../../c	EXC:java.lang.IllegalArgumentException:'other' is different type of Path
+sib	\u00e9/f	/a/b/../../../c	/c
+sw	\u00e9/f	/a/b/../../../c	false,false,1
+rel	\u00e9/f	x/y/z	../../x/y/z
+sib	\u00e9/f	x/y/z	\u00e9/x/y/z
+sw	\u00e9/f	x/y/z	false,false,1
+rel	\u00e9/f	\u00e9/f	
+sib	\u00e9/f	\u00e9/f	\u00e9/\u00e9/f
+sw	\u00e9/f	\u00e9/f	true,true,0
+rel	\u00e9/f	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	\u00e9/f	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	\u00e9/f	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+of	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+rel	a\u0000b		EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	a\u0000b		EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	a\u0000b		EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+rel	a\u0000b	/	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	a\u0000b	/	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	a\u0000b	/	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+rel	a\u0000b	//	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	a\u0000b	//	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	a\u0000b	//	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+rel	a\u0000b	a	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	a\u0000b	a	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	a\u0000b	a	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+rel	a\u0000b	a/	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	a\u0000b	a/	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	a\u0000b	a/	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+rel	a\u0000b	a//b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	a\u0000b	a//b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	a\u0000b	a//b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+rel	a\u0000b	/a/b/c.js	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	a\u0000b	/a/b/c.js	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	a\u0000b	/a/b/c.js	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+rel	a\u0000b	./a.js	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	a\u0000b	./a.js	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	a\u0000b	./a.js	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+rel	a\u0000b	../a.js	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	a\u0000b	../a.js	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	a\u0000b	../a.js	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+rel	a\u0000b	a/./b/../c	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	a\u0000b	a/./b/../c	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	a\u0000b	a/./b/../c	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+rel	a\u0000b	/../a	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	a\u0000b	/../a	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	a\u0000b	/../a	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+rel	a\u0000b	a/b/../../..	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	a\u0000b	a/b/../../..	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	a\u0000b	a/b/../../..	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+rel	a\u0000b	foo/bar/baz.js	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	a\u0000b	foo/bar/baz.js	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	a\u0000b	foo/bar/baz.js	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+rel	a\u0000b	/foo/./bar//	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	a\u0000b	/foo/./bar//	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	a\u0000b	/foo/./bar//	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+rel	a\u0000b	m0.js	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	a\u0000b	m0.js	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	a\u0000b	m0.js	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+rel	a\u0000b	../../x/y	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	a\u0000b	../../x/y	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	a\u0000b	../../x/y	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+rel	a\u0000b	.	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	a\u0000b	.	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	a\u0000b	.	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+rel	a\u0000b	..	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	a\u0000b	..	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	a\u0000b	..	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+rel	a\u0000b	./	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	a\u0000b	./	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	a\u0000b	./	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+rel	a\u0000b	a/..	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	a\u0000b	a/..	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	a\u0000b	a/..	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+rel	a\u0000b	/a/b/../../../c	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	a\u0000b	/a/b/../../../c	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	a\u0000b	/a/b/../../../c	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+rel	a\u0000b	x/y/z	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	a\u0000b	x/y/z	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	a\u0000b	x/y/z	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+rel	a\u0000b	\u00e9/f	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	a\u0000b	\u00e9/f	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	a\u0000b	\u00e9/f	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+rel	a\u0000b	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sib	a\u0000b	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
+sw	a\u0000b	a\u0000b	EXC:java.nio.file.InvalidPathException:Nul character not allowed: a\u0000b
