@@ -1,0 +1,44 @@
+{
+  "name": "typed-app",
+  "order": 1,
+  "title": "Typed app build",
+  "description": "A Closure Library-based app (`tools/bench/app/`: a notes editor written for this benchmark, three goog.module/goog.provide files on top of goog.editor, goog.ui, goog.net, goog.storage and the library's own editor demo plugins `goog.demos.editor.*`) compiled with the whole of Closure Library v20230802 (`closure/goog` and `third_party/closure/goog`, tests excluded, 971 files) as candidate inputs; `--dependency_mode=PRUNE` keeps the app's transitive goog.module/goog.provide dependencies.",
+  "mode": "ADVANCED, type checking on (`--jscomp_warning=checkTypes`), source map",
+  "flags": [
+    "--compilation_level=ADVANCED",
+    "--jscomp_warning=checkTypes",
+    "--dependency_mode=PRUNE",
+    "--entry_point=goog:benchapp.main"
+  ],
+  "inputs": [
+    {
+      "glob": "inputs/closure-library@v20230802/closure/goog/**/*.js",
+      "exclude": [
+        "*_test.js"
+      ]
+    },
+    {
+      "glob": "inputs/closure-library@v20230802/third_party/closure/goog/**/*.js",
+      "exclude": [
+        "*_test.js"
+      ]
+    },
+    {
+      "file": "app/notestore.js"
+    },
+    {
+      "file": "app/notesview.js"
+    },
+    {
+      "file": "app/main.js"
+    }
+  ],
+  "output_args": [
+    "--js_output_file=out.js",
+    "--create_source_map=out.js.map"
+  ],
+  "compare": [
+    "out.js",
+    "out.js.map"
+  ]
+}
