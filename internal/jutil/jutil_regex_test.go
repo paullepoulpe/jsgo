@@ -2,6 +2,7 @@ package jutil
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -91,5 +92,57 @@ func TestAppendCharSequenceRangeOfItself(t *testing.T) {
 	sb.AppendCharSequenceRange(sb, 1, sb.Length())
 	if got := sb.String(); got != "x(?:ab)(?:ab)" {
 		t.Errorf("got %q", got)
+	}
+}
+
+func TestStringSplitRegexpMatchesJava(t *testing.T) {
+	re := regexp.MustCompile("\r?\n")
+	// Java: s.split("\r?\n")
+	cases := []struct {
+		in   string
+		want []string
+	}{
+		{"", []string{""}},
+		{"\n", []string{}},
+		{"\n\n", []string{}},
+		{"\na", []string{"", "a"}},
+		{"a\n\n", []string{"a"}},
+		{"a\r\nb\r\n", []string{"a", "b"}},
+		{"a\rb", []string{"a\rb"}},
+		{"a\r\r\nb", []string{"a\r", "b"}},
+		{"\r\n\r\nx", []string{"", "", "x"}},
+		{"x\r", []string{"x\r"}},
+		{"a\nb\nc", []string{"a", "b", "c"}},
+	}
+	for _, c := range cases {
+		got := StringSplitRegexp(c.in, re)
+		if fmt.Sprintf("%q", got) != fmt.Sprintf("%q", c.want) {
+			t.Errorf("split(%q) = %q, Java %q", c.in, got, c.want)
+		}
+	}
+}
+
+func TestImmutableMapBuilderMatchesGuava(t *testing.T) {
+	cases := []struct {
+		f    func()
+		want string
+	}{
+		{func() {
+			NewImmutableMapBuilder[string, string]().Put("a", "1").Put("b", "2").Put("b", "3").Put("a", "4").BuildOrThrow()
+		}, "java.lang.IllegalArgumentException: Multiple entries with same key: b=3 and b=2"},
+		{func() { NewImmutableMapBuilder[int, int]().Put(1, 2).Put(1, 3).BuildOrThrow() },
+			"java.lang.IllegalArgumentException: Multiple entries with same key: 1=3 and 1=2"},
+		{func() { NewImmutableMapBuilder[string, *int]().Put("a", nil) },
+			"java.lang.NullPointerException: null value in entry: a=null"},
+		{func() { NewImmutableMapBuilder[*int, string]().Put(nil, "v") },
+			"java.lang.NullPointerException: null key in entry: null=v"},
+	}
+	for i, c := range cases {
+		if got := throwableString(c.f); got != c.want {
+			t.Errorf("case %d: got %q, want %q", i, got, c.want)
+		}
+	}
+	if got := NewImmutableMapBuilder[string, string]().Put("z", "1").Put("a", "2").BuildOrThrow().String(); got != "{z=1, a=2}" {
+		t.Errorf("got %s", got)
 	}
 }
