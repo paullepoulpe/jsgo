@@ -1,0 +1,1 @@
+var x = {set a(p) {}, b: foo()};

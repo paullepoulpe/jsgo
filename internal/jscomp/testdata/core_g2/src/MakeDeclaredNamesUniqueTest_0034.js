@@ -1,0 +1,1 @@
+let a = function foo(){foo()};let b = function foo$jscomp$1(){foo$jscomp$1()};

@@ -1,0 +1,1 @@
+function *f() { return (yield 1) || (yield 2); }

@@ -1,0 +1,1 @@
+var result$jscomp$0=foo();var x = {set a(p) {}, b: result$jscomp$0};

@@ -1,0 +1,1 @@
+var result$jscomp$0 = class X {}; alert(result$jscomp$0);

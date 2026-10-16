@@ -1,0 +1,1 @@
+var result$jscomp$0 = foo(); if (result$jscomp$0);
