@@ -27,17 +27,25 @@ func (b *ImmutableMapBuilder[K, V]) Put(k K, v V) *ImmutableMapBuilder[K, V] {
 	return b
 }
 
-// BuildOrThrow is ImmutableMap.Builder.buildOrThrow() (and build()): the
-// first entry whose key was already put throws IllegalArgumentException
-// "Multiple entries with same key: k=new and k=old".
+// BuildOrThrow is ImmutableMap.Builder.buildOrThrow() (and build()).
+// Guava's RegularImmutableMap.fromEntryArray inserts the entries from the
+// last to the first, so the duplicate reported is the last entry (in
+// insertion order) whose key is put again later, together with the nearest
+// later entry with that key: IllegalArgumentException "Multiple entries
+// with same key: k=later and k=earlier".
 func (b *ImmutableMapBuilder[K, V]) BuildOrThrow() *LinkedHashMap[K, V] {
+	later := make(map[K]V, len(b.keys))
+	for i := len(b.keys) - 1; i >= 0; i-- {
+		k := b.keys[i]
+		if v, ok := later[k]; ok {
+			panic(NewIllegalArgumentExceptionMsg("Multiple entries with same key: " +
+				ToJavaString(k) + "=" + ToJavaString(v) + " and " +
+				ToJavaString(k) + "=" + ToJavaString(b.values[i])))
+		}
+		later[k] = b.values[i]
+	}
 	m := NewLinkedHashMap[K, V]()
 	for i, k := range b.keys {
-		if old, ok := m.Lookup(k); ok {
-			panic(NewIllegalArgumentExceptionMsg("Multiple entries with same key: " +
-				ToJavaString(k) + "=" + ToJavaString(b.values[i]) + " and " +
-				ToJavaString(k) + "=" + ToJavaString(old)))
-		}
 		m.Put(k, b.values[i])
 	}
 	return m
