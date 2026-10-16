@@ -1,0 +1,1 @@
+var result$jscomp$0 = foo(); switch(1 + result$jscomp$0){}

@@ -1,0 +1,1 @@
+var foo; var x = function foo$jscomp$1(){var foo$jscomp$2}

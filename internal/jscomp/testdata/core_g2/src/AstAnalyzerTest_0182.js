@@ -1,0 +1,1 @@
+class C { static ['x'] = alert(1); }

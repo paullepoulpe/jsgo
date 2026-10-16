@@ -1,0 +1,1 @@
+var a$jscomp$unique_0 = {x : 'a'}; a$jscomp$unique_0.x

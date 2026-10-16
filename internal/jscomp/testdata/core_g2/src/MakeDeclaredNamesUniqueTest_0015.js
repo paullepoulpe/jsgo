@@ -1,0 +1,1 @@
+class A {} function foo(){class A {}}

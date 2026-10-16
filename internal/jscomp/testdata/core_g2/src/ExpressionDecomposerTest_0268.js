@@ -1,0 +1,1 @@
+function *f() { return g.apply([yield 1, yield 2]); }

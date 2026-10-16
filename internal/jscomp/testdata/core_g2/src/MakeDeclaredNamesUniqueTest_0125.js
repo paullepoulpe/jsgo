@@ -1,0 +1,1 @@
+(function () {var CONST = 3; var ACONST$jscomp$1 = 2;})
