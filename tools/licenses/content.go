@@ -8,6 +8,8 @@ import (
 	"path"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/paullepoulpe/jsgo/tools/oracle/corpus"
 )
 
 // fileText returns the text that the content checks (GPL mentions,
@@ -51,7 +53,8 @@ func fileText(name string, b []byte) (text []byte, skip bool, err error) {
 	return b, false, nil
 }
 
-// mentionsGPL reports whether text mentions the GPL.
+// mentionsGPL reports whether text mentions the GPL. The name of the list
+// of excluded corpus files (tools/oracle/corpus) does not count.
 func mentionsGPL(text []byte) bool {
 	// Most files mention neither word; a case-folded search for the
 	// literal part of each alternative of gplPattern rules them out fast.
@@ -59,7 +62,58 @@ func mentionsGPL(text []byte) bool {
 	if !bytes.Contains(lower, []byte("g"+"pl")) && !bytes.Contains(lower, []byte("public licen")) {
 		return false
 	}
+	if name := []byte(corpus.ListName); bytes.Contains(text, name) {
+		text = bytes.ReplaceAll(text, name, []byte(" "))
+	}
 	return gplPattern.Match(text)
+}
+
+// excludedIndex finds the excluded corpus files that a text mentions: it
+// holds the text that makes a tracked file mention each one, its key
+// (corpus.Key), grouped by the key's directory. The excluded files sit in
+// few directories, so one search per directory rules out most texts.
+type excludedIndex struct {
+	dirs  [][]byte   // distinct key directories, with a trailing "/"
+	files [][]string // per directory, the excluded files
+	keys  map[string][]byte
+}
+
+func newExcludedIndex(excluded []string) *excludedIndex {
+	x := &excludedIndex{keys: map[string][]byte{}}
+	at := map[string]int{}
+	for _, e := range excluded {
+		k := corpus.Key(e)
+		x.keys[e] = []byte(k)
+		dir := k[:strings.LastIndex(k, "/")+1]
+		if dir == "" {
+			dir = k
+		}
+		i, ok := at[dir]
+		if !ok {
+			i = len(x.dirs)
+			at[dir] = i
+			x.dirs = append(x.dirs, []byte(dir))
+			x.files = append(x.files, nil)
+		}
+		x.files[i] = append(x.files[i], e)
+	}
+	return x
+}
+
+// mentioned returns the excluded corpus files that text mentions.
+func (x *excludedIndex) mentioned(text []byte) []string {
+	var found []string
+	for i, dir := range x.dirs {
+		if !bytes.Contains(text, dir) {
+			continue
+		}
+		for _, e := range x.files[i] {
+			if bytes.Contains(text, x.keys[e]) {
+				found = append(found, e)
+			}
+		}
+	}
+	return found
 }
 
 var gzipMagic = []byte{0x1f, 0x8b}

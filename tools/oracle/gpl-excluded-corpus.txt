@@ -1,0 +1,59 @@
+# Corpus files that the oracle tooling must never use. Paths only, relative to
+# the corpus root (here .cache/corpus-holdout; tools/oracle/corpus.sh fetches
+# it from corpus-holdout.txt). None of their content is in this repository.
+#
+# Each of these files carries a GPL or LGPL notice: they are the sparse-matrix
+# routines of mathjs@15.2.0, derived from CSparse. PORTING.md allows no GPL
+# code anywhere, and goldens made from them would contain it, so:
+#   - the Java oracle dumps (tools/oracle/java/CorpusExclusions.java) and the
+#     Go corpus-list readers (tools/oracle/corpus) skip them;
+#   - "go run ./tools/licenses -check" fails if a tracked file, decompressed if
+#     needed, mentions one of them.
+# A path matches when it ends with the listed path inside its npm package
+# (the part after "<name>@<version>/package/"), whatever the corpus root.
+#
+# Add a file here when a corpus gains one under a GPL-family licence.
+mathjs@15.2.0/package/lib/cjs/function/algebra/sparse/csAmd.js
+mathjs@15.2.0/package/lib/cjs/function/algebra/sparse/csChol.js
+mathjs@15.2.0/package/lib/cjs/function/algebra/sparse/csCounts.js
+mathjs@15.2.0/package/lib/cjs/function/algebra/sparse/csCumsum.js
+mathjs@15.2.0/package/lib/cjs/function/algebra/sparse/csDfs.js
+mathjs@15.2.0/package/lib/cjs/function/algebra/sparse/csEreach.js
+mathjs@15.2.0/package/lib/cjs/function/algebra/sparse/csEtree.js
+mathjs@15.2.0/package/lib/cjs/function/algebra/sparse/csFkeep.js
+mathjs@15.2.0/package/lib/cjs/function/algebra/sparse/csFlip.js
+mathjs@15.2.0/package/lib/cjs/function/algebra/sparse/csIpvec.js
+mathjs@15.2.0/package/lib/cjs/function/algebra/sparse/csLeaf.js
+mathjs@15.2.0/package/lib/cjs/function/algebra/sparse/csLu.js
+mathjs@15.2.0/package/lib/cjs/function/algebra/sparse/csMark.js
+mathjs@15.2.0/package/lib/cjs/function/algebra/sparse/csMarked.js
+mathjs@15.2.0/package/lib/cjs/function/algebra/sparse/csPermute.js
+mathjs@15.2.0/package/lib/cjs/function/algebra/sparse/csPost.js
+mathjs@15.2.0/package/lib/cjs/function/algebra/sparse/csReach.js
+mathjs@15.2.0/package/lib/cjs/function/algebra/sparse/csSpsolve.js
+mathjs@15.2.0/package/lib/cjs/function/algebra/sparse/csSqr.js
+mathjs@15.2.0/package/lib/cjs/function/algebra/sparse/csSymperm.js
+mathjs@15.2.0/package/lib/cjs/function/algebra/sparse/csTdfs.js
+mathjs@15.2.0/package/lib/cjs/function/algebra/sparse/csUnflip.js
+mathjs@15.2.0/package/lib/esm/function/algebra/sparse/csAmd.js
+mathjs@15.2.0/package/lib/esm/function/algebra/sparse/csChol.js
+mathjs@15.2.0/package/lib/esm/function/algebra/sparse/csCounts.js
+mathjs@15.2.0/package/lib/esm/function/algebra/sparse/csCumsum.js
+mathjs@15.2.0/package/lib/esm/function/algebra/sparse/csDfs.js
+mathjs@15.2.0/package/lib/esm/function/algebra/sparse/csEreach.js
+mathjs@15.2.0/package/lib/esm/function/algebra/sparse/csEtree.js
+mathjs@15.2.0/package/lib/esm/function/algebra/sparse/csFkeep.js
+mathjs@15.2.0/package/lib/esm/function/algebra/sparse/csFlip.js
+mathjs@15.2.0/package/lib/esm/function/algebra/sparse/csIpvec.js
+mathjs@15.2.0/package/lib/esm/function/algebra/sparse/csLeaf.js
+mathjs@15.2.0/package/lib/esm/function/algebra/sparse/csLu.js
+mathjs@15.2.0/package/lib/esm/function/algebra/sparse/csMark.js
+mathjs@15.2.0/package/lib/esm/function/algebra/sparse/csMarked.js
+mathjs@15.2.0/package/lib/esm/function/algebra/sparse/csPermute.js
+mathjs@15.2.0/package/lib/esm/function/algebra/sparse/csPost.js
+mathjs@15.2.0/package/lib/esm/function/algebra/sparse/csReach.js
+mathjs@15.2.0/package/lib/esm/function/algebra/sparse/csSpsolve.js
+mathjs@15.2.0/package/lib/esm/function/algebra/sparse/csSqr.js
+mathjs@15.2.0/package/lib/esm/function/algebra/sparse/csSymperm.js
+mathjs@15.2.0/package/lib/esm/function/algebra/sparse/csTdfs.js
+mathjs@15.2.0/package/lib/esm/function/algebra/sparse/csUnflip.js

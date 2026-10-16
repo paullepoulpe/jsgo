@@ -3,8 +3,11 @@ package main
 import (
 	"bytes"
 	"compress/gzip"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/paullepoulpe/jsgo/tools/oracle/corpus"
 )
 
 func gz(t *testing.T, s string) []byte {
@@ -97,9 +100,39 @@ func TestMentionsGPL(t *testing.T) {
 		{"an " + gplWord + "Excluded identifier", false},
 		{"x" + strings.ToLower(gplWord) + "y", false},
 		{"public licenses in general", false},
+		{"see tools/oracle/" + corpus.ListName + " for the list", false},
+		{corpus.ListName + " " + gplWord, true},
 	} {
 		if got := mentionsGPL([]byte(tc.text)); got != tc.want {
 			t.Errorf("mentionsGPL(%q) = %v, want %v", tc.text, got, tc.want)
+		}
+	}
+}
+
+func TestExcludedIndex(t *testing.T) {
+	x := newExcludedIndex([]string{
+		"m@1.0.0/package/lib/esm/sparse/csA.js",
+		"m@1.0.0/package/lib/esm/sparse/csB.js",
+		"m@1.0.0/package/lib/cjs/sparse/csA.js",
+		"loose.js",
+	})
+	for _, tc := range []struct {
+		name string
+		in   []byte
+		want []string
+	}{
+		{"none", []byte("lib/esm/sparse/csC.js lib/esm/sparse/"), nil},
+		{"list entry", []byte("# file m@1.0.0/package/lib/esm/sparse/csB.js\n"), []string{"m@1.0.0/package/lib/esm/sparse/csB.js"}},
+		{"other root", []byte("/c/package/lib/cjs/sparse/csA.js and lib/esm/sparse/csA.js"), []string{"m@1.0.0/package/lib/esm/sparse/csA.js", "m@1.0.0/package/lib/cjs/sparse/csA.js"}},
+		{"no package dir", []byte("x/loose.js"), []string{"loose.js"}},
+		{"gzip golden", gz(t, "# file m@1.0.0/package/lib/esm/sparse/csA.js\nSCRIPT\n"), []string{"m@1.0.0/package/lib/esm/sparse/csA.js"}},
+	} {
+		text, _, err := fileText(tc.name, tc.in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := x.mentioned(text); !slices.Equal(got, tc.want) {
+			t.Errorf("%s: mentioned = %q, want %q", tc.name, got, tc.want)
 		}
 	}
 }

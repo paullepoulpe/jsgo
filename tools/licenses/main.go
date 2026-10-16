@@ -28,6 +28,9 @@
 //     line carries that project's copyright and licence notice before its
 //     package clause (thirdparty.go), and every such line before a
 //     package clause names a Closure source or one of those projects;
+//   - no tracked file (decompressed, as above) mentions a corpus file of
+//     tools/oracle/gpl-excluded-corpus.txt (tools/oracle/corpus): it
+//     contains the file's path inside its npm package;
 //   - NOTICE and the licence texts under LICENSES/ exist.
 //
 // Usage:
@@ -47,6 +50,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/paullepoulpe/jsgo/tools/oracle/corpus"
 )
 
 const tag = "v20260415"
@@ -60,6 +65,7 @@ var exempt = map[string]bool{
 	"PLAN.md":                   true,
 	"tools/licenses/main.go":    true,
 	"tools/licenses/content.go": true,
+	corpus.ListPath:             true,
 }
 
 var portOf = regexp.MustCompile(`^// Port of (com/google/[^ ]+\.java)`)
@@ -87,7 +93,12 @@ func main() {
 		}
 		fmt.Printf("licenses: %d files updated\n", n)
 	}
-	var bad, problems []string
+	excluded, err := corpus.Excluded()
+	if err != nil {
+		fatal(err)
+	}
+	index := newExcludedIndex(excluded)
+	var bad, mentions, problems []string
 	ported := map[string]int{}
 	skipped := 0
 	for _, f := range files {
@@ -101,8 +112,15 @@ func main() {
 			problems = append(problems, err.Error())
 		case skip:
 			skipped++
-		case !exempt[f] && mentionsGPL(text):
-			bad = append(bad, f)
+		default:
+			if !exempt[f] && mentionsGPL(text) {
+				bad = append(bad, f)
+			}
+			if f != corpus.ListPath {
+				for _, e := range index.mentioned(text) {
+					mentions = append(mentions, f+": "+e)
+				}
+			}
 		}
 		if strings.HasSuffix(f, ".go") {
 			p, us := checkNotices(f, b)
@@ -119,13 +137,19 @@ func main() {
 			fmt.Fprintln(os.Stderr, "  "+f)
 		}
 	}
+	if len(mentions) > 0 {
+		fmt.Fprintf(os.Stderr, "licenses: %d mentions of corpus files that %s excludes (tools/oracle/README.md):\n", len(mentions), corpus.ListPath)
+		for _, m := range mentions {
+			fmt.Fprintln(os.Stderr, "  "+m)
+		}
+	}
 	if len(problems) > 0 {
 		fmt.Fprintf(os.Stderr, "licenses: %d licence-notice problems (PORTING.md: licence notices):\n", len(problems))
 		for _, p := range problems {
 			fmt.Fprintln(os.Stderr, "  "+p)
 		}
 	}
-	if len(bad) > 0 || len(problems) > 0 {
+	if len(bad) > 0 || len(mentions) > 0 || len(problems) > 0 {
 		os.Exit(1)
 	}
 	var counts []string
@@ -134,7 +158,7 @@ func main() {
 			counts = append(counts, fmt.Sprintf("%s %d", u.project, n))
 		}
 	}
-	fmt.Printf("licenses: no tracked file mentions the GPL (gzip files decompressed, %d other binary files skipped); third-party notices present (%s); NOTICE and LICENSES/ present\n", skipped, strings.Join(counts, ", "))
+	fmt.Printf("licenses: no tracked file mentions the GPL or one of the %d excluded corpus files (gzip files decompressed, %d other binary files skipped); third-party notices present (%s); NOTICE and LICENSES/ present\n", len(excluded), skipped, strings.Join(counts, ", "))
 }
 
 func trackedFiles() ([]string, error) {
