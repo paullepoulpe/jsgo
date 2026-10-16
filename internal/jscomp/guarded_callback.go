@@ -1,0 +1,492 @@
+// Port of com/google/javascript/jscomp/GuardedCallback.java @ closure-compiler v20260415
+
+/*
+ * Copyright 2016 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package jscomp
+
+import (
+	"slices"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
+)
+
+// GuardedCallback is an AST traverser that keeps track of whether access to
+// a generic resource are "guarded" or not. A guarded use is one that will
+// not cause runtime errors if the resource does not exist. The resource
+// (type T in the signature) is any value type computable from a node, such
+// as a qualified name or property name. It is up to the subclass to map the
+// currently visited token to the T in order to call IsGuarded, which
+// depends entirely on the context from ancestor nodes and previous calls to
+// IsGuarded for the same resource.
+//
+// More precisely, a resource may be guarded either intrinsically or
+// conditionally, as follows. A use is intrinsically guarded if it occurs in
+// a context where its specific value is immediately discarded, such as
+// coercion to boolean or string. A use is conditionally guarded if it
+// occurs in a context conditioned on an intrinsically guarded use (such as
+// the "then" or "else" block of an "if", the second or third argument of a
+// ternary operator, right-hand arguments of logical operators, or later in
+// a block in which an unconditional "throw" or "return" was found in a
+// guarded context).
+//
+// For example, the following are all intrinsically guarded uses of x:
+//
+//	// Coerced to boolean:
+//	if (x);
+//	x ? y : z;
+//	x && y;
+//	Boolean(x);
+//	!x;
+//	x == y; x != y; x === y; x !== y;
+//	x instanceof Foo;
+//	typeof x === 'string';
+//
+//	// Coerced to string:
+//	String(x);
+//	typeof x;
+//
+//	// Immediately discarded (but doesn't make much sense in my contexts):
+//	x = y;
+//
+// The following uses of x are conditionally guarded:
+//
+//	if (x) x();
+//	!x ? null : x;
+//	typeof x == 'function' ? x : () => {};
+//	x && x.y;
+//	!x || x.y;
+//	if (!x) return; x();
+//	x ?? x = 3;
+//
+// Note that there is no logic to determine which branch is guarded, so any
+// usages in either branch will pass after such a check. As such, the
+// following are also considered guarded, though a human can easily see
+// that this is spurious:
+//
+//	if (!x) x();
+//	if (x) { } else x();
+//	!x && x();
+//	var y = x != null ? null : x;
+//
+// Note also that the call or property access is not necessary to make a use
+// unguarded: the final example immediately above would be unguarded if it
+// weren't for the x != null condition, since it allows the value of x to
+// leak out in an uncontrolled way.
+//
+// This class overrides the Callback API methods with final methods of its
+// own, and defines the template method VisitGuarded to perform the normal
+// work for individual nodes. The only other API is IsGuarded, which allows
+// checking if a T in the current node's context is guarded, either
+// intrinsically or conditionally. If it is intrinsically guarded, then it
+// may be recorded as a condition for the purpose of guarding future
+// contexts.
+type GuardedCallback[T comparable] interface {
+	NodeTraversal_Callback
+
+	// VisitGuarded performs specific traversal behavior. Should call
+	// IsGuarded at least once.
+	//
+	// Java: GuardedCallback.visitGuarded(NodeTraversal, Node, Node)
+	VisitGuarded(traversal *NodeTraversal, n *rhino.Node, parent *rhino.Node)
+
+	// Java: GuardedCallback.isGuarded(T)
+	IsGuarded(resource T) bool
+
+	GetGuardedCallbackBase() *GuardedCallbackBase[T]
+}
+
+// GuardedCallbackBase holds GuardedCallback's fields and implementation.
+type GuardedCallbackBase[T comparable] struct {
+	self GuardedCallback[T]
+
+	// Compiler is needed for coding convention (isPropertyTestFunction).
+	compiler AbstractCompiler
+	// Map from short-circuiting conditional nodes (AND, OR, COALESCE, IF,
+	// and HOOK) to the set of resources each node guards. This is saved
+	// separately from just `guarded` because the guard must not go into
+	// effect until after traversal of the first child is complete. Before
+	// traversing the second child any node, its values in this map are
+	// moved into `guarded` and `installedGuards` (the latter allowing
+	// removal at the correct time).
+	registeredGuards *jutil.SetMultimap[*rhino.Node, T]
+	// Set of currently-guarded resources. Elements are added to this set
+	// just before traversing the second or later (i.e. "then" or "else")
+	// child of a short-circuiting conditional node, and then removed after
+	// traversing the last child. It is a multiset so that multiple adds of
+	// the same resource require the same number of removals before the
+	// resource becomes unguarded.
+	guarded *jutil.HashMultiset[T]
+	// Resources that are currently installed as guarded but will need to be
+	// removed from `guarded` after visiting all the key nodes' children.
+	installedGuards *jutil.ListMultimap[*rhino.Node, T]
+	// A stack of `Context` objects describing the current node's context:
+	// specifically, whether it is inherently safe, and a link to one or more
+	// conditional nodes in the current statement directly above it (for
+	// registering safe resources as guards).
+	//
+	// Go-only: language-adapter — the ArrayDeque used as a stack: the top
+	// is the last element of the slice.
+	contextStack []*guardedCallback_Context
+}
+
+// InitGuardedCallbackBase is the GuardedCallback(AbstractCompiler)
+// constructor; self is the callback being constructed.
+//
+// Java: GuardedCallback(AbstractCompiler)
+func (b *GuardedCallbackBase[T]) InitGuardedCallbackBase(self GuardedCallback[T], compiler AbstractCompiler) {
+	b.self = self
+	b.registeredGuards = jutil.NewSetMultimap[*rhino.Node, T]()
+	b.guarded = jutil.HashMultiset_Create[T]()
+	b.installedGuards = jutil.ArrayListMultimap_Create[*rhino.Node, T]()
+	b.compiler = compiler
+}
+
+// GetGuardedCallbackBase gives access to the base through the interface.
+func (b *GuardedCallbackBase[T]) GetGuardedCallbackBase() *GuardedCallbackBase[T] { return b }
+
+// Go-only: language-adapter — ArrayDeque.peek(): null when empty.
+func (b *GuardedCallbackBase[T]) peekContext() *guardedCallback_Context {
+	if len(b.contextStack) == 0 {
+		return nil
+	}
+	return b.contextStack[len(b.contextStack)-1]
+}
+
+// Go-only: language-adapter — ArrayDeque.push(E) (null-hostile).
+func (b *GuardedCallbackBase[T]) pushContext(c *guardedCallback_Context) {
+	jutil.CheckNotNull(c)
+	b.contextStack = append(b.contextStack, c)
+}
+
+// Go-only: language-adapter — ArrayDeque.pop(): throws
+// NoSuchElementException when empty.
+func (b *GuardedCallbackBase[T]) popContext() *guardedCallback_Context {
+	if len(b.contextStack) == 0 {
+		panic(jutil.NewNoSuchElementException())
+	}
+	top := b.contextStack[len(b.contextStack)-1]
+	b.contextStack[len(b.contextStack)-1] = nil
+	b.contextStack = b.contextStack[:len(b.contextStack)-1]
+	return top
+}
+
+// Java: GuardedCallback.shouldTraverse(NodeTraversal, Node, Node)
+func (b *GuardedCallbackBase[T]) ShouldTraverse(traversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+	// Note that shouldTraverse() operates primarily on `parent`, while
+	// visit() uses `n`. This is intentional. To see why, consider traversing
+	// the following tree:
+	//
+	//    if (x) y; else z;
+	//
+	// 1. shouldTraverse(`if`):
+	//    a. parent is null, so pushes an EMPTY onto the context stack.
+	// 2. shouldTraverse(`x`):
+	//    a. parent is `if`, so pushes Context(`if`, true); guards is empty.
+	// 3. visit(`x`)
+	//    a. guarded and installedGuards are both empty, so nothing is
+	//       removed.
+	//    b. visitGuarded(`x`) will call isGuarded("x"), which looks at the
+	//       top of the stack and sees that the context is safe (true) and
+	//       that there is a linked conditional node (the `if`); adds
+	//       {`if`: "x"} to registeredGuards.
+	//    b. Context(`if`, true) is popped off the stack.
+	// 4. shouldTraverse(`y`):
+	//    a. parent is still `if`, but since `y` is the second child it is no
+	//       longer safe, so another EMPTY is pushed.
+	//    b. the {`if`: "x"} guard is moved from registered to installed.
+	// 5. visit(`y`):
+	//    a. nothing is installed on `y` so no guards are removed.
+	//    b. visitGuarded(`y`) will call isGuarded("y"), which will return
+	//       false since "y" is neither intrinsically or conditionally
+	//       guarded; if we'd called isResourceRequired("x"), it would return
+	//       false because "x" is currently an element of guarded.
+	//    c. one empty context is popped.
+	// 6. shouldTraverse(`z`), visit(`z`)
+	//    a. see steps 4-5, nothing really changes here.
+	// 7. visit(`if`)
+	//    a. the installed {`if`: "x"} guard is removed.
+	//    c. pop the final empty context from the stack.
+
+	if parent == nil {
+		// The first node gets an empty context.
+		b.pushContext(guardedCallback_Context_EMPTY)
+	} else {
+		// Before traversing any children, we update the stack
+		b.pushContext(b.peekContext().Descend(b.compiler, parent, n))
+
+		// If the parent has any guards registered on it, then add them to
+		// both `guarded` and `installedGuards`.
+		if parent != nil && guardedCallback_CAN_HAVE_GUARDS.Contains(parent.GetToken()) &&
+			b.registeredGuards.ContainsKey(parent) {
+			for resource := range b.registeredGuards.RemoveAll(parent).All() {
+				b.guarded.Add(resource)
+				b.installedGuards.Put(parent, resource)
+			}
+		}
+	}
+	return true
+}
+
+// Java: GuardedCallback.visit(NodeTraversal, Node, Node)
+func (b *GuardedCallbackBase[T]) Visit(traversal *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
+	// Remove any guards registered on this node by its children, which are
+	// no longer relevant. This happens first because these were registered
+	// on a "parent", but now this is that parent (i.e. `n` here vs `parent`
+	// in isGuarded).
+	if parent != nil && guardedCallback_CAN_HAVE_GUARDS.Contains(n.GetToken()) &&
+		b.installedGuards.ContainsKey(n) {
+		b.guarded.RemoveAll(b.installedGuards.RemoveAll(n))
+	}
+
+	// Check for abrupt returns (`return` and `throw`).
+	if guardedCallback_isAbrupt(n) {
+		// If found, any guards installed on a parent IF should be promoted to
+		// the grandparent. This allows a small amount of flow-sensitivity, in
+		// that
+		//   if (!x) return; x();
+		// has the guard for `x` promoted from the `if` to the outer block, so
+		// that it guards the next statement.
+		b.PromoteAbruptReturns(parent)
+	}
+
+	// Finally continue on to whatever the traversal would normally do.
+	b.self.VisitGuarded(traversal, n, parent)
+
+	// After children have been traversed, pop the top of the conditional
+	// stack.
+	b.popContext()
+}
+
+// Java: GuardedCallback.promoteAbruptReturns(Node)
+func (b *GuardedCallbackBase[T]) PromoteAbruptReturns(parent *rhino.Node) {
+	// If the parent is a BLOCK (e.g. `if (x) { return; }`) then go up one
+	// level.
+	if parent.IsBlock() {
+		parent = parent.GetParent()
+	}
+	// If there were any guards registered the parent IF, then promote them
+	// up one level.
+	if parent.IsIf() && b.installedGuards.ContainsKey(parent) {
+		grandparent := parent.GetParent()
+		if grandparent.IsBlock() || grandparent.IsScript() {
+			b.registeredGuards.PutAll(grandparent, slices.Values(b.installedGuards.Get(parent)))
+		}
+	}
+}
+
+// IsGuarded determines if the given resource is guarded, either
+// intrinsically or conditionally. If the former, any ancestor conditional
+// nodes are registered as feature-testing the resource.
+//
+// Java: GuardedCallback.isGuarded(T)
+func (b *GuardedCallbackBase[T]) IsGuarded(resource T) bool {
+	// Check if this polyfill is already guarded. If so, return true right
+	// away.
+	if b.guarded.Contains(resource) {
+		return true
+	}
+
+	// If not, see if this is itself a feature check guard. This is defined
+	// as a usage of the polyfill in such a way that throws away the actual
+	// value and only cares about its truthiness or typeof. We walk up the
+	// ancestor tree through a small set of node types and if this is
+	// detected to be a guard, then the conditional node is marked as a guard
+	// for this polyfill.
+	context := b.peekContext()
+	if !context.safe {
+		return false
+	}
+
+	// Loop over all the linked conditionals and register this as a guard.
+	for context != nil && context.conditional != nil {
+		b.registeredGuards.Put(context.conditional, resource)
+		context = context.linked
+	}
+	return true
+}
+
+// guardedCallback_Context is the context of a node, keeping track of
+// whether it is safe for possibly-undefined values, and whether there are
+// any conditionals upstream in the tree.
+type guardedCallback_Context struct {
+	// The most recent conditional.
+	conditional *rhino.Node
+	// Whether this position is safe for an undefined type.
+	safe bool
+	// A very naive linked list for storing additional conditional nodes.
+	linked *guardedCallback_Context
+}
+
+// guardedCallback_Context_EMPTY: an empty instance: unsafe and with no
+// linked conditional nodes.
+//
+// Java: GuardedCallback.Context.EMPTY
+var guardedCallback_Context_EMPTY = newGuardedCallback_Context(nil, false, nil)
+
+// Java: GuardedCallback.Context(Node, boolean, Context)
+func newGuardedCallback_Context(conditional *rhino.Node, safe bool, linked *guardedCallback_Context) *guardedCallback_Context {
+	return &guardedCallback_Context{conditional: conditional, safe: safe, linked: linked}
+}
+
+// Link returns a new Context with a new conditional node and safety
+// status. If the current context already has a conditional, then it is
+// linked so that both can be marked when necessary.
+//
+// Java: GuardedCallback.Context.link(Node, boolean)
+func (c *guardedCallback_Context) Link(newConditional *rhino.Node, newSafe bool) *guardedCallback_Context {
+	var linked *guardedCallback_Context
+	if c.conditional != nil {
+		linked = c
+	}
+	return newGuardedCallback_Context(newConditional, newSafe, linked)
+}
+
+// Propagate returns a new Context with a different safety bit, but doesn't
+// change anything else.
+//
+// Java: GuardedCallback.Context.propagate(boolean)
+func (c *guardedCallback_Context) Propagate(newSafe bool) *guardedCallback_Context {
+	if newSafe == c.safe {
+		return c
+	}
+	return newGuardedCallback_Context(c.conditional, newSafe, c.linked)
+}
+
+// Descend returns a new context given the current context and the next
+// parent node. Child is only used to determine whether we're looking at the
+// first child or not.
+//
+// Java: GuardedCallback.Context.descend(AbstractCompiler, Node, Node)
+func (c *guardedCallback_Context) Descend(compiler AbstractCompiler, parent *rhino.Node, child *rhino.Node) *guardedCallback_Context {
+	first := child == parent.GetFirstChild()
+	switch parent.GetToken() {
+	case rhino.Token_CAST:
+		// Casts are irrelevant.
+		return c
+	case rhino.Token_COMMA:
+		// `Promise, whatever` is safe.
+		// `whatever, Promise` is same as outer context.
+		if child == parent.GetLastChild() {
+			return c
+		}
+		return c.Propagate(true)
+	case rhino.Token_AND:
+		// `Promise && whatever` never returns Promise itself, so it is safe.
+		// `whatever && Promise` may return Promise, so return outer context.
+		if first {
+			return c.Link(parent, true)
+		}
+		return c
+	case rhino.Token_OR, rhino.Token_COALESCE:
+		// `Promise || whatever` and `Promise ?? whatever`
+		// may return Promise (unsafe), but is itself a conditional.
+		// `whatever || Promise` and `whatever ?? Promise`
+		// is same as outer context.
+		if first {
+			return c.Link(parent, false)
+		}
+		return c
+	case rhino.Token_HOOK:
+		// `Promise ? whatever : whatever` is a safe conditional.
+		// `whatever ? Promise : whatever` (etc) is same as outer context.
+		if first {
+			return c.Link(parent, true)
+		}
+		return c
+	case rhino.Token_IF:
+		// `if (Promise) whatever` is a safe conditional.
+		// `if (whatever) { ... }` is nothing.
+		// TODO(sdh): Handle do/while/for/for-of/for-in?
+		if first {
+			return c.Link(parent, true)
+		}
+		return guardedCallback_Context_EMPTY
+	case rhino.Token_INSTANCEOF, rhino.Token_ASSIGN:
+		// `Promise instanceof whatever` is safe, `whatever instanceof Promise`
+		// is not. `Promise = whatever` is a bad idea, but it's safe w.r.t.
+		// polyfills.
+		return c.Propagate(first)
+	case rhino.Token_TYPEOF, rhino.Token_NOT, rhino.Token_EQ, rhino.Token_NE, rhino.Token_SHEQ, rhino.Token_SHNE:
+		// `typeof Promise` is always safe, as is `Promise == whatever`, etc.
+		return c.Propagate(true)
+	case rhino.Token_CALL:
+		// `String(Promise)` is safe, `Promise(whatever)` or
+		// `whatever(Promise)` is not.
+		return c.Propagate(!first && guardedCallback_isPropertyTestFunction(compiler, parent))
+	case rhino.Token_ROOT:
+		// This case causes problems for isStatement() so handle it
+		// separately.
+		return guardedCallback_Context_EMPTY
+	case rhino.Token_OPTCHAIN_CALL, rhino.Token_OPTCHAIN_GETELEM, rhino.Token_OPTCHAIN_GETPROP:
+		if first {
+			// thisNode?.rest.of.chain
+			// OR firstChild?.thisNode.rest.of.chain
+			// For the first case `thisNode` should be considered
+			// intrinsically guarded.
+			return c.Link(parent, parent.IsOptionalChainStart())
+		} else {
+			// `first?.(thisNode)`
+			// or `first?.[thisNode]`
+			// or `first?.thisNode`
+			return c.Propagate(false)
+		}
+	default:
+		// Expressions propagate linked conditionals; statements do not.
+		if NodeUtil_IsStatement(parent) {
+			return guardedCallback_Context_EMPTY
+		}
+		return c.Propagate(false)
+	}
+}
+
+// Java: GuardedCallback.isAbrupt(Node)
+func guardedCallback_isAbrupt(n *rhino.Node) bool {
+	return n.IsReturn() || n.IsThrow()
+}
+
+// guardedCallback_isPropertyTestFunction extends the coding convention's
+// idea of property test functions to also include String() and Boolean().
+//
+// Java: GuardedCallback.isPropertyTestFunction(AbstractCompiler, Node)
+func guardedCallback_isPropertyTestFunction(compiler AbstractCompiler, n *rhino.Node) bool {
+	if compiler.GetCodingConvention().IsPropertyTestFunction(n) {
+		return true
+	}
+	target := n.GetFirstChild()
+	if target.IsName() {
+		name := target.GetString()
+		return name == "String" || name == "Boolean"
+	}
+	return false
+}
+
+// guardedCallback_CAN_HAVE_GUARDS: tokens that are allowed to have guards
+// on them (no point doing a hash lookup on any other type of node).
+//
+// Java: GuardedCallback.CAN_HAVE_GUARDS
+var guardedCallback_CAN_HAVE_GUARDS = jutil.NewEnumSet(
+	rhino.Token_AND,
+	rhino.Token_OR,
+	rhino.Token_COALESCE,
+	rhino.Token_HOOK,
+	rhino.Token_IF,
+	rhino.Token_BLOCK,
+	rhino.Token_SCRIPT,
+	rhino.Token_OPTCHAIN_CALL,
+	rhino.Token_OPTCHAIN_GETELEM,
+	rhino.Token_OPTCHAIN_GETPROP)
