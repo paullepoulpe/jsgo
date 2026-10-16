@@ -59,7 +59,7 @@ while IFS= read -r f; do
         "// Port of "*) ;;
         *) violate "missing '// Port of …' header: $f" ;;
     esac
-done < <(find internal -name '*.go' 2>/dev/null)
+done < <(find internal -name '*.go' -not -path 'internal/jutil/*' 2>/dev/null)  # jutil: Java-semantics runtime, not a port
 
 # -- Report -------------------------------------------------------------
 if [ "$fail" -ne 0 ]; then
