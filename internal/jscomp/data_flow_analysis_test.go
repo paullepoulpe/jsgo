@@ -99,8 +99,10 @@ func newDataFlowAnalysisTest_Variable(n string) *dataFlowAnalysisTest_Variable {
 	return &dataFlowAnalysisTest_Variable{name: n}
 }
 
-func (v *dataFlowAnalysisTest_Variable) IsNumber() bool   { return dataFlowAnalysisTest_valueIsNumber(v) }
-func (v *dataFlowAnalysisTest_Variable) IsVariable() bool { return dataFlowAnalysisTest_valueIsVariable(v) }
+func (v *dataFlowAnalysisTest_Variable) IsNumber() bool { return dataFlowAnalysisTest_valueIsNumber(v) }
+func (v *dataFlowAnalysisTest_Variable) IsVariable() bool {
+	return dataFlowAnalysisTest_valueIsVariable(v)
+}
 
 // Java: DataFlowAnalysisTest.Variable.getName()
 func (v *dataFlowAnalysisTest_Variable) GetName() string {
@@ -139,7 +141,9 @@ func newDataFlowAnalysisTest_NumberValue(v int32) *dataFlowAnalysisTest_NumberVa
 	return &dataFlowAnalysisTest_NumberValue{value: v}
 }
 
-func (v *dataFlowAnalysisTest_NumberValue) IsNumber() bool { return dataFlowAnalysisTest_valueIsNumber(v) }
+func (v *dataFlowAnalysisTest_NumberValue) IsNumber() bool {
+	return dataFlowAnalysisTest_valueIsNumber(v)
+}
 func (v *dataFlowAnalysisTest_NumberValue) IsVariable() bool {
 	return dataFlowAnalysisTest_valueIsVariable(v)
 }
@@ -339,11 +343,11 @@ func (i *dataFlowAnalysisTest_BranchInstruction) SetCondition(condition dataFlow
 // constant states. Each variable of the program will have a lattice
 // defined as:
 //
-//	       TOP
-//	  / / |         \
-//	 0  1 2 3 ..... MAX_VALUE
-//	 \  \ |         /
-//	      BOTTOM
+//	      TOP
+//	 / / |         \
+//	0  1 2 3 ..... MAX_VALUE
+//	\  \ |         /
+//	     BOTTOM
 //
 // Where BOTTOM represents the variable is not a constant.
 //
