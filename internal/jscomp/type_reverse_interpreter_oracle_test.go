@@ -11,17 +11,19 @@ package jscomp
 // FlowScope. It must reproduce testdata/reverse_interpreter.tsv.gz (the Java
 // output) byte for byte, and its "deps" section (JsIterables, Promises,
 // DestructuredTarget, JSTypeColorIdHasher, TypeMatchingStrategy,
-// TypeMismatch.Accumulator) testdata/jstype_deps.tsv.gz. Regenerate the
-// golden files with:
+// TypeMismatch.Accumulator) testdata/jstype_deps.tsv.gz, and its
+// "serialization" section (InvalidatingTypes, JSTypeReconserializer)
+// testdata/jstype_serialization.tsv.gz. Regenerate the golden files with:
 //
 //	java -cp .cache/closure-compiler.jar:.cache/oracle-build \
 //	  com.google.javascript.jscomp.ReverseInterpreterDump \
-//	  internal/jscomp/testdata/reverse_interpreter_types.txt rai.tsv deps.tsv
+//	  internal/jscomp/testdata/reverse_interpreter_types.txt rai.tsv deps.tsv ser.tsv
 //	gzip -9nc rai.tsv > internal/jscomp/testdata/reverse_interpreter.tsv.gz
 //	gzip -9nc deps.tsv > internal/jscomp/testdata/jstype_deps.tsv.gz
+//	gzip -9nc ser.tsv > internal/jscomp/testdata/jstype_serialization.tsv.gz
 //
-// Set RAI_ORACLE_OUT=<path> / DEPS_ORACLE_OUT=<path> to also write the Go
-// outputs there.
+// Set RAI_ORACLE_OUT / DEPS_ORACLE_OUT / SER_ORACLE_OUT=<path> to also write
+// the Go outputs there.
 
 import (
 	"bufio"
@@ -931,6 +933,73 @@ func (d *raiDump) runDeps(typeStrings []string) {
 			return sb.String()
 		})
 	}
+}
+
+// ---------------------------------------------------------------------
+// The "serialization" section: InvalidatingTypes and JSTypeReconserializer
+
+func (d *raiDump) runSerialization(typeStrings []string) {
+	d.build(typeStrings)
+	n := len(d.types)
+	r := d.registry
+
+	// Seeded mismatches, each with its own location.
+	mismatches := []*TypeMismatch{}
+	for k := 0; k < 300; k++ {
+		found := d.types[d.nextInt(n)]
+		required := d.types[d.nextInt(n)]
+		mismatches = append(mismatches, NewTypeMismatch(found, required, rhino.IR_Name("loc"+strconv.Itoa(k))))
+	}
+	invalidating := NewInvalidatingTypes_Builder(r).AddAllTypeMismatches(mismatches).Build()
+	for i := 0; i < n; i++ {
+		t := d.types[i]
+		d.fact("t"+strconv.Itoa(i+1)+"\tinvalidating", func() string {
+			return strconv.FormatBool(invalidating.IsInvalidating(t))
+		})
+	}
+	for key := range invalidating.GetMismatchLocations().KeySet() {
+		var sb strings.Builder
+		for loc := range invalidating.GetMismatchLocations().Get(key).All() {
+			sb.WriteString(" " + loc.GetString())
+		}
+		d.line("location\t" + raiStr(key) + "\t" + sb.String())
+	}
+
+	stringPool := StringPool_Builder_()
+	propagate := func(name string) bool { return !strings.HasPrefix(name, "q") }
+	serializer := JSTypeReconserializer_Create(
+		r,
+		invalidating,
+		stringPool,
+		propagate,
+		SerializationOptions_Builder_().
+			SetIncludeDebugInfo(true).
+			SetRunValidation(true).
+			Build())
+	for i := 0; i < n; i++ {
+		t := d.types[i]
+		d.fact("t"+strconv.Itoa(i+1)+"\tpointer", func() string {
+			return strconv.Itoa(serializer.SerializeType(t))
+		})
+	}
+	d.fact("pool", func() string { return raiEsc(serializer.GenerateTypePool().String()) })
+	d.line("strings\t" + raiEsc(stringPool.Build().ToProto().String()))
+	for key, values := range serializer.GetColorIdToJSTypeMapForDebugging().AsMap().All() {
+		var sb strings.Builder
+		for _, t := range values {
+			sb.WriteString(" " + raiStr(t))
+		}
+		d.line("debug\t" + key + "\t" + sb.String())
+	}
+}
+
+func TestJstypeSerializationOracle(t *testing.T) {
+	want := raiReadGolden(t, "jstype_serialization.tsv.gz")
+	d := newRaiDump()
+	d.runSerialization(raiReadTypeStrings(t))
+	got := d.out.String()
+	raiWriteOut(t, "SER_ORACLE_OUT", got)
+	raiCompare(t, want, got, "\x00")
 }
 
 func raiReadGolden(t *testing.T, name string) string {

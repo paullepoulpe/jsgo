@@ -1,0 +1,1 @@
+/** @const */ var c = 3; var b = c;

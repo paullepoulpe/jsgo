@@ -1,0 +1,1 @@
+function *f() { return g.call(yield 1); }

@@ -1,0 +1,3 @@
+let a;
+function foo() { let b; a; }
+function boo() { let b; a; }

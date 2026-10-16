@@ -1,0 +1,1 @@
+var temp_const$jscomp$0 = 1 + goo(); switch(temp_const$jscomp$0 + foo()){}

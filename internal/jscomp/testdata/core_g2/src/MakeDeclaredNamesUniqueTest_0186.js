@@ -1,0 +1,1 @@
+import {a as a} from './foo.js'; let b = a;

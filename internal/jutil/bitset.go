@@ -134,6 +134,33 @@ func (b *BitSet) NextSetBit(fromIndex int) int {
 	}
 }
 
+// PreviousSetBit is BitSet.previousSetBit(int): the index of the nearest
+// set bit at or before fromIndex, or -1 if there is none (or fromIndex is
+// -1). It panics with IndexOutOfBoundsException if fromIndex < -1.
+func (b *BitSet) PreviousSetBit(fromIndex int) int {
+	if fromIndex < 0 {
+		if fromIndex == -1 {
+			return -1
+		}
+		panic(NewIndexOutOfBoundsException("fromIndex < -1: " + strconv.Itoa(fromIndex)))
+	}
+	w := fromIndex >> 6
+	if w >= len(b.words) {
+		return b.Length() - 1
+	}
+	word := b.words[w] & (^uint64(0) >> (63 - (uint(fromIndex) & 63)))
+	for {
+		if word != 0 {
+			return (w+1)*64 - 1 - bits.LeadingZeros64(word)
+		}
+		if w == 0 {
+			return -1
+		}
+		w--
+		word = b.words[w]
+	}
+}
+
 // NextClearBit is BitSet.nextClearBit(int).
 func (b *BitSet) NextClearBit(fromIndex int) int {
 	bitSetCheckIndex(fromIndex, "fromIndex")

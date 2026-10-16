@@ -1,0 +1,1 @@
+var x = {}; y = (goo().a += foo()) + goo().a

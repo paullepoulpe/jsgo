@@ -1,0 +1,1 @@
+const {normal} = y;
