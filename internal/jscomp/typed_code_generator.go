@@ -199,6 +199,8 @@ func (t *TypedCodeGenerator) GetFunctionAnnotation(fnNode *rhino.Node) string {
 
 // typedCodeGenerator_objectTypeOrNull passes an ObjectType to
 // Object.equals(Object), keeping null as null.
+//
+// Go-only: language-adapter — a nil interface must stay an untyped nil.
 func typedCodeGenerator_objectTypeOrNull(t rhino.ObjectType) any {
 	if t == nil {
 		return nil

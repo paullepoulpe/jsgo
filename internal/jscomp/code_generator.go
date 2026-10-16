@@ -93,6 +93,8 @@ type CodeGeneratorBase struct {
 
 // utf16Units is the UTF-16 view of s, in the reused scratch buffer when s
 // is ASCII.
+//
+// Go-only: language-adapter — see scratchUnits.
 func (g *CodeGeneratorBase) utf16Units(s string) []uint16 {
 	units := g.scratchUnits[:0]
 	for i := 0; i < len(s); i++ {
@@ -120,6 +122,8 @@ func NewCodeGenerator(consumer CodeConsumer) *CodeGeneratorBase {
 
 // InitCodeGeneratorBase is the CodeGenerator(CodeConsumer) constructor;
 // self is the object being constructed.
+//
+// Java: CodeGenerator(CodeConsumer)
 func (g *CodeGeneratorBase) InitCodeGeneratorBase(self CodeGenerator, consumer CodeConsumer) {
 	g.self = self
 	g.cc = consumer
@@ -144,6 +148,8 @@ func NewCodeGeneratorWithOptions(consumer CodeConsumer, options *CompilerOptions
 
 // InitCodeGeneratorBaseWithOptions is the CodeGenerator(CodeConsumer,
 // CompilerOptions) constructor; self is the object being constructed.
+//
+// Java: CodeGenerator(CodeConsumer, CompilerOptions)
 func (g *CodeGeneratorBase) InitCodeGeneratorBaseWithOptions(self CodeGenerator, consumer CodeConsumer, options *CompilerOptions) {
 	g.self = self
 	g.cc = consumer
@@ -1398,6 +1404,8 @@ func (g *CodeGeneratorBase) AddNodeWithContextAndComments(node *rhino.Node, cont
 }
 
 // codeGenerator_nodeProp is the cast `(Node) n.getProp(...)`.
+//
+// Go-only: language-adapter — Java's reference cast of a property value.
 func codeGenerator_nodeProp(value any) *rhino.Node {
 	if value == nil {
 		return nil
@@ -2088,6 +2096,8 @@ func (g *CodeGeneratorBase) RegexpEscape(s string) string {
 
 // codeGenerator_appendChar is sb.append(char) for a char that is not
 // escaped.
+//
+// Go-only: language-adapter — appends one UTF-16 char to WTF-8 output.
 func codeGenerator_appendChar(sb *strings.Builder, c uint16) {
 	if c < utf8.RuneSelf {
 		sb.WriteByte(byte(c))
@@ -2102,6 +2112,8 @@ func codeGenerator_appendChar(sb *strings.Builder, c uint16) {
 // codeGenerator_regionMatches is String.regionMatches(boolean, int, String,
 // int, int) on the UTF-16 units of the string being escaped; other is
 // ASCII.
+//
+// Go-only: language-adapter — Java's regionMatches on the UTF-16 view.
 func codeGenerator_regionMatches(units []uint16, ignoreCase bool, toffset int, other string) bool {
 	return jutil.UTF16RegionMatches(ignoreCase, units, toffset, jutil.StringToUTF16(other), 0, len(other))
 }
