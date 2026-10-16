@@ -54,6 +54,63 @@ type nodeUtilSweeper struct {
 	compiler AbstractCompiler
 	script   *rhino.Node
 	mutate   bool
+
+	// hasConvention is whether compiler.GetCodingConvention() works; the
+	// positions of the probes that need it are masked when it does not.
+	hasConvention bool
+	maskBools     map[int]bool
+	maskFields    map[int]bool
+}
+
+// newNodeUtilSweeper is the sweeper of NodeUtilSweep: `new Compiler()` +
+// `initOptions(new CompilerOptions())` is the test compiler.
+func newNodeUtilSweeper() *nodeUtilSweeper {
+	s := &nodeUtilSweeper{
+		compiler:   newTestCompiler(NewCompilerOptions()),
+		maskBools:  map[int]bool{},
+		maskFields: map[int]bool{},
+	}
+	s.hasConvention = true
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				s.hasConvention = false
+			}
+		}()
+		s.compiler.GetCodingConvention()
+	}()
+	return s
+}
+
+// nodeUtilSweepMask masks, in a Java node line, the probes that the Go sweep
+// could not run (written '~'), so the rest of the line is still compared.
+func (s *nodeUtilSweeper) mask(chunk string) string {
+	if s.hasConvention {
+		return chunk
+	}
+	lines := strings.Split(chunk, "\n")
+	for i, l := range lines {
+		if l == "" || l[0] < '0' || l[0] > '9' {
+			continue
+		}
+		fields := strings.Split(l, "\t")
+		head := []byte(fields[0])
+		start := strings.IndexByte(fields[0], ' ')
+		start += strings.IndexByte(fields[0][start+1:], ' ') + 2
+		for k := range s.maskBools {
+			if start+k < len(head) {
+				head[start+k] = '~'
+			}
+		}
+		fields[0] = string(head)
+		for k := range s.maskFields {
+			if k+1 < len(fields) {
+				fields[k+1] = "~"
+			}
+		}
+		lines[i] = strings.Join(fields, "\t")
+	}
+	return strings.Join(lines, "\n")
 }
 
 type nodeUtilSilentReporter struct{}
@@ -339,8 +396,30 @@ func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n *rhino.Node) {
 	isGet := NodeUtil_IsNormalOrOptChainGet(n)
 	isQName := n.IsQualifiedName()
 
-	bool_ := func(applicable bool, p func() bool) { nodeUtilSweepBool(&line, applicable, p) }
-	field := func(applicable bool, p func() string) { nodeUtilSweepField(&line, applicable, p) }
+	nBools, nFields := 0, 0
+	bool_ := func(applicable bool, p func() bool) { nodeUtilSweepBool(&line, applicable, p); nBools++ }
+	field := func(applicable bool, p func() string) { nodeUtilSweepField(&line, applicable, p); nFields++ }
+	// Probes that need the compiler's coding convention: without one (the
+	// test compiler needs ClosureCodingConvention for the default), they are
+	// written as '~' and masked in the Java line (see nodeUtilSweepMask).
+	boolC := func(applicable bool, p func() bool) {
+		if s.hasConvention {
+			bool_(applicable, p)
+			return
+		}
+		s.maskBools[nBools] = true
+		line.WriteByte('~')
+		nBools++
+	}
+	fieldC := func(applicable bool, p func() string) {
+		if s.hasConvention {
+			field(applicable, p)
+			return
+		}
+		s.maskFields[nFields] = true
+		line.WriteString("\t~")
+		nFields++
+	}
 
 	bool_(true, func() bool { return NodeUtil_IsImmutableValue(n) })
 	bool_(true, func() bool { return NodeUtil_IsSymmetricOperation(n) })
@@ -484,7 +563,7 @@ func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n *rhino.Node) {
 	bool_(hasParent, func() bool { return NodeUtil_IsTryFinallyNode(parent, n) })
 	bool_(hasParent, func() bool { return NodeUtil_IsNameDeclOrSimpleAssignLhs(n, parent) })
 	bool_(isName, func() bool { return NodeUtil_IsNonlocalModuleExportName(n) })
-	bool_(isGet, func() bool { return NodeUtil_IsPropertyTest(s.compiler, n) })
+	boolC(isGet, func() bool { return NodeUtil_IsPropertyTest(s.compiler, n) })
 	bool_(true, func() bool { return NodeUtil_IsKnownGlobalObjectReference(n) })
 	bool_(true, func() bool { return NodeUtil_IsRhsClass(n) })
 	bool_(true, func() bool { return NodeUtil_IsRhsFunction(n) })
@@ -678,7 +757,7 @@ func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n *rhino.Node) {
 		return s.list(names)
 	})
 	field(n.IsScript() || n.IsBlock(), func() string { return s.list(NodeUtil_GetVarsDeclaredInBranch(n)) })
-	field(isQName && !(hasParent && parent.IsGetProp() && parent.GetFirstChild() == n),
+	fieldC(isQName && !(hasParent && parent.IsGetProp() && parent.GetFirstChild() == n),
 		func() string { return nodeUtilSweepCompact(NodeUtil_NewQName(s.compiler, *n.GetQualifiedName())) })
 	field(isFn || n.IsScript(), func() string {
 		return strconv.Itoa(NodeUtil_GetNodeTypeReferenceCount(n, rhino.Token_NAME, NodeUtil_MATCH_NOT_FUNCTION)) +
@@ -748,25 +827,25 @@ func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n *rhino.Node) {
 	})
 	field(n.IsNumber() || n.IsName(), func() string { return nodeUtilSweepCompact(NodeUtil_NewUndefinedNode(n)) })
 	isOuterQName := isQName && !(hasParent && parent.IsGetProp() && parent.GetFirstChild() == n)
-	field(isOuterQName, func() string {
+	fieldC(isOuterQName, func() string {
 		return nodeUtilSweepCompact(NodeUtil_NewQNameDeclaration(s.compiler, *n.GetQualifiedName(), nil, nil))
 	})
-	field(isOuterQName, func() string {
+	fieldC(isOuterQName, func() string {
 		return nodeUtilSweepCompact(NodeUtil_NewQNameDeclarationWithType(
 			s.compiler, *n.GetQualifiedName(), rhino.IR_Number(0), nil, rhino.Token_LET))
 	})
-	field(isOuterQName, func() string {
+	fieldC(isOuterQName, func() string {
 		return nodeUtilSweepCompact(NodeUtil_NewQNameWithOriginalName(s.compiler, *n.GetQualifiedName(), n, "orig"))
 	})
-	field(isOuterQName, func() string {
+	fieldC(isOuterQName, func() string {
 		return nodeUtilSweepCompact(
 			NodeUtil_NewQNameWithOriginalName(s.compiler, *n.GetQualifiedName(), n, *n.GetQualifiedName()))
 	})
 	field(isName, func() string { return nodeUtilSweepCompact(NodeUtil_NewVarNode(n.GetString(), rhino.IR_Number(1))) })
-	field(isName, func() string {
+	fieldC(isName, func() string {
 		return nodeUtilSweepCompact(NodeUtil_NewNameWithOriginalName(s.compiler, n.GetString(), n, "orig"))
 	})
-	field(n.IsGetProp(), func() string {
+	fieldC(n.IsGetProp(), func() string {
 		return nodeUtilSweepCompact(NodeUtil_NewPropertyAccess(s.compiler, rhino.IR_Name("x"), n.GetString()))
 	})
 
@@ -811,9 +890,12 @@ func (s *nodeUtilSweeper) sweepScript(sb *strings.Builder, script *rhino.Node) {
 
 // nodeUtilSweep runs the sweep over files (relative to root) with a fresh
 // test compiler, as NodeUtilSweep.main does.
-func nodeUtilSweep(t *testing.T, root string, files []string, emit func(name, out string)) {
+func nodeUtilSweep(t *testing.T, root string, files []string, emit func(s *nodeUtilSweeper, name, out string)) {
 	config := nodeUtilSweepConfig()
-	s := &nodeUtilSweeper{compiler: newTestCompiler(NewCompilerOptions())}
+	s := newNodeUtilSweeper()
+	if !s.hasConvention {
+		t.Log("the probes that need the default CodingConvention are masked: needs ClosureCodingConvention")
+	}
 	for _, rel := range files {
 		src, err := os.ReadFile(filepath.Join(root, rel))
 		if err != nil {
@@ -821,7 +903,7 @@ func nodeUtilSweep(t *testing.T, root string, files []string, emit func(name, ou
 		}
 		var sb strings.Builder
 		s.sweepFile(&sb, config, rel, string(src))
-		emit(rel, sb.String())
+		emit(s, rel, sb.String())
 	}
 }
 
@@ -851,6 +933,55 @@ func nodeUtilSweepSplit(r io.Reader) (map[string]string, []string, error) {
 	}
 	flush()
 	return chunks, order, sc.Err()
+}
+
+// nodeUtilSweepChunks returns an iterator over the per-file chunks of a
+// NodeUtilSweep output: each call returns the next chunk's "# file" header
+// and the whole chunk (header included).
+func nodeUtilSweepChunks(r io.Reader) func() (string, string, bool) {
+	br := bufio.NewReaderSize(r, 1<<20)
+	var pending string
+	done := false
+	return func() (string, string, bool) {
+		if done && pending == "" {
+			return "", "", false
+		}
+		var sb strings.Builder
+		header := pending
+		if header != "" {
+			sb.WriteString(header)
+			sb.WriteByte('\n')
+		}
+		pending = ""
+		for {
+			l, err := br.ReadString('\n')
+			if l == "" && err != nil {
+				done = true
+				break
+			}
+			l = strings.TrimSuffix(l, "\n")
+			if strings.HasPrefix(l, "# file ") {
+				if header == "" {
+					header = l
+					sb.WriteString(l)
+					sb.WriteByte('\n')
+					continue
+				}
+				pending = l
+				break
+			}
+			sb.WriteString(l)
+			sb.WriteByte('\n')
+			if err != nil {
+				done = true
+				break
+			}
+		}
+		if header == "" {
+			return "", "", false
+		}
+		return header, sb.String(), true
+	}
 }
 
 func nodeUtilSweepOpen(path string) (io.ReadCloser, error) {
@@ -965,12 +1096,15 @@ func TestNodeUtilSweepGolden(t *testing.T) {
 		t.Fatalf("golden has %d files, the snippets %d", len(order), len(names))
 	}
 	config := nodeUtilSweepConfig()
-	s := &nodeUtilSweeper{compiler: newTestCompiler(NewCompilerOptions())}
+	s := newNodeUtilSweeper()
+	if !s.hasConvention {
+		t.Log("the probes that need the default CodingConvention are masked: needs ClosureCodingConvention")
+	}
 	diffs := 0
 	for i, name := range names {
 		var sb strings.Builder
 		s.sweepFile(&sb, config, name, sources[i])
-		if w := want[nodeUtilSweepEscape(name)]; sb.String() != w {
+		if w := s.mask(want[nodeUtilSweepEscape(name)]); sb.String() != w {
 			diffs++
 			if diffs <= 50 {
 				t.Errorf("%s: %s", name, nodeUtilSweepFirstDiff(w, sb.String()))
@@ -1007,17 +1141,19 @@ func TestNodeUtilSweepOracle(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer rc.Close()
-	want, _, err := nodeUtilSweepSplit(rc)
-	if err != nil {
-		t.Fatal(err)
-	}
+	// The oracle is read one file chunk at a time, in the order of the list
+	// (the corpus output is too large to hold in memory).
+	chunks := nodeUtilSweepChunks(rc)
 	diffs := 0
-	nodeUtilSweep(t, root, files, func(name, got string) {
-		w, ok := want[nodeUtilSweepEscape(name)]
+	nodeUtilSweep(t, root, files, func(s *nodeUtilSweeper, name, got string) {
+		header, w, ok := chunks()
 		if !ok {
-			t.Errorf("%s: missing from the oracle", name)
-			return
+			t.Fatalf("%s: the oracle ends before this file", name)
 		}
+		if header != "# file "+nodeUtilSweepEscape(name) {
+			t.Fatalf("%s: the oracle has %q here; the list and the oracle differ", name, header)
+		}
+		w = s.mask(w)
 		if got != w {
 			diffs++
 			if diffs <= maxDiffs {
