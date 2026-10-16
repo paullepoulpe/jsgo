@@ -266,7 +266,7 @@ func (s *SourceMap) AddMappingOfNode(
 }
 
 // Java: SourceMap.addSourceFile(String, String)
-func (s *SourceMap) AddSourceFile(name string, code string) {
+func (s *SourceMap) AddSourceFile(name string, code *string) {
 	s.generator.AddSourcesContent(s.fixupSourceLocation(name), code)
 }
 

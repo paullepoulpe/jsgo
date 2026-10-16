@@ -50,7 +50,7 @@ type SourceMapGenerator interface {
 	// source.
 	//
 	// Java: SourceMapGenerator.addSourcesContent(String, String)
-	AddSourcesContent(source string, content string)
+	AddSourcesContent(source string, content *string)
 
 	// SetWrapperPrefix sets the prefix used for wrapping the generated source
 	// file before it is written. This ensures that the source map is adjusted
