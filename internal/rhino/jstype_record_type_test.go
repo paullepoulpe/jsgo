@@ -1,0 +1,292 @@
+// Port of com/google/javascript/rhino/jstype/RecordTypeTest.java @ closure-compiler v20260415
+
+package rhino_test
+
+import (
+	"testing"
+
+	. "github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/rhino/rhinotesting"
+)
+
+type recordTypeTest struct {
+	*rhinotesting.BaseJSTypeTestCase
+}
+
+func newRecordTypeTest(t *testing.T) *recordTypeTest {
+	s := &recordTypeTest{BaseJSTypeTestCase: rhinotesting.NewBaseJSTypeTestCase(t)}
+	return s
+}
+
+func TestRecordType_RecursiveRecord(t *testing.T) {
+	s := newRecordTypeTest(t)
+	loop := NewProxyObjectType(s.Registry, s.NUMBER_TYPE)
+	record := NewRecordTypeBuilder(s.Registry).
+		AddProperty("loop", loop, nil).
+		AddProperty("number", s.NUMBER_TYPE, nil).
+		AddProperty("string", s.STRING_TYPE, nil).
+		Build()
+	s.AssertThat(record.String()).
+		IsEqualTo("{\n  loop: number,\n  number: number,\n  string: string\n}")
+
+	loop.SetReferencedType(record)
+	s.AssertThat(record.String()).
+		IsEqualTo("{\n  loop: {...},\n  number: number,\n  string: string\n}")
+	s.AssertThat(record.ToAnnotationString(JSType_Nullability_EXPLICIT)).
+		IsEqualTo("{loop: ?, number: number, string: string}")
+
+	rhinotesting.Asserts_AssertEquivalenceOperations(s.T, record, loop)
+}
+
+func TestRecordType_ToString_largeRecord(t *testing.T) {
+	s := newRecordTypeTest(t)
+	record := NewRecordTypeBuilder(s.Registry).
+		AddProperty("a01", s.NUMBER_TYPE, nil).
+		AddProperty("a02", s.NUMBER_TYPE, nil).
+		AddProperty("a03", s.NUMBER_TYPE, nil).
+		AddProperty("a04", s.NUMBER_TYPE, nil).
+		AddProperty("a05", s.NUMBER_TYPE, nil).
+		AddProperty("a06", s.NUMBER_TYPE, nil).
+		AddProperty("a07", s.NUMBER_TYPE, nil).
+		AddProperty("a08", s.NUMBER_TYPE, nil).
+		AddProperty("a09", s.NUMBER_TYPE, nil).
+		AddProperty("a10", s.NUMBER_TYPE, nil).
+		AddProperty("a11", s.NUMBER_TYPE, nil).
+		Build()
+
+	s.AssertThat(record.String()).
+		IsEqualTo(
+			rhinotesting.BaseJSTypeTestCase_Lines(
+				"{",
+				"  a01: number,",
+				"  a02: number,",
+				"  a03: number,",
+				"  a04: number,",
+				"  a05: number,",
+				"  a06: number,",
+				"  a07: number,",
+				"  a08: number,",
+				"  a09: number,",
+				"  a10: number,",
+				"  ...",
+				"}"))
+
+	s.AssertThat(record.ToAnnotationString(JSType_Nullability_EXPLICIT)).
+		IsEqualTo(
+			"{a01: number, a02: number, a03: number, a04: number, a05: number, a06: number," +
+				" a07: number, a08: number, a09: number, a10: number, a11: number}")
+}
+
+func TestRecordType_ToString_nestedRecordIndentation(t *testing.T) {
+	s := newRecordTypeTest(t)
+	record :=
+		NewRecordTypeBuilder(s.Registry).
+			AddProperty(
+				"a",
+				NewRecordTypeBuilder(s.Registry).
+					AddProperty(
+						"aa",
+						NewRecordTypeBuilder(s.Registry).
+							AddProperty("aaa", s.NUMBER_TYPE, nil).
+							AddProperty("aab", s.NUMBER_TYPE, nil).
+							AddProperty("aac", s.NUMBER_TYPE, nil).
+							Build(),
+						nil).
+					AddProperty("ab", s.NUMBER_TYPE, nil).
+					Build(),
+				nil).
+			AddProperty("b", s.NUMBER_TYPE, nil).
+			Build()
+
+	s.AssertThat(record.String()).
+		IsEqualTo(
+			rhinotesting.BaseJSTypeTestCase_Lines(
+				"{",
+				"  a: {",
+				"    aa: {",
+				"      aaa: number,",
+				"      aab: number,",
+				"      aac: number",
+				"    },",
+				"    ab: number",
+				"  },",
+				"  b: number",
+				"}"))
+
+	s.AssertThat(record.ToAnnotationString(JSType_Nullability_EXPLICIT)).
+		IsEqualTo("{a: {aa: {aaa: number, aab: number, aac: number}, ab: number}, b: number}")
+}
+
+func TestRecordType_ToString_nestedRecordIndentation_throughUnion(t *testing.T) {
+	s := newRecordTypeTest(t)
+	record :=
+		NewRecordTypeBuilder(s.Registry).
+			AddProperty("a", s.NUMBER_TYPE, nil).
+			AddProperty(
+				"b",
+				s.Registry.CreateUnionType(
+					s.NUMBER_TYPE,
+					NewRecordTypeBuilder(s.Registry).
+						AddProperty("ba", s.NUMBER_TYPE, nil).
+						AddProperty("bb", s.NUMBER_TYPE, nil).
+						Build()),
+				nil).
+			Build()
+
+	s.AssertThat(record.String()).
+		IsEqualTo(
+			rhinotesting.BaseJSTypeTestCase_Lines(
+				"{",
+				"  a: number,",
+				"  b: (number|{",
+				"    ba: number,",
+				"    bb: number",
+				"  })",
+				"}"))
+
+	s.AssertThat(record.ToAnnotationString(JSType_Nullability_EXPLICIT)).
+		IsEqualTo("{a: number, b: (number|{ba: number, bb: number})}")
+}
+
+func TestRecordType_ToString_nestedRecordIndentation_throughTemplateParam(t *testing.T) {
+	s := newRecordTypeTest(t)
+	record :=
+		NewRecordTypeBuilder(s.Registry).
+			AddProperty("a", s.NUMBER_TYPE, nil).
+			AddProperty(
+				"b",
+				s.Registry.CreateTemplatizedTypeOfList(
+					s.ARRAY_TYPE,
+					[]JSType{
+						NewRecordTypeBuilder(s.Registry).
+							AddProperty("ba", s.NUMBER_TYPE, nil).
+							AddProperty("bb", s.NUMBER_TYPE, nil).
+							Build()}),
+				nil).
+			Build()
+
+	s.AssertThat(record.String()).
+		IsEqualTo(
+			rhinotesting.BaseJSTypeTestCase_Lines(
+				"{",
+				"  a: number,",
+				"  b: Array<{",
+				"    ba: number,",
+				"    bb: number",
+				"  }>",
+				"}"))
+
+	s.AssertThat(record.ToAnnotationString(JSType_Nullability_EXPLICIT)).
+		IsEqualTo("{a: number, b: !Array<{ba: number, bb: number}>}")
+}
+
+func TestRecordType_SupAndInf(t *testing.T) {
+	s := newRecordTypeTest(t)
+	recordA := NewRecordTypeBuilder(s.Registry).
+		AddProperty("a", s.NUMBER_TYPE, nil).
+		AddProperty("b", s.NUMBER_TYPE, nil).
+		Build()
+	recordC := NewRecordTypeBuilder(s.Registry).
+		AddProperty("b", s.NUMBER_TYPE, nil).
+		AddProperty("c", s.NUMBER_TYPE, nil).
+		Build()
+	proxyRecordA := NewProxyObjectType(s.Registry, recordA)
+	proxyRecordC := NewProxyObjectType(s.Registry, recordC)
+
+	aInfC := NewRecordTypeBuilder(s.Registry).
+		AddProperty("a", s.NUMBER_TYPE, nil).
+		AddProperty("b", s.NUMBER_TYPE, nil).
+		AddProperty("c", s.NUMBER_TYPE, nil).
+		Build()
+
+	aSupC := s.Registry.CreateUnionType(recordA, recordC)
+
+	s.AssertType(recordA.GetGreatestSubtype(recordC)).IsEqualTo(aInfC)
+	s.AssertType(recordA.GetLeastSupertype(recordC)).IsEqualTo(aSupC)
+
+	s.AssertType(proxyRecordA.GetGreatestSubtype(proxyRecordC)).IsEqualTo(aInfC)
+	s.AssertType(proxyRecordA.GetLeastSupertype(proxyRecordC)).IsEqualTo(aSupC)
+}
+
+func TestRecordType_SubtypeWithUnknowns(t *testing.T) {
+	s := newRecordTypeTest(t)
+	recordA := NewRecordTypeBuilder(s.Registry).
+		AddProperty("a", s.NUMBER_TYPE, nil).
+		Build()
+	recordB := NewRecordTypeBuilder(s.Registry).
+		AddProperty("a", s.UNKNOWN_TYPE, nil).
+		Build()
+	s.AssertThat(recordA.IsSubtypeOf(recordB)).IsTrue()
+	s.AssertThat(recordB.IsSubtypeOf(recordA)).IsTrue()
+}
+
+func TestRecordType_SubtypeWithUnknowns2(t *testing.T) {
+	s := newRecordTypeTest(t)
+	recordA :=
+		NewRecordTypeBuilder(s.Registry).
+			AddProperty(
+				"a", FunctionType_Builder_(s.Registry).WithReturnType(s.NUMBER_TYPE).Build(), nil).
+			Build()
+	recordB :=
+		NewRecordTypeBuilder(s.Registry).
+			AddProperty(
+				"a", FunctionType_Builder_(s.Registry).WithReturnType(s.UNKNOWN_TYPE).Build(), nil).
+			Build()
+	s.AssertThat(recordA.IsSubtypeOf(recordB)).IsTrue()
+	s.AssertThat(recordB.IsSubtypeOf(recordA)).IsTrue()
+}
+
+func TestRecordType_SubtypeWithFunctionProps(t *testing.T) {
+	s := newRecordTypeTest(t)
+	recordA :=
+		NewRecordTypeBuilder(s.Registry).
+			AddProperty(
+				"a", FunctionType_Builder_(s.Registry).WithReturnType(s.NUMBER_TYPE).Build(), nil).
+			Build()
+	recordB :=
+		NewRecordTypeBuilder(s.Registry).
+			AddProperty(
+				"a", FunctionType_Builder_(s.Registry).WithReturnType(s.STRING_TYPE).Build(), nil).
+			Build()
+	s.AssertThat(recordA.IsSubtypeOf(recordB)).IsFalse()
+	s.AssertThat(recordB.IsSubtypeOf(recordA)).IsFalse()
+}
+
+func TestRecordType_SubtypeWithManyProps(t *testing.T) {
+	s := newRecordTypeTest(t)
+	recordA := NewRecordTypeBuilder(s.Registry).
+		AddProperty("a", s.NUMBER_TYPE, nil).
+		AddProperty("b", s.NUMBER_TYPE, nil).
+		Build()
+	recordB := NewRecordTypeBuilder(s.Registry).
+		AddProperty("a", s.NUMBER_TYPE, nil).
+		AddProperty("b", s.STRING_TYPE, nil).
+		Build()
+	recordC := NewRecordTypeBuilder(s.Registry).
+		AddProperty("a", s.NUMBER_TYPE, nil).
+		AddProperty("b",
+			s.Registry.CreateUnionType(s.NUMBER_TYPE, s.STRING_TYPE), nil).
+		Build()
+	s.AssertThat(recordA.IsSubtypeOf(recordB)).IsFalse()
+	s.AssertThat(recordB.IsSubtypeOf(recordA)).IsFalse()
+	s.AssertThat(recordC.IsSubtypeOf(recordB)).IsFalse()
+	s.AssertThat(recordB.IsSubtypeOf(recordC)).IsTrue()
+	s.AssertThat(recordA.IsSubtypeOf(recordC)).IsTrue()
+}
+
+func TestRecordType_Equality_onlyCompares_ownProperties(t *testing.T) {
+	s := newRecordTypeTest(t)
+	// Given
+	recordA := //
+		NewRecordTypeBuilder(s.Registry).AddProperty("a", s.NUMBER_TYPE, nil).Build().(*RecordType)
+	recordB :=
+		NewRecordTypeBuilder(s.Registry).
+			AddProperty("a", s.NUMBER_TYPE, nil).
+			AddProperty("toString", s.OBJECT_TYPE.GetPropertyType("toString"), nil).
+			Build().(*RecordType)
+
+	s.AssertType(recordA.GetPropertyType("toString")).IsEqualTo(recordB.GetPropertyType("toString"))
+
+	// Then
+	s.AssertType(recordA).IsNotEqualTo(recordB)
+}

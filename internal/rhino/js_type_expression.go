@@ -160,8 +160,8 @@ func (e *JSTypeExpression) IsVarArgs() bool {
 // Evaluate evaluates the type expression into a JSType object.
 //
 // Java: JSTypeExpression.evaluate(StaticTypedScope, JSTypeRegistry)
-func (e *JSTypeExpression) Evaluate(scope StaticTypedScope, registry JSTypeRegistry) JSType {
-	type_ := registry.CreateTypeFromCommentNode(e.root, e.sourceName, scope)
+func (e *JSTypeExpression) Evaluate(scope StaticTypedScope, registry *JSTypeRegistry) JSType {
+	type_ := registry.CreateTypeFromCommentNodeWithScope(e.root, e.sourceName, scope)
 	e.root.SetJSType(type_)
 	return type_
 }

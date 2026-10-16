@@ -365,25 +365,10 @@ func TestNode_IsEquivalentToString(t *testing.T) {
 	assertFalse(t, "'1' ~ '2'", Node_NewString("1").IsEquivalentTo(Node_NewString("2")))
 }
 
-func TestNode_CheckTreeTypeAwareEqualsSame(t *testing.T) {
-	// TODO(port): enable once internal/jstype provides JSTypeRegistry.
-	t.Skip("needs jstype (JSTypeRegistry)")
-}
-
 func TestNode_CheckTreeTypeAwareEqualsSameNull(t *testing.T) {
 	node1 := Node_NewStringWithToken(Token_NAME, "f")
 	node2 := Node_NewStringWithToken(Token_NAME, "f")
 	assertTrue(t, "node1.isEquivalentToTyped(node2)", node1.IsEquivalentToTyped(node2))
-}
-
-func TestNode_CheckTreeTypeAwareEqualsDifferent(t *testing.T) {
-	// TODO(port): enable once internal/jstype provides JSTypeRegistry.
-	t.Skip("needs jstype (JSTypeRegistry)")
-}
-
-func TestNode_CheckTreeTypeAwareEqualsDifferentNull(t *testing.T) {
-	// TODO(port): enable once internal/jstype provides JSTypeRegistry.
-	t.Skip("needs jstype (JSTypeRegistry)")
 }
 
 func TestNode_CheckTreeTypeAwareEqualsColorsSame(t *testing.T) {
@@ -783,11 +768,6 @@ func TestNode_SerializeProperties_UntranslatableRhinoProp(t *testing.T) {
 	// Rhino node prop USE_STRICT does not have a corresponding NodeProperty
 	assertTrue(t, "isUseStrict", node.IsUseStrict())
 	assertSerialized(t, result, 0)
-}
-
-func TestNode_SerializeProperties_TypeBeforeCast(t *testing.T) {
-	// TODO(port): enable once internal/jstype provides JSTypeRegistry.
-	t.Skip("needs jstype (JSTypeRegistry)")
 }
 
 func TestNode_GetIndexOfChild(t *testing.T) {

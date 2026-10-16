@@ -3,9 +3,10 @@
 package rhino
 
 // The Java test class owns a JSTypeRegistry (with a TestErrorReporter
-// verified after each test) for its resolve(JSTypeExpression) helper. Tests
-// that resolve type expressions are skipped until internal/jstype exists;
-// the others never touch the registry, so the @After check holds trivially.
+// verified after each test) for its resolve(JSTypeExpression) helper. The
+// tests that resolve type expressions are in js_doc_info_jstype_test.go
+// (package rhino_test, as they use rhinotesting); the ones here never touch
+// the registry, so the @After check holds trivially.
 
 import (
 	"slices"
@@ -13,8 +14,6 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
-
-const needsJSTypeRegistry = "needs jstype (JSTypeRegistry, for resolve(JSTypeExpression))"
 
 func assertNullTypeExpr(t *testing.T, what string, e *JSTypeExpression) {
 	t.Helper()
@@ -66,21 +65,6 @@ func TestJSDocInfo_VisibilityOrdinal(t *testing.T) {
 	}
 }
 
-func TestJSDocInfo_SetType(t *testing.T) {
-	// TODO(port): enable once internal/jstype provides JSTypeRegistry.
-	t.Skip(needsJSTypeRegistry)
-}
-
-func TestJSDocInfo_SetTypeAndVisibility(t *testing.T) {
-	// TODO(port): enable once internal/jstype provides JSTypeRegistry.
-	t.Skip(needsJSTypeRegistry)
-}
-
-func TestJSDocInfo_SetReturnType(t *testing.T) {
-	// TODO(port): enable once internal/jstype provides JSTypeRegistry.
-	t.Skip(needsJSTypeRegistry)
-}
-
 // Tests that all module local names get correctly removed from a
 // JSTypeExpression
 func TestJSDocInfo_RemovesModuleLocalNames(t *testing.T) {
@@ -95,36 +79,6 @@ func TestJSDocInfo_RemovesModuleLocalNames(t *testing.T) {
 	assertContains(t, "replacedNames", replacedNames, "string")
 	assertContains(t, "replacedNames", replacedNames, "boolean")
 	assertNotContains(t, "replacedNames", replacedNames, "AnotherItem")
-}
-
-func TestJSDocInfo_SetReturnTypeAndBaseType(t *testing.T) {
-	// TODO(port): enable once internal/jstype provides JSTypeRegistry.
-	t.Skip(needsJSTypeRegistry)
-}
-
-func TestJSDocInfo_SetEnumParameterType(t *testing.T) {
-	// TODO(port): enable once internal/jstype provides JSTypeRegistry.
-	t.Skip(needsJSTypeRegistry)
-}
-
-func TestJSDocInfo_MultipleSetType(t *testing.T) {
-	// TODO(port): enable once internal/jstype provides JSTypeRegistry.
-	t.Skip(needsJSTypeRegistry)
-}
-
-func TestJSDocInfo_MultipleSetType2(t *testing.T) {
-	// TODO(port): enable once internal/jstype provides JSTypeRegistry.
-	t.Skip(needsJSTypeRegistry)
-}
-
-func TestJSDocInfo_MultipleSetType3(t *testing.T) {
-	// TODO(port): enable once internal/jstype provides JSTypeRegistry.
-	t.Skip(needsJSTypeRegistry)
-}
-
-func TestJSDocInfo_SetTypedefType(t *testing.T) {
-	// TODO(port): enable once internal/jstype provides JSTypeRegistry.
-	t.Skip(needsJSTypeRegistry)
 }
 
 func TestJSDocInfo_SetConstant(t *testing.T) {
@@ -280,16 +234,6 @@ func TestJSDocInfo_DescriptionDoesNotContainAtSignCode(t *testing.T) {
 	info := builder.Build()
 
 	assertFalse(t, "isAtSignCodePresent", info.IsAtSignCodePresent())
-}
-
-func TestJSDocInfo_Clone(t *testing.T) {
-	// TODO(port): enable once internal/jstype provides JSTypeRegistry.
-	t.Skip(needsJSTypeRegistry)
-}
-
-func TestJSDocInfo_CloneTypeExpressions1(t *testing.T) {
-	// TODO(port): enable once internal/jstype provides JSTypeRegistry.
-	t.Skip(needsJSTypeRegistry)
 }
 
 func TestJSDocInfo_CloneTypeExpressions2(t *testing.T) {
