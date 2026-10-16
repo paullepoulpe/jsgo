@@ -73,7 +73,19 @@ Other observations on new inputs:
 - Output order is nondeterministic: one input produced 3 different
   diagnostic orders in 12 runs, because properties live in Go maps. The
   tuple-sorting harness could not detect this.
-- Real-world robustness: _(pending: real-world corpus run)_.
+- **Real-world code** (162 files: 150 from Closure Library plus lodash,
+  jQuery, d3, three.js, React, Vue, moment, acorn, esprima):
+  - Java parses all 162; jsgo parses 134. Its lexer rejects any regex with
+    an escape (`var a = /\d/;` is a "parse error") and any template literal
+    with `${}`, so 11 of the 12 plain libraries fail to parse.
+  - `for (var i = 0, n = a.length; i < n; i++)` is silently misparsed into
+    four bogus diagnostics.
+  - Two more stack-overflow crashes are reachable from ordinary code
+    (optional chaining `o?.a`; self-referential class properties).
+  - Where both parse, jsgo's diagnostics agree with Java's on only 2–12% of
+    tuples.
+  - One quadratic pass makes jsgo 5–6× *slower* than the JVM on large files
+    such as lodash.
 - The repository's own guard script (`ci-guards.sh`) was failing on `main`.
 
 ### Root causes
