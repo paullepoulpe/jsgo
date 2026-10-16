@@ -566,10 +566,11 @@ type AbstractCompiler interface {
 	// Java: AbstractCompiler.getSynthesizedTypeSummaryInput()
 	GetSynthesizedTypeSummaryInput() *CompilerInput
 
-	// GetLastPassName gets the last pass name set by setProgress.
+	// GetLastPassName gets the last pass name set by setProgress (nil when
+	// there is none).
 	//
 	// Java: AbstractCompiler.getLastPassName()
-	GetLastPassName() string
+	GetLastPassName() *string
 
 	// GetRuntimeJsLibManager returns a class responsible for managing
 	// injection of runtime libraries under the js/ subdirectory.
@@ -628,10 +629,11 @@ type AbstractCompiler interface {
 	// Java: AbstractCompiler.getModuleLoader()
 	GetModuleLoader() *ModuleLoader
 
-	// GetModuleTypeByName looks up the type of a module from its name.
+	// GetModuleTypeByName looks up the type of a module from its name (nil
+	// when unknown).
 	//
 	// Java: AbstractCompiler.getModuleTypeByName(String)
-	GetModuleTypeByName(moduleName string) CompilerInput_ModuleType
+	GetModuleTypeByName(moduleName string) *CompilerInput_ModuleType
 
 	// SetRunJ2clPasses sets whether J2CL passes should run
 	//
