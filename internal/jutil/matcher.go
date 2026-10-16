@@ -4,13 +4,22 @@ package jutil
 // (pattern.go), for a whole input string (no regions, no hitEnd/requireEnd,
 // no named groups). Indices (start/end) are UTF-16 offsets, as in Java.
 //
-// Searching resumes from the end of the previous match exactly as
-// Matcher.find() does (an empty match advances the next search by one
-// char; resuming inside a surrogate pair panics with
-// UnsupportedOperationException). Because RE2 cannot start a search in the middle of a string with
-// the preceding text as context, a pattern that uses `^` outside a
-// character class panics with UnsupportedOperationException when find()
-// has to resume past index 0.
+// Where find() looks (Javadoc of Matcher.find(), plus black-box runs of
+// JDK 21 for what the Javadoc leaves open):
+//   - the first find() after creation or reset() looks from the start;
+//   - after a successful match (by find(), matches() or lookingAt()) it
+//     looks from where that match ended, or one char further when the
+//     match was empty, so that it cannot return the same empty match;
+//   - a failed attempt (find(), matches() or lookingAt()) keeps that
+//     position but cancels the one-char step: `^` matches empty at 0 in
+//     "ab", the next find() fails from 1, and the one after that returns the
+//     empty match at 0 again;
+//   - except when the one-char step itself would leave the input: find()
+//     then fails without changing anything, so it keeps failing until a
+//     successful matches()/lookingAt() or a reset().
+// Taking the one-char step from just before a supplementary character would
+// land between its two surrogates, a position the WTF-8 input cannot hold;
+// find() panics with UnsupportedOperationException there.
 
 import (
 	"strings"
@@ -20,46 +29,49 @@ import (
 type Matcher struct {
 	p     *Pattern
 	input string
-	// groups holds the byte offsets of the last match (Go's submatch index
-	// layout), or nil when there is no current match.
+	// groups holds the byte offsets of the current match in Go's submatch
+	// index layout (the Java pattern's own groups only), or nil when there
+	// is no current match.
 	groups []int
-	// first and last delimit the previous match, as byte offsets into input
-	// (first == -1 before any match); find() resumes at last.
-	first int
-	last  int
+	// resumeAt is the byte offset where the next find() starts looking: the
+	// end of the latest successful match, or 0.
+	resumeAt int
+	// prevWasEmpty is set when that match was empty (and no failed attempt
+	// came since): find() then starts one char after resumeAt.
+	prevWasEmpty bool
 }
 
 // Matcher is Pattern.matcher(CharSequence).
 func (p *Pattern) Matcher(input string) *Matcher {
-	return &Matcher{p: p, input: input, first: -1, last: 0}
+	return &Matcher{p: p, input: input}
 }
 
 // Pattern is Matcher.pattern().
 func (m *Matcher) Pattern() *Pattern { return m.p }
 
-// Reset is Matcher.reset().
+// Reset is Matcher.reset(): no current match, and the next find() looks
+// from the start again.
 func (m *Matcher) Reset() *Matcher {
-	m.groups = nil
-	m.first = -1
-	m.last = 0
+	m.groups, m.resumeAt, m.prevWasEmpty = nil, 0, false
 	return m
 }
 
-func (m *Matcher) setMatch(loc []int) bool {
+// record installs the outcome of a match attempt (loc nil: it failed) and
+// updates where find() resumes, as described in the file comment.
+func (m *Matcher) record(loc []int) bool {
+	m.groups = loc
 	if loc == nil {
-		m.groups = nil
-		m.first = -1
+		m.prevWasEmpty = false
 		return false
 	}
-	m.groups = loc
-	m.first = loc[0]
-	m.last = loc[1]
+	m.resumeAt = loc[1]
+	m.prevWasEmpty = loc[0] == loc[1]
 	return true
 }
 
 // Matches is Matcher.matches(): the entire input must match.
 func (m *Matcher) Matches() bool {
-	return m.setMatch(m.p.full.FindStringSubmatchIndex(m.input))
+	return m.record(m.p.full.FindStringSubmatchIndex(m.input))
 }
 
 // LookingAt is Matcher.lookingAt(): a match must start at the beginning of
@@ -67,84 +79,38 @@ func (m *Matcher) Matches() bool {
 // a match starting at 0 whenever one exists, with the extent Java's
 // backtracking would choose there.
 func (m *Matcher) LookingAt() bool {
-	loc := m.p.re.FindStringSubmatchIndex(m.input)
+	loc := m.p.findFrom(m.input, 0)
 	if loc != nil && loc[0] != 0 {
 		loc = nil
 	}
-	return m.setMatch(loc)
+	return m.record(loc)
 }
 
-// Find is Matcher.find(): the next match, starting where the previous one
-// ended (one char later after an empty match).
+// Find is Matcher.find(): the next match of the pattern, looked for from
+// the position the file comment describes.
 func (m *Matcher) Find() bool {
-	next := m.last
-	if next == m.first {
-		// Empty match: advance by one char (one UTF-16 unit).
-		if next >= len(m.input) {
+	from := m.resumeAt
+	if m.prevWasEmpty {
+		if from == len(m.input) {
+			// Observed (black-box): find() fails here and leaves the state
+			// as it is, so a further find() fails too. (JDK 21 then still
+			// answers start() and end() with the empty match, but group()
+			// with null; this port has no current match, as the Javadoc of
+			// start() describes after a failed match.)
 			m.groups = nil
-			m.first = -1
 			return false
 		}
-		_, size := decodeWTF8(m.input[next:])
+		_, size := decodeWTF8(m.input[from:])
 		if size == 4 {
-			// Java resumes between the two surrogates of a supplementary
-			// character, which a WTF-8 offset cannot express.
 			unsupportedJavaRegex(m.p.pattern, "find() resuming inside a surrogate pair after an empty match")
 		}
-		next += size
+		from += size
 	}
-	if next > len(m.input) {
-		m.groups = nil
-		m.first = -1
-		return false
-	}
-	return m.search(next)
-}
-
-func (m *Matcher) search(from int) bool {
-	if from > 0 && patternHasCaret(m.p.pattern) {
-		unsupportedJavaRegex(m.p.pattern, "^ when find() resumes past the start")
-	}
-	loc := m.p.re.FindStringSubmatchIndex(m.input[from:])
-	if loc != nil {
-		for i := range loc {
-			if loc[i] >= 0 {
-				loc[i] += from
-			}
-		}
-	}
-	return m.setMatch(loc)
-}
-
-// patternHasCaret reports whether a Java regex uses `^` outside a character
-// class.
-func patternHasCaret(regex string) bool {
-	inClass := false
-	for i := 0; i < len(regex); i++ {
-		switch c := regex[i]; {
-		case c == '\\':
-			i++
-		case inClass:
-			if c == ']' {
-				inClass = false
-			}
-		case c == '[':
-			inClass = true
-			if i+1 < len(regex) && regex[i+1] == '^' {
-				i++
-			}
-			if i+1 < len(regex) && regex[i+1] == ']' {
-				i++
-			}
-		case c == '^':
-			return true
-		}
-	}
-	return false
+	return m.record(m.p.findFrom(m.input, from))
 }
 
 // GroupCount is Matcher.groupCount().
-func (m *Matcher) GroupCount() int { return m.p.re.NumSubexp() }
+func (m *Matcher) GroupCount() int { return m.p.groups }
 
 func (m *Matcher) checkMatch() {
 	if m.groups == nil {
