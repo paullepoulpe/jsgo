@@ -48,7 +48,7 @@ type PropertyMap struct {
 }
 
 // Java: PropertyMap.EMPTY_MAP
-var propertyMap_EMPTY_MAP = func() *PropertyMap {
+var PropertyMap_EMPTY_MAP = func() *PropertyMap {
 	m := newPropertyMapWithMaps(
 		jutil.NewTreeMap[string, *Property](jutil.StringCompareTo),
 		jutil.NewObjectLinkedHashMap[*KnownSymbolType, *Property]())
@@ -70,23 +70,23 @@ func newPropertyMapWithMaps(
 
 // Java: PropertyMap.immutableEmptyMap()
 func PropertyMap_ImmutableEmptyMap() *PropertyMap {
-	return propertyMap_EMPTY_MAP
+	return PropertyMap_EMPTY_MAP
 }
 
 // Java: PropertyMap.setParentSource(ObjectType)
 func (m *PropertyMap) SetParentSource(ownerType ObjectType) {
-	if m == propertyMap_EMPTY_MAP {
+	if m == PropertyMap_EMPTY_MAP {
 		return
 	}
 
 	m.parentSource = ownerType
-	m.incrementCachedKeySetCounter()
+	m.IncrementCachedKeySetCounter()
 }
 
 // Java: PropertyMap.setParentForTesting(PropertyMap)
 func (m *PropertyMap) SetParentForTesting(parent *PropertyMap) {
 	m.parentSource = parent.parentSource
-	m.incrementCachedKeySetCounter()
+	m.IncrementCachedKeySetCounter()
 }
 
 // GetPrimaryParent returns the direct parent of this property map.
@@ -107,8 +107,8 @@ func (m *PropertyMap) GetPrimaryParent() *PropertyMap {
 // map, for interfaces that need multiple inheritance or for interfaces of
 // abstract classes.
 //
-// Java: PropertyMap.getSecondaryParentObjects()
-func (m *PropertyMap) getSecondaryParentObjects() []ObjectType {
+// Java: PropertyMap.GetSecondaryParentObjects()
+func (m *PropertyMap) GetSecondaryParentObjects() []ObjectType {
 	if m.parentSource == nil {
 		return nil
 	}
@@ -135,7 +135,7 @@ func (m *PropertyMap) FindClosestByKey(name Property_Key) *Property_OwnedPropert
 
 	// Recurse into secondary parents.
 	for pm := m; pm != nil; pm = pm.GetPrimaryParent() {
-		for _, o := range pm.getSecondaryParentObjects() {
+		for _, o := range pm.GetSecondaryParentObjects() {
 			parent := o.GetPropertyMap()
 			if parent != nil {
 				e := parent.FindClosestByKey(name)
@@ -196,7 +196,7 @@ func (m *PropertyMap) GetOwnKnownSymbols() []*KnownSymbolType {
 // Java: PropertyMap.getAllKeys()
 func (m *PropertyMap) GetAllKeys() *PropertyMap_AllKeys {
 	ancestors := jutil.NewLinkedHashSet[*PropertyMap]()
-	m.collectAllAncestors(ancestors)
+	m.CollectAllAncestors(ancestors)
 
 	var maxAncestorCounter int32 = 0
 	for ancestor := range ancestors.All() {
@@ -208,7 +208,7 @@ func (m *PropertyMap) GetAllKeys() *PropertyMap_AllKeys {
 	// If any counter is greater than this counter, there has been a mutation
 	// and the cache must be rebuilt.
 	if maxAncestorCounter != m.cachedKeySetCounter || m.cachedKeySet == nil {
-		keys := jutil.NewTreeMap[string, bool](jutil.StringCompareTo)
+		keys := jutil.NewTreeSet[string](jutil.StringCompareTo)
 		knownSymbolsKeys := jutil.NewObjectLinkedHashSet[*KnownSymbolType]()
 		for ancestor := range ancestors.All() {
 			// Update the counters in all ancestors.
@@ -221,13 +221,13 @@ func (m *PropertyMap) GetAllKeys() *PropertyMap_AllKeys {
 			ancestor.cachedKnownSymbolsKeySet = nil
 
 			for _, k := range ancestor.GetOwnPropertyNames() {
-				keys.Put(k, true)
+				keys.Add(k)
 			}
 			for _, s := range ancestor.GetOwnKnownSymbols() {
 				knownSymbolsKeys.Add(s)
 			}
 		}
-		m.cachedKeySet = keys.KeySlice()
+		m.cachedKeySet = append([]string{}, keys.ToSlice()...)
 		m.cachedKnownSymbolsKeySet = knownSymbolsKeys.ToSlice()
 	}
 
@@ -256,21 +256,21 @@ func (k *PropertyMap_AllKeys) StringKeys() []string { return k.stringKeys }
 // Java: PropertyMap.AllKeys.knownSymbolKeys()
 func (k *PropertyMap_AllKeys) KnownSymbolKeys() []*KnownSymbolType { return k.knownSymbolKeys }
 
-// Java: PropertyMap.collectAllAncestors(LinkedHashSet<PropertyMap>)
-func (m *PropertyMap) collectAllAncestors(ancestors *jutil.LinkedHashSet[*PropertyMap]) {
+// Java: PropertyMap.CollectAllAncestors(LinkedHashSet<PropertyMap>)
+func (m *PropertyMap) CollectAllAncestors(ancestors *jutil.LinkedHashSet[*PropertyMap]) {
 	if !ancestors.Add(m) {
 		return
 	}
 
 	primaryParent := m.GetPrimaryParent()
 	if primaryParent != nil {
-		primaryParent.collectAllAncestors(ancestors)
+		primaryParent.CollectAllAncestors(ancestors)
 	}
 
-	for _, parentType := range m.getSecondaryParentObjects() {
+	for _, parentType := range m.GetSecondaryParentObjects() {
 		parentMap := parentType.GetPropertyMap()
 		if parentMap != nil {
-			parentMap.collectAllAncestors(ancestors)
+			parentMap.CollectAllAncestors(ancestors)
 		}
 	}
 }
@@ -281,7 +281,7 @@ func (m *PropertyMap) PutProperty(name string, newProp *Property) {
 
 	if oldProp == nil {
 		// The cache is only invalidated if this is a new property name.
-		m.incrementCachedKeySetCounter()
+		m.IncrementCachedKeySetCounter()
 	} else {
 		// This is to keep previously inferred JsDoc info, e.g., in a
 		// replaceScript scenario.
@@ -303,7 +303,7 @@ func (m *PropertyMap) PutPropertyBySymbol(symbol *KnownSymbolType, newProp *Prop
 
 	if oldProp == nil {
 		// The cache is only invalidated if this is a new property name.
-		m.incrementCachedKeySetCounter()
+		m.IncrementCachedKeySetCounter()
 	}
 
 	if m.knownSymbols == nil {
@@ -351,8 +351,8 @@ func (m *PropertyMap) Equals(o any) bool {
 	return any(m) == o
 }
 
-// Java: PropertyMap.incrementCachedKeySetCounter()
-func (m *PropertyMap) incrementCachedKeySetCounter() {
+// Java: PropertyMap.IncrementCachedKeySetCounter()
+func (m *PropertyMap) IncrementCachedKeySetCounter() {
 	m.cachedKeySetCounter++
 	m.cachedKeySet = nil
 

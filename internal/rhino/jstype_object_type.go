@@ -445,7 +445,7 @@ func (o *ObjectTypeBase) DefineDeclaredProperty(propertyName string, type_ JSTyp
 
 // Java: ObjectType.defineDeclaredProperty(Property.Key, JSType, Node)
 func (o *ObjectTypeBase) DefineDeclaredPropertyByKey(propertyName Property_Key, type_ JSType, propertyNode *Node) bool {
-	result := o.self.DefinePropertyByKey(propertyName, type_, /* inferred= */ false, propertyNode)
+	result := o.self.DefinePropertyByKey(propertyName, type_ /* inferred= */, false, propertyNode)
 	if propertyName.Kind() == Property_KeyKind_STRING {
 		// All property definitions go through this method or
 		// defineInferredProperty. Because the properties defined an an object
@@ -662,11 +662,11 @@ func (o *ObjectTypeBase) GetPropertyType(propertyName string) JSType {
 // Java: ObjectType.getPropertyType(Property.Key)
 func (o *ObjectTypeBase) GetPropertyTypeByKey(propertyName Property_Key) JSType {
 	slot := o.self.GetSlotByKey(propertyName)
-	return o.getPropertyTypeFromSlot(slot)
+	return o.GetPropertyTypeFromSlot(slot)
 }
 
-// Java: ObjectType.getPropertyTypeFromSlot(StaticTypedSlot)
-func (o *ObjectTypeBase) getPropertyTypeFromSlot(slot *Property) JSType {
+// Java: ObjectType.GetPropertyTypeFromSlot(StaticTypedSlot)
+func (o *ObjectTypeBase) GetPropertyTypeFromSlot(slot *Property) JSType {
 	if slot == nil {
 		if o.self.IsNoResolvedType() || o.self.IsCheckedUnknownType() {
 			return o.GetNativeType(JSTypeNative_CHECKED_UNKNOWN_TYPE)

@@ -69,8 +69,11 @@ type PrototypeObjectTypeBase struct {
 	prettyPrint bool
 }
 
+// Java: PrototypeObjectType.TYPE_CLASS
+const PrototypeObjectType_TYPE_CLASS = JSTypeClass_PROTOTYPE_OBJECT
+
 // Java: PrototypeObjectType.MAX_PRETTY_PRINTED_PROPERTIES
-const prototypeObjectType_MAX_PRETTY_PRINTED_PROPERTIES = 10
+const PrototypeObjectType_MAX_PRETTY_PRINTED_PROPERTIES = 10
 
 // NewPrototypeObjectType creates an object type, allowing specification of
 // the implicit prototype, whether the object is native, and any templatized
@@ -112,7 +115,7 @@ func (p *PrototypeObjectTypeBase) InitPrototypeObjectTypeBase(self PrototypeObje
 	// Also guarantees `templateParamCount >= 0`.
 	jutil.CheckState(p.templateTypeMap.Size() >= p.templateParamCount)
 
-	p.registry.GetResolver().ResolveIfClosed(self, JSTypeClass_PROTOTYPE_OBJECT)
+	p.registry.GetResolver().ResolveIfClosed(self, PrototypeObjectType_TYPE_CLASS)
 }
 
 // GetPrototypeObjectTypeBase gives access to the base through the interface.
@@ -122,7 +125,7 @@ func (p *PrototypeObjectTypeBase) GetPrototypeObjectTypeBase() *PrototypeObjectT
 
 // Java: PrototypeObjectType.getTypeClass()
 func (p *PrototypeObjectTypeBase) GetTypeClass() JSTypeClass {
-	return JSTypeClass_PROTOTYPE_OBJECT
+	return PrototypeObjectType_TYPE_CLASS
 }
 
 // PrototypeObjectType_BuilderFields holds the fields of
@@ -286,7 +289,7 @@ func (p *PrototypeObjectTypeBase) MatchesNumberContext() bool {
 		p.self.IsDateType() ||
 		p.self.IsBooleanObjectType() ||
 		p.self.IsStringObjectType() ||
-		p.hasOverriddenNativeProperty("valueOf")
+		p.HasOverriddenNativeProperty("valueOf")
 }
 
 // Java: PrototypeObjectType.matchesStringContext()
@@ -299,7 +302,7 @@ func (p *PrototypeObjectTypeBase) MatchesStringContext() bool {
 		p.self.IsNumberObjectType() ||
 		p.self.IsBigIntObjectType() ||
 		p.self.IsBooleanObjectType() ||
-		p.hasOverriddenNativeProperty("toString")
+		p.HasOverriddenNativeProperty("toString")
 }
 
 // Java: PrototypeObjectType.matchesSymbolContext()
@@ -311,8 +314,8 @@ func (p *PrototypeObjectTypeBase) MatchesSymbolContext() bool {
 // checks whether the property is present on the object and different from
 // the native one.
 //
-// Java: PrototypeObjectType.hasOverriddenNativeProperty(String)
-func (p *PrototypeObjectTypeBase) hasOverriddenNativeProperty(propertyName string) bool {
+// Java: PrototypeObjectType.HasOverriddenNativeProperty(String)
+func (p *PrototypeObjectTypeBase) HasOverriddenNativeProperty(propertyName string) bool {
 	if p.self.IsNativeObjectType() {
 		return false
 	}
@@ -333,15 +336,15 @@ func (p *PrototypeObjectTypeBase) MatchesObjectContext() bool {
 	return true
 }
 
-// prototypeObjectType_PropertyForPrettyPrinting is the private record
+// PrototypeObjectType_PropertyForPrettyPrinting is the private record
 // PropertyForPrettyPrinting(Property.Key key, JSType type).
-type prototypeObjectType_PropertyForPrettyPrinting struct {
+type PrototypeObjectType_PropertyForPrettyPrinting struct {
 	key   Property_Key
 	type_ JSType
 }
 
 // Java: PrototypeObjectType.PropertyForPrettyPrinting.appendTo(TypeStringBuilder)
-func (r prototypeObjectType_PropertyForPrettyPrinting) appendTo(sb *TypeStringBuilder) {
+func (r PrototypeObjectType_PropertyForPrettyPrinting) AppendTo(sb *TypeStringBuilder) {
 	switch r.key.Kind() {
 	case Property_KeyKind_STRING:
 		sb.Append(r.key.HumanReadableName())
@@ -354,7 +357,7 @@ func (r prototypeObjectType_PropertyForPrettyPrinting) appendTo(sb *TypeStringBu
 }
 
 // Java: PrototypeObjectType.PROP_COMPARATOR
-func prototypeObjectType_PROP_COMPARATOR(thisProp, otherProp prototypeObjectType_PropertyForPrettyPrinting) int {
+func PrototypeObjectType_PROP_COMPARATOR(thisProp, otherProp PrototypeObjectType_PropertyForPrettyPrinting) int {
 	// Handle the easy case where the property names are distinct.
 	if thisProp.key.HumanReadableName() != otherProp.key.HumanReadableName() {
 		return jutil.StringCompareTo(thisProp.key.HumanReadableName(), otherProp.key.HumanReadableName())
@@ -401,19 +404,19 @@ func (p *PrototypeObjectTypeBase) AppendTo(sb *TypeStringBuilder) {
 	p.prettyPrint = false
 
 	// Use a tree set so that the properties are sorted.
-	properties := jutil.NewTreeMap[prototypeObjectType_PropertyForPrettyPrinting, bool](prototypeObjectType_PROP_COMPARATOR)
+	properties := jutil.NewTreeSet[PrototypeObjectType_PropertyForPrettyPrinting](PrototypeObjectType_PROP_COMPARATOR)
 	for current := ObjectType(p.self); current != nil; current = current.GetImplicitPrototype() {
-		if current.IsNativeObjectType() || properties.Size() > prototypeObjectType_MAX_PRETTY_PRINTED_PROPERTIES {
+		if current.IsNativeObjectType() || properties.Size() > PrototypeObjectType_MAX_PRETTY_PRINTED_PROPERTIES {
 			break
 		}
 
 		for _, stringKey := range current.GetOwnPropertyNames() {
 			key := NewProperty_StringKey(stringKey)
-			properties.PutIfAbsent(prototypeObjectType_PropertyForPrettyPrinting{key, current.GetPropertyTypeByKey(key)}, true)
+			properties.Add(PrototypeObjectType_PropertyForPrettyPrinting{key, current.GetPropertyTypeByKey(key)})
 		}
 		for _, symbolKey := range current.GetOwnPropertyKnownSymbols() {
 			key := NewProperty_SymbolKey(symbolKey)
-			properties.PutIfAbsent(prototypeObjectType_PropertyForPrettyPrinting{key, current.GetPropertyTypeByKey(key)}, true)
+			properties.Add(PrototypeObjectType_PropertyForPrettyPrinting{key, current.GetPropertyTypeByKey(key)})
 		}
 	}
 
@@ -425,15 +428,15 @@ func (p *PrototypeObjectTypeBase) AppendTo(sb *TypeStringBuilder) {
 			}
 
 			i := 0
-			for property := range properties.Keys() {
+			for property := range properties.All() {
 				i++
 
-				if !sb.IsForAnnotations() && i > prototypeObjectType_MAX_PRETTY_PRINTED_PROPERTIES {
+				if !sb.IsForAnnotations() && i > PrototypeObjectType_MAX_PRETTY_PRINTED_PROPERTIES {
 					sb.Append("...")
 					break
 				}
 
-				property.appendTo(sb)
+				property.AppendTo(sb)
 				if i < properties.Size() {
 					sb.Append(",")
 					if multiline {

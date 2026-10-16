@@ -28,11 +28,11 @@ func NewFunctionParamBuilderWithCapacity(registry *JSTypeRegistry, initialParame
 //
 // Java: FunctionParamBuilder.addRequiredParams(JSType...)
 func (b *FunctionParamBuilder) AddRequiredParams(types ...JSType) bool {
-	if b.hasOptionalOrVarArgs() {
+	if b.HasOptionalOrVarArgs() {
 		return false
 	}
 	for _, type_ := range types {
-		b.newParameter(type_, /* isOptional= */ false, /* isVariadic= */ false)
+		b.NewParameter(type_ /* isOptional= */, false /* isVariadic= */, false)
 	}
 	return true
 }
@@ -47,8 +47,8 @@ func (b *FunctionParamBuilder) AddOptionalParams(types ...JSType) bool {
 		return false
 	}
 	for _, type_ := range types {
-		b.newParameter(
-			b.registry.CreateOptionalType(type_), /* isOptional= */ true, /* isVariadic= */ false)
+		b.NewParameter(
+			b.registry.CreateOptionalType(type_) /* isOptional= */, true /* isVariadic= */, false)
 	}
 	return true
 }
@@ -61,7 +61,7 @@ func (b *FunctionParamBuilder) AddVarArgs(type_ JSType) bool {
 	if b.HasVarArgs() {
 		return false
 	}
-	b.newParameter(type_, /* isOptional= */ false, /* isVariadic= */ true)
+	b.NewParameter(type_ /* isOptional= */, false /* isVariadic= */, true)
 	return true
 }
 
@@ -79,7 +79,7 @@ func (b *FunctionParamBuilder) NewParameterFrom(n *FunctionType_Parameter) {
 func (b *FunctionParamBuilder) NewOptionalParameterFrom(p *FunctionType_Parameter) {
 	isOptional := p.IsOptional() || !p.IsVariadic()
 	if isOptional != p.IsOptional() {
-		b.newParameter(p.GetJSType(), isOptional, p.IsVariadic())
+		b.NewParameter(p.GetJSType(), isOptional, p.IsVariadic())
 	} else {
 		b.NewParameterFrom(p)
 	}
@@ -87,14 +87,14 @@ func (b *FunctionParamBuilder) NewOptionalParameterFrom(p *FunctionType_Paramete
 
 // newParameter adds a parameter with the given type.
 //
-// Java: FunctionParamBuilder.newParameter(JSType, boolean, boolean)
-func (b *FunctionParamBuilder) newParameter(type_ JSType, isOptional bool, isVariadic bool) {
+// Java: FunctionParamBuilder.NewParameter(JSType, boolean, boolean)
+func (b *FunctionParamBuilder) NewParameter(type_ JSType, isOptional bool, isVariadic bool) {
 	parameter := FunctionType_Parameter_Create(type_, isOptional, isVariadic)
 	b.parameters = append(b.parameters, parameter)
 }
 
-// Java: FunctionParamBuilder.hasOptionalOrVarArgs()
-func (b *FunctionParamBuilder) hasOptionalOrVarArgs() bool {
+// Java: FunctionParamBuilder.HasOptionalOrVarArgs()
+func (b *FunctionParamBuilder) HasOptionalOrVarArgs() bool {
 	if len(b.parameters) == 0 {
 		return false
 	}

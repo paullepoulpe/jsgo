@@ -1,0 +1,901 @@
+// Port of com/google/javascript/rhino/jstype/UnionType.java @ closure-compiler v20260415
+
+package rhino
+
+import (
+	"iter"
+	"slices"
+
+	"github.com/paullepoulpe/jsgo/internal/base"
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
+
+// UnionType is a type that may be any one of a set of types, and thus has
+// the intersection of the properties of those types.
+//
+// The UnionType implements a common JavaScript idiom in which the code is
+// specifically designed to work with multiple input types. Because
+// JavaScript always knows the run-time type of an object value, this is
+// safer than a C union.
+//
+// For instance, values of the union type (String,boolean) can be of type
+// String or of type boolean. The commutativity of the statement is captured
+// by making (String,boolean) and (boolean,String) equal.
+//
+// The implementation of this class prevents the creation of nested unions.
+type UnionType struct {
+	JSTypeBase
+
+	// The types that are unioned.
+	//
+	// We use a List rather than a Set so that we can iterate by index. This is
+	// substantially more efficient than using the for-each idiom due to the
+	// overhead of allocating iterators. All loops over this collection should
+	// be indexed.
+	alternates []JSType
+
+	// Were all the types used in the most recent build of this union resolved
+	// before that build?
+	//
+	// If this is true, there is no need to rebuild this union ever again,
+	// including during resolution. The result will not change.
+	alternatesResolvedBeforeBuild bool
+}
+
+// Java: UnionType.TYPE_CLASS
+const UnionType_TYPE_CLASS = JSTypeClass_UNION
+
+// UnionType_MAX_UNION_SIZE: generally, if the best we can do is say "this
+// object is one of thirty things", then we should just give up and admit
+// that we have no clue.
+//
+// Java: UnionType.MAX_UNION_SIZE
+const UnionType_MAX_UNION_SIZE = 30
+
+// NewUnionType creates a union.
+//
+// This ctor is private because all instances are created using a Builder.
+// The builder is also responsible for setting the alternates, which is why
+// they aren't passed as a parameter.
+//
+// Java: UnionType(Builder)
+func NewUnionType(builder *UnionType_Builder) *UnionType {
+	t := &UnionType{}
+	t.InitJSTypeBase(t, builder.registry)
+	t.FillFromBuilder(builder)
+
+	t.registry.GetResolver().ResolveIfClosed(t, UnionType_TYPE_CLASS)
+	return t
+}
+
+// Java: UnionType.getTypeClass()
+func (t *UnionType) GetTypeClass() JSTypeClass {
+	return UnionType_TYPE_CLASS
+}
+
+// UnionType_Builder_ creates a Builder for a new UnionType.
+//
+// Java: UnionType.builder(JSTypeRegistry)
+func UnionType_Builder_(registry *JSTypeRegistry) *UnionType_Builder {
+	return NewUnionType_Builder(registry)
+}
+
+// GetAlternates gets the alternate types of this union type. The returned
+// set is immutable.
+//
+// Java: UnionType.getAlternates()
+func (t *UnionType) GetAlternates() []JSType {
+	if !t.IsResolved() && !t.alternatesResolvedBeforeBuild {
+		b := NewUnionType_BuilderOfRebuildTarget(t).AddAlternates(t.alternates)
+		// Double checked rebuilds, in case the union is involved in a cycle.
+		if !t.IsResolved() && !t.alternatesResolvedBeforeBuild {
+			b.Build()
+		}
+	}
+	return t.alternates
+}
+
+// Java: UnionType.fillFromBuilder(Builder)
+func (t *UnionType) FillFromBuilder(builder *UnionType_Builder) {
+	jutil.CheckState(!t.alternatesResolvedBeforeBuild)
+	jutil.CheckState(len(builder.finalAlternates) != 0)
+	t.alternates = builder.finalAlternates
+	t.alternatesResolvedBeforeBuild = builder.alternatesResolvedBeforeBuild
+}
+
+// MatchesNumberContext is used to test whether a given type can appear in a
+// numeric context, such as an operand of a multiply operator.
+//
+// Java: UnionType.matchesNumberContext()
+func (t *UnionType) MatchesNumberContext() bool {
+	// TODO(user): Reverse this logic to make it correct instead of generous.
+	return JSTypeIterations_AnyTypeMatchesInUnion(JSType.MatchesNumberContext, t)
+}
+
+// MatchesStringContext is used to test whether a given type can appear in a
+// String context, such as an operand of a string concat (+) operator.
+//
+// All types have at least the potential for converting to String. When we
+// add externally defined types, such as a browser OM, we may choose to add
+// types that do not automatically convert to String.
+//
+// Java: UnionType.matchesStringContext()
+func (t *UnionType) MatchesStringContext() bool {
+	// TODO(user): Reverse this logic to make it correct instead of generous.
+	return JSTypeIterations_AnyTypeMatchesInUnion(JSType.MatchesStringContext, t)
+}
+
+// MatchesSymbolContext is used to test whether a given type can appear in a
+// Symbol context.
+//
+// Java: UnionType.matchesSymbolContext()
+func (t *UnionType) MatchesSymbolContext() bool {
+	// TODO(user): Reverse this logic to make it correct instead of generous.
+	return JSTypeIterations_AnyTypeMatchesInUnion(JSType.MatchesSymbolContext, t)
+}
+
+// MatchesObjectContext is used to test whether a given type can appear in an
+// Object context, such as the expression in a with statement.
+//
+// Most types we will encounter, except notably null, have at least the
+// potential for converting to Object. Host defined objects can get peculiar.
+//
+// VOID type is included here because while it is not part of the JavaScript
+// language, functions returning 'void' type can't be used as operands of
+// any operator or statement.
+//
+// Java: UnionType.matchesObjectContext()
+func (t *UnionType) MatchesObjectContext() bool {
+	// TODO(user): Reverse this logic to make it correct instead of generous.
+	return JSTypeIterations_AnyTypeMatchesInUnion(JSType.MatchesObjectContext, t)
+}
+
+// Java: UnionType.findPropertyTypeWithoutConsideringTemplateTypes(Property.Key)
+func (t *UnionType) FindPropertyTypeWithoutConsideringTemplateTypes(propertyName Property_Key) JSType {
+	var propertyType JSType
+
+	for _, alternate := range t.alternates {
+		// Filter out the null/undefined type.
+		if alternate.IsNullType() || alternate.IsVoidType() {
+			continue
+		}
+
+		altPropertyType := alternate.FindPropertyTypeByKey(propertyName)
+		if altPropertyType == nil {
+			continue
+		}
+
+		if propertyType == nil {
+			propertyType = altPropertyType
+		} else {
+			propertyType = propertyType.GetLeastSupertype(altPropertyType)
+		}
+	}
+
+	return propertyType
+}
+
+// Java: UnionType.canBeCalled()
+func (t *UnionType) CanBeCalled() bool {
+	return JSTypeIterations_AllTypesMatchInUnion(JSType.CanBeCalled, t)
+}
+
+// Java: UnionType.autobox()
+func (t *UnionType) Autobox() JSType {
+	return JSTypeIterations_MapTypesInUnion(JSType.Autobox, t)
+}
+
+// Java: UnionType.restrictByNotNullOrUndefined()
+func (t *UnionType) RestrictByNotNullOrUndefined() JSType {
+	return JSTypeIterations_MapTypesInUnion(JSType.RestrictByNotNullOrUndefined, t)
+}
+
+// Java: UnionType.restrictByNotUndefined()
+func (t *UnionType) RestrictByNotUndefined() JSType {
+	return JSTypeIterations_MapTypesInUnion(JSType.RestrictByNotUndefined, t)
+}
+
+// Java: UnionType.restrictByNotNull()
+func (t *UnionType) RestrictByNotNull() JSType {
+	return JSTypeIterations_MapTypesInUnion(JSType.RestrictByNotNull, t)
+}
+
+// Java: UnionType.testForEquality(JSType)
+func (t *UnionType) TestForEquality(that JSType) base.Tri {
+	result := jsType_TRI_NULL
+	for i := 0; i < len(t.alternates); i++ {
+		alt := t.alternates[i]
+		test := alt.TestForEquality(that)
+		if result == jsType_TRI_NULL {
+			result = test
+		} else {
+			jsTypeCheckTriNotNull(result)
+			if result != test {
+				return base.Tri_UNKNOWN
+			}
+		}
+	}
+	return result
+}
+
+// IsNullable determines whether objects of this type can have the null
+// value, and therefore can appear in contexts where null is expected.
+//
+// Java: UnionType.isNullable()
+func (t *UnionType) IsNullable() bool {
+	return JSTypeIterations_AnyTypeMatchesInUnion(JSType.IsNullable, t)
+}
+
+// IsVoidable tests whether this type is voidable.
+//
+// Java: UnionType.isVoidable()
+func (t *UnionType) IsVoidable() bool {
+	return JSTypeIterations_AnyTypeMatchesInUnion(JSType.IsVoidable, t)
+}
+
+// IsExplicitlyVoidable tests whether this type explicitly allows undefined
+// (as opposed to ? or *).
+//
+// Java: UnionType.isExplicitlyVoidable()
+func (t *UnionType) IsExplicitlyVoidable() bool {
+	return JSTypeIterations_AnyTypeMatchesInUnion(JSType.IsExplicitlyVoidable, t)
+}
+
+// Java: UnionType.isUnknownType()
+func (t *UnionType) IsUnknownType() bool {
+	return JSTypeIterations_AnyTypeMatchesInUnion(JSType.IsUnknownType, t)
+}
+
+// Java: UnionType.isStruct()
+func (t *UnionType) IsStruct() bool {
+	return JSTypeIterations_AnyTypeMatchesInUnion(JSType.IsStruct, t)
+}
+
+// Java: UnionType.isDict()
+func (t *UnionType) IsDict() bool {
+	return JSTypeIterations_AnyTypeMatchesInUnion(JSType.IsDict, t)
+}
+
+// Java: UnionType.getLeastSupertype(JSType)
+func (t *UnionType) GetLeastSupertype(that JSType) JSType {
+	if !that.IsUnknownType() && !that.IsUnionType() {
+		for i := 0; i < len(t.alternates); i++ {
+			alternate := t.alternates[i]
+			if !alternate.IsUnknownType() && that.IsSubtypeOf(alternate) {
+				return t
+			}
+		}
+	}
+
+	return JSType_GetLeastSupertype(t, that)
+}
+
+// Java: UnionType.getGreatestSubtype(UnionType, JSType)
+func UnionType_GetGreatestSubtype(union *UnionType, that JSType) JSType {
+	// This method is implemented as a static because we don't want
+	// polymorphism. Ideally all the `greatestSubtype` code would be in one
+	// place. Until then, using static calls minimizes confusion.
+
+	registry := union.registry
+	builder := UnionType_Builder_(registry)
+
+	for i := 0; i < len(union.alternates); i++ {
+		alternate := union.alternates[i]
+		if alternate.IsSubtypeOf(that) {
+			builder.AddAlternate(alternate)
+		}
+	}
+
+	if that.IsUnionType() {
+		thoseAlternates := that.ToMaybeUnionType().GetAlternates()
+		for i := 0; i < len(thoseAlternates); i++ {
+			otherAlternate := thoseAlternates[i]
+			if otherAlternate.IsSubtypeOf(union) {
+				builder.AddAlternate(otherAlternate)
+			}
+		}
+	} else if that.IsSubtypeOf(union) {
+		builder.AddAlternate(that)
+	}
+
+	result := builder.Build()
+	if !result.IsNoType() {
+		return result
+	} else if union.IsObject() && (that.IsObject() && !that.IsNoType()) {
+		return registry.GetNativeType(JSTypeNative_NO_OBJECT_TYPE)
+	} else {
+		return registry.GetNativeType(JSTypeNative_NO_TYPE)
+	}
+}
+
+// Java: UnionType.getPropertyKind(Property.Key, boolean)
+func (t *UnionType) GetPropertyKindByKeyWithAutobox(pname Property_Key, autobox bool) JSType_HasPropertyKind {
+	found := false
+	always := true
+	for i := 0; i < len(t.alternates); i++ {
+		alternate := t.alternates[i]
+		if alternate.IsNullType() || alternate.IsVoidType() {
+			continue
+		}
+		switch alternate.GetPropertyKindByKeyWithAutobox(pname, autobox) {
+		case JSType_HasPropertyKind_KNOWN_PRESENT:
+			found = true
+		case JSType_HasPropertyKind_ABSENT:
+			always = false
+		case JSType_HasPropertyKind_MAYBE_PRESENT:
+			found = true
+			always = false
+		}
+		if found && !always {
+			break
+		}
+	}
+	if found {
+		if always {
+			return JSType_HasPropertyKind_KNOWN_PRESENT
+		}
+		return JSType_HasPropertyKind_MAYBE_PRESENT
+	}
+	return JSType_HasPropertyKind_ABSENT
+}
+
+// Java: UnionType.recursionUnsafeHashCode()
+func (t *UnionType) RecursionUnsafeHashCode() int32 {
+	hashCode := int32(len(t.alternates))
+	for i := 0; i < len(t.alternates); i++ {
+		// To be determinisitic this aggregation must be order-independent.
+		// Using a commutative operatator (multiplication) allows us to achieve
+		// that without sorting. Multiplication also has some nice properties
+		// about reducing collisions compared to addition or xor.
+		hashCode *= t.alternates[i].HashCode()
+	}
+	return hashCode
+}
+
+// Java: UnionType.toMaybeUnionType()
+func (t *UnionType) ToMaybeUnionType() *UnionType {
+	return t
+}
+
+// Java: UnionType.isObject()
+func (t *UnionType) IsObject() bool {
+	return JSTypeIterations_AllTypesMatchInUnion(JSType.IsObject, t)
+}
+
+// Contains: a UnionType contains a given type (alternate) iff the member
+// vector contains it.
+//
+// Java: UnionType.contains(JSType)
+func (t *UnionType) Contains(type_ JSType) bool {
+	return JSTypeIterations_AnyTypeMatchesInUnion(func(x JSType) bool { return type_.Equals(x) }, t)
+}
+
+// GetRestrictedUnion returns a more restricted union type than this one, in
+// which all subtypes of type have been removed.
+//
+// Examples:
+//
+//   - (number,string) restricted by number is string
+//   - (null, EvalError, URIError) restricted by Error is null
+//
+// Java: UnionType.getRestrictedUnion(JSType)
+func (t *UnionType) GetRestrictedUnion(type_ JSType) JSType {
+	restricted := UnionType_Builder_(t.registry)
+	for i := 0; i < len(t.alternates); i++ {
+		alt := t.alternates[i]
+		// Keep all unknown/unresolved types.
+		if alt.IsUnknownType() || !alt.IsSubtypeOf(type_) {
+			restricted.AddAlternate(alt)
+		}
+	}
+	return restricted.Build()
+}
+
+// Java: UnionType.appendTo(TypeStringBuilder)
+func (t *UnionType) AppendTo(sb *TypeStringBuilder) {
+	sb.Append("(")
+
+	names := []string{}
+	for _, alt := range t.alternates {
+		// Clone the config to preserve indentation.
+		names = append(names, sb.CloneWithConfig().AppendType(alt).Build())
+	}
+	// Sort types by stringification to get deterministic behaviour.
+	slices.SortStableFunc(names, jutil.StringCompareTo)
+	elements := make([]any, len(names))
+	for i, n := range names {
+		elements[i] = n
+	}
+	sb.AppendAll(elements, "|")
+
+	sb.Append(")")
+}
+
+// Java: UnionType.getRestrictedTypeGivenOutcome(Outcome)
+func (t *UnionType) GetRestrictedTypeGivenOutcome(outcome Outcome) JSType {
+	return JSTypeIterations_MapTypesInUnion(func(x JSType) JSType { return x.GetRestrictedTypeGivenOutcome(outcome) }, t)
+}
+
+// Java: UnionType.getPossibleToBooleanOutcomes()
+func (t *UnionType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
+	literals := BooleanLiteralSet_EMPTY
+	for i := 0; i < len(t.alternates); i++ {
+		element := t.alternates[i]
+		literals = literals.Union(element.GetPossibleToBooleanOutcomes())
+		if literals == BooleanLiteralSet_BOTH {
+			break
+		}
+	}
+	return literals
+}
+
+// Java: UnionType.getTypesUnderEquality(JSType)
+func (t *UnionType) GetTypesUnderEquality(that JSType) *JSType_TypePair {
+	thisRestricted := UnionType_Builder_(t.registry)
+	thatRestricted := UnionType_Builder_(t.registry)
+	for i := 0; i < len(t.alternates); i++ {
+		element := t.alternates[i]
+		p := element.GetTypesUnderEquality(that)
+		if p.TypeA != nil {
+			thisRestricted.AddAlternate(p.TypeA)
+		}
+		if p.TypeB != nil {
+			thatRestricted.AddAlternate(p.TypeB)
+		}
+	}
+	return NewJSType_TypePair(thisRestricted.Build(), thatRestricted.Build())
+}
+
+// Java: UnionType.getTypesUnderInequality(JSType)
+func (t *UnionType) GetTypesUnderInequality(that JSType) *JSType_TypePair {
+	thisRestricted := UnionType_Builder_(t.registry)
+	thatRestricted := UnionType_Builder_(t.registry)
+	for i := 0; i < len(t.alternates); i++ {
+		element := t.alternates[i]
+		p := element.GetTypesUnderInequality(that)
+		if p.TypeA != nil {
+			thisRestricted.AddAlternate(p.TypeA)
+		}
+		if p.TypeB != nil {
+			thatRestricted.AddAlternate(p.TypeB)
+		}
+	}
+	return NewJSType_TypePair(thisRestricted.Build(), thatRestricted.Build())
+}
+
+// Java: UnionType.getTypesUnderShallowInequality(JSType)
+func (t *UnionType) GetTypesUnderShallowInequality(that JSType) *JSType_TypePair {
+	thisRestricted := UnionType_Builder_(t.registry)
+	thatRestricted := UnionType_Builder_(t.registry)
+	for i := 0; i < len(t.alternates); i++ {
+		element := t.alternates[i]
+		p := element.GetTypesUnderShallowInequality(that)
+		if p.TypeA != nil {
+			thisRestricted.AddAlternate(p.TypeA)
+		}
+		if p.TypeB != nil {
+			thatRestricted.AddAlternate(p.TypeB)
+		}
+	}
+	return NewJSType_TypePair(thisRestricted.Build(), thatRestricted.Build())
+}
+
+// Java: UnionType.visit(Visitor<T>)
+func (t *UnionType) Visit(visitor Visitor) any {
+	return visitor.CaseUnionType(t)
+}
+
+// Java: UnionType.visit(RelationshipVisitor<T>, JSType)
+func (t *UnionType) VisitRelationship(visitor RelationshipVisitor, that JSType) any {
+	return visitor.CaseUnionType(t, that)
+}
+
+// Java: UnionType.resolveInternal(ErrorReporter)
+func (t *UnionType) ResolveInternal(reporter ErrorReporter) JSType {
+	if t.alternatesResolvedBeforeBuild {
+		return t
+	}
+
+	for i := 0; i < len(t.alternates); i++ {
+		t.alternates[i].Resolve(reporter)
+	}
+	return NewUnionType_BuilderOfRebuildTarget(t).AddAlternates(t.alternates).Build()
+}
+
+// Java: UnionType.collapseUnion()
+func (t *UnionType) CollapseUnion() JSType {
+	var currentValue JSType
+	var currentCommonSuper ObjectType
+	for i := 0; i < len(t.alternates); i++ {
+		a := t.alternates[i]
+		if a.IsUnknownType() {
+			return t.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
+		}
+
+		obj := a.ToObjectType()
+		if obj == nil {
+			if currentValue == nil && currentCommonSuper == nil {
+				// If obj is not an object, then it must be a value.
+				currentValue = a
+			} else {
+				// Multiple values and objects will always collapse to the ALL_TYPE.
+				return t.GetNativeType(JSTypeNative_ALL_TYPE)
+			}
+		} else if currentValue != nil {
+			// Values and objects will always collapse to the ALL_TYPE.
+			return t.GetNativeType(JSTypeNative_ALL_TYPE)
+		} else if currentCommonSuper == nil {
+			currentCommonSuper = obj
+		} else {
+			currentCommonSuper = t.registry.FindCommonSuperObject(currentCommonSuper, obj)
+		}
+	}
+	return jsTypeOrNil(currentCommonSuper)
+}
+
+// Java: UnionType.matchConstraint(JSType)
+func (t *UnionType) MatchConstraint(constraint JSType) {
+	for i := 0; i < len(t.alternates); i++ {
+		alternate := t.alternates[i]
+		alternate.MatchConstraint(constraint)
+	}
+}
+
+// Java: UnionType.hasAnyTemplateTypesInternal()
+func (t *UnionType) HasAnyTemplateTypesInternal() bool {
+	return JSTypeIterations_AnyTypeMatchesInUnion(JSType.HasAnyTemplateTypes, t)
+}
+
+// UnionType_Builder implements type unioning logic, since UnionTypes only
+// actually need to perform unioning operations when being (re)built.
+//
+// Builders exist in two forms. One for assembing a new union and one for
+// updating an existing union. Only the former is exposed.
+//
+// Most users of this class should prefer JSTypeRegistry#createUnionType
+// instead.
+type UnionType_Builder struct {
+	rebuildTarget *UnionType
+	registry      *JSTypeRegistry
+
+	alternates      *jutil.ArrayList[JSType]
+	finalAlternates []JSType
+
+	// If a union has ? or *, we do not care about any other types, except for
+	// undefined (for optional properties).
+	containsVoidType              bool
+	isAllType                     bool
+	isNativeUnknownType           bool
+	areAllUnknownsChecked         bool
+	alternatesResolvedBeforeBuild bool
+
+	// Every UnionType may have at most one structural function in it.
+	//
+	// NOTE(nicksantos): I've read some literature that says that
+	// type-inferenced languages are fundamentally incompatible with union
+	// types. I refuse to believe this. But they do make the type lattice much
+	// more complicated.
+	//
+	// For this reason, when we deal with function types, we actually merge
+	// some nodes on the lattice, and treat them as fundamentally equivalent.
+	// For example, we treat
+	//
+	//	function(): string | function(): number
+	//
+	// as equivalent to
+	//
+	//	function(): (string|number)
+	//
+	// and normalize the first type into the second type.
+	//
+	// To perform this normalization, we've modified Builder to disallow
+	// multiple structural functions in a union. We always delegate to
+	// FunctionType::getLeastSupertype, which either merges the functions into
+	// one structural function, or just bails out and uses the top function
+	// type.
+	functionTypePosition int
+}
+
+// NewUnionType_Builder creates a builder for a new union.
+//
+// Java: UnionType.Builder(JSTypeRegistry)
+func NewUnionType_Builder(registry *JSTypeRegistry) *UnionType_Builder {
+	return &UnionType_Builder{
+		registry:                      registry,
+		alternates:                    jutil.NewArrayList[JSType](),
+		areAllUnknownsChecked:         true,
+		alternatesResolvedBeforeBuild: true,
+		functionTypePosition:          -1,
+	}
+}
+
+// NewUnionType_BuilderOfRebuildTarget creates a re-builder for an existing
+// union.
+//
+// Java: UnionType.Builder(UnionType)
+func NewUnionType_BuilderOfRebuildTarget(rebuildTarget *UnionType) *UnionType_Builder {
+	b := NewUnionType_Builder(rebuildTarget.registry)
+	b.rebuildTarget = rebuildTarget
+	return b
+}
+
+// Java: UnionType.Builder.isSubtype(JSType, JSType)
+func UnionType_Builder_IsSubtype(rightType JSType, leftType JSType) bool {
+	return rightType.IsSubtypeWithoutStructuralTyping(leftType)
+}
+
+// Java: UnionType.Builder.addAlternates(Collection<? extends JSType>)
+func (b *UnionType_Builder) AddAlternatesOfCollection(c iter.Seq[JSType]) *UnionType_Builder {
+	for type_ := range c {
+		b.AddAlternate(type_)
+	}
+	return b
+}
+
+// AddAlternates: a specific override that avoid creating an iterator. This
+// version is currently used when adding a union as an alternate.
+//
+// Java: UnionType.Builder.addAlternates(List<? extends JSType>)
+func (b *UnionType_Builder) AddAlternates(list []JSType) *UnionType_Builder {
+	for i := 0; i < len(list); i++ {
+		b.AddAlternate(list[i])
+	}
+	return b
+}
+
+// AddAlternate adds an alternate to the union type under construction.
+//
+// Returns this for easy chaining.
+//
+// Java: UnionType.Builder.addAlternate(JSType)
+func (b *UnionType_Builder) AddAlternate(alternate JSType) *UnionType_Builder {
+	b.CheckHasNotBuilt()
+
+	if alternate.IsUnionType() {
+		b.AddAlternates(alternate.ToMaybeUnionType().GetAlternates())
+		return b
+	}
+
+	if b.alternates.Size() > UnionType_MAX_UNION_SIZE {
+		return b
+	}
+
+	// Defer removing duplicate elements until all alternates in the union are
+	// resolved. JSType operations like equality and subtyping are not reliable
+	// pre-resolution.
+	if !alternate.IsResolved() {
+		b.alternatesResolvedBeforeBuild = false
+
+		for _, current := range b.alternates.Slice() {
+			if current == alternate {
+				return b
+			}
+		}
+		b.alternates.Add(alternate)
+		return b
+	}
+
+	// build() returns the bottom type by default, so we can just bail out
+	// early here.
+	if alternate.IsNoType() {
+		return b
+	}
+
+	b.isAllType = b.isAllType || alternate.IsAllType()
+	b.containsVoidType = b.containsVoidType || alternate.IsVoidType()
+
+	_, isAlternateUnknown := alternate.(*UnknownType)
+	b.isNativeUnknownType = b.isNativeUnknownType || isAlternateUnknown
+	if isAlternateUnknown {
+		b.areAllUnknownsChecked = b.areAllUnknownsChecked && alternate.IsCheckedUnknownType()
+	}
+
+	if b.isAllType || b.isNativeUnknownType {
+		return b
+	}
+
+	// Function types are special, because they have their own bizarre
+	// sub-lattice. See the comments on FunctionType#supAndInf helper and above
+	// at functionTypePosition.
+	if alternate.IsFunctionType() && b.functionTypePosition != -1 {
+		// See the comments on functionTypePosition above.
+		other := b.alternates.Get(b.functionTypePosition).ToMaybeFunctionType()
+		supremum := alternate.ToMaybeFunctionType().SupAndInfHelper(other, true)
+		b.alternates.Set(b.functionTypePosition, supremum)
+		return b
+	}
+
+	// Look through the alternates we've got so far, and check if any of them
+	// are duplicates of one another.
+	for index := 0; index < b.alternates.Size(); index++ {
+		removeCurrent := false
+		current := b.alternates.Get(index)
+		if !current.IsResolved() { // Defer de-duplicating unresolved alternates.
+			continue
+		}
+
+		// Unknown types may just be names that haven't been resolved yet. So
+		// keep these in the union, and just use equality checking for simple
+		// de-duping.
+		if alternate.IsUnknownType() ||
+			current.IsUnknownType() ||
+			alternate.HasAnyTemplateTypes() ||
+			current.HasAnyTemplateTypes() {
+			if alternate.Equals(current) {
+				// Alternate is unnecessary.
+				return b
+			}
+		} else if alternate.IsTemplatizedType() || current.IsTemplatizedType() {
+			// Because "Foo" and "Foo<?>" are roughly equivalent templatized types,
+			// special care is needed when building the union. For example:
+			//   Object is consider a subtype of Object<string>
+			// but we want to leave "Object" not "Object<string>" when building the
+			// subtype.
+			//
+
+			// Cases:
+			// 1) alternate:Array<string> and current:Object ==> Object
+			// 2) alternate:Array<string> and current:Array ==> Array
+			// 3) alternate:Object<string> and
+			//    current:Array ==> Array|Object<string>
+			// 4) alternate:Object and current:Array<string> ==> Object
+			// 5) alternate:Array and current:Array<string> ==> Array
+			// 6) alternate:Array and
+			//    current:Object<string> ==> Array|Object<string>
+			// 7a) alternate:Object<string> and
+			//     current:Object<number> ==> Object<?>
+			// 7b) alternate:ReadonlyArray<string> and
+			//     current:ReadonlyArray<number> ==> ReadonlyArray<string>|ReadonlyArray<number>
+			// 8) alternate:Array<string> and
+			//    current:Array<string> ==> Array<string>
+			// 9) alternate:Array<string> and
+			//    current:Object<string> ==> Object<string>|Array<string>
+
+			if !current.IsTemplatizedType() {
+				if UnionType_Builder_IsSubtype(alternate, current) {
+					// case 1, 2
+					return b
+				}
+				// case 3: leave current, add alternate
+			} else if !alternate.IsTemplatizedType() {
+				if UnionType_Builder_IsSubtype(current, alternate) {
+					// case 4, 5
+					removeCurrent = true
+				}
+				// case 6: leave current, add alternate
+			} else {
+				jutil.CheckState(current.IsTemplatizedType() && alternate.IsTemplatizedType())
+				templatizedAlternate := alternate.ToMaybeTemplatizedType()
+				templatizedCurrent := current.ToMaybeTemplatizedType()
+
+				if templatizedCurrent.WrapsSameRawType(templatizedAlternate) {
+
+					if current.Equals(alternate) {
+						// case 8
+						return b
+					} else if !templatizedCurrent.GetReferencedType().IsReadonlyArrayType() {
+						// case 7a: replace with a merged alternate specialized on `?`.
+						rawType := templatizedCurrent.GetReferencedObjTypeInternal()
+						// Providing no type-parameter values specializes `rawType` on `?`
+						// by default.
+						alternate = b.registry.CreateTemplatizedTypeOfList(rawType, []JSType{})
+						removeCurrent = true
+					}
+				}
+				// case 9 & 7b: leave current, add alternate
+			}
+			// Otherwise leave both templatized types.
+		} else if UnionType_Builder_IsSubtype(alternate, current) {
+			// Alternate is unnecessary.
+			b.MayRegisterDroppedProperties(alternate, current)
+			return b
+		} else if UnionType_Builder_IsSubtype(current, alternate) {
+			// Alternate makes current obsolete
+			b.MayRegisterDroppedProperties(current, alternate)
+			removeCurrent = true
+		}
+
+		if removeCurrent {
+			b.alternates.RemoveAt(index)
+
+			if index == b.functionTypePosition {
+				b.functionTypePosition = -1
+			} else if index < b.functionTypePosition {
+				b.functionTypePosition--
+			}
+
+			index--
+		}
+	}
+
+	if alternate.IsFunctionType() {
+		// See the comments on functionTypePosition above.
+		jutil.CheckState(b.functionTypePosition == -1)
+		b.functionTypePosition = b.alternates.Size()
+	}
+
+	b.alternates.Add(alternate)
+	return b
+}
+
+// Java: UnionType.Builder.mayRegisterDroppedProperties(JSType, JSType)
+func (b *UnionType_Builder) MayRegisterDroppedProperties(subtype JSType, supertype JSType) {
+	if subtype.ToMaybeRecordType() != nil && supertype.ToMaybeRecordType() != nil {
+		b.registry.RegisterDroppedPropertiesInUnion(
+			subtype.ToMaybeRecordType(), supertype.ToMaybeRecordType())
+	}
+}
+
+// Build returns a type, not necessarily a UnionType, that represents the
+// union of the inputs.
+//
+// The Builder cannot be used again once this method is called.
+//
+// Java: UnionType.Builder.build()
+func (b *UnionType_Builder) Build() JSType {
+	b.BuildInternal()
+
+	if b.rebuildTarget != nil {
+		b.rebuildTarget.FillFromBuilder(b)
+	}
+
+	if len(b.finalAlternates) == 1 {
+		return b.finalAlternates[0]
+	} else if b.rebuildTarget != nil {
+		return b.rebuildTarget
+	} else {
+		return NewUnionType(b)
+	}
+}
+
+// BuildInternal creates the final set of alternates for either a new union
+// or a union being rebuilt.
+//
+// Java: UnionType.Builder.buildInternal()
+func (b *UnionType_Builder) BuildInternal() *UnionType_Builder {
+	b.CheckHasNotBuilt()
+
+	wildcard := b.GetNativeWildcardType()
+	if wildcard != nil {
+		if b.containsVoidType {
+			b.finalAlternates = []JSType{wildcard, b.registry.GetNativeType(JSTypeNative_VOID_TYPE)}
+		} else {
+			b.finalAlternates = []JSType{wildcard}
+		}
+	} else if b.alternates.IsEmpty() {
+		// To simplify the typesystem, empty union types are forbidden. Using a
+		// single `bottom` makes it essentially a proxy instead.
+		b.finalAlternates = []JSType{b.registry.GetNativeType(JSTypeNative_NO_TYPE)}
+	} else if b.alternates.Size() > UnionType_MAX_UNION_SIZE {
+		b.finalAlternates = []JSType{b.registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE)}
+	} else {
+		b.finalAlternates = b.alternates.ToSlice()
+	}
+
+	jutil.CheckNotNull(b.finalAlternates)
+	return b
+}
+
+// GetNativeWildcardType returns ALL_TYPE, UNKNOWN_TYPE,
+// CHECKED_UNKNOWN_TYPE, or null as specified by the flags.
+//
+// Java: UnionType.Builder.getNativeWildcardType()
+func (b *UnionType_Builder) GetNativeWildcardType() JSType {
+	if b.isAllType {
+		return b.registry.GetNativeType(JSTypeNative_ALL_TYPE)
+	} else if b.isNativeUnknownType {
+		if b.areAllUnknownsChecked {
+			return b.registry.GetNativeType(JSTypeNative_CHECKED_UNKNOWN_TYPE)
+		} else {
+			return b.registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
+		}
+	}
+	return nil
+}
+
+// Java: UnionType.Builder.checkHasNotBuilt()
+func (b *UnionType_Builder) CheckHasNotBuilt() {
+	jutil.CheckStateMsg(
+		b.finalAlternates == nil,
+		"Cannot reuse a `UnionType.Builder` that has already built.")
+}

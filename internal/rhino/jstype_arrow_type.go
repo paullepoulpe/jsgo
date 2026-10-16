@@ -22,6 +22,9 @@ type ArrowType struct {
 	returnTypeInferred bool
 }
 
+// Java: ArrowType.TYPE_CLASS
+const ArrowType_TYPE_CLASS = JSTypeClass_ARROW
+
 // Java: ArrowType(JSTypeRegistry, List<Parameter>, JSType, boolean)
 func NewArrowType(
 	registry *JSTypeRegistry,
@@ -43,7 +46,7 @@ func NewArrowType(
 	}
 	t.returnTypeInferred = returnTypeInferred
 
-	registry.GetResolver().ResolveIfClosed(t, JSTypeClass_ARROW)
+	registry.GetResolver().ResolveIfClosed(t, ArrowType_TYPE_CLASS)
 	return t
 }
 
@@ -59,7 +62,7 @@ func arrowTypeCopyParameters(parameters []*FunctionType_Parameter) []*FunctionTy
 
 // Java: ArrowType.getTypeClass()
 func (t *ArrowType) GetTypeClass() JSTypeClass {
-	return JSTypeClass_ARROW
+	return ArrowType_TYPE_CLASS
 }
 
 // Java: ArrowType.recursionUnsafeHashCode()
@@ -147,11 +150,11 @@ func (t *ArrowType) AppendTo(sb *TypeStringBuilder) {
 
 // Java: ArrowType.hasAnyTemplateTypesInternal()
 func (t *ArrowType) HasAnyTemplateTypesInternal() bool {
-	return t.returnType.HasAnyTemplateTypes() || t.hasTemplatedParameterType()
+	return t.returnType.HasAnyTemplateTypes() || t.HasTemplatedParameterType()
 }
 
-// Java: ArrowType.hasTemplatedParameterType()
-func (t *ArrowType) hasTemplatedParameterType() bool {
+// Java: ArrowType.HasTemplatedParameterType()
+func (t *ArrowType) HasTemplatedParameterType() bool {
 	for _, param := range t.parameterList {
 		type_ := param.GetJSType()
 		if type_.HasAnyTemplateTypes() {

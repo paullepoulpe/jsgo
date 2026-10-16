@@ -209,8 +209,8 @@ type JSType interface {
 type JSTypeBase struct {
 	self JSType
 
-	resolveResult   JSType
-	templateTypeMap *TemplateTypeMap
+	resolveResult                                     JSType
+	templateTypeMap                                   *TemplateTypeMap
 	loosenTypecheckingDueToForwardReferencedSupertype bool
 
 	hashCodeInProgress bool
@@ -226,7 +226,7 @@ type JSTypeBase struct {
 const JSType_serialVersionUID int64 = 1
 
 // Java: JSType.CAN_CAST_TO_VISITOR
-var jsType_CAN_CAST_TO_VISITOR = NewCanCastToVisitor()
+var JSType_CAN_CAST_TO_VISITOR = NewCanCastToVisitor()
 
 // InitJSTypeBase is the Go form of the JSType(JSTypeRegistry) constructor;
 // self is the concrete type.
@@ -1158,7 +1158,7 @@ func (t *JSTypeBase) CanBeCalled() bool {
 //
 // Java: JSType.canCastTo(JSType)
 func (t *JSTypeBase) CanCastTo(that JSType) bool {
-	return t.self.VisitRelationship(jsType_CAN_CAST_TO_VISITOR, that).(bool)
+	return t.self.VisitRelationship(JSType_CAN_CAST_TO_VISITOR, that).(bool)
 }
 
 // AutoboxesTo turns a scalar type to the corresponding object type. Returns
@@ -1574,7 +1574,7 @@ func (t *JSTypeBase) GetTypesUnderInequality(that JSType) *JSType_TypePair {
 
 	// For the remaining types, the only way to restrict anything is if both
 	// types are null or void, in which case we're left with nothing.
-	if t.isNullTypeOrVoidType() && jsTypeIsNullTypeOrVoidType(that) {
+	if t.IsNullTypeOrVoidType() && jsTypeIsNullTypeOrVoidType(that) {
 		noType := t.registry.GetNativeType(JSTypeNative_NO_TYPE)
 		return NewJSType_TypePair(noType, noType)
 	}
@@ -1604,7 +1604,7 @@ func (t *JSTypeBase) GetTypesUnderShallowInequality(that JSType) *JSType_TypePai
 	// Other types. There are only two types whose shallow inequality is
 	// deterministically true -- null and undefined. We can just enumerate
 	// them.
-	if t.self == that && t.isNullTypeOrVoidType() {
+	if t.self == that && t.IsNullTypeOrVoidType() {
 		return NewJSType_TypePair(nil, nil)
 	}
 	// Since unions have already been removed, if this and that don't have
@@ -1613,16 +1613,16 @@ func (t *JSTypeBase) GetTypesUnderShallowInequality(that JSType) *JSType_TypePai
 	return NewJSType_TypePair(t.self, that)
 }
 
-// Java: JSType.isNullTypeOrVoidType()
-func (t *JSTypeBase) isNullTypeOrVoidType() bool {
+// Java: JSType.IsNullTypeOrVoidType()
+func (t *JSTypeBase) IsNullTypeOrVoidType() bool {
 	// TODO(sdh): Should this be exposed more publicly?
 	return t.self.IsNullType() || t.self.IsVoidType()
 }
 
-// jsTypeIsNullTypeOrVoidType is that.isNullTypeOrVoidType() (a private
+// jsTypeIsNullTypeOrVoidType is that.IsNullTypeOrVoidType() (a private
 // method called on another instance).
 func jsTypeIsNullTypeOrVoidType(that JSType) bool {
-	return that.GetJSTypeBase().isNullTypeOrVoidType()
+	return that.GetJSTypeBase().IsNullTypeOrVoidType()
 }
 
 // Java: JSType.getUnionMembers()

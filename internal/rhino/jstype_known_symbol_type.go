@@ -10,6 +10,9 @@ type KnownSymbolType struct {
 	name string
 }
 
+// Java: KnownSymbolType.TYPE_CLASS
+const KnownSymbolType_TYPE_CLASS = JSTypeClass_WELL_KNOWN_SYMBOL
+
 // Java: KnownSymbolType(JSTypeRegistry, String)
 func NewKnownSymbolType(registry *JSTypeRegistry, name string) *KnownSymbolType {
 	t := &KnownSymbolType{}
@@ -20,7 +23,7 @@ func NewKnownSymbolType(registry *JSTypeRegistry, name string) *KnownSymbolType 
 
 // Java: KnownSymbolType.getTypeClass()
 func (t *KnownSymbolType) GetTypeClass() JSTypeClass {
-	return JSTypeClass_WELL_KNOWN_SYMBOL
+	return KnownSymbolType_TYPE_CLASS
 }
 
 // Java: KnownSymbolType.getDisplayName()

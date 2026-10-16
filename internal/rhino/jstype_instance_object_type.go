@@ -14,13 +14,16 @@ type InstanceObjectType struct {
 	constructor FunctionType
 }
 
+// Java: InstanceObjectType.TYPE_CLASS
+const InstanceObjectType_TYPE_CLASS = JSTypeClass_INSTANCE_OBJECT
+
 // Java: InstanceObjectType(Builder)
 func NewInstanceObjectType(builder *InstanceObjectType_Builder) *InstanceObjectType {
 	t := &InstanceObjectType{}
 	t.InitPrototypeObjectTypeBase(t, builder.GetBuilderFields())
 	t.constructor = jutil.CheckNotNull(builder.constructor)
 
-	t.registry.GetResolver().ResolveIfClosed(t, JSTypeClass_INSTANCE_OBJECT)
+	t.registry.GetResolver().ResolveIfClosed(t, InstanceObjectType_TYPE_CLASS)
 	return t
 }
 
@@ -66,7 +69,7 @@ func InstanceObjectType_BuilderForCtor(ctor FunctionType) *InstanceObjectType_Bu
 
 // Java: InstanceObjectType.getTypeClass()
 func (t *InstanceObjectType) GetTypeClass() JSTypeClass {
-	return JSTypeClass_INSTANCE_OBJECT
+	return InstanceObjectType_TYPE_CLASS
 }
 
 // Java: InstanceObjectType.getReferenceName()
