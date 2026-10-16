@@ -59,9 +59,17 @@ type ClassInfo struct {
 	// SimpleName is the member class's simple name (or the top-level name).
 	SimpleName string
 	Anonymous  bool
-	// DiagnosticTypes: static field name → Go initializer recovered from
-	// the static initializer (DiagnosticType.error/warning/disabled/make).
-	StaticInits map[string]string
+	// DiagnosticTypes and DiagnosticGroups: static field name → Go
+	// initializer recovered from the static initializer.
+	StaticInits map[string]*StaticInit
+}
+
+// StaticInit is a recovered Go initializer. Expr refers to other static
+// fields as "\x00owner.name\x00" placeholders (also listed in Refs), which
+// the renderer replaces with their Go names.
+type StaticInit struct {
+	Expr string
+	Refs [][2]string
 }
 
 // FieldInfo is a field.
@@ -209,7 +217,7 @@ func parseClass(data []byte) (*ClassInfo, error) {
 		}
 		return utf(cp[i].a)
 	}
-	c := &ClassInfo{Inner: map[string]string{}, StaticInits: map[string]string{}}
+	c := &ClassInfo{Inner: map[string]string{}, StaticInits: map[string]*StaticInit{}}
 	c.Access = r.u2()
 	c.Name = className(r.u2())
 	c.Super = className(r.u2())
@@ -508,16 +516,18 @@ func opcodeLength(code []byte, pc int) int {
 // CheckLevel.L, "format")` from <clinit>.
 func scanStaticInit(c *ClassInfo, cp []cpEntry, bootstraps [][]uint16, code []byte) {
 	// A tiny abstract interpreter over <clinit>: string and int constants,
-	// String[] varargs arrays, CheckLevel constants, JSCompStrings.lines,
-	// String.replace, string concatenation (invokedynamic
-	// makeConcatWithConstants) and the DiagnosticType factories. Any other
-	// instruction clears the stack, so only initializers built entirely from
-	// those are recovered.
+	// arrays, CheckLevel constants, JSCompStrings.lines, String.replace,
+	// string concatenation (invokedynamic makeConcatWithConstants), reads of
+	// DiagnosticType/DiagnosticGroup static fields, the DiagnosticType
+	// factories and the DiagnosticGroup constructors. Any other instruction
+	// clears the stack, so only initializers built entirely from those are
+	// recovered.
 	type value struct {
-		kind  byte // 's' string, 'i' int, 'a' String[], 'l' CheckLevel, 'd' DiagnosticType expression
+		kind  byte // 's' string, 'i' int, 'a' array, 'l' CheckLevel, 'e' Go expression, 'n' new DiagnosticGroup
 		s     string
 		i     int
-		elems []*string
+		elems []*value
+		refs  [][2]string
 	}
 	var stack []*value
 	push := func(v *value) { stack = append(stack, v) }
@@ -536,7 +546,24 @@ func scanStaticInit(c *ClassInfo, cp []cpEntry, bootstraps [][]uint16, code []by
 		return owner, cp[nt.a].str, cp[nt.b].str
 	}
 	const dt = "com/google/javascript/jscomp/DiagnosticType"
+	const dg = "com/google/javascript/jscomp/DiagnosticGroup"
 	const strings_ = "com/google/javascript/jscomp/base/JSCompStrings"
+	// exprList joins the elements of an array of Go expressions.
+	exprList := func(arr *value) (string, [][2]string, bool) {
+		if arr == nil || arr.kind != 'a' {
+			return "", nil, false
+		}
+		var parts []string
+		var refs [][2]string
+		for _, e := range arr.elems {
+			if e == nil || e.kind != 'e' {
+				return "", nil, false
+			}
+			parts = append(parts, e.s)
+			refs = append(refs, e.refs...)
+		}
+		return strings.Join(parts, ", "), refs, true
+	}
 	for pc := 0; pc < len(code); pc += opcodeLength(code, pc) {
 		op := code[pc]
 		switch {
@@ -559,7 +586,7 @@ func scanStaticInit(c *ClassInfo, cp []cpEntry, bootstraps [][]uint16, code []by
 		case op == 189: // anewarray
 			n := pop()
 			if n != nil && n.kind == 'i' && n.i >= 0 && n.i < 1<<12 {
-				push(&value{kind: 'a', elems: make([]*string, n.i)})
+				push(&value{kind: 'a', elems: make([]*value, n.i)})
 			} else {
 				push(nil)
 			}
@@ -570,17 +597,47 @@ func scanStaticInit(c *ClassInfo, cp []cpEntry, bootstraps [][]uint16, code []by
 			push(stack[len(stack)-1])
 		case op == 83: // aastore
 			v, idx, arr := pop(), pop(), pop()
-			if arr != nil && arr.kind == 'a' && idx != nil && idx.kind == 'i' && idx.i < len(arr.elems) && v != nil && v.kind == 's' {
-				s := v.s
-				arr.elems[idx.i] = &s
+			if arr != nil && arr.kind == 'a' && idx != nil && idx.kind == 'i' && idx.i < len(arr.elems) {
+				arr.elems[idx.i] = v
 			}
 		case op == 178: // getstatic
-			owner, name, _ := ref(binary.BigEndian.Uint16(code[pc+1:]))
-			if owner == "com/google/javascript/jscomp/CheckLevel" {
+			owner, name, desc := ref(binary.BigEndian.Uint16(code[pc+1:]))
+			switch {
+			case owner == "com/google/javascript/jscomp/CheckLevel":
 				push(&value{kind: 'l', s: name})
-			} else {
+			case desc == "L"+dt+";" || desc == "L"+dg+";":
+				push(&value{kind: 'e', s: "\x00" + owner + "." + name + "\x00", refs: [][2]string{{owner, name}}})
+			default:
 				push(nil)
 			}
+		case op == 187: // new
+			cls := cp[cp[binary.BigEndian.Uint16(code[pc+1:])].a].str
+			if cls == dg {
+				push(&value{kind: 'n'})
+			} else {
+				stack = stack[:0]
+			}
+		case op == 183: // invokespecial
+			owner, name, desc := ref(binary.BigEndian.Uint16(code[pc+1:]))
+			if owner != dg || name != "<init>" {
+				stack = stack[:0]
+				continue
+			}
+			var ctor string
+			switch desc {
+			case "([L" + dt + ";)V":
+				ctor = "NewDiagnosticGroup"
+			case "([L" + dg + ";)V":
+				ctor = "NewDiagnosticGroupFromGroups"
+			}
+			arr, recv := pop(), pop()
+			list, refs, ok := exprList(arr)
+			if recv == nil || recv.kind != 'n' || ctor == "" || !ok {
+				stack = stack[:0]
+				continue
+			}
+			// The receiver was dup'ed: the object left on the stack is it.
+			*recv = value{kind: 'e', s: ctor + "(" + list + ")", refs: refs}
 		case op == 184: // invokestatic
 			owner, name, desc := ref(binary.BigEndian.Uint16(code[pc+1:]))
 			switch {
@@ -591,11 +648,11 @@ func scanStaticInit(c *ClassInfo, cp []cpEntry, bootstraps [][]uint16, code []by
 					parts := make([]string, len(arr.elems))
 					ok := true
 					for i, e := range arr.elems {
-						if e == nil {
+						if e == nil || e.kind != 's' {
 							ok = false
 							break
 						}
-						parts[i] = *e
+						parts[i] = e.s
 					}
 					if ok {
 						joined = &value{kind: 's', s: strings.Join(parts, "\n")}
@@ -606,14 +663,21 @@ func scanStaticInit(c *ClassInfo, cp []cpEntry, bootstraps [][]uint16, code []by
 				(name == "error" || name == "warning" || name == "disabled"):
 				s2, s1 := pop(), pop()
 				if s1 != nil && s1.kind == 's' && s2 != nil && s2.kind == 's' {
-					push(&value{kind: 'd', s: fmt.Sprintf("DiagnosticType_%s(%s, %s)", capitalize(name), goQuote(s1.s), goQuote(s2.s))})
+					push(&value{kind: 'e', s: fmt.Sprintf("DiagnosticType_%s(%s, %s)", capitalize(name), goQuote(s1.s), goQuote(s2.s))})
 				} else {
 					push(nil)
 				}
 			case owner == dt && name == "make" && desc == "(Ljava/lang/String;Lcom/google/javascript/jscomp/CheckLevel;Ljava/lang/String;)L"+dt+";":
 				s2, l, s1 := pop(), pop(), pop()
 				if s1 != nil && s1.kind == 's' && l != nil && l.kind == 'l' && s2 != nil && s2.kind == 's' {
-					push(&value{kind: 'd', s: fmt.Sprintf("DiagnosticType_Make(%s, CheckLevel_%s, %s)", goQuote(s1.s), l.s, goQuote(s2.s))})
+					push(&value{kind: 'e', s: fmt.Sprintf("DiagnosticType_Make(%s, CheckLevel_%s, %s)", goQuote(s1.s), l.s, goQuote(s2.s))})
+				} else {
+					push(nil)
+				}
+			case owner == dg && name == "forType" && desc == "(L"+dt+";)L"+dg+";":
+				t := pop()
+				if t != nil && t.kind == 'e' {
+					push(&value{kind: 'e', s: "DiagnosticGroup_ForType(" + t.s + ")", refs: t.refs})
 				} else {
 					push(nil)
 				}
@@ -691,10 +755,10 @@ func scanStaticInit(c *ClassInfo, cp []cpEntry, bootstraps [][]uint16, code []by
 				push(nil)
 			}
 		case op == 179: // putstatic
-			fowner, fname, _ := ref(binary.BigEndian.Uint16(code[pc+1:]))
+			fowner, fname, fdesc := ref(binary.BigEndian.Uint16(code[pc+1:]))
 			v := pop()
-			if v != nil && v.kind == 'd' && fowner == c.Name {
-				c.StaticInits[fname] = v.s
+			if v != nil && v.kind == 'e' && fowner == c.Name && (fdesc == "L"+dt+";" || fdesc == "L"+dg+";") {
+				c.StaticInits[fname] = &StaticInit{Expr: v.s, Refs: v.refs}
 			}
 		default:
 			stack = stack[:0]

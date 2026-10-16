@@ -255,8 +255,12 @@ func (r *renderer) staticVar(w *bytes.Buffer, p *PClass, m *PMember) {
 			return
 		}
 	}
-	if init, ok := m.field.owner.StaticInits[f.Name]; ok && gt == "*DiagnosticType" {
-		fmt.Fprintf(w, "// Java: %s\nvar %s = %s\n\n", label, m.goName, init)
+	if init, ok := m.field.owner.StaticInits[f.Name]; ok && (gt == "*DiagnosticType" || gt == "*DiagnosticGroup") {
+		expr := init.Expr
+		for _, ref := range init.Refs {
+			expr = strings.ReplaceAll(expr, "\x00"+ref[0]+"."+ref[1]+"\x00", g.staticFieldGoName(ref[0], ref[1]))
+		}
+		fmt.Fprintf(w, "// Java: %s\nvar %s = %s\n\n", label, m.goName, expr)
 		return
 	}
 	for _, coll := range []string{"LinkedHashSet", "LinkedHashMap", "ArrayList", "ObjectLinkedHashSet", "ObjectLinkedHashMap"} {

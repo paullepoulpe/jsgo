@@ -629,6 +629,24 @@ func (g *Gen) complete() bool {
 		names = append(names, n)
 	}
 	sort.Strings(names)
+	// The static fields that recovered initializers refer to.
+	for _, name := range names {
+		p := g.classes[name]
+		for _, m := range sortedMembers(p.statics) {
+			if m.kind != MStaticVar {
+				continue
+			}
+			init := m.field.owner.StaticInits[m.field.f.Name]
+			if init == nil {
+				continue
+			}
+			for _, ref := range init.Refs {
+				if g.declareStaticField(ref[0], ref[1]) {
+					changed = true
+				}
+			}
+		}
+	}
 	for _, name := range names {
 		p := g.classes[name]
 		if p.kind == KindIface {
@@ -791,4 +809,32 @@ func memberOrder(m *PMember) int {
 		return 100000 + m.method.index
 	}
 	return 1 << 30
+}
+
+// staticFieldGoName is the Go name of a Java static field: Class_FIELD.
+func (g *Gen) staticFieldGoName(owner, name string) string {
+	return g.model.goNames[owner] + "_" + name
+}
+
+// declareStaticField declares a static field of a pending class (one that
+// a recovered initializer refers to); it reports whether it added one.
+func (g *Gen) declareStaticField(owner, name string) bool {
+	c := g.model.classes[owner]
+	if c == nil || g.classPorted(c) {
+		return false
+	}
+	f := g.model.fieldNamed(c, name, true)
+	if f == nil {
+		return false
+	}
+	goName := g.staticFieldGoName(owner, name)
+	p := g.ensureClass(c)
+	if p == nil {
+		return false
+	}
+	if _, has := p.statics[goName]; has {
+		return false
+	}
+	p.statics[goName] = &PMember{kind: MStaticVar, goName: goName, field: f}
+	return true
 }
