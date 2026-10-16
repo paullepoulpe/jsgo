@@ -174,15 +174,59 @@ type AbstractScope interface {
 }
 
 // abstractScopeBound is the bound `S extends AbstractScope<S, V>`: the
-// methods AbstractScopeBase calls on an S (other than its own self) that
-// mention S or V. All but GetParent and MakeImplicitVar are promoted from
-// AbstractScopeBase.
+// methods AbstractScopeBase and AbstractVarBase call on an S other than
+// their own self. All but GetParent, GetDepth and MakeImplicitVar are
+// promoted from AbstractScopeBase.
 //
 // Go-only: language-adapter — the bound of a Java type parameter; see the
-// note at the top of this file.
+// note at the top of this file. It may not mention Scope, TypedScope, their
+// vars or AbstractScope (whose Untyped() returns *Scope): Scope embeds
+// AbstractScopeBase[*Scope, *Var], and a constraint that refers back to its
+// own instantiations is an invalid recursive type in Go. Where Java passes an
+// S as an AbstractScope<?, ?>, the Go code converts it with
+// abstractScope_of.
 type abstractScopeBound[S any, V any] interface {
 	comparable
-	AbstractScope
+	rhino.StaticScope
+
+	// Java: AbstractScope.getDepth()
+	GetDepth() int
+
+	// Java: AbstractScope.hasOwnImplicitSlot(ImplicitVar)
+	HasOwnImplicitSlot(name *AbstractScope_ImplicitVar) bool
+
+	// Java: AbstractScope.hasOwnSlot(String)
+	HasOwnSlot(name string) bool
+
+	// Java: AbstractScope.canDeclare(String)
+	CanDeclare(name string) bool
+
+	// Java: AbstractScope.isGlobal()
+	IsGlobal() bool
+
+	// Java: AbstractScope.isLocal()
+	IsLocal() bool
+
+	// Java: AbstractScope.isBlockScope()
+	IsBlockScope() bool
+
+	// Java: AbstractScope.isStaticBlockScope()
+	IsStaticBlockScope() bool
+
+	// Java: AbstractScope.isFunctionBlockScope()
+	IsFunctionBlockScope() bool
+
+	// Java: AbstractScope.isFunctionScope()
+	IsFunctionScope() bool
+
+	// Java: AbstractScope.isModuleScope()
+	IsModuleScope() bool
+
+	// Java: AbstractScope.isCfgRootScope()
+	IsCfgRootScope() bool
+
+	// Java: AbstractScope.isHoistScope()
+	IsHoistScope() bool
 
 	// Java: AbstractScope.getParent()
 	GetParent() S
@@ -221,6 +265,18 @@ type AbstractScopeBase[S abstractScopeBound[S, V], V abstractVarBound[S, V]] str
 	implicitVars *[4]V
 
 	rootNode *rhino.Node
+}
+
+// abstractScope_of is the implicit conversion of an S to AbstractScope<?, ?>.
+//
+// Go-only: language-adapter — see abstractScopeBound; every S is an
+// AbstractScope, so the assertion cannot fail on a non-null S.
+func abstractScope_of[S abstractScopeBound[S, V], V abstractVarBound[S, V]](s S) AbstractScope {
+	var null S
+	if s == null {
+		return nil
+	}
+	return any(s).(AbstractScope)
 }
 
 // InitAbstractScopeBase is the AbstractScope(Node) constructor; self is the
@@ -349,7 +405,7 @@ func (b *AbstractScopeBase[S, V]) ClearVarsInternal() {
 //
 // Java: AbstractScope.hasOwnImplicitSlot(ImplicitVar)
 func (b *AbstractScopeBase[S, V]) HasOwnImplicitSlot(name *AbstractScope_ImplicitVar) bool {
-	return name != nil && name.IsMadeByScope(b.self)
+	return name != nil && name.IsMadeByScope(abstractScope_of(b.self))
 }
 
 // HasOwnSlot returns true if a variable is declared in this scope, with no

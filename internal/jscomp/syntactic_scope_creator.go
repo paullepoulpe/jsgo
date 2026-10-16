@@ -372,7 +372,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareImplicitGoogNamespaceFromCal
 		return
 	}
 	namespace := namespaceNode.GetString()
-	root := NodeUtil_GetRootOfQualifiedNameOfString(namespace)
+	root := NodeUtil_GetRootOfQualifiedNameString(namespace)
 
 	if root == "" {
 		return

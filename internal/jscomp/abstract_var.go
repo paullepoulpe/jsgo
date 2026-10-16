@@ -123,14 +123,18 @@ type AbstractVar interface {
 }
 
 // abstractVarBound is the bound `V extends AbstractVar<S, V>`: the methods
-// AbstractScopeBase calls on a V that mention S. getScopeS is promoted from
-// AbstractVarBase.
+// AbstractScopeBase and AbstractVarBase call on a V, and the interfaces a V
+// is converted to. getScopeS is promoted from AbstractVarBase.
 //
 // Go-only: language-adapter — the bound of a Java type parameter; see the
-// note at the top of abstract_scope.go.
+// note at the top of abstract_scope.go. AbstractVar is not embedded, for the
+// reason given for abstractScopeBound (its GetInput() reaches CompilerInput,
+// which holds a TypedScope).
 type abstractVarBound[S any, V any] interface {
 	comparable
-	AbstractVar
+	ScopedName
+	rhino.StaticSlot
+	rhino.StaticRef
 
 	getScopeS() S
 }
@@ -420,7 +424,7 @@ func (b *AbstractVarBase[S, V]) IsImplicit() bool {
 		return true
 	}
 	var_ := AbstractScope_ImplicitVar_Of(b.name)
-	return var_ != nil && var_.IsMadeByScope(b.scope)
+	return var_ != nil && var_.IsMadeByScope(abstractScope_of(b.scope))
 }
 
 var abstractVar_DECLARATION_TYPES = jutil.NewEnumSet(
