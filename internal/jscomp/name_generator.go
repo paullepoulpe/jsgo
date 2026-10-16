@@ -24,6 +24,10 @@ import (
 
 // NameGenerator is a class that generates unique JavaScript
 // variable/property names.
+//
+// Go-only: language-adapter — the Java Set parameters are jutil.Set views:
+// reservedNames is referenced, not copied (it may be a live view such as a
+// map's key set).
 type NameGenerator interface {
 	// Reset reconfigures this NameGenerator, and resets it to the initial
 	// state.
@@ -35,7 +39,7 @@ type NameGenerator interface {
 	// are characters that won't be used in generated names.
 	//
 	// Java: NameGenerator.reset(Set<String>, String, Set<Character>)
-	Reset(reservedNames *jutil.LinkedHashSet[string], prefix string, reservedCharacters *jutil.LinkedHashSet[uint16])
+	Reset(reservedNames jutil.Set[string], prefix string, reservedCharacters jutil.Set[uint16])
 
 	// ResetWithFirstAndNonFirstChars reconfigures this NameGenerator, and
 	// resets it to the initial state.
@@ -50,15 +54,15 @@ type NameGenerator interface {
 	//
 	// Java: NameGenerator.reset(Set<String>, String, Set<Character>, Set<Character>)
 	ResetWithFirstAndNonFirstChars(
-		reservedNames *jutil.LinkedHashSet[string],
+		reservedNames jutil.Set[string],
 		prefix string,
-		reservedFirstCharacters *jutil.LinkedHashSet[uint16],
-		reservedNonFirstCharacters *jutil.LinkedHashSet[uint16])
+		reservedFirstCharacters jutil.Set[uint16],
+		reservedNonFirstCharacters jutil.Set[uint16])
 
 	// Clone returns a clone of this NameGenerator, reconfigured and reset.
 	//
 	// Java: NameGenerator.clone(Set<String>, String, Set<Character>)
-	Clone(reservedNames *jutil.LinkedHashSet[string], prefix string, reservedCharacters *jutil.LinkedHashSet[uint16]) NameGenerator
+	Clone(reservedNames jutil.Set[string], prefix string, reservedCharacters jutil.Set[uint16]) NameGenerator
 
 	// GenerateNextName generates the next name.
 	//
