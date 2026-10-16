@@ -1,0 +1,58 @@
+p		false|false|0||null|null|-1|
+p	a	false|false|97|a|null|null|-1|a
+p	a.js	false|false|2937334|a.js|null|null|-1|a.js
+p	/a/b.js	false|false|1586400306|/a/b.js|null|null|-1|/a/b.js
+p	http://example.com/x	true|false|61067039|http://example.com/x|http|example.com|-1|/x
+p	HTTP://Example.COM/x	true|false|61067039|HTTP://Example.COM/x|HTTP|Example.COM|-1|/x
+p	file:///foo/bar	true|false|24811711|file:///foo/bar|file|null|-1|/foo/bar
+p	mailto:x@y.z	true|true|192061195|mailto:x@y.z|mailto|null|-1|null
+p	urn:isbn:123	true|true|218962621|urn:isbn:123|urn|null|-1|null
+p	data:application/json;base64,eyJ9	true|true|-862848734|data:application/json;base64,eyJ9|data|null|-1|null
+p	//host/path	false|false|-2110973729|//host/path|null|host|-1|/path
+p	http://[::1]:80/	true|false|-208474576|http://[::1]:80/|http|[::1]|80|/
+p	http://[::1%eth0]/	true|false|1049676289|http://[::1%eth0]/|http|[::1%eth0]|-1|/
+p	http://[1:2:3:4:5:6:7:8]/	true|false|-969794106|http://[1:2:3:4:5:6:7:8]/|http|[1:2:3:4:5:6:7:8]|-1|/
+p	http://[1:2]/	EXC:java.net.URISyntaxException:IPv6 address too short at index 8: http://[1:2]/
+p	http://1.2.3.4:8080/p?q#f	true|false|81554530|http://1.2.3.4:8080/p?q#f|http|1.2.3.4|8080|/p
+p	http://256.1.1.1/	true|false|35529461|http://256.1.1.1/|http|null|-1|/
+p	http://a_b.com/	true|false|-1004611472|http://a_b.com/|http|null|-1|/
+p	http://-a.com/	true|false|1669463616|http://-a.com/|http|null|-1|/
+p	http://a-.com/	true|false|-1184810920|http://a-.com/|http|null|-1|/
+p	http://user@host:99999999999/	true|false|1973235061|http://user@host:99999999999/|http|null|-1|/
+p	a b	EXC:java.net.URISyntaxException:Illegal character in path at index 1: a b
+p	a%20b	false|false|90733440|a%20b|null|null|-1|a%20b
+p	a%2	EXC:java.net.URISyntaxException:Malformed escape pair at index 1: a%2
+p	a%zz	EXC:java.net.URISyntaxException:Malformed escape pair at index 1: a%zz
+p	%41	false|false|37218|%41|null|null|-1|%41
+p	?q	false|false|113|?q|null|null|-1|
+p	#f	false|false|12954|#f|null|null|-1|
+p	:x	EXC:java.net.URISyntaxException:Expected scheme name at index 0: :x
+p	1a:b	EXC:java.net.URISyntaxException:Illegal character in scheme name at index 0: 1a:b
+p	a:	EXC:java.net.URISyntaxException:Expected scheme-specific part at index 2: a:
+p	a:#	EXC:java.net.URISyntaxException:Expected scheme-specific part at index 2: a:#
+p	http:	EXC:java.net.URISyntaxException:Expected scheme-specific part at index 5: http:
+p	http://	EXC:java.net.URISyntaxException:Expected authority at index 7: http://
+p	x://y:/	true|false|472069|x://y:/|x|y|-1|/
+p	foo/bar#frag	false|false|-281840040|foo/bar#frag|null|null|-1|foo/bar
+p	\u00e9	false|false|233|\u00e9|null|null|-1|\u00e9
+p	a\u00a0b	EXC:java.net.URISyntaxException:Illegal character in path at index 1: a\u00a0b
+p	jar:file:/x.zip!/y.js	true|true|1977773451|jar:file:/x.zip!/y.js|jar|null|-1|null
+p	C:\\path	EXC:java.net.URISyntaxException:Illegal character in opaque part at index 2: C:\\path
+p	a?b?c	false|false|108549|a?b?c|null|null|-1|a
+p	a#b#c	EXC:java.net.URISyntaxException:Illegal character in fragment at index 3: a#b#c
+p	http://host/%41	true|false|269875926|http://host/%41|http|host|-1|/%41
+p	http://host/%61	true|false|327134228|http://host/%61|http|host|-1|/%61
+p	../x/y.js	false|false|-728073916|../x/y.js|null|null|-1|../x/y.js
+p	./m.js	false|false|1363641259|./m.js|null|null|-1|./m.js
+p	http://x.y.z./	true|false|-1351542007|http://x.y.z./|http|x.y.z.|-1|/
+p	http://1.2.3/	true|false|336773651|http://1.2.3/|http|null|-1|/
+eq	http://example.com/x	HTTP://EXAMPLE.com/x	true
+eq	http://example.com/X	http://example.com/x	false
+eq	a%41	a%41	true
+eq	a%4a	a%4A	true
+eq	a%4a	a%4b	false
+eq	mailto:x	MAILTO:x	true
+eq	a	a#f	false
+eq	//h/p	//H/p	true
+eq	file:///a	file:/a	true
+eq	x:y	x:/y	false

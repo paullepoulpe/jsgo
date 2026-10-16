@@ -4,7 +4,6 @@ import (
 	"io"
 	"math"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -291,42 +290,4 @@ func Formatter_FormatMessage(r *LogRecord) string {
 		return format
 	}
 	return MessageFormat_Format(format, r.parameters)
-}
-
-// MessageFormat_Format is java.text.MessageFormat.format(String, Object...)
-// for simple "{n}" arguments (no format types), with MessageFormat's
-// quoting: ” is a quote and text between single quotes is literal.
-func MessageFormat_Format(pattern string, args []any) string {
-	var sb strings.Builder
-	inQuote := false
-	for i := 0; i < len(pattern); i++ {
-		c := pattern[i]
-		switch {
-		case c == '\'':
-			if i+1 < len(pattern) && pattern[i+1] == '\'' {
-				sb.WriteByte('\'')
-				i++
-			} else {
-				inQuote = !inQuote
-			}
-		case c == '{' && !inQuote:
-			end := strings.IndexByte(pattern[i:], '}')
-			if end < 0 {
-				panic(NewIllegalArgumentExceptionMsg("Unmatched braces in the pattern."))
-			}
-			n, err := strconv.Atoi(strings.TrimSpace(pattern[i+1 : i+end]))
-			if err != nil {
-				panic(NewIllegalArgumentExceptionMsg("can't parse argument number: " + pattern[i+1:i+end]))
-			}
-			if n < len(args) {
-				sb.WriteString(ToJavaString(args[n]))
-			} else {
-				sb.WriteString(pattern[i : i+end+1])
-			}
-			i += end
-		default:
-			sb.WriteByte(c)
-		}
-	}
-	return sb.String()
 }
