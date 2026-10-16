@@ -4,19 +4,17 @@ package parsing
 
 // ParserTest extends rhino.testing.BaseJSTypeTestCase only to compare the
 // JSDoc types of a few nodes with JSTypes of its registry
-// (assertNodeHasJSDocInfoWithJSType). rhino/jstype is not ported yet, so such
-// a comparison is recorded instead of evaluated, and a test that reached one
-// ends with t.Skip("needs rhino/jstype") after all of its other assertions
-// have run (as in JsDocInfoParserTest's port).
+// (assertNodeHasJSDocInfoWithJSType); parserTest embeds
+// rhinotesting.BaseJSTypeTestCase.
 
 import (
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/rhino/rhinotesting"
 )
 
 const parserTest_TRAILING_COMMA_MESSAGE = "Trailing comma is not legal in an ECMA-262 object initializer"
@@ -55,8 +53,9 @@ const parserTest_PRIVATE_FIELD_NOT_DEFINED = "Private fields must be declared in
 const parserTest_PRIVATE_METHOD_NOT_DEFINED = "Private methods must be declared in an enclosing class"
 const parserTest_PRIVATE_FIELD_DELETED = "Private fields cannot be deleted"
 
-// parserTest holds the fields of ParserTest.
+// parserTest holds the fields of ParserTest on top of BaseJSTypeTestCase.
 type parserTest struct {
+	*rhinotesting.BaseJSTypeTestCase
 	t *testing.T
 
 	mode             Config_LanguageMode
@@ -64,16 +63,13 @@ type parserTest struct {
 	strictMode       Config_StrictMode
 	isIdeMode        bool
 	expectedFeatures *parser.FeatureSet
-
-	// Type-registry comparisons that could not be evaluated (see above).
-	needsJSType []string
 }
 
 // newParserTest is setUp().
 //
 // Java: ParserTest.setUp()
 func newParserTest(t *testing.T) *parserTest {
-	pt := &parserTest{t: t}
+	pt := &parserTest{BaseJSTypeTestCase: rhinotesting.NewBaseJSTypeTestCase(t), t: t}
 	pt.mode = Config_LanguageMode_UNSUPPORTED
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_DESCRIPTIONS_NO_WHITESPACE
 	pt.strictMode = Config_StrictMode_STRICT
@@ -82,21 +78,12 @@ func newParserTest(t *testing.T) *parserTest {
 	return pt
 }
 
-// done ends a test (deferred by every test): a test that needed the type
-// registry is reported as skipped, unless it already failed.
-func (pt *parserTest) done() {
-	if len(pt.needsJSType) > 0 && !pt.t.Failed() {
-		pt.t.Skip("needs rhino/jstype: " + strings.Join(pt.needsJSType, "; "))
-	}
-}
-
 const parserTest_STRING_CONTINUATIONS_WARNING = "String continuations are not recommended. " +
 	"See https://google.github.io/styleguide/jsguide.html#features-strings-no-line-continuations"
 
 // Java: ParserTest.testParseUnescapedLineSep()
 func TestParseUnescapedLineSep(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("`\u2028`;")
 
@@ -108,7 +95,6 @@ func TestParseUnescapedLineSep(t *testing.T) {
 // Java: ParserTest.testParseUnescapedParagraphSep()
 func TestParseUnescapedParagraphSep(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("`\u2029`;")
 
@@ -120,7 +106,6 @@ func TestParseUnescapedParagraphSep(t *testing.T) {
 // Java: ParserTest.testOptionalCatchBinding()
 func TestOptionalCatchBinding(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_OPTIONAL_CATCH_BINDING)
 
@@ -131,7 +116,6 @@ func TestOptionalCatchBinding(t *testing.T) {
 // Java: ParserTest.testOptionalCatchBindingSourceInfo()
 func TestOptionalCatchBindingSourceInfo(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_OPTIONAL_CATCH_BINDING)
 
@@ -145,7 +129,6 @@ func TestOptionalCatchBindingSourceInfo(t *testing.T) {
 // Java: ParserTest.testExponentOperator()
 func TestExponentOperator(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("-x**y", "Unary operator '-' requires parentheses before '**'")
 
@@ -170,7 +153,6 @@ func TestExponentOperator(t *testing.T) {
 // Java: ParserTest.testExponentAssignmentOperator()
 func TestExponentAssignmentOperator(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_EXPONENT_OP)
 	pt.parse("x**=y;")
@@ -183,7 +165,6 @@ func TestExponentAssignmentOperator(t *testing.T) {
 // Java: ParserTest.testFunction()
 func TestFunction(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("var f = function(x,y,z) { return 0; }")
 	pt.parse("function f(x,y,z) { return 0; }")
@@ -195,7 +176,6 @@ func TestFunction(t *testing.T) {
 // Java: ParserTest.testFunctionTrailingComma()
 func TestFunctionTrailingComma(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("var f = function(x,y,z,) {}")
 	pt.parse("function f(x,y,z,) {}")
@@ -204,7 +184,6 @@ func TestFunctionTrailingComma(t *testing.T) {
 // Java: ParserTest.testFunctionTrailingCommaPreES8()
 func TestFunctionTrailingCommaPreES8(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT_2016
 
@@ -215,7 +194,6 @@ func TestFunctionTrailingCommaPreES8(t *testing.T) {
 // Java: ParserTest.testFunctionExtraTrailingComma()
 func TestFunctionExtraTrailingComma(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("var f = function(x,y,z,,) {}", "')' expected")
 	pt.parseError("function f(x,y,z,,) {}", "')' expected")
@@ -224,7 +202,6 @@ func TestFunctionExtraTrailingComma(t *testing.T) {
 // Java: ParserTest.testCallTrailingComma()
 func TestCallTrailingComma(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("f(x,y,z,);")
 }
@@ -232,7 +209,6 @@ func TestCallTrailingComma(t *testing.T) {
 // Java: ParserTest.testCallTrailingCommaPreES8()
 func TestCallTrailingCommaPreES8(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT_2016
 
@@ -242,7 +218,6 @@ func TestCallTrailingCommaPreES8(t *testing.T) {
 // Java: ParserTest.testCallExtraTrailingComma()
 func TestCallExtraTrailingComma(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("f(x,y,z,,);", "')' expected")
 }
@@ -250,7 +225,6 @@ func TestCallExtraTrailingComma(t *testing.T) {
 // Java: ParserTest.testTrailingCommaArray()
 func TestTrailingCommaArray(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	arrayLit :=
 		pt.parse("[1, 2, 3,]"). // SCRIPT
@@ -263,7 +237,6 @@ func TestTrailingCommaArray(t *testing.T) {
 // Java: ParserTest.testTrailingCommaObject()
 func TestTrailingCommaObject(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	objectlit :=
 		pt.parse("var obj = {a:1,b:2,};"). // SCRIPT
@@ -277,7 +250,6 @@ func TestTrailingCommaObject(t *testing.T) {
 // Java: ParserTest.testTrailingCommaParamList()
 func TestTrailingCommaParamList(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	paramList :=
 		pt.parse("function f(a, b,) {}"). // SCRIPT
@@ -290,7 +262,6 @@ func TestTrailingCommaParamList(t *testing.T) {
 // Java: ParserTest.testTrailingCommaParamListArrow()
 func TestTrailingCommaParamListArrow(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	paramList :=
 		pt.parse("x = (a, b,) => {};"). // SCRIPT
@@ -323,7 +294,6 @@ func TestTrailingCommaParamListArrow(t *testing.T) {
 // Java: ParserTest.testTrailingCommaCallNode()
 func TestTrailingCommaCallNode(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	call :=
 		pt.parse("f(a, b,);"). // SCRIPT
@@ -336,7 +306,6 @@ func TestTrailingCommaCallNode(t *testing.T) {
 // Java: ParserTest.testTrailingCommaNewNode()
 func TestTrailingCommaNewNode(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	call :=
 		pt.parse("new f(a, b,);"). // SCRIPT
@@ -349,7 +318,6 @@ func TestTrailingCommaNewNode(t *testing.T) {
 // Java: ParserTest.testTrailingCommaOptChainCallNode()
 func TestTrailingCommaOptChainCallNode(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	call :=
 		pt.parse("f?.(a, b,);"). // SCRIPT
@@ -362,7 +330,6 @@ func TestTrailingCommaOptChainCallNode(t *testing.T) {
 // Java: ParserTest.testArrayWithElisions()
 func TestArrayWithElisions(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	arrayLit :=
 		pt.parse("[  , 1,   ,]"). // SCRIPT
@@ -388,7 +355,6 @@ func TestArrayWithElisions(t *testing.T) {
 // Java: ParserTest.testWhile()
 func TestWhile(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("while(1) { break; }")
 }
@@ -396,7 +362,6 @@ func TestWhile(t *testing.T) {
 // Java: ParserTest.testNestedWhile()
 func TestNestedWhile(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("while(1) { while(1) { break; } }")
 }
@@ -404,7 +369,6 @@ func TestNestedWhile(t *testing.T) {
 // Java: ParserTest.testBreak()
 func TestBreak(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("break;", parserTest_UNLABELED_BREAK)
 }
@@ -412,7 +376,6 @@ func TestBreak(t *testing.T) {
 // Java: ParserTest.testContinue()
 func TestContinue(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("continue;", parserTest_UNEXPECTED_CONTINUE)
 }
@@ -420,7 +383,6 @@ func TestContinue(t *testing.T) {
 // Java: ParserTest.testBreakCrossFunction()
 func TestBreakCrossFunction(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("while(1) { var f = function() { break; } }", parserTest_UNLABELED_BREAK)
 }
@@ -428,7 +390,6 @@ func TestBreakCrossFunction(t *testing.T) {
 // Java: ParserTest.testBreakCrossFunctionInFor()
 func TestBreakCrossFunctionInFor(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("while(1) {for(var f = function () { break; };;) {}}", parserTest_UNLABELED_BREAK)
 }
@@ -436,7 +397,6 @@ func TestBreakCrossFunctionInFor(t *testing.T) {
 // Java: ParserTest.testBreakInForOf()
 func TestBreakInForOf(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.expectFeatures(parser.FeatureSet_Feature_FOR_OF)
@@ -450,7 +410,6 @@ func TestBreakInForOf(t *testing.T) {
 // Java: ParserTest.testContinueToSwitch()
 func TestContinueToSwitch(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("switch(1) {case(1): continue; }", parserTest_UNEXPECTED_CONTINUE)
 }
@@ -458,7 +417,6 @@ func TestContinueToSwitch(t *testing.T) {
 // Java: ParserTest.testContinueToSwitchWithNoCases()
 func TestContinueToSwitchWithNoCases(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("switch(1){}")
 }
@@ -466,7 +424,6 @@ func TestContinueToSwitchWithNoCases(t *testing.T) {
 // Java: ParserTest.testContinueToSwitchWithTwoCases()
 func TestContinueToSwitchWithTwoCases(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("switch(1){case(1):break;case(2):continue;}", parserTest_UNEXPECTED_CONTINUE)
 }
@@ -474,7 +431,6 @@ func TestContinueToSwitchWithTwoCases(t *testing.T) {
 // Java: ParserTest.testContinueToSwitchWithDefault()
 func TestContinueToSwitchWithDefault(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("switch(1){case(1):break;case(2):default:continue;}", parserTest_UNEXPECTED_CONTINUE)
 }
@@ -482,7 +438,6 @@ func TestContinueToSwitchWithDefault(t *testing.T) {
 // Java: ParserTest.testContinueToLabelSwitch()
 func TestContinueToLabelSwitch(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("while(1) {a: switch(1) {case(1): continue a; }}", parserTest_UNEXPECTED_LABELLED_CONTINUE)
 }
@@ -490,7 +445,6 @@ func TestContinueToLabelSwitch(t *testing.T) {
 // Java: ParserTest.testContinueOutsideSwitch()
 func TestContinueOutsideSwitch(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("b: while(1) { a: switch(1) { case(1): continue b; } }")
 }
@@ -498,7 +452,6 @@ func TestContinueOutsideSwitch(t *testing.T) {
 // Java: ParserTest.testContinueNotCrossFunction1()
 func TestContinueNotCrossFunction1(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("a:switch(1){case(1):var f = function(){a:while(1){continue a;}}}")
 }
@@ -506,7 +459,6 @@ func TestContinueNotCrossFunction1(t *testing.T) {
 // Java: ParserTest.testContinueNotCrossFunction2()
 func TestContinueNotCrossFunction2(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError(
 		"a:switch(1){case(1):var f = function(){while(1){continue a;}}}",
@@ -516,7 +468,6 @@ func TestContinueNotCrossFunction2(t *testing.T) {
 // Java: ParserTest.testContinueInForOf()
 func TestContinueInForOf(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.expectFeatures(parser.FeatureSet_Feature_FOR_OF)
@@ -530,7 +481,6 @@ func TestContinueInForOf(t *testing.T) {
 // Java: ParserTest.testVarSourceLocations()
 func TestVarSourceLocations(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 
@@ -551,7 +501,6 @@ func TestVarSourceLocations(t *testing.T) {
 // Java: ParserTest.testSourceLocationsNonAscii()
 func TestSourceLocationsNonAscii(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse("'\uc548\ub155\uc138\uacc4!'")
 	exprResult := n.GetFirstChild()
@@ -563,7 +512,6 @@ func TestSourceLocationsNonAscii(t *testing.T) {
 // Java: ParserTest.testNumericSeparatorOnDecimal()
 func TestNumericSeparatorOnDecimal(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	result := pt.parse("1_000_000;")
 	pt.expectFeatures(parser.FeatureSet_Feature_NUMERIC_SEPARATOR)
@@ -577,7 +525,6 @@ func TestNumericSeparatorOnDecimal(t *testing.T) {
 // Java: ParserTest.testNumericSeparatorOnBinary()
 func TestNumericSeparatorOnBinary(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	result := pt.parse("0b1_0000;")
 	pt.expectFeatures(parser.FeatureSet_Feature_NUMERIC_SEPARATOR)
@@ -591,7 +538,6 @@ func TestNumericSeparatorOnBinary(t *testing.T) {
 // Java: ParserTest.testNumericSeparatorOnOctal()
 func TestNumericSeparatorOnOctal(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	result := pt.parse("0o01_00;")
 	pt.expectFeatures(parser.FeatureSet_Feature_NUMERIC_SEPARATOR)
@@ -605,7 +551,6 @@ func TestNumericSeparatorOnOctal(t *testing.T) {
 // Java: ParserTest.testNumericSeparatorOnHex()
 func TestNumericSeparatorOnHex(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	result := pt.parse("0x01_01")
 	pt.expectFeatures(parser.FeatureSet_Feature_NUMERIC_SEPARATOR)
@@ -619,7 +564,6 @@ func TestNumericSeparatorOnHex(t *testing.T) {
 // Java: ParserTest.testNumericSeparatorOnBigInt()
 func TestNumericSeparatorOnBigInt(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	bigint :=
 		pt.parse("1_000n"). // SCRIPT
@@ -632,7 +576,6 @@ func TestNumericSeparatorOnBigInt(t *testing.T) {
 // Java: ParserTest.testTrailingNumericSeparator()
 func TestTrailingNumericSeparator(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("1000_", "Trailing numeric separator")
 	pt.parseError("0b0001_", "Trailing numeric separator")
@@ -647,7 +590,6 @@ func TestTrailingNumericSeparator(t *testing.T) {
 // Java: ParserTest.testNumericSeparatorWarning()
 func TestNumericSeparatorWarning(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT_2020
 	pt.parseWarning("1_000", requiresLanguageModeMessage(parser.FeatureSet_Feature_NUMERIC_SEPARATOR))
@@ -656,7 +598,6 @@ func TestNumericSeparatorWarning(t *testing.T) {
 // Java: ParserTest.testReturn()
 func TestReturn(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("function foo() { return 1; }")
 	pt.parseError("return;", parserTest_UNEXPECTED_RETURN)
@@ -666,7 +607,6 @@ func TestReturn(t *testing.T) {
 // Java: ParserTest.testThrow()
 func TestThrow(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("throw Error();")
 	pt.parse("throw new Error();")
@@ -678,7 +618,6 @@ func TestThrow(t *testing.T) {
 // Java: ParserTest.testLabel1()
 func TestLabel1(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("foo:bar")
 }
@@ -686,7 +625,6 @@ func TestLabel1(t *testing.T) {
 // Java: ParserTest.testLabel2()
 func TestLabel2(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("{foo:bar}")
 }
@@ -694,7 +632,6 @@ func TestLabel2(t *testing.T) {
 // Java: ParserTest.testLabel3()
 func TestLabel3(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("foo:bar:baz")
 }
@@ -702,7 +639,6 @@ func TestLabel3(t *testing.T) {
 // Java: ParserTest.testDuplicateLabelWithoutBraces()
 func TestDuplicateLabelWithoutBraces(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("foo:foo:bar", "Duplicate label \"foo\"")
 }
@@ -710,7 +646,6 @@ func TestDuplicateLabelWithoutBraces(t *testing.T) {
 // Java: ParserTest.testDuplicateLabelWithBraces()
 func TestDuplicateLabelWithBraces(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("foo:{bar;foo:baz}", "Duplicate label \"foo\"")
 }
@@ -718,7 +653,6 @@ func TestDuplicateLabelWithBraces(t *testing.T) {
 // Java: ParserTest.testDuplicateLabelWithFor()
 func TestDuplicateLabelWithFor(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("foo:for(;;){foo:bar}", "Duplicate label \"foo\"")
 }
@@ -726,7 +660,6 @@ func TestDuplicateLabelWithFor(t *testing.T) {
 // Java: ParserTest.testNonDuplicateLabelSiblings()
 func TestNonDuplicateLabelSiblings(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("foo:1;foo:2")
 }
@@ -734,7 +667,6 @@ func TestNonDuplicateLabelSiblings(t *testing.T) {
 // Java: ParserTest.testNonDuplicateLabelCrossFunction()
 func TestNonDuplicateLabelCrossFunction(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("foo:(function(){foo:2})")
 }
@@ -742,7 +674,6 @@ func TestNonDuplicateLabelCrossFunction(t *testing.T) {
 // Java: ParserTest.testLabeledFunctionDeclaration()
 func TestLabeledFunctionDeclaration(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError(
 		"foo:function f() {}",
@@ -752,7 +683,6 @@ func TestLabeledFunctionDeclaration(t *testing.T) {
 // Java: ParserTest.testLabeledClassDeclaration()
 func TestLabeledClassDeclaration(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError(
 		"foo:class Foo {}",
@@ -762,7 +692,6 @@ func TestLabeledClassDeclaration(t *testing.T) {
 // Java: ParserTest.testLabeledLetDeclaration()
 func TestLabeledLetDeclaration(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError(
 		"foo: let x = 0;", "Lexical declarations are only allowed at top level or inside a block.")
@@ -771,7 +700,6 @@ func TestLabeledLetDeclaration(t *testing.T) {
 // Java: ParserTest.testLabeledConstDeclaration()
 func TestLabeledConstDeclaration(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError(
 		"foo: const x = 0;",
@@ -781,7 +709,6 @@ func TestLabeledConstDeclaration(t *testing.T) {
 // Java: ParserTest.testMethodNamedStatic()
 func TestMethodNamedStatic(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("class C { static(a, b) {} }")
 }
@@ -789,7 +716,6 @@ func TestMethodNamedStatic(t *testing.T) {
 // Java: ParserTest.testLinenoCharnoAssign1()
 func TestLinenoCharnoAssign1(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	assign := pt.parse("a = b").GetFirstFirstChild()
 
@@ -801,7 +727,6 @@ func TestLinenoCharnoAssign1(t *testing.T) {
 // Java: ParserTest.testLinenoCharnoAssign2()
 func TestLinenoCharnoAssign2(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	assign := pt.parse("\n a.g.h.k    =  45").GetFirstFirstChild()
 
@@ -813,7 +738,6 @@ func TestLinenoCharnoAssign2(t *testing.T) {
 // Java: ParserTest.testLinenoCharnoCall()
 func TestLinenoCharnoCall(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	call := pt.parse("\n foo(123);").GetFirstFirstChild()
 
@@ -825,7 +749,6 @@ func TestLinenoCharnoCall(t *testing.T) {
 // Java: ParserTest.testLinenoCharnoGetProp1()
 func TestLinenoCharnoGetProp1(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	getprop := pt.parse("\n foo.bar").GetFirstFirstChild()
 
@@ -838,7 +761,6 @@ func TestLinenoCharnoGetProp1(t *testing.T) {
 // Java: ParserTest.testLinenoCharnoGetProp2()
 func TestLinenoCharnoGetProp2(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	getprop := pt.parse(`
  foo.
@@ -853,7 +775,6 @@ bar`).GetFirstFirstChild()
 // Java: ParserTest.testLinenoCharnoGetelem1()
 func TestLinenoCharnoGetelem1(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	call := pt.parse("\n foo[123]").GetFirstFirstChild()
 
@@ -865,7 +786,6 @@ func TestLinenoCharnoGetelem1(t *testing.T) {
 // Java: ParserTest.testLinenoCharnoGetelem2()
 func TestLinenoCharnoGetelem2(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	call := pt.parse("\n   \n foo()[123]").GetFirstFirstChild()
 
@@ -877,7 +797,6 @@ func TestLinenoCharnoGetelem2(t *testing.T) {
 // Java: ParserTest.testLinenoCharnoGetelem3()
 func TestLinenoCharnoGetelem3(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	call := pt.parse("\n   \n (8 + kl)[123]").GetFirstFirstChild()
 
@@ -889,7 +808,6 @@ func TestLinenoCharnoGetelem3(t *testing.T) {
 // Java: ParserTest.testLinenoCharnoForComparison()
 func TestLinenoCharnoForComparison(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	lt := pt.parse("for (; i < j;){}").GetFirstChild().GetSecondChild()
 
@@ -901,7 +819,6 @@ func TestLinenoCharnoForComparison(t *testing.T) {
 // Java: ParserTest.testLinenoCharnoHook()
 func TestLinenoCharnoHook(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse("\n a ? 9 : 0").GetFirstFirstChild()
 
@@ -913,7 +830,6 @@ func TestLinenoCharnoHook(t *testing.T) {
 // Java: ParserTest.testLinenoCharnoArrayLiteral()
 func TestLinenoCharnoArrayLiteral(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse("\n  [8, 9]").GetFirstFirstChild()
 
@@ -937,7 +853,6 @@ func TestLinenoCharnoArrayLiteral(t *testing.T) {
 // Java: ParserTest.testLinenoCharnoObjectLiteral()
 func TestLinenoCharnoObjectLiteral(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse(`
 
@@ -976,7 +891,6 @@ func TestLinenoCharnoObjectLiteral(t *testing.T) {
 // Java: ParserTest.testLinenoCharnoObjectLiteralMemberFunction()
 func TestLinenoCharnoObjectLiteralMemberFunction(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse("var a = {\n fn() {} };").GetFirstFirstChild().GetFirstChild()
 
@@ -1003,7 +917,6 @@ func TestLinenoCharnoObjectLiteralMemberFunction(t *testing.T) {
 // Java: ParserTest.testLinenoCharnoEs6Class()
 func TestLinenoCharnoEs6Class(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse(`class C {
   fn1() {}
@@ -1050,7 +963,6 @@ func TestLinenoCharnoEs6Class(t *testing.T) {
 // Java: ParserTest.testLinenoCharnoAdd()
 func TestLinenoCharnoAdd(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.testLinenoCharnoBinop("+")
 }
@@ -1058,7 +970,6 @@ func TestLinenoCharnoAdd(t *testing.T) {
 // Java: ParserTest.testLinenoCharnoSub()
 func TestLinenoCharnoSub(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.testLinenoCharnoBinop("-")
 }
@@ -1066,7 +977,6 @@ func TestLinenoCharnoSub(t *testing.T) {
 // Java: ParserTest.testLinenoCharnoMul()
 func TestLinenoCharnoMul(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.testLinenoCharnoBinop("*")
 }
@@ -1074,7 +984,6 @@ func TestLinenoCharnoMul(t *testing.T) {
 // Java: ParserTest.testLinenoCharnoDiv()
 func TestLinenoCharnoDiv(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.testLinenoCharnoBinop("/")
 }
@@ -1082,7 +991,6 @@ func TestLinenoCharnoDiv(t *testing.T) {
 // Java: ParserTest.testLinenoCharnoMod()
 func TestLinenoCharnoMod(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.testLinenoCharnoBinop("%")
 }
@@ -1090,7 +998,6 @@ func TestLinenoCharnoMod(t *testing.T) {
 // Java: ParserTest.testLinenoCharnoShift()
 func TestLinenoCharnoShift(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.testLinenoCharnoBinop("<<")
 }
@@ -1098,7 +1005,6 @@ func TestLinenoCharnoShift(t *testing.T) {
 // Java: ParserTest.testLinenoCharnoBinaryAnd()
 func TestLinenoCharnoBinaryAnd(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.testLinenoCharnoBinop("&")
 }
@@ -1106,7 +1012,6 @@ func TestLinenoCharnoBinaryAnd(t *testing.T) {
 // Java: ParserTest.testLinenoCharnoAnd()
 func TestLinenoCharnoAnd(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.testLinenoCharnoBinop("&&")
 }
@@ -1114,7 +1019,6 @@ func TestLinenoCharnoAnd(t *testing.T) {
 // Java: ParserTest.testLinenoCharnoBinaryOr()
 func TestLinenoCharnoBinaryOr(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.testLinenoCharnoBinop("|")
 }
@@ -1122,7 +1026,6 @@ func TestLinenoCharnoBinaryOr(t *testing.T) {
 // Java: ParserTest.testLinenoCharnoOr()
 func TestLinenoCharnoOr(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.testLinenoCharnoBinop("||")
 }
@@ -1130,7 +1033,6 @@ func TestLinenoCharnoOr(t *testing.T) {
 // Java: ParserTest.testLinenoCharnoLt()
 func TestLinenoCharnoLt(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.testLinenoCharnoBinop("<")
 }
@@ -1138,7 +1040,6 @@ func TestLinenoCharnoLt(t *testing.T) {
 // Java: ParserTest.testLinenoCharnoLe()
 func TestLinenoCharnoLe(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.testLinenoCharnoBinop("<=")
 }
@@ -1146,7 +1047,6 @@ func TestLinenoCharnoLe(t *testing.T) {
 // Java: ParserTest.testLinenoCharnoGt()
 func TestLinenoCharnoGt(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.testLinenoCharnoBinop(">")
 }
@@ -1154,7 +1054,6 @@ func TestLinenoCharnoGt(t *testing.T) {
 // Java: ParserTest.testLinenoCharnoGe()
 func TestLinenoCharnoGe(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.testLinenoCharnoBinop(">=")
 }
@@ -1162,7 +1061,6 @@ func TestLinenoCharnoGe(t *testing.T) {
 // Java: ParserTest.testLinenoCharnoNegativeNumber()
 func TestLinenoCharnoNegativeNumber(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse("var x = -1000").GetFirstChild().GetFirstFirstChild()
 
@@ -1174,13 +1072,12 @@ func TestLinenoCharnoNegativeNumber(t *testing.T) {
 // Java: ParserTest.testJSDocAttachment1()
 func TestJSDocAttachment1(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	varNode := pt.parse("/** @type {number} */var a;").GetFirstChild()
 
 	// VAR
 	assertNode(t, varNode).HasType(rhino.Token_VAR)
-	pt.assertNodeHasJSDocInfoWithJSType(varNode, jsType("NUMBER_TYPE"))
+	pt.assertNodeHasJSDocInfoWithJSType(varNode, pt.NUMBER_TYPE)
 
 	// VAR NAME
 	varNameNode := varNode.GetFirstChild()
@@ -1194,7 +1091,7 @@ func TestJSDocAttachment1(t *testing.T) {
 
 	// LET
 	assertNode(t, letNode).HasType(rhino.Token_LET)
-	pt.assertNodeHasJSDocInfoWithJSType(letNode, jsType("NUMBER_TYPE"))
+	pt.assertNodeHasJSDocInfoWithJSType(letNode, pt.NUMBER_TYPE)
 
 	// LET NAME
 	letNameNode := letNode.GetFirstChild()
@@ -1206,7 +1103,7 @@ func TestJSDocAttachment1(t *testing.T) {
 
 	// CONST
 	assertNode(t, constNode).HasType(rhino.Token_CONST)
-	pt.assertNodeHasJSDocInfoWithJSType(constNode, jsType("NUMBER_TYPE"))
+	pt.assertNodeHasJSDocInfoWithJSType(constNode, pt.NUMBER_TYPE)
 
 	// CONST NAME
 	constNameNode := constNode.GetFirstChild()
@@ -1217,13 +1114,12 @@ func TestJSDocAttachment1(t *testing.T) {
 // Java: ParserTest.testJSDocAttachment2()
 func TestJSDocAttachment2(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	varNode := pt.parse("/** @type {number} */var a,b;").GetFirstChild()
 
 	// VAR
 	assertNode(t, varNode).HasType(rhino.Token_VAR)
-	pt.assertNodeHasJSDocInfoWithJSType(varNode, jsType("NUMBER_TYPE"))
+	pt.assertNodeHasJSDocInfoWithJSType(varNode, pt.NUMBER_TYPE)
 
 	// First NAME
 	nameNode1 := varNode.GetFirstChild()
@@ -1239,17 +1135,15 @@ func TestJSDocAttachment2(t *testing.T) {
 // Java: ParserTest.testJSDocAttachment3()
 func TestJSDocAttachment3(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	assignNode := pt.parse("/** @type {number} */goog.FOO = 5;").GetFirstFirstChild()
 	assertNode(t, assignNode).HasType(rhino.Token_ASSIGN)
-	pt.assertNodeHasJSDocInfoWithJSType(assignNode, jsType("NUMBER_TYPE"))
+	pt.assertNodeHasJSDocInfoWithJSType(assignNode, pt.NUMBER_TYPE)
 }
 
 // Java: ParserTest.testJSDocAttachment4()
 func TestJSDocAttachment4(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	varNode := pt.parse("var a, /** @define {number} */ b = 5;").GetFirstChild()
 
@@ -1266,13 +1160,12 @@ func TestJSDocAttachment4(t *testing.T) {
 	info := b.GetJSDocInfo()
 	assertThat(t, info).IsNotNull()
 	assertThat(t, info.IsDefine()).IsTrue()
-	pt.assertTypeEquals(jsType("NUMBER_TYPE"), info.GetType())
+	pt.AssertTypeEqualsExpr(pt.NUMBER_TYPE, info.GetType())
 }
 
 // Java: ParserTest.testJSDocAttachment5()
 func TestJSDocAttachment5(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	varNode :=
 		pt.parse("var /** @type {number} */a, /** @define {number} */b = 5;").GetFirstChild()
@@ -1287,20 +1180,19 @@ func TestJSDocAttachment5(t *testing.T) {
 	info := a.GetJSDocInfo()
 	assertThat(t, info).IsNotNull()
 	assertThat(t, info.IsDefine()).IsFalse()
-	pt.assertTypeEquals(jsType("NUMBER_TYPE"), info.GetType())
+	pt.AssertTypeEqualsExpr(pt.NUMBER_TYPE, info.GetType())
 
 	// b
 	b := a.GetNext()
 	info = b.GetJSDocInfo()
 	assertThat(t, info).IsNotNull()
 	assertThat(t, info.IsDefine()).IsTrue()
-	pt.assertTypeEquals(jsType("NUMBER_TYPE"), info.GetType())
+	pt.AssertTypeEqualsExpr(pt.NUMBER_TYPE, info.GetType())
 }
 
 // Java: ParserTest.testJSDocAttachment6()
 func TestJSDocAttachment6(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	functionNode :=
 		pt.parse(
@@ -1314,13 +1206,12 @@ func TestJSDocAttachment6(t *testing.T) {
 	assertThat(t, info).IsNotNull()
 	assertThat(t, info.HasParameter("index")).IsFalse()
 	assertThat(t, info.HasReturnType()).IsTrue()
-	pt.assertTypeEquals(jsType("BOOLEAN_TYPE"), info.GetReturnType())
+	pt.AssertTypeEqualsExpr(pt.BOOLEAN_TYPE, info.GetReturnType())
 }
 
 // Java: ParserTest.testJSDocAttachment7()
 func TestJSDocAttachment7(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	varNode := pt.parse("/** */var a;").GetFirstChild()
 
@@ -1336,7 +1227,6 @@ func TestJSDocAttachment7(t *testing.T) {
 // Java: ParserTest.testJSDocAttachment8()
 func TestJSDocAttachment8(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	varNode := pt.parse("/** x */var a;").GetFirstChild()
 
@@ -1352,7 +1242,6 @@ func TestJSDocAttachment8(t *testing.T) {
 // Java: ParserTest.testJSDocAttachment9()
 func TestJSDocAttachment9(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	varNode := pt.parse("/** \n x */var a;").GetFirstChild()
 
@@ -1368,7 +1257,6 @@ func TestJSDocAttachment9(t *testing.T) {
 // Java: ParserTest.testJSDocAttachment10()
 func TestJSDocAttachment10(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	varNode := pt.parse("/** x\n */var a;").GetFirstChild()
 
@@ -1384,7 +1272,6 @@ func TestJSDocAttachment10(t *testing.T) {
 // Java: ParserTest.testJSDocAttachment11()
 func TestJSDocAttachment11(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	varNode := pt.parse("/** @type {{x : number, 'y' : string, z}} */var a;").GetFirstChild()
 
@@ -1392,11 +1279,7 @@ func TestJSDocAttachment11(t *testing.T) {
 	assertNode(t, varNode).HasType(rhino.Token_VAR)
 	pt.assertNodeHasJSDocInfoWithJSType(
 		varNode,
-		jsType(`createRecordTypeBuilder()
-            .addProperty("x", NUMBER_TYPE, null)
-            .addProperty("y", STRING_TYPE, null)
-            .addProperty("z", UNKNOWN_TYPE, null)
-            .build()`))
+		pt.CreateRecordTypeBuilder().AddProperty("x", pt.NUMBER_TYPE, nil).AddProperty("y", pt.STRING_TYPE, nil).AddProperty("z", pt.UNKNOWN_TYPE, nil).Build())
 
 	// NAME
 	nameNode := varNode.GetFirstChild()
@@ -1407,7 +1290,6 @@ func TestJSDocAttachment11(t *testing.T) {
 // Java: ParserTest.testJSDocAttachment12()
 func TestJSDocAttachment12(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	varNode := pt.parse("var a = {/** @type {Object} */ b: c};").GetFirstChild()
 	objectLitNode := varNode.GetFirstFirstChild()
@@ -1418,7 +1300,6 @@ func TestJSDocAttachment12(t *testing.T) {
 // Java: ParserTest.testJSDocAttachment13()
 func TestJSDocAttachment13(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	varNode := pt.parse("/** foo */ var a;").GetFirstChild()
 	assertThat(t, varNode.GetJSDocInfo()).IsNotNull()
@@ -1427,7 +1308,6 @@ func TestJSDocAttachment13(t *testing.T) {
 // Java: ParserTest.testJSDocAttachment14()
 func TestJSDocAttachment14(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	varNode := pt.parse("/** */ var a;").GetFirstChild()
 	assertThat(t, varNode.GetJSDocInfo()).IsNull()
@@ -1436,7 +1316,6 @@ func TestJSDocAttachment14(t *testing.T) {
 // Java: ParserTest.testJSDocAttachment15()
 func TestJSDocAttachment15(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	varNode := pt.parse("/** \n * \n */ var a;").GetFirstChild()
 	assertThat(t, varNode.GetJSDocInfo()).IsNull()
@@ -1445,7 +1324,6 @@ func TestJSDocAttachment15(t *testing.T) {
 // Java: ParserTest.testJSDocAttachment16()
 func TestJSDocAttachment16(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	exprCall := pt.parse("/** @private */ x(); function f() {};").GetFirstChild()
 	assertNode(t, exprCall).HasType(rhino.Token_EXPR_RESULT)
@@ -1456,7 +1334,6 @@ func TestJSDocAttachment16(t *testing.T) {
 // Java: ParserTest.testJSDocAttachmentForCastFnCall()
 func TestJSDocAttachmentForCastFnCall(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	fn :=
 		pt.parse(
@@ -1473,7 +1350,6 @@ func TestJSDocAttachmentForCastFnCall(t *testing.T) {
 // Java: ParserTest.testJSDocAttachmentForCastName()
 func TestJSDocAttachmentForCastName(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	fn :=
 		pt.parse(
@@ -1490,7 +1366,6 @@ func TestJSDocAttachmentForCastName(t *testing.T) {
 // Java: ParserTest.testJSDocAttachmentForCastLhs()
 func TestJSDocAttachmentForCastLhs(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	expr := pt.parse("/** some jsdoc */ (/** @type {?} */ (a)).b = 0;").GetOnlyChild()
 	lhs := expr.GetFirstFirstChild() // child is ASSIGN, grandchild is the GETPROP
@@ -1504,7 +1379,6 @@ func TestJSDocAttachmentForCastLhs(t *testing.T) {
 // Java: ParserTest.testJSDocAttachment19()
 func TestJSDocAttachment19(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	fn :=
 		pt.parse(
@@ -1524,7 +1398,6 @@ func TestJSDocAttachment19(t *testing.T) {
 // Java: ParserTest.testJSDocAttachment20()
 func TestJSDocAttachment20(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	fn :=
 		pt.parse(
@@ -1544,7 +1417,6 @@ func TestJSDocAttachment20(t *testing.T) {
 // Java: ParserTest.testJSDocAttachment21()
 func TestJSDocAttachment21(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.expectFeatures(parser.FeatureSet_Feature_CONST_DECLARATIONS)
@@ -1557,7 +1429,6 @@ func TestJSDocAttachment21(t *testing.T) {
 // Java: ParserTest.testJSDocAttachment22()
 func TestJSDocAttachment22(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.expectFeatures(parser.FeatureSet_Feature_MODULES)
@@ -1574,20 +1445,18 @@ func TestJSDocAttachment22(t *testing.T) {
 // Java: ParserTest.testInlineJSDocAttachmentToVar()
 func TestInlineJSDocAttachmentToVar(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	letNode := pt.parse("let /** string */ x = 'a';").GetFirstChild()
 	assertNode(t, letNode).HasType(rhino.Token_LET)
 
 	info := letNode.GetFirstChild().GetJSDocInfo()
 	assertThat(t, info).IsNotNull()
-	pt.assertTypeEquals(jsType("STRING_TYPE"), info.GetType())
+	pt.AssertTypeEqualsExpr(pt.STRING_TYPE, info.GetType())
 }
 
 // Java: ParserTest.testNodeInsideParens_simpleString()
 func TestNodeInsideParens_simpleString(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	exprRes := pt.parse("('a')").GetFirstChild()
 	str := exprRes.GetFirstChild()
@@ -1600,7 +1469,6 @@ func TestNodeInsideParens_simpleString(t *testing.T) {
 // Java: ParserTest.testNodesInsideParens()
 func TestNodesInsideParens(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	andExprRes := pt.parse("((x&&y) && z)").GetFirstChild()
 	assertNode(t, andExprRes).HasType(rhino.Token_EXPR_RESULT)
@@ -1632,7 +1500,6 @@ func TestNodesInsideParens(t *testing.T) {
 // Java: ParserTest.testInlineNonJSDocCommentAttachmentToVar()
 func TestInlineNonJSDocCommentAttachmentToVar(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -1649,7 +1516,6 @@ func TestInlineNonJSDocCommentAttachmentToVar(t *testing.T) {
 // Java: ParserTest.testNoInlineNonJSDocCommentAttachmentWithoutParsingMode()
 func TestNoInlineNonJSDocCommentAttachmentWithoutParsingMode(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	letNode := pt.parse("let /* blah */ x = 'a';").GetFirstChild()
 	assertNode(t, letNode).HasType(rhino.Token_LET)
@@ -1661,7 +1527,6 @@ func TestNoInlineNonJSDocCommentAttachmentWithoutParsingMode(t *testing.T) {
 // Java: ParserTest.testInlineJSDocAttachmentToObjPatNormalProp()
 func TestInlineJSDocAttachmentToObjPatNormalProp(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	letNode :=
 		pt.parse("let { normalProp: /** string */ normalPropTarget } = {};").GetFirstChild()
@@ -1673,13 +1538,12 @@ func TestInlineJSDocAttachmentToObjPatNormalProp(t *testing.T) {
 	normalProp := objectPattern.GetFirstChild()
 	assertNode(t, normalProp).HasType(rhino.Token_STRING_KEY)
 	normalPropTarget := normalProp.GetOnlyChild()
-	pt.assertNodeHasJSDocInfoWithJSType(normalPropTarget, jsType("STRING_TYPE"))
+	pt.assertNodeHasJSDocInfoWithJSType(normalPropTarget, pt.STRING_TYPE)
 }
 
 // Java: ParserTest.testInlineNonJSDocCommentAttachmentToObjPatNormalProp()
 func TestInlineNonJSDocCommentAttachmentToObjPatNormalProp(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -1698,7 +1562,6 @@ func TestInlineNonJSDocCommentAttachmentToObjPatNormalProp(t *testing.T) {
 // Java: ParserTest.testNoInlineNonJSDocCommentAttachmentToObjWithoutParsingMode()
 func TestNoInlineNonJSDocCommentAttachmentToObjWithoutParsingMode(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	letNode := pt.parse("let { normalProp: /* blah */ normalPropTarget } = {};").GetFirstChild()
 	assertNode(t, letNode).HasType(rhino.Token_LET)
@@ -1715,7 +1578,6 @@ func TestNoInlineNonJSDocCommentAttachmentToObjWithoutParsingMode(t *testing.T) 
 // Java: ParserTest.testInlineJSDocAttachmentToObjPatNormalPropKey()
 func TestInlineJSDocAttachmentToObjPatNormalPropKey(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	letNode := pt.parse("let { /** string */ normalProp: normalProp } = {};").GetFirstChild()
 	assertNode(t, letNode).HasType(rhino.Token_LET)
@@ -1733,7 +1595,6 @@ func TestInlineJSDocAttachmentToObjPatNormalPropKey(t *testing.T) {
 // Java: ParserTest.testInlineNonJSDocCommentAttachmentToObjPatNormalPropKey()
 func TestInlineNonJSDocCommentAttachmentToObjPatNormalPropKey(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -1751,7 +1612,6 @@ func TestInlineNonJSDocCommentAttachmentToObjPatNormalPropKey(t *testing.T) {
 // Java: ParserTest.testInlineNonJSDocCommentAttachment_numberAsKey()
 func TestInlineNonJSDocCommentAttachment_numberAsKey(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -1770,7 +1630,6 @@ func TestInlineNonJSDocCommentAttachment_numberAsKey(t *testing.T) {
 // Java: ParserTest.testInlineNonJSDocCommentAttachment_quotedKey()
 func TestInlineNonJSDocCommentAttachment_quotedKey(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -1789,7 +1648,6 @@ func TestInlineNonJSDocCommentAttachment_quotedKey(t *testing.T) {
 // Java: ParserTest.testInlineJSDocAttachmentToObjPatShorthandProp()
 func TestInlineJSDocAttachmentToObjPatShorthandProp(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	letNode := pt.parse("let { /** string */ shorthandProp } = {};").GetFirstChild()
 	assertNode(t, letNode).HasType(rhino.Token_LET)
@@ -1800,13 +1658,12 @@ func TestInlineJSDocAttachmentToObjPatShorthandProp(t *testing.T) {
 	shorthandProp := objectPattern.GetFirstChild()
 	assertNode(t, shorthandProp).HasType(rhino.Token_STRING_KEY)
 	shorthandPropTarget := shorthandProp.GetOnlyChild()
-	pt.assertNodeHasJSDocInfoWithJSType(shorthandPropTarget, jsType("STRING_TYPE"))
+	pt.assertNodeHasJSDocInfoWithJSType(shorthandPropTarget, pt.STRING_TYPE)
 }
 
 // Java: ParserTest.testInlineNonJSDocAttachmentToObjPatShorthandProp()
 func TestInlineNonJSDocAttachmentToObjPatShorthandProp(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -1824,7 +1681,6 @@ func TestInlineNonJSDocAttachmentToObjPatShorthandProp(t *testing.T) {
 // Java: ParserTest.testInlineJSDocAttachmentToObjPatNormalPropWithDefault()
 func TestInlineJSDocAttachmentToObjPatNormalPropWithDefault(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	letNode :=
 		pt.parse("let { normalPropWithDefault: /** string */ normalPropWithDefault = 'hi' } = {};").
@@ -1839,13 +1695,12 @@ func TestInlineJSDocAttachmentToObjPatNormalPropWithDefault(t *testing.T) {
 	normalPropDefaultValue := normalPropWithDefault.GetOnlyChild()
 	assertNode(t, normalPropDefaultValue).HasType(rhino.Token_DEFAULT_VALUE)
 	normalPropWithDefaultTarget := normalPropDefaultValue.GetFirstChild()
-	pt.assertNodeHasJSDocInfoWithJSType(normalPropWithDefaultTarget, jsType("STRING_TYPE"))
+	pt.assertNodeHasJSDocInfoWithJSType(normalPropWithDefaultTarget, pt.STRING_TYPE)
 }
 
 // Java: ParserTest.testInlineNonJSDocCommentAttachmentToObjPatNormalPropWithDefault()
 func TestInlineNonJSDocCommentAttachmentToObjPatNormalPropWithDefault(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -1868,7 +1723,6 @@ func TestInlineNonJSDocCommentAttachmentToObjPatNormalPropWithDefault(t *testing
 // Java: ParserTest.testInlineJSDocAttachmentToObjPatShorthandWithDefault()
 func TestInlineJSDocAttachmentToObjPatShorthandWithDefault(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	letNode :=
 		pt.parse("let { /** string */ shorthandPropWithDefault = 'lo' } = {};").GetFirstChild()
@@ -1882,13 +1736,12 @@ func TestInlineJSDocAttachmentToObjPatShorthandWithDefault(t *testing.T) {
 	shorthandPropDefaultValue := shorthandPropWithDefault.GetOnlyChild()
 	assertNode(t, shorthandPropDefaultValue).HasType(rhino.Token_DEFAULT_VALUE)
 	shorthandPropWithDefaultTarget := shorthandPropDefaultValue.GetFirstChild()
-	pt.assertNodeHasJSDocInfoWithJSType(shorthandPropWithDefaultTarget, jsType("STRING_TYPE"))
+	pt.assertNodeHasJSDocInfoWithJSType(shorthandPropWithDefaultTarget, pt.STRING_TYPE)
 }
 
 // Java: ParserTest.testInlineNonJSDocCommentAttachmentToObjPatShorthandWithDefault()
 func TestInlineNonJSDocCommentAttachmentToObjPatShorthandWithDefault(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -1910,7 +1763,6 @@ func TestInlineNonJSDocCommentAttachmentToObjPatShorthandWithDefault(t *testing.
 // Java: ParserTest.testObjLitKeyNonJSDocComment()
 func TestObjLitKeyNonJSDocComment(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -1926,7 +1778,6 @@ func TestObjLitKeyNonJSDocComment(t *testing.T) {
 // Java: ParserTest.testLabelNonJSDocComment()
 func TestLabelNonJSDocComment(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -1941,7 +1792,6 @@ for(;;){ continue label; }`).GetFirstChild()
 // Java: ParserTest.testFieldNonJSDocComment()
 func TestFieldNonJSDocComment(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -1956,7 +1806,6 @@ func TestFieldNonJSDocComment(t *testing.T) {
 // Java: ParserTest.testPropertyNameAssignmentNonJSDocComment()
 func TestPropertyNameAssignmentNonJSDocComment(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -1974,7 +1823,6 @@ func TestPropertyNameAssignmentNonJSDocComment(t *testing.T) {
 // Java: ParserTest.testGetPropCallNonJSDocComment()
 func TestGetPropCallNonJSDocComment(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -1991,7 +1839,6 @@ baz(3);`).GetFirstChild()
 // Java: ParserTest.testGetPropOptionalCallNonJSDocComment()
 func TestGetPropOptionalCallNonJSDocComment(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2008,7 +1855,6 @@ baz(3);`).GetFirstChild()
 // Java: ParserTest.testGetPropAssignmentNonJSDocComment()
 func TestGetPropAssignmentNonJSDocComment(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2025,7 +1871,6 @@ baz = 5;`).GetFirstChild()
 // Java: ParserTest.testNonJSDocCommentsOnAdjacentNodes()
 func TestNonJSDocCommentsOnAdjacentNodes(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2055,7 +1900,6 @@ c();
 // Java: ParserTest.testInlineJSDocAttachmentToObjPatComputedPropKey()
 func TestInlineJSDocAttachmentToObjPatComputedPropKey(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	letNode :=
 		pt.parse("let { /** string */ ['computedProp']: computedProp } = {};").GetFirstChild()
@@ -2074,7 +1918,6 @@ func TestInlineJSDocAttachmentToObjPatComputedPropKey(t *testing.T) {
 // Java: ParserTest.testInlineJSDocAttachmentToObjPatComputedProp()
 func TestInlineJSDocAttachmentToObjPatComputedProp(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	letNode :=
 		pt.parse("let { ['computedProp']: /** string */ computedProp } = {};").GetFirstChild()
@@ -2086,13 +1929,12 @@ func TestInlineJSDocAttachmentToObjPatComputedProp(t *testing.T) {
 	computedProp := objectPattern.GetFirstChild()
 	assertNode(t, computedProp).HasType(rhino.Token_COMPUTED_PROP)
 	computedPropTarget := computedProp.GetSecondChild()
-	pt.assertNodeHasJSDocInfoWithJSType(computedPropTarget, jsType("STRING_TYPE"))
+	pt.assertNodeHasJSDocInfoWithJSType(computedPropTarget, pt.STRING_TYPE)
 }
 
 // Java: ParserTest.testInlineJSDocAttachmentToObjPatComputedPropWithDefault()
 func TestInlineJSDocAttachmentToObjPatComputedPropWithDefault(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	letNode :=
 		pt.parse("let { ['computedPropWithDefault']: /** string */ computedProp = 'go' } = {};").
@@ -2107,13 +1949,12 @@ func TestInlineJSDocAttachmentToObjPatComputedPropWithDefault(t *testing.T) {
 	computedPropDefaultValue := computedPropWithDefault.GetSecondChild()
 	assertNode(t, computedPropDefaultValue).HasType(rhino.Token_DEFAULT_VALUE)
 	computedPropWithDefaultTarget := computedPropDefaultValue.GetFirstChild()
-	pt.assertNodeHasJSDocInfoWithJSType(computedPropWithDefaultTarget, jsType("STRING_TYPE"))
+	pt.assertNodeHasJSDocInfoWithJSType(computedPropWithDefaultTarget, pt.STRING_TYPE)
 }
 
 // Java: ParserTest.testInlineJSDocAttachmentToObjPatNormalPropWithQualifiedName()
 func TestInlineJSDocAttachmentToObjPatNormalPropWithQualifiedName(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	exprResult :=
 		pt.parse("({ normalProp: /** string */ ns.normalPropTarget } = {});").GetFirstChild()
@@ -2125,13 +1966,12 @@ func TestInlineJSDocAttachmentToObjPatNormalPropWithQualifiedName(t *testing.T) 
 	normalProp := objectPattern.GetFirstChild()
 	assertNode(t, normalProp).HasType(rhino.Token_STRING_KEY)
 	nsNormalPropTarget := normalProp.GetOnlyChild()
-	pt.assertNodeHasJSDocInfoWithJSType(nsNormalPropTarget, jsType("STRING_TYPE"))
+	pt.assertNodeHasJSDocInfoWithJSType(nsNormalPropTarget, pt.STRING_TYPE)
 }
 
 // Java: ParserTest.testInlineJSDocAttachmentToObjPatNormalPropWithQualifiedNameWithDefault()
 func TestInlineJSDocAttachmentToObjPatNormalPropWithQualifiedNameWithDefault(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	exprResult :=
 		pt.parse("({ normalProp: /** string */ ns.normalPropTarget = 'foo' } = {});").GetFirstChild()
@@ -2145,13 +1985,12 @@ func TestInlineJSDocAttachmentToObjPatNormalPropWithQualifiedNameWithDefault(t *
 	defaultValue := normalProp.GetFirstChild()
 	assertNode(t, defaultValue).HasType(rhino.Token_DEFAULT_VALUE)
 	nsNormalPropTarget := defaultValue.GetFirstChild()
-	pt.assertNodeHasJSDocInfoWithJSType(nsNormalPropTarget, jsType("STRING_TYPE"))
+	pt.assertNodeHasJSDocInfoWithJSType(nsNormalPropTarget, pt.STRING_TYPE)
 }
 
 // Java: ParserTest.testInlineJSDocAttachmentToArrayPatElement()
 func TestInlineJSDocAttachmentToArrayPatElement(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	letNode := pt.parse("let [/** string */ x] = [];").GetFirstChild()
 	assertNode(t, letNode).HasType(rhino.Token_LET)
@@ -2159,13 +1998,12 @@ func TestInlineJSDocAttachmentToArrayPatElement(t *testing.T) {
 	destructuringLhs := letNode.GetFirstChild()
 	arrayPattern := destructuringLhs.GetFirstChild()
 	xVarName := arrayPattern.GetFirstChild()
-	pt.assertNodeHasJSDocInfoWithJSType(xVarName, jsType("STRING_TYPE"))
+	pt.assertNodeHasJSDocInfoWithJSType(xVarName, pt.STRING_TYPE)
 }
 
 // Java: ParserTest.testInlineJSDocAttachmentToArrayPatElementWithDefault()
 func TestInlineJSDocAttachmentToArrayPatElementWithDefault(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	letNode := pt.parse("let [/** string */ x = 'hi'] = [];").GetFirstChild()
 	assertNode(t, letNode).HasType(rhino.Token_LET)
@@ -2176,13 +2014,12 @@ func TestInlineJSDocAttachmentToArrayPatElementWithDefault(t *testing.T) {
 	assertNode(t, defaultValue).HasType(rhino.Token_DEFAULT_VALUE)
 
 	xVarName := defaultValue.GetFirstChild()
-	pt.assertNodeHasJSDocInfoWithJSType(xVarName, jsType("STRING_TYPE"))
+	pt.assertNodeHasJSDocInfoWithJSType(xVarName, pt.STRING_TYPE)
 }
 
 // Java: ParserTest.testInlineJSDocAttachmentToArrayPatElementQualifiedName()
 func TestInlineJSDocAttachmentToArrayPatElementQualifiedName(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	exprResult := pt.parse("[/** string */ x.y.z] = [];").GetFirstChild()
 	assignNode := exprResult.GetFirstChild()
@@ -2191,13 +2028,12 @@ func TestInlineJSDocAttachmentToArrayPatElementQualifiedName(t *testing.T) {
 	arrayPattern := assignNode.GetFirstChild()
 	assertNode(t, arrayPattern).HasType(rhino.Token_ARRAY_PATTERN)
 	xYZName := arrayPattern.GetFirstChild()
-	pt.assertNodeHasJSDocInfoWithJSType(xYZName, jsType("STRING_TYPE"))
+	pt.assertNodeHasJSDocInfoWithJSType(xYZName, pt.STRING_TYPE)
 }
 
 // Java: ParserTest.testInlineJSDocAttachmentToArrayPatElementQualifiedNameWithDefault()
 func TestInlineJSDocAttachmentToArrayPatElementQualifiedNameWithDefault(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	exprResult := pt.parse("[/** string */ x.y.z = 'foo'] = [];").GetFirstChild()
 	assignNode := exprResult.GetFirstChild()
@@ -2208,13 +2044,12 @@ func TestInlineJSDocAttachmentToArrayPatElementQualifiedNameWithDefault(t *testi
 	defaultValue := arrayPattern.GetOnlyChild()
 	assertNode(t, defaultValue).HasType(rhino.Token_DEFAULT_VALUE)
 	xYZName := defaultValue.GetFirstChild()
-	pt.assertNodeHasJSDocInfoWithJSType(xYZName, jsType("STRING_TYPE"))
+	pt.assertNodeHasJSDocInfoWithJSType(xYZName, pt.STRING_TYPE)
 }
 
 // Java: ParserTest.testInlineJSDocAttachmentToArrayPatElementAfterElision()
 func TestInlineJSDocAttachmentToArrayPatElementAfterElision(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	letNode := pt.parse("let [, /** string */ x] = [];").GetFirstChild()
 	assertNode(t, letNode).HasType(rhino.Token_LET)
@@ -2226,13 +2061,12 @@ func TestInlineJSDocAttachmentToArrayPatElementAfterElision(t *testing.T) {
 	assertNode(t, empty).HasCharno(5)
 	assertNode(t, empty).HasLength(1)
 	xVarName := arrayPattern.GetSecondChild()
-	pt.assertNodeHasJSDocInfoWithJSType(xVarName, jsType("STRING_TYPE"))
+	pt.assertNodeHasJSDocInfoWithJSType(xVarName, pt.STRING_TYPE)
 }
 
 // Java: ParserTest.testInlineJSDocAttachmentToObjLitNormalProp()
 func TestInlineJSDocAttachmentToObjLitNormalProp(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	letNode := pt.parse("let x = { normalProp: /** string */ normalPropTarget };").GetFirstChild()
 	assertNode(t, letNode).HasType(rhino.Token_LET)
@@ -2251,7 +2085,6 @@ func TestInlineJSDocAttachmentToObjLitNormalProp(t *testing.T) {
 // Java: ParserTest.testInlineJSDocAttachmentToObjLitNormalPropKey()
 func TestInlineJSDocAttachmentToObjLitNormalPropKey(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	letNode := pt.parse("let x = { /** string */ normalProp: normalProp };").GetFirstChild()
 	assertNode(t, letNode).HasType(rhino.Token_LET)
@@ -2269,7 +2102,6 @@ func TestInlineJSDocAttachmentToObjLitNormalPropKey(t *testing.T) {
 // Java: ParserTest.testJSDocAttachmentToObjLitNormalPropKey()
 func TestJSDocAttachmentToObjLitNormalPropKey(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	letNode :=
 		pt.parse("let x = { /** @type {string} */ normalProp: normalProp };").GetFirstChild()
@@ -2280,13 +2112,12 @@ func TestJSDocAttachmentToObjLitNormalPropKey(t *testing.T) {
 
 	normalProp := objectLit.GetFirstChild()
 	assertNode(t, normalProp).HasType(rhino.Token_STRING_KEY)
-	pt.assertNodeHasJSDocInfoWithJSType(normalProp, jsType("STRING_TYPE"))
+	pt.assertNodeHasJSDocInfoWithJSType(normalProp, pt.STRING_TYPE)
 }
 
 // Java: ParserTest.testInlineJSDocAttachmentToObjLitShorthandProp()
 func TestInlineJSDocAttachmentToObjLitShorthandProp(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	letNode := pt.parse("let x = { /** string */ shorthandProp };").GetFirstChild()
 	assertNode(t, letNode).HasType(rhino.Token_LET)
@@ -2306,7 +2137,6 @@ func TestInlineJSDocAttachmentToObjLitShorthandProp(t *testing.T) {
 // Java: ParserTest.testJSDocAttachmentToObjLitShorthandProp()
 func TestJSDocAttachmentToObjLitShorthandProp(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	letNode := pt.parse("let x = { /** @type {string} */ shorthandProp };").GetFirstChild()
 	assertNode(t, letNode).HasType(rhino.Token_LET)
@@ -2316,7 +2146,7 @@ func TestJSDocAttachmentToObjLitShorthandProp(t *testing.T) {
 
 	shorthandPropKey := objectLit.GetFirstChild()
 	assertNode(t, shorthandPropKey).HasType(rhino.Token_STRING_KEY)
-	pt.assertNodeHasJSDocInfoWithJSType(shorthandPropKey, jsType("STRING_TYPE"))
+	pt.assertNodeHasJSDocInfoWithJSType(shorthandPropKey, pt.STRING_TYPE)
 	shorthandPropTarget := shorthandPropKey.GetOnlyChild()
 	pt.assertNodeHasNoJSDocInfo(shorthandPropTarget)
 }
@@ -2324,20 +2154,18 @@ func TestJSDocAttachmentToObjLitShorthandProp(t *testing.T) {
 // Java: ParserTest.testInlineJSDocAttachment1()
 func TestInlineJSDocAttachment1(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	fn := pt.parse("function f(/** string */ x) {}").GetFirstChild()
 	assertNode(t, fn).HasType(rhino.Token_FUNCTION)
 
 	info := fn.GetSecondChild().GetFirstChild().GetJSDocInfo()
 	assertThat(t, info).IsNotNull()
-	pt.assertTypeEquals(jsType("STRING_TYPE"), info.GetType())
+	pt.AssertTypeEqualsExpr(pt.STRING_TYPE, info.GetType())
 }
 
 // Java: ParserTest.testInline_BlockCommentAttachment()
 func TestInline_BlockCommentAttachment(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2350,7 +2178,6 @@ func TestInline_BlockCommentAttachment(t *testing.T) {
 // Java: ParserTest.testInline_LineCommentAttachment()
 func TestInline_LineCommentAttachment(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2363,7 +2190,6 @@ func TestInline_LineCommentAttachment(t *testing.T) {
 // Java: ParserTest.testInlineNonJSDocComments_TrailingAndNonTrailing_ParamList()
 func TestInlineNonJSDocComments_TrailingAndNonTrailing_ParamList(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2381,7 +2207,6 @@ func TestInlineNonJSDocComments_TrailingAndNonTrailing_ParamList(t *testing.T) {
 // Java: ParserTest.testInlineNonJSDocTrailingComments_ParamList()
 func TestInlineNonJSDocTrailingComments_ParamList(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2399,7 +2224,6 @@ func TestInlineNonJSDocTrailingComments_ParamList(t *testing.T) {
 // Java: ParserTest.testInlineNonJSDocTrailingComments_formalParamList_SingleParam()
 func TestInlineNonJSDocTrailingComments_formalParamList_SingleParam(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2415,7 +2239,6 @@ func TestInlineNonJSDocTrailingComments_formalParamList_SingleParam(t *testing.T
 // Java: ParserTest.testInlineNonJSDocTrailingComments_ParamList_MultiLine()
 func TestInlineNonJSDocTrailingComments_ParamList_MultiLine(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2441,7 +2264,6 @@ func TestInlineNonJSDocTrailingComments_ParamList_MultiLine(t *testing.T) {
 // Java: ParserTest.testInlineNonJSDocTrailingComments_ParamList_MultiLine_BlockComments()
 func TestInlineNonJSDocTrailingComments_ParamList_MultiLine_BlockComments(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2467,7 +2289,6 @@ func TestInlineNonJSDocTrailingComments_ParamList_MultiLine_BlockComments(t *tes
 // Java: ParserTest.testInlineNonJSDocTrailingComments_ParamList_MultiLine_SingleBlockComments()
 func TestInlineNonJSDocTrailingComments_ParamList_MultiLine_SingleBlockComments(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2492,7 +2313,6 @@ y
 // Java: ParserTest.testNonJSDocTrailingCommentOnConstant()
 func TestNonJSDocTrailingCommentOnConstant(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2505,7 +2325,6 @@ func TestNonJSDocTrailingCommentOnConstant(t *testing.T) {
 // Java: ParserTest.testNonJSDocTrailingCommentOnConstantNoWhitespace()
 func TestNonJSDocTrailingCommentOnConstantNoWhitespace(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2518,7 +2337,6 @@ func TestNonJSDocTrailingCommentOnConstantNoWhitespace(t *testing.T) {
 // Java: ParserTest.testNonJSDocTrailingCommentOnConstantWithMoreWhitespace()
 func TestNonJSDocTrailingCommentOnConstantWithMoreWhitespace(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2531,7 +2349,6 @@ func TestNonJSDocTrailingCommentOnConstantWithMoreWhitespace(t *testing.T) {
 // Java: ParserTest.testNonJSDocTrailingCommentOnConstantFollowedByConstant()
 func TestNonJSDocTrailingCommentOnConstantFollowedByConstant(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2550,7 +2367,6 @@ const B = 2;
 // Java: ParserTest.testMultipleNonJSDocTrailingComments()
 func TestMultipleNonJSDocTrailingComments(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2570,7 +2386,6 @@ const B = 2;
 // Java: ParserTest.testNonJSDocTrailingCommentAfterFunction()
 func TestNonJSDocTrailingCommentAfterFunction(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2583,7 +2398,6 @@ func TestNonJSDocTrailingCommentAfterFunction(t *testing.T) {
 // Java: ParserTest.testNonJSDocTrailingCommentAfterFunctionCall()
 func TestNonJSDocTrailingCommentAfterFunctionCall(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2601,7 +2415,6 @@ f();}
 // Java: ParserTest.testNonJSDocTrailingCommentAfterFunctionCallInBlock()
 func TestNonJSDocTrailingCommentAfterFunctionCallInBlock(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2625,7 +2438,6 @@ func TestNonJSDocTrailingCommentAfterFunctionCallInBlock(t *testing.T) {
 // Java: ParserTest.testLastNonJSDocCommentInBlock()
 func TestLastNonJSDocCommentInBlock(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2645,7 +2457,6 @@ func TestLastNonJSDocCommentInBlock(t *testing.T) {
 // Java: ParserTest.testLastNonJSDocCommentInBlockWithBlankLines()
 func TestLastNonJSDocCommentInBlockWithBlankLines(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2668,7 +2479,6 @@ func TestLastNonJSDocCommentInBlockWithBlankLines(t *testing.T) {
 // Java: ParserTest.testInlineCommentInFunctionCallInBlock()
 func TestInlineCommentInFunctionCallInBlock(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2687,7 +2497,6 @@ func TestInlineCommentInFunctionCallInBlock(t *testing.T) {
 // Java: ParserTest.testNonJSDocBigCommentInbetween()
 func TestNonJSDocBigCommentInbetween(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2711,7 +2520,6 @@ let y = 1;
 // Java: ParserTest.testInlineNonJSDocCommentsOnSeparateLetDeclarations()
 func TestInlineNonJSDocCommentsOnSeparateLetDeclarations(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2731,7 +2539,6 @@ func TestInlineNonJSDocCommentsOnSeparateLetDeclarations(t *testing.T) {
 // Java: ParserTest.testMultipleInline_LineCommentsAttachment()
 func TestMultipleInline_LineCommentsAttachment(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2756,7 +2563,6 @@ func TestMultipleInline_LineCommentsAttachment(t *testing.T) {
 // Java: ParserTest.testMultipleInline_MixedCommentsAttachment()
 func TestMultipleInline_MixedCommentsAttachment(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2781,7 +2587,6 @@ func TestMultipleInline_MixedCommentsAttachment(t *testing.T) {
 // Java: ParserTest.testMultipleInline_NonJSDocCommentsGetAttachedToSameNode()
 func TestMultipleInline_NonJSDocCommentsGetAttachedToSameNode(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2797,7 +2602,6 @@ func TestMultipleInline_NonJSDocCommentsGetAttachedToSameNode(t *testing.T) {
 // Java: ParserTest.testBoth_TrailingAndNonTrailing_NonJSDocCommentsGetAttachedToSameNode_MultiLine()
 func TestBoth_TrailingAndNonTrailing_NonJSDocCommentsGetAttachedToSameNode_MultiLine(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2819,7 +2623,6 @@ func TestBoth_TrailingAndNonTrailing_NonJSDocCommentsGetAttachedToSameNode_Multi
 // Java: ParserTest.testEndOfFileNonJSDocComments_lineComment()
 func TestEndOfFileNonJSDocComments_lineComment(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2842,7 +2645,6 @@ f1();
 // Java: ParserTest.testEndOfFileNonJSDocComments_blockComment()
 func TestEndOfFileNonJSDocComments_blockComment(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2865,7 +2667,6 @@ f1();
 // Java: ParserTest.testEndOfFileNonJSDocComments_manyComments()
 func TestEndOfFileNonJSDocComments_manyComments(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2893,7 +2694,6 @@ f1();
 // Java: ParserTest.testEndOfFileNonJSDocComments()
 func TestEndOfFileNonJSDocComments(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2922,7 +2722,6 @@ f1(); // second
 // Java: ParserTest.testBoth_TrailingAndNonTrailing_NonJSDocCommentsGetAttachedToSameNode_SingleLine()
 func TestBoth_TrailingAndNonTrailing_NonJSDocCommentsGetAttachedToSameNode_SingleLine(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2942,7 +2741,6 @@ func TestBoth_TrailingAndNonTrailing_NonJSDocCommentsGetAttachedToSameNode_Singl
 // Java: ParserTest.testBothJSDocAndNonJSDocCommentsGetAttached()
 func TestBothJSDocAndNonJSDocCommentsGetAttached(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2952,14 +2750,13 @@ func TestBothJSDocAndNonJSDocCommentsGetAttached(t *testing.T) {
 	xNode := fn.GetSecondChild().GetFirstChild()
 	info := xNode.GetJSDocInfo()
 	assertThat(t, info).IsNotNull()
-	pt.assertNodeHasJSDocInfoWithJSType(xNode, jsType("STRING_TYPE"))
+	pt.assertNodeHasJSDocInfoWithJSType(xNode, pt.STRING_TYPE)
 	assertThat(t, xNode.GetNonJSDocCommentString()).Contains("// nonJSDoc")
 }
 
 // Java: ParserTest.testBothNonJSDocAndJSDocCommentsGetAttached()
 func TestBothNonJSDocAndJSDocCommentsGetAttached(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2969,14 +2766,13 @@ func TestBothNonJSDocAndJSDocCommentsGetAttached(t *testing.T) {
 	xNode := fn.GetSecondChild().GetFirstChild()
 	info := xNode.GetJSDocInfo()
 	assertThat(t, info).IsNotNull()
-	pt.assertNodeHasJSDocInfoWithJSType(xNode, jsType("STRING_TYPE"))
+	pt.assertNodeHasJSDocInfoWithJSType(xNode, pt.STRING_TYPE)
 	assertThat(t, xNode.GetNonJSDocCommentString()).Contains("// nonJSDoc")
 }
 
 // Java: ParserTest.testInlineTrailingNonJSDocComments_FunctionArgsAndBody()
 func TestInlineTrailingNonJSDocComments_FunctionArgsAndBody(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -2993,7 +2789,6 @@ func TestInlineTrailingNonJSDocComments_FunctionArgsAndBody(t *testing.T) {
 // Java: ParserTest.testInlineNonJSDocComments_FunctionCall()
 func TestInlineNonJSDocComments_FunctionCall(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -3010,7 +2805,6 @@ func TestInlineNonJSDocComments_FunctionCall(t *testing.T) {
 // Java: ParserTest.testInlineTrailingNonJSDocComments_MultipleArgs()
 func TestInlineTrailingNonJSDocComments_MultipleArgs(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -3029,7 +2823,6 @@ func TestInlineTrailingNonJSDocComments_MultipleArgs(t *testing.T) {
 // Java: ParserTest.testInlineTrailingNonJSDocComments_SingleArgument()
 func TestInlineTrailingNonJSDocComments_SingleArgument(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -3046,20 +2839,18 @@ func TestInlineTrailingNonJSDocComments_SingleArgument(t *testing.T) {
 // Java: ParserTest.testInlineJSDocAttachment2()
 func TestInlineJSDocAttachment2(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	fn := pt.parse("function f(/** ? */ x) {}").GetFirstChild()
 	assertNode(t, fn).HasType(rhino.Token_FUNCTION)
 
 	info := fn.GetSecondChild().GetFirstChild().GetJSDocInfo()
 	assertThat(t, info).IsNotNull()
-	pt.assertTypeEquals(jsType("UNKNOWN_TYPE"), info.GetType())
+	pt.AssertTypeEqualsExpr(pt.UNKNOWN_TYPE, info.GetType())
 }
 
 // Java: ParserTest.testInlineJSDocAttachment3()
 func TestInlineJSDocAttachment3(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("function f(/** @type {string} */ x) {}")
 }
@@ -3067,7 +2858,6 @@ func TestInlineJSDocAttachment3(t *testing.T) {
 // Java: ParserTest.testInlineJSDocAttachment4()
 func TestInlineJSDocAttachment4(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse(
 		`function f(/**
@@ -3079,33 +2869,30 @@ func TestInlineJSDocAttachment4(t *testing.T) {
 // Java: ParserTest.testInlineJSDocAttachment5()
 func TestInlineJSDocAttachment5(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	vardecl := pt.parse("var /** string */ x = 'asdf';").GetFirstChild()
 	info := vardecl.GetFirstChild().GetJSDocInfo()
 	assertThat(t, info).IsNotNull()
 	assertThat(t, info.HasType()).IsTrue()
-	pt.assertTypeEquals(jsType("STRING_TYPE"), info.GetType())
+	pt.AssertTypeEqualsExpr(pt.STRING_TYPE, info.GetType())
 }
 
 // Java: ParserTest.testInlineJSDocAttachment6()
 func TestInlineJSDocAttachment6(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	fn := pt.parse("function f(/** {attr: number} */ x) {}").GetFirstChild()
 	assertNode(t, fn).HasType(rhino.Token_FUNCTION)
 
 	info := fn.GetSecondChild().GetFirstChild().GetJSDocInfo()
 	assertThat(t, info).IsNotNull()
-	pt.assertTypeEquals(
-		jsType(`createRecordTypeBuilder().addProperty("attr", NUMBER_TYPE, null).build()`), info.GetType())
+	pt.AssertTypeEqualsExpr(
+		pt.CreateRecordTypeBuilder().AddProperty("attr", pt.NUMBER_TYPE, nil).Build(), info.GetType())
 }
 
 // Java: ParserTest.testInlineJSDocWithOptionalType()
 func TestInlineJSDocWithOptionalType(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	fn := pt.parse("function f(/** string= */ x) {}").GetFirstChild()
 	assertNode(t, fn).HasType(rhino.Token_FUNCTION)
@@ -3117,7 +2904,6 @@ func TestInlineJSDocWithOptionalType(t *testing.T) {
 // Java: ParserTest.testInlineJSDocWithVarArgs()
 func TestInlineJSDocWithVarArgs(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	fn := pt.parse("function f(/** ...string */ x) {}").GetFirstChild()
 	assertNode(t, fn).HasType(rhino.Token_FUNCTION)
@@ -3129,59 +2915,54 @@ func TestInlineJSDocWithVarArgs(t *testing.T) {
 // Java: ParserTest.testInlineJSDocReturnType()
 func TestInlineJSDocReturnType(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	fn := pt.parse("function /** string */ f(x) {}").GetFirstChild()
 	assertNode(t, fn).HasType(rhino.Token_FUNCTION)
 
 	info := fn.GetFirstChild().GetJSDocInfo()
 	assertThat(t, info.HasType()).IsTrue()
-	pt.assertTypeEquals(jsType("STRING_TYPE"), info.GetType())
+	pt.AssertTypeEqualsExpr(pt.STRING_TYPE, info.GetType())
 }
 
 // Java: ParserTest.testInlineJSDocReturnType_generator1()
 func TestInlineJSDocReturnType_generator1(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	fn := pt.parse("function * /** string */ f(x) {}").GetFirstChild()
 	assertNode(t, fn).HasType(rhino.Token_FUNCTION)
 
 	info := fn.GetFirstChild().GetJSDocInfo()
 	assertThat(t, info.HasType()).IsTrue()
-	pt.assertTypeEquals(jsType("STRING_TYPE"), info.GetType())
+	pt.AssertTypeEqualsExpr(pt.STRING_TYPE, info.GetType())
 }
 
 // Java: ParserTest.testInlineJSDocReturnType_generator2()
 func TestInlineJSDocReturnType_generator2(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	fn := pt.parse("function /** string */ *f(x) {}").GetFirstChild()
 	assertNode(t, fn).HasType(rhino.Token_FUNCTION)
 
 	info := fn.GetFirstChild().GetJSDocInfo()
 	assertThat(t, info.HasType()).IsTrue()
-	pt.assertTypeEquals(jsType("STRING_TYPE"), info.GetType())
+	pt.AssertTypeEqualsExpr(pt.STRING_TYPE, info.GetType())
 }
 
 // Java: ParserTest.testInlineJSDocReturnType_async()
 func TestInlineJSDocReturnType_async(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	fn := pt.parse("async function /** string */ f(x) {}").GetFirstChild()
 	assertNode(t, fn).HasType(rhino.Token_FUNCTION)
 
 	info := fn.GetFirstChild().GetJSDocInfo()
 	assertThat(t, info.HasType()).IsTrue()
-	pt.assertTypeEquals(jsType("STRING_TYPE"), info.GetType())
+	pt.AssertTypeEqualsExpr(pt.STRING_TYPE, info.GetType())
 }
 
 // Java: ParserTest.testIncorrectJSDocDoesNotAlterJSParsing1()
 func TestIncorrectJSDocDoesNotAlterJSParsing1(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.assertNodeEquality(
 		pt.parse("var a = [1,2]"),
@@ -3191,7 +2972,6 @@ func TestIncorrectJSDocDoesNotAlterJSParsing1(t *testing.T) {
 // Java: ParserTest.testIncorrectJSDocDoesNotAlterJSParsing2()
 func TestIncorrectJSDocDoesNotAlterJSParsing2(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.assertNodeEquality(
 		pt.parse("var a = [1,2]"),
@@ -3201,7 +2981,6 @@ func TestIncorrectJSDocDoesNotAlterJSParsing2(t *testing.T) {
 // Java: ParserTest.testIncorrectJSDocDoesNotAlterJSParsing3()
 func TestIncorrectJSDocDoesNotAlterJSParsing3(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.assertNodeEquality(
 		pt.parse("C.prototype.say=function(nums) {alert(nums.join(','));};"),
@@ -3215,7 +2994,6 @@ C.prototype.say=function(nums) {alert(nums.join(','));};
 // Java: ParserTest.testIncorrectJSDocDoesNotAlterJSParsing4()
 func TestIncorrectJSDocDoesNotAlterJSParsing4(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.assertNodeEquality(
 		pt.parse("C.prototype.say=function(nums) {alert(nums.join(','));};"),
@@ -3228,7 +3006,6 @@ C.prototype.say=function(nums) {alert(nums.join(','));};
 // Java: ParserTest.testIncorrectJSDocDoesNotAlterJSParsing5()
 func TestIncorrectJSDocDoesNotAlterJSParsing5(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.assertNodeEquality(
 		pt.parse("C.prototype.say=function(nums) {alert(nums.join(','));};"),
@@ -3241,7 +3018,6 @@ C.prototype.say=function(nums) {alert(nums.join(','));};
 // Java: ParserTest.testIncorrectJSDocDoesNotAlterJSParsing6()
 func TestIncorrectJSDocDoesNotAlterJSParsing6(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.assertNodeEquality(
 		pt.parse("C.prototype.say=function(nums) {alert(nums.join(','));};"),
@@ -3257,7 +3033,6 @@ C.prototype.say=function(nums) {alert(nums.join(','));};
 // Java: ParserTest.testIncorrectJSDocDoesNotAlterJSParsing7()
 func TestIncorrectJSDocDoesNotAlterJSParsing7(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 
@@ -3273,7 +3048,6 @@ C.prototype.say=function(nums) {alert(nums.join(','));};
 // Java: ParserTest.testIncorrectJSDocDoesNotAlterJSParsing8()
 func TestIncorrectJSDocDoesNotAlterJSParsing8(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 
@@ -3289,7 +3063,6 @@ C.prototype.say=function(nums) {alert(nums.join(','));};
 // Java: ParserTest.testIncorrectJSDocDoesNotAlterJSParsing9()
 func TestIncorrectJSDocDoesNotAlterJSParsing9(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.assertNodeEquality(
 		pt.parse("C.prototype.say=function(nums) {alert(nums.join(','));};"),
@@ -3304,7 +3077,6 @@ C.prototype.say=function(nums) {alert(nums.join(','));};
 // Java: ParserTest.testMisplacedDescAnnotation_noWarning()
 func TestMisplacedDescAnnotation_noWarning(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("/** @desc Foo. */ var MSG_BAR = goog.getMsg('hello');")
 	pt.parse("/** @desc Foo. */ x.y.z.MSG_BAR = goog.getMsg('hello');")
@@ -3315,7 +3087,6 @@ func TestMisplacedDescAnnotation_noWarning(t *testing.T) {
 // Java: ParserTest.testUnescapedSlashInRegexpCharClass()
 func TestUnescapedSlashInRegexpCharClass(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("var foo = /[/]/;")
 	pt.parse("var foo = /[hi there/]/;")
@@ -3326,7 +3097,6 @@ func TestUnescapedSlashInRegexpCharClass(t *testing.T) {
 // Java: ParserTest.testMalformedRegexp()
 func TestMalformedRegexp(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	// Simple repro case
 	js := "var x = com\\"
@@ -3352,7 +3122,6 @@ func TestMalformedRegexp(t *testing.T) {
 // Java: ParserTest.testParse()
 func TestParse(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	a := rhino.Node_NewStringWithToken(rhino.Token_NAME, "a")
@@ -3370,7 +3139,6 @@ func TestParse(t *testing.T) {
 // Java: ParserTest.testPostfixExpression()
 func TestPostfixExpression(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("a++")
 	pt.parse("a.b--")
@@ -3390,7 +3158,6 @@ func TestPostfixExpression(t *testing.T) {
 // Java: ParserTest.testUnaryExpression()
 func TestUnaryExpression(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.parse("delete a.b")
@@ -3419,7 +3186,6 @@ func TestUnaryExpression(t *testing.T) {
 // Java: ParserTest.testUnaryExpressionWithBigInt()
 func TestUnaryExpressionWithBigInt(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("+1n", "Cannot convert a BigInt value to a number")
 	pt.parseError("delete 6n", "Invalid delete operand. Only properties can be deleted.")
@@ -3428,7 +3194,6 @@ func TestUnaryExpressionWithBigInt(t *testing.T) {
 // Java: ParserTest.testAutomaticSemicolonInsertion()
 func TestAutomaticSemicolonInsertion(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	// var statements
 	pt.assertNodeEquality(pt.parse("var x = 1\nvar y = 2"), pt.parse("var x = 1; var y = 2;"))
@@ -3451,7 +3216,6 @@ func TestAutomaticSemicolonInsertion(t *testing.T) {
 // Java: ParserTest.testAutomaticSemicolonInsertion_curly()
 func TestAutomaticSemicolonInsertion_curly(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.assertNodeEquality(
 		pt.parse("while (true) { 1 }"), //
@@ -3461,7 +3225,6 @@ func TestAutomaticSemicolonInsertion_curly(t *testing.T) {
 // Java: ParserTest.testAutomaticSemicolonInsertion_doWhile()
 func TestAutomaticSemicolonInsertion_doWhile(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.assertNodeEquality(
 		pt.parse("do {} while (true) 1;"), //
@@ -3471,7 +3234,6 @@ func TestAutomaticSemicolonInsertion_doWhile(t *testing.T) {
 // Java: ParserTest.testAutomaticSemicolonInsertion_examplesFromSpec()
 func TestAutomaticSemicolonInsertion_examplesFromSpec(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("{ 1 2 } 3", parserTest_SEMICOLON_EXPECTED)
 
@@ -3492,7 +3254,6 @@ func TestAutomaticSemicolonInsertion_examplesFromSpec(t *testing.T) {
 // Java: ParserTest.testAutomaticSemicolonInsertion_restrictedRules()
 func TestAutomaticSemicolonInsertion_restrictedRules(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("x\n++;", "primary expression expected")
 	pt.assertNodeEquality(
@@ -3512,7 +3273,6 @@ func TestAutomaticSemicolonInsertion_restrictedRules(t *testing.T) {
 // Java: ParserTest.testMethodInObjectLiteral()
 func TestMethodInObjectLiteral(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_MEMBER_DECLARATIONS)
 	pt.testMethodInObjectLiteral("var a = {b() {}};")
@@ -3527,7 +3287,6 @@ func TestMethodInObjectLiteral(t *testing.T) {
 // Java: ParserTest.testBigIntAsObjectLiteralPropertyName()
 func TestBigIntAsObjectLiteralPropertyName(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	objectLit :=
 		pt.parse("({1n() {}, 1n: 0})"). // SCRIPT
@@ -3545,7 +3304,6 @@ func TestBigIntAsObjectLiteralPropertyName(t *testing.T) {
 // Java: ParserTest.testShorthandObjectProperty()
 func TestShorthandObjectProperty(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_SHORTHAND_OBJECT_PROPERTIES)
 	pt.testShorthandObjectProperty("var a = {b};")
@@ -3566,7 +3324,6 @@ func TestShorthandObjectProperty(t *testing.T) {
 // Java: ParserTest.testComputedPropertiesObjLit()
 func TestComputedPropertiesObjLit(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_COMPUTED_PROPERTIES)
 
@@ -3599,7 +3356,6 @@ func TestComputedPropertiesObjLit(t *testing.T) {
 // Java: ParserTest.testComputedMethodClass()
 func TestComputedMethodClass(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.expectFeatures(parser.FeatureSet_Feature_CLASSES, parser.FeatureSet_Feature_COMPUTED_PROPERTIES)
@@ -3625,7 +3381,6 @@ func TestComputedMethodClass(t *testing.T) {
 // Java: ParserTest.testBigIntComputedMethodClass()
 func TestBigIntComputedMethodClass(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_CLASSES, parser.FeatureSet_Feature_COMPUTED_PROPERTIES)
 	var classMembers *rhino.Node
@@ -3678,7 +3433,6 @@ func TestBigIntComputedMethodClass(t *testing.T) {
 // Java: ParserTest.testComputedProperty()
 func TestComputedProperty(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_COMPUTED_PROPERTIES)
 
@@ -3729,7 +3483,6 @@ var x = {
 // Java: ParserTest.testTrailingCommaWarning1()
 func TestTrailingCommaWarning1(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("var a = ['foo', 'bar'];")
 }
@@ -3737,7 +3490,6 @@ func TestTrailingCommaWarning1(t *testing.T) {
 // Java: ParserTest.testTrailingCommaWarning2()
 func TestTrailingCommaWarning2(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("var a = ['foo',,'bar'];")
 }
@@ -3745,7 +3497,6 @@ func TestTrailingCommaWarning2(t *testing.T) {
 // Java: ParserTest.testTrailingCommaWarning3()
 func TestTrailingCommaWarning3(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT3
 	pt.expectFeatures(parser.FeatureSet_Feature_TRAILING_COMMA)
@@ -3758,7 +3509,6 @@ func TestTrailingCommaWarning3(t *testing.T) {
 // Java: ParserTest.testTrailingCommaWarning4()
 func TestTrailingCommaWarning4(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT3
 	pt.expectFeatures(parser.FeatureSet_Feature_TRAILING_COMMA)
@@ -3771,7 +3521,6 @@ func TestTrailingCommaWarning4(t *testing.T) {
 // Java: ParserTest.testTrailingCommaWarning5()
 func TestTrailingCommaWarning5(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("var a = {'foo': 'bar'};")
 }
@@ -3779,7 +3528,6 @@ func TestTrailingCommaWarning5(t *testing.T) {
 // Java: ParserTest.testTrailingCommaWarning6()
 func TestTrailingCommaWarning6(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT3
 	pt.expectFeatures(parser.FeatureSet_Feature_TRAILING_COMMA)
@@ -3792,7 +3540,6 @@ func TestTrailingCommaWarning6(t *testing.T) {
 // Java: ParserTest.testTrailingCommaWarning7()
 func TestTrailingCommaWarning7(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("var a = {,};", "'}' expected")
 }
@@ -3800,7 +3547,6 @@ func TestTrailingCommaWarning7(t *testing.T) {
 // Java: ParserTest.testCatchClauseForbidden()
 func TestCatchClauseForbidden(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("try { } catch (e if true) {}", "')' expected")
 }
@@ -3808,7 +3554,6 @@ func TestCatchClauseForbidden(t *testing.T) {
 // Java: ParserTest.testConstForbidden()
 func TestConstForbidden(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT5
 	pt.expectFeatures(parser.FeatureSet_Feature_CONST_DECLARATIONS)
@@ -3818,7 +3563,6 @@ func TestConstForbidden(t *testing.T) {
 // Java: ParserTest.testAnonymousFunctionExpression()
 func TestAnonymousFunctionExpression(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT5
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -3834,7 +3578,6 @@ func TestAnonymousFunctionExpression(t *testing.T) {
 // Java: ParserTest.testAnonymousFunctionExpressionInClosureUnawareCode()
 func TestAnonymousFunctionExpressionInClosureUnawareCode(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT_2015
 	pt.parseError(
@@ -3845,7 +3588,6 @@ func TestAnonymousFunctionExpressionInClosureUnawareCode(t *testing.T) {
 // Java: ParserTest.testArrayDestructuringVar()
 func TestArrayDestructuringVar(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT5
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -3859,7 +3601,6 @@ func TestArrayDestructuringVar(t *testing.T) {
 // Java: ParserTest.testLHSOfNonVanillaEqualsOperator()
 func TestLHSOfNonVanillaEqualsOperator(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.mode = Config_LanguageMode_ECMASCRIPT_2015
@@ -3881,7 +3622,6 @@ func TestLHSOfNonVanillaEqualsOperator(t *testing.T) {
 // Java: ParserTest.testArrayDestructuringVarInvalid()
 func TestArrayDestructuringVarInvalid(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	// arbitrary LHS assignment target not allowed
 	pt.parseError(
@@ -3891,7 +3631,6 @@ func TestArrayDestructuringVarInvalid(t *testing.T) {
 // Java: ParserTest.testArrayDestructuringAssign()
 func TestArrayDestructuringAssign(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT5
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -3907,7 +3646,6 @@ func TestArrayDestructuringAssign(t *testing.T) {
 // Java: ParserTest.testArrayDestructuringInitializer()
 func TestArrayDestructuringInitializer(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.expectFeatures(parser.FeatureSet_Feature_ARRAY_DESTRUCTURING)
@@ -3925,7 +3663,6 @@ func TestArrayDestructuringInitializer(t *testing.T) {
 // Java: ParserTest.testArrayDestructuringInitializerInvalid()
 func TestArrayDestructuringInitializerInvalid(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError(
 		"var [[a.x] = ['b']] = [];",
@@ -3935,7 +3672,6 @@ func TestArrayDestructuringInitializerInvalid(t *testing.T) {
 // Java: ParserTest.testArrayDestructuringDeclarationRest()
 func TestArrayDestructuringDeclarationRest(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 
@@ -3963,7 +3699,6 @@ func TestArrayDestructuringDeclarationRest(t *testing.T) {
 // Java: ParserTest.testObjectDestructuringDeclarationRest()
 func TestObjectDestructuringDeclarationRest(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 
@@ -3986,7 +3721,6 @@ func TestObjectDestructuringDeclarationRest(t *testing.T) {
 // Java: ParserTest.testArrayLiteralDeclarationSpread()
 func TestArrayLiteralDeclarationSpread(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 
@@ -4001,7 +3735,6 @@ func TestArrayLiteralDeclarationSpread(t *testing.T) {
 // Java: ParserTest.testObjectLiteralDeclarationSpread()
 func TestObjectLiteralDeclarationSpread(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 
@@ -4022,7 +3755,6 @@ func TestObjectLiteralDeclarationSpread(t *testing.T) {
 // Java: ParserTest.testArrayDestructuringAssignRest()
 func TestArrayDestructuringAssignRest(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.expectFeatures(parser.FeatureSet_Feature_ARRAY_DESTRUCTURING, parser.FeatureSet_Feature_ARRAY_PATTERN_REST)
@@ -4042,7 +3774,6 @@ func TestArrayDestructuringAssignRest(t *testing.T) {
 // Java: ParserTest.testObjectDestructuringAssignRest()
 func TestObjectDestructuringAssignRest(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.expectFeatures(parser.FeatureSet_Feature_OBJECT_DESTRUCTURING, parser.FeatureSet_Feature_OBJECT_PATTERN_REST)
@@ -4056,7 +3787,6 @@ func TestObjectDestructuringAssignRest(t *testing.T) {
 // Java: ParserTest.testArrayDestructuringAssignRestInvalid()
 func TestArrayDestructuringAssignRestInvalid(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	// arbitrary LHS assignment target not allowed
 	pt.parseError(
@@ -4071,7 +3801,6 @@ func TestArrayDestructuringAssignRestInvalid(t *testing.T) {
 // Java: ParserTest.testArrayDestructuringFnDeclaration()
 func TestArrayDestructuringFnDeclaration(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.expectFeatures(parser.FeatureSet_Feature_ARRAY_DESTRUCTURING)
@@ -4085,7 +3814,6 @@ func TestArrayDestructuringFnDeclaration(t *testing.T) {
 // Java: ParserTest.testArrayDestructuringFnDeclarationInvalid()
 func TestArrayDestructuringFnDeclarationInvalid(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	// arbitrary LHS expression not allowed as a formal parameter
 	pt.parseError(
@@ -4102,7 +3830,6 @@ func TestArrayDestructuringFnDeclarationInvalid(t *testing.T) {
 // Java: ParserTest.testObjectDestructuringVar()
 func TestObjectDestructuringVar(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.expectFeatures(parser.FeatureSet_Feature_OBJECT_DESTRUCTURING)
@@ -4118,7 +3845,6 @@ func TestObjectDestructuringVar(t *testing.T) {
 // Java: ParserTest.testObjectDestructuringVarInvalid()
 func TestObjectDestructuringVarInvalid(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	// Arbitrary LHS target not allowed in declaration
 	pt.parseError("var {x.a, y} = foo();", "'}' expected")
@@ -4129,7 +3855,6 @@ func TestObjectDestructuringVarInvalid(t *testing.T) {
 // Java: ParserTest.testObjectDestructuringVarWithInitializer()
 func TestObjectDestructuringVarWithInitializer(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.expectFeatures(parser.FeatureSet_Feature_OBJECT_DESTRUCTURING, parser.FeatureSet_Feature_DEFAULT_PARAMETERS)
@@ -4143,7 +3868,6 @@ func TestObjectDestructuringVarWithInitializer(t *testing.T) {
 // Java: ParserTest.testObjectDestructuringAssign()
 func TestObjectDestructuringAssign(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.parseError("({x, y}) = foo();", "invalid assignment target")
@@ -4160,7 +3884,6 @@ func TestObjectDestructuringAssign(t *testing.T) {
 // Java: ParserTest.testObjectDestructuringAssignWithInitializer()
 func TestObjectDestructuringAssignWithInitializer(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.parseError("({x = 1}) = foo();", "invalid assignment target")
@@ -4175,7 +3898,6 @@ func TestObjectDestructuringAssignWithInitializer(t *testing.T) {
 // Java: ParserTest.testObjectDestructuringWithInitializerInvalid()
 func TestObjectDestructuringWithInitializerInvalid(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("var {{x}} = foo();", "'}' expected")
 	pt.parseError("({{x}}) = foo();", "'}' expected")
@@ -4186,7 +3908,6 @@ func TestObjectDestructuringWithInitializerInvalid(t *testing.T) {
 // Java: ParserTest.testObjectDestructuringFnDeclaration()
 func TestObjectDestructuringFnDeclaration(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.expectFeatures(parser.FeatureSet_Feature_OBJECT_DESTRUCTURING)
@@ -4199,7 +3920,6 @@ func TestObjectDestructuringFnDeclaration(t *testing.T) {
 // Java: ParserTest.testObjectDestructuringFnDeclarationInvalid()
 func TestObjectDestructuringFnDeclarationInvalid(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	// arbitrary LHS expression not allowed as a formal parameter
 	pt.parseError("function f({a[0], x}) {}", "'}' expected")
@@ -4218,7 +3938,6 @@ func TestObjectDestructuringFnDeclarationInvalid(t *testing.T) {
 // Java: ParserTest.testObjectDestructuringComputedProp()
 func TestObjectDestructuringComputedProp(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 
@@ -4232,7 +3951,6 @@ func TestObjectDestructuringComputedProp(t *testing.T) {
 // Java: ParserTest.testObjectDestructuringStringAndNumberKeys()
 func TestObjectDestructuringStringAndNumberKeys(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 
@@ -4249,7 +3967,6 @@ func TestObjectDestructuringStringAndNumberKeys(t *testing.T) {
 // Java: ParserTest.testObjectNumberKeysSpecial()
 func TestObjectNumberKeysSpecial(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse("var a = {12345678901234567890: 2}")
 
@@ -4264,7 +3981,6 @@ func TestObjectNumberKeysSpecial(t *testing.T) {
 // Java: ParserTest.testObjectDestructuringKeywordKeys()
 func TestObjectDestructuringKeywordKeys(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.expectFeatures(parser.FeatureSet_Feature_OBJECT_DESTRUCTURING)
@@ -4279,7 +3995,6 @@ func TestObjectDestructuringKeywordKeys(t *testing.T) {
 // Java: ParserTest.testObjectDestructuringKeywordKeysInvalid()
 func TestObjectDestructuringKeywordKeysInvalid(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("var {while} = foo();", "cannot use keyword 'while' here.")
 	pt.parseError("var {implements} = foo();", "cannot use keyword 'implements' here.")
@@ -4288,7 +4003,6 @@ func TestObjectDestructuringKeywordKeysInvalid(t *testing.T) {
 // Java: ParserTest.testObjectDestructuringComplexTarget()
 func TestObjectDestructuringComplexTarget(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.parseError(
@@ -4310,7 +4024,6 @@ func TestObjectDestructuringComplexTarget(t *testing.T) {
 // Java: ParserTest.testObjectDestructuringExtraParens()
 func TestObjectDestructuringExtraParens(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.expectFeatures(parser.FeatureSet_Feature_OBJECT_DESTRUCTURING)
@@ -4327,7 +4040,6 @@ func TestObjectDestructuringExtraParens(t *testing.T) {
 // Java: ParserTest.testObjectDestructuringExtraParensInvalid()
 func TestObjectDestructuringExtraParensInvalid(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("[x, ([y])] = z;", parserTest_INVALID_ASSIGNMENT_TARGET)
 	pt.parseError("[x, (([y]))] = z;", parserTest_INVALID_ASSIGNMENT_TARGET)
@@ -4336,7 +4048,6 @@ func TestObjectDestructuringExtraParensInvalid(t *testing.T) {
 // Java: ParserTest.testObjectLiteralCannotUseDestructuring()
 func TestObjectLiteralCannotUseDestructuring(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.parseError("var o = {x = 5}", "Default value cannot appear at top level of an object literal.")
@@ -4345,7 +4056,6 @@ func TestObjectLiteralCannotUseDestructuring(t *testing.T) {
 // Java: ParserTest.testMixedDestructuring()
 func TestMixedDestructuring(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.expectFeatures(parser.FeatureSet_Feature_ARRAY_DESTRUCTURING, parser.FeatureSet_Feature_OBJECT_DESTRUCTURING)
@@ -4362,7 +4072,6 @@ func TestMixedDestructuring(t *testing.T) {
 // Java: ParserTest.testMixedDestructuringWithInitializer()
 func TestMixedDestructuringWithInitializer(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.expectFeatures(parser.FeatureSet_Feature_ARRAY_DESTRUCTURING, parser.FeatureSet_Feature_OBJECT_DESTRUCTURING)
@@ -4379,7 +4088,6 @@ func TestMixedDestructuringWithInitializer(t *testing.T) {
 // Java: ParserTest.testDestructuringNoRHS()
 func TestDestructuringNoRHS(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 
@@ -4397,7 +4105,6 @@ func TestDestructuringNoRHS(t *testing.T) {
 // Java: ParserTest.testComprehensions()
 func TestComprehensions(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	error := "unsupported language feature:" + " array/generator comprehensions"
@@ -4418,7 +4125,6 @@ func TestComprehensions(t *testing.T) {
 // Java: ParserTest.testLetForbidden1()
 func TestLetForbidden1(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT5
 	pt.expectFeatures(parser.FeatureSet_Feature_LET_DECLARATIONS)
@@ -4428,7 +4134,6 @@ func TestLetForbidden1(t *testing.T) {
 // Java: ParserTest.testLetForbidden2()
 func TestLetForbidden2(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT5
 	pt.expectFeatures(parser.FeatureSet_Feature_LET_DECLARATIONS)
@@ -4439,7 +4144,6 @@ func TestLetForbidden2(t *testing.T) {
 // Java: ParserTest.testBlockScopedFunctionDeclaration()
 func TestBlockScopedFunctionDeclaration(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_BLOCK_SCOPED_FUNCTION_DECLARATION)
 	pt.parse("{ function foo() {} }")
@@ -4469,7 +4173,6 @@ func TestBlockScopedFunctionDeclaration(t *testing.T) {
 // Java: ParserTest.testLetForbidden3()
 func TestLetForbidden3(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT5
 	pt.parseError("function f() { var let = 3; }", "'identifier' expected")
@@ -4481,7 +4184,6 @@ func TestLetForbidden3(t *testing.T) {
 // Java: ParserTest.testYieldForbidden()
 func TestYieldForbidden(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("function f() { yield 3; }", "primary expression expected")
 	pt.parseError("function f(x = yield 3) { return x }", "primary expression expected")
@@ -4495,7 +4197,6 @@ func TestYieldForbidden(t *testing.T) {
 // Java: ParserTest.testGenerator()
 func TestGenerator(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_GENERATORS)
 	pt.parse("var obj = { *f() { yield 3; } };")
@@ -4513,7 +4214,6 @@ func TestGenerator(t *testing.T) {
 // Java: ParserTest.testBracelessFunctionForbidden()
 func TestBracelessFunctionForbidden(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("var sq = function(x) x * x;", "'{' expected")
 }
@@ -4521,7 +4221,6 @@ func TestBracelessFunctionForbidden(t *testing.T) {
 // Java: ParserTest.testGeneratorsForbidden()
 func TestGeneratorsForbidden(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("var i = (x for (x in obj));", "')' expected")
 }
@@ -4529,7 +4228,6 @@ func TestGeneratorsForbidden(t *testing.T) {
 // Java: ParserTest.testGettersForbidden1()
 func TestGettersForbidden1(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT3
 	pt.expectFeatures(parser.FeatureSet_Feature_GETTER)
@@ -4539,7 +4237,6 @@ func TestGettersForbidden1(t *testing.T) {
 // Java: ParserTest.testGettersForbidden2()
 func TestGettersForbidden2(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT3
 	pt.parseError("var x = {get foo bar() { return 3; }};", "'(' expected")
@@ -4548,7 +4245,6 @@ func TestGettersForbidden2(t *testing.T) {
 // Java: ParserTest.testGettersForbidden3()
 func TestGettersForbidden3(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT3
 	pt.parseError("var x = {a getter:function b() { return 3; }};", "'}' expected")
@@ -4557,7 +4253,6 @@ func TestGettersForbidden3(t *testing.T) {
 // Java: ParserTest.testGettersForbidden4()
 func TestGettersForbidden4(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT3
 	pt.parseError("var x = {\"a\" getter:function b() { return 3; }};", "':' expected")
@@ -4566,7 +4261,6 @@ func TestGettersForbidden4(t *testing.T) {
 // Java: ParserTest.testGettersForbidden5()
 func TestGettersForbidden5(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT3
 	pt.expectFeatures(parser.FeatureSet_Feature_GETTER)
@@ -4576,7 +4270,6 @@ func TestGettersForbidden5(t *testing.T) {
 // Java: ParserTest.testGettersForbidden6()
 func TestGettersForbidden6(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT3
 	pt.expectFeatures(parser.FeatureSet_Feature_GETTER)
@@ -4586,7 +4279,6 @@ func TestGettersForbidden6(t *testing.T) {
 // Java: ParserTest.testSettersForbidden()
 func TestSettersForbidden(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT3
 	pt.expectFeatures(parser.FeatureSet_Feature_SETTER)
@@ -4596,7 +4288,6 @@ func TestSettersForbidden(t *testing.T) {
 // Java: ParserTest.testSettersForbidden2()
 func TestSettersForbidden2(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT3
 	// TODO(johnlenz): maybe just report the first error, when not in IDE mode?
@@ -4606,7 +4297,6 @@ func TestSettersForbidden2(t *testing.T) {
 // Java: ParserTest.testFileOverviewJSDoc1()
 func TestFileOverviewJSDoc1(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 
@@ -4620,7 +4310,6 @@ func TestFileOverviewJSDoc1(t *testing.T) {
 // Java: ParserTest.testFileOverviewJSDoc_notOnTopOfFile()
 func TestFileOverviewJSDoc_notOnTopOfFile(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 
@@ -4641,7 +4330,6 @@ func TestFileOverviewJSDoc_notOnTopOfFile(t *testing.T) {
 // Java: ParserTest.testFileOverviewJSDocDoesNotHoseParsing()
 func TestFileOverviewJSDocDoesNotHoseParsing(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	assertNode(t, pt.parse("/** @fileoverview Hi mom! \n */ function Foo() {}").GetFirstChild()).
 		HasType(rhino.Token_FUNCTION)
@@ -4656,7 +4344,6 @@ func TestFileOverviewJSDocDoesNotHoseParsing(t *testing.T) {
 // Java: ParserTest.testFileOverviewJSDoc2()
 func TestFileOverviewJSDoc2(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 
@@ -4675,7 +4362,6 @@ func TestFileOverviewJSDoc2(t *testing.T) {
 // Java: ParserTest.testFileoverview_firstOneWins()
 func TestFileoverview_firstOneWins(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 
@@ -4692,7 +4378,6 @@ func TestFileoverview_firstOneWins(t *testing.T) {
 // Java: ParserTest.testFileoverview_firstOneWins_implicitFileoverview()
 func TestFileoverview_firstOneWins_implicitFileoverview(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 
@@ -4710,7 +4395,6 @@ func TestFileoverview_firstOneWins_implicitFileoverview(t *testing.T) {
 // Java: ParserTest.testFileoverview_firstOneWins_suppressionsAccumulate()
 func TestFileoverview_firstOneWins_suppressionsAccumulate(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 
@@ -4727,7 +4411,6 @@ func TestFileoverview_firstOneWins_suppressionsAccumulate(t *testing.T) {
 // Java: ParserTest.testFileoverview_firstOneWins_externsAccumulate()
 func TestFileoverview_firstOneWins_externsAccumulate(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 
@@ -4745,7 +4428,6 @@ func TestFileoverview_firstOneWins_externsAccumulate(t *testing.T) {
 // Java: ParserTest.testImportantComment()
 func TestImportantComment(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 
@@ -4759,7 +4441,6 @@ func TestImportantComment(t *testing.T) {
 // Java: ParserTest.testBlockCommentParsed()
 func TestBlockCommentParsed(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -4772,7 +4453,6 @@ func TestBlockCommentParsed(t *testing.T) {
 // Java: ParserTest.testBlockCommentNotParsedWithoutParsingMode()
 func TestBlockCommentNotParsedWithoutParsingMode(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse("/* Hi mom! */ \n function Foo() {}")
 	assertNode(t, n.GetFirstChild()).HasType(rhino.Token_FUNCTION)
@@ -4782,7 +4462,6 @@ func TestBlockCommentNotParsedWithoutParsingMode(t *testing.T) {
 // Java: ParserTest.testLineCommentParsed()
 func TestLineCommentParsed(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -4794,7 +4473,6 @@ func TestLineCommentParsed(t *testing.T) {
 // Java: ParserTest.testManyIndividualCommentsGetAttached()
 func TestManyIndividualCommentsGetAttached(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -4808,7 +4486,6 @@ func TestManyIndividualCommentsGetAttached(t *testing.T) {
 // Java: ParserTest.testIndividualCommentsAroundClasses()
 func TestIndividualCommentsAroundClasses(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -4825,7 +4502,6 @@ func TestIndividualCommentsAroundClasses(t *testing.T) {
 // Java: ParserTest.testMultipleLinedCommentsAttachedToSameNode()
 func TestMultipleLinedCommentsAttachedToSameNode(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -4837,7 +4513,6 @@ func TestMultipleLinedCommentsAttachedToSameNode(t *testing.T) {
 // Java: ParserTest.testEmptyLinesBetweenCommentsIsPreserved()
 func TestEmptyLinesBetweenCommentsIsPreserved(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -4853,7 +4528,6 @@ func TestEmptyLinesBetweenCommentsIsPreserved(t *testing.T) {
 // Java: ParserTest.testObjectLiteralDoc1()
 func TestObjectLiteralDoc1(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse("var x = {/** @type {number} */ 1: 2};")
 
@@ -4868,7 +4542,6 @@ func TestObjectLiteralDoc1(t *testing.T) {
 // Java: ParserTest.testDuplicatedParam()
 func TestDuplicatedParam(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseWarning("function foo(x, x) {}", "Duplicate parameter name \"x\"")
 	pt.parseWarning("function foo(x, n, x) {}", "Duplicate parameter name \"x\"")
@@ -4891,7 +4564,6 @@ func TestDuplicatedParam(t *testing.T) {
 // Java: ParserTest.testLetAsIdentifier()
 func TestLetAsIdentifier(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT3
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -4916,7 +4588,6 @@ func TestLetAsIdentifier(t *testing.T) {
 // Java: ParserTest.testLet()
 func TestLet(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.expectFeatures(parser.FeatureSet_Feature_LET_DECLARATIONS)
@@ -4930,7 +4601,6 @@ func TestLet(t *testing.T) {
 // Java: ParserTest.testConst()
 func TestConst(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 
@@ -4946,7 +4616,6 @@ func TestConst(t *testing.T) {
 // Java: ParserTest.testYield1()
 func TestYield1(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT3
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -4971,7 +4640,6 @@ func TestYield1(t *testing.T) {
 // Java: ParserTest.testYield2()
 func TestYield2(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_GENERATORS)
 	pt.parse("function * f() { yield; }")
@@ -5011,7 +4679,6 @@ func TestYield2(t *testing.T) {
 // Java: ParserTest.testYield3()
 func TestYield3(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_GENERATORS)
 	// TODO(johnlenz): validate "yield" parsing. Firefox rejects this
@@ -5022,7 +4689,6 @@ func TestYield3(t *testing.T) {
 // Java: ParserTest.testStringLineContinuationWarningsByMode()
 func TestStringLineContinuationWarningsByMode(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_STRING_CONTINUATION)
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -5043,7 +4709,6 @@ func TestStringLineContinuationWarningsByMode(t *testing.T) {
 // Java: ParserTest.testStringLineContinuationNormalization()
 func TestStringLineContinuationNormalization(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_STRING_CONTINUATION)
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -5067,7 +4732,6 @@ func TestStringLineContinuationNormalization(t *testing.T) {
 // Java: ParserTest.testStringContinuationIssue3492()
 func TestStringContinuationIssue3492(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_STRING_CONTINUATION)
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -5101,7 +4765,6 @@ func TestStringContinuationIssue3492(t *testing.T) {
 // Java: ParserTest.testStringLiteral()
 func TestStringLiteral(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse("'foo'")
 	stringNode := n.GetFirstFirstChild()
@@ -5112,7 +4775,6 @@ func TestStringLiteral(t *testing.T) {
 // Java: ParserTest.testUseTemplateLiteral()
 func TestUseTemplateLiteral(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_TEMPLATE_LITERALS)
 	pt.testTemplateLiteral("f`hello world`;")
@@ -5122,7 +4784,6 @@ func TestUseTemplateLiteral(t *testing.T) {
 // Java: ParserTest.testTemplateLiterals()
 func TestTemplateLiterals(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_TEMPLATE_LITERALS)
 	pt.testTemplateLiteral("``")
@@ -5138,7 +4799,6 @@ func TestTemplateLiterals(t *testing.T) {
 // Java: ParserTest.testEscapedTemplateLiteral()
 func TestEscapedTemplateLiteral(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_TEMPLATE_LITERALS)
 	pt.assertSimpleTemplateLiteral("${escaped}", "`\\${escaped}`")
@@ -5147,7 +4807,6 @@ func TestEscapedTemplateLiteral(t *testing.T) {
 // Java: ParserTest.testTemplateLiteralWithNulChar()
 func TestTemplateLiteralWithNulChar(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_TEMPLATE_LITERALS)
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -5157,7 +4816,6 @@ func TestTemplateLiteralWithNulChar(t *testing.T) {
 // Java: ParserTest.testTemplateLiteralWithNewline()
 func TestTemplateLiteralWithNewline(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_TEMPLATE_LITERALS)
 	pt.assertSimpleTemplateLiteral("hello\nworld", "`hello\nworld`")
@@ -5172,7 +4830,6 @@ func TestTemplateLiteralWithNewline(t *testing.T) {
 // Java: ParserTest.testTemplateLiteralWithLineContinuation()
 func TestTemplateLiteralWithLineContinuation(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.expectFeatures(parser.FeatureSet_Feature_TEMPLATE_LITERALS)
@@ -5186,7 +4843,6 @@ func TestTemplateLiteralWithLineContinuation(t *testing.T) {
 // Java: ParserTest.testTemplateLiteralSubstitution()
 func TestTemplateLiteralSubstitution(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.expectFeatures(parser.FeatureSet_Feature_TEMPLATE_LITERALS)
@@ -5202,7 +4858,6 @@ func TestTemplateLiteralSubstitution(t *testing.T) {
 // Java: ParserTest.testUnterminatedTemplateLiteral()
 func TestUnterminatedTemplateLiteral(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.parseError("`hello", "Unterminated template literal")
@@ -5212,7 +4867,6 @@ func TestUnterminatedTemplateLiteral(t *testing.T) {
 // Java: ParserTest.testTemplateLiteralOctalEscapes()
 func TestTemplateLiteralOctalEscapes(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.assertSimpleTemplateLiteral("\u0000", "`\\0`")
 	pt.assertSimpleTemplateLiteral("aaa\u0000aaa", "`aaa\\0aaa`")
@@ -5221,7 +4875,6 @@ func TestTemplateLiteralOctalEscapes(t *testing.T) {
 // Java: ParserTest.testIncorrectEscapeSequenceInTemplateLiteral()
 func TestIncorrectEscapeSequenceInTemplateLiteral(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("`hello\\x`", "Hex digit expected")
 
@@ -5253,7 +4906,6 @@ func TestIncorrectEscapeSequenceInTemplateLiteral(t *testing.T) {
 // Java: ParserTest.testTemplateLiteralSubstitutionWithCast()
 func TestTemplateLiteralSubstitutionWithCast(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	root := pt.parse("`${ /** @type {?} */ (3)}`")
 	exprResult := root.GetFirstChild()
@@ -5273,7 +4925,6 @@ func TestTemplateLiteralSubstitutionWithCast(t *testing.T) {
 // Java: ParserTest.testExponentialLiterals()
 func TestExponentialLiterals(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("0e0")
 	pt.parse("0E0")
@@ -5292,7 +4943,6 @@ func TestExponentialLiterals(t *testing.T) {
 // Java: ParserTest.testBigIntLiteralZero()
 func TestBigIntLiteralZero(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	bigint :=
 		pt.parse("0n;"). // SCRIPT
@@ -5308,7 +4958,6 @@ func TestBigIntLiteralZero(t *testing.T) {
 // Java: ParserTest.testBigIntLiteralPositive()
 func TestBigIntLiteralPositive(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	bigint :=
 		pt.parse("1n;"). // SCRIPT
@@ -5324,7 +4973,6 @@ func TestBigIntLiteralPositive(t *testing.T) {
 // Java: ParserTest.testBigIntLiteralNegative()
 func TestBigIntLiteralNegative(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	neg :=
 		pt.parse("-1n;"). // SCRIPT
@@ -5347,7 +4995,6 @@ func TestBigIntLiteralNegative(t *testing.T) {
 // Java: ParserTest.testBigIntLiteralBinary()
 func TestBigIntLiteralBinary(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	bigint :=
 		pt.parse("0b10000n;"). // SCRIPT
@@ -5363,7 +5010,6 @@ func TestBigIntLiteralBinary(t *testing.T) {
 // Java: ParserTest.testBigIntLiteralOctal()
 func TestBigIntLiteralOctal(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	bigint :=
 		pt.parse("0o100n;"). // SCRIPT
@@ -5379,7 +5025,6 @@ func TestBigIntLiteralOctal(t *testing.T) {
 // Java: ParserTest.testBigIntLiteralHex()
 func TestBigIntLiteralHex(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	bigint :=
 		pt.parse("0xFn;"). // SCRIPT
@@ -5395,7 +5040,6 @@ func TestBigIntLiteralHex(t *testing.T) {
 // Java: ParserTest.testBigIntInFunctionStatement()
 func TestBigIntInFunctionStatement(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	add :=
 		pt.parse("function f(/** @type {bigint} */ x) { 0n + x }"). // SCRIPT
@@ -5411,7 +5055,6 @@ func TestBigIntInFunctionStatement(t *testing.T) {
 // Java: ParserTest.testBigIntLiteralErrors()
 func TestBigIntLiteralErrors(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("01n;", "SyntaxError: nonzero BigInt can't have leading zero")
 	pt.parseError(".1n", "Semi-colon expected")
@@ -5422,7 +5065,6 @@ func TestBigIntLiteralErrors(t *testing.T) {
 // Java: ParserTest.testBigIntLiteralWarning()
 func TestBigIntLiteralWarning(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT_2019
 	pt.parseWarning(
@@ -5433,7 +5075,6 @@ func TestBigIntLiteralWarning(t *testing.T) {
 // Java: ParserTest.testBigIntFeatureRecorded()
 func TestBigIntFeatureRecorded(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("1n;")
 	pt.expectFeatures(parser.FeatureSet_Feature_BIGINT)
@@ -5442,7 +5083,6 @@ func TestBigIntFeatureRecorded(t *testing.T) {
 // Java: ParserTest.testBigIntLiteralInCall()
 func TestBigIntLiteralInCall(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("alert(1n)")
 }
@@ -5450,7 +5090,6 @@ func TestBigIntLiteralInCall(t *testing.T) {
 // Java: ParserTest.testBinaryLiterals()
 func TestBinaryLiterals(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_BINARY_LITERALS)
 	pt.mode = Config_LanguageMode_ECMASCRIPT3
@@ -5465,7 +5104,6 @@ func TestBinaryLiterals(t *testing.T) {
 // Java: ParserTest.testOctalLiterals()
 func TestOctalLiterals(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_OCTAL_LITERALS)
 	pt.mode = Config_LanguageMode_ECMASCRIPT3
@@ -5480,7 +5118,6 @@ func TestOctalLiterals(t *testing.T) {
 // Java: ParserTest.testOctalEscapes()
 func TestOctalEscapes(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT3
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -5492,7 +5129,6 @@ func TestOctalEscapes(t *testing.T) {
 // Java: ParserTest.testOldStyleOctalLiterals()
 func TestOldStyleOctalLiterals(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT3
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -5508,7 +5144,6 @@ func TestOldStyleOctalLiterals(t *testing.T) {
 // Java: ParserTest.testOldStyleOctalLiterals_strictMode()
 func TestOldStyleOctalLiterals_strictMode(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_STRICT
 
@@ -5522,7 +5157,6 @@ func TestOldStyleOctalLiterals_strictMode(t *testing.T) {
 // Java: ParserTest.testInvalidOctalLiterals()
 func TestInvalidOctalLiterals(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT3
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -5538,7 +5172,6 @@ func TestInvalidOctalLiterals(t *testing.T) {
 // Java: ParserTest.testInvalidOldStyleOctalLiterals()
 func TestInvalidOldStyleOctalLiterals(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT3
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -5557,7 +5190,6 @@ func TestInvalidOldStyleOctalLiterals(t *testing.T) {
 // Java: ParserTest.testGetter_ObjectLiteral_Es3()
 func TestGetter_ObjectLiteral_Es3(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_GETTER)
 	pt.mode = Config_LanguageMode_ECMASCRIPT3
@@ -5575,7 +5207,6 @@ func TestGetter_ObjectLiteral_Es3(t *testing.T) {
 // Java: ParserTest.testGetter_ObjectLiteral_Es5()
 func TestGetter_ObjectLiteral_Es5(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_GETTER)
 	pt.mode = Config_LanguageMode_ECMASCRIPT5
@@ -5589,7 +5220,6 @@ func TestGetter_ObjectLiteral_Es5(t *testing.T) {
 // Java: ParserTest.testGetterInvalid_ObjectLiteral_EsNext()
 func TestGetterInvalid_ObjectLiteral_EsNext(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures()
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -5600,7 +5230,6 @@ func TestGetterInvalid_ObjectLiteral_EsNext(t *testing.T) {
 // Java: ParserTest.testGetter_Computed_ObjectLiteral_Es6()
 func TestGetter_Computed_ObjectLiteral_Es6(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_GETTER, parser.FeatureSet_Feature_COMPUTED_PROPERTIES)
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -5613,7 +5242,6 @@ func TestGetter_Computed_ObjectLiteral_Es6(t *testing.T) {
 // Java: ParserTest.testGetterInvalid_Computed_ObjectLiteral_EsNext()
 func TestGetterInvalid_Computed_ObjectLiteral_EsNext(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures()
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -5624,7 +5252,6 @@ func TestGetterInvalid_Computed_ObjectLiteral_EsNext(t *testing.T) {
 // Java: ParserTest.testGetter_ClassSyntax()
 func TestGetter_ClassSyntax(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_CLASSES, parser.FeatureSet_Feature_GETTER)
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -5637,7 +5264,6 @@ func TestGetter_ClassSyntax(t *testing.T) {
 // Java: ParserTest.testGetterInvalid_ClassSyntax_EsNext()
 func TestGetterInvalid_ClassSyntax_EsNext(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures()
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -5648,7 +5274,6 @@ func TestGetterInvalid_ClassSyntax_EsNext(t *testing.T) {
 // Java: ParserTest.testGetter_Computed_ClassSyntax()
 func TestGetter_Computed_ClassSyntax(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_CLASSES, parser.FeatureSet_Feature_GETTER, parser.FeatureSet_Feature_COMPUTED_PROPERTIES)
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -5661,7 +5286,6 @@ func TestGetter_Computed_ClassSyntax(t *testing.T) {
 // Java: ParserTest.testGetterInvalid_Computed_ClassSyntax_EsNext()
 func TestGetterInvalid_Computed_ClassSyntax_EsNext(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures()
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -5672,7 +5296,6 @@ func TestGetterInvalid_Computed_ClassSyntax_EsNext(t *testing.T) {
 // Java: ParserTest.testSetter_ObjectLiteral_Es3()
 func TestSetter_ObjectLiteral_Es3(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_SETTER)
 	pt.mode = Config_LanguageMode_ECMASCRIPT3
@@ -5686,7 +5309,6 @@ func TestSetter_ObjectLiteral_Es3(t *testing.T) {
 // Java: ParserTest.testSetter_ObjectLiteral_Es5()
 func TestSetter_ObjectLiteral_Es5(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_SETTER)
 	pt.mode = Config_LanguageMode_ECMASCRIPT5
@@ -5700,7 +5322,6 @@ func TestSetter_ObjectLiteral_Es5(t *testing.T) {
 // Java: ParserTest.testSetter_ObjectLiteral_Es6()
 func TestSetter_ObjectLiteral_Es6(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_SETTER)
 	pt.mode = Config_LanguageMode_ECMASCRIPT_2015
@@ -5727,7 +5348,6 @@ func TestSetter_ObjectLiteral_Es6(t *testing.T) {
 // Java: ParserTest.testSetterInvalid_ObjectLiteral_EsNext()
 func TestSetterInvalid_ObjectLiteral_EsNext(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures()
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -5741,7 +5361,6 @@ func TestSetterInvalid_ObjectLiteral_EsNext(t *testing.T) {
 // Java: ParserTest.testSetter_Computed_ObjectLiteral_Es6()
 func TestSetter_Computed_ObjectLiteral_Es6(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_SETTER, parser.FeatureSet_Feature_COMPUTED_PROPERTIES)
 	pt.mode = Config_LanguageMode_ECMASCRIPT_2015
@@ -5764,7 +5383,6 @@ func TestSetter_Computed_ObjectLiteral_Es6(t *testing.T) {
 // Java: ParserTest.testSetterInvalid_Computed_ObjectLiteral_EsNext()
 func TestSetterInvalid_Computed_ObjectLiteral_EsNext(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures()
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -5779,7 +5397,6 @@ func TestSetterInvalid_Computed_ObjectLiteral_EsNext(t *testing.T) {
 // Java: ParserTest.testSetter_ClassSyntax()
 func TestSetter_ClassSyntax(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_CLASSES, parser.FeatureSet_Feature_SETTER)
 
@@ -5800,7 +5417,6 @@ func TestSetter_ClassSyntax(t *testing.T) {
 // Java: ParserTest.testSetterInvalid_ClassSyntax_EsNext()
 func TestSetterInvalid_ClassSyntax_EsNext(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures()
 
@@ -5815,7 +5431,6 @@ func TestSetterInvalid_ClassSyntax_EsNext(t *testing.T) {
 // Java: ParserTest.testSetter_Computed_ClassSyntax()
 func TestSetter_Computed_ClassSyntax(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_CLASSES, parser.FeatureSet_Feature_SETTER, parser.FeatureSet_Feature_COMPUTED_PROPERTIES)
 	pt.mode = Config_LanguageMode_ECMASCRIPT_2015
@@ -5837,7 +5452,6 @@ func TestSetter_Computed_ClassSyntax(t *testing.T) {
 // Java: ParserTest.testSetterInvalid_Computed_ClassSyntax_EsNext()
 func TestSetterInvalid_Computed_ClassSyntax_EsNext(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures()
 
@@ -5852,7 +5466,6 @@ func TestSetterInvalid_Computed_ClassSyntax_EsNext(t *testing.T) {
 // Java: ParserTest.testLamestWarningEver()
 func TestLamestWarningEver(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	// This used to be a warning.
 	pt.parse("var x = /** @type {undefined} */ (y);")
@@ -5862,7 +5475,6 @@ func TestLamestWarningEver(t *testing.T) {
 // Java: ParserTest.testUnfinishedComment()
 func TestUnfinishedComment(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("/** this is a comment ", "unterminated comment")
 }
@@ -5870,7 +5482,6 @@ func TestUnfinishedComment(t *testing.T) {
 // Java: ParserTest.testHtmlStartCommentAtStartOfLine()
 func TestHtmlStartCommentAtStartOfLine(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseWarning("<!-- This text is ignored.\nalert(1)", parserTest_HTML_COMMENT_WARNING)
 }
@@ -5878,7 +5489,6 @@ func TestHtmlStartCommentAtStartOfLine(t *testing.T) {
 // Java: ParserTest.testHtmlStartComment()
 func TestHtmlStartComment(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseWarning("alert(1) <!-- This text is ignored.\nalert(2)", parserTest_HTML_COMMENT_WARNING)
 }
@@ -5886,7 +5496,6 @@ func TestHtmlStartComment(t *testing.T) {
 // Java: ParserTest.testHtmlEndCommentAtStartOfLine()
 func TestHtmlEndCommentAtStartOfLine(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseWarning("alert(1)\n --> This text is ignored.", parserTest_HTML_COMMENT_WARNING)
 }
@@ -5894,7 +5503,6 @@ func TestHtmlEndCommentAtStartOfLine(t *testing.T) {
 // Java: ParserTest.testHtmlEndComment()
 func TestHtmlEndComment(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse(`while (x --> 0) {
   alert(1)
@@ -5904,7 +5512,6 @@ func TestHtmlEndComment(t *testing.T) {
 // Java: ParserTest.testParseBlockDescription()
 func TestParseBlockDescription(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 
@@ -5917,7 +5524,6 @@ func TestParseBlockDescription(t *testing.T) {
 // Java: ParserTest.testUnnamedFunctionStatement()
 func TestUnnamedFunctionStatement(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	// Statements
 	pt.parseError("function() {};", "'identifier' expected")
@@ -5931,7 +5537,6 @@ func TestUnnamedFunctionStatement(t *testing.T) {
 // Java: ParserTest.testReservedKeywords()
 func TestReservedKeywords(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_ES3_KEYWORDS_AS_IDENTIFIERS)
 	pt.mode = Config_LanguageMode_ECMASCRIPT3
@@ -5977,7 +5582,6 @@ func TestReservedKeywords(t *testing.T) {
 // Java: ParserTest.testTypeScriptKeywords()
 func TestTypeScriptKeywords(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("type = 2;")
 	pt.parse("var type = 3;")
@@ -5998,7 +5602,6 @@ func TestTypeScriptKeywords(t *testing.T) {
 // Java: ParserTest.testKeywordsAsProperties1()
 func TestKeywordsAsProperties1(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_KEYWORDS_AS_PROPERTIES)
 	pt.mode = Config_LanguageMode_ECMASCRIPT3
@@ -6059,7 +5662,6 @@ func TestKeywordsAsProperties1(t *testing.T) {
 // Java: ParserTest.testKeywordsAsProperties2()
 func TestKeywordsAsProperties2(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("var x = {get 'function'(){} };")
 	pt.parse("var x = {get 1(){} };")
@@ -6070,7 +5672,6 @@ func TestKeywordsAsProperties2(t *testing.T) {
 // Java: ParserTest.testKeywordsAsProperties3()
 func TestKeywordsAsProperties3(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("var x = {get 'function'(){} };")
 	pt.parse("var x = {get 1(){} };")
@@ -6081,7 +5682,6 @@ func TestKeywordsAsProperties3(t *testing.T) {
 // Java: ParserTest.testKeywordsAsPropertiesInExterns1()
 func TestKeywordsAsPropertiesInExterns1(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT3
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -6095,7 +5695,6 @@ func TestKeywordsAsPropertiesInExterns1(t *testing.T) {
 // Java: ParserTest.testKeywordsAsPropertiesInExterns2()
 func TestKeywordsAsPropertiesInExterns2(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT3
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -6109,7 +5708,6 @@ func TestKeywordsAsPropertiesInExterns2(t *testing.T) {
 // Java: ParserTest.testExternsLanguageMode()
 func TestExternsLanguageMode(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT3
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -6123,7 +5721,6 @@ func TestExternsLanguageMode(t *testing.T) {
 // Java: ParserTest.testUnicodeInIdentifiers()
 func TestUnicodeInIdentifiers(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("var \u00e0")
 	pt.parse("var cos\u03b8")
@@ -6134,7 +5731,6 @@ func TestUnicodeInIdentifiers(t *testing.T) {
 // Java: ParserTest.testUnicodeEscapeInIdentifiers()
 func TestUnicodeEscapeInIdentifiers(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("var \\u00fb")
 	pt.parse("var \\u00fbtest\\u00fb")
@@ -6147,7 +5743,6 @@ func TestUnicodeEscapeInIdentifiers(t *testing.T) {
 // Java: ParserTest.testUnicodePointEscapeInIdentifiers()
 func TestUnicodePointEscapeInIdentifiers(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("var \\u{0043}")
 	pt.parse("var \\u{0043}test\\u{0043}")
@@ -6161,7 +5756,6 @@ func TestUnicodePointEscapeInIdentifiers(t *testing.T) {
 // Java: ParserTest.testUnicodePointEscapeStringLiterals()
 func TestUnicodePointEscapeStringLiterals(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("var i = '\\u0043ompiler'")
 	pt.parse("var i = '\\u{43}ompiler'")
@@ -6173,7 +5767,6 @@ func TestUnicodePointEscapeStringLiterals(t *testing.T) {
 // Java: ParserTest.testUnicodePointEscapeTemplateLiterals()
 func TestUnicodePointEscapeTemplateLiterals(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("var i = `\\u0043ompiler`")
 	pt.parse("var i = `\\u{43}ompiler`")
@@ -6185,7 +5778,6 @@ func TestUnicodePointEscapeTemplateLiterals(t *testing.T) {
 // Java: ParserTest.testInvalidUnicodePointEscapeInIdentifiers()
 func TestInvalidUnicodePointEscapeInIdentifiers(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("var \\u{defg", "Invalid escape sequence")
 	pt.parseError("var \\u{03b5", "Invalid escape sequence")
@@ -6205,7 +5797,6 @@ func TestInvalidUnicodePointEscapeInIdentifiers(t *testing.T) {
 // Java: ParserTest.testInvalidUnicodePointEscapeStringLiterals()
 func TestInvalidUnicodePointEscapeStringLiterals(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("var i = '\\u{defg'", "Hex digit expected")
 	pt.parseError("var i = '\\u{defgRestOfIdentifier'", "Hex digit expected")
@@ -6218,7 +5809,6 @@ func TestInvalidUnicodePointEscapeStringLiterals(t *testing.T) {
 // Java: ParserTest.testInvalidUnicodePointEscapeTemplateLiterals()
 func TestInvalidUnicodePointEscapeTemplateLiterals(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("var i = `\\u{defg`", "Hex digit expected")
 	pt.parseError("var i = `\\u{defgRestOfIdentifier`", "Hex digit expected")
@@ -6231,7 +5821,6 @@ func TestInvalidUnicodePointEscapeTemplateLiterals(t *testing.T) {
 // Java: ParserTest.testEs2018LiftIllegalEscapeSequenceRestrictionOnTaggedTemplates()
 func TestEs2018LiftIllegalEscapeSequenceRestrictionOnTaggedTemplates(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	// These should not generate errors, even though they contain illegal escape sequences.
 	// https://github.com/tc39/proposal-template-literal-revision
@@ -6249,7 +5838,6 @@ func TestEs2018LiftIllegalEscapeSequenceRestrictionOnTaggedTemplates(t *testing.
 // Java: ParserTest.testInvalidEscape()
 func TestInvalidEscape(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("var \\x39abc", "Invalid escape sequence")
 	pt.parseError("var abc\\t", "Invalid escape sequence")
@@ -6258,7 +5846,6 @@ func TestInvalidEscape(t *testing.T) {
 // Java: ParserTest.testUnnecessaryEscape()
 func TestUnnecessaryEscape(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseWarning("var str = '\\a'", "Unnecessary escape: '\\a' is equivalent to just 'a'")
 	pt.parse("var str = '\\b'")
@@ -6286,7 +5873,6 @@ func TestUnnecessaryEscape(t *testing.T) {
 // Java: ParserTest.testUnnecessaryEscapeUntaggedTemplateLiterals()
 func TestUnnecessaryEscapeUntaggedTemplateLiterals(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseWarning("var str = `\\a`", "Unnecessary escape: '\\a' is equivalent to just 'a'")
 	pt.parse("var str = `\\b`")
@@ -6311,7 +5897,6 @@ func TestUnnecessaryEscapeUntaggedTemplateLiterals(t *testing.T) {
 // Java: ParserTest.testUnnecessaryEscapeTaggedTemplateLiterals()
 func TestUnnecessaryEscapeTaggedTemplateLiterals(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_TEMPLATE_LITERALS)
 
@@ -6336,7 +5921,6 @@ func TestUnnecessaryEscapeTaggedTemplateLiterals(t *testing.T) {
 // Java: ParserTest.testEOFInUnicodeEscape()
 func TestEOFInUnicodeEscape(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("var \\u1", "Invalid escape sequence")
 	pt.parseError("var \\u12", "Invalid escape sequence")
@@ -6346,7 +5930,6 @@ func TestEOFInUnicodeEscape(t *testing.T) {
 // Java: ParserTest.testEndOfIdentifierInUnicodeEscape()
 func TestEndOfIdentifierInUnicodeEscape(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("var \\u1 = 1;", "Invalid escape sequence")
 	pt.parseError("var \\u12 = 2;", "Invalid escape sequence")
@@ -6356,7 +5939,6 @@ func TestEndOfIdentifierInUnicodeEscape(t *testing.T) {
 // Java: ParserTest.testInvalidUnicodeEscape()
 func TestInvalidUnicodeEscape(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("var \\uDEFG", "Invalid escape sequence")
 }
@@ -6364,7 +5946,6 @@ func TestInvalidUnicodeEscape(t *testing.T) {
 // Java: ParserTest.testUnicodeEscapeInvalidIdentifierStart()
 func TestUnicodeEscapeInvalidIdentifierStart(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("var \\u0037yler", "Character '7' (U+0037) is not a valid identifier start char")
 	pt.parseError("var \\u{37}yler", "Character '7' (U+0037) is not a valid identifier start char")
@@ -6374,7 +5955,6 @@ func TestUnicodeEscapeInvalidIdentifierStart(t *testing.T) {
 // Java: ParserTest.testUnicodeEscapeInvalidIdentifierChar()
 func TestUnicodeEscapeInvalidIdentifierChar(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("var sp\\u0020ce", "Invalid escape sequence")
 }
@@ -6382,7 +5962,6 @@ func TestUnicodeEscapeInvalidIdentifierChar(t *testing.T) {
 // Java: ParserTest.testKeywordAsIdentifier()
 func TestKeywordAsIdentifier(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("var while;", "'identifier' expected")
 	pt.parseError("var wh\\u0069le;", "'identifier' expected")
@@ -6391,7 +5970,6 @@ func TestKeywordAsIdentifier(t *testing.T) {
 // Java: ParserTest.testGetPropFunctionName()
 func TestGetPropFunctionName(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("function a.b() {}", "'(' expected")
 	pt.parseError("var x = function a.b() {}", "'(' expected")
@@ -6400,7 +5978,6 @@ func TestGetPropFunctionName(t *testing.T) {
 // Java: ParserTest.testIdeModePartialTree()
 func TestIdeModePartialTree(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	partialTree := pt.parseError("function Foo() {} f.", "'identifier' expected")
 	assertThat(t, partialTree).IsNull()
@@ -6413,7 +5990,6 @@ func TestIdeModePartialTree(t *testing.T) {
 // Java: ParserTest.testForEach()
 func TestForEach(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError(
 		`function f(stamp, status) {
@@ -6431,7 +6007,6 @@ func TestForEach(t *testing.T) {
 // Java: ParserTest.testValidTypeAnnotation1()
 func TestValidTypeAnnotation1(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("/** @type {string} */ var o = 'str';")
 	pt.parse("var /** @type {string} */ o = 'str', /** @type {number} */ p = 0;")
@@ -6446,7 +6021,6 @@ func TestValidTypeAnnotation1(t *testing.T) {
 // Java: ParserTest.testValidTypeAnnotation2()
 func TestValidTypeAnnotation2(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.expectFeatures(parser.FeatureSet_Feature_GETTER)
@@ -6458,7 +6032,6 @@ func TestValidTypeAnnotation2(t *testing.T) {
 // Java: ParserTest.testValidTypeAnnotation3()
 func TestValidTypeAnnotation3(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	// This one we don't currently support in the type checker but
 	// we would like to.
@@ -6468,7 +6041,6 @@ func TestValidTypeAnnotation3(t *testing.T) {
 // Java: ParserTest.testValidTypeAnnotation4()
 func TestValidTypeAnnotation4(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.expectFeatures(parser.FeatureSet_Feature_MODULES)
@@ -6478,7 +6050,6 @@ func TestValidTypeAnnotation4(t *testing.T) {
 // Java: ParserTest.testTypeofJsdoc()
 func TestTypeofJsdoc(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.assertNodeEquality(pt.parse("var b = 0;"), pt.parse("var /** typeof a */ b = 0;"))
 
@@ -6494,7 +6065,6 @@ func TestTypeofJsdoc(t *testing.T) {
 // Java: ParserTest.testParsingAssociativity()
 func TestParsingAssociativity(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.assertNodeEquality(pt.parse("x * y * z"), pt.parse("(x * y) * z"))
 	pt.assertNodeEquality(pt.parse("x + y + z"), pt.parse("(x + y) + z"))
@@ -6508,7 +6078,6 @@ func TestParsingAssociativity(t *testing.T) {
 // Java: ParserTest.testIssue1116()
 func TestIssue1116(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("/**/")
 }
@@ -6516,7 +6085,6 @@ func TestIssue1116(t *testing.T) {
 // Java: ParserTest.testUnterminatedStringLiteral()
 func TestUnterminatedStringLiteral(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("var unterm = 'forgot closing quote", "Unterminated string literal")
 
@@ -6544,7 +6112,6 @@ alert(unterm);
 // Java: ParserTest.testUnterminatedRegExp()
 func TestUnterminatedRegExp(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("var unterm = /forgot trailing slash", "Expected '/' in regular expression literal")
 
@@ -6558,7 +6125,6 @@ alert(unterm);
 // Java: ParserTest.testRegExp()
 func TestRegExp(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.assertNodeEquality(pt.parse("/a/"), pt.script(pt.expr(pt.regex("a"))))
 	pt.assertNodeEquality(pt.parse("/\\\\/"), pt.script(pt.expr(pt.regex("\\\\"))))
@@ -6570,7 +6136,6 @@ func TestRegExp(t *testing.T) {
 // Java: ParserTest.testRegExpError()
 func TestRegExpError(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("/a\\/", "Expected '/' in regular expression literal")
 	pt.parseError("/\\ca\\/", "Expected '/' in regular expression literal")
@@ -6580,7 +6145,6 @@ func TestRegExpError(t *testing.T) {
 // Java: ParserTest.testRegExpUnicode()
 func TestRegExpUnicode(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.assertNodeEquality(pt.parse("/\\u10fA/"), pt.script(pt.expr(pt.regex("\\u10fA"))))
 	pt.assertNodeEquality(pt.parse("/\\u{10fA}/u"), pt.script(pt.expr(pt.regex("\\u{10fA}", "u"))))
@@ -6591,7 +6155,6 @@ func TestRegExpUnicode(t *testing.T) {
 // Java: ParserTest.testRegExpFlags()
 func TestRegExpFlags(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	// Various valid combinations.
 	pt.parse("/a/")
@@ -6612,7 +6175,6 @@ func TestRegExpFlags(t *testing.T) {
 // Java: ParserTest.testES6RegExpFlags()
 func TestES6RegExpFlags(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_REGEXP_FLAG_Y)
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -6634,7 +6196,6 @@ func TestES6RegExpFlags(t *testing.T) {
 // Java: ParserTest.testES2018RegExpFlagS()
 func TestES2018RegExpFlagS(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_REGEXP_FLAG_S)
 	pt.parse("/a/s")
@@ -6656,7 +6217,6 @@ func TestES2018RegExpFlagS(t *testing.T) {
 // Java: ParserTest.testES2022RegExpFlagD()
 func TestES2022RegExpFlagD(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_REGEXP_FLAG_D)
 	pt.parse("/a/d")
@@ -6678,7 +6238,6 @@ func TestES2022RegExpFlagD(t *testing.T) {
 // Java: ParserTest.testDefaultParameters()
 func TestDefaultParameters(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.expectFeatures(parser.FeatureSet_Feature_DEFAULT_PARAMETERS)
@@ -6692,7 +6251,6 @@ func TestDefaultParameters(t *testing.T) {
 // Java: ParserTest.testDefaultParameterInlineJSDoc()
 func TestDefaultParameterInlineJSDoc(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_DEFAULT_PARAMETERS)
 	functionNode := pt.parse("function f(/** number */ a = 0) {}").GetFirstChild()
@@ -6702,13 +6260,12 @@ func TestDefaultParameterInlineJSDoc(t *testing.T) {
 
 	aName := defaultValue.GetFirstChild()
 	assertNode(t, aName).HasType(rhino.Token_NAME)
-	pt.assertNodeHasJSDocInfoWithJSType(aName, jsType("NUMBER_TYPE"))
+	pt.assertNodeHasJSDocInfoWithJSType(aName, pt.NUMBER_TYPE)
 }
 
 // Java: ParserTest.testDefaultParameterInlineNonJSDocComment()
 func TestDefaultParameterInlineNonJSDocComment(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -6726,7 +6283,6 @@ func TestDefaultParameterInlineNonJSDocComment(t *testing.T) {
 // Java: ParserTest.testRestParameters()
 func TestRestParameters(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 
@@ -6745,7 +6301,6 @@ func TestRestParameters(t *testing.T) {
 // Java: ParserTest.testTrailingCommaAfterRestParameters()
 func TestTrailingCommaAfterRestParameters(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 
@@ -6758,7 +6313,6 @@ func TestTrailingCommaAfterRestParameters(t *testing.T) {
 // Java: ParserTest.testDestructuredRestParameters()
 func TestDestructuredRestParameters(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.parseError(
@@ -6773,7 +6327,6 @@ func TestDestructuredRestParameters(t *testing.T) {
 // Java: ParserTest.testRestParameters_ES5()
 func TestRestParameters_ES5(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT5
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -6784,7 +6337,6 @@ func TestRestParameters_ES5(t *testing.T) {
 // Java: ParserTest.testExpressionsThatLookLikeParameters1()
 func TestExpressionsThatLookLikeParameters1(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.parseError("();", "invalid parenthesized expression")
@@ -6796,7 +6348,6 @@ func TestExpressionsThatLookLikeParameters1(t *testing.T) {
 // Java: ParserTest.testExpressionsThatLookLikeParameters2()
 func TestExpressionsThatLookLikeParameters2(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.parseError("!()", "invalid parenthesized expression")
@@ -6809,7 +6360,6 @@ func TestExpressionsThatLookLikeParameters2(t *testing.T) {
 // Java: ParserTest.testExpressionsThatLookLikeParameters3()
 func TestExpressionsThatLookLikeParameters3(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.parseError("!(...x)", "invalid parenthesized expression")
@@ -6822,7 +6372,6 @@ func TestExpressionsThatLookLikeParameters3(t *testing.T) {
 // Java: ParserTest.testDefaultParametersWithRestParameters()
 func TestDefaultParametersWithRestParameters(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.parseError("function f(a=1, ...b=3) {}", "A default value cannot be specified after '...'")
@@ -6836,7 +6385,6 @@ func TestDefaultParametersWithRestParameters(t *testing.T) {
 // Java: ParserTest.testClass1()
 func TestClass1(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_CLASSES)
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -6852,7 +6400,6 @@ func TestClass1(t *testing.T) {
 // Java: ParserTest.testClass2()
 func TestClass2(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_CLASSES)
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -6878,7 +6425,6 @@ func TestClass2(t *testing.T) {
 // Java: ParserTest.testClass3()
 func TestClass3(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_CLASSES)
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -6902,7 +6448,6 @@ func TestClass3(t *testing.T) {
 // Java: ParserTest.testClassKeywordsAsMethodNames()
 func TestClassKeywordsAsMethodNames(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_CLASSES, parser.FeatureSet_Feature_KEYWORDS_AS_PROPERTIES)
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -6918,7 +6463,6 @@ func TestClassKeywordsAsMethodNames(t *testing.T) {
 // Java: ParserTest.testClassReservedWordsAsMethodNames()
 func TestClassReservedWordsAsMethodNames(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_CLASSES, parser.FeatureSet_Feature_KEYWORDS_AS_PROPERTIES)
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -6942,7 +6486,6 @@ func TestClassReservedWordsAsMethodNames(t *testing.T) {
 // Java: ParserTest.testClass_semicolonsInBodyAreIgnored()
 func TestClass_semicolonsInBodyAreIgnored(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	tree :=
 		pt.parse(
@@ -6959,7 +6502,6 @@ func TestClass_semicolonsInBodyAreIgnored(t *testing.T) {
 // Java: ParserTest.testClass_constructorMember_legalModifiers()
 func TestClass_constructorMember_legalModifiers(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	errorMsg := "Class constructor may not be getter, setter, async, or generator."
 
@@ -6998,7 +6540,6 @@ func TestClass_constructorMember_legalModifiers(t *testing.T) {
 // Java: ParserTest.testClass_constructorMember_atMostOne()
 func TestClass_constructorMember_atMostOne(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	errorMsg := "Class may have only one constructor."
 
@@ -7023,7 +6564,6 @@ func TestClass_constructorMember_atMostOne(t *testing.T) {
 // Java: ParserTest.testSingleFieldNoInitializerNoSemicolon()
 func TestSingleFieldNoInitializerNoSemicolon(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse("class C{ field }").GetFirstChild().GetLastChild()
 	assertNode(t, n.GetFirstChild()).HasType(rhino.Token_MEMBER_FIELD_DEF)
@@ -7033,7 +6573,6 @@ func TestSingleFieldNoInitializerNoSemicolon(t *testing.T) {
 // Java: ParserTest.testSingleFieldWithInitializerNoSemicolon()
 func TestSingleFieldWithInitializerNoSemicolon(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	// check for automatic semicolon insertion
 	n := pt.parse("class C{field = 2}").GetFirstChild().GetLastChild().GetFirstChild()
@@ -7044,7 +6583,6 @@ func TestSingleFieldWithInitializerNoSemicolon(t *testing.T) {
 // Java: ParserTest.testSingleFieldNoInitializerWithSemicolon()
 func TestSingleFieldNoInitializerWithSemicolon(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse("class C{ field; }").GetFirstChild().GetLastChild()
 	assertNode(t, n.GetFirstChild()).HasStringThat().IsEqualTo("field")
@@ -7053,7 +6591,6 @@ func TestSingleFieldNoInitializerWithSemicolon(t *testing.T) {
 // Java: ParserTest.testSingleFieldWithInitializerWithSemicolon()
 func TestSingleFieldWithInitializerWithSemicolon(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse("class C{field = dog;}").GetFirstChild().GetLastChild().GetFirstChild()
 	assertNode(t, n).HasType(rhino.Token_MEMBER_FIELD_DEF)
@@ -7063,7 +6600,6 @@ func TestSingleFieldWithInitializerWithSemicolon(t *testing.T) {
 // Java: ParserTest.testSingleComputedFieldNoInitializerNoSemicolon()
 func TestSingleComputedFieldNoInitializerNoSemicolon(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	// check for automatic semicolon insertion
 	n := pt.parse("class C{['field']}").GetFirstChild().GetLastChild().GetFirstChild()
@@ -7074,7 +6610,6 @@ func TestSingleComputedFieldNoInitializerNoSemicolon(t *testing.T) {
 // Java: ParserTest.testSingleComputedFieldWithInitializerNoSemicolon()
 func TestSingleComputedFieldWithInitializerNoSemicolon(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	// check for automatic semicolon insertion
 	n := pt.parse("class C{['field'] = 2}").GetFirstChild().GetLastChild().GetFirstChild()
@@ -7086,7 +6621,6 @@ func TestSingleComputedFieldWithInitializerNoSemicolon(t *testing.T) {
 // Java: ParserTest.testSingleComputedFieldNoInitializerWithSemicolon()
 func TestSingleComputedFieldNoInitializerWithSemicolon(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse("class C{['field'];}").GetFirstChild().GetLastChild().GetFirstChild()
 	assertNode(t, n).HasType(rhino.Token_COMPUTED_FIELD_DEF)
@@ -7096,7 +6630,6 @@ func TestSingleComputedFieldNoInitializerWithSemicolon(t *testing.T) {
 // Java: ParserTest.testSingleComputedFieldWithInitializerWithSemicolon()
 func TestSingleComputedFieldWithInitializerWithSemicolon(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse("class C{['field'] = dog;}").GetFirstChild().GetLastChild().GetFirstChild()
 	assertNode(t, n).HasType(rhino.Token_COMPUTED_FIELD_DEF)
@@ -7107,7 +6640,6 @@ func TestSingleComputedFieldWithInitializerWithSemicolon(t *testing.T) {
 // Java: ParserTest.testMultipleFieldsNoInitializerNoLineBreakNoSemicolon()
 func TestMultipleFieldsNoInitializerNoLineBreakNoSemicolon(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("class C{ a b c }", "Semi-colon expected")
 }
@@ -7115,7 +6647,6 @@ func TestMultipleFieldsNoInitializerNoLineBreakNoSemicolon(t *testing.T) {
 // Java: ParserTest.testMultipleFieldsNoInitializerWithLineBreakNoSemicolon()
 func TestMultipleFieldsNoInitializerWithLineBreakNoSemicolon(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse("class C{ a \n b \n c }").GetFirstChild().GetLastChild()
 	assertNode(t, n.GetFirstChild()).HasType(rhino.Token_MEMBER_FIELD_DEF)
@@ -7129,7 +6660,6 @@ func TestMultipleFieldsNoInitializerWithLineBreakNoSemicolon(t *testing.T) {
 // Java: ParserTest.testMultipleFieldsNoLineBreakNoSemicolon()
 func TestMultipleFieldsNoLineBreakNoSemicolon(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("class C{ a = 2 b = 4 c = 5}", "Semi-colon expected")
 }
@@ -7137,7 +6667,6 @@ func TestMultipleFieldsNoLineBreakNoSemicolon(t *testing.T) {
 // Java: ParserTest.testMultipleFieldsWithLineBreakNoSemicolon()
 func TestMultipleFieldsWithLineBreakNoSemicolon(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	// check for automatic semicolon insertion
 	n := pt.parse("class C{ a = 2 \n b = 4 \n c = 5}").GetFirstChild().GetLastChild()
@@ -7155,7 +6684,6 @@ func TestMultipleFieldsWithLineBreakNoSemicolon(t *testing.T) {
 // Java: ParserTest.testMultipleFieldsNoLineBreakWithSemicolon()
 func TestMultipleFieldsNoLineBreakWithSemicolon(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse("class C{field = 2; hi = 3;}").GetFirstChild().GetLastChild()
 	assertNode(t, n.GetFirstChild()).HasType(rhino.Token_MEMBER_FIELD_DEF)
@@ -7168,7 +6696,6 @@ func TestMultipleFieldsNoLineBreakWithSemicolon(t *testing.T) {
 // Java: ParserTest.testMultipleFieldsWithLineBreakWithSemicolon()
 func TestMultipleFieldsWithLineBreakWithSemicolon(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse("class C{field = 2; \n hi = 3;}").GetFirstChild().GetLastChild()
 	assertNode(t, n.GetFirstChild()).HasType(rhino.Token_MEMBER_FIELD_DEF)
@@ -7181,7 +6708,6 @@ func TestMultipleFieldsWithLineBreakWithSemicolon(t *testing.T) {
 // Java: ParserTest.testMultipleComputedFieldsNoLineBreakNoSemicolon()
 func TestMultipleComputedFieldsNoLineBreakNoSemicolon(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	// tree is parsed correctly even though it looks weird
 	n := pt.parse("class C{ ['a'] = 2 ['b'] = 4 ['c'] = 5}").GetFirstChild().GetLastChild()
@@ -7191,7 +6717,6 @@ func TestMultipleComputedFieldsNoLineBreakNoSemicolon(t *testing.T) {
 // Java: ParserTest.testMultipleComputedFieldsWithLineBreakNoSemicolon()
 func TestMultipleComputedFieldsWithLineBreakNoSemicolon(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	// tree is parsed correctly even though it looks weird
 	n := pt.parse("class C{ ['a'] = 2 \n ['b'] = 4 \n ['c'] = 5}").GetFirstChild().GetLastChild()
@@ -7201,7 +6726,6 @@ func TestMultipleComputedFieldsWithLineBreakNoSemicolon(t *testing.T) {
 // Java: ParserTest.testMultipleComputedFieldsNoLineBreakWithSemicolon()
 func TestMultipleComputedFieldsNoLineBreakWithSemicolon(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse("class C{['field'] = 2; ['hi'] = 3;}").GetFirstChild().GetLastChild()
 	assertNode(t, n.GetFirstChild()).HasType(rhino.Token_COMPUTED_FIELD_DEF)
@@ -7215,7 +6739,6 @@ func TestMultipleComputedFieldsNoLineBreakWithSemicolon(t *testing.T) {
 // Java: ParserTest.testMultipleComputedFieldsWithLineBreaksWithSemicolons()
 func TestMultipleComputedFieldsWithLineBreaksWithSemicolons(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse("class C{['field'] = 2; \n ['hi'] = 3;}").GetFirstChild().GetLastChild()
 	assertNode(t, n.GetFirstChild()).HasType(rhino.Token_COMPUTED_FIELD_DEF)
@@ -7229,7 +6752,6 @@ func TestMultipleComputedFieldsWithLineBreaksWithSemicolons(t *testing.T) {
 // Java: ParserTest.testMultipleMixedFieldsNoLineBreakWithSemicolon()
 func TestMultipleMixedFieldsNoLineBreakWithSemicolon(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse("class C{  b = 4; ['a'] = 2 }").GetFirstChild().GetLastChild()
 	assertNode(t, n.GetFirstChild()).HasType(rhino.Token_MEMBER_FIELD_DEF)
@@ -7239,7 +6761,6 @@ func TestMultipleMixedFieldsNoLineBreakWithSemicolon(t *testing.T) {
 // Java: ParserTest.testMultipleMixedFieldsNoLineBreakNoSemicolon()
 func TestMultipleMixedFieldsNoLineBreakNoSemicolon(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("class C{ ['a'] = 2 b = 4}", "Semi-colon expected")
 
@@ -7251,7 +6772,6 @@ func TestMultipleMixedFieldsNoLineBreakNoSemicolon(t *testing.T) {
 // Java: ParserTest.testMultipleMixedFieldsWithLineBreakNoSemicolon()
 func TestMultipleMixedFieldsWithLineBreakNoSemicolon(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	// tree is parsed correctly even though it looks weird
 	n := pt.parse("class C{b = 4 \n ['a'] = 2 }").GetFirstChild().GetLastChild()
@@ -7261,7 +6781,6 @@ func TestMultipleMixedFieldsWithLineBreakNoSemicolon(t *testing.T) {
 // Java: ParserTest.testComputedFieldStringLit()
 func TestComputedFieldStringLit(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse("class C {'x' = 2;}").GetFirstChild().GetLastChild().GetFirstChild()
 	assertNode(t, n).HasType(rhino.Token_COMPUTED_FIELD_DEF)
@@ -7274,7 +6793,6 @@ func TestComputedFieldStringLit(t *testing.T) {
 // Java: ParserTest.testComputedFieldName()
 func TestComputedFieldName(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse("class C {[a] = 2;}").GetFirstChild().GetLastChild().GetFirstChild()
 	assertNode(t, n).HasType(rhino.Token_COMPUTED_FIELD_DEF)
@@ -7287,7 +6805,6 @@ func TestComputedFieldName(t *testing.T) {
 // Java: ParserTest.testComputedFieldNumber()
 func TestComputedFieldNumber(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse("class C{1 = 2;}").GetFirstChild().GetLastChild().GetFirstChild()
 	assertNode(t, n).HasType(rhino.Token_COMPUTED_FIELD_DEF)
@@ -7300,7 +6817,6 @@ func TestComputedFieldNumber(t *testing.T) {
 // Java: ParserTest.testStaticClassFields()
 func TestStaticClassFields(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse("class C{static field = 2;}").GetFirstChild().GetLastChild()
 	assertNode(t, n.GetFirstChild()).IsStatic()
@@ -7316,7 +6832,6 @@ func TestStaticClassFields(t *testing.T) {
 // Java: ParserTest.testStaticClassComputedFields()
 func TestStaticClassComputedFields(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse("class C{static ['field'] = 2;}").GetFirstChild().GetLastChild()
 	assertNode(t, n.GetFirstChild()).IsStatic()
@@ -7338,7 +6853,6 @@ func TestStaticClassComputedFields(t *testing.T) {
 // Java: ParserTest.testClassField_es2020()
 func TestClassField_es2020(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT_2020
 	pt.expectFeatures(parser.FeatureSet_Feature_PUBLIC_CLASS_FIELDS)
@@ -7348,7 +6862,6 @@ func TestClassField_es2020(t *testing.T) {
 // Java: ParserTest.testClassComputedField_es2020()
 func TestClassComputedField_es2020(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT_2020
 	pt.expectFeatures(parser.FeatureSet_Feature_PUBLIC_CLASS_FIELDS)
@@ -7358,7 +6871,6 @@ func TestClassComputedField_es2020(t *testing.T) {
 // Java: ParserTest.testClassComputedField_es2020_noWarningOrRecordingOfFeaturesInClosureUnawareCode()
 func TestClassComputedField_es2020_noWarningOrRecordingOfFeaturesInClosureUnawareCode(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT_2020
 	pt.expectFeatures(parser.FeatureSet_Feature_PUBLIC_CLASS_FIELDS)
@@ -7380,7 +6892,6 @@ func TestClassComputedField_es2020_noWarningOrRecordingOfFeaturesInClosureUnawar
 // Java: ParserTest.testClassComputedField_es2020_warnsForCodeOutsideClosureUnawareRange()
 func TestClassComputedField_es2020_warnsForCodeOutsideClosureUnawareRange(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT_2020
 	pt.expectFeatures(parser.FeatureSet_Feature_PUBLIC_CLASS_FIELDS)
@@ -7404,7 +6915,6 @@ class C{
 // Java: ParserTest.testPrivateProperty_unstable()
 func TestPrivateProperty_unstable(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_UNSTABLE
 	pt.expectFeatures(parser.FeatureSet_Feature_PRIVATE_CLASS_PROPERTIES)
@@ -7415,7 +6925,6 @@ func TestPrivateProperty_unstable(t *testing.T) {
 // Java: ParserTest.testPrivateProperty_singleClassMember()
 func TestPrivateProperty_singleClassMember(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_PRIVATE_CLASS_PROPERTIES)
 
@@ -7441,7 +6950,6 @@ func TestPrivateProperty_singleClassMember(t *testing.T) {
 // Java: ParserTest.testPrivateProperty_definition_linenocharno()
 func TestPrivateProperty_definition_linenocharno(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n :=
 		pt.parse(
@@ -7468,7 +6976,6 @@ func TestPrivateProperty_definition_linenocharno(t *testing.T) {
 // Java: ParserTest.testPrivateProperty_multipleClassMembers()
 func TestPrivateProperty_multipleClassMembers(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("class C { #f; #g; }")
 	pt.parse("class C { #m() {} #n() {} }")
@@ -7496,7 +7003,6 @@ static get #e() {} static set #f(x) {} }
 // Java: ParserTest.testPrivateProperty_invalid_identifierAlreadyDeclared()
 func TestPrivateProperty_invalid_identifierAlreadyDeclared(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	expectedError := "Identifier '#p' has already been declared"
 
@@ -7532,7 +7038,6 @@ func TestPrivateProperty_invalid_identifierAlreadyDeclared(t *testing.T) {
 // Java: ParserTest.testPrivateProperty_invalid_identifierAlreadyDeclared_crossStaticGetterSetter()
 func TestPrivateProperty_invalid_identifierAlreadyDeclared_crossStaticGetterSetter(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	expectedError := "Identifier '#p' has already been declared"
 
@@ -7546,7 +7051,6 @@ func TestPrivateProperty_invalid_identifierAlreadyDeclared_crossStaticGetterSett
 // Java: ParserTest.testPrivateProperty_classMembersReferencingOtherPrivateField()
 func TestPrivateProperty_classMembersReferencingOtherPrivateField(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_PRIVATE_CLASS_PROPERTIES)
 
@@ -7561,7 +7065,6 @@ func TestPrivateProperty_classMembersReferencingOtherPrivateField(t *testing.T) 
 // Java: ParserTest.testPrivateProperty_reference_linenocharno()
 func TestPrivateProperty_reference_linenocharno(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n :=
 		pt.parse(
@@ -7588,7 +7091,6 @@ func TestPrivateProperty_reference_linenocharno(t *testing.T) {
 // Java: ParserTest.testPrivateProperty_classMethodsReferencingOtherPrivateProp()
 func TestPrivateProperty_classMethodsReferencingOtherPrivateProp(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_PRIVATE_CLASS_PROPERTIES)
 
@@ -7611,7 +7113,6 @@ func TestPrivateProperty_classMethodsReferencingOtherPrivateProp(t *testing.T) {
 // Java: ParserTest.testPrivateProperty_nestedClasses()
 func TestPrivateProperty_nestedClasses(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_PRIVATE_CLASS_PROPERTIES)
 
@@ -7640,7 +7141,6 @@ func TestPrivateProperty_nestedClasses(t *testing.T) {
 // Java: ParserTest.testPrivateProperty_nestedClasses_invalid_referenceInnerFieldFromOuter()
 func TestPrivateProperty_nestedClasses_invalid_referenceInnerFieldFromOuter(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError(
 		`class Outer {
@@ -7671,7 +7171,6 @@ func TestPrivateProperty_nestedClasses_invalid_referenceInnerFieldFromOuter(t *t
 // Java: ParserTest.testPrivateProperty_classMethodsReferencingOtherPrivatePropViaOptionalChain()
 func TestPrivateProperty_classMethodsReferencingOtherPrivatePropViaOptionalChain(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_PRIVATE_CLASS_PROPERTIES)
 
@@ -7682,7 +7181,6 @@ func TestPrivateProperty_classMethodsReferencingOtherPrivatePropViaOptionalChain
 // Java: ParserTest.testPrivateProperty_destructuredAssignmentDefaultValue()
 func TestPrivateProperty_destructuredAssignmentDefaultValue(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("class C { #px = 1; method(x) { const { y = this.#px } = x; } }")
 	pt.parse("class C { #px = 1; method(x) { const { y: z = this.#px } = x; } }")
@@ -7691,7 +7189,6 @@ func TestPrivateProperty_destructuredAssignmentDefaultValue(t *testing.T) {
 // Java: ParserTest.testPrivateProperty_invalid_nonExistentPrivateProp()
 func TestPrivateProperty_invalid_nonExistentPrivateProp(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("class C { #f = this.#missing; }", parserTest_PRIVATE_FIELD_NOT_DEFINED)
 	pt.parseError("class C { method() { this.#missing = 1; } }", parserTest_PRIVATE_FIELD_NOT_DEFINED)
@@ -7723,7 +7220,6 @@ func TestPrivateProperty_invalid_nonExistentPrivateProp(t *testing.T) {
 // Java: ParserTest.testPrivateProperty_invalid_deletePrivateField()
 func TestPrivateProperty_invalid_deletePrivateField(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("class C { #f = 1; method() { delete this.#f; } }", parserTest_PRIVATE_FIELD_DELETED)
 	pt.parseError(
@@ -7745,7 +7241,6 @@ func TestPrivateProperty_invalid_deletePrivateField(t *testing.T) {
 // Java: ParserTest.testPrivateProperty_invalid_deleteUndeclaredPrivateField()
 func TestPrivateProperty_invalid_deleteUndeclaredPrivateField(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError(
 		"class C { method() { delete this.#f; } }",
@@ -7781,7 +7276,6 @@ func TestPrivateProperty_invalid_deleteUndeclaredPrivateField(t *testing.T) {
 // Java: ParserTest.testPrivateProperty_invalid_objectLiteralProperty()
 func TestPrivateProperty_invalid_objectLiteralProperty(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("const x = { #pf: 1 }", parserTest_INVALID_PRIVATE_ID)
 	pt.parseError("const x = { #pm() {} }", parserTest_INVALID_PRIVATE_ID)
@@ -7797,7 +7291,6 @@ func TestPrivateProperty_invalid_objectLiteralProperty(t *testing.T) {
 // Java: ParserTest.testPrivateProperty_invalid_destructuredAssignment()
 func TestPrivateProperty_invalid_destructuredAssignment(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("const { #px } = x;", parserTest_INVALID_PRIVATE_ID)
 	pt.parseError("const { x: #px } = x;", parserTest_INVALID_PRIVATE_ID)
@@ -7813,7 +7306,6 @@ func TestPrivateProperty_invalid_destructuredAssignment(t *testing.T) {
 // Java: ParserTest.testPrivateProperty_invalid_variableName()
 func TestPrivateProperty_invalid_variableName(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("const #pv = 1;", parserTest_INVALID_PRIVATE_ID)
 
@@ -7823,7 +7315,6 @@ func TestPrivateProperty_invalid_variableName(t *testing.T) {
 // Java: ParserTest.testPrivateProperty_invalid_functionName()
 func TestPrivateProperty_invalid_functionName(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("function #pf() {}", parserTest_INVALID_PRIVATE_ID)
 	pt.parseError("function* #pf() {}", parserTest_INVALID_PRIVATE_ID)
@@ -7839,7 +7330,6 @@ func TestPrivateProperty_invalid_functionName(t *testing.T) {
 // Java: ParserTest.testPrivateProperty_invalid_paramName()
 func TestPrivateProperty_invalid_paramName(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("function f(#p) {}", parserTest_INVALID_PRIVATE_ID)
 	pt.parseError("class C { method(#p) {} }", parserTest_INVALID_PRIVATE_ID)
@@ -7851,7 +7341,6 @@ func TestPrivateProperty_invalid_paramName(t *testing.T) {
 // Java: ParserTest.testPrivateProperty_invalid_className()
 func TestPrivateProperty_invalid_className(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("class #PC {}", parserTest_INVALID_PRIVATE_ID)
 	pt.parseError("class C extends #PSC {}", parserTest_INVALID_PRIVATE_ID)
@@ -7860,7 +7349,6 @@ func TestPrivateProperty_invalid_className(t *testing.T) {
 // Java: ParserTest.testPrivateProperty_invalid_referencePrivateOutsideClass()
 func TestPrivateProperty_invalid_referencePrivateOutsideClass(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("class C { #f = 1; } const c = new C(); c.#f;", parserTest_INVALID_PRIVATE_ID)
 }
@@ -7868,7 +7356,6 @@ func TestPrivateProperty_invalid_referencePrivateOutsideClass(t *testing.T) {
 // Java: ParserTest.testPrivateProperty_invalid_referencePrivateOutsideClassViaOptionalChain()
 func TestPrivateProperty_invalid_referencePrivateOutsideClassViaOptionalChain(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("class C { #f = 1; } const c = new C(); c?.#f;", parserTest_INVALID_PRIVATE_ID)
 }
@@ -7876,7 +7363,6 @@ func TestPrivateProperty_invalid_referencePrivateOutsideClassViaOptionalChain(t 
 // Java: ParserTest.testPrivateProperty_invalid_referencePrivatePropFromObjectLiteral()
 func TestPrivateProperty_invalid_referencePrivatePropFromObjectLiteral(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("const o = {}; o.#f = 1;", parserTest_INVALID_PRIVATE_ID)
 }
@@ -7884,7 +7370,6 @@ func TestPrivateProperty_invalid_referencePrivatePropFromObjectLiteral(t *testin
 // Java: ParserTest.testPrivateProperty_invalid_referencePrivatePropFromObjectLiteralViaOptionalChain()
 func TestPrivateProperty_invalid_referencePrivatePropFromObjectLiteralViaOptionalChain(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("const o = {}; o?.#f;", parserTest_INVALID_PRIVATE_ID)
 }
@@ -7892,7 +7377,6 @@ func TestPrivateProperty_invalid_referencePrivatePropFromObjectLiteralViaOptiona
 // Java: ParserTest.testPrivateProperty_invalid_importName()
 func TestPrivateProperty_invalid_importName(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("import #pi from './someModule'", parserTest_INVALID_PRIVATE_ID)
 	pt.parseError("import {#pi} from './someModule'", parserTest_INVALID_PRIVATE_ID)
@@ -7903,7 +7387,6 @@ func TestPrivateProperty_invalid_importName(t *testing.T) {
 // Java: ParserTest.testPrivateProperty_invalid_exportName()
 func TestPrivateProperty_invalid_exportName(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("export const #px = 1", parserTest_INVALID_PRIVATE_ID)
 	pt.parseError("export var #px = 1", parserTest_INVALID_PRIVATE_ID)
@@ -7924,7 +7407,6 @@ func TestPrivateProperty_invalid_exportName(t *testing.T) {
 // Java: ParserTest.testPrivateProperty_invalid_labeledStatement()
 func TestPrivateProperty_invalid_labeledStatement(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("#pl: while (true) {}", parserTest_INVALID_PRIVATE_ID)
 	pt.parseError("while (true) { break #pl; }", parserTest_INVALID_PRIVATE_ID, "undefined label \"#pl\"")
@@ -7944,7 +7426,6 @@ func TestPrivateProperty_invalid_labeledStatement(t *testing.T) {
 // Java: ParserTest.testPrivateProperty_inOperatorWithPrivateProp_valid()
 func TestPrivateProperty_inOperatorWithPrivateProp_valid(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_PRIVATE_CLASS_PROPERTIES)
 
@@ -7955,7 +7436,6 @@ func TestPrivateProperty_inOperatorWithPrivateProp_valid(t *testing.T) {
 // Java: ParserTest.testPrivateProperty_inOperatorWithPrivateProp_linenocharno()
 func TestPrivateProperty_inOperatorWithPrivateProp_linenocharno(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n :=
 		pt.parse(
@@ -7989,7 +7469,6 @@ func TestPrivateProperty_inOperatorWithPrivateProp_linenocharno(t *testing.T) {
 // Java: ParserTest.testPrivateProperty_inOperatorWithPrivateProp_invalid_nonExistentPrivateProp()
 func TestPrivateProperty_inOperatorWithPrivateProp_invalid_nonExistentPrivateProp(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_PRIVATE_CLASS_PROPERTIES)
 
@@ -7999,7 +7478,6 @@ func TestPrivateProperty_inOperatorWithPrivateProp_invalid_nonExistentPrivatePro
 // Java: ParserTest.testPrivateProperty_inOperatorWithPrivateProp_invalid_privatePropOnRhs()
 func TestPrivateProperty_inOperatorWithPrivateProp_invalid_privatePropOnRhs(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_PRIVATE_CLASS_PROPERTIES)
 
@@ -8009,7 +7487,6 @@ func TestPrivateProperty_inOperatorWithPrivateProp_invalid_privatePropOnRhs(t *t
 // Java: ParserTest.testPrivateProperty_inOperatorWithPrivateProp_invalid_surroundingParenthesis()
 func TestPrivateProperty_inOperatorWithPrivateProp_invalid_surroundingParenthesis(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_PRIVATE_CLASS_PROPERTIES)
 
@@ -8019,7 +7496,6 @@ func TestPrivateProperty_inOperatorWithPrivateProp_invalid_surroundingParenthesi
 // Java: ParserTest.testPrivateProperty_inOperatorWithPrivateProp_invalid_notInClass()
 func TestPrivateProperty_inOperatorWithPrivateProp_invalid_notInClass(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("const o = {}; if (#f in o) {}", parserTest_INVALID_PRIVATE_ID)
 }
@@ -8027,7 +7503,6 @@ func TestPrivateProperty_inOperatorWithPrivateProp_invalid_notInClass(t *testing
 // Java: ParserTest.testPrivateProperty_stringKeyThatLooksLikePrivateProp()
 func TestPrivateProperty_stringKeyThatLooksLikePrivateProp(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("const o = {'#notAPrivateProp': 1};")
 }
@@ -8035,7 +7510,6 @@ func TestPrivateProperty_stringKeyThatLooksLikePrivateProp(t *testing.T) {
 // Java: ParserTest.testEmptyClassStaticBlock()
 func TestEmptyClassStaticBlock(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("class C { static { } }")
 	pt.parse("let a = class { static { } };")
@@ -8044,7 +7518,6 @@ func TestEmptyClassStaticBlock(t *testing.T) {
 // Java: ParserTest.testReturnInClassStaticBlock()
 func TestReturnInClassStaticBlock(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("function f() {class C { static { return; } }}", "return must be inside function")
 	pt.parseError("class C { static { return; } }", "return must be inside function")
@@ -8054,7 +7527,6 @@ func TestReturnInClassStaticBlock(t *testing.T) {
 // Java: ParserTest.testContinueInClassStaticBlock()
 func TestContinueInClassStaticBlock(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("class C {static {continue;}}", parserTest_UNEXPECTED_CONTINUE)
 	pt.parseError("for (let i = 1; i < 2; i++) {class C {static {continue;}}}", parserTest_UNEXPECTED_CONTINUE)
@@ -8076,7 +7548,6 @@ func TestContinueInClassStaticBlock(t *testing.T) {
 // Java: ParserTest.testBreakInClassStaticBlock()
 func TestBreakInClassStaticBlock(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("class C {static {break;}}", parserTest_UNLABELED_BREAK)
 	pt.parseError("for (let i = 1; i < 2; i++) {class C {static {break;}}}", parserTest_UNLABELED_BREAK)
@@ -8095,7 +7566,6 @@ func TestBreakInClassStaticBlock(t *testing.T) {
 // Java: ParserTest.testYieldInClassStaticBlock()
 func TestYieldInClassStaticBlock(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("class C {static {var ind; yield;}}", "primary expression expected")
 	pt.parseError("function* f(ind) {class C{ static {yield ind; ind++;}}}", parserTest_UNEXPECTED_YIELD)
@@ -8105,7 +7575,6 @@ func TestYieldInClassStaticBlock(t *testing.T) {
 // Java: ParserTest.testClassStaticBlock_this()
 func TestClassStaticBlock_this(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	// multiple fields
 	pt.parse(
@@ -8157,7 +7626,6 @@ catch {
 // Java: ParserTest.testClassStaticBlock_inheritance()
 func TestClassStaticBlock_inheritance(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	// It is a syntax error to call super() in a class static initialization block.
 	// Must get reported in CheckSuper.java.
@@ -8171,7 +7639,6 @@ func TestClassStaticBlock_inheritance(t *testing.T) {
 // Java: ParserTest.testClassExtendsLeftHandSideExpression()
 func TestClassExtendsLeftHandSideExpression(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("class A {} class B extends (0, A) {}")
 	pt.parseError("class A {} class B extends 0, A {}", "'{' expected")
@@ -8180,7 +7647,6 @@ func TestClassExtendsLeftHandSideExpression(t *testing.T) {
 // Java: ParserTest.testMultipleClassStaticBlocks()
 func TestMultipleClassStaticBlocks(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	// empty
 	pt.parse("class C { static { } static { } }")
@@ -8224,7 +7690,6 @@ static {
 // Java: ParserTest.testClassStaticBlock_linenocharno()
 func TestClassStaticBlock_linenocharno(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse(`class C {
  static {}
@@ -8248,7 +7713,6 @@ func TestClassStaticBlock_linenocharno(t *testing.T) {
 // Java: ParserTest.testClassStaticBlock_invalid()
 func TestClassStaticBlock_invalid(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("class { {} }", "'identifier' expected")
 	pt.parseError("class { static { static { } } }", "'identifier' expected")
@@ -8258,7 +7722,6 @@ func TestClassStaticBlock_invalid(t *testing.T) {
 // Java: ParserTest.testClassStaticSuper()
 func TestClassStaticSuper(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse(
 		`class Bar {
@@ -8282,7 +7745,6 @@ class Baz extends Bar {
 // Java: ParserTest.testSuper1()
 func TestSuper1(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_SUPER)
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -8302,7 +7764,6 @@ func TestSuper1(t *testing.T) {
 // Java: ParserTest.testNewTarget()
 func TestNewTarget(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_NEW_TARGET)
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -8333,7 +7794,6 @@ func TestNewTarget(t *testing.T) {
 // Java: ParserTest.testNewDotSomethingInvalid()
 func TestNewDotSomethingInvalid(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 
@@ -8343,7 +7803,6 @@ func TestNewDotSomethingInvalid(t *testing.T) {
 // Java: ParserTest.hookWithDecimalNotParsedAsOptionalChaining()
 func TestHookWithDecimalNotParsedAsOptionalChaining(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse("a?.1:2").GetFirstFirstChild()
 
@@ -8358,7 +7817,6 @@ func TestHookWithDecimalNotParsedAsOptionalChaining(t *testing.T) {
 // Java: ParserTest.optChainGetProp()
 func TestOptChainGetProp(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse("a?.b").GetFirstFirstChild()
 
@@ -8374,7 +7832,6 @@ func TestOptChainGetProp(t *testing.T) {
 // Java: ParserTest.optChainGetPropWithKeyword()
 func TestOptChainGetPropWithKeyword(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse("a?.finally").GetFirstFirstChild()
 
@@ -8390,7 +7847,6 @@ func TestOptChainGetPropWithKeyword(t *testing.T) {
 // Java: ParserTest.optChainGetElem()
 func TestOptChainGetElem(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse("a?.[1]").GetFirstFirstChild()
 
@@ -8406,7 +7862,6 @@ func TestOptChainGetElem(t *testing.T) {
 // Java: ParserTest.optChainCall()
 func TestOptChainCall(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	n := pt.parse("a?.()").GetFirstFirstChild()
 
@@ -8421,7 +7876,6 @@ func TestOptChainCall(t *testing.T) {
 // Java: ParserTest.optChainStartOfChain_innerChainIsArgOfACall()
 func TestOptChainStartOfChain_innerChainIsArgOfACall(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	optChainCall := pt.parse("a?.b?.(x?.y);").GetFirstFirstChild()
 	assertThat(t, optChainCall.IsOptChainCall()).IsTrue()
@@ -8441,7 +7895,6 @@ func TestOptChainStartOfChain_innerChainIsArgOfACall(t *testing.T) {
 // Java: ParserTest.optChainStartOfChain_optChainGetProp()
 func TestOptChainStartOfChain_optChainGetProp(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	outerGet := pt.parse("a?.b.c").GetFirstFirstChild()
 	innerGet := outerGet.GetFirstChild()
@@ -8466,7 +7919,6 @@ func TestOptChainStartOfChain_optChainGetProp(t *testing.T) {
 // Java: ParserTest.optChainStartOfChain_optChainGetElem()
 func TestOptChainStartOfChain_optChainGetElem(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	outerGet := pt.parse("a?.[b][c]").GetFirstFirstChild()
 	innerGet := outerGet.GetFirstChild()
@@ -8491,7 +7943,6 @@ func TestOptChainStartOfChain_optChainGetElem(t *testing.T) {
 // Java: ParserTest.optChainStartOfChain_optChainCall()
 func TestOptChainStartOfChain_optChainCall(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	outerCall := pt.parse("a?.()(b)").GetFirstFirstChild()
 	innerCall := outerCall.GetFirstChild()
@@ -8516,7 +7967,6 @@ func TestOptChainStartOfChain_optChainCall(t *testing.T) {
 // Java: ParserTest.optChainParens_optChainGetProp()
 func TestOptChainParens_optChainGetProp(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	outerGet := pt.parse("(a?.b).c").GetFirstFirstChild()
 	innerGet := outerGet.GetFirstChild()
@@ -8540,7 +7990,6 @@ func TestOptChainParens_optChainGetProp(t *testing.T) {
 // Java: ParserTest.callExpressionBeforeOptionalGetProp()
 func TestCallExpressionBeforeOptionalGetProp(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	get := pt.parse("a()?.b").GetFirstFirstChild()
 	call := get.GetFirstChild()
@@ -8559,7 +8008,6 @@ func TestCallExpressionBeforeOptionalGetProp(t *testing.T) {
 // Java: ParserTest.optChainChain()
 func TestOptChainChain(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("a?.b?.c")
 	pt.parse("a.b?.c")
@@ -8577,7 +8025,6 @@ func TestOptChainChain(t *testing.T) {
 // Java: ParserTest.optChainAssignError()
 func TestOptChainAssignError(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("a?.b = c", "invalid assignment target")
 }
@@ -8585,7 +8032,6 @@ func TestOptChainAssignError(t *testing.T) {
 // Java: ParserTest.optChainConstructorError()
 func TestOptChainConstructorError(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("new a?.()", "Optional chaining is forbidden in construction contexts.")
 	pt.parseError("new a?.b()", "Optional chaining is forbidden in construction contexts.")
@@ -8594,7 +8040,6 @@ func TestOptChainConstructorError(t *testing.T) {
 // Java: ParserTest.optChainTemplateLiteralError()
 func TestOptChainTemplateLiteralError(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("a?.()?.`hello`", "template literal cannot be used within optional chaining")
 	pt.parseError("a?.`hello`", "template literal cannot be used within optional chaining")
@@ -8607,7 +8052,6 @@ func TestOptChainTemplateLiteralError(t *testing.T) {
 // Java: ParserTest.optChainMiscErrors()
 func TestOptChainMiscErrors(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("super?.()", "Optional chaining is forbidden in super?.")
 	pt.parseError("super?.foo", "Optional chaining is forbidden in super?.")
@@ -8618,7 +8062,6 @@ func TestOptChainMiscErrors(t *testing.T) {
 // Java: ParserTest.optChainDeleteValid()
 func TestOptChainDeleteValid(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("delete a?.b")
 }
@@ -8626,7 +8069,6 @@ func TestOptChainDeleteValid(t *testing.T) {
 // Java: ParserTest.optChainEs2019()
 func TestOptChainEs2019(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_OPTIONAL_CHAINING)
 	pt.mode = Config_LanguageMode_ECMASCRIPT_2019
@@ -8637,7 +8079,6 @@ func TestOptChainEs2019(t *testing.T) {
 // Java: ParserTest.optChainSyntaxError()
 func TestOptChainSyntaxError(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("a?.{}", "syntax error: { not allowed in optional chain")
 	// optional chain cannot be applied on a BLOCK `{}`
@@ -8648,7 +8089,6 @@ func TestOptChainSyntaxError(t *testing.T) {
 // Java: ParserTest.testArrow1()
 func TestArrow1(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_ARROW_FUNCTIONS)
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -8671,7 +8111,6 @@ func TestArrow1(t *testing.T) {
 // Java: ParserTest.testArrowInvalid1()
 func TestArrowInvalid1(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.parseError("*()=>1;", "primary expression expected")
@@ -8683,7 +8122,6 @@ func TestArrowInvalid1(t *testing.T) {
 // Java: ParserTest.testAsyncFunction()
 func TestAsyncFunction(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	asyncFunctionExpressionSource := "f = async function() {};"
 	asyncFunctionDeclarationSource := "async function f() {}"
@@ -8711,7 +8149,6 @@ func TestAsyncFunction(t *testing.T) {
 // Java: ParserTest.testAsyncNamedFunction()
 func TestAsyncNamedFunction(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT_2015
 	pt.expectFeatures(
@@ -8732,7 +8169,6 @@ let foo = async(5);
 // Java: ParserTest.testAsyncGeneratorFunction()
 func TestAsyncGeneratorFunction(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_ASYNC_FUNCTIONS, parser.FeatureSet_Feature_GENERATORS, parser.FeatureSet_Feature_ASYNC_GENERATORS)
 	pt.parse("async function *f(){}")
@@ -8743,7 +8179,6 @@ func TestAsyncGeneratorFunction(t *testing.T) {
 // Java: ParserTest.testAsyncArrowFunction()
 func TestAsyncArrowFunction(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.doAsyncArrowFunctionTest("f = async (x) => x + 1")
 	pt.doAsyncArrowFunctionTest("f = async x => x + 1")
@@ -8752,7 +8187,6 @@ func TestAsyncArrowFunction(t *testing.T) {
 // Java: ParserTest.testAsyncArrowInvalid()
 func TestAsyncArrowInvalid(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("f = not_async (x) => x + 1;", "'=>' unexpected")
 }
@@ -8760,7 +8194,6 @@ func TestAsyncArrowInvalid(t *testing.T) {
 // Java: ParserTest.testAsyncMethod()
 func TestAsyncMethod(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_ASYNC_FUNCTIONS)
 	pt.parse("o={async m(){}}")
@@ -8774,7 +8207,6 @@ func TestAsyncMethod(t *testing.T) {
 // Java: ParserTest.testInvalidAsyncMethod()
 func TestInvalidAsyncMethod(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 	pt.expectFeatures(parser.FeatureSet_Feature_MEMBER_DECLARATIONS)
@@ -8798,7 +8230,6 @@ func TestInvalidAsyncMethod(t *testing.T) {
 // Java: ParserTest.testAwait_inFunctions()
 func TestAwait_inFunctions(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_ASYNC_FUNCTIONS)
 	pt.parse("async function f(p) { await p }")
@@ -8812,7 +8243,6 @@ func TestAwait_inFunctions(t *testing.T) {
 // Java: ParserTest.testAwait_inMethods()
 func TestAwait_inMethods(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("class C { async method() { await 2; } }")
 	pt.parse("const x = { async method() { await 2; } }")
@@ -8821,7 +8251,6 @@ func TestAwait_inMethods(t *testing.T) {
 // Java: ParserTest.testAwait_inObjectLiteralComputedPropertyName()
 func TestAwait_inObjectLiteralComputedPropertyName(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("async function f() { return { [await 1]: 1 }; }")
 	pt.parse("async function f() { return { [await 2]() {} }; }")
@@ -8837,7 +8266,6 @@ func TestAwait_inObjectLiteralComputedPropertyName(t *testing.T) {
 // Java: ParserTest.testAwait_inClassComputedPropertyName()
 func TestAwait_inClassComputedPropertyName(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("async function f() { return class { [await 1] = 1 }; }")
 	pt.parse("async function f() { return class { [await 2]() {} }; }")
@@ -8853,7 +8281,6 @@ func TestAwait_inClassComputedPropertyName(t *testing.T) {
 // Java: ParserTest.testAwait_invalid_missingExpression()
 func TestAwait_invalid_missingExpression(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("async function f() { await; }", "primary expression expected")
 }
@@ -8861,7 +8288,6 @@ func TestAwait_invalid_missingExpression(t *testing.T) {
 // Java: ParserTest.testAwait_invalid_nonAsyncFunction()
 func TestAwait_invalid_nonAsyncFunction(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("function f() { return await 5; }", parserTest_UNEXPECTED_AWAIT)
 	pt.parseError("async function f() { function f2() { return await 5; } }", parserTest_UNEXPECTED_AWAIT)
@@ -8870,7 +8296,6 @@ func TestAwait_invalid_nonAsyncFunction(t *testing.T) {
 // Java: ParserTest.testAwait_invalid_nonAsyncMethod()
 func TestAwait_invalid_nonAsyncMethod(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("class C { method() { await 1; } }", parserTest_UNEXPECTED_AWAIT)
 	pt.parseError("const x = { method() { await 2; } }", parserTest_UNEXPECTED_AWAIT)
@@ -8879,7 +8304,6 @@ func TestAwait_invalid_nonAsyncMethod(t *testing.T) {
 // Java: ParserTest.testAwait_invalid_defaultParameter()
 func TestAwait_invalid_defaultParameter(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError(
 		"async function f(x = await 15) { return x; }",
@@ -8889,7 +8313,6 @@ func TestAwait_invalid_defaultParameter(t *testing.T) {
 // Java: ParserTest.testAwait_invalid_inClassStaticBlock()
 func TestAwait_invalid_inClassStaticBlock(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("class C { static { await 1; } }", parserTest_UNEXPECTED_AWAIT)
 	pt.parseError("async function f() { class C { static { await 1; } } }", parserTest_UNEXPECTED_AWAIT)
@@ -8903,7 +8326,6 @@ func TestAwait_invalid_inClassStaticBlock(t *testing.T) {
 // Java: ParserTest.testAwait_invalid_inClassFieldInitializer()
 func TestAwait_invalid_inClassFieldInitializer(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("class C { f = await 1; }", parserTest_UNEXPECTED_AWAIT)
 	pt.parseError("class C { static f = await 1; }", parserTest_UNEXPECTED_AWAIT)
@@ -8918,7 +8340,6 @@ func TestAwait_invalid_inClassFieldInitializer(t *testing.T) {
 // Java: ParserTest.testAwait_inClassMethods()
 func TestAwait_inClassMethods(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("class C { method() { await 1; } }", parserTest_UNEXPECTED_AWAIT)
 
@@ -8928,7 +8349,6 @@ func TestAwait_inClassMethods(t *testing.T) {
 // Java: ParserTest.testAwait_topLevelInEsModule()
 func TestAwait_topLevelInEsModule(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_TOP_LEVEL_AWAIT)
 	pt.parse("export const x = await 15;")
@@ -8938,7 +8358,6 @@ func TestAwait_topLevelInEsModule(t *testing.T) {
 // Java: ParserTest.testAwait_topLevelInObjectLiteral()
 func TestAwait_topLevelInObjectLiteral(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_TOP_LEVEL_AWAIT)
 	pt.parse("export const x = 1; const obj = { key: await x };")
@@ -8947,7 +8366,6 @@ func TestAwait_topLevelInObjectLiteral(t *testing.T) {
 // Java: ParserTest.testAwait_topLevelInBlock()
 func TestAwait_topLevelInBlock(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_TOP_LEVEL_AWAIT)
 	pt.parse("export const x = 1; { await x; }")
@@ -8956,7 +8374,6 @@ func TestAwait_topLevelInBlock(t *testing.T) {
 // Java: ParserTest.testAwait_topLevelInLoops()
 func TestAwait_topLevelInLoops(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_TOP_LEVEL_AWAIT)
 	pt.parse("export const x = 1; for (;;) { await x; }")
@@ -8967,7 +8384,6 @@ func TestAwait_topLevelInLoops(t *testing.T) {
 // Java: ParserTest.testAwait_topLevelInTryCatch()
 func TestAwait_topLevelInTryCatch(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_TOP_LEVEL_AWAIT)
 	pt.parse("export const x = 1; try { await x; } catch (e) {}")
@@ -8978,7 +8394,6 @@ func TestAwait_topLevelInTryCatch(t *testing.T) {
 // Java: ParserTest.testAwait_topLevelInClassExtends()
 func TestAwait_topLevelInClassExtends(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_TOP_LEVEL_AWAIT)
 	pt.parse("export const x = class {}; class C extends (await x) {}")
@@ -8987,7 +8402,6 @@ func TestAwait_topLevelInClassExtends(t *testing.T) {
 // Java: ParserTest.testAwait_invalid_topLevelInScript()
 func TestAwait_invalid_topLevelInScript(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("const x = await 15;", parserTest_UNEXPECTED_AWAIT)
 	pt.parseError("await 15;", parserTest_UNEXPECTED_AWAIT)
@@ -8996,7 +8410,6 @@ func TestAwait_invalid_topLevelInScript(t *testing.T) {
 // Java: ParserTest.testAwait_invalid_topLevelInClassExtends()
 func TestAwait_invalid_topLevelInClassExtends(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	// Await is not allowed in extends clause without parentheses
 	// Use export to ensure module context where await is a keyword
@@ -9006,7 +8419,6 @@ func TestAwait_invalid_topLevelInClassExtends(t *testing.T) {
 // Java: ParserTest.testAwait_invalid_topLevelInGoogModule()
 func TestAwait_invalid_topLevelInGoogModule(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	// Await is not allowed in goog.module
 	pt.parseError("goog.module('m'); await 1;", parserTest_UNEXPECTED_AWAIT)
@@ -9015,7 +8427,6 @@ func TestAwait_invalid_topLevelInGoogModule(t *testing.T) {
 // Java: ParserTest.testAwait_invalid_topLevelInGoogProvide()
 func TestAwait_invalid_topLevelInGoogProvide(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	// Await is not allowed in goog.provide
 	pt.parseError("goog.provide('m'); await 1;", parserTest_UNEXPECTED_AWAIT)
@@ -9024,7 +8435,6 @@ func TestAwait_invalid_topLevelInGoogProvide(t *testing.T) {
 // Java: ParserTest.testAwait_topLevelInObjectLiteralComputedPropertyName()
 func TestAwait_topLevelInObjectLiteralComputedPropertyName(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_TOP_LEVEL_AWAIT)
 	pt.parse("export const x = { [await 1]: 1 };")
@@ -9041,7 +8451,6 @@ func TestAwait_topLevelInObjectLiteralComputedPropertyName(t *testing.T) {
 // Java: ParserTest.testAwait_topLevelAwaitInClassComputedPropertyName()
 func TestAwait_topLevelAwaitInClassComputedPropertyName(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_TOP_LEVEL_AWAIT)
 	pt.parse("export class C { [await 1] = 1 };")
@@ -9060,7 +8469,6 @@ func TestAwait_topLevelAwaitInClassComputedPropertyName(t *testing.T) {
 // Java: ParserTest.testAwait_invalid_topLevelAwaitInClassComputedPropertyNameInScript()
 func TestAwait_invalid_topLevelAwaitInClassComputedPropertyNameInScript(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("class C { [await 1] = 1 };", parserTest_UNEXPECTED_AWAIT)
 }
@@ -9068,7 +8476,6 @@ func TestAwait_invalid_topLevelAwaitInClassComputedPropertyNameInScript(t *testi
 // Java: ParserTest.testForAwaitOf_inFunctions()
 func TestForAwaitOf_inFunctions(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 
@@ -9089,7 +8496,6 @@ func TestForAwaitOf_inFunctions(t *testing.T) {
 // Java: ParserTest.testForAwaitOf_invalid_declWithInitializer()
 func TestForAwaitOf_invalid_declWithInitializer(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 
@@ -9103,7 +8509,6 @@ func TestForAwaitOf_invalid_declWithInitializer(t *testing.T) {
 // Java: ParserTest.testForAwaitOf_invalid_multipleDecls()
 func TestForAwaitOf_invalid_multipleDecls(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 
@@ -9117,7 +8522,6 @@ func TestForAwaitOf_invalid_multipleDecls(t *testing.T) {
 // Java: ParserTest.testForAwaitOf_topLevelInEsModule()
 func TestForAwaitOf_topLevelInEsModule(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_TOP_LEVEL_AWAIT)
 	pt.parse("export const x = 1; for await (let a of b) foo();")
@@ -9126,7 +8530,6 @@ func TestForAwaitOf_topLevelInEsModule(t *testing.T) {
 // Java: ParserTest.testForAwaitOf_invalid_topLevelInScript()
 func TestForAwaitOf_invalid_topLevelInScript(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("for await (let a of b) foo();", parserTest_UNEXPECTED_FOR_AWAIT_OF)
 }
@@ -9134,7 +8537,6 @@ func TestForAwaitOf_invalid_topLevelInScript(t *testing.T) {
 // Java: ParserTest.testFor_ES5()
 func TestFor_ES5(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("for (var x; x != 10; x = next()) {}")
 	pt.parse("for (var x; x != 10; x = next());")
@@ -9150,7 +8552,6 @@ func TestFor_ES5(t *testing.T) {
 // Java: ParserTest.testFor_ES6()
 func TestFor_ES6(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 
@@ -9168,7 +8569,6 @@ func TestFor_ES6(t *testing.T) {
 // Java: ParserTest.testForConstNoInitializer()
 func TestForConstNoInitializer(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("for (const x; x != 10; x = next()) {}", "const variables must have an initializer")
 	pt.parseError("for (const x; x != 10; x = next());", "const variables must have an initializer")
@@ -9177,7 +8577,6 @@ func TestForConstNoInitializer(t *testing.T) {
 // Java: ParserTest.testForIn_ES6()
 func TestForIn_ES6(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 
@@ -9214,7 +8613,6 @@ func TestForIn_ES6(t *testing.T) {
 // Java: ParserTest.testForIn_ES5()
 func TestForIn_ES5(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT5
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -9229,7 +8627,6 @@ func TestForIn_ES5(t *testing.T) {
 // Java: ParserTest.testForInDestructuring()
 func TestForInDestructuring(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 
@@ -9261,7 +8658,6 @@ func TestForInDestructuring(t *testing.T) {
 // Java: ParserTest.testForInDestructuringInvalid()
 func TestForInDestructuringInvalid(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 
@@ -9279,7 +8675,6 @@ func TestForInDestructuringInvalid(t *testing.T) {
 // Java: ParserTest.testForOf1()
 func TestForOf1(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 
@@ -9295,7 +8690,6 @@ func TestForOf1(t *testing.T) {
 // Java: ParserTest.testForOf2()
 func TestForOf2(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 
@@ -9308,7 +8702,6 @@ func TestForOf2(t *testing.T) {
 // Java: ParserTest.testForOf3()
 func TestForOf3(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 
@@ -9326,7 +8719,6 @@ func TestForOf3(t *testing.T) {
 // Java: ParserTest.testForOf4()
 func TestForOf4(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 
@@ -9336,7 +8728,6 @@ func TestForOf4(t *testing.T) {
 // Java: ParserTest.testDestructuringInForLoops()
 func TestDestructuringInForLoops(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 
@@ -9360,7 +8751,6 @@ func TestDestructuringInForLoops(t *testing.T) {
 // Java: ParserTest.testInvalidDestructuring()
 func TestInvalidDestructuring(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 
@@ -9380,7 +8770,6 @@ func TestInvalidDestructuring(t *testing.T) {
 // Java: ParserTest.testForOfPatterns()
 func TestForOfPatterns(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 
@@ -9420,7 +8809,6 @@ func TestForOfPatterns(t *testing.T) {
 // Java: ParserTest.testForOfPatternsWithInitializer()
 func TestForOfPatternsWithInitializer(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 
@@ -9443,7 +8831,6 @@ func TestForOfPatternsWithInitializer(t *testing.T) {
 // Java: ParserTest.testImport()
 func TestImport(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_MODULES)
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -9468,7 +8855,6 @@ func TestImport(t *testing.T) {
 // Java: ParserTest.testExport()
 func TestExport(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 
@@ -9503,7 +8889,6 @@ func TestExport(t *testing.T) {
 // Java: ParserTest.testExportAsync()
 func TestExportAsync(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.strictMode = Config_StrictMode_SLOPPY
 
@@ -9514,7 +8899,6 @@ func TestExportAsync(t *testing.T) {
 // Java: ParserTest.testImportExportTypescriptKeyword()
 func TestImportExportTypescriptKeyword(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("export { namespace };")
 	pt.parse("import { namespace } from './input0.js';")
@@ -9523,7 +8907,6 @@ func TestImportExportTypescriptKeyword(t *testing.T) {
 // Java: ParserTest.testGoogModule()
 func TestGoogModule(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	tree := pt.parse("goog.module('example');")
 	assertNode(t, tree).HasType(rhino.Token_SCRIPT)
@@ -9535,7 +8918,6 @@ func TestGoogModule(t *testing.T) {
 // Java: ParserTest.testShebang()
 func TestShebang(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse("#!/usr/bin/node\n var x = 1;")
 	pt.parseError("var x = 1; \n #!/usr/bin/node", "Shebang comment must be at the start of the file")
@@ -9544,7 +8926,6 @@ func TestShebang(t *testing.T) {
 // Java: ParserTest.testInvalidPoundUsage()
 func TestInvalidPoundUsage(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("var x = 1; \n# Wrong-style comment", "Invalid usage of #")
 }
@@ -9552,7 +8933,6 @@ func TestInvalidPoundUsage(t *testing.T) {
 // Java: ParserTest.testLookaheadGithubIssue699()
 func TestLookaheadGithubIssue699(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	start := time.Now()
 	pt.parse(
@@ -9573,7 +8953,6 @@ func TestLookaheadGithubIssue699(t *testing.T) {
 // Java: ParserTest.testInvalidHandling1()
 func TestInvalidHandling1(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parse(
 		`/**
@@ -9592,7 +8971,6 @@ goog.provide('ns.foo');
 // Java: ParserTest.testUtf8()
 func TestUtf8(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT5
 	pt.strictMode = Config_StrictMode_SLOPPY
@@ -9604,7 +8982,6 @@ func TestUtf8(t *testing.T) {
 // Java: ParserTest.testParseDeep1()
 func TestParseDeep1(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	code := "var x; x = \n"
 	for i := 1; i < 15000; i++ {
@@ -9617,7 +8994,6 @@ func TestParseDeep1(t *testing.T) {
 // Java: ParserTest.testParseDeep2()
 func TestParseDeep2(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	code := "var x; x = \n"
 	for i := 1; i < 15000; i++ {
@@ -9630,7 +9006,6 @@ func TestParseDeep2(t *testing.T) {
 // Java: ParserTest.testParseDeep3()
 func TestParseDeep3(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	code := "var x; x = \n"
 	for i := 1; i < 15000; i++ {
@@ -9643,7 +9018,6 @@ func TestParseDeep3(t *testing.T) {
 // Java: ParserTest.testParseDeep4()
 func TestParseDeep4(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	// Currently, we back off if there is any JSDoc in the tree of binary expressions
 	code := "var x; x = \n"
@@ -9674,7 +9048,6 @@ func TestParseDeep4(t *testing.T) {
 // Java: ParserTest.testParseInlineSourceMap()
 func TestParseInlineSourceMap(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	code :=
 		`var X = (function () {
@@ -9695,7 +9068,6 @@ console.log(new X(1));
 // Java: ParserTest.testParseSourceMapRelativeURL()
 func TestParseSourceMapRelativeURL(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	code :=
 		`var X = (function () {
@@ -9714,7 +9086,6 @@ console.log(new X(1));
 // Java: ParserTest.testParseSourceMapAbsoluteURL()
 func TestParseSourceMapAbsoluteURL(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	code :=
 		`console.log('asdf');
@@ -9727,7 +9098,6 @@ func TestParseSourceMapAbsoluteURL(t *testing.T) {
 // Java: ParserTest.testParseSourceMapAbsoluteURLHTTP()
 func TestParseSourceMapAbsoluteURLHTTP(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	code :=
 		`console.log('asdf');
@@ -9741,7 +9111,6 @@ func TestParseSourceMapAbsoluteURLHTTP(t *testing.T) {
 // Java: ParserTest.testIncorrectAssignmentDoesntCrash()
 func TestIncorrectAssignmentDoesntCrash(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	// Check that error make sense in default "stop on error" mode.
 	pt.parseError("[1 + 2] = 3;", "invalid assignment target")
@@ -9766,7 +9135,6 @@ func TestIncorrectAssignmentDoesntCrash(t *testing.T) {
 // Java: ParserTest.testDynamicImport()
 func TestDynamicImport(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	dynamicImportUses := []string{
 		"import('foo')",
@@ -9802,7 +9170,6 @@ func TestDynamicImport(t *testing.T) {
 // Java: ParserTest.testAwaitDynamicImport()
 func TestAwaitDynamicImport(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	awaitDynamicImportUses := []string{
 		"(async function() { return await import('foo'); })()",
@@ -9822,7 +9189,6 @@ await Promise.all([import('foo')]).then(function(a) { return a; }); })()
 // Java: ParserTest.testImportMeta()
 func TestImportMeta(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_MODULES, parser.FeatureSet_Feature_IMPORT_META)
 
@@ -9833,7 +9199,6 @@ func TestImportMeta(t *testing.T) {
 // Java: ParserTest.testImportMeta_es5()
 func TestImportMeta_es5(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT5
 	pt.expectFeatures(parser.FeatureSet_Feature_MODULES, parser.FeatureSet_Feature_IMPORT_META)
@@ -9847,7 +9212,6 @@ func TestImportMeta_es5(t *testing.T) {
 // Java: ParserTest.testImportMeta_es6()
 func TestImportMeta_es6(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT_2015
 	pt.expectFeatures(parser.FeatureSet_Feature_MODULES, parser.FeatureSet_Feature_IMPORT_META)
@@ -9858,7 +9222,6 @@ func TestImportMeta_es6(t *testing.T) {
 // Java: ParserTest.testImportMeta_inExpression()
 func TestImportMeta_inExpression(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_MODULES, parser.FeatureSet_Feature_IMPORT_META)
 
@@ -9875,7 +9238,6 @@ func TestImportMeta_inExpression(t *testing.T) {
 // Java: ParserTest.testImportMeta_asDotProperty()
 func TestImportMeta_asDotProperty(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	tree := pt.parse("x.import.meta")
 	assertNode(t, tree.GetFirstChild()).
@@ -9885,7 +9247,6 @@ func TestImportMeta_asDotProperty(t *testing.T) {
 // Java: ParserTest.testNullishCoalesce()
 func TestNullishCoalesce(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_NULL_COALESCE_OP)
 
@@ -9897,7 +9258,6 @@ func TestNullishCoalesce(t *testing.T) {
 // Java: ParserTest.testNullishCoalesce_es2019()
 func TestNullishCoalesce_es2019(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT_2019
 	pt.expectFeatures(parser.FeatureSet_Feature_NULL_COALESCE_OP)
@@ -9908,7 +9268,6 @@ func TestNullishCoalesce_es2019(t *testing.T) {
 // Java: ParserTest.testNullishCoalesce_withLogicalAND_shouldFail()
 func TestNullishCoalesce_withLogicalAND_shouldFail(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("x&&y??z", "Logical OR and logical AND require parentheses when used with '??'")
 }
@@ -9916,7 +9275,6 @@ func TestNullishCoalesce_withLogicalAND_shouldFail(t *testing.T) {
 // Java: ParserTest.testNullishCoalesce_withLogicalOR_shouldFail()
 func TestNullishCoalesce_withLogicalOR_shouldFail(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.parseError("x??y||z", "Logical OR and logical AND require parentheses when used with '??'")
 }
@@ -9924,7 +9282,6 @@ func TestNullishCoalesce_withLogicalOR_shouldFail(t *testing.T) {
 // Java: ParserTest.testNullishCoalesce_withLogicalANDinParens()
 func TestNullishCoalesce_withLogicalANDinParens(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_NULL_COALESCE_OP)
 
@@ -9936,7 +9293,6 @@ func TestNullishCoalesce_withLogicalANDinParens(t *testing.T) {
 // Java: ParserTest.testNullishCoalesce_chaining()
 func TestNullishCoalesce_chaining(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_NULL_COALESCE_OP)
 
@@ -9957,7 +9313,6 @@ func TestNullishCoalesce_chaining(t *testing.T) {
 // Java: ParserTest.testAssignOR()
 func TestAssignOR(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_LOGICAL_ASSIGNMENT)
 	tree := pt.parse("x||=y")
@@ -9968,7 +9323,6 @@ func TestAssignOR(t *testing.T) {
 // Java: ParserTest.testAssignOr_es2020()
 func TestAssignOr_es2020(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT_2020
 	pt.expectFeatures(parser.FeatureSet_Feature_LOGICAL_ASSIGNMENT)
@@ -9979,7 +9333,6 @@ func TestAssignOr_es2020(t *testing.T) {
 // Java: ParserTest.testAssignAnd()
 func TestAssignAnd(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_LOGICAL_ASSIGNMENT)
 	tree := pt.parse("x&&=y")
@@ -9990,7 +9343,6 @@ func TestAssignAnd(t *testing.T) {
 // Java: ParserTest.testAssignAnd_es2020()
 func TestAssignAnd_es2020(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT_2020
 	pt.expectFeatures(parser.FeatureSet_Feature_LOGICAL_ASSIGNMENT)
@@ -10001,7 +9353,6 @@ func TestAssignAnd_es2020(t *testing.T) {
 // Java: ParserTest.testAssignCoalesce()
 func TestAssignCoalesce(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.expectFeatures(parser.FeatureSet_Feature_LOGICAL_ASSIGNMENT)
 	tree := pt.parse("x??=y")
@@ -10012,7 +9363,6 @@ func TestAssignCoalesce(t *testing.T) {
 // Java: ParserTest.testAssignCoalesce_es2020()
 func TestAssignCoalesce_es2020(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT_2020
 	pt.expectFeatures(parser.FeatureSet_Feature_LOGICAL_ASSIGNMENT)
@@ -10023,7 +9373,6 @@ func TestAssignCoalesce_es2020(t *testing.T) {
 // Java: ParserTest.testNoDuplicateComments_arrow_fn()
 func TestNoDuplicateComments_arrow_fn(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.isIdeMode = true
 	pt.parsingMode = Config_JsDocParsing_INCLUDE_ALL_COMMENTS
@@ -10036,7 +9385,6 @@ func TestNoDuplicateComments_arrow_fn(t *testing.T) {
 // Java: ParserTest.testIndirectCallName()
 func TestIndirectCallName(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	script := pt.parse("(0, foo)();")
 	assertNode(t, script).HasToken(rhino.Token_SCRIPT)
@@ -10052,7 +9400,6 @@ func TestIndirectCallName(t *testing.T) {
 // Java: ParserTest.testIndirectCallGetProp()
 func TestIndirectCallGetProp(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	script := pt.parse("(0, foo.bar)();")
 	assertNode(t, script).HasToken(rhino.Token_SCRIPT)
@@ -10068,7 +9415,6 @@ func TestIndirectCallGetProp(t *testing.T) {
 // Java: ParserTest.testFreeCall1()
 func TestFreeCall1(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	script := pt.parse("foo();")
 	assertNode(t, script).HasToken(rhino.Token_SCRIPT)
@@ -10082,7 +9428,6 @@ func TestFreeCall1(t *testing.T) {
 // Java: ParserTest.testFreeCall2()
 func TestFreeCall2(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	script := pt.parse("x.foo();")
 	assertNode(t, script).HasToken(rhino.Token_SCRIPT)
@@ -10096,7 +9441,6 @@ func TestFreeCall2(t *testing.T) {
 // Java: ParserTest.testTaggedTemplateFreeCall1()
 func TestTaggedTemplateFreeCall1(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	script := pt.parse("foo``;")
 	assertNode(t, script).HasToken(rhino.Token_SCRIPT)
@@ -10110,7 +9454,6 @@ func TestTaggedTemplateFreeCall1(t *testing.T) {
 // Java: ParserTest.testTaggedTemplateFreeCall2()
 func TestTaggedTemplateFreeCall2(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	script := pt.parse("x.foo``;")
 	assertNode(t, script).HasToken(rhino.Token_SCRIPT)
@@ -10124,7 +9467,6 @@ func TestTaggedTemplateFreeCall2(t *testing.T) {
 // Java: ParserTest.optionalFreeCall1()
 func TestOptionalFreeCall1(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	script := pt.parse("foo?.();")
 	assertNode(t, script).HasToken(rhino.Token_SCRIPT)
@@ -10138,7 +9480,6 @@ func TestOptionalFreeCall1(t *testing.T) {
 // Java: ParserTest.optChainFreeCall()
 func TestOptChainFreeCall(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	script := pt.parse("x?.foo();")
 	assertNode(t, script).HasToken(rhino.Token_SCRIPT)
@@ -10152,7 +9493,6 @@ func TestOptChainFreeCall(t *testing.T) {
 // Java: ParserTest.testIsInClosureUnawareSubtreeProperty_isCorrectlySet()
 func TestIsInClosureUnawareSubtreeProperty_isCorrectlySet(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	script :=
 		pt.parseWarning(
@@ -10239,7 +9579,6 @@ let string1 = "ClosureAwareString";
 // Java: ParserTest.closureUnawareAnnotation_specifyMinificationLevel_inFileOverview_succeeds()
 func TestClosureUnawareAnnotation_specifyMinificationLevel_inFileOverview_succeeds(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	errorReporter :=
 		newTestErrorReporter().
@@ -10257,7 +9596,6 @@ func TestClosureUnawareAnnotation_specifyMinificationLevel_inFileOverview_succee
 // Java: ParserTest.closureUnawareAnnotation_specifyMinificationLevel_inPerFunctionDoc_errors()
 func TestClosureUnawareAnnotation_specifyMinificationLevel_inPerFunctionDoc_errors(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	errorReporter :=
 		newTestErrorReporter().
@@ -10276,7 +9614,6 @@ func TestClosureUnawareAnnotation_specifyMinificationLevel_inPerFunctionDoc_erro
 // Java: ParserTest.closureUnawareAnnotation_specifyMinificationLevel_inMultipleDoc_errors()
 func TestClosureUnawareAnnotation_specifyMinificationLevel_inMultipleDoc_errors(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	errorReporter :=
 		newTestErrorReporter().
@@ -10295,7 +9632,6 @@ func TestClosureUnawareAnnotation_specifyMinificationLevel_inMultipleDoc_errors(
 // Java: ParserTest.closureUnawareAnnotation_usedOutsideFileWithClosureUnaware_errors()
 func TestClosureUnawareAnnotation_usedOutsideFileWithClosureUnaware_errors(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	errorReporter :=
 		newTestErrorReporter().
@@ -10312,7 +9648,6 @@ func TestClosureUnawareAnnotation_usedOutsideFileWithClosureUnaware_errors(t *te
 // Java: ParserTest.closureUnawareAnnotation_onNonFunctionCall_errors()
 func TestClosureUnawareAnnotation_onNonFunctionCall_errors(t *testing.T) {
 	pt := newParserTest(t)
-	defer pt.done()
 
 	pt.mode = Config_LanguageMode_ECMASCRIPT_2020
 	pt.expectFeatures(parser.FeatureSet_Feature_CONST_DECLARATIONS)
@@ -10439,14 +9774,12 @@ func (pt *parserTest) freeCall(n *rhino.Node) *rhino.Node {
 }
 
 // Java: ParserTest.assertNodeHasJSDocInfoWithJSType(Node, JSType)
-func (pt *parserTest) assertNodeHasJSDocInfoWithJSType(node *rhino.Node, jsType jsTypeRef) {
+func (pt *parserTest) assertNodeHasJSDocInfoWithJSType(node *rhino.Node, jsType rhino.JSType) {
 	t := pt.t
 	t.Helper()
 	info := node.GetJSDocInfo()
 	assertWithMessage(t, jutil.LenientFormat("Node has no JSDocInfo: %s", node)).That(info).IsNotNull()
-	// assertTypeEquals(jsType, info.getType()): the declared type must exist.
-	assertThat(t, info.GetType()).IsNotNull()
-	pt.needsJSType = append(pt.needsJSType, "assertTypeEquals("+string(jsType)+", info.getType())")
+	pt.AssertTypeEqualsExpr(jsType, info.GetType())
 }
 
 // Java: ParserTest.assertNodeHasJSDocInfoWithNoJSType(Node)
@@ -10611,15 +9944,6 @@ func (pt *parserTest) expectFeatures(features ...parser.FeatureSet_Feature) {
 type parserTest_ParserResult struct {
 	code string
 	node *rhino.Node
-}
-
-// assertTypeEquals is BaseJSTypeTestCase.assertTypeEquals(JSType,
-// JSTypeExpression): the actual type expression must exist; the comparison
-// itself needs the type registry and is recorded (see above).
-func (pt *parserTest) assertTypeEquals(expected jsTypeRef, actual *rhino.JSTypeExpression) {
-	pt.t.Helper()
-	assertThat(pt.t, actual).IsNotNull()
-	pt.needsJSType = append(pt.needsJSType, "assertTypeEquals("+string(expected)+", ...)")
 }
 
 // ---------------------------------------------------------------------------
