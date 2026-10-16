@@ -1,0 +1,152 @@
+irf/classes1.js	[getters, setters, class, class getters/setters, computed property, generator, member declaration, async function, async generator functions, Optional chaining, Public class fields, Class static block]
+irf/comments1.js	[getters, array destructuring, array pattern rest, class, class getters/setters, let declaration, member declaration, object destructuring, object pattern rest, Dynamic module import, Optional chaining, Public class fields]
+irf/comments2.js	[array destructuring, default parameter, member declaration, rest parameter]
+irf/crlf.js	[template literal]
+irf/crlf2.js	[template literal]
+irf/cu1.js	[let declaration]
+irf/cu2.js	[const declaration]
+irf/cu3.js	[]
+irf/cu4.js	[]
+irf/errors1.js	null
+irf/es3.js	null
+irf/goog1.js	[const declaration]
+irf/goog2.js	[]
+irf/goog3.js	null
+irf/literals1.js	[RegExp syntax, template literal, bigint, Optional chaining]
+irf/misc1.js	[getters, setters, array destructuring, arrow function, class, computed property, const declaration, for-of loop, generator, let declaration, member declaration, object destructuring, rest parameter, shorthand object property, spread expression, exponent operator (**), async function, object literals with spread, async generator functions, Optional catch binding, Nullish coalescing, Optional chaining, Logical assignments]
+irf/shebang.js	[]
+irf/sourcemap1.js	[]
+irf/ttl1.js	null
+irf/unicode1.js	[]
+irf/validate1.js	null
+irf/validate2.mjs	[const declaration, modules, async function, for-await-of loop, Dynamic module import, Top-level await]
+mutants/m00029.js	null
+mutants/m00053.js	[]
+mutants/m00077.js	[]
+mutants/m00113.js	null
+mutants/m00187.js	null
+mutants/m00576.js	null
+mutants/m00951.js	[]
+mutants/m01098.js	[]
+mutants/m01138.js	null
+mutants/m01144.js	null
+mutants/m01186.js	null
+mutants/m01234.js	null
+mutants/m01381.js	null
+mutants/m01956.js	null
+mutants/m02315.js	null
+mutants/m02404.js	null
+mutants/m02702.js	null
+mutants/m02703.js	[]
+mutants/m02704.js	null
+mutants/m02705.js	[block-scoped function declaration]
+mutants/m02706.js	[]
+mutants/m02707.js	null
+mutants/m02708.js	null
+mutants/m02726.js	null
+mutants/m02727.js	[]
+mutants/m02728.js	null
+mutants/m02729.js	null
+mutants/m02730.js	null
+mutants/m02731.js	null
+mutants/m02732.js	[]
+mutants/m02750.js	null
+mutants/m02751.js	null
+mutants/m02752.js	[]
+mutants/m02753.js	null
+mutants/m02754.js	null
+mutants/m02755.js	null
+mutants/m02756.js	null
+mutants/m02759.js	null
+mutants/m02903.js	null
+mutants/m02919.js	null
+mutants/m03338.js	[array destructuring, array pattern rest, arrow function]
+mutants/m03477.js	[]
+mutants/m03579.js	null
+mutants/m03615.js	[]
+mutants/m03616.js	null
+mutants/m04181.js	[rest parameter]
+mutants/m04359.js	null
+mutants/m04421.js	null
+mutants/m04684.js	null
+mutants/m04858.js	null
+mutants/m04942.js	null
+mutants/m05249.js	null
+mutants/m06139.js	null
+mutants/m06166.js	null
+mutants/m06366.js	null
+mutants/m06480.js	null
+mutants/m06877.js	[]
+mutants/m06958.js	[RegExp syntax]
+mutants/m07054.js	null
+mutants/m07150.js	null
+mutants/m07626.js	null
+mutants/m07647.js	null
+mutants/m07927.js	[modules]
+mutants/m07934.js	null
+mutants/m08049.js	null
+mutants/m08206.js	null
+mutants/m08219.js	null
+mutants/m08346.js	null
+mutants/m08702.js	null
+mutants/m09219.js	null
+mutants/m09667.js	[let declaration]
+mutants/m09723.js	null
+mutants/m09781.js	null
+mutants/m09820.js	null
+mutants/m09901.js	null
+mutants/m10008.js	null
+mutants/m10655.js	null
+mutants/m10711.js	[spread expression]
+mutants/m11143.js	null
+mutants/m11400.js	null
+mutants/m11567.js	null
+mutants/m11799.js	null
+mutants/m11860.js	null
+mutants/m11908.js	null
+mutants/m12100.js	null
+mutants/m12319.js	null
+mutants/m12364.js	null
+mutants/m12729.js	null
+mutants/m13037.js	null
+mutants/m13094.js	null
+mutants/m13244.js	null
+mutants/m14153.js	null
+mutants/m14374.js	null
+mutants/m14704.js	null
+mutants/m15002.js	null
+mutants/m15096.js	null
+mutants/m15249.js	null
+mutants/m15461.js	null
+mutants/m15550.js	null
+mutants/m16057.js	null
+mutants/m16385.js	null
+mutants/m16585.js	null
+mutants/m16590.js	null
+mutants/m16658.js	null
+mutants/m16970.js	null
+mutants/m17046.js	null
+mutants/m17541.js	[]
+mutants/m17582.js	null
+mutants/m17665.js	null
+mutants/m17701.js	null
+mutants/m18255.js	[]
+mutants/m18436.js	null
+mutants/m18596.js	null
+mutants/m18788.js	null
+mutants/m18980.js	null
+mutants/m20641.js	[]
+mutants/m20685.js	null
+mutants/m21801.js	[]
+mutants/m22413.js	null
+mutants/m23670.js	null
+mutants/m25692.js	null
+mutants/m26068.js	null
+mutants/m26315.js	[]
+mutants/m26853.js	[]
+mutants/m27133.js	null
+mutants/m28185.js	null
+mutants/m29318.js	null
+mutants/m29375.js	null
+mutants/m29473.js	null
+mutants/m29495.js	null
