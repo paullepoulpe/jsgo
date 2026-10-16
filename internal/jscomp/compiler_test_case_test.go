@@ -475,7 +475,8 @@ func (b *CompilerTestCaseBase) GetOptions() *CompilerOptions {
 			NewDiagnosticGroup(b.ignoredWarnings.ToSlice()...), CheckLevel_OFF)
 	}
 	options.SetCodingConvention(b.self.GetCodingConvention())
-	options.SetPolymerVersion(1)
+	polymerVersion := int32(1)
+	options.SetPolymerVersion(&polymerVersion)
 	if b.debugLoggingEnabled {
 		CompilerTestCaseUtils_SetDebugLogDirectoryOn(options)
 	}
@@ -2049,11 +2050,11 @@ func (b *CompilerTestCaseBase) FindQualifiedNameNodes(name string, root *rhino.N
 	matches := []*rhino.Node{}
 	NodeUtil_VisitPostOrder(
 		root,
-		func(n *rhino.Node) {
+		NodeUtil_VisitorFunc(func(n *rhino.Node) {
 			if n.MatchesQualifiedName(name) {
 				matches = append(matches, n)
 			}
-		})
+		}))
 	return matches
 }
 
