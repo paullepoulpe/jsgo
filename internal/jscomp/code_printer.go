@@ -106,7 +106,7 @@ func (m *CodePrinter_MappedCodePrinterBase) InitCodePrinter_MappedCodePrinterBas
 	licenseTracker CodePrinter_LicenseTracker) {
 	m.InitCodeConsumerBase(self)
 	m.firstCandidateMappingForCut = 0
-	m.code = jutil.NewStringBuilder()
+	m.code = jutil.NewStringBuilderWithCapacity(1024)
 	m.lineLength = 0
 	m.lineIndex = 0
 	// checkState(sourceMapDetailLevel != null)
@@ -158,8 +158,11 @@ func (m *CodePrinter_MappedCodePrinterBase) TrackLicenses(node *rhino.Node) {
 func (m *CodePrinter_MappedCodePrinterBase) StartSourceMapping(node *rhino.Node) {
 	// checkState(sourceMapDetailLevel != null): see the constructor.
 	jutil.CheckState(node != nil)
+	// Go-only: language-adapter — `node.getSourceFileName() != null` is
+	// `node.getStaticSourceFile() != null` (a Go file name is never null);
+	// it avoids allocating the *string for every node.
 	if m.createSrcMap &&
-		node.GetSourceFileName() != nil &&
+		node.GetStaticSourceFile() != nil &&
 		node.GetLineno() > 0 &&
 		m.sourceMapDetailLevel.Apply(node) {
 		line := m.GetCurrentLineIndex()

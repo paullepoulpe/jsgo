@@ -85,6 +85,24 @@ type CodeGeneratorBase struct {
 	useOriginalName        bool
 	outputFeatureSet       *parser.FeatureSet
 	jsDocInfoPrinter       *JSDocInfoPrinter
+
+	// Go-only: language-adapter — the UTF-16 view of the string being
+	// escaped (Java indexes its chars), reused across calls.
+	scratchUnits []uint16
+}
+
+// utf16Units is the UTF-16 view of s, in the reused scratch buffer when s
+// is ASCII.
+func (g *CodeGeneratorBase) utf16Units(s string) []uint16 {
+	units := g.scratchUnits[:0]
+	for i := 0; i < len(s); i++ {
+		if s[i] >= utf8.RuneSelf {
+			return jutil.StringToUTF16(s)
+		}
+		units = append(units, uint16(s[i]))
+	}
+	g.scratchUnits = units
+	return units
 }
 
 // GetCodeGeneratorBase gives access to the base fields through the
@@ -2101,7 +2119,7 @@ func (g *CodeGeneratorBase) StrEscape(
 	dollarEscape string,
 	isRegexp bool) string {
 	// Go-only: language-adapter — Java indexes the UTF-16 chars of s.
-	units := jutil.StringToUTF16(s)
+	units := g.utf16Units(s)
 	var sb strings.Builder
 	sb.Grow(len(s) + 2)
 	for i := 0; i < len(units); i++ {
@@ -2234,7 +2252,7 @@ func (g *CodeGeneratorBase) EscapeUnrecognizedCharacters(s string) string {
 	// TODO(yitingwang) Move this method to a suitable place
 	//
 	// Go-only: language-adapter — Java indexes the UTF-16 chars of s.
-	units := jutil.StringToUTF16(s)
+	units := g.utf16Units(s)
 	var sb strings.Builder
 	for i := 0; i < len(units); i++ {
 		c := units[i]
