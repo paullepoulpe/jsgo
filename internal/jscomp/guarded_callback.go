@@ -123,6 +123,13 @@ type GuardedCallbackBase[T comparable] struct {
 	// traversing the second child any node, its values in this map are
 	// moved into `guarded` and `installedGuards` (the latter allowing
 	// removal at the correct time).
+	//
+	// Go-only: language-adapter — MultimapBuilder.hashKeys().hashSetValues():
+	// Java iterates a key's values in String hash order, here in insertion
+	// order. The order is not observable: the values only flow into
+	// `guarded` (a multiset queried for membership) and `installedGuards`
+	// (whose lists only flow back into this multimap and into
+	// guarded.removeAll), and nothing iterates the keys.
 	registeredGuards *jutil.SetMultimap[*rhino.Node, T]
 	// Set of currently-guarded resources. Elements are added to this set
 	// just before traversing the second or later (i.e. "then" or "else")
