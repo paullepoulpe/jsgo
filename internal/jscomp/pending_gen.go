@@ -295,6 +295,8 @@ const CoverageInstrumentationPass_CoverageReach_ALL CoverageInstrumentationPass_
 //
 // Java class: com.google.javascript.jscomp.DefaultPassConfig
 type DefaultPassConfig struct {
+	// Java: PassFactory DefaultPassConfig.inferTypes
+	inferTypes *PassFactory
 }
 
 // Java: DefaultPassConfig(CompilerOptions)
