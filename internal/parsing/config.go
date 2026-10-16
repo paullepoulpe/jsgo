@@ -614,17 +614,17 @@ func (b *Config_Builder) SetAnnotations(names *jutil.LinkedHashMap[string, Annot
 //
 // Java: Config.buildAnnotations(Iterable<String>)
 func Config_BuildAnnotations(allowlist iter.Seq[string]) *jutil.LinkedHashMap[string, Annotation] {
-	annotationsBuilder := newConfig_immutableMapBuilder()
+	annotationsBuilder := jutil.NewImmutableMapBuilder[string, Annotation]()
 	for k, v := range Annotation_recognizedAnnotations.All() {
-		annotationsBuilder.put(k, v)
+		annotationsBuilder.Put(k, v)
 	}
 	for unrecognizedAnnotation := range allowlist {
 		if unrecognizedAnnotation != "" &&
 			!Annotation_recognizedAnnotations.ContainsKey(unrecognizedAnnotation) {
-			annotationsBuilder.put(unrecognizedAnnotation, Annotation_NOT_IMPLEMENTED)
+			annotationsBuilder.Put(unrecognizedAnnotation, Annotation_NOT_IMPLEMENTED)
 		}
 	}
-	return annotationsBuilder.buildOrThrow()
+	return annotationsBuilder.BuildOrThrow()
 }
 
 // config_immutableSetCopyOf is ImmutableSet.copyOf(Iterable<String>).
@@ -639,35 +639,4 @@ func config_immutableSetCopyOf(names iter.Seq[string]) *jutil.LinkedHashSet[stri
 		set.Add(name)
 	}
 	return set
-}
-
-// config_immutableMapBuilder is ImmutableMap.Builder<String, Annotation>:
-// entries keep insertion order, and buildOrThrow rejects duplicate keys.
-//
-// Go-only: language-adapter — Guava ImmutableMap.Builder.
-type config_immutableMapBuilder struct {
-	keys   []string
-	values []Annotation
-}
-
-func newConfig_immutableMapBuilder() *config_immutableMapBuilder {
-	return &config_immutableMapBuilder{}
-}
-
-func (m *config_immutableMapBuilder) put(k string, v Annotation) {
-	m.keys = append(m.keys, k)
-	m.values = append(m.values, v)
-}
-
-func (m *config_immutableMapBuilder) buildOrThrow() *jutil.LinkedHashMap[string, Annotation] {
-	out := jutil.NewLinkedHashMap[string, Annotation]()
-	for i, k := range m.keys {
-		if out.ContainsKey(k) {
-			panic(jutil.NewIllegalArgumentExceptionMsg(
-				"Multiple entries with same key: " + k + "=" + out.Get(k).String() +
-					" and " + k + "=" + m.values[i].String()))
-		}
-		out.Put(k, m.values[i])
-	}
-	return out
 }
