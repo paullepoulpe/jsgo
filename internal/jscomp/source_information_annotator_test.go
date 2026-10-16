@@ -24,6 +24,21 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
+// SourceInformationAnnotatorTest is the JUnit 4 class
+// SourceInformationAnnotatorTest (run with RunJUnit4, which reports a
+// panic as the failure of one test method).
+type SourceInformationAnnotatorTest struct {
+	t *testing.T
+}
+
+func (c *SourceInformationAnnotatorTest) JUnitSetT(t *testing.T) { c.t = t }
+func (c *SourceInformationAnnotatorTest) JUnitBefore()           {}
+func (c *SourceInformationAnnotatorTest) JUnitAfter()            {}
+
+func TestSourceInformationAnnotatorTest(t *testing.T) {
+	RunJUnit4(t, func() JUnitTestCase { return &SourceInformationAnnotatorTest{} })
+}
+
 func sourceInformationAnnotatorTestOriginalName(n *rhino.Node) string {
 	if n.GetOriginalName() == nil {
 		return "<null>"
@@ -31,8 +46,7 @@ func sourceInformationAnnotatorTestOriginalName(n *rhino.Node) string {
 	return *n.GetOriginalName()
 }
 
-func TestSourceInformationAnnotator_PreserveAnnotatedName(t *testing.T) {
-	defer SkipIfPendingPort(t) // new Compiler() needs ClosureCodingConvention
+func (c *SourceInformationAnnotatorTest) TestPreserveAnnotatedName() {
 	root := rhino.NewNode(rhino.Token_SCRIPT)
 	name := rhino.Node_NewString("foo")
 	bar := "bar"
@@ -41,12 +55,11 @@ func TestSourceInformationAnnotator_PreserveAnnotatedName(t *testing.T) {
 
 	NodeTraversal_Traverse(NewCompiler(), root, SourceInformationAnnotator_Create())
 	if got := sourceInformationAnnotatorTestOriginalName(name); got != "bar" {
-		t.Errorf("original name: got %s, want bar", got)
+		c.t.Errorf("original name: got %s, want bar", got)
 	}
 }
 
-func TestSourceInformationAnnotator_SetOriginalGetpropNames(t *testing.T) {
-	defer SkipIfPendingPort(t) // new Compiler() needs ClosureCodingConvention
+func (c *SourceInformationAnnotatorTest) TestSetOriginalGetpropNames() {
 	root := rhino.NewNode(rhino.Token_SCRIPT)
 	getprop := rhino.IR_Getprop(rhino.IR_Name("x"), "y")
 	root.AddChildToBack(rhino.IR_ExprResult(getprop))
@@ -54,12 +67,11 @@ func TestSourceInformationAnnotator_SetOriginalGetpropNames(t *testing.T) {
 	NodeTraversal_Traverse(NewCompiler(), root, SourceInformationAnnotator_Create())
 
 	if got := sourceInformationAnnotatorTestOriginalName(getprop); got != "y" {
-		t.Errorf("original name: got %s, want y", got)
+		c.t.Errorf("original name: got %s, want y", got)
 	}
 }
 
-func TestSourceInformationAnnotator_SetOriginalOptChainGetpropNames(t *testing.T) {
-	defer SkipIfPendingPort(t) // new Compiler() needs ClosureCodingConvention
+func (c *SourceInformationAnnotatorTest) TestSetOriginalOptChainGetpropNames() {
 	root := rhino.NewNode(rhino.Token_SCRIPT)
 	getprop := rhino.IR_StartOptChainGetprop(rhino.IR_Name("x"), "y")
 	root.AddChildToBack(rhino.IR_ExprResult(getprop))
@@ -67,13 +79,12 @@ func TestSourceInformationAnnotator_SetOriginalOptChainGetpropNames(t *testing.T
 	NodeTraversal_Traverse(NewCompiler(), root, SourceInformationAnnotator_Create())
 
 	if got := sourceInformationAnnotatorTestOriginalName(getprop); got != "y" {
-		t.Errorf("original name: got %s, want y", got)
+		c.t.Errorf("original name: got %s, want y", got)
 	}
 }
 
 // Java: SourceInformationAnnotatorTest.doesNotSetOriginalStringName()
-func TestSourceInformationAnnotator_DoesNotSetOriginalStringName(t *testing.T) {
-	defer SkipIfPendingPort(t) // new Compiler() needs ClosureCodingConvention
+func (c *SourceInformationAnnotatorTest) TestDoesNotSetOriginalStringName() {
 	root := rhino.NewNode(rhino.Token_SCRIPT)
 	string_ := rhino.IR_String("x")
 	root.AddChildToBack(rhino.IR_ExprResult(string_))
@@ -84,6 +95,6 @@ func TestSourceInformationAnnotator_DoesNotSetOriginalStringName(t *testing.T) {
 	// mangled by JSCompiler and source information mapping "identifier"s
 	// don't care about raw strings.
 	if string_.GetOriginalName() != nil {
-		t.Errorf("original name: got %s, want null", *string_.GetOriginalName())
+		c.t.Errorf("original name: got %s, want null", *string_.GetOriginalName())
 	}
 }
