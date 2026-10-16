@@ -32,6 +32,15 @@ Then verify it black-box against outputs that the JDK's public API prints
 while writing such code. If exact behaviour cannot be specified that way,
 stop and raise it; never fall back to the JDK's code.
 
+**Licence notices.** Every ported file keeps the licence comment of the
+Java file it ports, right after its `// Port of` line. Closure ships the
+Rhino-derived files under `com/google/javascript/rhino` under a dual
+licence: MPL 1.1, or alternatively GPL 2.0. This repository uses them under
+the MPL 1.1 only. Their ports carry the MPL 1.1 notice with the GPL
+alternative removed. `go run ./tools/licenses` writes those notices, and
+`go run ./tools/licenses -check`, run by `make vet`, fails if any tracked
+file mentions the GPL.
+
 ## 1. Unit of work
 
 - One Java top-level class (with all of its nested classes) → one Go file.
