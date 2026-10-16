@@ -35,8 +35,9 @@ import "os"
 type Path struct {
 	path []byte
 	hash int32
-	// offsets holds the start of each name element; nil until computed.
-	offsets []int
+	// elemStarts holds the byte offset where each name element begins; nil
+	// until first needed.
+	elemStarts []int
 }
 
 // Path_Of is Path.of(first, more...): when more is not empty, the non-empty
@@ -96,31 +97,31 @@ func (p *Path) isEmpty() bool { return len(p.path) == 0 }
 
 // elementOffsets returns the start offset of every name element.
 func (p *Path) elementOffsets() []int {
-	if p.offsets != nil {
-		return p.offsets
+	if p.elemStarts != nil {
+		return p.elemStarts
 	}
-	offsets := []int{}
+	starts := []int{}
 	if p.isEmpty() {
-		offsets = append(offsets, 0)
+		starts = append(starts, 0)
 	} else {
 		for i := 0; i < len(p.path); i++ {
 			if p.path[i] != '/' && (i == 0 || p.path[i-1] == '/') {
-				offsets = append(offsets, i)
+				starts = append(starts, i)
 			}
 		}
 	}
-	p.offsets = offsets
-	return offsets
+	p.elemStarts = starts
+	return starts
 }
 
 // element returns the bytes of name element i.
 func (p *Path) element(i int) []byte {
-	offsets := p.elementOffsets()
+	starts := p.elementOffsets()
 	end := len(p.path)
-	if i+1 < len(offsets) {
-		end = offsets[i+1] - 1
+	if i+1 < len(starts) {
+		end = starts[i+1] - 1
 	}
-	return p.path[offsets[i]:end]
+	return p.path[starts[i]:end]
 }
 
 func (p *Path) elements() [][]byte {
@@ -146,27 +147,27 @@ func (p *Path) GetFileName() *Path {
 	if p.isEmpty() {
 		return p
 	}
-	offsets := p.elementOffsets()
-	if len(offsets) == 0 {
+	starts := p.elementOffsets()
+	if len(starts) == 0 {
 		return nil
 	}
-	if len(offsets) == 1 && p.path[0] != '/' {
+	if len(starts) == 1 && p.path[0] != '/' {
 		return p
 	}
-	return newPathFromBytes(p.path[offsets[len(offsets)-1]:])
+	return newPathFromBytes(p.path[starts[len(starts)-1]:])
 }
 
 // GetParent is Path.getParent(): the path without its last name element,
 // or null when there is none (the root, a one-element relative path).
 func (p *Path) GetParent() *Path {
-	offsets := p.elementOffsets()
+	starts := p.elementOffsets()
 	switch {
-	case len(offsets) == 0:
+	case len(starts) == 0:
 		return nil
-	case len(offsets) == 1:
+	case len(starts) == 1:
 		return p.GetRoot()
 	}
-	return newPathFromBytes(p.path[:offsets[len(offsets)-1]-1])
+	return newPathFromBytes(p.path[:starts[len(starts)-1]-1])
 }
 
 // GetNameCount is Path.getNameCount().
@@ -187,12 +188,12 @@ func (p *Path) Subpath(beginIndex, endIndex int) *Path {
 	if beginIndex < 0 || beginIndex >= n || endIndex > n || beginIndex >= endIndex {
 		panic(NewIllegalArgumentException())
 	}
-	offsets := p.elementOffsets()
+	starts := p.elementOffsets()
 	end := len(p.path)
 	if endIndex < n {
-		end = offsets[endIndex] - 1
+		end = starts[endIndex] - 1
 	}
-	return newPathFromBytes(p.path[offsets[beginIndex]:end])
+	return newPathFromBytes(p.path[starts[beginIndex]:end])
 }
 
 // IsAbsolute is Path.isAbsolute(): whether the path has the root.

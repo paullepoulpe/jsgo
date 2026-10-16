@@ -77,20 +77,20 @@ func (q *PriorityQueue[E]) siftUp(i int, x E) {
 func (q *PriorityQueue[E]) siftDown(i int, x E) {
 	n := len(q.queue)
 	for {
-		child := 2*i + 1
-		if child >= n {
+		pick := 2*i + 1
+		if pick >= n {
 			break
 		}
-		c := q.queue[child]
-		if right := child + 1; right < n && q.compare(c, q.queue[right]) > 0 {
-			child = right
-			c = q.queue[right]
+		smaller := q.queue[pick]
+		if sibling := pick + 1; sibling < n && q.compare(smaller, q.queue[sibling]) > 0 {
+			pick = sibling
+			smaller = q.queue[sibling]
 		}
-		if q.compare(x, c) <= 0 {
+		if q.compare(x, smaller) <= 0 {
 			break
 		}
-		q.queue[i] = c
-		i = child
+		q.queue[i] = smaller
+		i = pick
 	}
 	q.queue[i] = x
 }
@@ -170,13 +170,13 @@ func (q *PriorityQueue[E]) RemoveObject(o any) bool {
 	q.modCount++
 	var zero E
 	last := len(q.queue) - 1
-	moved := q.queue[last]
+	filler := q.queue[last]
 	q.queue[last] = zero
 	q.queue = q.queue[:last]
 	if i < last {
-		q.siftDown(i, moved)
-		if q.queue[i] == moved {
-			q.siftUp(i, moved)
+		q.siftDown(i, filler)
+		if q.queue[i] == filler {
+			q.siftUp(i, filler)
 		}
 	}
 	return true

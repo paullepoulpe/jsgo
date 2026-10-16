@@ -43,7 +43,8 @@ func NewBufferedWriter(out Writer) *BufferedWriter {
 	return &BufferedWriter{out: out, buf: make([]uint16, 0, bufferedWriterSize)}
 }
 
-func (w *BufferedWriter) ensureOpen() {
+// checkNotClosed throws IOException "Stream closed" once Close has run.
+func (w *BufferedWriter) checkNotClosed() {
 	if w.closed {
 		panic(NewIOException("Stream closed"))
 	}
@@ -52,7 +53,7 @@ func (w *BufferedWriter) ensureOpen() {
 // FlushBuffer passes the buffered chars on to the underlying writer without
 // flushing it (BufferedWriter.flushBuffer()).
 func (w *BufferedWriter) FlushBuffer() {
-	w.ensureOpen()
+	w.checkNotClosed()
 	if len(w.buf) == 0 {
 		return
 	}
@@ -63,7 +64,7 @@ func (w *BufferedWriter) FlushBuffer() {
 
 // Write is BufferedWriter.write(String).
 func (w *BufferedWriter) Write(s string) {
-	w.ensureOpen()
+	w.checkNotClosed()
 	w.writeUnits(StringToUTF16(s))
 }
 
@@ -86,7 +87,7 @@ func (w *BufferedWriter) Append(csq string) *BufferedWriter {
 
 // AppendChar is BufferedWriter.append(char).
 func (w *BufferedWriter) AppendChar(c uint16) *BufferedWriter {
-	w.ensureOpen()
+	w.checkNotClosed()
 	w.writeUnits([]uint16{c})
 	return w
 }
