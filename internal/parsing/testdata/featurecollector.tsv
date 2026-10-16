@@ -16,6 +16,7 @@ irf/literals1.js	[RegExp syntax, template literal, bigint, Optional chaining]
 irf/misc1.js	[getters, setters, array destructuring, arrow function, class, computed property, const declaration, for-of loop, generator, let declaration, member declaration, object destructuring, rest parameter, shorthand object property, spread expression, exponent operator (**), async function, object literals with spread, async generator functions, Optional catch binding, Nullish coalescing, Optional chaining, Logical assignments]
 irf/shebang.js	[]
 irf/sourcemap1.js	[]
+irf/tsickle.closure.js	[class]
 irf/ttl1.js	null
 irf/unicode1.js	[]
 irf/validate1.js	null
