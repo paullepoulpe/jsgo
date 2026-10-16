@@ -29,3 +29,9 @@ func templateMapOf(keysAndValues ...any) *jutil.LinkedHashMap[*TemplateType, JST
 	}
 	return m
 }
+
+// instanceOf is Java's `x instanceof T`.
+func instanceOf[T any](x any) bool {
+	_, ok := x.(T)
+	return ok && !jutil.IsNil(x)
+}
