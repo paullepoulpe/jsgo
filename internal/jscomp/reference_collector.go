@@ -461,6 +461,18 @@ type ReferenceCollector_Behavior interface {
 	AfterExitScope(t *NodeTraversal, referenceMap ReferenceMap)
 }
 
+// ReferenceCollector_BehaviorFunc is a Behavior given as a function (a Java
+// lambda for Behavior).
+//
+// Go-only: language-adapter — the adapter for lambdas implementing the
+// single-method interface Behavior (PORTING.md §4).
+type ReferenceCollector_BehaviorFunc func(t *NodeTraversal, referenceMap ReferenceMap)
+
+// Java: ReferenceCollector.Behavior.afterExitScope(NodeTraversal, ReferenceMap)
+func (f ReferenceCollector_BehaviorFunc) AfterExitScope(t *NodeTraversal, referenceMap ReferenceMap) {
+	f(t, referenceMap)
+}
+
 var ReferenceCollector_DO_NOTHING_BEHAVIOR ReferenceCollector_Behavior = &referenceCollector_doNothingBehavior{}
 
 // referenceCollector_doNothingBehavior is the anonymous class of
