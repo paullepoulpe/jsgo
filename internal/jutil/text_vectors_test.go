@@ -2,11 +2,15 @@ package jutil
 
 import (
 	"bufio"
+	"encoding/hex"
+	"math"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
+	"unicode"
 )
 
 // Vectors from tools/oracle/java/JutilTextVectors.java (random inputs, the
@@ -158,6 +162,177 @@ func TestPathTextVectors(t *testing.T) {
 		}
 		if got != want {
 			t.Errorf("%v:\n got %s\nwant %s", r, got, want)
+		}
+	}
+}
+
+// textArgSets are JutilTextVectors.argSets() with the Go types of the
+// corresponding Java boxes.
+var textArgSets = [][]any{
+	{}, {"A", "B", "C"}, {7, int64(-1234567), 2.5}, {nil, "x'y", 0.0005}, {1.5, 0, math.Copysign(0, -1)},
+	{math.NaN(), math.Inf(1), 1234567.891},
+}
+
+func TestMessageFormatTextVectors(t *testing.T) {
+	for _, r := range readTextVectors(t, "text_messageformat.tsv", 5000) {
+		pattern, _ := unescVector(t, r[1])
+		var got string
+		switch r[0] {
+		case "mf":
+			set, _ := strconv.Atoi(r[2])
+			got = textGuard(func() string { return MessageFormat_Format(pattern, textArgSets[set]) })
+		case "ml":
+			v, _ := strconv.ParseInt(r[2], 10, 64)
+			got = textGuard(func() string { return MessageFormat_Format(pattern, []any{v}) })
+		case "md":
+			bits, _ := strconv.ParseUint(r[2], 16, 64)
+			got = textGuard(func() string { return MessageFormat_Format(pattern, []any{math.Float64frombits(bits)}) })
+		case "mF":
+			bits, _ := strconv.ParseUint(r[2], 16, 32)
+			got = textGuard(func() string { return MessageFormat_Format(pattern, []any{math.Float32frombits(uint32(bits))}) })
+		}
+		if got != r[3] {
+			t.Errorf("%v:\n got %s\nwant %s", r, got, r[3])
+		}
+	}
+}
+
+func TestPropertiesTextVectors(t *testing.T) {
+	for _, r := range readTextVectors(t, "text_properties.tsv", 2000) {
+		text, _ := unescVector(t, r[1])
+		got := textGuard(func() string {
+			p := PropertiesLoad(text)
+			keys := p.KeySlice()
+			sortJavaStrings(keys)
+			var sb strings.Builder
+			for i, k := range keys {
+				if i > 0 {
+					sb.WriteString("\x01")
+				}
+				sb.WriteString(k + "\x02" + p.Get(k))
+			}
+			return sb.String()
+		})
+		if got != r[2] {
+			t.Errorf("%v:\n got %s\nwant %s", r, got, r[2])
+		}
+	}
+}
+
+// textSplitRegexes is JutilTextVectors.SPLIT_REGEX.
+var textSplitRegexes = []string{"\r?\n", ",", ",+", ";|,", `\s+`, "[,;]", "(,)", "\u00e9", "\U0001F600|,", "a|b",
+	"a*", "", "b?", ",|", "x*", ",*"}
+
+func TestSplitTextVectors(t *testing.T) {
+	for _, r := range readTextVectors(t, "text_split.tsv", 2000) {
+		s, _ := unescVector(t, r[1])
+		ri, _ := strconv.Atoi(r[2])
+		limit, _ := strconv.Atoi(r[3])
+		got := textGuard(func() string {
+			re := regexp.MustCompile(textSplitRegexes[ri])
+			var parts []string
+			if limit == 0 {
+				parts = StringSplitRegexp(s, re)
+			} else {
+				parts = stringSplitRegexpLimit(s, re, limit)
+			}
+			return strconv.Itoa(len(parts)) + "\x01" + strings.Join(parts, "\x01")
+		})
+		want := r[4]
+		if !strings.Contains(want, `\u0001`) {
+			want += `\u0001` // no elements
+		}
+		if got != want {
+			t.Errorf("%v:\n got %s\nwant %s", r, got, want)
+		}
+	}
+}
+
+func TestCaseTextVectors(t *testing.T) {
+	for _, r := range readTextVectors(t, "text_case.tsv", 3500) {
+		switch r[0] {
+		case "r":
+			a, _ := unescVector(t, r[1])
+			b, _ := unescVector(t, r[2])
+			to, _ := strconv.Atoi(r[4])
+			oo, _ := strconv.Atoi(r[5])
+			n, _ := strconv.Atoi(r[6])
+			got := UTF16RegionMatches(r[3] == "true", StringToUTF16(a), to, StringToUTF16(b), oo, n)
+			if strconv.FormatBool(got) != r[7] {
+				t.Errorf("%v: got %v", r, got)
+			}
+		case "c":
+			cp, _ := strconv.ParseUint(r[1], 16, 32)
+			u, _ := strconv.ParseUint(r[2], 16, 32)
+			l, _ := strconv.ParseUint(r[3], 16, 32)
+			if unicode.ToUpper(rune(cp)) != rune(u) || unicode.ToLower(rune(cp)) != rune(l) {
+				t.Errorf("case mapping of U+%X: Go %X %X, Java %X %X", cp, unicode.ToUpper(rune(cp)), unicode.ToLower(rune(cp)), u, l)
+			}
+		case "q":
+			s, _ := unescVector(t, r[1])
+			q := Pattern_Quote(s)
+			if escVector(q) != r[2] || strconv.FormatBool(Pattern_Compile(q).Matches(s)) != r[3] {
+				t.Errorf("%v: got %s", r, escVector(q))
+			}
+		}
+	}
+}
+
+func TestUTF16TextVectors(t *testing.T) {
+	for _, r := range readTextVectors(t, "text_utf16.tsv", 2000) {
+		cs := Charset_ForName(r[0])
+		b, err := hex.DecodeString(r[1])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := escVector(cs.Decode(b)); got != r[2] {
+			t.Errorf("new String(%s, %s) = %q, want %q", r[1], r[0], got, r[2])
+		}
+		s, malformed := cs.decode(b, true)
+		strict := escVector(s)
+		if malformed > 0 {
+			strict = "MALFORMED:" + strconv.Itoa(malformed)
+		}
+		if strict != r[3] {
+			t.Errorf("strict decode of %s as %s = %q, want %q", r[1], r[0], strict, r[3])
+		}
+	}
+}
+
+// logWriter records what reaches the writer under a BufferedWriter.
+type logWriter struct{ log strings.Builder }
+
+func (w *logWriter) Write(s string) { w.log.WriteString(" w" + strconv.Itoa(StringLength(s))) }
+func (w *logWriter) Flush()         { w.log.WriteString(" f") }
+func (w *logWriter) Close()         { w.log.WriteString(" c") }
+
+func TestBufferedWriterTextVectors(t *testing.T) {
+	for _, r := range readTextVectors(t, "text_bufferedwriter.tsv", 400) {
+		out := &logWriter{}
+		w := NewBufferedWriter(out)
+		func() {
+			defer func() {
+				if x := recover(); x != nil {
+					out.log.WriteString(" !" + AsThrowable(x).GetMessage())
+				}
+			}()
+			for _, op := range strings.Fields(r[1]) {
+				switch op[0] {
+				case 'w':
+					n, _ := strconv.Atoi(op[1:])
+					w.Write(strings.Repeat("x", n))
+				case 'a':
+					w.AppendChar('y')
+				case 'f':
+					w.Flush()
+				case 'c':
+					w.Close()
+				}
+			}
+			out.log.WriteString(" .")
+		}()
+		if got := strings.TrimSpace(out.log.String()); got != r[2] {
+			t.Errorf("%s: got %s, want %s", r[1], got, r[2])
 		}
 	}
 }
