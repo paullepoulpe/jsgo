@@ -1254,10 +1254,10 @@ var NodeUtil_KNOWN_CONSTANTS = jutil.NewLinkedHashSet("undefined", "Infinity", "
 //
 // Java: NodeUtil.canBeSideEffected(Node)
 func NodeUtil_CanBeSideEffected(n *rhino.Node) bool {
-	return NodeUtil_CanBeSideEffectedWithKnownConstants(n, NodeUtil_KNOWN_CONSTANTS, nil)
+	return NodeUtil_CanBeSideEffectedWithScope(n, NodeUtil_KNOWN_CONSTANTS, nil)
 }
 
-// NodeUtil_CanBeSideEffectedWithKnownConstants: knownConstants is a set of names
+// NodeUtil_CanBeSideEffectedWithScope: knownConstants is a set of names
 // known to be constant value at node 'n' (such as locals that are last
 // written before n can execute). Returns whether the tree can be affected by
 // side-effects or has side-effects.
@@ -1266,7 +1266,7 @@ func NodeUtil_CanBeSideEffected(n *rhino.Node) bool {
 //
 // TODO(nick): Get rid of the knownConstants argument in favor of using
 // scope with InferConsts.
-func NodeUtil_CanBeSideEffectedWithKnownConstants(n *rhino.Node, knownConstants *jutil.LinkedHashSet[string], scope *Scope) bool {
+func NodeUtil_CanBeSideEffectedWithScope(n *rhino.Node, knownConstants *jutil.LinkedHashSet[string], scope *Scope) bool {
 	switch n.GetToken() {
 	case rhino.Token_YIELD, rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL, rhino.Token_NEW:
 		// Function calls or constructor can reference changed values.
@@ -1295,7 +1295,7 @@ func NodeUtil_CanBeSideEffectedWithKnownConstants(n *rhino.Node, knownConstants 
 	}
 
 	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
-		if NodeUtil_CanBeSideEffectedWithKnownConstants(c, knownConstants, scope) {
+		if NodeUtil_CanBeSideEffectedWithScope(c, knownConstants, scope) {
 			return true
 		}
 	}
