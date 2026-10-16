@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
-# Fetches the pinned real-world JS corpus listed in corpus.txt into
-# .cache/corpus/. Idempotent; verifies npm sha512 integrity.
+# Fetches a pinned real-world JS corpus into a cache directory. Idempotent;
+# verifies npm sha512 integrity.
+#
+#   tools/oracle/corpus.sh [manifest] [outdir]
+#   default: tools/oracle/corpus.txt -> .cache/corpus
+#   held out: tools/oracle/corpus-holdout.txt -> .cache/corpus-holdout
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-out=.cache/corpus
+manifest=${1:-tools/oracle/corpus.txt}
+out=${2:-.cache/corpus}
 mkdir -p "$out" .cache/corpus-tgz
-grep -vE '^\s*(#|$)' tools/oracle/corpus.txt | while read -r name version; do
+grep -vE '^\s*(#|$)' "$manifest" | while read -r name version; do
   dest="$out/$name@$version"
   [[ -d "$dest" ]] && continue
   meta=$(curl -fsS "https://registry.npmjs.org/${name/\//%2F}/$version")

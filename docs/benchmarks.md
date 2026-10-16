@@ -76,3 +76,8 @@ python3 -I tools/bench/measure.py go.rusage .cache/bench-build/parsebench 8 .cac
 python3 -I tools/bench/measure.py java.rusage java -Xss1g -cp .cache/closure-compiler.jar:.cache/bench-build ParseBench 8 .cache/corpus @.cache/corpus-files.txt java-perfile.tsv
 PARSEBENCH_CPUPROFILE=parse.pprof .cache/bench-build/parsebench 2 .cache/corpus @.cache/corpus-files.txt /dev/null
 ```
+
+### Known hot spots to revisit after parity
+
+- `rhino.TokenStream_IsKeyword` converts every NAME to UTF-16. That is
+  ~5% of `ParserRunner.parse` allocations (found while porting IRFactory).
