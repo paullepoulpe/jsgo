@@ -12,69 +12,31 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// scopeTestCompiler is the Compiler these tests create (`new Compiler()`,
-// optionally followed by initOptions): the test compiler, plus what
-// Compiler.parseTestCode adds to it — the parsed inputs are registered
-// (Compiler.putCompilerInput), so getInput(InputId) finds them as
-// Compiler.getInput does — and the JSErrors reported to it, which the tests
-// read from the Compiler's error manager.
-type scopeTestCompiler struct {
-	AbstractCompiler
-	inputsById map[string]*CompilerInput
-	reported   []*JSError
-}
-
-// newScopeTestCompiler is `new Compiler()` followed by initOptions(options);
-// a nil options is Compiler.initCompilerOptionsIfTesting(), which
-// parseTestCode runs on a Compiler without options (new CompilerOptions()
-// with language UNSUPPORTED).
-func newScopeTestCompiler(options *CompilerOptions) *scopeTestCompiler {
-	if options == nil {
-		options = NewCompilerOptions()
-		options.SetLanguage(CompilerOptions_LanguageMode_UNSUPPORTED)
-	}
-	return &scopeTestCompiler{
-		AbstractCompiler: newTestCompiler(options),
-		inputsById:       map[string]*CompilerInput{},
-	}
-}
-
-func (c *scopeTestCompiler) GetInput(id *rhino.InputId) *CompilerInput {
-	if id == nil {
-		return nil
-	}
-	return c.inputsById[id.GetIdName()]
-}
-
-func (c *scopeTestCompiler) Report(error_ *JSError) {
-	c.reported = append(c.reported, error_)
-	c.AbstractCompiler.Report(error_)
-}
-
-// parseTestCode is Compiler.parseTestCode(String): the input "testcode" is
-// registered and parsed (CompilerInput.getAstRoot).
-func (c *scopeTestCompiler) parseTestCode(js string) *rhino.Node {
-	input := NewCompilerInput(SourceFile_FromCode("testcode", js))
-	input.SetCompiler(c)
-	c.inputsById[input.GetInputId().GetIdName()] = input
-	return jutil.CheckNotNull(input.GetAstRoot(c))
-}
-
-// scopeTestParse is the tests' parse(Compiler, String): the SCRIPT, put
-// under a ROOT.
-func scopeTestParse(t *testing.T, compiler *scopeTestCompiler, js string) *rhino.Node {
+// scopeTestParse is the tests' parse(Compiler, String):
+// compiler.parseTestCode(js), checked to report no errors, put under a
+// ROOT.
+func scopeTestParse(t *testing.T, compiler *testCompiler, js string) *rhino.Node {
 	t.Helper()
-	n := compiler.parseTestCode(js)
+	n := compiler.ParseTestCode(js)
+	if errors := compiler.GetErrors(); len(errors) != 0 {
+		t.Fatalf("parse errors: %v", errors)
+	}
 	rhino.IR_Root(n)
 	return n
 }
 
 // scopeTestParseRoots is NodeTraversalTest.parseRoots.
-func scopeTestParseRoots(t *testing.T, compiler *scopeTestCompiler, externs, js string) *rhino.Node {
+func scopeTestParseRoots(t *testing.T, compiler *testCompiler, externs, js string) *rhino.Node {
 	t.Helper()
 	extern := scopeTestParse(t, compiler, externs).Detach()
 	main := scopeTestParse(t, compiler, js).Detach()
 	return rhino.IR_Root(rhino.IR_Root(extern), rhino.IR_Root(main))
+}
+
+// scopeTestNewCompiler is `new Compiler()` followed by
+// `initOptions(options)`.
+func scopeTestNewCompiler(options *CompilerOptions) *testCompiler {
+	return newTestCompiler(options).(*testCompiler)
 }
 
 // scopeTestCatch runs body and returns what it throws (nil if nothing).
