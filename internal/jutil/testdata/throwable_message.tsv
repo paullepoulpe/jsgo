@@ -1,0 +1,7 @@
+InterruptedException()	<null>	java.lang.InterruptedException
+RuntimeException(InterruptedException())	=java.lang.InterruptedException	java.lang.RuntimeException: java.lang.InterruptedException
+RuntimeException("")	=	java.lang.RuntimeException: 
+RuntimeException("msg")	=msg	java.lang.RuntimeException: msg
+NullPointerException()	<null>	java.lang.NullPointerException
+IllegalStateException()	<null>	java.lang.IllegalStateException
+IllegalStateException("x")	=x	java.lang.IllegalStateException: x
