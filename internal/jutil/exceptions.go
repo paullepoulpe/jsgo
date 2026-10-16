@@ -388,3 +388,19 @@ func NewAssertionErrorMsg(message string) *AssertionError {
 	InitThrowable(e, "java.lang.AssertionError", msgPtr(message), nil)
 	return e
 }
+
+// ArithmeticException is java.lang.ArithmeticException.
+type ArithmeticException struct{ RuntimeException }
+
+func (*ArithmeticException) arithmeticException() {}
+
+type IArithmeticException interface {
+	IRuntimeException
+	arithmeticException()
+}
+
+func NewArithmeticException(message string) *ArithmeticException {
+	e := &ArithmeticException{}
+	InitThrowable(e, "java.lang.ArithmeticException", msgPtr(message), nil)
+	return e
+}
