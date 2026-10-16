@@ -22,8 +22,9 @@ package jscomp
 //     root of the sources), CORE_G2_FILES (the list of relative paths) and
 //     CORE_G2_ORACLE_DIR (holding corpus-<mode>.txt.gz written by the Java
 //     tool for that list) are set; CORE_G2_MODES (comma-separated) restricts
-//     the modes and CORE_G2_DIFF_DIR, if set, receives the Go dump of every
-//     mismatching file. The Java dumps of /home/user/jsgo/.cache/corpus are
+//     the modes, CORE_G2_EVERY=N compares only every Nth file of the dump
+//     (a deterministic sample), and CORE_G2_DIFF_DIR, if set, receives the
+//     Go and Java dumps of every mismatching file. The Java dumps of /home/user/jsgo/.cache/corpus are
 //     produced with the same command on @.cache/corpus-files.txt. The
 //     held-out corpus (.cache/corpus-holdout, corpus-holdout-files.txt) is
 //     for a final check only.
@@ -625,6 +626,13 @@ func coreG2Compare(t *testing.T, mode string, root string, javaDump string, diff
 	want, files, err := coreG2ReadJavaDump(javaDump)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if every, _ := strconv.Atoi(os.Getenv("CORE_G2_EVERY")); every > 1 {
+		var sample []string
+		for i := 0; i < len(files); i += every {
+			sample = append(sample, files[i])
+		}
+		files = sample
 	}
 	got, err := coreG2Dump(mode, root, files)
 	if err != nil {
