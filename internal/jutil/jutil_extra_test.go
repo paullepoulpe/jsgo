@@ -268,3 +268,44 @@ type recordingHandler struct{ got []string }
 func (h *recordingHandler) Publish(r *LogRecord) {
 	h.got = append(h.got, r.GetLevel().GetName()+":"+Formatter_FormatMessage(r))
 }
+
+func TestBufferedReaderReadLine(t *testing.T) {
+	for _, tc := range []struct {
+		in   string
+		want []string
+	}{
+		{"", nil},
+		{"a", []string{"a"}},
+		{"a\n", []string{"a"}},
+		{"a\n\nb", []string{"a", "", "b"}},
+		{"a\r\nb\rc\n\r\n", []string{"a", "b", "c", ""}},
+		{"\r", []string{""}},
+	} {
+		for _, r := range []*BufferedReader{
+			NewBufferedReaderFromString(tc.in),
+			NewBufferedReaderUTF8(strings.NewReader(tc.in)),
+		} {
+			var got []string
+			for {
+				line, ok := r.ReadLine()
+				if !ok {
+					break
+				}
+				got = append(got, line)
+			}
+			if strings.Join(got, "|") != strings.Join(tc.want, "|") || len(got) != len(tc.want) {
+				t.Errorf("readLine(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		}
+	}
+}
+
+func TestParseException(t *testing.T) {
+	caught := false
+	Try(func() { panic(NewParseException("Bad line: x", 0)) }, func(e IException) {
+		caught = e.Error() == "java.text.ParseException: Bad line: x"
+	})
+	if !caught {
+		t.Error("ParseException not caught as a checked exception")
+	}
+}
