@@ -106,7 +106,7 @@ func (m *CodePrinter_MappedCodePrinterBase) InitCodePrinter_MappedCodePrinterBas
 	licenseTracker CodePrinter_LicenseTracker) {
 	m.InitCodeConsumerBase(self)
 	m.firstCandidateMappingForCut = 0
-	m.code = jutil.NewStringBuilder()
+	m.code = jutil.NewStringBuilderWithCapacity(1024)
 	m.lineLength = 0
 	m.lineIndex = 0
 	// checkState(sourceMapDetailLevel != null)
@@ -158,8 +158,11 @@ func (m *CodePrinter_MappedCodePrinterBase) TrackLicenses(node *rhino.Node) {
 func (m *CodePrinter_MappedCodePrinterBase) StartSourceMapping(node *rhino.Node) {
 	// checkState(sourceMapDetailLevel != null): see the constructor.
 	jutil.CheckState(node != nil)
+	// Go-only: language-adapter — `node.getSourceFileName() != null` is
+	// `node.getStaticSourceFile() != null` (a Go file name is never null);
+	// it avoids allocating the *string for every node.
 	if m.createSrcMap &&
-		node.GetSourceFileName() != nil &&
+		node.GetStaticSourceFile() != nil &&
 		node.GetLineno() > 0 &&
 		m.sourceMapDetailLevel.Apply(node) {
 		line := m.GetCurrentLineIndex()
@@ -696,6 +699,8 @@ func (p *CodePrinter_PrettyCodePrinter) GetNumberFromSource(n *rhino.Node) *stri
 
 // numberSourceLength is srcCode.length(), remembering the UTF-16 view of
 // srcCode for numberSourceSubstring.
+//
+// Go-only: language-adapter — see the numberSource fields.
 func (p *CodePrinter_PrettyCodePrinter) numberSourceLength(srcCode string) int {
 	if unsafe.StringData(srcCode) != unsafe.StringData(p.numberSourceCode) || len(srcCode) != len(p.numberSourceCode) {
 		p.numberSourceCode = srcCode
@@ -720,6 +725,8 @@ func (p *CodePrinter_PrettyCodePrinter) numberSourceLength(srcCode string) int {
 
 // numberSourceSubstring is srcCode.substring(begin, end) on the code last
 // passed to numberSourceLength, with 0 <= begin and end <= its length.
+//
+// Go-only: language-adapter — see the numberSource fields.
 func (p *CodePrinter_PrettyCodePrinter) numberSourceSubstring(begin int, end int) string {
 	if begin > end {
 		panic(jutil.NewStringIndexOutOfBoundsExceptionForRange(begin, end, p.numberSourceLength(p.numberSourceCode)))
@@ -912,6 +919,7 @@ type codePrinter_Builder_defaultCodeGeneratorFactory struct {
 	builder *CodePrinter_Builder
 }
 
+// Java: CodePrinter.Builder.<anonymous CodeGeneratorFactory>.getCodeGenerator(Format, CodeConsumer)
 func (f *codePrinter_Builder_defaultCodeGeneratorFactory) GetCodeGenerator(outputFormat CodePrinter_Format, cc CodeConsumer) CodeGenerator {
 	if outputFormat == CodePrinter_Format_TYPED {
 		return NewTypedCodeGenerator(cc, f.builder.options, f.builder.registry)

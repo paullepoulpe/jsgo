@@ -73,11 +73,8 @@ var defaultExterns_BROWSER_EXTERN_DEP_ORDER = []string{
 //
 // env is the environment being used; externs is the flat filename to
 // source externs map. Must be mutable and will be modified. Returns the
-// ordered list of externs.
-//
-// Go-only: language-adapter — the iteration order of the remaining externs
-// (`externs.values()`) is the map's own; callers that pass a Java HashMap
-// must pass its entries in Java's HashMap order.
+// ordered list of externs. (The remaining externs come in the map's order;
+// the only caller, AbstractCommandLineRunner, passes a LinkedHashMap.)
 //
 // Java: DefaultExterns.prepareExterns(CompilerOptions.Environment, Map<String, SourceFile>)
 func DefaultExterns_PrepareExterns(env CompilerOptions_Environment,
