@@ -22,6 +22,7 @@ CP=.cache/closure-compiler.jar:.cache/oracle-build
 | `java/PropertiesParserDump.java` | resources (`jscomp.resources.PropertiesParser`) | `PropertiesParser.parse` (reflectively; it is package-private) of each input line (escaped like `RegExpDump`, or `@resource:<path>` for a resource of the jar): the entries in map order, or the exception → `internal/resources/testdata/properties_parser.txt` from `properties_parser_inputs.txt`. Compile together with `RegExpDump.java`. |
 | `java/ParserEnumDump.java` | parser | every parser enum (ordinal, name, toString) and static `FeatureSet` constant → `internal/parser/testdata/enums.txt` |
 | `java/JavaCharacterTable.java` | jutil | `java.lang.Character` classification of all 65536 chars → `internal/jutil/testdata/character.tsv` |
+| `java/GsonVectors.java` | jutil (Gson) | `Gson.fromJson` (lenient `JsonReader` → `JsonElement` tree → `toString` via `JsonWriter`, with every exception's `toString`) on ~1,800 JSON inputs (edge cases, 1024-char buffer boundaries, random token soups and mutated documents), the `getAs*` accessors, and `LazilyParsedNumber.intValue/longValue` → `internal/jutil/testdata/gson.tsv.gz`. `java -cp $CP GsonVectors <out.tsv.gz>` |
 | `corpus.txt`, `corpus.sh` | — | 23 pinned npm packages (14,690 .js/.mjs/.cjs files: Closure Library, test262 parser tests, three.js, core-js, TypeScript, React, Angular, …), sha512-verified against the registry |
 | `pkgscc.py` | — | the Java package SCCs that define the Go package layout (PORTING.md §2) |
 
