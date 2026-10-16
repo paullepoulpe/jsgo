@@ -283,7 +283,7 @@ func (m *SourceFilePool) mergeFromReader(r *protoReader) {
 		case 10:
 			data := r.readMessageBytes()
 			x := &SourceFileProto{memoizedSize: -1}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.sourceFile_ = append(m.sourceFile_, x)
 		default:
@@ -1177,7 +1177,7 @@ func (m *SourceFileProto) mergeFromReader(r *protoReader) {
 			} else {
 				x = &SourceFileProto_FileOnDisk{memoizedSize: -1}
 			}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.fileOnDisk_ = x
 			m.loaderCase_ = 3
@@ -1189,7 +1189,7 @@ func (m *SourceFileProto) mergeFromReader(r *protoReader) {
 			} else {
 				x = &SourceFileProto_ZipEntryOnDisk{memoizedSize: -1}
 			}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.zipEntry_ = x
 			m.loaderCase_ = 4

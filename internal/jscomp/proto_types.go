@@ -593,13 +593,13 @@ func (m *TypePool) mergeFromReader(r *protoReader) {
 		case 10:
 			data := r.readMessageBytes()
 			x := &TypeProto{memoizedSize: -1}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.type_ = append(m.type_, x)
 		case 18:
 			data := r.readMessageBytes()
 			x := &SubtypingEdge{memoizedSize: -1}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.disambiguationEdges_ = append(m.disambiguationEdges_, x)
 		case 26:
@@ -610,7 +610,7 @@ func (m *TypePool) mergeFromReader(r *protoReader) {
 			} else {
 				x = &TypePool_DebugInfo{memoizedSize: -1}
 			}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.debugInfo_ = x
 		default:
@@ -917,7 +917,7 @@ func (m *TypePool_DebugInfo) mergeFromReader(r *protoReader) {
 		case 10:
 			data := r.readMessageBytes()
 			x := &TypePool_DebugInfo_Mismatch{memoizedSize: -1}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.mismatch_ = append(m.mismatch_, x)
 		default:
@@ -2503,7 +2503,7 @@ func (m *ObjectTypeProto) mergeFromReader(r *protoReader) {
 			} else {
 				x = &ObjectTypeProto_DebugInfo{memoizedSize: -1}
 			}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.debugInfo_ = x
 		default:
@@ -3247,7 +3247,7 @@ func (m *TypeProto) mergeFromReader(r *protoReader) {
 			} else {
 				x = &ObjectTypeProto{memoizedSize: -1}
 			}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.object_ = x
 			m.kindCase_ = 2
@@ -3259,7 +3259,7 @@ func (m *TypeProto) mergeFromReader(r *protoReader) {
 			} else {
 				x = &UnionTypeProto{memoizedSize: -1}
 			}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.union_ = x
 			m.kindCase_ = 4
@@ -3560,7 +3560,7 @@ func (m *TypePoolList) mergeFromReader(r *protoReader) {
 		case 10:
 			data := r.readMessageBytes()
 			x := &TypePool{memoizedSize: -1}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.typePool_ = append(m.typePool_, x)
 		default:

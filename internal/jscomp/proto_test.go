@@ -101,3 +101,43 @@ func TestProtoBuilders(t *testing.T) {
 		t.Errorf("proto2 defaults")
 	}
 }
+
+// TestProtoRecursionLimit checks CodedInputStream's default recursion limit
+// of 100, as observed with the jar's protobuf runtime: 100 nested messages
+// (or unknown groups) parse, 101 throw InvalidProtocolBufferException.
+func TestProtoRecursionLimit(t *testing.T) {
+	const msg = "Protocol message had too many levels of nesting.  May be malicious.  Use setRecursionLimit() to increase the recursion depth limit."
+	parse := func(data []byte) (err string) {
+		defer func() {
+			if r := recover(); r != nil {
+				err = r.(*InvalidProtocolBufferException).GetMessage()
+			}
+		}()
+		AstNode_ParseFrom(data)
+		return ""
+	}
+	for _, depth := range []int{99, 100, 101} {
+		n := AstNode_NewBuilder().SetKind(NodeKind_NUMBER_LITERAL).Build()
+		for i := 0; i < depth; i++ {
+			n = AstNode_NewBuilder().SetKind(NodeKind_BLOCK).AddChild(n).Build()
+		}
+		want := ""
+		if depth > 100 {
+			want = msg
+		}
+		if got := parse(n.ToByteArray()); got != want {
+			t.Errorf("message depth %d: got %q", depth, got)
+		}
+		var b []byte
+		for i := 0; i < depth; i++ {
+			b = append(b, (1000<<3|3)&0x7f|0x80, (1000<<3|3)>>7)
+		}
+		b = append(b, 8, 1)
+		for i := 0; i < depth; i++ {
+			b = append(b, (1000<<3|4)&0x7f|0x80, (1000<<3|4)>>7)
+		}
+		if got := parse(b); got != want {
+			t.Errorf("group depth %d: got %q", depth, got)
+		}
+	}
+}

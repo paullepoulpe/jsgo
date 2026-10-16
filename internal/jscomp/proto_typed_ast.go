@@ -1475,7 +1475,7 @@ func (m *TypedAst) mergeFromReader(r *protoReader) {
 			} else {
 				x = &TypePool{memoizedSize: -1}
 			}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.typePool_ = x
 		case 18:
@@ -1486,19 +1486,19 @@ func (m *TypedAst) mergeFromReader(r *protoReader) {
 			} else {
 				x = &StringPoolProto{memoizedSize: -1}
 			}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.stringPool_ = x
 		case 26:
 			data := r.readMessageBytes()
 			x := &LazyAst{memoizedSize: -1}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.externAst_ = append(m.externAst_, x)
 		case 34:
 			data := r.readMessageBytes()
 			x := &LazyAst{memoizedSize: -1}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.codeAst_ = append(m.codeAst_, x)
 		case 42:
@@ -1509,7 +1509,7 @@ func (m *TypedAst) mergeFromReader(r *protoReader) {
 			} else {
 				x = &SourceFilePool{memoizedSize: -1}
 			}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.sourceFilePool_ = x
 		case 50:
@@ -1520,7 +1520,7 @@ func (m *TypedAst) mergeFromReader(r *protoReader) {
 			} else {
 				x = &ExternsSummary{memoizedSize: -1}
 			}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.externsSummary_ = x
 		case 58:
@@ -1837,7 +1837,7 @@ func (m *TypedAst_List) mergeFromReader(r *protoReader) {
 		case 10:
 			data := r.readMessageBytes()
 			x := &TypedAst{memoizedSize: -1}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.typedAsts_ = append(m.typedAsts_, x)
 		default:
@@ -2911,7 +2911,7 @@ func (m *NonLazyTypedAst) mergeFromReader(r *protoReader) {
 			} else {
 				x = &TypePool{memoizedSize: -1}
 			}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.typePool_ = x
 		case 18:
@@ -2922,19 +2922,19 @@ func (m *NonLazyTypedAst) mergeFromReader(r *protoReader) {
 			} else {
 				x = &StringPoolProto{memoizedSize: -1}
 			}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.stringPool_ = x
 		case 26:
 			data := r.readMessageBytes()
 			x := &NonLazyAst{memoizedSize: -1}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.externAst_ = append(m.externAst_, x)
 		case 34:
 			data := r.readMessageBytes()
 			x := &NonLazyAst{memoizedSize: -1}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.codeAst_ = append(m.codeAst_, x)
 		case 42:
@@ -2945,7 +2945,7 @@ func (m *NonLazyTypedAst) mergeFromReader(r *protoReader) {
 			} else {
 				x = &SourceFilePool{memoizedSize: -1}
 			}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.sourceFilePool_ = x
 		case 50:
@@ -2956,7 +2956,7 @@ func (m *NonLazyTypedAst) mergeFromReader(r *protoReader) {
 			} else {
 				x = &ExternsSummary{memoizedSize: -1}
 			}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.externsSummary_ = x
 		default:
@@ -3272,7 +3272,7 @@ func (m *NonLazyTypedAst_List) mergeFromReader(r *protoReader) {
 		case 10:
 			data := r.readMessageBytes()
 			x := &NonLazyTypedAst{memoizedSize: -1}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.typedAsts_ = append(m.typedAsts_, x)
 		default:
@@ -3624,7 +3624,7 @@ func (m *NonLazyAst) mergeFromReader(r *protoReader) {
 			} else {
 				x = &AstNode{memoizedSize: -1}
 			}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.script_ = x
 		case 16:
@@ -5148,7 +5148,7 @@ func (m *AstNode) mergeFromReader(r *protoReader) {
 		case 18:
 			data := r.readMessageBytes()
 			x := &AstNode{memoizedSize: -1}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.child_ = append(m.child_, x)
 		case 24:
@@ -5169,7 +5169,7 @@ func (m *AstNode) mergeFromReader(r *protoReader) {
 			} else {
 				x = &OptimizationJsdoc{memoizedSize: -1}
 			}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.jsdoc_ = x
 		case 66:
@@ -5180,7 +5180,7 @@ func (m *AstNode) mergeFromReader(r *protoReader) {
 			} else {
 				x = &TemplateStringValue{memoizedSize: -1}
 			}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.templateStringValue_ = x
 			m.valueCase_ = 8

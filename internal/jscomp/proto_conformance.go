@@ -441,7 +441,7 @@ func (m *ConformanceConfig) mergeFromReader(r *protoReader) {
 		case 10:
 			data := r.readMessageBytes()
 			x := &Requirement{memoizedSize: -1}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.requirement_ = append(m.requirement_, x)
 		case 16:
@@ -2315,7 +2315,7 @@ func (m *Requirement) mergeFromReader(r *protoReader) {
 		case 114:
 			data := r.readMessageBytes()
 			x := &RequirementScopeEntry{memoizedSize: -1}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.whitelistEntry_ = append(m.whitelistEntry_, x)
 		case 120:
@@ -2330,7 +2330,7 @@ func (m *Requirement) mergeFromReader(r *protoReader) {
 		case 154:
 			data := r.readMessageBytes()
 			x := &RequirementScopeEntry{memoizedSize: -1}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.allowlistEntry_ = append(m.allowlistEntry_, x)
 		default:
@@ -3604,13 +3604,13 @@ func (m *RequirementScope) mergeFromReader(r *protoReader) {
 		case 18:
 			data := r.readMessageBytes()
 			x := &RequirementScopeEntry{memoizedSize: -1}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.allowlist_ = append(m.allowlist_, x)
 		case 26:
 			data := r.readMessageBytes()
 			x := &RequirementScopeEntry{memoizedSize: -1}
-			x.mergeFromReader(&protoReader{b: data})
+			x.mergeFromReader(r.sub(data))
 			x.frozen = true
 			m.onlyApplyTo_ = append(m.onlyApplyTo_, x)
 		default:

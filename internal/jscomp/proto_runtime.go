@@ -140,10 +140,39 @@ func protoAppendString(b []byte, v string) []byte {
 // ---------------------------------------------------------------------------
 // Decoding
 
-// protoReader is a CodedInputStream over a byte slice.
+// protoReader is a CodedInputStream over a byte slice. depth is the
+// CodedInputStream recursionDepth of the message being read; limit is its
+// recursion limit (0 means the default of 100).
 type protoReader struct {
-	b   []byte
-	pos int
+	b     []byte
+	pos   int
+	depth int
+	limit int
+}
+
+const protoDefaultRecursionLimit = 100
+
+func protoRecursionLimitExceeded() *InvalidProtocolBufferException {
+	return NewInvalidProtocolBufferException("Protocol message had too many levels of nesting.  May be malicious.  " +
+		"Use setRecursionLimit() to increase the recursion depth limit.")
+}
+
+// checkRecursionLimit is CodedInputStream.checkRecursionLimit().
+func (r *protoReader) checkRecursionLimit() {
+	limit := r.limit
+	if limit == 0 {
+		limit = protoDefaultRecursionLimit
+	}
+	if r.depth >= limit {
+		panic(protoRecursionLimitExceeded())
+	}
+}
+
+// sub returns a reader for an embedded message (CodedInputStream.readMessage
+// with recursionDepth incremented).
+func (r *protoReader) sub(data []byte) *protoReader {
+	r.checkRecursionLimit()
+	return &protoReader{b: data, depth: r.depth + 1, limit: r.limit}
 }
 
 func (r *protoReader) atEnd() bool { return r.pos >= len(r.b) }
@@ -262,7 +291,13 @@ func (r *protoReader) skipField(tag int) {
 	}
 }
 
+// skipGroup skips an unknown group; like Java's parse of the group into the
+// UnknownFieldSet (CodedInputStream.readGroup), it counts towards the
+// recursion limit.
 func (r *protoReader) skipGroup(number int) {
+	r.checkRecursionLimit()
+	r.depth++
+	defer func() { r.depth-- }()
 	for {
 		tag := r.readTag()
 		if tag == 0 {
@@ -443,7 +478,10 @@ func (r *protoReader) readUnknownFieldSet(endGroup int) *protoUnknownFieldSet {
 			f := s.field(number)
 			f.lengthDelimited = append(f.lengthDelimited, r.readBytes())
 		case protoWireStartGroup:
+			r.checkRecursionLimit()
+			r.depth++
 			g := r.readUnknownFieldSet(number)
+			r.depth--
 			f := s.field(number)
 			f.group = append(f.group, g)
 		case protoWireEndGroup:

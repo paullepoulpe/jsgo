@@ -1440,7 +1440,7 @@ public class ProtoGoGen {
         p("\t\t\tdata := r.readMessageBytes()");
         if (f.isRepeated()) {
           p("\t\t\tx := &" + sub + "{memoizedSize: -1}");
-          p("\t\t\tx.mergeFromReader(&protoReader{b: data})");
+          p("\t\t\tx.mergeFromReader(r.sub(data))");
           p("\t\t\tx.frozen = true");
           p("\t\t\tm." + mm + " = append(m." + mm + ", x)");
         } else {
@@ -1451,7 +1451,7 @@ public class ProtoGoGen {
           p("\t\t\t} else {");
           p("\t\t\t\tx = &" + sub + "{memoizedSize: -1}");
           p("\t\t\t}");
-          p("\t\t\tx.mergeFromReader(&protoReader{b: data})");
+          p("\t\t\tx.mergeFromReader(r.sub(data))");
           p("\t\t\tx.frozen = true");
           p("\t\t\tm." + mm + " = x");
           if (o != null) {
