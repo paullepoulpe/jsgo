@@ -259,8 +259,11 @@ func NewJsDocInfoParser(
 	return p
 }
 
-// GetSourceName returns the source file name, or "" (Java null) when there is
-// no source file.
+// GetSourceName returns the source file name.
+//
+// Go-only: language-adapter — Java returns null when there is no source
+// file; here that is "", as in rhino.JSTypeExpression and
+// rhino.ErrorReporter, which take the name as a Go string.
 //
 // Java: JsDocInfoParser.getSourceName()
 func (p *JsDocInfoParser) GetSourceName() string {

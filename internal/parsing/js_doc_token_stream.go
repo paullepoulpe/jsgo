@@ -70,7 +70,7 @@ func NewJsDocTokenStreamWithLinenoCharno(sourceString string, lineno int, initCh
 		lineEndChar:  -1,
 		charno:       -1,
 	}
-	jutil.CheckNotNull(sourceString)
+	// (checkNotNull(sourceString): a Go string is never null.)
 	s.lineno = lineno
 	s.sourceString = jutil.StringToUTF16(sourceString)
 	s.sourceEnd = len(s.sourceString)
