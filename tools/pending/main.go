@@ -40,22 +40,13 @@ import (
 const generatedName = "pending_gen.go"
 
 // defaultRoots are the files whose references are forward-declared: the
-// top-level SCC (and the classes ported with it) and the test harness.
+// top-level SCC (Compiler, DefaultPassConfig, NestedCompilerRunner,
+// TranspileAndOptimizeClosureUnaware) and the test harness.
 var defaultRoots = []string{
 	"compiler.go",
 	"default_pass_config.go",
 	"nested_compiler_runner.go",
 	"transpile_and_optimize_closure_unaware.go",
-	"pass_config.go",
-	"phase_optimizer.go",
-	"pass_list_builder.go",
-	"performance_tracker.go",
-	"performance_tracker_code_size_estimator.go",
-	"closure_unaware_options.go",
-	"compilation_level.go",
-	"j2cl_suppress_warnings_guard.go",
-	"suppress_doc_warnings_guard.go",
-	"diagnostic_groups.go",
 	"compiler_test_case_test.go",
 	"compiler_type_test_case_test.go",
 	"compiler_test_case_utils_test.go",

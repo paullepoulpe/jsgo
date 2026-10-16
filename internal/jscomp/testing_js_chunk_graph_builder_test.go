@@ -173,7 +173,7 @@ func (b *JSChunkGraphBuilder) Build() []*JSChunk {
 		chunks[i] = NewJSChunk(chunkName)
 		chunk := chunks[i]
 
-		chunk.Add(
+		chunk.AddSourceFile(
 			SourceFile_FromCode(jutil.LenientFormat(b.filenameFormat, i), b.chunks[i]))
 	}
 	b.graphType.addDependencyEdges(chunks)
