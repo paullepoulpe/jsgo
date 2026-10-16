@@ -125,7 +125,12 @@ trailing underscore (`type_`, `func_`, `range_`, `len_`).
   package function `Foo_Method(f Foo, ...)` or a `FooDefaults` struct to
   embed.
 - **Anonymous classes and lambdas** → Go closures, or a small unexported
-  struct when the interface has several methods.
+  struct when the interface has several methods. A single-method interface
+  `Foo` that Java code implements with lambdas gets one adapter next to the
+  interface: `type FooFunc func(...)` whose method calls it (e.g.
+  `CompilerPassFunc`, `NodeUtil_VisitorFunc`), marked
+  `// Go-only: language-adapter`. Whoever ports the interface writes it; until
+  then, call it by that name.
 - **Enums** → `type Foo int32` + `Foo_CONSTANT` consts in Java ordinal
   order, plus `Foo_values()`, `String()` (Java `name()`), and switch-based
   methods for enum bodies. Enum fields → lookup tables indexed by ordinal.
