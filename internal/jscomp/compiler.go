@@ -25,6 +25,7 @@ import (
 	"io"
 	"iter"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -2349,7 +2350,7 @@ func (c *Compiler) ParseInputs() (result *rhino.Node) {
 	}()
 	// Parse externs sources.
 	if c.options.GetNumParallelThreads() > 1 {
-		NewPrebuildAst(c, c.options.GetNumParallelThreads()).Prebuild(c.externs.Slice())
+		NewPrebuildAst(c, c.options.GetNumParallelThreads()).Prebuild(c.externs.All())
 	}
 	for input := range c.externs.All() {
 		n := jutil.CheckNotNull(input.GetAstRoot(c))
@@ -2419,7 +2420,7 @@ func (c *Compiler) ParseInputs() (result *rhino.Node) {
 
 	// Build the AST.
 	if c.options.GetNumParallelThreads() > 1 {
-		NewPrebuildAst(c, c.options.GetNumParallelThreads()).Prebuild(c.chunkGraph.GetAllInputs())
+		NewPrebuildAst(c, c.options.GetNumParallelThreads()).Prebuild(slices.Values(c.chunkGraph.GetAllInputs()))
 	}
 
 	for _, input := range c.chunkGraph.GetAllInputs() {
@@ -2752,7 +2753,7 @@ func (c *Compiler) HoistNoCompileFiles() {
 func (c *Compiler) maybeDoThreadedParsing() {
 	if c.options.GetNumParallelThreads() > 1 {
 		NewPrebuildDependencyInfo(c.options.GetNumParallelThreads()).
-			Prebuild(c.chunkGraph.GetAllInputs())
+			Prebuild(slices.Values(c.chunkGraph.GetAllInputs()))
 	}
 }
 
@@ -2805,7 +2806,7 @@ func (c *Compiler) parsePotentialModules(inputsToProcess []*CompilerInput) {
 		}
 	}
 	if c.options.GetNumParallelThreads() > 1 {
-		NewPrebuildAst(c, c.options.GetNumParallelThreads()).Prebuild(filteredInputs)
+		NewPrebuildAst(c, c.options.GetNumParallelThreads()).Prebuild(slices.Values(filteredInputs))
 	}
 	for _, input := range filteredInputs {
 		input.SetCompiler(c)

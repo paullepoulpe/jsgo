@@ -461,7 +461,11 @@ func (r *renderer) goType(t *JType) string {
 		return "uint16"
 	case "java/lang/Void":
 		return "struct{}"
-	case "java/lang/Iterable", "java/util/Collection", "java/util/List", "java/util/Queue", "java/util/Deque",
+	case "java/lang/Iterable":
+		// As the ports do (JSChunk.getInputsIterable, PrebuildAst.prebuild).
+		r.use("iter", "iter")
+		return "iter.Seq[" + arg(0) + "]"
+	case "java/util/Collection", "java/util/List", "java/util/Queue", "java/util/Deque",
 		"com/google/common/collect/ImmutableList", "com/google/common/collect/ImmutableCollection",
 		"java/util/stream/Stream", "com/google/common/collect/FluentIterable", "java/util/SortedSet",
 		"com/google/common/collect/ImmutableSortedSet":
