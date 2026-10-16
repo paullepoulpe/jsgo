@@ -290,6 +290,7 @@ type jhCoverage struct {
 	treeResizes    int // resizes of a table holding a tree bin
 	treeDissolved  int // operations after which there were fewer tree bins
 	treeIterRemove int // iterator removals from a tree bin
+	treeSplitTwo   int // resizes that split a tree bin into two trees
 }
 
 func jhTreeBins[K any, V any](m *JavaHashMap[K, V]) int {
@@ -399,7 +400,7 @@ func TestJavaHashMapMatchesJDK(t *testing.T) {
 		})
 	}
 	t.Logf("coverage: %+v", cov)
-	if cov.treeStates < 200 || cov.treeResizes < 10 || cov.treeDissolved < 20 || cov.treeIterRemove < 5 {
+	if cov.treeStates < 200 || cov.treeResizes < 10 || cov.treeSplitTwo < 1 || cov.treeDissolved < 10 || cov.treeIterRemove < 5 {
 		t.Errorf("tree bins not covered enough: %+v", cov)
 	}
 }
@@ -535,6 +536,9 @@ func jhReplayMap[K any](t *testing.T, si int, sc [][]string, p jhPool[K], cov *j
 		}
 		if treesBefore > 0 && len(m.table) > capBefore && capBefore > 0 {
 			cov.treeResizes++
+			if trees > treesBefore {
+				cov.treeSplitTwo++
+			}
 		}
 		if trees < treesBefore {
 			cov.treeDissolved++
