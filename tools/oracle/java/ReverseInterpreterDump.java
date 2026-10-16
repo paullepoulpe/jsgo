@@ -30,7 +30,7 @@
 // in package com.google.javascript.jscomp to reach the package-private API.
 //
 // Usage: java -cp closure-compiler.jar:<build> com.google.javascript.jscomp.ReverseInterpreterDump \
-//          <types.txt> <rai-out.tsv> <deps-out.tsv>
+//          <types.txt> <rai-out.tsv> <deps-out.tsv> <serialization-out.tsv>
 package com.google.javascript.jscomp;
 
 import com.google.javascript.jscomp.parsing.JsDocInfoParser;
@@ -987,6 +987,105 @@ public final class ReverseInterpreterDump {
     }
   }
 
+  // ---------------------------------------------------------------------
+  // The "serialization" section: InvalidatingTypes and JSTypeReconserializer
+
+  void runSerialization(List<String> typeStrings) throws Exception {
+    build(typeStrings);
+    int n = types.size();
+
+    // Seeded mismatches, each with its own location.
+    List<TypeMismatch> mismatches = new ArrayList<>();
+    for (int k = 0; k < 300; k++) {
+      JSType found = types.get(nextInt(n));
+      JSType required = types.get(nextInt(n));
+      mismatches.add(new TypeMismatch(found, required, IR.name("loc" + k)));
+    }
+    InvalidatingTypes invalidating =
+        new InvalidatingTypes.Builder(registry).addAllTypeMismatches(mismatches).build();
+    for (int i = 0; i < n; i++) {
+      JSType t = types.get(i);
+      fact("t" + (i + 1) + "\tinvalidating", () -> String.valueOf(invalidating.isInvalidating(t)));
+    }
+    for (JSType key : invalidating.getMismatchLocations().keySet()) {
+      StringBuilder sb = new StringBuilder();
+      for (Node loc : invalidating.getMismatchLocations().get(key)) {
+        sb.append(' ').append(loc.getString());
+      }
+      line("location\t" + str(key) + "\t" + sb);
+    }
+
+    Class<?> cls = Class.forName("com.google.javascript.jscomp.serialization.JSTypeReconserializer");
+    java.lang.reflect.Method create =
+        cls.getDeclaredMethod(
+            "create",
+            JSTypeRegistry.class,
+            InvalidatingTypes.class,
+            com.google.javascript.jscomp.serialization.StringPool.Builder.class,
+            java.util.function.Predicate.class,
+            com.google.javascript.jscomp.serialization.SerializationOptions.class);
+    create.setAccessible(true);
+    java.lang.reflect.Method serializeType = cls.getDeclaredMethod("serializeType", JSType.class);
+    serializeType.setAccessible(true);
+    java.lang.reflect.Method generateTypePool = cls.getDeclaredMethod("generateTypePool");
+    generateTypePool.setAccessible(true);
+    java.lang.reflect.Method debugMap = cls.getDeclaredMethod("getColorIdToJSTypeMapForDebugging");
+    debugMap.setAccessible(true);
+
+    com.google.javascript.jscomp.serialization.StringPool.Builder stringPool =
+        com.google.javascript.jscomp.serialization.StringPool.builder();
+    java.util.function.Predicate<String> propagate = (name) -> !name.startsWith("q");
+    Object serializer =
+        create.invoke(
+            null,
+            registry,
+            invalidating,
+            stringPool,
+            propagate,
+            com.google.javascript.jscomp.serialization.SerializationOptions.builder()
+                .setIncludeDebugInfo(true)
+                .setRunValidation(true)
+                .build());
+    for (int i = 0; i < n; i++) {
+      JSType t = types.get(i);
+      fact(
+          "t" + (i + 1) + "\tpointer",
+          () -> {
+            try {
+              return String.valueOf(serializeType.invoke(serializer, t));
+            } catch (java.lang.reflect.InvocationTargetException e) {
+              throw (RuntimeException) e.getCause();
+            } catch (IllegalAccessException e) {
+              throw new AssertionError(e);
+            }
+          });
+    }
+    fact(
+        "pool",
+        () -> {
+          try {
+            return esc(generateTypePool.invoke(serializer).toString());
+          } catch (java.lang.reflect.InvocationTargetException e) {
+            throw (RuntimeException) e.getCause();
+          } catch (IllegalAccessException e) {
+            throw new AssertionError(e);
+          }
+        });
+    line("strings\t" + esc(stringPool.build().toProto().toString()));
+    @SuppressWarnings("unchecked")
+    Map<String, java.util.Collection<JSType>> debug =
+        ((com.google.javascript.jscomp.jarjar.com.google.common.collect.Multimap<String, JSType>)
+                debugMap.invoke(serializer))
+            .asMap();
+    for (Map.Entry<String, java.util.Collection<JSType>> e : debug.entrySet()) {
+      StringBuilder sb = new StringBuilder();
+      for (JSType t : e.getValue()) {
+        sb.append(" ").append(str(t));
+      }
+      line("debug\t" + e.getKey() + "\t" + sb);
+    }
+  }
+
   public static void main(String[] args) throws Exception {
     List<String> typeStrings = new ArrayList<>();
     for (String l : Files.readAllLines(Paths.get(args[0]), StandardCharsets.UTF_8)) {
@@ -1000,5 +1099,8 @@ public final class ReverseInterpreterDump {
     ReverseInterpreterDump deps = new ReverseInterpreterDump();
     deps.runDeps(typeStrings);
     Files.writeString(Paths.get(args[2]), deps.out, StandardCharsets.UTF_8);
+    ReverseInterpreterDump ser = new ReverseInterpreterDump();
+    ser.runSerialization(typeStrings);
+    Files.writeString(Paths.get(args[3]), ser.out, StandardCharsets.UTF_8);
   }
 }
