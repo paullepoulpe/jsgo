@@ -29,6 +29,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -221,6 +222,23 @@ func readDump(path string) (string, error) {
 	return string(b), err
 }
 
+// dumpIdentityHash matches the identity hash that Object.toString() prints
+// for a JSDocInfo.Marker (JSDocInfo.toStringVerbose lists the markers when
+// descriptions are parsed). It is arbitrary on both sides, so sameDump masks
+// it; the number and position of the markers are still compared.
+var dumpIdentityHash = regexp.MustCompile(`com\.google\.javascript\.rhino\.JSDocInfo\$Marker@[0-9a-f]+`)
+
+// sameDump compares two dumps, ignoring only Marker identity hashes; on a
+// difference it returns the masked dumps.
+func sameDump(want, got string) (bool, string, string) {
+	if want == got {
+		return true, want, got
+	}
+	w := dumpIdentityHash.ReplaceAllLiteralString(want, "com.google.javascript.rhino.JSDocInfo$Marker@")
+	g := dumpIdentityHash.ReplaceAllLiteralString(got, "com.google.javascript.rhino.JSDocInfo$Marker@")
+	return w == g, w, g
+}
+
 // firstDiff describes the first differing line of two dumps.
 func firstDiff(want, got string) string {
 	wl := strings.Split(want, "\n")
@@ -265,8 +283,8 @@ func TestParsingDumpGolden(t *testing.T) {
 			t.Fatal(err)
 		}
 		got := dumpParsing(filepath.ToSlash(rel), string(src), configFromDump(want))
-		if got != want {
-			t.Errorf("%s: dump differs from Java at %s", rel, firstDiff(want, got))
+		if same, w, g := sameDump(want, got); !same {
+			t.Errorf("%s: dump differs from Java at %s", rel, firstDiff(w, g))
 		}
 	}
 }
@@ -328,8 +346,8 @@ func TestParsingDumpOracle(t *testing.T) {
 					continue
 				}
 				got := dumpParsing(rel, string(src), configFromDump(want))
-				if got != want {
-					results[i] = result{rel: rel, diff: firstDiff(want, got), got: got}
+				if same, w, g := sameDump(want, got); !same {
+					results[i] = result{rel: rel, diff: firstDiff(w, g), got: got}
 				}
 			}
 		}()

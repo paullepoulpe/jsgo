@@ -3748,6 +3748,15 @@ func (d *IRFactory_TransformDispatcher) CheckParameters(tree *parser.FormalParam
 // Java: IRFactory.TransformDispatcher.transformList(Token, ImmutableList<ParseTree>)
 func (d *IRFactory_TransformDispatcher) TransformList(type_ rhino.Token, list []parser.ParseTree) *rhino.Node {
 	n := d.NewNode(type_)
+	// Go-only: language-adapter — a nil slice is Java null (the parser keeps
+	// empty lists non-nil), and an enhanced for statement over a null list
+	// throws NullPointerException where a Go range does nothing. Of the lists
+	// this file iterates, only ExportDeclarationTree.exportSpecifierList
+	// reaches here as null (an export the parser recovered from in
+	// KEEP_GOING mode).
+	if list == nil {
+		panic(jutil.NewNullPointerException())
+	}
 	for _, tree := range list {
 		n.AddChildToBack(d.Transform(tree))
 	}
