@@ -87,20 +87,18 @@ var (
 // operations whose result leaves it throw ArithmeticException.
 const bigIntegerMaxBitLength = math.MaxInt32
 
-// bigIntegerReportOverflow throws the ArithmeticException of a result
-// outside the supported range.
-//
-// Observed behaviour (black-box): the message is "BigInteger would overflow
-// supported range".
-func bigIntegerReportOverflow() {
+// panicBigIntegerRange raises the ArithmeticException that BigInteger
+// operations throw for a result they cannot represent. Its message,
+// "BigInteger would overflow supported range", was observed black-box.
+func panicBigIntegerRange() {
 	panic(NewArithmeticException("BigInteger would overflow supported range"))
 }
 
-// bigIntegerCheckRange returns x, or throws if x is outside the supported
-// range (see bigIntegerMaxBitLength).
-func bigIntegerCheckRange(x *big.Int) *big.Int {
+// bigIntegerWithinRange passes x through when its magnitude has at most
+// bigIntegerMaxBitLength bits, and calls panicBigIntegerRange otherwise.
+func bigIntegerWithinRange(x *big.Int) *big.Int {
 	if x.BitLen() > bigIntegerMaxBitLength {
-		bigIntegerReportOverflow()
+		panicBigIntegerRange()
 	}
 	return x
 }
@@ -134,12 +132,12 @@ func BigIntegerPow(x *big.Int, exponent int32) *big.Int {
 		// |x| = 2^twos, so the result is 2^(twos*exponent).
 		bits := int64(twos) * int64(exponent)
 		if bits+1 > bigIntegerMaxBitLength {
-			bigIntegerReportOverflow()
+			panicBigIntegerRange()
 		}
 		result = new(big.Int).Lsh(big.NewInt(1), uint(bits))
 	} else {
 		bigIntegerPowCheckEstimate(magnitude, exponent)
-		result = bigIntegerCheckRange(new(big.Int).Exp(magnitude, big.NewInt(int64(exponent)), nil))
+		result = bigIntegerWithinRange(new(big.Int).Exp(magnitude, big.NewInt(int64(exponent)), nil))
 	}
 	if negative {
 		result.Neg(result)
@@ -152,7 +150,7 @@ func BigIntegerPow(x *big.Int, exponent int32) *big.Int {
 // not a power of two.
 func bigIntegerPowCheckEstimate(magnitude *big.Int, exponent int32) {
 	if int64(magnitude.BitLen())*int64(exponent)/32 > 1<<26 {
-		bigIntegerReportOverflow()
+		panicBigIntegerRange()
 	}
 }
 
@@ -164,9 +162,9 @@ func BigIntegerMultiply(a, b *big.Int) *big.Int {
 	}
 	// The product of an m-bit and an n-bit magnitude has at least m+n-1 bits.
 	if int64(a.BitLen())+int64(b.BitLen())-1 > bigIntegerMaxBitLength {
-		bigIntegerReportOverflow()
+		panicBigIntegerRange()
 	}
-	return bigIntegerCheckRange(new(big.Int).Mul(a, b))
+	return bigIntegerWithinRange(new(big.Int).Mul(a, b))
 }
 
 // BigIntegerShiftLeft is BigInteger.shiftLeft(int) for n >= 0 (returning x
@@ -179,7 +177,7 @@ func BigIntegerShiftLeft(x *big.Int, n int32) *big.Int {
 		return new(big.Int).Rsh(x, uint(-int64(n)))
 	}
 	if int64(x.BitLen())+int64(n) > bigIntegerMaxBitLength {
-		bigIntegerReportOverflow()
+		panicBigIntegerRange()
 	}
 	return new(big.Int).Lsh(x, uint(n))
 }

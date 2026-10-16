@@ -70,7 +70,7 @@ func NewBigIntegerFromStringRadix(s string, radix int) *big.Int {
 	if negative {
 		x.Neg(x)
 	}
-	return bigIntegerCheckRange(x)
+	return bigIntegerWithinRange(x)
 }
 
 // bigIntegerRadixGroup is the size of the digit groups in which
