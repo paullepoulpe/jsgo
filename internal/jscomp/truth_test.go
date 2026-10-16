@@ -22,6 +22,7 @@ package jscomp
 
 import (
 	"fmt"
+	"math"
 	"reflect"
 	"strings"
 
@@ -978,4 +979,41 @@ func (s *Subject) FailWithoutActual(facts ...Fact) {
 		messages = append(messages, s.message)
 	}
 	panic(jutil.NewAssertionError(fact_makeMessage(messages, facts)))
+}
+
+// TolerantDoubleComparison is Truth's DoubleSubject.TolerantDoubleComparison.
+type TolerantDoubleComparison struct {
+	s         *Subject
+	tolerance float64
+}
+
+// IsWithin is DoubleSubject.isWithin(tolerance): call Of(expected) on the
+// result.
+func (s *Subject) IsWithin(tolerance float64) *TolerantDoubleComparison {
+	return &TolerantDoubleComparison{s: s, tolerance: tolerance}
+}
+
+// truthCheckTolerance is DoubleSubject.checkTolerance.
+func truthCheckTolerance(tolerance float64) {
+	jutil.CheckArgumentMsg(!math.IsNaN(tolerance), "tolerance cannot be NaN")
+	jutil.CheckArgumentMsg1(tolerance >= 0.0, "tolerance (%s) cannot be negative", tolerance)
+	jutil.CheckArgumentMsg(tolerance != math.MaxFloat64, "tolerance cannot be Double.MAX_VALUE")
+	jutil.CheckArgumentMsg(!math.IsInf(tolerance, 1), "tolerance cannot be POSITIVE_INFINITY")
+}
+
+// Of is TolerantDoubleComparison.of(expected): the actual double is
+// finite and within the tolerance of the finite expected value.
+func (c *TolerantDoubleComparison) Of(expected float64) {
+	actual, ok := truthAsFloat(c.s.actual)
+	if !ok {
+		c.s.failf("expected a double\nbut was: %s", c.s.showActual())
+	}
+	truthCheckTolerance(c.tolerance)
+	// MathUtil.equalWithinTolerance
+	if !(math.Abs(actual-expected) <= math.Abs(c.tolerance)) {
+		c.s.FailWithoutActual(
+			Fact_Fact("expected", jutil.DoubleToString(expected)),
+			Fact_Fact("but was", jutil.DoubleToString(actual)),
+			Fact_Fact("outside tolerance", jutil.DoubleToString(c.tolerance)))
+	}
 }
