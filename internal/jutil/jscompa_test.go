@@ -315,3 +315,46 @@ func TestPatternTranslation(t *testing.T) {
 		}
 	}
 }
+
+func TestCharsetDecodeMatchesJava(t *testing.T) {
+	rows := readTSV(t, "jscompa_decode.tsv")
+	if len(rows) < 1000 {
+		t.Fatalf("only %d vectors", len(rows))
+	}
+	for _, r := range rows {
+		cs := Charset_ForName(r[0])
+		b, err := hex.DecodeString(r[1])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := escVector(cs.Decode(b)); got != r[2] {
+			t.Errorf("new String(%s, %s) = %q, want %q", r[1], r[0], got, r[2])
+		}
+		var strict string
+		func() {
+			defer func() {
+				if x := recover(); x != nil {
+					if m, ok := x.(*MalformedInputException); ok {
+						strict = "MALFORMED:" + strconv.Itoa(m.GetInputLength())
+						return
+					}
+					panic(x)
+				}
+			}()
+			strict = escVector(cs.DecodeStrict(b))
+		}()
+		if strict != r[3] {
+			t.Errorf("strict decode of %s as %s = %q, want %q", r[1], r[0], strict, r[3])
+		}
+	}
+}
+
+func TestCharsetDecodeUTF16ReversedMark(t *testing.T) {
+	// Checked against JDK 21: U+FFFE is decoded, not reported as malformed.
+	for in, want := range map[string]string{"0041fffe": "A￾", "fefffffe0041": "￾A", "fffefeff": "￾"} {
+		b, _ := hex.DecodeString(in)
+		if got := StandardCharsets_UTF_16.Decode(b); got != want {
+			t.Errorf("%s: got %q, want %q", in, got, want)
+		}
+	}
+}

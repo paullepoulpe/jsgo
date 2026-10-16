@@ -200,6 +200,38 @@ public class JutilJscompAVectors {
       ps.println("ms\t" + esc(ImmutableMultiset.of().toString()));
     }
 
+    // Charset decoding (REPLACE and REPORT).
+    try (PrintStream ps = new PrintStream(Files.newOutputStream(out.resolve("jscompa_decode.tsv")), true, "UTF-8")) {
+      String[] css = {"UTF-8", "ISO-8859-1", "US-ASCII", "UTF-16", "UTF-16BE", "UTF-16LE"};
+      byte[][] special = {{}, {(byte) 0xfe, (byte) 0xff, 0, 0x41}, {(byte) 0xff, (byte) 0xfe, 0x41, 0}, {(byte) 0xd8, 0, (byte) 0xdc, 0},
+          {(byte) 0xdc, 0, 0, 0x41}, {(byte) 0xd8, 0}, {0x41}, {(byte) 0xed, (byte) 0xa0, (byte) 0x80}, {(byte) 0xe0, (byte) 0x80},
+          {(byte) 0xf0, (byte) 0x90, (byte) 0x80}, {(byte) 0xf4, (byte) 0x90}, {(byte) 0xc0, (byte) 0xaf}, {(byte) 0xe2, (byte) 0x82, 0x41}};
+      List<byte[]> inputs = new ArrayList<>(Arrays.asList(special));
+      for (int i = 0; i < 300; i++) {
+        byte[] b = new byte[r.nextInt(12)];
+        r.nextBytes(b);
+        if (i % 3 == 0) for (int k = 0; k < b.length; k++) if (r.nextBoolean()) b[k] &= 0x7f;
+        inputs.add(b);
+      }
+      for (String csName : css) {
+        java.nio.charset.Charset cs = java.nio.charset.Charset.forName(csName);
+        for (byte[] b : inputs) {
+          StringBuilder hx = new StringBuilder();
+          for (byte x : b) hx.append(String.format("%02x", x & 0xff));
+          String strict;
+          try {
+            strict = esc(cs.newDecoder().onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT).decode(java.nio.ByteBuffer.wrap(b)).toString());
+          } catch (java.nio.charset.MalformedInputException e) {
+            strict = "MALFORMED:" + e.getInputLength();
+          } catch (Exception e) {
+            strict = exc(e);
+          }
+          ps.println(csName + "\t" + hx + "\t" + esc(new String(b, cs)) + "\t" + strict);
+        }
+      }
+    }
+
     // TreeSet with a comparator that changes (ComposeWarningsGuard's pattern).
     try (PrintStream ps = new PrintStream(Files.newOutputStream(out.resolve("jscompa_treeset.tsv")), true, "UTF-8")) {
       for (int trial = 0; trial < 300; trial++) {
