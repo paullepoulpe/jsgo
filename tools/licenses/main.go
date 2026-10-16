@@ -31,6 +31,10 @@
 //   - no tracked file (decompressed, as above) mentions a corpus file of
 //     tools/oracle/gpl-excluded-corpus.txt (tools/oracle/corpus): it
 //     contains the file's path inside its npm package;
+//   - every npm package copied into test data, a tracked
+//     ".../testdata/.../src/<name>@<version>/" directory, holds the
+//     package's licence file (LICENSE, LICENSE.txt, licenses.md, ...)
+//     directly (packages.go);
 //   - NOTICE and the licence texts under LICENSES/ exist.
 //
 // Usage:
@@ -130,6 +134,7 @@ func main() {
 			}
 		}
 	}
+	problems = append(problems, checkPackageLicences(files)...)
 	problems = append(problems, checkRequiredFiles()...)
 	if len(bad) > 0 {
 		fmt.Fprintf(os.Stderr, "licenses: %d tracked files mention the GPL (PORTING.md: no GPL code, anywhere):\n", len(bad))
@@ -158,7 +163,7 @@ func main() {
 			counts = append(counts, fmt.Sprintf("%s %d", u.project, n))
 		}
 	}
-	fmt.Printf("licenses: no tracked file mentions the GPL or one of the %d excluded corpus files (gzip files decompressed, %d other binary files skipped); third-party notices present (%s); NOTICE and LICENSES/ present\n", len(excluded), skipped, strings.Join(counts, ", "))
+	fmt.Printf("licenses: no tracked file mentions the GPL or one of the %d excluded corpus files (gzip files decompressed, %d other binary files skipped); third-party notices present (%s); test-data packages licensed; NOTICE and LICENSES/ present\n", len(excluded), skipped, strings.Join(counts, ", "))
 }
 
 func trackedFiles() ([]string, error) {

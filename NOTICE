@@ -101,6 +101,45 @@ Test data
     Graphics Corp that has been kindly donated to the Apache Software
     Foundation.
 
-  Some test inputs are third-party JavaScript packages, kept in
-  <package>@<version> directories under internal/jscomp/testdata/*/src.
-  Each is under its own licence, which this file does not yet reproduce.
+  Some test inputs are files of third-party npm packages, copied from the
+  registry tarball of the version their directory names:
+  internal/jscomp/testdata/<dir>/src/<package>@<version>/package/, where
+  <dir> is typecheck (T), es_modules (E) or closure_modules (C). Each
+  <package>@<version>/ directory also holds the package's licence file,
+  from the same tarball, under the package's own file name; "go run
+  ./tools/licenses -check" requires one. typecheck/expected/ and the
+  goldens next to src/ hold the Java compiler's output for these files.
+  No package is under a copyleft licence, and none ships a NOTICE file.
+
+    Package@version                    Licence (file)              Dirs
+    @angular/core@19.2.14              MIT (LICENSE)               T
+    core-js@3.50.0                     MIT (LICENSE)               T E
+    google-closure-library@20230802.0.0
+                                       Apache-2.0 (LICENSE)        T E C
+    handlebars@4.7.10                  MIT (LICENSE)               T E
+    jquery@3.7.1                       MIT (LICENSE.txt)           T E
+    lodash@4.17.21                     MIT (LICENSE)               T E
+    moment@2.31.0                      MIT (LICENSE)               T E
+    preact@10.25.4                     MIT (LICENSE)               T E C
+    react-dom@18.3.1                   MIT (LICENSE)               T
+    rxjs@7.8.2                         Apache-2.0 (LICENSE.txt)    T E
+    terser@5.51.2                      BSD-2-Clause (LICENSE)      T
+    test262-parser-tests@0.0.5         per test file: Apache-2.0,  T E
+                                       MIT or BSD (licenses.md)
+    three@0.186.1                      MIT (LICENSE)               T E
+    underscore@1.13.8                  MIT (LICENSE)               T E
+    vue@2.7.16                         MIT (LICENSE)               T
+    zone.js@0.16.3                     MIT (LICENSE)               T
+
+  Copyright holders, as the licence files (for google-closure-library,
+  the source headers) state them: Google LLC (@angular/core, zone.js);
+  Denis Pushkarev and CoreJS Company (core-js); The Closure Library
+  Authors (google-closure-library); Yehuda Katz (handlebars); OpenJS
+  Foundation and other contributors (jquery, lodash, moment); Jason
+  Miller (preact); Facebook, Inc. and its affiliates (react-dom); Google,
+  Inc., Netflix, Inc., Microsoft Corp. and contributors (rxjs); Mihai
+  Bazon (terser); the contributors of test262-parser-tests, Acorn,
+  esmangle, Esprima, Shift and UglifyJS (test262-parser-tests); three.js
+  authors (three); Jeremy Ashkenas, Julian Gonggrijp, and DocumentCloud
+  and Investigative Reporters & Editors (underscore); Yuxi (Evan) You
+  (vue).
