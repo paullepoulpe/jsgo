@@ -1,5 +1,5 @@
 // Oracle tool: writes the Java reference vectors for internal/jutil/testdata
-// (farmhash.tsv, character.tsv, bigint.tsv).
+// (farmhash.tsv, character_codepoint.tsv, bigint.tsv).
 //   java -cp .cache/closure-compiler.jar:.cache/oracle-build JutilVectors internal/jutil/testdata
 import com.google.javascript.jscomp.jarjar.com.google.common.hash.Hashing;
 import com.google.javascript.jscomp.jarjar.com.google.common.hash.Hasher;
@@ -34,7 +34,7 @@ public class JutilVectors {
         ps.println(sb + "\t" + hs.hash().asLong());
       }
     }
-    try (PrintStream ps = new PrintStream(Files.newOutputStream(out.resolve("character.tsv")))) {
+    try (PrintStream ps = new PrintStream(Files.newOutputStream(out.resolve("character_codepoint.tsv")))) {
       int start = 0;
       String prev = null;
       for (int cp = 0; cp <= 0x110000; cp++) {

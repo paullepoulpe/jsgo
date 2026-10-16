@@ -1,0 +1,423 @@
+enum TokenType 0 END_OF_FILE End of File
+enum TokenType 1 ERROR error
+enum TokenType 2 IDENTIFIER identifier
+enum TokenType 3 BREAK break
+enum TokenType 4 CASE case
+enum TokenType 5 CATCH catch
+enum TokenType 6 CONTINUE continue
+enum TokenType 7 DEBUGGER debugger
+enum TokenType 8 DEFAULT default
+enum TokenType 9 DELETE delete
+enum TokenType 10 DO do
+enum TokenType 11 ELSE else
+enum TokenType 12 FINALLY finally
+enum TokenType 13 FOR for
+enum TokenType 14 FUNCTION function
+enum TokenType 15 IF if
+enum TokenType 16 IN in
+enum TokenType 17 INSTANCEOF instanceof
+enum TokenType 18 NEW new
+enum TokenType 19 RETURN return
+enum TokenType 20 SWITCH switch
+enum TokenType 21 THIS this
+enum TokenType 22 THROW throw
+enum TokenType 23 TRY try
+enum TokenType 24 TYPEOF typeof
+enum TokenType 25 VAR var
+enum TokenType 26 VOID void
+enum TokenType 27 WHILE while
+enum TokenType 28 WITH with
+enum TokenType 29 CLASS class
+enum TokenType 30 CONST const
+enum TokenType 31 ENUM enum
+enum TokenType 32 EXPORT export
+enum TokenType 33 EXTENDS extends
+enum TokenType 34 IMPORT import
+enum TokenType 35 SUPER super
+enum TokenType 36 IMPLEMENTS implements
+enum TokenType 37 INTERFACE interface
+enum TokenType 38 LET let
+enum TokenType 39 PACKAGE package
+enum TokenType 40 PRIVATE private
+enum TokenType 41 PROTECTED protected
+enum TokenType 42 PUBLIC public
+enum TokenType 43 STATIC static
+enum TokenType 44 YIELD yield
+enum TokenType 45 OPEN_CURLY {
+enum TokenType 46 CLOSE_CURLY }
+enum TokenType 47 OPEN_PAREN (
+enum TokenType 48 CLOSE_PAREN )
+enum TokenType 49 OPEN_SQUARE [
+enum TokenType 50 CLOSE_SQUARE ]
+enum TokenType 51 PERIOD .
+enum TokenType 52 SEMI_COLON ;
+enum TokenType 53 COMMA ,
+enum TokenType 54 OPEN_ANGLE <
+enum TokenType 55 CLOSE_ANGLE >
+enum TokenType 56 LESS_EQUAL <=
+enum TokenType 57 GREATER_EQUAL >=
+enum TokenType 58 ARROW =>
+enum TokenType 59 EQUAL_EQUAL ==
+enum TokenType 60 NOT_EQUAL !=
+enum TokenType 61 EQUAL_EQUAL_EQUAL ===
+enum TokenType 62 NOT_EQUAL_EQUAL !==
+enum TokenType 63 PLUS +
+enum TokenType 64 MINUS -
+enum TokenType 65 STAR *
+enum TokenType 66 STAR_STAR **
+enum TokenType 67 PERCENT %
+enum TokenType 68 PLUS_PLUS ++
+enum TokenType 69 MINUS_MINUS --
+enum TokenType 70 LEFT_SHIFT <<
+enum TokenType 71 RIGHT_SHIFT >>
+enum TokenType 72 UNSIGNED_RIGHT_SHIFT >>>
+enum TokenType 73 AMPERSAND &
+enum TokenType 74 BAR |
+enum TokenType 75 CARET ^
+enum TokenType 76 BANG !
+enum TokenType 77 TILDE ~
+enum TokenType 78 AND &&
+enum TokenType 79 OR ||
+enum TokenType 80 QUESTION ?
+enum TokenType 81 QUESTION_QUESTION ??
+enum TokenType 82 QUESTION_DOT ?.
+enum TokenType 83 COLON :
+enum TokenType 84 EQUAL =
+enum TokenType 85 PLUS_EQUAL +=
+enum TokenType 86 MINUS_EQUAL -=
+enum TokenType 87 STAR_EQUAL *=
+enum TokenType 88 STAR_STAR_EQUAL **=
+enum TokenType 89 PERCENT_EQUAL %=
+enum TokenType 90 LEFT_SHIFT_EQUAL <<=
+enum TokenType 91 RIGHT_SHIFT_EQUAL >>=
+enum TokenType 92 UNSIGNED_RIGHT_SHIFT_EQUAL >>>=
+enum TokenType 93 AMPERSAND_EQUAL &=
+enum TokenType 94 BAR_EQUAL |=
+enum TokenType 95 CARET_EQUAL ^=
+enum TokenType 96 SLASH /
+enum TokenType 97 SLASH_EQUAL /=
+enum TokenType 98 AND_EQUAL &&=
+enum TokenType 99 OR_EQUAL ||=
+enum TokenType 100 QUESTION_QUESTION_EQUAL ??=
+enum TokenType 101 NULL null
+enum TokenType 102 TRUE true
+enum TokenType 103 FALSE false
+enum TokenType 104 NUMBER number literal
+enum TokenType 105 STRING string literal
+enum TokenType 106 BIGINT bigint literal
+enum TokenType 107 REGULAR_EXPRESSION regular expression literal
+enum TokenType 108 ELLIPSIS ...
+enum TokenType 109 TEMPLATE_HEAD template head
+enum TokenType 110 TEMPLATE_MIDDLE template middle
+enum TokenType 111 TEMPLATE_TAIL template tail
+enum TokenType 112 NO_SUBSTITUTION_TEMPLATE no substitution template
+enum TokenType 113 TYPE <NullPointerException>
+enum TokenType 114 DECLARE <NullPointerException>
+enum TokenType 115 MODULE <NullPointerException>
+enum TokenType 116 NAMESPACE <NullPointerException>
+enum Keywords 0 BREAK break
+enum Keywords 1 CASE case
+enum Keywords 2 CATCH catch
+enum Keywords 3 CONTINUE continue
+enum Keywords 4 DEBUGGER debugger
+enum Keywords 5 DEFAULT default
+enum Keywords 6 DELETE delete
+enum Keywords 7 DO do
+enum Keywords 8 ELSE else
+enum Keywords 9 FINALLY finally
+enum Keywords 10 FOR for
+enum Keywords 11 FUNCTION function
+enum Keywords 12 IF if
+enum Keywords 13 IN in
+enum Keywords 14 INSTANCEOF instanceof
+enum Keywords 15 NEW new
+enum Keywords 16 RETURN return
+enum Keywords 17 SWITCH switch
+enum Keywords 18 THIS this
+enum Keywords 19 THROW throw
+enum Keywords 20 TRY try
+enum Keywords 21 TYPEOF typeof
+enum Keywords 22 VAR var
+enum Keywords 23 VOID void
+enum Keywords 24 WHILE while
+enum Keywords 25 WITH with
+enum Keywords 26 CLASS class
+enum Keywords 27 CONST const
+enum Keywords 28 ENUM enum
+enum Keywords 29 EXPORT export
+enum Keywords 30 EXTENDS extends
+enum Keywords 31 IMPORT import
+enum Keywords 32 SUPER super
+enum Keywords 33 IMPLEMENTS implements
+enum Keywords 34 INTERFACE interface
+enum Keywords 35 LET let
+enum Keywords 36 PACKAGE package
+enum Keywords 37 PRIVATE private
+enum Keywords 38 PROTECTED protected
+enum Keywords 39 PUBLIC public
+enum Keywords 40 STATIC static
+enum Keywords 41 YIELD yield
+enum Keywords 42 NULL null
+enum Keywords 43 TRUE true
+enum Keywords 44 FALSE false
+enum FeatureSet$Feature 0 REGEXP_SYNTAX RegExp syntax
+enum FeatureSet$Feature 1 ES3_KEYWORDS_AS_IDENTIFIERS ES3 keywords as identifiers
+enum FeatureSet$Feature 2 GETTER getters
+enum FeatureSet$Feature 3 KEYWORDS_AS_PROPERTIES reserved words as properties
+enum FeatureSet$Feature 4 SETTER setters
+enum FeatureSet$Feature 5 STRING_CONTINUATION string continuation
+enum FeatureSet$Feature 6 TRAILING_COMMA trailing comma
+enum FeatureSet$Feature 7 ARRAY_DESTRUCTURING array destructuring
+enum FeatureSet$Feature 8 ARRAY_PATTERN_REST array pattern rest
+enum FeatureSet$Feature 9 ARROW_FUNCTIONS arrow function
+enum FeatureSet$Feature 10 BINARY_LITERALS binary literal
+enum FeatureSet$Feature 11 BLOCK_SCOPED_FUNCTION_DECLARATION block-scoped function declaration
+enum FeatureSet$Feature 12 CLASSES class
+enum FeatureSet$Feature 13 CLASS_GETTER_SETTER class getters/setters
+enum FeatureSet$Feature 14 COMPUTED_PROPERTIES computed property
+enum FeatureSet$Feature 15 CONST_DECLARATIONS const declaration
+enum FeatureSet$Feature 16 DEFAULT_PARAMETERS default parameter
+enum FeatureSet$Feature 17 FOR_OF for-of loop
+enum FeatureSet$Feature 18 GENERATORS generator
+enum FeatureSet$Feature 19 LET_DECLARATIONS let declaration
+enum FeatureSet$Feature 20 MEMBER_DECLARATIONS member declaration
+enum FeatureSet$Feature 21 NEW_TARGET new.target
+enum FeatureSet$Feature 22 OBJECT_DESTRUCTURING object destructuring
+enum FeatureSet$Feature 23 OCTAL_LITERALS octal literal
+enum FeatureSet$Feature 24 REGEXP_FLAG_U RegExp flag 'u'
+enum FeatureSet$Feature 25 REGEXP_FLAG_Y RegExp flag 'y'
+enum FeatureSet$Feature 26 REST_PARAMETERS rest parameter
+enum FeatureSet$Feature 27 SHORTHAND_OBJECT_PROPERTIES shorthand object property
+enum FeatureSet$Feature 28 SPREAD_EXPRESSIONS spread expression
+enum FeatureSet$Feature 29 SUPER super
+enum FeatureSet$Feature 30 TEMPLATE_LITERALS template literal
+enum FeatureSet$Feature 31 MODULES modules
+enum FeatureSet$Feature 32 EXPONENT_OP exponent operator (**)
+enum FeatureSet$Feature 33 ASYNC_FUNCTIONS async function
+enum FeatureSet$Feature 34 OBJECT_LITERALS_WITH_SPREAD object literals with spread
+enum FeatureSet$Feature 35 OBJECT_PATTERN_REST object pattern rest
+enum FeatureSet$Feature 36 ASYNC_GENERATORS async generator functions
+enum FeatureSet$Feature 37 FOR_AWAIT_OF for-await-of loop
+enum FeatureSet$Feature 38 REGEXP_FLAG_S RegExp flag 's'
+enum FeatureSet$Feature 39 REGEXP_NAMED_GROUPS RegExp named groups
+enum FeatureSet$Feature 40 REGEXP_UNICODE_PROPERTY_ESCAPE RegExp unicode property escape
+enum FeatureSet$Feature 41 REGEXP_LOOKBEHIND RegExp Lookbehind
+enum FeatureSet$Feature 42 UNESCAPED_UNICODE_LINE_OR_PARAGRAPH_SEP Unescaped unicode line or paragraph separator
+enum FeatureSet$Feature 43 OPTIONAL_CATCH_BINDING Optional catch binding
+enum FeatureSet$Feature 44 DYNAMIC_IMPORT Dynamic module import
+enum FeatureSet$Feature 45 BIGINT bigint
+enum FeatureSet$Feature 46 IMPORT_META import.meta
+enum FeatureSet$Feature 47 NULL_COALESCE_OP Nullish coalescing
+enum FeatureSet$Feature 48 OPTIONAL_CHAINING Optional chaining
+enum FeatureSet$Feature 49 NUMERIC_SEPARATOR numeric separator
+enum FeatureSet$Feature 50 LOGICAL_ASSIGNMENT Logical assignments
+enum FeatureSet$Feature 51 PUBLIC_CLASS_FIELDS Public class fields
+enum FeatureSet$Feature 52 CLASS_STATIC_BLOCK Class static block
+enum FeatureSet$Feature 53 REGEXP_FLAG_D RegExp flag 'd'
+enum FeatureSet$Feature 54 TOP_LEVEL_AWAIT Top-level await
+enum FeatureSet$Feature 55 ES_NEXT_RUNTIME es_next runtime
+enum FeatureSet$Feature 56 ES_UNSTABLE_RUNTIME es_unstable runtime
+enum FeatureSet$Feature 57 PRIVATE_CLASS_PROPERTIES Private class properties
+enum FeatureSet$Feature 58 TYPE_ANNOTATION type annotation
+enum FeatureSet$LangVersion 0 ES3 ES3
+enum FeatureSet$LangVersion 1 ES5 ES5
+enum FeatureSet$LangVersion 2 ES2015 ES2015
+enum FeatureSet$LangVersion 3 ES2016 ES2016
+enum FeatureSet$LangVersion 4 ES2017 ES2017
+enum FeatureSet$LangVersion 5 ES2018 ES2018
+enum FeatureSet$LangVersion 6 ES2019 ES2019
+enum FeatureSet$LangVersion 7 ES2020 ES2020
+enum FeatureSet$LangVersion 8 ES2021 ES2021
+enum FeatureSet$LangVersion 9 ES2022 ES2022
+enum FeatureSet$LangVersion 10 ES_NEXT ES_NEXT
+enum FeatureSet$LangVersion 11 ES_UNSTABLE ES_UNSTABLE
+enum FeatureSet$LangVersion 12 ES_UNSUPPORTED ES_UNSUPPORTED
+enum FeatureSet$LangVersion 13 TYPESCRIPT TYPESCRIPT
+enum TemplateLiteralToken$ErrorLevel 0 WARNING WARNING
+enum TemplateLiteralToken$ErrorLevel 1 ERROR ERROR
+enum Parser$FunctionFlavor 0 NORMAL NORMAL
+enum Parser$FunctionFlavor 1 GENERATOR GENERATOR
+enum Parser$FunctionFlavor 2 ASYNCHRONOUS ASYNCHRONOUS
+enum Parser$FunctionFlavor 3 ASYNCHRONOUS_GENERATOR ASYNCHRONOUS_GENERATOR
+enum Parser$Config$Mode 0 ES3 ES3
+enum Parser$Config$Mode 1 ES5 ES5
+enum Parser$Config$Mode 2 ES6_OR_ES7 ES6_OR_ES7
+enum Parser$Config$Mode 3 ES8_OR_GREATER ES8_OR_GREATER
+enum Parser$Expression 0 NO_IN NO_IN
+enum Parser$Expression 1 NORMAL NORMAL
+enum Parser$PatternKind 0 INITIALIZER INITIALIZER
+enum Parser$PatternKind 1 ANY ANY
+enum ParseTreeType 0 PROGRAM PROGRAM
+enum ParseTreeType 1 FUNCTION_DECLARATION FUNCTION_DECLARATION
+enum ParseTreeType 2 BLOCK BLOCK
+enum ParseTreeType 3 VARIABLE_STATEMENT VARIABLE_STATEMENT
+enum ParseTreeType 4 VARIABLE_DECLARATION VARIABLE_DECLARATION
+enum ParseTreeType 5 EMPTY_STATEMENT EMPTY_STATEMENT
+enum ParseTreeType 6 EXPRESSION_STATEMENT EXPRESSION_STATEMENT
+enum ParseTreeType 7 IF_STATEMENT IF_STATEMENT
+enum ParseTreeType 8 DO_WHILE_STATEMENT DO_WHILE_STATEMENT
+enum ParseTreeType 9 WHILE_STATEMENT WHILE_STATEMENT
+enum ParseTreeType 10 FOR_IN_STATEMENT FOR_IN_STATEMENT
+enum ParseTreeType 11 FOR_STATEMENT FOR_STATEMENT
+enum ParseTreeType 12 VARIABLE_DECLARATION_LIST VARIABLE_DECLARATION_LIST
+enum ParseTreeType 13 CONTINUE_STATEMENT CONTINUE_STATEMENT
+enum ParseTreeType 14 BREAK_STATEMENT BREAK_STATEMENT
+enum ParseTreeType 15 RETURN_STATEMENT RETURN_STATEMENT
+enum ParseTreeType 16 WITH_STATEMENT WITH_STATEMENT
+enum ParseTreeType 17 CASE_CLAUSE CASE_CLAUSE
+enum ParseTreeType 18 DEFAULT_CLAUSE DEFAULT_CLAUSE
+enum ParseTreeType 19 SWITCH_STATEMENT SWITCH_STATEMENT
+enum ParseTreeType 20 LABELLED_STATEMENT LABELLED_STATEMENT
+enum ParseTreeType 21 THROW_STATEMENT THROW_STATEMENT
+enum ParseTreeType 22 CATCH CATCH
+enum ParseTreeType 23 TRY_STATEMENT TRY_STATEMENT
+enum ParseTreeType 24 DEBUGGER_STATEMENT DEBUGGER_STATEMENT
+enum ParseTreeType 25 THIS_EXPRESSION THIS_EXPRESSION
+enum ParseTreeType 26 IDENTIFIER_EXPRESSION IDENTIFIER_EXPRESSION
+enum ParseTreeType 27 LITERAL_EXPRESSION LITERAL_EXPRESSION
+enum ParseTreeType 28 ARRAY_LITERAL_EXPRESSION ARRAY_LITERAL_EXPRESSION
+enum ParseTreeType 29 OBJECT_LITERAL_EXPRESSION OBJECT_LITERAL_EXPRESSION
+enum ParseTreeType 30 COMPREHENSION COMPREHENSION
+enum ParseTreeType 31 COMPREHENSION_IF COMPREHENSION_IF
+enum ParseTreeType 32 COMPREHENSION_FOR COMPREHENSION_FOR
+enum ParseTreeType 33 GET_ACCESSOR GET_ACCESSOR
+enum ParseTreeType 34 SET_ACCESSOR SET_ACCESSOR
+enum ParseTreeType 35 PROPERTY_NAME_ASSIGNMENT PROPERTY_NAME_ASSIGNMENT
+enum ParseTreeType 36 COMPUTED_PROPERTY_DEFINITION COMPUTED_PROPERTY_DEFINITION
+enum ParseTreeType 37 COMPUTED_PROPERTY_GETTER COMPUTED_PROPERTY_GETTER
+enum ParseTreeType 38 COMPUTED_PROPERTY_METHOD COMPUTED_PROPERTY_METHOD
+enum ParseTreeType 39 COMPUTED_PROPERTY_SETTER COMPUTED_PROPERTY_SETTER
+enum ParseTreeType 40 MISSING_PRIMARY_EXPRESSION MISSING_PRIMARY_EXPRESSION
+enum ParseTreeType 41 COMMA_EXPRESSION COMMA_EXPRESSION
+enum ParseTreeType 42 BINARY_OPERATOR BINARY_OPERATOR
+enum ParseTreeType 43 CONDITIONAL_EXPRESSION CONDITIONAL_EXPRESSION
+enum ParseTreeType 44 UNARY_EXPRESSION UNARY_EXPRESSION
+enum ParseTreeType 45 UPDATE_EXPRESSION UPDATE_EXPRESSION
+enum ParseTreeType 46 MEMBER_EXPRESSION MEMBER_EXPRESSION
+enum ParseTreeType 47 OPT_CHAIN_MEMBER_EXPRESSION OPT_CHAIN_MEMBER_EXPRESSION
+enum ParseTreeType 48 NEW_EXPRESSION NEW_EXPRESSION
+enum ParseTreeType 49 ARGUMENT_LIST ARGUMENT_LIST
+enum ParseTreeType 50 CALL_EXPRESSION CALL_EXPRESSION
+enum ParseTreeType 51 OPT_CHAIN_CALL_EXPRESSION OPT_CHAIN_CALL_EXPRESSION
+enum ParseTreeType 52 CLASS_DECLARATION CLASS_DECLARATION
+enum ParseTreeType 53 MEMBER_LOOKUP_EXPRESSION MEMBER_LOOKUP_EXPRESSION
+enum ParseTreeType 54 OPT_CHAIN_MEMBER_LOOKUP_EXPRESSION OPT_CHAIN_MEMBER_LOOKUP_EXPRESSION
+enum ParseTreeType 55 PAREN_EXPRESSION PAREN_EXPRESSION
+enum ParseTreeType 56 FINALLY FINALLY
+enum ParseTreeType 57 SUPER_EXPRESSION SUPER_EXPRESSION
+enum ParseTreeType 58 ARRAY_PATTERN ARRAY_PATTERN
+enum ParseTreeType 59 OBJECT_PATTERN OBJECT_PATTERN
+enum ParseTreeType 60 FORMAL_PARAMETER_LIST FORMAL_PARAMETER_LIST
+enum ParseTreeType 61 ITER_SPREAD ITER_SPREAD
+enum ParseTreeType 62 OBJECT_SPREAD OBJECT_SPREAD
+enum ParseTreeType 63 NULL NULL
+enum ParseTreeType 64 ITER_REST ITER_REST
+enum ParseTreeType 65 OBJECT_REST OBJECT_REST
+enum ParseTreeType 66 MODULE_IMPORT MODULE_IMPORT
+enum ParseTreeType 67 EXPORT_DECLARATION EXPORT_DECLARATION
+enum ParseTreeType 68 EXPORT_SPECIFIER EXPORT_SPECIFIER
+enum ParseTreeType 69 IMPORT_DECLARATION IMPORT_DECLARATION
+enum ParseTreeType 70 IMPORT_SPECIFIER IMPORT_SPECIFIER
+enum ParseTreeType 71 FOR_OF_STATEMENT FOR_OF_STATEMENT
+enum ParseTreeType 72 FOR_AWAIT_OF_STATEMENT FOR_AWAIT_OF_STATEMENT
+enum ParseTreeType 73 YIELD_EXPRESSION YIELD_EXPRESSION
+enum ParseTreeType 74 DEFAULT_PARAMETER DEFAULT_PARAMETER
+enum ParseTreeType 75 TEMPLATE_LITERAL_EXPRESSION TEMPLATE_LITERAL_EXPRESSION
+enum ParseTreeType 76 TEMPLATE_LITERAL_PORTION TEMPLATE_LITERAL_PORTION
+enum ParseTreeType 77 TEMPLATE_SUBSTITUTION TEMPLATE_SUBSTITUTION
+enum ParseTreeType 78 OPTIONAL_PARAMETER OPTIONAL_PARAMETER
+enum ParseTreeType 79 NEW_TARGET_EXPRESSION NEW_TARGET_EXPRESSION
+enum ParseTreeType 80 AWAIT_EXPRESSION AWAIT_EXPRESSION
+enum ParseTreeType 81 DYNAMIC_IMPORT_EXPRESSION DYNAMIC_IMPORT_EXPRESSION
+enum ParseTreeType 82 IMPORT_META_EXPRESSION IMPORT_META_EXPRESSION
+enum ParseTreeType 83 COMPUTED_PROPERTY_FIELD COMPUTED_PROPERTY_FIELD
+enum ParseTreeType 84 FIELD_DECLARATION FIELD_DECLARATION
+enum Comment$Type 0 BLOCK BLOCK
+enum Comment$Type 1 LINE LINE
+enum Comment$Type 2 JSDOC JSDOC
+enum Comment$Type 3 SHEBANG SHEBANG
+enum Comment$Type 4 IMPORTANT IMPORTANT
+enum ComprehensionTree$ComprehensionType 0 ARRAY ARRAY
+enum ComprehensionTree$ComprehensionType 1 GENERATOR GENERATOR
+enum FunctionDeclarationTree$Kind 0 DECLARATION DECLARATION
+enum FunctionDeclarationTree$Kind 1 EXPRESSION EXPRESSION
+enum FunctionDeclarationTree$Kind 2 MEMBER MEMBER
+enum FunctionDeclarationTree$Kind 3 ARROW ARROW
+enum UpdateExpressionTree$OperatorPosition 0 PREFIX PREFIX
+enum UpdateExpressionTree$OperatorPosition 1 POSTFIX POSTFIX
+featureset BARE_MINIMUM es3 []
+featureset ES3 es3 [RegExp syntax]
+featureset ES5 es5 [RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma]
+featureset ES2015_MODULES es6 [RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma, array destructuring, array pattern rest, arrow function, binary literal, block-scoped function declaration, class, class getters/setters, computed property, const declaration, default parameter, for-of loop, generator, let declaration, member declaration, new.target, object destructuring, octal literal, RegExp flag 'u', RegExp flag 'y', rest parameter, shorthand object property, spread expression, super, template literal, modules]
+featureset ES2015 es6 [RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma, array destructuring, array pattern rest, arrow function, binary literal, block-scoped function declaration, class, class getters/setters, computed property, const declaration, default parameter, for-of loop, generator, let declaration, member declaration, new.target, object destructuring, octal literal, RegExp flag 'u', RegExp flag 'y', rest parameter, shorthand object property, spread expression, super, template literal]
+featureset ES2016_MODULES es7 [RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma, array destructuring, array pattern rest, arrow function, binary literal, block-scoped function declaration, class, class getters/setters, computed property, const declaration, default parameter, for-of loop, generator, let declaration, member declaration, new.target, object destructuring, octal literal, RegExp flag 'u', RegExp flag 'y', rest parameter, shorthand object property, spread expression, super, template literal, modules, exponent operator (**)]
+featureset ES2016 es7 [RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma, array destructuring, array pattern rest, arrow function, binary literal, block-scoped function declaration, class, class getters/setters, computed property, const declaration, default parameter, for-of loop, generator, let declaration, member declaration, new.target, object destructuring, octal literal, RegExp flag 'u', RegExp flag 'y', rest parameter, shorthand object property, spread expression, super, template literal, exponent operator (**)]
+featureset ES2017_MODULES es8 [RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma, array destructuring, array pattern rest, arrow function, binary literal, block-scoped function declaration, class, class getters/setters, computed property, const declaration, default parameter, for-of loop, generator, let declaration, member declaration, new.target, object destructuring, octal literal, RegExp flag 'u', RegExp flag 'y', rest parameter, shorthand object property, spread expression, super, template literal, modules, exponent operator (**), async function]
+featureset ES2017 es8 [RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma, array destructuring, array pattern rest, arrow function, binary literal, block-scoped function declaration, class, class getters/setters, computed property, const declaration, default parameter, for-of loop, generator, let declaration, member declaration, new.target, object destructuring, octal literal, RegExp flag 'u', RegExp flag 'y', rest parameter, shorthand object property, spread expression, super, template literal, exponent operator (**), async function]
+featureset ES2018_MODULES es9 [RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma, array destructuring, array pattern rest, arrow function, binary literal, block-scoped function declaration, class, class getters/setters, computed property, const declaration, default parameter, for-of loop, generator, let declaration, member declaration, new.target, object destructuring, octal literal, RegExp flag 'u', RegExp flag 'y', rest parameter, shorthand object property, spread expression, super, template literal, modules, exponent operator (**), async function, object literals with spread, object pattern rest, async generator functions, for-await-of loop, RegExp flag 's', RegExp named groups, RegExp unicode property escape, RegExp Lookbehind]
+featureset ES2018 es9 [RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma, array destructuring, array pattern rest, arrow function, binary literal, block-scoped function declaration, class, class getters/setters, computed property, const declaration, default parameter, for-of loop, generator, let declaration, member declaration, new.target, object destructuring, octal literal, RegExp flag 'u', RegExp flag 'y', rest parameter, shorthand object property, spread expression, super, template literal, exponent operator (**), async function, object literals with spread, object pattern rest, async generator functions, for-await-of loop, RegExp flag 's', RegExp named groups, RegExp unicode property escape, RegExp Lookbehind]
+featureset ES2019_MODULES es_2019 [RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma, array destructuring, array pattern rest, arrow function, binary literal, block-scoped function declaration, class, class getters/setters, computed property, const declaration, default parameter, for-of loop, generator, let declaration, member declaration, new.target, object destructuring, octal literal, RegExp flag 'u', RegExp flag 'y', rest parameter, shorthand object property, spread expression, super, template literal, modules, exponent operator (**), async function, object literals with spread, object pattern rest, async generator functions, for-await-of loop, RegExp flag 's', RegExp named groups, RegExp unicode property escape, RegExp Lookbehind, Unescaped unicode line or paragraph separator, Optional catch binding]
+featureset ES2019 es_2019 [RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma, array destructuring, array pattern rest, arrow function, binary literal, block-scoped function declaration, class, class getters/setters, computed property, const declaration, default parameter, for-of loop, generator, let declaration, member declaration, new.target, object destructuring, octal literal, RegExp flag 'u', RegExp flag 'y', rest parameter, shorthand object property, spread expression, super, template literal, exponent operator (**), async function, object literals with spread, object pattern rest, async generator functions, for-await-of loop, RegExp flag 's', RegExp named groups, RegExp unicode property escape, RegExp Lookbehind, Unescaped unicode line or paragraph separator, Optional catch binding]
+featureset ES2020_MODULES es_2020 [RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma, array destructuring, array pattern rest, arrow function, binary literal, block-scoped function declaration, class, class getters/setters, computed property, const declaration, default parameter, for-of loop, generator, let declaration, member declaration, new.target, object destructuring, octal literal, RegExp flag 'u', RegExp flag 'y', rest parameter, shorthand object property, spread expression, super, template literal, modules, exponent operator (**), async function, object literals with spread, object pattern rest, async generator functions, for-await-of loop, RegExp flag 's', RegExp named groups, RegExp unicode property escape, RegExp Lookbehind, Unescaped unicode line or paragraph separator, Optional catch binding, Dynamic module import, bigint, import.meta, Nullish coalescing, Optional chaining]
+featureset ES2020 es_2020 [RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma, array destructuring, array pattern rest, arrow function, binary literal, block-scoped function declaration, class, class getters/setters, computed property, const declaration, default parameter, for-of loop, generator, let declaration, member declaration, new.target, object destructuring, octal literal, RegExp flag 'u', RegExp flag 'y', rest parameter, shorthand object property, spread expression, super, template literal, exponent operator (**), async function, object literals with spread, object pattern rest, async generator functions, for-await-of loop, RegExp flag 's', RegExp named groups, RegExp unicode property escape, RegExp Lookbehind, Unescaped unicode line or paragraph separator, Optional catch binding, Dynamic module import, bigint, import.meta, Nullish coalescing, Optional chaining]
+featureset ES2021_MODULES es_2021 [RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma, array destructuring, array pattern rest, arrow function, binary literal, block-scoped function declaration, class, class getters/setters, computed property, const declaration, default parameter, for-of loop, generator, let declaration, member declaration, new.target, object destructuring, octal literal, RegExp flag 'u', RegExp flag 'y', rest parameter, shorthand object property, spread expression, super, template literal, modules, exponent operator (**), async function, object literals with spread, object pattern rest, async generator functions, for-await-of loop, RegExp flag 's', RegExp named groups, RegExp unicode property escape, RegExp Lookbehind, Unescaped unicode line or paragraph separator, Optional catch binding, Dynamic module import, bigint, import.meta, Nullish coalescing, Optional chaining, numeric separator, Logical assignments]
+featureset ES2021 es_2021 [RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma, array destructuring, array pattern rest, arrow function, binary literal, block-scoped function declaration, class, class getters/setters, computed property, const declaration, default parameter, for-of loop, generator, let declaration, member declaration, new.target, object destructuring, octal literal, RegExp flag 'u', RegExp flag 'y', rest parameter, shorthand object property, spread expression, super, template literal, exponent operator (**), async function, object literals with spread, object pattern rest, async generator functions, for-await-of loop, RegExp flag 's', RegExp named groups, RegExp unicode property escape, RegExp Lookbehind, Unescaped unicode line or paragraph separator, Optional catch binding, Dynamic module import, bigint, import.meta, Nullish coalescing, Optional chaining, numeric separator, Logical assignments]
+featureset ES2022_MODULES es_2022 [RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma, array destructuring, array pattern rest, arrow function, binary literal, block-scoped function declaration, class, class getters/setters, computed property, const declaration, default parameter, for-of loop, generator, let declaration, member declaration, new.target, object destructuring, octal literal, RegExp flag 'u', RegExp flag 'y', rest parameter, shorthand object property, spread expression, super, template literal, modules, exponent operator (**), async function, object literals with spread, object pattern rest, async generator functions, for-await-of loop, RegExp flag 's', RegExp named groups, RegExp unicode property escape, RegExp Lookbehind, Unescaped unicode line or paragraph separator, Optional catch binding, Dynamic module import, bigint, import.meta, Nullish coalescing, Optional chaining, numeric separator, Logical assignments, Public class fields, Class static block, RegExp flag 'd']
+featureset ES2022 es_2022 [RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma, array destructuring, array pattern rest, arrow function, binary literal, block-scoped function declaration, class, class getters/setters, computed property, const declaration, default parameter, for-of loop, generator, let declaration, member declaration, new.target, object destructuring, octal literal, RegExp flag 'u', RegExp flag 'y', rest parameter, shorthand object property, spread expression, super, template literal, exponent operator (**), async function, object literals with spread, object pattern rest, async generator functions, for-await-of loop, RegExp flag 's', RegExp named groups, RegExp unicode property escape, RegExp Lookbehind, Unescaped unicode line or paragraph separator, Optional catch binding, Dynamic module import, bigint, import.meta, Nullish coalescing, Optional chaining, numeric separator, Logical assignments, Public class fields, Class static block, RegExp flag 'd']
+featureset ES_NEXT es_next [RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma, array destructuring, array pattern rest, arrow function, binary literal, block-scoped function declaration, class, class getters/setters, computed property, const declaration, default parameter, for-of loop, generator, let declaration, member declaration, new.target, object destructuring, octal literal, RegExp flag 'u', RegExp flag 'y', rest parameter, shorthand object property, spread expression, super, template literal, modules, exponent operator (**), async function, object literals with spread, object pattern rest, async generator functions, for-await-of loop, RegExp flag 's', RegExp named groups, RegExp unicode property escape, RegExp Lookbehind, Unescaped unicode line or paragraph separator, Optional catch binding, Dynamic module import, bigint, import.meta, Nullish coalescing, Optional chaining, numeric separator, Logical assignments, Public class fields, Class static block, RegExp flag 'd', es_next runtime]
+featureset ES_UNSTABLE es_unstable [RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma, array destructuring, array pattern rest, arrow function, binary literal, block-scoped function declaration, class, class getters/setters, computed property, const declaration, default parameter, for-of loop, generator, let declaration, member declaration, new.target, object destructuring, octal literal, RegExp flag 'u', RegExp flag 'y', rest parameter, shorthand object property, spread expression, super, template literal, modules, exponent operator (**), async function, object literals with spread, object pattern rest, async generator functions, for-await-of loop, RegExp flag 's', RegExp named groups, RegExp unicode property escape, RegExp Lookbehind, Unescaped unicode line or paragraph separator, Optional catch binding, Dynamic module import, bigint, import.meta, Nullish coalescing, Optional chaining, numeric separator, Logical assignments, Public class fields, Class static block, RegExp flag 'd', es_next runtime, es_unstable runtime]
+featureset ES_UNSUPPORTED es_unsupported [RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma, array destructuring, array pattern rest, arrow function, binary literal, block-scoped function declaration, class, class getters/setters, computed property, const declaration, default parameter, for-of loop, generator, let declaration, member declaration, new.target, object destructuring, octal literal, RegExp flag 'u', RegExp flag 'y', rest parameter, shorthand object property, spread expression, super, template literal, modules, exponent operator (**), async function, object literals with spread, object pattern rest, async generator functions, for-await-of loop, RegExp flag 's', RegExp named groups, RegExp unicode property escape, RegExp Lookbehind, Unescaped unicode line or paragraph separator, Optional catch binding, Dynamic module import, bigint, import.meta, Nullish coalescing, Optional chaining, numeric separator, Logical assignments, Public class fields, Class static block, RegExp flag 'd', Top-level await, es_next runtime, es_unstable runtime, Private class properties]
+featureset BROWSER_2019 es8 [RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma, array destructuring, array pattern rest, arrow function, binary literal, block-scoped function declaration, class, class getters/setters, computed property, const declaration, default parameter, for-of loop, generator, let declaration, member declaration, new.target, object destructuring, octal literal, RegExp flag 'u', RegExp flag 'y', rest parameter, shorthand object property, spread expression, super, template literal, modules, exponent operator (**), async function]
+featureset BROWSER_2020 es_2019 [RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma, array destructuring, array pattern rest, arrow function, binary literal, block-scoped function declaration, class, class getters/setters, computed property, const declaration, default parameter, for-of loop, generator, let declaration, member declaration, new.target, object destructuring, octal literal, RegExp flag 'u', RegExp flag 'y', rest parameter, shorthand object property, spread expression, super, template literal, modules, exponent operator (**), async function, object literals with spread, object pattern rest, async generator functions, for-await-of loop, Unescaped unicode line or paragraph separator, Optional catch binding]
+featureset BROWSER_2021 es_2020 [RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma, array destructuring, array pattern rest, arrow function, binary literal, block-scoped function declaration, class, class getters/setters, computed property, const declaration, default parameter, for-of loop, generator, let declaration, member declaration, new.target, object destructuring, octal literal, RegExp flag 'u', RegExp flag 'y', rest parameter, shorthand object property, spread expression, super, template literal, modules, exponent operator (**), async function, object literals with spread, object pattern rest, async generator functions, for-await-of loop, RegExp flag 's', RegExp named groups, RegExp unicode property escape, Unescaped unicode line or paragraph separator, Optional catch binding, Dynamic module import, bigint, import.meta, Nullish coalescing, Optional chaining]
+featureset BROWSER_2022 es_2021 [RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma, array destructuring, array pattern rest, arrow function, binary literal, block-scoped function declaration, class, class getters/setters, computed property, const declaration, default parameter, for-of loop, generator, let declaration, member declaration, new.target, object destructuring, octal literal, RegExp flag 'u', RegExp flag 'y', rest parameter, shorthand object property, spread expression, super, template literal, modules, exponent operator (**), async function, object literals with spread, object pattern rest, async generator functions, for-await-of loop, RegExp flag 's', RegExp named groups, RegExp unicode property escape, Unescaped unicode line or paragraph separator, Optional catch binding, Dynamic module import, bigint, import.meta, Nullish coalescing, Optional chaining, numeric separator, Logical assignments]
+featureset BROWSER_2023 es_2022 [RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma, array destructuring, array pattern rest, arrow function, binary literal, block-scoped function declaration, class, class getters/setters, computed property, const declaration, default parameter, for-of loop, generator, let declaration, member declaration, new.target, object destructuring, octal literal, RegExp flag 'u', RegExp flag 'y', rest parameter, shorthand object property, spread expression, super, template literal, modules, exponent operator (**), async function, object literals with spread, object pattern rest, async generator functions, for-await-of loop, RegExp flag 's', RegExp named groups, RegExp unicode property escape, Unescaped unicode line or paragraph separator, Optional catch binding, Dynamic module import, bigint, import.meta, Nullish coalescing, Optional chaining, numeric separator, Logical assignments, Public class fields, RegExp flag 'd']
+featureset BROWSER_2024 es_2022 [RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma, array destructuring, array pattern rest, arrow function, binary literal, block-scoped function declaration, class, class getters/setters, computed property, const declaration, default parameter, for-of loop, generator, let declaration, member declaration, new.target, object destructuring, octal literal, RegExp flag 'u', RegExp flag 'y', rest parameter, shorthand object property, spread expression, super, template literal, modules, exponent operator (**), async function, object literals with spread, object pattern rest, async generator functions, for-await-of loop, RegExp flag 's', RegExp named groups, RegExp unicode property escape, RegExp Lookbehind, Unescaped unicode line or paragraph separator, Optional catch binding, Dynamic module import, bigint, import.meta, Nullish coalescing, Optional chaining, numeric separator, Logical assignments, Public class fields, Class static block, RegExp flag 'd']
+featureset BROWSER_2025 es_2022 [RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma, array destructuring, array pattern rest, arrow function, binary literal, block-scoped function declaration, class, class getters/setters, computed property, const declaration, default parameter, for-of loop, generator, let declaration, member declaration, new.target, object destructuring, octal literal, RegExp flag 'u', RegExp flag 'y', rest parameter, shorthand object property, spread expression, super, template literal, modules, exponent operator (**), async function, object literals with spread, object pattern rest, async generator functions, for-await-of loop, RegExp flag 's', RegExp named groups, RegExp unicode property escape, RegExp Lookbehind, Unescaped unicode line or paragraph separator, Optional catch binding, Dynamic module import, bigint, import.meta, Nullish coalescing, Optional chaining, numeric separator, Logical assignments, Public class fields, Class static block, RegExp flag 'd']
+featureset BROWSER_2026 es_2022 [RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma, array destructuring, array pattern rest, arrow function, binary literal, block-scoped function declaration, class, class getters/setters, computed property, const declaration, default parameter, for-of loop, generator, let declaration, member declaration, new.target, object destructuring, octal literal, RegExp flag 'u', RegExp flag 'y', rest parameter, shorthand object property, spread expression, super, template literal, modules, exponent operator (**), async function, object literals with spread, object pattern rest, async generator functions, for-await-of loop, RegExp flag 's', RegExp named groups, RegExp unicode property escape, RegExp Lookbehind, Unescaped unicode line or paragraph separator, Optional catch binding, Dynamic module import, bigint, import.meta, Nullish coalescing, Optional chaining, numeric separator, Logical assignments, Public class fields, Class static block, RegExp flag 'd']
+featureset ALL all [RegExp syntax, ES3 keywords as identifiers, getters, reserved words as properties, setters, string continuation, trailing comma, array destructuring, array pattern rest, arrow function, binary literal, block-scoped function declaration, class, class getters/setters, computed property, const declaration, default parameter, for-of loop, generator, let declaration, member declaration, new.target, object destructuring, octal literal, RegExp flag 'u', RegExp flag 'y', rest parameter, shorthand object property, spread expression, super, template literal, modules, exponent operator (**), async function, object literals with spread, object pattern rest, async generator functions, for-await-of loop, RegExp flag 's', RegExp named groups, RegExp unicode property escape, RegExp Lookbehind, Unescaped unicode line or paragraph separator, Optional catch binding, Dynamic module import, bigint, import.meta, Nullish coalescing, Optional chaining, numeric separator, Logical assignments, Public class fields, Class static block, RegExp flag 'd', Top-level await, es_next runtime, es_unstable runtime, Private class properties, type annotation]
+keyword BREAK BREAK strict=false
+keyword CASE CASE strict=false
+keyword CATCH CATCH strict=false
+keyword CONTINUE CONTINUE strict=false
+keyword DEBUGGER DEBUGGER strict=false
+keyword DEFAULT DEFAULT strict=false
+keyword DELETE DELETE strict=false
+keyword DO DO strict=false
+keyword ELSE ELSE strict=false
+keyword FINALLY FINALLY strict=false
+keyword FOR FOR strict=false
+keyword FUNCTION FUNCTION strict=false
+keyword IF IF strict=false
+keyword IN IN strict=false
+keyword INSTANCEOF INSTANCEOF strict=false
+keyword NEW NEW strict=false
+keyword RETURN RETURN strict=false
+keyword SWITCH SWITCH strict=false
+keyword THIS THIS strict=false
+keyword THROW THROW strict=false
+keyword TRY TRY strict=false
+keyword TYPEOF TYPEOF strict=false
+keyword VAR VAR strict=false
+keyword VOID VOID strict=false
+keyword WHILE WHILE strict=false
+keyword WITH WITH strict=false
+keyword CLASS CLASS strict=false
+keyword CONST CONST strict=false
+keyword ENUM ENUM strict=false
+keyword EXPORT EXPORT strict=false
+keyword EXTENDS EXTENDS strict=false
+keyword IMPORT IMPORT strict=false
+keyword SUPER SUPER strict=false
+keyword IMPLEMENTS IMPLEMENTS strict=true
+keyword INTERFACE INTERFACE strict=true
+keyword LET LET strict=true
+keyword PACKAGE PACKAGE strict=true
+keyword PRIVATE PRIVATE strict=true
+keyword PROTECTED PROTECTED strict=true
+keyword PUBLIC PUBLIC strict=true
+keyword STATIC STATIC strict=true
+keyword YIELD YIELD strict=true
+keyword NULL NULL strict=false
+keyword TRUE TRUE strict=false
+keyword FALSE FALSE strict=false

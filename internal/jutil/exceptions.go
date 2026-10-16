@@ -351,44 +351,6 @@ func NewNoSuchElementExceptionMsg(message string) *NoSuchElementException {
 	return e
 }
 
-// JavaError is java.lang.Error (not a RuntimeException: `catch
-// (RuntimeException e)` sites do not see it). It is not named Error so that
-// embedding it does not shadow the error interface's Error() method.
-type JavaError struct{ ThrowableBase }
-
-func (*JavaError) javaError() {}
-
-// IError matches java.lang.Error and all its subclasses.
-type IError interface {
-	Throwable
-	javaError()
-}
-
-// AssertionError is java.lang.AssertionError.
-type AssertionError struct{ JavaError }
-
-func (*AssertionError) assertionError() {}
-
-type IAssertionError interface {
-	IError
-	assertionError()
-}
-
-// NewAssertionError is new AssertionError().
-func NewAssertionError() *AssertionError {
-	e := &AssertionError{}
-	InitThrowable(e, "java.lang.AssertionError", nil, nil)
-	return e
-}
-
-// NewAssertionErrorMsg is new AssertionError(Object detailMessage) for a
-// String message.
-func NewAssertionErrorMsg(message string) *AssertionError {
-	e := &AssertionError{}
-	InitThrowable(e, "java.lang.AssertionError", msgPtr(message), nil)
-	return e
-}
-
 // ArithmeticException is java.lang.ArithmeticException.
 type ArithmeticException struct{ RuntimeException }
 
@@ -405,17 +367,15 @@ func NewArithmeticException(message string) *ArithmeticException {
 	return e
 }
 
-// JavaException is java.lang.Exception (checked exceptions that are not
-// RuntimeExceptions). It is not named Exception for symmetry with JavaError.
+// JavaException is java.lang.Exception, as the base of checked exceptions
+// (named like JavaLangError so that it reads unambiguously next to Go's
+// error). jutil's RuntimeException does not embed it: a Java `catch
+// (Exception e)` that must also see RuntimeExceptions catches Throwable.
 type JavaException struct{ ThrowableBase }
 
 func (*JavaException) javaException() {}
 
-// IException matches java.lang.Exception and all its subclasses (including
-// RuntimeExceptions only if they also implement it, which jutil's do not:
-// Java's RuntimeException extends Exception, but ported code never catches
-// a RuntimeException through `catch (Exception e)` without also handling
-// RuntimeException; use Throwable for that).
+// IException matches the checked exceptions (JavaException subclasses).
 type IException interface {
 	Throwable
 	javaException()

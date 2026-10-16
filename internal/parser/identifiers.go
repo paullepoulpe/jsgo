@@ -1,0 +1,43 @@
+// Port of com/google/javascript/jscomp/parsing/parser/Identifiers.java @ closure-compiler v20260415
+
+package parser
+
+import "github.com/paullepoulpe/jsgo/internal/jutil"
+
+// Identifiers: JS identifier parsing utilities.
+//
+// Java: final class Identifiers (static methods only; the private
+// constructor has no Go counterpart).
+
+// Identifiers_IsIdentifierStart reports whether ch can start an identifier.
+//
+// Java: Identifiers.isIdentifierStart(char)
+func Identifiers_IsIdentifierStart(ch uint16) bool {
+	// Most code is written in pure ASCII, so create a fast path here.
+	if ch <= 127 {
+		return (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch == '_' || ch == '$')
+	}
+
+	// Handle non-ASCII characters.
+	// TODO(tjgq): This should include all characters with the ID_Start property.
+	return jutil.CharacterIsLetter(ch)
+}
+
+// Identifiers_IsIdentifierPart reports whether ch can be part of an
+// identifier.
+//
+// Java: Identifiers.isIdentifierPart(char)
+func Identifiers_IsIdentifierPart(ch uint16) bool {
+	// Most code is written in pure ASCII, so create a fast path here.
+	if ch <= 127 {
+		return (ch >= 'A' && ch <= 'Z') ||
+			(ch >= 'a' && ch <= 'z') ||
+			(ch >= '0' && ch <= '9') ||
+			(ch == '_' || ch == '$')
+	}
+
+	// Handle non-ASCII characters.
+	// TODO(tjgq): This should include all characters with the ID_Continue property, plus
+	// Zero Width Non-Joiner and Zero Width Joiner.
+	return Identifiers_IsIdentifierStart(ch) || jutil.CharacterIsDigit(ch)
+}

@@ -187,5 +187,5 @@ var StandardColors_STANDARD_OBJECT_IDS = func() *jutil.LinkedHashSet[ColorId] {
 
 // Java: StandardColors()
 func NewStandardColors() *StandardColors {
-	panic(jutil.NewAssertionError())
+	panic(jutil.NewAssertionErrorNoMessage())
 }

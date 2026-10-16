@@ -1,0 +1,190 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+ERROR 10:12@171 "'target' expected"
+# features "[]"
+# sourceMapURL null
+# comments
+[]
+# tree
+ProgramTree PROGRAM 0:0@0-11:0@176
+ sourceComments=[]
+ sourceElements=[11]
+  FunctionDeclarationTree FUNCTION_DECLARATION 0:0@0-0:54@54
+   formalParameterList=FormalParameterListTree FORMAL_PARAMETER_LIST 0:10@10-0:12@12
+    commaPositions=[]
+    hasTrailingComma=false
+    parameters=[]
+   functionBody=BlockTree BLOCK 0:13@13-0:54@54
+    statements=[2]
+     IfStatementTree IF_STATEMENT 0:15@15-0:33@33
+      condition=NewTargetExpressionTree NEW_TARGET_EXPRESSION 0:19@19-0:29@29
+      elseClause=null
+      ifClause=BlockTree BLOCK 0:31@31-0:33@33
+       statements=[]
+     ReturnStatementTree RETURN_STATEMENT 0:34@34-0:52@52
+      expression=NewTargetExpressionTree NEW_TARGET_EXPRESSION 0:41@41-0:51@51
+   isAsync=false
+   isClassMember=false
+   isGenerator=false
+   isOptional=false
+   isStatic=false
+   kind=DECLARATION
+   name=IdentifierToken IDENTIFIER 0:9@9-0:10@10
+    privateIdentifier=false
+    value="F"
+  ExpressionStatementTree EXPRESSION_STATEMENT 1:0@55-1:6@61
+   expression=NewExpressionTree NEW_EXPRESSION 1:0@55-1:5@60
+    arguments=null
+    hasTrailingComma=false
+    operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:4@59-1:5@60
+     identifierToken=IdentifierToken IDENTIFIER 1:4@59-1:5@60
+      privateIdentifier=false
+      value="F"
+  ExpressionStatementTree EXPRESSION_STATEMENT 2:0@62-2:8@70
+   expression=NewExpressionTree NEW_EXPRESSION 2:0@62-2:7@69
+    arguments=ArgumentListTree ARGUMENT_LIST 2:5@67-2:7@69
+     arguments=[]
+     commaPositions=[]
+     hasTrailingComma=false
+    hasTrailingComma=false
+    operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:4@66-2:5@67
+     identifierToken=IdentifierToken IDENTIFIER 2:4@66-2:5@67
+      privateIdentifier=false
+      value="F"
+  ExpressionStatementTree EXPRESSION_STATEMENT 3:0@71-3:12@83
+   expression=CallExpressionTree CALL_EXPRESSION 3:0@71-3:11@82
+    arguments=ArgumentListTree ARGUMENT_LIST 3:8@79-3:11@82
+     arguments=[1]
+      LiteralExpressionTree LITERAL_EXPRESSION 3:9@80-3:10@81
+       literalToken=LiteralToken NUMBER 3:9@80-3:10@81
+        value="2"
+     commaPositions=[]
+     hasTrailingComma=false
+    operand=NewExpressionTree NEW_EXPRESSION 3:0@71-3:8@79
+     arguments=ArgumentListTree ARGUMENT_LIST 3:5@76-3:8@79
+      arguments=[1]
+       LiteralExpressionTree LITERAL_EXPRESSION 3:6@77-3:7@78
+        literalToken=LiteralToken NUMBER 3:6@77-3:7@78
+         value="1"
+      commaPositions=[]
+      hasTrailingComma=false
+     hasTrailingComma=false
+     operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:4@75-3:5@76
+      identifierToken=IdentifierToken IDENTIFIER 3:4@75-3:5@76
+       privateIdentifier=false
+       value="F"
+  ExpressionStatementTree EXPRESSION_STATEMENT 4:0@84-4:12@96
+   expression=NewExpressionTree NEW_EXPRESSION 4:0@84-4:11@95
+    arguments=ArgumentListTree ARGUMENT_LIST 4:9@93-4:11@95
+     arguments=[]
+     commaPositions=[]
+     hasTrailingComma=false
+    hasTrailingComma=false
+    operand=MemberExpressionTree MEMBER_EXPRESSION 4:4@88-4:9@93
+     memberName=IdentifierToken IDENTIFIER 4:8@92-4:9@93
+      privateIdentifier=false
+      value="c"
+     operand=MemberExpressionTree MEMBER_EXPRESSION 4:4@88-4:7@91
+      memberName=IdentifierToken IDENTIFIER 4:6@90-4:7@91
+       privateIdentifier=false
+       value="b"
+      operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 4:4@88-4:5@89
+       identifierToken=IdentifierToken IDENTIFIER 4:4@88-4:5@89
+        privateIdentifier=false
+        value="a"
+  ExpressionStatementTree EXPRESSION_STATEMENT 5:0@97-5:11@108
+   expression=NewExpressionTree NEW_EXPRESSION 5:0@97-5:10@107
+    arguments=ArgumentListTree ARGUMENT_LIST 5:8@105-5:10@107
+     arguments=[]
+     commaPositions=[]
+     hasTrailingComma=false
+    hasTrailingComma=false
+    operand=MemberLookupExpressionTree MEMBER_LOOKUP_EXPRESSION 5:4@101-5:8@105
+     memberExpression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 5:6@103-5:7@104
+      identifierToken=IdentifierToken IDENTIFIER 5:6@103-5:7@104
+       privateIdentifier=false
+       value="b"
+     operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 5:4@101-5:5@102
+      identifierToken=IdentifierToken IDENTIFIER 5:4@101-5:5@102
+       privateIdentifier=false
+       value="a"
+  ExpressionStatementTree EXPRESSION_STATEMENT 6:0@109-6:14@123
+   expression=NewExpressionTree NEW_EXPRESSION 6:0@109-6:13@122
+    arguments=ArgumentListTree ARGUMENT_LIST 6:11@120-6:13@122
+     arguments=[]
+     commaPositions=[]
+     hasTrailingComma=false
+    hasTrailingComma=false
+    operand=NewExpressionTree NEW_EXPRESSION 6:4@113-6:11@120
+     arguments=ArgumentListTree ARGUMENT_LIST 6:9@118-6:11@120
+      arguments=[]
+      commaPositions=[]
+      hasTrailingComma=false
+     hasTrailingComma=false
+     operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 6:8@117-6:9@118
+      identifierToken=IdentifierToken IDENTIFIER 6:8@117-6:9@118
+       privateIdentifier=false
+       value="F"
+  ExpressionStatementTree EXPRESSION_STATEMENT 7:0@124-7:12@136
+   expression=NewExpressionTree NEW_EXPRESSION 7:0@124-7:11@135
+    arguments=ArgumentListTree ARGUMENT_LIST 7:9@133-7:11@135
+     arguments=[]
+     commaPositions=[]
+     hasTrailingComma=false
+    hasTrailingComma=false
+    operand=ParenExpressionTree PAREN_EXPRESSION 7:4@128-7:9@133
+     expression=CallExpressionTree CALL_EXPRESSION 7:5@129-7:8@132
+      arguments=ArgumentListTree ARGUMENT_LIST 7:6@130-7:8@132
+       arguments=[]
+       commaPositions=[]
+       hasTrailingComma=false
+      operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 7:5@129-7:6@130
+       identifierToken=IdentifierToken IDENTIFIER 7:5@129-7:6@130
+        privateIdentifier=false
+        value="f"
+  ExpressionStatementTree EXPRESSION_STATEMENT 8:0@137-8:9@146
+   expression=NewExpressionTree NEW_EXPRESSION 8:0@137-8:8@145
+    arguments=null
+    hasTrailingComma=false
+    operand=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 8:4@141-8:8@145
+     elements=[1]
+      TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 8:6@143-8:8@145
+       value=TemplateLiteralToken NO_SUBSTITUTION_TEMPLATE 8:6@143-8:8@145
+        errorLevel=null
+        errorMessage=null
+        errorPosition=8:6@143
+        value="t"
+     operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 8:4@141-8:5@142
+      identifierToken=IdentifierToken IDENTIFIER 8:4@141-8:5@142
+       privateIdentifier=false
+       value="F"
+  ExpressionStatementTree EXPRESSION_STATEMENT 9:0@147-9:11@158
+   expression=NewExpressionTree NEW_EXPRESSION 9:0@147-9:10@157
+    arguments=null
+    hasTrailingComma=false
+    operand=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 9:4@151-9:10@157
+     elements=[1]
+      TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 9:8@155-9:10@157
+       value=TemplateLiteralToken NO_SUBSTITUTION_TEMPLATE 9:8@155-9:10@157
+        errorLevel=null
+        errorMessage=null
+        errorPosition=9:8@155
+        value="t"
+     operand=MemberExpressionTree MEMBER_EXPRESSION 9:4@151-9:7@154
+      memberName=IdentifierToken IDENTIFIER 9:6@153-9:7@154
+       privateIdentifier=false
+       value="b"
+      operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 9:4@151-9:5@152
+       identifierToken=IdentifierToken IDENTIFIER 9:4@151-9:5@152
+        privateIdentifier=false
+        value="a"
+  VariableStatementTree VARIABLE_STATEMENT 10:0@159-10:16@175
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 10:0@159-10:15@174
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 10:4@163-10:15@174
+      initializer=NewTargetExpressionTree NEW_TARGET_EXPRESSION 10:8@167-10:15@174
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 10:4@163-10:5@164
+       identifierToken=IdentifierToken IDENTIFIER 10:4@163-10:5@164
+        privateIdentifier=false
+        value="x"

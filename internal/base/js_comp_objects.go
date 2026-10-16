@@ -23,5 +23,5 @@ func JSCompObjects_Identical(a, b any) bool {
 //
 // Java: JSCompObjects()
 func NewJSCompObjects() *JSCompObjects {
-	panic(jutil.NewAssertionError())
+	panic(jutil.NewAssertionErrorNoMessage())
 }

@@ -1,0 +1,59 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+ERROR 1:5@28 "Character '\u2003' (U+2003) is not a valid identifier start char"
+ERROR 1:5@28 "Semi-colon expected"
+ERROR 1:6@29 "primary expression expected"
+ERROR 1:6@29 "invalid assignment target"
+ERROR 1:6@29 "Semi-colon expected"
+ERROR 1:7@30 "primary expression expected"
+ERROR 1:8@31 "Semi-colon expected"
+# features "[]"
+# sourceMapURL null
+# comments
+[]
+# tree
+ProgramTree PROGRAM 0:0@0-2:0@34
+ sourceComments=[]
+ sourceElements=[6]
+  VariableStatementTree VARIABLE_STATEMENT 0:0@0-0:11@11
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 0:0@0-0:9@9
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 0:4@4-0:9@9
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 0:8@8-0:9@9
+       literalToken=LiteralToken NUMBER 0:8@8-0:9@9
+        value="1"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:4@4-0:5@5
+       identifierToken=IdentifierToken IDENTIFIER 0:4@4-0:5@5
+        privateIdentifier=false
+        value="a"
+  VariableStatementTree VARIABLE_STATEMENT 0:12@12-0:22@22
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 0:12@12-0:21@21
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 0:16@16-0:21@21
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 0:20@20-0:21@21
+       literalToken=LiteralToken NUMBER 0:20@20-0:21@21
+        value="2"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:16@16-0:17@17
+       identifierToken=IdentifierToken IDENTIFIER 0:16@16-0:17@17
+        privateIdentifier=false
+        value="b"
+  VariableStatementTree VARIABLE_STATEMENT 1:0@23-1:5@28
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 1:0@23-1:5@28
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 1:4@27-1:5@28
+      initializer=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:4@27-1:5@28
+       identifierToken=IdentifierToken IDENTIFIER 1:4@27-1:5@28
+        privateIdentifier=false
+        value="c"
+  ExpressionStatementTree EXPRESSION_STATEMENT 1:5@28-1:6@29
+   expression=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 1:6@29-1:6@29
+  ExpressionStatementTree EXPRESSION_STATEMENT 1:6@29-1:7@30
+   expression=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 1:6@29-1:7@30
+  ExpressionStatementTree EXPRESSION_STATEMENT 1:8@31-1:10@33
+   expression=LiteralExpressionTree LITERAL_EXPRESSION 1:8@31-1:9@32
+    literalToken=LiteralToken NUMBER 1:8@31-1:9@32
+     value="3"

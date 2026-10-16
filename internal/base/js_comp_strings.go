@@ -29,5 +29,5 @@ func JSCompStrings_LinesOfIterable(lines []string) string {
 //
 // Java: JSCompStrings()
 func NewJSCompStrings() *JSCompStrings {
-	panic(jutil.NewAssertionError())
+	panic(jutil.NewAssertionErrorNoMessage())
 }

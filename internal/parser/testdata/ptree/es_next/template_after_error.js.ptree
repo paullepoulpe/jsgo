@@ -1,0 +1,102 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+ERROR 0:9@9 "primary expression expected"
+ERROR 1:14@24 "primary expression expected"
+ERROR 1:14@24 "Semi-colon expected"
+ERROR 1:16@26 "Semi-colon expected"
+ERROR 2:12@45 "Semi-colon expected"
+ERROR 2:14@47 "Semi-colon expected"
+ERROR 2:19@52 "Unterminated template literal"
+# features "[]"
+# sourceMapURL null
+# comments
+[]
+# tree
+ProgramTree PROGRAM 0:0@0-3:0@54
+ sourceComments=[]
+ sourceElements=[9]
+  VariableStatementTree VARIABLE_STATEMENT 0:0@0-0:9@9
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 0:0@0-0:9@9
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 0:4@4-0:9@9
+      initializer=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 0:8@8-0:9@9
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:4@4-0:5@5
+       identifierToken=IdentifierToken IDENTIFIER 0:4@4-0:5@5
+        privateIdentifier=false
+        value="a"
+  VariableStatementTree VARIABLE_STATEMENT 1:0@10-1:13@23
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 1:0@10-1:13@23
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 1:4@14-1:13@23
+      initializer=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 1:9@19-1:13@23
+       elements=[2]
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 1:9@19-1:12@22
+         value=TemplateLiteralToken TEMPLATE_HEAD 1:9@19-1:12@22
+          errorLevel=null
+          errorMessage=null
+          errorPosition=1:9@19
+          value="a"
+        TemplateSubstitutionTree TEMPLATE_SUBSTITUTION 1:12@22-1:13@23
+         expression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:12@22-1:13@23
+          identifierToken=IdentifierToken IDENTIFIER 1:12@22-1:13@23
+           privateIdentifier=false
+           value="b"
+       operand=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:4@14-1:5@15
+       identifierToken=IdentifierToken IDENTIFIER 1:4@14-1:5@15
+        privateIdentifier=false
+        value="t"
+  ExpressionStatementTree EXPRESSION_STATEMENT 1:13@23-1:14@24
+   expression=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 1:13@23-1:14@24
+  ExpressionStatementTree EXPRESSION_STATEMENT 1:14@24-1:16@26
+   expression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:14@24-1:16@26
+    identifierToken=IdentifierToken IDENTIFIER 1:14@24-1:16@26
+     privateIdentifier=false
+     value="c$"
+  BlockTree BLOCK 1:16@26-1:19@29
+   statements=[1]
+    ExpressionStatementTree EXPRESSION_STATEMENT 1:17@27-1:18@28
+     expression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:17@27-1:18@28
+      identifierToken=IdentifierToken IDENTIFIER 1:17@27-1:18@28
+       privateIdentifier=false
+       value="d"
+  ExpressionStatementTree EXPRESSION_STATEMENT 1:19@29-2:12@45
+   expression=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 1:19@29-2:12@45
+    elements=[1]
+     TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 1:21@31-2:12@45
+      value=TemplateLiteralToken NO_SUBSTITUTION_TEMPLATE 1:21@31-2:12@45
+       errorLevel=null
+       errorMessage=null
+       errorPosition=1:19@29
+       value=";\u000Avar u = tag"
+    operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:19@29-1:20@30
+     identifierToken=IdentifierToken IDENTIFIER 1:19@29-1:20@30
+      privateIdentifier=false
+      value="e"
+  ExpressionStatementTree EXPRESSION_STATEMENT 2:12@45-2:14@47
+   expression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:12@45-2:14@47
+    identifierToken=IdentifierToken IDENTIFIER 2:12@45-2:14@47
+     privateIdentifier=false
+     value="x$"
+  BlockTree BLOCK 2:14@47-2:17@50
+   statements=[1]
+    ExpressionStatementTree EXPRESSION_STATEMENT 2:15@48-2:16@49
+     expression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:15@48-2:16@49
+      identifierToken=IdentifierToken IDENTIFIER 2:15@48-2:16@49
+       privateIdentifier=false
+       value="y"
+  ExpressionStatementTree EXPRESSION_STATEMENT 2:17@50-3:0@54
+   expression=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 2:17@50-3:0@54
+    elements=[1]
+     TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 2:19@52-3:0@54
+      value=TemplateLiteralToken NO_SUBSTITUTION_TEMPLATE 2:19@52-3:0@54
+       errorLevel=null
+       errorMessage=null
+       errorPosition=2:17@50
+       value=";\u000A"
+    operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:17@50-2:18@51
+     identifierToken=IdentifierToken IDENTIFIER 2:17@50-2:18@51
+      privateIdentifier=false
+      value="z"

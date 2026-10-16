@@ -1,0 +1,158 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+# features "[]"
+# sourceMapURL null
+# comments
+[7]
+ Comment
+  location=0:0@0-3:3@61
+  type=JSDOC
+  value="/**\u000A * @fileoverview Test file.\u000A * @suppress {checkTypes}\u000A */"
+ Comment
+  location=5:0@63-5:22@85
+  type=JSDOC
+  value="/** @const {number} */"
+ Comment
+  location=8:0@98-11:3@146
+  type=JSDOC
+  value="/**\u000A * @param {string} a\u000A * @return {string}\u000A */"
+ Comment
+  location=12:23@170-12:44@191
+  type=JSDOC
+  value="/** @type {string} */"
+ Comment
+  location=14:0@200-14:35@235
+  type=JSDOC
+  value="/** @constructor @extends {Base} */"
+ Comment
+  location=17:0@253-17:21@274
+  type=JSDOC
+  value="/** @enum {string} */"
+ Comment
+  location=20:0@302-20:29@331
+  type=JSDOC
+  value="/** @typedef {{a: number}} */"
+# tree
+ProgramTree PROGRAM 0:0@0-22:0@339
+ sourceComments=[7]
+  Comment
+   location=0:0@0-3:3@61
+   type=JSDOC
+   value="/**\u000A * @fileoverview Test file.\u000A * @suppress {checkTypes}\u000A */"
+  Comment
+   location=5:0@63-5:22@85
+   type=JSDOC
+   value="/** @const {number} */"
+  Comment
+   location=8:0@98-11:3@146
+   type=JSDOC
+   value="/**\u000A * @param {string} a\u000A * @return {string}\u000A */"
+  Comment
+   location=12:23@170-12:44@191
+   type=JSDOC
+   value="/** @type {string} */"
+  Comment
+   location=14:0@200-14:35@235
+   type=JSDOC
+   value="/** @constructor @extends {Base} */"
+  Comment
+   location=17:0@253-17:21@274
+   type=JSDOC
+   value="/** @enum {string} */"
+  Comment
+   location=20:0@302-20:29@331
+   type=JSDOC
+   value="/** @typedef {{a: number}} */"
+ sourceElements=[5]
+  VariableStatementTree VARIABLE_STATEMENT 6:0@86-6:10@96
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 6:0@86-6:9@95
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 6:4@90-6:9@95
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 6:8@94-6:9@95
+       literalToken=LiteralToken NUMBER 6:8@94-6:9@95
+        value="1"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 6:4@90-6:5@91
+       identifierToken=IdentifierToken IDENTIFIER 6:4@90-6:5@91
+        privateIdentifier=false
+        value="x"
+  FunctionDeclarationTree FUNCTION_DECLARATION 12:0@147-12:51@198
+   formalParameterList=FormalParameterListTree FORMAL_PARAMETER_LIST 12:10@157-12:13@160
+    commaPositions=[]
+    hasTrailingComma=false
+    parameters=[1]
+     IdentifierExpressionTree IDENTIFIER_EXPRESSION 12:11@158-12:12@159
+      identifierToken=IdentifierToken IDENTIFIER 12:11@158-12:12@159
+       privateIdentifier=false
+       value="a"
+   functionBody=BlockTree BLOCK 12:14@161-12:51@198
+    statements=[1]
+     ReturnStatementTree RETURN_STATEMENT 12:16@163-12:49@196
+      expression=ParenExpressionTree PAREN_EXPRESSION 12:45@192-12:48@195
+       expression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 12:46@193-12:47@194
+        identifierToken=IdentifierToken IDENTIFIER 12:46@193-12:47@194
+         privateIdentifier=false
+         value="a"
+   isAsync=false
+   isClassMember=false
+   isGenerator=false
+   isOptional=false
+   isStatic=false
+   kind=DECLARATION
+   name=IdentifierToken IDENTIFIER 12:9@156-12:10@157
+    privateIdentifier=false
+    value="f"
+  FunctionDeclarationTree FUNCTION_DECLARATION 15:0@236-15:15@251
+   formalParameterList=FormalParameterListTree FORMAL_PARAMETER_LIST 15:10@246-15:12@248
+    commaPositions=[]
+    hasTrailingComma=false
+    parameters=[]
+   functionBody=BlockTree BLOCK 15:13@249-15:15@251
+    statements=[]
+   isAsync=false
+   isClassMember=false
+   isGenerator=false
+   isOptional=false
+   isStatic=false
+   kind=DECLARATION
+   name=IdentifierToken IDENTIFIER 15:9@245-15:10@246
+    privateIdentifier=false
+    value="C"
+  VariableStatementTree VARIABLE_STATEMENT 18:0@275-18:25@300
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 18:0@275-18:24@299
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 18:4@279-18:24@299
+      initializer=ObjectLiteralExpressionTree OBJECT_LITERAL_EXPRESSION 18:8@283-18:24@299
+       hasTrailingComma=false
+       propertyNameAndValues=[2]
+        PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 18:9@284-18:15@290
+         name=IdentifierToken IDENTIFIER 18:9@284-18:10@285
+          privateIdentifier=false
+          value="A"
+         value=LiteralExpressionTree LITERAL_EXPRESSION 18:12@287-18:15@290
+          literalToken=StringLiteralToken STRING 18:12@287-18:15@290
+           hasUnescapedUnicodeLineOrParagraphSeparator=false
+           value="'a'"
+        PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 18:17@292-18:23@298
+         name=IdentifierToken IDENTIFIER 18:17@292-18:18@293
+          privateIdentifier=false
+          value="B"
+         value=LiteralExpressionTree LITERAL_EXPRESSION 18:20@295-18:23@298
+          literalToken=StringLiteralToken STRING 18:20@295-18:23@298
+           hasUnescapedUnicodeLineOrParagraphSeparator=false
+           value="'b'"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 18:4@279-18:5@280
+       identifierToken=IdentifierToken IDENTIFIER 18:4@279-18:5@280
+        privateIdentifier=false
+        value="E"
+  VariableStatementTree VARIABLE_STATEMENT 21:0@332-21:6@338
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 21:0@332-21:5@337
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 21:4@336-21:5@337
+      initializer=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 21:4@336-21:5@337
+       identifierToken=IdentifierToken IDENTIFIER 21:4@336-21:5@337
+        privateIdentifier=false
+        value="T"

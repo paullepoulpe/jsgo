@@ -175,5 +175,5 @@ var JSCompDoubles_POW_2_53 = math.Pow(2, 53)
 //
 // Java: JSCompDoubles()
 func NewJSCompDoubles() *JSCompDoubles {
-	panic(jutil.NewAssertionError())
+	panic(jutil.NewAssertionErrorNoMessage())
 }

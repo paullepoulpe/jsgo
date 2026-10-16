@@ -1,0 +1,33 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+ERROR 1:1@12 "Shebang comment must be at the start of the file"
+ERROR 1:1@12 "primary expression expected"
+ERROR 1:1@12 "Semi-colon expected"
+# features "[RegExp syntax]"
+# sourceMapURL null
+# comments
+[]
+# tree
+ProgramTree PROGRAM 0:0@0-2:0@21
+ sourceComments=[]
+ sourceElements=[3]
+  VariableStatementTree VARIABLE_STATEMENT 0:0@0-0:10@10
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 0:0@0-0:9@9
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 0:4@4-0:9@9
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 0:8@8-0:9@9
+       literalToken=LiteralToken NUMBER 0:8@8-0:9@9
+        value="1"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:4@4-0:5@5
+       identifierToken=IdentifierToken IDENTIFIER 0:4@4-0:5@5
+        privateIdentifier=false
+        value="a"
+  ExpressionStatementTree EXPRESSION_STATEMENT 1:0@11-1:1@12
+   expression=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 1:0@11-1:1@12
+  ExpressionStatementTree EXPRESSION_STATEMENT 1:1@12-1:9@20
+   expression=UnaryExpressionTree UNARY_EXPRESSION 1:1@12-1:9@20
+    operand=LiteralExpressionTree LITERAL_EXPRESSION 1:2@13-1:9@20
+     literalToken=LiteralToken REGULAR_EXPRESSION 1:2@13-1:9@20
+      value="/bin/sh"
+    operator=Token BANG 1:1@12-1:2@13

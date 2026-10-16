@@ -1,0 +1,68 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+# features "[]"
+# sourceMapURL "  spaced.map"
+# comments
+[6]
+ Comment
+  location=0:0@0-0:21@21
+  type=LINE
+  value="// trailing spaces"
+ Comment
+  location=1:0@22-1:16@38
+  type=LINE
+  value="// trailing tab"
+ Comment
+  location=2:0@39-2:8@47
+  type=LINE
+  value="// nbsp\u00A0"
+ Comment
+  location=3:0@48-3:25@73
+  type=BLOCK
+  value="/* block with trailing */"
+ Comment
+  location=4:0@77-4:19@96
+  type=LINE
+  value="//   leading spaces"
+ Comment
+  location=5:0@97-5:36@133
+  type=LINE
+  value="//# sourceMappingURL=  spaced.map"
+# tree
+ProgramTree PROGRAM 0:0@0-7:0@141
+ sourceComments=[6]
+  Comment
+   location=0:0@0-0:21@21
+   type=LINE
+   value="// trailing spaces"
+  Comment
+   location=1:0@22-1:16@38
+   type=LINE
+   value="// trailing tab"
+  Comment
+   location=2:0@39-2:8@47
+   type=LINE
+   value="// nbsp\u00A0"
+  Comment
+   location=3:0@48-3:25@73
+   type=BLOCK
+   value="/* block with trailing */"
+  Comment
+   location=4:0@77-4:19@96
+   type=LINE
+   value="//   leading spaces"
+  Comment
+   location=5:0@97-5:36@133
+   type=LINE
+   value="//# sourceMappingURL=  spaced.map"
+ sourceElements=[1]
+  VariableStatementTree VARIABLE_STATEMENT 6:0@134-6:6@140
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 6:0@134-6:5@139
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 6:4@138-6:5@139
+      initializer=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 6:4@138-6:5@139
+       identifierToken=IdentifierToken IDENTIFIER 6:4@138-6:5@139
+        privateIdentifier=false
+        value="x"

@@ -54,8 +54,8 @@ func TestFarmHashFingerprint64MatchesGuava(t *testing.T) {
 	}
 }
 
-func TestCharacterMatchesJava(t *testing.T) {
-	rows := readTSV(t, "character.tsv")
+func TestCharacterCodePointMatchesJava(t *testing.T) {
+	rows := readTSV(t, "character_codepoint.tsv")
 	b := func(c byte) bool { return c == '1' }
 	for _, r := range rows {
 		lo, _ := strconv.ParseInt(r[0], 16, 32)
@@ -64,13 +64,19 @@ func TestCharacterMatchesJava(t *testing.T) {
 		typ, _ := strconv.Atoi(parts[0])
 		fl := parts[1]
 		for cp := int(lo); cp <= int(hi); cp++ {
-			if got := CharacterGetType(cp); got != typ {
+			if got := CharacterGetTypeOfCodePoint(cp); got != typ {
 				t.Fatalf("getType(%x) = %d, Java %d", cp, got, typ)
 			}
-			if CharacterIsWhitespace(cp) != b(fl[0]) || CharacterIsJavaIdentifierStart(cp) != b(fl[1]) ||
-				CharacterIsJavaIdentifierPart(cp) != b(fl[2]) || CharacterIsIdentifierIgnorable(cp) != b(fl[3]) ||
-				CharacterIsLetter(cp) != b(fl[4]) || CharacterIsDigit(cp) != b(fl[5]) {
+			if CharacterIsWhitespaceCodePoint(cp) != b(fl[0]) ||
+				CharacterIsLetterCodePoint(cp) != b(fl[4]) || CharacterIsDigitCodePoint(cp) != b(fl[5]) {
 				t.Fatalf("flags(%x) mismatch, Java %s", cp, fl)
+			}
+			if cp <= 0xFFFF {
+				ch := uint16(cp)
+				if CharacterIsJavaIdentifierStart(ch) != b(fl[1]) || CharacterIsJavaIdentifierPart(ch) != b(fl[2]) ||
+					CharacterIsIdentifierIgnorable(ch) != b(fl[3]) {
+					t.Fatalf("identifier flags(%x) mismatch, Java %s", cp, fl)
+				}
 			}
 		}
 	}

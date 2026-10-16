@@ -1,0 +1,197 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+ERROR 0:10@10 "Cannot use keyword in short object literal"
+ERROR 1:13@28 "':' expected"
+ERROR 2:11@42 "':' expected"
+ERROR 4:16@79 "')' expected"
+ERROR 4:17@80 "'{' expected"
+ERROR 4:22@85 "'}' expected"
+ERROR 5:15@102 "Setter must have exactly 1 parameter, found 0"
+ERROR 6:15@125 "Setter must have exactly 1 parameter, found 2"
+ERROR 7:16@153 "Setter must not have a rest parameter"
+# features "[getters, setters]"
+# sourceMapURL null
+# comments
+[]
+# tree
+ProgramTree PROGRAM 0:0@0-8:0@164
+ sourceComments=[]
+ sourceElements=[8]
+  VariableStatementTree VARIABLE_STATEMENT 0:0@0-0:14@14
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 0:0@0-0:13@13
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 0:4@4-0:13@13
+      initializer=ObjectLiteralExpressionTree OBJECT_LITERAL_EXPRESSION 0:9@9-0:13@13
+       hasTrailingComma=false
+       propertyNameAndValues=[1]
+        PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 0:10@10-0:12@12
+         name=IdentifierToken IDENTIFIER 0:10@10-0:12@12
+          privateIdentifier=false
+          value="if"
+         value=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:4@4-0:6@6
+       identifierToken=IdentifierToken IDENTIFIER 0:4@4-0:6@6
+        privateIdentifier=false
+        value="o1"
+  VariableStatementTree VARIABLE_STATEMENT 1:0@15-1:15@30
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 1:0@15-1:14@29
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 1:4@19-1:14@29
+      initializer=ObjectLiteralExpressionTree OBJECT_LITERAL_EXPRESSION 1:9@24-1:14@29
+       hasTrailingComma=false
+       propertyNameAndValues=[1]
+        PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 1:10@25-1:13@28
+         name=StringLiteralToken STRING 1:10@25-1:13@28
+          hasUnescapedUnicodeLineOrParagraphSeparator=false
+          value="'a'"
+         value=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:4@19-1:6@21
+       identifierToken=IdentifierToken IDENTIFIER 1:4@19-1:6@21
+        privateIdentifier=false
+        value="o2"
+  VariableStatementTree VARIABLE_STATEMENT 2:0@31-2:13@44
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 2:0@31-2:12@43
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 2:4@35-2:12@43
+      initializer=ObjectLiteralExpressionTree OBJECT_LITERAL_EXPRESSION 2:9@40-2:12@43
+       hasTrailingComma=false
+       propertyNameAndValues=[1]
+        PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 2:10@41-2:11@42
+         name=LiteralToken NUMBER 2:10@41-2:11@42
+          value="1"
+         value=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:4@35-2:6@37
+       identifierToken=IdentifierToken IDENTIFIER 2:4@35-2:6@37
+        privateIdentifier=false
+        value="o3"
+  VariableStatementTree VARIABLE_STATEMENT 3:0@45-3:17@62
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 3:0@45-3:16@61
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 3:4@49-3:16@61
+      initializer=ObjectLiteralExpressionTree OBJECT_LITERAL_EXPRESSION 3:9@54-3:16@61
+       hasTrailingComma=false
+       propertyNameAndValues=[1]
+        DefaultParameterTree DEFAULT_PARAMETER 3:10@55-3:15@60
+         defaultValue=LiteralExpressionTree LITERAL_EXPRESSION 3:14@59-3:15@60
+          literalToken=LiteralToken NUMBER 3:14@59-3:15@60
+           value="1"
+         lhs=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:10@55-3:11@56
+          identifierToken=IdentifierToken IDENTIFIER 3:10@55-3:11@56
+           privateIdentifier=false
+           value="a"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:4@49-3:6@51
+       identifierToken=IdentifierToken IDENTIFIER 3:4@49-3:6@51
+        privateIdentifier=false
+        value="o4"
+  VariableStatementTree VARIABLE_STATEMENT 4:0@63-4:23@86
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 4:0@63-4:23@86
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 4:4@67-4:23@86
+      initializer=ObjectLiteralExpressionTree OBJECT_LITERAL_EXPRESSION 4:9@72-4:23@86
+       hasTrailingComma=false
+       propertyNameAndValues=[1]
+        GetAccessorTree GET_ACCESSOR 4:10@73-4:22@85
+         body=BlockTree BLOCK 4:17@80-4:22@85
+          statements=[1]
+           BlockTree BLOCK 4:19@82-4:21@84
+            statements=[]
+         isClassMember=false
+         isStatic=false
+         propertyName=IdentifierToken IDENTIFIER 4:14@77-4:15@78
+          privateIdentifier=false
+          value="a"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 4:4@67-4:6@69
+       identifierToken=IdentifierToken IDENTIFIER 4:4@67-4:6@69
+        privateIdentifier=false
+        value="o5"
+  VariableStatementTree VARIABLE_STATEMENT 5:0@87-5:22@109
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 5:0@87-5:21@108
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 5:4@91-5:21@108
+      initializer=ObjectLiteralExpressionTree OBJECT_LITERAL_EXPRESSION 5:9@96-5:21@108
+       hasTrailingComma=false
+       propertyNameAndValues=[1]
+        SetAccessorTree SET_ACCESSOR 5:10@97-5:20@107
+         body=BlockTree BLOCK 5:18@105-5:20@107
+          statements=[]
+         isClassMember=false
+         isStatic=false
+         parameter=FormalParameterListTree FORMAL_PARAMETER_LIST 5:15@102-5:17@104
+          commaPositions=[]
+          hasTrailingComma=false
+          parameters=[]
+         propertyName=IdentifierToken IDENTIFIER 5:14@101-5:15@102
+          privateIdentifier=false
+          value="a"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 5:4@91-5:6@93
+       identifierToken=IdentifierToken IDENTIFIER 5:4@91-5:6@93
+        privateIdentifier=false
+        value="o6"
+  VariableStatementTree VARIABLE_STATEMENT 6:0@110-6:26@136
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 6:0@110-6:25@135
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 6:4@114-6:25@135
+      initializer=ObjectLiteralExpressionTree OBJECT_LITERAL_EXPRESSION 6:9@119-6:25@135
+       hasTrailingComma=false
+       propertyNameAndValues=[1]
+        SetAccessorTree SET_ACCESSOR 6:10@120-6:24@134
+         body=BlockTree BLOCK 6:22@132-6:24@134
+          statements=[]
+         isClassMember=false
+         isStatic=false
+         parameter=FormalParameterListTree FORMAL_PARAMETER_LIST 6:15@125-6:21@131
+          commaPositions=[1]
+           6:17@127
+          hasTrailingComma=false
+          parameters=[2]
+           IdentifierExpressionTree IDENTIFIER_EXPRESSION 6:16@126-6:17@127
+            identifierToken=IdentifierToken IDENTIFIER 6:16@126-6:17@127
+             privateIdentifier=false
+             value="x"
+           IdentifierExpressionTree IDENTIFIER_EXPRESSION 6:19@129-6:20@130
+            identifierToken=IdentifierToken IDENTIFIER 6:19@129-6:20@130
+             privateIdentifier=false
+             value="y"
+         propertyName=IdentifierToken IDENTIFIER 6:14@124-6:15@125
+          privateIdentifier=false
+          value="a"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 6:4@114-6:6@116
+       identifierToken=IdentifierToken IDENTIFIER 6:4@114-6:6@116
+        privateIdentifier=false
+        value="o7"
+  VariableStatementTree VARIABLE_STATEMENT 7:0@137-7:26@163
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 7:0@137-7:25@162
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 7:4@141-7:25@162
+      initializer=ObjectLiteralExpressionTree OBJECT_LITERAL_EXPRESSION 7:9@146-7:25@162
+       hasTrailingComma=false
+       propertyNameAndValues=[1]
+        SetAccessorTree SET_ACCESSOR 7:10@147-7:24@161
+         body=BlockTree BLOCK 7:22@159-7:24@161
+          statements=[]
+         isClassMember=false
+         isStatic=false
+         parameter=FormalParameterListTree FORMAL_PARAMETER_LIST 7:15@152-7:21@158
+          commaPositions=[]
+          hasTrailingComma=false
+          parameters=[1]
+           IterRestTree ITER_REST 7:16@153-7:20@157
+            assignmentTarget=IdentifierExpressionTree IDENTIFIER_EXPRESSION 7:19@156-7:20@157
+             identifierToken=IdentifierToken IDENTIFIER 7:19@156-7:20@157
+              privateIdentifier=false
+              value="x"
+         propertyName=IdentifierToken IDENTIFIER 7:14@151-7:15@152
+          privateIdentifier=false
+          value="a"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 7:4@141-7:6@143
+       identifierToken=IdentifierToken IDENTIFIER 7:4@141-7:6@143
+        privateIdentifier=false
+        value="o8"

@@ -1,0 +1,98 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+# features "[]"
+# sourceMapURL null
+# comments
+[]
+# tree
+ProgramTree PROGRAM 0:0@0-10:0@81
+ sourceComments=[]
+ sourceElements=[6]
+  VariableStatementTree VARIABLE_STATEMENT 0:0@0-1:6@21
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 0:0@0-1:6@21
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 0:4@4-1:6@21
+      initializer=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 0:9@9-1:6@21
+       elements=[1]
+        TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 0:9@9-1:6@21
+         value=TemplateLiteralToken NO_SUBSTITUTION_TEMPLATE 0:9@9-1:6@21
+          errorLevel=null
+          errorMessage=null
+          errorPosition=0:9@9
+          value="line1\u000Aline2"
+       operand=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:4@4-0:5@5
+       identifierToken=IdentifierToken IDENTIFIER 0:4@4-0:5@5
+        privateIdentifier=false
+        value="a"
+  VariableStatementTree VARIABLE_STATEMENT 2:0@22-2:9@31
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 2:0@22-2:9@31
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 2:4@26-2:9@31
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 2:8@30-2:9@31
+       literalToken=LiteralToken NUMBER 2:8@30-2:9@31
+        value="1"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:4@26-2:5@27
+       identifierToken=IdentifierToken IDENTIFIER 2:4@26-2:5@27
+        privateIdentifier=false
+        value="b"
+  ExpressionStatementTree EXPRESSION_STATEMENT 3:0@32-5:16@59
+   expression=CallExpressionTree CALL_EXPRESSION 3:0@32-5:16@59
+    arguments=ArgumentListTree ARGUMENT_LIST 5:0@43-5:16@59
+     arguments=[1]
+      FunctionDeclarationTree FUNCTION_DECLARATION 5:1@44-5:15@58
+       formalParameterList=FormalParameterListTree FORMAL_PARAMETER_LIST 5:10@53-5:12@55
+        commaPositions=[]
+        hasTrailingComma=false
+        parameters=[]
+       functionBody=BlockTree BLOCK 5:13@56-5:15@58
+        statements=[]
+       isAsync=false
+       isClassMember=false
+       isGenerator=false
+       isOptional=false
+       isStatic=false
+       kind=EXPRESSION
+       name=null
+     commaPositions=[]
+     hasTrailingComma=false
+    operand=TemplateLiteralExpressionTree TEMPLATE_LITERAL_EXPRESSION 3:0@32-4:1@42
+     elements=[1]
+      TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 3:7@39-4:1@42
+       value=TemplateLiteralToken NO_SUBSTITUTION_TEMPLATE 3:7@39-4:1@42
+        errorLevel=null
+        errorMessage=null
+        errorPosition=3:0@32
+        value="t\u000A"
+     operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:0@32-3:5@37
+      identifierToken=IdentifierToken IDENTIFIER 3:0@32-3:5@37
+       privateIdentifier=false
+       value="async"
+  VariableStatementTree VARIABLE_STATEMENT 6:0@60-7:2@74
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 6:0@60-7:2@74
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 6:4@64-7:2@74
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 6:8@68-7:2@74
+       literalToken=StringLiteralToken STRING 6:8@68-7:2@74
+        hasUnescapedUnicodeLineOrParagraphSeparator=false
+        value="\"a\\\u000Ab\""
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 6:4@64-6:5@65
+       identifierToken=IdentifierToken IDENTIFIER 6:4@64-6:5@65
+        privateIdentifier=false
+        value="c"
+  ExpressionStatementTree EXPRESSION_STATEMENT 8:0@75-8:1@76
+   expression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 8:0@75-8:1@76
+    identifierToken=IdentifierToken IDENTIFIER 8:0@75-8:1@76
+     privateIdentifier=false
+     value="c"
+  ExpressionStatementTree EXPRESSION_STATEMENT 9:0@77-9:3@80
+   expression=UpdateExpressionTree UPDATE_EXPRESSION 9:0@77-9:3@80
+    operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 9:2@79-9:3@80
+     identifierToken=IdentifierToken IDENTIFIER 9:2@79-9:3@80
+      privateIdentifier=false
+      value="d"
+    operator=Token PLUS_PLUS 9:0@77-9:2@79
+    operatorPosition=PREFIX

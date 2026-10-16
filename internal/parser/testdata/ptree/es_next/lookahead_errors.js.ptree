@@ -1,0 +1,52 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+ERROR 1:28@49 "Character '\u0300' (U+0300) is not a valid identifier start char"
+ERROR 1:28@49 "'}' expected"
+ERROR 1:31@52 "primary expression expected"
+# features "[getters]"
+# sourceMapURL null
+# comments
+[]
+# tree
+ProgramTree PROGRAM 0:0@0-2:0@54
+ sourceComments=[]
+ sourceElements=[3]
+  ClassDeclarationTree CLASS_DECLARATION 0:0@0-0:20@20
+   elements=[1]
+    FieldDeclarationTree FIELD_DECLARATION 0:10@10-0:18@18
+     initializer=null
+     isStatic=true
+     name=IdentifierToken IDENTIFIER 0:17@17-0:18@18
+      privateIdentifier=false
+      value="\u00E9"
+   name=IdentifierToken IDENTIFIER 0:6@6-0:7@7
+    privateIdentifier=false
+    value="K"
+   superClass=null
+  VariableStatementTree VARIABLE_STATEMENT 1:0@21-1:29@50
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 1:0@21-1:29@50
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 1:4@25-1:29@50
+      initializer=ObjectLiteralExpressionTree OBJECT_LITERAL_EXPRESSION 1:8@29-1:29@50
+       hasTrailingComma=false
+       propertyNameAndValues=[2]
+        GetAccessorTree GET_ACCESSOR 1:10@31-1:20@41
+         body=BlockTree BLOCK 1:18@39-1:20@41
+          statements=[]
+         isClassMember=false
+         isStatic=false
+         propertyName=IdentifierToken IDENTIFIER 1:14@35-1:15@36
+          privateIdentifier=false
+          value="\u00E9"
+        PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 1:22@43-1:27@48
+         name=IdentifierToken IDENTIFIER 1:22@43-1:27@48
+          privateIdentifier=false
+          value="async"
+         value=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:4@25-1:5@26
+       identifierToken=IdentifierToken IDENTIFIER 1:4@25-1:5@26
+        privateIdentifier=false
+        value="o"
+  ExpressionStatementTree EXPRESSION_STATEMENT 1:30@51-1:32@53
+   expression=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 1:30@51-1:31@52

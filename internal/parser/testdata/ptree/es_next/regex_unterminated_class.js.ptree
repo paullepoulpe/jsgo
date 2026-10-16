@@ -1,0 +1,23 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+ERROR 0:15@15 "']' expected"
+# features "[RegExp syntax]"
+# sourceMapURL null
+# comments
+[]
+# tree
+ProgramTree PROGRAM 0:0@0-1:0@16
+ sourceComments=[]
+ sourceElements=[1]
+  VariableStatementTree VARIABLE_STATEMENT 0:0@0-0:15@15
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 0:0@0-0:15@15
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 0:4@4-0:15@15
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 0:8@8-0:15@15
+       literalToken=LiteralToken REGULAR_EXPRESSION 0:8@8-0:15@15
+        value="/[abc/;"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:4@4-0:5@5
+       identifierToken=IdentifierToken IDENTIFIER 0:4@4-0:5@5
+        privateIdentifier=false
+        value="r"

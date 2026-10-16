@@ -1,0 +1,74 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+ERROR 1:0@7 "'catch' or 'finally' expected."
+ERROR 1:24@31 "Switch statements may have at most one default clause"
+ERROR 2:7@51 "const variables must have an initializer"
+ERROR 3:7@60 "destructuring must have an initializer"
+ERROR 4:7@69 "destructuring must have an initializer"
+ERROR 6:0@77 "semicolon/newline not allowed after 'throw'"
+# features "[]"
+# sourceMapURL null
+# comments
+[]
+# tree
+ProgramTree PROGRAM 0:0@0-7:0@80
+ sourceComments=[]
+ sourceElements=[7]
+  TryStatementTree TRY_STATEMENT 0:0@0-0:6@6
+   body=BlockTree BLOCK 0:4@4-0:6@6
+    statements=[]
+   catchBlock=null
+   finallyBlock=null
+  SwitchStatementTree SWITCH_STATEMENT 1:0@7-1:36@43
+   caseClauses=[2]
+    DefaultClauseTree DEFAULT_CLAUSE 1:13@20-1:21@28
+     statements=[1]
+      EmptyStatementTree EMPTY_STATEMENT 1:22@29-1:23@30
+    DefaultClauseTree DEFAULT_CLAUSE 1:24@31-1:32@39
+     statements=[1]
+      EmptyStatementTree EMPTY_STATEMENT 1:33@40-1:34@41
+   expression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:8@15-1:9@16
+    identifierToken=IdentifierToken IDENTIFIER 1:8@15-1:9@16
+     privateIdentifier=false
+     value="x"
+  VariableStatementTree VARIABLE_STATEMENT 2:0@44-2:8@52
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 2:0@44-2:7@51
+    declarationType=CONST
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 2:6@50-2:7@51
+      initializer=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:6@50-2:7@51
+       identifierToken=IdentifierToken IDENTIFIER 2:6@50-2:7@51
+        privateIdentifier=false
+        value="c"
+  VariableStatementTree VARIABLE_STATEMENT 3:0@53-3:8@61
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 3:0@53-3:7@60
+    declarationType=LET
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 3:4@57-3:7@60
+      initializer=null
+      lvalue=ArrayPatternTree ARRAY_PATTERN 3:4@57-3:7@60
+       elements=[1]
+        IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:5@58-3:6@59
+         identifierToken=IdentifierToken IDENTIFIER 3:5@58-3:6@59
+          privateIdentifier=false
+          value="d"
+  VariableStatementTree VARIABLE_STATEMENT 4:0@62-4:8@70
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 4:0@62-4:7@69
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 4:4@66-4:7@69
+      initializer=null
+      lvalue=ObjectPatternTree OBJECT_PATTERN 4:4@66-4:7@69
+       fields=[1]
+        PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 4:5@67-4:6@68
+         name=IdentifierToken IDENTIFIER 4:5@67-4:6@68
+          privateIdentifier=false
+          value="e"
+         value=null
+  ThrowStatementTree THROW_STATEMENT 5:0@71-5:5@76
+   value=null
+  ExpressionStatementTree EXPRESSION_STATEMENT 6:0@77-6:2@79
+   expression=LiteralExpressionTree LITERAL_EXPRESSION 6:0@77-6:1@78
+    literalToken=LiteralToken NUMBER 6:0@77-6:1@78
+     value="1"

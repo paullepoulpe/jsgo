@@ -1,0 +1,259 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+# features "[RegExp syntax]"
+# sourceMapURL null
+# comments
+[]
+# tree
+ProgramTree PROGRAM 0:0@0-14:0@277
+ sourceComments=[]
+ sourceElements=[14]
+  VariableStatementTree VARIABLE_STATEMENT 0:0@0-0:15@15
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 0:0@0-0:14@14
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 0:4@4-0:14@14
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 0:9@9-0:14@14
+       literalToken=LiteralToken REGULAR_EXPRESSION 0:9@9-0:14@14
+        value="/abc/"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:4@4-0:6@6
+       identifierToken=IdentifierToken IDENTIFIER 0:4@4-0:6@6
+        privateIdentifier=false
+        value="r1"
+  VariableStatementTree VARIABLE_STATEMENT 1:0@16-1:23@39
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 1:0@16-1:22@38
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 1:4@20-1:22@38
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 1:9@25-1:22@38
+       literalToken=LiteralToken REGULAR_EXPRESSION 1:9@25-1:22@38
+        value="/a[/]b/gimsuy"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:4@20-1:6@22
+       identifierToken=IdentifierToken IDENTIFIER 1:4@20-1:6@22
+        privateIdentifier=false
+        value="r2"
+  VariableStatementTree VARIABLE_STATEMENT 2:0@40-2:17@57
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 2:0@40-2:16@56
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 2:4@44-2:16@56
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 2:9@49-2:16@56
+       literalToken=LiteralToken REGULAR_EXPRESSION 2:9@49-2:16@56
+        value="/\\/\\[/d"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:4@44-2:6@46
+       identifierToken=IdentifierToken IDENTIFIER 2:4@44-2:6@46
+        privateIdentifier=false
+        value="r3"
+  VariableStatementTree VARIABLE_STATEMENT 3:0@58-3:19@77
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 3:0@58-3:18@76
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 3:4@62-3:18@76
+      initializer=BinaryOperatorTree BINARY_OPERATOR 3:9@67-3:18@76
+       left=BinaryOperatorTree BINARY_OPERATOR 3:9@67-3:14@72
+        left=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:9@67-3:10@68
+         identifierToken=IdentifierToken IDENTIFIER 3:9@67-3:10@68
+          privateIdentifier=false
+          value="a"
+        operator=Token SLASH 3:11@69-3:12@70
+        right=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:13@71-3:14@72
+         identifierToken=IdentifierToken IDENTIFIER 3:13@71-3:14@72
+          privateIdentifier=false
+          value="b"
+       operator=Token SLASH 3:15@73-3:16@74
+       right=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:17@75-3:18@76
+        identifierToken=IdentifierToken IDENTIFIER 3:17@75-3:18@76
+         privateIdentifier=false
+         value="c"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:4@62-3:6@64
+       identifierToken=IdentifierToken IDENTIFIER 3:4@62-3:6@64
+        privateIdentifier=false
+        value="r4"
+  VariableStatementTree VARIABLE_STATEMENT 4:0@78-4:17@95
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 4:0@78-4:16@94
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 4:4@82-4:16@94
+      initializer=BinaryOperatorTree BINARY_OPERATOR 4:9@87-4:16@94
+       left=ParenExpressionTree PAREN_EXPRESSION 4:9@87-4:12@90
+        expression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 4:10@88-4:11@89
+         identifierToken=IdentifierToken IDENTIFIER 4:10@88-4:11@89
+          privateIdentifier=false
+          value="a"
+       operator=Token SLASH 4:13@91-4:14@92
+       right=LiteralExpressionTree LITERAL_EXPRESSION 4:15@93-4:16@94
+        literalToken=LiteralToken NUMBER 4:15@93-4:16@94
+         value="2"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 4:4@82-4:6@84
+       identifierToken=IdentifierToken IDENTIFIER 4:4@82-4:6@84
+        privateIdentifier=false
+        value="r5"
+  VariableStatementTree VARIABLE_STATEMENT 5:0@96-5:17@113
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 5:0@96-5:16@112
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 5:4@100-5:16@112
+      initializer=BinaryOperatorTree BINARY_OPERATOR 5:9@105-5:16@112
+       left=IdentifierExpressionTree IDENTIFIER_EXPRESSION 5:9@105-5:10@106
+        identifierToken=IdentifierToken IDENTIFIER 5:9@105-5:10@106
+         privateIdentifier=false
+         value="x"
+       operator=Token EQUAL 5:11@107-5:12@108
+       right=LiteralExpressionTree LITERAL_EXPRESSION 5:13@109-5:16@112
+        literalToken=LiteralToken REGULAR_EXPRESSION 5:13@109-5:16@112
+         value="/=/"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 5:4@100-5:6@102
+       identifierToken=IdentifierToken IDENTIFIER 5:4@100-5:6@102
+        privateIdentifier=false
+        value="r6"
+  VariableStatementTree VARIABLE_STATEMENT 6:0@114-6:22@136
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 6:0@114-6:21@135
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 6:4@118-6:21@135
+      initializer=CallExpressionTree CALL_EXPRESSION 6:9@123-6:21@135
+       arguments=ArgumentListTree ARGUMENT_LIST 6:18@132-6:21@135
+        arguments=[1]
+         IdentifierExpressionTree IDENTIFIER_EXPRESSION 6:19@133-6:20@134
+          identifierToken=IdentifierToken IDENTIFIER 6:19@133-6:20@134
+           privateIdentifier=false
+           value="s"
+        commaPositions=[]
+        hasTrailingComma=false
+       operand=MemberExpressionTree MEMBER_EXPRESSION 6:9@123-6:18@132
+        memberName=IdentifierToken IDENTIFIER 6:14@128-6:18@132
+         privateIdentifier=false
+         value="test"
+        operand=LiteralExpressionTree LITERAL_EXPRESSION 6:9@123-6:13@127
+         literalToken=LiteralToken REGULAR_EXPRESSION 6:9@123-6:13@127
+          value="/=/g"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 6:4@118-6:6@120
+       identifierToken=IdentifierToken IDENTIFIER 6:4@118-6:6@120
+        privateIdentifier=false
+        value="r7"
+  IfStatementTree IF_STATEMENT 7:0@137-7:20@157
+   condition=CallExpressionTree CALL_EXPRESSION 7:4@141-7:16@153
+    arguments=ArgumentListTree ARGUMENT_LIST 7:13@150-7:16@153
+     arguments=[1]
+      IdentifierExpressionTree IDENTIFIER_EXPRESSION 7:14@151-7:15@152
+       identifierToken=IdentifierToken IDENTIFIER 7:14@151-7:15@152
+        privateIdentifier=false
+        value="s"
+     commaPositions=[]
+     hasTrailingComma=false
+    operand=MemberExpressionTree MEMBER_EXPRESSION 7:4@141-7:13@150
+     memberName=IdentifierToken IDENTIFIER 7:9@146-7:13@150
+      privateIdentifier=false
+      value="test"
+     operand=LiteralExpressionTree LITERAL_EXPRESSION 7:4@141-7:8@145
+      literalToken=LiteralToken REGULAR_EXPRESSION 7:4@141-7:8@145
+       value="/re/"
+   elseClause=null
+   ifClause=BlockTree BLOCK 7:18@155-7:20@157
+    statements=[]
+  VariableStatementTree VARIABLE_STATEMENT 8:0@158-8:20@178
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 8:0@158-8:19@177
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 8:4@162-8:19@177
+      initializer=ArrayLiteralExpressionTree ARRAY_LITERAL_EXPRESSION 8:9@167-8:19@177
+       elements=[2]
+        LiteralExpressionTree LITERAL_EXPRESSION 8:10@168-8:13@171
+         literalToken=LiteralToken REGULAR_EXPRESSION 8:10@168-8:13@171
+          value="/a/"
+        LiteralExpressionTree LITERAL_EXPRESSION 8:15@173-8:18@176
+         literalToken=LiteralToken REGULAR_EXPRESSION 8:15@173-8:18@176
+          value="/b/"
+       hasTrailingComma=false
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 8:4@162-8:6@164
+       identifierToken=IdentifierToken IDENTIFIER 8:4@162-8:6@164
+        privateIdentifier=false
+        value="r8"
+  VariableStatementTree VARIABLE_STATEMENT 9:0@179-9:18@197
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 9:0@179-9:17@196
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 9:4@183-9:17@196
+      initializer=ObjectLiteralExpressionTree OBJECT_LITERAL_EXPRESSION 9:9@188-9:17@196
+       hasTrailingComma=false
+       propertyNameAndValues=[1]
+        PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 9:10@189-9:16@195
+         name=IdentifierToken IDENTIFIER 9:10@189-9:11@190
+          privateIdentifier=false
+          value="a"
+         value=LiteralExpressionTree LITERAL_EXPRESSION 9:13@192-9:16@195
+          literalToken=LiteralToken REGULAR_EXPRESSION 9:13@192-9:16@195
+           value="/x/"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 9:4@183-9:6@185
+       identifierToken=IdentifierToken IDENTIFIER 9:4@183-9:6@185
+        privateIdentifier=false
+        value="r9"
+  VariableStatementTree VARIABLE_STATEMENT 10:0@198-10:18@216
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 10:0@198-10:17@215
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 10:4@202-10:17@215
+      initializer=BinaryOperatorTree BINARY_OPERATOR 10:10@208-10:17@215
+       left=UpdateExpressionTree UPDATE_EXPRESSION 10:10@208-10:13@211
+        operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 10:10@208-10:11@209
+         identifierToken=IdentifierToken IDENTIFIER 10:10@208-10:11@209
+          privateIdentifier=false
+          value="a"
+        operator=Token PLUS_PLUS 10:11@209-10:13@211
+        operatorPosition=POSTFIX
+       operator=Token SLASH 10:14@212-10:15@213
+       right=LiteralExpressionTree LITERAL_EXPRESSION 10:16@214-10:17@215
+        literalToken=LiteralToken NUMBER 10:16@214-10:17@215
+         value="2"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 10:4@202-10:7@205
+       identifierToken=IdentifierToken IDENTIFIER 10:4@202-10:7@205
+        privateIdentifier=false
+        value="r10"
+  VariableStatementTree VARIABLE_STATEMENT 11:0@217-11:18@235
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 11:0@217-11:17@234
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 11:4@221-11:17@234
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 11:10@227-11:17@234
+       literalToken=LiteralToken REGULAR_EXPRESSION 11:10@227-11:17@234
+        value="/[\\]/]/"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 11:4@221-11:7@224
+       identifierToken=IdentifierToken IDENTIFIER 11:4@221-11:7@224
+        privateIdentifier=false
+        value="r11"
+  VariableStatementTree VARIABLE_STATEMENT 12:0@236-12:21@257
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 12:0@236-12:20@256
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 12:4@240-12:20@256
+      initializer=UnaryExpressionTree UNARY_EXPRESSION 12:10@246-12:20@256
+       operand=LiteralExpressionTree LITERAL_EXPRESSION 12:17@253-12:20@256
+        literalToken=LiteralToken REGULAR_EXPRESSION 12:17@253-12:20@256
+         value="/x/"
+       operator=Token TYPEOF 12:10@246-12:16@252
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 12:4@240-12:7@243
+       identifierToken=IdentifierToken IDENTIFIER 12:4@240-12:7@243
+        privateIdentifier=false
+        value="r12"
+  VariableStatementTree VARIABLE_STATEMENT 13:0@258-13:18@276
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 13:0@258-13:17@275
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 13:4@262-13:17@275
+      initializer=BinaryOperatorTree BINARY_OPERATOR 13:10@268-13:17@275
+       left=BinaryOperatorTree BINARY_OPERATOR 13:10@268-13:14@272
+        left=LiteralExpressionTree LITERAL_EXPRESSION 13:10@268-13:11@269
+         literalToken=LiteralToken NUMBER 13:10@268-13:11@269
+          value="1"
+        operator=Token SLASH 13:12@270-13:13@271
+        right=LiteralExpressionTree LITERAL_EXPRESSION 13:13@271-13:14@272
+         literalToken=LiteralToken NUMBER 13:13@271-13:14@272
+          value="2"
+       operator=Token SLASH 13:14@272-13:15@273
+       right=LiteralExpressionTree LITERAL_EXPRESSION 13:16@274-13:17@275
+        literalToken=LiteralToken NUMBER 13:16@274-13:17@275
+         value="3"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 13:4@262-13:7@265
+       identifierToken=IdentifierToken IDENTIFIER 13:4@262-13:7@265
+        privateIdentifier=false
+        value="r13"

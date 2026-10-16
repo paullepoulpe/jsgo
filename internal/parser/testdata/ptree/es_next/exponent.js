@@ -1,0 +1,9 @@
+var a = 2 ** 3;
+var b = 2 ** 3 ** 2;
+var c = (-2) ** 2;
+var d = -(2 ** 2);
+a **= 2;
+var e = -2 ** 2;
+var f = typeof a ** 2;
+var g = ++a ** 2;
+var h = a++ ** 2;
