@@ -7,11 +7,13 @@
 // Build/run (see tools/oracle/README.md):
 //   javac -cp closure-compiler.jar -d build ParsingDump.java
 //   java -Xss1g -cp closure-compiler.jar:build ParsingDump [--gzip] [--lang=<LanguageMode>] [--jsdoc]
-//        <outdir> <root> <rel-file>... | @<listfile>
+//        [--jsdoc-mode=<JsDocParsing>] [--keep-going] <outdir> <root> <rel-file>... | @<listfile>
 //
 // For each <rel-file> writes <outdir>/<rel-file>.parse (or .parse.gz). The parsing.Config is the
 // one the compiler uses (Compiler.getParserConfig(ConfigContext.DEFAULT), called reflectively);
-// --jsdoc selects JsDocParsing.INCLUDE_DESCRIPTIONS_NO_WHITESPACE instead of TYPES_ONLY.
+// --jsdoc selects JsDocParsing.INCLUDE_DESCRIPTIONS_NO_WHITESPACE instead of TYPES_ONLY,
+// --jsdoc-mode=<JsDocParsing> any mode (CompilerOptions.setParseJsDocDocumentation), and
+// --keep-going RunMode.KEEP_GOING (CompilerOptions.setContinueAfterErrors(true)).
 //
 // Format:
 //   # config languageMode=<..> jsDocParsingMode=<..> runMode=<..> strictMode=<..>
@@ -22,7 +24,10 @@
 //   # tree                       then  one node per line: 4 spaces per depth +
 //                                      Node.toString(true, true, false); a node with JSDoc is
 //                                      followed by a line at the same indent: "  @jsdoc " +
-//                                      JSDocInfo.toStringVerbose()
+//                                      JSDocInfo.toStringVerbose(); a closure-unaware shadow host
+//                                      (Node.getClosureUnawareShadow() != null) is followed by
+//                                      "  @shadow" at the same indent and the shadow's ROOT tree
+//                                      one level deeper
 //   # exception <class>: <message>   if ParserRunner.parse threw
 // Every line is escaped: '\' -> "\\", and every char outside printable ASCII -> \\uXXXX
 // (newlines included), so the output is ASCII and lone surrogates are unambiguous.
@@ -50,7 +55,8 @@ import java.util.zip.GZIPOutputStream;
 public final class ParsingDump {
   private static CompilerOptions.LanguageMode languageIn =
       CompilerOptions.LanguageMode.ECMASCRIPT_NEXT;
-  private static boolean jsdoc = false;
+  private static Config.JsDocParsing jsdocMode = null;
+  private static boolean keepGoing = false;
 
   public static void main(String[] args) throws Exception {
     boolean gzip = false;
@@ -59,7 +65,11 @@ public final class ParsingDump {
       if (a.equals("--gzip")) {
         gzip = true;
       } else if (a.equals("--jsdoc")) {
-        jsdoc = true;
+        jsdocMode = Config.JsDocParsing.INCLUDE_DESCRIPTIONS_NO_WHITESPACE;
+      } else if (a.startsWith("--jsdoc-mode=")) {
+        jsdocMode = Config.JsDocParsing.valueOf(a.substring("--jsdoc-mode=".length()));
+      } else if (a.equals("--keep-going")) {
+        keepGoing = true;
       } else if (a.startsWith("--lang=")) {
         languageIn = CompilerOptions.LanguageMode.valueOf(a.substring("--lang=".length()));
       } else {
@@ -99,8 +109,11 @@ public final class ParsingDump {
         new com.google.javascript.jscomp.Compiler(new PrintStream(OutputStream.nullOutputStream()));
     CompilerOptions options = new CompilerOptions();
     options.setLanguageIn(languageIn);
-    if (jsdoc) {
-      options.setParseJsDocDocumentation(Config.JsDocParsing.INCLUDE_DESCRIPTIONS_NO_WHITESPACE);
+    if (jsdocMode != null) {
+      options.setParseJsDocDocumentation(jsdocMode);
+    }
+    if (keepGoing) {
+      options.setContinueAfterErrors(true);
     }
     compiler.initOptions(options);
     Class<?> ctxClass = Class.forName("com.google.javascript.jscomp.AbstractCompiler$ConfigContext");
@@ -175,6 +188,11 @@ public final class ParsingDump {
     JSDocInfo info = n.getJSDocInfo();
     if (info != null) {
       line(sb, indent + "  @jsdoc " + info.toStringVerbose());
+    }
+    Node shadow = n.getClosureUnawareShadow();
+    if (shadow != null) {
+      line(sb, indent + "  @shadow");
+      dumpTree(sb, shadow, level + 1);
     }
     for (Node c = n.getFirstChild(); c != null; c = c.getNext()) {
       dumpTree(sb, c, level + 1);

@@ -1,0 +1,1 @@
+a export  = { set tr}ue(b) { c = b } }
