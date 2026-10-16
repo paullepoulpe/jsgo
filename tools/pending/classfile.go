@@ -492,35 +492,29 @@ func opcodeLength(code []byte, pc int) int {
 }
 
 // scanStaticInit recovers `static final DiagnosticType X =
-// DiagnosticType.error|warning|disabled("KEY", "format")` and
-// `DiagnosticType.make("KEY", CheckLevel.L, "format")` from <clinit>.
+// DiagnosticType.error|warning|disabled("KEY", "format")` (the format may be
+// built with JSCompStrings.lines) and `DiagnosticType.make("KEY",
+// CheckLevel.L, "format")` from <clinit>.
 func scanStaticInit(c *ClassInfo, cp []cpEntry, code []byte) {
-	type insn struct {
-		op  byte
-		arg uint16
+	// A tiny abstract interpreter over <clinit>: string and int constants,
+	// String[] varargs arrays, CheckLevel constants, JSCompStrings.lines and
+	// the DiagnosticType factories. Any other instruction clears the stack,
+	// so only initializers built entirely from those are recovered.
+	type value struct {
+		kind  byte // 's' string, 'i' int, 'a' String[], 'l' CheckLevel, 'd' DiagnosticType expression
+		s     string
+		i     int
+		elems []*string
 	}
-	var insns []insn
-	for pc := 0; pc < len(code); {
-		op := code[pc]
-		var arg uint16
-		switch op {
-		case 18:
-			arg = uint16(code[pc+1])
-		case 19, 178, 179, 184:
-			arg = binary.BigEndian.Uint16(code[pc+1:])
+	var stack []*value
+	push := func(v *value) { stack = append(stack, v) }
+	pop := func() *value {
+		if len(stack) == 0 {
+			return nil
 		}
-		insns = append(insns, insn{op, arg})
-		pc += opcodeLength(code, pc)
-	}
-	str := func(in insn) (string, bool) {
-		if in.op != 18 && in.op != 19 {
-			return "", false
-		}
-		e := cp[in.arg]
-		if e.tag != 8 {
-			return "", false
-		}
-		return cp[e.a].str, true
+		v := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		return v
 	}
 	ref := func(idx uint16) (owner, name, desc string) {
 		e := cp[idx]
@@ -529,30 +523,98 @@ func scanStaticInit(c *ClassInfo, cp []cpEntry, code []byte) {
 		return owner, cp[nt.a].str, cp[nt.b].str
 	}
 	const dt = "com/google/javascript/jscomp/DiagnosticType"
-	for i := 0; i+3 < len(insns); i++ {
-		if insns[i+2].op == 184 && insns[i+3].op == 179 {
-			owner, name, desc := ref(insns[i+2].arg)
-			s1, ok1 := str(insns[i])
-			s2, ok2 := str(insns[i+1])
-			if owner == dt && ok1 && ok2 && desc == "(Ljava/lang/String;Ljava/lang/String;)L"+dt+";" &&
-				(name == "error" || name == "warning" || name == "disabled") {
-				fowner, fname, _ := ref(insns[i+3].arg)
-				if fowner == c.Name {
-					c.StaticInits[fname] = fmt.Sprintf("DiagnosticType_%s(%s, %s)", capitalize(name), goQuote(s1), goQuote(s2))
-				}
+	const strings_ = "com/google/javascript/jscomp/base/JSCompStrings"
+	for pc := 0; pc < len(code); pc += opcodeLength(code, pc) {
+		op := code[pc]
+		switch {
+		case op == 18 || op == 19: // ldc, ldc_w
+			idx := uint16(code[pc+1])
+			if op == 19 {
+				idx = binary.BigEndian.Uint16(code[pc+1:])
 			}
-		}
-		if i+4 < len(insns) && insns[i+1].op == 178 && insns[i+3].op == 184 && insns[i+4].op == 179 {
-			owner, name, _ := ref(insns[i+3].arg)
-			lowner, lname, _ := ref(insns[i+1].arg)
-			s1, ok1 := str(insns[i])
-			s2, ok2 := str(insns[i+2])
-			if owner == dt && name == "make" && ok1 && ok2 && lowner == "com/google/javascript/jscomp/CheckLevel" {
-				fowner, fname, _ := ref(insns[i+4].arg)
-				if fowner == c.Name {
-					c.StaticInits[fname] = fmt.Sprintf("DiagnosticType_Make(%s, CheckLevel_%s, %s)", goQuote(s1), lname, goQuote(s2))
-				}
+			if e := cp[idx]; e.tag == 8 {
+				push(&value{kind: 's', s: cp[e.a].str})
+			} else {
+				push(nil)
 			}
+		case op >= 2 && op <= 8: // iconst_m1 .. iconst_5
+			push(&value{kind: 'i', i: int(op) - 3})
+		case op == 16: // bipush
+			push(&value{kind: 'i', i: int(int8(code[pc+1]))})
+		case op == 17: // sipush
+			push(&value{kind: 'i', i: int(int16(binary.BigEndian.Uint16(code[pc+1:])))})
+		case op == 189: // anewarray
+			n := pop()
+			if n != nil && n.kind == 'i' && n.i >= 0 && n.i < 1<<12 {
+				push(&value{kind: 'a', elems: make([]*string, n.i)})
+			} else {
+				push(nil)
+			}
+		case op == 89: // dup
+			if len(stack) == 0 {
+				push(nil)
+			}
+			push(stack[len(stack)-1])
+		case op == 83: // aastore
+			v, idx, arr := pop(), pop(), pop()
+			if arr != nil && arr.kind == 'a' && idx != nil && idx.kind == 'i' && idx.i < len(arr.elems) && v != nil && v.kind == 's' {
+				s := v.s
+				arr.elems[idx.i] = &s
+			}
+		case op == 178: // getstatic
+			owner, name, _ := ref(binary.BigEndian.Uint16(code[pc+1:]))
+			if owner == "com/google/javascript/jscomp/CheckLevel" {
+				push(&value{kind: 'l', s: name})
+			} else {
+				push(nil)
+			}
+		case op == 184: // invokestatic
+			owner, name, desc := ref(binary.BigEndian.Uint16(code[pc+1:]))
+			switch {
+			case owner == strings_ && name == "lines" && desc == "([Ljava/lang/String;)Ljava/lang/String;":
+				arr := pop()
+				var joined *value
+				if arr != nil && arr.kind == 'a' {
+					parts := make([]string, len(arr.elems))
+					ok := true
+					for i, e := range arr.elems {
+						if e == nil {
+							ok = false
+							break
+						}
+						parts[i] = *e
+					}
+					if ok {
+						joined = &value{kind: 's', s: strings.Join(parts, "\n")}
+					}
+				}
+				push(joined)
+			case owner == dt && desc == "(Ljava/lang/String;Ljava/lang/String;)L"+dt+";" &&
+				(name == "error" || name == "warning" || name == "disabled"):
+				s2, s1 := pop(), pop()
+				if s1 != nil && s1.kind == 's' && s2 != nil && s2.kind == 's' {
+					push(&value{kind: 'd', s: fmt.Sprintf("DiagnosticType_%s(%s, %s)", capitalize(name), goQuote(s1.s), goQuote(s2.s))})
+				} else {
+					push(nil)
+				}
+			case owner == dt && name == "make" && desc == "(Ljava/lang/String;Lcom/google/javascript/jscomp/CheckLevel;Ljava/lang/String;)L"+dt+";":
+				s2, l, s1 := pop(), pop(), pop()
+				if s1 != nil && s1.kind == 's' && l != nil && l.kind == 'l' && s2 != nil && s2.kind == 's' {
+					push(&value{kind: 'd', s: fmt.Sprintf("DiagnosticType_Make(%s, CheckLevel_%s, %s)", goQuote(s1.s), l.s, goQuote(s2.s))})
+				} else {
+					push(nil)
+				}
+			default:
+				stack = stack[:0]
+			}
+		case op == 179: // putstatic
+			fowner, fname, _ := ref(binary.BigEndian.Uint16(code[pc+1:]))
+			v := pop()
+			if v != nil && v.kind == 'd' && fowner == c.Name {
+				c.StaticInits[fname] = v.s
+			}
+		default:
+			stack = stack[:0]
 		}
 	}
 }
