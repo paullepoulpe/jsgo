@@ -5253,7 +5253,7 @@ func (c *Compiler) maybeLogPruningAnalysis(result *JSChunkGraph_DependencyManage
 	if c.tracker == nil || !c.options.GetTracerMode().DoPruningAnalysis() {
 		return
 	}
-	analysis := PruningAnalysis_Create(result.Sorter(), result.EntryPointInputs())
+	analysis := PruningAnalysis_Create(result.Sorter(), result.EntryPointInputs().ToSlice())
 	pruningResult := analysis.Analyze()
 	c.tracker.SetPruningAnalysisSummary(
 		"\nTransitive dependency count per entry point:\n" +
