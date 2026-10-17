@@ -27,14 +27,15 @@ import (
 // outside of module initialization.
 type CheckNoMutatedEs6Exports struct {
 	compiler AbstractCompiler
-	// Go-only: language-adapter — Java HashMap order: the Java field is
-	// MultimapBuilder.hashKeys().hashSetValues().build(), whose keys iterate
-	// in java.util.HashMap order (String hash buckets) and whose Node values
-	// iterate in identity-hash order (not deterministic in Java itself).
-	// Here keys and values iterate in insertion order. The order is
-	// observable only in the order of MUTATED_EXPORT reports within one
-	// module body.
-	mutatedNames       *jutil.SetMultimap[string, *rhino.Node]
+	// Go-only: language-adapter — the Java field is
+	// MultimapBuilder.hashKeys().hashSetValues().build(). Its String keys
+	// iterate in java.util.HashMap order, which decides the order of the
+	// MUTATED_EXPORT reports: the backing map is a JavaHashMap sized as
+	// hashKeys() sizes it (8 expected keys), and clear() keeps its table, as
+	// Java's does. Its Node values hash by identity, so Java iterates the
+	// values of one key in an order that differs from run to run; they are
+	// kept in insertion order here (PORTING.md §6).
+	mutatedNames       *jutil.JavaHashMap[string, *jutil.LinkedHashSet[*rhino.Node]]
 	exportedLocalNames *jutil.LinkedHashSet[string]
 }
 
@@ -51,7 +52,7 @@ var CheckNoMutatedEs6Exports_MUTATED_EXPORT = DiagnosticType_Warning(
 func NewCheckNoMutatedEs6Exports(compiler AbstractCompiler) *CheckNoMutatedEs6Exports {
 	return &CheckNoMutatedEs6Exports{
 		compiler:           compiler,
-		mutatedNames:       jutil.NewSetMultimap[string, *rhino.Node](),
+		mutatedNames:       jutil.Maps_NewHashMapWithExpectedSize[string, *jutil.LinkedHashSet[*rhino.Node]](8),
 		exportedLocalNames: jutil.NewLinkedHashSet[string](),
 	}
 }
@@ -60,11 +61,11 @@ func NewCheckNoMutatedEs6Exports(compiler AbstractCompiler) *CheckNoMutatedEs6Ex
 func (c *CheckNoMutatedEs6Exports) CheckNoMutations() {
 	// Sets.intersection(mutatedNames.keySet(), exportedLocalNames): the keys of
 	// mutatedNames, in its order, that are also in exportedLocalNames.
-	for mutatedExport := range c.mutatedNames.KeySet() {
+	for mutatedExport, mutations := range c.mutatedNames.All() {
 		if !c.exportedLocalNames.Contains(mutatedExport) {
 			continue
 		}
-		for mutation := range c.mutatedNames.Get(mutatedExport).All() {
+		for mutation := range mutations.All() {
 			c.compiler.Report(JSError_MakeWithNode(mutation, CheckNoMutatedEs6Exports_MUTATED_EXPORT, mutatedExport))
 		}
 	}
@@ -144,7 +145,14 @@ func (c *CheckNoMutatedEs6Exports) VisitName(t *NodeTraversal, name *rhino.Node)
 	if NodeUtil_IsLValue(name) && !scope.GetClosestHoistScope().IsModuleScope() {
 		var_ := scope.GetVar(name.GetString())
 		if var_ != nil && var_.GetScope().(*Scope).IsModuleScope() {
-			c.mutatedNames.Put(name.GetString(), name)
+			// Multimap.put: a new key gets its value set (and its place in the
+			// map) on its first value.
+			mutations := c.mutatedNames.Get(name.GetString())
+			if mutations == nil {
+				mutations = jutil.NewLinkedHashSet[*rhino.Node]()
+				c.mutatedNames.Put(name.GetString(), mutations)
+			}
+			mutations.Add(name)
 		}
 	}
 }
