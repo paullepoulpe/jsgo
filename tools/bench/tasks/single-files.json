@@ -1,0 +1,19 @@
+{
+  "name": "single-files",
+  "order": 6,
+  "title": "Many small invocations",
+  "description": "1,000 separate single-file compiles (`tasks/single-files.txt`: a fixed-seed sample of the oracle corpus, `bench.py sample`), one process each; a run is all 1,000 in sequence, so it is startup-dominated. The compiled code goes to stdout.",
+  "mode": "SIMPLE",
+  "flags": [
+    "--compilation_level=SIMPLE"
+  ],
+  "per_file": {
+    "list": "single-files.txt",
+    "prefix": "corpus/"
+  },
+  "output_args": [],
+  "compare": [],
+  "warm_warmup": 1,
+  "trace_runs": 1,
+  "trace_cold": false
+}
