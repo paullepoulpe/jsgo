@@ -10,7 +10,7 @@ package jscomp
 //     testdata/polymer_j2cl/{polymer,j2cl}-golden.txt.gz over the inputs
 //     testdata/polymer_j2cl/{polymer,j2cl}-inputs.txt (the strings of the Java
 //     tests, extracted as "=== <name> <byte length>\n<source>\n"). Regenerate with
-//       CP=.cache/closure-compiler.jar:<PolymerJ2clDump build dir>
+//       CP=.cache/$CLOSURE_JAR:<PolymerJ2clDump build dir>
 //       J="java -Xss1g -XX:-ShowCodeDetailsInExceptionMessages \
 //         -XX:+UnlockExperimentalVMOptions -XX:hashCode=2 -cp $CP com.google.javascript.jscomp.PolymerJ2clDump"
 //       D=internal/jscomp/testdata/polymer_j2cl

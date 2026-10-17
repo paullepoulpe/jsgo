@@ -2,7 +2,7 @@
 // the jscomp port uses (internal/jscomp/proto_*.go) from the descriptors
 // embedded in the pinned closure-compiler.jar, so that names, field numbers,
 // types, defaults, oneofs and presence are exactly the jar's.
-//   java -cp .cache/closure-compiler.jar:.cache/oracle-build ProtoGoGen internal/jscomp
+//   java -cp .cache/$CLOSURE_JAR:.cache/oracle-build ProtoGoGen internal/jscomp
 // The generated code relies on internal/jscomp/proto_runtime.go.
 import com.google.javascript.jscomp.jarjar.com.google.protobuf.Descriptors.Descriptor;
 import com.google.javascript.jscomp.jarjar.com.google.protobuf.Descriptors.EnumDescriptor;

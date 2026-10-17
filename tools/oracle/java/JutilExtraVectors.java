@@ -1,7 +1,7 @@
 // Oracle tool: writes the Java reference vectors for the jutil helpers added
 // for the jscomp port (random.tsv, murmur3.tsv, utf8.tsv, caseformat.tsv,
 // charset.tsv, bitset.tsv, bimap.tsv) into internal/jutil/testdata.
-//   java -cp .cache/closure-compiler.jar:.cache/oracle-build JutilExtraVectors internal/jutil/testdata
+//   java -cp .cache/$CLOSURE_JAR:.cache/oracle-build JutilExtraVectors internal/jutil/testdata
 import com.google.javascript.jscomp.jarjar.com.google.common.base.CaseFormat;
 import com.google.javascript.jscomp.jarjar.com.google.common.collect.BiMap;
 import com.google.javascript.jscomp.jarjar.com.google.common.collect.HashBiMap;

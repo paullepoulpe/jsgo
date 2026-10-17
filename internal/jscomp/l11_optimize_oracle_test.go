@@ -17,7 +17,7 @@ package jscomp
 //     inputs testdata/l11opt/js/l11opt-*.js followed by the corpus files of
 //     testdata/l11opt/golden-files.txt (every 150th file of corpus-files.txt
 //     between 200 bytes and 12 KB). Regenerate with
-//       CP=.cache/closure-compiler.jar:.cache/oracle-build
+//       CP=.cache/$CLOSURE_JAR:.cache/oracle-build
 //       J="java -Xss1g -XX:-ShowCodeDetailsInExceptionMessages -cp $CP"
 //       $J com.google.javascript.jscomp.L11OptimizeDump --full a.gz \
 //         internal/jscomp/testdata/l11opt/js --list=<the l11opt-*.js names>

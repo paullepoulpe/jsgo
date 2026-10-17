@@ -13,7 +13,7 @@ package jscomp
 //     inputs testdata/transpileb/js/*.js, followed by the corpus files of
 //     testdata/transpileb/golden-files.txt (skipped when the corpus is not
 //     present). Regenerate with
-//       CP=.cache/closure-compiler.jar:<TranspileBDump build dir>
+//       CP=.cache/$CLOSURE_JAR:<TranspileBDump build dir>
 //       java -Xss1g -cp $CP com.google.javascript.jscomp.TranspileBDump --full a.gz \
 //         internal/jscomp/testdata/transpileb/js <the *.js names>
 //       java -Xss1g -cp $CP com.google.javascript.jscomp.TranspileBDump --full b.gz \

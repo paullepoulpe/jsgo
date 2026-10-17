@@ -7,7 +7,7 @@
 // .hashKeys().hashSetValues(), with the full iteration order dumped every
 // few operations. Consumed by internal/jutil/java_hash_vectors_test.go,
 // which replays the operations on JavaHashMap / JavaHashSet / HashMultimap.
-//   java -cp .cache/closure-compiler.jar:.cache/oracle-build JutilJavaHashVectors internal/jutil/testdata [seed]
+//   java -cp .cache/$CLOSURE_JAR:.cache/oracle-build JutilJavaHashVectors internal/jutil/testdata [seed]
 //
 // Key pools mix short, long, non-ASCII and surrogate strings, families of
 // equal-hash strings (concatenations of "Aa"/"BB") placed so that their tree

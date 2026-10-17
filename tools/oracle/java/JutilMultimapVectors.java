@@ -1,7 +1,7 @@
 // Generates internal/jutil/testdata/multimap.tsv: Guava ImmutableSetMultimap
 // built from random puts and its inverse(), and ImmutableMultimap.builder()
 // with and without orderKeysBy(naturalOrder()).
-//   java -cp .cache/closure-compiler.jar:.cache/oracle-build JutilMultimapVectors internal/jutil/testdata
+//   java -cp .cache/$CLOSURE_JAR:.cache/oracle-build JutilMultimapVectors internal/jutil/testdata
 //
 // Rows: "set\t<puts>\t<toString>\t<inverse().toString()>" and
 // "list\t<sorted 0|1>\t<puts>\t<toString>", where <puts> is k=v;k=v;... with

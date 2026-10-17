@@ -12,7 +12,7 @@
 // API (VerboseMessageFormatter, RhinoErrorReporter, ErrorWithLevel,
 // JSDocSerializer); deps.ModuleNames is reached by reflection. Run with a
 // UTF-8 locale, from the repository root:
-//   LC_ALL=C.UTF-8 java -cp .cache/closure-compiler.jar:.cache/oracle-build \
+//   LC_ALL=C.UTF-8 java -cp .cache/$CLOSURE_JAR:.cache/oracle-build \
 //       com.google.javascript.jscomp.JscompAVectors .cache/corpus .cache/corpus-files.txt \
 //       internal/jscomp/testdata/jscomp_a.tsv
 package com.google.javascript.jscomp;

@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # Fetches the pinned Closure Compiler release (binary jar + Java sources) into
-# .cache/ and verifies them. Idempotent. The release and the jar's name and
-# checksums are in tools/oracle/pin.env.
+# .cache/ and verifies them. Idempotent. The release, the jar's name and the
+# checksums of both jars are in tools/oracle/pin.env.
 #
-#   .cache/$CLOSURE_JAR   the oracle jar (Maven Central's closure-compiler-$CLOSURE_VERSION.jar)
-#   .cache/closure-src/   Java sources for porting (com/google/...)
+#   .cache/$CLOSURE_JAR       the oracle jar (Maven Central's closure-compiler-$CLOSURE_VERSION.jar,
+#                             sha256 CLOSURE_JAR_SHA256)
+#   .cache/closure-src.jar    Maven Central's closure-compiler-$CLOSURE_VERSION-sources.jar
+#                             (sha256 CLOSURE_SRC_SHA256)
+#   .cache/closure-src/       its Java sources, unpacked, for porting (com/google/...)
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 source tools/oracle/pin.env
@@ -48,10 +51,23 @@ if [[ -d .cache/closure-src/com ]] &&
     "delete it and .cache/closure-src.jar to fetch the pinned sources" >&2
   exit 1
 fi
+# check_sources <jar>: the sources jar is the pinned release's.
+check_sources() {
+  local sum
+  sum=$(sha256sum "$1" | cut -d' ' -f1)
+  if [[ " $CLOSURE_SRC_SHA256 " != *" $sum "* ]]; then
+    echo "$1 (sha256 $sum) is not closure-compiler-$CLOSURE_VERSION-sources.jar (tools/oracle/pin.env);" \
+      "delete it and .cache/closure-src to fetch the pinned sources" >&2
+    exit 1
+  fi
+}
 if [[ ! -d .cache/closure-src/com ]]; then
   rm -f .cache/closure-src.jar
   fetch -sources.jar .cache/closure-src.jar
+  check_sources .cache/closure-src.jar
   rm -rf .cache/closure-src && mkdir -p .cache/closure-src
   (cd .cache/closure-src && unzip -qo ../closure-src.jar)
+elif [[ -f .cache/closure-src.jar ]]; then
+  check_sources .cache/closure-src.jar
 fi
 echo "closure-compiler $CLOSURE_VERSION ready in .cache/"

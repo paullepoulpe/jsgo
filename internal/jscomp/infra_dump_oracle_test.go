@@ -12,7 +12,7 @@ package jscomp
 //     testdata/infra/js/*.js, then (when /home/user/jsgo/.cache/corpus
 //     exists) the corpus files listed in testdata/infra/golden-files.txt
 //     (every 400th file of corpus-files.txt). Regenerate with
-//       CP=.cache/closure-compiler.jar:.cache/oracle-build
+//       CP=.cache/$CLOSURE_JAR:.cache/oracle-build
 //       java -Xss1g -cp $CP com.google.javascript.jscomp.InfraDump a.gz \
 //         internal/jscomp/testdata/infra/js <the js/*.js names>
 //       java -Xss1g -cp $CP com.google.javascript.jscomp.InfraDump b.gz \

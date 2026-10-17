@@ -11,7 +11,7 @@ package jscomp
 //     testdata/transpile/js/*.js with --full trees, followed by the hashes of
 //     the corpus files of testdata/transpile/golden-files.txt (skipped when
 //     the corpus is not present). Regenerate with
-//       CP=.cache/closure-compiler.jar:<TranspileDump build dir>
+//       CP=.cache/$CLOSURE_JAR:<TranspileDump build dir>
 //       J="java -Xss1g -XX:-ShowCodeDetailsInExceptionMessages -cp $CP com.google.javascript.jscomp.TranspileDump"
 //       $J --full a.gz internal/jscomp/testdata/transpile/js <the *.js names>
 //       $J b.gz .cache/corpus --list=internal/jscomp/testdata/transpile/golden-files.txt

@@ -3,7 +3,7 @@
 // Guava HashMultiset, ArrayListMultimap and
 // MultimapBuilder.hashKeys().hashSetValues() multimaps, with the result of
 // every operation.
-//   java -cp .cache/closure-compiler.jar:.cache/oracle-build JutilInfraVectors internal/jutil/testdata
+//   java -cp .cache/$CLOSURE_JAR:.cache/oracle-build JutilInfraVectors internal/jutil/testdata
 //
 // Rows: "<kind>\t<op>;<op>;...\t<result>;<result>;...", kind one of
 //   pq  ops a<key>.<id> (add) | p (poll: "<key>.<id>" or "null") | k (peek)

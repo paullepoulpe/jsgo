@@ -12,7 +12,7 @@ package jscomp
 //     inputs testdata/inline/js/*.js, followed by the corpus files of
 //     testdata/inline/golden-files.txt (skipped when the corpus is not
 //     present). Regenerate with
-//       CP=.cache/closure-compiler.jar:<InlineDump build dir>
+//       CP=.cache/$CLOSURE_JAR:<InlineDump build dir>
 //       J="java -Xss1g -XX:-ShowCodeDetailsInExceptionMessages -cp $CP"
 //       $J com.google.javascript.jscomp.InlineDump --full a.gz \
 //         internal/jscomp/testdata/inline/js <the *.js names>

@@ -5,7 +5,7 @@ package jscomp
 // a parsed file, every query printed) and compares with its output,
 // testdata/typed_scope.txt. Regenerate with
 //
-//	java -cp .cache/closure-compiler.jar:<build> com.google.javascript.jscomp.TypedScopeVectors \
+//	java -cp .cache/$CLOSURE_JAR:<build> com.google.javascript.jscomp.TypedScopeVectors \
 //	  internal/jscomp/testdata/typed_scope.txt
 
 import (

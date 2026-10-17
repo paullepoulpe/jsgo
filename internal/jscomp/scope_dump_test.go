@@ -13,7 +13,7 @@ package jscomp
 //     of at most 16 kB; read from SCOPE_CORPUS, default
 //     /home/user/jsgo/.cache/corpus, and skipped if it is missing).
 //     Regenerate with
-//       CP=.cache/closure-compiler.jar:<build>
+//       CP=.cache/$CLOSURE_JAR:<build>
 //       java -Xss1g -cp $CP com.google.javascript.jscomp.ScopeDump a.gz \
 //         internal/jscomp/testdata/scope/js <the js names, sorted>
 //       java -Xss1g -cp $CP com.google.javascript.jscomp.ScopeDump b.gz \

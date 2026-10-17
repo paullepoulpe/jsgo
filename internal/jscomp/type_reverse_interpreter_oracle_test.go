@@ -15,7 +15,7 @@ package jscomp
 // "serialization" section (InvalidatingTypes, JSTypeReconserializer)
 // testdata/jstype_serialization.tsv.gz. Regenerate the golden files with:
 //
-//	java -cp .cache/closure-compiler.jar:.cache/oracle-build \
+//	java -cp .cache/$CLOSURE_JAR:.cache/oracle-build \
 //	  com.google.javascript.jscomp.ReverseInterpreterDump \
 //	  internal/jscomp/testdata/reverse_interpreter_types.txt rai.tsv deps.tsv ser.tsv
 //	gzip -9nc rai.tsv > internal/jscomp/testdata/reverse_interpreter.tsv.gz

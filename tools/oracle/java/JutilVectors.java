@@ -1,6 +1,6 @@
 // Oracle tool: writes the Java reference vectors for internal/jutil/testdata
 // (farmhash.tsv, character_codepoint.tsv, bigint.tsv).
-//   java -cp .cache/closure-compiler.jar:.cache/oracle-build JutilVectors internal/jutil/testdata
+//   java -cp .cache/$CLOSURE_JAR:.cache/oracle-build JutilVectors internal/jutil/testdata
 import com.google.javascript.jscomp.jarjar.com.google.common.hash.Hashing;
 import com.google.javascript.jscomp.jarjar.com.google.common.hash.Hasher;
 import java.io.PrintStream;

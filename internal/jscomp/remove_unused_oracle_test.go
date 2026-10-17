@@ -13,7 +13,7 @@ package jscomp
 //     inputs testdata/removeunused/js/*.js, followed by the corpus files of
 //     testdata/removeunused/golden-files.txt (skipped when the corpus is not
 //     present). Regenerate with
-//       CP=.cache/closure-compiler.jar:<RemoveUnusedDump build dir>
+//       CP=.cache/$CLOSURE_JAR:<RemoveUnusedDump build dir>
 //       J="java -Xss1g -XX:-ShowCodeDetailsInExceptionMessages -cp $CP"
 //       $J com.google.javascript.jscomp.RemoveUnusedDump --full a.gz \
 //         internal/jscomp/testdata/removeunused/js <the *.js names>

@@ -7,13 +7,13 @@ fixed set of hand-picked fixtures.
 
 The release and its jar are named in one place, [`pin.env`](pin.env):
 `CLOSURE_VERSION`, `CLOSURE_JAR` (the jar's file name in `.cache/`, today
-`closure-compiler-v20261015-maven.jar`) and the sha256 digest the jar must
-have.
+`closure-compiler-v20261015-maven.jar`), and the sha256 digests the jar and
+the sources jar must have.
 `fetch.sh`, `build.sh`, `xtb_oracle.sh`, `tools/clie2e` (`build-java.sh` and
 the `-jar` default) and `tools/bench/bench.py` all read it.
 
 ```sh
-tools/oracle/fetch.sh    # .cache/$CLOSURE_JAR (sha256-checked) + .cache/closure-src/
+tools/oracle/fetch.sh    # .cache/$CLOSURE_JAR + .cache/closure-src.jar (sha256-checked), unpacked in .cache/closure-src/
 tools/oracle/build.sh    # compiles java/*.java into .cache/oracle-build/
 tools/oracle/corpus.sh   # pinned real-world corpus (corpus.txt) into .cache/corpus/
 source tools/oracle/pin.env && CP=.cache/$CLOSURE_JAR:.cache/oracle-build
@@ -34,7 +34,7 @@ The golden-file comments in the Go tests write the jar as
 | `java/RegExpDump.java` | regex (`jscomp.regex.RegExpTree`) | `extract <root> @<list>`: every distinct REGEXP literal (pattern, flags) in the files, collected from the `ParserRunner` AST (or, for files that do not parse, from `parser.Parser`'s regular expression tokens). `dump <patterns>`: per pattern, `RegExpTree.parseRegExp` → exception class + message, or `toString()`, `appendSourceCode`, the analyses (`numCapturingGroups`, `isCaseSensitive`, `containsAnchor`, `matchesWholeInput`, `hashCode`) and the node tree with `appendDebugInfo`, then the same for `simplify(flags)` (and `simplify(flags+"i")`). The Go side is `internal/regex/reg_exp_tree_oracle_test.go`; its checked-in oracle is `dump internal/regex/testdata/regexp_patterns.txt` (edge cases + the corpus literals), gzipped to `testdata/regexp_oracle.txt.gz`; `REGEXP_ORACLE=<dump>` compares any other dump. |
 | `java/PropertiesParserDump.java` | resources (`jscomp.resources.PropertiesParser`) | `PropertiesParser.parse` (reflectively; it is package-private) of each input line (escaped like `RegExpDump`, or `@resource:<path>` for a resource of the jar): the entries in map order, or the exception → `internal/resources/testdata/properties_parser.txt` from `properties_parser_inputs.txt`. Compile together with `RegExpDump.java`. |
 | `java/GsonToJsonVectors.java` | jutil Gson / diagnostic (`LogsGson`) | `Gson.toJson` of ~50 values (strings, boxed numbers, chars, enums, arrays, collections, maps, POJOs with transient/static/self fields and a superclass, JSON trees, `LogsGson.Able`, multimaps) under `new Gson()`, `GsonBuilder` variants and `LogsGson.toJson` → `internal/jutil/testdata/gson_tojson.tsv` and `internal/diagnostic/testdata/logs_gson.tsv`. Compile together with `RegExpDump.java`. |
-| `java/Args4jVectors.java` | args4j (the shaded `com.google.javascript.jscomp.jarjar.org.kohsuke.args4j` that Closure's CLI uses) | option beans with every feature Closure's command-line tools use (Closure's own boolean and recording `--js` handlers, enum/list/map/nullable fields, aliases, hidden/required/help/depends/forbids, `@Argument`s, `@`-files): `printUsage` under 14 configurations (widths, filters, `ParserProperties`), `printExample`, `printSingleLineUsage`, and `parseArgument` on ~100 hand-written and 2,200 seeded random argument vectors, each with the bean's state and the exception → `internal/args4j/testdata/args4j_vectors.txt.gz`, replayed by `internal/args4j/args4j_vectors_test.go`. Run from `internal/args4j` (its `@`-files are relative): `java -cp ../../.cache/closure-compiler.jar:../../.cache/oracle-build Args4jVectors \| gzip -9n > testdata/args4j_vectors.txt.gz` |
+| `java/Args4jVectors.java` | args4j (the shaded `com.google.javascript.jscomp.jarjar.org.kohsuke.args4j` that Closure's CLI uses) | option beans with every feature Closure's command-line tools use (Closure's own boolean and recording `--js` handlers, enum/list/map/nullable fields, aliases, hidden/required/help/depends/forbids, `@Argument`s, `@`-files): `printUsage` under 14 configurations (widths, filters, `ParserProperties`), `printExample`, `printSingleLineUsage`, and `parseArgument` on ~100 hand-written and 2,200 seeded random argument vectors, each with the bean's state and the exception → `internal/args4j/testdata/args4j_vectors.txt.gz`, replayed by `internal/args4j/args4j_vectors_test.go`. Run from `internal/args4j` (its `@`-files are relative): `java -cp ../../.cache/$CLOSURE_JAR:../../.cache/oracle-build Args4jVectors \| gzip -9n > testdata/args4j_vectors.txt.gz` |
 | `java/LogFileVectors.java` | diagnostic (`LogFile`, `WritingLogFile`, `NoOpLogFile`) | fixed scenarios against the jar's `LogFile` in a temporary directory (`java -cp $CP LogFileVectors <tmp>`, paths then replaced by `<tmp>`): every call's result or exception and the bytes of each log file → `internal/diagnostic/testdata/log_file.txt`. |
 | `java/ParserEnumDump.java` | parser | every parser enum (ordinal, name, toString) and static `FeatureSet` constant → `internal/parser/testdata/enums.txt` |
 | `java/JavaCharacterTable.java` | jutil | `java.lang.Character` classification of all 65536 chars → `internal/jutil/testdata/character.tsv` |
@@ -110,13 +110,15 @@ SerializationDump compares the uncompressed `TypedAst.List` bytes.
 
 ## Moving the pin
 
-1. In `pin.env`, set `CLOSURE_VERSION` and `CLOSURE_JAR_SHA256` (the digest
-   of Maven Central's `closure-compiler-<version>.jar`), and either point
+1. In `pin.env`, set `CLOSURE_VERSION`, `CLOSURE_JAR_SHA256` (the digest
+   of Maven Central's `closure-compiler-<version>.jar`) and
+   `CLOSURE_SRC_SHA256` (that of its `-sources.jar`), and either point
    `CLOSURE_JAR` at that jar already in `.cache/` or name a file that is not
    there yet, so that `fetch.sh` downloads it. Every tool follows that one
    line.
 2. Replace `.cache/closure-src` (and `.cache/closure-src.jar`) with the new
-   sources: delete them and run `fetch.sh`. `fetch.sh` and
+   sources: move them aside (as `.cache/closure-src-<old version>/`, to diff
+   against) and run `fetch.sh`. `fetch.sh` and
    `go run ./tools/licenses` refuse sources of another release (the
    generated `CommandLineRunnerVersion.java` at the sources' root names it).
    `tools/licenses` reads them from its `srcDir` constant and caches the

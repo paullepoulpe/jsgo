@@ -8,7 +8,7 @@
 // exception thrown. The Go side, internal/args4j/args4j_vectors_test.go,
 // declares the same beans, replays every "## " header and compares the whole
 // text. Run it from internal/args4j (the @-files are relative paths there):
-//   (cd internal/args4j && java -cp ../../.cache/closure-compiler.jar:../../.cache/oracle-build \
+//   (cd internal/args4j && java -cp ../../.cache/$CLOSURE_JAR:../../.cache/oracle-build \
 //      Args4jVectors > testdata/args4j_vectors.txt)
 import com.google.javascript.jscomp.jarjar.org.kohsuke.args4j.Argument;
 import com.google.javascript.jscomp.jarjar.org.kohsuke.args4j.CmdLineException;

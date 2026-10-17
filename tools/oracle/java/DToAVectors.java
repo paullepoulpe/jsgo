@@ -1,6 +1,6 @@
 // Oracle tool: writes internal/dtoa/testdata/dtoa.tsv, the Java reference
 // output of DToA.numberToString for many doubles (hex bits <TAB> string).
-//   java -cp .cache/closure-compiler.jar:.cache/oracle-build DToAVectors internal/jutil/testdata/double_tostring.tsv internal/dtoa/testdata/dtoa.tsv
+//   java -cp .cache/$CLOSURE_JAR:.cache/oracle-build DToAVectors internal/jutil/testdata/double_tostring.tsv internal/dtoa/testdata/dtoa.tsv
 import com.google.javascript.rhino.dtoa.DToA;
 import java.io.PrintStream;
 import java.nio.file.*;
