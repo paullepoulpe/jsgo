@@ -8,9 +8,8 @@ LICENSES/.
 
 The repository's original code (code that translates none of the works
 below, such as the tools under tools/ and the Java library behaviour in
-internal/jutil that is written from public specifications) is not yet
-under any licence: its owner has not chosen one. This file grants no
-licence for it.
+internal/jutil that is written from public specifications) is licensed
+under the Apache License, Version 2.0 (LICENSE).
 
 A translated file names its source on its first line, either
 "// Port of <path> ..." or "// Derived from <path> ...", and carries the
