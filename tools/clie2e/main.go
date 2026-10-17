@@ -72,6 +72,7 @@ type config struct {
 	args    []string
 	srcMap  bool
 	perFile bool // false: the job does not take corpus inputs
+	optIn   bool // sweep: only when -configs names it
 }
 
 var configs = []config{

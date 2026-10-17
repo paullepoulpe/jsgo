@@ -30,16 +30,24 @@ import (
 )
 
 var (
-	timeout   = flag.Duration("timeout", 3*time.Minute, "sweep: jsgo time limit per job (then SIGQUIT, for its goroutine dump)")
-	reuseJava = flag.Bool("reuse-java", false, "sweep: keep the Java results already in the work directory")
-	locale    = flag.String("lang", "C.UTF-8", "sweep: LANG for both compilers")
+	timeout      = flag.Duration("timeout", 3*time.Minute, "sweep: jsgo time limit per job (then SIGQUIT, for its goroutine dump)")
+	reuseJava    = flag.Bool("reuse-java", false, "sweep: keep the Java results already in the work directory")
+	classifyOnly = flag.Bool("classify-only", false, "sweep: run nothing, classify the results in the work directory")
+	skipJava     = flag.Bool("skip-java", false, "sweep: run only jsgo (keeping the Java results in the work directory)")
+	locale       = flag.String("lang", "C.UTF-8", "sweep: LANG for both compilers")
 )
 
-// sweepConfigs are the sweep's columns: flags added before --js.
+// sweepConfigs are the sweep's columns: flags added before --js. The
+// opt-in ones run only when -configs names them: they switch off the
+// errors that stop most single-file compiles of npm packages before the
+// optimizations (an ES module's imports, CommonJS's undeclared require and
+// exports), so that the optimizations see more of the corpus.
 var sweepConfigs = []config{
 	{name: "simple", args: []string{"--compilation_level", "SIMPLE"}},
 	{name: "advanced", args: []string{"--compilation_level", "ADVANCED"}},
 	{name: "checks", args: []string{"--checks_only", "--jscomp_warning=checkTypes"}},
+	{name: "simple-lax", args: []string{"--compilation_level", "SIMPLE", "--jscomp_off=moduleLoad"}, optIn: true},
+	{name: "advanced-lax", args: []string{"--compilation_level", "ADVANCED", "--jscomp_off=moduleLoad", "--jscomp_off=undefinedVars"}, optIn: true},
 }
 
 // Result classes, in report order.
@@ -72,17 +80,6 @@ func runSweep() int {
 	}
 	wd, _ := filepath.Abs(*work)
 	javaDir, goDir := filepath.Join(wd, "java"), filepath.Join(wd, "go")
-	if !*reuseJava {
-		os.RemoveAll(javaDir)
-	}
-	os.RemoveAll(goDir)
-	for _, d := range []string{javaDir, goDir} {
-		os.MkdirAll(d, 0o777)
-		os.Remove(filepath.Join(d, "in"))
-		os.Symlink(*corpus, filepath.Join(d, "in"))
-	}
-	bin := buildJsgo(wd)
-
 	files, err := oraclecorpus.ReadList(*list)
 	if err != nil {
 		panic(err)
@@ -99,7 +96,7 @@ func runSweep() int {
 	var order []string
 	var confs []config
 	for _, c := range sweepConfigs {
-		if len(selected) == 0 || selected[c.name] {
+		if (len(selected) == 0 && !c.optIn) || selected[c.name] {
 			confs = append(confs, c)
 			order = append(order, c.name)
 		}
@@ -114,6 +111,25 @@ func runSweep() int {
 		}
 	}
 
+	if !*classifyOnly {
+		runSweepJobs(wd, javaDir, goDir, jobs)
+	}
+	return summarize(wd, javaDir, goDir, jobs, order)
+}
+
+// runSweepJobs runs the jobs on both sides.
+func runSweepJobs(wd, javaDir, goDir string, jobs []sweepJob) {
+	if !*reuseJava && !*skipJava {
+		os.RemoveAll(javaDir)
+	}
+	os.RemoveAll(goDir)
+	for _, d := range []string{javaDir, goDir} {
+		os.MkdirAll(d, 0o777)
+		os.Remove(filepath.Join(d, "in"))
+		os.Symlink(*corpus, filepath.Join(d, "in"))
+	}
+	bin := buildJsgo(wd)
+
 	var wg sync.WaitGroup
 	// Java side: shards of one JVM each (CliE2E).
 	excludedList, err := filepath.Abs(oraclecorpus.ListPath)
@@ -122,7 +138,7 @@ func runSweep() int {
 	}
 	var javaJobs []sweepJob
 	for _, j := range jobs {
-		if _, err := os.Stat(filepath.Join(javaDir, j.res(), "exit")); err == nil && *reuseJava {
+		if _, err := os.Stat(filepath.Join(javaDir, j.res(), "exit")); (err == nil && *reuseJava) || *skipJava {
 			continue
 		}
 		javaJobs = append(javaJobs, j)
@@ -168,8 +184,11 @@ func runSweep() int {
 		}(j)
 	}
 	wg.Wait()
+}
 
-	// Classify.
+// summarize classifies every job, writes sweep.tsv and prints the counts
+// and the crash and hang signatures.
+func summarize(wd, javaDir, goDir string, jobs []sweepJob, order []string) int {
 	counts := map[string]map[string]int{}
 	var lines []string
 	for _, j := range jobs {
@@ -270,7 +289,9 @@ var (
 	// A Java exception escaping main, or one CommandLineRunner reports.
 	javaExceptionRe = regexp.MustCompile(`(?m)^(Exception in thread "main" |INTERNAL COMPILER ERROR|java\.lang\.\w+(Error|Exception)\b)`)
 	goPanicRe       = regexp.MustCompile(`(?m)^(panic: |fatal error: )`)
-	goFrameRe       = regexp.MustCompile(`(?m)^\s*(?:at )?(github\.com/paullepoulpe/jsgo/internal/[^\s(]+)`)
+	// A frame of the port outside jutil (whose Try and Check* frames say
+	// little), without its arguments.
+	goFrameRe = regexp.MustCompile(`(?m)^\s*(?:at )?github\.com/paullepoulpe/jsgo/(internal/(?:[^j]|j[^u]|ju[^t])\S*?)(?:\([^()]*\))?(?: \+0x|$|\s)`)
 )
 
 // classify returns the job's class and, for crashes and hangs, a short
