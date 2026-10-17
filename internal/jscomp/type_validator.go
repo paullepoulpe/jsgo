@@ -45,6 +45,11 @@ type TypeValidator struct {
 	subtypingMode rhino.JSType_SubtypingMode
 
 	mismatches *TypeMismatch_Accumulator
+
+	// Go-only: performance — a WellFormedTemplatizedTypeVerifier kept for
+	// the next expectWellFormedTemplatizedType call (see there); nil while
+	// one is in use.
+	spareWellFormedTemplatizedTypeVerifier *TypeValidator_WellFormedTemplatizedTypeVerifier
 }
 
 // User warnings
@@ -1261,11 +1266,25 @@ func TypeValidator_HasDuplicateDeclarationSuppression(compiler AbstractCompiler,
 }
 
 // Java: TypeValidator.expectWellFormedTemplatizedType(Node)
+//
+// Go-only: performance — TypeCheck calls this for every node it visits, and
+// the verifier (which holds nothing but the node) was 4% of checks-only's
+// allocations. One is reused: the call takes the spare verifier, or makes
+// one if a call that has not returned holds it, and leaves its verifier as
+// the spare when it returns.
 func (v *TypeValidator) ExpectWellFormedTemplatizedType(n *rhino.Node) {
-	verifier := NewTypeValidator_WellFormedTemplatizedTypeVerifier(v, n)
+	verifier := v.spareWellFormedTemplatizedTypeVerifier
+	if verifier != nil {
+		v.spareWellFormedTemplatizedTypeVerifier = nil
+		verifier.node = n
+	} else {
+		verifier = NewTypeValidator_WellFormedTemplatizedTypeVerifier(v, n)
+	}
 	if n.GetJSType() != nil {
 		n.GetJSType().Visit(verifier)
 	}
+	verifier.node = nil
+	v.spareWellFormedTemplatizedTypeVerifier = verifier
 }
 
 // TypeValidator_WellFormedTemplatizedTypeVerifier is an inner class of
