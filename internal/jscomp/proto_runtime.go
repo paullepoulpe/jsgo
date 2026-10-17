@@ -254,6 +254,16 @@ func (r *protoReader) readFixed64() uint64 {
 func (r *protoReader) readDouble() float64 { return math.Float64frombits(r.readFixed64()) }
 
 func (r *protoReader) readBytes() []byte {
+	return append([]byte(nil), r.readBytesView()...)
+}
+
+// readBytesView is readBytes without the copy: the result aliases the
+// reader's buffer, which is never written, so it is only for callers that
+// do not keep it (decoding a string or an embedded message, skipping).
+//
+// Go-only: performance — copying every embedded message before decoding it
+// copied each byte once per level of nesting.
+func (r *protoReader) readBytesView() []byte {
 	size := int32(r.readRawVarint64())
 	if size < 0 {
 		panic(protoNegativeSize())
@@ -261,14 +271,14 @@ func (r *protoReader) readBytes() []byte {
 	if int(size) > len(r.b)-r.pos {
 		panic(protoTruncatedMessage())
 	}
-	v := append([]byte(nil), r.b[r.pos:r.pos+int(size)]...)
+	v := r.b[r.pos : r.pos+int(size) : r.pos+int(size)]
 	r.pos += int(size)
 	return v
 }
 
 // readStringRequireUtf8 is CodedInputStream.readStringRequireUtf8 (proto3).
 func (r *protoReader) readStringRequireUtf8() string {
-	b := r.readBytes()
+	b := r.readBytesView()
 	if !utf8Valid(b) {
 		panic(protoInvalidUtf8())
 	}
@@ -278,11 +288,13 @@ func (r *protoReader) readStringRequireUtf8() string {
 // readStringProto2 decodes a proto2 string like ByteString.toStringUtf8
 // (malformed input is replaced).
 func (r *protoReader) readStringProto2() string {
-	return jutil.NewStringFromUTF8Bytes(r.readBytes())
+	return jutil.NewStringFromUTF8Bytes(r.readBytesView())
 }
 
 // readMessageBytes returns the bytes of a length-delimited embedded message.
-func (r *protoReader) readMessageBytes() []byte { return r.readBytes() }
+// It aliases the reader's buffer (see readBytesView): every caller only
+// decodes it with a sub-reader.
+func (r *protoReader) readMessageBytes() []byte { return r.readBytesView() }
 
 // skipField skips the field with the given tag (CodedInputStream.skipField).
 func (r *protoReader) skipField(tag int) {
@@ -292,7 +304,7 @@ func (r *protoReader) skipField(tag int) {
 	case protoWireFixed64:
 		r.readFixed64()
 	case protoWireBytes:
-		r.readBytes()
+		r.readBytesView()
 	case protoWireStartGroup:
 		r.skipGroup(tag >> 3)
 	case protoWireEndGroup:
@@ -330,7 +342,7 @@ func (r *protoReader) skipGroup(number int) {
 // for an unpacked element, depending on the wire type of tag.
 func (r *protoReader) readRepeated(tag int, scalarWireType int, read func(*protoReader)) {
 	if tag&7 == protoWireBytes && scalarWireType != protoWireBytes {
-		data := r.readBytes()
+		data := r.readBytesView()
 		sub := &protoReader{b: data}
 		for !sub.atEnd() {
 			read(sub)

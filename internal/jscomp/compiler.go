@@ -3431,22 +3431,20 @@ func (b *Compiler_CodeBuilder) Append(str string) *Compiler_CodeBuilder {
 	b.sb.Append(str)
 
 	// Adjust the line and column information for the new text.
-	index := -1
-	lastIndex := index
-	for {
-		index = jutil.StringIndexOfCharFrom(str, '\n', index+1)
-		if index < 0 {
-			break
-		}
-		b.lineCount++
-		lastIndex = index
-	}
-
+	//
+	// Go-only: performance — Java loops over str.indexOf('\n', index + 1),
+	// which here would convert all of str to UTF-16 once per line (quadratic
+	// in the size of a script). '\n' never occurs inside a multi-byte WTF-8
+	// sequence, so counting and finding it on the bytes gives the same line
+	// count, and the UTF-16 length after the last '\n' is
+	// str.length() - (lastIndex + 1).
+	lastIndex := strings.LastIndexByte(str, '\n')
 	if lastIndex == -1 {
 		// No new lines, append the new characters added.
 		b.colCount += jutil.StringLength(str)
 	} else {
-		b.colCount = jutil.StringLength(str) - (lastIndex + 1)
+		b.lineCount += strings.Count(str, "\n")
+		b.colCount = jutil.StringLength(str[lastIndex+1:])
 	}
 
 	return b
@@ -3486,8 +3484,18 @@ func (b *Compiler_CodeBuilder) GetColumnIndex() int {
 //
 // Java: Compiler.CodeBuilder.endsWith(String)
 func (b *Compiler_CodeBuilder) EndsWith(suffix string) bool {
-	return (b.sb.Length() > jutil.StringLength(suffix)) &&
-		suffix == jutil.StringSubstringFrom(b.sb.String(), b.sb.Length()-jutil.StringLength(suffix))
+	if !(b.sb.Length() > jutil.StringLength(suffix)) {
+		return false
+	}
+	// Go-only: performance — sb.substring(start) copies only the tail;
+	// going through sb.toString() would convert the whole buffer, once per
+	// input when printing input delimiters (quadratic in the output size).
+	start := b.sb.Length() - jutil.StringLength(suffix)
+	tail := make([]uint16, b.sb.Length()-start)
+	for i := range tail {
+		tail[i] = b.sb.CharAt(start + i)
+	}
+	return suffix == jutil.StringFromUTF16(tail)
 }
 
 // ------------------------------------------------------------------------

@@ -85,7 +85,19 @@ func decodeWTF8(s string) (r rune, size int) {
 }
 
 func isASCII(s string) bool {
-	for i := 0; i < len(s); i++ {
+	// Go-only: performance — eight bytes at a time (unaligned loads are
+	// fine on the platforms Go supports); this check runs before most
+	// String operations.
+	i := 0
+	if len(s) >= 8 {
+		p := unsafe.Pointer(unsafe.StringData(s))
+		for ; i+8 <= len(s); i += 8 {
+			if *(*uint64)(unsafe.Add(p, i))&0x8080808080808080 != 0 {
+				return false
+			}
+		}
+	}
+	for ; i < len(s); i++ {
 		if s[i] >= 0x80 {
 			return false
 		}
@@ -210,20 +222,39 @@ func StringLastIndexOf(s, sub string) int {
 // StringCompareTo is Java's String.compareTo: lexicographic over UTF-16 code
 // units (which differs from Go's byte order for supplementary characters).
 func StringCompareTo(a, b string) int {
-	if isASCII(a) && isASCII(b) {
-		n := min(len(a), len(b))
-		for i := 0; i < n; i++ {
-			if a[i] != b[i] {
-				return int(a[i]) - int(b[i])
-			}
+	// Go-only: performance — decide on the bytes when the strings first
+	// differ at an ASCII byte in both, or when one is a prefix of the other,
+	// instead of checking both strings for non-ASCII first. Either way the
+	// common bytes decode to the same UTF-16 units: a decode that started in
+	// the common prefix cannot reach past it, because the next byte is ASCII
+	// in both strings, or the end of one of them and not a continuation byte
+	// in the other.
+	n := min(len(a), len(b))
+	i := 0
+	for i < n && a[i] == b[i] {
+		i++
+	}
+	switch {
+	case i < n:
+		if a[i] < 0x80 && b[i] < 0x80 {
+			return int(a[i]) - int(b[i])
 		}
-		return len(a) - len(b)
+	case len(a) == len(b):
+		return 0
+	case len(a) < len(b):
+		if b[n]&0xC0 != 0x80 {
+			return -StringLength(b[n:])
+		}
+	default:
+		if a[n]&0xC0 != 0x80 {
+			return StringLength(a[n:])
+		}
 	}
 	ua, ub := StringToUTF16(a), StringToUTF16(b)
-	n := min(len(ua), len(ub))
-	for i := 0; i < n; i++ {
-		if ua[i] != ub[i] {
-			return int(ua[i]) - int(ub[i])
+	m := min(len(ua), len(ub))
+	for k := 0; k < m; k++ {
+		if ua[k] != ub[k] {
+			return int(ua[k]) - int(ub[k])
 		}
 	}
 	return len(ua) - len(ub)
@@ -231,15 +262,25 @@ func StringCompareTo(a, b string) int {
 
 // StringHashCode is Java's String.hashCode().
 func StringHashCode(s string) int32 {
+	// Go-only: performance — one pass, without converting the string: the
+	// ASCII prefix hashes byte by byte, and the rest code point by code point
+	// (an ASCII byte ends any code point before it, so decoding from there
+	// gives the same UTF-16 units as converting the whole string).
 	var h int32
-	if isASCII(s) {
-		for i := 0; i < len(s); i++ {
-			h = 31*h + int32(s[i])
-		}
-		return h
+	i := 0
+	for ; i < len(s) && s[i] < 0x80; i++ {
+		h = 31*h + int32(s[i])
 	}
-	for _, u := range StringToUTF16(s) {
-		h = 31*h + int32(u)
+	for i < len(s) {
+		r, size := decodeWTF8(s[i:])
+		i += size
+		if r >= 0x10000 {
+			hi, lo := utf16.EncodeRune(r)
+			h = 31*h + int32(uint16(hi))
+			h = 31*h + int32(uint16(lo))
+		} else {
+			h = 31*h + int32(uint16(r))
+		}
 	}
 	return h
 }
@@ -320,6 +361,17 @@ func StringRegionMatches(s string, toffset int, other string, ooffset int, lengt
 // StringLastIndexOfCharFrom is String.lastIndexOf(int ch, int fromIndex)
 // for a BMP character, with UTF-16 indices.
 func StringLastIndexOfCharFrom(s string, ch uint16, fromIndex int) int {
+	// Go-only: performance — on an ASCII string, UTF-16 indices are byte
+	// offsets.
+	if ch < 0x80 && isASCII(s) {
+		if fromIndex >= len(s) {
+			fromIndex = len(s) - 1
+		}
+		if fromIndex < 0 {
+			return -1
+		}
+		return strings.LastIndexByte(s[:fromIndex+1], byte(ch))
+	}
 	u := StringToUTF16(s)
 	if fromIndex >= len(u) {
 		fromIndex = len(u) - 1
@@ -352,6 +404,39 @@ func StringIndexOfChar(s string, ch uint16) int {
 // StringIndexOfCharFrom is String.indexOf(int ch, int fromIndex) for a BMP
 // character.
 func StringIndexOfCharFrom(s string, ch uint16, fromIndex int) int {
+	// Go-only: performance — for an ASCII char, search the bytes instead of
+	// converting all of s to UTF-16 on every call (callers loop over the
+	// occurrences, which made them quadratic). An ASCII byte is always a
+	// code point of its own, so its UTF-16 index is that of the code point
+	// where the search starts plus the length of what lies in between.
+	if ch < 0x80 {
+		if fromIndex < 0 {
+			fromIndex = 0
+		}
+		// Skip the code points before fromIndex. A code point straddling
+		// fromIndex (a surrogate pair) is skipped too: its low surrogate is
+		// not ch.
+		i, u := 0, 0
+		for i < len(s) && u < fromIndex {
+			if s[i] < 0x80 {
+				i++
+				u++
+				continue
+			}
+			r, size := decodeWTF8(s[i:])
+			i += size
+			if r >= 0x10000 {
+				u += 2
+			} else {
+				u++
+			}
+		}
+		j := strings.IndexByte(s[i:], byte(ch))
+		if j < 0 {
+			return -1
+		}
+		return u + StringLength(s[i:i+j])
+	}
 	u := StringToUTF16(s)
 	if fromIndex < 0 {
 		fromIndex = 0

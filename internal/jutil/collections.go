@@ -335,10 +335,21 @@ func (h *LinkedHashMap[K, V]) All() iter.Seq2[K, V] {
 }
 
 // Keys iterates keys in insertion order (Java: map.keySet()).
+//
+// Go-only: performance — Keys, Values and the sets' All walk the entry
+// list themselves, like All, instead of ranging over All: nested iterator
+// closures escape to the heap (seven allocations per loop over a
+// LinkedHashSet), flat ones are inlined into the caller's loop.
 func (h *LinkedHashMap[K, V]) Keys() iter.Seq[K] {
 	return func(yield func(K) bool) {
-		for k := range h.All() {
-			if !yield(k) {
+		if h == nil {
+			return
+		}
+		for e := h.head; e != nil; e = e.next {
+			if e.removed {
+				continue
+			}
+			if !yield(e.key) {
 				return
 			}
 		}
@@ -348,8 +359,14 @@ func (h *LinkedHashMap[K, V]) Keys() iter.Seq[K] {
 // Values iterates values in insertion order (Java: map.values()).
 func (h *LinkedHashMap[K, V]) Values() iter.Seq[V] {
 	return func(yield func(V) bool) {
-		for _, v := range h.All() {
-			if !yield(v) {
+		if h == nil {
+			return
+		}
+		for e := h.head; e != nil; e = e.next {
+			if e.removed {
+				continue
+			}
+			if !yield(e.value) {
 				return
 			}
 		}
@@ -357,7 +374,23 @@ func (h *LinkedHashMap[K, V]) Values() iter.Seq[V] {
 }
 
 // KeySlice returns the keys in insertion order.
-func (h *LinkedHashMap[K, V]) KeySlice() []K { return slices.Collect(h.Keys()) }
+//
+// Go-only: performance — this and the other KeySlice and ToSlice methods
+// were slices.Collect over the iterator; they now allocate the result once,
+// at the collection's size, and range over the iterator directly (passing
+// it to slices.Collect makes its closures escape). An empty collection
+// still gives nil.
+func (h *LinkedHashMap[K, V]) KeySlice() []K {
+	n := h.Size()
+	if n == 0 {
+		return nil
+	}
+	out := make([]K, 0, n)
+	for k := range h.Keys() {
+		out = append(out, k)
+	}
+	return out
+}
 
 // String renders like AbstractMap.toString(): "{k1=v1, k2=v2}".
 func (h *LinkedHashMap[K, V]) String() string {
@@ -438,16 +471,39 @@ func (s *LinkedHashSet[T]) Remove(e T) bool {
 // Clear is Set.clear.
 func (s *LinkedHashSet[T]) Clear() { s.m.Clear() }
 
-// All iterates in insertion order.
+// All iterates in insertion order (see LinkedHashMap.Keys).
 func (s *LinkedHashSet[T]) All() iter.Seq[T] {
-	if s == nil {
-		return func(func(T) bool) {}
+	var h *LinkedHashMap[T, struct{}]
+	if s != nil {
+		h = s.m
 	}
-	return s.m.Keys()
+	return func(yield func(T) bool) {
+		if h == nil {
+			return
+		}
+		for e := h.head; e != nil; e = e.next {
+			if e.removed {
+				continue
+			}
+			if !yield(e.key) {
+				return
+			}
+		}
+	}
 }
 
 // ToSlice returns the elements in insertion order.
-func (s *LinkedHashSet[T]) ToSlice() []T { return slices.Collect(s.All()) }
+func (s *LinkedHashSet[T]) ToSlice() []T {
+	n := s.Size()
+	if n == 0 {
+		return nil
+	}
+	out := make([]T, 0, n)
+	for e := range s.All() {
+		out = append(out, e)
+	}
+	return out
+}
 
 // String renders like AbstractCollection.toString(): "[a, b]".
 func (s *LinkedHashSet[T]) String() string { return CollectionToString(s.ToSlice()) }
@@ -750,11 +806,17 @@ func (h *ObjectLinkedHashMap[K, V]) All() iter.Seq2[K, V] {
 	}
 }
 
-// Keys iterates keys in insertion order.
+// Keys iterates keys in insertion order (see LinkedHashMap.Keys).
 func (h *ObjectLinkedHashMap[K, V]) Keys() iter.Seq[K] {
 	return func(yield func(K) bool) {
-		for k := range h.All() {
-			if !yield(k) {
+		if h == nil {
+			return
+		}
+		for e := h.head; e != nil; e = e.next {
+			if e.removed {
+				continue
+			}
+			if !yield(e.key) {
 				return
 			}
 		}
@@ -764,8 +826,14 @@ func (h *ObjectLinkedHashMap[K, V]) Keys() iter.Seq[K] {
 // Values iterates values in insertion order.
 func (h *ObjectLinkedHashMap[K, V]) Values() iter.Seq[V] {
 	return func(yield func(V) bool) {
-		for _, v := range h.All() {
-			if !yield(v) {
+		if h == nil {
+			return
+		}
+		for e := h.head; e != nil; e = e.next {
+			if e.removed {
+				continue
+			}
+			if !yield(e.value) {
 				return
 			}
 		}
@@ -773,7 +841,17 @@ func (h *ObjectLinkedHashMap[K, V]) Values() iter.Seq[V] {
 }
 
 // KeySlice returns the keys in insertion order.
-func (h *ObjectLinkedHashMap[K, V]) KeySlice() []K { return slices.Collect(h.Keys()) }
+func (h *ObjectLinkedHashMap[K, V]) KeySlice() []K {
+	n := h.Size()
+	if n == 0 {
+		return nil
+	}
+	out := make([]K, 0, n)
+	for k := range h.Keys() {
+		out = append(out, k)
+	}
+	return out
+}
 
 func (h *ObjectLinkedHashMap[K, V]) lookupAny(k any) (any, bool) {
 	key, ok := k.(K)
@@ -883,16 +961,39 @@ func (s *ObjectLinkedHashSet[T]) Remove(e T) bool {
 	return true
 }
 
-// All iterates in insertion order.
+// All iterates in insertion order (see LinkedHashMap.Keys).
 func (s *ObjectLinkedHashSet[T]) All() iter.Seq[T] {
-	if s == nil {
-		return func(func(T) bool) {}
+	var h *ObjectLinkedHashMap[T, struct{}]
+	if s != nil {
+		h = s.m
 	}
-	return s.m.Keys()
+	return func(yield func(T) bool) {
+		if h == nil {
+			return
+		}
+		for e := h.head; e != nil; e = e.next {
+			if e.removed {
+				continue
+			}
+			if !yield(e.key) {
+				return
+			}
+		}
+	}
 }
 
 // ToSlice returns the elements in insertion order.
-func (s *ObjectLinkedHashSet[T]) ToSlice() []T { return slices.Collect(s.All()) }
+func (s *ObjectLinkedHashSet[T]) ToSlice() []T {
+	n := s.Size()
+	if n == 0 {
+		return nil
+	}
+	out := make([]T, 0, n)
+	for e := range s.All() {
+		out = append(out, e)
+	}
+	return out
+}
 
 func (s *ObjectLinkedHashSet[T]) containsAny(e any) bool {
 	x, ok := e.(T)

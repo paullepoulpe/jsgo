@@ -117,10 +117,13 @@ func (m *TreeMap[K, V]) All() iter.Seq2[K, V] {
 }
 
 // Keys iterates keys in ascending order.
+//
+// Go-only: performance — walks the entries itself (see
+// LinkedHashMap.Keys).
 func (m *TreeMap[K, V]) Keys() iter.Seq[K] {
 	return func(yield func(K) bool) {
-		for k := range m.All() {
-			if !yield(k) {
+		for i := 0; i < len(m.entries); i++ {
+			if !yield(m.entries[i].key) {
 				return
 			}
 		}

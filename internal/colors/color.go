@@ -47,6 +47,15 @@ type Color struct {
 
 	// Memoized value of subtractNullOrVoid() (AutoValue_Color).
 	subtractNullOrVoid *Color
+
+	// Go-only: performance — the memoized hashCode(). Java's is cheap
+	// because every ImmutableSet field caches its own hash code (and every
+	// String its hash); the Go sets recompute theirs on each call, which made
+	// hashing a Color with many own properties dominate the hash lookups of
+	// DisambiguateProperties. All fields are immutable once built, so the
+	// value never changes.
+	hashCode         int32
+	hashCodeComputed bool
 }
 
 // Java: Color.getId()
@@ -308,6 +317,16 @@ func colorBoolHash(b bool) int32 {
 
 // Java: $AutoValue_Color.hashCode()
 func (c *Color) HashCode() int32 {
+	if !c.hashCodeComputed {
+		c.hashCode = c.computeHashCode()
+		c.hashCodeComputed = true
+	}
+	return c.hashCode
+}
+
+// computeHashCode is the body of $AutoValue_Color.hashCode(), which
+// HashCode memoizes (see Color.hashCode).
+func (c *Color) computeHashCode() int32 {
 	var h int32 = 1
 	h *= 1000003
 	h ^= c.id.HashCode()

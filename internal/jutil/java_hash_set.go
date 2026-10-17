@@ -180,7 +180,17 @@ func (s *JavaHashSet[T]) All() iter.Seq[T] {
 }
 
 // ToSlice returns the elements in iteration order.
-func (s *JavaHashSet[T]) ToSlice() []T { return slices.Collect(s.All()) }
+func (s *JavaHashSet[T]) ToSlice() []T {
+	n := s.Size()
+	if n == 0 {
+		return nil
+	}
+	out := make([]T, 0, n)
+	for e := range s.All() {
+		out = append(out, e)
+	}
+	return out
+}
 
 // Clone is HashSet.clone(): a shallow copy backed by the map's clone.
 func (s *JavaHashSet[T]) Clone() *JavaHashSet[T] { return &JavaHashSet[T]{s.m.Clone()} }

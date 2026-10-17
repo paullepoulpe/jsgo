@@ -1900,14 +1900,27 @@ func (i *JSDocInfo) suppressions() *jutil.ObjectLinkedHashMap[*jutil.LinkedHashS
 func (i *JSDocInfo) GetSuppressions() *jutil.LinkedHashSet[string] {
 	suppressions := i.suppressions()
 	if suppressions == nil {
-		return jutil.NewLinkedHashSet[string]()
+		// Go-only: performance — ImmutableSet.of() is a shared singleton;
+		// callers only read the result, so share one empty set instead of
+		// allocating one per call (this runs for every JSDoc, externs
+		// included).
+		return jsDocInfo_noSuppressions
 	}
 	names := jutil.NewLinkedHashSet[string]()
 	for nameSet := range suppressions.Keys() {
-		names.AddAll(nameSet.ToSlice()...)
+		for name := range nameSet.All() {
+			names.Add(name)
+		}
 	}
-	return jutil.NewLinkedHashSet(names.ToSlice()...)
+	// Go-only: performance — ImmutableSet.copyOf(names) would be a copy
+	// with the same elements in the same order; names is not shared, so it
+	// is returned as is.
+	return names
 }
+
+// jsDocInfo_noSuppressions is GetSuppressions' result for a JSDocInfo
+// without suppressions (ImmutableSet.of()). Never modified.
+var jsDocInfo_noSuppressions = jutil.NewLinkedHashSet[string]()
 
 // GetSuppressionsAndTheirDescription returns a map containing key=set of
 // suppressions, and value=the corresponding description for the set.

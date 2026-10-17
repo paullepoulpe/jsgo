@@ -3,6 +3,7 @@ package jutil
 import (
 	"io"
 	"strings"
+	"unicode/utf8"
 )
 
 // Go-only: language-adapter — java.io.InputStreamReader as a JavaReader.
@@ -29,17 +30,19 @@ func (r *InputStreamReader) load() {
 	if r.text != nil {
 		return
 	}
+	r.text = NewStringReader(r.decodeAll())
+}
+
+// decodeAll reads and decodes the whole stream.
+func (r *InputStreamReader) decodeAll() string {
 	b, err := io.ReadAll(r.in)
 	if err != nil {
 		panic(IOExceptionFromError(err, ""))
 	}
-	var s string
 	if r.strict {
-		s = r.cs.DecodeStrict(b)
-	} else {
-		s = r.cs.Decode(b)
+		return r.cs.DecodeStrict(b)
 	}
-	r.text = NewStringReader(s)
+	return r.cs.Decode(b)
 }
 
 // Read is Reader.read(char[], int, int).
@@ -62,6 +65,22 @@ func (r *InputStreamReader) Close() {
 // CharStreams_ToString is Guava CharStreams.toString(Readable): reads all
 // characters from r (it does not close it).
 func CharStreams_ToString(r JavaReader) string {
+	// Go-only: performance — an open InputStreamReader that nothing has read
+	// yet decodes its whole stream at once, and that text is the result:
+	// return it without the round trip through UTF-16 chunks (valid UTF-8
+	// comes back from that round trip unchanged), and leave the reader at
+	// its end, as reading it through would.
+	// The same goes for a StringReader nothing has read yet.
+	if isr, ok := r.(*InputStreamReader); ok && !isr.closed && isr.text == nil {
+		s := isr.decodeAll()
+		isr.text = &StringReader{converted: true}
+		return charStreamsRoundTrip(s)
+	}
+	if sr, ok := r.(*StringReader); ok && !sr.converted {
+		s := sr.s
+		*sr = StringReader{converted: true}
+		return charStreamsRoundTrip(s)
+	}
 	var units []uint16
 	buf := make([]uint16, 2048)
 	for {
@@ -72,6 +91,15 @@ func CharStreams_ToString(r JavaReader) string {
 		units = append(units, buf[:n]...)
 	}
 	return StringFromUTF16(units)
+}
+
+// charStreamsRoundTrip is StringFromUTF16(StringToUTF16(s)), which is s
+// itself when s is valid UTF-8.
+func charStreamsRoundTrip(s string) string {
+	if utf8.ValidString(s) {
+		return s
+	}
+	return StringFromUTF16(StringToUTF16(s))
 }
 
 // IOExceptionFromError is the IOException the JDK throws for a failed file

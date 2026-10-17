@@ -2,7 +2,6 @@ package jutil
 
 import (
 	"iter"
-	"slices"
 )
 
 // Go-only: language-adapter — java.util.TreeSet with a comparator. The
@@ -165,7 +164,17 @@ func (s *TreeSet[E]) Descending() iter.Seq[E] {
 }
 
 // ToSlice returns the elements in ascending order.
-func (s *TreeSet[E]) ToSlice() []E { return slices.Collect(s.All()) }
+func (s *TreeSet[E]) ToSlice() []E {
+	n := s.Size()
+	if n == 0 {
+		return nil
+	}
+	out := make([]E, 0, n)
+	for e := range s.All() {
+		out = append(out, e)
+	}
+	return out
+}
 
 // String is AbstractCollection.toString(): "[a, b]".
 func (s *TreeSet[E]) String() string { return javaCollectionString(any(s), s.All()) }

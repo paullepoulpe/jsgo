@@ -302,18 +302,11 @@ func (b *JsFileLineParserBase) DoParse(filePath string, fileContents jutil.JavaR
 //
 // Go-only: language-adapter — jutil.BufferedReader reads from a Go string,
 // so the Reader is drained first (an IOException surfaces from the first
-// read, as from Java's first readLine()).
+// read, as from Java's first readLine()). It is drained with
+// CharStreams_ToString, which returns an unread StringReader's string
+// without converting it to UTF-16 and back.
 func jsFileLineParser_newBufferedReader(fileContents jutil.JavaReader) *jutil.BufferedReader {
-	var units []uint16
-	buf := make([]uint16, 8192)
-	for {
-		n := fileContents.Read(buf, 0, len(buf))
-		if n < 0 {
-			break
-		}
-		units = append(units, buf[:n]...)
-	}
-	return jutil.NewBufferedReaderFromString(jutil.StringFromUTF16(units))
+	return jutil.NewBufferedReaderFromString(jutil.CharStreams_ToString(fileContents))
 }
 
 // jsFileLineParser_indexFrom is String.indexOf(String, int) on byte offsets.
