@@ -1,8 +1,25 @@
 // Port of com/google/javascript/jscomp/AstFactoryTest.java @ closure-compiler v20260415
 
+/*
+ * Copyright 2018 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package jscomp
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
@@ -11,28 +28,40 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino/rhinotesting"
 )
 
-// The tests that parse source (parseWithoutTypes needs Compiler.init and
-// parseInputs; parseAndAddTypes also TypeCheck; parseAndAddColors also
-// ConvertTypesToColors) are skipped: those classes are above the core.
+// The Java @Test methods not named test* get a "Test" prefix so that
+// RunJUnit4 runs them.
+//
+// Java: public class AstFactoryTest
+type AstFactoryTest struct {
+	// Go-only: test-helper — the Go test running the current test method.
+	t *testing.T
 
-// astFactoryTest is AstFactoryTest's fixture (its fields and setUp()).
-type astFactoryTest struct {
-	t                   *testing.T
-	truth               rhinotesting.Truth
-	compiler            AbstractCompiler
+	compiler            *Compiler
 	runtimeJsLibManager *RuntimeJsLibManager
 }
 
+func TestAstFactoryTest(t *testing.T) {
+	RunJUnit4(t, func() JUnitTestCase { return &AstFactoryTest{} })
+}
+
+// JUnitSetT gives the instance the Go test running its test method.
+func (c *AstFactoryTest) JUnitSetT(t *testing.T) { c.t = t }
+
+// JUnitBefore runs the @Before method.
+func (c *AstFactoryTest) JUnitBefore() { c.SetUp() }
+
+// JUnitAfter: the class has no @After method.
+func (c *AstFactoryTest) JUnitAfter() {}
+
 // Java: AstFactoryTest.setUp()
-func newAstFactoryTest(t *testing.T) *astFactoryTest {
-	x := &astFactoryTest{t: t, truth: rhinotesting.NewTruth(t)}
-	x.compiler = newTestCompiler(NewCompilerOptions())
-	x.runtimeJsLibManager = RuntimeJsLibManager_Create(
-		RuntimeJsLibManager_RuntimeLibraryMode_RECORD_AND_VALIDATE_FIELDS,
-		astFactoryTest_TestResourceProvider,
-		x.compiler.GetChangeTracker(),
-		astFactoryTest_alwaysThrowNodeSupplier)
-	return x
+func (c *AstFactoryTest) SetUp() {
+	c.compiler = NewCompiler()
+	c.runtimeJsLibManager =
+		RuntimeJsLibManager_Create(
+			RuntimeJsLibManager_RuntimeLibraryMode_RECORD_AND_VALIDATE_FIELDS,
+			astFactoryTest_TestResourceProvider,
+			c.compiler.GetChangeTracker(),
+			astFactoryTest_alwaysThrowNodeSupplier)
 }
 
 // Java: AstFactoryTest.alwaysThrowNodeSupplier()
@@ -45,1521 +74,1764 @@ func astFactoryTest_TestResourceProvider(unused1 string, unused2 string) *rhino.
 	panic(jutil.NewUnsupportedOperationException())
 }
 
-func (x *astFactoryTest) getRegistry() *rhino.JSTypeRegistry {
-	return x.compiler.GetTypeRegistry()
+// Java: AstFactoryTest.getRegistry()
+func (c *AstFactoryTest) getRegistry() *rhino.JSTypeRegistry {
+	return c.compiler.GetTypeRegistry()
 }
 
-func (x *astFactoryTest) getNativeType(nativeType rhino.JSTypeNative) rhino.JSType {
-	return x.getRegistry().GetNativeType(nativeType)
+// Java: AstFactoryTest.getNativeType(JSTypeNative)
+func (c *AstFactoryTest) getNativeType(nativeType rhino.JSTypeNative) rhino.JSType {
+	return c.getRegistry().GetNativeType(nativeType)
 }
 
-func (x *astFactoryTest) createTestAstFactory() *AstFactory {
+// Java: AstFactoryTest.parseWithoutTypes(String)
+func (c *AstFactoryTest) parseWithoutTypes(source string) *rhino.Node {
+	return c.parseWithoutTypesWithExterns("", source)
+}
+
+// Java: AstFactoryTest.parseWithoutTypes(String, String)
+func (c *AstFactoryTest) parseWithoutTypesWithExterns(externs string, source string) *rhino.Node {
+	// parse the test code
+	options := NewCompilerOptions()
+	c.compiler.Init(
+		[]*SourceFile{SourceFile_FromCode("externs", externs)},
+		[]*SourceFile{SourceFile_FromCode("source", source)},
+		options)
+	c.compiler.ParseInputs()
+
+	AssertWithMessage("parse error").That(c.compiler.GetErrors()).IsEmpty()
+	return c.compiler.GetJsRoot()
+}
+
+// Java: AstFactoryTest.parseAndAddTypes(String)
+func (c *AstFactoryTest) parseAndAddTypes(source string) *rhino.Node {
+	return c.parseAndAddTypesWithExterns("", source)
+}
+
+// Java: AstFactoryTest.parseAndAddTypes(String, String)
+func (c *AstFactoryTest) parseAndAddTypesWithExterns(externs string, source string) *rhino.Node {
+	c.parseWithoutTypesWithExterns(externs, source)
+
+	// then add types to the AST & do type checks
+	// TODO(bradfordcsmith): Fail if there are type checking errors.
+	typeCheck :=
+		NewTypeCheck(
+			c.compiler, c.compiler.GetReverseAbstractInterpreter(), c.compiler.GetTypeRegistry())
+	typeCheck.ProcessForTesting(c.compiler.GetExternsRoot(), c.compiler.GetJsRoot())
+	c.compiler.SetTypeCheckingHasRun(true)
+	return c.compiler.GetJsRoot()
+}
+
+// Java: AstFactoryTest.parseAndAddColors(String)
+func (c *AstFactoryTest) parseAndAddColors(source string) *rhino.Node {
+	return c.parseAndAddColorsWithExterns("", source)
+}
+
+// Java: AstFactoryTest.parseAndAddColors(String, String)
+func (c *AstFactoryTest) parseAndAddColorsWithExterns(externs string, source string) *rhino.Node {
+	c.parseAndAddTypesWithExterns(externs, source)
+	NewConvertTypesToColors(
+		c.compiler, SerializationOptions_Builder_().SetIncludeDebugInfo(true).Build()).
+		Process(c.compiler.GetExternsRoot(), c.compiler.GetJsRoot())
+	return c.compiler.GetJsRoot()
+}
+
+// Java: AstFactoryTest.createTestAstFactory()
+func (c *AstFactoryTest) createTestAstFactory() *AstFactory {
 	return AstFactory_CreateFactoryWithTypes(
-		x.compiler.GetLifeCycleStage(), x.getRegistry(), x.runtimeJsLibManager)
+		c.compiler.GetLifeCycleStage(), c.getRegistry(), c.runtimeJsLibManager)
 }
 
-func (x *astFactoryTest) createTestAstFactoryWithColors() *AstFactory {
+// Java: AstFactoryTest.createTestAstFactoryWithColors()
+func (c *AstFactoryTest) createTestAstFactoryWithColors() *AstFactory {
 	// the built-in color registry is available only if we've run parseAndAddColors()
 	var registry *colors.ColorRegistry
-	if x.compiler.HasOptimizationColors() {
-		registry = x.compiler.GetColorRegistry()
+	if c.compiler.HasOptimizationColors() {
+		registry = c.compiler.GetColorRegistry()
 	} else {
 		registry = colors.ColorRegistry_Builder_().SetDefaultNativeColorsForTesting().Build()
 	}
-	return AstFactory_CreateFactoryWithColors(x.compiler.GetLifeCycleStage(), registry, x.runtimeJsLibManager)
+	return AstFactory_CreateFactoryWithColors(c.compiler.GetLifeCycleStage(), registry, c.runtimeJsLibManager)
 }
 
-func (x *astFactoryTest) createTestAstFactoryWithoutTypes() *AstFactory {
-	return AstFactory_CreateFactoryWithoutTypes(x.compiler.GetLifeCycleStage(), x.runtimeJsLibManager)
+// Java: AstFactoryTest.createTestAstFactoryWithoutTypes()
+func (c *AstFactoryTest) createTestAstFactoryWithoutTypes() *AstFactory {
+	return AstFactory_CreateFactoryWithoutTypes(c.compiler.GetLifeCycleStage(), c.runtimeJsLibManager)
 }
 
-// ---------------------------------------------------------------------------
-// The parts of rhino.testing.NodeSubject / ColorSubject the test uses.
-
-type afNodeSubject struct {
-	x *astFactoryTest
-	n *rhino.Node
+// astFactoryTest_redeclarationHandler is getScope's lambda
+// (Scope s, String name, Node n, CompilerInput input) -> {}.
+type astFactoryTest_redeclarationHandler struct {
+	_ byte // Go-only: language-adapter — distinct identity
 }
 
-func (x *astFactoryTest) assertNode(n *rhino.Node) *afNodeSubject {
-	x.t.Helper()
-	return &afNodeSubject{x: x, n: n}
+func (*astFactoryTest_redeclarationHandler) OnRedeclaration(s *Scope, name string, n *rhino.Node, input *CompilerInput) {
 }
 
-func (s *afNodeSubject) fail(format string, args ...any) {
-	s.x.t.Helper()
-	s.x.t.Fatalf("node %v: "+format, append([]any{s.n}, args...)...)
+// Java: AstFactoryTest.getScope(Node)
+func (c *AstFactoryTest) getScope(root *rhino.Node) *Scope {
+	// Normal passes use SyntacticScopeCreator, so that's what we use here.
+	var redeclarationHandler SyntacticScopeCreator_RedeclarationHandler = &astFactoryTest_redeclarationHandler{}
+	scopeCreator := NewSyntacticScopeCreatorWithRedeclarationHandler(c.compiler, redeclarationHandler)
+	return scopeCreator.CreateScope(root, nil).(*Scope)
 }
 
-func (s *afNodeSubject) HasType(token rhino.Token) *afNodeSubject {
-	s.x.t.Helper()
-	if s.n.GetToken() != token {
-		s.fail("expected token %s", token)
-	}
-	return s
-}
-
-func (s *afNodeSubject) HasToken(token rhino.Token) *afNodeSubject {
-	s.x.t.Helper()
-	return s.HasType(token)
-}
-
-func (s *afNodeSubject) IsName(name string) *afNodeSubject {
-	s.x.t.Helper()
-	if !s.n.IsName() || s.n.GetString() != name {
-		s.fail("expected NAME %s", name)
-	}
-	return s
-}
-
-func (s *afNodeSubject) MatchesName(name string) *afNodeSubject {
-	s.x.t.Helper()
-	if !s.n.MatchesName(name) {
-		s.fail("expected to match name %s", name)
-	}
-	return s
-}
-
-func (s *afNodeSubject) MatchesQualifiedName(qname string) *afNodeSubject {
-	s.x.t.Helper()
-	if !s.n.MatchesQualifiedName(qname) {
-		s.fail("expected to match qualified name %s", qname)
-	}
-	return s
-}
-
-func (s *afNodeSubject) IsVar() *afNodeSubject   { s.x.t.Helper(); return s.HasType(rhino.Token_VAR) }
-func (s *afNodeSubject) IsConst() *afNodeSubject { s.x.t.Helper(); return s.HasType(rhino.Token_CONST) }
-func (s *afNodeSubject) IsFunction() *afNodeSubject {
-	s.x.t.Helper()
-	return s.HasType(rhino.Token_FUNCTION)
-}
-func (s *afNodeSubject) IsParamList() *afNodeSubject {
-	s.x.t.Helper()
-	return s.HasType(rhino.Token_PARAM_LIST)
-}
-func (s *afNodeSubject) IsCall() *afNodeSubject { s.x.t.Helper(); return s.HasType(rhino.Token_CALL) }
-
-func (s *afNodeSubject) HasXChildren(count int) *afNodeSubject {
-	s.x.t.Helper()
-	if s.n.GetChildCount() != count {
-		s.fail("expected %d children", count)
-	}
-	return s
-}
-
-func (s *afNodeSubject) HasNoChildren() *afNodeSubject { s.x.t.Helper(); return s.HasChildren(false) }
-
-func (s *afNodeSubject) HasChildren(hasChildren bool) *afNodeSubject {
-	s.x.t.Helper()
-	if s.n.HasChildren() != hasChildren {
-		s.fail("expected hasChildren %t", hasChildren)
-	}
-	return s
-}
-
-func (s *afNodeSubject) child(what string, c *rhino.Node) *afNodeSubject {
-	s.x.t.Helper()
-	if c == nil {
-		s.fail("expected a %s child", what)
-	}
-	return &afNodeSubject{x: s.x, n: c}
-}
-
-func (s *afNodeSubject) HasFirstChildThat() *afNodeSubject {
-	s.x.t.Helper()
-	return s.child("first", s.n.GetFirstChild())
-}
-
-func (s *afNodeSubject) HasSecondChildThat() *afNodeSubject {
-	s.x.t.Helper()
-	return s.child("second", s.n.GetSecondChild())
-}
-
-func (s *afNodeSubject) HasLastChildThat() *afNodeSubject {
-	s.x.t.Helper()
-	return s.child("last", s.n.GetLastChild())
-}
-
-func (s *afNodeSubject) HasOneChildThat() *afNodeSubject {
-	s.x.t.Helper()
-	if !s.n.HasOneChild() {
-		s.fail("expected one child")
-	}
-	return s.child("only", s.n.GetOnlyChild())
-}
-
-// IsEqualTo is NodeSubject.isEqualTo(Node): tree equivalence ignoring types.
-func (s *afNodeSubject) IsEqualTo(expected *rhino.Node) *afNodeSubject {
-	s.x.t.Helper()
-	if !s.n.IsEquivalentToWithFlags(expected, false, true, false) {
-		s.fail("expected to equal %v", expected)
-	}
-	return s
-}
-
-// IsEquivalentTo is NodeSubject.isEquivalentTo(Node).
-func (s *afNodeSubject) IsEquivalentTo(expected *rhino.Node) *afNodeSubject {
-	s.x.t.Helper()
-	if !s.n.IsEquivalentTo(expected) {
-		s.fail("expected to be equivalent to %v", expected)
-	}
-	return s
-}
-
-func (s *afNodeSubject) IsSameInstanceAs(expected *rhino.Node) *afNodeSubject {
-	s.x.t.Helper()
-	if s.n != expected {
-		s.fail("expected the same instance as %v", expected)
-	}
-	return s
-}
-
-func (s *afNodeSubject) IsOptionalChainStart() *afNodeSubject {
-	s.x.t.Helper()
-	if !s.n.IsOptionalChainStart() {
-		s.fail("expected an optional chain start")
-	}
-	return s
-}
-
-func (s *afNodeSubject) IsNotOptionalChainStart() *afNodeSubject {
-	s.x.t.Helper()
-	if s.n.IsOptionalChainStart() {
-		s.fail("expected not an optional chain start")
-	}
-	return s
-}
-
-type afStringSubject struct {
-	s      *afNodeSubject
-	actual string
-}
-
-func (s *afNodeSubject) HasStringThat() *afStringSubject {
-	return &afStringSubject{s: s, actual: s.n.GetString()}
-}
-
-func (s *afStringSubject) IsEqualTo(expected string) {
-	s.s.x.t.Helper()
-	if s.actual != expected {
-		s.s.fail("string %q, expected %q", s.actual, expected)
-	}
-}
-
-func (s *afNodeSubject) HasJSTypeThat() *rhinotesting.TypeSubject {
-	s.x.t.Helper()
-	return s.x.truth.AssertType(s.n.GetJSType())
-}
-
-type afColorSubject struct {
-	s      *afNodeSubject
-	actual *colors.Color
-}
-
-func (s *afNodeSubject) HasColorThat() *afColorSubject {
-	return &afColorSubject{s: s, actual: s.n.GetColor()}
-}
-
-func (c *afColorSubject) IsEqualTo(expected *colors.Color) {
-	c.s.x.t.Helper()
-	if !jutil.ObjectsEquals(c.actual, expected) {
-		c.s.fail("color %v, expected %v", c.actual, expected)
-	}
-}
-
-// HasAlternates is ColorSubject.hasAlternates(Color...): a union of exactly
-// these colors.
-func (c *afColorSubject) HasAlternates(alternates ...*colors.Color) {
-	c.s.x.t.Helper()
-	if c.actual == nil || !c.actual.IsUnion() {
-		c.s.fail("expected a union color, got %v", c.actual)
-	}
-	elements := c.actual.GetUnionElements()
-	if elements.Size() != len(alternates) {
-		c.s.fail("union %v, expected alternates %v", c.actual, alternates)
-	}
-	for _, a := range alternates {
-		if !elements.Contains(a) {
-			c.s.fail("union %v lacks %v", c.actual, a)
-		}
-	}
-}
-
-// astFactoryTest_childList is AstFactoryTest.childList(Node).
-func astFactoryTest_childList(parent *rhino.Node) []*rhino.Node {
-	var list []*rhino.Node
-	for child := parent.GetFirstChild(); child != nil; child = child.GetNext() {
-		list = append(list, child)
-	}
-	return list
-}
-
-// assertChildren is assertThat(childList(parent)).containsExactly(nodes)
-// (.inOrder() when inOrder); nodes compare by identity, as Node.equals
-// does.
-func (x *astFactoryTest) assertChildren(parent *rhino.Node, inOrder bool, nodes ...*rhino.Node) {
-	x.t.Helper()
-	children := astFactoryTest_childList(parent)
-	if len(children) != len(nodes) {
-		x.t.Fatalf("children of %v: got %d, want %d", parent, len(children), len(nodes))
-	}
-	for i, n := range nodes {
-		if inOrder {
-			if children[i] != n {
-				x.t.Fatalf("child %d of %v: got %v, want %v", i, parent, children[i], n)
-			}
-			continue
-		}
-		found := false
-		for _, c := range children {
-			found = found || c == n
-		}
-		if !found {
-			x.t.Fatalf("children of %v lack %v", parent, n)
-		}
-	}
-}
-
-func (x *astFactoryTest) assertType(type_ rhino.JSType) *rhinotesting.TypeSubject {
-	x.t.Helper()
-	return x.truth.AssertType(type_)
-}
-
-func (x *astFactoryTest) assertBool(what string, got bool, want bool) {
-	x.t.Helper()
-	if got != want {
-		x.t.Fatalf("%s: got %t, want %t", what, got, want)
-	}
-}
-
-// ---------------------------------------------------------------------------
-
-func TestAstFactory_testStringLiteral_jstypes(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
+// Java: AstFactoryTest.testStringLiteral_jstypes()
+func (c *AstFactoryTest) TestStringLiteral_jstypes() {
+	astFactory := c.createTestAstFactory()
 	stringLiteral := astFactory.CreateString("hello")
-	x.assertNode(stringLiteral).HasType(rhino.Token_STRINGLIT)
-	x.truth.AssertThat(stringLiteral.GetString()).IsEqualTo("hello")
-	x.assertType(stringLiteral.GetJSType()).IsString()
+	AssertNode(stringLiteral).HasType(rhino.Token_STRINGLIT)
+	AssertThat(stringLiteral.GetString()).IsEqualTo("hello")
+	TypeSubject_AssertType(stringLiteral.GetJSType()).IsString()
 }
 
-func TestAstFactory_testStringLiteral_colors(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactoryWithColors()
-
+// Java: AstFactoryTest.testStringLiteral_colors()
+func (c *AstFactoryTest) TestStringLiteral_colors() {
+	astFactory := c.createTestAstFactoryWithColors()
 	stringLiteral := astFactory.CreateString("hello")
-	x.assertNode(stringLiteral).HasType(rhino.Token_STRINGLIT)
-	x.truth.AssertThat(stringLiteral.GetString()).IsEqualTo("hello")
-	x.assertNode(stringLiteral).HasColorThat().IsEqualTo(colors.StandardColors_STRING)
+	AssertNode(stringLiteral).HasType(rhino.Token_STRINGLIT)
+	AssertThat(stringLiteral.GetString()).IsEqualTo("hello")
+	AssertNode(stringLiteral).HasColorThat().IsEqualTo(colors.StandardColors_STRING)
 }
 
-func TestAstFactory_testNumberLiteral_jstypes(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
-	numberLiteral := astFactory.CreateNumber(2112)
-	x.assertNode(numberLiteral).HasType(rhino.Token_NUMBER)
-	x.truth.AssertThat(numberLiteral.GetDouble()).IsEqualTo(2112.0)
-	x.assertType(numberLiteral.GetJSType()).IsNumber()
+// Java: AstFactoryTest.testNumberLiteral_jstypes()
+func (c *AstFactoryTest) TestNumberLiteral_jstypes() {
+	astFactory := c.createTestAstFactory()
+	numberLiteral := astFactory.CreateNumber(2112.0)
+	AssertNode(numberLiteral).HasType(rhino.Token_NUMBER)
+	AssertThat(numberLiteral.GetDouble()).IsEqualTo(2112.0)
+	TypeSubject_AssertType(numberLiteral.GetJSType()).IsNumber()
 }
 
-func TestAstFactory_testNumberLiteral_colors(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactoryWithColors()
-
-	numberLiteral := astFactory.CreateNumber(2112)
-	x.assertNode(numberLiteral).HasType(rhino.Token_NUMBER)
-	x.truth.AssertThat(numberLiteral.GetDouble()).IsEqualTo(2112.0)
-	x.assertNode(numberLiteral).HasColorThat().IsEqualTo(colors.StandardColors_NUMBER)
+// Java: AstFactoryTest.testNumberLiteral_colors()
+func (c *AstFactoryTest) TestNumberLiteral_colors() {
+	astFactory := c.createTestAstFactoryWithColors()
+	numberLiteral := astFactory.CreateNumber(2112.0)
+	AssertNode(numberLiteral).HasType(rhino.Token_NUMBER)
+	AssertThat(numberLiteral.GetDouble()).IsEqualTo(2112.0)
+	AssertNode(numberLiteral).HasColorThat().IsEqualTo(colors.StandardColors_NUMBER)
 }
 
-func TestAstFactory_testBooleanLiteral_jstypes(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
+// Java: AstFactoryTest.testBooleanLiteral_jstypes()
+func (c *AstFactoryTest) TestBooleanLiteral_jstypes() {
+	astFactory := c.createTestAstFactory()
 	trueNode := astFactory.CreateBoolean(true)
-	x.assertNode(trueNode).HasType(rhino.Token_TRUE)
-	x.assertType(trueNode.GetJSType()).IsBoolean()
-
+	AssertNode(trueNode).HasType(rhino.Token_TRUE)
+	TypeSubject_AssertType(trueNode.GetJSType()).IsBoolean()
 	falseNode := astFactory.CreateBoolean(false)
-	x.assertNode(falseNode).HasType(rhino.Token_FALSE)
-	x.assertType(falseNode.GetJSType()).IsBoolean()
+	AssertNode(falseNode).HasType(rhino.Token_FALSE)
+	TypeSubject_AssertType(falseNode.GetJSType()).IsBoolean()
 }
 
-func TestAstFactory_testBooleanLiteral_colors(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactoryWithColors()
-
+// Java: AstFactoryTest.testBooleanLiteral_colors()
+func (c *AstFactoryTest) TestBooleanLiteral_colors() {
+	astFactory := c.createTestAstFactoryWithColors()
 	trueNode := astFactory.CreateBoolean(true)
-	x.assertNode(trueNode).HasType(rhino.Token_TRUE)
-	x.assertNode(trueNode).HasColorThat().IsEqualTo(colors.StandardColors_BOOLEAN)
+	AssertNode(trueNode).HasType(rhino.Token_TRUE)
+	AssertNode(trueNode).HasColorThat().IsEqualTo(colors.StandardColors_BOOLEAN)
 }
 
-func TestAstFactory_testVoidExpression_jstypes(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
+// Java: AstFactoryTest.testVoidExpression_jstypes()
+func (c *AstFactoryTest) TestVoidExpression_jstypes() {
+	astFactory := c.createTestAstFactory()
 	voidNode := astFactory.CreateVoid(astFactory.CreateNumber(0))
-	x.assertNode(voidNode).HasType(rhino.Token_VOID)
-	x.assertNode(voidNode).HasJSTypeThat().IsVoid()
+	AssertNode(voidNode).HasType(rhino.Token_VOID)
+	AssertNode(voidNode).HasJSTypeThat().IsVoid()
 }
 
-func TestAstFactory_testVoidExpression_colors(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactoryWithColors()
-
+// Java: AstFactoryTest.testVoidExpression_colors()
+func (c *AstFactoryTest) TestVoidExpression_colors() {
+	astFactory := c.createTestAstFactoryWithColors()
 	voidNode := astFactory.CreateVoid(astFactory.CreateNumber(0))
-	x.assertNode(voidNode).HasType(rhino.Token_VOID)
-	x.assertNode(voidNode).HasColorThat().IsEqualTo(colors.StandardColors_NULL_OR_VOID)
+	AssertNode(voidNode).HasType(rhino.Token_VOID)
+	AssertNode(voidNode).HasColorThat().IsEqualTo(colors.StandardColors_NULL_OR_VOID)
 }
 
-func TestAstFactory_testNotExpression_jstypes(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
+// Java: AstFactoryTest.testNotExpression_jstypes()
+func (c *AstFactoryTest) TestNotExpression_jstypes() {
+	astFactory := c.createTestAstFactory()
 	notNode := astFactory.CreateNot(astFactory.CreateNumber(0))
-	x.assertNode(notNode).HasType(rhino.Token_NOT)
-	x.assertNode(notNode).HasJSTypeThat().IsBoolean()
+	AssertNode(notNode).HasType(rhino.Token_NOT)
+	AssertNode(notNode).HasJSTypeThat().IsBoolean()
 }
 
-func TestAstFactory_testNotExpression_colors(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactoryWithColors()
-
+// Java: AstFactoryTest.testNotExpression_colors()
+func (c *AstFactoryTest) TestNotExpression_colors() {
+	astFactory := c.createTestAstFactoryWithColors()
 	notNode := astFactory.CreateNot(astFactory.CreateNumber(0))
-	x.assertNode(notNode).HasType(rhino.Token_NOT)
-	x.assertNode(notNode).HasColorThat().IsEqualTo(colors.StandardColors_BOOLEAN)
+	AssertNode(notNode).HasType(rhino.Token_NOT)
+	AssertNode(notNode).HasColorThat().IsEqualTo(colors.StandardColors_BOOLEAN)
 }
 
-func TestAstFactory_testCreateArgumentsReference_jstypes(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck, TestExternsBuilder")
+// Java: AstFactoryTest.testCreateArgumentsReference_jstypes()
+func (c *AstFactoryTest) TestCreateArgumentsReference_jstypes() {
+	// Make sure the compiler's type registry includes the standard externs definition for
+	// Arguments.
+	c.parseAndAddTypesWithExterns(NewTestExternsBuilder().AddArguments().Build(), "")
+	astFactory := c.createTestAstFactory()
+	argumentsNode := astFactory.CreateArgumentsReference()
+	AssertNode(argumentsNode).MatchesName("arguments")
+	TypeSubject_AssertType(argumentsNode.GetJSType()).IsEqualTo(c.getRegistry().GetGlobalType("Arguments"))
 }
 
-func TestAstFactory_testCreateArgumentsReference_colors(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck, ConvertTypesToColors, TestExternsBuilder")
+// Java: AstFactoryTest.testCreateArgumentsReference_colors()
+func (c *AstFactoryTest) TestCreateArgumentsReference_colors() {
+	root := c.parseAndAddColorsWithExterns(
+		NewTestExternsBuilder().AddArguments().Build(), "function f() { arguments; }")
+	astFactory := c.createTestAstFactoryWithColors()
+	block := NodeUtil_GetFunctionBody(root.GetFirstFirstChild())
+	argumentsReferenceNode := block.GetFirstFirstChild()
+	argumentsReferenceColor := argumentsReferenceNode.GetColor()
+	argumentsNode := astFactory.CreateArgumentsReference()
+	AssertNode(argumentsNode).MatchesName("arguments")
+	AssertNode(argumentsNode).HasColorThat().IsEqualTo(argumentsReferenceColor)
 }
 
-func TestAstFactory_testCreateSingleVarNameDeclaration_jstypes(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
+// Java: AstFactoryTest.testCreateSingleVarNameDeclaration_jstypes()
+func (c *AstFactoryTest) TestCreateSingleVarNameDeclaration_jstypes() {
+	astFactory := c.createTestAstFactory()
 	valueNode := astFactory.CreateBoolean(true)
 	constNode := astFactory.CreateSingleVarNameDeclarationWithValue("myTrue", valueNode)
-	x.assertNode(constNode).IsVar().HasOneChildThat().IsName("myTrue")
+	AssertNode(constNode).IsVar().HasOneChildThat().IsName("myTrue")
 	nameNode := constNode.GetOnlyChild()
-	x.assertNode(nameNode).HasOneChildThat().IsEqualTo(valueNode)
-	x.assertNode(nameNode).HasJSTypeThat().IsEqualTo(valueNode.GetJSType())
+	AssertNode(nameNode).HasOneChildThat().IsEqualTo(valueNode)
+	AssertNode(nameNode).HasJSTypeThat().IsEqualTo(valueNode.GetJSType())
 }
 
-func TestAstFactory_testCreateSingleVarNameDeclaration_colors(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactoryWithColors()
-
+// Java: AstFactoryTest.testCreateSingleVarNameDeclaration_colors()
+func (c *AstFactoryTest) TestCreateSingleVarNameDeclaration_colors() {
+	astFactory := c.createTestAstFactoryWithColors()
 	valueNode := astFactory.CreateBoolean(true)
 	constNode := astFactory.CreateSingleVarNameDeclarationWithValue("myTrue", valueNode)
-	x.assertNode(constNode).IsVar().HasOneChildThat().IsName("myTrue")
+	AssertNode(constNode).IsVar().HasOneChildThat().IsName("myTrue")
 	nameNode := constNode.GetOnlyChild()
-	x.assertNode(nameNode).HasOneChildThat().IsEqualTo(valueNode)
-	x.assertNode(nameNode).HasColorThat().IsEqualTo(valueNode.GetColor())
+	AssertNode(nameNode).HasOneChildThat().IsEqualTo(valueNode)
+	AssertNode(nameNode).HasColorThat().IsEqualTo(valueNode.GetColor())
 }
 
-func TestAstFactory_testCreateSingleConstNameDeclaration_jstypes(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
+// Java: AstFactoryTest.testCreateSingleConstNameDeclaration_jstypes()
+func (c *AstFactoryTest) TestCreateSingleConstNameDeclaration_jstypes() {
+	astFactory := c.createTestAstFactory()
 	valueNode := astFactory.CreateBoolean(true)
 	constNode := astFactory.CreateSingleConstNameDeclaration("myTrue", valueNode)
-	x.assertNode(constNode).IsConst().HasOneChildThat().IsName("myTrue")
+	AssertNode(constNode).IsConst().HasOneChildThat().IsName("myTrue")
 	nameNode := constNode.GetOnlyChild()
-	x.assertNode(nameNode).HasOneChildThat().IsEqualTo(valueNode)
-	x.assertNode(nameNode).HasJSTypeThat().IsEqualTo(valueNode.GetJSType())
+	AssertNode(nameNode).HasOneChildThat().IsEqualTo(valueNode)
+	AssertNode(nameNode).HasJSTypeThat().IsEqualTo(valueNode.GetJSType())
 }
 
-func TestAstFactory_testCreateSingleConstNameDeclaration_colors(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactoryWithColors()
-
+// Java: AstFactoryTest.testCreateSingleConstNameDeclaration_colors()
+func (c *AstFactoryTest) TestCreateSingleConstNameDeclaration_colors() {
+	astFactory := c.createTestAstFactoryWithColors()
 	valueNode := astFactory.CreateBoolean(true)
 	constNode := astFactory.CreateSingleConstNameDeclaration("myTrue", valueNode)
-	x.assertNode(constNode).IsConst().HasOneChildThat().IsName("myTrue")
+	AssertNode(constNode).IsConst().HasOneChildThat().IsName("myTrue")
 	nameNode := constNode.GetOnlyChild()
-	x.assertNode(nameNode).HasOneChildThat().IsEqualTo(valueNode)
-	x.assertNode(nameNode).HasColorThat().IsEqualTo(valueNode.GetColor())
+	AssertNode(nameNode).HasOneChildThat().IsEqualTo(valueNode)
+	AssertNode(nameNode).HasColorThat().IsEqualTo(valueNode.GetColor())
 }
 
-func TestAstFactory_testCreateNameWithJSType(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
-	n := astFactory.CreateName("x", AstFactory_Type_OfJSTypeNative(rhino.JSTypeNative_STRING_TYPE))
-	x.assertNode(n).HasType(rhino.Token_NAME)
-	x.truth.AssertThat(n.GetString()).IsEqualTo("x")
-	x.assertType(n.GetJSType()).IsString()
+// Java: AstFactoryTest.testCreateNameWithJSType()
+func (c *AstFactoryTest) TestCreateNameWithJSType() {
+	astFactory := c.createTestAstFactory()
+	x := astFactory.CreateName("x", AstFactory_Type_OfJSTypeNative(rhino.JSTypeNative_STRING_TYPE))
+	AssertNode(x).HasType(rhino.Token_NAME)
+	AssertThat(x.GetString()).IsEqualTo("x")
+	TypeSubject_AssertType(x.GetJSType()).IsString()
 }
 
-func TestAstFactory_testCreateNameWithNativeType(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
-	n := astFactory.CreateName("x", AstFactory_Type_OfJSTypeNative(rhino.JSTypeNative_STRING_TYPE))
-	x.assertNode(n).HasType(rhino.Token_NAME)
-	x.truth.AssertThat(n.GetString()).IsEqualTo("x")
-	x.assertType(n.GetJSType()).IsString()
+// Java: AstFactoryTest.testCreateNameWithNativeType()
+func (c *AstFactoryTest) TestCreateNameWithNativeType() {
+	astFactory := c.createTestAstFactory()
+	x := astFactory.CreateName("x", AstFactory_Type_OfJSTypeNative(rhino.JSTypeNative_STRING_TYPE))
+	AssertNode(x).HasType(rhino.Token_NAME)
+	AssertThat(x.GetString()).IsEqualTo("x")
+	TypeSubject_AssertType(x.GetJSType()).IsString()
 }
 
-func TestAstFactory_testCreateNameWithColor(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactoryWithColors()
-
-	n := astFactory.CreateName("x",
-		AstFactory_Type_OfJSTypeNativeAndColor(rhino.JSTypeNative_STRING_TYPE, colors.StandardColors_STRING))
-	x.assertNode(n).HasType(rhino.Token_NAME)
-	x.truth.AssertThat(n.GetString()).IsEqualTo("x")
-	x.assertNode(n).HasColorThat().IsEqualTo(colors.StandardColors_STRING)
+// Java: AstFactoryTest.testCreateNameWithColor()
+func (c *AstFactoryTest) TestCreateNameWithColor() {
+	astFactory := c.createTestAstFactoryWithColors()
+	x := astFactory.CreateName("x", AstFactory_Type_OfJSTypeNativeAndColor(rhino.JSTypeNative_STRING_TYPE, colors.StandardColors_STRING))
+	AssertNode(x).HasType(rhino.Token_NAME)
+	AssertThat(x.GetString()).IsEqualTo("x")
+	AssertNode(x).HasColorThat().IsEqualTo(colors.StandardColors_STRING)
 }
 
-func TestAstFactory_testCreateNameFromScope_jstypes(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck")
+// Java: AstFactoryTest.testCreateNameFromScope_jstypes()
+func (c *AstFactoryTest) TestCreateNameFromScope_jstypes() {
+	astFactory := c.createTestAstFactory()
+	root := c.parseAndAddTypes("/** @type {string} */ const X = 'hi';")
+	scope := c.getScope(root)
+	x := astFactory.CreateNameInScope(scope, "X")
+	AssertNode(x).HasType(rhino.Token_NAME)
+	AssertThat(x.GetString()).IsEqualTo("X")
+	TypeSubject_AssertType(x.GetJSType()).IsString()
 }
 
-func TestAstFactory_testCreateNameFromScope_colors(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck, ConvertTypesToColors")
+// Java: AstFactoryTest.testCreateNameFromScope_colors()
+func (c *AstFactoryTest) TestCreateNameFromScope_colors() {
+	astFactory := c.createTestAstFactoryWithColors()
+	root := c.parseAndAddColors("/** @type {string} */ const X = 'hi';")
+	scope := c.getScope(root)
+	x := astFactory.CreateNameInScope(scope, "X")
+	AssertNode(x).HasType(rhino.Token_NAME)
+	AssertThat(x.GetString()).IsEqualTo("X")
+	AssertNode(x).HasColorThat().IsEqualTo(colors.StandardColors_STRING)
 }
 
-func TestAstFactory_testCreateNameFromScope_crashesIfMissingVariable(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck")
+// Java: AstFactoryTest.testCreateNameFromScope_crashesIfMissingVariable()
+func (c *AstFactoryTest) TestCreateNameFromScope_crashesIfMissingVariable() {
+	astFactory := c.createTestAstFactory()
+	root := c.parseAndAddTypes("/** @type {string} */ const X = 'hi';")
+	scope := c.getScope(root)
+	AssertThrows[jutil.Throwable](func() { astFactory.CreateNameInScope(scope, "missing") })
 }
 
-func TestAstFactory_testCreateGetPropFromScope_defaultsToUnknownJSTypeWhenNull(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
+// Java: AstFactoryTest.testCreateGetPropFromScope_defaultsToUnknownJSTypeWhenNull()
+func (c *AstFactoryTest) TestCreateGetPropFromScope_defaultsToUnknownJSTypeWhenNull() {
+	astFactory := c.createTestAstFactory()
 	receiver := astFactory.CreateNameWithUnknownType("JQ")
 	typeTemplate := rhino.IR_Name("JQ")
-
 	jutil.CheckStateMsg(typeTemplate.GetJSType() == nil, "getJSType does not return null ")
-
-	n := astFactory.CreateGetProp(receiver, "$", AstFactory_Type_(typeTemplate))
-
-	x.assertNode(n).HasType(rhino.Token_GETPROP)
-	x.assertNode(n).MatchesQualifiedName("JQ.$")
-	x.assertNode(n).HasJSTypeThat().IsUnknown()
+	x := astFactory.CreateGetProp(receiver, "$", AstFactory_Type_(typeTemplate))
+	AssertNode(x).HasType(rhino.Token_GETPROP)
+	AssertNode(x).MatchesQualifiedName("JQ.$")
+	AssertNode(x).HasJSTypeThat().IsUnknown()
 }
 
-func TestAstFactory_testCreateGetPropFromScope_defaultsToUnknownColorWhenNull(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactoryWithColors()
+// Java: AstFactoryTest.testCreateGetPropFromScope_defaultsToUnknownColorWhenNull()
+func (c *AstFactoryTest) TestCreateGetPropFromScope_defaultsToUnknownColorWhenNull() {
+	astFactory := c.createTestAstFactoryWithColors()
 	receiver := astFactory.CreateNameWithUnknownType("JQ")
 	typeTemplate := rhino.IR_Name("JQ")
-
 	jutil.CheckStateMsg(typeTemplate.GetColor() == nil, "getColor does not return null ")
-
-	n := astFactory.CreateGetProp(receiver, "$", AstFactory_Type_(typeTemplate))
-
-	x.assertNode(n).HasType(rhino.Token_GETPROP)
-	x.assertNode(n).MatchesQualifiedName("JQ.$")
-	x.assertNode(n).HasColorThat().IsEqualTo(colors.StandardColors_UNKNOWN)
+	x := astFactory.CreateGetProp(receiver, "$", AstFactory_Type_(typeTemplate))
+	AssertNode(x).HasType(rhino.Token_GETPROP)
+	AssertNode(x).MatchesQualifiedName("JQ.$")
+	AssertNode(x).HasColorThat().IsEqualTo(colors.StandardColors_UNKNOWN)
 }
 
-func TestAstFactory_testCreateThisReference(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
-	n := astFactory.CreateThis(AstFactory_Type_OfJSType(x.getNativeType(rhino.JSTypeNative_STRING_TYPE)))
-	x.assertNode(n).HasType(rhino.Token_THIS)
-	x.assertType(n.GetJSType()).IsString()
+// Java: AstFactoryTest.testCreateThisReference()
+func (c *AstFactoryTest) TestCreateThisReference() {
+	astFactory := c.createTestAstFactory()
+	x := astFactory.CreateThis(AstFactory_Type_OfJSType(c.getNativeType(rhino.JSTypeNative_STRING_TYPE)))
+	AssertNode(x).HasType(rhino.Token_THIS)
+	TypeSubject_AssertType(x.GetJSType()).IsString()
 }
 
-func TestAstFactory_testCreateSuperReference(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
-	n := astFactory.CreateSuper(AstFactory_Type_OfJSType(x.getNativeType(rhino.JSTypeNative_STRING_TYPE)))
-	x.assertNode(n).HasType(rhino.Token_SUPER)
-	x.assertType(n.GetJSType()).IsString()
+// Java: AstFactoryTest.testCreateSuperReference()
+func (c *AstFactoryTest) TestCreateSuperReference() {
+	astFactory := c.createTestAstFactory()
+	x := astFactory.CreateSuper(AstFactory_Type_OfJSType(c.getNativeType(rhino.JSTypeNative_STRING_TYPE)))
+	AssertNode(x).HasType(rhino.Token_SUPER)
+	TypeSubject_AssertType(x.GetJSType()).IsString()
 }
 
-func TestAstFactory_createThisForEs6ClassMember_jstypes(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck")
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
+// Java: AstFactoryTest.createThisForEs6ClassMember_jstypes()
+func (c *AstFactoryTest) TestCreateThisForEs6ClassMember_jstypes() {
+	astFactory := c.createTestAstFactory()
+	root := c.parseAndAddTypes(
+		`class C {
+  method() {}
+}
+`)
+	classNode := root.GetFirstChild(). // script
+						GetFirstChild()
+	// class node
+	memberDef := classNode.
+		GetLastChild(). // class members
+		GetFirstChild()
+	// member function def
+	instanceType := classNode.GetJSTypeRequired().AssertFunctionType().GetInstanceType()
+	thisAlias := astFactory.CreateThisForEs6ClassMember(memberDef)
+	AssertNode(thisAlias).HasType(rhino.Token_THIS)
+	AssertNode(thisAlias).HasJSTypeThat().IsEqualTo(instanceType)
 }
 
-func TestAstFactory_createThisForEs6ClassMember_colors(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck, ConvertTypesToColors")
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
+// Java: AstFactoryTest.createThisForEs6ClassMember_colors()
+func (c *AstFactoryTest) TestCreateThisForEs6ClassMember_colors() {
+	astFactory := c.createTestAstFactoryWithColors()
+	root := c.parseAndAddColors(
+		`class C {
+  method() {}
+}
+`)
+	classNode := root.GetFirstChild(). // script
+						GetFirstChild()
+	// class node
+	memberDef := classNode.
+		GetLastChild(). // class members
+		GetFirstChild()
+	// member function def
+	instanceType := colors.Color_CreateUnion(classNode.GetColor().GetInstanceColors())
+	thisAlias := astFactory.CreateThisForEs6ClassMember(memberDef)
+	AssertNode(thisAlias).HasType(rhino.Token_THIS)
+	AssertNode(thisAlias).HasColorThat().IsEqualTo(instanceType)
 }
 
-func TestAstFactory_createThisForEs6ClassStaticMember_jstypes(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck")
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
+// Java: AstFactoryTest.createThisForEs6ClassStaticMember_jstypes()
+func (c *AstFactoryTest) TestCreateThisForEs6ClassStaticMember_jstypes() {
+	astFactory := c.createTestAstFactory()
+	root := c.parseAndAddTypes(
+		`class C {
+  static method() {}
+}
+`)
+	classNode := root.GetFirstChild(). // script
+						GetFirstChild()
+	// class node
+	memberDef := classNode.
+		GetLastChild(). // class members
+		GetFirstChild()
+	// member function def
+	thisAlias := astFactory.CreateThisForEs6ClassMember(memberDef)
+	AssertNode(thisAlias).HasType(rhino.Token_THIS)
+	AssertNode(thisAlias).HasJSTypeThat().IsEqualTo(classNode.GetJSType())
 }
 
-func TestAstFactory_createThisForEs6ClassStaticMember_colors(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck, ConvertTypesToColors")
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
+// Java: AstFactoryTest.createThisForEs6ClassStaticMember_colors()
+func (c *AstFactoryTest) TestCreateThisForEs6ClassStaticMember_colors() {
+	astFactory := c.createTestAstFactoryWithColors()
+	root := c.parseAndAddColors(
+		`class C {
+  static method() {}
+}
+`)
+	classNode := root.GetFirstChild(). // script
+						GetFirstChild()
+	// class node
+	memberDef := classNode.
+		GetLastChild(). // class members
+		GetFirstChild()
+	// member function def
+	thisAlias := astFactory.CreateThisForEs6ClassMember(memberDef)
+	AssertNode(thisAlias).HasType(rhino.Token_THIS)
+	AssertNode(thisAlias).HasColorThat().IsEqualTo(classNode.GetColor())
 }
 
-func TestAstFactory_createThisAliasReferenceForFunction(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck")
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
+// Java: AstFactoryTest.createThisAliasReferenceForFunction()
+func (c *AstFactoryTest) TestCreateThisAliasReferenceForFunction() {
+	astFactory := c.createTestAstFactory()
+	root := c.parseAndAddTypes(
+		`class C {
+  method() {}
+}
+`)
+	classNode := root.GetFirstChild(). // script
+						GetFirstChild()
+	// class node
+	instanceType := classNode.GetJSTypeRequired().AssertFunctionType().GetInstanceType()
+	thisAlias := astFactory.CreateThisAliasReferenceForEs6Class("thisAlias", classNode)
+	AssertNode(thisAlias).HasType(rhino.Token_NAME)
+	AssertThat(thisAlias.GetString()).IsEqualTo("thisAlias")
+	AssertNode(thisAlias).HasJSTypeThat().IsEqualTo(instanceType)
 }
 
-func TestAstFactory_createThisAliasReferenceForFunctionWithoutTypes(t *testing.T) {
-	t.Skip("needs Compiler (init, parseInputs)")
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
+// Java: AstFactoryTest.createThisAliasReferenceForFunctionWithoutTypes()
+func (c *AstFactoryTest) TestCreateThisAliasReferenceForFunctionWithoutTypes() {
+	astFactory := c.createTestAstFactoryWithoutTypes()
+	root := c.parseWithoutTypes(
+		`class C {
+  method() {}
+}
+`)
+	classNode := root.GetFirstChild(). // script
+						GetFirstChild()
+	// class
+	thisAlias := astFactory.CreateThisAliasReferenceForEs6Class("thisAlias", classNode)
+	AssertNode(thisAlias).HasType(rhino.Token_NAME)
+	AssertThat(thisAlias.GetString()).IsEqualTo("thisAlias")
+	AssertThat(thisAlias.GetJSType()).IsNull()
 }
 
-func TestAstFactory_testCreateGetpropWithColorFromNode(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactoryWithColors()
-
+// Java: AstFactoryTest.testCreateGetpropWithColorFromNode()
+func (c *AstFactoryTest) TestCreateGetpropWithColorFromNode() {
+	astFactory := c.createTestAstFactoryWithColors()
 	receiver := astFactory.CreateNameWithUnknownType("x")
 	typeTemplate := astFactory.CreateNumber(0)
-
 	getProp := astFactory.CreateGetProp(receiver, "y", AstFactory_Type_(typeTemplate))
-
-	x.assertNode(getProp).HasToken(rhino.Token_GETPROP)
-	x.assertNode(getProp).HasStringThat().IsEqualTo("y")
-	x.assertNode(getProp).HasFirstChildThat().IsEqualTo(receiver)
-	x.assertNode(getProp).HasColorThat().IsEqualTo(colors.StandardColors_NUMBER)
+	AssertNode(getProp).HasToken(rhino.Token_GETPROP)
+	AssertNode(getProp).HasStringThat().IsEqualTo("y")
+	AssertNode(getProp).HasFirstChildThat().IsEqualTo(receiver)
+	AssertNode(getProp).HasColorThat().IsEqualTo(colors.StandardColors_NUMBER)
 }
 
-func TestAstFactory_testCreateStartOptChainGetprop(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactoryWithColors()
-
+// Java: AstFactoryTest.testCreateStartOptChainGetprop()
+func (c *AstFactoryTest) TestCreateStartOptChainGetprop() {
+	astFactory := c.createTestAstFactoryWithColors()
 	receiver := astFactory.CreateNameWithUnknownType("x")
 	typeTemplate := astFactory.CreateNumber(0)
-
 	getProp := astFactory.CreateStartOptChainGetprop(receiver, "y", AstFactory_Type_(typeTemplate))
-
-	x.assertNode(getProp).HasToken(rhino.Token_OPTCHAIN_GETPROP)
-	x.assertNode(getProp).HasStringThat().IsEqualTo("y")
-	x.assertNode(getProp).HasFirstChildThat().IsEqualTo(receiver)
-	x.assertNode(getProp).HasColorThat().IsEqualTo(colors.StandardColors_NUMBER)
-	x.assertNode(getProp).IsOptionalChainStart()
+	AssertNode(getProp).HasToken(rhino.Token_OPTCHAIN_GETPROP)
+	AssertNode(getProp).HasStringThat().IsEqualTo("y")
+	AssertNode(getProp).HasFirstChildThat().IsEqualTo(receiver)
+	AssertNode(getProp).HasColorThat().IsEqualTo(colors.StandardColors_NUMBER)
+	AssertNode(getProp).IsOptionalChainStart()
 }
 
-func TestAstFactory_testCreateContinueOptChainGetprop(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactoryWithColors()
-
+// Java: AstFactoryTest.testCreateContinueOptChainGetprop()
+func (c *AstFactoryTest) TestCreateContinueOptChainGetprop() {
+	astFactory := c.createTestAstFactoryWithColors()
 	receiver := astFactory.CreateNameWithUnknownType("x")
 	typeTemplate := astFactory.CreateNumber(0)
-
 	getProp := astFactory.CreateContinueOptChainGetprop(receiver, "y", AstFactory_Type_(typeTemplate))
-
-	x.assertNode(getProp).HasToken(rhino.Token_OPTCHAIN_GETPROP)
-	x.assertNode(getProp).HasStringThat().IsEqualTo("y")
-	x.assertNode(getProp).HasFirstChildThat().IsEqualTo(receiver)
-	x.assertNode(getProp).HasColorThat().IsEqualTo(colors.StandardColors_NUMBER)
-	x.assertNode(getProp).IsNotOptionalChainStart()
+	AssertNode(getProp).HasToken(rhino.Token_OPTCHAIN_GETPROP)
+	AssertNode(getProp).HasStringThat().IsEqualTo("y")
+	AssertNode(getProp).HasFirstChildThat().IsEqualTo(receiver)
+	AssertNode(getProp).HasColorThat().IsEqualTo(colors.StandardColors_NUMBER)
+	AssertNode(getProp).IsNotOptionalChainStart()
 }
 
-func TestAstFactory_testCreateStartOptChainGetelem(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactoryWithColors()
-
+// Java: AstFactoryTest.testCreateStartOptChainGetelem()
+func (c *AstFactoryTest) TestCreateStartOptChainGetelem() {
+	astFactory := c.createTestAstFactoryWithColors()
 	receiver := astFactory.CreateNameWithUnknownType("x")
 	elem := astFactory.CreateNumber(0)
 	typeTemplate := astFactory.CreateNumber(0)
-
 	getElem := astFactory.CreateStartOptChainGetelem(receiver, elem, AstFactory_Type_(typeTemplate))
-
-	x.assertNode(getElem).HasToken(rhino.Token_OPTCHAIN_GETELEM)
-	x.assertNode(getElem).HasFirstChildThat().IsEqualTo(receiver)
-	x.assertNode(getElem).HasSecondChildThat().IsEqualTo(elem)
-	x.assertNode(getElem).HasColorThat().IsEqualTo(colors.StandardColors_NUMBER)
-	x.assertNode(getElem).IsOptionalChainStart()
+	AssertNode(getElem).HasToken(rhino.Token_OPTCHAIN_GETELEM)
+	AssertNode(getElem).HasFirstChildThat().IsEqualTo(receiver)
+	AssertNode(getElem).HasSecondChildThat().IsEqualTo(elem)
+	AssertNode(getElem).HasColorThat().IsEqualTo(colors.StandardColors_NUMBER)
+	AssertNode(getElem).IsOptionalChainStart()
 }
 
-func TestAstFactory_testCreateContinueOptChainGetelem(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactoryWithColors()
-
+// Java: AstFactoryTest.testCreateContinueOptChainGetelem()
+func (c *AstFactoryTest) TestCreateContinueOptChainGetelem() {
+	astFactory := c.createTestAstFactoryWithColors()
 	receiver := astFactory.CreateNameWithUnknownType("x")
 	elem := astFactory.CreateNumber(0)
 	typeTemplate := astFactory.CreateNumber(0)
-
 	getElem := astFactory.CreateContinueOptChainGetelem(receiver, elem, AstFactory_Type_(typeTemplate))
-
-	x.assertNode(getElem).HasToken(rhino.Token_OPTCHAIN_GETELEM)
-	x.assertNode(getElem).HasFirstChildThat().IsEqualTo(receiver)
-	x.assertNode(getElem).HasSecondChildThat().IsEqualTo(elem)
-	x.assertNode(getElem).HasColorThat().IsEqualTo(colors.StandardColors_NUMBER)
-	x.assertNode(getElem).IsNotOptionalChainStart()
+	AssertNode(getElem).HasToken(rhino.Token_OPTCHAIN_GETELEM)
+	AssertNode(getElem).HasFirstChildThat().IsEqualTo(receiver)
+	AssertNode(getElem).HasSecondChildThat().IsEqualTo(elem)
+	AssertNode(getElem).HasColorThat().IsEqualTo(colors.StandardColors_NUMBER)
+	AssertNode(getElem).IsNotOptionalChainStart()
 }
 
-func TestAstFactory_testCreateStartOptChainCall(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactoryWithColors()
-
+// Java: AstFactoryTest.testCreateStartOptChainCall()
+func (c *AstFactoryTest) TestCreateStartOptChainCall() {
+	astFactory := c.createTestAstFactoryWithColors()
 	receiver := astFactory.CreateNameWithUnknownType("x")
 	typeTemplate := astFactory.CreateNumber(0)
 	arg1 := astFactory.CreateNumber(1)
 	arg2 := astFactory.CreateNumber(2)
-
 	call := astFactory.CreateStartOptChainCall(receiver, AstFactory_Type_(typeTemplate), arg1, arg2)
-
-	x.assertNode(call).HasToken(rhino.Token_OPTCHAIN_CALL)
-	x.assertNode(call).HasFirstChildThat().IsEqualTo(receiver)
-	x.assertNode(call).HasSecondChildThat().IsEqualTo(arg1)
-	x.assertNode(call).HasLastChildThat().IsEqualTo(arg2)
-	x.assertNode(call).HasColorThat().IsEqualTo(colors.StandardColors_NUMBER)
-	x.assertNode(call).IsOptionalChainStart()
+	AssertNode(call).HasToken(rhino.Token_OPTCHAIN_CALL)
+	AssertNode(call).HasFirstChildThat().IsEqualTo(receiver)
+	AssertNode(call).HasSecondChildThat().IsEqualTo(arg1)
+	AssertNode(call).HasLastChildThat().IsEqualTo(arg2)
+	AssertNode(call).HasColorThat().IsEqualTo(colors.StandardColors_NUMBER)
+	AssertNode(call).IsOptionalChainStart()
 }
 
-func TestAstFactory_testCreateContinueOptChainCall(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactoryWithColors()
-
+// Java: AstFactoryTest.testCreateContinueOptChainCall()
+func (c *AstFactoryTest) TestCreateContinueOptChainCall() {
+	astFactory := c.createTestAstFactoryWithColors()
 	receiver := astFactory.CreateNameWithUnknownType("x")
 	typeTemplate := astFactory.CreateNumber(0)
 	arg1 := astFactory.CreateNumber(1)
 	arg2 := astFactory.CreateNumber(2)
-
 	call := astFactory.CreateContinueOptChainCall(receiver, AstFactory_Type_(typeTemplate), arg1, arg2)
-
-	x.assertNode(call).HasToken(rhino.Token_OPTCHAIN_CALL)
-	x.assertNode(call).HasFirstChildThat().IsEqualTo(receiver)
-	x.assertNode(call).HasSecondChildThat().IsEqualTo(arg1)
-	x.assertNode(call).HasLastChildThat().IsEqualTo(arg2)
-	x.assertNode(call).HasColorThat().IsEqualTo(colors.StandardColors_NUMBER)
-	x.assertNode(call).IsNotOptionalChainStart()
+	AssertNode(call).HasToken(rhino.Token_OPTCHAIN_CALL)
+	AssertNode(call).HasFirstChildThat().IsEqualTo(receiver)
+	AssertNode(call).HasSecondChildThat().IsEqualTo(arg1)
+	AssertNode(call).HasLastChildThat().IsEqualTo(arg2)
+	AssertNode(call).HasColorThat().IsEqualTo(colors.StandardColors_NUMBER)
+	AssertNode(call).IsNotOptionalChainStart()
 }
 
-func TestAstFactory_testCreateStringKey_jstypes(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
-	numberNode := astFactory.CreateNumber(2112)
+// Java: AstFactoryTest.testCreateStringKey_jstypes()
+func (c *AstFactoryTest) TestCreateStringKey_jstypes() {
+	astFactory := c.createTestAstFactory()
+	numberNode := astFactory.CreateNumber(2112.0)
 	stringKeyNode := astFactory.CreateStringKey("key", numberNode)
-
-	x.assertNode(stringKeyNode).HasType(rhino.Token_STRING_KEY)
-	x.truth.AssertThat(stringKeyNode.GetString()).IsEqualTo("key")
-	x.assertChildren(stringKeyNode, false, numberNode)
-	x.assertType(stringKeyNode.GetJSType()).IsNumber()
+	AssertNode(stringKeyNode).HasType(rhino.Token_STRING_KEY)
+	AssertThat(stringKeyNode.GetString()).IsEqualTo("key")
+	AssertThat(astFactoryTest_childList(stringKeyNode)).ContainsExactly(numberNode)
+	TypeSubject_AssertType(stringKeyNode.GetJSType()).IsNumber()
 }
 
-func TestAstFactory_testCreateStringKey_colors(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactoryWithColors()
-
-	numberNode := astFactory.CreateNumber(2112)
+// Java: AstFactoryTest.testCreateStringKey_colors()
+func (c *AstFactoryTest) TestCreateStringKey_colors() {
+	astFactory := c.createTestAstFactoryWithColors()
+	numberNode := astFactory.CreateNumber(2112.0)
 	stringKeyNode := astFactory.CreateStringKey("key", numberNode)
-
-	x.assertNode(stringKeyNode).HasType(rhino.Token_STRING_KEY)
-	x.truth.AssertThat(stringKeyNode.GetString()).IsEqualTo("key")
-	x.assertChildren(stringKeyNode, false, numberNode)
-	x.assertNode(stringKeyNode).HasColorThat().IsEqualTo(colors.StandardColors_NUMBER)
+	AssertNode(stringKeyNode).HasType(rhino.Token_STRING_KEY)
+	AssertThat(stringKeyNode.GetString()).IsEqualTo("key")
+	AssertThat(astFactoryTest_childList(stringKeyNode)).ContainsExactly(numberNode)
+	AssertNode(stringKeyNode).HasColorThat().IsEqualTo(colors.StandardColors_NUMBER)
 }
 
-func TestAstFactory_testCreateComputedProperty_jstypes(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
-	numberNode := astFactory.CreateNumber(2112)
+// Java: AstFactoryTest.testCreateComputedProperty_jstypes()
+func (c *AstFactoryTest) TestCreateComputedProperty_jstypes() {
+	astFactory := c.createTestAstFactory()
+	numberNode := astFactory.CreateNumber(2112.0)
 	stringLiteral := astFactory.CreateString("string literal key")
 	computedPropertyNode := astFactory.CreateComputedProperty(stringLiteral, numberNode)
-
-	x.assertNode(computedPropertyNode).HasType(rhino.Token_COMPUTED_PROP)
-	x.assertChildren(computedPropertyNode, true, stringLiteral, numberNode)
-	x.assertType(computedPropertyNode.GetJSType()).IsNumber()
+	AssertNode(computedPropertyNode).HasType(rhino.Token_COMPUTED_PROP)
+	AssertThat(astFactoryTest_childList(computedPropertyNode)).
+		ContainsExactly(stringLiteral, numberNode).
+		InOrder()
+	TypeSubject_AssertType(computedPropertyNode.GetJSType()).IsNumber()
 }
 
-func TestAstFactory_testCreateComputedProperty_colors(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactoryWithColors()
-
-	numberNode := astFactory.CreateNumber(2112)
+// Java: AstFactoryTest.testCreateComputedProperty_colors()
+func (c *AstFactoryTest) TestCreateComputedProperty_colors() {
+	astFactory := c.createTestAstFactoryWithColors()
+	numberNode := astFactory.CreateNumber(2112.0)
 	stringLiteral := astFactory.CreateString("string literal key")
 	computedPropertyNode := astFactory.CreateComputedProperty(stringLiteral, numberNode)
-
-	x.assertNode(computedPropertyNode).HasType(rhino.Token_COMPUTED_PROP)
-	x.assertChildren(computedPropertyNode, true, stringLiteral, numberNode)
-	x.assertNode(computedPropertyNode).HasColorThat().IsEqualTo(colors.StandardColors_NUMBER)
+	AssertNode(computedPropertyNode).HasType(rhino.Token_COMPUTED_PROP)
+	AssertThat(astFactoryTest_childList(computedPropertyNode)).
+		ContainsExactly(stringLiteral, numberNode).
+		InOrder()
+	AssertNode(computedPropertyNode).HasColorThat().IsEqualTo(colors.StandardColors_NUMBER)
 }
 
-func TestAstFactory_testCreateGetterDef(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
+// Java: AstFactoryTest.testCreateGetterDef()
+func (c *AstFactoryTest) TestCreateGetterDef() {
+	astFactory := c.createTestAstFactory()
 	valueNode := astFactory.CreateString("value")
 	getterNode := astFactory.CreateGetterDef("name", valueNode)
-
-	x.assertNode(getterNode).
-		HasToken(rhino.Token_GETTER_DEF).
-		HasStringThat().
-		IsEqualTo("name")
-	x.assertNode(getterNode).
-		HasOneChildThat().
-		IsFunction().
-		HasXChildren(3)
+	AssertNode(getterNode). //
+				HasToken(rhino.Token_GETTER_DEF).
+				HasStringThat().
+				IsEqualTo("name")
+	AssertNode(getterNode). //
+				HasOneChildThat().
+				IsFunction().
+				HasXChildren(3)
 	getterFunctionNode := getterNode.GetOnlyChild()
 	// The first child is an empty string representing that the function has no name
-	x.assertNode(getterFunctionNode).HasFirstChildThat().IsName("")
+	AssertNode(getterFunctionNode).HasFirstChildThat().IsName("")
 	// the second child is the parameter list, which should be empty.
-	x.assertNode(getterFunctionNode).
-		HasSecondChildThat().
-		IsParamList().
-		HasNoChildren()
+	AssertNode(getterFunctionNode). //
+					HasSecondChildThat().
+					IsParamList().
+					HasNoChildren()
 	getterFunctionBody := getterFunctionNode.GetLastChild()
-	x.assertNode(getterFunctionBody).
-		HasOneChildThat().
-		HasToken(rhino.Token_RETURN).
-		HasOneChildThat().
-		IsEqualTo(valueNode)
+	AssertNode(getterFunctionBody). //
+					HasOneChildThat().
+					HasToken(rhino.Token_RETURN).
+					HasOneChildThat().
+					IsEqualTo(valueNode)
 }
 
-func TestAstFactory_testCreateGetElem_jstypes(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
+// Java: AstFactoryTest.testCreateGetElem_jstypes()
+func (c *AstFactoryTest) TestCreateGetElem_jstypes() {
+	astFactory := c.createTestAstFactory()
 	objectName := astFactory.CreateName("obj", AstFactory_Type_OfJSTypeNative(rhino.JSTypeNative_OBJECT_TYPE))
 	stringLiteral := astFactory.CreateString("string literal key")
 	getElemNode := astFactory.CreateGetElem(objectName, stringLiteral)
-
-	x.assertNode(getElemNode).HasType(rhino.Token_GETELEM)
-	x.assertChildren(getElemNode, true, objectName, stringLiteral)
+	AssertNode(getElemNode).HasType(rhino.Token_GETELEM)
+	AssertThat(astFactoryTest_childList(getElemNode)).ContainsExactly(objectName, stringLiteral).InOrder()
 	// TODO(bradfordcsmith): When receiver is an Array<T> or an Object<K, V>, use the template type
 	// here.
-	x.assertType(getElemNode.GetJSType()).IsUnknown()
+	TypeSubject_AssertType(getElemNode.GetJSType()).IsUnknown()
 }
 
-func TestAstFactory_testCreateGetElem_colors(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactoryWithColors()
-
-	objectName := astFactory.CreateName("obj",
-		AstFactory_Type_OfJSTypeNativeAndColor(rhino.JSTypeNative_STRING_TYPE, colors.StandardColors_STRING))
+// Java: AstFactoryTest.testCreateGetElem_colors()
+func (c *AstFactoryTest) TestCreateGetElem_colors() {
+	astFactory := c.createTestAstFactoryWithColors()
+	objectName := astFactory.CreateName("obj", AstFactory_Type_OfJSTypeNativeAndColor(rhino.JSTypeNative_STRING_TYPE, colors.StandardColors_STRING))
 	stringLiteral := astFactory.CreateString("string literal key")
 	getElemNode := astFactory.CreateGetElem(objectName, stringLiteral)
-
-	x.assertNode(getElemNode).HasType(rhino.Token_GETELEM)
-	x.assertChildren(getElemNode, true, objectName, stringLiteral)
-	x.assertNode(getElemNode).HasColorThat().IsEqualTo(colors.StandardColors_UNKNOWN)
+	AssertNode(getElemNode).HasType(rhino.Token_GETELEM)
+	AssertThat(astFactoryTest_childList(getElemNode)).ContainsExactly(objectName, stringLiteral).InOrder()
+	AssertNode(getElemNode).HasColorThat().IsEqualTo(colors.StandardColors_UNKNOWN)
 }
 
-func TestAstFactory_testCreateComma_jstypes(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
+// Java: AstFactoryTest.testCreateComma_jstypes()
+func (c *AstFactoryTest) TestCreateComma_jstypes() {
+	astFactory := c.createTestAstFactory()
 	stringNode := astFactory.CreateString("hi")
-	numberNode := astFactory.CreateNumber(2112)
+	numberNode := astFactory.CreateNumber(2112.0)
 	commaNode := astFactory.CreateComma(stringNode, numberNode)
-
-	x.assertNode(commaNode).HasType(rhino.Token_COMMA)
-	x.assertChildren(commaNode, true, stringNode, numberNode)
-	x.assertType(commaNode.GetJSType()).IsNumber()
+	AssertNode(commaNode).HasType(rhino.Token_COMMA)
+	AssertThat(astFactoryTest_childList(commaNode)).ContainsExactly(stringNode, numberNode).InOrder()
+	TypeSubject_AssertType(commaNode.GetJSType()).IsNumber()
 }
 
-func TestAstFactory_testCreateComma_colors(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactoryWithColors()
-
+// Java: AstFactoryTest.testCreateComma_colors()
+func (c *AstFactoryTest) TestCreateComma_colors() {
+	astFactory := c.createTestAstFactoryWithColors()
 	stringNode := astFactory.CreateString("hi")
-	numberNode := astFactory.CreateNumber(2112)
+	numberNode := astFactory.CreateNumber(2112.0)
 	commaNode := astFactory.CreateComma(stringNode, numberNode)
-
-	x.assertNode(commaNode).HasType(rhino.Token_COMMA)
-	x.assertChildren(commaNode, true, stringNode, numberNode)
-	x.assertNode(commaNode).HasColorThat().IsEqualTo(colors.StandardColors_NUMBER)
+	AssertNode(commaNode).HasType(rhino.Token_COMMA)
+	AssertThat(astFactoryTest_childList(commaNode)).ContainsExactly(stringNode, numberNode).InOrder()
+	AssertNode(commaNode).HasColorThat().IsEqualTo(colors.StandardColors_NUMBER)
 }
 
-func TestAstFactory_testCreateCommas_jstypes(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
+// Java: AstFactoryTest.testCreateCommas_jstypes()
+func (c *AstFactoryTest) TestCreateCommas_jstypes() {
+	astFactory := c.createTestAstFactory()
 	stringNode := astFactory.CreateString("hi")
-	numberNode := astFactory.CreateNumber(2112)
+	numberNode := astFactory.CreateNumber(2112.0)
 	trueNode := astFactory.CreateBoolean(true)
 	falseNode := astFactory.CreateBoolean(false)
 	// "hi", 2112, true, false
 	stringNumberTrueFalse := astFactory.CreateCommas(stringNode, numberNode, trueNode, falseNode)
-
 	// ("hi", 2112, true), false
-	x.assertNode(stringNumberTrueFalse).HasType(rhino.Token_COMMA)
+	AssertNode(stringNumberTrueFalse).HasType(rhino.Token_COMMA)
 	stringNumberTrue := stringNumberTrueFalse.GetFirstChild()
-	x.assertChildren(stringNumberTrueFalse, true, stringNumberTrue, falseNode)
-	x.assertType(stringNumberTrueFalse.GetJSType()).IsBoolean()
-
+	AssertThat(astFactoryTest_childList(stringNumberTrueFalse)).
+		ContainsExactly(stringNumberTrue, falseNode).
+		InOrder()
+	TypeSubject_AssertType(stringNumberTrueFalse.GetJSType()).IsBoolean()
 	// ("hi", 2112), true
 	stringNumber := stringNumberTrue.GetFirstChild()
-	x.assertChildren(stringNumberTrue, true, stringNumber, trueNode)
-	x.assertType(stringNumberTrue.GetJSType()).IsBoolean()
-
+	AssertThat(astFactoryTest_childList(stringNumberTrue)).ContainsExactly(stringNumber, trueNode).InOrder()
+	TypeSubject_AssertType(stringNumberTrue.GetJSType()).IsBoolean()
 	// "hi", 2112
-	x.assertChildren(stringNumber, false, stringNode, numberNode)
-	x.assertType(stringNumber.GetJSType()).IsNumber()
+	AssertThat(astFactoryTest_childList(stringNumber)).ContainsExactly(stringNode, numberNode)
+	TypeSubject_AssertType(stringNumber.GetJSType()).IsNumber()
 }
 
-func TestAstFactory_testCreateIn_jstypes(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
+// Java: AstFactoryTest.testCreateIn_jstypes()
+func (c *AstFactoryTest) TestCreateIn_jstypes() {
+	astFactory := c.createTestAstFactory()
 	prop := astFactory.CreateString("prop")
-	obj := rhino.IR_Name("obj") // TODO(bradfordcsmith): This should have a type on it.
+	obj := rhino.IR_Name("obj")
+	// TODO(bradfordcsmith): This should have a type on it.
 	n := astFactory.CreateIn(prop, obj)
-	x.assertNode(n).HasType(rhino.Token_IN)
-	x.assertType(n.GetJSType()).IsBoolean()
-	x.assertChildren(n, true, prop, obj)
+	AssertNode(n).HasType(rhino.Token_IN)
+	TypeSubject_AssertType(n.GetJSType()).IsBoolean()
+	AssertThat(astFactoryTest_childList(n)).ContainsExactly(prop, obj).InOrder()
 }
 
-func TestAstFactory_testCreateIn_colors(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactoryWithColors()
-
+// Java: AstFactoryTest.testCreateIn_colors()
+func (c *AstFactoryTest) TestCreateIn_colors() {
+	astFactory := c.createTestAstFactoryWithColors()
 	prop := astFactory.CreateString("prop")
-	obj := rhino.IR_Name("obj") // TODO(bradfordcsmith): This should have a type on it.
+	obj := rhino.IR_Name("obj")
+	// TODO(bradfordcsmith): This should have a type on it.
 	n := astFactory.CreateIn(prop, obj)
-	x.assertNode(n).HasType(rhino.Token_IN)
-	x.assertNode(n).HasColorThat().IsEqualTo(colors.StandardColors_BOOLEAN)
-	x.assertChildren(n, true, prop, obj)
+	AssertNode(n).HasType(rhino.Token_IN)
+	AssertNode(n).HasColorThat().IsEqualTo(colors.StandardColors_BOOLEAN)
+	AssertThat(astFactoryTest_childList(n)).ContainsExactly(prop, obj).InOrder()
 }
 
-func TestAstFactory_testCreateAnd_jstypes(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
-	numberLiteral := astFactory.CreateNumber(2112)
+// Java: AstFactoryTest.testCreateAnd_jstypes()
+func (c *AstFactoryTest) TestCreateAnd_jstypes() {
+	astFactory := c.createTestAstFactory()
+	numberLiteral := astFactory.CreateNumber(2112.0)
 	stringLiteral := astFactory.CreateString("hello")
 	andNode := astFactory.CreateAnd(numberLiteral, stringLiteral)
-
-	x.assertNode(andNode).HasType(rhino.Token_AND)
-	x.assertChildren(andNode, true, numberLiteral, stringLiteral)
-	x.assertType(andNode.GetJSType()).ToStringIsEqualTo("(number|string)")
+	AssertNode(andNode).HasType(rhino.Token_AND)
+	AssertThat(astFactoryTest_childList(andNode)).ContainsExactly(numberLiteral, stringLiteral).InOrder()
+	TypeSubject_AssertType(andNode.GetJSType()).ToStringIsEqualTo("(number|string)")
 }
 
-func TestAstFactory_testCreateAnd_colors(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactoryWithColors()
-
-	numberLiteral := astFactory.CreateNumber(2112)
+// Java: AstFactoryTest.testCreateAnd_colors()
+func (c *AstFactoryTest) TestCreateAnd_colors() {
+	astFactory := c.createTestAstFactoryWithColors()
+	numberLiteral := astFactory.CreateNumber(2112.0)
 	stringLiteral := astFactory.CreateString("hello")
 	andNode := astFactory.CreateAnd(numberLiteral, stringLiteral)
-
-	x.assertNode(andNode).HasType(rhino.Token_AND)
-	x.assertChildren(andNode, true, numberLiteral, stringLiteral)
-	x.assertNode(andNode).HasColorThat().HasAlternates(colors.StandardColors_STRING, colors.StandardColors_NUMBER)
+	AssertNode(andNode).HasType(rhino.Token_AND)
+	AssertThat(astFactoryTest_childList(andNode)).ContainsExactly(numberLiteral, stringLiteral).InOrder()
+	AssertNode(andNode).HasColorThat().HasAlternates(colors.StandardColors_STRING, colors.StandardColors_NUMBER)
 }
 
-func TestAstFactory_testCreateAndWithAlwaysFalsyLhs(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
+// Java: AstFactoryTest.testCreateAndWithAlwaysFalsyLhs()
+func (c *AstFactoryTest) TestCreateAndWithAlwaysFalsyLhs() {
+	astFactory := c.createTestAstFactory()
 	nullNode := astFactory.CreateNull()
 	stringLiteral := astFactory.CreateString("hello")
 	andNode := astFactory.CreateAnd(nullNode, stringLiteral)
-
-	x.assertNode(andNode).HasType(rhino.Token_AND)
-	x.assertChildren(andNode, true, nullNode, stringLiteral)
+	AssertNode(andNode).HasType(rhino.Token_AND)
+	AssertThat(astFactoryTest_childList(andNode)).ContainsExactly(nullNode, stringLiteral).InOrder()
 	// NULL_TYPE doesn't contain any truthy values, so its type is the only possibility
 	// but AstFactory is simpler than the type inferencer and does not realize this.
-	x.assertType(andNode.GetJSType()).ToStringIsEqualTo("(null|string)")
+	TypeSubject_AssertType(andNode.GetJSType()).ToStringIsEqualTo("(null|string)")
 }
 
-func TestAstFactory_testCreateAndWithAlwaysTruthyLhs(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
+// Java: AstFactoryTest.testCreateAndWithAlwaysTruthyLhs()
+func (c *AstFactoryTest) TestCreateAndWithAlwaysTruthyLhs() {
+	astFactory := c.createTestAstFactory()
 	nonNullObject := astFactory.CreateName("nonNullObject", AstFactory_Type_OfJSTypeNative(rhino.JSTypeNative_OBJECT_TYPE))
 	stringLiteral := astFactory.CreateString("hello")
 	andNode := astFactory.CreateAnd(nonNullObject, stringLiteral)
-
-	x.assertNode(andNode).HasType(rhino.Token_AND)
-	x.assertChildren(andNode, true, nonNullObject, stringLiteral)
+	AssertNode(andNode).HasType(rhino.Token_AND)
+	AssertThat(astFactoryTest_childList(andNode)).ContainsExactly(nonNullObject, stringLiteral).InOrder()
 	// OBJECT_TYPE doesn't contain any falsy values, so the RHS type is the only possibility
 	// but AstFactory is simpler than the type inferencer and does not realize this.
-	x.assertType(andNode.GetJSType()).ToStringIsEqualTo("(Object|string)")
+	TypeSubject_AssertType(andNode.GetJSType()).ToStringIsEqualTo("(Object|string)")
 }
 
-func TestAstFactory_testCreateOr(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
-	numberLiteral := astFactory.CreateNumber(2112)
+// Java: AstFactoryTest.testCreateOr()
+func (c *AstFactoryTest) TestCreateOr() {
+	astFactory := c.createTestAstFactory()
+	numberLiteral := astFactory.CreateNumber(2112.0)
 	stringLiteral := astFactory.CreateString("hello")
 	andNode := astFactory.CreateOr(numberLiteral, stringLiteral)
-
-	x.assertNode(andNode).HasType(rhino.Token_OR)
-	x.assertChildren(andNode, true, numberLiteral, stringLiteral)
-	x.assertType(andNode.GetJSType()).ToStringIsEqualTo("(number|string)")
+	AssertNode(andNode).HasType(rhino.Token_OR)
+	AssertThat(astFactoryTest_childList(andNode)).ContainsExactly(numberLiteral, stringLiteral).InOrder()
+	TypeSubject_AssertType(andNode.GetJSType()).ToStringIsEqualTo("(number|string)")
 }
 
-func TestAstFactory_testCreateOrWithAlwaysFalsyLhs(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
+// Java: AstFactoryTest.testCreateOrWithAlwaysFalsyLhs()
+func (c *AstFactoryTest) TestCreateOrWithAlwaysFalsyLhs() {
+	astFactory := c.createTestAstFactory()
 	nullLiteral := astFactory.CreateNull()
 	stringLiteral := astFactory.CreateString("hello")
 	andNode := astFactory.CreateOr(nullLiteral, stringLiteral)
-
-	x.assertNode(andNode).HasType(rhino.Token_OR)
-	x.assertChildren(andNode, true, nullLiteral, stringLiteral)
+	AssertNode(andNode).HasType(rhino.Token_OR)
+	AssertThat(astFactoryTest_childList(andNode)).ContainsExactly(nullLiteral, stringLiteral).InOrder()
 	// NULL_TYPE doesn't contain any truthy values, so the RHS type is the only possibility
 	// but AstFactory is simpler than the type inferencer and does not realize this.
-	x.assertType(andNode.GetJSType()).ToStringIsEqualTo("(null|string)")
+	TypeSubject_AssertType(andNode.GetJSType()).ToStringIsEqualTo("(null|string)")
 }
 
-func TestAstFactory_testCreateOrWithAlwaysTruthyLhs(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
+// Java: AstFactoryTest.testCreateOrWithAlwaysTruthyLhs()
+func (c *AstFactoryTest) TestCreateOrWithAlwaysTruthyLhs() {
+	astFactory := c.createTestAstFactory()
 	nonNullObject := astFactory.CreateName("nonNullObject", AstFactory_Type_OfJSTypeNative(rhino.JSTypeNative_OBJECT_TYPE))
 	stringLiteral := astFactory.CreateString("hello")
 	andNode := astFactory.CreateOr(nonNullObject, stringLiteral)
-
-	x.assertNode(andNode).HasType(rhino.Token_OR)
-	x.assertChildren(andNode, true, nonNullObject, stringLiteral)
+	AssertNode(andNode).HasType(rhino.Token_OR)
+	AssertThat(astFactoryTest_childList(andNode)).ContainsExactly(nonNullObject, stringLiteral).InOrder()
 	// OBJECT_TYPE doesn't contain any falsy values, so the RHS won't be evaluated
 	// but AstFactory is simpler than the type inferencer and does not realize this.
-	x.assertType(andNode.GetJSType()).ToStringIsEqualTo("(Object|string)")
+	TypeSubject_AssertType(andNode.GetJSType()).ToStringIsEqualTo("(Object|string)")
 }
 
-func TestAstFactory_testCreateAdd_stringAndNumber_jstypes(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
+// Java: AstFactoryTest.testCreateAdd_stringAndNumber_jstypes()
+func (c *AstFactoryTest) TestCreateAdd_stringAndNumber_jstypes() {
+	astFactory := c.createTestAstFactory()
 	zero := astFactory.CreateNumber(0)
 	str := astFactory.CreateString("x")
-
 	add := astFactory.CreateAdd(zero, str)
-	x.assertNode(add).HasToken(rhino.Token_ADD)
-	x.assertChildren(add, false, zero, str)
-	x.assertNode(add).HasJSTypeThat().IsEqualTo(x.getNativeType(rhino.JSTypeNative_BIGINT_NUMBER_STRING))
+	AssertNode(add).HasToken(rhino.Token_ADD)
+	AssertThat(astFactoryTest_childList(add)).ContainsExactly(zero, str)
+	AssertNode(add).HasJSTypeThat().IsEqualTo(c.getNativeType(rhino.JSTypeNative_BIGINT_NUMBER_STRING))
 }
 
-func TestAstFactory_testCreateAdd_stringAndNumber_colors(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactoryWithColors()
-
+// Java: AstFactoryTest.testCreateAdd_stringAndNumber_colors()
+func (c *AstFactoryTest) TestCreateAdd_stringAndNumber_colors() {
+	astFactory := c.createTestAstFactoryWithColors()
 	zero := astFactory.CreateNumber(0)
 	str := astFactory.CreateString("x")
-
 	add := astFactory.CreateAdd(zero, str)
-	x.assertNode(add).HasToken(rhino.Token_ADD)
-	x.assertChildren(add, false, zero, str)
-	x.assertNode(add).
+	AssertNode(add).HasToken(rhino.Token_ADD)
+	AssertThat(astFactoryTest_childList(add)).ContainsExactly(zero, str)
+	AssertNode(add).
 		HasColorThat().
 		HasAlternates(colors.StandardColors_BIGINT, colors.StandardColors_NUMBER, colors.StandardColors_STRING)
 }
 
-// astFactoryTest_binary covers the createSub/createLessThan/createBitwiseAnd/
-// createRightShift tests, which differ only in method, token and type.
-func astFactoryTest_binary(
-	t *testing.T, withColors bool, create func(*AstFactory, *rhino.Node, *rhino.Node) *rhino.Node,
-	token rhino.Token, nativeType rhino.JSTypeNative, color *colors.Color) {
-	x := newAstFactoryTest(t)
-	var astFactory *AstFactory
-	if withColors {
-		astFactory = x.createTestAstFactoryWithColors()
-	} else {
-		astFactory = x.createTestAstFactory()
-	}
-
+// Java: AstFactoryTest.testCreateSub_jstypes()
+func (c *AstFactoryTest) TestCreateSub_jstypes() {
+	astFactory := c.createTestAstFactory()
 	zero := astFactory.CreateNumber(0)
 	one := astFactory.CreateNumber(1)
-
-	n := create(astFactory, zero, one)
-
-	x.assertNode(n).HasToken(token)
-	x.assertChildren(n, false, zero, one)
-	if withColors {
-		x.assertNode(n).HasColorThat().IsEqualTo(color)
-	} else {
-		x.assertNode(n).HasJSTypeThat().IsEqualTo(x.getNativeType(nativeType))
-	}
+	sub := astFactory.CreateSub(zero, one)
+	AssertNode(sub).HasToken(rhino.Token_SUB)
+	AssertThat(astFactoryTest_childList(sub)).ContainsExactly(zero, one)
+	AssertNode(sub).HasJSTypeThat().IsEqualTo(c.getNativeType(rhino.JSTypeNative_NUMBER_TYPE))
 }
 
-func TestAstFactory_testCreateSub_jstypes(t *testing.T) {
-	astFactoryTest_binary(t, false, (*AstFactory).CreateSub, rhino.Token_SUB, rhino.JSTypeNative_NUMBER_TYPE, nil)
+// Java: AstFactoryTest.testCreateSub_colors()
+func (c *AstFactoryTest) TestCreateSub_colors() {
+	astFactory := c.createTestAstFactoryWithColors()
+	zero := astFactory.CreateNumber(0)
+	one := astFactory.CreateNumber(1)
+	sub := astFactory.CreateSub(zero, one)
+	AssertNode(sub).HasToken(rhino.Token_SUB)
+	AssertThat(astFactoryTest_childList(sub)).ContainsExactly(zero, one)
+	AssertNode(sub).HasColorThat().IsEqualTo(colors.StandardColors_NUMBER)
 }
 
-func TestAstFactory_testCreateSub_colors(t *testing.T) {
-	astFactoryTest_binary(t, true, (*AstFactory).CreateSub, rhino.Token_SUB, 0, colors.StandardColors_NUMBER)
+// Java: AstFactoryTest.testCreateLessThan_jstypes()
+func (c *AstFactoryTest) TestCreateLessThan_jstypes() {
+	astFactory := c.createTestAstFactory()
+	zero := astFactory.CreateNumber(0)
+	one := astFactory.CreateNumber(1)
+	lt := astFactory.CreateLessThan(zero, one)
+	AssertNode(lt).HasToken(rhino.Token_LT)
+	AssertThat(astFactoryTest_childList(lt)).ContainsExactly(zero, one)
+	AssertNode(lt).HasJSTypeThat().IsEqualTo(c.getNativeType(rhino.JSTypeNative_BOOLEAN_TYPE))
 }
 
-func TestAstFactory_testCreateLessThan_jstypes(t *testing.T) {
-	astFactoryTest_binary(t, false, (*AstFactory).CreateLessThan, rhino.Token_LT, rhino.JSTypeNative_BOOLEAN_TYPE, nil)
+// Java: AstFactoryTest.testCreateLessThan_colors()
+func (c *AstFactoryTest) TestCreateLessThan_colors() {
+	astFactory := c.createTestAstFactoryWithColors()
+	zero := astFactory.CreateNumber(0)
+	one := astFactory.CreateNumber(1)
+	lt := astFactory.CreateLessThan(zero, one)
+	AssertNode(lt).HasToken(rhino.Token_LT)
+	AssertThat(astFactoryTest_childList(lt)).ContainsExactly(zero, one)
+	AssertNode(lt).HasColorThat().IsEqualTo(colors.StandardColors_BOOLEAN)
 }
 
-func TestAstFactory_testCreateLessThan_colors(t *testing.T) {
-	astFactoryTest_binary(t, true, (*AstFactory).CreateLessThan, rhino.Token_LT, 0, colors.StandardColors_BOOLEAN)
+// Java: AstFactoryTest.testCreateBitwiseAnd_jstypes()
+func (c *AstFactoryTest) TestCreateBitwiseAnd_jstypes() {
+	astFactory := c.createTestAstFactory()
+	zero := astFactory.CreateNumber(0)
+	one := astFactory.CreateNumber(1)
+	bitAnd := astFactory.CreateBitwiseAnd(zero, one)
+	AssertNode(bitAnd).HasToken(rhino.Token_BITAND)
+	AssertThat(astFactoryTest_childList(bitAnd)).ContainsExactly(zero, one)
+	AssertNode(bitAnd).HasJSTypeThat().IsEqualTo(c.getNativeType(rhino.JSTypeNative_NUMBER_TYPE))
 }
 
-func TestAstFactory_testCreateBitwiseAnd_jstypes(t *testing.T) {
-	astFactoryTest_binary(t, false, (*AstFactory).CreateBitwiseAnd, rhino.Token_BITAND, rhino.JSTypeNative_NUMBER_TYPE, nil)
+// Java: AstFactoryTest.testCreateBitwiseAnd_colors()
+func (c *AstFactoryTest) TestCreateBitwiseAnd_colors() {
+	astFactory := c.createTestAstFactoryWithColors()
+	zero := astFactory.CreateNumber(0)
+	one := astFactory.CreateNumber(1)
+	bitAnd := astFactory.CreateBitwiseAnd(zero, one)
+	AssertNode(bitAnd).HasToken(rhino.Token_BITAND)
+	AssertThat(astFactoryTest_childList(bitAnd)).ContainsExactly(zero, one)
+	AssertNode(bitAnd).HasColorThat().IsEqualTo(colors.StandardColors_NUMBER)
 }
 
-func TestAstFactory_testCreateBitwiseAnd_colors(t *testing.T) {
-	astFactoryTest_binary(t, true, (*AstFactory).CreateBitwiseAnd, rhino.Token_BITAND, 0, colors.StandardColors_NUMBER)
+// Java: AstFactoryTest.testCreateRightShift_jstypes()
+func (c *AstFactoryTest) TestCreateRightShift_jstypes() {
+	astFactory := c.createTestAstFactory()
+	zero := astFactory.CreateNumber(0)
+	one := astFactory.CreateNumber(1)
+	rightShift := astFactory.CreateRightShift(zero, one)
+	AssertNode(rightShift).HasToken(rhino.Token_RSH)
+	AssertThat(astFactoryTest_childList(rightShift)).ContainsExactly(zero, one)
+	AssertNode(rightShift).HasJSTypeThat().IsEqualTo(c.getNativeType(rhino.JSTypeNative_NUMBER_TYPE))
 }
 
-func TestAstFactory_testCreateRightShift_jstypes(t *testing.T) {
-	astFactoryTest_binary(t, false, (*AstFactory).CreateRightShift, rhino.Token_RSH, rhino.JSTypeNative_NUMBER_TYPE, nil)
+// Java: AstFactoryTest.testCreateRightShift_colors()
+func (c *AstFactoryTest) TestCreateRightShift_colors() {
+	astFactory := c.createTestAstFactoryWithColors()
+	zero := astFactory.CreateNumber(0)
+	one := astFactory.CreateNumber(1)
+	rightShift := astFactory.CreateRightShift(zero, one)
+	AssertNode(rightShift).HasToken(rhino.Token_RSH)
+	AssertThat(astFactoryTest_childList(rightShift)).ContainsExactly(zero, one)
+	AssertNode(rightShift).HasColorThat().IsEqualTo(colors.StandardColors_NUMBER)
 }
 
-func TestAstFactory_testCreateRightShift_colors(t *testing.T) {
-	astFactoryTest_binary(t, true, (*AstFactory).CreateRightShift, rhino.Token_RSH, 0, colors.StandardColors_NUMBER)
+// Java: AstFactoryTest.testCreateInc_prefix_jstypes()
+func (c *AstFactoryTest) TestCreateInc_prefix_jstypes() {
+	astFactory := c.createTestAstFactory()
+	x := astFactory.CreateNameWithUnknownType("x")
+	inc := astFactory.CreateInc(x /* isPost= */, false)
+	AssertNode(inc).HasToken(rhino.Token_INC)
+	AssertThat(inc.GetBooleanProp(rhino.Node_INCRDECR_PROP)).IsFalse()
+	AssertThat(astFactoryTest_childList(inc)).ContainsExactly(x)
+	AssertNode(inc).HasJSTypeThat().IsEqualTo(c.getNativeType(rhino.JSTypeNative_NUMBER_TYPE))
 }
 
-func TestAstFactory_testCreateInc_prefix_jstypes(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
-	n := astFactory.CreateNameWithUnknownType("x")
-
-	inc := astFactory.CreateInc(n /* isPost= */, false)
-
-	x.assertNode(inc).HasToken(rhino.Token_INC)
-	x.assertBool("INCRDECR_PROP", inc.GetBooleanProp(rhino.Node_INCRDECR_PROP), false)
-	x.assertChildren(inc, false, n)
-	x.assertNode(inc).HasJSTypeThat().IsEqualTo(x.getNativeType(rhino.JSTypeNative_NUMBER_TYPE))
+// Java: AstFactoryTest.testCreateInc_postfix_jstypes()
+func (c *AstFactoryTest) TestCreateInc_postfix_jstypes() {
+	astFactory := c.createTestAstFactory()
+	x := astFactory.CreateNameWithUnknownType("x")
+	inc := astFactory.CreateInc(x /* isPost= */, true)
+	AssertNode(inc).HasToken(rhino.Token_INC)
+	AssertThat(inc.GetBooleanProp(rhino.Node_INCRDECR_PROP)).IsTrue()
+	AssertThat(astFactoryTest_childList(inc)).ContainsExactly(x)
+	AssertNode(inc).HasJSTypeThat().IsEqualTo(c.getNativeType(rhino.JSTypeNative_NUMBER_TYPE))
 }
 
-func TestAstFactory_testCreateInc_postfix_jstypes(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
-	n := astFactory.CreateNameWithUnknownType("x")
-
-	inc := astFactory.CreateInc(n /* isPost= */, true)
-
-	x.assertNode(inc).HasToken(rhino.Token_INC)
-	x.assertBool("INCRDECR_PROP", inc.GetBooleanProp(rhino.Node_INCRDECR_PROP), true)
-	x.assertChildren(inc, false, n)
-	x.assertNode(inc).HasJSTypeThat().IsEqualTo(x.getNativeType(rhino.JSTypeNative_NUMBER_TYPE))
+// Java: AstFactoryTest.testCreateInc_prefix_colors()
+func (c *AstFactoryTest) TestCreateInc_prefix_colors() {
+	astFactory := c.createTestAstFactoryWithColors()
+	x := astFactory.CreateNameWithUnknownType("x")
+	inc := astFactory.CreateInc(x /* isPost= */, false)
+	AssertNode(inc).HasToken(rhino.Token_INC)
+	AssertThat(inc.GetBooleanProp(rhino.Node_INCRDECR_PROP)).IsFalse()
+	AssertThat(astFactoryTest_childList(inc)).ContainsExactly(x)
+	AssertNode(inc).HasColorThat().IsEqualTo(colors.StandardColors_NUMBER)
 }
 
-func TestAstFactory_testCreateInc_prefix_colors(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactoryWithColors()
-
-	n := astFactory.CreateNameWithUnknownType("x")
-
-	inc := astFactory.CreateInc(n /* isPost= */, false)
-
-	x.assertNode(inc).HasToken(rhino.Token_INC)
-	x.assertBool("INCRDECR_PROP", inc.GetBooleanProp(rhino.Node_INCRDECR_PROP), false)
-	x.assertChildren(inc, false, n)
-	x.assertNode(inc).HasColorThat().IsEqualTo(colors.StandardColors_NUMBER)
+// Java: AstFactoryTest.testCreateCallWithTypeFromNode()
+func (c *AstFactoryTest) TestCreateCallWithTypeFromNode() {
+	astFactory := c.createTestAstFactory()
+	root := c.parseAndAddTypes(
+		`/**
+ * @param {string} arg1
+ * @param {number} arg2
+ * @return {string}
+ */
+function foo() { return arg1; }
+`)
+	scope := c.getScope(root)
+	// foo("hi", 2112)
+	callee := astFactory.CreateNameInScope(scope, "foo")
+	arg1 := astFactory.CreateString("hi")
+	arg2 := astFactory.CreateNumber(2112.0)
+	callNode := astFactory.CreateCall(callee, AstFactory_Type_(astFactory.CreateString("tmp")), arg1, arg2)
+	AssertNode(callNode).HasType(rhino.Token_CALL)
+	AssertThat(callNode.GetBooleanProp(rhino.Node_FREE_CALL)).IsTrue()
+	AssertThat(astFactoryTest_childList(callNode)).ContainsExactly(callee, arg1, arg2).InOrder()
+	TypeSubject_AssertType(callNode.GetJSType()).IsString()
 }
 
-func TestAstFactory_testCreateCallWithTypeFromNode(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck, SyntacticScopeCreator over a type-checked AST")
+// Java: AstFactoryTest.testCreateCallWithColorFromNode()
+func (c *AstFactoryTest) TestCreateCallWithColorFromNode() {
+	astFactory := c.createTestAstFactoryWithColors()
+	root := c.parseAndAddColors(
+		`/**
+ * @param {string} arg1
+ * @param {number} arg2
+ * @return {string}
+ */
+function foo() { return arg1; }
+`)
+	scope := c.getScope(root)
+	// foo("hi", 2112)
+	callee := astFactory.CreateNameInScope(scope, "foo")
+	arg1 := astFactory.CreateString("hi")
+	arg2 := astFactory.CreateNumber(2112.0)
+	callNode := astFactory.CreateCall(callee, AstFactory_Type_(astFactory.CreateString("tmp")), arg1, arg2)
+	AssertNode(callNode).HasType(rhino.Token_CALL)
+	AssertThat(callNode.GetBooleanProp(rhino.Node_FREE_CALL)).IsTrue()
+	AssertThat(astFactoryTest_childList(callNode)).ContainsExactly(callee, arg1, arg2).InOrder()
+	AssertNode(callNode).HasColorThat().IsEqualTo(colors.StandardColors_STRING)
 }
 
-func TestAstFactory_testCreateCallWithColorFromNode(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck, ConvertTypesToColors")
+// Java: AstFactoryTest.testCreateFreeCall()
+func (c *AstFactoryTest) TestCreateFreeCall() {
+	astFactory := c.createTestAstFactory()
+	root := c.parseAndAddTypes(
+		`/**
+ * @param {string} arg1
+ * @param {number} arg2
+ * @return {string}
+ */
+function foo() { return arg1; }
+`)
+	scope := c.getScope(root)
+	// foo("hi", 2112)
+	callee := astFactory.CreateNameInScope(scope, "foo")
+	arg1 := astFactory.CreateString("hi")
+	arg2 := astFactory.CreateNumber(2112.0)
+	callNode := astFactory.CreateCall(callee, AstFactory_Type_OfJSTypeNative(rhino.JSTypeNative_STRING_TYPE), arg1, arg2)
+	AssertNode(callNode).HasType(rhino.Token_CALL)
+	AssertThat(callNode.GetBooleanProp(rhino.Node_FREE_CALL)).IsTrue()
+	AssertThat(astFactoryTest_childList(callNode)).ContainsExactly(callee, arg1, arg2).InOrder()
+	TypeSubject_AssertType(callNode.GetJSType()).IsString()
 }
 
-func TestAstFactory_testCreateFreeCall(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck")
+// Java: AstFactoryTest.testCreateMethodCall_throws()
+func (c *AstFactoryTest) TestCreateMethodCall_throws() {
+	astFactory := c.createTestAstFactory()
+	c.parseAndAddTypes(
+		`class Foo {
+  /**
+   * @param {string} arg1
+   * @param {number} arg2
+   * @return {string}
+   */
+  method(arg1, arg2) { return arg1; }
+}
+const foo = new Foo();
+`)
+	scope := c.compiler.GetTranspilationNamespace()
+	// createQName only accepts globally qualified qnames. foo.method is a prototype method access.
+	// foo.method("hi", 2112)
+	AssertThrows[jutil.Throwable](func() { astFactory.CreateQName(scope, "foo.method") })
 }
 
-func TestAstFactory_testCreateMethodCall_throws(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck, Compiler.getTranspilationNamespace")
+// Java: AstFactoryTest.testCreateStaticMethodCallDotCallThrows()
+func (c *AstFactoryTest) TestCreateStaticMethodCallDotCallThrows() {
+	// NOTE: This method is testing both createCall() and createQName()
+	astFactory := c.createTestAstFactory()
+	c.parseAndAddTypes(
+		`class Foo {
+  /**
+   * @param {string} arg1
+   * @param {number} arg2
+   * @return {string}
+   */
+  static method(arg1, arg2) { return arg1; }
+}
+`)
+	scope := c.compiler.GetTranspilationNamespace()
+	// createQName only accepts globally qualified qnames. While Foo.method is a global qualified
+	// name, its '.call' property is not.
+	// Foo.method.call(null, "hi", 2112)
+	AssertThrows[jutil.Throwable](func() { astFactory.CreateQName(scope, "Foo.method.call") })
 }
 
-func TestAstFactory_testCreateStaticMethodCallDotCallThrows(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck, Compiler.getTranspilationNamespace")
-}
-
-func TestAstFactory_testCreateQNameWithUnknownTypeFromString_jstype(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
+// Java: AstFactoryTest.testCreateQNameWithUnknownTypeFromString_jstype()
+func (c *AstFactoryTest) TestCreateQNameWithUnknownTypeFromString_jstype() {
+	astFactory := c.createTestAstFactory()
 	objDotInnerDotStr := astFactory.CreateQNameWithUnknownType("obj.inner.str")
-
-	x.assertNode(objDotInnerDotStr).MatchesQualifiedName("obj.inner.str")
+	AssertNode(objDotInnerDotStr).MatchesQualifiedName("obj.inner.str")
 	objDotInner := objDotInnerDotStr.GetFirstChild()
 	obj := objDotInner.GetFirstChild()
-
-	x.assertNode(obj).HasJSTypeThat().IsUnknown()
-	x.assertNode(objDotInner).HasJSTypeThat().IsUnknown()
-	x.assertNode(objDotInnerDotStr).HasJSTypeThat().IsUnknown()
+	AssertNode(obj).HasJSTypeThat().IsUnknown()
+	AssertNode(objDotInner).HasJSTypeThat().IsUnknown()
+	AssertNode(objDotInnerDotStr).HasJSTypeThat().IsUnknown()
 }
 
-func TestAstFactory_testCreateQNameWithUnknownTypeFromString_colors(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactoryWithColors()
-
+// Java: AstFactoryTest.testCreateQNameWithUnknownTypeFromString_colors()
+func (c *AstFactoryTest) TestCreateQNameWithUnknownTypeFromString_colors() {
+	astFactory := c.createTestAstFactoryWithColors()
 	objDotInnerDotStr := astFactory.CreateQNameWithUnknownType("obj.inner.str")
-
-	x.assertNode(objDotInnerDotStr).MatchesQualifiedName("obj.inner.str")
+	AssertNode(objDotInnerDotStr).MatchesQualifiedName("obj.inner.str")
 	objDotInner := objDotInnerDotStr.GetFirstChild()
 	obj := objDotInner.GetFirstChild()
-
-	x.assertNode(obj).HasColorThat().IsEqualTo(colors.StandardColors_UNKNOWN)
-	x.assertNode(objDotInner).HasColorThat().IsEqualTo(colors.StandardColors_UNKNOWN)
-	x.assertNode(objDotInnerDotStr).HasColorThat().IsEqualTo(colors.StandardColors_UNKNOWN)
+	AssertNode(obj).HasColorThat().IsEqualTo(colors.StandardColors_UNKNOWN)
+	AssertNode(objDotInner).HasColorThat().IsEqualTo(colors.StandardColors_UNKNOWN)
+	AssertNode(objDotInnerDotStr).HasColorThat().IsEqualTo(colors.StandardColors_UNKNOWN)
 }
 
-func TestAstFactory_testCreateQNameFromString(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck, Compiler.getTranspilationNamespace")
+// Java: AstFactoryTest.testCreateQNameFromString()
+func (c *AstFactoryTest) TestCreateQNameFromString() {
+	astFactory := c.createTestAstFactory()
+	c.parseAndAddTypes(
+		`const obj = {
+  inner: {
+    str: 'hi',
+  }
+};
+`)
+	scope := c.compiler.GetTranspilationNamespace()
+	objDotInnerDotStr := astFactory.CreateQName(scope, "obj.inner.str")
+	AssertNode(objDotInnerDotStr).MatchesQualifiedName("obj.inner.str")
+	objDotInner := objDotInnerDotStr.GetFirstChild()
+	obj := objDotInner.GetFirstChild()
+	AssertNode(obj).HasJSTypeThat().ToStringIsEqualTo("{inner: {str: string}}")
+	AssertNode(objDotInner).HasJSTypeThat().ToStringIsEqualTo("{str: string}")
+	AssertNode(objDotInnerDotStr).HasJSTypeThat().IsString()
 }
 
-func TestAstFactory_testCreateQNameFromBaseNamePlusStringIterable(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck, Compiler.getTranspilationNamespace")
+// Java: AstFactoryTest.testCreateQNameFromBaseNamePlusStringIterable()
+func (c *AstFactoryTest) TestCreateQNameFromBaseNamePlusStringIterable() {
+	astFactory := c.createTestAstFactory()
+	c.parseAndAddTypes(
+		`const obj = {
+  inner: {
+    str: 'hi',
+  }
+};
+`)
+	scope := c.compiler.GetTranspilationNamespace()
+	objDotInnerDotStr := astFactory.CreateQNameWithPropertyList(scope, "obj", []string{"inner", "str"})
+	AssertNode(objDotInnerDotStr).MatchesQualifiedName("obj.inner.str")
+	objDotInner := objDotInnerDotStr.GetFirstChild()
+	obj := objDotInner.GetFirstChild()
+	AssertNode(obj).HasJSTypeThat().ToStringIsEqualTo("{inner: {str: string}}")
+	AssertNode(objDotInner).HasJSTypeThat().ToStringIsEqualTo("{str: string}")
+	AssertNode(objDotInnerDotStr).HasJSTypeThat().IsString()
 }
 
-func TestAstFactory_testCreateNameMaintainsNormalization(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck, Compiler.getTranspilationNamespace")
+// Java: AstFactoryTest.testCreateNameMaintainsNormalization()
+func (c *AstFactoryTest) TestCreateNameMaintainsNormalization() {
+	astFactory := c.createTestAstFactory()
+	root := c.parseAndAddTypes("const obj = {}")
+	// Simulate normalization adding the IS_CONSTANT_NAME property ot `obj` NAME node
+	objName := root.GetFirstChild(). // SCRIPT
+						GetFirstChild(). // CONST
+						GetFirstChild()
+	// obj NAME
+	AssertNode(objName).IsName("obj")
+	objName.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
+	newObjName := astFactory.CreateNameInScope(c.compiler.GetTranspilationNamespace(), "obj")
+	// Assert that the newly created NAME node gets the IS_CONSTANT_NAME property it should in
+	// order to be consistent with normalization.
+	AssertThat(newObjName.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME)).IsTrue()
 }
 
-func TestAstFactory_testCreateQNameFromStringVarArgs(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck, Compiler.getTranspilationNamespace")
+// Java: AstFactoryTest.testCreateQNameFromStringVarArgs()
+func (c *AstFactoryTest) TestCreateQNameFromStringVarArgs() {
+	astFactory := c.createTestAstFactory()
+	c.parseAndAddTypes(
+		`const obj = {
+  inner: {
+    str: 'hi',
+  }
+};
+`)
+	objDotInnerDotStr := astFactory.CreateQNameWithProperties(c.compiler.GetTranspilationNamespace(), "obj", "inner", "str")
+	AssertNode(objDotInnerDotStr).MatchesQualifiedName("obj.inner.str")
+	objDotInner := objDotInnerDotStr.GetFirstChild()
+	obj := objDotInner.GetFirstChild()
+	AssertNode(obj).HasJSTypeThat().ToStringIsEqualTo("{inner: {str: string}}")
+	AssertNode(objDotInner).HasJSTypeThat().ToStringIsEqualTo("{str: string}")
+	AssertNode(objDotInnerDotStr).HasJSTypeThat().IsString()
 }
 
-func TestAstFactory_testCreateQNameFromSimpleStringAndTypedScope(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
+// Java: AstFactoryTest.testCreateQNameFromSimpleStringAndTypedScope()
+func (c *AstFactoryTest) TestCreateQNameFromSimpleStringAndTypedScope() {
+	astFactory := c.createTestAstFactory()
 	scope := TypedScope_CreateGlobalScope(rhino.IR_Root())
-	scope.Declare("x", rhino.IR_Name("x"), x.getNativeType(rhino.JSTypeNative_NUMBER_TYPE), nil, true)
-
+	scope.Declare("x", rhino.IR_Name("x"), c.getNativeType(rhino.JSTypeNative_NUMBER_TYPE), nil, true)
 	name := astFactory.CreateQNameUsingJSTypeInfo(scope, "x")
-
-	x.assertNode(name).HasStringThat().IsEqualTo("x")
-	x.assertNode(name).HasJSTypeThat().IsNumber()
+	AssertNode(name).HasStringThat().IsEqualTo("x")
+	AssertNode(name).HasJSTypeThat().IsNumber()
 }
 
-func TestAstFactory_testCreateQNameFromDottedStringAndTypedScope(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
+// Java: AstFactoryTest.testCreateQNameFromDottedStringAndTypedScope()
+func (c *AstFactoryTest) TestCreateQNameFromDottedStringAndTypedScope() {
+	astFactory := c.createTestAstFactory()
 	scope := TypedScope_CreateGlobalScope(rhino.IR_Root())
 	// Declare a global "x" with the type "{y: number}".
-	objectWithYProp := x.getRegistry().CreateAnonymousObjectType(nil)
-	objectWithYProp.DefineDeclaredProperty("y", x.getNativeType(rhino.JSTypeNative_NUMBER_TYPE), nil)
+	objectWithYProp := c.getRegistry().CreateAnonymousObjectType(nil)
+	objectWithYProp.DefineDeclaredProperty("y", c.getNativeType(rhino.JSTypeNative_NUMBER_TYPE), nil)
 	scope.Declare("x", rhino.IR_Name("x"), objectWithYProp, nil, true)
-
 	name := astFactory.CreateQNameUsingJSTypeInfo(scope, "x.y")
-
-	x.assertNode(name).MatchesQualifiedName("x.y")
-	x.assertNode(name).HasJSTypeThat().IsNumber()
-	x.assertNode(name.GetFirstChild()).HasJSTypeThat().IsObjectTypeWithProperty("y")
+	AssertNode(name).MatchesQualifiedName("x.y")
+	AssertNode(name).HasJSTypeThat().IsNumber()
+	AssertNode(name.GetFirstChild()).HasJSTypeThat().IsObjectTypeWithProperty("y")
 }
 
-func TestAstFactory_testCreateQNameFromStringAndTypedScope_crashesGivenMissingName(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
+// Java: AstFactoryTest.testCreateQNameFromStringAndTypedScope_crashesGivenMissingName()
+func (c *AstFactoryTest) TestCreateQNameFromStringAndTypedScope_crashesGivenMissingName() {
+	astFactory := c.createTestAstFactory()
 	scope := TypedScope_CreateGlobalScope(rhino.IR_Root())
-
-	jsaThrows[jutil.Throwable](t, func() { astFactory.CreateQNameUsingJSTypeInfo(scope, "x") })
+	AssertThrows[jutil.Throwable](func() { astFactory.CreateQNameUsingJSTypeInfo(scope, "x") })
 }
 
-func TestAstFactory_testCreateQNameFromStringAndTypedScope_crashesGivenLocalScope(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
+// Java: AstFactoryTest.testCreateQNameFromStringAndTypedScope_crashesGivenLocalScope()
+func (c *AstFactoryTest) TestCreateQNameFromStringAndTypedScope_crashesGivenLocalScope() {
+	astFactory := c.createTestAstFactory()
 	root := rhino.IR_Root()
 	block := rhino.IR_Block()
 	root.AddChildToFront(rhino.IR_ScriptOfNodes(block))
-
 	globalScope := TypedScope_CreateGlobalScope(root)
-	globalScope.Declare("x", rhino.IR_Name("x"), x.getNativeType(rhino.JSTypeNative_NUMBER_TYPE), nil, true)
+	globalScope.Declare("x", rhino.IR_Name("x"), c.getNativeType(rhino.JSTypeNative_NUMBER_TYPE), nil, true)
 	localScope := NewTypedScope(globalScope, block)
-
-	_ = astFactory.CreateQNameUsingJSTypeInfo(globalScope, "x")
-	jsaThrows[*jutil.IllegalArgumentException](t, func() {
-		astFactory.CreateQNameUsingJSTypeInfo(localScope, "x")
-	})
+	unused := astFactory.CreateQNameUsingJSTypeInfo(globalScope, "x")
+	_ = unused
+	AssertThrows[*jutil.IllegalArgumentException](
+		func() { astFactory.CreateQNameUsingJSTypeInfo(localScope, "x") })
 }
 
-func TestAstFactory_testCreateConstructorCall(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck")
+// Java: AstFactoryTest.testCreateConstructorCall()
+func (c *AstFactoryTest) TestCreateConstructorCall() {
+	astFactory := c.createTestAstFactory()
+	root := c.parseAndAddTypes(
+		`class A {}
+class B extends A {}
+`)
+	classBNode := root.GetFirstChild(). // script node
+						GetSecondChild()
+	classBExtendsNode := classBNode.GetSecondChild()
+	classBType := classBNode.GetJSType().ToMaybeFunctionType()
+	classBInstanceType := classBType.GetInstanceType()
+	// simulate creating a call to super() intended to go in a constructor for B
+	callee := rhino.IR_SuperNode().SetJSType(classBExtendsNode.GetJSType())
+	arg1 := astFactory.CreateString("hi")
+	arg2 := astFactory.CreateNumber(2112.0)
+	callNode := astFactory.CreateConstructorCall(AstFactory_Type_(classBNode), callee, arg1, arg2)
+	AssertNode(callNode).HasType(rhino.Token_CALL)
+	AssertThat(callNode.GetBooleanProp(rhino.Node_FREE_CALL)).IsTrue()
+	AssertThat(astFactoryTest_childList(callNode)).ContainsExactly(callee, arg1, arg2).InOrder()
+	TypeSubject_AssertType(callNode.GetJSType()).IsEqualTo(classBInstanceType)
 }
 
-func TestAstFactory_testCreateEmptyFunction(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck")
+// Java: AstFactoryTest.testCreateEmptyFunction()
+func (c *AstFactoryTest) TestCreateEmptyFunction() {
+	astFactory := c.createTestAstFactory()
+	// just a quick way to get a valid function type
+	root := c.parseAndAddTypes("function foo() {}")
+	functionType := root.GetFirstChild(). // script
+						GetFirstChild(). // function
+						GetJSType()
+	emptyFunction := astFactory.CreateEmptyFunction(AstFactory_Type_OfJSType(functionType))
+	AssertNode(emptyFunction).HasToken(rhino.Token_FUNCTION)
+	TypeSubject_AssertType(emptyFunction.GetJSType()).IsEqualTo(functionType)
 }
 
-func TestAstFactory_testCreateFunction(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck")
+// Java: AstFactoryTest.testCreateFunction()
+func (c *AstFactoryTest) TestCreateFunction() {
+	astFactory := c.createTestAstFactory()
+	// just a quick way to get a valid function type
+	root := c.parseAndAddTypes("function foo() {}")
+	functionType := root.GetFirstChild(). // script
+						GetFirstChild(). // function
+						GetJSType()
+	paramList := rhino.IR_ParamList()
+	body := rhino.IR_Block()
+	functionNode := astFactory.CreateFunction("bar", paramList, body, AstFactory_Type_OfJSType(functionType))
+	AssertNode(functionNode).HasToken(rhino.Token_FUNCTION)
+	TypeSubject_AssertType(functionNode.GetJSType()).IsEqualTo(functionType)
+	functionNameNode := functionNode.GetFirstChild()
+	AssertNode(functionNameNode).IsName("bar")
+	AssertThat(astFactoryTest_childList(functionNode)).
+		ContainsExactly(functionNameNode, paramList, body).
+		InOrder()
 }
 
-func TestAstFactory_testCreateMemberFunctionDef_jstypes(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck")
+// Java: AstFactoryTest.testCreateMemberFunctionDef_jstypes()
+func (c *AstFactoryTest) TestCreateMemberFunctionDef_jstypes() {
+	astFactory := c.createTestAstFactory()
+	// just a quick way to get a valid function type
+	root := c.parseAndAddTypes("function foo() {}")
+	functionType := root.GetFirstChild(). // script
+						GetFirstChild(). // function
+						GetJSType()
+	paramList := rhino.IR_ParamList()
+	body := rhino.IR_Block()
+	functionNode := astFactory.CreateFunction("", paramList, body, AstFactory_Type_OfJSType(functionType))
+	memberFunctionDef := astFactory.CreateMemberFunctionDef("bar", functionNode)
+	AssertNode(memberFunctionDef).HasToken(rhino.Token_MEMBER_FUNCTION_DEF)
+	AssertThat(memberFunctionDef.GetString()).IsEqualTo("bar")
+	TypeSubject_AssertType(memberFunctionDef.GetJSType()).IsEqualTo(functionType)
 }
 
-func TestAstFactory_testCreateMemberFunctionDef_colors(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck, ConvertTypesToColors")
+// Java: AstFactoryTest.testCreateMemberFunctionDef_colors()
+func (c *AstFactoryTest) TestCreateMemberFunctionDef_colors() {
+	astFactory := c.createTestAstFactoryWithColors()
+	// just a quick way to get a valid function type
+	root := c.parseAndAddColors("function foo() {}")
+	functionType := root.GetFirstChild(). // script
+						GetFirstChild(). // function
+						GetColor()
+	paramList := rhino.IR_ParamList()
+	body := rhino.IR_Block()
+	functionNode := rhino.IR_Function(rhino.IR_Name(""), paramList, body).SetColor(functionType)
+	memberFunctionDef := astFactory.CreateMemberFunctionDef("bar", functionNode)
+	AssertNode(memberFunctionDef).HasToken(rhino.Token_MEMBER_FUNCTION_DEF)
+	AssertThat(memberFunctionDef.GetString()).IsEqualTo("bar")
+	AssertNode(memberFunctionDef).HasColorThat().IsEqualTo(functionType)
 }
 
-func TestAstFactory_testCreateZeroArgFunction(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck")
+// Java: AstFactoryTest.testCreateZeroArgFunction()
+func (c *AstFactoryTest) TestCreateZeroArgFunction() {
+	astFactory := c.createTestAstFactory()
+	// just a quick way to get a valid function type
+	root := c.parseAndAddTypes("/** @return {number} */ function foo() {}")
+	functionType := root.GetFirstChild(). // script
+						GetFirstChild(). // function
+						GetJSType()
+	body := rhino.IR_Block()
+	returnType := c.getNativeType(rhino.JSTypeNative_NUMBER_TYPE)
+	functionNode := astFactory.CreateZeroArgFunction("bar", body, returnType)
+	TypeSubject_AssertType(functionNode.GetJSType()).IsEqualTo(functionType)
+	AssertNode(functionNode).HasToken(rhino.Token_FUNCTION)
 }
 
-func TestAstFactory_createZeroArgGeneratorFunction(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck")
+// Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
+//
+// Java: AstFactoryTest.createZeroArgGeneratorFunction()
+func (c *AstFactoryTest) TestCreateZeroArgGeneratorFunction() {
+	astFactory := c.createTestAstFactory()
+	// just a quick way to get a valid generator function type
+	root := c.parseAndAddTypes("/** @return {number} */ function *foo() { return 1; }")
+	functionType := root.GetFirstChild(). // script
+						GetFirstChild(). // function
+						GetJSType()
+	body := rhino.IR_Block()
+	returnType := c.getNativeType(rhino.JSTypeNative_NUMBER_TYPE)
+	functionNode := astFactory.CreateZeroArgGeneratorFunction("bar", body, returnType)
+	TypeSubject_AssertType(functionNode.GetJSType()).IsEqualTo(functionType)
+	AssertNode(functionNode).HasToken(rhino.Token_FUNCTION)
 }
 
-func TestAstFactory_testCreateZeroArgFunctionForExpression(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck")
+// Java: AstFactoryTest.testCreateZeroArgFunctionForExpression()
+func (c *AstFactoryTest) TestCreateZeroArgFunctionForExpression() {
+	astFactory := c.createTestAstFactory()
+	// quick way to get a function to contain the new arrow function and another arrow function
+	// to compare types with
+	root := c.parseAndAddTypes(
+		`class C {
+  /** @return {number} */
+  foo() {
+// TODO(b/118435472): compiler should be able to infer the return type
+    /**
+     * @return {number}
+     */
+    const orig = () => 1; // new arrow function exactly like this one
+  }
+}
+`)
+	existingArrowFunctionNode := root.GetFirstChild(). // script
+								GetFirstChild(). // class
+								GetLastChild().  // class members
+								GetFirstChild(). // foo member function def
+								GetFirstChild(). // foo function node
+								GetLastChild().  // foo function body
+								GetFirstChild(). // const
+								GetOnlyChild().  // orig name node
+								GetOnlyChild()
+	expression := astFactory.CreateNumber(1)
+	newArrowFunctionNode := astFactory.CreateZeroArgArrowFunctionForExpression(expression)
+	AssertNode(newArrowFunctionNode).IsEqualTo(existingArrowFunctionNode)
+	AssertNode(newArrowFunctionNode).
+		HasJSTypeThat().
+		IsEqualTo(existingArrowFunctionNode.GetJSTypeRequired())
 }
 
-func TestAstFactory_testCreateAssignFromNodes_jstypes(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
+// Java: AstFactoryTest.testCreateAssignFromNodes_jstypes()
+func (c *AstFactoryTest) TestCreateAssignFromNodes_jstypes() {
+	astFactory := c.createTestAstFactory()
 	lhs := astFactory.CreateName("x", AstFactory_Type_OfJSTypeNative(rhino.JSTypeNative_STRING_TYPE))
 	rhs := astFactory.CreateNumber(0)
-
 	assign := astFactory.CreateAssign(lhs, rhs)
-	x.assertNode(assign).HasToken(rhino.Token_ASSIGN)
-	x.assertNode(assign).HasFirstChildThat().IsEqualTo(lhs)
-	x.assertNode(assign).HasSecondChildThat().IsEqualTo(rhs)
-	x.assertNode(assign).HasJSTypeThat().IsNumber() // take the rhs type, not lhs type
+	AssertNode(assign).HasToken(rhino.Token_ASSIGN)
+	AssertNode(assign).HasFirstChildThat().IsEqualTo(lhs)
+	AssertNode(assign).HasSecondChildThat().IsEqualTo(rhs)
+	AssertNode(assign).HasJSTypeThat().IsNumber()
+	// take the rhs type, not lhs type
 }
 
-func TestAstFactory_testCreateAssignFromNodes_colors(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactoryWithColors()
-
+// Java: AstFactoryTest.testCreateAssignFromNodes_colors()
+func (c *AstFactoryTest) TestCreateAssignFromNodes_colors() {
+	astFactory := c.createTestAstFactoryWithColors()
 	lhs := astFactory.CreateName("x", AstFactory_Type_OfColor(colors.StandardColors_STRING))
 	rhs := astFactory.CreateNumber(0)
-
 	assign := astFactory.CreateAssign(lhs, rhs)
-	x.assertNode(assign).HasToken(rhino.Token_ASSIGN)
-	x.assertNode(assign).HasFirstChildThat().IsEqualTo(lhs)
-	x.assertNode(assign).HasSecondChildThat().IsEqualTo(rhs)
-	x.assertNode(assign).HasColorThat().IsEqualTo(colors.StandardColors_NUMBER) // rhs type, not lhs type
+	AssertNode(assign).HasToken(rhino.Token_ASSIGN)
+	AssertNode(assign).HasFirstChildThat().IsEqualTo(lhs)
+	AssertNode(assign).HasSecondChildThat().IsEqualTo(rhs)
+	AssertNode(assign).HasColorThat().IsEqualTo(colors.StandardColors_NUMBER)
+	// rhs type, not lhs type
 }
 
-func TestAstFactory_testCreateObjectLit_empty(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck")
-}
-
-func TestAstFactory_testCreateObjectLit_empty_withColor(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactoryWithColors()
-
-	objColor := colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("1")).Build()
-
-	objectLit := astFactory.CreateObjectLitWithType(
-		AstFactory_Type_OfJSTypeNativeAndColor(rhino.JSTypeNative_UNKNOWN_TYPE, objColor))
-
-	x.assertNode(objectLit).HasColorThat().IsEqualTo(objColor)
-	x.assertNode(objectLit).HasToken(rhino.Token_OBJECTLIT)
-	x.assertNode(objectLit).HasChildren(false)
-}
-
-func TestAstFactory_testCreateObjectLit_withElements(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck")
-}
-
-func TestAstFactory_testCreateObjectLit_withElementsAndType(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-
-	// Try creating an object literal that implements Thenable and type it as one.
-	thenableType := x.getRegistry().GetNativeType(rhino.JSTypeNative_THENABLE_TYPE)
-	thenStringKey :=
-		rhino.IR_StringKeyWithValue(
-			"then",
-			astFactory.CreateZeroArgArrowFunctionForExpression(astFactory.CreateString("hi")))
-
-	objectLit := astFactory.CreateObjectLitWithType(AstFactory_Type_OfJSType(thenableType), thenStringKey)
-
-	x.truth.AssertThat(objectLit.GetJSType()).IsEqualTo(thenableType)
-	x.assertNode(objectLit).HasToken(rhino.Token_OBJECTLIT)
-	x.assertNode(objectLit).HasOneChildThat().IsSameInstanceAs(thenStringKey)
-}
-
-func TestAstFactory_testCreateObjectLit_empty_colors(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactoryWithColors()
-
+// Java: AstFactoryTest.testCreateObjectLit_empty()
+func (c *AstFactoryTest) TestCreateObjectLit_empty() {
+	astFactory := c.createTestAstFactory()
+	// just a quick way to get a valid object literal type
+	root := c.parseAndAddTypes("({})")
+	objectLitType := root.GetFirstChild(). // script
+						GetFirstChild(). // expression result
+						GetOnlyChild().  // object literal
+						GetJSType()
 	objectLit := astFactory.CreateObjectLit()
-
-	x.assertNode(objectLit).HasColorThat().IsEqualTo(colors.StandardColors_TOP_OBJECT)
-	x.assertNode(objectLit).HasToken(rhino.Token_OBJECTLIT)
-	x.assertNode(objectLit).HasChildren(false)
+	TypeSubject_AssertType(objectLit.GetJSType()).ToStringIsEqualTo("{}")
+	// isInstanceOf(objectLitType.getClass()): the same concrete JSType class.
+	AssertThat(reflect.TypeOf(objectLit.GetJSType())).IsEqualTo(reflect.TypeOf(objectLitType))
+	AssertNode(objectLit).HasToken(rhino.Token_OBJECTLIT)
+	AssertNode(objectLit).HasChildren(false)
 }
 
-func TestAstFactory_testCreateDelProp_jstypes(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
+// Java: AstFactoryTest.testCreateObjectLit_empty_withColor()
+func (c *AstFactoryTest) TestCreateObjectLit_empty_withColor() {
+	astFactory := c.createTestAstFactoryWithColors()
+	objColor := colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("1")).Build()
+	objectLit := astFactory.CreateObjectLitWithType(AstFactory_Type_OfJSTypeNativeAndColor(rhino.JSTypeNative_UNKNOWN_TYPE, objColor))
+	AssertNode(objectLit).HasColorThat().IsEqualTo(objColor)
+	AssertNode(objectLit).HasToken(rhino.Token_OBJECTLIT)
+	AssertNode(objectLit).HasChildren(false)
+}
 
+// Java: AstFactoryTest.testCreateObjectLit_withElements()
+func (c *AstFactoryTest) TestCreateObjectLit_withElements() {
+	astFactory := c.createTestAstFactory()
+	// just a quick way to get a valid object literal type
+	root := c.parseAndAddTypes("({})")
+	objectLitType := root.GetFirstChild(). // script
+						GetFirstChild(). // expression result
+						GetOnlyChild().  // object literal
+						GetJSType()
+	spread := rhino.IR_ObjectSpread(rhino.IR_Name("a"))
+	stringKey := rhino.IR_StringKeyWithValue("b", rhino.IR_Number(0))
+	objectLit := astFactory.CreateObjectLit(spread, stringKey)
+	TypeSubject_AssertType(objectLit.GetJSType()).ToStringIsEqualTo("{}")
+	// isInstanceOf(objectLitType.getClass()): the same concrete JSType class.
+	AssertThat(reflect.TypeOf(objectLit.GetJSType())).IsEqualTo(reflect.TypeOf(objectLitType))
+	AssertNode(objectLit).HasToken(rhino.Token_OBJECTLIT)
+	AssertNode(objectLit.GetFirstChild()).IsSameInstanceAs(spread)
+	AssertNode(objectLit.GetSecondChild()).IsSameInstanceAs(stringKey)
+}
+
+// Java: AstFactoryTest.testCreateObjectLit_withElementsAndType()
+func (c *AstFactoryTest) TestCreateObjectLit_withElementsAndType() {
+	astFactory := c.createTestAstFactory()
+	// Try creating an object literal that implements Thenable and type it as one.
+	thenableType := c.getRegistry().GetNativeType(rhino.JSTypeNative_THENABLE_TYPE)
+	thenStringKey := rhino.IR_StringKeyWithValue(
+		"then",
+		astFactory.CreateZeroArgArrowFunctionForExpression(astFactory.CreateString("hi")))
+	objectLit := astFactory.CreateObjectLitWithType(AstFactory_Type_OfJSType(thenableType), thenStringKey)
+	AssertThat(objectLit.GetJSType()).IsEqualTo(thenableType)
+	AssertNode(objectLit).HasToken(rhino.Token_OBJECTLIT)
+	AssertNode(objectLit).HasOneChildThat().IsSameInstanceAs(thenStringKey)
+}
+
+// Java: AstFactoryTest.testCreateObjectLit_empty_colors()
+func (c *AstFactoryTest) TestCreateObjectLit_empty_colors() {
+	astFactory := c.createTestAstFactoryWithColors()
+	objectLit := astFactory.CreateObjectLit()
+	AssertNode(objectLit).HasColorThat().IsEqualTo(colors.StandardColors_TOP_OBJECT)
+	AssertNode(objectLit).HasToken(rhino.Token_OBJECTLIT)
+	AssertNode(objectLit).HasChildren(false)
+}
+
+// Java: AstFactoryTest.testCreateDelProp_jstypes()
+func (c *AstFactoryTest) TestCreateDelProp_jstypes() {
+	astFactory := c.createTestAstFactory()
 	getprop := rhino.IR_Getprop(rhino.IR_Name("obj"), "prop")
-
 	delprop := astFactory.CreateDelProp(getprop)
-	x.assertNode(delprop).HasToken(rhino.Token_DELPROP)
-	x.assertType(delprop.GetJSType()).IsEqualTo(x.getNativeType(rhino.JSTypeNative_BOOLEAN_TYPE))
-	x.assertNode(delprop).HasChildren(true)
+	AssertNode(delprop).HasToken(rhino.Token_DELPROP)
+	TypeSubject_AssertType(delprop.GetJSType()).IsEqualTo(c.getNativeType(rhino.JSTypeNative_BOOLEAN_TYPE))
+	AssertNode(delprop).HasChildren(true)
 }
 
-func TestAstFactory_testCreateDelProp_colors(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactoryWithColors()
-
+// Java: AstFactoryTest.testCreateDelProp_colors()
+func (c *AstFactoryTest) TestCreateDelProp_colors() {
+	astFactory := c.createTestAstFactoryWithColors()
 	getprop := rhino.IR_Getprop(rhino.IR_Name("obj"), "prop")
-
 	delprop := astFactory.CreateDelProp(getprop)
-	x.assertNode(delprop).HasToken(rhino.Token_DELPROP)
-	x.assertNode(delprop).HasColorThat().IsEqualTo(colors.StandardColors_BOOLEAN)
-	x.assertNode(delprop).HasChildren(true)
+	AssertNode(delprop).HasToken(rhino.Token_DELPROP)
+	AssertNode(delprop).HasColorThat().IsEqualTo(colors.StandardColors_BOOLEAN)
+	AssertNode(delprop).HasChildren(true)
 }
 
-// astFactoryTest_comparison covers the createSheq/createEq/createNe tests.
-func astFactoryTest_comparison(
-	t *testing.T, withColors bool, create func(*AstFactory, *rhino.Node, *rhino.Node) *rhino.Node, token rhino.Token) {
-	x := newAstFactoryTest(t)
-	var astFactory *AstFactory
-	if withColors {
-		astFactory = x.createTestAstFactoryWithColors()
-	} else {
-		astFactory = x.createTestAstFactory()
-	}
-
+// Java: AstFactoryTest.testCreateSheq_jstypes()
+func (c *AstFactoryTest) TestCreateSheq_jstypes() {
+	astFactory := c.createTestAstFactory()
 	left := rhino.IR_String("left")
 	right := rhino.IR_Number(0)
-
-	n := create(astFactory, left, right)
-	x.assertNode(n).HasToken(token)
-	if withColors {
-		x.assertNode(n).HasColorThat().IsEqualTo(colors.StandardColors_BOOLEAN)
-	} else {
-		x.assertType(n.GetJSType()).IsEqualTo(x.getNativeType(rhino.JSTypeNative_BOOLEAN_TYPE))
-	}
+	sheq := astFactory.CreateSheq(left, right)
+	AssertNode(sheq).HasToken(rhino.Token_SHEQ)
+	TypeSubject_AssertType(sheq.GetJSType()).IsEqualTo(c.getNativeType(rhino.JSTypeNative_BOOLEAN_TYPE))
 }
 
-func TestAstFactory_testCreateSheq_jstypes(t *testing.T) {
-	astFactoryTest_comparison(t, false, (*AstFactory).CreateSheq, rhino.Token_SHEQ)
+// Java: AstFactoryTest.testCreateSheq_colors()
+func (c *AstFactoryTest) TestCreateSheq_colors() {
+	astFactory := c.createTestAstFactoryWithColors()
+	left := rhino.IR_String("left")
+	right := rhino.IR_Number(0)
+	sheq := astFactory.CreateSheq(left, right)
+	AssertNode(sheq).HasToken(rhino.Token_SHEQ)
+	AssertNode(sheq).HasColorThat().IsEqualTo(colors.StandardColors_BOOLEAN)
 }
 
-func TestAstFactory_testCreateSheq_colors(t *testing.T) {
-	astFactoryTest_comparison(t, true, (*AstFactory).CreateSheq, rhino.Token_SHEQ)
+// Java: AstFactoryTest.testCreateEq_jstypes()
+func (c *AstFactoryTest) TestCreateEq_jstypes() {
+	astFactory := c.createTestAstFactory()
+	left := rhino.IR_String("left")
+	right := rhino.IR_Number(0)
+	sheq := astFactory.CreateEq(left, right)
+	AssertNode(sheq).HasToken(rhino.Token_EQ)
+	TypeSubject_AssertType(sheq.GetJSType()).IsEqualTo(c.getNativeType(rhino.JSTypeNative_BOOLEAN_TYPE))
 }
 
-func TestAstFactory_testCreateEq_jstypes(t *testing.T) {
-	astFactoryTest_comparison(t, false, (*AstFactory).CreateEq, rhino.Token_EQ)
+// Java: AstFactoryTest.testCreateEq_colors()
+func (c *AstFactoryTest) TestCreateEq_colors() {
+	astFactory := c.createTestAstFactoryWithColors()
+	left := rhino.IR_String("left")
+	right := rhino.IR_Number(0)
+	eq := astFactory.CreateEq(left, right)
+	AssertNode(eq).HasToken(rhino.Token_EQ)
+	AssertNode(eq).HasColorThat().IsEqualTo(colors.StandardColors_BOOLEAN)
 }
 
-func TestAstFactory_testCreateEq_colors(t *testing.T) {
-	astFactoryTest_comparison(t, true, (*AstFactory).CreateEq, rhino.Token_EQ)
+// Java: AstFactoryTest.testCreateNe_jstypes()
+func (c *AstFactoryTest) TestCreateNe_jstypes() {
+	astFactory := c.createTestAstFactory()
+	left := rhino.IR_String("left")
+	right := rhino.IR_Number(0)
+	ne := astFactory.CreateNe(left, right)
+	AssertNode(ne).HasToken(rhino.Token_NE)
+	TypeSubject_AssertType(ne.GetJSType()).IsEqualTo(c.getNativeType(rhino.JSTypeNative_BOOLEAN_TYPE))
 }
 
-func TestAstFactory_testCreateNe_jstypes(t *testing.T) {
-	astFactoryTest_comparison(t, false, (*AstFactory).CreateNe, rhino.Token_NE)
+// Java: AstFactoryTest.testCreateNe_colors()
+func (c *AstFactoryTest) TestCreateNe_colors() {
+	astFactory := c.createTestAstFactoryWithColors()
+	left := rhino.IR_String("left")
+	right := rhino.IR_Number(0)
+	ne := astFactory.CreateNe(left, right)
+	AssertNode(ne).HasToken(rhino.Token_NE)
+	AssertNode(ne).HasColorThat().IsEqualTo(colors.StandardColors_BOOLEAN)
 }
 
-func TestAstFactory_testCreateNe_colors(t *testing.T) {
-	astFactoryTest_comparison(t, true, (*AstFactory).CreateNe, rhino.Token_NE)
-}
-
-func TestAstFactory_testCreateHook_jstypes(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactory()
-	stringType := x.getNativeType(rhino.JSTypeNative_STRING_TYPE)
-	numberType := x.getNativeType(rhino.JSTypeNative_NUMBER_TYPE)
-
+// Java: AstFactoryTest.testCreateHook_jstypes()
+func (c *AstFactoryTest) TestCreateHook_jstypes() {
+	astFactory := c.createTestAstFactory()
+	stringType := c.getNativeType(rhino.JSTypeNative_STRING_TYPE)
+	numberType := c.getNativeType(rhino.JSTypeNative_NUMBER_TYPE)
 	condition := rhino.IR_FalseNode()
 	left := rhino.IR_Name("left").SetJSType(stringType)
 	right := rhino.IR_Number(0).SetJSType(numberType)
-
 	hook := astFactory.CreateHook(condition, left, right)
-	x.assertNode(hook).HasToken(rhino.Token_HOOK)
-	x.assertType(hook.GetJSType()).IsEqualTo(x.getRegistry().CreateUnionType(stringType, numberType))
+	AssertNode(hook).HasToken(rhino.Token_HOOK)
+	TypeSubject_AssertType(hook.GetJSType()).IsEqualTo(c.getRegistry().CreateUnionType(stringType, numberType))
 }
 
-func TestAstFactory_testCreateHook_colors(t *testing.T) {
-	x := newAstFactoryTest(t)
-	astFactory := x.createTestAstFactoryWithColors()
-
+// Java: AstFactoryTest.testCreateHook_colors()
+func (c *AstFactoryTest) TestCreateHook_colors() {
+	astFactory := c.createTestAstFactoryWithColors()
 	condition := rhino.IR_FalseNode()
 	left := astFactory.CreateString("left")
 	right := astFactory.CreateNumber(0)
-
 	hook := astFactory.CreateHook(condition, left, right)
-	x.assertNode(hook).HasToken(rhino.Token_HOOK)
-	x.assertNode(hook).HasColorThat().HasAlternates(colors.StandardColors_STRING, colors.StandardColors_NUMBER)
+	AssertNode(hook).HasToken(rhino.Token_HOOK)
+	AssertNode(hook).HasColorThat().HasAlternates(colors.StandardColors_STRING, colors.StandardColors_NUMBER)
 }
 
-func TestAstFactory_testCreateArraylit_jstypes(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck")
-}
-
-func TestAstFactory_testCreateArraylit_colors(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck, ConvertTypesToColors")
-}
-
-func TestAstFactory_testCreateNewNode_jstypes(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck")
-}
-
-func TestAstFactory_testCreateNewNode_colors(t *testing.T) {
-	t.Skip("needs Compiler, TypeCheck, ConvertTypesToColors")
-}
-
-func TestAstFactory_testCreateRuntimeField_throwsIfFieldNotInjected(t *testing.T) {
-	x := newAstFactoryTest(t)
+// Java: AstFactoryTest.testCreateArraylit_jstypes()
+func (c *AstFactoryTest) TestCreateArraylit_jstypes() {
 	// Given
-	astFactory := x.createTestAstFactoryWithoutTypes()
-	scope := rhinotesting.NewMapBasedScope(jutil.NewLinkedHashMap[string, rhino.JSType]())
-	field := x.runtimeJsLibManager.GetJsLibField("$jscomp.global")
-
+	astFactory := c.createTestAstFactory()
+	numberType := c.getNativeType(rhino.JSTypeNative_NUMBER_TYPE)
+	first := rhino.IR_Number(0).SetJSType(numberType)
+	second := rhino.IR_Number(1).SetJSType(numberType)
+	third := rhino.IR_Number(2).SetJSType(numberType)
+	expected := c.parseAndAddTypes("[0, 1, 2]").
+		GetFirstChild(). // Script
+		GetFirstChild(). // Expression
+		GetFirstChild()
+	// Array
 	// When
-	jsaThrows[*jutil.IllegalStateException](t, func() { astFactory.CreateQNameOfField(scope, field) })
+	array := astFactory.CreateArraylit(first, second, third)
+	// Then
+	AssertNode(array).IsEquivalentTo(expected)
+	TypeSubject_AssertType(array.GetJSType()).IsEqualTo(expected.GetJSType())
 }
 
-func TestAstFactory_testCreateRuntimeField_succeeds(t *testing.T) {
-	x := newAstFactoryTest(t)
+// Java: AstFactoryTest.testCreateArraylit_colors()
+func (c *AstFactoryTest) TestCreateArraylit_colors() {
 	// Given
-	astFactory := x.createTestAstFactoryWithoutTypes()
-	scope := rhinotesting.NewMapBasedScope(jutil.NewLinkedHashMap[string, rhino.JSType]())
-	field := x.runtimeJsLibManager.GetJsLibField("$jscomp.global")
-	x.runtimeJsLibManager.InjectLibForField("$jscomp.global")
+	astFactory := c.createTestAstFactoryWithColors()
+	first := astFactory.CreateNumber(0)
+	second := astFactory.CreateNumber(1)
+	third := astFactory.CreateNumber(2)
+	expected := c.parseAndAddColors("[0, 1, 2]").
+		GetFirstChild(). // Script
+		GetFirstChild(). // Expression
+		GetFirstChild()
+	// Array
+	// When
+	array := astFactory.CreateArraylit(first, second, third)
+	// Then
+	AssertNode(array).IsEquivalentTo(expected)
+	AssertThat(array.GetColor()).IsEqualTo(expected.GetColor())
+}
 
+// Java: AstFactoryTest.testCreateNewNode_jstypes()
+func (c *AstFactoryTest) TestCreateNewNode_jstypes() {
+	// Given
+	astFactory := c.createTestAstFactory()
+	numberType := c.getNativeType(rhino.JSTypeNative_NUMBER_TYPE)
+	first := rhino.IR_Number(0).SetJSType(numberType)
+	second := rhino.IR_Number(1).SetJSType(numberType)
+	classNode := c.parseAndAddTypes(
+		`class Example { constructor(arg0, arg1) {} }
+new Example(0, 1);
+`).
+		GetFirstChild(). // Script
+		GetFirstChild()
+	// class
+	expected := classNode.
+		GetNext(). // ExpressionResult
+		GetFirstChild()
+	// NewExpression
+	// When
+	newExpr := astFactory.CreateNewNode(astFactory.CreateName("Example", AstFactory_Type_(classNode)), first, second)
+	// Then
+	AssertNode(newExpr).IsEquivalentTo(expected)
+	TypeSubject_AssertType(newExpr.GetJSType()).IsEqualTo(expected.GetJSType())
+}
+
+// Java: AstFactoryTest.testCreateNewNode_colors()
+func (c *AstFactoryTest) TestCreateNewNode_colors() {
+	// Given
+	astFactory := c.createTestAstFactoryWithColors()
+	first := astFactory.CreateNumber(0)
+	second := astFactory.CreateNumber(1)
+	classNode := c.parseAndAddColors(
+		`class Example { constructor(arg0, arg1) {} }
+new Example(0, 1);
+`).
+		GetFirstChild(). // Script
+		GetFirstChild()
+	// class
+	expected := classNode.
+		GetNext(). // ExpressionResult
+		GetFirstChild()
+	// NewExpression
+	// When
+	newExpr := astFactory.CreateNewNode(
+		astFactory.CreateName("Example", AstFactory_Type_OfColor(classNode.GetColor())), first, second)
+	// Then
+	AssertNode(newExpr).IsEquivalentTo(expected)
+	AssertNode(newExpr).HasColorThat().IsEqualTo(expected.GetColor())
+}
+
+// Java: AstFactoryTest.testCreateRuntimeField_throwsIfFieldNotInjected()
+func (c *AstFactoryTest) TestCreateRuntimeField_throwsIfFieldNotInjected() {
+	// Given
+	astFactory := c.createTestAstFactoryWithoutTypes()
+	scope := rhinotesting.NewMapBasedScope(jutil.NewLinkedHashMap[string, rhino.JSType]())
+	field := c.runtimeJsLibManager.GetJsLibField("$jscomp.global")
+	// When
+	AssertThrows[*jutil.IllegalStateException](func() { astFactory.CreateQNameOfField(scope, field) })
+}
+
+// Java: AstFactoryTest.testCreateRuntimeField_succeeds()
+func (c *AstFactoryTest) TestCreateRuntimeField_succeeds() {
+	// Given
+	astFactory := c.createTestAstFactoryWithoutTypes()
+	scope := rhinotesting.NewMapBasedScope(jutil.NewLinkedHashMap[string, rhino.JSType]())
+	field := c.runtimeJsLibManager.GetJsLibField("$jscomp.global")
+	c.runtimeJsLibManager.InjectLibForField("$jscomp.global")
 	// When
 	result := astFactory.CreateQNameOfField(scope, field)
-
 	// Then
-	x.assertNode(result).MatchesQualifiedName("$jscomp.global")
+	AssertNode(result).MatchesQualifiedName("$jscomp.global")
 }
 
-func TestAstFactory_testCreateRuntimeField_inExternMode_succeeds_andUsesUnderscoredName(t *testing.T) {
-	x := newAstFactoryTest(t)
+// Java: AstFactoryTest.testCreateRuntimeField_inExternMode_succeeds_andUsesUnderscoredName()
+func (c *AstFactoryTest) TestCreateRuntimeField_inExternMode_succeeds_andUsesUnderscoredName() {
 	// Given
 	externs := rhino.IR_Script()
 	externs.SetStaticSourceFile(SourceFile_FromCodeWithKind("externs.js", "", rhino.StaticSourceFile_SourceKind_EXTERN))
-	x.runtimeJsLibManager = RuntimeJsLibManager_Create(
-		RuntimeJsLibManager_RuntimeLibraryMode_EXTERN_FIELD_NAMES,
-		astFactoryTest_TestResourceProvider,
-		x.compiler.GetChangeTracker(),
-		func() *rhino.Node { return externs })
-	astFactory := x.createTestAstFactoryWithoutTypes()
+	c.runtimeJsLibManager =
+		RuntimeJsLibManager_Create(
+			RuntimeJsLibManager_RuntimeLibraryMode_EXTERN_FIELD_NAMES,
+			astFactoryTest_TestResourceProvider,
+			c.compiler.GetChangeTracker(),
+			func() *rhino.Node { return externs })
+	astFactory := c.createTestAstFactoryWithoutTypes()
 	scope := rhinotesting.NewMapBasedScope(jutil.NewLinkedHashMap[string, rhino.JSType]())
-	field := x.runtimeJsLibManager.GetJsLibField("$jscomp.global")
-	x.runtimeJsLibManager.InjectLibForField("$jscomp.global")
-
+	field := c.runtimeJsLibManager.GetJsLibField("$jscomp.global")
+	c.runtimeJsLibManager.InjectLibForField("$jscomp.global")
 	// When
 	result := astFactory.CreateQNameOfField(scope, field)
-
 	// Then
-	x.assertNode(result).MatchesName("$jscomp_global")
+	AssertNode(result).MatchesName("$jscomp_global")
 }
 
-func TestAstFactory_testCreateJscompMakeIteratorCall_throwsIfJscompMakeIteratorNotInjected(t *testing.T) {
-	x := newAstFactoryTest(t)
+// Java: AstFactoryTest.testCreateJscompMakeIteratorCall_throwsIfJscompMakeIteratorNotInjected()
+func (c *AstFactoryTest) TestCreateJscompMakeIteratorCall_throwsIfJscompMakeIteratorNotInjected() {
 	// Given
-	astFactory := x.createTestAstFactoryWithoutTypes()
+	astFactory := c.createTestAstFactoryWithoutTypes()
 	iterable := rhino.IR_Name("arr")
 	scope := rhinotesting.NewMapBasedScope(jutil.NewLinkedHashMap[string, rhino.JSType]())
-
 	// When
-	jsaThrows[*jutil.IllegalStateException](t, func() { astFactory.CreateJSCompMakeIteratorCall(iterable, scope) })
+	AssertThrows[*jutil.IllegalStateException](
+		func() { astFactory.CreateJSCompMakeIteratorCall(iterable, scope) })
 }
 
-func TestAstFactory_testCreateJscompMakeIteratorCall_succeeds(t *testing.T) {
-	x := newAstFactoryTest(t)
+// Java: AstFactoryTest.testCreateJscompMakeIteratorCall_succeeds()
+func (c *AstFactoryTest) TestCreateJscompMakeIteratorCall_succeeds() {
 	// Given
-	astFactory := x.createTestAstFactoryWithoutTypes()
+	astFactory := c.createTestAstFactoryWithoutTypes()
 	iterable := rhino.IR_Name("arr")
-	x.runtimeJsLibManager.InjectLibForField("$jscomp.makeIterator")
-
+	c.runtimeJsLibManager.InjectLibForField("$jscomp.makeIterator")
 	// When
 	result := astFactory.CreateJSCompMakeIteratorCall(iterable, rhinotesting.MapBasedScope_EmptyScope())
-
 	// Then
-	x.assertNode(result).IsCall()
-	x.assertNode(result).HasFirstChildThat().MatchesQualifiedName("$jscomp.makeIterator")
-	x.assertNode(result).HasLastChildThat().IsEqualTo(iterable)
+	AssertNode(result).IsCall()
+	AssertNode(result).HasFirstChildThat().MatchesQualifiedName("$jscomp.makeIterator")
+	AssertNode(result).HasLastChildThat().IsEqualTo(iterable)
+}
+
+// Java: AstFactoryTest.childList(Node)
+func astFactoryTest_childList(parent *rhino.Node) []*rhino.Node {
+	list := []*rhino.Node{}
+	for child := parent.GetFirstChild(); child != nil; child = child.GetNext() {
+		list = append(list, child)
+	}
+	return list
 }
