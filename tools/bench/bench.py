@@ -749,7 +749,7 @@ def ratio(a, b):
     return f"{a['median'] / b['median']:.2f}×"
 
 
-def report(out_dir, md_path, preliminary=True):
+def report(out_dir, md_path, preliminary=True, notes=None):
     machine = load(os.path.join(out_dir, "machine.json")) or {}
     tasks = load_tasks()
     rows, sections = [], []
@@ -868,6 +868,9 @@ def report(out_dir, md_path, preliminary=True):
     if preliminary:
         lines += ["> **Preliminary.** Measured on a shared machine with other jobs running (see the load "
                   "averages), under `nice -n %s`. A quiet, pinned re-run will replace these numbers." % machine.get("nice", 10), ""]
+    if notes:
+        with open(notes) as f:
+            lines += [f.read().rstrip("\n"), ""]
     lines += ["Spec: PLAN.md §6. Harness: `tools/bench/` (README.md there). Values are medians, with the "
               "min–max range over the runs in parentheses. Wall and CPU are seconds; CPU is user+system of the "
               "process (for Java warm: the JVM's process CPU during the iteration, JIT and GC threads included). "
@@ -892,7 +895,7 @@ def report(out_dir, md_path, preliminary=True):
     lines += sections
     lines += ["## Machine", ""]
     for k in ("date", "cpu", "cpus", "memory", "kernel", "os", "go", "jar_sha256", "nice", "locale",
-              "loadavg_start", "loadavg_end", "bench_commit"):
+              "loadavg_start", "loadavg_end", "bench_commit", "jsgo_measured"):
         if k in machine:
             lines.append(f"- {k}: {machine[k]}")
     if machine.get("java"):
@@ -1081,6 +1084,7 @@ def main():
     p.add_argument("--out", required=True)
     p.add_argument("--md", help="output file (default: stdout)")
     p.add_argument("--final", action="store_true", help="omit the 'preliminary' banner")
+    p.add_argument("--notes", help="a Markdown file to include after the banner (findings, context)")
     g = sub.add_parser("regate", help="recompute gate.json from the stored first runs (no compiling)")
     g.add_argument("--out", required=True)
     g.add_argument("--tasks", help="comma-separated task names (default: all present)")
@@ -1090,7 +1094,7 @@ def main():
     a = ap.parse_args()
 
     if a.cmd == "report":
-        text = report(a.out, a.md, preliminary=not a.final)
+        text = report(a.out, a.md, preliminary=not a.final, notes=a.notes)
         if not a.md:
             print(text)
         return
@@ -1119,6 +1123,8 @@ def main():
         machine.update(first)
     else:
         machine["jsgo"] = jsgo_info
+        machine["jsgo_measured"] = (datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+                                    + ", separately from the Java runs (--skip-java), not interleaved with them")
     save(mpath, machine)
     for t in load_tasks(a.tasks.split(",") if a.tasks else None):
         runner.run_task(t)
