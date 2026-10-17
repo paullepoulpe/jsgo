@@ -3426,22 +3426,20 @@ func (b *Compiler_CodeBuilder) Append(str string) *Compiler_CodeBuilder {
 	b.sb.Append(str)
 
 	// Adjust the line and column information for the new text.
-	index := -1
-	lastIndex := index
-	for {
-		index = jutil.StringIndexOfCharFrom(str, '\n', index+1)
-		if index < 0 {
-			break
-		}
-		b.lineCount++
-		lastIndex = index
-	}
-
+	//
+	// Go-only: performance — Java loops over str.indexOf('\n', index + 1),
+	// which here would convert all of str to UTF-16 once per line (quadratic
+	// in the size of a script). '\n' never occurs inside a multi-byte WTF-8
+	// sequence, so counting and finding it on the bytes gives the same line
+	// count, and the UTF-16 length after the last '\n' is
+	// str.length() - (lastIndex + 1).
+	lastIndex := strings.LastIndexByte(str, '\n')
 	if lastIndex == -1 {
 		// No new lines, append the new characters added.
 		b.colCount += jutil.StringLength(str)
 	} else {
-		b.colCount = jutil.StringLength(str) - (lastIndex + 1)
+		b.lineCount += strings.Count(str, "\n")
+		b.colCount = jutil.StringLength(str[lastIndex+1:])
 	}
 
 	return b
