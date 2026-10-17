@@ -3,18 +3,16 @@ package jutil
 import "io"
 
 // Go-only: language-adapter — java.io.OutputStreamWriter(OutputStream,
-// Charset) for the standard charsets (charset.go), encoding with
-// CodingErrorAction.REPLACE as the Javadoc specifies for this constructor.
-// Verified black-box against the JDK (output_stream_writer_charset_test.go):
-//   - US-ASCII and ISO-8859-1 replace each unmappable character (a
-//     surrogate pair counts as one) and each unpaired surrogate with '?';
-//   - UTF-16BE and UTF-16LE replace an unpaired surrogate with U+FFFD;
-//   - UTF-16 is big-endian and writes the byte-order mark U+FEFF before
-//     its first bytes (an empty output stays empty);
-//   - UTF-8 is jutil.OutputStreamWriter.
-// Observed behaviour (same tests): a high surrogate that ends one write()
-// pairs with a low surrogate that starts the next, and close() encodes one
-// left over from the last write as unpaired.
+// Charset), encoding with CodingErrorAction.REPLACE as the Javadoc
+// specifies for this constructor: an unmappable char (a surrogate pair
+// counts as one) or an unpaired surrogate becomes the encoder's
+// replacement (charsetEncoder). UTF-8 is jutil.OutputStreamWriter.
+// Observed behaviour (black-box, cli_vectors_test.go and
+// charset_vectors_test.go): a high surrogate that ends one write() pairs with
+// a low surrogate that starts the next; close() encodes one left over from
+// the last write as unpaired, then ends the output (ISO-2022-JP returns to
+// ASCII there); a charset that writes a byte-order mark writes it before
+// its first char, so an empty output stays empty.
 
 // NewOutputStreamWriterWithCharset is new OutputStreamWriter(out, cs).
 func NewOutputStreamWriterWithCharset(out io.WriteCloser, cs *Charset) Writer {
@@ -24,15 +22,14 @@ func NewOutputStreamWriterWithCharset(out io.WriteCloser, cs *Charset) Writer {
 	if cs == StandardCharsets_UTF_8 {
 		return NewOutputStreamWriter(out)
 	}
-	return &charsetOutputStreamWriter{out: out, cs: cs}
+	return &charsetOutputStreamWriter{out: out, enc: cs.impl().newEncoder()}
 }
 
 type charsetOutputStreamWriter struct {
 	out                     io.WriteCloser
-	cs                      *Charset
+	enc                     charsetEncoder
 	pendingHighSurrogate    uint16
 	hasPendingHighSurrogate bool
-	wroteBOM                bool
 	closed                  bool
 }
 
@@ -53,67 +50,30 @@ func (w *charsetOutputStreamWriter) Write(s string) {
 	var b []byte
 	for i := 0; i < len(units); i++ {
 		c := units[i]
-		if c >= 0xD800 && c <= 0xDBFF {
+		switch {
+		case isHighSurrogateUnit(c):
 			if i+1 == len(units) {
 				w.pendingHighSurrogate, w.hasPendingHighSurrogate = c, true
 				continue
 			}
-			if lo := units[i+1]; lo >= 0xDC00 && lo <= 0xDFFF {
-				b = w.encodePair(b, c, lo)
+			if lo := units[i+1]; isLowSurrogateUnit(lo) {
+				b = w.enc.encodeRune(b, 0x10000+(rune(c)-0xD800)<<10+(rune(lo)-0xDC00))
 				i++
 				continue
 			}
-			b = w.encodeMalformed(b)
-			continue
+			b = w.enc.encodeMalformed(b)
+		case isLowSurrogateUnit(c):
+			b = w.enc.encodeMalformed(b)
+		default:
+			b = w.enc.encodeRune(b, rune(c))
 		}
-		if c >= 0xDC00 && c <= 0xDFFF {
-			b = w.encodeMalformed(b)
-			continue
-		}
-		b = w.encodeChar(b, c)
 	}
 	w.emit(b)
-}
-
-func (w *charsetOutputStreamWriter) encodeChar(b []byte, c uint16) []byte {
-	switch w.cs {
-	case StandardCharsets_US_ASCII, StandardCharsets_ISO_8859_1:
-		if c <= w.cs.maxChar {
-			return append(b, byte(c))
-		}
-		return append(b, '?')
-	case StandardCharsets_UTF_16LE:
-		return append(b, byte(c), byte(c>>8))
-	default: // UTF-16, UTF-16BE
-		return append(b, byte(c>>8), byte(c))
-	}
-}
-
-func (w *charsetOutputStreamWriter) encodePair(b []byte, hi, lo uint16) []byte {
-	switch w.cs {
-	case StandardCharsets_US_ASCII, StandardCharsets_ISO_8859_1:
-		return append(b, '?')
-	default:
-		return w.encodeChar(w.encodeChar(b, hi), lo)
-	}
-}
-
-func (w *charsetOutputStreamWriter) encodeMalformed(b []byte) []byte {
-	switch w.cs {
-	case StandardCharsets_US_ASCII, StandardCharsets_ISO_8859_1:
-		return append(b, '?')
-	default:
-		return w.encodeChar(b, 0xFFFD)
-	}
 }
 
 func (w *charsetOutputStreamWriter) emit(b []byte) {
 	if len(b) == 0 {
 		return
-	}
-	if w.cs == StandardCharsets_UTF_16 && !w.wroteBOM {
-		w.wroteBOM = true
-		b = append([]byte{0xFE, 0xFF}, b...)
 	}
 	if _, err := w.out.Write(b); err != nil {
 		panic(NewIOException(err.Error()))
@@ -127,17 +87,19 @@ func (w *charsetOutputStreamWriter) Flush() {
 }
 
 // Close is OutputStreamWriter.close(): a high surrogate left over from the
-// last write is encoded as unpaired, then the stream is closed. Closing a
-// closed writer has no effect.
+// last write is encoded as unpaired, the output is ended, then the stream
+// is closed. Closing a closed writer has no effect.
 func (w *charsetOutputStreamWriter) Close() {
 	if w.closed {
 		return
 	}
 	w.closed = true
+	var b []byte
 	if w.hasPendingHighSurrogate {
 		w.hasPendingHighSurrogate = false
-		w.emit(w.encodeMalformed(nil))
+		b = w.enc.encodeMalformed(b)
 	}
+	w.emit(w.enc.finish(b))
 	if err := w.out.Close(); err != nil {
 		panic(NewIOException(err.Error()))
 	}

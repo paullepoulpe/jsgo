@@ -1,67 +1,59 @@
 package jutil
 
 import (
-	"strings"
 	"unicode/utf8"
 )
 
-// Go-only: language-adapter — decoding with the standard Charsets
-// (CharsetDecoder in REPLACE mode, as new String(bytes, cs) and
-// InputStreamReader do, and in REPORT mode, as Files.readString does).
+// Go-only: language-adapter — decoding with a Charset (CharsetDecoder in
+// REPLACE mode, as new String(bytes, cs) and InputStreamReader do, and in
+// REPORT mode, as Files.readString does), and the UTF-8 and UTF-16 coders.
 
-// Decode is new String(bytes, charset): each malformed input sequence is
-// replaced with U+FFFD.
+// Decode is new String(bytes, charset): each malformed or unmappable input
+// sequence is replaced with U+FFFD.
 func (c *Charset) Decode(b []byte) string {
-	s, _ := c.decode(b, false)
+	s, _ := c.impl().decode(b, false)
 	return s
 }
 
-// DecodeStrict decodes b and panics with MalformedInputException at the
-// first malformed input sequence (CodingErrorAction.REPORT).
+// DecodeStrict decodes b and panics at the first malformed input sequence
+// with MalformedInputException, or at the first unmappable one with
+// UnmappableCharacterException (CodingErrorAction.REPORT).
 func (c *Charset) DecodeStrict(b []byte) string {
-	s, malformed := c.decode(b, true)
-	if malformed > 0 {
-		panic(NewMalformedInputException(malformed))
+	s, e := c.impl().decode(b, true)
+	switch {
+	case e.length == 0:
+		return s
+	case e.unmappable:
+		panic(NewUnmappableCharacterException(e.length))
+	default:
+		panic(NewMalformedInputException(e.length))
 	}
-	return s
 }
 
-// decode returns the decoded string; when report is set it stops at the
-// first malformed sequence and returns its length (> 0).
-func (c *Charset) decode(b []byte, report bool) (string, int) {
-	switch c {
-	case StandardCharsets_UTF_8:
-		if utf8.Valid(b) {
-			return string(b), 0
-		}
-		if report {
-			return "", charsetUTF8MalformedLength(b)
-		}
-		return NewStringFromUTF8Bytes(b), 0
-	case StandardCharsets_ISO_8859_1:
-		var sb strings.Builder
-		for _, x := range b {
-			sb.WriteRune(rune(x))
-		}
-		return sb.String(), 0
-	case StandardCharsets_US_ASCII:
-		var sb strings.Builder
-		for _, x := range b {
-			if x >= 0x80 {
-				if report {
-					return "", 1
-				}
-				sb.WriteRune(utf8.RuneError)
-			} else {
-				sb.WriteByte(x)
-			}
-		}
-		return sb.String(), 0
-	case StandardCharsets_UTF_16, StandardCharsets_UTF_16BE, StandardCharsets_UTF_16LE:
-		return c.decodeUTF16(b, report)
+// utf8Coder is UTF-8.
+type utf8Coder struct{}
+
+func (utf8Coder) decode(b []byte, report bool) (string, codingError) {
+	if utf8.Valid(b) {
+		return string(b), codingError{}
 	}
-	panic(NewUnsupportedCharsetException(c.name))
+	if report {
+		return "", malformed(charsetUTF8MalformedLength(b))
+	}
+	return NewStringFromUTF8Bytes(b), codingError{}
 }
+
+func (utf8Coder) canEncode(uint16) bool { return true }
+
+func (utf8Coder) newEncoder() charsetEncoder { return utf8Encoder{} }
+
+// utf8Encoder replaces an unpaired surrogate with '?' (see
+// OutputStreamWriter).
+type utf8Encoder struct{}
+
+func (utf8Encoder) encodeRune(dst []byte, r rune) []byte { return utf8.AppendRune(dst, r) }
+func (utf8Encoder) encodeMalformed(dst []byte) []byte    { return append(dst, '?') }
+func (utf8Encoder) finish(dst []byte) []byte             { return dst }
 
 // charsetUTF8MalformedLength is the length Java's UTF-8 decoder reports for
 // the first malformed sequence of b.
@@ -113,10 +105,21 @@ func charsetUTF8MalformedLength(b []byte) int {
 	return 1
 }
 
-// decodeUTF16 decodes UTF-16, UTF-16BE or UTF-16LE (see the Javadoc of
-// java.nio.charset.StandardCharsets and Charset: UTF-16 takes its byte order
-// from an optional byte-order mark and defaults to big-endian; the BE and LE
-// forms have a fixed order and keep U+FEFF as a character).
+// utf16Coder is UTF-16 (byte order from an optional byte-order mark,
+// big-endian by default), UTF-16BE or UTF-16LE (fixed order); see the
+// Javadoc of java.nio.charset.StandardCharsets and Charset.
+type utf16Coder struct {
+	bigEndian bool
+	// marked: the decoder honours (and drops) a leading byte-order mark
+	// and the encoder writes one.
+	marked bool
+}
+
+func (c utf16Coder) canEncode(uint16) bool { return true }
+
+func (c utf16Coder) newEncoder() charsetEncoder { return &utf16Encoder{coder: c} }
+
+// decode decodes UTF-16.
 //
 // Observed behaviour (black-box, CharsetDecoder in REPLACE and REPORT mode):
 //   - UTF-16 looks for a mark only in the first two bytes: FE FF selects
@@ -132,9 +135,9 @@ func charsetUTF8MalformedLength(b []byte) int {
 //     length 2 plus the leftover bytes (2 or 3).
 //
 // In REPLACE mode each malformed sequence becomes one U+FFFD.
-func (c *Charset) decodeUTF16(b []byte, report bool) (string, int) {
-	bigEndian := c != StandardCharsets_UTF_16LE
-	if c == StandardCharsets_UTF_16 && len(b) >= 2 {
+func (c utf16Coder) decode(b []byte, report bool) (string, codingError) {
+	bigEndian := c.bigEndian
+	if c.marked && len(b) >= 2 {
 		switch {
 		case b[0] == 0xFE && b[1] == 0xFF:
 			b = b[2:]
@@ -151,35 +154,65 @@ func (c *Charset) decodeUTF16(b []byte, report bool) (string, int) {
 	}
 	units := make([]uint16, 0, len(b)/2+1)
 	for i := 0; i < len(b); {
-		malformed := 0
+		bad := 0
 		switch rest := len(b) - i; {
 		case rest < 2:
-			malformed = rest
+			bad = rest
 		default:
 			u := unit(i)
 			switch {
 			case isLowSurrogateUnit(u):
-				malformed = 2
+				bad = 2
 			case !isHighSurrogateUnit(u):
 				units = append(units, u)
 				i += 2
 				continue
 			case rest < 4:
-				malformed = rest
+				bad = rest
 			default:
 				if v := unit(i + 2); isLowSurrogateUnit(v) {
 					units = append(units, u, v)
 					i += 4
 					continue
 				}
-				malformed = 4
+				bad = 4
 			}
 		}
 		if report {
-			return "", malformed
+			return "", malformed(bad)
 		}
 		units = append(units, 0xFFFD)
-		i += malformed
+		i += bad
 	}
-	return StringFromUTF16(units), 0
+	return StringFromUTF16(units), codingError{}
 }
+
+// utf16Encoder replaces an unpaired surrogate with U+FFFD. The marked form
+// writes the big-endian mark U+FEFF before its first char.
+type utf16Encoder struct {
+	coder   utf16Coder
+	started bool
+}
+
+func (e *utf16Encoder) unit(dst []byte, u uint16) []byte {
+	if e.coder.marked && !e.started {
+		dst = append(dst, 0xFE, 0xFF)
+	}
+	e.started = true
+	if e.coder.bigEndian {
+		return append(dst, byte(u>>8), byte(u))
+	}
+	return append(dst, byte(u), byte(u>>8))
+}
+
+func (e *utf16Encoder) encodeRune(dst []byte, r rune) []byte {
+	if r >= 0x10000 {
+		r -= 0x10000
+		dst = e.unit(dst, uint16(0xD800+r>>10))
+		return e.unit(dst, uint16(0xDC00+r&0x3FF))
+	}
+	return e.unit(dst, uint16(r))
+}
+
+func (e *utf16Encoder) encodeMalformed(dst []byte) []byte { return e.unit(dst, 0xFFFD) }
+func (e *utf16Encoder) finish(dst []byte) []byte          { return dst }

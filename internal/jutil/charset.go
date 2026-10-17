@@ -2,34 +2,27 @@ package jutil
 
 import (
 	"strings"
+	"sync"
 	"unicode/utf8"
 )
 
-// Go-only: language-adapter — java.nio.charset.Charset (the standard
-// charsets only), String.getBytes(UTF_8) and new String(byte[], UTF_8).
+// Go-only: language-adapter — java.nio.charset.Charset for the charsets of
+// charset_registry.go, and String.getBytes(UTF_8) and new String(byte[],
+// UTF_8). Each charset's conversions (charsetCoder) are built on first use.
 
-// Charset is java.nio.charset.Charset, limited to the charsets every Java
-// platform must support (StandardCharsets).
+// Charset is java.nio.charset.Charset.
 type Charset struct {
 	name    string
 	aliases []string
-	// maxChar is the largest char the charset encodes (0xFFFF for the
-	// Unicode encodings, which still reject lone surrogates).
-	maxChar uint16
+	build   func() charsetCoder
+	once    sync.Once
+	coder   charsetCoder
 }
 
-var (
-	StandardCharsets_US_ASCII   = &Charset{name: "US-ASCII", aliases: []string{"646", "ANSI_X3.4-1968", "ANSI_X3.4-1986", "ASCII", "IBM367", "ISO646-US", "ISO_646.irv:1991", "ascii7", "cp367", "csASCII", "iso-ir-6", "iso_646.irv:1983", "us"}, maxChar: 0x7F}
-	StandardCharsets_ISO_8859_1 = &Charset{name: "ISO-8859-1", aliases: []string{"819", "8859_1", "IBM-819", "IBM819", "ISO8859-1", "ISO8859_1", "ISO_8859-1", "ISO_8859-1:1987", "ISO_8859_1", "cp819", "csISOLatin1", "iso-ir-100", "l1", "latin1"}, maxChar: 0xFF}
-	StandardCharsets_UTF_8      = &Charset{name: "UTF-8", aliases: []string{"UTF8", "unicode-1-1-utf-8"}, maxChar: 0xFFFF}
-	StandardCharsets_UTF_16     = &Charset{name: "UTF-16", aliases: []string{"UTF_16", "UnicodeBig", "unicode", "utf16"}, maxChar: 0xFFFF}
-	StandardCharsets_UTF_16BE   = &Charset{name: "UTF-16BE", aliases: []string{"ISO-10646-UCS-2", "UTF_16BE", "UnicodeBigUnmarked", "X-UTF-16BE"}, maxChar: 0xFFFF}
-	StandardCharsets_UTF_16LE   = &Charset{name: "UTF-16LE", aliases: []string{"UTF_16LE", "UnicodeLittleUnmarked", "X-UTF-16LE"}, maxChar: 0xFFFF}
-)
-
-var standardCharsets = []*Charset{
-	StandardCharsets_US_ASCII, StandardCharsets_ISO_8859_1, StandardCharsets_UTF_8,
-	StandardCharsets_UTF_16, StandardCharsets_UTF_16BE, StandardCharsets_UTF_16LE,
+// impl returns the charset's conversions, building them on first use.
+func (c *Charset) impl() charsetCoder {
+	c.once.Do(func() { c.coder = c.build() })
+	return c.coder
 }
 
 // UnsupportedCharsetException is java.nio.charset.UnsupportedCharsetException.
@@ -42,20 +35,37 @@ func NewUnsupportedCharsetException(charsetName string) *UnsupportedCharsetExcep
 	return e
 }
 
-// Charset_ForName is Charset.forName(String): canonical names and aliases,
-// case-insensitively. Charsets other than the standard ones are reported
-// as unsupported.
-func Charset_ForName(charsetName string) *Charset {
-	lower := StringToLowerCaseASCII(charsetName)
-	for _, c := range standardCharsets {
-		if lower == StringToLowerCaseASCII(c.name) {
-			return c
-		}
+// charsetLookup finds a supported charset by canonical name or alias,
+// ignoring ASCII case (see the Javadoc of java.nio.charset.Charset), or
+// returns nil.
+func charsetLookup(charsetName string) *Charset {
+	charsetIndexOnce.Do(buildCharsetIndex)
+	return charsetIndex[StringToLowerCaseASCII(charsetName)]
+}
+
+var (
+	charsetIndexOnce sync.Once
+	charsetIndex     map[string]*Charset
+)
+
+func buildCharsetIndex() {
+	charsetIndex = map[string]*Charset{}
+	for _, c := range supportedCharsets {
+		charsetIndex[StringToLowerCaseASCII(c.name)] = c
 		for _, a := range c.aliases {
-			if lower == StringToLowerCaseASCII(a) {
-				return c
-			}
+			charsetIndex[StringToLowerCaseASCII(a)] = c
 		}
+	}
+}
+
+// Charset_ForName is Charset.forName(String): it panics with
+// IllegalCharsetNameException for an illegal name and with
+// UnsupportedCharsetException (message: the name) for a charset that is not
+// in charset_registry.go.
+func Charset_ForName(charsetName string) *Charset {
+	requireLegalCharsetName(charsetName)
+	if c := charsetLookup(charsetName); c != nil {
+		return c
 	}
 	panic(NewUnsupportedCharsetException(charsetName))
 }
@@ -66,13 +76,13 @@ func (c *Charset) Name() string { return c.name }
 // String is Charset.toString().
 func (c *Charset) String() string { return c.name }
 
-// CanEncodeChar is charset.newEncoder().canEncode(char): a lone surrogate
+// CanEncodeChar is charset.newEncoder().canEncode(char). A lone surrogate
 // can never be encoded on its own.
 func (c *Charset) CanEncodeChar(ch uint16) bool {
 	if isSurrogate(ch) {
 		return false
 	}
-	return ch <= c.maxChar
+	return c.impl().canEncode(ch)
 }
 
 // StringGetBytesUTF8 is String.getBytes(StandardCharsets.UTF_8): unpaired

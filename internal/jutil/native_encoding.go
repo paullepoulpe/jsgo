@@ -16,8 +16,10 @@ import (
 // (ASCII, which Java calls US-ASCII) when the locale named by LC_ALL,
 // LC_CTYPE or LANG (the first one set) is not installed. Installed locales
 // are the built-in C.* ones, the directories of /usr/lib/locale and the
-// entries of /usr/lib/locale/locale-archive. Only the standard charsets
-// are supported (charset.go): any other codeset is taken as US-ASCII.
+// entries of /usr/lib/locale/locale-archive. Only the UTF-8 and ISO-8859-1
+// codesets are mapped: how the JVM names other codesets (EUC-JP, for
+// one, may become a charset jutil lacks) is not checked here, so any other
+// codeset is taken as US-ASCII.
 
 // System_NativeCharset is Charset.forName(System.getProperty(
 // "native.encoding")) for the process's locale.
@@ -79,23 +81,23 @@ func nativeEncoding_localeInstalled(normalized string) bool {
 }
 
 // NewPrintStreamWithCharset is new PrintStream(out, true, cs), for cs
-// US-ASCII, ISO-8859-1 or UTF-8 and a stream that is only printed to (print/println of strings): the text is encoded
-// with cs, each character cs cannot encode (a surrogate pair counts as one)
-// becoming '?'. Bytes written with PrintStream.write(byte[]) are encoded the
-// same way, so such a stream must not be used for raw bytes unless cs is
-// UTF-8.
+// US-ASCII, ISO-8859-1 or UTF-8 and a stream that is only printed to
+// (print/println of strings): the text is encoded with cs, each character
+// cs cannot encode (a surrogate pair counts as one) becoming '?'. Bytes
+// written with PrintStream.write(byte[]) are encoded the same way, so such
+// a stream must not be used for raw bytes unless cs is UTF-8.
 func NewPrintStreamWithCharset(out io.Writer, cs *Charset) *PrintStream {
 	if cs == StandardCharsets_UTF_8 {
 		return NewPrintStream(out)
 	}
-	return NewPrintStream(&nativeEncoding_writer{out: out, cs: cs})
+	return NewPrintStream(&nativeEncoding_writer{out: out, enc: cs.impl().newEncoder()})
 }
 
 // nativeEncoding_writer re-encodes the UTF-8 that PrintStream writes (in
 // which unpaired surrogates are already '?').
 type nativeEncoding_writer struct {
 	out     io.Writer
-	cs      *Charset
+	enc     charsetEncoder
 	pending []byte
 }
 
@@ -110,10 +112,10 @@ func (w *nativeEncoding_writer) Write(b []byte) (int, error) {
 			break
 		}
 		in = in[size:]
-		if r != utf8.RuneError && r <= rune(w.cs.maxChar) && (w.cs.maxChar != 0xFFFF) {
-			out = append(out, byte(r))
-		} else {
+		if r == utf8.RuneError && size <= 1 {
 			out = append(out, '?')
+		} else {
+			out = w.enc.encodeRune(out, r)
 		}
 	}
 	if _, err := w.out.Write(out); err != nil {
