@@ -8,6 +8,7 @@ package jscomp
 
 import (
 	"bytes"
+	"compress/gzip"
 	"os"
 	"strings"
 	"testing"
@@ -24,11 +25,18 @@ type cliParityCase struct {
 	wantExit int
 }
 
-// run runs the case's command line, failing the test if it does not finish
-// within a minute (a hang or a deadlock in the port).
+// run runs the case's command line in a fresh temporary directory, failing
+// the test if it does not finish within a minute (a hang or a deadlock in
+// the port).
 func (c cliParityCase) run(t *testing.T) {
 	t.Helper()
 	t.Chdir(t.TempDir())
+	c.runHere(t)
+}
+
+// runHere runs the case in the current directory, after writing its files.
+func (c cliParityCase) runHere(t *testing.T) {
+	t.Helper()
 	for name, content := range c.files {
 		if err := os.WriteFile(name, []byte(content), 0o666); err != nil {
 			t.Fatal(err)
@@ -80,4 +88,47 @@ func TestCliParity_ReportWhileGeneratingReport(t *testing.T) {
 		wantOut:  "var x=y;\n",
 		wantExit: 0,
 	}.run(t)
+}
+
+// A multistage build whose stages run in separate processes: the compiler
+// state that --filename_to_save_to writes must hold the state itself. The
+// port kept the CompilerState in a process-wide table and wrote only its
+// key, so a later process (or a second restore of the same file) failed
+// with "java.io.IOException: no saved CompilerState 1". Here the first
+// stage's state is restored twice, and each run must match Java's output.
+func TestCliParity_MultistageStateInFile(t *testing.T) {
+	t.Chdir(t.TempDir())
+	base := []string{"--js", "in.js", "--compilation_level", "ADVANCED"}
+	stage := func(args ...string) []string { return append(append([]string{}, base...), args...) }
+	cliParityCase{
+		files: map[string]string{"in.js": "function f(a){return a+1}\nwindow.x=f(2);\n"},
+		args:  stage("--segment_of_compilation_to_run=CHECKS", "--filename_to_save_to=checks.state"),
+	}.runHere(t)
+	for i := 0; i < 2; i++ {
+		cliParityCase{
+			args: stage("--segment_of_compilation_to_run=OPTIMIZATIONS",
+				"--filename_to_restore_from=checks.state", "--filename_to_save_to=optimizations.state"),
+		}.runHere(t)
+		cliParityCase{
+			args:    stage("--segment_of_compilation_to_run=FINALIZATIONS", "--filename_to_restore_from=optimizations.state"),
+			wantOut: "window.x=3;\n",
+		}.runHere(t)
+	}
+}
+
+// A compiler state file that is not one (here, an empty gzip stream) fails
+// to restore with an EOFException, as Java's ObjectInputStream does on a
+// truncated stream.
+func TestCompilerRestoreState_Truncated(t *testing.T) {
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	gz.Close()
+	options := NewCompilerOptions()
+	compiler := NewCompiler()
+	compiler.Init(nil, []*SourceFile{SourceFile_FromCode("in.js", "var x;")}, options)
+	var caught jutil.Throwable
+	jutil.Try(func() { compiler.RestoreState(&buf) }, func(e jutil.IRuntimeException) { caught = e })
+	if caught == nil || !strings.Contains(jutil.ToJavaString(caught), "java.io.EOFException") {
+		t.Fatalf("RestoreState of an empty stream: got %v, want an EOFException", caught)
+	}
 }

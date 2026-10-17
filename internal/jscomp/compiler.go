@@ -21,6 +21,7 @@ package jscomp
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"iter"
@@ -28,7 +29,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/colors"
@@ -4546,9 +4546,8 @@ func (c *Compiler) GetCompilerExecutor() *CompilerExecutor {
 // in the jscomp.TypedAst proto.
 //
 // Go-only: language-adapter — Java serializes this object with
-// ObjectOutputStream into the saveState stream; the port keeps it in the
-// Compiler-independent compiler_savedStates table and writes its key (see
-// SaveState).
+// ObjectOutputStream into the saveState stream; the port writes its fields
+// in an encoding of its own (see compiler_writeObject).
 //
 // Java: Compiler.CompilerState
 type Compiler_CompilerState struct {
@@ -4670,27 +4669,6 @@ func compiler_mapJsChunksToInputIds(jsChunks []*JSChunk) *jutil.LinkedHashMap[*J
 	return jsChunkToInputId
 }
 
-// compiler_savedStates holds the CompilerStates written by SaveState, by
-// key.
-//
-// Go-only: language-adapter — Java writes the CompilerState object graph
-// to the stream with ObjectOutputStream (Java serialization, which Go
-// lacks). The port writes a key that RestoreState reads back; the object
-// graph is shared, not copied, which the multistage callers (that restore
-// into a fresh Compiler and drop the old one) cannot observe, except
-// through the deserialization hooks (JSChunk.readObject resets the
-// chunks' inputs), which compiler_readObject runs. Because those hooks and
-// restoreState then mutate the shared graph, a state can be read back only
-// once, and compiler_readObject removes it from the table: a second read of
-// the same bytes fails with an IOException rather than returning the
-// mutated graph, and the table does not keep every restored compilation
-// (its chunks' new inputs, and through them the Compiler) reachable.
-var (
-	compiler_savedStatesMu sync.Mutex
-	compiler_savedStates   = map[int64]*Compiler_CompilerState{}
-	compiler_nextStateKey  int64
-)
-
 // Java: Compiler.saveState(OutputStream)
 func (c *Compiler) SaveState(outputStream io.Writer) {
 	// Do not close the outputstream, caller is responsible for closing it.
@@ -4720,48 +4698,397 @@ func (c *Compiler) SaveState(outputStream io.Writer) {
 }
 
 // compiler_writeObject is new ObjectOutputStream(out).writeObject(state).
+//
+// Go-only: language-adapter — Java writes the CompilerState object graph
+// with ObjectOutputStream (Java serialization, which Go lacks). The port
+// writes the same serializable fields, those that Java's default
+// serialization writes for CompilerState and the objects it reaches
+// (transient fields excluded), in an encoding of its own: the length of
+// the record, then the record (compiler_stateWriter). A later process
+// reads it back with compiler_readObject, as Java's multistage builds do
+// across processes. References between chunks are written as indices into
+// the chunk graph, so that the object graph is shared as in Java's stream.
 func compiler_writeObject(out io.Writer, state *Compiler_CompilerState) {
-	compiler_savedStatesMu.Lock()
-	compiler_nextStateKey++
-	key := compiler_nextStateKey
-	compiler_savedStates[key] = state
-	compiler_savedStatesMu.Unlock()
-	var buf [8]byte
-	for i := 0; i < 8; i++ {
-		buf[i] = byte(key >> (56 - 8*i))
+	w := &compiler_stateWriter{}
+	w.writeState(state)
+	var size [8]byte
+	binary.BigEndian.PutUint64(size[:], uint64(len(w.buf)))
+	if _, err := out.Write(size[:]); err != nil {
+		panic(jutil.NewIOException(err.Error()))
 	}
-	if _, err := out.Write(buf[:]); err != nil {
+	if _, err := out.Write(w.buf); err != nil {
 		panic(jutil.NewIOException(err.Error()))
 	}
 }
 
 // compiler_readObject is (CompilerState) new ObjectInputStream(in).readObject().
+//
+// Go-only: language-adapter — reads what compiler_writeObject wrote; see
+// there.
 func compiler_readObject(in io.Reader) *Compiler_CompilerState {
-	var buf [8]byte
-	if _, err := io.ReadFull(in, buf[:]); err != nil {
-		panic(jutil.NewIOException(err.Error()))
-	}
-	var key int64
-	for i := 0; i < 8; i++ {
-		key = key<<8 | int64(buf[i])
-	}
-	// The mutex guards only the table: the hooks below run translated code.
-	compiler_savedStatesMu.Lock()
-	state, ok := compiler_savedStates[key]
-	delete(compiler_savedStates, key)
-	compiler_savedStatesMu.Unlock()
-	if !ok {
-		panic(jutil.NewIOException(fmt.Sprintf("no saved CompilerState %d", key)))
-	}
-	// The readObject hooks of the classes in the state: JSChunk's re-creates
-	// its transient input map (restoreState adds the new inputs to the
-	// deserialized chunks).
-	if state.chunkGraph != nil {
-		for _, chunk := range state.chunkGraph.GetAllChunks() {
-			chunk.ReadObject()
+	readFully := func(b []byte) {
+		if _, err := io.ReadFull(in, b); err == io.EOF || err == io.ErrUnexpectedEOF {
+			// ObjectInputStream on a truncated stream.
+			panic(jutil.NewEOFException("truncated CompilerState record"))
+		} else if err != nil {
+			panic(jutil.NewIOException(err.Error()))
 		}
 	}
+	var size [8]byte
+	readFully(size[:])
+	n := binary.BigEndian.Uint64(size[:])
+	if n > 1<<31 {
+		panic(jutil.NewIOException(fmt.Sprintf("invalid CompilerState record size %d", n)))
+	}
+	buf := make([]byte, n)
+	readFully(buf)
+	r := &compiler_stateReader{buf: buf}
+	state := r.readState()
+	if r.pos != len(r.buf) {
+		panic(jutil.NewIOException(fmt.Sprintf("%d bytes left after the CompilerState record", len(r.buf)-r.pos)))
+	}
 	return state
+}
+
+// compiler_stateMagic starts a CompilerState record.
+const compiler_stateMagic = "jsgo CompilerState 1"
+
+// compiler_stateWriter encodes a CompilerState (see compiler_writeObject).
+//
+// Go-only: language-adapter — ObjectOutputStream.
+type compiler_stateWriter struct {
+	buf    []byte
+	chunks map[*JSChunk]int // index in the chunk graph
+}
+
+func (w *compiler_stateWriter) bool_(b bool) {
+	if b {
+		w.buf = append(w.buf, 1)
+	} else {
+		w.buf = append(w.buf, 0)
+	}
+}
+
+func (w *compiler_stateWriter) int_(i int64) { w.buf = binary.AppendVarint(w.buf, i) }
+
+func (w *compiler_stateWriter) string_(s string) {
+	w.int_(int64(len(s)))
+	w.buf = append(w.buf, s...)
+}
+
+// present writes whether a reference is non-null.
+func (w *compiler_stateWriter) present(nonNull bool) bool {
+	w.bool_(nonNull)
+	return nonNull
+}
+
+func (w *compiler_stateWriter) strings_(seq iter.Seq[string], n int) {
+	w.int_(int64(n))
+	for s := range seq {
+		w.string_(s)
+	}
+}
+
+func (w *compiler_stateWriter) chunk(m *JSChunk) {
+	i, ok := w.chunks[m]
+	if !ok {
+		panic(jutil.NewIllegalStateExceptionMsg("chunk not in the chunk graph: " + m.GetName()))
+	}
+	w.int_(int64(i))
+}
+
+func (w *compiler_stateWriter) variableMap(m *VariableMap) {
+	if !w.present(m != nil) {
+		return
+	}
+	w.int_(int64(m.map_.Size()))
+	for k, v := range m.map_.All() {
+		w.string_(k)
+		w.string_(v)
+	}
+}
+
+func (w *compiler_stateWriter) writeState(s *Compiler_CompilerState) {
+	w.string_(compiler_stateMagic)
+	features := s.allowableFeatures.GetFeatures()
+	w.int_(int64(features.Size()))
+	for f := range features.All() {
+		w.int_(int64(f))
+	}
+	w.bool_(s.typeCheckingHasRun)
+	w.bool_(s.hasRegExpGlobalReferences)
+	w.int_(int64(s.lifeCycleStage))
+	w.bool_(s.mergedPrecompiledLibraries)
+	// JSChunkGraph: its chunks (JSChunk: name, deps, depth, index; inputs
+	// is transient), then selfPlusTransitiveDeps, subtreeSize and
+	// chunksByDepth (dependencyMap is transient).
+	w.chunks = map[*JSChunk]int{}
+	if g := s.chunkGraph; w.present(g != nil) {
+		w.int_(int64(len(g.chunks)))
+		for i, m := range g.chunks {
+			w.chunks[m] = i
+			w.string_(m.name)
+			w.int_(int64(m.depth))
+			w.int_(int64(m.index))
+		}
+		for _, m := range g.chunks {
+			w.int_(int64(len(m.deps)))
+			for _, dep := range m.deps {
+				w.chunk(dep)
+			}
+		}
+		w.int_(int64(len(g.selfPlusTransitiveDeps)))
+		for _, bits := range g.selfPlusTransitiveDeps {
+			w.int_(int64(bits.Cardinality()))
+			for i := bits.NextSetBit(0); i >= 0; i = bits.NextSetBit(i + 1) {
+				w.int_(int64(i))
+			}
+		}
+		w.int_(int64(len(g.subtreeSize)))
+		for _, n := range g.subtreeSize {
+			w.int_(int64(n))
+		}
+		w.int_(int64(len(g.chunksByDepth)))
+		for _, level := range g.chunksByDepth {
+			w.int_(int64(len(level)))
+			for _, m := range level {
+				w.chunk(m)
+			}
+		}
+	}
+	w.int_(int64(s.uniqueNameId))
+	if u := s.uniqueIdSupplier; w.present(u != nil) {
+		keys := make([]int32, 0, len(u.counter))
+		for k := range u.counter {
+			keys = append(keys, k)
+		}
+		slices.Sort(keys)
+		w.int_(int64(len(keys)))
+		for _, k := range keys {
+			w.int_(int64(k))
+			w.int_(int64(u.counter[k]))
+		}
+	}
+	if w.present(s.exportedNames != nil) {
+		w.strings_(s.exportedNames.All(), s.exportedNames.Size())
+	}
+	if w.present(s.cssNames != nil) {
+		w.strings_(s.cssNames.All(), s.cssNames.Size())
+	}
+	if w.present(s.idGeneratorMap != nil) {
+		w.string_(*s.idGeneratorMap)
+	}
+	w.bool_(s.transpiledFiles)
+	if w.present(s.crossChunkIdGenerator != nil) {
+		w.int_(int64(s.crossChunkIdGenerator.currentId))
+	}
+	w.bool_(s.runJ2clPasses)
+	w.int_(int64(len(s.externs)))
+	for _, id := range s.externs {
+		w.string_(id.GetIdName())
+	}
+	w.int_(int64(s.chunkToInputList.Size()))
+	for m, ids := range s.chunkToInputList.All() {
+		w.chunk(m)
+		w.int_(int64(len(ids)))
+		for _, id := range ids {
+			w.string_(id.GetIdName())
+		}
+	}
+	w.strings_(slices.Values(s.injectedLibraries), len(s.injectedLibraries))
+	w.int_(int64(s.lastInjectedLibraryIndexInFirstScript))
+	if a := s.accessorSummary; w.present(a != nil) {
+		w.bool_(a.assumeAlwaysGetterAndSetter)
+		w.int_(int64(a.accessors.Size()))
+		for name, kind := range a.accessors.All() {
+			w.string_(name)
+			w.int_(int64(kind))
+		}
+	}
+	w.variableMap(s.stringMap)
+	w.variableMap(s.instrumentationMappping)
+}
+
+// compiler_stateReader decodes what compiler_stateWriter wrote.
+//
+// Go-only: language-adapter — ObjectInputStream.
+type compiler_stateReader struct {
+	buf    []byte
+	pos    int
+	chunks []*JSChunk
+}
+
+func (r *compiler_stateReader) corrupt(what string) {
+	panic(jutil.NewIOException("corrupt CompilerState record: " + what))
+}
+
+func (r *compiler_stateReader) bool_() bool {
+	if r.pos >= len(r.buf) {
+		r.corrupt("truncated")
+	}
+	b := r.buf[r.pos]
+	r.pos++
+	return b != 0
+}
+
+func (r *compiler_stateReader) int_() int64 {
+	v, n := binary.Varint(r.buf[r.pos:])
+	if n <= 0 {
+		r.corrupt("bad integer")
+	}
+	r.pos += n
+	return v
+}
+
+func (r *compiler_stateReader) count() int {
+	n := r.int_()
+	if n < 0 || n > int64(len(r.buf)-r.pos) {
+		r.corrupt("bad count")
+	}
+	return int(n)
+}
+
+func (r *compiler_stateReader) string_() string {
+	n := r.count()
+	s := string(r.buf[r.pos : r.pos+n])
+	r.pos += n
+	return s
+}
+
+func (r *compiler_stateReader) chunk() *JSChunk {
+	i := r.int_()
+	if i < 0 || i >= int64(len(r.chunks)) {
+		r.corrupt("bad chunk index")
+	}
+	return r.chunks[i]
+}
+
+func (r *compiler_stateReader) stringSet() *jutil.LinkedHashSet[string] {
+	set := jutil.NewLinkedHashSet[string]()
+	for n := r.count(); n > 0; n-- {
+		set.Add(r.string_())
+	}
+	return set
+}
+
+func (r *compiler_stateReader) variableMap() *VariableMap {
+	if !r.bool_() {
+		return nil
+	}
+	m := jutil.NewLinkedHashMap[string, string]()
+	for n := r.count(); n > 0; n-- {
+		k := r.string_()
+		m.Put(k, r.string_())
+	}
+	return NewVariableMap(m)
+}
+
+func (r *compiler_stateReader) readState() *Compiler_CompilerState {
+	if r.string_() != compiler_stateMagic {
+		r.corrupt("not a CompilerState record")
+	}
+	s := &Compiler_CompilerState{}
+	features := parser.FeatureSet_EmptyEnumSet()
+	for n := r.count(); n > 0; n-- {
+		features.Add(parser.FeatureSet_Feature(r.int_()))
+	}
+	s.allowableFeatures = parser.NewFeatureSet(features)
+	s.typeCheckingHasRun = r.bool_()
+	s.hasRegExpGlobalReferences = r.bool_()
+	s.lifeCycleStage = AbstractCompiler_LifeCycleStage(r.int_())
+	s.mergedPrecompiledLibraries = r.bool_()
+	if r.bool_() {
+		// The fields of a deserialized JSChunkGraph; its transient
+		// dependencyMap stays null, as Java's deserialization leaves it.
+		g := &JSChunkGraph{}
+		g.chunks = make([]*JSChunk, r.count())
+		for i := range g.chunks {
+			m := &JSChunk{name: r.string_(), deps: []*JSChunk{}}
+			m.depth = int(r.int_())
+			m.index = int(r.int_())
+			m.ReadObject()
+			g.chunks[i] = m
+		}
+		r.chunks = g.chunks
+		for _, m := range g.chunks {
+			for n := r.count(); n > 0; n-- {
+				m.deps = append(m.deps, r.chunk())
+			}
+		}
+		g.selfPlusTransitiveDeps = make([]*jutil.BitSet, r.count())
+		for i := range g.selfPlusTransitiveDeps {
+			bits := jutil.NewBitSet()
+			for n := r.count(); n > 0; n-- {
+				bits.Set(int(r.int_()))
+			}
+			g.selfPlusTransitiveDeps[i] = bits
+		}
+		g.subtreeSize = make([]int, r.count())
+		for i := range g.subtreeSize {
+			g.subtreeSize[i] = int(r.int_())
+		}
+		g.chunksByDepth = make([][]*JSChunk, r.count())
+		for i := range g.chunksByDepth {
+			level := make([]*JSChunk, r.count())
+			for j := range level {
+				level[j] = r.chunk()
+			}
+			g.chunksByDepth[i] = level
+		}
+		s.chunkGraph = g
+	}
+	s.uniqueNameId = int(r.int_())
+	if r.bool_() {
+		u := NewUniqueIdSupplier()
+		for n := r.count(); n > 0; n-- {
+			k := int32(r.int_())
+			u.counter[k] = int(r.int_())
+		}
+		s.uniqueIdSupplier = u
+	}
+	if r.bool_() {
+		s.exportedNames = r.stringSet()
+	}
+	if r.bool_() {
+		s.cssNames = r.stringSet()
+	}
+	if r.bool_() {
+		m := r.string_()
+		s.idGeneratorMap = &m
+	}
+	s.transpiledFiles = r.bool_()
+	if r.bool_() {
+		s.crossChunkIdGenerator = &IdGenerator{currentId: int(r.int_())}
+	}
+	s.runJ2clPasses = r.bool_()
+	for n := r.count(); n > 0; n-- {
+		s.externs = append(s.externs, rhino.NewInputId(r.string_()))
+	}
+	s.chunkToInputList = jutil.NewLinkedHashMap[*JSChunk, []*rhino.InputId]()
+	for n := r.count(); n > 0; n-- {
+		m := r.chunk()
+		ids := make([]*rhino.InputId, r.count())
+		for i := range ids {
+			ids[i] = rhino.NewInputId(r.string_())
+		}
+		s.chunkToInputList.Put(m, ids)
+	}
+	for n := r.count(); n > 0; n-- {
+		s.injectedLibraries = append(s.injectedLibraries, r.string_())
+	}
+	s.lastInjectedLibraryIndexInFirstScript = int(r.int_())
+	if r.bool_() {
+		a := &AccessorSummary{assumeAlwaysGetterAndSetter: r.bool_()}
+		a.accessors = jutil.NewLinkedHashMap[string, AccessorSummary_PropertyAccessKind]()
+		for n := r.count(); n > 0; n-- {
+			name := r.string_()
+			a.accessors.Put(name, AccessorSummary_PropertyAccessKind(r.int_()))
+		}
+		s.accessorSummary = a
+	}
+	s.stringMap = r.variableMap()
+	s.instrumentationMappping = r.variableMap()
+	return s
 }
 
 // Java: Compiler.getCompilerState()
