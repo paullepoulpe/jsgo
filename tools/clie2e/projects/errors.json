@@ -1,5 +1,5 @@
 {
-  "description": "Project-level error paths on small generated inputs and Closure Library's base.js: output files in a directory that does not exist, unknown entry points, bad --chunk specifications, unprovided and duplicate goog.provide namespaces, a goog.module require cycle, a missing ES module import and a duplicate input.",
+  "description": "Project-level error paths on small generated inputs and Closure Library's base.js: output files in a directory that does not exist, unknown entry points, bad --chunk specifications, unprovided and duplicate goog.provide namespaces, a goog.module require cycle, a missing ES module import, a duplicate input, and an ES module re-exporting the default import of a CommonJS module (an internal compiler error in both).",
   "links": {
     "inputs": "cache:bench-inputs"
   },
@@ -10,7 +10,9 @@
     "g/d.js": "goog.provide('err.c');\nerr.c.y = 2;\n",
     "g/e.js": "goog.module('err.e');\nexports.e = 5;\n",
     "m/main.js": "import {x} from './nope.js';\nimport {y} from './y.js';\nexport const z = x + y;\n",
-    "m/y.js": "export const y = 1;\n"
+    "m/y.js": "export const y = 1;\n",
+    "cjs/lib.js": "module.exports = {x: 1};\n",
+    "cjs/es.js": "import Lib from './lib.js';\nexport { Lib };\n"
   },
   "inputs": [
     {"file": "inputs/closure-library@v20230802/closure/goog/base.js"}
@@ -72,6 +74,12 @@
       "name": "missing-es-import",
       "inputs": [{"file": "m/main.js"}, {"file": "m/y.js"}],
       "args": ["--dependency_mode=PRUNE", "--entry_point=m/main.js"]
+    },
+    {
+      "name": "reexported-commonjs-default",
+      "inputs": [{"file": "cjs/lib.js"}, {"file": "cjs/es.js"}],
+      "args": ["--process_common_js_modules", "--module_resolution=NODE", "--dependency_mode=PRUNE",
+               "--entry_point=cjs/es.js", "--compilation_level=SIMPLE"]
     },
     {
       "name": "duplicate-input",

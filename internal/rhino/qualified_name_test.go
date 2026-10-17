@@ -36,7 +36,10 @@ package rhino
 
 import (
 	"slices"
+	"strings"
 	"testing"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 func qname(root *Node, props ...string) *Node {
@@ -236,4 +239,23 @@ func TestQualifiedName_GetComponentCount_FromNode(t *testing.T) {
 
 func TestQualifiedName_GetComponentCount_FromGetprop(t *testing.T) {
 	assertComponentCount(t, QualifiedName_Of("foo").Getprop("bar"), 2)
+}
+
+// Go-only: QualifiedName and its subclasses do not override toString, so a
+// message that embeds one (Es6RewriteModules' "unexpected qualified name:
+// %s") prints java.lang.Object.toString(): the binary class name, '@' and
+// a hex hash. The port printed Go's %v of the struct.
+func TestQualifiedName_ObjectToString(t *testing.T) {
+	check := func(q QualifiedName, class string) {
+		t.Helper()
+		s := jutil.ToJavaString(q)
+		prefix := "com.google.javascript.rhino.QualifiedName$" + class + "@"
+		hash, ok := strings.CutPrefix(s, prefix)
+		if !ok || hash == "" || strings.Trim(hash, "0123456789abcdef") != "" {
+			t.Errorf("toString() = %q, want %s<hex>", s, prefix)
+		}
+	}
+	check(QualifiedName_Of("a.b"), "StringListQname")
+	check(QualifiedName_Of("a").Getprop("b"), "GetpropQname")
+	check(qname(IR_Name("a"), "b").GetQualifiedNameObject(), "NodeQname")
 }

@@ -132,3 +132,32 @@ func TestCompilerRestoreState_Truncated(t *testing.T) {
 		t.Fatalf("RestoreState of an empty stream: got %v, want an EOFException", caught)
 	}
 }
+
+// An ES module that re-exports the default import of a CommonJS module
+// crashes Es6RewriteModules in Java too (an INTERNAL COMPILER ERROR from
+// checkState(boundVariableQualifiedName.isSimple(), "unexpected qualified
+// name: %s", ...)). The message embeds a QualifiedName, which has Java's
+// Object.toString(); the port printed Go's %v of the struct. The hash is
+// Java's identity hash, which changes from run to run, so only the form is
+// compared.
+func TestCliParity_UnexpectedQualifiedNameMessage(t *testing.T) {
+	t.Chdir(t.TempDir())
+	os.WriteFile("lib.js", []byte("module.exports = {x: 1};\n"), 0o666)
+	os.WriteFile("es.js", []byte("import Lib from './lib.js';\nexport { Lib };\n"), 0o666)
+	var out, errOut bytes.Buffer
+	runner := NewCommandLineRunnerWithOutAndErr(
+		[]string{"--process_common_js_modules", "--module_resolution=NODE", "--dependency_mode=PRUNE",
+			"--entry_point=es.js", "--js", "lib.js", "--js", "es.js"},
+		jutil.NewPrintStream(&out), jutil.NewPrintStream(&errOut))
+	status := 0
+	runner.SetExitCodeReceiver(func(s int) { status = s })
+	runner.Run()
+	const want = "java.lang.RuntimeException: INTERNAL COMPILER ERROR.\nPlease report this problem.\n\n" +
+		"unexpected qualified name: com.google.javascript.rhino.QualifiedName$GetpropQname@"
+	if got := errOut.String(); !strings.HasPrefix(got, want) {
+		t.Errorf("stderr:\n%s\nwant a prefix:\n%s", got, want)
+	}
+	if status != -2 || out.Len() != 0 {
+		t.Errorf("exit status %d, stdout %q; want -2 and nothing", status, out.String())
+	}
+}
