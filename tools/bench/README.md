@@ -148,10 +148,22 @@ output files. The result is one of:
   panic, `pending port: <Java signature>` on stderr). The report names the
   signature, and jsgo is not timed further.
 - **DIFF:** anything else. The report shows the first differing byte of
-  each differing artifact, and the times without a ratio.
+  each differing artifact, and the times without a ratio. DIFFs are sorted
+  into three kinds:
+  - **crash:** jsgo died with a Go panic or fatal error. A jsgo that crashes
+    on every invocation is not timed.
+  - **java-frames:** Java threw an internal exception, and only its stack
+    frames differ. jsgo prints the same exception, message, exit status and
+    output, but not the JVM's `\tat …` frames.
+  - **output:** any other difference.
 
 For the single-file task, every invocation is gated, and the task gets the
-counts of each result.
+counts of each result. Examples of each DIFF kind are listed by input path;
+each is a one-file reproducer with the task's flags. The task's speed-up is
+then computed over the invocations that match.
+
+`bench.py regate --out <dir>` recomputes `gate.json` from the stored first
+runs without compiling anything, for example after a change to the gate.
 
 Java is also checked against itself:
 - every cold run must be byte-identical to run 1;
