@@ -34,6 +34,8 @@ var (
 	reuseJava    = flag.Bool("reuse-java", false, "sweep: keep the Java results already in the work directory")
 	classifyOnly = flag.Bool("classify-only", false, "sweep: run nothing, classify the results in the work directory")
 	skipJava     = flag.Bool("skip-java", false, "sweep: run only jsgo (keeping the Java results in the work directory)")
+	skipGo       = flag.Bool("skip-go", false, "sweep: run only Java (keeping the jsgo results in the work directory)")
+	javaHeap     = flag.String("xmx", "2500m", "sweep: maximum heap of each JVM")
 	locale       = flag.String("lang", "C.UTF-8", "sweep: LANG for both compilers")
 )
 
@@ -122,13 +124,20 @@ func runSweepJobs(wd, javaDir, goDir string, jobs []sweepJob) {
 	if !*reuseJava && !*skipJava {
 		os.RemoveAll(javaDir)
 	}
-	os.RemoveAll(goDir)
-	for _, d := range []string{javaDir, goDir} {
-		os.MkdirAll(d, 0o777)
-		os.Remove(filepath.Join(d, "in"))
-		os.Symlink(*corpus, filepath.Join(d, "in"))
+	if !*skipGo {
+		os.RemoveAll(goDir)
 	}
-	bin := buildJsgo(wd)
+	for d, skip := range map[string]bool{javaDir: *skipJava, goDir: *skipGo} {
+		if !skip {
+			os.MkdirAll(d, 0o777)
+			os.Remove(filepath.Join(d, "in"))
+			os.Symlink(*corpus, filepath.Join(d, "in"))
+		}
+	}
+	bin := ""
+	if !*skipGo {
+		bin = buildJsgo(wd)
+	}
 
 	var wg sync.WaitGroup
 	// Java side: shards of one JVM each (CliE2E).
@@ -143,10 +152,20 @@ func runSweepJobs(wd, javaDir, goDir string, jobs []sweepJob) {
 		}
 		javaJobs = append(javaJobs, j)
 	}
+	// A file's jobs go to one shard, so that each shard gets every
+	// configuration.
+	shardOf := map[string]int{}
+	for _, j := range javaJobs {
+		if _, ok := shardOf[j.file]; !ok {
+			shardOf[j.file] = len(shardOf) % *shards
+		}
+	}
 	for s := 0; s < *shards; s++ {
 		var buf bytes.Buffer
-		for i := s; i < len(javaJobs); i += *shards {
-			buf.WriteString(javaJobs[i].res() + "\t" + strings.Join(javaJobs[i].args, "\t") + "\n")
+		for _, j := range javaJobs {
+			if shardOf[j.file] == s {
+				buf.WriteString(j.res() + "\t" + strings.Join(j.args, "\t") + "\n")
+			}
 		}
 		if buf.Len() == 0 {
 			continue
@@ -154,7 +173,7 @@ func runSweepJobs(wd, javaDir, goDir string, jobs []sweepJob) {
 		wg.Add(1)
 		go func(input []byte) {
 			defer wg.Done()
-			cmd := exec.Command("nice", "-n", "10", "java", "-Djsgo.excludedCorpus="+excludedList, "-cp", *jar+":"+*javaBld, "CliE2E")
+			cmd := exec.Command("nice", "-n", "10", "java", "-Xmx"+*javaHeap, "-Djsgo.excludedCorpus="+excludedList, "-cp", *jar+":"+*javaBld, "CliE2E")
 			cmd.Dir = javaDir
 			cmd.Env = sweepEnv()
 			cmd.Stdin = bytes.NewReader(input)
@@ -170,6 +189,9 @@ func runSweepJobs(wd, javaDir, goDir string, jobs []sweepJob) {
 	var mu sync.Mutex
 	start := time.Now()
 	for _, j := range jobs {
+		if *skipGo {
+			break
+		}
 		wg.Add(1)
 		sem <- true
 		go func(j sweepJob) {
