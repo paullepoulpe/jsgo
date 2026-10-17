@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Es6RewriteClassTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/Es6RewriteClassTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/Es6RewriteClassTest.java)
 
 /*
@@ -68,7 +68,6 @@ func (c *Es6RewriteClassTest) CustomSetUp() {
 	c.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT3)
 	c.EnableTypeCheck()
 	c.EnableTypeInfoValidation()
-	c.EnableScriptFeatureValidation()
 	c.ReplaceTypesWithColors()
 	c.EnableMultistageCompilation()
 	c.SetGenericNameReplacements(Es6NormalizeClasses_GENERIC_NAME_REPLACEMENTS)
@@ -1607,6 +1606,64 @@ $jscomp.inherits(Foo, Object);
 `)
 }
 
+// Java: Es6RewriteClassTest.testExtendObject_withSideEffectfulSuperArgs()
+func (c *Es6RewriteClassTest) TestExtendObject_withSideEffectfulSuperArgs() {
+	c.Test(
+		`class Foo extends Object {
+  constructor() {
+    super(foo());
+  }
+}
+`,
+		`/**
+ * @constructor
+ */
+let Foo = function() {
+  foo(), this;
+};
+$jscomp.inherits(Foo, Object);
+`)
+}
+
+// Java: Es6RewriteClassTest.testExtendObject_withMultipleSideEffectfulSuperArgs()
+func (c *Es6RewriteClassTest) TestExtendObject_withMultipleSideEffectfulSuperArgs() {
+	c.IgnoreWarnings(TypeCheck_WRONG_ARGUMENT_COUNT)
+	c.Test(
+		`class Foo extends Object {
+  constructor() {
+    super(foo(), 1, bar());
+  }
+}
+`,
+		`/**
+ * @constructor
+ */
+let Foo = function() {
+  foo(), bar(), this;
+};
+$jscomp.inherits(Foo, Object);
+`)
+}
+
+// Java: Es6RewriteClassTest.testExtendObject_withSpreadSideEffectfulSuperArgs()
+func (c *Es6RewriteClassTest) TestExtendObject_withSpreadSideEffectfulSuperArgs() {
+	c.Test(
+		`class Foo extends Object {
+  constructor() {
+    super(...foo());
+  }
+}
+`,
+		`/**
+ * @constructor
+ */
+let Foo = function() {
+  foo(), this;
+};
+$jscomp.inherits(Foo, Object);
+`)
+}
+
 // Java: Es6RewriteClassTest.testExtendObject_withImplicitConstructor()
 func (c *Es6RewriteClassTest) TestExtendObject_withImplicitConstructor() {
 	c.Test(
@@ -2136,6 +2193,32 @@ $jscomp.global.Object.defineProperties(C.prototype, {
 `)
 }
 
+// Java: Es6RewriteClassTest.testEs5GettersAndSettersClasses_protoAccessor()
+func (c *Es6RewriteClassTest) TestEs5GettersAndSettersClasses_protoAccessor() {
+	c.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT5)
+	c.Test(
+		`class C {
+  get __proto__() {
+    return null;
+  }
+  set __proto__(v) {}
+}
+`,
+		`/** @constructor */
+let C = function() {};
+$jscomp.global.Object.defineProperties(C.prototype, {
+  ['__proto__']: {
+    configurable: true,
+    enumerable: true,
+    get: function() {
+      return null;
+    },
+    set: function(v) {}
+  }
+});
+`)
+}
+
 // Java: Es6RewriteClassTest.testEs5GettersAndSettersClasses_withTwoGetters()
 func (c *Es6RewriteClassTest) TestEs5GettersAndSettersClasses_withTwoGetters() {
 	c.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT5)
@@ -2535,7 +2618,13 @@ $jscomp.global.Object.defineProperty(C.prototype, COMP_FIELD$0, {
     return true;
   },
 });
+$jscomp.global.Object.defineProperties(C.prototype, {
+  a: {configurable: true, enumerable: true, get: function() {}},
+});
 C.prototype[COMP_FIELD$1] = function() {};
+$jscomp.global.Object.defineProperties(C.prototype, {
+  b: {configurable: true, enumerable: true, get: function() {}},
+});
 C.prototype.c = function() {};
 $jscomp.global.Object.defineProperty(C.prototype, COMP_FIELD$2, {
   configurable: true,
@@ -2544,11 +2633,163 @@ $jscomp.global.Object.defineProperty(C.prototype, COMP_FIELD$2, {
     return true;
   },
 });
-$jscomp.global.Object.defineProperties(C.prototype, {
-  a: {configurable: true, enumerable: true, get: function() {}},
-  b: {configurable: true, enumerable: true, get: function() {}},
-});
 `))
+}
+
+// Java: Es6RewriteClassTest.testGetterFollowedByMethodWithSameName()
+func (c *Es6RewriteClassTest) TestGetterFollowedByMethodWithSameName() {
+	c.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT5)
+	c.Test(
+		`/** @unrestricted */
+class C {
+  get clean() { return 1; }
+  clean(x) { return 2; }
+}
+`,
+		`/** @constructor */
+let C = function() {};
+$jscomp.global.Object.defineProperties(C.prototype, {
+  clean: {
+    configurable: true,
+    enumerable: true,
+    get: function() { return 1; }
+  }
+});
+C.prototype.clean = function(x) { return 2; };
+`)
+}
+
+// Java: Es6RewriteClassTest.testGetterFollowedByComputedGetterWithSameName()
+func (c *Es6RewriteClassTest) TestGetterFollowedByComputedGetterWithSameName() {
+	c.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT5)
+	c.Test(
+		`/** @unrestricted */
+class C {
+  get clean() { return 1; }
+  get ['clean']() { return 2; }
+}
+`,
+		`/** @constructor */
+let C = function() {};
+$jscomp.global.Object.defineProperties(C.prototype, {
+  clean: {
+    configurable: true,
+    enumerable: true,
+    get: function() { return 1; }
+  }
+});
+$jscomp.global.Object.defineProperty(C.prototype, "clean", {
+  configurable: true,
+  enumerable: true,
+  get: function() { return 2; }
+});
+`)
+}
+
+// Java: Es6RewriteClassTest.testMethodFollowedByGetterWithSameName()
+func (c *Es6RewriteClassTest) TestMethodFollowedByGetterWithSameName() {
+	c.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT5)
+	c.Test(
+		`/** @unrestricted @suppress {checkTypes} */
+class C {
+  clean(x) { return 1; }
+  get clean() { return 2; }
+}
+`,
+		`/** @constructor */
+let C = function() {};
+C.prototype.clean = function(x) { return 1; };
+$jscomp.global.Object.defineProperties(C.prototype, {
+  clean: {
+    configurable: true,
+    enumerable: true,
+    get: function() { return 2; }
+  }
+});
+`)
+}
+
+// Java: Es6RewriteClassTest.testDuplicateGettersWithSameName()
+func (c *Es6RewriteClassTest) TestDuplicateGettersWithSameName() {
+	c.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT5)
+	c.Test(
+		`/** @unrestricted */
+class C {
+  get clean() { return 1; }
+  get clean() { return 2; }
+}
+`,
+		`/** @constructor */
+let C = function() {};
+$jscomp.global.Object.defineProperties(C.prototype, {
+  clean: {
+    configurable: true,
+    enumerable: true,
+    get: function() { return 1; }
+  }
+});
+$jscomp.global.Object.defineProperties(C.prototype, {
+  clean: {
+    configurable: true,
+    enumerable: true,
+    get: function() { return 2; }
+  }
+});
+`)
+}
+
+// Java: Es6RewriteClassTest.testStaticGetterFollowedByStaticMethodWithSameName()
+func (c *Es6RewriteClassTest) TestStaticGetterFollowedByStaticMethodWithSameName() {
+	c.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT5)
+	c.Test(
+		`/** @unrestricted */
+class C {
+  static get clean() { return 1; }
+  static clean(x) { return 2; }
+}
+`,
+		`/** @constructor */
+let C = function() {};
+/** @nocollapse */
+C.clean;
+$jscomp.global.Object.defineProperties(C, {
+  clean: {
+    configurable: true,
+    enumerable: true,
+    get: function() { return 1; }
+  }
+});
+C.clean = function(x) { return 2; };
+`)
+}
+
+// Java: Es6RewriteClassTest.testStaticGetterFollowedByStaticComputedGetterWithSameName()
+func (c *Es6RewriteClassTest) TestStaticGetterFollowedByStaticComputedGetterWithSameName() {
+	c.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT5)
+	c.Test(
+		`/** @unrestricted */
+class C {
+  static get clean() { return 1; }
+  static get ['clean']() { return 2; }
+}
+`,
+		`/** @constructor */
+let C = function() {};
+/** @nocollapse */
+C.clean;
+$jscomp.global.Object.defineProperties(C, {
+  clean: {
+    configurable: true,
+    enumerable: true,
+    get: function() { return 1; }
+  }
+});
+$jscomp.global.Object.defineProperty(C, "clean", {
+  configurable: true,
+  enumerable: true,
+  get: function() { return 2; }
+});
+`)
 }
 
 // Java: Es6RewriteClassTest.testComputedPropClass()
@@ -2988,7 +3229,7 @@ func (c *Es6RewriteClassTest) GetNodeWithName(root *rhino.Node, name string) *rh
 // code and then returns the AST roots for the source and the transpiled
 // source respectively.
 //
-// Java: Es6RewriteClassTest.TestAndReturnAsts(String, String)
+// Java: Es6RewriteClassTest.testAndReturnAsts(String, String)
 func (c *Es6RewriteClassTest) TestAndReturnAsts(source string, expected string) *es6RewriteClassTest_AstPair {
 	originalRoot := c.CreateCompiler().ParseTestCode(source)
 

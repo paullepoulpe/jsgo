@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Es6ConvertSuperConstructorCalls.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/Es6ConvertSuperConstructorCalls.java @ closure-compiler v20261015
 
 /*
  * Copyright 2014 The Closure Compiler Authors.
@@ -167,8 +167,6 @@ func (e *Es6ConvertSuperConstructorCalls) VisitSuper(t *NodeTraversal, construct
 	if e.IsNativeObjectClass(t, superClassQName) {
 		// There's no need to call Object as a super constructor, so just replace the call with
 		// `this`, which is its correct return value.
-		// TODO(bradfordcsmith): Although unlikely, super() could have argument expressions with
-		//     side-effects.
 		e.ReplaceSuperCallsWithThis(superCalls, thisType)
 	} else if e.IsKnownNativeClass(t, superClassQName) {
 		// Although we're transpiling down to ES5, it's quite possible that the code will end up
@@ -192,9 +190,30 @@ func (e *Es6ConvertSuperConstructorCalls) VisitSuper(t *NodeTraversal, construct
 // Java: Es6ConvertSuperConstructorCalls.replaceSuperCallsWithThis(List<Node>, AstFactory.Type)
 func (e *Es6ConvertSuperConstructorCalls) ReplaceSuperCallsWithThis(superCalls []*rhino.Node, thisType AstFactory_Type) {
 	for _, superCall := range superCalls {
-		thisNode := e.astFactory.CreateThis(thisType).Srcref(superCall)
-		superCall.ReplaceWith(thisNode)
-		e.compiler.ReportChangeToEnclosingScope(thisNode)
+		sideEffectArgs := []*rhino.Node{}
+		callee := superCall.RemoveFirstChild()
+		jutil.CheckStateMsg1(callee.IsSuper(), "%s", callee)
+		for superCall.HasChildren() {
+			arg := superCall.RemoveFirstChild()
+			if arg.IsSpread() {
+				arg = arg.RemoveFirstChild()
+			}
+			if e.compiler.GetAstAnalyzer().MayHaveSideEffects(arg) {
+				sideEffectArgs = append(sideEffectArgs, arg)
+			}
+		}
+
+		replacement := e.astFactory.CreateThis(thisType).Srcref(superCall)
+		if len(sideEffectArgs) != 0 {
+			exprs := sideEffectArgs[0]
+			for i := 1; i < len(sideEffectArgs); i++ {
+				exprs =
+					e.astFactory.CreateComma(exprs, sideEffectArgs[i]).SrcrefTreeIfMissing(superCall)
+			}
+			replacement = e.astFactory.CreateComma(exprs, replacement).SrcrefTreeIfMissing(superCall)
+		}
+		superCall.ReplaceWith(replacement)
+		e.compiler.ReportChangeToEnclosingScope(replacement)
 	}
 }
 
@@ -761,6 +780,7 @@ func (e *Es6ConvertSuperConstructorCalls) IsKnownNativeClass(t *NodeTraversal, c
 		"Int32Array",
 		"Int8Array",
 		"InternalError",
+		"Iterator",
 		"Map",
 		"Number",
 		"Object",

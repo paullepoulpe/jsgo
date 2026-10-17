@@ -3,9 +3,8 @@ package jscomp
 // Differential test against tools/oracle/java/TranspileBDump.java: the
 // w5-transpile-b passes (Es6NormalizeClasses, Es6ConvertSuper,
 // Es6RewriteClass + Es6ConvertSuperConstructorCalls, the block-scoping
-// rewrites, RewriteNewDotTarget / RewritePrivateClassProperties /
-// ReportUntranspilableFeatures, RewritePolyfills + PolyfillUsageFinder,
-// IsolatePolyfills), run in DefaultPassConfig's order around the rest of
+// rewrites, RewriteNewDotTarget / ReportUntranspilableFeatures,
+// RewritePolyfills + PolyfillUsageFinder, IsolatePolyfills), run in DefaultPassConfig's order around the rest of
 // the transpilation passes, printed in the same format and compared file by
 // file.
 //

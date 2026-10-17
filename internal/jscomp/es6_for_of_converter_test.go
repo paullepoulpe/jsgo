@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Es6ForOfConverterTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/Es6ForOfConverterTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/Es6ForOfConverterTest.java)
 
 /*
@@ -74,7 +74,10 @@ func (c *Es6ForOfConverterTest) CustomSetUp() {
 	c.EnableTypeInfoValidation()
 	c.ReplaceTypesWithColors()
 	c.EnableMultistageCompilation()
-	c.SetGenericNameReplacements(transpileTests_ImmutableMapOf("KEY", "$jscomp$key$"))
+	c.SetGenericNameReplacements(
+		transpileTests_ImmutableMapOf(
+			"KEY", "$jscomp$key$",
+			"ITER", "$jscomp$iter$"))
 }
 
 // Java: Es6ForOfConverterTest.getProcessor(Compiler)
@@ -95,28 +98,36 @@ func (c *Es6ForOfConverterTest) TestForOfLoop() {
 	c.Test(
 		"for (var i of [1,2,3]) { console.log(i); }",
 		`var i;
-var $jscomp$iter$0 = (0, $jscomp.makeIterator)([1,2,3]);
-var KEY$0$i = $jscomp$iter$0.next();
-for (;
-    !KEY$0$i.done; KEY$0$i = $jscomp$iter$0.next()) {
-   i = KEY$0$i.value;
-  {
-    console.log(i);
+var ITER$0 = (0, $jscomp.makeIterator)([1,2,3]);
+var KEY$1$i = ITER$0.next();
+try {
+  for (;
+      !KEY$1$i.done; KEY$1$i = ITER$0.next()) {
+     i = KEY$1$i.value;
+    {
+      console.log(i);
+    }
   }
+} finally {
+  $jscomp.iteratorClose(ITER$0, KEY$1$i);
 }
 `)
 
 	// With simple assign instead of var declaration in bound variable.
 	c.Test(
 		"for (i of [1,2,3]) { console.log(i); }",
-		`var $jscomp$iter$0 = (0, $jscomp.makeIterator)([1,2,3])
-var KEY$0$i = $jscomp$iter$0.next();
-for (;
-    !KEY$0$i.done; KEY$0$i = $jscomp$iter$0.next()) {
-  i = KEY$0$i.value;
-  {
-    console.log(i);
+		`var ITER$0 = (0, $jscomp.makeIterator)([1,2,3])
+var KEY$1$i = ITER$0.next();
+try {
+  for (;
+      !KEY$1$i.done; KEY$1$i = ITER$0.next()) {
+    i = KEY$1$i.value;
+    {
+      console.log(i);
+    }
   }
+} finally {
+  $jscomp.iteratorClose(ITER$0, KEY$1$i);
 }
 `)
 
@@ -124,51 +135,67 @@ for (;
 	c.Test(
 		"for (var i of arr) { console.log(i); }",
 		`var i;
-var $jscomp$iter$0 = (0, $jscomp.makeIterator)(arr)
-var KEY$0$i = $jscomp$iter$0.next();
-for (;
-    !KEY$0$i.done; KEY$0$i = $jscomp$iter$0.next()) {
-   i = KEY$0$i.value;
-  {
-    console.log(i);
+var ITER$0 = (0, $jscomp.makeIterator)(arr)
+var KEY$1$i = ITER$0.next();
+try {
+  for (;
+      !KEY$1$i.done; KEY$1$i = ITER$0.next()) {
+     i = KEY$1$i.value;
+    {
+      console.log(i);
+    }
   }
+} finally {
+  $jscomp.iteratorClose(ITER$0, KEY$1$i);
 }
 `)
 
 	// for of with const initializer
 	c.Test(
 		"for (const i of [1,2,3]) { console.log(i); }",
-		`var $jscomp$iter$0 = (0, $jscomp.makeIterator)([1,2,3]);
-var KEY$0$i = $jscomp$iter$0.next();
-for (;
-    !KEY$0$i.done; KEY$0$i = $jscomp$iter$0.next()) {
-  const i = KEY$0$i.value;
-  {
-    console.log(i);
+		`var ITER$0 = (0, $jscomp.makeIterator)([1,2,3]);
+var KEY$1$i = ITER$0.next();
+try {
+  for (;
+      !KEY$1$i.done; KEY$1$i = ITER$0.next()) {
+    const i = KEY$1$i.value;
+    {
+      console.log(i);
+    }
   }
+} finally {
+  $jscomp.iteratorClose(ITER$0, KEY$1$i);
 }
 `)
 
 	// multiple for-of loops with the const initializer name
 	c.Test(
 		"for (const i of [1,2,3]) { console.log(i); } for (const i of [4,5,6]) { console.log(i); }",
-		`var $jscomp$iter$0 = (0, $jscomp.makeIterator)([1,2,3]);
-var KEY$0$i = $jscomp$iter$0.next();
-for (;
-    !KEY$0$i.done; KEY$0$i = $jscomp$iter$0.next()) {
-  const i = KEY$0$i.value;
-  {
-    console.log(i);
+		`var ITER$0 = (0, $jscomp.makeIterator)([1,2,3]);
+var KEY$1$i = ITER$0.next();
+try {
+  for (;
+      !KEY$1$i.done; KEY$1$i = ITER$0.next()) {
+    const i = KEY$1$i.value;
+    {
+      console.log(i);
+    }
   }
+} finally {
+  $jscomp.iteratorClose(ITER$0, KEY$1$i);
 }
-var $jscomp$iter$1 = (0, $jscomp.makeIterator)([4, 5, 6]);
-var KEY$1$i$jscomp$1 = $jscomp$iter$1.next();
-for (;
-    !KEY$1$i$jscomp$1.done; KEY$1$i$jscomp$1 = $jscomp$iter$1.next()) {
-  const i$jscomp$1 = KEY$1$i$jscomp$1.value;
-  {
-    console.log(i$jscomp$1);
+var ITER$2 = (0, $jscomp.makeIterator)([4, 5, 6]);
+var KEY$3$i$jscomp$1 = ITER$2.next();
+try {
+  for (;
+      !KEY$3$i$jscomp$1.done; KEY$3$i$jscomp$1 = ITER$2.next()) {
+    const i$jscomp$1 = KEY$3$i$jscomp$1.value;
+    {
+      console.log(i$jscomp$1);
+    }
   }
+} finally {
+  $jscomp.iteratorClose(ITER$2, KEY$3$i$jscomp$1);
 }
 `)
 
@@ -176,12 +203,16 @@ for (;
 	c.Test(
 		"for (var i of [1,2,3]);",
 		`var i;
-var $jscomp$iter$0 = (0, $jscomp.makeIterator)([1,2,3])
-var KEY$0$i = $jscomp$iter$0.next();
-for (;
-    !KEY$0$i.done; KEY$0$i = $jscomp$iter$0.next()) {
-   i = KEY$0$i.value;
-  {}
+var ITER$0 = (0, $jscomp.makeIterator)([1,2,3])
+var KEY$1$i = ITER$0.next();
+try {
+  for (;
+      !KEY$1$i.done; KEY$1$i = ITER$0.next()) {
+     i = KEY$1$i.value;
+    {}
+  }
+} finally {
+  $jscomp.iteratorClose(ITER$0, KEY$1$i);
 }
 `)
 
@@ -189,14 +220,18 @@ for (;
 	c.Test(
 		"for (var i of [1,2,3]) console.log(i);",
 		`var i;
-var $jscomp$iter$0 = (0, $jscomp.makeIterator)([1,2,3]);
-var KEY$0$i = $jscomp$iter$0.next();
-for (;
-    !KEY$0$i.done; KEY$0$i = $jscomp$iter$0.next()) {
-   i = KEY$0$i.value;
-  {
-    console.log(i);
+var ITER$0 = (0, $jscomp.makeIterator)([1,2,3]);
+var KEY$1$i = ITER$0.next();
+try {
+  for (;
+      !KEY$1$i.done; KEY$1$i = ITER$0.next()) {
+     i = KEY$1$i.value;
+    {
+      console.log(i);
+    }
   }
+} finally {
+  $jscomp.iteratorClose(ITER$0, KEY$1$i);
 }
 `)
 
@@ -204,14 +239,18 @@ for (;
 	c.Test(
 		"var i = 'outer'; for (let i of [1, 2, 3]) { alert(i); } alert(i);",
 		`var i = 'outer';
-var $jscomp$iter$0 = (0, $jscomp.makeIterator)([1,2,3])
-var KEY$0$i$jscomp$1 = $jscomp$iter$0.next();
-for (;
-    !KEY$0$i$jscomp$1.done; KEY$0$i$jscomp$1 = $jscomp$iter$0.next()) {
-  let i$jscomp$1 = KEY$0$i$jscomp$1.value;
-  {
-    alert(i$jscomp$1);
+var ITER$0 = (0, $jscomp.makeIterator)([1,2,3])
+var KEY$1$i$jscomp$1 = ITER$0.next();
+try {
+  for (;
+      !KEY$1$i$jscomp$1.done; KEY$1$i$jscomp$1 = ITER$0.next()) {
+    let i$jscomp$1 = KEY$1$i$jscomp$1.value;
+    {
+      alert(i$jscomp$1);
+    }
   }
+} finally {
+  $jscomp.iteratorClose(ITER$0, KEY$1$i$jscomp$1);
 }
 alert(i);
 `)
@@ -221,20 +260,28 @@ alert(i);
 func (c *Es6ForOfConverterTest) TestConstnessPreservedInNewDeclarations() {
 	c.Test(
 		"for (let CID of [1, 2, 3]) { alert(CID); }",
-		`var $jscomp$iter$0 = (0, $jscomp.makeIterator)([1,2,3])
-var $jscomp$key$m1146332801$0$CID = $jscomp$iter$0.next();
-for (;
-    !$jscomp$key$m1146332801$0$CID.done; $jscomp$key$m1146332801$0$CID = $jscomp$iter$0.next()) {
-  let CID = $jscomp$key$m1146332801$0$CID.value;
-  {
-    alert(CID);
+		`var ITER$0 = (0, $jscomp.makeIterator)([1,2,3])
+var KEY$1$CID = ITER$0.next();
+try {
+  for (;
+      !KEY$1$CID.done; KEY$1$CID = ITER$0.next()) {
+    let CID = KEY$1$CID.value;
+    {
+      alert(CID);
+    }
   }
+} finally {
+  $jscomp.iteratorClose(ITER$0, KEY$1$CID);
 }
 `)
 	script := c.GetLastCompiler().GetJsRoot().GetOnlyChild()
 	jutil.CheckStateMsg1(script.IsScript(), "%s", script.GetToken())
-	forLoop := script.GetLastChild()
-	jutil.CheckState(forLoop.IsVanillaFor())
+	tryFinally := script.GetLastChild()
+	jutil.CheckStateMsg1(tryFinally.IsTry(), "%s", tryFinally.GetToken())
+	tryBlock := tryFinally.GetFirstChild()
+	jutil.CheckStateMsg1(tryBlock.IsBlock(), "%s", tryBlock.GetToken())
+	forLoop := tryBlock.GetFirstChild()
+	jutil.CheckStateMsg1(forLoop.IsVanillaFor(), "%s", forLoop.GetToken())
 	forBody := forLoop.GetLastChild()
 	jutil.CheckState(forBody.IsBlock())
 	declaration := forBody.GetFirstChild()
@@ -251,14 +298,18 @@ func (c *Es6ForOfConverterTest) TestForOfRedeclaredVar() {
   let x = 0;
 }
 `,
-		`var $jscomp$iter$0=(0, $jscomp.makeIterator)([]);
-var KEY$0$x=$jscomp$iter$0.next();
-for(;
-    !KEY$0$x.done; KEY$0$x=$jscomp$iter$0.next()) {
-  let x = KEY$0$x.value;
-  {
-    let x$jscomp$1 = 0;
+		`var ITER$0=(0, $jscomp.makeIterator)([]);
+var KEY$1$x=ITER$0.next();
+try {
+  for(;
+      !KEY$1$x.done; KEY$1$x=ITER$0.next()) {
+    let x = KEY$1$x.value;
+    {
+      let x$jscomp$1 = 0;
+    }
   }
+} finally {
+  $jscomp.iteratorClose(ITER$0, KEY$1$x);
 }
 `)
 }
@@ -267,22 +318,30 @@ for(;
 func (c *Es6ForOfConverterTest) TestForOfJSDoc() {
 	c.Test(
 		"for (/** @type {string} */ let x of []) {}",
-		`var $jscomp$iter$0=(0, $jscomp.makeIterator)([]);
-var KEY$0$x=$jscomp$iter$0.next();
-for(;
-    !KEY$0$x.done;KEY$0$x=$jscomp$iter$0.next()) {
-  let x = KEY$0$x.value;
-  {}
+		`var ITER$0=(0, $jscomp.makeIterator)([]);
+var KEY$1$x=ITER$0.next();
+try {
+  for(;
+      !KEY$1$x.done;KEY$1$x=ITER$0.next()) {
+    let x = KEY$1$x.value;
+    {}
+  }
+} finally {
+  $jscomp.iteratorClose(ITER$0, KEY$1$x);
 }
 `)
 	c.Test(
 		"for (/** @type {string} */ x of []) {}",
-		`var $jscomp$iter$0=(0, $jscomp.makeIterator)([]);
-var KEY$0$x=$jscomp$iter$0.next();
-for(;
-    !KEY$0$x.done;KEY$0$x=$jscomp$iter$0.next()) {
-  x = KEY$0$x.value;
-  {}
+		`var ITER$0=(0, $jscomp.makeIterator)([]);
+var KEY$1$x=ITER$0.next();
+try {
+  for(;
+      !KEY$1$x.done;KEY$1$x=ITER$0.next()) {
+    x = KEY$1$x.value;
+    {}
+  }
+} finally {
+  $jscomp.iteratorClose(ITER$0, KEY$1$x);
 }
 `)
 }
@@ -306,28 +365,36 @@ func (c *Es6ForOfConverterTest) TestLabelForOf() {
 	c.Test(
 		"a: for(var i of [1,2]){console.log(i)}",
 		`var i;
-var $jscomp$iter$0 = (0, $jscomp.makeIterator)([1,2]);
-var KEY$0$i = $jscomp$iter$0.next();
-a: for (;
-    !KEY$0$i.done; KEY$0$i = $jscomp$iter$0.next()) {
-   i = KEY$0$i.value;
-  {
-    console.log(i);
+var ITER$0 = (0, $jscomp.makeIterator)([1,2]);
+var KEY$1$i = ITER$0.next();
+try {
+  a: for (;
+      !KEY$1$i.done; KEY$1$i = ITER$0.next()) {
+     i = KEY$1$i.value;
+    {
+      console.log(i);
+    }
   }
+} finally {
+  $jscomp.iteratorClose(ITER$0, KEY$1$i);
 }
 `)
 	// Test if the iterator variables come before two labels
 	c.Test(
 		"a: b: for(var x of [1,2]){console.log(x)}",
 		`var x;
-var $jscomp$iter$0 = (0, $jscomp.makeIterator)([1,2]);
-var KEY$0$x = $jscomp$iter$0.next();
-a: b: for(;
-    !KEY$0$x.done; KEY$0$x = $jscomp$iter$0.next()) {
-   x = KEY$0$x.value;
-  {
-    console.log(x);
+var ITER$0 = (0, $jscomp.makeIterator)([1,2]);
+var KEY$1$x = ITER$0.next();
+try {
+  a: b: for(;
+      !KEY$1$x.done; KEY$1$x = ITER$0.next()) {
+     x = KEY$1$x.value;
+    {
+      console.log(x);
+    }
   }
+} finally {
+  $jscomp.iteratorClose(ITER$0, KEY$1$x);
 }
 `)
 }
@@ -337,14 +404,18 @@ func (c *Es6ForOfConverterTest) TestForOfWithQualifiedNameInitializer() {
 	c.Test(
 		"var obj = {a: 0}; for (obj.a of [1,2,3]) { console.log(obj.a); }",
 		`var obj = {a: 0};
-var $jscomp$iter$0 = (0, $jscomp.makeIterator)([1,2,3])
-var KEY$0$a = $jscomp$iter$0.next();
-for (;
-    !KEY$0$a.done; KEY$0$a = $jscomp$iter$0.next()) {
-  obj.a = KEY$0$a.value;
-  {
-    console.log(obj.a);
+var ITER$0 = (0, $jscomp.makeIterator)([1,2,3])
+var KEY$1$a = ITER$0.next();
+try {
+  for (;
+      !KEY$1$a.done; KEY$1$a = ITER$0.next()) {
+    obj.a = KEY$1$a.value;
+    {
+      console.log(obj.a);
+    }
   }
+} finally {
+  $jscomp.iteratorClose(ITER$0, KEY$1$a);
 }
 `)
 }
@@ -354,12 +425,16 @@ func (c *Es6ForOfConverterTest) TestForOfWithComplexInitializer() {
 	c.Test(
 		"function f() { return {}; } for (f()['x' + 1] of [1,2,3]) {}",
 		`function f() { return {}; }
-var $jscomp$iter$0 = (0, $jscomp.makeIterator)([1,2,3]);
-var KEY$0$a = $jscomp$iter$0.next();
-for (;
-    !KEY$0$a.done; KEY$0$a = $jscomp$iter$0.next()) {
-  f()['x' + 1] = KEY$0$a.value;
-  {}
+var ITER$0 = (0, $jscomp.makeIterator)([1,2,3]);
+var KEY$1$a = ITER$0.next();
+try {
+  for (;
+      !KEY$1$a.done; KEY$1$a = ITER$0.next()) {
+    f()['x' + 1] = KEY$1$a.value;
+    {}
+  }
+} finally {
+  $jscomp.iteratorClose(ITER$0, KEY$1$a);
 }
 `)
 }
@@ -372,20 +447,101 @@ func (c *Es6ForOfConverterTest) TestForLetOfWithoutExterns() {
 			`/** @const */
 var $jscomp = {};
 /**
- * @param {?} iterable
- * @return {!Iterator<T>}
- * @template T
- */
+  * @param {?} iterable
+  * @return {!Iterator<T>}
+  * @template T
+  */
 $jscomp.makeIterator = function(iterable) {};
+/**
+  * @param {?} iterator
+  * @param {?} iterResult
+  * @return {void}
+  */
+$jscomp.iteratorClose = function(iterator, iterResult) {};
 `),
 		c.Srcs("for (let x of [1, 2, 3]) {}"),
 		c.Expected(
-			`var $jscomp$iter$0 = (0, $jscomp.makeIterator)([1,2,3]);
-var KEY$0$x = $jscomp$iter$0.next();
-for (;
-    !KEY$0$x.done; KEY$0$x = $jscomp$iter$0.next()) {
-  let x = KEY$0$x.value;
-  {}
+			`var ITER$0 = (0, $jscomp.makeIterator)([1,2,3]);
+var KEY$1$x = ITER$0.next();
+try {
+  for (;
+      !KEY$1$x.done; KEY$1$x = ITER$0.next()) {
+    let x = KEY$1$x.value;
+    {}
+  }
+} finally {
+  $jscomp.iteratorClose(ITER$0, KEY$1$x);
 }
 `))
+}
+
+// Java: Es6ForOfConverterTest.testForOfBreak()
+func (c *Es6ForOfConverterTest) TestForOfBreak() {
+	c.Test(
+		"for (var x of [1, 2, 3]) { if (x === 2) break; }",
+		`var x;
+var ITER$0 = (0, $jscomp.makeIterator)([1, 2, 3]);
+var KEY$1$x = ITER$0.next();
+try {
+  for (;
+      !KEY$1$x.done; KEY$1$x = ITER$0.next()) {
+    x = KEY$1$x.value;
+    {
+      if (x === 2) {
+        break;
+      }
+    }
+  }
+} finally {
+  $jscomp.iteratorClose(ITER$0, KEY$1$x);
+}
+`)
+}
+
+// Java: Es6ForOfConverterTest.testForOfReturn()
+func (c *Es6ForOfConverterTest) TestForOfReturn() {
+	c.Test(
+		"function f() { for (var x of [1, 2, 3]) { if (x === 2) return x; } }",
+		`function f() {
+  var x;
+  var ITER$0 = (0, $jscomp.makeIterator)([1, 2, 3]);
+  var KEY$1$x = ITER$0.next();
+  try {
+    for (;
+        !KEY$1$x.done; KEY$1$x = ITER$0.next()) {
+      x = KEY$1$x.value;
+      {
+        if (x === 2) {
+          return x;
+        }
+      }
+    }
+  } finally {
+    $jscomp.iteratorClose(ITER$0, KEY$1$x);
+  }
+}
+`)
+}
+
+// Java: Es6ForOfConverterTest.testForOfThrow()
+func (c *Es6ForOfConverterTest) TestForOfThrow() {
+	c.Test(
+		"for (var x of [1, 2, 3]) { if (x === 2) throw new Error(); }",
+		`var x;
+var ITER$0 = (0, $jscomp.makeIterator)([1, 2, 3]);
+var KEY$1$x = ITER$0.next();
+try {
+  for (;
+      !KEY$1$x.done; KEY$1$x = ITER$0.next()) {
+    x = KEY$1$x.value;
+    {
+      if (x === 2) {
+        throw new Error();
+      }
+    }
+  }
+} finally {
+  $jscomp.iteratorClose(ITER$0, KEY$1$x);
+}
+`)
 }

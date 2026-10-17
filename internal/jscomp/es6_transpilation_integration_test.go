@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Es6TranspilationIntegrationTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/Es6TranspilationIntegrationTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/Es6TranspilationIntegrationTest.java)
 
 /*
@@ -93,6 +93,10 @@ func (c *Es6TranspilationIntegrationTest) SetUp() {
 	}
 	jutil.CheckArgumentMsg1(!replacements.ContainsKey("KEY"), "duplicate key: %s", "KEY") // buildOrThrow()
 	replacements.Put("KEY", "$jscomp$key$")
+	jutil.CheckArgumentMsg1(!replacements.ContainsKey("ITER"), "duplicate key: %s", "ITER") // buildOrThrow()
+	replacements.Put("ITER", "$jscomp$iter$")
+	jutil.CheckArgumentMsg1(!replacements.ContainsKey("COMP_PROP"), "duplicate key: %s", "COMP_PROP") // buildOrThrow()
+	replacements.Put("COMP_PROP", "$jscomp$compprop")
 	c.SetGenericNameReplacements(replacements)
 }
 
@@ -2034,13 +2038,13 @@ func (c *Es6TranspilationIntegrationTest) TestInitSymbol() {
 	c.TestSame(c.Externs("alert(Symbol.thimble);"), c.Srcs(""))
 }
 
-// Java: actually.testInitSymbolIterator()
+// Java: Es6TranspilationIntegrationTest.testInitSymbolIterator()
 func (c *Es6TranspilationIntegrationTest) TestInitSymbolIterator() {
 	c.Test(
 		"var x = {[Symbol.iterator]: function() { return this; }};",
-		`var $jscomp$compprop0 = {};
-var x = ($jscomp$compprop0[Symbol.iterator] = function() {return this;},
-         $jscomp$compprop0)
+		`var COMP_PROP$0 = {};
+var x = (COMP_PROP$0[Symbol.iterator] = function() {return this;},
+         COMP_PROP$0)
 `)
 }
 
@@ -2062,24 +2066,24 @@ func (c *Es6TranspilationIntegrationTest) TestEs5GettersAndSettersObjLit_es5() {
 	c.TestSame("var x = { set y(value) {} };")
 }
 
-// Java: actually.testForOfLoop()
+// Java: Es6TranspilationIntegrationTest.testForOfLoop()
 func (c *Es6TranspilationIntegrationTest) TestForOfLoop() {
 	// Iteration var shadows an outer var ()
 	c.Test(
 		"var i = 'outer'; for (let i of [1, 2, 3]) { alert(i); } alert(i);",
-		"var i = 'outer';\nvar $jscomp$iter$0 = (0, $jscomp.makeIterator)([1, 2, 3]);\n// Normalize runs before for-of rewriting. Therefore, first Normalize renames the\n// `let i` to `let i$jscomp$1` to avoid conficting it with outer `i`. Then, the\n// for-of rewriting prepends the unique ID `$jscomp$key$m123..456$0` to its declared\n// name as it does to all for-of loop keys.\nvar KEY$0$i$jscomp$1 = $jscomp$iter$0.next();\nfor (; !KEY$0$i$jscomp$1.done; KEY$0$i$jscomp$1 = $jscomp$iter$0.next()) {\n  var i$jscomp$1 = KEY$0$i$jscomp$1.value;\n  {\n    alert(i$jscomp$1);\n  }\n}\nalert(i);\n")
+		"var i = 'outer';\nvar ITER$0 = (0, $jscomp.makeIterator)([1, 2, 3]);\n// Normalize runs before for-of rewriting. Therefore, first Normalize renames the\n// `let i` to `let i$jscomp$1` to avoid conficting it with outer `i`. Then, the\n// for-of rewriting prepends the unique ID `$jscomp$key$m123..456$0` to its declared\n// name as it does to all for-of loop keys.\nvar KEY$1$i$jscomp$1 = ITER$0.next();\ntry {\n  for (; !KEY$1$i$jscomp$1.done; KEY$1$i$jscomp$1 = ITER$0.next()) {\n    var i$jscomp$1 = KEY$1$i$jscomp$1.value;\n    {\n      alert(i$jscomp$1);\n    }\n  }\n} finally {\n  $jscomp.iteratorClose(ITER$0, KEY$1$i$jscomp$1);\n}\nalert(i);\n")
 }
 
-// Java: actually.testForOfWithConstInitiliazer()
+// Java: Es6TranspilationIntegrationTest.testForOfWithConstInitiliazer()
 func (c *Es6TranspilationIntegrationTest) TestForOfWithConstInitiliazer() {
 	c.EnableNormalize()
 
 	c.Test(
 		"for(const i of [1,2]) {i;}",
-		"var $jscomp$iter$0 = (0, $jscomp.makeIterator)([1, 2]);\n// Normalize runs before for-of rewriting. Normalize does not rename the `const i`\n// if there is no other conflicting `i` declaration. Then, the  for-of rewriting\n// prepends `$jscomp$key$m123..456$0` to its declared name as it does to all for-of\n// loop keys.\nvar KEY$0$i = $jscomp$iter$0.next();\nfor (; !KEY$0$i.done; KEY$0$i = $jscomp$iter$0.next()) {\n  /** @const */\n  var i = KEY$0$i.value; // marked as const name\n  {\n    i; // marked as const name\n  }\n}\n")
+		"var ITER$0 = (0, $jscomp.makeIterator)([1, 2]);\n// Normalize runs before for-of rewriting. Normalize does not rename the `const i`\n// if there is no other conflicting `i` declaration. Then, the  for-of rewriting\n// prepends `$jscomp$key$m123..456$0` to its declared name as it does to all for-of\n// loop keys.\nvar KEY$1$i = ITER$0.next();\ntry {\n  for (; !KEY$1$i.done; KEY$1$i = ITER$0.next()) {\n    /** @const */\n    var i = KEY$1$i.value; // marked as const name\n    {\n      i; // marked as const name\n    }\n  }\n} finally {\n  $jscomp.iteratorClose(ITER$0, KEY$1$i);\n}\n")
 }
 
-// Java: actually.testMultipleForOfWithSameInitializerName()
+// Java: Es6TranspilationIntegrationTest.testMultipleForOfWithSameInitializerName()
 func (c *Es6TranspilationIntegrationTest) TestMultipleForOfWithSameInitializerName() {
 	c.EnableNormalize()
 	c.Test(
@@ -2094,59 +2098,76 @@ func (c *Es6TranspilationIntegrationTest) TestMultipleForOfWithSameInitializerNa
 `,
 		`function inorder1(t) {
   var x;
-  var $jscomp$iter$0;
-  var KEY$0$x; // key for first for-of loop
-  var $jscomp$iter$1;
+  var ITER$0;
   var KEY$1$x;
-  return $jscomp.generator.createGenerator(inorder1, function($jscomp$generator$context$m1146332801$2) {
-    switch($jscomp$generator$context$m1146332801$2.getNextAddressJsc()) {
+  var ITER$2;
+  var KEY$3$x;
+  return $jscomp.generator.createGenerator(inorder1, function($jscomp$generator$context$m1146332801$4) {
+    switch($jscomp$generator$context$m1146332801$4.getNextAddressJsc()) {
       case 1:
-        $jscomp$iter$0 = (0, $jscomp.makeIterator)([]);
-        KEY$0$x = $jscomp$iter$0.next();
-      case 2:
-        if (!!KEY$0$x.done) {
-          $jscomp$generator$context$m1146332801$2.jumpTo(4);
-          break;
-        }
-        x = KEY$0$x.value;
-        return $jscomp$generator$context$m1146332801$2.yield(x, 3);
-      case 3:
-        KEY$0$x = $jscomp$iter$0.next();
-        $jscomp$generator$context$m1146332801$2.jumpTo(2);
-        break;
+        ITER$0 = (0,$jscomp.makeIterator)([]);
+        KEY$1$x = ITER$0.next();
+        $jscomp$generator$context$m1146332801$4.setFinallyBlock(2);
       case 4:
-        $jscomp$iter$1 = (0, $jscomp.makeIterator)([]);
-        KEY$1$x = $jscomp$iter$1.next();
-      case 6:
         if (!!KEY$1$x.done) {
-          $jscomp$generator$context$m1146332801$2.jumpTo(0);
+          $jscomp$generator$context$m1146332801$4.jumpTo(2);
           break;
         }
         x = KEY$1$x.value;
-        return $jscomp$generator$context$m1146332801$2.yield(x, 7);
-      case 7:
-        KEY$1$x = $jscomp$iter$1.next();
-        $jscomp$generator$context$m1146332801$2.jumpTo(6);
+        return $jscomp$generator$context$m1146332801$4.yield(x, 5);
+      case 5:
+        KEY$1$x = ITER$0.next();
+        $jscomp$generator$context$m1146332801$4.jumpTo(4);
+        break;
+      case 2:
+        $jscomp$generator$context$m1146332801$4.enterFinallyBlock();
+        $jscomp.iteratorClose(ITER$0, KEY$1$x);
+        $jscomp$generator$context$m1146332801$4.leaveFinallyBlock(3);
+        break;
+      case 3:
+        ITER$2 = (0,$jscomp.makeIterator)([]);
+        KEY$3$x = ITER$2.next();
+        $jscomp$generator$context$m1146332801$4.setFinallyBlock(8);
+      case 10:
+        if (!!KEY$3$x.done) {
+          $jscomp$generator$context$m1146332801$4.jumpTo(8);
+          break;
+        }
+        x = KEY$3$x.value;
+        return $jscomp$generator$context$m1146332801$4.yield(x, 11);
+      case 11:
+        KEY$3$x = ITER$2.next();
+        $jscomp$generator$context$m1146332801$4.jumpTo(10);
+        break;
+      case 8:
+        $jscomp$generator$context$m1146332801$4.enterFinallyBlock();
+        $jscomp.iteratorClose(ITER$2, KEY$3$x);
+        $jscomp$generator$context$m1146332801$4.leaveFinallyBlock(0);
         break;
     }
-  });}
+  });
+}
 `)
 }
 
-// Java: actually.testForOfRedeclaredVar()
+// Java: Es6TranspilationIntegrationTest.testForOfRedeclaredVar()
 func (c *Es6TranspilationIntegrationTest) TestForOfRedeclaredVar() {
 	c.Test(
 		`for (let x of []) {
   let x = 0;
 }
 `,
-		`var $jscomp$iter$0 = (0, $jscomp.makeIterator)([]);
-var KEY$0$x = $jscomp$iter$0.next();
-for (; !KEY$0$x.done; KEY$0$x = $jscomp$iter$0.next()) {
-  var x = KEY$0$x.value;
-  {
-    var x$jscomp$1 = 0;
+		`var ITER$0 = (0, $jscomp.makeIterator)([]);
+var KEY$1$x = ITER$0.next();
+try {
+  for (; !KEY$1$x.done; KEY$1$x = ITER$0.next()) {
+    var x = KEY$1$x.value;
+    {
+      var x$jscomp$1 = 0;
+    }
   }
+} finally {
+  $jscomp.iteratorClose(ITER$0, KEY$1$x);
 }
 `)
 }
@@ -2171,107 +2192,107 @@ func (c *Es6TranspilationIntegrationTest) TestMethodInObject() {
 		"var obj = { f: function() { alert(1); }, x: x };")
 }
 
-// Java: actually.testComputedPropertiesWithMethod()
+// Java: Es6TranspilationIntegrationTest.testComputedPropertiesWithMethod()
 func (c *Es6TranspilationIntegrationTest) TestComputedPropertiesWithMethod() {
 	c.Test(
 		"var obj = { ['f' + 1]: 1, m() {}, ['g' + 1]: 1, };",
-		`var $jscomp$compprop0 = {};
-var obj = ($jscomp$compprop0['f' + 1] = 1,
-  ($jscomp$compprop0.m = function() {},
-     ($jscomp$compprop0['g' + 1] = 1, $jscomp$compprop0)));
+		`var COMP_PROP$0 = {};
+var obj = (COMP_PROP$0['f' + 1] = 1,
+  (COMP_PROP$0.m = function() {},
+     (COMP_PROP$0['g' + 1] = 1, COMP_PROP$0)));
 `)
 }
 
-// Java: actually.testComputedProperties()
+// Java: Es6TranspilationIntegrationTest.testComputedProperties()
 func (c *Es6TranspilationIntegrationTest) TestComputedProperties() {
 	c.Test(
 		"var obj = { ['f' + 1] : 1, ['g' + 1] : 1 };",
-		`var $jscomp$compprop0 = {};
-var obj = ($jscomp$compprop0['f' + 1] = 1,
-  ($jscomp$compprop0['g' + 1] = 1, $jscomp$compprop0));
+		`var COMP_PROP$0 = {};
+var obj = (COMP_PROP$0['f' + 1] = 1,
+  (COMP_PROP$0['g' + 1] = 1, COMP_PROP$0));
 `)
 
 	c.Test(
 		"var obj = { ['f'] : 1};",
-		`var $jscomp$compprop0 = {};
-var obj = ($jscomp$compprop0['f'] = 1,
-  $jscomp$compprop0);
+		`var COMP_PROP$0 = {};
+var obj = (COMP_PROP$0['f'] = 1,
+  COMP_PROP$0);
 `)
 
 	c.Test(
 		"var o = { ['f'] : 1}; var p = { ['g'] : 1};",
-		`var $jscomp$compprop0 = {};
-var o = ($jscomp$compprop0['f'] = 1,
-  $jscomp$compprop0);
-var $jscomp$compprop1 = {};
-var p = ($jscomp$compprop1['g'] = 1,
-  $jscomp$compprop1);
+		`var COMP_PROP$0 = {};
+var o = (COMP_PROP$0['f'] = 1,
+  COMP_PROP$0);
+var COMP_PROP$1 = {};
+var p = (COMP_PROP$1['g'] = 1,
+  COMP_PROP$1);
 `)
 
 	c.Test(
 		"({['f' + 1] : 1})",
-		`var $jscomp$compprop0 = {};
-($jscomp$compprop0['f' + 1] = 1,
-  $jscomp$compprop0)
+		`var COMP_PROP$0 = {};
+(COMP_PROP$0['f' + 1] = 1,
+  COMP_PROP$0)
 `)
 
 	c.Test(
 		"({'a' : 2, ['f' + 1] : 1})",
-		`var $jscomp$compprop0 = {};
-($jscomp$compprop0['a'] = 2,
-  ($jscomp$compprop0['f' + 1] = 1, $jscomp$compprop0));
+		`var COMP_PROP$0 = {};
+(COMP_PROP$0['a'] = 2,
+  (COMP_PROP$0['f' + 1] = 1, COMP_PROP$0));
 `)
 
 	c.Test(
 		"({['f' + 1] : 1, 'a' : 2})",
-		`var $jscomp$compprop0 = {};
-($jscomp$compprop0['f' + 1] = 1,
-  ($jscomp$compprop0['a'] = 2, $jscomp$compprop0));
+		`var COMP_PROP$0 = {};
+(COMP_PROP$0['f' + 1] = 1,
+  (COMP_PROP$0['a'] = 2, COMP_PROP$0));
 `)
 
 	c.Test(
 		"({'a' : 1, ['f' + 1] : 1, 'b' : 1})", //
-		`var $jscomp$compprop0 = {};
-($jscomp$compprop0['a'] = 1,
-  ($jscomp$compprop0['f' + 1] = 1,
-    ($jscomp$compprop0['b'] = 1,
-      $jscomp$compprop0)));
+		`var COMP_PROP$0 = {};
+(COMP_PROP$0['a'] = 1,
+  (COMP_PROP$0['f' + 1] = 1,
+    (COMP_PROP$0['b'] = 1,
+      COMP_PROP$0)));
 `)
 
 	c.Test(
 		"({'a' : x++, ['f' + x++] : 1, 'b' : x++})",
-		`var $jscomp$compprop0 = {};
-($jscomp$compprop0['a'] = x++, ($jscomp$compprop0['f' + x++] = 1,
-  ($jscomp$compprop0['b'] = x++, $jscomp$compprop0)))
+		`var COMP_PROP$0 = {};
+(COMP_PROP$0['a'] = x++, (COMP_PROP$0['f' + x++] = 1,
+  (COMP_PROP$0['b'] = x++, COMP_PROP$0)))
 `)
 
 	c.Test(
 		"({a : x++, ['f' + x++] : 1, b : x++})",
-		`var $jscomp$compprop0 = {};
-($jscomp$compprop0.a = x++, ($jscomp$compprop0['f' + x++] = 1,
-  ($jscomp$compprop0.b = x++, $jscomp$compprop0)))
+		`var COMP_PROP$0 = {};
+(COMP_PROP$0.a = x++, (COMP_PROP$0['f' + x++] = 1,
+  (COMP_PROP$0.b = x++, COMP_PROP$0)))
 `)
 
 	c.Test(
 		"({a, ['f' + 1] : 1})",
-		`var $jscomp$compprop0 = {};
-  ($jscomp$compprop0.a = a, ($jscomp$compprop0['f' + 1] = 1, $jscomp$compprop0))
+		`var COMP_PROP$0 = {};
+  (COMP_PROP$0.a = a, (COMP_PROP$0['f' + 1] = 1, COMP_PROP$0))
 `)
 
 	c.Test(
 		"({['f' + 1] : 1, a})",
-		`var $jscomp$compprop0 = {};
-  ($jscomp$compprop0['f' + 1] = 1, ($jscomp$compprop0.a = a, $jscomp$compprop0))
+		`var COMP_PROP$0 = {};
+  (COMP_PROP$0['f' + 1] = 1, (COMP_PROP$0.a = a, COMP_PROP$0))
 `)
 
 	c.Test(
 		"var obj = { [foo]() {}}",
-		`var $jscomp$compprop0 = {};
-var obj = ($jscomp$compprop0[foo] = function(){}, $jscomp$compprop0)
+		`var COMP_PROP$0 = {};
+var obj = (COMP_PROP$0[foo] = function(){}, COMP_PROP$0)
 `)
 }
 
-// Java: actually.testComputedPropGetterSetter()
+// Java: Es6TranspilationIntegrationTest.testComputedPropGetterSetter()
 func (c *Es6TranspilationIntegrationTest) TestComputedPropGetterSetter() {
 	c.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT5)
 
@@ -2279,14 +2300,14 @@ func (c *Es6TranspilationIntegrationTest) TestComputedPropGetterSetter() {
 	c.TestSame("var obj = {set latest (str) {}}")
 	c.Test(
 		"var obj = {'a' : 2, get l () {return null;}, ['f' + 1] : 1}",
-		`var $jscomp$compprop0 = {get l () {return null;}};
-var obj = ($jscomp$compprop0['a'] = 2,
-  ($jscomp$compprop0['f' + 1] = 1, $jscomp$compprop0));
+		`var COMP_PROP$0 = {get l () {return null;}};
+var obj = (COMP_PROP$0['a'] = 2,
+  (COMP_PROP$0['f' + 1] = 1, COMP_PROP$0));
 `)
 	c.Test(
 		"var obj = {['a' + 'b'] : 2, set l (str) {}}",
-		`var $jscomp$compprop0 = {set l (str) {}};
-var obj = ($jscomp$compprop0['a' + 'b'] = 2, $jscomp$compprop0);
+		`var COMP_PROP$0 = {set l (str) {}};
+var obj = (COMP_PROP$0['a' + 'b'] = 2, COMP_PROP$0);
 `)
 }
 

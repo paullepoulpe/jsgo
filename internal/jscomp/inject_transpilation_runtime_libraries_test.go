@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/InjectTranspilationRuntimeLibrariesTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/InjectTranspilationRuntimeLibrariesTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/InjectTranspilationRuntimeLibrariesTest.java)
 
 /*
@@ -105,7 +105,7 @@ func (c *InjectTranspilationRuntimeLibrariesTest) TestObjectAssignInjectedForObj
 func (c *InjectTranspilationRuntimeLibrariesTest) TestForOf_injectsMakeIterator() {
 	injected := c.ParseAndRunInjectionPass("for (x of []) {}")
 
-	AssertThat(injected).ContainsExactly("es6/util/makeiterator")
+	AssertThat(injected).ContainsExactly("es6/util/makeiterator", "es6/util/iteratorclose")
 }
 
 // Java: InjectTranspilationRuntimeLibrariesTest.testArrayPattern_injectsMakeIterator()
@@ -160,4 +160,25 @@ func (c *InjectTranspilationRuntimeLibrariesTest) TestClassInheritance_injectsIn
 func (c *InjectTranspilationRuntimeLibrariesTest) TestClass_noInheritances_doesNotInject() {
 	injected := c.ParseAndRunInjectionPass("class A {}")
 	AssertThat(injected).IsEmpty()
+}
+
+// Java: InjectTranspilationRuntimeLibrariesTest.testInjectRuntimeLibraries_forceInject()
+func (c *InjectTranspilationRuntimeLibrariesTest) TestInjectRuntimeLibraries_forceInject() {
+	compiler := NewCompiler()
+	options := NewCompilerOptions()
+	options.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT5)
+	options.SetRuntimeLibraryMode(RuntimeJsLibManager_RuntimeLibraryMode_RECORD_ONLY)
+
+	compiler.Init(
+		[]*SourceFile{SourceFile_FromCode("externs", "")},
+		[]*SourceFile{SourceFile_FromCode("testcode", "")},
+		options)
+	compiler.Parse()
+
+	pass :=
+		NewInjectRuntimeLibraries(compiler, jutil.NewLinkedHashSet("es6/util/makeiterator"))
+	pass.Process(compiler.GetExternsRoot(), compiler.GetJsRoot())
+
+	AssertThat(jutil.NewLinkedHashSet(compiler.GetRuntimeJsLibManager().GetInjectedLibraries()...)).
+		Contains("es6/util/makeiterator")
 }

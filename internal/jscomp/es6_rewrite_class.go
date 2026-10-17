@@ -1,6 +1,6 @@
-// Port of com/google/javascript/jscomp/Es6RewriteClass.java @ closure-compiler v20260415
-// Port of com/google/javascript/jscomp/AutoBuilder_Es6RewriteClass_ClassDeclarationMetadata_Builder.java @ closure-compiler v20260415
-// Port of com/google/javascript/jscomp/AutoBuilder_Es6RewriteClass_ClassProperty_Builder.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/Es6RewriteClass.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/AutoBuilder_Es6RewriteClass_ClassDeclarationMetadata_Builder.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/AutoBuilder_Es6RewriteClass_ClassProperty_Builder.java @ closure-compiler v20261015
 
 /*
  * Copyright 2014 The Closure Compiler Authors.
@@ -156,29 +156,8 @@ func (e *Es6RewriteClass) VisitClass(t *NodeTraversal, classNode *rhino.Node, pa
 		constructor,
 		"Es6RewriteClasses expects all classes to have (possibly synthetic) constructors")
 
-	if metadata.DefinePropertiesObjForPrototype().HasChildren() {
-		definePropsCall :=
-			rhino.IR_ExprResult(
-				e.astFactory.CreateCall(
-					e.CreateObjectDotDefineProperties(),
-					AstFactory_Type_(metadata.ClassPrototypeNode()),
-					metadata.ClassPrototypeNode().CloneTree(),
-					metadata.DefinePropertiesObjForPrototype()))
-		definePropsCall.SrcrefTreeIfMissing(classNode)
-		metadata.InsertNodeAndAdvance(definePropsCall)
-	}
-
-	if metadata.DefinePropertiesObjForClass().HasChildren() {
-		definePropsCall :=
-			rhino.IR_ExprResult(
-				e.astFactory.CreateCall(
-					e.CreateObjectDotDefineProperties(),
-					AstFactory_Type_(metadata.FullClassNameNode()),
-					metadata.FullClassNameNode().CloneTree(),
-					metadata.DefinePropertiesObjForClass()))
-		definePropsCall.SrcrefTreeIfMissing(classNode)
-		metadata.InsertNodeAndAdvance(definePropsCall)
-	}
+	e.FlushDefinePropertiesForPrototype(metadata, classNode)
+	e.FlushDefinePropertiesForClass(metadata, classNode)
 
 	classJSDoc := NodeUtil_GetBestJSDocInfo(classNode)
 	newInfo := rhino.JSDocInfo_Builder_MaybeCopyFrom(classJSDoc)
@@ -246,6 +225,49 @@ func (e *Es6RewriteClass) CreateObjectDotDefineProperty() *rhino.Node {
 		e.transpilationNamespace, "Object.defineProperty")
 }
 
+// Java: Es6RewriteClass.flushDefinePropertiesForPrototype(ClassDeclarationMetadata, Node)
+func (e *Es6RewriteClass) FlushDefinePropertiesForPrototype(
+	metadata *Es6RewriteClass_ClassDeclarationMetadata, srcrefNode *rhino.Node) {
+	if metadata.DefinePropertiesObjForPrototype().HasChildren() {
+		definePropsCall :=
+			rhino.IR_ExprResult(
+				e.astFactory.CreateCall(
+					e.CreateObjectDotDefineProperties(),
+					AstFactory_Type_(metadata.ClassPrototypeNode()),
+					metadata.ClassPrototypeNode().CloneTree(),
+					metadata.DefinePropertiesObjForPrototype()))
+		definePropsCall.SrcrefTreeIfMissing(srcrefNode)
+		metadata.InsertNodeAndAdvance(definePropsCall)
+		metadata.ResetDefinePropertiesObjForPrototype(e.astFactory)
+	}
+}
+
+// Java: Es6RewriteClass.flushDefinePropertiesForClass(ClassDeclarationMetadata, Node)
+func (e *Es6RewriteClass) FlushDefinePropertiesForClass(metadata *Es6RewriteClass_ClassDeclarationMetadata, srcrefNode *rhino.Node) {
+	if metadata.DefinePropertiesObjForClass().HasChildren() {
+		definePropsCall :=
+			rhino.IR_ExprResult(
+				e.astFactory.CreateCall(
+					e.CreateObjectDotDefineProperties(),
+					AstFactory_Type_(metadata.FullClassNameNode()),
+					metadata.FullClassNameNode().CloneTree(),
+					metadata.DefinePropertiesObjForClass()))
+		definePropsCall.SrcrefTreeIfMissing(srcrefNode)
+		metadata.InsertNodeAndAdvance(definePropsCall)
+		metadata.ResetDefinePropertiesObjForClass(e.astFactory)
+	}
+}
+
+// Java: Es6RewriteClass.flushPendingDefineProperties(ClassDeclarationMetadata, boolean, Node)
+func (e *Es6RewriteClass) FlushPendingDefineProperties(
+	metadata *Es6RewriteClass_ClassDeclarationMetadata, isStatic bool, srcrefNode *rhino.Node) {
+	if isStatic {
+		e.FlushDefinePropertiesForClass(metadata, srcrefNode)
+	} else {
+		e.FlushDefinePropertiesForPrototype(metadata, srcrefNode)
+	}
+}
+
 // AddToDefinePropertiesObject takes member, a getter or setter.
 //
 // Java: Es6RewriteClass.addToDefinePropertiesObject(ClassDeclarationMetadata, Node)
@@ -258,23 +280,42 @@ func (e *Es6RewriteClass) AddToDefinePropertiesObject(metadata *Es6RewriteClass_
 		obj = metadata.DefinePropertiesObjForPrototype()
 	}
 	prop := NodeUtil_GetFirstPropMatchingKey(obj, member.GetString())
+	accessorKind := "set"
+	if member.IsGetterDef() {
+		accessorKind = "get"
+	}
+	if prop != nil && NodeUtil_GetFirstPropMatchingKey(prop, accessorKind) != nil {
+		e.FlushPendingDefineProperties(metadata, member.IsStaticMember(), member)
+		if member.IsStaticMember() {
+			obj = metadata.DefinePropertiesObjForClass()
+		} else {
+			obj = metadata.DefinePropertiesObjForPrototype()
+		}
+		prop = nil
+	}
 	if prop == nil {
 		prop = e.CreatePropertyDescriptor()
-		stringKey := e.astFactory.CreateStringKey(member.GetString(), prop)
-		if member.IsQuotedStringKey() {
-			stringKey.PutBooleanProp(rhino.Node_QUOTED_PROP, true)
+		if member.GetString() == "__proto__" {
+			stringKey :=
+				e.astFactory.CreateComputedProperty(e.astFactory.CreateString("__proto__"), prop)
+			obj.AddChildToBack(stringKey)
+			scriptNode := NodeUtil_GetEnclosingScript(member)
+			if scriptNode != nil {
+				NodeUtil_AddFeatureToScript(scriptNode, parser.FeatureSet_Feature_COMPUTED_PROPERTIES, e.compiler)
+			}
+		} else {
+			stringKey := e.astFactory.CreateStringKey(member.GetString(), prop)
+			if member.IsQuotedStringKey() {
+				stringKey.PutBooleanProp(rhino.Node_QUOTED_PROP, true)
+			}
+			obj.AddChildToBack(stringKey)
 		}
-		obj.AddChildToBack(stringKey)
 	}
 
 	function := member.GetLastChild()
 	info := NodeUtil_GetBestJSDocInfo(function)
 
-	key := "set"
-	if member.IsGetterDef() {
-		key = "get"
-	}
-	stringKey := e.astFactory.CreateStringKey(key, function.Detach())
+	stringKey := e.astFactory.CreateStringKey(accessorKind, function.Detach())
 	stringKey.SetJSDocInfo(info)
 	prop.AddChildToBack(stringKey)
 	prop.SrcrefTreeIfMissing(member)
@@ -285,6 +326,8 @@ func (e *Es6RewriteClass) AddToDefinePropertiesObject(metadata *Es6RewriteClass_
 //
 // Java: Es6RewriteClass.extractComputedProperty(Node, ClassDeclarationMetadata)
 func (e *Es6RewriteClass) ExtractComputedProperty(computedMember *rhino.Node, metadata *Es6RewriteClass_ClassDeclarationMetadata) {
+	e.FlushPendingDefineProperties(metadata, computedMember.IsStaticMember(), computedMember)
+
 	var owner *rhino.Node
 	if computedMember.IsStaticMember() {
 		owner = metadata.FullClassNameNode()
@@ -363,6 +406,8 @@ func (e *Es6RewriteClass) VisitNonMethodMember(member *rhino.Node, metadata *Es6
 //
 // Java: Es6RewriteClass.visitMethod(Node, ClassDeclarationMetadata)
 func (e *Es6RewriteClass) VisitMethod(member *rhino.Node, metadata *Es6RewriteClass_ClassDeclarationMetadata) {
+	e.FlushPendingDefineProperties(metadata, member.IsStaticMember(), member)
+
 	qualifiedMemberAccess := e.GetQualifiedMemberAccess(member, metadata)
 	method := member.GetLastChild().Detach()
 
@@ -743,9 +788,20 @@ func (m *Es6RewriteClass_ClassDeclarationMetadata) DefinePropertiesObjForPrototy
 	return m.definePropertiesObjForPrototype
 }
 
+// Java: Es6RewriteClass.ClassDeclarationMetadata.resetDefinePropertiesObjForPrototype(AstFactory)
+func (m *Es6RewriteClass_ClassDeclarationMetadata) ResetDefinePropertiesObjForPrototype(astFactory *AstFactory) {
+	m.definePropertiesObjForPrototype =
+		astFactory.CreateObjectLitWithType(AstFactory_Type_(m.fullClassNameNode))
+}
+
 // Java: Es6RewriteClass.ClassDeclarationMetadata.definePropertiesObjForClass()
 func (m *Es6RewriteClass_ClassDeclarationMetadata) DefinePropertiesObjForClass() *rhino.Node {
 	return m.definePropertiesObjForClass
+}
+
+// Java: Es6RewriteClass.ClassDeclarationMetadata.resetDefinePropertiesObjForClass(AstFactory)
+func (m *Es6RewriteClass_ClassDeclarationMetadata) ResetDefinePropertiesObjForClass(astFactory *AstFactory) {
+	m.definePropertiesObjForClass = astFactory.CreateObjectLitWithType(AstFactory_Type_(m.fullClassNameNode))
 }
 
 // Java: Es6RewriteClass.ClassDeclarationMetadata.classMembersToDeclare()

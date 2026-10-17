@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/LateEs6ToEs3Converter.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/LateEs6ToEs3Converter.java @ closure-compiler v20261015
 
 /*
  * Copyright 2014 The Closure Compiler Authors.
@@ -116,7 +116,7 @@ func (l *LateEs6ToEs3Converter) Visit(t *NodeTraversal, n *rhino.Node, parent *r
 			}
 		}
 	case rhino.Token_OBJECTLIT:
-		l.VisitObject(n)
+		l.VisitObject(t, n)
 	case rhino.Token_MEMBER_FUNCTION_DEF:
 		if parent.IsObjectLit() {
 			l.VisitMemberFunctionDefInObjectLit(n)
@@ -146,11 +146,11 @@ func (l *LateEs6ToEs3Converter) VisitMemberFunctionDefInObjectLit(n *rhino.Node)
 	l.compiler.ReportChangeToEnclosingScope(stringKey)
 }
 
-// Java: LateEs6ToEs3Converter.visitObject(Node)
-func (l *LateEs6ToEs3Converter) VisitObject(obj *rhino.Node) {
+// Java: LateEs6ToEs3Converter.visitObject(NodeTraversal, Node)
+func (l *LateEs6ToEs3Converter) VisitObject(t *NodeTraversal, obj *rhino.Node) {
 	for child := obj.GetFirstChild(); child != nil; child = child.GetNext() {
 		if child.IsComputedProp() {
-			l.VisitObjectWithComputedProperty(obj)
+			l.VisitObjectWithComputedProperty(t, obj)
 			return
 		}
 	}
@@ -172,8 +172,8 @@ func (l *LateEs6ToEs3Converter) VisitObject(obj *rhino.Node) {
 // $jscomp$compprop0 has type Object{} in the expression
 // $jscomp$compprop0.a = 1
 //
-// Java: LateEs6ToEs3Converter.visitObjectWithComputedProperty(Node)
-func (l *LateEs6ToEs3Converter) VisitObjectWithComputedProperty(obj *rhino.Node) {
+// Java: LateEs6ToEs3Converter.visitObjectWithComputedProperty(NodeTraversal, Node)
+func (l *LateEs6ToEs3Converter) VisitObjectWithComputedProperty(t *NodeTraversal, obj *rhino.Node) {
 	jutil.CheckArgument(obj.IsObjectLit())
 	props := []*rhino.Node{}
 	currElement := obj.GetFirstChild()
@@ -200,7 +200,7 @@ func (l *LateEs6ToEs3Converter) VisitObjectWithComputedProperty(obj *rhino.Node)
 		}
 	}
 
-	objName := LateEs6ToEs3Converter_FRESH_COMP_PROP_VAR + l.compiler.GetUniqueNameIdSupplier()()
+	objName := LateEs6ToEs3Converter_FRESH_COMP_PROP_VAR + l.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
 
 	slices.Reverse(props) // Lists.reverse(props)
 	result := l.astFactory.CreateName(objName, objectType)
@@ -239,11 +239,30 @@ func (l *LateEs6ToEs3Converter) VisitObjectWithComputedProperty(obj *rhino.Node)
 		statement = statement.GetParent()
 	}
 
-	result.SrcrefTreeIfMissing(obj)
-	obj.ReplaceWith(result)
+	isInsideLoopHeader := NodeUtil_IsLoopStructure(statement)
 
-	var_ := rhino.IR_VarWithValue(l.astFactory.CreateName(objName, objectType), obj)
-	var_.SrcrefTreeIfMissing(statement)
-	var_.InsertBefore(statement)
-	l.compiler.ReportChangeToEnclosingScope(var_)
+	if isInsideLoopHeader {
+		placeholder := rhino.IR_Empty()
+		obj.ReplaceWith(placeholder)
+
+		assignEmptyObj :=
+			l.astFactory.CreateAssign(l.astFactory.CreateName(objName, objectType), obj)
+		result = l.astFactory.CreateComma(assignEmptyObj, result)
+		result.SrcrefTreeIfMissing(obj)
+
+		placeholder.ReplaceWith(result)
+
+		var_ := rhino.IR_Var(l.astFactory.CreateName(objName, objectType))
+		var_.SrcrefTreeIfMissing(statement)
+		var_.InsertBefore(statement)
+		l.compiler.ReportChangeToEnclosingScope(var_)
+	} else {
+		result.SrcrefTreeIfMissing(obj)
+		obj.ReplaceWith(result)
+
+		var_ := rhino.IR_VarWithValue(l.astFactory.CreateName(objName, objectType), obj)
+		var_.SrcrefTreeIfMissing(statement)
+		var_.InsertBefore(statement)
+		l.compiler.ReportChangeToEnclosingScope(var_)
+	}
 }

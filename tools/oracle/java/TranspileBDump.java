@@ -1,8 +1,8 @@
 // Differential oracle for the w5-transpile-b passes (internal/jscomp): Es6NormalizeClasses,
 // Es6ConvertSuper, Es6RewriteClass (with Es6ConvertSuperConstructorCalls),
 // Es6RewriteBlockScopedFunctionDeclaration, Es6RewriteBlockScopedDeclaration, the peephole
-// transpilations RewriteNewDotTarget / RewritePrivateClassProperties /
-// ReportUntranspilableFeatures, RewritePolyfills (with PolyfillUsageFinder) and IsolatePolyfills.
+// transpilations RewriteNewDotTarget / ReportUntranspilableFeatures, RewritePolyfills (with
+// PolyfillUsageFinder) and IsolatePolyfills.
 //
 // For every file and variant, a fresh Compiler is set up with default CompilerOptions,
 // --language_in=ECMASCRIPT_NEXT, the variant's --language_out, --rewrite_polyfills (and

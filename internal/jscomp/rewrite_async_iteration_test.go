@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/RewriteAsyncIterationTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/RewriteAsyncIterationTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/RewriteAsyncIterationTest.java)
 
 /*
@@ -126,6 +126,7 @@ func (c *RewriteAsyncIterationTest) TestForAwaitWithThrow() {
   try {
     var $jscomp$forAwait$tempIterator0 = (0, $jscomp.makeAsyncIterator)(source());
     for (;;) {
+      $jscomp$forAwait$tempResult0 = void 0;
       $jscomp$forAwait$tempResult0 = await $jscomp$forAwait$tempIterator0.next();
       if ($jscomp$forAwait$tempResult0.done) {
         break;
@@ -177,6 +178,7 @@ window.onload = async function() {
   try {
 var $jscomp$forAwait$tempIterator0 = (0, $jscomp.makeAsyncIterator)(window["unknownAsyncIterable"]);
     for (;;) {
+      $jscomp$forAwait$tempResult0 = void 0;
       $jscomp$forAwait$tempResult0 = await $jscomp$forAwait$tempIterator0.next();
       if ($jscomp$forAwait$tempResult0.done) {
         break;
@@ -218,6 +220,7 @@ var $jscomp$forAwait$tempIterator0 = (0, $jscomp.makeAsyncIterator)(window["unkn
   try {
 var $jscomp$forAwait$tempIterator0 = (0, $jscomp.makeAsyncIterator)(window["unknownAsyncIterable"]);
     for (;;) {
+      $jscomp$forAwait$tempResult0 = void 0;
       $jscomp$forAwait$tempResult0 = await $jscomp$forAwait$tempIterator0.next();
       if ($jscomp$forAwait$tempResult0.done) {
         break;
@@ -543,6 +546,13 @@ class X extends A {
 `)
 }
 
+// Java: RewriteAsyncIterationTest.testInnerSuperTaggedTemplateLiteralInAsyncGenerator()
+func (c *RewriteAsyncIterationTest) TestInnerSuperTaggedTemplateLiteralInAsyncGenerator() {
+	c.Test(
+		"class A {\n  m(strings, ...values) {\n    return this;\n  }\n}\nclass X extends A {\n  async *m() {\n    return super.m`<p>hello</p>`;\n  }\n}\n",
+		"class A {\n  m(strings, ...values) {\n    return this;\n  }\n}\nclass X extends A {\n  m() {\n    const $jscomp$asyncIter$this$m1146332801$1 = this;\n    const $jscomp$asyncIter$super$get$m = () => {\n         return super.m;\n    };\n    return new $jscomp.AsyncGeneratorWrapper(\n        function* () {\n          return new $jscomp.AsyncGeneratorWrapper$ActionRecord(\n              $jscomp.AsyncGeneratorWrapper$ActionEnum.YIELD_VALUE,\n              $jscomp$asyncIter$super$get$m().bind($jscomp$asyncIter$this$m1146332801$1)`<p>hello</p>`);\n        }());\n  }\n}\n")
+}
+
 // Java: RewriteAsyncIterationTest.testCannotConvertSuperGetElemInAsyncGenerator()
 func (c *RewriteAsyncIterationTest) TestCannotConvertSuperGetElemInAsyncGenerator() {
 	// The rewriting gets partially done before we notice and report that we cannot convert
@@ -611,6 +621,7 @@ async function abc() {
   try {
     var $jscomp$forAwait$tempIterator0 = (0, $jscomp.makeAsyncIterator)(foo());
     for (;;) {
+      $jscomp$forAwait$tempResult0 = void 0;
       $jscomp$forAwait$tempResult0 = await $jscomp$forAwait$tempIterator0.next();
       if ($jscomp$forAwait$tempResult0.done) {
         break;
@@ -657,18 +668,21 @@ function foo() {
 	makeAsyncIteratorCall := tempIterator0.GetFirstChild()
 	block := forNode.GetLastChild()
 	AssertNode(block).IsBlock()
+	// Find $jscomp$forAwait$tempResult0 = void 0;
+	resetTempResult0 := block.GetFirstFirstChild()
+	AssertNode(resetTempResult0).IsAssign()
 	// Find $jscomp$forAwait$tempResult0 = await $jscomp$forAwait$tempIterator0.next();
-	tempResult0 := block.GetFirstFirstChild()
+	tempResult0 := block.GetSecondChild().GetFirstChild()
 	AssertNode(tempResult0).IsAssign()
 	await := tempResult0.GetFirstChild().GetNext()
 	nextCall := await.GetFirstChild()
 	done :=
 		block.
-			GetSecondChild(). // if
+			GetChildAtIndex(2). // if
 			GetFirstChild()
 	value :=
 		block.
-			GetChildAtIndex(2). // exprResult
+			GetChildAtIndex(3). // exprResult
 			GetFirstChild().    // assign
 			GetLastChild()      // getprop
 	AssertNode(tempIterator0).
@@ -691,6 +705,7 @@ function foo() {
  try {
    var $jscomp$forAwait$tempIterator0 = (0, $jscomp.makeAsyncIterator)(foo());
    for (;;) {
+     $jscomp$forAwait$tempResult0 = void 0;
      $jscomp$forAwait$tempResult0 = await $jscomp$forAwait$tempIterator0.next();
      if ($jscomp$forAwait$tempResult0.done) {
        break;
@@ -725,6 +740,7 @@ function foo() {
  try {
    var $jscomp$forAwait$tempIterator0 = (0, $jscomp.makeAsyncIterator)(foo());
    for (;;) {
+     $jscomp$forAwait$tempResult0 = void 0;
      $jscomp$forAwait$tempResult0 = await $jscomp$forAwait$tempIterator0.next();
      if ($jscomp$forAwait$tempResult0.done) {
        break;
@@ -759,6 +775,7 @@ function foo() {
  try {
    var $jscomp$forAwait$tempIterator0 = (0, $jscomp.makeAsyncIterator)(foo());
    for (;;) {
+     $jscomp$forAwait$tempResult0 = void 0;
      $jscomp$forAwait$tempResult0 = await $jscomp$forAwait$tempIterator0.next();
      if ($jscomp$forAwait$tempResult0.done) {
        break;
@@ -796,6 +813,7 @@ func (c *RewriteAsyncIterationTest) TestForAwaitOfInAsyncArrow() {
   try {
 var $jscomp$forAwait$tempIterator0 = (0, $jscomp.makeAsyncIterator)(foo());
     for (;;) {
+      $jscomp$forAwait$tempResult0 = void 0;
       $jscomp$forAwait$tempResult0 = await $jscomp$forAwait$tempIterator0.next();
       if ($jscomp$forAwait$tempResult0.done) {
         break;
@@ -840,6 +858,7 @@ func (c *RewriteAsyncIterationTest) TestLabelledForAwaitOf() {
 // rewriting does not lose the label with the for await of statement
   var $jscomp$forAwait$tempIterator0 = (0, $jscomp.makeAsyncIterator)(foo());
     label: for (;;) {
+      $jscomp$forAwait$tempResult0 = void 0;
       $jscomp$forAwait$tempResult0 = await $jscomp$forAwait$tempIterator0.next();
       if ($jscomp$forAwait$tempResult0.done) {
         break;
@@ -883,6 +902,7 @@ func (c *RewriteAsyncIterationTest) TestForAwaitOfInAsyncGenerator() {
     try {
 var $jscomp$forAwait$tempIterator0 = (0, $jscomp.makeAsyncIterator)(bar());
       for (;;) {
+        $jscomp$forAwait$tempResult0 = void 0;
         $jscomp$forAwait$tempResult0 = yield new $jscomp.AsyncGeneratorWrapper$ActionRecord($jscomp.AsyncGeneratorWrapper$ActionEnum.AWAIT_VALUE, $jscomp$forAwait$tempIterator0.next());
         if ($jscomp$forAwait$tempResult0.done) {
           break;
@@ -906,6 +926,49 @@ var $jscomp$forAwait$tempIterator0 = (0, $jscomp.makeAsyncIterator)(bar());
       }
     }
   }());
+}
+`)
+}
+
+// Java: RewriteAsyncIterationTest.testForAwaitResetsTempResultBeforeAwaitNext()
+func (c *RewriteAsyncIterationTest) TestForAwaitResetsTempResultBeforeAwaitNext() {
+	c.Test(
+		`async function run() {
+  for await (const x of source()) {
+    use(x);
+  }
+}
+`,
+		`async function run() {
+  var $jscomp$forAwait$errResult0;
+  var $jscomp$forAwait$tempResult0;
+  var $jscomp$forAwait$retFn0;
+  try {
+    var $jscomp$forAwait$tempIterator0 = (0, $jscomp.makeAsyncIterator)(source());
+    for (;;) {
+      $jscomp$forAwait$tempResult0 = void 0;
+      $jscomp$forAwait$tempResult0 = await $jscomp$forAwait$tempIterator0.next();
+      if ($jscomp$forAwait$tempResult0.done) {
+        break;
+      }
+      const x = $jscomp$forAwait$tempResult0.value;
+      {
+        use(x);
+      }
+    }
+  } catch ($jscomp$forAwait$catchErrParam0) {
+    $jscomp$forAwait$errResult0 = {error:$jscomp$forAwait$catchErrParam0};
+  } finally {
+    try {
+      if ($jscomp$forAwait$tempResult0 && !$jscomp$forAwait$tempResult0.done && ($jscomp$forAwait$retFn0 = $jscomp$forAwait$tempIterator0.return)) {
+        await $jscomp$forAwait$retFn0.call($jscomp$forAwait$tempIterator0);
+      }
+    } finally {
+      if ($jscomp$forAwait$errResult0) {
+        throw $jscomp$forAwait$errResult0.error;
+      }
+    }
+  }
 }
 `)
 }

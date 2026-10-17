@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/RewriteAsyncIteration.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/RewriteAsyncIteration.java @ closure-compiler v20261015
 
 /*
  * Copyright 2014 The Closure Compiler Authors.
@@ -517,6 +517,7 @@ func (r *RewriteAsyncIteration) ConvertReturnOfAsyncGenerator(ctx *RewriteAsyncI
 //	var errorRes, retFn, tmpRes;
 //	try {
 //	  for (var tmpIterator = makeAsyncIterator(rhs);;) {
+//	     tmpRes = void 0;
 //	     tmpRes = await tmpIterator.next();
 //	     if (tmpRes.done) {
 //	       break;
@@ -638,6 +639,11 @@ func (r *RewriteAsyncIteration) ReplaceForAwaitOf(ctx *RewriteAsyncIteration_Lex
 			CreateSingleVarNameDeclaration(returnFuncTempName).
 			SrcrefTreeIfMissing(forAwaitOf)
 
+	// Generate `tmpRes = void 0;`
+	resetTempResult :=
+		r.astFactory.ExprResult(
+			r.astFactory.CreateAssignToName(resultTempName, r.astFactory.CreateUndefinedValue()))
+
 	// Generate `tmpRes = await tmpIterator.next()`
 	resultDeclaration :=
 		r.astFactory.ExprResult(
@@ -651,7 +657,11 @@ func (r *RewriteAsyncIteration) ReplaceForAwaitOf(ctx *RewriteAsyncIteration_Lex
 			r.astFactory.CreateEmpty(),
 			r.astFactory.CreateEmpty(),
 			r.astFactory.CreateBlock(
-				resultDeclaration, breakIfDone, lhsAssignment, r.EnsureBlock(originalBody)))
+				resetTempResult,
+				resultDeclaration,
+				breakIfDone,
+				lhsAssignment,
+				r.EnsureBlock(originalBody)))
 
 	if replacementPoint.IsLabel() {
 		newForLoop = r.astFactory.CreateLabel(replacementPoint.GetFirstChild().CloneNode(), newForLoop)
@@ -908,7 +918,7 @@ func (r *RewriteAsyncIteration) ReplaceSuper(ctx *RewriteAsyncIteration_LexicalC
 			AstFactory_Type_(parent))
 	grandparent := parent.GetParent()
 	if grandparent.IsCall() && grandparent.GetFirstChild() == parent {
-		// super.x(...)   =>   super.x.call($this, ...)
+		// super.x(args) => super.x.call($this, args)
 		getPropReplacement = r.astFactory.CreateGetPropWithUnknownType(getPropReplacement, "call")
 		ctx.thisSuperArgsContext.thisNodeToAdd =
 			r.astFactory.CreateThisForEs6ClassMember(ctx.contextRoot.GetParent())
@@ -918,6 +928,20 @@ func (r *RewriteAsyncIteration) ReplaceSuper(ctx *RewriteAsyncIteration_LexicalC
 				AstFactory_Type_(ctx.thisSuperArgsContext.thisNodeToAdd)).
 			Srcref(parent).
 			InsertAfter(parent)
+	} else if grandparent.IsTaggedTemplateLit() && grandparent.GetFirstChild() == parent {
+		// super.x`template` => super.x().bind($this)`template`
+		ctx.thisSuperArgsContext.thisNodeToAdd =
+			r.astFactory.CreateThisForEs6ClassMember(ctx.contextRoot.GetParent())
+		thisAlias :=
+			r.astFactory.
+				CreateName(
+					RewriteAsyncIteration_THIS_VAR_NAME+ctx.thisSuperArgsContext.uniqueId,
+					AstFactory_Type_(ctx.thisSuperArgsContext.thisNodeToAdd)).
+				Srcref(parent)
+		getPropReplacement =
+			r.astFactory.CreateCallWithUnknownType(
+				r.astFactory.CreateGetPropWithUnknownType(getPropReplacement, "bind"), thisAlias)
+		grandparent.PutBooleanProp(rhino.Node_FREE_CALL, true)
 	}
 	getPropReplacement.SrcrefTree(parent)
 	parent.ReplaceWith(getPropReplacement)

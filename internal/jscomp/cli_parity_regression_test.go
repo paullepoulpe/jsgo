@@ -176,12 +176,10 @@ func TestCliParity_UnexpectedQualifiedNameMessage(t *testing.T) {
 	}
 }
 
-// A super in an object literal's method, transpiled to ES5: Es6ConvertSuper
-// finds no enclosing class and dereferences null. The INTERNAL COMPILER
-// ERROR report prints the NullPointerException's message, which is the
-// JVM's "helpful" one; a Go nil dereference has none.
+// A super in an object literal's method, transpiled to ES5: since
+// v20261015, Es6ConvertSuper reports it as JSC_CANNOT_CONVERT (it used to find
+// no enclosing class and dereference null).
 func TestCliParity_SuperInObjectLiteralTranspiled(t *testing.T) {
-	const npe = `Cannot invoke "com.google.javascript.rhino.Node.getSecondChild()" because "clazz" is null`
 	cliParityCase{
 		files: map[string]string{"in.js": "({ a() { super.b(); } });\n"},
 		args:  []string{"--language_out=ECMASCRIPT5", "--js", "in.js"},
@@ -189,17 +187,11 @@ func TestCliParity_SuperInObjectLiteralTranspiled(t *testing.T) {
 			"  1| ({ a() { super.b(); } });\n" +
 			"      ^^^^^^^^^^^^^^^^^^^^^^\n" +
 			"\n" +
-			"0 error(s), 1 warning(s)\n" +
-			"java.lang.RuntimeException: INTERNAL COMPILER ERROR.\n" +
-			"Please report this problem.\n" +
+			"in.js:1:9: ERROR - [JSC_CANNOT_CONVERT] This code cannot be transpiled. super is not supported in object literal methods.\n" +
+			"  1| ({ a() { super.b(); } });\n" +
+			"              ^^^^^\n" +
 			"\n" +
-			npe + "\n" +
-			"  Node(SUPER): in.js:1:9\n" +
-			"({ a() { super.b(); } });\n" +
-			"  Parent(GETPROP b): in.js:1:15\n" +
-			"({ a() { super.b(); } });\n" +
-			"\n" +
-			"Caused by: java.lang.NullPointerException: " + npe + "\n",
-		wantExit: 254,
+			"1 error(s), 1 warning(s)\n",
+		wantExit: 1,
 	}.run(t)
 }

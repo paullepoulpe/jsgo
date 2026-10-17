@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/LateEs6ToEs3ConverterTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/LateEs6ToEs3ConverterTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/LateEs6ToEs3ConverterTest.java)
 
 /*
@@ -44,6 +44,7 @@ const LateEs6ToEs3ConverterTest_SCRIPT1 = "var x;"
 var LateEs6ToEs3ConverterTest_REPLACEMENT_PREFIXES = func() *jutil.LinkedHashMap[string, string] {
 	m := jutil.NewLinkedHashMap[string, string]()
 	m.Put("TAGGED_TEMPLATE_TMP_VAR", "$jscomp$templatelit$")
+	m.Put("COMP_PROP_VAR", "$jscomp$compprop")
 	return m
 }()
 
@@ -111,9 +112,9 @@ func (c *LateEs6ToEs3ConverterTest) TestInitSymbolIterator() {
 		c.Externs("/** @type {symbol} */ Symbol.iterator;"),
 		c.Srcs("var x = {[Symbol.iterator]: function() { return this; }};"),
 		c.Expected(
-			`var $jscomp$compprop0 = {};
-var x = ($jscomp$compprop0[Symbol.iterator] = function() {return this;},
-         $jscomp$compprop0)
+			`var COMP_PROP_VAR$0 = {};
+var x = (COMP_PROP_VAR$0[Symbol.iterator] = function() {return this;},
+         COMP_PROP_VAR$0)
 `))
 }
 
@@ -128,10 +129,10 @@ func (c *LateEs6ToEs3ConverterTest) TestMethodInObject() {
 func (c *LateEs6ToEs3ConverterTest) TestComputedPropertiesWithMethod() {
 	c.Test(
 		"var obj = { ['f' + 1]: 1, m() {}, ['g' + 1]: 1, };",
-		`var $jscomp$compprop0 = {};
-var obj = ($jscomp$compprop0['f' + 1] = 1,
-  ($jscomp$compprop0.m = function() {},
-     ($jscomp$compprop0['g' + 1] = 1, $jscomp$compprop0)));
+		`var COMP_PROP_VAR$0 = {};
+var obj = (COMP_PROP_VAR$0['f' + 1] = 1,
+  (COMP_PROP_VAR$0.m = function() {},
+     (COMP_PROP_VAR$0['g' + 1] = 1, COMP_PROP_VAR$0)));
 `)
 }
 
@@ -139,86 +140,86 @@ var obj = ($jscomp$compprop0['f' + 1] = 1,
 func (c *LateEs6ToEs3ConverterTest) TestComputedProperties() {
 	c.Test(
 		"var obj = { ['f' + 1] : 1, ['g' + 1] : 1 };",
-		`var $jscomp$compprop0 = {};
-var obj = ($jscomp$compprop0['f' + 1] = 1,
-  ($jscomp$compprop0['g' + 1] = 1, $jscomp$compprop0));
+		`var COMP_PROP_VAR$0 = {};
+var obj = (COMP_PROP_VAR$0['f' + 1] = 1,
+  (COMP_PROP_VAR$0['g' + 1] = 1, COMP_PROP_VAR$0));
 `)
 
 	c.Test(
 		"var obj = { ['f'] : 1};",
-		`var $jscomp$compprop0 = {};
-var obj = ($jscomp$compprop0['f'] = 1,
-  $jscomp$compprop0);
+		`var COMP_PROP_VAR$0 = {};
+var obj = (COMP_PROP_VAR$0['f'] = 1,
+  COMP_PROP_VAR$0);
 `)
 
 	c.Test(
 		"var o = { ['f'] : 1}; var p = { ['g'] : 1};",
-		`var $jscomp$compprop0 = {};
-var o = ($jscomp$compprop0['f'] = 1,
-  $jscomp$compprop0);
-var $jscomp$compprop1 = {};
-var p = ($jscomp$compprop1['g'] = 1,
-  $jscomp$compprop1);
+		`var COMP_PROP_VAR$0 = {};
+var o = (COMP_PROP_VAR$0['f'] = 1,
+  COMP_PROP_VAR$0);
+var COMP_PROP_VAR$1 = {};
+var p = (COMP_PROP_VAR$1['g'] = 1,
+  COMP_PROP_VAR$1);
 `)
 
 	c.Test(
 		"({['f' + 1] : 1})",
-		`var $jscomp$compprop0 = {};
-($jscomp$compprop0['f' + 1] = 1,
-  $jscomp$compprop0)
+		`var COMP_PROP_VAR$0 = {};
+(COMP_PROP_VAR$0['f' + 1] = 1,
+  COMP_PROP_VAR$0)
 `)
 
 	c.Test(
 		"({'a' : 2, ['f' + 1] : 1})",
-		`var $jscomp$compprop0 = {};
-($jscomp$compprop0['a'] = 2,
-  ($jscomp$compprop0['f' + 1] = 1, $jscomp$compprop0));
+		`var COMP_PROP_VAR$0 = {};
+(COMP_PROP_VAR$0['a'] = 2,
+  (COMP_PROP_VAR$0['f' + 1] = 1, COMP_PROP_VAR$0));
 `)
 
 	c.Test(
 		"({['f' + 1] : 1, 'a' : 2})",
-		`var $jscomp$compprop0 = {};
-($jscomp$compprop0['f' + 1] = 1,
-  ($jscomp$compprop0['a'] = 2, $jscomp$compprop0));
+		`var COMP_PROP_VAR$0 = {};
+(COMP_PROP_VAR$0['f' + 1] = 1,
+  (COMP_PROP_VAR$0['a'] = 2, COMP_PROP_VAR$0));
 `)
 
 	c.Test(
 		"({'a' : 1, ['f' + 1] : 1, 'b' : 1})",
-		`var $jscomp$compprop0 = {};
-($jscomp$compprop0['a'] = 1,
-  ($jscomp$compprop0['f' + 1] = 1, ($jscomp$compprop0['b'] = 1, $jscomp$compprop0)));
+		`var COMP_PROP_VAR$0 = {};
+(COMP_PROP_VAR$0['a'] = 1,
+  (COMP_PROP_VAR$0['f' + 1] = 1, (COMP_PROP_VAR$0['b'] = 1, COMP_PROP_VAR$0)));
 `)
 
 	c.Test(
 		"({'a' : x++, ['f' + x++] : 1, 'b' : x++})",
-		`var $jscomp$compprop0 = {};
-($jscomp$compprop0['a'] = x++, ($jscomp$compprop0['f' + x++] = 1,
-  ($jscomp$compprop0['b'] = x++, $jscomp$compprop0)))
+		`var COMP_PROP_VAR$0 = {};
+(COMP_PROP_VAR$0['a'] = x++, (COMP_PROP_VAR$0['f' + x++] = 1,
+  (COMP_PROP_VAR$0['b'] = x++, COMP_PROP_VAR$0)))
 `)
 
 	c.Test(
 		"({a : x++, ['f' + x++] : 1, b : x++})",
-		`var $jscomp$compprop0 = {};
-($jscomp$compprop0.a = x++, ($jscomp$compprop0['f' + x++] = 1,
-  ($jscomp$compprop0.b = x++, $jscomp$compprop0)))
+		`var COMP_PROP_VAR$0 = {};
+(COMP_PROP_VAR$0.a = x++, (COMP_PROP_VAR$0['f' + x++] = 1,
+  (COMP_PROP_VAR$0.b = x++, COMP_PROP_VAR$0)))
 `)
 
 	c.Test(
 		"({a, ['f' + 1] : 1})",
-		`var $jscomp$compprop0 = {};
-  ($jscomp$compprop0.a = a, ($jscomp$compprop0['f' + 1] = 1, $jscomp$compprop0))
+		`var COMP_PROP_VAR$0 = {};
+  (COMP_PROP_VAR$0.a = a, (COMP_PROP_VAR$0['f' + 1] = 1, COMP_PROP_VAR$0))
 `)
 
 	c.Test(
 		"({['f' + 1] : 1, a})",
-		`var $jscomp$compprop0 = {};
-  ($jscomp$compprop0['f' + 1] = 1, ($jscomp$compprop0.a = a, $jscomp$compprop0))
+		`var COMP_PROP_VAR$0 = {};
+  (COMP_PROP_VAR$0['f' + 1] = 1, (COMP_PROP_VAR$0.a = a, COMP_PROP_VAR$0))
 `)
 
 	c.Test(
 		"var obj = { [foo]() {}}",
-		`var $jscomp$compprop0 = {};
-var obj = ($jscomp$compprop0[foo] = function(){}, $jscomp$compprop0)
+		`var COMP_PROP_VAR$0 = {};
+var obj = (COMP_PROP_VAR$0[foo] = function(){}, COMP_PROP_VAR$0)
 `)
 }
 
@@ -230,14 +231,13 @@ func (c *LateEs6ToEs3ConverterTest) TestComputedPropGetterSetter() {
 	c.TestSame("var obj = {set latest (strParam) {}}")
 	c.Test(
 		"var obj = {'a' : 2, get l () {return null;}, ['f' + 1] : 1}",
-		`var $jscomp$compprop0 = {get l () {return null;}};
-var obj = ($jscomp$compprop0['a'] = 2,
-  ($jscomp$compprop0['f' + 1] = 1, $jscomp$compprop0));
+		`var COMP_PROP_VAR$0 = {get l () {return null;}};
+var obj = (COMP_PROP_VAR$0['a'] = 2, (COMP_PROP_VAR$0['f' + 1] = 1, COMP_PROP_VAR$0));
 `)
 	c.Test(
 		"var obj = {['a' + 'b'] : 2, set l (strParam) {}}",
-		`var $jscomp$compprop0 = {set l (strParam) {}};
-var obj = ($jscomp$compprop0['a' + 'b'] = 2, $jscomp$compprop0);
+		`var COMP_PROP_VAR$0 = {set l (strParam) {}};
+var obj = (COMP_PROP_VAR$0['a' + 'b'] = 2, COMP_PROP_VAR$0);
 `)
 }
 
@@ -284,11 +284,6 @@ func (c *LateEs6ToEs3ConverterTest) TestUntaggedTemplateLiteral() {
 	c.Test("`hello ${a ? b : c}${a * b}`", "'hello ' + (a ? b : c) + (a * b)")
 }
 
-// Tests that the tagged template literals in the first script get transpiled correctly.
-//
-// <p>The vars created during tagged template literal transpilation have have a filePath based
-// uniqueID in them. This uniqueID is obfucated by using a generic name `TAGGED_TEMPLATE_TMP_VAR`
-// here that gets replaced by the runtime-computed uniqueID before test execution.
 // Java: LateEs6ToEs3ConverterTest.testTaggedTemplateLiteral_singleScript()
 func (c *LateEs6ToEs3ConverterTest) TestTaggedTemplateLiteral_singleScript() {
 	c.Test(
@@ -354,6 +349,14 @@ tag()(TAGGED_TEMPLATE_TMP_VAR$0, hello);
 a.b(TAGGED_TEMPLATE_TMP_VAR$0, hello);
 `))
 
+	c.Test(
+		c.Externs(LateEs6ToEs3ConverterTest_RUNTIME_STUBS, "var a = {}; var b; a[b];"),
+		c.Srcs("a[b]`${hello} world`"),
+		c.Expected(
+			`/** @noinline */ var TAGGED_TEMPLATE_TMP_VAR$0 =
+    $jscomp.createTemplateTagFirstArg(['', ' world']);
+a[b](TAGGED_TEMPLATE_TMP_VAR$0, hello);
+`))
 	// https://github.com/google/closure-compiler/issues/1299
 	c.Test(
 		"tag`<p class=\"foo\">${x}</p>`",
@@ -464,6 +467,38 @@ function foo() {tag(TAGGED_TEMPLATE_TMP_VAR$0);}
 var a = {};
 function foo() {function bar() {tag(TAGGED_TEMPLATE_TMP_VAR$0);}}
 `))
+}
+
+// Java: LateEs6ToEs3ConverterTest.testComputedPropertyInLoopHeader()
+func (c *LateEs6ToEs3ConverterTest) TestComputedPropertyInLoopHeader() {
+	c.Test(
+		"for (; {[foo]: bar}; ) {}",
+		`var COMP_PROP_VAR$0;
+for (; (COMP_PROP_VAR$0 = {}, (COMP_PROP_VAR$0[foo] = bar, COMP_PROP_VAR$0)); ) {}
+`)
+
+	c.Test(
+		"while ({[foo]: bar}) {}",
+		`var COMP_PROP_VAR$0;
+for (; (COMP_PROP_VAR$0 = {}, (COMP_PROP_VAR$0[foo] = bar, COMP_PROP_VAR$0)); ) {}
+`)
+
+	c.Test(
+		"do {} while ({[foo]: bar});",
+		`var COMP_PROP_VAR$0;
+do {} while ((COMP_PROP_VAR$0 = {}, (COMP_PROP_VAR$0[foo] = bar, COMP_PROP_VAR$0)));
+`)
+}
+
+// Java: LateEs6ToEs3ConverterTest.testComputedPropertyInLoopBody()
+func (c *LateEs6ToEs3ConverterTest) TestComputedPropertyInLoopBody() {
+	c.Test(
+		"while (true) { var x = {[foo]: bar}; }",
+		`for (; true;) {
+  var COMP_PROP_VAR$0 = {};
+  var x = (COMP_PROP_VAR$0[foo] = bar, COMP_PROP_VAR$0);
+}
+`)
 }
 
 // Java: LateEs6ToEs3ConverterTest.testUnicodeEscapes()

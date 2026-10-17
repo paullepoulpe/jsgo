@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/TranspilationPasses.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/TranspilationPasses.java @ closure-compiler v20261015
 
 /*
  * Copyright 2016 The Closure Compiler Authors.
@@ -154,9 +154,12 @@ func TranspilationPasses_AddTranspilationPasses(passes *PassListBuilder, options
 		passes.MaybeAdd(TranspilationPasses_es6RewriteClass)
 	}
 
-	if options.NeedsTranspilationFrom(
-		parser.FeatureSet_BARE_MINIMUM.WithFeatures(parser.FeatureSet_Feature_REST_PARAMETERS, parser.FeatureSet_Feature_SPREAD_EXPRESSIONS)) {
-		passes.MaybeAdd(TranspilationPasses_es6RewriteRestAndSpread)
+	if options.NeedsTranspilationOf(parser.FeatureSet_Feature_REST_PARAMETERS) {
+		passes.MaybeAdd(TranspilationPasses_es6RewriteRestParameters)
+	}
+
+	if options.NeedsTranspilationOf(parser.FeatureSet_Feature_SPREAD_EXPRESSIONS) {
+		passes.MaybeAdd(TranspilationPasses_es6RewriteSpreadExpressions)
 	}
 
 	if options.NeedsTranspilationFrom(
@@ -199,9 +202,6 @@ var TranspilationPasses_peepholeTranspilationsPasses = PassFactory_Builder_().
 					compiler,
 					compiler.GetOptions().GetBrowserFeaturesetYearObject(),
 					compiler.GetOptions().GetOutputFeatureSet()))
-			if compiler.GetOptions().NeedsTranspilationOf(parser.FeatureSet_Feature_PRIVATE_CLASS_PROPERTIES) {
-				peepholeTranspilations = append(peepholeTranspilations, NewRewritePrivateClassProperties(compiler))
-			}
 			if compiler.GetOptions().NeedsTranspilationOf(parser.FeatureSet_Feature_OPTIONAL_CATCH_BINDING) {
 				peepholeTranspilations = append(peepholeTranspilations, NewRewriteCatchWithNoBinding(compiler))
 			}
@@ -361,14 +361,23 @@ var TranspilationPasses_injectTranspilationRuntimeLibraries = PassFactory_Builde
 	}).
 	Build()
 
-// Transpiles REST parameters and SPREAD in both array literals and function
-// calls.
+// Transpiles REST parameters.
 //
-// Java: TranspilationPasses.es6RewriteRestAndSpread
-var TranspilationPasses_es6RewriteRestAndSpread = PassFactory_Builder_().
-	SetName("es6RewriteRestAndSpread").
+// Java: TranspilationPasses.es6RewriteRestParameters
+var TranspilationPasses_es6RewriteRestParameters = PassFactory_Builder_().
+	SetName("es6RewriteRestParameters").
 	SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-		return NewEs6RewriteRestAndSpread(compiler)
+		return NewEs6RewriteRestParameters(compiler)
+	}).
+	Build()
+
+// Transpiles SPREAD in both array literals, new and function calls.
+//
+// Java: TranspilationPasses.es6RewriteSpreadExpressions
+var TranspilationPasses_es6RewriteSpreadExpressions = PassFactory_Builder_().
+	SetName("es6RewriteSpreadExpressions").
+	SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
+		return NewEs6RewriteSpreadExpressions(compiler)
 	}).
 	Build()
 

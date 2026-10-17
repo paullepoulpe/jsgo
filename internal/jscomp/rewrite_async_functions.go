@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/RewriteAsyncFunctions.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/RewriteAsyncFunctions.java @ closure-compiler v20261015
 
 /*
  * Copyright 2016 The Closure Compiler Authors.
@@ -38,6 +38,7 @@ import (
 //	function foo(a, b) {
 //	  let $jscomp$async$this = this;
 //	  let $jscomp$async$arguments = arguments;
+//	  let $jscomp$async$new$target = new.target;
 //	  let $jscomp$async$super$get$x = () => super.x;
 //	  return $jscomp.asyncExecutePromiseGeneratorFunction(
 //	      function* () {
@@ -45,6 +46,7 @@ import (
 //	        // - await (x) replaced with yield (x)
 //	        // - arguments replaced with $jscomp$async$arguments
 //	        // - this replaced with $jscomp$async$this
+//	        // - new.target replaced with $jscomp$async$new$target
 //	        // - super.x replaced with $jscomp$async$super$get$x()
 //	        // - super.x(5) replaced with $jscomp$async$super$get$x().call($jscomp$async$this, 5)
 //	      });
@@ -65,6 +67,8 @@ const (
 	RewriteAsyncFunctions_ASYNC_ARGUMENTS = "$jscomp$async$arguments$"
 	// Java: RewriteAsyncFunctions.ASYNC_THIS
 	RewriteAsyncFunctions_ASYNC_THIS = "$jscomp$async$this$"
+	// Java: RewriteAsyncFunctions.ASYNC_NEW_TARGET
+	RewriteAsyncFunctions_ASYNC_NEW_TARGET = "$jscomp$async$new$target$"
 	// Java: RewriteAsyncFunctions.ASYNC_SUPER_PROP_GETTER_PREFIX
 	RewriteAsyncFunctions_ASYNC_SUPER_PROP_GETTER_PREFIX = "$jscomp$async$super$get$"
 )
@@ -321,6 +325,9 @@ type RewriteAsyncFunctions_FunctionContext struct {
 	// null if mustAddAsyncThisVariable is false
 	typeOfThis                    AstFactory_Type
 	mustAddAsyncArgumentsVariable bool
+	mustAddAsyncNewTargetVariable bool
+	// null if mustAddAsyncNewTargetVariable is false
+	typeOfNewTarget AstFactory_Type
 }
 
 // Java: FunctionContext(Node, String)
@@ -330,6 +337,7 @@ func newRewriteAsyncFunctions_FunctionContext(outer *RewriteAsyncFunctions, cont
 	c.superPropertyWrappers = newRewriteAsyncFunctions_SuperPropertyWrappers(outer)
 	c.mustAddAsyncThisVariable = false
 	c.mustAddAsyncArgumentsVariable = false
+	c.mustAddAsyncNewTargetVariable = false
 	if contextRootNode.IsAsyncFunction() {
 		c.asyncThisAndArgumentsContext = c
 	} else {
@@ -346,6 +354,7 @@ func newRewriteAsyncFunctions_FunctionContextWithOuter(
 	c.superPropertyWrappers = newRewriteAsyncFunctions_SuperPropertyWrappers(outerInstance)
 	c.mustAddAsyncThisVariable = false
 	c.mustAddAsyncArgumentsVariable = false
+	c.mustAddAsyncNewTargetVariable = false
 	jutil.CheckStateMsg1(contextRootNode.IsFunction(), "%s", contextRootNode)
 	if contextRootNode.IsAsyncFunction() {
 		if contextRootNode.IsArrowFunction() {
@@ -406,6 +415,12 @@ func (c *RewriteAsyncFunctions_FunctionContext) RecordAsyncArgumentsReplacementW
 	c.asyncThisAndArgumentsContext.mustAddAsyncArgumentsVariable = true
 }
 
+// Java: FunctionContext.recordAsyncNewTargetReplacementWasDone(AstFactory.Type)
+func (c *RewriteAsyncFunctions_FunctionContext) RecordAsyncNewTargetReplacementWasDone(typeOfNewTarget AstFactory_Type) {
+	c.asyncThisAndArgumentsContext.mustAddAsyncNewTargetVariable = true
+	c.asyncThisAndArgumentsContext.typeOfNewTarget = typeOfNewTarget
+}
+
 // CreateThisVariableReference creates a new reference to the variable used to
 // hold the value of `this` for async functions.
 //
@@ -413,6 +428,13 @@ func (c *RewriteAsyncFunctions_FunctionContext) RecordAsyncArgumentsReplacementW
 func (c *RewriteAsyncFunctions_FunctionContext) CreateThisVariableReference(typeOfThis AstFactory_Type) *rhino.Node {
 	c.RecordAsyncThisReplacementWasDone(typeOfThis)
 	return c.outer.astFactory.CreateName(RewriteAsyncFunctions_ASYNC_THIS+c.asyncThisAndArgumentsContext.uniqueId, typeOfThis)
+}
+
+// Java: FunctionContext.createNewTargetVariableReference(AstFactory.Type)
+func (c *RewriteAsyncFunctions_FunctionContext) CreateNewTargetVariableReference(typeOfNewTarget AstFactory_Type) *rhino.Node {
+	c.RecordAsyncNewTargetReplacementWasDone(typeOfNewTarget)
+	return c.outer.astFactory.CreateName(
+		RewriteAsyncFunctions_ASYNC_NEW_TARGET+c.asyncThisAndArgumentsContext.uniqueId, typeOfNewTarget)
 }
 
 // Java: FunctionContext.createWrapperArrowFunction(SuperPropertyWrapperInfo)
@@ -450,6 +472,9 @@ func (c *RewriteAsyncFunctions_FunctionContext) Visit(t *NodeTraversal, n *rhino
 		case rhino.Token_THIS:
 			n.ReplaceWith(c.asyncThisAndArgumentsContext.CreateThisVariableReference(AstFactory_Type_(n)))
 			r.compiler.ReportChangeToChangeScope(c.contextRootNode)
+		case rhino.Token_NEW_TARGET:
+			n.ReplaceWith(c.asyncThisAndArgumentsContext.CreateNewTargetVariableReference(AstFactory_Type_(n)))
+			r.compiler.ReportChangeToChangeScope(c.contextRootNode)
 		case rhino.Token_SUPER:
 			{
 				parent := n.GetParent()
@@ -476,8 +501,7 @@ func (c *RewriteAsyncFunctions_FunctionContext) Visit(t *NodeTraversal, n *rhino
 				getPropReplacement := superPropertyWrapperInfo.CreateWrapperFunctionCallNode()
 				grandparent := superDotProperty.GetParent()
 				if grandparent.IsCall() && grandparent.GetFirstChild() == superDotProperty {
-					// $jscomp$super$get$x(...)   =>   $jscomp$super$get$x().call($jscomp$async$this,
-					// ...)
+					// $jscomp$super$get$x(args) => $jscomp$super$get$x().call($jscomp$async$this, args)
 					getPropReplacement =
 						r.astFactory.CreateGetPropWithUnknownType(getPropReplacement, "call")
 					thisAlias :=
@@ -489,6 +513,23 @@ func (c *RewriteAsyncFunctions_FunctionContext) Visit(t *NodeTraversal, n *rhino
 							Srcref(superDotProperty)
 					thisAlias.InsertAfter(superDotProperty)
 					c.asyncThisAndArgumentsContext.RecordAsyncThisReplacementWasDone(AstFactory_Type_(thisAlias))
+				} else if grandparent.IsTaggedTemplateLit() &&
+					grandparent.GetFirstChild() == superDotProperty {
+					// $jscomp$super$get$x`template` =>
+					// $jscomp$super$get$x().bind($jscomp$async$this)`template`
+					thisAlias :=
+						r.astFactory.
+							CreateThisAliasReferenceForEs6Class(
+								RewriteAsyncFunctions_ASYNC_THIS+c.asyncThisAndArgumentsContext.uniqueId,
+								NodeUtil_GetEnclosingClass(
+									c.asyncThisAndArgumentsContext.GetContextRootNode())).
+							Srcref(superDotProperty)
+					c.asyncThisAndArgumentsContext.RecordAsyncThisReplacementWasDone(AstFactory_Type_(thisAlias))
+					getPropReplacement =
+						r.astFactory.CreateCallWithUnknownType(
+							r.astFactory.CreateGetPropWithUnknownType(getPropReplacement, "bind"),
+							thisAlias)
+					grandparent.PutBooleanProp(rhino.Node_FREE_CALL, true)
 				}
 				getPropReplacement.SrcrefTree(superDotProperty)
 				superDotProperty.ReplaceWith(getPropReplacement)
@@ -599,6 +640,14 @@ func (r *RewriteAsyncFunctions) ConvertAsyncFunction(t *NodeTraversal, functionC
 		newBody.AddChildToBack(
 			r.astFactory.CreateArgumentsAliasDeclaration(
 				RewriteAsyncFunctions_ASYNC_ARGUMENTS + functionContext.asyncThisAndArgumentsContext.uniqueId))
+		NodeUtil_AddFeatureToScript(t.GetCurrentScript(), parser.FeatureSet_Feature_CONST_DECLARATIONS, r.compiler)
+	}
+	if functionContext.mustAddAsyncNewTargetVariable {
+		// const newTarget$ = new.target;
+		newBody.AddChildToBack(
+			r.astFactory.CreateSingleConstNameDeclaration(
+				RewriteAsyncFunctions_ASYNC_NEW_TARGET+functionContext.asyncThisAndArgumentsContext.uniqueId,
+				r.astFactory.CreateNewTarget(functionContext.typeOfNewTarget)))
 		NodeUtil_AddFeatureToScript(t.GetCurrentScript(), parser.FeatureSet_Feature_CONST_DECLARATIONS, r.compiler)
 	}
 	for superPropertyWrapperInfo := range functionContext.superPropertyWrappers.AsCollection() {

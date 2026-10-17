@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Es6ConvertSuper.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/Es6ConvertSuper.java @ closure-compiler v20261015
 
 /*
  * Copyright 2014 The Closure Compiler Authors.
@@ -87,6 +87,12 @@ func (e *Es6ConvertSuper) VisitSuper(node *rhino.Node, parent *rhino.Node) {
 				return false
 			}
 		})
+
+	if enclosingMemberDef == nil || enclosingMemberDef.GetParent().IsObjectLit() {
+		e.compiler.Report(
+			JSError_MakeWithNode(node, TranspilationUtil_CANNOT_CONVERT, "super is not supported in object literal methods."))
+		return
+	}
 
 	if parent.IsCall() {
 		// super(...)

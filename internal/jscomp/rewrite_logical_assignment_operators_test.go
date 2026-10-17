@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/RewriteLogicalAssignmentOperatorsTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/RewriteLogicalAssignmentOperatorsTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/RewriteLogicalAssignmentOperatorsTest.java)
 
 /*
@@ -241,5 +241,46 @@ let $jscomp$logical$assign$tmpindexm1146332801$1;
    ??
 ($jscomp$logical$assign$tmpm1146332801$0
 [$jscomp$logical$assign$tmpindexm1146332801$0] = a[x]));
+`))
+}
+
+// Java: RewriteLogicalAssignmentOperatorsTest.testArrowFunction()
+func (c *RewriteLogicalAssignmentOperatorsTest) TestArrowFunction() {
+	c.Test(
+		c.Srcs("const f = (a, b) => a.x ||= b;"),
+		c.Expected(
+			`const f = (a, b) => {
+  let $jscomp$logical$assign$tmpm1146332801$0;
+  return ($jscomp$logical$assign$tmpm1146332801$0 = a).x
+      || ($jscomp$logical$assign$tmpm1146332801$0.x = b);
+};
+`))
+
+	c.Test(
+		c.Srcs("const f = (map, k, v) => (map[k] ??= v);"),
+		c.Expected(
+			`const f = (map, k, v) => {
+  let $jscomp$logical$assign$tmpm1146332801$0;
+  let $jscomp$logical$assign$tmpindexm1146332801$0;
+  return ($jscomp$logical$assign$tmpm1146332801$0 = map)
+      [$jscomp$logical$assign$tmpindexm1146332801$0 = k]
+      ??
+      ($jscomp$logical$assign$tmpm1146332801$0
+      [$jscomp$logical$assign$tmpindexm1146332801$0] = v);
+};
+`))
+
+	c.Test(
+		c.Srcs("const f = (a) => (b) => a[b] &&= 1;"),
+		c.Expected(
+			`const f = (a) => (b) => {
+  let $jscomp$logical$assign$tmpm1146332801$0;
+  let $jscomp$logical$assign$tmpindexm1146332801$0;
+  return ($jscomp$logical$assign$tmpm1146332801$0 = a)
+      [$jscomp$logical$assign$tmpindexm1146332801$0 = b]
+      &&
+      ($jscomp$logical$assign$tmpm1146332801$0
+      [$jscomp$logical$assign$tmpindexm1146332801$0] = 1);
+};
 `))
 }

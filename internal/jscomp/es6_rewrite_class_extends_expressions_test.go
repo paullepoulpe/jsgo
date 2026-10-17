@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Es6RewriteClassExtendsExpressionsTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/Es6RewriteClassExtendsExpressionsTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/Es6RewriteClassExtendsExpressionsTest.java)
 
 /*
@@ -117,7 +117,7 @@ baz(CLASS_DECL$0);
 
 // Java: Es6RewriteClassExtendsExpressionsTest.testClassExtendsClassTranspilation()
 func (c *Es6RewriteClassExtendsExpressionsTest) TestClassExtendsClassTranspilation() {
-	code := `class __PRIVATE_WebChannelConnection extends class __PRIVATE_RestConnection {
+	code := `class __TEST_WebChannelConnection extends class __TEST_RestConnection {
   constructor(e) {
     this.databaseInfo = e, this.databaseId = e.databaseId;
   }
@@ -139,7 +139,7 @@ func (c *Es6RewriteClassExtendsExpressionsTest) TestClassExtendsClassTranspilati
   };
   return CLASS_DECL$1;
 })();
-class __PRIVATE_WebChannelConnection extends CLASS_EXTENDS$0 {
+class __TEST_WebChannelConnection extends CLASS_EXTENDS$0 {
   constructor(e) {
     super(e), this.forceLongPolling = e.forceLongPolling, this.autoDetectLongPolling = e.autoDetectLongPolling, this.useFetchStreams = e.useFetchStreams, this.longPollingOptions = e.longPollingOptions;
     console.log('test');

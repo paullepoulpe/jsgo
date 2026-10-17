@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Es6RewriteGeneratorsTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/Es6RewriteGeneratorsTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/Es6RewriteGeneratorsTest.java)
 
 /*
@@ -1863,11 +1863,13 @@ func (c *Es6RewriteGeneratorsTest) TestBreakInNestedFinally() {
 case 7:
   GEN_CONTEXT$0.enterFinallyBlock(0, 5);
   GEN_CONTEXT$0.jumpThroughFinallyBlocks(0);
+  break;
   GEN_CONTEXT$0.leaveFinallyBlock(5);
   break;
 case 5:
   GEN_CONTEXT$0.enterFinallyBlock();
   GEN_CONTEXT$0.jumpThroughFinallyBlocks(0);
+  break;
   GEN_CONTEXT$0.leaveFinallyBlock(2);
   break;
 case 2:
@@ -1899,6 +1901,7 @@ case 7:
 case 5:
   GEN_CONTEXT$0.enterFinallyBlock();
   GEN_CONTEXT$0.jumpThroughFinallyBlocks(0);
+  break;
   GEN_CONTEXT$0.leaveFinallyBlock(2);
   break;
 case 2:
@@ -1935,6 +1938,7 @@ case 9:
 case 7:
   GEN_CONTEXT$0.enterFinallyBlock(0, 5);
   GEN_CONTEXT$0.jumpThroughFinallyBlocks(0);
+  break;
   GEN_CONTEXT$0.leaveFinallyBlock(5);
   break;
 case 5:
@@ -1977,6 +1981,7 @@ case 5:
 case 8:
   GEN_CONTEXT$0.enterFinallyBlock(0, 0, 1);
   GEN_CONTEXT$0.jumpThroughFinallyBlocks(2);
+  break;
   GEN_CONTEXT$0.leaveFinallyBlock(9, 1);
   break;
 case 9:
@@ -1988,5 +1993,61 @@ case 2:
     break;
   }
   GEN_CONTEXT$0.jumpToEnd();
+`)
+}
+
+// Java: Es6RewriteGeneratorsTest.testBreakInFinallyWithSubsequentStatements()
+func (c *Es6RewriteGeneratorsTest) TestBreakInFinallyWithSubsequentStatements() {
+	c.RewriteGeneratorBodyWithVars(
+		`OUT: for (;;) {
+  try {
+    yield 1;
+  } finally {
+    if (guard) {
+      break OUT;
+    }
+    sink();
+  }
+}
+`,
+		"",
+		`if (GEN_CONTEXT$0.getNextAddressJsc() == 1) {
+  GEN_CONTEXT$0.setFinallyBlock(5);
+  return GEN_CONTEXT$0.yield(1, 5);
+}
+GEN_CONTEXT$0.enterFinallyBlock();
+if (guard) {
+  return GEN_CONTEXT$0.jumpThroughFinallyBlocks(0);
+}
+sink();
+return GEN_CONTEXT$0.leaveFinallyBlock(1);
+`)
+}
+
+// Java: Es6RewriteGeneratorsTest.testContinueInFinallyWithSubsequentStatements()
+func (c *Es6RewriteGeneratorsTest) TestContinueInFinallyWithSubsequentStatements() {
+	c.RewriteGeneratorBodyWithVars(
+		`OUT: for (;;) {
+  try {
+    yield 1;
+  } finally {
+    if (guard) {
+      continue OUT;
+    }
+    sink();
+  }
+}
+`,
+		"",
+		`if (GEN_CONTEXT$0.getNextAddressJsc() == 1) {
+  GEN_CONTEXT$0.setFinallyBlock(5);
+  return GEN_CONTEXT$0.yield(1, 5);
+}
+GEN_CONTEXT$0.enterFinallyBlock();
+if (guard) {
+  return GEN_CONTEXT$0.jumpThroughFinallyBlocks(1);
+}
+sink();
+return GEN_CONTEXT$0.leaveFinallyBlock(1);
 `)
 }
