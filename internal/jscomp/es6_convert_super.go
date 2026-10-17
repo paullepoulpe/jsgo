@@ -126,7 +126,7 @@ func (e *Es6ConvertSuper) VisitSuperCall(node *rhino.Node, parent *rhino.Node, e
 	jutil.CheckStateMsg1(node.IsSuper(), "%s", node)
 
 	clazz := NodeUtil_GetEnclosingClass(node)
-	superName := clazz.GetSecondChild()
+	superName := es6ConvertSuper_secondChildOfClazz(clazz)
 	if !superName.IsQualifiedName() {
 		// This will be reported as an error in Es6ToEs3Converter.
 		return
@@ -161,7 +161,7 @@ func (e *Es6ConvertSuper) VisitSuperPropertyCall(node *rhino.Node, parent *rhino
 	jutil.CheckState(grandparent.IsCall())
 
 	clazz := NodeUtil_GetEnclosingClass(node)
-	superName := clazz.GetSecondChild()
+	superName := es6ConvertSuper_secondChildOfClazz(clazz)
 	if !superName.IsQualifiedName() {
 		// This will be reported as an error in Es6ToEs3Converter.
 		return
@@ -213,7 +213,7 @@ func (e *Es6ConvertSuper) VisitSuperPropertyAccess(node *rhino.Node, parent *rhi
 	}
 
 	clazz := NodeUtil_GetEnclosingClass(node)
-	superName := clazz.GetSecondChild()
+	superName := es6ConvertSuper_secondChildOfClazz(clazz)
 	if !superName.IsQualifiedName() {
 		// This will be reported as an error in Es6ToEs3Converter.
 		return
@@ -273,6 +273,22 @@ func (e *Es6ConvertSuper) VisitSuperPropertyAccess(node *rhino.Node, parent *rhi
 	newProp.SetOriginalName(jutil.StringPtr("super"))
 
 	e.compiler.ReportChangeToEnclosingScope(grandparent)
+}
+
+// es6ConvertSuper_secondChildOfClazz is clazz.getSecondChild(), the
+// superclass of the class that encloses a super.
+//
+// Go-only: language-adapter — the JVM's "helpful" NullPointerException
+// message (jutil.NewHelpfulNullPointerException). A super in an object
+// literal's method has no enclosing class, so clazz is null there and Java
+// dereferences it; the INTERNAL COMPILER ERROR report that follows prints
+// the exception's message, which the JVM derives from the bytecode of this
+// call. A Go nil dereference has none.
+func es6ConvertSuper_secondChildOfClazz(clazz *rhino.Node) *rhino.Node {
+	if clazz == nil {
+		panic(jutil.NewHelpfulNullPointerException(`Cannot invoke "com.google.javascript.rhino.Node.getSecondChild()" because "clazz" is null`))
+	}
+	return clazz.GetSecondChild()
 }
 
 // Java: Es6ConvertSuper.ensureNoCollapseOnStaticMemberDef(Node)

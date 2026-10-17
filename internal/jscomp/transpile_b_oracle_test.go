@@ -377,6 +377,9 @@ func transpileBOracleUnescapeName(s string) string {
 // under root) and compares; it returns the number of files compared.
 func transpileBOracleCompare(t *testing.T, path string, root string, onlyNames func(string) bool) int {
 	t.Helper()
+	// The dump replaces the JVM's helpful NullPointerException messages
+	// by "null", as -XX:-ShowCodeDetailsInExceptionMessages would.
+	defer jutil.SetShowCodeDetailsInExceptionMessages(jutil.SetShowCodeDetailsInExceptionMessages(false))
 	names, sections, full := transpileBOracleSplit(t, path)
 	n, failures := 0, 0
 	for _, name := range names {
