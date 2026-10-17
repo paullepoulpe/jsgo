@@ -8,7 +8,6 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
-	"github.com/paullepoulpe/jsgo/internal/parsing"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -98,12 +97,31 @@ func newAstAnalyzerTest_ParseHelper(t *testing.T) *astAnalyzerTest_ParseHelper {
 	}
 }
 
-// parseInternal is ParseHelper.parseInternal: a Compiler with
-// setStrictModeInput(false), ES5_STRICT off and languageIn UNSUPPORTED
-// parses js (see g2ParseTestCode); its type registry is a fresh one.
+// Java: AstAnalyzerTest.ParseHelper.newCompiler()
+func (h *astAnalyzerTest_ParseHelper) newCompiler() *Compiler {
+	options := NewCompilerOptions()
+
+	// To allow octal literals such as 0123 to be parsed.
+	options.SetStrictModeInput(false)
+	options.SetWarningLevel(DiagnosticGroups_ES5_STRICT, CheckLevel_OFF)
+
+	options.SetLanguageIn(CompilerOptions_LanguageMode_UNSUPPORTED)
+
+	compiler := NewCompiler()
+	compiler.InitOptions(options)
+
+	return compiler
+}
+
+// Java: AstAnalyzerTest.ParseHelper.parseInternal(String)
 func (h *astAnalyzerTest_ParseHelper) parseInternal(js string) *rhino.Node {
-	n := g2ParseTestCode(h.t, js, parsing.Config_LanguageMode_UNSUPPORTED, false)
-	h.typeRegistry = rhino.NewJSTypeRegistry(rhinoErrorReporterDiscard{})
+	h.t.Helper()
+	compiler := h.newCompiler()
+	n := compiler.ParseTestCode(js)
+	if errors := compiler.GetErrors(); len(errors) != 0 {
+		h.t.Fatalf("expected to be empty, but was %v", errors)
+	}
+	h.typeRegistry = compiler.GetTypeRegistry()
 	return n
 }
 
@@ -143,14 +161,6 @@ func (h *astAnalyzerTest_ParseHelper) getAstAnalyzer() *AstAnalyzer {
 		h.typeRegistry,
 		h.accessorSummary)
 }
-
-// rhinoErrorReporterDiscard stands in for the Compiler's
-// oldErrorReporter given to its JSTypeRegistry.
-type rhinoErrorReporterDiscard struct{}
-
-func (rhinoErrorReporterDiscard) Warning(message string, sourceName string, line int, lineOffset int) {
-}
-func (rhinoErrorReporterDiscard) Error(message string, sourceName string, line int, lineOffset int) {}
 
 // astAnalyzerTest_findFirst does a preorder DFS, returning the first node
 // found that has the given token (nil for Optional.empty()).

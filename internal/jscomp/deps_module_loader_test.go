@@ -9,9 +9,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// CompilerInput is not ported in this wave: ModuleLoader only reads the
-// inputs' getName(), so a SimpleDependencyInfo with the same name stands in
-// for new CompilerInput(SourceFile.fromCode(name, ""), false).
+// Java: ModuleLoaderTest.inputs(String...)
 func jsaMlInputs(names ...string) []DependencyInfo {
 	builder := []DependencyInfo{}
 	for _, name := range names {
@@ -20,8 +18,10 @@ func jsaMlInputs(names ...string) []DependencyInfo {
 	return builder
 }
 
+// jsaMlInput is one input of ModuleLoaderTest.inputs(String...):
+// new CompilerInput(SourceFile.fromCode(name, ""), false).
 func jsaMlInput(name string) DependencyInfo {
-	return SimpleDependencyInfo_Builder_(name, name).SetName(name).Build()
+	return NewCompilerInputWithIsExtern(SourceFile_FromCode(name, ""), false)
 }
 
 func jsaMlPACKAGE_JSON_MAIN_ENTRIES() *jutil.LinkedHashMap[string, string] {
