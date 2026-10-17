@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/parsing/Config.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/parsing/Config.java @ closure-compiler v20261015
 // (with its generated subclass AutoValue_Config.java folded in)
 
 /*

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/J2clUndefinedChecksRewriterPass.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/J2clUndefinedChecksRewriterPass.java @ closure-compiler v20261015
 
 /*
  * Copyright 2025 The Closure Compiler Authors.

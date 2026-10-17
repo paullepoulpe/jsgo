@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/InlineFunctionsTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/InlineFunctionsTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/InlineFunctionsTest.java)
 
 /*

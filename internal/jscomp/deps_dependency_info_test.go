@@ -1,4 +1,4 @@
-// Port of test/com/google/javascript/jscomp/deps/DependencyInfoTest.java @ closure-compiler v20260415
+// Port of test/com/google/javascript/jscomp/deps/DependencyInfoTest.java @ closure-compiler v20261015
 
 /*
  * Copyright 2016 The Closure Compiler Authors.

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/jstype/RelationshipVisitor.java @ closure-compiler v20260415
+// Port of com/google/javascript/rhino/jstype/RelationshipVisitor.java @ closure-compiler v20261015
 
 /*
  *

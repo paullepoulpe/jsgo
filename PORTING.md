@@ -1,10 +1,10 @@
 # Porting conventions
 
 This is the contract for translating Closure Compiler (Java, pinned at
-**v20261015**, see `tools/oracle/pin.env`) into Go. Every ported file follows it, so that files ported
-independently (by different people or agents, in parallel) fit together
-without negotiation, and so that a Java reader can find any Go symbol
-mechanically.
+**v20261015**, see `tools/oracle/pin.env`) into Go. Every ported file
+follows it, so that files ported independently (by different people or
+agents, in parallel) fit together without negotiation, and so that a Java
+reader can find any Go symbol mechanically.
 
 The one-line summary: **translate whole Java files, top to bottom,
 mechanically; adapt only where Go cannot express the Java; never add

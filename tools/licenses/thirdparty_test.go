@@ -28,8 +28,8 @@ func TestCheckNotices(t *testing.T) {
 		name, src string
 		problem   string // substring of the only problem; "" for none
 	}{
-		{"closure port", "// Port of com/google/javascript/jscomp/Foo.java @ closure-compiler v20260415\n\npackage x\n", ""},
-		{"closure test port", "// Port of test/com/google/debugging/sourcemap/FooTest.java @ closure-compiler v20260415\n\npackage x\n", ""},
+		{"closure port", "// Port of com/google/javascript/jscomp/Foo.java @ closure-compiler v20261015\n\npackage x\n", ""},
+		{"closure test port", "// Port of test/com/google/debugging/sourcemap/FooTest.java @ closure-compiler v20261015\n\npackage x\n", ""},
 		{"no marker", "package x\n\n// Go-only: language-adapter — Guava's Ascii.\n", ""},
 		{"guava port", "// Port of com/google/common/base/Ascii.java (Guava 33.4.6-jre)\n\n" + guavaHeader + "\npackage x\n", ""},
 		{"guava port, no notice", "// Port of com/google/common/base/Ascii.java (Guava 33.4.6-jre)\n\npackage x\n", "lacks Guava's copyright line and Guava's licence"},
@@ -42,7 +42,7 @@ func TestCheckNotices(t *testing.T) {
 		{"args4j port", "// Port of org/kohsuke/args4j/CmdLineParser.java @ args4j 2.33\n\n" + mitHeader + "\npackage x\n", ""},
 		{"args4j port, no notice", "// Port of org/kohsuke/args4j/CmdLineParser.java @ args4j 2.33\n\npackage x\n", "lacks args4j's"},
 		{"unknown upstream", "// Port of java/util/HashMap.java\n\npackage x\n", "not a Closure source nor one of a known third-party project"},
-		{"free-form marker in a body", "// Port of com/google/javascript/jscomp/Foo.java @ closure-compiler v20260415\n\npackage x\n\n// Port of TypeInference.java#traverseAdd.\nfunc f() {}\n", ""},
+		{"free-form marker in a body", "// Port of com/google/javascript/jscomp/Foo.java @ closure-compiler v20261015\n\npackage x\n\n// Port of TypeInference.java#traverseAdd.\nfunc f() {}\n", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			problems, _ := checkNotices("x.go", []byte(tc.src))
