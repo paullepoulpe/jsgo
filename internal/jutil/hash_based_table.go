@@ -82,3 +82,48 @@ func (t *HashBasedTable[R, C, V]) RowMap() *LinkedHashMap[R, *LinkedHashMap[C, V
 
 // String is StandardTable.toString(): rowMap().toString().
 func (t *HashBasedTable[R, C, V]) String() string { return t.backingMap.String() }
+
+// Remove is Table.remove(Object, Object): it removes the cell and returns
+// its value (zero and false if there was none). A row left empty is
+// removed, so it no longer appears in RowKeySet or RowMap.
+func (t *HashBasedTable[R, C, V]) Remove(rowKey R, columnKey C) (V, bool) {
+	row, ok := t.backingMap.Lookup(rowKey)
+	if !ok {
+		var zero V
+		return zero, false
+	}
+	old, had := row.Lookup(columnKey)
+	if !had {
+		var zero V
+		return zero, false
+	}
+	row.Remove(columnKey)
+	t.size--
+	if row.IsEmpty() {
+		t.backingMap.Remove(rowKey)
+	}
+	return old, true
+}
+
+// Values is Table.values(): every cell's value, row by row in row insertion
+// order and, within a row, in column insertion order.
+func (t *HashBasedTable[R, C, V]) Values() iter.Seq[V] {
+	return func(yield func(V) bool) {
+		for _, row := range t.backingMap.All() {
+			for _, v := range row.All() {
+				if !yield(v) {
+					return
+				}
+			}
+		}
+	}
+}
+
+// ValueSlice is a copy of Values() as a slice (ImmutableList.copyOf(values())).
+func (t *HashBasedTable[R, C, V]) ValueSlice() []V {
+	out := make([]V, 0, t.size)
+	for v := range t.Values() {
+		out = append(out, v)
+	}
+	return out
+}

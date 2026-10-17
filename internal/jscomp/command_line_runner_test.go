@@ -2932,7 +2932,7 @@ $jscomp.TYPED_ARRAY_CLASSES = function() {
     'Int8', 'Uint8', 'Uint8Clamped', 'Int16', 'Uint16', 'Int32', 'Uint32',
     'Float32', 'Float64'
   ];
-  if $jscomp.global.BigInt64Array {
+  if ($jscomp.global.BigInt64Array) {
     classes.push('BigInt64');
     classes.push('BigUint64')
   }
@@ -2996,7 +2996,7 @@ $jscomp.polyfillIsolated = function(target, polyfill, fromLang, toLang) {
         $jscomp.polyfills, property,
         {configurable: true, writable: true, value: impl});
   else if (impl !== nativeImpl) {
-    if $jscomp.propertyToPolyfillSymbol[property] === undefined {
+    if ($jscomp.propertyToPolyfillSymbol[property] === undefined) {
       var BIN_ID = Math.random() * 1E9 >>> 0;
       $jscomp.propertyToPolyfillSymbol[property] = $jscomp.IS_SYMBOL_NATIVE ?
           $jscomp.global['Symbol'](property) :

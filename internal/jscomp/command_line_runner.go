@@ -257,23 +257,23 @@ var commandLineRunner_Flags_mixedJsSources []*AbstractCommandLineRunner_FlagEntr
 // Java: CommandLineRunner.Flags()
 func newCommandLineRunner_Flags() *commandLineRunner_Flags {
 	f := &commandLineRunner_Flags{
-		browserFeaturesetYear:              0,
-		displayHelp:                        false,
-		printTree:                          false,
-		printTreeJson:                      false,
-		printAst:                           false,
-		emitUseStrict:                      false,
-		strictModeInput:                    true,
-		jscompDevMode:                      CompilerOptions_DevMode_OFF,
-		loggingLevel:                       jutil.Level_WARNING.GetName(),
-		externs:                            []string{},
-		js:                                 []string{},
-		unusedJsZip:                        nil,
-		jsOutputFile:                       "",
-		chunk:                              []string{},
-		filenameToSaveTo:                   nil,
-		filenameToRestoreFrom:              nil,
-		segmentOfCompilationToRun:          func() *CompilerOptions_SegmentOfCompilationToRun {
+		browserFeaturesetYear: 0,
+		displayHelp:           false,
+		printTree:             false,
+		printTreeJson:         false,
+		printAst:              false,
+		emitUseStrict:         false,
+		strictModeInput:       true,
+		jscompDevMode:         CompilerOptions_DevMode_OFF,
+		loggingLevel:          jutil.Level_WARNING.GetName(),
+		externs:               []string{},
+		js:                    []string{},
+		unusedJsZip:           nil,
+		jsOutputFile:          "",
+		chunk:                 []string{},
+		filenameToSaveTo:      nil,
+		filenameToRestoreFrom: nil,
+		segmentOfCompilationToRun: func() *CompilerOptions_SegmentOfCompilationToRun {
 			v := CompilerOptions_SegmentOfCompilationToRun_ENTIRE_COMPILATION
 			return &v
 		}(),

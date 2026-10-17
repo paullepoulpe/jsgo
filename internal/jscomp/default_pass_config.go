@@ -544,11 +544,11 @@ func (c *DefaultPassConfig) initFields() {
 							NewReplaceCssNames(
 								compiler,
 								options.GetCssRenamingMap(),
-								func(cssName string) {
+								ReplaceCssNames_CssNameCollectorFunc(func(cssName string) {
 									if cssNames != nil {
 										cssNames.Add(cssName)
 									}
-								},
+								}),
 								options.GetCssRenamingSkiplist())
 						pass.Process(externs, jsRoot)
 
@@ -1588,7 +1588,7 @@ func (c *DefaultPassConfig) initFields() {
 			SetInternalFactory(
 				func(compiler AbstractCompiler) CompilerPass {
 					// TODO(johnlenz): make global instrumentation an option
-					return NewCoverageInstrumentationPass(
+					return NewCoverageInstrumentationPassWithInstrumentOption(
 						compiler,
 						CoverageInstrumentationPass_CoverageReach_CONDITIONAL,
 						options.GetInstrumentForCoverageOption(),

@@ -117,7 +117,8 @@ Test data
   Some test inputs are files of third-party npm packages, copied from the
   registry tarball of the version their directory names:
   internal/jscomp/testdata/<dir>/src/<package>@<version>/package/, where
-  <dir> is typecheck (T), es_modules (E) or closure_modules (C). Each
+  <dir> is typecheck (T), es_modules (E), closure_modules (C),
+  serialization (S), renaming (R) or replace_messages (M). Each
   <package>@<version>/ directory also holds the package's licence file,
   from the same tarball, under the package's own file name; "go run
   ./tools/licenses -check" requires one. typecheck/expected/ and the
@@ -126,20 +127,20 @@ Test data
 
     Package@version                    Licence (file)              Dirs
     @angular/core@19.2.14              MIT (LICENSE)               T
-    core-js@3.50.0                     MIT (LICENSE)               T E
+    core-js@3.50.0                     MIT (LICENSE)               T E S
     google-closure-library@20230802.0.0
-                                       Apache-2.0 (LICENSE)        T E C
+                                       Apache-2.0 (LICENSE)        T E C S R M
     handlebars@4.7.10                  MIT (LICENSE)               T E
     jquery@3.7.1                       MIT (LICENSE.txt)           T E
-    lodash@4.17.21                     MIT (LICENSE)               T E
-    moment@2.31.0                      MIT (LICENSE)               T E
-    preact@10.25.4                     MIT (LICENSE)               T E C
+    lodash@4.17.21                     MIT (LICENSE)               T E S
+    moment@2.31.0                      MIT (LICENSE)               T E S
+    preact@10.25.4                     MIT (LICENSE)               T E C S R
     react-dom@18.3.1                   MIT (LICENSE)               T
-    rxjs@7.8.2                         Apache-2.0 (LICENSE.txt)    T E
+    rxjs@7.8.2                         Apache-2.0 (LICENSE.txt)    T E S R
     terser@5.51.2                      BSD-2-Clause (LICENSE)      T
     test262-parser-tests@0.0.5         per test file: Apache-2.0,  T E
                                        MIT or BSD (licenses.md)
-    three@0.186.1                      MIT (LICENSE)               T E
+    three@0.186.1                      MIT (LICENSE)               T E S R
     underscore@1.13.8                  MIT (LICENSE)               T E
     vue@2.7.16                         MIT (LICENSE)               T
     zone.js@0.16.3                     MIT (LICENSE)               T

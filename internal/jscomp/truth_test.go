@@ -135,7 +135,10 @@ func truthIsSet(v any) bool {
 }
 
 // truthNormalize maps Go stand-ins to the Java values they represent: a
-// *string to the String (or null), an iter.Seq to its elements.
+// *string to the String (or null), a pointer to another basic value (a
+// nullable boxed primitive or enum, e.g. Symbol.getVisibility()'s
+// *JSDocInfo_Visibility) to that value (or null), an iter.Seq to its
+// elements.
 func truthNormalize(v any) any {
 	if p, ok := v.(*string); ok {
 		if p == nil {
@@ -143,7 +146,45 @@ func truthNormalize(v any) any {
 		}
 		return *p
 	}
+	if rv := reflect.ValueOf(v); rv.IsValid() && rv.Kind() == reflect.Pointer {
+		switch rv.Type().Elem().Kind() {
+		case reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+			reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Float32, reflect.Float64:
+			if rv.IsNil() {
+				return nil
+			}
+			return rv.Elem().Interface()
+		}
+	}
+	if l, ok := truthSeqElements(v); ok {
+		return l
+	}
 	return v
+}
+
+// truthSeqElements collects, in order, the elements of a non-nil
+// iter.Seq[T] (func(yield func(T) bool)), the Go form of a Java Iterable
+// (PORTING.md §3).
+func truthSeqElements(v any) ([]any, bool) {
+	rv := reflect.ValueOf(v)
+	if !rv.IsValid() || rv.Kind() != reflect.Func || rv.IsNil() {
+		return nil, false
+	}
+	ft := rv.Type()
+	if ft.NumIn() != 1 || ft.NumOut() != 0 || ft.IsVariadic() {
+		return nil, false
+	}
+	yt := ft.In(0)
+	if yt.Kind() != reflect.Func || yt.NumIn() != 1 || yt.NumOut() != 1 || yt.Out(0).Kind() != reflect.Bool {
+		return nil, false
+	}
+	out := []any{}
+	yield := reflect.MakeFunc(yt, func(args []reflect.Value) []reflect.Value {
+		out = append(out, args[0].Interface())
+		return []reflect.Value{reflect.ValueOf(true)}
+	})
+	rv.Call([]reflect.Value{yield})
+	return out, true
 }
 
 // truthAsInt64 unboxes a Java integral value (Integer, Long, Short, Byte,

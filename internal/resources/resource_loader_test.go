@@ -2,6 +2,7 @@ package resources
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io/fs"
 	"strconv"
@@ -50,9 +51,10 @@ func TestResourceLoaderMatchesJava(t *testing.T) {
 	}
 }
 
-// The embedded resources must be valid UTF-8: on such input Java's decoding
-// (InputStreamReader with UTF_8) is the identity, which is what
-// resourceLoader_charStreamsToString relies on.
+// The embedded text resources must be valid UTF-8: on such input Java's
+// decoding (InputStreamReader with UTF_8) is the identity, which is what
+// resourceLoader_charStreamsToString relies on. (externs.zip and
+// runtime_libs.typedast are binary resources, read as bytes only.)
 func TestEmbeddedResourcesAreValidUTF8(t *testing.T) {
 	n := 0
 	err := fs.WalkDir(resourceLoader_classpath, ".", func(path string, d fs.DirEntry, err error) error {
@@ -64,7 +66,7 @@ func TestEmbeddedResourcesAreValidUTF8(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if path == "externs.zip" {
+		if path == "externs.zip" || path == "runtime_libs.typedast" {
 			return nil // a binary resource
 		}
 		if !utf8.Valid(data) {
@@ -76,9 +78,9 @@ func TestEmbeddedResourcesAreValidUTF8(t *testing.T) {
 		t.Fatal(err)
 	}
 	// unzip -Z1 closure-compiler.jar 'com/google/javascript/jscomp/js/*' minus directories and .class files,
-	// plus externs.zip.
-	if n != 158 {
-		t.Errorf("%d embedded resources, want 158", n)
+	// plus externs.zip and runtime_libs.typedast.
+	if n != 159 {
+		t.Errorf("%d embedded resources, want 159", n)
 	}
 }
 
@@ -101,4 +103,18 @@ func TestLoadPropertiesMapMatchesJava(t *testing.T) {
 		return
 	}
 	t.Fatal("polyfills.txt not in the oracle")
+}
+
+// runtime_libs.typedast is the pinned jar's entry, byte for byte
+// (unzip -p closure-compiler.jar runtime_libs.typedast | sha256sum).
+func TestEmbeddedRuntimeLibsTypedAst(t *testing.T) {
+	data := ResourceLoader_GetResourceAsStream("com.google.javascript.jscomp.Compiler", "/runtime_libs.typedast")
+	if data == nil {
+		t.Fatal("/runtime_libs.typedast is not embedded")
+	}
+	sum := sha256.Sum256(data)
+	if got := hex.EncodeToString(sum[:]); len(data) != 3072276 ||
+		got != "0c4896650c3160837b859752409262111fba9720b7e23d8025822e51545a6f71" {
+		t.Errorf("runtime_libs.typedast: %d bytes, sha256 %s", len(data), got)
+	}
 }

@@ -143,7 +143,7 @@ func (l *Linter) LintWithCompiler(path *jutil.Path, compiler *Compiler) {
 //
 // Java: Linter.fixRepeatedly(String)
 func (l *Linter) FixRepeatedly(filename string) {
-	l.FixRepeatedlyWithUnfixableErrors(filename, jutil.NewLinkedHashSet[*DiagnosticType]())
+	l.FixRepeatedlyWithUnfixableErrors(filename, jutil.NewObjectLinkedHashSet[*DiagnosticType]())
 }
 
 // FixRepeatedlyWithUnfixableErrors keeps applying fixes to the given file
@@ -151,7 +151,7 @@ func (l *Linter) FixRepeatedly(filename string) {
 // MAX_FIXES times. It throws IOException.
 //
 // Java: Linter.fixRepeatedly(String, ImmutableSet<DiagnosticType>)
-func (l *Linter) FixRepeatedlyWithUnfixableErrors(filename string, unfixableErrors *jutil.LinkedHashSet[*DiagnosticType]) {
+func (l *Linter) FixRepeatedlyWithUnfixableErrors(filename string, unfixableErrors *jutil.ObjectLinkedHashSet[*DiagnosticType]) {
 	for i := 0; i < Linter_MAX_FIXES; i++ {
 		if !l.fix(filename, unfixableErrors) {
 			break
@@ -162,7 +162,7 @@ func (l *Linter) FixRepeatedlyWithUnfixableErrors(filename string, unfixableErro
 // fix returns whether any fixes were applied. It throws IOException.
 //
 // Java: Linter.fix(String, ImmutableSet<DiagnosticType>)
-func (l *Linter) fix(filename string, unfixableErrors *jutil.LinkedHashSet[*DiagnosticType]) bool {
+func (l *Linter) fix(filename string, unfixableErrors *jutil.ObjectLinkedHashSet[*DiagnosticType]) bool {
 	compiler := NewCompilerWithOutStream(jutil.System_Out())
 	errorManager := NewFixingErrorManagerWithUnfixableErrors(unfixableErrors)
 	compiler.SetErrorManager(errorManager)
