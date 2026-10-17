@@ -470,13 +470,22 @@ public final class CoreG3Dump {
     op("setDynamicImportAlias", new String[] {"null", "imp"}, (o, a) -> o.setDynamicImportAlias(nullable(a)));
     boolOp("setAllowDynamicImport", CompilerOptions::setAllowDynamicImport);
     op(
-        "setExperimentalForceTranspiles",
-        new String[] {"", "PERFORMANT_WITH_ASYNC_STACKS", "PERFORMANT_WITH_ASYNC_STACKS,PERFORMANT_WITH_ASYNC_STACKS"},
+        "setExperimentalOutputFeatureSet",
+        new String[] {
+          "null", "ES5_WITH_SOME_PERFORMANT_ES2015_AND_ASYNC_FUNCTIONS", "BROWSER_2019_WITHOUT_CLASSES_AND_SPREAD"
+        },
         (o, a) ->
-            o.setExperimentalForceTranspiles(
-                list(a).stream()
-                    .map(CompilerOptions.ExperimentalForceTranspile::valueOf)
-                    .toArray(CompilerOptions.ExperimentalForceTranspile[]::new)));
+            o.setExperimentalOutputFeatureSet(
+                a.equals("null") ? null : CompilerOptions.ExperimentalOutputFeatureSet.valueOf(a)));
+    boolOp("setTranspilePublicClassFields", CompilerOptions::setTranspilePublicClassFields);
+    boolOp("setOptimizeLetAndConst", CompilerOptions::setOptimizeLetAndConst);
+    boolOp("setAssumeGlobalScopeIsIsolated", CompilerOptions::setAssumeGlobalScopeIsIsolated);
+    op(
+        "setOptimizeLocalAccessForGlobalSymbolNamespace",
+        names(CompilerOptions.OptimizeLocalAccess.class),
+        (o, a) ->
+            o.setOptimizeLocalAccessForGlobalSymbolNamespace(
+                CompilerOptions.OptimizeLocalAccess.valueOf(a)));
     op("setCssRenamingSkiplist", new String[] {"", "x"}, (o, a) -> o.setCssRenamingSkiplist(set(a)));
     op(
         "setInjectPolyfillsNewerThan",
@@ -561,7 +570,7 @@ public final class CoreG3Dump {
       line("Reach " + r + " " + r.isOn() + " " + r.includesGlobals());
     }
     for (CompilerOptions.TracerMode r : CompilerOptions.TracerMode.values()) {
-      line("TracerMode " + r + " " + r.isOn());
+      line("TracerMode " + r + " " + r.isOn() + " " + r.doPruningAnalysis());
     }
     for (CompilerOptions.TweakProcessing r : CompilerOptions.TweakProcessing.values()) {
       line("TweakProcessing " + r + " " + r.isOn() + " " + r.shouldStrip());
@@ -1131,7 +1140,7 @@ public final class CoreG3Dump {
                 };
           }
           List<String> res = new ArrayList<>();
-          for (CompilerInput in : fresh.manageDependencies(compiler, opts)) {
+          for (CompilerInput in : fresh.manageDependencies(compiler, opts).orderedInputs()) {
             res.add(in.getName());
           }
           line("managed " + m + " " + res);

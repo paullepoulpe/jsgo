@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/JSTypeExpression.java @ closure-compiler v20260415
+// Port of com/google/javascript/rhino/JSTypeExpression.java @ closure-compiler v20261015
 
 /*
  *
@@ -171,6 +171,20 @@ func JSTypeExpression_MakeOptionalArg(expr *JSTypeExpression) *JSTypeExpression 
 		return expr
 	} else {
 		equals := NewNodeWithChild(Token_EQUALS, expr.root)
+		equals.ClonePropsFrom(expr.root)
+		return NewJSTypeExpression(equals, expr.sourceName)
+	}
+}
+
+// JSTypeExpression_MakeVarArgs makes the given type expression into an
+// optional type expression, if possible.
+//
+// Java: JSTypeExpression.makeVarArgs(JSTypeExpression)
+func JSTypeExpression_MakeVarArgs(expr *JSTypeExpression) *JSTypeExpression {
+	if expr.IsOptionalArg() || expr.IsVarArgs() {
+		return expr
+	} else {
+		equals := NewNodeWithChild(Token_ITER_REST, expr.root)
 		equals.ClonePropsFrom(expr.root)
 		return NewJSTypeExpression(equals, expr.sourceName)
 	}

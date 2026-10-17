@@ -71,14 +71,14 @@ $jscomp.polyfill('Map',
     }
     // Some implementations don't support constructor arguments.
     try {
-      NativeMap = /** @type {function(new: Map, !Iterator=)} */ (NativeMap);
+      NativeMap = /** @type {function(new: Map, !IteratorLike=)} */ (NativeMap);
       var key = Object.seal({x: 4});
       var map = new NativeMap($jscomp.makeIterator([[key, 's']]));
       if (map.get(key) != 's' || map.size != 1 || map.get({x: 4}) ||
           map.set({x: 4}, 't') != map || map.size != 2) {
         return false;
       }
-      var /** !Iterator<!Array> */ iter = map.entries();
+      var /** !IteratorLike<!Array> */ iter = map.entries();
       var item = iter.next();
       if (item.done || item.value[0] != key || item.value[1] != 's') {
         return false;
@@ -220,28 +220,31 @@ $jscomp.polyfill('Map',
 
   /** @override */
   PolyfillMap.prototype.entries = function() {
-    return makeIterator(this, /** @return {!Array<(KEY|VALUE)>} */ function(
-        /** !$jscomp.MapEntry<KEY, VALUE> */ entry) {
-      return ([entry.key, entry.value]);
-    });
+    return /** @type {!MapIterator<!Array<KEY|VALUE>>} */ (
+        makeIterator(this, /** @return {!Array<(KEY|VALUE)>} */ function(
+            /** !$jscomp.MapEntry<KEY, VALUE> */ entry) {
+          return ([entry.key, entry.value]);
+        }));
   };
 
 
   /** @override */
   PolyfillMap.prototype.keys = function() {
-    return makeIterator(this, /** @return {KEY} */ function(
-        /** !$jscomp.MapEntry<KEY, VALUE> */ entry) {
-      return entry.key;
-    });
+    return /** @type {!MapIterator<KEY>} */ (
+        makeIterator(this, /** @return {KEY} */ function(
+            /** !$jscomp.MapEntry<KEY, VALUE> */ entry) {
+          return entry.key;
+        }));
   };
 
 
   /** @override */
   PolyfillMap.prototype.values = function() {
-    return makeIterator(this, /** @return {VALUE} */ function(
-        /** !$jscomp.MapEntry<KEY, VALUE> */ entry) {
-      return entry.value;
-    });
+    return /** @type {!MapIterator<VALUE>} */ (
+        makeIterator(this, /** @return {VALUE} */ function(
+            /** !$jscomp.MapEntry<KEY, VALUE> */ entry) {
+          return entry.value;
+        }));
   };
 
 

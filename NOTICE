@@ -1,6 +1,6 @@
 github.com/paullepoulpe/jsgo
 
-This repository is a Go translation of Google Closure Compiler v20260415
+This repository is a Go translation of Google Closure Compiler v20261015
 (https://github.com/google/closure-compiler) and of the parts of Closure's
 Java dependencies that the compiler uses. Each translated file is covered by
 the licence of the work it translates. The full licence texts are in
@@ -18,7 +18,7 @@ copyright and licence notice of that source after it.
 the third-party projects below.
 
 
-Closure Compiler v20260415 -- Apache License 2.0 (LICENSES/Apache-2.0.txt)
+Closure Compiler v20261015 -- Apache License 2.0 (LICENSES/Apache-2.0.txt)
   Copyright The Closure Compiler Authors.
   Translated from it: the files under internal/ whose first line names a
   Closure source ("// Port of com/google/javascript/...",
@@ -30,7 +30,7 @@ Closure Compiler v20260415 -- Apache License 2.0 (LICENSES/Apache-2.0.txt)
   internal/resources/com/google/javascript/jscomp/js/, and test inputs
   taken from Closure's tests (testdata/ and the testdata/ directories
   under internal/).
-  Closure Compiler v20260415 has no NOTICE file.
+  Closure Compiler v20261015 has no NOTICE file.
 
 
 Rhino-derived files -- Mozilla Public License 1.1 only (LICENSES/MPL-1.1.txt)
@@ -42,7 +42,8 @@ Rhino-derived files -- Mozilla Public License 1.1 only (LICENSES/MPL-1.1.txt)
   JSDocInfo, the jstype package, DToA and their tests) under a dual
   licence. This repository uses them under the MPL 1.1 only.
   Modifications: these files were translated from the Java sources of
-  Closure Compiler v20260415 into Go, starting in 2026. The git history
+  Closure Compiler v20260415 into Go, starting in 2026, then upgraded to
+  those of v20261015. The git history
   records each change and its date.
   Files: those whose header carries the MPL 1.1 licence block
   (git grep -l "Mozilla Public License"). They are most files in

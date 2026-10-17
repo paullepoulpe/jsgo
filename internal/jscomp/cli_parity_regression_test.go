@@ -130,8 +130,9 @@ func TestCliParity_MultistageStateInFile(t *testing.T) {
 }
 
 // A compiler state file that is not one (here, an empty gzip stream) fails
-// to restore with an EOFException, as Java's ObjectInputStream does on a
-// truncated stream.
+// to restore with a NullPointerException, as Java's does since v20261015:
+// JSCompilerStateProto.parseDelimitedFrom returns null at the end of the
+// stream, and deserializeCompilerState dereferences it.
 func TestCompilerRestoreState_Truncated(t *testing.T) {
 	var buf bytes.Buffer
 	gz := gzip.NewWriter(&buf)
@@ -141,8 +142,8 @@ func TestCompilerRestoreState_Truncated(t *testing.T) {
 	compiler.Init(nil, []*SourceFile{SourceFile_FromCode("in.js", "var x;")}, options)
 	var caught jutil.Throwable
 	jutil.Try(func() { compiler.RestoreState(&buf) }, func(e jutil.IRuntimeException) { caught = e })
-	if caught == nil || !strings.Contains(jutil.ToJavaString(caught), "java.io.EOFException") {
-		t.Fatalf("RestoreState of an empty stream: got %v, want an EOFException", caught)
+	if caught == nil || !strings.Contains(jutil.ToJavaString(caught), "java.lang.NullPointerException") {
+		t.Fatalf("RestoreState of an empty stream: got %v, want a NullPointerException", caught)
 	}
 }
 

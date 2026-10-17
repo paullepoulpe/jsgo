@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/IRTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/rhino/IRTest.java @ closure-compiler v20261015
 
 /*
  *
@@ -50,6 +50,10 @@ func testIR(t *testing.T, node *Node, expectedStructure string) {
 
 func TestIR_Empty(t *testing.T) {
 	testIR(t, IR_Empty(), "EMPTY\n")
+}
+
+func TestIR_NewTarget(t *testing.T) {
+	testIR(t, IR_NewTarget(), "NEW_TARGET\n")
 }
 
 func TestIR_Function(t *testing.T) {

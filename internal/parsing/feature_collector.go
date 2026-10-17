@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/parsing/FeatureCollector.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/parsing/FeatureCollector.java @ closure-compiler v20261015
 
 /*
  * Copyright 2025 The Closure Compiler Authors.
@@ -117,12 +117,18 @@ func (c *FeatureCollector) RecordScriptFeatures(contextStack *jutil.ArrayList[Fe
 		if parentContext == FeatureCollector_FeatureContext_CLASS_MEMBERS {
 			c.AddScriptFeature(parser.FeatureSet_Feature_CLASS_GETTER_SETTER)
 		}
+		if node.IsPrivateIdentifier() {
+			c.AddScriptFeature(parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
+		}
 	case rhino.Token_REGEXP:
 		c.AddScriptFeature(parser.FeatureSet_Feature_REGEXP_SYNTAX)
 	case rhino.Token_SETTER_DEF:
 		c.AddScriptFeature(parser.FeatureSet_Feature_SETTER)
 		if parentContext == FeatureCollector_FeatureContext_CLASS_MEMBERS {
 			c.AddScriptFeature(parser.FeatureSet_Feature_CLASS_GETTER_SETTER)
+		}
+		if node.IsPrivateIdentifier() {
+			c.AddScriptFeature(parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
 		}
 	case rhino.Token_BLOCK:
 		if parentContext == FeatureCollector_FeatureContext_CLASS_MEMBERS {
@@ -191,7 +197,20 @@ func (c *FeatureCollector) RecordScriptFeatures(contextStack *jutil.ArrayList[Fe
 		c.AddScriptFeature(parser.FeatureSet_Feature_CLASSES)
 	case rhino.Token_MEMBER_FUNCTION_DEF:
 		c.AddScriptFeature(parser.FeatureSet_Feature_MEMBER_DECLARATIONS)
-	case rhino.Token_MEMBER_FIELD_DEF, rhino.Token_COMPUTED_FIELD_DEF:
+		if node.IsPrivateIdentifier() {
+			c.AddScriptFeature(parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
+		}
+	case rhino.Token_MEMBER_FIELD_DEF:
+		if node.IsPrivateIdentifier() {
+			c.AddScriptFeature(parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
+		} else {
+			c.AddScriptFeature(parser.FeatureSet_Feature_PUBLIC_CLASS_FIELDS)
+		}
+	case rhino.Token_IN:
+		if node.GetFirstChild() != nil && node.GetFirstChild().IsPrivateIdentifier() {
+			c.AddScriptFeature(parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
+		}
+	case rhino.Token_COMPUTED_FIELD_DEF:
 		c.AddScriptFeature(parser.FeatureSet_Feature_PUBLIC_CLASS_FIELDS)
 	case rhino.Token_SUPER:
 		c.AddScriptFeature(parser.FeatureSet_Feature_SUPER)

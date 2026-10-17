@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/parsing/parser/Scanner.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/parsing/parser/Scanner.java @ closure-compiler v20261015
 
 /*
  * Copyright 2011 The Closure Compiler Authors.
@@ -824,7 +824,7 @@ func (s *Scanner) ScanPostZero(beginToken int) Token {
 		s.SkipDecimalDigits()
 		if s.Peek('.') {
 			s.NextChar()
-			s.SkipDecimalDigits()
+			s.SkipDecimalDigitsWithHasLeadingDigit( /* hasLeadingDigit= */ false)
 		}
 		if s.Peek('n') {
 			s.ReportError("SyntaxError: nonzero BigInt can't have leading zero")
@@ -933,7 +933,9 @@ func (s *Scanner) ScanIdentifierOrKeyword(beginToken int, ch uint16) Token {
 	}
 
 	k := Keywords_Get(value)
-	if k != nil {
+	// Keywords containing unicode escape sequences are treated as
+	// IdentifierTokens rather than keyword Tokens (ECMA-262 11.6.2).
+	if k != nil && !containsUnicodeEscape {
 		return s.newToken(k.Type(), s.GetTokenRange(beginToken))
 	}
 
@@ -991,8 +993,19 @@ func Scanner_ProcessUnicodeEscapes(valueString string) *string {
 				hexDigits = value[escapeStart+3 : escapeEnd]
 				escapeEnd++
 			}
+			// Identifiers are carried around the compiler as sequences of char (UTF-16 code
+			// units), so a code point that does not fit in a single char cannot be represented
+			// here. The value used to be cast straight to char, which silently kept only the low
+			// 16 bits: a braced escape for U+10041 was accepted as the identifier "A", and even
+			// code points above the U+10FFFF maximum (e.g. U+110041) slipped through the same
+			// way. Reject anything outside the BMP rather than aliasing it to a different character.
 			// TODO(mattloring): Allow code points >= 0xFFFF (greater than the size of a char).
-			ch := uint16(jutil.IntegerParseInt(jutil.StringFromUTF16(hexDigits), 0x10))
+			codePoint := jutil.IntegerParseInt(jutil.StringFromUTF16(hexDigits), 0x10)
+			if codePoint > 0xFFFF {
+				invalid = true
+				return
+			}
+			ch := uint16(codePoint)
 			if !Identifiers_IsIdentifierPart(ch) {
 				invalid = true
 				return
@@ -1287,7 +1300,7 @@ func (s *Scanner) SkipLineTerminator() {
 func (s *Scanner) ScanFractionalNumericLiteral(beginToken int) LiteralToken {
 	if s.Peek('.') {
 		s.NextChar()
-		s.SkipDecimalDigits()
+		s.SkipDecimalDigitsWithHasLeadingDigit( /* hasLeadingDigit= */ false)
 	}
 	return s.ScanExponentOfNumericLiteral(beginToken)
 }
@@ -1314,15 +1327,23 @@ func (s *Scanner) ScanExponentOfNumericLiteral(beginToken int) LiteralToken {
 
 // Java: Scanner.skipDecimalDigits()
 func (s *Scanner) SkipDecimalDigits() {
+	s.SkipDecimalDigitsWithHasLeadingDigit( /* hasLeadingDigit= */ true)
+}
+
+// Java: Scanner.skipDecimalDigits(boolean)
+func (s *Scanner) SkipDecimalDigitsWithHasLeadingDigit(hasLeadingDigit bool) {
+	hasDigit := hasLeadingDigit
 	ch := s.PeekChar()
 	for Scanner_IsDecimalDigit(ch) || ch == '_' {
 		s.NextChar()
 		if ch == '_' {
-			if Scanner_IsDecimalDigit(s.PeekChar()) {
+			if hasDigit && Scanner_IsDecimalDigit(s.PeekChar()) {
 				s.NextChar()
 			} else {
 				s.ReportError("Trailing numeric separator")
 			}
+		} else {
+			hasDigit = true
 		}
 		ch = s.PeekChar()
 	}

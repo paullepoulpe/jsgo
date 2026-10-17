@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/jstype/UnionTypeTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/rhino/jstype/UnionTypeTest.java @ closure-compiler v20261015
 
 /*
  *
@@ -491,6 +491,57 @@ func TestUnionType_UnionOfResolvedAlternates_isRebuilt_ifAlternatedAddedWhileUnr
 	// Then
 	s.AssertThat(result.GetUnionMembers()).HasSize(1)
 	s.AssertType(result).IsEqualTo(s.NUMBER_TYPE)
+}
+
+func TestUnionType_UnionWithUnresolvedAlternate_isNotRebuilt_ifNoAlternateHasResolved(t *testing.T) {
+	s := newUnionTypeTest(t)
+	closer := s.Registry.GetResolver().OpenForDefinition()
+	defer closer.Close()
+	{
+		numberProxy :=
+			NamedType_Builder_(s.Registry, "NumberProxy").
+				SetResolutionKind(NamedType_ResolutionKind_NONE).
+				SetReferencedType(s.NUMBER_TYPE).
+				Build()
+		s.AssertType(numberProxy).IsUnresolved()
+
+		union := s.Registry.CreateUnionType(s.STRING_TYPE, numberProxy).(*UnionType)
+		s.AssertType(union).IsUnresolved()
+
+		// The first read is allowed to rebuild, but the second cannot: no alternate has resolved in
+		// between, so a rebuild could not reach a different answer. Rebuilding runs subtype checks
+		// that read this same union, so rebuilding on every read is unbounded recursion for types
+		// that participate in a cycle.
+		firstRead := union.GetAlternates()
+		secondRead := union.GetAlternates()
+
+		s.AssertThat(secondRead).IsSameInstanceAs(firstRead)
+	}
+}
+
+func TestUnionType_UnionWithAlternateThatResolvesToUnion_isStillFlattened(t *testing.T) {
+	s := newUnionTypeTest(t)
+	var union *UnionType
+	func() {
+		closer := s.Registry.GetResolver().OpenForDefinition()
+		defer closer.Close()
+		unionProxy :=
+			NamedType_Builder_(s.Registry, "UnionProxy").
+				SetResolutionKind(NamedType_ResolutionKind_NONE).
+				SetReferencedType(s.Registry.CreateUnionType(s.NUMBER_TYPE, s.BOOLEAN_TYPE)).
+				Build()
+
+		union = s.Registry.CreateUnionType(s.STRING_TYPE, unionProxy).(*UnionType)
+
+		// Reading while unresolved must not stop the later flattening. Skipping a rebuild has to be
+		// driven by a baseline that tracks the *current* alternates: a rebuild can replace them, and
+		// flattening an alternate that resolved to a union can even lower the resolved count.
+		firstRead := union.GetAlternates()
+		s.AssertThat(union.GetAlternates()).IsSameInstanceAs(firstRead)
+	}()
+
+	s.AssertType(union).IsResolved()
+	s.AssertThat(union.GetAlternates()).ContainsExactly(s.STRING_TYPE, s.NUMBER_TYPE, s.BOOLEAN_TYPE)
 }
 
 func TestUnionType_ToStringNameConflict(t *testing.T) {

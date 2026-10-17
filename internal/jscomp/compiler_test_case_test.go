@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CompilerTestCase.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/CompilerTestCase.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/CompilerTestCase.java)
 
 /*
@@ -271,10 +271,6 @@ type CompilerTestCaseBase struct {
 	// have it.
 	typeInfoValidationEnabled bool
 
-	// Whether we should verify that for every SCRIPT node, all features
-	// present in its AST are also present in its FeatureSet property.
-	scriptFeatureValidationEnabled bool
-
 	ignoredWarnings *jutil.ObjectLinkedHashSet[*DiagnosticType]
 
 	webpackModulesById *jutil.LinkedHashMap[string, string]
@@ -400,7 +396,6 @@ func (b *CompilerTestCaseBase) SetUp() {
 	b.allowSourcelessWarnings = false
 	b.astValidationEnabled = true
 	b.typeInfoValidationEnabled = false
-	b.scriptFeatureValidationEnabled = true
 	b.checkAccessControls = false
 	b.checkAstChangeMarking = true
 	b.closurePassEnabled = false
@@ -930,24 +925,6 @@ func (b *CompilerTestCaseBase) DisableTypeInfoValidation() {
 	b.typeInfoValidationEnabled = false
 }
 
-// EnableScriptFeatureValidation enables validating script featuresets after
-// each run of the pass.
-//
-// Java: CompilerTestCase.enableScriptFeatureValidation()
-func (b *CompilerTestCaseBase) EnableScriptFeatureValidation() {
-	b.checkSetUpRan()
-	b.scriptFeatureValidationEnabled = true
-}
-
-// DisableScriptFeatureValidation disables validating script featuresets
-// after each run of the pass.
-//
-// Java: CompilerTestCase.disableScriptFeatureValidation()
-func (b *CompilerTestCaseBase) DisableScriptFeatureValidation() {
-	b.checkSetUpRan()
-	b.scriptFeatureValidationEnabled = false
-}
-
 // DisableCompareAsTree disables comparing the expected output as a tree or
 // string. 99% of the time you want to compare as a tree. There are a few
 // special cases where you don't, like if you want to test the code printing
@@ -1344,7 +1321,7 @@ func (b *CompilerTestCaseBase) testInternalWithCompiler(
 	if b.astValidationEnabled {
 		// NOTE: We do not enable type validation here, because type information never exists
 		// immediately after parsing.
-		NewAstValidatorWithValidateScriptFeatures(compiler, b.scriptFeatureValidationEnabled).ValidateRoot(root)
+		NewAstValidatorWithValidateScriptFeatures(compiler, true /* validateScriptFeatures */).ValidateRoot(root)
 	}
 
 	// Save the tree for later comparison.
@@ -1533,7 +1510,7 @@ func (b *CompilerTestCaseBase) testInternalWithCompiler(
 				} else {
 					typeValidationMode = AstValidator_TypeInfoValidation_NONE
 				}
-				NewAstValidatorWithValidateScriptFeatures(compiler, b.scriptFeatureValidationEnabled).
+				NewAstValidatorWithValidateScriptFeatures(compiler, true /* validateScriptFeatures */).
 					SetTypeValidationMode(typeValidationMode).
 					ValidateRoot(root)
 			}

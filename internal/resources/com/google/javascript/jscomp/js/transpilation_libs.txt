@@ -19,6 +19,7 @@ ISOLATE_POLYFILLS,util/defines
 IS_SYMBOL_NATIVE,util/shouldpolyfill
 MapEntry,es6/map
 POLYFILL_PREFIX,util/polyfill
+PrivateMap,es6/privatemap
 TRUST_ES6_POLYFILLS,util/shouldpolyfill
 TYPED_ARRAY_CLASSES,util/polyfill
 USE_PROXY_FOR_ES6_CONFORMANCE_CHECKS,es6/conformance
@@ -28,11 +29,17 @@ arrayIterator,es6/util/arrayiterator
 arrayIteratorImpl,es6/util/arrayiterator
 arrayWith,es6/util/arraywith
 assign,es6/util/assign
+asyncContextEnter,es6/asynccontext/runtime
+asyncContextIdentity,es6/asynccontext/runtime
+asyncContextShouldInstall,es6/asynccontext/variable
+asyncContextStart,es6/asynccontext/runtime
+asyncContextWrap,es6/asynccontext/runtime
 asyncExecutePromiseGenerator,es6/execute_async_generator
 asyncExecutePromiseGeneratorFunction,es6/execute_async_generator
 asyncExecutePromiseGeneratorProgram,es6/execute_async_generator
 atMethod,es6/util/atmethod
 checkEs6ConformanceViaProxy,es6/conformance
+checkIsObject,util/checkisobject
 checkIsSetInstance,es6/set_extensions
 checkIsSetLike,es6/set_extensions
 checkIsValidIterator,es6/set_extensions
@@ -50,6 +57,7 @@ generator,es6/generator_engine
 getConstructImplementation,es6/util/construct
 getCurrentModulePath,es6/modules/runtime
 getGlobal,util/global
+getIteratorPrototype,es6/util/getiteratorprototype
 getRestArguments,es6/util/restarguments
 getSmallerAndLargerSets,es6/set_extensions
 getSuperPropertyDescriptor_,es6_dart_runtime
@@ -57,6 +65,7 @@ global,util/global
 hasModule,es6/modules/runtime
 inherits,es6/util/inherits
 initSymbol,es6/symbol
+iteratorClose,es6/util/iteratorclose
 iteratorFromArray,es6/util/iteratorfromarray
 iteratorPrototype,es6/symbol
 makeAsyncIterator,es6/util/makeasynciterator

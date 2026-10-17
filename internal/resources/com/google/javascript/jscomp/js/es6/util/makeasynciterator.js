@@ -23,7 +23,7 @@
 /**
  * Creates an iterator for the given iterable.
  *
- * @param {string|!AsyncIterable<T>|!Iterable<T>|!Iterator<T>|!Arguments} iterable
+ * @param {string|!AsyncIterable<T>|!Iterable<T>|!IteratorLike<T>|!Arguments} iterable
  * @return {!AsyncIteratorIterable<T>}
  * @template T
  * @suppress {reportUnknownTypes}
@@ -34,13 +34,13 @@ $jscomp.makeAsyncIterator = function(iterable) {
     return asyncIteratorFunction.call(iterable);
   }
   return new $jscomp.AsyncIteratorFromSyncWrapper($jscomp.makeIterator(
-      /** @type {string|!Iterable<T>|!Iterator<T>|!Arguments} */
+      /** @type {string|!Iterable<T>|!IteratorLike<T>|!Arguments} */
       (iterable)));
 };
 
 /**
  *
- * @param {!Iterator<T>} iterator
+ * @param {!IteratorLike<T>} iterator
  * @constructor
  * @implements {AsyncIteratorIterable<T>}
  * @template T
@@ -55,18 +55,30 @@ $jscomp.AsyncIteratorFromSyncWrapper = function(iterator) {
   };
 
   /**
-   * @return {!Iterator<!Promise<!IIterableResult<T>>>}
+   * @return {!IteratorLike<!Promise<!IIterableResult<T>>>}
    */
   this[Symbol.iterator] = function() {
     return iterator;
   };
 
   /**
+   * @param {!IIterableResult<T>} result
+   * @return {!Promise<!IIterableResult<T>>}
+   */
+  function asyncFromSyncIteratorContinuation(result) {
+    return Promise.resolve(result.value).then(function(value) {
+      return {value: value, done: !!result.done};
+    });
+  }
+
+  /**
    * @param {?=} param
    * @return {!Promise<!IIterableResult<T>>}
    */
   this.next = function(param) {
-    return Promise.resolve(iterator.next(param));
+    return new Promise(function(resolve) {
+      resolve(iterator.next(param));
+    }).then(asyncFromSyncIteratorContinuation);
   };
 
   /**
@@ -83,16 +95,18 @@ $jscomp.AsyncIteratorFromSyncWrapper = function(iterator) {
         if (close !== undefined) close.call(iterator);
         reject(new TypeError('no `throw` method'));
       }
-    });
+    }).then(asyncFromSyncIteratorContinuation);
   };
 
   if (iterator['return'] !== undefined) {
     /**
-     * @param {T} param
+     * @param {T=} param
      * @return {!Promise<!IIterableResult<T>>}
      */
     this['return'] = function(param) {
-      return Promise.resolve(iterator['return'](param));
+      return new Promise(function(resolve) {
+        resolve(iterator['return'](param));
+      }).then(asyncFromSyncIteratorContinuation);
     };
   }
 };

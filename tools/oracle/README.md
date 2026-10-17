@@ -1,16 +1,26 @@
 # Oracle tooling
 
-The pinned Java Closure Compiler (v20260415) is the specification. These tools
+The pinned Java Closure Compiler (v20261015) is the specification. These tools
 extract ground truth from it, layer by layer, for any JavaScript input, so the
 Go port can be diffed against Java on arbitrarily large corpora instead of a
 fixed set of hand-picked fixtures.
 
+The release and its jar are named in one place, [`pin.env`](pin.env):
+`CLOSURE_VERSION`, `CLOSURE_JAR` (the jar's file name in `.cache/`, today
+`closure-compiler-v20261015-maven.jar`) and the sha256 digest the jar must
+have.
+`fetch.sh`, `build.sh`, `xtb_oracle.sh`, `tools/clie2e` (`build-java.sh` and
+the `-jar` default) and `tools/bench/bench.py` all read it.
+
 ```sh
-tools/oracle/fetch.sh    # .cache/closure-compiler.jar (sha256-checked) + .cache/closure-src/
+tools/oracle/fetch.sh    # .cache/$CLOSURE_JAR (sha256-checked) + .cache/closure-src/
 tools/oracle/build.sh    # compiles java/*.java into .cache/oracle-build/
 tools/oracle/corpus.sh   # pinned real-world corpus (corpus.txt) into .cache/corpus/
-CP=.cache/closure-compiler.jar:.cache/oracle-build
+source tools/oracle/pin.env && CP=.cache/$CLOSURE_JAR:.cache/oracle-build
 ```
+
+The golden-file comments in the Go tests write the jar as
+`closure-compiler.jar`; read it as `.cache/$CLOSURE_JAR`.
 
 | Tool | Layer | What it emits |
 |---|---|---|
@@ -83,6 +93,35 @@ xargs -a .cache/corpus-files.txt -d '\n' java -Xmx3g -Xss16m -cp $CP AstDump .ca
 
 Note for Go-side dumpers: Java's `PrintStream` encodes a lone surrogate as `?`,
 so WTF-8 strings must be written with lone surrogates replaced by `?`.
+
+## Moving the pin
+
+1. In `pin.env`, set `CLOSURE_VERSION` and `CLOSURE_JAR_SHA256` (the digest
+   of Maven Central's `closure-compiler-<version>.jar`), and either point
+   `CLOSURE_JAR` at that jar already in `.cache/` or name a file that is not
+   there yet, so that `fetch.sh` downloads it. Every tool follows that one
+   line.
+2. Replace `.cache/closure-src` (and `.cache/closure-src.jar`) with the new
+   sources: delete them and run `fetch.sh`. `fetch.sh` and
+   `go run ./tools/licenses` refuse sources of another release (the
+   generated `CommandLineRunnerVersion.java` at the sources' root names it).
+   `tools/licenses` reads them from its `srcDir` constant and caches the
+   test sources of the tag in `.cache/closure-test-src/<tag>/`.
+3. Update the Go copies of the version, which
+   `go test ./tools/oracle/pin` checks against `pin.env`:
+   `CommandLineRunnerVersion_COMPILER_VERSION` (what `--version` prints) and
+   `tag` in `tools/licenses/main.go`.
+4. Rebuild the oracle tools (`build.sh`, `tools/clie2e/build-java.sh`) and
+   regenerate the goldens whose output changes.
+
+The Maven jar shades Guava, Gson, protobuf, args4j and Ant under
+`com.google.javascript.jscomp.jarjar`; the npm build of the same release
+(`google-closure-compiler-java`'s `compiler.jar`) does not. Their Closure
+classes and resources are identical, but the tools that import shaded classes
+(`grep -l jarjar tools/oracle/java/*.java`) compile only against the Maven
+jar, and Java's output names the shaded classes wherever it prints a
+bundled library's class name (the Go port reproduces those names). So the pin
+is always Maven's jar, and `pin.env` accepts only its digest.
 
 ## Excluded corpus files
 

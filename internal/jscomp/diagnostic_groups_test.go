@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/DiagnosticGroupsTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/DiagnosticGroupsTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/DiagnosticGroupsTest.java)
 
 /*
@@ -19,7 +19,12 @@
 
 package jscomp
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
+)
 
 // DiagnosticGroupsTest holds the unit tests of DiagnosticGroups.
 type DiagnosticGroupsTest struct {
@@ -83,4 +88,60 @@ func (c *DiagnosticGroupsTest) TestConformanceErrorsCannotBeDowngraded() {
 			That(group.GetTypes()).
 			DoesNotContain(CheckConformance_CONFORMANCE_ERROR)
 	}
+}
+
+// Java: DiagnosticGroupsTest.testClosureUnawareCodeWarningsGuard()
+func (c *DiagnosticGroupsTest) TestClosureUnawareCodeWarningsGuard() {
+	guard := NewClosureUnawareCodeWarningsGuard()
+	n1 := rhino.Node_NewString("test")
+	src1 := SourceFile_FromCode("foo.js", "")
+	src1.MarkAsClosureUnawareCode()
+	n1.SetStaticSourceFile(src1)
+	n1.SetIsInClosureUnawareSubtree(true)
+	suppressibleError := JSError_MakeWithNode(n1, RhinoErrorReporter_JSDOC_MISSING_TYPE_WARNING, "")
+	AssertThat(guard.Level(suppressibleError)).IsEqualTo(CheckLevel_OFF.Ptr())
+
+	n2 := rhino.Node_NewString("test")
+	nonSuppressibleError :=
+		JSError_MakeWithNode(n2, RhinoErrorReporter_JSDOC_MISSING_TYPE_WARNING, "")
+	AssertThat(guard.Level(nonSuppressibleError)).IsNull()
+
+	n3 := rhino.Node_NewString("test")
+	src3 := SourceFile_FromCode("foo.js", "")
+	src3.MarkAsClosureUnawareCode()
+	n3.SetStaticSourceFile(src3)
+	n3.SetIsInClosureUnawareSubtree(true)
+	otherError := JSError_MakeWithNode(n3, DiagnosticType_Error("FOO", "foo"), "")
+	AssertThat(guard.Level(otherError)).IsNull()
+}
+
+// Java: DiagnosticGroupsTest.testDiagnosticGroupPathSuppressingWarningsGuard()
+func (c *DiagnosticGroupsTest) TestDiagnosticGroupPathSuppressingWarningsGuard() {
+	guard :=
+		NewDiagnosticGroupPathSuppressingWarningsGuard(
+			DiagnosticGroups_LINT_CHECKS, "suppress_me")
+
+	var lintCheck *DiagnosticType
+	for t := range DiagnosticGroups_LINT_CHECKS.GetTypes().All() {
+		lintCheck = t
+		break
+	}
+	errorInPath := JSError_MakeWithSourceLocation(jutil.StringPtr("some/path/suppress_me/file.js"), -1, -1, lintCheck)
+	AssertWithMessage(
+		"DiagnosticGroupPathSuppressingWarningsGuard should suppress in matching path").
+		That(guard.Level(errorInPath)).
+		IsEqualTo(CheckLevel_OFF.Ptr())
+
+	errorInOtherPath := JSError_MakeWithSourceLocation(jutil.StringPtr("some/other/file.js"), -1, -1, lintCheck)
+	AssertWithMessage(
+		"DiagnosticGroupPathSuppressingWarningsGuard should not suppress in other path").
+		That(guard.Level(errorInOtherPath)).
+		IsNull()
+
+	otherErrorInPath :=
+		JSError_MakeWithSourceLocation(jutil.StringPtr("some/path/suppress_me/file.js"), -1, -1, DiagnosticType_Error("FOO", "foo"))
+	AssertWithMessage(
+		"DiagnosticGroupPathSuppressingWarningsGuard should not suppress unrelated errors").
+		That(guard.Level(otherErrorInPath)).
+		IsNull()
 }

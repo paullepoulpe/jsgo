@@ -11,7 +11,8 @@ roll-up is tools/bench/phases.tsv; the warm Java driver is tools/bench/java/CliB
 Every compile runs in its own directory holding symlinks to the inputs (inputs/, corpus/,
 app/, node_modules/), so both compilers see identical relative paths, and outputs land in
 that directory. For each task the runner records:
-  - Java cold: `java -jar closure-compiler.jar <args>`, N runs;
+  - Java cold: `java -jar closure-compiler.jar <args>`, N runs (the jar is the cache's
+    CLOSURE_JAR, tools/oracle/pin.env);
   - Java warm: CliBatch, one JVM, W warm-up iterations then N measured ones;
   - jsgo: `jsgo <args>`, N runs (interleaved with the Java cold runs);
   - per pass: the same invocations with --tracer_mode=TIMING_ONLY;
@@ -40,6 +41,8 @@ REPO = os.path.dirname(os.path.dirname(HERE))
 TASKS_DIR = os.path.join(HERE, "tasks")
 PHASES_TSV = os.path.join(HERE, "phases.tsv")
 SINGLE_FILES = os.path.join(TASKS_DIR, "single-files.txt")
+# The pinned release and its oracle jar (CLOSURE_JAR, a file name in the cache).
+PIN_ENV = os.path.join(REPO, "tools", "oracle", "pin.env")
 SAMPLE_SEED = 20260415
 SAMPLE_SIZE = 1000
 SAMPLE_MAX_BYTES = 256 * 1024
@@ -53,6 +56,18 @@ CRASH_RE = re.compile(r"^(?:panic: |fatal error: )(.*?)(?: \[recovered\])*$", re
 # Variables that would change the JVM's or the Go runtime's defaults.
 JAVA_ENV_DROP = ("JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS", "JDK_JAVA_OPTIONS")
 GO_ENV_DROP = ("GOGC", "GOMEMLIMIT", "GOMAXPROCS", "GODEBUG")
+
+
+def read_pin():
+    """The KEY=value lines of tools/oracle/pin.env (a value may be double-quoted)."""
+    pin = {}
+    with open(PIN_ENV) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#"):
+                k, v = line.split("=", 1)
+                pin[k] = v[1:-1] if len(v) >= 2 and v[0] == v[-1] == '"' else v
+    return pin
 
 
 def default_cache():
@@ -194,7 +209,7 @@ class Runner:
     def __init__(self, args):
         self.args = args
         self.cache = args.cache
-        self.jar = os.path.join(self.cache, "closure-compiler.jar")
+        self.jar = os.path.join(self.cache, read_pin()["CLOSURE_JAR"])
         self.out = os.path.abspath(args.out)
         os.makedirs(self.out, exist_ok=True)
         self.java_env = {k: v for k, v in os.environ.items() if k not in JAVA_ENV_DROP}

@@ -270,18 +270,23 @@ func TestJavaSourceFromCache(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	const version = "package com.google.javascript.jscomp;\nclass CommandLineRunnerVersion {}\n"
-	write(".cache/closure-src/CommandLineRunnerVersion.java", version)
-	write(".cache/closure-src/com/google/javascript/jscomp/Foo.java", "package com.google.javascript.jscomp;\nclass Foo {}\n")
-	write(".cache/closure-test-src/com/google/javascript/jscomp/FooTest.java", "package com.google.javascript.jscomp;\nclass FooTest {}\n")
+	version := "package com.google.javascript.jscomp;\nclass CommandLineRunnerVersion {\n  static final String COMPILER_VERSION = \"" + tag + "\";\n}\n"
+	write(srcDir+"/CommandLineRunnerVersion.java", version)
+	write(srcDir+"/com/google/javascript/jscomp/Foo.java", "package com.google.javascript.jscomp;\nclass Foo {}\n")
+	write(testSrcDir+"/com/google/javascript/jscomp/FooTest.java", "package com.google.javascript.jscomp;\nclass FooTest {}\n")
 	for p, want := range map[string]string{
 		"com/google/javascript/jscomp/Foo.java":                      "class Foo {}",
 		"test/com/google/javascript/jscomp/FooTest.java":             "class FooTest {}",
-		"com/google/javascript/jscomp/CommandLineRunnerVersion.java": "class CommandLineRunnerVersion {}",
+		"com/google/javascript/jscomp/CommandLineRunnerVersion.java": "class CommandLineRunnerVersion {",
 	} {
 		b, err := javaSource(p)
 		if err != nil || !strings.Contains(string(b), want) {
 			t.Errorf("javaSource(%s) = %q, %v; want the source with %q", p, b, err, want)
 		}
+	}
+	// Sources of another release are refused, not silently used.
+	write(srcDir+"/CommandLineRunnerVersion.java", strings.ReplaceAll(version, tag, "v20000101"))
+	if _, err := javaSource("com/google/javascript/jscomp/Foo.java"); err == nil || !strings.Contains(err.Error(), "another release") {
+		t.Errorf("javaSource with stale sources: err = %v, want another release", err)
 	}
 }

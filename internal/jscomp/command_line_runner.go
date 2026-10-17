@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CommandLineRunner.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/CommandLineRunner.java @ closure-compiler v20261015
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -403,7 +403,7 @@ func (f *commandLineRunner_Flags) Args4jFields() []args4j.AnnotatedField {
 			Field: args4j.ListField(c, "unusedJsZip", args4j.Class_String, &f.unusedJsZip)},
 		{Option: &args4j.Option{Name: "--js_output_file", Usage: "Primary output filename. If not specified, output is written to stdout"},
 			Field: args4j.StringField(c, "jsOutputFile", &f.jsOutputFile)},
-		{Option: &args4j.Option{Name: "--chunk", Usage: "A JavaScript chunk specification. The format is <name>:<num-js-files>[:[<dep>,...][:]]]. Chunk names must be unique. Each dep is the name of a chunk that this chunk depends on. Chunks must be listed in dependency order, and JS source files must be listed in the corresponding order. Where --chunk flags occur in relation to --js flags is unimportant. <num-js-files> may be set to 'auto' for the first chunk if it has no dependencies. Provide the value 'auto' to trigger chunk creation from CommonJSmodules."},
+		{Option: &args4j.Option{Name: "--chunk", Usage: "A JavaScript chunk specification. The format is <name>:<num-js-files>[:[<dep>,...][:]]]. Chunk names must be unique. Each dep is the name of a chunk that this chunk depends on. Chunks must be listed in dependency order, and JS source files must be listed in the corresponding order. Where --chunk flags occur in relation to --js flags is unimportant. <num-js-files> may be set to 'auto' for the first chunk if it has no dependencies. Provide the value 'auto' to trigger chunk creation from CommonJS modules."},
 			Field: args4j.ListField(c, "chunk", args4j.Class_String, &f.chunk)},
 		{Option: &args4j.Option{Name: "--filename_to_save_to", Hidden: true, Usage: "Filename to save state so that the compilation can be resumed later."},
 			Field: args4j.NullableStringField(c, "filenameToSaveTo", &f.filenameToSaveTo)},
@@ -475,7 +475,7 @@ func (f *commandLineRunner_Flags) Args4jFields() []args4j.AnnotatedField {
 			Field: args4j.EnumField(c, "warningLevel", commandLineRunner_WarningLevel_class, &f.warningLevel)},
 		{Option: &args4j.Option{Name: "--debug", Handler: newCommandLineRunner_Flags_BooleanOptionHandler, Usage: "Enable debugging options. Property renaming uses long mangled names which can be mapped back to the original name."},
 			Field: args4j.BooleanField(c, "debug", &f.debug)},
-		{Option: &args4j.Option{Name: "--typed_ast_output_file__INTENRNAL_USE_ONLY", Hidden: true, Usage: "Sets file to output in-progress typedAST format. DO NOT USE!"},
+		{Option: &args4j.Option{Name: "--typed_ast_output_file", Hidden: true, Usage: "Sets file to output in-progress typedAST format. DO NOT USE!"},
 			Field: args4j.NullableStringField(c, "typedAstOutputFile", &f.typedAstOutputFile)},
 		{Option: &args4j.Option{Name: "--generate_exports", Handler: newCommandLineRunner_Flags_BooleanOptionHandler, Usage: "Generates export code for those marked with @export"},
 			Field: args4j.BooleanField(c, "generateExports", &f.generateExports)},
@@ -565,7 +565,7 @@ func (f *commandLineRunner_Flags) Args4jFields() []args4j.AnnotatedField {
 			Field: args4j.BooleanField(c, "helpMarkdown", &f.helpMarkdown)},
 		{Option: &args4j.Option{Name: "--instrument_for_coverage_option", Usage: "Enable code instrumentation to perform code coverage analysis. Options are:\n 1. NONE (default)\n 2. LINE - Instrument code by line.\n 3. BRANCH - Instrument code by branch.\n 4. PRODUCTION - Function Instrumentation on compiled JS code.\n"},
 			Field: args4j.StringField(c, "instrumentForCoverageOption", &f.instrumentForCoverageOption)},
-		{Option: &args4j.Option{Name: "--production_instrumentation_array_name", Usage: "Name of the global array used by production instrumentation. The array name should be declared as an extern so it is not renamed by the compiler. A functionthat parses the global array should also be included. This flag is to be used intandem with --instrument_code=PRODUCTION"},
+		{Option: &args4j.Option{Name: "--production_instrumentation_array_name", Usage: "Name of the global array used by production instrumentation. The array name should be declared as an extern so it is not renamed by the compiler. A function that parses the global array should also be included. This flag is to be used in tandem with --instrument_code=PRODUCTION"},
 			Field: args4j.StringField(c, "productionInstrumentationArrayName", &f.productionInstrumentationArrayName)},
 		{Option: &args4j.Option{Name: "--chunk_output_type", Usage: "Indicates what format the compiler should use for output chunks. GLOBAL_NAMESPACE is typically used in conjunction with --rename_prefix_namespace. ES_MODULES outputs chunks as proper modules with 'import' and 'export' statements."},
 			Field: args4j.EnumField(c, "chunkOutputType", commandLineRunner_CompilerOptions_ChunkOutputType_class, &f.chunkOutputType)},
@@ -1642,6 +1642,7 @@ func (r *CommandLineRunner) CreateOptions() *CompilerOptions {
 		flags.isolationMode == CompilerOptions_IsolationMode_IIFE ||
 		flags.chunkOutputType == CompilerOptions_ChunkOutputType_ES_MODULES {
 		level.SetWrappedOutputOptimizations(options)
+		options.SetAssumeGlobalScopeIsIsolated(true)
 	}
 
 	if flags.typedAstOutputFile != nil {

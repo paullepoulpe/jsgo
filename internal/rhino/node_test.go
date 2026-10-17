@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/NodeTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/rhino/NodeTest.java @ closure-compiler v20261015
 
 /*
  *
@@ -236,6 +236,16 @@ func TestNode_IsEquivalentToConsidersStartOfOptionalChainProperty(t *testing.T) 
 	twoSegmentOptChain := singleSegmentOptChain.CloneTree()
 	twoSegmentOptChain.SetIsOptionalChainStart(true)
 	assertNotEquivalent(t, singleSegmentOptChain, twoSegmentOptChain)
+}
+
+func TestNode_IsEquivalentToConsidersDirectEval(t *testing.T) {
+	directEvalCall := IR_Call(IR_Name("eval"))
+	directEvalCall.GetFirstChild().PutBooleanProp(Node_DIRECT_EVAL, true)
+
+	indirectEvalCall := IR_Call(IR_Name("eval"))
+	indirectEvalCall.GetFirstChild().PutBooleanProp(Node_DIRECT_EVAL, false)
+
+	assertNotEquivalent(t, directEvalCall, indirectEvalCall)
 }
 
 func TestNode_IsEquivalentToForFunctionsConsidersKindOfFunction(t *testing.T) {
@@ -802,6 +812,26 @@ func TestNode_SerializeProperties_UntranslatableRhinoProp(t *testing.T) {
 	assertSerialized(t, result, 0)
 }
 
+func TestNode_SerializeProperties_PrivateIdentifier(t *testing.T) {
+	node := Node_NewStringWithToken(Token_NAME, "#field")
+	node.SetPrivateIdentifier()
+	result := node.SerializeProperties()
+	assertSerialized(t, result, bitsetFromNodeProperties(NodeProperty_PRIVATE_IDENTIFIER))
+}
+
+func TestNode_SerializeProperties_PrivateIdentifierRoundTrip(t *testing.T) {
+	original := Node_NewStringWithToken(Token_NAME, "#field")
+	original.SetSourceFileForTesting("sourcefile")
+	restored := original.CloneNode() // clone BEFORE setPrivateIdentifier
+
+	assertFalse(t, "restored.isPrivateIdentifier()", restored.IsPrivateIdentifier())
+
+	original.SetPrivateIdentifier()
+	restored.DeserializeProperties(original.SerializeProperties(), false)
+
+	assertTrue(t, "restored.isPrivateIdentifier()", restored.IsPrivateIdentifier())
+}
+
 func TestNode_GetIndexOfChild(t *testing.T) {
 	assign := getAssignExpr("b", "c")
 	if got := assign.GetChildCount(); got != 2 {
@@ -1029,4 +1059,10 @@ func TestNode_ValidateMemoryGuarantees_ChecksForDifferentSourceFileInstances(t *
 
 	assertTrue(t, "b1 vs b2", Node_ValidateMemorySensitivePropertyGuarantees(b1, false, b2, false))
 	assertFalse(t, "b1 vs other", Node_ValidateMemorySensitivePropertyGuarantees(b1, false, other, false))
+}
+
+func TestNode_IsPos(t *testing.T) {
+	assertTrue(t, "POS.isPos()", NewNode(Token_POS).IsPos())
+	assertFalse(t, "NEG.isPos()", NewNode(Token_NEG).IsPos())
+	assertFalse(t, "1.0.isPos()", Node_NewNumber(1.0).IsPos())
 }

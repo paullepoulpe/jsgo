@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/NodeUtil.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/NodeUtil.java @ closure-compiler v20261015
 
 /*
  * Copyright 2004 The Closure Compiler Authors.
@@ -245,6 +245,9 @@ func NodeUtil_GetStringValue(n *rhino.Node) *string {
 	case rhino.Token_ARRAYLIT:
 		return NodeUtil_ArrayToString(n)
 	case rhino.Token_OBJECTLIT:
+		if n.HasChildren() {
+			return nil
+		}
 		return jutil.StringPtr("[object Object]")
 	default:
 		return nil
@@ -326,10 +329,18 @@ func NodeUtil_DoGetNumberValue(n *rhino.Node, numberConversions bool) *float64 {
 		// likely result in incorrect computation results.
 		return nil
 	case rhino.Token_VOID:
+		if !numberConversions {
+			return nil
+		}
 		return nodeUtil_double(math.NaN())
 	case rhino.Token_NAME:
 		switch n.GetString() {
-		case "undefined", "NaN":
+		case "undefined":
+			if numberConversions {
+				return nodeUtil_double(math.NaN())
+			}
+			return nil
+		case "NaN":
 			return nodeUtil_double(math.NaN())
 		case "Infinity":
 			return nodeUtil_double(math.Inf(1))
@@ -337,16 +348,16 @@ func NodeUtil_DoGetNumberValue(n *rhino.Node, numberConversions bool) *float64 {
 			return nil
 		}
 	case rhino.Token_POS:
-		// unary plus triggers numeric conversions
-		return NodeUtil_DoGetNumberValue(n.GetOnlyChild(), true /* numberConversions */)
+		// unary plus triggers numeric conversions only when numberConversions is true
+		return NodeUtil_DoGetNumberValue(n.GetOnlyChild(), numberConversions)
 	case rhino.Token_NEG:
-		val := NodeUtil_DoGetNumberValue(n.GetOnlyChild(), true /* numberConversions */)
+		val := NodeUtil_DoGetNumberValue(n.GetOnlyChild(), numberConversions)
 		if val == nil {
 			return nil
 		}
 		return nodeUtil_double(-*val)
 	case rhino.Token_BITNOT:
-		val := NodeUtil_DoGetNumberValue(n.GetOnlyChild(), true /* numberConversions */)
+		val := NodeUtil_DoGetNumberValue(n.GetOnlyChild(), numberConversions)
 		if val == nil {
 			return nil
 		}
@@ -405,16 +416,38 @@ func NodeUtil_GetStringNumberValue(rawJsString string) *float64 {
 		return nodeUtil_double(0.0)
 	}
 
-	if jutil.StringLength(s) > 2 && jutil.StringCharAt(s, 0) == '0' &&
-		(jutil.StringCharAt(s, 1) == 'x' || jutil.StringCharAt(s, 1) == 'X') {
-		// Attempt to convert hex numbers.
-		var result float64
-		jutil.Try(func() {
-			result = float64(jutil.IntegerParseInt(jutil.StringSubstringFrom(s, 2), 16))
-		}, func(e jutil.INumberFormatException) {
-			result = math.NaN()
-		})
-		return nodeUtil_double(result)
+	if jutil.StringLength(s) >= 2 && jutil.StringCharAt(s, 0) == '0' {
+		radix := 0
+		prefix := jutil.StringCharAt(s, 1)
+		if prefix == 'x' || prefix == 'X' {
+			radix = 16
+		} else if prefix == 'b' || prefix == 'B' {
+			radix = 2
+		} else if prefix == 'o' || prefix == 'O' {
+			radix = 8
+		}
+		if radix != 0 {
+			digits := jutil.StringSubstringFrom(s, 2)
+			if digits == "" {
+				return nodeUtil_double(math.NaN())
+			}
+			for i := 0; i < jutil.StringLength(digits); i++ {
+				if !nodeUtil_isValidDigit(jutil.StringCharAt(digits, i), radix) {
+					return nodeUtil_double(math.NaN())
+				}
+			}
+			var result float64
+			jutil.Try(func() {
+				if jutil.StringLength(digits) <= 14 {
+					result = float64(jutil.LongParseLong(digits, radix))
+				} else {
+					result = nodeUtil_bigIntegerDoubleValue(digits, radix)
+				}
+			}, func(e jutil.INumberFormatException) {
+				result = math.NaN()
+			})
+			return nodeUtil_double(result)
+		}
 	}
 
 	if jutil.StringLength(s) > 3 &&
@@ -431,6 +464,24 @@ func NodeUtil_GetStringNumberValue(rawJsString string) *float64 {
 		return nil
 	}
 
+	if s == "Infinity" || s == "+Infinity" {
+		return nodeUtil_double(math.Inf(1))
+	}
+
+	if s == "-Infinity" {
+		return nodeUtil_double(math.Inf(-1))
+	}
+
+	for i := 0; i < len(s); i++ {
+		// Go-only: language-adapter — a byte loop over the WTF-8 string: every
+		// accepted char is ASCII, and a non-ASCII char's first byte is not one.
+		c := s[i]
+		if ('0' <= c && c <= '9') || c == '.' || c == 'e' || c == 'E' || c == '+' || c == '-' {
+			continue
+		}
+		return nodeUtil_double(math.NaN())
+	}
+
 	var result float64
 	jutil.Try(func() {
 		result = jutil.DoubleParseDouble(s)
@@ -438,6 +489,34 @@ func NodeUtil_GetStringNumberValue(rawJsString string) *float64 {
 		result = math.NaN()
 	})
 	return nodeUtil_double(result)
+}
+
+// Java: NodeUtil.isValidDigit(char, int)
+func nodeUtil_isValidDigit(c uint16, radix int) bool {
+	switch radix {
+	case 2:
+		return c == '0' || c == '1'
+	case 8:
+		return '0' <= c && c <= '7'
+	case 16:
+		return ('0' <= c && c <= '9') || ('a' <= c && c <= 'f') || ('A' <= c && c <= 'F')
+	default:
+		return false
+	}
+}
+
+// nodeUtil_bigIntegerDoubleValue is new BigInteger(digits, radix).doubleValue()
+// for digits that are all valid in radix: the double nearest to the value,
+// ties to even, or Infinity if it is too large.
+//
+// Go-only: language-adapter — java.math.BigInteger.
+func nodeUtil_bigIntegerDoubleValue(digits string, radix int) float64 {
+	x, ok := new(big.Int).SetString(digits, radix)
+	if !ok {
+		panic(jutil.NewNumberFormatException("For input string: \"" + digits + "\""))
+	}
+	f, _ := new(big.Float).SetInt(x).Float64()
+	return f
 }
 
 // NodeUtil_GetBigIntValue gets the value of a node as a BigInt, or null if it
@@ -736,6 +815,37 @@ func NodeUtil_IsImmutableValue(n *rhino.Node) bool {
 		panic(jutil.NewIllegalArgumentExceptionMsg("Invalid argument " + n.String()))
 	default:
 		return false
+	}
+}
+
+// NodeUtil_IsNumericLiteral returns true if n is a numeric literal or a unary
+// +/- applied directly to a numeric literal (e.g. 12.3, -12.3, +12.3).
+//
+// Java: NodeUtil.isNumericLiteral(Node)
+func NodeUtil_IsNumericLiteral(n *rhino.Node) bool {
+	if n == nil {
+		return false
+	}
+	return n.IsNumber() ||
+		((n.IsNeg() || n.IsPos()) && n.HasOneChild() && n.GetFirstChild().IsNumber())
+}
+
+// NodeUtil_GetNumericLiteralValue returns the numeric value of n, which must
+// satisfy isNumericLiteral(Node); it throws IllegalArgumentException if n
+// does not.
+//
+// Java: NodeUtil.getNumericLiteralValue(Node)
+func NodeUtil_GetNumericLiteralValue(n *rhino.Node) float64 {
+	jutil.CheckArgumentMsg1(NodeUtil_IsNumericLiteral(n), "%s", n)
+	switch n.GetToken() {
+	case rhino.Token_NUMBER:
+		return n.GetDouble()
+	case rhino.Token_POS:
+		return n.GetFirstChild().GetDouble()
+	case rhino.Token_NEG:
+		return -n.GetFirstChild().GetDouble()
+	default:
+		panic(jutil.NewAssertionError("Unreachable: " + n.String()))
 	}
 }
 
@@ -1268,7 +1378,7 @@ func NodeUtil_CanBeSideEffected(n *rhino.Node) bool {
 // scope with InferConsts.
 func NodeUtil_CanBeSideEffectedWithScope(n *rhino.Node, knownConstants *jutil.LinkedHashSet[string], scope *Scope) bool {
 	switch n.GetToken() {
-	case rhino.Token_YIELD, rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL, rhino.Token_NEW:
+	case rhino.Token_YIELD, rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL, rhino.Token_NEW, rhino.Token_TAGGED_TEMPLATELIT, rhino.Token_AWAIT, rhino.Token_DYNAMIC_IMPORT:
 		// Function calls or constructor can reference changed values.
 		// TODO(johnlenz): Add some mechanism for determining that functions
 		// are unaffected by side effects.
@@ -1980,6 +2090,10 @@ func NodeUtil_GetFirstPropMatchingKey(n *rhino.Node, keyName string) *rhino.Node
 		if (keyNode.IsStringKey() || keyNode.IsMemberFunctionDef()) &&
 			keyNode.GetString() == keyName {
 			return keyNode.GetFirstChild()
+		} else if keyNode.IsComputedProp() &&
+			keyNode.GetFirstChild().IsStringLit() &&
+			keyNode.GetFirstChild().GetString() == keyName {
+			return keyNode.GetLastChild()
 		}
 	}
 	return nil
@@ -2189,17 +2303,22 @@ func NodeUtil_IsEndOfOptChainSegment(n *rhino.Node) bool {
 //
 // Java: NodeUtil.convertToNonOptionalChainSegment(Node)
 func NodeUtil_ConvertToNonOptionalChainSegment(endOfOptChainSegment *rhino.Node) {
+	start := NodeUtil_GetStartOfOptChainSegment(endOfOptChainSegment)
+	NodeUtil_ConvertToNonOptionalChainSegmentDownTo(endOfOptChainSegment, start.GetFirstChild())
+}
+
+// NodeUtil_ConvertToNonOptionalChainSegmentDownTo: given the end of an
+// optional chain segment, changes all nodes from endOfOptChainSegment down
+// to (but excluding) stopNode into non-optional nodes.
+//
+// Java: NodeUtil.convertToNonOptionalChainSegmentDownTo(Node, Node)
+func NodeUtil_ConvertToNonOptionalChainSegmentDownTo(endOfOptChainSegment *rhino.Node, stopNode *rhino.Node) {
 	jutil.CheckArgumentMsg1(NodeUtil_IsEndOfOptChainSegment(endOfOptChainSegment), "%s", endOfOptChainSegment)
-	// Since part of changing the nodes removes the isOptionalChainStart() marker we look for to
-	// know we're done, this logic is easier to read if we just find all the nodes first, then
-	// change them.
 	var segmentNodes []*rhino.Node
 	segmentNode := endOfOptChainSegment
-	for {
-		jutil.CheckStateMsg1(NodeUtil_IsOptChainNode(segmentNode), "%s", segmentNode)
-		segmentNodes = append(segmentNodes, segmentNode)
-		if segmentNode.IsOptionalChainStart() {
-			break
+	for segmentNode != nil && segmentNode != stopNode {
+		if NodeUtil_IsOptChainNode(segmentNode) {
+			segmentNodes = append(segmentNodes, segmentNode)
 		}
 		segmentNode = segmentNode.GetFirstChild()
 	}
@@ -2456,11 +2575,11 @@ func NodeUtil_IsStatementBlock(n *rhino.Node) bool {
 func NodeUtil_CreatesBlockScope(n *rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_BLOCK:
-		if n.IsSyntheticBlock() {
+		parent := n.GetParent()
+		if parent != nil && (parent.IsBlock() || parent.IsScript()) && n.IsSyntheticBlock() {
 			// Don't create block scope for synthetic blocks.
 			return false
 		}
-		parent := n.GetParent()
 		// Don't create block scope for switch cases or catch blocks.
 		return parent != nil && !NodeUtil_IsSwitchCase(parent) && !parent.IsCatch()
 	case rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_SWITCH_BODY,
@@ -3007,6 +3126,36 @@ func NodeUtil_IsFunctionBlock(n *rhino.Node) bool {
 // Java: NodeUtil.isClassStaticBlock(Node)
 func NodeUtil_IsClassStaticBlock(n *rhino.Node) bool {
 	return n.IsBlock() && n.HasParent() && n.GetParent().IsClassMembers()
+}
+
+// NodeUtil_IsNonStaticClassFieldInitializer returns whether n is the
+// initializer expression of a non-static class field (e.g. a in
+// `class { x = a; }` or `class { [k] = a; }`).
+//
+// Unlike static field initializers and computed field keys, which are
+// evaluated eagerly when the class definition is evaluated, non-static field
+// initializers are evaluated once per new call (like an inner function
+// body).
+//
+// Java: NodeUtil.isNonStaticClassFieldInitializer(Node)
+func NodeUtil_IsNonStaticClassFieldInitializer(n *rhino.Node) bool {
+	parent := n.GetParent()
+	// Note: COMPUTED_FIELD_DEF has only one child (the key) if there is no initializer.
+	if parent.IsMemberFieldDef() ||
+		(parent.IsComputedFieldDef() && n == parent.GetSecondChild()) {
+		return !parent.IsStaticMember()
+	}
+	return false
+}
+
+// NodeUtil_IsFunctionOrNonStaticClassFieldInitializer returns whether n is a
+// function or a non-static class field initializer: both are code whose
+// evaluation is deferred until later (and possibly repeated), and which may
+// capture variables from the enclosing scope.
+//
+// Java: NodeUtil.isFunctionOrNonStaticClassFieldInitializer(Node)
+func NodeUtil_IsFunctionOrNonStaticClassFieldInitializer(n *rhino.Node) bool {
+	return n.IsFunction() || NodeUtil_IsNonStaticClassFieldInitializer(n)
 }
 
 // NodeUtil_IsFunctionExpression: is a FUNCTION node a function expression?
@@ -4901,6 +5050,63 @@ func NodeUtil_GetFunctionParameters(fnNode *rhino.Node) *rhino.Node {
 	return fnNode.GetSecondChild()
 }
 
+// NodeUtil_HasNonSimpleParameters returns whether the given function node
+// has any non-simple parameters (e.g. default values, rest parameters, or
+// destructuring patterns).
+//
+// fnNode is a FUNCTION node. Returns true if function parameters are
+// non-simple; false otherwise.
+//
+// Java: NodeUtil.hasNonSimpleParameters(Node)
+func NodeUtil_HasNonSimpleParameters(fnNode *rhino.Node) bool {
+	jutil.CheckArgument(fnNode.IsFunction())
+	paramList := NodeUtil_GetFunctionParameters(fnNode)
+	for param := paramList.GetFirstChild(); param != nil; param = param.GetNext() {
+		if !param.IsName() {
+			return true
+		}
+	}
+	return false
+}
+
+// NodeUtil_FunctionParametersMayHaveSideEffects returns whether any parameter
+// of the given function node may have side effects when evaluated, or may
+// throw an exception during parameter pattern matching / destructuring.
+//
+// fnNode is a FUNCTION node; astAnalyzer is the AstAnalyzer to check side
+// effects of default parameter initializers. Returns true if function
+// parameters may have side effects or throw; false otherwise.
+//
+// Java: NodeUtil.functionParametersMayHaveSideEffects(Node, AstAnalyzer)
+func NodeUtil_FunctionParametersMayHaveSideEffects(fnNode *rhino.Node, astAnalyzer *AstAnalyzer) bool {
+	jutil.CheckArgument(fnNode.IsFunction())
+	paramList := NodeUtil_GetFunctionParameters(fnNode)
+	for param := paramList.GetFirstChild(); param != nil; param = param.GetNext() {
+		if param.IsName() {
+			continue
+		}
+		if param.IsRest() {
+			if param.GetFirstChild().IsName() {
+				continue
+			}
+			return true
+		}
+		if param.IsDefaultValue() {
+			target := param.GetFirstChild()
+			initializer := param.GetSecondChild()
+			if !target.IsName() {
+				return true
+			}
+			if astAnalyzer.MayHaveSideEffects(initializer) {
+				return true
+			}
+			continue
+		}
+		return true
+	}
+	return false
+}
+
 // Java: NodeUtil.isConstantVar(Node, Scope)
 func NodeUtil_IsConstantVar(node *rhino.Node, scope *Scope) bool {
 	if NodeUtil_IsConstantName(node) {
@@ -5673,14 +5879,15 @@ inspect:
 	for {
 		parent := n.GetParent()
 		switch parent.GetToken() {
-		case rhino.Token_IF, rhino.Token_HOOK, rhino.Token_AND, rhino.Token_OR, rhino.Token_COALESCE:
+		case rhino.Token_IF, rhino.Token_HOOK, rhino.Token_AND, rhino.Token_OR, rhino.Token_COALESCE,
+			rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_COALESCE:
 			if parent.GetFirstChild() != n {
 				return false
 			}
 			// other ancestors may be conditional
 			// continue inspect
-		case rhino.Token_FOR, rhino.Token_FOR_IN:
-			if parent.IsForIn() {
+		case rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
+			if NodeUtil_IsEnhancedFor(parent) {
 				if parent.GetSecondChild() != n {
 					return false
 				}
@@ -6730,4 +6937,31 @@ func NodeUtil_EstimateNumLines(scriptNode *rhino.Node) int {
 	// +1 since this is the start line of the last AST node and we can expect at least one
 	// trailing newline
 	return current.GetLineno() + 1
+}
+
+// NodeUtil_GetOriginalName returns the original name of a renamed variable
+// by stripping unique suffixes and module prefixes.
+//
+// Java: NodeUtil.getOriginalName(String)
+func NodeUtil_GetOriginalName(name string) string {
+	// Strip unique name suffix: "foo$$1" -> "foo"
+	name = jutil.StringReplaceAll(name, "\\$\\$\\d+$", "")
+
+	// Strip contextual rename suffix: "foo$jscomp$1" -> "foo"
+	name = MakeDeclaredNamesUnique_ContextualRenameInverter_GetOriginalName(name)
+
+	// Strip module exports prefix: "module$exports$foo$Bar" -> "Bar"
+	if strings.HasPrefix(name, "module$exports$") {
+		lastDollar := jutil.StringLastIndexOf(name, "$")
+		if lastDollar != -1 {
+			name = jutil.StringSubstringFrom(name, lastDollar+1)
+		}
+	} else if strings.HasPrefix(name, "module$contents$") {
+		// Strip module contents prefix: "module$contents$foo$Bar_baz" -> "baz"
+		lastUnderscore := jutil.StringLastIndexOf(name, "_")
+		if lastUnderscore != -1 {
+			name = jutil.StringSubstringFrom(name, lastUnderscore+1)
+		}
+	}
+	return name
 }

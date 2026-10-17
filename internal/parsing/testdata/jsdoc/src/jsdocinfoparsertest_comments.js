@@ -1802,3 +1802,41 @@ var v685;
 var v686;
 /**@closureUnaware {SIMPLE} */
 var v687;
+/**@suppress {visibility} @return {boolean} */
+var v688;
+/**@suppress {visibility} this is a description @return {boolean} */
+var v689;
+/**@suppress {
+ *   x, y,
+ *   z
+ * } Auto-added to unblock migration
+ */
+var v690;
+/**@suppress {x
+ *   | y
+ *   , z}
+ */
+var v691;
+/**@suppress {x,
+ * } */
+var v692;
+/**@throws {Error}
+@nosideeffects */
+var v693;
+/**@nosideeffects
+@throws {Error} */
+var v694;
+/**@nosideeffects
+@nosideeffects */
+var v695;
+/**@modifies {this}
+@throws {Error} Some error */
+var v696;
+/**@throws {Error} Some error
+@modifies {this} */
+var v697;
+/**@nosideeffects @modifies {this} */
+var v698;
+/**@modifies {this}
+@nosideeffects */
+var v699;

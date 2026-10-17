@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/Msg.java @ closure-compiler v20260415
+// Port of com/google/javascript/rhino/Msg.java @ closure-compiler v20261015
 
 /*
  *
@@ -119,6 +119,8 @@ const (
 	Msg_JSDOC_NODTS
 	Msg_JSDOC_NOINLINE
 	Msg_JSDOC_NOSIDEEFFECTS
+	Msg_JSDOC_NOSIDEEFFECTS_WITH_MODIFIES
+	Msg_JSDOC_NOSIDEEFFECTS_WITH_THROWS
 	Msg_JSDOC_OVERRIDE
 	Msg_JSDOC_POLYMERBEHAVIOR_EXTRA
 	Msg_JSDOC_POLYMER_EXTRA
@@ -135,6 +137,7 @@ const (
 	Msg_JSDOC_TEMPLATE_NAME_REDECLARATION
 	Msg_JSDOC_TEMPLATE_TYPETRANSFORMATION_EXPRESSIONMISSING
 	Msg_JSDOC_TEMPLATE_TYPETRANSFORMATION_MISSINGDELIMIIER
+	Msg_JSDOC_THROWS
 	Msg_JSDOC_TYPE
 	Msg_JSDOC_TYPESUMMARY
 	Msg_JSDOC_TYPETRANSFORMATION_EXTRA_PARAM
@@ -228,6 +231,8 @@ var msg_names = [...]string{
 	"JSDOC_NODTS",
 	"JSDOC_NOINLINE",
 	"JSDOC_NOSIDEEFFECTS",
+	"JSDOC_NOSIDEEFFECTS_WITH_MODIFIES",
+	"JSDOC_NOSIDEEFFECTS_WITH_THROWS",
 	"JSDOC_OVERRIDE",
 	"JSDOC_POLYMERBEHAVIOR_EXTRA",
 	"JSDOC_POLYMER_EXTRA",
@@ -244,6 +249,7 @@ var msg_names = [...]string{
 	"JSDOC_TEMPLATE_NAME_REDECLARATION",
 	"JSDOC_TEMPLATE_TYPETRANSFORMATION_EXPRESSIONMISSING",
 	"JSDOC_TEMPLATE_TYPETRANSFORMATION_MISSINGDELIMIIER",
+	"JSDOC_THROWS",
 	"JSDOC_TYPE",
 	"JSDOC_TYPESUMMARY",
 	"JSDOC_TYPETRANSFORMATION_EXTRA_PARAM",
@@ -337,6 +343,8 @@ var msg_texts = [...]string{
 	"extra @nodts tag",
 	"extra @noinline tag",
 	"conflicting @nosideeffects tag",
+	"@nosideeffects functions cannot have @modifies (modifying arguments/this is a side effect)",
+	"@nosideeffects functions cannot have @throws (throwing is a side effect)",
 	"extra @override/@inheritDoc tag.",
 	"extra @polymerBehavior tag",
 	"extra @polymer tag",
@@ -353,6 +361,7 @@ var msg_texts = [...]string{
 	"Type name(s) for @template annotation declared twice.",
 	"Missing type transformation expression.",
 	"Expected end delimiter for a type transformation.",
+	"conflicting @throws tag",
 	"conflicting @type tag",
 	"extra @typeSummary tag",
 	"Found extra parameter in {0}",

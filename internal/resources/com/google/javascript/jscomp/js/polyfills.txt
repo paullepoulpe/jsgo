@@ -18,6 +18,9 @@ Array.prototype.toSorted es_next es3 es6/array/tosorted
 Array.prototype.toSpliced es_next es3 es6/array/tospliced
 Array.prototype.values es8 es3 es6/array/values
 Array.prototype.with es_next es3 es6/array/with
+AsyncContext es_unstable es3 es6/asynccontext/namespace
+AsyncContext.Snapshot es_unstable es3 es6/asynccontext/snapshot
+AsyncContext.Variable es_unstable es3 es6/asynccontext/variable
 AsyncDisposableStack es_next es5 es6/async_disposable_stack
 BigInt64Array.prototype.at es_next es5 es6/typedarray/at
 BigInt64Array.prototype.copyWithin es6 es5 es6/typedarray/copywithin
@@ -77,6 +80,8 @@ Int8Array.prototype.findLastIndex es_next es5 es6/typedarray/findlastindex
 Int8Array.prototype.toReversed es_next es5 es6/typedarray/toreversed
 Int8Array.prototype.toSorted es_next es5 es6/typedarray/tosorted
 Int8Array.prototype.with es_next es5 es6/typedarray/with
+Iterator es_next es3 es6/iterator
+Iterator.from es_next es3 es6/iterator/from
 Map es6 es3 es6/map
 Map.groupBy es_next es3 es6/map
 Math.acosh es6 es3 es6/math/acosh
@@ -148,6 +153,7 @@ String.prototype.at es_next es5 es6/string/at
 String.prototype.codePointAt es6 es3 es6/string/codepointat
 String.prototype.endsWith es6 es3 es6/string/endswith
 String.prototype.includes es6 es3 es6/string/includes
+String.prototype.isWellFormed es_next es3 es6/string/iswellformed
 String.prototype.matchAll es_2020 es3 es6/string/matchall
 String.prototype.normalize es6 es6
 String.prototype.padEnd es8 es3 es6/string/padend

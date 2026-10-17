@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CommandLineRunnerTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/CommandLineRunnerTest.java @ closure-compiler v20261015
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -126,7 +126,6 @@ var commandLineRunnerTest_DEFAULT_EXTERNS = []*SourceFile{
 /**
  * @constructor
  * @param {...*} var_args
- * @nosideeffects
  * @throws {Error}
  */
 function Function(var_args) {}
@@ -2877,9 +2876,9 @@ $jscomp.findInternal = function(array, callback, thisArg) {
     i: -1, v: void 0
   }
 };
-$jscomp.ASSUME_ES5 = false;
-$jscomp.ASSUME_ES6 = false;
 $jscomp.ASSUME_ES2020 = false;
+$jscomp.ASSUME_ES6 = $jscomp.ASSUME_ES2020;
+$jscomp.ASSUME_ES5 = $jscomp.ASSUME_ES6;
 $jscomp.ASSUME_NO_NATIVE_MAP = false;
 $jscomp.ASSUME_NO_NATIVE_SET = false;
 $jscomp.ISOLATE_POLYFILLS = false;

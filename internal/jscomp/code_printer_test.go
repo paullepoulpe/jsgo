@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CodePrinterTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/CodePrinterTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/CodePrinterTest.java)
 
 /*
@@ -845,6 +845,34 @@ func (c *CodePrinterTest) TestBreakUntrustedStrings() {
 
 	c.AssertPrint("'<=&>'", "\"\\x3c\\x3d\\x26\\x3e\"")
 	c.AssertPrint("/(?=x)/", "/(?=x)/")
+}
+
+// Java: CodePrinterTest.testBreakTemplateLiterals()
+func (c *CodePrinterTest) TestBreakTemplateLiterals() {
+	c.languageMode = CompilerOptions_LanguageMode_ECMASCRIPT_NEXT
+
+	// Break scripts in template literals
+	c.AssertPrint("`</script>`", "`\\x3c/script>`")
+	c.AssertPrint("`</SCRIPT>`", "`\\x3c/SCRIPT>`")
+	c.AssertPrint("`</style>`", "`\\x3c/style>`")
+	c.AssertPrint("`</STYLE>`", "`\\x3c/STYLE>`")
+
+	// Break comments in template literals
+	c.AssertPrint("`-->`", "`--\\x3e`")
+	c.AssertPrint("`]]>`", "`]]\\x3e`")
+	c.AssertPrint("` --></script>`", "` --\\x3e\\x3c/script>`")
+	c.AssertPrint("`<!-- I am a string -->`", "`\\x3c!-- I am a string --\\x3e`")
+}
+
+// Java: CodePrinterTest.testBreakUntrustedTemplateLiterals()
+func (c *CodePrinterTest) TestBreakUntrustedTemplateLiterals() {
+	c.languageMode = CompilerOptions_LanguageMode_ECMASCRIPT_NEXT
+	c.trustedStrings = false
+
+	// Break scripts in template literals
+	c.AssertPrint("`</script>`", "`\\x3c/script\\x3e`")
+	c.AssertPrint("`<!-- I am a string -->`", "`\\x3c!-- I am a string --\\x3e`")
+	c.AssertPrint("`<=&>`", "`\\x3c\\x3d\\x26\\x3e`")
 }
 
 // Java: CodePrinterTest.testHtmlComments()
@@ -2976,6 +3004,8 @@ func (c *CodePrinterTest) TestRegexp_escape() {
 	c.AssertPrintSame("/\\0/")
 	c.AssertPrintSame("/\\\\/")
 	c.AssertPrintSame("/(.)\\1/")
+	c.AssertPrintSame("/\\k<group>/")
+	c.AssertPrintSame("/(?<group>a)\\k<group>/")
 	c.AssertPrintSame("/\\x0B/") // Don't print this as \v (as is done in strings)
 }
 
@@ -2987,6 +3017,12 @@ func (c *CodePrinterTest) TestRegexp_unnecessaryEscape() {
 	c.AssertPrint("/\\h/", "/h/")
 	c.AssertPrint("/\\i/", "/i/")
 	c.AssertPrint("/\\¡/", "/\\u00a1/")
+}
+
+// Java: CodePrinterTest.testRegexp_afterLt()
+func (c *CodePrinterTest) TestRegexp_afterLt() {
+	c.AssertPrint("x < /script/", "x< /script/")
+	c.AssertPrint("x << /script/", "x<< /script/")
 }
 
 // Java: CodePrinterTest.testKeywordProperties1()
@@ -4198,4 +4234,26 @@ func (c *CodePrinterTest) CheckWithOriginalName(code string, expectedCode string
 			SetLineBreak(true).
 			Build()).
 		IsEqualTo(expectedCode)
+}
+
+// Java: CodePrinterTest.testNullishCoalesceCastInOr()
+func (c *CodePrinterTest) TestNullishCoalesceCastInOr() {
+	// TODO(b/571641705): CodeGenerator omits required parentheses around ?? in CAST-wrapped logical expressions
+	c.AssertPrintNode(
+		"x??y||z",
+		rhino.IR_Or(rhino.NewNodeWithChild(rhino.Token_CAST, rhino.IR_Coalesce(rhino.IR_Name("x"), rhino.IR_Name("y"))), rhino.IR_Name("z")))
+}
+
+// Java: CodePrinterTest.testNullishCoalesceExtends()
+func (c *CodePrinterTest) TestNullishCoalesceExtends() {
+	// TODO(b/571641705): CodeGenerator omits required parentheses around ?? in class extends clauses
+	c.languageMode = CompilerOptions_LanguageMode_ECMASCRIPT_NEXT
+	AssertThat(c.PrintNode(c.Parse("class C extends (a ?? b) {}"))).IsEqualTo("class C extends a??b{}")
+}
+
+// Java: CodePrinterTest.testNullishCoalesceAssignExtends()
+func (c *CodePrinterTest) TestNullishCoalesceAssignExtends() {
+	// TODO(b/571641705): CodeGenerator omits required parentheses around ??= in class extends clauses
+	c.languageMode = CompilerOptions_LanguageMode_ECMASCRIPT_NEXT
+	AssertThat(c.PrintNode(c.Parse("class C extends (a ??= b) {}"))).IsEqualTo("class C extends a??=b{}")
 }

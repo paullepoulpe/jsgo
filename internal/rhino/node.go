@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/Node.java @ closure-compiler v20260415
+// Port of com/google/javascript/rhino/Node.java @ closure-compiler v20261015
 
 /*
  *
@@ -1305,6 +1305,11 @@ func (n *Node) PutIntProp(prop Node_Prop, value int32) {
 	}
 }
 
+// Java: Node.removeProp(Prop)
+func (n *Node) RemoveProp(prop Node_Prop) {
+	n.propListHead = Node_RebuildListWithoutProp(n.propListHead, prop)
+}
+
 // Java: Node.nodePropertyToBit(NodeProperty)
 func Node_NodePropertyToBit(prop NodeProperty) int64 {
 	return jutil.Shl64(1, int64(prop.GetNumber()))
@@ -2031,7 +2036,7 @@ func (n *Node) GetInputId() *InputId {
 // intent was to preserve some naming for lightly optimized code to put into
 // source maps. It is not rigorously defined and is not a suitable
 // replacement for a canonical identifier. "Original name" is not associated
-// with any scope and easily transfers to unrelated values. Its existance and
+// with any scope and easily transfers to unrelated values. Its existence and
 // use beyond its original purpose has delayed creating useful more precise
 // alternatives.
 //
@@ -2872,6 +2877,7 @@ var Node_PROP_MAP_FOR_EQUALITY = func() *jutil.LinkedHashMap[Node_Prop, func(*No
 	m.Put(Node_Prop_INCRDECR, func(n *Node) any { return n.GetIntProp(Node_Prop_INCRDECR) })
 	m.Put(Node_Prop_QUOTED, func(n *Node) any { return n.GetIntProp(Node_Prop_QUOTED) })
 	m.Put(Node_Prop_FREE_CALL, func(n *Node) any { return n.GetBooleanProp(Node_Prop_FREE_CALL) })
+	m.Put(Node_Prop_DIRECT_EVAL, func(n *Node) any { return n.GetBooleanProp(Node_Prop_DIRECT_EVAL) })
 	m.Put(Node_Prop_COMPUTED_PROP_METHOD, func(n *Node) any { return n.GetBooleanProp(Node_Prop_COMPUTED_PROP_METHOD) })
 	m.Put(Node_Prop_COMPUTED_PROP_GETTER, func(n *Node) any { return n.GetBooleanProp(Node_Prop_COMPUTED_PROP_GETTER) })
 	m.Put(Node_Prop_COMPUTED_PROP_SETTER, func(n *Node) any { return n.GetBooleanProp(Node_Prop_COMPUTED_PROP_SETTER) })
@@ -4507,6 +4513,11 @@ func (n *Node) IsAssignOr() bool {
 // Java: Node.isParamList()
 func (n *Node) IsParamList() bool {
 	return n.token == Token_PARAM_LIST
+}
+
+// Java: Node.isPos()
+func (n *Node) IsPos() bool {
+	return n.token == Token_POS
 }
 
 // Java: Node.isRegExp()

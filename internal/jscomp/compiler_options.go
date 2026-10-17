@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CompilerOptions.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/CompilerOptions.java @ closure-compiler v20261015
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -20,8 +20,8 @@ package jscomp
 
 import (
 	"fmt"
+	"io"
 	"reflect"
-	"slices"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
@@ -48,9 +48,9 @@ type CompilerOptions struct {
 	// The JavaScript language version accepted.
 	languageIn CompilerOptions_LanguageMode
 	// The JavaScript features that are allowed to be in the output.
-	outputFeatureSet            *parser.FeatureSet
-	experimentalForceTranspiles []CompilerOptions_ExperimentalForceTranspile
-	languageOutIsDefaultStrict  *bool
+	outputFeatureSet             *parser.FeatureSet
+	experimentalOutputFeatureSet *CompilerOptions_ExperimentalOutputFeatureSet
+	languageOutIsDefaultStrict   *bool
 	// The builtin set of externs to be used
 	environment CompilerOptions_Environment
 	// Represents BrowserFeaturesetYear to use for compilation
@@ -140,6 +140,10 @@ type CompilerOptions struct {
 	parentChunkCanSeeSymbolsDeclaredInChildren bool
 	// Merge two variables together as one.
 	coalesceVariableNames bool
+	// Lower block-scoped declarations to function-scoped declarations.
+	optimizeLetAndConst bool
+	// Assume the global scope is lexically isolated (e.g. via IIFE or Module).
+	assumeGlobalScopeIsIsolated bool
 	// Move methods to a deeper chunk
 	crossChunkMethodMotion bool
 	// Inlines trivial getters
@@ -210,8 +214,9 @@ type CompilerOptions struct {
 	renamePrefixNamespace *string
 	// Used by tests of the RescopeGlobalSymbols pass to avoid having declare 2 chunks in simple
 	// cases.
-	renamePrefixNamespaceAssumeCrossChunkNames bool
-	collapsePropertiesLevel                    CompilerOptions_PropertyCollapseLevel
+	renamePrefixNamespaceAssumeCrossChunkNames  bool
+	optimizeLocalAccessForGlobalSymbolNamespace CompilerOptions_OptimizeLocalAccess
+	collapsePropertiesLevel                     CompilerOptions_PropertyCollapseLevel
 	// Split object literals into individual variables when possible.
 	collapseObjectLiterals bool
 	// Devirtualize prototype method by rewriting them to be static calls that take the this pointer
@@ -393,6 +398,10 @@ type CompilerOptions struct {
 	// null indicates that no such files should be written.
 	debugLogFilter          *string
 	serializeExtraDebugInfo bool
+	// Go-only: language-adapter — Function<OutputStream, OutputStream> and
+	// Function<InputStream, InputStream>; nil is Java null.
+	stateCompressionWrapper   func(io.Writer) io.Writer
+	stateDecompressionWrapper func(io.Reader) io.Reader
 	// Whether to write keyword properties as foo['class'] instead of foo.class; needed for IE8.
 	quoteKeywordProperties bool
 	preferSingleQuotes     bool
@@ -968,6 +977,19 @@ func (o *CompilerOptions) AssumeCrossChunkNamesForRenamePrefixNamespace() bool {
 	return o.renamePrefixNamespaceAssumeCrossChunkNames
 }
 
+// SetOptimizeLocalAccessForGlobalSymbolNamespace: optimize access to global
+// symbols.
+//
+// Java: CompilerOptions.setOptimizeLocalAccessForGlobalSymbolNamespace(OptimizeLocalAccess)
+func (o *CompilerOptions) SetOptimizeLocalAccessForGlobalSymbolNamespace(optimize CompilerOptions_OptimizeLocalAccess) {
+	o.optimizeLocalAccessForGlobalSymbolNamespace = optimize
+}
+
+// Java: CompilerOptions.getOptimizeLocalAccessForGlobalSymbolNamespace()
+func (o *CompilerOptions) GetOptimizeLocalAccessForGlobalSymbolNamespace() CompilerOptions_OptimizeLocalAccess {
+	return o.optimizeLocalAccessForGlobalSymbolNamespace
+}
+
 // Flattens multi-level property names (e.g. a$b = x)
 //
 // @deprecated use getPropertyCollapseLevel
@@ -1380,7 +1402,8 @@ func (o *CompilerOptions) ShouldAliasDynamicImport() bool {
 func NewCompilerOptions() *CompilerOptions {
 	o := &CompilerOptions{}
 	// Field initializers.
-	o.experimentalForceTranspiles = []CompilerOptions_ExperimentalForceTranspile{}
+	o.experimentalOutputFeatureSet = nil
+	o.optimizeLocalAccessForGlobalSymbolNamespace = CompilerOptions_OptimizeLocalAccess_DISABLED
 	o.inferConsts = true
 	o.incrementalCheckMode = CompilerOptions_IncrementalCheckMode_OFF
 	o.parseJsDocDocumentation = parsing.Config_JsDocParsing_TYPES_ONLY
@@ -1446,6 +1469,8 @@ func NewCompilerOptions() *CompilerOptions {
 	// Optimizations
 	o.foldConstants = false
 	o.coalesceVariableNames = false
+	o.optimizeLetAndConst = true
+	o.assumeGlobalScopeIsIsolated = false
 	o.deadAssignmentElimination = false
 	o.deadPropertyAssignmentElimination = base.Tri_UNKNOWN
 	o.inlineConstantVars = false
@@ -2151,49 +2176,88 @@ func (o *CompilerOptions) GetOutputFeatureSet() *parser.FeatureSet {
 	return o.languageIn.ToFeatureSet()
 }
 
-// CompilerOptions_ExperimentalForceTranspile are options to force transpile specific features for performance
-// experiments.
+// SetTranspilePublicClassFields disables emitting public class fields
+// natively, forcing them to be transpiled into constructor assignments.
+//
+// Java: CompilerOptions.setTranspilePublicClassFields(boolean)
+func (o *CompilerOptions) SetTranspilePublicClassFields(transpile bool) {
+	if transpile {
+		o.SetOutputFeatureSet(o.GetOutputFeatureSet().WithoutFeatures(parser.FeatureSet_Feature_PUBLIC_CLASS_FIELDS))
+	} else {
+		o.SetOutputFeatureSet(o.GetOutputFeatureSet().With(parser.FeatureSet_Feature_PUBLIC_CLASS_FIELDS))
+	}
+}
+
+// Java: CompilerOptions.getTranspilePublicClassFields()
+func (o *CompilerOptions) GetTranspilePublicClassFields() bool {
+	return !o.GetOutputFeatureSet().Has(parser.FeatureSet_Feature_PUBLIC_CLASS_FIELDS)
+}
+
+// CompilerOptions_ExperimentalOutputFeatureSet is the option to enable
+// specific output features for performance experiments.
 //
 // Deprecated.
-type CompilerOptions_ExperimentalForceTranspile int32
+type CompilerOptions_ExperimentalOutputFeatureSet int32
 
 const (
-	// Transpile performance sensitive features away, preserving ASYNC/AWAIT for
-	// debuggability
+	// If the output feature set is ES2015 or above, downgrade to ES5 output
+	// with only a small subset of ES2015 features enabled that are known not to
+	// have negative performance impact. Additionally allow ASYNC_FUNCTIONS and
+	// ASYNC_GENERATORS output for better async stack traces.
 	//
-	// Deprecated: Use setLanguageOut(LanguageMode.ECMASCRIPT5), or
-	// setLangaugeOut(LanguageMode.ECMASCRIPT_2017) instead.
-	CompilerOptions_ExperimentalForceTranspile_PERFORMANT_WITH_ASYNC_STACKS CompilerOptions_ExperimentalForceTranspile = iota
+	// Deprecated: Use setBrowserFeaturesetYear or setLanguageOut instead.
+	CompilerOptions_ExperimentalOutputFeatureSet_ES5_WITH_SOME_PERFORMANT_ES2015_AND_ASYNC_FUNCTIONS CompilerOptions_ExperimentalOutputFeatureSet = iota
+	// If the output feature set is ES2015 or above, downgrade to ES5 output
+	// with all BROWSER_2019 features enabled that are known not to have
+	// negative performance impact. Features currently excluded because of
+	// performance concerns are classes (pending confirmation of actual
+	// performance impact), and spread expressions (confirmed known performance
+	// impact for Firefox 154 during static script evaluation, see
+	// https://bugzilla.mozilla.org/show_bug.cgi?id=2069741).
+	//
+	// Deprecated: Use setBrowserFeaturesetYear or setLanguageOut instead.
+	CompilerOptions_ExperimentalOutputFeatureSet_BROWSER_2019_WITHOUT_CLASSES_AND_SPREAD
 )
 
-var compilerOptions_ExperimentalForceTranspile_names = [...]string{"PERFORMANT_WITH_ASYNC_STACKS"}
+var compilerOptions_ExperimentalOutputFeatureSet_names = [...]string{
+	"ES5_WITH_SOME_PERFORMANT_ES2015_AND_ASYNC_FUNCTIONS",
+	"BROWSER_2019_WITHOUT_CLASSES_AND_SPREAD",
+}
 
-// CompilerOptions_ExperimentalForceTranspile_values is ExperimentalForceTranspile.values().
-func CompilerOptions_ExperimentalForceTranspile_values() []CompilerOptions_ExperimentalForceTranspile {
-	return []CompilerOptions_ExperimentalForceTranspile{CompilerOptions_ExperimentalForceTranspile_PERFORMANT_WITH_ASYNC_STACKS}
+// CompilerOptions_ExperimentalOutputFeatureSet_values is ExperimentalOutputFeatureSet.values().
+func CompilerOptions_ExperimentalOutputFeatureSet_values() []CompilerOptions_ExperimentalOutputFeatureSet {
+	return []CompilerOptions_ExperimentalOutputFeatureSet{
+		CompilerOptions_ExperimentalOutputFeatureSet_ES5_WITH_SOME_PERFORMANT_ES2015_AND_ASYNC_FUNCTIONS,
+		CompilerOptions_ExperimentalOutputFeatureSet_BROWSER_2019_WITHOUT_CLASSES_AND_SPREAD,
+	}
 }
 
 // String is Enum.name().
-func (e CompilerOptions_ExperimentalForceTranspile) String() string {
-	return compilerOptions_ExperimentalForceTranspile_names[e]
+func (e CompilerOptions_ExperimentalOutputFeatureSet) String() string {
+	return compilerOptions_ExperimentalOutputFeatureSet_names[e]
 }
 
 // Ordinal is Enum.ordinal().
-func (e CompilerOptions_ExperimentalForceTranspile) Ordinal() int { return int(e) }
+func (e CompilerOptions_ExperimentalOutputFeatureSet) Ordinal() int { return int(e) }
 
-// Java: CompilerOptions.setExperimentalForceTranspiles(ExperimentalForceTranspile...)
-func (o *CompilerOptions) SetExperimentalForceTranspiles(experimentalForceTranspile ...CompilerOptions_ExperimentalForceTranspile) {
-	if len(experimentalForceTranspile) > 1 {
-		jutil.CheckState(
-			!slices.Contains(o.experimentalForceTranspiles,
-				CompilerOptions_ExperimentalForceTranspile_PERFORMANT_WITH_ASYNC_STACKS))
+// SetExperimentalOutputFeatureSet: a nil experimentalOutputFeatureSet is
+// Java null (Optional.fromNullable).
+//
+// Java: CompilerOptions.setExperimentalOutputFeatureSet(ExperimentalOutputFeatureSet)
+func (o *CompilerOptions) SetExperimentalOutputFeatureSet(experimentalOutputFeatureSet *CompilerOptions_ExperimentalOutputFeatureSet) {
+	if experimentalOutputFeatureSet == nil {
+		o.experimentalOutputFeatureSet = nil
+	} else {
+		v := *experimentalOutputFeatureSet
+		o.experimentalOutputFeatureSet = &v
 	}
-	o.experimentalForceTranspiles = append([]CompilerOptions_ExperimentalForceTranspile{}, experimentalForceTranspile...)
 }
 
-// Java: CompilerOptions.getExperimentalForceTranspiles()
-func (o *CompilerOptions) GetExperimentalForceTranspiles() []CompilerOptions_ExperimentalForceTranspile {
-	return o.experimentalForceTranspiles
+// GetExperimentalOutputFeatureSet: nil is Optional.absent().
+//
+// Java: CompilerOptions.getExperimentalOutputFeatureSet()
+func (o *CompilerOptions) GetExperimentalOutputFeatureSet() *CompilerOptions_ExperimentalOutputFeatureSet {
+	return o.experimentalOutputFeatureSet
 }
 
 // Java: CompilerOptions.needsTranspilationFrom(FeatureSet)
@@ -2538,6 +2602,26 @@ func (o *CompilerOptions) SetCoalesceVariableNames(coalesceVariableNames bool) {
 // Java: CompilerOptions.shouldCoalesceVariableNames()
 func (o *CompilerOptions) ShouldCoalesceVariableNames() bool {
 	return o.coalesceVariableNames
+}
+
+// Java: CompilerOptions.setOptimizeLetAndConst(boolean)
+func (o *CompilerOptions) SetOptimizeLetAndConst(optimizeLetAndConst bool) {
+	o.optimizeLetAndConst = optimizeLetAndConst
+}
+
+// Java: CompilerOptions.shouldOptimizeLetAndConst()
+func (o *CompilerOptions) ShouldOptimizeLetAndConst() bool {
+	return o.optimizeLetAndConst
+}
+
+// Java: CompilerOptions.setAssumeGlobalScopeIsIsolated(boolean)
+func (o *CompilerOptions) SetAssumeGlobalScopeIsIsolated(assumeGlobalScopeIsIsolated bool) {
+	o.assumeGlobalScopeIsIsolated = assumeGlobalScopeIsIsolated
+}
+
+// Java: CompilerOptions.shouldTreatGlobalScopeAsIsolated()
+func (o *CompilerOptions) ShouldTreatGlobalScopeAsIsolated() bool {
+	return o.assumeGlobalScopeIsIsolated || o.renamePrefixNamespace != nil
 }
 
 // Java: CompilerOptions.setInlineLocalVariables(boolean)
@@ -3235,6 +3319,26 @@ func (o *CompilerOptions) SetSerializeExtraDebugInfo(serializeExtraDebugInfo boo
 	o.serializeExtraDebugInfo = serializeExtraDebugInfo
 }
 
+// Java: CompilerOptions.setStateCompressionWrapper(Function<OutputStream, OutputStream>)
+func (o *CompilerOptions) SetStateCompressionWrapper(wrapper func(io.Writer) io.Writer) {
+	o.stateCompressionWrapper = wrapper
+}
+
+// Java: CompilerOptions.getStateCompressionWrapper()
+func (o *CompilerOptions) GetStateCompressionWrapper() func(io.Writer) io.Writer {
+	return o.stateCompressionWrapper
+}
+
+// Java: CompilerOptions.setStateDecompressionWrapper(Function<InputStream, InputStream>)
+func (o *CompilerOptions) SetStateDecompressionWrapper(wrapper func(io.Reader) io.Reader) {
+	o.stateDecompressionWrapper = wrapper
+}
+
+// Java: CompilerOptions.getStateDecompressionWrapper()
+func (o *CompilerOptions) GetStateDecompressionWrapper() func(io.Reader) io.Reader {
+	return o.stateDecompressionWrapper
+}
+
 // Java: CompilerOptions.setQuoteKeywordProperties(boolean)
 func (o *CompilerOptions) SetQuoteKeywordProperties(quoteKeywordProperties bool) {
 	o.quoteKeywordProperties = quoteKeywordProperties
@@ -3835,6 +3939,9 @@ func (o *CompilerOptions) String() string {
 	h.Add("numParallelThreads", o.numParallelThreads) // add(String, int): never omitted
 	h.AddBool("optimizeCalls", o.optimizeCalls)
 	h.AddBool("optimizeESClassConstructors", o.optimizeESClassConstructors)
+	h.Add(
+		"optimizeLocalAccessForGlobalSymbolNamespace",
+		compilerOptions_valueOf(o.optimizeLocalAccessForGlobalSymbolNamespace))
 	h.Add("outputCharset", compilerOptions_valueOf(o.outputCharset))
 	h.Add("outputFeatureSet", compilerOptions_valueOf(compilerOptions_optionalOf(o.outputFeatureSet)))
 	h.Add("outputJs", compilerOptions_valueOf(o.outputJs))
@@ -3990,6 +4097,53 @@ func (e CompilerOptions_ChunkOutputType) String() string {
 
 // Ordinal is Enum.ordinal().
 func (e CompilerOptions_ChunkOutputType) Ordinal() int { return int(e) }
+
+// CompilerOptions_OptimizeLocalAccess is the option for optimizing local
+// access to the global symbol namespace when using renamePrefixNamespace.
+type CompilerOptions_OptimizeLocalAccess int32
+
+const (
+	// No local access optimization. All global symbols are rescoped to the
+	// global namespace.
+	CompilerOptions_OptimizeLocalAccess_DISABLED CompilerOptions_OptimizeLocalAccess = iota
+
+	// Use a local closure scope alias for global symbols within the chunk where
+	// they are defined, if they are not reassigned in other chunks.
+	CompilerOptions_OptimizeLocalAccess_DEFINING_CHUNK_ONLY
+
+	// In addition to DEFINING_CHUNK_ONLY, create local aliases (e.g. `var a =
+	// _.a;`) in other chunks that use the global symbol, and use the local
+	// alias instead of the global namespace. This is only done for symbols that
+	// are not reassigned anywhere.
+	CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS
+
+	// In addition to ALL_CHUNKS, create dedicated singleton holder objects for
+	// mutable cross-chunk symbols (e.g. `var a = _.a = {};`) and access them
+	// via `a._`.
+	CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS
+)
+
+var compilerOptions_OptimizeLocalAccess_names = [...]string{
+	"DISABLED", "DEFINING_CHUNK_ONLY", "ALL_CHUNKS", "ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS",
+}
+
+// CompilerOptions_OptimizeLocalAccess_values is OptimizeLocalAccess.values().
+func CompilerOptions_OptimizeLocalAccess_values() []CompilerOptions_OptimizeLocalAccess {
+	return []CompilerOptions_OptimizeLocalAccess{
+		CompilerOptions_OptimizeLocalAccess_DISABLED,
+		CompilerOptions_OptimizeLocalAccess_DEFINING_CHUNK_ONLY,
+		CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS,
+		CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS,
+	}
+}
+
+// String is Enum.name().
+func (e CompilerOptions_OptimizeLocalAccess) String() string {
+	return compilerOptions_OptimizeLocalAccess_names[e]
+}
+
+// Ordinal is Enum.ordinal().
+func (e CompilerOptions_OptimizeLocalAccess) Ordinal() int { return int(e) }
 
 // CompilerOptions_LanguageMode is a language mode applies to the whole compilation job. As a result, the
 // compiler does not support mixed strict and non-strict in the same compilation
@@ -4201,6 +4355,8 @@ const (
 	CompilerOptions_TracerMode_ALL CompilerOptions_TracerMode = iota
 	// Collect all timing and size metrics, except gzipped size. Slow.
 	CompilerOptions_TracerMode_RAW_SIZE
+	// Collect AST size data and metrics on the impact of dependency pruning.
+	CompilerOptions_TracerMode_AST_SIZE_AND_PRUNING
 	// For size data, don't serialize the AST, just count the number of nodes.
 	CompilerOptions_TracerMode_AST_SIZE
 	// Collect timing metrics only.
@@ -4209,11 +4365,11 @@ const (
 	CompilerOptions_TracerMode_OFF
 )
 
-var compilerOptions_TracerMode_names = [...]string{"ALL", "RAW_SIZE", "AST_SIZE", "TIMING_ONLY", "OFF"}
+var compilerOptions_TracerMode_names = [...]string{"ALL", "RAW_SIZE", "AST_SIZE_AND_PRUNING", "AST_SIZE", "TIMING_ONLY", "OFF"}
 
 // CompilerOptions_TracerMode_values is TracerMode.values().
 func CompilerOptions_TracerMode_values() []CompilerOptions_TracerMode {
-	return []CompilerOptions_TracerMode{CompilerOptions_TracerMode_ALL, CompilerOptions_TracerMode_RAW_SIZE, CompilerOptions_TracerMode_AST_SIZE, CompilerOptions_TracerMode_TIMING_ONLY, CompilerOptions_TracerMode_OFF}
+	return []CompilerOptions_TracerMode{CompilerOptions_TracerMode_ALL, CompilerOptions_TracerMode_RAW_SIZE, CompilerOptions_TracerMode_AST_SIZE_AND_PRUNING, CompilerOptions_TracerMode_AST_SIZE, CompilerOptions_TracerMode_TIMING_ONLY, CompilerOptions_TracerMode_OFF}
 }
 
 // String is Enum.name().
@@ -4225,6 +4381,11 @@ func (e CompilerOptions_TracerMode) Ordinal() int { return int(e) }
 // Java: CompilerOptions.TracerMode.isOn()
 func (e CompilerOptions_TracerMode) IsOn() bool {
 	return e != CompilerOptions_TracerMode_OFF
+}
+
+// Java: CompilerOptions.TracerMode.doPruningAnalysis()
+func (e CompilerOptions_TracerMode) DoPruningAnalysis() bool {
+	return e == CompilerOptions_TracerMode_AST_SIZE_AND_PRUNING || e == CompilerOptions_TracerMode_ALL || e == CompilerOptions_TracerMode_RAW_SIZE
 }
 
 // CompilerOptions_TweakProcessing is the option for the ProcessTweaks pass

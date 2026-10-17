@@ -453,15 +453,21 @@ func coreG3Ops() []coreG3Op {
 			o.SetDynamicImportAlias(coreG3Nullable(a))
 		}},
 		coreG3BoolOp("setAllowDynamicImport", (*CompilerOptions).SetAllowDynamicImport),
-		{"setExperimentalForceTranspiles",
-			[]string{"", "PERFORMANT_WITH_ASYNC_STACKS", "PERFORMANT_WITH_ASYNC_STACKS,PERFORMANT_WITH_ASYNC_STACKS"},
+		{"setExperimentalOutputFeatureSet",
+			[]string{"null", "ES5_WITH_SOME_PERFORMANT_ES2015_AND_ASYNC_FUNCTIONS", "BROWSER_2019_WITHOUT_CLASSES_AND_SPREAD"},
 			func(o *CompilerOptions, a string) {
-				var l []CompilerOptions_ExperimentalForceTranspile
-				for _, s := range coreG3List(a) {
-					l = append(l, coreG3ValueOf(CompilerOptions_ExperimentalForceTranspile_values(), s))
+				if a == "null" {
+					o.SetExperimentalOutputFeatureSet(nil)
+				} else {
+					v := coreG3ValueOf(CompilerOptions_ExperimentalOutputFeatureSet_values(), a)
+					o.SetExperimentalOutputFeatureSet(&v)
 				}
-				o.SetExperimentalForceTranspiles(l...)
 			}},
+		coreG3BoolOp("setTranspilePublicClassFields", (*CompilerOptions).SetTranspilePublicClassFields),
+		coreG3BoolOp("setOptimizeLetAndConst", (*CompilerOptions).SetOptimizeLetAndConst),
+		coreG3BoolOp("setAssumeGlobalScopeIsIsolated", (*CompilerOptions).SetAssumeGlobalScopeIsIsolated),
+		coreG3EnumOp("setOptimizeLocalAccessForGlobalSymbolNamespace", CompilerOptions_OptimizeLocalAccess_values(),
+			(*CompilerOptions).SetOptimizeLocalAccessForGlobalSymbolNamespace),
 		{"setCssRenamingSkiplist", []string{"", "x"}, func(o *CompilerOptions, a string) { o.SetCssRenamingSkiplist(coreG3Set(a)) }},
 		{"setInjectPolyfillsNewerThan", []string{"null", "ECMASCRIPT5", "ECMASCRIPT_2015"}, func(o *CompilerOptions, a string) {
 			if a == "null" {
@@ -508,7 +514,7 @@ func coreG3EnumLists() map[string][]string {
 		"Environment":                            coreG3Names(CompilerOptions_Environment_values()),
 		"Es6ModuleTranspilation":                 coreG3Names(CompilerOptions_Es6ModuleTranspilation_values()),
 		"Es6SubclassTranspilation":               coreG3Names(CompilerOptions_Es6SubclassTranspilation_values()),
-		"ExperimentalForceTranspile":             coreG3Names(CompilerOptions_ExperimentalForceTranspile_values()),
+		"ExperimentalOutputFeatureSet":           coreG3Names(CompilerOptions_ExperimentalOutputFeatureSet_values()),
 		"ExtractPrototypeMemberDeclarationsMode": coreG3Names(CompilerOptions_ExtractPrototypeMemberDeclarationsMode_values()),
 		"IncrementalCheckMode":                   coreG3Names(CompilerOptions_IncrementalCheckMode_values()),
 		"InstrumentOption":                       coreG3Names(CompilerOptions_InstrumentOption_values()),
@@ -516,6 +522,7 @@ func coreG3EnumLists() map[string][]string {
 		"J2clPassMode":                           coreG3Names(CompilerOptions_J2clPassMode_values()),
 		"JsonStreamMode":                         coreG3Names(CompilerOptions_JsonStreamMode_values()),
 		"LanguageMode":                           coreG3Names(CompilerOptions_LanguageMode_values()),
+		"OptimizeLocalAccess":                    coreG3Names(CompilerOptions_OptimizeLocalAccess_values()),
 		"OutputJs":                               coreG3Names(CompilerOptions_OutputJs_values()),
 		"PropertyCollapseLevel":                  coreG3Names(CompilerOptions_PropertyCollapseLevel_values()),
 		"Reach":                                  coreG3Names(CompilerOptions_Reach_values()),
@@ -581,7 +588,7 @@ func (o *coreG3Out) options(seed int64, n int) {
 		o.line("Reach " + r.String() + " " + strconv.FormatBool(r.IsOn()) + " " + strconv.FormatBool(r.IncludesGlobals()))
 	}
 	for _, r := range CompilerOptions_TracerMode_values() {
-		o.line("TracerMode " + r.String() + " " + strconv.FormatBool(r.IsOn()))
+		o.line("TracerMode " + r.String() + " " + strconv.FormatBool(r.IsOn()) + " " + strconv.FormatBool(r.DoPruningAnalysis()))
 	}
 	for _, r := range CompilerOptions_TweakProcessing_values() {
 		o.line("TweakProcessing " + r.String() + " " + strconv.FormatBool(r.IsOn()) + " " + strconv.FormatBool(r.ShouldStrip()))
@@ -632,6 +639,16 @@ func (o *coreG3Out) options(seed int64, n int) {
 			var v string
 			if t := coreG3Try(func() {
 				r := g.method.Func.Call([]reflect.Value{reflect.ValueOf(opts)})[0].Interface()
+				if g.javaName == "getExperimentalOutputFeatureSet" {
+					// Go-only: the Java getter returns a Guava Optional; the port
+					// returns a nil-able pointer.
+					if jutil.IsNil(r) {
+						v = "Optional.absent()"
+					} else {
+						v = "Optional.of(" + coreG3Fmt(reflect.ValueOf(r).Elem().Interface()) + ")"
+					}
+					return
+				}
 				if g.javaName == "getConformanceRemoveRegexFromPath" {
 					// Go-only: the Java getter returns a Guava Optional<Pattern>;
 					// the port returns a nil-able *jutil.Pattern.
@@ -1205,7 +1222,7 @@ func (o *coreG3Out) chunks(seed int64, n int) {
 					}
 				}
 				res := []string{}
-				for _, in := range fresh.ManageDependencies(compiler, opts) {
+				for _, in := range fresh.ManageDependencies(compiler, opts).OrderedInputs() {
 					res = append(res, in.GetName())
 				}
 				o.line("managed " + m + " " + jutil.CollectionToString(res))

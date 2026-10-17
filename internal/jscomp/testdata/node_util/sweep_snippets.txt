@@ -1296,3 +1296,224 @@ goog.loadModule(function(exports) { goog.module('a.b'); return exports; });
 const x = 1;
 const y = 2;
 
+#### nodeutiltest/0573.js
+({a: 1});
+#### nodeutiltest/0574.js
+({'a': 1, 2: 3});
+#### nodeutiltest/0575.js
+({foo() {}});
+#### nodeutiltest/0576.js
+({get foo() { return 1; }});
+#### nodeutiltest/0577.js
+({set foo(x) {}});
+#### nodeutiltest/0578.js
+({toString: 1});
+#### nodeutiltest/0579.js
+({'toString': 1});
+#### nodeutiltest/0580.js
+({toString() { return 'foo'; }});
+#### nodeutiltest/0581.js
+({get toString() { return 'foo'; }});
+#### nodeutiltest/0582.js
+({set toString(x) {}});
+#### nodeutiltest/0583.js
+({valueOf: 1});
+#### nodeutiltest/0584.js
+({'valueOf': 1});
+#### nodeutiltest/0585.js
+({valueOf() { return 1; }});
+#### nodeutiltest/0586.js
+({get valueOf() { return 1; }});
+#### nodeutiltest/0587.js
+({set valueOf(x) {}});
+#### nodeutiltest/0588.js
+({__proto__: null});
+#### nodeutiltest/0589.js
+({'__proto__': null});
+#### nodeutiltest/0590.js
+({__proto__: p});
+#### nodeutiltest/0591.js
+({[key]: 'val'});
+#### nodeutiltest/0592.js
+({...spread});
+#### nodeutiltest/0593.js
+("0b10");
+#### nodeutiltest/0594.js
+("0o10");
+#### nodeutiltest/0595.js
+("1d");
+#### nodeutiltest/0596.js
+("1f");
+#### nodeutiltest/0597.js
+({toString() { return '1'; }});
+#### nodeutiltest/0598.js
+({[key]: 1});
+#### nodeutiltest/0599.js
+(-"1");
+#### nodeutiltest/0600.js
+(+"1");
+#### nodeutiltest/0601.js
+(~"1");
+#### nodeutiltest/0602.js
+(-true);
+#### nodeutiltest/0603.js
+(~true);
+#### nodeutiltest/0604.js
+(-false);
+#### nodeutiltest/0605.js
+(+false);
+#### nodeutiltest/0606.js
+(~false);
+#### nodeutiltest/0607.js
+(-[1]);
+#### nodeutiltest/0608.js
+(+[1]);
+#### nodeutiltest/0609.js
+(~[1]);
+#### nodeutiltest/0610.js
+(-{});
+#### nodeutiltest/0611.js
+(+{});
+#### nodeutiltest/0612.js
+(~{});
+#### nodeutiltest/0613.js
+(- -"1");
+#### nodeutiltest/0614.js
+(+ +"1");
+#### nodeutiltest/0615.js
+(+ -"1");
+#### nodeutiltest/0616.js
+(~ ~"1");
+#### nodeutiltest/0617.js
+(- -1);
+#### nodeutiltest/0618.js
+(+ +1);
+#### nodeutiltest/0619.js
+(+ -1);
+#### nodeutiltest/0620.js
+(~ ~1);
+#### nodeutiltest/0621.js
+(-"1d");
+#### nodeutiltest/0622.js
+(+"1d");
+#### nodeutiltest/0623.js
+(0.0);
+#### nodeutiltest/0624.js
+(1.5);
+#### nodeutiltest/0625.js
+(1e5);
+#### nodeutiltest/0626.js
+(0x10);
+#### nodeutiltest/0627.js
+(0b10);
+#### nodeutiltest/0628.js
+(0o10);
+#### nodeutiltest/0629.js
+(-0);
+#### nodeutiltest/0630.js
+(-1.5);
+#### nodeutiltest/0631.js
+(-1e5);
+#### nodeutiltest/0632.js
+(-0x10);
+#### nodeutiltest/0633.js
+(+0);
+#### nodeutiltest/0634.js
+(+0.0);
+#### nodeutiltest/0635.js
+(+1.5);
+#### nodeutiltest/0636.js
+(+1e5);
+#### nodeutiltest/0637.js
+(+0x10);
+#### nodeutiltest/0638.js
+(+Infinity);
+#### nodeutiltest/0639.js
+("1");
+#### nodeutiltest/0640.js
+(1 + 2);
+#### nodeutiltest/0641.js
+(-(1 + 2));
+#### nodeutiltest/0642.js
+(-(-1));
+#### nodeutiltest/0643.js
+(+(+1));
+#### nodeutiltest/0644.js
+(+(-1));
+#### nodeutiltest/0645.js
+(-(+1));
+#### nodeutiltest/0646.js
+(!1);
+#### nodeutiltest/0647.js
+(-5.0);
+#### nodeutiltest/0648.js
+(+5.0);
+#### nodeutiltest/0649.js
+/** @fileoverview @typeSummary */ var x;
+#### nodeutiltest/0650.js
+// IJS
+/** @fileoverview @typeSummary */
+/** @externs */
+;
+#### nodeutiltest/0651.js
+function f() {}
+#### nodeutiltest/0652.js
+function f(a, b) {}
+#### nodeutiltest/0653.js
+function f(a = 1) {}
+#### nodeutiltest/0654.js
+function f(a = 'default') {}
+#### nodeutiltest/0655.js
+function f(...a) {}
+#### nodeutiltest/0656.js
+function f(a = audit()) {}
+#### nodeutiltest/0657.js
+function f({a}) {}
+#### nodeutiltest/0658.js
+function f([a]) {}
+#### nodeutiltest/0659.js
+function f({a} = {}) {}
+#### nodeutiltest/0660.js
+function f(...[a]) {}
+#### nodeutiltest/0661.js
+function f(a, {b}, ...c) {}
+#### nodeutiltest/0662.js
+x ||= 1;
+#### nodeutiltest/0663.js
+y ||= x;
+#### nodeutiltest/0664.js
+x &&= 1;
+#### nodeutiltest/0665.js
+y &&= x;
+#### nodeutiltest/0666.js
+x ??= 1;
+#### nodeutiltest/0667.js
+y ??= x;
+#### nodeutiltest/0668.js
+for(x of {}){}
+#### nodeutiltest/0669.js
+for({}.a of x){}
+#### nodeutiltest/0670.js
+for({}.a of {}){x}
+#### nodeutiltest/0671.js
+if (1) { for(x of {}){} }
+#### nodeutiltest/0672.js
+async function f() { for await(x of {}){} }
+#### nodeutiltest/0673.js
+async function f() { for await({}.a of x){} }
+#### nodeutiltest/0674.js
+async function f() { for await({}.a of {}){x} }
+#### nodeutiltest/0675.js
+async function f() { if (1) { for await(x of {}){} } }
+#### nodeutiltest/0676.js
+function f() { new.target; }
+#### nodeutiltest/0677.js
+function f() { () => new.target; }
+#### nodeutiltest/0678.js
+() => function f() { new.target; }
+#### nodeutiltest/0679.js
+tag`literal`
+#### nodeutiltest/0680.js
+(async () => { await p; })
+#### nodeutiltest/0681.js
+import('m')

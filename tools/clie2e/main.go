@@ -1,5 +1,6 @@
 // Command clie2e is the end-to-end oracle for the jsgo binary: it runs
-// `java -jar closure-compiler.jar` (in one JVM, tools/oracle/java/CliE2E)
+// `java -jar closure-compiler.jar` (in one JVM, tools/oracle/java/CliE2E;
+// the jar is CLOSURE_JAR of tools/oracle/pin.env)
 // and the jsgo binary with identical argument vectors and compares stdout,
 // stderr, the exit status and every output file byte for byte.
 //
@@ -57,6 +58,7 @@ import (
 	"sync"
 
 	oraclecorpus "github.com/paullepoulpe/jsgo/tools/oracle/corpus"
+	"github.com/paullepoulpe/jsgo/tools/oracle/pin"
 )
 
 var (
@@ -68,7 +70,7 @@ var (
 	shards   = flag.Int("shards", 2, "number of JVMs")
 	jobsN    = flag.Int("jobs", 3, "concurrent jsgo processes")
 	javaBld  = flag.String("javabuild", "/home/user/jsgo/.cache/oracle-build", "directory holding the compiled CliE2E (tools/oracle/build.sh)")
-	jar      = flag.String("jar", "/home/user/jsgo/.cache/closure-compiler.jar", "pinned closure-compiler.jar")
+	jar      = flag.String("jar", "/home/user/jsgo/.cache/"+pin.MustLoad().Jar, "pinned closure-compiler.jar (default: CLOSURE_JAR of "+pin.Path+")")
 	corpus   = flag.String("corpus", "/home/user/jsgo/.cache/corpus", "corpus root")
 	list     = flag.String("list", "/home/user/jsgo/.cache/corpus-files.txt", "corpus file list")
 	keep     = flag.Bool("v", false, "print the first lines of each diff")

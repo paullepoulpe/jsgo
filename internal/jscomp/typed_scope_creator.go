@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/TypedScopeCreator.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/TypedScopeCreator.java @ closure-compiler v20261015
 
 /*
  * Copyright 2004 The Closure Compiler Authors.
@@ -1549,13 +1549,28 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) DefineModuleImport(
 	optionalProperty *string,
 	scopeToDeclareIn *TypedScope) {
 	if importedModuleObject == nil {
-		// We could not find the module defining this import. Just declare the name as unknown.
+		// We could not find the module defining this import. If the compiler is assuming forward
+		// declared types (or if explicitly forward declared), create a NamedType so it resolves to
+		// NoResolvedType. Otherwise, fall back to unknownType to avoid spurious type check errors.
+		var fallbackType rhino.JSType
+		if b.outer.compiler.GetOptions().AssumeForwardDeclaredForMissingTypes() {
+			fallbackType = b.outer.typeRegistry.CreateNamedType(
+				b.currentScope,
+				localNameNode.GetString(),
+				localNameNode.GetSourceFileName(),
+				localNameNode.GetLineno(),
+				localNameNode.GetCharno())
+		} else {
+			fallbackType = b.outer.unknownType
+		}
 		NewTypedScopeCreator_AbstractScopeBuilder_SlotDefiner(b).
 			ForDeclarationNode(localNameNode).
 			ForVariableName(localNameNode.GetString()).
 			InScope(scopeToDeclareIn).
-			WithType(b.outer.unknownType).
-			AllowLaterTypeInference(true).
+			WithType(fallbackType).
+			AllowLaterTypeInference(
+				fallbackType.IsUnknownType() &&
+					!b.outer.compiler.GetOptions().AssumeForwardDeclaredForMissingTypes()).
 			DefineSlot()
 		return
 	}
@@ -1775,7 +1790,7 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) FindSuperClassFromNodes(ext
 	if ctorType != nil {
 		if ctorType.IsConstructor() || ctorType.IsInterface() {
 			return ctorType.ToMaybeFunctionType().GetInstanceType()
-		} else if ctorType.IsUnknownType() {
+		} else if ctorType.IsUnknownType() || ctorType.IsNoResolvedType() {
 			// The constructor could have an unknown type for cases where it is dynamically
 			// created or passed in from elsewhere.
 			// e.g. with a mixin pattern
@@ -1783,6 +1798,8 @@ func (b *TypedScopeCreator_AbstractScopeBuilderBase) FindSuperClassFromNodes(ext
 			//   return class extends ctor { ... };
 			// }
 			// In that case consider the super class instance type to be unknown.
+			// On the other hand, the constructor can be a NoResolvedType if running in Clutz's
+			// partial compilation mode.
 			return ctorType.ToMaybeObjectType()
 		}
 	}
@@ -2416,8 +2433,8 @@ func (d *TypedScopeCreator_AbstractScopeBuilder_SlotDefiner) DefineSlot() {
 		globalThisCtor :=
 			b.outer.typeRegistry.GetNativeObjectType(rhino.JSTypeNative_GLOBAL_THIS).GetConstructor()
 		globalThisCtor.GetInstanceType().ClearCachedValues()
-		globalThisCtor.GetPrototype().ClearCachedValues()
-		globalThisCtor.SetPrototypeBasedOn((d.type_.ToMaybeFunctionType()).GetInstanceType())
+		b.outer.typeRegistry.ResetImplicitPrototype(
+			globalThisCtor.GetPrototype(), d.type_.ToMaybeFunctionType().GetInstanceType())
 	}
 }
 

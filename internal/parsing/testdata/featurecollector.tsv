@@ -1,4 +1,4 @@
-irf/classes1.js	[getters, setters, class, class getters/setters, computed property, generator, member declaration, async function, async generator functions, Optional chaining, Public class fields, Class static block]
+irf/classes1.js	[getters, setters, class, class getters/setters, computed property, generator, member declaration, async function, async generator functions, Optional chaining, Public class fields, Class static block, Private elements]
 irf/comments1.js	[getters, array destructuring, array pattern rest, class, class getters/setters, let declaration, member declaration, object destructuring, object pattern rest, Dynamic module import, Optional chaining, Public class fields]
 irf/comments2.js	[array destructuring, default parameter, member declaration, rest parameter]
 irf/crlf.js	[template literal]

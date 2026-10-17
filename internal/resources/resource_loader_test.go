@@ -20,18 +20,18 @@ var resourceLoaderVectors = []struct {
 	exists      bool
 	result      string
 }{
-	{"com.google.javascript.jscomp.RemoveUnusedCode", "js/polyfills.txt", true, "len=11051 sha256=47155f596ff9f7d21a21c9597157f760ca06617fd2d22c253db8bca387c030ca"},
-	{"com.google.javascript.jscomp.js.RuntimeJsLibManager", "transpilation_libs.txt", true, "len=3561 sha256=3305d19c3dd4661f76d2ad3c2fc46d953e0a1b06c789c9d2423246ddf6884be6"},
-	{"com.google.javascript.jscomp.Compiler", "js/es6_runtime.js", true, "len=1178 sha256=69949d204bd59fa5e5396e3a937d2b63232f6a30fdb62191fdfcf632385d7786"},
-	{"com.google.javascript.jscomp.Compiler", "js/es6/util/arrayiterator.js", true, "len=1368 sha256=d2817f96df566b92d34946a6da2d67fdab62cbb5eb0270b78e3e3566ab77435c"},
+	{"com.google.javascript.jscomp.RemoveUnusedCode", "js/polyfills.txt", true, "len=11379 sha256=4b501797a9eca44c23281dfdb1aef1e8b7af88e48f2adb0b4025542009dc69e7"},
+	{"com.google.javascript.jscomp.js.RuntimeJsLibManager", "transpilation_libs.txt", true, "len=3934 sha256=0857894f26d26542f0db7dc9090861133d5ce80e0a716a60fc74d8f6339e0d37"},
+	{"com.google.javascript.jscomp.Compiler", "js/es6_runtime.js", true, "len=1234 sha256=9cde552822c9a16038349459630de758cbff0ddd64e38c05e14c905e3b1e614b"},
+	{"com.google.javascript.jscomp.Compiler", "js/es6/util/arrayiterator.js", true, "len=1395 sha256=a2505a52eb1bae870a5975927ffdfa357c11de977612c9dceb6360e0d5b5c26a"},
 	{"com.google.javascript.jscomp.Compiler", "js/nonexistent.js", false, "java.lang.RuntimeException: No such resource: js/nonexistent.js"},
-	{"com.google.javascript.jscomp.Compiler", "/com/google/javascript/jscomp/js/polyfills.txt", true, "len=11051 sha256=47155f596ff9f7d21a21c9597157f760ca06617fd2d22c253db8bca387c030ca"},
+	{"com.google.javascript.jscomp.Compiler", "/com/google/javascript/jscomp/js/polyfills.txt", true, "len=11379 sha256=4b501797a9eca44c23281dfdb1aef1e8b7af88e48f2adb0b4025542009dc69e7"},
 	{"com.google.javascript.jscomp.Compiler", "js/../js/polyfills.txt", false, "java.lang.RuntimeException: No such resource: js/../js/polyfills.txt"},
 	{"com.google.javascript.jscomp.Compiler", "js//polyfills.txt", false, "java.lang.RuntimeException: No such resource: js//polyfills.txt"},
 	{"com.google.javascript.jscomp.Compiler", "./js/polyfills.txt", false, "java.lang.RuntimeException: No such resource: ./js/polyfills.txt"},
 	{"com.google.javascript.jscomp.Compiler", "js/", true, "len=0 sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
 	{"com.google.javascript.jscomp.Compiler", "js", true, "len=0 sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
-	{"com.google.javascript.jscomp.Compiler$CodeBuilder", "js/polyfills.txt", true, "len=11051 sha256=47155f596ff9f7d21a21c9597157f760ca06617fd2d22c253db8bca387c030ca"},
+	{"com.google.javascript.jscomp.Compiler$CodeBuilder", "js/polyfills.txt", true, "len=11379 sha256=4b501797a9eca44c23281dfdb1aef1e8b7af88e48f2adb0b4025542009dc69e7"},
 	{"com.google.javascript.jscomp.Compiler", "", true, "len=0 sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
 }
 
@@ -79,8 +79,8 @@ func TestEmbeddedResourcesAreValidUTF8(t *testing.T) {
 	}
 	// unzip -Z1 closure-compiler.jar 'com/google/javascript/jscomp/js/*' minus directories and .class files,
 	// plus externs.zip and runtime_libs.typedast.
-	if n != 159 {
-		t.Errorf("%d embedded resources, want 159", n)
+	if n != 171 {
+		t.Errorf("%d embedded resources, want 171", n)
 	}
 }
 
@@ -113,8 +113,8 @@ func TestEmbeddedRuntimeLibsTypedAst(t *testing.T) {
 		t.Fatal("/runtime_libs.typedast is not embedded")
 	}
 	sum := sha256.Sum256(data)
-	if got := hex.EncodeToString(sum[:]); len(data) != 3072276 ||
-		got != "0c4896650c3160837b859752409262111fba9720b7e23d8025822e51545a6f71" {
+	if got := hex.EncodeToString(sum[:]); len(data) != 3526864 ||
+		got != "0e2849e6d965f4b89f4e5650b75ccb0eca23fe1babbd8f3cc6c9ae1904b88059" {
 		t.Errorf("runtime_libs.typedast: %d bytes, sha256 %s", len(data), got)
 	}
 }

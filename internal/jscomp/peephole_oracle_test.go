@@ -90,7 +90,7 @@ var peepholeOracleConfigs = []peepholeOracleConfig{
 		return peepholeOracleSingle(c, "fusion", NewStatementFusion())
 	}},
 	{"exploit-assigns", func(c AbstractCompiler) CompilerPass {
-		return NewPeepholeOptimizationsPass(c, PassNames_EXPLOIT_ASSIGN, NewExploitAssigns())
+		return NewPeepholeOptimizationsPass(c, PassNames_POST_NORMALIZE_PEEPHOLE, NewExploitAssigns())
 	}},
 	{"dotted", func(c AbstractCompiler) CompilerPass { return NewConvertToDottedProperties(c) }},
 	{"peephole", func(c AbstractCompiler) CompilerPass {

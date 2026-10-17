@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/DiagnosticGroups.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/DiagnosticGroups.java @ closure-compiler v20261015
 
 /*
  * Copyright 2008 The Closure Compiler Authors.
@@ -109,6 +109,7 @@ const DiagnosticGroups_DIAGNOSTIC_GROUP_NAMES = "accessControls, " +
 	"constantProperty, " +
 	"deprecated, " +
 	"deprecatedAnnotations, " +
+	"defineWithoutGoogDefine, " +
 	"duplicateMessage, " +
 	"es5Strict, " +
 	"externsValidation, " +
@@ -143,7 +144,8 @@ const DiagnosticGroups_DIAGNOSTIC_GROUP_NAMES = "accessControls, " +
 	"unusedLocalVariables, " +
 	"uselessCode, " +
 	"untranspilableFeatures," +
-	"visibility"
+	"visibility, " +
+	"weakModuleGet"
 
 // The static DiagnosticGroup fields. They are assigned, in Java declaration
 // order, by diagnosticGroups_clinit.
@@ -179,6 +181,8 @@ var (
 	DiagnosticGroups_EXTERNS_VALIDATION *DiagnosticGroup
 
 	DiagnosticGroups_UNKNOWN_DEFINES *DiagnosticGroup
+
+	DiagnosticGroups_DEFINE_WITHOUT_GOOG_DEFINE *DiagnosticGroup
 
 	DiagnosticGroups_TWEAKS *DiagnosticGroup
 
@@ -236,6 +240,8 @@ var (
 	DiagnosticGroups_DUPLICATE_VARS *DiagnosticGroup
 
 	DiagnosticGroups_ES5_STRICT *DiagnosticGroup
+
+	DiagnosticGroups_WEAK_MODULE_GET *DiagnosticGroup
 
 	DiagnosticGroups_MISSING_PROVIDE *DiagnosticGroup
 
@@ -447,6 +453,11 @@ func diagnosticGroups_clinit() {
 		ProcessDefines_UNKNOWN_DEFINE_WARNING,
 	)
 
+	DiagnosticGroups_DEFINE_WITHOUT_GOOG_DEFINE = DiagnosticGroups_RegisterGroupOfTypes(
+		"defineWithoutGoogDefine",
+		ProcessDefines_DEFINE_WITHOUT_GOOG_DEFINE,
+	)
+
 	DiagnosticGroups_TWEAKS = DiagnosticGroups_RegisterGroupOfTypes(
 		"tweakValidation",
 		ProcessTweaks_INVALID_TWEAK_DEFAULT_VALUE_WARNING,
@@ -620,6 +631,11 @@ func diagnosticGroups_clinit() {
 		StrictModeCheck_FUNCTION_ARGUMENTS_PROP_FORBIDDEN,
 		StrictModeCheck_FUNCTION_CALLER_FORBIDDEN,
 		StrictModeCheck_USE_OF_WITH,
+	)
+
+	DiagnosticGroups_WEAK_MODULE_GET = DiagnosticGroups_RegisterGroupOfTypes(
+		"weakModuleGet",
+		ClosurePrimitiveErrors_GOOG_MODULE_GET_OF_WEAK_MODULE,
 	)
 
 	DiagnosticGroups_MISSING_PROVIDE = DiagnosticGroups_RegisterGroupOfTypes(

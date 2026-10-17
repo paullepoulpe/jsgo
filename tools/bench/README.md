@@ -21,8 +21,10 @@ It takes several hours on 4 cores, most of it in the 1,000-invocation task
 /tmp/bench --md report.md` re-renders the report from stored results.
 
 Everything uses the `.cache/` of the main checkout, shared by all worktrees;
-`$JSGO_CACHE` overrides it. It holds the jar, the corpus, `bench-inputs/`
-and `bench-build/`.
+`$JSGO_CACHE` overrides it. It holds the jar (`CLOSURE_JAR` of
+[tools/oracle/pin.env](../oracle/pin.env), the one place that names the
+pinned release, v20261015, and its jar), the corpus, `bench-inputs/` and
+`bench-build/`.
 
 ## Files
 
@@ -115,7 +117,8 @@ expanded in sorted order.
 
 ## What is measured
 
-- **Java cold:** `java -jar closure-compiler.jar <args>`, N runs (default 5).
+- **Java cold:** `java -jar closure-compiler.jar <args>` (the cache's
+  `CLOSURE_JAR`), N runs (default 5).
 - **Java warm:** `CliBatch`, one JVM per task.
   - It runs W warm-up iterations (default 2; 1 for the bundle and the
     single files), then N measured ones.
@@ -213,7 +216,8 @@ The jsgo binary comes from one of:
 
 If none of these exists, jsgo is reported as unavailable.
 
-Java results stay valid while the jar is unchanged. Once more of the port
+Java results stay valid while the jar is unchanged (a new pin in
+`tools/oracle/pin.env` invalidates them). Once more of the port
 lands, re-measure only jsgo against the stored Java reference outputs:
 
 ```sh

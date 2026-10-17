@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/AstFactory.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/AstFactory.java @ closure-compiler v20261015
 
 /*
  * Copyright 2018 The Closure Compiler Authors.
@@ -443,6 +443,13 @@ func (a *AstFactory) CreateThis(thisType AstFactory_Type) *rhino.Node {
 func (a *AstFactory) CreateSuper(superType AstFactory_Type) *rhino.Node {
 	result := rhino.IR_SuperNode()
 	a.SetJSTypeOrColor(superType, result)
+	return result
+}
+
+// Java: AstFactory.createNewTarget(AstFactory.Type)
+func (a *AstFactory) CreateNewTarget(newTargetType AstFactory_Type) *rhino.Node {
+	result := rhino.IR_NewTarget()
+	a.SetJSTypeOrColor(newTargetType, result)
 	return result
 }
 
@@ -1572,6 +1579,15 @@ func (a *AstFactory) CreateHook(condition *rhino.Node, expr1 *rhino.Node, expr2 
 	return result
 }
 
+// CreateOptionalChainShortCircuit creates a nullish short-circuit hook
+// `receiver == null ? void 0 : resultExpr` used for optional chaining.
+//
+// Java: AstFactory.createOptionalChainShortCircuit(Node, Node)
+func (a *AstFactory) CreateOptionalChainShortCircuit(receiver *rhino.Node, resultExpr *rhino.Node) *rhino.Node {
+	cond := a.CreateEq(receiver, a.CreateNull())
+	return a.CreateHook(cond, a.CreateUndefinedValue(), resultExpr)
+}
+
 // Java: AstFactory.createArraylit(Node...)
 func (a *AstFactory) CreateArraylit(elements ...*rhino.Node) *rhino.Node {
 	return a.CreateArraylitOfIterable(slices.Values(elements))
@@ -1628,6 +1644,17 @@ func (a *AstFactory) CreateJSCompMakeIteratorCall(iterable *rhino.Node, scope rh
 	call := a.CreateCall(makeIteratorName, type_, iterable)
 	call.PutBooleanProp(rhino.Node_FREE_CALL, true)
 	return call
+}
+
+// Java: AstFactory.createJscompIteratorCloseCall(Node, Node, StaticScope)
+func (a *AstFactory) CreateJscompIteratorCloseCall(iterator *rhino.Node, iterResult *rhino.Node, scope rhino.StaticScope) *rhino.Node {
+	iteratorClose := a.runtimeJsLibManager.GetJsLibField("$jscomp.iteratorClose")
+	iteratorCloseName := a.CreateQNameOfField(scope, iteratorClose)
+	return a.CreateCall(
+		iteratorCloseName,
+		AstFactory_Type_OfJSTypeNativeAndColor(rhino.JSTypeNative_VOID_TYPE, colors.StandardColors_NULL_OR_VOID),
+		iterator,
+		iterResult)
 }
 
 // Java: AstFactory.createJscompArrayFromIteratorCall(Node, StaticScope)

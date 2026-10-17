@@ -16,7 +16,8 @@ verdict and the roadmap.
 
 ## 1. What "drop-in replacement" means in size
 
-Closure Compiler v20260415 is **813 Java files, 273k lines, ~177k lines of
+Closure Compiler v20260415 (the release first ported; the pin is now
+v20261015) is **813 Java files, 273k lines, ~177k lines of
 code** (excluding comments and blank lines). Rough breakdown by area:
 
 | Area | Java SLOC | Share |

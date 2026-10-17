@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/MinimizeExitPointsTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/MinimizeExitPointsTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/MinimizeExitPointsTest.java)
 
 /*
@@ -44,7 +44,6 @@ func TestMinimizeExitPointsTest(t *testing.T) {
 // Java: MinimizeExitPointsTest.setUp()
 func (c *MinimizeExitPointsTest) SetUp() {
 	c.CompilerTestCaseBase.SetUp()
-	c.DisableScriptFeatureValidation()
 	c.EnableNormalize()
 }
 

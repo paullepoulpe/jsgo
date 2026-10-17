@@ -660,6 +660,14 @@ public final class NodeUtilSweep {
         line,
         hasParent && NodeUtil.isControlStructure(parent),
         () -> NodeUtil.isControlStructureCodeBlock(parent, n));
+    bool(line, true, () -> NodeUtil.isNumericLiteral(n));
+    bool(line, hasParent, () -> NodeUtil.isNonStaticClassFieldInitializer(n));
+    bool(line, hasParent, () -> NodeUtil.isFunctionOrNonStaticClassFieldInitializer(n));
+    bool(line, isFn, () -> NodeUtil.hasNonSimpleParameters(n));
+    bool(
+        line,
+        isFn,
+        () -> NodeUtil.functionParametersMayHaveSideEffects(n, compiler.getAstAnalyzer()));
 
     field(line, true, () -> tri(NodeUtil.getBooleanValue(n)));
     field(line, true, () -> str(NodeUtil.getStringValue(n)));
@@ -668,6 +676,8 @@ public final class NodeUtilSweep {
     field(line, true, () -> dbl(NodeUtil.getNumberValue(n)));
     field(line, true, () -> dbl(NodeUtil.getNumberValueNoConversions(n)));
     field(line, true, () -> big(NodeUtil.getBigIntValue(n)));
+    field(line, true, () -> dbl(NodeUtil.getNumericLiteralValue(n)));
+    field(line, isName, () -> str(NodeUtil.getOriginalName(n.getString())));
     field(line, isFnOrClass, () -> str(NodeUtil.getName(n)));
     field(line, isFnOrClass, () -> idx(NodeUtil.getNameNode(n)));
     field(line, true, () -> str(NodeUtil.getNearestFunctionName(n)));
