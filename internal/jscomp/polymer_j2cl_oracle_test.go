@@ -11,10 +11,19 @@ package jscomp
 //     testdata/polymer_j2cl/{polymer,j2cl}-inputs.txt (the strings of the Java
 //     tests, extracted as "=== <name> <byte length>\n<source>\n"). Regenerate with
 //       CP=.cache/closure-compiler.jar:<PolymerJ2clDump build dir>
-//       J="java -Xss1g -XX:-ShowCodeDetailsInExceptionMessages -cp $CP com.google.javascript.jscomp.PolymerJ2clDump"
+//       J="java -Xss1g -XX:-ShowCodeDetailsInExceptionMessages \
+//         -XX:+UnlockExperimentalVMOptions -XX:hashCode=2 -cp $CP com.google.javascript.jscomp.PolymerJ2clDump"
 //       D=internal/jscomp/testdata/polymer_j2cl
 //       $J polymer $D/polymer-golden.txt.gz $D/polymer-inputs.txt $D/polymer-externs.js
 //       $J j2cl $D/j2cl-golden.txt.gz $D/j2cl-inputs.txt
+//     -XX:hashCode=2 gives every object the identity hash 1, so a Java hash
+//     collection of identity-hashed objects iterates in insertion order, the
+//     order the port uses for them (PORTING.md §6). Without it the order
+//     depends on the JVM's identity-hash sequence, which every earlier input
+//     of the run advances: J2clClinitPrunerPass's clinitReferences is a
+//     HashMultimap of Nodes, and with the v20261015 jar the default run
+//     deletes the two references to someClass.$clinit of
+//     J2clClinitPrunerPassTest-045 in the other order (change_time 4, not 3).
 //     POLYMER_J2CL_DIFF_DIR=<dir> writes the Go dump of every differing input
 //     there.
 
