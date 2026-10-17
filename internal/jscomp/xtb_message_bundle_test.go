@@ -47,11 +47,8 @@ func TestXtbMessageBundleTest(t *testing.T) {
 // JUnitSetT gives the instance the Go test running its test method.
 func (c *XtbMessageBundleTest) JUnitSetT(t *testing.T) { c.t = t }
 
-// JUnitBefore: the class has no @Before method. Every test needs jutil's
-// SAX parser, which is not implemented (see internal/jutil/sax_parser.go).
-func (c *XtbMessageBundleTest) JUnitBefore() {
-	c.t.Skip("XtbMessageBundle needs jutil's SAX parser, which is not implemented (see internal/jutil/sax_parser.go)")
-}
+// JUnitBefore: the class has no @Before method.
+func (c *XtbMessageBundleTest) JUnitBefore() {}
 
 // JUnitAfter: the class has no @After method.
 func (c *XtbMessageBundleTest) JUnitAfter() {}
