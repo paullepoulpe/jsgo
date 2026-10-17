@@ -84,9 +84,9 @@ func TestNodeTraversal_Report(t *testing.T) {
 	}
 
 	var errors []*JSError
-	compiler := newTestCompilerUninitialized()
+	compiler := NewCompiler()
 	compiler.SetErrorManager(newNodeTraversalTest_ErrorManager(&errors))
-	compiler.initCompilerOptionsIfTesting()
+	compiler.InitCompilerOptionsIfTesting()
 
 	NodeTraversal_Builder_().
 		SetCompiler(compiler).
@@ -117,9 +117,9 @@ func TestNodeTraversal_ReportWithRange(t *testing.T) {
 	}
 
 	var errors []*JSError
-	compiler := newTestCompilerUninitialized()
+	compiler := NewCompiler()
 	compiler.SetErrorManager(newNodeTraversalTest_ErrorManager(&errors))
-	compiler.initCompilerOptionsIfTesting()
+	compiler.InitCompilerOptionsIfTesting()
 	code := "a.b.c;"
 	tree := scopeTestParse(t, compiler, code)
 
@@ -141,7 +141,7 @@ func TestNodeTraversal_UnexpectedException(t *testing.T) {
 		panic(jutil.NewRuntimeException(nodeTraversalTest_TEST_EXCEPTION))
 	}
 
-	compiler := newTestCompilerUninitialized()
+	compiler := NewCompiler()
 
 	code := "function foo() {}"
 	tree := scopeTestParse(t, compiler, code)
@@ -158,7 +158,7 @@ func TestNodeTraversal_UnexpectedException(t *testing.T) {
 }
 
 func TestNodeTraversal_GetScopeRoot(t *testing.T) {
-	compiler := newTestCompilerUninitialized()
+	compiler := NewCompiler()
 	code := `var a;
 function foo() {
   var b
@@ -178,7 +178,7 @@ function foo() {
 }
 
 func TestNodeTraversal_GetScopeRoot_inEsModule(t *testing.T) {
-	compiler := newTestCompilerUninitialized()
+	compiler := NewCompiler()
 	code := `const x = 0;
 export {x};
 `
@@ -200,7 +200,7 @@ export {x};
 }
 
 func TestNodeTraversal_GetScopeRoot_inGoogModule(t *testing.T) {
-	compiler := newTestCompilerUninitialized()
+	compiler := NewCompiler()
 	code := `goog.module('a.b');
 function foo() {
   var b
@@ -224,7 +224,7 @@ function foo() {
 }
 
 func TestNodeTraversal_GetHoistScopeRoot(t *testing.T) {
-	compiler := newTestCompilerUninitialized()
+	compiler := NewCompiler()
 	code := `function foo() {
   if (true) { var XXX; }
 }
@@ -304,11 +304,20 @@ func TestNodeTraversal_ReportChange4(t *testing.T) {
 // Java: NodeTraversalTest.assertChangesRecorded(String, NodeTraversal.Callback)
 func nodeTraversalTest_assertChangesRecorded(t *testing.T, code string, callback NodeTraversal_Callback) {
 	t.Helper()
-	t.Skip("needs ChangeVerifier")
+	externs := ""
+	compiler := NewCompiler()
+	tree := scopeTestParseRoots(t, compiler, externs, code)
+
+	changeVerifier := NewChangeVerifier(compiler).Snapshot(tree)
+	NodeTraversal_TraverseRoots(compiler, callback, tree.GetFirstChild(), tree.GetSecondChild())
+	// ChangeVerifier throws when a change was not recorded.
+	if thrown := scopeTestCatch(func() { changeVerifier.CheckRecordedChanges(tree) }); thrown != nil {
+		t.Fatal(thrown.Error())
+	}
 }
 
 func TestNodeTraversal_GetCurrentNode(t *testing.T) {
-	compiler := newTestCompilerUninitialized()
+	compiler := NewCompiler()
 	creator := NewSyntacticScopeCreator(compiler)
 	callback := newNodeTraversalTest_ExpectNodeOnEnterScope(t)
 	b := NodeTraversal_Builder_().
@@ -471,8 +480,8 @@ var x;
 }
 
 func TestNodeTraversal_TraverseAtScopeWithMemberFieldDefScope(t *testing.T) {
-	compiler := newTestCompilerUninitialized()
-	compiler.initCompilerOptionsIfTesting()
+	compiler := NewCompiler()
+	compiler.InitCompilerOptionsIfTesting()
 	creator := NewSyntacticScopeCreator(compiler)
 	callback := newNodeTraversalTest_ExpectNodeOnEnterScope(t)
 	b := NodeTraversal_Builder_().
@@ -512,8 +521,8 @@ class Bar extends Foo {
 }
 
 func TestNodeTraversal_TraverseAtScopeWithComputedFieldDefScope(t *testing.T) {
-	compiler := newTestCompilerUninitialized()
-	compiler.initCompilerOptionsIfTesting()
+	compiler := NewCompiler()
+	compiler.InitCompilerOptionsIfTesting()
 	creator := NewSyntacticScopeCreator(compiler)
 	callback := newNodeTraversalTest_ExpectNodeOnEnterScope(t)
 	b := NodeTraversal_Builder_().
@@ -541,7 +550,7 @@ func TestNodeTraversal_TraverseAtScopeWithComputedFieldDefScope(t *testing.T) {
 }
 
 func TestNodeTraversal_TraverseFieldDefScopeRootsInOrder(t *testing.T) {
-	compiler := newTestCompilerUninitialized()
+	compiler := NewCompiler()
 	code := `class Foo {
   x = 'hi';
   [this.x] = this.x;
@@ -555,8 +564,8 @@ func TestNodeTraversal_TraverseFieldDefScopeRootsInOrder(t *testing.T) {
 }
 
 func TestNodeTraversal_TraverseComputedFieldsInOrder(t *testing.T) {
-	compiler := newTestCompilerUninitialized()
-	compiler.initCompilerOptionsIfTesting()
+	compiler := NewCompiler()
+	compiler.InitCompilerOptionsIfTesting()
 	callback := &nodeTraversalTest_TokenAccumulator{}
 	creator := NewSyntacticScopeCreator(compiler)
 	b := NodeTraversal_Builder_().
@@ -658,7 +667,7 @@ var bar = function() {
 }
 
 func TestNodeTraversal_TraverseEs6ScopeRoots_isLimitedToScope(t *testing.T) {
-	compiler := newTestCompilerUninitialized()
+	compiler := NewCompiler()
 	callback := &nodeTraversalTest_StringAccumulator{}
 
 	code := `function foo() {
@@ -687,7 +696,7 @@ function bar() {
 }
 
 func TestNodeTraversal_TraverseEs6ScopeRoots_parentScopesWork(t *testing.T) {
-	compiler := newTestCompilerUninitialized()
+	compiler := NewCompiler()
 	callback := &nodeTraversalTest_LexicallyScopedVarsAccumulator{varNames: jutil.NewLinkedHashSet[string]()}
 
 	code := `var varDefinedInScript;
@@ -719,7 +728,7 @@ var bar = function() {
 }
 
 func TestNodeTraversal_TraverseEs6ScopeRoots_callsEnterScope(t *testing.T) {
-	compiler := newTestCompilerUninitialized()
+	compiler := NewCompiler()
 
 	var scopesEntered []*rhino.Node
 
@@ -838,8 +847,8 @@ func (c *nodeTraversalTest_ExpectNodeOnEnterScope) ShouldTraverse(t *NodeTravers
 }
 
 func TestNodeTraversal_TraverseComputedFieldsInClass(t *testing.T) {
-	compiler := newTestCompilerUninitialized()
-	compiler.initCompilerOptionsIfTesting()
+	compiler := NewCompiler()
+	compiler.InitCompilerOptionsIfTesting()
 	callback := &nodeTraversalTest_StringAccumulator{}
 
 	code := `class Foo {

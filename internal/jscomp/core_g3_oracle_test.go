@@ -719,9 +719,9 @@ func (o *coreG3Out) depsOf(rel string, code string) {
 	}
 	for mode := 0; mode < 2; mode++ {
 		em := newCoreG3Collector()
-		compiler := newTestCompilerUninitialized()
+		compiler := NewCompiler()
 		compiler.SetErrorManager(em)
-		compiler.initOptions(NewCompilerOptions())
+		compiler.InitOptions(NewCompilerOptions())
 		if mode == 1 {
 			compiler.SetPreferRegexParser(true)
 		}
@@ -1179,9 +1179,9 @@ func (o *coreG3Out) chunks(seed int64, n int) {
 		for _, m := range g.manage {
 			fresh := NewJSChunkGraph(g.build())
 			em := newCoreG3Collector()
-			compiler := newTestCompilerUninitialized()
+			compiler := NewCompiler()
 			compiler.SetErrorManager(em)
-			compiler.initOptions(NewCompilerOptions())
+			compiler.InitOptions(NewCompilerOptions())
 			for _, in := range fresh.GetAllInputs() {
 				in.SetCompiler(compiler)
 			}

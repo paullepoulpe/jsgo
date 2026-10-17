@@ -75,8 +75,8 @@ func TestUniqueIdSupplier_MultipleCompilerInputsGenerateUniqueIds(t *testing.T) 
 
 // Ensures that unique Ids generated are the same across compiler runs
 func TestUniqueIdSupplier_GeneratedIdsAreDeterministicAcrossRuns(t *testing.T) {
-	compiler1 := newTestCompilerUninitialized()
-	compiler2 := newTestCompilerUninitialized()
+	compiler1 := NewCompiler()
+	compiler2 := NewCompiler()
 
 	input1 := NewCompilerInput(SourceFile_FromCode("tmp", "function foo() {}"))
 	input2 := NewCompilerInput(SourceFile_FromCode("tmp", "function foo() {}"))
