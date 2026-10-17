@@ -883,6 +883,16 @@ func Correspondence_Transforming[A, E any](fn func(actual A) E, description stri
 	return Correspondence_From(func(a A, e E) bool { return truthEqual(fn(a), e) }, description)
 }
 
+// Correspondence_TransformingBoth is Correspondence.transforming(
+// actualTransform, expectedTransform, description): an actual element
+// matches if actualTransform(actual) equals expectedTransform(expected).
+func Correspondence_TransformingBoth[A, E, T any](
+	actualTransform func(actual A) T, expectedTransform func(expected E) T, description string) *Correspondence {
+	return Correspondence_From(func(a A, e E) bool {
+		return truthEqual(actualTransform(a), expectedTransform(e))
+	}, description)
+}
+
 // FormattingDiffsUsing is Correspondence.formattingDiffsUsing(formatter).
 func FormattingDiffsUsing[A, E any](c *Correspondence, formatter func(actual A, expected E) string) *Correspondence {
 	return &Correspondence{
