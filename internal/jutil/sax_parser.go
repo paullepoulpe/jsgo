@@ -3,21 +3,18 @@ package jutil
 // Go-only: language-adapter — the javax.xml.parsers / org.xml.sax API that
 // XtbMessageBundle uses (SAXParserFactory, SAXParser, XMLReader,
 // ContentHandler, Attributes, Locator, EntityResolver, InputSource and the
-// SAX exceptions), declared from the public Javadoc.
+// SAX exceptions), declared from the public Javadoc, over a clean-room XML
+// parser (sax_scanner.go, sax_input.go) written from the XML 1.0
+// specification and checked black-box against the JDK's SAXParser
+// (tools/oracle/java/JutilSaxVectors.java, testdata/sax_vectors.txt.gz).
 //
-// The parser itself is not implemented: XMLReader.Parse throws
-// UnsupportedOperationException. The JDK's event stream (in particular how
-// it cuts character data into ContentHandler.characters() calls, which
-// XtbMessageBundle makes observable as separate JsMessage string parts) is
-// implementation-defined, not specified by SAX or XML 1.0, and an earlier
-// emulation here was written with reference to the JDK's Xerces sources,
-// which PORTING.md forbids; it was removed. A clean-room implementation from
-// the XML 1.0 specification, checked black-box against the JDK vectors of
-// tools/oracle/java/JutilSaxVectors.java (testdata/sax), is pending a
-// decision on the characters() chunking.
+// Only the configuration XtbMessageBundle uses is emulated: no validation,
+// no XInclude, no namespaces, no external entities and no external DTD,
+// secure processing on.
 
 import (
 	"io"
+	"strconv"
 )
 
 // XMLConstants_FEATURE_SECURE_PROCESSING is
@@ -41,17 +38,50 @@ type ISAXException interface {
 	saxException()
 }
 
-// SAXParseException is org.xml.sax.SAXParseException.
-type SAXParseException struct{ SAXException }
+// SAXParseException is org.xml.sax.SAXParseException. The parser's
+// exceptions have no public or system id (the InputSource has none).
+type SAXParseException struct {
+	SAXException
+	lineNumber   int
+	columnNumber int
+}
 
 func (*SAXParseException) saxParseException() {}
 
 // NewSAXParseException is new SAXParseException(String, Locator) without a
 // locator.
 func NewSAXParseException(message string) *SAXParseException {
-	e := &SAXParseException{}
+	return newSAXParseExceptionAt(message, -1, -1)
+}
+
+func newSAXParseExceptionAt(message string, line, column int) *SAXParseException {
+	e := &SAXParseException{lineNumber: line, columnNumber: column}
 	InitThrowable(e, "org.xml.sax.SAXParseException", &message, nil)
 	return e
+}
+
+// GetLineNumber is SAXParseException.getLineNumber(): -1 when unknown.
+func (e *SAXParseException) GetLineNumber() int { return e.lineNumber }
+
+// GetColumnNumber is SAXParseException.getColumnNumber(): -1 when unknown.
+func (e *SAXParseException) GetColumnNumber() int { return e.columnNumber }
+
+// Error is SAXParseException.toString(), which the Javadoc only describes
+// as more detailed. Observed behaviour (black-box): the class name, then
+// "; lineNumber: L" and "; columnNumber: C" for the known ones, then
+// "; " and the message.
+func (e *SAXParseException) Error() string {
+	s := "org.xml.sax.SAXParseException"
+	if e.lineNumber != -1 {
+		s += "; lineNumber: " + strconv.Itoa(e.lineNumber)
+	}
+	if e.columnNumber != -1 {
+		s += "; columnNumber: " + strconv.Itoa(e.columnNumber)
+	}
+	if e.hasMsg {
+		s += "; " + e.message
+	}
+	return s
 }
 
 // ParserConfigurationException is
@@ -174,17 +204,18 @@ type XMLReader struct {
 	entityResolver EntityResolver
 }
 
-// SetEntityResolver is XMLReader.setEntityResolver(EntityResolver). The
-// resolver is never called: external entities and the external DTD are not
-// loaded.
+// SetEntityResolver is XMLReader.setEntityResolver(EntityResolver).
+// Observed behaviour (black-box): with the external DTD and external
+// entities off, the JDK never calls the resolver, so neither does this
+// parser.
 func (r *XMLReader) SetEntityResolver(resolver EntityResolver) { r.entityResolver = resolver }
 
 // SetContentHandler is XMLReader.setContentHandler(ContentHandler).
 func (r *XMLReader) SetContentHandler(handler ContentHandler) { r.contentHandler = handler }
 
-// Parse is XMLReader.parse(InputSource). Not implemented (see the file
-// comment): it throws UnsupportedOperationException.
+// Parse is XMLReader.parse(InputSource): it reports the document to the
+// ContentHandler and throws SAXParseException at the first well-formedness
+// error (see sax_scanner.go).
 func (r *XMLReader) Parse(input *InputSource) {
-	panic(NewUnsupportedOperationExceptionMsg(
-		"XMLReader.parse: SAX parsing is not implemented (pending a clean-room XML parser)"))
+	newSaxScanner(r.contentHandler, input).parse()
 }
