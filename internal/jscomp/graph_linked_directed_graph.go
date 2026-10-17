@@ -474,9 +474,15 @@ func (g *LinkedDirectedGraph[N, E]) GetNodeDegree(value N) int {
 type LinkedDirectedGraph_LinkedDiGraphNode[N, E any] struct {
 	// The overwhelming majority of nodes have in/out degree == 1.
 	// Initialize our lists to account for that.
-	inEdgeList *jutil.ArrayList[DiGraph_DiGraphEdge[N, E]]
+	//
+	// Go-only: performance — the lists and their capacity-1 arrays are held
+	// in the node (ArrayList.InitWithBuffer): one allocation per graph node
+	// instead of five.
+	inEdgeList jutil.ArrayList[DiGraph_DiGraphEdge[N, E]]
 
-	outEdgeList *jutil.ArrayList[DiGraph_DiGraphEdge[N, E]]
+	outEdgeList jutil.ArrayList[DiGraph_DiGraphEdge[N, E]]
+
+	inEdgeBuffer, outEdgeBuffer [1]DiGraph_DiGraphEdge[N, E]
 
 	value N
 
@@ -492,12 +498,13 @@ type LinkedDirectedGraph_LinkedDiGraphNode[N, E any] struct {
 //
 // Java: LinkedDirectedGraph.LinkedDiGraphNode(N)
 func newLinkedDirectedGraph_LinkedDiGraphNode[N, E any](nodeValue N) *LinkedDirectedGraph_LinkedDiGraphNode[N, E] {
-	return &LinkedDirectedGraph_LinkedDiGraphNode[N, E]{
-		inEdgeList:  jutil.NewArrayListWithCapacity[DiGraph_DiGraphEdge[N, E]]( /* initialCapacity= */ 1),
-		outEdgeList: jutil.NewArrayListWithCapacity[DiGraph_DiGraphEdge[N, E]]( /* initialCapacity= */ 1),
-		value:       nodeValue,
-		priority:    -1,
+	n := &LinkedDirectedGraph_LinkedDiGraphNode[N, E]{
+		value:    nodeValue,
+		priority: -1,
 	}
+	n.inEdgeList.InitWithBuffer(n.inEdgeBuffer[:])   // initialCapacity= 1
+	n.outEdgeList.InitWithBuffer(n.outEdgeBuffer[:]) // initialCapacity= 1
+	return n
 }
 
 // Java: LinkedDirectedGraph.AnnotatedLinkedDiGraphNode(N)
