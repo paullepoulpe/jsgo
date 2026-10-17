@@ -4,7 +4,6 @@ import (
 	"iter"
 	"math"
 	"reflect"
-	"slices"
 	"strconv"
 	"strings"
 )
@@ -937,7 +936,17 @@ func (h *JavaHashMap[K, V]) Values() iter.Seq[V] {
 }
 
 // KeySlice returns the keys in iteration order.
-func (h *JavaHashMap[K, V]) KeySlice() []K { return slices.Collect(h.Keys()) }
+func (h *JavaHashMap[K, V]) KeySlice() []K {
+	n := h.Size()
+	if n == 0 {
+		return nil
+	}
+	out := make([]K, 0, n)
+	for k := range h.Keys() {
+		out = append(out, k)
+	}
+	return out
+}
 
 // RemoveIf is entrySet().removeIf(e -> pred(key, value)): removes through
 // the iterator; reports whether anything was removed.
