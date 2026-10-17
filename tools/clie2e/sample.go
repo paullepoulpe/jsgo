@@ -151,7 +151,8 @@ func spread(files []string, r *rand.Rand) []string {
 	return out
 }
 
-// assignFiles gives each configuration perConfig files (or its own count),
+// assignFiles gives each configuration perConfig files (or its own count
+// if smaller),
 // dealing the files out in passes so that every file is used about as often
 // as any other: pass p deals a fresh spread order, a run of consecutive
 // files to each configuration in turn. A configuration's files keep the
@@ -171,7 +172,7 @@ func assignFiles(files []string, confs []config, perConfig int, seed int64) map[
 	out := map[string][]string{}
 	for _, c := range confs {
 		want := perConfig
-		if c.files > 0 {
+		if c.files > 0 && c.files < want {
 			want = c.files
 		}
 		if want > len(files) {

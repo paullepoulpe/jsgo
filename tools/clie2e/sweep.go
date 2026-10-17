@@ -68,9 +68,10 @@ const (
 	clHang      = "jsgo-hang"
 	clJavaError = "java-error"
 	clMissing   = "java-missing"
+	clGoMissing = "jsgo-missing"
 )
 
-var classes = []string{clIdentical, clDiff, clPanic, clHang, clJavaError, clMissing}
+var classes = []string{clIdentical, clDiff, clPanic, clHang, clJavaError, clMissing, clGoMissing}
 
 type sweepJob struct {
 	conf, file string
@@ -383,6 +384,9 @@ func classify(javaDir, goDir string, j sweepJob) (string, string) {
 	javaExit, err := os.ReadFile(filepath.Join(javaDir, j.res(), "exit"))
 	if err != nil {
 		return clMissing, ""
+	}
+	if _, err := os.Stat(filepath.Join(goDir, j.res(), "exit")); err != nil {
+		return clGoMissing, ""
 	}
 	if _, err := os.Stat(filepath.Join(goDir, j.res(), "timeout")); err == nil {
 		return clHang, hangSignature(read(goDir, "stderr"))

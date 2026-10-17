@@ -81,8 +81,8 @@ type config struct {
 	// variants, when set, are rotated over the config's files: the i-th
 	// file of the config gets args, then variants[i%len(variants)].
 	variants [][]string
-	// files overrides -per-config for this config (a config whose flags
-	// fail before any input is read needs few files).
+	// files, when smaller, overrides -per-config for this config (a config
+	// whose flags fail before any input is read needs few files).
 	files int
 }
 
