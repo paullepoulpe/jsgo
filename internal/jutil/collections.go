@@ -170,12 +170,20 @@ func CollectionToString[T any](elems []T) string {
 // ---------------------------------------------------------------------------
 // LinkedHashMap
 
+// lhmEntry is an entry of a LinkedHashMap. A removed entry keeps its next
+// pointer, for the iterators that stand on it, and points prev at itself.
+//
+// Go-only: performance — prev == self marks removal instead of a bool
+// field: with it, the entries of sets and of pointer-keyed maps took 48
+// bytes instead of 32.
 type lhmEntry[K comparable, V any] struct {
 	key        K
 	value      V
 	prev, next *lhmEntry[K, V]
-	removed    bool
 }
+
+// removed reports whether e was removed from its map.
+func (e *lhmEntry[K, V]) removed() bool { return e.prev == e }
 
 // LinkedHashMap is java.util.LinkedHashMap (insertion order). It also models
 // Guava ImmutableMap and any Java map whose iteration order is insertion
@@ -339,7 +347,6 @@ func (h *LinkedHashMap[K, V]) removeEntry(e *lhmEntry[K, V]) {
 }
 
 func (h *LinkedHashMap[K, V]) unlink(e *lhmEntry[K, V]) {
-	e.removed = true
 	if e.prev != nil {
 		e.prev.next = e.next
 	} else {
@@ -350,12 +357,13 @@ func (h *LinkedHashMap[K, V]) unlink(e *lhmEntry[K, V]) {
 	} else {
 		h.tail = e.prev
 	}
+	e.prev = e // removed
 }
 
 // Clear is Map.clear.
 func (h *LinkedHashMap[K, V]) Clear() {
 	for e := h.head; e != nil; e = e.next {
-		e.removed = true
+		e.prev = e // removed
 	}
 	clear(h.m)
 	h.head, h.tail = nil, nil
@@ -370,7 +378,7 @@ func (h *LinkedHashMap[K, V]) All() iter.Seq2[K, V] {
 			return
 		}
 		for e := h.head; e != nil; e = e.next {
-			if e.removed {
+			if e.removed() {
 				continue
 			}
 			if !yield(e.key, e.value) {
@@ -392,7 +400,7 @@ func (h *LinkedHashMap[K, V]) Keys() iter.Seq[K] {
 			return
 		}
 		for e := h.head; e != nil; e = e.next {
-			if e.removed {
+			if e.removed() {
 				continue
 			}
 			if !yield(e.key) {
@@ -409,7 +417,7 @@ func (h *LinkedHashMap[K, V]) Values() iter.Seq[V] {
 			return
 		}
 		for e := h.head; e != nil; e = e.next {
-			if e.removed {
+			if e.removed() {
 				continue
 			}
 			if !yield(e.value) {
@@ -530,7 +538,7 @@ func (s *LinkedHashSet[T]) All() iter.Seq[T] {
 			return
 		}
 		for e := h.head; e != nil; e = e.next {
-			if e.removed {
+			if e.removed() {
 				continue
 			}
 			if !yield(e.key) {
