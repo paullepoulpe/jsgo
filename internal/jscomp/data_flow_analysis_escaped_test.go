@@ -1,4 +1,3 @@
-//go:build jscomp_livevariables
 
 // Port of com/google/javascript/jscomp/DataFlowAnalysisTest.java @ closure-compiler v20260415
 // (test/com/google/javascript/jscomp/DataFlowAnalysisTest.java): the tests for computeEscaped.
@@ -21,11 +20,9 @@
 
 package jscomp
 
-// Go-only: test-helper — these DataFlowAnalysisTest methods go through
-// LiveVariablesAnalysis and GoogleCodingConvention, which are ported in a
-// later wave; the build tag keeps the rest of the package's tests compiling
-// until then. Drop the tag once both are ported:
-//   go test -tags jscomp_livevariables -run TestDataFlowAnalysisEscapedTest ./internal/jscomp
+// Go-only: test-helper — DataFlowAnalysisTest's computeEscaped tests, kept
+// in a file of their own (they go through LiveVariablesAnalysis and
+// GoogleCodingConvention).
 
 import (
 	"testing"
