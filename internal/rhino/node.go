@@ -518,13 +518,15 @@ func newNode_TemplateLiteralSubstringNodeFromStringPool(
 // Go-only: language-adapter — the abstract PropListItem and its two
 // subclasses ObjectPropListItem and IntPropListItem (which only differ in
 // the payload and accessors) are one struct; isObject records the class.
+//
+// Go-only: performance — the small fields share the last word: 32 bytes
+// instead of 40 (a 48-byte allocation).
 type Node_PropListItem struct {
-	next     *Node_PropListItem
-	propType int8
-
-	isObject    bool
+	next        *Node_PropListItem
 	objectValue any
 	intValue    int32
+	propType    int8
+	isObject    bool
 }
 
 // Java: Node.ObjectPropListItem(byte, Object, PropListItem)
