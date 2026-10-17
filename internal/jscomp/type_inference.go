@@ -453,9 +453,14 @@ func (ti *TypeInference) CreateFlowBrancher(source *rhino.Node, output FlowScope
 	// lattice for the ON_EX edge. But it's probably too expensive to be
 	// worthwhile.
 
-	var condition *rhino.Node
-	var conditionFlowScope FlowScope
-	var conditionOutcomes *TypeInference_BooleanOutcomePair
+	// Go-only: performance — the anonymous class's three fields are one
+	// variable: Go allocates each captured variable that the closure
+	// assigns on its own, so three fields cost three allocations.
+	var fields struct {
+		condition          *rhino.Node
+		conditionFlowScope FlowScope
+		conditionOutcomes  *TypeInference_BooleanOutcomePair
+	}
 
 	return func(branch ControlFlowGraph_Branch) FlowScope {
 		switch branch {
@@ -467,19 +472,19 @@ func (ti *TypeInference) CreateFlowBrancher(source *rhino.Node, output FlowScope
 			fallthrough
 
 		case ControlFlowGraph_Branch_ON_FALSE:
-			if condition == nil {
+			if fields.condition == nil {
 				if source.IsCase() {
-					condition = source
-					conditionFlowScope = ti.Traverse(condition.GetFirstChild(), output)
+					fields.condition = source
+					fields.conditionFlowScope = ti.Traverse(fields.condition.GetFirstChild(), output)
 				} else {
-					condition = NodeUtil_GetConditionExpression(source)
-					if condition == nil {
+					fields.condition = NodeUtil_GetConditionExpression(source)
+					if fields.condition == nil {
 						return output
 					}
 				}
 			}
 
-			if condition.IsAnd() || condition.IsOr() {
+			if fields.condition.IsAnd() || fields.condition.IsOr() {
 				// When handling the short-circuiting binary operators,
 				// the outcome scope on true can be different than the outcome
 				// scope on false.
@@ -493,26 +498,26 @@ func (ti *TypeInference) CreateFlowBrancher(source *rhino.Node, output FlowScope
 				// a "good enough" approximation.
 
 				// conditionOutcomes is cached from previous calls to the brancher
-				if conditionOutcomes == nil {
-					if condition.IsAnd() {
-						conditionOutcomes = ti.TraverseAnd(condition, output)
+				if fields.conditionOutcomes == nil {
+					if fields.condition.IsAnd() {
+						fields.conditionOutcomes = ti.TraverseAnd(fields.condition, output)
 					} else {
-						conditionOutcomes = ti.TraverseOr(condition, output)
+						fields.conditionOutcomes = ti.TraverseOr(fields.condition, output)
 					}
 				}
 				return ti.reverseInterpreter.GetPreciserScopeKnowingConditionOutcome(
-					condition,
-					conditionOutcomes.GetOutcomeFlowScope(
-						condition.GetToken(), branch == ControlFlowGraph_Branch_ON_TRUE),
+					fields.condition,
+					fields.conditionOutcomes.GetOutcomeFlowScope(
+						fields.condition.GetToken(), branch == ControlFlowGraph_Branch_ON_TRUE),
 					rhino.Outcome_ForBoolean(branch == ControlFlowGraph_Branch_ON_TRUE))
 			}
 
 			// conditionFlowScope is cached from previous calls to the brancher
-			if conditionFlowScope == nil {
-				conditionFlowScope = ti.Traverse(condition, output)
+			if fields.conditionFlowScope == nil {
+				fields.conditionFlowScope = ti.Traverse(fields.condition, output)
 			}
 			return ti.reverseInterpreter.GetPreciserScopeKnowingConditionOutcome(
-				condition, conditionFlowScope, rhino.Outcome_ForBoolean(branch == ControlFlowGraph_Branch_ON_TRUE))
+				fields.condition, fields.conditionFlowScope, rhino.Outcome_ForBoolean(branch == ControlFlowGraph_Branch_ON_TRUE))
 
 		default:
 			return output
