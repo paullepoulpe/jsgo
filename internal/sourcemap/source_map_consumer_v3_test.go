@@ -1,12 +1,13 @@
 // Port of test/com/google/debugging/sourcemap/SourceMapConsumerV3Test.java @ closure-compiler v20260415
 
-package sourcemap
+package sourcemap_test
 
 import (
 	"strings"
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/sourcemap"
 )
 
 func basicMapJSON() string {
@@ -34,7 +35,7 @@ func assertSources(t *testing.T, got []*string, want ...string) {
 }
 
 func TestSources(t *testing.T) {
-	consumer := NewSourceMapConsumerV3()
+	consumer := sourcemap.NewSourceMapConsumerV3()
 	consumer.Parse(basicMapJSON())
 
 	assertSources(t, consumer.GetOriginalSources(), "testcode")
@@ -44,7 +45,7 @@ func TestSources(t *testing.T) {
 }
 
 func TestSectionsFormat_parsesSuccessfully(t *testing.T) {
-	consumer := NewSourceMapConsumerV3()
+	consumer := sourcemap.NewSourceMapConsumerV3()
 	consumer.Parse(
 		gsonToJson(
 			testJsonBuilder_Create().
@@ -63,7 +64,7 @@ func TestSectionsFormat_parsesSuccessfully(t *testing.T) {
 }
 
 func TestSectionsFormat_fileNameIsOptional_inSectionAndTopLevel(t *testing.T) {
-	consumer := NewSourceMapConsumerV3()
+	consumer := sourcemap.NewSourceMapConsumerV3()
 	consumer.Parse(
 		gsonToJson(
 			testJsonBuilder_Create().
@@ -82,7 +83,7 @@ func TestSectionsFormat_fileNameIsOptional_inSectionAndTopLevel(t *testing.T) {
 }
 
 func TestSourcesWithRoot(t *testing.T) {
-	consumer := NewSourceMapConsumerV3()
+	consumer := sourcemap.NewSourceMapConsumerV3()
 	consumer.Parse(
 		gsonToJson(
 			testJsonBuilder_Create().
@@ -103,7 +104,7 @@ func TestSourcesWithRoot(t *testing.T) {
 }
 
 func TestExtensions(t *testing.T) {
-	consumer := NewSourceMapConsumerV3()
+	consumer := sourcemap.NewSourceMapConsumerV3()
 	consumer.Parse(
 		gsonToJson(
 			testJsonBuilder_Create().
@@ -134,7 +135,7 @@ func TestExtensions(t *testing.T) {
 }
 
 func TestSourceMappingExactMatch(t *testing.T) {
-	consumer := NewSourceMapConsumerV3()
+	consumer := sourcemap.NewSourceMapConsumerV3()
 	consumer.Parse(basicMapJSON())
 
 	mapping := consumer.GetMappingForLine(1, 1)
@@ -145,13 +146,13 @@ func TestSourceMappingExactMatch(t *testing.T) {
 	if mapping.GetLineNumber() != 1 {
 		t.Errorf("line = %d", mapping.GetLineNumber())
 	}
-	if mapping.GetPrecision() != Mapping_OriginalMapping_Precision_EXACT {
+	if mapping.GetPrecision() != sourcemap.Mapping_OriginalMapping_Precision_EXACT {
 		t.Errorf("precision = %s", mapping.GetPrecision())
 	}
 }
 
 func TestSourceMappingApproximatedLine(t *testing.T) {
-	consumer := NewSourceMapConsumerV3()
+	consumer := sourcemap.NewSourceMapConsumerV3()
 	consumer.Parse(
 		gsonToJson(
 			testJsonBuilder_Create().
@@ -183,7 +184,7 @@ func TestSourceMappingApproximatedLine(t *testing.T) {
 	if mapping.GetLineNumber() != 9 {
 		t.Errorf("line = %d", mapping.GetLineNumber())
 	}
-	if mapping.GetPrecision() != Mapping_OriginalMapping_Precision_APPROXIMATE_LINE {
+	if mapping.GetPrecision() != sourcemap.Mapping_OriginalMapping_Precision_APPROXIMATE_LINE {
 		t.Errorf("precision = %s", mapping.GetPrecision())
 	}
 }
@@ -201,7 +202,7 @@ func TestLargeMappings(t *testing.T) {
 	}
 	mappings.WriteString(";")
 
-	consumer := NewSourceMapConsumerV3()
+	consumer := sourcemap.NewSourceMapConsumerV3()
 	consumer.Parse(
 		gsonToJson(
 			testJsonBuilder_Create().
@@ -223,7 +224,7 @@ func TestLargeMappings(t *testing.T) {
 
 func TestMixedEntryTypes(t *testing.T) {
 	// Test a mix of 1, 4, and 5 value entries.
-	consumer := NewSourceMapConsumerV3()
+	consumer := sourcemap.NewSourceMapConsumerV3()
 	consumer.Parse(
 		gsonToJson(
 			testJsonBuilder_Create().
@@ -258,7 +259,7 @@ func TestMixedEntryTypes(t *testing.T) {
 }
 
 func TestReverseMapping(t *testing.T) {
-	consumer := NewSourceMapConsumerV3()
+	consumer := sourcemap.NewSourceMapConsumerV3()
 	consumer.Parse(basicMapJSON())
 
 	reverse := consumer.GetReverseMapping("testcode", 0, 0)
@@ -268,7 +269,7 @@ func TestReverseMapping(t *testing.T) {
 }
 
 func TestBinarySearchEdgeCases(t *testing.T) {
-	consumer := NewSourceMapConsumerV3()
+	consumer := sourcemap.NewSourceMapConsumerV3()
 	// Test with different number of entries to verify binary search 'mid'
 	// calculation.
 	for numEntries := 1; numEntries < 20; numEntries++ {
@@ -313,19 +314,19 @@ func TestBinarySearchEdgeCases(t *testing.T) {
 	}
 }
 
-type entryVisitorFunc func(sourceName, symbolName *string, sourcePos, startPos, endPos *FilePosition)
+type entryVisitorFunc func(sourceName, symbolName *string, sourcePos, startPos, endPos *sourcemap.FilePosition)
 
-func (f entryVisitorFunc) Visit(sourceName, symbolName *string, sourcePos, startPos, endPos *FilePosition) {
+func (f entryVisitorFunc) Visit(sourceName, symbolName *string, sourcePos, startPos, endPos *sourcemap.FilePosition) {
 	f(sourceName, symbolName, sourcePos, startPos, endPos)
 }
 
 func TestVisitMappings(t *testing.T) {
-	consumer := NewSourceMapConsumerV3()
+	consumer := sourcemap.NewSourceMapConsumerV3()
 	consumer.Parse(basicMapJSON())
 
 	var symbols []string
 	consumer.VisitMappings(entryVisitorFunc(
-		func(sourceName, symbolName *string, sourcePos, startPos, endPos *FilePosition) {
+		func(sourceName, symbolName *string, sourcePos, startPos, endPos *sourcemap.FilePosition) {
 			if symbolName != nil {
 				symbols = append(symbols, *symbolName)
 			}
@@ -340,8 +341,8 @@ func TestInvalidEntryValuesThrows(t *testing.T) {
 	// A VLQ of length 2, e.g. "AA" -> [0, 0]
 	invalidMappings := "AA;"
 
-	consumer := NewSourceMapConsumerV3()
-	expected := assertThrows[*SourceMapParseException](t, func() {
+	consumer := sourcemap.NewSourceMapConsumerV3()
+	expected := assertThrows[*sourcemap.SourceMapParseException](t, func() {
 		consumer.Parse(
 			gsonToJson(
 				testJsonBuilder_Create().

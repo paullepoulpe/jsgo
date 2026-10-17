@@ -1,16 +1,18 @@
 // Port of test/com/google/debugging/sourcemap/UtilTest.java @ closure-compiler v20260415
 
-package sourcemap
+package sourcemap_test
 
 import (
 	"strings"
 	"testing"
+
+	"github.com/paullepoulpe/jsgo/internal/sourcemap"
 )
 
 func utilTestAppendHexJavaScriptRepresentation(t *testing.T, ch uint16, expectedOut string) {
 	t.Helper()
 	var sb strings.Builder
-	Util_AppendHexJavaScriptRepresentation(&sb, ch)
+	sourcemap.Util_AppendHexJavaScriptRepresentation(&sb, ch)
 	if sb.String() != expectedOut {
 		t.Errorf("appendHexJavaScriptRepresentation(%q) = %q, want %q", rune(ch), sb.String(), expectedOut)
 	}

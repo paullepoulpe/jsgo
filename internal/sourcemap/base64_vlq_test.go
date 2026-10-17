@@ -1,6 +1,6 @@
 // Port of test/com/google/debugging/sourcemap/Base64VLQTest.java @ closure-compiler v20260415
 
-package sourcemap
+package sourcemap_test
 
 import (
 	"math"
@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/sourcemap"
 )
 
 func TestBase64VLQSelectedValues1(t *testing.T) {
@@ -82,10 +83,10 @@ func (c *base64VLQTest_CharIteratorImpl) Next() uint16 {
 func base64VLQTestValue(t *testing.T, value int32) {
 	t.Helper()
 	var sb strings.Builder
-	Base64VLQ_Encode(&sb, value)
+	sourcemap.Base64VLQ_Encode(&sb, value)
 	ci := &base64VLQTest_CharIteratorImpl{}
 	ci.set(sb.String())
-	result := Base64VLQ_Decode(ci)
+	result := sourcemap.Base64VLQ_Decode(ci)
 	if result != value {
 		t.Fatalf("failed for value %d: got %d", value, result)
 	}

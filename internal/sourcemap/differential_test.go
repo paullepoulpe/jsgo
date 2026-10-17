@@ -1,4 +1,4 @@
-package sourcemap
+package sourcemap_test
 
 // Differential test against the pinned Java implementation: replays the
 // calls recorded by tools/oracle/java/SourceMapDiff.java (seeded random
@@ -18,7 +18,16 @@ import (
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/sourcemap"
 )
+
+// diffStringsEqual is Objects.equals on two nullable strings.
+func diffStringsEqual(a, b *string) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
+}
 
 func diffEsc(s *string) string {
 	if s == nil {
@@ -90,7 +99,7 @@ func diffExc(r any) string {
 		return "!GO " + msg
 	}
 	switch e := r.(type) {
-	case *SourceMapParseException:
+	case *sourcemap.SourceMapParseException:
 		return "!SMPE " + e.GetMessage()
 	case jutil.INullPointerException:
 		return "!NPE"
@@ -157,7 +166,7 @@ func diffStrs(a []*string) string {
 	return sb.String()
 }
 
-func diffOm(m *Mapping_OriginalMapping) string {
+func diffOm(m *sourcemap.Mapping_OriginalMapping) string {
 	if m == nil {
 		return "-"
 	}
@@ -171,8 +180,8 @@ func diffOm(m *Mapping_OriginalMapping) string {
 
 type diffState struct {
 	buffers []string
-	g       *SourceMapGeneratorV3
-	c       *SourceMapConsumerV3
+	g       *sourcemap.SourceMapGeneratorV3
+	c       *sourcemap.SourceMapConsumerV3
 	out     []string
 }
 
@@ -214,13 +223,13 @@ func (d *diffState) run(op []*string) {
 	case "case":
 		d.buffers = nil
 	case "gnew":
-		d.g = NewSourceMapGeneratorV3()
+		d.g = sourcemap.NewSourceMapGeneratorV3()
 	case "gfactory":
-		format := SourceMapFormat_V3
+		format := sourcemap.SourceMapFormat_V3
 		if *op[1] == "DEFAULT" {
-			format = SourceMapFormat_DEFAULT
+			format = sourcemap.SourceMapFormat_DEFAULT
 		}
-		d.g = SourceMapGeneratorFactory_GetInstance(format).(*SourceMapGeneratorV3)
+		d.g = sourcemap.SourceMapGeneratorFactory_GetInstance(format).(*sourcemap.SourceMapGeneratorV3)
 	case "greset":
 		d.g.Reset()
 	case "gvalidate":
@@ -233,9 +242,9 @@ func (d *diffState) run(op []*string) {
 		d.g.SetStartingPosition(atoi(op[1]), atoi(op[2]))
 	case "gmap":
 		d.g.AddMapping(op[1], op[2],
-			NewFilePosition(atoi(op[3]), atoi(op[4])),
-			NewFilePosition(atoi(op[5]), atoi(op[6])),
-			NewFilePosition(atoi(op[7]), atoi(op[8])))
+			sourcemap.NewFilePosition(atoi(op[3]), atoi(op[4])),
+			sourcemap.NewFilePosition(atoi(op[5]), atoi(op[6])),
+			sourcemap.NewFilePosition(atoi(op[7]), atoi(op[8])))
 	case "gcontent":
 		d.g.AddSourcesContent(*op[1], op[2])
 	case "gext":
@@ -267,7 +276,7 @@ func (d *diffState) run(op []*string) {
 		}()
 		d.g.AppendTo(&sb, op[1])
 	case "gindex":
-		var sections []*SourceMapSection
+		var sections []*sourcemap.SourceMapSection
 		n := atoi(op[2])
 		for i := 0; i < n; i++ {
 			type_ := *op[3+4*i]
@@ -275,9 +284,9 @@ func (d *diffState) run(op []*string) {
 			line := atoi(op[5+4*i])
 			column := atoi(op[6+4*i])
 			if type_ == "URL" {
-				sections = append(sections, SourceMapSection_ForURL(value, line, column))
+				sections = append(sections, sourcemap.SourceMapSection_ForURL(value, line, column))
 			} else {
-				sections = append(sections, SourceMapSection_ForMap(value, line, column))
+				sections = append(sections, sourcemap.SourceMapSection_ForMap(value, line, column))
 			}
 		}
 		var sb strings.Builder
@@ -293,7 +302,7 @@ func (d *diffState) run(op []*string) {
 		d.g.MergeMapSectionWithMergeAction(atoi(op[1]), atoi(op[2]), d.resolve(op[3]), diffMergeAction{})
 		d.result("ok")
 	case "cparse":
-		d.c = NewSourceMapConsumerV3()
+		d.c = sourcemap.NewSourceMapConsumerV3()
 		d.c.Parse(d.resolve(op[1]))
 		d.result("ok")
 	case "cfactory":
@@ -303,7 +312,7 @@ func (d *diffState) run(op []*string) {
 			v := (*kv)[eq+1:]
 			maps.Put((*kv)[:eq], d.resolve(&v))
 		}
-		m := SourceMapConsumerFactory_ParseWithSupplier(d.resolve(op[1]), mapSupplierFunc(func(url string) *string {
+		m := sourcemap.SourceMapConsumerFactory_ParseWithSupplier(d.resolve(op[1]), mapSupplierFunc(func(url string) *string {
 			v, ok := maps.Lookup(url)
 			if !ok {
 				return nil
@@ -313,12 +322,12 @@ func (d *diffState) run(op []*string) {
 			}
 			return &v
 		}))
-		d.c = m.(*SourceMapConsumerV3)
+		d.c = m.(*sourcemap.SourceMapConsumerV3)
 		d.result("ok")
 	case "proto":
 		d.protoScenario()
 	case "cfactory0":
-		d.c = SourceMapConsumerFactory_Parse(d.resolve(op[1])).(*SourceMapConsumerV3)
+		d.c = sourcemap.SourceMapConsumerFactory_Parse(d.resolve(op[1])).(*sourcemap.SourceMapConsumerV3)
 		d.result("ok")
 	case "gbig":
 		var sb strings.Builder
@@ -354,7 +363,7 @@ func (d *diffState) run(op []*string) {
 	case "cvisitcount":
 		n := 0
 		var sb strings.Builder
-		d.c.VisitMappings(entryVisitorFunc(func(sourceName, symbolName *string, src, start, end *FilePosition) {
+		d.c.VisitMappings(entryVisitorFunc(func(sourceName, symbolName *string, src, start, end *sourcemap.FilePosition) {
 			if n < 6 {
 				sb.WriteString(diffStr(sourceName) + "|" + diffStr(symbolName) + " ")
 			}
@@ -362,17 +371,17 @@ func (d *diffState) run(op []*string) {
 		}))
 		d.result(strconv.Itoa(n) + " " + sb.String())
 	case "cfast":
-		d.c = SourceMapConsumerFactory_ParseFast(d.resolve(op[1]))
+		d.c = sourcemap.SourceMapConsumerFactory_ParseFast(d.resolve(op[1]))
 		d.result("ok")
 	case "cdump":
 		d.dumpConsumer()
 	case "oparse":
-		d.dumpObject(SourceMapObjectParser_Parse(d.resolve(op[1])))
+		d.dumpObject(sourcemap.SourceMapObjectParser_Parse(d.resolve(op[1])))
 	case "ofast":
-		d.dumpObject(SourceMapObjectParser_ParseFast(d.resolve(op[1])))
+		d.dumpObject(sourcemap.SourceMapObjectParser_ParseFast(d.resolve(op[1])))
 	case "venc":
 		var sb strings.Builder
-		Base64VLQ_Encode(&sb, int32(atoi(op[1])))
+		sourcemap.Base64VLQ_Encode(&sb, int32(atoi(op[1])))
 		d.result(sb.String())
 	case "vdec":
 		it := &base64VLQTest_CharIteratorImpl{}
@@ -380,21 +389,21 @@ func (d *diffState) run(op []*string) {
 		var sb strings.Builder
 		defer func() { d.result(sb.String()) }()
 		for it.HasNext() {
-			sb.WriteString(jutil.ToJavaString(Base64VLQ_Decode(it)))
+			sb.WriteString(jutil.ToJavaString(sourcemap.Base64VLQ_Decode(it)))
 			sb.WriteString(" ")
 		}
 	case "b64":
-		d.result(Base64_Base64EncodeInt(int32(atoi(op[1]))))
+		d.result(sourcemap.Base64_Base64EncodeInt(int32(atoi(op[1]))))
 	case "b64from":
-		d.result(jutil.ToJavaString(Base64_FromBase64(jutil.StringToUTF16(*op[1])[0])))
+		d.result(jutil.ToJavaString(sourcemap.Base64_FromBase64(jutil.StringToUTF16(*op[1])[0])))
 	case "esc":
-		d.result(Util_EscapeString(*op[1]))
+		d.result(sourcemap.Util_EscapeString(*op[1]))
 	default:
 		panic("unknown op " + *op[0])
 	}
 }
 
-func diffProto(m Mapping_OriginalMappingOrBuilder) string {
+func diffProto(m sourcemap.Mapping_OriginalMappingOrBuilder) string {
 	return jutil.ToJavaString(m.HasOriginalFile()) + "," + m.GetOriginalFile() + "," +
 		jutil.ToJavaString(m.HasLineNumber()) + "," + strconv.Itoa(m.GetLineNumber()) + "," +
 		jutil.ToJavaString(m.HasColumnPosition()) + "," + strconv.Itoa(m.GetColumnPosition()) + "," +
@@ -405,31 +414,31 @@ func diffProto(m Mapping_OriginalMappingOrBuilder) string {
 // protoScenario is SourceMapDiff.protoScenario: the reconstructed
 // OriginalMapping against the generated Java class.
 func (d *diffState) protoScenario() {
-	dm := Mapping_OriginalMapping_GetDefaultInstance()
+	dm := sourcemap.Mapping_OriginalMapping_GetDefaultInstance()
 	d.result("default " + diffProto(dm) + " " + jutil.ToJavaString(dm.IsInitialized()))
-	a := Mapping_OriginalMapping_NewBuilder().
+	a := sourcemap.Mapping_OriginalMapping_NewBuilder().
 		SetOriginalFile("a.js").
 		SetLineNumber(3).
 		SetColumnPosition(-4).
 		SetIdentifier("id").
-		SetPrecision(Mapping_OriginalMapping_Precision_APPROXIMATE_LINE).
+		SetPrecision(sourcemap.Mapping_OriginalMapping_Precision_APPROXIMATE_LINE).
 		Build()
 	d.result("a " + diffProto(a))
 	b := a.ToBuilder().ClearIdentifier().ClearPrecision().Build()
 	d.result("b " + diffProto(b))
-	c := Mapping_OriginalMapping_NewBuilderFrom(b).SetLineNumber(0).ClearOriginalFile().Build()
+	c := sourcemap.Mapping_OriginalMapping_NewBuilderFrom(b).SetLineNumber(0).ClearOriginalFile().Build()
 	d.result("c " + diffProto(c))
-	e := Mapping_OriginalMapping_NewBuilder().SetPrecision(Mapping_OriginalMapping_Precision_UNKNOWN_PRECISION).Build()
+	e := sourcemap.Mapping_OriginalMapping_NewBuilder().SetPrecision(sourcemap.Mapping_OriginalMapping_Precision_UNKNOWN_PRECISION).Build()
 	d.result("e " + diffProto(e))
-	f := Mapping_OriginalMapping_NewBuilder().SetOriginalFile("").SetLineNumber(0).SetIdentifier("").Build()
+	f := sourcemap.Mapping_OriginalMapping_NewBuilder().SetOriginalFile("").SetLineNumber(0).SetIdentifier("").Build()
 	d.result("f " + diffProto(f))
-	g := Mapping_OriginalMapping_NewBuilder().MergeFrom(b).MergeFrom(f).Build()
+	g := sourcemap.Mapping_OriginalMapping_NewBuilder().MergeFrom(b).MergeFrom(f).Build()
 	d.result("g " + diffProto(g))
 	h := a.ToBuilder().Clear().SetColumnPosition(9).Build()
 	d.result("h " + diffProto(h))
-	i := Mapping_OriginalMapping_NewBuilderFrom(a)
+	i := sourcemap.Mapping_OriginalMapping_NewBuilderFrom(a)
 	d.result("i " + jutil.ToJavaString(i.HasIdentifier()) + i.GetIdentifier() + i.GetPrecision().String() + strconv.Itoa(i.GetLineNumber()))
-	all := []*Mapping_OriginalMapping{dm, a, b, c, e, f, g, h, a.ToBuilder().Build(), dm.ToBuilder().Build()}
+	all := []*sourcemap.Mapping_OriginalMapping{dm, a, b, c, e, f, g, h, a.ToBuilder().Build(), dm.ToBuilder().Build()}
 	var sb strings.Builder
 	sb.WriteString("equals")
 	for _, x := range all {
@@ -444,18 +453,18 @@ func (d *diffState) protoScenario() {
 	}
 	d.result(sb.String())
 	forNumber := func(n int) string {
-		p, ok := Mapping_OriginalMapping_Precision_ForNumber(n)
+		p, ok := sourcemap.Mapping_OriginalMapping_Precision_ForNumber(n)
 		if !ok {
 			return "null"
 		}
 		return p.String()
 	}
 	var names []string
-	for _, p := range Mapping_OriginalMapping_Precision_values() {
+	for _, p := range sourcemap.Mapping_OriginalMapping_Precision_values() {
 		names = append(names, p.String())
 	}
 	d.result("forNumber " + forNumber(0) + " " + forNumber(2) + " " + forNumber(3) + " " +
-		strconv.Itoa(Mapping_OriginalMapping_Precision_EXACT.GetNumber()) + " [" + strings.Join(names, ", ") + "]")
+		strconv.Itoa(sourcemap.Mapping_OriginalMapping_Precision_EXACT.GetNumber()) + " [" + strings.Join(names, ", ") + "]")
 }
 
 func (d *diffState) guarded(body func()) {
@@ -467,7 +476,7 @@ func (d *diffState) guarded(body func()) {
 	body()
 }
 
-func (d *diffState) dumpObject(o *SourceMapObject) {
+func (d *diffState) dumpObject(o *sourcemap.SourceMapObject) {
 	d.result("version=" + strconv.Itoa(o.GetVersion()) + " lineCount=" + strconv.Itoa(o.GetLineCount()))
 	d.result("file=" + diffStr(o.GetFile()))
 	d.result("mappings=" + diffStr(o.GetMappings()))
@@ -504,7 +513,7 @@ func (d *diffState) dumpConsumer() {
 	})
 	max0, max1, max2 := 0, 0, 0 // line, column, source line
 	d.guarded(func() {
-		c.VisitMappings(entryVisitorFunc(func(sourceName, symbolName *string, src, start, end *FilePosition) {
+		c.VisitMappings(entryVisitorFunc(func(sourceName, symbolName *string, src, start, end *sourcemap.FilePosition) {
 			d.result("visit " + diffStr(sourceName) + "|" + diffStr(symbolName) + "|" +
 				strconv.Itoa(src.GetLine()) + "," + strconv.Itoa(src.GetColumn()) + "|" +
 				strconv.Itoa(start.GetLine()) + "," + strconv.Itoa(start.GetColumn()) + "|" +
@@ -529,7 +538,7 @@ func (d *diffState) dumpConsumer() {
 					s := diffOm(c.GetMappingForLine(l, col))
 					cur = &s
 				}
-				if prev != nil && !stringsEqual(prev, cur) {
+				if prev != nil && !diffStringsEqual(prev, cur) {
 					sb.WriteString(" " + strconv.Itoa(runStart) + "-" + strconv.Itoa(col-1) + "=" + *prev)
 					runStart = col
 				}
@@ -613,7 +622,7 @@ func TestDifferentialAgainstJava(t *testing.T) {
 		t.Fatalf("only %d calls", len(calls))
 	}
 
-	d := &diffState{g: NewSourceMapGeneratorV3(), c: NewSourceMapConsumerV3()}
+	d := &diffState{g: sourcemap.NewSourceMapGeneratorV3(), c: sourcemap.NewSourceMapConsumerV3()}
 	diffs, outputs := 0, 0
 	for _, c := range calls {
 		op := make([]*string, len(c.op))

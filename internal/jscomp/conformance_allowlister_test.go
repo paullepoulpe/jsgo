@@ -145,8 +145,8 @@ func conformanceAllowlisterTest_testConformanceAllowlister(
 	externs := []*SourceFile{}
 	compiler := NewCompiler()
 	result := compiler.Compile(externs, sources, options)
-	if !result.success {
-		t.Fatalf("compilation failed: %v", result.errors)
+	if !result.Success {
+		t.Fatalf("compilation failed: %v", result.Errors)
 	}
 
 	var errors []conformanceAllowlisterTest_entry

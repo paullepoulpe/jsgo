@@ -24,16 +24,18 @@ import (
 
 // Result holds compilation results.
 type Result struct {
-	success  bool
-	errors   []*JSError
-	warnings []*JSError
+	// Java's public final fields; the ones other Go packages read are
+	// exported (PORTING.md §3).
+	Success  bool
+	Errors   []*JSError
+	Warnings []*JSError
 
 	variableMap             *VariableMap
 	propertyMap             *VariableMap
 	namedAnonFunctionMap    *VariableMap
 	stringMap               *VariableMap                 // nil is null
 	instrumentationMappings *VariableMap                 // nil is null
-	sourceMap               *SourceMap                   // nil is null
+	SourceMap               *SourceMap                   // nil is null
 	cssNames                *jutil.LinkedHashSet[string] // nil is null
 	externExport            *string                      // nil is null
 	idGeneratorMap          *string                      // nil is null
@@ -55,15 +57,15 @@ func NewResultWithAllMaps(
 	idGeneratorMap *string,
 	transpiledFiles bool) *Result {
 	r := &Result{}
-	r.success = len(errors) == 0
-	r.errors = errors
-	r.warnings = warnings
+	r.Success = len(errors) == 0
+	r.Errors = errors
+	r.Warnings = warnings
 	r.variableMap = variableMap
 	r.propertyMap = propertyMap
 	r.namedAnonFunctionMap = namedAnonFunctionMap
 	r.stringMap = stringMap
 	r.instrumentationMappings = instrumentationMappings
-	r.sourceMap = sourceMap
+	r.SourceMap = sourceMap
 	r.externExport = externExport
 	r.cssNames = cssNames
 	r.idGeneratorMap = idGeneratorMap
@@ -109,8 +111,8 @@ func NewResult(
 func Result_PruneResultForPartialCompilation(result *Result) *Result {
 	emptyVariableMap := NewVariableMap(jutil.NewLinkedHashMap[string, string]())
 	return NewResultWithAllMaps(
-		/* errors= */ result.errors,
-		/* warnings= */ result.warnings,
+		/* errors= */ result.Errors,
+		/* warnings= */ result.Warnings,
 		/* variableMap= */ emptyVariableMap,
 		/* propertyMap= */ emptyVariableMap,
 		/* namedAnonFunctionMap= */ emptyVariableMap,

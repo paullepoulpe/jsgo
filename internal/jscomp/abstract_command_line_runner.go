@@ -1663,7 +1663,7 @@ func (r *AbstractCommandLineRunnerBase) ProcessResults(result *Result, chunks []
 		r.OutputBundle()
 		r.OutputChunkGraphJson()
 		return 0
-	} else if options.GetOutputJs() != CompilerOptions_OutputJs_NONE && result.success {
+	} else if options.GetOutputJs() != CompilerOptions_OutputJs_NONE && result.Success {
 		r.OutputChunkGraphJson()
 		if chunks == nil {
 			r.self.OutputSingleBinary(options)
@@ -1720,7 +1720,7 @@ func (r *AbstractCommandLineRunnerBase) ProcessResults(result *Result, chunks []
 // Java: AbstractCommandLineRunner.getExitStatusForResult(Result)
 func abstractCommandLineRunner_getExitStatusForResult(result *Result) int {
 	// return 0 if no errors, the error count otherwise
-	return min(len(result.errors), 0x7f)
+	return min(len(result.Errors), 0x7f)
 }
 
 // Java: AbstractCommandLineRunner.getJavascriptEscaper()
