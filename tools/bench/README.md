@@ -36,6 +36,7 @@ and `bench-build/`.
 | `java/CliBatch.java` | The warm Java driver: repeats the same `CommandLineRunner` invocations in one JVM |
 | `phases.tsv` | Pass name → phase, used for the per-phase roll-up |
 | `bench.py` | Runner, correctness gate, tracer-report parser and Markdown report |
+| `pgo.py` | Regenerates `cmd/jsgo/default.pgo`, the profile for profile-guided optimisation (see [PGO profile](#pgo-profile)) |
 
 ## Inputs
 
@@ -223,6 +224,26 @@ python3 -I tools/bench/bench.py run --out /tmp/bench --skip-java --jsgo-ref <bra
 These jsgo runs are then not interleaved with Java runs. For final numbers,
 re-run everything on a quiet machine and render with `bench.py report
 --final`.
+
+## PGO profile
+
+`go build ./cmd/jsgo` (and so this benchmark) applies profile-guided
+optimisation with `cmd/jsgo/default.pgo`, a CPU profile of jsgo on these
+tasks. The compiler uses it to inline hot calls and to call the usual
+implementation of hot interface methods directly; the program's behaviour
+does not depend on it. A stale profile still works (functions it no longer
+matches are just not optimised), but regenerate it after large changes:
+
+```sh
+python3 -I tools/bench/pgo.py      # writes cmd/jsgo/default.pgo
+```
+
+`pgo.py` builds jsgo without the old profile and with a CPU-profiling hook
+(through `-overlay`; no source changes), sets up the task workspaces as
+`bench.py` does, runs the first invocation of typed-app,
+downlevel-whitespace, downlevel-simple and checks-only and eight evenly
+spaced single-file invocations, and merges the profiles. It takes a few
+minutes. `go build -pgo=off` builds jsgo without the profile.
 
 ## Results layout
 
