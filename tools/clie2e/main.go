@@ -16,6 +16,9 @@
 //	          ADVANCED and --checks_only --jscomp_warning=checkTypes
 //	          (output on stdout), each job classified as identical, diff,
 //	          jsgo panic, jsgo hang (-timeout) or Java error; see sweep.go.
+//	          -configs @flags runs the flag configurations instead
+//	          (sweep_flags.go), usually on a stratified -sample with
+//	          -per-config files each (sample.go).
 //
 // Both sides run in the C/POSIX locale without JAVA_TOOL_OPTIONS (which
 // makes the JVM print a banner on stderr). In stderr, Java stack-frame
@@ -26,7 +29,7 @@
 //
 //	go run ./tools/clie2e -suite fixtures [-jsgo BIN] [-n N]
 //	go run ./tools/clie2e -suite matrix -work DIR [-n N] [-seed S] [-shards K] [-jobs J]
-//	go run ./tools/clie2e -suite sweep -work DIR -corpus ROOT -list LIST [-configs C,...] [-timeout D] [-reuse-java] [-shards K] [-jobs J]
+//	go run ./tools/clie2e -suite sweep -work DIR -corpus ROOT -list LIST [-configs C,...|@flags] [-sample N] [-per-config K] [-max-size B] [-timeout D] [-reuse-java] [-shards K] [-jobs J]
 //
 // A job whose jsgo run reached a not-yet-ported class (stderr contains
 // "pending port:") is counted as PENDING, not as a diff.
@@ -72,7 +75,15 @@ type config struct {
 	args    []string
 	srcMap  bool
 	perFile bool // false: the job does not take corpus inputs
-	optIn   bool // sweep: only when -configs names it
+	optIn   bool // sweep: only when -configs names it (or its group)
+	// sweep only:
+	group string // -configs @group selects every config of the group
+	// variants, when set, are rotated over the config's files: the i-th
+	// file of the config gets args, then variants[i%len(variants)].
+	variants [][]string
+	// files overrides -per-config for this config (a config whose flags
+	// fail before any input is read needs few files).
+	files int
 }
 
 var configs = []config{
