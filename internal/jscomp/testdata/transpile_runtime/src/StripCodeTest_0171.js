@@ -1,0 +1,1 @@
+if (class GA_GoogleDebugger {}) {}

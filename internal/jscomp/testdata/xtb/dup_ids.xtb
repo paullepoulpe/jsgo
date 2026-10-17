@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE translationbundle SYSTEM "translationbundle.dtd">
+<!-- padding so that the messages are past the first read buffers of the JDK parser ............................................................................................. -->
+<translationbundle lang="it">
+<translation id="40">first</translation>
+<translation id="40">second</translation>
+</translationbundle>

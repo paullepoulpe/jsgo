@@ -1,0 +1,1 @@
+varthis {a: nyield} = (b);

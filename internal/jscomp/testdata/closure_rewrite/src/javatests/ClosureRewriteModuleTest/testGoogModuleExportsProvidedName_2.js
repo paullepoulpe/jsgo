@@ -1,0 +1,1 @@
+goog.require('Foo'); /** @const */ var module$exports$FooWrapper = Foo;

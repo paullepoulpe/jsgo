@@ -1,0 +1,2 @@
+goog.provide('ns.b');
+alert('hello world');

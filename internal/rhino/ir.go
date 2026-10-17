@@ -1,647 +1,1094 @@
 // Port of com/google/javascript/rhino/IR.java @ closure-compiler v20260415
 
+/*
+ *
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Rhino code, released
+ * May 6, 1999.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1997-1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   John Lenz
+ *
+ * This Go translation is distributed under the MPL 1.1 only, as the
+ * original's dual licence allows; the other licence it offers is not
+ * used.
+ *
+ * ***** END LICENSE BLOCK ***** */
+
 package rhino
 
-// IR is an AST construction helper. All methods are package-level functions
-// because Java statics become free functions in Go. Mirrors
-// com.google.javascript.rhino.IR.
-//
-// Naming convention: every function carries the "IR" prefix so that callers
-// can write IRBlock(...) instead of block(...), avoiding clashes with the
-// many same-named methods on *Node. The Java class uses plain static names
-// (e.g. IR.block); the prefix is a language-adapter choice.
+import (
+	"iter"
+	"math"
+	"math/big"
+	"slices"
 
-// Go-only: language-adapter — private variadic builder that unifies Java's many IR constructor overloads into one Go helper.
-// newNodes builds a Node with the given token and appends each child.
-func newNodes(tok Token, children ...*Node) *Node {
-	n := New(tok)
-	for _, c := range children {
-		n.AddChildToBack(c)
+	"github.com/paullepoulpe/jsgo/internal/base"
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
+
+// IR is an AST construction helper class.
+type IR struct{}
+
+// Java: IR()
+func NewIR() *IR { return &IR{} }
+
+// Java: IR.empty()
+func IR_Empty() *Node {
+	return NewNode(Token_EMPTY)
+}
+
+// Java: IR.export(Node)
+func IR_Export(declaration *Node) *Node {
+	return NewNodeWithChild(Token_EXPORT, declaration)
+}
+
+// Java: IR.importNode(Node, Node, Node)
+func IR_ImportNode(name *Node, importSpecs *Node, moduleIdentifier *Node) *Node {
+	jutil.CheckStateMsg1(name.IsName() || name.IsEmpty(), "%s", name)
+	jutil.CheckStateMsg1(
+		importSpecs.IsImportSpec() || importSpecs.IsImportStar() || importSpecs.IsEmpty(),
+		"%s", importSpecs)
+
+	jutil.CheckStateMsg1(moduleIdentifier.IsStringLit(), "%s", moduleIdentifier)
+	return NewNodeWith3Children(Token_IMPORT, name, importSpecs, moduleIdentifier)
+}
+
+// Java: IR.importStar(String)
+func IR_ImportStar(name string) *Node {
+	return Node_NewStringWithToken(Token_IMPORT_STAR, name)
+}
+
+// Java: IR.function(Node, Node, Node)
+func IR_Function(name *Node, params *Node, body *Node) *Node {
+	jutil.CheckState(name.IsName())
+	jutil.CheckState(params.IsParamList())
+	jutil.CheckState(body.IsBlock() || body.IsEmpty())
+	return NewNodeWith3Children(Token_FUNCTION, name, params, body)
+}
+
+// Java: IR.arrowFunction(Node, Node, Node)
+func IR_ArrowFunction(name *Node, params *Node, body *Node) *Node {
+	jutil.CheckState(name.IsName())
+	jutil.CheckState(params.IsParamList())
+	jutil.CheckState(body.IsBlock() || IR_MayBeExpression(body))
+	func_ := NewNodeWith3Children(Token_FUNCTION, name, params, body)
+	func_.SetIsArrowFunction(true)
+	return func_
+}
+
+// Java: IR.paramList(Node...)
+func IR_ParamList(params ...*Node) *Node {
+	paramList := NewNode(Token_PARAM_LIST)
+	for _, param := range params {
+		jutil.CheckState(param.IsName() || param.IsRest() || param.IsDefaultValue())
+		paramList.AddChildToBack(param)
 	}
-	return n
+	return paramList
 }
 
-// Go-only: language-adapter — Java calls IR.empty() as a static; Go uses a free function with IR prefix to avoid name collision in the rhino package.
-// IREmpty returns a new EMPTY node. Mirrors IR.empty().
-func IREmpty() *Node { return New(EMPTY) }
-
-// Go-only: language-adapter — Java calls IR.export() as a static; Go uses IR prefix to avoid name collision.
-// IRExport wraps declaration in an EXPORT node. Mirrors IR.export(Node).
-func IRExport(declaration *Node) *Node { return newNodes(EXPORT, declaration) }
-
-// Go-only: language-adapter — Java calls IR.importNode() as a static; Go uses IR prefix.
-// IRImportNode builds an IMPORT node. Mirrors IR.importNode(Node, Node, Node).
-func IRImportNode(name, importSpecs, moduleIdentifier *Node) *Node {
-	return newNodes(IMPORT, name, importSpecs, moduleIdentifier)
+// Java: IR.root(Node...)
+func IR_Root(rootChildren ...*Node) *Node {
+	root := NewNode(Token_ROOT)
+	for _, child := range rootChildren {
+		jutil.CheckState(child.GetToken() == Token_ROOT || child.GetToken() == Token_SCRIPT)
+		root.AddChildToBack(child)
+	}
+	return root
 }
 
-// Go-only: language-adapter — Java calls IR.importStar() as a static; Go uses IR prefix.
-// IRImportStar creates an IMPORT_STAR node. Mirrors IR.importStar(String).
-func IRImportStar(name string) *Node { return NewString(IMPORT_STAR, name) }
-
-// Go-only: language-adapter — Java calls IR.function() as a static; Go uses IR prefix.
-// IRFunction creates a FUNCTION node. Mirrors IR.function(Node, Node, Node).
-func IRFunction(name, params, body *Node) *Node {
-	return newNodes(FUNCTION, name, params, body)
+// Java: IR.block()
+func IR_Block() *Node {
+	return NewNode(Token_BLOCK)
 }
 
-// Go-only: language-adapter — Java calls IR.arrowFunction() as a static; Go uses IR prefix.
-// IRArrowFunction creates an arrow FUNCTION node. Mirrors IR.arrowFunction(Node, Node, Node).
-func IRArrowFunction(name, params, body *Node) *Node {
-	fn := newNodes(FUNCTION, name, params, body)
-	fn.SetIsArrowFunction(true)
-	return fn
+// Java: IR.block(Node)
+func IR_BlockOfNode(stmt *Node) *Node {
+	jutil.CheckStateMsg1(IR_MayBeStatement(stmt), "Block node cannot contain %s", stmt.GetToken())
+	return NewNodeWithChild(Token_BLOCK, stmt)
 }
 
-// Go-only: language-adapter — Java calls IR.paramList() as a static; Go uses IR prefix and variadic for the Node... overload.
-// IRParamList creates a PARAM_LIST node. Mirrors IR.paramList(Node...).
-func IRParamList(params ...*Node) *Node {
-	return newNodes(PARAM_LIST, params...)
+// Java: IR.block(Node...)
+func IR_BlockOfNodes(stmts ...*Node) *Node {
+	block := IR_Block()
+	for _, stmt := range stmts {
+		jutil.CheckState(IR_MayBeStatement(stmt))
+		block.AddChildToBack(stmt)
+	}
+	return block
 }
 
-// Go-only: language-adapter — Java calls IR.root() as a static; Go uses IR prefix and variadic.
-// IRRoot creates a ROOT node. Mirrors IR.root(Node...).
-func IRRoot(rootChildren ...*Node) *Node {
-	return newNodes(ROOT, rootChildren...)
+// Java: IR.block(List<Node>)
+func IR_BlockOfList(stmts []*Node) *Node {
+	paramList := IR_Block()
+	for _, stmt := range stmts {
+		jutil.CheckState(IR_MayBeStatement(stmt))
+		paramList.AddChildToBack(stmt)
+	}
+	return paramList
 }
 
-// Go-only: language-adapter — Java calls IR.block() as a static with multiple overloads; Go merges them via variadic.
-// IRBlock creates an empty BLOCK node. Mirrors IR.block().
-func IRBlock(stmts ...*Node) *Node {
-	return newNodes(BLOCK, stmts...)
+// Java: IR.blockUnchecked(Node)
+func IR_BlockUnchecked(stmt *Node) *Node {
+	return NewNodeWithChild(Token_BLOCK, stmt)
 }
 
-// Go-only: language-adapter — Java calls IR.script() as a static with multiple overloads; Go merges them via variadic.
-// IRScript creates an empty SCRIPT node. Mirrors IR.script().
-func IRScript(stmts ...*Node) *Node {
-	return newNodes(SCRIPT, stmts...)
+// Java: IR.script()
+func IR_Script() *Node {
+	// TODO(johnlenz): finish setting up the SCRIPT node
+	return NewNode(Token_SCRIPT)
 }
 
-// Go-only: language-adapter — Java calls IR.var() as a static; Go uses IR prefix since "var" is a keyword.
-// IRVar creates a VAR declaration node. Mirrors IR.var(Node, Node).
-func IRVar(lhs, value *Node) *Node { return IRDeclaration(lhs, value, VAR) }
-
-// Go-only: language-adapter — Java calls IR.var(Node) overload; Go splits overloads into separate named functions.
-// IRVarLhs creates a VAR declaration without initialiser. Mirrors IR.var(Node).
-func IRVarLhs(lhs *Node) *Node { return IRDeclarationLhs(lhs, VAR) }
-
-// Go-only: language-adapter — Java calls IR.let() as a static; Go uses IR prefix since "let" could conflict.
-// IRLet creates a LET declaration node. Mirrors IR.let(Node, Node).
-func IRLet(lhs, value *Node) *Node { return IRDeclaration(lhs, value, LET) }
-
-// Go-only: language-adapter — Java calls IR.let(Node) overload; Go splits overloads into separate named functions.
-// IRLetLhs creates a LET declaration without initialiser. Mirrors IR.let(Node).
-func IRLetLhs(lhs *Node) *Node { return IRDeclarationLhs(lhs, LET) }
-
-// Go-only: language-adapter — Java calls IR.constNode() as a static; Go uses IR prefix.
-// IRConst creates a CONST declaration node. Mirrors IR.constNode(Node, Node).
-func IRConst(lhs, value *Node) *Node { return IRDeclaration(lhs, value, CONST) }
-
-// Go-only: language-adapter — Java calls IR.declaration() as a static; Go uses IR prefix and splits overloads.
-// IRDeclarationLhs creates a declaration without initialiser.
-// Mirrors IR.declaration(Node, Token).
-func IRDeclarationLhs(lhs *Node, typ Token) *Node {
-	return newNodes(typ, lhs)
+// Java: IR.script(Node...)
+func IR_ScriptOfNodes(stmts ...*Node) *Node {
+	block := IR_Script()
+	for _, stmt := range stmts {
+		jutil.CheckState(IR_MayBeStatementNoReturn(stmt))
+		block.AddChildToBack(stmt)
+	}
+	return block
 }
 
-// Go-only: language-adapter — Java calls IR.declaration() as a static; Go uses IR prefix.
-// IRDeclaration creates a declaration with initialiser.
-// Mirrors IR.declaration(Node, Node, Token).
-func IRDeclaration(lhs, value *Node, typ Token) *Node {
+// Java: IR.script(List<Node>)
+func IR_ScriptOfList(stmts []*Node) *Node {
+	paramList := IR_Script()
+	for _, stmt := range stmts {
+		jutil.CheckState(IR_MayBeStatementNoReturn(stmt))
+		paramList.AddChildToBack(stmt)
+	}
+	return paramList
+}
+
+// Java: IR.var(Node)
+func IR_Var(lhs *Node) *Node {
+	return IR_Declaration(lhs, Token_VAR)
+}
+
+// Java: IR.var(Node, Node)
+func IR_VarWithValue(lhs *Node, value *Node) *Node {
+	return IR_DeclarationWithValue(lhs, value, Token_VAR)
+}
+
+// Java: IR.let(Node)
+func IR_Let(lhs *Node) *Node {
+	return IR_Declaration(lhs, Token_LET)
+}
+
+// Java: IR.let(Node, Node)
+func IR_LetWithValue(lhs *Node, value *Node) *Node {
+	return IR_DeclarationWithValue(lhs, value, Token_LET)
+}
+
+// Java: IR.constNode(Node, Node)
+func IR_ConstNode(lhs *Node, value *Node) *Node {
+	return IR_DeclarationWithValue(lhs, value, Token_CONST)
+}
+
+// Java: IR.declaration(Node, Token)
+func IR_Declaration(lhs *Node, type_ Token) *Node {
+	jutil.CheckStateMsg1(lhs.IsName() || lhs.IsDestructuringPattern() || lhs.IsDestructuringLhs(), "%s", lhs)
+	if lhs.IsDestructuringPattern() {
+		lhs = NewNodeWithChild(Token_DESTRUCTURING_LHS, lhs)
+	}
+	return NewNodeWithChild(type_, lhs)
+}
+
+// Java: IR.declaration(Node, Node, Token)
+func IR_DeclarationWithValue(lhs *Node, value *Node, type_ Token) *Node {
+	if lhs.IsName() {
+		jutil.CheckState(!lhs.HasChildren())
+	} else {
+		jutil.CheckState(lhs.IsArrayPattern() || lhs.IsObjectPattern())
+		lhs = NewNodeWithChild(Token_DESTRUCTURING_LHS, lhs)
+	}
+	jutil.CheckStateMsg1(IR_MayBeExpression(value), "%s can't be an expression", value)
+
 	lhs.AddChildToBack(value)
-	return newNodes(typ, lhs)
+	return NewNodeWithChild(type_, lhs)
 }
 
-// Go-only: language-adapter — Java calls IR.returnNode() with two overloads; Go merges them via variadic.
-// IRReturn creates a RETURN node. Mirrors IR.returnNode() / IR.returnNode(Node).
-func IRReturn(exprs ...*Node) *Node {
-	if len(exprs) == 0 {
-		return New(RETURN)
+// Java: IR.returnNode()
+func IR_ReturnNode() *Node {
+	return NewNode(Token_RETURN)
+}
+
+// Java: IR.returnNode(Node)
+func IR_ReturnNodeWithExpr(expr *Node) *Node {
+	jutil.CheckState(IR_MayBeExpression(expr))
+	return NewNodeWithChild(Token_RETURN, expr)
+}
+
+// Java: IR.yieldNode(Node)
+func IR_YieldNode(expr *Node) *Node {
+	jutil.CheckState(IR_MayBeExpression(expr))
+	return NewNodeWithChild(Token_YIELD, expr)
+}
+
+// Java: IR.await(Node)
+func IR_Await(expr *Node) *Node {
+	jutil.CheckState(IR_MayBeExpression(expr))
+	return NewNodeWithChild(Token_AWAIT, expr)
+}
+
+// Java: IR.throwNode(Node)
+func IR_ThrowNode(expr *Node) *Node {
+	jutil.CheckState(IR_MayBeExpression(expr))
+	return NewNodeWithChild(Token_THROW, expr)
+}
+
+// Java: IR.exprResult(Node)
+func IR_ExprResult(expr *Node) *Node {
+	jutil.CheckStateMsg1(IR_MayBeExpression(expr), "%s", expr)
+	return NewNodeWithChild(Token_EXPR_RESULT, expr)
+}
+
+// Java: IR.ifNode(Node, Node)
+func IR_IfNode(cond *Node, then *Node) *Node {
+	jutil.CheckState(IR_MayBeExpression(cond))
+	jutil.CheckState(then.IsBlock())
+	return NewNodeWith2Children(Token_IF, cond, then)
+}
+
+// Java: IR.ifNode(Node, Node, Node)
+func IR_IfNodeWithElse(cond *Node, then *Node, elseNode *Node) *Node {
+	jutil.CheckState(IR_MayBeExpression(cond))
+	jutil.CheckState(then.IsBlock())
+	jutil.CheckState(elseNode.IsBlock())
+	return NewNodeWith3Children(Token_IF, cond, then, elseNode)
+}
+
+// Java: IR.doNode(Node, Node)
+func IR_DoNode(body *Node, cond *Node) *Node {
+	jutil.CheckState(body.IsBlock())
+	jutil.CheckState(IR_MayBeExpression(cond))
+	return NewNodeWith2Children(Token_DO, body, cond)
+}
+
+// Java: IR.whileNode(Node, Node)
+func IR_WhileNode(cond *Node, body *Node) *Node {
+	jutil.CheckState(body.IsBlock())
+	jutil.CheckState(IR_MayBeExpression(cond))
+	return NewNodeWith2Children(Token_WHILE, cond, body)
+}
+
+// Java: IR.forIn(Node, Node, Node)
+func IR_ForIn(target *Node, cond *Node, body *Node) *Node {
+	jutil.CheckState(target.IsVar() || IR_MayBeExpression(target))
+	jutil.CheckState(IR_MayBeExpression(cond))
+	jutil.CheckState(body.IsBlock())
+	return NewNodeWith3Children(Token_FOR_IN, target, cond, body)
+}
+
+// Java: IR.forNode(Node, Node, Node, Node)
+func IR_ForNode(init *Node, cond *Node, incr *Node, body *Node) *Node {
+	jutil.CheckState(init.IsVar() || init.IsLet() || init.IsConst() || IR_MayBeExpressionOrEmpty(init))
+	jutil.CheckState(IR_MayBeExpressionOrEmpty(cond))
+	jutil.CheckState(IR_MayBeExpressionOrEmpty(incr))
+	jutil.CheckState(body.IsBlock())
+	r := NewNodeWith3Children(Token_FOR, init, cond, incr)
+	r.AddChildToBack(body)
+	return r
+}
+
+// Java: IR.switchNode(Node, Node...)
+func IR_SwitchNode(cond *Node, cases ...*Node) *Node {
+	jutil.CheckState(IR_MayBeExpression(cond))
+	switchNode := NewNodeWithChild(Token_SWITCH, cond)
+	switchBody := NewNode(Token_SWITCH_BODY)
+	switchNode.AddChildToBack(switchBody)
+	for _, caseNode := range cases {
+		jutil.CheckState(caseNode.IsCase() || caseNode.IsDefaultCase())
+		switchBody.AddChildToBack(caseNode)
 	}
-	return newNodes(RETURN, exprs[0])
+	return switchNode
 }
 
-// Go-only: language-adapter — Java calls IR.yieldNode() as a static; Go uses IR prefix.
-// IRYield creates a YIELD node. Mirrors IR.yieldNode(Node).
-func IRYield(expr *Node) *Node { return newNodes(YIELD, expr) }
+// Java: IR.caseNode(Node, Node)
+func IR_CaseNode(expr *Node, body *Node) *Node {
+	jutil.CheckState(IR_MayBeExpression(expr))
+	jutil.CheckState(body.IsBlock())
+	body.SetIsAddedBlock(true)
+	return NewNodeWith2Children(Token_CASE, expr, body)
+}
 
-// Go-only: language-adapter — Java calls IR.await() as a static; Go uses IR prefix.
-// IRAwait creates an AWAIT node. Mirrors IR.await(Node).
-func IRAwait(expr *Node) *Node { return newNodes(AWAIT, expr) }
+// Java: IR.defaultCase(Node)
+func IR_DefaultCase(body *Node) *Node {
+	jutil.CheckState(body.IsBlock())
+	body.SetIsAddedBlock(true)
+	return NewNodeWithChild(Token_DEFAULT_CASE, body)
+}
 
-// Go-only: language-adapter — Java calls IR.throwNode() as a static; Go uses IR prefix.
-// IRThrow creates a THROW node. Mirrors IR.throwNode(Node).
-func IRThrow(expr *Node) *Node { return newNodes(THROW, expr) }
+// Java: IR.label(Node, Node)
+func IR_Label(name *Node, stmt *Node) *Node {
+	// TODO(johnlenz): additional validation here.
+	jutil.CheckState(name.IsLabelName())
+	jutil.CheckState(IR_MayBeStatement(stmt))
+	return NewNodeWith2Children(Token_LABEL, name, stmt)
+}
 
-// Go-only: language-adapter — Java calls IR.exprResult() as a static; Go uses IR prefix.
-// IRExprResult creates an EXPR_RESULT node. Mirrors IR.exprResult(Node).
-func IRExprResult(expr *Node) *Node { return newNodes(EXPR_RESULT, expr) }
+// Java: IR.labelName(String)
+func IR_LabelName(name string) *Node {
+	jutil.CheckState(name != "")
+	return Node_NewStringWithToken(Token_LABEL_NAME, name)
+}
 
-// Go-only: language-adapter — Java calls IR.ifNode() with two overloads; Go merges them via variadic.
-// IRIf creates an IF node. Mirrors IR.ifNode(Node, Node) / IR.ifNode(Node, Node, Node).
-func IRIf(cond, then *Node, elseNodes ...*Node) *Node {
-	n := newNodes(IF, cond, then)
-	for _, e := range elseNodes {
-		n.AddChildToBack(e)
+// Java: IR.tryFinally(Node, Node)
+func IR_TryFinally(tryBody *Node, finallyBody *Node) *Node {
+	jutil.CheckState(tryBody.IsBlock())
+	jutil.CheckState(finallyBody.IsBlock())
+	catchBody := IR_Block().SrcrefIfMissing(tryBody)
+	return NewNodeWith3Children(Token_TRY, tryBody, catchBody, finallyBody)
+}
+
+// Java: IR.tryCatch(Node, Node)
+func IR_TryCatch(tryBody *Node, catchNode *Node) *Node {
+	jutil.CheckState(tryBody.IsBlock())
+	jutil.CheckState(catchNode.IsCatch())
+	catchBody := IR_BlockUnchecked(catchNode).SrcrefIfMissing(catchNode)
+	return NewNodeWith2Children(Token_TRY, tryBody, catchBody)
+}
+
+// Java: IR.tryCatchFinally(Node, Node, Node)
+func IR_TryCatchFinally(tryBody *Node, catchNode *Node, finallyBody *Node) *Node {
+	jutil.CheckState(finallyBody.IsBlock())
+	tryNode := IR_TryCatch(tryBody, catchNode)
+	tryNode.AddChildToBack(finallyBody)
+	return tryNode
+}
+
+// Java: IR.catchNode(Node, Node)
+func IR_CatchNode(expr *Node, body *Node) *Node {
+	jutil.CheckState(expr.IsName())
+	jutil.CheckState(body.IsBlock())
+	return NewNodeWith2Children(Token_CATCH, expr, body)
+}
+
+// Java: IR.breakNode()
+func IR_BreakNode() *Node {
+	return NewNode(Token_BREAK)
+}
+
+// Java: IR.breakNode(Node)
+func IR_BreakNodeWithLabel(name *Node) *Node {
+	// TODO(johnlenz): additional validation here.
+	jutil.CheckState(name.IsLabelName())
+	return NewNodeWithChild(Token_BREAK, name)
+}
+
+// Java: IR.continueNode()
+func IR_ContinueNode() *Node {
+	return NewNode(Token_CONTINUE)
+}
+
+// Java: IR.continueNode(Node)
+func IR_ContinueNodeWithLabel(name *Node) *Node {
+	// TODO(johnlenz): additional validation here.
+	jutil.CheckState(name.IsLabelName())
+	return NewNodeWithChild(Token_CONTINUE, name)
+}
+
+// Java: IR.call(Node, Node...)
+func IR_Call(target *Node, args ...*Node) *Node {
+	call := NewNodeWithChild(Token_CALL, target)
+	for _, arg := range args {
+		jutil.CheckStateMsg1(IR_MayBeExpression(arg) || arg.IsSpread(), "%s", arg)
+		call.AddChildToBack(arg)
 	}
-	return n
+	return call
 }
 
-// Go-only: language-adapter — Java calls IR.doNode() as a static; Go uses IR prefix.
-// IRDo creates a DO node. Mirrors IR.doNode(Node, Node).
-func IRDo(body, cond *Node) *Node { return newNodes(DO, body, cond) }
-
-// Go-only: language-adapter — Java calls IR.whileNode() as a static; Go uses IR prefix.
-// IRWhile creates a WHILE node. Mirrors IR.whileNode(Node, Node).
-func IRWhile(cond, body *Node) *Node { return newNodes(WHILE, cond, body) }
-
-// Go-only: language-adapter — Java calls IR.forIn() as a static; Go uses IR prefix.
-// IRForIn creates a FOR_IN node. Mirrors IR.forIn(Node, Node, Node).
-func IRForIn(target, cond, body *Node) *Node { return newNodes(FOR_IN, target, cond, body) }
-
-// Go-only: language-adapter — Java calls IR.forNode() as a static; Go uses IR prefix.
-// IRFor creates a FOR node. Mirrors IR.forNode(Node, Node, Node, Node).
-func IRFor(init, cond, incr, body *Node) *Node {
-	n := newNodes(FOR, init, cond, incr)
-	n.AddChildToBack(body)
-	return n
-}
-
-// Go-only: language-adapter — Java calls IR.switchNode() as a static with varargs; Go uses IR prefix and variadic.
-// IRSwitch creates a SWITCH node. Mirrors IR.switchNode(Node, Node...).
-func IRSwitch(cond *Node, cases ...*Node) *Node {
-	n := newNodes(SWITCH, cond)
-	body := New(SWITCH_BODY)
-	n.AddChildToBack(body)
-	for _, c := range cases {
-		body.AddChildToBack(c)
+// Java: IR.startOptChainCall(Node, Node...)
+func IR_StartOptChainCall(target *Node, args ...*Node) *Node {
+	call := NewNodeWithChild(Token_OPTCHAIN_CALL, target)
+	for _, arg := range args {
+		jutil.CheckStateMsg1(IR_MayBeExpression(arg) || arg.IsSpread(), "%s", arg)
+		call.AddChildToBack(arg)
 	}
-	return n
+	call.SetIsOptionalChainStart(true)
+	return call
 }
 
-// Go-only: language-adapter — Java calls IR.caseNode() as a static; Go uses IR prefix.
-// IRCase creates a CASE node. Mirrors IR.caseNode(Node, Node).
-func IRCase(expr, body *Node) *Node { return newNodes(CASE, expr, body) }
-
-// Go-only: language-adapter — Java calls IR.defaultCase() as a static; Go uses IR prefix.
-// IRDefaultCase creates a DEFAULT_CASE node. Mirrors IR.defaultCase(Node).
-func IRDefaultCase(body *Node) *Node { return newNodes(DEFAULT_CASE, body) }
-
-// Go-only: language-adapter — Java calls IR.label() as a static; Go uses IR prefix.
-// IRLabel creates a LABEL node. Mirrors IR.label(Node, Node).
-func IRLabel(name, stmt *Node) *Node { return newNodes(LABEL, name, stmt) }
-
-// Go-only: language-adapter — Java calls IR.labelName() as a static; Go uses IR prefix.
-// IRLabelName creates a LABEL_NAME node. Mirrors IR.labelName(String).
-func IRLabelName(name string) *Node { return NewString(LABEL_NAME, name) }
-
-// Go-only: language-adapter — Java calls IR.tryFinally() as a static; Go uses IR prefix.
-// IRTryFinally creates a TRY node with a finally clause. Mirrors IR.tryFinally(Node, Node).
-func IRTryFinally(tryBody, finallyBody *Node) *Node {
-	catchBody := New(BLOCK)
-	return newNodes(TRY, tryBody, catchBody, finallyBody)
-}
-
-// Go-only: language-adapter — Java calls IR.tryCatch() as a static; Go uses IR prefix.
-// IRTryCatch creates a TRY node with a catch clause. Mirrors IR.tryCatch(Node, Node).
-func IRTryCatch(tryBody, catchNode *Node) *Node {
-	catchBody := newNodes(BLOCK, catchNode)
-	return newNodes(TRY, tryBody, catchBody)
-}
-
-// Go-only: language-adapter — Java calls IR.tryCatchFinally() as a static; Go uses IR prefix.
-// IRTryCatchFinally creates a TRY node with both catch and finally.
-// Mirrors IR.tryCatchFinally(Node, Node, Node).
-func IRTryCatchFinally(tryBody, catchNode, finallyBody *Node) *Node {
-	n := IRTryCatch(tryBody, catchNode)
-	n.AddChildToBack(finallyBody)
-	return n
-}
-
-// Go-only: language-adapter — Java calls IR.catchNode() as a static; Go uses IR prefix.
-// IRCatch creates a CATCH node. Mirrors IR.catchNode(Node, Node).
-func IRCatch(expr, body *Node) *Node { return newNodes(CATCH, expr, body) }
-
-// Go-only: language-adapter — Java calls IR.breakNode() with two overloads; Go merges them via variadic.
-// IRBreak creates a BREAK node. Mirrors IR.breakNode() / IR.breakNode(Node).
-func IRBreak(labels ...*Node) *Node {
-	if len(labels) == 0 {
-		return New(BREAK)
+// Java: IR.continueOptChainCall(Node, Node...)
+func IR_ContinueOptChainCall(target *Node, args ...*Node) *Node {
+	call := NewNodeWithChild(Token_OPTCHAIN_CALL, target)
+	for _, arg := range args {
+		jutil.CheckStateMsg1(IR_MayBeExpression(arg) || arg.IsSpread(), "%s", arg)
+		call.AddChildToBack(arg)
 	}
-	return newNodes(BREAK, labels[0])
+	call.SetIsOptionalChainStart(false)
+	return call
 }
 
-// Go-only: language-adapter — Java calls IR.continueNode() with two overloads; Go merges them via variadic.
-// IRContinue creates a CONTINUE node. Mirrors IR.continueNode() / IR.continueNode(Node).
-func IRContinue(labels ...*Node) *Node {
-	if len(labels) == 0 {
-		return New(CONTINUE)
+// Java: IR.newNode(Node, Node...)
+func IR_NewNode(target *Node, args ...*Node) *Node {
+	newcall := NewNodeWithChild(Token_NEW, target)
+	for _, arg := range args {
+		jutil.CheckStateMsg1(IR_MayBeExpression(arg) || arg.IsSpread(), "%s", arg)
+		newcall.AddChildToBack(arg)
 	}
-	return newNodes(CONTINUE, labels[0])
+	return newcall
 }
 
-// Go-only: language-adapter — Java calls IR.call() as a static with varargs; Go uses IR prefix and variadic.
-// IRCall creates a CALL node. Mirrors IR.call(Node, Node...).
-func IRCall(target *Node, args ...*Node) *Node {
-	n := newNodes(CALL, target)
-	for _, a := range args {
-		n.AddChildToBack(a)
-	}
-	return n
+// Java: IR.name(String)
+func IR_Name(name string) *Node {
+	jutil.CheckStateMsg1(
+		jutil.StringIndexOfChar(name, '.') == -1, "Invalid name '%s'. Did you mean to use NodeUtil.newQName?", name)
+
+	return Node_NewStringWithToken(Token_NAME, name)
 }
 
-// Go-only: language-adapter — Java calls IR.startOptChainCall() as a static with varargs; Go uses IR prefix and variadic.
-// IRStartOptChainCall creates an optional-chaining CALL node (chain start).
-// Mirrors IR.startOptChainCall(Node, Node...).
-func IRStartOptChainCall(target *Node, args ...*Node) *Node {
-	n := newNodes(OPTCHAIN_CALL, target)
-	for _, a := range args {
-		n.AddChildToBack(a)
-	}
-	n.SetIsOptionalChainStart(true)
-	return n
+// Java: IR.startOptChainGetprop(Node, String)
+func IR_StartOptChainGetprop(target *Node, prop string) *Node {
+	jutil.CheckStateMsg1(IR_MayBeExpression(target), "%s", target)
+	optChainGetProp := Node_NewStringWithToken(Token_OPTCHAIN_GETPROP, prop)
+	optChainGetProp.AddChildToBack(target)
+	optChainGetProp.SetIsOptionalChainStart(true)
+	return optChainGetProp
 }
 
-// Go-only: language-adapter — Java calls IR.continueOptChainCall() as a static with varargs; Go uses IR prefix and variadic.
-// IRContinueOptChainCall creates an optional-chaining CALL node (chain cont).
-// Mirrors IR.continueOptChainCall(Node, Node...).
-func IRContinueOptChainCall(target *Node, args ...*Node) *Node {
-	n := newNodes(OPTCHAIN_CALL, target)
-	for _, a := range args {
-		n.AddChildToBack(a)
-	}
-	n.SetIsOptionalChainStart(false)
-	return n
+// Java: IR.continueOptChainGetprop(Node, String)
+func IR_ContinueOptChainGetprop(target *Node, prop string) *Node {
+	jutil.CheckStateMsg1(IR_MayBeExpression(target), "%s", target)
+	optChainGetProp := Node_NewStringWithToken(Token_OPTCHAIN_GETPROP, prop)
+	optChainGetProp.AddChildToBack(target)
+	optChainGetProp.SetIsOptionalChainStart(false)
+	return optChainGetProp
 }
 
-// Go-only: language-adapter — Java calls IR.newNode() as a static with varargs; Go uses IR prefix and variadic.
-// IRNew creates a NEW node. Mirrors IR.newNode(Node, Node...).
-func IRNew(target *Node, args ...*Node) *Node {
-	n := newNodes(NEW, target)
-	for _, a := range args {
-		n.AddChildToBack(a)
-	}
-	return n
+// Java: IR.getprop(Node, String)
+func IR_Getprop(target *Node, prop string) *Node {
+	jutil.CheckState(IR_MayBeExpression(target))
+	getprop := Node_NewStringWithToken(Token_GETPROP, prop)
+	getprop.AddChildToBack(target)
+	return getprop
 }
 
-// Go-only: language-adapter — Java calls IR.name() as a static; Go uses IR prefix.
-// IRName creates a NAME node. Mirrors IR.name(String).
-func IRName(name string) *Node { return NewString(NAME, name) }
-
-// Go-only: language-adapter — Java calls IR.startOptChainGetprop() as a static; Go uses IR prefix.
-// IRStartOptChainGetprop creates an optional-chaining GETPROP (start).
-// Mirrors IR.startOptChainGetprop(Node, String).
-func IRStartOptChainGetprop(target *Node, prop string) *Node {
-	n := NewString(OPTCHAIN_GETPROP, prop)
-	n.AddChildToBack(target)
-	n.SetIsOptionalChainStart(true)
-	return n
-}
-
-// Go-only: language-adapter — Java calls IR.continueOptChainGetprop() as a static; Go uses IR prefix.
-// IRContinueOptChainGetprop creates an optional-chaining GETPROP (cont).
-// Mirrors IR.continueOptChainGetprop(Node, String).
-func IRContinueOptChainGetprop(target *Node, prop string) *Node {
-	n := NewString(OPTCHAIN_GETPROP, prop)
-	n.AddChildToBack(target)
-	n.SetIsOptionalChainStart(false)
-	return n
-}
-
-// Go-only: language-adapter — Java calls IR.getprop() as a static; Go uses IR prefix and adds variadic for chaining multiple props.
-// IRGetprop creates a GETPROP node. Mirrors IR.getprop(Node, String).
-func IRGetprop(target *Node, prop string, moreProps ...string) *Node {
-	n := NewString(GETPROP, prop)
-	n.AddChildToBack(target)
-	result := n
-	for _, mp := range moreProps {
-		result = IRGetprop(result, mp)
+// Java: IR.getprop(Node, String, String...)
+func IR_GetpropWithMoreProps(target *Node, prop string, moreProps ...string) *Node {
+	jutil.CheckState(IR_MayBeExpression(target))
+	result := IR_Getprop(target, prop)
+	for _, moreProp := range moreProps {
+		result = IR_Getprop(result, moreProp)
 	}
 	return result
 }
 
-// Go-only: language-adapter — Java calls IR.startOptChainGetelem() as a static; Go uses IR prefix.
-// IRStartOptChainGetelem creates an OPTCHAIN_GETELEM (start).
-// Mirrors IR.startOptChainGetelem(Node, Node).
-func IRStartOptChainGetelem(target, elem *Node) *Node {
-	n := newNodes(OPTCHAIN_GETELEM, target, elem)
-	n.SetIsOptionalChainStart(true)
-	return n
+// Java: IR.startOptChainGetelem(Node, Node)
+func IR_StartOptChainGetelem(target *Node, elem *Node) *Node {
+	jutil.CheckStateMsg1(IR_MayBeExpression(target), "%s", target)
+	jutil.CheckStateMsg1(IR_MayBeExpression(elem), "%s", elem)
+	optChainGetElem := NewNodeWith2Children(Token_OPTCHAIN_GETELEM, target, elem)
+	optChainGetElem.SetIsOptionalChainStart(true)
+	return optChainGetElem
 }
 
-// Go-only: language-adapter — Java calls IR.continueOptChainGetelem() as a static; Go uses IR prefix.
-// IRContinueOptChainGetelem creates an OPTCHAIN_GETELEM (cont).
-// Mirrors IR.continueOptChainGetelem(Node, Node).
-func IRContinueOptChainGetelem(target, elem *Node) *Node {
-	n := newNodes(OPTCHAIN_GETELEM, target, elem)
-	n.SetIsOptionalChainStart(false)
-	return n
+// Java: IR.continueOptChainGetelem(Node, Node)
+func IR_ContinueOptChainGetelem(target *Node, elem *Node) *Node {
+	jutil.CheckStateMsg1(IR_MayBeExpression(target), "%s", target)
+	jutil.CheckStateMsg1(IR_MayBeExpression(elem), "%s", elem)
+	optChainGetElem := NewNodeWith2Children(Token_OPTCHAIN_GETELEM, target, elem)
+	optChainGetElem.SetIsOptionalChainStart(false)
+	return optChainGetElem
 }
 
-// Go-only: language-adapter — Java calls IR.getelem() as a static; Go uses IR prefix.
-// IRGetelem creates a GETELEM node. Mirrors IR.getelem(Node, Node).
-func IRGetelem(target, elem *Node) *Node { return newNodes(GETELEM, target, elem) }
+// Java: IR.getelem(Node, Node)
+func IR_Getelem(target *Node, elem *Node) *Node {
+	jutil.CheckState(IR_MayBeExpression(target))
+	jutil.CheckState(IR_MayBeExpression(elem))
+	return NewNodeWith2Children(Token_GETELEM, target, elem)
+}
 
-// Go-only: language-adapter — Java calls IR.delprop() as a static; Go uses IR prefix.
-// IRDelprop creates a DELPROP node. Mirrors IR.delprop(Node).
-func IRDelprop(target *Node) *Node { return newNodes(DELPROP, target) }
+// Java: IR.delprop(Node)
+func IR_Delprop(target *Node) *Node {
+	jutil.CheckState(IR_MayBeExpression(target))
+	return NewNodeWithChild(Token_DELPROP, target)
+}
 
-// Go-only: language-adapter — Java calls IR.assign() as a static; Go uses IR prefix.
-// IRAssign creates an ASSIGN node. Mirrors IR.assign(Node, Node).
-func IRAssign(target, expr *Node) *Node { return newNodes(ASSIGN, target, expr) }
+// Java: IR.assign(Node, Node)
+func IR_Assign(target *Node, expr *Node) *Node {
+	jutil.CheckStateMsg1(target.IsValidAssignmentTarget(), "%s", target)
+	jutil.CheckStateMsg1(IR_MayBeExpression(expr), "%s", expr)
+	return NewNodeWith2Children(Token_ASSIGN, target, expr)
+}
 
-// Go-only: language-adapter — Java calls IR.assignOr() as a static; Go uses IR prefix.
-// IRAssignOr creates an ASSIGN_OR node. Mirrors IR.assignOr(Node, Node).
-func IRAssignOr(expr1, expr2 *Node) *Node { return newNodes(ASSIGN_OR, expr1, expr2) }
+// Java: IR.hook(Node, Node, Node)
+func IR_Hook(cond *Node, trueval *Node, falseval *Node) *Node {
+	jutil.CheckState(IR_MayBeExpression(cond))
+	jutil.CheckState(IR_MayBeExpression(trueval))
+	jutil.CheckState(IR_MayBeExpression(falseval))
+	return NewNodeWith3Children(Token_HOOK, cond, trueval, falseval)
+}
 
-// Go-only: language-adapter — Java calls IR.assignAnd() as a static; Go uses IR prefix.
-// IRAssignAnd creates an ASSIGN_AND node. Mirrors IR.assignAnd(Node, Node).
-func IRAssignAnd(expr1, expr2 *Node) *Node { return newNodes(ASSIGN_AND, expr1, expr2) }
+// Java: IR.in(Node, Node)
+func IR_In(expr1 *Node, expr2 *Node) *Node {
+	return IR_BinaryOp(Token_IN, expr1, expr2)
+}
 
-// Go-only: language-adapter — Java calls IR.assignCoalesce() as a static; Go uses IR prefix.
-// IRAssignCoalesce creates an ASSIGN_COALESCE node.
-// Mirrors IR.assignCoalesce(Node, Node).
-func IRAssignCoalesce(expr1, expr2 *Node) *Node { return newNodes(ASSIGN_COALESCE, expr1, expr2) }
+// Java: IR.comma(Node, Node)
+func IR_Comma(expr1 *Node, expr2 *Node) *Node {
+	return IR_BinaryOp(Token_COMMA, expr1, expr2)
+}
 
-// Go-only: language-adapter — Java calls IR.and() as a static; Go uses IR prefix.
-// IRAnd creates an AND node. Mirrors IR.and(Node, Node).
-func IRAnd(expr1, expr2 *Node) *Node { return newNodes(AND, expr1, expr2) }
+// Java: IR.and(Node, Node)
+func IR_And(expr1 *Node, expr2 *Node) *Node {
+	return IR_BinaryOp(Token_AND, expr1, expr2)
+}
 
-// Go-only: language-adapter — Java calls IR.or() as a static; Go uses IR prefix.
-// IROr creates an OR node. Mirrors IR.or(Node, Node).
-func IROr(expr1, expr2 *Node) *Node { return newNodes(OR, expr1, expr2) }
+// Java: IR.or(Node, Node)
+func IR_Or(expr1 *Node, expr2 *Node) *Node {
+	return IR_BinaryOp(Token_OR, expr1, expr2)
+}
 
-// Go-only: language-adapter — Java calls IR.not() as a static; Go uses IR prefix.
-// IRNot creates a NOT node. Mirrors IR.not(Node).
-func IRNot(expr *Node) *Node { return newNodes(NOT, expr) }
+// Java: IR.coalesce(Node, Node)
+func IR_Coalesce(expr1 *Node, expr2 *Node) *Node {
+	return IR_BinaryOp(Token_COALESCE, expr1, expr2)
+}
 
-// Go-only: language-adapter — Java calls IR.eq() as a static; Go uses IREQ prefix (eq conflicts with built-in semantics and EQ token).
-// IREQ creates an EQ node. Mirrors IR.eq(Node, Node).
-func IREQ(expr1, expr2 *Node) *Node { return newNodes(EQ, expr1, expr2) }
+// Java: IR.not(Node)
+func IR_Not(expr1 *Node) *Node {
+	return IR_UnaryOp(Token_NOT, expr1)
+}
 
-// Go-only: language-adapter — Java calls IR.ne() as a static; Go uses IRNE prefix.
-// IRNE creates a NE node. Mirrors IR.ne(Node, Node).
-func IRNE(expr1, expr2 *Node) *Node { return newNodes(NE, expr1, expr2) }
+// IR_Lt is "&lt;".
+//
+// Java: IR.lt(Node, Node)
+func IR_Lt(expr1 *Node, expr2 *Node) *Node {
+	return IR_BinaryOp(Token_LT, expr1, expr2)
+}
 
-// Go-only: language-adapter — Java calls IR.sheq() as a static; Go uses IRSHEQ prefix.
-// IRSHEQ creates a SHEQ node. Mirrors IR.sheq(Node, Node).
-func IRSHEQ(expr1, expr2 *Node) *Node { return newNodes(SHEQ, expr1, expr2) }
+// IR_Ge is "&gt;=".
+//
+// Java: IR.ge(Node, Node)
+func IR_Ge(expr1 *Node, expr2 *Node) *Node {
+	return IR_BinaryOp(Token_GE, expr1, expr2)
+}
 
-// Go-only: language-adapter — Java calls IR.shne() as a static; Go uses IRSHNE prefix.
-// IRSHNE creates a SHNE node. Mirrors IR.shne(Node, Node).
-func IRSHNE(expr1, expr2 *Node) *Node { return newNodes(SHNE, expr1, expr2) }
+// IR_Eq is "==".
+//
+// Java: IR.eq(Node, Node)
+func IR_Eq(expr1 *Node, expr2 *Node) *Node {
+	return IR_BinaryOp(Token_EQ, expr1, expr2)
+}
 
-// Go-only: language-adapter — Java calls IR.voidNode() as a static; Go uses IR prefix.
-// IRVoid creates a VOID node. Mirrors IR.voidNode(Node).
-func IRVoid(expr *Node) *Node { return newNodes(VOID, expr) }
+// IR_Ne is "!=".
+//
+// Java: IR.ne(Node, Node)
+func IR_Ne(expr1 *Node, expr2 *Node) *Node {
+	return IR_BinaryOp(Token_NE, expr1, expr2)
+}
 
-// Go-only: language-adapter — Java calls IR.neg() as a static; Go uses IR prefix.
-// IRNeg creates a NEG node. Mirrors IR.neg(Node).
-func IRNeg(expr *Node) *Node { return newNodes(NEG, expr) }
+// IR_Sheq is "===".
+//
+// Java: IR.sheq(Node, Node)
+func IR_Sheq(expr1 *Node, expr2 *Node) *Node {
+	return IR_BinaryOp(Token_SHEQ, expr1, expr2)
+}
 
-// Go-only: language-adapter — Java calls IR.pos() as a static; Go uses IR prefix.
-// IRPos creates a POS node. Mirrors IR.pos(Node).
-func IRPos(expr *Node) *Node { return newNodes(POS, expr) }
+// IR_Shne is "!==".
+//
+// Java: IR.shne(Node, Node)
+func IR_Shne(expr1 *Node, expr2 *Node) *Node {
+	return IR_BinaryOp(Token_SHNE, expr1, expr2)
+}
 
-// Go-only: language-adapter — Java calls IR.add() as a static; Go uses IR prefix.
-// IRAdd creates an ADD node. Mirrors IR.add(Node, Node).
-func IRAdd(expr1, expr2 *Node) *Node { return newNodes(ADD, expr1, expr2) }
+// Java: IR.voidNode(Node)
+func IR_VoidNode(expr1 *Node) *Node {
+	return IR_UnaryOp(Token_VOID, expr1)
+}
 
-// Go-only: language-adapter — Java calls IR.sub() as a static; Go uses IR prefix.
-// IRSub creates a SUB node. Mirrors IR.sub(Node, Node).
-func IRSub(expr1, expr2 *Node) *Node { return newNodes(SUB, expr1, expr2) }
+// Java: IR.neg(Node)
+func IR_Neg(expr1 *Node) *Node {
+	return IR_UnaryOp(Token_NEG, expr1)
+}
 
-// Go-only: language-adapter — Java calls IR.bitwiseAnd() as a static; Go uses IR prefix.
-// IRBitwiseAnd creates a BITAND node. Mirrors IR.bitwiseAnd(Node, Node).
-func IRBitwiseAnd(expr1, expr2 *Node) *Node { return newNodes(BITAND, expr1, expr2) }
+// Java: IR.pos(Node)
+func IR_Pos(expr1 *Node) *Node {
+	return IR_UnaryOp(Token_POS, expr1)
+}
 
-// Go-only: language-adapter — Java calls IR.rightShift() as a static; Go uses IR prefix.
-// IRRightShift creates a RSH node. Mirrors IR.rightShift(Node, Node).
-func IRRightShift(expr1, expr2 *Node) *Node { return newNodes(RSH, expr1, expr2) }
+// Java: IR.cast(Node, JSDocInfo)
+func IR_Cast(expr1 *Node, jsdoc *JSDocInfo) *Node {
+	op := IR_UnaryOp(Token_CAST, expr1)
+	op.SetJSDocInfo(jsdoc)
+	return op
+}
 
-// Go-only: language-adapter — Java calls IR.objectlit() as a static with varargs; Go uses IR prefix and variadic.
-// IRObjectlit creates an OBJECTLIT node. Mirrors IR.objectlit(Node...).
-func IRObjectlit(propdefs ...*Node) *Node {
-	n := New(OBJECTLIT)
-	for _, p := range propdefs {
-		n.AddChildToBack(p)
+// Java: IR.inc(Node, boolean)
+func IR_Inc(exp *Node, isPost bool) *Node {
+	op := IR_UnaryOp(Token_INC, exp)
+	op.PutBooleanProp(Node_INCRDECR_PROP, isPost)
+	return op
+}
+
+// Java: IR.dec(Node, boolean)
+func IR_Dec(exp *Node, isPost bool) *Node {
+	op := IR_UnaryOp(Token_DEC, exp)
+	op.PutBooleanProp(Node_INCRDECR_PROP, isPost)
+	return op
+}
+
+// Java: IR.add(Node, Node)
+func IR_Add(expr1 *Node, expr2 *Node) *Node {
+	return IR_BinaryOp(Token_ADD, expr1, expr2)
+}
+
+// Java: IR.sub(Node, Node)
+func IR_Sub(expr1 *Node, expr2 *Node) *Node {
+	return IR_BinaryOp(Token_SUB, expr1, expr2)
+}
+
+// IR_AssignOr is "||=".
+//
+// Java: IR.assignOr(Node, Node)
+func IR_AssignOr(expr1 *Node, expr2 *Node) *Node {
+	return IR_BinaryOp(Token_ASSIGN_OR, expr1, expr2)
+}
+
+// IR_AssignAnd is "&&=".
+//
+// Java: IR.assignAnd(Node, Node)
+func IR_AssignAnd(expr1 *Node, expr2 *Node) *Node {
+	return IR_BinaryOp(Token_ASSIGN_AND, expr1, expr2)
+}
+
+// IR_AssignCoalesce is "??=".
+//
+// Java: IR.assignCoalesce(Node, Node)
+func IR_AssignCoalesce(expr1 *Node, expr2 *Node) *Node {
+	return IR_BinaryOp(Token_ASSIGN_COALESCE, expr1, expr2)
+}
+
+// IR_BitwiseAnd is "&".
+//
+// Java: IR.bitwiseAnd(Node, Node)
+func IR_BitwiseAnd(expr1 *Node, expr2 *Node) *Node {
+	return IR_BinaryOp(Token_BITAND, expr1, expr2)
+}
+
+// IR_RightShift is ">>".
+//
+// Java: IR.rightShift(Node, Node)
+func IR_RightShift(expr1 *Node, expr2 *Node) *Node {
+	return IR_BinaryOp(Token_RSH, expr1, expr2)
+}
+
+// TODO(johnlenz): the rest of the ops
+
+// literals
+
+// Java: IR.objectlit(Node...)
+func IR_Objectlit(propdefs ...*Node) *Node {
+	objectlit := NewNode(Token_OBJECTLIT)
+	for _, propdef := range propdefs {
+		switch propdef.GetToken() {
+		case Token_STRING_KEY,
+			Token_MEMBER_FUNCTION_DEF,
+			Token_GETTER_DEF,
+			Token_SETTER_DEF,
+			Token_OBJECT_SPREAD,
+			Token_COMPUTED_PROP:
+		default:
+			panic(jutil.NewIllegalStateExceptionMsg("Unexpected OBJECTLIT child: " + propdef.String()))
+		}
+
+		objectlit.AddChildToBack(propdef)
 	}
-	return n
+	return objectlit
 }
 
-// Go-only: language-adapter — Java calls IR.objectPattern() as a static with varargs; Go uses IR prefix and variadic.
-// IRObjectPattern creates an OBJECT_PATTERN node. Mirrors IR.objectPattern(Node...).
-func IRObjectPattern(keys ...*Node) *Node {
-	return newNodes(OBJECT_PATTERN, keys...)
-}
-
-// Go-only: language-adapter — Java calls IR.arrayPattern() as a static with varargs; Go uses IR prefix and variadic.
-// IRArrayPattern creates an ARRAY_PATTERN node. Mirrors IR.arrayPattern(Node...).
-func IRArrayPattern(keys ...*Node) *Node {
-	return newNodes(ARRAY_PATTERN, keys...)
-}
-
-// Go-only: language-adapter — Java calls IR.computedProp() as a static; Go uses IR prefix.
-// IRComputedProp creates a COMPUTED_PROP node. Mirrors IR.computedProp(Node, Node).
-func IRComputedProp(key, value *Node) *Node { return newNodes(COMPUTED_PROP, key, value) }
-
-// Go-only: language-adapter — Java calls IR.propdef() as a static; Go uses IR prefix.
-// IRPropdef defines a string-key property by adding value to string as a child.
-// Mirrors IR.propdef(Node, Node).
-func IRPropdef(str, value *Node) *Node {
-	str.AddChildToFront(value)
-	return str
-}
-
-// Go-only: language-adapter — Java calls IR.arraylit() as a static with varargs; Go uses IR prefix and variadic.
-// IRArraylit creates an ARRAYLIT node. Mirrors IR.arraylit(Node...).
-func IRArraylit(exprs ...*Node) *Node {
-	n := New(ARRAYLIT)
-	for _, e := range exprs {
-		n.AddChildToBack(e)
+// Java: IR.objectPattern(Node...)
+func IR_ObjectPattern(keys ...*Node) *Node {
+	objectPattern := NewNode(Token_OBJECT_PATTERN)
+	for _, key := range keys {
+		jutil.CheckState(key.IsStringKey() || key.IsComputedProp() || key.IsRest())
+		objectPattern.AddChildToBack(key)
 	}
-	return n
+	return objectPattern
 }
 
-// Go-only: language-adapter — Java calls IR.regexp() with two overloads; Go merges them via variadic.
-// IRRegexp creates a REGEXP node. Mirrors IR.regexp(Node) / IR.regexp(Node, Node).
-func IRRegexp(expr *Node, flags ...*Node) *Node {
-	n := newNodes(REGEXP, expr)
-	for _, f := range flags {
-		n.AddChildToBack(f)
+// Java: IR.arrayPattern(Node...)
+func IR_ArrayPattern(keys ...*Node) *Node {
+	arrayPattern := NewNode(Token_ARRAY_PATTERN)
+	for _, key := range keys {
+		jutil.CheckState(key.IsRest() || key.IsValidAssignmentTarget())
+		arrayPattern.AddChildToBack(key)
 	}
-	return n
+	return arrayPattern
 }
 
-// Go-only: language-adapter — Java calls IR.string() as a static; Go uses IR prefix since "string" is a built-in type name.
-// IRString creates a STRINGLIT node. Mirrors IR.string(String).
-func IRString(s string) *Node { return NewString(STRINGLIT, s) }
+// Java: IR.computedProp(Node, Node)
+func IR_ComputedProp(key *Node, value *Node) *Node {
+	jutil.CheckStateMsg1(IR_MayBeExpression(key), "%s", key)
+	jutil.CheckStateMsg1(IR_MayBeExpression(value), "%s", value)
+	return NewNodeWith2Children(Token_COMPUTED_PROP, key, value)
+}
 
-// Go-only: language-adapter — Java calls IR.stringKey() as a static; Go uses IR prefix.
-// IRStringKey creates a STRING_KEY node. Mirrors IR.stringKey(String).
-func IRStringKey(s string) *Node { return NewString(STRING_KEY, s) }
+// Java: IR.propdef(Node, Node)
+func IR_Propdef(string_ *Node, value *Node) *Node {
+	jutil.CheckState(string_.IsStringKey())
+	jutil.CheckState(!string_.HasChildren())
+	jutil.CheckState(IR_MayBeExpression(value))
+	string_.AddChildToFront(value)
+	return string_
+}
 
-// Go-only: language-adapter — Java calls IR.stringKey(String, Node) overload; Go splits into separate named function.
-// IRStringKeyValue creates a STRING_KEY with a child value.
-// Mirrors IR.stringKey(String, Node).
-func IRStringKeyValue(s string, value *Node) *Node {
-	k := IRStringKey(s)
-	k.AddChildToFront(value)
+// Java: IR.arraylit(Node...)
+func IR_Arraylit(exprs ...*Node) *Node {
+	return IR_ArraylitOfIterable(slices.Values(exprs))
+}
+
+// Java: IR.arraylit(Iterable<Node>)
+func IR_ArraylitOfIterable(exprs iter.Seq[*Node]) *Node {
+	arraylit := NewNode(Token_ARRAYLIT)
+	for expr := range exprs {
+		jutil.CheckStateMsg1(IR_MayBeExpressionOrEmpty(expr) || expr.IsSpread(), "%s", expr)
+		arraylit.AddChildToBack(expr)
+	}
+	return arraylit
+}
+
+// Java: IR.regexp(Node)
+func IR_Regexp(expr *Node) *Node {
+	jutil.CheckState(expr.IsStringLit())
+	return NewNodeWithChild(Token_REGEXP, expr)
+}
+
+// Java: IR.regexp(Node, Node)
+func IR_RegexpWithFlags(expr *Node, flags *Node) *Node {
+	jutil.CheckState(expr.IsStringLit())
+	jutil.CheckState(flags.IsStringLit())
+	return NewNodeWith2Children(Token_REGEXP, expr, flags)
+}
+
+// Java: IR.string(String)
+func IR_String(s string) *Node {
+	return Node_NewString(s)
+}
+
+// Java: IR.stringKey(String)
+func IR_StringKey(s string) *Node {
+	return Node_NewStringWithToken(Token_STRING_KEY, s)
+}
+
+// Java: IR.stringKey(String, Node)
+func IR_StringKeyWithValue(s string, value *Node) *Node {
+	jutil.CheckState(IR_MayBeExpression(value) || value.IsDefaultValue() || value.IsObjectPattern())
+	stringKey := IR_StringKey(s)
+	stringKey.AddChildToFront(value)
+	return stringKey
+}
+
+// Java: IR.quotedStringKey(String, Node)
+func IR_QuotedStringKey(s string, value *Node) *Node {
+	k := IR_StringKeyWithValue(s, value)
+	k.PutBooleanProp(Node_QUOTED_PROP, true)
 	return k
 }
 
-// Go-only: language-adapter — Java calls IR.quotedStringKey() as a static; Go uses IR prefix.
-// IRQuotedStringKey creates a quoted STRING_KEY. Mirrors IR.quotedStringKey(String, Node).
-func IRQuotedStringKey(s string, value *Node) *Node {
-	k := IRStringKeyValue(s, value)
-	k.PutBooleanProp(PropQuotedStringKey, true)
-	return k
+// Java: IR.templateLiteral()
+func IR_TemplateLiteral() *Node {
+	return NewNode(Token_TEMPLATELIT)
 }
 
-// Go-only: language-adapter — Java calls IR.templateLiteral() as a static; Go uses IR prefix.
-// IRTemplateLiteral creates a TEMPLATELIT node. Mirrors IR.templateLiteral().
-func IRTemplateLiteral() *Node { return New(TEMPLATELIT) }
-
-// Go-only: language-adapter — Java calls IR.templateLiteralString() as a static; Go uses IR prefix.
-// IRTemplateLiteralString creates a TEMPLATELIT_STRING node.
-// Mirrors IR.templateLiteralString(String, String).
-func IRTemplateLiteralString(cooked, raw string) *Node {
-	return NewTemplateLitString(cooked, raw)
+// Java: IR.templateLiteralString(String, String)
+func IR_TemplateLiteralString(cooked *string, raw string) *Node {
+	return Node_NewTemplateLitString(cooked, raw)
 }
 
-// Go-only: language-adapter — Java calls IR.templateLiteralSubstitution() as a static; Go uses IR prefix.
-// IRTemplateLiteralSubstitution creates a TEMPLATELIT_SUB node.
-// Mirrors IR.templateLiteralSubstitution(Node).
-func IRTemplateLiteralSubstitution(child *Node) *Node {
-	n := New(TEMPLATELIT_SUB)
-	n.AddChildToBack(child)
-	return n
+// Java: IR.templateLiteralSubstitution(Node)
+func IR_TemplateLiteralSubstitution(child *Node) *Node {
+	sub := NewNode(Token_TEMPLATELIT_SUB)
+	sub.AddChildToBack(child)
+	return sub
 }
 
-// Go-only: language-adapter — Java calls IR.iterRest() as a static; Go uses IR prefix.
-// IRIterRest creates an ITER_REST node. Mirrors IR.iterRest(Node).
-func IRIterRest(target *Node) *Node { return newNodes(ITER_REST, target) }
-
-// Go-only: language-adapter — Java calls IR.objectRest() as a static; Go uses IR prefix.
-// IRObjectRest creates an OBJECT_REST node. Mirrors IR.objectRest(Node).
-func IRObjectRest(target *Node) *Node { return newNodes(OBJECT_REST, target) }
-
-// Go-only: language-adapter — Java calls IR.iterSpread() as a static; Go uses IR prefix.
-// IRIterSpread creates an ITER_SPREAD node. Mirrors IR.iterSpread(Node).
-func IRIterSpread(expr *Node) *Node { return newNodes(ITER_SPREAD, expr) }
-
-// Go-only: language-adapter — Java calls IR.objectSpread() as a static; Go uses IR prefix.
-// IRObjectSpread creates an OBJECT_SPREAD node. Mirrors IR.objectSpread(Node).
-func IRObjectSpread(expr *Node) *Node { return newNodes(OBJECT_SPREAD, expr) }
-
-// Go-only: language-adapter — Java calls IR.superNode() as a static; Go uses IR prefix.
-// IRSuper creates a SUPER node. Mirrors IR.superNode().
-func IRSuper() *Node { return New(SUPER) }
-
-// Go-only: language-adapter — Java calls IR.getterDef() as a static; Go uses IR prefix.
-// IRGetterDef creates a GETTER_DEF node. Mirrors IR.getterDef(String, Node).
-func IRGetterDef(name string, value *Node) *Node {
-	n := NewString(GETTER_DEF, name)
-	n.AddChildToFront(value)
-	return n
+// Java: IR.iterRest(Node)
+func IR_IterRest(target *Node) *Node {
+	jutil.CheckStateMsg1(target.IsValidAssignmentTarget(), "%s", target)
+	return NewNodeWithChild(Token_ITER_REST, target)
 }
 
-// Go-only: language-adapter — Java calls IR.setterDef() as a static; Go uses IR prefix.
-// IRSetterDef creates a SETTER_DEF node. Mirrors IR.setterDef(String, Node).
-func IRSetterDef(name string, value *Node) *Node {
-	n := NewString(SETTER_DEF, name)
-	n.AddChildToFront(value)
-	return n
+// Java: IR.objectRest(Node)
+func IR_ObjectRest(target *Node) *Node {
+	jutil.CheckStateMsg1(target.IsValidAssignmentTarget(), "%s", target)
+	return NewNodeWithChild(Token_OBJECT_REST, target)
 }
 
-// Go-only: language-adapter — Java calls IR.memberFieldDef() as a static; Go uses IR prefix.
-// IRMemberFieldDef creates a MEMBER_FIELD_DEF node.
-// Mirrors IR.memberFieldDef(String, Node).
-func IRMemberFieldDef(name string, value *Node) *Node {
-	n := NewString(MEMBER_FIELD_DEF, name)
-	n.AddChildToFront(value)
-	return n
+// Java: IR.iterSpread(Node)
+func IR_IterSpread(expr *Node) *Node {
+	jutil.CheckState(IR_MayBeExpression(expr))
+	return NewNodeWithChild(Token_ITER_SPREAD, expr)
 }
 
-// Go-only: language-adapter — Java calls IR.memberFunctionDef() as a static; Go uses IR prefix.
-// IRMemberFunctionDef creates a MEMBER_FUNCTION_DEF node.
-// Mirrors IR.memberFunctionDef(String, Node).
-func IRMemberFunctionDef(name string, function *Node) *Node {
-	n := NewString(MEMBER_FUNCTION_DEF, name)
-	n.AddChildToBack(function)
-	return n
+// Java: IR.objectSpread(Node)
+func IR_ObjectSpread(expr *Node) *Node {
+	jutil.CheckState(IR_MayBeExpression(expr))
+	return NewNodeWithChild(Token_OBJECT_SPREAD, expr)
 }
 
-// Go-only: language-adapter — Java calls IR.number() as a static; Go uses IR prefix since "number" conflicts with type semantics.
-// IRNumber creates a NUMBER node. Mirrors IR.number(double).
-func IRNumber(d float64) *Node { return NewNumber(d) }
+// Java: IR.superNode()
+func IR_SuperNode() *Node {
+	return NewNode(Token_SUPER)
+}
 
-// Go-only: language-adapter — Java's IR.bigint() takes BigInteger; Go uses string since there's no BigInteger type.
-// IRBigInt creates a BIGINT node. Mirrors IR.bigint(BigInteger).
-// The value is stored as a string in the node for portability.
-func IRBigInt(val string) *Node { return NewString(BIGINT, val) }
+// Java: IR.getterDef(String, Node)
+func IR_GetterDef(name string, value *Node) *Node {
+	jutil.CheckState(value.IsFunction())
+	member := Node_NewStringWithToken(Token_GETTER_DEF, name)
+	member.AddChildToFront(value)
+	return member
+}
 
-// Go-only: language-adapter — Java calls IR.thisNode() as a static; Go uses IR prefix.
-// IRThis creates a THIS node. Mirrors IR.thisNode().
-func IRThis() *Node { return New(THIS) }
+// Java: IR.setterDef(String, Node)
+func IR_SetterDef(name string, value *Node) *Node {
+	jutil.CheckState(value.IsFunction())
+	member := Node_NewStringWithToken(Token_SETTER_DEF, name)
+	member.AddChildToFront(value)
+	return member
+}
 
-// Go-only: language-adapter — Java calls IR.trueNode() as a static; Go uses IR prefix since "true" is a keyword.
-// IRTrue creates a TRUE node. Mirrors IR.trueNode().
-func IRTrue() *Node { return New(TRUE) }
+// Java: IR.memberFieldDef(String, Node)
+func IR_MemberFieldDef(name string, value *Node) *Node {
+	jutil.CheckState(IR_MayBeExpression(value))
+	member := Node_NewStringWithToken(Token_MEMBER_FIELD_DEF, name)
+	member.AddChildToFront(value)
+	return member
+}
 
-// Go-only: language-adapter — Java calls IR.falseNode() as a static; Go uses IR prefix since "false" is a keyword.
-// IRFalse creates a FALSE node. Mirrors IR.falseNode().
-func IRFalse() *Node { return New(FALSE) }
+// Java: IR.memberFunctionDef(String, Node)
+func IR_MemberFunctionDef(name string, function *Node) *Node {
+	jutil.CheckState(function.IsFunction())
+	member := Node_NewStringWithToken(Token_MEMBER_FUNCTION_DEF, name)
+	member.AddChildToBack(function)
+	return member
+}
 
-// Go-only: language-adapter — Java calls IR.nullNode() as a static; Go uses IR prefix since "null" is not a Go keyword.
-// IRNull creates a NULL node. Mirrors IR.nullNode().
-func IRNull() *Node { return New(NULL) }
+// Java: IR.number(double)
+func IR_Number(d float64) *Node {
+	jutil.CheckStateMsg1(!math.IsNaN(d), "%s", d)
+	jutil.CheckStateMsg1(base.JSCompDoubles_IsPositive(d), "%s", d)
+	return Node_NewNumber(d)
+}
 
-// Go-only: language-adapter — Java calls IR.typeof() as a static; Go uses IR prefix since "typeof" is a JS keyword not a Go name.
-// IRTypeof creates a TYPEOF node. Mirrors IR.typeof(Node).
-func IRTypeof(expr *Node) *Node { return newNodes(TYPEOF, expr) }
+// Java: IR.bigint(BigInteger)
+func IR_Bigint(b *big.Int) *Node {
+	jutil.CheckNotNull(b)
+	jutil.CheckStateMsg1(b.Sign() >= 0, "%s", b)
+	return Node_NewBigInt(b)
+}
 
-// Go-only: language-adapter — Java calls IR.importMeta() as a static; Go uses IR prefix.
-// IRImportMeta creates an IMPORT_META node. Mirrors IR.importMeta().
-func IRImportMeta() *Node { return New(IMPORT_META) }
+// Java: IR.thisNode()
+func IR_ThisNode() *Node {
+	return NewNode(Token_THIS)
+}
 
-// Go-only: language-adapter — Java calls IR.mayBeStatement() as a static; Go uses IR prefix.
-// IRMayBeStatement reports whether n can appear as a statement.
-// Mirrors IR.mayBeStatement(Node).
-func IRMayBeStatement(n *Node) bool {
-	switch n.Token() {
-	case EMPTY, FUNCTION,
-		BLOCK, BREAK, CLASS, CONST, CONTINUE, DEBUGGER, DO,
-		EXPR_RESULT, FOR, FOR_IN, FOR_OF, FOR_AWAIT_OF,
-		IF, LABEL, LET, SWITCH, THROW, TRY, VAR, WHILE:
+// Java: IR.trueNode()
+func IR_TrueNode() *Node {
+	return NewNode(Token_TRUE)
+}
+
+// Java: IR.falseNode()
+func IR_FalseNode() *Node {
+	return NewNode(Token_FALSE)
+}
+
+// Java: IR.nullNode()
+func IR_NullNode() *Node {
+	return NewNode(Token_NULL)
+}
+
+// Java: IR.typeof(Node)
+func IR_Typeof(expr *Node) *Node {
+	return IR_UnaryOp(Token_TYPEOF, expr)
+}
+
+// Java: IR.importMeta()
+func IR_ImportMeta() *Node {
+	return NewNode(Token_IMPORT_META)
+}
+
+// helper methods
+
+// Java: IR.binaryOp(Token, Node, Node)
+func IR_BinaryOp(token Token, expr1 *Node, expr2 *Node) *Node {
+	jutil.CheckStateMsg1(IR_MayBeExpression(expr1), "%s", expr1)
+	jutil.CheckStateMsg1(IR_MayBeExpression(expr2), "%s", expr2)
+	return NewNodeWith2Children(token, expr1, expr2)
+}
+
+// Java: IR.unaryOp(Token, Node)
+func IR_UnaryOp(token Token, expr *Node) *Node {
+	jutil.CheckState(IR_MayBeExpression(expr))
+	return NewNodeWithChild(token, expr)
+}
+
+// Java: IR.mayBeExpressionOrEmpty(Node)
+func IR_MayBeExpressionOrEmpty(n *Node) bool {
+	return n.IsEmpty() || IR_MayBeExpression(n)
+}
+
+// NOTE: some nodes are neither statements nor expression nodes:
+//   SCRIPT, LABEL_NAME, PARAM_LIST, CASE, DEFAULT_CASE, CATCH
+//   GETTER_DEF, SETTER_DEF
+
+// IR_MayBeStatementNoReturn: it isn't possible to always determine if a
+// detached node is a expression, so make a best guess.
+//
+// Java: IR.mayBeStatementNoReturn(Node)
+func IR_MayBeStatementNoReturn(n *Node) bool {
+	switch n.GetToken() {
+	case Token_EMPTY, Token_FUNCTION:
+		// EMPTY and FUNCTION are used both in expression and statement
+		// contexts
 		return true
+	case Token_BLOCK,
+		Token_BREAK,
+		Token_CLASS,
+		Token_CONST,
+		Token_CONTINUE,
+		Token_DEBUGGER,
+		Token_DO,
+		Token_ENUM,
+		Token_EXPR_RESULT,
+		Token_FOR,
+		Token_FOR_IN,
+		Token_FOR_OF,
+		Token_FOR_AWAIT_OF,
+		Token_IF,
+		Token_INTERFACE,
+		Token_LABEL,
+		Token_LET,
+		Token_SWITCH,
+		Token_THROW,
+		Token_TRY,
+		Token_VAR,
+		Token_WHILE,
+		Token_WITH:
+		return true
+	default:
+		return false
 	}
-	return false
 }
 
-// Go-only: language-adapter — Java calls IR.mayBeExpression() as a static; Go uses IR prefix.
-// IRMayBeExpression reports whether n can appear as an expression.
-// Mirrors IR.mayBeExpression(Node).
-func IRMayBeExpression(n *Node) bool {
-	switch n.Token() {
-	case FUNCTION, CLASS,
-		ADD, AND, ARRAYLIT, ASSIGN,
-		ASSIGN_BITOR, ASSIGN_BITXOR, ASSIGN_BITAND,
-		ASSIGN_LSH, ASSIGN_RSH, ASSIGN_URSH,
-		ASSIGN_ADD, ASSIGN_SUB, ASSIGN_MUL, ASSIGN_EXPONENT,
-		ASSIGN_DIV, ASSIGN_MOD, ASSIGN_OR, ASSIGN_AND, ASSIGN_COALESCE,
-		AWAIT, BIGINT, BITAND, BITOR, BITNOT, BITXOR,
-		CALL, CAST, COALESCE, COMMA, DEC, DELPROP, DIV,
-		DYNAMIC_IMPORT, EQ, EXPONENT, FALSE, GE,
-		GETPROP, GETELEM, GT, HOOK, IMPORT_META,
-		IN, INC, INSTANCEOF, LE, LSH, LT, MOD, MUL,
-		NAME, NE, NEG, NEW, NEW_TARGET, NOT,
-		NUMBER, NULL, OBJECTLIT,
-		OPTCHAIN_CALL, OPTCHAIN_GETELEM, OPTCHAIN_GETPROP,
-		OR, POS, REGEXP, RSH, SHEQ, SHNE, STRINGLIT,
-		SUB, SUPER, TEMPLATELIT, TAGGED_TEMPLATELIT,
-		THIS, TYPEOF, TRUE, URSH, VOID, YIELD:
-		return true
+// IR_MayBeStatement: it isn't possible to always determine if a detached
+// node is a expression, so make a best guess.
+//
+// Java: IR.mayBeStatement(Node)
+func IR_MayBeStatement(n *Node) bool {
+	if !IR_MayBeStatementNoReturn(n) {
+		return n.IsReturn()
 	}
-	return false
+	return true
+}
+
+// IR_MayBeExpression: it isn't possible to always determine if a detached
+// node is a expression, so make a best guess.
+//
+// Java: IR.mayBeExpression(Node)
+func IR_MayBeExpression(n *Node) bool {
+	switch n.GetToken() {
+	case Token_FUNCTION, Token_CLASS:
+		// FUNCTION and CLASS are used both in expression and statement
+		// contexts.
+		return true
+	case Token_ADD,
+		Token_AND,
+		Token_ARRAYLIT,
+		Token_ASSIGN,
+		Token_ASSIGN_BITOR,
+		Token_ASSIGN_BITXOR,
+		Token_ASSIGN_BITAND,
+		Token_ASSIGN_LSH,
+		Token_ASSIGN_RSH,
+		Token_ASSIGN_URSH,
+		Token_ASSIGN_ADD,
+		Token_ASSIGN_SUB,
+		Token_ASSIGN_MUL,
+		Token_ASSIGN_EXPONENT,
+		Token_ASSIGN_DIV,
+		Token_ASSIGN_MOD,
+		Token_ASSIGN_OR,
+		Token_ASSIGN_AND,
+		Token_ASSIGN_COALESCE,
+		Token_AWAIT,
+		Token_BIGINT,
+		Token_BITAND,
+		Token_BITOR,
+		Token_BITNOT,
+		Token_BITXOR,
+		Token_CALL,
+		Token_CAST,
+		Token_COALESCE,
+		Token_COMMA,
+		Token_DEC,
+		Token_DELPROP,
+		Token_DIV,
+		Token_DYNAMIC_IMPORT,
+		Token_EQ,
+		Token_EXPONENT,
+		Token_FALSE,
+		Token_GE,
+		Token_GETPROP,
+		Token_GETELEM,
+		Token_GT,
+		Token_HOOK,
+		Token_IMPORT_META,
+		Token_IN,
+		Token_INC,
+		Token_INSTANCEOF,
+		Token_LE,
+		Token_LSH,
+		Token_LT,
+		Token_MOD,
+		Token_MUL,
+		Token_NAME,
+		Token_NE,
+		Token_NEG,
+		Token_NEW,
+		Token_NEW_TARGET,
+		Token_NOT,
+		Token_NUMBER,
+		Token_NULL,
+		Token_OBJECTLIT,
+		Token_OPTCHAIN_CALL,
+		Token_OPTCHAIN_GETELEM,
+		Token_OPTCHAIN_GETPROP,
+		Token_OR,
+		Token_POS,
+		Token_REGEXP,
+		Token_RSH,
+		Token_SHEQ,
+		Token_SHNE,
+		Token_STRINGLIT,
+		Token_SUB,
+		Token_SUPER,
+		Token_TEMPLATELIT,
+		Token_TAGGED_TEMPLATELIT,
+		Token_THIS,
+		Token_TYPEOF,
+		Token_TRUE,
+		Token_URSH,
+		Token_VOID,
+		Token_YIELD:
+		return true
+	default:
+		return false
+	}
 }

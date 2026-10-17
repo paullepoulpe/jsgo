@@ -1,0 +1,1 @@
+a = foo(arg1, opt?.chain())

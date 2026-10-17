@@ -1,0 +1,276 @@
+== attrs.xml
+startDocument
+error org.xml.sax.SAXParseException
+== basic.xml
+startDocument
+start ||translationbundle lang=fr
+chars \n
+start ||translation id=1
+chars a 
+chars &
+chars  b 
+chars <
+chars c
+chars >
+chars  d
+end ||translation
+chars \n
+start ||translation id=2
+chars line1\nline2
+chars \nline3\nline4 
+start ||ph name=X
+end ||ph
+chars  after
+end ||translation
+chars \n
+start ||translation id=3
+chars x<y
+chars z ]] ok
+end ||translation
+chars \n
+start ||translation id=4
+chars A
+chars B
+chars C caf\u00e9 \ud83d\ude00
+end ||translation
+chars \n
+end ||translationbundle
+endDocument
+== bigtext.xml
+startDocument
+start ||a
+chars word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word w
+chars ord word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word 
+end ||a
+endDocument
+== bom.xml
+startDocument
+start ||r
+chars bom
+end ||r
+endDocument
+== brackets.xml
+startDocument
+start ||r
+chars x]y]
+chars z]w
+end ||r
+endDocument
+== brackets2.xml
+startDocument
+start ||r
+chars ]a]]
+chars b]]]c
+chars \n]d
+end ||r
+endDocument
+== cdata.xml
+startDocument
+start ||r
+chars a\nb\n\nc\ud83d\ude00d
+chars e
+chars ]]
+chars \n
+end ||r
+endDocument
+== charrefs.xml
+startDocument
+start ||r
+chars A
+chars xyz
+chars \udbff\udfff
+chars a
+chars a
+chars b
+end ||r
+endDocument
+== controls.xml
+startDocument
+start ||a
+chars tab\there
+end ||a
+endDocument
+== crlf.xml
+startDocument
+start ||r a=x y z w
+chars \n\nq\n\n
+end ||r
+endDocument
+== emptydoc.xml
+startDocument
+start ||a
+end ||a
+endDocument
+== err_amp.xml
+startDocument
+start ||a
+chars x 
+error org.xml.sax.SAXParseException
+== err_badcharref.xml
+startDocument
+start ||a
+error org.xml.sax.SAXParseException
+== err_badutf8.xml
+error org.xml.sax.SAXParseException
+== err_cdend.xml
+startDocument
+start ||a
+error org.xml.sax.SAXParseException
+== err_comment.xml
+startDocument
+start ||a
+error org.xml.sax.SAXParseException
+== err_control.xml
+startDocument
+start ||a
+error org.xml.sax.SAXParseException
+== err_dupattr.xml
+startDocument
+error org.xml.sax.SAXParseException
+== err_eof.xml
+startDocument
+start ||a
+error org.xml.sax.SAXParseException
+== err_lt_attr.xml
+startDocument
+error org.xml.sax.SAXParseException
+== err_prolog.xml
+startDocument
+error org.xml.sax.SAXParseException
+== err_trailing.xml
+startDocument
+start ||a
+end ||a
+error org.xml.sax.SAXParseException
+== err_unclosed.xml
+startDocument
+start ||a
+start ||b
+error org.xml.sax.SAXParseException
+== err_xmlpi.xml
+startDocument
+start ||a
+error org.xml.sax.SAXParseException
+== genders.xml
+startDocument
+start ||translationbundle lang=es_ES
+chars \n
+start ||translation id=7639678437384034548
+chars \n
+start ||branch variants=variants { grammatical_gender_variant { grammatical_gender_case: MASCULINE } }
+chars Bienvenido 
+start ||ph name=USER_EMAIL
+end ||ph
+chars !
+end ||branch
+start ||branch variants=variants { grammatical_gender_variant { grammatical_gender_case: FEMININE } }
+chars Bienvenida!
+end ||branch
+chars \n
+end ||translation
+chars \n
+end ||translationbundle
+endDocument
+== mixed.xml
+startDocument
+start ||translationbundle lang=fr
+chars \n
+start ||translation id=1
+chars a\ud83d\ude00
+chars b\ud83d\ude00
+chars \ud83d\ude00
+chars c d
+end ||translation
+chars \n
+start ||translation id=2
+chars x
+chars a]b]]
+chars y]z
+end ||translation
+chars \n
+start ||translation id=3
+chars \n
+chars \r
+chars \ud83d\ude00
+chars &
+chars &
+chars q
+chars >
+end ||translation
+chars \n
+start ||translation id=4
+chars a\nb
+chars \nc\n\n\nd
+chars \n\ne
+end ||translation
+chars \n
+start ||translation id=5
+chars a
+chars b
+pi pi|x
+chars c
+end ||translation
+chars \n
+start ||translation id=6
+chars ]]]x]]
+end ||translation
+chars \n
+start ||translation id=7
+chars \n\n  lead
+end ||translation
+chars \n
+start ||translation id=8
+chars x 
+chars "
+chars y
+chars '
+chars  \t z
+end ||translation
+chars \n
+end ||translationbundle
+endDocument
+== nested.xml
+startDocument
+start ||a
+start ||b
+chars 1
+start ||c
+chars 2
+end ||c
+chars 3
+end ||b
+chars  
+start ||d
+end ||d
+chars \n
+start ||e
+chars 4\n
+chars 5
+end ||e
+end ||a
+endDocument
+== newlines.xml
+startDocument
+start ||r
+chars \n\na\nb
+chars \n\nc\nd
+chars \ne\n
+end ||r
+endDocument
+== pi.xml
+startDocument
+pi app|some data 
+start ||r
+chars t
+pi p|
+chars u
+pi p|d e
+end ||r
+pi q|
+endDocument
+== ws.xml
+startDocument
+start ||a
+chars   
+end ||a
+endDocument

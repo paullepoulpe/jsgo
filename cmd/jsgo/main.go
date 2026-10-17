@@ -1,42 +1,41 @@
+// Command jsgo is the Go port of Closure Compiler's command-line front end:
+// `jsgo <args>` behaves like `java -jar closure-compiler.jar <args>`
+// (CommandLineRunner.main).
 package main
 
 import (
-	"fmt"
-	"io"
 	"os"
 
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 func main() {
-	code := run(os.Args[1:], os.Stdout, os.Stderr)
-	os.Exit(code)
-}
-
-func run(args []string, stdout, stderr io.Writer) int {
-	if len(args) < 2 || args[0] != "typecheck" {
-		fmt.Fprintln(stderr, "usage: jsgo typecheck <file.js>")
-		return 2
-	}
-	path := args[1]
-	src, err := os.ReadFile(path)
-	if err != nil {
-		fmt.Fprintln(stderr, err)
-		return 2
-	}
-	diags, err := jscomp.CheckSource(path, string(src))
-	if err != nil {
-		// Parse errors are not part of the Tier-0 conformance check; we
-		// surface them to stderr without a Closure error code and exit
-		// non-zero. Guardrail #6 (novel-input sanity) only requires no
-		// panic.
-		fmt.Fprintln(stderr, err)
-		return 2
-	}
-	exit := 0
-	for _, d := range diags {
-		fmt.Fprintln(stdout, d.FormatJavaLike())
-		exit = 1
-	}
-	return exit
+	// Go-only: language-adapter — the JVM's startup and shutdown around
+	// CommandLineRunner.main:
+	//   - System.err encodes text with native.encoding (the locale's
+	//     codeset; US-ASCII in the C/POSIX locale). System.out is left as
+	//     UTF-8: the runner prints only ASCII text to it and writes
+	//     everything else as bytes it has already encoded.
+	//   - An exception that escapes main is reported by the default
+	//     uncaught-exception handler as `Exception in thread "main" ` and
+	//     the stack trace on System.err, and the JVM exits with status 1.
+	//   - main returning normally exits with status 0.
+	jutil.System_SetErr(jutil.NewPrintStreamWithCharset(os.Stderr, jutil.System_NativeCharset()))
+	defer func() {
+		r := recover()
+		if r == nil {
+			return
+		}
+		t, ok := r.(jutil.Throwable)
+		if !ok {
+			t = jutil.AsThrowable(r)
+		}
+		err := jutil.System_Err()
+		err.Print("Exception in thread \"main\" ")
+		jutil.Throwable_PrintStackTrace(t, err)
+		err.Flush()
+		os.Exit(1)
+	}()
+	jscomp.CommandLineRunner_Main(os.Args[1:])
 }

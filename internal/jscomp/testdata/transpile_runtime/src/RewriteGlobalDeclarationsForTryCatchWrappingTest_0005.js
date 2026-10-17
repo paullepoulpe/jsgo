@@ -1,0 +1,1 @@
+a; if (1) { class B{} class C{} }

@@ -1,0 +1,424 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+ERROR 14:15@330 "for-in statement may not have initializer"
+ERROR 15:15@356 "for-of statement may not have initializer"
+ERROR 16:14@381 "for-of statement may not have more than one variable declaration"
+ERROR 17:14@406 "for-in statement may not have more than one variable declaration"
+ERROR 18:12@429 "const variables must have an initializer"
+ERROR 19:12@450 "destructuring must have an initializer"
+ERROR 20:11@470 "invalid assignment target"
+ERROR 20:11@470 "';' expected"
+ERROR 20:17@476 "';' expected"
+ERROR 21:0@481 "')' expected"
+ERROR 21:17@498 "Semi-colon expected"
+ERROR 22:9@510 "invalid assignment target"
+ERROR 23:10@531 "invalid assignment target"
+ERROR 23:10@531 "';' expected"
+ERROR 23:16@537 "';' expected"
+ERROR 24:0@542 "')' expected"
+ERROR 24:0@542 "primary expression expected"
+# features "[]"
+# sourceMapURL null
+# comments
+[]
+# tree
+ProgramTree PROGRAM 0:0@0-24:0@542
+ sourceComments=[]
+ sourceElements=[21]
+  ForStatementTree FOR_STATEMENT 0:0@0-0:31@31
+   body=BlockTree BLOCK 0:29@29-0:31@31
+    statements=[]
+   condition=BinaryOperatorTree BINARY_OPERATOR 0:16@16-0:22@22
+    left=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:16@16-0:17@17
+     identifierToken=IdentifierToken IDENTIFIER 0:16@16-0:17@17
+      privateIdentifier=false
+      value="i"
+    operator=Token OPEN_ANGLE 0:18@18-0:19@19
+    right=LiteralExpressionTree LITERAL_EXPRESSION 0:20@20-0:22@22
+     literalToken=LiteralToken NUMBER 0:20@20-0:22@22
+      value="10"
+   increment=UpdateExpressionTree UPDATE_EXPRESSION 0:24@24-0:27@27
+    operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:24@24-0:25@25
+     identifierToken=IdentifierToken IDENTIFIER 0:24@24-0:25@25
+      privateIdentifier=false
+      value="i"
+    operator=Token PLUS_PLUS 0:25@25-0:27@27
+    operatorPosition=POSTFIX
+   initializer=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 0:5@5-0:14@14
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 0:9@9-0:14@14
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 0:13@13-0:14@14
+       literalToken=LiteralToken NUMBER 0:13@13-0:14@14
+        value="0"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:9@9-0:10@10
+       identifierToken=IdentifierToken IDENTIFIER 0:9@9-0:10@10
+        privateIdentifier=false
+        value="i"
+  ForStatementTree FOR_STATEMENT 1:0@32-1:29@61
+   body=BlockTree BLOCK 1:27@59-1:29@61
+    statements=[]
+   condition=NullTree NULL 1:22@54-1:23@55
+   increment=NullTree NULL 1:24@56-1:25@57
+   initializer=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 1:5@37-1:21@53
+    declarationType=LET
+    declarations=[2]
+     VariableDeclarationTree VARIABLE_DECLARATION 1:9@41-1:14@46
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 1:13@45-1:14@46
+       literalToken=LiteralToken NUMBER 1:13@45-1:14@46
+        value="0"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:9@41-1:10@42
+       identifierToken=IdentifierToken IDENTIFIER 1:9@41-1:10@42
+        privateIdentifier=false
+        value="j"
+     VariableDeclarationTree VARIABLE_DECLARATION 1:16@48-1:21@53
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 1:20@52-1:21@53
+       literalToken=LiteralToken NUMBER 1:20@52-1:21@53
+        value="1"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:16@48-1:17@49
+       identifierToken=IdentifierToken IDENTIFIER 1:16@48-1:17@49
+        privateIdentifier=false
+        value="k"
+  ForStatementTree FOR_STATEMENT 2:0@62-2:15@77
+   body=BreakStatementTree BREAK_STATEMENT 2:9@71-2:15@77
+    name=null
+   condition=NullTree NULL 2:6@68-2:6@68
+   increment=NullTree NULL 2:7@69-2:7@69
+   initializer=NullTree NULL 2:5@67-2:5@67
+  ForInStatementTree FOR_IN_STATEMENT 3:0@78-3:23@101
+   body=BlockTree BLOCK 3:21@99-3:23@101
+    statements=[]
+   collection=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:16@94-3:19@97
+    identifierToken=IdentifierToken IDENTIFIER 3:16@94-3:19@97
+     privateIdentifier=false
+     value="obj"
+   initializer=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 3:5@83-3:12@90
+    declarationType=CONST
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 3:11@89-3:12@90
+      initializer=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:11@89-3:12@90
+       identifierToken=IdentifierToken IDENTIFIER 3:11@89-3:12@90
+        privateIdentifier=false
+        value="x"
+  ForInStatementTree FOR_IN_STATEMENT 4:0@102-4:21@123
+   body=BlockTree BLOCK 4:19@121-4:21@123
+    statements=[]
+   collection=IdentifierExpressionTree IDENTIFIER_EXPRESSION 4:14@116-4:17@119
+    identifierToken=IdentifierToken IDENTIFIER 4:14@116-4:17@119
+     privateIdentifier=false
+     value="obj"
+   initializer=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 4:5@107-4:10@112
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 4:9@111-4:10@112
+      initializer=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 4:9@111-4:10@112
+       identifierToken=IdentifierToken IDENTIFIER 4:9@111-4:10@112
+        privateIdentifier=false
+        value="y"
+  ForInStatementTree FOR_IN_STATEMENT 5:0@124-5:17@141
+   body=BlockTree BLOCK 5:15@139-5:17@141
+    statements=[]
+   collection=IdentifierExpressionTree IDENTIFIER_EXPRESSION 5:10@134-5:13@137
+    identifierToken=IdentifierToken IDENTIFIER 5:10@134-5:13@137
+     privateIdentifier=false
+     value="obj"
+   initializer=IdentifierExpressionTree IDENTIFIER_EXPRESSION 5:5@129-5:6@130
+    identifierToken=IdentifierToken IDENTIFIER 5:5@129-5:6@130
+     privateIdentifier=false
+     value="z"
+  ForInStatementTree FOR_IN_STATEMENT 6:0@142-6:19@161
+   body=BlockTree BLOCK 6:17@159-6:19@161
+    statements=[]
+   collection=IdentifierExpressionTree IDENTIFIER_EXPRESSION 6:12@154-6:15@157
+    identifierToken=IdentifierToken IDENTIFIER 6:12@154-6:15@157
+     privateIdentifier=false
+     value="obj"
+   initializer=MemberExpressionTree MEMBER_EXPRESSION 6:5@147-6:8@150
+    memberName=IdentifierToken IDENTIFIER 6:7@149-6:8@150
+     privateIdentifier=false
+     value="b"
+    operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 6:5@147-6:6@148
+     identifierToken=IdentifierToken IDENTIFIER 6:5@147-6:6@148
+      privateIdentifier=false
+      value="a"
+  ForOfStatementTree FOR_OF_STATEMENT 7:0@162-7:23@185
+   body=BlockTree BLOCK 7:21@183-7:23@185
+    statements=[]
+   collection=IdentifierExpressionTree IDENTIFIER_EXPRESSION 7:16@178-7:19@181
+    identifierToken=IdentifierToken IDENTIFIER 7:16@178-7:19@181
+     privateIdentifier=false
+     value="arr"
+   initializer=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 7:5@167-7:12@174
+    declarationType=CONST
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 7:11@173-7:12@174
+      initializer=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 7:11@173-7:12@174
+       identifierToken=IdentifierToken IDENTIFIER 7:11@173-7:12@174
+        privateIdentifier=false
+        value="x"
+  ForOfStatementTree FOR_OF_STATEMENT 8:0@186-8:26@212
+   body=BlockTree BLOCK 8:24@210-8:26@212
+    statements=[]
+   collection=IdentifierExpressionTree IDENTIFIER_EXPRESSION 8:19@205-8:22@208
+    identifierToken=IdentifierToken IDENTIFIER 8:19@205-8:22@208
+     privateIdentifier=false
+     value="arr"
+   initializer=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 8:5@191-8:15@201
+    declarationType=LET
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 8:9@195-8:15@201
+      initializer=null
+      lvalue=ArrayPatternTree ARRAY_PATTERN 8:9@195-8:15@201
+       elements=[2]
+        IdentifierExpressionTree IDENTIFIER_EXPRESSION 8:10@196-8:11@197
+         identifierToken=IdentifierToken IDENTIFIER 8:10@196-8:11@197
+          privateIdentifier=false
+          value="a"
+        IdentifierExpressionTree IDENTIFIER_EXPRESSION 8:13@199-8:14@200
+         identifierToken=IdentifierToken IDENTIFIER 8:13@199-8:14@200
+          privateIdentifier=false
+          value="b"
+  ForOfStatementTree FOR_OF_STATEMENT 9:0@213-9:16@229
+   body=EmptyStatementTree EMPTY_STATEMENT 9:15@228-9:16@229
+   collection=IdentifierExpressionTree IDENTIFIER_EXPRESSION 9:10@223-9:13@226
+    identifierToken=IdentifierToken IDENTIFIER 9:10@223-9:13@226
+     privateIdentifier=false
+     value="arr"
+   initializer=IdentifierExpressionTree IDENTIFIER_EXPRESSION 9:5@218-9:6@219
+    identifierToken=IdentifierToken IDENTIFIER 9:5@218-9:6@219
+     privateIdentifier=false
+     value="x"
+  FunctionDeclarationTree FUNCTION_DECLARATION 10:0@230-13:1@314
+   formalParameterList=FormalParameterListTree FORMAL_PARAMETER_LIST 10:16@246-10:18@248
+    commaPositions=[]
+    hasTrailingComma=false
+    parameters=[]
+   functionBody=BlockTree BLOCK 10:19@249-13:1@314
+    statements=[2]
+     ForAwaitOfStatementTree FOR_AWAIT_OF_STATEMENT 11:2@253-11:33@284
+      body=BlockTree BLOCK 11:31@282-11:33@284
+       statements=[]
+      collection=CallExpressionTree CALL_EXPRESSION 11:24@275-11:29@280
+       arguments=ArgumentListTree ARGUMENT_LIST 11:27@278-11:29@280
+        arguments=[]
+        commaPositions=[]
+        hasTrailingComma=false
+       operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 11:24@275-11:27@278
+        identifierToken=IdentifierToken IDENTIFIER 11:24@275-11:27@278
+         privateIdentifier=false
+         value="gen"
+      initializer=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 11:13@264-11:20@271
+       declarationType=CONST
+       declarations=[1]
+        VariableDeclarationTree VARIABLE_DECLARATION 11:19@270-11:20@271
+         initializer=null
+         lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 11:19@270-11:20@271
+          identifierToken=IdentifierToken IDENTIFIER 11:19@270-11:20@271
+           privateIdentifier=false
+           value="x"
+     ForAwaitOfStatementTree FOR_AWAIT_OF_STATEMENT 12:2@287-12:27@312
+      body=BlockTree BLOCK 12:25@310-12:27@312
+       statements=[]
+      collection=CallExpressionTree CALL_EXPRESSION 12:18@303-12:23@308
+       arguments=ArgumentListTree ARGUMENT_LIST 12:21@306-12:23@308
+        arguments=[]
+        commaPositions=[]
+        hasTrailingComma=false
+       operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 12:18@303-12:21@306
+        identifierToken=IdentifierToken IDENTIFIER 12:18@303-12:21@306
+         privateIdentifier=false
+         value="gen"
+      initializer=IdentifierExpressionTree IDENTIFIER_EXPRESSION 12:13@298-12:14@299
+       identifierToken=IdentifierToken IDENTIFIER 12:13@298-12:14@299
+        privateIdentifier=false
+        value="x"
+   isAsync=true
+   isClassMember=false
+   isGenerator=false
+   isOptional=false
+   isStatic=false
+   kind=DECLARATION
+   name=IdentifierToken IDENTIFIER 10:15@245-10:16@246
+    privateIdentifier=false
+    value="f"
+  ForInStatementTree FOR_IN_STATEMENT 14:0@315-14:25@340
+   body=BlockTree BLOCK 14:23@338-14:25@340
+    statements=[]
+   collection=IdentifierExpressionTree IDENTIFIER_EXPRESSION 14:18@333-14:21@336
+    identifierToken=IdentifierToken IDENTIFIER 14:18@333-14:21@336
+     privateIdentifier=false
+     value="obj"
+   initializer=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 14:5@320-14:14@329
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 14:9@324-14:14@329
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 14:13@328-14:14@329
+       literalToken=LiteralToken NUMBER 14:13@328-14:14@329
+        value="1"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 14:9@324-14:10@325
+       identifierToken=IdentifierToken IDENTIFIER 14:9@324-14:10@325
+        privateIdentifier=false
+        value="q"
+  ForOfStatementTree FOR_OF_STATEMENT 15:0@341-15:25@366
+   body=BlockTree BLOCK 15:23@364-15:25@366
+    statements=[]
+   collection=IdentifierExpressionTree IDENTIFIER_EXPRESSION 15:18@359-15:21@362
+    identifierToken=IdentifierToken IDENTIFIER 15:18@359-15:21@362
+     privateIdentifier=false
+     value="arr"
+   initializer=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 15:5@346-15:14@355
+    declarationType=LET
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 15:9@350-15:14@355
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 15:13@354-15:14@355
+       literalToken=LiteralToken NUMBER 15:13@354-15:14@355
+        value="1"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 15:9@350-15:10@351
+       identifierToken=IdentifierToken IDENTIFIER 15:9@350-15:10@351
+        privateIdentifier=false
+        value="r"
+  ForOfStatementTree FOR_OF_STATEMENT 16:0@367-16:24@391
+   body=BlockTree BLOCK 16:22@389-16:24@391
+    statements=[]
+   collection=IdentifierExpressionTree IDENTIFIER_EXPRESSION 16:17@384-16:20@387
+    identifierToken=IdentifierToken IDENTIFIER 16:17@384-16:20@387
+     privateIdentifier=false
+     value="arr"
+   initializer=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 16:5@372-16:13@380
+    declarationType=VAR
+    declarations=[2]
+     VariableDeclarationTree VARIABLE_DECLARATION 16:9@376-16:10@377
+      initializer=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 16:9@376-16:10@377
+       identifierToken=IdentifierToken IDENTIFIER 16:9@376-16:10@377
+        privateIdentifier=false
+        value="s"
+     VariableDeclarationTree VARIABLE_DECLARATION 16:12@379-16:13@380
+      initializer=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 16:12@379-16:13@380
+       identifierToken=IdentifierToken IDENTIFIER 16:12@379-16:13@380
+        privateIdentifier=false
+        value="t"
+  ForInStatementTree FOR_IN_STATEMENT 17:0@392-17:24@416
+   body=BlockTree BLOCK 17:22@414-17:24@416
+    statements=[]
+   collection=IdentifierExpressionTree IDENTIFIER_EXPRESSION 17:17@409-17:20@412
+    identifierToken=IdentifierToken IDENTIFIER 17:17@409-17:20@412
+     privateIdentifier=false
+     value="obj"
+   initializer=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 17:5@397-17:13@405
+    declarationType=VAR
+    declarations=[2]
+     VariableDeclarationTree VARIABLE_DECLARATION 17:9@401-17:10@402
+      initializer=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 17:9@401-17:10@402
+       identifierToken=IdentifierToken IDENTIFIER 17:9@401-17:10@402
+        privateIdentifier=false
+        value="u"
+     VariableDeclarationTree VARIABLE_DECLARATION 17:12@404-17:13@405
+      initializer=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 17:12@404-17:13@405
+       identifierToken=IdentifierToken IDENTIFIER 17:12@404-17:13@405
+        privateIdentifier=false
+        value="w"
+  ForStatementTree FOR_STATEMENT 18:0@417-18:20@437
+   body=BlockTree BLOCK 18:18@435-18:20@437
+    statements=[]
+   condition=NullTree NULL 18:13@430-18:14@431
+   increment=NullTree NULL 18:15@432-18:16@433
+   initializer=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 18:5@422-18:12@429
+    declarationType=CONST
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 18:11@428-18:12@429
+      initializer=null
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 18:11@428-18:12@429
+       identifierToken=IdentifierToken IDENTIFIER 18:11@428-18:12@429
+        privateIdentifier=false
+        value="c"
+  ForStatementTree FOR_STATEMENT 19:0@438-19:20@458
+   body=BlockTree BLOCK 19:18@456-19:20@458
+    statements=[]
+   condition=NullTree NULL 19:13@451-19:14@452
+   increment=NullTree NULL 19:15@453-19:16@454
+   initializer=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 19:5@443-19:12@450
+    declarationType=LET
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 19:9@447-19:12@450
+      initializer=null
+      lvalue=ArrayPatternTree ARRAY_PATTERN 19:9@447-19:12@450
+       elements=[1]
+        IdentifierExpressionTree IDENTIFIER_EXPRESSION 19:10@448-19:11@449
+         identifierToken=IdentifierToken IDENTIFIER 19:10@448-19:11@449
+          privateIdentifier=false
+          value="d"
+  ForStatementTree FOR_STATEMENT 20:0@459-21:16@497
+   body=ExpressionStatementTree EXPRESSION_STATEMENT 21:4@485-21:16@497
+    expression=ParenExpressionTree PAREN_EXPRESSION 21:4@485-21:16@497
+     expression=BinaryOperatorTree BINARY_OPERATOR 21:5@486-21:15@496
+      left=ParenExpressionTree PAREN_EXPRESSION 21:5@486-21:8@489
+       expression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 21:6@487-21:7@488
+        identifierToken=IdentifierToken IDENTIFIER 21:6@487-21:7@488
+         privateIdentifier=false
+         value="x"
+      operator=Token IN 21:9@490-21:11@492
+      right=IdentifierExpressionTree IDENTIFIER_EXPRESSION 21:12@493-21:15@496
+       identifierToken=IdentifierToken IDENTIFIER 21:12@493-21:15@496
+        privateIdentifier=false
+        value="obj"
+   condition=IdentifierExpressionTree IDENTIFIER_EXPRESSION 20:14@473-20:17@476
+    identifierToken=IdentifierToken IDENTIFIER 20:14@473-20:17@476
+     privateIdentifier=false
+     value="obj"
+   increment=ObjectLiteralExpressionTree OBJECT_LITERAL_EXPRESSION 20:19@478-20:21@480
+    hasTrailingComma=false
+    propertyNameAndValues=[]
+   initializer=BinaryOperatorTree BINARY_OPERATOR 20:5@464-20:10@469
+    left=IdentifierExpressionTree IDENTIFIER_EXPRESSION 20:5@464-20:6@465
+     identifierToken=IdentifierToken IDENTIFIER 20:5@464-20:6@465
+      privateIdentifier=false
+      value="x"
+    operator=Token EQUAL 20:7@466-20:8@467
+    right=LiteralExpressionTree LITERAL_EXPRESSION 20:9@468-20:10@469
+     literalToken=LiteralToken NUMBER 20:9@468-20:10@469
+      value="1"
+  BlockTree BLOCK 21:17@498-21:19@500
+   statements=[]
+  ForInStatementTree FOR_IN_STATEMENT 22:0@501-22:19@520
+   body=BlockTree BLOCK 22:17@518-22:19@520
+    statements=[]
+   collection=IdentifierExpressionTree IDENTIFIER_EXPRESSION 22:12@513-22:15@516
+    identifierToken=IdentifierToken IDENTIFIER 22:12@513-22:15@516
+     privateIdentifier=false
+     value="obj"
+   initializer=CallExpressionTree CALL_EXPRESSION 22:5@506-22:8@509
+    arguments=ArgumentListTree ARGUMENT_LIST 22:6@507-22:8@509
+     arguments=[]
+     commaPositions=[]
+     hasTrailingComma=false
+    operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 22:5@506-22:6@507
+     identifierToken=IdentifierToken IDENTIFIER 22:5@506-22:6@507
+      privateIdentifier=false
+      value="f"
+  ForStatementTree FOR_STATEMENT 23:0@521-24:0@542
+   body=ExpressionStatementTree EXPRESSION_STATEMENT 24:0@542-24:0@542
+    expression=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 24:0@542-24:0@542
+   condition=IdentifierExpressionTree IDENTIFIER_EXPRESSION 23:13@534-23:16@537
+    identifierToken=IdentifierToken IDENTIFIER 23:13@534-23:16@537
+     privateIdentifier=false
+     value="obj"
+   increment=ObjectLiteralExpressionTree OBJECT_LITERAL_EXPRESSION 23:18@539-23:20@541
+    hasTrailingComma=false
+    propertyNameAndValues=[]
+   initializer=CommaExpressionTree COMMA_EXPRESSION 23:5@526-23:9@530
+    expressions=[2]
+     IdentifierExpressionTree IDENTIFIER_EXPRESSION 23:5@526-23:6@527
+      identifierToken=IdentifierToken IDENTIFIER 23:5@526-23:6@527
+       privateIdentifier=false
+       value="a"
+     IdentifierExpressionTree IDENTIFIER_EXPRESSION 23:8@529-23:9@530
+      identifierToken=IdentifierToken IDENTIFIER 23:8@529-23:9@530
+       privateIdentifier=false
+       value="b"

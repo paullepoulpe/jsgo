@@ -1,0 +1,1 @@
+/** @type {string|{bar: string}|{baz: string}} */ var foo;

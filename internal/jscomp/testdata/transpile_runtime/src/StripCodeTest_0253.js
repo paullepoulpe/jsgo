@@ -1,0 +1,1 @@
+this.logger_.foo.bar();

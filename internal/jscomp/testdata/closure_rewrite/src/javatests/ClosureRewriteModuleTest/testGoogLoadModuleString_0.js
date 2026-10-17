@@ -1,0 +1,1 @@
+goog.loadModule("goog.module('a.b.c'); exports = class {};");

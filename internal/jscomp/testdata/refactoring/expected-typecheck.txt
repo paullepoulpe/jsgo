@@ -1,0 +1,1043 @@
+# file @angular/core@19.2.14/package/event-dispatch-contract.min.js
+## round 0
+fix 0 alts=1 desc=null at=@angular/core@19.2.14/package/event-dispatch-contract.min.js:1:34 closurized=false
+  @angular/core@19.2.14/package/event-dispatch-contract.min.js CodeReplacement{startPosition=116, length=0, newContent=;, sortKey=}
+fix 1 alts=1 desc=null at=@angular/core@19.2.14/package/event-dispatch-contract.min.js:1:146 closurized=false
+  @angular/core@19.2.14/package/event-dispatch-contract.min.js CodeReplacement{startPosition=155, length=0, newContent=;, sortKey=}
+fix 2 alts=1 desc=null at=@angular/core@19.2.14/package/event-dispatch-contract.min.js:1:157 closurized=false
+  @angular/core@19.2.14/package/event-dispatch-contract.min.js CodeReplacement{startPosition=233, length=0, newContent=;, sortKey=}
+fix 3 alts=1 desc=null at=@angular/core@19.2.14/package/event-dispatch-contract.min.js:1:195 closurized=false
+  @angular/core@19.2.14/package/event-dispatch-contract.min.js CodeReplacement{startPosition=231, length=0, newContent=;, sortKey=}
+fix 4 alts=1 desc=null at=@angular/core@19.2.14/package/event-dispatch-contract.min.js:1:291 closurized=false
+  @angular/core@19.2.14/package/event-dispatch-contract.min.js CodeReplacement{startPosition=343, length=0, newContent=;, sortKey=}
+fix 5 alts=1 desc=null at=@angular/core@19.2.14/package/event-dispatch-contract.min.js:1:385 closurized=false
+  @angular/core@19.2.14/package/event-dispatch-contract.min.js CodeReplacement{startPosition=439, length=0, newContent=;, sortKey=}
+## sure 6
+## code len=482 sha256=ccc5caf4f59a2cf83e7a56aa7170f6e9f3e6e159e2bc0c9cf51e1e83b97e95c3
+## round 1
+## sure 0
+## final len=482 sha256=ccc5caf4f59a2cf83e7a56aa7170f6e9f3e6e159e2bc0c9cf51e1e83b97e95c3
+# file @angular/core@19.2.14/package/schematics/bundles/leading_space-D9nQ8UQC.cjs
+## round 0
+## sure 0
+## final len=911 sha256=5ba311d2b786d52327d28cbb9be7a02df2550f715930627c7841882f8b140578
+# file core-js@3.50.0/package/actual/array-buffer/constructor.js
+## round 0
+## sure 0
+## final len=284 sha256=916598c1a24de3e8084b9c2bde88e11d854d4eb00a0eec1be3faa0ea03fc5ca2
+# file core-js@3.50.0/package/es/map/index.js
+## round 0
+## sure 0
+## final len=399 sha256=6dd4e083c9861234ac0a6a060f1dfa97eb2f2f55c7298bf8658b64868c240c4d
+# file core-js@3.50.0/package/internals/a-possible-prototype.js
+## round 0
+## sure 0
+## final len=313 sha256=0c29d95fdb7e521c3979804ea14f236d2da9793bfe9d8916d998ed549acc9ea6
+# file core-js@3.50.0/package/internals/queue.js
+## round 0
+## sure 0
+## final len=500 sha256=c3a692dcf3e44cf2f7e7ab5e48736347012a3b9eb1f1ed785b529310e5eded29
+# file core-js@3.50.0/package/modules/es.number.is-nan.js
+## round 0
+## sure 0
+## final len=296 sha256=ac5707184d96374e6b2a2ac6dae427d4f13458b3e503229fedb31ab39c82240e
+# file core-js@3.50.0/package/modules/esnext.async-iterator.drop.js
+## round 0
+## sure 0
+## final len=1734 sha256=69363cd7a584222589074b423eb79c612761546ac8b474f8b8b4abbc342b2863
+# file google-closure-library@20230802.0.0/package/closure/goog/a11y/aria/announcer.js
+## round 0
+fix 0 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/a11y/aria/announcer.js:29:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/a11y/aria/announcer.js CodeReplacement{startPosition=635, length=0, newContent=!, sortKey=}
+fix 1 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/a11y/aria/announcer.js:29:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/a11y/aria/announcer.js CodeReplacement{startPosition=635, length=0, newContent=?, sortKey=}
+fix 2 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/a11y/aria/announcer.js:39:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/a11y/aria/announcer.js CodeReplacement{startPosition=884, length=0, newContent=!, sortKey=}
+fix 3 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/a11y/aria/announcer.js:39:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/a11y/aria/announcer.js CodeReplacement{startPosition=884, length=0, newContent=?, sortKey=}
+fix 4 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/a11y/aria/announcer.js:47:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/a11y/aria/announcer.js CodeReplacement{startPosition=1121, length=0, newContent=!, sortKey=}
+fix 5 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/a11y/aria/announcer.js:47:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/a11y/aria/announcer.js CodeReplacement{startPosition=1121, length=0, newContent=?, sortKey=}
+fix 6 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/a11y/aria/announcer.js:47:19 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/a11y/aria/announcer.js CodeReplacement{startPosition=1128, length=0, newContent=!, sortKey=}
+fix 7 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/a11y/aria/announcer.js:47:19 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/a11y/aria/announcer.js CodeReplacement{startPosition=1128, length=0, newContent=?, sortKey=}
+fix 8 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/a11y/aria/announcer.js:78:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/a11y/aria/announcer.js CodeReplacement{startPosition=2013, length=0, newContent=!, sortKey=}
+fix 9 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/a11y/aria/announcer.js:78:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/a11y/aria/announcer.js CodeReplacement{startPosition=2013, length=0, newContent=?, sortKey=}
+## sure 0
+## final len=4553 sha256=953772cc2afb7431d2255740c76615f38b2822f1a9220f8734f2185690a189f4
+# file google-closure-library@20230802.0.0/package/closure/goog/async/workqueue.js
+## round 0
+fix 0 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/async/workqueue.js:33:13 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/async/workqueue.js CodeReplacement{startPosition=807, length=0, newContent=!, sortKey=}
+fix 1 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/async/workqueue.js:33:13 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/async/workqueue.js CodeReplacement{startPosition=807, length=0, newContent=?, sortKey=}
+fix 2 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/async/workqueue.js:106:13 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/async/workqueue.js CodeReplacement{startPosition=2260, length=0, newContent=!, sortKey=}
+fix 3 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/async/workqueue.js:106:13 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/async/workqueue.js CodeReplacement{startPosition=2260, length=0, newContent=?, sortKey=}
+## sure 0
+## final len=2555 sha256=f309dcdd4c39d68d80f591463b8380f352b8066c377618152097693f47a4926d
+# file google-closure-library@20230802.0.0/package/closure/goog/crypt/hmac.js
+## round 0
+fix 0 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/crypt/hmac.js:25:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/crypt/hmac.js CodeReplacement{startPosition=464, length=0, newContent=!, sortKey=}
+fix 1 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/crypt/hmac.js:25:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/crypt/hmac.js CodeReplacement{startPosition=464, length=0, newContent=?, sortKey=}
+fix 2 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/crypt/hmac.js:91:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/crypt/hmac.js CodeReplacement{startPosition=1898, length=0, newContent=!, sortKey=}
+fix 3 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/crypt/hmac.js:91:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/crypt/hmac.js CodeReplacement{startPosition=1898, length=0, newContent=?, sortKey=}
+fix 4 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/crypt/hmac.js:148:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/crypt/hmac.js CodeReplacement{startPosition=3234, length=0, newContent=!, sortKey=}
+fix 5 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/crypt/hmac.js:148:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/crypt/hmac.js CodeReplacement{startPosition=3234, length=0, newContent=?, sortKey=}
+fix 6 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/crypt/hmac.js:148:25 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/crypt/hmac.js CodeReplacement{startPosition=3248, length=0, newContent=!, sortKey=}
+fix 7 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/crypt/hmac.js:148:25 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/crypt/hmac.js CodeReplacement{startPosition=3248, length=0, newContent=?, sortKey=}
+## sure 0
+## final len=3494 sha256=a9955e9cd63f3e264a59dab3e79f191e3994d8dd9cbad443aa2fab7bbe03298e
+# file google-closure-library@20230802.0.0/package/closure/goog/debug/asyncstacktag.js
+## round 0
+## sure 0
+## final len=1553 sha256=934ada478667a62bd8b81b72c43801573ce216f735813551bddd6c309a93fd7f
+# file google-closure-library@20230802.0.0/package/closure/goog/dom/abstractmultirange.js
+## round 0
+## sure 0
+## final len=2144 sha256=b60b00641475219077ee00dcafe3ebe48861b462b9d1fa7b2d62c230f2ea2aa9
+# file google-closure-library@20230802.0.0/package/closure/goog/dom/htmlelement.js
+## round 0
+## sure 0
+## final len=626 sha256=cf1a9434d2b3946b1b1807cde42b28463fac9850aaa52d33998699ff0329c2b3
+# file google-closure-library@20230802.0.0/package/closure/goog/dom/vendor.js
+## round 0
+## sure 0
+## final len=2207 sha256=2b3541cb706b36e71cb84fcba420ea7bfa9535bf62f65062d8be95aac1303c28
+# file google-closure-library@20230802.0.0/package/closure/goog/editor/plugins/listtabhandler.js
+## round 0
+## sure 0
+## final len=1594 sha256=345345e470d642b7062d51db5a91357665e594247be72ad4f15fe1ecc08d7038
+# file google-closure-library@20230802.0.0/package/closure/goog/events/eventtypehelpers.js
+## round 0
+## sure 0
+## final len=1370 sha256=02357d1bf8e7a1948bae778341fbd4c856f28888dff6f271e8d9839ae06be0fd
+# file google-closure-library@20230802.0.0/package/closure/goog/events/pointerasmouseeventtype.js
+## round 0
+fix 0 alts=1 desc=null at=google-closure-library@20230802.0.0/package/closure/goog/events/pointerasmouseeventtype.js:9:0 closurized=true
+  google-closure-library@20230802.0.0/package/closure/goog/events/pointerasmouseeventtype.js CodeReplacement{startPosition=156, length=94, newContent=goog.require('goog.events.MouseEvents');\u000agoog.require('goog.events.PointerFallbackEventType');, sortKey=}
+## sure 1
+## code len=968 sha256=84380b12851b4bced5b03edf25a6a964a5dfb3e38d1f909b4914e9027ea39aa1
+## round 1
+## sure 0
+## final len=968 sha256=84380b12851b4bced5b03edf25a6a964a5dfb3e38d1f909b4914e9027ea39aa1
+# file google-closure-library@20230802.0.0/package/closure/goog/fs/filewriter.js
+## round 0
+## sure 0
+## final len=2300 sha256=383e825ca98cfd4a1c5a8e748e251c8ce291e04f3aea1a3d4427702843f69e80
+# file google-closure-library@20230802.0.0/package/closure/goog/graphics/element.js
+## round 0
+fix 0 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/graphics/element.js:32:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/graphics/element.js CodeReplacement{startPosition=854, length=0, newContent=!, sortKey=}
+fix 1 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/graphics/element.js:32:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/graphics/element.js CodeReplacement{startPosition=854, length=0, newContent=?, sortKey=}
+fix 2 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/graphics/element.js:33:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/graphics/element.js CodeReplacement{startPosition=908, length=0, newContent=!, sortKey=}
+fix 3 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/graphics/element.js:33:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/graphics/element.js CodeReplacement{startPosition=908, length=0, newContent=?, sortKey=}
+fix 4 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/graphics/element.js:79:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/graphics/element.js CodeReplacement{startPosition=2219, length=0, newContent=!, sortKey=}
+fix 5 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/graphics/element.js:79:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/graphics/element.js CodeReplacement{startPosition=2219, length=0, newContent=?, sortKey=}
+fix 6 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/graphics/element.js:89:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/graphics/element.js CodeReplacement{startPosition=2400, length=0, newContent=!, sortKey=}
+fix 7 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/graphics/element.js:89:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/graphics/element.js CodeReplacement{startPosition=2400, length=0, newContent=?, sortKey=}
+## sure 0
+## final len=4878 sha256=5ab4c54c803194598dad4099a97162cc03f279c3136c1dcadd6f8310ee326182
+# file google-closure-library@20230802.0.0/package/closure/goog/graphics/groupelement.js
+## round 0
+fix 0 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/graphics/groupelement.js:24:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/graphics/groupelement.js CodeReplacement{startPosition=493, length=0, newContent=!, sortKey=}
+fix 1 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/graphics/groupelement.js:24:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/graphics/groupelement.js CodeReplacement{startPosition=493, length=0, newContent=?, sortKey=}
+fix 2 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/graphics/groupelement.js:25:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/graphics/groupelement.js CodeReplacement{startPosition=546, length=0, newContent=!, sortKey=}
+fix 3 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/graphics/groupelement.js:25:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/graphics/groupelement.js CodeReplacement{startPosition=546, length=0, newContent=?, sortKey=}
+## sure 0
+## final len=1466 sha256=10a31d962c26081a726c7f59ed4d7531aaed7eaa974baf2be6a39c8fb502c3e4
+# file google-closure-library@20230802.0.0/package/closure/goog/html/legacyconversions.js
+## round 0
+## sure 0
+## final len=7168 sha256=29bff1534211ed722abb60d2b495288f9f89781232c944b25da7a74ffd0d50a2
+# file google-closure-library@20230802.0.0/package/closure/goog/html/utils.js
+## round 0
+## sure 0
+## final len=1921 sha256=a2c9834288d547a4614c615cc256c5f62ef9041653fab1da72a489c591cabbfd
+# file google-closure-library@20230802.0.0/package/closure/goog/i18n/uchar/localnamefetcher.js
+## round 0
+fix 0 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/i18n/uchar/localnamefetcher.js:37:10 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/i18n/uchar/localnamefetcher.js CodeReplacement{startPosition=963, length=0, newContent=!, sortKey=}
+fix 1 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/i18n/uchar/localnamefetcher.js:37:10 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/i18n/uchar/localnamefetcher.js CodeReplacement{startPosition=963, length=0, newContent=?, sortKey=}
+## sure 0
+## final len=1741 sha256=f7ef2b7fb65dfa055a749b6a8a89518876f12ed190892fb1e35fd7d54a2662ed
+# file google-closure-library@20230802.0.0/package/closure/goog/labs/net/webchannel/channel.js
+## round 0
+fix 0 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/labs/net/webchannel/channel.js:86:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/labs/net/webchannel/channel.js CodeReplacement{startPosition=2624, length=0, newContent=!, sortKey=}
+fix 1 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/labs/net/webchannel/channel.js:86:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/labs/net/webchannel/channel.js CodeReplacement{startPosition=2624, length=0, newContent=?, sortKey=}
+fix 2 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/labs/net/webchannel/channel.js:116:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/labs/net/webchannel/channel.js CodeReplacement{startPosition=3627, length=0, newContent=!, sortKey=}
+fix 3 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/labs/net/webchannel/channel.js:116:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/labs/net/webchannel/channel.js CodeReplacement{startPosition=3627, length=0, newContent=?, sortKey=}
+fix 4 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/labs/net/webchannel/channel.js:127:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/labs/net/webchannel/channel.js CodeReplacement{startPosition=3950, length=0, newContent=!, sortKey=}
+fix 5 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/labs/net/webchannel/channel.js:127:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/labs/net/webchannel/channel.js CodeReplacement{startPosition=3950, length=0, newContent=?, sortKey=}
+fix 6 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/labs/net/webchannel/channel.js:152:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/labs/net/webchannel/channel.js CodeReplacement{startPosition=4790, length=0, newContent=!, sortKey=}
+fix 7 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/labs/net/webchannel/channel.js:152:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/labs/net/webchannel/channel.js CodeReplacement{startPosition=4790, length=0, newContent=?, sortKey=}
+## sure 0
+## final len=6022 sha256=33d78e29b95473439ae050256c8fa411af6afe91d211cdd3f0e69682c576d50b
+# file google-closure-library@20230802.0.0/package/closure/goog/labs/testing/decoratormatcher.js
+## round 0
+## sure 0
+## final len=2302 sha256=1ee7000b732a6102f5f38834198f4ac020e077ad5de72d8f61d030e2f87421bc
+# file google-closure-library@20230802.0.0/package/closure/goog/labs/useragent/platform.js
+## round 0
+## sure 0
+## final len=9010 sha256=952ae3bc4f5149a853690ca28d86b7580a8dbcbd32b22771b3ba6ec057baa3bb
+# file google-closure-library@20230802.0.0/package/closure/goog/math/interpolator/interpolator1.js
+## round 0
+## sure 0
+## final len=1942 sha256=ba7ad332a898842cc1a501cd1f20cf3b36cd3a61658db727dba2b75f8b64aeaf
+# file google-closure-library@20230802.0.0/package/closure/goog/messaging/loggerclient.js
+## round 0
+## sure 0
+## final len=3851 sha256=e4b8127acb9164b3e0eeef69562b05b5a569d90f8ebfb9f3a02d2fa6a911cca5
+# file google-closure-library@20230802.0.0/package/closure/goog/net/browserchannelexecutionhooks.js
+## round 0
+fix 0 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/net/browserchannelexecutionhooks.js:18:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/browserchannelexecutionhooks.js CodeReplacement{startPosition=583, length=0, newContent=!, sortKey=}
+fix 1 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/net/browserchannelexecutionhooks.js:18:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/browserchannelexecutionhooks.js CodeReplacement{startPosition=583, length=0, newContent=?, sortKey=}
+fix 2 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/net/browserchannelexecutionhooks.js:30:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/browserchannelexecutionhooks.js CodeReplacement{startPosition=1042, length=0, newContent=!, sortKey=}
+fix 3 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/net/browserchannelexecutionhooks.js:30:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/browserchannelexecutionhooks.js CodeReplacement{startPosition=1042, length=0, newContent=?, sortKey=}
+fix 4 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/net/browserchannelexecutionhooks.js:41:10 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/browserchannelexecutionhooks.js CodeReplacement{startPosition=1315, length=0, newContent=!, sortKey=}
+fix 5 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/net/browserchannelexecutionhooks.js:41:10 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/browserchannelexecutionhooks.js CodeReplacement{startPosition=1315, length=0, newContent=?, sortKey=}
+fix 6 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/net/browserchannelexecutionhooks.js:50:10 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/browserchannelexecutionhooks.js CodeReplacement{startPosition=1457, length=0, newContent=!, sortKey=}
+fix 7 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/net/browserchannelexecutionhooks.js:50:10 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/browserchannelexecutionhooks.js CodeReplacement{startPosition=1457, length=0, newContent=?, sortKey=}
+fix 8 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/net/browserchannelexecutionhooks.js:77:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/browserchannelexecutionhooks.js CodeReplacement{startPosition=1941, length=0, newContent=!, sortKey=}
+fix 9 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/net/browserchannelexecutionhooks.js:77:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/browserchannelexecutionhooks.js CodeReplacement{startPosition=1941, length=0, newContent=?, sortKey=}
+## sure 0
+## final len=2391 sha256=8b060a5349d0d7629330e783b3d4c691d656fb8c986bd067d7a3071811e2e4a7
+# file google-closure-library@20230802.0.0/package/closure/goog/net/multiiframeloadmonitor.js
+## round 0
+fix 0 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/net/multiiframeloadmonitor.js:23:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/multiiframeloadmonitor.js CodeReplacement{startPosition=548, length=0, newContent=!, sortKey=}
+fix 1 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/net/multiiframeloadmonitor.js:23:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/multiiframeloadmonitor.js CodeReplacement{startPosition=548, length=0, newContent=?, sortKey=}
+fix 2 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/net/multiiframeloadmonitor.js:23:17 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/multiiframeloadmonitor.js CodeReplacement{startPosition=554, length=0, newContent=!, sortKey=}
+fix 3 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/net/multiiframeloadmonitor.js:23:17 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/multiiframeloadmonitor.js CodeReplacement{startPosition=554, length=0, newContent=?, sortKey=}
+fix 4 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/net/multiiframeloadmonitor.js:37:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/multiiframeloadmonitor.js CodeReplacement{startPosition=1125, length=0, newContent=!, sortKey=}
+fix 5 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/net/multiiframeloadmonitor.js:37:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/multiiframeloadmonitor.js CodeReplacement{startPosition=1125, length=0, newContent=?, sortKey=}
+fix 6 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/net/multiiframeloadmonitor.js:37:18 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/multiiframeloadmonitor.js CodeReplacement{startPosition=1131, length=0, newContent=!, sortKey=}
+fix 7 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/net/multiiframeloadmonitor.js:37:18 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/multiiframeloadmonitor.js CodeReplacement{startPosition=1131, length=0, newContent=?, sortKey=}
+fix 8 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/net/multiiframeloadmonitor.js:73:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/multiiframeloadmonitor.js CodeReplacement{startPosition=2165, length=0, newContent=!, sortKey=}
+fix 9 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/net/multiiframeloadmonitor.js:73:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/multiiframeloadmonitor.js CodeReplacement{startPosition=2165, length=0, newContent=?, sortKey=}
+## sure 0
+## final len=3777 sha256=47cf2f69aa826e4c918ccf13ffced707d859a4f46b25e9a990566969eeb6e2e9
+# file google-closure-library@20230802.0.0/package/closure/goog/net/xhrlike.js
+## round 0
+fix 0 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/net/xhrlike.js:58:10 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/xhrlike.js CodeReplacement{startPosition=1117, length=0, newContent=!, sortKey=}
+fix 1 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/net/xhrlike.js:58:10 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/xhrlike.js CodeReplacement{startPosition=1117, length=0, newContent=?, sortKey=}
+fix 2 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/net/xhrlike.js:98:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/xhrlike.js CodeReplacement{startPosition=1938, length=0, newContent=!, sortKey=}
+fix 3 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/net/xhrlike.js:98:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/xhrlike.js CodeReplacement{startPosition=1938, length=0, newContent=?, sortKey=}
+fix 4 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/net/xhrlike.js:98:23 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/xhrlike.js CodeReplacement{startPosition=1950, length=0, newContent=!, sortKey=}
+fix 5 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/net/xhrlike.js:98:23 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/xhrlike.js CodeReplacement{startPosition=1950, length=0, newContent=?, sortKey=}
+fix 6 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/net/xhrlike.js:98:39 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/xhrlike.js CodeReplacement{startPosition=1966, length=0, newContent=!, sortKey=}
+fix 7 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/net/xhrlike.js:98:39 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/xhrlike.js CodeReplacement{startPosition=1966, length=0, newContent=?, sortKey=}
+fix 8 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/net/xhrlike.js:98:44 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/xhrlike.js CodeReplacement{startPosition=1971, length=0, newContent=!, sortKey=}
+fix 9 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/net/xhrlike.js:98:44 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/xhrlike.js CodeReplacement{startPosition=1971, length=0, newContent=?, sortKey=}
+fix 10 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/net/xhrlike.js:98:53 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/xhrlike.js CodeReplacement{startPosition=1980, length=0, newContent=!, sortKey=}
+fix 11 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/net/xhrlike.js:98:53 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/net/xhrlike.js CodeReplacement{startPosition=1980, length=0, newContent=?, sortKey=}
+## sure 0
+## final len=3082 sha256=a6d07f0dd5460f9787aec360a3e3f5841845afd5f4bde56727a40dec0fe80934
+# file google-closure-library@20230802.0.0/package/closure/goog/promise/nativeresolver.js
+## round 0
+## sure 0
+## final len=685 sha256=926a500a37943e1fe3d1143987bcecaf0d27fe2031098c73afeeedbb1a3eef15
+# file google-closure-library@20230802.0.0/package/closure/goog/singleton/singleton.js
+## round 0
+## sure 0
+## final len=1626 sha256=72363fae17017664a7013ecacec409b1e0754a3615ddf46b3858df6533a5a03e
+# file google-closure-library@20230802.0.0/package/closure/goog/storage/mechanism/iterablemechanismtests.js
+## round 0
+## sure 0
+## final len=4467 sha256=a95d5ba7e211ae2c94d9adc9a6be11d39bf1d4bc7e17361fd85664de62672fc1
+# file google-closure-library@20230802.0.0/package/closure/goog/streams/lite.js
+## round 0
+## sure 0
+## final len=1367 sha256=bf899d1eabfc1a588d7e13983383fe25aef2ac32d1b046c81e5b8f9e145398c1
+# file google-closure-library@20230802.0.0/package/closure/goog/structs/node.js
+## round 0
+## sure 0
+## final len=1203 sha256=68bb547ca399ba6e67a85a0826277a1532cdd08a86c28e4858f46dcf0b5ec7ab
+# file google-closure-library@20230802.0.0/package/closure/goog/testing/benchmark.js
+## round 0
+fix 0 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/testing/benchmark.js:85:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/testing/benchmark.js CodeReplacement{startPosition=2274, length=0, newContent=!, sortKey=}
+fix 1 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/testing/benchmark.js:85:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/testing/benchmark.js CodeReplacement{startPosition=2274, length=0, newContent=?, sortKey=}
+## sure 0
+## final len=2387 sha256=6f4fa1ac3d46860878fa8ae51da587bdaac1535d742092e41761a28a3574c940
+# file google-closure-library@20230802.0.0/package/closure/goog/testing/fs/progressevent.js
+## round 0
+## sure 0
+## final len=1808 sha256=d05e72e5eccb3d5322c101bc6bd71b8650d7b4a06565b7769ba0e753b8555ae5
+# file google-closure-library@20230802.0.0/package/closure/goog/testing/mockrange.js
+## round 0
+## sure 0
+## final len=1957 sha256=41ee370ea9e1d93dd45b43d76755a1e05289263fb568e80e03930a75b033d5ac
+# file google-closure-library@20230802.0.0/package/closure/goog/testing/storage/fakemechanism.js
+## round 0
+## sure 0
+## final len=2044 sha256=3aeef9dee5275cb9167875bc4e94b942316038f1535c39c23330929321d33dad
+# file google-closure-library@20230802.0.0/package/closure/goog/ui/ac/remote.js
+## round 0
+fix 0 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/ac/remote.js:28:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/ac/remote.js CodeReplacement{startPosition=756, length=0, newContent=!, sortKey=}
+fix 1 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/ac/remote.js:28:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/ac/remote.js CodeReplacement{startPosition=756, length=0, newContent=?, sortKey=}
+fix 2 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/ac/remote.js:67:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/ac/remote.js CodeReplacement{startPosition=2061, length=0, newContent=!, sortKey=}
+fix 3 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/ac/remote.js:67:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/ac/remote.js CodeReplacement{startPosition=2061, length=0, newContent=?, sortKey=}
+fix 4 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/ac/remote.js:71:20 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/ac/remote.js CodeReplacement{startPosition=2204, length=0, newContent=!, sortKey=}
+fix 5 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/ac/remote.js:71:20 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/ac/remote.js CodeReplacement{startPosition=2204, length=0, newContent=?, sortKey=}
+fix 6 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/ac/remote.js:99:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/ac/remote.js CodeReplacement{startPosition=2902, length=0, newContent=!, sortKey=}
+fix 7 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/ac/remote.js:99:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/ac/remote.js CodeReplacement{startPosition=2902, length=0, newContent=?, sortKey=}
+fix 8 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/ac/remote.js:99:18 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/ac/remote.js CodeReplacement{startPosition=2909, length=0, newContent=!, sortKey=}
+fix 9 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/ac/remote.js:99:18 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/ac/remote.js CodeReplacement{startPosition=2909, length=0, newContent=?, sortKey=}
+## sure 0
+## final len=3571 sha256=d002e2a2c032b9647c166e66b654cae7604322ee8d67ff5a6d52ce28e4453ef5
+# file google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js
+## round 0
+fix 0 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js:34:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js CodeReplacement{startPosition=948, length=0, newContent=!, sortKey=}
+fix 1 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js:34:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js CodeReplacement{startPosition=948, length=0, newContent=?, sortKey=}
+fix 2 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js:36:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js CodeReplacement{startPosition=1073, length=0, newContent=!, sortKey=}
+fix 3 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js:36:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js CodeReplacement{startPosition=1073, length=0, newContent=?, sortKey=}
+fix 4 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js:38:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js CodeReplacement{startPosition=1230, length=0, newContent=!, sortKey=}
+fix 5 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js:38:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js CodeReplacement{startPosition=1230, length=0, newContent=?, sortKey=}
+fix 6 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js:40:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js CodeReplacement{startPosition=1360, length=0, newContent=!, sortKey=}
+fix 7 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js:40:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js CodeReplacement{startPosition=1360, length=0, newContent=?, sortKey=}
+fix 8 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js:94:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js CodeReplacement{startPosition=3208, length=0, newContent=!, sortKey=}
+fix 9 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js:94:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js CodeReplacement{startPosition=3208, length=0, newContent=?, sortKey=}
+fix 10 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js:94:17 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js CodeReplacement{startPosition=3214, length=0, newContent=!, sortKey=}
+fix 11 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js:94:17 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js CodeReplacement{startPosition=3214, length=0, newContent=?, sortKey=}
+fix 12 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js:96:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js CodeReplacement{startPosition=3326, length=0, newContent=!, sortKey=}
+fix 13 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js:96:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js CodeReplacement{startPosition=3326, length=0, newContent=?, sortKey=}
+fix 14 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js:169:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js CodeReplacement{startPosition=5539, length=0, newContent=!, sortKey=}
+fix 15 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js:169:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js CodeReplacement{startPosition=5539, length=0, newContent=?, sortKey=}
+fix 16 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js:192:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js CodeReplacement{startPosition=6452, length=0, newContent=!, sortKey=}
+fix 17 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js:192:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/colormenubutton.js CodeReplacement{startPosition=6452, length=0, newContent=?, sortKey=}
+## sure 0
+## final len=7161 sha256=606fce9e4c66696224a6af9f89e15fc1c33b460716476a5c6cd9b858faa17738
+# file google-closure-library@20230802.0.0/package/closure/goog/ui/decorate.js
+## round 0
+fix 0 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/decorate.js:21:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/decorate.js CodeReplacement{startPosition=445, length=0, newContent=!, sortKey=}
+fix 1 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/decorate.js:21:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/decorate.js CodeReplacement{startPosition=445, length=0, newContent=?, sortKey=}
+## sure 0
+## final len=759 sha256=bbd61598abc69dd83c0d468d09c8bcbfe75a9057bae90a8c8e7c8fe25aae5cc6
+# file google-closure-library@20230802.0.0/package/closure/goog/ui/gaugetheme.js
+## round 0
+## sure 0
+## final len=4657 sha256=09dd854c3872bba7878a456fccc4e5dc805e204e8570e8aeaa82de94ec8bbfb5
+# file google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js
+## round 0
+fix 0 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js:26:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js CodeReplacement{startPosition=556, length=0, newContent=!, sortKey=}
+fix 1 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js:26:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js CodeReplacement{startPosition=556, length=0, newContent=?, sortKey=}
+fix 2 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js:37:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js CodeReplacement{startPosition=870, length=0, newContent=!, sortKey=}
+fix 3 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js:37:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js CodeReplacement{startPosition=870, length=0, newContent=?, sortKey=}
+fix 4 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js:44:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js CodeReplacement{startPosition=1084, length=0, newContent=!, sortKey=}
+fix 5 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js:44:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js CodeReplacement{startPosition=1084, length=0, newContent=?, sortKey=}
+fix 6 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js:120:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js CodeReplacement{startPosition=3027, length=0, newContent=!, sortKey=}
+fix 7 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js:120:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js CodeReplacement{startPosition=3027, length=0, newContent=?, sortKey=}
+fix 8 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js:131:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js CodeReplacement{startPosition=3227, length=0, newContent=!, sortKey=}
+fix 9 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js:131:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js CodeReplacement{startPosition=3227, length=0, newContent=?, sortKey=}
+fix 10 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js:140:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js CodeReplacement{startPosition=3477, length=0, newContent=!, sortKey=}
+fix 11 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js:140:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js CodeReplacement{startPosition=3477, length=0, newContent=?, sortKey=}
+fix 12 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js:149:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js CodeReplacement{startPosition=3679, length=0, newContent=!, sortKey=}
+fix 13 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js:149:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js CodeReplacement{startPosition=3679, length=0, newContent=?, sortKey=}
+fix 14 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js:167:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js CodeReplacement{startPosition=4083, length=0, newContent=!, sortKey=}
+fix 15 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js:167:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js CodeReplacement{startPosition=4083, length=0, newContent=?, sortKey=}
+fix 16 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js:176:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js CodeReplacement{startPosition=4282, length=0, newContent=!, sortKey=}
+fix 17 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js:176:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/menubase.js CodeReplacement{startPosition=4282, length=0, newContent=?, sortKey=}
+## sure 0
+## final len=4397 sha256=f9e709b183f94ff7addd759bb844ad9b6fb162bc159e917abd88ecf6868dc35b
+# file google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js
+## round 0
+fix 0 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:26:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=542, length=0, newContent=!, sortKey=}
+fix 1 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:26:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=542, length=0, newContent=?, sortKey=}
+fix 2 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:26:17 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=548, length=0, newContent=!, sortKey=}
+fix 3 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:26:17 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=548, length=0, newContent=?, sortKey=}
+fix 4 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:38:19 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=950, length=0, newContent=!, sortKey=}
+fix 5 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:38:19 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=950, length=0, newContent=?, sortKey=}
+fix 6 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:68:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=1677, length=0, newContent=!, sortKey=}
+fix 7 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:68:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=1677, length=0, newContent=?, sortKey=}
+fix 8 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:83:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=2292, length=0, newContent=!, sortKey=}
+fix 9 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:83:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=2292, length=0, newContent=?, sortKey=}
+fix 10 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:104:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=2821, length=0, newContent=!, sortKey=}
+fix 11 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:104:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=2821, length=0, newContent=?, sortKey=}
+fix 12 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:114:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=3073, length=0, newContent=!, sortKey=}
+fix 13 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:114:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=3073, length=0, newContent=?, sortKey=}
+fix 14 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:124:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=3286, length=0, newContent=!, sortKey=}
+fix 15 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:124:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=3286, length=0, newContent=?, sortKey=}
+fix 16 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:136:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=3620, length=0, newContent=!, sortKey=}
+fix 17 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:136:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=3620, length=0, newContent=?, sortKey=}
+fix 18 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:147:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=3927, length=0, newContent=!, sortKey=}
+fix 19 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:147:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=3927, length=0, newContent=?, sortKey=}
+fix 20 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:147:17 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=3933, length=0, newContent=!, sortKey=}
+fix 21 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:147:17 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=3933, length=0, newContent=?, sortKey=}
+fix 22 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:164:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=4326, length=0, newContent=!, sortKey=}
+fix 23 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:164:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=4326, length=0, newContent=?, sortKey=}
+fix 24 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:174:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=4533, length=0, newContent=!, sortKey=}
+fix 25 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:174:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=4533, length=0, newContent=?, sortKey=}
+fix 26 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:190:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=4999, length=0, newContent=!, sortKey=}
+fix 27 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:190:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=4999, length=0, newContent=?, sortKey=}
+fix 28 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:214:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=5554, length=0, newContent=!, sortKey=}
+fix 29 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:214:12 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=5554, length=0, newContent=?, sortKey=}
+fix 30 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:223:19 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=5749, length=0, newContent=!, sortKey=}
+fix 31 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:223:19 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=5749, length=0, newContent=?, sortKey=}
+fix 32 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:234:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=6034, length=0, newContent=!, sortKey=}
+fix 33 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:234:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=6034, length=0, newContent=?, sortKey=}
+fix 34 alts=1 desc=Make type non-nullable at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:296:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=7890, length=0, newContent=!, sortKey=}
+fix 35 alts=1 desc=Make nullability explicit at=google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js:296:11 closurized=false
+  google-closure-library@20230802.0.0/package/closure/goog/ui/selectionmodel.js CodeReplacement{startPosition=7890, length=0, newContent=?, sortKey=}
+## sure 0
+## final len=8470 sha256=3cf8dc2581cdb381ac160906dcddbadb2a836830c87dc110021950eb83d3af17
+# file google-closure-library@20230802.0.0/package/closure/goog/ui/toolbarbuttonrenderer.js
+## round 0
+## sure 0
+## final len=1190 sha256=2ef9e75e56e6be5471e0a929c3abf00d16c4b83cdc15163fdf9b6e60727f2097
+# file handlebars@4.7.10/package/dist/amd/handlebars.js
+## round 0
+## sure 0
+## final len=4652 sha256=80fff4cdd63a1fa2a041801c32f0dd460f71810b4f1cc9a785d2888b481b6315
+# file handlebars@4.7.10/package/dist/cjs/handlebars/base.js
+## round 0
+## sure 0
+## final len=9641 sha256=77d96cd889c7ed97b9c076ee9aa3721c9819e206a85d59402cbfc5d3954eaa8d
+# file handlebars@4.7.10/package/lib/handlebars/compiler/ast.js
+## round 0
+fix 0 alts=1 desc=Make explicitly constant at=handlebars@4.7.10/package/lib/handlebars/compiler/ast.js:1:0 closurized=false
+  handlebars@4.7.10/package/lib/handlebars/compiler/ast.js CodeReplacement{startPosition=0, length=3, newContent=const, sortKey=}
+## sure 1
+## code len=985 sha256=50e42df28202c5270306155ab0d62344f424c529cfbcdae0259d91ef52405553
+## round 1
+## sure 0
+## final len=985 sha256=50e42df28202c5270306155ab0d62344f424c529cfbcdae0259d91ef52405553
+# file jquery@3.7.1/package/src/ajax/jsonp.js
+## round 0
+## sure 0
+## final len=2753 sha256=5616d7c94b3b0958b8ce4b76bec259403ad82ff7daf7b84f3268e4d14dbed126
+# file jquery@3.7.1/package/src/core/parseXML.js
+## round 0
+## sure 0
+## final len=739 sha256=cdd5ffea325d3d7374b8b5b46d304ef2ba44d163dcb0a4957fc5b902fda33efb
+# file jquery@3.7.1/package/src/data.js
+## round 0
+## sure 0
+## final len=4325 sha256=3f028118bbb967b2788283e542041310750e4c6c04186539ed74a8244a29b943
+# file jquery@3.7.1/package/src/manipulation/setGlobalEval.js
+## round 0
+## sure 0
+## final len=381 sha256=dcbd29859ebd3cad6cde0fb1c527f50f95fb9f1f888829c5116df34f77b30c8c
+# file lodash@4.17.21/package/_DataView.js
+## round 0
+## sure 0
+## final len=210 sha256=37b8d46c9ca5e53bac157a23154bb3701759fb616ee7e2dc04aa2a7a2715c0bb
+# file lodash@4.17.21/package/_baseToNumber.js
+## round 0
+## sure 0
+## final len=539 sha256=48470af278354e767e87281c02e5f7792a99281d1345885d3e282dae0322c5c6
+# file lodash@4.17.21/package/_mapCacheSet.js
+## round 0
+fix 0 alts=1 desc=Make type non-nullable at=lodash@4.17.21/package/_mapCacheSet.js:11:13 closurized=false
+  lodash@4.17.21/package/_mapCacheSet.js CodeReplacement{startPosition=235, length=0, newContent=!, sortKey=}
+fix 1 alts=1 desc=Make nullability explicit at=lodash@4.17.21/package/_mapCacheSet.js:11:13 closurized=false
+  lodash@4.17.21/package/_mapCacheSet.js CodeReplacement{startPosition=235, length=0, newContent=?, sortKey=}
+## sure 0
+## final len=489 sha256=464f027fa65e25a396cccd9b5e2103259f51f7fc646b72f64907a89106697bd6
+# file lodash@4.17.21/package/forIn.js
+## round 0
+fix 0 alts=1 desc=Make type non-nullable at=lodash@4.17.21/package/forIn.js:15:11 closurized=false
+  lodash@4.17.21/package/forIn.js CodeReplacement{startPosition=478, length=0, newContent=!, sortKey=}
+fix 1 alts=1 desc=Make nullability explicit at=lodash@4.17.21/package/forIn.js:15:11 closurized=false
+  lodash@4.17.21/package/forIn.js CodeReplacement{startPosition=478, length=0, newContent=?, sortKey=}
+fix 2 alts=1 desc=Make type non-nullable at=lodash@4.17.21/package/forIn.js:16:11 closurized=false
+  lodash@4.17.21/package/forIn.js CodeReplacement{startPosition=532, length=0, newContent=!, sortKey=}
+fix 3 alts=1 desc=Make nullability explicit at=lodash@4.17.21/package/forIn.js:16:11 closurized=false
+  lodash@4.17.21/package/forIn.js CodeReplacement{startPosition=532, length=0, newContent=?, sortKey=}
+fix 4 alts=1 desc=Make type non-nullable at=lodash@4.17.21/package/forIn.js:17:13 closurized=false
+  lodash@4.17.21/package/forIn.js CodeReplacement{startPosition=613, length=0, newContent=!, sortKey=}
+fix 5 alts=1 desc=Make nullability explicit at=lodash@4.17.21/package/forIn.js:17:13 closurized=false
+  lodash@4.17.21/package/forIn.js CodeReplacement{startPosition=613, length=0, newContent=?, sortKey=}
+## sure 0
+## final len=1065 sha256=cd364a5f3a84e01efe8b11358416d2709118aeb9bfde01f7e8672fbae13a6abf
+# file lodash@4.17.21/package/partial.js
+## round 0
+fix 0 alts=1 desc=Make type non-nullable at=lodash@4.17.21/package/partial.js:24:11 closurized=false
+  lodash@4.17.21/package/partial.js CodeReplacement{startPosition=770, length=0, newContent=!, sortKey=}
+fix 1 alts=1 desc=Make nullability explicit at=lodash@4.17.21/package/partial.js:24:11 closurized=false
+  lodash@4.17.21/package/partial.js CodeReplacement{startPosition=770, length=0, newContent=?, sortKey=}
+fix 2 alts=1 desc=Make type non-nullable at=lodash@4.17.21/package/partial.js:26:13 closurized=false
+  lodash@4.17.21/package/partial.js CodeReplacement{startPosition=911, length=0, newContent=!, sortKey=}
+fix 3 alts=1 desc=Make nullability explicit at=lodash@4.17.21/package/partial.js:26:13 closurized=false
+  lodash@4.17.21/package/partial.js CodeReplacement{startPosition=911, length=0, newContent=?, sortKey=}
+## sure 0
+## final len=1566 sha256=fcb93b458dd2ccca965bb9097b82f98e773a32854aab9a1b0707951fb579ea28
+# file moment@2.31.0/package/dist/locale/af.js
+## round 0
+## sure 0
+## final len=2147 sha256=203e2a88aa3c7d1ac73d73af5f05f45d38de5e4ab116756f9a4a5eb4edb938d5
+# file moment@2.31.0/package/dist/locale/tzm.js
+## round 0
+## sure 0
+## final len=1630 sha256=d139c0b3401b921863148f567eeefc57b2ca3088812adbc58cc9d09ceff43ddf
+# file moment@2.31.0/package/locale/ss.js
+## round 0
+fix 0 alts=1 desc=Remove empty statement at=moment@2.31.0/package/locale/ss.js:5:0 closurized=false
+  moment@2.31.0/package/locale/ss.js CodeReplacement{startPosition=142, length=1, newContent=, sortKey=}
+fix 1 alts=1 desc=null at=moment@2.31.0/package/locale/ss.js:6:3 closurized=false
+  moment@2.31.0/package/locale/ss.js CodeReplacement{startPosition=417, length=0, newContent=;, sortKey=}
+## sure 2
+## code len=3228 sha256=6f56eaed14f9112e394b573d05eb18dc5aefc25db58810ed45488d8c91b529e8
+## round 1
+## sure 0
+## final len=3228 sha256=6f56eaed14f9112e394b573d05eb18dc5aefc25db58810ed45488d8c91b529e8
+# file moment@2.31.0/package/src/locale/bm.js
+## round 0
+## sure 0
+## final len=1749 sha256=d264e9178a3e775007241f9d464ee7bbe42e53ee105e203ddcfb1c24b061eaa3
+# file preact@10.25.4/package/compat/client.js
+## round 0
+## sure 0
+## final len=479 sha256=bd5f9f18193fff8775960aa5b61c0f8103a217ec2148d88d00ebb0da0f45cd96
+# file preact@10.25.4/package/compat/src/suspense.js
+## round 0
+## sure 0
+## final len=7690 sha256=16419a54cda66a1c92bb5ff51bacec689ce3f5fdace1a875be33fb5405e11d4d
+# file preact@10.25.4/package/jsx-runtime/dist/jsxRuntime.umd.js
+## round 0
+fix 0 alts=1 desc=null at=preact@10.25.4/package/jsx-runtime/dist/jsxRuntime.umd.js:1:15 closurized=false
+  preact@10.25.4/package/jsx-runtime/dist/jsxRuntime.umd.js CodeReplacement{startPosition=201, length=0, newContent=;, sortKey=}
+fix 1 alts=1 desc=null at=preact@10.25.4/package/jsx-runtime/dist/jsxRuntime.umd.js:1:437 closurized=false
+  preact@10.25.4/package/jsx-runtime/dist/jsxRuntime.umd.js CodeReplacement{startPosition=445, length=0, newContent=;, sortKey=}
+fix 2 alts=1 desc=null at=preact@10.25.4/package/jsx-runtime/dist/jsxRuntime.umd.js:1:446 closurized=false
+  preact@10.25.4/package/jsx-runtime/dist/jsxRuntime.umd.js CodeReplacement{startPosition=481, length=0, newContent=;, sortKey=}
+fix 3 alts=1 desc=null at=preact@10.25.4/package/jsx-runtime/dist/jsxRuntime.umd.js:1:482 closurized=false
+  preact@10.25.4/package/jsx-runtime/dist/jsxRuntime.umd.js CodeReplacement{startPosition=515, length=0, newContent=;, sortKey=}
+fix 4 alts=1 desc=null at=preact@10.25.4/package/jsx-runtime/dist/jsxRuntime.umd.js:1:929 closurized=false
+  preact@10.25.4/package/jsx-runtime/dist/jsxRuntime.umd.js CodeReplacement{startPosition=973, length=0, newContent=;, sortKey=}
+fix 5 alts=1 desc=null at=preact@10.25.4/package/jsx-runtime/dist/jsxRuntime.umd.js:1:994 closurized=false
+  preact@10.25.4/package/jsx-runtime/dist/jsxRuntime.umd.js CodeReplacement{startPosition=1926, length=0, newContent=;, sortKey=}
+fix 6 alts=1 desc=null at=preact@10.25.4/package/jsx-runtime/dist/jsxRuntime.umd.js:1:1059 closurized=false
+  preact@10.25.4/package/jsx-runtime/dist/jsxRuntime.umd.js CodeReplacement{startPosition=1076, length=0, newContent=;, sortKey=}
+fix 7 alts=1 desc=null at=preact@10.25.4/package/jsx-runtime/dist/jsxRuntime.umd.js:1:1179 closurized=false
+  preact@10.25.4/package/jsx-runtime/dist/jsxRuntime.umd.js CodeReplacement{startPosition=1187, length=0, newContent=;, sortKey=}
+fix 8 alts=1 desc=null at=preact@10.25.4/package/jsx-runtime/dist/jsxRuntime.umd.js:1:1383 closurized=false
+  preact@10.25.4/package/jsx-runtime/dist/jsxRuntime.umd.js CodeReplacement{startPosition=1457, length=0, newContent=;, sortKey=}
+fix 9 alts=1 desc=null at=preact@10.25.4/package/jsx-runtime/dist/jsxRuntime.umd.js:1:1459 closurized=false
+  preact@10.25.4/package/jsx-runtime/dist/jsxRuntime.umd.js CodeReplacement{startPosition=1478, length=0, newContent=;, sortKey=}
+fix 10 alts=1 desc=null at=preact@10.25.4/package/jsx-runtime/dist/jsxRuntime.umd.js:1:1479 closurized=false
+  preact@10.25.4/package/jsx-runtime/dist/jsxRuntime.umd.js CodeReplacement{startPosition=1571, length=0, newContent=;, sortKey=}
+fix 11 alts=1 desc=null at=preact@10.25.4/package/jsx-runtime/dist/jsxRuntime.umd.js:1:1783 closurized=false
+  preact@10.25.4/package/jsx-runtime/dist/jsxRuntime.umd.js CodeReplacement{startPosition=1791, length=0, newContent=;, sortKey=}
+fix 12 alts=1 desc=null at=preact@10.25.4/package/jsx-runtime/dist/jsxRuntime.umd.js:1:1793 closurized=false
+  preact@10.25.4/package/jsx-runtime/dist/jsxRuntime.umd.js CodeReplacement{startPosition=1807, length=0, newContent=;, sortKey=}
+fix 13 alts=1 desc=null at=preact@10.25.4/package/jsx-runtime/dist/jsxRuntime.umd.js:1:1896 closurized=false
+  preact@10.25.4/package/jsx-runtime/dist/jsxRuntime.umd.js CodeReplacement{startPosition=1916, length=0, newContent=;, sortKey=}
+## sure 14
+## code len=1987 sha256=4f73ef295dc274e1655e663754dd05c66d5ef6ae4a3e6b992788180765f17bad
+## round 1
+## sure 0
+## final len=1987 sha256=4f73ef295dc274e1655e663754dd05c66d5ef6ae4a3e6b992788180765f17bad
+# file react-dom@18.3.1/package/client.js
+## round 0
+## sure 0
+## final len=619 sha256=a510041dfc40d69b3aa574e5e111864186c711fbeb3db41aa2f27196b27c429f
+# file rxjs@7.8.2/package/dist/cjs/ajax/index.js
+## round 0
+## sure 0
+## final len=842 sha256=edd22548bef938c5c176941e6c969443bd94bec53ade1638bc9e72a9a418c77d
+# file rxjs@7.8.2/package/dist/cjs/internal/operators/skip.js
+## round 0
+## sure 0
+## final len=290 sha256=297a17b4bd0ef8f14a70374f99832fdccee06dc0dac1af9b4c25ead08d442b28
+# file rxjs@7.8.2/package/dist/esm/internal/observable/from.js
+## round 0
+## sure 0
+## final len=239 sha256=04774464751b291738f9331945e57ac84b11886da645e3d6b04306adbbeabed2
+# file rxjs@7.8.2/package/dist/esm/internal/scheduler/AnimationFrameScheduler.js
+## round 0
+## sure 0
+## final len=942 sha256=d5556e1b25cb9af2b38b58ffeca111e9208f7fde3a0ccb77febf54552173317a
+# file rxjs@7.8.2/package/dist/esm5/internal/operators/find.js
+## round 0
+## sure 0
+## final len=821 sha256=169b8fa442245fefffc0a68cd43e898bad73ba16c9ae27bc5f44eef6e2d68c5a
+# file terser@5.51.2/package/lib/compress/common.js
+## round 0
+## sure 0
+## final len=11937 sha256=913c216c88f17b91c36c2692f2ddb254eedd21fecf10ccf5493f4d864ee7f411
+# file test262-parser-tests@0.0.5/package/early/86fd57539134f77e.js
+## round 0
+## sure 0
+## final len=7 sha256=86fd57539134f77e060976a3fa0564188d527206271ce53ce75361444cffa57a
+# file test262-parser-tests@0.0.5/package/early/9cc4d445cd51e85a.js
+## round 0
+## sure 0
+## final len=30 sha256=9cc4d445cd51e85a2f407f0d18161ae497381afd9c10b7be32ef4fab43d2613e
+# file test262-parser-tests@0.0.5/package/early/ec31fa5e521c5df4.js
+## round 0
+## sure 0
+## final len=201 sha256=ec31fa5e521c5df45fa5f1875c026b1c1231a2ba70eb9e8a2f76242bd580eaf1
+# file test262-parser-tests@0.0.5/package/fail/0053737b6145994c.js
+## round 0
+## sure 0
+## final len=9 sha256=0053737b6145994c38d2277ad4aa40d73ee7dfaab40c5acc66fdb98ee596bbaf
+# file test262-parser-tests@0.0.5/package/fail/49edc77061449ae3.js
+## round 0
+## sure 0
+## final len=46 sha256=49edc77061449ae3eb94b62172d4d427653fbd97c6a70a85c7109eff4cbc78cb
+# file test262-parser-tests@0.0.5/package/pass-explicit/0b1fc7208759253b.js
+## round 0
+## sure 0
+## final len=273 sha256=729a76f608485f153eaa6f878fe3b49764de3024b1fe8f09451f77af2e710557
+# file test262-parser-tests@0.0.5/package/pass-explicit/0f809258920b3469.js
+## round 0
+## sure 0
+## final len=251 sha256=ac119b8cbec545e1b94deb5e11548de336d3a94a7adc7b27cacb3ce66bb4db8a
+# file test262-parser-tests@0.0.5/package/pass-explicit/16d0c12aad83f9b3.js
+## round 0
+## sure 0
+## final len=606 sha256=fb4f6095ca53b36753e63697fbfb812b9527fd6b083d84101c51bc43b976172f
+# file test262-parser-tests@0.0.5/package/pass-explicit/17326734a7bf9629.js
+## round 0
+## sure 0
+## final len=978 sha256=16c5c2a2692f7717e599dbc1c313f41ac1c2b79e949a8cc0a5f3da362578013d
+# file test262-parser-tests@0.0.5/package/pass-explicit/18cc9a6b7038070f.js
+## round 0
+## sure 0
+## final len=432 sha256=27d6e8274220edaab19e53d4d8537b709a376c52a0861291065b6d400fc7fd88
+# file test262-parser-tests@0.0.5/package/pass-explicit/414b9b02f2789648.js
+## round 0
+## sure 0
+## final len=649 sha256=26c1d5210c5513e8be982be9da9a6c1c7ef28796b400f8fc708d4c457ba5201c
+# file test262-parser-tests@0.0.5/package/pass-explicit/65228d6a31a06406.js
+## round 0
+## sure 0
+## final len=716 sha256=856121fb51af80fa8baddfeaff72f4d4290b0bbb74bfb08ba252875420fb235d
+# file test262-parser-tests@0.0.5/package/pass-explicit/75e16348fe9e6213.js
+## round 0
+## sure 0
+## final len=306 sha256=4821ea2a732637a9e9c80b0b4fe84aaf9f652989aa594084ae9984f622afeb69
+# file test262-parser-tests@0.0.5/package/pass-explicit/923c99b441ab5a26.js
+## round 0
+## sure 0
+## final len=397 sha256=369101df384fa342ab0a5caf5c3eaa6eec1d5a8a0184e9e00f81e5f619003f56
+# file test262-parser-tests@0.0.5/package/pass-explicit/93108a695e5ff29d.js
+## round 0
+## sure 0
+## final len=228 sha256=bc51a9a8de8787feeb947495198a50b4b773b4e1e3db92634ee7c858ab6259f0
+# file test262-parser-tests@0.0.5/package/pass-explicit/9db573299f02bf36.js
+## round 0
+## sure 0
+## final len=387 sha256=dc661ba2ff7690063c832daea331c5e8736eaace6370ab4ab09fcdc3e45746d1
+# file test262-parser-tests@0.0.5/package/pass-explicit/af1d905ed056724f.js
+## round 0
+## sure 0
+## final len=35 sha256=be3409ff81c974a0a358e82bd6b74f74f441dbf0d75a8f6ea466e86834380902
+# file test262-parser-tests@0.0.5/package/pass-explicit/b3e783194b210cc3.js
+## round 0
+## sure 0
+## final len=784 sha256=3b716644a3d1fe5e060e367bd56081171b1d5d504e5a50735a127d03fc9e2a97
+# file test262-parser-tests@0.0.5/package/pass-explicit/bd7b54d5e0ce444b.js
+## round 0
+## sure 0
+## final len=216 sha256=4c06e91a627e0f737f271f089c72ec2b8071ebf251db71595f21924a4069147b
+# file test262-parser-tests@0.0.5/package/pass-explicit/ecba8fb326c2c985.js
+## round 0
+## sure 0
+## final len=460 sha256=8888615f151594bc0a236563eb1175f4edeb5981bc02ae5239d79001d3a2284c
+# file test262-parser-tests@0.0.5/package/pass-explicit/fec4c4ff229d3fc2.js
+## round 0
+## sure 0
+## final len=316 sha256=eec115d09c88735d53aafca3e5157b7232c4174a79a8e7f35c23f3d59ca53b9d
+# file test262-parser-tests@0.0.5/package/pass/00c79d09c52df3ec.js
+## round 0
+## sure 0
+## final len=56 sha256=00c79d09c52df3ec681496f4b45dbc3fa1efa6664c77f1d216402462b538e71c
+# file test262-parser-tests@0.0.5/package/pass/0b1fc7208759253b.js
+## round 0
+fix 0 alts=1 desc=null at=test262-parser-tests@0.0.5/package/pass/0b1fc7208759253b.js:1:0 closurized=false
+  test262-parser-tests@0.0.5/package/pass/0b1fc7208759253b.js CodeReplacement{startPosition=1026, length=0, newContent=;, sortKey=}
+## sure 1
+## code len=1028 sha256=42ec256e2abcb39328930621f3d8ac1169e0ba3cd016ea88544f4790b24af14c
+## round 1
+## sure 0
+## final len=1028 sha256=42ec256e2abcb39328930621f3d8ac1169e0ba3cd016ea88544f4790b24af14c
+# file test262-parser-tests@0.0.5/package/pass/0f809258920b3469.js
+## round 0
+## sure 0
+## final len=397 sha256=0f809258920b3469eea12c4b54db062eadb0f551598543f195a810e27d953b85
+# file test262-parser-tests@0.0.5/package/pass/16d0c12aad83f9b3.js
+## round 0
+## sure 0
+## final len=664 sha256=16d0c12aad83f9b360192fc0224e5b67f8ba0f1be466287d2e8cb1b4479a3728
+# file test262-parser-tests@0.0.5/package/pass/17326734a7bf9629.js
+## round 0
+## sure 0
+## final len=999 sha256=17326734a7bf9629d2b6d58a25b20204d03d34b35d63927cb87f24245f11285a
+# file test262-parser-tests@0.0.5/package/pass/18cc9a6b7038070f.js
+## round 0
+## sure 0
+## final len=552 sha256=18cc9a6b7038070f85a86b12e0879b60338eb1c3f47b060d7facfc0fe376c2e6
+# file test262-parser-tests@0.0.5/package/pass/26998ded3750f7d8.js
+## round 0
+## sure 0
+## final len=220 sha256=26998ded3750f7d84afb8401d2498becfab7438f1db40c78ed2c353ed50ef4bf
+# file test262-parser-tests@0.0.5/package/pass/414b9b02f2789648.js
+## round 0
+## sure 0
+## final len=532 sha256=414b9b02f278964886ffa5741fbd914a88460cf4e471ccd9ac559c57f6531e1c
+# file test262-parser-tests@0.0.5/package/pass/5333f04581124314.js
+## round 0
+## sure 0
+## final len=245 sha256=5333f045811243146bcc9de0f8694f843498a0ca5cf905f15a0dcff451cb44e7
+# file test262-parser-tests@0.0.5/package/pass/5b9f113c3bdd0c49.js
+## round 0
+fix 0 alts=1 desc=Remove empty statement at=test262-parser-tests@0.0.5/package/pass/5b9f113c3bdd0c49.js:11:30 closurized=false
+  test262-parser-tests@0.0.5/package/pass/5b9f113c3bdd0c49.js CodeReplacement{startPosition=384, length=1, newContent=, sortKey=}
+fix 1 alts=1 desc=Remove empty statement at=test262-parser-tests@0.0.5/package/pass/5b9f113c3bdd0c49.js:15:34 closurized=false
+  test262-parser-tests@0.0.5/package/pass/5b9f113c3bdd0c49.js CodeReplacement{startPosition=543, length=1, newContent=, sortKey=}
+## sure 2
+## code len=592 sha256=32bef5d5ee5c89f4b998b6de510b4a3fca3388b2a47ddb3ddd68f088564d93c7
+## round 1
+## sure 0
+## final len=592 sha256=32bef5d5ee5c89f4b998b6de510b4a3fca3388b2a47ddb3ddd68f088564d93c7
+# file three@0.186.1/package/build/three.cjs
+## round 0
+## sure 0
+## final len=631 sha256=b326d5a8b9639e18e3d8debae1c331eaaf426ec703bf218c5ab72b9d6bfa1e94
+# file three@0.186.1/package/examples/jsm/postprocessing/GlitchPass.js
+## round 0
+## sure 0
+## final len=4305 sha256=8329d0656ce595dc70cf5d7c80c4ab0b7021bf906cea714f4aace77d56e67731
+# file three@0.186.1/package/src/extras/core/Path.js
+## round 0
+fix 0 alts=1 desc=Make type non-nullable at=three@0.186.1/package/src/extras/core/Path.js:36:12 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=1061, length=0, newContent=!, sortKey=}
+fix 1 alts=1 desc=Make nullability explicit at=three@0.186.1/package/src/extras/core/Path.js:36:12 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=1061, length=0, newContent=?, sortKey=}
+fix 2 alts=1 desc=Make type non-nullable at=three@0.186.1/package/src/extras/core/Path.js:36:18 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=1067, length=0, newContent=!, sortKey=}
+fix 3 alts=1 desc=Make nullability explicit at=three@0.186.1/package/src/extras/core/Path.js:36:18 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=1067, length=0, newContent=?, sortKey=}
+fix 4 alts=1 desc=Make type non-nullable at=three@0.186.1/package/src/extras/core/Path.js:47:12 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=1292, length=0, newContent=!, sortKey=}
+fix 5 alts=1 desc=Make nullability explicit at=three@0.186.1/package/src/extras/core/Path.js:47:12 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=1292, length=0, newContent=?, sortKey=}
+fix 6 alts=1 desc=Make type non-nullable at=three@0.186.1/package/src/extras/core/Path.js:63:12 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=1550, length=0, newContent=!, sortKey=}
+fix 7 alts=1 desc=Make nullability explicit at=three@0.186.1/package/src/extras/core/Path.js:63:12 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=1550, length=0, newContent=?, sortKey=}
+fix 8 alts=1 desc=Make type non-nullable at=three@0.186.1/package/src/extras/core/Path.js:63:18 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=1556, length=0, newContent=!, sortKey=}
+fix 9 alts=1 desc=Make nullability explicit at=three@0.186.1/package/src/extras/core/Path.js:63:18 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=1556, length=0, newContent=?, sortKey=}
+fix 10 alts=1 desc=Make type non-nullable at=three@0.186.1/package/src/extras/core/Path.js:64:13 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=1611, length=0, newContent=!, sortKey=}
+fix 11 alts=1 desc=Make nullability explicit at=three@0.186.1/package/src/extras/core/Path.js:64:13 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=1611, length=0, newContent=?, sortKey=}
+fix 12 alts=1 desc=Make type non-nullable at=three@0.186.1/package/src/extras/core/Path.js:85:13 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=2015, length=0, newContent=!, sortKey=}
+fix 13 alts=1 desc=Make nullability explicit at=three@0.186.1/package/src/extras/core/Path.js:85:13 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=2015, length=0, newContent=?, sortKey=}
+fix 14 alts=1 desc=Make type non-nullable at=three@0.186.1/package/src/extras/core/Path.js:101:13 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=2432, length=0, newContent=!, sortKey=}
+fix 15 alts=1 desc=Make nullability explicit at=three@0.186.1/package/src/extras/core/Path.js:101:13 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=2432, length=0, newContent=?, sortKey=}
+fix 16 alts=1 desc=Make type non-nullable at=three@0.186.1/package/src/extras/core/Path.js:122:13 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=3048, length=0, newContent=!, sortKey=}
+fix 17 alts=1 desc=Make nullability explicit at=three@0.186.1/package/src/extras/core/Path.js:122:13 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=3048, length=0, newContent=?, sortKey=}
+fix 18 alts=1 desc=Make type non-nullable at=three@0.186.1/package/src/extras/core/Path.js:150:13 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=3900, length=0, newContent=!, sortKey=}
+fix 19 alts=1 desc=Make nullability explicit at=three@0.186.1/package/src/extras/core/Path.js:150:13 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=3900, length=0, newContent=?, sortKey=}
+fix 20 alts=1 desc=Make type non-nullable at=three@0.186.1/package/src/extras/core/Path.js:173:12 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=4386, length=0, newContent=!, sortKey=}
+fix 21 alts=1 desc=Make nullability explicit at=three@0.186.1/package/src/extras/core/Path.js:173:12 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=4386, length=0, newContent=?, sortKey=}
+fix 22 alts=1 desc=Make type non-nullable at=three@0.186.1/package/src/extras/core/Path.js:173:18 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=4392, length=0, newContent=!, sortKey=}
+fix 23 alts=1 desc=Make nullability explicit at=three@0.186.1/package/src/extras/core/Path.js:173:18 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=4392, length=0, newContent=?, sortKey=}
+fix 24 alts=1 desc=Make type non-nullable at=three@0.186.1/package/src/extras/core/Path.js:174:13 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=4453, length=0, newContent=!, sortKey=}
+fix 25 alts=1 desc=Make nullability explicit at=three@0.186.1/package/src/extras/core/Path.js:174:13 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=4453, length=0, newContent=?, sortKey=}
+fix 26 alts=1 desc=Make type non-nullable at=three@0.186.1/package/src/extras/core/Path.js:199:13 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=5342, length=0, newContent=!, sortKey=}
+fix 27 alts=1 desc=Make nullability explicit at=three@0.186.1/package/src/extras/core/Path.js:199:13 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=5342, length=0, newContent=?, sortKey=}
+fix 28 alts=1 desc=Make type non-nullable at=three@0.186.1/package/src/extras/core/Path.js:222:13 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=6149, length=0, newContent=!, sortKey=}
+fix 29 alts=1 desc=Make nullability explicit at=three@0.186.1/package/src/extras/core/Path.js:222:13 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=6149, length=0, newContent=?, sortKey=}
+fix 30 alts=1 desc=Make type non-nullable at=three@0.186.1/package/src/extras/core/Path.js:244:13 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=7215, length=0, newContent=!, sortKey=}
+fix 31 alts=1 desc=Make nullability explicit at=three@0.186.1/package/src/extras/core/Path.js:244:13 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=7215, length=0, newContent=?, sortKey=}
+fix 32 alts=1 desc=Make type non-nullable at=three@0.186.1/package/src/extras/core/Path.js:268:13 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=8319, length=0, newContent=!, sortKey=}
+fix 33 alts=1 desc=Make nullability explicit at=three@0.186.1/package/src/extras/core/Path.js:268:13 closurized=false
+  three@0.186.1/package/src/extras/core/Path.js CodeReplacement{startPosition=8319, length=0, newContent=?, sortKey=}
+## sure 0
+## final len=9306 sha256=8c3d9ddbddfed2cac8499efa345a7d63c7192615de621f7d107ce7fc5cf52693
+# file three@0.186.1/package/src/nodes/core/NodeFunction.js
+## round 0
+fix 0 alts=1 desc=Make type non-nullable at=three@0.186.1/package/src/nodes/core/NodeFunction.js:14:12 closurized=false
+  three@0.186.1/package/src/nodes/core/NodeFunction.js CodeReplacement{startPosition=465, length=0, newContent=!, sortKey=}
+fix 1 alts=1 desc=Make nullability explicit at=three@0.186.1/package/src/nodes/core/NodeFunction.js:14:12 closurized=false
+  three@0.186.1/package/src/nodes/core/NodeFunction.js CodeReplacement{startPosition=465, length=0, newContent=?, sortKey=}
+fix 2 alts=1 desc=Make type non-nullable at=three@0.186.1/package/src/nodes/core/NodeFunction.js:14:18 closurized=false
+  three@0.186.1/package/src/nodes/core/NodeFunction.js CodeReplacement{startPosition=471, length=0, newContent=!, sortKey=}
+fix 3 alts=1 desc=Make nullability explicit at=three@0.186.1/package/src/nodes/core/NodeFunction.js:14:18 closurized=false
+  three@0.186.1/package/src/nodes/core/NodeFunction.js CodeReplacement{startPosition=471, length=0, newContent=?, sortKey=}
+fix 4 alts=1 desc=Make type non-nullable at=three@0.186.1/package/src/nodes/core/NodeFunction.js:30:12 closurized=false
+  three@0.186.1/package/src/nodes/core/NodeFunction.js CodeReplacement{startPosition=882, length=0, newContent=!, sortKey=}
+fix 5 alts=1 desc=Make nullability explicit at=three@0.186.1/package/src/nodes/core/NodeFunction.js:30:12 closurized=false
+  three@0.186.1/package/src/nodes/core/NodeFunction.js CodeReplacement{startPosition=882, length=0, newContent=?, sortKey=}
+fix 6 alts=1 desc=Make type non-nullable at=three@0.186.1/package/src/nodes/core/NodeFunction.js:30:18 closurized=false
+  three@0.186.1/package/src/nodes/core/NodeFunction.js CodeReplacement{startPosition=888, length=0, newContent=!, sortKey=}
+fix 7 alts=1 desc=Make nullability explicit at=three@0.186.1/package/src/nodes/core/NodeFunction.js:30:18 closurized=false
+  three@0.186.1/package/src/nodes/core/NodeFunction.js CodeReplacement{startPosition=888, length=0, newContent=?, sortKey=}
+## sure 0
+## final len=1479 sha256=d9e8d0fc46a46dac92b8219cd345c98bf7dfa4c50566e8a51ad82a0c6eeb7d7f
+# file three@0.186.1/package/src/renderers/common/SampledTexture.js
+## round 0
+fix 0 alts=1 desc=Make type non-nullable at=three@0.186.1/package/src/renderers/common/SampledTexture.js:71:14 closurized=false
+  three@0.186.1/package/src/renderers/common/SampledTexture.js CodeReplacement{startPosition=1201, length=0, newContent=!, sortKey=}
+fix 1 alts=1 desc=Make nullability explicit at=three@0.186.1/package/src/renderers/common/SampledTexture.js:71:14 closurized=false
+  three@0.186.1/package/src/renderers/common/SampledTexture.js CodeReplacement{startPosition=1201, length=0, newContent=?, sortKey=}
+fix 2 alts=1 desc=Make type non-nullable at=three@0.186.1/package/src/renderers/common/SampledTexture.js:71:31 closurized=false
+  three@0.186.1/package/src/renderers/common/SampledTexture.js CodeReplacement{startPosition=1218, length=0, newContent=!, sortKey=}
+fix 3 alts=1 desc=Make nullability explicit at=three@0.186.1/package/src/renderers/common/SampledTexture.js:71:31 closurized=false
+  three@0.186.1/package/src/renderers/common/SampledTexture.js CodeReplacement{startPosition=1218, length=0, newContent=?, sortKey=}
+fix 4 alts=1 desc=Make type non-nullable at=three@0.186.1/package/src/renderers/common/SampledTexture.js:133:14 closurized=false
+  three@0.186.1/package/src/renderers/common/SampledTexture.js CodeReplacement{startPosition=2362, length=0, newContent=!, sortKey=}
+fix 5 alts=1 desc=Make nullability explicit at=three@0.186.1/package/src/renderers/common/SampledTexture.js:133:14 closurized=false
+  three@0.186.1/package/src/renderers/common/SampledTexture.js CodeReplacement{startPosition=2362, length=0, newContent=?, sortKey=}
+fix 6 alts=1 desc=Make type non-nullable at=three@0.186.1/package/src/renderers/common/SampledTexture.js:133:26 closurized=false
+  three@0.186.1/package/src/renderers/common/SampledTexture.js CodeReplacement{startPosition=2374, length=0, newContent=!, sortKey=}
+fix 7 alts=1 desc=Make nullability explicit at=three@0.186.1/package/src/renderers/common/SampledTexture.js:133:26 closurized=false
+  three@0.186.1/package/src/renderers/common/SampledTexture.js CodeReplacement{startPosition=2374, length=0, newContent=?, sortKey=}
+## sure 0
+## final len=2762 sha256=ff78adb262b08b0c247d945169a3f754db7830fa17ab4136384d153b15b73005
+# file underscore@1.13.8/package/amd/_baseCreate.js
+## round 0
+## sure 0
+## final len=572 sha256=73c417e5fee32824d8ef9d20599bbdb0c548fb08527b56a7baa72b377ed15207
+# file underscore@1.13.8/package/amd/pairs.js
+## round 0
+## sure 0
+## final len=395 sha256=5203ddd418f42f0dee083a95f6f4f548506a3d8dee3f9c281e4c7110e3d46de8
+# file underscore@1.13.8/package/cjs/index-default.js
+## round 0
+## sure 0
+## final len=227 sha256=6eb802301ff0a21eec6c618145a8cd4321838014a288de13d4e7201736bb3330
+# file underscore@1.13.8/package/modules/after.js
+## round 0
+## sure 0
+## final len=221 sha256=d8854cb516e3bdc8e6c5b8f56c8f55fb66c4b73371271b62f344a45de3c589f7
+# file vue@2.7.16/package/dist/vue.runtime.mjs
+## round 0
+fix 0 alts=1 desc=null at=vue@2.7.16/package/dist/vue.runtime.mjs:1:0 closurized=false
+  vue@2.7.16/package/dist/vue.runtime.mjs CodeReplacement{startPosition=41, length=0, newContent=;, sortKey=}
+fix 1 alts=1 desc=null at=vue@2.7.16/package/dist/vue.runtime.mjs:2:0 closurized=false
+  vue@2.7.16/package/dist/vue.runtime.mjs CodeReplacement{startPosition=60, length=0, newContent=;, sortKey=}
+fix 2 alts=1 desc=null at=vue@2.7.16/package/dist/vue.runtime.mjs:5:0 closurized=false
+  vue@2.7.16/package/dist/vue.runtime.mjs CodeReplacement{startPosition=1023, length=0, newContent=;, sortKey=}
+## sure 3
+## code len=1027 sha256=71a21a23507e78cef523f97f720b87f227eb96fd758088d94db4bd72dcd49d86
+## round 1
+## sure 0
+## final len=1027 sha256=71a21a23507e78cef523f97f720b87f227eb96fd758088d94db4bd72dcd49d86
+# file zone.js@0.16.3/package/bundles/mocha-patch.umd.js
+## round 0
+## sure 0
+## final len=6829 sha256=0043c912b87d71c1ec39d01dfd64e205f34d333b34b15bd10fe3856f48f8ec91
+# file zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js
+## round 0
+fix 0 alts=1 desc=null at=zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js:6:60 closurized=false
+  zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js CodeReplacement{startPosition=173, length=0, newContent=;, sortKey=}
+fix 1 alts=1 desc=null at=zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js:6:125 closurized=false
+  zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js CodeReplacement{startPosition=247, length=0, newContent=;, sortKey=}
+fix 2 alts=1 desc=null at=zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js:6:175 closurized=false
+  zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js CodeReplacement{startPosition=288, length=0, newContent=;, sortKey=}
+fix 3 alts=1 desc=null at=zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js:7:180 closurized=false
+  zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js CodeReplacement{startPosition=621, length=0, newContent=;, sortKey=}
+fix 4 alts=1 desc=null at=zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js:7:307 closurized=false
+  zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js CodeReplacement{startPosition=1658, length=0, newContent=;, sortKey=}
+fix 5 alts=1 desc=null at=zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js:7:365 closurized=false
+  zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js CodeReplacement{startPosition=1656, length=0, newContent=;, sortKey=}
+fix 6 alts=1 desc=null at=zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js:7:458 closurized=false
+  zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js CodeReplacement{startPosition=1654, length=0, newContent=;, sortKey=}
+fix 7 alts=1 desc=null at=zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js:7:532 closurized=false
+  zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js CodeReplacement{startPosition=1476, length=0, newContent=;, sortKey=}
+fix 8 alts=1 desc=null at=zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js:7:564 closurized=false
+  zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js CodeReplacement{startPosition=1104, length=0, newContent=;, sortKey=}
+fix 9 alts=1 desc=null at=zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js:7:615 closurized=false
+  zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js CodeReplacement{startPosition=1103, length=0, newContent=;, sortKey=}
+fix 10 alts=1 desc=null at=zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js:7:747 closurized=false
+  zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js CodeReplacement{startPosition=1409, length=0, newContent=;, sortKey=}
+fix 11 alts=1 desc=null at=zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js:7:854 closurized=false
+  zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js CodeReplacement{startPosition=1408, length=0, newContent=;, sortKey=}
+fix 12 alts=1 desc=null at=zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js:7:995 closurized=false
+  zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js CodeReplacement{startPosition=1473, length=0, newContent=;, sortKey=}
+fix 13 alts=1 desc=null at=zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js:7:1097 closurized=false
+  zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js CodeReplacement{startPosition=1652, length=0, newContent=;, sortKey=}
+fix 14 alts=1 desc=null at=zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js:7:1118 closurized=false
+  zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js CodeReplacement{startPosition=1651, length=0, newContent=;, sortKey=}
+fix 15 alts=1 desc=null at=zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js:7:1196 closurized=false
+  zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js CodeReplacement{startPosition=1647, length=0, newContent=;, sortKey=}
+fix 16 alts=1 desc=null at=zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js:7:1227 closurized=false
+  zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js CodeReplacement{startPosition=1703, length=0, newContent=;, sortKey=}
+fix 17 alts=1 desc=null at=zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js:9:49 closurized=false
+  zone.js@0.16.3/package/bundles/zone-patch-jsonp.umd.min.js CodeReplacement{startPosition=1778, length=0, newContent=;, sortKey=}
+## sure 18
+## code len=1801 sha256=f688fe5ff553770ddc597e0ae0bf5ef0f6be525f7dbe6c8590abca7dc34d37d9
+## round 1
+## sure 0
+## final len=1801 sha256=f688fe5ff553770ddc597e0ae0bf5ef0f6be525f7dbe6c8590abca7dc34d37d9
+# file zone.js@0.16.3/package/fesm2015/webapis-shadydom.js
+## round 0
+## sure 0
+## final len=950 sha256=690fc3ec777bd55633aef20eec89b9fc6dfdf523def38ef9a0418ad77ade7c00

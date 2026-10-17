@@ -1,0 +1,10 @@
+goog.provide('a.b.c');
+/** @const */ var a = a || {};
+a.b.c = class {};
+goog.loadModule(function(exports) { 'use strict';
+  goog.module('a.b.d');
+  goog.module.declareLegacyNamespace();
+  var c = goog.requireType('a.b.c');
+  exports.c = new c;
+  return exports;
+});

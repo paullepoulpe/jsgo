@@ -1,0 +1,1 @@
+class Foo {} /** @export */ Foo.x = 3;

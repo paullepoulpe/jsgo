@@ -1,0 +1,1 @@
+goog.method();g.method();

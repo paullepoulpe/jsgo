@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE translationbundle SYSTEM "translationbundle.dtd">
+<translationbundle lang="es_ES">
+<translation id="7639678437384034548">
+<branch variants="variants { grammatical_gender_variant { grammatical_gender_case:
+MASCULINE } }">Bienvenido <ph name="USER_EMAIL"/>!</branch><branch variants="variants { grammatical_gender_variant { grammatical_gender_case:
+FEMININE } }">Bienvenida!</branch>
+</translation>
+</translationbundle>

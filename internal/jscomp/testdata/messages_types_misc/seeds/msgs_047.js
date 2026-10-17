@@ -1,0 +1,1 @@
+var MSG_UNNAMED = declareIcuTemplate('Hullo', {description: 'description'});

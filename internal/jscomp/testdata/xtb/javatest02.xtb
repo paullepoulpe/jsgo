@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE translationbundle SYSTEM "translationbundle.dtd">
+<translationbundle lang="es_ES">
+<translation id="7639678437384034548">
+<branch variants="variants { grammatical_gender_variant { grammatical_gender_case:
+MASCULINE } }">Bienvenido!</branch><branch variants="variants { grammatical_gender_variant { grammatical_gender_case:
+FEMININE } }">Bienvenida!</branch><branch variants="variants { grammatical_gender_variant { grammatical_gender_case:
+NEUTER } }">Te damos la bienvenida!</branch><branch variants="variants { grammatical_gender_variant { grammatical_gender_case:
+OTHER } }">Te damos la bienvenida! - OTHER</branch></translation>
+</translationbundle>

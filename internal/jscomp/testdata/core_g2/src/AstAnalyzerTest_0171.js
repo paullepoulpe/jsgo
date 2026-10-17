@@ -1,0 +1,1 @@
+class C { x = alert(1); }

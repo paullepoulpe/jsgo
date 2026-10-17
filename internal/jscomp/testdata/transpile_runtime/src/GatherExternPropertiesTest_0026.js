@@ -1,0 +1,1 @@
+/** @typedef {{bar: string, baz: string}} */ var NonExternType;

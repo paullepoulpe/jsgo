@@ -1,0 +1,17 @@
+var a = {}; a.b = {}; a.b.c = function() { return 1; }; a.b.c();
+var ns = {x: 1, y: function() { return 2; }}; use(ns.x, ns.y());
+var alias = a.b; alias.c();
+/** @constructor */ function Ctor() {} Ctor.staticProp = 3; Ctor.prototype.m = function() {}; use(Ctor.staticProp);
+var C2 = Ctor; use(C2.staticProp);
+var obj = {}; obj.p = 1; delete obj.p;
+var ns2 = ns2 || {}; ns2.q = 4; use(ns2.q);
+function local() { a.d = 5; return a.d; } local();
+class K { static s() { return 1; } } K.t = 2; use(K.s(), K.t);
+class Sub extends K {} use(Sub.t);
+var esc = {}; esc.v = 1; use(esc);
+const {x: destX, y: destY} = ns; use(destX, destY);
+var en = {A: 1, B: 2}; use(en.A);
+var g1 = {}; g1.h = {}; g1.h.i = 1; var g2 = g1.h; use(g2.i);
+/** @const */ var constAlias = a.b; use(constAlias.c);
+var o2 = {get g() { return 1; }, k: 2}; use(o2.k, o2.g);
+var hop = {}; hop.r = 1; hop.hasOwnProperty('r');

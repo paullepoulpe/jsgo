@@ -1,0 +1,1 @@
+(function() { /** @export */var FOO = 5 })()

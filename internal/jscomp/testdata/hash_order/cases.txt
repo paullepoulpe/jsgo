@@ -1,0 +1,28 @@
+# case mutated_exports_fresh CheckNoMutatedEs6Exports
+## file fresh.js
+export let q = 0, zeta = 0, k9 = 0;
+export function f() {}
+export function reset() {
+  q = 1; zeta = 2; k9 = 3; f = null;
+}
+# case mutated_exports_grow_then_clear CheckNoMutatedEs6Exports
+## file grow.js
+export let zeta = 0, alpha = 0, mu = 0, Aa = 0, BB = 0, q = 0, b = 0, a = 0, c = 0, longer_name = 0;
+export let x1 = 0, x2 = 0, x3 = 0, x4 = 0, x5 = 0, x6 = 0, x7 = 0, x8 = 0, x9 = 0, x10 = 0;
+let notExported = 0;
+export function mutate() {
+  zeta++; alpha++; mu++; Aa++; BB++; q++; b++; a++; c++; longer_name++;
+  x1++; x2++; x3++; x4++; x5++; x6++; x7++; x8++; x9++; x10++;
+  notExported++;
+}
+## file reused.js
+export let q = 0, zeta = 0, k9 = 0;
+export function f() {}
+export function reset() {
+  q = 1; zeta = 2; k9 = 3; f = null;
+}
+# case mutated_exports_specs_colliding CheckNoMutatedEs6Exports
+## file specs.js
+let p1 = 0, Ab = 0, BC = 0, z0 = 0;
+export {p1, Ab as ab, BC};
+export default function() { BC = 1; z0 = 4; Ab = 2; p1 = 3; }

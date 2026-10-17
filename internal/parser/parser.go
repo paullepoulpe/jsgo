@@ -1,3422 +1,4085 @@
-// Port of com/google/javascript/jscomp/parsing/parser/Parser.java
-// @ closure-compiler v20260415 (narrow grammar; structure tracks Java).
-//
-// The Java class is ~10k lines of a full ES parser. This file carries
-// the recursive-descent shape — a Parser that owns a Scanner, with
-// speculative parse paths implemented via Scanner.Save/Restore — but
-// handles only the grammar jsgo's checker currently consumes
-// (var/let/const + class/function decl, call/new/assign/return
-// statements, arrow/function expressions, basic literals). The
-// character-level primitives live in scanner.go, matching Java's
-// Scanner.java → Parser.java split. Token-stream-driven parsing
-// (proper TokenType enum) lands when we port the grammar further —
-// for now the Parser still peeks at runes via p.scanner.Peek().
+// Port of com/google/javascript/jscomp/parsing/parser/Parser.java @ closure-compiler v20260415
+
+/*
+ * Copyright 2011 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 package parser
 
 import (
-	"fmt"
-	"strconv"
 	"strings"
-	"unicode"
 
-	"github.com/paullepoulpe/jsgo/internal/jscomp/parsing"
-	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// Parser wraps a Scanner and produces a SCRIPT-rooted rhino.Node.
-// Structure mirrors Java's Parser class: a Parser field of type
-// Scanner (com.google.javascript.jscomp.parsing.parser.Scanner),
-// recursive-descent methods on the parse path, and speculative
-// branches implemented via Scanner.Save / Restore.
+// Parser parses a javascript file.
+//
+// The various parseX() methods never return null - even when parse errors
+// are encountered. Typically parseX() will return a XTree ParseTree. Each
+// ParseTree that is created includes its source location. The typical
+// pattern for a parseX() method is:
+//
+//	XTree parseX() {
+//	  SourcePosition start = getTreeStartLocation();
+//	  parse X grammar element and its children
+//	  return new XTree(getTreeLocation(start), children);
+//	}
+//
+// parseX() methods must consume at least 1 token - even in error cases.
+// This prevents infinite loops in the parser.
+//
+// Many parseX() methods are matched by a 'boolean peekX()' method which will
+// return true if the beginning of an X appears at the current location.
+// There are also peek() methods which examine the next token. peek() methods
+// must not consume any tokens.
+//
+// The eat() method consumes a token and reports an error if the consumed
+// token is not of the expected type. The eatOpt() methods consume the next
+// token iff the next token is of the expected type and return the consumed
+// token or null if no token was consumed.
+//
+// When parse errors are encountered, an error should be reported and the
+// parse should return a best guess at the current parse tree.
+//
+// When parsing lists, the preferred pattern is:
+//
+//	eat(LIST_START);
+//	ImmutableList.Builder<ParseTree> elements = ImmutableList.builder();
+//	while (peekListElement()) {
+//	  elements.add(parseListElement());
+//	}
+//	eat(LIST_END);
 type Parser struct {
-	scanner *Scanner
-	// pendingStatements is a FIFO of nodes that should be consumed by
-	// parseStatements before parsing fresh input. Used by
-	// swallowForHead to surface the synthetic VAR decl for a
-	// `for (let x of …)` binding as a real scope-building child.
-	pendingStatements []*rhino.Node
-	// pendingCastDoc carries a JSDoc from a `/** @type {T} */ (expr)` cast
-	// expression detected in parsePrimaryExpression. tryDecl consumes it and hoists it
-	// onto the declaration node (with IsCastHoisted=true) so the scope
-	// creator can recover the cast type without attaching JSDoc to the inner
-	// expression (which would trigger JSC_MISPLACED_ANNOTATION).
-	pendingCastDoc *rhino.JSDocInfo
-	// inDeclInit is true while parsing the initializer expression of a
-	// var/let/const binding. parsePrimaryExpression only detects `/** @type {T} */ (expr)`
-	// casts when this is true, to avoid silently changing parse behaviour for
-	// casts in other contexts (return, assignment RHS, call args, etc.).
-	inDeclInit bool
+	scanner              *Scanner
+	errorReporter        ErrorReporter
+	config               *Parser_Config
+	commentRecorder      *Parser_CommentRecorder
+	functionContextStack []Parser_FunctionFlavor
+	features             *FeatureSet
+	lastSourcePosition   *SourcePosition
+	// Go-only: language-adapter — nil is Java null.
+	sourceMapURL *string
+
+	// Go-only: performance — the parse trees' ranges (see GetTreeLocation).
+	treeLocations jutil.Slab[SourceRange]
 }
 
-func Parse(src string) (n *rhino.Node, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("parse panic recovered: %v", r)
+// Parser_FunctionFlavor is Parser.FunctionFlavor: indicates the type of
+// function currently being parsed.
+type Parser_FunctionFlavor int32
+
+const (
+	Parser_FunctionFlavor_NORMAL Parser_FunctionFlavor = iota
+	Parser_FunctionFlavor_GENERATOR
+	Parser_FunctionFlavor_ASYNCHRONOUS
+	Parser_FunctionFlavor_ASYNCHRONOUS_GENERATOR
+)
+
+var parser_FunctionFlavor_names = [...]string{"NORMAL", "GENERATOR", "ASYNCHRONOUS", "ASYNCHRONOUS_GENERATOR"}
+
+// parser_FunctionFlavor_isGenerator is the Java field FunctionFlavor.isGenerator.
+var parser_FunctionFlavor_isGenerator = [...]bool{false, true, false, true}
+
+// Parser_FunctionFlavor_values is FunctionFlavor.values().
+//
+// Java: Parser.FunctionFlavor.values()
+func Parser_FunctionFlavor_values() []Parser_FunctionFlavor {
+	return []Parser_FunctionFlavor{
+		Parser_FunctionFlavor_NORMAL,
+		Parser_FunctionFlavor_GENERATOR,
+		Parser_FunctionFlavor_ASYNCHRONOUS,
+		Parser_FunctionFlavor_ASYNCHRONOUS_GENERATOR,
+	}
+}
+
+// Name is Enum.name().
+//
+// Java: Parser.FunctionFlavor.name()
+func (f Parser_FunctionFlavor) Name() string { return parser_FunctionFlavor_names[f] }
+
+// String is Enum.toString().
+//
+// Java: Parser.FunctionFlavor.toString()
+func (f Parser_FunctionFlavor) String() string { return f.Name() }
+
+// IsGenerator is the Java field FunctionFlavor.isGenerator.
+//
+// Java: field Parser.FunctionFlavor.isGenerator
+func (f Parser_FunctionFlavor) IsGenerator() bool { return parser_FunctionFlavor_isGenerator[f] }
+
+// NewParser constructs a Parser.
+//
+// Java: Parser(Config, ErrorReporter, SourceFile)
+func NewParser(config *Parser_Config, errorReporter ErrorReporter, source *SourceFile) *Parser {
+	p := &Parser{}
+	p.commentRecorder = NewParser_CommentRecorder(p)
+	p.functionContextStack = []Parser_FunctionFlavor{}
+	p.features = FeatureSet_BARE_MINIMUM
+	p.config = config
+	p.errorReporter = errorReporter
+	p.scanner = NewScanner(errorReporter, p.commentRecorder, source, 0)
+	p.functionContextStack = append(p.functionContextStack, Parser_FunctionFlavor_NORMAL)
+	p.lastSourcePosition = p.scanner.GetPosition()
+	return p
+}
+
+// Parser_Config is Parser.Config.
+type Parser_Config struct {
+	atLeast6           bool
+	atLeast8           bool
+	isStrictMode       bool
+	warnTrailingCommas bool
+}
+
+// Parser_Config_Mode is Parser.Config.Mode.
+type Parser_Config_Mode int32
+
+const (
+	Parser_Config_Mode_ES3 Parser_Config_Mode = iota
+	Parser_Config_Mode_ES5
+	Parser_Config_Mode_ES6_OR_ES7
+	Parser_Config_Mode_ES8_OR_GREATER
+)
+
+var parser_Config_Mode_names = [...]string{"ES3", "ES5", "ES6_OR_ES7", "ES8_OR_GREATER"}
+
+// Parser_Config_Mode_values is Mode.values().
+//
+// Java: Parser.Config.Mode.values()
+func Parser_Config_Mode_values() []Parser_Config_Mode {
+	return []Parser_Config_Mode{
+		Parser_Config_Mode_ES3,
+		Parser_Config_Mode_ES5,
+		Parser_Config_Mode_ES6_OR_ES7,
+		Parser_Config_Mode_ES8_OR_GREATER,
+	}
+}
+
+// Name is Enum.name().
+//
+// Java: Parser.Config.Mode.name()
+func (m Parser_Config_Mode) Name() string { return parser_Config_Mode_names[m] }
+
+// String is Enum.toString().
+//
+// Java: Parser.Config.Mode.toString()
+func (m Parser_Config_Mode) String() string { return m.Name() }
+
+// NewParser_Config constructs the default Config (ES8_OR_GREATER, sloppy).
+//
+// Java: Parser.Config()
+func NewParser_Config() *Parser_Config {
+	return NewParser_ConfigWithMode(Parser_Config_Mode_ES8_OR_GREATER /* isStrictMode= */, false)
+}
+
+// NewParser_ConfigWithMode constructs a Config.
+//
+// Java: Parser.Config(Mode, boolean)
+func NewParser_ConfigWithMode(mode Parser_Config_Mode, isStrictMode bool) *Parser_Config {
+	c := &Parser_Config{}
+	c.atLeast6 = !(mode == Parser_Config_Mode_ES3 || mode == Parser_Config_Mode_ES5)
+	c.atLeast8 = mode == Parser_Config_Mode_ES8_OR_GREATER
+	c.isStrictMode = isStrictMode
+
+	// Generally, we allow everything that is valid in any mode
+	// we only warn about things that are not represented in the AST.
+	c.warnTrailingCommas = mode == Parser_Config_Mode_ES3
+	return c
+}
+
+// Parser_SOURCE_MAPPING_URL_PREFIX is Parser.SOURCE_MAPPING_URL_PREFIX.
+const Parser_SOURCE_MAPPING_URL_PREFIX = "//# sourceMappingURL="
+
+// Parser_CommentRecorder is the inner class Parser.CommentRecorder.
+type Parser_CommentRecorder struct {
+	// Go-only: language-adapter — the enclosing Parser instance of the Java
+	// inner class.
+	this *Parser
+
+	comments               []*Comment
+	lastCommentEndPosition *SourcePosition
+}
+
+// NewParser_CommentRecorder constructs the comment recorder of parser.
+//
+// Java: Parser.CommentRecorder()
+func NewParser_CommentRecorder(this *Parser) *Parser_CommentRecorder {
+	return &Parser_CommentRecorder{this: this, comments: []*Comment{}}
+}
+
+// RecordComment records a comment the scanner passed.
+//
+// Java: Parser.CommentRecorder.recordComment(Comment.Type, SourceRange, String)
+func (c *Parser_CommentRecorder) RecordComment(type_ Comment_Type, range_ *SourceRange, value string) {
+	// If we rewind the token stream, the scanner might pass comments that we've already seen.
+	// Only record comments past the furthest comment end position we've seen.
+	// NB: this assumes the CommentRecorder is used for at most one source file.
+	if c.lastCommentEndPosition == nil || range_.End.Offset > c.lastCommentEndPosition.Offset {
+		value = jutil.StringTrim(value)
+		if strings.HasPrefix(value, Parser_SOURCE_MAPPING_URL_PREFIX) {
+			sourceMapURL := value[len(Parser_SOURCE_MAPPING_URL_PREFIX):]
+			c.this.sourceMapURL = &sourceMapURL
 		}
-	}()
-	p := &Parser{scanner: NewScanner(src)}
-	script := rhino.New(rhino.SCRIPT)
-	script.SetPos(1, 0)
-	p.parseStatements(script, 0)
-	return script, nil
+		c.comments = append(c.comments, NewComment(value, range_, type_))
+		c.lastCommentEndPosition = range_.End
+	}
 }
 
-// parseStatements fills parent with top-level / block statements until
-// EOF (if endTok == 0) or until a '}' is hit at the current depth.
-// Always makes forward progress: if neither tryStatement nor
-// SkipToStatementBoundary advances, the loop consumes one rune as a
-// safety valve to guarantee termination on malformed input (matches
-// the recovery intent of Java's Parser's error-resync path).
-func (p *Parser) parseStatements(parent *rhino.Node, endTok rune) {
+// GetComments builds the list of recorded comments.
+//
+// Java: Parser.CommentRecorder.getComments()
+func (c *Parser_CommentRecorder) GetComments() []*Comment {
+	return append([]*Comment{}, c.comments...)
+}
+
+// GetComments returns the comments of the source file.
+//
+// Java: Parser.getComments()
+func (p *Parser) GetComments() []*Comment {
+	return p.commentRecorder.GetComments()
+}
+
+// GetFeatures returns the language features used by the source file.
+//
+// Java: Parser.getFeatures()
+func (p *Parser) GetFeatures() *FeatureSet {
+	return p.features
+}
+
+// GetSourceMapURL returns the url provided by the sourceMappingURL if any
+// was found (nil otherwise).
+//
+// Java: Parser.getSourceMapURL()
+func (p *Parser) GetSourceMapURL() *string {
+	return p.sourceMapURL
+}
+
+// 14 Program
+
+// ParseProgram parses the whole source file.
+//
+// Java: Parser.parseProgram()
+func (p *Parser) ParseProgram() *ProgramTree {
+	// Go-only: language-adapter — Java catches the StackOverflowError of
+	// too-deep recursion here (`catch (Error e)`, reporting "Too deep
+	// recursion while parsing" and returning null) and rethrows any other
+	// Error. Go cannot recover from exhausting the goroutine stack (it is a
+	// fatal runtime error, and the default 1 GB limit is far beyond the
+	// JVM's), so only the rethrow path exists here.
+
+	// Set the start location at the beginning of the file rather than the beginning of the first
+	// token.  This ensures that it accounts for leading comments.
+	start := p.lastSourcePosition
+	sourceElements := p.ParseGlobalSourceElements()
+	p.Eat(TokenType_END_OF_FILE)
+	return NewProgramTree(p.GetTreeLocation(start), sourceElements, p.commentRecorder.GetComments())
+}
+
+// Java: Parser.parseGlobalSourceElements()
+func (p *Parser) ParseGlobalSourceElements() []ParseTree {
+	result := []ParseTree{}
+
+	for !p.Peek(TokenType_END_OF_FILE) {
+		result = append(result, p.ParseScriptElement())
+	}
+
+	return result
+}
+
+// ParseScriptElement parses an ImportDeclaration, ExportDeclaration or
+// SourceElement.
+//
+// Java: Parser.parseScriptElement()
+func (p *Parser) ParseScriptElement() ParseTree {
+	if p.PeekImportDeclaration() {
+		return p.ParseImportDeclaration()
+	}
+
+	if p.PeekExportDeclaration() {
+		return p.ParseExportDeclaration()
+	}
+
+	return p.ParseSourceElement()
+}
+
+// Java: Parser.peekImportDeclaration()
+func (p *Parser) PeekImportDeclaration() bool {
+	return p.Peek(TokenType_IMPORT) &&
+		(p.PeekIdOrKeywordAt(1) ||
+			p.PeekAt(1, TokenType_STRING) ||
+			p.PeekAt(1, TokenType_OPEN_CURLY) ||
+			p.PeekAt(1, TokenType_STAR))
+}
+
+// Java: Parser.parseImportDeclaration()
+func (p *Parser) ParseImportDeclaration() ParseTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_IMPORT)
+
+	// import ModuleSpecifier ;
+	if p.Peek(TokenType_STRING) {
+		moduleSpecifier := p.Eat(TokenType_STRING).AsLiteral()
+		p.EatPossiblyImplicitSemiColon()
+
+		return NewImportDeclarationTree(p.GetTreeLocation(start), nil, nil, nil, moduleSpecifier)
+	}
+
+	// import ImportedDefaultBinding from ModuleSpecifier
+	// import NameSpaceImport from ModuleSpecifier
+	// import NamedImports from ModuleSpecifier ;
+	// import ImportedDefaultBinding , NameSpaceImport from ModuleSpecifier ;
+	// import ImportedDefaultBinding , NamedImports from ModuleSpecifier ;
+	var defaultBindingIdentifier *IdentifierToken
+	var nameSpaceImportIdentifier *IdentifierToken
+	var identifierSet []ParseTree
+
+	parseExplicitNames := true
+	if p.PeekId() {
+		defaultBindingIdentifier = p.EatId()
+		if p.Peek(TokenType_COMMA) {
+			p.Eat(TokenType_COMMA)
+		} else {
+			parseExplicitNames = false
+		}
+	} else if Keywords_IsKeywordTokenType(p.PeekType()) {
+		keyword := p.NextToken()
+		p.ReportErrorAtToken(keyword, "cannot use keyword '%s' here.", keyword)
+	}
+
+	if parseExplicitNames {
+		if p.Peek(TokenType_STAR) {
+			p.Eat(TokenType_STAR)
+			p.EatPredefinedString(PredefinedName_AS)
+			nameSpaceImportIdentifier = p.EatId()
+		} else {
+			identifierSet = p.ParseImportSpecifierSet()
+		}
+	}
+
+	p.EatPredefinedString(PredefinedName_FROM)
+	moduleStr := p.Eat(TokenType_STRING)
+	var moduleSpecifier LiteralToken
+	if moduleStr != nil {
+		moduleSpecifier = moduleStr.AsLiteral()
+	}
+	p.EatPossiblyImplicitSemiColon()
+
+	return NewImportDeclarationTree(
+		p.GetTreeLocation(start),
+		defaultBindingIdentifier,
+		identifierSet,
+		nameSpaceImportIdentifier,
+		moduleSpecifier)
+}
+
+// ParseImportSpecifierSet parses
+// ImportSpecifierSet ::= '{' (ImportSpecifier (',' ImportSpecifier)* (,)? )?  '}'
+//
+// Java: Parser.parseImportSpecifierSet()
+func (p *Parser) ParseImportSpecifierSet() []ParseTree {
+	elements := []ParseTree{}
+	p.Eat(TokenType_OPEN_CURLY)
+	for p.PeekIdOrKeyword() {
+		elements = append(elements, p.ParseImportSpecifier())
+		if !p.Peek(TokenType_CLOSE_CURLY) {
+			p.Eat(TokenType_COMMA)
+		}
+	}
+	p.Eat(TokenType_CLOSE_CURLY)
+	return elements
+}
+
+// ParseImportSpecifier parses ImportSpecifier ::= Identifier ('as' Identifier)?
+//
+// Java: Parser.parseImportSpecifier()
+func (p *Parser) ParseImportSpecifier() ParseTree {
+	start := p.GetTreeStartLocation()
+	importedName := p.EatIdOrKeywordAsId()
+	var destinationName *IdentifierToken
+	if p.PeekPredefinedString(PredefinedName_AS) {
+		p.EatPredefinedString(PredefinedName_AS)
+		destinationName = p.EatId()
+	} else if importedName.IsKeyword() {
+		p.ReportExpectedError(nil, PredefinedName_AS)
+	}
+	return NewImportSpecifierTree(p.GetTreeLocation(start), importedName, destinationName)
+}
+
+// export  VariableStatement
+// export  FunctionDeclaration
+// export  ConstStatement
+// export  ClassDeclaration
+// export  default expression
+// etc
+
+// Java: Parser.peekExportDeclaration()
+func (p *Parser) PeekExportDeclaration() bool {
+	return p.Peek(TokenType_EXPORT)
+}
+
+/*
+ExportDeclaration :
+
+	export * FromClause ;
+	export ExportClause [NoReference] FromClause ;
+	export ExportClause ;
+	export VariableStatement
+	export Declaration[Default]
+	export default AssignmentExpression ;
+
+ExportClause [NoReference] :
+
+	{ }
+	{ ExportsList [?NoReference] }
+	{ ExportsList [?NoReference] , }
+
+ExportsList [NoReference] :
+
+	ExportSpecifier [?NoReference]
+	ExportsList [?NoReference] , ExportSpecifier [?NoReference]
+
+ExportSpecifier [NoReference] :
+
+	[~NoReference] IdentifierReference
+	[~NoReference] IdentifierReference as IdentifierName
+	[+NoReference] IdentifierName
+	[+NoReference] IdentifierName as IdentifierName
+*/
+
+// Java: Parser.parseExportDeclaration()
+func (p *Parser) ParseExportDeclaration() ParseTree {
+	start := p.GetTreeStartLocation()
+	isDefault := false
+	isExportAll := false
+	isExportSpecifier := false
+	needsSemiColon := true
+	p.Eat(TokenType_EXPORT)
+	var export ParseTree
+	var exportSpecifierList []ParseTree
+	switch p.PeekType() {
+	case TokenType_STAR:
+		isExportAll = true
+		p.NextToken()
+	case TokenType_IDENTIFIER:
+		export = p.ParseAsyncFunctionDeclaration()
+	case TokenType_FUNCTION:
+		export = p.ParseFunctionDeclaration()
+		needsSemiColon = false
+	case TokenType_CLASS:
+		export = p.ParseClassDeclaration()
+		needsSemiColon = false
+	case TokenType_DEFAULT:
+		isDefault = true
+		p.NextToken()
+		export = p.ParseExpression()
+		needsSemiColon = false
+	case TokenType_OPEN_CURLY:
+		isExportSpecifier = true
+		exportSpecifierList = p.ParseExportSpecifierSet()
+	case TokenType_VAR, TokenType_LET, TokenType_CONST:
+		fallthrough
+	default: // unreachable, parse as a var decl to get a parse error.
+		export = variableDeclarationListAsParseTree(p.ParseVariableDeclarationList())
+	}
+
+	var moduleSpecifier LiteralToken
+	if isExportAll || (isExportSpecifier && p.PeekPredefinedString(PredefinedName_FROM)) {
+		p.EatPredefinedString(PredefinedName_FROM)
+		if token := p.Eat(TokenType_STRING); token != nil {
+			moduleSpecifier = token.(LiteralToken)
+		}
+	} else if isExportSpecifier {
+		for _, tree := range exportSpecifierList {
+			importedName := tree.AsExportSpecifier().ImportedName
+			if importedName.IsKeyword() {
+				p.ReportErrorAtToken(identifierTokenAsToken(importedName), "cannot use keyword '%s' here.", importedName)
+			}
+		}
+	}
+
+	if needsSemiColon || p.PeekImplicitSemiColon() {
+		p.EatPossiblyImplicitSemiColon()
+	}
+
+	return NewExportDeclarationTree(
+		p.GetTreeLocation(start),
+		isDefault,
+		isExportAll,
+		export,
+		exportSpecifierList,
+		moduleSpecifier)
+}
+
+// ParseExportSpecifierSet parses
+// ExportSpecifierSet ::= '{' (ExportSpecifier (',' ExportSpecifier)* (,)? )?  '}'
+//
+// Java: Parser.parseExportSpecifierSet()
+func (p *Parser) ParseExportSpecifierSet() []ParseTree {
+	elements := []ParseTree{}
+	p.Eat(TokenType_OPEN_CURLY)
+	for p.PeekIdOrKeyword() {
+		elements = append(elements, p.ParseExportSpecifier())
+		if !p.Peek(TokenType_CLOSE_CURLY) {
+			p.Eat(TokenType_COMMA)
+		}
+	}
+	p.Eat(TokenType_CLOSE_CURLY)
+	return elements
+}
+
+// ParseExportSpecifier parses ExportSpecifier ::= Identifier ('as' Identifier)?
+//
+// Java: Parser.parseExportSpecifier()
+func (p *Parser) ParseExportSpecifier() ParseTree {
+	start := p.GetTreeStartLocation()
+	importedName := p.EatIdOrKeywordAsId()
+	var destinationName *IdentifierToken
+	if p.PeekPredefinedString(PredefinedName_AS) {
+		p.EatPredefinedString(PredefinedName_AS)
+		destinationName = p.EatIdOrKeywordAsId()
+	}
+	return NewExportSpecifierTree(p.GetTreeLocation(start), importedName, destinationName)
+}
+
+// Java: Parser.peekClassDeclaration()
+func (p *Parser) PeekClassDeclaration() bool {
+	return p.Peek(TokenType_CLASS)
+}
+
+// Java: Parser.parseClassDeclaration()
+func (p *Parser) ParseClassDeclaration() ParseTree {
+	return p.ParseClass( /* isExpression= */ false)
+}
+
+// Java: Parser.parseClassExpression()
+func (p *Parser) ParseClassExpression() ParseTree {
+	return p.ParseClass( /* isExpression= */ true)
+}
+
+// Java: Parser.parseClass(boolean)
+func (p *Parser) ParseClass(isExpression bool) ParseTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_CLASS)
+	var name *IdentifierToken
+	if !isExpression || p.PeekId() {
+		name = p.EatId()
+	}
+
+	var superClass ParseTree
+	if p.Peek(TokenType_EXTENDS) {
+		p.Eat(TokenType_EXTENDS)
+		superClass = p.ParseLeftHandSideExpression()
+	}
+
+	p.Eat(TokenType_OPEN_CURLY)
+	elements := p.ParseClassElements()
+	p.Eat(TokenType_CLOSE_CURLY)
+	return NewClassDeclarationTree(p.GetTreeLocation(start), name, superClass, elements)
+}
+
+// Java: Parser.parseClassElements()
+func (p *Parser) ParseClassElements() []ParseTree {
+	result := []ParseTree{}
 	for {
-		p.scanner.SkipTrivia()
-		if p.scanner.AtEnd() {
-			return
-		}
-		if endTok != 0 && p.scanner.Peek() == endTok {
-			return
-		}
-		start := p.scanner.Pos()
-		stmt, ok := p.tryStatement()
-		if ok && stmt != nil {
-			parent.AddChildToBack(stmt)
+		token := p.PeekToken()
+		if token.GetTokenBase().Type == TokenType_SEMI_COLON {
+			p.Eat(TokenType_SEMI_COLON)
 			continue
+		} else {
+			if p.IsClassElementStart(token) {
+			} else {
+				return result
+			}
 		}
-		if p.scanner.Pos() == start {
-			p.scanner.SkipToStatementBoundary()
-		}
-		if p.scanner.Pos() == start {
-			// Hard-stuck (e.g. a bare `}` at depth zero). Advance one
-			// rune so the loop always makes progress.
-			p.scanner.Advance()
-		}
+		result = append(result, p.ParseClassElement())
 	}
 }
 
-// mergeSuppressions copies every @suppress name from `src` into
-// `dst`. Used to propagate stacked-JSDoc suppressions onto the
-// statement that ultimately owns them, even when another block
-// in the stack "wins" the primary attachment.
-// Go-only: language-adapter — JSDoc suppression merging lives in JsDocInfoParser in Java; Go expresses it as a standalone helper since JSDocInfo is a value type here.
-func mergeSuppressions(dst, src *rhino.JSDocInfo) {
-	for _, name := range []string{"missingProperties", "checkTypes", "duplicate", "undefinedVars", "missingReturn"} {
-		if src.HasSuppression(name) && !dst.HasSuppression(name) {
-			dst.AddSuppression(name)
-		}
-	}
-}
-
-// jsdocCarriesMoreInfo reports whether `b` should displace `a` as the
-// JSDoc attached to the next statement. Priority: declaration-shaped
-// tags (@interface, @constructor, @record, @extends) beat plain
-// type / param tags. Matches Closure's "the last declaration comment
-// wins" heuristic when multiple JSDoc blocks precede a single decl.
-// jsdocHasFunctionAnnotation reports whether the JSDocInfo carries a
-// function-bearing annotation — used to distinguish inline @param tags on
-// argument functions from pure @type casts like `/** @type {Foo} */ (x)`.
-// Go-only: language-adapter — Java uses JsDocInfoParser utility methods for tag inspection; Go expresses the same check as a plain function since JSDocInfo is a struct.
-func jsdocHasFunctionAnnotation(info *rhino.JSDocInfo) bool {
-	if info == nil {
-		return false
-	}
-	return info.IsConstructor() || info.IsInterface() || info.IsRecord() ||
-		len(info.ParameterNames()) > 0 || info.ReturnType() != nil
-}
-
-// Go-only: language-adapter — Java's "last declaration comment wins" heuristic is implicit in IRFactory's comment-attachment loop; Go makes it explicit because we accumulate multiple JSDoc blocks before dispatching.
-func jsdocCarriesMoreInfo(b, a *rhino.JSDocInfo) bool {
-	decl := func(i *rhino.JSDocInfo) bool {
-		return i.IsConstructor() || i.IsInterface() || i.IsRecord() || i.BaseType() != nil
-	}
-	if decl(b) && !decl(a) {
+// Java: Parser.isClassElementStart(Token)
+func (p *Parser) IsClassElementStart(token Token) bool {
+	switch token.GetTokenBase().Type {
+	case TokenType_IDENTIFIER, TokenType_NUMBER, TokenType_BIGINT, TokenType_STAR, TokenType_STATIC, TokenType_STRING, TokenType_OPEN_SQUARE:
 		return true
-	}
-	return false
-}
-
-// tryStatement attempts one statement. Returns (stmt, true) on success
-// or (nil, false) otherwise; in either case p.scanner.Pos() is left past the
-// consumed input (or rewound on speculative failures).
-// Go-only: language-adapter — try-based dispatch combining parseStatementStandard + peekStatement (Java has separate methods; Go unifies due to no overloading).
-func (p *Parser) tryStatement() (*rhino.Node, bool) {
-	var jsdoc *rhino.JSDocInfo
-	// Consume any number of back-to-back block comments. When a
-	// JSDoc carries declaration-shaped tags (@interface, @extends,
-	// @constructor, @param, @return), that's the one that attaches
-	// to the following statement — ignore earlier stray JSDocs
-	// which Java silently drops in the same scenario.
-	for {
-		commentLine := p.scanner.Line()
-		body, ok := p.scanner.ConsumeBlockComment()
-		if !ok {
-			break
-		}
-		parsed := parsing.ParseJSDocInfo(body, commentLine)
-		if parsed != nil {
-			if jsdoc == nil {
-				jsdoc = parsed
-			} else if jsdocCarriesMoreInfo(parsed, jsdoc) {
-				mergeSuppressions(parsed, jsdoc)
-				jsdoc = parsed
-			} else {
-				// Losing block still contributes its @suppress
-				// entries — @fileoverview comments typically carry
-				// these and must not be dropped silently.
-				mergeSuppressions(jsdoc, parsed)
-			}
-		}
-		p.scanner.SkipTrivia()
-	}
-
-	// Capture the `function` / `class` keyword's position so the
-	// resulting FUNCTION / CLASS node has a stable lineno/charno
-	// matching Java (passes like SuperclassCheck report at the
-	// declaration's start column).
-	kwLine, kwCol := p.scanner.Line(), p.scanner.Col()
-	if p.scanner.ConsumeKeyword("function") {
-		fn, ok := p.finishFunction(jsdoc)
-		if fn != nil {
-			fn.SetPos(kwLine, kwCol)
-		}
-		return fn, ok
-	}
-	if p.scanner.ConsumeKeyword("class") {
-		cls, ok := p.finishClass(jsdoc)
-		if cls != nil {
-			cls.SetPos(kwLine, kwCol)
-		}
-		return cls, ok
-	}
-	if declToken, ok := p.consumeDeclKeyword(); ok {
-		return p.finishDeclStatement(declToken, jsdoc, kwLine, kwCol)
-	}
-	if p.scanner.ConsumeKeyword("return") {
-		ret := p.parseReturnStatement()
-		// Position RETURN at the `return` keyword. Java's IRFactory does
-		// the same via ReturnStatementTree.location.start.
-		ret.SetPos(kwLine, kwCol)
-		return ret, true
-	}
-	if p.scanner.ConsumeKeyword("if") {
-		ifNode := p.parseIfStatement()
-		if ifNode != nil {
-			// Position the IF at the `if` keyword (Java's IRFactory
-			// uses the IfStatementTree's location.start). The legacy
-			// parser captured the position AFTER ConsumeKeyword, so
-			// override with the kw position recorded above.
-			ifNode.SetPos(kwLine, kwCol)
-		}
-		return ifNode, true
-	}
-	if p.scanner.ConsumeKeyword("while") {
-		return p.parseWhileStatement(), true
-	}
-	if p.scanner.ConsumeKeyword("do") {
-		return p.parseDoWhileStatement(), true
-	}
-	if p.scanner.ConsumeKeyword("for") {
-		return p.parseForStatement(), true
-	}
-	if p.scanner.ConsumeKeyword("switch") {
-		return p.parseSwitchStatement(), true
-	}
-	if p.scanner.ConsumeKeyword("try") {
-		return p.parseTryStatement(), true
-	}
-	if p.scanner.ConsumeKeyword("throw") {
-		return p.parseThrowStatement(), true
-	}
-	if p.scanner.ConsumeKeyword("break") {
-		return p.finishBreakContinue(rhino.BREAK), true
-	}
-	if p.scanner.ConsumeKeyword("continue") {
-		return p.finishBreakContinue(rhino.CONTINUE), true
-	}
-	if p.scanner.ConsumeKeyword("debugger") {
-		return p.parseDebuggerStatement(kwLine, kwCol), true
-	}
-	// Labeled statement: `IDENT : STMT`. Speculative — rewinds if the
-	// cursor doesn't end up at a label colon.
-	if stmt, ok := p.parseLabelledStatement(jsdoc); ok {
-		return stmt, true
-	}
-
-	// JSDoc may also annotate an expression statement (most commonly
-	// `/** @type {T} */ this.x = …;`). Try the same statement forms,
-	// attaching the comment to the inner ASSIGN/CALL/NEW so the scope
-	// creator can pick it up.
-	if stmt, ok := p.tryCallOrAssignStatement(); ok {
-		if jsdoc != nil {
-			attachJSDocToInner(stmt, jsdoc)
-		}
-		return stmt, true
-	}
-	if stmt, ok := p.parseExpressionStatement(); ok {
-		if jsdoc != nil {
-			attachJSDocToInner(stmt, jsdoc)
-		}
-		return stmt, true
-	}
-	if jsdoc != nil {
-		p.scanner.SkipToStatementBoundary()
-		return nil, false
-	}
-	return nil, false
-}
-
-// attachJSDocToInner places the JSDocInfo on the immediately wrapped
-// ASSIGN/CALL/NEW, matching how Closure attaches JSDoc to the operative
-// node rather than the EXPR_RESULT wrapper.
-// Go-only: language-adapter — Java's IRFactory attaches JSDoc during tree construction; Go separates the attachment step because the parser and IRFactory are unified here.
-func attachJSDocToInner(stmt *rhino.Node, info *rhino.JSDocInfo) {
-	if stmt.Token() == rhino.EXPR_RESULT {
-		if inner := stmt.FirstChild(); inner != nil {
-			inner.SetJSDocInfo(info)
-			return
-		}
-	}
-	stmt.SetJSDocInfo(info)
-}
-
-// parseExpressionStatement wraps any expression followed by `;` into an
-// EXPR_RESULT. Covers forms the IDENT-first speculative
-// tryCallOrAssignStatement can't see — notably `new Foo(args);`.
-func (p *Parser) parseExpressionStatement() (*rhino.Node, bool) {
-	save := p.scanner.Save()
-	rewind := func() {
-		p.scanner.Restore(save)
-	}
-	exprLine, exprCol := p.scanner.Line(), p.scanner.Col()
-	expr, ok := p.parseExpression()
-	if !ok {
-		rewind()
-		return nil, false
-	}
-	p.scanner.SkipTrivia()
-	// Normal form: `expr;`. Java's Parser also handles ASI — a newline
-	// or EOF / `}` closes the statement without a literal semicolon.
-	// We accept the same lax terminators so single-line fixtures like
-	// `'foo' in Object` surface as statements.
-	if !p.scanner.ConsumeByte(';') {
-		if !p.scanner.AtEnd() && p.scanner.Peek() != '}' {
-			rewind()
-			return nil, false
-		}
-	}
-	stmt := rhino.New(rhino.EXPR_RESULT)
-	stmt.SetPos(exprLine, exprCol)
-	stmt.AddChildToBack(expr)
-	return stmt, true
-}
-
-// Go-only: language-adapter — combines parseFunctionDeclaration + parseClassDeclaration + parseVariableStatement (Java has separate overloads; Go unifies).
-func (p *Parser) finishDeclStatement(declToken rhino.Token, jsdoc *rhino.JSDocInfo, kwLine, kwCol int) (*rhino.Node, bool) {
-	declNode := rhino.New(declToken)
-	declNode.SetPos(kwLine, kwCol)
-	if jsdoc != nil {
-		declNode.SetJSDocInfo(jsdoc)
-	}
-
-	p.scanner.SkipTrivia()
-	// Inline JSDoc between the decl keyword and the first name —
-	// `var /** null */ n = …;` or `var /** @type {!Date} */ n = …`.
-	// Java: the per-binding annotation belongs to the first NAME
-	// only (not shared across all bindings). We capture it here
-	// and attach it to the first NAME node below; that way
-	// JSC_MULTIPLE_VAR_DEF is not triggered for single-type
-	// multi-binding forms like `var /** @type {T} */ a, b`.
-	var firstNameInlineDoc *rhino.JSDocInfo
-	if body, ok := p.scanner.ConsumeBlockComment(); ok {
-		if inline := parseInlineTypeJSDoc(body); inline != nil {
-			firstNameInlineDoc = inline
-		} else if full := parsing.ParseJSDocInfo(body, p.scanner.Line()); full != nil && full.HasType() {
-			firstNameInlineDoc = full
-		}
-		p.scanner.SkipTrivia()
-	}
-	// One iteration per comma-separated binding. Matches Java's
-	// parseVariableDeclarationList loop.
-	for {
-		nameLine, nameCol := p.scanner.Line(), p.scanner.Col()
-		ident, ok := p.scanner.ConsumeIdent()
-		if !ok {
-			p.scanner.SkipToStatementBoundary()
-			return nil, false
-		}
-		nameNode := rhino.NewString(rhino.NAME, ident)
-		nameNode.SetPos(nameLine, nameCol)
-		// Attach the inline JSDoc to the first NAME node only.
-		// We deliberately do NOT propagate it to the VAR/declNode
-		// because that would cause JSC_MULTIPLE_VAR_DEF to fire
-		// for multi-binding declarations like
-		// `var /** @type {T} */ a = 1, b = 2`. The scope creator
-		// (recordOneDecl) consults name.JSDocInfo() as well as
-		// v.JSDocInfo() to find the per-binding type annotation.
-		// The firstNameInlineDoc is also reused for subsequent bindings
-		// when a per-binding inline JSDoc follows `,`.
-		if firstNameInlineDoc != nil {
-			nameNode.SetJSDocInfo(firstNameInlineDoc)
-			firstNameInlineDoc = nil // consume: only applies to this binding
-		}
-		declNode.AddChildToBack(nameNode)
-
-		p.scanner.SkipTrivia()
-		if p.scanner.ConsumeByte('=') {
-			if !p.scanner.AtEnd() && p.scanner.Peek() == '=' {
-				p.scanner.SkipToStatementBoundary()
-				return declNode, true
-			}
-			p.scanner.SkipTrivia()
-			initLine, initCol := p.scanner.Line(), p.scanner.Col()
-			p.pendingCastDoc = nil // clear before parsing init
-			p.inDeclInit = true
-			init, ok := p.parseExpression()
-			p.inDeclInit = false
-			if !ok {
-				p.scanner.SkipToStatementBoundary()
-				return declNode, true
-			}
-			// Preserve the CAST node's own position (the `(` character)
-			// set by parsePrimaryExpression; SetPos would overwrite it with the
-			// position of the leading /** comment. Mirrors Java behaviour
-			// where the CAST node carries the paren position.
-			if init.Token() != rhino.CAST {
-				init.SetPos(initLine, initCol)
-			}
-			nameNode.AddChildToBack(init)
-			// `const foo = /** @type {T} */ (expr)` — the init is a CAST node
-			// when parsePrimaryExpression detected `/** @type {T} */ (expr)`.
-			// Hoist the CAST's JSDocInfo to the declaration so the scope creator
-			// can resolve the ReadonlyArray or other cast type.
-			if init.Token() == rhino.CAST {
-				if castDoc := init.JSDocInfo(); castDoc != nil && castDoc.HasType() {
-					hoisted := *castDoc // copy
-					hoisted.SetCastHoisted(true)
-					nameNode.SetJSDocInfo(&hoisted)
-					if declNode.JSDocInfo() == nil {
-						declNode.SetJSDocInfo(&hoisted)
-					}
-				}
-			} else if castDoc := p.pendingCastDoc; castDoc != nil {
-				// Legacy path for pendingCastDoc (should be dead, but keep for safety).
-				p.pendingCastDoc = nil
-				castDoc.SetCastHoisted(true)
-				nameNode.SetJSDocInfo(castDoc)
-				if declNode.JSDocInfo() == nil {
-					declNode.SetJSDocInfo(castDoc)
-				}
-			}
-		}
-		p.scanner.SkipTrivia()
-		if !p.scanner.ConsumeByte(',') {
-			break
-		}
-		p.scanner.SkipTrivia()
-		// Per-binding inline JSDoc after `,` — `var a, /** @type {T} */ b`.
-		// Java: each binding can have its own inline type annotation.
-		// Reuse firstNameInlineDoc as the "current binding" inline doc
-		// for the next iteration.
-		if body, ok := p.scanner.ConsumeBlockComment(); ok {
-			if inline := parseInlineTypeJSDoc(body); inline != nil {
-				firstNameInlineDoc = inline
-			} else if full := parsing.ParseJSDocInfo(body, p.scanner.Line()); full != nil && full.HasType() {
-				firstNameInlineDoc = full
-			} else {
-				firstNameInlineDoc = nil
-			}
-			p.scanner.SkipTrivia()
-		} else {
-			firstNameInlineDoc = nil
-		}
-	}
-	sawNewline := p.scanner.Line() != p.scanner.LastTokenLine()
-	if !p.scanner.ConsumeByte(';') {
-		// ASI (ES5 §7.9): if we're at EOF / `}` / saw a newline
-		// before the next token, treat the VAR as terminated.
-		// Otherwise we're mid-statement and recovery is needed.
-		if sawNewline || p.scanner.AtEnd() || p.scanner.Peek() == '}' {
-			return declNode, true
-		}
-		p.scanner.SkipToStatementBoundary()
-	}
-	return declNode, true
-}
-
-// parseParameter parses a single formal parameter, which may be:
-//   - a plain identifier (optionally with a leading inline JSDoc)
-//   - `...ident` rest parameter (ITER_REST child)
-//   - `[a, b]` array-destructuring pattern (ARRAY_PATTERN child)
-//   - `{a, b}` object-destructuring pattern (OBJECT_PATTERN child)
-//   - any of the above followed by `= default` (wrapped in DEFAULT_VALUE)
-//
-// Returns (node, isRest, ok). Mirrors Java's Parser.parseParameter.
-func (p *Parser) parseParameter(inlineInfo *rhino.JSDocInfo) (pNode *rhino.Node, isRest bool, ok bool) {
-	pLine, pCol := p.scanner.Line(), p.scanner.Col()
-	// Rest parameter: `...ident` or `...[a,b]` / `...{a,b}`
-	if p.scanner.Peek() == '.' && p.scanner.PeekAt(1) == '.' && p.scanner.PeekAt(2) == '.' {
-		p.scanner.Advance()
-		p.scanner.Advance()
-		p.scanner.Advance()
-		p.scanner.SkipTrivia()
-		inner, innerOk := p.parsePatternOrIdent()
-		if !innerOk {
-			return nil, false, false
-		}
-		rest := rhino.New(rhino.ITER_REST)
-		rest.SetPos(pLine, pCol)
-		rest.AddChildToBack(inner)
-		return rest, true, true
-	}
-	// Array or object destructuring pattern.
-	if p.scanner.Peek() == '[' || p.scanner.Peek() == '{' {
-		pat, patOk := p.parsePatternOrIdent()
-		if !patOk {
-			return nil, false, false
-		}
-		pNode = pat
-	} else {
-		// Plain identifier.
-		pname, identOk := p.scanner.ConsumeIdent()
-		if !identOk {
-			return nil, false, false
-		}
-		pNode = rhino.NewString(rhino.NAME, pname)
-		pNode.SetPos(pLine, pCol)
-		if inlineInfo != nil {
-			pNode.SetJSDocInfo(inlineInfo)
-		}
-	}
-	// Default value: `param = expr`. For plain NAME params, consume and
-	// discard the default — the downstream checker is not yet DEFAULT_VALUE-
-	// aware and would misidentify the param. For destructuring patterns,
-	// emit DEFAULT_VALUE so pattern and default are both visible in the AST.
-	p.scanner.SkipTrivia()
-	if !p.scanner.AtEnd() && p.scanner.Peek() == '=' && p.scanner.PeekAt(1) != '=' && p.scanner.PeekAt(1) != '>' {
-		p.scanner.Advance() // '='
-		p.scanner.SkipTrivia()
-		dflt, dfltOk := p.parseAssignment()
-		if !dfltOk {
-			return pNode, false, true // keep param without default on failure
-		}
-		// Only wrap in DEFAULT_VALUE when pNode is a pattern — for plain
-		// NAME params the checker extracts the name directly, so just emit NAME.
-		if pNode.Token() == rhino.ARRAY_PATTERN || pNode.Token() == rhino.OBJECT_PATTERN {
-			dv := rhino.New(rhino.DEFAULT_VALUE)
-			dv.SetPos(pLine, pCol)
-			dv.AddChildToBack(pNode)
-			dv.AddChildToBack(dflt)
-			pNode = dv
-		}
-		_ = dflt // discard for NAME params
-	}
-	return pNode, false, true
-}
-
-// parsePatternOrIdent parses `[a, b, ...rest]` (ARRAY_PATTERN),
-// `{a, b: c, ...rest}` (OBJECT_PATTERN), or a plain identifier NAME.
-// Used for destructuring targets in param lists and decl statements.
-// Go-only: language-adapter — unifies identifier and destructuring pattern parsing (Java has separate overloads; Go uses one try path).
-func (p *Parser) parsePatternOrIdent() (*rhino.Node, bool) {
-	pLine, pCol := p.scanner.Line(), p.scanner.Col()
-	if p.scanner.Peek() == '[' {
-		return p.parseArrayPattern(pLine, pCol)
-	}
-	if p.scanner.Peek() == '{' {
-		return p.parseObjectPattern(pLine, pCol)
-	}
-	ident, ok := p.scanner.ConsumeIdent()
-	if !ok {
-		return nil, false
-	}
-	n := rhino.NewString(rhino.NAME, ident)
-	n.SetPos(pLine, pCol)
-	return n, true
-}
-
-// parseArrayPattern parses `[a, b = dflt, ...rest]` → ARRAY_PATTERN.
-// Mirrors Java's parseArrayPattern. The opening `[` must be at cursor.
-func (p *Parser) parseArrayPattern(startLine, startCol int) (*rhino.Node, bool) {
-	p.scanner.Advance() // '['
-	pat := rhino.New(rhino.ARRAY_PATTERN)
-	pat.SetPos(startLine, startCol)
-	for {
-		p.scanner.SkipTrivia()
-		if p.scanner.AtEnd() {
-			return pat, true
-		}
-		if p.scanner.Peek() == ']' {
-			p.scanner.Advance()
-			return pat, true
-		}
-		// Elision (hole): `,` without element
-		if p.scanner.Peek() == ',' {
-			hole := rhino.New(rhino.UNDEFINED)
-			hole.SetPos(p.scanner.Line(), p.scanner.Col())
-			pat.AddChildToBack(hole)
-			p.scanner.Advance()
-			continue
-		}
-		// Rest element: `...ident`
-		if p.scanner.Peek() == '.' && p.scanner.PeekAt(1) == '.' && p.scanner.PeekAt(2) == '.' {
-			rLine, rCol := p.scanner.Line(), p.scanner.Col()
-			p.scanner.Advance(); p.scanner.Advance(); p.scanner.Advance()
-			p.scanner.SkipTrivia()
-			inner, ok := p.parsePatternOrIdent()
-			if !ok {
-				return pat, true
-			}
-			rest := rhino.New(rhino.ITER_REST)
-			rest.SetPos(rLine, rCol)
-			rest.AddChildToBack(inner)
-			pat.AddChildToBack(rest)
-			p.scanner.SkipTrivia()
-			p.scanner.ConsumeByte(']')
-			return pat, true
-		}
-		el, ok := p.parsePatternOrIdent()
-		if !ok {
-			return nil, false
-		}
-		// Default value on element: `[a = 1]`
-		p.scanner.SkipTrivia()
-		if !p.scanner.AtEnd() && p.scanner.Peek() == '=' && p.scanner.PeekAt(1) != '=' {
-			p.scanner.Advance()
-			p.scanner.SkipTrivia()
-			dflt, dfltOk := p.parseAssignment()
-			if dfltOk {
-				dv := rhino.New(rhino.DEFAULT_VALUE)
-				dv.SetPos(el.Lineno(), el.Charno())
-				dv.AddChildToBack(el)
-				dv.AddChildToBack(dflt)
-				el = dv
-			}
-		}
-		pat.AddChildToBack(el)
-		p.scanner.SkipTrivia()
-		if p.scanner.ConsumeByte(',') {
-			continue
-		}
-	}
-}
-
-// parseObjectPattern parses `{a, b: c, d = dflt, ...rest}` → OBJECT_PATTERN.
-// Mirrors Java's parseObjectPattern. The opening `{` must be at cursor.
-func (p *Parser) parseObjectPattern(startLine, startCol int) (*rhino.Node, bool) {
-	p.scanner.Advance() // '{'
-	pat := rhino.New(rhino.OBJECT_PATTERN)
-	pat.SetPos(startLine, startCol)
-	for {
-		p.scanner.SkipTrivia()
-		if p.scanner.AtEnd() {
-			return pat, true
-		}
-		if p.scanner.Peek() == '}' {
-			p.scanner.Advance()
-			return pat, true
-		}
-		// Rest property: `...ident`
-		if p.scanner.Peek() == '.' && p.scanner.PeekAt(1) == '.' && p.scanner.PeekAt(2) == '.' {
-			rLine, rCol := p.scanner.Line(), p.scanner.Col()
-			p.scanner.Advance(); p.scanner.Advance(); p.scanner.Advance()
-			p.scanner.SkipTrivia()
-			inner, ok := p.parsePatternOrIdent()
-			if !ok {
-				return pat, true
-			}
-			rest := rhino.New(rhino.OBJECT_REST)
-			rest.SetPos(rLine, rCol)
-			rest.AddChildToBack(inner)
-			pat.AddChildToBack(rest)
-			p.scanner.SkipTrivia()
-			p.scanner.ConsumeByte('}')
-			return pat, true
-		}
-		fLine, fCol := p.scanner.Line(), p.scanner.Col()
-		// Property name (identifier or string key)
-		var keyName string
-		c := p.scanner.Peek()
-		if c == '\'' || c == '"' {
-			p.scanner.Advance()
-			start := p.scanner.Pos()
-			for !p.scanner.AtEnd() && p.scanner.Peek() != c {
-				if p.scanner.Peek() == '\\' {
-					p.scanner.Advance()
-				}
-				p.scanner.Advance()
-			}
-			keyName = p.scanner.Text(start, p.scanner.Pos())
-			if !p.scanner.AtEnd() {
-				p.scanner.Advance()
-			}
-		} else {
-			k, ok := p.scanner.ConsumeIdent()
-			if !ok {
-				return nil, false
-			}
-			keyName = k
-		}
-		p.scanner.SkipTrivia()
-		key := rhino.NewString(rhino.STRING_KEY, keyName)
-		key.SetPos(fLine, fCol)
-		if p.scanner.ConsumeByte(':') {
-			// `key: pattern`
-			p.scanner.SkipTrivia()
-			val, ok := p.parsePatternOrIdent()
-			if !ok {
-				return nil, false
-			}
-			// default on the value side
-			p.scanner.SkipTrivia()
-			if !p.scanner.AtEnd() && p.scanner.Peek() == '=' && p.scanner.PeekAt(1) != '=' {
-				p.scanner.Advance()
-				p.scanner.SkipTrivia()
-				dflt, dfltOk := p.parseAssignment()
-				if dfltOk {
-					dv := rhino.New(rhino.DEFAULT_VALUE)
-					dv.SetPos(val.Lineno(), val.Charno())
-					dv.AddChildToBack(val)
-					dv.AddChildToBack(dflt)
-					val = dv
-				}
-			}
-			key.AddChildToBack(val)
-		} else if p.scanner.Peek() == '=' && p.scanner.PeekAt(1) != '=' {
-			// Shorthand with default: `{a = dflt}` → STRING_KEY(DEFAULT_VALUE(NAME, dflt))
-			p.scanner.Advance()
-			p.scanner.SkipTrivia()
-			dflt, dfltOk := p.parseAssignment()
-			ref := rhino.NewString(rhino.NAME, keyName)
-			ref.SetPos(fLine, fCol)
-			if dfltOk {
-				dv := rhino.New(rhino.DEFAULT_VALUE)
-				dv.SetPos(fLine, fCol)
-				dv.AddChildToBack(ref)
-				dv.AddChildToBack(dflt)
-				key.AddChildToBack(dv)
-			} else {
-				key.AddChildToBack(ref)
-			}
-		} else {
-			// Pure shorthand: `{a}` → STRING_KEY(NAME("a"))
-			ref := rhino.NewString(rhino.NAME, keyName)
-			ref.SetPos(fLine, fCol)
-			key.AddChildToBack(ref)
-		}
-		pat.AddChildToBack(key)
-		p.scanner.SkipTrivia()
-		if p.scanner.ConsumeByte(',') {
-			continue
-		}
-	}
-}
-
-// finishFunction parses `function NAME(params) { body }` after the
-// `function` keyword is consumed. Attaches the caller-provided JSDoc
-// (carrying @param / @return).
-// Go-only: language-adapter — shared body for parseFunctionDeclaration + parseFunctionExpression (Java has separate methods; Go unifies by try-pattern).
-func (p *Parser) finishFunction(jsdoc *rhino.JSDocInfo) (*rhino.Node, bool) {
-	fn := rhino.New(rhino.FUNCTION)
-	if jsdoc != nil {
-		fn.SetJSDocInfo(jsdoc)
-	}
-
-	p.scanner.SkipTrivia()
-	// Consume `/** T */` between `function` keyword and name as @return.
-	// Java's Parser treats inline JSDoc here as a return-type annotation.
-	if body, ok2 := p.scanner.ConsumeBlockComment(); ok2 {
-		if inline := parseInlineTypeJSDoc(body); inline != nil && inline.Type() != nil {
-			if jsdoc == nil {
-				jsdoc = &rhino.JSDocInfo{}
-			}
-			if jsdoc.ReturnType() == nil {
-				jsdoc.SetReturnType(inline.Type())
-				fn.SetJSDocInfo(jsdoc)
-			}
-		} else if jsdoc == nil {
-			if parsed := parsing.ParseJSDocInfo(body, p.scanner.Line()); parsed != nil {
-				jsdoc = parsed
-				fn.SetJSDocInfo(jsdoc)
-			}
-		}
-		p.scanner.SkipTrivia()
-	}
-	nameLine, nameCol := p.scanner.Line(), p.scanner.Col()
-	name, ok := p.scanner.ConsumeIdent()
-	nameNode := rhino.NewString(rhino.NAME, "")
-	if ok {
-		nameNode = rhino.NewString(rhino.NAME, name)
-	}
-	nameNode.SetPos(nameLine, nameCol)
-	fn.AddChildToBack(nameNode)
-
-	p.scanner.SkipTrivia()
-	if !p.scanner.ConsumeByte('(') {
-		p.scanner.SkipToStatementBoundary()
-		return fn, true
-	}
-	params := rhino.New(rhino.PARAM_LIST)
-	for {
-		p.scanner.SkipTrivia()
-		// Inline JSDoc on parameters: `function f(/** T */ x)` — parse
-		// the brace body as an @type annotation and attach to the
-		// resulting param NAME node.
-		var inlineInfo *rhino.JSDocInfo
-		if body, ok := p.scanner.ConsumeBlockComment(); ok {
-			if parsed := parseInlineTypeJSDoc(body); parsed != nil {
-				inlineInfo = parsed
-			}
-			p.scanner.SkipTrivia()
-		}
-		if p.scanner.AtEnd() {
-			return fn, true
-		}
-		if p.scanner.Peek() == ')' {
-			p.scanner.Advance()
-			break
-		}
-		pNode, isRest, ok := p.parseParameter(inlineInfo)
-		if !ok {
-			p.scanner.SkipToStatementBoundary()
-			return fn, true
-		}
-		params.AddChildToBack(pNode)
-		p.scanner.SkipTrivia()
-		if isRest {
-			// rest must be last; consume the closing paren.
-			if p.scanner.Peek() == ')' {
-				p.scanner.Advance()
-			}
-			break
-		}
-		if p.scanner.ConsumeByte(',') {
-			continue
-		}
-	}
-	fn.AddChildToBack(params)
-
-	p.scanner.SkipTrivia()
-	if !p.scanner.ConsumeByte('{') {
-		p.scanner.SkipToStatementBoundary()
-		return fn, true
-	}
-	block := rhino.New(rhino.BLOCK)
-	p.parseStatements(block, '}')
-	p.scanner.ConsumeByte('}')
-	fn.AddChildToBack(block)
-	return fn, true
-}
-
-// finishClass parses `class NAME [extends BASE] { body }` after the
-// `class` keyword has been consumed. Produces a CLASS node whose
-// children are:
-//
-//   [0] NAME — class name (empty string when anonymous)
-//   [1] NAME — super name (empty string when there's no `extends`)
-//   [2] BLOCK — class body; each child is either a FUNCTION
-//       (constructor or method) or a CLASS_FIELD_DEF.
-//
-// Mirrors Parser.java's parseClassDeclaration / parseClassBody output
-// shape closely enough for TypedScopeCreator to process classes with
-// the same two-pass pre-registration it already uses for @constructor
-// functions.
-// Go-only: language-adapter — shared body for parseClassDeclaration + parseClassExpression (Java has separate methods; Go unifies by try-pattern).
-func (p *Parser) finishClass(jsdoc *rhino.JSDocInfo) (*rhino.Node, bool) {
-	class := rhino.New(rhino.CLASS)
-	if jsdoc != nil {
-		class.SetJSDocInfo(jsdoc)
-	}
-
-	p.scanner.SkipTrivia()
-	nameLine, nameCol := p.scanner.Line(), p.scanner.Col()
-	name, _ := p.scanner.ConsumeIdent() // anonymous class allowed
-	nameNode := rhino.NewString(rhino.NAME, name)
-	nameNode.SetPos(nameLine, nameCol)
-	class.AddChildToBack(nameNode)
-
-	p.scanner.SkipTrivia()
-	superNode := rhino.NewString(rhino.NAME, "")
-	if p.scanner.ConsumeKeyword("extends") {
-		p.scanner.SkipTrivia()
-		sLine, sCol := p.scanner.Line(), p.scanner.Col()
-		sname, ok := p.scanner.ConsumeIdent()
-		if ok {
-			superNode = rhino.NewString(rhino.NAME, sname)
-			superNode.SetPos(sLine, sCol)
-		}
-		p.scanner.SkipTrivia()
-	}
-	class.AddChildToBack(superNode)
-
-	body := rhino.New(rhino.BLOCK)
-	if !p.scanner.ConsumeByte('{') {
-		p.scanner.SkipToStatementBoundary()
-		return class, true
-	}
-	for {
-		p.scanner.SkipTrivia()
-		if p.scanner.AtEnd() {
-			break
-		}
-		if p.scanner.Peek() == '}' {
-			p.scanner.Advance()
-			break
-		}
-		p.parseClassMember(body)
-	}
-	class.AddChildToBack(body)
-	return class, true
-}
-
-// Go-only: language-adapter — combined class-member parser covering parseClassElement + parseClassMemberDeclaration;
-// Java splits these into separate methods with ClassOrObjectElementInfo threading.
-func (p *Parser) parseClassMember(body *rhino.Node) {
-	var jsdoc *rhino.JSDocInfo
-	if commentLine := p.scanner.Line(); true {
-		if b, ok := p.scanner.ConsumeBlockComment(); ok {
-			jsdoc = parsing.ParseJSDocInfo(b, commentLine)
-			p.scanner.SkipTrivia()
-		}
-	}
-	if p.scanner.AtEnd() || p.scanner.Peek() == '}' {
-		return
-	}
-	// `static` toggles the JSDoc's isStatic flag so the scope creator
-	// lands the member on the class's static slot rather than the
-	// instance prototype. Synthesises a JSDocInfo when none was
-	// present on the source. The member's start position is captured
-	// BEFORE consuming `static` so downstream diagnostics point at the
-	// whole member declaration (Java's Node.getLineno() for a
-	// CLASS_FIELD_DEF is the keyword / name column, inclusive of
-	// `static`).
-	memberLine, memberCol := p.scanner.Line(), p.scanner.Col()
-	isStatic := false
-	if p.scanner.ConsumeKeyword("static") {
-		isStatic = true
-		p.scanner.SkipTrivia()
-	}
-	if isStatic {
-		if jsdoc == nil {
-			jsdoc = &rhino.JSDocInfo{}
-		}
-		jsdoc.SetStatic(true)
-	}
-	// Computed class member: ['key']() {} or ['key'] = value;
-	if !p.scanner.AtEnd() && p.scanner.Peek() == '[' {
-		p.scanner.Advance() // consume '['
-		p.scanner.SkipTrivia()
-		keyLine, keyCol := p.scanner.Line(), p.scanner.Col()
-		keyExpr, ok := p.parseExpression()
-		if !ok {
-			p.scanner.SkipToStatementBoundary()
-			return
-		}
-		if keyExpr != nil {
-			keyExpr.SetPos(keyLine, keyCol)
-		}
-		p.scanner.SkipTrivia()
-		p.scanner.ConsumeByte(']') // consume ']'
-		p.scanner.SkipTrivia()
-		comp := rhino.New(rhino.COMPUTED_PROP)
-		comp.SetPos(memberLine, memberCol)
-		if jsdoc != nil {
-			comp.SetJSDocInfo(jsdoc)
-		}
-		if keyExpr != nil {
-			comp.AddChildToBack(keyExpr)
-		}
-		// Skip the body (method or field) — we only need position for diagnostics.
-		if !p.scanner.AtEnd() && p.scanner.Peek() == '(' {
-			// Computed method: skip params and body.
-			p.scanner.SkipToStatementBoundary()
-		} else {
-			p.scanner.SkipToStatementBoundary()
-		}
-		body.AddChildToBack(comp)
-		return
-	}
-
-	nameLine, nameCol := p.scanner.Line(), p.scanner.Col()
-	name, ok := p.scanner.ConsumeIdent()
-	if !ok {
-		p.scanner.SkipToStatementBoundary()
-		return
-	}
-	p.scanner.SkipTrivia()
-	// Detect getter/setter: `get NAME(` or `set NAME(`.
-	// When the first identifier is "get"/"set" and the next non-space token
-	// is an identifier followed by "(", this is an accessor method.
-	isGetter := false
-	isSetter := false
-	if (name == "get" || name == "set") && !p.scanner.AtEnd() && p.scanner.Peek() != '(' && p.scanner.Peek() != '=' && p.scanner.Peek() != ';' && p.scanner.Peek() != '}' {
-		// Peek ahead: next ident then '('.
-		mark := p.scanner.Save()
-		nextNameLine, nextNameCol := p.scanner.Line(), p.scanner.Col()
-		nextName, nextOk := p.scanner.ConsumeIdent()
-		if nextOk && nextName != "" {
-			p.scanner.SkipTrivia()
-			if !p.scanner.AtEnd() && p.scanner.Peek() == '(' {
-				// It's a getter or setter.
-				if name == "get" {
-					isGetter = true
-				} else {
-					isSetter = true
-				}
-				nameLine, nameCol = nextNameLine, nextNameCol
-				name = nextName
-			} else {
-				// Not a getter/setter — backtrack.
-				p.scanner.Restore(mark)
-				p.scanner.SkipTrivia()
-			}
-		} else {
-			p.scanner.Restore(mark)
-			p.scanner.SkipTrivia()
-		}
-	}
-	switch {
-	case !p.scanner.AtEnd() && p.scanner.Peek() == '(':
-		// Method: `name(params) { body }`.
-		p.scanner.Advance()
-		fn := rhino.New(rhino.FUNCTION)
-		if jsdoc != nil {
-			fn.SetJSDocInfo(jsdoc)
-		}
-		// For getter/setter methods, Java reports at the property name position
-		// (e.g. `value` in `get value()`). Use nameLine/nameCol for those;
-		// fall back to memberLine/memberCol for regular methods.
-		if isGetter || isSetter {
-			fn.SetPos(nameLine, nameCol)
-		} else {
-			fn.SetPos(memberLine, memberCol)
-		}
-		if isGetter {
-			fn.PutBooleanProp(rhino.PropGetterDef, true)
-		} else if isSetter {
-			fn.PutBooleanProp(rhino.PropSetterDef, true)
-		}
-		nameNode := rhino.NewString(rhino.NAME, name)
-		nameNode.SetPos(nameLine, nameCol)
-		fn.AddChildToBack(nameNode)
-		params := rhino.New(rhino.PARAM_LIST)
-		for {
-			p.scanner.SkipTrivia()
-			if p.scanner.AtEnd() {
-				return
-			}
-			if p.scanner.Peek() == ')' {
-				p.scanner.Advance()
-				break
-			}
-			// Inline JSDoc on class method params: `fn(/** T */ x)`.
-			var paramDoc *rhino.JSDocInfo
-			if body2, ok2 := p.scanner.ConsumeBlockComment(); ok2 {
-				if inline := parseInlineTypeJSDoc(body2); inline != nil {
-					paramDoc = inline
-				}
-				p.scanner.SkipTrivia()
-			}
-			pLine, pCol := p.scanner.Line(), p.scanner.Col()
-			pname, ok := p.scanner.ConsumeIdent()
-			if !ok {
-				p.scanner.SkipToStatementBoundary()
-				return
-			}
-			pNode := rhino.NewString(rhino.NAME, pname)
-			pNode.SetPos(pLine, pCol)
-			if paramDoc != nil {
-				pNode.SetJSDocInfo(paramDoc)
-			}
-			params.AddChildToBack(pNode)
-			p.scanner.SkipTrivia()
-			if p.scanner.ConsumeByte(',') {
-				continue
-			}
-		}
-		fn.AddChildToBack(params)
-		p.scanner.SkipTrivia()
-		methodBody := rhino.New(rhino.BLOCK)
-		if p.scanner.ConsumeByte('{') {
-			p.parseStatements(methodBody, '}')
-			p.scanner.ConsumeByte('}')
-		}
-		fn.AddChildToBack(methodBody)
-		body.AddChildToBack(fn)
 	default:
-		// Field: `name [= expr];` — captures both typed-only declarations
-		// and typed-with-initializer class properties.
-		field := rhino.New(rhino.CLASS_FIELD_DEF)
-		if jsdoc != nil {
-			field.SetJSDocInfo(jsdoc)
+		if Keywords_IsKeywordTokenType(token.GetTokenBase().Type) {
+			return true
 		}
-		field.SetPos(memberLine, memberCol)
-		nameNode := rhino.NewString(rhino.NAME, name)
-		nameNode.SetPos(nameLine, nameCol)
-		field.AddChildToBack(nameNode)
-		if p.scanner.ConsumeByte('=') {
-			p.scanner.SkipTrivia()
-			initLine, initCol := p.scanner.Line(), p.scanner.Col()
-			init, ok := p.parseExpression()
-			if ok {
-				init.SetPos(initLine, initCol)
-				field.AddChildToBack(init)
-			}
-		}
-		p.scanner.SkipTrivia()
-		p.scanner.ConsumeByte(';')
-		body.AddChildToBack(field)
 	}
+	return false
 }
 
-// parseIfStatement parses `if ( cond ) thenStmt [else elseStmt]`. Builds an
-// IF node whose children are (cond, thenBlock, elseBlock?). thenStmt
-// and elseStmt may be either a brace-delimited block or a single
-// statement. Mirrors Parser.java's parseIfStatement.
-func (p *Parser) parseIfStatement() *rhino.Node {
-	ifNode := rhino.New(rhino.IF)
-	ifNode.SetPos(p.scanner.Line(), p.scanner.Col())
-	p.scanner.SkipTrivia()
-	if !p.scanner.ConsumeByte('(') {
-		p.scanner.SkipToStatementBoundary()
-		return ifNode
-	}
-	p.scanner.SkipTrivia()
-	cond, ok := p.parseExpression()
-	if !ok {
-		p.scanner.SkipToStatementBoundary()
-		return ifNode
-	}
-	ifNode.AddChildToBack(cond)
-	p.scanner.SkipTrivia()
-	if !p.scanner.ConsumeByte(')') {
-		p.scanner.SkipToStatementBoundary()
-		return ifNode
-	}
-	ifNode.AddChildToBack(p.parseControlBody())
-	p.scanner.SkipTrivia()
-	if p.scanner.ConsumeKeyword("else") {
-		ifNode.AddChildToBack(p.parseControlBody())
-	}
-	return ifNode
+// Java: Parser.createObjectLiteralElementInfo()
+func (p *Parser) CreateObjectLiteralElementInfo() *ClassOrObjectElementInfo {
+	return ClassOrObjectElementInfo_CreateObjectLiteralElementInfo(p.GetTreeStartLocation())
 }
 
-// parseControlBody reads a block `{ … }` or a single statement into a
-// BLOCK node. Helpful both for `if` branches and for the loop/try
-// coarse handlers.
-//
-// When there are no explicit braces, the returned BLOCK has
-// PropAddedBlock set (mirrors Java Node.IS_ADDED_BLOCK) so that
-// CheckSuspiciousCode can detect misplaced semicolons like `if (x);`.
-// Go-only: language-adapter — helper that parses optional-brace control bodies (Java uses parseBlock at each call site; Go extracts for reuse).
-func (p *Parser) parseControlBody() *rhino.Node {
-	p.scanner.SkipTrivia()
-	body := rhino.New(rhino.BLOCK)
-	if p.scanner.ConsumeByte('{') {
-		p.parseStatements(body, '}')
-		p.scanner.ConsumeByte('}')
-		return body
-	}
-	// Synthesized block — mark it so CheckSuspiciousCode can detect
-	// `if (x);` (PropAddedBlock + no children = misplaced semicolon).
-	// Capture the scanner position now (before tryStatement) so that an
-	// empty body (e.g. the `;` in `while(foo());`) has its block node
-	// positioned at the semicolon site, matching Java's JSError.make(block,
-	// SUSPICIOUS_SEMICOLON) which inherits the block's source position.
-	bodyLine, bodyCol := p.scanner.Line(), p.scanner.Col()
-	body.SetPos(bodyLine, bodyCol)
-	body.PutBooleanProp(rhino.PropAddedBlock, true)
-	if stmt, ok := p.tryStatement(); ok && stmt != nil {
-		body.AddChildToBack(stmt)
-	}
-	return body
-}
-
-// parseWhileStatement parses `while (cond) stmt` into WHILE(cond, body).
-func (p *Parser) parseWhileStatement() *rhino.Node {
-	n := rhino.New(rhino.WHILE)
-	n.SetPos(p.scanner.Line(), p.scanner.Col())
-	p.scanner.SkipTrivia()
-	cond := p.consumeParenExpression()
-	if cond == nil {
-		cond = rhino.New(rhino.TRUE)
-	}
-	n.AddChildToBack(cond)
-	n.AddChildToBack(p.parseControlBody())
-	return n
-}
-
-// parseDoWhileStatement parses `do stmt while (cond);` into
-// DO_WHILE(body, cond).
-func (p *Parser) parseDoWhileStatement() *rhino.Node {
-	n := rhino.New(rhino.DO_WHILE)
-	n.SetPos(p.scanner.Line(), p.scanner.Col())
-	body := p.parseControlBody()
-	p.scanner.SkipTrivia()
-	p.scanner.ConsumeKeyword("while")
-	cond := p.consumeParenExpression()
-	if cond == nil {
-		cond = rhino.New(rhino.TRUE)
-	}
-	n.AddChildToBack(body)
-	n.AddChildToBack(cond)
-	p.scanner.SkipTrivia()
-	p.scanner.ConsumeByte(';')
-	return n
-}
-
-// parseForStatement parses `for (init; cond; upd) stmt` / `for (X of Y) stmt`
-// / `for (X in Y) stmt`. Returns FOR / FOR_OF / FOR_IN with the
-// appropriate child layout.
-//
-// FOR children: (initOrEmpty, condOrEmpty, updOrEmpty, body)
-// FOR_IN / FOR_OF: (declOrLhs, iterableExpr, body)
-func (p *Parser) parseForStatement() *rhino.Node {
-	startLine, startCol := p.scanner.Line(), p.scanner.Col()
-	p.scanner.SkipTrivia()
-	if !p.scanner.ConsumeByte('(') {
-		n := rhino.New(rhino.FOR)
-		n.SetPos(startLine, startCol)
-		return n
-	}
-	p.scanner.SkipTrivia()
-	// Parse the init piece — either a var/let/const binding or an
-	// expression or empty.
-	var init *rhino.Node
-	if declTok, ok := p.consumeDeclKeyword(); ok {
-		p.scanner.SkipTrivia()
-		nameLine, nameCol := p.scanner.Line(), p.scanner.Col()
-		ident, ok := p.scanner.ConsumeIdent()
-		if ok {
-			nameNode := rhino.NewString(rhino.NAME, ident)
-			nameNode.SetPos(nameLine, nameCol)
-			decl := rhino.New(declTok)
-			decl.SetPos(nameLine, nameCol)
-			decl.AddChildToBack(nameNode)
-			p.scanner.SkipTrivia()
-			// Optional `= expr` initializer.
-			if p.scanner.ConsumeByte('=') {
-				p.scanner.SkipTrivia()
-				if expr, ok := p.parseExpression(); ok {
-					nameNode.AddChildToBack(expr)
-				}
-			}
-			init = decl
-		}
-	} else if p.scanner.Peek() != ';' {
-		init, _ = p.parseExpression()
-	}
-	p.scanner.SkipTrivia()
-	// Disambiguate for-in / for-of / classic for.
-	if init != nil && p.scanner.AtKeyword("in") {
-		p.scanner.ConsumeKeywordRaw("in")
-		return p.parseForStatementInOf(rhino.FOR_IN, init, startLine, startCol)
-	}
-	if init != nil && p.scanner.AtKeyword("of") {
-		p.scanner.ConsumeKeywordRaw("of")
-		return p.parseForStatementInOf(rhino.FOR_OF, init, startLine, startCol)
-	}
-	// Classic `for (init; cond; upd) body`.
-	p.scanner.ConsumeByte(';')
-	p.scanner.SkipTrivia()
-	var cond *rhino.Node
-	if p.scanner.Peek() != ';' {
-		cond, _ = p.parseExpression()
-	}
-	p.scanner.SkipTrivia()
-	p.scanner.ConsumeByte(';')
-	p.scanner.SkipTrivia()
-	var upd *rhino.Node
-	if p.scanner.Peek() != ')' {
-		upd, _ = p.parseExpression()
-	}
-	p.scanner.SkipTrivia()
-	p.scanner.ConsumeByte(')')
-	n := rhino.New(rhino.FOR)
-	n.SetPos(startLine, startCol)
-	if init == nil {
-		init = rhino.New(rhino.BLOCK)
-	}
-	if cond == nil {
-		cond = rhino.New(rhino.TRUE)
-	}
-	if upd == nil {
-		upd = rhino.New(rhino.BLOCK)
-	}
-	n.AddChildToBack(init)
-	n.AddChildToBack(cond)
-	n.AddChildToBack(upd)
-	n.AddChildToBack(p.parseControlBody())
-	return n
-}
-
-// Go-only: language-adapter — shared tail for for-in/for-of after loop keyword (Java has separate methods per loop kind; Go unifies due to no overloading).
-func (p *Parser) parseForStatementInOf(tok rhino.Token, lhs *rhino.Node, line, col int) *rhino.Node {
-	p.scanner.SkipTrivia()
-	rhs, _ := p.parseExpression()
-	p.scanner.SkipTrivia()
-	p.scanner.ConsumeByte(')')
-	n := rhino.New(tok)
-	n.SetPos(line, col)
-	n.AddChildToBack(lhs)
-	if rhs == nil {
-		rhs = rhino.New(rhino.UNDEFINED)
-	}
-	n.AddChildToBack(rhs)
-	n.AddChildToBack(p.parseControlBody())
-	return n
-}
-
-// parseSwitchStatement parses `switch (e) { case v1: stmts... case v2: stmts...
-// default: stmts... }` into
-//   SWITCH(discriminant, CASE(val, BLOCK), CASE(val, BLOCK), DEFAULT_CASE(BLOCK))
-func (p *Parser) parseSwitchStatement() *rhino.Node {
-	n := rhino.New(rhino.SWITCH)
-	n.SetPos(p.scanner.Line(), p.scanner.Col())
-	disc := p.consumeParenExpression()
-	if disc == nil {
-		disc = rhino.New(rhino.UNDEFINED)
-	}
-	n.AddChildToBack(disc)
-	p.scanner.SkipTrivia()
-	if !p.scanner.ConsumeByte('{') {
-		return n
-	}
-	for {
-		p.scanner.SkipTrivia()
-		if p.scanner.AtEnd() || p.scanner.Peek() == '}' {
-			break
-		}
-		caseLine, caseCol := p.scanner.Line(), p.scanner.Col()
-		if p.scanner.ConsumeKeyword("case") {
-			p.scanner.SkipTrivia()
-			val, _ := p.parseExpression()
-			p.scanner.SkipTrivia()
-			p.scanner.ConsumeByte(':')
-			body := p.parseCaseBody()
-			c := rhino.New(rhino.CASE)
-			c.SetPos(caseLine, caseCol)
-			if val == nil {
-				val = rhino.New(rhino.UNDEFINED)
-			}
-			c.AddChildToBack(val)
-			c.AddChildToBack(body)
-			n.AddChildToBack(c)
-			continue
-		}
-		if p.scanner.ConsumeKeyword("default") {
-			p.scanner.SkipTrivia()
-			p.scanner.ConsumeByte(':')
-			body := p.parseCaseBody()
-			d := rhino.New(rhino.DEFAULT_CASE)
-			d.SetPos(caseLine, caseCol)
-			d.AddChildToBack(body)
-			n.AddChildToBack(d)
-			continue
-		}
-		// Unrecognised tokens inside the switch — advance one rune
-		// so we don't infinite-loop.
-		p.scanner.Advance()
-	}
-	p.scanner.ConsumeByte('}')
-	return n
-}
-
-// parseCaseBody reads statements up to the next `case` / `default` /
-// `}`. Returned as a BLOCK so the CFG builder can chain them.
-// Go-only: language-adapter — helper for switch case bodies (Java uses parseCaseStatementsOpt inline; Go extracts for reuse).
-func (p *Parser) parseCaseBody() *rhino.Node {
-	body := rhino.New(rhino.BLOCK)
-	for {
-		p.scanner.SkipTrivia()
-		if p.scanner.AtEnd() || p.scanner.Peek() == '}' {
-			return body
-		}
-		if p.scanner.AtKeyword("case") || p.scanner.AtKeyword("default") {
-			return body
-		}
-		start := p.scanner.Pos()
-		stmt, ok := p.tryStatement()
-		if ok && stmt != nil {
-			body.AddChildToBack(stmt)
-			continue
-		}
-		if p.scanner.Pos() == start {
-			p.scanner.Advance()
-		}
-	}
-}
-
-// parseTryStatement parses `try { … } catch (e) { … } [finally { … }]` into
-// TRY(body, CATCH(name, handler), FINALLY(block)). Catch clause is
-// optional (modern JS allows `try { } finally { }` without catch).
-func (p *Parser) parseTryStatement() *rhino.Node {
-	n := rhino.New(rhino.TRY)
-	n.SetPos(p.scanner.Line(), p.scanner.Col())
-	body := p.parseControlBody()
-	n.AddChildToBack(body)
-	p.scanner.SkipTrivia()
-	if p.scanner.ConsumeKeyword("catch") {
-		p.scanner.SkipTrivia()
-		var param *rhino.Node
-		if p.scanner.ConsumeByte('(') {
-			p.scanner.SkipTrivia()
-			_, _ = p.scanner.ConsumeBlockComment()
-			p.scanner.SkipTrivia()
-			nl, nc := p.scanner.Line(), p.scanner.Col()
-			if ident, ok := p.scanner.ConsumeIdent(); ok {
-				param = rhino.NewString(rhino.NAME, ident)
-				param.SetPos(nl, nc)
-			}
-			p.scanner.SkipTrivia()
-			p.scanner.ConsumeByte(')')
-		}
-		handler := p.parseControlBody()
-		c := rhino.New(rhino.CATCH)
-		c.SetPos(p.scanner.Line(), p.scanner.Col())
-		if param == nil {
-			param = rhino.NewString(rhino.NAME, "")
-		}
-		c.AddChildToBack(param)
-		c.AddChildToBack(handler)
-		n.AddChildToBack(c)
-	}
-	p.scanner.SkipTrivia()
-	if p.scanner.ConsumeKeyword("finally") {
-		finallyBlock := p.parseControlBody()
-		f := rhino.New(rhino.FINALLY)
-		f.AddChildToBack(finallyBlock)
-		n.AddChildToBack(f)
-	}
-	return n
-}
-
-// parseThrowStatement parses `throw expr;` → THROW(expr).
-func (p *Parser) parseThrowStatement() *rhino.Node {
-	n := rhino.New(rhino.THROW)
-	n.SetPos(p.scanner.Line(), p.scanner.Col())
-	p.scanner.SkipTrivia()
-	expr, _ := p.parseExpression()
-	if expr == nil {
-		expr = rhino.New(rhino.UNDEFINED)
-	}
-	n.AddChildToBack(expr)
-	p.scanner.SkipTrivia()
-	p.scanner.ConsumeByte(';')
-	return n
-}
-
-// finishBreakContinue parses `break [label];` / `continue [label];`.
-// Emits BREAK / CONTINUE with an optional NAME child carrying the
-// label.
-// Go-only: language-adapter — shared body for parseBreakStatement + parseContinueStatement (Java has separate methods; Go unifies by try-pattern).
-func (p *Parser) finishBreakContinue(tok rhino.Token) *rhino.Node {
-	n := rhino.New(tok)
-	n.SetPos(p.scanner.Line(), p.scanner.Col())
-	p.scanner.SkipTrivia()
-	if !p.scanner.AtEnd() && p.scanner.Peek() != ';' && p.scanner.Peek() != '}' && p.scanner.Peek() != '\n' {
-		if ident, ok := p.scanner.ConsumeIdent(); ok {
-			label := rhino.NewString(rhino.NAME, ident)
-			n.AddChildToBack(label)
-		}
-	}
-	p.scanner.SkipTrivia()
-	p.scanner.ConsumeByte(';')
-	return n
-}
-
-// parseDebuggerStatement parses `debugger;` → DEBUGGER node.
-// Position is taken from the keyword (kwLine, kwCol) captured by the
-// caller before ConsumeKeyword advanced the scanner.
-func (p *Parser) parseDebuggerStatement(kwLine, kwCol int) *rhino.Node {
-	n := rhino.New(rhino.DEBUGGER)
-	n.SetPos(kwLine, kwCol)
-	p.scanner.SkipTrivia()
-	p.scanner.ConsumeByte(';')
-	return n
-}
-
-// parseLabelledStatement speculatively parses `IDENT : STMT` into
-// LABEL(NAME, inner). Rewinds when the cursor doesn't form a label
-// (so the same position can fall through to the call/assign/expr
-// statement parsers).
-func (p *Parser) parseLabelledStatement(jsdoc *rhino.JSDocInfo) (*rhino.Node, bool) {
-	save := p.scanner.Save()
-	line, col := p.scanner.Line(), p.scanner.Col()
-	ident, ok := p.scanner.ConsumeIdent()
-	if !ok {
-		p.scanner.Restore(save)
-		return nil, false
-	}
-	p.scanner.SkipTrivia()
-	if p.scanner.Peek() != ':' || p.scanner.PeekAt(1) == ':' || p.scanner.PeekAt(1) == '=' {
-		p.scanner.Restore(save)
-		return nil, false
-	}
-	p.scanner.Advance() // ':'
-	inner, ok := p.tryStatement()
-	if !ok {
-		p.scanner.Restore(save)
-		return nil, false
-	}
-	label := rhino.New(rhino.LABEL)
-	label.SetPos(line, col)
-	if jsdoc != nil {
-		label.SetJSDocInfo(jsdoc)
-	}
-	nameNode := rhino.NewString(rhino.NAME, ident)
-	nameNode.SetPos(line, col)
-	label.AddChildToBack(nameNode)
-	if inner != nil {
-		label.AddChildToBack(inner)
-	}
-	return label, true
-}
-
-// consumeParenExpression reads `( expr )` at the cursor, returning
-// the inner expression (or nil if malformed). Used by while / do /
-// switch header parsers.
-// Go-only: language-adapter — parenthesised-expression consumer shared by finishFunction / tryArrow (Java has no equivalent shared helper; Go needs one).
-func (p *Parser) consumeParenExpression() *rhino.Node {
-	p.scanner.SkipTrivia()
-	if !p.scanner.ConsumeByte('(') {
-		return nil
-	}
-	p.scanner.SkipTrivia()
-	expr, ok := p.parseExpression()
-	if !ok {
-		// Recover: skip to the matching close.
-		depth := 1
-		for depth > 0 && !p.scanner.AtEnd() {
-			c := p.scanner.Peek()
-			switch c {
-			case '(':
-				depth++
-			case ')':
-				depth--
-			}
-			p.scanner.Advance()
-		}
-		return nil
-	}
-	p.scanner.SkipTrivia()
-	p.scanner.ConsumeByte(')')
-	return expr
-}
-
-func (p *Parser) parseReturnStatement() *rhino.Node {
-	ret := rhino.New(rhino.RETURN)
-	p.scanner.SkipTrivia()
-	if !p.scanner.AtEnd() && p.scanner.Peek() != ';' {
-		eline, ecol := p.scanner.Line(), p.scanner.Col()
-		if expr, ok := p.parseExpression(); ok {
-			expr.SetPos(eline, ecol)
-			ret.AddChildToBack(expr)
-		} else {
-			p.scanner.SkipToStatementBoundary()
-			return ret
-		}
-	}
-	p.scanner.SkipTrivia()
-	p.scanner.ConsumeByte(';')
-	return ret
-}
-
-// tryCallOrAssignStatement parses one of:
-//
-//   <lhs> = <expr>;    // ASSIGN, where lhs is NAME or GETPROP chain
-//   <lhs>(args);       // CALL on a NAME/GETPROP chain
-//   this.x = <expr>;   // bare-this assign — same shape as the GETPROP case
-//
-// Speculative: rewinds on mismatch so the caller can fall back to other
-// statement forms.
-// Go-only: language-adapter — speculative call/assign dispatcher (Java splits across parseLeftHandSideExpression + parseAssignment; Go unifies).
-func (p *Parser) tryCallOrAssignStatement() (*rhino.Node, bool) {
-	save := p.scanner.Save()
-	rewind := func() {
-		p.scanner.Restore(save)
+// Java: Parser.parseClassElement()
+func (p *Parser) ParseClassElement() ParseTree {
+	if p.Peek(TokenType_SEMI_COLON) {
+		return p.ParseEmptyStatement()
 	}
 
-	startLine, startCol := p.scanner.Line(), p.scanner.Col()
-	lhs, ok := p.parseLeftHandSideExpression()
-	if !ok {
-		rewind()
-		return nil, false
-	}
-	p.scanner.SkipTrivia()
-	if p.scanner.AtEnd() {
-		rewind()
-		return nil, false
+	if p.PeekClassStaticInitializerBlock() {
+		return p.ParseClassStaticInitializerBlock()
 	}
 
-	switch p.scanner.Peek() {
-	case '(':
-		// Call-as-statement on the whole LHS (handles foo.bar.baz(...)).
-		p.scanner.Advance()
-		call := rhino.New(rhino.CALL)
-		call.SetPos(startLine, startCol)
-		call.AddChildToBack(lhs)
-		for {
-			p.scanner.SkipTrivia()
-			if p.scanner.AtEnd() {
-				rewind()
-				return nil, false
-			}
-			if p.scanner.Peek() == ')' {
-				p.scanner.Advance()
-				break
-			}
-			argLine, argCol := p.scanner.Line(), p.scanner.Col()
-			arg, ok := p.parseExpression()
-			if !ok {
-				rewind()
-				return nil, false
-			}
-			// Preserve position when parseExpression already set one
-			// (e.g. a FUNCTION from `/** @param {T} x */ (function() {})`).
-			if arg.Lineno() == 0 && arg.Charno() == 0 {
-				arg.SetPos(argLine, argCol)
-			}
-			call.AddChildToBack(arg)
-			p.scanner.SkipTrivia()
-			if p.scanner.ConsumeByte(',') {
-				continue
-			}
-		}
-		setFreeCallIfNeeded(call)
-		p.scanner.SkipTrivia()
-		// Call-as-statement must end with `;` (or `}` / EOF). If we
-		// see a postfix continuation — `.prop` / `(args)` / `[i]` —
-		// or a binary-op keyword (`in`, `instanceof`) the CALL is a
-		// sub-expression; rewind so parseExpressionStatement picks up
-		// the full form.
-		if !p.scanner.AtEnd() {
-			switch p.scanner.Peek() {
-			case '.', '(', '[':
-				rewind()
-				return nil, false
-			}
-			if p.scanner.AtKeyword("in") || p.scanner.AtKeyword("instanceof") {
-				rewind()
-				return nil, false
-			}
-			// Binary-op character that isn't a statement terminator
-			// (e.g. `+`, `-`, `*`, `<`, `==`) — same story.
-			if tok, _, _ := p.peekBinOp(); tok != rhino.ERROR {
-				rewind()
-				return nil, false
-			}
-		}
-		p.scanner.ConsumeByte(';')
-		stmt := rhino.New(rhino.EXPR_RESULT)
-		stmt.SetPos(startLine, startCol)
-		stmt.AddChildToBack(call)
-		return stmt, true
-
-	case '=':
-		p.scanner.Advance()
-		if !p.scanner.AtEnd() && (p.scanner.Peek() == '=' || p.scanner.Peek() == '>') {
-			rewind()
-			return nil, false
-		}
-		p.scanner.SkipTrivia()
-		rhsLine, rhsCol := p.scanner.Line(), p.scanner.Col()
-		rhs, ok := p.parseExpression()
-		if !ok {
-			rewind()
-			return nil, false
-		}
-		p.scanner.SkipTrivia()
-		// Consume the semicolon when present; otherwise apply ASI for
-		// OBJECTLIT and FUNCTION RHS (JS semicolons are optional after `}`).
-		if !p.scanner.ConsumeByte(';') {
-			if rhs.Token() != rhino.OBJECTLIT && rhs.Token() != rhino.FUNCTION {
-				rewind()
-				return nil, false
-			}
-		}
-		if rhs.Lineno() == 0 && rhs.Charno() == 0 {
-			rhs.SetPos(rhsLine, rhsCol)
-		}
-		assign := rhino.New(rhino.ASSIGN)
-		assign.SetPos(startLine, startCol)
-		assign.AddChildToBack(lhs)
-		assign.AddChildToBack(rhs)
-		stmt := rhino.New(rhino.EXPR_RESULT)
-		stmt.SetPos(startLine, startCol)
-		stmt.AddChildToBack(assign)
-		return stmt, true
-	}
-	rewind()
-	return nil, false
-}
-
-// parseLeftHandSideExpression parses a NAME or GETPROP chain starting at the
-// current position. Used by tryCallOrAssignStatement to support
-// `obj.x = …` and `this.x = …` shapes uniformly. Does NOT consume a
-// trailing `(args)` — the caller decides whether the LHS is being
-// called or assigned to.
-func (p *Parser) parseLeftHandSideExpression() (*rhino.Node, bool) {
-	if p.scanner.AtEnd() {
-		return nil, false
-	}
-	startLine, startCol := p.scanner.Line(), p.scanner.Col()
-	c := p.scanner.Peek()
-	if c == 't' && p.scanner.ConsumeKeyword("this") {
-		base := rhino.New(rhino.THIS)
-		base.SetPos(startLine, startCol)
-		return p.extendWithProperty(base), true
-	}
-	if c == 's' && p.scanner.ConsumeKeyword("super") {
-		base := rhino.New(rhino.SUPER)
-		base.SetPos(startLine, startCol)
-		return p.extendWithProperty(base), true
-	}
-	if !(unicode.IsLetter(c) || c == '_' || c == '$') {
-		return nil, false
-	}
-	ident, ok := p.scanner.ConsumeIdent()
-	if !ok {
-		return nil, false
-	}
-	base := rhino.NewString(rhino.NAME, ident)
-	base.SetPos(startLine, startCol)
-	return p.extendWithProperty(base), true
-}
-
-// parseExpression is the top-level expression entry — parses the widest
-// production (AssignmentExpression in Java). Composed of a precedence-
-// climbing chain: parseAssignment → parseConditional → tryBinary →
-// parseUnaryExpression → parseUpdateExpression → parsePrimaryExpression. Mirrors Parser.java's shape
-// (parseAssignmentExpression → parseConditional → parseBinary →
-// parseUnary → parseLeftHandSideExpression → parsePrimaryExpression).
-func (p *Parser) parseExpression() (*rhino.Node, bool) {
-	return p.parseAssignment()
-}
-
-// parseAssignment parses `lhs [= += -= …] rhs`. Right-associative, so the
-// RHS recursively descends back through parseAssignment.
-func (p *Parser) parseAssignment() (*rhino.Node, bool) {
-	if p.scanner.AtEnd() {
-		return nil, false
-	}
-	lhs, ok := p.parseConditional()
-	if !ok {
-		return nil, false
-	}
-	p.scanner.SkipTrivia()
-	tok, consumed := p.peekAssignOp()
-	if consumed == 0 {
-		return lhs, true
-	}
-	p.consumeRunes(consumed)
-	p.scanner.SkipTrivia()
-	rhsLine, rhsCol := p.scanner.Line(), p.scanner.Col()
-	rhs, ok := p.parseAssignment()
-	if !ok {
-		return nil, false
-	}
-	if rhs.Lineno() == 0 && rhs.Charno() == 0 {
-		rhs.SetPos(rhsLine, rhsCol)
-	}
-	n := rhino.New(tok)
-	n.SetPos(lhs.Lineno(), lhs.Charno())
-	n.AddChildToBack(lhs)
-	n.AddChildToBack(rhs)
-	return n, true
-}
-
-// parseConditional parses `cond ? then : else`. Ternary is right-assoc,
-// so both branches recurse into parseAssignment (not parseConditional).
-func (p *Parser) parseConditional() (*rhino.Node, bool) {
-	cond, ok := p.tryBinary(0)
-	if !ok {
-		return nil, false
-	}
-	p.scanner.SkipTrivia()
-	if p.scanner.AtEnd() || p.scanner.Peek() != '?' {
-		return cond, true
-	}
-	// Disambiguate from optional chaining `?.` — we don't consume it
-	// and leave the `?` for a future optional-chaining port.
-	if p.scanner.PeekAt(1) == '.' {
-		return cond, true
-	}
-	// And from nullish coalescing `??`, handled at tryBinary level.
-	if p.scanner.PeekAt(1) == '?' {
-		return cond, true
-	}
-	p.scanner.Advance() // '?'
-	p.scanner.SkipTrivia()
-	thenExpr, ok := p.parseAssignment()
-	if !ok {
-		return nil, false
-	}
-	p.scanner.SkipTrivia()
-	if !p.scanner.ConsumeByte(':') {
-		return nil, false
-	}
-	p.scanner.SkipTrivia()
-	elseExpr, ok := p.parseAssignment()
-	if !ok {
-		return nil, false
-	}
-	n := rhino.New(rhino.HOOK)
-	n.SetPos(cond.Lineno(), cond.Charno())
-	n.AddChildToBack(cond)
-	n.AddChildToBack(thenExpr)
-	n.AddChildToBack(elseExpr)
-	return n, true
-}
-
-// tryBinary runs precedence climbing for binary operators. minPrec is
-// the minimum precedence allowed at the current level — higher values
-// correspond to tighter binding. Matches the canonical Pratt/Crockford
-// loop structure, with operators looked up via peekBinOp.
-// Go-only: language-adapter — Pratt-style single binary-precedence method (Java uses separate parseLogicalOR/parseLogicalAND/… methods; Go Pratt-table approach).
-func (p *Parser) tryBinary(minPrec int) (*rhino.Node, bool) {
-	left, ok := p.parseUnaryExpression()
-	if !ok {
-		return nil, false
-	}
-	for {
-		p.scanner.SkipTrivia()
-		// Keyword binary ops (`instanceof`, `in`) are handled by name
-		// lookup since the symbolic peekBinOp can only see characters.
-		// Both live at the relational precedence level (8).
-		if minPrec <= 8 && p.scanner.AtKeyword("instanceof") {
-			p.scanner.ConsumeKeywordRaw("instanceof")
-			p.scanner.SkipTrivia()
-			right, ok := p.tryBinary(9)
-			if !ok {
-				return nil, false
-			}
-			n := rhino.New(rhino.INSTANCEOF)
-			n.SetPos(left.Lineno(), left.Charno())
-			n.AddChildToBack(left)
-			n.AddChildToBack(right)
-			left = n
-			continue
-		}
-		if minPrec <= 8 && p.scanner.AtKeyword("in") {
-			p.scanner.ConsumeKeywordRaw("in")
-			p.scanner.SkipTrivia()
-			right, ok := p.tryBinary(9)
-			if !ok {
-				return nil, false
-			}
-			n := rhino.New(rhino.IN)
-			n.SetPos(left.Lineno(), left.Charno())
-			n.AddChildToBack(left)
-			n.AddChildToBack(right)
-			left = n
-			continue
-		}
-		tok, runes, prec := p.peekBinOp()
-		if runes == 0 || prec < minPrec {
-			return left, true
-		}
-		p.consumeRunes(runes)
-		p.scanner.SkipTrivia()
-		rhsLine, rhsCol := p.scanner.Line(), p.scanner.Col()
-		right, ok := p.tryBinary(prec + 1) // left-assoc
-		if !ok {
-			return nil, false
-		}
-		// Only backfill when tryBinary produced an unpositioned
-		// node (e.g. a bare NAME literal). A paren-wrapped
-		// expression like \`(new Bar)\` already has a precise
-		// position from its inner parseUpdateExpression, and shouldn't be
-		// overwritten with the \`(\` column.
-		if right.Lineno() == 0 && right.Charno() == 0 {
-			right.SetPos(rhsLine, rhsCol)
-		}
-		n := rhino.New(tok)
-		n.SetPos(left.Lineno(), left.Charno())
-		n.AddChildToBack(left)
-		n.AddChildToBack(right)
-		left = n
-	}
-}
-
-// parseUnaryExpression handles prefix unary operators. Keywords `typeof`, `void`,
-// `delete`, and `new` (MemberExpression new) also live here; the
-// NewExpression case delegates to parseNewExpression, whose NEW node is then
-// allowed to pick up further `.prop` / `(args)` chains via the
-// postfix loop.
-func (p *Parser) parseUnaryExpression() (*rhino.Node, bool) {
-	p.scanner.SkipTrivia()
-	if p.scanner.AtEnd() {
-		return nil, false
-	}
-	startLine, startCol := p.scanner.Line(), p.scanner.Col()
-	c := p.scanner.Peek()
-	switch c {
-	case '!':
-		p.scanner.Advance()
-		if p.scanner.Peek() == '=' { // not a unary
-			// rewind the '!'; callers won't see this path (peekBinOp
-			// covers !=), but we keep the branch total by returning a
-			// plain postfix.
-		}
-		operand, ok := p.parseUnaryExpression()
-		if !ok {
-			return nil, false
-		}
-		n := rhino.New(rhino.NOT)
-		n.SetPos(startLine, startCol)
-		n.AddChildToBack(operand)
-		return n, true
-	case '~':
-		p.scanner.Advance()
-		operand, ok := p.parseUnaryExpression()
-		if !ok {
-			return nil, false
-		}
-		n := rhino.New(rhino.BITNOT)
-		n.SetPos(startLine, startCol)
-		n.AddChildToBack(operand)
-		return n, true
-	case '+':
-		// `++x` prefix update expression — must precede the `+`/unary plus
-		// branch below.
-		if p.scanner.PeekAt(1) == '+' {
-			p.scanner.Advance()
-			p.scanner.Advance()
-			operand, ok := p.parseUnaryExpression()
-			if !ok {
-				return nil, false
-			}
-			n := rhino.New(rhino.INC)
-			n.SetPos(startLine, startCol)
-			n.AddChildToBack(operand)
-			return n, true
-		}
-	case '-':
-		// `--x` prefix update expression — must precede the `-`/unary minus
-		// branch below.
-		if p.scanner.PeekAt(1) == '-' {
-			p.scanner.Advance()
-			p.scanner.Advance()
-			operand, ok := p.parseUnaryExpression()
-			if !ok {
-				return nil, false
-			}
-			n := rhino.New(rhino.DEC)
-			n.SetPos(startLine, startCol)
-			n.AddChildToBack(operand)
-			return n, true
-		}
-	}
-	switch c {
-	case '-', '+':
-		// Only treat as unary when the next non-space char isn't a
-		// digit-shaped continuation of a binary op. tryBinary ensures
-		// binary `-` is consumed before we get here.
-		p.scanner.Advance()
-		operand, ok := p.parseUnaryExpression()
-		if !ok {
-			return nil, false
-		}
-		tok := rhino.NEG
-		if c == '+' {
-			tok = rhino.POS
-		}
-		n := rhino.New(tok)
-		n.SetPos(startLine, startCol)
-		n.AddChildToBack(operand)
-		return n, true
-	}
-	// Keyword-prefix unaries.
-	if p.scanner.ConsumeKeyword("typeof") {
-		p.scanner.SkipTrivia()
-		operand, ok := p.parseUnaryExpression()
-		if !ok {
-			return nil, false
-		}
-		n := rhino.New(rhino.TYPEOF)
-		n.SetPos(startLine, startCol)
-		n.AddChildToBack(operand)
-		return n, true
-	}
-	if p.scanner.ConsumeKeyword("void") {
-		p.scanner.SkipTrivia()
-		operand, ok := p.parseUnaryExpression()
-		if !ok {
-			return nil, false
-		}
-		n := rhino.New(rhino.VOID)
-		n.SetPos(startLine, startCol)
-		n.AddChildToBack(operand)
-		return n, true
-	}
-	if p.scanner.ConsumeKeyword("delete") {
-		p.scanner.SkipTrivia()
-		operand, ok := p.parseUnaryExpression()
-		if !ok {
-			return nil, false
-		}
-		n := rhino.New(rhino.DELPROP)
-		n.SetPos(startLine, startCol)
-		n.AddChildToBack(operand)
-		return n, true
-	}
-	return p.parseUpdateExpression()
-}
-
-// parseUpdateExpression handles the left-hand-side postfix chain — property access
-// (`.ident`), call (`(args)`), and `new` expressions. Returns a
-// LHSExpression suitable for the binary / assignment layers above.
-func (p *Parser) parseUpdateExpression() (*rhino.Node, bool) {
-	p.scanner.SkipTrivia()
-	if p.scanner.AtEnd() {
-		return nil, false
-	}
-	var expr *rhino.Node
-	newLine, newCol := p.scanner.Line(), p.scanner.Col()
-	if p.scanner.ConsumeKeyword("new") {
-		n, ok := p.parseNewExpression()
-		if !ok {
-			return nil, false
-		}
-		// Position the NEW node at the `new` keyword, not at the
-		// callee identifier — Java's TypeCheck reports at the
-		// expression's start column.
-		n.SetPos(newLine, newCol)
-		expr = n
+	elementInfo := ClassOrObjectElementInfo_CreateClassMemberInfo(
+		p.GetTreeStartLocation(), p.EatStaticIfNotElementName())
+	if p.PeekGetAccessor() {
+		return p.ParseGetAccessor(elementInfo)
+	} else if p.PeekSetAccessor() {
+		return p.ParseSetAccessor(elementInfo)
+	} else if p.PeekAsyncMethod() {
+		return p.ParseAsyncMethod(elementInfo)
 	} else {
-		prim, ok := p.parsePrimaryExpression()
-		if !ok {
-			return nil, false
-		}
-		expr = prim
-	}
-	// Postfix chain: property access (`.ident`), computed index access
-	// (`[expr]`) and call (`(args)`), and optional chaining (`?.`).
-	// `inOptChain` tracks whether we are inside a `?.` chain so that
-	// continuation segments also emit OPTCHAIN_* nodes (isStartOfOptChain=false).
-	inOptChain := false
-	for {
-		p.scanner.SkipTrivia()
-		if p.scanner.AtEnd() {
-			return expr, true
-		}
-		c := p.scanner.Peek()
-		// Optional chaining: `?.` — peek next character to distinguish from `?:`.
-		if c == '?' && p.scanner.PeekAt(1) == '.' {
-			p.scanner.Advance() // '?'
-			p.scanner.Advance() // '.'
-			p.scanner.SkipTrivia()
-			isStart := !inOptChain
-			inOptChain = true
-			c2 := p.scanner.Peek()
-			switch {
-			case c2 == '(':
-				p.scanner.Advance()
-				call := rhino.New(rhino.OPTCHAIN_CALL)
-				call.SetPos(expr.Lineno(), expr.Charno())
-				call.SetIsOptionalChainStart(isStart)
-				call.AddChildToBack(expr)
-				p.parseArguments(call)
-				setFreeCallIfNeeded(call)
-				expr = call
-			case c2 == '[':
-				p.scanner.Advance(); p.scanner.SkipTrivia()
-				idxL, idxC := p.scanner.Line(), p.scanner.Col()
-				idx, ok := p.parseExpression()
-				if !ok { return nil, false }
-				idx.SetPos(idxL, idxC)
-				p.scanner.SkipTrivia(); p.scanner.ConsumeByte(']')
-				ge := rhino.New(rhino.OPTCHAIN_GETELEM)
-				ge.SetPos(expr.Lineno(), expr.Charno())
-				ge.SetIsOptionalChainStart(isStart)
-				ge.AddChildToBack(expr); ge.AddChildToBack(idx)
-				expr = ge
-			default:
-				pL, pC := p.scanner.Line(), p.scanner.Col()
-				id, ok := p.scanner.ConsumeIdent()
-				if !ok { return expr, true }
-				gp := rhino.New(rhino.OPTCHAIN_GETPROP)
-				gp.SetPos(expr.Lineno(), expr.Charno())
-				gp.SetIsOptionalChainStart(isStart)
-				gp.AddChildToBack(expr)
-				pn := rhino.NewString(rhino.STRINGLIT, id)
-				pn.SetPos(pL, pC)
-				gp.AddChildToBack(pn)
-				expr = gp
-			}
-			continue
-		}
-		// Inside an optional chain, `.prop` / `(args)` / `[idx]` emit
-		// OPTCHAIN_* continuation nodes (isStartOfOptChain=false).
-		if inOptChain && (c == '.' || c == '(' || c == '[') {
-			switch c {
-			case '.':
-				p.scanner.Advance(); p.scanner.SkipTrivia()
-				pL, pC := p.scanner.Line(), p.scanner.Col()
-				id, ok := p.scanner.ConsumeIdent()
-				if !ok { inOptChain = false; continue }
-				gp := rhino.New(rhino.OPTCHAIN_GETPROP)
-				gp.SetPos(expr.Lineno(), expr.Charno())
-				gp.SetIsOptionalChainStart(false)
-				gp.AddChildToBack(expr)
-				pn := rhino.NewString(rhino.STRINGLIT, id)
-				pn.SetPos(pL, pC)
-				gp.AddChildToBack(pn)
-				expr = gp
-			case '(':
-				p.scanner.Advance()
-				call := rhino.New(rhino.OPTCHAIN_CALL)
-				call.SetPos(expr.Lineno(), expr.Charno())
-				call.SetIsOptionalChainStart(false)
-				call.AddChildToBack(expr)
-				p.parseArguments(call)
-				setFreeCallIfNeeded(call)
-				expr = call
-			case '[':
-				p.scanner.Advance(); p.scanner.SkipTrivia()
-				idxL, idxC := p.scanner.Line(), p.scanner.Col()
-				idx, ok := p.parseExpression()
-				if !ok { return nil, false }
-				idx.SetPos(idxL, idxC)
-				p.scanner.SkipTrivia(); p.scanner.ConsumeByte(']')
-				ge := rhino.New(rhino.OPTCHAIN_GETELEM)
-				ge.SetPos(expr.Lineno(), expr.Charno())
-				ge.SetIsOptionalChainStart(false)
-				ge.AddChildToBack(expr); ge.AddChildToBack(idx)
-				expr = ge
-			}
-			continue
-		}
-		inOptChain = false // plain suffix resets chain tracking
-		if c == '.' {
-			p.scanner.Advance()
-			p.scanner.SkipTrivia()
-			propLine, propCol := p.scanner.Line(), p.scanner.Col()
-			ident, ok := p.scanner.ConsumeIdent()
-			if !ok {
-				return expr, true
-			}
-			gp := rhino.New(rhino.GETPROP)
-			gp.SetPos(expr.Lineno(), expr.Charno())
-			gp.AddChildToBack(expr)
-			propNode := rhino.NewString(rhino.STRINGLIT, ident)
-			propNode.SetPos(propLine, propCol)
-			gp.AddChildToBack(propNode)
-			expr = gp
-			continue
-		}
-		if c == '[' {
-			// `x[y]` → GETELEM(x, y). Matches Parser.java's
-			// parseMemberExpression case for `[`.
-			p.scanner.Advance()
-			p.scanner.SkipTrivia()
-			idxLine, idxCol := p.scanner.Line(), p.scanner.Col()
-			idx, ok := p.parseExpression()
-			if !ok {
-				return nil, false
-			}
-			idx.SetPos(idxLine, idxCol)
-			p.scanner.SkipTrivia()
-			if !p.scanner.ConsumeByte(']') {
-				return nil, false
-			}
-			ge := rhino.New(rhino.GETELEM)
-			ge.SetPos(expr.Lineno(), expr.Charno())
-			ge.AddChildToBack(expr)
-			ge.AddChildToBack(idx)
-			expr = ge
-			continue
-		}
-		if c == '(' {
-			p.scanner.Advance()
-			call := rhino.New(rhino.CALL)
-			// Java IRFactory: a fresh CallExpressionTree built in the suffix
-			// loop has its location starting at the original LHS start
-			// (parseLeftHandSideExpression captures `start` once before the
-			// loop). The CALL Node's position then comes from setSourceInfo
-			// against that tree, so it lands on the LHS start, not on the
-			// inner operand position. Mirrors getTreeLocation(start) in
-			// Parser.java's parseLeftHandSideExpression CallExpressionTree
-			// branch and IRFactory.transform's setSourceInfo on the fresh
-			// CALL node.
-			call.SetPos(newLine, newCol)
-			call.AddChildToBack(expr)
-			p.parseArguments(call)
-			setFreeCallIfNeeded(call)
-			expr = call
-			continue
-		}
-		// Tagged template literal: `expr\`…\`` mirrors Java's
-		// parseTaggedTemplateLiteral in Parser.java. The tag is any
-		// MemberExpression; the template becomes a TAGGED_TEMPLATELIT node
-		// whose first child is the tag and whose remaining children form a
-		// TEMPLATELIT subtree (same shape as a bare template literal).
-		if c == '`' {
-			tmplLine, tmplCol := p.scanner.Line(), p.scanner.Col()
-			tmpl, ok := p.parseTemplateLiteral()
-			if !ok {
-				return nil, false
-			}
-			tmpl.SetPos(tmplLine, tmplCol)
-			tagged := rhino.New(rhino.TAGGED_TEMPLATELIT)
-			tagged.SetPos(expr.Lineno(), expr.Charno())
-			tagged.AddChildToBack(expr)
-			tagged.AddChildToBack(tmpl)
-			setFreeCallIfNeeded(tagged)
-			expr = tagged
-			continue
-		}
-		// Postfix update expression: `expr++` / `expr--`. Java's
-		// PostfixExpressionTree applies after the LHS chain. ASI: a line
-		// terminator before `++`/`--` cancels the postfix interpretation
-		// (parsed as a separate statement). For simplicity we rely on
-		// p.scanner.SkipTrivia handling whitespace; multi-line ASI is not
-		// fully ported here.
-		if c == '+' && p.scanner.PeekAt(1) == '+' {
-			p.scanner.Advance()
-			p.scanner.Advance()
-			n := rhino.New(rhino.INC)
-			n.SetPos(expr.Lineno(), expr.Charno())
-			n.AddChildToBack(expr)
-			n.PutBooleanProp(rhino.PropIncrDecr, true) // postfix marker
-			expr = n
-			return expr, true
-		}
-		if c == '-' && p.scanner.PeekAt(1) == '-' {
-			p.scanner.Advance()
-			p.scanner.Advance()
-			n := rhino.New(rhino.DEC)
-			n.SetPos(expr.Lineno(), expr.Charno())
-			n.AddChildToBack(expr)
-			n.PutBooleanProp(rhino.PropIncrDecr, true) // postfix marker
-			expr = n
-			return expr, true
-		}
-		return expr, true
+		return p.ParseClassMemberDeclaration(elementInfo)
 	}
 }
 
-// parseArguments consumes `arg, arg, …)` into node, handling spread
-// (`...expr` → ITER_SPREAD child). The opening `(` must already be consumed.
-// Mirrors Java's parseArguments / parseAssignmentOrSpread.
-func (p *Parser) parseArguments(node *rhino.Node) {
-	for {
-		p.scanner.SkipTrivia()
-		if p.scanner.AtEnd() {
-			return
-		}
-		if p.scanner.Peek() == ')' {
-			p.scanner.Advance()
-			return
-		}
-		argLine, argCol := p.scanner.Line(), p.scanner.Col()
-		// Spread element: `...expr` → ITER_SPREAD(expr)
-		if p.scanner.Peek() == '.' && p.scanner.PeekAt(1) == '.' && p.scanner.PeekAt(2) == '.' {
-			p.scanner.Advance()
-			p.scanner.Advance()
-			p.scanner.Advance()
-			p.scanner.SkipTrivia()
-			operand, ok := p.parseAssignment()
-			if !ok {
-				return
-			}
-			spread := rhino.New(rhino.ITER_SPREAD)
-			spread.SetPos(argLine, argCol)
-			spread.AddChildToBack(operand)
-			node.AddChildToBack(spread)
-		} else {
-			arg, ok := p.parseExpression()
-			if !ok {
-				return
-			}
-			// Argument's position should be the start of the argument
-			// expression (after any leading whitespace, including a leading
-			// `(` of a parenthesised receiver). Java reports the diagnostic
-			// at this position; mirrors var-init's unconditional SetPos.
-			arg.SetPos(argLine, argCol)
-			node.AddChildToBack(arg)
-		}
-		p.scanner.SkipTrivia()
-		p.scanner.ConsumeByte(',')
-	}
-}
-
-// parsePrimaryExpression parses literals, identifiers, `this`, array/object
-// literals, parenthesized expressions, and arrow / function
-// expressions. Mirrors Parser.java's parsePrimaryExpression.
-func (p *Parser) parsePrimaryExpression() (*rhino.Node, bool) {
-	p.scanner.SkipTrivia()
-	if p.scanner.AtEnd() {
-		return nil, false
-	}
-	// Leading JSDoc block comment handling. If followed by `{` (object
-	// literal), attach to the object literal. If followed by `(`, priority:
-	//   - @type {T} → wrap the parenthesised expression in a CAST node
-	//     (matches Java's CAST AST node production).
-	//   - @lends {X} → attach to inner OBJECTLIT.
-	//   - @param / @return / @constructor etc. → attach to inner FUNCTION.
-	// Otherwise restore the scanner so downstream parses don't see it.
-	var leadingJSDoc *rhino.JSDocInfo
-	if p.scanner.Peek() == '/' && p.scanner.PeekAt(1) == '*' && p.scanner.PeekAt(2) == '*' {
-		save := p.scanner.Save()
-		commentLine := p.scanner.Line()
-		if b, ok := p.scanner.ConsumeBlockComment(); ok {
-			p.scanner.SkipTrivia()
-			next := p.scanner.Peek()
-			parsed := parsing.ParseJSDocInfo(b, commentLine)
-			switch {
-			case next == '{':
-				// /** @struct|@dict|@type ... */ { … } object literal.
-				leadingJSDoc = parsed
-			case next == '(' && parsed != nil && parsed.HasType():
-				// /** @type {T} */(expr) — cast expression. Wrap the inner
-				// parenthesised expression in a CAST node carrying the
-				// annotation. Mirrors Java's CAST AST node production.
-				castLine, castCol := p.scanner.Line(), p.scanner.Col()
-				inner, ok2 := p.tryParen()
-				if !ok2 {
-					p.scanner.Restore(save)
-					break
-				}
-				cast := rhino.New(rhino.CAST)
-				cast.SetPos(castLine, castCol)
-				cast.SetJSDocInfo(parsed)
-				cast.AddChildToBack(inner)
-				return cast, true
-			case next == '(' && parsed != nil && parsed.HasLendsName():
-				// /** @lends {Foo} */ ({...}) — attach to inner OBJECTLIT.
-				leadingJSDoc = parsed
-			case next == '(' && jsdocHasFunctionAnnotation(parsed):
-				// /** @param ... */ (…) — function-annotation before a
-				// parenthesized arrow/function expression.
-				leadingJSDoc = parsed
-			default:
-				p.scanner.Restore(save)
-			}
-		} else {
-			p.scanner.Restore(save)
-		}
-	}
-	startLine, startCol := p.scanner.Line(), p.scanner.Col()
-
-	// Arrow and parenthesized expressions both start with '('. Try the
-	// arrow speculatively; on failure the Save/Restore in tryArrow
-	// leaves the scanner ready for a paren parse. When a leadingJSDoc
-	// was captured above, attach it to the result if it is a FUNCTION.
-	if p.scanner.Peek() == '(' {
-		if leadingJSDoc == nil {
-			if arrow, ok := p.tryArrow(); ok {
-				return arrow, true
-			}
-		}
-		result, ok := p.tryParen()
-		if ok && result != nil && leadingJSDoc != nil && result.JSDocInfo() == nil {
-			// Attach the leading JSDoc to FUNCTION (for @param/@return)
-			// or OBJECTLIT (for @lends / object-literal annotations).
-			switch result.Token() {
-			case rhino.FUNCTION, rhino.OBJECTLIT:
-				result.SetJSDocInfo(leadingJSDoc)
-			}
-		}
-		return result, ok
-	}
-	fnLine, fnCol := p.scanner.Line(), p.scanner.Col()
-	if p.scanner.ConsumeKeyword("function") {
-		fn, ok := p.finishFunction(nil)
-		if fn != nil {
-			fn.SetPos(fnLine, fnCol)
-		}
-		return fn, ok
-	}
-	// Class expression: `class [Name] [extends Base] { … }` as an
-	// expression. Mirrors Parser.java's parseClassExpression which is
-	// invoked from parsePrimaryExpression when the cursor is on `class`.
-	clsLine, clsCol := p.scanner.Line(), p.scanner.Col()
-	if p.scanner.ConsumeKeyword("class") {
-		cls, ok := p.finishClass(leadingJSDoc)
-		if cls != nil {
-			cls.SetPos(clsLine, clsCol)
-		}
-		return cls, ok
-	}
-	c := p.scanner.Peek()
-	switch {
-	case c == '`':
-		n, ok := p.parseTemplateLiteral()
-		if !ok {
-			return nil, false
-		}
-		n.SetPos(startLine, startCol)
-		return n, true
-	case c == '\'' || c == '"':
-		n, ok := p.parseStringLiteral(c)
-		if !ok {
-			return nil, false
-		}
-		n.SetPos(startLine, startCol)
-		return n, true
-	case unicode.IsDigit(c) || (c == '.' && unicode.IsDigit(p.scanner.PeekAt(1))):
-		n, ok := p.parseNumberLiteral()
-		if !ok {
-			return nil, false
-		}
-		n.SetPos(startLine, startCol)
-		return n, true
-	case c == '[':
-		return p.parseArrayLiteral()
-	case c == '{':
-		obj, ok := p.parseObjectLiteral()
-		if ok && obj != nil && leadingJSDoc != nil && obj.JSDocInfo() == nil {
-			obj.SetJSDocInfo(leadingJSDoc)
-		}
-		return obj, ok
-	case c == 't' || c == 'f':
-		if n, ok := p.parseBooleanLiteral(); ok {
-			n.SetPos(startLine, startCol)
-			return n, true
-		}
-	case c == 'n':
-		if p.scanner.ConsumeKeyword("null") {
-			n := rhino.New(rhino.NULL)
-			n.SetPos(startLine, startCol)
-			return n, true
-		}
-	case c == 'u':
-		if p.scanner.ConsumeKeyword("undefined") {
-			n := rhino.New(rhino.UNDEFINED)
-			n.SetPos(startLine, startCol)
-			return n, true
-		}
-	}
-	if c == 't' && p.scanner.ConsumeKeyword("this") {
-		n := rhino.New(rhino.THIS)
-		n.SetPos(startLine, startCol)
-		return n, true
-	}
-	if c == 's' && p.scanner.ConsumeKeyword("super") {
-		n := rhino.New(rhino.SUPER)
-		n.SetPos(startLine, startCol)
-		return n, true
-	}
-	// Dynamic import expression: import(specifier).
-	// Mirrors Parser.java's parseDynamicImport path; emits DYNAMIC_IMPORT.
-	if c == 'i' && p.scanner.AtKeyword("import") {
-		save := p.scanner.Save()
-		p.scanner.ConsumeKeyword("import")
-		p.scanner.SkipTrivia()
-		if p.scanner.Peek() == '(' {
-			p.scanner.Advance() // consume '('
-			p.scanner.SkipTrivia()
-			specLine, specCol := p.scanner.Line(), p.scanner.Col()
-			spec, ok := p.parseExpression()
-			if ok {
-				p.scanner.SkipTrivia()
-				p.scanner.ConsumeByte(')')
-				n := rhino.New(rhino.DYNAMIC_IMPORT)
-				n.SetPos(startLine, startCol)
-				spec.SetPos(specLine, specCol)
-				n.AddChildToBack(spec)
-				return n, true
-			}
-		}
-		p.scanner.Restore(save)
-	}
-	if unicode.IsLetter(c) || c == '_' || c == '$' {
-		ident, ok := p.scanner.ConsumeIdent()
-		if !ok {
-			return nil, false
-		}
-		n := rhino.NewString(rhino.NAME, ident)
-		n.SetPos(startLine, startCol)
-		return n, true
-	}
-	if c == '/' {
-		n, ok := p.parseRegularExpressionLiteral()
-		if ok {
-			n.SetPos(startLine, startCol)
-		}
-		return n, ok
-	}
-	return nil, false
-}
-
-// parseRegularExpressionLiteral mirrors Parser.java's
-// parseRegularExpressionLiteral. The cursor must be on the leading `/`
-// and the call site must have determined that a regex is expected (i.e.
-// we are in a primary-expression position, not after an expression
-// where `/` would be division — the Pratt binary loop calls peekBinOp,
-// which handles division, so this function is only ever reached from
-// parsePrimaryExpression and is therefore always in the right context).
-func (p *Parser) parseRegularExpressionLiteral() (*rhino.Node, bool) {
-	text, ok := p.scanner.ScanRegularExpressionLiteral()
-	if !ok {
-		return nil, false
-	}
-	return rhino.NewString(rhino.REGEXP, text), true
-}
-
-// tryParen consumes `( expr )`. Called from parsePrimaryExpression after arrow
-// detection fails. Not exposed elsewhere because parenthesized groups
-// don't exist at any lower layer.
-// Go-only: language-adapter — speculative parenthesised-expression parse (Java uses parseCoverParenthesizedExpressionAndArrowParameterList; Go uses try-pattern).
-func (p *Parser) tryParen() (*rhino.Node, bool) {
-	save := p.scanner.Save()
-	openLine, openCol := p.scanner.Line(), p.scanner.Col()
-	if !p.scanner.ConsumeByte('(') {
-		p.scanner.Restore(save)
-		return nil, false
-	}
-	p.scanner.SkipTrivia()
-	inner, ok := p.parseExpression()
-	if !ok {
-		p.scanner.Restore(save)
-		return nil, false
-	}
-	p.scanner.SkipTrivia()
-	if !p.scanner.ConsumeByte(')') {
-		p.scanner.Restore(save)
-		return nil, false
-	}
-	// If the inner expression didn't get a position (e.g. an
-	// anonymous function-expression wrapped in parens), use the
-	// opening `(` to give it one. Java uses the `(`-column for the
-	// whole paren group at diagnostic time.
-	if inner.Lineno() == 0 && inner.Charno() == 0 {
-		inner.SetPos(openLine, openCol)
-	}
-	// Java IRFactory.processParenthesizedExpression sets isParenthesized.
-	inner.SetIsParenthesized(true)
-	return inner, true
-}
-
-// parseArrayLiteral parses `[ e1, e2, … ]`. Holes (consecutive commas) are
-// handled by emitting UNDEFINED sentinels, matching how Closure
-// represents ArrayLiteral elisions.
-func (p *Parser) parseArrayLiteral() (*rhino.Node, bool) {
-	startLine, startCol := p.scanner.Line(), p.scanner.Col()
-	if !p.scanner.ConsumeByte('[') {
-		return nil, false
-	}
-	arr := rhino.New(rhino.ARRAYLIT)
-	arr.SetPos(startLine, startCol)
-	for {
-		p.scanner.SkipTrivia()
-		if p.scanner.AtEnd() {
-			return nil, false
-		}
-		if p.scanner.Peek() == ']' {
-			p.scanner.Advance()
-			return arr, true
-		}
-		if p.scanner.Peek() == ',' {
-			hole := rhino.New(rhino.UNDEFINED)
-			hole.SetPos(p.scanner.Line(), p.scanner.Col())
-			arr.AddChildToBack(hole)
-			p.scanner.Advance()
-			continue
-		}
-		elLine, elCol := p.scanner.Line(), p.scanner.Col()
-		el, ok := p.parseExpression()
-		if !ok {
-			return nil, false
-		}
-		el.SetPos(elLine, elCol)
-		arr.AddChildToBack(el)
-		p.scanner.SkipTrivia()
-		if p.scanner.ConsumeByte(',') {
-			continue
-		}
-	}
-}
-
-// isNormalOrOptChainGet mirrors Java's IRFactory.isNormalOrOptChainGet — true
-// when n is a GETPROP, GETELEM, OPTCHAIN_GETPROP, or OPTCHAIN_GETELEM node.
-// Used to decide whether a call node should have FREE_CALL set.
-func isNormalOrOptChainGet(n *rhino.Node) bool {
-	switch n.Token() {
-	case rhino.GETPROP, rhino.GETELEM, rhino.OPTCHAIN_GETPROP, rhino.OPTCHAIN_GETELEM:
+// Java: Parser.eatStaticIfNotElementName()
+func (p *Parser) EatStaticIfNotElementName() bool {
+	// only eat `static` if it being used as a keyword and not
+	// a member name.
+	if p.Peek(TokenType_STATIC) && p.IsClassElementStart(p.PeekTokenAt(1)) {
+		p.Eat(TokenType_STATIC)
 		return true
 	}
 	return false
 }
 
-// setFreeCallIfNeeded mirrors Java's IRFactory visitor logic: if the first
-// child of a CALL / OPTCHAIN_CALL / TAGGED_TEMPLATELIT is not a GET-style
-// callee, mark the call as a free call (no implicit `this`).
-func setFreeCallIfNeeded(call *rhino.Node) {
-	callee := call.FirstChild()
-	if callee == nil {
-		return
-	}
-	// Skip past CAST wrappers, matching Java's comment about cast nodes.
-	for callee != nil && callee.Token() == rhino.CAST {
-		callee = callee.FirstChild()
-	}
-	if callee == nil {
-		return
-	}
-	if !isNormalOrOptChainGet(callee) {
-		call.SetFreeCall(true)
+// Java: Parser.peekAsyncMethod()
+func (p *Parser) PeekAsyncMethod() bool {
+	return p.PeekPredefinedString(Parser_ASYNC) &&
+		!p.PeekImplicitSemiColonAt(1) &&
+		(p.PeekPropertyNameOrComputedProp(1) ||
+			(p.PeekAt(1, TokenType_STAR) && p.PeekPropertyNameOrComputedProp(2)))
+}
+
+// Java: Parser.peekClassStaticInitializerBlock()
+func (p *Parser) PeekClassStaticInitializerBlock() bool {
+	return p.Peek(TokenType_STATIC) && p.PeekAt(1, TokenType_OPEN_CURLY)
+}
+
+// Java: Parser.parseClassElementName(ClassOrObjectElementInfo)
+func (p *Parser) ParseClassElementName(elementInfo *ClassOrObjectElementInfo) {
+	if p.PeekPropertyName(0) {
+		if p.PeekIdOrKeyword() {
+			elementInfo.SetName(p.EatIdOrKeywordAsId())
+			if elementInfo.GetName().IsKeyword() {
+				p.RecordFeatureUsed(FeatureSet_Feature_KEYWORDS_AS_PROPERTIES)
+			}
+		} else {
+			// { 'str'() {} }
+			// { 123() {} }
+			// Treat these as if they were computed properties.
+			// TODO(b/123769080): Stop making this assumption!
+			elementInfo.SetNameExpr(p.ParseLiteralExpression())
+		}
+	} else {
+		elementInfo.SetNameExpr(p.ParseComputedPropertyName())
 	}
 }
 
-// parseObjectLiteral parses `{ key: value, … }`. Keys may be identifiers,
-// strings, or numbers. Each pair becomes a STRING_KEY(name) node with
-// the value as its sole child. Shorthand (`{x}` → `{x: x}`) and
-// computed keys (`{[k]: v}`) are deferred.
-func (p *Parser) parseObjectLiteral() (*rhino.Node, bool) {
-	startLine, startCol := p.scanner.Line(), p.scanner.Col()
-	if !p.scanner.ConsumeByte('{') {
-		return nil, false
+// Java: Parser.parseFieldDefinition(ClassOrObjectElementInfo)
+func (p *Parser) ParseFieldDefinition(elementInfo *ClassOrObjectElementInfo) ParseTree {
+	var initializer ParseTree
+	if p.Peek(TokenType_EQUAL) {
+		initializer = p.ParseInitializer(Parser_Expression_NORMAL)
 	}
-	obj := rhino.New(rhino.OBJECTLIT)
-	obj.SetPos(startLine, startCol)
+
+	p.EatPossiblyImplicitSemiColon()
+	if elementInfo.HasName() {
+		return NewFieldDeclarationTree(
+			p.GetTreeLocation(elementInfo.start),
+			elementInfo.GetName(),
+			elementInfo.isStatic,
+			initializer)
+	} else {
+		jutil.CheckState(elementInfo.HasNameExpr())
+		return NewComputedPropertyFieldTree(
+			p.GetTreeLocation(elementInfo.start),
+			elementInfo.GetNameExpr(),
+			elementInfo.isStatic,
+			initializer)
+	}
+}
+
+// Java: Parser.parseMethodDefinition(ClassOrObjectElementInfo, boolean)
+func (p *Parser) ParseMethodDefinition(elementInfo *ClassOrObjectElementInfo, isGenerator bool) ParseTree {
+	var kind FunctionDeclarationTree_Kind
+	if elementInfo.HasNameExpr() {
+		kind = FunctionDeclarationTree_Kind_EXPRESSION
+	} else {
+		kind = FunctionDeclarationTree_Kind_MEMBER
+	}
+
+	builder := FunctionDeclarationTree_NewBuilder(kind).
+		SetIsClassMember(elementInfo.isClassMember).
+		SetStatic(elementInfo.isStatic)
+	if elementInfo.HasName() {
+		builder.SetName(elementInfo.GetName())
+	}
+	p.ParseFunctionTail(builder, functionFlavorOf(isGenerator, Parser_FunctionFlavor_GENERATOR, Parser_FunctionFlavor_NORMAL))
+
+	var function ParseTree = builder.Build(p.GetTreeLocation(elementInfo.start))
+	if kind == FunctionDeclarationTree_Kind_MEMBER {
+		return function
+	} else {
+		jutil.CheckState(elementInfo.HasNameExpr())
+		return NewComputedPropertyMethodTree(
+			p.GetTreeLocation(elementInfo.start), elementInfo.GetNameExpr(), function)
+	}
+}
+
+// functionFlavorOf is the Java conditional `cond ? ifTrue : ifFalse` over
+// FunctionFlavor values.
+//
+// Go-only: language-adapter — Java's conditional operator.
+func functionFlavorOf(cond bool, ifTrue, ifFalse Parser_FunctionFlavor) Parser_FunctionFlavor {
+	if cond {
+		return ifTrue
+	}
+	return ifFalse
+}
+
+// Java: Parser.parseObjectLiteralMethodDeclaration()
+func (p *Parser) ParseObjectLiteralMethodDeclaration() ParseTree {
+	return p.ParseMethodDeclaration(p.CreateObjectLiteralElementInfo())
+}
+
+// Java: Parser.parseMethodDeclaration(ClassOrObjectElementInfo)
+func (p *Parser) ParseMethodDeclaration(elementInfo *ClassOrObjectElementInfo) ParseTree {
+	isGenerator := p.EatOpt(TokenType_STAR) != nil
+	p.ParseClassElementName(elementInfo)
+	return p.ParseMethodDefinition(elementInfo, isGenerator)
+}
+
+// Java: Parser.parseClassMemberDeclaration(ClassOrObjectElementInfo)
+func (p *Parser) ParseClassMemberDeclaration(elementInfo *ClassOrObjectElementInfo) ParseTree {
+	isGenerator := p.EatOpt(TokenType_STAR) != nil
+	p.ParseClassElementName(elementInfo)
+	if p.PeekTypeAt(0) == TokenType_OPEN_PAREN {
+		return p.ParseMethodDefinition(elementInfo, isGenerator)
+	} else {
+		return p.ParseFieldDefinition(elementInfo)
+	}
+}
+
+// Java: Parser.parseObjectLiteralAsyncMethod()
+func (p *Parser) ParseObjectLiteralAsyncMethod() ParseTree {
+	return p.ParseAsyncMethod(p.CreateObjectLiteralElementInfo())
+}
+
+// Java: Parser.parseAsyncMethod(ClassOrObjectElementInfo)
+func (p *Parser) ParseAsyncMethod(elementInfo *ClassOrObjectElementInfo) ParseTree {
+	p.EatPredefinedString(Parser_ASYNC)
+	generator := p.Peek(TokenType_STAR)
+	if generator {
+		p.Eat(TokenType_STAR)
+	}
+	if p.PeekPropertyName(0) {
+		if p.PeekIdOrKeyword() {
+			name := p.EatIdOrKeywordAsId()
+			builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_MEMBER).
+				SetAsync(true).
+				SetGenerator(generator).
+				SetIsClassMember(elementInfo.isClassMember).
+				SetStatic(elementInfo.isStatic).
+				SetName(name)
+			p.ParseFunctionTail(
+				builder,
+				functionFlavorOf(generator, Parser_FunctionFlavor_ASYNCHRONOUS_GENERATOR, Parser_FunctionFlavor_ASYNCHRONOUS))
+
+			return builder.Build(p.GetTreeLocation(name.GetStart()))
+		} else {
+			// { 'str'() {} }
+			// { 123() {} }
+			// Treat these as if they were computed properties.
+			var nameExpr ParseTree = p.ParseLiteralExpression()
+			builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_EXPRESSION).
+				SetAsync(true).
+				SetGenerator(generator).
+				SetIsClassMember(elementInfo.isClassMember).
+				SetStatic(elementInfo.isStatic)
+			p.ParseFunctionTail(
+				builder,
+				functionFlavorOf(generator, Parser_FunctionFlavor_ASYNCHRONOUS_GENERATOR, Parser_FunctionFlavor_ASYNCHRONOUS))
+
+			var function ParseTree = builder.Build(p.GetTreeLocation(nameExpr.GetStart()))
+			return NewComputedPropertyMethodTree(
+				p.GetTreeLocation(nameExpr.GetStart()), nameExpr, function)
+		}
+	} else {
+		// expect '[' to start computed property name
+		nameExpr := p.ParseComputedPropertyName()
+		builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_EXPRESSION).
+			SetAsync(true).
+			SetGenerator(generator).
+			SetIsClassMember(elementInfo.isClassMember).
+			SetStatic(elementInfo.isStatic)
+		p.ParseFunctionTail(
+			builder, functionFlavorOf(generator, Parser_FunctionFlavor_ASYNCHRONOUS_GENERATOR, Parser_FunctionFlavor_ASYNCHRONOUS))
+
+		var function ParseTree = builder.Build(p.GetTreeLocation(nameExpr.GetStart()))
+		return NewComputedPropertyMethodTree(
+			p.GetTreeLocation(nameExpr.GetStart()), nameExpr, function)
+	}
+}
+
+// Java: Parser.parseClassStaticInitializerBlock()
+func (p *Parser) ParseClassStaticInitializerBlock() ParseTree {
+	p.Eat(TokenType_STATIC)
+	return p.ParseBlock()
+}
+
+// Java: Parser.parseFunctionTail(FunctionDeclarationTree.Builder, FunctionFlavor)
+func (p *Parser) ParseFunctionTail(builder *FunctionDeclarationTree_Builder, functionFlavor Parser_FunctionFlavor) {
+	p.functionContextStack = append(p.functionContextStack, functionFlavor)
+	builder.
+		SetGenerator(functionFlavor.IsGenerator()).
+		SetFormalParameterList(p.ParseFormalParameterList()).
+		SetFunctionBody(p.ParseFunctionBody())
+	p.functionContextStack = p.functionContextStack[:len(p.functionContextStack)-1]
+}
+
+// Java: Parser.parseSourceElement()
+func (p *Parser) ParseSourceElement() ParseTree {
+	if p.PeekAsyncFunctionStart() {
+		return p.ParseAsyncFunctionDeclaration()
+	}
+
+	if p.PeekFunction() {
+		return p.ParseFunctionDeclaration()
+	}
+
+	if p.PeekClassDeclaration() {
+		return p.ParseClassDeclaration()
+	}
+
+	// Harmony let block scoped bindings. let can only appear in
+	// a block, not as a standalone statement: if() let x ... illegal
+	if p.Peek(TokenType_LET) {
+		return p.ParseVariableStatement()
+	}
+	// const and var are handled inside parseStatement
+
+	return p.ParseStatementStandard()
+}
+
+// Java: Parser.peekSourceElement()
+func (p *Parser) PeekSourceElement() bool {
+	return p.PeekFunction() || p.PeekStatementStandard() || p.PeekDeclaration()
+}
+
+// Java: Parser.peekAsyncFunctionStart()
+func (p *Parser) PeekAsyncFunctionStart() bool {
+	return p.PeekPredefinedString(Parser_ASYNC) && !p.PeekImplicitSemiColonAt(1) && p.PeekFunctionAt(1)
+}
+
+// Java: Parser.eatAsyncFunctionStart()
+func (p *Parser) EatAsyncFunctionStart() {
+	p.EatPredefinedString(Parser_ASYNC)
+	p.Eat(TokenType_FUNCTION)
+}
+
+// Java: Parser.peekFunction()
+func (p *Parser) PeekFunction() bool {
+	return p.PeekFunctionAt(0)
+}
+
+// Java: Parser.peekDeclaration()
+func (p *Parser) PeekDeclaration() bool {
+	return p.Peek(TokenType_LET) || p.PeekClassDeclaration()
+}
+
+// Java: Parser.peekFunction(int)
+func (p *Parser) PeekFunctionAt(index int) bool {
+	return p.PeekAt(index, TokenType_FUNCTION)
+}
+
+// 13 Function Definition
+
+// Java: Parser.parseFunctionDeclaration()
+func (p *Parser) ParseFunctionDeclaration() ParseTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(Keywords_FUNCTION.Type())
+	isGenerator := p.EatOpt(TokenType_STAR) != nil
+
+	builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_DECLARATION).SetName(p.EatId())
+	p.ParseFunctionTail(builder, functionFlavorOf(isGenerator, Parser_FunctionFlavor_GENERATOR, Parser_FunctionFlavor_NORMAL))
+	return builder.Build(p.GetTreeLocation(start))
+}
+
+// Java: Parser.parseFunctionExpression()
+func (p *Parser) ParseFunctionExpression() ParseTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(Keywords_FUNCTION.Type())
+	isGenerator := p.EatOpt(TokenType_STAR) != nil
+
+	builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_EXPRESSION).
+		SetName(p.EatIdOpt())
+	p.ParseFunctionTail(builder, functionFlavorOf(isGenerator, Parser_FunctionFlavor_GENERATOR, Parser_FunctionFlavor_NORMAL))
+
+	return builder.Build(p.GetTreeLocation(start))
+}
+
+// Java: Parser.parseAsyncFunctionDeclaration()
+func (p *Parser) ParseAsyncFunctionDeclaration() ParseTree {
+	start := p.GetTreeStartLocation()
+	p.EatAsyncFunctionStart()
+
+	generator := p.Peek(TokenType_STAR)
+	if generator {
+		p.Eat(TokenType_STAR)
+	}
+
+	builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_DECLARATION).
+		SetName(p.EatId()).
+		SetAsync(true)
+
+	p.ParseFunctionTail(
+		builder, functionFlavorOf(generator, Parser_FunctionFlavor_ASYNCHRONOUS_GENERATOR, Parser_FunctionFlavor_ASYNCHRONOUS))
+	return builder.Build(p.GetTreeLocation(start))
+}
+
+// Java: Parser.parseAsyncFunctionExpression()
+func (p *Parser) ParseAsyncFunctionExpression() ParseTree {
+	start := p.GetTreeStartLocation()
+	p.EatAsyncFunctionStart()
+
+	generator := p.Peek(TokenType_STAR)
+	if generator {
+		p.Eat(TokenType_STAR)
+	}
+
+	builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_EXPRESSION).
+		SetName(p.EatIdOpt()).
+		SetAsync(true)
+
+	p.ParseFunctionTail(
+		builder, functionFlavorOf(generator, Parser_FunctionFlavor_ASYNCHRONOUS_GENERATOR, Parser_FunctionFlavor_ASYNCHRONOUS))
+	return builder.Build(p.GetTreeLocation(start))
+}
+
+// Java: Parser.peekParameter()
+func (p *Parser) PeekParameter() bool {
+	if p.PeekId() || p.Peek(TokenType_ELLIPSIS) {
+		return true
+	}
+	return p.Peek(TokenType_OPEN_SQUARE) || p.Peek(TokenType_OPEN_CURLY)
+}
+
+// Java: Parser.parseParameter()
+func (p *Parser) ParseParameter() ParseTree {
+	start := p.GetTreeStartLocation()
+	var parameter ParseTree
+
+	if p.Peek(TokenType_ELLIPSIS) {
+		parameter = p.ParseIterRest(Parser_PatternKind_INITIALIZER)
+	} else if p.PeekId() {
+		parameter = p.ParseIdentifierExpression()
+	} else if p.PeekPatternStart() {
+		parameter = p.ParsePattern(Parser_PatternKind_INITIALIZER)
+	} else {
+		panic(jutil.NewIllegalStateExceptionMsg(
+			"parseParameterCalled() without confirming a parameter exists."))
+	}
+
+	if !parameter.IsRestParameter() && p.Peek(TokenType_EQUAL) {
+		p.Eat(TokenType_EQUAL)
+		defaultValue := p.ParseAssignmentExpression()
+		parameter = NewDefaultParameterTree(p.GetTreeLocation(start), parameter, defaultValue)
+	}
+
+	return parameter
+}
+
+// Java: Parser.parseFormalParameterList()
+func (p *Parser) ParseFormalParameterList() *FormalParameterListTree {
+	listStart := p.GetTreeStartLocation()
+	p.Eat(TokenType_OPEN_PAREN)
+
+	result := []ParseTree{}
+	trailingComma := false
+	commaPositions := []*SourcePosition{}
+
+	for p.PeekParameter() {
+		result = append(result, p.ParseParameter())
+
+		if !p.Peek(TokenType_CLOSE_PAREN) {
+			comma := p.Eat(TokenType_COMMA)
+			if comma != nil {
+				commaPositions = append(commaPositions, comma.GetStart())
+			} else {
+				// semi-arbitrary comma position in case the code is syntactially invalid & missing one
+				commaPositions = append(commaPositions, p.GetTreeEndLocation())
+			}
+			if p.Peek(TokenType_CLOSE_PAREN) {
+				if !p.config.atLeast8 {
+					p.ReportErrorAtToken(comma, "Invalid trailing comma in formal parameter list")
+				}
+				trailingComma = true
+			}
+		}
+	}
+
+	p.Eat(TokenType_CLOSE_PAREN)
+	return NewFormalParameterListTree(
+		p.GetTreeLocation(listStart), result, trailingComma, commaPositions)
+}
+
+// Java: Parser.parseSetterParameterList()
+func (p *Parser) ParseSetterParameterList() *FormalParameterListTree {
+	parameterList := p.ParseFormalParameterList()
+
+	if len(parameterList.Parameters) != 1 {
+		p.ReportErrorAtTree(
+			parameterList,
+			"Setter must have exactly 1 parameter, found %d",
+			len(parameterList.Parameters))
+	}
+
+	if len(parameterList.Parameters) >= 1 {
+		parameter := parameterList.Parameters[0]
+		if parameter.IsRestParameter() {
+			p.ReportErrorAtTree(parameter, "Setter must not have a rest parameter")
+		}
+	}
+
+	return parameterList
+}
+
+// Java: Parser.parseFunctionBody()
+func (p *Parser) ParseFunctionBody() *BlockTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_OPEN_CURLY)
+	result := p.ParseSourceElementList()
+	p.Eat(TokenType_CLOSE_CURLY)
+	return NewBlockTree(p.GetTreeLocation(start), result)
+}
+
+// Java: Parser.parseSourceElementList()
+func (p *Parser) ParseSourceElementList() []ParseTree {
+	result := []ParseTree{}
+
+	for p.PeekSourceElement() {
+		result = append(result, p.ParseSourceElement())
+	}
+
+	return result
+}
+
+// Java: Parser.parseIterSpread()
+func (p *Parser) ParseIterSpread() *IterSpreadTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_ELLIPSIS)
+	operand := p.ParseAssignmentExpression()
+	return NewIterSpreadTree(p.GetTreeLocation(start), operand)
+}
+
+// 12 Statements
+
+// ParseStatement: in V8, all source elements may appear where statements
+// occur in the grammar.
+//
+// Java: Parser.parseStatement()
+func (p *Parser) ParseStatement() ParseTree {
+	return p.ParseSourceElement()
+}
+
+// ParseStatementStandard reflects the ECMA standard. Most places use
+// peekStatement instead.
+//
+// Java: Parser.parseStatementStandard()
+func (p *Parser) ParseStatementStandard() ParseTree {
+	switch p.PeekType() {
+	case TokenType_OPEN_CURLY:
+		return p.ParseBlock()
+	case TokenType_CONST, TokenType_VAR:
+		return p.ParseVariableStatement()
+	case TokenType_SEMI_COLON:
+		return p.ParseEmptyStatement()
+	case TokenType_IF:
+		return p.ParseIfStatement()
+	case TokenType_DO:
+		return p.ParseDoWhileStatement()
+	case TokenType_WHILE:
+		return p.ParseWhileStatement()
+	case TokenType_FOR:
+		return p.ParseForStatement()
+	case TokenType_CONTINUE:
+		return p.ParseContinueStatement()
+	case TokenType_BREAK:
+		return p.ParseBreakStatement()
+	case TokenType_RETURN:
+		return p.ParseReturnStatement()
+	case TokenType_WITH:
+		return p.ParseWithStatement()
+	case TokenType_SWITCH:
+		return p.ParseSwitchStatement()
+	case TokenType_THROW:
+		return p.ParseThrowStatement()
+	case TokenType_TRY:
+		return p.ParseTryStatement()
+	case TokenType_DEBUGGER:
+		return p.ParseDebuggerStatement()
+	default:
+		if p.PeekLabelledStatement() {
+			return p.ParseLabelledStatement()
+		}
+		return p.ParseExpressionStatement()
+	}
+}
+
+// PeekStatement: in V8 all source elements may appear where statements
+// appear in the grammar.
+//
+// Java: Parser.peekStatement()
+func (p *Parser) PeekStatement() bool {
+	return p.PeekSourceElement()
+}
+
+// PeekStatementStandard reflects the ECMA standard. Most places use
+// peekStatement instead.
+//
+// Java: Parser.peekStatementStandard()
+func (p *Parser) PeekStatementStandard() bool {
+	switch p.PeekType() {
+	case TokenType_OPEN_CURLY,
+		TokenType_VAR,
+		TokenType_CONST,
+		TokenType_SEMI_COLON,
+		TokenType_IF,
+		TokenType_DO,
+		TokenType_WHILE,
+		TokenType_FOR,
+		TokenType_CONTINUE,
+		TokenType_BREAK,
+		TokenType_RETURN,
+		TokenType_WITH,
+		TokenType_SWITCH,
+		TokenType_THROW,
+		TokenType_TRY,
+		TokenType_DEBUGGER,
+		TokenType_YIELD,
+		TokenType_IDENTIFIER,
+		TokenType_TYPE,
+		TokenType_DECLARE,
+		TokenType_MODULE,
+		TokenType_NAMESPACE,
+		TokenType_THIS,
+		TokenType_CLASS,
+		TokenType_SUPER,
+		TokenType_NUMBER,
+		TokenType_BIGINT,
+		TokenType_STRING,
+		TokenType_NO_SUBSTITUTION_TEMPLATE,
+		TokenType_TEMPLATE_HEAD,
+		TokenType_NULL,
+		TokenType_TRUE,
+		TokenType_SLASH,       // regular expression literal
+		TokenType_SLASH_EQUAL, // regular expression literal
+		TokenType_FALSE,
+		TokenType_OPEN_SQUARE,
+		TokenType_OPEN_PAREN,
+		TokenType_NEW,
+		TokenType_DELETE,
+		TokenType_VOID,
+		TokenType_TYPEOF,
+		TokenType_PLUS_PLUS,
+		TokenType_MINUS_MINUS,
+		TokenType_PLUS,
+		TokenType_MINUS,
+		TokenType_TILDE,
+		TokenType_BANG,
+		TokenType_IMPORT:
+		return true
+	default:
+		return false
+	}
+}
+
+// 12.1 Block
+
+// Java: Parser.parseBlock()
+func (p *Parser) ParseBlock() *BlockTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_OPEN_CURLY)
+	// Spec says Statement list. However functions are also embedded in the wild.
+	result := p.ParseSourceElementList()
+	p.Eat(TokenType_CLOSE_CURLY)
+	return NewBlockTree(p.GetTreeLocation(start), result)
+}
+
+// Java: Parser.parseStatementList()
+func (p *Parser) ParseStatementList() []ParseTree {
+	result := []ParseTree{}
+	for p.PeekStatement() {
+		result = append(result, p.ParseStatement())
+	}
+	return result
+}
+
+// 12.2 Variable Statement
+
+// Java: Parser.parseVariableStatement()
+func (p *Parser) ParseVariableStatement() *VariableStatementTree {
+	start := p.GetTreeStartLocation()
+	declarations := p.ParseVariableDeclarationList()
+	p.EatPossiblyImplicitSemiColon()
+	return NewVariableStatementTree(p.GetTreeLocation(start), declarations)
+}
+
+// Java: Parser.parseVariableDeclarationList()
+func (p *Parser) ParseVariableDeclarationList() *VariableDeclarationListTree {
+	return p.ParseVariableDeclarationListWithExpression(Parser_Expression_NORMAL)
+}
+
+// Java: Parser.parseVariableDeclarationListNoIn()
+func (p *Parser) ParseVariableDeclarationListNoIn() *VariableDeclarationListTree {
+	return p.ParseVariableDeclarationListWithExpression(Parser_Expression_NO_IN)
+}
+
+// ParseVariableDeclarationListWithExpression returns nil (Java null) after
+// reporting an error if no declaration keyword is next.
+//
+// Java: Parser.parseVariableDeclarationList(Expression)
+func (p *Parser) ParseVariableDeclarationListWithExpression(expressionIn Parser_Expression) *VariableDeclarationListTree {
+	start := p.GetTreeStartLocation()
+	token := p.PeekType()
+
+	switch token {
+	case TokenType_CONST, TokenType_LET, TokenType_VAR:
+		p.Eat(token)
+	default:
+		p.ReportErrorAtToken(p.PeekToken(), "expected declaration")
+		return nil
+	}
+
+	declarations := []*VariableDeclarationTree{}
+
+	declarations = append(declarations, p.ParseVariableDeclaration(token, expressionIn))
+	for p.Peek(TokenType_COMMA) {
+		p.Eat(TokenType_COMMA)
+		declarations = append(declarations, p.ParseVariableDeclaration(token, expressionIn))
+	}
+	return NewVariableDeclarationListTree(p.GetTreeLocation(start), token, declarations)
+}
+
+// Java: Parser.parseVariableDeclaration(TokenType, Expression)
+func (p *Parser) ParseVariableDeclaration(binding TokenType, expressionIn Parser_Expression) *VariableDeclarationTree {
+
+	start := p.GetTreeStartLocation()
+	var lvalue ParseTree
+	if p.PeekPatternStart() {
+		lvalue = p.ParsePattern(Parser_PatternKind_INITIALIZER)
+	} else {
+		lvalue = p.ParseIdentifierExpression()
+	}
+
+	var initializer ParseTree
+	if p.Peek(TokenType_EQUAL) {
+		initializer = p.ParseInitializer(expressionIn)
+	} else if expressionIn != Parser_Expression_NO_IN {
+		// NOTE(blickly): this is a bit of a hack, declarations outside of for statements allow "in",
+		// and by chance, also must have initializers for const/destructuring. Vanilla for loops
+		// also require intializers, but are handled separately in checkVanillaForInitializers
+		p.MaybeReportNoInitializer(binding, lvalue)
+	}
+	return NewVariableDeclarationTree(p.GetTreeLocation(start), lvalue, initializer)
+}
+
+// Java: Parser.parseInitializer(Expression)
+func (p *Parser) ParseInitializer(expressionIn Parser_Expression) ParseTree {
+	p.Eat(TokenType_EQUAL)
+	return p.ParseAssignment(expressionIn)
+}
+
+// 12.3 Empty Statement
+
+// Java: Parser.parseEmptyStatement()
+func (p *Parser) ParseEmptyStatement() *EmptyStatementTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_SEMI_COLON)
+	return NewEmptyStatementTree(p.GetTreeLocation(start))
+}
+
+// 12.4 Expression Statement
+
+// Java: Parser.parseExpressionStatement()
+func (p *Parser) ParseExpressionStatement() *ExpressionStatementTree {
+	start := p.GetTreeStartLocation()
+	expression := p.ParseExpression()
+	p.EatPossiblyImplicitSemiColon()
+	return NewExpressionStatementTree(p.GetTreeLocation(start), expression)
+}
+
+// 12.5 If Statement
+
+// Java: Parser.parseIfStatement()
+func (p *Parser) ParseIfStatement() *IfStatementTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_IF)
+	p.Eat(TokenType_OPEN_PAREN)
+	condition := p.ParseExpression()
+	p.Eat(TokenType_CLOSE_PAREN)
+	ifClause := p.ParseStatement()
+	var elseClause ParseTree
+	if p.Peek(TokenType_ELSE) {
+		p.Eat(TokenType_ELSE)
+		elseClause = p.ParseStatement()
+	}
+	return NewIfStatementTree(p.GetTreeLocation(start), condition, ifClause, elseClause)
+}
+
+// 12.6 Iteration Statements
+
+// 12.6.1 The do-while Statement
+
+// Java: Parser.parseDoWhileStatement()
+func (p *Parser) ParseDoWhileStatement() ParseTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_DO)
+	body := p.ParseStatement()
+	p.Eat(TokenType_WHILE)
+	p.Eat(TokenType_OPEN_PAREN)
+	condition := p.ParseExpression()
+	p.Eat(TokenType_CLOSE_PAREN)
+	// The semicolon after the "do-while" is optional.
+	if p.Peek(TokenType_SEMI_COLON) {
+		p.Eat(TokenType_SEMI_COLON)
+	}
+	return NewDoWhileStatementTree(p.GetTreeLocation(start), body, condition)
+}
+
+// 12.6.2 The while Statement
+
+// Java: Parser.parseWhileStatement()
+func (p *Parser) ParseWhileStatement() ParseTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_WHILE)
+	p.Eat(TokenType_OPEN_PAREN)
+	condition := p.ParseExpression()
+	p.Eat(TokenType_CLOSE_PAREN)
+	body := p.ParseStatement()
+	return NewWhileStatementTree(p.GetTreeLocation(start), condition, body)
+}
+
+// 12.6.3 The for Statement
+// 12.6.4 The for-in Statement
+// The for-of Statement
+// The for-await-of Statement
+
+// Java: Parser.parseForStatement()
+func (p *Parser) ParseForStatement() ParseTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_FOR)
+	awaited := p.PeekPredefinedString(Parser_AWAIT)
+	if awaited {
+		p.EatPredefinedString(Parser_AWAIT)
+	}
+	p.Eat(TokenType_OPEN_PAREN)
+	if p.PeekVariableDeclarationList() {
+		variables := p.ParseVariableDeclarationListNoIn()
+		if p.Peek(TokenType_IN) {
+			if awaited {
+				p.ReportError("for-await-of is the only allowed asynchronous iteration")
+			}
+			// for-in: only one declaration allowed
+			if len(variables.Declarations) > 1 {
+				p.ReportError("for-in statement may not have more than one variable declaration")
+			}
+			declaration := variables.Declarations[0]
+			if declaration.Initializer != nil {
+				// An initializer is allowed here in ES5 and below, but not in ES6.
+				// Warn about it, to encourage people to eliminate it from their code.
+				// http://esdiscuss.org/topic/initializer-expression-on-for-in-syntax-subject
+				if p.config.atLeast6 {
+					p.ReportError("for-in statement may not have initializer")
+				} else {
+					p.errorReporter.ReportWarningFormat(
+						declaration.Location.Start, "for-in statement should not have initializer")
+				}
+			}
+
+			return p.ParseForInStatement(start, variableDeclarationListAsParseTree(variables))
+		} else if p.PeekPredefinedString(PredefinedName_OF) {
+			// for-of: only one declaration allowed
+			if len(variables.Declarations) > 1 {
+				if awaited {
+					p.ReportError("for-await-of statement may not have more than one variable declaration")
+				} else {
+					p.ReportError("for-of statement may not have more than one variable declaration")
+				}
+			}
+			// for-of: initializer is illegal
+			declaration := variables.Declarations[0]
+			if declaration.Initializer != nil {
+				if awaited {
+					p.ReportError("for-await-of statement may not have initializer")
+				} else {
+					p.ReportError("for-of statement may not have initializer")
+				}
+			}
+
+			if awaited {
+				return p.ParseForAwaitOfStatement(start, variableDeclarationListAsParseTree(variables))
+			} else {
+				return p.ParseForOfStatement(start, variableDeclarationListAsParseTree(variables))
+			}
+		} else {
+			// "Vanilla" for statement: const/destructuring must have initializer
+			p.CheckVanillaForInitializers(variables)
+			return p.ParseForStatementWithInitializer(start, variableDeclarationListAsParseTree(variables))
+		}
+	}
+
+	if p.Peek(TokenType_SEMI_COLON) {
+		return p.ParseForStatementWithInitializer(start, nil)
+	}
+
+	initializer := p.ParseExpressionNoIn()
+	if p.Peek(TokenType_IN) || p.Peek(TokenType_EQUAL) || p.PeekPredefinedString(PredefinedName_OF) {
+		initializer = p.TransformLeftHandSideExpression(initializer)
+		if !initializer.IsValidAssignmentTarget() {
+			p.ReportError("invalid assignment target")
+		}
+	}
+
+	if p.Peek(TokenType_IN) || p.PeekPredefinedString(PredefinedName_OF) {
+		if initializer.GetParseTreeBase().Type != ParseTreeType_BINARY_OPERATOR &&
+			initializer.GetParseTreeBase().Type != ParseTreeType_COMMA_EXPRESSION {
+			if p.Peek(TokenType_IN) {
+				return p.ParseForInStatement(start, initializer)
+			} else {
+				// for {await}? ( _ of _ )
+				if awaited {
+					return p.ParseForAwaitOfStatement(start, initializer)
+				} else {
+					return p.ParseForOfStatement(start, initializer)
+				}
+			}
+		}
+	}
+
+	return p.ParseForStatementWithInitializer(start, initializer)
+}
+
+// The for-of Statement
+// for  (  { let | var }?  identifier  of  expression  )  statement
+
+// Java: Parser.parseForOfStatement(SourcePosition, ParseTree)
+func (p *Parser) ParseForOfStatement(start *SourcePosition, initializer ParseTree) ParseTree {
+	p.EatPredefinedString(PredefinedName_OF)
+	collection := p.ParseExpression()
+	p.Eat(TokenType_CLOSE_PAREN)
+	body := p.ParseStatement()
+	return NewForOfStatementTree(p.GetTreeLocation(start), initializer, collection, body)
+}
+
+// Java: Parser.parseForAwaitOfStatement(SourcePosition, ParseTree)
+func (p *Parser) ParseForAwaitOfStatement(start *SourcePosition, initializer ParseTree) ParseTree {
+	p.EatPredefinedString(PredefinedName_OF)
+	collection := p.ParseExpression()
+	p.Eat(TokenType_CLOSE_PAREN)
+	body := p.ParseStatement()
+	return NewForAwaitOfStatementTree(p.GetTreeLocation(start), initializer, collection, body)
+}
+
+// CheckVanillaForInitializers checks variable declarations in for
+// statements.
+//
+// Java: Parser.checkVanillaForInitializers(VariableDeclarationListTree)
+func (p *Parser) CheckVanillaForInitializers(variables *VariableDeclarationListTree) {
+	for _, declaration := range variables.Declarations {
+		if declaration.Initializer == nil {
+			p.MaybeReportNoInitializer(variables.DeclarationType, declaration.Lvalue)
+		}
+	}
+}
+
+// MaybeReportNoInitializer reports if declaration requires an initializer,
+// assuming initializer is absent.
+//
+// Java: Parser.maybeReportNoInitializer(TokenType, ParseTree)
+func (p *Parser) MaybeReportNoInitializer(token TokenType, lvalue ParseTree) {
+	if token == TokenType_CONST {
+		p.ReportError("const variables must have an initializer")
+	} else if lvalue.IsPattern() {
+		p.ReportError("destructuring must have an initializer")
+	}
+}
+
+// Java: Parser.peekVariableDeclarationList()
+func (p *Parser) PeekVariableDeclarationList() bool {
+	switch p.PeekType() {
+	case TokenType_VAR, TokenType_CONST, TokenType_LET:
+		return true
+	default:
+		return false
+	}
+}
+
+// 12.6.3 The for Statement
+
+// Java: Parser.parseForStatement(SourcePosition, ParseTree)
+func (p *Parser) ParseForStatementWithInitializer(start *SourcePosition, initializer ParseTree) ParseTree {
+	if initializer == nil {
+		initializer = NewNullTree(NewSourceRange(p.GetTreeEndLocation(), p.GetTreeStartLocation()))
+	}
+	p.Eat(TokenType_SEMI_COLON)
+
+	var condition ParseTree
+	if !p.Peek(TokenType_SEMI_COLON) {
+		condition = p.ParseExpression()
+	} else {
+		condition = NewNullTree(NewSourceRange(p.GetTreeEndLocation(), p.GetTreeStartLocation()))
+	}
+	p.Eat(TokenType_SEMI_COLON)
+
+	var increment ParseTree
+	if !p.Peek(TokenType_CLOSE_PAREN) {
+		increment = p.ParseExpression()
+	} else {
+		increment = NewNullTree(NewSourceRange(p.GetTreeEndLocation(), p.GetTreeStartLocation()))
+	}
+	p.Eat(TokenType_CLOSE_PAREN)
+	body := p.ParseStatement()
+	return NewForStatementTree(p.GetTreeLocation(start), initializer, condition, increment, body)
+}
+
+// 12.6.4 The for-in Statement
+
+// Java: Parser.parseForInStatement(SourcePosition, ParseTree)
+func (p *Parser) ParseForInStatement(start *SourcePosition, initializer ParseTree) ParseTree {
+	p.Eat(TokenType_IN)
+	collection := p.ParseExpression()
+	p.Eat(TokenType_CLOSE_PAREN)
+	body := p.ParseStatement()
+	return NewForInStatementTree(p.GetTreeLocation(start), initializer, collection, body)
+}
+
+// 12.7 The continue Statement
+
+// Java: Parser.parseContinueStatement()
+func (p *Parser) ParseContinueStatement() ParseTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_CONTINUE)
+	var name *IdentifierToken
+	if !p.PeekImplicitSemiColon() {
+		name = p.EatIdOpt()
+	}
+	p.EatPossiblyImplicitSemiColon()
+	return NewContinueStatementTree(p.GetTreeLocation(start), name)
+}
+
+// 12.8 The break Statement
+
+// Java: Parser.parseBreakStatement()
+func (p *Parser) ParseBreakStatement() ParseTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_BREAK)
+	var name *IdentifierToken
+	if !p.PeekImplicitSemiColon() {
+		name = p.EatIdOpt()
+	}
+	p.EatPossiblyImplicitSemiColon()
+	return NewBreakStatementTree(p.GetTreeLocation(start), name)
+}
+
+// 12.9 The return Statement
+
+// Java: Parser.parseReturnStatement()
+func (p *Parser) ParseReturnStatement() ParseTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_RETURN)
+	var expression ParseTree
+	if !p.PeekImplicitSemiColon() {
+		expression = p.ParseExpression()
+	}
+	p.EatPossiblyImplicitSemiColon()
+	return NewReturnStatementTree(p.GetTreeLocation(start), expression)
+}
+
+// 12.10 The with Statement
+
+// Java: Parser.parseWithStatement()
+func (p *Parser) ParseWithStatement() ParseTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_WITH)
+	p.Eat(TokenType_OPEN_PAREN)
+	expression := p.ParseExpression()
+	p.Eat(TokenType_CLOSE_PAREN)
+	body := p.ParseStatement()
+	return NewWithStatementTree(p.GetTreeLocation(start), expression, body)
+}
+
+// 12.11 The switch Statement
+
+// Java: Parser.parseSwitchStatement()
+func (p *Parser) ParseSwitchStatement() ParseTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_SWITCH)
+	p.Eat(TokenType_OPEN_PAREN)
+	expression := p.ParseExpression()
+	p.Eat(TokenType_CLOSE_PAREN)
+	p.Eat(TokenType_OPEN_CURLY)
+	caseClauses := p.ParseCaseClauses()
+	p.Eat(TokenType_CLOSE_CURLY)
+	return NewSwitchStatementTree(p.GetTreeLocation(start), expression, caseClauses)
+}
+
+// Java: Parser.parseCaseClauses()
+func (p *Parser) ParseCaseClauses() []ParseTree {
+	foundDefaultClause := false
+	result := []ParseTree{}
+
 	for {
-		p.scanner.SkipTrivia()
-		if p.scanner.AtEnd() {
-			return nil, false
-		}
-		if p.scanner.Peek() == '}' {
-			p.scanner.Advance()
-			return obj, true
-		}
-		// Optional JSDoc on the property value. Attach it to the
-		// STRING_KEY so prototype-override checks can read @return/@param.
-		var entryDoc *rhino.JSDocInfo
-		if body, ok := p.scanner.ConsumeBlockComment(); ok {
-			commentLine := p.scanner.Line()
-			entryDoc = parsing.ParseJSDocInfo(body, commentLine)
-		}
-		p.scanner.SkipTrivia()
-		// Accessor / method shorthand — `get foo(){…}`, `set foo(x){…}`,
-		// `foo(args){…}`. Fully consume the member (params + body) and
-		// attach a synthetic value to the object so subsequent members
-		// keep parsing. The member shape is lossy (we don't carry
-		// getter/setter flags yet), but it's enough to not stall the
-		// parser when the corpus sprinkles these into record-style
-		// object literals.
-		if p.looksLikeObjectMethod() {
-			if !p.consumeObjectMethod(obj) {
-				return nil, false
+		start := p.GetTreeStartLocation()
+		switch p.PeekType() {
+		case TokenType_CASE:
+			p.Eat(TokenType_CASE)
+			expression := p.ParseExpression()
+			p.Eat(TokenType_COLON)
+			statements := p.ParseCaseStatementsOpt()
+			result = append(result, NewCaseClauseTree(p.GetTreeLocation(start), expression, statements))
+		case TokenType_DEFAULT:
+			if foundDefaultClause {
+				p.ReportError("Switch statements may have at most one default clause")
+			} else {
+				foundDefaultClause = true
 			}
-			// Attach the leading JSDoc (e.g. @param / @return) to the
-			// freshly emitted STRING_KEY so inferObjectLit can build a
-			// declared FunctionType from it. Mirrors Java's IRFactory,
-			// which sets JSDocInfo on the MEMBER_FUNCTION_DEF / FUNCTION
-			// node when the parser consumes a leading comment.
-			if entryDoc != nil {
-				if last := obj.LastChild(); last != nil && last.Token() == rhino.STRING_KEY {
-					last.SetJSDocInfo(entryDoc)
-				}
-			}
-			p.scanner.SkipTrivia()
-			if p.scanner.ConsumeByte(',') {
-				continue
-			}
-			continue
-		}
-		keyLine, keyCol := p.scanner.Line(), p.scanner.Col()
-		var keyName string
-		var quotedKey bool
-		c := p.scanner.Peek()
-		switch {
-		case c == '\'' || c == '"':
-			quotedKey = true
-			p.scanner.Advance()
-			start := p.scanner.Pos()
-			for !p.scanner.AtEnd() && p.scanner.Peek() != c {
-				if p.scanner.Peek() == '\\' && p.scanner.PeekAt(1) != 0 {
-					p.scanner.Advance()
-					p.scanner.Advance()
-					continue
-				}
-				p.scanner.Advance()
-			}
-			keyName = p.scanner.Text(start, p.scanner.Pos())
-			if !p.scanner.AtEnd() {
-				p.scanner.Advance()
-			}
-		case unicode.IsDigit(c):
-			start := p.scanner.Pos()
-			for !p.scanner.AtEnd() && (unicode.IsDigit(p.scanner.Peek()) || p.scanner.Peek() == '.') {
-				p.scanner.Advance()
-			}
-			keyName = p.scanner.Text(start, p.scanner.Pos())
+			p.Eat(TokenType_DEFAULT)
+			p.Eat(TokenType_COLON)
+			result = append(result, NewDefaultClauseTree(p.GetTreeLocation(start), p.ParseCaseStatementsOpt()))
 		default:
-			ident, ok := p.scanner.ConsumeIdent()
-			if !ok {
-				return nil, false
-			}
-			keyName = ident
-		}
-		p.scanner.SkipTrivia()
-		// Shorthand (`{x}`) — treat as `{x: x}`.
-		if p.scanner.Peek() == ',' || p.scanner.Peek() == '}' {
-			key := rhino.NewString(rhino.STRING_KEY, keyName)
-			key.SetPos(keyLine, keyCol)
-			if quotedKey {
-				key.PutBooleanProp(rhino.PropQuotedStringKey, true)
-			}
-			ref := rhino.NewString(rhino.NAME, keyName)
-			ref.SetPos(keyLine, keyCol)
-			key.AddChildToBack(ref)
-			obj.AddChildToBack(key)
-			if p.scanner.ConsumeByte(',') {
-				continue
-			}
-			continue
-		}
-		if !p.scanner.ConsumeByte(':') {
-			return nil, false
-		}
-		p.scanner.SkipTrivia()
-		valLine, valCol := p.scanner.Line(), p.scanner.Col()
-		val, ok := p.parseExpression()
-		if !ok {
-			return nil, false
-		}
-		val.SetPos(valLine, valCol)
-		key := rhino.NewString(rhino.STRING_KEY, keyName)
-		key.SetPos(keyLine, keyCol)
-		if quotedKey {
-			key.PutBooleanProp(rhino.PropQuotedStringKey, true)
-		}
-		if entryDoc != nil {
-			key.SetJSDocInfo(entryDoc)
-		}
-		key.AddChildToBack(val)
-		obj.AddChildToBack(key)
-		p.scanner.SkipTrivia()
-		if p.scanner.ConsumeByte(',') {
-			continue
+			return result
 		}
 	}
 }
 
-// looksLikeObjectMethod peeks ahead to decide whether the upcoming
-// object-literal entry is a method / accessor (`get foo(){}`,
-// `set foo(x){}`, `foo(args){}`) rather than a `key: value` pair.
-// Non-consuming; restores the scanner on return.
-// Go-only: language-adapter — lookahead heuristic for object method shorthand (Java peeks inline; Go extracts due to complexity).
-func (p *Parser) looksLikeObjectMethod() bool {
-	save := p.scanner.Save()
-	defer p.scanner.Restore(save)
-	// `get NAME(` or `set NAME(`.
-	if p.scanner.ConsumeKeyword("get") || p.scanner.ConsumeKeyword("set") {
-		p.scanner.SkipTrivia()
-		_, ok := p.scanner.ConsumeIdent()
-		if !ok {
-			return false
-		}
-		p.scanner.SkipTrivia()
-		return !p.scanner.AtEnd() && p.scanner.Peek() == '('
-	}
-	// Shorthand method: IDENT(...).
-	_, ok := p.scanner.ConsumeIdent()
-	if !ok {
-		return false
-	}
-	p.scanner.SkipTrivia()
-	return !p.scanner.AtEnd() && p.scanner.Peek() == '('
+// Java: Parser.parseCaseStatementsOpt()
+func (p *Parser) ParseCaseStatementsOpt() []ParseTree {
+	return p.ParseStatementList()
 }
 
-// consumeObjectMethod absorbs a getter / setter / shorthand-method
-// entry and attaches a STRING_KEY(<name>) with a FUNCTION child to
-// `obj`. Returns false on malformed input so the caller can abort the
-// entire object literal.
-// Go-only: language-adapter — object method consumer (Java uses parseMethodDefinition + parseObjectLiteralMethodDeclaration; Go unifies).
-func (p *Parser) consumeObjectMethod(obj *rhino.Node) bool {
-	keyLine, keyCol := p.scanner.Line(), p.scanner.Col()
-	// Track whether the prefix is `get` / `set` so the produced FUNCTION
-	// can be marked as an accessor. Mirrors Java's IRFactory.processGetAccessor /
-	// processSetAccessor which emit GETTER_DEF / SETTER_DEF nodes; in this
-	// coarser parser we tag the inner FUNCTION via PropGetterDef /
-	// PropSetterDef so downstream type inference treats accessors as
-	// property reads/writes rather than function-valued slots.
-	isGetter := p.scanner.ConsumeKeyword("get")
-	isSetter := false
-	if !isGetter {
-		isSetter = p.scanner.ConsumeKeyword("set")
+// 12.12 Labelled Statement
+
+// Java: Parser.parseLabelledStatement()
+func (p *Parser) ParseLabelledStatement() ParseTree {
+	start := p.GetTreeStartLocation()
+	name := p.EatId()
+	p.Eat(TokenType_COLON)
+	return NewLabelledStatementTree(p.GetTreeLocation(start), name, p.ParseStatement())
+}
+
+// Java: Parser.peekLabelledStatement()
+func (p *Parser) PeekLabelledStatement() bool {
+	return p.PeekId() && p.PeekAt(1, TokenType_COLON)
+}
+
+// 12.13 Throw Statement
+
+// Java: Parser.parseThrowStatement()
+func (p *Parser) ParseThrowStatement() ParseTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_THROW)
+	var value ParseTree
+	if p.PeekImplicitSemiColon() {
+		p.ReportError("semicolon/newline not allowed after 'throw'")
+	} else {
+		value = p.ParseExpression()
 	}
-	p.scanner.SkipTrivia()
-	name, ok := p.scanner.ConsumeIdent()
-	if !ok {
-		return false
+	p.EatPossiblyImplicitSemiColon()
+	return NewThrowStatementTree(p.GetTreeLocation(start), value)
+}
+
+// 12.14 Try Statement
+
+// Java: Parser.parseTryStatement()
+func (p *Parser) ParseTryStatement() ParseTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_TRY)
+	var body ParseTree = p.ParseBlock()
+	var catchBlock ParseTree
+	if p.Peek(TokenType_CATCH) {
+		catchBlock = p.ParseCatch()
 	}
-	p.scanner.SkipTrivia()
-	if !p.scanner.ConsumeByte('(') {
-		return false
+	var finallyBlock ParseTree
+	if p.Peek(TokenType_FINALLY) {
+		finallyBlock = p.ParseFinallyBlock()
 	}
-	params := rhino.New(rhino.PARAM_LIST)
-	for {
-		p.scanner.SkipTrivia()
-		if p.scanner.AtEnd() {
-			return false
+	if catchBlock == nil && finallyBlock == nil {
+		p.ReportError("'catch' or 'finally' expected.")
+	}
+	return NewTryStatementTree(p.GetTreeLocation(start), body, catchBlock, finallyBlock)
+}
+
+// Java: Parser.parseCatch()
+func (p *Parser) ParseCatch() *CatchTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_CATCH)
+
+	var exception ParseTree = NewEmptyStatementTree(NewSourceRange(p.GetTreeEndLocation(), p.GetTreeStartLocation()))
+
+	if p.PeekToken().GetTokenBase().Type == TokenType_OPEN_PAREN {
+		p.Eat(TokenType_OPEN_PAREN)
+		if p.PeekPatternStart() {
+			exception = p.ParsePattern(Parser_PatternKind_INITIALIZER)
+		} else {
+			exception = p.ParseIdentifierExpression()
 		}
-		if p.scanner.Peek() == ')' {
-			p.scanner.Advance()
+		p.Eat(TokenType_CLOSE_PAREN)
+	} else {
+		p.RecordFeatureUsed(FeatureSet_Feature_OPTIONAL_CATCH_BINDING)
+	}
+
+	catchBody := p.ParseBlock()
+	return NewCatchTree(p.GetTreeLocation(start), exception, catchBody)
+}
+
+// Java: Parser.parseFinallyBlock()
+func (p *Parser) ParseFinallyBlock() *FinallyTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_FINALLY)
+	finallyBlock := p.ParseBlock()
+	return NewFinallyTree(p.GetTreeLocation(start), finallyBlock)
+}
+
+// 12.15 The Debugger Statement
+
+// Java: Parser.parseDebuggerStatement()
+func (p *Parser) ParseDebuggerStatement() ParseTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_DEBUGGER)
+	p.EatPossiblyImplicitSemiColon()
+
+	return NewDebuggerStatementTree(p.GetTreeLocation(start))
+}
+
+// 11.1 Primary Expressions
+
+// Java: Parser.parsePrimaryExpression()
+func (p *Parser) ParsePrimaryExpression() ParseTree {
+	switch p.PeekType() {
+	case TokenType_CLASS:
+		return p.ParseClassExpression()
+	case TokenType_SUPER:
+		return p.ParseSuperExpression()
+	case TokenType_THIS:
+		return p.ParseThisExpression()
+	case TokenType_IMPORT:
+		return p.ParseDynamicImportExpression()
+	case TokenType_IDENTIFIER, TokenType_TYPE, TokenType_DECLARE, TokenType_MODULE, TokenType_NAMESPACE:
+		return p.ParseIdentifierExpression()
+	case TokenType_NUMBER, TokenType_STRING, TokenType_BIGINT, TokenType_TRUE, TokenType_FALSE, TokenType_NULL:
+		return p.ParseLiteralExpression()
+	case TokenType_NO_SUBSTITUTION_TEMPLATE, TokenType_TEMPLATE_HEAD:
+		return p.ParseTemplateLiteral(nil)
+	case TokenType_OPEN_SQUARE:
+		return p.ParseArrayInitializer()
+	case TokenType_OPEN_CURLY:
+		return p.ParseObjectLiteral()
+	case TokenType_OPEN_PAREN:
+		return p.ParseCoverParenthesizedExpressionAndArrowParameterList()
+	case TokenType_SLASH, TokenType_SLASH_EQUAL:
+		return p.ParseRegularExpressionLiteral()
+	default:
+		return p.ParseMissingPrimaryExpression()
+	}
+}
+
+// Java: Parser.parseSuperExpression()
+func (p *Parser) ParseSuperExpression() *SuperExpressionTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_SUPER)
+	if p.Peek(TokenType_QUESTION_DOT) { // super?.() not allowed
+		p.ReportError("Optional chaining is forbidden in super?.")
+	}
+	return NewSuperExpressionTree(p.GetTreeLocation(start))
+}
+
+// Java: Parser.parseThisExpression()
+func (p *Parser) ParseThisExpression() *ThisExpressionTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_THIS)
+	return NewThisExpressionTree(p.GetTreeLocation(start))
+}
+
+// ParseDynamicImportExpression parses import(...).
+// https://tc39.github.io/proposal-dynamic-import
+//
+// Java: Parser.parseDynamicImportExpression()
+func (p *Parser) ParseDynamicImportExpression() *DynamicImportTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_IMPORT)
+	if p.Peek(TokenType_QUESTION_DOT) { // import?.() not allowed
+		p.ReportError("Optional chaining is forbidden in import?.")
+	}
+	p.Eat(TokenType_OPEN_PAREN)
+	argument := p.ParseAssignmentExpression()
+	p.Eat(TokenType_CLOSE_PAREN)
+	p.RecordFeatureUsed(FeatureSet_Feature_DYNAMIC_IMPORT)
+	return NewDynamicImportTree(p.GetTreeLocation(start), argument)
+}
+
+// Java: Parser.parseIdentifierExpression()
+func (p *Parser) ParseIdentifierExpression() *IdentifierExpressionTree {
+	start := p.GetTreeStartLocation()
+	identifier := p.EatId()
+	return NewIdentifierExpressionTree(p.GetTreeLocation(start), identifier)
+}
+
+// Java: Parser.parseLiteralExpression()
+func (p *Parser) ParseLiteralExpression() *LiteralExpressionTree {
+	start := p.GetTreeStartLocation()
+	literal := p.NextLiteralToken()
+
+	if literal.GetTokenBase().Type == TokenType_STRING &&
+		literal.(*StringLiteralToken).HasUnescapedUnicodeLineOrParagraphSeparator() {
+		p.RecordFeatureUsed(FeatureSet_Feature_UNESCAPED_UNICODE_LINE_OR_PARAGRAPH_SEP)
+	}
+
+	if literal.GetTokenBase().Type == TokenType_NUMBER && strings.Contains(literal.String(), "_") {
+		p.RecordFeatureUsed(FeatureSet_Feature_NUMERIC_SEPARATOR)
+	}
+
+	if literal.GetTokenBase().Type == TokenType_BIGINT {
+		p.RecordFeatureUsed(FeatureSet_Feature_BIGINT)
+	}
+
+	return NewLiteralExpressionTree(p.GetTreeLocation(start), literal)
+}
+
+// ParseTemplateLiteral constructs a template literal expression tree.
+// "operand" is used to handle the case like "foo`bar`", which is a
+// CallExpression or MemberExpression that calls the function foo() with the
+// template literal as the argument (with extra handling). In this case,
+// operand would be "foo", which is the callsite.
+//
+// We store this operand in the TemplateLiteralExpressionTree and generate a
+// TAGGED_TEMPLATELIT node if it's not null later when transpiling.
+//
+// operand: a non-null value would represent the callsite. Returns the
+// template literal expression.
+//
+// Java: Parser.parseTemplateLiteral(ParseTree)
+func (p *Parser) ParseTemplateLiteral(operand ParseTree) *TemplateLiteralExpressionTree {
+	var start *SourcePosition
+	if operand == nil {
+		start = p.GetTreeStartLocation()
+	} else {
+		start = operand.GetParseTreeBase().Location.Start
+	}
+	token := p.NextToken()
+	if _, ok := token.(*TemplateLiteralToken); !ok {
+		p.ReportErrorAtToken(token, "Unexpected template literal token %s.", token.GetTokenBase().Type.String())
+	}
+	isTaggedTemplate := operand != nil
+	templateToken := token.(*TemplateLiteralToken)
+	if !isTaggedTemplate {
+		p.ReportTemplateErrorIfPresent(templateToken)
+	}
+	elements := []ParseTree{}
+	elements = append(elements, NewTemplateLiteralPortionTree(templateToken.Location, templateToken))
+	if templateToken.Type == TokenType_NO_SUBSTITUTION_TEMPLATE {
+		return NewTemplateLiteralExpressionTree(p.GetTreeLocation(start), operand, elements)
+	}
+
+	// `abc${
+	expression := p.ParseExpression()
+	elements = append(elements, NewTemplateSubstitutionTree(expression.GetParseTreeBase().Location, expression))
+	for !p.errorReporter.HadError() {
+		templateToken = p.NextTemplateLiteralToken()
+		if templateToken.Type == TokenType_ERROR || templateToken.Type == TokenType_END_OF_FILE {
 			break
 		}
-		pline, pcol := p.scanner.Line(), p.scanner.Col()
-		pn, ok := p.scanner.ConsumeIdent()
-		if !ok {
-			return false
+		if !isTaggedTemplate {
+			p.ReportTemplateErrorIfPresent(templateToken)
 		}
-		pnode := rhino.NewString(rhino.NAME, pn)
-		pnode.SetPos(pline, pcol)
-		params.AddChildToBack(pnode)
-		p.scanner.SkipTrivia()
-		if p.scanner.ConsumeByte(',') {
-			continue
+		elements = append(elements, NewTemplateLiteralPortionTree(templateToken.Location, templateToken))
+		if templateToken.Type == TokenType_TEMPLATE_TAIL {
+			break
 		}
+
+		expression = p.ParseExpression()
+		elements = append(elements, NewTemplateSubstitutionTree(expression.GetParseTreeBase().Location, expression))
 	}
-	p.scanner.SkipTrivia()
-	body := rhino.New(rhino.BLOCK)
-	if p.scanner.ConsumeByte('{') {
-		p.parseStatements(body, '}')
-		p.scanner.ConsumeByte('}')
-	}
-	fn := rhino.New(rhino.FUNCTION)
-	fn.SetPos(keyLine, keyCol)
-	if isGetter {
-		fn.PutBooleanProp(rhino.PropGetterDef, true)
-	} else if isSetter {
-		fn.PutBooleanProp(rhino.PropSetterDef, true)
-	}
-	nameInFn := rhino.NewString(rhino.NAME, "")
-	nameInFn.SetPos(keyLine, keyCol)
-	fn.AddChildToBack(nameInFn)
-	fn.AddChildToBack(params)
-	fn.AddChildToBack(body)
-	key := rhino.NewString(rhino.STRING_KEY, name)
-	key.SetPos(keyLine, keyCol)
-	key.AddChildToBack(fn)
-	obj.AddChildToBack(key)
-	return true
+
+	return NewTemplateLiteralExpressionTree(p.GetTreeLocation(start), operand, elements)
 }
 
-// peekAssignOp recognises the assignment-op family at the current
-// scanner position. Returns the matching Token (ASSIGN / ASSIGN_*) and
-// the number of runes that should be consumed on success. The scanner
-// is NOT advanced here — the caller is responsible for calling
-// consumeRunes.
-// Go-only: language-adapter — returns rhino assignment token (Java's peekAssignmentOperator returns bool; Go needs the token).
-func (p *Parser) peekAssignOp() (rhino.Token, int) {
-	if p.scanner.AtEnd() {
-		return rhino.ERROR, 0
-	}
-	c0 := p.scanner.Peek()
-	c1 := p.scanner.PeekAt(1)
-	c2 := p.scanner.PeekAt(2)
-	c3 := p.scanner.PeekAt(3)
-	// Three-rune forms first to avoid misreading `>>>=` as `>>` etc.
-	if c0 == '>' && c1 == '>' && c2 == '>' && c3 == '=' {
-		return rhino.ASSIGN_URSH, 4
-	}
-	if c0 == '>' && c1 == '>' && c2 == '=' {
-		return rhino.ASSIGN_RSH, 3
-	}
-	if c0 == '<' && c1 == '<' && c2 == '=' {
-		return rhino.ASSIGN_LSH, 3
-	}
-	// Three-rune logical assignment forms: &&=, ||=, ??=
-	// Java: Token.ASSIGN_AND (&&=), Token.ASSIGN_OR (||=), Token.ASSIGN_COALESCE (??=)
-	if c0 == '&' && c1 == '&' && c2 == '=' {
-		return rhino.ASSIGN_AND, 3
-	}
-	if c0 == '|' && c1 == '|' && c2 == '=' {
-		return rhino.ASSIGN_OR, 3
-	}
-	if c0 == '?' && c1 == '?' && c2 == '=' {
-		return rhino.ASSIGN_COALESCE, 3
-	}
-	// Two-rune forms.
-	if c1 == '=' {
-		switch c0 {
-		case '+':
-			return rhino.ASSIGN_ADD, 2
-		case '-':
-			return rhino.ASSIGN_SUB, 2
-		case '*':
-			return rhino.ASSIGN_MUL, 2
-		case '/':
-			return rhino.ASSIGN_DIV, 2
-		case '%':
-			return rhino.ASSIGN_MOD, 2
-		case '&':
-			return rhino.ASSIGN_BITAND, 2
-		case '|':
-			return rhino.ASSIGN_BITOR, 2
-		case '^':
-			return rhino.ASSIGN_BITXOR, 2
-		}
-	}
-	// Logical assignment operators: &&=, ||=, ??=.
-	// Must be checked before the bare `=` case and before binary &&/||/?? ops.
-	if c0 == '&' && c1 == '&' && c2 == '=' {
-		return rhino.ASSIGN_AND, 3
-	}
-	if c0 == '|' && c1 == '|' && c2 == '=' {
-		return rhino.ASSIGN_OR, 3
-	}
-	if c0 == '?' && c1 == '?' && c2 == '=' {
-		return rhino.ASSIGN_COALESCE, 3
-	}
-	// Bare `=` — but NOT `==` / `===` / `=>`.
-	if c0 == '=' && c1 != '=' && c1 != '>' {
-		return rhino.ASSIGN, 1
-	}
-	return rhino.ERROR, 0
+// Java: Parser.nextLiteralToken()
+func (p *Parser) NextLiteralToken() Token {
+	return p.NextToken()
 }
 
-// peekBinOp inspects the current position for a binary operator and
-// returns (Token, runes, precedence). When no operator is at the
-// cursor, returns (ERROR, 0, -1). Assignment and ternary operators
-// are deliberately excluded — they're handled at higher layers.
-// Go-only: language-adapter — Pratt precedence helper (Java has separate peek methods per precedence level; Go uses Pratt table).
-func (p *Parser) peekBinOp() (rhino.Token, int, int) {
-	if p.scanner.AtEnd() {
-		return rhino.ERROR, 0, -1
-	}
-	c0 := p.scanner.Peek()
-	c1 := p.scanner.PeekAt(1)
-	c2 := p.scanner.PeekAt(2)
-	// Three-char: `>>>`, `===`, `!==`.
-	if c0 == '>' && c1 == '>' && c2 == '>' && p.scanner.PeekAt(3) != '=' {
-		return rhino.URSH, 3, 9
-	}
-	if c0 == '=' && c1 == '=' && c2 == '=' {
-		return rhino.SHEQ, 3, 7
-	}
-	if c0 == '!' && c1 == '=' && c2 == '=' {
-		return rhino.SHNE, 3, 7
-	}
-	// Two-char: `==`, `!=`, `<=`, `>=`, `<<`, `>>`, `&&`, `||`, `??`.
-	// Skip these when followed by `=` (compound assign handled above).
-	if c2 == '=' && ((c0 == '<' && c1 == '<') || (c0 == '>' && c1 == '>')) {
-		return rhino.ERROR, 0, -1
-	}
-	if c0 == '=' && c1 == '=' {
-		return rhino.EQ, 2, 7
-	}
-	if c0 == '!' && c1 == '=' {
-		return rhino.NE, 2, 7
-	}
-	if c0 == '<' && c1 == '=' {
-		return rhino.LE, 2, 8
-	}
-	if c0 == '>' && c1 == '=' {
-		return rhino.GE, 2, 8
-	}
-	if c0 == '<' && c1 == '<' {
-		return rhino.LSH, 2, 9
-	}
-	if c0 == '>' && c1 == '>' {
-		return rhino.RSH, 2, 9
-	}
-	// Skip `&&` / `||` / `??` when followed by `=` — those are
-	// logical-assignment operators (&&=, ||=, ??=) handled by peekAssignOp.
-	if c0 == '&' && c1 == '&' && c2 != '=' {
-		return rhino.AND, 2, 3
-	}
-	if c0 == '|' && c1 == '|' && c2 != '=' {
-		return rhino.OR, 2, 2
-	}
-	if c0 == '?' && c1 == '?' && c2 != '=' {
-		return rhino.COALESCE, 2, 2
-	}
-	// One-char forms. Skip when followed by `=` (compound assign) or
-	// when they're tokens we don't treat as binary (`&` → bitand only
-	// when not `&&=`).
-	if c1 == '=' {
-		// `X=` is an assignment.
-		return rhino.ERROR, 0, -1
-	}
-	switch c0 {
-	case '+':
-		return rhino.ADD, 1, 10
-	case '-':
-		return rhino.SUB, 1, 10
-	case '*':
-		return rhino.MUL, 1, 11
-	case '/':
-		// `/` could start a regex literal; without regex support we
-		// still treat it as divide, which is what the corpus expects.
-		// A `/*` / `//` pair is a comment, not division — guard so a
-		// trailing JSDoc (`/**`) after an expression doesn't get
-		// parsed as the start of a division op.
-		if c1 == '*' || c1 == '/' {
-			return rhino.ERROR, 0, -1
-		}
-		return rhino.DIV, 1, 11
-	case '%':
-		return rhino.MOD, 1, 11
-	case '<':
-		return rhino.LT, 1, 8
-	case '>':
-		return rhino.GT, 1, 8
-	case '&':
-		// Skip bare `&` when it starts `&&` or `&&=` — those are handled
-		// at higher precedence or as assignment operators.
-		if c1 == '&' {
-			return rhino.ERROR, 0, -1
-		}
-		return rhino.BITAND, 1, 6
-	case '|':
-		// Skip bare `|` when it starts `||` or `||=` — those are handled
-		// at higher precedence or as assignment operators.
-		if c1 == '|' {
-			return rhino.ERROR, 0, -1
-		}
-		return rhino.BITOR, 1, 4
-	case '^':
-		return rhino.BITXOR, 1, 5
-	}
-	return rhino.ERROR, 0, -1
+// Java: Parser.parseRegularExpressionLiteral()
+func (p *Parser) ParseRegularExpressionLiteral() ParseTree {
+	start := p.GetTreeStartLocation()
+	literal := p.NextRegularExpressionLiteralToken()
+	p.RecordFeatureUsed(FeatureSet_Feature_REGEXP_SYNTAX)
+	return NewLiteralExpressionTree(p.GetTreeLocation(start), literal)
 }
 
-// consumeRunes advances the scanner by n runes. Small helper so the
-// op-lookup functions above can separate recognition from consumption.
-// Go-only: language-adapter — character-level scanner advance (Java operates on a TokenStream; Go has no equivalent).
-func (p *Parser) consumeRunes(n int) {
-	for i := 0; i < n; i++ {
-		p.scanner.Advance()
+// Java: Parser.parseArrayInitializer()
+func (p *Parser) ParseArrayInitializer() ParseTree {
+	if p.PeekTypeAt(1) == TokenType_FOR {
+		return p.ParseArrayComprehension()
+	} else {
+		return p.ParseArrayLiteral()
 	}
 }
 
-// parseInlineTypeJSDoc turns a brace-only inline JSDoc body
-// (`{T}` / `?`-prefixed / etc.) into a `@type {T}`-style
-// JSDocInfo. Returns nil when the body isn't a bare type
-// expression — the full JSDoc parser already handles comments
-// with tags.
-// Go-only: language-adapter — Java's JsDocInfoParser.parseInlineTypeDoc() is a full sub-parser; Go's version is a lightweight filter that delegates complex cases to parsing.ParseJSDocInfo.
-func parseInlineTypeJSDoc(body string) *rhino.JSDocInfo {
-	// Cheap shape filter — require a `{…}` or a bare type
-	// name. If the comment contains an `@` tag, defer to the
-	// full parser and return nil so the caller keeps its own
-	// path.
-	for i := 0; i < len(body); i++ {
-		if body[i] == '@' {
+// Java: Parser.parseGeneratorComprehension()
+func (p *Parser) ParseGeneratorComprehension() ParseTree {
+	return p.ParseComprehension(
+		ComprehensionTree_ComprehensionType_GENERATOR, TokenType_OPEN_PAREN, TokenType_CLOSE_PAREN)
+}
+
+// Java: Parser.parseArrayComprehension()
+func (p *Parser) ParseArrayComprehension() ParseTree {
+	return p.ParseComprehension(
+		ComprehensionTree_ComprehensionType_ARRAY, TokenType_OPEN_SQUARE, TokenType_CLOSE_SQUARE)
+}
+
+// Java: Parser.parseComprehension(ComprehensionTree.ComprehensionType, TokenType, TokenType)
+func (p *Parser) ParseComprehension(type_ ComprehensionTree_ComprehensionType, startToken, endToken TokenType) ParseTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(startToken)
+
+	children := []ParseTree{}
+	for p.Peek(TokenType_FOR) || p.Peek(TokenType_IF) {
+		if p.Peek(TokenType_FOR) {
+			children = append(children, p.ParseComprehensionFor())
+		} else {
+			children = append(children, p.ParseComprehensionIf())
+		}
+	}
+
+	tailExpression := p.ParseAssignmentExpression()
+	p.Eat(endToken)
+
+	return NewComprehensionTree(p.GetTreeLocation(start), type_, children, tailExpression)
+}
+
+// Java: Parser.parseComprehensionFor()
+func (p *Parser) ParseComprehensionFor() ParseTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_FOR)
+	p.Eat(TokenType_OPEN_PAREN)
+
+	var initializer ParseTree
+	if p.PeekId() {
+		initializer = p.ParseIdentifierExpression()
+	} else {
+		initializer = p.ParsePattern(Parser_PatternKind_ANY)
+	}
+
+	p.EatPredefinedString(PredefinedName_OF)
+	collection := p.ParseAssignmentExpression()
+	p.Eat(TokenType_CLOSE_PAREN)
+	return NewComprehensionForTree(p.GetTreeLocation(start), initializer, collection)
+}
+
+// Java: Parser.parseComprehensionIf()
+func (p *Parser) ParseComprehensionIf() ParseTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_IF)
+	p.Eat(TokenType_OPEN_PAREN)
+	initializer := p.ParseAssignmentExpression()
+	p.Eat(TokenType_CLOSE_PAREN)
+	return NewComprehensionIfTree(p.GetTreeLocation(start), initializer)
+}
+
+// 11.1.4 Array Literal Expression
+
+// Java: Parser.parseArrayLiteral()
+func (p *Parser) ParseArrayLiteral() ParseTree {
+	// ArrayLiteral :
+	//   [ Elisionopt ]
+	//   [ ElementList ]
+	//   [ ElementList , Elisionopt ]
+	//
+	// ElementList :
+	//   Elisionopt AssignmentOrSpreadExpression
+	//   ElementList , Elisionopt AssignmentOrSpreadExpression
+	//
+	// Elision :
+	//   ,
+	//   Elision ,
+
+	start := p.GetTreeStartLocation()
+	elements := []ParseTree{}
+
+	p.Eat(TokenType_OPEN_SQUARE)
+	var trailingCommaToken Token
+	for p.Peek(TokenType_COMMA) || p.Peek(TokenType_ELLIPSIS) || p.PeekAssignmentExpression() {
+		trailingCommaToken = nil
+		if p.Peek(TokenType_COMMA) {
+			commaStart := p.GetTreeStartLocation()
+			trailingCommaToken = p.Eat(TokenType_COMMA)
+			// Consider the empty element to start & end immediately before the comma token.
+			elements = append(elements, NewNullTree(NewSourceRange(commaStart, commaStart)))
+
+		} else {
+			if p.Peek(TokenType_ELLIPSIS) {
+				p.RecordFeatureUsed(FeatureSet_Feature_SPREAD_EXPRESSIONS)
+				elements = append(elements, p.ParseIterSpread())
+			} else {
+				elements = append(elements, p.ParseAssignmentExpression())
+			}
+			if !p.Peek(TokenType_CLOSE_SQUARE) {
+				trailingCommaToken = p.Eat(TokenType_COMMA)
+			}
+		}
+	}
+	p.Eat(TokenType_CLOSE_SQUARE)
+
+	p.MaybeReportTrailingComma(trailingCommaToken)
+
+	return NewArrayLiteralExpressionTree(
+		p.GetTreeLocation(start), elements, trailingCommaToken != nil)
+}
+
+// 11.1.4 Object Literal Expression
+
+// Java: Parser.parseObjectLiteral()
+func (p *Parser) ParseObjectLiteral() ParseTree {
+	start := p.GetTreeStartLocation()
+	result := []ParseTree{}
+
+	p.Eat(TokenType_OPEN_CURLY)
+	var commaToken Token
+	for p.Peek(TokenType_ELLIPSIS) || p.PeekPropertyNameOrComputedProp(0) || p.Peek(TokenType_STAR) {
+		result = append(result, p.ParseObjectLiteralPropertyAssignment())
+		commaToken = p.EatOpt(TokenType_COMMA)
+		if commaToken == nil {
+			break
+		}
+	}
+	p.Eat(TokenType_CLOSE_CURLY)
+
+	p.MaybeReportTrailingComma(commaToken)
+
+	return NewObjectLiteralExpressionTree(
+		p.GetTreeLocation(start), result, commaToken != nil)
+}
+
+// Java: Parser.maybeReportTrailingComma(Token)
+func (p *Parser) MaybeReportTrailingComma(commaToken Token) {
+	if commaToken != nil {
+		p.RecordFeatureUsed(FeatureSet_Feature_TRAILING_COMMA)
+		if p.config.warnTrailingCommas {
+			// In ES3 mode warn about trailing commas which aren't accepted by
+			// older browsers (such as IE8).
+			p.errorReporter.ReportWarningFormat(
+				commaToken.GetTokenBase().Location.Start,
+				"Trailing comma is not legal in an ECMA-262 object initializer")
+		}
+	}
+}
+
+// Java: Parser.peekPropertyNameOrComputedProp(int)
+func (p *Parser) PeekPropertyNameOrComputedProp(tokenIndex int) bool {
+	return p.PeekPropertyName(tokenIndex) || p.PeekTypeAt(tokenIndex) == TokenType_OPEN_SQUARE
+}
+
+// Java: Parser.peekPropertyName(int)
+func (p *Parser) PeekPropertyName(tokenIndex int) bool {
+	type_ := p.PeekTypeAt(tokenIndex)
+	switch type_ {
+	case TokenType_IDENTIFIER, TokenType_STRING, TokenType_NUMBER, TokenType_BIGINT:
+		return true
+	default:
+		return Keywords_IsKeywordTokenType(type_)
+	}
+}
+
+// Java: Parser.parseObjectLiteralPropertyAssignment()
+func (p *Parser) ParseObjectLiteralPropertyAssignment() ParseTree {
+	type_ := p.PeekType()
+	if type_ == TokenType_STAR {
+		return p.ParseObjectLiteralPropertyAssignmentGenerator()
+	} else if type_ == TokenType_ELLIPSIS {
+		p.RecordFeatureUsed(FeatureSet_Feature_OBJECT_LITERALS_WITH_SPREAD)
+		start := p.GetTreeStartLocation()
+		p.Eat(TokenType_ELLIPSIS)
+		operand := p.ParseAssignmentExpression()
+		return NewObjectSpreadTree(p.GetTreeLocation(start), operand)
+	} else if type_ == TokenType_STRING ||
+		type_ == TokenType_NUMBER ||
+		type_ == TokenType_BIGINT ||
+		type_ == TokenType_IDENTIFIER ||
+		Keywords_IsKeywordTokenType(type_) {
+		if p.PeekGetAccessor() {
+			return p.ParseObjectLiteralGetAccessor()
+		} else if p.PeekSetAccessor() {
+			return p.ParseObjectLiteralSetAccessor()
+		} else if p.PeekAsyncMethod() {
+			return p.ParseObjectLiteralAsyncMethod()
+		} else if p.PeekTypeAt(1) == TokenType_OPEN_PAREN {
+			return p.ParseObjectLiteralMethodDeclaration()
+		} else {
+			return p.ParseObjectLiteralPropertyNameAssignment()
+		}
+	} else if type_ == TokenType_OPEN_SQUARE {
+		start := p.GetTreeStartLocation()
+		name := p.ParseComputedPropertyName()
+
+		if p.Peek(TokenType_COLON) {
+			p.Eat(TokenType_COLON)
+			value := p.ParseAssignmentExpression()
+			return NewComputedPropertyDefinitionTree(p.GetTreeLocation(start), name, value)
+		} else {
+			builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_EXPRESSION)
+			p.ParseFunctionTail(builder, Parser_FunctionFlavor_NORMAL)
+			var value ParseTree = builder.Build(p.GetTreeLocation(start))
+			return NewComputedPropertyMethodTree(p.GetTreeLocation(start), name, value)
+		}
+	} else {
+		panic(jutil.NewRuntimeException("unreachable"))
+	}
+}
+
+// Java: Parser.parseObjectLiteralPropertyAssignmentGenerator()
+func (p *Parser) ParseObjectLiteralPropertyAssignmentGenerator() ParseTree {
+	type_ := p.PeekTypeAt(1)
+	if type_ == TokenType_STRING ||
+		type_ == TokenType_NUMBER ||
+		type_ == TokenType_IDENTIFIER ||
+		Keywords_IsKeywordTokenType(type_) {
+		// parseMethodDeclaration will consume the '*'.
+		return p.ParseObjectLiteralMethodDeclaration()
+	} else {
+		start := p.GetTreeStartLocation()
+		p.Eat(TokenType_STAR)
+
+		name := p.ParseComputedPropertyName()
+		builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_EXPRESSION)
+
+		p.ParseFunctionTail(builder, Parser_FunctionFlavor_GENERATOR)
+		var value ParseTree = builder.Build(p.GetTreeLocation(start))
+		return NewComputedPropertyMethodTree(p.GetTreeLocation(start), name, value)
+	}
+}
+
+// Java: Parser.parseComputedPropertyName()
+func (p *Parser) ParseComputedPropertyName() ParseTree {
+
+	p.Eat(TokenType_OPEN_SQUARE)
+	assign := p.ParseAssignmentExpression()
+	p.Eat(TokenType_CLOSE_SQUARE)
+	return assign
+}
+
+// Java: Parser.peekGetAccessor()
+func (p *Parser) PeekGetAccessor() bool {
+	return p.PeekPredefinedString(PredefinedName_GET) && p.PeekPropertyNameOrComputedProp(1)
+}
+
+// Java: Parser.peekPredefinedString(String)
+func (p *Parser) PeekPredefinedString(string_ string) bool {
+	return p.PeekPredefinedStringAt(0, string_)
+}
+
+// EatPredefinedString consumes an identifier with the given value, or
+// reports an error and returns nil.
+//
+// Java: Parser.eatPredefinedString(String)
+func (p *Parser) EatPredefinedString(string_ string) Token {
+	token := identifierTokenAsToken(p.EatId())
+	if token == nil || !token.AsIdentifier().ValueEquals(string_) {
+		p.ReportExpectedError(token, string_)
+		return nil
+	}
+	return token
+}
+
+// Java: Parser.peekPredefinedString(int, String)
+func (p *Parser) PeekPredefinedStringAt(index int, string_ string) bool {
+	return p.PeekAt(index, TokenType_IDENTIFIER) &&
+		p.PeekTokenAt(index).(*IdentifierToken).ValueEquals(string_)
+}
+
+// Java: Parser.parseObjectLiteralGetAccessor()
+func (p *Parser) ParseObjectLiteralGetAccessor() ParseTree {
+	return p.ParseGetAccessor(p.CreateObjectLiteralElementInfo())
+}
+
+// Java: Parser.parseGetAccessor(ClassOrObjectElementInfo)
+func (p *Parser) ParseGetAccessor(elementInfo *ClassOrObjectElementInfo) ParseTree {
+	p.EatPredefinedString(PredefinedName_GET)
+
+	if p.PeekPropertyName(0) {
+		propertyName := p.EatObjectLiteralPropertyName()
+		p.Eat(TokenType_OPEN_PAREN)
+		p.Eat(TokenType_CLOSE_PAREN)
+		body := p.ParseFunctionBody()
+		p.RecordFeatureUsed(FeatureSet_Feature_GETTER)
+		return NewGetAccessorTree(
+			p.GetTreeLocation(elementInfo.start),
+			propertyName,
+			elementInfo.isClassMember,
+			elementInfo.isStatic,
+			body)
+	} else {
+		property := p.ParseComputedPropertyName()
+		p.Eat(TokenType_OPEN_PAREN)
+		p.Eat(TokenType_CLOSE_PAREN)
+		body := p.ParseFunctionBody()
+		p.RecordFeatureUsed(FeatureSet_Feature_GETTER)
+		return NewComputedPropertyGetterTree(
+			p.GetTreeLocation(elementInfo.start), property, elementInfo.isStatic, body)
+	}
+}
+
+// Java: Parser.peekSetAccessor()
+func (p *Parser) PeekSetAccessor() bool {
+	return p.PeekPredefinedString(PredefinedName_SET) && p.PeekPropertyNameOrComputedProp(1)
+}
+
+// Java: Parser.parseObjectLiteralSetAccessor()
+func (p *Parser) ParseObjectLiteralSetAccessor() ParseTree {
+	return p.ParseSetAccessor(p.CreateObjectLiteralElementInfo())
+}
+
+// Java: Parser.parseSetAccessor(ClassOrObjectElementInfo)
+func (p *Parser) ParseSetAccessor(elementInfo *ClassOrObjectElementInfo) ParseTree {
+	p.EatPredefinedString(PredefinedName_SET)
+	if p.PeekPropertyName(0) {
+		propertyName := p.EatObjectLiteralPropertyName()
+		parameter := p.ParseSetterParameterList()
+
+		body := p.ParseFunctionBody()
+
+		p.RecordFeatureUsed(FeatureSet_Feature_SETTER)
+		return NewSetAccessorTree(
+			p.GetTreeLocation(elementInfo.start),
+			propertyName,
+			elementInfo.isClassMember,
+			elementInfo.isStatic,
+			parameter,
+			body)
+	} else {
+		property := p.ParseComputedPropertyName()
+		parameter := p.ParseSetterParameterList()
+		body := p.ParseFunctionBody()
+
+		p.RecordFeatureUsed(FeatureSet_Feature_SETTER)
+		return NewComputedPropertySetterTree(
+			p.GetTreeLocation(elementInfo.start), property, elementInfo.isStatic, parameter, body)
+	}
+}
+
+// Java: Parser.parseObjectLiteralPropertyNameAssignment()
+func (p *Parser) ParseObjectLiteralPropertyNameAssignment() ParseTree {
+	start := p.GetTreeStartLocation()
+	name := p.EatObjectLiteralPropertyName()
+	colon := p.EatOpt(TokenType_COLON)
+	if colon == nil {
+		if name.GetTokenBase().Type != TokenType_IDENTIFIER {
+			p.ReportExpectedError(p.PeekToken(), TokenType_COLON)
+		} else if name.AsIdentifier().IsKeyword() {
+			p.ReportErrorAtToken(name, "Cannot use keyword in short object literal")
+		} else if p.Peek(TokenType_EQUAL) {
+			idTree := NewIdentifierExpressionTree(p.GetTreeLocation(start), name.(*IdentifierToken))
+			p.Eat(TokenType_EQUAL)
+			defaultValue := p.ParseAssignmentExpression()
+			return NewDefaultParameterTree(p.GetTreeLocation(start), idTree, defaultValue)
+		}
+	}
+	var value ParseTree
+	if colon != nil {
+		value = p.ParseAssignmentExpression()
+	}
+	return NewPropertyNameAssignmentTree(p.GetTreeLocation(start), name, value)
+}
+
+// 12.2 Primary Expression
+//   CoverParenthesizedExpressionAndArrowParameterList ::=
+//     ( Expression )
+//     ( Expression, )
+//     ( )
+//     ( ... BindingIdentifier )
+//     ( Expression , ... BindingIdentifier )
+
+// Java: Parser.parseCoverParenthesizedExpressionAndArrowParameterList()
+func (p *Parser) ParseCoverParenthesizedExpressionAndArrowParameterList() ParseTree {
+	if p.PeekTypeAt(1) == TokenType_FOR {
+		return p.ParseGeneratorComprehension()
+	}
+
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_OPEN_PAREN)
+	// Case ( )
+	if p.Peek(TokenType_CLOSE_PAREN) {
+		p.Eat(TokenType_CLOSE_PAREN)
+		if p.Peek(TokenType_ARROW) {
+			return NewFormalParameterListTree(
+				p.GetTreeLocation(start),
+				[]ParseTree{},
+				/* hasTrailingComma= */ false,
+				[]*SourcePosition{})
+		} else {
+			p.ReportError("invalid parenthesized expression")
+			return NewMissingPrimaryExpressionTree(p.GetTreeLocation(start))
+		}
+	}
+	// Case ( ... BindingIdentifier )
+	if p.Peek(TokenType_ELLIPSIS) {
+		params := []ParseTree{p.ParseParameter()}
+		p.Eat(TokenType_CLOSE_PAREN)
+		if p.Peek(TokenType_ARROW) {
+			return NewFormalParameterListTree(
+				p.GetTreeLocation(start),
+				params,
+				/* hasTrailingComma= */ false,
+				[]*SourcePosition{})
+		} else {
+			p.ReportError("invalid parenthesized expression")
+			return NewMissingPrimaryExpressionTree(p.GetTreeLocation(start))
+		}
+	}
+	// For either of the three remaining cases:
+	//     ( Expression )
+	//     ( Expression, )
+	//     ( Expression, ...BindingIdentifier )
+	// we can parse as an expression.
+	result := p.ParseExpression()
+	// If it follows with a comma, we must be in either of two cases
+	//     ( Expression, )
+	//     ( Expression, ...BindingIdentifier )
+	// case.
+	if p.Peek(TokenType_COMMA) {
+		if p.PeekAt(1, TokenType_CLOSE_PAREN) {
+			// Create the formal parameter list here so we can record
+			// the trailing comma
+			p.ResetScanner(start)
+			// If we fail to parse as an ArrowFunction parameter list then
+			// parseFormalParameterList will take care of reporting errors.
+			return p.ParseFormalParameterList()
+		} else {
+			p.Eat(TokenType_COMMA)
+			// Since we already parsed as an expression, we will guaranteed reparse this expression
+			// as an arrow function parameter list, but just leave it as a comma expression for now.
+			result = NewCommaExpressionTree(
+				p.GetTreeLocation(start), []ParseTree{result, p.ParseParameter()})
+		}
+	}
+	p.Eat(TokenType_CLOSE_PAREN)
+	return NewParenExpressionTree(p.GetTreeLocation(start), result)
+}
+
+// Java: Parser.parseMissingPrimaryExpression()
+func (p *Parser) ParseMissingPrimaryExpression() ParseTree {
+	start := p.GetTreeStartLocation()
+	p.NextToken()
+	p.ReportError("primary expression expected")
+	return NewMissingPrimaryExpressionTree(p.GetTreeLocation(start))
+}
+
+// Parser_Expression is Parser.Expression: differentiates between parsing for
+// 'In' vs. 'NoIn' Variants of expression grammars.
+type Parser_Expression int32
+
+const (
+	Parser_Expression_NO_IN Parser_Expression = iota
+	Parser_Expression_NORMAL
+)
+
+var parser_Expression_names = [...]string{"NO_IN", "NORMAL"}
+
+// Parser_Expression_values is Expression.values().
+//
+// Java: Parser.Expression.values()
+func Parser_Expression_values() []Parser_Expression {
+	return []Parser_Expression{Parser_Expression_NO_IN, Parser_Expression_NORMAL}
+}
+
+// Name is Enum.name().
+//
+// Java: Parser.Expression.name()
+func (e Parser_Expression) Name() string { return parser_Expression_names[e] }
+
+// String is Enum.toString().
+//
+// Java: Parser.Expression.toString()
+func (e Parser_Expression) String() string { return e.Name() }
+
+// 11.14 Expressions
+
+// Java: Parser.parseExpressionNoIn()
+func (p *Parser) ParseExpressionNoIn() ParseTree {
+	return p.Parse(Parser_Expression_NO_IN)
+}
+
+// Java: Parser.parseExpression()
+func (p *Parser) ParseExpression() ParseTree {
+	return p.Parse(Parser_Expression_NORMAL)
+}
+
+// Java: Parser.peekExpression()
+func (p *Parser) PeekExpression() bool {
+	switch p.PeekType() {
+	case TokenType_BANG,
+		TokenType_CLASS,
+		TokenType_DELETE,
+		TokenType_FALSE,
+		TokenType_FUNCTION,
+		TokenType_IDENTIFIER,
+		TokenType_TYPE,
+		TokenType_DECLARE,
+		TokenType_MODULE,
+		TokenType_NAMESPACE,
+		TokenType_MINUS,
+		TokenType_MINUS_MINUS,
+		TokenType_NEW,
+		TokenType_NULL,
+		TokenType_NUMBER,
+		TokenType_BIGINT,
+		TokenType_OPEN_CURLY,
+		TokenType_OPEN_PAREN,
+		TokenType_OPEN_SQUARE,
+		TokenType_PLUS,
+		TokenType_PLUS_PLUS,
+		TokenType_SLASH,       // regular expression literal
+		TokenType_SLASH_EQUAL, // regular expression literal
+		TokenType_STRING,
+		TokenType_NO_SUBSTITUTION_TEMPLATE,
+		TokenType_TEMPLATE_HEAD,
+		TokenType_SUPER,
+		TokenType_THIS,
+		TokenType_TILDE,
+		TokenType_TRUE,
+		TokenType_TYPEOF,
+		TokenType_VOID,
+		TokenType_YIELD:
+		return true
+	case TokenType_IMPORT:
+		return p.PeekImportCall() || p.PeekImportDot()
+	default:
+		return false
+	}
+}
+
+// Java: Parser.parse(Expression)
+func (p *Parser) Parse(expressionIn Parser_Expression) ParseTree {
+	start := p.GetTreeStartLocation()
+	result := p.ParseAssignment(expressionIn)
+	if p.Peek(TokenType_COMMA) && !p.PeekAt(1, TokenType_ELLIPSIS) && !p.PeekAt(1, TokenType_CLOSE_PAREN) {
+		exprs := []ParseTree{}
+		exprs = append(exprs, result)
+		for p.Peek(TokenType_COMMA) &&
+			!p.PeekAt(1, TokenType_ELLIPSIS) &&
+			!p.PeekAt(1, TokenType_CLOSE_PAREN) {
+			p.Eat(TokenType_COMMA)
+			exprs = append(exprs, p.ParseAssignment(expressionIn))
+		}
+		return NewCommaExpressionTree(p.GetTreeLocation(start), exprs)
+	}
+	return result
+}
+
+// 12.14 Assignment operators
+
+// Java: Parser.parseAssignmentExpression()
+func (p *Parser) ParseAssignmentExpression() ParseTree {
+	return p.ParseAssignment(Parser_Expression_NORMAL)
+}
+
+// Java: Parser.peekAssignmentExpression()
+func (p *Parser) PeekAssignmentExpression() bool {
+	return p.PeekExpression()
+}
+
+// Java: Parser.parseAssignment(Expression)
+func (p *Parser) ParseAssignment(expressionIn Parser_Expression) ParseTree {
+	if p.Peek(TokenType_YIELD) && p.InGeneratorContext() {
+		return p.ParseYield(expressionIn)
+	}
+
+	start := p.GetTreeStartLocation()
+	left := p.ParseConditional(expressionIn)
+
+	if p.IsStartOfAsyncArrowFunction(left) {
+		// re-evaluate as an async arrow function.
+		p.ResetScannerToTree(left)
+		return p.ParseAsyncArrowFunction(expressionIn)
+	}
+	if p.Peek(TokenType_ARROW) {
+		return p.CompleteAssignmentExpressionParseAtArrowWithExpression(left, expressionIn)
+	}
+
+	if p.PeekAssignmentOperator() {
+		if !p.Peek(TokenType_EQUAL) {
+			// not the vanilla assignment operator `=`, but a special equals operator (`+=`, `-=`,
+			// `**=`, etc)
+			if !left.IsValidNonVanillaAssignmentTarget() {
+				p.ReportError("invalid assignment target")
+				return NewMissingPrimaryExpressionTree(p.GetTreeLocation(p.GetTreeStartLocation()))
+			}
+		}
+		left = p.TransformLeftHandSideExpression(left)
+		if !left.IsValidAssignmentTarget() {
+			p.ReportError("invalid assignment target")
+			return NewMissingPrimaryExpressionTree(p.GetTreeLocation(p.GetTreeStartLocation()))
+		}
+		operator := p.NextToken()
+		right := p.ParseAssignment(expressionIn)
+		return NewBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
+	}
+	return left
+}
+
+// Java: Parser.isStartOfAsyncArrowFunction(ParseTree)
+func (p *Parser) IsStartOfAsyncArrowFunction(partialExpression ParseTree) bool {
+	if partialExpression.GetParseTreeBase().Type == ParseTreeType_IDENTIFIER_EXPRESSION {
+		identifierToken := partialExpression.AsIdentifierExpression().IdentifierToken
+		// partialExpression is `async`
+		// followed by `[no newline] bindingIdentifier [no newline] =>`
+		return identifierToken.ValueEquals(Parser_ASYNC) &&
+			!p.PeekImplicitSemiColonAt(0) &&
+			p.PeekId() &&
+			!p.PeekImplicitSemiColonAt(1) &&
+			p.PeekAt(1, TokenType_ARROW)
+	} else if partialExpression.GetParseTreeBase().Type == ParseTreeType_CALL_EXPRESSION {
+		callExpression := partialExpression.AsCallExpression()
+		callee := callExpression.Operand
+		var arguments ParseTree = callExpression.Arguments
+		// partialExpression is `async [no newline] (parameters)`
+		// followed by `[no newline] =>`
+		return callee.GetParseTreeBase().Type == ParseTreeType_IDENTIFIER_EXPRESSION &&
+			callee.AsIdentifierExpression().IdentifierToken.ValueEquals(Parser_ASYNC) &&
+			callee.GetParseTreeBase().Location.End.Line == arguments.GetParseTreeBase().Location.Start.Line &&
+			!p.PeekImplicitSemiColon() &&
+			p.Peek(TokenType_ARROW)
+	} else {
+		return false
+	}
+}
+
+// Java: Parser.completeAssignmentExpressionParseAtArrow(ParseTree, Expression)
+func (p *Parser) CompleteAssignmentExpressionParseAtArrowWithExpression(leftOfArrow ParseTree, expressionIn Parser_Expression) ParseTree {
+	if leftOfArrow.GetParseTreeBase().Type == ParseTreeType_CALL_EXPRESSION {
+		//   ... someAssignmentExpression // implicit semicolon
+		//   (args) =>
+		return p.CompleteAssignmentExpressionParseAtArrow(leftOfArrow.AsCallExpression())
+	} else {
+		return p.CompleteArrowFunctionParseAtArrow(leftOfArrow, expressionIn)
+	}
+}
+
+// Java: Parser.completeArrowFunctionParseAtArrow(ParseTree, Expression)
+func (p *Parser) CompleteArrowFunctionParseAtArrow(leftOfArrow ParseTree, expressionIn Parser_Expression) ParseTree {
+	arrowFormalParameters := p.TransformToArrowFormalParameters(leftOfArrow)
+	if p.PeekImplicitSemiColon() {
+		p.ReportError("No newline allowed before '=>'")
+	}
+	p.Eat(TokenType_ARROW)
+	arrowFunctionBody := p.ParseArrowFunctionBody(expressionIn, Parser_FunctionFlavor_NORMAL)
+
+	builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_ARROW).
+		SetFormalParameterList(arrowFormalParameters).
+		SetFunctionBody(arrowFunctionBody)
+	return builder.Build(p.GetTreeLocation(arrowFormalParameters.Location.Start))
+}
+
+// Java: Parser.transformToArrowFormalParameters(ParseTree)
+func (p *Parser) TransformToArrowFormalParameters(leftOfArrow ParseTree) *FormalParameterListTree {
+	var arrowParameterList *FormalParameterListTree
+	switch leftOfArrow.GetParseTreeBase().Type {
+	case ParseTreeType_FORMAL_PARAMETER_LIST:
+		arrowParameterList = leftOfArrow.AsFormalParameterList()
+	case ParseTreeType_IDENTIFIER_EXPRESSION:
+		// e.g. x => x + 1
+		arrowParameterList = NewFormalParameterListTree(
+			leftOfArrow.GetParseTreeBase().Location,
+			[]ParseTree{leftOfArrow},
+			/* hasTrailingComma= */ false,
+			[]*SourcePosition{})
+	case ParseTreeType_ARGUMENT_LIST, ParseTreeType_PAREN_EXPRESSION:
+		// e.g. (x) => x + 1
+		p.ResetScannerToTree(leftOfArrow)
+		// If we fail to parse as an ArrowFunction parameter list then
+		// parseFormalParameterList will take care of reporting errors.
+		arrowParameterList = p.ParseFormalParameterList()
+	default:
+		p.ReportErrorAtTree(leftOfArrow, "invalid arrow function parameters")
+		arrowParameterList = Parser_NewEmptyFormalParameterList(leftOfArrow.GetParseTreeBase().Location)
+	}
+	return arrowParameterList
+}
+
+// Java: Parser.completeAssignmentExpressionParseAtArrow(CallExpressionTree)
+func (p *Parser) CompleteAssignmentExpressionParseAtArrow(callExpression *CallExpressionTree) ParseTree {
+	operand := callExpression.Operand
+	var arguments ParseTree = callExpression.Arguments
+	var result ParseTree
+	if operand.GetParseTreeBase().Location.End.Line < arguments.GetParseTreeBase().Location.Start.Line {
+		// break at the implicit semicolon
+		// Example:
+		// foo.bar // operand and implicit semicolon
+		// () => { doSomething; };
+		p.ResetScannerAfter(operand)
+		result = operand
+	} else {
+		p.ReportError("'=>' unexpected")
+		result = callExpression
+	}
+	return result
+}
+
+// Java: Parser.parseAsyncArrowFunction(Expression)
+func (p *Parser) ParseAsyncArrowFunction(expressionIn Parser_Expression) ParseTree {
+	start := p.GetTreeStartLocation()
+	p.EatPredefinedString(Parser_ASYNC)
+	if p.PeekImplicitSemiColon() {
+		p.ReportError("No newline allowed between `async` and arrow function parameter list")
+	}
+	var arrowParameterList *FormalParameterListTree
+	if p.Peek(TokenType_OPEN_PAREN) {
+		// async (...) =>
+		arrowParameterList = p.ParseFormalParameterList()
+	} else {
+		// async arg =>
+		singleParameter := p.ParseIdentifierExpression()
+		arrowParameterList = NewFormalParameterListTree(
+			singleParameter.Location,
+			[]ParseTree{singleParameter},
+			/* hasTrailingComma= */ false,
+			[]*SourcePosition{})
+	}
+	if p.PeekImplicitSemiColon() {
+		p.ReportError("No newline allowed before '=>'")
+	}
+	p.Eat(TokenType_ARROW)
+	arrowFunctionBody := p.ParseArrowFunctionBody(expressionIn, Parser_FunctionFlavor_ASYNCHRONOUS)
+
+	builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_ARROW).
+		SetAsync(true).
+		SetFormalParameterList(arrowParameterList).
+		SetFunctionBody(arrowFunctionBody)
+	return builder.Build(p.GetTreeLocation(start))
+}
+
+// Java: Parser.parseArrowFunctionBody(Expression, FunctionFlavor)
+func (p *Parser) ParseArrowFunctionBody(expressionIn Parser_Expression, functionFlavor Parser_FunctionFlavor) ParseTree {
+	p.functionContextStack = append(p.functionContextStack, functionFlavor)
+	var arrowFunctionBody ParseTree
+	if p.Peek(TokenType_OPEN_CURLY) {
+		arrowFunctionBody = p.ParseFunctionBody()
+	} else {
+		arrowFunctionBody = p.ParseAssignment(expressionIn)
+	}
+	p.functionContextStack = p.functionContextStack[:len(p.functionContextStack)-1]
+	return arrowFunctionBody
+}
+
+// Java: Parser.newEmptyFormalParameterList(SourceRange)
+func Parser_NewEmptyFormalParameterList(location *SourceRange) *FormalParameterListTree {
+	return NewFormalParameterListTree(
+		location,
+		[]ParseTree{},
+		/* hasTrailingComma= */ false,
+		[]*SourcePosition{})
+}
+
+// TransformLeftHandSideExpression transforms a LeftHandSideExpression into
+// a LeftHandSidePattern if possible. This returns the transformed tree if it
+// parses as a LeftHandSidePattern, otherwise it returns the original tree.
+//
+// Java: Parser.transformLeftHandSideExpression(ParseTree)
+func (p *Parser) TransformLeftHandSideExpression(tree ParseTree) ParseTree {
+	switch tree.GetParseTreeBase().Type {
+	case ParseTreeType_ARRAY_LITERAL_EXPRESSION, ParseTreeType_OBJECT_LITERAL_EXPRESSION:
+		p.ResetScannerToTree(tree)
+		// If we fail to parse as an LeftHandSidePattern then
+		// parseLeftHandSidePattern will take care reporting errors.
+		return p.ParseLeftHandSidePattern()
+	default:
+		return tree
+	}
+}
+
+// Java: Parser.parseLeftHandSidePattern()
+func (p *Parser) ParseLeftHandSidePattern() ParseTree {
+	return p.ParsePattern(Parser_PatternKind_ANY)
+}
+
+// Java: Parser.resetScanner(SourcePosition)
+func (p *Parser) ResetScanner(start *SourcePosition) {
+	// TODO(bradfordcsmith): lastSourcePosition should really point to the end of the last token
+	//     before the tree to correctly detect implicit semicolons, but it doesn't matter for the
+	//     current use case.
+	p.lastSourcePosition = start
+	p.scanner.SetPosition(p.lastSourcePosition)
+}
+
+// Java: Parser.resetScanner(ParseTree)
+func (p *Parser) ResetScannerToTree(tree ParseTree) {
+	p.scanner.SetPosition(tree.GetParseTreeBase().Location.Start)
+}
+
+// Java: Parser.resetScannerAfter(ParseTree)
+func (p *Parser) ResetScannerAfter(parseTree ParseTree) {
+	p.lastSourcePosition = parseTree.GetParseTreeBase().Location.End
+	// NOTE: The "end" position for a parseTree actually points to the first character after the
+	//     last token in the tree, so this is not an off-by-one error.
+	p.scanner.SetPosition(p.lastSourcePosition)
+}
+
+// Java: Parser.peekAssignmentOperator()
+func (p *Parser) PeekAssignmentOperator() bool {
+	switch p.PeekType() {
+	case TokenType_EQUAL,
+		TokenType_STAR_EQUAL,
+		TokenType_STAR_STAR_EQUAL,
+		TokenType_SLASH_EQUAL,
+		TokenType_PERCENT_EQUAL,
+		TokenType_PLUS_EQUAL,
+		TokenType_MINUS_EQUAL,
+		TokenType_LEFT_SHIFT_EQUAL,
+		TokenType_RIGHT_SHIFT_EQUAL,
+		TokenType_UNSIGNED_RIGHT_SHIFT_EQUAL,
+		TokenType_AMPERSAND_EQUAL,
+		TokenType_CARET_EQUAL,
+		TokenType_BAR_EQUAL,
+		TokenType_OR_EQUAL,
+		TokenType_AND_EQUAL,
+		TokenType_QUESTION_QUESTION_EQUAL:
+		return true
+	default:
+		return false
+	}
+}
+
+// Java: Parser.inGeneratorContext()
+func (p *Parser) InGeneratorContext() bool {
+	// disallow yield outside of generators
+	return p.functionContextStack[len(p.functionContextStack)-1].IsGenerator()
+}
+
+// ParseYield parses yield [no line terminator] (*)? AssignExpression
+// https://people.mozilla.org/~jorendorff/es6-draft.html#sec-generator-function-definitions-runtime-semantics-evaluation
+//
+// Java: Parser.parseYield(Expression)
+func (p *Parser) ParseYield(expressionIn Parser_Expression) ParseTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_YIELD)
+	isYieldAll := false
+	var expression ParseTree
+	if !p.PeekImplicitSemiColon() {
+		isYieldAll = p.EatOpt(TokenType_STAR) != nil
+		if p.PeekAssignmentExpression() {
+			expression = p.ParseAssignment(expressionIn)
+		} else if isYieldAll {
+			p.ReportError("yield* requires an expression")
+		}
+	}
+	return NewYieldExpressionTree(p.GetTreeLocation(start), isYieldAll, expression)
+}
+
+// 11.12 Conditional Expression
+
+// Java: Parser.parseConditional(Expression)
+func (p *Parser) ParseConditional(expressionIn Parser_Expression) ParseTree {
+	start := p.GetTreeStartLocation()
+	condition := p.ParseShortCircuit(expressionIn)
+	if p.Peek(TokenType_QUESTION) {
+		p.Eat(TokenType_QUESTION)
+		left := p.ParseAssignment(expressionIn)
+		p.Eat(TokenType_COLON)
+		right := p.ParseAssignment(expressionIn)
+		return NewConditionalExpressionTree(p.GetTreeLocation(start), condition, left, right)
+	}
+	return condition
+}
+
+// Java: Parser.parseShortCircuit(Expression)
+func (p *Parser) ParseShortCircuit(expressionIn Parser_Expression) ParseTree {
+	start := p.GetTreeStartLocation()
+	left := p.ParseLogicalOR(expressionIn)
+	if p.Peek(TokenType_QUESTION_QUESTION) {
+		if left.GetParseTreeBase().Type == ParseTreeType_BINARY_OPERATOR {
+			binaryTree := left.AsBinaryOperator()
+			if binaryTree.Operator.GetTokenBase().Type == TokenType_AND || binaryTree.Operator.GetTokenBase().Type == TokenType_OR {
+				p.ReportError("Logical OR and logical AND require parentheses when used with '??'")
+			}
+		}
+		return p.ParseNullishCoalesce(expressionIn, left, start)
+	} else {
+		return left
+	}
+}
+
+// Java: Parser.parseNullishCoalesce(Expression, ParseTree, SourcePosition)
+func (p *Parser) ParseNullishCoalesce(expressionIn Parser_Expression, left ParseTree, start *SourcePosition) ParseTree {
+	for p.Peek(TokenType_QUESTION_QUESTION) {
+		operator := p.Eat(TokenType_QUESTION_QUESTION)
+		right := p.ParseBitwiseOR(expressionIn)
+		left = NewBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
+	}
+	if p.Peek(TokenType_AND) || p.Peek(TokenType_OR) {
+		p.ReportError("Logical OR and logical AND require parentheses when used with '??'")
+	}
+	return left
+}
+
+// 11.11 Logical OR
+
+// Java: Parser.parseLogicalOR(Expression)
+func (p *Parser) ParseLogicalOR(expressionIn Parser_Expression) ParseTree {
+	start := p.GetTreeStartLocation()
+	left := p.ParseLogicalAND(expressionIn)
+	for p.Peek(TokenType_OR) {
+		operator := p.Eat(TokenType_OR)
+		right := p.ParseLogicalAND(expressionIn)
+		left = NewBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
+	}
+	return left
+}
+
+// 11.11 Logical AND
+
+// Java: Parser.parseLogicalAND(Expression)
+func (p *Parser) ParseLogicalAND(expressionIn Parser_Expression) ParseTree {
+	start := p.GetTreeStartLocation()
+	left := p.ParseBitwiseOR(expressionIn)
+	for p.Peek(TokenType_AND) {
+		operator := p.Eat(TokenType_AND)
+		right := p.ParseBitwiseOR(expressionIn)
+		left = NewBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
+	}
+	return left
+}
+
+// 11.10 Bitwise OR
+
+// Java: Parser.parseBitwiseOR(Expression)
+func (p *Parser) ParseBitwiseOR(expressionIn Parser_Expression) ParseTree {
+	start := p.GetTreeStartLocation()
+	left := p.ParseBitwiseXOR(expressionIn)
+	for p.Peek(TokenType_BAR) {
+		operator := p.Eat(TokenType_BAR)
+		right := p.ParseBitwiseXOR(expressionIn)
+		left = NewBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
+	}
+	return left
+}
+
+// 11.10 Bitwise XOR
+
+// Java: Parser.parseBitwiseXOR(Expression)
+func (p *Parser) ParseBitwiseXOR(expressionIn Parser_Expression) ParseTree {
+	start := p.GetTreeStartLocation()
+	left := p.ParseBitwiseAND(expressionIn)
+	for p.Peek(TokenType_CARET) {
+		operator := p.Eat(TokenType_CARET)
+		right := p.ParseBitwiseAND(expressionIn)
+		left = NewBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
+	}
+	return left
+}
+
+// 11.10 Bitwise AND
+
+// Java: Parser.parseBitwiseAND(Expression)
+func (p *Parser) ParseBitwiseAND(expressionIn Parser_Expression) ParseTree {
+	start := p.GetTreeStartLocation()
+	left := p.ParseEquality(expressionIn)
+	for p.Peek(TokenType_AMPERSAND) {
+		operator := p.Eat(TokenType_AMPERSAND)
+		right := p.ParseEquality(expressionIn)
+		left = NewBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
+	}
+	return left
+}
+
+// 11.9 Equality Expression
+
+// Java: Parser.parseEquality(Expression)
+func (p *Parser) ParseEquality(expressionIn Parser_Expression) ParseTree {
+	start := p.GetTreeStartLocation()
+	left := p.ParseRelational(expressionIn)
+	for p.PeekEqualityOperator() {
+		operator := p.NextToken()
+		right := p.ParseRelational(expressionIn)
+		left = NewBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
+	}
+	return left
+}
+
+// Java: Parser.peekEqualityOperator()
+func (p *Parser) PeekEqualityOperator() bool {
+	switch p.PeekType() {
+	case TokenType_EQUAL_EQUAL, TokenType_NOT_EQUAL, TokenType_EQUAL_EQUAL_EQUAL, TokenType_NOT_EQUAL_EQUAL:
+		return true
+	default:
+		return false
+	}
+}
+
+// 11.8 Relational
+
+// Java: Parser.parseRelational(Expression)
+func (p *Parser) ParseRelational(expressionIn Parser_Expression) ParseTree {
+	start := p.GetTreeStartLocation()
+	left := p.ParseShiftExpression()
+	for p.PeekRelationalOperator(expressionIn) {
+		operator := p.NextToken()
+		right := p.ParseShiftExpression()
+		left = NewBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
+	}
+	return left
+}
+
+// Java: Parser.peekRelationalOperator(Expression)
+func (p *Parser) PeekRelationalOperator(expressionIn Parser_Expression) bool {
+	switch p.PeekType() {
+	case TokenType_OPEN_ANGLE, TokenType_CLOSE_ANGLE, TokenType_GREATER_EQUAL, TokenType_LESS_EQUAL, TokenType_INSTANCEOF:
+		return true
+	case TokenType_IN:
+		return expressionIn == Parser_Expression_NORMAL
+	default:
+		return false
+	}
+}
+
+// 11.7 Shift Expression
+
+// Java: Parser.parseShiftExpression()
+func (p *Parser) ParseShiftExpression() ParseTree {
+	start := p.GetTreeStartLocation()
+	left := p.ParseAdditiveExpression()
+	for p.PeekShiftOperator() {
+		operator := p.NextToken()
+		right := p.ParseAdditiveExpression()
+		left = NewBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
+	}
+	return left
+}
+
+// Java: Parser.peekShiftOperator()
+func (p *Parser) PeekShiftOperator() bool {
+	switch p.PeekType() {
+	case TokenType_LEFT_SHIFT, TokenType_RIGHT_SHIFT, TokenType_UNSIGNED_RIGHT_SHIFT:
+		return true
+	default:
+		return false
+	}
+}
+
+// 11.6 Additive Expression
+
+// Java: Parser.parseAdditiveExpression()
+func (p *Parser) ParseAdditiveExpression() ParseTree {
+	start := p.GetTreeStartLocation()
+	left := p.ParseMultiplicativeExpression()
+	for p.PeekAdditiveOperator() {
+		operator := p.NextToken()
+		right := p.ParseMultiplicativeExpression()
+		left = NewBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
+	}
+	return left
+}
+
+// Java: Parser.peekAdditiveOperator()
+func (p *Parser) PeekAdditiveOperator() bool {
+	switch p.PeekType() {
+	case TokenType_PLUS, TokenType_MINUS:
+		return true
+	default:
+		return false
+	}
+}
+
+// 11.5 Multiplicative Expression
+
+// Java: Parser.parseMultiplicativeExpression()
+func (p *Parser) ParseMultiplicativeExpression() ParseTree {
+	start := p.GetTreeStartLocation()
+	left := p.ParseExponentiationExpression()
+	for p.PeekMultiplicativeOperator() {
+		operator := p.NextToken()
+		right := p.ParseExponentiationExpression()
+		left = NewBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
+	}
+	return left
+}
+
+// Java: Parser.peekMultiplicativeOperator()
+func (p *Parser) PeekMultiplicativeOperator() bool {
+	switch p.PeekType() {
+	case TokenType_STAR, TokenType_SLASH, TokenType_PERCENT:
+		return true
+	default:
+		return false
+	}
+}
+
+// Java: Parser.parseExponentiationExpression()
+func (p *Parser) ParseExponentiationExpression() ParseTree {
+	start := p.GetTreeStartLocation()
+	left := p.ParseUnaryExpression()
+	if p.Peek(TokenType_STAR_STAR) {
+		// ExponentiationExpression does not allow a UnaryExpression before '**'.
+		// Parentheses are required to disambiguate:
+		//   (-x)**y is valid
+		//   -(x**y) is valid
+		//   -x**y is a syntax error
+		if left.GetParseTreeBase().Type == ParseTreeType_UNARY_EXPRESSION {
+			p.ReportError(
+				"Unary operator '%s' requires parentheses before '**'",
+				left.AsUnaryExpression().Operator)
+		}
+		operator := p.NextToken()
+		right := p.ParseExponentiationExpression()
+		return NewBinaryOperatorTree(p.GetTreeLocation(start), left, operator, right)
+	} else {
+		return left
+	}
+}
+
+// 11.4 Unary Operator
+
+// Java: Parser.parseUnaryExpression()
+func (p *Parser) ParseUnaryExpression() ParseTree {
+	start := p.GetTreeStartLocation()
+	if p.PeekUnaryOperator() {
+		operator := p.NextToken()
+		operand := p.ParseUnaryExpression()
+		return NewUnaryExpressionTree(p.GetTreeLocation(start), operator, operand)
+	} else if p.PeekAwaitExpression() {
+		return p.ParseAwaitExpression()
+	} else {
+		return p.ParseUpdateExpression()
+	}
+}
+
+// Java: Parser.peekUnaryOperator()
+func (p *Parser) PeekUnaryOperator() bool {
+	switch p.PeekType() {
+	case TokenType_DELETE, TokenType_VOID, TokenType_TYPEOF, TokenType_PLUS, TokenType_MINUS, TokenType_TILDE, TokenType_BANG:
+		return true
+	default:
+		return false
+	}
+}
+
+// Parser_AWAIT is Parser.AWAIT.
+const Parser_AWAIT = "await"
+
+// Java: Parser.peekAwaitExpression()
+func (p *Parser) PeekAwaitExpression() bool {
+	return p.PeekPredefinedString(Parser_AWAIT)
+}
+
+// Java: Parser.parseAwaitExpression()
+func (p *Parser) ParseAwaitExpression() ParseTree {
+	start := p.GetTreeStartLocation()
+	p.EatPredefinedString(Parser_AWAIT)
+	expression := p.ParseUnaryExpression()
+	return NewAwaitExpressionTree(p.GetTreeLocation(start), expression)
+}
+
+// Java: Parser.parseUpdateExpression()
+func (p *Parser) ParseUpdateExpression() ParseTree {
+	start := p.GetTreeStartLocation()
+	if p.PeekUpdateOperator() {
+		operator := p.NextToken()
+		operand := p.ParseUnaryExpression()
+		return UpdateExpressionTree_Prefix(p.GetTreeLocation(start), operator, operand)
+	} else {
+		lhs := p.ParseLeftHandSideExpression()
+		if p.PeekUpdateOperator() && !p.PeekImplicitSemiColon() {
+			// newline not allowed before an update operator.
+			operator := p.NextToken()
+			return UpdateExpressionTree_Postfix(p.GetTreeLocation(start), operator, lhs)
+		} else {
+			return lhs
+		}
+	}
+}
+
+// Java: Parser.peekUpdateOperator()
+func (p *Parser) PeekUpdateOperator() bool {
+	switch p.PeekType() {
+	case TokenType_PLUS_PLUS, TokenType_MINUS_MINUS:
+		return true
+	default:
+		return false
+	}
+}
+
+// Java: Parser.peekImportCall()
+func (p *Parser) PeekImportCall() bool {
+	return p.Peek(TokenType_IMPORT) && p.PeekAt(1, TokenType_OPEN_PAREN)
+}
+
+// Java: Parser.peekImportDot()
+func (p *Parser) PeekImportDot() bool {
+	return p.Peek(TokenType_IMPORT) && p.PeekAt(1, TokenType_PERIOD)
+}
+
+// ParseLeftHandSideExpression parses a LeftHandSideExpression.
+//
+// Java: Parser.parseLeftHandSideExpression()
+func (p *Parser) ParseLeftHandSideExpression() ParseTree {
+	start := p.GetTreeStartLocation()
+	// We have these possible productions.
+	// LeftHandSideExpression -> NewExpression
+	//                        -> CallExpression
+	//                        -> MemberExpression
+	//                        -> OptionalExpression
+	//
+	// NewExpression -> new NewExpression
+	//               -> MemberExpression
+	//
+	// CallExpression -> MemberExpression Arguments
+	//                -> CallExpression ... see below
+	//
+	// OptionalExpression -> MemberExpression OptionalChain
+	//                    -> CallExpression OptionalChain
+	//                    -> OptionalExpression OptionalChain
+	//
+	// We try parsing a NewExpression, here, because that will include parsing MemberExpression.
+	// If what we really have is a CallExpression or OptionalExpression, then the MemberExpression
+	// we get back from parseNewExpression will be the first part of it, and we'll build the
+	// rest later.
+	operand := p.ParseNewExpression()
+
+	// this test is equivalent to is member expression
+	if newExpressionTree, ok := operand.(*NewExpressionTree); !ok || newExpressionTree.Arguments != nil {
+		// We have a MemberExpression, but it may actually be just the first part of a CallExpression
+		// Attempt to gather the rest of the CallExpression, if so.
+		for p.PeekCallSuffix() {
+			switch p.PeekType() {
+			case TokenType_OPEN_PAREN:
+				arguments := p.ParseArguments()
+				operand = NewCallExpressionTree(p.GetTreeLocation(start), operand, arguments)
+			case TokenType_OPEN_SQUARE:
+				p.Eat(TokenType_OPEN_SQUARE)
+				member := p.ParseExpression()
+				p.Eat(TokenType_CLOSE_SQUARE)
+				operand = NewMemberLookupExpressionTree(p.GetTreeLocation(start), operand, member)
+			case TokenType_PERIOD:
+				p.Eat(TokenType_PERIOD)
+				id := p.EatIdOrKeywordAsId()
+				operand = NewMemberExpressionTree(p.GetTreeLocation(start), operand, id)
+			case TokenType_NO_SUBSTITUTION_TEMPLATE, TokenType_TEMPLATE_HEAD:
+				operand = p.ParseTemplateLiteral(operand)
+			default:
+				panic(jutil.NewAssertionError("unexpected case: " + p.PeekType().String()))
+			}
+		}
+		operand = p.MaybeParseOptionalExpression(operand)
+	}
+	return operand
+}
+
+// Java: Parser.peekCallSuffix()
+func (p *Parser) PeekCallSuffix() bool {
+	return p.Peek(TokenType_OPEN_PAREN) ||
+		p.Peek(TokenType_OPEN_SQUARE) ||
+		p.Peek(TokenType_PERIOD) ||
+		p.Peek(TokenType_NO_SUBSTITUTION_TEMPLATE) ||
+		p.Peek(TokenType_TEMPLATE_HEAD)
+}
+
+// MaybeParseOptionalExpression tries to parse the expression as an optional
+// expression.
+//
+// `operand?.identifier` or `operand?.[expression]` or `operand?.(arg1, arg2)`
+//
+// returns parse tree after trying to parse it as an optional expression
+//
+// Java: Parser.maybeParseOptionalExpression(ParseTree)
+func (p *Parser) MaybeParseOptionalExpression(operand ParseTree) ParseTree {
+	// The optional chain's source info should cover the lhs operand also
+	start := operand.GetParseTreeBase().Location.Start
+
+	for p.Peek(TokenType_QUESTION_DOT) {
+		p.Eat(TokenType_QUESTION_DOT)
+		switch p.PeekType() {
+		case TokenType_OPEN_PAREN:
+			arguments := p.ParseArguments()
+			operand = NewOptChainCallExpressionTree(
+				p.GetTreeLocation(start),
+				operand,
+				arguments,
+				/* isStartOfOptionalChain= */ true,
+				arguments.HasTrailingComma)
+		case TokenType_OPEN_SQUARE:
+			p.Eat(TokenType_OPEN_SQUARE)
+			member := p.ParseExpression()
+			p.Eat(TokenType_CLOSE_SQUARE)
+			operand = NewOptionalMemberLookupExpressionTree(
+				p.GetTreeLocation(start), operand, member /* isStartOfOptionalChain= */, true)
+		case TokenType_NO_SUBSTITUTION_TEMPLATE, TokenType_TEMPLATE_HEAD:
+			p.ReportError("template literal cannot be used within optional chaining")
+		default:
+			if p.PeekIdOrKeyword() {
+				id := p.EatIdOrKeywordAsId()
+				operand = NewOptionalMemberExpressionTree(
+					p.GetTreeLocation(start), operand, id /* isStartOfOptionalChain= */, true)
+			} else {
+				p.ReportError("syntax error: %s not allowed in optional chain", p.PeekType())
+			}
+		}
+		operand = p.ParseRemainingOptionalChainSegment(operand)
+	}
+	return operand
+}
+
+// ParseRemainingOptionalChainSegment parses the remaining components of an
+// optional chain till the current chain's end, or a new chain's start.
+//
+// `optionalExpression.identifier`, `optionalExpression[expression]`,
+// `optionalExpression(arg1, arg2)`, or
+// `optionalExpression?.optionalExpression`
+//
+// returns parse tree after trying to parse it as an optional chain
+//
+// Java: Parser.parseRemainingOptionalChainSegment(ParseTree)
+func (p *Parser) ParseRemainingOptionalChainSegment(optionalExpression ParseTree) ParseTree {
+	// The optional chain's source info should cover the lhs operand also
+	start := optionalExpression.GetParseTreeBase().Location.Start
+	for p.PeekOptionalChainSuffix() {
+		if p.PeekType() == TokenType_NO_SUBSTITUTION_TEMPLATE ||
+			p.PeekType() == TokenType_TEMPLATE_HEAD {
+			p.ReportError("template literal cannot be used within optional chaining")
+			break
+		}
+		switch p.PeekType() {
+		case TokenType_PERIOD:
+			p.Eat(TokenType_PERIOD)
+			id := p.EatIdOrKeywordAsId()
+			optionalExpression = NewOptionalMemberExpressionTree(
+				p.GetTreeLocation(start),
+				optionalExpression,
+				id,
+				/* isStartOfOptionalChain= */ false)
+		case TokenType_OPEN_PAREN:
+			arguments := p.ParseArguments()
+			optionalExpression = NewOptChainCallExpressionTree(
+				p.GetTreeLocation(start),
+				optionalExpression,
+				arguments,
+				/* isStartOfOptionalChain= */ false,
+				arguments.HasTrailingComma)
+		case TokenType_OPEN_SQUARE:
+			p.Eat(TokenType_OPEN_SQUARE)
+			member := p.ParseExpression()
+			p.Eat(TokenType_CLOSE_SQUARE)
+			optionalExpression = NewOptionalMemberLookupExpressionTree(
+				p.GetTreeLocation(start),
+				optionalExpression,
+				member,
+				/* isStartOfOptionalChain= */ false)
+		default:
+			panic(jutil.NewAssertionError("unexpected case: " + p.PeekType().String()))
+		}
+	}
+	return optionalExpression
+}
+
+// PeekOptionalChainSuffix: tokens that indicate continuation of an optional
+// chain.
+//
+// Java: Parser.peekOptionalChainSuffix()
+func (p *Parser) PeekOptionalChainSuffix() bool {
+	return p.Peek(TokenType_OPEN_PAREN) || // a?.b( ...
+		p.Peek(TokenType_OPEN_SQUARE) || // a?.b[ ...
+		p.Peek(TokenType_PERIOD) || // a?.b. ...
+		// TEMPLATE_HEAD and NO_SUBSTITUTION_TEMPLATE are actually not allowed within optional
+		// chaining and leads to an early error as dictated by the spec.
+		// https://tc39.es/proposal-optional-chaining/#sec-left-hand-side-expressions-static-semantics-early-errors
+		p.Peek(TokenType_NO_SUBSTITUTION_TEMPLATE) || // a?.b`text`
+		p.Peek(TokenType_TEMPLATE_HEAD) // a?.b`text ${substitution} text`
+}
+
+// Parser_ASYNC is Parser.ASYNC.
+const Parser_ASYNC = "async"
+
+// 11.2 Member Expression without the new production
+
+// Java: Parser.parseMemberExpressionNoNew()
+func (p *Parser) ParseMemberExpressionNoNew() ParseTree {
+	start := p.GetTreeStartLocation()
+	var operand ParseTree
+	if p.PeekImportDot() {
+		operand = p.ParseImportDotMeta()
+	} else if p.PeekAsyncFunctionStart() {
+		operand = p.ParseAsyncFunctionExpression()
+	} else if p.PeekFunction() {
+		operand = p.ParseFunctionExpression()
+	} else {
+		operand = p.ParsePrimaryExpression()
+	}
+	for p.PeekMemberExpressionSuffix() {
+		switch p.PeekType() {
+		case TokenType_OPEN_SQUARE:
+			p.Eat(TokenType_OPEN_SQUARE)
+			member := p.ParseExpression()
+			p.Eat(TokenType_CLOSE_SQUARE)
+			operand = NewMemberLookupExpressionTree(p.GetTreeLocation(start), operand, member)
+		case TokenType_PERIOD:
+			p.Eat(TokenType_PERIOD)
+			id := p.EatIdOrKeywordAsId()
+			operand = NewMemberExpressionTree(p.GetTreeLocation(start), operand, id)
+		case TokenType_NO_SUBSTITUTION_TEMPLATE, TokenType_TEMPLATE_HEAD:
+			operand = p.ParseTemplateLiteral(operand)
+		default:
+			panic(jutil.NewRuntimeException("unreachable"))
+		}
+	}
+	return operand
+}
+
+// Java: Parser.peekMemberExpressionSuffix()
+func (p *Parser) PeekMemberExpressionSuffix() bool {
+	return p.Peek(TokenType_OPEN_SQUARE) ||
+		p.Peek(TokenType_PERIOD) ||
+		p.Peek(TokenType_NO_SUBSTITUTION_TEMPLATE) ||
+		p.Peek(TokenType_TEMPLATE_HEAD)
+}
+
+// Java: Parser.parseNewExpression()
+func (p *Parser) ParseNewExpression() ParseTree {
+	if !p.Peek(TokenType_NEW) {
+		return p.ParseMemberExpressionNoNew()
+	} else if p.PeekAt(1, TokenType_PERIOD) {
+		return p.ParseNewDotSomething()
+	} else {
+		start := p.GetTreeStartLocation()
+		p.Eat(TokenType_NEW)
+		if p.Peek(TokenType_QUESTION_DOT) { // new?.target not allowed
+			p.ReportError("Optional chaining is forbidden in `new?.target` contexts.")
+		}
+		operand := p.ParseNewExpression()
+		if p.Peek(TokenType_QUESTION_DOT) { // new a?.() not allowed
+			p.ReportError("Optional chaining is forbidden in construction contexts.")
+		}
+		var arguments *ArgumentListTree
+		if p.Peek(TokenType_OPEN_PAREN) {
+			arguments = p.ParseArguments()
+		}
+		return NewNewExpressionTree(
+			p.GetTreeLocation(start),
+			operand,
+			arguments,
+			arguments != nil && arguments.HasTrailingComma)
+	}
+}
+
+// Java: Parser.parseNewDotSomething()
+func (p *Parser) ParseNewDotSomething() ParseTree {
+	// currently only "target" is valid after "new."
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_NEW)
+	p.Eat(TokenType_PERIOD)
+	p.EatPredefinedString("target")
+	return NewNewTargetExpressionTree(p.GetTreeLocation(start))
+}
+
+// Java: Parser.parseImportDotMeta()
+func (p *Parser) ParseImportDotMeta() ParseTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_IMPORT)
+	p.Eat(TokenType_PERIOD)
+	p.EatPredefinedString("meta")
+	return NewImportMetaExpressionTree(p.GetTreeLocation(start))
+}
+
+// Java: Parser.parseArguments()
+func (p *Parser) ParseArguments() *ArgumentListTree {
+	// ArgumentList :
+	//   AssignmentOrSpreadExpression
+	//   ArgumentList , AssignmentOrSpreadExpression
+	//
+	// AssignmentOrSpreadExpression :
+	//   ... AssignmentExpression
+	//   AssignmentExpression
+
+	start := p.GetTreeStartLocation()
+	arguments := []ParseTree{}
+	trailingComma := false
+	commaPositions := []*SourcePosition{}
+
+	p.Eat(TokenType_OPEN_PAREN)
+	for p.PeekAssignmentOrSpread() {
+		arguments = append(arguments, p.ParseAssignmentOrSpread())
+
+		if !p.Peek(TokenType_CLOSE_PAREN) {
+			comma := p.Eat(TokenType_COMMA)
+			if comma != nil {
+				commaPositions = append(commaPositions, comma.GetStart())
+			}
+			if p.Peek(TokenType_CLOSE_PAREN) {
+				if !p.config.atLeast8 {
+					p.ReportErrorAtToken(comma, "Invalid trailing comma in arguments list")
+				}
+				trailingComma = true
+			}
+		}
+	}
+	p.Eat(TokenType_CLOSE_PAREN)
+	return NewArgumentListTree(
+		p.GetTreeLocation(start), arguments, trailingComma, commaPositions)
+}
+
+// PeekAssignmentOrSpread reports whether we have a spread expression or an
+// assignment next.
+//
+// This does not peek the operand for the spread expression. This means that
+// ParseAssignmentOrSpread might still fail when this returns true.
+//
+// Java: Parser.peekAssignmentOrSpread()
+func (p *Parser) PeekAssignmentOrSpread() bool {
+	return p.Peek(TokenType_ELLIPSIS) || p.PeekAssignmentExpression()
+}
+
+// Java: Parser.parseAssignmentOrSpread()
+func (p *Parser) ParseAssignmentOrSpread() ParseTree {
+	if p.Peek(TokenType_ELLIPSIS) {
+		return p.ParseIterSpread()
+	}
+	return p.ParseAssignmentExpression()
+}
+
+// Destructuring (aka pattern matching); see
+// http://wiki.ecmascript.org/doku.php?id=harmony:destructuring
+
+// Parser_PatternKind is Parser.PatternKind: kinds of destructuring patterns.
+type Parser_PatternKind int32
+
+const (
+	// A var, let, const; catch head; or formal parameter list--only
+	// identifiers are allowed as lvalues
+	Parser_PatternKind_INITIALIZER Parser_PatternKind = iota
+	// An assignment or for-in initializer--any lvalue is allowed
+	Parser_PatternKind_ANY
+)
+
+var parser_PatternKind_names = [...]string{"INITIALIZER", "ANY"}
+
+// Parser_PatternKind_values is PatternKind.values().
+//
+// Java: Parser.PatternKind.values()
+func Parser_PatternKind_values() []Parser_PatternKind {
+	return []Parser_PatternKind{Parser_PatternKind_INITIALIZER, Parser_PatternKind_ANY}
+}
+
+// Name is Enum.name().
+//
+// Java: Parser.PatternKind.name()
+func (k Parser_PatternKind) Name() string { return parser_PatternKind_names[k] }
+
+// String is Enum.toString().
+//
+// Java: Parser.PatternKind.toString()
+func (k Parser_PatternKind) String() string { return k.Name() }
+
+// Java: Parser.peekPatternStart()
+func (p *Parser) PeekPatternStart() bool {
+	return p.Peek(TokenType_OPEN_SQUARE) || p.Peek(TokenType_OPEN_CURLY)
+}
+
+// Java: Parser.parsePattern(PatternKind)
+func (p *Parser) ParsePattern(kind Parser_PatternKind) ParseTree {
+	switch p.PeekType() {
+	case TokenType_OPEN_SQUARE:
+		return p.ParseArrayPattern(kind)
+	case TokenType_OPEN_CURLY:
+		fallthrough
+	default:
+		return p.ParseObjectPattern(kind)
+	}
+}
+
+// Java: Parser.peekArrayPatternElement()
+func (p *Parser) PeekArrayPatternElement() bool {
+	return p.PeekExpression()
+}
+
+// Java: Parser.parseIterRest(PatternKind)
+func (p *Parser) ParseIterRest(patternKind Parser_PatternKind) ParseTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_ELLIPSIS)
+	patternAssignmentTarget := p.ParseRestAssignmentTarget(patternKind)
+	return NewIterRestTree(p.GetTreeLocation(start), patternAssignmentTarget)
+}
+
+// Java: Parser.parseRestAssignmentTarget(PatternKind)
+func (p *Parser) ParseRestAssignmentTarget(patternKind Parser_PatternKind) ParseTree {
+	patternAssignmentTarget := p.ParsePatternAssignmentTargetNoDefault(patternKind)
+	if p.Peek(TokenType_EQUAL) {
+		p.ReportError("A default value cannot be specified after '...'")
+	}
+	return patternAssignmentTarget
+}
+
+// ParseArrayPattern parses Pattern ::= ... | "[" Element? ("," Element?)* "]"
+//
+// Java: Parser.parseArrayPattern(PatternKind)
+func (p *Parser) ParseArrayPattern(kind Parser_PatternKind) ParseTree {
+	start := p.GetTreeStartLocation()
+	elements := []ParseTree{}
+	p.Eat(TokenType_OPEN_SQUARE)
+	for p.Peek(TokenType_COMMA) || p.PeekArrayPatternElement() {
+		if p.Peek(TokenType_COMMA) {
+			nullStart := p.GetTreeStartLocation()
+			p.Eat(TokenType_COMMA)
+			elements = append(elements, NewNullTree(p.GetTreeLocation(nullStart)))
+		} else {
+			elements = append(elements, p.ParsePatternAssignmentTarget(kind))
+
+			if p.Peek(TokenType_COMMA) {
+				// Consume the comma separator
+				p.Eat(TokenType_COMMA)
+			} else {
+				// Otherwise we must be done
+				break
+			}
+		}
+	}
+	if p.Peek(TokenType_ELLIPSIS) {
+		p.RecordFeatureUsed(FeatureSet_Feature_ARRAY_PATTERN_REST)
+		elements = append(elements, p.ParseIterRest(kind))
+	}
+	if p.Eat(TokenType_CLOSE_SQUARE) == nil {
+		// If we get no closing bracket then return invalid tree to avoid compiler tripping
+		// downstream. It's needed only for IDE mode where compiler continues processing even if
+		// source has syntactic errors.
+		return NewMissingPrimaryExpressionTree(p.GetTreeLocation(p.GetTreeStartLocation()))
+	}
+	return NewArrayPatternTree(p.GetTreeLocation(start), elements)
+}
+
+// ParseObjectPattern parses
+// Pattern ::= "{" (Field ("," Field)* ","?)? "}" | ...
+//
+// Java: Parser.parseObjectPattern(PatternKind)
+func (p *Parser) ParseObjectPattern(kind Parser_PatternKind) ParseTree {
+	start := p.GetTreeStartLocation()
+	fields := []ParseTree{}
+	p.Eat(TokenType_OPEN_CURLY)
+	for p.PeekObjectPatternField() {
+		fields = append(fields, p.ParseObjectPatternField(kind))
+
+		if p.Peek(TokenType_COMMA) {
+			// Consume the comma separator
+			p.Eat(TokenType_COMMA)
+		} else {
+			// Otherwise we must be done
+			break
+		}
+	}
+	if p.Peek(TokenType_ELLIPSIS) {
+		p.RecordFeatureUsed(FeatureSet_Feature_OBJECT_PATTERN_REST)
+		restStart := p.GetTreeStartLocation()
+		p.Eat(TokenType_ELLIPSIS)
+		patternAssignmentTarget := p.ParseRestAssignmentTarget(kind)
+		fields = append(fields, NewObjectRestTree(p.GetTreeLocation(restStart), patternAssignmentTarget))
+	}
+	p.Eat(TokenType_CLOSE_CURLY)
+	return NewObjectPatternTree(p.GetTreeLocation(start), fields)
+}
+
+// Java: Parser.peekObjectPatternField()
+func (p *Parser) PeekObjectPatternField() bool {
+	return p.PeekPropertyNameOrComputedProp(0)
+}
+
+// Java: Parser.parseObjectPatternField(PatternKind)
+func (p *Parser) ParseObjectPatternField(kind Parser_PatternKind) ParseTree {
+	start := p.GetTreeStartLocation()
+	if p.PeekType() == TokenType_OPEN_SQUARE {
+		key := p.ParseComputedPropertyName()
+		p.Eat(TokenType_COLON)
+		value := p.ParsePatternAssignmentTarget(kind)
+		return NewComputedPropertyDefinitionTree(p.GetTreeLocation(start), key, value)
+	}
+
+	var name Token
+	if p.PeekIdOrKeyword() {
+		idToken := p.EatIdOrKeywordAsId()
+		if !p.Peek(TokenType_COLON) {
+			if idToken.IsKeyword() {
+				p.ReportError("cannot use keyword '%s' here.", idToken)
+			}
+			if p.Peek(TokenType_EQUAL) {
+				idTree := NewIdentifierExpressionTree(p.GetTreeLocation(start), idToken)
+				p.Eat(TokenType_EQUAL)
+				defaultValue := p.ParseAssignmentExpression()
+				return NewDefaultParameterTree(p.GetTreeLocation(start), idTree, defaultValue)
+			}
+			return NewPropertyNameAssignmentTree(p.GetTreeLocation(start), identifierTokenAsToken(idToken), nil)
+		}
+		name = identifierTokenAsToken(idToken)
+	} else {
+		name = p.ParseLiteralExpression().LiteralToken
+	}
+
+	p.Eat(TokenType_COLON)
+	value := p.ParsePatternAssignmentTarget(kind)
+	return NewPropertyNameAssignmentTree(p.GetTreeLocation(start), name, value)
+}
+
+// ParsePatternAssignmentTarget parses a PatternAssignmentTarget: the
+// location where the assigned value gets stored, including an optional
+// default value.
+//
+//	Spec AssignmentElement === PatternAssignmentTarget(PatternKind.ANY)
+//	  Valid in an assignment that is not a formal parameter list or variable
+//	  declaration. Sub-patterns and arbitrary left hand side expressions are
+//	  allowed.
+//	Spec BindingElement === PatternAssignmentElement(PatternKind.INITIALIZER)
+//	  Valid in a formal parameter list or variable declaration statement. Only
+//	  sub-patterns and identifiers are allowed.
+//
+// Examples:
+//
+//	[a, {foo: b = 'default'}] = someArray;          // valid
+//	[x.a, {foo: x.b = 'default'}] = someArray;      // valid
+//
+//	let [a, {foo: b = 'default'}] = someArray;      // valid
+//	let [x.a, {foo: x.b = 'default'}] = someArray;  // invalid
+//
+//	function f([a, {foo: b = 'default'}]) {...}     // valid
+//	function f([x.a, {foo: x.b = 'default'}]) {...} // invalid
+//
+// Java: Parser.parsePatternAssignmentTarget(PatternKind)
+func (p *Parser) ParsePatternAssignmentTarget(patternKind Parser_PatternKind) ParseTree {
+	start := p.GetTreeStartLocation()
+	var assignmentTarget ParseTree
+	assignmentTarget = p.ParsePatternAssignmentTargetNoDefault(patternKind)
+
+	if p.Peek(TokenType_EQUAL) {
+		p.Eat(TokenType_EQUAL)
+		defaultValue := p.ParseAssignmentExpression()
+		assignmentTarget = NewDefaultParameterTree(p.GetTreeLocation(start), assignmentTarget, defaultValue)
+	}
+	return assignmentTarget
+}
+
+// Java: Parser.parsePatternAssignmentTargetNoDefault(PatternKind)
+func (p *Parser) ParsePatternAssignmentTargetNoDefault(kind Parser_PatternKind) ParseTree {
+	var assignmentTarget ParseTree
+	if p.PeekPatternStart() {
+		assignmentTarget = p.ParsePattern(kind)
+	} else {
+		assignmentTarget = p.ParseLeftHandSideExpression()
+		if !assignmentTarget.IsValidAssignmentTarget() {
+			p.ReportError("invalid assignment target")
+		}
+		if kind == Parser_PatternKind_INITIALIZER &&
+			assignmentTarget.GetParseTreeBase().Type != ParseTreeType_IDENTIFIER_EXPRESSION {
+			// We're in the context of a formal parameter list or a variable declaration statement
+			p.ReportError("Only an identifier or destructuring pattern is allowed here.")
+		}
+	}
+	return assignmentTarget
+}
+
+// EatPossiblyImplicitSemiColon consumes a (possibly implicit) semi-colon.
+// Reports an error if a semi-colon is not present.
+//
+// Java: Parser.eatPossiblyImplicitSemiColon()
+func (p *Parser) EatPossiblyImplicitSemiColon() {
+	if p.Peek(TokenType_SEMI_COLON) {
+		p.Eat(TokenType_SEMI_COLON)
+		return
+	}
+	if p.PeekImplicitSemiColon() {
+		return
+	}
+
+	p.ReportError("Semi-colon expected")
+}
+
+// PeekImplicitSemiColon returns true if an implicit or explicit semi colon
+// is at the current location.
+//
+// Java: Parser.peekImplicitSemiColon()
+func (p *Parser) PeekImplicitSemiColon() bool {
+	return p.PeekImplicitSemiColonAt(0)
+}
+
+// Java: Parser.peekImplicitSemiColon(int)
+func (p *Parser) PeekImplicitSemiColonAt(index int) bool {
+	var lineAdvanced bool
+	if index == 0 {
+		lineAdvanced = p.GetNextLine() > p.GetLastLine()
+	} else {
+		lineAdvanced = p.PeekTokenAt(index).GetTokenBase().Location.Start.Line > p.PeekTokenAt(index-1).GetTokenBase().Location.End.Line
+	}
+	return lineAdvanced ||
+		p.PeekAt(index, TokenType_SEMI_COLON) ||
+		p.PeekAt(index, TokenType_CLOSE_CURLY) ||
+		p.PeekAt(index, TokenType_END_OF_FILE)
+}
+
+// GetLastLine returns the line number of the most recently consumed token.
+//
+// Java: Parser.getLastLine()
+func (p *Parser) GetLastLine() int {
+	return p.lastSourcePosition.Line
+}
+
+// GetNextLine returns the line number of the next token.
+//
+// Java: Parser.getNextLine()
+func (p *Parser) GetNextLine() int {
+	return p.PeekToken().GetTokenBase().Location.Start.Line
+}
+
+// EatOpt consumes the next token if it is of the expected type. Otherwise
+// returns nil. Never reports errors.
+//
+// Returns the consumed token, or nil if the next token is not of the
+// expected type.
+//
+// Java: Parser.eatOpt(TokenType)
+func (p *Parser) EatOpt(expectedTokenType TokenType) Token {
+	if p.Peek(expectedTokenType) {
+		return p.Eat(expectedTokenType)
+	}
+	return nil
+}
+
+// Java: Parser.inStrictContext()
+func (p *Parser) InStrictContext() bool {
+	// TODO(johnlenz): track entering strict scripts/modules/functions.
+	return p.config.isStrictMode
+}
+
+// Java: Parser.peekId()
+func (p *Parser) PeekId() bool {
+	return p.PeekIdAt(0)
+}
+
+// PeekIdAt returns whether the next token is an identifier.
+//
+// Java: Parser.peekId(int)
+func (p *Parser) PeekIdAt(index int) bool {
+	type_ := p.PeekTypeAt(index)
+	// There is one special case to handle here: outside of strict-mode code, strict-mode keywords
+	// can be used as identifiers
+	return TokenType_IDENTIFIER == type_ || (!p.InStrictContext() && Keywords_IsStrictKeyword(type_))
+}
+
+// Java: Parser.peekIdOrKeyword()
+func (p *Parser) PeekIdOrKeyword() bool {
+	return p.PeekIdOrKeywordAt(0)
+}
+
+// Java: Parser.peekIdOrKeyword(int)
+func (p *Parser) PeekIdOrKeywordAt(index int) bool {
+	type_ := p.PeekTypeAt(index)
+	return TokenType_IDENTIFIER == type_ || Keywords_IsKeywordTokenType(type_)
+}
+
+// EatIdOpt is shorthand for eatOpt(TokenType.IDENTIFIER).
+//
+// Java: Parser.eatIdOpt()
+func (p *Parser) EatIdOpt() *IdentifierToken {
+	if p.PeekId() {
+		return p.EatIdOrKeywordAsId()
+	}
+	return nil
+}
+
+// EatId consumes an identifier token that is not a reserved word.
+//
+// See http://www.ecma-international.org/ecma-262/5.1/#sec-7.6
+//
+// Java: Parser.eatId()
+func (p *Parser) EatId() *IdentifierToken {
+	if p.PeekId() {
+		return p.EatIdOrKeywordAsId()
+	} else {
+		p.ReportExpectedError(p.PeekToken(), TokenType_IDENTIFIER)
+		if p.PeekIdOrKeyword() {
+			return p.EatIdOrKeywordAsId()
+		} else {
 			return nil
 		}
 	}
-	// Trim whitespace + leading `*` markers common in `/** … */`.
-	trimmed := ""
-	inLineStar := true
-	for i := 0; i < len(body); i++ {
-		c := body[i]
-		if c == '\n' || c == '\r' {
-			trimmed += " "
-			inLineStar = true
-			continue
-		}
-		if inLineStar && (c == ' ' || c == '\t' || c == '*') {
-			continue
-		}
-		inLineStar = false
-		trimmed += string(c)
+}
+
+// Java: Parser.eatObjectLiteralPropertyName()
+func (p *Parser) EatObjectLiteralPropertyName() Token {
+	token := p.PeekToken()
+	switch token.GetTokenBase().Type {
+	case TokenType_STRING, TokenType_NUMBER, TokenType_BIGINT:
+		return p.NextToken()
+	case TokenType_IDENTIFIER:
+		fallthrough
+	default:
+		return identifierTokenAsToken(p.EatIdOrKeywordAsId())
 	}
-	trimmed = trimSpace(trimmed)
-	if trimmed == "" {
+}
+
+// EatIdOrKeywordAsId consumes an identifier token that may be a reserved
+// word, i.e. an IdentifierName, not necessarily an Identifier.
+//
+// See http://www.ecma-international.org/ecma-262/5.1/#sec-7.6
+//
+// Java: Parser.eatIdOrKeywordAsId()
+func (p *Parser) EatIdOrKeywordAsId() *IdentifierToken {
+	token := p.NextToken()
+	if token.GetTokenBase().Type == TokenType_IDENTIFIER {
+		return token.(*IdentifierToken)
+	} else if Keywords_IsKeywordTokenType(token.GetTokenBase().Type) {
+		return NewIdentifierToken(token.GetTokenBase().Location, Keywords_GetByTokenType(token.GetTokenBase().Type).String())
+	} else {
+		p.ReportExpectedError(token, TokenType_IDENTIFIER)
+	}
+	return nil
+}
+
+// Eat consumes the next token. If the consumed token is not of the expected
+// type then report an error and return nil. Otherwise return the consumed
+// token.
+//
+// Returns the consumed token, or nil if the next token is not of the
+// expected type.
+//
+// Java: Parser.eat(TokenType)
+func (p *Parser) Eat(expectedTokenType TokenType) Token {
+	token := p.NextToken()
+	if token.GetTokenBase().Type != expectedTokenType {
+		p.ReportExpectedError(token, expectedTokenType)
 		return nil
 	}
-	info := &rhino.JSDocInfo{}
-	info.SetType(rhino.NewJSTypeExpression(trimmed))
-	return info
+	return token
 }
 
-// trimSpace is a small helper matching strings.TrimSpace for ASCII
-// whitespace characters common in JSDoc bodies.
-// Go-only: language-adapter — Java's parser uses built-in String.trim(); Go uses strings.TrimSpace but this avoids an import in the parser's hot path.
-func trimSpace(s string) string {
-	for len(s) > 0 && (s[0] == ' ' || s[0] == '\t') {
-		s = s[1:]
-	}
-	for len(s) > 0 && (s[len(s)-1] == ' ' || s[len(s)-1] == '\t') {
-		s = s[:len(s)-1]
-	}
-	return s
+// ReportExpectedError reports a 'X' expected error message.
+//
+// token: the location to report the message at. expected: the thing that
+// was expected.
+//
+// Java: Parser.reportExpectedError(Token, Object)
+func (p *Parser) ReportExpectedError(token Token, expected any) {
+	p.ReportErrorAtToken(token, "'%s' expected", expected)
 }
 
-// extendWithProperty consumes any trailing `.IDENT` or `[expr]` chain
-// after the given base, building GETPROP / GETELEM nodes as in Closure.
-// Used by the `this` and NAME paths so member access is uniform with
-// the postfix chain in parseUpdateExpression.
-// Go-only: language-adapter — property/element access chainer (Java uses parseMemberExpressionSuffix logic; Go extracts for try-pattern).
-func (p *Parser) extendWithProperty(base *rhino.Node) *rhino.Node {
-	for {
-		p.scanner.SkipTrivia()
-		if p.scanner.AtEnd() {
-			return base
-		}
-		c := p.scanner.Peek()
-		if c == '.' {
-			p.scanner.Advance()
-			p.scanner.SkipTrivia()
-			propLine, propCol := p.scanner.Line(), p.scanner.Col()
-			ident, ok := p.scanner.ConsumeIdent()
-			if !ok {
-				return base
-			}
-			gp := rhino.New(rhino.GETPROP)
-			gp.SetPos(base.Lineno(), base.Charno())
-			gp.AddChildToBack(base)
-			propNode := rhino.NewString(rhino.STRINGLIT, ident)
-			propNode.SetPos(propLine, propCol)
-			gp.AddChildToBack(propNode)
-			base = gp
-			continue
-		}
-		if c == '[' {
-			p.scanner.Advance()
-			p.scanner.SkipTrivia()
-			idxLine, idxCol := p.scanner.Line(), p.scanner.Col()
-			idx, ok := p.parseExpression()
-			if !ok {
-				return base
-			}
-			idx.SetPos(idxLine, idxCol)
-			p.scanner.SkipTrivia()
-			if !p.scanner.ConsumeByte(']') {
-				return base
-			}
-			ge := rhino.New(rhino.GETELEM)
-			ge.SetPos(base.Lineno(), base.Charno())
-			ge.AddChildToBack(base)
-			ge.AddChildToBack(idx)
-			base = ge
-			continue
-		}
-		return base
-	}
+// GetTreeStartLocation returns a SourcePosition for the start of a parse
+// tree that starts at the current location.
+//
+// Java: Parser.getTreeStartLocation()
+func (p *Parser) GetTreeStartLocation() *SourcePosition {
+	return p.PeekToken().GetTokenBase().Location.Start
 }
 
-// tryArrow speculatively parses `(params) => body` or `ident => body`.
-// Rewinds on failure so the caller can fall back to other expression
-// forms. Arrow functions surface as FUNCTION nodes so the same
-// scope/typecheck machinery applies to them.
-// Supports rest, destructuring, and default params via parseParameter.
-// Go-only: language-adapter — speculative arrow-function parser (Java integrates arrow detection into parseAssignment; Go separates for try-pattern).
-func (p *Parser) tryArrow() (*rhino.Node, bool) {
-	save := p.scanner.Save()
-	rewind := func() {
-		p.scanner.Restore(save)
-	}
+// GetTreeEndLocation returns a SourcePosition for the end of a parse tree
+// that ends at the current location.
+//
+// Java: Parser.getTreeEndLocation()
+func (p *Parser) GetTreeEndLocation() *SourcePosition {
+	return p.lastSourcePosition
+}
 
-	startLine, startCol := p.scanner.Line(), p.scanner.Col()
-	paramList := rhino.New(rhino.PARAM_LIST)
+// GetTreeLocation returns a SourceRange for a parse tree that starts at
+// {start} and ends at the current location.
+//
+// Java: Parser.getTreeLocation(SourcePosition)
+func (p *Parser) GetTreeLocation(start *SourcePosition) *SourceRange {
+	// Go-only: performance — one range per parse tree, from a slab like the
+	// tokens' (see LineNumberScanner.getTokenSourcePosition).
+	r := p.treeLocations.New()
+	r.Start, r.End = start, p.GetTreeEndLocation()
+	return r
+}
 
-	if p.scanner.ConsumeByte('(') {
-		p.scanner.SkipTrivia()
-		if !p.scanner.ConsumeByte(')') {
-			for {
-				p.scanner.SkipTrivia()
-				c := p.scanner.Peek()
-				// Only attempt parseParameter when the next token looks like a
-				// param start. If not, rewind — this isn't an arrow function.
-				isParamStart := c == '.' || c == '[' || c == '{' ||
-					unicode.IsLetter(c) || c == '_' || c == '$'
-				if !isParamStart {
-					rewind()
-					return nil, false
-				}
-				pNode, isRest, ok := p.parseParameter(nil)
-				if !ok {
-					rewind()
-					return nil, false
-				}
-				paramList.AddChildToBack(pNode)
-				p.scanner.SkipTrivia()
-				if isRest {
-					if p.scanner.Peek() == ')' {
-						p.scanner.Advance()
-					}
-					break
-				}
-				if p.scanner.ConsumeByte(',') {
-					p.scanner.SkipTrivia()
-					continue
-				}
-				if p.scanner.ConsumeByte(')') {
-					break
-				}
-				rewind()
-				return nil, false
-			}
-		}
+// NextToken consumes the next token and returns it. Will return a never
+// ending stream of TokenType.END_OF_FILE at the end of the file so callers
+// don't have to check for EOF explicitly.
+//
+// Tokenizing is contextual. NextToken() will never return a regular
+// expression literal.
+//
+// Java: Parser.nextToken()
+func (p *Parser) NextToken() Token {
+	token := p.scanner.NextToken()
+	p.lastSourcePosition = token.GetTokenBase().Location.End
+	return token
+}
+
+// NextRegularExpressionLiteralToken consumes a regular expression literal
+// token and returns it.
+//
+// Java: Parser.nextRegularExpressionLiteralToken()
+func (p *Parser) NextRegularExpressionLiteralToken() LiteralToken {
+	token := p.scanner.NextRegularExpressionLiteralToken()
+	p.lastSourcePosition = token.GetTokenBase().Location.End
+	return token
+}
+
+// NextTemplateLiteralToken consumes a template literal token and returns
+// it.
+//
+// Java: Parser.nextTemplateLiteralToken()
+func (p *Parser) NextTemplateLiteralToken() *TemplateLiteralToken {
+	token := p.scanner.NextTemplateLiteralToken()
+	p.lastSourcePosition = token.Location.End
+	return token
+}
+
+// Peek returns true if the next token is of the expected type. Does not
+// consume the token.
+//
+// Java: Parser.peek(TokenType)
+func (p *Parser) Peek(expectedType TokenType) bool {
+	return p.PeekAt(0, expectedType)
+}
+
+// PeekAt returns true if the index-th next token is of the expected type.
+// Does not consume any tokens.
+//
+// Java: Parser.peek(int, TokenType)
+func (p *Parser) PeekAt(index int, expectedType TokenType) bool {
+	return p.PeekTypeAt(index) == expectedType
+}
+
+// PeekType returns the TokenType of the next token. Does not consume any
+// tokens.
+//
+// Java: Parser.peekType()
+func (p *Parser) PeekType() TokenType {
+	return p.PeekTypeAt(0)
+}
+
+// PeekTypeAt returns the TokenType of the index-th next token. Does not
+// consume any tokens.
+//
+// Java: Parser.peekType(int)
+func (p *Parser) PeekTypeAt(index int) TokenType {
+	return p.PeekTokenAt(index).GetTokenBase().Type
+}
+
+// PeekToken returns the next token. Does not consume any tokens.
+//
+// Java: Parser.peekToken()
+func (p *Parser) PeekToken() Token {
+	return p.PeekTokenAt(0)
+}
+
+// PeekTokenAt returns the index-th next token. Does not consume any tokens.
+//
+// Java: Parser.peekToken(int)
+func (p *Parser) PeekTokenAt(index int) Token {
+	return p.scanner.PeekTokenAt(index)
+}
+
+// ReportErrorAtToken reports an error message at a given token.
+//
+// token: the location to report the message at. message: the message to
+// report in String.format style. arguments: the arguments to fill in the
+// message format.
+//
+// Java: Parser.reportError(Token, String, Object...)
+func (p *Parser) ReportErrorAtToken(token Token, message string, arguments ...any) {
+	if token == nil {
+		p.ReportError(message, arguments...)
 	} else {
-		c := p.scanner.Peek()
-		if !(unicode.IsLetter(c) || c == '_' || c == '$') {
-			return nil, false
-		}
-		ident, ok := p.scanner.ConsumeIdent()
-		if !ok {
-			rewind()
-			return nil, false
-		}
-		pNode := rhino.NewString(rhino.NAME, ident)
-		paramList.AddChildToBack(pNode)
+		p.errorReporter.ReportErrorFormat(token.GetStart(), message, arguments...)
 	}
+}
 
-	p.scanner.SkipTrivia()
-	if !p.scanner.ConsumeByte('=') || !p.scanner.ConsumeByte('>') {
-		rewind()
-		return nil, false
-	}
-	p.scanner.SkipTrivia()
-
-	fn := rhino.New(rhino.FUNCTION)
-	fn.SetPos(startLine, startCol)
-	nameNode := rhino.NewString(rhino.NAME, "")
-	nameNode.SetPos(startLine, startCol)
-	fn.AddChildToBack(nameNode)
-	fn.AddChildToBack(paramList)
-
-	body := rhino.New(rhino.BLOCK)
-	if p.scanner.ConsumeByte('{') {
-		p.parseStatements(body, '}')
-		p.scanner.ConsumeByte('}')
+// ReportErrorAtTree reports an error message at a given parse tree's
+// location.
+//
+// parseTree: the location to report the message at. message: the message to
+// report in String.format style. arguments: the arguments to fill in the
+// message format.
+//
+// Java: Parser.reportError(ParseTree, String, Object...)
+func (p *Parser) ReportErrorAtTree(parseTree ParseTree, message string, arguments ...any) {
+	if parseTree == nil {
+		p.ReportError(message, arguments...)
 	} else {
-		// Single-expression body: wrap as implicit `return EXPR`.
-		eline, ecol := p.scanner.Line(), p.scanner.Col()
-		expr, ok := p.parseExpression()
-		if !ok {
-			rewind()
-			return nil, false
-		}
-		expr.SetPos(eline, ecol)
-		ret := rhino.New(rhino.RETURN)
-		ret.AddChildToBack(expr)
-		body.AddChildToBack(ret)
-	}
-	fn.AddChildToBack(body)
-	return fn, true
-}
-
-// parseNewExpression parses `IDENT ( args )` after the `new` keyword is consumed.
-// Mirrors com.google.javascript.jscomp.parsing.parser.Parser's
-// parseMemberExpressionNoNew path that produces a NEW node.
-func (p *Parser) parseNewExpression() (*rhino.Node, bool) {
-	p.scanner.SkipTrivia()
-	nameLine, nameCol := p.scanner.Line(), p.scanner.Col()
-	ident, ok := p.scanner.ConsumeIdent()
-	if !ok {
-		return nil, false
-	}
-	// `new Foo.Bar(args)` — pick up any `.prop` chain on the callee
-	// before the optional `(args)`. Matches Parser.java's
-	// parseNewExpression where the MemberExpression can itself be a
-	// property chain.
-	callee := rhino.NewString(rhino.NAME, ident)
-	callee.SetPos(nameLine, nameCol)
-	for {
-		p.scanner.SkipTrivia()
-		if p.scanner.AtEnd() || p.scanner.Peek() != '.' {
-			break
-		}
-		p.scanner.Advance()
-		p.scanner.SkipTrivia()
-		pl, pc := p.scanner.Line(), p.scanner.Col()
-		pi, ok := p.scanner.ConsumeIdent()
-		if !ok {
-			break
-		}
-		gp := rhino.New(rhino.GETPROP)
-		gp.SetPos(nameLine, nameCol)
-		gp.AddChildToBack(callee)
-		pn := rhino.NewString(rhino.STRINGLIT, pi)
-		pn.SetPos(pl, pc)
-		gp.AddChildToBack(pn)
-		callee = gp
-	}
-	n := rhino.New(rhino.NEW)
-	n.SetPos(nameLine, nameCol)
-	n.AddChildToBack(callee)
-	p.scanner.SkipTrivia()
-	if !p.scanner.ConsumeByte('(') {
-		// `new Foo` without arg-list is a zero-arg construction.
-		return n, true
-	}
-	for {
-		p.scanner.SkipTrivia()
-		if p.scanner.AtEnd() {
-			return nil, false
-		}
-		if p.scanner.Peek() == ')' {
-			p.scanner.Advance()
-			return n, true
-		}
-		argLine, argCol := p.scanner.Line(), p.scanner.Col()
-		arg, ok := p.parseExpression()
-		if !ok {
-			return nil, false
-		}
-		arg.SetPos(argLine, argCol)
-		n.AddChildToBack(arg)
-		p.scanner.SkipTrivia()
-		if p.scanner.ConsumeByte(',') {
-			continue
-		}
+		p.errorReporter.ReportErrorFormat(parseTree.GetParseTreeBase().Location.Start, message, arguments...)
 	}
 }
 
-// Go-only: language-adapter — boolean literal parser returning rhino.Node (Java handles inside parsePrimaryExpression; Go extracts for clarity).
-func (p *Parser) parseBooleanLiteral() (*rhino.Node, bool) {
-	if p.scanner.ConsumeKeyword("true") {
-		return rhino.New(rhino.TRUE), true
-	}
-	if p.scanner.ConsumeKeyword("false") {
-		return rhino.New(rhino.FALSE), true
-	}
-	return nil, false
-}
-
-// parseTemplateLiteral parses a backtick-delimited template literal
-// starting at the current cursor position (the cursor must be on the
-// opening '`').
+// ReportError reports an error at the current location.
 //
-// Mirrors Java's parseTemplateLiteral / parseTemplateLiteralContinuation
-// in Parser.java. Produces a TEMPLATELIT node whose children alternate
-// between TEMPLATELIT_STRING (raw text segments) and TEMPLATELIT_SUB
-// (wrapped interpolated expressions). For example:
+// message: the message to report in String.format style. arguments: the
+// arguments to fill in the message format.
 //
-//	`hello ${name}!`
-//	→ TEMPLATELIT
-//	    TEMPLATELIT_STRING "hello "
-//	    TEMPLATELIT_SUB
-//	      NAME "name"
-//	    TEMPLATELIT_STRING "!"
+// Java: Parser.reportError(String, Object...)
+func (p *Parser) ReportError(message string, arguments ...any) {
+	p.errorReporter.ReportErrorFormat(p.scanner.GetPosition(), message, arguments...)
+}
+
+// ReportErrorAtPosition reports an error at the specified location.
 //
-// TODO: nested braces inside ${ … } (e.g. `${ {a:1} }`) are not yet
-// counted; a single unmatched '}' will prematurely end the substitution.
-// For now the minimal subset that handles simple expressions is supported.
-func (p *Parser) parseTemplateLiteral() (*rhino.Node, bool) {
-	root := rhino.New(rhino.TEMPLATELIT)
-	p.scanner.Advance() // consume opening backtick
-	part, ok := p.scanner.ScanTemplateLiteral()
-	if !ok {
-		return nil, false
-	}
-	for {
-		// Emit the text segment.
-		seg := rhino.NewString(rhino.TEMPLATELIT_STRING, part.Cooked)
-		root.AddChildToBack(seg)
-
-		if part.Kind == TemplateNoSub || part.Kind == TemplateTail {
-			// No more substitutions; we're done.
-			break
-		}
-		// part.Kind == TemplateHead or TemplateMiddle — parse the expression.
-		p.scanner.SkipTrivia()
-		subExprLine, subExprCol := p.scanner.Line(), p.scanner.Col()
-		subExpr, ok := p.parseExpression()
-		if !ok {
-			return nil, false
-		}
-		subExpr.SetPos(subExprLine, subExprCol)
-		sub := rhino.New(rhino.TEMPLATELIT_SUB)
-		sub.AddChildToBack(subExpr)
-		root.AddChildToBack(sub)
-
-		// Consume the closing '}' of the substitution.
-		p.scanner.SkipTrivia()
-		if !p.scanner.ConsumeByte('}') {
-			return nil, false
-		}
-		// Scan the next segment (middle or tail).
-		part, ok = p.scanner.ScanTemplateMiddleOrTail()
-		if !ok {
-			return nil, false
-		}
-	}
-	p.scanner.MarkTokenConsumed()
-	return root, true
+// position: the position of the error. message: the message to report in
+// String.format style. arguments: the arguments to fill in the message
+// format.
+//
+// Java: Parser.reportError(SourcePosition, String, Object...)
+func (p *Parser) ReportErrorAtPosition(position *SourcePosition, message string, arguments ...any) {
+	p.errorReporter.ReportErrorFormat(position, message, arguments...)
 }
 
-// Go-only: language-adapter — character-level string literal parser (Java uses nextLiteralToken via the Scanner; Go has no Scanner API).
-func (p *Parser) parseStringLiteral(quote rune) (*rhino.Node, bool) {
-	p.scanner.Advance() // opening quote
-	raw, ok := p.scanner.ScanStringBody(quote)
-	if !ok {
-		return nil, false
+// Java: Parser.reportTemplateErrorIfPresent(TemplateLiteralToken)
+func (p *Parser) ReportTemplateErrorIfPresent(templateToken *TemplateLiteralToken) {
+	if templateToken.ErrorMessage == nil {
+		return
 	}
-	val := DecodeStringEscapes(raw)
-	return rhino.NewString(rhino.STRINGLIT, val), true
+	// Java: switch (templateToken.errorLevel) — a null errorLevel would throw
+	// a NullPointerException here.
+	switch *templateToken.ErrorLevel {
+	case TemplateLiteralToken_ErrorLevel_WARNING:
+		p.errorReporter.ReportWarningFormat(templateToken.ErrorPosition, "%s", *templateToken.ErrorMessage)
+		return
+	case TemplateLiteralToken_ErrorLevel_ERROR:
+		p.ReportErrorAtPosition(templateToken.ErrorPosition, "%s", *templateToken.ErrorMessage)
+		return
+	}
+	panic(jutil.NewAssertionErrorNoMessage())
 }
 
-// Go-only: language-adapter — character-level number literal parser (Java uses nextLiteralToken via the Scanner; Go has no Scanner API).
-func (p *Parser) parseNumberLiteral() (*rhino.Node, bool) {
-	raw, _, ok := p.scanner.ScanNumericLiteral()
-	if !ok {
-		return nil, false
-	}
-	v, err := parseNumericRaw(raw)
-	if err != nil {
-		return nil, false
-	}
-	return rhino.NewNumber(v), true
+// Java: Parser.recordFeatureUsed(Feature)
+func (p *Parser) RecordFeatureUsed(feature FeatureSet_Feature) *Parser {
+	p.features = p.features.With(feature)
+	return p
 }
 
-// parseNumericRaw converts a raw numeric literal token (as produced by
-// ScanNumericLiteral) to float64. Handles hex, octal, binary, bigint
-// suffix, underscore separators, and decimal exponents.
-// Go-only: language-adapter — numeric string-to-float64 conversion (Java uses Double.parseDouble; Go has no equivalent stdlib path).
-func parseNumericRaw(raw string) (float64, error) {
-	// Strip bigint suffix before parsing.
-	s := raw
-	if len(s) > 0 && s[len(s)-1] == 'n' {
-		s = s[:len(s)-1]
+// Go-only: language-adapter — conversions from possibly-nil concrete
+// pointers to interfaces, so that Java null stays a nil interface (a typed
+// nil pointer in an interface would compare non-nil).
+
+// identifierTokenAsToken widens a possibly-nil *IdentifierToken to Token.
+func identifierTokenAsToken(t *IdentifierToken) Token {
+	if t == nil {
+		return nil
 	}
-	// Remove underscore numeric separators.
-	if strings.ContainsRune(s, '_') {
-		s = strings.ReplaceAll(s, "_", "")
-	}
-	// Hex: 0x…
-	if len(s) >= 2 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X') {
-		v, err := strconv.ParseInt(s[2:], 16, 64)
-		if err != nil {
-			// Try unsigned parse for large hex.
-			u, err2 := strconv.ParseUint(s[2:], 16, 64)
-			if err2 != nil {
-				return 0, err
-			}
-			return float64(u), nil
-		}
-		return float64(v), nil
-	}
-	// Octal: 0o… or 0O…
-	if len(s) >= 2 && s[0] == '0' && (s[1] == 'o' || s[1] == 'O') {
-		v, err := strconv.ParseInt(s[2:], 8, 64)
-		if err != nil {
-			return 0, err
-		}
-		return float64(v), nil
-	}
-	// Binary: 0b… or 0B…
-	if len(s) >= 2 && s[0] == '0' && (s[1] == 'b' || s[1] == 'B') {
-		v, err := strconv.ParseInt(s[2:], 2, 64)
-		if err != nil {
-			return 0, err
-		}
-		return float64(v), nil
-	}
-	return strconv.ParseFloat(s, 64)
+	return t
 }
 
-// consumeDeclKeyword reads `var` / `let` / `const` and returns the
-// matching AST Token. Mirrors the three checkKeywordAndConsume
-// dispatches Closure's parseVariableStatement does in Java.
-// Go-only: language-adapter — peeks and consumes var/let/const (Java uses separate peekDeclaration + eat(TokenType) calls; Go unifies).
-func (p *Parser) consumeDeclKeyword() (rhino.Token, bool) {
-	if p.scanner.ConsumeKeyword("var") {
-		return rhino.VAR, true
+// variableDeclarationListAsParseTree widens a possibly-nil
+// *VariableDeclarationListTree to ParseTree.
+func variableDeclarationListAsParseTree(t *VariableDeclarationListTree) ParseTree {
+	if t == nil {
+		return nil
 	}
-	if p.scanner.ConsumeKeyword("let") {
-		return rhino.LET, true
-	}
-	if p.scanner.ConsumeKeyword("const") {
-		return rhino.CONST, true
-	}
-	return rhino.ERROR, false
+	return t
 }
-

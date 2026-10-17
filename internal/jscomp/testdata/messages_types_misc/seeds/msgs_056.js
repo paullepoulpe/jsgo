@@ -1,0 +1,1 @@
+Message MSG_SILLY_PROP has no value

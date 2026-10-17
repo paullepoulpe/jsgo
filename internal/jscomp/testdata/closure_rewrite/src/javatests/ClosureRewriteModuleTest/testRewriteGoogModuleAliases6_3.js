@@ -1,0 +1,1 @@
+/** @const */ var module$exports$FooWrapper = module$exports$base.Foo;

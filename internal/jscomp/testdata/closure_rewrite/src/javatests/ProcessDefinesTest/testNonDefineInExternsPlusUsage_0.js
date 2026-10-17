@@ -1,0 +1,1 @@
+/** @define {boolean} */ var DEF = EXTERN_NON_DEF

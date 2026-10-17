@@ -1,0 +1,1 @@
+/** @desc Hello */ let MSG_HELLO = goog.getMsg('a')

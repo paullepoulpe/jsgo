@@ -1,0 +1,2 @@
+/** @type {!Object} */
+cr.defineProperty(a.prototype, 'c', cr.PropertyKind.JS);

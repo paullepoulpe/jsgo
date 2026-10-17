@@ -1,0 +1,201 @@
+# Pass-to-phase roll-up for the per-phase tables of tools/bench/bench.py (PLAN.md §6).
+# One line per pass name, as --tracer_mode=TIMING_ONLY prints it (PassFactory and
+# Compiler.newTracer names); tab-separated. A pass missing here is reported under
+# "other passes" and listed as unmapped in the report, so this file can be completed.
+# Two pseudo-phases come from the timestamps rather than from passes: "startup" (process
+# start or iteration start to the tracker's start) and "code printing and source maps"
+# (the tracker's report to process exit or iteration end: toSource, the source map, writing
+# the output, and process exit), since the report is printed before the output is generated.
+#
+# pass	phase
+parseInputs	parse
+orderInputsWithLargeStack	parse
+deserializeCompilerState	parse
+deserializeTypedAst	parse
+beforeStandardChecks	checks
+afterStandardChecks	checks
+ADD_SYNTHETIC_SCRIPT	checks
+MERGE_SYNTHETIC_SCRIPT	checks
+REMOVE_SYNTHETIC_SCRIPT	checks
+gatherGettersAndSetters	checks
+gatherModuleMetadata	checks
+createModuleMap	checks
+checkJsDocAndEs6Modules	checks
+checkTypeImportCodeReferences	checks
+declaredGlobalExternsOnWindow	checks
+checkVariableReferences	checks
+checkVars	checks
+checkGoogRequires	checks
+checkMissingRequires	checks
+checkExtraRequires	checks
+removeExtraRequires	checks
+checkRequiresAndProvidesSorted	checks
+checkStrictMode	checks
+closureCheckModule	checks
+checkSuper	checks
+checkSideEffects	checks
+closureGoogScopeAliases	checks
+closureGoogScopeAliasesForIjs	checks
+closurePrimitives	checks
+inferConsts	checks
+checkRegExp	checks
+suspiciousCode	checks
+j2clSourceFileChecker	checks
+checkControlFlow	checks
+checkAccessControls	checks
+checkConsts	checks
+rewriteCallerCodeLocation	checks
+processDefines_CHECK	checks
+j2clChecksPass	checks
+generateExports	checks
+exportTestFunctions	checks
+removeWeakSources	checks
+gatherExternProperties	checks
+beforeSerialization	checks
+serializeTypedAst	checks
+serializeCompilerState	checks
+lintChecks	checks
+analyzerChecks	checks
+checkConformance	checks
+angularPass	checks
+polymerPass	checks
+chromePass	checks
+inferJsDocInfo	checks
+generateIjs	checks
+externExports	checks
+FORBID_DYNAMIC_IMPORT	checks
+instrumentForCodeCoverage	checks
+instrumentationPass	checks
+instrumentAsyncContext	checks
+runCustomPasses	checks
+createSyntheticBlocks	checks
+processTweaks	checks
+beforeTypeChecking	type checking
+inferTypes	type checking
+checkTypes	type checking
+clearTypedScopeCreatorPass	type checking
+clearTopTypedScopePass	type checking
+typesToColors	type checking
+removeCastNodes	type checking
+rewriteScriptsToEs6Modules	transpilation
+rewriteGoogJsImports	transpilation
+es6RewriteModule	transpilation
+closureRewriteModule	transpilation
+rewriteCommonJsModules	transpilation
+REWRITE_DYNAMIC_IMPORT	transpilation
+es6RelativizeImportPaths	transpilation
+es6RewriteModuleToCjs	transpilation
+convertChunksToESModules	transpilation
+whitespaceWrapGoogModules	transpilation
+runWhitespaceOnlyPasses	transpilation
+runTranspileOnlyPasses	transpilation
+TranspileOnlyClosureUnaware	transpilation
+beforeEarlyOptimizationsTranspilation	transpilation
+es6InjectRuntimeLibraries	transpilation
+RewritePolyfills	transpilation
+IsolatePolyfills	transpilation
+InjectRuntimeLibraries	transpilation
+peepholeTranspilationsPasses	transpilation
+featureRemovalPasses	transpilation
+es6NormalizeClasses	transpilation
+postTranspileUnsupportedFeaturesRemovedCheck	transpilation
+rewriteAsyncFunctions	transpilation
+rewriteAsyncIteration	transpilation
+rewriteExponentialOperator	transpilation
+rewriteGenerators	transpilation
+rewriteLogicalAssignmentOperatorsPass	transpilation
+rewriteNullishCoalesceOperator	transpilation
+rewriteObjectSpread	transpilation
+rewriteOptionalChainingOperator	transpilation
+es6ConvertSuper	transpilation
+es6ForOf	transpilation
+es6RewriteRestAndSpread	transpilation
+Es6RewriteArrowFunction	transpilation
+Es6RewriteBlockScopedDeclaration	transpilation
+Es6RewriteBlockScopedFunctionDeclaration	transpilation
+Es6RewriteClass	transpilation
+Es6RewriteDestructuring	transpilation
+lateConvertEs6	transpilation
+rewriteFunctionExpressions	transpilation
+beforeStandardOptimizations	optimization loop
+normalize	optimization loop
+removeUnnecessarySyntheticExterns	optimization loop
+j2clPass	optimization loop
+TranspileAndOptimizeClosureUnaware	optimization loop
+closureProvidesRequires	optimization loop
+replaceMessages	optimization loop
+protectMessages	optimization loop
+replaceProtectedMessages	optimization loop
+protectLocaleData	optimization loop
+SubstituteLocaleData	optimization loop
+closureReplaceGetCssName	optimization loop
+processDefines_OPTIMIZE	optimization loop
+j2clUtilGetDefineRewriterPass	optimization loop
+closureCodeRemoval	optimization loop
+j2clAssertRemovalPass	optimization loop
+replaceToggles	optimization loop
+inlineAndCollapseProperties	optimization loop
+replaceIdGenerators	optimization loop
+j2clPropertyInlinerPass	optimization loop
+stripCode	optimization loop
+replaceStrings	optimization loop
+earlyInlineVariables	optimization loop
+earlyPeepholeOptimizations	optimization loop
+removeUnusedCode	optimization loop
+disambiguateProperties	optimization loop
+markPureFunctions	optimization loop
+optimizationsHalfwayPoint	optimization loop
+beforeEarlyOptimizationLoop	optimization loop
+afterEarlyOptimizationLoop	optimization loop
+inlineVariables	optimization loop
+collapseObjectLiterals	optimization loop
+peepholeOptimizations	optimization loop
+closureOptimizePrimitives	optimization loop
+crossChunkCodeMotion	optimization loop
+crossChunkMethodMotion	optimization loop
+devirtualizeMethods	optimization loop
+beforeMainOptimizations	optimization loop
+afterMainOptimizations	optimization loop
+flowSensitiveInlineVariables	optimization loop
+inlineSimpleMethods	optimization loop
+inlineProperties	optimization loop
+inlineConstants	optimization loop
+deadPropertyAssignmentElimination	optimization loop
+optimizeCalls	optimization loop
+j2clConstantHoisterPass	optimization loop
+j2clClinitPass	optimization loop
+inlineFunctions	optimization loop
+deadAssignmentsElimination	optimization loop
+beforeChunkMotion	optimization loop
+afterChunkMotion	optimization loop
+optimizeConstructors	optimization loop
+collapseAnonymousFunctions	optimization loop
+beforeExtractPrototypeMemberDeclarations	optimization loop
+extractPrototypeMemberDeclarations	optimization loop
+rescopeGlobalSymbols	optimization loop
+rewriteGlobalDeclarationsForTryCatchWrapping	optimization loop
+aliasStrings	optimization loop
+checkRegExpForOptimizations	optimization loop
+convertToDottedProperties	optimization loop
+coalesceVariableNames	optimization loop
+markUnnormalized	optimization loop
+exploitAssign	optimization loop
+collapseVariableDeclarations	optimization loop
+denormalize	optimization loop
+latePeepholeOptimizations	optimization loop
+stripSideEffectProtection	optimization loop
+optimizeToEs6	optimization loop
+removePropertyRenamingCalls	optimization loop
+computeCFG	optimization loop
+obfuscationPassMarker	renaming
+ambiguateProperties	renaming
+beforeRenameProperties	renaming
+renameProperties	renaming
+gatherRawExports	renaming
+invertContextualRenaming	renaming
+beforeVariableRenaming	renaming
+renameVars	renaming
+renameLabels	renaming
+checkAstValidity	other passes
+varCheckValidity	other passes
+generateReport	other passes

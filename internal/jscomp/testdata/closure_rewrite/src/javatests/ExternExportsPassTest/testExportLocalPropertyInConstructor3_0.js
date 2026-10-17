@@ -1,0 +1,1 @@
+/** @constructor */function F() { /** @export */ this.x;} goog.exportSymbol('F', F);

@@ -1,0 +1,1 @@
+goog.net.BrowserChannel.LogSaver

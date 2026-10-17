@@ -1,0 +1,1 @@
+/** @define {number} */ var DEF = 0

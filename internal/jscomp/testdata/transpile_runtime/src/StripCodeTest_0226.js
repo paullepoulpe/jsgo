@@ -1,0 +1,1 @@
+(goog.debug.Logger.foo = 7) + 8

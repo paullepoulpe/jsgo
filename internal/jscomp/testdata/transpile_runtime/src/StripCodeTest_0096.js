@@ -1,0 +1,1 @@
+const {getLogger} = goog$debug$Logger; const logger = opt_logger || getLogger('A');

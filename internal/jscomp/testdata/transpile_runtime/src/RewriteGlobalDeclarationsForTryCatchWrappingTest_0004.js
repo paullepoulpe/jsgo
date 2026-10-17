@@ -1,0 +1,1 @@
+a; var B = class{}; var C = class{};

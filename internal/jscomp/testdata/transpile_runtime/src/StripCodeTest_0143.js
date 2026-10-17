@@ -1,0 +1,1 @@
+goog.debug.Logger = 1; goog.debug.Logger.prop=2; 

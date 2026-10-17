@@ -1,0 +1,159 @@
+github.com/paullepoulpe/jsgo
+
+This repository is a Go translation of Google Closure Compiler v20260415
+(https://github.com/google/closure-compiler) and of the parts of Closure's
+Java dependencies that the compiler uses. Each translated file is covered by
+the licence of the work it translates. The full licence texts are in
+LICENSES/.
+
+The repository's original code (code that translates none of the works
+below, such as the tools under tools/ and the Java library behaviour in
+internal/jutil that is written from public specifications) is licensed
+under the Apache License, Version 2.0 (LICENSE).
+
+A translated file names its source on its first line, either
+"// Port of <path> ..." or "// Derived from <path> ...", and carries the
+copyright and licence notice of that source after it.
+"go run ./tools/licenses -check" (part of "make vet") enforces this for
+the third-party projects below.
+
+
+Closure Compiler v20260415 -- Apache License 2.0 (LICENSES/Apache-2.0.txt)
+  Copyright The Closure Compiler Authors.
+  Translated from it: the files under internal/ whose first line names a
+  Closure source ("// Port of com/google/javascript/...",
+  "// Port of com/google/debugging/..." or the same under test/), apart
+  from the Rhino-derived files below, and the protobuf messages that
+  tools/oracle/java/ProtoGoGen.java generates from Closure's descriptors
+  (the generated internal/jscomp/proto_*.go files).
+  Copied from it: the JavaScript runtime under
+  internal/resources/com/google/javascript/jscomp/js/, and test inputs
+  taken from Closure's tests (testdata/ and the testdata/ directories
+  under internal/).
+  Closure Compiler v20260415 has no NOTICE file.
+
+
+Rhino-derived files -- Mozilla Public License 1.1 only (LICENSES/MPL-1.1.txt)
+  The Original Code is Rhino code, released May 6, 1999. The Initial
+  Developer of the Original Code is Netscape Communications Corporation.
+  Portions created by the Initial Developer are Copyright (C) 1997-1999 the
+  Initial Developer. All Rights Reserved.
+  Closure Compiler ships its Rhino-derived sources (Node, Token, IR,
+  JSDocInfo, the jstype package, DToA and their tests) under a dual
+  licence. This repository uses them under the MPL 1.1 only.
+  Modifications: these files were translated from the Java sources of
+  Closure Compiler v20260415 into Go, starting in 2026. The git history
+  records each change and its date.
+  Files: those whose header carries the MPL 1.1 licence block
+  (git grep -l "Mozilla Public License"). They are most files in
+  internal/rhino (including the jstype_*.go files) and
+  internal/rhino/rhinotesting, internal/dtoa/d_to_a.go (which also keeps
+  David M. Gay's dtoa notice) and internal/jscomp/node_subject_test.go.
+
+
+Guava 33.4.6-jre -- Apache License 2.0 (LICENSES/Apache-2.0.txt)
+  Copyright The Guava Authors. Guava has no NOTICE file.
+  internal/jutil/ascii.go           com/google/common/base/Ascii.java
+  internal/jutil/case_format.go     com/google/common/base/CaseFormat.java
+  internal/jutil/percent_escaper.go com/google/common/net/PercentEscaper.java,
+                                    com/google/common/escape/UnicodeEscaper.java
+  internal/jutil/farmhash.go        com/google/common/hash/FarmHashFingerprint64.java
+  internal/jutil/cache_builder.go   com/google/common/cache/LocalCache.java (parts)
+  internal/jutil/murmur3.go         com/google/common/hash/Murmur3_128HashFunction.java
+                                    (parts; MurmurHash3 itself is in the
+                                    public domain)
+
+
+Gson 2.9.1 -- Apache License 2.0 (LICENSES/Apache-2.0.txt)
+  Copyright Google Inc.; LinkedTreeMap.java also Copyright The Android
+  Open Source Project. Gson has no NOTICE file.
+  internal/jutil/gson.go, gson_builder.go, gson_exceptions.go,
+  gson_from_json_reflective.go, gson_json_element.go,
+  gson_json_reader.go, gson_json_writer.go, gson_json_writer_long.go,
+  gson_to_json.go and type_adapter.go (com/google/gson/...; each file
+  names its sources).
+
+
+protobuf-java 4.30.2 -- BSD 3-Clause License (LICENSES/BSD-3-Clause-protobuf.txt)
+  Copyright 2008 Google Inc. All rights reserved.
+  internal/jscomp/proto_runtime.go: protoTextBytes is
+  com/google/protobuf/TextFormatEscaper.java's escapeBytes.
+  internal/jscomp/proto_text_format.go: com/google/protobuf/TextFormat.java
+  (the parser).
+
+
+args4j 2.33 -- MIT License (LICENSES/MIT-args4j.txt)
+  Copyright (c) 2013 Kohsuke Kawaguchi and other contributors.
+  internal/args4j: the args4j command-line parser that Closure's
+  command-line tools use.
+
+
+Go module dependencies (go.mod), linked into the programs that use them
+  golang.org/x/text v0.34.0 -- BSD 3-Clause License
+  (LICENSES/BSD-3-Clause-golang-x-text.txt)
+    Copyright 2009 The Go Authors.
+    Used, not copied: internal/jutil reads the character-set tables of
+    its golang.org/x/text/encoding packages (charmap, japanese, korean,
+    simplifiedchinese, traditionalchinese) to build the charsets of
+    java.nio.charset.Charset (internal/jutil/charset_*.go).
+
+
+Test data
+  internal/resources/testdata/properties_parser.txt contains a copy of
+  org/apache/tools/ant/taskdefs/defaults.properties from Apache Ant 1.10.11
+  (Apache License 2.0), which the pinned closure-compiler.jar bundles.
+  Ant's NOTICE reads:
+
+    Apache Ant
+    Copyright 1999-2021 The Apache Software Foundation
+
+    This product includes software developed at
+    The Apache Software Foundation (https://www.apache.org/).
+
+    The <sync> task is based on code Copyright (c) 2002, Landmark
+    Graphics Corp that has been kindly donated to the Apache Software
+    Foundation.
+
+  Some test inputs are files of third-party npm packages, copied from the
+  registry tarball of the version their directory names:
+  internal/jscomp/testdata/<dir>/src/<package>@<version>/package/, where
+  <dir> is typecheck (T), es_modules (E), closure_modules (C),
+  serialization (S), renaming (R) or replace_messages (M). Each
+  <package>@<version>/ directory also holds the package's licence file,
+  from the same tarball, under the package's own file name; "go run
+  ./tools/licenses -check" requires one. typecheck/expected/ and the
+  goldens next to src/ hold the Java compiler's output for these files.
+  No package is under a copyleft licence, and none ships a NOTICE file.
+
+    Package@version                    Licence (file)              Dirs
+    @angular/core@19.2.14              MIT (LICENSE)               T
+    core-js@3.50.0                     MIT (LICENSE)               T E S
+    google-closure-library@20230802.0.0
+                                       Apache-2.0 (LICENSE)        T E C S R M
+    handlebars@4.7.10                  MIT (LICENSE)               T E
+    jquery@3.7.1                       MIT (LICENSE.txt)           T E
+    lodash@4.17.21                     MIT (LICENSE)               T E S
+    moment@2.31.0                      MIT (LICENSE)               T E S
+    preact@10.25.4                     MIT (LICENSE)               T E C S R
+    react-dom@18.3.1                   MIT (LICENSE)               T
+    rxjs@7.8.2                         Apache-2.0 (LICENSE.txt)    T E S R
+    terser@5.51.2                      BSD-2-Clause (LICENSE)      T
+    test262-parser-tests@0.0.5         per test file: Apache-2.0,  T E
+                                       MIT or BSD (licenses.md)
+    three@0.186.1                      MIT (LICENSE)               T E S R
+    underscore@1.13.8                  MIT (LICENSE)               T E
+    vue@2.7.16                         MIT (LICENSE)               T
+    zone.js@0.16.3                     MIT (LICENSE)               T
+
+  Copyright holders, as the licence files (for google-closure-library,
+  the source headers) state them: Google LLC (@angular/core, zone.js);
+  Denis Pushkarev and CoreJS Company (core-js); The Closure Library
+  Authors (google-closure-library); Yehuda Katz (handlebars); OpenJS
+  Foundation and other contributors (jquery, lodash, moment); Jason
+  Miller (preact); Facebook, Inc. and its affiliates (react-dom); Google,
+  Inc., Netflix, Inc., Microsoft Corp. and contributors (rxjs); Mihai
+  Bazon (terser); the contributors of test262-parser-tests, Acorn,
+  esmangle, Esprima, Shift and UglifyJS (test262-parser-tests); three.js
+  authors (three); Jeremy Ashkenas, Julian Gonggrijp, and DocumentCloud
+  and Investigative Reporters & Editors (underscore); Yuxi (Evan) You
+  (vue).

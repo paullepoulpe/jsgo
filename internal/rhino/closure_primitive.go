@@ -1,76 +1,109 @@
-// Port of com/google/javascript/rhino/ClosurePrimitive.java
-// @ closure-compiler v20260415
+// Port of com/google/javascript/rhino/ClosurePrimitive.java @ closure-compiler v20260415
+
+/*
+ *
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Rhino code, released
+ * May 6, 1999.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1997-1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Bob Jervis
+ *   Google Inc.
+ *
+ * This Go translation is distributed under the MPL 1.1 only, as the
+ * original's dual licence allows; the other licence it offers is not
+ * used.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 package rhino
 
-// ClosurePrimitive is an enum of primitive functions that the compiler
-// recognises. These correspond to the @closurePrimitive tag in code.
+import "github.com/paullepoulpe/jsgo/internal/jutil"
+
+// ClosurePrimitive enumerates the primitive functions that the compiler
+// recognizes.
 //
-// After typechecking all calls to one of these primitive types should have
-// their FunctionType annotated with the corresponding enum member. This is
-// intended to make identifying these calls more accurate than previous
-// methods of finding primitives by qualified name.
-type ClosurePrimitive int
+// These correspond to the @closurePrimitive tag in code; in order to parse
+// new primitives, add any entry to the list in
+// parsing/ParserConfig.properties, then map it to an enum member in the
+// idToEnum map.
+//
+// After typechecking is done, all calls to one of these primitive types
+// should have their FunctionType annotated with the corresponding enum
+// member. This is intended to make identifying these calls more accurate
+// than previous methods of finding primitives by qualified name.
+type ClosurePrimitive int32
 
 const (
-	// ClosurePrimitiveAssertsFail is a function that always throws an error.
-	ClosurePrimitiveAssertsFail ClosurePrimitive = iota
-	// ClosurePrimitiveAssertsMatchesReturn is a function that asserts its
-	// first parameter matches the return type.
-	ClosurePrimitiveAssertsMatchesReturn
-	// ClosurePrimitiveAssertsTruthy is a function that asserts its first
-	// parameter is truthy and returns the param.
-	ClosurePrimitiveAssertsTruthy
+	ClosurePrimitive_ASSERTS_FAIL           ClosurePrimitive = iota // A function that always throws an error
+	ClosurePrimitive_ASSERTS_MATCHES_RETURN                         // A function that asserts its first parameter matches the return type
+	ClosurePrimitive_ASSERTS_TRUTHY                                 // A function that asserts its first parameter is truthy and returns the param
 )
 
-// idToClosurePrimitive maps human-readable ids to enum members.
-// The expected mapping of keys → values is that the enum member maps to a
-// lowercase string with "_" replaced with ".".
-var idToClosurePrimitive = map[string]ClosurePrimitive{
-	"asserts.fail":          ClosurePrimitiveAssertsFail,
-	"asserts.truthy":        ClosurePrimitiveAssertsTruthy,
-	"asserts.matchesReturn": ClosurePrimitiveAssertsMatchesReturn,
+var closurePrimitive_names = [...]string{"ASSERTS_FAIL", "ASSERTS_MATCHES_RETURN", "ASSERTS_TRUTHY"}
+
+// ClosurePrimitive_values is ClosurePrimitive.values().
+func ClosurePrimitive_values() []ClosurePrimitive {
+	return []ClosurePrimitive{ClosurePrimitive_ASSERTS_FAIL, ClosurePrimitive_ASSERTS_MATCHES_RETURN, ClosurePrimitive_ASSERTS_TRUTHY}
 }
 
-// closurePrimitiveName maps each ClosurePrimitive to its Java enum name string.
-var closurePrimitiveName = map[ClosurePrimitive]string{
-	ClosurePrimitiveAssertsFail:          "ASSERTS_FAIL",
-	ClosurePrimitiveAssertsMatchesReturn: "ASSERTS_MATCHES_RETURN",
-	ClosurePrimitiveAssertsTruthy:        "ASSERTS_TRUTHY",
-}
+// String is Enum.name().
+func (p ClosurePrimitive) String() string { return closurePrimitive_names[p] }
 
-// Name mirrors the implicit Enum.name() method — returns the Java enum constant name.
-func (p ClosurePrimitive) Name() string {
-	if s, ok := closurePrimitiveName[p]; ok {
-		return s
-	}
-	return "UNKNOWN"
-}
-
-// Go-only: language-adapter — ToString implements Java's Enum.toString() which ClosurePrimitive inherits;
-// it is not declared explicitly in ClosurePrimitive.java but is implicitly available.
-func (p ClosurePrimitive) ToString() string {
-	return p.Name()
-}
-
-// FromStringId mirrors ClosurePrimitive.fromStringId(String) — returns the ClosurePrimitive
-// corresponding to the given string id.
+// ClosurePrimitive_ID_TO_ENUM maps human-readable ids to enum members.
 //
-// Returns ok=false if id is empty; panics if id is non-empty but does not
-// match any known enum member.
-func FromStringId(id string) (ClosurePrimitive, bool) {
-	if id == "" {
-		return 0, false
-	}
-	p, ok := idToClosurePrimitive[id]
-	if !ok {
-		panic("String id " + id + " does not match any ClosurePrimitive")
-	}
-	return p, true
-}
+// The expected mapping (although not enforced) of keys -> values is that
+// the enum member maps to a lowercase string with "_" replaced with "."
+//
+// Java: ClosurePrimitive.ID_TO_ENUM
+var ClosurePrimitive_ID_TO_ENUM = func() *jutil.LinkedHashMap[string, ClosurePrimitive] {
+	m := jutil.NewLinkedHashMap[string, ClosurePrimitive]()
+	m.Put("asserts.fail", ClosurePrimitive_ASSERTS_FAIL)
+	m.Put("asserts.truthy", ClosurePrimitive_ASSERTS_TRUTHY)
+	m.Put("asserts.matchesReturn", ClosurePrimitive_ASSERTS_MATCHES_RETURN)
+	return m
+}()
 
-// Go-only: language-adapter — ClosurePrimitiveFromStringId is an alias for FromStringId using the
-// package-prefixed naming convention; callers that predate the Java-parity rename use this.
-func ClosurePrimitiveFromStringId(id string) (ClosurePrimitive, bool) {
-	return FromStringId(id)
+// ClosurePrimitive_FromStringId returns the ClosurePrimitive corresponding to
+// the given string id.
+//
+// This is to make reading @closurePrimitive easier in code. Using
+// Enum.valueOf to parse closure primitive identifiers from JSDoc directly
+// would require code like `closurePrimitive {ASSERTS_FAIL}`; instead we
+// separate the string ids from the enum names.
+//
+// Returns null if the argument is null, otherwise the corresponding enum
+// member. Throws IllegalArgumentException if the id is non-null but does not
+// match an enum member.
+//
+// Java: ClosurePrimitive.fromStringId(String)
+func ClosurePrimitive_FromStringId(id *string) *ClosurePrimitive {
+	if id == nil {
+		return nil
+	}
+
+	primitive, ok := ClosurePrimitive_ID_TO_ENUM.Lookup(*id)
+	if !ok {
+		panic(jutil.NewIllegalArgumentExceptionMsg(
+			"String id " + *id + " does not match any ClosurePrimitive"))
+	}
+
+	return &primitive
 }

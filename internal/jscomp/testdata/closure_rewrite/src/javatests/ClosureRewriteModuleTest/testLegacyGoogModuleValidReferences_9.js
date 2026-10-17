@@ -1,0 +1,1 @@
+goog.provide('a.b.c'); /** @const */ a.b.c = function() {};

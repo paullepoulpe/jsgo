@@ -1,144 +1,206 @@
 // Port of com/google/javascript/rhino/QualifiedName.java @ closure-compiler v20260415
-//
-// Abstraction over a qualified name. Unifies Node-based qualified names and
-// string-based names, allowing lazy parsing of strings and representing a
-// pre-parsed qualified name without the overhead of a whole Node.
-// A qualified name is a linked list of components, starting from the outermost
-// property access and ending with the root (a simple name with no owner).
-//
-// Java abstract class → Go interface.
-// Java private inner classes StringListQname and GetpropQname → unexported structs.
-// Java static final class NodeQname → exported struct (was package-private in Java).
+
+/*
+ *
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Rhino code, released
+ * May 6, 1999.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1997-1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Norris Boyd
+ *   Roger Lawrence
+ *   Mike McCabe
+ *
+ * This Go translation is distributed under the MPL 1.1 only, as the
+ * original's dual licence allows; the other licence it offers is not
+ * used.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 package rhino
 
 import (
-	"fmt"
 	"strings"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// qnameThis and qnameSuper mirror the Java static finals
-// RhinoStringPool.addOrGet("this") / ("super"). In Go there is no string
-// interning so we use plain constants and == comparison.
-const qnameThis = "this"
-const qnameSuper = "super"
-
-// QualifiedName mirrors the Java abstract class QualifiedName.
-// All method names match their Java counterparts exactly.
+// QualifiedName is an abstraction over a qualified name. Unifies Node-based
+// qualified names and string-based names, allowing to lazily parse strings
+// and represent a pre-parsed qualified name without the overhead of a whole
+// Node. Essentially, a qualified name is a linked list of components,
+// starting from the outermost property access and ending with the root of
+// the name, which is a simple name with no owner.
 type QualifiedName interface {
-	// GetOwner returns the qualified name of the owner, or nil for simple
-	// names. For "foo.bar.baz" this returns an object representing "foo.bar".
+	// GetOwner returns the qualified name of the owner, or null for simple
+	// names. For the name "foo.bar.baz", this returns an object representing
+	// "foo.bar".
 	GetOwner() QualifiedName
 
-	// GetComponent returns the outermost term of this qualified name, or the
-	// entire name for simple names. For "foo.bar.baz" this returns "baz".
+	// GetComponent returns outer-most term of this qualified name, or the
+	// entire name for simple names. For the name "foo.bar.baz", this returns
+	// "baz".
 	GetComponent() string
 
-	// IsSimple returns true if this is a simple (single-component) name.
+	// IsSimple returns true if this is a simple name.
 	IsSimple() bool
 
-	// appendTo appends the joined qualified name to the given builder.
-	appendTo(sb *strings.Builder)
+	// AppendTo appends the joined qualified name to the given StringBuilder.
+	AppendTo(sb *strings.Builder)
 
 	// Matches checks whether the given node matches this name.
 	Matches(n *Node) bool
 
-	// GetRoot returns the root of this name, e.g. "foo" from "foo.bar.baz".
 	GetRoot() string
-
-	// Components returns the components as a slice of strings, starting at the
-	// root. For "foo.bar.baz" this returns ["foo", "bar", "baz"].
 	Components() []string
-
-	// Join returns the qualified name as a dot-joined string.
+	BuildComponents(builder *[]string)
 	Join() string
-
-	// GetComponentCount returns the number of components in this name.
 	GetComponentCount() int
-
-	// Getprop returns a new qualified name with this name as the owner and the
-	// given string as the property name.
 	Getprop(propertyName string) QualifiedName
+
+	GetQualifiedNameBase() *QualifiedNameBase
 }
 
-// qualifiedNameBase embeds the shared concrete methods so each concrete type
-// only needs to implement the four abstract primitives.
-type qualifiedNameBase struct {
-	self QualifiedName // back-pointer set by each constructor
+// QualifiedNameBase holds QualifiedName's concrete methods; self dispatches
+// the abstract ones.
+type QualifiedNameBase struct {
+	self QualifiedName
 }
 
-func (b *qualifiedNameBase) GetRoot() string {
-	name := b.self
+// All subclasses must be defined in this file.
+//
+// Java: QualifiedName()
+func (q *QualifiedNameBase) InitQualifiedNameBase(self QualifiedName) {
+	q.self = self
+}
+
+// GetQualifiedNameBase gives access to the base through the interface.
+func (q *QualifiedNameBase) GetQualifiedNameBase() *QualifiedNameBase { return q }
+
+// Java: QualifiedName.of(String)
+func QualifiedName_Of(string_ string) QualifiedName {
+	lastIndex := 0
+	var index int
+	var builder []string
+	for {
+		index = jutil.StringIndexOfCharFrom(string_, '.', lastIndex)
+		end := index
+		if index < 0 {
+			end = jutil.StringLength(string_)
+		}
+		term := jutil.StringSubstring(string_, lastIndex, end)
+		builder = append(builder, RhinoStringPool_AddOrGet(term))
+		lastIndex = index + 1
+		if index < 0 {
+			break
+		}
+	}
+	terms := builder
+	return NewQualifiedName_StringListQname(terms, len(terms))
+}
+
+// GetRoot returns the root of this name, e.g. "foo" from "foo.bar.baz".
+//
+// Java: QualifiedName.getRoot()
+func (q *QualifiedNameBase) GetRoot() string {
+	name := q.self
 	for !name.IsSimple() {
 		name = name.GetOwner()
 	}
 	return name.GetComponent()
 }
 
-func (b *qualifiedNameBase) Components() []string {
-	var out []string
-	buildComponents(b.self, &out)
-	return out
+// Components returns the components of this name as an iterable of strings,
+// starting at the root. For the qualified name foo.bar.baz, this returns
+// ["foo", "bar", "baz"].
+//
+// Java: QualifiedName.components()
+func (q *QualifiedNameBase) Components() []string {
+	var components []string
+	q.self.BuildComponents(&components)
+	return components
 }
 
-func buildComponents(q QualifiedName, out *[]string) {
-	owner := q.GetOwner()
+// Java: QualifiedName.buildComponents(ImmutableList.Builder<String>)
+func (q *QualifiedNameBase) BuildComponents(builder *[]string) {
+	owner := q.self.GetOwner()
 	if owner != nil {
-		buildComponents(owner, out)
+		owner.BuildComponents(builder)
 	}
-	*out = append(*out, q.GetComponent())
+	*builder = append(*builder, q.self.GetComponent())
 }
 
-func (b *qualifiedNameBase) Join() string {
+// Join returns the qualified name as a string.
+//
+// Java: QualifiedName.join()
+func (q *QualifiedNameBase) Join() string {
 	var sb strings.Builder
-	b.self.appendTo(&sb)
+	q.self.AppendTo(&sb)
 	return sb.String()
 }
 
-func (b *qualifiedNameBase) Getprop(propertyName string) QualifiedName {
-	return newGetpropQname(b.self, propertyName)
+// Getprop returns a new qualified name object with `this` name as the owner
+// and the given string as the property name.
+//
+// Java: QualifiedName.getprop(String)
+func (q *QualifiedNameBase) Getprop(propertyName string) QualifiedName {
+	return NewQualifiedName_GetpropQname(q.self, propertyName)
 }
 
-// ── Of ──────────────────────────────────────────────────────────────────── //
-
-// Of ports QualifiedName.of(String). It parses a dot-separated name string
-// into a StringListQname.
-func Of(s string) QualifiedName {
-	terms := strings.Split(s, ".")
-	return newStringListQname(terms, len(terms))
-}
-
-// ── StringListQname ──────────────────────────────────────────────────────── //
-
-// stringListQname ports the private static inner class StringListQname.
-type stringListQname struct {
-	qualifiedNameBase
+// QualifiedName_StringListQname is a qualified name based on a list of
+// string terms.
+type QualifiedName_StringListQname struct {
+	QualifiedNameBase
 	terms []string
 	size  int
 }
 
-func newStringListQname(terms []string, size int) *stringListQname {
-	q := &stringListQname{terms: terms, size: size}
-	q.qualifiedNameBase.self = q
+// Java: QualifiedName.StringListQname(ImmutableList<String>, int)
+func NewQualifiedName_StringListQname(terms []string, size int) *QualifiedName_StringListQname {
+	q := &QualifiedName_StringListQname{}
+	q.InitQualifiedNameBase(q)
+	q.terms = terms
+	q.size = size
 	return q
 }
 
-func (q *stringListQname) GetOwner() QualifiedName {
+// Java: QualifiedName.StringListQname.getOwner()
+func (q *QualifiedName_StringListQname) GetOwner() QualifiedName {
 	if q.size > 1 {
-		return newStringListQname(q.terms, q.size-1)
+		return NewQualifiedName_StringListQname(q.terms, q.size-1)
 	}
 	return nil
 }
 
-func (q *stringListQname) GetComponent() string {
+// Java: QualifiedName.StringListQname.getComponent()
+func (q *QualifiedName_StringListQname) GetComponent() string {
 	return q.terms[q.size-1]
 }
 
-func (q *stringListQname) IsSimple() bool {
+// Java: QualifiedName.StringListQname.isSimple()
+func (q *QualifiedName_StringListQname) IsSimple() bool {
 	return q.size == 1
 }
 
-func (q *stringListQname) appendTo(sb *strings.Builder) {
+// Java: QualifiedName.StringListQname.appendTo(StringBuilder)
+func (q *QualifiedName_StringListQname) AppendTo(sb *strings.Builder) {
 	for i := 0; i < q.size; i++ {
 		if i > 0 {
 			sb.WriteByte('.')
@@ -147,224 +209,194 @@ func (q *stringListQname) appendTo(sb *strings.Builder) {
 	}
 }
 
-// Components overrides the base to use a direct slice rather than recursive
-// construction, matching the Java override in StringListQname.
-func (q *stringListQname) Components() []string {
-	return q.terms[:q.size]
+// Java: QualifiedName.StringListQname.components()
+func (q *QualifiedName_StringListQname) Components() []string {
+	return q.terms[0:q.size]
 }
 
-func (q *stringListQname) GetComponentCount() int {
+// Java: QualifiedName.StringListQname.getComponentCount()
+func (q *QualifiedName_StringListQname) GetComponentCount() int {
 	return q.size
 }
 
-func (q *stringListQname) Matches(n *Node) bool {
+// Java: QualifiedName.StringListQname.matches(Node)
+func (q *QualifiedName_StringListQname) Matches(n *Node) bool {
 	pos := q.size - 1
-	for pos > 0 && n.token == GETPROP {
-		if n.str != q.terms[pos] {
+	for pos > 0 && n.IsGetProp() {
+		if !RhinoStringPool_UncheckedEquals(n.GetString(), q.terms[pos]) {
 			return false
 		}
 		pos--
-		n = n.FirstChild()
+		n = n.GetFirstChild()
 	}
 	if pos > 0 {
 		return false
 	}
+
 	term := q.terms[0]
-	switch n.token {
-	case NAME, MEMBER_FUNCTION_DEF:
-		return n.str == term
-	case THIS:
-		return term == qnameThis
-	case SUPER:
-		return term == qnameSuper
+	switch n.GetToken() {
+	case Token_NAME, Token_MEMBER_FUNCTION_DEF:
+		return RhinoStringPool_UncheckedEquals(term, n.GetString())
+	case Token_THIS:
+		return RhinoStringPool_UncheckedEquals(term, QualifiedName_THIS)
+	case Token_SUPER:
+		return RhinoStringPool_UncheckedEquals(term, QualifiedName_SUPER)
 	default:
 		return false
 	}
 }
 
-// ── GetpropQname ─────────────────────────────────────────────────────────── //
+// String is java.lang.Object.toString() (StringListQname does not override it).
+//
+// Go-only: language-adapter — Java prints an identity hash code, which
+// differs from run to run; this one is derived from the object's address.
+func (q *QualifiedName_StringListQname) String() string {
+	return jutil.ObjectToString("com.google.javascript.rhino.QualifiedName$StringListQname", q)
+}
 
-// getpropQname ports the private static inner class GetpropQname.
-type getpropQname struct {
-	qualifiedNameBase
+// QualifiedName_GetpropQname is a qualified name built with an extra
+// property access on an existing qualified name.
+type QualifiedName_GetpropQname struct {
+	QualifiedNameBase
 	owner QualifiedName
 	prop  string
 }
 
-func newGetpropQname(owner QualifiedName, prop string) *getpropQname {
-	q := &getpropQname{owner: owner, prop: prop}
-	q.qualifiedNameBase.self = q
+// Java: QualifiedName.GetpropQname(QualifiedName, String)
+func NewQualifiedName_GetpropQname(owner QualifiedName, prop string) *QualifiedName_GetpropQname {
+	q := &QualifiedName_GetpropQname{}
+	q.InitQualifiedNameBase(q)
+	q.owner = owner
+	q.prop = RhinoStringPool_AddOrGet(prop)
 	return q
 }
 
-func (q *getpropQname) GetOwner() QualifiedName { return q.owner }
-func (q *getpropQname) GetComponent() string    { return q.prop }
-func (q *getpropQname) IsSimple() bool          { return false }
+// Java: QualifiedName.GetpropQname.getOwner()
+func (q *QualifiedName_GetpropQname) GetOwner() QualifiedName {
+	return q.owner
+}
 
-func (q *getpropQname) appendTo(sb *strings.Builder) {
-	q.owner.appendTo(sb)
+// Java: QualifiedName.GetpropQname.getComponent()
+func (q *QualifiedName_GetpropQname) GetComponent() string {
+	return q.prop
+}
+
+// Java: QualifiedName.GetpropQname.isSimple()
+func (q *QualifiedName_GetpropQname) IsSimple() bool {
+	return false
+}
+
+// Java: QualifiedName.GetpropQname.appendTo(StringBuilder)
+func (q *QualifiedName_GetpropQname) AppendTo(sb *strings.Builder) {
+	q.owner.AppendTo(sb)
 	sb.WriteByte('.')
 	sb.WriteString(q.prop)
 }
 
-func (q *getpropQname) GetComponentCount() int {
+// Java: QualifiedName.GetpropQname.matches(Node)
+func (q *QualifiedName_GetpropQname) Matches(n *Node) bool {
+	return n.IsGetProp() &&
+		RhinoStringPool_UncheckedEquals(n.GetString(), q.prop) &&
+		q.owner.Matches(n.GetFirstChild())
+}
+
+// Java: QualifiedName.GetpropQname.getComponentCount()
+func (q *QualifiedName_GetpropQname) GetComponentCount() int {
 	return q.owner.GetComponentCount() + 1
 }
 
-func (q *getpropQname) Matches(n *Node) bool {
-	return n.token == GETPROP &&
-		n.str == q.prop &&
-		q.owner.Matches(n.FirstChild())
+// String is java.lang.Object.toString() (GetpropQname does not override it).
+//
+// Go-only: language-adapter — Java prints an identity hash code, which
+// differs from run to run; this one is derived from the object's address.
+func (q *QualifiedName_GetpropQname) String() string {
+	return jutil.ObjectToString("com.google.javascript.rhino.QualifiedName$GetpropQname", q)
 }
 
-// ── NodeQname ────────────────────────────────────────────────────────────── //
-
-// NodeQname ports the package-private static final class NodeQname.
-// It wraps a *Node that is assumed to be a valid qualified name.
-type NodeQname struct {
-	qualifiedNameBase
+// QualifiedName_NodeQname is a qualified name from a node. The precondition
+// that the node is actually a qualified name is not actually checked here,
+// though it will throw IllegalStateException eventually if it is not.
+type QualifiedName_NodeQname struct {
+	QualifiedNameBase
 	node *Node
 }
 
-// NewNodeQname constructs a NodeQname from a *Node.
-// Mirrors the NodeQname(Node n) constructor in Java.
-func NewNodeQname(n *Node) *NodeQname {
-	q := &NodeQname{node: n}
-	q.qualifiedNameBase.self = q
+// Java: QualifiedName.NodeQname(Node)
+func NewQualifiedName_NodeQname(n *Node) *QualifiedName_NodeQname {
+	q := &QualifiedName_NodeQname{}
+	q.InitQualifiedNameBase(q)
+	q.node = n
 	return q
 }
 
-func (q *NodeQname) GetOwner() QualifiedName {
-	if q.node.token == GETPROP {
-		return NewNodeQname(q.node.FirstChild())
+// Java: QualifiedName.NodeQname.getOwner()
+func (q *QualifiedName_NodeQname) GetOwner() QualifiedName {
+	if q.node.IsGetProp() {
+		return NewQualifiedName_NodeQname(q.node.GetFirstChild())
 	}
 	return nil
 }
 
-func (q *NodeQname) GetComponent() string {
-	switch q.node.token {
-	case THIS:
-		return qnameThis
-	case SUPER:
-		return qnameSuper
-	case NAME, GETPROP, MEMBER_FUNCTION_DEF:
-		return q.node.str
+// Java: QualifiedName.NodeQname.getComponent()
+func (q *QualifiedName_NodeQname) GetComponent() string {
+	switch q.node.GetToken() {
+	case Token_THIS:
+		return QualifiedName_THIS
+	case Token_SUPER:
+		return QualifiedName_SUPER
+	case Token_NAME, Token_GETPROP, Token_MEMBER_FUNCTION_DEF:
+		return q.node.GetString()
 	default:
-		panic(fmt.Sprintf("Not a qualified name: %v", q.node.token))
+		panic(jutil.NewIllegalStateExceptionMsg("Not a qualified name: " + q.node.String()))
 	}
 }
 
-func (q *NodeQname) IsSimple() bool {
-	return q.node.token != GETPROP
+// Java: QualifiedName.NodeQname.isSimple()
+func (q *QualifiedName_NodeQname) IsSimple() bool {
+	return !q.node.IsGetProp()
 }
 
-func (q *NodeQname) appendTo(sb *strings.Builder) {
+// Java: QualifiedName.NodeQname.appendTo(StringBuilder)
+func (q *QualifiedName_NodeQname) AppendTo(sb *strings.Builder) {
 	sb.WriteString(q.Join())
 }
 
-// Join overrides the base Join to delegate to GetQualifiedName, matching the
-// Java NodeQname override.
-func (q *NodeQname) Join() string {
-	s := q.node.GetQualifiedName()
-	if s == "" {
-		return ""
-	}
-	return s
+// Join is the node's qualified name.
+//
+// Java: QualifiedName.NodeQname.join()
+func (q *QualifiedName_NodeQname) Join() string {
+	// Go-only: language-adapter — Java returns null when the node is not a
+	// qualified name (which callers of getQualifiedNameObject exclude); here
+	// that prints as "null", as Java's appendTo does.
+	return jutil.ToJavaString(q.node.GetQualifiedName())
 }
 
-func (q *NodeQname) GetComponentCount() int {
+// Java: QualifiedName.NodeQname.matches(Node)
+func (q *QualifiedName_NodeQname) Matches(n *Node) bool {
+	return n.MatchesQualifiedNameNode(q.node)
+}
+
+// Java: QualifiedName.NodeQname.getComponentCount()
+func (q *QualifiedName_NodeQname) GetComponentCount() int {
 	count := 1
 	current := q.node
-	for current.token == GETPROP {
+	for current.IsGetProp() {
 		count++
-		current = current.FirstChild()
+		current = current.GetFirstChild()
 	}
 	return count
 }
 
-func (q *NodeQname) Matches(n *Node) bool {
-	return n.MatchesQualifiedName(q.node)
+// String is java.lang.Object.toString() (NodeQname does not override it).
+//
+// Go-only: language-adapter — Java prints an identity hash code, which
+// differs from run to run; this one is derived from the object's address.
+func (q *QualifiedName_NodeQname) String() string {
+	return jutil.ObjectToString("com.google.javascript.rhino.QualifiedName$NodeQname", q)
 }
 
-// ── Node helpers added for QualifiedName ────────────────────────────────── //
+// Java: QualifiedName.THIS
+var QualifiedName_THIS = RhinoStringPool_AddOrGet("this")
 
-// GetQualifiedName ports Node.getQualifiedName() from Node.java.
-// Returns "" when the node is not a valid qualified name (Java returns null).
-func (n *Node) GetQualifiedName() string {
-	switch n.token {
-	case NAME:
-		if n.str == "" {
-			return ""
-		}
-		return n.str
-	case GETPROP:
-		return getQualifiedNameForGetProp(n)
-	case THIS:
-		return qnameThis
-	case SUPER:
-		return qnameSuper
-	default:
-		return ""
-	}
-}
-
-// getQualifiedNameForGetProp is the recursive helper for GetQualifiedName on
-// GETPROP nodes (mirrors private Node.getQualifiedNameForGetProp in Java).
-func getQualifiedNameForGetProp(n *Node) string {
-	propName := n.str
-	first := n.FirstChild()
-	if first == nil {
-		return ""
-	}
-	var left string
-	if first.token == GETPROP {
-		left = getQualifiedNameForGetProp(first)
-	} else {
-		left = first.GetQualifiedName()
-	}
-	if left == "" {
-		return ""
-	}
-	return left + "." + propName
-}
-
-// MatchesQualifiedName ports Node.matchesQualifiedName(Node) from Node.java.
-func (n *Node) MatchesQualifiedName(other *Node) bool {
-	if other.token != n.token {
-		return false
-	}
-	switch n.token {
-	case NAME:
-		return n.str != "" && other.str != "" && n.str == other.str
-	case THIS, SUPER:
-		return true
-	case GETPROP:
-		return n.str == other.str &&
-			n.FirstChild().MatchesQualifiedName(other.FirstChild())
-	default:
-		return false
-	}
-}
-
-// GetQualifiedNameObject ports Node.getQualifiedNameObject() from Node.java.
-// Returns nil when the node is not a valid qualified name.
-func (n *Node) GetQualifiedNameObject() QualifiedName {
-	if n.isQualifiedName() {
-		return NewNodeQname(n)
-	}
-	return nil
-}
-
-// isQualifiedName ports Node.isQualifiedName() — private helper.
-func (n *Node) isQualifiedName() bool {
-	switch n.token {
-	case NAME:
-		return n.str != ""
-	case THIS, SUPER:
-		return true
-	case GETPROP:
-		return n.FirstChild().isQualifiedName()
-	default:
-		return false
-	}
-}
+// Java: QualifiedName.SUPER
+var QualifiedName_SUPER = RhinoStringPool_AddOrGet("super")

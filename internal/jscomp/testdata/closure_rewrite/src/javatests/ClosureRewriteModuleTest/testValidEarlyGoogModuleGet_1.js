@@ -1,0 +1,1 @@
+goog.provide('ns.a'); function foo() { var b = module$exports$ns$b; }

@@ -1,0 +1,1 @@
+/** @type {{bar: string, baz: string}} */ var foo;

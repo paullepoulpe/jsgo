@@ -1,0 +1,1 @@
+function f() {try { } catch(e) {e;}; try { } catch(e$jscomp$0) {e$jscomp$0;}}

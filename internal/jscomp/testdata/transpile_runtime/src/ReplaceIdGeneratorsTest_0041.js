@@ -1,0 +1,1 @@
+/** @idGenerator */ goog.id = function() {}; things = {}

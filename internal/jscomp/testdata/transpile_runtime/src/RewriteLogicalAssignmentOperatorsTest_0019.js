@@ -1,0 +1,1 @@
+for (let x = foo; !x[b]; x[b] &&= {}) {}

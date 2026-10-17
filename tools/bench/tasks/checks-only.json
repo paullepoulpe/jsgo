@@ -1,0 +1,28 @@
+{
+  "name": "checks-only",
+  "order": 5,
+  "title": "Checks only",
+  "description": "All of Closure Library v20230802 (`closure/goog` and `third_party/closure/goog`, tests excluded, 971 files), dependency-sorted, checked and type-checked without output.",
+  "mode": "`--checks_only`, `--jscomp_warning=checkTypes`",
+  "flags": [
+    "--checks_only",
+    "--jscomp_warning=checkTypes",
+    "--dependency_mode=SORT_ONLY"
+  ],
+  "inputs": [
+    {
+      "glob": "inputs/closure-library@v20230802/closure/goog/**/*.js",
+      "exclude": [
+        "*_test.js"
+      ]
+    },
+    {
+      "glob": "inputs/closure-library@v20230802/third_party/closure/goog/**/*.js",
+      "exclude": [
+        "*_test.js"
+      ]
+    }
+  ],
+  "output_args": [],
+  "compare": []
+}

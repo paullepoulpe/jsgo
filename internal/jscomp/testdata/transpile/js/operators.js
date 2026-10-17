@@ -1,0 +1,14 @@
+var a = 2 ** 3;
+var b = 2;
+b **= 2;
+obj.x **= 3;
+obj[key()] **= 4;
+var c = x ?? y;
+var d = x?.y?.z;
+var e = x?.[k]?.(1);
+delete x?.y;
+a ||= 1;
+a &&= 2;
+a ??= 3;
+obj.p ||= f();
+obj[k] &&= g();

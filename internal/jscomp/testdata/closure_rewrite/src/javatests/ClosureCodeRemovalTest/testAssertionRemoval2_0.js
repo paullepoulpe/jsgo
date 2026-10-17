@@ -1,0 +1,1 @@
+goog.asserts.assert(y(), 'message');

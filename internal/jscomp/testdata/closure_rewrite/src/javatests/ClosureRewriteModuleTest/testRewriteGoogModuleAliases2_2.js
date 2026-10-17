@@ -1,0 +1,1 @@
+/** @constructor */ var module$exports$ns$base = function() {};

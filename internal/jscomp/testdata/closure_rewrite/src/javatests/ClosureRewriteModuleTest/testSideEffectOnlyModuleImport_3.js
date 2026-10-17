@@ -1,0 +1,1 @@
+/** @const */ var module$exports$ns$b = {}; alert('hello world');

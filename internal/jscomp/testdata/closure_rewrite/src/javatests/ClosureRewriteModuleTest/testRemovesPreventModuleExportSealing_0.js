@@ -1,0 +1,1 @@
+goog.module('ns.a'); goog.module.preventModuleExportSealing();

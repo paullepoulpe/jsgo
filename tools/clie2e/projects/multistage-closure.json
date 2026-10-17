@@ -1,0 +1,68 @@
+{
+  "description": "Multistage builds across processes (--filename_to_save_to / --filename_to_restore_from with --segment_of_compilation_to_run): Closure Library v20230802 with src/closure-app, ADVANCED, PRUNE from goog:clie2e.exported, in three stages (checks, optimizations, finalizations), in four (the optimizations in halves, which the command line rejects), and chunked in three; the last stage of a chunked build that writes --output_chunk_dependencies throws a NullPointerException in Java (JSChunkGraph.dependencyMap is a final transient field, null after deserialization) and in jsgo, where only the JVM's helpful NullPointerException message differs (Closure Library's @externs file cspviolationobserver_externs.js is left out: a restored compilation must get externs as --externs). Each stage's output is compared; the saved compiler states are intermediate files (Java serialization in Java, the port's own encoding in jsgo), not compared.",
+  "links": {
+    "inputs": "cache:bench-inputs",
+    "src": "repo:tools/clie2e/projects/src/closure-app"
+  },
+  "inputs": [
+    {"glob": "inputs/closure-library@v20230802/closure/goog/**/*.js", "exclude": ["*_test.js", "*_externs.js"], "group": "lib"},
+    {"glob": "src/*.js", "group": "app"}
+  ],
+  "flags": ["--compilation_level=ADVANCED", "--dependency_mode=PRUNE", "--entry_point=goog:clie2e.exported",
+            "--entry_point=goog:clie2e.messages"],
+  "jobs": [
+    {
+      "name": "three-stages",
+      "intermediate": ["out/checks.state", "out/optimizations.state"],
+      "steps": [
+        ["--segment_of_compilation_to_run=CHECKS", "--filename_to_save_to=out/checks.state"],
+        ["--segment_of_compilation_to_run=OPTIMIZATIONS", "--filename_to_restore_from=out/checks.state",
+         "--filename_to_save_to=out/optimizations.state"],
+        ["--segment_of_compilation_to_run=FINALIZATIONS", "--filename_to_restore_from=out/optimizations.state",
+         "--js_output_file=out/app.js", "--create_source_map=out/app.js.map", "--output_manifest=out/manifest.MF"]
+      ]
+    },
+    {
+      "name": "optimization-halves-rejected",
+      "intermediate": ["out/1.state", "out/2.state", "out/3.state"],
+      "steps": [
+        ["--segment_of_compilation_to_run=CHECKS", "--filename_to_save_to=out/1.state"],
+        ["--segment_of_compilation_to_run=OPTIMIZATIONS_FIRST_HALF", "--filename_to_restore_from=out/1.state",
+         "--filename_to_save_to=out/2.state"],
+        ["--segment_of_compilation_to_run=OPTIMIZATIONS_SECOND_HALF", "--filename_to_restore_from=out/2.state",
+         "--filename_to_save_to=out/3.state"],
+        ["--segment_of_compilation_to_run=FINALIZATIONS", "--filename_to_restore_from=out/3.state",
+         "--js_output_file=out/app.js", "--variable_renaming_report=out/vars.txt"]
+      ]
+    },
+    {
+      "name": "chunks-three-stages",
+      "intermediate": ["out/checks.state", "out/optimizations.state"],
+      "steps": [
+        ["{inputs:lib}", "--chunk=base:{count:lib}", "{inputs:app}", "--chunk=app:{count:app}:base",
+         "--segment_of_compilation_to_run=CHECKS", "--filename_to_save_to=out/checks.state"],
+        ["{inputs:lib}", "--chunk=base:{count:lib}", "{inputs:app}", "--chunk=app:{count:app}:base",
+         "--segment_of_compilation_to_run=OPTIMIZATIONS", "--filename_to_restore_from=out/checks.state",
+         "--filename_to_save_to=out/optimizations.state"],
+        ["{inputs:lib}", "--chunk=base:{count:lib}", "{inputs:app}", "--chunk=app:{count:app}:base",
+         "--segment_of_compilation_to_run=FINALIZATIONS", "--filename_to_restore_from=out/optimizations.state",
+         "--chunk_output_path_prefix=out/chunks/", "--create_source_map=%outname%.map",
+         "--output_manifest=out/%outname%.MF"]
+      ]
+    },
+    {
+      "name": "chunk-dependencies-after-restore",
+      "intermediate": ["out/checks.state", "out/optimizations.state"],
+      "steps": [
+        ["{inputs:lib}", "--chunk=base:{count:lib}", "{inputs:app}", "--chunk=app:{count:app}:base",
+         "--segment_of_compilation_to_run=CHECKS", "--filename_to_save_to=out/checks.state"],
+        ["{inputs:lib}", "--chunk=base:{count:lib}", "{inputs:app}", "--chunk=app:{count:app}:base",
+         "--segment_of_compilation_to_run=OPTIMIZATIONS", "--filename_to_restore_from=out/checks.state",
+         "--filename_to_save_to=out/optimizations.state"],
+        ["{inputs:lib}", "--chunk=base:{count:lib}", "{inputs:app}", "--chunk=app:{count:app}:base",
+         "--segment_of_compilation_to_run=FINALIZATIONS", "--filename_to_restore_from=out/optimizations.state",
+         "--chunk_output_path_prefix=out/chunks/", "--output_chunk_dependencies=out/deps.json"]
+      ]
+    }
+  ]
+}

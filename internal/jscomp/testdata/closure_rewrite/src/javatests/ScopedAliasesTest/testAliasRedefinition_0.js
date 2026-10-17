@@ -1,0 +1,1 @@
+var x = goog.dom; x = goog.events;

@@ -1,0 +1,1 @@
+goog.dom.createElement(goog.dom.TagName.DIV);

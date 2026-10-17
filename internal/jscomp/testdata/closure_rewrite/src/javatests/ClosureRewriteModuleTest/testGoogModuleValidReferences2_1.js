@@ -1,0 +1,1 @@
+goog.scope(function() { var c = module$exports$a$b$c; use(c); });

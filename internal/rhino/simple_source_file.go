@@ -1,59 +1,110 @@
-// Port of com/google/javascript/rhino/SimpleSourceFile.java
-// @ closure-compiler v20260415
+// Port of com/google/javascript/rhino/SimpleSourceFile.java @ closure-compiler v20260415
+
+/*
+ *
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Rhino code, released
+ * May 6, 1999.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1997-1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Nick Santos
+ *
+ * This Go translation is distributed under the MPL 1.1 only, as the
+ * original's dual licence allows; the other licence it offers is not
+ * used.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 package rhino
 
-import "math"
+import (
+	"math"
+	"strconv"
 
-// SimpleSourceFile is a simple implementation of StaticSourceFile used for
-// testing. Mirrors com.google.javascript.rhino.SimpleSourceFile.
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
+
+// SimpleSourceFile is a simple implementation of StaticSourceFile for
+// testing.
 type SimpleSourceFile struct {
 	name string
-	kind SourceKind
+	kind StaticSourceFile_SourceKind
 }
 
-// NewSimpleSourceFile constructs a SimpleSourceFile with the given name and kind.
-func NewSimpleSourceFile(name string, kind SourceKind) *SimpleSourceFile {
+// Java: SimpleSourceFile(String, SourceKind)
+func NewSimpleSourceFile(name string, kind StaticSourceFile_SourceKind) *SimpleSourceFile {
 	return &SimpleSourceFile{name: name, kind: kind}
 }
 
-func (s *SimpleSourceFile) GetName() string     { return s.name }
-func (s *SimpleSourceFile) GetKind() SourceKind { return s.kind }
+// Java: SimpleSourceFile.getName()
+func (f *SimpleSourceFile) GetName() string {
+	return f.name
+}
 
-func (s *SimpleSourceFile) IsClosureUnawareCode() bool { return false }
+// Java: SimpleSourceFile.getKind()
+func (f *SimpleSourceFile) GetKind() StaticSourceFile_SourceKind {
+	return f.kind
+}
 
-func (s *SimpleSourceFile) GetColumnOfOffset(offset int) int { return 0 }
-func (s *SimpleSourceFile) GetLineOfOffset(offset int) int   { return 1 }
+// Java: SimpleSourceFile.isClosureUnawareCode()
+func (f *SimpleSourceFile) IsClosureUnawareCode() bool {
+	return false
+}
 
-// GetLineOffset mirrors SimpleSourceFile.getLineOffset: returns
-// math.MinInt32 when the source file has no line information (which is
-// always the case for SimpleSourceFile). Panics if line < 1.
-func (s *SimpleSourceFile) GetLineOffset(line int) int {
+// Java: SimpleSourceFile.getColumnOfOffset(int)
+func (f *SimpleSourceFile) GetColumnOfOffset(offset int) int {
+	return 0
+}
+
+// Java: SimpleSourceFile.getLineOfOffset(int)
+func (f *SimpleSourceFile) GetLineOfOffset(offset int) int {
+	return 1
+}
+
+// Java: SimpleSourceFile.getLineOffset(int)
+func (f *SimpleSourceFile) GetLineOffset(line int) int {
 	if line < 1 {
-		panic("Should not call GetLineOffset with line number " + itoa(line))
+		panic(jutil.NewIllegalStateExceptionMsg(
+			"Should not call getLineOffset with line number " + strconv.Itoa(line)))
 	}
 	return math.MinInt32
 }
 
-func (s *SimpleSourceFile) String() string { return s.name }
-
-// itoa is a minimal int-to-string helper to avoid importing strconv in a
-// panic message that is only reached on programming errors.
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	neg := n < 0
-	if neg {
-		n = -n
-	}
-	buf := make([]byte, 0, 20)
-	for n > 0 {
-		buf = append([]byte{byte('0' + n%10)}, buf...)
-		n /= 10
-	}
-	if neg {
-		buf = append([]byte{'-'}, buf...)
-	}
-	return string(buf)
+// Java: SimpleSourceFile.toString()
+func (f *SimpleSourceFile) String() string {
+	return f.name
 }
+
+// Inherited StaticSourceFile default methods.
+
+// Java: StaticSourceFile.isStrong()
+func (f *SimpleSourceFile) IsStrong() bool { return StaticSourceFile_IsStrong(f) }
+
+// Java: StaticSourceFile.isWeak()
+func (f *SimpleSourceFile) IsWeak() bool { return StaticSourceFile_IsWeak(f) }
+
+// Java: StaticSourceFile.isExtern()
+func (f *SimpleSourceFile) IsExtern() bool { return StaticSourceFile_IsExtern(f) }
+
+// Java: StaticSourceFile.isNonCode()
+func (f *SimpleSourceFile) IsNonCode() bool { return StaticSourceFile_IsNonCode(f) }
+
+// Java: StaticSourceFile.isTypeScriptSource()
+func (f *SimpleSourceFile) IsTypeScriptSource() bool { return StaticSourceFile_IsTypeScriptSource(f) }

@@ -1,0 +1,1 @@
+var E = {/** @export */ get A() { return 1 }, B:2};

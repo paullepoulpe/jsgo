@@ -1,0 +1,1 @@
+a.b.MSG_FOO = MSG_FOO;

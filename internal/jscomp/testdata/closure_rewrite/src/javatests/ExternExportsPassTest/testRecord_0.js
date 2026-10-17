@@ -1,0 +1,1 @@
+/** @record */ function Iface() {}; goog.exportSymbol('Iface', Iface)

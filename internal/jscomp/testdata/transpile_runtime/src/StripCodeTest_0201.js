@@ -1,0 +1,1 @@
+let goog$debug$HtmlFormatter = class extends goog$debug$Formatter {}

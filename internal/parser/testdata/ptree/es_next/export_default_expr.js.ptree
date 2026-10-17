@@ -1,0 +1,78 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+# features "[]"
+# sourceMapURL null
+# comments
+[]
+# tree
+ProgramTree PROGRAM 0:0@0-4:0@112
+ sourceComments=[]
+ sourceElements=[4]
+  ExportDeclarationTree EXPORT_DECLARATION 0:0@0-0:23@23
+   declaration=ClassDeclarationTree CLASS_DECLARATION 0:15@15-0:23@23
+    elements=[]
+    name=null
+    superClass=null
+   exportSpecifierList=null
+   from=null
+   isDefault=true
+   isExportAll=false
+  ExportDeclarationTree EXPORT_DECLARATION 1:0@24-1:21@45
+   declaration=BinaryOperatorTree BINARY_OPERATOR 1:15@39-1:20@44
+    left=LiteralExpressionTree LITERAL_EXPRESSION 1:15@39-1:16@40
+     literalToken=LiteralToken NUMBER 1:15@39-1:16@40
+      value="1"
+    operator=Token PLUS 1:17@41-1:18@42
+    right=LiteralExpressionTree LITERAL_EXPRESSION 1:19@43-1:20@44
+     literalToken=LiteralToken NUMBER 1:19@43-1:20@44
+      value="2"
+   exportSpecifierList=null
+   from=null
+   isDefault=true
+   isExportAll=false
+  ExportDeclarationTree EXPORT_DECLARATION 2:0@46-2:40@86
+   declaration=FunctionDeclarationTree FUNCTION_DECLARATION 2:15@61-2:40@86
+    formalParameterList=FormalParameterListTree FORMAL_PARAMETER_LIST 2:35@81-2:37@83
+     commaPositions=[]
+     hasTrailingComma=false
+     parameters=[]
+    functionBody=BlockTree BLOCK 2:38@84-2:40@86
+     statements=[]
+    isAsync=true
+    isClassMember=false
+    isGenerator=false
+    isOptional=false
+    isStatic=false
+    kind=EXPRESSION
+    name=IdentifierToken IDENTIFIER 2:30@76-2:35@81
+     privateIdentifier=false
+     value="named"
+   exportSpecifierList=null
+   from=null
+   isDefault=true
+   isExportAll=false
+  ExportDeclarationTree EXPORT_DECLARATION 3:0@87-3:24@111
+   declaration=FunctionDeclarationTree FUNCTION_DECLARATION 3:15@102-3:23@110
+    formalParameterList=FormalParameterListTree FORMAL_PARAMETER_LIST 3:15@102-3:18@105
+     commaPositions=[]
+     hasTrailingComma=false
+     parameters=[1]
+      IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:16@103-3:17@104
+       identifierToken=IdentifierToken IDENTIFIER 3:16@103-3:17@104
+        privateIdentifier=false
+        value="a"
+    functionBody=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:22@109-3:23@110
+     identifierToken=IdentifierToken IDENTIFIER 3:22@109-3:23@110
+      privateIdentifier=false
+      value="a"
+    isAsync=false
+    isClassMember=false
+    isGenerator=false
+    isOptional=false
+    isStatic=false
+    kind=ARROW
+    name=null
+   exportSpecifierList=null
+   from=null
+   isDefault=true
+   isExportAll=false

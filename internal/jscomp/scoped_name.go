@@ -1,100 +1,135 @@
-// Port of com/google/javascript/jscomp/ScopedName.java
-// @ closure-compiler v20260415 (full).
-//
-// ScopedName is a (name, scopeRoot) pair used as a map key and as the
-// base type for Var. The Java class is abstract with a single concrete
-// private inner class Simple. The Go port mirrors this with an interface
-// and an unexported snSimple struct. equals/hashCode are defined at this
-// level: two ScopedNames are equal iff they share the same name and the
-// same scope-root Node pointer.
+// Port of com/google/javascript/jscomp/ScopedName.java @ closure-compiler v20260415
+
+/*
+ * Copyright 2018 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// ScopedName is a name together with a scope root node.  This is suitable
-// for use as a map key and is the base type for Var.
-//
-// Java note: equals and hashCode are defined at this level — if two Var
-// objects have the same name and scope root they are "the same var".
+// ScopedName is a name together with a scope root node. This is suitable
+// for use as a map key and is the base class for Var. Note that Equals and
+// HashCode as defined at this level, even though subclasses may add
+// additional mutable state. The idea is that if two var objects have the
+// same name and scope root, then they really are "the same var" and should
+// be treated as interchangeable. This does mean that we need to be careful
+// to not depend on any other details in situations where vars are stored in
+// sets.
 type ScopedName interface {
-	// getName returns the name as a string.
-	getName() string
-	// getScopeRoot returns the root node of the scope in which this name
-	// is defined.
-	getScopeRoot() *rhino.Node
+	// GetName returns the name as a string.
+	//
+	// Java: ScopedName.getName()
+	GetName() string
+
+	// GetScopeRoot returns the root node of the scope in which this name is
+	// defined.
+	//
+	// Java: ScopedName.getScopeRoot()
+	GetScopeRoot() *rhino.Node
+
+	// Java: ScopedName.equals(Object)
+	Equals(other any) bool
+
+	// Java: ScopedName.hashCode()
+	HashCode() int32
+
+	GetScopedNameBase() *ScopedNameBase
 }
 
-// snOf returns a ScopedName for the given name and scope root.
-// Mirrors ScopedName.of(String, Node) in Java.
-func snOf(name string, scopeRoot *rhino.Node) ScopedName {
-	return &snSimple{name: name, scopeRoot: scopeRoot}
+// ScopedNameBase holds the final equals/hashCode of ScopedName; subclasses
+// embed it and call InitScopedNameBase with themselves.
+type ScopedNameBase struct {
+	self ScopedName
 }
 
-// snSimple is the unexported concrete implementation.
-// Mirrors the private static Simple inner class in Java.
-type snSimple struct {
+// InitScopedNameBase is the ScopedName() constructor.
+func (b *ScopedNameBase) InitScopedNameBase(self ScopedName) { b.self = self }
+
+// GetScopedNameBase gives access to the base through the interface.
+func (b *ScopedNameBase) GetScopedNameBase() *ScopedNameBase { return b }
+
+// Java: ScopedName.of(String, Node)
+func ScopedName_Of(name string, scopeRoot *rhino.Node) ScopedName {
+	return newScopedName_Simple(name, scopeRoot)
+}
+
+// ScopedName_Simple is the simple implementation with no additional data or
+// semantics.
+type ScopedName_Simple struct {
+	ScopedNameBase
 	name      string
 	scopeRoot *rhino.Node
 }
 
-func (s *snSimple) getName() string          { return s.name }
-func (s *snSimple) getScopeRoot() *rhino.Node { return s.scopeRoot }
-
-// snEqual reports whether two ScopedNames are equal.
-// Mirrors ScopedName.equals in Java — final equality is name + scope root.
-func snEqual(a, b ScopedName) bool {
-	if a == nil || b == nil {
-		return a == nil && b == nil
-	}
-	return a.getName() == b.getName() && a.getScopeRoot() == b.getScopeRoot()
+// Java: ScopedName.Simple(String, Node)
+func newScopedName_Simple(name string, scopeRoot *rhino.Node) *ScopedName_Simple {
+	s := &ScopedName_Simple{}
+	s.InitScopedNameBase(s)
+	s.name = name
+	s.scopeRoot = scopeRoot
+	return s
 }
 
-// snHashCode returns a hash code for a ScopedName.
-// Mirrors the hand-inlined hash in Java that avoids Objects.hash varargs.
-func snHashCode(s ScopedName) int {
-	// Java uses 31*result + hash for each field.
-	// We use pointer identity for the Node, matching Java's Node.hashCode()
-	// which is based on identity (default Object.hashCode).
-	result := 1
-	// string hash: sum of bytes with polynomial — good enough for our use.
-	for _, c := range s.getName() {
-		result = 31*result + int(c)
+// Java: ScopedName.Simple.getName()
+func (s *ScopedName_Simple) GetName() string {
+	return s.name
+}
+
+// Java: ScopedName.Simple.getScopeRoot()
+func (s *ScopedName_Simple) GetScopeRoot() *rhino.Node {
+	return s.scopeRoot
+}
+
+// Equals is final in Java.
+//
+// Java: ScopedName.equals(Object)
+func (b *ScopedNameBase) Equals(other any) bool {
+	scopedName, ok := other.(ScopedName)
+	if !ok || jutil.IsNil(scopedName) {
+		return false
 	}
-	// Node pointer as integer contribution.
-	// In Java, Node.hashCode() == System.identityHashCode(node).
-	// We approximate with a pointer-derived value.
-	if n := s.getScopeRoot(); n != nil {
-		// Mix in address via a simple hash of the pointer bits.
-		// This is purely for map distribution, not cryptographic.
-		p := nodeIdentityHash(n)
-		result = 31*result + p
+	return b.self.GetName() == scopedName.GetName() &&
+		scopedName_nodeEquals(b.self.GetScopeRoot(), scopedName.GetScopeRoot())
+}
+
+// scopedName_nodeEquals is a.equals(b) for Nodes (identity; null a throws).
+func scopedName_nodeEquals(a, b *rhino.Node) bool {
+	if a == nil {
+		panic(jutil.NewNullPointerException())
 	}
+	return a == b
+}
+
+// HashCode is final in Java.
+//
+// Java: ScopedName.hashCode()
+func (b *ScopedNameBase) HashCode() int32 {
+	// NOTE: here we avoid Object.hash because of this function is called
+	// frequently enough that the overhead of implicit array creation of a
+	// varargs function is enough that we want to avoid it.
+	name := b.self.GetName()
+	root := b.self.GetScopeRoot()
+	if root == nil {
+		panic(jutil.NewNullPointerException())
+	}
+	var result int32 = 1
+	result = 31*result + jutil.StringHashCode(name)
+	result = 31*result + jutil.IdentityHashCodeOfPointer(root) // Go-only: performance — IdentityHashCode(root), unboxed
 	return result
-}
-
-// nodeIdentityHash returns a stable integer derived from the Node pointer,
-// mimicking Java's System.identityHashCode. Used only by snHashCode.
-func nodeIdentityHash(n *rhino.Node) int {
-	// We can't take a Go pointer as integer directly in safe code, but we
-	// can use fmt or unsafe. Since this is a helper for a data structure
-	// that's constructed/compared within a single process lifetime we use
-	// a global counter seeded at node creation. In practice ScopedName is
-	// only used inside SymbolTable which identifies nodes by pointer
-	// equality, so the exact hash value doesn't matter for correctness —
-	// only distribution. We therefore use the address stored in the
-	// interface value through a cast through uintptr via unsafe. Since
-	// this value is only used as a map-distribution hint (SymbolTable
-	// uses (*rhino.Node, string) table keys, not ScopedName), a small
-	// amount of collision is acceptable.
-	//
-	// TODO(port): replace with a real node-id field if SymbolTable needs
-	// ScopedName as actual map keys in later tiers.
-	_ = n // suppress unused warning — see below
-	// For now return a constant; the equality check (pointer ==) is what
-	// guarantees correctness. Distribution doesn't matter until we use
-	// ScopedName as a real hash-map key.
-	return 0
 }

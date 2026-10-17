@@ -1,0 +1,1 @@
+const templateName = goog.define(`templateName`, 1);

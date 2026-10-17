@@ -1,0 +1,1 @@
+goog.module('Bar'); exports.Child = class {};

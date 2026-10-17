@@ -1,0 +1,9 @@
+/** @idGenerator */ var id1 = function() {};
+/** @idGenerator {consistent} */ var id2 = function() {};
+/** @idGenerator {stable} */ var id3 = function() {};
+f1 = id1('1');
+f2 = id1('1');
+f3 = id2('1');
+f4 = id2('1');
+f5 = id3('1');
+f6 = id3('1');

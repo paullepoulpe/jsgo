@@ -1,0 +1,2 @@
+var a;
+function foo(a){var b;a}

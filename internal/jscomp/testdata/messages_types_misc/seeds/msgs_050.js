@@ -1,0 +1,1 @@
+Message value of MSG_FOO is just an empty string. Empty messages are forbidden.

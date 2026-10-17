@@ -1,0 +1,1 @@
+const value = goog.define('value');

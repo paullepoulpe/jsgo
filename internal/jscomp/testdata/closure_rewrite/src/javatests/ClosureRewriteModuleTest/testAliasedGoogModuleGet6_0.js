@@ -1,0 +1,1 @@
+goog.provide('x.y.z'); x.y.z = class {};

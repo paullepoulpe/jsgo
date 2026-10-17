@@ -1,0 +1,1 @@
+goog.module('modA'); class Foo {} exports = {Foo};

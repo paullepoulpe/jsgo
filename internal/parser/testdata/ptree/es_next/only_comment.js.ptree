@@ -1,0 +1,18 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+# features "[]"
+# sourceMapURL null
+# comments
+[1]
+ Comment
+  location=0:0@0-0:17@17
+  type=LINE
+  value="// only a comment"
+# tree
+ProgramTree PROGRAM 0:0@0-0:17@17
+ sourceComments=[1]
+  Comment
+   location=0:0@0-0:17@17
+   type=LINE
+   value="// only a comment"
+ sourceElements=[]

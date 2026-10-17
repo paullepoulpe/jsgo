@@ -1,0 +1,1 @@
+/** @define {number} */ var a = goog.define('c.d', 1);

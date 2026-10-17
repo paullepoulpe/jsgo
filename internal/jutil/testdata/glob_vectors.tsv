@@ -1,0 +1,25 @@
+*.js	OK	a.js b.js c.js d.js -.js ab.js a*.js ]].js ].js .js
+**.js	OK	a.js b.js c.js d.js -.js ./a.js ./x/a.js x/y/a.js ab.js a*.js ./src/x_test.js ./src/d/y_test.js ]].js ].js .js
+./**.js	OK	./a.js ./x/a.js ./src/x_test.js ./src/d/y_test.js
+./*/a.js	OK	./x/a.js
+a?.js	OK	ab.js a*.js
+[ab].js	OK	a.js b.js
+[!ab].js	OK	c.js d.js -.js ].js
+[a-c].js	OK	a.js b.js c.js
+[-a].js	OK	a.js -.js
+[a-].js	OK	a.js -.js
+{a,b}.js	OK	a.js b.js
+a\*.js	OK	a*.js
+*	OK	a.js b.js c.js d.js -.js ab.js a*.js ]].js ].js x*y x?y x\y axb .js
+**	OK	a.js b.js c.js d.js -.js ./a.js ./x/a.js x/y/a.js ab.js a*.js ./src/x_test.js ./src/d/y_test.js a/b ]].js ].js x*y x?y x\y axb .js
+./src/**_test.js	OK	./src/x_test.js ./src/d/y_test.js
+[a/b]	ERR	java.util.regex.PatternSyntaxException: Explicit 'name separator' in class near index 2\n[a/b]\n  ^
+{a,{b}}	ERR	java.util.regex.PatternSyntaxException: Cannot nest groups near index 3\n{a,{b}}\n   ^
+[abc	ERR	java.util.regex.PatternSyntaxException: Missing '] near index 3\n[abc\n   ^
+{a,b	ERR	java.util.regex.PatternSyntaxException: Missing '} near index 3\n{a,b\n   ^
+a\	ERR	java.util.regex.PatternSyntaxException: No character to escape near index 1\na\\n ^
+[]].js	ERR	java.util.regex.PatternSyntaxException: Unclosed character class near index 17\n^[[^/]&&[]]\]\.js$\n                 ^
+[!].js	ERR	java.util.regex.PatternSyntaxException: Unclosed character class near index 16\n^[[^/]&&[^]]\.js$\n                ^
+[z-a]	ERR	java.util.regex.PatternSyntaxException: Invalid range near index 1\n[z-a]\n ^
+x[*?\\]y	OK	x*y x?y x\y
+a.b	OK	

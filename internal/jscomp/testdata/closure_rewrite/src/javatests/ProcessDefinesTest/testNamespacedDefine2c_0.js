@@ -1,0 +1,1 @@
+var a = { /** @define {boolean} */ get B() { return false } };

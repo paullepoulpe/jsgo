@@ -1,0 +1,1 @@
+/** @desc External */ var MSG_EXTERNAL = goog.getMsg('External');

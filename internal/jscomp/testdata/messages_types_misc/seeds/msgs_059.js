@@ -1,0 +1,1 @@
+DP_DatePicker.MSG_DATE_SELECTION = somefunc('a')

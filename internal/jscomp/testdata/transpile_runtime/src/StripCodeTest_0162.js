@@ -1,0 +1,1 @@
+goog.inherits(goog.debug.TextFormatter, goog.debug.Formatter)

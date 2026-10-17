@@ -1,44 +1,89 @@
 // Port of com/google/javascript/rhino/ErrorReporter.java @ closure-compiler v20260415
 
+/*
+ *
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Rhino code, released
+ * May 6, 1999.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1997-1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Norris Boyd
+ *
+ * This Go translation is distributed under the MPL 1.1 only, as the
+ * original's dual licence allows; the other licence it offers is not
+ * used.
+ *
+ * ***** END LICENSE BLOCK ***** */
+
 package rhino
 
-// ErrorReporter defines a protocol for reporting errors during JavaScript
-// translation or execution. Mirrors com.google.javascript.rhino.ErrorReporter.
+import "github.com/paullepoulpe/jsgo/internal/jutil"
+
+// ErrorReporter defines a protocol for the reporting of errors during
+// JavaScript translation or execution.
 type ErrorReporter interface {
-	// Warning reports a warning. The implementing type may choose to ignore it.
-	// Param: message a String describing the warning
-	// Param: sourceName a String describing the JavaScript source where the warning occurred
-	// Param: line the line number associated with the warning
-	// Param: lineOffset the offset into lineSource where problem was detected
-	Warning(message, sourceName string, line, lineOffset int)
+	// Warning reports a warning.
+	//
+	// The implementing class may choose to ignore the warning if it desires.
+	//
+	// message: a String describing the warning. sourceName: a String
+	// describing the JavaScript source where the warning occurred; typically a
+	// filename or URL. line: the line number associated with the warning.
+	// lineOffset: the offset into lineSource where problem was detected.
+	Warning(message string, sourceName string, line int, lineOffset int)
 
-	// Error reports an error. The implementing type is free to panic if it desires.
-	// Param: message a String describing the error
-	// Param: sourceName a String describing the JavaScript source where the error occurred
-	// Param: line the line number associated with the error
-	// Param: lineOffset the offset into lineSource where problem was detected
-	Error(message, sourceName string, line, lineOffset int)
+	// Error reports an error.
+	//
+	// The implementing class is free to throw an exception if it desires.
+	//
+	// If execution has not yet begun, the JavaScript engine is free to find
+	// additional errors rather than terminating the translation. It will not
+	// execute a script that had errors, however.
+	//
+	// message: a String describing the error. sourceName: a String
+	// describing the JavaScript source where the error occurred; typically a
+	// filename or URL. line: the line number associated with the error.
+	// lineOffset: the offset into lineSource where problem was detected.
+	Error(message string, sourceName string, line int, lineOffset int)
 }
 
-// NullErrorReporter is an ErrorReporter that silently discards all warnings
-// and errors. Mirrors ErrorReporter.NULL_INSTANCE.
-var NullErrorReporter ErrorReporter = &nullErrorReporter{}
+type errorReporter_nullInstance struct{}
 
-type nullErrorReporter struct{}
-
-func (n *nullErrorReporter) Warning(_, _ string, _, _ int) {}
-func (n *nullErrorReporter) Error(_, _ string, _, _ int)   {}
-
-// AlwaysThrowsErrorReporter is an ErrorReporter that panics on any warning or
-// error. Mirrors ErrorReporter.ALWAYS_THROWS_INSTANCE.
-var AlwaysThrowsErrorReporter ErrorReporter = &alwaysThrowsErrorReporter{}
-
-type alwaysThrowsErrorReporter struct{}
-
-func (a *alwaysThrowsErrorReporter) Warning(message, _ string, _, _ int) {
-	panic(message)
+func (errorReporter_nullInstance) Warning(message string, sourceName string, line int, lineOffset int) {
 }
 
-func (a *alwaysThrowsErrorReporter) Error(message, _ string, _, _ int) {
-	panic(message)
+func (errorReporter_nullInstance) Error(message string, sourceName string, line int, lineOffset int) {
 }
+
+// Java: ErrorReporter.NULL_INSTANCE
+var ErrorReporter_NULL_INSTANCE ErrorReporter = errorReporter_nullInstance{}
+
+type errorReporter_alwaysThrowsInstance struct{}
+
+func (errorReporter_alwaysThrowsInstance) Warning(message string, sourceName string, line int, lineOffset int) {
+	panic(jutil.NewIllegalStateExceptionMsg(message))
+}
+
+func (errorReporter_alwaysThrowsInstance) Error(message string, sourceName string, line int, lineOffset int) {
+	panic(jutil.NewIllegalStateExceptionMsg(message))
+}
+
+// Java: ErrorReporter.ALWAYS_THROWS_INSTANCE
+var ErrorReporter_ALWAYS_THROWS_INSTANCE ErrorReporter = errorReporter_alwaysThrowsInstance{}

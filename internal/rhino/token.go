@@ -1,590 +1,630 @@
 // Port of com/google/javascript/rhino/Token.java @ closure-compiler v20260415
-//
-// Only the subset of Token enum values jsgo currently needs is defined
-// here — the full Java enum has ~130 entries covering every concrete
-// and IR node kind. New entries are added as corpus tiers grow. Names
-// and dispatch order mirror Java where possible (ADD / SUB / LT / EQ /
-// HOOK / ARRAYLIT / etc.).
 
+/*
+ *
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Rhino code, released
+ * May 6, 1999.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1997-1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Roger Lawrence
+ *   Mike McCabe
+ *   Igor Bukanov
+ *   Milen Nankov
+ *
+ * This Go translation is distributed under the MPL 1.1 only, as the
+ * original's dual licence allows; the other licence it offers is not
+ * used.
+ *
+ * ***** END LICENSE BLOCK ***** */
+
+// Package rhino is the port of com.google.javascript.rhino (and, later,
+// com.google.javascript.rhino.jstype): the AST and JSDoc model.
 package rhino
 
-type Token int
+import "github.com/paullepoulpe/jsgo/internal/jutil"
+
+// Token implements the JavaScript scanner's token kinds.
+//
+// It is based on the C source files jsscan.c and jsscan.h in the jsref package.
+type Token int32
 
 const (
-	ERROR Token = iota
-	SCRIPT
+	Token_RETURN Token = iota
+	Token_BITOR
+	Token_BITXOR
+	Token_BITAND
+	Token_EQ
+	Token_NE
+	Token_LT
+	Token_LE
+	Token_GT
+	Token_GE
+	Token_LSH
+	Token_RSH
+	Token_URSH
+	Token_ADD
+	Token_SUB
+	Token_MUL
+	Token_DIV
+	Token_MOD
+	Token_EXPONENT
+	Token_NOT
+	Token_BITNOT
+	Token_POS
+	Token_NEG
+	Token_NEW
+	Token_DELPROP
+	Token_TYPEOF
+	Token_GETPROP
+	Token_GETELEM
+	Token_CALL
 
-	// Declarations
-	VAR
-	LET
-	CONST
+	// Part of optional chain (?.)
+	Token_OPTCHAIN_GETPROP
+	Token_OPTCHAIN_GETELEM
+	Token_OPTCHAIN_CALL
 
-	// Leaves
-	NAME
-	STRINGLIT
-	NUMBER
-	TRUE
-	FALSE
-	NULL
-	UNDEFINED
+	Token_NAME
+	Token_NUMBER
+	Token_BIGINT
+	Token_STRINGLIT
+	Token_NULL
+	Token_THIS
+	Token_FALSE
+	Token_TRUE
+	Token_SHEQ // shallow equality (===)
+	Token_SHNE // shallow inequality (!==)
+	Token_REGEXP
+	Token_THROW
+	Token_IN
+	Token_INSTANCEOF
+	Token_ARRAYLIT  // array literal
+	Token_OBJECTLIT // object literal
 
-	// Assignment family — ASSIGN is the bare `=`; the _OP variants are
-	// the compound assigns (`+=`, `-=`, …).
-	ASSIGN
-	ASSIGN_ADD
-	ASSIGN_SUB
-	ASSIGN_MUL
-	ASSIGN_DIV
-	ASSIGN_MOD
-	ASSIGN_BITAND
-	ASSIGN_BITOR
-	ASSIGN_BITXOR
-	ASSIGN_LSH
-	ASSIGN_RSH
-	ASSIGN_URSH
+	Token_TRY
+	Token_PARAM_LIST
+	Token_COMMA // comma operator
 
-	// Block / script shells
-	EXPR_RESULT
-	FUNCTION
-	PARAM_LIST
-	BLOCK
-	RETURN
-	IF
-	HOOK // ternary `cond ? a : b`
+	Token_ASSIGN          // simple assignment  (=)
+	Token_ASSIGN_BITOR    // |=
+	Token_ASSIGN_BITXOR   // ^=
+	Token_ASSIGN_BITAND   // &=
+	Token_ASSIGN_LSH      // <<=
+	Token_ASSIGN_RSH      // >>=
+	Token_ASSIGN_URSH     // >>>=
+	Token_ASSIGN_ADD      // +=
+	Token_ASSIGN_SUB      // -=
+	Token_ASSIGN_MUL      // *=
+	Token_ASSIGN_DIV      // /=
+	Token_ASSIGN_MOD      // %=
+	Token_ASSIGN_EXPONENT // **=
 
-	// Loops / switch / try / jump
-	WHILE
-	DO_WHILE
-	FOR
-	FOR_IN
-	FOR_OF
-	FOR_AWAIT_OF
-	SWITCH
-	CASE
-	DEFAULT_CASE
-	TRY
-	CATCH
-	FINALLY
-	THROW
-	BREAK
-	CONTINUE
-	LABEL
-	WITH // `with (obj) body`
+	Token_ASSIGN_OR       // logical or assignment (||=)
+	Token_ASSIGN_AND      // logical and assignment (&&=)
+	Token_ASSIGN_COALESCE // logical nullish coalesce assignment (??=)
 
-	// Calls / new / member access
-	CALL
-	NEW
-	GETPROP
-	GETELEM // computed member access: `x[y]`
-	THIS
-	SUPER // `super` keyword (super(), super.prop)
+	Token_HOOK         // conditional (?:)
+	Token_OR           // logical or (||)
+	Token_AND          // logical and (&&)
+	Token_COALESCE     // Nullish coalesce (??)
+	Token_INC          // increment (++)
+	Token_DEC          // decrement (--)
+	Token_FUNCTION     // function keyword
+	Token_IF           // if keyword
+	Token_SWITCH       // switch keyword
+	Token_CASE         // case keyword
+	Token_DEFAULT_CASE // default keyword
+	Token_WHILE        // while keyword
+	Token_DO           // do keyword
+	Token_FOR          // for(;;) statement
+	Token_FOR_IN       // for-in
+	Token_BREAK        // break keyword
+	Token_CONTINUE     // continue keyword
+	Token_VAR          // var keyword
+	Token_WITH         // with keyword
+	Token_CATCH        // catch keyword
+	Token_VOID         // void keyword
 
-	// Classes
-	CLASS
-	CLASS_FIELD_DEF
+	Token_EMPTY
 
-	// Binary arithmetic
-	ADD
-	SUB
-	MUL
-	DIV
-	MOD
+	Token_ROOT        // Used only for the 3 root nodes of the AST: externsRoot, jsRoot, and externsAndJsRoot
+	Token_BLOCK       // statement block
+	Token_SWITCH_BODY // holds case statements within a switch
+	Token_LABEL       // label
+	Token_EXPR_RESULT // expression statement in scripts
+	Token_SCRIPT      // top-level node for entire script
 
-	// Comparison
-	LT
-	LE
-	GT
-	GE
-	EQ
-	NE
-	SHEQ       // ===
-	SHNE       // !==
-	INSTANCEOF // instanceof
-	IN         // in
+	Token_GETTER_DEF
+	Token_SETTER_DEF
 
-	// Logical
-	AND      // &&
-	OR       // ||
-	COALESCE // ??
+	Token_CONST // JS 1.5 const keyword
+	Token_DEBUGGER
 
-	// Bitwise
-	BITAND
-	BITOR
-	BITXOR
-	LSH  // <<
-	RSH  // >>
-	URSH // >>>
+	// JSCompiler introduced tokens
+	Token_LABEL_NAME
+	Token_STRING_KEY // object literal key
+	Token_CAST
 
-	// Unary
-	NOT    // !
-	BITNOT // ~
-	POS    // unary +
-	NEG    // unary -
-	TYPEOF
-	VOID
-	DELPROP // delete
+	// ES6
+	Token_ARRAY_PATTERN // destructuring patterns
+	Token_OBJECT_PATTERN
+	Token_DESTRUCTURING_LHS // The node inside a var/let/const with a destructuring LHS
 
-	// Array / object literals
-	ARRAYLIT
-	OBJECTLIT
-	STRING_KEY
+	Token_CLASS         // classes
+	Token_CLASS_MEMBERS // class member container
+	Token_MEMBER_FUNCTION_DEF
+	Token_MEMBER_FIELD_DEF   // class field general case
+	Token_COMPUTED_FIELD_DEF // class field computed property case
+	Token_SUPER
 
-	// Destructuring pattern nodes — mirror Token.java ARRAY_PATTERN / OBJECT_PATTERN.
-	ARRAY_PATTERN
-	OBJECT_PATTERN
-	DEFAULT_VALUE // `x = dflt` inside param/pattern
-	ITER_SPREAD   // `...expr` spread in call args / array/obj literals
-	OBJECT_REST   // `...target` at tail of object pattern
+	Token_LET // block scoped vars
 
-	// Optional-chaining nodes — mirror Token.java OPTCHAIN_* entries.
-	OPTCHAIN_GETPROP // `a?.b`
-	OPTCHAIN_GETELEM // `a?.[b]`
-	OPTCHAIN_CALL    // `a?.(args)`
+	Token_FOR_OF       // for-of
+	Token_FOR_AWAIT_OF // for-await-of
 
-	// Debugger statement
-	DEBUGGER
-	// Class / object members
-	MEMBER_FUNCTION_DEF
-	COMPUTED_PROP
-	// Type-expression AST tokens — used in parsed JSDoc type trees, not in
-	// the JS source AST.
-	ITER_REST // `{...T}` rest parameter type
-	QMARK     // nullable / unknown type marker `?`
-	EQUALS    // optional parameter type marker `=`
-	// Regular-expression literal  `/pattern/flags`
-	REGEXP
-	// Template literals.
-	TEMPLATELIT
-	TEMPLATELIT_STRING
-	TEMPLATELIT_SUB
-	TAGGED_TEMPLATELIT
-	// Prefix/postfix increment and decrement. Not yet emitted by the
-	// scanner (TODO: port Scanner.readOperator's ++/-- path); listed
-	// here so CFG + AST helpers can reference the token by name.
-	INC
-	DEC
-	// Generator / async expressions. Not yet emitted by the scanner;
-	// listed for CFG reference.
-	YIELD
-	AWAIT
-	// Dynamic import expression `import(specifier)`.
-	// Mirrors Token.DYNAMIC_IMPORT in Java. The single child is the
-	// specifier expression (usually a STRINGLIT).
-	DYNAMIC_IMPORT
-	// CAST represents `/** @type {T} */(expr)`. The parser synthesises
-	// this node when a JSDoc block comment immediately precedes a
-	// parenthesised expression; it carries the @type annotation on its
-	// JSDocInfo and the inner expression as its sole child.
-	CAST
+	Token_YIELD // generators
 
-	// EMPTY mirrors Token.EMPTY — a placeholder for absent optional nodes
-	// (e.g. empty for-loop initializer, holes in array literals).
-	EMPTY
-	// COMMA mirrors Token.COMMA — the comma (sequence) expression operator.
-	COMMA
-	// DO mirrors Token.DO — the do-while statement. (Go had DO_WHILE; DO is
-	// the canonical Java name that IRFactory emits.)
-	DO
-	// EXPONENT mirrors Token.EXPONENT — the ** exponentiation operator.
-	EXPONENT
-	// ASSIGN_EXPONENT mirrors Token.ASSIGN_EXPONENT — the **= compound assignment.
-	ASSIGN_EXPONENT
-	// ASSIGN_OR mirrors Token.ASSIGN_OR — the ||= logical assignment.
-	ASSIGN_OR
-	// ASSIGN_AND mirrors Token.ASSIGN_AND — the &&= logical assignment.
-	ASSIGN_AND
-	// ASSIGN_COALESCE mirrors Token.ASSIGN_COALESCE — the ??= logical assignment.
-	ASSIGN_COALESCE
-	// SWITCH_BODY mirrors Token.SWITCH_BODY — synthetic child of SWITCH that
-	// holds the case/default clause list.
-	SWITCH_BODY
-	// GETTER_DEF mirrors Token.GETTER_DEF — a get accessor property in an
-	// object literal or class body (e.g. get foo() {}).
-	GETTER_DEF
-	// SETTER_DEF mirrors Token.SETTER_DEF — a set accessor property in an
-	// object literal or class body (e.g. set foo(v) {}).
-	SETTER_DEF
-	// LABEL_NAME mirrors Token.LABEL_NAME — the NAME node inside a LABEL or
-	// BREAK/CONTINUE that carries the label string.
-	LABEL_NAME
-	// CLASS_MEMBERS mirrors Token.CLASS_MEMBERS — the body node of a class
-	// declaration/expression that holds method/field definitions.
-	CLASS_MEMBERS
+	Token_AWAIT // async functions
 
-	// AST-only tokens — not emitted by the scanner; used in IR/CFG passes
-	// and module-graph plumbing. Mirror Token.java entries of the same name.
-	PLACEHOLDER1 // reserved IR placeholder (slot 1)
-	PLACEHOLDER2 // reserved IR placeholder (slot 2)
-	ROOT         // synthetic root wrapping externsRoot + jsRoot
-	INPUT_ID     // synthetic node carrying a CompilerInput id
-	IMPORT_STAR  // `* as name` namespace import
-	MODULE_BODY  // body of an ES module
-	IMPORT_META  // `import.meta` meta-property
-	ES6_SUPER    // `super` in ES6 class context (distinct from SUPER in some passes)
-	// IMPORT mirrors Token.IMPORT — an ES module import declaration.
-	IMPORT
-	// EXPORT mirrors Token.EXPORT — an ES module export declaration.
-	EXPORT
-	// IMPORT_SPEC mirrors Token.IMPORT_SPEC — a single `name [as alias]` entry
-	// inside an IMPORT_SPECS list.
-	IMPORT_SPEC
-	// EXPORT_SPEC mirrors Token.EXPORT_SPEC — a single `name [as alias]` entry
-	// inside an EXPORT_SPECS list.
-	EXPORT_SPEC
-	// IMPORT_SPECS mirrors Token.IMPORT_SPECS — the `{ … }` list in an import.
-	IMPORT_SPECS
-	// EXPORT_SPECS mirrors Token.EXPORT_SPECS — the `{ … }` list in an export.
-	EXPORT_SPECS
-	// MEMBER_FIELD_DEF mirrors Token.MEMBER_FIELD_DEF — a class field declaration.
-	MEMBER_FIELD_DEF
-	// DESTRUCTURING_LHS mirrors Token.DESTRUCTURING_LHS — the LHS wrapper in a
-	// destructuring var/let/const declaration.
-	DESTRUCTURING_LHS
-	// NEW_TARGET mirrors Token.NEW_TARGET — the `new.target` meta-property.
-	NEW_TARGET
+	Token_IMPORT // modules
+	Token_IMPORT_SPECS
+	Token_IMPORT_SPEC
+	Token_IMPORT_STAR // "* as name", called NameSpaceImport in the spec.
+	Token_EXPORT
+	Token_EXPORT_SPECS
+	Token_EXPORT_SPEC
+	Token_MODULE_BODY
+	Token_DYNAMIC_IMPORT
 
-	// TS-only tokens — TypeScript constructs that have no JS equivalent.
-	// Declared here so passes that inspect TS ASTs can reference them by
-	// name; they are never emitted by the JS scanner.
-	INTERFACE          // `interface Foo { … }`
-	IMPLEMENTS_MEMBERS // implements-clause member list on a class
-	DECLARE            // `declare` modifier (ambient declaration)
-	TYPE_ALIAS         // `type Foo = Bar`
+	Token_ITER_REST     // Rests that use the iterator protocol.
+	Token_OBJECT_REST   // Rests that get object properties.
+	Token_ITER_SPREAD   // Spreads that use the iterator protocol.
+	Token_OBJECT_SPREAD // Spreads that get object properties.
 
-	// BIGINT mirrors Token.BIGINT — a BigInt literal node.
-	BIGINT
-	// OBJECT_SPREAD mirrors Token.OBJECT_SPREAD — `{...expr}` in object literals.
-	OBJECT_SPREAD
+	Token_COMPUTED_PROP
 
-	// TypeScript / Closure type AST tokens — mirrors Token.java §"TypeScript types".
-	STRING_TYPE        // string built-in type
-	BOOLEAN_TYPE       // boolean built-in type
-	NUMBER_TYPE        // number built-in type
-	PARAMETERIZED_TYPE // generic type application, e.g. Array<T>
-	UNION_TYPE         // union type, e.g. (number|string)
-	ANY_TYPE           // the unknown type {?}
-	VOID_TYPE          // void
-	NAMED_TYPE         // named / qualified type reference
-	OPTIONAL_PARAMETER // optional parameter type (TypeScript ?)
-	RECORD_TYPE        // record / structural type {a: number}
-	UNDEFINED_TYPE     // undefined type
-	ARRAY_TYPE         // array type shorthand T[]
-	FUNCTION_TYPE      // function type (not FUNCTION node — a type-AST node)
+	Token_TAGGED_TEMPLATELIT // tagged template literal, e.g. foo`bar`
+	Token_TEMPLATELIT        // template literal, e.g: `bar`
+	Token_TEMPLATELIT_SUB    // template literal substitution
+	Token_TEMPLATELIT_STRING // template literal string
+
+	Token_DEFAULT_VALUE // Formal parameter or destructuring element with a default value
+	Token_NEW_TARGET    // new.target
+	Token_IMPORT_META   // import.meta
+
+	// Used by type declaration ASTs
+	Token_STRING_TYPE
+	Token_BOOLEAN_TYPE
+	Token_NUMBER_TYPE
+	Token_FUNCTION_TYPE
+	Token_PARAMETERIZED_TYPE
+	Token_UNION_TYPE
+	Token_ANY_TYPE
+	Token_NULLABLE_TYPE
+	Token_VOID_TYPE
+	Token_REST_PARAMETER_TYPE
+	Token_NAMED_TYPE
+	Token_OPTIONAL_PARAMETER
+	Token_RECORD_TYPE
+	Token_UNDEFINED_TYPE
+	Token_ARRAY_TYPE
+	Token_GENERIC_TYPE
+	Token_GENERIC_TYPE_LIST
+
+	// JSDoc-only tokens
+	Token_ANNOTATION
+	Token_PIPE
+	Token_STAR
+	Token_EOC
+	Token_QMARK // type is nullable or unknown
+	Token_BANG
+	Token_EQUALS
+	Token_LB // left brackets
+	Token_LC // left curly braces
+	Token_COLON
+
+	// TypeScript
+	Token_INTERFACE
+	Token_INTERFACE_EXTENDS
+	Token_INTERFACE_MEMBERS
+	Token_ENUM
+	Token_ENUM_MEMBERS
+	Token_IMPLEMENTS
+	Token_TYPE_ALIAS
+	Token_DECLARE
+	Token_MEMBER_VARIABLE_DEF
+	Token_INDEX_SIGNATURE
+	Token_CALL_SIGNATURE
+	Token_NAMESPACE
+	Token_NAMESPACE_ELEMENTS
+
+	// Tokens to use for internal bookkeeping,
+	// an AST is invalid while these are present.
+	Token_PLACEHOLDER1
+	Token_PLACEHOLDER2
+	Token_PLACEHOLDER3
 )
 
-func (t Token) String() string {
-	switch t {
-	case SCRIPT:
-		return "SCRIPT"
-	case VAR:
-		return "VAR"
-	case LET:
-		return "LET"
-	case CONST:
-		return "CONST"
-	case NAME:
-		return "NAME"
-	case STRINGLIT:
-		return "STRINGLIT"
-	case NUMBER:
-		return "NUMBER"
-	case TRUE:
-		return "TRUE"
-	case FALSE:
-		return "FALSE"
-	case NULL:
-		return "NULL"
-	case UNDEFINED:
-		return "UNDEFINED"
-	case ASSIGN:
-		return "ASSIGN"
-	case ASSIGN_ADD:
-		return "ASSIGN_ADD"
-	case ASSIGN_SUB:
-		return "ASSIGN_SUB"
-	case ASSIGN_MUL:
-		return "ASSIGN_MUL"
-	case ASSIGN_DIV:
-		return "ASSIGN_DIV"
-	case ASSIGN_MOD:
-		return "ASSIGN_MOD"
-	case ASSIGN_BITAND:
-		return "ASSIGN_BITAND"
-	case ASSIGN_BITOR:
-		return "ASSIGN_BITOR"
-	case ASSIGN_BITXOR:
-		return "ASSIGN_BITXOR"
-	case ASSIGN_LSH:
-		return "ASSIGN_LSH"
-	case ASSIGN_RSH:
-		return "ASSIGN_RSH"
-	case ASSIGN_URSH:
-		return "ASSIGN_URSH"
-	case EXPR_RESULT:
-		return "EXPR_RESULT"
-	case FUNCTION:
-		return "FUNCTION"
-	case PARAM_LIST:
-		return "PARAM_LIST"
-	case BLOCK:
-		return "BLOCK"
-	case RETURN:
-		return "RETURN"
-	case IF:
-		return "IF"
-	case HOOK:
-		return "HOOK"
-	case WHILE:
-		return "WHILE"
-	case DO_WHILE:
-		return "DO_WHILE"
-	case FOR:
-		return "FOR"
-	case FOR_IN:
-		return "FOR_IN"
-	case FOR_OF:
-		return "FOR_OF"
-	case FOR_AWAIT_OF:
-		return "FOR_AWAIT_OF"
-	case SWITCH:
-		return "SWITCH"
-	case CASE:
-		return "CASE"
-	case DEFAULT_CASE:
-		return "DEFAULT_CASE"
-	case TRY:
-		return "TRY"
-	case CATCH:
-		return "CATCH"
-	case FINALLY:
-		return "FINALLY"
-	case THROW:
-		return "THROW"
-	case BREAK:
-		return "BREAK"
-	case CONTINUE:
-		return "CONTINUE"
-	case LABEL:
-		return "LABEL"
-	case WITH:
-		return "WITH"
-	case CALL:
-		return "CALL"
-	case NEW:
-		return "NEW"
-	case GETPROP:
-		return "GETPROP"
-	case GETELEM:
-		return "GETELEM"
-	case THIS:
-		return "THIS"
-	case SUPER:
-		return "SUPER"
-	case CLASS:
-		return "CLASS"
-	case CLASS_FIELD_DEF:
-		return "CLASS_FIELD_DEF"
-	case ADD:
-		return "ADD"
-	case SUB:
-		return "SUB"
-	case MUL:
-		return "MUL"
-	case DIV:
-		return "DIV"
-	case MOD:
-		return "MOD"
-	case LT:
-		return "LT"
-	case LE:
-		return "LE"
-	case GT:
-		return "GT"
-	case GE:
-		return "GE"
-	case EQ:
-		return "EQ"
-	case NE:
-		return "NE"
-	case SHEQ:
-		return "SHEQ"
-	case SHNE:
-		return "SHNE"
-	case INSTANCEOF:
-		return "INSTANCEOF"
-	case IN:
-		return "IN"
-	case AND:
-		return "AND"
-	case OR:
-		return "OR"
-	case COALESCE:
-		return "COALESCE"
-	case BITAND:
-		return "BITAND"
-	case BITOR:
-		return "BITOR"
-	case BITXOR:
-		return "BITXOR"
-	case LSH:
-		return "LSH"
-	case RSH:
-		return "RSH"
-	case URSH:
-		return "URSH"
-	case NOT:
-		return "NOT"
-	case BITNOT:
-		return "BITNOT"
-	case POS:
-		return "POS"
-	case NEG:
-		return "NEG"
-	case TYPEOF:
-		return "TYPEOF"
-	case VOID:
-		return "VOID"
-	case DELPROP:
-		return "DELPROP"
-	case ARRAYLIT:
-		return "ARRAYLIT"
-	case OBJECTLIT:
-		return "OBJECTLIT"
-	case STRING_KEY:
-		return "STRING_KEY"
-	case ARRAY_PATTERN:
-		return "ARRAY_PATTERN"
-	case OBJECT_PATTERN:
-		return "OBJECT_PATTERN"
-	case DEFAULT_VALUE:
-		return "DEFAULT_VALUE"
-	case ITER_SPREAD:
-		return "ITER_SPREAD"
-	case OBJECT_REST:
-		return "OBJECT_REST"
-	case OPTCHAIN_GETPROP:
-		return "OPTCHAIN_GETPROP"
-	case OPTCHAIN_GETELEM:
-		return "OPTCHAIN_GETELEM"
-	case OPTCHAIN_CALL:
-		return "OPTCHAIN_CALL"
-	case DEBUGGER:
-		return "DEBUGGER"
-	case MEMBER_FUNCTION_DEF:
-		return "MEMBER_FUNCTION_DEF"
-	case COMPUTED_PROP:
-		return "COMPUTED_PROP"
-	case ITER_REST:
-		return "ITER_REST"
-	case QMARK:
-		return "QMARK"
-	case EQUALS:
-		return "EQUALS"
-	case REGEXP:
-		return "REGEXP"
-	case TEMPLATELIT:
-		return "TEMPLATELIT"
-	case TEMPLATELIT_STRING:
-		return "TEMPLATELIT_STRING"
-	case TEMPLATELIT_SUB:
-		return "TEMPLATELIT_SUB"
-	case TAGGED_TEMPLATELIT:
-		return "TAGGED_TEMPLATELIT"
-	case INC:
-		return "INC"
-	case DEC:
-		return "DEC"
-	case YIELD:
-		return "YIELD"
-	case AWAIT:
-		return "AWAIT"
-	case DYNAMIC_IMPORT:
-		return "DYNAMIC_IMPORT"
-	case CAST:
-		return "CAST"
-	case PLACEHOLDER1:
-		return "PLACEHOLDER1"
-	case PLACEHOLDER2:
-		return "PLACEHOLDER2"
-	case ROOT:
-		return "ROOT"
-	case INPUT_ID:
-		return "INPUT_ID"
-	case IMPORT_STAR:
-		return "IMPORT_STAR"
-	case MODULE_BODY:
-		return "MODULE_BODY"
-	case IMPORT_META:
-		return "IMPORT_META"
-	case ES6_SUPER:
-		return "ES6_SUPER"
-	case IMPORT:
-		return "IMPORT"
-	case EXPORT:
-		return "EXPORT"
-	case IMPORT_SPEC:
-		return "IMPORT_SPEC"
-	case EXPORT_SPEC:
-		return "EXPORT_SPEC"
-	case IMPORT_SPECS:
-		return "IMPORT_SPECS"
-	case EXPORT_SPECS:
-		return "EXPORT_SPECS"
-	case MEMBER_FIELD_DEF:
-		return "MEMBER_FIELD_DEF"
-	case DESTRUCTURING_LHS:
-		return "DESTRUCTURING_LHS"
-	case NEW_TARGET:
-		return "NEW_TARGET"
-	case INTERFACE:
-		return "INTERFACE"
-	case IMPLEMENTS_MEMBERS:
-		return "IMPLEMENTS_MEMBERS"
-	case DECLARE:
-		return "DECLARE"
-	case BIGINT:
-		return "BIGINT"
-	case OBJECT_SPREAD:
-		return "OBJECT_SPREAD"
-	case STRING_TYPE:
-		return "STRING_TYPE"
-	case BOOLEAN_TYPE:
-		return "BOOLEAN_TYPE"
-	case NUMBER_TYPE:
-		return "NUMBER_TYPE"
-	case PARAMETERIZED_TYPE:
-		return "PARAMETERIZED_TYPE"
-	case UNION_TYPE:
-		return "UNION_TYPE"
-	case ANY_TYPE:
-		return "ANY_TYPE"
-	case VOID_TYPE:
-		return "VOID_TYPE"
-	case NAMED_TYPE:
-		return "NAMED_TYPE"
-	case OPTIONAL_PARAMETER:
-		return "OPTIONAL_PARAMETER"
-	case RECORD_TYPE:
-		return "RECORD_TYPE"
-	case UNDEFINED_TYPE:
-		return "UNDEFINED_TYPE"
-	case ARRAY_TYPE:
-		return "ARRAY_TYPE"
-	case FUNCTION_TYPE:
-		return "FUNCTION_TYPE"
-	case TYPE_ALIAS:
-		return "TYPE_ALIAS"
-	}
-	return "ERROR"
+var token_names = [...]string{
+	"RETURN",
+	"BITOR",
+	"BITXOR",
+	"BITAND",
+	"EQ",
+	"NE",
+	"LT",
+	"LE",
+	"GT",
+	"GE",
+	"LSH",
+	"RSH",
+	"URSH",
+	"ADD",
+	"SUB",
+	"MUL",
+	"DIV",
+	"MOD",
+	"EXPONENT",
+	"NOT",
+	"BITNOT",
+	"POS",
+	"NEG",
+	"NEW",
+	"DELPROP",
+	"TYPEOF",
+	"GETPROP",
+	"GETELEM",
+	"CALL",
+	"OPTCHAIN_GETPROP",
+	"OPTCHAIN_GETELEM",
+	"OPTCHAIN_CALL",
+	"NAME",
+	"NUMBER",
+	"BIGINT",
+	"STRINGLIT",
+	"NULL",
+	"THIS",
+	"FALSE",
+	"TRUE",
+	"SHEQ",
+	"SHNE",
+	"REGEXP",
+	"THROW",
+	"IN",
+	"INSTANCEOF",
+	"ARRAYLIT",
+	"OBJECTLIT",
+	"TRY",
+	"PARAM_LIST",
+	"COMMA",
+	"ASSIGN",
+	"ASSIGN_BITOR",
+	"ASSIGN_BITXOR",
+	"ASSIGN_BITAND",
+	"ASSIGN_LSH",
+	"ASSIGN_RSH",
+	"ASSIGN_URSH",
+	"ASSIGN_ADD",
+	"ASSIGN_SUB",
+	"ASSIGN_MUL",
+	"ASSIGN_DIV",
+	"ASSIGN_MOD",
+	"ASSIGN_EXPONENT",
+	"ASSIGN_OR",
+	"ASSIGN_AND",
+	"ASSIGN_COALESCE",
+	"HOOK",
+	"OR",
+	"AND",
+	"COALESCE",
+	"INC",
+	"DEC",
+	"FUNCTION",
+	"IF",
+	"SWITCH",
+	"CASE",
+	"DEFAULT_CASE",
+	"WHILE",
+	"DO",
+	"FOR",
+	"FOR_IN",
+	"BREAK",
+	"CONTINUE",
+	"VAR",
+	"WITH",
+	"CATCH",
+	"VOID",
+	"EMPTY",
+	"ROOT",
+	"BLOCK",
+	"SWITCH_BODY",
+	"LABEL",
+	"EXPR_RESULT",
+	"SCRIPT",
+	"GETTER_DEF",
+	"SETTER_DEF",
+	"CONST",
+	"DEBUGGER",
+	"LABEL_NAME",
+	"STRING_KEY",
+	"CAST",
+	"ARRAY_PATTERN",
+	"OBJECT_PATTERN",
+	"DESTRUCTURING_LHS",
+	"CLASS",
+	"CLASS_MEMBERS",
+	"MEMBER_FUNCTION_DEF",
+	"MEMBER_FIELD_DEF",
+	"COMPUTED_FIELD_DEF",
+	"SUPER",
+	"LET",
+	"FOR_OF",
+	"FOR_AWAIT_OF",
+	"YIELD",
+	"AWAIT",
+	"IMPORT",
+	"IMPORT_SPECS",
+	"IMPORT_SPEC",
+	"IMPORT_STAR",
+	"EXPORT",
+	"EXPORT_SPECS",
+	"EXPORT_SPEC",
+	"MODULE_BODY",
+	"DYNAMIC_IMPORT",
+	"ITER_REST",
+	"OBJECT_REST",
+	"ITER_SPREAD",
+	"OBJECT_SPREAD",
+	"COMPUTED_PROP",
+	"TAGGED_TEMPLATELIT",
+	"TEMPLATELIT",
+	"TEMPLATELIT_SUB",
+	"TEMPLATELIT_STRING",
+	"DEFAULT_VALUE",
+	"NEW_TARGET",
+	"IMPORT_META",
+	"STRING_TYPE",
+	"BOOLEAN_TYPE",
+	"NUMBER_TYPE",
+	"FUNCTION_TYPE",
+	"PARAMETERIZED_TYPE",
+	"UNION_TYPE",
+	"ANY_TYPE",
+	"NULLABLE_TYPE",
+	"VOID_TYPE",
+	"REST_PARAMETER_TYPE",
+	"NAMED_TYPE",
+	"OPTIONAL_PARAMETER",
+	"RECORD_TYPE",
+	"UNDEFINED_TYPE",
+	"ARRAY_TYPE",
+	"GENERIC_TYPE",
+	"GENERIC_TYPE_LIST",
+	"ANNOTATION",
+	"PIPE",
+	"STAR",
+	"EOC",
+	"QMARK",
+	"BANG",
+	"EQUALS",
+	"LB",
+	"LC",
+	"COLON",
+	"INTERFACE",
+	"INTERFACE_EXTENDS",
+	"INTERFACE_MEMBERS",
+	"ENUM",
+	"ENUM_MEMBERS",
+	"IMPLEMENTS",
+	"TYPE_ALIAS",
+	"DECLARE",
+	"MEMBER_VARIABLE_DEF",
+	"INDEX_SIGNATURE",
+	"CALL_SIGNATURE",
+	"NAMESPACE",
+	"NAMESPACE_ELEMENTS",
+	"PLACEHOLDER1",
+	"PLACEHOLDER2",
+	"PLACEHOLDER3",
 }
 
-// IsAssign reports whether t is one of the assignment family tokens
-// (bare or compound). Mirrors NodeUtil.isAssignmentOp in Java.
-func (t Token) IsAssign() bool {
-	switch t {
-	case ASSIGN, ASSIGN_ADD, ASSIGN_SUB, ASSIGN_MUL, ASSIGN_DIV, ASSIGN_MOD,
-		ASSIGN_BITAND, ASSIGN_BITOR, ASSIGN_BITXOR, ASSIGN_LSH, ASSIGN_RSH, ASSIGN_URSH:
-		return true
+// Token_values is Token.values().
+func Token_values() []Token {
+	out := make([]Token, len(token_names))
+	for i := range out {
+		out[i] = Token(i)
 	}
-	return false
+	return out
+}
+
+// String is Enum.name() / toString().
+func (t Token) String() string { return token_names[t] }
+
+// Name is Enum.name().
+func (t Token) Name() string { return token_names[t] }
+
+// Ordinal is Enum.ordinal().
+func (t Token) Ordinal() int { return int(t) }
+
+// Token_ValueOf is Token.valueOf(String).
+func Token_ValueOf(name string) Token {
+	for i, n := range token_names {
+		if n == name {
+			return Token(i)
+		}
+	}
+	panic(jutil.NewIllegalArgumentExceptionMsg("No enum constant com.google.javascript.rhino.Token." + name))
+}
+
+// Token_Arity returns the arity of the token; if the arity isn't always the
+// same, this function returns -1.
+//
+// Java: Token.arity(Token)
+func Token_Arity(token Token) int {
+	switch token {
+	case Token_ANNOTATION,
+		Token_ARRAYLIT,
+		Token_BANG,
+		Token_BLOCK,
+		Token_ROOT,
+		Token_BREAK,
+		Token_CALL,
+		Token_OPTCHAIN_CALL,
+		Token_COLON,
+		Token_CONST,
+		Token_CONTINUE,
+		Token_DEBUGGER,
+		Token_EOC,
+		Token_EQUALS,
+		Token_FOR,
+		Token_IF,
+		Token_LB,
+		Token_LC,
+		Token_NEW,
+		Token_OBJECTLIT,
+		Token_PARAM_LIST,
+		Token_PIPE,
+		Token_QMARK,
+		Token_REGEXP,
+		Token_RETURN,
+		Token_SCRIPT,
+		Token_STAR,
+		Token_STRING_KEY,
+		Token_SWITCH_BODY,
+		Token_TEMPLATELIT,
+		Token_TRY,
+		Token_VAR,
+		Token_YIELD,
+		Token_MEMBER_FIELD_DEF,
+		Token_COMPUTED_FIELD_DEF:
+		return -1
+	case Token_EMPTY,
+		Token_FALSE,
+		Token_IMPORT_STAR,
+		Token_LABEL_NAME,
+		Token_MEMBER_VARIABLE_DEF,
+		Token_NAME,
+		Token_NULL,
+		Token_NUMBER,
+		Token_BIGINT,
+		Token_STRINGLIT,
+		Token_TEMPLATELIT_STRING,
+		Token_THIS,
+		Token_TRUE:
+		return 0
+	case Token_AWAIT,
+		Token_BITNOT,
+		Token_CALL_SIGNATURE,
+		Token_CAST,
+		Token_DEC,
+		Token_DEFAULT_CASE,
+		Token_DELPROP,
+		Token_EXPR_RESULT,
+		Token_GETPROP,
+		Token_GETTER_DEF,
+		Token_INC,
+		Token_INDEX_SIGNATURE,
+		Token_ITER_REST,
+		Token_ITER_SPREAD,
+		Token_MEMBER_FUNCTION_DEF,
+		Token_NAMED_TYPE,
+		Token_NEG,
+		Token_NOT,
+		Token_OBJECT_REST,
+		Token_OBJECT_SPREAD,
+		Token_OPTCHAIN_GETPROP,
+		Token_POS,
+		Token_SETTER_DEF,
+		Token_TEMPLATELIT_SUB,
+		Token_THROW,
+		Token_TYPEOF,
+		Token_TYPE_ALIAS,
+		Token_VOID:
+		return 1
+	case Token_ADD,
+		Token_AND,
+		Token_ASSIGN,
+		Token_ASSIGN_ADD,
+		Token_ASSIGN_BITAND,
+		Token_ASSIGN_BITOR,
+		Token_ASSIGN_BITXOR,
+		Token_ASSIGN_DIV,
+		Token_ASSIGN_LSH,
+		Token_ASSIGN_MOD,
+		Token_ASSIGN_MUL,
+		Token_ASSIGN_EXPONENT,
+		Token_ASSIGN_RSH,
+		Token_ASSIGN_SUB,
+		Token_ASSIGN_URSH,
+		Token_ASSIGN_OR,
+		Token_ASSIGN_AND,
+		Token_ASSIGN_COALESCE,
+		Token_BITAND,
+		Token_BITOR,
+		Token_BITXOR,
+		Token_CASE,
+		Token_COALESCE,
+		Token_CATCH,
+		Token_COMMA,
+		Token_COMPUTED_PROP,
+		Token_DEFAULT_VALUE,
+		Token_DIV,
+		Token_DO,
+		Token_ENUM,
+		Token_EQ,
+		Token_EXPONENT,
+		Token_GE,
+		Token_GETELEM,
+		Token_OPTCHAIN_GETELEM,
+		Token_GT,
+		Token_IN,
+		Token_INSTANCEOF,
+		Token_LABEL,
+		Token_LE,
+		Token_LSH,
+		Token_LT,
+		Token_MOD,
+		Token_MUL,
+		Token_NAMESPACE,
+		Token_NE,
+		Token_OR,
+		Token_RSH,
+		Token_SWITCH,
+		Token_SHEQ,
+		Token_SHNE,
+		Token_SUB,
+		Token_TAGGED_TEMPLATELIT,
+		Token_URSH,
+		Token_WHILE,
+		Token_WITH:
+		return 2
+	case Token_CLASS,
+		Token_FOR_IN,
+		Token_FOR_OF,
+		Token_FOR_AWAIT_OF,
+		Token_FUNCTION,
+		Token_HOOK,
+		Token_IMPORT,
+		Token_INTERFACE:
+		return 3
+	}
+	panic(jutil.NewIllegalStateExceptionMsg("No arity defined for " + token.String()))
 }

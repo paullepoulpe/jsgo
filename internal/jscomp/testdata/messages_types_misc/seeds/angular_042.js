@@ -1,0 +1,1 @@
+/** @ngInject */ var fn = (a, b, c)=>{};

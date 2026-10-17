@@ -1,0 +1,1 @@
+/** @define {Object} */ var DEF = {}

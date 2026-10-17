@@ -1,0 +1,1 @@
+/** @define {string} */ const DEF_OVERRIDE_STRING = 'x';

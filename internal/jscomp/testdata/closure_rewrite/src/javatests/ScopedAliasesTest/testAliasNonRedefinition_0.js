@@ -1,0 +1,1 @@
+var y = {}; goog.scope(function() { goog.dom = y; });

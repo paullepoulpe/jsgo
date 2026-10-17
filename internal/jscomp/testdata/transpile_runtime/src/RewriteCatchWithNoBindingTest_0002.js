@@ -1,0 +1,5 @@
+try {
+  stuff();
+} catch {
+  onError();
+}

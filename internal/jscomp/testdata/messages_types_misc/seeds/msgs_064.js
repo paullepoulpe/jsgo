@@ -1,0 +1,1 @@
+var MSG_EXTERNAL_111 = goog.getMsg('Hello World');

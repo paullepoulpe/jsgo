@@ -1,0 +1,1 @@
+(class {[3of ]:export ...0})

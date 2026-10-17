@@ -1,0 +1,1 @@
+var x = goog.dom; return;

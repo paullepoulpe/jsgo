@@ -1,0 +1,1 @@
+var logger_ = goog.debug.Logger.getLogger(); var alias; alias = (logger_ = 3) + 4;

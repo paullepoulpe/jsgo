@@ -1,0 +1,1 @@
+var window; /** @enum {string} */ var Enum = { A: 'str' };

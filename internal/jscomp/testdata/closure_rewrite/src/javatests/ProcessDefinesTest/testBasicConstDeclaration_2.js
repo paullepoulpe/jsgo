@@ -1,0 +1,1 @@
+/** @define {string} */ const DEF = 'a'

@@ -1,0 +1,1 @@
+var $jscomp$scope$m1146332801$0$foo = function() {return goog.bar;};

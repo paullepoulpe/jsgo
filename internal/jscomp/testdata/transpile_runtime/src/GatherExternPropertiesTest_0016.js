@@ -1,0 +1,1 @@
+/** @type {Array<{bar: string, baz: string}>} */ var foo;

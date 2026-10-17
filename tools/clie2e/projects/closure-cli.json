@@ -1,0 +1,119 @@
+{
+  "description": "Closure Library project builds through command-line features: --js globs expanded by the compiler itself (with ! exclusions; directory order is the file system's), a --flagfile with a BOM, quotes and escapes, goog.getMsg translations from XTB files (with and without --translations_project, ASCII-escaped and UTF-8 output), --hide_warnings_for, --error_format=JSON, a warnings allowlist and conformance rules.",
+  "links": {
+    "inputs": "cache:bench-inputs",
+    "src": "repo:tools/clie2e/projects/src/closure-app"
+  },
+  "files": {
+    "fr.xtb": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE translationbundle>\n<translationbundle lang=\"fr\">\n  <translation id=\"1124506639976100557\" key=\"MSG_CLIE2E_GREETING\">Bonjour, <ph name=\"NAME\"/> !</translation>\n  <translation id=\"4376319291607296578\" key=\"MSG_CLIE2E_SHAPES\"><ph name=\"COUNT\"/> formes enregistrées</translation>\n  <translation id=\"5677596893054756218\" key=\"MSG_CLIE2E_CLEAR\">Tout effacer « maintenant »</translation>\n</translationbundle>\n",
+    "ja.xtb": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE translationbundle>\n<translationbundle lang=\"ja\">\n  <translation id=\"4447508411638336849\" key=\"MSG_CLIE2E_GREETING\">こんにちは、<ph name=\"NAME\"/>さん！</translation>\n  <translation id=\"2184682075800793810\" key=\"MSG_CLIE2E_SHAPES\">図形が<ph name=\"COUNT\"/>個登録されています</translation>\n  <translation id=\"964657591071711888\" key=\"MSG_CLIE2E_CLEAR\">すべて消去 🧹</translation>\n</translationbundle>\n",
+    "build.flags": "﻿--compilation_level=SIMPLE\n--dependency_mode=PRUNE --entry_point=goog:clie2e.exported\n--output_wrapper \"/* built with \\\"build.flags\\\" */\n(function() {%output%}).call(window);\"\n--js_output_file\tout/app.js\r\n--define \"goog.LOCALE='fr-CA'\"\n",
+    "conformance.textproto": "requirement: {\n  type: BANNED_NAME\n  value: 'goog.string.format'\n  error_message: 'goog.string.format is banned in this project'\n}\nrequirement: {\n  type: BANNED_PROPERTY_WRITE\n  value: 'Element.prototype.innerHTML'\n  error_message: 'Assigning innerHTML is banned'\n  allowlist_regexp: 'inputs/closure-library@v20230802/closure/goog/(dom|editor)/'\n}\nrequirement: {\n  type: BANNED_CODE_PATTERN\n  value: '/** @param {*} a */ function template(a) { a.toFixed(2) }'\n  error_message: 'Use the number formatter'\n  only_apply_to: 'src/'\n}\n",
+    "allowlist.txt": "# Suppressed warnings: <file>:<line>  <description>\ninputs/closure-library@v20230802/closure/goog/base.js:2807  Parse error. unknown @suppress parameter: unusedPrivateMembers\ninputs/closure-library@v20230802/closure/goog/dom/tagname.js:45  Parse error. unknown @suppress parameter: unusedPrivateMembers\n"
+  },
+  "inputs": [
+    {
+      "glob": "inputs/closure-library@v20230802/closure/goog/**/*.js",
+      "exclude": [
+        "*_test.js"
+      ]
+    },
+    {
+      "glob": "src/*.js"
+    }
+  ],
+  "jobs": [
+    {
+      "name": "compiler-globs",
+      "inputs": [],
+      "args": [
+        "--js=inputs/closure-library@v20230802/closure/goog/**.js",
+        "--js=!**_test.js",
+        "--js=src/*.js",
+        "--compilation_level=SIMPLE",
+        "--dependency_mode=PRUNE",
+        "--entry_point=goog:clie2e.exported",
+        "--js_output_file=out/app.js",
+        "--output_manifest=out/manifest.MF"
+      ]
+    },
+    {
+      "name": "compiler-globs-unsorted",
+      "inputs": [],
+      "args": [
+        "--js=inputs/closure-library@v20230802/closure/goog/string/**.js",
+        "--js=!**_test.js",
+        "--compilation_level=WHITESPACE_ONLY",
+        "--js_output_file=out/string.js",
+        "--output_manifest=out/manifest.MF"
+      ]
+    },
+    {
+      "name": "flagfile",
+      "args": [
+        "--flagfile=build.flags",
+        "{inputs}"
+      ]
+    },
+    {
+      "name": "translations-fr",
+      "args": [
+        "--compilation_level=ADVANCED",
+        "--dependency_mode=PRUNE",
+        "--entry_point=goog:clie2e.messages",
+        "--translations_file=fr.xtb",
+        "--formatting=PRETTY_PRINT",
+        "--js_output_file=out/fr.js"
+      ]
+    },
+    {
+      "name": "translations-ja-project-utf8",
+      "args": [
+        "--compilation_level=SIMPLE",
+        "--dependency_mode=PRUNE",
+        "--entry_point=goog:clie2e.messages",
+        "--translations_file=ja.xtb",
+        "--translations_project=clie2e",
+        "--charset=UTF-8",
+        "--js_output_file=out/ja.js",
+        "--create_source_map=out/ja.js.map"
+      ]
+    },
+    {
+      "name": "translations-ja-ascii",
+      "args": [
+        "--compilation_level=SIMPLE",
+        "--dependency_mode=PRUNE",
+        "--entry_point=goog:clie2e.messages",
+        "--translations_file=ja.xtb",
+        "--translations_project=clie2e",
+        "--js_output_file=out/ja.js"
+      ]
+    },
+    {
+      "name": "hide-warnings-json",
+      "args": [
+        "--checks_only",
+        "--warning_level=VERBOSE",
+        "--hide_warnings_for=inputs/closure-library",
+        "--error_format=JSON",
+        "--dependency_mode=PRUNE",
+        "--entry_point=goog:clie2e.exported",
+        "--entry_point=goog:clie2e.messages"
+      ]
+    },
+    {
+      "name": "allowlist-conformance",
+      "args": [
+        "--compilation_level=SIMPLE",
+        "--warning_level=VERBOSE",
+        "--warnings_allowlist_file=allowlist.txt",
+        "--conformance_configs=conformance.textproto",
+        "--dependency_mode=PRUNE",
+        "--entry_point=goog:clie2e.exported",
+        "--entry_point=goog:goog.editor.Field",
+        "--js_output_file=out/app.js"
+      ]
+    }
+  ]
+}

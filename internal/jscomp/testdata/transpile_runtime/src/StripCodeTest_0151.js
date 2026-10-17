@@ -1,0 +1,1 @@
+window.alert(goog$debug$Logger)

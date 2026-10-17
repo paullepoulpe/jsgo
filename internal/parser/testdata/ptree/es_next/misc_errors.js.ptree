@@ -1,0 +1,316 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+ERROR 0:8@8 "Character '@' (U+0040) is not a valid identifier start char"
+ERROR 0:9@9 "primary expression expected"
+ERROR 1:8@19 "Invalid usage of #"
+ERROR 1:9@20 "primary expression expected"
+ERROR 2:11@33 "Shebang comment must be at the start of the file"
+ERROR 2:10@32 "Semi-colon expected"
+ERROR 2:11@33 "primary expression expected"
+ERROR 2:11@33 "Semi-colon expected"
+ERROR 3:10@47 "primary expression expected"
+ERROR 4:0@48 "')' expected"
+ERROR 4:4@52 "Semi-colon expected"
+ERROR 4:9@57 "primary expression expected"
+ERROR 5:14@73 "primary expression expected"
+ERROR 5:14@73 "'}' expected"
+ERROR 6:10@85 "invalid parenthesized expression"
+ERROR 7:14@101 "invalid parenthesized expression"
+ERROR 8:12@115 "primary expression expected"
+ERROR 9:5@121 "primary expression expected"
+ERROR 9:6@122 "Semi-colon expected"
+ERROR 10:5@130 "primary expression expected"
+ERROR 10:6@131 "Semi-colon expected"
+ERROR 11:2@136 "invalid assignment target"
+ERROR 11:2@136 "Semi-colon expected"
+ERROR 11:3@137 "primary expression expected"
+ERROR 11:4@138 "Semi-colon expected"
+ERROR 12:6@147 "invalid assignment target"
+ERROR 12:6@147 "Semi-colon expected"
+ERROR 12:7@148 "primary expression expected"
+ERROR 12:8@149 "Semi-colon expected"
+ERROR 13:7@159 "invalid assignment target"
+ERROR 13:7@159 "Semi-colon expected"
+ERROR 13:8@160 "primary expression expected"
+ERROR 13:9@161 "Semi-colon expected"
+ERROR 14:4@168 "invalid assignment target"
+ERROR 14:4@168 "Semi-colon expected"
+ERROR 14:5@169 "primary expression expected"
+ERROR 14:6@170 "Semi-colon expected"
+ERROR 15:8@181 "Semi-colon expected"
+ERROR 15:10@183 "invalid parenthesized expression"
+ERROR 17:0@187 "No newline allowed before '=>'"
+ERROR 18:2@195 "',' expected"
+ERROR 19:1@206 "')' expected"
+ERROR 19:2@207 "'=>' expected"
+ERROR 19:6@211 "primary expression expected"
+ERROR 19:7@212 "Semi-colon expected"
+# features "[]"
+# sourceMapURL null
+# comments
+[]
+# tree
+ProgramTree PROGRAM 0:0@0-20:0@215
+ sourceComments=[]
+ sourceElements=[33]
+  VariableStatementTree VARIABLE_STATEMENT 0:0@0-0:10@10
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 0:0@0-0:9@9
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 0:4@4-0:9@9
+      initializer=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 0:8@8-0:9@9
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:4@4-0:5@5
+       identifierToken=IdentifierToken IDENTIFIER 0:4@4-0:5@5
+        privateIdentifier=false
+        value="a"
+  VariableStatementTree VARIABLE_STATEMENT 1:0@11-1:10@21
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 1:0@11-1:9@20
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 1:4@15-1:9@20
+      initializer=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 1:8@19-1:9@20
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 1:4@15-1:5@16
+       identifierToken=IdentifierToken IDENTIFIER 1:4@15-1:5@16
+        privateIdentifier=false
+        value="b"
+  VariableStatementTree VARIABLE_STATEMENT 2:0@22-2:9@31
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 2:0@22-2:9@31
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 2:4@26-2:9@31
+      initializer=IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:8@30-2:9@31
+       identifierToken=IdentifierToken IDENTIFIER 2:8@30-2:9@31
+        privateIdentifier=false
+        value="x"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:4@26-2:5@27
+       identifierToken=IdentifierToken IDENTIFIER 2:4@26-2:5@27
+        privateIdentifier=false
+        value="c"
+  ExpressionStatementTree EXPRESSION_STATEMENT 2:10@32-2:11@33
+   expression=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 2:10@32-2:11@33
+  ExpressionStatementTree EXPRESSION_STATEMENT 2:11@33-2:14@36
+   expression=UnaryExpressionTree UNARY_EXPRESSION 2:11@33-2:13@35
+    operand=IdentifierExpressionTree IDENTIFIER_EXPRESSION 2:12@34-2:13@35
+     identifierToken=IdentifierToken IDENTIFIER 2:12@34-2:13@35
+      privateIdentifier=false
+      value="y"
+    operator=Token BANG 2:11@33-2:12@34
+  VariableStatementTree VARIABLE_STATEMENT 3:0@37-4:3@51
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 3:0@37-4:3@51
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 3:4@41-4:3@51
+      initializer=ParenExpressionTree PAREN_EXPRESSION 3:8@45-4:3@51
+       expression=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 3:9@46-3:10@47
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:4@41-3:5@42
+       identifierToken=IdentifierToken IDENTIFIER 3:4@41-3:5@42
+        privateIdentifier=false
+        value="d"
+  ExpressionStatementTree EXPRESSION_STATEMENT 4:4@52-4:10@58
+   expression=BinaryOperatorTree BINARY_OPERATOR 4:4@52-4:9@57
+    left=IdentifierExpressionTree IDENTIFIER_EXPRESSION 4:4@52-4:5@53
+     identifierToken=IdentifierToken IDENTIFIER 4:4@52-4:5@53
+      privateIdentifier=false
+      value="e"
+    operator=Token EQUAL 4:6@54-4:7@55
+    right=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 4:8@56-4:9@57
+  VariableStatementTree VARIABLE_STATEMENT 5:0@59-5:15@74
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 5:0@59-5:15@74
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 5:4@63-5:15@74
+      initializer=ObjectLiteralExpressionTree OBJECT_LITERAL_EXPRESSION 5:8@67-5:15@74
+       hasTrailingComma=false
+       propertyNameAndValues=[1]
+        PropertyNameAssignmentTree PROPERTY_NAME_ASSIGNMENT 5:10@69-5:14@73
+         name=IdentifierToken IDENTIFIER 5:10@69-5:11@70
+          privateIdentifier=false
+          value="a"
+         value=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 5:13@72-5:14@73
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 5:4@63-5:5@64
+       identifierToken=IdentifierToken IDENTIFIER 5:4@63-5:5@64
+        privateIdentifier=false
+        value="f"
+  VariableStatementTree VARIABLE_STATEMENT 6:0@75-6:11@86
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 6:0@75-6:10@85
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 6:4@79-6:10@85
+      initializer=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 6:8@83-6:10@85
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 6:4@79-6:5@80
+       identifierToken=IdentifierToken IDENTIFIER 6:4@79-6:5@80
+        privateIdentifier=false
+        value="g"
+  VariableStatementTree VARIABLE_STATEMENT 7:0@87-7:15@102
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 7:0@87-7:14@101
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 7:4@91-7:14@101
+      initializer=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 7:8@95-7:14@101
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 7:4@91-7:5@92
+       identifierToken=IdentifierToken IDENTIFIER 7:4@91-7:5@92
+        privateIdentifier=false
+        value="h"
+  VariableStatementTree VARIABLE_STATEMENT 8:0@103-8:12@115
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 8:0@103-8:12@115
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 8:4@107-8:12@115
+      initializer=BinaryOperatorTree BINARY_OPERATOR 8:8@111-8:12@115
+       left=IdentifierExpressionTree IDENTIFIER_EXPRESSION 8:8@111-8:9@112
+        identifierToken=IdentifierToken IDENTIFIER 8:8@111-8:9@112
+         privateIdentifier=false
+         value="a"
+       operator=Token PLUS 8:10@113-8:11@114
+       right=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 8:11@114-8:12@115
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 8:4@107-8:5@108
+       identifierToken=IdentifierToken IDENTIFIER 8:4@107-8:5@108
+        privateIdentifier=false
+        value="i"
+  ExpressionStatementTree EXPRESSION_STATEMENT 9:0@116-9:5@121
+   expression=BinaryOperatorTree BINARY_OPERATOR 9:0@116-9:5@121
+    left=IdentifierExpressionTree IDENTIFIER_EXPRESSION 9:0@116-9:1@117
+     identifierToken=IdentifierToken IDENTIFIER 9:0@116-9:1@117
+      privateIdentifier=false
+      value="a"
+    operator=Token PLUS 9:2@118-9:3@119
+    right=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 9:4@120-9:5@121
+  ExpressionStatementTree EXPRESSION_STATEMENT 9:6@122-9:8@124
+   expression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 9:6@122-9:7@123
+    identifierToken=IdentifierToken IDENTIFIER 9:6@122-9:7@123
+     privateIdentifier=false
+     value="b"
+  ExpressionStatementTree EXPRESSION_STATEMENT 10:0@125-10:5@130
+   expression=BinaryOperatorTree BINARY_OPERATOR 10:0@125-10:5@130
+    left=IdentifierExpressionTree IDENTIFIER_EXPRESSION 10:0@125-10:1@126
+     identifierToken=IdentifierToken IDENTIFIER 10:0@125-10:1@126
+      privateIdentifier=false
+      value="a"
+    operator=Token EQUAL 10:2@127-10:3@128
+    right=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 10:4@129-10:5@130
+  ExpressionStatementTree EXPRESSION_STATEMENT 10:6@131-10:8@133
+   expression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 10:6@131-10:7@132
+    identifierToken=IdentifierToken IDENTIFIER 10:6@131-10:7@132
+     privateIdentifier=false
+     value="b"
+  ExpressionStatementTree EXPRESSION_STATEMENT 11:0@134-11:1@135
+   expression=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 11:2@136-11:1@135
+  ExpressionStatementTree EXPRESSION_STATEMENT 11:2@136-11:3@137
+   expression=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 11:2@136-11:3@137
+  ExpressionStatementTree EXPRESSION_STATEMENT 11:4@138-11:6@140
+   expression=LiteralExpressionTree LITERAL_EXPRESSION 11:4@138-11:5@139
+    literalToken=LiteralToken NUMBER 11:4@138-11:5@139
+     value="2"
+  ExpressionStatementTree EXPRESSION_STATEMENT 12:0@141-12:5@146
+   expression=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 12:6@147-12:5@146
+  ExpressionStatementTree EXPRESSION_STATEMENT 12:6@147-12:7@148
+   expression=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 12:6@147-12:7@148
+  ExpressionStatementTree EXPRESSION_STATEMENT 12:8@149-12:10@151
+   expression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 12:8@149-12:9@150
+    identifierToken=IdentifierToken IDENTIFIER 12:8@149-12:9@150
+     privateIdentifier=false
+     value="c"
+  ExpressionStatementTree EXPRESSION_STATEMENT 13:0@152-13:6@158
+   expression=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 13:7@159-13:6@158
+  ExpressionStatementTree EXPRESSION_STATEMENT 13:7@159-13:8@160
+   expression=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 13:7@159-13:8@160
+  ExpressionStatementTree EXPRESSION_STATEMENT 13:9@161-13:11@163
+   expression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 13:9@161-13:10@162
+    identifierToken=IdentifierToken IDENTIFIER 13:9@161-13:10@162
+     privateIdentifier=false
+     value="c"
+  ExpressionStatementTree EXPRESSION_STATEMENT 14:0@164-14:3@167
+   expression=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 14:4@168-14:3@167
+  ExpressionStatementTree EXPRESSION_STATEMENT 14:4@168-14:5@169
+   expression=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 14:4@168-14:5@169
+  ExpressionStatementTree EXPRESSION_STATEMENT 14:6@170-14:8@172
+   expression=IdentifierExpressionTree IDENTIFIER_EXPRESSION 14:6@170-14:7@171
+    identifierToken=IdentifierToken IDENTIFIER 14:6@170-14:7@171
+     privateIdentifier=false
+     value="b"
+  ExpressionStatementTree EXPRESSION_STATEMENT 15:0@173-15:7@180
+   expression=FunctionDeclarationTree FUNCTION_DECLARATION 15:0@173-15:7@180
+    formalParameterList=FormalParameterListTree FORMAL_PARAMETER_LIST 15:0@173-15:1@174
+     commaPositions=[]
+     hasTrailingComma=false
+     parameters=[1]
+      IdentifierExpressionTree IDENTIFIER_EXPRESSION 15:0@173-15:1@174
+       identifierToken=IdentifierToken IDENTIFIER 15:0@173-15:1@174
+        privateIdentifier=false
+        value="x"
+    functionBody=BlockTree BLOCK 15:5@178-15:7@180
+     statements=[]
+    isAsync=false
+    isClassMember=false
+    isGenerator=false
+    isOptional=false
+    isStatic=false
+    kind=ARROW
+    name=null
+  ExpressionStatementTree EXPRESSION_STATEMENT 15:8@181-15:11@184
+   expression=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 15:8@181-15:10@183
+  ExpressionStatementTree EXPRESSION_STATEMENT 16:0@185-17:5@192
+   expression=FunctionDeclarationTree FUNCTION_DECLARATION 16:0@185-17:4@191
+    formalParameterList=FormalParameterListTree FORMAL_PARAMETER_LIST 16:0@185-16:1@186
+     commaPositions=[]
+     hasTrailingComma=false
+     parameters=[1]
+      IdentifierExpressionTree IDENTIFIER_EXPRESSION 16:0@185-16:1@186
+       identifierToken=IdentifierToken IDENTIFIER 16:0@185-16:1@186
+        privateIdentifier=false
+        value="a"
+    functionBody=IdentifierExpressionTree IDENTIFIER_EXPRESSION 17:3@190-17:4@191
+     identifierToken=IdentifierToken IDENTIFIER 17:3@190-17:4@191
+      privateIdentifier=false
+      value="b"
+    isAsync=false
+    isClassMember=false
+    isGenerator=false
+    isOptional=false
+    isStatic=false
+    kind=ARROW
+    name=null
+  ExpressionStatementTree EXPRESSION_STATEMENT 18:0@193-18:11@204
+   expression=FunctionDeclarationTree FUNCTION_DECLARATION 18:0@193-18:10@203
+    formalParameterList=FormalParameterListTree FORMAL_PARAMETER_LIST 18:0@193-18:5@198
+     commaPositions=[1]
+      18:3@196
+     hasTrailingComma=false
+     parameters=[2]
+      IdentifierExpressionTree IDENTIFIER_EXPRESSION 18:1@194-18:2@195
+       identifierToken=IdentifierToken IDENTIFIER 18:1@194-18:2@195
+        privateIdentifier=false
+        value="a"
+      IdentifierExpressionTree IDENTIFIER_EXPRESSION 18:3@196-18:4@197
+       identifierToken=IdentifierToken IDENTIFIER 18:3@196-18:4@197
+        privateIdentifier=false
+        value="b"
+    functionBody=IdentifierExpressionTree IDENTIFIER_EXPRESSION 18:9@202-18:10@203
+     identifierToken=IdentifierToken IDENTIFIER 18:9@202-18:10@203
+      privateIdentifier=false
+      value="c"
+    isAsync=false
+    isClassMember=false
+    isGenerator=false
+    isOptional=false
+    isStatic=false
+    kind=ARROW
+    name=null
+  ExpressionStatementTree EXPRESSION_STATEMENT 19:0@205-19:6@211
+   expression=FunctionDeclarationTree FUNCTION_DECLARATION 19:0@205-19:6@211
+    formalParameterList=FormalParameterListTree FORMAL_PARAMETER_LIST 19:0@205-19:2@207
+     commaPositions=[]
+     hasTrailingComma=false
+     parameters=[]
+    functionBody=MissingPrimaryExpressionTree MISSING_PRIMARY_EXPRESSION 19:4@209-19:6@211
+    isAsync=false
+    isClassMember=false
+    isGenerator=false
+    isOptional=false
+    isStatic=false
+    kind=ARROW
+    name=null
+  ExpressionStatementTree EXPRESSION_STATEMENT 19:7@212-19:9@214
+   expression=LiteralExpressionTree LITERAL_EXPRESSION 19:7@212-19:8@213
+    literalToken=LiteralToken NUMBER 19:7@212-19:8@213
+     value="2"

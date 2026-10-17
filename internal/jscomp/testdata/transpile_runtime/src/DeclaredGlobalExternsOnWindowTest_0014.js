@@ -1,0 +1,1 @@
+var window; /** @const {number} */ var n;

@@ -1,0 +1,1 @@
+goog.provide('a.b.Foo'); /** @constructor @const */ a.b.Foo = function() {};

@@ -1,0 +1,1916 @@
+# file const_module.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+WARNING JSC_UNDEFINED_EXTERN_VAR_ERROR const_module.js:1:0 @0+4 name goog is not defined in the externs.
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS const_module.js:2:0 @18+7 accessing name exports in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS const_module.js:3:0 @31+7 accessing name exports in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS const_module.js:5:0 @57+1 accessing name x in externs has no effect. Perhaps you forgot to add a var keyword?
+ERROR JSC_UNDEFINED_VARIABLE const_module.js:1:0 @0+4 variable goog is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 33] [feature_set: []]
+=     VAR
+=         NAME goog
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+=     VAR
+=         NAME window
+## ConstCheck
+WARNING JSC_CONSTANT_REASSIGNED_VALUE_ERROR const_module.js:3:0 @31+11 constant exports assigned a value more than once.\u000aOriginal definition at const_module.js
+WARNING JSC_CONSTANT_REASSIGNED_VALUE_ERROR const_module.js:5:0 @57+5 constant x assigned a value more than once.\u000aOriginal definition at const_module.js:4
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file consts.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS consts.js:2:0 @13+1 accessing name a in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS consts.js:3:0 @20+1 accessing name a in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS consts.js:5:0 @50+1 accessing name b in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS consts.js:6:0 @57+1 accessing name b in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS consts.js:7:2 @67+1 accessing name b in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS consts.js:9:25 @120+1 accessing name c in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS consts.js:10:0 @127+3 accessing name FOO in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS consts.js:11:0 @136+3 accessing name FOO in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS consts.js:13:0 @165+1 accessing name d in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS consts.js:14:28 @200+1 accessing name e in externs has no effect. Perhaps you forgot to add a var keyword?
+ERROR JSC_UNDEFINED_VARIABLE consts.js:10:0 @127+3 variable FOO is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 33] [feature_set: []]
+=     VAR
+=         NAME FOO [is_constant_name: 1]
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+=     VAR
+=         NAME window
+## ConstCheck
+WARNING JSC_CONSTANT_REASSIGNED_VALUE_ERROR consts.js:2:0 @13+5 constant a assigned a value more than once.\u000aOriginal definition at consts.js:1
+WARNING JSC_CONSTANT_REASSIGNED_VALUE_ERROR consts.js:3:0 @20+3 constant a assigned a value more than once.\u000aOriginal definition at consts.js:1
+WARNING JSC_CONSTANT_REASSIGNED_VALUE_ERROR consts.js:11:0 @136+7 constant FOO assigned a value more than once.\u000aOriginal definition at null:-1
+WARNING JSC_CONSTANT_REASSIGNED_VALUE_ERROR consts.js:14:28 @200+5 constant e assigned a value more than once.\u000aOriginal definition at consts.js:14
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file debugger.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 32] [feature_set: []]
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+=     VAR
+=         NAME window
+## ConstCheck
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file dynamic_import.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 32] [feature_set: []]
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+=     VAR
+=         NAME window
+## ConstCheck
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file es_module.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS es_module.js:1:8 @8+1 accessing name a in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS es_module.js:1:13 @13+1 accessing name b in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS es_module.js:3:8 @70+1 accessing name b in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS es_module.js:3:13 @75+1 accessing name c in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS es_module.js:4:8 @87+5 accessing name undef in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS es_module.js:4:8 @87+5 accessing name undef in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS es_module.js:7:0 @158+1 accessing name k in externs has no effect. Perhaps you forgot to add a var keyword?
+ERROR JSC_UNDEFINED_VARIABLE es_module.js:4:8 @87+5 variable undef is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 35] [feature_set: []]
+=     VAR
+=         NAME a
+=     VAR
+=         NAME c
+=     VAR
+=         NAME undef
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+=     VAR
+=         NAME window
+## ConstCheck
+WARNING JSC_CONSTANT_REASSIGNED_VALUE_ERROR es_module.js:7:0 @158+5 constant k assigned a value more than once.\u000aOriginal definition at es_module.js:6
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file externs_like.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+ERROR JSC_VAR_MULTIPLY_DECLARED_ERROR externs_like.js:11:4 @247+2 Variable ns declared more than once. First occurrence: externs_like.js:1:18
+WARNING JSC_UNDEFINED_EXTERN_VAR_ERROR externs_like.js:4:0 @68+6 name window is not defined in the externs.
+WARNING JSC_UNDEFINED_EXTERN_VAR_ERROR externs_like.js:6:0 @118+13 name undefinedName is not defined in the externs.
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS externs_like.js:9:17 @208+3 accessing name obj in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS externs_like.js:10:25 @238+3 accessing name arr in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS externs_like.js:12:0 @251+5 accessing name alert in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS externs_like.js:12:6 @257+1 accessing name z in externs has no effect. Perhaps you forgot to add a var keyword?
+ERROR JSC_VAR_MULTIPLY_DECLARED_ERROR externs_like.js:11:4 @247+2 Variable ns declared more than once. First occurrence: externs_like.js:1:18
+ERROR JSC_UNDEFINED_VARIABLE externs_like.js:3:8 @65+1 variable b is undeclared
+ERROR JSC_UNDEFINED_VARIABLE externs_like.js:4:0 @68+6 variable window is undeclared
+ERROR JSC_UNDEFINED_VARIABLE externs_like.js:4:13 @81+3 variable foo is undeclared
+ERROR JSC_UNDEFINED_VARIABLE externs_like.js:5:25 @111+5 variable Other is undeclared
+ERROR JSC_UNDEFINED_VARIABLE externs_like.js:6:0 @118+13 variable undefinedName is undeclared
+ERROR JSC_UNDEFINED_VARIABLE externs_like.js:7:0 @142+4 variable goog is undeclared
+ERROR JSC_UNDEFINED_VARIABLE externs_like.js:8:15 @185+1 variable q is undeclared
+ERROR JSC_UNDEFINED_VARIABLE externs_like.js:9:17 @208+3 variable obj is undeclared
+ERROR JSC_UNDEFINED_VARIABLE externs_like.js:10:25 @238+3 variable arr is undeclared
+ERROR JSC_UNDEFINED_VARIABLE externs_like.js:12:0 @251+5 variable alert is undeclared
+ERROR JSC_UNDEFINED_VARIABLE externs_like.js:12:6 @257+1 variable z is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 42] [feature_set: []]
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME b
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME foo
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME Other
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME goog
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME q
+=     VAR
+=         NAME window
+=     VAR
+=         NAME undefinedName
+=     VAR
+=         NAME obj
+=     VAR
+=         NAME arr
+=     VAR
+=         NAME alert
+=     VAR
+=         NAME z
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+## ConstCheck
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file global_this.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS global_this.js:7:1 @192+1 accessing name a in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS global_this.js:13:0 @472+3 accessing name foo in externs has no effect. Perhaps you forgot to add a var keyword?
+ERROR JSC_UNDEFINED_VARIABLE global_this.js:13:0 @472+3 variable foo is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 33] [feature_set: []]
+=     VAR
+=         NAME foo
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+=     VAR
+=         NAME window
+## ConstCheck
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file goog_scope.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+WARNING JSC_UNDEFINED_EXTERN_VAR_ERROR goog_scope.js:1:0 @0+4 name goog is not defined in the externs.
+WARNING JSC_UNDEFINED_EXTERN_VAR_ERROR goog_scope.js:2:0 @21+4 name goog is not defined in the externs.
+ERROR JSC_UNDEFINED_VARIABLE goog_scope.js:1:0 @0+4 variable goog is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 33] [feature_set: []]
+=     VAR
+=         NAME goog
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+=     VAR
+=         NAME window
+## ConstCheck
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file j2cl.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS j2cl.js:1:8 @8+1 accessing name x in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS j2cl.js:1:14 @14+1 accessing name y in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS j2cl.js:2:8 @25+1 accessing name x in externs has no effect. Perhaps you forgot to add a var keyword?
+ERROR JSC_UNDEFINED_VARIABLE j2cl.js:1:8 @8+1 variable x is undeclared
+ERROR JSC_UNDEFINED_VARIABLE j2cl.js:1:14 @14+1 variable y is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 34] [feature_set: []]
+=     VAR
+=         NAME x
+=     VAR
+=         NAME y
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+=     VAR
+=         NAME window
+## ConstCheck
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file misc.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS misc.js:2:20 @34+1 accessing name x in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS misc.js:3:31 @70+5 accessing name other in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_UNDEFINED_EXTERN_VAR_ERROR misc.js:4:21 @102+6 name Object is not defined in the externs.
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS misc.js:4:36 @117+1 accessing name o in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS misc.js:4:42 @123+3 accessing name use in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS misc.js:4:46 @127+1 accessing name k in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS misc.js:4:49 @130+1 accessing name v in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS misc.js:7:0 @174+1 accessing name x in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS misc.js:7:6 @180+1 accessing name y in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS misc.js:8:0 @183+1 accessing name x in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS misc.js:10:48 @310+4 accessing name comp in externs has no effect. Perhaps you forgot to add a var keyword?
+ERROR JSC_UNDEFINED_VARIABLE misc.js:2:20 @34+1 variable x is undeclared
+ERROR JSC_UNDEFINED_VARIABLE misc.js:3:31 @70+5 variable other is undeclared
+ERROR JSC_UNDEFINED_VARIABLE misc.js:4:21 @102+6 variable Object is undeclared
+ERROR JSC_UNDEFINED_VARIABLE misc.js:4:36 @117+1 variable o is undeclared
+ERROR JSC_UNDEFINED_VARIABLE misc.js:4:42 @123+3 variable use is undeclared
+ERROR JSC_UNDEFINED_VARIABLE misc.js:7:6 @180+1 variable y is undeclared
+ERROR JSC_UNDEFINED_VARIABLE misc.js:10:48 @310+4 variable comp is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 38] [feature_set: []]
+=     VAR
+=         NAME x
+=     VAR
+=         NAME other
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME o
+=     VAR
+=         NAME use
+=     VAR
+=         NAME y
+=     VAR
+=         NAME comp
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+=     VAR
+=         NAME window
+## ConstCheck
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file missing_return.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS missing_return.js:1:44 @44+1 accessing name x in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS missing_return.js:3:44 @147+1 accessing name x in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS missing_return.js:4:49 @226+5 accessing name Error in externs has no effect. Perhaps you forgot to add a var keyword?
+ERROR JSC_UNDEFINED_VARIABLE missing_return.js:4:49 @226+5 variable Error is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 32] [feature_set: []]
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+=     VAR
+=         NAME window
+## ConstCheck
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file parse_error.js
+## parse
+ERROR JSC_PARSE_ERROR parse_error.js:1:9 @-1+0 Parse error. primary expression expected
+# parse-errors
+# file regexp.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+WARNING JSC_UNDEFINED_EXTERN_VAR_ERROR regexp.js:2:0 @16+6 name RegExp is not defined in the externs.
+WARNING JSC_UNDEFINED_EXTERN_VAR_ERROR regexp.js:3:0 @27+6 name RegExp is not defined in the externs.
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS regexp.js:4:4 @43+6 accessing name RegExp in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS regexp.js:5:0 @56+6 accessing name RegExp in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS regexp.js:6:0 @69+1 accessing name x in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS regexp.js:6:13 @82+6 accessing name RegExp in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS regexp.js:7:0 @90+1 accessing name x in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS regexp.js:7:5 @95+6 accessing name RegExp in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS regexp.js:8:8 @111+1 accessing name x in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS regexp.js:8:18 @121+6 accessing name RegExp in externs has no effect. Perhaps you forgot to add a var keyword?
+ERROR JSC_UNDEFINED_VARIABLE regexp.js:1:8 @8+6 variable RegExp is undeclared
+ERROR JSC_UNDEFINED_VARIABLE regexp.js:6:0 @69+1 variable x is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 33] [feature_set: []]
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME x
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+=     VAR
+=         NAME window
+## ConstCheck
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file strict.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+WARNING JSC_USE_OF_WITH strict.js:1:0 @0+11 The with statement cannot be used in strict mode.
+WARNING JSC_ARGUMENTS_ASSIGNMENT strict.js:7:22 @152+13 the "arguments" object cannot be reassigned in strict mode
+WARNING JSC_EVAL_ASSIGNMENT strict.js:7:37 @167+8 the "eval" object cannot be reassigned in strict mode
+WARNING JSC_DELETE_VARIABLE strict.js:9:7 @197+8 variables, functions, and arguments cannot be deleted in strict mode
+WARNING JSC_DUPLICATE_MEMBER strict.js:12:58 @338+1 Class or object literal contains duplicate member "c". In non-strict code, the last duplicate will overwrite the others.
+WARNING JSC_DUPLICATE_MEMBER strict.js:12:58 @338+1 Class or object literal contains duplicate member "c". In non-strict code, the last duplicate will overwrite the others.
+WARNING JSC_DUPLICATE_MEMBER strict.js:12:25 @305+1 Class or object literal contains duplicate member "b". In non-strict code, the last duplicate will overwrite the others.
+WARNING JSC_DUPLICATE_MEMBER strict.js:12:9 @289+1 Class or object literal contains duplicate member "a". In non-strict code, the last duplicate will overwrite the others.
+WARNING JSC_DUPLICATE_MEMBER strict.js:12:9 @289+1 Class or object literal contains duplicate member "a". In non-strict code, the last duplicate will overwrite the others.
+WARNING JSC_DUPLICATE_MEMBER strict.js:13:53 @398+1 Class or object literal contains duplicate member "n". In non-strict code, the last duplicate will overwrite the others.
+WARNING JSC_DUPLICATE_MEMBER strict.js:13:10 @355+1 Class or object literal contains duplicate member "m". In non-strict code, the last duplicate will overwrite the others.
+WARNING JSC_DUPLICATE_MEMBER strict.js:13:10 @355+1 Class or object literal contains duplicate member "m". In non-strict code, the last duplicate will overwrite the others.
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS strict.js:1:6 @6+1 accessing name a in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS strict.js:2:30 @42+1 accessing name b in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS strict.js:6:14 @116+9 accessing name arguments in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS strict.js:7:22 @152+9 accessing name arguments in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS strict.js:7:37 @167+4 accessing name eval in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS strict.js:8:7 @187+1 accessing name x in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS strict.js:9:14 @204+1 accessing name y in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS strict.js:12:58 @338+1 accessing name c in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS strict.js:12:61 @341+1 accessing name c in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS strict.js:13:74 @419+1 accessing name x in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS strict.js:13:83 @428+1 accessing name x in externs has no effect. Perhaps you forgot to add a var keyword?
+ERROR JSC_UNDEFINED_VARIABLE strict.js:1:6 @6+1 variable a is undeclared
+ERROR JSC_UNDEFINED_VARIABLE strict.js:2:30 @42+1 variable b is undeclared
+ERROR JSC_UNDEFINED_VARIABLE strict.js:8:7 @187+1 variable x is undeclared
+ERROR JSC_UNDEFINED_VARIABLE strict.js:12:58 @338+1 variable c is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 36] [feature_set: []]
+=     VAR
+=         NAME a
+=     VAR
+=         NAME b
+=     VAR
+=         NAME x
+=     VAR
+=         NAME c
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+=     VAR
+=         NAME window
+## ConstCheck
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file super.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS super.js:18:3 @332+8 accessing name computed in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS super.js:21:43 @422+1 accessing name f in externs has no effect. Perhaps you forgot to add a var keyword?
+ERROR JSC_UNDEFINED_VARIABLE super.js:18:3 @332+8 variable computed is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 33] [feature_set: []]
+=     VAR
+=         NAME computed
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+=     VAR
+=         NAME window
+## ConstCheck
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file suspicious.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS suspicious.js:1:4 @4+1 accessing name x in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS suspicious.js:1:8 @8+3 accessing name act in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS suspicious.js:2:4 @19+1 accessing name x in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS suspicious.js:3:7 @38+1 accessing name x in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS suspicious.js:5:14 @66+1 accessing name o in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS suspicious.js:6:14 @84+1 accessing name o in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS suspicious.js:7:42 @130+1 accessing name o in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS suspicious.js:8:4 @140+1 accessing name x in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS suspicious.js:8:9 @145+3 accessing name NaN in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS suspicious.js:9:4 @157+3 accessing name NaN in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS suspicious.js:9:12 @165+1 accessing name y in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS suspicious.js:10:4 @175+1 accessing name x in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_UNDEFINED_EXTERN_VAR_ERROR suspicious.js:10:8 @179+6 name Number is not defined in the externs.
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS suspicious.js:12:17 @228+6 accessing name Object in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS suspicious.js:13:19 @258+1 accessing name o in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS suspicious.js:14:5 @269+1 accessing name x in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS suspicious.js:14:10 @274+1 accessing name o in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS suspicious.js:15:17 @297+1 accessing name f in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS suspicious.js:16:14 @316+1 accessing name f in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS suspicious.js:17:10 @331+1 accessing name a in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS suspicious.js:17:24 @345+1 accessing name b in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS suspicious.js:18:10 @358+1 accessing name x in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS suspicious.js:18:24 @372+1 accessing name y in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS suspicious.js:19:26 @401+1 accessing name y in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS suspicious.js:20:16 @420+1 accessing name y in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS suspicious.js:21:10 @433+1 accessing name a in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS suspicious.js:22:10 @452+1 accessing name a in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS suspicious.js:23:10 @471+1 accessing name a in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS suspicious.js:23:14 @475+1 accessing name b in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS suspicious.js:23:18 @479+1 accessing name c in externs has no effect. Perhaps you forgot to add a var keyword?
+ERROR JSC_UNDEFINED_VARIABLE suspicious.js:1:4 @4+1 variable x is undeclared
+ERROR JSC_UNDEFINED_VARIABLE suspicious.js:1:8 @8+3 variable act is undeclared
+ERROR JSC_UNDEFINED_VARIABLE suspicious.js:5:14 @66+1 variable o is undeclared
+ERROR JSC_UNDEFINED_VARIABLE suspicious.js:8:9 @145+3 variable NaN is undeclared
+ERROR JSC_UNDEFINED_VARIABLE suspicious.js:9:12 @165+1 variable y is undeclared
+ERROR JSC_UNDEFINED_VARIABLE suspicious.js:10:8 @179+6 variable Number is undeclared
+ERROR JSC_UNDEFINED_VARIABLE suspicious.js:12:17 @228+6 variable Object is undeclared
+ERROR JSC_UNDEFINED_VARIABLE suspicious.js:15:17 @297+1 variable f is undeclared
+ERROR JSC_UNDEFINED_VARIABLE suspicious.js:17:10 @331+1 variable a is undeclared
+ERROR JSC_UNDEFINED_VARIABLE suspicious.js:17:24 @345+1 variable b is undeclared
+ERROR JSC_UNDEFINED_VARIABLE suspicious.js:23:18 @479+1 variable c is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 40] [feature_set: []]
+=     VAR
+=         NAME x
+=     VAR
+=         NAME act
+=     VAR
+=         NAME o
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME y
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME f
+=     VAR
+=         NAME a
+=     VAR
+=         NAME b
+=     VAR
+=         NAME c
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+=     VAR
+=         NAME window
+## ConstCheck
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file type_import.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+WARNING JSC_UNDEFINED_EXTERN_VAR_ERROR type_import.js:1:0 @0+4 name goog is not defined in the externs.
+WARNING JSC_UNDEFINED_EXTERN_VAR_ERROR type_import.js:2:12 @30+4 name goog is not defined in the externs.
+WARNING JSC_UNDEFINED_EXTERN_VAR_ERROR type_import.js:3:14 @71+4 name goog is not defined in the externs.
+WARNING JSC_UNDEFINED_EXTERN_VAR_ERROR type_import.js:4:12 @110+4 name goog is not defined in the externs.
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS type_import.js:6:4 @163+3 accessing name Foo in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS type_import.js:9:25 @209+3 accessing name Foo in externs has no effect. Perhaps you forgot to add a var keyword?
+ERROR JSC_UNDEFINED_VARIABLE type_import.js:1:0 @0+4 variable goog is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 33] [feature_set: []]
+=     VAR
+=         NAME goog
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+=     VAR
+=         NAME window
+## ConstCheck
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file typeof_dup.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 32] [feature_set: []]
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+=     VAR
+=         NAME window
+## ConstCheck
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file unreachable.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS unreachable.js:2:24 @60+3 accessing name foo in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS unreachable.js:3:31 @100+3 accessing name bar in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS unreachable.js:4:28 @137+3 accessing name baz in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS unreachable.js:5:35 @183+3 accessing name qux in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS unreachable.js:6:47 @239+4 accessing name quux in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS unreachable.js:8:23 @301+1 accessing name x in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS unreachable.js:9:41 @374+7 accessing name cleanup in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS unreachable.js:9:54 @387+5 accessing name after in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS unreachable.js:10:41 @439+5 accessing name other in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS unreachable.js:11:28 @480+4 accessing name dead in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS unreachable.js:12:23 @514+1 accessing name x in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS unreachable.js:12:39 @530+5 accessing name after in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS unreachable.js:12:64 @555+4 accessing name dead in externs has no effect. Perhaps you forgot to add a var keyword?
+ERROR JSC_UNDEFINED_VARIABLE unreachable.js:2:24 @60+3 variable foo is undeclared
+ERROR JSC_UNDEFINED_VARIABLE unreachable.js:3:31 @100+3 variable bar is undeclared
+ERROR JSC_UNDEFINED_VARIABLE unreachable.js:4:28 @137+3 variable baz is undeclared
+ERROR JSC_UNDEFINED_VARIABLE unreachable.js:5:35 @183+3 variable qux is undeclared
+ERROR JSC_UNDEFINED_VARIABLE unreachable.js:6:47 @239+4 variable quux is undeclared
+ERROR JSC_UNDEFINED_VARIABLE unreachable.js:8:23 @301+1 variable x is undeclared
+ERROR JSC_UNDEFINED_VARIABLE unreachable.js:9:41 @374+7 variable cleanup is undeclared
+ERROR JSC_UNDEFINED_VARIABLE unreachable.js:9:54 @387+5 variable after is undeclared
+ERROR JSC_UNDEFINED_VARIABLE unreachable.js:10:41 @439+5 variable other is undeclared
+ERROR JSC_UNDEFINED_VARIABLE unreachable.js:11:28 @480+4 variable dead is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 42] [feature_set: []]
+=     VAR
+=         NAME foo
+=     VAR
+=         NAME bar
+=     VAR
+=         NAME baz
+=     VAR
+=         NAME qux
+=     VAR
+=         NAME quux
+=     VAR
+=         NAME x
+=     VAR
+=         NAME cleanup
+=     VAR
+=         NAME after
+=     VAR
+=         NAME other
+=     VAR
+=         NAME dead
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+=     VAR
+=         NAME window
+## ConstCheck
+## VarCheckValidity
+## ForbidDynamicImportUsage
+# file vars.js
+## parse
+## CheckDebuggerStatement
+## CheckGlobalThis
+## CheckSuspiciousCode
+## CheckRegExp
+= globalRegExpPropertiesUsed=false
+## CheckSuper
+## CheckTypeImportCodeReferences
+## StrictModeCheck
+## SourceInfoCheck
+## CheckUnreachableCode
+## CheckMissingReturn
+## J2clChecksPass
+## VarCheck
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS vars.js:1:0 @0+1 accessing name x in externs has no effect. Perhaps you forgot to add a var keyword?
+ERROR JSC_VAR_MULTIPLY_DECLARED_ERROR vars.js:6:11 @124+1 Variable c declared more than once. First occurrence: vars.js:6:4
+ERROR JSC_BLOCK_SCOPED_DECL_MULTIPLY_DECLARED_ERROR vars.js:7:11 @138+1 Block-scoped variable d declared more than once. First occurrence: vars.js:7:4
+ERROR JSC_VAR_MULTIPLY_DECLARED_ERROR vars.js:8:25 @166+1 Variable e declared more than once. First occurrence: vars.js:8:9
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS vars.js:3:22 @40+1 accessing name w in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS vars.js:4:11 @56+10 accessing name undeclared in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS vars.js:11:9 @239+3 accessing name FOO in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS vars.js:11:18 @248+3 accessing name BAR in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS vars.js:11:27 @257+3 accessing name BAR in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS vars.js:13:11 @316+1 accessing name y in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS vars.js:14:20 @340+6 accessing name spread in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS vars.js:16:20 @399+5 accessing name named in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS vars.js:17:37 @451+5 accessing name Inner in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS vars.js:18:14 @477+3 accessing name err in externs has no effect. Perhaps you forgot to add a var keyword?
+WARNING JSC_NAME_REFERENCE_IN_EXTERNS vars.js:18:36 @499+3 accessing name err in externs has no effect. Perhaps you forgot to add a var keyword?
+ERROR JSC_VAR_MULTIPLY_DECLARED_ERROR vars.js:6:11 @124+1 Variable c declared more than once. First occurrence: vars.js:6:4
+ERROR JSC_BLOCK_SCOPED_DECL_MULTIPLY_DECLARED_ERROR vars.js:7:11 @138+1 Block-scoped variable d declared more than once. First occurrence: vars.js:7:4
+ERROR JSC_VAR_MULTIPLY_DECLARED_ERROR vars.js:8:25 @166+1 Variable e declared more than once. First occurrence: vars.js:8:9
+ERROR JSC_UNDEFINED_VARIABLE vars.js:1:0 @0+1 variable x is undeclared
+ERROR JSC_UNDEFINED_VARIABLE vars.js:2:8 @15+1 variable z is undeclared
+ERROR JSC_UNDEFINED_VARIABLE vars.js:3:22 @40+1 variable w is undeclared
+ERROR JSC_UNDEFINED_VARIABLE vars.js:5:23 @110+1 variable a is undeclared
+ERROR JSC_UNDEFINED_VARIABLE vars.js:11:18 @248+3 variable BAR is undeclared
+ERROR JSC_UNDEFINED_VARIABLE vars.js:14:20 @340+6 variable spread is undeclared
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 39] [feature_set: []]
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME z
+=     VAR [synthesized_unfulfilled_name_declaration: 1]
+=         NAME a
+=     VAR
+=         NAME x
+=     VAR
+=         NAME w
+=     VAR
+=         NAME undeclared
+=     VAR
+=         NAME BAR [is_constant_name: 1]
+=     VAR
+=         NAME spread
+=     VAR
+=         NAME AggregateError
+=     VAR
+=         NAME Array
+=     VAR
+=         NAME Error
+=     VAR
+=         NAME Float32Array
+=     VAR
+=         NAME Function
+=     VAR
+=         NAME Infinity
+=     VAR
+=         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
+=     VAR
+=         NAME JSCompiler_renameProperty
+=     VAR
+=         NAME Map
+=     VAR
+=         NAME Math
+=     VAR
+=         NAME NaN
+=     VAR
+=         NAME Number
+=     VAR
+=         NAME Object
+=     VAR
+=         NAME Promise
+=     VAR
+=         NAME RangeError
+=     VAR
+=         NAME ReferenceError
+=     VAR
+=         NAME Reflect
+=     VAR
+=         NAME RegExp
+=     VAR
+=         NAME Set
+=     VAR
+=         NAME String
+=     VAR
+=         NAME SuppressedError
+=     VAR
+=         NAME Symbol
+=     VAR
+=         NAME TypeError
+=     VAR
+=         NAME WeakMap
+=     VAR
+=         NAME global
+=     VAR
+=         NAME globalThis
+=     VAR
+=         NAME isNaN
+=     VAR
+=         NAME parseFloat
+=     VAR
+=         NAME parseInt
+=     VAR
+=         NAME self
+=     VAR
+=         NAME undefined
+=     VAR
+=         NAME window
+## ConstCheck
+WARNING JSC_CONSTANT_REASSIGNED_VALUE_ERROR vars.js:11:27 @257+7 constant BAR assigned a value more than once.\u000aOriginal definition at null:-1
+## VarCheckValidity
+## ForbidDynamicImportUsage

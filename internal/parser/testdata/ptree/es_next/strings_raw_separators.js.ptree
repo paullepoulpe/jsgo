@@ -1,0 +1,35 @@
+# config atLeast6=true atLeast8=true isStrictMode=true warnTrailingCommas=false
+# diagnostics
+# features "[Unescaped unicode line or paragraph separator]"
+# sourceMapURL null
+# comments
+[]
+# tree
+ProgramTree PROGRAM 0:0@0-4:0@34
+ sourceComments=[]
+ sourceElements=[2]
+  VariableStatementTree VARIABLE_STATEMENT 0:0@0-2:3@18
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 0:0@0-2:2@17
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 0:4@4-2:2@17
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 0:10@10-2:2@17
+       literalToken=StringLiteralToken STRING 0:10@10-2:2@17
+        hasUnescapedUnicodeLineOrParagraphSeparator=true
+        value="\"a\u2028b\u2029c\""
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 0:4@4-0:7@7
+       identifierToken=IdentifierToken IDENTIFIER 0:4@4-0:7@7
+        privateIdentifier=false
+        value="raw"
+  VariableStatementTree VARIABLE_STATEMENT 3:0@19-3:14@33
+   declarations=VariableDeclarationListTree VARIABLE_DECLARATION_LIST 3:0@19-3:13@32
+    declarationType=VAR
+    declarations=[1]
+     VariableDeclarationTree VARIABLE_DECLARATION 3:4@23-3:13@32
+      initializer=LiteralExpressionTree LITERAL_EXPRESSION 3:12@31-3:13@32
+       literalToken=LiteralToken NUMBER 3:12@31-3:13@32
+        value="1"
+      lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 3:4@23-3:9@28
+       identifierToken=IdentifierToken IDENTIFIER 3:4@23-3:9@28
+        privateIdentifier=false
+        value="after"

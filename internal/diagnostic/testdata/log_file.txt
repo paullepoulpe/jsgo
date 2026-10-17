@@ -1,0 +1,48 @@
+=== writing
+createOrReopen -> ok
+isLogging -> true
+log(String) -> ok
+log(Object) -> ok
+log(Object null) -> java.lang.NullPointerException: Cannot invoke "Object.toString()" because "value" is null
+log(Supplier) -> ok
+log(template) -> ok
+logJson(Object) -> ok
+logJson(Supplier) -> ok
+log high -> ok
+log low -> ok
+log lone -> ok
+log lone low -> ok
+close -> void
+close again -> void
+log after close -> java.lang.RuntimeException: java.io.IOException: Stream closed / cause java.io.IOException: Stream closed
+bytes 706c61696e203c263e20c3a920f09f98800a5b312c20785d0a737570706c6965640a782d332d6e756c6c0a7b226b223a5b225c7530303363765c7530303365225d7d0a22735c7532303238220a68693f0a3f6c6f0a6c6f6e653f210a3f0a
+=== reopen appends
+createOrReopen -> ok
+log(String) -> ok
+close -> void
+bytes 706c61696e203c263e20c3a920f09f98800a5b312c20785d0a737570706c6965640a782d332d6e756c6c0a7b226b223a5b225c7530303363765c7530303365225d7d0a22735c7532303238220a68693f0a3f6c6f0a6c6f6e653f210a3f0a7365636f6e640a
+=== streamed json
+createOrReopen -> ok
+log(String) -> ok
+logJson(producer) -> ok
+log after producer -> java.lang.RuntimeException: java.io.IOException: Stream closed / cause java.io.IOException: Stream closed
+close -> void
+bytes 6265666f72650a7b22613c223a5b312c223c783e222c6e756c6c5d2c226e223a6e756c6c7d
+=== incomplete streamed json
+createOrReopen -> ok
+logJson(producer) -> java.lang.AssertionError: java.io.IOException: Incomplete document / cause java.io.IOException: Incomplete document
+bytes 5b74727565
+=== throwing producer
+createOrReopen -> ok
+logJson(producer) -> java.lang.IllegalStateException: boom
+bytes 5b
+=== bad paths
+relative file without parent -> java.lang.NullPointerException: Cannot invoke "java.nio.file.Path.getFileSystem()" because "path" is null
+parent is a file -> java.lang.RuntimeException: java.nio.file.FileAlreadyExistsException: <tmp>/afile / cause java.nio.file.FileAlreadyExistsException: <tmp>/afile
+file is a directory -> java.lang.RuntimeException: java.nio.file.FileSystemException: <tmp>/adir: Is a directory / cause java.nio.file.FileSystemException: <tmp>/adir: Is a directory
+=== no-op
+createNoOp -> ok
+isLogging -> false
+log(Object null) -> ok
+logJson(producer) -> ok
+close -> void

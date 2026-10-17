@@ -1,0 +1,1 @@
+var foo = goog.bar; var obj = {[x => x + foo]: baz};

@@ -1,0 +1,1 @@
+goog.module('x.y.z'); exports = class {};

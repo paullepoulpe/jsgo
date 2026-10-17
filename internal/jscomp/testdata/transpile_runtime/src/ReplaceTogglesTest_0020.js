@@ -1,0 +1,2 @@
+var CLOSURE_TOGGLE_ORDINALS = {x: 1, y: 2};
+var CLOSURE_TOGGLE_ORDINALS = {x: 1, y: 2};

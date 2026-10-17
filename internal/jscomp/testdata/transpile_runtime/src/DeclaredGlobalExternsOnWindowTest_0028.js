@@ -1,0 +1,1 @@
+/** @enum {string} */ var Enum = {FOO: 'foo', BAR: 'bar'};

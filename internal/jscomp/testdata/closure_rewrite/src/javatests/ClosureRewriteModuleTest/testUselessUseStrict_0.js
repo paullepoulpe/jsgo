@@ -1,0 +1,1 @@
+'use strict'; goog.module('b.c.c');

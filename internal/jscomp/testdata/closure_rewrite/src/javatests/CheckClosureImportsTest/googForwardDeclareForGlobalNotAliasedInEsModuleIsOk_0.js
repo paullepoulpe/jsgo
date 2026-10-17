@@ -1,0 +1,2 @@
+export {};
+goog.forwardDeclare('MyGlobal');

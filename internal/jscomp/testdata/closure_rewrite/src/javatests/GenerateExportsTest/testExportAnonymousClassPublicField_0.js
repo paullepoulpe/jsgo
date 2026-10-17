@@ -1,0 +1,1 @@
+foo(class { /** @export */ x = 4; });

@@ -1,0 +1,1 @@
+goog.format.NUMERIC_SCALES_BINARY_ = {'': 1};

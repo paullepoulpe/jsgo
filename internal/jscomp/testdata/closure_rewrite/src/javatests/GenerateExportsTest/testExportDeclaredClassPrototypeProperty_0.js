@@ -1,0 +1,1 @@
+class Foo {} /** @export */ Foo.prototype.x = 3;

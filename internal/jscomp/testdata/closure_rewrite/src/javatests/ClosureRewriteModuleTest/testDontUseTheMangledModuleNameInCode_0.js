@@ -1,0 +1,1 @@
+/** @const */ var module$exports$modA = class {};

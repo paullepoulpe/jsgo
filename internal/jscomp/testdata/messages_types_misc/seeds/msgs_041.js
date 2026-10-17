@@ -1,0 +1,1 @@
+var MSG_FOO_HELP = 'I am a bad message';

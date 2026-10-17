@@ -1,0 +1,1 @@
+ns.name = goog.define('ns.name', 1);

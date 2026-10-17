@@ -1,0 +1,1 @@
+({MSG_FOO: MSG_FOO_ALIAS} = {/** @desc Foo */ MSG_FOO: goog.getMsg('Foo')});

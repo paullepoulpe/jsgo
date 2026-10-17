@@ -1,0 +1,1 @@
+/** @define {boolean} */var DEF=true; if (false) {var x=DEF} DEF=false;

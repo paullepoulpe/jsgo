@@ -1,0 +1,1 @@
+const five = goog.define('FOO', 5, 6);

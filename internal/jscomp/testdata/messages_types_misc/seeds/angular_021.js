@@ -1,0 +1,1 @@
+/** @ngInject */ var a = 10

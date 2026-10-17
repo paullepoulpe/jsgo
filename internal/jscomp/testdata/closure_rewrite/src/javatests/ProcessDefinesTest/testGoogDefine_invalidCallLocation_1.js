@@ -1,0 +1,1 @@
+/** @define {number} */ goog.define('name', 1);

@@ -1,0 +1,54 @@
+{
+  "set": "holdout",
+  "description": "Held-out corpus: axios 1.20.0 (lib/, ES modules whose Node adapter imports Node built-ins), highlight.js 11.12.0 (lib/ CommonJS with every language, and es/, ES modules over it), ajv 8.20.0 (dist/, compiled TypeScript CommonJS with missing dependencies) and monaco-editor 0.57.0 (esm/vs/base, ES modules).",
+  "links": {
+    "node_modules/axios/lib": "cache:corpus-holdout/axios@1.20.0/package/lib",
+    "node_modules/highlight.js/lib": "cache:corpus-holdout/highlight.js@11.12.0/package/lib",
+    "node_modules/highlight.js/es": "cache:corpus-holdout/highlight.js@11.12.0/package/es",
+    "node_modules/ajv/dist": "cache:corpus-holdout/ajv@8.20.0/package/dist",
+    "monaco/vs/base": "cache:corpus-holdout/monaco-editor@0.57.0/package/esm/vs/base"
+  },
+  "jobs": [
+    {
+      "name": "axios-simple",
+      "inputs": [{"glob": "node_modules/axios/lib/**/*.js"}],
+      "args": ["--module_resolution=NODE", "--dependency_mode=PRUNE", "--entry_point=node_modules/axios/lib/axios.js",
+               "--compilation_level=SIMPLE", "--js_output_file=out/axios.js"]
+    },
+    {
+      "name": "axios-advanced-lax",
+      "inputs": [{"glob": "node_modules/axios/lib/**/*.js"}],
+      "args": ["--module_resolution=NODE", "--dependency_mode=PRUNE", "--entry_point=node_modules/axios/lib/axios.js",
+               "--jscomp_off=moduleLoad", "--compilation_level=ADVANCED", "--js_output_file=out/axios.js",
+               "--create_source_map=out/axios.js.map"]
+    },
+    {
+      "name": "highlight-cjs-simple",
+      "inputs": [{"glob": "node_modules/highlight.js/lib/**/*.js"}],
+      "args": ["--module_resolution=NODE", "--process_common_js_modules", "--dependency_mode=PRUNE",
+               "--entry_point=node_modules/highlight.js/lib/index.js", "--compilation_level=SIMPLE",
+               "--js_output_file=out/hljs.js"]
+    },
+    {
+      "name": "highlight-esm-advanced",
+      "inputs": [{"glob": "node_modules/highlight.js/lib/**/*.js"}, {"glob": "node_modules/highlight.js/es/**/*.js"}],
+      "args": ["--module_resolution=NODE", "--process_common_js_modules", "--dependency_mode=PRUNE",
+               "--entry_point=node_modules/highlight.js/es/common.js", "--compilation_level=ADVANCED",
+               "--js_output_file=out/hljs.js", "--create_source_map=out/hljs.js.map"]
+    },
+    {
+      "name": "ajv-cjs-simple",
+      "inputs": [{"glob": "node_modules/ajv/dist/**/*.js"}],
+      "args": ["--module_resolution=NODE", "--process_common_js_modules", "--dependency_mode=PRUNE",
+               "--entry_point=node_modules/ajv/dist/ajv.js", "--compilation_level=SIMPLE",
+               "--js_output_file=out/ajv.js"]
+    },
+    {
+      "name": "monaco-base-simple",
+      "inputs": [{"glob": "monaco/vs/base/common/**/*.js"}],
+      "args": ["--dependency_mode=PRUNE", "--entry_point=monaco/vs/base/common/strings.js",
+               "--entry_point=monaco/vs/base/common/event.js", "--compilation_level=SIMPLE",
+               "--js_output_file=out/base.js", "--create_source_map=out/base.js.map"]
+    }
+  ]
+}

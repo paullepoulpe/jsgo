@@ -1,0 +1,1 @@
+let Formatter = class extends goog.debug.Formatter {}

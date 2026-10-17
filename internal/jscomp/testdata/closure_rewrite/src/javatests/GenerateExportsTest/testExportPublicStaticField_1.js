@@ -1,0 +1,1 @@
+class G { /** @export */ static x = 3; } goog.exportSymbol('G.x', G.x);

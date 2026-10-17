@@ -1,0 +1,1 @@
+var name = goog.define('name', 1);

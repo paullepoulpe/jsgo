@@ -1,0 +1,5 @@
+var a = {};
+var a$b = function() {};
+a$b.prototype = {
+  ['logger']: null
+}

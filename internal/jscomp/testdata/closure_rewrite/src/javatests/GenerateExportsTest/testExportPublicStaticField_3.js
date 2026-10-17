@@ -1,0 +1,1 @@
+const G = class { /** @export */ static x; }; goog.exportSymbol('G.x', G.x);

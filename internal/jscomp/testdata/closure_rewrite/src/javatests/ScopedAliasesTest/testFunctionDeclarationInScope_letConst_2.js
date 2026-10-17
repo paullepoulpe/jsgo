@@ -1,0 +1,1 @@
+var baz = goog.bar; const foo = function() {return baz;};

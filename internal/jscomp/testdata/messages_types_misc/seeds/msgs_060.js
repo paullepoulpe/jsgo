@@ -1,0 +1,1 @@
+Message parse tree malformed. Message must be initialized using a call to goog.getMsg or declareIcuTemplate (from goog.i18n.messages).

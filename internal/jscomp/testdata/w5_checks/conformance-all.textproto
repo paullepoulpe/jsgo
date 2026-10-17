@@ -1,0 +1,318 @@
+# Hand-written conformance config of the w5-checks oracle
+# (tools/oracle/java/W5ChecksDump.java, internal/jscomp/w5_checks_oracle_test.go):
+# every Requirement.Type and every public rule class of ConformanceRules, with
+# allowlists (prefixes, regexps, entries), only_apply_to, rule_id/extends,
+# severities, type-matching strategies and a few invalid requirements. The
+# noisiest type-based rules only apply to the Closure Library and to the
+# hand-written sources (w5/).
+
+requirement: {
+  rule_id: 'w5:banned_name'
+  type: BANNED_NAME
+  value: 'eval'
+  value: 'goog.dom.getElement'
+  value: 'goog.global'
+  error_message: 'BANNED_NAME'
+  allow_extending_value: true
+  allowlist: 'lodash@4.17.21/'
+  allowlist_regexp: '.*\\.min\\.js$'
+  allowlist_entry: {
+    reason: LEGACY
+    prefix: 'w5/conformance/legacy/'
+    regexp: 'jquery@.*'
+    explanation: 'legacy code'
+  }
+}
+
+requirement: {
+  extends: 'w5:banned_name'
+  value: 'goog.isDef'
+  allowlist: 'underscore@1.13.8/'
+}
+
+requirement: {
+  type: BANNED_NAME_CALL
+  value: 'setTimeout'
+  value: 'alert'
+  error_message: 'BANNED_NAME_CALL'
+  severity: ERROR
+}
+
+requirement: {
+  type: BANNED_PROPERTY
+  value: 'Arguments.prototype.callee'
+  value: 'Arguments.prototype.caller'
+  error_message: 'BANNED_PROPERTY'
+}
+
+requirement: {
+  type: BANNED_PROPERTY
+  value: 'Array.prototype.forEach'
+  error_message: 'BANNED_PROPERTY forEach'
+  type_matching_strategy: STRICT_NULLABILITY
+  only_apply_to: 'google-closure-library@20230802.0.0/'
+  only_apply_to: 'w5/'
+}
+
+requirement: {
+  type: BANNED_PROPERTY_READ
+  value: 'Location.prototype.href'
+  value: 'Error.prototype.stack'
+  error_message: 'BANNED_PROPERTY_READ'
+  report_loose_type_violations: false
+}
+
+requirement: {
+  type: BANNED_PROPERTY_WRITE
+  value: 'Element.prototype.innerHTML'
+  error_message: 'BANNED_PROPERTY_WRITE'
+  type_matching_strategy: SUBTYPES
+}
+
+requirement: {
+  type: BANNED_PROPERTY_NON_CONSTANT_WRITE
+  value: 'Element.prototype.outerHTML'
+  error_message: 'BANNED_PROPERTY_NON_CONSTANT_WRITE'
+}
+
+requirement: {
+  type: BANNED_PROPERTY_CALL
+  value: 'Document.prototype.write'
+  value: 'Object.prototype.hasOwnProperty'
+  error_message: 'BANNED_PROPERTY_CALL'
+  report_loose_type_violations: false
+  type_matching_strategy: EXACT
+}
+
+requirement: {
+  type: RESTRICTED_NAME_CALL
+  value: 'parseInt:function(string, number)'
+  error_message: 'RESTRICTED_NAME_CALL'
+}
+
+requirement: {
+  type: RESTRICTED_METHOD_CALL
+  value: 'Array.prototype.slice:function(this:Array, number=, number=)'
+  error_message: 'RESTRICTED_METHOD_CALL'
+  only_apply_to_regexp: '^(google-closure-library@[^/]*|w5)/'
+}
+
+requirement: {
+  type: RESTRICTED_PROPERTY_WRITE
+  value: 'Element.prototype.innerHTML:string'
+  error_message: 'RESTRICTED_PROPERTY_WRITE'
+}
+
+requirement: {
+  type: BANNED_CODE_PATTERN
+  value: '/** @param {string|String} a */function template(a) {a.blink}'
+  value: '/** @param {*} a */function template(a) {typeof a == "undefined"}'
+  error_message: 'BANNED_CODE_PATTERN'
+}
+
+requirement: {
+  type: BANNED_STRING_REGEX
+  value: '.*javascript:.*'
+  value: '[0-9]{4}-[0-9]{2}-[0-9]{2}'
+  error_message: 'BANNED_STRING_REGEX'
+}
+
+requirement: {
+  type: BANNED_DEPENDENCY
+  value: 'test262-parser-tests@0.0.5/package/early/'
+  value: 'w5/conformance/banned/'
+  error_message: 'BANNED_DEPENDENCY'
+}
+
+requirement: {
+  type: BANNED_DEPENDENCY_REGEX
+  value: '.*/fail/.*'
+  error_message: 'BANNED_DEPENDENCY_REGEX'
+}
+
+requirement: {
+  type: BANNED_ENHANCE
+  value: '{goog.foo}'
+  error_message: 'BANNED_ENHANCE'
+}
+
+requirement: {
+  type: BANNED_MODS_REGEX
+  value: '.+_bar$'
+  error_message: 'BANNED_MODS_REGEX'
+}
+
+requirement: {
+  type: NO_OP
+  error_message: 'NO_OP'
+}
+
+requirement: {
+  type: CUSTOM
+  java_class: 'com.google.javascript.jscomp.ConformanceRules$BanForOf'
+  error_message: 'BanForOf'
+}
+
+requirement: {
+  type: CUSTOM
+  java_class: 'com.google.javascript.jscomp.ConformanceRules$RequireUseStrict'
+  error_message: 'RequireUseStrict'
+  only_apply_to: 'underscore@1.13.8/'
+  only_apply_to: 'w5/'
+}
+
+requirement: {
+  type: CUSTOM
+  java_class: 'com.google.javascript.jscomp.ConformanceRules$BanThrowOfNonErrorTypes'
+  error_message: 'BanThrowOfNonErrorTypes'
+  severity: ERROR
+}
+
+requirement: {
+  type: CUSTOM
+  java_class: 'com.google.javascript.jscomp.ConformanceRules$BanNullDeref'
+  error_message: 'BanNullDeref'
+  only_apply_to: 'google-closure-library@20230802.0.0/'
+  only_apply_to: 'w5/'
+}
+
+requirement: {
+  type: CUSTOM
+  java_class: 'com.google.javascript.jscomp.ConformanceRules$BanUnknownThis'
+  error_message: 'BanUnknownThis'
+  only_apply_to: 'google-closure-library@20230802.0.0/'
+  only_apply_to: 'w5/'
+}
+
+requirement: {
+  type: CUSTOM
+  java_class: 'com.google.javascript.jscomp.ConformanceRules$BanUnknownDirectThisPropsReferences'
+  error_message: 'BanUnknownDirectThisPropsReferences'
+  only_apply_to: 'google-closure-library@20230802.0.0/'
+  only_apply_to: 'w5/'
+}
+
+requirement: {
+  type: CUSTOM
+  java_class: 'com.google.javascript.jscomp.ConformanceRules$BanNonLiteralArgsToGoogStringConstFrom'
+  error_message: 'BanNonLiteralArgsToGoogStringConstFrom'
+}
+
+requirement: {
+  type: CUSTOM
+  java_class: 'com.google.javascript.jscomp.ConformanceRules$BanUnknownTypedClassPropsReferences'
+  error_message: 'BanUnknownTypedClassPropsReferences'
+  only_apply_to: 'google-closure-library@20230802.0.0/'
+  only_apply_to: 'w5/'
+}
+
+requirement: {
+  type: CUSTOM
+  java_class: 'com.google.javascript.jscomp.ConformanceRules$BanUnresolvedType'
+  error_message: 'BanUnresolvedType'
+  only_apply_to: 'google-closure-library@20230802.0.0/'
+  only_apply_to: 'w5/'
+}
+
+requirement: {
+  type: CUSTOM
+  java_class: 'com.google.javascript.jscomp.ConformanceRules$StrictBanUnresolvedType'
+  error_message: 'StrictBanUnresolvedType'
+  only_apply_to: 'google-closure-library@20230802.0.0/'
+  only_apply_to: 'w5/'
+}
+
+requirement: {
+  type: CUSTOM
+  java_class: 'com.google.javascript.jscomp.ConformanceRules$BanGlobalVars'
+  value: 'goog'
+  error_message: 'BanGlobalVars'
+  only_apply_to: 'google-closure-library@20230802.0.0/'
+  only_apply_to: 'w5/'
+}
+
+requirement: {
+  type: CUSTOM
+  java_class: 'com.google.javascript.jscomp.ConformanceRules$BannedEnhance'
+  value: '{goog.bar}'
+  error_message: 'BannedEnhance class'
+}
+
+requirement: {
+  type: CUSTOM
+  java_class: 'com.google.javascript.jscomp.ConformanceRules$BannedModsRegex'
+  value: '^w5\\..*'
+  error_message: 'BannedModsRegex class'
+}
+
+requirement: {
+  type: CUSTOM
+  java_class: 'com.google.javascript.jscomp.ConformanceRules$BanCreateElement'
+  value: 'script'
+  value: 'iframe'
+  error_message: 'BanCreateElement'
+}
+
+requirement: {
+  type: CUSTOM
+  java_class: 'com.google.javascript.jscomp.ConformanceRules$BanCreateDom'
+  value: 'iframe.src'
+  value: 'div.class'
+  value: 'script.*'
+  error_message: 'BanCreateDom'
+}
+
+requirement: {
+  type: CUSTOM
+  java_class: 'com.google.javascript.jscomp.ConformanceRules$BanElementSetAttribute'
+  value: 'src'
+  value: 'HREF'
+  report_loose_type_violations: false
+  error_message: 'BanElementSetAttribute'
+}
+
+requirement: {
+  type: CUSTOM
+  java_class: 'com.google.javascript.jscomp.ConformanceRules$BanSettingAttributes'
+  value: 'Element.prototype.attr'
+  error_message: 'BanSettingAttributes'
+}
+
+requirement: {
+  type: CUSTOM
+  java_class: 'com.google.javascript.jscomp.ConformanceRules$BanExecCommand'
+  value: 'insertHTML'
+  error_message: 'BanExecCommand'
+}
+
+requirement: {
+  type: CUSTOM
+  java_class: 'com.google.javascript.jscomp.ConformanceRules$BanStaticThis'
+  error_message: 'BanStaticThis'
+}
+
+requirement: {
+  type: CUSTOM
+  java_class: 'com.google.javascript.jscomp.ConformanceRules$InferredConstCheck'
+  error_message: 'InferredConstCheck'
+  only_apply_to: 'google-closure-library@20230802.0.0/'
+  only_apply_to: 'w5/'
+}
+
+# Invalid requirements (reported as JSC_CONFORMANCE_ERROR / invalid specs).
+requirement: {
+  type: CUSTOM
+  java_class: 'com.google.javascript.jscomp.ConformanceRules$NoSuchRule'
+  error_message: 'missing class'
+}
+
+requirement: {
+  type: BANNED_NAME
+  error_message: 'no value'
+}
+
+requirement: {
+  type: BANNED_PROPERTY
+  value: 'NoDotsHere'
+  error_message: 'bad property'
+}

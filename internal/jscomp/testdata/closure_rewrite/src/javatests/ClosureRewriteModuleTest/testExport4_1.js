@@ -1,0 +1,1 @@
+/** @const */ var module$exports$ns$a = { /** @const */ something : 1 };

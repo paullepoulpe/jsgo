@@ -1,83 +1,120 @@
 // Port of com/google/javascript/rhino/NominalTypeBuilder.java @ closure-compiler v20260415
-//
-// NominalTypeBuilder depends on FunctionType and ObjectType from
-// com.google.javascript.rhino.jstype. Because the Go jstype package imports
-// the rhino package (for Node references), importing jstype here would create
-// an import cycle. The constructor and instance fields are therefore typed as
-// any; callers in the jscomp layer perform type assertions to the concrete
-// jstype types at the use-site.
+
+/*
+ *
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Rhino code, released
+ * May 6, 1999.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1997-1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Ben Lickly
+ *   Dimitris Vardoulakis
+ *
+ * This Go translation is distributed under the MPL 1.1 only, as the
+ * original's dual licence allows; the other licence it offers is not
+ * used.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 package rhino
 
-// NominalTypeBuilder is a builder for declaring properties on class-like
-// (nominal) types. Nominal types consist primarily of three separate object
-// types which may each have their own properties declared on them separately:
-// (1) the constructor function, (2) the instance type, and (3) the prototype
-// object.
+// NominalTypeBuilder is the builder interface for declaring properties on
+// class-like (nominal) types. Nominal types consist primarily of three
+// separate object types, which may each have their own properties declared
+// on them separately: (1) the constructor function, (2) the instance type,
+// and (3) the prototype object.
 //
-// This builder is used during the first part of type checking, while the type
-// checker builds up the set of known types. It serves as a placeholder to
-// allow operating on (assigning properties to, and referencing the
-// yet-to-exist type) these not-yet-available types.
-//
-// Mirrors com.google.javascript.rhino.NominalTypeBuilder.
+// This builder is used during the first part of type checking, while the
+// type checker builds up the set of known types. Thus, this interface serves
+// as a placeholder to allow operating on (i.e. both assigning properties to,
+// and referencing the yet-to-exist type) these not-yet-available types.
 type NominalTypeBuilder struct {
-	// constructor holds a *jstype.FunctionType (typed as any to avoid import cycle).
-	constructor any
-	// instance holds a *jstype.ObjectType (typed as any to avoid import cycle).
-	instance any
-	// prototype holds a *jstype.ObjectType (typed as any to avoid import cycle).
-	prototype any
+	constructor FunctionType
+	instance    ObjectType
+	prototype   ObjectType
 }
 
-// NominalTypePrototypeGetter is a function that retrieves the prototype
-// ObjectType from a FunctionType. Callers in jscomp inject this to break the
-// import cycle.
-var NominalTypePrototypeGetter func(constructor any) any
-
-// NewNominalTypeBuilder creates a NominalTypeBuilder for the given constructor
-// and instance types. The prototype is derived from the constructor via
-// NominalTypePrototypeGetter.
-// Mirrors NominalTypeBuilder(FunctionType, ObjectType).
-func NewNominalTypeBuilder(constructor, instance any) *NominalTypeBuilder {
-	var proto any
-	if NominalTypePrototypeGetter != nil {
-		proto = NominalTypePrototypeGetter(constructor)
-	}
+// Java: NominalTypeBuilder(FunctionType, ObjectType)
+func NewNominalTypeBuilder(constructor FunctionType, instance ObjectType) *NominalTypeBuilder {
 	return &NominalTypeBuilder{
 		constructor: constructor,
 		instance:    instance,
-		prototype:   proto,
+		prototype:   constructor.GetPrototypeProperty(),
 	}
 }
 
-// RawConstructor returns the raw constructor value (a *jstype.FunctionType).
-func (b *NominalTypeBuilder) RawConstructor() any { return b.constructor }
+// DeclarePrototypeProperty declares a property on the nominal type's
+// prototype.
+//
+// Java: NominalTypeBuilder.declarePrototypeProperty(String, JSType, Node)
+func (b *NominalTypeBuilder) DeclarePrototypeProperty(name string, type_ JSType, defSite *Node) {
+	b.prototype.DefineDeclaredProperty(name, type_, defSite)
+}
 
-// RawInstance returns the raw instance value (a *jstype.ObjectType).
-func (b *NominalTypeBuilder) RawInstance() any { return b.instance }
+// DeclareInstanceProperty declares an instance property on the nominal
+// type.
+//
+// Java: NominalTypeBuilder.declareInstanceProperty(String, JSType, Node)
+func (b *NominalTypeBuilder) DeclareInstanceProperty(name string, type_ JSType, defSite *Node) {
+	b.instance.DefineDeclaredProperty(name, type_, defSite)
+}
 
-// RawPrototype returns the raw prototype value (a *jstype.ObjectType).
-func (b *NominalTypeBuilder) RawPrototype() any { return b.prototype }
+// DeclareConstructorProperty declares a static property on the nominal
+// type's constructor.
+//
+// Java: NominalTypeBuilder.declareConstructorProperty(String, JSType, Node)
+func (b *NominalTypeBuilder) DeclareConstructorProperty(name string, type_ JSType, defSite *Node) {
+	b.constructor.DefineDeclaredProperty(name, type_, defSite)
+}
 
-// NominalTypeSuperClassGetter is a function that retrieves the superclass
-// constructor from an instance ObjectType. Callers in jscomp inject this.
-var NominalTypeSuperClassGetter func(instance any) any
-
-// NominalTypeInstanceGetter is a function that retrieves the instance type
-// from a FunctionType constructor. Callers in jscomp inject this.
-var NominalTypeInstanceGetter func(constructor any) any
-
-// SuperClass returns a NominalTypeBuilder for this type's superclass, or nil
-// if there is no superclass. Mirrors NominalTypeBuilder.superClass().
+// SuperClass returns a NominalTypeBuilder for this type's superclass.
+//
+// Java: NominalTypeBuilder.superClass()
 func (b *NominalTypeBuilder) SuperClass() *NominalTypeBuilder {
-	if NominalTypeSuperClassGetter == nil || NominalTypeInstanceGetter == nil {
-		return nil
-	}
-	ctor := NominalTypeSuperClassGetter(b.instance)
+	ctor := b.instance.GetSuperClassConstructor()
 	if ctor == nil {
 		return nil
 	}
-	inst := NominalTypeInstanceGetter(ctor)
-	return NewNominalTypeBuilder(ctor, inst)
+	return NewNominalTypeBuilder(ctor, ctor.GetInstanceType())
+}
+
+// Constructor returns the constructor as a JSType.
+//
+// Java: NominalTypeBuilder.constructor()
+func (b *NominalTypeBuilder) Constructor() FunctionType {
+	return b.constructor
+}
+
+// Instance returns the instance type as a JSType.
+//
+// Java: NominalTypeBuilder.instance()
+func (b *NominalTypeBuilder) Instance() ObjectType {
+	return b.instance
+}
+
+// PrototypeOrInstance returns the type of the prototype object (OTI).
+//
+// TODO(sdh): See if we can just delete this entirely and use instance()
+// instead?
+//
+// Java: NominalTypeBuilder.prototypeOrInstance()
+func (b *NominalTypeBuilder) PrototypeOrInstance() ObjectType {
+	return b.prototype
 }

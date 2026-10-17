@@ -1,0 +1,1 @@
+cr.defineProperty(a, 'c', cr.PropertyKind.JS);

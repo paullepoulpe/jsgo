@@ -1,0 +1,41 @@
+{
+  "description": "Multistage builds across processes on module code: moment's ES modules (NODE resolution, PRUNE) and lodash's CommonJS modules under the src/interop ES module entry, each in three stages (checks, optimizations, finalizations); the saved compiler states are intermediate files, not compared.",
+  "links": {
+    "node_modules/moment/src": "cache:corpus/moment@2.31.0/package/src",
+    "node_modules/lodash": "cache:corpus/lodash@4.17.21/package",
+    "src": "repo:tools/clie2e/projects/src/interop"
+  },
+  "flags": ["--module_resolution=NODE", "--dependency_mode=PRUNE"],
+  "jobs": [
+    {
+      "name": "moment-simple",
+      "inputs": [{"glob": "node_modules/moment/src/**/*.js"}],
+      "intermediate": ["out/checks.state", "out/optimizations.state"],
+      "steps": [
+        ["--compilation_level=SIMPLE", "--entry_point=node_modules/moment/src/moment.js",
+         "--segment_of_compilation_to_run=CHECKS", "--filename_to_save_to=out/checks.state"],
+        ["--compilation_level=SIMPLE", "--entry_point=node_modules/moment/src/moment.js",
+         "--segment_of_compilation_to_run=OPTIMIZATIONS", "--filename_to_restore_from=out/checks.state",
+         "--filename_to_save_to=out/optimizations.state"],
+        ["--compilation_level=SIMPLE", "--entry_point=node_modules/moment/src/moment.js",
+         "--segment_of_compilation_to_run=FINALIZATIONS", "--filename_to_restore_from=out/optimizations.state",
+         "--js_output_file=out/moment.js", "--create_source_map=out/moment.js.map"]
+      ]
+    },
+    {
+      "name": "lodash-interop-advanced",
+      "inputs": [{"glob": "node_modules/lodash/*.js", "exclude": ["fp.js"]}, {"glob": "src/*.js"}],
+      "intermediate": ["out/checks.state", "out/optimizations.state"],
+      "steps": [
+        ["--compilation_level=ADVANCED", "--process_common_js_modules", "--entry_point=src/main.js",
+         "--segment_of_compilation_to_run=CHECKS", "--filename_to_save_to=out/checks.state"],
+        ["--compilation_level=ADVANCED", "--process_common_js_modules", "--entry_point=src/main.js",
+         "--segment_of_compilation_to_run=OPTIMIZATIONS", "--filename_to_restore_from=out/checks.state",
+         "--filename_to_save_to=out/optimizations.state"],
+        ["--compilation_level=ADVANCED", "--process_common_js_modules", "--entry_point=src/main.js",
+         "--segment_of_compilation_to_run=FINALIZATIONS", "--filename_to_restore_from=out/optimizations.state",
+         "--js_output_file=out/main.js"]
+      ]
+    }
+  ]
+}

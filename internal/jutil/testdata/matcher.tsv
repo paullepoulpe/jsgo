@@ -1,0 +1,29 @@
+find	\\{([A-Z_0-9]+)\\}	{NUM_PEOPLE, plural, =0 {I see {BEGIN_BOLD}no one{END_BOLD} in {X_2}.}}	31,43,BEGIN_BOLD@32-42;49,59,END_BOLD@50-58;63,68,X_2@64-67;
+find	\\{([A-Z_0-9]+)\\}	caf\u00e9 {A} \ud83d\ude00 {B_1}{C}	5,8,A@6-7;12,17,B_1@13-16;17,20,C@18-19;
+find	\\{([A-Z_0-9]+)\\}	no placeholders	
+find	grammatical_gender_case:\\s*(\\w+)	grammatical_gender_case: FEMININE	0,33,FEMININE@25-33;
+find	grammatical_gender_case:\\s*(\\w+)	x grammatical_gender_case:\u000bOTHER	2,32,OTHER@27-32;
+find	grammatical_gender_case:\\s*(\\w+)	grammatical_gender_case:\tMASCULINE,grammatical_gender_case:NEUTER	0,34,MASCULINE@25-34;35,65,NEUTER@59-65;
+find	a*	baaacaa	0,0;1,4;4,4;5,7;7,7;
+find	a*		0,0;
+find	x?	\u00e9x\ud83d\ude00	0,0;1,2;2,2;3,3;4,4;
+find	(a)|(b)	abba	0,1,a@0-1,<null>@-1--1;1,2,<null>@-1--1,b@1-2;2,3,<null>@-1--1,b@2-3;3,4,a@3-4,<null>@-1--1;
+find	\\$jscomp\\$scope\\$\\S+\\$MSG_	$jscomp$scope$12$0$MSG_HELLO	0,23;
+find	\\$jscomp\\$scope\\$\\S+\\$MSG_	a$jscomp$scope$1$MSG_X$MSG_Y b$jscomp$scope$2$MSG_Z	1,27;30,50;
+find	MSG_UNNAMED.*	MSG_UNNAMED_123	0,15;
+match	MSG_UNNAMED.*	MSG_UNNAMED_123	true:15	true:15
+match	MSG_UNNAMED.*	MSG_UNNAMED\n	false	true:11
+match	MSG_UNNAMED.*	XMSG_UNNAMED	false	false
+match	\\$jscomp\\$scope\\$\\S+\\$MSG_	$jscomp$scope$12$0$MSG_HELLO	false	true:23
+match	\\$jscomp\\$scope\\$\\S+\\$MSG_	$jscomp$scope$1 2$MSG_HELLO	false	false
+match	\\$jscomp\\$scope\\$\\S+\\$MSG_	$jscomp$scope$\u000b$MSG_HELLO	false	false
+match	\\$jscomp\\$scope\\$\\S+\\$MSG_	MSG_$jscomp$scope$1$MSG_	false	false
+match	\\$jscomp\\$scope\\$\\S+\\$MSG_	$jscomp$scope$1$MSG_A$MSG_B	false	true:26
+match	a*	baaa	false	true:0
+match	(a)|(b)	b	true:1	true:1
+replace	\\$jscomp\\$scope\\$\\S+\\$MSG_	$jscomp$scope$12$0$MSG_HELLO	MSG_	MSG_HELLO	MSG_HELLO
+replace	\\$jscomp\\$scope\\$\\S+\\$MSG_	x$jscomp$scope$1$MSG_A $jscomp$scope$2$MSG_B	MSG_	xMSG_A $jscomp$scope$2$MSG_B	xMSG_A MSG_B
+replace	\\$jscomp\\$scope\\$\\S+\\$MSG_	MSG_HELLO	MSG_	MSG_HELLO	MSG_HELLO
+replace	(a)(b)?	xaby a	<$2|$1|\\$>	x<b|a|$>y a	x<b|a|$>y <|a|$>
+replace	(a)(b)?	xaby a	$10	xa0y a	xa0y a0
+replace	a*	baaacaa	-	-baaacaa	-b--c--

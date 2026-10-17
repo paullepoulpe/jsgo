@@ -1,0 +1,1 @@
+cr.defineProperty(a.b, 'c', cr.PropertyKind.INEXISTENT_KIND);

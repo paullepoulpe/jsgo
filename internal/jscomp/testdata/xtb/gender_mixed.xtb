@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE translationbundle SYSTEM "translationbundle.dtd">
+<!-- padding so that the messages are past the first read buffers of the JDK parser ............................................................................................. -->
+<translationbundle lang="es">
+<translation id="20">pre <branch variants="grammatical_gender_case: MASCULINE">El <ph name="N"/></branch><branch variants="grammatical_gender_case:	FEMININE">La <ph name="N"/></branch><branch variants="grammatical_gender_case: OTHER">Le &amp; <ph name="N"/>
+x</branch> post</translation>
+<translation id="21">plain</translation>
+</translationbundle>

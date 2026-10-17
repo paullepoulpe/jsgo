@@ -1,0 +1,1 @@
+goog.require('a.b.c'); use(a.b.c);

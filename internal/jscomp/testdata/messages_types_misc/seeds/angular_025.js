@@ -1,0 +1,1 @@
+/** @ngInject */ foo.bar['baz'] = function(a) {};

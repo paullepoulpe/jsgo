@@ -1,0 +1,1 @@
+var MSG_SILLY = 0;

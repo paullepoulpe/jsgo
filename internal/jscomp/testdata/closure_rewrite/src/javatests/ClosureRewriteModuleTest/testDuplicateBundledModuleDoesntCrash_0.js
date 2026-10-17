@@ -1,0 +1,1 @@
+goog.loadModule(function(exports) { goog.module('ns.a'); return exports; });

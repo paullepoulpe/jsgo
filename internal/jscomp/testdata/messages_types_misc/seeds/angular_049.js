@@ -1,0 +1,1 @@
+/** @ngInject */ function fn(a, [b, c] = [1, 2]){}

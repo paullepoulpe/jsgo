@@ -1,0 +1,1 @@
+var x = x || goog.define('goog.DEBUG', true);

@@ -1,0 +1,1 @@
+goog.f = function(x) { x = 3; return x; };

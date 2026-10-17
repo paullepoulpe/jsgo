@@ -1,0 +1,1 @@
+goog.module('modA'); class Bar {} exports = class Foo {}; exports.Bar = Bar;

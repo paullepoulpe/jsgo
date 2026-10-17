@@ -1,0 +1,1 @@
+class G { static { /** @export */ this.foo = 1;} }
