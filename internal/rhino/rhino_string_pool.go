@@ -36,7 +36,8 @@ package rhino
 
 import (
 	"iter"
-	"unique"
+	"strings"
+	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -54,8 +55,23 @@ type RhinoStringPool struct{}
 // We use weak-refs, rather than strong-refs, to prevent a memory leak in
 // server-like applications.
 //
-// Go-only: language-adapter — Guava's Interners.newWeakInterner() is Go's
-// unique package (canonical, weakly held values); see RhinoStringPool_AddOrGet.
+// Go-only: performance — Guava's Interners.newWeakInterner() was Go's unique
+// package (canonical, weakly held values), but unique.Make and the cleanup
+// that walks its whole map after every GC cost ~14% of the front end's CPU.
+// The pool is now a strong map behind a mutex (the parse oracles parse on
+// several goroutines). Identity is never observable in the port: strings
+// compare by value (RhinoStringPool_UncheckedEquals), so the pool only
+// shares memory, as Java's does. The map holds the strings of the current
+// compilation, which its AST keeps alive anyway; to stay bounded in a
+// long-lived process (tests, benchmarks) it starts over once it holds
+// rhinoStringPool_MAX_SIZE strings, which only ends the sharing with the
+// strings interned before.
+var (
+	rhinoStringPool_mu      sync.Mutex
+	rhinoStringPool_strings = make(map[string]string)
+)
+
+const rhinoStringPool_MAX_SIZE = 1 << 20
 
 // RhinoStringPool_UncheckedEquals checks if two strings are the same
 // according to interning.
@@ -92,7 +108,19 @@ func RhinoStringPool_UncheckedEqualsNullable(a *string, b *string) bool {
 
 // Java: RhinoStringPool.addOrGet(String)
 func RhinoStringPool_AddOrGet(s string) string {
-	return unique.Make(s).Value()
+	rhinoStringPool_mu.Lock()
+	interned, ok := rhinoStringPool_strings[s]
+	if !ok {
+		if len(rhinoStringPool_strings) >= rhinoStringPool_MAX_SIZE {
+			clear(rhinoStringPool_strings)
+		}
+		// Like unique.Make, keep a copy rather than the larger string s may
+		// be a slice of.
+		interned = strings.Clone(s)
+		rhinoStringPool_strings[interned] = interned
+	}
+	rhinoStringPool_mu.Unlock()
+	return interned
 }
 
 // Java: RhinoStringPool()
