@@ -590,6 +590,11 @@ func (s *saxScanner) xmlDecl() {
 			s.fatalOrEOF("The value following \"" + which + "\" in the XML declaration must be a quoted string.")
 		}
 		s.in.advance(1)
+		if s.in.pos == s.in.count-1 {
+			// Observed behaviour (black-box): when the value starts with
+			// the last char of the buffer, more is read before it.
+			s.in.load(s.in.pos)
+		}
 		var value []uint16
 		padded := seen != 0
 		for {
@@ -1545,7 +1550,7 @@ func (s *saxScanner) pubidLiteral() {
 // pubidChars scans a public identifier literal after its opening quote.
 // Observed behaviour (black-box): it is read one char at a time (more input
 // is read only when the buffer is used up), and the char after a line end
-// counts two columns.
+// counts two columns (after CR LF, the column is 2 at once).
 func (s *saxScanner) pubidChars(quote int) {
 	in := s.in
 	bump := false
@@ -1563,8 +1568,15 @@ func (s *saxScanner) pubidChars(quote int) {
 			in.advance(1)
 			return
 		case c == '\n' || c == '\r':
+			at := in.base + in.pos
 			s.next()
-			bump = true
+			if in.base+in.pos-at == 2 {
+				// Observed behaviour (black-box): after CR LF the column
+				// is 2 at once.
+				in.column = 2
+			} else {
+				bump = true
+			}
 		case !saxIsPubidChar(c):
 			in.advance(1)
 			s.fatal("An invalid XML character (Unicode: " + saxHex(c) + ") was found in the public identifier.")
@@ -1577,8 +1589,8 @@ func (s *saxScanner) pubidChars(quote int) {
 // literal scans a system identifier literal after its opening quote.
 // Observed behaviour (black-box): it is scanned in steps like character
 // data, with the same reading rule for the last char of the buffer and the
-// same line-end runs; it takes the chars of production [2] Char in the BMP
-// only.
+// same line-end runs, and each '&', '<', ']' or '%' ends a step; it takes
+// the chars of production [2] Char in the BMP only.
 func (s *saxScanner) literal(quote int) {
 	in := s.in
 	for {
@@ -1591,6 +1603,11 @@ func (s *saxScanner) literal(quote int) {
 		}
 		if c := in.buf[in.pos]; (c == '\n' || c == '\r') && int(c) != quote {
 			if _, stopped := s.lineEnds(nil, '\n'); stopped {
+				if c := in.buf[in.pos]; in.pos == in.count-1 && (c == '&' || c == '<' || c == ']' || c == '%') {
+					// Observed behaviour (black-box): such a char left
+					// after the run is consumed before more is read.
+					in.advance(1)
+				}
 				continue
 			}
 		}
@@ -1607,6 +1624,9 @@ func (s *saxScanner) literal(quote int) {
 				s.fatal("An invalid XML character (Unicode: " + saxHex(c) + ") was found in the system identifier.")
 			}
 			in.advance(1)
+			if c == '&' || c == '<' || c == ']' || c == '%' {
+				break
+			}
 		}
 	}
 }
@@ -1893,7 +1913,9 @@ func (s *saxScanner) entityDecl() {
 // rule for the last char of the buffer and the same line-end runs at the
 // start of a step), except that a line end met inside a step (or left
 // over by a run that stopped at the end of the buffer) is consumed on its
-// own, ends the step, and makes the next char count two columns.
+// own (like a line end left as the last char of the buffer: it is
+// consumed before more input is read), ends the step, and makes the next
+// char count two columns. A '<' or ']' also ends the step.
 func (s *saxScanner) entityValue(quote int) {
 	in := s.in
 	continued := false
@@ -1902,12 +1924,20 @@ func (s *saxScanner) entityValue(quote int) {
 			if in.load(in.pos) == 0 {
 				s.fatal("Premature end of file.")
 			}
-		} else if in.pos == in.count-1 {
+		} else if c := in.buf[in.pos]; in.pos == in.count-1 && !(continued && (c == '\n' || c == '\r')) {
 			in.load(in.pos)
 		}
 		if c := in.buf[in.pos]; (c == '\n' || c == '\r') && !continued {
 			if _, stopped := s.lineEnds(nil, '\n'); stopped {
 				continued = true
+				if c := in.buf[in.pos]; in.pos == in.count-1 && c != '\n' && c != '\r' {
+					// Observed behaviour (black-box): when the run leaves
+					// one other char, the column is one too far while
+					// more input is read (a decoding error shows it).
+					in.column++
+					in.load(in.pos)
+					in.column--
+				}
 				continue
 			}
 		}
@@ -1922,6 +1952,9 @@ func (s *saxScanner) entityValue(quote int) {
 			case c == '\n' || c == '\r':
 				s.next()
 				in.column++
+				break step
+			case c == '<' || c == ']':
+				in.advance(1)
 				break step
 			case c == '%':
 				in.advance(1)

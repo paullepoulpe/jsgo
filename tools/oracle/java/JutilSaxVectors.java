@@ -462,7 +462,7 @@ public final class JutilSaxVectors {
     // Entity values: a line end inside a step makes the next char count two
     // columns; references to parameter entities are errors.
     for (String v : new String[] {"a\n%", "a\n\n%", "\n%", "a\r\r%", "a\r\r\n%", "a\r%", "&#65;\n%", "a&#10;\n%",
-        "a\nb\u0001", "%x", "%", "% x", "a\n%x;", "&\nx;"}) {
+        "a\nb\u0001", "%x", "%", "% x", "a\n%x;", "&\nx;", "xyz]\nb\u0001", "xyz<\nb\u0001"}) {
       hand("entity_value_" + Integer.toHexString(v.hashCode()), "<!DOCTYPE a [<!ENTITY e \"" + v + "\">]><a/>");
     }
     hand("pe_ref_no_semicolon", "<!DOCTYPE a [%x ]><a/>");
@@ -529,6 +529,20 @@ public final class JutilSaxVectors {
     {"utf16_high_surrogate_eof_text", "feff" + hx("<a>x", "UTF-16BE") + "dbff"},
     {"ascii7_lenient", hx("<?xml version='1.0' encoding='ascii7'?><a>x", "UTF-8") + "e9ff" + hx("</a>", "UTF-8")},
     {"attr_bracket_invalid_byte", hx("<a b='xxxxxxxxxxxxxxxxxxxxxxx]]>", "UTF-8") + "ff" + hx("'/>", "UTF-8")},
+    // Where literals read more input (seen through a decoding error right
+    // after the chars read so far).
+    {"system_literal_amp_invalid_byte", hx("<!DOCTYPE\r\na\tSYSTEM\n\"translationbun&b", "UTF-8") + "c0af"
+        + hx("ogusdle.dtd\"><a/>", "UTF-8")},
+    {"system_literal_run_bracket_invalid_byte", hx("<!DOCTYPE " + "a".repeat(30) + " SYSTEM \"xxyz\n]", "UTF-8") + "ff"
+        + hx("\"><a/>", "UTF-8")},
+    {"entity_value_run_invalid_byte", hx("<!DOCTYPE " + "a".repeat(30) + " [<!ENTITY e \"xxyz]\n\nb", "UTF-8") + "ff"
+        + hx("\">]><a/>", "UTF-8")},
+    {"entity_value_run_end_invalid_byte", hx("<!DOCTYPE " + "a".repeat(30) + " [<!ENTITY e \"xxyz]\r\n\r", "UTF-8")
+        + "ff" + hx("\">]><a/>", "UTF-8")},
+    {"decl_value_invalid_byte", hx("<?xml version=\"1.0\" encoding='U", "UTF-8") + "f09f9854" + hx("F8'?><a/>", "UTF-8")},
+    {"decl_value_invalid_byte2", hx("<?xml version=\"1.0\"  encoding='U", "UTF-8") + "ff" + hx("TF-8'?><a/>", "UTF-8")},
+    {"pubid_crlf_invalid_byte", hx("<!DOCTYPE " + "a".repeat(30) + " PUBLIC \"xab\r\n", "UTF-8") + "ff"
+        + hx("\" \"s\"><a/>", "UTF-8")},
     {"mixed_pcdata_invalid_byte", hx("<!DOCTYPE a [<!ELEMENT a (#PCDATA)", "UTF-8") + "ff" + hx(">]><a/>", "UTF-8")},
     {"pubid_invalid_byte", hx("<!DOCTYPE a PUBLIC \"a-", "UTF-8") + "ff" + hx("\" \"x\"><a/>", "UTF-8")},
     {"utf16_declares_utf8", "feff003c003f0078006d006c002000760065007200730069006f006e003d00220031002e00300022"
