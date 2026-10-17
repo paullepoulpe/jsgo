@@ -180,6 +180,10 @@ func (p *CreateSyntheticBlocks) AddBlocks(marker *createSyntheticBlocks_Marker) 
 	// of function to be removed.
 	p.RewriteFunctionDeclarationsInBlock(innerBlock)
 
+	jutil.CheckStateMsg1(
+		outerBlock.GetParent().IsBlock() || outerBlock.GetParent().IsScript(),
+		"%s", outerBlock.GetParent())
+	jutil.CheckState(innerBlock.GetParent().IsBlock())
 	p.compiler.ReportChangeToEnclosingScope(outerBlock)
 }
 

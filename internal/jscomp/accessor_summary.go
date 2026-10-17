@@ -148,3 +148,67 @@ func (s *AccessorSummary) GetKind(name string) AccessorSummary_PropertyAccessKin
 func AccessorSummary_CreateAssumingAlwaysGetterAndSetter() *AccessorSummary {
 	return newAccessorSummaryAssuming(true)
 }
+
+// Java: AccessorSummary.toProto()
+func (s *AccessorSummary) ToProto() *AccessorSummaryProto {
+	builder :=
+		AccessorSummaryProto_NewBuilder().
+			SetAssumeAlwaysGetterAndSetter(s.assumeAlwaysGetterAndSetter)
+	if s.assumeAlwaysGetterAndSetter {
+		jutil.CheckState(s.accessors.IsEmpty())
+	} else {
+		for name, kind := range s.accessors.All() {
+			builder.AddAccessors(
+				AccessorSummaryEntryProto_NewBuilder().
+					SetName(name).
+					SetKind(AccessorSummary_ToProto(kind)).
+					Build())
+		}
+	}
+	return builder.Build()
+}
+
+// Java: AccessorSummary.toProto(PropertyAccessKind)
+func AccessorSummary_ToProto(kind AccessorSummary_PropertyAccessKind) PropertyAccessKindProto {
+	switch kind {
+	case AccessorSummary_PropertyAccessKind_NORMAL:
+		return PropertyAccessKindProto_KIND_NORMAL
+	case AccessorSummary_PropertyAccessKind_GETTER_ONLY:
+		return PropertyAccessKindProto_KIND_GETTER_ONLY
+	case AccessorSummary_PropertyAccessKind_SETTER_ONLY:
+		return PropertyAccessKindProto_KIND_SETTER_ONLY
+	case AccessorSummary_PropertyAccessKind_GETTER_AND_SETTER:
+		return PropertyAccessKindProto_KIND_GETTER_AND_SETTER
+	}
+	// Go-only: language-adapter — unreachable for a valid enum value: the
+	// Java switch expression is exhaustive.
+	panic(jutil.NewIllegalStateException())
+}
+
+// Java: AccessorSummary.fromProto(AccessorSummaryProto)
+func AccessorSummary_FromProto(proto *AccessorSummaryProto) *AccessorSummary {
+	if proto.GetAssumeAlwaysGetterAndSetter() {
+		return AccessorSummary_CreateAssumingAlwaysGetterAndSetter()
+	}
+	builder := jutil.NewImmutableMapBuilder[string, AccessorSummary_PropertyAccessKind]()
+	for _, entry := range proto.GetAccessorsList() {
+		builder.Put(entry.GetName(), AccessorSummary_FromProtoKind(entry.GetKind()))
+	}
+	return AccessorSummary_Create(builder.BuildOrThrow())
+}
+
+// Java: AccessorSummary.fromProto(PropertyAccessKindProto)
+func AccessorSummary_FromProtoKind(kind PropertyAccessKindProto) AccessorSummary_PropertyAccessKind {
+	switch kind {
+	case PropertyAccessKindProto_KIND_NORMAL:
+		return AccessorSummary_PropertyAccessKind_NORMAL
+	case PropertyAccessKindProto_KIND_GETTER_ONLY:
+		return AccessorSummary_PropertyAccessKind_GETTER_ONLY
+	case PropertyAccessKindProto_KIND_SETTER_ONLY:
+		return AccessorSummary_PropertyAccessKind_SETTER_ONLY
+	case PropertyAccessKindProto_KIND_GETTER_AND_SETTER:
+		return AccessorSummary_PropertyAccessKind_GETTER_AND_SETTER
+	default:
+		panic(jutil.NewIllegalArgumentExceptionMsg("Unknown kind: " + kind.String()))
+	}
+}

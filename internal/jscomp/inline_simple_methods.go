@@ -236,6 +236,11 @@ func (m *InlineSimpleMethods) AnyDefinitionsNotInlineable(definitions *jutil.Obj
 			// it's unclear it's worth the complexity.
 			return true
 		}
+		if NodeUtil_FunctionParametersMayHaveSideEffects(n, m.astAnalyzer) {
+			// Methods with parameters that may have side effects or throw on destructuring are not
+			// inlined to prevent altering runtime behavior.
+			return true
+		}
 		jsDocInfo := NodeUtil_GetBestJSDocInfo(n.GetParent())
 		if jsDocInfo != nil && jsDocInfo.IsNoInline() {
 			return true

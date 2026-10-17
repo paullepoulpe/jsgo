@@ -1247,3 +1247,15 @@ func (c *CheckJsDocTest) TestMisplacedTypeAnnotationCommaExpression() {
 	c.TestSame("var x = (/** @type {foo} */ (obj.method()), bar);")
 	c.TestSame("var x = (/** @type {foo} */ (bar), baz);")
 }
+
+// Java: CheckJsDocTest.testMisplacedTsTypeAnnotation_notOnFunction()
+func (c *CheckJsDocTest) TestMisplacedTsTypeAnnotation_notOnFunction() {
+	c.TestWarning(
+		c.Srcs(
+			SourceFile_FromCode(
+				"javascript/closure/base.js",
+				`/** @tsType {string} */
+console.log(0);
+`)),
+		c.Warning(CheckJSDoc_MISPLACED_TS_TYPE_ANNOTATION))
+}

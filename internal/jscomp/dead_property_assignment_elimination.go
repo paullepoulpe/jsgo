@@ -31,7 +31,8 @@ import (
 // This pass does not currently use the control-flow graph. It makes the
 // following assumptions:
 //
-//   - Functions with inner functions are not processed.
+//   - Functions with inner functions or non-static class field initializers
+//     are not processed.
 //   - All properties are read whenever entering a block node. Dead
 //     assignments within a block are processed.
 //   - Hook nodes are not processed (it's assumed they read everything)
@@ -133,7 +134,9 @@ func (v *DeadPropertyAssignmentElimination_FunctionVisitor) EnterChangedScopeRoo
 	}
 
 	body := NodeUtil_GetFunctionBody(root)
-	if !body.HasChildren() || NodeUtil_Has(body, (*rhino.Node).IsFunction, deadPropertyAssignmentElimination_alwaysTrue) {
+	if !body.HasChildren() ||
+		NodeUtil_Has(
+			body, NodeUtil_IsFunctionOrNonStaticClassFieldInitializer, deadPropertyAssignmentElimination_alwaysTrue) {
 		return
 	}
 
@@ -470,11 +473,27 @@ func (f *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) Vis
 			nameProp.MarkChildrenRead()
 		}
 		return true
-	case rhino.Token_THROW, rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_SWITCH:
-		// TODO(kevinoconnor): Switch/for statements need special consideration since they may
-		// execute out of order.
+	case rhino.Token_THROW, rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_ITER_SPREAD, rhino.Token_ARRAY_PATTERN, rhino.Token_SWITCH:
+		// Loops and switch statements may execute out of order, and implicit iteration operations
+		// (for-of, for-await-of, spread, array destructuring) invoke arbitrary JS iterator
+		// methods which can read properties.
 		f.MarkAllPropsRead()
 		return false
+	case rhino.Token_OBJECT_PATTERN:
+		for child := n.GetFirstChild(); child != nil; child = child.GetNext() {
+			if child.IsStringKey() {
+				propName := child.GetString()
+				property := f.propertyMap.Get(propName)
+				if property != nil {
+					property.MarkLastWriteRead()
+					property.MarkChildrenRead()
+				}
+			} else {
+				f.MarkAllPropsRead()
+				break
+			}
+		}
+		return true
 	case rhino.Token_BLOCK:
 		f.VisitBlock(n)
 		return true

@@ -218,30 +218,98 @@ func FunctionToBlockMutator_RewriteFunctionDeclarations(n *rhino.Node) *rhino.No
 	return nil
 }
 
-// FunctionToBlockMutator_FixUninitializedVarDeclarations: for all VAR node
-// with uninitialized declarations, set the values to be "undefined".
+// FunctionToBlockMutator_FixUninitializedVarDeclarations: for all VAR
+// declarations (and LET declarations outside loops) that are uninitialized,
+// set their initial values to "undefined" and hoist them to the containing
+// block.
+//
+// When a function is called within a loop, local variables are recreated on
+// each call in normal execution. When inlined into the loop, uninitialized
+// variables would otherwise retain their values across loop iterations.
 //
 // Java: FunctionToBlockMutator.fixUninitializedVarDeclarations(Node, Node)
 func FunctionToBlockMutator_FixUninitializedVarDeclarations(n *rhino.Node, containingBlock *rhino.Node) {
-	// Inner loop structure must already have logic to initialize its
-	// variables.  In particular FOR-IN structures must not be modified.
-	if NodeUtil_IsLoopStructure(n) {
+	FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(n, containingBlock /* inLoop= */, false)
+}
+
+// Java: FunctionToBlockMutator.fixUninitializedVarDeclarations(Node, Node, boolean)
+func FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(
+	n *rhino.Node, containingBlock *rhino.Node, inLoop bool) {
+	// Nested functions introduce there own var hoisting scope
+	// thier `var` should not be hoisted out to the containing block.
+	if n.IsFunction() {
 		return
 	}
 
-	if (n.IsVar() || n.IsLet()) && n.HasOneChild() {
+	// Inner loop structures: var declarations inside loops are still function-scoped and
+	// need to be initialized at the containing block level to avoid carrying values across
+	// outer loop iterations. When hoisting, any assignment at the declaration site in the loop
+	// must remain in the loop. Let declarations inside loops are block-scoped to that loop and
+	// do not need hoisting.
+	if NodeUtil_IsLoopStructure(n) {
+		body := NodeUtil_GetLoopCodeBlock(n)
+		if body != nil {
+			FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(body, containingBlock /* inLoop= */, true)
+		}
+		if n.IsVanillaFor() {
+			init := n.GetFirstChild()
+			if init != nil && !init.IsEmpty() {
+				FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(init, containingBlock /* inLoop= */, true)
+			}
+		}
+		return
+	}
+
+	if inLoop && n.IsVar() && n.HasOneChild() {
+		name := n.GetFirstChild()
+		srcLocation := name
+		parent := n.GetParent()
+		// Hoist per-function declaration initialized to undefined
+		hoistedVar := rhino.IR_Var(name.CloneNode().SetJSDocInfo(nil)).Srcref(n)
+		hoistedVar.GetFirstChild().AddChildToBack(NodeUtil_NewUndefinedNode(srcLocation))
+		containingBlock.AddChildToFront(hoistedVar)
+
+		if name.HasChildren() {
+			// If the var in the loop had an initializer, keep the assignment at the declaration site in
+			// the loop.
+			value := name.RemoveFirstChild()
+			assign := rhino.IR_Assign(name.Detach(), value).Srcref(n)
+			if parent != nil && parent.IsVanillaFor() && parent.GetFirstChild() == n {
+				n.ReplaceWith(assign)
+			} else {
+				n.ReplaceWith(NodeUtil_NewExpr(assign))
+			}
+		} else {
+			// If uninitialized in the loop, remove the var declaration from the loop.
+			if parent != nil && parent.IsVanillaFor() && parent.GetFirstChild() == n {
+				n.ReplaceWith(rhino.IR_Empty())
+			} else {
+				n.Detach()
+			}
+		}
+		return
+	}
+
+	if !inLoop && (n.IsVar() || n.IsLet()) && n.HasOneChild() {
 		name := n.GetFirstChild()
 		// It isn't initialized.
 		if !name.HasChildren() {
 			srcLocation := name
-			name.AddChildToBack(NodeUtil_NewUndefinedNode(srcLocation))
-			containingBlock.AddChildToFront(n.Detach())
+			undefinedNode := NodeUtil_NewUndefinedNode(srcLocation)
+			name.AddChildToBack(undefinedNode)
+			parent := n.GetParent()
+			if parent != nil && parent.IsVanillaFor() && parent.GetFirstChild() == n {
+				n.ReplaceWith(rhino.IR_Empty())
+			} else {
+				n.Detach()
+			}
+			containingBlock.AddChildToFront(n)
 		}
 		return
 	}
 
 	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
-		FunctionToBlockMutator_FixUninitializedVarDeclarations(c, containingBlock)
+		FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(c, containingBlock, inLoop)
 	}
 }
 

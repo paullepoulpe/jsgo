@@ -200,12 +200,15 @@ func (c *MaybeReachingVariableUseTest) TestInc() {
 	c.AssertMatch("D: var x = 0; x++; U:x")
 }
 
+// TODO(b/538166697): Fix MaybeReachingVariableUse and MustBeReachingVariableDef to handle
+// enhanced loop LHS conditionally
+//
 // Java: MaybeReachingVariableUseTest.testForIn()
 func (c *MaybeReachingVariableUseTest) TestForIn() {
 	// Uses within FOR-IN header are hard to test. They are covered
 	// by the tests in the flow sensitive inliner.
 	c.AssertNotMatch("D: var x = [], foo; U: for (x in foo) { }")
-	c.AssertNotMatch("D: var x = [], foo; for (x in foo) { U:x }")
+	c.AssertMatch("D: var x = [], foo; for (x in foo) { U:x }")
 	c.AssertMatch("var x = [], foo; D: for (x in foo) { U:x }")
 	c.AssertMatch("var foo; D: for (let x in foo) { U:x }")
 	c.AssertMatch("var foo; D: for (const x in foo) { U:x }")
@@ -213,10 +216,13 @@ func (c *MaybeReachingVariableUseTest) TestForIn() {
 	c.AssertMatch("D: var x = 1, foo; U: x; for (let [x] in foo) {}")
 }
 
+// TODO(b/538166697): Fix MaybeReachingVariableUse and MustBeReachingVariableDef to handle
+// enhanced loop LHS conditionally
+//
 // Java: MaybeReachingVariableUseTest.testForOf()
 func (c *MaybeReachingVariableUseTest) TestForOf() {
 	c.AssertNotMatch("D: var x = [], foo; U: for (x of foo) { }")
-	c.AssertNotMatch("D: var x = [], foo; for (x of foo) { U:x }")
+	c.AssertMatch("D: var x = [], foo; for (x of foo) { U:x }")
 	c.AssertMatch("var x = [], foo; D: for (x of foo) { U:x }")
 	c.AssertMatch("var foo; D: for (let x of foo) { U:x }")
 	c.AssertMatch("var foo; D: for (const x of foo) { U:x }")
@@ -224,10 +230,13 @@ func (c *MaybeReachingVariableUseTest) TestForOf() {
 	c.AssertMatch("D: var x = 1, foo; U: x; for (let [x] of foo) {}")
 }
 
+// TODO(b/538166697): Fix MaybeReachingVariableUse and MustBeReachingVariableDef to handle
+// enhanced loop LHS conditionally
+//
 // Java: MaybeReachingVariableUseTest.testForAwaitOf()
 func (c *MaybeReachingVariableUseTest) TestForAwaitOf() {
 	c.AssertNotAsyncMatch("D: var x = [], foo; U: for await (x of foo) { }")
-	c.AssertNotAsyncMatch("D: var x = [], foo; for await (x of foo) { U:x }")
+	c.AssertAsyncMatch("D: var x = [], foo; for await (x of foo) { U:x }")
 	c.AssertAsyncMatch("var x = [], foo; D: for await (x of foo) { U:x }")
 	c.AssertAsyncMatch("var foo; D: for await (let x of foo) { U:x }")
 	c.AssertAsyncMatch("var foo; D: for await (const x of foo) { U:x }")

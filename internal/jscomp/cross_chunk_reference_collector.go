@@ -217,13 +217,15 @@ func (c *CrossChunkReferenceCollector) InitializeDraftStatement(chunk *JSChunk, 
 				// `varName = value;`
 				draft.declaredNameNode = lhs
 				draft.declaredValueNode = rhs
-			} else if lhs.IsGetProp() {
+			} else if lhs.IsGetProp() || CrossChunkReferenceCollector_IsPotentiallyMoveableGetElem(lhs) {
 				nameNode := jutil.CheckNotNull(lhs.GetFirstChild())
 				for nameNode.IsGetProp() {
 					nameNode = jutil.CheckNotNull(nameNode.GetFirstChild())
 				}
 				if nameNode.IsName() {
 					// `varName.some.property = value;`
+					// OR
+					// `varName[someProperty] = value;`
 					draft.declaredNameNode = nameNode
 					draft.declaredValueNode = rhs
 				}
@@ -269,6 +271,29 @@ func (c *CrossChunkReferenceCollector) InitializeDraftStatement(chunk *JSChunk, 
 		}
 	}
 	return draft
+}
+
+// Java: CrossChunkReferenceCollector.isPotentiallyMoveableGetElem(Node)
+func CrossChunkReferenceCollector_IsPotentiallyMoveableGetElem(maybeGetElem *rhino.Node) bool {
+	if !maybeGetElem.IsGetElem() {
+		return false
+	}
+
+	// We'll only consider a GETELEM as potentially moveable if the property being indexed is on
+	// `Symbol` (e.g. `Symbol.iterator`). We don't generally want to consider GETELEM nodes as
+	// moveable as registries (ex. `GlobalRegistry['Foo'] = Foo`) will create a reference from `Foo`
+	// to `GlobalRegistry`. As other pieces of code reference `GlobalRegistry` this will ultimately
+	// cause a large cluster of symbols that would have to be considered as moving together, but
+	// likely will no to be able to.
+	// Therefore, we we'll only consider a subset of cases, like `Symbol.iterator`, as moveable as
+	// these large reference clusters are unlikely in this case. This should allow classes that
+	// define these properties to potentialy be moved to later chunks.
+	property := maybeGetElem.GetLastChild()
+	if !property.IsGetProp() {
+		return false
+	}
+	name := property.GetFirstChild()
+	return name.IsName() && name.GetString() == "Symbol"
 }
 
 // Java: CrossChunkReferenceCollector.pop(List<T>)
@@ -466,6 +491,19 @@ func (c *CrossChunkReferenceCollector) CanMoveValue(scope *Scope, valueNode *rhi
 			}
 		}
 		return true
+	case rhino.Token_GETPROP:
+		{
+			// `Symbol` is a built-in JavaScript object that is guaranteed to be unique. Therefore it
+			// is movable. Any properties on `Symbol` are also movable (e.g `Symbol.iterator`).
+			child := valueNode.GetFirstChild()
+			if child != nil && child.IsName() {
+				symbol := child.GetString()
+				if symbol == "Symbol" {
+					return true
+				}
+			}
+			return false
+		}
 	default:
 	}
 

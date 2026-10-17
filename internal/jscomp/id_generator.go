@@ -43,3 +43,13 @@ func (g *IdGenerator) NewId() int {
 	g.currentId++
 	return id
 }
+
+// Java: IdGenerator.getCurrentId()
+func (g *IdGenerator) GetCurrentId() int {
+	return g.currentId
+}
+
+// Java: IdGenerator.setCurrentId(int)
+func (g *IdGenerator) SetCurrentId(id int) {
+	g.currentId = id
+}

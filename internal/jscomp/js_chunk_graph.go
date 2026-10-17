@@ -281,6 +281,14 @@ func (g *JSChunkGraph) GetAllChunks() []*JSChunk {
 	return g.chunks
 }
 
+// GetIntegralChunkArrayForSerialization gets all chunks in dependency order.
+// Note: Do not modify the returned array.
+//
+// Java: JSChunkGraph.getIntegralChunkArrayForSerialization()
+func (g *JSChunkGraph) GetIntegralChunkArrayForSerialization() []*JSChunk {
+	return g.chunks
+}
+
 // GetChunkByName gets a single chunk by name; nil if no such chunk exists.
 //
 // Java: JSChunkGraph.getChunkByName(String)
@@ -521,7 +529,7 @@ func jsChunkGraph_moveMarkedWeakSources(weakChunk *JSChunk, inputs []*CompilerIn
 //
 // Java: JSChunkGraph.manageDependencies(AbstractCompiler, DependencyOptions)
 func (g *JSChunkGraph) ManageDependencies(
-	compiler AbstractCompiler, dependencyOptions *DependencyOptions) []*CompilerInput {
+	compiler AbstractCompiler, dependencyOptions *DependencyOptions) *JSChunkGraph_DependencyManagementResult {
 
 	// Make a copy since we're going to mutate the graph below.
 	originalInputs := g.GetAllInputs()
@@ -669,13 +677,45 @@ func (g *JSChunkGraph) ManageDependencies(
 		}
 	}
 
-	// Now, generate the sorted result.
-	result := []*CompilerInput{}
-	for _, chunk := range g.GetAllChunks() {
-		result = append(result, chunk.GetInputs()...)
-	}
+	return NewJSChunkGraph_DependencyManagementResult(
+		slices.Clone(orderedInputs), sorter, jutil.NewLinkedHashSet(entryPointInputs.ToSlice()...))
+}
 
-	return result
+// JSChunkGraph_DependencyManagementResult is the result of
+// JSChunkGraph.manageDependencies.
+//
+// Java: JSChunkGraph.DependencyManagementResult
+type JSChunkGraph_DependencyManagementResult struct {
+	orderedInputs    []*CompilerInput
+	sorter           *SortedDependencies[*CompilerInput]
+	entryPointInputs *jutil.LinkedHashSet[*CompilerInput]
+}
+
+// Java: JSChunkGraph.DependencyManagementResult(ImmutableList<CompilerInput>, SortedDependencies<CompilerInput>, ImmutableSet<CompilerInput>)
+func NewJSChunkGraph_DependencyManagementResult(
+	orderedInputs []*CompilerInput,
+	sorter *SortedDependencies[*CompilerInput],
+	entryPointInputs *jutil.LinkedHashSet[*CompilerInput]) *JSChunkGraph_DependencyManagementResult {
+	return &JSChunkGraph_DependencyManagementResult{
+		orderedInputs:    orderedInputs,
+		sorter:           sorter,
+		entryPointInputs: entryPointInputs,
+	}
+}
+
+// Java: JSChunkGraph.DependencyManagementResult.orderedInputs()
+func (r *JSChunkGraph_DependencyManagementResult) OrderedInputs() []*CompilerInput {
+	return r.orderedInputs
+}
+
+// Java: JSChunkGraph.DependencyManagementResult.sorter()
+func (r *JSChunkGraph_DependencyManagementResult) Sorter() *SortedDependencies[*CompilerInput] {
+	return r.sorter
+}
+
+// Java: JSChunkGraph.DependencyManagementResult.entryPointInputs()
+func (r *JSChunkGraph_DependencyManagementResult) EntryPointInputs() *jutil.LinkedHashSet[*CompilerInput] {
+	return r.entryPointInputs
 }
 
 // getDepthFirstDependenciesOf: given an input and set of unprocessed

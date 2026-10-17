@@ -140,6 +140,15 @@ func cfaAssertNoEdge(t *testing.T, cfg ControlFlowGraph[*rhino.Node], startToken
 	}
 }
 
+// Java: ControlFlowAnalysisTest.assertNoEdge(ControlFlowGraph<Node>, Token, Token, Branch)
+func cfaAssertNoEdgeOfType(
+	t *testing.T, cfg ControlFlowGraph[*rhino.Node], startToken rhino.Token, endToken rhino.Token, type_ ControlFlowGraph_Branch) {
+	t.Helper()
+	if edges := cfaGetAllEdgesOfType(cfg, startToken, endToken, type_); len(edges) != 0 {
+		t.Errorf("expected no edge %v -%v-> %v, found %d", startToken, type_, endToken, len(edges))
+	}
+}
+
 // cfaAssertDownEdge asserts that there exists a control flow edge of the
 // given type from some node with the first token to some node with the
 // second token. This edge must flow from a parent to one of its descendants.
@@ -541,6 +550,55 @@ func TestControlFlowAnalysis_ReturnThrowingException(t *testing.T) {
 	cfaAssertDownEdge(t, cfg, rhino.Token_BLOCK, rhino.Token_CATCH, ControlFlowGraph_Branch_UNCOND)
 }
 
+func TestControlFlowAnalysis_CallThrowingException(t *testing.T) {
+	src := "function f() {try { obj.a(); } catch (e) {e()}}"
+	cfg := cfaTestCreateCfg(t, src, false)
+	cfaAssertCrossEdge(t, cfg, rhino.Token_EXPR_RESULT, rhino.Token_BLOCK, ControlFlowGraph_Branch_ON_EX)
+	cfaAssertDownEdge(t, cfg, rhino.Token_BLOCK, rhino.Token_CATCH, ControlFlowGraph_Branch_UNCOND)
+}
+
+func TestControlFlowAnalysis_OptChainCallThrowingException(t *testing.T) {
+	src := "function f() {try { obj?.a(); } catch (e) {e()}}"
+	cfg := cfaTestCreateCfg(t, src, false)
+	cfaAssertCrossEdge(t, cfg, rhino.Token_EXPR_RESULT, rhino.Token_BLOCK, ControlFlowGraph_Branch_ON_EX)
+	cfaAssertDownEdge(t, cfg, rhino.Token_BLOCK, rhino.Token_CATCH, ControlFlowGraph_Branch_UNCOND)
+}
+
+func TestControlFlowAnalysis_OptChainGetPropThrowingException(t *testing.T) {
+	src := "function f() {try { obj?.a; } catch (e) {e()}}"
+	cfg := cfaTestCreateCfg(t, src, false)
+	cfaAssertCrossEdge(t, cfg, rhino.Token_EXPR_RESULT, rhino.Token_BLOCK, ControlFlowGraph_Branch_ON_EX)
+	cfaAssertDownEdge(t, cfg, rhino.Token_BLOCK, rhino.Token_CATCH, ControlFlowGraph_Branch_UNCOND)
+}
+
+func TestControlFlowAnalysis_OptChainGetElemThrowingException(t *testing.T) {
+	src := "function f() {try { obj?.[a]; } catch (e) {e()}}"
+	cfg := cfaTestCreateCfg(t, src, false)
+	cfaAssertCrossEdge(t, cfg, rhino.Token_EXPR_RESULT, rhino.Token_BLOCK, ControlFlowGraph_Branch_ON_EX)
+	cfaAssertDownEdge(t, cfg, rhino.Token_BLOCK, rhino.Token_CATCH, ControlFlowGraph_Branch_UNCOND)
+}
+
+func TestControlFlowAnalysis_ForOfThrowingException(t *testing.T) {
+	src := "function f() {try { for (var x of y) {} } catch (e) {e()}}"
+	cfg := cfaTestCreateCfg(t, src, false)
+	cfaAssertCrossEdge(t, cfg, rhino.Token_FOR_OF, rhino.Token_BLOCK, ControlFlowGraph_Branch_ON_EX)
+	cfaAssertDownEdge(t, cfg, rhino.Token_BLOCK, rhino.Token_CATCH, ControlFlowGraph_Branch_UNCOND)
+}
+
+func TestControlFlowAnalysis_ForAwaitOfThrowingException(t *testing.T) {
+	src := "async function f() {try { for await (var x of y) {} } catch (e) {e()}}"
+	cfg := cfaTestCreateCfg(t, src, false)
+	cfaAssertCrossEdge(t, cfg, rhino.Token_FOR_AWAIT_OF, rhino.Token_BLOCK, ControlFlowGraph_Branch_ON_EX)
+	cfaAssertDownEdge(t, cfg, rhino.Token_BLOCK, rhino.Token_CATCH, ControlFlowGraph_Branch_UNCOND)
+}
+
+func TestControlFlowAnalysis_ForInNoThrowingException(t *testing.T) {
+	src := "function f() {try { for (var x in y) {} } catch (e) {e()}}"
+	cfg := cfaTestCreateCfg(t, src, false)
+	cfaAssertNoEdgeOfType(t, cfg, rhino.Token_FOR_IN, rhino.Token_BLOCK, ControlFlowGraph_Branch_ON_EX)
+}
+
+// Test a simple FOR loop.
 func TestControlFlowAnalysis_SimpleFor(t *testing.T) {
 	src := "var a; for (var x = 0; x < 100; x++) { a(); }"
 	expected := `digraph AST {

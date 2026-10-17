@@ -54,6 +54,15 @@ func (c *CreateSyntheticBlocksTest) SetUp() {
 	c.DisableCompareAsTree()
 }
 
+// Java: CreateSyntheticBlocksTest.getOptions()
+func (c *CreateSyntheticBlocksTest) GetOptions() *CompilerOptions {
+	options := c.CompilerTestCaseBase.GetOptions()
+	// This is used by NodeTraversal and not by the pass under test here
+	startMarker := createSyntheticBlocksTest_START_MARKER
+	options.SetSyntheticBlockStartMarker(&startMarker)
+	return options
+}
+
 // createSyntheticBlocksTest_pass is the anonymous CompilerPass of
 // getProcessor.
 type createSyntheticBlocksTest_pass struct {

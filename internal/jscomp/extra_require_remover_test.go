@@ -179,15 +179,20 @@ goog.forwardDeclare('a.b.c.Foo');
 `)
 }
 
-// Java: ExtraRequireRemoverTest.testForwardDeclare_inGoogModule_unusedAliasedImportsAreNotPruned()
-func (c *ExtraRequireRemoverTest) TestForwardDeclare_inGoogModule_unusedAliasedImportsAreNotPruned() {
-	c.TestSame(
+// Java: ExtraRequireRemoverTest.testForwardDeclare_inGoogModule_unusedAliasedImportsArePruned()
+func (c *ExtraRequireRemoverTest) TestForwardDeclare_inGoogModule_unusedAliasedImportsArePruned() {
+	c.Test(
 		`goog.module('x.y.z');
-// keep all imports because because aliased goog.forwardDeclare's will not be pruned
 
 const foo = goog.forwardDeclare('foo');
 
 const bar = goog.forwardDeclare('bar');
+
+/** @const */ var FooAlias = foo;
+`,
+		`goog.module('x.y.z');
+
+const foo = goog.forwardDeclare('foo');
 
 /** @const */ var FooAlias = foo;
 `)
@@ -211,4 +216,67 @@ goog.forwardDeclare('a.b.c');
 
 /** @const */ var FooAlias = a.b.c;
 `)
+}
+
+// Java: ExtraRequireRemoverTest.testIsTsickleProtoCall_closureJs_looksForProtoPrefix()
+func (c *ExtraRequireRemoverTest) TestIsTsickleProtoCall_closureJs_looksForProtoPrefix() {
+	c.Test(
+		c.Srcs(
+			SourceFile_FromCode(
+				"test.closure.js",
+				`goog.module('x.y.z');
+
+const util = goog.require('my.proto.util'); // not a proto message.
+const Foo = goog.require('proto.some.message');
+`)),
+		c.Expected(
+			`goog.module('x.y.z');
+
+const Foo = goog.require('proto.some.message');
+`))
+}
+
+// Java: ExtraRequireRemoverTest.testIsTsickleProtoCall_notClosureJs()
+func (c *ExtraRequireRemoverTest) TestIsTsickleProtoCall_notClosureJs() {
+	c.Test(
+		c.Srcs(
+			SourceFile_FromCode(
+				"test.js",
+				`goog.module('x.y.z');
+
+const Foo = goog.require('proto.some.message');
+`)),
+		c.Expected(
+			`goog.module('x.y.z');
+`))
+}
+
+// Java: ExtraRequireRemoverTest.testPruneWithSuppressMissingRequire()
+func (c *ExtraRequireRemoverTest) TestPruneWithSuppressMissingRequire() {
+	c.Test(
+		c.Srcs(
+			SourceFile_FromCode(
+				"test.js",
+				`/** @fileoverview @suppress {missingRequire} */
+goog.module('x.y.z');
+
+const Foo = goog.require('some.message');
+`)),
+		c.Expected(
+			`/** @fileoverview @suppress {missingRequire} */
+goog.module('x.y.z');
+`))
+}
+
+// Java: ExtraRequireRemoverTest.testNoPruneWithSuppressExtraRequire()
+func (c *ExtraRequireRemoverTest) TestNoPruneWithSuppressExtraRequire() {
+	c.TestSame(
+		c.Srcs(
+			SourceFile_FromCode(
+				"test.js",
+				`goog.module('x.y.z');
+
+/** @suppress {extraRequire} */
+const Foo = goog.require('some.message');
+`)))
 }

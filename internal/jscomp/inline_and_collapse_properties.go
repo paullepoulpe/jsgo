@@ -1263,6 +1263,9 @@ func InlineAndCollapseProperties_ReferencesCollapsibleProperty(
 //
 // Java: InlineAndCollapseProperties.isUnsafelyReassigned(Name)
 func InlineAndCollapseProperties_IsUnsafelyReassigned(name *GlobalNamespace_Name) bool {
+	if name.GetTotalSets() <= 1 {
+		return false
+	}
 	foundOriginalDefinition := false
 	for _, ref := range name.GetRefs() {
 		if !ref.IsSet() {

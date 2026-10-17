@@ -2113,7 +2113,10 @@ func (c *FunctionInjectorTest) HelperCanInlineReferenceToFunction(
 					fnNode,
 					unsafe,
 					NodeUtil_ReferencesOwnReceiver(fnNode),
-					NodeUtil_Has(fnBody, (*rhino.Node).IsFunction, functionInjectorTest_alwaysTrue))
+					NodeUtil_Has(
+						fnBody,
+						NodeUtil_IsFunctionOrNonStaticClassFieldInitializer,
+						functionInjectorTest_alwaysTrue))
 			AssertThat(result).IsEqualTo(expectedResult)
 			return true
 		}
@@ -2188,7 +2191,10 @@ func (c *FunctionInjectorTest) HelperInlineReferenceToFunction(
 					fnNode,
 					unsafe,
 					NodeUtil_ReferencesOwnReceiver(fnNode),
-					NodeUtil_Has(fnBody, (*rhino.Node).IsFunction, functionInjectorTest_alwaysTrue))
+					NodeUtil_Has(
+						fnBody,
+						NodeUtil_IsFunctionOrNonStaticClassFieldInitializer,
+						functionInjectorTest_alwaysTrue))
 			AssertWithMessage("canInlineReferenceToFunction should not be CAN_NOT_INLINE").
 				That(canInline).
 				IsNotEqualTo(FunctionInjector_CanInlineResult_NO)

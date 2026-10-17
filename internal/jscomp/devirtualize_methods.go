@@ -192,7 +192,14 @@ func (d *DevirtualizeMethods) IsPrototypeOrStaticMethodDefinition(node *rhino.No
 			return false // Constructors aren't methods.
 		}
 
-		return true
+		if parent.IsObjectLit() {
+			// Case: `Foo.prototype = {
+			//          bar() { },
+			//        }`
+			return DevirtualizeMethods_IsPrototypeObjectLit(parent)
+		}
+
+		return true // Case: `class Foo { bar() { } }`
 	case rhino.Token_GETPROP:
 		// Case: `Foo.prototype.bar = function() { };
 		if !node.IsFirstChildOf(parent) ||
@@ -216,16 +223,26 @@ func (d *DevirtualizeMethods) IsPrototypeOrStaticMethodDefinition(node *rhino.No
 		//        }`
 		jutil.CheckArgumentMsg1(parent.IsObjectLit(), "%s", parent)
 
-		if !parent.IsSecondChildOf(grandparent) ||
-			!NodeUtil_IsPrototypeAssignment(grandparent.GetFirstChild()) ||
-			!node.GetFirstChild().IsFunction() {
-			return false
-		}
-
-		return true
+		return DevirtualizeMethods_IsPrototypeObjectLit(parent) && node.GetFirstChild().IsFunction()
 	default:
 		return false
 	}
+}
+
+// DevirtualizeMethods_IsPrototypeObjectLit returns whether objectLit is the
+// value assigned in `Foo.prototype = {...}`.
+//
+// Methods on other object literals are not eligible: plain objects are
+// routinely enumerated, copied, or mixed in, so removing a method from one is
+// unsafe without the escape analysis that InlineAndCollapseProperties
+// performs.
+//
+// Java: DevirtualizeMethods.isPrototypeObjectLit(Node)
+func DevirtualizeMethods_IsPrototypeObjectLit(objectLit *rhino.Node) bool {
+	jutil.CheckArgumentMsg1(objectLit.IsObjectLit(), "%s", objectLit)
+	parent := objectLit.GetParent()
+	return objectLit.IsSecondChildOf(parent) &&
+		NodeUtil_IsPrototypeAssignment(parent.GetFirstChild())
 }
 
 // Java: DevirtualizeMethods.isDefinitelyCtorOrInterface(Node)
@@ -510,8 +527,27 @@ func (d *DevirtualizeMethods) RewriteDefinition(
 //
 // Java: DevirtualizeMethods.replaceReferencesToThis(Node, String)
 func (d *DevirtualizeMethods) ReplaceReferencesToThis(node *rhino.Node, name string) {
-	if node.IsFunction() && !node.IsArrowFunction() {
-		// Functions (besides arrows) create a new binding for `this`.
+	if (node.IsFunction() && !node.IsArrowFunction()) ||
+		node.IsMemberFieldDef() ||
+		NodeUtil_IsClassStaticBlock(node) {
+		// Functions (besides arrows), member field defs, and static blocks create a new binding for
+		// `this`.
+		return
+	}
+
+	if node.IsComputedFieldDef() {
+		// Computed field keys are evaluated in the enclosing scope, but field initializers create a
+		// new binding for `this`.
+		key := node.GetFirstChild()
+		if key != nil {
+			if key.IsThis() {
+				newName := rhino.IR_Name(name).Srcref(key).CopyTypeFrom(key)
+				key.ReplaceWith(newName)
+				d.compiler.ReportChangeToEnclosingScope(newName)
+			} else {
+				d.ReplaceReferencesToThis(key, name)
+			}
+		}
 		return
 	}
 

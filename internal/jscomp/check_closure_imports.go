@@ -401,7 +401,7 @@ func (k *CheckClosureImports_Checker) IsValidDestructuringImport(destructuringLh
 		if !stringKey.IsStringKey() {
 			return false
 		}
-		if !stringKey.GetFirstChild().IsName() {
+		if !stringKey.HasChildren() || !stringKey.GetFirstChild().IsName() {
 			return false
 		}
 	}
@@ -476,7 +476,7 @@ func (k *CheckClosureImports_Checker) CheckImport(
 			} else {
 				t.Report(declaration, CheckClosureImports_NO_CLOSURE_IMPORT_DESTRUCTURING, importType.CallName())
 			}
-		} else {
+		} else if lhs.IsName() {
 			k.CheckShortName(t, lhs, call.GetLastChild().GetString())
 		}
 	}

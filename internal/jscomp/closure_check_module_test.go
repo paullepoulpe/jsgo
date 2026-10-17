@@ -635,6 +635,41 @@ var {foo, bar: {name}} = goog.require('other.x');
 	c.TestError(
 		`goog.module('xyz');
 
+var {[foo]: bar} = goog.require('other.x');
+`,
+		ClosureCheckModule_INVALID_DESTRUCTURING_REQUIRE)
+
+	c.TestError(
+		`goog.module('xyz');
+
+var {...rest} = goog.require('other.x');
+`,
+		ClosureCheckModule_INVALID_DESTRUCTURING_REQUIRE)
+
+	c.TestError(
+		`goog.module('xyz');
+
+var [foo, bar] = goog.requireType('other.x');
+`,
+		ClosureCheckModule_INVALID_DESTRUCTURING_REQUIRE)
+
+	c.TestError(
+		`goog.module('xyz');
+
+var {foo, bar = 'str'} = goog.requireType('other.x');
+`,
+		ClosureCheckModule_INVALID_DESTRUCTURING_REQUIRE)
+
+	c.TestError(
+		`goog.module('xyz');
+
+var {foo, bar: {name}} = goog.requireType('other.x');
+`,
+		ClosureCheckModule_INVALID_DESTRUCTURING_REQUIRE)
+
+	c.TestError(
+		`goog.module('xyz');
+
 var foo = goog.require('abc.foo');
 var foo = goog.require('def.foo');
 `,

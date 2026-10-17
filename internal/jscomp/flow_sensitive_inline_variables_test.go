@@ -1172,6 +1172,124 @@ func (c *FlowSensitiveInlineVariablesTest) TestOkayToInlineWithSideEffects() {
 		"var x = 1; if (true) { x = 2; } var y    ; var z; z = x = x + 1;")
 }
 
+// Java: FlowSensitiveInlineVariablesTest.testPathCheckWithSideEffects()
+func (c *FlowSensitiveInlineVariablesTest) TestPathCheckWithSideEffects() {
+	// Control: call blocks inlining
+	c.NoInline("var x = 1; hasSFX(); var z = 1; print(x);")
+
+	// Tagged template blocks inlining
+	c.NoInline("var x = 1; hasSFX`${1}`; var z = 1; print(x);")
+
+	// Optional chain call blocks inlining
+	c.NoInline("var x = 1; hasSFX?.(1); var z = 1; print(x);")
+}
+
+// Java: FlowSensitiveInlineVariablesTest.testPathCheckWithoutSideEffects()
+func (c *FlowSensitiveInlineVariablesTest) TestPathCheckWithoutSideEffects() {
+	// Optional chain call without side effects allows inlining
+	c.Inline("var x = 1; noSFX?.(1); var a = x;", "var x; noSFX?.(1); var a = 1;")
+
+	// Tagged template without side effects allows inlining
+	c.Inline("var x = 1; noSFX`${1}`; var a = x;", "var x; noSFX`${1}`; var a = 1;")
+}
+
+// Java: FlowSensitiveInlineVariablesTest.testNoInlineAcrossPropertyWrites()
+func (c *FlowSensitiveInlineVariablesTest) TestNoInlineAcrossPropertyWrites() {
+	// Property assignment via dot notation (obj.p = v)
+	c.NoInline(
+		`var user = {};
+var r = (function(){ return user.role; })();
+user.role = 'admin';
+if (r !== 'admin') doPrivileged();
+`)
+
+	// Property assignment via bracket notation (obj[k] = v)
+	c.NoInline(
+		`var user = {};
+var r = (function(){ return user['role']; })();
+user['role'] = 'admin';
+if (r !== 'admin') doPrivileged();
+`)
+
+	// Compound property assignment (obj.p += v)
+	c.NoInline(
+		`var user = {};
+var r = (function(){ return user.role; })();
+user.role += 'admin';
+if (r !== 'admin') doPrivileged();
+`)
+
+	// Property increment/decrement (obj.p++)
+	c.NoInline(
+		`var user = {};
+var r = (function(){ return user.role; })();
+user.role++;
+if (r !== 'admin') doPrivileged();
+`)
+
+	// Property assignment in the same statement, evaluated before the use
+	c.NoInline(
+		`var user = {};
+var r = (function(){ return user.role; })();
+print(user.role = 'admin', r);
+`)
+
+	// Property assignment in the same statement, evaluated after the definition
+	c.NoInline(
+		`var user = {};
+var r = (function(){ return user.role; })(), _ = user.role = 'admin';
+if (r !== 'admin') doPrivileged();
+`)
+
+	// Safe to inline: property assignment is the top-level assign target of the use,
+	// so the mutation occurs after the RHS is evaluated
+	c.Inline(
+		`var user = {};
+var r = (function(){ return user.role; })();
+user.role = r;
+`,
+		`var user = {};
+var r;
+user.role = (function(){ return user.role; })();
+`)
+}
+
+// Java: FlowSensitiveInlineVariablesTest.testNoInlineEnhancedForLoopsLhs()
+func (c *FlowSensitiveInlineVariablesTest) TestNoInlineEnhancedForLoopsLhs() {
+	// For-in variant
+	c.TestSame(
+		`function f(input, obj, sink) {
+  var x; x = input;
+  x = '';
+  print(x);
+  for (x in obj) {}
+  sink(x);
+}
+`)
+
+	// For-of variant
+	c.TestSame(
+		`function f(input, arr, sink) {
+  var x; x = input;
+  x = '';
+  print(x);
+  for (x of arr) {}
+  sink(x);
+}
+`)
+
+	// For-await-of variant
+	c.TestSame(
+		`async function f(input, arr, sink) {
+  var x; x = input;
+  x = '';
+  print(x);
+  for await (x of arr) {}
+  sink(x);
+}
+`)
+}
+
 // Java: FlowSensitiveInlineVariablesTest.noInline(String)
 func (c *FlowSensitiveInlineVariablesTest) NoInline(input string) {
 	c.Inline(input, input)

@@ -101,6 +101,81 @@ func (c *DataFlowAnalysisEscapedTest) TestEscapedArrowFunction() {
 		IsTrue()
 }
 
+// Java: DataFlowAnalysisTest.testEscapedInstanceClassField()
+func (c *DataFlowAnalysisEscapedTest) TestEscapedInstanceClassField() {
+	AssertThat(
+		c.computeEscapedLocals(
+			`function f() {
+  let s = 1;
+  class Box {
+    html = s;
+  }
+  return new Box();
+}
+`).Size()).
+		IsEqualTo(1)
+}
+
+// Java: DataFlowAnalysisTest.testEscapedComputedInstanceClassField()
+func (c *DataFlowAnalysisEscapedTest) TestEscapedComputedInstanceClassField() {
+	AssertThat(
+		c.computeEscapedLocals(
+			`function f() {
+  let s = 1;
+  class Box {
+    ['html'] = s;
+  }
+  return new Box();
+}
+`).Size()).
+		IsEqualTo(1)
+}
+
+// Java: DataFlowAnalysisTest.testNotEscapedStaticClassField()
+func (c *DataFlowAnalysisEscapedTest) TestNotEscapedStaticClassField() {
+	AssertThat(
+		c.computeEscapedLocals(
+			`function f() {
+  let s = 1;
+  class Box {
+    static html = s;
+  }
+  return Box;
+}
+`).IsEmpty()).
+		IsTrue()
+}
+
+// Java: DataFlowAnalysisTest.testNotEscapedStaticComputedClassField()
+func (c *DataFlowAnalysisEscapedTest) TestNotEscapedStaticComputedClassField() {
+	AssertThat(
+		c.computeEscapedLocals(
+			`function f() {
+  let s = 1;
+  class Box {
+    static ['html'] = s;
+  }
+  return Box;
+}
+`).IsEmpty()).
+		IsTrue()
+}
+
+// Java: DataFlowAnalysisTest.testNotEscapedComputedClassFieldKey()
+func (c *DataFlowAnalysisEscapedTest) TestNotEscapedComputedClassFieldKey() {
+	AssertThat(
+		c.computeEscapedLocals(
+			`function f() {
+  let s = 'key';
+  class Box {
+    [s] = 1;
+  }
+  return new Box();
+}
+`).IsEmpty()).
+		IsTrue()
+}
+
 // computeEscapedLocals: test computeEscaped helper method that returns the
 // liveness analysis performed by the LiveVariablesAnalysis class
 //

@@ -568,6 +568,21 @@ func (c *InlinePropertiesTest) TestConstInstancePropInArrowFunction_es6Class() {
 			"new C().foo;\n")
 }
 
+// Java: InlinePropertiesTest.testConstInstancePropInForOf_es6Class()
+func (c *InlinePropertiesTest) TestConstInstancePropInForOf_es6Class() {
+	c.TestSame(
+		`/** @unrestricted */
+class C {
+  constructor() {
+    for (const x of [1, 2]) {
+      this.foo = 1;
+    }
+  }
+}
+new C().foo;
+`)
+}
+
 // Java: InlinePropertiesTest.testConstClassProps_es6Class()
 func (c *InlinePropertiesTest) TestConstClassProps_es6Class() {
 	// Inline constant class properties,
@@ -763,4 +778,99 @@ func (c *InlinePropertiesTest) TestClassComputedField_static() {
 			"}\n" +
 			"C['a']\n" +
 			"C['b']\n")
+}
+
+// Java: InlinePropertiesTest.testUninitializedSubclassFieldPreventsInlining()
+func (c *InlinePropertiesTest) TestUninitializedSubclassFieldPreventsInlining() {
+	c.TestSame(
+		`class Guard {
+  constructor() { this.escaped = true; }
+}
+class RawGuard extends Guard {
+  escaped;
+}
+(new RawGuard()).escaped;
+`)
+}
+
+// Java: InlinePropertiesTest.testInitializedSubclassFieldPreventsInlining()
+func (c *InlinePropertiesTest) TestInitializedSubclassFieldPreventsInlining() {
+	c.TestSame(
+		`class Guard {
+  constructor() { this.escaped = true; }
+}
+class RawGuard extends Guard {
+  escaped = false;
+}
+(new RawGuard()).escaped;
+`)
+}
+
+// Java: InlinePropertiesTest.testFieldInitializerReadsLaterField()
+func (c *InlinePropertiesTest) TestFieldInitializerReadsLaterField() {
+	// TODO(b/571953100): inlines property read in field initializer before field is initialized
+	c.Test(
+		`class C {
+  y = this.x;
+  x = 1;
+}
+use((new C()).y);
+`,
+		`class C {
+  y = 1;
+  x = 1;
+}
+use((new C()).y);
+`)
+}
+
+// Java: InlinePropertiesTest.testFieldInitializerAssigningThisPropInsideOuterConstructor()
+func (c *InlinePropertiesTest) TestFieldInitializerAssigningThisPropInsideOuterConstructor() {
+	// TODO(b/571953100): inlines this.x in inner class field initializer from outer constructor
+	c.Test(
+		`class Outer {
+  constructor() {
+    /** @unrestricted */
+    class Inner {
+      f = (use(this.x), this.x = 1);
+    }
+    new Inner();
+  }
+}
+new Outer();
+`,
+		`class Outer {
+  constructor() {
+    class Inner {
+      f = (use(1), this.x = 1);
+    }
+    new Inner();
+  }
+}
+new Outer();
+`)
+}
+
+// Java: InlinePropertiesTest.testPropertyNamedByRenameFunction()
+func (c *InlinePropertiesTest) TestPropertyNamedByRenameFunction() {
+	// `JSCompiler_renameProperty('foo', C)` names `foo` for reflective access, so the unknown
+	// function may write `C.prototype.foo` and `foo` must not be inlined.
+	c.TestSame(
+		`/** @constructor */
+function C() {}
+C.prototype.foo = 1;
+externUnknownVar(C.prototype, JSCompiler_renameProperty('foo', C), 2);
+new C().foo;
+`)
+}
+
+// Java: InlinePropertiesTest.testPropertyWrittenThroughRenamedName()
+func (c *InlinePropertiesTest) TestPropertyWrittenThroughRenamedName() {
+	c.TestSame(
+		`/** @constructor */
+function C() {}
+C.prototype.foo = 1;
+C.prototype[JSCompiler_renameProperty('foo', C)] = 2;
+new C().foo;
+`)
 }

@@ -1030,6 +1030,26 @@ func (c *GlobalNamespaceTest) TestCannotCollapseConditionalObjectLitNestedProper
 	AssertThat(fooProp.CanCollapse()).IsFalse()
 }
 
+// Java: GlobalNamespaceTest.testCannotCollapseConditionalAndObjectLitProperty()
+func (c *GlobalNamespaceTest) TestCannotCollapseConditionalAndObjectLitProperty() {
+	namespace := c.Parse("var foo = x && {prop: 0}; use(foo.prop);")
+
+	fooProp := globalNamespaceTest_name(namespace.GetSlot("foo.prop"))
+
+	// We should not convert foo.prop -> foo$prop because use(foo) might read foo.prop
+	AssertThat(fooProp.CanCollapse()).IsFalse()
+}
+
+// Java: GlobalNamespaceTest.testCannotCollapseConditionalAndObjectLitNestedProperty()
+func (c *GlobalNamespaceTest) TestCannotCollapseConditionalAndObjectLitNestedProperty() {
+	namespace := c.Parse("var foo = x && {prop: {nested: 0}}; use(foo.prop.nested);")
+
+	fooProp := globalNamespaceTest_name(namespace.GetSlot("foo.prop.nested"))
+
+	// We should not convert foo.prop -> foo$prop because use(foo) might read foo.prop
+	AssertThat(fooProp.CanCollapse()).IsFalse()
+}
+
 // Java: GlobalNamespaceTest.testGitHubIssue3733()
 func (c *GlobalNamespaceTest) TestGitHubIssue3733() {
 	namespace := c.Parse(

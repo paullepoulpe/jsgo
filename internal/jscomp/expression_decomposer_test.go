@@ -1880,6 +1880,45 @@ y = (temp_const$jscomp$0.b = temp_const$jscomp$1 + foo()) + goo().a
 `)
 }
 
+// Dynamic receiver and key on LHS of assignment-op.
+// Java: ExpressionDecomposerTest.testExposePlusEquals6()
+func (c *ExpressionDecomposerTest) TestExposePlusEquals6() {
+	c.helperExposeExpression(
+		"var obj = {}; var nextKey = function() {}; obj[nextKey()] += foo() + 1",
+		exprMatchesStr("foo()"),
+		`var obj = {};
+var nextKey = function() {};
+var temp_const$jscomp$0 = obj;
+var temp_const$jscomp$1 = nextKey();
+var temp_const$jscomp$2 = temp_const$jscomp$0[temp_const$jscomp$1];
+temp_const$jscomp$0[temp_const$jscomp$1] = temp_const$jscomp$2 + (foo() + 1);
+`)
+
+	c.helperExposeExpression(
+		"var obj = {}; var nextKey = function() {}; y = (obj[nextKey()] += foo()) + obj[nextKey()]",
+		exprMatchesStr("foo()"),
+		`var obj = {};
+var nextKey = function() {};
+var temp_const$jscomp$0 = obj;
+var temp_const$jscomp$1 = nextKey();
+var temp_const$jscomp$2 = temp_const$jscomp$0[temp_const$jscomp$1];
+y = (temp_const$jscomp$0[temp_const$jscomp$1] = temp_const$jscomp$2 + foo()) + obj[nextKey()]
+`)
+}
+
+// Java: ExpressionDecomposerTest.testExposePlusEquals_getElemCallReceiverAndKey()
+func (c *ExpressionDecomposerTest) TestExposePlusEquals_getElemCallReceiverAndKey() {
+	c.helperExposeExpression(
+		"var x = {}; goo()[goo()] += foo() + 1",
+		exprMatchesStr("foo()"),
+		`var x = {};
+var temp_const$jscomp$0 = goo();
+var temp_const$jscomp$1 = goo();
+var temp_const$jscomp$2 = temp_const$jscomp$0[temp_const$jscomp$1];
+temp_const$jscomp$0[temp_const$jscomp$1] = temp_const$jscomp$2 + (foo() + 1);
+`)
+}
+
 // Java: ExpressionDecomposerTest.testExposeLogicalAssignment1()
 func (c *ExpressionDecomposerTest) TestExposeLogicalAssignment1() {
 	// Part of the work here is being done by Normalize, which converts all
@@ -2186,6 +2225,25 @@ func (c *ExpressionDecomposerTest) TestCanMovePastFnDotCall() {
 		"fn.call(foo());",
 		exprMatchesStr("foo()"),
 		"var result$jscomp$0 = foo(); fn.call(result$jscomp$0);")
+}
+
+// Java: ExpressionDecomposerTest.testDecomposeEs6Features()
+func (c *ExpressionDecomposerTest) TestDecomposeEs6Features() {
+	c.knownConstants.Add("tag")
+	c.knownConstants.Add("sink")
+	// Tagged template literals
+	c.helperCanExposeExpression(
+		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "sink(tag`x`, foo())", exprMatchesStr("foo()"))
+
+	// Await expressions
+	c.helperCanExposeExpression(
+		ExpressionDecomposer_DecompositionType_DECOMPOSABLE,
+		"async function f() { sink(await 0, foo()); }",
+		exprMatchesStr("foo()"))
+
+	// Dynamic imports
+	c.helperCanExposeExpression(
+		ExpressionDecomposer_DecompositionType_DECOMPOSABLE, "sink(import('m'), foo())", exprMatchesStr("foo()"))
 }
 
 // Java: ExpressionDecomposerTest.helperCanExposeExpression(DecompositionType, String, Function<AbstractCompiler, Function<Node, Node>>)

@@ -194,12 +194,6 @@ requirement: {
 
 requirement: {
   type: CUSTOM
-  java_class: 'com.google.javascript.jscomp.ConformanceRules$BanNonLiteralArgsToGoogStringConstFrom'
-  error_message: 'BanNonLiteralArgsToGoogStringConstFrom'
-}
-
-requirement: {
-  type: CUSTOM
   java_class: 'com.google.javascript.jscomp.ConformanceRules$BanUnknownTypedClassPropsReferences'
   error_message: 'BanUnknownTypedClassPropsReferences'
   only_apply_to: 'google-closure-library@20230802.0.0/'

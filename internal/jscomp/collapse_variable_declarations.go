@@ -70,8 +70,8 @@ type CollapseVariableDeclarations_Collapse struct {
 	startNode *rhino.Node
 }
 
-// Java: CollapseVariableDeclarations.Collapse(Node, Node, Node)
-func NewCollapseVariableDeclarations_Collapse(startNode *rhino.Node, endNode *rhino.Node, parent *rhino.Node) *CollapseVariableDeclarations_Collapse {
+// Java: CollapseVariableDeclarations.Collapse(Node)
+func NewCollapseVariableDeclarations_Collapse(startNode *rhino.Node) *CollapseVariableDeclarations_Collapse {
 	return &CollapseVariableDeclarations_Collapse{startNode: startNode}
 }
 
@@ -144,7 +144,7 @@ func (g *CollapseVariableDeclarations_GatherCollapses) Visit(t *NodeTraversal, n
 
 	if hasNodesToCollapse {
 		g.outer.nodesToCollapse.Add(varNode)
-		g.outer.collapses.Add(NewCollapseVariableDeclarations_Collapse(varNode, n, parent))
+		g.outer.collapses.Add(NewCollapseVariableDeclarations_Collapse(varNode))
 	}
 }
 

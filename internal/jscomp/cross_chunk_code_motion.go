@@ -384,7 +384,7 @@ func (y *CrossChunkCodeMotion_GlobalSymbolCycle) GetDsgCyclesLatestFirst() []*Cr
 	var cycle *CrossChunkCodeMotion_DeclarationStatementGroupCycle
 	for dsg := range dsgsLatestFirst.All() {
 		if cycle == nil || cycle.currentChunk != dsg.currentChunk {
-			cycle = NewCrossChunkCodeMotion_DeclarationStatementGroupCycle(y.outer, y, dsg.currentChunk)
+			cycle = NewCrossChunkCodeMotion_DeclarationStatementGroupCycle(y.outer, dsg.currentChunk)
 			cyclesLatestFirst = append(cyclesLatestFirst, cycle)
 		}
 		cycle.dsgs.Add(dsg)
@@ -620,8 +620,8 @@ type CrossChunkCodeMotion_DeclarationStatementGroupCycle struct {
 	dsgs         *jutil.ArrayDeque[*CrossChunkCodeMotion_DeclarationStatementGroup]
 }
 
-// Java: CrossChunkCodeMotion.DeclarationStatementGroupCycle(GlobalSymbolCycle, JSChunk)
-func NewCrossChunkCodeMotion_DeclarationStatementGroupCycle(outer *CrossChunkCodeMotion, globalSymbolCycle *CrossChunkCodeMotion_GlobalSymbolCycle, currentChunk *JSChunk) *CrossChunkCodeMotion_DeclarationStatementGroupCycle {
+// Java: CrossChunkCodeMotion.DeclarationStatementGroupCycle(JSChunk)
+func NewCrossChunkCodeMotion_DeclarationStatementGroupCycle(outer *CrossChunkCodeMotion, currentChunk *JSChunk) *CrossChunkCodeMotion_DeclarationStatementGroupCycle {
 	return &CrossChunkCodeMotion_DeclarationStatementGroupCycle{
 		outer:        outer,
 		currentChunk: currentChunk,
@@ -871,6 +871,9 @@ func (c *CrossChunkCodeMotion) IsGuardedInstanceofReference(reference *rhino.Nod
 func (c *CrossChunkCodeMotion) IsUnguardedInstanceofReference(reference *rhino.Node) bool {
 	instanceofNode := reference.GetParent()
 	if c.IsInstanceofFor(instanceofNode, reference) {
+		if c.compiler.GetAstAnalyzer().MayHaveSideEffects(instanceofNode.GetFirstChild()) {
+			return false
+		}
 		return !c.IsGuardedInstanceofReference(reference)
 	} else {
 		return false

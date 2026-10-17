@@ -32,11 +32,12 @@ type ClosureRewriteModuleTest struct {
 
 	preserveClosurePrimitives bool
 	allowMissingSources       bool
+	runTypeCheck              bool
 }
 
 // Java: ClosureRewriteModuleTest()
 func NewClosureRewriteModuleTest() *ClosureRewriteModuleTest {
-	c := &ClosureRewriteModuleTest{}
+	c := &ClosureRewriteModuleTest{runTypeCheck: true}
 	c.InitCompilerTestCaseBaseWithExterns(c, NewTestExternsBuilder().AddClosureExterns().AddPromise().AddConsole().Build())
 	return c
 }
@@ -48,12 +49,15 @@ func TestClosureRewriteModuleTest(t *testing.T) {
 // Java: ClosureRewriteModuleTest.getProcessor(Compiler)
 func (c *ClosureRewriteModuleTest) GetProcessor(compiler *Compiler) CompilerPass {
 	return CompilerPassFunc(func(externs *rhino.Node, main *rhino.Node) {
-		var rai ReverseAbstractInterpreter = NewSemanticReverseAbstractInterpreter(compiler.GetTypeRegistry())
-		globalTypedScope :=
-			jutil.CheckNotNull(
-				NewTypeCheck(compiler, rai, compiler.GetTypeRegistry()).
-					ProcessForTesting(externs, main))
-		compiler.SetTypeCheckingHasRun(true)
+		var globalTypedScope *TypedScope
+		if c.runTypeCheck {
+			var rai ReverseAbstractInterpreter = NewSemanticReverseAbstractInterpreter(compiler.GetTypeRegistry())
+			globalTypedScope =
+				jutil.CheckNotNull(
+					NewTypeCheck(compiler, rai, compiler.GetTypeRegistry()).
+						ProcessForTesting(externs, main))
+			compiler.SetTypeCheckingHasRun(true)
+		}
 
 		NewClosureRewriteModule(compiler, nil, globalTypedScope).Process(externs, main)
 	})
@@ -62,6 +66,7 @@ func (c *ClosureRewriteModuleTest) GetProcessor(compiler *Compiler) CompilerPass
 // Java: ClosureRewriteModuleTest.setUp()
 func (c *ClosureRewriteModuleTest) SetUp() {
 	c.CompilerTestCaseBase.SetUp()
+	c.runTypeCheck = true
 	c.preserveClosurePrimitives = false
 	c.allowMissingSources = false
 	c.EnableCreateModuleMap()
@@ -74,6 +79,7 @@ func (c *ClosureRewriteModuleTest) GetOptions() *CompilerOptions {
 	options.SetWarningLevel(DiagnosticGroups_LINT_CHECKS, CheckLevel_WARNING)
 	options.SetPreserveClosurePrimitives(c.preserveClosurePrimitives)
 	options.SetWarningLevel(DiagnosticGroups_MISSING_PROVIDE, CheckLevel_WARNING)
+	options.SetWarningLevel(DiagnosticGroups_WEAK_MODULE_GET, CheckLevel_ERROR)
 	options.SetWarningLevel(DiagnosticGroups_MODULE_LOAD, CheckLevel_OFF)
 	if c.allowMissingSources {
 		options.SetWarningLevel(DiagnosticGroups_MISSING_SOURCES_WARNINGS, CheckLevel_OFF)
@@ -1896,6 +1902,193 @@ x.y.z = module$exports$a$b$c$D;
 `))
 }
 
+// Java: ClosureRewriteModuleTest.testWeakGoogModuleGet_error()
+func (c *ClosureRewriteModuleTest) TestWeakGoogModuleGet_error() {
+	c.TestError(
+		c.Srcs(
+			SourceFile_FromCodeWithKind("b.js", "goog.module('b'); exports = class {};", rhino.StaticSourceFile_SourceKind_WEAK),
+			SourceFile_FromCode(
+				"a.js",
+				`goog.module('a');
+function f() {
+  const b = goog.module.get('b');
+}
+`)),
+		ClosurePrimitiveErrors_GOOG_MODULE_GET_OF_WEAK_MODULE)
+}
+
+// Java: ClosureRewriteModuleTest.testWeakGoogModuleGet_suppressWeakModuleGet()
+func (c *ClosureRewriteModuleTest) TestWeakGoogModuleGet_suppressWeakModuleGet() {
+	c.Test(
+		c.Srcs(
+			SourceFile_FromCodeWithKind("b.js", "goog.module('b'); exports = class {};", rhino.StaticSourceFile_SourceKind_WEAK),
+			SourceFile_FromCode(
+				"a.js",
+				`goog.module('a');
+function f() {
+  /** @suppress {weakModuleGet} */
+  const b = goog.module.get('b');
+}
+`)),
+		c.Expected(
+			`/** @const */ var module$exports$a = {};
+function module$contents$a_f() {
+  /** @suppress {weakModuleGet} */
+  const b = null;
+}
+`,
+			"/** @const */ var module$exports$b = class {};"))
+}
+
+// Java: ClosureRewriteModuleTest.testWeakGoogModuleGet_reverseFileOrder()
+func (c *ClosureRewriteModuleTest) TestWeakGoogModuleGet_reverseFileOrder() {
+	c.TestError(
+		c.Srcs(
+			SourceFile_FromCode(
+				"a.js",
+				`goog.module('a');
+function f() {
+  const b = goog.module.get('b');
+}
+`),
+			SourceFile_FromCodeWithKind("b.js", "goog.module('b'); exports = class {};", rhino.StaticSourceFile_SourceKind_WEAK)),
+		ClosurePrimitiveErrors_GOOG_MODULE_GET_OF_WEAK_MODULE)
+}
+
+// Java: ClosureRewriteModuleTest.testWeakGoogProvideGet_error()
+func (c *ClosureRewriteModuleTest) TestWeakGoogProvideGet_error() {
+	c.TestError(
+		c.Srcs(
+			SourceFile_FromCodeWithKind("b.js", "goog.provide('b'); b = class {};", rhino.StaticSourceFile_SourceKind_WEAK),
+			SourceFile_FromCode(
+				"a.js",
+				`goog.module('a');
+function f() {
+  const b = goog.module.get('b');
+}
+`)),
+		ClosurePrimitiveErrors_GOOG_MODULE_GET_OF_WEAK_MODULE)
+}
+
+// Java: ClosureRewriteModuleTest.testWeakAliasedGoogModuleGet_error()
+func (c *ClosureRewriteModuleTest) TestWeakAliasedGoogModuleGet_error() {
+	c.TestError(
+		c.Srcs(
+			SourceFile_FromCodeWithKind("b.js", "goog.module('b'); exports = class {};", rhino.StaticSourceFile_SourceKind_WEAK),
+			SourceFile_FromCode(
+				"a.js",
+				`goog.module('a');
+var x = goog.forwardDeclare('b');
+function f() {
+  x = goog.module.get('b');
+  new x;
+}
+`)),
+		ClosurePrimitiveErrors_GOOG_MODULE_GET_OF_WEAK_MODULE)
+}
+
+// Java: ClosureRewriteModuleTest.testWeakAliasedGoogModuleGet_suppress()
+func (c *ClosureRewriteModuleTest) TestWeakAliasedGoogModuleGet_suppress() {
+	c.Test(
+		c.Srcs(
+			SourceFile_FromCodeWithKind("b.js", "goog.module('b'); exports = class {};", rhino.StaticSourceFile_SourceKind_WEAK),
+			SourceFile_FromCode(
+				"a.js",
+				`goog.module('a');
+var x = goog.forwardDeclare('b');
+function f() {
+  /** @suppress {weakModuleGet} */
+  x = goog.module.get('b');
+  new x;
+}
+`)),
+		c.Expected(
+			`/** @const */ var module$exports$a = {};
+var module$contents$a_x = null;
+function module$contents$a_f() {
+  /** @suppress {weakModuleGet} */
+  module$contents$a_x = null;
+  new module$contents$a_x();
+}
+`,
+			"/** @const */ var module$exports$b = class {};"))
+}
+
+// Java: ClosureRewriteModuleTest.testWeakGoogModuleGet_inExpression()
+func (c *ClosureRewriteModuleTest) TestWeakGoogModuleGet_inExpression() {
+	c.Test(
+		c.Srcs(
+			SourceFile_FromCodeWithKind("b.js", "goog.module('b'); exports = class {};", rhino.StaticSourceFile_SourceKind_WEAK),
+			SourceFile_FromCode(
+				"a.js",
+				`goog.module('a');
+/** @suppress {weakModuleGet} */
+function f() {
+  if (goog.module.get('b')) {
+    return goog.module.get('b');
+  }
+  return null;
+}
+`)),
+		c.Expected(
+			`/** @const */ var module$exports$a = {};
+/** @suppress {weakModuleGet} */
+function module$contents$a_f() {
+  if (null) {
+    return null;
+  }
+  return null;
+}
+`,
+			"/** @const */ var module$exports$b = class {};"))
+}
+
+// Java: ClosureRewriteModuleTest.testWeakCallingFile_doesNotReportError()
+func (c *ClosureRewriteModuleTest) TestWeakCallingFile_doesNotReportError() {
+	c.Test(
+		c.Srcs(
+			SourceFile_FromCode("main.js", "goog.requireType('a');"),
+			SourceFile_FromCodeWithKind("b.js", "goog.module('b'); exports = class {};", rhino.StaticSourceFile_SourceKind_WEAK),
+			SourceFile_FromCodeWithKind(
+				"a.js",
+				`goog.provide('a');
+goog.require('b');
+function f() {
+  const b = goog.module.get('b');
+}
+`, rhino.StaticSourceFile_SourceKind_WEAK)),
+		c.Expected(
+			"goog.requireType('a');",
+			"/** @const */ var module$exports$b = class {};",
+			`goog.provide('a');
+function f() {
+  const b = module$exports$b;
+}
+`))
+}
+
+// Java: ClosureRewriteModuleTest.testWeakGoogModuleGet_withGoogRequire_doesNotReportError()
+func (c *ClosureRewriteModuleTest) TestWeakGoogModuleGet_withGoogRequire_doesNotReportError() {
+	c.Test(
+		c.Srcs(
+			SourceFile_FromCodeWithKind("b.js", "goog.module('b'); exports = class {};", rhino.StaticSourceFile_SourceKind_WEAK),
+			SourceFile_FromCode(
+				"a.js",
+				`goog.provide('a');
+goog.require('b');
+function f() {
+  const b = goog.module.get('b');
+}
+`)),
+		c.Expected(
+			`goog.provide('a');
+function f() {
+  const b = module$exports$b;
+}
+`,
+			"/** @const */ var module$exports$b = class {};"))
+}
+
 // Java: ClosureRewriteModuleTest.testInvalidGoogForwardDeclareParameter()
 func (c *ClosureRewriteModuleTest) TestInvalidGoogForwardDeclareParameter() {
 	// Wrong parameter count.
@@ -3580,4 +3773,110 @@ module$exports$Foo.Foo = {A: 1};
 /** @type {!module$exports$Foo.Foo} */
 const module$contents$Foo_z = module$exports$Foo.Foo.A;
 `)
+}
+
+// Java: ClosureRewriteModuleTest.testLegacyNamespace_referenceToExports()
+func (c *ClosureRewriteModuleTest) TestLegacyNamespace_referenceToExports() {
+	c.Test(
+		`goog.module('a.b.c');
+goog.module.declareLegacyNamespace();
+exports = class Foo {};
+function useExports() {
+  return exports;
+}
+`,
+		`goog.provide('a.b.c');
+/** @const */
+a.b.c = class Foo {};
+function module$contents$a$b$c_useExports() {
+  return a.b.c;
+}
+`)
+}
+
+// Java: ClosureRewriteModuleTest.testLegacyNamespace_referenceToExportProperty()
+func (c *ClosureRewriteModuleTest) TestLegacyNamespace_referenceToExportProperty() {
+	c.Test(
+		`goog.module('a.b.c');
+goog.module.declareLegacyNamespace();
+exports.Foo = class Foo {};
+function useExports() {
+  return exports.Foo;
+}
+`,
+		`goog.provide('a.b.c');
+/** @const */
+a.b.c.Foo = class Foo {};
+function module$contents$a$b$c_useExports() {
+  return a.b.c.Foo;
+}
+`)
+}
+
+// Java: ClosureRewriteModuleTest.testUntypedLegacyNamespace_referenceToExports()
+func (c *ClosureRewriteModuleTest) TestUntypedLegacyNamespace_referenceToExports() {
+	c.runTypeCheck = false
+	c.DisableTypeInfoValidation()
+	c.Test(
+		`goog.module('a.b.c');
+goog.module.declareLegacyNamespace();
+exports = class Foo {};
+function useExports() {
+  return exports;
+}
+`,
+		`goog.provide('a.b.c');
+/** @const */
+a.b.c = class Foo {};
+function module$contents$a$b$c_useExports() {
+  return a.b.c;
+}
+`)
+}
+
+// Java: ClosureRewriteModuleTest.testUntypedLegacyNamespace_referenceToExportProperty()
+func (c *ClosureRewriteModuleTest) TestUntypedLegacyNamespace_referenceToExportProperty() {
+	c.runTypeCheck = false
+	c.DisableTypeInfoValidation()
+	c.Test(
+		`goog.module('a.b.c');
+goog.module.declareLegacyNamespace();
+exports.Foo = class Foo {};
+function useExports() {
+  return exports.Foo;
+}
+`,
+		`goog.provide('a.b.c');
+/** @const */
+a.b.c.Foo = class Foo {};
+function module$contents$a$b$c_useExports() {
+  return a.b.c.Foo;
+}
+`)
+}
+
+// Java: ClosureRewriteModuleTest.testUntypedGoogRequireDynamicInAwait_legacyNamespace()
+func (c *ClosureRewriteModuleTest) TestUntypedGoogRequireDynamicInAwait_legacyNamespace() {
+	c.runTypeCheck = false
+	c.DisableTypeInfoValidation()
+	c.Test(
+		c.Srcs(
+			`goog.module('a.b.c');
+goog.module.declareLegacyNamespace();
+exports = class Foo {};
+`,
+			`async function f() {
+  const {Foo} = await goog.requireDynamic('a.b.c');
+}
+`),
+		c.Expected(
+			`goog.provide('a.b.c');
+/** @const */
+a.b.c = class Foo {};
+`,
+			`async function f() {
+  await goog.importHandler_('sG5M4c');
+  const {Foo} = a.b.c;
+}
+`))
 }

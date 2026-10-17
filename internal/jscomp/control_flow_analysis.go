@@ -529,7 +529,11 @@ func (c *ControlFlowAnalysis) handleEnhancedFor(forNode *rhino.Node) {
 	c.createEdge(forNode, ControlFlowGraph_Branch_ON_TRUE, ControlFlowAnalysis_ComputeFallThrough(body))
 	// The edge to end of the loop.
 	c.createEdge(forNode, ControlFlowGraph_Branch_ON_FALSE, ControlFlowAnalysis_ComputeFollowNodeWithCfa(forNode, c))
-	c.connectToPossibleExceptionHandler(forNode, collection)
+	if forNode.IsForOf() || forNode.IsForAwaitOf() {
+		c.connectToPossibleExceptionHandlerUnconditionally(forNode)
+	} else {
+		c.connectToPossibleExceptionHandler(forNode, collection)
+	}
 }
 
 // Java: ControlFlowAnalysis.handleFor(Node)
@@ -955,43 +959,51 @@ func (c *ControlFlowAnalysis) createEdge(fromNode *rhino.Node, branch ControlFlo
 //
 // Java: ControlFlowAnalysis.connectToPossibleExceptionHandler(Node, Node)
 func (c *ControlFlowAnalysis) connectToPossibleExceptionHandler(cfgNode *rhino.Node, target *rhino.Node) {
-	if ControlFlowAnalysis_MayThrowException(target) && len(c.exceptionHandler) != 0 {
-		lastJump := cfgNode
-		for i := len(c.exceptionHandler) - 1; i >= 0; i-- {
-			handler := c.exceptionHandler[i]
-			if handler.IsFunction() {
-				return
-			}
-			jutil.CheckState(handler.IsTry())
-			catchBlock := NodeUtil_GetCatchBlock(handler)
+	if ControlFlowAnalysis_MayThrowException(target) {
+		c.connectToPossibleExceptionHandlerUnconditionally(cfgNode)
+	}
+}
 
-			lastJumpInCatchBlock := false
-			for ancestor := range lastJump.GetAncestors().All() {
-				if ancestor == handler {
-					break
-				} else if ancestor == catchBlock {
-					lastJumpInCatchBlock = true
-					break
-				}
-			}
-
-			// No catch but a FINALLY, or lastJump is inside the catch block.
-			if !NodeUtil_HasCatchHandler(catchBlock) || lastJumpInCatchBlock {
-				if lastJump == cfgNode {
-					c.createEdge(cfgNode, ControlFlowGraph_Branch_ON_EX, handler.GetLastChild())
-				} else {
-					c.finallyMap.Put(lastJump, handler.GetLastChild())
-				}
-			} else { // Has a catch.
-				if lastJump == cfgNode {
-					c.createEdge(cfgNode, ControlFlowGraph_Branch_ON_EX, catchBlock)
-					return
-				} else {
-					c.finallyMap.Put(lastJump, catchBlock)
-				}
-			}
-			lastJump = handler
+// Java: ControlFlowAnalysis.connectToPossibleExceptionHandlerUnconditionally(Node)
+func (c *ControlFlowAnalysis) connectToPossibleExceptionHandlerUnconditionally(cfgNode *rhino.Node) {
+	if len(c.exceptionHandler) == 0 {
+		return
+	}
+	lastJump := cfgNode
+	for i := len(c.exceptionHandler) - 1; i >= 0; i-- {
+		handler := c.exceptionHandler[i]
+		if handler.IsFunction() {
+			return
 		}
+		jutil.CheckState(handler.IsTry())
+		catchBlock := NodeUtil_GetCatchBlock(handler)
+
+		lastJumpInCatchBlock := false
+		for ancestor := range lastJump.GetAncestors().All() {
+			if ancestor == handler {
+				break
+			} else if ancestor == catchBlock {
+				lastJumpInCatchBlock = true
+				break
+			}
+		}
+
+		// No catch but a FINALLY, or lastJump is inside the catch block.
+		if !NodeUtil_HasCatchHandler(catchBlock) || lastJumpInCatchBlock {
+			if lastJump == cfgNode {
+				c.createEdge(cfgNode, ControlFlowGraph_Branch_ON_EX, handler.GetLastChild())
+			} else {
+				c.finallyMap.Put(lastJump, handler.GetLastChild())
+			}
+		} else { // Has a catch.
+			if lastJump == cfgNode {
+				c.createEdge(cfgNode, ControlFlowGraph_Branch_ON_EX, catchBlock)
+				return
+			} else {
+				c.finallyMap.Put(lastJump, catchBlock)
+			}
+		}
+		lastJump = handler
 	}
 }
 
@@ -1052,9 +1064,12 @@ func ControlFlowAnalysis_MatchLabel(target *rhino.Node, label *string) bool {
 func ControlFlowAnalysis_MayThrowException(n *rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_CALL,
+		rhino.Token_OPTCHAIN_CALL,
 		rhino.Token_TAGGED_TEMPLATELIT,
 		rhino.Token_GETPROP,
+		rhino.Token_OPTCHAIN_GETPROP,
 		rhino.Token_GETELEM,
+		rhino.Token_OPTCHAIN_GETELEM,
 		rhino.Token_THROW,
 		rhino.Token_NEW,
 		rhino.Token_ASSIGN,

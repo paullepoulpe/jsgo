@@ -37,6 +37,9 @@ WARNING JSC_USELESS_CODE w5/access/other/fileoverview_user.js:3:0 @55+9 Suspicio
 = extern     VAR [source_file:  [synthetic:externs] ]
 = extern         NAME JSCOMPILER_PRESERVE [is_constant_name: 1] [source_file:  [synthetic:externs] ]
 ## TypeCheck
+WARNING JSC_INTERFACE_METHOD_NOT_IMPLEMENTED typecheck-externs.js:31:0 @484+22 property Symbol.iterator on interface Iterable is not implemented by type Iterator
+WARNING JSC_STRICT_INEXISTENT_PROPERTY typecheck-externs.js:36:19 @588+4 Property next never defined on Iterator.prototype
+WARNING JSC_CONFLICTING_EXTENDED_TYPE typecheck-externs.js:56:0 @919+30 IteratorIterable cannot extend this type; interfaces can only extend interfaces
 WARNING JSC_UNKNOWN_OVERRIDE w5/access/other/fileoverview_user.js:4:17 @83+45 property method not defined on any superclass of PkgByDefault
 ## CheckAccessControls
 WARNING JSC_CONSTANT_PROPERTY_REASSIGNED_VALUE w5/access/base.js:36:3 @1175+1 constant property k assigned a value more than once\u000aInitialized at w5/access/base.js:6:30
@@ -143,6 +146,9 @@ WARNING JSC_USELESS_CODE w5/conformance/legacy/d.js:2:5 @16+5 Suspicious code. T
 WARNING JSC_UNRECOGNIZED_TYPE_ERROR w5/conformance/a.js:53:12 @-1+0 Bad type annotation. Unknown type Unresolved
 WARNING JSC_UNRECOGNIZED_TYPE_ERROR w5/conformance/a.js:53:12 @-1+0 Bad type annotation. Unknown type Unresolved
 WARNING JSC_UNRECOGNIZED_TYPE_ERROR w5/conformance/a.js:54:12 @-1+0 Bad type annotation. Unknown type Unresolved.Inner
+WARNING JSC_INTERFACE_METHOD_NOT_IMPLEMENTED typecheck-externs.js:31:0 @484+22 property Symbol.iterator on interface Iterable is not implemented by type Iterator
+WARNING JSC_STRICT_INEXISTENT_PROPERTY typecheck-externs.js:36:19 @588+4 Property next never defined on Iterator.prototype
+WARNING JSC_CONFLICTING_EXTENDED_TYPE typecheck-externs.js:56:0 @919+30 IteratorIterable cannot extend this type; interfaces can only extend interfaces
 WARNING JSC_INEXISTENT_PROPERTY w5/conformance/a.js:13:5 @510+6 Property global never defined on goog
 WARNING JSC_INEXISTENT_PROPERTY w5/conformance/a.js:14:5 @523+5 Property isDef never defined on goog
 WARNING JSC_STRICT_INEXISTENT_PROPERTY w5/conformance/a.js:17:41 @613+6 Property callee never defined on Arguments
@@ -232,7 +238,6 @@ WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:56:30 @1769+4 Violation: B
 WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:56:35 @1774+1 Violation: BanUnknownDirectThisPropsReferences
 WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:57:0 @1781+23 Violation: BanGlobalVars
 WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:58:14 @1819+27 Violation: BanGlobalVars
-WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:59:0 @1847+25 Violation: BanNonLiteralArgsToGoogStringConstFrom
 WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:61:0 @1909+16 Violation: BanGlobalVars
 WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:62:4 @1930+5 Violation: BANNED_CODE_PATTERN
 WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:64:0 @1962+35 Violation: BanGlobalVars
@@ -299,6 +304,9 @@ WARNING JSC_MISSING_PARAMETER_JSDOC w5/jsdoc.js:40:32 @1651+1 Parameter must hav
 WARNING JSC_INEXISTENT_PARAM w5/jsdoc.js:21:25 @861+24 parameter b does not appear in wrongName's parameter list
 WARNING JSC_INEXISTENT_PARAM w5/jsdoc.js:23:25 @950+31 parameter x does not appear in optNotMarked's parameter list
 WARNING JSC_INEXISTENT_PARAM w5/jsdoc.js:39:35 @1605+13 parameter x does not appear in C.prototype.g's parameter list
+WARNING JSC_INTERFACE_METHOD_NOT_IMPLEMENTED typecheck-externs.js:31:0 @484+22 property Symbol.iterator on interface Iterable is not implemented by type Iterator
+WARNING JSC_STRICT_INEXISTENT_PROPERTY typecheck-externs.js:36:19 @588+4 Property next never defined on Iterator.prototype
+WARNING JSC_CONFLICTING_EXTENDED_TYPE typecheck-externs.js:56:0 @919+30 IteratorIterable cannot extend this type; interfaces can only extend interfaces
 WARNING JSC_INVALID_CAST w5/jsdoc.js:71:22 @2312+15 invalid cast - must be a subtype or supertype\u000afrom: function(): undefined\u000ato  : number
 WARNING JSC_NOT_FUNCTION_TYPE w5/jsdoc.js:71:22 @2312+17 number expressions are not callable
 ## CheckAccessControls
@@ -419,6 +427,9 @@ WARNING JSC_USELESS_CODE w5/sideeffects.js:39:16 @482+1 Suspicious code. This co
 = extern     VAR [source_file:  [synthetic:externs] ]
 = extern         NAME JSCOMPILER_PRESERVE [is_constant_name: 1] [source_file:  [synthetic:externs] ]
 ## TypeCheck
+WARNING JSC_INTERFACE_METHOD_NOT_IMPLEMENTED typecheck-externs.js:31:0 @484+22 property Symbol.iterator on interface Iterable is not implemented by type Iterator
+WARNING JSC_STRICT_INEXISTENT_PROPERTY typecheck-externs.js:36:19 @588+4 Property next never defined on Iterator.prototype
+WARNING JSC_CONFLICTING_EXTENDED_TYPE typecheck-externs.js:56:0 @919+30 IteratorIterable cannot extend this type; interfaces can only extend interfaces
 WARNING JSC_INEXISTENT_PROPERTY w5/sideeffects.js:4:2 @45+1 Property b never defined on a
 WARNING JSC_INEXISTENT_PROPERTY w5/sideeffects.js:12:3 @151+1 Property y never defined on ns
 WARNING JSC_INEXISTENT_PROPERTY w5/sideeffects.js:22:2 @271+1 Property b never defined on a
@@ -496,6 +507,9 @@ WARNING JSC_USELESS_CODE w5/varref/es.js:2:0 @30+3 Suspicious code. This code la
 = extern     VAR [source_file:  [synthetic:externs] ]
 = extern         NAME JSCOMPILER_PRESERVE [is_constant_name: 1] [source_file:  [synthetic:externs] ]
 ## TypeCheck
+WARNING JSC_INTERFACE_METHOD_NOT_IMPLEMENTED typecheck-externs.js:31:0 @484+22 property Symbol.iterator on interface Iterable is not implemented by type Iterator
+WARNING JSC_STRICT_INEXISTENT_PROPERTY typecheck-externs.js:36:19 @588+4 Property next never defined on Iterator.prototype
+WARNING JSC_CONFLICTING_EXTENDED_TYPE typecheck-externs.js:56:0 @919+30 IteratorIterable cannot extend this type; interfaces can only extend interfaces
 WARNING JSC_INEXISTENT_PROPERTY w5/varref/script.js:35:19 @935+3 Property foo never defined on goog
 WARNING JSC_INEXISTENT_PROPERTY w5/varref/mod.js:2:8 @31+1 Property x never defined on exports
 ## CheckAccessControls

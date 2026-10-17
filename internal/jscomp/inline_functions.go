@@ -264,7 +264,7 @@ func (c *InlineFunctions_FindCandidateFunctions) FindFunctionExpressions(t *Node
 func (f *InlineFunctions) MaybeAddFunction(fn InlineFunctions_Function, chunk *JSChunk) {
 	name := fn.GetName()
 	functionState := f.GetOrCreateFunctionState(name)
-	f.UpdateFunctionStateForInlining(fn, chunk, name, functionState)
+	f.UpdateFunctionStateForInlining(fn, chunk, functionState)
 	jutil.CheckState(!(InlineFunctions_HasRequireInliningAnnotation(fn.GetFunctionNode()) && !functionState.CanInline()))
 }
 
@@ -272,9 +272,9 @@ func (f *InlineFunctions) MaybeAddFunction(fn InlineFunctions_Function, chunk *J
 // given function. Checks if the given function matches the criteria for an
 // inlinable function.
 //
-// Java: InlineFunctions.updateFunctionStateForInlining(Function, JSChunk, String, FunctionState)
+// Java: InlineFunctions.updateFunctionStateForInlining(Function, JSChunk, FunctionState)
 func (f *InlineFunctions) UpdateFunctionStateForInlining(
-	fn InlineFunctions_Function, chunk *JSChunk, name string, functionState *InlineFunctions_FunctionState) {
+	fn InlineFunctions_Function, chunk *JSChunk, functionState *InlineFunctions_FunctionState) {
 	// TODO(johnlenz): Maybe "smarten" FunctionState by adding this logic to it?
 
 	// If the function has multiple definitions, don't inline it.
@@ -332,8 +332,9 @@ func (f *InlineFunctions) UpdateFunctionStateForInlining(
 				functionState.SetReferencesThis(true)
 			}
 
-			if NodeUtil_Has(block, (*rhino.Node).IsFunction, func(*rhino.Node) bool { return true }) {
-				functionState.SetHasInnerFunctions(true)
+			if NodeUtil_Has(
+				block, NodeUtil_IsFunctionOrNonStaticClassFieldInitializer, func(*rhino.Node) bool { return true }) {
+				functionState.SetHasInnerClosures(true)
 				// If there are inner functions, we can inline into global scope
 				// if there are no local vars or named functions.
 				// TODO(johnlenz): this can be improved by looking at the possible
@@ -650,7 +651,7 @@ func (r *InlineFunctions_FindCandidatesReferences) MaybeAddReferenceUsingMode(
 		functionState.GetFn().GetFunctionNode(),
 		functionState.GetNamesToAlias(),
 		functionState.GetReferencesThis(),
-		functionState.HasInnerFunctions())
+		functionState.HasInnerClosures())
 	if result != FunctionInjector_CanInlineResult_NO {
 		// Yeah!
 		candidate.SetRequiresDecomposition(result == FunctionInjector_CanInlineResult_AFTER_PREPARATION)
@@ -678,11 +679,10 @@ func (r *InlineFunctions_FindCandidatesReferences) CheckNameUsage(n *rhino.Node,
 		return
 	}
 
-	// If the name is being assigned to it can not be inlined.
-	if parent.IsAssign() && parent.GetFirstChild() == n {
-		// e.g. bar = something; <== we can't inline "bar"
-		// so mark the function as uninlinable.
-		// TODO(johnlenz): Should we just remove it from fns here?
+	// If the name is being assigned to or modified as an L-value (e.g. `bar = something;`,
+	// destructuring `[bar] = ...`, or `for (bar of ...)`), it cannot be inlined.
+	if NodeUtil_IsLValue(n) {
+		// Mark the function as uninlinable.
 		functionState.DisallowInlining(r.outer.compiler, InlineFunctions_DisallowInliningReason_REASSIGNED)
 	} else if (parent.IsAssign() &&
 		parent.GetJSDocInfo() != nil &&
@@ -992,16 +992,16 @@ func (f *InlineFunctions) VerifyAllReferencesInlined(name string, functionState 
 // InlineFunctions_FunctionState is used to track the decisions that have
 // been made about a function.
 type InlineFunctions_FunctionState struct {
-	fn                InlineFunctions_Function
-	safeFnNode        *rhino.Node
-	inline            bool
-	remove            bool
-	inlineDirectly    bool
-	referencesThis    bool
-	hasInnerFunctions bool
-	references        *jutil.LinkedHashMap[*rhino.Node, *InlineFunctions_Reference]
-	chunk             *JSChunk
-	namesToAlias      *jutil.LinkedHashSet[string]
+	fn               InlineFunctions_Function
+	safeFnNode       *rhino.Node
+	inline           bool
+	remove           bool
+	inlineDirectly   bool
+	referencesThis   bool
+	hasInnerClosures bool
+	references       *jutil.LinkedHashMap[*rhino.Node, *InlineFunctions_Reference]
+	chunk            *JSChunk
+	namesToAlias     *jutil.LinkedHashSet[string]
 
 	hasRequireInliningAnnotation            bool
 	hasRequireInliningAnnotationInitialized bool
@@ -1037,14 +1037,17 @@ func (s *InlineFunctions_FunctionState) GetReferencesThis() bool {
 	return s.referencesThis
 }
 
-// Java: InlineFunctions.FunctionState.setHasInnerFunctions(boolean)
-func (s *InlineFunctions_FunctionState) SetHasInnerFunctions(hasInnerFunctions bool) {
-	s.hasInnerFunctions = hasInnerFunctions
+// SetHasInnerClosures: whether the function contains inner functions or
+// non-static class field initializers.
+//
+// Java: InlineFunctions.FunctionState.setHasInnerClosures(boolean)
+func (s *InlineFunctions_FunctionState) SetHasInnerClosures(hasInnerClosures bool) {
+	s.hasInnerClosures = hasInnerClosures
 }
 
-// Java: InlineFunctions.FunctionState.hasInnerFunctions()
-func (s *InlineFunctions_FunctionState) HasInnerFunctions() bool {
-	return s.hasInnerFunctions
+// Java: InlineFunctions.FunctionState.hasInnerClosures()
+func (s *InlineFunctions_FunctionState) HasInnerClosures() bool {
+	return s.hasInnerClosures
 }
 
 // Java: InlineFunctions.FunctionState.removeBlockInliningReferences()

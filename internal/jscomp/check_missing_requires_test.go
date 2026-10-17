@@ -733,6 +733,37 @@ let /** Baz */ x;
 `)
 }
 
+// Java: CheckMissingRequiresTest.testWarning_destructure_nonLegacyModule_fromLegacyModule()
+func (c *CheckMissingRequiresTest) TestWarning_destructure_nonLegacyModule_fromLegacyModule() {
+	c.CheckIncorrectNamespaceAliasRequireWarning(
+		"foo.bar.Baz",
+		`goog.module('foo.bar');
+goog.module.declareLegacyNamespace();
+`,
+		`goog.module('foo.bar.Baz');
+/** @constructor */ exports = function() {};
+`,
+		`goog.module('test');
+const {Baz} = goog.require('foo.bar');
+function ref(a) {}
+ref(Baz);
+`)
+}
+
+// Java: CheckMissingRequiresTest.testWarning_destructure_nestedProvide_whenChildAlsoImported()
+func (c *CheckMissingRequiresTest) TestWarning_destructure_nestedProvide_whenChildAlsoImported() {
+	c.CheckIncorrectNamespaceAliasRequireWarning(
+		"foo.bar.Baz",
+		"goog.provide('foo.bar');",
+		"goog.provide('foo.bar.Baz');",
+		`goog.module('test');
+const BarBaz = goog.require('foo.bar.Baz');
+const {Baz} = goog.require('foo.bar');
+function ref(a) {}
+ref(Baz);
+`)
+}
+
 // Java: CheckMissingRequiresTest.testWarning_missingRequire_nestedProvideIndirectRef()
 func (c *CheckMissingRequiresTest) TestWarning_missingRequire_nestedProvideIndirectRef() {
 	c.CheckIndirectNamespaceRefRequireWarning(

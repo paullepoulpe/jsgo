@@ -285,6 +285,99 @@ func (c *AstValidatorTest) TestFeatureValidation_classField() {
 		parser.FeatureSet_Feature_PUBLIC_CLASS_FIELDS)
 }
 
+// Java: AstValidatorTest.testFeatureValidation_privateClassField()
+func (c *AstValidatorTest) TestFeatureValidation_privateClassField() {
+	c.testFeatureValidation(
+		`class C {
+  #x=2;
+}
+`,
+		parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
+}
+
+// Java: AstValidatorTest.testFeatureValidation_staticPrivateClassField()
+func (c *AstValidatorTest) TestFeatureValidation_staticPrivateClassField() {
+	c.testFeatureValidation(
+		`class C {
+  static #x=2;
+}
+`,
+		parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
+}
+
+// Java: AstValidatorTest.testFeatureValidation_privateGetter()
+func (c *AstValidatorTest) TestFeatureValidation_privateGetter() {
+	c.testFeatureValidation(
+		`class C {
+  get #x() { return 1; }
+}
+`,
+		parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
+}
+
+// Java: AstValidatorTest.testFeatureValidation_privateSetter()
+func (c *AstValidatorTest) TestFeatureValidation_privateSetter() {
+	c.testFeatureValidation(
+		`class C {
+  set #x(val) {}
+}
+`,
+		parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
+}
+
+// Java: AstValidatorTest.testFeatureValidation_privateMethod()
+func (c *AstValidatorTest) TestFeatureValidation_privateMethod() {
+	c.testFeatureValidation(
+		`class C {
+  #m() {}
+}
+`,
+		parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
+}
+
+// Java: AstValidatorTest.testFeatureValidation_privateBrandCheck()
+func (c *AstValidatorTest) TestFeatureValidation_privateBrandCheck() {
+	c.testFeatureValidation(
+		`class C {
+  #x;
+  check(obj) {
+    return #x in obj;
+  }
+}
+`,
+		parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
+}
+
+// Java: AstValidatorTest.testFeatureValidation_staticPrivateMethod()
+func (c *AstValidatorTest) TestFeatureValidation_staticPrivateMethod() {
+	c.testFeatureValidation(
+		`class C {
+  static #m() {}
+}
+`,
+		parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
+}
+
+// Java: AstValidatorTest.testFeatureValidation_staticPrivateGetter()
+func (c *AstValidatorTest) TestFeatureValidation_staticPrivateGetter() {
+	c.testFeatureValidation(
+		`class C {
+  static get #x() { return 1; }
+}
+`,
+		parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
+}
+
+// Java: AstValidatorTest.testFeatureValidation_staticPrivateSetter()
+func (c *AstValidatorTest) TestFeatureValidation_staticPrivateSetter() {
+	c.testFeatureValidation(
+		`class C {
+  static set #x(val) {}
+}
+`,
+		parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
+}
+
 // Java: AstValidatorTest.testFeatureValidation_classComputedField()
 func (c *AstValidatorTest) TestFeatureValidation_classComputedField() {
 

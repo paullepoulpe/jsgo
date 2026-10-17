@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"strings"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -53,10 +55,7 @@ type ExtraRequireRemover struct {
 }
 
 var extraRequireRemover_DEFAULT_EXTRA_NAMESPACES = jutil.NewLinkedHashSet(
-	"goog.testing.asserts",
-	"goog.testing.jsunit",
-	"goog.testing.JsTdTestCaseAdapter",
-	"goog.labs.testing.Environment")
+	"goog.testing.asserts", "goog.testing.jsunit", "goog.labs.testing.Environment")
 
 // Java: ExtraRequireRemover(AbstractCompiler)
 func NewExtraRequireRemover(compiler AbstractCompiler) *ExtraRequireRemover {
@@ -105,24 +104,11 @@ var extraRequireRemover_GOOG_FORWARD_DECLARE = rhino.QualifiedName_Of("goog.forw
 //
 // Java: ExtraRequireRemover.extractNamespaceIfRequire(Node)
 func (e *ExtraRequireRemover) ExtractNamespaceIfRequire(call *rhino.Node) *string {
-	return e.ExtractNamespace(call, extraRequireRemover_GOOG_REQUIRE, extraRequireRemover_GOOG_REQUIRE_TYPE)
-}
-
-// ExtractNamespaceIfForwardDeclare extracts namespace from
-// goog.forwardDeclare nodes
-//
-// Java: ExtraRequireRemover.extractNamespaceIfForwardDeclare(Node)
-func (e *ExtraRequireRemover) ExtractNamespaceIfForwardDeclare(call *rhino.Node) *string {
-	return e.ExtractNamespace(call, extraRequireRemover_GOOG_FORWARD_DECLARE)
+	return e.ExtractNamespace(call, extraRequireRemover_GOOG_REQUIRE, extraRequireRemover_GOOG_REQUIRE_TYPE, extraRequireRemover_GOOG_FORWARD_DECLARE)
 }
 
 // Java: ExtraRequireRemover.shouldTraverse(NodeTraversal, Node, Node)
 func (e *ExtraRequireRemover) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
-	if n.IsScript() &&
-		n.GetJSDocInfo() != nil &&
-		n.GetJSDocInfo().GetSuppressions().Contains("missingRequire") {
-		return false
-	}
 	// Skip ES modules. We could support them in the future if desired.
 	return !n.IsModuleBody() || n.GetParent().GetBooleanProp(rhino.Node_GOOG_MODULE)
 }
@@ -196,6 +182,12 @@ func (e *ExtraRequireRemover) RemoveExtraRequire(call *rhino.Node, require strin
 		return
 	}
 
+	// Workaround for tsickle bug affecting JSPB imports.
+	// TODO: b/520110716 - Remove this once the bug is fixed.
+	if ExtraRequireRemover_IsTsickleProtoCall(call) {
+		return
+	}
+
 	// Case 1: remove if this is an expression statement.
 	// ex: goog.require('foo');
 	if call.GetParent().IsExprResult() {
@@ -261,18 +253,6 @@ func (e *ExtraRequireRemover) VisitRequire(localName string, namespace string, n
 	e.requires.PutIfAbsent(localName, node)
 }
 
-// VisitForwardDeclare visits and tracks goog.forwardDeclares
-//
-// Java: ExtraRequireRemover.visitForwardDeclare(String, Node, Node)
-func (e *ExtraRequireRemover) VisitForwardDeclare(namespace string, forwardDeclareCall *rhino.Node, parent *rhino.Node) {
-	if !forwardDeclareCall.GetParent().IsName() {
-		e.VisitGoogRequire(namespace, forwardDeclareCall, parent)
-	} else {
-		// aliased goog.forwardDeclare's will not be pruned
-		return
-	}
-}
-
 // VisitGoogRequire visits local names and adds the name to `usages`.
 //
 // Ex: `const A = goog.require('foo');` add `A` to `usages`
@@ -321,12 +301,6 @@ func (e *ExtraRequireRemover) VisitCallNode(call *rhino.Node, parent *rhino.Node
 		return
 	}
 
-	declare := e.ExtractNamespaceIfForwardDeclare(call)
-	if declare != nil {
-		e.VisitForwardDeclare(*declare, call, parent)
-		return
-	}
-
 	callee := call.GetFirstChild()
 	if extraRequireRemover_GOOG_MODULE_GET.Matches(callee) && call.GetSecondChild().IsStringLit() {
 		e.usages.Add(call.GetSecondChild().GetString())
@@ -372,4 +346,13 @@ func (e *ExtraRequireRemover) MaybeAddJsDocUsages(n *rhino.Node) {
 			e.AddUsagesOfAllPrefixes(rhino.QualifiedName_Of(typeName))
 		}
 	}
+}
+
+// Java: ExtraRequireRemover.isTsickleProtoCall(Node)
+func ExtraRequireRemover_IsTsickleProtoCall(call *rhino.Node) bool {
+	if !call.IsCall() || !strings.HasSuffix(*call.GetSourceFileName(), ".closure.js") {
+		return false
+	}
+	moduleId := call.GetSecondChild()
+	return moduleId != nil && moduleId.IsStringLit() && strings.HasPrefix(moduleId.GetString(), "proto.")
 }

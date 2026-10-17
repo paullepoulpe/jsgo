@@ -121,9 +121,9 @@ func (c *DevirtualizeMethodsTest) CheckColorOfRewrittenMethods() {
 	AssertThat(barResultType).IsEqualTo(colors.StandardColors_NUMBER)
 	AssertThat(bazResultType).IsEqualTo(colors.StandardColors_NULL_OR_VOID)
 
-	AssertThat(fooType).IsEqualTo(colors.StandardColors_TOP_OBJECT)
-	AssertThat(barType).IsEqualTo(colors.StandardColors_TOP_OBJECT)
-	AssertThat(bazType).IsEqualTo(colors.StandardColors_TOP_OBJECT)
+	AssertThat(fooType).IsEqualTo(colors.StandardColors_TOP_FUNCTION)
+	AssertThat(barType).IsEqualTo(colors.StandardColors_TOP_FUNCTION)
+	AssertThat(bazType).IsEqualTo(colors.StandardColors_TOP_FUNCTION)
 }
 
 // Java: DevirtualizeMethodsTest.getLabelledExpression(String)
@@ -550,6 +550,63 @@ func (c *DevirtualizeMethodsTest) TestRewrite_definedUsingProtoObjectLit() {
 			"a.prototype={};\n"+
 			"\n"+
 			"JSCompiler_StaticMethods_foo(o)\n")
+}
+
+// Java: DevirtualizeMethodsTest.testRewrite_definedUsingProtoObjectLit_shorthandMethod()
+func (c *DevirtualizeMethodsTest) TestRewrite_definedUsingProtoObjectLit_shorthandMethod() {
+	c.Test(
+		"a.prototype = {foo() { return 2; }}; o.foo()",
+		`var JSCompiler_StaticMethods_foo = function(JSCompiler_StaticMethods_foo$self) {
+  return 2;
+};
+a.prototype={};
+JSCompiler_StaticMethods_foo(o)
+`)
+}
+
+// Methods on plain object literals are left to CollapseProperties, which (unlike this pass)
+// checks whether the object escapes. Plain objects are routinely enumerated, copied, or
+// mixed in (e.g. Polymer behaviors), so removing a method from one is unsafe in general.
+
+// Java: DevirtualizeMethodsTest.testNoRewrite_definedUsingPlainObjectLit()
+func (c *DevirtualizeMethodsTest) TestNoRewrite_definedUsingPlainObjectLit() {
+	c.TestSame(
+		`const obj = {
+  x: 1,
+  foo: function() {
+    return this.x;
+  },
+};
+use(obj);
+obj.foo();
+`)
+}
+
+// Java: DevirtualizeMethodsTest.testNoRewrite_definedUsingPlainObjectLit_shorthandMethod()
+func (c *DevirtualizeMethodsTest) TestNoRewrite_definedUsingPlainObjectLit_shorthandMethod() {
+	// Regression test for b/571987051: shorthand methods were devirtualized even though the
+	// equivalent `foo: function() {}` above was not. This went unnoticed in ES5 output because
+	// shorthand methods were transpiled to `foo: function() {}` before this pass ran.
+	c.TestSame(
+		`const obj = {
+  x: 1,
+  foo() {
+    return this.x;
+  },
+};
+use(obj);
+obj.foo();
+`)
+}
+
+// Java: DevirtualizeMethodsTest.testNoRewrite_definedUsingAnonymousObjectLit_shorthandMethod()
+func (c *DevirtualizeMethodsTest) TestNoRewrite_definedUsingAnonymousObjectLit_shorthandMethod() {
+	c.TestSame("use({foo() { return 1; }}); o.foo();")
+}
+
+// Java: DevirtualizeMethodsTest.testNoRewrite_definedUsingObjectLitNestedInProtoObjectLit_shorthandMethod()
+func (c *DevirtualizeMethodsTest) TestNoRewrite_definedUsingObjectLitNestedInProtoObjectLit_shorthandMethod() {
+	c.TestSame("a.prototype = {bar: {foo() { return 1; }}}; o.foo();")
 }
 
 // Java: DevirtualizeMethodsTest.testNoRewrite_multipleDefinitions_definedUsingProtoObjectLit_definedUsingGetProp()

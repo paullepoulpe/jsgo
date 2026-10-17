@@ -48,12 +48,25 @@ func JsIterables_GetElementType(iterableOrIterator rhino.JSType, typeRegistry *r
 	} else if templateTypeMap.HasTemplateKey(typeRegistry.GetIteratorValueTemplate()) {
 		// `Iterator<SomeElementType>`
 		return templateTypeMap.GetResolvedTemplateType(typeRegistry.GetIteratorValueTemplate())
+	} else if templateTypeMap.HasTemplateKey(typeRegistry.GetIteratorLikeValueTemplate()) {
+		// `IteratorLike<SomeElementType>`
+		return templateTypeMap.GetResolvedTemplateType(typeRegistry.GetIteratorLikeValueTemplate())
 	} else if templateTypeMap.HasTemplateKey(typeRegistry.GetAsyncIterableValueTemplate()) {
 		// `AsyncIterable<SomeElementType>` or `AsyncGenerator<SomeElementType>`
 		return templateTypeMap.GetResolvedTemplateType(typeRegistry.GetAsyncIterableValueTemplate())
 	} else if templateTypeMap.HasTemplateKey(typeRegistry.GetAsyncIteratorValueTemplate()) {
 		// `AsyncIterator<SomeElementType>`
 		return templateTypeMap.GetResolvedTemplateType(typeRegistry.GetAsyncIteratorValueTemplate())
+	}
+	nextProperty := iterableOrIterator.FindPropertyType("next")
+	if nextProperty != nil {
+		nextFn := nextProperty.ToMaybeFunctionType()
+		if nextFn != nil && nextFn.GetReturnType() != nil {
+			valueProperty := nextFn.GetReturnType().FindPropertyType("value")
+			if valueProperty != nil {
+				return valueProperty
+			}
+		}
 	}
 	return typeRegistry.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)
 }
@@ -80,6 +93,9 @@ func JsIterables_GetReturnElementType(iterableOrIterator rhino.JSType, typeRegis
 	} else if templateTypeMap.HasTemplateKey(typeRegistry.GetIteratorReturnTemplate()) {
 		// `Iterator<?, SomeElementType>`
 		return templateTypeMap.GetResolvedTemplateType(typeRegistry.GetIteratorReturnTemplate())
+	} else if templateTypeMap.HasTemplateKey(typeRegistry.GetIteratorLikeReturnTemplate()) {
+		// `IteratorLike<?, SomeElementType>`
+		return templateTypeMap.GetResolvedTemplateType(typeRegistry.GetIteratorLikeReturnTemplate())
 	} else if templateTypeMap.HasTemplateKey(typeRegistry.GetAsyncIterableReturnTemplate()) {
 		// `AsyncIterable<?, SomeElementType>` or `AsyncGenerator<?, SomeElementType>`
 		return templateTypeMap.GetResolvedTemplateType(typeRegistry.GetAsyncIterableReturnTemplate())

@@ -91,10 +91,24 @@ func (f *FunctionArgumentInjector) InjectWithReplaceThis(
 
 			return replacement
 		}
-	} else if node.IsFunction() && !node.IsArrowFunction() {
-		// Once we enter another non-arrow function the "this" value changes. Don't try
-		// to replace it within an inner scope.
+	} else if (node.IsFunction() && !node.IsArrowFunction()) ||
+		node.IsMemberFieldDef() ||
+		NodeUtil_IsClassStaticBlock(node) {
+		// Once we enter another non-arrow function, class field initializer, or static block,
+		// the "this" value changes. Don't try to replace it within an inner scope.
 		replaceThis = false
+	}
+
+	if node.IsComputedFieldDef() {
+		key := node.GetFirstChild()
+		if key != nil {
+			key = f.InjectWithReplaceThis(compiler, key, node, replacements, replaceThis)
+			value := key.GetNext()
+			if value != nil {
+				value = f.InjectWithReplaceThis(compiler, value, node, replacements /* replaceThis= */, false)
+			}
+		}
+		return node
 	}
 
 	for c := node.GetFirstChild(); c != nil; c = c.GetNext() {
@@ -119,7 +133,11 @@ func (f *FunctionArgumentInjector) GetFunctionCallParameterMap(
 	// CALL NODE: [ NAME, ARG1, ARG2, ... ]
 	cArg := callNode.GetSecondChild()
 	if cArg != nil && NodeUtil_IsFunctionObjectCall(callNode) {
-		argMap.Put(FunctionArgumentInjector_THIS_MARKER, NewFunctionArgumentInjector_ParamArgPair(FunctionArgumentInjector_THIS_MARKER_NODE, cArg))
+		if !fnNode.IsArrowFunction() {
+			argMap.Put(FunctionArgumentInjector_THIS_MARKER, NewFunctionArgumentInjector_ParamArgPair(FunctionArgumentInjector_THIS_MARKER_NODE, cArg))
+		} else {
+			argMap.Put(FunctionArgumentInjector_THIS_MARKER, NewFunctionArgumentInjector_ParamArgPair(FunctionArgumentInjector_THIS_MARKER_NODE, rhino.IR_ThisNode()))
+		}
 		cArg = cArg.GetNext()
 	} else {
 		// 'apply' isn't supported yet.
@@ -211,28 +229,30 @@ func (f *FunctionArgumentInjector) FindModifiedParameters(fnNode *rhino.Node) *j
 // We don't want "undefined" to be substituted for "x", and get undefined=2
 //
 // n is the node in question; names is the set of names to check;
-// inInnerFunction is whether the inspection is occurring on a inner
-// function.
+// inInnerClosure is whether the inspection is occurring inside an inner
+// function or non-static class field initializer.
 //
 // Java: FunctionArgumentInjector.findModifiedParameters(Node, ImmutableSet<String>, boolean)
 func FunctionArgumentInjector_FindModifiedParametersIn(
-	n *rhino.Node, names *jutil.LinkedHashSet[string], inInnerFunction bool) *jutil.LinkedHashSet[string] {
+	n *rhino.Node, names *jutil.LinkedHashSet[string], inInnerClosure bool) *jutil.LinkedHashSet[string] {
 	unsafe := jutil.NewLinkedHashSet[string]()
+	if NodeUtil_IsFunctionOrNonStaticClassFieldInitializer(n) {
+		// A function parameter can not be replaced with a direct inlined value
+		// if it is referred to by an inner function or a non-static class field
+		// initializer. The inner function or field initializer can out live the
+		// call we are replacing, so it must capture a unique name.  This approach
+		// does not work within loop bodies so those are forbidden elsewhere.
+		inInnerClosure = true
+	}
+
 	if n.IsName() {
-		if names.Contains(n.GetString()) && (inInnerFunction || FunctionArgumentInjector_CanNameValueChange(n)) {
+		if names.Contains(n.GetString()) && (inInnerClosure || FunctionArgumentInjector_CanNameValueChange(n)) {
 			unsafe.Add(n.GetString())
 		}
-	} else if n.IsFunction() {
-		// A function parameter can not be replaced with a direct inlined value
-		// if it is referred to by an inner function. The inner function
-		// can out live the call we are replacing, so inner function must
-		// capture a unique name.  This approach does not work within loop
-		// bodies so those are forbidden elsewhere.
-		inInnerFunction = true
 	}
 
 	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {
-		unsafe.AddAll(FunctionArgumentInjector_FindModifiedParametersIn(c, names, inInnerFunction).ToSlice()...)
+		unsafe.AddAll(FunctionArgumentInjector_FindModifiedParametersIn(c, names, inInnerClosure).ToSlice()...)
 	}
 
 	return unsafe
@@ -249,9 +269,14 @@ func FunctionArgumentInjector_FindModifiedParametersIn(
 //
 // Java: FunctionArgumentInjector.canNameValueChange(Node)
 func FunctionArgumentInjector_CanNameValueChange(n *rhino.Node) bool {
-	return NodeUtil_IsLValue(n) &&
-		!NodeUtil_GetEnclosingStatement(n).IsConst() &&
-		!NodeUtil_GetEnclosingStatement(n).IsLet()
+	if !NodeUtil_IsLValue(n) {
+		return false
+	}
+	if NodeUtil_IsDeclarationLValue(n) {
+		declaring := NodeUtil_GetDeclaringParent(n)
+		return !declaring.IsConst() && !declaring.IsLet()
+	}
+	return true
 }
 
 // GatherCallArgumentsNeedingTemps updates the set of parameter names that
@@ -300,7 +325,8 @@ func (f *FunctionArgumentInjector) GatherCallArgumentsNeedingTemps(
 	// return, the expression is
 	isTrivialBody := (!block.HasChildren() ||
 		(block.HasOneChild() && !f.BodyMayHaveConditionalCode(block.GetLastChild())))
-	hasMinimalParameters := NodeUtil_IsUndefined(argMap.Get(FunctionArgumentInjector_THIS_MARKER).Arg()) &&
+	hasMinimalParameters := (NodeUtil_IsUndefined(argMap.Get(FunctionArgumentInjector_THIS_MARKER).Arg()) ||
+		(fnNode.IsArrowFunction() && argMap.Get(FunctionArgumentInjector_THIS_MARKER).Arg().IsThis())) &&
 		argCount <= 2 // this + one parameter
 
 	// Get the list of parameters that may need temporaries due to side-effects.
@@ -384,7 +410,8 @@ func (f *FunctionArgumentInjector) GatherCallArgumentsNeedingTemps(
 		// mark all names upto requiresTempsUptoParameterName as namesNeedingTemps
 		for parameterName := range argMap.Keys() {
 			if parameterName == FunctionArgumentInjector_THIS_MARKER &&
-				NodeUtil_IsUndefined(argMap.Get(FunctionArgumentInjector_THIS_MARKER).Arg()) {
+				(NodeUtil_IsUndefined(argMap.Get(FunctionArgumentInjector_THIS_MARKER).Arg()) ||
+					(fnNode.IsArrowFunction() && argMap.Get(FunctionArgumentInjector_THIS_MARKER).Arg().IsThis())) {
 				/* When there is no explicit this arg passed into the call, the argMap contains an entry
 				 * <"this", undefined Node>. See the `getFunctionCallParameterMap` method.
 				 *
@@ -414,7 +441,8 @@ func (f *FunctionArgumentInjector) GatherCallArgumentsNeedingTemps(
 }
 
 // BodyMayHaveConditionalCode: we consider a return or expression trivial if
-// it doesn't contain a conditional expression or a function.
+// it doesn't contain a conditional expression, a function, or a non-static
+// class field initializer.
 //
 // Java: FunctionArgumentInjector.bodyMayHaveConditionalCode(Node)
 func (f *FunctionArgumentInjector) BodyMayHaveConditionalCode(n *rhino.Node) bool {
@@ -425,7 +453,8 @@ func (f *FunctionArgumentInjector) BodyMayHaveConditionalCode(n *rhino.Node) boo
 }
 
 // MayHaveConditionalCode: we consider an expression trivial if it doesn't
-// contain a conditional expression or a function.
+// contain a conditional expression, a function, or a non-static class field
+// initializer.
 //
 // Java: FunctionArgumentInjector.mayHaveConditionalCode(Node)
 func (f *FunctionArgumentInjector) MayHaveConditionalCode(n *rhino.Node) bool {
@@ -441,6 +470,9 @@ func (f *FunctionArgumentInjector) MayHaveConditionalCode(n *rhino.Node) bool {
 			rhino.Token_OPTCHAIN_GETPROP:
 			return true
 		default:
+			if NodeUtil_IsNonStaticClassFieldInitializer(c) {
+				return true
+			}
 		}
 		if f.MayHaveConditionalCode(c) {
 			return true

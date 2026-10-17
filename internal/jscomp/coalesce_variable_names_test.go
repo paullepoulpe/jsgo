@@ -292,6 +292,21 @@ func (c *CoalesceVariableNamesTest) TestTryCatch() {
 	c.InFunction("var x = 4; x; try {} catch (e) { }")
 }
 
+// Java: CoalesceVariableNamesTest.testOptionalChainingUnsafeCoalesce()
+func (c *CoalesceVariableNamesTest) TestOptionalChainingUnsafeCoalesce() {
+	c.InFunction(
+		`var x = 1;
+try {
+  cb?.();
+  x = 2;
+} catch (e) {
+  var y = 3;
+  use(y);
+}
+use(x);
+`)
+}
+
 // Java: CoalesceVariableNamesTest.testDeadAssignment()
 func (c *CoalesceVariableNamesTest) TestDeadAssignment() {
 	c.InFunction("var x = 6; var y; y = 4 ; x")
@@ -499,6 +514,78 @@ func (c *CoalesceVariableNamesTest) Test_usePseudoName_coalesces_deletesUninitia
 			"  x_y;\n" +
 			"  x_y = x_y;\n" +
 			"}\n"
+	c.InFunctionWithExpected(src, expected)
+}
+
+// Java: CoalesceVariableNamesTest.test_doesNotUsePseudoName_coalesces_resetsUninitializedDeclInLoopWhenLive()
+func (c *CoalesceVariableNamesTest) Test_doesNotUsePseudoName_coalesces_resetsUninitializedDeclInLoopWhenLive() {
+	c.usePseudoName = false
+	src := `var y;
+while (someExtern) {
+  let x;
+  x;
+  x = 1;
+}
+y = 2;
+y;
+`
+	expected := `var y;
+for (; someExtern;) {
+  y = void 0;
+  y;
+  y = 1;
+}
+y = 2;
+y;
+`
+	c.InFunctionWithExpected(src, expected)
+}
+
+// Java: CoalesceVariableNamesTest.test_usePseudoName_coalesces_resetsUninitializedDeclInLoopWhenLive()
+func (c *CoalesceVariableNamesTest) Test_usePseudoName_coalesces_resetsUninitializedDeclInLoopWhenLive() {
+	c.usePseudoName = true
+	src := `var y;
+while (someExtern) {
+  let x;
+  x;
+  x = 1;
+}
+y = 2;
+y;
+`
+	expected := `var x_y;
+for (; someExtern;) {
+  x_y = void 0;
+  x_y;
+  x_y = 1;
+}
+x_y = 2;
+x_y;
+`
+	c.InFunctionWithExpected(src, expected)
+}
+
+// Java: CoalesceVariableNamesTest.test_doesNotUsePseudoName_coalesces_resetsUninitializedDeclInDoWhileWhenLive()
+func (c *CoalesceVariableNamesTest) Test_doesNotUsePseudoName_coalesces_resetsUninitializedDeclInDoWhileWhenLive() {
+	c.usePseudoName = false
+	src := `var y;
+do {
+  let x;
+  x;
+  x = 1;
+} while (someExtern);
+y = 2;
+y;
+`
+	expected := `var y;
+do {
+  y = void 0;
+  y;
+  y = 1;
+} while (someExtern);
+y = 2;
+y;
+`
 	c.InFunctionWithExpected(src, expected)
 }
 
@@ -1466,6 +1553,47 @@ func (c *CoalesceVariableNamesTest) TestNestedFunctionCoalescing() {
 			"  x = 2;\n"+
 			"  x\n"+
 			"}\n")
+}
+
+// Java: CoalesceVariableNamesTest.testInstanceFieldInitializerCaptureIsNotClobbered()
+func (c *CoalesceVariableNamesTest) TestInstanceFieldInitializerCaptureIsNotClobbered() {
+	c.TestSame(
+		`function render(input) {
+  let s = sanitize(input);
+  class Box { html = s; }
+  let t = input;
+  log(t, input);
+  return new Box();
+}
+`)
+}
+
+// Java: CoalesceVariableNamesTest.testControl_innerFunctionCaptureIsNotClobbered()
+func (c *CoalesceVariableNamesTest) TestControl_innerFunctionCaptureIsNotClobbered() {
+	// `s` is escaped (FUNCTION is a CFG root), so it is excluded from the interference graph
+	// and `t` cannot be coalesced onto it. Nothing coalesces; `t` stays `t`.
+	c.TestSame(
+		`function render(input) {
+  let s = sanitize(input);
+  let make = function() { return {html: s}; };
+  let t = input;
+  log(t, input);
+  return make();
+}
+`)
+}
+
+// Java: CoalesceVariableNamesTest.testComputedFieldInitializerCaptureIsNotClobbered()
+func (c *CoalesceVariableNamesTest) TestComputedFieldInitializerCaptureIsNotClobbered() {
+	c.TestSame(
+		`function render(input) {
+  let s = sanitize(input);
+  class Box { ["html"] = s; }
+  let t = input;
+  log(t, input);
+  return new Box();
+}
+`)
 }
 
 // Java: CoalesceVariableNamesTest.inFunction(String)

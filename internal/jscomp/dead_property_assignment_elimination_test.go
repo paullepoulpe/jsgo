@@ -1531,6 +1531,170 @@ func (c *DeadPropertyAssignmentEliminationTest) TestReplaceShorthandAssignmentOp
 			"}\n")
 }
 
+// Java: DeadPropertyAssignmentEliminationTest.testDestructuring()
+func (c *DeadPropertyAssignmentEliminationTest) TestDestructuring() {
+	c.TestSame(
+		`function f(a, alias) {
+  a.token = 1;
+  const {token: t = 9} = alias;
+  a.token = 2;
+  return t;
+}
+`)
+
+	c.TestSame(
+		`function f(a, alias, k) {
+  a.token = 1;
+  const {[k]: t} = alias;
+  a.token = 2;
+  return t;
+}
+`)
+
+	c.TestSame(
+		`function f(a, alias) {
+  a.token = 1;
+  const {...r} = alias;
+  a.token = 2;
+  return r.token;
+}
+`)
+
+	c.TestSame(
+		`function f(a, alias) {
+  a.token = 1;
+  const [x] = alias;
+  a.token = 2;
+  return x;
+}
+`)
+}
+
+// Java: DeadPropertyAssignmentEliminationTest.testForAwaitOf_preservesPriorWrite()
+func (c *DeadPropertyAssignmentEliminationTest) TestForAwaitOf_preservesPriorWrite() {
+	c.TestSame(
+		`async function foo(stream) {
+  this.current = 10;
+  for await (const x of stream) {}
+  this.current = 20;
+}
+`)
+}
+
+// Java: DeadPropertyAssignmentEliminationTest.testForOf_preservesPriorWrite()
+func (c *DeadPropertyAssignmentEliminationTest) TestForOf_preservesPriorWrite() {
+	c.TestSame(
+		`function foo(iter) {
+  this.current = 10;
+  for (const x of iter) {}
+  this.current = 20;
+}
+`)
+}
+
+// Java: DeadPropertyAssignmentEliminationTest.testIterSpread_preservesPriorWrite()
+func (c *DeadPropertyAssignmentEliminationTest) TestIterSpread_preservesPriorWrite() {
+	c.TestSame(
+		`function foo(iter) {
+  this.current = 10;
+  var arr = [...iter];
+  this.current = 20;
+}
+`)
+}
+
+// Java: DeadPropertyAssignmentEliminationTest.testArrayPatternDestructure_preservesPriorWrite()
+func (c *DeadPropertyAssignmentEliminationTest) TestArrayPatternDestructure_preservesPriorWrite() {
+	c.TestSame(
+		`function foo(iter) {
+  this.current = 10;
+  var [a, b] = iter;
+  this.current = 20;
+}
+`)
+}
+
+// Java: DeadPropertyAssignmentEliminationTest.testClassNonStaticFieldInitializer_preservesWrites()
+func (c *DeadPropertyAssignmentEliminationTest) TestClassNonStaticFieldInitializer_preservesWrites() {
+	c.TestSame(
+		`function foo() {
+  class C {
+    y = (obj.x = 1);
+  }
+  obj.x = 2;
+  return C;
+}
+`)
+
+	c.TestSame(
+		`function foo() {
+  obj.x = 1;
+  class C {
+    y = (obj.x = 2);
+  }
+}
+`)
+}
+
+// Java: DeadPropertyAssignmentEliminationTest.testClassNonStaticComputedFieldInitializer_preservesWrites()
+func (c *DeadPropertyAssignmentEliminationTest) TestClassNonStaticComputedFieldInitializer_preservesWrites() {
+	c.TestSame(
+		`function foo() {
+  class C {
+    ['y'] = (obj.x = 1);
+  }
+  obj.x = 2;
+  return C;
+}
+`)
+
+	c.TestSame(
+		`function foo() {
+  obj.x = 1;
+  class C {
+    ['y'] = (obj.x = 2);
+  }
+  return C;
+}
+`)
+}
+
+// Java: DeadPropertyAssignmentEliminationTest.testClassStaticFieldAndComputedKey_eliminatesDeadWrites()
+func (c *DeadPropertyAssignmentEliminationTest) TestClassStaticFieldAndComputedKey_eliminatesDeadWrites() {
+	c.Test(
+		`function foo() {
+  class C {
+    static y = (obj.x = 1);
+  }
+  obj.x = 2;
+}
+`,
+		`function foo() {
+  class C {
+    static y = 1;
+  }
+  obj.x = 2;
+}
+`)
+
+	// Computed keys are evaluated eagerly when the class is defined, even for non-static fields.
+	c.Test(
+		`function foo() {
+  class C {
+    [obj.x = 1];
+  }
+  obj.x = 2;
+}
+`,
+		`function foo() {
+  class C {
+    [1];
+  }
+  obj.x = 2;
+}
+`)
+}
+
 // Java: DeadPropertyAssignmentEliminationTest.getProcessor(Compiler)
 func (c *DeadPropertyAssignmentEliminationTest) GetProcessor(compiler *Compiler) CompilerPass {
 	return NewDeadPropertyAssignmentElimination(compiler)

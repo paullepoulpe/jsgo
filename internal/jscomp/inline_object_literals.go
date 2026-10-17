@@ -148,10 +148,10 @@ func (b *InlineObjectLiterals_InliningBehavior) IsInlinableObject(refs *jutil.Ar
 		// Ignore most indirect references, like x.y (but not x.y(),
 		// since the function referenced by y might reference 'this').
 		//
-		if parent.IsGetProp() {
+		if NodeUtil_IsNormalOrOptChainGetProp(parent) {
 			jutil.CheckState(parent.GetFirstChild() == name)
 			// A call target may be using the object as a 'this' value.
-			if grandparent.IsCall() && grandparent.GetFirstChild() == parent {
+			if NodeUtil_IsInvocationTarget(parent) {
 				return false
 			}
 
@@ -290,7 +290,7 @@ func (b *InlineObjectLiterals_InliningBehavior) ComputeVarList(referenceInfo *Re
 			// This is the var. There is no value.
 		} else {
 			getprop := ref.GetParent()
-			jutil.CheckStateMsg1(getprop.IsGetProp(), "%s", getprop)
+			jutil.CheckStateMsg1(NodeUtil_IsNormalOrOptChainGetProp(getprop), "%s", getprop)
 
 			// The key being looked up in the original map.
 			varname := getprop.GetString()
@@ -454,7 +454,7 @@ func (b *InlineObjectLiterals_InliningBehavior) SplitObject(v *Var, init *Refere
 		} else {
 			// Make sure that the reference is a GETPROP as we expect it to be.
 			getprop := ref.GetParent()
-			jutil.CheckStateMsg1(getprop.IsGetProp(), "%s", getprop)
+			jutil.CheckStateMsg1(NodeUtil_IsNormalOrOptChainGetProp(getprop), "%s", getprop)
 
 			// The key being looked up in the original map.
 			var_ := getprop.GetString()

@@ -330,7 +330,7 @@ func TestJSChunkGraph_ManageDependenciesLooseWithoutEntryPoint(t *testing.T) {
 	x.makeGraph()
 	x.setUpManageDependenciesTest()
 	depOptions := DependencyOptions_PruneLegacyForEntryPoints([]*ModuleIdentifier{})
-	results := x.graph.ManageDependencies(x.compiler, depOptions)
+	results := x.graph.ManageDependencies(x.compiler, depOptions).OrderedInputs()
 
 	x.assertInputs(x.chunkA, "a1", "a3")
 	x.assertInputs(x.chunkB, "a2", "b2")
@@ -348,7 +348,7 @@ func TestJSChunkGraph_ManageDependenciesLooseWithEntryPoint(t *testing.T) {
 	x.setUpManageDependenciesTest()
 	depOptions := DependencyOptions_PruneLegacyForEntryPoints(
 		[]*ModuleIdentifier{ModuleIdentifier_ForClosure("c2")})
-	results := x.graph.ManageDependencies(x.compiler, depOptions)
+	results := x.graph.ManageDependencies(x.compiler, depOptions).OrderedInputs()
 
 	x.assertInputs(x.chunkA, "a1", "a3")
 	x.assertInputs(x.chunkB, "a2", "b2")
@@ -365,7 +365,7 @@ func TestJSChunkGraph_ManageDependenciesStrictWithEntryPoint(t *testing.T) {
 	x.makeGraph()
 	x.setUpManageDependenciesTest()
 	depOptions := DependencyOptions_PruneForEntryPoints([]*ModuleIdentifier{ModuleIdentifier_ForClosure("c2")})
-	results := x.graph.ManageDependencies(x.compiler, depOptions)
+	results := x.graph.ManageDependencies(x.compiler, depOptions).OrderedInputs()
 
 	// Everything gets pushed up into chunk c, because that's
 	// the only one that has entry points.
@@ -391,7 +391,7 @@ func TestJSChunkGraph_ManageDependenciesStrictForGoogRequireDynamic(t *testing.T
 		input.SetCompiler(x.compiler)
 	}
 	depOptions := DependencyOptions_PruneForEntryPoints([]*ModuleIdentifier{ModuleIdentifier_ForClosure("a1")})
-	results := x.graph.ManageDependencies(x.compiler, depOptions)
+	results := x.graph.ManageDependencies(x.compiler, depOptions).OrderedInputs()
 
 	x.assertInputs(chunkA, "a1", "a2")
 	jsChunkGraphTest_containsExactly(t, "results", jsChunkGraphTest_sourceNames(results), "a1", "a2")
@@ -413,7 +413,7 @@ func TestJSChunkGraph_ManageDependenciesStrictWithEntryPointWithDuplicates(t *te
 	}
 
 	depOptions := DependencyOptions_PruneForEntryPoints([]*ModuleIdentifier{ModuleIdentifier_ForClosure("a1")})
-	results := graph.ManageDependencies(x.compiler, depOptions)
+	results := graph.ManageDependencies(x.compiler, depOptions).OrderedInputs()
 
 	// Everything gets pushed up into chunk c, because that's
 	// the only one that has entry points.
@@ -427,7 +427,7 @@ func TestJSChunkGraph_ManageDependenciesSortOnly(t *testing.T) {
 	x.makeDeps()
 	x.makeGraph()
 	x.setUpManageDependenciesTest()
-	results := x.graph.ManageDependencies(x.compiler, DependencyOptions_SortOnly())
+	results := x.graph.ManageDependencies(x.compiler, DependencyOptions_SortOnly()).OrderedInputs()
 
 	x.assertInputs(x.chunkA, "a1", "a2", "a3")
 	x.assertInputs(x.chunkB, "b1", "b2")
@@ -456,7 +456,7 @@ func TestJSChunkGraph_ManageDependenciesSortOnlyImpl(t *testing.T) {
 		input.SetCompiler(x.compiler)
 	}
 
-	results := x.graph.ManageDependencies(x.compiler, DependencyOptions_SortOnly())
+	results := x.graph.ManageDependencies(x.compiler, DependencyOptions_SortOnly()).OrderedInputs()
 
 	x.assertInputs(x.chunkA, "base.js", "a1", "a2")
 
@@ -467,7 +467,7 @@ func TestJSChunkGraph_NoFiles(t *testing.T) {
 	x := newJSChunkGraphTest(t)
 	x.makeDeps()
 	x.makeGraph()
-	results := x.graph.ManageDependencies(x.compiler, DependencyOptions_SortOnly())
+	results := x.graph.ManageDependencies(x.compiler, DependencyOptions_SortOnly()).OrderedInputs()
 	assertEqual(t, "results", len(results), 0)
 }
 
@@ -554,7 +554,7 @@ func TestJSChunkGraph_GoogBaseOrderedCorrectly(t *testing.T) {
 			input.SetCompiler(x.compiler)
 		}
 
-		results := x.graph.ManageDependencies(x.compiler, depOptions)
+		results := x.graph.ManageDependencies(x.compiler, depOptions).OrderedInputs()
 
 		want := []string{"base.js", "a2", "a3", "a4", "a5", "a6", "a7", "a8", "a9", "a1"}
 		x.assertInputs(x.chunkA, want...)
@@ -611,7 +611,7 @@ func TestJSChunkGraph_ProperEs6ModuleOrdering(t *testing.T) {
 			input.SetHasFullParseDependencyInfo(true)
 		}
 
-		results := x.graph.ManageDependencies(x.compiler, depOptions)
+		results := x.graph.ManageDependencies(x.compiler, depOptions).OrderedInputs()
 
 		want := []string{"/b/c.js", "/b/b.js", "/b/a.js", "/important.js", "/a/b.js", "/a/a.js", "/entry.js"}
 		x.assertInputs(x.chunkA, want...)

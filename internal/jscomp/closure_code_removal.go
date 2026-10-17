@@ -81,10 +81,10 @@ type ClosureCodeRemoval_RemovableAssignment struct {
 
 // NewRemovableAssignment is the data structure for information about a
 // removable assignment. nameNode is the LHS; assignNode the parent ASSIGN
-// node; traversal gives access to further levels, assumed to start at 1.
+// node.
 //
-// Java: ClosureCodeRemoval.RemovableAssignment(Node, Node, NodeTraversal)
-func (c *ClosureCodeRemoval) NewRemovableAssignment(nameNode *rhino.Node, assignNode *rhino.Node, traversal *NodeTraversal) *ClosureCodeRemoval_RemovableAssignment {
+// Java: ClosureCodeRemoval.RemovableAssignment(Node, Node)
+func (c *ClosureCodeRemoval) NewRemovableAssignment(nameNode *rhino.Node, assignNode *rhino.Node) *ClosureCodeRemoval_RemovableAssignment {
 	a := &ClosureCodeRemoval_RemovableAssignment{outer: c, assignAncestors: jutil.NewArrayList[*rhino.Node]()}
 	a.node = nameNode
 	a.parent = assignNode
@@ -141,15 +141,13 @@ func (f *ClosureCodeRemoval_FindAbstractMethods) Visit(t *NodeTraversal, n *rhin
 			valueNode.IsQualifiedName() &&
 			valueNode.MatchesQualifiedName(ClosureCodeRemoval_ABSTRACT_METHOD_NAME) {
 			// Foo.prototype.bar = goog.abstractMethod
-			c.abstractMethodAssignmentNodes.Add(
-				c.NewRemovableAssignment(n.GetFirstChild(), n, t))
+			c.abstractMethodAssignmentNodes.Add(c.NewRemovableAssignment(n.GetFirstChild(), n))
 		} else if n.GetJSDocInfo() != nil &&
 			n.GetJSDocInfo().IsAbstract() &&
 			NodeUtil_IsEmptyFunctionExpression(valueNode) &&
 			!n.GetJSDocInfo().IsConstructor() {
 			// @abstract
-			c.abstractMethodAssignmentNodes.Add(
-				c.NewRemovableAssignment(n.GetFirstChild(), n, t))
+			c.abstractMethodAssignmentNodes.Add(c.NewRemovableAssignment(n.GetFirstChild(), n))
 		}
 	} else if n.IsMemberFunctionDef() && parent.IsClassMembers() {
 		if n.GetJSDocInfo() != nil && n.GetJSDocInfo().IsAbstract() {
