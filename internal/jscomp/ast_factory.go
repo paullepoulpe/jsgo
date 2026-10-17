@@ -503,6 +503,15 @@ func (a *AstFactory) GetTypeOfThisForFunctionNode(functionNode *rhino.Node) rhin
 
 // Java: AstFactory.getTypeOfThisForEs6Class(Node)
 func (a *AstFactory) GetTypeOfThisForEs6Class(functionNode *rhino.Node) AstFactory_Type {
+	// Go-only: language-adapter — the JVM's "helpful" NullPointerException
+	// message (jutil.NewHelpfulNullPointerException). An async method of an
+	// object literal that calls super has no enclosing class, so
+	// RewriteAsyncFunctions passes null here and Java dereferences it; the
+	// INTERNAL COMPILER ERROR report prints the message the JVM derives from
+	// this call. A Go nil dereference has none.
+	if functionNode == nil {
+		panic(jutil.NewHelpfulNullPointerException(`Cannot invoke "com.google.javascript.rhino.Node.isClass()" because "functionNode" is null`))
+	}
 	jutil.CheckArgumentMsg1(functionNode.IsClass(), "%s", functionNode)
 	switch a.typeMode {
 	case AstFactory_TypeMode_JSTYPE:
