@@ -6,8 +6,6 @@ import (
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
-	"github.com/paullepoulpe/jsgo/internal/parsing"
-	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/rhino/rhinotesting"
 )
 
@@ -97,53 +95,6 @@ func TestTypeMatchingStrategy_Match_exact(t *testing.T) {
 	assertMatch(t, TypeMatchingStrategy_EXACT, "?", "string", true, false)
 }
 
-// typeMatchingStrategyTest_scope is the global scope the externs declare
-// their constructors in.
-type typeMatchingStrategyTest_scope struct{ root *rhino.Node }
-
-func (s *typeMatchingStrategyTest_scope) GetRootNode() *rhino.Node                { return s.root }
-func (s *typeMatchingStrategyTest_scope) GetParentScope() rhino.StaticScope       { return nil }
-func (s *typeMatchingStrategyTest_scope) GetSlot(name string) rhino.StaticSlot    { return nil }
-func (s *typeMatchingStrategyTest_scope) GetOwnSlot(name string) rhino.StaticSlot { return nil }
-func (s *typeMatchingStrategyTest_scope) GetTypeOfThis() rhino.JSType             { return nil }
-func (s *typeMatchingStrategyTest_scope) GetTopmostScopeOfEventualDeclaration(name string) rhino.StaticScope {
-	return rhino.StaticScope_GetTopmostScopeOfEventualDeclaration(s, name)
-}
-func (s *typeMatchingStrategyTest_scope) LookupQualifiedName(qname rhino.QualifiedName) rhino.JSType {
-	return rhino.StaticTypedScope_LookupQualifiedName(s, qname)
-}
-
-// compileTypes stands in for compiling EXTERNS and
-// `/** @type {templateType} */ var x; /** @type {type} */ var y;` with
-// type checking and reading the JSTypes of x and y.
-//
-// Go-only: test adapter — Compiler is not ported yet. A fresh registry
-// declares the three extern constructors as TypedScopeCreator would
-// (SubType's prototype based on SuperType), and the two @type expressions
-// are evaluated in that scope (JSTypeExpression.evaluate →
-// JSTypeRegistry.createTypeFromCommentNode, as for a declared var).
-func compileTypes(templateType string, type_ string) (rhino.JSType, rhino.JSType) {
-	registry := rhino.NewJSTypeRegistry(rhinotesting.NewTestErrorReporter())
-	scope := &typeMatchingStrategyTest_scope{root: rhino.NewNode(rhino.Token_ROOT)}
-	closer := registry.GetResolver().OpenForDefinition()
-	ctor := func(name string) rhino.FunctionType {
-		fn := rhino.IR_Function(rhino.IR_Name(""), rhino.IR_ParamList(), rhino.IR_Block())
-		c := registry.CreateConstructorType(jutil.StringPtr(name), fn, registry.CreateParameters(), nil, nil, false)
-		registry.DeclareType(scope, name, c.GetInstanceType())
-		return c
-	}
-	ctor("OtherType")
-	superType := ctor("SuperType")
-	subType := ctor("SubType")
-	subType.SetPrototypeBasedOn(superType.GetInstanceType())
-	closer.Close()
-
-	eval := func(s string) rhino.JSType {
-		return registry.CreateTypeFromCommentNodeWithScope(parsing.JsDocInfoParser_ParseTypeString(s), "test", scope)
-	}
-	return eval(templateType), eval(type_)
-}
-
 func assertMatch(
 	t *testing.T,
 	typeMatchingStrategy TypeMatchingStrategy,
@@ -156,7 +107,26 @@ func assertMatch(
 
 	// It's important that the test uses the same compiler to compile the template type and the
 	// type to be matched. Otherwise, equal types won't be considered equal.
-	templateJsType, jsType := compileTypes(templateType, type_)
+	compiler := NewCompiler()
+	compiler.DisableThreads()
+	options := NewCompilerOptions()
+	options.SetCheckTypes(true)
+	options.SetChecksOnly(true)
+
+	compiler.Compile(
+		[]*SourceFile{SourceFile_FromCode("externs", typeMatchingStrategyTest_EXTERNS)},
+		[]*SourceFile{
+			SourceFile_FromCode(
+				"test",
+				jutil.StringFormat(
+					"/** @type {%s} */ var x; /** @type {%s} */ var y;", templateType, type_)),
+		},
+		options)
+	script := compiler.GetRoot().GetLastChild().GetFirstChild()
+	xNode := script.GetFirstChild()
+	yNode := script.GetLastChild()
+	templateJsType := xNode.GetFirstChild().GetJSType()
+	jsType := yNode.GetFirstChild().GetJSType()
 
 	matchResult := typeMatchingStrategy.Match(templateJsType, jsType)
 	if isMatch {
