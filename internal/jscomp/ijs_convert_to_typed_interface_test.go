@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ijs/ConvertToTypedInterfaceTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/ijs/ConvertToTypedInterfaceTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/ijs/ConvertToTypedInterfaceTest.java)
 
 /*
@@ -1123,6 +1123,205 @@ func (c *ConvertToTypedInterfaceTest) TestConstPropagationPrivateProperties2() {
 a.b.c.helper_ = someComplicatedExpression();
 `,
 		"goog.provide('a.b.c');   /** @private @const {UnusableType} */ a.b.c.helper_;")
+}
+
+// Java: ConvertToTypedInterfaceTest.testPrivateEs6ClassPropertyTypeOmitted_forNonTypeScript_doesNotOmit()
+func (c *ConvertToTypedInterfaceTest) TestPrivateEs6ClassPropertyTypeOmitted_forNonTypeScript_doesNotOmit() {
+	c.Test(
+		c.Srcs(
+			SourceFile_FromCode(
+				"bar.js",
+				`class Foo {
+  constructor() {
+    /** @private {SomeComplicatedType} */
+    this.x;
+  }
+}
+`)),
+		c.Expected(
+			`class Foo {
+  constructor() {}
+}
+/** @private @type {SomeComplicatedType} */
+Foo.prototype.x;
+`))
+}
+
+// Java: ConvertToTypedInterfaceTest.testPrivateEs6ClassPropertyTypeOmitted_forTypeScriptFiles()
+func (c *ConvertToTypedInterfaceTest) TestPrivateEs6ClassPropertyTypeOmitted_forTypeScriptFiles() {
+	c.Test(
+		c.Srcs(
+			SourceFile_FromCode(
+				"foo.closure.js",
+				`class Foo {
+  constructor() {
+    /** @private {SomeComplicatedType} */
+    this.x;
+  }
+}
+`)),
+		c.Expected(
+			`class Foo {
+  constructor() {}
+}
+/** @private @type {UnusableType} */
+Foo.prototype.x;
+`))
+}
+
+// Java: ConvertToTypedInterfaceTest.testNonPrivateVisibility_kept()
+func (c *ConvertToTypedInterfaceTest) TestNonPrivateVisibility_kept() {
+	c.Test(
+		c.Srcs(
+			SourceFile_FromCode(
+				"foo.closure.js",
+				`class Foo {
+  constructor() {
+    /** @protected {SomeComplicatedType} */
+    this.x;
+    /** @package {SomeComplicatedType} */
+    this.y;
+    /** @public {SomeComplicatedType} */
+    this.z;
+  }
+}
+`)),
+		c.Expected(
+			`class Foo {
+  constructor() {}
+}
+/** @public @type {SomeComplicatedType} */
+Foo.prototype.z;
+/** @package @type {SomeComplicatedType} */
+Foo.prototype.y;
+/** @protected @type {SomeComplicatedType} */
+Foo.prototype.x;
+`))
+}
+
+// Java: ConvertToTypedInterfaceTest.testPrivateEs6ClassPropertyWithQmarkType_doesNotBecomeUnusableType()
+func (c *ConvertToTypedInterfaceTest) TestPrivateEs6ClassPropertyWithQmarkType_doesNotBecomeUnusableType() {
+	c.Test(
+		c.Srcs(
+			SourceFile_FromCode(
+				"foo.closure.js",
+				`class Foo {
+  constructor() {
+    /** @private {?} */
+    this.x;
+  }
+}
+`)),
+		c.Expected(
+			`class Foo {
+  constructor() {}
+}
+/** @private @type {?} */
+Foo.prototype.x;
+`))
+}
+
+// Java: ConvertToTypedInterfaceTest.testPrivateEs5ClassPropertyTypeOmitted()
+func (c *ConvertToTypedInterfaceTest) TestPrivateEs5ClassPropertyTypeOmitted() {
+	c.Test(
+		c.Srcs(
+			SourceFile_FromCode(
+				"foo.closure.js",
+				`/** @constructor */
+function Foo() {
+  /** @const @private {SomeComplicatedType} */ this.x;
+}
+`)),
+		c.Expected(
+			`/** @constructor */ function Foo() {}
+/** @const @private {UnusableType} */ Foo.prototype.x;
+`))
+}
+
+// Java: ConvertToTypedInterfaceTest.testPrivateEs6PrototypeMethodSignatureOmitted()
+func (c *ConvertToTypedInterfaceTest) TestPrivateEs6PrototypeMethodSignatureOmitted() {
+	c.Test(
+		c.Srcs(
+			SourceFile_FromCode(
+				"foo.closure.js",
+				`class Foo {
+  /**
+   * @param {SomeType} a
+   * @param {SomeType=} b
+   * @param {...SomeType} c
+   * @return {OtherType}
+   * @private
+   */
+  x(a, b) {}
+}
+`)),
+		c.Expected(
+			`class Foo {
+  /**
+   * @param {IjsNoneType} a
+   * @param {IjsNoneType=} b
+   * @param {...IjsNoneType} c
+   * @return {UnusableType}
+   * @private
+   */
+  x(a, b) {}
+}
+`))
+}
+
+// Java: ConvertToTypedInterfaceTest.testPrivateEs5PrototypeMethodSignatureOmitted()
+func (c *ConvertToTypedInterfaceTest) TestPrivateEs5PrototypeMethodSignatureOmitted() {
+	c.Test(
+		c.Srcs(
+			SourceFile_FromCode(
+				"foo.closure.js",
+				`/** @constructor */
+function Foo() {}
+/**
+ * @param {SomeType} a
+ * @param {SomeType=} b
+ * @return {OtherType}
+ * @private
+ */
+Foo.prototype.x = function(a, b) {};
+`)),
+		c.Expected(
+			`/** @constructor */ function Foo() {}
+/**
+ * @private
+ * @param {IjsNoneType} a
+ * @param {IjsNoneType=} b
+ * @return {UnusableType}
+ */
+Foo.prototype.x = function(a, b) {};
+`))
+}
+
+// Java: ConvertToTypedInterfaceTest.testDontEmitTypeNameOnPrivate_nonProperty()
+func (c *ConvertToTypedInterfaceTest) TestDontEmitTypeNameOnPrivate_nonProperty() {
+	c.Test(
+		c.Srcs(
+			SourceFile_FromCode(
+				"foo.closure.js",
+				`goog.module('a');
+
+/** @private @typedef {string} */
+let Typedef;
+/** @private @enum {string} */
+const Enum = {A: 0};
+/** @private {boolean} */
+const unusedPrivateLocal = true;
+`)),
+		c.Expected(
+			`goog.module("a");
+
+/** @private @typedef {string} */
+let Typedef;
+/** @private @enum {string} */
+const Enum = {A: 0};
+/** @private @const @type {boolean} */
+var unusedPrivateLocal;
+`))
 }
 
 // Java: ConvertToTypedInterfaceTest.testOverrideAnnotationCountsAsDeclaration()

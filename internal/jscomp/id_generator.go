@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/IdGenerator.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/IdGenerator.java @ closure-compiler v20261015
 
 /*
  * Copyright 2017 The Closure Compiler Authors.
@@ -42,4 +42,14 @@ func (g *IdGenerator) NewId() int {
 	id := g.currentId
 	g.currentId++
 	return id
+}
+
+// Java: IdGenerator.getCurrentId()
+func (g *IdGenerator) GetCurrentId() int {
+	return g.currentId
+}
+
+// Java: IdGenerator.setCurrentId(int)
+func (g *IdGenerator) SetCurrentId(id int) {
+	g.currentId = id
 }

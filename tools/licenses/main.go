@@ -16,9 +16,10 @@
 // already there that are not those are replaced. A Java file with no
 // licence comment must be listed in noNotice (closure.go), with the reason.
 //
-// Java sources are read from .cache/closure-src (the pinned sources jar).
-// Test sources are fetched once from the pinned tag on GitHub into
-// .cache/closure-test-src.
+// Java sources are read from srcDir, .cache/closure-src (the pinned sources
+// jar, which tools/oracle/fetch.sh unpacks there); javaSource refuses them
+// if they are another release than tag. Test sources are fetched once from
+// the pinned tag on GitHub into testSrcDir, .cache/closure-test-src/<tag>.
 //
 // With -check, it only verifies, without network or cache (so CI can run
 // it), that:
@@ -69,7 +70,15 @@ import (
 	"github.com/paullepoulpe/jsgo/tools/oracle/corpus"
 )
 
-const tag = "v20260415"
+const tag = "v20261015"
+
+// srcDir holds the main Java sources of the pinned release (the sources
+// jar), and testSrcDir caches its test sources, fetched from GitHub. Both
+// are relative to the repository root.
+const (
+	srcDir     = ".cache/closure-src"
+	testSrcDir = ".cache/closure-test-src/" + tag
+)
 
 // gplPattern is assembled from pieces so that this file does not match it.
 var gplPattern = regexp.MustCompile(`(?i)(general` + ` public licen[cs]e|\b(?:l)?g` + `pl\b)`)
@@ -325,9 +334,9 @@ func mplOnlyNotice(src []byte) (string, bool, error) {
 }
 
 // javaSource reads a Java file of the pinned Closure release: main sources
-// from .cache/closure-src, test sources from .cache/closure-test-src
-// (fetched from GitHub on first use). A "test/" or "src/" prefix of p says
-// which directory of the repository holds it.
+// from srcDir, test sources from testSrcDir (fetched from GitHub on first
+// use). A "test/" or "src/" prefix of p says which directory of the
+// repository holds it.
 func javaSource(p string) ([]byte, error) {
 	dirs := []string{"test", "src"}
 	switch {
@@ -337,17 +346,20 @@ func javaSource(p string) ([]byte, error) {
 		dirs = dirs[1:]
 	}
 	p = canonical(p)
-	if b, err := os.ReadFile(filepath.Join(".cache", "closure-src", p)); err == nil {
+	if err := checkSrcVersion(); err != nil {
+		return nil, err
+	}
+	if b, err := os.ReadFile(filepath.Join(filepath.FromSlash(srcDir), filepath.FromSlash(p))); err == nil {
 		return b, nil
 	}
 	// The sources jar holds CommandLineRunnerVersion.java, which the build
 	// generates, at its root.
-	if b, err := os.ReadFile(filepath.Join(".cache", "closure-src", path.Base(p))); err == nil {
+	if b, err := os.ReadFile(filepath.Join(filepath.FromSlash(srcDir), path.Base(p))); err == nil {
 		if pkg := strings.ReplaceAll(path.Dir(p), "/", "."); bytes.Contains(b, []byte("package "+pkg+";")) {
 			return b, nil
 		}
 	}
-	cached := filepath.Join(".cache", "closure-test-src", p)
+	cached := filepath.Join(filepath.FromSlash(testSrcDir), filepath.FromSlash(p))
 	if b, err := os.ReadFile(cached); err == nil {
 		return b, nil
 	}
@@ -366,7 +378,22 @@ func javaSource(p string) ([]byte, error) {
 		}
 		return b, os.WriteFile(cached, b, 0o644)
 	}
-	return nil, fmt.Errorf("%s not in .cache/closure-src; %s", p, strings.Join(errs, "; "))
+	return nil, fmt.Errorf("%s not in %s; %s", p, srcDir, strings.Join(errs, "; "))
+}
+
+// checkSrcVersion fails if srcDir holds the sources of another release than
+// tag: the sources jar's generated CommandLineRunnerVersion.java, at its
+// root, names the release. A missing srcDir is not an error here (every
+// main source then falls back to GitHub).
+func checkSrcVersion() error {
+	b, err := os.ReadFile(filepath.Join(filepath.FromSlash(srcDir), "CommandLineRunnerVersion.java"))
+	if err != nil {
+		return nil
+	}
+	if !bytes.Contains(b, []byte(`"`+tag+`"`)) {
+		return fmt.Errorf("%s holds the sources of another release than %s (tools/oracle/pin.env): run tools/oracle/fetch.sh", srcDir, tag)
+	}
+	return nil
 }
 
 func fetch(url string) ([]byte, error) {

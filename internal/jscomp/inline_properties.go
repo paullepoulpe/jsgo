@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/InlineProperties.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/InlineProperties.java @ closure-compiler v20261015
 
 /*
  * Copyright 2012 The Closure Compiler Authors.
@@ -138,8 +138,17 @@ func (g *InlineProperties_GatherCandidates) Visit(t *NodeTraversal, n *rhino.Nod
 			invalidatingPropRef = !g.MaybeRecordCandidateClassFieldDefinition(n)
 		} else {
 			// class field with no initialization
-			invalidatingPropRef = false
+			invalidatingPropRef = true
 		}
+	} else if n.IsCall() &&
+		g.outer.compiler.GetCodingConvention().IsPropertyRenameFunction(n.GetFirstChild()) &&
+		n.HasMoreThanOneChild() &&
+		n.GetSecondChild().IsStringLit() {
+		// JSCompiler_renameProperty('foo', obj) and goog.reflect.objectProperty name `foo` for
+		// reflective access, so `foo` may be written without a GETPROP, e.g. by
+		// `obj[JSCompiler_renameProperty('foo', obj)] = value`.
+		propName = n.GetSecondChild().GetString()
+		invalidatingPropRef = true
 	} else {
 		return
 	}

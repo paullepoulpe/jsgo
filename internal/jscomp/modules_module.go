@@ -1,5 +1,5 @@
-// Port of com/google/javascript/jscomp/modules/Module.java @ closure-compiler v20260415
-// Port of com/google/javascript/jscomp/modules/AutoBuilder_Module_Builder.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/modules/Module.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/modules/AutoBuilder_Module_Builder.java @ closure-compiler v20261015
 
 /*
  * Copyright 2018 The Closure Compiler Authors.

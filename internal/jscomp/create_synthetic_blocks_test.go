@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CreateSyntheticBlocksTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/CreateSyntheticBlocksTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/CreateSyntheticBlocksTest.java)
 
 /*
@@ -52,6 +52,15 @@ func (c *CreateSyntheticBlocksTest) SetUp() {
 	c.CompilerTestCaseBase.SetUp()
 	// Can't use compare as a tree because of the added synthetic blocks.
 	c.DisableCompareAsTree()
+}
+
+// Java: CreateSyntheticBlocksTest.getOptions()
+func (c *CreateSyntheticBlocksTest) GetOptions() *CompilerOptions {
+	options := c.CompilerTestCaseBase.GetOptions()
+	// This is used by NodeTraversal and not by the pass under test here
+	startMarker := createSyntheticBlocksTest_START_MARKER
+	options.SetSyntheticBlockStartMarker(&startMarker)
+	return options
 }
 
 // createSyntheticBlocksTest_pass is the anonymous CompilerPass of

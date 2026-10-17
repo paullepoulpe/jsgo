@@ -1,5 +1,5 @@
-// Port of com/google/javascript/jscomp/AstAnalyzer.java @ closure-compiler v20260415
-// Port of com/google/javascript/jscomp/AutoBuilder_AstAnalyzer_Options_Builder.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/AstAnalyzer.java @ closure-compiler v20261015
+// Port of com/google/javascript/jscomp/AutoBuilder_AstAnalyzer_Options_Builder.java @ closure-compiler v20261015
 
 /*
  * Copyright 2019 The Closure Compiler Authors.
@@ -64,9 +64,7 @@ var AstAnalyzer_CONSTRUCTORS_WITHOUT_SIDE_EFFECTS = jutil.NewLinkedHashSet(
 // can also be called as constructors but lack side-effects.
 // TODO(johnlenz): consider adding an extern annotation for this.
 var AstAnalyzer_BUILTIN_FUNCTIONS_WITHOUT_SIDEEFFECTS = jutil.NewLinkedHashSet(
-	"Object", "Array", "String", "Number", "BigInt", "Boolean", "RegExp", "Error")
-
-var AstAnalyzer_OBJECT_METHODS_WITHOUT_SIDEEFFECTS = jutil.NewLinkedHashSet("toString", "valueOf")
+	"Object", "Array", "String", "Number", "BigInt", "Boolean", "RegExp", "Error", "Symbol")
 
 var AstAnalyzer_REGEXP_METHODS = jutil.NewLinkedHashSet("test", "exec")
 
@@ -315,10 +313,18 @@ func (a *AstAnalyzer) FunctionCallHasSideEffects(callNode *rhino.Node) bool {
 			return false
 		}
 	} else if callee.IsGetProp() || callee.IsOptChainGetProp() {
-		if callNode.HasOneChild() &&
-			a.assumeKnownBuiltinsArePure &&
-			AstAnalyzer_OBJECT_METHODS_WITHOUT_SIDEEFFECTS.Contains(callee.GetString()) {
-			return false
+		method := callee.GetString()
+		if a.assumeKnownBuiltinsArePure {
+			var pureMethodCall bool
+			if method == "valueOf" {
+				pureMethodCall = callNode.HasOneChild()
+			} else {
+				pureMethodCall = method == "toString" &&
+					(callNode.HasOneChild() || callNode.HasTwoChildren())
+			}
+			if pureMethodCall {
+				return false
+			}
 		}
 
 		if callNode.IsOnlyModifiesThisCall() &&
@@ -333,7 +339,7 @@ func (a *AstAnalyzer) FunctionCallHasSideEffects(callNode *rhino.Node) bool {
 			callee.GetFirstChild().IsName() &&
 			callee.IsQualifiedName() &&
 			callee.GetFirstChild().GetString() == "Math" {
-			switch callee.GetString() {
+			switch method {
 			case "abs",
 				"acos",
 				"acosh",
@@ -375,13 +381,12 @@ func (a *AstAnalyzer) FunctionCallHasSideEffects(callNode *rhino.Node) bool {
 		}
 
 		if !a.hasRegexpGlobalReferences && a.assumeKnownBuiltinsArePure {
-			if callee.GetFirstChild().IsRegExp() && AstAnalyzer_REGEXP_METHODS.Contains(callee.GetString()) {
+			if callee.GetFirstChild().IsRegExp() && AstAnalyzer_REGEXP_METHODS.Contains(method) {
 				return false
 			} else if a.IsTypedAsString(callee.GetFirstChild()) {
 				// Unlike regexs, string methods don't need to be hosted on a string literal
 				// to avoid leaking mutating global state changes, it is just necessary that
 				// the regex object can't be referenced.
-				method := callee.GetString()
 				param := callee.GetNext()
 				if param != nil {
 					if param.IsStringLit() {

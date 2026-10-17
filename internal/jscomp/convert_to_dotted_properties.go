@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ConvertToDottedProperties.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/ConvertToDottedProperties.java @ closure-compiler v20261015
 
 /*
  * Copyright 2007 The Closure Compiler Authors.
@@ -51,13 +51,18 @@ func (c *ConvertToDottedProperties) Visit(t *NodeTraversal, n *rhino.Node, paren
 		leftElem := n.GetFirstChild()
 		rightElem := leftElem.GetNext()
 
-		// not convert property named constructor.
+		// not convert property named constructor or __proto__ in object literals.
 		// ['constructor']() and constructor() are different.
+		// {['__proto__']: v} defines an own property; {__proto__: v} sets prototype.
 		if leftElem.IsStringLit() &&
 			NodeUtil_IsValidPropertyName(parser.FeatureSet_ES3, leftElem.GetString()) &&
-			leftElem.GetString() != "constructor" {
+			leftElem.GetString() != "constructor" &&
+			!(parent.IsObjectLit() && leftElem.GetString() == "__proto__") {
 			leftElem.Detach()
-			rightElem.Detach()
+			if rightElem != nil {
+				// A COMPUTED_FIELD_DEF has no second child when the field has no initializer.
+				rightElem.Detach()
+			}
 			var temp *rhino.Node
 			if n.IsComputedProp() {
 				if rightElem.IsFunction() {
@@ -82,6 +87,10 @@ func (c *ConvertToDottedProperties) Visit(t *NodeTraversal, n *rhino.Node, paren
 				} else {
 					temp = rhino.IR_StringKeyWithValue(leftElem.GetString(), rightElem)
 				}
+			} else if rightElem == nil {
+				// An uninitialized field, e.g. `class C { ['x']; }`, becomes a 0-child
+				// MEMBER_FIELD_DEF, matching how the parser represents `class C { x; }`.
+				temp = rhino.Node_NewStringWithToken(rhino.Token_MEMBER_FIELD_DEF, leftElem.GetString())
 			} else {
 				temp = rhino.IR_MemberFieldDef(leftElem.GetString(), rightElem)
 			}

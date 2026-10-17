@@ -4,8 +4,9 @@ A Go port of [Google Closure Compiler](https://github.com/google/closure-compile
 aiming to be a drop-in replacement: same flags, same output, same diagnostics.
 
 The port is a whole-file, 1:1 translation of the pinned Java release
-(**v20260415**), built bottom-up and verified layer by layer against the
-Java compiler itself on large corpora.
+(**v20261015**; ported from v20260415, then upgraded), built bottom-up and
+verified layer by layer against the Java compiler itself on large corpora.
+The pin is named in one place, [tools/oracle/pin.env](tools/oracle/pin.env).
 
 - [PLAN.md](PLAN.md) — feasibility assessment, strategy and roadmap.
 - [PORTING.md](PORTING.md) — the translation contract every ported file follows.

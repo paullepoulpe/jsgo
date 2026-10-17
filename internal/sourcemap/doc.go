@@ -1,5 +1,5 @@
 // Package sourcemap is a 1:1 port of com.google.debugging.sourcemap
-// (closure-compiler v20260415): the source map V3 generator
+// (closure-compiler v20261015): the source map V3 generator
 // (SourceMapGeneratorV3), consumer (SourceMapConsumerV3), their JSON
 // parsers (SourceMapObjectParser on Gson, and the SourceMapJsonLexer fast
 // path), and the Base64 VLQ encoding. proto_mapping.go reconstructs the

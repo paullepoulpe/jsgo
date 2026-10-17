@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CheckAccessControlsTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/CheckAccessControlsTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/CheckAccessControlsTest.java)
 
 /*
@@ -67,6 +67,14 @@ func (c *CheckAccessControlsTest) GetOptions() *CompilerOptions {
 	options.SetWarningLevel(DiagnosticGroups_DEPRECATED, CheckLevel_ERROR)
 	options.SetWarningLevel(DiagnosticGroups_CONSTANT_PROPERTY, CheckLevel_ERROR)
 	return options
+}
+
+// Java: CheckAccessControlsTest.testPrivateConstructor_propertyAccess()
+func (c *CheckAccessControlsTest) TestPrivateConstructor_propertyAccess() {
+	// AccessControlUtils handles visibility modifiers.
+	c.TestError(
+		c.Srcs("class Foo { /** @private */ constructor() { this.x = 5; } }", "(new Foo()).x;"),
+		CheckAccessControls_BAD_PRIVATE_PROPERTY_ACCESS)
 }
 
 // Java: CheckAccessControlsTest.testOverrideAllowed()

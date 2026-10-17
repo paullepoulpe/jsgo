@@ -1,4 +1,4 @@
-// Port of com/google/debugging/sourcemap/SourceMapConsumerFactory.java @ closure-compiler v20260415
+// Port of com/google/debugging/sourcemap/SourceMapConsumerFactory.java @ closure-compiler v20261015
 
 /*
  * Copyright 2011 The Closure Compiler Authors.

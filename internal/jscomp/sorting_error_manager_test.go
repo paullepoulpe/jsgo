@@ -1,4 +1,4 @@
-// Port of test/com/google/javascript/jscomp/SortingErrorManagerTest.java @ closure-compiler v20260415
+// Port of test/com/google/javascript/jscomp/SortingErrorManagerTest.java @ closure-compiler v20261015
 
 /*
  * Copyright 2007 The Closure Compiler Authors.

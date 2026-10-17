@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/AstValidator.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/AstValidator.java @ closure-compiler v20261015
 
 /*
  * Copyright 2011 The Closure Compiler Authors.
@@ -991,12 +991,18 @@ func (v *AstValidator) ValidateClassMember(n *rhino.Node, isAmbient bool) {
 	switch n.GetToken() {
 	case rhino.Token_MEMBER_FUNCTION_DEF:
 		v.ValidateFeature(parser.FeatureSet_Feature_MEMBER_DECLARATIONS, n)
+		if n.IsPrivateIdentifier() {
+			v.ValidateFeature(parser.FeatureSet_Feature_PRIVATE_ELEMENTS, n)
+		}
 		v.ValidateObjectLiteralKeyName(n)
 		v.ValidateProperties(n)
 		v.ValidateChildCount(n)
 		v.ValidateMemberFunction(n, isAmbient)
 	case rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
 		v.ValidateFeature(parser.FeatureSet_Feature_CLASS_GETTER_SETTER, n)
+		if n.IsPrivateIdentifier() {
+			v.ValidateFeature(parser.FeatureSet_Feature_PRIVATE_ELEMENTS, n)
+		}
 		v.ValidateObjectLiteralKeyName(n)
 		v.ValidateObjectLitKey(n)
 		v.ValidateProperties(n)
@@ -1042,7 +1048,11 @@ func (v *AstValidator) ValidateMemberFunction(n *rhino.Node, isAmbient bool) {
 
 // Java: AstValidator.validateClassField(Node)
 func (v *AstValidator) ValidateClassField(n *rhino.Node) {
-	v.ValidateFeature(parser.FeatureSet_Feature_PUBLIC_CLASS_FIELDS, n)
+	if n.IsPrivateIdentifier() {
+		v.ValidateFeature(parser.FeatureSet_Feature_PRIVATE_ELEMENTS, n)
+	} else {
+		v.ValidateFeature(parser.FeatureSet_Feature_PUBLIC_CLASS_FIELDS, n)
+	}
 	v.ValidateNonEmptyString(n)
 	if n.HasChildren() {
 		v.ValidateExpression(n.GetFirstChild())

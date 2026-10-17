@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/InlineVariables.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/InlineVariables.java @ closure-compiler v20261015
 
 /*
  * Copyright 2008 The Closure Compiler Authors.
@@ -609,7 +609,7 @@ func (e *InlineVariables_InliningBehavior_StandardVarExpert) AnalyzeWithInitialV
 		}
 		if e.IsWellDefined() &&
 			(initialValueAnalysis.IsImmutableValue() ||
-				(initValue.IsThis() && !e.referenceInfo.IsEscaped())) {
+				(initValue.IsThis() && !e.referenceInfo.IsThisRebound())) {
 			// if the variable is referenced more than once, we can only
 			// inline it if it's immutable and never defined before referenced.
 			return e.CreateInlineWellDefinedVarAnalysis(initValue)
@@ -695,6 +695,7 @@ func (e *InlineVariables_InliningBehavior_StandardVarExpert) ReanalyzeAfterAlias
 	}
 
 	if initialValueAnalysis.IsAlias() &&
+		aliasedVar == initialValueAnalysis.GetAliasedVar() &&
 		aliasedVarAnalysis.IsSafeToInlineAliases() &&
 		e.IsWellDefinedAssignedOnce() {
 		// The variable we aliased couldn't be inlined itself, or it was an alias for another

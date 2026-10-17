@@ -11,7 +11,7 @@
 //                                              simple mapping
 //   internal/jutil/jstring_case_table.go      the special-casing table itself
 //
-//   java -cp .cache/closure-compiler.jar:.cache/oracle-build JutilPeepholeVectors internal/jutil
+//   java -cp .cache/$CLOSURE_JAR:.cache/oracle-build JutilPeepholeVectors internal/jutil
 //
 // Doubles are written as their raw 64-bit patterns in hex; strings as "u" + UTF-16 code units
 // (4 hex digits each).

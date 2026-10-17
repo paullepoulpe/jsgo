@@ -1,4 +1,4 @@
-testdata/fixtures/extracted/testglobalthis8.js:1:29: ERROR - [JSC_VAR_MULTIPLY_DECLARED_ERROR] Variable Window declared more than once. First occurrence: externs.zip//w3c_dom1.js:1457:9
+testdata/fixtures/extracted/testglobalthis8.js:1:29: ERROR - [JSC_VAR_MULTIPLY_DECLARED_ERROR] Variable Window declared more than once. First occurrence: externs.zip//w3c_dom1.js:1570:9
   1| /** @constructor */ function Window() {}
                                   ^^^^^^
 

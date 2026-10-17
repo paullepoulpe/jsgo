@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ReplaceIdGenerators.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/ReplaceIdGenerators.java @ closure-compiler v20261015
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -56,10 +56,6 @@ var ReplaceIdGenerators_NON_GLOBAL_ID_GENERATOR_CALL = DiagnosticType_Error(
 // Java: ReplaceIdGenerators.CONDITIONAL_ID_GENERATOR_CALL
 var ReplaceIdGenerators_CONDITIONAL_ID_GENERATOR_CALL = DiagnosticType_Error(
 	"JSC_CONDITIONAL_ID_GENERATOR_CALL", "Id generator call must be unconditional")
-
-// Java: ReplaceIdGenerators.INVALID_GENERATOR_ID_MAPPING
-var ReplaceIdGenerators_INVALID_GENERATOR_ID_MAPPING = DiagnosticType_Error(
-	"JSC_INVALID_GENERATOR_ID_MAPPING", "Invalid generator id mapping. {0}")
 
 // Java: ReplaceIdGenerators.MISSING_NAME_MAP_FOR_GENERATOR
 var ReplaceIdGenerators_MISSING_NAME_MAP_FOR_GENERATOR = DiagnosticType_Warning(

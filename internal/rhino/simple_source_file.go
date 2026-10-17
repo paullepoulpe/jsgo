@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/SimpleSourceFile.java @ closure-compiler v20260415
+// Port of com/google/javascript/rhino/SimpleSourceFile.java @ closure-compiler v20261015
 
 /*
  *

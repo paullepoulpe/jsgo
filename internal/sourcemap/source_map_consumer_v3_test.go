@@ -1,4 +1,4 @@
-// Port of test/com/google/debugging/sourcemap/SourceMapConsumerV3Test.java @ closure-compiler v20260415
+// Port of test/com/google/debugging/sourcemap/SourceMapConsumerV3Test.java @ closure-compiler v20261015
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -92,6 +92,26 @@ func TestSectionsFormat_fileNameIsOptional_inSectionAndTopLevel(t *testing.T) {
 					testJsonBuilder_Create().
 						setVersion(3).
 						// .setFile("part_a")
+						setMappings("AAAAA,QAASA,UAAS,EAAG;").
+						setSources("testcode.js").
+						setNames("foo")).
+				build()))
+}
+
+func TestSectionsFormat_ignoresEmptySources(t *testing.T) {
+	consumer := sourcemap.NewSourceMapConsumerV3()
+	consumer.Parse(
+		gsonToJson(
+			testJsonBuilder_Create().
+				setVersion(3).
+				setFile("testcode").
+				setSources().
+				addSection(
+					1,
+					2,
+					testJsonBuilder_Create().
+						setVersion(3).
+						setFile("part_a").
 						setMappings("AAAAA,QAASA,UAAS,EAAG;").
 						setSources("testcode.js").
 						setNames("foo")).

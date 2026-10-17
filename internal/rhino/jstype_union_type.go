@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/jstype/UnionType.java @ closure-compiler v20260415
+// Port of com/google/javascript/rhino/jstype/UnionType.java @ closure-compiler v20261015
 
 /*
  *
@@ -73,6 +73,13 @@ type UnionType struct {
 	// If this is true, there is no need to rebuild this union ever again,
 	// including during resolution. The result will not change.
 	alternatesResolvedBeforeBuild bool
+
+	// How many alternates were resolved the last time this union was
+	// (re)built?
+	//
+	// Used to skip rebuilds that cannot change anything. -1 means "never
+	// rebuilt since construction".
+	resolvedAlternatesAtLastBuild int
 }
 
 // Java: UnionType.TYPE_CLASS
@@ -95,6 +102,7 @@ const UnionType_MAX_UNION_SIZE = 30
 func NewUnionType(builder *UnionType_Builder) *UnionType {
 	t := &UnionType{}
 	t.InitJSTypeBase(t, builder.registry)
+	t.resolvedAlternatesAtLastBuild = -1
 	t.FillFromBuilder(builder)
 
 	t.registry.GetResolver().ResolveIfClosed(t, UnionType_TYPE_CLASS)
@@ -119,13 +127,54 @@ func UnionType_Builder_(registry *JSTypeRegistry) *UnionType_Builder {
 // Java: UnionType.getAlternates()
 func (t *UnionType) GetAlternates() []JSType {
 	if !t.IsResolved() && !t.alternatesResolvedBeforeBuild {
-		b := NewUnionType_BuilderOfRebuildTarget(t).AddAlternates(t.alternates)
-		// Double checked rebuilds, in case the union is involved in a cycle.
-		if !t.IsResolved() && !t.alternatesResolvedBeforeBuild {
-			b.Build()
+		// Only rebuild if something could actually have changed since the
+		// last rebuild.
+		//
+		// `alternates` is only ever replaced by a rebuild, and an individual
+		// alternate only ever goes from unresolved to resolved. So for as long
+		// as the list is stable the resolved count can only rise, and a rise
+		// is exactly the signal that a rebuild could now reach a different
+		// answer.
+		//
+		// Recording the count *before* rebuilding is what makes this
+		// re-entrant-safe: the rebuild runs subtype checks that can read this
+		// same union, and `alternates` is not replaced until the rebuild
+		// finishes, so the nested read sees no change and returns instead of
+		// starting another rebuild.
+		resolvedAlternates := t.CountResolvedAlternates()
+
+		if resolvedAlternates != t.resolvedAlternatesAtLastBuild {
+			t.resolvedAlternatesAtLastBuild = resolvedAlternates
+
+			b := NewUnionType_BuilderOfRebuildTarget(t).AddAlternates(t.alternates)
+			// Double checked rebuilds, in case the union is involved in a cycle.
+			if !t.IsResolved() && !t.alternatesResolvedBeforeBuild {
+				b.Build()
+
+				// The rebuild may have replaced `alternates` with a different
+				// list, so the count taken above no longer describes this union.
+				// Notably the count can go *down*: an alternate that resolved to
+				// a union is flattened into its members, and those members may
+				// themselves be unresolved. Re-baseline against the list we
+				// actually have now, so the next read compares like with like.
+				t.resolvedAlternatesAtLastBuild = t.CountResolvedAlternates()
+			}
 		}
 	}
 	return t.alternates
+}
+
+// CountResolvedAlternates: how many of the current alternates are resolved?
+//
+// Java: UnionType.countResolvedAlternates()
+func (t *UnionType) CountResolvedAlternates() int {
+	count := 0
+	for i := 0; i < len(t.alternates); i++ {
+		if t.alternates[i].IsResolved() {
+			count++
+		}
+	}
+	return count
 }
 
 // Java: UnionType.fillFromBuilder(Builder)

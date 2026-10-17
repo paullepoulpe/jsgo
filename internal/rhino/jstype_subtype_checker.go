@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/jstype/SubtypeChecker.java @ closure-compiler v20260415
+// Port of com/google/javascript/rhino/jstype/SubtypeChecker.java @ closure-compiler v20261015
 
 /*
  *
@@ -747,6 +747,8 @@ func SubtypeChecker_GetTemplateKeyIfCovariantType(type_ JSType) *TemplateType {
 	switch *unwrappedTypeName {
 	case "ReadonlyArray":
 		return registry.GetReadonlyArrayElementKey()
+	case "IteratorLike":
+		return registry.GetIteratorLikeValueTemplate()
 	case "Iterator":
 		return registry.GetIteratorValueTemplate()
 	case "Generator":

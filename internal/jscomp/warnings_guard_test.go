@@ -1,4 +1,4 @@
-// Port of test/com/google/javascript/jscomp/WarningsGuardTest.java @ closure-compiler v20260415
+// Port of test/com/google/javascript/jscomp/WarningsGuardTest.java @ closure-compiler v20261015
 
 /*
  * Copyright 2008 The Closure Compiler Authors.

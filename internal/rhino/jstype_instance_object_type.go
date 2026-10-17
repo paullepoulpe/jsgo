@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/jstype/InstanceObjectType.java @ closure-compiler v20260415
+// Port of com/google/javascript/rhino/jstype/InstanceObjectType.java @ closure-compiler v20261015
 
 /*
  *
@@ -236,10 +236,17 @@ func (t *InstanceObjectType) GetCtorExtendedInterfaces() []ObjectType {
 	return t.GetConstructor().GetExtendedInterfaces()
 }
 
-// The owner will always be a resolved type, so there's no need to set the
-// constructor in resolveInternal. (it would lead to infinite loops if we
-// did).
-// JSType resolveInternal(ErrorReporter reporter);
+// Java: InstanceObjectType.resolveInternal(ErrorReporter)
+func (t *InstanceObjectType) ResolveInternal(reporter ErrorReporter) JSType {
+	resolved := t.PrototypeObjectTypeBase.ResolveInternal(reporter)
+	// No need to update the constructor with the result of safeResolve, since
+	// the constructor will always resolve to itself - it's never a forward
+	// reference because to create this InstanceObjectType, we must have the
+	// constructor first. But we do need to call resolve on the constructor to
+	// resolve its fields and implemented/extended interfaces, if any.
+	_ = JSType_SafeResolve(t.constructor, reporter)
+	return resolved
+}
 
 // jsTypeStringEquals is literal.equals(s) for a nullable String s.
 func jsTypeStringEquals(literal string, s *string) bool {

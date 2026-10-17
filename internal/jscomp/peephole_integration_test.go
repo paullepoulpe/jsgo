@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PeepholeIntegrationTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/PeepholeIntegrationTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/PeepholeIntegrationTest.java)
 
 /*
@@ -168,9 +168,13 @@ func (c *PeepholeIntegrationTest) TestBug1059649() {
 // Java: PeepholeIntegrationTest.testHookIfIntegration()
 func (c *PeepholeIntegrationTest) TestHookIfIntegration() {
 	c.Test("if (false){ x = 1; } else if (cond) { x = 2; } else { x = 3; }", "x=cond?2:3")
+
 	c.Test("x?void 0:y()", "x||y()")
 	c.Test("!x?void 0:y()", "x&&y()")
 	c.Test("x?y():void 0", "x&&y()")
+
+	c.TestSame("window.f = x => x ? true : false;")
+	c.TestSame("window.f = x => x ? false : true;")
 }
 
 // Java: PeepholeIntegrationTest.testRemoveDuplicateStatementsIntegration()
@@ -1461,4 +1465,11 @@ func (c *PeepholeIntegrationTest) TestRemoveUnreachableCodeInStaticBlock1() {
 			"    try {var x = 1} catch (e) {e()}\n"+
 			"  }\n"+
 			"}\n")
+}
+
+// Java: PeepholeIntegrationTest.testDontFoldDirectAndIndirectEval()
+func (c *PeepholeIntegrationTest) TestDontFoldDirectAndIndirectEval() {
+	c.Test(
+		"function f(a, x) { if (a) { return eval(x); } else { return (0, eval)(x); } }",
+		"function f(a, x) { return a ? eval(x) : (0, eval)(x); }")
 }

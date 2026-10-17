@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/TypeInference.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/TypeInference.java @ closure-compiler v20261015
 
 /*
  * Copyright 2008 The Closure Compiler Authors.
@@ -56,11 +56,6 @@ type TypeInference struct {
 	unknownType             rhino.ObjectType
 	numberAdditionSupertype rhino.JSType
 }
-
-// TODO(johnlenz): We no longer make this check, but we should.
-var TypeInference_FUNCTION_LITERAL_UNDEFINED_THIS = DiagnosticType_Warning(
-	"JSC_FUNCTION_LITERAL_UNDEFINED_THIS",
-	"Function literal argument refers to undefined this argument")
 
 var TypeInference_REASSIGN_CLASS_PROTOTYPE = DiagnosticType_Error(
 	"JSC_REASSIGN_CLASS_PROTOTYPE", "Reassigning a class prototype is not allowed")
@@ -1133,7 +1128,8 @@ func (ti *TypeInference) UpdateScopeForAssignmentWithUpdateNode(
 				var_.GetNameNode().IsName() && // ignore redeclarations of implicit globals
 				NodeUtil_IsConstantDeclaration(var_.GetJSDocInfo(), var_.GetNameNode()) &&
 				!(var_.GetJSDocInfo() != nil &&
-					var_.GetJSDocInfo().ContainsDeclarationExcludingTypelessConst())
+					var_.GetJSDocInfo().ContainsDeclarationExcludingTypelessConst()) &&
+				!(var_.GetType() != nil && var_.GetType().IsNoResolvedType())
 
 		// When looking at VAR initializers for declared VARs, we tend
 		// to use the declared type over the type it's being

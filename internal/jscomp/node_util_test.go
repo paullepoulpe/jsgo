@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/NodeUtilTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/NodeUtilTest.java @ closure-compiler v20261015
 
 /*
  * Copyright 2004 The Closure Compiler Authors.
@@ -167,6 +167,18 @@ func nuParseWithCompiler(t *testing.T, js string) (*rhino.Node, *Compiler) {
 	return n, compiler
 }
 
+// nuParseFirstWithCompiler is ParseHelper.parseFirst, also returning
+// ParseHelper.compiler (for ParseHelper.getAstAnalyzer).
+func nuParseFirstWithCompiler(t *testing.T, token rhino.Token, js string) (*rhino.Node, *Compiler) {
+	t.Helper()
+	rootNode, compiler := nuParseWithCompiler(t, js)
+	jutil.CheckStateMsg1(rootNode.IsScript(), "%s", rootNode)
+	if token == rhino.Token_SCRIPT {
+		return rootNode, compiler
+	}
+	return nuGetNode(t, rootNode, token), compiler
+}
+
 // Java: NodeUtilTest.ParseHelper.parseFirst(Token, String)
 func nuParseFirst(t *testing.T, token rhino.Token, js string) *rhino.Node {
 	t.Helper()
@@ -307,6 +319,20 @@ func TestNodeUtil_IsDefinedValueTests_IsDefinedValueOptionalChain(t *testing.T) 
 	nuAssertThat(t, NodeUtil_IsDefinedValue(nuParseExpr(t, "x?.y"))).IsFalse()
 	nuAssertThat(t, NodeUtil_IsDefinedValue(nuParseExpr(t, "x?.[y]"))).IsFalse()
 	nuAssertThat(t, NodeUtil_IsDefinedValue(nuParseExpr(t, "x?.()"))).IsFalse()
+}
+
+// ==== IsFromTypeSummaryTests public static final class IsFromTypeSummaryTests {
+
+func TestNodeUtil_IsFromTypeSummaryTests_IdentifiesTypeSummaryJSDoc(t *testing.T) {
+	script := nuParse(t, "/** @fileoverview @typeSummary */ var x;")
+	nuAssertThat(t, NodeUtil_IsFromTypeSummary(script)).IsTrue()
+
+	scriptWithExterns :=
+		nuParse(t, "// IJS\n/** @fileoverview @typeSummary */\n/** @externs */\n;")
+	nuAssertThat(t, NodeUtil_IsFromTypeSummary(scriptWithExterns)).IsTrue()
+
+	regularScript := nuParse(t, "var x;")
+	nuAssertThat(t, NodeUtil_IsFromTypeSummary(regularScript)).IsFalse()
 }
 
 /**
@@ -626,6 +652,23 @@ func TestNodeUtil_AssortedTests_TestGetStringValue(t *testing.T) {
 	nuAssertThat(t, NodeUtil_GetStringValue(nuParseExpr(t, "'0'"))).IsEqualTo("0")
 	nuAssertThat(t, NodeUtil_GetStringValue(nuParseExpr(t, "/a/"))).IsNull()
 	nuAssertThat(t, NodeUtil_GetStringValue(nuParseExpr(t, "{}"))).IsEqualTo("[object Object]")
+	nuAssertThat(t, NodeUtil_GetStringValue(nuParseExpr(t, "{get foo() { return 1; }}"))).IsNull()
+	nuAssertThat(t, NodeUtil_GetStringValue(nuParseExpr(t, "{set foo(x) {}}"))).IsNull()
+	nuAssertThat(t, NodeUtil_GetStringValue(nuParseExpr(t, "{toString: 1}"))).IsNull()
+	nuAssertThat(t, NodeUtil_GetStringValue(nuParseExpr(t, "{'toString': 1}"))).IsNull()
+	nuAssertThat(t, NodeUtil_GetStringValue(nuParseExpr(t, "{toString() { return 'foo'; }}"))).IsNull()
+	nuAssertThat(t, NodeUtil_GetStringValue(nuParseExpr(t, "{get toString() { return 'foo'; }}"))).IsNull()
+	nuAssertThat(t, NodeUtil_GetStringValue(nuParseExpr(t, "{set toString(x) {}}"))).IsNull()
+	nuAssertThat(t, NodeUtil_GetStringValue(nuParseExpr(t, "{valueOf: 1}"))).IsNull()
+	nuAssertThat(t, NodeUtil_GetStringValue(nuParseExpr(t, "{'valueOf': 1}"))).IsNull()
+	nuAssertThat(t, NodeUtil_GetStringValue(nuParseExpr(t, "{valueOf() { return 1; }}"))).IsNull()
+	nuAssertThat(t, NodeUtil_GetStringValue(nuParseExpr(t, "{get valueOf() { return 1; }}"))).IsNull()
+	nuAssertThat(t, NodeUtil_GetStringValue(nuParseExpr(t, "{set valueOf(x) {}}"))).IsNull()
+	nuAssertThat(t, NodeUtil_GetStringValue(nuParseExpr(t, "{__proto__: null}"))).IsNull()
+	nuAssertThat(t, NodeUtil_GetStringValue(nuParseExpr(t, "{'__proto__': null}"))).IsNull()
+	nuAssertThat(t, NodeUtil_GetStringValue(nuParseExpr(t, "{__proto__: p}"))).IsNull()
+	nuAssertThat(t, NodeUtil_GetStringValue(nuParseExpr(t, "{[key]: 'val'}"))).IsNull()
+	nuAssertThat(t, NodeUtil_GetStringValue(nuParseExpr(t, "{...spread}"))).IsNull()
 	nuAssertThat(t, NodeUtil_GetStringValue(nuParseExpr(t, "[]"))).IsEmpty()
 	nuAssertThat(t, NodeUtil_GetStringValue(nuParseExpr(t, "false"))).IsEqualTo("false")
 	nuAssertThat(t, NodeUtil_GetStringValue(nuParseExpr(t, "null"))).IsEqualTo("null")
@@ -792,6 +835,28 @@ func TestNodeUtil_AssortedTests_TestIsFunctionDeclaration(t *testing.T) {
 	nuAssertThat(t,
 		NodeUtil_IsFunctionDeclaration(
 			nuParseFirst(t, rhino.Token_FUNCTION, "export default (foo) => { alert(foo); }"))).IsFalse()
+}
+
+// Java: NodeUtilTest.AssortedTests.checkParamSideEffects(String)
+func nuh_checkParamSideEffects(t *testing.T, js string) bool {
+	t.Helper()
+	fn, compiler := nuParseFirstWithCompiler(t, rhino.Token_FUNCTION, js)
+	return NodeUtil_FunctionParametersMayHaveSideEffects(fn, compiler.GetAstAnalyzer())
+}
+
+func TestNodeUtil_AssortedTests_TestFunctionParametersMayHaveSideEffects(t *testing.T) {
+	nuAssertThat(t, nuh_checkParamSideEffects(t, "function f() {}")).IsFalse()
+	nuAssertThat(t, nuh_checkParamSideEffects(t, "function f(a, b) {}")).IsFalse()
+	nuAssertThat(t, nuh_checkParamSideEffects(t, "function f(a = 1) {}")).IsFalse()
+	nuAssertThat(t, nuh_checkParamSideEffects(t, "function f(a = 'default') {}")).IsFalse()
+	nuAssertThat(t, nuh_checkParamSideEffects(t, "function f(...a) {}")).IsFalse()
+
+	nuAssertThat(t, nuh_checkParamSideEffects(t, "function f(a = audit()) {}")).IsTrue()
+	nuAssertThat(t, nuh_checkParamSideEffects(t, "function f({a}) {}")).IsTrue()
+	nuAssertThat(t, nuh_checkParamSideEffects(t, "function f([a]) {}")).IsTrue()
+	nuAssertThat(t, nuh_checkParamSideEffects(t, "function f({a} = {}) {}")).IsTrue()
+	nuAssertThat(t, nuh_checkParamSideEffects(t, "function f(...[a]) {}")).IsTrue()
+	nuAssertThat(t, nuh_checkParamSideEffects(t, "function f(a, {b}, ...c) {}")).IsTrue()
 }
 
 func TestNodeUtil_AssortedTests_TestisBlockScopedFunctionDeclaration(t *testing.T) {
@@ -1720,6 +1785,106 @@ func TestNodeUtil_AssortedTests_TestGetOctalNumberValue(t *testing.T) {
 	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "022"))).IsEqualTo(18.0)
 }
 
+func TestNodeUtil_AssortedTests_TestGetStringNumberValue(t *testing.T) {
+	// Whitespace and empty
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("")).IsEqualTo(0.0)
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("  ")).IsEqualTo(0.0)
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("\t\n\r ")).IsEqualTo(0.0)
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue(" \t 42 \n ")).IsEqualTo(42.0)
+
+	// Standard decimals
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("0")).IsEqualTo(0.0)
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("-0")).IsEqualTo(math.Copysign(0, -1)) // Java: -0.0
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("1")).IsEqualTo(1.0)
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("-1")).IsEqualTo(-1.0)
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("+1")).IsEqualTo(1.0)
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("1.5")).IsEqualTo(1.5)
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("-1.5")).IsEqualTo(-1.5)
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue(".5")).IsEqualTo(0.5)
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("-.5")).IsEqualTo(-0.5)
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("1e5")).IsEqualTo(100000.0)
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("1e-2")).IsEqualTo(0.01)
+
+	// Binary literals
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("0b10")).IsEqualTo(2.0)
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("0B11")).IsEqualTo(3.0)
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("0b0")).IsEqualTo(0.0)
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("  0b1010  ")).IsEqualTo(10.0)
+
+	// Binary invalid
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("0b")).IsEqualTo(math.NaN())
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("0b2")).IsEqualTo(math.NaN())
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("0b1a")).IsEqualTo(math.NaN())
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("+0b1")).IsEqualTo(math.NaN())
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("-0b1")).IsEqualTo(math.NaN())
+
+	// Octal literals
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("0o10")).IsEqualTo(8.0)
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("0O77")).IsEqualTo(63.0)
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("0o0")).IsEqualTo(0.0)
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("  0o12  ")).IsEqualTo(10.0)
+
+	// Octal invalid
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("0o")).IsEqualTo(math.NaN())
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("0o8")).IsEqualTo(math.NaN())
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("0o7a")).IsEqualTo(math.NaN())
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("+0o1")).IsEqualTo(math.NaN())
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("-0o1")).IsEqualTo(math.NaN())
+
+	// Hexadecimal
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("0x10")).IsEqualTo(16.0)
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("0X1f")).IsEqualTo(31.0)
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("0xffffffff")).IsEqualTo(4294967295.0)
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("0x0")).IsEqualTo(0.0)
+
+	// Large non-decimal literals (> 14 digits exercising BigInteger path)
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("0b10000000000000000000")).IsEqualTo(524288.0)
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("0o100000000000000")).IsEqualTo(4398046511104.0)
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("0x100000000000000")).
+		IsEqualTo(7.205759403792794e+16)
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("0x"+strings.Repeat("f", 300))).IsEqualTo(math.Inf(1))
+
+	// Hex invalid
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("0x")).IsEqualTo(math.NaN())
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("0xg")).IsEqualTo(math.NaN())
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("0x1.0p0")).IsEqualTo(math.NaN())
+
+	// Hex with signs
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("+0x10")).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("-0x10")).IsNull()
+
+	// Java suffixes rejected
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("1d")).IsEqualTo(math.NaN())
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("1D")).IsEqualTo(math.NaN())
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("1f")).IsEqualTo(math.NaN())
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("1F")).IsEqualTo(math.NaN())
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("1.0d")).IsEqualTo(math.NaN())
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("1.0f")).IsEqualTo(math.NaN())
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("1e2d")).IsEqualTo(math.NaN())
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("1e2f")).IsEqualTo(math.NaN())
+
+	// Infinity
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("Infinity")).IsEqualTo(math.Inf(1))
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("+Infinity")).IsEqualTo(math.Inf(1))
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("-Infinity")).IsEqualTo(math.Inf(-1))
+
+	// Case-insensitive infinity
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("infinity")).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("-infinity")).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("+infinity")).IsNull()
+
+	// Vertical tab
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("\u000b")).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("\u000b1")).IsNull()
+
+	// General invalid
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("abc")).IsEqualTo(math.NaN())
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("1.2.3")).IsEqualTo(math.NaN())
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("--1")).IsEqualTo(math.NaN())
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("+")).IsEqualTo(math.NaN())
+	nuAssertThatDouble(t, NodeUtil_GetStringNumberValue("-")).IsEqualTo(math.NaN())
+}
+
 func TestNodeUtil_AssortedTests_TestGetNumberValue(t *testing.T) {
 	// Strings
 	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "'\\uFEFF1'"))).IsEqualTo(1.0)
@@ -1761,6 +1926,7 @@ func TestNodeUtil_AssortedTests_TestGetNumberValue(t *testing.T) {
 	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "'-Infinity'"))).IsEqualTo(math.Inf(-1))
 	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "'Infinity'"))).IsEqualTo(math.Inf(1))
 	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "'+Infinity'"))).IsEqualTo(math.Inf(1))
+
 	// Firefox treats "infinity" as "Infinity", IE treats it as NaN
 	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "'-infinity'"))).IsNull()
 	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "'infinity'"))).IsNull()
@@ -1769,6 +1935,9 @@ func TestNodeUtil_AssortedTests_TestGetNumberValue(t *testing.T) {
 	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "'NaN'"))).IsEqualTo(math.NaN())
 	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "'some unknown string'"))).IsEqualTo(math.NaN())
 	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "'123 blah'"))).IsEqualTo(math.NaN())
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "\"0o10\""))).IsEqualTo(8.0)
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "\"1d\""))).IsEqualTo(math.NaN())
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "\"1f\""))).IsEqualTo(math.NaN())
 
 	// Literals
 	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "1"))).IsEqualTo(1.0)
@@ -1814,6 +1983,48 @@ func TestNodeUtil_AssortedTests_TestGetNumberValue(t *testing.T) {
 
 	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "[1]"))).IsEqualTo(1.0)
 	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "{}"))).IsEqualTo(math.NaN())
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "{a: 1}"))).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "{'a': 1, 2: 3}"))).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "{foo() {}}"))).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "{get foo() { return 1; }}"))).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "{set foo(x) {}}"))).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "{valueOf: 1}"))).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "{toString: 1}"))).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "{valueOf() { return 1; }}"))).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "{toString() { return '1'; }}"))).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "{get valueOf() { return 1; }}"))).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "{set valueOf(x) {}}"))).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "{__proto__: null}"))).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "{'__proto__': null}"))).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "{[key]: 1}"))).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "{...spread}"))).IsNull()
+
+	// Unary with conversions
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "-\"1\""))).IsEqualTo(-1.0)
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "+\"1\""))).IsEqualTo(1.0)
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "~\"1\""))).IsEqualTo(-2.0)
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "-true"))).IsEqualTo(-1.0)
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "+true"))).IsEqualTo(1.0)
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "~true"))).IsEqualTo(-2.0)
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "-false"))).IsEqualTo(math.Copysign(0, -1)) // Java: -0.0
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "+false"))).IsEqualTo(0.0)
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "~false"))).IsEqualTo(-1.0)
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "-[1]"))).IsEqualTo(-1.0)
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "+[1]"))).IsEqualTo(1.0)
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "~[1]"))).IsEqualTo(-2.0)
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "-{}"))).IsEqualTo(math.NaN())
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "+{}"))).IsEqualTo(math.NaN())
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "~{}"))).IsEqualTo(-1.0)
+
+	// Nested unaries with conversions
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "- -\"1\""))).IsEqualTo(1.0)
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "+ +\"1\""))).IsEqualTo(1.0)
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "+ -\"1\""))).IsEqualTo(-1.0)
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "~ ~\"1\""))).IsEqualTo(1.0)
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "- -1"))).IsEqualTo(1.0)
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "+ +1"))).IsEqualTo(1.0)
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "+ -1"))).IsEqualTo(-1.0)
+	nuAssertThatDouble(t, NodeUtil_GetNumberValue(nuParseExpr(t, "~ ~1"))).IsEqualTo(1.0)
 }
 
 func TestNodeUtil_AssortedTests_TestGetNumberValueNoConversions(t *testing.T) {
@@ -1822,8 +2033,35 @@ func TestNodeUtil_AssortedTests_TestGetNumberValueNoConversions(t *testing.T) {
 	nuAssertThatDouble(t, NodeUtil_GetNumberValueNoConversions(nuParseExpr(t, "true"))).IsNull()
 	nuAssertThatDouble(t, NodeUtil_GetNumberValueNoConversions(nuParseExpr(t, "false"))).IsNull()
 	nuAssertThatDouble(t, NodeUtil_GetNumberValueNoConversions(nuParseExpr(t, "null"))).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetNumberValueNoConversions(nuParseExpr(t, "undefined"))).IsNull()
 	nuAssertThatDouble(t, NodeUtil_GetNumberValueNoConversions(nuParseExpr(t, "[1]"))).IsNull()
 	nuAssertThatDouble(t, NodeUtil_GetNumberValueNoConversions(nuParseExpr(t, "{}"))).IsNull()
+
+	// Unary operators without conversions should return null for non-numeric operands
+	nuAssertThatDouble(t, NodeUtil_GetNumberValueNoConversions(nuParseExpr(t, "-\"1\""))).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetNumberValueNoConversions(nuParseExpr(t, "-\"1d\""))).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetNumberValueNoConversions(nuParseExpr(t, "-true"))).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetNumberValueNoConversions(nuParseExpr(t, "-false"))).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetNumberValueNoConversions(nuParseExpr(t, "-[1]"))).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetNumberValueNoConversions(nuParseExpr(t, "-{}"))).IsNull()
+
+	nuAssertThatDouble(t, NodeUtil_GetNumberValueNoConversions(nuParseExpr(t, "+\"1\""))).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetNumberValueNoConversions(nuParseExpr(t, "+\"1d\""))).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetNumberValueNoConversions(nuParseExpr(t, "+true"))).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetNumberValueNoConversions(nuParseExpr(t, "+false"))).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetNumberValueNoConversions(nuParseExpr(t, "+[1]"))).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetNumberValueNoConversions(nuParseExpr(t, "+{}"))).IsNull()
+
+	nuAssertThatDouble(t, NodeUtil_GetNumberValueNoConversions(nuParseExpr(t, "~\"1\""))).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetNumberValueNoConversions(nuParseExpr(t, "~true"))).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetNumberValueNoConversions(nuParseExpr(t, "~false"))).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetNumberValueNoConversions(nuParseExpr(t, "~[1]"))).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetNumberValueNoConversions(nuParseExpr(t, "~{}"))).IsNull()
+
+	// Nested unaries without conversions
+	nuAssertThatDouble(t, NodeUtil_GetNumberValueNoConversions(nuParseExpr(t, "- -\"1\""))).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetNumberValueNoConversions(nuParseExpr(t, "+ +\"1\""))).IsNull()
+	nuAssertThatDouble(t, NodeUtil_GetNumberValueNoConversions(nuParseExpr(t, "+ -\"1\""))).IsNull()
 
 	// Literals
 	nuAssertThatDouble(t, NodeUtil_GetNumberValueNoConversions(nuParseExpr(t, "1"))).IsEqualTo(1.0)
@@ -1845,6 +2083,136 @@ func TestNodeUtil_AssortedTests_TestGetNumberValueNoConversions(t *testing.T) {
 	nuAssertThatDouble(t, NodeUtil_GetNumberValueNoConversions(nuParseExpr(t, "~0.1"))).IsEqualTo(-1.0)
 	nuAssertThatDouble(t, NodeUtil_GetNumberValueNoConversions(nuParseExpr(t, "~NaN"))).IsEqualTo(-1.0)
 	nuAssertThatDouble(t, NodeUtil_GetNumberValueNoConversions(nuParseExpr(t, "~Infinity"))).IsEqualTo(-1.0)
+}
+
+func TestNodeUtil_AssortedTests_TestIsNumericLiteral(t *testing.T) {
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "1"))).IsTrue()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "0"))).IsTrue()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "0.0"))).IsTrue()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "1.5"))).IsTrue()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "1e5"))).IsTrue()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "0x10"))).IsTrue()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "0b10"))).IsTrue()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "0o10"))).IsTrue()
+
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "-1"))).IsTrue()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "-0"))).IsTrue()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "-0.0"))).IsTrue()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "-1.5"))).IsTrue()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "-1e5"))).IsTrue()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "-0x10"))).IsTrue()
+
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "+1"))).IsTrue()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "+0"))).IsTrue()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "+0.0"))).IsTrue()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "+1.5"))).IsTrue()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "+1e5"))).IsTrue()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "+0x10"))).IsTrue()
+
+	// False cases
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nil)).IsFalse()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "null"))).IsFalse()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "undefined"))).IsFalse()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "void 0"))).IsFalse()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "NaN"))).IsFalse()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "Infinity"))).IsFalse()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "-Infinity"))).IsFalse()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "+Infinity"))).IsFalse()
+
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "1n"))).IsFalse()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "-1n"))).IsFalse()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(rhino.NewNodeWithChild(rhino.Token_POS, rhino.Node_NewBigInt(big.NewInt(1))))).
+		IsFalse()
+
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(rhino.NewNode(rhino.Token_NEG))).IsFalse()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(rhino.NewNode(rhino.Token_POS))).IsFalse()
+
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "\"1\""))).IsFalse()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "-\"1\""))).IsFalse()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "+\"1\""))).IsFalse()
+
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "true"))).IsFalse()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "-true"))).IsFalse()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "+true"))).IsFalse()
+
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "false"))).IsFalse()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "-false"))).IsFalse()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "+false"))).IsFalse()
+
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "{}"))).IsFalse()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "[]"))).IsFalse()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "[1]"))).IsFalse()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "-[1]"))).IsFalse()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "+[1]"))).IsFalse()
+
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "1 + 2"))).IsFalse()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "-(1 + 2)"))).IsFalse()
+
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "-(-1)"))).IsFalse()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "+(+1)"))).IsFalse()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "+(-1)"))).IsFalse()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "-(+1)"))).IsFalse()
+
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "~1"))).IsFalse()
+	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "!1"))).IsFalse()
+
+	nuAssertThat(t, NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "1"))).IsEqualTo(1.0)
+}
+
+func TestNodeUtil_AssortedTests_TestGetNumericLiteralValue(t *testing.T) {
+	nuAssertThat(t, NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "1"))).IsEqualTo(1.0)
+	nuAssertThat(t, NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "0.0"))).IsEqualTo(0.0)
+	nuAssertThat(t, NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "-5.0"))).IsEqualTo(-5.0)
+	nuAssertThat(t, NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "+5.0"))).IsEqualTo(5.0)
+
+	negZero := NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "-0.0"))
+	nuAssertThat(t, negZero).IsEqualTo(math.Copysign(0, -1)) // Java: -0.0
+	nuAssertThat(t, 1.0/negZero).IsEqualTo(math.Inf(-1))
+
+	posZero := NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "+0.0"))
+	nuAssertThat(t, posZero).IsEqualTo(0.0)
+	nuAssertThat(t, 1.0/posZero).IsEqualTo(math.Inf(1))
+
+	negIntZero := NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "-0"))
+	nuAssertThat(t, negIntZero).IsEqualTo(math.Copysign(0, -1)) // Java: -0.0
+	nuAssertThat(t, 1.0/negIntZero).IsEqualTo(math.Inf(-1))
+
+	posIntZero := NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "+0"))
+	nuAssertThat(t, posIntZero).IsEqualTo(0.0)
+	nuAssertThat(t, 1.0/posIntZero).IsEqualTo(math.Inf(1))
+
+	nuAssertThat(t, NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "0x10"))).IsEqualTo(16.0)
+	nuAssertThat(t, NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "-0x10"))).IsEqualTo(-16.0)
+	nuAssertThat(t, NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "+0x10"))).IsEqualTo(16.0)
+	nuAssertThat(t, NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "0b10"))).IsEqualTo(2.0)
+	nuAssertThat(t, NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "0o10"))).IsEqualTo(8.0)
+	nuAssertThat(t, NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "1e5"))).IsEqualTo(100000.0)
+	nuAssertThat(t, NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "-1e5"))).IsEqualTo(-100000.0)
+	nuAssertThat(t, NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "+1e5"))).IsEqualTo(100000.0)
+
+	assertThrows[jutil.IIllegalArgumentException](t, func() { NodeUtil_GetNumericLiteralValue(nil) })
+	assertThrows[jutil.IIllegalArgumentException](t,
+		func() { NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "\"1\"")) })
+	assertThrows[jutil.IIllegalArgumentException](t,
+		func() { NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "null")) })
+	assertThrows[jutil.IIllegalArgumentException](t,
+		func() { NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "undefined")) })
+	assertThrows[jutil.IIllegalArgumentException](t,
+		func() { NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "NaN")) })
+	assertThrows[jutil.IIllegalArgumentException](t,
+		func() { NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "Infinity")) })
+	assertThrows[jutil.IIllegalArgumentException](t,
+		func() { NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "-(1 + 2)")) })
+	assertThrows[jutil.IIllegalArgumentException](t,
+		func() { NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "-(-1)")) })
+	assertThrows[jutil.IIllegalArgumentException](t,
+		func() { NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "1n")) })
+	assertThrows[jutil.IIllegalArgumentException](t,
+		func() { NodeUtil_GetNumericLiteralValue(nuParseExpr(t, "-1n")) })
+	assertThrows[jutil.IIllegalArgumentException](t,
+		func() { NodeUtil_GetNumericLiteralValue(rhino.NewNode(rhino.Token_NEG)) })
+	assertThrows[jutil.IIllegalArgumentException](t,
+		func() { NodeUtil_GetNumericLiteralValue(rhino.NewNode(rhino.Token_POS)) })
 }
 
 func TestNodeUtil_AssortedTests_TestGetBigIntValue(t *testing.T) {
@@ -2561,6 +2929,12 @@ func TestNodeUtil_AssortedTests_TestIsExecutedExactlyOnce(t *testing.T) {
 
 	nuAssertThat(t, nuh_executedOnceTestCase(t, "1 && (x || 1);")).IsFalse()
 
+	nuAssertThat(t, nuh_executedOnceTestCase(t, "x ||= 1;")).IsTrue()
+	nuAssertThat(t, nuh_executedOnceTestCase(t, "y ||= x;")).IsFalse()
+	nuAssertThat(t, nuh_executedOnceTestCase(t, "x &&= 1;")).IsTrue()
+	nuAssertThat(t, nuh_executedOnceTestCase(t, "y &&= x;")).IsFalse()
+	nuAssertThat(t, nuh_executedOnceTestCase(t, "x ??= 1;")).IsTrue()
+	nuAssertThat(t, nuh_executedOnceTestCase(t, "y ??= x;")).IsFalse()
 	nuAssertThat(t, nuh_executedOnceTestCase(t, "x ? 1 : 2;")).IsTrue()
 	nuAssertThat(t, nuh_executedOnceTestCase(t, "1 ? 1 : x;")).IsFalse()
 	nuAssertThat(t, nuh_executedOnceTestCase(t, "1 ? x : 2;")).IsFalse()
@@ -2586,6 +2960,18 @@ func TestNodeUtil_AssortedTests_TestIsExecutedExactlyOnce(t *testing.T) {
 
 	nuAssertThat(t, nuh_executedOnceTestCase(t, "if (1) { for(x in {}){} }")).IsFalse()
 
+	nuAssertThat(t, nuh_executedOnceTestCase(t, "for(x of {}){}")).IsFalse()
+	nuAssertThat(t, nuh_executedOnceTestCase(t, "for({}.a of x){}")).IsTrue()
+	nuAssertThat(t, nuh_executedOnceTestCase(t, "for({}.a of {}){x}")).IsFalse()
+
+	nuAssertThat(t, nuh_executedOnceTestCase(t, "if (1) { for(x of {}){} }")).IsFalse()
+
+	nuAssertThat(t, nuh_executedOnceTestCase(t, "async function f() { for await(x of {}){} }")).IsFalse()
+	nuAssertThat(t, nuh_executedOnceTestCase(t, "async function f() { for await({}.a of x){} }")).IsTrue()
+	nuAssertThat(t, nuh_executedOnceTestCase(t, "async function f() { for await({}.a of {}){x} }")).IsFalse()
+
+	nuAssertThat(t, nuh_executedOnceTestCase(t, "async function f() { if (1) { for await(x of {}){} } }")).
+		IsFalse()
 	nuAssertThat(t, nuh_executedOnceTestCase(t, "switch (x) {}")).IsTrue()
 	nuAssertThat(t, nuh_executedOnceTestCase(t, "switch (1) {case x:}")).IsFalse()
 	nuAssertThat(t, nuh_executedOnceTestCase(t, "switch (1) {case 1: x}")).IsFalse()
@@ -4119,6 +4505,35 @@ func TestNodeUtil_AssortedTests_TestIsBundledGoogModule_onlyIfInScript(t *testin
 	nuAssertThat(t, NodeUtil_IsBundledGoogModuleCall(callNode)).IsTrue()
 }
 
+func TestNodeUtil_AssortedTests_TestGetOriginalName_string(t *testing.T) {
+	// No rename artifacts
+	nuAssertThat(t, NodeUtil_GetOriginalName("foo")).IsEqualTo("foo")
+
+	// Unique name suffix
+	nuAssertThat(t, NodeUtil_GetOriginalName("foo$$1")).IsEqualTo("foo")
+	nuAssertThat(t, NodeUtil_GetOriginalName("foo$$123")).IsEqualTo("foo")
+	nuAssertThat(t, NodeUtil_GetOriginalName("foo_bar$$1")).IsEqualTo("foo_bar")
+
+	// Contextual rename suffix
+	nuAssertThat(t, NodeUtil_GetOriginalName("foo$jscomp$1")).IsEqualTo("foo")
+	nuAssertThat(t, NodeUtil_GetOriginalName("foo_bar$jscomp$123")).IsEqualTo("foo_bar")
+
+	// Module exports prefix
+	nuAssertThat(t, NodeUtil_GetOriginalName("module$exports$foo$Bar")).IsEqualTo("Bar")
+	nuAssertThat(t, NodeUtil_GetOriginalName("module$exports$foo$bar$Baz")).IsEqualTo("Baz")
+	nuAssertThat(t, NodeUtil_GetOriginalName("module$exports$foo$bar$PREVENT_CSN_PROPERTY")).
+		IsEqualTo("PREVENT_CSN_PROPERTY")
+
+	// Module contents prefix (without underscores in module name)
+	nuAssertThat(t, NodeUtil_GetOriginalName("module$contents$foo$Bar_baz")).IsEqualTo("baz")
+	nuAssertThat(t, NodeUtil_GetOriginalName("module$contents$foo$Bar_baz_qux")).IsEqualTo("qux")
+
+	// Suffix and prefix combined
+	nuAssertThat(t, NodeUtil_GetOriginalName("module$exports$foo$Bar$$1")).IsEqualTo("Bar")
+	nuAssertThat(t, NodeUtil_GetOriginalName("module$contents$foo$Bar_baz$$123")).IsEqualTo("baz")
+	nuAssertThat(t, NodeUtil_GetOriginalName("module$exports$foo$Bar$jscomp$1$$1")).IsEqualTo("Bar")
+}
+
 // ==== ConvertToNonOptChainTests public static class ConvertToNonOptChainTests {
 func TestNodeUtil_ConvertToNonOptChainTests_SimpleChain(t *testing.T) {
 	// `expr?.prop`
@@ -4146,6 +4561,20 @@ func TestNodeUtil_ConvertToNonOptChainTests_NestedChain(t *testing.T) {
 
 	// nested (inner) optional chain is unchanged
 	nuAssertThat(t, outterGetProp.GetFirstChild().GetSecondChild().IsOptChainGetProp()).IsTrue()
+}
+
+func TestNodeUtil_ConvertToNonOptChainTests_ConvertSegmentDownToStopNode(t *testing.T) {
+	// `expr?.prop1.prop2.prop3`
+	innerGetProp := rhino.IR_StartOptChainGetprop(rhino.IR_Name("expr"), "prop1")
+	middleGetProp := rhino.IR_ContinueOptChainGetprop(innerGetProp, "prop2")
+	outerGetProp := rhino.IR_ContinueOptChainGetprop(middleGetProp, "prop3")
+
+	NodeUtil_ConvertToNonOptionalChainSegmentDownTo(outerGetProp, innerGetProp)
+	// outer and middle are converted
+	nuAssertThat(t, outerGetProp.IsGetProp()).IsTrue()
+	nuAssertThat(t, middleGetProp.IsGetProp()).IsTrue()
+	// stopNode (innerGetProp) remains untouched
+	nuAssertThat(t, innerGetProp.IsOptChainGetProp()).IsTrue()
 }
 
 // All nodes till the current chain's start are converted to non-optional.
@@ -4621,6 +5050,10 @@ func nuReferencesReceiverCases() []nuReferencesReceiverCase {
 		nuReferencesReceiverCase{"({ f() { super.a() } })", false, true},
 		nuReferencesReceiverCase{"({ f() { () => super.a(); } })", false, true},
 		nuReferencesReceiverCase{"() => ({ f() { super.a(); } })", false, false},
+		// TODO(b/538170231): NodeUtil.referencesOwnReceiver accounts for new.target
+		nuReferencesReceiverCase{"function f() { new.target; }", false, false},
+		nuReferencesReceiverCase{"function f() { () => new.target; }", false, false},
+		nuReferencesReceiverCase{"() => function f() { new.target; }", false, false},
 	)
 
 	return cases
@@ -4780,6 +5213,15 @@ func TestNodeUtil_CanBeSideEffectedTest_Test(t *testing.T) {
 		{rhino.Token_OPTCHAIN_GETELEM, "x?.[y]", true},
 		{rhino.Token_GETPROP, "Symbol.iterator", false},
 		{rhino.Token_GETPROP, "Fake.Symbol.iterator", true},
+
+		// TAGGED_TEMPLATELIT
+		{rhino.Token_TAGGED_TEMPLATELIT, "tag`literal`", true},
+
+		// AWAIT
+		{rhino.Token_AWAIT, "(async () => { await p; })", true},
+
+		// DYNAMIC_IMPORT
+		{rhino.Token_DYNAMIC_IMPORT, "import('m')", true},
 	}
 	for _, c := range cases {
 		t.Run(fmt.Sprintf("%v in \"%s\"", c.token, c.source), func(t *testing.T) {

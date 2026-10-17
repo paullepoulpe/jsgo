@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CodeConsumer.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/CodeConsumer.java @ closure-compiler v20261015
 
 /*
  * Copyright 2004 The Closure Compiler Authors.
@@ -170,8 +170,8 @@ func (c *CodeConsumerBase) Add(newcode string) {
 		// need space to separate. This is not pretty printing.
 		// For example: "return foo;"
 		c.self.Append(" ")
-	} else if ch == '/' && c.self.GetLastChar() == '/' {
-		// Do not allow a forward slash to appear after a DIV.
+	} else if ch == '/' && (c.self.GetLastChar() == '/' || c.self.GetLastChar() == '<') {
+		// Do not allow a forward slash to appear after a DIV or LT.
 		// For example,
 		// REGEXP DIV REGEXP
 		// is valid and should print like

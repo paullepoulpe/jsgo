@@ -3,9 +3,8 @@ package jscomp
 // Differential test against tools/oracle/java/TranspileBDump.java: the
 // w5-transpile-b passes (Es6NormalizeClasses, Es6ConvertSuper,
 // Es6RewriteClass + Es6ConvertSuperConstructorCalls, the block-scoping
-// rewrites, RewriteNewDotTarget / RewritePrivateClassProperties /
-// ReportUntranspilableFeatures, RewritePolyfills + PolyfillUsageFinder,
-// IsolatePolyfills), run in DefaultPassConfig's order around the rest of
+// rewrites, RewriteNewDotTarget / ReportUntranspilableFeatures,
+// RewritePolyfills + PolyfillUsageFinder, IsolatePolyfills), run in DefaultPassConfig's order around the rest of
 // the transpilation passes, printed in the same format and compared file by
 // file.
 //
@@ -14,7 +13,7 @@ package jscomp
 //     inputs testdata/transpileb/js/*.js, followed by the corpus files of
 //     testdata/transpileb/golden-files.txt (skipped when the corpus is not
 //     present). Regenerate with
-//       CP=.cache/closure-compiler.jar:<TranspileBDump build dir>
+//       CP=.cache/$CLOSURE_JAR:<TranspileBDump build dir>
 //       java -Xss1g -cp $CP com.google.javascript.jscomp.TranspileBDump --full a.gz \
 //         internal/jscomp/testdata/transpileb/js <the *.js names>
 //       java -Xss1g -cp $CP com.google.javascript.jscomp.TranspileBDump --full b.gz \

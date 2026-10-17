@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/JSDocInfo.java @ closure-compiler v20260415
+// Port of com/google/javascript/rhino/JSDocInfo.java @ closure-compiler v20261015
 
 /*
  *
@@ -2620,6 +2620,9 @@ func jsdocNewStringList() any { return jutil.NewArrayList[string]() }
 // Java: JSDocInfo.Builder.recordThrowsAnnotation(String)
 func (b *JSDocInfo_Builder) RecordThrowsAnnotation(annotation string) bool {
 	b.populated = true
+	if b.CheckBit(JSDocInfo_Bit_NOSIDEEFFECTS) {
+		return false
+	}
 	// TODO(user): Does it make sense to check for singleton tags here?
 	// Note that if the @throws annotation appears before a singleton tag like
 	// @type, the throws annotation is preserved, but if it appears after the
@@ -2633,9 +2636,8 @@ func (b *JSDocInfo_Builder) RecordThrowsAnnotation(annotation string) bool {
 			// about the side effect.
 			throwsAnnotations.Add("")
 		}
-		return true
 	}
-	return false
+	return true
 }
 
 // RecordAuthor adds an author to the current information.
@@ -3249,7 +3251,32 @@ func (b *JSDocInfo_Builder) RecordImplicitCast() bool {
 //
 // Java: JSDocInfo.Builder.recordNoSideEffects()
 func (b *JSDocInfo_Builder) RecordNoSideEffects() bool {
-	return !b.HasAnySingletonSideEffectTags() && b.PopulateBit(JSDocInfo_Bit_NOSIDEEFFECTS, true)
+	return !b.HasAnySingletonSideEffectTags() &&
+		b.IsPropEmpty(JSDocInfo_THROWS_ANNOTATIONS) &&
+		b.PopulateBit(JSDocInfo_Bit_NOSIDEEFFECTS, true)
+}
+
+// IsNoSideEffectsRecorded returns whether current JSDoc is annotated with
+// @nosideeffects.
+//
+// Java: JSDocInfo.Builder.isNoSideEffectsRecorded()
+func (b *JSDocInfo_Builder) IsNoSideEffectsRecorded() bool {
+	return b.CheckBit(JSDocInfo_Bit_NOSIDEEFFECTS)
+}
+
+// IsModifiesRecorded returns whether current JSDoc is annotated with
+// @modifies.
+//
+// Java: JSDocInfo.Builder.isModifiesRecorded()
+func (b *JSDocInfo_Builder) IsModifiesRecorded() bool {
+	return !b.IsPropEmpty(JSDocInfo_MODIFIES)
+}
+
+// IsThrowsRecorded returns whether current JSDoc is annotated with @throws.
+//
+// Java: JSDocInfo.Builder.isThrowsRecorded()
+func (b *JSDocInfo_Builder) IsThrowsRecorded() bool {
+	return !b.IsPropEmpty(JSDocInfo_THROWS_ANNOTATIONS)
 }
 
 // RecordExterns records that the JSDocInfo being built should have its

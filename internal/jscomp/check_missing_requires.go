@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CheckMissingRequires.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/CheckMissingRequires.java @ closure-compiler v20261015
 
 /*
  * Copyright 2020 The Closure Compiler Authors.
@@ -343,10 +343,6 @@ func (c *CheckMissingRequires) VisitMaybeDeclaration(t *NodeTraversal, n *rhino.
 			return
 		}
 
-		if require == nil {
-			return
-		}
-
 		requiredFile := c.moduleByNamespace.Get(require.Namespace())
 		if requiredFile == nil || !requiredFile.HasLegacyGoogNamespaces() {
 			// If we are importing from a non-legacy namespace than any property reference is valid,
@@ -359,7 +355,6 @@ func (c *CheckMissingRequires) VisitMaybeDeclaration(t *NodeTraversal, n *rhino.
 		}
 
 		reference := require.Namespace() + "." + *require.Property()
-		qualifiedName := rhino.QualifiedName_Of(reference)
 
 		// Do not report references to a namespace provided in the same file, and do not recurse
 		// into parent namespaces either.
@@ -368,26 +363,14 @@ func (c *CheckMissingRequires) VisitMaybeDeclaration(t *NodeTraversal, n *rhino.
 			// the destructured property name.
 			alternateFile := c.moduleByNamespace.Get(reference)
 
-			// If the alternate isn't a legacy namespace there there can't be accidental references
-			// through namespace destructuring, otherwise...
-			if alternateFile != nil && alternateFile.HasLegacyGoogNamespaces() {
-				strength := CheckMissingRequires_Strength_WEAK_TYPE
+			if alternateFile != nil && alternateFile != requiredFile {
+				// TODO: report on the node that needs to be removed, include the namespace that needs
+				// to be added.
+				toReport := CheckMissingRequires_INCORRECT_NAMESPACE_ALIAS_REQUIRE_TYPE
 				if require.IsStrongRequire() {
-					strength = CheckMissingRequires_Strength_CODE
+					toReport = CheckMissingRequires_INCORRECT_NAMESPACE_ALIAS_REQUIRE
 				}
-				if !CheckMissingRequires_HasAcceptableRequire(
-					currentFile,
-					qualifiedName,
-					alternateFile,
-					strength) {
-					// TODO: report on the node that needs to be removed, include the namespace that needs
-					// to be added.
-					toReport := CheckMissingRequires_INCORRECT_NAMESPACE_ALIAS_REQUIRE_TYPE
-					if require.IsStrongRequire() {
-						toReport = CheckMissingRequires_INCORRECT_NAMESPACE_ALIAS_REQUIRE
-					}
-					t.Report(n, toReport, reference)
-				}
+				t.Report(n, toReport, reference)
 			}
 		}
 	}

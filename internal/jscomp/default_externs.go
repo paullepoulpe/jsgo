@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/DefaultExterns.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/DefaultExterns.java @ closure-compiler v20261015
 
 /*
  * Copyright 2016 The Closure Compiler Authors.
@@ -37,7 +37,7 @@ func NewDefaultExterns() *DefaultExterns {
 
 // Core language externs. When the environment is CUSTOM, only these externs
 // will be included.
-var defaultExterns_BUILTIN_LANG_EXTERNS = []string{"es3.js", "es5.js", "es6.js", "es6_collections.js"}
+var defaultExterns_BUILTIN_LANG_EXTERNS = []string{"es3.js", "es5.js", "es6.js", "es6_typed_array.js", "es6_collections.js"}
 
 // Ordered browser externs. Externs not included in this list are added
 // last.

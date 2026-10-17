@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ijs/FileInfo.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/ijs/FileInfo.java @ closure-compiler v20261015
 
 /*
  * Copyright 2017 The Closure Compiler Authors.
@@ -31,16 +31,24 @@ type FileInfo struct {
 	providedNamespaces *jutil.LinkedHashSet[string]
 	requiredLocalNames *jutil.LinkedHashSet[string]
 	// MultimapBuilder.linkedHashKeys().arrayListValues().build()
-	declarations *jutil.ListMultimap[string, PotentialDeclaration]
+	declarations     *jutil.ListMultimap[string, PotentialDeclaration]
+	isFromTypeScript bool
 }
 
-// Java: FileInfo()
-func NewFileInfo() *FileInfo {
-	return &FileInfo{
+// Java: FileInfo(String)
+func NewFileInfo(sourceFileName string) *FileInfo {
+	f := &FileInfo{
 		providedNamespaces: jutil.NewLinkedHashSet[string](),
 		requiredLocalNames: jutil.NewLinkedHashSet[string](),
 		declarations:       jutil.ArrayListMultimap_Create[string, PotentialDeclaration](),
 	}
+	f.isFromTypeScript = strings.HasSuffix(sourceFileName, ".closure.js")
+	return f
+}
+
+// Java: FileInfo.isFromTypeScript()
+func (f *FileInfo) IsFromTypeScript() bool {
+	return f.isFromTypeScript
 }
 
 // Java: FileInfo.recordNameDeclaration(Node)

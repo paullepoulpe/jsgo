@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/GlobalNamespaceTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/GlobalNamespaceTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/GlobalNamespaceTest.java)
 
 /*
@@ -1026,6 +1026,26 @@ func (c *GlobalNamespaceTest) TestCannotCollapseConditionalObjectLitProperty() {
 func (c *GlobalNamespaceTest) TestCannotCollapseConditionalObjectLitNestedProperty() {
 	namespace := c.Parse("var foo = x || {prop: {nested: 0}}; use(foo.prop.nested);")
 	fooProp := globalNamespaceTest_name(namespace.GetSlot("foo.prop.nested"))
+	// We should not convert foo.prop -> foo$prop because use(foo) might read foo.prop
+	AssertThat(fooProp.CanCollapse()).IsFalse()
+}
+
+// Java: GlobalNamespaceTest.testCannotCollapseConditionalAndObjectLitProperty()
+func (c *GlobalNamespaceTest) TestCannotCollapseConditionalAndObjectLitProperty() {
+	namespace := c.Parse("var foo = x && {prop: 0}; use(foo.prop);")
+
+	fooProp := globalNamespaceTest_name(namespace.GetSlot("foo.prop"))
+
+	// We should not convert foo.prop -> foo$prop because use(foo) might read foo.prop
+	AssertThat(fooProp.CanCollapse()).IsFalse()
+}
+
+// Java: GlobalNamespaceTest.testCannotCollapseConditionalAndObjectLitNestedProperty()
+func (c *GlobalNamespaceTest) TestCannotCollapseConditionalAndObjectLitNestedProperty() {
+	namespace := c.Parse("var foo = x && {prop: {nested: 0}}; use(foo.prop.nested);")
+
+	fooProp := globalNamespaceTest_name(namespace.GetSlot("foo.prop.nested"))
+
 	// We should not convert foo.prop -> foo$prop because use(foo) might read foo.prop
 	AssertThat(fooProp.CanCollapse()).IsFalse()
 }

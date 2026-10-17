@@ -1,10 +1,10 @@
 # Porting conventions
 
 This is the contract for translating Closure Compiler (Java, pinned at
-**v20260415**) into Go. Every ported file follows it, so that files ported
-independently (by different people or agents, in parallel) fit together
-without negotiation, and so that a Java reader can find any Go symbol
-mechanically.
+**v20261015**, see `tools/oracle/pin.env`) into Go. Every ported file
+follows it, so that files ported independently (by different people or
+agents, in parallel) fit together without negotiation, and so that a Java
+reader can find any Go symbol mechanically.
 
 The one-line summary: **translate whole Java files, top to bottom,
 mechanically; adapt only where Go cannot express the Java; never add
@@ -84,7 +84,7 @@ List each such file in `NOTICE`. `go run ./tools/licenses -check`, run by
   forward-declared.
 - Each file starts with:
   ```go
-  // Port of com/google/javascript/rhino/Node.java @ closure-compiler v20260415
+  // Port of com/google/javascript/rhino/Node.java @ closure-compiler v20261015
   ```
 - Every Go function carries a `// Java: <Class>.<method>(<param types>)`
   line in its doc comment, which makes overload mapping greppable. Java doc
@@ -389,6 +389,12 @@ pass, a heuristic, a special case, a "pre-pass" emulating Java, or a
 shortcut is never acceptable, however good the motivation. If the port does
 not match Java's behaviour, the port has a bug: find the Java logic that
 produces the behaviour and translate it.
+
+One deliberate exception, decided by the repository owner: jutil's
+`java.util.zip` compression (Deflater, GZIPOutputStream) uses Go's
+`compress/flate`, not a translation of zlib, so compressed bytes may differ
+from Java's while the decompressed content is identical; oracles and
+tools/clie2e compare gzip output decompressed.
 
 ## 8. How a port is verified
 

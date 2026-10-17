@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/InlineAndCollapseProperties.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/InlineAndCollapseProperties.java @ closure-compiler v20261015
 
 /*
  * Copyright 2021 The Closure Compiler Authors.
@@ -1263,6 +1263,9 @@ func InlineAndCollapseProperties_ReferencesCollapsibleProperty(
 //
 // Java: InlineAndCollapseProperties.isUnsafelyReassigned(Name)
 func InlineAndCollapseProperties_IsUnsafelyReassigned(name *GlobalNamespace_Name) bool {
+	if name.GetTotalSets() <= 1 {
+		return false
+	}
 	foundOriginalDefinition := false
 	for _, ref := range name.GetRefs() {
 		if !ref.IsSet() {

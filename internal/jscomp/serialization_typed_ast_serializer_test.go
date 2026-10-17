@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/serialization/TypedAstSerializerTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/serialization/TypedAstSerializerTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/serialization/TypedAstSerializerTest.java)
 
 /*
@@ -174,6 +174,50 @@ func (c *TypedAstSerializerTest) TestConsoleDotLogWithColorizedAst() {
 		expectType(ObjectTypeProto_NewBuilder()).                      // Console
 		expectTypeWithProperties(ObjectTypeProto_NewBuilder(), "log"). // Console.prototype
 		test("console.log(1);")
+}
+
+// Java: TypedAstSerializerTest.ignoresIjsFilesInExternAst()
+func (c *TypedAstSerializerTest) TestIgnoresIjsFilesInExternAst() {
+	c.EnableTypeCheck()
+	c.TestSame(
+		c.Externs(
+			SourceFile_FromCode("regular_externs.js", "/** @externs */ var x;"),
+			SourceFile_FromCode(
+				"dep.externs.js.i.js",
+				"/** @fileoverview @typeSummary */\n/** @externs */ var y;")),
+		c.Srcs("x = 1;"))
+
+	var externNames []string
+	for _, lazyAst := range c.testResult.GetExternAstList() {
+		externNames = append(externNames,
+			c.testResult.
+				GetSourceFilePool().
+				GetSourceFile(int(lazyAst.GetSourceFile()-1)).
+				GetFilename())
+	}
+	AssertThat(externNames).Contains("regular_externs.js")
+	AssertThat(externNames).DoesNotContain("dep.externs.js.i.js")
+}
+
+// Java: TypedAstSerializerTest.ignoresIjsFilesInCodeAst()
+func (c *TypedAstSerializerTest) TestIgnoresIjsFilesInCodeAst() {
+	c.EnableTypeCheck()
+	c.TestSame(
+		c.Externs([]*SourceFile{}),
+		c.Srcs(
+			SourceFile_FromCode("src.js", "var a = 1;"),
+			SourceFile_FromCode("dep.i.js", "/** @typeSummary */ var b;")))
+
+	var codeNames []string
+	for _, lazyAst := range c.testResult.GetCodeAstList() {
+		codeNames = append(codeNames,
+			c.testResult.
+				GetSourceFilePool().
+				GetSourceFile(int(lazyAst.GetSourceFile()-1)).
+				GetFilename())
+	}
+	AssertThat(codeNames).Contains("src.js")
+	AssertThat(codeNames).DoesNotContain("dep.i.js")
 }
 
 // Java: private class TypedAstSerializerTest.Tester

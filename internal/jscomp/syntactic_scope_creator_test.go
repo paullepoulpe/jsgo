@@ -1,4 +1,4 @@
-// Port of test/com/google/javascript/jscomp/SyntacticScopeCreatorTest.java @ closure-compiler v20260415
+// Port of test/com/google/javascript/jscomp/SyntacticScopeCreatorTest.java @ closure-compiler v20261015
 
 /*
  * Copyright 2014 The Closure Compiler Authors.
@@ -1855,4 +1855,35 @@ func TestSyntacticScopeCreator_GoogProvideDeclaresStrength(t *testing.T) {
 	root := s.getRoot("goog.provide('foo');")
 	globalScope := s.scopeCreator.CreateScopeOfScope(root, nil)
 	assertEqual(t, "value", globalScope.GetVar("foo").GetImplicitGoogNamespaceStrength(), rhino.StaticSourceFile_SourceKind_STRONG)
+}
+
+// Java: SyntacticScopeCreatorTest.testAbstractScopeHierarchyAndSlotOrder()
+func TestSyntacticScopeCreator_AbstractScopeHierarchyAndSlotOrder(t *testing.T) {
+	s := newSyntacticScopeCreatorTest(t)
+	scope := s.getScope("function f(a, b) { var c = 1; var d = 2; }")
+	fScope := s.scopeCreator.CreateScopeOfScope(scope.GetRootNode().GetFirstChild(), scope)
+	s.scopeCreator.CreateScopeOfScope(fScope.GetRootNode().GetLastChild(), fScope)
+
+	// Test parent/depth
+	AssertThat(fScope.GetParent()).IsEqualTo(scope)
+	AssertThat(fScope.GetDepth()).IsEqualTo(1)
+
+	// Test hoist/container scope resolution
+	AssertThat(fScope.GetClosestHoistScope()).IsNotNull()
+
+	// Test deterministic getVarIterable insertion order
+	vars := []string{}
+	for v := range fScope.GetVarIterable() {
+		vars = append(vars, v.GetName())
+	}
+	AssertThat(vars).ContainsExactly("a", "b").InOrder()
+
+	// Test getSlot / getOwnSlot
+	AssertThat(fScope.GetOwnSlot("a")).IsNotNull()
+	AssertThat(fScope.GetSlot("f")).IsNotNull() // From parent scope
+
+	// Test Arguments var equality
+	argsVar := fScope.GetArgumentsVar()
+	AssertThat(argsVar).IsNotNull()
+	AssertThat(argsVar).IsEqualTo(fScope.GetOwnSlot("arguments"))
 }

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CheckMissingReturnTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/CheckMissingReturnTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/CheckMissingReturnTest.java)
 
 /*
@@ -397,6 +397,17 @@ function *gen() {}
 func (c *CheckMissingReturnTest) TestGeneratorFunctionWithSpecifiedReturnType() {
 	c.TestWarning(
 		`/** @return {!Iterable<number, number>} */
+function *gen() {
+ yield 1;
+}
+`,
+		CheckMissingReturn_MISSING_RETURN_STATEMENT)
+}
+
+// Java: CheckMissingReturnTest.testGeneratorFunctionWithIteratorLikeSpecifiedReturnType()
+func (c *CheckMissingReturnTest) TestGeneratorFunctionWithIteratorLikeSpecifiedReturnType() {
+	c.TestWarning(
+		`/** @return {!IteratorLike<number, number>} */
 function *gen() {
  yield 1;
 }

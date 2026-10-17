@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/AstAnalyzerTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/AstAnalyzerTest.java @ closure-compiler v20261015
 
 /*
  * Copyright 2019 The Closure Compiler Authors.
@@ -346,7 +346,7 @@ func TestAstAnalyzer_FunctionCallHasSideEffects_testTypeBasedStringMethodCallSid
 
 // Java: AstAnalyzerTest.BuiltInFunctionWithoutSideEffects.cases()
 var astAnalyzerTest_BuiltInFunctionWithoutSideEffects_cases = []string{
-	"Object", "Array", "String", "Number", "BigInt", "Boolean", "RegExp", "Error",
+	"Object", "Array", "String", "Number", "BigInt", "Boolean", "RegExp", "Error", "Symbol",
 }
 
 // Java: AstAnalyzerTest.BuiltInFunctionWithoutSideEffects.test_assumingPureBuiltins()
@@ -841,13 +841,26 @@ var astAnalyzerTest_MayHaveSideEffects_cases = []*astAnalyzerTest_AnalysisCase{
 	kase().Expect(false).Token(rhino.Token_SUPER).Js("super()"),
 	kase().Expect(false).Token(rhino.Token_SUPER).Js("super.foo()"),
 
-	// IObject methods
-	// "toString" and "valueOf" are by default assumed to be side-effect free
+	// Some common Object methods are assumed to be side-effect free when called
+	// with their standard builtin arity.
 	kase().Expect(false).Js("o.toString()"),
+	kase().Expect(false).Js("o.toString(16)"),
+	kase().Expect(false).Js("(0).toString(16)"),
+	kase().Expect(false).Js("(0n).toString(16)"),
+	kase().Expect(false).Js("o?.toString(16)"),
+	kase().Expect(false).Js("(0)?.toString(16)"),
+	kase().Expect(false).Js("(0n)?.toString(16)"),
 	kase().Expect(false).Js("o.valueOf()"),
-	// "toString" and "valueOf" are not assumed to be side-effect free when
-	// assumeKnownBuiltinsArePure is false.
+	kase().Expect(true).Js("o.toString(16, 2)"),
+	kase().Expect(true).Js("o.valueOf(1)"),
+	// These builtin-method assumptions are disabled when assumeKnownBuiltinsArePure is false.
 	kase().Expect(true).Js("o.toString()").AssumeBuiltinsPure(false),
+	kase().Expect(true).Js("o.toString(16)").AssumeBuiltinsPure(false),
+	kase().Expect(true).Js("(0).toString(16)").AssumeBuiltinsPure(false),
+	kase().Expect(true).Js("(0n).toString(16)").AssumeBuiltinsPure(false),
+	kase().Expect(true).Js("o?.toString(16)").AssumeBuiltinsPure(false),
+	kase().Expect(true).Js("(0)?.toString(16)").AssumeBuiltinsPure(false),
+	kase().Expect(true).Js("(0n)?.toString(16)").AssumeBuiltinsPure(false),
 	kase().Expect(true).Js("o.valueOf()").AssumeBuiltinsPure(false),
 	// other methods depend on the extern definitions
 	kase().Expect(true).Js("o.watch()"),
@@ -899,6 +912,12 @@ var astAnalyzerTest_MayHaveSideEffects_cases = []*astAnalyzerTest_AnalysisCase{
 
 	// Dynamic import changes global state
 	kase().Expect(true).Token(rhino.Token_DYNAMIC_IMPORT).Js("import('./module.js')"),
+
+	// Symbol() call expressions are side-effect free
+	kase().Expect(false).Js("Symbol()"),
+	kase().Expect(false).Js("Symbol('desc')"),
+	kase().Expect(true).Js("Symbol(foo())"),
+	kase().Expect(true).Js("Symbol()").AssumeBuiltinsPure(false),
 }
 
 // Java: AstAnalyzerTest.NodeTypeMayHaveSideEffects.cases()
@@ -937,6 +956,9 @@ var astAnalyzerTest_NodeTypeMayHaveSideEffects_cases = []*astAnalyzerTest_Analys
 	kase().Js("Object();").Token(rhino.Token_CALL).Expect(false),
 	kase().Js("Object?.();").Token(rhino.Token_OPTCHAIN_CALL).Expect(false),
 	kase().Js("new Object();").Token(rhino.Token_NEW).Expect(false),
+	// Symbol() is known not to have side-effects
+	kase().Js("Symbol();").Token(rhino.Token_CALL).Expect(false),
+	kase().Js("Symbol('desc');").Token(rhino.Token_CALL).Expect(false),
 	// TAGGED_TEMPLATELIT is just a special syntax for a CALL.
 	kase().Js("foo`template`;").Token(rhino.Token_TAGGED_TEMPLATELIT).Expect(true),
 

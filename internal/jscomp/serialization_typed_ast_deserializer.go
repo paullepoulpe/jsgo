@@ -1,5 +1,5 @@
 // Port of com/google/javascript/jscomp/serialization/TypedAstDeserializer.java (with the
-// AutoValue-generated AutoValue_TypedAstDeserializer_DeserializedAst.java) @ closure-compiler v20260415
+// AutoValue-generated AutoValue_TypedAstDeserializer_DeserializedAst.java) @ closure-compiler v20261015
 
 /*
  * Copyright 2021 The Closure Compiler Authors.
@@ -46,6 +46,7 @@ type TypedAstDeserializer struct {
 
 	requiredInputFiles            *jutil.LinkedHashSet[*SourceFile] // Optional: nil when absent
 	filePoolBuilder               *jutil.LinkedHashMap[string, *SourceFile]
+	canonicalFilePool             *jutil.LinkedHashMap[string, *SourceFile]
 	typedAstFilesystem            *jutil.LinkedHashMap[*SourceFile, func() *rhino.Node]
 	externProperties              *jutil.LinkedHashSet[string]
 	runtimeLibraries              *jutil.LinkedHashSet[string]
@@ -61,6 +62,7 @@ func newTypedAstDeserializer(
 	includeTypeInformation bool) *TypedAstDeserializer {
 	d := &TypedAstDeserializer{
 		filePoolBuilder:               jutil.NewLinkedHashMap[string, *SourceFile](),
+		canonicalFilePool:             jutil.NewLinkedHashMap[string, *SourceFile](),
 		typedAstFilesystem:            jutil.NewLinkedHashMap[*SourceFile, func() *rhino.Node](),
 		externProperties:              jutil.NewLinkedHashSet[string](),
 		runtimeLibraries:              jutil.NewLinkedHashSet[string](),
@@ -181,9 +183,9 @@ func typedAstDeserializer_deserialize(
 	deserializer :=
 		newTypedAstDeserializer(
 			syntheticExterns, colorPool, requiredInputFiles, mode, includeTypeInformation)
-	deserializer.filePoolBuilder.Put(syntheticExterns.GetName(), syntheticExterns)
+	deserializer.addToFilePool(syntheticExterns.GetName(), syntheticExterns)
 	for name, file := range scriptSourceFiles.All() {
-		deserializer.filePoolBuilder.Put(name, file)
+		deserializer.addToFilePool(name, file)
 	}
 
 	if mode != typedAstDeserializer_Mode_RUNTIME_LIBRARY_ONLY {
@@ -319,6 +321,29 @@ func (d *TypedAstDeserializer) deserializeTypedAst(
 	}
 }
 
+// Java: TypedAstDeserializer.addToFilePool(String, SourceFile)
+func (d *TypedAstDeserializer) addToFilePool(filename string, file *SourceFile) {
+	d.filePoolBuilder.Put(filename, file)
+	canonicalPath := SourceFile_CanonicalizePathForMatching(filename)
+	if canonicalPath != filename {
+		d.canonicalFilePool.PutIfAbsent(canonicalPath, file)
+	}
+}
+
+// Java: TypedAstDeserializer.findExistingFile(String)
+func (d *TypedAstDeserializer) findExistingFile(filename string) *SourceFile {
+	exact := d.filePoolBuilder.Get(filename)
+	if exact != nil {
+		return exact
+	}
+	canonicalPath := SourceFile_CanonicalizePathForMatching(filename)
+	canonical := d.canonicalFilePool.Get(canonicalPath)
+	if canonical != nil {
+		return canonical
+	}
+	return d.filePoolBuilder.Get(canonicalPath)
+}
+
 // Java: TypedAstDeserializer.toFileShard(TypedAst)
 func (d *TypedAstDeserializer) toFileShard(typedAstProto *TypedAst) []*SourceFile {
 	var fileShardBuilder []*SourceFile
@@ -326,14 +351,14 @@ func (d *TypedAstDeserializer) toFileShard(typedAstProto *TypedAst) []*SourceFil
 	for i := 0; i < len(protos); i++ {
 		p := protos[i]
 
-		existingFile := d.filePoolBuilder.Get(p.GetFilename())
+		existingFile := d.findExistingFile(p.GetFilename())
 		if existingFile != nil {
 			// Merge the existing SourceFile with the information serialized in the TypedAST.
 			existingFile.RestoreCachedStateFrom(p)
 			fileShardBuilder = append(fileShardBuilder, existingFile)
 		} else {
 			protoFile := SourceFile_FromProto(p)
-			d.filePoolBuilder.Put(p.GetFilename(), protoFile)
+			d.addToFilePool(p.GetFilename(), protoFile)
 			fileShardBuilder = append(fileShardBuilder, protoFile)
 		}
 	}

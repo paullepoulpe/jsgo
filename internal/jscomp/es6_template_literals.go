@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Es6TemplateLiterals.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/Es6TemplateLiterals.java @ closure-compiler v20261015
 
 /*
  * Copyright 2014 The Closure Compiler Authors.
@@ -172,7 +172,7 @@ func (e *Es6TemplateLiterals) VisitTaggedTemplateLiteral(t *NodeTraversal, n *rh
 		}
 	}
 	call.SrcrefTreeIfMissing(templateLit)
-	call.PutBooleanProp(rhino.Node_FREE_CALL, !call.GetFirstChild().IsGetProp())
+	call.PutBooleanProp(rhino.Node_FREE_CALL, !NodeUtil_IsNormalOrOptChainGet(call.GetFirstChild()))
 	n.ReplaceWith(call)
 	t.ReportCodeChange()
 }

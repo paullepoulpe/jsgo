@@ -1,4 +1,4 @@
-testdata/fixtures/extracted/testtypecheck22.js:3:28: ERROR - [JSC_VAR_MULTIPLY_DECLARED_ERROR] Variable Element declared more than once. First occurrence: externs.zip//w3c_dom1.js:1222:9
+testdata/fixtures/extracted/testtypecheck22.js:3:28: ERROR - [JSC_VAR_MULTIPLY_DECLARED_ERROR] Variable Element declared more than once. First occurrence: externs.zip//w3c_dom1.js:1328:9
   3| /** @constructor */function Element(){}
                                  ^^^^^^^
 

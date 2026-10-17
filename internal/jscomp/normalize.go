@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Normalize.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/Normalize.java @ closure-compiler v20261015
 
 /*
  * Copyright 2008 The Closure Compiler Authors.
@@ -306,10 +306,6 @@ func (s *Normalize_NormalizeStatements) Visit(t *NodeTraversal, n *rhino.Node, p
 		empty.InsertBefore(expr)
 		empty.CloneNode().InsertAfter(expr)
 		s.ReportCodeChange("WHILE node", n)
-	case rhino.Token_FUNCTION:
-		if s.VisitFunction(n) {
-			s.ReportCodeChange("Function declaration", n)
-		}
 	case rhino.Token_ARRAYLIT, rhino.Token_CALL, rhino.Token_PARAM_LIST, rhino.Token_NEW,
 		rhino.Token_OBJECTLIT, rhino.Token_OPTCHAIN_CALL:
 		n.SetTrailingComma(false)
@@ -408,25 +404,24 @@ func (s *Normalize_NormalizeStatements) AddNameNodeToExportSpecs(exportSpecs *rh
 	exportSpecs.AddChildToBack(exportSpec)
 }
 
-// VisitFunction rewrites blockless arrow functions to have a block with a
-// single return statement
+// NormalizeBlocklessFunction rewrites blockless arrow functions to have a
+// block with a single return statement
 //
 // For example: (x) => x becomes (x) => { return x; }.
 //
 // This simplifies optimizations as they can now assume all functions have a
 // BLOCK.
 //
-// Java: Normalize.NormalizeStatements.visitFunction(Node)
-func (s *Normalize_NormalizeStatements) VisitFunction(n *rhino.Node) bool {
+// Java: Normalize.NormalizeStatements.normalizeBlocklessFunction(Node)
+func (s *Normalize_NormalizeStatements) NormalizeBlocklessFunction(n *rhino.Node) {
 	jutil.CheckStateMsg1(n.IsFunction(), "%s", n)
-	if n.IsFunction() && !NodeUtil_GetFunctionBody(n).IsBlock() {
+	if !NodeUtil_GetFunctionBody(n).IsBlock() {
 		returnValue := NodeUtil_GetFunctionBody(n)
 		body := rhino.IR_BlockOfNode(rhino.IR_ReturnNodeWithExpr(returnValue.Detach()))
 		body.SrcrefTreeIfMissing(returnValue)
 		n.AddChildToBack(body)
 		s.ReportCodeChange("blockless arrow function", body)
 	}
-	return false
 }
 
 // DoStatementNormalizations does normalizations that introduce new siblings
@@ -452,6 +447,7 @@ func (s *Normalize_NormalizeStatements) DoStatementNormalizations(n *rhino.Node)
 	}
 
 	if n.IsFunction() {
+		s.NormalizeBlocklessFunction(n)
 		s.MoveNamedFunctions(n.GetLastChild())
 	}
 

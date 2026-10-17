@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ManageClosureUnawareCode.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/ManageClosureUnawareCode.java @ closure-compiler v20261015
 
 /*
  * Copyright 2024 The Closure Compiler Authors.
@@ -81,11 +81,11 @@ func (u *ManageClosureUnawareCode_UnwrapConcealedClosureUnawareCode) ShouldTrave
 
 // Java: UnwrapConcealedClosureUnawareCode.visit(NodeTraversal, Node, Node)
 func (u *ManageClosureUnawareCode_UnwrapConcealedClosureUnawareCode) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
-	u.TryUnwrapClosureUnawareShadowedCode(t, n)
+	u.TryUnwrapClosureUnawareShadowedCode(n)
 }
 
-// Java: UnwrapConcealedClosureUnawareCode.tryUnwrapClosureUnawareShadowedCode(NodeTraversal, Node)
-func (u *ManageClosureUnawareCode_UnwrapConcealedClosureUnawareCode) TryUnwrapClosureUnawareShadowedCode(t *NodeTraversal, n *rhino.Node) {
+// Java: UnwrapConcealedClosureUnawareCode.tryUnwrapClosureUnawareShadowedCode(Node)
+func (u *ManageClosureUnawareCode_UnwrapConcealedClosureUnawareCode) TryUnwrapClosureUnawareShadowedCode(n *rhino.Node) {
 	shadowAstRoot := n.GetClosureUnawareShadow()
 	if shadowAstRoot == nil {
 		return

@@ -517,6 +517,12 @@ func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n *rhino.Node) {
 		func() bool { return NodeUtil_IsConstantDeclaration(NodeUtil_GetBestJSDocInfo(n), n) })
 	bool_(hasParent && NodeUtil_IsControlStructure(parent),
 		func() bool { return NodeUtil_IsControlStructureCodeBlock(parent, n) })
+	bool_(true, func() bool { return NodeUtil_IsNumericLiteral(n) })
+	bool_(hasParent, func() bool { return NodeUtil_IsNonStaticClassFieldInitializer(n) })
+	bool_(hasParent, func() bool { return NodeUtil_IsFunctionOrNonStaticClassFieldInitializer(n) })
+	bool_(isFn, func() bool { return NodeUtil_HasNonSimpleParameters(n) })
+	bool_(isFn,
+		func() bool { return NodeUtil_FunctionParametersMayHaveSideEffects(n, s.compiler.GetAstAnalyzer()) })
 
 	field(true, func() string { return NodeUtil_GetBooleanValue(n).Name() })
 	field(true, func() string { return nodeUtilSweepStr(NodeUtil_GetStringValue(n)) })
@@ -531,6 +537,11 @@ func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n *rhino.Node) {
 		}
 		return x.String()
 	})
+	field(true, func() string {
+		d := NodeUtil_GetNumericLiteralValue(n)
+		return nodeUtilSweepDbl(&d)
+	})
+	field(isName, func() string { name := NodeUtil_GetOriginalName(n.GetString()); return nodeUtilSweepStr(&name) })
 	field(isFnOrClass, func() string { return nodeUtilSweepStr(NodeUtil_GetName(n)) })
 	field(isFnOrClass, func() string { return s.idx(NodeUtil_GetNameNode(n)) })
 	field(true, func() string { return nodeUtilSweepStr(NodeUtil_GetNearestFunctionName(n)) })

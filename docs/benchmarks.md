@@ -74,10 +74,11 @@ Harnesses:
 To reproduce:
 
 ```sh
+source tools/oracle/pin.env
 go build -o .cache/bench-build/parsebench ./tools/bench/parsebench
-javac -cp .cache/closure-compiler.jar -d .cache/bench-build tools/bench/java/ParseBench.java
+javac -cp .cache/$CLOSURE_JAR -d .cache/bench-build tools/bench/java/ParseBench.java
 python3 -I tools/bench/measure.py go.rusage .cache/bench-build/parsebench 8 .cache/corpus @.cache/corpus-files.txt go-perfile.tsv
-python3 -I tools/bench/measure.py java.rusage java -Xss1g -cp .cache/closure-compiler.jar:.cache/bench-build ParseBench 8 .cache/corpus @.cache/corpus-files.txt java-perfile.tsv
+python3 -I tools/bench/measure.py java.rusage java -Xss1g -cp .cache/$CLOSURE_JAR:.cache/bench-build ParseBench 8 .cache/corpus @.cache/corpus-files.txt java-perfile.tsv
 PARSEBENCH_CPUPROFILE=parse.pprof .cache/bench-build/parsebench 2 .cache/corpus @.cache/corpus-files.txt /dev/null
 ```
 

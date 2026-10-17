@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/jstype/JSTypeTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/rhino/jstype/JSTypeTest.java @ closure-compiler v20261015
 
 /*
  *
@@ -5336,7 +5336,7 @@ func TestJSType_TemplatizedTypeRelations(t *testing.T) {
 
 	s.AssertTypeEquals(
 		JSType.GetGreatestSubtype(objectOfString, arrayOfString),
-		s.NO_OBJECT_TYPE)
+		arrayOfString)
 
 	s.AssertTypeEquals(
 		JSType.GetGreatestSubtype(s.OBJECT_TYPE, arrayOfString),

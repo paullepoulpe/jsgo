@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/InlineVariablesTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/InlineVariablesTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/InlineVariablesTest.java)
 
 /*
@@ -1720,6 +1720,91 @@ func (c *InlineVariablesTest) TestThisEscapedAlias() {
 	c.TestSame("function f() { var a = this; var g = function() { a.y(); }; a.z(); }")
 }
 
+// Java: InlineVariablesTest.testThisAlias_classMemberFieldDef()
+func (c *InlineVariablesTest) TestThisAlias_classMemberFieldDef() {
+	c.TestSame(
+		`function f() {
+  var self = this;
+  use(self);
+  class H {
+    owner = self;
+  }
+}
+`)
+}
+
+// Java: InlineVariablesTest.testThisAlias_classStaticMemberFieldDef()
+func (c *InlineVariablesTest) TestThisAlias_classStaticMemberFieldDef() {
+	c.TestSame(
+		`function f() {
+  var self = this;
+  use(self);
+  class H {
+    static owner = self;
+  }
+}
+`)
+}
+
+// Java: InlineVariablesTest.testThisAlias_classComputedFieldDefValue()
+func (c *InlineVariablesTest) TestThisAlias_classComputedFieldDefValue() {
+	c.TestSame(
+		`function f() {
+  var self = this;
+  use(self);
+  class H {
+    ['owner'] = self;
+  }
+}
+`)
+}
+
+// Java: InlineVariablesTest.testThisAlias_classComputedFieldDefKey()
+func (c *InlineVariablesTest) TestThisAlias_classComputedFieldDefKey() {
+	c.Test(
+		`function f() {
+  var self = this;
+  use(self);
+  class H {
+    [self] = 1;
+  }
+}
+`,
+		`function f() {
+  use(this);
+  class H {
+    [this] = 1;
+  }
+}
+`)
+}
+
+// Java: InlineVariablesTest.testThisAlias_classStaticBlock()
+func (c *InlineVariablesTest) TestThisAlias_classStaticBlock() {
+	c.TestSame(
+		`function f() {
+  var self = this;
+  use(self);
+  class H {
+    static {
+      use(self);
+    }
+  }
+}
+`)
+}
+
+// Java: InlineVariablesTest.testThisAlias_globalClassMemberFieldDef()
+func (c *InlineVariablesTest) TestThisAlias_globalClassMemberFieldDef() {
+	c.TestSame(
+		`var self = this;
+use(self);
+class H {
+  owner = self;
+}
+`)
+}
+
 // Java: InlineVariablesTest.testInlineNamedFunction()
 func (c *InlineVariablesTest) TestInlineNamedFunction() {
 	c.Test("function f() {} f();", "(function(){})()")
@@ -2262,5 +2347,170 @@ func (c *InlineVariablesTest) TestFunctionVarInliningElidesFunctionName() {
 	c.TestSame(
 		`function factorial(x) { if (x == 1) return 1; return x + factorial(x - 1); };
 exports.x = factorial;
+`)
+}
+
+// Java: InlineVariablesTest.testNoInlinePastOptionalChainGetProp()
+func (c *InlineVariablesTest) TestNoInlinePastOptionalChainGetProp() {
+	c.Test(
+		`function f() {
+  var t = this.consume();
+  var ready = this?.ready;
+  return t + ready;
+}
+`,
+		`function f() {
+  var t = this.consume();
+  return t + this?.ready;
+}
+`)
+}
+
+// Java: InlineVariablesTest.testNoInlinePastOptionalChainGetElem()
+func (c *InlineVariablesTest) TestNoInlinePastOptionalChainGetElem() {
+	c.Test(
+		`function f() {
+  var t = this.consume();
+  var ready = this?.['ready'];
+  return t + ready;
+}
+`,
+		`function f() {
+  var t = this.consume();
+  return t + this?.['ready'];
+}
+`)
+}
+
+// Java: InlineVariablesTest.testNoInlinePastGetProp()
+func (c *InlineVariablesTest) TestNoInlinePastGetProp() {
+	c.Test(
+		`function f() {
+  var t = this.consume();
+  var ready = this.ready;
+  return t + ready;
+}
+`,
+		`function f() {
+  var t = this.consume();
+  return t + this.ready;
+}
+`)
+}
+
+// Java: InlineVariablesTest.testNoInlinePastOptionalChainCall()
+func (c *InlineVariablesTest) TestNoInlinePastOptionalChainCall() {
+	c.TestSame(
+		`function f() {
+  var t = this.consume();
+  var ready = this?.ready();
+  return t + ready;
+}
+`)
+}
+
+// Java: InlineVariablesTest.testCrossScopeAliasChainWithInterveningReassignment()
+func (c *InlineVariablesTest) TestCrossScopeAliasChainWithInterveningReassignment() {
+	c.Test(
+		`function f() {
+  var C = compute();
+  var D = C;
+  {
+    let A = D;
+    C = attacker();
+    sink(A); sink(A);
+  }
+}
+`,
+		`function f() {
+  var C = compute();
+  {
+    let A = C;
+    C = attacker();
+    sink(A); sink(A);
+  }
+}
+`)
+}
+
+// Java: InlineVariablesTest.testClassDeclaration_notInlined()
+func (c *InlineVariablesTest) TestClassDeclaration_notInlined() {
+	// When there's only one reference to a class name (e.g. in the rhs of an assignment), we
+	// should elide that class name.
+	c.TestSame("class MyClass { foo() {} } ns.y = MyClass;")
+}
+
+// Java: InlineVariablesTest.testClassExpressionInlined()
+func (c *InlineVariablesTest) TestClassExpressionInlined() {
+	c.Test("var C = class {}; use(C);", "use(class {});")
+}
+
+// Java: InlineVariablesTest.testClassExpressionWithExtendsInlined()
+func (c *InlineVariablesTest) TestClassExpressionWithExtendsInlined() {
+	c.Test(
+		"var C = class extends Base { foo() {} }; use(C);",
+		"use(class extends Base { foo() {} });")
+}
+
+// Java: InlineVariablesTest.testClassWithSideEffectsNotMovedAcrossCalls()
+func (c *InlineVariablesTest) TestClassWithSideEffectsNotMovedAcrossCalls() {
+	c.TestSame(
+		`var C = class { static { doSideEffects(); } };
+doSomething();
+use(C);
+`)
+}
+
+// Java: InlineVariablesTest.testClassWithSideEffectingStaticField_notMovedAcrossCalls()
+func (c *InlineVariablesTest) TestClassWithSideEffectingStaticField_notMovedAcrossCalls() {
+	c.TestSame(
+		`var C = class { static x = doSideEffects(); };
+doSomething();
+use(C);
+`)
+}
+
+// Java: InlineVariablesTest.testClassWithPureStaticField_inlinedAcrossCalls()
+func (c *InlineVariablesTest) TestClassWithPureStaticField_inlinedAcrossCalls() {
+	c.TestSame(
+		`var C = class { static x = 1; };
+doSomething();
+use(C);
+`)
+}
+
+// Java: InlineVariablesTest.testClassWithImpureStaticField_notInlinedAcrossCalls()
+func (c *InlineVariablesTest) TestClassWithImpureStaticField_notInlinedAcrossCalls() {
+	c.TestSame(
+		`var C = class { static x = compute(); };
+doSomething();
+use(C);
+`)
+}
+
+// Java: InlineVariablesTest.testClassWithSideEffectingComputedProperty_notMovedAcrossCalls()
+func (c *InlineVariablesTest) TestClassWithSideEffectingComputedProperty_notMovedAcrossCalls() {
+	c.TestSame(
+		`var C = class { [computeKey()]() {} };
+doSomething();
+use(C);
+`)
+}
+
+// Java: InlineVariablesTest.testClassWithInstanceFieldSideEffects_canMoveBeforeInstantiation()
+func (c *InlineVariablesTest) TestClassWithInstanceFieldSideEffects_canMoveBeforeInstantiation() {
+	c.TestSame(
+		`var C = class { x = compute(); };
+doSomething();
+use(C);
+`)
+}
+
+// Java: InlineVariablesTest.testClassWithImpureExtendsNotMovedAcrossCalls()
+func (c *InlineVariablesTest) TestClassWithImpureExtendsNotMovedAcrossCalls() {
+	c.TestSame(
+		`var C = class extends getBase() {};
+doSomething();
+use(C);
 `)
 }

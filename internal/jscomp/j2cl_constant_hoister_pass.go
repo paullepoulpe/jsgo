@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/J2clConstantHoisterPass.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/J2clConstantHoisterPass.java @ closure-compiler v20261015
 
 /*
  * Copyright 2016 The Closure Compiler Authors.

@@ -33,6 +33,7 @@ import (
 
 var renamingDump_VARIANTS = []string{
 	"disambiguate", "ambiguate", "rename", "rename-pseudo", "rescope", "rescope-extern",
+	"rescope-local", "rescope-all", "rescope-wrapped",
 }
 
 // renamingDump_dumpFile is RenamingDump.dumpFile.
@@ -130,9 +131,26 @@ func renamingDump_dumpVariant(sb *strings.Builder, variant string, externsFile, 
 				renaming = append(renaming, k+" "+v)
 			}
 		case "rescope":
-			NewRescopeGlobalSymbolsWithAddExtern(s.compiler, "_", false, true).Process(externsRoot, jsRoot)
+			NewRescopeGlobalSymbolsWithAddExtern(
+				s.compiler, "_", false, true, CompilerOptions_OptimizeLocalAccess_DISABLED).
+				Process(externsRoot, jsRoot)
 		case "rescope-extern":
-			NewRescopeGlobalSymbolsWithAddExtern(s.compiler, "_", true, false).Process(externsRoot, jsRoot)
+			NewRescopeGlobalSymbolsWithAddExtern(
+				s.compiler, "_", true, false, CompilerOptions_OptimizeLocalAccess_DISABLED).
+				Process(externsRoot, jsRoot)
+		case "rescope-local":
+			NewRescopeGlobalSymbolsWithAddExtern(
+				s.compiler, "_", false, true, CompilerOptions_OptimizeLocalAccess_DEFINING_CHUNK_ONLY).
+				Process(externsRoot, jsRoot)
+		case "rescope-all":
+			NewRescopeGlobalSymbolsWithAddExtern(
+				s.compiler, "_", false, true, CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS).
+				Process(externsRoot, jsRoot)
+		case "rescope-wrapped":
+			NewRescopeGlobalSymbolsWithAddExtern(
+				s.compiler, "_", true, true,
+				CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS).
+				Process(externsRoot, jsRoot)
 		default:
 			panic(jutil.NewIllegalArgumentExceptionMsg(variant))
 		}

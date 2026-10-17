@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
 # Fetches the pinned Closure Compiler release (binary jar + Java sources) into
-# .cache/ and verifies the jar checksum. Idempotent.
+# .cache/ and verifies them. Idempotent. The release, the jar's name and the
+# checksums of both jars are in tools/oracle/pin.env.
 #
-#   .cache/closure-compiler.jar   the oracle
-#   .cache/closure-src/           Java sources for porting (com/google/...)
+#   .cache/$CLOSURE_JAR       the oracle jar (Maven Central's closure-compiler-$CLOSURE_VERSION.jar,
+#                             sha256 CLOSURE_JAR_SHA256)
+#   .cache/closure-src.jar    Maven Central's closure-compiler-$CLOSURE_VERSION-sources.jar
+#                             (sha256 CLOSURE_SRC_SHA256)
+#   .cache/closure-src/       its Java sources, unpacked, for porting (com/google/...)
 set -euo pipefail
 cd "$(dirname "$0")/../.."
+source tools/oracle/pin.env
 
-VERSION=v20260415
-JAR_SHA256=20313094c6e9cac8c685931e0b3fd67f82e1534c30448cdff404ee350460e391
-PATH_PREFIX=com/google/javascript/closure-compiler/$VERSION/closure-compiler-$VERSION
+PATH_PREFIX=com/google/javascript/closure-compiler/$CLOSURE_VERSION/closure-compiler-$CLOSURE_VERSION
 # Maven Central, with Google's mirror as fallback (Central rate-limits).
 MIRRORS=(https://repo1.maven.org/maven2 https://maven-central.storage-download.googleapis.com/maven2)
+JAR=.cache/$CLOSURE_JAR
 
 mkdir -p .cache
 
@@ -31,12 +35,39 @@ fetch() { # <suffix> <dest>
   return 1
 }
 
-fetch .jar .cache/closure-compiler.jar
-echo "$JAR_SHA256  .cache/closure-compiler.jar" | sha256sum -c - >/dev/null
+fetch .jar "$JAR"
+sum=$(sha256sum "$JAR" | cut -d' ' -f1)
+if [[ " $CLOSURE_JAR_SHA256 " != *" $sum "* ]]; then
+  echo "$JAR (sha256 $sum) is not closure-compiler $CLOSURE_VERSION (tools/oracle/pin.env);" \
+    "delete it to fetch the pinned jar" >&2
+  exit 1
+fi
 
+# The sources jar holds the generated CommandLineRunnerVersion.java at its
+# root, which names the release.
+if [[ -d .cache/closure-src/com ]] &&
+  ! grep -q "\"$CLOSURE_VERSION\"" .cache/closure-src/CommandLineRunnerVersion.java 2>/dev/null; then
+  echo ".cache/closure-src holds another release than $CLOSURE_VERSION (tools/oracle/pin.env);" \
+    "delete it and .cache/closure-src.jar to fetch the pinned sources" >&2
+  exit 1
+fi
+# check_sources <jar>: the sources jar is the pinned release's.
+check_sources() {
+  local sum
+  sum=$(sha256sum "$1" | cut -d' ' -f1)
+  if [[ " $CLOSURE_SRC_SHA256 " != *" $sum "* ]]; then
+    echo "$1 (sha256 $sum) is not closure-compiler-$CLOSURE_VERSION-sources.jar (tools/oracle/pin.env);" \
+      "delete it and .cache/closure-src to fetch the pinned sources" >&2
+    exit 1
+  fi
+}
 if [[ ! -d .cache/closure-src/com ]]; then
+  rm -f .cache/closure-src.jar
   fetch -sources.jar .cache/closure-src.jar
+  check_sources .cache/closure-src.jar
   rm -rf .cache/closure-src && mkdir -p .cache/closure-src
   (cd .cache/closure-src && unzip -qo ../closure-src.jar)
+elif [[ -f .cache/closure-src.jar ]]; then
+  check_sources .cache/closure-src.jar
 fi
-echo "closure-compiler $VERSION ready in .cache/"
+echo "closure-compiler $CLOSURE_VERSION ready in .cache/"

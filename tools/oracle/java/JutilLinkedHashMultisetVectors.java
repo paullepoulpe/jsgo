@@ -1,7 +1,7 @@
 // Generates internal/jutil/testdata/linked_hash_multiset.tsv: seeded scripts
 // of add/remove operations on Guava's LinkedHashMultiset<String> (the shaded
 // copy in the pinned jar), with every result.
-//   java -cp .cache/closure-compiler.jar:.cache/oracle-build JutilLinkedHashMultisetVectors internal/jutil/testdata
+//   java -cp .cache/$CLOSURE_JAR:.cache/oracle-build JutilLinkedHashMultisetVectors internal/jutil/testdata
 //
 // Rows: "<ops>\t<results>", where <ops> is ";"-separated "a<word>" (add) or
 // "r<word>" (remove) and <results> is "|"-separated, one per op:

@@ -20,8 +20,9 @@
  */
 
 'require es6/util/arrayiterator';
+'require es6/util/getiteratorprototype';
 'require util/defineproperty';
-'require util/global';
+'require util/objectcreate';
 'require util/polyfill';
 
 /**
@@ -130,18 +131,23 @@ $jscomp.polyfill('Symbol.toStringTag', function(orig) {
  * the definition of `%IteratorPrototype%` if methods are ever
  * added to it in the future.
  *
- * @param {function(this: Iterator<T>): T} next
+ * @param {function(this: IteratorLike<T>): T} next
  * @return {!IteratorIterable<T>}
  * @template T
  */
 $jscomp.iteratorPrototype = function(next) {
-  var iterator = {next: next};
-  /**
-   * @this {IteratorIterable}
-   * @return {!IteratorIterable}
-   */
-  iterator[Symbol.iterator] = function() {
-    return this;
-  };
+  var parentProto = /** @type {!Object} */ (
+      $jscomp.getIteratorPrototype() || Object.prototype);
+  var iterator = $jscomp.objectCreate(parentProto);
+  iterator.next = next;
+  if (!parentProto[Symbol.iterator]) {
+    /**
+     * @this {IteratorIterable}
+     * @return {!IteratorIterable}
+     */
+    iterator[Symbol.iterator] = function() {
+      return this;
+    };
+  }
   return /** @type {!IteratorIterable} */ (iterator);
 };

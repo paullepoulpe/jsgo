@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CrossChunkCodeMotionTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/CrossChunkCodeMotionTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/CrossChunkCodeMotionTest.java)
 
 /*
@@ -46,7 +46,6 @@ const CrossChunkCodeMotionTest_EXTERNS = "alert"
 func (c *CrossChunkCodeMotionTest) SetUp() {
 	c.CompilerTestCaseBase.SetUp()
 
-	c.DisableScriptFeatureValidation()
 	c.parentChunkCanSeeSymbolsDeclaredInChildren = false
 }
 
@@ -474,6 +473,19 @@ func (c *CrossChunkCodeMotionTest) TestClassMovement_instanceof3() {
 			JSChunkGraphBuilder_ForStar().
 				AddChunk("function f(){} f.prototype.bar=function (){}; f instanceof 1").
 				AddChunk("var a = new f();").
+				Build()))
+}
+
+// Java: CrossChunkCodeMotionTest.testClassMovement_instanceof_sideEffectsLhs()
+func (c *CrossChunkCodeMotionTest) TestClassMovement_instanceof_sideEffectsLhs() {
+	c.parentChunkCanSeeSymbolsDeclaredInChildren = true
+	c.TestSame(
+		c.Srcs(
+			JSChunkGraphBuilder_ForStar().
+				AddChunk(
+					"class SafeHtml {} var out = raw; (out = escapeHtml(raw)) instanceof" +
+						" SafeHtml;").
+				AddChunk("new SafeHtml();").
 				Build()))
 }
 
@@ -1990,6 +2002,141 @@ func (c *CrossChunkCodeMotionTest) TestComputedProperties() {
 				AddChunk("a;").
 				Build()),
 		c.Expected("", "let a = 1; let b = { [a + 1]: 2 };", "a;"))
+
+	//  Well defined variables are moveable
+	c.Test(
+		c.Srcs(
+			JSChunkGraphBuilder_ForChain().
+				// m1
+				AddChunk("var a = function() {}; a.prototype.blah = function() {};").
+				// m2
+				AddChunk("a;").
+				Build()),
+		c.Expected(
+			// m1
+			"",
+			// m2
+			`var a = function() {};
+a.prototype.blah = function() {};
+a;
+`))
+}
+
+// Java: CrossChunkCodeMotionTest.testComputedPropertiesUsingSymbol()
+func (c *CrossChunkCodeMotionTest) TestComputedPropertiesUsingSymbol() {
+	// Computed properties are movable if the key is a `Symbol.<any_property_on_symbol>`
+	// `Symbol` is a built-in JavaScript object that is guaranteed to be unique. Therefore, it
+	// is movable. Any properties on `Symbol` are also movable (e.g `Symbol.iterator`).
+	c.Test(
+		c.Srcs(
+			JSChunkGraphBuilder_ForChain().
+				AddChunk("let a = { [Symbol.iterator]: 1};").
+				AddChunk("a;").
+				Build()),
+		c.Expected(
+			"", // everything has been moved out of this chunk
+			"let a = { [Symbol.iterator]: 1}; a;"))
+
+	// `Symbol` is declared in m1, and used in m2. It should be moved to m2 in expected output.
+	c.Test(
+		c.Srcs(
+			JSChunkGraphBuilder_ForChain().
+				// m1
+				AddChunk("let a = class { [Symbol.anyPropertyOnSymbolIsMovable]() {} };").
+				// m2
+				AddChunk("a;").
+				Build()),
+		c.Expected(
+			// m1
+			"",
+			// m2
+			"let a = class { [Symbol.anyPropertyOnSymbolIsMovable]() {} }; a;"))
+
+	c.TestSame(
+		c.Srcs(
+			JSChunkGraphBuilder_ForChain().
+				// m1
+				AddChunk("let prop; let a = class { [prop]() {} };").
+				// m2
+				AddChunk("a;").
+				Build()))
+
+	// Now turn on transpilation and rerun the same above 3 unit tests.
+	c.EnableTranspile()
+
+	c.Test(
+		c.Srcs(
+			JSChunkGraphBuilder_ForChain().
+				// m1
+				AddChunk("let a = { [Symbol.iterator]: 1};").
+				// m2
+				AddChunk("a;").
+				Build()),
+		c.Expected(
+			// m1
+			// Ideally, we should be moving this code out of m1, but this would require us to move
+			// an `ASSIGN` node which we don't want to do.
+			`var $jscomp$compprop98447280$0 = {};
+var a = ($jscomp$compprop98447280$0[Symbol.iterator] = 1, $jscomp$compprop98447280$0);
+`,
+			// m2
+			"a;"))
+
+	c.Test(
+		c.Srcs(
+			JSChunkGraphBuilder_ForChain().
+				// m1
+				AddChunk("let a = class { [Symbol.anyPropertyOnSymbolIsMovable]() {} };").
+				// m2
+				AddChunk("a;").
+				Build()),
+		c.Expected(
+			// m1
+			"",
+			// m2
+			`/** @constructor */ var a = function() {};
+a.prototype[Symbol.anyPropertyOnSymbolIsMovable] = function() {};
+a;
+`))
+
+	// Non-Symbol computed properties are currently not movable.
+	c.Test(
+		c.Srcs(
+			JSChunkGraphBuilder_ForChain().
+				// m1
+				AddChunk("let prop; let a = class { [prop]() {} };").
+				// m2
+				AddChunk("a;").
+				Build()),
+		c.Expected(
+			// m1
+			`var prop;
+var $jscomp$compField$98447280$0 = prop;
+/** @constructor */ var a = function() {};
+a.prototype[$jscomp$compField$98447280$0] = function() {};
+`,
+			// m2
+			"a;"))
+}
+
+// Java: CrossChunkCodeMotionTest.testComputedPropertiesUsingSymbolUnmovable()
+func (c *CrossChunkCodeMotionTest) TestComputedPropertiesUsingSymbolUnmovable() {
+	// Computed properties are not movable if the key is not explicitly called `Symbol.`
+	c.TestSame(
+		c.Srcs(
+			JSChunkGraphBuilder_ForChain().
+				AddChunk("let a = { [Symbol123.iterator]: 1};").
+				AddChunk("a;").
+				Build()))
+
+	c.TestSame(
+		c.Srcs(
+			JSChunkGraphBuilder_ForChain().
+				// m1
+				AddChunk("let a = class { [Symbol123.anyPropertyOnSymbolIsMovable]() {} };").
+				// m2
+				AddChunk("a;").
+				Build()))
 }
 
 // Java: CrossChunkCodeMotionTest.testClassComputedFieldUnmovable()

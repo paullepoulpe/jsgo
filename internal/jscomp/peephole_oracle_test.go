@@ -11,7 +11,7 @@ package jscomp
 //     inputs testdata/peephole/js/*.js, then the corpus files of
 //     testdata/peephole/golden-files.txt (skipped when the corpus is not
 //     present). Regenerate with
-//       CP=.cache/closure-compiler.jar:<PeepholeDump build dir>
+//       CP=.cache/$CLOSURE_JAR:<PeepholeDump build dir>
 //       J="java -Xss1g -XX:-ShowCodeDetailsInExceptionMessages -cp $CP com.google.javascript.jscomp.PeepholeDump"
 //       $J --full a.gz internal/jscomp/testdata/peephole/js peephole-fold.js peephole-control.js peephole-methods.js
 //       $J --full b.gz .cache/corpus @internal/jscomp/testdata/peephole/golden-files.txt
@@ -90,7 +90,7 @@ var peepholeOracleConfigs = []peepholeOracleConfig{
 		return peepholeOracleSingle(c, "fusion", NewStatementFusion())
 	}},
 	{"exploit-assigns", func(c AbstractCompiler) CompilerPass {
-		return NewPeepholeOptimizationsPass(c, PassNames_EXPLOIT_ASSIGN, NewExploitAssigns())
+		return NewPeepholeOptimizationsPass(c, PassNames_POST_NORMALIZE_PEEPHOLE, NewExploitAssigns())
 	}},
 	{"dotted", func(c AbstractCompiler) CompilerPass { return NewConvertToDottedProperties(c) }},
 	{"peephole", func(c AbstractCompiler) CompilerPass {

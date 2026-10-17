@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/DevirtualizeMethodsTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/DevirtualizeMethodsTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/DevirtualizeMethodsTest.java)
 
 /*
@@ -121,9 +121,9 @@ func (c *DevirtualizeMethodsTest) CheckColorOfRewrittenMethods() {
 	AssertThat(barResultType).IsEqualTo(colors.StandardColors_NUMBER)
 	AssertThat(bazResultType).IsEqualTo(colors.StandardColors_NULL_OR_VOID)
 
-	AssertThat(fooType).IsEqualTo(colors.StandardColors_TOP_OBJECT)
-	AssertThat(barType).IsEqualTo(colors.StandardColors_TOP_OBJECT)
-	AssertThat(bazType).IsEqualTo(colors.StandardColors_TOP_OBJECT)
+	AssertThat(fooType).IsEqualTo(colors.StandardColors_TOP_FUNCTION)
+	AssertThat(barType).IsEqualTo(colors.StandardColors_TOP_FUNCTION)
+	AssertThat(bazType).IsEqualTo(colors.StandardColors_TOP_FUNCTION)
 }
 
 // Java: DevirtualizeMethodsTest.getLabelledExpression(String)
@@ -550,6 +550,63 @@ func (c *DevirtualizeMethodsTest) TestRewrite_definedUsingProtoObjectLit() {
 			"a.prototype={};\n"+
 			"\n"+
 			"JSCompiler_StaticMethods_foo(o)\n")
+}
+
+// Java: DevirtualizeMethodsTest.testRewrite_definedUsingProtoObjectLit_shorthandMethod()
+func (c *DevirtualizeMethodsTest) TestRewrite_definedUsingProtoObjectLit_shorthandMethod() {
+	c.Test(
+		"a.prototype = {foo() { return 2; }}; o.foo()",
+		`var JSCompiler_StaticMethods_foo = function(JSCompiler_StaticMethods_foo$self) {
+  return 2;
+};
+a.prototype={};
+JSCompiler_StaticMethods_foo(o)
+`)
+}
+
+// Methods on plain object literals are left to CollapseProperties, which (unlike this pass)
+// checks whether the object escapes. Plain objects are routinely enumerated, copied, or
+// mixed in (e.g. Polymer behaviors), so removing a method from one is unsafe in general.
+
+// Java: DevirtualizeMethodsTest.testNoRewrite_definedUsingPlainObjectLit()
+func (c *DevirtualizeMethodsTest) TestNoRewrite_definedUsingPlainObjectLit() {
+	c.TestSame(
+		`const obj = {
+  x: 1,
+  foo: function() {
+    return this.x;
+  },
+};
+use(obj);
+obj.foo();
+`)
+}
+
+// Java: DevirtualizeMethodsTest.testNoRewrite_definedUsingPlainObjectLit_shorthandMethod()
+func (c *DevirtualizeMethodsTest) TestNoRewrite_definedUsingPlainObjectLit_shorthandMethod() {
+	// Regression test for b/571987051: shorthand methods were devirtualized even though the
+	// equivalent `foo: function() {}` above was not. This went unnoticed in ES5 output because
+	// shorthand methods were transpiled to `foo: function() {}` before this pass ran.
+	c.TestSame(
+		`const obj = {
+  x: 1,
+  foo() {
+    return this.x;
+  },
+};
+use(obj);
+obj.foo();
+`)
+}
+
+// Java: DevirtualizeMethodsTest.testNoRewrite_definedUsingAnonymousObjectLit_shorthandMethod()
+func (c *DevirtualizeMethodsTest) TestNoRewrite_definedUsingAnonymousObjectLit_shorthandMethod() {
+	c.TestSame("use({foo() { return 1; }}); o.foo();")
+}
+
+// Java: DevirtualizeMethodsTest.testNoRewrite_definedUsingObjectLitNestedInProtoObjectLit_shorthandMethod()
+func (c *DevirtualizeMethodsTest) TestNoRewrite_definedUsingObjectLitNestedInProtoObjectLit_shorthandMethod() {
+	c.TestSame("a.prototype = {bar: {foo() { return 1; }}}; o.foo();")
 }
 
 // Java: DevirtualizeMethodsTest.testNoRewrite_multipleDefinitions_definedUsingProtoObjectLit_definedUsingGetProp()
@@ -1212,6 +1269,166 @@ func (c *DevirtualizeMethodsTest) TestRewrite_nestedArrow_hasThisBoundCorrectly(
 				"class Foo { }\n"+
 				"\n"+
 				"JSCompiler_StaticMethods_bar(x);\n"))
+}
+
+// Java: DevirtualizeMethodsTest.testRewrite_nestedClass_instanceFieldInitializer()
+func (c *DevirtualizeMethodsTest) TestRewrite_nestedClass_instanceFieldInitializer() {
+	c.Test(
+		c.Srcs(
+			`class Foo {
+  bar() {
+    class Nested {
+      val = this;
+    }
+    return new Nested();
+  }
+}
+new Foo().bar();
+`),
+		c.Expected(
+			`var JSCompiler_StaticMethods_bar = function(JSCompiler_StaticMethods_bar$self) {
+  class Nested {
+    val = this;
+  }
+  return new Nested();
+};
+class Foo { }
+JSCompiler_StaticMethods_bar(new Foo());
+`))
+}
+
+// Java: DevirtualizeMethodsTest.testRewrite_nestedClass_computedFieldInitializer()
+func (c *DevirtualizeMethodsTest) TestRewrite_nestedClass_computedFieldInitializer() {
+	c.Test(
+		c.Srcs(
+			`class Foo {
+  bar() {
+    class Nested {
+      ['c'] = this;
+    }
+    return new Nested();
+  }
+}
+new Foo().bar();
+`),
+		c.Expected(
+			`var JSCompiler_StaticMethods_bar = function(JSCompiler_StaticMethods_bar$self) {
+  class Nested {
+    ['c'] = this;
+  }
+  return new Nested();
+};
+class Foo { }
+JSCompiler_StaticMethods_bar(new Foo());
+`))
+}
+
+// Java: DevirtualizeMethodsTest.testRewrite_nestedClass_computedFieldKey()
+func (c *DevirtualizeMethodsTest) TestRewrite_nestedClass_computedFieldKey() {
+	c.Test(
+		c.Srcs(
+			`class Foo {
+  bar() {
+    class Nested {
+      [this.key] = 1;
+    }
+    return new Nested();
+  }
+}
+new Foo().bar();
+`),
+		c.Expected(
+			`var JSCompiler_StaticMethods_bar = function(JSCompiler_StaticMethods_bar$self) {
+  class Nested {
+    [JSCompiler_StaticMethods_bar$self.key] = 1;
+  }
+  return new Nested();
+};
+class Foo { }
+JSCompiler_StaticMethods_bar(new Foo());
+`))
+}
+
+// Java: DevirtualizeMethodsTest.testRewrite_nestedClass_computedFieldKeyAndValue()
+func (c *DevirtualizeMethodsTest) TestRewrite_nestedClass_computedFieldKeyAndValue() {
+	c.Test(
+		c.Srcs(
+			`class Foo {
+  bar() {
+    class Nested {
+      [this.key] = this;
+    }
+    return new Nested();
+  }
+}
+new Foo().bar();
+`),
+		c.Expected(
+			`var JSCompiler_StaticMethods_bar = function(JSCompiler_StaticMethods_bar$self) {
+  class Nested {
+    [JSCompiler_StaticMethods_bar$self.key] = this;
+  }
+  return new Nested();
+};
+class Foo { }
+JSCompiler_StaticMethods_bar(new Foo());
+`))
+}
+
+// Java: DevirtualizeMethodsTest.testRewrite_nestedClass_staticFieldInitializer()
+func (c *DevirtualizeMethodsTest) TestRewrite_nestedClass_staticFieldInitializer() {
+	c.Test(
+		c.Srcs(
+			`class Foo {
+  bar() {
+    class Nested {
+      static val = this;
+    }
+    return Nested;
+  }
+}
+new Foo().bar();
+`),
+		c.Expected(
+			`var JSCompiler_StaticMethods_bar = function(JSCompiler_StaticMethods_bar$self) {
+  class Nested {
+    static val = this;
+  }
+  return Nested;
+};
+class Foo { }
+JSCompiler_StaticMethods_bar(new Foo());
+`))
+}
+
+// Java: DevirtualizeMethodsTest.testRewrite_nestedClass_staticBlock()
+func (c *DevirtualizeMethodsTest) TestRewrite_nestedClass_staticBlock() {
+	c.Test(
+		c.Srcs(
+			`class Foo {
+  bar() {
+    class Nested {
+      static {
+        this.val = 1;
+      }
+    }
+    return Nested;
+  }
+}
+new Foo().bar();
+`),
+		c.Expected(
+			`var JSCompiler_StaticMethods_bar = function(JSCompiler_StaticMethods_bar$self) {
+  class Nested {
+    static {
+      this.val = 1;
+    }
+  }
+  return Nested;
+};
+class Foo { }
+JSCompiler_StaticMethods_bar(new Foo());
+`))
 }
 
 // Java: DevirtualizeMethodsTest.testExistenceOfAGetter_preventsDevirtualization()

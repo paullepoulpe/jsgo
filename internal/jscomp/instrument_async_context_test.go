@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/InstrumentAsyncContextTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/InstrumentAsyncContextTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/InstrumentAsyncContextTest.java)
 
 /*
@@ -120,15 +120,6 @@ func (c *InstrumentAsyncContextTest) GetProcessor(compiler *Compiler) CompilerPa
 
 // Java: InstrumentAsyncContextTest.setUp()
 func (c *InstrumentAsyncContextTest) SetUp() {
-	// Go-only: test-helper — the pass and InjectTranspilationRuntimeLibraries
-	// look up $jscomp.asyncContextStart in js/transpilation_libs.txt. The
-	// pinned jar's copy (embedded in internal/resources) has no such field, so
-	// on the jar Java throws the same NullPointerException ("Cannot find
-	// definition of $jscomp.asyncContextStart"); Closure's own test classpath
-	// builds the file from the source tree. Skip until the resource has it.
-	if _, ok := runtimeJsLibManager_FieldsTable().Lookup("asyncContextStart"); !ok {
-		c.t.Skip("the pinned jar's transpilation_libs.txt has no $jscomp.asyncContextStart (Java on the jar throws the same NullPointerException)")
-	}
 	c.CompilerTestCaseBase.SetUp()
 	c.instrumentAwait = true
 	c.EnableNormalize()
@@ -1540,6 +1531,85 @@ async function h() {
   } finally {
     SUSPEND$1();
   }
+}
+`)
+}
+
+// Java: InstrumentAsyncContextTest.testClassFieldInitializers()
+func (c *InstrumentAsyncContextTest) TestClassFieldInitializers() {
+	c.Test(
+		`const v = new AsyncContext.Variable();
+v.run(100, () => {});
+function* f() {
+  class Foo {
+    field = this;
+    [this.fooKey] = 1;
+    [this.barKey] = this;
+    static staticField = this;
+    static [this.staticFooKey] = 1;
+    static [this.staticBarKey] = this;
+  }
+  yield 1;
+}
+`,
+		`const v = new AsyncContext.Variable();
+v.run(100, () => {});
+function f() {
+  const THIS$1 = this;
+  var ᵃᶜfactory$0 = $jscomp.asyncContextStart(1);
+  var ᵃᶜsuspend$0 = ᵃᶜfactory$0();
+  var ᵃᶜresume$0 = ᵃᶜfactory$0(1);
+  return function*() {
+    ᵃᶜresume$0();
+    try {
+      class Foo {
+        field = this;
+        [THIS$1.fooKey] = 1;
+        [THIS$1.barKey] = this;
+        static staticField = this;
+        static [THIS$1.staticFooKey] = 1;
+        static [THIS$1.staticBarKey] = this;
+      }
+      ᵃᶜresume$0(yield ᵃᶜsuspend$0(1));
+    } finally {
+      ᵃᶜsuspend$0();
+    }
+  }();
+}
+`)
+}
+
+// Java: InstrumentAsyncContextTest.testClassFieldInitializersNoRewriting()
+func (c *InstrumentAsyncContextTest) TestClassFieldInitializersNoRewriting() {
+	c.Test(
+		`const v = new AsyncContext.Variable();
+v.run(100, () => {});
+function* f() {
+  class Foo {
+    field = this;
+    static staticField = this;
+  }
+  yield 1;
+}
+`,
+		`const v = new AsyncContext.Variable();
+v.run(100, () => {});
+function f() {
+  var ᵃᶜfactory$0 = $jscomp.asyncContextStart(1);
+  var ᵃᶜsuspend$0 = ᵃᶜfactory$0();
+  var ᵃᶜresume$0 = ᵃᶜfactory$0(1);
+  return function*() {
+    ᵃᶜresume$0();
+    try {
+      class Foo {
+        field = this;
+        static staticField = this;
+      }
+      ᵃᶜresume$0(yield ᵃᶜsuspend$0(1));
+    } finally {
+      ᵃᶜsuspend$0();
+    }
+  }();
 }
 `)
 }

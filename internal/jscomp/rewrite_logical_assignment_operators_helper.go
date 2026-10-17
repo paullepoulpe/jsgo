@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/RewriteLogicalAssignmentOperatorsHelper.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/RewriteLogicalAssignmentOperatorsHelper.java @ closure-compiler v20261015
 
 /*
  * Copyright 2021 The Closure Compiler Authors.
@@ -50,6 +50,14 @@ func NewRewriteLogicalAssignmentOperatorsHelper(
 
 // Java: RewriteLogicalAssignmentOperatorsHelper.visitLogicalAssignmentOperator(NodeTraversal, Node)
 func (h *RewriteLogicalAssignmentOperatorsHelper) VisitLogicalAssignmentOperator(t *NodeTraversal, logicalAssignment *rhino.Node) {
+	enclosingFunction := NodeUtil_GetEnclosingFunction(logicalAssignment)
+	if enclosingFunction != nil && !NodeUtil_GetFunctionBody(enclosingFunction).IsBlock() {
+		returnValue := NodeUtil_GetFunctionBody(enclosingFunction)
+		body := rhino.IR_BlockOfNode(rhino.IR_ReturnNodeWithExpr(returnValue.Detach())).SrcrefTreeIfMissing(returnValue)
+		enclosingFunction.AddChildToBack(body)
+		h.compiler.ReportChangeToEnclosingScope(body)
+	}
+
 	enclosingStatement := NodeUtil_GetEnclosingStatement(logicalAssignment)
 
 	left := logicalAssignment.RemoveFirstChild()

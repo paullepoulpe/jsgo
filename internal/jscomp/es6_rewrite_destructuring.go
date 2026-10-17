@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Es6RewriteDestructuring.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/Es6RewriteDestructuring.java @ closure-compiler v20261015
 
 /*
  * Copyright 2015 The Closure Compiler Authors.
@@ -46,11 +46,6 @@ type Es6RewriteDestructuring struct {
 
 	destructuringVarCounter int
 }
-
-// Java: Es6RewriteDestructuring.UNEXPECTED_DESTRUCTURING_REST_PARAMETER
-var Es6RewriteDestructuring_UNEXPECTED_DESTRUCTURING_REST_PARAMETER = DiagnosticType_Error(
-	"JSC_UNEXPECTED_DESTRUCTURING_REST_PARAMETER",
-	"Es6RewriteDestructuring not expecting object pattern rest parameter")
 
 // Es6RewriteDestructuring_ObjectDestructuringRewriteMode is
 // Es6RewriteDestructuring.ObjectDestructuringRewriteMode.
@@ -576,7 +571,14 @@ func (e *Es6RewriteDestructuring) ReplaceObjectPattern(
 			} else {
 				newLHS = value.RemoveFirstChild()
 				defaultValue := value.RemoveFirstChild()
-				newRHS = e.DefaultValueHook(getprop, defaultValue)
+				intermediateTempVarName := e.GetTempVariableName()
+				intermediateDecl :=
+					rhino.IR_VarWithValue(e.CreateTempVarNameNode(intermediateTempVarName, AstFactory_Type_(getprop)), getprop)
+				intermediateDecl.SrcrefTreeIfMissing(child)
+				intermediateDecl.InsertBefore(nodeToDetach)
+				newRHS =
+					e.DefaultValueHook(
+						e.CreateTempVarNameNode(intermediateTempVarName, AstFactory_Type_(getprop)), defaultValue)
 			}
 			if propsToDeleteForRest != nil {
 				propsToDeleteForRest.Add(child)
@@ -629,6 +631,10 @@ func (e *Es6RewriteDestructuring) ReplaceObjectPattern(
 			if next != nil {
 				panic(jutil.NewIllegalStateExceptionMsg("object rest may not be followed by any properties"))
 			}
+			// Emit Object.assign here after preceding property bindings to preserve evaluation
+			// side-effect ordering (e.g. default value evaluations, property extractions).
+			// TODO(b/538156291): Properties already bound are still copied during Object.assign and
+			// then deleted, so getters for those properties may still be invoked during Object.assign.
 			// TODO(b/116532470): see if casting this to a more specific type fixes disambiguation
 			assignCall :=
 				e.astFactory.CreateCall(
@@ -639,7 +645,7 @@ func (e *Es6RewriteDestructuring) ReplaceObjectPattern(
 
 			restTempDecl := rhino.IR_VarWithValue(e.CreateTempVarNameNode(*restTempVarName, tempVarType), assignCall)
 			restTempDecl.SrcrefTreeIfMissing(objectPattern)
-			restTempDecl.InsertAfter(tempDecl)
+			restTempDecl.InsertBefore(nodeToDetach)
 
 			restName := child.GetOnlyChild() // e.g. get `rest` from `const {...rest} = {};`
 			if strings.HasPrefix(restName.GetString(), Es6RewriteDestructuring_DESTRUCTURING_TEMP_VAR) {
@@ -688,10 +694,10 @@ func (e *Es6RewriteDestructuring) ReplaceObjectPattern(
 //	  {a, [foo()]:b, ...x} = rhs;
 //	becomes
 //	  var temp = rhs;
+//	  a = temp.a;
+//	  var temp2 = foo();
+//	  b = temp[temp2];
 //	  var temp1 = Object.assign({}, temp);
-//	  var temp2 = foo()
-//	  a = temp.a
-//	  b = temp[foo()]
 //	  x = (delete temp1.a, delete temp1[temp2], temp1);
 //
 // rest is the node representing the "...rest" of objectPattern;

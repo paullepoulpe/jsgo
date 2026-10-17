@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/J2clPropertyInlinerPassTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/J2clPropertyInlinerPassTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/J2clPropertyInlinerPassTest.java)
 
 /*
@@ -556,5 +556,97 @@ var xx = (A.$clinit(), A.$x);
 var yy = (A.$clinit(), A.$y)
 {(A.$clinit(), A.$x = 5)}
 {(A.$clinit(), A.$y = 5)}
+`)
+}
+
+// Java: J2clPropertyInlinerPassTest.testOptChainReadLeavesAccessorRemoved()
+func (c *J2clPropertyInlinerPassTest) TestOptChainReadLeavesAccessorRemoved() {
+	// TODO(b/571560495): Object.defineProperties accessor removed while A?.x read remains uninlined
+	c.Test(
+		`var A = function() {};
+A.$clinit = function() {
+  A.$x = 2;
+};
+Object.defineProperties(A, {x: {
+  configurable:true,
+  enumerable:true,
+  get:function() {
+    return A.$clinit(), A.$x;
+  },
+  set: function(value) {
+    A.$clinit(), A.$x = value;
+  }
+}});
+A.$x = 3;
+var r = A?.x;
+`,
+		`var A = function() {};
+A.$clinit = function() {
+  A.$x = 2;
+};
+A.$x = 3;
+var r = A?.x;
+`)
+}
+
+// Java: J2clPropertyInlinerPassTest.testOptChainReadLeavesEs6AccessorRemoved()
+func (c *J2clPropertyInlinerPassTest) TestOptChainReadLeavesEs6AccessorRemoved() {
+	// TODO(b/571560495): ES6 class static getter/setter removed while A?.x read remains uninlined
+	c.Test(
+		`class A {
+  static $clinit() {
+    A.$clinit = function() {};
+    A.$x = 2;
+  }
+  static get x() {
+    return A.$clinit(), A.$x
+  }
+  static set x(value) {
+    A.$clinit(), A.$x = value;
+  }
+}
+A.$x = 3;
+var xx = A?.x;
+`,
+		`class A {
+  static $clinit() {
+    A.$clinit = function() {};
+    A.$x = 2;
+  }
+}
+A.$x = 3;
+var xx = A?.x;
+`)
+}
+
+// Java: J2clPropertyInlinerPassTest.testOptChainReadMixedWithPlainRead()
+func (c *J2clPropertyInlinerPassTest) TestOptChainReadMixedWithPlainRead() {
+	// TODO(b/571560495): Object.defineProperties accessor removed while A?.x read remains uninlined
+	c.Test(
+		`var A = function() {};
+A.$clinit = function() {
+  A.$x = 2;
+};
+Object.defineProperties(A, {x: {
+  configurable:true,
+  enumerable:true,
+  get:function() {
+    return A.$clinit(), A.$x;
+  },
+  set: function(value) {
+    A.$clinit(), A.$x = value;
+  }
+}});
+A.$x = 3;
+var r = A?.x;
+var s = A.x;
+`,
+		`var A = function() {};
+A.$clinit = function() {
+  A.$x = 2;
+};
+A.$x = 3;
+var r = A?.x;
+var s = (A.$clinit(), A.$x);
 `)
 }

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/parsing/parser/FeatureSet.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/parsing/parser/FeatureSet.java @ closure-compiler v20261015
 
 /*
  * Copyright 2015 The Closure Compiler Authors.
@@ -352,7 +352,7 @@ const (
 	// ES_UNSUPPORTED: Features that we can parse, but not yet supported in all checks
 
 	// ES 2022 adds https://github.com/tc39/proposal-class-fields
-	FeatureSet_Feature_PRIVATE_CLASS_PROPERTIES
+	FeatureSet_Feature_PRIVATE_ELEMENTS
 
 	// TypeScript type syntax that will never be implemented in browsers. Only used as an indicator
 	// to the CodeGenerator that it should handle type syntax.
@@ -417,7 +417,7 @@ var featureSet_Feature_names = [...]string{
 	"TOP_LEVEL_AWAIT",
 	"ES_NEXT_RUNTIME",
 	"ES_UNSTABLE_RUNTIME",
-	"PRIVATE_CLASS_PROPERTIES",
+	"PRIVATE_ELEMENTS",
 	"TYPE_ANNOTATION",
 }
 
@@ -480,7 +480,7 @@ var featureSet_Feature_name = [...]string{
 	"Top-level await",
 	"es_next runtime",
 	"es_unstable runtime",
-	"Private class properties",
+	"Private elements",
 	"type annotation",
 }
 
@@ -562,6 +562,20 @@ func FeatureSet_Feature_values() []FeatureSet_Feature {
 //
 // Java: FeatureSet.Feature.name()
 func (f FeatureSet_Feature) Name() string { return featureSet_Feature_names[f] }
+
+// FeatureSet_Feature_ValueOf is Enum.valueOf(String): the constant named
+// name, or IllegalArgumentException.
+//
+// Java: FeatureSet.Feature.valueOf(String)
+func FeatureSet_Feature_ValueOf(name string) FeatureSet_Feature {
+	for i, n := range featureSet_Feature_names {
+		if n == name {
+			return FeatureSet_Feature(i)
+		}
+	}
+	panic(jutil.NewIllegalArgumentExceptionMsg(
+		"No enum constant com.google.javascript.jscomp.parsing.parser.FeatureSet.Feature." + name))
+}
 
 // String returns the feature's human-readable name.
 //

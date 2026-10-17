@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/FunctionRewriterTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/FunctionRewriterTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/FunctionRewriterTest.java)
 
 /*
@@ -275,6 +275,36 @@ func (c *FunctionRewriterTest) TestIssue538() {
 			"    get name9(){return this._name;},\n"+
 			"}\n",
 		1)
+}
+
+// Java: FunctionRewriterTest.testNoRewriteWithNonSimpleParameters()
+func (c *FunctionRewriterTest) TestNoRewriteWithNonSimpleParameters() {
+	// Empty function with default parameter side effect
+	c.CheckCompilesToSame("a.prototype.foo = function(a = audit()) {}", 10)
+	// Empty function with rest parameter
+	c.CheckCompilesToSame("a.prototype.foo = function(...a) {}", 10)
+	// Empty function with destructuring parameter
+	c.CheckCompilesToSame("a.prototype.foo = function({a}) {}", 10)
+
+	// Return constant with default parameter side effect
+	c.CheckCompilesToSame("a.prototype.foo = function(a = audit()) { return 1; }", 10)
+	// Return constant with rest parameter
+	c.CheckCompilesToSame("a.prototype.foo = function(...a) { return 1; }", 10)
+
+	// Getter with default parameter side effect
+	c.CheckCompilesToSame("a.prototype.foo = function(a = audit()) { return this.x; }", 10)
+	// Getter with destructuring parameter
+	c.CheckCompilesToSame("a.prototype.foo = function({a}) { return this.x; }", 10)
+
+	// Setter with default parameter side effect in a second parameter
+	c.CheckCompilesToSame("a.prototype.foo = function(v, a = audit()) { this.x = v; }", 10)
+	// Setter with destructuring in a second parameter
+	c.CheckCompilesToSame("a.prototype.foo = function(v, {a}) { this.x = v; }", 10)
+
+	// Identity with default parameter side effect in a second parameter
+	c.CheckCompilesToSame("a.prototype.foo = function(v, a = audit()) { return v; }", 10)
+	// Identity with destructuring in a second parameter
+	c.CheckCompilesToSame("a.prototype.foo = function(v, {a}) { return v; }", 10)
 }
 
 // Java: FunctionRewriterTest.checkCompilesTo(String, String, String, int)

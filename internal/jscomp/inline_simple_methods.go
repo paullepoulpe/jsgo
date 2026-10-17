@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/InlineSimpleMethods.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/InlineSimpleMethods.java @ closure-compiler v20261015
 
 /*
  * Copyright 2007 The Closure Compiler Authors.
@@ -234,6 +234,11 @@ func (m *InlineSimpleMethods) AnyDefinitionsNotInlineable(definitions *jutil.Obj
 			// async and generator functions cannot be trivially inlined because they return a Promise
 			// or generator object, not the return value directly. For now just don't inline them -
 			// it's unclear it's worth the complexity.
+			return true
+		}
+		if NodeUtil_FunctionParametersMayHaveSideEffects(n, m.astAnalyzer) {
+			// Methods with parameters that may have side effects or throw on destructuring are not
+			// inlined to prevent altering runtime behavior.
 			return true
 		}
 		jsDocInfo := NodeUtil_GetBestJSDocInfo(n.GetParent())

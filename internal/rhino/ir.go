@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/IR.java @ closure-compiler v20260415
+// Port of com/google/javascript/rhino/IR.java @ closure-compiler v20261015
 
 /*
  *
@@ -922,6 +922,11 @@ func IR_Typeof(expr *Node) *Node {
 // Java: IR.importMeta()
 func IR_ImportMeta() *Node {
 	return NewNode(Token_IMPORT_META)
+}
+
+// Java: IR.newTarget()
+func IR_NewTarget() *Node {
+	return NewNode(Token_NEW_TARGET)
 }
 
 // helper methods

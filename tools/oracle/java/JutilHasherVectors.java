@@ -1,7 +1,7 @@
 // Generates internal/jutil/testdata/farmhash_hasher.tsv: Guava's
 // Hashing.farmHashFingerprint64().newHasher() fed a random sequence of
 // putInt / putLong / putString(UTF_8) / putBytes calls.
-//   java -cp .cache/closure-compiler.jar:.cache/oracle-build JutilHasherVectors internal/jutil/testdata
+//   java -cp .cache/$CLOSURE_JAR:.cache/oracle-build JutilHasherVectors internal/jutil/testdata
 //
 // Each row is "<op>;<op>;...\t<hash().asLong()>", where an op is I<int>,
 // L<long>, B<hex bytes> or S<hex UTF-16 code units, 4 digits each>.

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/FunctionTypeBuilder.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/FunctionTypeBuilder.java @ closure-compiler v20261015
 
 /*
  * Copyright 2008 The Closure Compiler Authors.
@@ -1153,7 +1153,7 @@ func (f *FunctionTypeBuilder) GetOrCreateConstructor() rhino.FunctionType {
 	}
 
 	// There are two cases where this type already exists in the current scope:
-	//   1. The type is a built-in that we initalized in JSTypeRegistry and is also defined in
+	//   1. The type is a built-in that we initialized in JSTypeRegistry and is also defined in
 	//  externs.
 	//   2. Cases like "class C {} C = class {}"
 	// See https://github.com/google/closure-compiler/issues/2928 for some related bugs.
@@ -1175,12 +1175,6 @@ func (f *FunctionTypeBuilder) GetOrCreateConstructor() rhino.FunctionType {
 			if !existingFn.HasEqualCallType(fnType) {
 				f.ReportWarning(
 					FunctionTypeBuilder_TYPE_REDEFINITION, f.FormatFnName(), fnType.String(), existingFn.String())
-			}
-
-			// If the existing function is a built-in type, set its base type in case it @extends
-			// another function (since we don't set its prototype in JSTypeRegistry)
-			if existingFn.IsNativeObjectType() {
-				f.MaybeSetBaseType(existingFn)
 			}
 
 			return existingFn

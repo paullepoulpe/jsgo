@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/TranspileAndOptimizeClosureUnawareTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/TranspileAndOptimizeClosureUnawareTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/TranspileAndOptimizeClosureUnawareTest.java)
 
 /*
@@ -182,7 +182,7 @@ return obj.x;
 `)),
 		c.Expected(
 			c.expectedClosureUnaware(
-				`const a = {x: 1, y: 2};
+				`var a = {x: 1, y: 2};
 foo(a);
 return a.x;
 `)))
@@ -203,7 +203,7 @@ func (c *TranspileAndOptimizeClosureUnawareTest) TestAssumeAllPropertyReadsHaveS
 		c.Expected(
 			c.expectedClosureUnaware(
 				`return function(a) {
-  const b = a.x;
+  var b = a.x;
   a.y;
   console.log(b);
 }
@@ -223,7 +223,7 @@ func (c *TranspileAndOptimizeClosureUnawareTest) TestAssumeAllPropertyWritesHave
 `),
 		c.expectedClosureUnaware(
 			`return function(a) {
-  const b = a.x;
+  var b = a.x;
   a.y = 0;
   console.log(b);
 }
@@ -254,7 +254,7 @@ func (c *TranspileAndOptimizeClosureUnawareTest) TestDoesntRenameExternRefs_shad
 			// to 'typeof a'.
 			`return function() {
   globalThis.foo = function() {
-  const a = typeof External === "undefined" ? null : External;
+  var a = typeof External === "undefined" ? null : External;
   console.log(a);
   };
 };
@@ -719,3 +719,21 @@ goog.module('test%d');
 }
 
 // TODO: b/421971366 - add a greater variety of test cases.
+
+// Java: TranspileAndOptimizeClosureUnawareTest.testInjectClosureUnawareRuntimeLibraries()
+func (c *TranspileAndOptimizeClosureUnawareTest) TestInjectClosureUnawareRuntimeLibraries() {
+	mainCompiler := NewCompiler()
+	shadowCompiler := NewCompiler()
+	options := NewCompilerOptions()
+	mainCompiler.Init([]*SourceFile{}, []*SourceFile{}, options)
+	shadowCompiler.Init([]*SourceFile{}, []*SourceFile{}, options)
+	call := rhino.IR_Call(rhino.IR_Name("fn"))
+	fn := rhino.IR_Function(rhino.IR_Name("fn"), rhino.IR_ParamList(), rhino.IR_Block())
+	callSite :=
+		NewInjectClosureUnawareRuntimeLibraries_ClosureUnawareCallSite(call, fn)
+	pass :=
+		NewInjectClosureUnawareRuntimeLibraries(
+			mainCompiler, shadowCompiler, []*InjectClosureUnawareRuntimeLibraries_ClosureUnawareCallSite{callSite})
+	pass.Process(nil, rhino.IR_Root())
+	AssertThat(callSite.CallNode()).IsEqualTo(call)
+}

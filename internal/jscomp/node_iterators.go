@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/NodeIterators.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/NodeIterators.java @ closure-compiler v20261015
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -290,14 +290,17 @@ func (m *NodeIterators_LocalVarMotion) AdvanceLookAhead(atStart bool) {
 		if // Any read of a different variable.
 		(nextNode.IsName() && m.varName != nextNode.GetString()) ||
 			// Any read of a property.
-			(nextNode.IsGetProp() || nextNode.IsGetElem()) {
+			(nextNode.IsGetProp() ||
+				nextNode.IsGetElem() ||
+				nextNode.IsOptChainGetProp() ||
+				nextNode.IsOptChainGetElem()) {
 
 			// If this is a simple assign, we'll be ok.
 			if nextParent == nil || !NodeUtil_IsNameDeclOrSimpleAssignLhs(nextNode, nextParent) {
 				readsState = true
 			}
 
-		} else if nextNode.IsCall() || nextNode.IsNew() {
+		} else if nextNode.IsCall() || nextNode.IsNew() || nextNode.IsOptChainCall() {
 			// This isn't really an important case. In most cases when we use
 			// CALL or NEW, we're invoking it on a NAME or a GETPROP. And in the
 			// few cases where we're not, it's because we have an anonymous

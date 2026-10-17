@@ -2,7 +2,7 @@ package jscomp
 
 // Differential test for the jscomp-a port: replays the Java reference
 // vectors in testdata/jscomp_a.tsv (written by
-// tools/oracle/java/JscompAVectors.java against closure-compiler v20260415)
+// tools/oracle/java/JscompAVectors.java against closure-compiler v20261015)
 // and requires byte-identical results. Each row records its inputs; the
 // diagnostic types, groups and the source excerpt provider below mirror the
 // oracle's TYPES, GROUPS and PROVIDER.

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/TimelineTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/TimelineTest.java @ closure-compiler v20261015
 
 /*
  * Copyright 2017 The Closure Compiler Authors.
@@ -20,6 +20,8 @@ package jscomp
 
 import (
 	"testing"
+
+	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 // timelineTestEvent is TimelineTest.Event, whose equals/hashCode compare
@@ -163,4 +165,25 @@ func TestTimeline_ManagesDifferentTimes(t *testing.T) {
 		[]timelineTestEvent{timelineTest_ATE_GREEN_EGGS, timelineTest_ATE_HAM})
 	assertSliceEqual(t, "since Thursday", timeline.GetSince("Thursday"),
 		[]timelineTestEvent{timelineTest_ATE_HAM})
+}
+
+// Java: TimelineTest.testChangeTrackerDeletedFunctionRemovedFromTimeline()
+func TestTimeline_ChangeTrackerDeletedFunctionRemovedFromTimeline(t *testing.T) {
+	changeTracker := NewChangeTracker()
+	function := rhino.IR_Function(rhino.IR_Name("foo"), rhino.IR_ParamList(), rhino.IR_Block())
+	rhino.IR_Root(rhino.IR_ScriptOfNodes(function))
+
+	// Establish baseline
+	_ = changeTracker.GetChangedScopeNodesForPass("PassName")
+
+	changeTracker.ReportChangeToChangeScope(function)
+	function.Detach()
+	changeTracker.ReportFunctionDeleted(function)
+
+	// This should be ignored because the function is marked as deleted.
+	changeTracker.ReportChangeToChangeScope(function)
+
+	if got := changeTracker.GetChangedScopeNodesForPass("PassName"); len(got) != 0 {
+		t.Errorf("getChangedScopeNodesForPass: got %v, want empty", got)
+	}
 }

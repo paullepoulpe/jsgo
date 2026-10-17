@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/PropTranslator.java @ closure-compiler v20260415
+// Port of com/google/javascript/rhino/PropTranslator.java @ closure-compiler v20261015
 
 /*
  *
@@ -155,6 +155,8 @@ func PropTranslator_SerializeProp(prop Node_Prop) *NodeProperty {
 		return np(NodeProperty_CONSTANT_VAR_FLAGS)
 	case Node_Prop_SYNTHESIZED_UNFULFILLED_NAME_DECLARATION:
 		return np(NodeProperty_SYNTHESIZED_UNFULFILLED_NAME_DECLARATION)
+	case Node_Prop_PRIVATE_IDENTIFIER:
+		return np(NodeProperty_PRIVATE_IDENTIFIER)
 	case Node_Prop_CLOSURE_UNAWARE_SHADOW,
 		Node_Prop_IS_IN_CLOSURE_UNAWARE_SUBTREE,
 		Node_Prop_SIDE_EFFECT_FLAGS,
@@ -176,8 +178,7 @@ func PropTranslator_SerializeProp(prop Node_Prop) *NodeProperty {
 		Node_Prop_CONSTRUCT_SIGNATURE,
 		Node_Prop_ACCESS_MODIFIER,
 		Node_Prop_IS_TYPESCRIPT_ABSTRACT,
-		Node_Prop_TYPEDEF_TYPE,
-		Node_Prop_PRIVATE_IDENTIFIER:
+		Node_Prop_TYPEDEF_TYPE:
 		// (IS_IN_CLOSURE_UNAWARE_SUBTREE is intentionally not included in the
 		// serialized TypedAST because it can be re-synthesized when we
 		// deserialize nodes later, as it is inferrable from the AST shape.)

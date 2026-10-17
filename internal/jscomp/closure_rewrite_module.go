@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ClosureRewriteModule.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/ClosureRewriteModule.java @ closure-compiler v20261015
 
 /*
  * Copyright 2014 The Closure Compiler Authors.
@@ -828,6 +828,27 @@ func (m *ClosureRewriteModule) globalTypedStaticScope() rhino.StaticScope {
 	return m.globalTypedScope
 }
 
+// Java: ClosureRewriteModule.isWeakNamespace(String)
+func (m *ClosureRewriteModule) IsWeakNamespace(namespaceId string) bool {
+	metadata :=
+		m.compiler.GetModuleMetadataMap().GetModulesByGoogNamespace().Get(namespaceId)
+	return metadata != nil && metadata.RootNode().GetStaticSourceFile().IsWeak()
+}
+
+// Java: ClosureRewriteModule.isUnrequiredWeakNamespace(Node, String)
+func (m *ClosureRewriteModule) IsUnrequiredWeakNamespace(call *rhino.Node, namespaceId string) bool {
+	if call.GetStaticSourceFile().IsWeak() || !m.IsWeakNamespace(namespaceId) {
+		return false
+	}
+	// Go-only: language-adapter — ImmutableMap.get(null) is null.
+	var callerMetadata *ModuleMetadataMap_ModuleMetadata
+	if sourceFileName := call.GetSourceFileName(); sourceFileName != nil {
+		callerMetadata = m.compiler.GetModuleMetadataMap().GetModulesByPath().Get(*sourceFileName)
+	}
+	return callerMetadata == nil ||
+		!callerMetadata.StronglyRequiredGoogNamespaces().Contains(namespaceId)
+}
+
 // ClosureRewriteModule_UnwrapGoogLoadModule is
 // ClosureRewriteModule.UnwrapGoogLoadModule (an inner class).
 type ClosureRewriteModule_UnwrapGoogLoadModule struct {
@@ -877,6 +898,7 @@ func (m *ClosureRewriteModule) Process(externs *rhino.Node, root *rhino.Node) {
 		for script := parent.GetFirstChild(); script != nil; script = script.GetNext() {
 			jutil.CheckStateMsg1(script.IsScript(), "%s", script)
 			NodeTraversal_Traverse(m.compiler, script, &ClosureRewriteModule_UnwrapGoogLoadModule{outer: m})
+
 			m.PushScript(NewClosureRewriteModule_ScriptDescription()) // sets currentScript
 
 			m.currentScript.rootNode = script
@@ -1150,6 +1172,10 @@ func (m *ClosureRewriteModule) RecordGoogModuleGet(t *NodeTraversal, call *rhino
 		return
 	}
 
+	if m.IsUnrequiredWeakNamespace(call, namespaceId) {
+		return
+	}
+
 	// Each goog.module.get() calling filling an alias will have the alias
 	// importing logic handled at the goog.forwardDeclare call, and the
 	// corresponding goog.module.get can simply be removed.
@@ -1379,9 +1405,20 @@ func (m *ClosureRewriteModule) MaybeWarnForInvalidDestructuring(
 
 // Java: ClosureRewriteModule.updateGoogForwardDeclare(NodeTraversal, Node)
 func (m *ClosureRewriteModule) UpdateGoogForwardDeclare(t *NodeTraversal, call *rhino.Node) {
-	// For import rewriting purposes and when taking into account previous
-	// moduleAlias versus namespaceId import categorization,
-	// goog.forwardDeclare is much the same as goog.require.
+	namespaceId := call.GetLastChild().GetString()
+	if m.IsUnrequiredWeakNamespace(call, namespaceId) {
+		// For the delayed goog.module.get pattern where an alias variable is initialized by
+		// goog.forwardDeclare('b') and later assigned by goog.module.get('b'):
+		// When 'b' is in a weak chunk, the goog.module.get call is not inlined and is rewritten
+		// to null. Therefore, the alias declaration must be initialized to null rather than
+		// registered for inlining into references of the alias.
+		m.compiler.ReportChangeToEnclosingScope(call)
+		call.ReplaceWith(m.astFactory.CreateNull().Srcref(call))
+		return
+	}
+
+	// For non-weak imports, goog.forwardDeclare is handled the same as goog.require:
+	// the alias is recorded for inlining and the declaration statement is detached.
 	m.UpdateGoogRequire(t, call)
 }
 
@@ -1598,6 +1635,14 @@ func (m *ClosureRewriteModule) NamespaceIdToXid(namespaceId string) string {
 func (m *ClosureRewriteModule) UpdateGoogModuleGetCall(call *rhino.Node) {
 	namespaceIdNode := call.GetSecondChild()
 	namespaceId := namespaceIdNode.GetString()
+
+	if m.IsUnrequiredWeakNamespace(call, namespaceId) {
+		m.compiler.Report(JSError_MakeWithNode(call, ClosurePrimitiveErrors_GOOG_MODULE_GET_OF_WEAK_MODULE, namespaceId))
+		m.compiler.ReportChangeToEnclosingScope(call)
+		nullNode := m.astFactory.CreateNull().Srcref(call)
+		call.ReplaceWith(nullNode)
+		return
+	}
 
 	// Remaining calls to goog.module.get() are not alias updates,
 	// and should be replaced by a reference to the proper name.

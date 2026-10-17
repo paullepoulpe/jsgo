@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CodeGenerator.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/CodeGenerator.java @ closure-compiler v20261015
 
 /*
  * Copyright 2004 The Closure Compiler Authors.
@@ -2167,57 +2167,13 @@ func (g *CodeGeneratorBase) StrEscape(
 		case '`':
 			sb.WriteString(backtickEscape)
 		case '=':
-			// '=' is a syntactically significant regexp character.
-			if g.trustedStrings || isRegexp {
-				codeGenerator_appendChar(&sb, c)
-			} else {
-				sb.WriteString("\\x3d")
-			}
+			g.AppendEscapedEq(&sb, isRegexp)
 		case '&':
-			if g.trustedStrings || isRegexp {
-				codeGenerator_appendChar(&sb, c)
-			} else {
-				sb.WriteString("\\x26")
-			}
+			g.AppendEscapedAmp(&sb, isRegexp)
 		case '>':
-			if !g.trustedStrings && !isRegexp {
-				sb.WriteString(codeGenerator_GT_ESCAPED)
-				break
-			}
-
-			// Break --> into --\> or ]]> into ]]\>
-			//
-			// This is just to prevent developers from shooting themselves in
-			// the foot, and does not provide the level of security that you
-			// get with trustedString == false.
-			if i >= 2 &&
-				((units[i-1] == '-' && units[i-2] == '-') ||
-					(units[i-1] == ']' && units[i-2] == ']')) {
-				sb.WriteString(codeGenerator_GT_ESCAPED)
-			} else {
-				codeGenerator_appendChar(&sb, c)
-			}
+			g.AppendEscapedGt(&sb, units, i, isRegexp)
 		case '<':
-			if !g.trustedStrings && !isRegexp {
-				sb.WriteString(codeGenerator_LT_ESCAPED)
-				break
-			}
-
-			// Break </script into <\/script
-			// As above, this is just to prevent developers from doing this
-			// accidentally.
-			const endScript = "/script"
-
-			// Break <!-- into <\!--
-			const startComment = "!--"
-
-			if codeGenerator_regionMatches(units, true, i+1, endScript) {
-				sb.WriteString(codeGenerator_LT_ESCAPED)
-			} else if codeGenerator_regionMatches(units, false, i+1, startComment) {
-				sb.WriteString(codeGenerator_LT_ESCAPED)
-			} else {
-				codeGenerator_appendChar(&sb, c)
-			}
+			g.AppendEscapedLt(&sb, units, i, isRegexp)
 		default:
 			if isRegexp ||
 				!g.outputFeatureSet.ContainsFeature(parser.FeatureSet_Feature_UNESCAPED_UNICODE_LINE_OR_PARAGRAPH_SEP) {
@@ -2253,6 +2209,74 @@ func (g *CodeGeneratorBase) StrEscape(
 	return sb.String()
 }
 
+// Java: CodeGenerator.appendEscapedEq(StringBuilder, boolean)
+func (g *CodeGeneratorBase) AppendEscapedEq(sb *strings.Builder, isRegexp bool) {
+	// '=' is a syntactically significant regexp character.
+	if g.trustedStrings || isRegexp {
+		sb.WriteByte('=')
+	} else {
+		sb.WriteString("\\x3d")
+	}
+}
+
+// Java: CodeGenerator.appendEscapedAmp(StringBuilder, boolean)
+func (g *CodeGeneratorBase) AppendEscapedAmp(sb *strings.Builder, isRegexp bool) {
+	if g.trustedStrings || isRegexp {
+		sb.WriteByte('&')
+	} else {
+		sb.WriteString("\\x26")
+	}
+}
+
+// AppendEscapedGt: s is the string being escaped, as its UTF-16 units.
+//
+// Java: CodeGenerator.appendEscapedGt(StringBuilder, String, int, boolean)
+func (g *CodeGeneratorBase) AppendEscapedGt(sb *strings.Builder, s []uint16, index int, isRegexp bool) {
+	if !g.trustedStrings && !isRegexp {
+		sb.WriteString(codeGenerator_GT_ESCAPED)
+		return
+	}
+
+	// Break --> into --\> or ]]> into ]]\>
+	//
+	// This is just to prevent developers from shooting themselves in the
+	// foot, and does not provide the level of security that you get with
+	// trustedString == false.
+	if index >= 2 &&
+		((s[index-1] == '-' && s[index-2] == '-') ||
+			(s[index-1] == ']' && s[index-2] == ']')) {
+		sb.WriteString(codeGenerator_GT_ESCAPED)
+	} else {
+		sb.WriteByte('>')
+	}
+}
+
+// AppendEscapedLt: s is the string being escaped, as its UTF-16 units.
+//
+// Java: CodeGenerator.appendEscapedLt(StringBuilder, String, int, boolean)
+func (g *CodeGeneratorBase) AppendEscapedLt(sb *strings.Builder, s []uint16, index int, isRegexp bool) {
+	if !g.trustedStrings && !isRegexp {
+		sb.WriteString(codeGenerator_LT_ESCAPED)
+		return
+	}
+
+	// Break </script into <\/script and </style into <\/style
+	// As above, this is just to prevent developers from doing this accidentally.
+	const endScript = "/script"
+	const endStyle = "/style"
+
+	// Break <!-- into <\!--
+	const startComment = "!--"
+
+	if codeGenerator_regionMatches(s, true, index+1, endScript) ||
+		codeGenerator_regionMatches(s, true, index+1, endStyle) ||
+		codeGenerator_regionMatches(s, false, index+1, startComment) {
+		sb.WriteString(codeGenerator_LT_ESCAPED)
+	} else {
+		sb.WriteByte('<')
+	}
+}
+
 // EscapeUnrecognizedCharacters is a helper to escape the characters that
 // might be misinterpreted.
 //
@@ -2272,6 +2296,14 @@ func (g *CodeGeneratorBase) EscapeUnrecognizedCharacters(s string) string {
 		case '\b', '\f', '\n', '\r', '\t', '\\', '"', '\'', '$', '`', ' ', ' ':
 			// From the SingleEscapeCharacter grammar production.
 			codeGenerator_appendChar(&sb, c)
+		case '=':
+			g.AppendEscapedEq(&sb /* isRegexp= */, false)
+		case '&':
+			g.AppendEscapedAmp(&sb /* isRegexp= */, false)
+		case '>':
+			g.AppendEscapedGt(&sb, units, i /* isRegexp= */, false)
+		case '<':
+			g.AppendEscapedLt(&sb, units, i /* isRegexp= */, false)
 		default:
 			if (g.outputCharsetEncoder != nil && g.outputCharsetEncoder.CanEncode(c)) ||
 				(c > 0x1f && c < 0x7f) {

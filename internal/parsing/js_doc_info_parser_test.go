@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/parsing/JsDocInfoParserTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/parsing/JsDocInfoParserTest.java @ closure-compiler v20261015
 
 /*
  * Copyright 2007 The Closure Compiler Authors.
@@ -1189,6 +1189,19 @@ func TestParseUnionType19(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	info := jt.parse("@type {(?)} */")
 	jt.AssertTypeEqualsExpr(jt.UNKNOWN_TYPE, info.GetType())
+}
+
+func TestParseUnionType_functionReturn_threeAlts(t *testing.T) {
+	jt := newJsDocInfoParserTest(t)
+	// Verify that this is parsed as a union of three types, not a function type returning a union.
+	type_ :=
+		jt.testParseType("function(): string|number|boolean", "(boolean|function(): string|number)")
+	jt.AssertType(type_).IsUnionType()
+	alts := type_.ToMaybeUnionType().GetAlternates()
+	assertThat(t, alts).HasSize(3)
+	jt.AssertType(alts[0]).IsFunctionTypeThat().HasReturnTypeThat().IsString()
+	jt.AssertType(alts[1]).IsNumber()
+	jt.AssertType(alts[2]).IsBoolean()
 }
 
 func TestParseUnionTypeError2(t *testing.T) {
@@ -3613,6 +3626,48 @@ func TestSuppress1(t *testing.T) {
 	assertThat(t, info.GetSuppressions()).IsEqualTo(setOf("x"))
 }
 
+func TestSuppressFollowedByAnnotationOnSameLine_parseTypesOnly(t *testing.T) {
+	jt := newJsDocInfoParserTest(t)
+	sameLine :=
+		jt.parse("@suppress {visibility} @return {boolean} */", Config_JsDocParsing_TYPES_ONLY)
+	assertThat(t, sameLine.GetReturnType()).IsNotNull()
+	assertThat(t, sameLine.GetSuppressions()).Contains("visibility")
+}
+
+func TestSuppressFollowedByAnnotationOnSameLine_parseWithDescription(t *testing.T) {
+	jt := newJsDocInfoParserTest(t)
+	// Regression test - the compiler used to include the @return {boolean} annotation in the
+	// suppress description only if JsDocParsing.INCLUDE_DESCRIPTIONS_NO_WHITESPACE was used.
+	sameLine :=
+		jt.parse(
+			"@suppress {visibility} @return {boolean} */",
+			Config_JsDocParsing_INCLUDE_DESCRIPTIONS_NO_WHITESPACE)
+	assertThat(t, sameLine.GetReturnType()).IsNotNull()
+	assertThat(t, sameLine.GetSuppressions()).Contains("visibility")
+}
+
+func TestSuppressWithDescriptionFollowedByAnnotation_parseTypeOnly(t *testing.T) {
+	jt := newJsDocInfoParserTest(t)
+	sameLine :=
+		jt.parse(
+			"@suppress {visibility} this is a description @return {boolean} */",
+			Config_JsDocParsing_TYPES_ONLY)
+	// The @return {boolean} is considered part of the @suppress description.
+	assertThat(t, sameLine.GetReturnType()).IsNull()
+	assertThat(t, sameLine.GetSuppressions()).Contains("visibility")
+}
+
+func TestSuppressWithDescriptionFollowedByAnnotation_includeDescriptions(t *testing.T) {
+	jt := newJsDocInfoParserTest(t)
+	sameLine :=
+		jt.parse(
+			"@suppress {visibility} this is a description @return {boolean} */",
+			Config_JsDocParsing_INCLUDE_DESCRIPTIONS_NO_WHITESPACE)
+	// The @return {boolean} is considered part of the @suppress description.
+	assertThat(t, sameLine.GetReturnType()).IsNull()
+	assertThat(t, sameLine.GetSuppressions()).Contains("visibility")
+}
+
 func TestSuppressWithDescription(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	jsDocComment :=
@@ -3683,6 +3738,32 @@ func TestSuppress3(t *testing.T) {
 	assertThat(t, info.GetSuppressions()).IsEqualTo(setOf("x", "y"))
 }
 
+func TestSuppressMultiline(t *testing.T) {
+	jt := newJsDocInfoParserTest(t)
+	jsDocComment :=
+		`@suppress {
+ *   x, y,
+ *   z
+ * } Auto-added to unblock migration
+ */
+`
+	info := jt.parse(jsDocComment /* parseDocumentation= */, true, "malformed @suppress tag")
+	assertThat(t, info.GetSuppressions()).IsEmpty()
+	assertThat(t, info.GetSuppressionsAndTheirDescription()).IsEmpty()
+}
+
+func TestSuppressMultilineWithPipesAndLeadingSeparator(t *testing.T) {
+	jt := newJsDocInfoParserTest(t)
+	jsDocComment :=
+		`@suppress {x
+ *   | y
+ *   , z}
+ */
+`
+	info := jt.parse(jsDocComment, "malformed @suppress tag")
+	assertThat(t, info).IsNull()
+}
+
 func TestJsDocAfterSuppress(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	info := jt.parse("@suppress {x,y} @const {string} */")
@@ -3723,6 +3804,11 @@ func TestBadSuppress7(t *testing.T) {
 func TestBadSuppress8(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	jt.parse("@suppress */", "malformed @suppress tag")
+}
+
+func TestBadSuppressMultilineTrailingComma(t *testing.T) {
+	jt := newJsDocInfoParserTest(t)
+	jt.parse("@suppress {x,\n * } */", "malformed @suppress tag")
 }
 
 func TestMods1(t *testing.T) {
@@ -3857,12 +3943,54 @@ func TestBadModifies8(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	jt.parse(
 		"@modifies {this}\n@nosideeffects */\n",
-		"conflicting @nosideeffects tag")
+		"@nosideeffects functions cannot have @modifies (modifying arguments/this is a side"+
+			" effect)")
 }
 
 func TestBadModifies9(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
-	jt.parse("@nosideeffects @modifies {this} */", "conflicting @modifies tag")
+	jt.parse(
+		"@nosideeffects @modifies {this} */",
+		"@nosideeffects functions cannot have @modifies (modifying arguments/this is a side"+
+			" effect)")
+}
+
+func TestConflictingThrowsAndNoSideEffects1(t *testing.T) {
+	jt := newJsDocInfoParserTest(t)
+	jt.parse(
+		"@throws {Error}\n@nosideeffects */\n",
+		"@nosideeffects functions cannot have @throws (throwing is a side effect)")
+}
+
+func TestConflictingThrowsAndNoSideEffects2(t *testing.T) {
+	jt := newJsDocInfoParserTest(t)
+	jt.parse(
+		"@nosideeffects\n@throws {Error} */\n",
+		"@nosideeffects functions cannot have @throws (throwing is a side effect)")
+}
+
+func TestDuplicateNoSideEffects(t *testing.T) {
+	jt := newJsDocInfoParserTest(t)
+	jt.parse(
+		"@nosideeffects\n@nosideeffects */\n",
+		"conflicting @nosideeffects tag")
+}
+
+func TestThrowsAndModifiesCompatible(t *testing.T) {
+	jt := newJsDocInfoParserTest(t)
+	info :=
+		jt.parse(
+			"@modifies {this}\n@throws {Error} Some error */\n",
+			true)
+	assertThat(t, info.ModifiesThis()).IsTrue()
+	assertThat(t, info.GetThrowsAnnotations()).ContainsExactly("{Error} Some error")
+
+	info =
+		jt.parse(
+			"@throws {Error} Some error\n@modifies {this} */\n",
+			true)
+	assertThat(t, info.ModifiesThis()).IsTrue()
+	assertThat(t, info.GetThrowsAnnotations()).ContainsExactly("{Error} Some error")
 }
 
 func TestNoParseFileOverview(t *testing.T) {

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/serialization/JSTypeReconserializerTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/serialization/JSTypeReconserializerTest.java @ closure-compiler v20261015
 
 /*
  * Copyright 2021 The Closure Compiler Authors.
@@ -21,6 +21,7 @@ package jscomp
 import (
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -180,6 +181,30 @@ func (c *JSTypeReconserializerTest) TestNativeTypesAreNotSerialized() {
 	jsTypeReconserializerTest_assertThat(c.compileToTypes("const /** * */ x = /** @type {?} */ (0);")).
 		IgnoringFieldDescriptors(JSTypeReconserializerTest_BRITTLE_TYPE_FIELDS...).
 		ContainsExactlyElementsIn(c.nativeObjects())
+}
+
+// Java: JSTypeReconserializerTest.testNativeTypes_serializesFunctionToTopFunction()
+func (c *JSTypeReconserializerTest) TestNativeTypes_serializesFunctionToTopFunction() {
+	_ = c.compileToTypePool(
+		"function foo() {} /** @type {!Function} */ var goo; FOO: foo; GOO: goo;")
+	fooPointer := int(c.pointerForLabel("FOO"))
+	gooPointer := int(c.pointerForLabel("GOO"))
+	AssertThat(TypePointers_IsAxiomatic(fooPointer)).IsTrue()
+	AssertThat(TypePointers_IsAxiomatic(gooPointer)).IsTrue()
+	AssertThat(TypePointers_OFFSET_TO_AXIOMATIC_COLOR[fooPointer]).
+		IsEqualTo(colors.StandardColors_TOP_FUNCTION)
+	AssertThat(TypePointers_OFFSET_TO_AXIOMATIC_COLOR[gooPointer]).
+		IsEqualTo(colors.StandardColors_TOP_FUNCTION)
+}
+
+// Java: JSTypeReconserializerTest.testNativeTypes_serializesGbigint()
+func (c *JSTypeReconserializerTest) TestNativeTypes_serializesGbigint() {
+	_ = c.compileToTypePool(
+		"/** @interface */ function gbigint() {} /** @type {!gbigint} */ var gb; GB: gb;")
+	gbPointer := int(c.pointerForLabel("GB"))
+	AssertThat(TypePointers_IsAxiomatic(gbPointer)).IsTrue()
+	AssertThat(TypePointers_OFFSET_TO_AXIOMATIC_COLOR[gbPointer]).
+		IsEqualTo(colors.StandardColors_GBIGINT)
 }
 
 // Java: JSTypeReconserializerTest.testObjectTypeSerializationFormat()

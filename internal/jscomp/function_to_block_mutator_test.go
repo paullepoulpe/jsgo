@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/FunctionToBlockMutatorTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/FunctionToBlockMutatorTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/FunctionToBlockMutatorTest.java)
 
 /*
@@ -183,6 +183,25 @@ func (c *FunctionToBlockMutatorTest) TestMutateInitializeUninitializedVars2() {
 		nil)
 }
 
+// Java: FunctionToBlockMutatorTest.testMutateInitializeUninitializedVarsNestedFunction()
+func (c *FunctionToBlockMutatorTest) TestMutateInitializeUninitializedVarsNestedFunction() {
+	c.isCallInLoop = true
+	c.HelperMutateWithResultName(
+		`function foo(a){
+  var b = function(){ var c; };
+  return a;
+};
+foo(1);
+`,
+		`{
+  var b$jscomp$inline_1 = function(){ var c$jscomp$inline_2; };
+  1;
+}
+`,
+		"foo",
+		nil)
+}
+
 // Java: FunctionToBlockMutatorTest.testMutateInitializeUninitializedLets1()
 func (c *FunctionToBlockMutatorTest) TestMutateInitializeUninitializedLets1() {
 	c.isCallInLoop = true
@@ -203,6 +222,67 @@ func (c *FunctionToBlockMutatorTest) TestMutateInitializeUninitializedLets2() {
     for (let b$jscomp$inline_1 in c) {
       1;
       break JSCompiler_inline_label_foo_2;
+    }
+  }
+}
+`,
+		"foo",
+		nil)
+}
+
+// Java: FunctionToBlockMutatorTest.testMutateInitializeUninitializedVarInLoop()
+func (c *FunctionToBlockMutatorTest) TestMutateInitializeUninitializedVarInLoop() {
+	c.isCallInLoop = true
+	// Demonstrates that `b` should be initialized to `undefined` because
+	// it is used in a loop.
+	c.HelperMutateWithResultName(
+		`function foo(a) {
+  for (var i = 0; i < 10; i++) {
+    var b;
+    return a;
+  }
+}
+foo(1);
+`,
+		`{
+  JSCompiler_inline_label_foo_3:
+  {
+    var b$jscomp$inline_2 = void 0;
+    var i$jscomp$inline_1 = 0;
+    for (; i$jscomp$inline_1 < 10; i$jscomp$inline_1++) {
+      1;
+      break JSCompiler_inline_label_foo_3;
+    }
+  }
+}
+`,
+		"foo",
+		nil)
+}
+
+// Java: FunctionToBlockMutatorTest.testMutateInitializedVarInLoop()
+func (c *FunctionToBlockMutatorTest) TestMutateInitializedVarInLoop() {
+	c.isCallInLoop = true
+	// Demonstrates that b's initializer should not be hoisted out of the loop or
+	// lost when "foo" is inlined into the body of a loop
+	c.HelperMutateWithResultName(
+		`function foo(a) {
+  for (var i = 0; i < 10; i++) {
+    var b = 1;
+    return a;
+  }
+}
+foo(1);
+`,
+		`{
+  JSCompiler_inline_label_foo_3:
+  {
+    var b$jscomp$inline_2 = void 0;
+    var i$jscomp$inline_1 = 0;
+    for (; i$jscomp$inline_1 < 10; i$jscomp$inline_1++) {
+      b$jscomp$inline_2 = 1;
+      1;
+      break JSCompiler_inline_label_foo_3;
     }
   }
 }

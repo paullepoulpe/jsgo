@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/TypeCheckCovarianceTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/TypeCheckCovarianceTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/TypeCheckCovarianceTest.java)
 
 /*
@@ -105,6 +105,17 @@ function g(/** !Set<number> */ arr) {
 func (c *TypeCheckCovarianceTest) TestIteratorCovariant() {
 	TypeCheckTestCase_TypeTestBuilder_NewTest().AddSource(`function f(/** !Iterator<(string|number)>*/ x){};
 function g(/** !Iterator<number> */ arr) {
+    f(arr);
+}
+`).
+		IncludeDefaultExterns().
+		Run()
+}
+
+// Java: TypeCheckCovarianceTest.testIteratorLikeCovariant()
+func (c *TypeCheckCovarianceTest) TestIteratorLikeCovariant() {
+	TypeCheckTestCase_TypeTestBuilder_NewTest().AddSource(`function f(/** !IteratorLike<(string|number)>*/ x){};
+function g(/** !IteratorLike<number> */ arr) {
     f(arr);
 }
 `).

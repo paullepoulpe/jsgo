@@ -1,4 +1,4 @@
-// Port of test/com/google/javascript/jscomp/SourceFileTest.java @ closure-compiler v20260415
+// Port of test/com/google/javascript/jscomp/SourceFileTest.java @ closure-compiler v20261015
 
 /*
  * Copyright 2007 The Closure Compiler Authors.
@@ -103,6 +103,76 @@ func TestSourceFile_LineOffset(t *testing.T) {
 	jsaEq(t, startsWithNewline.GetLineOffset(3), 5)
 	jsaEq(t, startsWithNewline.GetNumBytes(), 8)
 	jsaEq(t, startsWithNewline.GetNumLines(), 3)
+
+	fCr := factory("'1';\r'2';\r'3'\r")
+	jsaEq(t, fCr.GetLineOffset(1), 0)
+	jsaEq(t, fCr.GetLineOffset(2), 5)
+	jsaEq(t, fCr.GetLineOffset(3), 10)
+	jsaEq(t, fCr.GetNumBytes(), 14)
+	jsaEq(t, fCr.GetNumLines(), 4)
+	jsaEqPtr(t, fCr.GetLine(1), "'1';")
+	jsaEqPtr(t, fCr.GetLine(2), "'2';")
+	jsaEqPtr(t, fCr.GetLine(3), "'3'")
+
+	fLs := factory("'1';\u2028'2';\u2028'3'\u2028")
+	jsaEq(t, fLs.GetLineOffset(1), 0)
+	jsaEq(t, fLs.GetLineOffset(2), 5)
+	jsaEq(t, fLs.GetLineOffset(3), 10)
+	jsaEq(t, fLs.GetNumBytes(), 14)
+	jsaEq(t, fLs.GetNumLines(), 4)
+	jsaEqPtr(t, fLs.GetLine(1), "'1';")
+	jsaEqPtr(t, fLs.GetLine(2), "'2';")
+	jsaEqPtr(t, fLs.GetLine(3), "'3'")
+
+	fPs := factory("'1';\u2029'2';\u2029'3'\u2029")
+	jsaEq(t, fPs.GetLineOffset(1), 0)
+	jsaEq(t, fPs.GetLineOffset(2), 5)
+	jsaEq(t, fPs.GetLineOffset(3), 10)
+	jsaEq(t, fPs.GetNumBytes(), 14)
+	jsaEq(t, fPs.GetNumLines(), 4)
+	jsaEqPtr(t, fPs.GetLine(1), "'1';")
+	jsaEqPtr(t, fPs.GetLine(2), "'2';")
+	jsaEqPtr(t, fPs.GetLine(3), "'3'")
+
+	fCrLf := factory("'1';\r\n'2';\r\n'3'\r\n")
+	jsaEq(t, fCrLf.GetLineOffset(1), 0)
+	jsaEq(t, fCrLf.GetLineOffset(2), 6)
+	jsaEq(t, fCrLf.GetLineOffset(3), 12)
+	jsaEq(t, fCrLf.GetNumBytes(), 17)
+	jsaEq(t, fCrLf.GetNumLines(), 4)
+	jsaEqPtr(t, fCrLf.GetLine(1), "'1';")
+	jsaEqPtr(t, fCrLf.GetLine(2), "'2';")
+	jsaEqPtr(t, fCrLf.GetLine(3), "'3'")
+
+	fMixed := factory("'1';\r\n'2';\r'3'\u2028'4'\u2029'5'\n")
+	jsaEq(t, fMixed.GetLineOffset(1), 0)
+	jsaEq(t, fMixed.GetLineOffset(2), 6)
+	jsaEq(t, fMixed.GetLineOffset(3), 11)
+	jsaEq(t, fMixed.GetLineOffset(4), 15)
+	jsaEq(t, fMixed.GetLineOffset(5), 19)
+	jsaEq(t, fMixed.GetNumLines(), 6)
+	jsaEqPtr(t, fMixed.GetLine(1), "'1';")
+	jsaEqPtr(t, fMixed.GetLine(2), "'2';")
+	jsaEqPtr(t, fMixed.GetLine(3), "'3'")
+	jsaEqPtr(t, fMixed.GetLine(4), "'4'")
+	jsaEqPtr(t, fMixed.GetLine(5), "'5'")
+	jsaTrue(t, fMixed.GetLine(6) == nil)
+
+	jsaEq(t, fMixed.GetLineOfOffset(0), 1)
+	jsaEq(t, fMixed.GetColumnOfOffset(0), 0)
+	jsaEq(t, fMixed.GetLineOfOffset(5), 1)
+	jsaEq(t, fMixed.GetColumnOfOffset(5), 5)
+	jsaEq(t, fMixed.GetLineOfOffset(6), 2)
+	jsaEq(t, fMixed.GetColumnOfOffset(6), 0)
+	jsaEq(t, fMixed.GetLineOfOffset(11), 3)
+	jsaEq(t, fMixed.GetColumnOfOffset(11), 0)
+	jsaEq(t, fMixed.GetLineOfOffset(15), 4)
+	jsaEq(t, fMixed.GetColumnOfOffset(15), 0)
+	jsaEq(t, fMixed.GetLineOfOffset(19), 5)
+	jsaEq(t, fMixed.GetColumnOfOffset(19), 0)
+	jsaEq(t, fMixed.GetLineOfOffset(23), 6)
+	jsaEq(t, fMixed.GetColumnOfOffset(23), 0)
+
 }
 
 // Go-only: extra coverage — offsets and "byte" counts are UTF-16 units, as
@@ -501,4 +571,74 @@ func TestSourceFile_RestoreCachedState_treatsProtoNumLinesAsCanonical(t *testing
 			Build())
 
 	jsaEq(t, sourceFile.GetNumLines(), 999)
+}
+
+func TestSourceFile_StripConfigSegment_barePrefixes(t *testing.T) {
+	jsaEq(t, SourceFile_StripConfigSegment("bin/foo/bar.js"), "foo/bar.js")
+	jsaEq(t, SourceFile_StripConfigSegment("genfiles/foo/bar.js"), "foo/bar.js")
+	jsaEq(t, SourceFile_StripConfigSegment("testlogs/foo/bar.js"), "foo/bar.js")
+}
+
+func TestSourceFile_StripConfigSegment_blazeOutPrefixes(t *testing.T) {
+	jsaEq(t, SourceFile_StripConfigSegment("blaze-out/k8-opt/bin/foo/bar.js"), "foo/bar.js")
+	jsaEq(t, SourceFile_StripConfigSegment("blaze-out/k8-fastbuild/genfiles/foo/bar.js"), "foo/bar.js")
+	jsaEq(t, SourceFile_StripConfigSegment("blaze-out/k8-dbg/testlogs/foo/bar.js"), "foo/bar.js")
+	jsaEq(t, SourceFile_StripConfigSegment("/execroot/workspace/blaze-out/k8-opt/bin/foo/bar.js"), "foo/bar.js")
+}
+
+func TestSourceFile_StripConfigSegment_bazelOutPrefixes(t *testing.T) {
+	jsaEq(t, SourceFile_StripConfigSegment("bazel-out/k8-opt/bin/foo/bar.js"), "foo/bar.js")
+	jsaEq(t, SourceFile_StripConfigSegment("bazel-out/darwin_arm64-fastbuild/genfiles/foo/bar.js"), "foo/bar.js")
+	jsaEq(t, SourceFile_StripConfigSegment("bazel-out/host/testlogs/foo/bar.js"), "foo/bar.js")
+	jsaEq(t, SourceFile_StripConfigSegment("workspace/bazel-out/k8-opt/bin/foo/bar.js"), "foo/bar.js")
+}
+
+func TestSourceFile_StripConfigSegment_unalteredPaths(t *testing.T) {
+	jsaEq(t, SourceFile_StripConfigSegment("foo/bar.js"), "foo/bar.js")
+	jsaEq(t, SourceFile_StripConfigSegment("my_bin/foo.js"), "my_bin/foo.js")
+	jsaEq(t, SourceFile_StripConfigSegment("foo/bin/bar.js"), "foo/bin/bar.js")
+	jsaEq(t, SourceFile_StripConfigSegment("blaze-out/k8-opt"), "blaze-out/k8-opt")
+	jsaEq(t, SourceFile_StripConfigSegment("blaze-out/"), "blaze-out/")
+	jsaEq(t, SourceFile_StripConfigSegment("blaze-out/k8-opt/other/foo.js"), "blaze-out/k8-opt/other/foo.js")
+	jsaEq(t, SourceFile_StripConfigSegment("bazel-out/"), "bazel-out/")
+	jsaEq(t, SourceFile_StripConfigSegment("bazel-out/k8-opt/other/foo.js"), "bazel-out/k8-opt/other/foo.js")
+	jsaEq(t, SourceFile_StripConfigSegment(""), "")
+}
+
+func TestSourceFile_CanonicalizePathForMatching(t *testing.T) {
+	jsaEq(t, SourceFile_CanonicalizePathForMatching("blaze-out/k8-opt/bin/foo/bar.js"), "foo/bar.js")
+	jsaEq(t, SourceFile_CanonicalizePathForMatching("bazel-out/k8-opt/bin/foo/bar.js"), "foo/bar.js")
+	jsaEq(t, SourceFile_CanonicalizePathForMatching("bin/foo/bar.js"), "foo/bar.js")
+	jsaEq(t, SourceFile_CanonicalizePathForMatching("foo/bar.js"), "foo/bar.js")
+}
+
+func TestSourceFile_RestoreCachedState_canonicalizedPathMatching(t *testing.T) {
+	sourceFile := SourceFile_FromCode("blaze-out/k8-opt/bin/foo/bar.js", "42")
+
+	// Restoring state succeeds when paths match after canonicalization.
+	sourceFile.RestoreCachedStateFrom(
+		SourceFileProto_NewBuilder().
+			SetFilename("foo/bar.js").
+			SetNumLinesPlusOne(10).
+			SetNumBytesPlusOne(20).
+			Build())
+
+	jsaEq(t, sourceFile.GetNumLines(), 9)
+	jsaEq(t, sourceFile.GetNumBytes(), 19)
+
+	// Also verify restoring with bare bin/ prefix in proto vs blaze-out in SourceFile.
+	sourceFile.RestoreCachedStateFrom(
+		SourceFileProto_NewBuilder().
+			SetFilename("bin/foo/bar.js").
+			SetNumLinesPlusOne(15).
+			SetNumBytesPlusOne(25).
+			Build())
+
+	jsaEq(t, sourceFile.GetNumLines(), 14)
+	jsaEq(t, sourceFile.GetNumBytes(), 24)
+
+	// Mismatched path should throw IllegalStateException.
+	protoSourceFile :=
+		SourceFileProto_NewBuilder().SetFilename("bazel-out/k8-opt/bin/other/bar.js").Build()
+	jsaThrows[jutil.IIllegalStateException](t, func() { sourceFile.RestoreCachedStateFrom(protoSourceFile) })
 }

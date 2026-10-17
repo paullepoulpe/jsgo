@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CheckSideEffectsTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/CheckSideEffectsTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/CheckSideEffectsTest.java)
 
 /*
@@ -405,4 +405,14 @@ func (c *CheckSideEffectsTest) TestIgnoresRuntimeLibRequireStatementsOnly() {
 	c.TestWarning(
 		c.Srcs(SourceFile_FromCode("other/file.js", "'require base'")),
 		c.Warning(CheckSideEffects_USELESS_CODE_ERROR))
+}
+
+// Java: CheckSideEffectsTest.testToStringWithRadixIsUselessCode()
+func (c *CheckSideEffectsTest) TestToStringWithRadixIsUselessCode() {
+	c.TestWarning("({}).toString(16);", c.e)
+}
+
+// Java: CheckSideEffectsTest.testOptionalChainToStringWithRadixIsUselessCode()
+func (c *CheckSideEffectsTest) TestOptionalChainToStringWithRadixIsUselessCode() {
+	c.TestWarning("({})?.toString(16);", c.e)
 }

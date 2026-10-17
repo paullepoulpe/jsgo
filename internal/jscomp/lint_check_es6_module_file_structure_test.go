@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/lint/CheckEs6ModuleFileStructureTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/lint/CheckEs6ModuleFileStructureTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/lint/CheckEs6ModuleFileStructureTest.java)
 
 /*

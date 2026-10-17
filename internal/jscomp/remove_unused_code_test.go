@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/RemoveUnusedCodeTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/RemoveUnusedCodeTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/RemoveUnusedCodeTest.java)
 
 /*
@@ -58,6 +58,9 @@ const RemoveUnusedCodeTest_EXTERNS = "var undefined;\n" +
 	"function use() {}\n" +
 	"function externFunction() {}\n" +
 	"var externVar;\n" +
+	"function validate() {}\n" +
+	"var userInput;\n" +
+	"function gen() {}\n" +
 	"var window;\n" +
 	"var console = {};\n" +
 	"console.log = function(var_args) {};\n" +
@@ -258,6 +261,15 @@ func (c *RemoveUnusedCodeTest) TestRemoveVarDeclaration1() {
 // Java: RemoveUnusedCodeTest.testRemoveVarDeclaration2()
 func (c *RemoveUnusedCodeTest) TestRemoveVarDeclaration2() {
 	c.Test("var a;var b = 0, c = a = b = 1", "")
+}
+
+// Java: RemoveUnusedCodeTest.testRemoveUnusedSymbol()
+func (c *RemoveUnusedCodeTest) TestRemoveUnusedSymbol() {
+	externs := c.Externs("var Symbol = function(opt_desc) {}; var foo = function() {};")
+	c.Test(externs, c.Srcs("var x = Symbol();"), c.Expected(""))
+	c.Test(externs, c.Srcs("const x = Symbol('desc');"), c.Expected(""))
+	c.Test(externs, c.Srcs("let x = Symbol();"), c.Expected(""))
+	c.Test(externs, c.Srcs("var x = Symbol(foo());"), c.Expected("Symbol(foo());"))
 }
 
 // Java: RemoveUnusedCodeTest.testRemoveUnusedVarsFn0()
@@ -898,6 +910,13 @@ func (c *RemoveUnusedCodeTest) TestUnusedAssign6b() {
 	c.Test("var z; z = alert();", "alert()")
 }
 
+// Java: RemoveUnusedCodeTest.testUnusedAssign_toString()
+func (c *RemoveUnusedCodeTest) TestUnusedAssign_toString() {
+	c.Test("var x = (10).toString(16);", "")
+	c.Test("var x = (10).toString();", "")
+	c.Test("var x = (10).toString(16, 2);", "(10).toString(16, 2);")
+}
+
 // Java: RemoveUnusedCodeTest.testUnusedAssign7()
 func (c *RemoveUnusedCodeTest) TestUnusedAssign7() {
 	// This loop is normalized to "var i;for(i in..."
@@ -1019,6 +1038,16 @@ func (c *RemoveUnusedCodeTest) TestUsedPropAssign1() {
 // Java: RemoveUnusedCodeTest.testUsedPropAssign2()
 func (c *RemoveUnusedCodeTest) TestUsedPropAssign2() {
 	c.TestSame("try { throw {}; } catch (e) { e.bar = 3; }")
+}
+
+// Java: RemoveUnusedCodeTest.testUsedPropInDestructuringCatch_objectPattern()
+func (c *RemoveUnusedCodeTest) TestUsedPropInDestructuringCatch_objectPattern() {
+	c.TestSame("this.p = 1; try {} catch ({p}) { alert(p); }")
+}
+
+// Java: RemoveUnusedCodeTest.testUsedPropInDestructuringCatch_arrayPattern()
+func (c *RemoveUnusedCodeTest) TestUsedPropInDestructuringCatch_arrayPattern() {
+	c.TestSame("this.p = 1; try {} catch ([{p}]) { alert(p); }")
 }
 
 // Java: RemoveUnusedCodeTest.testUsedPropAssign3()
@@ -2007,6 +2036,16 @@ func (c *RemoveUnusedCodeTest) TestDestructuringArrayPattern1() {
 		"[] = [1]")
 
 	c.TestSame("var [a, b] = [1, 2]; alert(a); alert(b);")
+}
+
+// TODO(b/538150824): RemoveUnusedCode: preserve trailing empty slots in destructuring array
+// patterns
+// Java: RemoveUnusedCodeTest.testDestructuringArrayPatternImpureRhs()
+func (c *RemoveUnusedCodeTest) TestDestructuringArrayPatternImpureRhs() {
+	c.Test("const [ok] = validate(userInput);", "const [] = validate(userInput);")
+	c.Test("var [a, b, c] = gen(); use(a);", "var [a] = gen(); use(a);")
+	c.Test("var a, b, c; [a, b, c] = gen(); use(a);", "var a; [a] = gen(); use(a);")
+	c.Test("var [a, b, c] = [1, 2, 3]; use(a);", "var [a] = [1, 2, 3]; use(a);")
 }
 
 // Java: RemoveUnusedCodeTest.testDestructuringObjectPattern0()

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/MustBeReachingVariableDef.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/MustBeReachingVariableDef.java @ closure-compiler v20261015
 
 /*
  * Copyright 2008 The Closure Compiler Authors.
@@ -256,8 +256,10 @@ func (d *MustBeReachingVariableDef) ComputeMustDef(n *rhino.Node, cfgNode *rhino
 			lhs = lhs.GetLastChild() // for(var x in y) {...}
 		}
 		if lhs.IsName() {
-			// TODO(lharker): This doesn't seem right - given for (x in y), the value set to x isn't y
-			d.AddToDefIfLocal(lhs.GetString(), cfgNode, rhs, output)
+			// We pass null for the def node because an enhanced for-loop conditionally assigns
+			// elements from the collection at runtime (or doesn't execute if empty), so there is no
+			// unconditional reaching definition from the loop header.
+			d.AddToDefIfLocal(lhs.GetString(), nil, rhs, output)
 		} else if lhs.IsDestructuringLhs() {
 			lhs = lhs.GetFirstChild()
 		}

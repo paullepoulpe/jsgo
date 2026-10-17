@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/modules/EsModuleProcessor.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/modules/EsModuleProcessor.java @ closure-compiler v20261015
 
 /*
  * Copyright 2018 The Closure Compiler Authors.
@@ -835,11 +835,11 @@ func (p *EsModuleProcessor) VisitExportNameDeclaration(t *NodeTraversal, export 
 	//    export var Foo;
 	//    export let {a, b:[c,d]} = {};
 	NodeUtil_VisitLhsNodesInNode(
-		declaration, func(lhs *rhino.Node) { p.AddExportNameDeclaration(t, lhs, export, declaration) })
+		declaration, func(lhs *rhino.Node) { p.AddExportNameDeclaration(t, lhs, export) })
 }
 
-// Java: EsModuleProcessor.addExportNameDeclaration(NodeTraversal, Node, Node, Node)
-func (p *EsModuleProcessor) AddExportNameDeclaration(t *NodeTraversal, lhs *rhino.Node, export *rhino.Node, declaration *rhino.Node) {
+// Java: EsModuleProcessor.addExportNameDeclaration(NodeTraversal, Node, Node)
+func (p *EsModuleProcessor) AddExportNameDeclaration(t *NodeTraversal, lhs *rhino.Node, export *rhino.Node) {
 	jutil.CheckState(lhs.IsName())
 	name := lhs.GetString()
 	if !p.currentModuleBuilder.AddExport(

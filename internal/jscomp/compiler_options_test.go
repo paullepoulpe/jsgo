@@ -1,4 +1,4 @@
-// Port of test/com/google/javascript/jscomp/CompilerOptionsTest.java @ closure-compiler v20260415
+// Port of test/com/google/javascript/jscomp/CompilerOptionsTest.java @ closure-compiler v20261015
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -191,5 +191,33 @@ func TestCompilerOptions_AllInstanceFieldsArePrivate(t *testing.T) {
 	}
 	if len(nonPrivateInstanceFields) != 0 {
 		t.Errorf("All instance fields in CompilerOptions must be private: %v", nonPrivateInstanceFields)
+	}
+}
+
+// Java: CompilerOptionsTest.testTranspilePublicClassFields()
+func TestCompilerOptions_TranspilePublicClassFields(t *testing.T) {
+	options := NewCompilerOptions()
+	options.SetBrowserFeaturesetYear(2023)
+	if options.GetTranspilePublicClassFields() {
+		t.Error("getTranspilePublicClassFields: got true, want false")
+	}
+	if !options.GetOutputFeatureSet().Has(parser.FeatureSet_Feature_PUBLIC_CLASS_FIELDS) {
+		t.Error("getOutputFeatureSet().has(PUBLIC_CLASS_FIELDS): got false, want true")
+	}
+
+	options.SetTranspilePublicClassFields(true)
+	if !options.GetTranspilePublicClassFields() {
+		t.Error("getTranspilePublicClassFields: got false, want true")
+	}
+	if options.GetOutputFeatureSet().Has(parser.FeatureSet_Feature_PUBLIC_CLASS_FIELDS) {
+		t.Error("getOutputFeatureSet().has(PUBLIC_CLASS_FIELDS): got true, want false")
+	}
+
+	options.SetTranspilePublicClassFields(false)
+	if options.GetTranspilePublicClassFields() {
+		t.Error("getTranspilePublicClassFields: got true, want false")
+	}
+	if !options.GetOutputFeatureSet().Has(parser.FeatureSet_Feature_PUBLIC_CLASS_FIELDS) {
+		t.Error("getOutputFeatureSet().has(PUBLIC_CLASS_FIELDS): got false, want true")
 	}
 }

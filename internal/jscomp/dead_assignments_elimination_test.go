@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/DeadAssignmentsEliminationTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/DeadAssignmentsEliminationTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/DeadAssignmentsEliminationTest.java)
 
 /*
@@ -206,6 +206,11 @@ func (c *DeadAssignmentsEliminationTest) TestErrorHandling() {
 	c.InFunction("var x; try{throw 1} catch(e){x=2} finally{x}")
 	c.InFunctionWithExpected(
 		"var x; try{x=1;throw 1;x} finally{x=2}; x", "var x; try{1;throw 1;x} finally{x=2}; x")
+	c.InFunction("var x; x = 1; try { for (var y of iter) {} } catch (e) { x; }")
+	c.InAsyncFunction("var x; x = 1; try { for await (var y of iter) {} } catch (e) { x; }")
+	c.InFunctionWithExpected(
+		"var x; x = 1; try { for (var y in iter) {} } catch (e) { x; }",
+		"var x; 1; try { for (var y in iter) {} } catch (e) { x; }")
 }
 
 // Java: DeadAssignmentsEliminationTest.testErrorHandling2()
@@ -1181,6 +1186,153 @@ func (c *DeadAssignmentsEliminationTest) TestComputedClassMethod() {
 			"  [x = 'field2']() {}\n" +
 			"}\n" +
 			"use(C.field1);\n")
+}
+
+// Java: DeadAssignmentsEliminationTest.testClassField_static_clobbersAssignment()
+func (c *DeadAssignmentsEliminationTest) TestClassField_static_clobbersAssignment() {
+	c.InFunctionWithExpected(
+		`let x = 0;
+class C {
+  static field = (x = 1); // clobbers "x = 0" above.
+}
+use(x);
+`,
+		`let x;
+0;
+class C {
+  static field = (x = 1);
+}
+use(x);
+`)
+}
+
+// Java: DeadAssignmentsEliminationTest.testClassField_instance_doesNotClobberAssignment()
+func (c *DeadAssignmentsEliminationTest) TestClassField_instance_doesNotClobberAssignment() {
+	c.InFunction(
+		`let x = 0;
+class C {
+  field = (x = 1);
+}
+use(x);
+`)
+}
+
+// Java: DeadAssignmentsEliminationTest.testClassField_instance_doesNotClobberAssignment_computed()
+func (c *DeadAssignmentsEliminationTest) TestClassField_instance_doesNotClobberAssignment_computed() {
+	c.InFunction(
+		`let x = 0;
+class C {
+  ["field"] = (x = 1);
+}
+use(x);
+`)
+}
+
+// Java: DeadAssignmentsEliminationTest.testClassField_instanceRead_preserved()
+func (c *DeadAssignmentsEliminationTest) TestClassField_instanceRead_preserved() {
+	c.InFunction(
+		`let x = 0;
+class C {
+  field = x;
+}
+use(new C().field); // reads x
+x = 1;
+use(new C().field); // reads x
+`)
+}
+
+// TODO(b/538153547): Fix DeadAssignmentsElimination to not remove result = sanitize(result)
+// Java: DeadAssignmentsEliminationTest.testDefaultValueNestedAssign_arrayPattern()
+func (c *DeadAssignmentsEliminationTest) TestDefaultValueNestedAssign_arrayPattern() {
+	c.Test(
+		`function render(input, opts) {
+  var x;
+  var result = input;
+  result = sanitize(result);
+  [x = (result = VAL)] = opts;
+  use(result);
+}
+`,
+		`function render(input, opts) {
+  var x;
+  var result = input;
+  sanitize(result);
+  [x = (result = VAL)] = opts;
+  use(result);
+}
+`)
+}
+
+// TODO(b/538153547): Fix DeadAssignmentsElimination to not remove result = sanitize(result)
+// Java: DeadAssignmentsEliminationTest.testDefaultValueNestedAssign_objectPattern()
+func (c *DeadAssignmentsEliminationTest) TestDefaultValueNestedAssign_objectPattern() {
+	c.Test(
+		`function render(input, opts) {
+  var x;
+  var result = input;
+  result = sanitize(result);
+  ({x = (result = VAL)} = opts);
+  use(result);
+}
+`,
+		`function render(input, opts) {
+  var x;
+  var result = input;
+  sanitize(result);
+  ({x = (result = VAL)} = opts);
+  use(result);
+}
+`)
+}
+
+// TODO(b/538153547): Fix DeadAssignmentsElimination to not remove html = sanitize(html)
+// Java: DeadAssignmentsEliminationTest.testDefaultValueNestedAssign_poc()
+func (c *DeadAssignmentsEliminationTest) TestDefaultValueNestedAssign_poc() {
+	c.Test(
+		`function render(input, opts) {
+  var x;
+  var html = input;
+  html = sanitize(html);
+  [x = (html = 'SAFE_FALLBACK')] = opts;
+  el.innerHTML = html;
+}
+`,
+		`function render(input, opts) {
+  var x;
+  var html = input;
+  sanitize(html);
+  [x = (html = 'SAFE_FALLBACK')] = opts;
+  el.innerHTML = html;
+}
+`)
+}
+
+// Java: DeadAssignmentsEliminationTest.testOptionalChaining()
+func (c *DeadAssignmentsEliminationTest) TestOptionalChaining() {
+	c.TestSame(
+		`function f(a, raw) {
+  var x;
+  (x = sanitize(raw), a?.m(x = a.cached), el.innerHTML = x);
+}
+`)
+	c.TestSame(
+		`function f(a, raw) {
+  var x;
+  (x = sanitize(raw), a?.[x = a.cached], el.innerHTML = x);
+}
+`)
+	c.TestSame(
+		`function f(a, raw) {
+  var x;
+  (x = sanitize(raw), a?.(x = a.cached), el.innerHTML = x);
+}
+`)
+	c.TestSame(
+		`function f(a, raw) {
+  var x;
+  (x = sanitize(raw), a?.(x = 1, x), el.innerHTML = x);
+}
+`)
 }
 
 // Java: DeadAssignmentsEliminationTest.inFunction(String)

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Es6RewriteBlockScopedDeclaration.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/Es6RewriteBlockScopedDeclaration.java @ closure-compiler v20261015
 
 /*
  * Copyright 2014 The Closure Compiler Authors.
@@ -19,8 +19,6 @@
 package jscomp
 
 import (
-	"strings"
-
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
@@ -575,6 +573,34 @@ func (l *es6RewriteBlockScopedDeclaration_LoopClosureTransformer) UpdateNamesInW
 func (l *es6RewriteBlockScopedDeclaration_LoopClosureTransformer) CreateWrapperFunctions() *jutil.LinkedHashSet[*rhino.Node] {
 	wrapperFunctions := jutil.NewLinkedHashSet[*rhino.Node]()
 	for functionOrObjectLit := range l.nodesRequiringLoopObjectsClosureMap.KeySet() {
+		// Wrapping an object literal in an IIFE would otherwise rebind `this` and `arguments` in
+		// object properties/methods to the IIFE. Use ThisAndArgumentsReferenceUpdater to capture
+		// and rewrite them to outer aliases before wrapping in the IIFE.
+		if functionOrObjectLit.IsObjectLit() {
+			enclosingFunction := NodeUtil_GetEnclosingFunction(functionOrObjectLit)
+			var scopeBody *rhino.Node
+			if enclosingFunction != nil {
+				scopeBody = enclosingFunction.GetLastChild()
+			} else {
+				scopeBody = NodeUtil_GetEnclosingScript(functionOrObjectLit)
+			}
+			isConstructor :=
+				enclosingFunction != nil && NodeUtil_IsEs6Constructor(enclosingFunction)
+			script := NodeUtil_GetEnclosingScript(functionOrObjectLit)
+			input := l.outer.compiler.GetInput(script.GetInputId())
+			thisContext :=
+				NewThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext(
+					scopeBody, isConstructor, l.outer.uniqueIdSupplier.GetUniqueId(input))
+			updater :=
+				NewThisAndArgumentsReferenceUpdater(l.outer.compiler, thisContext, l.outer.astFactory)
+			NodeTraversal_Traverse(l.outer.compiler, functionOrObjectLit, updater)
+			thisContext.AddVarDeclarations(l.outer.compiler, l.outer.astFactory, script)
+			for child := scopeBody.GetFirstChild(); child != nil; child = child.GetNext() {
+				if child.IsLet() || child.IsConst() {
+					l.outer.letConsts.Add(child)
+				}
+			}
+		}
 		returnNode := rhino.IR_ReturnNode()
 		objects := l.nodesRequiringLoopObjectsClosureMap.Get(functionOrObjectLit)
 		parameterNames := make([]*rhino.Node, objects.Size())
@@ -620,7 +646,7 @@ func (l *es6RewriteBlockScopedDeclaration_LoopClosureTransformer) CreateWrapperF
 // Java: Es6RewriteBlockScopedDeclaration.LoopClosureTransformer.updateNames(Node, Node, String)
 func (l *es6RewriteBlockScopedDeclaration_LoopClosureTransformer) UpdateNames(node *rhino.Node, paramName *rhino.Node, loopObjectName string) {
 	if node.IsName() && node.GetString() != "" /* not an anonymous function name */ {
-		if strings.Contains(node.GetString(), loopObjectName) {
+		if node.GetString() == loopObjectName {
 			node.SetString(paramName.GetString())
 			return
 		}

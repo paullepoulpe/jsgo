@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/TypeCheckTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/TypeCheckTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/TypeCheckTest.java)
 
 /*
@@ -4485,12 +4485,12 @@ required: Iterable
 
 // Java: TypeCheckTest.testForOf4()
 func (c *TypeCheckTest) TestForOf4() {
-	TypeCheckTestCase_TypeTestBuilder_NewTest().AddSource(`function f(/** !Iterator<number> */ it) {
+	TypeCheckTestCase_TypeTestBuilder_NewTest().AddSource(`function f(/** !IteratorLike<number> */ it) {
   for (let x of it) {}
 }
 `).
 		AddDiagnostic(`Can only iterate over a (non-null) Iterable type
-found   : Iterator<number,?,?>
+found   : IteratorLike<number,?,?>
 required: Iterable
 `).
 		IncludeDefaultExterns().
@@ -4801,6 +4801,23 @@ goog.inherits(H, G);
 /** @param {G} x */
 function f(x) { return x.constructor === H; }
 `, nil)
+}
+
+// Java: TypeCheckTest.testComparisonWithTemplatizedSubclass()
+func (c *TypeCheckTest) TestComparisonWithTemplatizedSubclass() {
+	TypeCheckTestCase_TypeTestBuilder_NewTest().AddSource(`/** @template T @constructor */
+function Base() {}
+/**
+ * @template T
+ * @constructor
+ * @extends {Base<T>}
+ */
+function Sub() {}
+/** @type {!Base<number>} */ var base = new Base();
+/** @type {!Sub<number>} */ var sub = new Sub();
+if (base === sub) {}
+`).
+		Run()
 }
 
 // Java: TypeCheckTest.testDeleteOperator1()
@@ -8250,17 +8267,22 @@ required: null
 // Java: TypeCheckTest.testIteratorAccess1()
 func (c *TypeCheckTest) TestIteratorAccess1() {
 	TypeCheckTestCase_TypeTestBuilder_NewTest().AddSource(`/**
- * @param {!Iterator<T>} x
+ * @param {!IteratorLike<T>} x
  * @return {T}
  * @template T
 */
 function f(x) { return x[0]; }
-function g(/** !Generator<string> */ x) {
+function g(/** !Generator<string> */ x, /** !Iterator<number> */ it) {
   var /** null */ y = f(x);
+  var /** null */ z = f(it);
 }
 `).
 		AddDiagnostic(`initializing variable
 found   : string
+required: null
+`).
+		AddDiagnostic(`initializing variable
+found   : number
 required: null
 `).
 		IncludeDefaultExterns().
@@ -8302,6 +8324,159 @@ function g(/** !Generator<string> */ x) {
 		AddDiagnostic(`initializing variable
 found   : string
 required: null
+`).
+		IncludeDefaultExterns().
+		Run()
+}
+
+// Java: TypeCheckTest.testIteratorLikeAccess1()
+func (c *TypeCheckTest) TestIteratorLikeAccess1() {
+	TypeCheckTestCase_TypeTestBuilder_NewTest().AddSource(`/**
+ * @param {!IteratorLike<T>} x
+ * @return {T}
+ * @template T
+ */
+function f(x) { return x[0]; }
+function g(/** !Iterator<string> */ x) {
+  var /** null */ y = f(x);
+}
+`).
+		AddDiagnostic(`initializing variable
+found   : string
+required: null
+`).
+		IncludeDefaultExterns().
+		Run()
+}
+
+// Java: TypeCheckTest.testIteratorFrom_acceptsString()
+func (c *TypeCheckTest) TestIteratorFrom_acceptsString() {
+	TypeCheckTestCase_TypeTestBuilder_NewTest().AddSource(`var /** !Iterator<string> */ it = Iterator.from('abc');
+var /** !Iterator<number> */ it2 = Iterator.from([1, 2]);
+`).
+		IncludeDefaultExterns().
+		Run()
+}
+
+// Java: TypeCheckTest.testIteratorFrom_rejectsNumber()
+func (c *TypeCheckTest) TestIteratorFrom_rejectsNumber() {
+	TypeCheckTestCase_TypeTestBuilder_NewTest().AddSource(`Iterator.from(123);
+`).
+		AddDiagnostic(`actual parameter 1 of Iterator.from does not match formal parameter
+found   : number
+required: (Iterable<?,?,?>|IteratorLike<?,?,?>|string)
+`).
+		IncludeDefaultExterns().
+		Run()
+}
+
+// Java: TypeCheckTest.testIteratorHelperMethods_callbacksAcceptNonBooleanAndNonVoid()
+func (c *TypeCheckTest) TestIteratorHelperMethods_callbacksAcceptNonBooleanAndNonVoid() {
+	TypeCheckTestCase_TypeTestBuilder_NewTest().AddSource(`/**
+ * @param {!Iterator<?string>} it
+ * @param {!Array<number>} arr
+ */
+function f(it, arr) {
+  var /** !Iterator<?string> */ filtered = it.filter((x) => x);
+  var /** boolean */ someres = it.some((s) => s ? s.length : 0);
+  var /** boolean */ everyres = it.every((s) => s);
+  var /** ?string|undefined */ found = it.find((s) => s);
+  it.forEach((x) => arr.push(1));
+}
+`).
+		IncludeDefaultExterns().
+		Run()
+}
+
+// Java: TypeCheckTest.testIteratorHelperMethods_chainingAndReturnTypes()
+func (c *TypeCheckTest) TestIteratorHelperMethods_chainingAndReturnTypes() {
+	TypeCheckTestCase_TypeTestBuilder_NewTest().AddSource(`/** @param {!Iterator<number>} it */
+function f(it) {
+  var /** !Iterator<string> */ mapped = it.map((x) => String(x));
+  var /** !Iterator<number> */ taken = it.take(5);
+  var /** !Iterator<number> */ dropped = it.drop(2);
+  var /** !Iterator<string> */ flatMapped = it.flatMap((x) => [String(x)]);
+  var /** number */ reduced = it.reduce((acc, x) => acc + x, 0);
+  var /** !Array<number> */ arr = it.toArray();
+}
+`).
+		IncludeDefaultExterns().
+		Run()
+}
+
+// Java: TypeCheckTest.testIteratorFlatMap_rejectsStringReturn()
+func (c *TypeCheckTest) TestIteratorFlatMap_rejectsStringReturn() {
+	TypeCheckTestCase_TypeTestBuilder_NewTest().AddSource(`/** @param {!Iterator<number>} it */
+function f(it) {
+  it.flatMap((x) => 'hello');
+}
+`).
+		AddDiagnostic(`inconsistent return type
+found   : string
+required: (Iterable<?,?,?>|Iterator<?,?,?>|IteratorLike<?,?,?>)
+`).
+		IncludeDefaultExterns().
+		Run()
+}
+
+// Java: TypeCheckTest.testTestExternsBuilder_iteratorHelpers()
+func (c *TypeCheckTest) TestTestExternsBuilder_iteratorHelpers() {
+	TypeCheckTestCase_TypeTestBuilder_NewTest().AddExterns(NewTestExternsBuilder().AddIterable().Build()).
+		AddSource(`/** @param {!Iterator<number>} it */
+function f(it) {
+  var /** !Iterator<number> */ filtered = it.filter((x) => x);
+  var /** boolean */ s = it.some((x) => x);
+  it.forEach((x) => 42);
+  var /** !Iterator<string> */ fromStr = Iterator.from('abc');
+}
+`).
+		Run()
+}
+
+// Java: TypeCheckTest.testIteratorLike_optionalReturnAndThrow()
+func (c *TypeCheckTest) TestIteratorLike_optionalReturnAndThrow() {
+	TypeCheckTestCase_TypeTestBuilder_NewTest().AddSource(`// Object with only next() satisfies IteratorLike record
+var /** !IteratorLike<number> */ it1 = {
+  next: function() { return {done: true, value: 1}; }
+};
+// Object with next(), return(), and throw() satisfies IteratorLike record
+var /** !IteratorLike<number> */ it2 = {
+  next: function() { return {done: true, value: 1}; },
+  return: function(opt_val) { return {done: true, value: 1}; },
+  throw: function(opt_err) { return {done: true, value: 1}; }
+};
+// Calling return() on IteratorLike is permitted without cast
+function close(/** !IteratorLike<number> */ it) {
+  if (it.return) {
+    var /** !IIterableResult<number> */ res = it.return();
+  }
+}
+`).
+		IncludeDefaultExterns().
+		Run()
+}
+
+// Java: TypeCheckTest.testIterator_returnMethod()
+func (c *TypeCheckTest) TestIterator_returnMethod() {
+	TypeCheckTestCase_TypeTestBuilder_NewTest().AddSource(`function closeIterator(/** !Iterator<number> */ it) {
+  if (it.return) {
+    var /** !IIterableResult<number> */ res = it.return();
+    var /** !IIterableResult<number> */ res2 = it.return(42);
+  }
+}
+`).
+		IncludeDefaultExterns().
+		Run()
+}
+
+// Java: TypeCheckTest.testIterator_throwMethod()
+func (c *TypeCheckTest) TestIterator_throwMethod() {
+	TypeCheckTestCase_TypeTestBuilder_NewTest().AddSource(`function throwIterator(/** !Iterator<number> */ it) {
+  if (it.throw) {
+    var /** !IIterableResult<number> */ res = it.throw();
+    var /** !IIterableResult<number> */ res2 = it.throw(new Error('err'));
+  }
+}
 `).
 		IncludeDefaultExterns().
 		Run()
@@ -14783,7 +14958,7 @@ alert((new H).foo);
 
 // Java: TypeCheckTest.testInterfaceExtendsLoop2()
 func (c *TypeCheckTest) TestInterfaceExtendsLoop2() {
-	c.TestClosureTypes(strings.ReplaceAll(`/** @record
+	c.TestClosureTypesMultipleWarnings(strings.ReplaceAll(`/** @record
  * @extends {F} */var G = function() {};
 /** @record
  * @extends {G} */var F = function() {};
@@ -14791,7 +14966,9 @@ func (c *TypeCheckTest) TestInterfaceExtendsLoop2() {
  * @implements {F} */var H = function() {};
 SUPPRESSION
 alert((new H).foo);
-`, "SUPPRESSION", c.SuppressMissingPropertyFor("H", "foo")), jutil.StringPtr("Cycle detected in inheritance chain of type F"))
+`, "SUPPRESSION", c.SuppressMissingPropertyFor("H", "foo")), []string{
+		"Cycle detected in inheritance chain of type F",
+		"Could not resolve type in @extends tag of G"})
 }
 
 // Java: TypeCheckTest.testInheritPropFromMultipleInterfaces1()
@@ -22313,6 +22490,42 @@ class Foo {}
 const c = new Base();
 
 c.delegates(ctor => new ctor(42));
+`).
+		Run()
+}
+
+// Java: TypeCheckTest.testBug515079328_genericInTypedef()
+func (c *TypeCheckTest) TestBug515079328_genericInTypedef() {
+	TypeCheckTestCase_TypeTestBuilder_NewTest().IncludeDefaultExterns().
+		AddSourceWithFilename("internal.js", `goog.module('internal');
+/**
+ * @record
+ * @template T
+ */
+function TypeGuard() {}
+exports.TypeGuard = TypeGuard;
+`).
+		AddSourceWithFilename("guards.js", `goog.module('guards');
+const rt = goog.requireType('internal');
+/** @typedef {!rt.TypeGuard} */
+exports.TypeGuard;
+`).
+		AddSourceWithFilename("test.js", `goog.module('test');
+const {TypeGuard} = goog.require('guards');
+const guards = goog.require('guards');
+/** @type {!TypeGuard<string>} */
+const destructuringType = 1;
+
+/** @type {!guards.TypeGuard<null>} */
+const nsImportType = 1;
+`).
+		AddDiagnostic(`initializing variable
+found   : number
+required: TypeGuard<string>
+`).
+		AddDiagnostic(`initializing variable
+found   : number
+required: TypeGuard<null>
 `).
 		Run()
 }

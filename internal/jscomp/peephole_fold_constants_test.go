@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PeepholeFoldConstantsTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/PeepholeFoldConstantsTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/PeepholeFoldConstantsTest.java)
 
 /*
@@ -482,25 +482,125 @@ func (c *PeepholeFoldConstantsTest) TestBigIntNumberComparison() {
 // Java: PeepholeFoldConstantsTest.testBigIntStringComparison()
 func (c *PeepholeFoldConstantsTest) TestBigIntStringComparison() {
 	c.Test("1n < '2'", "true")
+	c.Test("1n <= '2'", "true")
+	c.Test("1n > '2'", "false")
+	c.Test("1n >= '2'", "false")
+	c.Test("1n < '1'", "false")
+	c.Test("1n <= '1'", "true")
+	c.Test("1n > '1'", "false")
+	c.Test("1n >= '1'", "true")
+	c.Test("1n == '1'", "true")
+	c.Test("1n != '1'", "false")
 	c.Test("2n > '1'", "true")
 	c.Test("123n > '34'", "true")
-	c.Test("1n == '1'", "true")
 	c.Test("1n == '2'", "false")
-	c.Test("1n != '1'", "false")
 	c.Test("1n === '1'", "false")
 	c.Test("1n !== '1'", "true")
+
+	c.Test("10n == '  10  '", "true")
+	c.Test("10n < '  20  '", "true")
+	c.Test("16n == '0x10'", "true")
+	c.Test("2n == '0b10'", "true")
+	c.Test("8n == '0o10'", "true")
+	c.Test("-1n == '-1'", "true")
+	c.Test("1n == '+1'", "true")
+
+	// Invalid BigInt strings (StringToBigInt returns undefined) evaluate to false for all
+	// relational comparisons
+	c.Test("1n < 'foo'", "false")
+	c.Test("1n > 'foo'", "false")
+	c.Test("1n <= 'foo'", "false")
+	c.Test("1n >= 'foo'", "false")
+	c.Test("1n == 'foo'", "false")
+	c.Test("1n != 'foo'", "true")
+
+	c.Test("1n < '1e2'", "false")
+	c.Test("1n > '1e2'", "false")
+	c.Test("1n <= '1e2'", "false")
+	c.Test("1n >= '1e2'", "false")
+	c.Test("1n == '1e2'", "false")
+	c.Test("1n != '1e2'", "true")
+
+	c.Test("1n < '1.5'", "false")
+	c.Test("1n > '1.5'", "false")
+	c.Test("1n <= '1.5'", "false")
+	c.Test("1n >= '1.5'", "false")
+	c.Test("1n == '1.5'", "false")
+	c.Test("1n != '1.5'", "true")
+
+	c.Test("1n < 'Infinity'", "false")
+	c.Test("1n > 'Infinity'", "false")
+	c.Test("1n <= 'Infinity'", "false")
+	c.Test("1n >= 'Infinity'", "false")
+
+	c.Test("1n < '-Infinity'", "false")
+	c.Test("1n > '-Infinity'", "false")
+	c.Test("1n <= '-Infinity'", "false")
+	c.Test("1n >= '-Infinity'", "false")
 }
 
 // Java: PeepholeFoldConstantsTest.testStringBigIntComparison()
 func (c *PeepholeFoldConstantsTest) TestStringBigIntComparison() {
-	c.Test("'1' < 2n", "true")
+	c.Test("'2' < 1n", "false")
+	c.Test("'2' <= 1n", "false")
 	c.Test("'2' > 1n", "true")
-	c.Test("'123' > 34n", "true")
+	c.Test("'2' >= 1n", "true")
+	c.Test("'1' < 1n", "false")
+	c.Test("'1' <= 1n", "true")
+	c.Test("'1' > 1n", "false")
+	c.Test("'1' >= 1n", "true")
 	c.Test("'1' == 1n", "true")
-	c.Test("'1' == 2n", "false")
 	c.Test("'1' != 1n", "false")
+	c.Test("'1' < 2n", "true")
+	c.Test("'123' > 34n", "true")
+	c.Test("'1' == 2n", "false")
 	c.Test("'1' === 1n", "false")
 	c.Test("'1' !== 1n", "true")
+
+	c.Test("'  10  ' == 10n", "true")
+	c.Test("'  20  ' > 10n", "true")
+	c.Test("'0x10' == 16n", "true")
+	c.Test("'0b10' == 2n", "true")
+	c.Test("'0o10' == 8n", "true")
+	c.Test("'-1' == -1n", "true")
+	c.Test("'+1' == 1n", "true")
+
+	c.Test("'foo' < 1n", "false")
+	c.Test("'foo' > 1n", "false")
+	c.Test("'foo' <= 1n", "false")
+	c.Test("'foo' >= 1n", "false")
+	c.Test("'foo' == 1n", "false")
+	c.Test("'foo' != 1n", "true")
+
+	c.Test("'1e2' < 1n", "false")
+	c.Test("'1e2' > 1n", "false")
+	c.Test("'1e2' <= 1n", "false")
+	c.Test("'1e2' >= 1n", "false")
+
+	c.Test("'1.5' < 1n", "false")
+	c.Test("'1.5' > 1n", "false")
+	c.Test("'1.5' <= 1n", "false")
+	c.Test("'1.5' >= 1n", "false")
+}
+
+// Java: PeepholeFoldConstantsTest.testBigIntEqualityWithNullOrUndefined()
+func (c *PeepholeFoldConstantsTest) TestBigIntEqualityWithNullOrUndefined() {
+	c.Test("null == 1n", "false")
+	c.Test("undefined == 1n", "false")
+	c.Test("1n == null", "false")
+	c.Test("1n == undefined", "false")
+	c.Test("null != 1n", "true")
+	c.Test("undefined != 1n", "true")
+	c.Test("1n != null", "true")
+	c.Test("1n != undefined", "true")
+}
+
+// Java: PeepholeFoldConstantsTest.testBigIntEqualityWithVariables()
+func (c *PeepholeFoldConstantsTest) TestBigIntEqualityWithVariables() {
+	c.TestSame("x == 1n")
+	c.TestSame("1n == y")
+	c.TestSame("x != 1n")
+	c.TestSame("1n != y")
 }
 
 // Java: PeepholeFoldConstantsTest.testNaNComparison()
@@ -713,6 +813,156 @@ func (c *PeepholeFoldConstantsTest) TestFoldOptChain() {
 	// potential optimization
 	c.TestSame("x = undefined?.y")
 	// `x = void 0;`
+}
+
+// Java: PeepholeFoldConstantsTest.testFoldOptChain_nonNullReceiver()
+func (c *PeepholeFoldConstantsTest) TestFoldOptChain_nonNullReceiver() {
+	// Constant folding on literals with optional chaining
+	c.Test("x = 'hello'?.length", "x = 5")
+	c.Test("x = ''?.length", "x = 0")
+	c.Test("x = [1, 2, 3]?.length", "x = 3")
+	c.Test("x = []?.length", "x = 0")
+	c.Test("x = ([10, 20])?.[0]", "x = 10")
+	c.Test("x = ([10, 20])?.[1]", "x = 20")
+	c.Test("x = 'abcdef'?.[1]", "x = 'b'")
+	c.Test("x = ({a: 1})?.a", "x = 1")
+	c.Test("x = ({a: 1})?.['a']", "x = 1")
+
+	// Guard cases / unknown receivers must remain untouched
+	c.TestSame("x = str?.length")
+	c.TestSame("x = arr?.length")
+	c.TestSame("x = obj?.a")
+	c.TestSame("x = obj?.[key]")
+	c.TestSame("x = fn?.(arg)")
+	c.TestSame("x = [foo()]?.length") // side-effecting array
+}
+
+// Java: PeepholeFoldConstantsTest.testFoldOptChain_nullishReceiver()
+func (c *PeepholeFoldConstantsTest) TestFoldOptChain_nullishReceiver() {
+	// Current compiler behavior in PeepholeFoldConstants (unfolded / preserved)
+	c.TestSame("x = null?.y")
+	c.TestSame("x = undefined?.y")
+	c.TestSame("x = (void 0)?.y")
+	c.TestSame("x = null?.[0]")
+	c.TestSame("x = undefined?.[foo()]")
+	c.TestSame("x = null?.(foo())")
+	c.TestSame("x = (foo(), null)?.y")
+}
+
+// Java: PeepholeFoldConstantsTest.testFoldNullishCoalesce_advanced()
+func (c *PeepholeFoldConstantsTest) TestFoldNullishCoalesce_advanced() {
+	// Basic nullish LHS folding
+	c.Test("null ?? 1", "1")
+	c.Test("undefined ?? false", "false")
+	c.Test("(void 0) ?? 'default'", "'default'")
+	c.Test("(a(), null) ?? 1", "(a(), null, 1)")
+
+	// Non-nullish LHS folding
+	c.Test("x = false ?? x", "x = false")
+	c.Test("x = true ?? x", "x = true")
+	c.Test("x = 0 ?? x", "x = 0")
+	c.Test("x = '' ?? x", "x = ''")
+	c.Test("x = 'hello' ?? x", "x = 'hello'")
+	c.Test("x = 3 ?? x", "x = 3")
+	c.Test("x = [1, 2] ?? x", "x = [1, 2]")
+	c.Test("x = ({a: 1}) ?? x", "x = ({a: 1})")
+	c.Test("x = [foo()] ?? x", "x = [foo()]")
+
+	// Guard cases: RHS cannot be folded if LHS is unknown
+	c.TestSame("a = x ?? true")
+	c.TestSame("a = x ?? false")
+	c.TestSame("a = x ?? 3")
+	c.TestSame("a = x ?? null")
+	c.TestSame("a = (foo() ? null : 1) ?? 2")
+}
+
+// Java: PeepholeFoldConstantsTest.testFoldLogicalAssignments()
+func (c *PeepholeFoldConstantsTest) TestFoldLogicalAssignments() {
+	// Under normalization, logical assignments normalize to short-circuiting conditional assigns
+	c.TestSame("x || (x = y)")
+	c.TestSame("x && (x = y)")
+	c.TestSame("x ?? (x = y)")
+	c.TestSame("x || (x = false)")
+	c.TestSame("x && (x = true)")
+	c.TestSame("x ?? (x = null)")
+	c.TestSame("obj[foo()] || (obj[foo()] = y)")
+}
+
+// Java: PeepholeFoldConstantsTest.testBatchC_templateLiteralsAndSpread()
+func (c *PeepholeFoldConstantsTest) TestBatchC_templateLiteralsAndSpread() {
+	// OPP-012: Template literal substitutions and guards
+	c.Test("`a${'b'}c`", "`abc`")
+	c.Test("`a${123}c`", "`a123c`")
+	c.Test("`a${true}c`", "`atruec`")
+	c.Test("`a${false}c`", "`afalsec`")
+	c.Test("`${''}a${''}`", "`a`")
+	c.TestSame("tag`a${'b'}c`")
+	c.TestSame("`a${foo()}c`")
+	c.TestSame("`a${x}c`")
+	c.TestSame("`$${''}{`")
+
+	// OPP-013: Object spread constant flattening and guards
+	c.Test("x = {...{}}", "x = {}")
+	c.Test("x = {a, ...{}, b}", "x = {a, b}")
+	c.Test("x = {...{a, b}, c, ...{d, e}}", "x = {a, b, c, d, e}")
+	c.Test("x = {...{...{a}, b}, c}", "x = {a, b, c}")
+	c.TestSame("x = {...obj}")
+	c.TestSame("x = {...foo()}")
+	c.TestSame("x = {...{get a() { return 1; }}}")
+	c.TestSame("x = {...{set a(v) { }}}")
+
+	// OPP-014: Array spread constant flattening and guards
+	c.Test("x = [...[]]", "x = []")
+	c.Test("x = [0, ...[], 1]", "x = [0, 1]")
+	c.Test("x = [...[0, 1], 2, ...[3, 4]]", "x = [0, 1, 2, 3, 4]")
+	c.Test("x = [...[...[0], 1], 2]", "x = [0, 1, 2]")
+	c.Test("foo(...[0], 1)", "foo(0, 1)")
+	c.Test("foo([...[...[0], 1], 2])", "foo([0, 1, 2])")
+	c.TestSame("x = [...iter]")
+	c.TestSame("foo(...iter)")
+	c.TestSame("x = [...{}]")
+	c.TestSame("x = {...[]}")
+}
+
+// Java: PeepholeFoldConstantsTest.testBatchE_arithmeticNeutralElements()
+func (c *PeepholeFoldConstantsTest) TestBatchE_arithmeticNeutralElements() {
+	// OPP-020: Arithmetic Neutral Elements & Strength Reductions
+	// Literal double negation
+	c.Test("x = -(-4)", "x = 4")
+	c.Test("x = -(-4n)", "x = 4n")
+
+	// Guard cases: expressions that must not fold or are preserved
+	c.TestSame("x = foo() ** 0")     // side-effectful base
+	c.TestSame("x = bigIntVal ** 1") // cannot mix BigInt with number 1
+	c.TestSame("x = (a + b) ** 1")   // non-constant exponentiation
+	c.TestSame("x = (a + b) ** 0")
+	c.TestSame("x = -(-(a + b))")
+	c.TestSame("x = a % 1")
+}
+
+// Java: PeepholeFoldConstantsTest.testBatchE_bitwiseNeutralAndAbsorptionIdentities()
+func (c *PeepholeFoldConstantsTest) TestBatchE_bitwiseNeutralAndAbsorptionIdentities() {
+	// OPP-021: Bitwise Neutral, Idempotent & Absorption Identities
+	// Fold constant bitwise operations
+	c.Test("x = 1.5 | 0", "x = 1")
+	c.Test("x = 4294967295 | 0", "x = -1")
+	c.Test("x = -1 & 0", "x = 0")
+	c.Test("x = 0 & -1", "x = 0")
+	c.Test("x = ~0", "x = -1")
+	c.Test("x = ~-7", "x = 6")
+
+	// Guard cases: non-constant / side-effectful expressions
+	c.TestSame("x = foo() ^ foo()") // side effects cannot be dropped
+	c.TestSame("x = foo() & 0")     // side effects cannot be dropped
+	c.TestSame("x = (a | b) | 0")
+	c.TestSame("x = (a & b) & -1")
+	c.TestSame("x = (a ^ b) ^ 0")
+	c.TestSame("x = (a >> b) >> 0")
+	c.TestSame("x = (a >>> b) >>> 0")
+	c.TestSame("x = ~~ (a | b)")
+	c.TestSame("x = (a + b) ^ (a + b)")
+	c.TestSame("x = (a + b) & 0")
+	c.TestSame("x = y | 0")
 }
 
 // Java: PeepholeFoldConstantsTest.testFoldBitwiseOp()
@@ -1259,15 +1509,24 @@ func (c *PeepholeFoldConstantsTest) TestFoldGetElem1() {
 	// Running on just changed code results in an exception on only the first invocation. Don't
 	// repeat because it confuses the exception verification.
 	c.numRepetitions = 1
+
 	c.Test("x = [,10][0]", "x = void 0")
 	c.Test("x = [10, 20][0]", "x = 10")
 	c.Test("x = [10, 20][1]", "x = 20")
+
 	c.TestSame("x = [10, 20][0.5]", PeepholeFoldConstants_INVALID_GETELEM_INDEX_ERROR)
 	c.Test("x = [10, 20][-1]", "x = void 0;")
 	c.Test("x = [10, 20][2]", "x = void 0;")
+
+	// TODO(b/538156673): Fix PeepholeFoldConstants to not fold out-of-bounds GETELEM on arrays with
+	// side-effect elements
 	c.TestSame("x = [foo(), 0][1]")
 	c.Test("x = [0, foo()][1]", "x = foo()")
 	c.TestSame("x = [0, foo()][0]")
+	c.TestSame("x = [foo(), 0][-1]")
+	c.TestSame("x = [0, foo()][-1]")
+	c.TestSame("x = [foo(), 0][2]")
+	c.TestSame("x = [0, foo()][2]")
 	c.TestSame("for([1][0] in {});")
 }
 
@@ -1278,12 +1537,18 @@ func (c *PeepholeFoldConstantsTest) TestFoldOptChainGetElem1() {
 	c.Test("x = [,10]?.[0]", "x = void 0")
 	c.Test("x = [10, 20]?.[0]", "x = 10")
 	c.Test("x = [10, 20]?.[1]", "x = 20")
+
 	c.TestSame("x = [10, 20]?.[0.5]", PeepholeFoldConstants_INVALID_GETELEM_INDEX_ERROR)
 	c.Test("x = [10, 20]?.[-1]", "x = void 0;")
 	c.Test("x = [10, 20]?.[2]", "x = void 0;")
+
 	c.TestSame("x = [foo(), 0]?.[1]")
 	c.Test("x = [0, foo()]?.[1]", "x = foo()")
 	c.TestSame("x = [0, foo()]?.[0]")
+	c.TestSame("x = [foo(), 0]?.[-1]")
+	c.TestSame("x = [0, foo()]?.[-1]")
+	c.TestSame("x = [foo(), 0]?.[2]")
+	c.TestSame("x = [0, foo()]?.[2]")
 }
 
 // Java: PeepholeFoldConstantsTest.testFoldGetElem2()
@@ -1357,14 +1622,17 @@ func (c *PeepholeFoldConstantsTest) TestFoldArraySpread() {
 	c.Test("x = [...[...[0], 1], 2]", "x = [0, 1, 2]")
 	c.TestSame("[...[x]] = arr")
 	c.Test("foo([...[...[0], 1], 2])", "foo([0, 1, 2])")
+	c.TestSame("x = [1, ...[,], 2];")
+	c.TestSame("x = [0, ...[,,], 3];")
+	c.TestSame("x = [...[,]];")
 }
 
 // Java: PeepholeFoldConstantsTest.testFoldArrayLitSpreadInArg()
 func (c *PeepholeFoldConstantsTest) TestFoldArrayLitSpreadInArg() {
 	c.Test("foo(...[0], 1)", "foo(0, 1)")
+	c.TestSame("foo(...[,]);")
 	c.TestSame("foo(...[,,,,\"foo\"], 1)")
-	c.TestSame("foo(...(false ? [0] : [1]))")
-	// other opts need to fold the ternery first
+	c.TestSame("foo(...(false ? [0] : [1]))") // other opts need to fold the ternery first
 }
 
 // Java: PeepholeFoldConstantsTest.testFoldObjectLitSpreadGetProp()
@@ -1455,11 +1723,22 @@ func (c *PeepholeFoldConstantsTest) TestFoldArrayLength() {
 	c.Test("x = [].length", "x = 0")
 	c.Test("x = [1,2,3].length", "x = 3")
 	c.Test("x = [a,b].length", "x = 2")
+
 	// Not handled yet
 	c.Test("x = [,,1].length", "x = 3")
+
 	// Cannot fold
 	c.Test("x = [foo(), 0].length", "x = [foo(),0].length")
 	c.TestSame("x = y.length")
+	c.TestSame("[1, 2].length = 0;")
+	c.Test("[1, 2].length >>= 1;", "[1, 2].length = 1;")
+	c.TestSame("[1, 2].length++;")
+	c.TestSame("++[1, 2].length;")
+	c.TestSame("[1, 2].length--;")
+	c.TestSame("--[1, 2].length;")
+	c.TestSame("x = [...'abc'].length")
+	c.TestSame("x = [1, ...'ab', 3].length")
+	c.TestSame("x = [...`abc`].length")
 }
 
 // Java: PeepholeFoldConstantsTest.testFoldStringLength()
@@ -1467,8 +1746,17 @@ func (c *PeepholeFoldConstantsTest) TestFoldStringLength() {
 	// Can fold basic strings.
 	c.Test("x = ''.length", "x = 0")
 	c.Test("x = '123'.length", "x = 3")
+
 	// Test Unicode escapes are accounted for.
 	c.Test("x = '123\u01dc'.length", "x = 4")
+
+	// Cannot fold when length is an lvalue
+	c.TestSame("\"a\".length = 1;")
+	c.Test("\"a\".length >>= 1;", "\"a\".length = 0;")
+	c.TestSame("\"a\".length++;")
+	c.TestSame("++\"a\".length;")
+	c.TestSame("\"a\".length--;")
+	c.TestSame("--\"a\".length;")
 }
 
 // Java: PeepholeFoldConstantsTest.testFoldTypeof()
@@ -1505,15 +1793,30 @@ func (c *PeepholeFoldConstantsTest) TestFoldInstanceOf() {
 	c.Test("undefined instanceof Object", "false")
 	c.Test("NaN instanceof Object", "false")
 	c.Test("Infinity instanceof Object", "false")
+
+	// Untagged template literals always evaluate to strings.
+	c.Test("`` instanceof Object", "false")
+	c.Test("`${[]}` instanceof Object", "false")
+	c.Test("`${function(){}}` instanceof Object", "false")
+	// Back off when substitutions have side-effects.
+	c.TestSame("`${(console.log(0), [])}` instanceof Object")
+
+	// Tagged template literals may evaluate to a non-string, though. Would require type information
+	// to fold.
+	c.TestSame("tag`${function(){}}` instanceof Object")
+
 	// Array and object literals are known to be objects.
 	c.Test("[] instanceof Object", "true")
 	c.Test("({}) instanceof Object", "true")
+
 	// These cases is foldable, but no handled currently.
 	c.TestSame("new Foo() instanceof Object")
 	// These would require type information to fold.
 	c.TestSame("[] instanceof Foo")
 	c.TestSame("({}) instanceof Foo")
+
 	c.Test("(function() {}) instanceof Object", "true")
+
 	// An unknown value should never be folded.
 	c.TestSame("x instanceof Foo")
 }
@@ -1537,6 +1840,7 @@ func (c *PeepholeFoldConstantsTest) TestAssignOpsLate() {
 	c.Test("x=y*x", "x*=y")
 	c.Test("x.y=x.y+z", "x.y+=z")
 	c.TestSame("next().x = next().x + 1")
+
 	c.Test("x=x-y", "x-=y")
 	c.TestSame("x=y-x")
 	c.Test("x=x|y", "x|=y")
@@ -1545,6 +1849,17 @@ func (c *PeepholeFoldConstantsTest) TestAssignOpsLate() {
 	c.TestSame("x=x&&y&&z")
 	c.Test("x=x*y", "x*=y")
 	c.Test("x=y*x", "x*=y")
+	c.TestSame("x=foo()*x")
+	c.TestSame("x=(x=5)*x")
+	c.TestSame("x=(y++)*x")
+	c.TestSame("x=foo()|x")
+	c.TestSame("x=foo()&x")
+	c.TestSame("x=foo()^x")
+	c.Test("x=x*foo()", "x*=foo()")
+	c.Test("x=x|foo()", "x|=foo()")
+	c.Test("x=x&foo()", "x&=foo()")
+	c.Test("x=x^foo()", "x^=foo()")
+	c.Test("x=x+foo()", "x+=foo()")
 	c.Test("x=x**y", "x**=y")
 	c.TestSame("x=y**x")
 	c.Test("x.y=x.y+z", "x.y+=z")
@@ -1588,6 +1903,8 @@ func (c *PeepholeFoldConstantsTest) TestUnfoldAssignOpsLate() {
 	c.TestSame("x*=y")
 	c.TestSame("x**=y")
 	c.TestSame("x.y+=z")
+	c.TestSame("\"a\".length >>= 1;")
+	c.TestSame("[1, 2].length >>= 1;")
 }
 
 // Java: PeepholeFoldConstantsTest.testUnfoldAssignOpsEarly()
@@ -1781,63 +2098,84 @@ func (c *PeepholeFoldConstantsTest) TestFoldObjectLiteralRef1() {
 	c.TestSame("var x = ({a:foo(),b:bar()}).a")
 	c.TestSame("var x = ({a:1,b:bar()}).a")
 	c.TestSame("function f() { return {b:foo(), a:2}.a; }")
+
 	// on the LHS the object act as a temporary leave it in place.
 	c.TestSame("({a:x}).a = 1")
 	c.Test("({a:x}).a += 1", "({a:x}).a = x + 1")
 	c.TestSame("({a:x}).a ++")
 	c.TestSame("({a:x}).a --")
+
 	// Getters should not be inlined.
 	c.TestSame("({get a() {return this}}).a")
 	c.TestSame("({get a() {return this}})?.a")
+
 	// Except, if we can see that the getter function never references 'this'.
 	c.Test("({get a() {return 0}}).a", "(function() {return 0})()")
 	c.Test("({get a() {return 0}})?.a", "(function() {return 0})()")
 	c.Test("({get a() {return 0}})?.a.b", "(function() {return 0})().b")
+
 	// It's okay to inline functions, as long as they're not immediately called.
 	// (For tests where they are immediately called, see testFoldObjectLiteral_X)
 	c.Test("({a:function(){return this}}).a", "(function(){return this})")
 	c.Test("({a:function(){return this}})?.a", "(function(){return this})")
+
 	// It's also okay to inline functions that are immediately called, so long as we know for
 	// sure the function doesn't reference 'this'.
 	c.Test("({a:function(){return 0}}).a()", "(function(){return 0})()")
 	c.Test("({a:function(){return 0}})?.a()", "(function(){return 0})()")
 	c.Test("({a:function(){return 0}})?.a().b", "(function(){return 0})().b")
+
 	// Don't inline setters.
 	c.TestSame("({set a(b) {return this}}).a")
 	c.TestSame("({set a(b) {this._a = b}}).a")
+
 	// Don't inline if there are side-effects.
 	c.TestSame("({[foo()]: 1,   a: 0}).a")
 	c.TestSame("({['x']: foo(), a: 0}).a")
 	c.TestSame("({x: foo(),     a: 0}).a")
+
 	// Leave unknown props alone, the might be on the prototype
 	c.TestSame("({}).a")
+
 	// setters by themselves don't provide a definition
 	c.TestSame("({}).a")
 	c.TestSame("({set a(b) {}}).a")
 	// sets don't hide other definitions.
 	c.Test("({a:1,set a(b) {}}).a", "1")
+
 	// get is transformed to a call (gets don't have self referential names)
 	c.Test("({get a() {}}).a", "(function (){})()")
 	// sets don't hide other definitions.
 	c.Test("({get a() {},set a(b) {}}).a", "(function (){})()")
+
 	// a function remains a function not a call.
 	c.Test("var x = ({a:function(){return 1}}).a", "var x = function(){return 1}")
+
 	c.Test("var x = ({a:1}).a", "var x = 1")
 	c.Test("var x = ({a:1, a:2}).a", "var x = 2")
 	c.Test("var x = ({a:1, a:foo()}).a", "var x = foo()")
 	c.Test("var x = ({a:foo()}).a", "var x = foo()")
+
 	c.Test("function f() { return {a:1, b:2}.a; }", "function f() { return 1; }")
+
 	// GETELEM is handled the same way.
 	c.Test("var x = ({'a':1})['a']", "var x = 1")
+
 	// try folding string computed properties
 	c.Test("var a = {['a']:x}['a']", "var a = x")
 	c.Test("var a = {['a']:x}?.['a']", "var a = x")
 	c.Test("var a = {['a']:x}?.['a'].b", "var a = x.b")
+	c.Test("var a = {a: {b: 1}}?.a?.b", "var a = 1")
+	c.Test("var a = {a: null}?.a?.b", "var a = null?.b")
+	c.Test("var a = {['a']: {b: 1}}?.['a']?.b", "var a = 1")
+	c.Test("var a = {['a']: null}?.['a']?.b", "var a = null?.b")
+
 	c.Test("var a = { get ['a']() { return 1; }}['a']", "var a = function() { return 1; }();")
 	c.Test("var a = {'a': x, ['a']: y}['a']", "var a = y;")
 	c.TestSame("var a = {['foo']: x}.a;")
 	// Note: it may be useful to fold symbols in the future.
 	c.TestSame("var y = Symbol(); var a = {[y]: 3}[y];")
+
 	// We can fold member functions sometimes.
 	//
 	// <p>Even though they're different from fn expressions and arrow fns, extracting them only
@@ -1850,6 +2188,18 @@ func (c *PeepholeFoldConstantsTest) TestFoldObjectLiteralRef1() {
 	c.Test("var x = {a: 1, a() { 2; }}.a;", "var x = function() { 2; };")
 	c.Test("var x = {a() {}, a: 1}.a;", "var x = 1;")
 	c.TestSame("var x = {a() {}}.b")
+	// Don't fold non-computed setters.
+	c.TestSame("var x = ({ set a(v) { sideEffect() } }).a;")
+	// Don't fold computed setters.
+	c.TestSame("var x = ({ set ['a'](v) { sideEffect() } }).a;")
+	// Fold computed getters.
+	c.Test("var x = ({ get ['a']() { return 1; } }).a;", "var x = function() { return 1; }();")
+	c.Test(
+		"var x = ({ get ['a']() { return 1; }, set ['a'](v) {} }).a;",
+		"var x = function() { return 1; }();")
+	c.Test(
+		"var x = ({ set ['a'](v) {}, get ['a']() { return 1; } }).a;",
+		"var x = function() { return 1; }();")
 }
 
 // Java: PeepholeFoldConstantsTest.testFoldObjectLiteralRef2()
@@ -2132,6 +2482,7 @@ func (c *PeepholeFoldConstantsTest) TestTemplateLiteralConcat() {
 	c.Test(
 		"const a = `${x}${y}` + `${x}${y}`;\n",
 		"const a = `${x}${y}${x}${y}`;\n")
+
 	// join at variable and string
 	c.Test(
 		"const a = `${x}` + `a${x}`;\n",
@@ -2139,6 +2490,7 @@ func (c *PeepholeFoldConstantsTest) TestTemplateLiteralConcat() {
 	c.Test(
 		"const a = `${x}` + ` ${x}`;\n",
 		"const a =`${x} ${x}`;\n")
+
 	// join at string and variable
 	c.Test(
 		"const a = `a${x}b` + `${x}c`;\n",
@@ -2146,12 +2498,14 @@ func (c *PeepholeFoldConstantsTest) TestTemplateLiteralConcat() {
 	c.Test(
 		"const a = `a${x} ` + `${x}b`;\n",
 		"const a = `a${x} ${x}b`;\n")
+
 	// join at strings
 	c.Test(
 		"const x = 'X';\n"+
 			"console.log(`a${x}b` + `c${x}d`);\n",
 		"const x = 'X';\n"+
 			"console.log(`a${x}bc${x}d`);\n")
+
 	// complex joins
 	c.Test(
 		"const a = `${foo() + bar()}` + `${baz()}`;\n",
@@ -2162,11 +2516,17 @@ func (c *PeepholeFoldConstantsTest) TestTemplateLiteralConcat() {
 	c.Test(
 		"console.log(`${(() => {return url;})()}</h1>` + `<p>The URL is ${url}.</p>`);\n",
 		"console.log(`${(() => {return url;})()}</h1><p>The URL is ${url}.</p>`);\n")
+
 	// don't fold tagged template literals
 	c.TestSame(
 		"const a = foo`${b}` + `${b}`;\n")
 	c.TestSame(
 		"const a = foo`${b}` + bar`${b}`;\n")
+	// don't fold when raw strings meet at unescaped $ and {
+	c.TestSame("`${x}$` + `{y}${z}`")
+	c.TestSame("`${x}$` + `{y}`")
+	c.Test("`${x}\\$` + `{y}`", "`${x}\\${y}`")
+	c.TestSame("`${x}\\\\$` + `{y}`")
 }
 
 // Java: PeepholeFoldConstantsTest.testFoldTemplateLiteralSubstitutions()
@@ -2178,29 +2538,34 @@ func (c *PeepholeFoldConstantsTest) TestFoldTemplateLiteralSubstitutions() {
 	// Boolean substitution
 	c.Test("`a${true}c`", "`atruec`")
 	c.Test("`a${false}c`", "`afalsec`")
+
 	// Multiple substitutions
 	c.Test("`a${'b'}c${'d'}e`", "`abcde`")
 	// Adjacent substitutions
 	c.Test("`${'a'}${'b'}`", "`ab`")
 	// Empty strings
 	c.Test("`${''}a${''}`", "`a`")
+
 	// Corner cases where it should NOT fold
 	c.TestSame("`a${'`'}c`")
 	c.TestSame("`a${'$'}c`")
 	c.TestSame("`a${'\\\\'}c`")
 	c.TestSame("`a${'\\\\n'}c`")
 	c.TestSame("`a${'\\\\r'}c`")
-	c.TestSame("`${x} ${'$'}${'{'}`")
-	// specifically tests that $ and { are not folded together
+	c.TestSame("`${x} ${'$'}${'{'}`") // specifically tests that $ and { are not folded together
 	c.Test("`$${''}{${''}`", "`$${''}{`")
+	c.TestSame("`$${''}{foo}`")
+	c.Test("`\\$${''}{foo}`", "`\\${foo}`")
 	// These should not fold because \0 followed by a digit is a syntax error in untagged templates.
 	c.TestSame("`\\0${'77'}`")
 	c.TestSame("`\\0${77}`")
 	c.Test("`\\0${'a'}`", "`\\0a` ")
 	c.Test("`\\\\0${'7'}`", "`\\\\07` ")
 	c.Test("`\\0${''}${'7'}`", "`\\0${'7'}`")
+
 	// Tagged template literals should NOT fold
 	c.TestSame("tag`a${'b'}c`")
+
 	// Non-constant substitutions should NOT fold
 	c.TestSame("`a${x}c`")
 	c.TestSame("`a${foo()}c`")
@@ -2397,4 +2762,19 @@ func (c *PeepholeFoldConstantsTest) PrintHelper(js string, runProcessor bool) st
 		c.GetProcessor(compiler).Process(externsRoot, mainRoot)
 	}
 	return compiler.ToSourceOfNode(mainRoot)
+}
+
+// Java: PeepholeFoldConstantsTest.testFoldOptChain_nonNullReceiver_chainContinues()
+func (c *PeepholeFoldConstantsTest) TestFoldOptChain_nonNullReceiver_chainContinues() {
+	// TODO(b/571220152): folding an opt-chain segment start orphans the continuation
+	e := AssertThrows[jutil.IRuntimeException](func() { c.TestSame("x = [1, 2, 3]?.length.toString()") })
+	// Throwables.getRootCause(e)
+	var root jutil.Throwable = e
+	for root.GetCause() != nil && root.GetCause() != root {
+		root = root.GetCause()
+	}
+	_, isIllegalState := root.(jutil.IIllegalStateException)
+	AssertThat(isIllegalState).IsTrue()
+	AssertThat(root.GetMessage()).
+		Contains("Start of optional chain node OPTCHAIN_GETPROP is not marked as the start")
 }

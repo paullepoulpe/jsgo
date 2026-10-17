@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PeepholeCollectPropertyAssignments.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/PeepholeCollectPropertyAssignments.java @ closure-compiler v20261015
 
 /*
  * Copyright 2011 The Closure Compiler Authors.
@@ -22,6 +22,7 @@ import (
 	"math"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -213,6 +214,12 @@ func PeepholeCollectPropertyAssignments_CollectArrayProperty(arrayLiteral *rhino
 	if maxIndexAssigned+4 < index {
 		return false
 	}
+	// If the array literal contains a spread element, its runtime length and element
+	// offsets are unknown, so subsequent indexed property assignments cannot safely
+	// be appended to or folded into the literal.
+	if PeepholeCollectPropertyAssignments_ArrayLiteralHasSpread(arrayLiteral) {
+		return false
+	}
 	if index > maxIndexAssigned {
 		for maxIndexAssigned < index-1 {
 			// Pad the array if it is sparse.
@@ -235,6 +242,24 @@ func PeepholeCollectPropertyAssignments_CollectArrayProperty(arrayLiteral *rhino
 
 	propertyCandidate.Detach()
 	return true
+}
+
+// Java: PeepholeCollectPropertyAssignments.arrayLiteralHasSpread(Node)
+func PeepholeCollectPropertyAssignments_ArrayLiteralHasSpread(arrayLiteral *rhino.Node) bool {
+	script := NodeUtil_GetEnclosingScript(arrayLiteral)
+	var scriptFeatures *parser.FeatureSet
+	if script != nil {
+		scriptFeatures = NodeUtil_GetFeatureSetOfScript(script)
+	}
+	if scriptFeatures != nil && !scriptFeatures.Has(parser.FeatureSet_Feature_SPREAD_EXPRESSIONS) {
+		return false
+	}
+	for child := arrayLiteral.GetFirstChild(); child != nil; child = child.GetNext() {
+		if child.IsSpread() {
+			return true
+		}
+	}
+	return false
 }
 
 // Java: PeepholeCollectPropertyAssignments.collectObjectProperty(Node, Node)

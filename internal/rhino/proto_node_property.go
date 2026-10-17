@@ -1,6 +1,8 @@
 // Generated from the protobuf enum com.google.javascript.jscomp.serialization.NodeProperty
 // in the pinned closure-compiler.jar (v20260415) with `javap -c`: constant names,
-// ordinals and proto numbers are copied from its static initializer.
+// ordinals and proto numbers are copied from its static initializer. Updated to
+// v20261015 (PRIVATE_IDENTIFIER = 51) from NodeProperty.values() and
+// getNumber() of that jar.
 //
 // Go-only: language-adapter — generated protobuf classes are a leaf package in
 // PORTING.md §2; NodeProperty is only used by rhino (Node, PropTranslator) and
@@ -60,6 +62,7 @@ const (
 	NodeProperty_MUTATES_ARGUMENTS
 	NodeProperty_THROWS
 	NodeProperty_CLOSURE_UNAWARE_SHADOW
+	NodeProperty_PRIVATE_IDENTIFIER
 	NodeProperty_UNRECOGNIZED
 )
 
@@ -108,6 +111,7 @@ const (
 	NodeProperty_MUTATES_ARGUMENTS_VALUE                        int32 = 48
 	NodeProperty_THROWS_VALUE                                   int32 = 49
 	NodeProperty_CLOSURE_UNAWARE_SHADOW_VALUE                   int32 = 50
+	NodeProperty_PRIVATE_IDENTIFIER_VALUE                       int32 = 51
 )
 
 var nodeProperty_names = [...]string{
@@ -154,6 +158,7 @@ var nodeProperty_names = [...]string{
 	"MUTATES_ARGUMENTS",
 	"THROWS",
 	"CLOSURE_UNAWARE_SHADOW",
+	"PRIVATE_IDENTIFIER",
 	"UNRECOGNIZED",
 }
 
@@ -201,6 +206,7 @@ var nodeProperty_numbers = [...]int32{
 	48, // MUTATES_ARGUMENTS
 	49, // THROWS
 	50, // CLOSURE_UNAWARE_SHADOW
+	51, // PRIVATE_IDENTIFIER
 	-1, // UNRECOGNIZED
 }
 

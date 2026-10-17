@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ProcessCommonJSModules.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/ProcessCommonJSModules.java @ closure-compiler v20261015
 
 /*
  * Copyright 2011 The Closure Compiler Authors.
@@ -1167,7 +1167,9 @@ func (f *ProcessCommonJSModules_FindImportsAndExports) ReplaceUmdPatterns() bool
 			}
 			needsRetraverse = true
 			factoryLabel :=
-				modulePath.ToModuleName() + "_factory" + compiler.GetUniqueNameIdSupplier()()
+				modulePath.ToModuleName() +
+					"_factory" +
+					compiler.GetUniqueIdSupplier().GetUniqueId(ci)
 
 			mutator :=
 				NewFunctionToBlockMutator(compiler, compiler.GetUniqueNameIdSupplier())
@@ -1201,7 +1203,9 @@ func (f *ProcessCommonJSModules_FindImportsAndExports) ReplaceUmdPatterns() bool
 				if expr.IsAssign() && expr.GetSecondChild().IsCall() {
 					call = expr.GetSecondChild()
 					assignedName =
-						jutil.StringPtr(modulePath.ToModuleName() + "_iife" + compiler.GetUniqueNameIdSupplier()())
+						jutil.StringPtr(modulePath.ToModuleName() +
+							"_iife" +
+							compiler.GetUniqueIdSupplier().GetUniqueId(ci))
 				} else if expr.IsCall() {
 					call = expr
 				}

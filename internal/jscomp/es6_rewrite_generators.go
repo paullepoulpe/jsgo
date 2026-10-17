@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Es6RewriteGenerators.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/Es6RewriteGenerators.java @ closure-compiler v20261015
 
 /*
  * Copyright 2014 The Closure Compiler Authors.
@@ -1669,14 +1669,7 @@ func (c *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationCon
 			AstFactory_Type_OfColor(colors.StandardColors_NULL_OR_VOID),
 			section.GetNumber(sourceNode)).
 			InsertBefore(sourceNode)
-		if c.nestedFinallyBlockCount == 0 {
-			sourceNode.ReplaceWith(c.CreateBreakNodeFor(sourceNode))
-		} else {
-			// If we are in a finally block, we need to detach the source node to prevent an extra
-			// break from being generated. The break is not needed because the
-			// jumpThroughFinallyBlocks call will handle the control flow.
-			sourceNode.Detach()
-		}
+		sourceNode.ReplaceWith(c.CreateBreakNodeFor(sourceNode))
 	} else {
 		// "break;" inside a loop or swtich statement:
 		// for (...) {

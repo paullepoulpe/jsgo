@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/FunctionInjector.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/FunctionInjector.java @ closure-compiler v20261015
 
 /*
  * Copyright 2008 The Closure Compiler Authors.
@@ -275,8 +275,8 @@ func (f *FunctionInjector) DoesFunctionMeetMinimumRequirements(fnName string, fn
 			return n.GetString() == "eval" ||
 				(fnName != "" && n.GetString() == fnName) ||
 				(fnRecursionName != "" && n.GetString() == fnRecursionName)
-		} else if n.IsSuper() {
-			// Don't inline if this function or its inner functions contains super
+		} else if n.IsSuper() || n.GetToken() == rhino.Token_NEW_TARGET {
+			// Don't inline if this function or its inner functions contains super or new.target
 			return true
 		}
 		return false
@@ -289,8 +289,8 @@ func (f *FunctionInjector) DoesFunctionMeetMinimumRequirements(fnName string, fn
 // inlining; needAliases a set of function parameter names that can not be
 // used without aliasing (returned by getUnsafeParameterNames());
 // referencesThis whether fnNode contains references to its this object;
-// containsFunctions whether fnNode contains inner functions. Returns whether
-// the inlining can occur.
+// containsClosures whether fnNode contains inner functions or non-static
+// class field initializers. Returns whether the inlining can occur.
 //
 // Java: FunctionInjector.canInlineReferenceToFunction(Reference, Node, ImmutableSet<String>, boolean, boolean)
 func (f *FunctionInjector) CanInlineReferenceToFunction(
@@ -298,13 +298,13 @@ func (f *FunctionInjector) CanInlineReferenceToFunction(
 	fnNode *rhino.Node,
 	needAliases *jutil.LinkedHashSet[string],
 	referencesThis bool,
-	containsFunctions bool) FunctionInjector_CanInlineResult {
+	containsClosures bool) FunctionInjector_CanInlineResult {
 	// TODO(johnlenz): This function takes too many parameter, without
 	// context.  Modify the API to take a structure describing the function.
 
 	// Allow direct function calls or "fn.call" style calls.
 	callNode := ref.GetFunctionInjector_ReferenceBase().callNode
-	if !f.IsSupportedCallType(callNode) {
+	if !f.IsSupportedCallType(callNode, fnNode) {
 		return FunctionInjector_CanInlineResult_NO
 	}
 
@@ -316,7 +316,7 @@ func (f *FunctionInjector) CanInlineReferenceToFunction(
 	// an inner function into another function can capture a variable and cause
 	// a memory leak.  This isn't a problem in the global scope as those values
 	// last until explicitly cleared.
-	if containsFunctions {
+	if containsClosures {
 		if !f.assumeMinimumCapture && !ref.GetFunctionInjector_ReferenceBase().scope.IsGlobal() {
 			// TODO(johnlenz): Allow inlining into any scope without local names or inner functions.
 			return FunctionInjector_CanInlineResult_NO
@@ -347,11 +347,11 @@ func (f *FunctionInjector) CanInlineReferenceToFunction(
 // callNode is the call evaluate. Returns whether the call is of a type that
 // is supported.
 //
-// Java: FunctionInjector.isSupportedCallType(Node)
-func (f *FunctionInjector) IsSupportedCallType(callNode *rhino.Node) bool {
+// Java: FunctionInjector.isSupportedCallType(Node, Node)
+func (f *FunctionInjector) IsSupportedCallType(callNode *rhino.Node, fnNode *rhino.Node) bool {
 	if !callNode.GetFirstChild().IsName() {
 		if NodeUtil_IsFunctionObjectCall(callNode) {
-			if !f.assumeStrictThis {
+			if !f.assumeStrictThis && !fnNode.IsArrowFunction() {
 				thisValue := callNode.GetSecondChild()
 				if thisValue == nil || !thisValue.IsThis() {
 					return false
@@ -820,7 +820,12 @@ func (f *FunctionInjector) ReferencesEval(fn *rhino.Node) bool {
 	return result
 }
 
-// InnerFunctionOf returns any inner function of containerFn.
+// InnerFunctionOf returns any inner function or non-static class field
+// initializer of containerFn.
+//
+// Non-static class field initializers are treated like inner functions
+// because they are evaluated later, once per instantiation, and may capture
+// locals.
 //
 // If there are no inner functions, or multilple inner functions, the
 // sentinel values NO_FUNCTIONS, MULTIPLE_FUNCTIONS are returned
@@ -843,7 +848,7 @@ func (f *FunctionInjector) InnerFunctionOf(containerFn *rhino.Node) *rhino.Node 
 				return
 			}
 
-			if n.IsFunction() {
+			if NodeUtil_IsFunctionOrNonStaticClassFieldInitializer(n) {
 				innerFns.Add(n)
 			}
 		}))
@@ -956,10 +961,12 @@ func (f *FunctionInjector) CanInlineReferenceDirectly(
 	if !callNode.GetFirstChild().IsName() {
 		if NodeUtil_IsFunctionObjectCall(callNode) {
 			// TODO(johnlenz): Support replace this with a value.
-			if cArg == nil || !cArg.IsThis() {
+			if !fnNode.IsArrowFunction() && (cArg == nil || !cArg.IsThis()) {
 				return FunctionInjector_CanInlineResult_NO
 			}
-			cArg = cArg.GetNext()
+			if cArg != nil {
+				cArg = cArg.GetNext()
+			}
 		} else {
 			// ".apply" call should be filtered before this.
 			jutil.CheckState(!NodeUtil_IsFunctionObjectApply(callNode))

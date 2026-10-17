@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ProcessTweaks.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/ProcessTweaks.java @ closure-compiler v20261015
 
 /*
  * Copyright 2011 The Closure Compiler Authors.
@@ -58,8 +58,6 @@ func processTweaks_ID_MATCHER_MatchesAllOf(sequence string) bool {
 }
 
 // Warnings and Errors.
-var ProcessTweaks_UNKNOWN_TWEAK_WARNING = DiagnosticType_Warning("JSC_UNKNOWN_TWEAK_WARNING", "no tweak registered with ID {0}")
-
 var ProcessTweaks_TWEAK_MULTIPLY_REGISTERED_ERROR = DiagnosticType_Error(
 	"JSC_TWEAK_MULTIPLY_REGISTERED_ERROR", "Tweak {0} has already been registered.")
 
@@ -72,10 +70,6 @@ var ProcessTweaks_INVALID_TWEAK_DEFAULT_VALUE_WARNING = DiagnosticType_Warning(
 var ProcessTweaks_NON_GLOBAL_TWEAK_INIT_ERROR = DiagnosticType_Error(
 	"JSC_NON_GLOBAL_TWEAK_INIT_ERROR",
 	"tweak declaration {0} must occur in the global scope")
-
-var ProcessTweaks_TWEAK_OVERRIDE_AFTER_REGISTERED_ERROR = DiagnosticType_Error(
-	"JSC_TWEAK_OVERRIDE_AFTER_REGISTERED_ERROR",
-	"Cannot override the default value of tweak {0} after it has been registered")
 
 var ProcessTweaks_TWEAK_WRONG_GETTER_TYPE_WARNING = DiagnosticType_Warning(
 	"JSC_TWEAK_WRONG_GETTER_TYPE_WARNING",

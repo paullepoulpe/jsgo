@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/DeadAssignmentsElimination.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/DeadAssignmentsElimination.java @ closure-compiler v20261015
 
 /*
  * Copyright 2008 The Closure Compiler Authors.
@@ -368,15 +368,19 @@ func (d *DeadAssignmentsElimination) IsVariableStillLiveWithinExpression(
 	for n != exprRoot {
 		state := DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
 		switch n.GetParent().GetToken() {
-		case rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE:
-			// If the currently node is the first child of
-			// AND/OR, be conservative only consider the READs
-			// of the second operand.
-			if n.GetNext() != nil {
-				state = d.IsVariableReadBeforeKill(n.GetNext(), variable)
-				if state == DeadAssignmentsElimination_VariableLiveness_KILL {
-					state = DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
+		case rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_OPTCHAIN_GETELEM, rhino.Token_OPTCHAIN_CALL:
+			// For short-circuiting and optional chaining operations, if the current node is the
+			// first child, subsequent siblings (the RHS or arguments) are only conditionally
+			// evaluated. Therefore, be conservative: a READ in subsequent siblings means the variable
+			// might be read, but a KILL cannot be guaranteed to occur.
+			for sibling := n.GetNext(); sibling != nil; sibling = sibling.GetNext() {
+				state = d.IsVariableReadBeforeKill(sibling, variable)
+				if state != DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE {
+					break
 				}
+			}
+			if n == n.GetParent().GetFirstChild() && state == DeadAssignmentsElimination_VariableLiveness_KILL {
+				state = DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
 			}
 		case rhino.Token_HOOK:
 			// If current node is the condition, check each following
@@ -461,7 +465,7 @@ func (d *DeadAssignmentsElimination) IsVariableReadBeforeKill(
 	}
 
 	switch n.GetToken() {
-	case rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE:
+	case rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_OPTCHAIN_GETELEM:
 		{
 			// Conditionals
 			v1 := d.IsVariableReadBeforeKill(n.GetFirstChild(), variable)
@@ -475,6 +479,23 @@ func (d *DeadAssignmentsElimination) IsVariableReadBeforeKill(
 			} else {
 				return DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
 			}
+		}
+	case rhino.Token_OPTCHAIN_CALL:
+		{
+			v1 := d.IsVariableReadBeforeKill(n.GetFirstChild(), variable)
+			if v1 != DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE {
+				return v1
+			}
+			for c := n.GetSecondChild(); c != nil; c = c.GetNext() {
+				state := d.IsVariableReadBeforeKill(c, variable)
+				if state != DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE {
+					if state == DeadAssignmentsElimination_VariableLiveness_READ {
+						return DeadAssignmentsElimination_VariableLiveness_READ
+					}
+					return DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
+				}
+			}
+			return DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
 		}
 	case rhino.Token_HOOK:
 		{

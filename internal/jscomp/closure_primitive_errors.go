@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ClosurePrimitiveErrors.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/ClosurePrimitiveErrors.java @ closure-compiler v20261015
 
 /*
  * Copyright 2018 The Closure Compiler Authors.
@@ -89,4 +89,9 @@ var (
 
 	ClosurePrimitiveErrors_INVALID_ARGUMENT_ERROR = DiagnosticType_Error(
 		"JSC_INVALID_ARGUMENT_ERROR", "method \"{0}\" called with invalid argument")
+
+	ClosurePrimitiveErrors_GOOG_MODULE_GET_OF_WEAK_MODULE = DiagnosticType_Error(
+		"JSC_GOOG_MODULE_GET_OF_WEAK_MODULE",
+		"goog.module.get of \"{0}\" references a namespace that is only imported by"+
+			" goog.requireType.")
 )

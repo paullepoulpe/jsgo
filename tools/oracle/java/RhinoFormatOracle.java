@@ -6,7 +6,7 @@
 // ported API and must reproduce internal/rhino/testdata/format_oracle.txt
 // byte for byte.
 //
-//   java -cp .cache/closure-compiler.jar:.cache/oracle-build \
+//   java -cp .cache/$CLOSURE_JAR:.cache/oracle-build \
 //       com.google.javascript.rhino.RhinoFormatOracle > internal/rhino/testdata/format_oracle.txt
 //
 // It lives in package com.google.javascript.rhino to reach package-private

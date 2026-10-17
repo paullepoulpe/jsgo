@@ -1,7 +1,7 @@
 // Oracle tool: writes random protobuf messages of the types reconstructed by
 // ProtoGoGen (serialized bytes, toString()) to
 // internal/jscomp/testdata/proto_vectors.tsv, for the Go round-trip test.
-//   java -cp .cache/closure-compiler.jar:.cache/oracle-build ProtoVectors internal/jscomp/testdata
+//   java -cp .cache/$CLOSURE_JAR:.cache/oracle-build ProtoVectors internal/jscomp/testdata
 import com.google.javascript.jscomp.ConformanceConfig;
 import com.google.javascript.jscomp.Requirement;
 import com.google.javascript.jscomp.RequirementScopeEntry;

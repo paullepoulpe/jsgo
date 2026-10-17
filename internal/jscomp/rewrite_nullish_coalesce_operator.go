@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/RewriteNullishCoalesceOperator.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/RewriteNullishCoalesceOperator.java @ closure-compiler v20261015
 
 /*
  * Copyright 2020 The Closure Compiler Authors.
@@ -26,9 +26,9 @@ import (
 // RewriteNullishCoalesceOperator replaces the ES2020 `??` operator with
 // conditional (?:).
 type RewriteNullishCoalesceOperator struct {
-	compiler            AbstractCompiler
-	astFactory          *AstFactory
-	uniqueNameIdSuppier func() string
+	compiler         AbstractCompiler
+	astFactory       *AstFactory
+	uniqueIdSupplier *UniqueIdSupplier
 }
 
 // Java: RewriteNullishCoalesceOperator.TEMP_VAR_NAME_PREFIX
@@ -39,7 +39,7 @@ func NewRewriteNullishCoalesceOperator(compiler AbstractCompiler) *RewriteNullis
 	r := &RewriteNullishCoalesceOperator{}
 	r.compiler = compiler
 	r.astFactory = compiler.CreateAstFactory()
-	r.uniqueNameIdSuppier = compiler.GetUniqueNameIdSupplier()
+	r.uniqueIdSupplier = compiler.GetUniqueIdSupplier()
 	return r
 }
 
@@ -71,7 +71,7 @@ func (r *RewriteNullishCoalesceOperator) VisitNullishCoalesce(t *NodeTraversal, 
 	// a() ?? b()
 	// let temp;
 	// ((temp = a()) != null) ? temp : b()
-	tempVarName := RewriteNullishCoalesceOperator_TEMP_VAR_NAME_PREFIX + r.uniqueNameIdSuppier()
+	tempVarName := RewriteNullishCoalesceOperator_TEMP_VAR_NAME_PREFIX + r.uniqueIdSupplier.GetUniqueId(t.GetInput())
 	enclosingStatement := NodeUtil_GetEnclosingStatement(n)
 
 	left := n.RemoveFirstChild()

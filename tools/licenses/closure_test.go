@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-const portFoo = "// Port of com/google/javascript/jscomp/Foo.java @ closure-compiler v20260415\n"
+const portFoo = "// Port of com/google/javascript/jscomp/Foo.java @ closure-compiler v20261015\n"
 
 // closureNoticeOf returns a Closure Apache 2.0 licence comment of the year.
 func closureNoticeOf(year string) string {
@@ -66,9 +66,9 @@ func mplOnlyOf(t *testing.T, notice string) string {
 func TestClosureSources(t *testing.T) {
 	header := []string{
 		portFoo,
-		"// Port of test/com/google/javascript/jscomp/FooTest.java @ closure-compiler v20260415",
-		"// Port of com/google/javascript/jscomp/FooTest.java @ closure-compiler v20260415", // same source
-		"// Port of com/google/javascript/jscomp/Foo.java @ closure-compiler v20260415",     // repeated
+		"// Port of test/com/google/javascript/jscomp/FooTest.java @ closure-compiler v20261015",
+		"// Port of com/google/javascript/jscomp/FooTest.java @ closure-compiler v20261015", // same source
+		"// Port of com/google/javascript/jscomp/Foo.java @ closure-compiler v20261015",     // repeated
 		"// (test/com/google/javascript/jscomp/BarTest.java)",                               // not a Port of line
 		"// Port of com/google/common/base/Ascii.java (Guava 33.4.6-jre)",                   // third party
 		"// Port of com/google/javascript/jscomp/js/es6_runtime.js",                         // not Java
@@ -201,7 +201,7 @@ func TestWithNotices(t *testing.T) {
 
 func TestCheckClosureNotices(t *testing.T) {
 	const body = "\npackage x\n"
-	const generatedPort = "// Port of com/google/javascript/jscomp/AutoValue_PassFactory.java @ closure-compiler v20260415\n"
+	const generatedPort = "// Port of com/google/javascript/jscomp/AutoValue_PassFactory.java @ closure-compiler v20261015\n"
 	mplOnly := mplOnlyOf(t, dualNotice)
 	mplNoOnlyLine := strings.Replace(mplOnly, "This Go translation", "This translation", 1)
 	for _, tc := range []struct {
@@ -213,11 +213,11 @@ func TestCheckClosureNotices(t *testing.T) {
 		{"third-party port", "// Port of com/google/common/base/Ascii.java (Guava 33.4.6-jre)\n\n" + guavaHeader + body, "", false},
 		{"notice present", portFoo + "\n" + apacheNotice + "\n" + body, "", true},
 		{"notice missing", portFoo + body, "ports com/google/javascript/jscomp/Foo.java but lacks its licence comment", true},
-		{"test source, missing", "// Port of test/com/google/javascript/jscomp/FooTest.java @ closure-compiler v20260415\n" + body, "ports test/com/google/javascript/jscomp/FooTest.java but lacks", true},
+		{"test source, missing", "// Port of test/com/google/javascript/jscomp/FooTest.java @ closure-compiler v20261015\n" + body, "ports test/com/google/javascript/jscomp/FooTest.java but lacks", true},
 		{"generated source only", generatedPort + body, "", true},
 		{"generated source and another", portFoo + generatedPort + body, "ports com/google/javascript/jscomp/Foo.java but", true},
-		{"MPL-only notice", "// Port of com/google/javascript/rhino/Node.java @ closure-compiler v20260415\n\n" + mplOnly + "\n" + body, "", true},
-		{"MPL notice without the MPL-only line", "// Port of com/google/javascript/rhino/Node.java @ closure-compiler v20260415\n\n" + mplNoOnlyLine + "\n" + body, "lacks its licence comment", true},
+		{"MPL-only notice", "// Port of com/google/javascript/rhino/Node.java @ closure-compiler v20261015\n\n" + mplOnly + "\n" + body, "", true},
+		{"MPL notice without the MPL-only line", "// Port of com/google/javascript/rhino/Node.java @ closure-compiler v20261015\n\n" + mplNoOnlyLine + "\n" + body, "lacks its licence comment", true},
 		{"another project's notice", portFoo + "\n" + guavaHeader + body, "lacks its licence comment", true},
 		{"notice after the package clause", portFoo + body + "\n" + apacheNotice + "\n", "lacks its licence comment", true},
 	} {
@@ -270,18 +270,23 @@ func TestJavaSourceFromCache(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	const version = "package com.google.javascript.jscomp;\nclass CommandLineRunnerVersion {}\n"
-	write(".cache/closure-src/CommandLineRunnerVersion.java", version)
-	write(".cache/closure-src/com/google/javascript/jscomp/Foo.java", "package com.google.javascript.jscomp;\nclass Foo {}\n")
-	write(".cache/closure-test-src/com/google/javascript/jscomp/FooTest.java", "package com.google.javascript.jscomp;\nclass FooTest {}\n")
+	version := "package com.google.javascript.jscomp;\nclass CommandLineRunnerVersion {\n  static final String COMPILER_VERSION = \"" + tag + "\";\n}\n"
+	write(srcDir+"/CommandLineRunnerVersion.java", version)
+	write(srcDir+"/com/google/javascript/jscomp/Foo.java", "package com.google.javascript.jscomp;\nclass Foo {}\n")
+	write(testSrcDir+"/com/google/javascript/jscomp/FooTest.java", "package com.google.javascript.jscomp;\nclass FooTest {}\n")
 	for p, want := range map[string]string{
 		"com/google/javascript/jscomp/Foo.java":                      "class Foo {}",
 		"test/com/google/javascript/jscomp/FooTest.java":             "class FooTest {}",
-		"com/google/javascript/jscomp/CommandLineRunnerVersion.java": "class CommandLineRunnerVersion {}",
+		"com/google/javascript/jscomp/CommandLineRunnerVersion.java": "class CommandLineRunnerVersion {",
 	} {
 		b, err := javaSource(p)
 		if err != nil || !strings.Contains(string(b), want) {
 			t.Errorf("javaSource(%s) = %q, %v; want the source with %q", p, b, err, want)
 		}
+	}
+	// Sources of another release are refused, not silently used.
+	write(srcDir+"/CommandLineRunnerVersion.java", strings.ReplaceAll(version, tag, "v20000101"))
+	if _, err := javaSource("com/google/javascript/jscomp/Foo.java"); err == nil || !strings.Contains(err.Error(), "another release") {
+		t.Errorf("javaSource with stale sources: err = %v, want another release", err)
 	}
 }

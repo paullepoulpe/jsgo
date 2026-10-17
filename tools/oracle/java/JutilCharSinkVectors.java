@@ -2,7 +2,7 @@
 // .write(CharSequence) over a file that already holds longer content (so that truncation shows),
 // for fixed strings (ASCII, non-ASCII, surrogate pairs, unpaired surrogates), plus the exception a
 // write into a directory and into a missing directory throws.
-//   java -cp .cache/closure-compiler.jar:.cache/oracle-build JutilCharSinkVectors internal/jutil/testdata
+//   java -cp .cache/$CLOSURE_JAR:.cache/oracle-build JutilCharSinkVectors internal/jutil/testdata
 //
 // Rows: "<input hex>\t<file bytes hex>" (input as hex UTF-16 code units, 4 digits each; "-" for
 // an empty string or empty file), and "dir\t<exception class>: <message without the temp dir>"

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/VarCheck.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/VarCheck.java @ closure-compiler v20261015
 
 /*
  * Copyright 2004 The Closure Compiler Authors.
@@ -341,6 +341,7 @@ var VarCheck_REQUIRED_SYMBOLS = jutil.NewLinkedHashSet(
 	"Float32Array",
 	"Function",
 	"Infinity",
+	"Iterator",
 	"JSCOMPILER_PRESERVE", // added by CheckSideEffects
 	"JSCompiler_renameProperty",
 	"Map",

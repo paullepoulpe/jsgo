@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ExternExportsPassTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/ExternExportsPassTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/ExternExportsPassTest.java)
 
 /*
@@ -1098,14 +1098,14 @@ func (c *ExternExportsPassTest) Test_exportGeneratorFunction() {
 
 /**
  * @param {number} a
- * @return {!Iterator<number>}
+ * @return {!IteratorLike<number>}
  */
 internalName = function *(a) { yield a; };
 goog.exportSymbol('externalName', internalName)
 `,
 		`/**
  * @param {number} a
- * @return {!Iterator<number,?,?>}
+ * @return {!IteratorLike<number,?,?>}
  */
 var externalName = function(a) {
 };

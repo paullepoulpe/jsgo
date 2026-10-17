@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/NodeTraversal.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/NodeTraversal.java @ closure-compiler v20261015
 
 /*
  * Copyright 2004 The Closure Compiler Authors.
@@ -115,6 +115,7 @@ type NodeTraversal struct {
 	scopeCallback                                  NodeTraversal_ScopedCallback
 	scopeCreator                                   ScopeCreator
 	obeyDestructuringAndDefaultValueExecutionOrder bool
+	mayContainSyntheticBlocks                      bool
 
 	// Contains the current node
 	currentNode *rhino.Node
@@ -766,6 +767,10 @@ func newNodeTraversal(builder *NodeTraversal_Builder) *NodeTraversal {
 		t.scopeCreator = builder.scopeCreator
 	}
 	t.obeyDestructuringAndDefaultValueExecutionOrder = builder.obeyDestructuringAndDefaultValueExecutionOrder
+	// TODO(johnlenz): refactor into compiler options helper.
+	options := t.compiler.GetOptions()
+	t.mayContainSyntheticBlocks =
+		options == nil || options.GetSyntheticBlockStartMarker() != nil
 	return t
 }
 
@@ -1203,6 +1208,28 @@ func (t *NodeTraversal) HandleDestructuringOrDefaultValue(n *rhino.Node, parent 
 	}
 }
 
+// CreatesBlockScope is like NodeUtil.createsBlockScope, but with a fast path
+// for isSyntheticBlock.
+//
+// Java: NodeTraversal.createsBlockScope(Node)
+func (t *NodeTraversal) CreatesBlockScope(n *rhino.Node) bool {
+	switch n.GetToken() {
+	case rhino.Token_BLOCK:
+		if t.mayContainSyntheticBlocks && n.IsSyntheticBlock() {
+			// Don't create block scope for synthetic blocks.
+			return false
+		}
+		parent := n.GetParent()
+		// Don't create block scope for switch cases or catch blocks.
+		return parent != nil && !NodeUtil_IsSwitchCase(parent) && !parent.IsCatch()
+	case rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_SWITCH_BODY,
+		rhino.Token_CLASS:
+		return true
+	default:
+		return false
+	}
+}
+
 // TraverseBranch traverses a branch.
 //
 // Java: NodeTraversal.traverseBranch(Node, Node)
@@ -1237,7 +1264,7 @@ func (t *NodeTraversal) TraverseBranch(n *rhino.Node, parent *rhino.Node) {
 		return
 	}
 
-	createsBlockScope := NodeUtil_CreatesBlockScope(n)
+	createsBlockScope := t.CreatesBlockScope(n)
 	previousHoistScopeRoot := t.currentHoistScopeRoot
 	if createsBlockScope {
 		t.PushScope(n)

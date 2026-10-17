@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/jstype/TemplatizedTypeTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/rhino/jstype/TemplatizedTypeTest.java @ closure-compiler v20261015
 
 /*
  *
@@ -239,6 +239,54 @@ func TestTemplatizedType_FindPropertyTypeOnTemplatizedType(t *testing.T) {
 
 		templatizedNumber := s.Registry.CreateTemplatizedType(rawType, s.NUMBER_TYPE)
 		s.AssertType(templatizedNumber.FindPropertyType("property")).IsEqualTo(s.NUMBER_TYPE)
+	}
+}
+
+func TestTemplatizedType_GreatestSubtypeWithSubclass(t *testing.T) {
+	s := newTemplatizedTypeTest(t)
+	closer := s.Registry.GetResolver().OpenForDefinition()
+	defer closer.Close()
+	{
+		templateT := s.Registry.CreateTemplateType("T")
+
+		baseCtor := s.Registry.CreateConstructorType(
+			ptr("Base"), nil, nil, nil, []*TemplateType{templateT}, false)
+		baseRaw := baseCtor.GetInstanceType()
+
+		subCtor := s.Registry.CreateConstructorType(
+			ptr("Sub"), nil, nil, nil, []*TemplateType{templateT}, false)
+		subCtor.SetPrototypeBasedOn(baseRaw)
+		subRaw := subCtor.GetInstanceType()
+
+		baseNumber := s.Registry.CreateTemplatizedType(baseRaw, s.NUMBER_TYPE)
+		subNumber := s.Registry.CreateTemplatizedType(subRaw, s.NUMBER_TYPE)
+
+		s.AssertType(baseNumber.GetGreatestSubtype(subNumber)).IsEqualTo(subNumber)
+		s.AssertType(subNumber.GetGreatestSubtype(baseNumber)).IsEqualTo(subNumber)
+	}
+}
+
+func TestTemplatizedType_GreatestSubtypeWithIncompatibleGenerics(t *testing.T) {
+	s := newTemplatizedTypeTest(t)
+	closer := s.Registry.GetResolver().OpenForDefinition()
+	defer closer.Close()
+	{
+		templateT := s.Registry.CreateTemplateType("T")
+
+		baseCtor := s.Registry.CreateConstructorType(
+			ptr("Base"), nil, nil, nil, []*TemplateType{templateT}, false)
+		baseRaw := baseCtor.GetInstanceType()
+
+		subCtor := s.Registry.CreateConstructorType(
+			ptr("Sub"), nil, nil, nil, []*TemplateType{templateT}, false)
+		subCtor.SetPrototypeBasedOn(baseRaw)
+		subRaw := subCtor.GetInstanceType()
+
+		baseNumber := s.Registry.CreateTemplatizedType(baseRaw, s.NUMBER_TYPE)
+		subString := s.Registry.CreateTemplatizedType(subRaw, s.STRING_TYPE)
+
+		s.AssertType(baseNumber.GetGreatestSubtype(subString)).IsEqualTo(s.NO_OBJECT_TYPE)
+		s.AssertType(subString.GetGreatestSubtype(baseNumber)).IsEqualTo(s.NO_OBJECT_TYPE)
 	}
 }
 

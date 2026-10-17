@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/AstFactory.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/AstFactory.java @ closure-compiler v20261015
 
 /*
  * Copyright 2018 The Closure Compiler Authors.
@@ -446,6 +446,13 @@ func (a *AstFactory) CreateSuper(superType AstFactory_Type) *rhino.Node {
 	return result
 }
 
+// Java: AstFactory.createNewTarget(AstFactory.Type)
+func (a *AstFactory) CreateNewTarget(newTargetType AstFactory_Type) *rhino.Node {
+	result := rhino.IR_NewTarget()
+	a.SetJSTypeOrColor(newTargetType, result)
+	return result
+}
+
 // CreateThisForEs6Class creates a THIS node with the correct type for the
 // given ES6 class node.
 //
@@ -496,6 +503,15 @@ func (a *AstFactory) GetTypeOfThisForFunctionNode(functionNode *rhino.Node) rhin
 
 // Java: AstFactory.getTypeOfThisForEs6Class(Node)
 func (a *AstFactory) GetTypeOfThisForEs6Class(functionNode *rhino.Node) AstFactory_Type {
+	// Go-only: language-adapter — the JVM's "helpful" NullPointerException
+	// message (jutil.NewHelpfulNullPointerException). An async method of an
+	// object literal that calls super has no enclosing class, so
+	// RewriteAsyncFunctions passes null here and Java dereferences it; the
+	// INTERNAL COMPILER ERROR report prints the message the JVM derives from
+	// this call. A Go nil dereference has none.
+	if functionNode == nil {
+		panic(jutil.NewHelpfulNullPointerException(`Cannot invoke "com.google.javascript.rhino.Node.isClass()" because "functionNode" is null`))
+	}
 	jutil.CheckArgumentMsg1(functionNode.IsClass(), "%s", functionNode)
 	switch a.typeMode {
 	case AstFactory_TypeMode_JSTYPE:
@@ -1572,6 +1588,15 @@ func (a *AstFactory) CreateHook(condition *rhino.Node, expr1 *rhino.Node, expr2 
 	return result
 }
 
+// CreateOptionalChainShortCircuit creates a nullish short-circuit hook
+// `receiver == null ? void 0 : resultExpr` used for optional chaining.
+//
+// Java: AstFactory.createOptionalChainShortCircuit(Node, Node)
+func (a *AstFactory) CreateOptionalChainShortCircuit(receiver *rhino.Node, resultExpr *rhino.Node) *rhino.Node {
+	cond := a.CreateEq(receiver, a.CreateNull())
+	return a.CreateHook(cond, a.CreateUndefinedValue(), resultExpr)
+}
+
 // Java: AstFactory.createArraylit(Node...)
 func (a *AstFactory) CreateArraylit(elements ...*rhino.Node) *rhino.Node {
 	return a.CreateArraylitOfIterable(slices.Values(elements))
@@ -1628,6 +1653,17 @@ func (a *AstFactory) CreateJSCompMakeIteratorCall(iterable *rhino.Node, scope rh
 	call := a.CreateCall(makeIteratorName, type_, iterable)
 	call.PutBooleanProp(rhino.Node_FREE_CALL, true)
 	return call
+}
+
+// Java: AstFactory.createJscompIteratorCloseCall(Node, Node, StaticScope)
+func (a *AstFactory) CreateJscompIteratorCloseCall(iterator *rhino.Node, iterResult *rhino.Node, scope rhino.StaticScope) *rhino.Node {
+	iteratorClose := a.runtimeJsLibManager.GetJsLibField("$jscomp.iteratorClose")
+	iteratorCloseName := a.CreateQNameOfField(scope, iteratorClose)
+	return a.CreateCall(
+		iteratorCloseName,
+		AstFactory_Type_OfJSTypeNativeAndColor(rhino.JSTypeNative_VOID_TYPE, colors.StandardColors_NULL_OR_VOID),
+		iterator,
+		iterResult)
 }
 
 // Java: AstFactory.createJscompArrayFromIteratorCall(Node, StaticScope)

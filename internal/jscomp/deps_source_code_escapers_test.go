@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/deps/SourceCodeEscapersTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/deps/SourceCodeEscapersTest.java @ closure-compiler v20261015
 
 /*
  * Copyright 2014 The Closure Compiler Authors.

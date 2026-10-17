@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/QualifiedNameTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/rhino/QualifiedNameTest.java @ closure-compiler v20261015
 
 /*
  *
@@ -57,6 +57,13 @@ func assertJoin(t *testing.T, n QualifiedName, want string) {
 	}
 }
 
+func assertJoinOnSeparator(t *testing.T, n QualifiedName, separator uint16, want string) {
+	t.Helper()
+	if got := n.JoinWithSeparator(separator); got != want {
+		t.Errorf("join(%q) = %q, want %q", rune(separator), got, want)
+	}
+}
+
 func assertComponents(t *testing.T, n QualifiedName, want ...string) {
 	t.Helper()
 	if got := n.Components(); !slices.Equal(got, want) {
@@ -90,6 +97,11 @@ func TestQualifiedName_Join_FromString(t *testing.T) {
 	assertJoin(t, n, "foo.bar.baz")
 }
 
+func TestQualifiedName_Join_OnSeparator_FromString(t *testing.T) {
+	n := QualifiedName_Of("foo.bar.baz")
+	assertJoinOnSeparator(t, n, '$', "foo$bar$baz")
+}
+
 func TestQualifiedName_Join_FromNode(t *testing.T) {
 	n := qname(IR_Name("foo"), "bar", "baz").GetQualifiedNameObject()
 	assertJoin(t, n, "foo.bar.baz")
@@ -101,9 +113,25 @@ func TestQualifiedName_Join_FromNode(t *testing.T) {
 	assertJoin(t, n, "super.bar.baz")
 }
 
+func TestQualifiedName_Join_OnSeparator_FromNode(t *testing.T) {
+	n := qname(IR_Name("foo"), "bar", "baz").GetQualifiedNameObject()
+	assertJoinOnSeparator(t, n, '$', "foo$bar$baz")
+
+	n = qname(IR_ThisNode(), "bar", "baz").GetQualifiedNameObject()
+	assertJoinOnSeparator(t, n, '$', "this$bar$baz")
+
+	n = qname(IR_SuperNode(), "bar", "baz").GetQualifiedNameObject()
+	assertJoinOnSeparator(t, n, '$', "super$bar$baz")
+}
+
 func TestQualifiedName_Join_FromGetprop(t *testing.T) {
 	n := QualifiedName_Of("foo").Getprop("bar").Getprop("baz")
 	assertJoin(t, n, "foo.bar.baz")
+}
+
+func TestQualifiedName_Join_OnSeparator_FromGetprop(t *testing.T) {
+	n := QualifiedName_Of("foo").Getprop("bar").Getprop("baz")
+	assertJoinOnSeparator(t, n, '$', "foo$bar$baz")
 }
 
 func TestQualifiedName_Components_FromString(t *testing.T) {

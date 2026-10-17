@@ -21,7 +21,7 @@
 
 /**
  * Returns an internal iterator from the given array.
- * @param {!IArrayLike<T>} array
+ * @param {string|!IArrayLike<T>} array
  * @return {function():!IIterableResult<T>}
  * @template T
  */
@@ -41,11 +41,12 @@ $jscomp.arrayIteratorImpl = function(array) {
 
 /**
  * Returns an internal iterator from the given array.
- * @param {!Array<T>} array
- * @return {!Iterator<T>}
+ * @param {string|!IArrayLike<T>} array
+ * @return {!IteratorLike<T>}
  * @template T
+ * @suppress {reportUnknownTypes}
  */
 $jscomp.arrayIterator = function(array) {
-  return /** @type {!Iterator<T>} */ ({next: $jscomp.arrayIteratorImpl(array)});
+  return {next: $jscomp.arrayIteratorImpl(array)};
 };
 

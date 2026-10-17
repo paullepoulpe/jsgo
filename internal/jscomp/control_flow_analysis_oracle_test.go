@@ -9,7 +9,7 @@ package jscomp
 //     followed by the corpus files of testdata/cfa/golden-files.txt (every
 //     120th file of corpus-files.txt, plus files whose finallyMap holds
 //     several values for a key). Regenerate with
-//       CP=.cache/closure-compiler.jar:.cache/oracle-build
+//       CP=.cache/$CLOSURE_JAR:.cache/oracle-build
 //       java -Xss1g -cp $CP com.google.javascript.jscomp.ControlFlowAnalysisDump a.gz \
 //         internal/jscomp/testdata/cfa/js --list=<the cfa-*.js names>
 //       java -Xss1g -cp $CP com.google.javascript.jscomp.ControlFlowAnalysisDump b.gz \

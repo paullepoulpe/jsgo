@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/parsing/IRFactory.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/parsing/IRFactory.java @ closure-compiler v20261015
 
 /*
  * Copyright 2013 The Closure Compiler Authors.
@@ -781,6 +781,9 @@ func (f *IRFactory) HandlePossibleFileOverviewJsDoc(jsDocParser *JsDocInfoParser
 		if newFileoverview.IsNoCoverage() {
 			merged.RecordNoCoverage()
 		}
+		if newFileoverview.IsTypeSummary() {
+			merged.RecordTypeSummary()
+		}
 		f.firstFileoverview = merged.Build()
 	}
 
@@ -1517,13 +1520,13 @@ func (d *IRFactory_TransformDispatcher) NewStringNodeFromIdentifier(
 	var value string
 	if identifierToken.IsPrivateIdentifier() {
 		if identifierType == IRFactory_TransformDispatcher_IdentifierType_CAN_BE_PRIVATE {
-			d.MaybeWarnForFeatureToken(identifierToken, parser.FeatureSet_Feature_PRIVATE_CLASS_PROPERTIES)
+			d.MaybeWarnForFeatureToken(identifierToken, parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
 		} else {
 			d.errorReporter.Error(
 				"Private identifiers may not be used in this context",
 				d.sourceName,
-				identifierToken.Location.Start.Line,
-				identifierToken.Location.Start.Column)
+				IRFactory_LinenoOfToken(identifierToken),
+				IRFactory_CharnoOfToken(identifierToken))
 		}
 		value = identifierToken.GetMaybePrivateValue()
 	} else {
@@ -2314,7 +2317,11 @@ func (d *IRFactory_TransformDispatcher) ProcessFunction(functionTree *parser.Fun
 //
 // Java: IRFactory.TransformDispatcher.processField(FieldDeclarationTree)
 func (d *IRFactory_TransformDispatcher) ProcessField(tree *parser.FieldDeclarationTree) *rhino.Node {
-	d.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_PUBLIC_CLASS_FIELDS)
+	if tree.Name.IsPrivateIdentifier() {
+		d.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
+	} else {
+		d.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_PUBLIC_CLASS_FIELDS)
+	}
 
 	node := d.MaybeAddNonJsDocComment(
 		d.NewStringNodeFromIdentifier(
@@ -2905,8 +2912,13 @@ func (d *IRFactory_TransformDispatcher) ProcessPropertyGet(getNode *parser.Membe
 		return leftChild
 	}
 
+	// Private element get prop not valid on super receiver.
+	identifierType := IRFactory_TransformDispatcher_IdentifierType_CAN_BE_PRIVATE
+	if leftChild.IsSuper() {
+		identifierType = IRFactory_TransformDispatcher_IdentifierType_STANDARD
+	}
 	getProp := d.MaybeAddNonJsDocComment(
-		d.NewStringNodeFromIdentifier(rhino.Token_GETPROP, IRFactory_TransformDispatcher_IdentifierType_CAN_BE_PRIVATE, propName),
+		d.NewStringNodeFromIdentifier(rhino.Token_GETPROP, identifierType, propName),
 		getNode.MemberName.GetStart())
 	getProp.AddChildToBack(leftChild)
 	d.SetSourceInfoFromToken(getProp, propName)
@@ -2924,9 +2936,13 @@ func (d *IRFactory_TransformDispatcher) ProcessOptChainPropertyGet(getNode *pars
 		return leftChild
 	}
 
+	// Private element get prop not valid on super receiver.
+	identifierType := IRFactory_TransformDispatcher_IdentifierType_CAN_BE_PRIVATE
+	if leftChild.IsSuper() {
+		identifierType = IRFactory_TransformDispatcher_IdentifierType_STANDARD
+	}
 	getProp := d.MaybeAddNonJsDocComment(
-		d.NewStringNodeFromIdentifier(
-			rhino.Token_OPTCHAIN_GETPROP, IRFactory_TransformDispatcher_IdentifierType_CAN_BE_PRIVATE, propName),
+		d.NewStringNodeFromIdentifier(rhino.Token_OPTCHAIN_GETPROP, identifierType, propName),
 		getNode.MemberName.GetStart())
 	getProp.AddChildToBack(leftChild)
 	getProp.SetIsOptionalChainStart(getNode.IsStartOfOptionalChain)
@@ -4151,6 +4167,7 @@ func (f *IRFactory) NormalizeRegex(token parser.LiteralToken) string {
 		// Characters for which the backslash is semantically important.
 		case '^', '$', '\\', '/', '.', '*', '+', '?', '(', ')', '[', ']', '{', '}', '|', '-',
 			'b', 'B', 'c', 'd', 'D', 'f', 'n',
+			'k', // 2018 named backreferences
 			'p', // 2018 unicode property escapes
 			'P', // 2018 unicode property escapes
 			'r', 's', 'S', 't', 'u', 'v', 'w', 'W', 'x',

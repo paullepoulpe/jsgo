@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/DataFlowAnalysis.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/DataFlowAnalysis.java @ closure-compiler v20261015
 
 /*
  * Copyright 2008 The Closure Compiler Authors.
@@ -524,10 +524,25 @@ func (f *dataFlowAnalysis_escapedFinder) Visit(t *NodeTraversal, n *rhino.Node, 
 
 	referenceCfgScope := t.GetScope().GetClosestCfgRootScope()
 
-	// Variable is referenced outside of decleration scope it is 'escaped'.
-	if referenceCfgScope != variableCfgScope {
+	// Variable is referenced outside of declaration scope it is 'escaped'.
+	// Non-static class field initializers are evaluated at instance creation time
+	// (like closures), so variables referenced in non-static class fields must also be
+	// marked as escaped.
+	if referenceCfgScope != variableCfgScope ||
+		DataFlowAnalysis_IsReferencedInNonStaticClassField(t.GetScope(), variableCfgScope) {
 		f.escaped.Add(var_)
 	}
+}
+
+// Java: DataFlowAnalysis.isReferencedInNonStaticClassField(Scope, Scope)
+func DataFlowAnalysis_IsReferencedInNonStaticClassField(refScope *Scope, targetScope *Scope) bool {
+	for s := refScope; s != nil && s != targetScope; s = s.GetParent() {
+		root := s.GetRootNode()
+		if (root.IsMemberFieldDef() || root.IsComputedFieldDef()) && !root.IsStaticMember() {
+			return true
+		}
+	}
+	return false
 }
 
 // dataFlowAnalysis_UniqueQueue is a work queue that holds each element at

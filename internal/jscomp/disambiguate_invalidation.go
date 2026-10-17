@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/disambiguate/Invalidation.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/disambiguate/Invalidation.java @ closure-compiler v20261015
 
 /*
  * Copyright 2020 The Closure Compiler Authors.
@@ -24,30 +24,37 @@ package jscomp
 // outcome of optimizations. Since diagnostic information isn't usually
 // rendered, this class is designed to defer work as much as possible.
 //
-// Go-only: language-adapter — the private subclass WithRecieverType only
-// adds a field, so it is folded into this struct (withRecieverType tells
-// the two apart).
-type Invalidation struct {
-	reason Invalidation_Reason
-
-	// WithRecieverType.recieverType
-	recieverType     int
-	withRecieverType bool
+// The class has a subclass (WithReceiverType), so it is an interface over
+// InvalidationBase (PORTING.md §4). Its only use is GSON serialization of
+// the renaming index, which writes a WithReceiverType's own field before
+// the base class's: {"receiverType":5,"reason":"INVALIDATING_TYPE"}.
+//
+// Java: class Invalidation
+type Invalidation interface {
+	GetInvalidationBase() *InvalidationBase
 }
 
+// InvalidationBase holds the fields of Invalidation.
+type InvalidationBase struct {
+	reason Invalidation_Reason
+}
+
+// GetInvalidationBase gives access to the fields of an Invalidation.
+func (b *InvalidationBase) GetInvalidationBase() *InvalidationBase { return b }
+
 // Java: Invalidation.wellKnownProperty()
-func Invalidation_WellKnownProperty() *Invalidation {
+func Invalidation_WellKnownProperty() Invalidation {
 	return invalidation_WELL_KNOWN_PROPERTY
 }
 
 // Java: Invalidation.invalidatingType(int)
-func Invalidation_InvalidatingType(recieverType int) *Invalidation {
-	return newInvalidation_WithRecieverType(Invalidation_Reason_INVALIDATING_TYPE, recieverType)
+func Invalidation_InvalidatingType(receiverType int) Invalidation {
+	return newInvalidation_WithReceiverType(Invalidation_Reason_INVALIDATING_TYPE, receiverType)
 }
 
 // Java: Invalidation.undeclaredAccess(int)
-func Invalidation_UndeclaredAccess(recieverType int) *Invalidation {
-	return newInvalidation_WithRecieverType(Invalidation_Reason_UNDECLARED_ACCESS, recieverType)
+func Invalidation_UndeclaredAccess(receiverType int) Invalidation {
+	return newInvalidation_WithReceiverType(Invalidation_Reason_UNDECLARED_ACCESS, receiverType)
 }
 
 // Invalidation_Reason is Invalidation.Reason.
@@ -85,19 +92,32 @@ func (r Invalidation_Reason) String() string { return r.Name() }
 func (r Invalidation_Reason) Ordinal() int { return int(r) }
 
 // Java: Invalidation(Reason)
-func newInvalidation(reason Invalidation_Reason) *Invalidation {
-	return &Invalidation{reason: reason}
+func newInvalidation(reason Invalidation_Reason) *InvalidationBase {
+	b := &InvalidationBase{}
+	b.InitInvalidationBase(reason)
+	return b
 }
 
-// newInvalidation_WithRecieverType is WithRecieverType(Reason, int).
+// InitInvalidationBase is the constructor body, for subclasses.
+func (b *InvalidationBase) InitInvalidationBase(reason Invalidation_Reason) {
+	b.reason = reason
+}
+
+// Invalidation_WithReceiverType is the private subclass WithReceiverType.
 // Anonymous classes are not serialized correctly by GSON.
 //
-// Java: Invalidation.WithRecieverType(Reason, int)
-func newInvalidation_WithRecieverType(reason Invalidation_Reason, recieverType int) *Invalidation {
-	i := newInvalidation(reason)
-	i.recieverType = recieverType
-	i.withRecieverType = true
-	return i
+// Java: private static final class Invalidation.WithReceiverType extends Invalidation
+type Invalidation_WithReceiverType struct {
+	receiverType int
+	InvalidationBase
 }
 
-var invalidation_WELL_KNOWN_PROPERTY = newInvalidation(Invalidation_Reason_WELL_KNOWN_PROPERTY)
+// Java: Invalidation.WithReceiverType(Reason, int)
+func newInvalidation_WithReceiverType(reason Invalidation_Reason, receiverType int) *Invalidation_WithReceiverType {
+	w := &Invalidation_WithReceiverType{}
+	w.InitInvalidationBase(reason)
+	w.receiverType = receiverType
+	return w
+}
+
+var invalidation_WELL_KNOWN_PROPERTY Invalidation = newInvalidation(Invalidation_Reason_WELL_KNOWN_PROPERTY)

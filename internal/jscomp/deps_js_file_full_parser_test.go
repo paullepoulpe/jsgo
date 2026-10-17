@@ -1,4 +1,4 @@
-// Port of test/com/google/javascript/jscomp/deps/JsFileFullParserTest.java @ closure-compiler v20260415
+// Port of test/com/google/javascript/jscomp/deps/JsFileFullParserTest.java @ closure-compiler v20261015
 
 /*
  * Copyright 2019 The Closure Compiler Authors.
@@ -255,4 +255,82 @@ func TestJsFileFullParser_SoyDelcall_legacy(t *testing.T) {
 func TestJsFileFullParser_ReadToggle(t *testing.T) {
 	info := jsFileFullParserTest_parse("const {TOGGLE_foo_bar} = goog.require('foo$2etoggles');")
 	jsFileFullParserTest_containsExactly(t, "readToggles", info.readToggles.ToSlice(), "foo_bar")
+}
+
+func TestJsFileFullParser_TopLevelJsDocComments_beforeBetweenAndAfterStatements(t *testing.T) {
+	info := jsFileFullParserTest_parse(
+		"/** @fileoverview Header comment. */\n" +
+			"/** @requirecss {css.before.module} */\n" +
+			"goog.module('foo');\n" +
+			"/** @requirecss {css.between.statements} */\n" +
+			"class Foo {}\n" +
+			"/** @requirecss {css.after.statements} */\n")
+	jsFileFullParserTest_containsExactly(t, "requiresCss", info.requiresCss.ToSlice(),
+		"css.before.module", "css.between.statements", "css.after.statements")
+}
+
+func TestJsFileFullParser_NestedJsDocCommentsAreIgnored(t *testing.T) {
+	info := jsFileFullParserTest_parse(
+		"goog.module('foo');\n" +
+			"class Foo {\n" +
+			"  /** @requirecss {css.in.method} */\n" +
+			"  bar() {}\n" +
+			"}\n" +
+			"function baz() {\n" +
+			"  /** @requirecss {css.in.function} */\n" +
+			"  return 1;\n" +
+			"}\n" +
+			"goog.scope(function() {\n" +
+			"  /** @requirecss {css.in.goog_scope} */\n" +
+			"  const x = 1;\n" +
+			"});\n" +
+			"{\n" +
+			"  /** @requirecss {css.in.block} */\n" +
+			"}\n")
+	jsFileFullParserTest_containsExactly(t, "requiresCss", info.requiresCss.ToSlice())
+}
+
+func TestJsFileFullParser_TopLevelJsDocComments_moreLinesThanNodeCanRepresent(t *testing.T) {
+	// Node encodes line numbers in 20 bits, so a statement on line 2^20 wraps to line 0.
+	code := "/** @requirecss {css.before} */\n" +
+		"goog.module('foo');\n" +
+		strings.Repeat("\n", (1<<20)-3) +
+		"const x = 1;\n" +
+		"function f() {\n" +
+		"  /** @requirecss {css.nested} */\n" +
+		"}\n" +
+		"/** @requirecss {css.after} */\n"
+	info := jsFileFullParserTest_parse(code)
+	jsFileFullParserTest_containsExactly(t, "requiresCss", info.requiresCss.ToSlice(), "css.before", "css.after")
+}
+
+func TestJsFileFullParser_TopLevelJsDocComments_loneCarriageReturns(t *testing.T) {
+	// The parser counts each lone \r as a line break, but rhino's SourceFile doesn't.
+	info := jsFileFullParserTest_parse(
+		"a();\r\r\rfoo();\n" +
+			"function f() {\n" +
+			"  /** @requirecss {css.nested} */\n" +
+			"}\n" +
+			"/** @requirecss {css.after} */\n")
+	jsFileFullParserTest_containsExactly(t, "requiresCss", info.requiresCss.ToSlice(), "css.after")
+}
+
+func TestJsFileFullParser_TopLevelJsDocComments_unicodeLineSeparators(t *testing.T) {
+	// The parser counts U+2028 and U+2029 as line breaks, even inside strings, but rhino's
+	// SourceFile doesn't.
+	info := jsFileFullParserTest_parse(
+		"a();\n'  ';\nfoo();\nfunction f() {\n/** @requirecss {css.nested} */\n}\n" +
+			"/** @requirecss {css.after} */")
+	jsFileFullParserTest_containsExactly(t, "requiresCss", info.requiresCss.ToSlice(), "css.after")
+}
+
+func TestJsFileFullParser_TopLevelJsDocComments_statementPastMaxColumn(t *testing.T) {
+	// Node clamps column numbers at 4095, so Node-based offsets for `var b` and `f` are wrong.
+	code := "var a = 1;" +
+		strings.Repeat(" ", 4100) +
+		"/** @requirecss {css.before.b} */ var b = '" +
+		strings.Repeat("x", 5000) +
+		"'; function f() { /** @requirecss {css.nested} */ }"
+	info := jsFileFullParserTest_parse(code)
+	jsFileFullParserTest_containsExactly(t, "requiresCss", info.requiresCss.ToSlice(), "css.before.b")
 }

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/parsing/ParserTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/parsing/ParserTest.java @ closure-compiler v20261015
 
 /*
  * Copyright 2014 The Closure Compiler Authors.
@@ -147,6 +147,25 @@ func TestExponentOperator(t *testing.T) {
 	pt := newParserTest(t)
 
 	pt.parseError("-x**y", "Unary operator '-' requires parentheses before '**'")
+	pt.parseError("+x**y", "Unary operator '+' requires parentheses before '**'")
+	pt.parseError("!x**y", "Unary operator '!' requires parentheses before '**'")
+	pt.parseError("~x**y", "Unary operator '~' requires parentheses before '**'")
+	pt.parseError("typeof x**y", "Unary operator 'typeof' requires parentheses before '**'")
+	pt.parseError("void x**y", "Unary operator 'void' requires parentheses before '**'")
+	pt.parseError("delete x**y", "Unary operator 'delete' requires parentheses before '**'")
+	pt.parseError("await x**y", "Unary operator 'await' requires parentheses before '**'")
+	pt.parseError(
+		"async function f() { await x ** y; }",
+		"Unary operator 'await' requires parentheses before '**'")
+	pt.parseError(
+		"async () => { await x ** y; };",
+		"Unary operator 'await' requires parentheses before '**'")
+	pt.parseError(
+		"({ async f() { await x ** y; } });",
+		"Unary operator 'await' requires parentheses before '**'")
+	pt.parseError(
+		"class C { async m() { await x ** y; } }",
+		"Unary operator 'await' requires parentheses before '**'")
 
 	pt.expectFeatures(parser.FeatureSet_Feature_EXPONENT_OP)
 
@@ -155,8 +174,10 @@ func TestExponentOperator(t *testing.T) {
 	// the left operand.
 	pt.parse("-(x**y)")
 	pt.parse("(-x)**y")
+	pt.parse("async function f() { (await x) ** y; }")
 	// Parens are not required for unary operator on the right operand
 	pt.parse("x**-y")
+	pt.parse("async function f() { x ** await y; }")
 	pt.parse("x/y**z")
 
 	pt.parse("2 ** 3 > 3")
@@ -601,6 +622,31 @@ func TestTrailingNumericSeparator(t *testing.T) {
 	pt.parseError("0b0001_n", "Trailing numeric separator")
 	pt.parseError("0o100_n", "Trailing numeric separator")
 	pt.parseError("0x0F_n", "Trailing numeric separator")
+}
+
+// Java: ParserTest.testNumericSeparatorWithDecimalPoint()
+func TestNumericSeparatorWithDecimalPoint(t *testing.T) {
+	pt := newParserTest(t)
+
+	pt.parseError("3_.141", "Trailing numeric separator")
+	pt.parseError("3._141", "Trailing numeric separator")
+	pt.parseError("3._", "Trailing numeric separator")
+	pt.parseError("0._141", "Trailing numeric separator")
+	pt.parseError("0._", "Trailing numeric separator")
+	pt.parseError("3._e1", "Trailing numeric separator")
+	pt.parseError("3.1_e1", "Trailing numeric separator")
+	pt.parseError("3.141_", "Trailing numeric separator")
+	pt.parseError(".141_", "Trailing numeric separator")
+	pt.parseError("_.1", parserTest_SEMICOLON_EXPECTED)
+	pt.parseError("._141", "primary expression expected")
+
+	result := pt.parse("3.1_41;")
+	pt.expectFeatures(parser.FeatureSet_Feature_NUMERIC_SEPARATOR)
+	assertNode(t, result).HasType(rhino.Token_SCRIPT)
+	exprResult := result.GetOnlyChild()
+	assertNode(t, exprResult).HasType(rhino.Token_EXPR_RESULT)
+	numberNode := exprResult.GetOnlyChild()
+	assertNode(t, numberNode).IsNumber(3.141)
 }
 
 // Java: ParserTest.testNumericSeparatorWarning()
@@ -4441,6 +4487,24 @@ func TestFileoverview_firstOneWins_externsAccumulate(t *testing.T) {
 	assertThat(t, n.GetJSDocInfo().IsExterns()).IsTrue()
 }
 
+// Java: ParserTest.testFileoverview_typeSummaryAccumulates_withExterns()
+func TestFileoverview_typeSummaryAccumulates_withExterns(t *testing.T) {
+	pt := newParserTest(t)
+
+	pt.isIdeMode = true
+
+	n :=
+		pt.parse(
+			`/** @fileoverview @typeSummary */
+/** @externs */
+;
+`)
+
+	assertThat(t, n.GetJSDocInfo()).IsNotNull()
+	assertThat(t, n.GetJSDocInfo().IsExterns()).IsTrue()
+	assertThat(t, n.GetJSDocInfo().IsTypeSummary()).IsTrue()
+}
+
 // Java: ParserTest.testImportantComment()
 func TestImportantComment(t *testing.T) {
 	pt := newParserTest(t)
@@ -5808,6 +5872,11 @@ func TestInvalidUnicodePointEscapeInIdentifiers(t *testing.T) {
 	// Legal unicode but invalid in identifier
 	pt.parseError("Js\\u{99}ompiler", "Invalid escape sequence")
 	pt.parseError("Js\\u{10000}ompiler", "Invalid escape sequence")
+	// Code points outside the BMP must not be truncated to their low 16 bits. U+10041 shares its
+	// low bits with U+0041 ('A') and U+110041 is above the U+10FFFF maximum; both used to be
+	// silently accepted.
+	pt.parseError("Js\\u{10041}ompiler", "Invalid escape sequence")
+	pt.parseError("Js\\u{110041}ompiler", "Invalid escape sequence")
 }
 
 // Java: ParserTest.testInvalidUnicodePointEscapeStringLiterals()
@@ -5981,6 +6050,28 @@ func TestKeywordAsIdentifier(t *testing.T) {
 
 	pt.parseError("var while;", "'identifier' expected")
 	pt.parseError("var wh\\u0069le;", "'identifier' expected")
+	pt.parseError("var v\\u0061r;", "'identifier' expected")
+}
+
+// Java: ParserTest.testUnicodeEscapeInKeywords()
+func TestUnicodeEscapeInKeywords(t *testing.T) {
+	pt := newParserTest(t)
+
+	pt.parseError("v\\u0061r b = 1;", "'identifier' expected")
+	pt.parseError("i\\u0066 (b) { }", "'identifier' expected")
+	pt.parseError("f\\u0075nction foo() {}", "'identifier' expected")
+	pt.parseError("l\\u0065t x = 1;", "'identifier' expected")
+	pt.parseError("l\\u0065t = 1;", "'identifier' expected")
+	pt.strictMode = Config_StrictMode_SLOPPY
+	pt.parse("l\\u0065t = 1;")
+}
+
+// Java: ParserTest.testUnicodeEscapeInPropertyNames()
+func TestUnicodeEscapeInPropertyNames(t *testing.T) {
+	pt := newParserTest(t)
+
+	pt.parse("obj.v\\u0061r")
+	pt.parse("var x = { v\\u0061r: 1 };")
 }
 
 // Java: ParserTest.testGetPropFunctionName()
@@ -6147,6 +6238,9 @@ func TestRegExp(t *testing.T) {
 	pt.assertNodeEquality(pt.parse("/\\s/"), pt.script(pt.expr(pt.regex("\\s"))))
 	pt.assertNodeEquality(pt.parse("/\\u000A/"), pt.script(pt.expr(pt.regex("\\u000A"))))
 	pt.assertNodeEquality(pt.parse("/[\\]]/"), pt.script(pt.expr(pt.regex("[\\]]"))))
+	pt.assertNodeEquality(pt.parse("/\\k<group>/"), pt.script(pt.expr(pt.regex("\\k<group>"))))
+	pt.assertNodeEquality(
+		pt.parse("/(?<group>a)\\k<group>/"), pt.script(pt.expr(pt.regex("(?<group>a)\\k<group>"))))
 }
 
 // Java: ParserTest.testRegExpError()
@@ -6933,16 +7027,16 @@ func TestPrivateProperty_unstable(t *testing.T) {
 	pt := newParserTest(t)
 
 	pt.mode = Config_LanguageMode_UNSTABLE
-	pt.expectFeatures(parser.FeatureSet_Feature_PRIVATE_CLASS_PROPERTIES)
+	pt.expectFeatures(parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
 	pt.parseWarning(
-		"class C { #f = 2; }", requiresLanguageModeMessage(parser.FeatureSet_Feature_PRIVATE_CLASS_PROPERTIES))
+		"class C { #f = 2; }", requiresLanguageModeMessage(parser.FeatureSet_Feature_PRIVATE_ELEMENTS))
 }
 
 // Java: ParserTest.testPrivateProperty_singleClassMember()
 func TestPrivateProperty_singleClassMember(t *testing.T) {
 	pt := newParserTest(t)
 
-	pt.expectFeatures(parser.FeatureSet_Feature_PRIVATE_CLASS_PROPERTIES)
+	pt.expectFeatures(parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
 
 	pt.parse("class C { #f; }")
 	pt.parse("class C { #m() {} }")
@@ -6961,6 +7055,16 @@ func TestPrivateProperty_singleClassMember(t *testing.T) {
 	pt.parse("class C { static get #sp() {} static set #sp(x) {} }")
 	pt.parse("class C { static async #sa() {} }")
 	pt.parse("class C { static async *#sag() {} }")
+}
+
+// Java: ParserTest.testPrivateProperty_duplicateIdentifierOnInstanceAndStatic()
+func TestPrivateProperty_duplicateIdentifierOnInstanceAndStatic(t *testing.T) {
+	pt := newParserTest(t)
+
+	pt.expectFeatures(parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
+
+	pt.parseError("class C { #x; static #x; }", "Identifier '#x' has already been declared")
+	pt.parseError("class C { #x; static [#x]; }", parserTest_INVALID_PRIVATE_ID)
 }
 
 // Java: ParserTest.testPrivateProperty_definition_linenocharno()
@@ -7049,6 +7153,9 @@ func TestPrivateProperty_invalid_identifierAlreadyDeclared(t *testing.T) {
 	pt.parse( /**/ "class C { set #p(x) {} get #p() {} }") // OK
 
 	pt.parseError("class C { #p; static #p; }", expectedError) // Cross-static duplicate field
+	pt.parseError("class C { #p() {} static #p() {} }", expectedError)
+	pt.parseError("class C { get #p() {} static get #p() {} }", expectedError)
+	pt.parseError("class C { set #p(x) {} static set #p(x) {} }", expectedError)
 }
 
 // Java: ParserTest.testPrivateProperty_invalid_identifierAlreadyDeclared_crossStaticGetterSetter()
@@ -7068,7 +7175,7 @@ func TestPrivateProperty_invalid_identifierAlreadyDeclared_crossStaticGetterSett
 func TestPrivateProperty_classMembersReferencingOtherPrivateField(t *testing.T) {
 	pt := newParserTest(t)
 
-	pt.expectFeatures(parser.FeatureSet_Feature_PRIVATE_CLASS_PROPERTIES)
+	pt.expectFeatures(parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
 
 	pt.parse("class C { #f = 1; f = this.#f; }")
 
@@ -7108,7 +7215,7 @@ func TestPrivateProperty_reference_linenocharno(t *testing.T) {
 func TestPrivateProperty_classMethodsReferencingOtherPrivateProp(t *testing.T) {
 	pt := newParserTest(t)
 
-	pt.expectFeatures(parser.FeatureSet_Feature_PRIVATE_CLASS_PROPERTIES)
+	pt.expectFeatures(parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
 
 	pt.parse("class C { #f = 1; method() { this.#f = 2; } }")
 	pt.parse("class C { #f = 1; #g = 2; method() { this.#f = this.#g; } }")
@@ -7130,7 +7237,7 @@ func TestPrivateProperty_classMethodsReferencingOtherPrivateProp(t *testing.T) {
 func TestPrivateProperty_nestedClasses(t *testing.T) {
 	pt := newParserTest(t)
 
-	pt.expectFeatures(parser.FeatureSet_Feature_PRIVATE_CLASS_PROPERTIES)
+	pt.expectFeatures(parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
 
 	pt.parse(
 		`class Outer {
@@ -7188,7 +7295,7 @@ func TestPrivateProperty_nestedClasses_invalid_referenceInnerFieldFromOuter(t *t
 func TestPrivateProperty_classMethodsReferencingOtherPrivatePropViaOptionalChain(t *testing.T) {
 	pt := newParserTest(t)
 
-	pt.expectFeatures(parser.FeatureSet_Feature_PRIVATE_CLASS_PROPERTIES)
+	pt.expectFeatures(parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
 
 	pt.parse("class C { #f = 1; method() { const t = this; t?.#f; } }")
 	pt.parse("class C { #pm() { const t = this; t?.#pm(); } }")
@@ -7231,6 +7338,27 @@ func TestPrivateProperty_invalid_nonExistentPrivateProp(t *testing.T) {
 
 	pt.parseError("class C { static { this.#missing(); } }", parserTest_PRIVATE_METHOD_NOT_DEFINED)
 	pt.parseError("class C { static { C.#missing(); } }", parserTest_PRIVATE_METHOD_NOT_DEFINED)
+}
+
+// Java: ParserTest.testPrivateProperty_invalid_subclassAccessingBasePrivateField()
+func TestPrivateProperty_invalid_subclassAccessingBasePrivateField(t *testing.T) {
+	pt := newParserTest(t)
+
+	// We expect this to fail because private fields in a base class cannot be accessed by
+	// subclasses.
+	// The JS parser correctly rejects this with a parse error as #baseField is not declared in Sub.
+	pt.parseError(
+		`class Base {
+  #baseField = 1;
+}
+class Sub extends Base {
+  constructor() {
+    super();
+    this.#baseField = 2;
+  }
+}
+`,
+		parserTest_PRIVATE_FIELD_NOT_DEFINED)
 }
 
 // Java: ParserTest.testPrivateProperty_invalid_deletePrivateField()
@@ -7302,6 +7430,53 @@ func TestPrivateProperty_invalid_objectLiteralProperty(t *testing.T) {
 	pt.parseError("class C { method() { const x = { #pm() {} }; } }", parserTest_INVALID_PRIVATE_ID)
 	pt.parseError("class C { method() { const x = { get #pp() {} }; } }", parserTest_INVALID_PRIVATE_ID)
 	pt.parseError("class C { method() { const x = { set #ps(x) {} }; } }", parserTest_INVALID_PRIVATE_ID)
+}
+
+// Java: ParserTest.testPrivateProperty_invalid_referencePrivateOnSuper()
+func TestPrivateProperty_invalid_referencePrivateOnSuper(t *testing.T) {
+	pt := newParserTest(t)
+
+	// Private field read and write on super
+	pt.parseError("class C { #f = 1; m() { return super.#f; } }", parserTest_INVALID_PRIVATE_ID)
+	pt.parseError("class C { #f = 1; m(v) { super.#f = v; } }", parserTest_INVALID_PRIVATE_ID)
+	pt.parseError("class C { #f = 1; m() { super.#f += 1; } }", parserTest_INVALID_PRIVATE_ID)
+	pt.parseError("class C { #f = 1; m() { super.#f++; } }", parserTest_INVALID_PRIVATE_ID)
+	pt.parseError("class C { #f = 1; m() { ++super.#f; } }", parserTest_INVALID_PRIVATE_ID)
+
+	// Private method call on super
+	pt.parseError("class C { #m() {} test() { super.#m(); } }", parserTest_INVALID_PRIVATE_ID)
+
+	// Private getter/setter on super
+	pt.parseError("class C { get #g() {} m() { return super.#g; } }", parserTest_INVALID_PRIVATE_ID)
+	pt.parseError("class C { set #s(v) {} m(v) { super.#s = v; } }", parserTest_INVALID_PRIVATE_ID)
+
+	// Optional chaining with super private property
+	pt.parseError(
+		"class C { #f = 1; m() { super?.#f; } }", "Optional chaining is forbidden in super?.")
+
+	// Destructuring assignment to super private property
+	pt.parseError("class C { #f = 1; m() { [super.#f] = [1]; } }", parserTest_INVALID_PRIVATE_ID)
+	pt.parseError("class C { #f = 1; m() { ({ x: super.#f } = { x: 1 }); } }", parserTest_INVALID_PRIVATE_ID)
+
+	// Nested class referencing outer class private method/field on super
+	pt.parseError(
+		`class Base {
+  #priv() {}
+  #field = 1;
+  static {
+    class Sub extends Base {
+      m() {
+        return super.#priv();
+      }
+      getF() {
+        return super.#field;
+      }
+    }
+  }
+}
+`,
+		parserTest_INVALID_PRIVATE_ID,
+		parserTest_INVALID_PRIVATE_ID)
 }
 
 // Java: ParserTest.testPrivateProperty_invalid_destructuredAssignment()
@@ -7390,6 +7565,50 @@ func TestPrivateProperty_invalid_referencePrivatePropFromObjectLiteralViaOptiona
 	pt.parseError("const o = {}; o?.#f;", parserTest_INVALID_PRIVATE_ID)
 }
 
+// Java: ParserTest.testPrivateProperty_invalid_lineNumber()
+func TestPrivateProperty_invalid_lineNumber(t *testing.T) {
+	pt := newParserTest(t)
+
+	var errors []string
+	var lines []int
+	var cols []int
+	reporter := &parserTest_recordingErrorReporter{
+		error_: func(message string, sourceName string, line int, lineOffset int) {
+			errors = append(errors, message)
+			lines = append(lines, line)
+			cols = append(cols, lineOffset)
+		},
+	}
+	ParserRunner_Parse(
+		rhino.NewSimpleSourceFile("testcode", rhino.StaticSourceFile_SourceKind_STRONG),
+		"const x = #foo;\nconst y = {\n  #pf: 1,\n};\nconst z = #bar;",
+		pt.createConfig(),
+		reporter)
+	assertThat(t, errors).
+		ContainsExactly(parserTest_INVALID_PRIVATE_ID, parserTest_INVALID_PRIVATE_ID, parserTest_INVALID_PRIVATE_ID).
+		InOrder()
+	assertThat(t, lines).ContainsExactly(1, 3, 5).InOrder()
+	assertThat(t, cols).ContainsExactly(10, 2, 10).InOrder()
+}
+
+// parserTest_recordingErrorReporter is the anonymous ErrorReporter of
+// testPrivateProperty_invalid_lineNumber: warnings are ignored, errors are
+// passed to error_.
+//
+// Go-only: language-adapter — anonymous class.
+type parserTest_recordingErrorReporter struct {
+	error_ func(message string, sourceName string, line int, lineOffset int)
+}
+
+// Java: ErrorReporter.warning(String, String, int, int)
+func (r *parserTest_recordingErrorReporter) Warning(message string, sourceName string, line int, lineOffset int) {
+}
+
+// Java: ErrorReporter.error(String, String, int, int)
+func (r *parserTest_recordingErrorReporter) Error(message string, sourceName string, line int, lineOffset int) {
+	r.error_(message, sourceName, line, lineOffset)
+}
+
 // Java: ParserTest.testPrivateProperty_invalid_importName()
 func TestPrivateProperty_invalid_importName(t *testing.T) {
 	pt := newParserTest(t)
@@ -7443,7 +7662,7 @@ func TestPrivateProperty_invalid_labeledStatement(t *testing.T) {
 func TestPrivateProperty_inOperatorWithPrivateProp_valid(t *testing.T) {
 	pt := newParserTest(t)
 
-	pt.expectFeatures(parser.FeatureSet_Feature_PRIVATE_CLASS_PROPERTIES)
+	pt.expectFeatures(parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
 
 	pt.parse("class C { #f = 1; static isC(x) { return #f in x; } }")
 	pt.parse("class C { #f = this; m() { return #f in this.#f; } }")
@@ -7486,7 +7705,7 @@ func TestPrivateProperty_inOperatorWithPrivateProp_linenocharno(t *testing.T) {
 func TestPrivateProperty_inOperatorWithPrivateProp_invalid_nonExistentPrivateProp(t *testing.T) {
 	pt := newParserTest(t)
 
-	pt.expectFeatures(parser.FeatureSet_Feature_PRIVATE_CLASS_PROPERTIES)
+	pt.expectFeatures(parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
 
 	pt.parseError("class C { static isC(x) { return #missing in x; } }", parserTest_PRIVATE_FIELD_NOT_DEFINED)
 }
@@ -7495,7 +7714,7 @@ func TestPrivateProperty_inOperatorWithPrivateProp_invalid_nonExistentPrivatePro
 func TestPrivateProperty_inOperatorWithPrivateProp_invalid_privatePropOnRhs(t *testing.T) {
 	pt := newParserTest(t)
 
-	pt.expectFeatures(parser.FeatureSet_Feature_PRIVATE_CLASS_PROPERTIES)
+	pt.expectFeatures(parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
 
 	pt.parseError("class C { #f = 1; static isC(x) { return #f in #f; } }", parserTest_INVALID_PRIVATE_ID)
 }
@@ -7504,7 +7723,7 @@ func TestPrivateProperty_inOperatorWithPrivateProp_invalid_privatePropOnRhs(t *t
 func TestPrivateProperty_inOperatorWithPrivateProp_invalid_surroundingParenthesis(t *testing.T) {
 	pt := newParserTest(t)
 
-	pt.expectFeatures(parser.FeatureSet_Feature_PRIVATE_CLASS_PROPERTIES)
+	pt.expectFeatures(parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
 
 	pt.parseError("class C { #f = 1; static isC(x) { return (#f) in x; } }", parserTest_INVALID_PRIVATE_ID)
 }

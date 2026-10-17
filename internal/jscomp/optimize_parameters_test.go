@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/OptimizeParametersTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/OptimizeParametersTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/OptimizeParametersTest.java)
 
 /*
@@ -48,6 +48,7 @@ func (c *OptimizeParametersTest) GetProcessor(compiler *Compiler) CompilerPass {
 func (c *OptimizeParametersTest) SetUp() {
 	c.CompilerTestCaseBase.SetUp()
 	c.EnableNormalize()
+	c.DisableMultistageCompilation()
 	// TODO(bradfordcsmith): Stop normalizing the expected output or document why it is necessary.
 	c.EnableNormalizeExpectedOutput()
 	c.EnableGatherExternProperties()
@@ -132,6 +133,9 @@ func (c *OptimizeParametersTest) TestNoRemovalSpread() {
 		"function f(p2) {var p1 = 1;} f?.(...x); f?.(2);")
 
 	c.TestSame("function f(p1, p2) {} f(1, ...x); f(2, ...y);")
+	c.TestSame("function f(p1, p2) {} f(p1, ...args);")
+	c.TestSame("function f(p1, p2) {} f.call(thisArg, p1, ...args);")
+	c.TestSame("function f(p1, p2) {} f?.call(thisArg, p1, ...args);")
 	// Test spread argument with side effects
 	c.TestSame(
 		"function foo(x) {sideEffect(); return x;}\n" +
@@ -192,6 +196,14 @@ func (c *OptimizeParametersTest) TestRemovalRest_secondParam() {
 func (c *OptimizeParametersTest) TestRemovalRest3() {
 	// Can't move a reference to a local.
 	c.TestSame("function f(...p1){} function _g(x) { f(x); f(x); }")
+}
+
+// Java: OptimizeParametersTest.testRemovalRest_rollbackPreservesTrailingArgs()
+func (c *OptimizeParametersTest) TestRemovalRest_rollbackPreservesTrailingArgs() {
+	c.TestSame("function f(...p) { use(p); } function g(x) { f(1, x, 2); f(1, x, 2); }")
+	c.Test(
+		"function f(a, ...p) { use(a, p); } function g(x) { f(1, 2, x, 3); f(1, 2, x, 3); }",
+		"function f(...p) { var a = 1; use(a, p); } function g(x) { f(2, x, 3); f(2, x, 3); }")
 }
 
 // Java: OptimizeParametersTest.testRemovalRestWithDestructuring1()
@@ -663,6 +675,12 @@ func (c *OptimizeParametersTest) TestDoOptimizeCall() {
 	c.Test(
 		"var foo = function (a) {}; foo?.call(null, 1);",
 		"var foo = function () {var a = 1;}; foo?.call(null);")
+	c.TestSame("var foo = function (a, b) {}; foo.call(...arr);")
+	c.TestSame("var foo = function (a, b, c) {}; foo.call(...arr, 1, 2);")
+	c.TestSame("var foo = function (a, b) {}; foo?.call(...arr);")
+	c.TestSame("var foo = function (p1, p2) {}; foo(p1, ...args);")
+	c.TestSame("var foo = function (p1, p2) {}; foo.call(this, p1, ...args);")
+	c.TestSame("var foo = function (p1, p2) {}; foo?.call(this, p1, ...args);")
 }
 
 // Java: OptimizeParametersTest.testDoOptimizeApply()
@@ -1221,6 +1239,21 @@ func (c *OptimizeParametersTest) TestMutableValues4() {
 		"var x; var y; var z;\n"+
 			"function foo(p2, p3) {var p1=[]}\n"+
 			"foo(y(), z()); foo(y(),3)\n")
+	// Pure literal at the first call site and side-effectful call at the second call site.
+	c.TestSame(
+		"var x; var y; var z;\n" +
+			"function foo(p1, p2, p3) { alert(p1); }\n" +
+			"foo(x, y(), 3);\n" +
+			"foo(x, y(), z());\n")
+
+	// Mutable variable passed along with an argument that mutates it at the second call site.
+	c.TestSame(
+		"var out = [];\n" +
+			"var policy = 'STRICT';\n" +
+			"function mutateAndReturn() { policy = 'LENIENT'; return {}; }\n" +
+			"function render(p, opts) { out.push(p); }\n" +
+			"render(policy, {});\n" +
+			"render(policy, mutateAndReturn());\n")
 }
 
 // Java: OptimizeParametersTest.testMutableValues5()
@@ -1618,8 +1651,8 @@ func (c *OptimizeParametersTest) TestRewriteClassStaticBlock_inlineParameter() {
 			"}\n")
 }
 
-// Java: OptimizeParametersTest.testNoRewriteUsedClassConstructorWithClassNonstaticField()
-func (c *OptimizeParametersTest) TestNoRewriteUsedClassConstructorWithClassNonstaticField() {
+// Java: OptimizeParametersTest.testNoRewriteUsedClassConstructorWithClassNonstaticField_sideEffect()
+func (c *OptimizeParametersTest) TestNoRewriteUsedClassConstructorWithClassNonstaticField_sideEffect() {
 	c.TestSame(
 		"class C {\n" +
 			"  field2 = alert();\n" +
@@ -1637,6 +1670,18 @@ func (c *OptimizeParametersTest) TestNoRewriteUsedClassConstructorWithClassNonst
 			"  }\n" +
 			"}\n" +
 			"var c = new C(alert());\n")
+}
+
+// Java: OptimizeParametersTest.testNoRewriteUsedClassConstructorWithClassNonstaticComputedField_sideEffect()
+func (c *OptimizeParametersTest) TestNoRewriteUsedClassConstructorWithClassNonstaticComputedField_sideEffect() {
+	c.TestSame(
+		"class C {\n" +
+			"  ['field2'] = alert(2);\n" +
+			"  constructor(a) {\n" +
+			"    use(a);\n" +
+			"  }\n" +
+			"}\n" +
+			"var c = new C(alert(1)); // alerts in order 1, 2\n")
 }
 
 // Java: OptimizeParametersTest.testNoRewriteUsedClassMethodParam1()
@@ -1744,6 +1789,15 @@ func (c *OptimizeParametersTest) TestArrow() {
 		"var f = function(a, b, c) {};\n" +
 			"f`tagged`\n" +
 			"f()\n")
+}
+
+// Java: OptimizeParametersTest.testNoRewriteTagged_methodCall()
+func (c *OptimizeParametersTest) TestNoRewriteTagged_methodCall() {
+	c.TestSame(
+		"var obj = {\n" +
+			"  f: function(a, b, c) {}\n" +
+			"};\n" +
+			"obj.f`tagged`;\n")
 }
 
 // Java: OptimizeParametersTest.testSuperInvocation_preventsParamInlining_whenImplicit()
@@ -1897,4 +1951,250 @@ func (c *OptimizeParametersTest) TestInliningSideEffectfulArg_updatesInvocationS
 					SetMutatesGlobalState().
 					ValueOf())
 	}
+}
+
+// Java: OptimizeParametersTest.testNoHoistNewTarget()
+func (c *OptimizeParametersTest) TestNoHoistNewTarget() {
+	c.TestSame(
+		"function check(x) { if (x) throw 1; }\n" +
+			"class C { constructor() { check(!new.target); } }\n" +
+			"new C();\n")
+}
+
+// Java: OptimizeParametersTest.testNoHoistImportMeta()
+func (c *OptimizeParametersTest) TestNoHoistImportMeta() {
+	c.TestSame(
+		"function check(x) { if (x) throw 1; }\n" +
+			"function f() { check(import.meta.url); }\n" +
+			"f();\n")
+	c.TestSame(
+		"function check(x) { if (x) throw 1; }\n" +
+			"function f() { check(import.meta); }\n" +
+			"f();\n")
+}
+
+// Java: OptimizeParametersTest.testPublicClassFields_propertyReadInInitializerCanBeSideEffected()
+func (c *OptimizeParametersTest) TestPublicClassFields_propertyReadInInitializerCanBeSideEffected() {
+	// TODO(b/572053067): side-effectful constructor argument moved into constructor body after
+	// non-static field initializer that reads modified state
+	c.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT_2022)
+	c.Test(
+		"function use(val) {}\n"+
+			"const obj = {p: 1};\n"+
+			"class C {\n"+
+			"  x = obj.p;\n"+
+			"  constructor(a) {\n"+
+			"    use(this.x + a);\n"+
+			"  }\n"+
+			"}\n"+
+			"new C(obj.p = 2);\n",
+		"function use(val) {}\n"+
+			"const obj = {p: 1};\n"+
+			"class C {\n"+
+			"  x = obj.p;\n"+
+			"  constructor() {\n"+
+			"    var a = obj.p = 2; // <----- this is wrong, obj.p = 2 *should* execute before x = obj.p\n"+
+			"    use(this.x + a);\n"+
+			"  }\n"+
+			"}\n"+
+			"new C();\n")
+}
+
+// Java: OptimizeParametersTest.testAsyncGenerator_doNotMoveSideEffectfulCallArgIntoBody()
+func (c *OptimizeParametersTest) TestAsyncGenerator_doNotMoveSideEffectfulCallArgIntoBody() {
+	// TODO(b/573183650): side-effectful call argument moved into async generator body
+	c.Test(
+		"async function* g(p) {\n"+
+			"  yield await p;\n"+
+			"}\n"+
+			"g(alert(1));\n",
+		"async function* g() {\n"+
+			"  var p = alert(1);\n"+
+			"  yield await p;\n"+
+			"}\n"+
+			"g();\n")
+}
+
+// Java: OptimizeParametersTest.testAsyncGeneratorMethod_doNotMoveSideEffectfulCallArgIntoBody()
+func (c *OptimizeParametersTest) TestAsyncGeneratorMethod_doNotMoveSideEffectfulCallArgIntoBody() {
+	// TODO(b/573183650): side-effectful call argument moved into async generator method body
+	c.Test(
+		"class C {\n"+
+			"  async *g(p) {\n"+
+			"    yield await p;\n"+
+			"  }\n"+
+			"}\n"+
+			"new C().g(alert(1));\n",
+		"class C {\n"+
+			"  async *g() {\n"+
+			"    var p = alert(1);\n"+
+			"    yield await p;\n"+
+			"  }\n"+
+			"}\n"+
+			"(new C()).g();\n")
+}
+
+// Java: OptimizeParametersTest.testAsyncGenerator_doNotMoveMutableCallArgAcrossAwait()
+func (c *OptimizeParametersTest) TestAsyncGenerator_doNotMoveMutableCallArgAcrossAwait() {
+	// TODO(b/573183650): mutable call argument moved into async generator body across suspension
+	// point
+	c.Test(
+		"var x = 1;\n"+
+			"async function* g(a) {\n"+
+			"  yield a;\n"+
+			"}\n"+
+			"async function run() {\n"+
+			"  const it = g(x);\n"+
+			"  await alert();\n"+
+			"  x = 2;\n"+
+			"  return (await it.next()).value;\n"+
+			"}\n"+
+			"run();\n",
+		"var x = 1;\n"+
+			"async function* g() {\n"+
+			"  var a = x;\n"+
+			"  yield a;\n"+
+			"}\n"+
+			"async function run() {\n"+
+			"  const it = g();\n"+
+			"  await alert();\n"+
+			"  x = 2;\n"+
+			"  return (await it.next()).value;\n"+
+			"}\n"+
+			"run();\n")
+}
+
+// Java: OptimizeParametersTest.testAsyncGenerator_doNotMoveDefaultOrDestructuringParamIntoBody()
+func (c *OptimizeParametersTest) TestAsyncGenerator_doNotMoveDefaultOrDestructuringParamIntoBody() {
+	// TODO(b/573183650): default or destructuring parameter moved into async generator body
+	c.Test(
+		"async function* g(a = alert(1)) {\n"+
+			"  yield a;\n"+
+			"}\n"+
+			"g();\n",
+		"async function* g() {\n"+
+			"  var a = alert(1);\n"+
+			"  yield a;\n"+
+			"}\n"+
+			"g();\n")
+	c.Test(
+		"async function* g({a} = {a: alert(1)}) {\n"+
+			"  yield a;\n"+
+			"}\n"+
+			"g();\n",
+		"async function* g() {\n"+
+			"  ({a} = {a: alert(1)});\n"+
+			"  var a;\n"+
+			"  yield a;\n"+
+			"}\n"+
+			"g();\n")
+	c.Test(
+		"async function* g({a}) {\n"+
+			"  yield a;\n"+
+			"}\n"+
+			"g();\n",
+		"async function* g() {\n"+
+			"  ({a} = void 0);\n"+
+			"  var a;\n"+
+			"  yield a;\n"+
+			"}\n"+
+			"g();\n")
+}
+
+// Java: OptimizeParametersTest.testGenerator_doNotMoveSideEffectfulCallArgIntoBody()
+func (c *OptimizeParametersTest) TestGenerator_doNotMoveSideEffectfulCallArgIntoBody() {
+	// TODO(b/573183650): side-effectful call argument moved into generator body
+	c.Test(
+		"function* g(p) {\n"+
+			"  yield p;\n"+
+			"}\n"+
+			"g(alert(1));\n",
+		"function* g() {\n"+
+			"  var p = alert(1);\n"+
+			"  yield p;\n"+
+			"}\n"+
+			"g();\n")
+}
+
+// Java: OptimizeParametersTest.testGeneratorMethod_doNotMoveSideEffectfulCallArgIntoBody()
+func (c *OptimizeParametersTest) TestGeneratorMethod_doNotMoveSideEffectfulCallArgIntoBody() {
+	// TODO(b/573183650): side-effectful call argument moved into generator method body
+	c.Test(
+		"class C {\n"+
+			"  *g(p) {\n"+
+			"    yield p;\n"+
+			"  }\n"+
+			"}\n"+
+			"new C().g(alert(1));\n",
+		"class C {\n"+
+			"  *g() {\n"+
+			"    var p = alert(1);\n"+
+			"    yield p;\n"+
+			"  }\n"+
+			"}\n"+
+			"(new C()).g();\n")
+}
+
+// Java: OptimizeParametersTest.testGenerator_doNotMoveMutableCallArgAcrossNext()
+func (c *OptimizeParametersTest) TestGenerator_doNotMoveMutableCallArgAcrossNext() {
+	// TODO(b/573183650): mutable call argument moved into generator body across suspension point
+	c.Test(
+		"var x = 1;\n"+
+			"function* g(a) {\n"+
+			"  yield a;\n"+
+			"}\n"+
+			"function run() {\n"+
+			"  const it = g(x);\n"+
+			"  x = 2;\n"+
+			"  return it.next().value;\n"+
+			"}\n"+
+			"run();\n",
+		"var x = 1;\n"+
+			"function* g() {\n"+
+			"  var a = x;\n"+
+			"  yield a;\n"+
+			"}\n"+
+			"function run() {\n"+
+			"  const it = g();\n"+
+			"  x = 2;\n"+
+			"  return it.next().value;\n"+
+			"}\n"+
+			"run();\n")
+}
+
+// Java: OptimizeParametersTest.testGenerator_doNotMoveDefaultOrDestructuringParamIntoBody()
+func (c *OptimizeParametersTest) TestGenerator_doNotMoveDefaultOrDestructuringParamIntoBody() {
+	// TODO(b/573183650): default or destructuring parameter moved into generator body
+	c.Test(
+		"function* g(a = alert(1)) {\n"+
+			"  yield a;\n"+
+			"}\n"+
+			"g();\n",
+		"function* g() {\n"+
+			"  var a = alert(1);\n"+
+			"  yield a;\n"+
+			"}\n"+
+			"g();\n")
+	c.Test(
+		"function* g({a} = {a: alert(1)}) {\n"+
+			"  yield a;\n"+
+			"}\n"+
+			"g();\n",
+		"function* g() {\n"+
+			"  ({a} = {a: alert(1)});\n"+
+			"  var a;\n"+
+			"  yield a;\n"+
+			"}\n"+
+			"g();\n")
+	c.Test(
+		"function* g({a}) {\n"+
+			"  yield a;\n"+
+			"}\n"+
+			"g();\n",
+		"function* g() {\n"+
+			"  ({a} = void 0);\n"+
+			"  var a;\n"+
+			"  yield a;\n"+
+			"}\n"+
+			"g();\n")
 }

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/jstype/EnumType.java @ closure-compiler v20260415
+// Port of com/google/javascript/rhino/jstype/EnumType.java @ closure-compiler v20261015
 
 /*
  *

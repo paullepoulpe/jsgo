@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/FlowSensitiveInlineVariables.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/FlowSensitiveInlineVariables.java @ closure-compiler v20261015
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -100,7 +100,8 @@ func (p *FlowSensitiveInlineVariables_SideEffectPredicate) Apply(n *rhino.Node) 
 	// TODO(user): We only care about calls to functions that
 	// passes one of the dependent variable to a non-side-effect free
 	// function.
-	if n.IsCall() && astAnalyzer.FunctionCallHasSideEffects(n) {
+	if (n.IsCall() || n.IsOptChainCall() || n.IsTaggedTemplateLit()) &&
+		astAnalyzer.FunctionCallHasSideEffects(n) {
 		return true
 	}
 
@@ -110,6 +111,10 @@ func (p *FlowSensitiveInlineVariables_SideEffectPredicate) Apply(n *rhino.Node) 
 
 	if n.IsDelProp() {
 		return true
+	}
+
+	if (n.IsGetProp() || n.IsGetElem()) && NodeUtil_IsLValue(n) {
+		return p.namesToCheck == nil || !FlowSensitiveInlineVariables_IsTopLevelAssignTarget(n)
 	}
 
 	for c := n.GetFirstChild(); c != nil; c = c.GetNext() {

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Es6RewriteBlockScopedFunctionDeclaration.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/Es6RewriteBlockScopedFunctionDeclaration.java @ closure-compiler v20261015
 
 /*
  * Copyright 2017 The Closure Compiler Authors.

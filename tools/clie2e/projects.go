@@ -118,7 +118,8 @@ type inputSpec struct {
 // the Intermediate ones, which both sides must write but whose content is
 // not compared: the compiler state that --filename_to_save_to writes is
 // Java serialization in Java and the port's own encoding in jsgo
-// (Compiler.saveState), gzipped by different deflaters.
+// (Compiler.saveState). Any other gzip output file is compared
+// decompressed (gzipcmp.go).
 type projectJob struct {
 	Name         string      `json:"name"`
 	Args         []string    `json:"args"`
@@ -956,8 +957,8 @@ func classifyProject(javaDir, goDir string, j *projJob) (string, string) {
 			why = append(why, f+" (only Java)")
 		case j.intermediate[f]:
 			// Both wrote it; its content is not compared (see projectJob).
-		case !bytes.Equal(a, b):
-			why = append(why, f+firstDiff(a, b))
+		case !sameOutput(a, b):
+			why = append(why, f+firstDiff(comparableOutput(a), comparableOutput(b)))
 		}
 	}
 	if len(why) == 0 {

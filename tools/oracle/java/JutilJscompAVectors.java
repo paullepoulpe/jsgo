@@ -2,7 +2,7 @@
 // the jscomp diagnostics/deps port (MessageFormat, Path, URI, %.Nf,
 // String.split, BaseEncoding, PercentEscaper, TreeSet, LoadingCache,
 // ImmutableMultiset, Pattern) into internal/jutil/testdata/jscompa_*.tsv.
-//   LC_ALL=C.UTF-8 java -cp .cache/closure-compiler.jar:.cache/oracle-build JutilJscompAVectors internal/jutil/testdata
+//   LC_ALL=C.UTF-8 java -cp .cache/$CLOSURE_JAR:.cache/oracle-build JutilJscompAVectors internal/jutil/testdata
 // (a UTF-8 locale, so that sun.jnu.encoding, which java.nio.file.Path uses, is UTF-8)
 import com.google.javascript.jscomp.jarjar.com.google.common.cache.CacheBuilder;
 import com.google.javascript.jscomp.jarjar.com.google.common.cache.CacheLoader;

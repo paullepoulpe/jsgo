@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ScopedAliases.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/ScopedAliases.java @ closure-compiler v20261015
 
 /*
  * Copyright 2010 The Closure Compiler Authors.
@@ -818,7 +818,7 @@ func (c *scopedAliases_renameBleedingFunctionNameCallback) Visit(t *NodeTraversa
 func (v *ScopedAliases_Traversal) RenameBleedingFunctionName(t *NodeTraversal, fnName *rhino.Node) {
 	compiler := v.outer.compiler
 	name := fnName.GetString()
-	suffix := compiler.GetUniqueNameIdSupplier()()
+	suffix := compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
 	cb := &scopedAliases_renameBleedingFunctionNameCallback{
 		compiler: compiler, name: name, suffix: suffix, fnName: fnName}
 	NodeTraversal_Builder_().

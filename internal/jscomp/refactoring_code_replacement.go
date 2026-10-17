@@ -1,5 +1,5 @@
 // Port of com/google/javascript/refactoring/CodeReplacement.java (with the AutoValue-generated
-// AutoValue_CodeReplacement.java) @ closure-compiler v20260415
+// AutoValue_CodeReplacement.java) @ closure-compiler v20261015
 
 /*
  * Copyright 2014 The Closure Compiler Authors.

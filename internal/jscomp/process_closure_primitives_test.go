@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ProcessClosurePrimitivesTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/ProcessClosurePrimitivesTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/ProcessClosurePrimitivesTest.java)
 
 /*
@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 // ProcessClosurePrimitivesTest holds tests for ProcessClosurePrimitives.
@@ -511,4 +512,13 @@ func (c *ProcessClosurePrimitivesTest) TestInvalidRenameFunction_withPropertyRef
 	c.Test(
 		c.Srcs("const p = JSCompiler_renameProperty('a.b')"),
 		c.Error(ProcessClosurePrimitives_INVALID_RENAME_FUNCTION).WithMessageContaining("property path"))
+}
+
+// Java: ProcessClosurePrimitivesTest.testPreprocessorSymbolTable()
+func (c *ProcessClosurePrimitivesTest) TestPreprocessorSymbolTable() {
+	root := rhino.IR_Root()
+	table := NewPreprocessorSymbolTable(root)
+	n := rhino.IR_Name("test")
+	table.AddReferenceWithName(n, "test")
+	AssertThat(table.GetReferences(table.GetSlot("test").(rhino.SimpleSlot))).IsNotNull()
 }

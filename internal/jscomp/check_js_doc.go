@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CheckJSDoc.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/CheckJSDoc.java @ closure-compiler v20261015
 
 /*
  * Copyright 2015 The Closure Compiler Authors.
@@ -45,6 +45,10 @@ var CheckJSDoc_MISPLACED_MSG_ANNOTATION = DiagnosticType_Disabled(
 
 // Java: CheckJSDoc.MISPLACED_ANNOTATION
 var CheckJSDoc_MISPLACED_ANNOTATION = DiagnosticType_Warning("JSC_MISPLACED_ANNOTATION", "Misplaced {0} annotation. {1}")
+
+// Java: CheckJSDoc.MISPLACED_TS_TYPE_ANNOTATION
+var CheckJSDoc_MISPLACED_TS_TYPE_ANNOTATION = DiagnosticType_Warning(
+	"JSC_MISPLACED_TS_TYPE_ANNOTATION", "Misplaced @tsType annotation. {0}")
 
 // Java: CheckJSDoc.ANNOTATION_DEPRECATED
 var CheckJSDoc_ANNOTATION_DEPRECATED = DiagnosticType_Warning("JSC_ANNOTATION_DEPRECATED", "The {0} annotation is deprecated. {1}")
@@ -799,7 +803,7 @@ func (c *CheckJSDoc) ValidateTsType(n *rhino.Node, info *rhino.JSDocInfo) {
 	}
 
 	if !c.IsJSDocOnFunctionNode(n, info) {
-		c.Report(n, CheckJSDoc_MISPLACED_ANNOTATION, "tsType", "must be on a function node")
+		c.Report(n, CheckJSDoc_MISPLACED_TS_TYPE_ANNOTATION, "must be on a function node")
 	}
 }
 

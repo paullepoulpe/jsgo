@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ValidityCheck.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/ValidityCheck.java @ closure-compiler v20261015
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -31,18 +31,6 @@ type ValidityCheck struct {
 	changeTracker *ChangeTracker
 	astValidator  *AstValidator
 }
-
-var ValidityCheck_CANNOT_PARSE_GENERATED_CODE = DiagnosticType_Error(
-	"JSC_CANNOT_PARSE_GENERATED_CODE",
-	"Internal compiler error. Cannot parse generated code: {0}")
-
-var ValidityCheck_GENERATED_BAD_CODE = DiagnosticType_Error(
-	"JSC_GENERATED_BAD_CODE",
-	"Internal compiler error. Generated bad code."+
-		"----------------------------------------\n"+
-		"Expected:\n{0}\n"+
-		"----------------------------------------\n"+
-		"Actual:\n{1}")
 
 var ValidityCheck_EXTERN_PROPERTIES_CHANGED = DiagnosticType_Error(
 	"JSC_EXTERN_PROPERTIES_CHANGED",

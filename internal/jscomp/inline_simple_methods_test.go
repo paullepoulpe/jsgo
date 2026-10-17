@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/InlineSimpleMethodsTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/InlineSimpleMethodsTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/InlineSimpleMethodsTest.java)
 
 /*
@@ -692,5 +692,130 @@ func (c *InlineSimpleMethodsTest) TestNoInlineOfAsyncGeneratorMethod_es6Style() 
 		`class Foo { async *bar(){return this.baz} }
 var x = (new Foo).bar();
 var y = (new Foo).bar();
+`)
+}
+
+// Java: InlineSimpleMethodsTest.testNoInlineOfMethodWithSideEffectfulDefaultParameter()
+func (c *InlineSimpleMethodsTest) TestNoInlineOfMethodWithSideEffectfulDefaultParameter() {
+	c.TestSame(
+		`class Foo {
+  getVal(x = audit()) { return this.val; }
+}
+var x = (new Foo).getVal();
+`)
+}
+
+// Java: InlineSimpleMethodsTest.testInlineOfMethodWithSideEffectFreeDefaultParameter()
+func (c *InlineSimpleMethodsTest) TestInlineOfMethodWithSideEffectFreeDefaultParameter() {
+	c.Test(
+		`class Foo {
+  getVal(x = 1) { return this.val; }
+}
+var x = (new Foo).getVal();
+`,
+		`class Foo {
+  getVal(x = 1) { return this.val; }
+}
+var x = (new Foo).val;
+`)
+}
+
+// Java: InlineSimpleMethodsTest.testNoInlineOfEmptyMethodWithSideEffectfulDefaultParameter()
+func (c *InlineSimpleMethodsTest) TestNoInlineOfEmptyMethodWithSideEffectfulDefaultParameter() {
+	c.TestSame(
+		`class Foo {
+  record(x = audit()) {}
+}
+var f = new Foo();
+var x = f.record();
+`)
+}
+
+// Java: InlineSimpleMethodsTest.testInlineOfEmptyMethodWithSideEffectFreeDefaultParameter()
+func (c *InlineSimpleMethodsTest) TestInlineOfEmptyMethodWithSideEffectFreeDefaultParameter() {
+	c.Test(
+		`class Foo {
+  record(x = 1) {}
+}
+var f = new Foo();
+var x = f.record();
+`,
+		`class Foo {
+  record(x = 1) {}
+}
+var f = new Foo();
+var x = void 0;
+`)
+}
+
+// Java: InlineSimpleMethodsTest.testNoInlineOfMethodWithDestructuring()
+func (c *InlineSimpleMethodsTest) TestNoInlineOfMethodWithDestructuring() {
+	c.TestSame(
+		`class Foo {
+  getVal({x}) { return this.val; }
+}
+var x = (new Foo).getVal({});
+`)
+	c.TestSame(
+		`class Foo {
+  getVal([x]) { return this.val; }
+}
+var x = (new Foo).getVal([1]);
+`)
+	c.TestSame(
+		`class Foo {
+  getVal({x} = {}) { return this.val; }
+}
+var x = (new Foo).getVal();
+`)
+}
+
+// Java: InlineSimpleMethodsTest.testNoInlineOfEmptyMethodWithDestructuring()
+func (c *InlineSimpleMethodsTest) TestNoInlineOfEmptyMethodWithDestructuring() {
+	c.TestSame(
+		`class Foo {
+  record({x}) {}
+}
+var f = new Foo();
+var x = f.record({});
+`)
+	c.TestSame(
+		`class Foo {
+  record([x]) {}
+}
+var f = new Foo();
+var x = f.record([1]);
+`)
+}
+
+// Java: InlineSimpleMethodsTest.testInlineOfMethodWithRestParameter()
+func (c *InlineSimpleMethodsTest) TestInlineOfMethodWithRestParameter() {
+	c.Test(
+		`class Foo {
+  getVal(...x) { return this.val; }
+}
+var x = (new Foo).getVal();
+`,
+		`class Foo {
+  getVal(...x) { return this.val; }
+}
+var x = (new Foo).val;
+`)
+}
+
+// Java: InlineSimpleMethodsTest.testInlineOfEmptyMethodWithRestParameter()
+func (c *InlineSimpleMethodsTest) TestInlineOfEmptyMethodWithRestParameter() {
+	c.Test(
+		`class Foo {
+  record(...x) {}
+}
+var f = new Foo();
+var x = f.record();
+`,
+		`class Foo {
+  record(...x) {}
+}
+var f = new Foo();
+var x = void 0;
 `)
 }

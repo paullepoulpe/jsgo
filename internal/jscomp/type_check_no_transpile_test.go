@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/TypeCheckNoTranspileTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/TypeCheckNoTranspileTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/TypeCheckNoTranspileTest.java)
 
 /*
@@ -1666,16 +1666,50 @@ required: string
 		Run()
 }
 
-// Java: TypeCheckNoTranspileTest.testGenerator_returnsIterator1()
-func (c *TypeCheckNoTranspileTest) TestGenerator_returnsIterator1() {
-	TypeCheckTestCase_TypeTestBuilder_NewTest().AddSource("/** @return {!Iterator<?>} */ function *gen() {}").
+// Java: TypeCheckNoTranspileTest.testGenerator_returnsIteratorLike1()
+func (c *TypeCheckNoTranspileTest) TestGenerator_returnsIteratorLike1() {
+	TypeCheckTestCase_TypeTestBuilder_NewTest().AddSource("/** @return {!IteratorLike<?>} */ function *gen() {}").
 		IncludeDefaultExterns().
 		Run()
 }
 
-// Java: TypeCheckNoTranspileTest.testGenerator_returnsIterator2()
-func (c *TypeCheckNoTranspileTest) TestGenerator_returnsIterator2() {
-	TypeCheckTestCase_TypeTestBuilder_NewTest().AddSource("/** @return {!Iterator<string>} */ function* gen() {  yield 1; }").
+// Java: TypeCheckNoTranspileTest.testGenerator_returnsIteratorLike2()
+func (c *TypeCheckNoTranspileTest) TestGenerator_returnsIteratorLike2() {
+	TypeCheckTestCase_TypeTestBuilder_NewTest().AddSource("/** @return {!IteratorLike<string>} */ function* gen() {  yield 1; }").
+		AddDiagnostic(`Yielded type does not match declared return type.
+found   : number
+required: string
+`).
+		IncludeDefaultExterns().
+		Run()
+}
+
+// Java: TypeCheckNoTranspileTest.testGenerator_returnsStructuralIteratorLike()
+func (c *TypeCheckNoTranspileTest) TestGenerator_returnsStructuralIteratorLike() {
+	TypeCheckTestCase_TypeTestBuilder_NewTest().AddSource(`/** @record */
+function StructuralIterator() {}
+/** @return {!IIterableResult<string>} */
+StructuralIterator.prototype.next = function() {};
+
+/** @return {!StructuralIterator} */
+function* gen() { yield 1; }
+`).
+		AddDiagnostic(`Yielded type does not match declared return type.
+found   : number
+required: string
+`).
+		IncludeDefaultExterns().
+		Run()
+}
+
+// Java: TypeCheckNoTranspileTest.testGenerator_returnsObjectLiteralIteratorLike()
+func (c *TypeCheckNoTranspileTest) TestGenerator_returnsObjectLiteralIteratorLike() {
+	TypeCheckTestCase_TypeTestBuilder_NewTest().AddSource(`/** @typedef {{next: function(): !IIterableResult<string>}} */
+var StructuralIterator;
+
+/** @return {!StructuralIterator} */
+function* gen() { yield 1; }
+`).
 		AddDiagnostic(`Yielded type does not match declared return type.
 found   : number
 required: string
@@ -1762,9 +1796,9 @@ required: string
 		Run()
 }
 
-// Java: TypeCheckNoTranspileTest.testGenerator_returnIterator_mismatch()
-func (c *TypeCheckNoTranspileTest) TestGenerator_returnIterator_mismatch() {
-	TypeCheckTestCase_TypeTestBuilder_NewTest().AddSource("/** @return {!Iterator<number, string>} */ function *gen() { return 1; }").
+// Java: TypeCheckNoTranspileTest.testGenerator_returnIteratorLike_mismatch()
+func (c *TypeCheckNoTranspileTest) TestGenerator_returnIteratorLike_mismatch() {
+	TypeCheckTestCase_TypeTestBuilder_NewTest().AddSource("/** @return {!IteratorLike<number, string>} */ function *gen() { return 1; }").
 		AddDiagnostic(`inconsistent return type
 found   : number
 required: string

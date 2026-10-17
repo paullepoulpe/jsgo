@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Es6ForOfConverter.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/Es6ForOfConverter.java @ closure-compiler v20261015
 
 /*
  * Copyright 2017 The Closure Compiler Authors.
@@ -64,14 +64,14 @@ func (e *Es6ForOfConverter) Process(externs *rhino.Node, root *rhino.Node) {
 // Java: Es6ForOfConverter.visit(NodeTraversal, Node, Node)
 func (e *Es6ForOfConverter) Visit(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) {
 	if n.IsForOf() {
-		e.VisitForOf(n)
+		e.VisitForOf(t, n)
 	}
 }
 
 // TODO(lharker): break up this method
 //
-// Java: Es6ForOfConverter.visitForOf(Node)
-func (e *Es6ForOfConverter) VisitForOf(node *rhino.Node) {
+// Java: Es6ForOfConverter.visitForOf(NodeTraversal, Node)
+func (e *Es6ForOfConverter) VisitForOf(t *NodeTraversal, node *rhino.Node) {
 	// `var v` or `let v` or v any valid lhs
 	variable := node.RemoveFirstChild()
 	iterable := node.RemoveFirstChild()
@@ -80,7 +80,8 @@ func (e *Es6ForOfConverter) VisitForOf(node *rhino.Node) {
 	// `$jscomp$iter$0`
 	iterName :=
 		e.astFactory.CreateName(
-			Es6ForOfConverter_ITER_BASE+e.compiler.GetUniqueNameIdSupplier()(), AstFactory_Type_OfColorId(colors.StandardColors_ITERATOR_ID))
+			Es6ForOfConverter_ITER_BASE+e.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput()),
+			AstFactory_Type_OfColorId(colors.StandardColors_ITERATOR_ID))
 	iterName.MakeNonIndexable()
 	// `$jscomp$iter$0.next()`
 	getNext :=
@@ -89,11 +90,7 @@ func (e *Es6ForOfConverter) VisitForOf(node *rhino.Node) {
 	// generate a unique iterator result name for every for-of loop getting rewritten to avoid
 	// conflicts
 	iteratorResultName :=
-		Es6ForOfConverter_ITER_RESULT +
-			e.compiler.
-				GetUniqueIdSupplier().
-				GetUniqueId(e.compiler.GetInput(NodeUtil_GetEnclosingScript(node).GetInputId())) +
-			"$"
+		Es6ForOfConverter_ITER_RESULT + e.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput()) + "$"
 
 	if NodeUtil_IsNameDeclaration(variable) {
 		iteratorResultName += variable.GetFirstChild().GetString()
@@ -106,16 +103,18 @@ func (e *Es6ForOfConverter) VisitForOf(node *rhino.Node) {
 	// `$jscomp$key$extraName`
 	iterResult := e.astFactory.CreateNameWithUnknownType(iteratorResultName)
 	iterResult.MakeNonIndexable()
+
 	// `$jscomp.makeIterator(iterable)`
 	callMakeIterator :=
 		e.astFactory.
 			CreateJSCompMakeIteratorCall(iterable, e.namespace).
 			SrcrefTreeIfMissing(iterable)
 	// `var $jscomp$iter$0 = $jscomp.makeIterator(iterable)`
-	initIter := rhino.IR_VarWithValue(iterName, callMakeIterator).SrcrefTreeIfMissing(iterable)
+	initIter := rhino.IR_VarWithValue(iterName.CloneTree(), callMakeIterator).SrcrefTreeIfMissing(iterable)
 	// var $jscomp$key$extraName = $jscomp$iter$0.next();
 	initIterResult :=
 		rhino.IR_VarWithValue(iterResult.CloneTree(), getNext.CloneTree()).SrcrefTreeIfMissing(iterable)
+
 	// !$jscomp$key$extraName.done
 	cond :=
 		e.astFactory.CreateNot(
@@ -155,13 +154,34 @@ func (e *Es6ForOfConverter) VisitForOf(node *rhino.Node) {
 	newBody := rhino.IR_BlockOfNodes(declarationOrAssign, body).Srcref(body)
 	empty := e.astFactory.CreateEmpty()
 	newFor := rhino.IR_ForNode(empty, cond, incr, newBody).SrcrefTreeIfMissing(node)
-	node.ReplaceWith(newFor)
-	// Check if the for loop has a parent that is a label i.e. `loop 1: for(...of .. .)`
-	insertionPoint := newFor
-	for insertionPoint.GetParent().IsLabel() {
+
+	// Build finally block:
+	// (0, $jscomp.iteratorClose)($jscomp$iter$0, $jscomp$key$extraName);
+	callIteratorClose :=
+		e.astFactory.
+			CreateJscompIteratorCloseCall(
+				iterName.CloneTree(), iterResult.CloneTree(), e.namespace).
+			SrcrefTreeIfMissing(node)
+	finallyBlock := e.astFactory.CreateBlock(e.astFactory.ExprResult(callIteratorClose))
+
+	// Check if the for loop has a parent that is a label i.e. `loop1: for(...of ...)`
+	labelNames := []*rhino.Node{}
+	insertionPoint := node
+	for insertionPoint.GetParent() != nil && insertionPoint.GetParent().IsLabel() {
 		insertionPoint = insertionPoint.GetParent()
+		labelNames = append(labelNames, insertionPoint.GetFirstChild().CloneNode())
 	}
-	initIter.InsertBefore(insertionPoint)
+
+	innerLoop := newFor
+	for _, labelName := range labelNames {
+		innerLoop = e.astFactory.CreateLabel(labelName, innerLoop)
+	}
+	tryBlock := e.astFactory.CreateBlock(innerLoop)
+	tryFinally := e.astFactory.CreateTryFinally(tryBlock, finallyBlock).SrcrefTreeIfMissing(node)
+
+	insertionPoint.ReplaceWith(tryFinally)
+
+	initIter.InsertBefore(tryFinally)
 	initIterResult.InsertAfter(initIter)
-	e.compiler.ReportChangeToEnclosingScope(newFor)
+	e.compiler.ReportChangeToEnclosingScope(tryFinally)
 }

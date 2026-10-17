@@ -1,7 +1,7 @@
 // Oracle tool: writes the Guava reference vectors for
 // jutil.CaseFormat_LowerHyphenToUpperCamel (CaseFormat.LOWER_HYPHEN.to(
 // CaseFormat.UPPER_CAMEL, s)) into internal/jutil/testdata/caseformat_hyphen.tsv.
-//   java -cp .cache/closure-compiler.jar:.cache/oracle-build JutilCaseFormatHyphenVectors internal/jutil/testdata
+//   java -cp .cache/$CLOSURE_JAR:.cache/oracle-build JutilCaseFormatHyphenVectors internal/jutil/testdata
 import com.google.javascript.jscomp.jarjar.com.google.common.base.CaseFormat;
 import java.io.PrintStream;
 import java.nio.file.*;

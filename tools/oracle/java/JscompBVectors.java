@@ -8,7 +8,7 @@
 // It lives in package com.google.javascript.jscomp to reach package-private
 // API (DefaultNameGenerator.favors, JsMessage.Hash, PlaceholderReference
 // .createForJsName, CodeConsumer):
-//   java -cp .cache/closure-compiler.jar:.cache/oracle-build \
+//   java -cp .cache/$CLOSURE_JAR:.cache/oracle-build \
 //       com.google.javascript.jscomp.JscompBVectors internal/jscomp/testdata/jscomp_b.tsv
 package com.google.javascript.jscomp;
 

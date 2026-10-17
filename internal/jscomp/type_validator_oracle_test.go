@@ -9,7 +9,7 @@ package jscomp
 //
 //   - TestTypeValidatorOracleGolden compares with the checked-in
 //     testdata/type_validator.txt.gz (3000 seeded pairs):
-//       java -cp .cache/closure-compiler.jar:.cache/oracle-build \
+//       java -cp .cache/$CLOSURE_JAR:.cache/oracle-build \
 //         com.google.javascript.jscomp.TypeValidatorDump \
 //         internal/jscomp/testdata/reverse_interpreter_types.txt \
 //         internal/jscomp/testdata/type_validator.txt.gz 3000

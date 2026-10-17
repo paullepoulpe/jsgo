@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/NestedCompilerRunnerTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/NestedCompilerRunnerTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/NestedCompilerRunnerTest.java)
 
 /*
@@ -259,12 +259,18 @@ func (c *NestedCompilerRunnerTest) TestDoesNotRunTypechecking() {
 func (c *NestedCompilerRunnerTest) createScript(code string) *rhino.Node {
 	file := SourceFile_FromCodeWithKind("test.js", code, rhino.StaticSourceFile_SourceKind_STRONG)
 
+	parsed := c.original.ParseTestCode(code)
 	script := rhino.IR_Script()
 	script.SetStaticSourceFile(file)
 	script.SetIsInClosureUnawareSubtree(true)
-	script.PutProp(rhino.Node_FEATURE_SET, parser.FeatureSet_ALL)
+	features := NodeUtil_GetFeatureSetOfScript(parsed)
+	if features != nil {
+		script.PutProp(rhino.Node_FEATURE_SET, features)
+	} else {
+		script.PutProp(rhino.Node_FEATURE_SET, parser.FeatureSet_BARE_MINIMUM)
+	}
 
-	script.AddChildrenToFront(c.original.ParseTestCode(code).RemoveChildren())
+	script.AddChildrenToFront(parsed.RemoveChildren())
 	return script
 }
 

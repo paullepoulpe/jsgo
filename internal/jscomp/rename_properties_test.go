@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/RenamePropertiesTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/RenamePropertiesTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/RenamePropertiesTest.java)
 
 /*
@@ -1041,4 +1041,22 @@ func (c *RenamePropertiesTest) GetProcessor(compiler *Compiler) CompilerPass {
 		NewDefaultNameGenerator(),
 		c.propertyNameFilter)
 	return c.renameProperties
+}
+
+// Java: RenamePropertiesTest.testAvoidingConflictsBetweenQuotedAndUnquotedClassFields()
+func (c *RenamePropertiesTest) TestAvoidingConflictsBetweenQuotedAndUnquotedClassFields() {
+	// TODO(b/571953710): COMPUTED_FIELD_DEF string keys not reserved
+	c.Test(
+		`class C {
+  foo = 1;
+  'a' = alert(2);
+}
+new C().foo;
+`,
+		`class C {
+  a = 1;
+  ["a"] = alert(2);
+}
+(new C()).a;
+`)
 }

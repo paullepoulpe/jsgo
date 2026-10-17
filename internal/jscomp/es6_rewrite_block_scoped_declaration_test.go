@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Es6RewriteBlockScopedDeclarationTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/Es6RewriteBlockScopedDeclarationTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/Es6RewriteBlockScopedDeclarationTest.java)
 
 /*
@@ -99,6 +99,16 @@ func (c *Es6RewriteBlockScopedDeclarationTest) LoopClosureTestWithExterns(extern
 				srcs.(*CompilerTestCase_FlatSources),
 				modifiedExpected,
 				param))
+	thisArgs := jutil.NewLinkedHashMap[string, string]()
+	thisArgs.Put("$THIS", "$jscomp$this$")
+	thisArgs.Put("$ARGUMENTS", "$jscomp$arguments$")
+	// change the "$THIS" and "$ARGUMENTS" in expected with "$jscomp$this$" and "$jscomp$arguments$"
+	modifiedExpected =
+		c.Expected(
+			UnitTestUtils_UpdateGenericVarNamesInExpectedFiles(
+				srcs.(*CompilerTestCase_FlatSources),
+				modifiedExpected,
+				thisArgs))
 	c.Test(externs, srcs, modifiedExpected)
 }
 
@@ -1949,12 +1959,11 @@ func (c *Es6RewriteBlockScopedDeclarationTest) TestCatch() {
 	c.Test(srcs, expected)
 }
 
-// Regression test for https://github.com/google/closure-compiler/issues/3599
-//
 // Java: Es6RewriteBlockScopedDeclarationTest.testReferenceToLoopScopedLetInObjectGetterAndSetter()
 func (c *Es6RewriteBlockScopedDeclarationTest) TestReferenceToLoopScopedLetInObjectGetterAndSetter() {
-	srcs := c.Srcs(
-		`for (let i = 0; i < 2; i++) {
+	srcs :=
+		c.Srcs(
+			`for (let i = 0; i < 2; i++) {
    let bar = 42;
    let a = {
      get foo() {
@@ -1969,8 +1978,9 @@ func (c *Es6RewriteBlockScopedDeclarationTest) TestReferenceToLoopScopedLetInObj
    use(a);
 }
 `)
-	expected := c.Expected(
-		`var LOOP$0 = {};
+	expected :=
+		c.Expected(
+			`var LOOP$0 = {};
 var i = 0;
 for (; i < 2;
     LOOP$0 = { bar: void 0 }, i++) {
@@ -1978,15 +1988,15 @@ for (; i < 2;
 // Note that we wrap the entire object literal in an IIFE, because that's simpler
 // than trying to individually wrap the getter and setter methods defined in it.
   var a =
-      (function(LOOP$0$PARAM$1) {
+      (function(LOOP$0$PARAM$2) {
         return {
           get foo() {
-            return LOOP$0$PARAM$1.bar;
+            return LOOP$0$PARAM$2.bar;
           },
           set foo(x) {
-            use(LOOP$0$PARAM$1.bar);
+            use(LOOP$0$PARAM$2.bar);
           },
-          prop: LOOP$0$PARAM$1.bar
+          prop: LOOP$0$PARAM$2.bar
       };
   })(LOOP$0);
   LOOP$0.bar = 43;
@@ -1998,8 +2008,9 @@ for (; i < 2;
 
 // Java: Es6RewriteBlockScopedDeclarationTest.testReferenceToMultipleLoopScopedLetConstInObjectWithGetter()
 func (c *Es6RewriteBlockScopedDeclarationTest) TestReferenceToMultipleLoopScopedLetConstInObjectWithGetter() {
-	srcs := c.Srcs(
-		`for (let i = 0; i < 2; i++) {
+	srcs :=
+		c.Srcs(
+			`for (let i = 0; i < 2; i++) {
    let bar = 42;
    const baz = 43;
    let a = {
@@ -2009,8 +2020,9 @@ func (c *Es6RewriteBlockScopedDeclarationTest) TestReferenceToMultipleLoopScoped
    };
 }
 `)
-	expected := c.Expected(
-		`var LOOP$0 = {};
+	expected :=
+		c.Expected(
+			`var LOOP$0 = {};
 var i = 0;
 for (; i < 2;
     LOOP$0 = { bar: void 0, baz: void 0 },
@@ -2018,11 +2030,11 @@ for (; i < 2;
   LOOP$0.bar = 42;
   /** @const */
   LOOP$0.baz = 43;
-  var a = (function(LOOP$0$PARAM$1) {
+  var a = (function(LOOP$0$PARAM$2) {
    return {
     get foo() {
-       return LOOP$0$PARAM$1.bar +
-           LOOP$0$PARAM$1.baz;
+       return LOOP$0$PARAM$2.bar +
+           LOOP$0$PARAM$2.baz;
     }
   };
  })(LOOP$0);
@@ -2033,8 +2045,9 @@ for (; i < 2;
 
 // Java: Es6RewriteBlockScopedDeclarationTest.testReferenceToMultipleLoopScopedLetsInObjectWithSetter()
 func (c *Es6RewriteBlockScopedDeclarationTest) TestReferenceToMultipleLoopScopedLetsInObjectWithSetter() {
-	srcs := c.Srcs(
-		`for (let i = 0; i < 2; i++) {
+	srcs :=
+		c.Srcs(
+			`for (let i = 0; i < 2; i++) {
    let bar = 42;
    let baz = 43;
    let a = {
@@ -2044,8 +2057,9 @@ func (c *Es6RewriteBlockScopedDeclarationTest) TestReferenceToMultipleLoopScoped
    };
 }
 `)
-	expected := c.Expected(
-		`var LOOP$0 = {};
+	expected :=
+		c.Expected(
+			`var LOOP$0 = {};
 var i = 0;
 for (; i < 2;
     LOOP$0 = {
@@ -2056,10 +2070,10 @@ for (; i < 2;
   LOOP$0.bar = 42;
   LOOP$0.baz = 43;
   var a =
-      (function(LOOP$0$PARAM$1) {
+      (function(LOOP$0$PARAM$2) {
         return {
-          set foo(x = LOOP$0$PARAM$1.bar) {
-            return x + LOOP$0$PARAM$1.baz;
+          set foo(x = LOOP$0$PARAM$2.bar) {
+            return x + LOOP$0$PARAM$2.baz;
           }
         };
       })(LOOP$0);
@@ -2111,4 +2125,201 @@ for (b in[0, 1]) {
 }
 `)
 	c.Test(srcs, expected)
+}
+
+// Java: Es6RewriteBlockScopedDeclarationTest.testLoopClosure_overlappingLoopObjectNames()
+func (c *Es6RewriteBlockScopedDeclarationTest) TestLoopClosure_overlappingLoopObjectNames() {
+	srcs :=
+		c.Srcs(
+			`const arr = [];
+for (let i0 = 0; i0 < 10; i0++) {
+  arr.push(function() { return i0; });
+  for (let i1 = 0; i1 < 10; i1++) {
+    arr.push(function() { return i1; });
+    for (let i2 = 0; i2 < 10; i2++) {
+      arr.push(function() { return i2; });
+      for (let i3 = 0; i3 < 10; i3++) {
+        arr.push(function() { return i3; });
+        for (let i4 = 0; i4 < 10; i4++) {
+          arr.push(function() { return i4; });
+          for (let i5 = 0; i5 < 10; i5++) {
+            arr.push(function() { return i5; });
+            for (let i6 = 0; i6 < 10; i6++) {
+              arr.push(function() { return i6; });
+              for (let i7 = 0; i7 < 10; i7++) {
+                arr.push(function() { return i7; });
+                for (let i8 = 0; i8 < 10; i8++) {
+                  arr.push(function() { return i8; });
+                  for (let i9 = 0; i9 < 10; i9++) {
+                    arr.push(function() { return i9; });
+                    for (let i10 = 0; i10 < 10; i10++) {
+                      arr.push(function() { return i1 + i10; });
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+`)
+	expected :=
+		c.Expected(
+			`/** @const */ var arr = [];
+var LOOP$0 = {};
+LOOP$0.i0 = 0;
+for (; LOOP$0.i0 < 10;
+    LOOP$0 = {i0: LOOP$0.i0},
+    LOOP$0.i0++) {
+  arr.push((function(LOOP$0$PARAM$11) {
+    return function() { return LOOP$0$PARAM$11.i0; };
+  })(LOOP$0));
+  var LOOP$1 = {};
+  LOOP$1.i1 = 0;
+  for (; LOOP$1.i1 < 10;
+      LOOP$1 = {i1: LOOP$1.i1},
+      LOOP$1.i1++) {
+    arr.push((function(LOOP$1$PARAM$12) {
+      return function() { return LOOP$1$PARAM$12.i1; };
+    })(LOOP$1));
+    var LOOP$2 = {};
+    LOOP$2.i2 = 0;
+    for (; LOOP$2.i2 < 10;
+        LOOP$2 = {i2: LOOP$2.i2},
+        LOOP$2.i2++) {
+      arr.push((function(LOOP$2$PARAM$13) {
+        return function() { return LOOP$2$PARAM$13.i2; };
+      })(LOOP$2));
+      var LOOP$3 = {};
+      LOOP$3.i3 = 0;
+      for (; LOOP$3.i3 < 10;
+          LOOP$3 = {i3: LOOP$3.i3},
+          LOOP$3.i3++) {
+        arr.push((function(LOOP$3$PARAM$14) {
+          return function() { return LOOP$3$PARAM$14.i3; };
+        })(LOOP$3));
+        var LOOP$4 = {};
+        LOOP$4.i4 = 0;
+        for (; LOOP$4.i4 < 10;
+            LOOP$4 = {i4: LOOP$4.i4},
+            LOOP$4.i4++) {
+          arr.push((function(LOOP$4$PARAM$15) {
+            return function() { return LOOP$4$PARAM$15.i4; };
+          })(LOOP$4));
+          var LOOP$5 = {};
+          LOOP$5.i5 = 0;
+          for (; LOOP$5.i5 < 10;
+              LOOP$5 = {i5: LOOP$5.i5},
+              LOOP$5.i5++) {
+            arr.push((function(LOOP$5$PARAM$16) {
+              return function() { return LOOP$5$PARAM$16.i5; };
+            })(LOOP$5));
+            var LOOP$6 = {};
+            LOOP$6.i6 = 0;
+            for (; LOOP$6.i6 < 10;
+                LOOP$6 = {i6: LOOP$6.i6},
+                LOOP$6.i6++) {
+              arr.push((function(LOOP$6$PARAM$17) {
+                return function() { return LOOP$6$PARAM$17.i6; };
+              })(LOOP$6));
+              var LOOP$7 = {};
+              LOOP$7.i7 = 0;
+              for (; LOOP$7.i7 < 10;
+                  LOOP$7 = {i7: LOOP$7.i7},
+                  LOOP$7.i7++) {
+                arr.push((function(LOOP$7$PARAM$18) {
+                  return function() { return LOOP$7$PARAM$18.i7; };
+                })(LOOP$7));
+                var LOOP$8 = {};
+                LOOP$8.i8 = 0;
+                for (; LOOP$8.i8 < 10;
+                    LOOP$8 = {i8: LOOP$8.i8},
+                    LOOP$8.i8++) {
+                  arr.push((function(LOOP$8$PARAM$19) {
+                    return function() { return LOOP$8$PARAM$19.i8; };
+                  })(LOOP$8));
+                  var LOOP$9 = {};
+                  LOOP$9.i9 = 0;
+                  for (; LOOP$9.i9 < 10;
+                      LOOP$9 = {i9: LOOP$9.i9},
+                      LOOP$9.i9++) {
+                    arr.push((function(LOOP$9$PARAM$20) {
+                      return function() { return LOOP$9$PARAM$20.i9; };
+                    })(LOOP$9));
+                    var LOOP$10 = {};
+                    LOOP$10.i10 = 0;
+                    for (; LOOP$10.i10 < 10;
+                        LOOP$10 = {i10: LOOP$10.i10},
+                        LOOP$10.i10++) {
+                      arr.push((function(LOOP$1$PARAM$21, LOOP$10$PARAM$22) {
+                        return function() { return LOOP$1$PARAM$21.i1 + LOOP$10$PARAM$22.i10; };
+                      })(LOOP$1, LOOP$10));
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+`)
+	c.LoopClosureTest(srcs, expected)
+}
+
+// Java: Es6RewriteBlockScopedDeclarationTest.testReferenceToLoopScopedLetInObjectWithThisAndArguments()
+func (c *Es6RewriteBlockScopedDeclarationTest) TestReferenceToLoopScopedLetInObjectWithThisAndArguments() {
+	srcs :=
+		c.Srcs(
+			`function h(userInput) {
+  var out = [];
+  for (let i = 0; i < 3; i++) {
+    out.push({
+      get idx() { return i; },
+      ctx: this.policy,
+      raw: arguments[0]
+    });
+  }
+  return out;
+}
+`)
+	expected :=
+		c.Expected(
+			`function h(userInput) {
+  /** @const */
+  var $ARGUMENTS$1 = arguments;
+  /** @const */
+  var $THIS$1 = this;
+  var out = [];
+  var LOOP$0 = {};
+  LOOP$0.i = 0;
+  for (; LOOP$0.i < 3;
+      LOOP$0 = { i: LOOP$0.i },
+      LOOP$0.i++) {
+    out.push((function(LOOP$0$PARAM$2) {
+      return {
+        get idx() {
+          return LOOP$0$PARAM$2.i;
+        },
+        ctx: $THIS$1.policy,
+        raw: $ARGUMENTS$1[0]
+      };
+    })(LOOP$0));
+  }
+  return out;
+}
+`)
+	c.LoopClosureTestWithExterns(c.Externs("var policy;"), srcs, expected)
+}
+
+// Java: Es6RewriteBlockScopedDeclarationTest.testTopLevelLet_shadowedInBareBlock()
+func (c *Es6RewriteBlockScopedDeclarationTest) TestTopLevelLet_shadowedInBareBlock() {
+	c.Test(
+		c.Srcs("let a = 1; { let a = 2; a; } a;"),
+		c.Expected("var a = 1; { var a$jscomp$1 = 2; a$jscomp$1; } a;"))
 }

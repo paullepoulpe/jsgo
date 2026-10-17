@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/serialization/JSTypeReconserializer.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/serialization/JSTypeReconserializer.java @ closure-compiler v20261015
 
 /*
  * Copyright 2020 The Closure Compiler Authors.
@@ -43,8 +43,8 @@ type JSTypeReconserializer struct {
 	shouldPropagatePropertyName func(string) bool
 
 	// Cache some commonly used types.
-	unknownRecord   *JSTypeReconserializer_SeenTypeRecord
-	topObjectRecord *JSTypeReconserializer_SeenTypeRecord
+	unknownRecord     *JSTypeReconserializer_SeenTypeRecord
+	topFunctionRecord *JSTypeReconserializer_SeenTypeRecord
 
 	typeToRecordCache *base.LinkedIdentityHashMap[rhino.JSType, *JSTypeReconserializer_SeenTypeRecord]
 	seenTypeRecords   *jutil.LinkedHashMap[colors.ColorId, *JSTypeReconserializer_SeenTypeRecord]
@@ -67,16 +67,18 @@ var jsTypeReconserializer_JSTYPE_NATIVE_TO_AXIOMATIC_COLOR_MAP = jutil.NewImmuta
 	// Map all the primitives in the obvious way.
 	Put(rhino.JSTypeNative_BIGINT_TYPE, colors.StandardColors_BIGINT).
 	Put(rhino.JSTypeNative_BOOLEAN_TYPE, colors.StandardColors_BOOLEAN).
+	Put(rhino.JSTypeNative_GBIGINT_TYPE, colors.StandardColors_GBIGINT).
 	Put(rhino.JSTypeNative_NULL_TYPE, colors.StandardColors_NULL_OR_VOID).
 	Put(rhino.JSTypeNative_NUMBER_TYPE, colors.StandardColors_NUMBER).
 	Put(rhino.JSTypeNative_STRING_TYPE, colors.StandardColors_STRING).
 	Put(rhino.JSTypeNative_SYMBOL_TYPE, colors.StandardColors_SYMBOL).
 	Put(rhino.JSTypeNative_VOID_TYPE, colors.StandardColors_NULL_OR_VOID).
+	// Smoosh top-like function types into a single type.
+	Put(rhino.JSTypeNative_FUNCTION_FUNCTION_TYPE, colors.StandardColors_TOP_FUNCTION).
+	Put(rhino.JSTypeNative_FUNCTION_TYPE, colors.StandardColors_TOP_FUNCTION).
 	// Smoosh top-like objects into a single type.
-	Put(rhino.JSTypeNative_FUNCTION_FUNCTION_TYPE, colors.StandardColors_TOP_OBJECT).
 	Put(rhino.JSTypeNative_FUNCTION_PROTOTYPE, colors.StandardColors_TOP_OBJECT).
 	Put(rhino.JSTypeNative_FUNCTION_INSTANCE_PROTOTYPE, colors.StandardColors_TOP_OBJECT).
-	Put(rhino.JSTypeNative_FUNCTION_TYPE, colors.StandardColors_TOP_OBJECT).
 	Put(rhino.JSTypeNative_OBJECT_FUNCTION_TYPE, colors.StandardColors_TOP_OBJECT).
 	Put(rhino.JSTypeNative_OBJECT_PROTOTYPE, colors.StandardColors_TOP_OBJECT).
 	Put(rhino.JSTypeNative_OBJECT_TYPE, colors.StandardColors_TOP_OBJECT).
@@ -135,7 +137,7 @@ func newJSTypeReconserializer(
 	s.SeedCachesWithAxiomaticTypes()
 
 	s.unknownRecord = s.seenTypeRecords.Get(colors.StandardColors_UNKNOWN.GetId())
-	s.topObjectRecord = s.seenTypeRecords.Get(colors.StandardColors_TOP_OBJECT.GetId())
+	s.topFunctionRecord = s.seenTypeRecords.Get(colors.StandardColors_TOP_FUNCTION.GetId())
 	return s
 }
 
@@ -205,7 +207,7 @@ func (s *JSTypeReconserializer) RecordType(type_ rhino.JSType) *JSTypeReconseria
 		// are a constructor/interface or have a @closurePrimitive tag associated. Optimization colors
 		// don't track function parameter/return/template types, and function literals are all
 		// invalidating types during property disambiguation.
-		return s.topObjectRecord
+		return s.topFunctionRecord
 	}
 
 	jstypeRecord := s.typeToRecordCache.Get(type_)

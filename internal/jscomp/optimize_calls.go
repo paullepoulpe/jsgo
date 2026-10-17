@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/OptimizeCalls.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/OptimizeCalls.java @ closure-compiler v20261015
 
 /*
  * Copyright 2010 The Closure Compiler Authors.
@@ -614,8 +614,10 @@ func OptimizeCalls_IsAllowedReference(n *rhino.Node) bool {
 		grandparent := parent.GetParent()
 		if n == parent.GetFirstChild() &&
 			grandparent != nil &&
-			(grandparent.IsCall() || grandparent.IsOptChainCall()) {
-			return false // `a.foo()` or `a?.foo()` or `a?.[foo]()`
+			(grandparent.IsCall() ||
+				grandparent.IsOptChainCall() ||
+				grandparent.IsTaggedTemplateLit()) {
+			return false // `a.foo()` or `a?.foo()` or `a?.[foo]()` or `a.foo`bar``
 		}
 		return true
 	case rhino.Token_CLASS:

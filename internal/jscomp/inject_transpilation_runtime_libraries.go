@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/InjectTranspilationRuntimeLibraries.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/InjectTranspilationRuntimeLibraries.java @ closure-compiler v20261015
 
 /*
  * Copyright 2014 The Closure Compiler Authors.
@@ -93,6 +93,10 @@ func (i *InjectTranspilationRuntimeLibraries) Process(externs *rhino.Node, root 
 		i.runtimeLibs.InjectLibForField("$jscomp.makeIterator")
 	}
 
+	if mustBeCompiledAway.ContainsFeature(parser.FeatureSet_Feature_FOR_OF) {
+		i.runtimeLibs.InjectLibForField("$jscomp.iteratorClose")
+	}
+
 	if mustBeCompiledAway.ContainsFeature(parser.FeatureSet_Feature_ARRAY_PATTERN_REST) {
 		i.runtimeLibs.InjectLibForField("$jscomp.arrayFromIterator")
 	}
@@ -152,6 +156,11 @@ func (i *InjectTranspilationRuntimeLibraries) Process(externs *rhino.Node, root 
 
 	if mustBeCompiledAway.ContainsFeature(parser.FeatureSet_Feature_REST_PARAMETERS) {
 		i.runtimeLibs.InjectLibForField("$jscomp.getRestArguments")
+	}
+
+	if used.ContainsFeature(parser.FeatureSet_Feature_PRIVATE_ELEMENTS) &&
+		mustBeCompiledAway.ContainsFeature(parser.FeatureSet_Feature_PRIVATE_ELEMENTS) {
+		i.runtimeLibs.InjectLibForField("$jscomp.PrivateMap")
 	}
 
 	if i.shouldInstrumentAsyncContext &&

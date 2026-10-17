@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ClosureCheckModule.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/ClosureCheckModule.java @ closure-compiler v20261015
 
 /*
  * Copyright 2015 The Closure Compiler Authors.
@@ -70,10 +70,6 @@ var ClosureCheckModule_DUPLICATE_NAME_SHORT_REQUIRE = DiagnosticType_Error(
 var ClosureCheckModule_INVALID_DESTRUCTURING_REQUIRE = DiagnosticType_Error(
 	"JSC_INVALID_DESTRUCTURING_REQUIRE",
 	"Destructuring goog.require must be a simple object pattern.")
-
-var ClosureCheckModule_AWAIT_GOOG_REQUIRE_CALLS = DiagnosticType_Error(
-	"JSC_AWAIT_GOOG_REQUIRE_CALLS",
-	"goog.require(Type) and goog.forwardDeclare can not be in an 'await' expression.")
 
 var ClosureCheckModule_LET_GOOG_REQUIRE = DiagnosticType_Disabled(
 	"JSC_LET_GOOG_REQUIRE",
@@ -390,23 +386,27 @@ func (c *ClosureCheckModule) CheckImproperReferenceToImport(
 		return false
 	} else if importLhs.IsDestructuringLhs() && nextQnamePart != nil {
 		objPattern := importLhs.GetFirstChild()
-		jutil.CheckStateMsg1(objPattern.IsObjectPattern(), "%s", objPattern)
-		for strKey := objPattern.GetFirstChild(); strKey != nil; strKey = strKey.GetNext() {
-			// const {foo: barFoo} = goog.require('ns.bar');
-			// Should use the short name "barFoo" instead of "ns.bar.foo".
-			if strKey.HasOneChild() && strKey.GetString() == *nextQnamePart {
-				parent := n.GetParent()
-				reportNode := n
-				if parent != nil && parent.IsGetProp() {
-					reportNode = parent
+		if objPattern.IsObjectPattern() {
+			for strKey := objPattern.GetFirstChild(); strKey != nil; strKey = strKey.GetNext() {
+				// const {foo: barFoo} = goog.require('ns.bar');
+				// Should use the short name "barFoo" instead of "ns.bar.foo".
+				if strKey.IsStringKey() &&
+					strKey.HasOneChild() &&
+					strKey.GetFirstChild().IsName() &&
+					strKey.GetString() == *nextQnamePart {
+					parent := n.GetParent()
+					reportNode := n
+					if parent != nil && parent.IsGetProp() {
+						reportNode = parent
+					}
+					c.compiler.Report(
+						JSError_MakeWithNode(
+							reportNode,
+							ClosureCheckModule_REFERENCE_TO_SHORT_IMPORT_BY_LONG_NAME_INCLUDING_SHORT_NAME,
+							*qname+"."+*nextQnamePart,
+							strKey.GetFirstChild().GetString()))
+					return false
 				}
-				c.compiler.Report(
-					JSError_MakeWithNode(
-						reportNode,
-						ClosureCheckModule_REFERENCE_TO_SHORT_IMPORT_BY_LONG_NAME_INCLUDING_SHORT_NAME,
-						*qname+"."+*nextQnamePart,
-						strKey.GetFirstChild().GetString()))
-				return false
 			}
 		}
 	}
@@ -518,8 +518,7 @@ func (c *ClosureCheckModule) CheckShortGoogRequireCall(t *NodeTraversal, callNod
 		if closureCheckModule_GOOG_FORWARD_DECLARE.Matches(callNode.GetFirstChild()) {
 			t.Report(lhs, ClosurePrimitiveErrors_INVALID_DESTRUCTURING_FORWARD_DECLARE)
 		}
-	} else {
-		jutil.CheckState(lhs.IsName())
+	} else if lhs.IsName() {
 		ClosureCheckModule_CheckShortName(t, lhs, callNode.GetLastChild().GetString())
 	}
 	if key := ClosureCheckModule_ExtractFirstArgumentName(callNode); key != nil {
@@ -597,7 +596,7 @@ func ClosureCheckModule_IsValidDestructuringImport(destructuringLhs *rhino.Node)
 	for stringKey := objectPattern.GetFirstChild(); stringKey != nil; stringKey = stringKey.GetNext() {
 		if !stringKey.IsStringKey() {
 			return false
-		} else if !stringKey.GetFirstChild().IsName() {
+		} else if !stringKey.HasChildren() || !stringKey.GetFirstChild().IsName() {
 			return false
 		}
 	}

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/InlineAndCollapsePropertiesTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/InlineAndCollapsePropertiesTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/InlineAndCollapsePropertiesTest.java)
 
 /*
@@ -21,6 +21,8 @@ package jscomp
 
 import (
 	"testing"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 // InlineAndCollapsePropertiesTest: tests for InlineAndCollapseProperties.
@@ -2719,6 +2721,27 @@ func (c *InlineAndCollapsePropertiesTest) TestClassStaticInheritance_propertyWit
 		"class A {} var A$foo = 6; class B extends A {} use(B?.foo); var B$foo = 7;")
 }
 
+// Java: InlineAndCollapsePropertiesTest.testClassStaticInheritance_propertyWithSuperNocollapseSubclassCollapse()
+func (c *InlineAndCollapsePropertiesTest) TestClassStaticInheritance_propertyWithSuperNocollapseSubclassCollapse() {
+	c.Test(
+		c.Srcs(
+			`class A {}
+/** @nocollapse */
+A.foo = 5;
+class B extends A {}
+B.foo = 6;
+use(B.foo);
+`),
+		c.Expected(
+			`class A {}
+/** @nocollapse */
+A.foo = 5;
+class B extends A {}
+var B$foo = 6;
+use(B$foo);
+`))
+}
+
 // Java: InlineAndCollapsePropertiesTest.testClassStaticInheritance_cantDetermineSuperclass()
 func (c *InlineAndCollapsePropertiesTest) TestClassStaticInheritance_cantDetermineSuperclass() {
 	// Here A.foo and B.foo are unsafely collapsed because getSuperclass() creates an alias for them
@@ -2954,6 +2977,61 @@ let {Y} = ns;
 use(Y.prop);
 `,
 		InlineAndCollapseProperties_PARTIAL_NAMESPACE_WARNING)
+}
+
+// TODO(b/538122483): InlineAndCollapseProperties: handle destructuring patterns without creating
+// extra variables or losing side effects
+// Java: InlineAndCollapsePropertiesTest.testDestructuringQualifiedNameMultipleKeysEvaluatesOnce()
+func (c *InlineAndCollapsePropertiesTest) TestDestructuringQualifiedNameMultipleKeysEvaluatesOnce() {
+	c.Test(
+		`const {a, b} = this.validated;
+use(a, b);
+`,
+		`const a = this.validated.a;
+const b = this.validated.b;
+use(a, b);
+`)
+}
+
+// Java: InlineAndCollapsePropertiesTest.testDestructuringQualifiedNameSingleKeyEvaluatesDirectly()
+func (c *InlineAndCollapsePropertiesTest) TestDestructuringQualifiedNameSingleKeyEvaluatesDirectly() {
+	c.Test(
+		`const {a} = this.validated;
+use(a);
+`,
+		`const a = this.validated.a;
+use(a);
+`)
+}
+
+// TODO(b/538122483): InlineAndCollapseProperties: handle destructuring patterns without creating
+// extra variables or losing side effects
+// Java: InlineAndCollapsePropertiesTest.testEmptyDestructuringPatternNotStripped()
+func (c *InlineAndCollapsePropertiesTest) TestEmptyDestructuringPatternNotStripped() {
+	c.Test("const {} = this.validated;", "")
+	c.Test("const {} = obj;", "")
+}
+
+// TODO(b/538122483): InlineAndCollapseProperties: handle destructuring patterns without creating
+// extra variables or losing side effects
+// Java: InlineAndCollapsePropertiesTest.testDestructuringQualifiedNameWithCollapsibleNamespace()
+func (c *InlineAndCollapsePropertiesTest) TestDestructuringQualifiedNameWithCollapsibleNamespace() {
+	c.Test(
+		`const ns = {
+  sub: {
+    a: 1,
+    b: 2,
+  },
+};
+const {a, b} = ns.sub;
+use(a, b);
+`,
+		`var ns$sub$a = 1;
+var ns$sub$b = 2;
+const a = null;
+const b = null;
+use(ns$sub$a, ns$sub$b);
+`)
 }
 
 // Java: InlineAndCollapsePropertiesTest.testDefaultParamAlias1()
@@ -3758,4 +3836,41 @@ var registry$mod = null;
   if (factories$one) factories$one();
 }
 `))
+}
+
+// Java: InlineAndCollapsePropertiesTest.testDestructuringGlobalNameExtractor()
+func (c *InlineAndCollapsePropertiesTest) TestDestructuringGlobalNameExtractor() {
+	c.Test("var ns = {}; ns.foo = 1; const {foo} = ns;", "var ns$foo = 1; const foo = null;")
+}
+
+// Java: InlineAndCollapsePropertiesTest.testConcretizeStaticInheritanceForInlining()
+func (c *InlineAndCollapsePropertiesTest) TestConcretizeStaticInheritanceForInlining() {
+	c.Test(
+		"class A {} class B extends A {} B.foo = 1;",
+		"class A {} class B extends A {} var B$foo = 1;")
+}
+
+// Java: InlineAndCollapsePropertiesTest.testStaticFieldOnClassInAliasedNamespace()
+func (c *InlineAndCollapsePropertiesTest) TestStaticFieldOnClassInAliasedNamespace() {
+	// TODO(b/571958823): Inlining alias crashes on static MEMBER_FIELD_DEF.
+	c.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT_2022)
+	e :=
+		AssertThrows[jutil.IRuntimeException](
+			func() {
+				c.TestSame(
+					`const b = {};
+const a = b;
+a.Foo = class {
+  static bar = 1;
+};
+alert(b.Foo.bar);
+`)
+			})
+	// Throwables.getRootCause(e)
+	var root jutil.Throwable = e
+	for root.GetCause() != nil {
+		root = root.GetCause()
+	}
+	IsInstanceOf[*jutil.IllegalStateException](AssertThat(root))
+	AssertThat(root.GetMessage()).Contains("unexpected node: MEMBER_FIELD_DEF")
 }

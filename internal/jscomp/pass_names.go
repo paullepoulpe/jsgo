@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PassNames.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/PassNames.java @ closure-compiler v20261015
 
 /*
  * Copyright 2017 The Closure Compiler Authors.
@@ -58,7 +58,6 @@ const (
 	PassNames_DEVIRTUALIZE_METHODS                         = "devirtualizeMethods"
 	PassNames_DISAMBIGUATE_PROPERTIES                      = "disambiguateProperties"
 	PassNames_ES6_NORMALIZE_CLASSES                        = "es6NormalizeClasses"
-	PassNames_EXPLOIT_ASSIGN                               = "exploitAssign"
 	PassNames_EXPORT_TEST_FUNCTIONS                        = "exportTestFunctions"
 	PassNames_EXTERN_EXPORTS                               = "externExports"
 	PassNames_EXTRACT_PROTOTYPE_MEMBER_DECLARATIONS        = "extractPrototypeMemberDeclarations"
@@ -81,6 +80,7 @@ const (
 	PassNames_OPTIMIZE_CALLS                               = "optimizeCalls"
 	PassNames_PARSE_INPUTS                                 = "parseInputs"
 	PassNames_PEEPHOLE_OPTIMIZATIONS                       = "peepholeOptimizations"
+	PassNames_POST_NORMALIZE_PEEPHOLE                      = "postNormalizePeephole"
 	PassNames_REWRITE_COMMON_JS_MODULES                    = "rewriteCommonJsModules"
 	PassNames_REWRITE_SCRIPTS_TO_ES6_MODULES               = "rewriteScriptsToEs6Modules"
 	PassNames_REMOVE_UNUSED_CODE                           = "removeUnusedCode"

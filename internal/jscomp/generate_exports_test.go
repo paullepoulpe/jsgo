@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/GenerateExportsTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/GenerateExportsTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/GenerateExportsTest.java)
 
 /*
@@ -713,4 +713,13 @@ func (c *GenerateExportsTest) TestDoesNotRequireExportSymbolConvention_ifNoExpor
 	c.exportSymbolFunction = nil
 
 	c.TestSame(c.Srcs("function Foo() {}"))
+}
+
+// Java: GenerateExportsTest.testFindExportableNodes()
+func (c *GenerateExportsTest) TestFindExportableNodes() {
+	compiler := NewCompiler()
+	root := compiler.ParseTestCode("/** @export */ function Foo() {}")
+	pass := NewFindExportableNodes(compiler, true)
+	NodeTraversal_Traverse(compiler, root, pass)
+	AssertThat(pass.GetExports()).IsNotEmpty()
 }

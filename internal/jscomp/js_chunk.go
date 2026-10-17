@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/JSChunk.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/JSChunk.java @ closure-compiler v20261015
 
 /*
  * Copyright 2005 The Closure Compiler Authors.
@@ -30,9 +30,9 @@ import (
 //
 // Go-only: language-adapter — readObject(ObjectInputStream), the
 // java.io.Serializable hook that re-creates the transient input map after
-// deserialization, is ReadObject(), which Compiler's ObjectInputStream
-// adapter (compiler_readObject) calls on every chunk of a restored
-// CompilerState.
+// deserialization, is ReadObject(). JSChunk still declares it, but nothing
+// deserializes a JSChunk any more: since v20261015 Compiler saves the chunk
+// graph of its state as ChunkProto messages and rebuilds the chunks.
 type JSChunk struct {
 	// Chunk name
 	name string

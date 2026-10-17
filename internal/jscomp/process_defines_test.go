@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ProcessDefinesTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/ProcessDefinesTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/ProcessDefinesTest.java)
 
 /*
@@ -37,7 +37,8 @@ type ProcessDefinesTest struct {
 	mode                    ProcessDefines_Mode
 	recognizeClosureDefines bool
 
-	enableJ2clPasses bool
+	enableJ2clPasses                   bool
+	enableDefineWithoutGoogDefineCheck bool
 
 	outputFeatureSet *parser.FeatureSet
 }
@@ -63,6 +64,7 @@ func (c *ProcessDefinesTest) SetUp() {
 	c.CompilerTestCaseBase.SetUp()
 	c.overrides.Clear()
 	c.mode = ProcessDefines_Mode_CHECK_AND_OPTIMIZE
+	c.enableDefineWithoutGoogDefineCheck = false
 
 	// ProcessDefines emits warnings if the user tries to re-define a constant,
 	// but the constant is not defined anywhere in the binary.
@@ -86,7 +88,9 @@ func (c *ProcessDefinesTest) GetOptions() *CompilerOptions {
 	options.SetOutputFeatureSet(c.outputFeatureSet)
 	options.SetEnableZonesDefineName(jutil.StringPtr("javascript.angular2.ENABLE_ZONES"))
 	options.SetZoneInputPattern(processDefinesTest_ZONE_INPUT_PATTERN)
-
+	if c.enableDefineWithoutGoogDefineCheck {
+		options.SetWarningLevel(DiagnosticGroups_DEFINE_WITHOUT_GOOG_DEFINE, CheckLevel_ERROR)
+	}
 	return options
 }
 
@@ -666,6 +670,46 @@ func (c *ProcessDefinesTest) TestGoogDefine_invalidCallFormats() {
 	c.TestError(
 		jsdoc+"const templateName = goog.define(`${template}Name`, 1);",
 		ClosurePrimitiveErrors_INVALID_ARGUMENT_ERROR)
+}
+
+// Java: ProcessDefinesTest.testDefineWithoutGoogDefine_disabledByDefault()
+func (c *ProcessDefinesTest) TestDefineWithoutGoogDefine_disabledByDefault() {
+	c.mode = ProcessDefines_Mode_CHECK
+	c.TestSame("/** @define {boolean} */ const MY_FLAG = true;")
+}
+
+// Java: ProcessDefinesTest.testDefineWithoutGoogDefine()
+func (c *ProcessDefinesTest) TestDefineWithoutGoogDefine() {
+	c.mode = ProcessDefines_Mode_CHECK
+	c.enableDefineWithoutGoogDefineCheck = true
+	c.TestError(
+		"/** @define {boolean} */ const MY_FLAG = true;",
+		ProcessDefines_DEFINE_WITHOUT_GOOG_DEFINE)
+}
+
+// Java: ProcessDefinesTest.testDefineWithoutGoogDefine_compiledInBaseJs()
+func (c *ProcessDefinesTest) TestDefineWithoutGoogDefine_compiledInBaseJs() {
+	c.mode = ProcessDefines_Mode_CHECK
+	c.enableDefineWithoutGoogDefineCheck = true
+	c.TestSame(
+		c.Srcs(SourceFile_FromCode("base.js", "/** @define {boolean} */ var COMPILED = false;")))
+}
+
+// Java: ProcessDefinesTest.testDefineWithoutGoogDefine_jscompOptOut()
+func (c *ProcessDefinesTest) TestDefineWithoutGoogDefine_jscompOptOut() {
+	c.mode = ProcessDefines_Mode_CHECK
+	c.enableDefineWithoutGoogDefineCheck = true
+	c.TestSame("var $jscomp = {}; /** @define {boolean} */ $jscomp.FOO = true;")
+}
+
+// Java: ProcessDefinesTest.testDefineWithoutGoogDefine_suppressed()
+func (c *ProcessDefinesTest) TestDefineWithoutGoogDefine_suppressed() {
+	c.mode = ProcessDefines_Mode_CHECK
+	c.enableDefineWithoutGoogDefineCheck = true
+	c.TestSame(
+		"/** @fileoverview @suppress {defineWithoutGoogDefine} */ /** @define {boolean} */ const" +
+			" MY_FLAG = true;")
+	c.TestSame("/** @suppress {defineWithoutGoogDefine} @define {boolean} */ const MY_FLAG = true;")
 }
 
 // Java: ProcessDefinesTest.testGoogDefine_invalidCallLocation()

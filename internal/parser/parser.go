@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/parsing/parser/Parser.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/parsing/parser/Parser.java @ closure-compiler v20261015
 
 /*
  * Copyright 2011 The Closure Compiler Authors.
@@ -3044,6 +3044,8 @@ func (p *Parser) ParseExponentiationExpression() ParseTree {
 			p.ReportError(
 				"Unary operator '%s' requires parentheses before '**'",
 				left.AsUnaryExpression().Operator)
+		} else if left.GetParseTreeBase().Type == ParseTreeType_AWAIT_EXPRESSION {
+			p.ReportError("Unary operator 'await' requires parentheses before '**'")
 		}
 		operator := p.NextToken()
 		right := p.ParseExponentiationExpression()
@@ -3776,10 +3778,22 @@ func (p *Parser) PeekId() bool {
 //
 // Java: Parser.peekId(int)
 func (p *Parser) PeekIdAt(index int) bool {
-	type_ := p.PeekTypeAt(index)
+	token := p.PeekTokenAt(index)
+	typeToCheck := token.GetTokenBase().Type
+
+	if typeToCheck == TokenType_IDENTIFIER {
+		value := token.AsIdentifier().GetMaybePrivateValue()
+		k := Keywords_Get(value)
+		if k == nil {
+			return true
+		}
+		// Swap the type to the matched keyword's type
+		typeToCheck = k.Type()
+	}
+
 	// There is one special case to handle here: outside of strict-mode code, strict-mode keywords
 	// can be used as identifiers
-	return TokenType_IDENTIFIER == type_ || (!p.InStrictContext() && Keywords_IsStrictKeyword(type_))
+	return !p.InStrictContext() && Keywords_IsStrictKeyword(typeToCheck)
 }
 
 // Java: Parser.peekIdOrKeyword()

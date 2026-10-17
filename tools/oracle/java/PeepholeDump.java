@@ -111,7 +111,9 @@ public final class PeepholeDump {
     CONFIGS.put("fusion", c -> single(c, "fusion", new StatementFusion()));
     CONFIGS.put(
         "exploit-assigns",
-        c -> new PeepholeOptimizationsPass(c, PassNames.EXPLOIT_ASSIGN, new ExploitAssigns()));
+        c ->
+            new PeepholeOptimizationsPass(
+                c, PassNames.POST_NORMALIZE_PEEPHOLE, new ExploitAssigns()));
     CONFIGS.put("dotted", c -> new ConvertToDottedProperties(c));
     CONFIGS.put(
         "peephole",

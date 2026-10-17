@@ -18,7 +18,7 @@ WARNING JSC_NAME_REFERENCE_IN_EXTERNS const_module.js:2:0 @18+7 accessing name e
 WARNING JSC_NAME_REFERENCE_IN_EXTERNS const_module.js:3:0 @31+7 accessing name exports in externs has no effect. Perhaps you forgot to add a var keyword?
 WARNING JSC_NAME_REFERENCE_IN_EXTERNS const_module.js:5:0 @57+1 accessing name x in externs has no effect. Perhaps you forgot to add a var keyword?
 ERROR JSC_UNDEFINED_VARIABLE const_module.js:1:0 @0+4 variable goog is undeclared
-= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 33] [feature_set: []]
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 34] [feature_set: []]
 =     VAR
 =         NAME goog
 =     VAR
@@ -33,6 +33,8 @@ ERROR JSC_UNDEFINED_VARIABLE const_module.js:1:0 @0+4 variable goog is undeclare
 =         NAME Function
 =     VAR
 =         NAME Infinity
+=     VAR
+=         NAME Iterator
 =     VAR
 =         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
 =     VAR
@@ -116,7 +118,7 @@ WARNING JSC_NAME_REFERENCE_IN_EXTERNS consts.js:11:0 @136+3 accessing name FOO i
 WARNING JSC_NAME_REFERENCE_IN_EXTERNS consts.js:13:0 @165+1 accessing name d in externs has no effect. Perhaps you forgot to add a var keyword?
 WARNING JSC_NAME_REFERENCE_IN_EXTERNS consts.js:14:28 @200+1 accessing name e in externs has no effect. Perhaps you forgot to add a var keyword?
 ERROR JSC_UNDEFINED_VARIABLE consts.js:10:0 @127+3 variable FOO is undeclared
-= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 33] [feature_set: []]
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 34] [feature_set: []]
 =     VAR
 =         NAME FOO [is_constant_name: 1]
 =     VAR
@@ -131,6 +133,8 @@ ERROR JSC_UNDEFINED_VARIABLE consts.js:10:0 @127+3 variable FOO is undeclared
 =         NAME Function
 =     VAR
 =         NAME Infinity
+=     VAR
+=         NAME Iterator
 =     VAR
 =         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
 =     VAR
@@ -205,7 +209,7 @@ WARNING JSC_CONSTANT_REASSIGNED_VALUE_ERROR consts.js:14:28 @200+5 constant e as
 ## CheckMissingReturn
 ## J2clChecksPass
 ## VarCheck
-= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 32] [feature_set: []]
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 33] [feature_set: []]
 =     VAR
 =         NAME AggregateError
 =     VAR
@@ -218,6 +222,8 @@ WARNING JSC_CONSTANT_REASSIGNED_VALUE_ERROR consts.js:14:28 @200+5 constant e as
 =         NAME Function
 =     VAR
 =         NAME Infinity
+=     VAR
+=         NAME Iterator
 =     VAR
 =         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
 =     VAR
@@ -288,7 +294,7 @@ WARNING JSC_CONSTANT_REASSIGNED_VALUE_ERROR consts.js:14:28 @200+5 constant e as
 ## CheckMissingReturn
 ## J2clChecksPass
 ## VarCheck
-= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 32] [feature_set: []]
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 33] [feature_set: []]
 =     VAR
 =         NAME AggregateError
 =     VAR
@@ -301,6 +307,8 @@ WARNING JSC_CONSTANT_REASSIGNED_VALUE_ERROR consts.js:14:28 @200+5 constant e as
 =         NAME Function
 =     VAR
 =         NAME Infinity
+=     VAR
+=         NAME Iterator
 =     VAR
 =         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
 =     VAR
@@ -379,7 +387,7 @@ WARNING JSC_NAME_REFERENCE_IN_EXTERNS es_module.js:4:8 @87+5 accessing name unde
 WARNING JSC_NAME_REFERENCE_IN_EXTERNS es_module.js:4:8 @87+5 accessing name undef in externs has no effect. Perhaps you forgot to add a var keyword?
 WARNING JSC_NAME_REFERENCE_IN_EXTERNS es_module.js:7:0 @158+1 accessing name k in externs has no effect. Perhaps you forgot to add a var keyword?
 ERROR JSC_UNDEFINED_VARIABLE es_module.js:4:8 @87+5 variable undef is undeclared
-= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 35] [feature_set: []]
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 36] [feature_set: []]
 =     VAR
 =         NAME a
 =     VAR
@@ -398,6 +406,8 @@ ERROR JSC_UNDEFINED_VARIABLE es_module.js:4:8 @87+5 variable undef is undeclared
 =         NAME Function
 =     VAR
 =         NAME Infinity
+=     VAR
+=         NAME Iterator
 =     VAR
 =         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
 =     VAR
@@ -488,7 +498,7 @@ ERROR JSC_UNDEFINED_VARIABLE externs_like.js:9:17 @208+3 variable obj is undecla
 ERROR JSC_UNDEFINED_VARIABLE externs_like.js:10:25 @238+3 variable arr is undeclared
 ERROR JSC_UNDEFINED_VARIABLE externs_like.js:12:0 @251+5 variable alert is undeclared
 ERROR JSC_UNDEFINED_VARIABLE externs_like.js:12:6 @257+1 variable z is undeclared
-= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 42] [feature_set: []]
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 43] [feature_set: []]
 =     VAR [synthesized_unfulfilled_name_declaration: 1]
 =         NAME b
 =     VAR [synthesized_unfulfilled_name_declaration: 1]
@@ -523,6 +533,8 @@ ERROR JSC_UNDEFINED_VARIABLE externs_like.js:12:6 @257+1 variable z is undeclare
 =         NAME Function
 =     VAR
 =         NAME Infinity
+=     VAR
+=         NAME Iterator
 =     VAR
 =         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
 =     VAR
@@ -594,7 +606,7 @@ ERROR JSC_UNDEFINED_VARIABLE externs_like.js:12:6 @257+1 variable z is undeclare
 WARNING JSC_NAME_REFERENCE_IN_EXTERNS global_this.js:7:1 @192+1 accessing name a in externs has no effect. Perhaps you forgot to add a var keyword?
 WARNING JSC_NAME_REFERENCE_IN_EXTERNS global_this.js:13:0 @472+3 accessing name foo in externs has no effect. Perhaps you forgot to add a var keyword?
 ERROR JSC_UNDEFINED_VARIABLE global_this.js:13:0 @472+3 variable foo is undeclared
-= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 33] [feature_set: []]
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 34] [feature_set: []]
 =     VAR
 =         NAME foo
 =     VAR
@@ -609,6 +621,8 @@ ERROR JSC_UNDEFINED_VARIABLE global_this.js:13:0 @472+3 variable foo is undeclar
 =         NAME Function
 =     VAR
 =         NAME Infinity
+=     VAR
+=         NAME Iterator
 =     VAR
 =         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
 =     VAR
@@ -682,7 +696,7 @@ ERROR JSC_UNDEFINED_VARIABLE global_this.js:13:0 @472+3 variable foo is undeclar
 WARNING JSC_UNDEFINED_EXTERN_VAR_ERROR goog_scope.js:1:0 @0+4 name goog is not defined in the externs.
 WARNING JSC_UNDEFINED_EXTERN_VAR_ERROR goog_scope.js:2:0 @21+4 name goog is not defined in the externs.
 ERROR JSC_UNDEFINED_VARIABLE goog_scope.js:1:0 @0+4 variable goog is undeclared
-= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 33] [feature_set: []]
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 34] [feature_set: []]
 =     VAR
 =         NAME goog
 =     VAR
@@ -697,6 +711,8 @@ ERROR JSC_UNDEFINED_VARIABLE goog_scope.js:1:0 @0+4 variable goog is undeclared
 =         NAME Function
 =     VAR
 =         NAME Infinity
+=     VAR
+=         NAME Iterator
 =     VAR
 =         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
 =     VAR
@@ -772,7 +788,7 @@ WARNING JSC_NAME_REFERENCE_IN_EXTERNS j2cl.js:1:14 @14+1 accessing name y in ext
 WARNING JSC_NAME_REFERENCE_IN_EXTERNS j2cl.js:2:8 @25+1 accessing name x in externs has no effect. Perhaps you forgot to add a var keyword?
 ERROR JSC_UNDEFINED_VARIABLE j2cl.js:1:8 @8+1 variable x is undeclared
 ERROR JSC_UNDEFINED_VARIABLE j2cl.js:1:14 @14+1 variable y is undeclared
-= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 34] [feature_set: []]
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 35] [feature_set: []]
 =     VAR
 =         NAME x
 =     VAR
@@ -789,6 +805,8 @@ ERROR JSC_UNDEFINED_VARIABLE j2cl.js:1:14 @14+1 variable y is undeclared
 =         NAME Function
 =     VAR
 =         NAME Infinity
+=     VAR
+=         NAME Iterator
 =     VAR
 =         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
 =     VAR
@@ -877,7 +895,7 @@ ERROR JSC_UNDEFINED_VARIABLE misc.js:4:36 @117+1 variable o is undeclared
 ERROR JSC_UNDEFINED_VARIABLE misc.js:4:42 @123+3 variable use is undeclared
 ERROR JSC_UNDEFINED_VARIABLE misc.js:7:6 @180+1 variable y is undeclared
 ERROR JSC_UNDEFINED_VARIABLE misc.js:10:48 @310+4 variable comp is undeclared
-= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 38] [feature_set: []]
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 39] [feature_set: []]
 =     VAR
 =         NAME x
 =     VAR
@@ -904,6 +922,8 @@ ERROR JSC_UNDEFINED_VARIABLE misc.js:10:48 @310+4 variable comp is undeclared
 =         NAME Function
 =     VAR
 =         NAME Infinity
+=     VAR
+=         NAME Iterator
 =     VAR
 =         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
 =     VAR
@@ -976,7 +996,7 @@ WARNING JSC_NAME_REFERENCE_IN_EXTERNS missing_return.js:1:44 @44+1 accessing nam
 WARNING JSC_NAME_REFERENCE_IN_EXTERNS missing_return.js:3:44 @147+1 accessing name x in externs has no effect. Perhaps you forgot to add a var keyword?
 WARNING JSC_NAME_REFERENCE_IN_EXTERNS missing_return.js:4:49 @226+5 accessing name Error in externs has no effect. Perhaps you forgot to add a var keyword?
 ERROR JSC_UNDEFINED_VARIABLE missing_return.js:4:49 @226+5 variable Error is undeclared
-= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 32] [feature_set: []]
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 33] [feature_set: []]
 =     VAR
 =         NAME Error
 =     VAR
@@ -989,6 +1009,8 @@ ERROR JSC_UNDEFINED_VARIABLE missing_return.js:4:49 @226+5 variable Error is und
 =         NAME Function
 =     VAR
 =         NAME Infinity
+=     VAR
+=         NAME Iterator
 =     VAR
 =         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
 =     VAR
@@ -1075,7 +1097,7 @@ WARNING JSC_NAME_REFERENCE_IN_EXTERNS regexp.js:8:8 @111+1 accessing name x in e
 WARNING JSC_NAME_REFERENCE_IN_EXTERNS regexp.js:8:18 @121+6 accessing name RegExp in externs has no effect. Perhaps you forgot to add a var keyword?
 ERROR JSC_UNDEFINED_VARIABLE regexp.js:1:8 @8+6 variable RegExp is undeclared
 ERROR JSC_UNDEFINED_VARIABLE regexp.js:6:0 @69+1 variable x is undeclared
-= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 33] [feature_set: []]
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 34] [feature_set: []]
 =     VAR
 =         NAME RegExp
 =     VAR
@@ -1092,6 +1114,8 @@ ERROR JSC_UNDEFINED_VARIABLE regexp.js:6:0 @69+1 variable x is undeclared
 =         NAME Function
 =     VAR
 =         NAME Infinity
+=     VAR
+=         NAME Iterator
 =     VAR
 =         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
 =     VAR
@@ -1187,7 +1211,7 @@ ERROR JSC_UNDEFINED_VARIABLE strict.js:1:6 @6+1 variable a is undeclared
 ERROR JSC_UNDEFINED_VARIABLE strict.js:2:30 @42+1 variable b is undeclared
 ERROR JSC_UNDEFINED_VARIABLE strict.js:8:7 @187+1 variable x is undeclared
 ERROR JSC_UNDEFINED_VARIABLE strict.js:12:58 @338+1 variable c is undeclared
-= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 36] [feature_set: []]
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 37] [feature_set: []]
 =     VAR
 =         NAME a
 =     VAR
@@ -1208,6 +1232,8 @@ ERROR JSC_UNDEFINED_VARIABLE strict.js:12:58 @338+1 variable c is undeclared
 =         NAME Function
 =     VAR
 =         NAME Infinity
+=     VAR
+=         NAME Iterator
 =     VAR
 =         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
 =     VAR
@@ -1281,7 +1307,7 @@ ERROR JSC_UNDEFINED_VARIABLE strict.js:12:58 @338+1 variable c is undeclared
 WARNING JSC_NAME_REFERENCE_IN_EXTERNS super.js:18:3 @332+8 accessing name computed in externs has no effect. Perhaps you forgot to add a var keyword?
 WARNING JSC_NAME_REFERENCE_IN_EXTERNS super.js:21:43 @422+1 accessing name f in externs has no effect. Perhaps you forgot to add a var keyword?
 ERROR JSC_UNDEFINED_VARIABLE super.js:18:3 @332+8 variable computed is undeclared
-= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 33] [feature_set: []]
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 34] [feature_set: []]
 =     VAR
 =         NAME computed
 =     VAR
@@ -1296,6 +1322,8 @@ ERROR JSC_UNDEFINED_VARIABLE super.js:18:3 @332+8 variable computed is undeclare
 =         NAME Function
 =     VAR
 =         NAME Infinity
+=     VAR
+=         NAME Iterator
 =     VAR
 =         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
 =     VAR
@@ -1407,7 +1435,7 @@ ERROR JSC_UNDEFINED_VARIABLE suspicious.js:15:17 @297+1 variable f is undeclared
 ERROR JSC_UNDEFINED_VARIABLE suspicious.js:17:10 @331+1 variable a is undeclared
 ERROR JSC_UNDEFINED_VARIABLE suspicious.js:17:24 @345+1 variable b is undeclared
 ERROR JSC_UNDEFINED_VARIABLE suspicious.js:23:18 @479+1 variable c is undeclared
-= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 40] [feature_set: []]
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 41] [feature_set: []]
 =     VAR
 =         NAME x
 =     VAR
@@ -1442,6 +1470,8 @@ ERROR JSC_UNDEFINED_VARIABLE suspicious.js:23:18 @479+1 variable c is undeclared
 =         NAME Function
 =     VAR
 =         NAME Infinity
+=     VAR
+=         NAME Iterator
 =     VAR
 =         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
 =     VAR
@@ -1513,7 +1543,7 @@ WARNING JSC_UNDEFINED_EXTERN_VAR_ERROR type_import.js:4:12 @110+4 name goog is n
 WARNING JSC_NAME_REFERENCE_IN_EXTERNS type_import.js:6:4 @163+3 accessing name Foo in externs has no effect. Perhaps you forgot to add a var keyword?
 WARNING JSC_NAME_REFERENCE_IN_EXTERNS type_import.js:9:25 @209+3 accessing name Foo in externs has no effect. Perhaps you forgot to add a var keyword?
 ERROR JSC_UNDEFINED_VARIABLE type_import.js:1:0 @0+4 variable goog is undeclared
-= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 33] [feature_set: []]
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 34] [feature_set: []]
 =     VAR
 =         NAME goog
 =     VAR
@@ -1528,6 +1558,8 @@ ERROR JSC_UNDEFINED_VARIABLE type_import.js:1:0 @0+4 variable goog is undeclared
 =         NAME Function
 =     VAR
 =         NAME Infinity
+=     VAR
+=         NAME Iterator
 =     VAR
 =         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
 =     VAR
@@ -1598,7 +1630,7 @@ ERROR JSC_UNDEFINED_VARIABLE type_import.js:1:0 @0+4 variable goog is undeclared
 ## CheckMissingReturn
 ## J2clChecksPass
 ## VarCheck
-= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 32] [feature_set: []]
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 33] [feature_set: []]
 =     VAR
 =         NAME AggregateError
 =     VAR
@@ -1611,6 +1643,8 @@ ERROR JSC_UNDEFINED_VARIABLE type_import.js:1:0 @0+4 variable goog is undeclared
 =         NAME Function
 =     VAR
 =         NAME Infinity
+=     VAR
+=         NAME Iterator
 =     VAR
 =         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
 =     VAR
@@ -1704,7 +1738,7 @@ ERROR JSC_UNDEFINED_VARIABLE unreachable.js:9:41 @374+7 variable cleanup is unde
 ERROR JSC_UNDEFINED_VARIABLE unreachable.js:9:54 @387+5 variable after is undeclared
 ERROR JSC_UNDEFINED_VARIABLE unreachable.js:10:41 @439+5 variable other is undeclared
 ERROR JSC_UNDEFINED_VARIABLE unreachable.js:11:28 @480+4 variable dead is undeclared
-= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 42] [feature_set: []]
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 43] [feature_set: []]
 =     VAR
 =         NAME foo
 =     VAR
@@ -1737,6 +1771,8 @@ ERROR JSC_UNDEFINED_VARIABLE unreachable.js:11:28 @480+4 variable dead is undecl
 =         NAME Function
 =     VAR
 =         NAME Infinity
+=     VAR
+=         NAME Iterator
 =     VAR
 =         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
 =     VAR
@@ -1831,7 +1867,7 @@ ERROR JSC_UNDEFINED_VARIABLE vars.js:3:22 @40+1 variable w is undeclared
 ERROR JSC_UNDEFINED_VARIABLE vars.js:5:23 @110+1 variable a is undeclared
 ERROR JSC_UNDEFINED_VARIABLE vars.js:11:18 @248+3 variable BAR is undeclared
 ERROR JSC_UNDEFINED_VARIABLE vars.js:14:20 @340+6 variable spread is undeclared
-= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 39] [feature_set: []]
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 40] [feature_set: []]
 =     VAR [synthesized_unfulfilled_name_declaration: 1]
 =         NAME z
 =     VAR [synthesized_unfulfilled_name_declaration: 1]
@@ -1858,6 +1894,8 @@ ERROR JSC_UNDEFINED_VARIABLE vars.js:14:20 @340+6 variable spread is undeclared
 =         NAME Function
 =     VAR
 =         NAME Infinity
+=     VAR
+=         NAME Iterator
 =     VAR
 =         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
 =     VAR

@@ -6,7 +6,7 @@ package jscomp
 // way the Java tool does, and compared with its output in report order
 // (testdata/hash_order/java.txt, regenerated with:
 //
-//	java -cp .cache/closure-compiler.jar:.cache/oracle-build \
+//	java -cp .cache/$CLOSURE_JAR:.cache/oracle-build \
 //	  com.google.javascript.jscomp.HashOrderDump \
 //	  internal/jscomp/testdata/hash_order/cases.txt \
 //	  internal/jscomp/testdata/hash_order/java.txt

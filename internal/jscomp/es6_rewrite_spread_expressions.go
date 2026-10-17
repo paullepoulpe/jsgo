@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Es6RewriteRestAndSpread.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/Es6RewriteSpreadExpressions.java @ closure-compiler v20261015
 
 /*
  * Copyright 2014 The Closure Compiler Authors.
@@ -25,103 +25,54 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// Es6RewriteRestAndSpread converts REST parameters and SPREAD expressions.
-type Es6RewriteRestAndSpread struct {
+// Es6RewriteSpreadExpressions converts SPREAD expressions in array literals,
+// new calls, and function calls.
+type Es6RewriteSpreadExpressions struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 
-	compiler         AbstractCompiler
-	astFactory       *AstFactory
-	namespace        rhino.StaticScope
-	getRestArguments RuntimeJsLibManager_JsLibField
+	compiler   AbstractCompiler
+	astFactory *AstFactory
+	namespace  rhino.StaticScope
 }
 
-// Java: Es6RewriteRestAndSpread.FRESH_SPREAD_VAR
-const Es6RewriteRestAndSpread_FRESH_SPREAD_VAR = "$jscomp$spread$args"
+// Java: Es6RewriteSpreadExpressions.TRANSPILED_FEATURES
+var Es6RewriteSpreadExpressions_TRANSPILED_FEATURES = parser.FeatureSet_BARE_MINIMUM.With(parser.FeatureSet_Feature_SPREAD_EXPRESSIONS)
 
-// Java: Es6RewriteRestAndSpread.transpiledFeatures
-var Es6RewriteRestAndSpread_transpiledFeatures = parser.FeatureSet_BARE_MINIMUM.WithFeatures(parser.FeatureSet_Feature_REST_PARAMETERS, parser.FeatureSet_Feature_SPREAD_EXPRESSIONS)
+// Java: Es6RewriteSpreadExpressions.FRESH_SPREAD_VAR
+const Es6RewriteSpreadExpressions_FRESH_SPREAD_VAR = "$jscomp$spread$args"
 
-// Java: Es6RewriteRestAndSpread.arrayType
-var Es6RewriteRestAndSpread_arrayType = AstFactory_Type_OfColorId(colors.StandardColors_ARRAY_ID)
+// Java: Es6RewriteSpreadExpressions.arrayType
+var Es6RewriteSpreadExpressions_arrayType = AstFactory_Type_OfColorId(colors.StandardColors_ARRAY_ID)
 
-// Java: Es6RewriteRestAndSpread.concatFnType
-var Es6RewriteRestAndSpread_concatFnType = AstFactory_Type_OfColor(colors.StandardColors_TOP_OBJECT)
+// Java: Es6RewriteSpreadExpressions.concatFnType
+var Es6RewriteSpreadExpressions_concatFnType = AstFactory_Type_OfColor(colors.StandardColors_TOP_OBJECT)
 
-// Java: Es6RewriteRestAndSpread(AbstractCompiler)
-func NewEs6RewriteRestAndSpread(compiler AbstractCompiler) *Es6RewriteRestAndSpread {
-	e := &Es6RewriteRestAndSpread{}
+// Java: Es6RewriteSpreadExpressions(AbstractCompiler)
+func NewEs6RewriteSpreadExpressions(compiler AbstractCompiler) *Es6RewriteSpreadExpressions {
+	e := &Es6RewriteSpreadExpressions{}
 	e.compiler = compiler
 	e.astFactory = compiler.CreateAstFactory()
 	e.namespace = compiler.GetTranspilationNamespace()
-	e.getRestArguments =
-		compiler.GetRuntimeJsLibManager().GetJsLibField("$jscomp.getRestArguments")
 	return e
 }
 
-// Java: Es6RewriteRestAndSpread.process(Node, Node)
-func (e *Es6RewriteRestAndSpread) Process(externs *rhino.Node, root *rhino.Node) {
-	TranspilationPasses_ProcessTranspile(e.compiler, root, Es6RewriteRestAndSpread_transpiledFeatures, e)
-	TranspilationPasses_MaybeMarkFeaturesAsTranspiledAway(e.compiler, root, Es6RewriteRestAndSpread_transpiledFeatures)
+// Java: Es6RewriteSpreadExpressions.process(Node, Node)
+func (e *Es6RewriteSpreadExpressions) Process(externs *rhino.Node, root *rhino.Node) {
+	TranspilationPasses_ProcessTranspile(e.compiler, root, Es6RewriteSpreadExpressions_TRANSPILED_FEATURES, e)
+	TranspilationPasses_MaybeMarkFeaturesAsTranspiledAway(e.compiler, root, Es6RewriteSpreadExpressions_TRANSPILED_FEATURES)
 }
 
-// Java: Es6RewriteRestAndSpread.visit(NodeTraversal, Node, Node)
-func (e *Es6RewriteRestAndSpread) Visit(traversal *NodeTraversal, current *rhino.Node, parent *rhino.Node) {
-	switch current.GetToken() {
-	case rhino.Token_ITER_REST:
-		e.VisitRestParam(traversal, current, parent)
-	case rhino.Token_ARRAYLIT, rhino.Token_NEW, rhino.Token_CALL:
+// Java: Es6RewriteSpreadExpressions.visit(NodeTraversal, Node, Node)
+func (e *Es6RewriteSpreadExpressions) Visit(traversal *NodeTraversal, current *rhino.Node, parent *rhino.Node) {
+	token := current.GetToken()
+	if token == rhino.Token_ARRAYLIT || token == rhino.Token_NEW || token == rhino.Token_CALL {
 		for child := current.GetFirstChild(); child != nil; child = child.GetNext() {
 			if child.IsSpread() {
-				e.VisitArrayLitOrCallWithSpread(current)
+				e.VisitArrayLitOrCallWithSpread(traversal, current)
 				break
 			}
 		}
-	default:
 	}
-}
-
-// VisitRestParam processes a rest parameter
-//
-// Java: Es6RewriteRestAndSpread.visitRestParam(NodeTraversal, Node, Node)
-func (e *Es6RewriteRestAndSpread) VisitRestParam(t *NodeTraversal, restParam *rhino.Node, paramList *rhino.Node) {
-	functionBody := paramList.GetNext()
-	restIndex := paramList.GetIndexOfChild(restParam)
-	nameNode := restParam.GetOnlyChild()
-	paramName := nameNode.GetString()
-
-	// Remove the existing param from the list, as it will be replaced with a declaration with the
-	// same name.
-	restParam.Detach()
-
-	if !functionBody.HasChildren() {
-		// If function has no body, we are done!
-		t.ReportCodeChange()
-		return
-	}
-
-	// Now that the restParam is deleted, create a let declaration by making a new NAME node of the
-	// same name `paramName`
-	let :=
-		e.astFactory.
-			CreateSingleLetNameDeclarationWithValue(
-				paramName, // creates a new NAME node with name `paramName`
-				e.astFactory.CreateCall(
-					e.astFactory.CreateGetPropWithUnknownType(
-						e.astFactory.CreateQNameOfField(e.namespace, e.getRestArguments), "apply"),
-					AstFactory_Type_(nameNode),
-					e.astFactory.CreateNumber(float64(restIndex)),
-					e.astFactory.CreateArgumentsReference())).
-			SrcrefTreeIfMissing(functionBody)
-	insertBeforePoint :=
-		NodeUtil_GetInsertionPointAfterAllInnerFunctionDeclarations(functionBody)
-	if insertBeforePoint != nil {
-		let.InsertBefore(insertBeforePoint)
-	} else {
-		// functionBody only contains hoisted function declarations
-		functionBody.AddChildToBack(let)
-	}
-	NodeUtil_AddFeatureToScript(t.GetCurrentScript(), parser.FeatureSet_Feature_LET_DECLARATIONS, e.compiler)
-	t.ReportCodeChange()
 }
 
 // VisitArrayLitOrCallWithSpread processes array literals or calls to
@@ -129,17 +80,17 @@ func (e *Es6RewriteRestAndSpread) VisitRestParam(t *NodeTraversal, restParam *rh
 //
 // Examples:
 //
-//   - [1, 2, ...x, 4, 5] => [].concat([1, 2], $jscomp.arrayFromIterable(x), [4, 5])
+//   - [1, 2, ...x, 4, 5] => [1, 2].concat($jscomp.arrayFromIterable(x), [4, 5])
 //   - f(1, ...arr) => f.apply(null, [1].concat($jscomp.arrayFromIterable(arr)))
 //   - new F(...args) => new Function.prototype.bind.apply(F,
 //     [null].concat($jscomp.arrayFromIterable(args)))
 //
-// Java: Es6RewriteRestAndSpread.visitArrayLitOrCallWithSpread(Node)
-func (e *Es6RewriteRestAndSpread) VisitArrayLitOrCallWithSpread(spreadParent *rhino.Node) {
+// Java: Es6RewriteSpreadExpressions.visitArrayLitOrCallWithSpread(NodeTraversal, Node)
+func (e *Es6RewriteSpreadExpressions) VisitArrayLitOrCallWithSpread(t *NodeTraversal, spreadParent *rhino.Node) {
 	if spreadParent.IsArrayLit() {
 		e.VisitArrayLitContainingSpread(spreadParent)
 	} else if spreadParent.IsCall() {
-		e.VisitCallContainingSpread(spreadParent)
+		e.VisitCallContainingSpread(t, spreadParent)
 	} else {
 		jutil.CheckArgumentMsg1(spreadParent.IsNew(), "%s", spreadParent)
 		e.VisitNewWithSpread(spreadParent)
@@ -166,8 +117,8 @@ func (e *Es6RewriteRestAndSpread) VisitArrayLitOrCallWithSpread(spreadParent *rh
 //
 // TODO(nickreid): Stop mutating `spreadParent`.
 //
-// Java: Es6RewriteRestAndSpread.extractSpreadGroups(Node)
-func (e *Es6RewriteRestAndSpread) ExtractSpreadGroups(spreadParent *rhino.Node) []*rhino.Node {
+// Java: Es6RewriteSpreadExpressions.extractSpreadGroups(Node)
+func (e *Es6RewriteSpreadExpressions) ExtractSpreadGroups(spreadParent *rhino.Node) []*rhino.Node {
 	jutil.CheckArgument(spreadParent.IsCall() || spreadParent.IsArrayLit() || spreadParent.IsNew())
 
 	groups := []*rhino.Node{}
@@ -218,8 +169,8 @@ func (e *Es6RewriteRestAndSpread) ExtractSpreadGroups(spreadParent *rhino.Node) 
 //
 //	[1, 2, ...x, 4, 5] => [1, 2].concat($jscomp.arrayFromIterable(x), [4, 5])
 //
-// Java: Es6RewriteRestAndSpread.visitArrayLitContainingSpread(Node)
-func (e *Es6RewriteRestAndSpread) VisitArrayLitContainingSpread(spreadParent *rhino.Node) {
+// Java: Es6RewriteSpreadExpressions.visitArrayLitContainingSpread(Node)
+func (e *Es6RewriteSpreadExpressions) VisitArrayLitContainingSpread(spreadParent *rhino.Node) {
 	jutil.CheckArgument(spreadParent.IsArrayLit())
 
 	groups := e.ExtractSpreadGroups(spreadParent)
@@ -238,7 +189,7 @@ func (e *Es6RewriteRestAndSpread) VisitArrayLitContainingSpread(spreadParent *rh
 	if len(groups) == 0 {
 		joinedGroups = baseArrayLit
 	} else {
-		concat := e.astFactory.CreateGetProp(baseArrayLit, "concat", Es6RewriteRestAndSpread_concatFnType)
+		concat := e.astFactory.CreateGetProp(baseArrayLit, "concat", Es6RewriteSpreadExpressions_concatFnType)
 		joinedGroups = e.astFactory.CreateCall(concat, AstFactory_Type_(spreadParent), groups...)
 	}
 
@@ -256,8 +207,8 @@ func (e *Es6RewriteRestAndSpread) VisitArrayLitContainingSpread(spreadParent *rh
 //	f(a, ...arr) => f.apply(null, [a].concat($jscomp.arrayFromIterable(arr)))
 //	f(...arr, b) => f.apply(null, [].concat($jscomp.arrayFromIterable(arr), [b]))
 //
-// Java: Es6RewriteRestAndSpread.visitCallContainingSpread(Node)
-func (e *Es6RewriteRestAndSpread) VisitCallContainingSpread(spreadParent *rhino.Node) {
+// Java: Es6RewriteSpreadExpressions.visitCallContainingSpread(NodeTraversal, Node)
+func (e *Es6RewriteSpreadExpressions) VisitCallContainingSpread(t *NodeTraversal, spreadParent *rhino.Node) {
 	jutil.CheckArgument(spreadParent.IsCall())
 
 	callee := spreadParent.GetFirstChild()
@@ -303,21 +254,21 @@ func (e *Es6RewriteRestAndSpread) VisitCallContainingSpread(spreadParent *rhino.
 			} else {
 				baseArrayLit = e.astFactory.CreateArraylit()
 			}
-			concat := e.astFactory.CreateGetProp(baseArrayLit, "concat", Es6RewriteRestAndSpread_concatFnType)
-			joinedGroups = e.astFactory.CreateCall(concat, Es6RewriteRestAndSpread_arrayType, groups...)
+			concat := e.astFactory.CreateGetProp(baseArrayLit, "concat", Es6RewriteSpreadExpressions_concatFnType)
+			joinedGroups = e.astFactory.CreateCall(concat, Es6RewriteSpreadExpressions_arrayType, groups...)
 		}
 	}
 	isFreeCall := spreadParent.GetBooleanProp(rhino.Node_FREE_CALL)
 
 	var callToApply *rhino.Node
-	if calleeMayHaveSideEffects && callee.IsGetProp() && !isFreeCall {
-		// foo().method(...[a, b, c])
+	if calleeMayHaveSideEffects && (callee.IsGetProp() || callee.IsGetElem()) && !isFreeCall {
+		// foo().method(...[a, b, c]) or foo()['method'](...[a, b, c])
 		//   must convert to
 		// var freshVar;
 		// (freshVar = foo()).method.apply(freshVar, [a, b, c])
 		freshVar :=
 			e.astFactory.CreateName(
-				Es6RewriteRestAndSpread_FRESH_SPREAD_VAR+e.compiler.GetUniqueNameIdSupplier()(),
+				Es6RewriteSpreadExpressions_FRESH_SPREAD_VAR+e.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput()),
 				// Type of `foo()`.
 				AstFactory_Type_(callee.GetFirstChild()))
 		freshVarDeclaration := rhino.IR_Var(freshVar.CloneTree())
@@ -359,8 +310,8 @@ func (e *Es6RewriteRestAndSpread) VisitCallContainingSpread(spreadParent *rhino.
 	e.compiler.ReportChangeToEnclosingScope(callToApply)
 }
 
-// Java: Es6RewriteRestAndSpread.isSpreadOfArguments(Node)
-func (e *Es6RewriteRestAndSpread) IsSpreadOfArguments(n *rhino.Node) bool {
+// Java: Es6RewriteSpreadExpressions.isSpreadOfArguments(Node)
+func (e *Es6RewriteSpreadExpressions) IsSpreadOfArguments(n *rhino.Node) bool {
 	return n.IsSpread() && n.GetOnlyChild().MatchesName("arguments")
 }
 
@@ -371,8 +322,8 @@ func (e *Es6RewriteRestAndSpread) IsSpreadOfArguments(n *rhino.Node) bool {
 //	new F(...args) =>
 //	    new Function.prototype.bind.apply(F, [].concat($jscomp.arrayFromIterable(args)))
 //
-// Java: Es6RewriteRestAndSpread.visitNewWithSpread(Node)
-func (e *Es6RewriteRestAndSpread) VisitNewWithSpread(spreadParent *rhino.Node) {
+// Java: Es6RewriteSpreadExpressions.visitNewWithSpread(Node)
+func (e *Es6RewriteSpreadExpressions) VisitNewWithSpread(spreadParent *rhino.Node) {
 	jutil.CheckArgument(spreadParent.IsNew())
 
 	// Must remove callee before extracting argument groups.
@@ -395,8 +346,8 @@ func (e *Es6RewriteRestAndSpread) VisitNewWithSpread(spreadParent *rhino.Node) {
 		joinedGroups = baseArrayLit
 	} else {
 		joinedGroups = e.astFactory.CreateCall(
-			e.astFactory.CreateGetProp(baseArrayLit, "concat", Es6RewriteRestAndSpread_concatFnType),
-			Es6RewriteRestAndSpread_arrayType,
+			e.astFactory.CreateGetProp(baseArrayLit, "concat", Es6RewriteSpreadExpressions_concatFnType),
+			Es6RewriteSpreadExpressions_arrayType,
 			groups...)
 	}
 

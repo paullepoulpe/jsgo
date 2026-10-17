@@ -1,4 +1,4 @@
-// Port of com/google/debugging/sourcemap/SourceMapConsumerV3.java @ closure-compiler v20260415
+// Port of com/google/debugging/sourcemap/SourceMapConsumerV3.java @ closure-compiler v20261015
 
 /*
  * Copyright 2011 The Closure Compiler Authors.
@@ -143,8 +143,6 @@ func (c *SourceMapConsumerV3) ParseSourceMapObject(sourceMapObject *SourceMapObj
 		estimatedEntries = max(estimatedEntries, int32(jutil.StringLength(*sourceMapObject.GetMappings())/6))
 	}
 
-	c.mappings = NewSourceMapConsumerV3_Mappings(c, c.lineCount, useCompactMappings, estimatedEntries)
-
 	// The value type of each extension is the native JSON type (e.g.
 	// JsonObject, or JSONObject when compiled with GWT).
 	if sourceMapObject.GetExtensions() == nil {
@@ -154,7 +152,10 @@ func (c *SourceMapConsumerV3) ParseSourceMapObject(sourceMapObject *SourceMapObj
 	for k, v := range sourceMapObject.GetExtensions().All() {
 		c.extensions.Put(k, v)
 	}
-	NewSourceMapConsumerV3_MappingBuilder(c, sourceMapObject.GetMappings()).Build()
+	c.mappings =
+		NewSourceMapConsumerV3_MappingBuilder(
+			c, sourceMapObject.GetMappings(), c.lineCount, useCompactMappings, estimatedEntries).
+			Build()
 }
 
 // ParseMetaMap parses an index map: its sections are merged into a new
@@ -169,7 +170,7 @@ func (c *SourceMapConsumerV3) ParseMetaMap(sourceMapObject *SourceMapObject, sec
 	jutil.Try(func() {
 		if sourceMapObject.GetLineCount() >= 0 ||
 			sourceMapObject.GetMappings() != nil ||
-			sourceMapObject.GetSources() != nil ||
+			(sourceMapObject.GetSources() != nil && len(sourceMapObject.GetSources()) > 0) ||
 			sourceMapObject.GetNames() != nil {
 			panic(NewSourceMapParseException("Invalid map format"))
 		}
@@ -219,7 +220,7 @@ func (c *SourceMapConsumerV3) GetMappingForLine(lineNumber, column int) *Mapping
 		return c.GetPreviousMapping(int(ln))
 	}
 
-	if c.mappings.AtIndex(start).GetGeneratedColumn() > col {
+	if c.mappings.GetGeneratedColumn(start) > col {
 		return c.GetPreviousMapping(int(ln))
 	}
 
@@ -315,7 +316,15 @@ type SourceMapConsumerV3_MappingBuilder struct {
 	// Go-only: language-adapter — the enclosing SourceMapConsumerV3.
 	outer *SourceMapConsumerV3
 
-	content           *SourceMapConsumerV3_StringCharIterator
+	content *SourceMapConsumerV3_StringCharIterator
+
+	// Data for the Mappings we're building.
+	flatEntries []int32
+	lineStart   []int
+	lineCount   int
+	entrySize   int
+
+	// Parsing state
 	line              int
 	previousCol       int32
 	previousSrcId     int32
@@ -330,29 +339,41 @@ const SourceMapConsumerV3_MappingBuilder_MAX_ENTRY_VALUES = 5
 
 // NewSourceMapConsumerV3_MappingBuilder constructs a builder over lineMap.
 //
-// Java: SourceMapConsumerV3.MappingBuilder(String)
-func NewSourceMapConsumerV3_MappingBuilder(outer *SourceMapConsumerV3, lineMap *string) *SourceMapConsumerV3_MappingBuilder {
+// Java: SourceMapConsumerV3.MappingBuilder(String, int, boolean, int)
+func NewSourceMapConsumerV3_MappingBuilder(
+	outer *SourceMapConsumerV3, lineMap *string, lineCount int, useCompactMappings bool, estimatedEntries int32) *SourceMapConsumerV3_MappingBuilder {
 	b := &SourceMapConsumerV3_MappingBuilder{outer: outer}
 	b.content = NewSourceMapConsumerV3_StringCharIterator(*lineMap)
+	b.lineCount = lineCount
+	if useCompactMappings {
+		b.entrySize = 4
+	} else {
+		b.entrySize = 5
+	}
+	b.flatEntries = make([]int32, estimatedEntries*int32(b.entrySize))
+	estimatedLines := 1000
+	if lineCount >= 0 {
+		estimatedLines = lineCount
+	}
+	b.lineStart = make([]int, jutil.IntAdd(estimatedLines, 1))
 	return b
 }
 
 // Java: SourceMapConsumerV3.MappingBuilder.build()
-func (b *SourceMapConsumerV3_MappingBuilder) Build() {
+func (b *SourceMapConsumerV3_MappingBuilder) Build() *SourceMapConsumerV3_Mappings {
 	var temp [SourceMapConsumerV3_MappingBuilder_MAX_ENTRY_VALUES]int32
 
 	entriesCount := 0
 	linesCount := 0
 
-	mappings := b.outer.mappings
-	mappings.SetLineStart(0, 0)
+	b.SetLineStart(0, 0)
 
 	for b.content.HasNext() {
 		// ';' denotes a new line.
 		if b.TryConsumeToken(';') {
 			// The line is complete, store the result
 			linesCount++
-			mappings.SetLineStart(linesCount, entriesCount)
+			b.SetLineStart(linesCount, entriesCount)
 			b.line++
 			b.previousCol = 0
 		} else {
@@ -363,7 +384,7 @@ func (b *SourceMapConsumerV3_MappingBuilder) Build() {
 				entryValues++
 			}
 
-			mappings.SetEntry(
+			b.SetEntry(
 				entriesCount,
 				temp[:],
 				entryValues,
@@ -372,20 +393,19 @@ func (b *SourceMapConsumerV3_MappingBuilder) Build() {
 				b.previousSrcLine,
 				b.previousSrcColumn,
 				b.previousNameId)
-			mappings.ValidateEntry(entriesCount, b.line)
+			b.ValidateEntry(entriesCount, b.line)
 
-			mappings.AtIndex(entriesCount)
-			b.previousCol = mappings.GetGeneratedColumn()
+			b.previousCol = b.GetGeneratedColumn(entriesCount)
 			if entryValues >= 4 {
-				b.previousSrcId = mappings.GetSourceFileId()
-				b.previousSrcLine = mappings.GetSourceLine()
-				b.previousSrcColumn = mappings.GetSourceColumn()
+				b.previousSrcId = b.GetSourceFileId(entriesCount)
+				b.previousSrcLine = b.GetSourceLine(entriesCount)
+				b.previousSrcColumn = b.GetSourceColumn(entriesCount)
 			}
 			if entryValues == 5 {
-				b.previousNameId = mappings.GetNameId()
+				b.previousNameId = b.GetNameId(entriesCount)
 			}
 
-			entriesCount += mappings.GetEntrySize()
+			entriesCount += b.entrySize
 
 			// Consume the separating token, if there is one.
 			b.TryConsumeToken(',')
@@ -394,12 +414,211 @@ func (b *SourceMapConsumerV3_MappingBuilder) Build() {
 
 	// Some source map generator (e.g.UglifyJS) generates lines without a
 	// trailing line separator. So add the rest of the content.
-	if entriesCount > mappings.GetLineStart(linesCount) {
+	if entriesCount > b.GetLineStart(linesCount) {
 		linesCount++
-		mappings.SetLineStart(linesCount, entriesCount)
+		b.SetLineStart(linesCount, entriesCount)
 	}
 
-	mappings.Trim(entriesCount, linesCount)
+	b.Trim(entriesCount, linesCount)
+
+	return NewSourceMapConsumerV3_Mappings(b.flatEntries, b.lineStart, b.lineCount, b.entrySize)
+}
+
+// Java: SourceMapConsumerV3.MappingBuilder.getLineStart(int)
+func (b *SourceMapConsumerV3_MappingBuilder) GetLineStart(line int) int {
+	return b.lineStart[line]
+}
+
+// Java: SourceMapConsumerV3.MappingBuilder.setLineStart(int, int)
+func (b *SourceMapConsumerV3_MappingBuilder) SetLineStart(line, entriesCount int) {
+	if line >= len(b.lineStart) {
+		b.lineStart = sourceMapConsumerV3_copyOfInts(b.lineStart, len(b.lineStart)*2)
+	}
+	b.lineStart[line] = entriesCount
+}
+
+// Java: SourceMapConsumerV3.MappingBuilder.setEntry(int, int[], int, int, int, int, int, int)
+func (b *SourceMapConsumerV3_MappingBuilder) SetEntry(
+	entriesCount int,
+	vals []int32,
+	entryValues int,
+	previousCol int32,
+	previousSrcId int32,
+	previousSrcLine int32,
+	previousSrcColumn int32,
+	previousNameId int32) {
+	if entriesCount+b.entrySize > len(b.flatEntries) {
+		b.flatEntries = sourceMapConsumerV3_copyOfInt32s(b.flatEntries, len(b.flatEntries)*2)
+	}
+	// `entrySize == 4` indicates `useCompactMappings` is true, meaning the
+	// number of unique source files and names are both small enough (under
+	// 65535) that their IDs can be bit-packed into a single integer.
+	// Otherwise, they each get their own integer.
+	if b.entrySize == 4 {
+		b.SetEntryCompact(
+			entriesCount,
+			vals,
+			entryValues,
+			previousCol,
+			previousSrcId,
+			previousSrcLine,
+			previousSrcColumn,
+			previousNameId)
+	} else {
+		b.SetEntryNormal(
+			entriesCount,
+			vals,
+			entryValues,
+			previousCol,
+			previousSrcId,
+			previousSrcLine,
+			previousSrcColumn,
+			previousNameId)
+	}
+}
+
+// Java: SourceMapConsumerV3.MappingBuilder.setEntryCompact(int, int[], int, int, int, int, int, int)
+func (b *SourceMapConsumerV3_MappingBuilder) SetEntryCompact(
+	entriesCount int,
+	vals []int32,
+	entryValues int,
+	previousCol int32,
+	previousSrcId int32,
+	previousSrcLine int32,
+	previousSrcColumn int32,
+	previousNameId int32) {
+	// The `vals` array holds the decoded VLQ values in the exact order
+	// established by the SourceMap V3 specification: [generatedCol,
+	// sourceFileId, sourceLine, sourceCol, nameId]. We reorder these values
+	// when storing them in `flatEntries` to minimize branching overhead
+	// during lookups, putting `sourceLine` and `sourceColumn` before the IDs.
+	switch entryValues {
+	case 1:
+		b.flatEntries[entriesCount] = vals[0] + previousCol
+		b.flatEntries[entriesCount+1] = SourceMapConsumerV3_UNMAPPED
+		b.flatEntries[entriesCount+2] = SourceMapConsumerV3_UNMAPPED
+		b.flatEntries[entriesCount+3] = SourceMapConsumerV3_UNMAPPED // Both IDs are -1
+	case 4:
+		b.flatEntries[entriesCount] = vals[0] + previousCol
+		b.flatEntries[entriesCount+1] = vals[2] + previousSrcLine
+		b.flatEntries[entriesCount+2] = vals[3] + previousSrcColumn
+		srcId := vals[1] + previousSrcId
+		b.flatEntries[entriesCount+3] = (srcId << 16) | 0xFFFF
+	case 5:
+		b.flatEntries[entriesCount] = vals[0] + previousCol
+		b.flatEntries[entriesCount+1] = vals[2] + previousSrcLine
+		b.flatEntries[entriesCount+2] = vals[3] + previousSrcColumn
+		srcId := vals[1] + previousSrcId
+		nameId := vals[4] + previousNameId
+		b.flatEntries[entriesCount+3] = (srcId << 16) | (nameId & 0xFFFF)
+	default:
+		panic(NewSourceMapParseException(
+			"Unexpected number of values for entry:" + jutil.ToJavaString(entryValues)))
+	}
+}
+
+// Java: SourceMapConsumerV3.MappingBuilder.setEntryNormal(int, int[], int, int, int, int, int, int)
+func (b *SourceMapConsumerV3_MappingBuilder) SetEntryNormal(
+	entriesCount int,
+	vals []int32,
+	entryValues int,
+	previousCol int32,
+	previousSrcId int32,
+	previousSrcLine int32,
+	previousSrcColumn int32,
+	previousNameId int32) {
+	// The `vals` array holds the decoded VLQ values in the exact order
+	// established by the SourceMap V3 specification: [generatedCol,
+	// sourceFileId, sourceLine, sourceCol, nameId]. We reorder these values
+	// when storing them in `flatEntries` to minimize branching overhead
+	// during lookups, putting `sourceLine` and `sourceColumn` before the IDs.
+	switch entryValues {
+	case 1:
+		b.flatEntries[entriesCount] = vals[0] + previousCol
+		b.flatEntries[entriesCount+1] = SourceMapConsumerV3_UNMAPPED
+		b.flatEntries[entriesCount+2] = SourceMapConsumerV3_UNMAPPED
+		b.flatEntries[entriesCount+3] = SourceMapConsumerV3_UNMAPPED
+		b.flatEntries[entriesCount+4] = SourceMapConsumerV3_UNMAPPED
+	case 4:
+		b.flatEntries[entriesCount] = vals[0] + previousCol
+		b.flatEntries[entriesCount+1] = vals[2] + previousSrcLine
+		b.flatEntries[entriesCount+2] = vals[3] + previousSrcColumn
+		b.flatEntries[entriesCount+3] = vals[1] + previousSrcId
+		b.flatEntries[entriesCount+4] = SourceMapConsumerV3_UNMAPPED
+	case 5:
+		b.flatEntries[entriesCount] = vals[0] + previousCol
+		b.flatEntries[entriesCount+1] = vals[2] + previousSrcLine
+		b.flatEntries[entriesCount+2] = vals[3] + previousSrcColumn
+		b.flatEntries[entriesCount+3] = vals[1] + previousSrcId
+		b.flatEntries[entriesCount+4] = vals[4] + previousNameId
+	default:
+		panic(NewSourceMapParseException(
+			"Unexpected number of values for entry:" + jutil.ToJavaString(entryValues)))
+	}
+}
+
+// Java: SourceMapConsumerV3.MappingBuilder.getSourceFileId(int)
+func (b *SourceMapConsumerV3_MappingBuilder) GetSourceFileId(index int) int32 {
+	if b.entrySize == 4 {
+		val := b.flatEntries[index+3] >> 16
+		if val == -1 || (val&0xFFFF) == 0xFFFF {
+			return SourceMapConsumerV3_UNMAPPED
+		}
+		return val & 0xFFFF
+	}
+	return b.flatEntries[index+3]
+}
+
+// Java: SourceMapConsumerV3.MappingBuilder.getNameId(int)
+func (b *SourceMapConsumerV3_MappingBuilder) GetNameId(index int) int32 {
+	if b.entrySize == 4 {
+		val := b.flatEntries[index+3] & 0xFFFF
+		if val == 0xFFFF {
+			return SourceMapConsumerV3_UNMAPPED
+		}
+		return val
+	}
+	return b.flatEntries[index+4]
+}
+
+// Java: SourceMapConsumerV3.MappingBuilder.getGeneratedColumn(int)
+func (b *SourceMapConsumerV3_MappingBuilder) GetGeneratedColumn(index int) int32 {
+	return b.flatEntries[index]
+}
+
+// Java: SourceMapConsumerV3.MappingBuilder.getSourceLine(int)
+func (b *SourceMapConsumerV3_MappingBuilder) GetSourceLine(index int) int32 {
+	return b.flatEntries[index+1]
+}
+
+// Java: SourceMapConsumerV3.MappingBuilder.getSourceColumn(int)
+func (b *SourceMapConsumerV3_MappingBuilder) GetSourceColumn(index int) int32 {
+	return b.flatEntries[index+2]
+}
+
+// Java: SourceMapConsumerV3.MappingBuilder.validateEntry(int, int)
+func (b *SourceMapConsumerV3_MappingBuilder) ValidateEntry(entriesCount int, line int) {
+	jutil.CheckStateMsg2(
+		b.lineCount < 0 || line < b.lineCount, "line=%s, lineCount=%s", line, b.lineCount)
+	sourceFileId := b.GetSourceFileId(entriesCount)
+	nameId := b.GetNameId(entriesCount)
+	jutil.CheckState(sourceFileId == SourceMapConsumerV3_UNMAPPED || int(sourceFileId) < len(b.outer.sources))
+	if nameId != SourceMapConsumerV3_UNMAPPED && b.outer.names == nil {
+		// names.length
+		panic(jutil.NewNullPointerException())
+	}
+	jutil.CheckState(nameId == SourceMapConsumerV3_UNMAPPED || int(nameId) < len(b.outer.names))
+}
+
+// Java: SourceMapConsumerV3.MappingBuilder.trim(int, int)
+func (b *SourceMapConsumerV3_MappingBuilder) Trim(entriesCount int, linesCount int) {
+	if len(b.flatEntries) > entriesCount {
+		b.flatEntries = sourceMapConsumerV3_copyOfInt32s(b.flatEntries, entriesCount)
+	}
+	if len(b.lineStart) > linesCount+1 {
+		b.lineStart = sourceMapConsumerV3_copyOfInts(b.lineStart, linesCount+1)
+	}
+	b.lineCount = linesCount
 }
 
 // Java: SourceMapConsumerV3.MappingBuilder.tryConsumeToken(char)
@@ -435,7 +654,7 @@ func (c *SourceMapConsumerV3) Search(target int32, start, end int) int {
 	entrySize := c.mappings.GetEntrySize()
 	for {
 		mid := ((end-start)/(entrySize*2))*entrySize + start
-		compare := c.mappings.AtIndex(mid).GetGeneratedColumn() - target
+		compare := c.mappings.GetGeneratedColumn(mid) - target
 		if compare == 0 {
 			return mid
 		} else if compare < 0 {
@@ -474,18 +693,17 @@ func (c *SourceMapConsumerV3) GetPreviousMapping(lineNumber int) *Mapping_Origin
 //
 // Java: SourceMapConsumerV3.getOriginalMappingForEntry(int, OriginalMapping.Precision)
 func (c *SourceMapConsumerV3) GetOriginalMappingForEntry(index int, precision Mapping_OriginalMapping_Precision) *Mapping_OriginalMapping {
-	c.mappings.AtIndex(index)
-	sourceFileId := c.mappings.GetSourceFileId()
+	sourceFileId := c.mappings.GetSourceFileId(index)
 	if sourceFileId == SourceMapConsumerV3_UNMAPPED {
 		return nil
 	} else {
 		// Adjust the line/column here to be start at 1.
 		x := Mapping_OriginalMapping_NewBuilder().
 			SetOriginalFile(*c.sources[sourceFileId]).
-			SetLineNumber(int(c.mappings.GetSourceLine() + 1)).
-			SetColumnPosition(int(c.mappings.GetSourceColumn() + 1)).
+			SetLineNumber(int(c.mappings.GetSourceLine(index) + 1)).
+			SetColumnPosition(int(c.mappings.GetSourceColumn(index) + 1)).
 			SetPrecision(precision)
-		nameId := c.mappings.GetNameId()
+		nameId := c.mappings.GetNameId(index)
 		if nameId != SourceMapConsumerV3_UNMAPPED {
 			x.SetIdentifier(*c.names[nameId])
 		}
@@ -507,9 +725,8 @@ func (c *SourceMapConsumerV3) CreateReverseMapping() {
 		end := c.mappings.GetLineStart(targetLine + 1)
 
 		for i := start; i < end; i += c.mappings.GetEntrySize() {
-			c.mappings.AtIndex(i)
-			sourceFileId := c.mappings.GetSourceFileId()
-			sourceLine := c.mappings.GetSourceLine()
+			sourceFileId := c.mappings.GetSourceFileId(i)
+			sourceLine := c.mappings.GetSourceLine(i)
 			if sourceFileId != SourceMapConsumerV3_UNMAPPED && sourceLine != SourceMapConsumerV3_UNMAPPED {
 				originalFile := c.sources[sourceFileId]
 
@@ -527,7 +744,7 @@ func (c *SourceMapConsumerV3) CreateReverseMapping() {
 
 				builder := Mapping_OriginalMapping_NewBuilder().
 					SetLineNumber(targetLine).
-					SetColumnPosition(int(c.mappings.GetGeneratedColumn()))
+					SetColumnPosition(int(c.mappings.GetGeneratedColumn(i)))
 
 				mappingsLine.Add(builder.Build())
 			}
@@ -574,11 +791,9 @@ func (it *SourceMapConsumerV3_StringCharIterator) HasNext() bool {
 	return it.current < it.length
 }
 
-// SourceMapConsumerV3_Mappings is a container for mapping entries.
+// SourceMapConsumerV3_Mappings is an immutable container for mapping
+// entries.
 type SourceMapConsumerV3_Mappings struct {
-	// Go-only: language-adapter — the enclosing SourceMapConsumerV3.
-	outer *SourceMapConsumerV3
-
 	// flatEntries stores all entries sequentially. Each entry is packed into
 	// 5 consecutive integers: [generatedCol, sourceLine, sourceCol,
 	// sourceFileId, nameId]. For unmapped entries, sourceFileId (and other
@@ -589,28 +804,16 @@ type SourceMapConsumerV3_Mappings struct {
 	// lineStart[lineCount] is the total number of entries.
 	lineStart []int
 	lineCount int
-	index     int
-
 	entrySize int
 }
 
-// NewSourceMapConsumerV3_Mappings constructs an empty container.
-//
-// Java: SourceMapConsumerV3.Mappings(int, boolean, int)
-func NewSourceMapConsumerV3_Mappings(outer *SourceMapConsumerV3, lineCount int, useCompactMappings bool, estimatedEntries int32) *SourceMapConsumerV3_Mappings {
-	m := &SourceMapConsumerV3_Mappings{outer: outer}
+// Java: SourceMapConsumerV3.Mappings(int[], int[], int, int)
+func NewSourceMapConsumerV3_Mappings(flatEntries []int32, lineStart []int, lineCount int, entrySize int) *SourceMapConsumerV3_Mappings {
+	m := &SourceMapConsumerV3_Mappings{}
+	m.flatEntries = flatEntries
+	m.lineStart = lineStart
 	m.lineCount = lineCount
-	if useCompactMappings {
-		m.entrySize = 4
-	} else {
-		m.entrySize = 5
-	}
-	m.flatEntries = make([]int32, estimatedEntries*int32(m.entrySize))
-	estimatedLines := 1000
-	if lineCount >= 0 {
-		estimatedLines = lineCount
-	}
-	m.lineStart = make([]int, jutil.IntAdd(estimatedLines, 1))
+	m.entrySize = entrySize
 	return m
 }
 
@@ -619,49 +822,43 @@ func (m *SourceMapConsumerV3_Mappings) GetEntrySize() int {
 	return m.entrySize
 }
 
-// Java: SourceMapConsumerV3.Mappings.atIndex(int)
-func (m *SourceMapConsumerV3_Mappings) AtIndex(index int) *SourceMapConsumerV3_Mappings {
-	m.index = index
-	return m
+// Java: SourceMapConsumerV3.Mappings.getGeneratedColumn(int)
+func (m *SourceMapConsumerV3_Mappings) GetGeneratedColumn(index int) int32 {
+	return m.flatEntries[index]
 }
 
-// Java: SourceMapConsumerV3.Mappings.getGeneratedColumn()
-func (m *SourceMapConsumerV3_Mappings) GetGeneratedColumn() int32 {
-	return m.flatEntries[m.index]
-}
-
-// Java: SourceMapConsumerV3.Mappings.getSourceFileId()
-func (m *SourceMapConsumerV3_Mappings) GetSourceFileId() int32 {
+// Java: SourceMapConsumerV3.Mappings.getSourceFileId(int)
+func (m *SourceMapConsumerV3_Mappings) GetSourceFileId(index int) int32 {
 	if m.entrySize == 4 {
-		val := m.flatEntries[m.index+3] >> 16
+		val := m.flatEntries[index+3] >> 16
 		if val == -1 || (val&0xFFFF) == 0xFFFF {
 			return SourceMapConsumerV3_UNMAPPED
 		}
 		return val & 0xFFFF
 	}
-	return m.flatEntries[m.index+3]
+	return m.flatEntries[index+3]
 }
 
-// Java: SourceMapConsumerV3.Mappings.getSourceLine()
-func (m *SourceMapConsumerV3_Mappings) GetSourceLine() int32 {
-	return m.flatEntries[m.index+1]
+// Java: SourceMapConsumerV3.Mappings.getSourceLine(int)
+func (m *SourceMapConsumerV3_Mappings) GetSourceLine(index int) int32 {
+	return m.flatEntries[index+1]
 }
 
-// Java: SourceMapConsumerV3.Mappings.getSourceColumn()
-func (m *SourceMapConsumerV3_Mappings) GetSourceColumn() int32 {
-	return m.flatEntries[m.index+2]
+// Java: SourceMapConsumerV3.Mappings.getSourceColumn(int)
+func (m *SourceMapConsumerV3_Mappings) GetSourceColumn(index int) int32 {
+	return m.flatEntries[index+2]
 }
 
-// Java: SourceMapConsumerV3.Mappings.getNameId()
-func (m *SourceMapConsumerV3_Mappings) GetNameId() int32 {
+// Java: SourceMapConsumerV3.Mappings.getNameId(int)
+func (m *SourceMapConsumerV3_Mappings) GetNameId(index int) int32 {
 	if m.entrySize == 4 {
-		val := m.flatEntries[m.index+3] & 0xFFFF
+		val := m.flatEntries[index+3] & 0xFFFF
 		if val == 0xFFFF {
 			return SourceMapConsumerV3_UNMAPPED
 		}
 		return val
 	}
-	return m.flatEntries[m.index+4]
+	return m.flatEntries[index+4]
 }
 
 // Java: SourceMapConsumerV3.Mappings.getParsedLineCount()
@@ -672,160 +869,6 @@ func (m *SourceMapConsumerV3_Mappings) GetParsedLineCount() int {
 // Java: SourceMapConsumerV3.Mappings.getLineStart(int)
 func (m *SourceMapConsumerV3_Mappings) GetLineStart(line int) int {
 	return m.lineStart[line]
-}
-
-// Java: SourceMapConsumerV3.Mappings.setLineStart(int, int)
-func (m *SourceMapConsumerV3_Mappings) SetLineStart(line, entriesCount int) {
-	if line >= len(m.lineStart) {
-		m.lineStart = sourceMapConsumerV3_copyOfInts(m.lineStart, len(m.lineStart)*2)
-	}
-	m.lineStart[line] = entriesCount
-}
-
-// Java: SourceMapConsumerV3.Mappings.setEntry(int, int[], int, int, int, int, int, int)
-func (m *SourceMapConsumerV3_Mappings) SetEntry(
-	entriesCount int,
-	vals []int32,
-	entryValues int,
-	previousCol int32,
-	previousSrcId int32,
-	previousSrcLine int32,
-	previousSrcColumn int32,
-	previousNameId int32) {
-	if entriesCount+m.entrySize > len(m.flatEntries) {
-		m.flatEntries = sourceMapConsumerV3_copyOfInt32s(m.flatEntries, len(m.flatEntries)*2)
-	}
-	// `entrySize == 4` indicates `useCompactMappings` is true, meaning the
-	// number of unique source files and names are both small enough (under
-	// 65535) that their IDs can be bit-packed into a single integer.
-	// Otherwise, they each get their own integer.
-	if m.entrySize == 4 {
-		m.SetEntryCompact(
-			entriesCount,
-			vals,
-			entryValues,
-			previousCol,
-			previousSrcId,
-			previousSrcLine,
-			previousSrcColumn,
-			previousNameId)
-	} else {
-		m.SetEntryNormal(
-			entriesCount,
-			vals,
-			entryValues,
-			previousCol,
-			previousSrcId,
-			previousSrcLine,
-			previousSrcColumn,
-			previousNameId)
-	}
-}
-
-// Java: SourceMapConsumerV3.Mappings.setEntryCompact(int, int[], int, int, int, int, int, int)
-func (m *SourceMapConsumerV3_Mappings) SetEntryCompact(
-	entriesCount int,
-	vals []int32,
-	entryValues int,
-	previousCol int32,
-	previousSrcId int32,
-	previousSrcLine int32,
-	previousSrcColumn int32,
-	previousNameId int32) {
-	// The `vals` array holds the decoded VLQ values in the exact order
-	// established by the SourceMap V3 specification: [generatedCol,
-	// sourceFileId, sourceLine, sourceCol, nameId]. We reorder these values
-	// when storing them in `flatEntries` to minimize branching overhead
-	// during lookups, putting `sourceLine` and `sourceColumn` before the IDs.
-	switch entryValues {
-	case 1:
-		m.flatEntries[entriesCount] = vals[0] + previousCol
-		m.flatEntries[entriesCount+1] = SourceMapConsumerV3_UNMAPPED
-		m.flatEntries[entriesCount+2] = SourceMapConsumerV3_UNMAPPED
-		m.flatEntries[entriesCount+3] = SourceMapConsumerV3_UNMAPPED // Both IDs are -1
-	case 4:
-		m.flatEntries[entriesCount] = vals[0] + previousCol
-		m.flatEntries[entriesCount+1] = vals[2] + previousSrcLine
-		m.flatEntries[entriesCount+2] = vals[3] + previousSrcColumn
-		srcId := vals[1] + previousSrcId
-		m.flatEntries[entriesCount+3] = (srcId << 16) | 0xFFFF
-	case 5:
-		m.flatEntries[entriesCount] = vals[0] + previousCol
-		m.flatEntries[entriesCount+1] = vals[2] + previousSrcLine
-		m.flatEntries[entriesCount+2] = vals[3] + previousSrcColumn
-		srcId := vals[1] + previousSrcId
-		nameId := vals[4] + previousNameId
-		m.flatEntries[entriesCount+3] = (srcId << 16) | (nameId & 0xFFFF)
-	default:
-		panic(NewSourceMapParseException(
-			"Unexpected number of values for entry:" + jutil.ToJavaString(entryValues)))
-	}
-}
-
-// Java: SourceMapConsumerV3.Mappings.setEntryNormal(int, int[], int, int, int, int, int, int)
-func (m *SourceMapConsumerV3_Mappings) SetEntryNormal(
-	entriesCount int,
-	vals []int32,
-	entryValues int,
-	previousCol int32,
-	previousSrcId int32,
-	previousSrcLine int32,
-	previousSrcColumn int32,
-	previousNameId int32) {
-	// The `vals` array holds the decoded VLQ values in the exact order
-	// established by the SourceMap V3 specification: [generatedCol,
-	// sourceFileId, sourceLine, sourceCol, nameId]. We reorder these values
-	// when storing them in `flatEntries` to minimize branching overhead
-	// during lookups, putting `sourceLine` and `sourceColumn` before the IDs.
-	switch entryValues {
-	case 1:
-		m.flatEntries[entriesCount] = vals[0] + previousCol
-		m.flatEntries[entriesCount+1] = SourceMapConsumerV3_UNMAPPED
-		m.flatEntries[entriesCount+2] = SourceMapConsumerV3_UNMAPPED
-		m.flatEntries[entriesCount+3] = SourceMapConsumerV3_UNMAPPED
-		m.flatEntries[entriesCount+4] = SourceMapConsumerV3_UNMAPPED
-	case 4:
-		m.flatEntries[entriesCount] = vals[0] + previousCol
-		m.flatEntries[entriesCount+1] = vals[2] + previousSrcLine
-		m.flatEntries[entriesCount+2] = vals[3] + previousSrcColumn
-		m.flatEntries[entriesCount+3] = vals[1] + previousSrcId
-		m.flatEntries[entriesCount+4] = SourceMapConsumerV3_UNMAPPED
-	case 5:
-		m.flatEntries[entriesCount] = vals[0] + previousCol
-		m.flatEntries[entriesCount+1] = vals[2] + previousSrcLine
-		m.flatEntries[entriesCount+2] = vals[3] + previousSrcColumn
-		m.flatEntries[entriesCount+3] = vals[1] + previousSrcId
-		m.flatEntries[entriesCount+4] = vals[4] + previousNameId
-	default:
-		panic(NewSourceMapParseException(
-			"Unexpected number of values for entry:" + jutil.ToJavaString(entryValues)))
-	}
-}
-
-// Java: SourceMapConsumerV3.Mappings.validateEntry(int, int)
-func (m *SourceMapConsumerV3_Mappings) ValidateEntry(entriesCount int, line int) {
-	jutil.CheckStateMsg2(
-		m.lineCount < 0 || line < m.lineCount, "line=%s, lineCount=%s", line, m.lineCount)
-	m.AtIndex(entriesCount)
-	sourceFileId := m.GetSourceFileId()
-	nameId := m.GetNameId()
-	jutil.CheckState(sourceFileId == SourceMapConsumerV3_UNMAPPED || int(sourceFileId) < len(m.outer.sources))
-	if nameId != SourceMapConsumerV3_UNMAPPED && m.outer.names == nil {
-		// names.length
-		panic(jutil.NewNullPointerException())
-	}
-	jutil.CheckState(nameId == SourceMapConsumerV3_UNMAPPED || int(nameId) < len(m.outer.names))
-}
-
-// Java: SourceMapConsumerV3.Mappings.trim(int, int)
-func (m *SourceMapConsumerV3_Mappings) Trim(entriesCount int, linesCount int) {
-	if len(m.flatEntries) > entriesCount {
-		m.flatEntries = sourceMapConsumerV3_copyOfInt32s(m.flatEntries, entriesCount)
-	}
-	if len(m.lineStart) > linesCount+1 {
-		m.lineStart = sourceMapConsumerV3_copyOfInts(m.lineStart, linesCount+1)
-	}
-	m.lineCount = linesCount
 }
 
 // Go-only: language-adapter — Arrays.copyOf(int[], int): a new array of the
@@ -873,9 +916,8 @@ func (c *SourceMapConsumerV3) VisitMappings(visitor SourceMapConsumerV3_EntryVis
 		end := c.mappings.GetLineStart(i + 1)
 		if start != end {
 			for j := start; j < end; j += c.mappings.GetEntrySize() {
-				c.mappings.AtIndex(j)
 				if pending {
-					endPosition := NewFilePosition(i, int(c.mappings.GetGeneratedColumn()))
+					endPosition := NewFilePosition(i, int(c.mappings.GetGeneratedColumn(j)))
 					visitor.Visit(
 						sourceName,
 						symbolName,
@@ -885,19 +927,19 @@ func (c *SourceMapConsumerV3) VisitMappings(visitor SourceMapConsumerV3_EntryVis
 					pending = false
 				}
 
-				sourceFileId := c.mappings.GetSourceFileId()
+				sourceFileId := c.mappings.GetSourceFileId(j)
 				if sourceFileId != SourceMapConsumerV3_UNMAPPED {
 					pending = true
 					sourceName = c.sources[sourceFileId]
-					nameId := c.mappings.GetNameId()
+					nameId := c.mappings.GetNameId(j)
 					if nameId != SourceMapConsumerV3_UNMAPPED {
 						symbolName = c.names[nameId]
 					} else {
 						symbolName = nil
 					}
 					sourceStartPosition =
-						NewFilePosition(int(c.mappings.GetSourceLine()), int(c.mappings.GetSourceColumn()))
-					startPosition = NewFilePosition(i, int(c.mappings.GetGeneratedColumn()))
+						NewFilePosition(int(c.mappings.GetSourceLine(j)), int(c.mappings.GetSourceColumn(j)))
+					startPosition = NewFilePosition(i, int(c.mappings.GetGeneratedColumn(j)))
 				}
 			}
 		}

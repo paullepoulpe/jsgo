@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CheckClosureImportsTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/CheckClosureImportsTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/CheckClosureImportsTest.java)
 
 /*
@@ -465,6 +465,76 @@ func (c *CheckClosureImportsTest) Test_googRequireTypeSimpleArrayDestructuringIs
 const [e0] = goog.requireType('symbol');
 `)),
 		c.Error(CheckClosureImports_INVALID_CLOSURE_IMPORT_DESTRUCTURING))
+}
+
+// Java: CheckClosureImportsTest.googRequireDefaultValueDestructuringIsError()
+func (c *CheckClosureImportsTest) Test_googRequireDefaultValueDestructuringIsError() {
+	c.moduleType = ModuleMetadataMap_ModuleType_GOOG_MODULE
+
+	c.Test(
+		c.Srcs(
+			checkClosureImportsTest_PROVIDES_SYMBOL_SRC,
+			checkClosureImportsTest_makeTestFile(
+				`goog.module('test');
+const {property0 = 1} = goog.require('symbol');
+`)),
+		c.Error(CheckClosureImports_INVALID_CLOSURE_IMPORT_DESTRUCTURING))
+}
+
+// Java: CheckClosureImportsTest.googRequireTypeDefaultValueDestructuringIsError()
+func (c *CheckClosureImportsTest) Test_googRequireTypeDefaultValueDestructuringIsError() {
+	c.moduleType = ModuleMetadataMap_ModuleType_GOOG_MODULE
+
+	c.Test(
+		c.Srcs(
+			checkClosureImportsTest_PROVIDES_SYMBOL_SRC,
+			checkClosureImportsTest_makeTestFile(
+				`goog.module('test');
+const {property0 = 1} = goog.requireType('symbol');
+`)),
+		c.Error(CheckClosureImports_INVALID_CLOSURE_IMPORT_DESTRUCTURING))
+}
+
+// Java: CheckClosureImportsTest.googRequireComputedPropertyDestructuringIsError()
+func (c *CheckClosureImportsTest) Test_googRequireComputedPropertyDestructuringIsError() {
+	c.moduleType = ModuleMetadataMap_ModuleType_GOOG_MODULE
+
+	c.Test(
+		c.Srcs(
+			checkClosureImportsTest_PROVIDES_SYMBOL_SRC,
+			checkClosureImportsTest_makeTestFile(
+				`goog.module('test');
+const {[property0]: a} = goog.require('symbol');
+`)),
+		c.Error(CheckClosureImports_INVALID_CLOSURE_IMPORT_DESTRUCTURING))
+}
+
+// Java: CheckClosureImportsTest.googRequireObjectRestDestructuringIsError()
+func (c *CheckClosureImportsTest) Test_googRequireObjectRestDestructuringIsError() {
+	c.moduleType = ModuleMetadataMap_ModuleType_GOOG_MODULE
+
+	c.Test(
+		c.Srcs(
+			checkClosureImportsTest_PROVIDES_SYMBOL_SRC,
+			checkClosureImportsTest_makeTestFile(
+				`goog.module('test');
+const {...rest} = goog.require('symbol');
+`)),
+		c.Error(CheckClosureImports_INVALID_CLOSURE_IMPORT_DESTRUCTURING))
+}
+
+// Java: CheckClosureImportsTest.googForwardDeclareNestedObjectDestructuringIsError()
+func (c *CheckClosureImportsTest) Test_googForwardDeclareNestedObjectDestructuringIsError() {
+	c.moduleType = ModuleMetadataMap_ModuleType_GOOG_MODULE
+
+	c.Test(
+		c.Srcs(
+			checkClosureImportsTest_PROVIDES_SYMBOL_SRC,
+			checkClosureImportsTest_makeTestFile(
+				`goog.module('test');
+const {property0: {a}} = goog.forwardDeclare('symbol');
+`)),
+		c.Error(CheckClosureImports_NO_CLOSURE_IMPORT_DESTRUCTURING))
 }
 
 // Java: CheckClosureImportsTest.googRequireLateIsError()

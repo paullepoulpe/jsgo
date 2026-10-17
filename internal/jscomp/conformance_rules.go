@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ConformanceRules.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/ConformanceRules.java @ closure-compiler v20261015
 
 /*
  * Copyright 2014 The Closure Compiler Authors.
@@ -1878,10 +1878,6 @@ var conformanceRules_javaClasses = map[string]*ConformanceRules_JavaClass{
 		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
 			return NewConformanceRules_BanUnknownDirectThisPropsReferences(c, r)
 		}),
-	"com.google.javascript.jscomp.ConformanceRules$BanNonLiteralArgsToGoogStringConstFrom": conformanceRules_ruleClass(
-		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
-			return NewConformanceRules_BanNonLiteralArgsToGoogStringConstFrom(c, r)
-		}),
 	"com.google.javascript.jscomp.ConformanceRules$BanUnknownTypedClassPropsReferences": conformanceRules_ruleClass(
 		func(c AbstractCompiler, r *Requirement) CheckConformance_Rule {
 			return NewConformanceRules_BanUnknownTypedClassPropsReferences(c, r)
@@ -2146,65 +2142,6 @@ func ConformanceRules_BanUnknownDirectThisPropsReferences_IsExplicitlyUnknown(n 
 		prop = owner.GetSlot(n.GetString())
 	}
 	return prop != nil && !prop.IsTypeInferred()
-}
-
-// ConformanceRules_BanNonLiteralArgsToGoogStringConstFrom bans non-literal
-// arguments passed to goog.string.Const.from. Possible calls to
-// goog.string.Const in user code could look like:
-//
-//	`goog.string.Const.from('foo');`
-//	`const alias = goog.string.Const.from; alias(foo);`
-//	`const {from} = goog.require('goog.string.Const'); from(foo);`
-//	`const alias = goog.require('goog.string.Const'); alias.from(foo);`
-type ConformanceRules_BanNonLiteralArgsToGoogStringConstFrom struct {
-	ConformanceRules_AbstractRuleBase
-}
-
-// Java: ConformanceRules.BanNonLiteralArgsToGoogStringConstFrom.GOOG_STRING_CONST_FROM
-var conformanceRules_BanNonLiteralArgsToGoogStringConstFrom_GOOG_STRING_CONST_FROM = rhino.QualifiedName_Of("goog.string.Const.from")
-
-// Java: ConformanceRules.BanNonLiteralArgsToGoogStringConstFrom(AbstractCompiler, Requirement)
-func NewConformanceRules_BanNonLiteralArgsToGoogStringConstFrom(
-	compiler AbstractCompiler, requirement *Requirement) *ConformanceRules_BanNonLiteralArgsToGoogStringConstFrom {
-	r := &ConformanceRules_BanNonLiteralArgsToGoogStringConstFrom{}
-	r.InitConformanceRules_AbstractRuleBase(r, compiler, requirement)
-	return r
-}
-
-// Java: ConformanceRules.BanNonLiteralArgsToGoogStringConstFrom.checkConformance(NodeTraversal, Node)
-func (r *ConformanceRules_BanNonLiteralArgsToGoogStringConstFrom) CheckConformance(t *NodeTraversal, node *rhino.Node) *ConformanceRules_ConformanceResult {
-	if node.IsCall() {
-		name := node.GetFirstChild()
-		argument := name.GetNext()
-		if argument == nil {
-			return ConformanceRules_ConformanceResult_CONFORMANCE
-		}
-
-		// If the name is a qualified name, it must be goog.string.Const.from or an alias of it.
-		if name.IsName() {
-			scope := t.GetScope()
-			var_ := scope.GetVar(name.GetString())
-			if var_ == nil {
-				return ConformanceRules_ConformanceResult_CONFORMANCE
-			}
-			name = var_.GetInitialValue()
-			if name == nil {
-				return ConformanceRules_ConformanceResult_CONFORMANCE
-			}
-		}
-
-		if conformanceRules_BanNonLiteralArgsToGoogStringConstFrom_GOOG_STRING_CONST_FROM.Matches(name) {
-			if !r.IsAllowed(argument) {
-				return ConformanceRules_ConformanceResult_VIOLATION
-			}
-		}
-	}
-	return ConformanceRules_ConformanceResult_CONFORMANCE
-}
-
-// Java: ConformanceRules.BanNonLiteralArgsToGoogStringConstFrom.isAllowed(Node)
-func (r *ConformanceRules_BanNonLiteralArgsToGoogStringConstFrom) IsAllowed(argument *rhino.Node) bool {
-	return argument.IsStringLit() || (argument.IsTemplateLit() && argument.HasOneChild())
 }
 
 // ConformanceRules_BanUnknownTypedClassPropsReferences bans unknown type

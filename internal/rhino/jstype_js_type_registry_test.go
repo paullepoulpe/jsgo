@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/jstype/JSTypeRegistryTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/rhino/jstype/JSTypeRegistryTest.java @ closure-compiler v20261015
 
 /*
  *
@@ -83,6 +83,21 @@ func TestJSTypeRegistry_GetBuiltInType_iterator(t *testing.T) {
 	s.AssertType(s.registry.GetGlobalType("Iterator")).IsEqualTo(s.registry.GetNativeType(JSTypeNative_ITERATOR_TYPE))
 }
 
+func TestJSTypeRegistry_GetBuiltInType_iteratorLike(t *testing.T) {
+	s := newJsTypeRegistryTest(t)
+	s.AssertType(s.registry.GetGlobalType("IteratorLike")).
+		IsEqualTo(s.registry.GetNativeType(JSTypeNative_ITERATOR_LIKE_TYPE))
+}
+
+func TestJSTypeRegistry_IteratorExtendsIteratorLike(t *testing.T) {
+	s := newJsTypeRegistryTest(t)
+	s.AssertThat(
+		s.registry.
+			GetNativeType(JSTypeNative_ITERATOR_TYPE).
+			IsSubtypeOf(s.registry.GetNativeType(JSTypeNative_ITERATOR_LIKE_TYPE))).
+		IsTrue()
+}
+
 func TestJSTypeRegistry_GetBuiltInType_generator(t *testing.T) {
 	s := newJsTypeRegistryTest(t)
 	s.AssertType(s.registry.GetGlobalType("Generator")).
@@ -105,6 +120,23 @@ func TestJSTypeRegistry_GetBuiltInType_async_generator(t *testing.T) {
 	s := newJsTypeRegistryTest(t)
 	s.AssertType(s.registry.GetGlobalType("AsyncGenerator")).
 		IsEqualTo(s.registry.GetNativeType(JSTypeNative_ASYNC_GENERATOR_TYPE))
+}
+
+func TestJSTypeRegistry_GetBuiltInType_gbigint(t *testing.T) {
+	s := newJsTypeRegistryTest(t)
+	s.AssertType(s.registry.GetGlobalType("gbigint")).
+		IsEqualTo(s.registry.GetNativeType(JSTypeNative_GBIGINT_TYPE))
+}
+
+func TestJSTypeRegistry_GetBuiltInType_gbigint_unification(t *testing.T) {
+	s := newJsTypeRegistryTest(t)
+	// This simulates what happens when the compiler parses: /** @interface */ function gbigint() {}
+	interfaceType :=
+		FunctionType_Builder_(s.registry).ForInterface().WithName(jutil.StringPtr("gbigint")).Build()
+	s.registry.DeclareType(nil, "gbigint", interfaceType.GetInstanceType())
+
+	s.AssertType(s.registry.GetGlobalType("gbigint")).
+		IsEqualTo(s.registry.GetNativeType(JSTypeNative_GBIGINT_TYPE))
 }
 
 func TestJSTypeRegistry_GetBuildInType_iTemplateArray(t *testing.T) {

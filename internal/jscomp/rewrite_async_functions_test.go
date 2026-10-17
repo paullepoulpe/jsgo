@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/RewriteAsyncFunctionsTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/RewriteAsyncFunctionsTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/RewriteAsyncFunctionsTest.java)
 
 /*
@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 // RewriteAsyncFunctionsTest has the test cases for RewriteAsyncFunctions.
@@ -39,6 +40,8 @@ var RewriteAsyncFunctionsTest_REPLACEMENTS_MAP = transpileTests_ImmutableMapOf(
 	"$jscomp$async$this$",
 	"ASYNC_ARGUMENTS",
 	"$jscomp$async$arguments$",
+	"ASYNC_NEW_TARGET",
+	"$jscomp$async$new$target$",
 	"ASYNC_SUPER_GET",
 	"$jscomp$async$super$get$")
 
@@ -286,6 +289,16 @@ class X extends A {
 	methodCallNode := wrapperCallNode.GetGrandparent()
 	// optimization colors don't track .call types
 	AssertNode(methodCallNode).IsCall().HasColorThat().IsEqualTo(colors.StandardColors_UNKNOWN)
+}
+
+// Java: RewriteAsyncFunctionsTest.testInnerSuperTaggedTemplateLiteral()
+func (c *RewriteAsyncFunctionsTest) TestInnerSuperTaggedTemplateLiteral() {
+	c.Test(
+		c.Externs(NewTestExternsBuilder().AddPromise().AddJSCompLibraries().Build()),
+		c.Srcs(
+			"class A {\n  m(strings, ...values) {\n    return Promise.resolve(this);\n  }\n}\nclass X extends A {\n  async m() {\n    return super.m`<p>hello</p>`;\n  }\n}\n"),
+		c.Expected(
+			"class A {\n  m(strings, ...values) {\n    return Promise.resolve(this);\n  }\n}\nclass X extends A {\n  m() {\n    const ASYNC_THIS$3 = this;\n    const ASYNC_SUPER_GET$5$m = () => {\n      return super.m;\n    };\n    return (0, $jscomp.asyncExecutePromiseGeneratorFunction)(\n        function* () {\n          return ASYNC_SUPER_GET$5$m().bind(ASYNC_THIS$3)`<p>hello</p>`;\n        });\n  }\n}\n"))
 }
 
 // Java: RewriteAsyncFunctionsTest.testInnerSuperReference()
@@ -705,4 +718,234 @@ class B extends A {
 `,
 		TranspilationUtil_CANNOT_CONVERT_YET,
 		"Transpilation of 'assignment to super property' is not yet implemented.")
+}
+
+// Java: RewriteAsyncFunctionsTest.testAsyncArrowUsingNewTargetInConstructor()
+func (c *RewriteAsyncFunctionsTest) TestAsyncArrowUsingNewTargetInConstructor() {
+	c.Test(
+		`class X {
+  constructor() {
+    const f = async () => {
+      return new.target;
+    };
+  }
+}
+`,
+		`class X {
+  constructor() {
+    const f = () => {
+      const ASYNC_NEW_TARGET$3 = new.target;
+      return (0, $jscomp.asyncExecutePromiseGeneratorFunction)(
+          function* () {
+            return ASYNC_NEW_TARGET$3;
+          });
+    };
+  }
+}
+`)
+}
+
+// Java: RewriteAsyncFunctionsTest.testAsyncArrowUsingNewTargetInFunction()
+func (c *RewriteAsyncFunctionsTest) TestAsyncArrowUsingNewTargetInFunction() {
+	c.Test(
+		`function Foo() {
+  const f = async () => {
+    return new.target;
+  };
+}
+`,
+		`function Foo() {
+  const f = () => {
+    const ASYNC_NEW_TARGET$3 = new.target;
+    return (0, $jscomp.asyncExecutePromiseGeneratorFunction)(
+        function* () {
+          return ASYNC_NEW_TARGET$3;
+        });
+  };
+}
+`)
+}
+
+// Java: RewriteAsyncFunctionsTest.testNestedArrowFunctionUsingNewTarget()
+func (c *RewriteAsyncFunctionsTest) TestNestedArrowFunctionUsingNewTarget() {
+	c.Test(
+		`function Foo() {
+  const f = async () => (() => new.target);
+}
+`,
+		`function Foo() {
+  const f = () => {
+    const ASYNC_NEW_TARGET$3 = new.target;
+    return (0, $jscomp.asyncExecutePromiseGeneratorFunction)(
+        function* () {
+          return () => {
+            return ASYNC_NEW_TARGET$3;
+          };
+        });
+  };
+}
+`)
+}
+
+// Java: RewriteAsyncFunctionsTest.testAsyncFunctionUsingNewTarget()
+func (c *RewriteAsyncFunctionsTest) TestAsyncFunctionUsingNewTarget() {
+	c.Test(
+		`async function f() {
+  return new.target;
+}
+`,
+		`function f() {
+  const ASYNC_NEW_TARGET$1 = new.target;
+  return (0, $jscomp.asyncExecutePromiseGeneratorFunction)(
+      function* () {
+        return ASYNC_NEW_TARGET$1;
+      });
+}
+`)
+}
+
+// Java: RewriteAsyncFunctionsTest.testAsyncClassMethodWithAsyncArrowUsingNewTarget()
+func (c *RewriteAsyncFunctionsTest) TestAsyncClassMethodWithAsyncArrowUsingNewTarget() {
+	c.Test(
+		c.Externs(NewTestExternsBuilder().AddConsole().AddJSCompLibraries().Build()),
+		c.Srcs(
+			`class A {
+  async f() {
+    let g = async () => { console.log(new.target); };
+    g();
+  }
+}
+`),
+		c.Expected(
+			`class A {
+  f() {
+    const ASYNC_NEW_TARGET$1 = new.target;
+    return (0, $jscomp.asyncExecutePromiseGeneratorFunction)(
+        function* () {
+          let g = () => {
+            return (0, $jscomp.asyncExecutePromiseGeneratorFunction)(
+                function* () {
+                  console.log(ASYNC_NEW_TARGET$1);
+                });
+          };
+          g();
+        });
+  }
+}
+`))
+}
+
+// Java: RewriteAsyncFunctionsTest.testNonAsyncClassMethodWithAsyncArrowUsingNewTarget()
+func (c *RewriteAsyncFunctionsTest) TestNonAsyncClassMethodWithAsyncArrowUsingNewTarget() {
+	c.Test(
+		c.Externs(NewTestExternsBuilder().AddConsole().AddJSCompLibraries().Build()),
+		c.Srcs(
+			`class A {
+  f() {
+    let g = async () => { console.log(new.target); };
+    g();
+  }
+}
+`),
+		c.Expected(
+			`class A {
+  f() {
+    let g = () => {
+      const ASYNC_NEW_TARGET$3 = new.target;
+      return (0, $jscomp.asyncExecutePromiseGeneratorFunction)(
+          function* () {
+            console.log(ASYNC_NEW_TARGET$3);
+          });
+    };
+    g();
+  }
+}
+`))
+}
+
+// Java: RewriteAsyncFunctionsTest.testDefaultParamArrowUsingThisArgumentsNewTarget()
+func (c *RewriteAsyncFunctionsTest) TestDefaultParamArrowUsingThisArgumentsNewTarget() {
+	// TODO(b/572972833): Default-param arrow functions rewrite this/arguments/new.target to
+	// out-of-scope body temporaries.
+	c.Test(
+		`async function f(a = () => this, b = () => arguments, c = () => new.target) {
+  return a();
+}
+`,
+		`function f(a = () => {
+  return ASYNC_THIS$1;
+}, b = () => {
+  return ASYNC_ARGUMENTS$1;
+}, c = () => {
+  return ASYNC_NEW_TARGET$1;
+}) {
+  const ASYNC_THIS$1 = this;
+  const ASYNC_ARGUMENTS$1 = arguments;
+  const ASYNC_NEW_TARGET$1 = new.target;
+  return (0,$jscomp.asyncExecutePromiseGeneratorFunction)(function*() {
+    return a();
+  });
+}
+`)
+}
+
+// Java: RewriteAsyncFunctionsTest.testDefaultParamArrowUsingSuperProp()
+func (c *RewriteAsyncFunctionsTest) TestDefaultParamArrowUsingSuperProp() {
+	// TODO(b/572972833): Default-param arrow functions rewrite super.prop to out-of-scope body
+	// temporaries.
+	c.Test(
+		`class A {
+  prop() {
+    return 1;
+  }
+}
+class B extends A {
+  async m(a = () => super.prop()) {
+    return a();
+  }
+}
+`,
+		`class A {
+  prop() {
+    return 1;
+  }
+}
+class B extends A {
+  m(a = () => {
+    return ASYNC_SUPER_GET$7$prop().call(ASYNC_THIS$3);
+  }) {
+    const ASYNC_THIS$3 = this;
+    const ASYNC_SUPER_GET$7$prop = () => {
+      return super.prop;
+    };
+    return (0,$jscomp.asyncExecutePromiseGeneratorFunction)(function*() {
+      return a();
+    });
+  }
+}
+`)
+}
+
+// Java: RewriteAsyncFunctionsTest.testObjectLiteralAsyncMethodSuperCall()
+func (c *RewriteAsyncFunctionsTest) TestObjectLiteralAsyncMethodSuperCall() {
+	// TODO(b/572972833): Object-literal async method super.m() passes null enclosing class to
+	// AstFactory, causing NPE.
+	e :=
+		AssertThrows[jutil.IRuntimeException](
+			func() {
+				c.TestSame(
+					`const obj = {
+  async m() {
+    return super.toString();
+  }
+};
+`)
+			})
+	// Throwables.getRootCause(e)
+	var root jutil.Throwable = e
+	for root.GetCause() != nil {
+		root = root.GetCause()
+	}
+	IsInstanceOf[jutil.INullPointerException](AssertThat(root))
+	AssertThat(root.GetMessage()).Contains("Node.isClass()")
 }

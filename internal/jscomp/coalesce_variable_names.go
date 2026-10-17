@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CoalesceVariableNames.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/CoalesceVariableNames.java @ closure-compiler v20261015
 
 /*
  * Copyright 2008 The Closure Compiler Authors.
@@ -225,7 +225,7 @@ func (c *CoalesceVariableNames) Visit(t *NodeTraversal, n *rhino.Node, parent *r
 		// Rename.
 		n.SetString(coalescedVar.GetName())
 		c.compiler.ReportChangeToEnclosingScope(n)
-		c.UpdateDeclarationsPostCoalescing(n, coalescedVar, parent)
+		c.UpdateDeclarationsPostCoalescing(n, coalescedVar, var_, parent)
 	} else {
 		// This code block is slow but since usePseudoName is for debugging,
 		// we should not sacrifice performance for non-debugging compilation to
@@ -258,7 +258,7 @@ func (c *CoalesceVariableNames) Visit(t *NodeTraversal, n *rhino.Node, parent *r
 		if vNode.GetValue().Equals(coalescedVar) {
 			return
 		}
-		c.UpdateDeclarationsPostCoalescing(n, coalescedVar, parent)
+		c.UpdateDeclarationsPostCoalescing(n, coalescedVar, var_, parent)
 	}
 }
 
@@ -283,10 +283,12 @@ func (c *CoalesceVariableNames) Visit(t *NodeTraversal, n *rhino.Node, parent *r
 //
 // n is the name node which is getting coalesced with the coalescedVar;
 // coalescedVar the first declared variable of a group that is being
-// coalesced; parent the parent node of the name node n.
+// coalesced; originalVar the original variable being coalesced; parent the
+// parent node of the name node n.
 //
-// Java: CoalesceVariableNames.updateDeclarationsPostCoalescing(Node, Var, Node)
-func (c *CoalesceVariableNames) UpdateDeclarationsPostCoalescing(n *rhino.Node, coalescedVar *Var, parent *rhino.Node) {
+// Java: CoalesceVariableNames.updateDeclarationsPostCoalescing(Node, Var, Var, Node)
+func (c *CoalesceVariableNames) UpdateDeclarationsPostCoalescing(
+	n *rhino.Node, coalescedVar *Var, originalVar *Var, parent *rhino.Node) {
 	jutil.CheckStateMsg(n.IsName(), "trying to update the declaration of a non-name node")
 	if NodeUtil_IsNameDeclaration(parent) ||
 		(NodeUtil_GetEnclosingType(n, rhino.Token_DESTRUCTURING_LHS) != nil &&
@@ -297,7 +299,7 @@ func (c *CoalesceVariableNames) UpdateDeclarationsPostCoalescing(n *rhino.Node, 
 		// convert the coalesced variable's declaration into a `var` if it is a `const` or a `let`
 		c.MakeDeclarationVar(coalescedVar)
 		// remove the declaration of the given name node as it has been coalesced with coalescedVar
-		CoalesceVariableNames_RemoveVarDeclaration(n)
+		c.RemoveVarDeclaration(n, originalVar)
 	}
 }
 
@@ -486,10 +488,11 @@ func (c *CoalesceVariableNames) IsInMultipleLvalueDecl(v *Var) bool {
 // declaration, but var shadowing of params triggers a Safari bug:
 // https://bugs.webkit.org/show_bug.cgi?id=182414 Another
 //
-// name is the name node of the variable being coalesced.
+// name is the name node of the variable being coalesced; originalVar the
+// original variable being coalesced.
 //
-// Java: CoalesceVariableNames.removeVarDeclaration(Node)
-func CoalesceVariableNames_RemoveVarDeclaration(name *rhino.Node) {
+// Java: CoalesceVariableNames.removeVarDeclaration(Node, Var)
+func (c *CoalesceVariableNames) RemoveVarDeclaration(name *rhino.Node, originalVar *Var) {
 	var_ := NodeUtil_GetEnclosingNode(name, NodeUtil_IsNameDeclaration)
 	parent := var_.GetParent()
 
@@ -522,6 +525,14 @@ func CoalesceVariableNames_RemoveVarDeclaration(name *rhino.Node) {
 			}
 			var_.ReplaceWith(assign)
 
+		} else if c.IsUninitializedLetNameInLoopBodyAndLive(name, originalVar) {
+			name.Detach()
+			undefinedValue := c.astFactory.CreateUndefinedValue().SrcrefTree(name)
+			assign := rhino.IR_Assign(name, undefinedValue).Srcref(name)
+			if !parent.IsVanillaFor() {
+				assign = NodeUtil_NewExpr(assign)
+			}
+			var_.ReplaceWith(assign)
 		} else {
 			// convert `let x;` to ``
 			// and `for (let x;;) {}` to `for (;;) {}`
@@ -596,6 +607,20 @@ func CoalesceVariableNames_IsUninitializedLetNameInLoopBody(nameNode *rhino.Node
 	}
 	// Inside a loop body, but not the loop control node itself
 	return NodeUtil_IsWithinLoop(letParent)
+}
+
+// Java: CoalesceVariableNames.isUninitializedLetNameInLoopBodyAndLive(Node, Var)
+func (c *CoalesceVariableNames) IsUninitializedLetNameInLoopBodyAndLive(nameNode *rhino.Node, originalVar *Var) bool {
+	if !CoalesceVariableNames_IsUninitializedLetNameInLoopBody(nameNode) {
+		return false
+	}
+	jutil.CheckState(c.liveness != nil)
+	letNode := nameNode.GetParent()
+	cfg := c.liveness.GetCfg()
+	cfgNode := jutil.CheckNotNull(cfg.GetDiGraphNode(letNode))
+	state := jutil.CheckNotNull(dataFlowAnalysis_linearFlowStateOf[*LiveVariablesAnalysis_LiveVariableLattice](cfgNode))
+	varIndex := c.liveness.GetVarIndex(originalVar.GetName())
+	return varIndex >= 0 && state.GetOut().IsLive(varIndex)
 }
 
 // CoalesceVariableNames_LiveRangeChecker is used to find written and read

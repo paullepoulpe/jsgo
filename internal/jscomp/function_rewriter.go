@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/FunctionRewriter.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/FunctionRewriter.java @ closure-compiler v20261015
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -152,7 +152,8 @@ func FunctionRewriter_IsReduceableFunctionExpression(n *rhino.Node) bool {
 		!NodeUtil_IsGetOrSetKey(parent) &&
 		!parent.IsMemberFunctionDef() &&
 		!n.IsAsyncFunction() &&
-		!n.IsGeneratorFunction()
+		!n.IsGeneratorFunction() &&
+		!NodeUtil_HasNonSimpleParameters(n)
 }
 
 // FunctionRewriter_Reduction is information needed to apply a reduction.
@@ -162,8 +163,8 @@ type FunctionRewriter_Reduction struct {
 	newChild *rhino.Node
 }
 
-// Java: FunctionRewriter.Reduction(Node, Node, Node)
-func NewFunctionRewriter_Reduction(outer *FunctionRewriter, parent *rhino.Node, oldChild *rhino.Node, newChild *rhino.Node) *FunctionRewriter_Reduction {
+// Java: FunctionRewriter.Reduction(Node, Node)
+func NewFunctionRewriter_Reduction(outer *FunctionRewriter, oldChild *rhino.Node, newChild *rhino.Node) *FunctionRewriter_Reduction {
 	return &FunctionRewriter_Reduction{outer: outer, oldChild: oldChild, newChild: newChild}
 }
 
@@ -218,7 +219,7 @@ func (g *FunctionRewriter_ReductionGatherer) ShouldTraverse(raversal *NodeTraver
 	for _, reducer := range g.reducers {
 		replacement := reducer.Reduce(node)
 		if replacement != node {
-			g.reductions.Put(reducer, NewFunctionRewriter_Reduction(g.outer, parent, node, replacement))
+			g.reductions.Put(reducer, NewFunctionRewriter_Reduction(g.outer, node, replacement))
 			return false
 		}
 	}

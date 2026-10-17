@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ClosureCheckModuleTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/ClosureCheckModuleTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/ClosureCheckModuleTest.java)
 
 /*
@@ -629,6 +629,41 @@ var {foo, bar = 'str'} = goog.require('other.x');
 		`goog.module('xyz');
 
 var {foo, bar: {name}} = goog.require('other.x');
+`,
+		ClosureCheckModule_INVALID_DESTRUCTURING_REQUIRE)
+
+	c.TestError(
+		`goog.module('xyz');
+
+var {[foo]: bar} = goog.require('other.x');
+`,
+		ClosureCheckModule_INVALID_DESTRUCTURING_REQUIRE)
+
+	c.TestError(
+		`goog.module('xyz');
+
+var {...rest} = goog.require('other.x');
+`,
+		ClosureCheckModule_INVALID_DESTRUCTURING_REQUIRE)
+
+	c.TestError(
+		`goog.module('xyz');
+
+var [foo, bar] = goog.requireType('other.x');
+`,
+		ClosureCheckModule_INVALID_DESTRUCTURING_REQUIRE)
+
+	c.TestError(
+		`goog.module('xyz');
+
+var {foo, bar = 'str'} = goog.requireType('other.x');
+`,
+		ClosureCheckModule_INVALID_DESTRUCTURING_REQUIRE)
+
+	c.TestError(
+		`goog.module('xyz');
+
+var {foo, bar: {name}} = goog.requireType('other.x');
 `,
 		ClosureCheckModule_INVALID_DESTRUCTURING_REQUIRE)
 

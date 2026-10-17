@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/AstFactoryTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/AstFactoryTest.java @ closure-compiler v20261015
 
 /*
  * Copyright 2018 The Closure Compiler Authors.
@@ -425,6 +425,15 @@ func (c *AstFactoryTest) TestCreateSuperReference() {
 	astFactory := c.createTestAstFactory()
 	x := astFactory.CreateSuper(AstFactory_Type_OfJSType(c.getNativeType(rhino.JSTypeNative_STRING_TYPE)))
 	AssertNode(x).HasType(rhino.Token_SUPER)
+	TypeSubject_AssertType(x.GetJSType()).IsString()
+}
+
+// Java: AstFactoryTest.testCreateNewTargetReference()
+func (c *AstFactoryTest) TestCreateNewTargetReference() {
+	astFactory := c.createTestAstFactory()
+
+	x := astFactory.CreateNewTarget(AstFactory_Type_OfJSType(c.getNativeType(rhino.JSTypeNative_STRING_TYPE)))
+	AssertNode(x).HasType(rhino.Token_NEW_TARGET)
 	TypeSubject_AssertType(x.GetJSType()).IsString()
 }
 
@@ -1825,6 +1834,38 @@ func (c *AstFactoryTest) TestCreateJscompMakeIteratorCall_succeeds() {
 	AssertNode(result).IsCall()
 	AssertNode(result).HasFirstChildThat().MatchesQualifiedName("$jscomp.makeIterator")
 	AssertNode(result).HasLastChildThat().IsEqualTo(iterable)
+}
+
+// Java: AstFactoryTest.testCreateJscompIteratorCloseCall_throwsIfJscompIteratorCloseNotInjected()
+func (c *AstFactoryTest) TestCreateJscompIteratorCloseCall_throwsIfJscompIteratorCloseNotInjected() {
+	// Given
+	astFactory := c.createTestAstFactoryWithoutTypes()
+	iter := rhino.IR_Name("iter")
+	iterResult := rhino.IR_Name("res")
+	scope := rhinotesting.NewMapBasedScope(jutil.NewLinkedHashMap[string, rhino.JSType]())
+
+	// When
+	AssertThrows[*jutil.IllegalStateException](
+		func() { astFactory.CreateJscompIteratorCloseCall(iter, iterResult, scope) })
+}
+
+// Java: AstFactoryTest.testCreateJscompIteratorCloseCall_succeeds()
+func (c *AstFactoryTest) TestCreateJscompIteratorCloseCall_succeeds() {
+	// Given
+	astFactory := c.createTestAstFactoryWithoutTypes()
+	iter := rhino.IR_Name("iter")
+	iterResult := rhino.IR_Name("res")
+	c.runtimeJsLibManager.InjectLibForField("$jscomp.iteratorClose")
+
+	// When
+	result :=
+		astFactory.CreateJscompIteratorCloseCall(iter, iterResult, rhinotesting.MapBasedScope_EmptyScope())
+
+	// Then
+	AssertNode(result).IsCall()
+	AssertNode(result).HasFirstChildThat().MatchesQualifiedName("$jscomp.iteratorClose")
+	AssertNode(result).HasSecondChildThat().IsEqualTo(iter)
+	AssertNode(result).HasLastChildThat().IsEqualTo(iterResult)
 }
 
 // Java: AstFactoryTest.childList(Node)

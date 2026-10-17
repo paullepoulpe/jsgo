@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/InlineObjectLiteralsTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/InlineObjectLiteralsTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/InlineObjectLiteralsTest.java)
 
 /*
@@ -21,6 +21,8 @@ package jscomp
 
 import (
 	"testing"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 type InlineObjectLiteralsTest struct {
@@ -101,6 +103,10 @@ func (c *InlineObjectLiteralsTest) TestObject3() {
 	// target function.
 	c.TestSameLocal("var a = {y:y,x:x}; a.y(); f(a.x);")
 	c.TestSameLocal("var a; a = {y:y,x:x}; a.y(); f(a.x);")
+	c.TestSameLocal("var a = {y:y,x:x}; a.y?.(); f(a.x);")
+	c.TestSameLocal("var a = {y:y,x:x}; a?.y(); f(a.x);")
+	c.TestSameLocal("var a = {y:y,x:x}; a?.y?.(); f(a.x);")
+	c.TestSameLocal("var a = {y:y,x:x}; a.y`hi`; f(a.x);")
 }
 
 // Java: InlineObjectLiteralsTest.testObject4()
@@ -827,4 +833,60 @@ func (c *InlineObjectLiteralsTest) TestLocal(code string, result string) {
 // Java: InlineObjectLiteralsTest.testSameLocal(String)
 func (c *InlineObjectLiteralsTest) TestSameLocal(code string) {
 	c.TestSame(InlineObjectLiteralsTest_LOCAL_PREFIX + code + InlineObjectLiteralsTest_LOCAL_POSTFIX)
+}
+
+// Java: InlineObjectLiteralsTest.testObject1_optChainContinues()
+func (c *InlineObjectLiteralsTest) TestObject1_optChainContinues() {
+	// TODO(b/571220152): inlining an opt-chain segment start orphans the continuation
+	e :=
+		AssertThrows[jutil.IRuntimeException](
+			func() {
+				c.TestSame("function local(){var a = {x:x(), y:y()}; f(a?.x.toString(), a?.y);}")
+			})
+	// Throwables.getRootCause(e)
+	var root jutil.Throwable = e
+	for root.GetCause() != nil {
+		root = root.GetCause()
+	}
+	IsInstanceOf[*jutil.IllegalStateException](AssertThat(root))
+	AssertThat(root.GetMessage()).
+		Contains("Start of optional chain node OPTCHAIN_GETPROP is not marked as the start")
+}
+
+// Java: InlineObjectLiteralsTest.testClassField_perIterationLetCapture()
+func (c *InlineObjectLiteralsTest) TestClassField_perIterationLetCapture() {
+	// TODO(b/572003863): let/const object literal in a loop body is split into function-scoped vars
+	c.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT_2022)
+	c.TestLocal(
+		`for (let i = 0; i < 2; i++) {
+  let o = {a: i};
+  arr.push(class { x = o.a; });
+}
+`,
+		`for (let i = 0; i < 2; i++) {
+  var JSCompiler_object_inline_a_0 = i;
+  arr.push(class {
+    x = JSCompiler_object_inline_a_0;
+  });
+}
+`)
+}
+
+// Java: InlineObjectLiteralsTest.testClassField_perIterationLetCapture_arrowControl()
+func (c *InlineObjectLiteralsTest) TestClassField_perIterationLetCapture_arrowControl() {
+	// TODO(b/572003863): let/const object literal in a loop body is split into function-scoped vars
+	c.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT_2022)
+	c.TestLocal(
+		`for (let i = 0; i < 2; i++) {
+  let o = {a: i};
+  arr.push(() => o.a);
+}
+`,
+		`for (let i = 0; i < 2; i++) {
+  var JSCompiler_object_inline_a_0 = i;
+  arr.push(() => {
+    return JSCompiler_object_inline_a_0;
+  });
+}
+`)
 }

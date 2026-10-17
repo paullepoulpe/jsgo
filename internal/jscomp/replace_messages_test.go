@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ReplaceMessagesTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/ReplaceMessagesTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/ReplaceMessagesTest.java)
 
 /*
@@ -1038,6 +1038,8 @@ var MSG_E=obj.getAmt()
 `)
 }
 
+// TODO(b/538170233): ReplaceMessages preserving side effects in placeholders
+//
 // Java: ReplaceMessagesTest.testMethodCallReplacementEmptyMessage()
 func (c *ReplaceMessagesTest) TestMethodCallReplacementEmptyMessage() {
 	c.RegisterMessage(c.GetTestMessageBuilder("MSG_M").Build())
@@ -1056,7 +1058,9 @@ var MSG_M =
           "msg_text":"${$amount}",
         }, {'amount': obj.getAmt()});
 `,
-		"/** @desc d */\n var MSG_M=''")
+		`/** @desc d */
+var MSG_M = "";
+`)
 }
 
 // Java: ReplaceMessagesTest.testHookReplacement()
@@ -2431,6 +2435,121 @@ var MSG_StartWithPlaceholder =
 `,
 		`/** @desc d */
 var MSG_StartWithPlaceholder = goog.msgKind.MASCULINE ? '{PH} suffix' : '{PH} suffix';
+`)
+}
+
+// TODO(b/538170233): ReplaceMessages preserving side effects in placeholders
+//
+// Java: ReplaceMessagesTest.testRepeatedPlaceholderWithSideEffects()
+func (c *ReplaceMessagesTest) TestRepeatedPlaceholderWithSideEffects() {
+	c.RegisterMessage(
+		c.GetTestMessageBuilder("MSG_REPEATED_SE").
+			AppendJsPlaceholderReference("t").
+			AppendStringPart(" - ").
+			AppendJsPlaceholderReference("t").
+			Build())
+
+	c.MultiPhaseTest(
+		`/** @desc d */
+var MSG_REPEATED_SE = goog.getMsg('{$t} - {$t}', {t: nextToken()});
+`,
+		`/**
+ * @desc d
+ */
+var MSG_REPEATED_SE =
+    __jscomp_define_msg__(
+        {
+          "key": "MSG_REPEATED_SE",
+          "msg_text": "{$t} - {$t}"
+        },
+        {"t": nextToken()});
+`,
+		`/** @desc d */
+var MSG_REPEATED_SE = nextToken() + " - " + nextToken();
+`)
+}
+
+// TODO(b/538170233): ReplaceMessages preserving side effects in placeholders
+//
+// Java: ReplaceMessagesTest.testDroppedPlaceholderWithSideEffects()
+func (c *ReplaceMessagesTest) TestDroppedPlaceholderWithSideEffects() {
+	c.RegisterMessage(
+		c.GetTestMessageBuilder("MSG_DROPPED_SE").AppendStringPart("Bonjour").Build())
+
+	c.MultiPhaseTest(
+		`/** @desc d */
+var MSG_DROPPED_SE = goog.getMsg('Hi {$x}', {x: nextToken()});
+`,
+		`/**
+ * @desc d
+ */
+var MSG_DROPPED_SE =
+    __jscomp_define_msg__(
+        {
+          "key": "MSG_DROPPED_SE",
+          "msg_text": "Hi {$x}"
+        },
+        {"x": nextToken()});
+`,
+		`/** @desc d */
+var MSG_DROPPED_SE = "Bonjour";
+`)
+}
+
+// Java: ReplaceMessagesTest.testPlaceholderWithoutSideEffectsNoIIFE()
+func (c *ReplaceMessagesTest) TestPlaceholderWithoutSideEffectsNoIIFE() {
+	c.RegisterMessage(
+		c.GetTestMessageBuilder("MSG_NO_SE").
+			AppendStringPart("Hi ").
+			AppendJsPlaceholderReference("x").
+			Build())
+
+	c.MultiPhaseTest(
+		`/** @desc d */
+var MSG_NO_SE = goog.getMsg('Hi {$x}', {x: 'User'});
+`,
+		`/**
+ * @desc d
+ */
+var MSG_NO_SE =
+    __jscomp_define_msg__(
+        {
+          "key": "MSG_NO_SE",
+          "msg_text": "Hi {$x}"
+        },
+        {"x": "User"});
+`,
+		`/** @desc d */
+var MSG_NO_SE = "Hi User";
+`)
+}
+
+// Java: ReplaceMessagesTest.testRepeatedPlaceholderWithoutSideEffectsNoIIFE()
+func (c *ReplaceMessagesTest) TestRepeatedPlaceholderWithoutSideEffectsNoIIFE() {
+	c.RegisterMessage(
+		c.GetTestMessageBuilder("MSG_REPEATED_NO_SE").
+			AppendJsPlaceholderReference("x").
+			AppendStringPart(" - ").
+			AppendJsPlaceholderReference("x").
+			Build())
+
+	c.MultiPhaseTest(
+		`/** @desc d */
+var MSG_REPEATED_NO_SE = goog.getMsg('{$x} - {$x}', {x: 'User'});
+`,
+		`/**
+ * @desc d
+ */
+var MSG_REPEATED_NO_SE =
+    __jscomp_define_msg__(
+        {
+          "key": "MSG_REPEATED_NO_SE",
+          "msg_text": "{$x} - {$x}"
+        },
+        {"x": "User"});
+`,
+		`/** @desc d */
+var MSG_REPEATED_NO_SE = "User - User";
 `)
 }
 

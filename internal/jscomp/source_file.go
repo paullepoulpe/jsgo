@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/SourceFile.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/SourceFile.java @ closure-compiler v20261015
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -176,6 +176,55 @@ func (f *SourceFile) GetNumBytes() int {
 	return f.numBytes
 }
 
+// Java: SourceFile.isLineTerminator(char)
+func SourceFile_IsLineTerminator(ch uint16) bool {
+	switch ch {
+	case '\n', // Line Feed
+		'\r',   // Carriage Return
+		0x2028, // Line Separator
+		0x2029: // Paragraph Separator
+		return true
+	default:
+		return false
+	}
+}
+
+// sourceFile_lineTerminatorAt is isLineTerminator(ch) for the char ch whose
+// WTF-8 encoding starts at byte i of s: the length in bytes of that
+// encoding (1 for \n and \r, 3 for \u2028 and \u2029), or 0 when ch is not
+// a line terminator.
+//
+// Go-only: performance — the scans below read the WTF-8 bytes of the code
+// instead of its UTF-16 chars.
+func sourceFile_lineTerminatorAt(s string, i int) int {
+	switch s[i] {
+	case '\n', '\r':
+		return 1
+	case 0xE2:
+		if i+2 < len(s) && s[i+1] == 0x80 && (s[i+2] == 0xA8 || s[i+2] == 0xA9) {
+			return 3
+		}
+	}
+	return 0
+}
+
+// sourceFile_lineTerminatorBefore is isLineTerminator(ch) for the char ch
+// whose WTF-8 encoding ends at byte end of s: the length in bytes of that
+// encoding, or 0 when ch is not a line terminator.
+//
+// Go-only: performance — see sourceFile_lineTerminatorAt.
+func sourceFile_lineTerminatorBefore(s string, end int) int {
+	switch s[end-1] {
+	case '\n', '\r':
+		return 1
+	case 0xA8, 0xA9:
+		if end >= 3 && s[end-3] == 0xE2 && s[end-2] == 0x80 {
+			return 3
+		}
+	}
+	return 0
+}
+
 // sourceFile_unitsOfByte is the number of UTF-16 units of the WTF-8
 // sequence that starts with the byte b.
 func sourceFile_unitsOfByte(b byte) int {
@@ -216,11 +265,14 @@ func (f *SourceFile) FindLineOffsets() {
 	index := 1 // start at 1 since the offset for line 0 is always at byte 0
 	units := 0
 	for i := 0; i < len(localCode); i++ {
-		c := localCode[i]
-		units += sourceFile_unitsOfByte(c)
-		if c == '\n' {
-			// +1 because this is the offset of the next line which is one past
-			// the newline
+		units += sourceFile_unitsOfByte(localCode[i])
+		if n := sourceFile_lineTerminatorAt(localCode, i); n != 0 {
+			ch := localCode[i]
+			i += n - 1
+			if ch == '\r' && i+1 < len(localCode) && localCode[i+1] == '\n' {
+				i++
+				units++
+			}
 			offsets[index] = units
 			byteOffsets[index] = i + 1
 			index++
@@ -301,7 +353,18 @@ func (f *SourceFile) SetCodeAndDoBookkeeping(sourceCode *string) {
 		// Misleading variable name. This really stores the 'number of utf16'
 		// code points which is not the same as number of bytes.
 		f.numBytes = jutil.StringLength(s)
-		f.numLines = 1 + strings.Count(s, "\n") // there is always at least one line
+		numLines := 1 // there is always at least one line
+		for i := 0; i < len(s); i++ {
+			if n := sourceFile_lineTerminatorAt(s, i); n != 0 {
+				ch := s[i]
+				i += n - 1
+				if ch == '\r' && i+1 < len(s) && s[i+1] == '\n' {
+					i++
+				}
+				numLines++
+			}
+		}
+		f.numLines = numLines
 	}
 }
 
@@ -409,19 +472,26 @@ func (f *SourceFile) GetLine(lineNumber int) *string {
 
 	pos := f.lineByteOffsets[lineNumber-1]
 
-	nl := strings.IndexByte(js[pos:], '\n')
-	if nl == -1 {
+	if lineNumber < len(f.lineOffsets) {
+		nextPos := f.lineByteOffsets[lineNumber]
+		// The line terminator before nextPos.
+		endPos := nextPos - sourceFile_lineTerminatorBefore(js, nextPos)
+		if js[endPos] == '\n' && endPos > pos && js[endPos-1] == '\r' {
+			endPos--
+		}
+		s := js[pos:endPos]
+		return &s
+	} else {
 		// If next new line cannot be found, there are two cases
 		// 1. pos already reaches the end of file, then null should be returned
 		// 2. otherwise, return the contents between pos and the end of file.
 		if pos >= len(js) {
 			return nil
+		} else {
+			s := js[pos:]
+			return &s
 		}
-		s := js[pos:]
-		return &s
 	}
-	s := js[pos : pos+nl]
-	return &s
 }
 
 // GetLines gets the source lines starting at `lineNumber` (1 being the
@@ -475,8 +545,15 @@ func (f *SourceFile) GetLines(lineNumber int, length int) Region {
 		}
 	}
 
-	if js[endCharByte-1] == '\n' {
-		return NewSimpleRegion(lineNumber, endLine, js[posByte:endCharByte-1])
+	if endChar > pos {
+		if js[endCharByte-1] == '\n' {
+			if endChar-1 > pos && js[endCharByte-2] == '\r' {
+				return NewSimpleRegion(lineNumber, endLine, js[posByte:endCharByte-2])
+			}
+			return NewSimpleRegion(lineNumber, endLine, js[posByte:endCharByte-1])
+		} else if n := sourceFile_lineTerminatorBefore(js, endCharByte); n != 0 {
+			return NewSimpleRegion(lineNumber, endLine, js[posByte:endCharByte-n])
+		}
 	}
 	return NewSimpleRegion(lineNumber, endLine, js[posByte:endCharByte])
 }
@@ -650,6 +727,63 @@ func SourceFile_StubSourceFile(fileName string, kind rhino.StaticSourceFile_Sour
 		Build()
 }
 
+// SourceFile_StripConfigSegment drops configuration-specific output root
+// prefixes (such as "blaze-out/<config>/{bin,genfiles,testlogs}/",
+// "bazel-out/<config>/{bin,genfiles,testlogs}/", or bare "bin/",
+// "genfiles/", "testlogs/") from the given path.
+//
+// This allows paths to be matched consistently regardless of whether path
+// mapping is enabled (see go/path-mapping-guide).
+//
+// Java: SourceFile.stripConfigSegment(String)
+func SourceFile_StripConfigSegment(path string) string {
+	// Case 1: Starts with bare config segment (e.g. mapped paths or relative roots)
+	if jutil.StringStartsWith(path, "bin/") {
+		return jutil.StringSubstringFrom(path, 4)
+	}
+	if jutil.StringStartsWith(path, "genfiles/") {
+		return jutil.StringSubstringFrom(path, 9)
+	}
+	if jutil.StringStartsWith(path, "testlogs/") {
+		return jutil.StringSubstringFrom(path, 9)
+	}
+
+	// Case 2: Contains blaze-out/ or bazel-out/
+	blazeOutIdx := jutil.StringIndexOf(path, "blaze-out/")
+	if blazeOutIdx == -1 {
+		blazeOutIdx = jutil.StringIndexOf(path, "bazel-out/")
+	}
+
+	if blazeOutIdx != -1 {
+		// Find the next slash after blaze-out/ or bazel-out/
+		nextSlash := jutil.StringIndexOfCharFrom(path, '/', blazeOutIdx+10)
+		if nextSlash != -1 {
+			// String.startsWith(String, int)
+			if jutil.StringRegionMatches(path, nextSlash+1, "bin/", 0, 4) {
+				return jutil.StringSubstringFrom(path, nextSlash+5)
+			}
+			if jutil.StringRegionMatches(path, nextSlash+1, "genfiles/", 0, 9) {
+				return jutil.StringSubstringFrom(path, nextSlash+10)
+			}
+			if jutil.StringRegionMatches(path, nextSlash+1, "testlogs/", 0, 9) {
+				return jutil.StringSubstringFrom(path, nextSlash+10)
+			}
+		}
+	}
+
+	return path
+}
+
+// SourceFile_CanonicalizePathForMatching canonicalizes a file path for
+// matching across compilation stages and TypedAST protos by stripping
+// configuration prefix segments (see stripConfigSegment and
+// go/path-mapping-guide).
+//
+// Java: SourceFile.canonicalizePathForMatching(String)
+func SourceFile_CanonicalizePathForMatching(path string) string {
+	return SourceFile_StripConfigSegment(path)
+}
+
 // RestoreCachedStateFrom reconciles serialized state in a SourceFileProto
 // with the existing state in this file.
 //
@@ -661,7 +795,9 @@ func SourceFile_StubSourceFile(fileName string, kind rhino.StaticSourceFile_Sour
 // Java: SourceFile.restoreCachedStateFrom(SourceFileProto)
 func (f *SourceFile) RestoreCachedStateFrom(protoSourceFile *SourceFileProto) {
 	jutil.CheckStateMsg2(
-		protoSourceFile.GetFilename() == f.GetName(),
+		protoSourceFile.GetFilename() == f.GetName() ||
+			SourceFile_CanonicalizePathForMatching(protoSourceFile.GetFilename()) ==
+				SourceFile_CanonicalizePathForMatching(f.GetName()),
 		"Cannot restore state for %s from %s",
 		f.GetName(),
 		protoSourceFile.GetFilename())

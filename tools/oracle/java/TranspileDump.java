@@ -3,7 +3,8 @@
 // Es6NormalizeClasses, RewriteLogicalAssignmentOperatorsPass, RewriteOptionalChainingOperator,
 // RewriteNullishCoalesceOperator, RewriteAsyncIteration, RewriteObjectSpread,
 // Es6RewriteDestructuring, RewriteAsyncFunctions, Es7RewriteExponentialOperator,
-// Es6ConvertSuper, Es6RewriteArrowFunction, Es6RewriteClass, Es6RewriteRestAndSpread,
+// Es6ConvertSuper, Es6RewriteArrowFunction, Es6RewriteClass, Es6RewriteRestParameters,
+// Es6RewriteSpreadExpressions,
 // LateEs6ToEs3Converter, Es6ForOfConverter, Es6RewriteBlockScoped*, Es6RewriteGenerators).
 // InstrumentAsyncContext is not run: the pinned jar's runtime field table has no
 // $jscomp.asyncContextStart, so its constructor always throws there.

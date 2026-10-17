@@ -15,7 +15,7 @@ package jscomp
 // TestLintChecksDumpGolden always runs: it compares the Go output with the
 // checked-in Java output for testdata/lint_checks/src (hand-written inputs, one
 // or more per check) and for the repository's testdata/fixtures. Regenerate
-// the golden files with (CP=.cache/closure-compiler.jar:<LintChecksDump build>):
+// the golden files with (CP=.cache/$CLOSURE_JAR:<LintChecksDump build>):
 //
 //	cd internal/jscomp/testdata/lint_checks
 //	java -Xss1g -cp $CP com.google.javascript.jscomp.LintChecksDump \

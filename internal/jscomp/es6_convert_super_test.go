@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Es6ConvertSuperTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/Es6ConvertSuperTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/Es6ConvertSuperTest.java)
 
 /*
@@ -49,7 +49,6 @@ func (c *Es6ConvertSuperTest) SetUp() {
 	c.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT5)
 	c.EnableTypeCheck()
 	c.EnableTypeInfoValidation()
-	c.EnableScriptFeatureValidation()
 	c.ReplaceTypesWithColors()
 	c.EnableMultistageCompilation()
 }
@@ -1200,4 +1199,48 @@ class B extends namespace.A {
   constructor() { }
 }
 `))
+}
+
+// Java: Es6ConvertSuperTest.testSuperCallInObjectLiteralMethodFails()
+func (c *Es6ConvertSuperTest) TestSuperCallInObjectLiteralMethodFails() {
+	c.TestError(
+		`class B {
+  render() {}
+}
+class C extends B {
+  make() {
+    return {
+      render() { return super.render(); }
+    };
+  }
+}
+`,
+		TranspilationUtil_CANNOT_CONVERT)
+}
+
+// Java: Es6ConvertSuperTest.testSuperAccessInObjectLiteralMethodFails()
+func (c *Es6ConvertSuperTest) TestSuperAccessInObjectLiteralMethodFails() {
+	c.TestError(
+		`class B {
+  get render() { return 1; }
+}
+class C extends B {
+  make() {
+    return {
+      render() { return super.render; }
+    };
+  }
+}
+`,
+		TranspilationUtil_CANNOT_CONVERT)
+}
+
+// Java: Es6ConvertSuperTest.testSuperInNonNestedObjectLiteralMethodFails()
+func (c *Es6ConvertSuperTest) TestSuperInNonNestedObjectLiteralMethodFails() {
+	c.TestError(
+		`const obj = {
+  render() { return super.render(); }
+};
+`,
+		TranspilationUtil_CANNOT_CONVERT)
 }

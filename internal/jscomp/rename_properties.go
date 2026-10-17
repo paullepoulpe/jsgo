@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/RenameProperties.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/RenameProperties.java @ closure-compiler v20261015
 
 /*
  * Copyright 2004 The Closure Compiler Authors.
@@ -441,12 +441,7 @@ func (p *RenameProperties_ProcessProperties) MaybeMarkCandidate(n *rhino.Node) {
 // Java: RenameProperties.ProcessProperties.countCallCandidates(NodeTraversal, Node)
 func (p *RenameProperties_ProcessProperties) CountCallCandidates(t *NodeTraversal, callNode *rhino.Node) {
 	r := p.outer
-	var fnName string
-	if originalName := callNode.GetFirstChild().GetOriginalName(); originalName != nil {
-		fnName = *originalName
-	} else {
-		fnName = callNode.GetFirstChild().GetString()
-	}
+	fnName := callNode.GetFirstChild().GetString()
 	firstArg := callNode.GetSecondChild()
 	if !firstArg.IsStringLit() {
 		t.Report(callNode, RenameProperties_BAD_CALL, fnName)

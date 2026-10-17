@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/jstype/FunctionType.java @ closure-compiler v20260415
+// Port of com/google/javascript/rhino/jstype/FunctionType.java @ closure-compiler v20261015
 
 /*
  *
@@ -579,6 +579,9 @@ func (f *FunctionTypeBase) SetPrototypeBasedOn(baseType ObjectType) {
 
 // Java: FunctionType.setPrototypeBasedOn(ObjectType, Node)
 func (f *FunctionTypeBase) SetPrototypeBasedOnWithPropertyNode(baseType ObjectType, propertyNode *Node) {
+	if f.self.IsNativeObjectType() {
+		return
+	}
 	// First handle class-side inheritance for ES6 classes, before reassigning
 	// baseType.
 	if f.source != nil && f.source.IsClass() {
@@ -1295,7 +1298,13 @@ func (f *FunctionTypeBase) HasCachedValues() bool {
 
 // Java: FunctionType.resolveInternal(ErrorReporter)
 func (f *FunctionTypeBase) ResolveInternal(reporter ErrorReporter) JSType {
-	f.call = JSType_SafeResolve(f.call, reporter).(*ArrowType)
+	// Go-only: language-adapter — a nil *ArrowType must reach safeResolve as
+	// Java null, not as a non-nil interface: call is still null when the
+	// InstanceObjectType that the constructor builds for typeOfThis resolves
+	// this function (InstanceObjectType.resolveInternal).
+	if f.call != nil {
+		f.call = JSType_SafeResolve(f.call, reporter).(*ArrowType)
+	}
 	if f.prototypeSlot != nil {
 		f.prototypeSlot.SetType(JSType_SafeResolve(f.prototypeSlot.GetType(), reporter))
 	}

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/FunctionArgumentInjectorTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/FunctionArgumentInjectorTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/FunctionArgumentInjectorTest.java)
 
 /*
@@ -72,6 +72,13 @@ func functionArgumentInjectorTest_mapOf(k string, v *rhino.Node) *jutil.LinkedHa
 	return jutil.NewImmutableMapBuilder[string, *rhino.Node]().Put(k, v).BuildOrThrow()
 }
 
+// functionArgumentInjectorTest_mapOf2 is ImmutableMap.of(k1, v1, k2, v2).
+//
+// Go-only: test-helper — ImmutableMap is a jutil.LinkedHashMap in the port.
+func functionArgumentInjectorTest_mapOf2(k1 string, v1 *rhino.Node, k2 string, v2 *rhino.Node) *jutil.LinkedHashMap[string, *rhino.Node] {
+	return jutil.NewImmutableMapBuilder[string, *rhino.Node]().Put(k1, v1).Put(k2, v2).BuildOrThrow()
+}
+
 // Java: FunctionArgumentInjectorTest.testInject0()
 func (c *FunctionArgumentInjectorTest) TestInject0() {
 	result :=
@@ -83,15 +90,102 @@ func (c *FunctionArgumentInjectorTest) TestInject0() {
 	AssertNode(result).IsEqualTo(NodeUtil_GetFunctionBody(c.ParseFunction("function f(x) { alert(null); }")))
 }
 
-// Java: FunctionArgumentInjectorTest.testInject1()
-func (c *FunctionArgumentInjectorTest) TestInject1() {
-	result :=
-		c.functionArgumentInjector.Inject(
-			c.compiler,
-			NodeUtil_GetFunctionBody(c.ParseFunction("function f() { alert(this); }")),
-			nil,
-			functionArgumentInjectorTest_mapOf("this", c.Parse("null").GetFirstFirstChild()))
+// Java: FunctionArgumentInjectorTest.testInject1_thisRef()
+func (c *FunctionArgumentInjectorTest) TestInject1_thisRef() {
+	result := c.functionArgumentInjector.Inject(
+		c.compiler,
+		NodeUtil_GetFunctionBody(c.ParseFunction("function f() { alert(this); }")),
+		nil,
+		functionArgumentInjectorTest_mapOf("this", c.Parse("null").GetFirstFirstChild()))
 	AssertNode(result).IsEqualTo(NodeUtil_GetFunctionBody(c.ParseFunction("function f() { alert(null); }")))
+}
+
+// Java: FunctionArgumentInjectorTest.testInject_thisRef_classField_instance()
+func (c *FunctionArgumentInjectorTest) TestInject_thisRef_classField_instance() {
+	result := c.functionArgumentInjector.Inject(
+		c.compiler,
+		NodeUtil_GetFunctionBody(c.ParseFunction("function f() { return class { field = this; }; }")),
+		nil,
+		functionArgumentInjectorTest_mapOf("this", c.Parse("null").GetFirstFirstChild()))
+
+	AssertNode(result).
+		IsEqualTo(
+			NodeUtil_GetFunctionBody(c.ParseFunction("function f() { return class { field = this; }; }")))
+}
+
+// Java: FunctionArgumentInjectorTest.testInject_thisRef_classField_static()
+func (c *FunctionArgumentInjectorTest) TestInject_thisRef_classField_static() {
+	result := c.functionArgumentInjector.Inject(
+		c.compiler,
+		NodeUtil_GetFunctionBody(
+			c.ParseFunction("function f() { return class { static field = this; }; }")),
+		nil,
+		functionArgumentInjectorTest_mapOf("this", c.Parse("null").GetFirstFirstChild()))
+
+	AssertNode(result).
+		IsEqualTo(
+			NodeUtil_GetFunctionBody(
+				c.ParseFunction("function f() { return class { static field = this; }; }")))
+}
+
+// Java: FunctionArgumentInjectorTest.testInject_thisRef_classField_computed()
+func (c *FunctionArgumentInjectorTest) TestInject_thisRef_classField_computed() {
+	result := c.functionArgumentInjector.Inject(
+		c.compiler,
+		NodeUtil_GetFunctionBody(c.ParseFunction("function f() { return class { [this.k] = this.v; }; }")),
+		nil,
+		functionArgumentInjectorTest_mapOf("this", c.Parse("x").GetFirstFirstChild()))
+
+	AssertNode(result).
+		IsEqualTo(
+			NodeUtil_GetFunctionBody(c.ParseFunction("function f() { return class { [x.k] = this.v; }; }")))
+}
+
+// Java: FunctionArgumentInjectorTest.testInject_thisRef_classField_staticComputed()
+func (c *FunctionArgumentInjectorTest) TestInject_thisRef_classField_staticComputed() {
+	result := c.functionArgumentInjector.Inject(
+		c.compiler,
+		NodeUtil_GetFunctionBody(
+			c.ParseFunction("function f() { return class { static [this.k] = this.v; }; }")),
+		nil,
+		functionArgumentInjectorTest_mapOf("this", c.Parse("x").GetFirstFirstChild()))
+
+	AssertNode(result).
+		IsEqualTo(
+			NodeUtil_GetFunctionBody(
+				c.ParseFunction("function f() { return class { static [x.k] = this.v; }; }")))
+}
+
+// Java: FunctionArgumentInjectorTest.testInject_thisRef_classStaticBlock()
+func (c *FunctionArgumentInjectorTest) TestInject_thisRef_classStaticBlock() {
+	result := c.functionArgumentInjector.Inject(
+		c.compiler,
+		NodeUtil_GetFunctionBody(
+			c.ParseFunction("function f() { return class { static { alert(this); } }; }")),
+		nil,
+		functionArgumentInjectorTest_mapOf("this", c.Parse("null").GetFirstFirstChild()))
+
+	AssertNode(result).
+		IsEqualTo(
+			NodeUtil_GetFunctionBody(
+				c.ParseFunction("function f() { return class { static { alert(this); } }; }")))
+}
+
+// Java: FunctionArgumentInjectorTest.testInject_thisRef_classField_paramSubstitution()
+func (c *FunctionArgumentInjectorTest) TestInject_thisRef_classField_paramSubstitution() {
+	result := c.functionArgumentInjector.Inject(
+		c.compiler,
+		NodeUtil_GetFunctionBody(
+			c.ParseFunction("function f(val) { return class { field = val; [val] = this; }; }")),
+		nil,
+		functionArgumentInjectorTest_mapOf2(
+			"val", c.Parse("123").GetFirstFirstChild(),
+			"this", c.Parse("null").GetFirstFirstChild()))
+
+	AssertNode(result).
+		IsEqualTo(
+			NodeUtil_GetFunctionBody(
+				c.ParseFunction("function f(val) { return class { field = 123; [123] = this; }; }")))
 }
 
 // TODO(johnlenz): Add more unit tests for "inject"
@@ -222,7 +316,7 @@ func (c *FunctionArgumentInjectorTest) TestFindModifiedParameters15() {
 	AssertThat(
 		c.functionArgumentInjector.FindModifiedParameters(
 			c.ParseFunction("function f(a){ for (const a in []) {} }"))).
-		ContainsExactly("a")
+		IsEmpty()
 }
 
 // Java: FunctionArgumentInjectorTest.testFindModifiedParameters16()
@@ -247,6 +341,41 @@ func (c *FunctionArgumentInjectorTest) TestFindModifiedParameters18() {
 		c.functionArgumentInjector.FindModifiedParameters(
 			c.ParseFunction("function f(a){ var [a] = [2]; }"))).
 		ContainsExactly("a")
+}
+
+// Java: FunctionArgumentInjectorTest.testFindModifiedParameters19()
+func (c *FunctionArgumentInjectorTest) TestFindModifiedParameters19() {
+	AssertThat(
+		c.functionArgumentInjector.FindModifiedParameters(
+			c.ParseFunction("function f(p){ const stash = (p = 42); }"))).
+		ContainsExactly("p")
+}
+
+// Java: FunctionArgumentInjectorTest.testFindModifiedParameters20()
+func (c *FunctionArgumentInjectorTest) TestFindModifiedParameters20() {
+	AssertThat(
+		c.functionArgumentInjector.FindModifiedParameters(
+			c.ParseFunction("function f(p){ let stash = (p = 42); }"))).
+		ContainsExactly("p")
+}
+
+// Java: FunctionArgumentInjectorTest.testFindModifiedParameters_classFields()
+func (c *FunctionArgumentInjectorTest) TestFindModifiedParameters_classFields() {
+	AssertThat(
+		c.functionArgumentInjector.FindModifiedParameters(
+			c.ParseFunction(
+				`function f(a, b, c, d, e, g) {
+  return class {
+    x = a;
+    [b] = c;
+    static y = d;
+    static [d] = e;
+    uninitialized;
+    [g];
+  };
+}
+`))).
+		ContainsExactly("a", "c")
 }
 
 // Java: FunctionArgumentInjectorTest.testGatherCallArgumentsNeedingTemps1()

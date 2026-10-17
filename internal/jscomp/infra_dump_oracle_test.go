@@ -3,7 +3,7 @@ package jscomp
 // Differential test against tools/oracle/java/InfraDump.java (Go-only:
 // test-helper): the same sweep of AstValidator (on parsed and on
 // deliberately corrupted SCRIPTs), MinimizedCondition, NodeIterators,
-// NodeNameExtractor, TemplateAstMatcher, DataFlowAnalysis and
+// TemplateAstMatcher, DataFlowAnalysis and
 // DataFlowAnalysis.computeEscaped over parsed files, printed in the same
 // format and compared file by file.
 //
@@ -12,7 +12,7 @@ package jscomp
 //     testdata/infra/js/*.js, then (when /home/user/jsgo/.cache/corpus
 //     exists) the corpus files listed in testdata/infra/golden-files.txt
 //     (every 400th file of corpus-files.txt). Regenerate with
-//       CP=.cache/closure-compiler.jar:.cache/oracle-build
+//       CP=.cache/$CLOSURE_JAR:.cache/oracle-build
 //       java -Xss1g -cp $CP com.google.javascript.jscomp.InfraDump a.gz \
 //         internal/jscomp/testdata/infra/js <the js/*.js names>
 //       java -Xss1g -cp $CP com.google.javascript.jscomp.InfraDump b.gz \
@@ -180,7 +180,6 @@ func (d *infraDumper) dumpOne(name, src string) string {
 	d.corrupt(script, len(nodes))
 	d.minimize(nodes)
 	d.iterators(nodes)
-	d.names(nodes)
 	d.templates(nodes)
 	d.dataflow(script, nodes)
 	d.escaped(script)
@@ -367,24 +366,6 @@ func (d *infraDumper) iterators(nodes []*rhino.Node) {
 				d.line(header + ": X " + infraExc(e))
 			}
 		}
-	}
-}
-
-// ---------------------------------------------------------------------------
-// NodeNameExtractor
-
-func (d *infraDumper) names(nodes []*rhino.Node) {
-	extractor := NewNodeNameExtractor('$')
-	for i := 1; i < len(nodes); i += 3 {
-		n := nodes[i]
-		if infraSize(n, 25) > 24 {
-			continue
-		}
-		var result string
-		if e := infraTry(func() { result = jutil.ToJavaString(extractor.GetName(n)) }); e != nil {
-			result = "X " + infraExc(e)
-		}
-		d.line("N " + strconv.Itoa(i) + " " + n.GetToken().String() + ": " + result)
 	}
 }
 

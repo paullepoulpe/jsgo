@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Es6RewriteDestructuringTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/Es6RewriteDestructuringTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/Es6RewriteDestructuringTest.java)
 
 /*
@@ -216,18 +216,45 @@ func (c *Es6RewriteDestructuringTest) TestObjectDestructuringWithInitializer() {
 		"var {a : b = 'default'} = foo();",
 		`var b;
 var $jscomp$destructuring$var0 = foo();
-b = ($jscomp$destructuring$var0.a === void 0) ?
+var $jscomp$destructuring$var1 = $jscomp$destructuring$var0.a;
+b = ($jscomp$destructuring$var1 === void 0) ?
     'default' :
-    $jscomp$destructuring$var0.a
+    $jscomp$destructuring$var1
 `)
 
 	c.Test(
 		"var {a = 'default'} = foo();",
 		`var a;
 var $jscomp$destructuring$var0 = foo();
-a = ($jscomp$destructuring$var0.a === void 0) ?
+var $jscomp$destructuring$var1 = $jscomp$destructuring$var0.a;
+a = ($jscomp$destructuring$var1 === void 0) ?
     'default' :
-    $jscomp$destructuring$var0.a
+    $jscomp$destructuring$var1
+`)
+
+	c.Test(
+		"var {'quoted key': b = 'default'} = foo();",
+		`var b;
+var $jscomp$destructuring$var0 = foo();
+var $jscomp$destructuring$var1 = $jscomp$destructuring$var0['quoted key'];
+b = ($jscomp$destructuring$var1 === void 0) ?
+    'default' :
+    $jscomp$destructuring$var1
+`)
+
+	c.Test(
+		"var {a = 1, b = 2} = foo();",
+		`var a;
+var b;
+var $jscomp$destructuring$var0 = foo();
+var $jscomp$destructuring$var1 = $jscomp$destructuring$var0.a;
+a = ($jscomp$destructuring$var1 === void 0) ?
+    1 :
+    $jscomp$destructuring$var1;
+var $jscomp$destructuring$var2 = $jscomp$destructuring$var0.b;
+b = ($jscomp$destructuring$var2 === void 0) ?
+    2 :
+    $jscomp$destructuring$var2
 `)
 }
 
@@ -244,13 +271,14 @@ func (c *Es6RewriteDestructuringTest) TestObjectDestructuring_inVanillaForInitia
 var b;
 var $jscomp$destructuring$var0 = foo();
 var $jscomp$destructuring$var1 = $jscomp$destructuring$var0.x;
-b = $jscomp$destructuring$var1.a === void 0 ?
-    'default' : $jscomp$destructuring$var1.a;
+var $jscomp$destructuring$var2 = $jscomp$destructuring$var1.a;
+b = $jscomp$destructuring$var2 === void 0 ?
+    'default' : $jscomp$destructuring$var2;
 
 var x = 0;
 var c;
-var $jscomp$destructuring$var2 = bar();
-c = $jscomp$destructuring$var2.c;
+var $jscomp$destructuring$var3 = bar();
+c = $jscomp$destructuring$var3.c;
 A: B: for (; true; c++) {}
 `)
 }
@@ -268,12 +296,13 @@ func (c *Es6RewriteDestructuringTest) TestObjectDestructuring_inVanillaForInitia
   const z = 1;
   /** @const */ var $jscomp$destructuring$var0 = foo();
   /** @const */ var $jscomp$destructuring$var1 = $jscomp$destructuring$var0.x;
-  const b = $jscomp$destructuring$var1.a === void 0 ?
-      'default' : $jscomp$destructuring$var1.a;
+  var $jscomp$destructuring$var2 = $jscomp$destructuring$var1.a;
+  const b = $jscomp$destructuring$var2 === void 0 ?
+      'default' : $jscomp$destructuring$var2;
   {
     const x = 0;
-    /** @const */ var $jscomp$destructuring$var2 = bar();
-    const c = $jscomp$destructuring$var2.c;
+    /** @const */ var $jscomp$destructuring$var3 = bar();
+    const c = $jscomp$destructuring$var3.c;
     A: B: for (; true; c++) {}
   }
 }
@@ -293,16 +322,17 @@ func (c *Es6RewriteDestructuringTest) TestObjectDestructuring_inVanillaForInitia
            $jscomp$destructuring$var0$unused = ($jscomp$destructuring$var1 => {
              var $jscomp$destructuring$var2 = $jscomp$destructuring$var1;
              var $jscomp$destructuring$var3 = $jscomp$destructuring$var2.x;
-             b = $jscomp$destructuring$var3.a === void 0 ?
+             var $jscomp$destructuring$var4 = $jscomp$destructuring$var3.a;
+             b = $jscomp$destructuring$var4 === void 0 ?
                  'default' :
-                 $jscomp$destructuring$var3.a;
+                 $jscomp$destructuring$var4;
              return $jscomp$destructuring$var1;
            })(foo()),
            x = 0, c,
-           $jscomp$destructuring$var4$unused = ($jscomp$destructuring$var5 => {
-             var $jscomp$destructuring$var6 = $jscomp$destructuring$var5;
-             c = $jscomp$destructuring$var6.c;
-             return $jscomp$destructuring$var5;
+           $jscomp$destructuring$var5$unused = ($jscomp$destructuring$var6 => {
+             var $jscomp$destructuring$var7 = $jscomp$destructuring$var6;
+             c = $jscomp$destructuring$var7.c;
+             return $jscomp$destructuring$var6;
            })(bar());
            true; c++) {}
 `)
@@ -435,8 +465,9 @@ func (c *Es6RewriteDestructuringTest) TestObjectDestructuringFunction() {
 		`function f($jscomp$destructuring$var0) {
   var x;
   var $jscomp$destructuring$var1 = $jscomp$destructuring$var0
-  x = $jscomp$destructuring$var1.key === void 0 ?
-      5 : $jscomp$destructuring$var1.key
+  var $jscomp$destructuring$var2 = $jscomp$destructuring$var1.key
+  x = $jscomp$destructuring$var2 === void 0 ?
+      5 : $jscomp$destructuring$var2
 }
 `)
 
@@ -456,8 +487,9 @@ func (c *Es6RewriteDestructuringTest) TestObjectDestructuringFunction() {
 		`function f($jscomp$destructuring$var0) {
   var x;
   var $jscomp$destructuring$var1 = $jscomp$destructuring$var0
-  x = $jscomp$destructuring$var1.x === void 0 ?
-      5 : $jscomp$destructuring$var1.x
+  var $jscomp$destructuring$var2 = $jscomp$destructuring$var1.x
+  x = $jscomp$destructuring$var2 === void 0 ?
+      5 : $jscomp$destructuring$var2
 }
 `)
 }
@@ -864,8 +896,9 @@ func (c *Es6RewriteDestructuringTest) TestDefaultValueInObjectPattern() {
 		`function f($jscomp$destructuring$var0, y) {
   var x;
 var $jscomp$destructuring$var1 = $jscomp$destructuring$var0;
-x = $jscomp$destructuring$var1.x === void 0
-       ? a() : $jscomp$destructuring$var1.x;
+var $jscomp$destructuring$var2 = $jscomp$destructuring$var1.x;
+x = $jscomp$destructuring$var2 === void 0
+       ? a() : $jscomp$destructuring$var2;
 y = y === void 0 ? b() : y
 }
 `)
@@ -1291,9 +1324,9 @@ func (c *Es6RewriteDestructuringTest) TestObjectPatternWithRestDecl() {
 		"var {a: b, c: d, ...rest} = foo();",
 		`var b; var d; var rest
 var $jscomp$destructuring$var0 = foo();
-var $jscomp$destructuring$var1 = Object.assign({}, $jscomp$destructuring$var0);
 b = $jscomp$destructuring$var0.a;
 d = $jscomp$destructuring$var0.c;
+var $jscomp$destructuring$var1 = Object.assign({}, $jscomp$destructuring$var0);
 rest = (delete $jscomp$destructuring$var1.a,
             delete $jscomp$destructuring$var1.c,
             $jscomp$destructuring$var1);
@@ -1302,9 +1335,9 @@ rest = (delete $jscomp$destructuring$var1.a,
 	c.Test(
 		"const {a: b, c: d, ...rest} = foo();",
 		`/** @const */ var $jscomp$destructuring$var0 = foo();
-var $jscomp$destructuring$var1 = Object.assign({}, $jscomp$destructuring$var0);
 const b = $jscomp$destructuring$var0.a;
 const d = $jscomp$destructuring$var0.c;
+var $jscomp$destructuring$var1 = Object.assign({}, $jscomp$destructuring$var0);
 const rest = (delete $jscomp$destructuring$var1.a,
               delete $jscomp$destructuring$var1.c,
               $jscomp$destructuring$var1);
@@ -1313,9 +1346,9 @@ const rest = (delete $jscomp$destructuring$var1.a,
 	c.Test(
 		"let {a: b, c: d, ...rest} = foo();",
 		`var $jscomp$destructuring$var0 = foo();
-var $jscomp$destructuring$var1 = Object.assign({}, $jscomp$destructuring$var0);
 let b = $jscomp$destructuring$var0.a;
 let d = $jscomp$destructuring$var0.c;
+var $jscomp$destructuring$var1 = Object.assign({}, $jscomp$destructuring$var0);
 let rest = (delete $jscomp$destructuring$var1.a,
             delete $jscomp$destructuring$var1.c,
             $jscomp$destructuring$var1);
@@ -1326,9 +1359,9 @@ let rest = (delete $jscomp$destructuring$var1.a,
 		`var pre = foo();
 var b; var d; var rest;
 var $jscomp$destructuring$var0 = foo();
-var $jscomp$destructuring$var1 = Object.assign({}, $jscomp$destructuring$var0);
 b = $jscomp$destructuring$var0.a;
 d = $jscomp$destructuring$var0.c;
+var $jscomp$destructuring$var1 = Object.assign({}, $jscomp$destructuring$var0);
 rest = (delete $jscomp$destructuring$var1.a,
             delete $jscomp$destructuring$var1.c,
             $jscomp$destructuring$var1);
@@ -1338,9 +1371,9 @@ rest = (delete $jscomp$destructuring$var1.a,
 		"var {a: b, c: d, ...rest} = foo(); var post = foo();",
 		`var b; var d; var rest;
 var $jscomp$destructuring$var0 = foo();
-var $jscomp$destructuring$var1 = Object.assign({}, $jscomp$destructuring$var0);
 b = $jscomp$destructuring$var0.a;
 d = $jscomp$destructuring$var0.c;
+var $jscomp$destructuring$var1 = Object.assign({}, $jscomp$destructuring$var0);
 rest = (delete $jscomp$destructuring$var1.a,
             delete $jscomp$destructuring$var1.c,
             $jscomp$destructuring$var1);
@@ -1352,9 +1385,9 @@ var post = foo();
 		`var pre = foo();
 var b; var d; var rest;
 var $jscomp$destructuring$var0 = foo();
-var $jscomp$destructuring$var1 = Object.assign({}, $jscomp$destructuring$var0);
 b = $jscomp$destructuring$var0.a;
 d = $jscomp$destructuring$var0.c;
+var $jscomp$destructuring$var1 = Object.assign({}, $jscomp$destructuring$var0);
 rest = (delete $jscomp$destructuring$var1.a,
             delete $jscomp$destructuring$var1.c,
             $jscomp$destructuring$var1);
@@ -1365,17 +1398,17 @@ var post = foo();
 		"var {a: b1, c: d1, ...rest1} = foo(); var {a: b2, c: d2, ...rest2} = foo();",
 		`var b1; var d1; var rest1;
 var $jscomp$destructuring$var0 = foo();
-var $jscomp$destructuring$var1 = Object.assign({}, $jscomp$destructuring$var0);
 b1 = $jscomp$destructuring$var0.a;
 d1 = $jscomp$destructuring$var0.c;
+var $jscomp$destructuring$var1 = Object.assign({}, $jscomp$destructuring$var0);
 rest1 = (delete $jscomp$destructuring$var1.a,
              delete $jscomp$destructuring$var1.c,
              $jscomp$destructuring$var1);
 var b2; var d2; var rest2;
 var $jscomp$destructuring$var2 = foo();
-var $jscomp$destructuring$var3 = Object.assign({}, $jscomp$destructuring$var2);
 b2 = $jscomp$destructuring$var2.a;
 d2 = $jscomp$destructuring$var2.c;
+var $jscomp$destructuring$var3 = Object.assign({}, $jscomp$destructuring$var2);
 rest2 = (delete $jscomp$destructuring$var3.a,
              delete $jscomp$destructuring$var3.c,
              $jscomp$destructuring$var3);
@@ -1405,9 +1438,9 @@ func (c *Es6RewriteDestructuringTest) TestObjectPatternWithRestAssignStatement()
 var d;
 var rest;
 var $jscomp$destructuring$var0 = foo();
-var $jscomp$destructuring$var1 = Object.assign({}, $jscomp$destructuring$var0);
 b = $jscomp$destructuring$var0.a;
 d = $jscomp$destructuring$var0.c;
+var $jscomp$destructuring$var1 = Object.assign({}, $jscomp$destructuring$var0);
 rest = (delete $jscomp$destructuring$var1.a,
             delete $jscomp$destructuring$var1.c,
             $jscomp$destructuring$var1);
@@ -1421,10 +1454,10 @@ var rest;
 var pre;
 pre = foo(), ($jscomp$destructuring$var0 => {
   var $jscomp$destructuring$var1 = $jscomp$destructuring$var0;
-  var $jscomp$destructuring$var2 =
-      Object.assign({}, $jscomp$destructuring$var1);
   b = $jscomp$destructuring$var1.a;
   d = $jscomp$destructuring$var1.c;
+  var $jscomp$destructuring$var2 =
+      Object.assign({}, $jscomp$destructuring$var1);
   rest =
       (delete $jscomp$destructuring$var2.a, delete $jscomp$destructuring$var2.c,
        $jscomp$destructuring$var2);
@@ -1440,10 +1473,10 @@ var rest;
 var post;
 ($jscomp$destructuring$var0 => {
   var $jscomp$destructuring$var1 = $jscomp$destructuring$var0;
-  var $jscomp$destructuring$var2 =
-      Object.assign({}, $jscomp$destructuring$var1);
   b = $jscomp$destructuring$var1.a;
   d = $jscomp$destructuring$var1.c;
+  var $jscomp$destructuring$var2 =
+      Object.assign({}, $jscomp$destructuring$var1);
   rest =
       (delete $jscomp$destructuring$var2.a, delete $jscomp$destructuring$var2.c,
        $jscomp$destructuring$var2);
@@ -1461,10 +1494,10 @@ var pre;
 var post;
 pre = foo(), ($jscomp$destructuring$var0 => {
   var $jscomp$destructuring$var1 = $jscomp$destructuring$var0;
-  var $jscomp$destructuring$var2 =
-      Object.assign({}, $jscomp$destructuring$var1);
   b = $jscomp$destructuring$var1.a;
   d = $jscomp$destructuring$var1.c;
+  var $jscomp$destructuring$var2 =
+      Object.assign({}, $jscomp$destructuring$var1);
   rest =
       (delete $jscomp$destructuring$var2.a, delete $jscomp$destructuring$var2.c,
        $jscomp$destructuring$var2);
@@ -1486,10 +1519,10 @@ var d2;
 var rest2;
 ($jscomp$destructuring$var0 => {
   var $jscomp$destructuring$var1 = $jscomp$destructuring$var0;
-  var $jscomp$destructuring$var2 =
-      Object.assign({}, $jscomp$destructuring$var1);
   b1 = $jscomp$destructuring$var1.a;
   d1 = $jscomp$destructuring$var1.c;
+  var $jscomp$destructuring$var2 =
+      Object.assign({}, $jscomp$destructuring$var1);
   rest1 =
       (delete $jscomp$destructuring$var2.a, delete $jscomp$destructuring$var2.c,
        $jscomp$destructuring$var2);
@@ -1497,10 +1530,10 @@ var rest2;
 })(foo()),
     ($jscomp$destructuring$var3 => {
       var $jscomp$destructuring$var4 = $jscomp$destructuring$var3;
-      var $jscomp$destructuring$var5 =
-          Object.assign({}, $jscomp$destructuring$var4);
       b2 = $jscomp$destructuring$var4.a;
       d2 = $jscomp$destructuring$var4.c;
+      var $jscomp$destructuring$var5 =
+          Object.assign({}, $jscomp$destructuring$var4);
       rest2 =
           (delete $jscomp$destructuring$var5.a,
            delete $jscomp$destructuring$var5.c, $jscomp$destructuring$var5);
@@ -1516,8 +1549,8 @@ func (c *Es6RewriteDestructuringTest) TestObjectPatternWithRestAssignStatement_a
 		`var a;
 var obj = {};
 var $jscomp$destructuring$var0 = foo();
-var $jscomp$destructuring$var1 = Object.assign({}, $jscomp$destructuring$var0);
 a = $jscomp$destructuring$var0.a;
+var $jscomp$destructuring$var1 = Object.assign({}, $jscomp$destructuring$var0);
 obj.rest = (delete $jscomp$destructuring$var1.a, $jscomp$destructuring$var1);
 `)
 }
@@ -1628,10 +1661,10 @@ var d;
 var rest;
 x = ($jscomp$destructuring$var0 => {
   var $jscomp$destructuring$var1 = $jscomp$destructuring$var0;
-  var $jscomp$destructuring$var2 =
-      Object.assign({}, $jscomp$destructuring$var1);
   b = $jscomp$destructuring$var1.a;
   d = $jscomp$destructuring$var1.c;
+  var $jscomp$destructuring$var2 =
+      Object.assign({}, $jscomp$destructuring$var1);
   rest =
       (delete $jscomp$destructuring$var2.a, delete $jscomp$destructuring$var2.c,
        $jscomp$destructuring$var2);
@@ -1647,10 +1680,10 @@ var d;
 var rest;
 baz(($jscomp$destructuring$var0 => {
   var $jscomp$destructuring$var1 = $jscomp$destructuring$var0;
-  var $jscomp$destructuring$var2 =
-      Object.assign({}, $jscomp$destructuring$var1);
   b = $jscomp$destructuring$var1.a;
   d = $jscomp$destructuring$var1.c;
+  var $jscomp$destructuring$var2 =
+      Object.assign({}, $jscomp$destructuring$var1);
   rest =
       (delete $jscomp$destructuring$var2.a, delete $jscomp$destructuring$var2.c,
        $jscomp$destructuring$var2);
@@ -1666,9 +1699,9 @@ func (c *Es6RewriteDestructuringTest) TestObjectPatternWithRestForOf() {
 		`var $jscomp$destructuring$var0;
 for ($jscomp$destructuring$var0 of foo()) {
     var $jscomp$destructuring$var1 = $jscomp$destructuring$var0;
-    var $jscomp$destructuring$var2 = Object.assign({}, $jscomp$destructuring$var1);
     b = $jscomp$destructuring$var1.a;
     d = $jscomp$destructuring$var1.c;
+    var $jscomp$destructuring$var2 = Object.assign({}, $jscomp$destructuring$var1);
     rest = (delete $jscomp$destructuring$var2.a,
             delete $jscomp$destructuring$var2.c,
             $jscomp$destructuring$var2);
@@ -1684,9 +1717,9 @@ var rest;
 var $jscomp$destructuring$var0;
 for ($jscomp$destructuring$var0 of foo()) {
     var $jscomp$destructuring$var1 = $jscomp$destructuring$var0;
-    var $jscomp$destructuring$var2 = Object.assign({}, $jscomp$destructuring$var1);
     b = $jscomp$destructuring$var1.a;
     d = $jscomp$destructuring$var1.c;
+    var $jscomp$destructuring$var2 = Object.assign({}, $jscomp$destructuring$var1);
     rest = (delete $jscomp$destructuring$var2.a,
             delete $jscomp$destructuring$var2.c,
             $jscomp$destructuring$var2);
@@ -1698,9 +1731,9 @@ for ($jscomp$destructuring$var0 of foo()) {
 		"for (let {a: b, c: d, ...rest} of foo()) { console.log(rest.z); }",
 		`for (let $jscomp$destructuring$var0 of foo()) {
     var $jscomp$destructuring$var1 = $jscomp$destructuring$var0;
-    var $jscomp$destructuring$var2 = Object.assign({}, $jscomp$destructuring$var1);
     let b = $jscomp$destructuring$var1.a;
     let d = $jscomp$destructuring$var1.c;
+    var $jscomp$destructuring$var2 = Object.assign({}, $jscomp$destructuring$var1);
     let rest = (delete $jscomp$destructuring$var2.a,
             delete $jscomp$destructuring$var2.c,
             $jscomp$destructuring$var2);
@@ -1714,9 +1747,9 @@ for ($jscomp$destructuring$var0 of foo()) {
 		"for (const {a: b, c: d, ...rest} of foo()) { console.log(rest.z); }",
 		`for (const $jscomp$destructuring$var0 of foo()) {
     /** @const */ var $jscomp$destructuring$var1 = $jscomp$destructuring$var0;
-    var $jscomp$destructuring$var2 = Object.assign({}, $jscomp$destructuring$var1);
     const b = $jscomp$destructuring$var1.a;
     const d = $jscomp$destructuring$var1.c;
+    var $jscomp$destructuring$var2 = Object.assign({}, $jscomp$destructuring$var1);
     const rest = (delete $jscomp$destructuring$var2.a,
             delete $jscomp$destructuring$var2.c,
             $jscomp$destructuring$var2);
@@ -1734,10 +1767,10 @@ var rest;
 var $jscomp$destructuring$var0;
 for ($jscomp$destructuring$var0 of foo()) {
     var $jscomp$destructuring$var1 = $jscomp$destructuring$var0;
-    var $jscomp$destructuring$var2 = Object.assign({}, $jscomp$destructuring$var1);
     b = $jscomp$destructuring$var1.a;
     var $jscomp$destructuring$var3 = baz();
     d = $jscomp$destructuring$var1[$jscomp$destructuring$var3];
+    var $jscomp$destructuring$var2 = Object.assign({}, $jscomp$destructuring$var1);
     rest = (delete $jscomp$destructuring$var2.a,
             delete $jscomp$destructuring$var2[$jscomp$destructuring$var3],
             $jscomp$destructuring$var2);
@@ -1753,12 +1786,12 @@ var rest;
 var $jscomp$destructuring$var0;
 for ($jscomp$destructuring$var0 of foo()) {
     var $jscomp$destructuring$var1 = $jscomp$destructuring$var0;
-    var $jscomp$destructuring$var2 = Object.assign({}, $jscomp$destructuring$var1);
     b = $jscomp$destructuring$var1.a;
     var $jscomp$destructuring$var3 = baz();
     var $jscomp$destructuring$var4 =
         $jscomp$destructuring$var1[$jscomp$destructuring$var3];
     d = $jscomp$destructuring$var4=== void 0 ? 1 : $jscomp$destructuring$var4;
+    var $jscomp$destructuring$var2 = Object.assign({}, $jscomp$destructuring$var1);
     rest = (delete $jscomp$destructuring$var2.a,
             delete $jscomp$destructuring$var2[$jscomp$destructuring$var3],
             $jscomp$destructuring$var2);
@@ -1773,16 +1806,33 @@ func (c *Es6RewriteDestructuringTest) TestObjectPatternWithRestAndComputedProper
 		"var {a: b = 3, [bar()]: d, [baz()]: e, ...rest} = foo();",
 		`var b; var d; var e; var rest;
 var $jscomp$destructuring$var0 = foo();
+var $jscomp$destructuring$var2 = $jscomp$destructuring$var0.a;
+b = $jscomp$destructuring$var2=== void 0 ? 3 : $jscomp$destructuring$var2;
+var $jscomp$destructuring$var3 = bar();
+d = $jscomp$destructuring$var0[$jscomp$destructuring$var3];
+var $jscomp$destructuring$var4 = baz();
+e = $jscomp$destructuring$var0[$jscomp$destructuring$var4];
 var $jscomp$destructuring$var1 = Object.assign({},$jscomp$destructuring$var0);
-b = $jscomp$destructuring$var0.a=== void 0 ? 3 : $jscomp$destructuring$var0.a;
-var $jscomp$destructuring$var2 = bar();
-d = $jscomp$destructuring$var0[$jscomp$destructuring$var2];
-var $jscomp$destructuring$var3 = baz();
-e = $jscomp$destructuring$var0[$jscomp$destructuring$var3];
 rest = (delete $jscomp$destructuring$var1.a,
-            delete $jscomp$destructuring$var1[$jscomp$destructuring$var2],
             delete $jscomp$destructuring$var1[$jscomp$destructuring$var3],
+            delete $jscomp$destructuring$var1[$jscomp$destructuring$var4],
             $jscomp$destructuring$var1);
+`)
+}
+
+// Java: Es6RewriteDestructuringTest.testObjectPatternWithRest_evaluationOrderWithComputedKeyAndPropertyBindings()
+func (c *Es6RewriteDestructuringTest) TestObjectPatternWithRest_evaluationOrderWithComputedKeyAndPropertyBindings() {
+	c.Test(
+		"var {[audit()]: a, b: c, ...rest} = obj;",
+		`var a; var c; var rest;
+var $jscomp$destructuring$var0 = obj;
+var $jscomp$destructuring$var2 = audit();
+a = $jscomp$destructuring$var0[$jscomp$destructuring$var2];
+c = $jscomp$destructuring$var0.b;
+var $jscomp$destructuring$var1 = Object.assign({}, $jscomp$destructuring$var0);
+rest = (delete $jscomp$destructuring$var1[$jscomp$destructuring$var2],
+        delete $jscomp$destructuring$var1.b,
+        $jscomp$destructuring$var1);
 `)
 }
 
@@ -1792,8 +1842,9 @@ func (c *Es6RewriteDestructuringTest) TestObjectPatternWithRestAndDefaults() {
 		"var {a = 3, ...rest} = foo();",
 		`var a; var rest;
 var $jscomp$destructuring$var0 = foo();
+var $jscomp$destructuring$var2 = $jscomp$destructuring$var0.a;
+a = $jscomp$destructuring$var2=== void 0 ? 3 : $jscomp$destructuring$var2;
 var $jscomp$destructuring$var1 = Object.assign({}, $jscomp$destructuring$var0);
-a = $jscomp$destructuring$var0.a=== void 0 ? 3 : $jscomp$destructuring$var0.a;
 rest = (delete $jscomp$destructuring$var1.a,
             $jscomp$destructuring$var1);
 `)
@@ -1802,13 +1853,14 @@ rest = (delete $jscomp$destructuring$var1.a,
 		"var {[bar()]:a = 3, 'b c':b = 12, ...rest} = foo();",
 		`var a; var b; var rest;
 var $jscomp$destructuring$var0=foo();
-var $jscomp$destructuring$var1 = Object.assign({},$jscomp$destructuring$var0);
 var $jscomp$destructuring$var2 = bar();
 var $jscomp$destructuring$var3 =
     $jscomp$destructuring$var0[$jscomp$destructuring$var2];
 a = $jscomp$destructuring$var3=== void 0 ? 3 : $jscomp$destructuring$var3;
-b = $jscomp$destructuring$var0["b c"]=== void 0
-    ? 12 : $jscomp$destructuring$var0["b c"];
+var $jscomp$destructuring$var4 = $jscomp$destructuring$var0["b c"];
+b = $jscomp$destructuring$var4=== void 0
+    ? 12 : $jscomp$destructuring$var4;
+var $jscomp$destructuring$var1 = Object.assign({},$jscomp$destructuring$var0);
 rest=(delete $jscomp$destructuring$var1[$jscomp$destructuring$var2],
           delete $jscomp$destructuring$var1["b c"],
           $jscomp$destructuring$var1);
@@ -1822,9 +1874,9 @@ func (c *Es6RewriteDestructuringTest) TestObjectPatternWithRestInCatch() {
 		`try {}
 catch ($jscomp$destructuring$var0) {
   var $jscomp$destructuring$var1 = $jscomp$destructuring$var0;
-  var $jscomp$destructuring$var2 = Object.assign({}, $jscomp$destructuring$var1);
   let first = $jscomp$destructuring$var1.first;
   let second = $jscomp$destructuring$var1.second;
+  var $jscomp$destructuring$var2 = Object.assign({}, $jscomp$destructuring$var1);
   let rest = (delete $jscomp$destructuring$var2.first,
               delete $jscomp$destructuring$var2.second,
               $jscomp$destructuring$var2);
@@ -1840,9 +1892,9 @@ func (c *Es6RewriteDestructuringTest) TestObjectPatternWithRestAssignReturn() {
 		`function f() {
   return ($jscomp$destructuring$var0 => {
     var $jscomp$destructuring$var1 = $jscomp$destructuring$var0;
+    a = $jscomp$destructuring$var1.x;
     var $jscomp$destructuring$var2 =
         Object.assign({}, $jscomp$destructuring$var1);
-    a = $jscomp$destructuring$var1.x;
     rest = (delete $jscomp$destructuring$var2.x, $jscomp$destructuring$var2);
     return $jscomp$destructuring$var0;
   })(foo());
@@ -1857,9 +1909,10 @@ func (c *Es6RewriteDestructuringTest) TestObjectPatternWithRestParamList() {
 		`function f($jscomp$destructuring$var0,y) {
   var x; var rest;
   var $jscomp$destructuring$var1 = $jscomp$destructuring$var0;
+  var $jscomp$destructuring$var3 = $jscomp$destructuring$var1.x;
+  x = $jscomp$destructuring$var3 === void 0
+      ? a() : $jscomp$destructuring$var3;
   var $jscomp$destructuring$var2 = Object.assign({},$jscomp$destructuring$var1);
-  x = $jscomp$destructuring$var1.x === void 0
-      ? a() : $jscomp$destructuring$var1.x;
   rest= (delete $jscomp$destructuring$var2.x,
              $jscomp$destructuring$var2);
   y = y=== void 0 ? b() : y;
@@ -1873,9 +1926,10 @@ func (c *Es6RewriteDestructuringTest) TestObjectPatternWithRestParamList() {
   var x; var rest;
   var $jscomp$destructuring$var1 = $jscomp$destructuring$var0=== void 0
       ? {} : $jscomp$destructuring$var0;
+  var $jscomp$destructuring$var3 = $jscomp$destructuring$var1.x;
+  x = $jscomp$destructuring$var3=== void 0
+      ? a() : $jscomp$destructuring$var3;
   var $jscomp$destructuring$var2 = Object.assign({},$jscomp$destructuring$var1);
-  x = $jscomp$destructuring$var1.x=== void 0
-      ? a() : $jscomp$destructuring$var1.x;
   rest= (delete $jscomp$destructuring$var2.x,
              $jscomp$destructuring$var2);
   y = y=== void 0 ? b() : y;
@@ -1891,9 +1945,10 @@ func (c *Es6RewriteDestructuringTest) TestObjectPatternWithRestArrowParamList() 
 		`var f = ($jscomp$destructuring$var0,y) => {
   var x; var rest;
   var $jscomp$destructuring$var1 = $jscomp$destructuring$var0;
+  var $jscomp$destructuring$var3 = $jscomp$destructuring$var1.x;
+  x = $jscomp$destructuring$var3=== void 0
+      ? a() : $jscomp$destructuring$var3;
   var $jscomp$destructuring$var2 = Object.assign({},$jscomp$destructuring$var1);
-  x = $jscomp$destructuring$var1.x=== void 0
-      ? a() : $jscomp$destructuring$var1.x;
   rest = (delete $jscomp$destructuring$var2.x,
               $jscomp$destructuring$var2);
   y = y=== void 0 ? b() : y;
@@ -1907,9 +1962,10 @@ func (c *Es6RewriteDestructuringTest) TestObjectPatternWithRestArrowParamList() 
   var x; var rest;
   var $jscomp$destructuring$var1 = $jscomp$destructuring$var0=== void 0
       ? {} : $jscomp$destructuring$var0;
+  var $jscomp$destructuring$var3 = $jscomp$destructuring$var1.x;
+  x = $jscomp$destructuring$var3=== void 0
+      ? a() : $jscomp$destructuring$var3;
   var $jscomp$destructuring$var2 = Object.assign({},$jscomp$destructuring$var1);
-  x = $jscomp$destructuring$var1.x=== void 0
-      ? a() : $jscomp$destructuring$var1.x;
   rest= (delete $jscomp$destructuring$var2.x,
              $jscomp$destructuring$var2);
   y = y=== void 0 ? b() : y;
@@ -1944,9 +2000,9 @@ b = $jscomp$destructuring$var2;
 		`var a; var r; var b; var c;
 var $jscomp$destructuring$var0 = bar();
 var $jscomp$destructuring$var1 = $jscomp$destructuring$var0[foo0()];
-var $jscomp$destructuring$var2 = Object.assign({},$jscomp$destructuring$var1);
 var $jscomp$destructuring$var3 = foo1();
 a = $jscomp$destructuring$var1[$jscomp$destructuring$var3];
+var $jscomp$destructuring$var2 = Object.assign({},$jscomp$destructuring$var1);
 r = (delete $jscomp$destructuring$var2[$jscomp$destructuring$var3],
          $jscomp$destructuring$var2);
 var $jscomp$destructuring$var4 = $jscomp$destructuring$var0[foo2()];
@@ -1994,9 +2050,9 @@ b = $jscomp$destructuring$var1;
 		`var a; var r; var b; var c;
 var $jscomp$destructuring$var0 = bar();
 var $jscomp$destructuring$var1 = $jscomp$destructuring$var0[foo0()];
-var $jscomp$destructuring$var2 = Object.assign({},$jscomp$destructuring$var1);
 var $jscomp$destructuring$var3 = foo1();
 a = $jscomp$destructuring$var1[$jscomp$destructuring$var3];
+var $jscomp$destructuring$var2 = Object.assign({},$jscomp$destructuring$var1);
 r = (delete $jscomp$destructuring$var2[$jscomp$destructuring$var3],
          $jscomp$destructuring$var2);
 var $jscomp$destructuring$var4 = $jscomp$destructuring$var0[foo2()];
@@ -2078,7 +2134,7 @@ func (c *Es6RewriteDestructuringTest) TestArrayDestructuringRest_getsCorrectType
 
 	jscompArrayFromIterator :=
 		c.GetNodeMatchingQName(lastCompiler.GetJsRoot(), "$jscomp.arrayFromIterator")
-	AssertNode(jscompArrayFromIterator).HasColorThat().IsEqualTo(colors.StandardColors_TOP_OBJECT)
+	AssertNode(jscompArrayFromIterator).HasColorThat().IsEqualTo(colors.StandardColors_TOP_FUNCTION)
 
 	jscompArrayFromIteratorCall := jscompArrayFromIterator.GetParent()
 	AssertNode(jscompArrayFromIteratorCall).
@@ -2122,8 +2178,9 @@ const {a = 4} = obj;
 `,
 		`const obj = {a: 3, b: 'string', c: null};
 /** @const */ var $jscomp$destructuring$var0=obj;
-const a = $jscomp$destructuring$var0.a === void 0
-    ? 4: $jscomp$destructuring$var0.a;
+var $jscomp$destructuring$var1 = $jscomp$destructuring$var0.a;
+const a = $jscomp$destructuring$var1 === void 0
+    ? 4: $jscomp$destructuring$var1;
 `)
 
 	jsRoot := c.GetLastCompiler().GetJsRoot()

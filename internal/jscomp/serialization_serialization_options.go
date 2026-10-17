@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/serialization/SerializationOptions.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/serialization/SerializationOptions.java @ closure-compiler v20261015
 // (with the AutoBuilder-generated serialization/AutoBuilder_SerializationOptions_Builder.java)
 
 /*

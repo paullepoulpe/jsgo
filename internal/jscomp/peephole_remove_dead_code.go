@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PeepholeRemoveDeadCode.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/PeepholeRemoveDeadCode.java @ closure-compiler v20261015
 
 /*
  * Copyright 2004 The Closure Compiler Authors.
@@ -405,6 +405,13 @@ func (d *peepholeRemoveDeadCode_nodeDeque) String() string {
 func (p *PeepholeRemoveDeadCode) TrySimplifyUnusedResultInternal(tree *rhino.Node, sideEffectRoots *peepholeRemoveDeadCode_nodeDeque) bool {
 	// Special cases for conditional expressions that may be using results.
 	switch tree.GetToken() {
+	case rhino.Token_OPTCHAIN_GETELEM, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_OPTCHAIN_CALL:
+		if p.MayHaveSideEffects(tree) {
+			sideEffectRoots.addLast(tree)
+			return PeepholeRemoveDeadCode_HasFixedPointParent(tree)
+		} else {
+			return false
+		}
 	case rhino.Token_HOOK:
 		// Try to remove one or more of the conditional children and transform the HOOK to an
 		// equivalent operation. Remember that if either value branch still exists, the result of
@@ -584,8 +591,8 @@ func (p *PeepholeRemoveDeadCode) TryRemoveSwitch(n *rhino.Node) *rhino.Node {
 		p.ReportChangeToEnclosingScope(replacement)
 		return replacement
 	} else if switchBody.HasOneChild() && switchBody.GetOnlyChild().IsDefaultCase() {
-		if n.GetFirstChild().IsCall() || n.GetFirstChild().IsOptChainCall() {
-			// Before removing switch, we must preserve the switch condition if it is a call
+		if p.MayHaveSideEffects(n.GetFirstChild()) {
+			// Before removing switch, we must preserve the switch condition if it has side effects
 			return p.TryRemoveSwitchWithSingleCase(n, true)
 		} else {
 			return p.TryRemoveSwitchWithSingleCase(n, false)

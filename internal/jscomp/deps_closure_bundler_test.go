@@ -1,4 +1,4 @@
-// Port of test/com/google/javascript/jscomp/deps/ClosureBundlerTest.java @ closure-compiler v20260415
+// Port of test/com/google/javascript/jscomp/deps/ClosureBundlerTest.java @ closure-compiler v20261015
 
 /*
  * Copyright 2014 The Closure Compiler Authors.

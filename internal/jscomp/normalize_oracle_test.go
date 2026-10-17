@@ -9,7 +9,7 @@ package jscomp
 //     inputs testdata/normalize/js/*.js, followed by the corpus files of
 //     testdata/normalize/golden-files.txt (skipped when the corpus is not
 //     present). Regenerate with
-//       CP=.cache/closure-compiler.jar:<NormalizeDump build dir>
+//       CP=.cache/$CLOSURE_JAR:<NormalizeDump build dir>
 //       java -Xss1g -cp $CP com.google.javascript.jscomp.NormalizeDump --full a.gz \
 //         internal/jscomp/testdata/normalize/js <the *.js names>
 //       java -Xss1g -cp $CP com.google.javascript.jscomp.NormalizeDump --full b.gz \

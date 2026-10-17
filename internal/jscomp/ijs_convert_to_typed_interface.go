@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ijs/ConvertToTypedInterface.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/ijs/ConvertToTypedInterface.java @ closure-compiler v20261015
 
 /*
  * Copyright 2016 The Closure Compiler Authors.
@@ -136,7 +136,7 @@ func (c *ConvertToTypedInterface) ProcessFile(scriptNode *rhino.Node) {
 		scriptNode.SetJSDocInfo(scriptJsDocBuilder.Build())
 	}
 
-	currentFile := NewFileInfo()
+	currentFile := NewFileInfo(*sourceFileName)
 	NodeTraversal_Traverse(c.compiler, scriptNode, NewConvertToTypedInterface_RemoveNonDeclarations())
 	NodeTraversal_Traverse(c.compiler, scriptNode, NewConvertToTypedInterface_PropagateConstJsdoc(currentFile))
 	NewConvertToTypedInterface_SimplifyDeclarations(c.compiler, currentFile).SimplifyAll()
@@ -527,6 +527,7 @@ func (s *ConvertToTypedInterface_SimplifyDeclarations) ProcessDeclaration(name s
 		s.ProcessClass(decl.GetRhs())
 	}
 	s.SetUndeclaredToUnusableType(decl)
+	s.ElidePrivateMemberType(decl)
 	decl.Simplify(s.compiler)
 }
 
@@ -634,6 +635,40 @@ func (s *ConvertToTypedInterface_SimplifyDeclarations) SetUndeclaredToUnusableTy
 	ConvertToTypedInterface_MaybeWarnForConstWithoutExplicitType(s.compiler, decl)
 	jsdocNode := NodeUtil_GetBestJSDocInfoNode(nameNode)
 	jsdocNode.SetJSDocInfo(JsdocUtil_GetUnusableTypeJSDoc(jsdoc))
+}
+
+// Java: ConvertToTypedInterface.SimplifyDeclarations.elidePrivateMemberType(PotentialDeclaration)
+func (s *ConvertToTypedInterface_SimplifyDeclarations) ElidePrivateMemberType(decl PotentialDeclaration) {
+	if s.ShouldElidePrivateMemberType(decl) {
+		jsdoc := decl.GetJsDoc()
+		jsdocNode := NodeUtil_GetBestJSDocInfoNode(decl.GetLhs())
+		jsdocNode.SetJSDocInfo(JsdocUtil_ReplaceAnnotatedTypesWithUnusableType(jsdoc))
+	}
+}
+
+// Java: ConvertToTypedInterface.SimplifyDeclarations.shouldElidePrivateMemberType(PotentialDeclaration)
+func (s *ConvertToTypedInterface_SimplifyDeclarations) ShouldElidePrivateMemberType(decl PotentialDeclaration) bool {
+	// TODO: b/465855752 - roll out elison for JS files as well after depot cleanup.
+	if !s.currentFile.IsFromTypeScript() {
+		return false
+	}
+	jsdoc := decl.GetJsDoc()
+	if jsdoc == nil || jsdoc.GetVisibility() != rhino.JSDocInfo_Visibility_PRIVATE {
+		return false
+	}
+	// Preserve JSDoc declaring a new type name, to avoid loosening types of other public members.
+	if jsdoc.IsConstructorOrInterface() ||
+		jsdoc.HasEnumParameterType() ||
+		jsdoc.HasTypedefType() {
+		return false
+	}
+	// Simple name declarations marked @private are not really treated as private if exported from
+	// a goog.module. (Ultimately we should probably ban marking a local name @private so that we
+	// can drop this special case.)
+	if decl.GetLhs().IsName() {
+		return false
+	}
+	return JsdocUtil_HasAnnotatedType(jsdoc)
 }
 
 // Java: ConvertToTypedInterface.isSymbolProp(Node)

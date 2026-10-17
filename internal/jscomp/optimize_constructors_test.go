@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/OptimizeConstructorsTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/OptimizeConstructorsTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/OptimizeConstructorsTest.java)
 
 /*
@@ -467,4 +467,29 @@ func (c *OptimizeConstructorsTest) TestNoOptimize_implicitConstructor() {
 // Java: OptimizeConstructorsTest.testNoOptimize_sideEffectObjectSuperCall()
 func (c *OptimizeConstructorsTest) TestNoOptimize_sideEffectObjectSuperCall() {
 	c.TestSame("class Top extends Object { constructor(a) { super(a++); }}")
+}
+
+// Java: OptimizeConstructorsTest.testNoOptimize_reassignedSuperclass()
+func (c *OptimizeConstructorsTest) TestNoOptimize_reassignedSuperclass() {
+	c.TestSame(
+		"class Super {\n" +
+			"  constructor() {}\n" +
+			"}\n" +
+			"class A extends Super {\n" +
+			"  constructor() {\n" +
+			"    super();\n" +
+			"  }\n" +
+			"}\n" +
+			"Super = class {};\n" +
+			"let a = new A();\n")
+}
+
+// Java: OptimizeConstructorsTest.testNoOptimize_reassignedConstructor()
+func (c *OptimizeConstructorsTest) TestNoOptimize_reassignedConstructor() {
+	c.TestSame(
+		"class A {\n" +
+			"  constructor() {}\n" +
+			"}\n" +
+			"A = class {};\n" +
+			"let a = new A();\n")
 }

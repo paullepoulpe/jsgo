@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ExpressionDecomposer.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/ExpressionDecomposer.java @ closure-compiler v20261015
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -699,7 +699,11 @@ func (e *ExpressionDecomposer) ExtractExpression(expr *rhino.Node, injectionPoin
 	//    var t1 = next();
 	//    t1.foo = t1.foo + 2;
 	if isLhsOfAssignOp && NodeUtil_IsNormalGet(expr) {
-		for n := expr.GetFirstChild(); n != nil; n = n.GetNext() {
+		var next *rhino.Node
+		for n := expr.GetFirstChild(); n != nil; n = next {
+			// Cache next before extracting n because n is mutated or replaced within the loop body
+			// during expression extraction.
+			next = n.GetNext()
 			if !n.IsStringLit() && !e.IsConstantNameNode(n) {
 				extractedNode := e.ExtractExpression(n, injectionPoint)
 				if firstExtractedNode == nil {

@@ -29,7 +29,7 @@ ERROR JSC_TYPE_IMPORT_CODE_REFERENCE user_module.js:12:7 @353+5 Cannot reference
 ## VarCheck
 ERROR JSC_UNDEFINED_VARIABLE a_legacy.js:1:0 @0+4 variable goog is undeclared
 ERROR JSC_UNDEFINED_VARIABLE user_module.js:12:0 @346+3 variable use is undeclared
-= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 33] [feature_set: []]
+= SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 34] [feature_set: []]
 =     VAR [synthesized_unfulfilled_name_declaration: 1]
 =         NAME goog
 =     VAR [synthesized_unfulfilled_name_declaration: 1]
@@ -46,6 +46,8 @@ ERROR JSC_UNDEFINED_VARIABLE user_module.js:12:0 @346+3 variable use is undeclar
 =         NAME Function
 =     VAR
 =         NAME Infinity
+=     VAR
+=         NAME Iterator
 =     VAR
 =         NAME JSCOMPILER_PRESERVE [is_constant_name: 1]
 =     VAR

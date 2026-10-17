@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/DefaultPassConfig.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/DefaultPassConfig.java @ closure-compiler v20261015
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -132,7 +132,7 @@ type DefaultPassConfig struct {
 	crossChunkMethodMotion                       *PassFactory
 	flowSensitiveInlineVariables                 *PassFactory
 	coalesceVariableNames                        *PassFactory
-	exploitAssign                                *PassFactory
+	postNormalizePeephole                        *PassFactory
 	collapseVariableDeclarations                 *PassFactory
 	extractPrototypeMemberDeclarations           *PassFactory
 	rewriteFunctionExpressions                   *PassFactory
@@ -1057,7 +1057,8 @@ func (c *DefaultPassConfig) initFields() {
 					return NewRescopeGlobalSymbols(
 						compiler,
 						*options.GetRenamePrefixNamespace(),
-						options.AssumeCrossChunkNamesForRenamePrefixNamespace())
+						options.AssumeCrossChunkNamesForRenamePrefixNamespace(),
+						options.GetOptimizeLocalAccessForGlobalSymbolNamespace())
 				}).
 			Build()
 
@@ -1345,6 +1346,8 @@ func (c *DefaultPassConfig) initFields() {
 			}).
 			Build()
 
+	// Lowers block-scoped declarations to function-scoped declarations.
+
 	// Uses register-allocation algorithms to use fewer variables.
 	c.coalesceVariableNames =
 		PassFactory_Builder_().
@@ -1357,13 +1360,21 @@ func (c *DefaultPassConfig) initFields() {
 
 	// Collapses assignment expressions (e.g., `x = 3; y = x;` becomes
 	// `y = x = 3;`.
-	c.exploitAssign =
+	c.postNormalizePeephole =
 		PassFactory_Builder_().
-			SetName(PassNames_EXPLOIT_ASSIGN).
+			SetName(PassNames_POST_NORMALIZE_PEEPHOLE).
 			SetInternalFactory(
 				func(compiler AbstractCompiler) CompilerPass {
-					return NewPeepholeOptimizationsPass(
-						compiler, PassNames_EXPLOIT_ASSIGN, NewExploitAssigns())
+					var optimizations []AbstractPeepholeOptimization
+					if options.ShouldCollapseVariableDeclarations() {
+						optimizations = append(optimizations, NewExploitAssigns())
+					}
+					if options.ShouldOptimizeLetAndConst() {
+						optimizations = append(optimizations,
+							NewOptimizeLetAndConstPeephole(options.ShouldTreatGlobalScopeAsIsolated()))
+					}
+					return NewPeepholeOptimizationsPassOfList(
+						compiler, PassNames_POST_NORMALIZE_PEEPHOLE, optimizations)
 				}).
 			Build()
 
@@ -2449,8 +2460,10 @@ func (c *DefaultPassConfig) GetFinalizations() *PassListBuilder {
 	// Passes after this point can no longer depend on normalized AST assumptions.
 	passes.MaybeAdd(c.markUnnormalized)
 
+	if options.ShouldCollapseVariableDeclarations() || options.ShouldOptimizeLetAndConst() {
+		passes.MaybeAdd(c.postNormalizePeephole)
+	}
 	if options.ShouldCollapseVariableDeclarations() {
-		passes.MaybeAdd(c.exploitAssign)
 		passes.MaybeAdd(c.collapseVariableDeclarations)
 	}
 

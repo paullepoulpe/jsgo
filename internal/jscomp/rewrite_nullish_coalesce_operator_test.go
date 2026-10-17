@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/RewriteNullishCoalesceOperatorTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/RewriteNullishCoalesceOperatorTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/RewriteNullishCoalesceOperatorTest.java)
 
 /*
@@ -48,6 +48,7 @@ func (c *RewriteNullishCoalesceOperatorTest) JUnitBefore() {
 // Java: RewriteNullishCoalesceOperatorTest.customSetUp()
 func (c *RewriteNullishCoalesceOperatorTest) CustomSetUp() {
 	c.EnableNormalize()
+	c.SetGenericNameReplacements(transpileTests_ImmutableMapOf("NULLISH_TMP", "$jscomp$nullish$tmp"))
 	c.EnableTypeCheck()
 	c.EnableTypeInfoValidation()
 	c.ReplaceTypesWithColors()
@@ -64,8 +65,8 @@ func (c *RewriteNullishCoalesceOperatorTest) TestSimple() {
 	c.Test(
 		c.Srcs("a ?? b"),
 		c.Expected(
-			`let $jscomp$nullish$tmp0;
-($jscomp$nullish$tmp0 = a) != null ? $jscomp$nullish$tmp0 : b
+			`let NULLISH_TMP$0;
+(NULLISH_TMP$0 = a) != null ? NULLISH_TMP$0 : b
 `))
 }
 
@@ -74,8 +75,8 @@ func (c *RewriteNullishCoalesceOperatorTest) TestWithOtherOperators() {
 	c.Test(
 		c.Srcs("(x + y) ?? (a && b)"),
 		c.Expected(
-			`let $jscomp$nullish$tmp0;
-($jscomp$nullish$tmp0 = x + y) != null ? $jscomp$nullish$tmp0 : (a && b)
+			`let NULLISH_TMP$0;
+(NULLISH_TMP$0 = x + y) != null ? NULLISH_TMP$0 : (a && b)
 `))
 }
 
@@ -85,8 +86,8 @@ func (c *RewriteNullishCoalesceOperatorTest) TestInsideArrowFunctionBody() {
 		c.Srcs("() => (x + y) ?? (a && b)"),
 		c.Expected(
 			`() => {
-  let $jscomp$nullish$tmp0;
-  return ($jscomp$nullish$tmp0 = x + y) != null ? $jscomp$nullish$tmp0 : (a && b)
+  let NULLISH_TMP$0;
+  return (NULLISH_TMP$0 = x + y) != null ? NULLISH_TMP$0 : (a && b)
 }
 `))
 }
@@ -96,8 +97,8 @@ func (c *RewriteNullishCoalesceOperatorTest) TestChain() {
 	c.Test(
 		c.Srcs("a ?? b ?? c"),
 		c.Expected(
-			`let $jscomp$nullish$tmp0; let $jscomp$nullish$tmp1;
-($jscomp$nullish$tmp1 = ($jscomp$nullish$tmp0 = a) != null ? $jscomp$nullish$tmp0 : b) != null
-? $jscomp$nullish$tmp1 : c;
+			`let NULLISH_TMP$0; let NULLISH_TMP$1;
+(NULLISH_TMP$1 = (NULLISH_TMP$0 = a) != null ? NULLISH_TMP$0 : b) != null
+? NULLISH_TMP$1 : c;
 `))
 }

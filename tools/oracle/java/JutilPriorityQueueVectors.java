@@ -1,6 +1,6 @@
 // Generates internal/jutil/testdata/priority_queue.tsv: java.util.PriorityQueue
 // with a comparator, driven by random op scripts.
-//   java -cp .cache/closure-compiler.jar:.cache/oracle-build JutilPriorityQueueVectors internal/jutil/testdata [seed]
+//   java -cp .cache/$CLOSURE_JAR:.cache/oracle-build JutilPriorityQueueVectors internal/jutil/testdata [seed]
 //
 // Elements are objects {key, id} (ids 0, 1, 2, ... in insertion order); the
 // comparator looks at the key only, so many elements tie and the order in

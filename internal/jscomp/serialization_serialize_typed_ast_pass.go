@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/serialization/SerializeTypedAstPass.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/serialization/SerializeTypedAstPass.java @ closure-compiler v20261015
 
 /*
  * Copyright 2019 The Closure Compiler Authors.
@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"compress/gzip"
 	"io"
 	"os"
 
@@ -79,35 +78,27 @@ func SerializeTypedAstPass_CreateFromOutputStream(
 // SerializeTypedAstPass_CreateFromPath serializes a gzipped TypedAst to the
 // specified outputPath.
 //
-// Go-only: language-adapter — java.util.zip.GZIPOutputStream is zlib's
-// deflate; Go's compress/gzip writes the same format with a different match
-// finder, so the compressed bytes can differ from Java's (the decompressed
-// TypedAst.List is identical).
+// Go-only: language-adapter — jutil's GZIPOutputStream compresses with
+// Go's compress/flate, so the file's compressed bytes can differ from
+// Java's; it decompresses to the same TypedAst.List bytes (PORTING.md §7).
 //
 // Java: SerializeTypedAstPass.createFromPath(AbstractCompiler, Path, SerializationOptions)
 func SerializeTypedAstPass_CreateFromPath(
 	compiler AbstractCompiler, outputPath *jutil.Path, serializationOptions *SerializationOptions) *SerializeTypedAstPass {
 	toPath := func(ast *TypedAst) {
-		fail := func(err error) {
+		jutil.Try(func() {
+			// try (OutputStream out = new FastGzipOutputStream(Files.newOutputStream(outputPath)))
+			file, err := os.Create(outputPath.String())
+			if err != nil {
+				panic(jutil.NewIOException(err.Error()))
+			}
+			out := NewFastGzipOutputStream(file)
+			defer out.Close()
+			out.Write(TypedAst_List_NewBuilder().AddTypedAsts(ast).Build().ToByteArray())
+		}, func(e jutil.IIOException) {
 			panic(jutil.NewIllegalArgumentExceptionWithMessageAndCause(
-				"Cannot create TypedAst output file", jutil.NewIOException(err.Error())))
-		}
-		// try (OutputStream out = new GZIPOutputStream(Files.newOutputStream(outputPath)))
-		file, err := os.Create(outputPath.String())
-		if err != nil {
-			fail(err)
-		}
-		out := gzip.NewWriter(file)
-		_, err = out.Write(TypedAst_List_NewBuilder().AddTypedAsts(ast).Build().ToByteArray())
-		if closeErr := out.Close(); err == nil {
-			err = closeErr
-		}
-		if closeErr := file.Close(); err == nil {
-			err = closeErr
-		}
-		if err != nil {
-			fail(err)
-		}
+				"Cannot create TypedAst output file", e))
+		})
 	}
 	return NewSerializeTypedAstPass(compiler, toPath, serializationOptions)
 }

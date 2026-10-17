@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ProcessCommonJSModulesTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/ProcessCommonJSModulesTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/ProcessCommonJSModulesTest.java)
 
 /*
@@ -21,6 +21,8 @@ package jscomp
 
 import (
 	"testing"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 // Unit tests for ProcessCommonJSModules
@@ -1667,4 +1669,62 @@ func (c *ProcessCommonJSModulesTest) TestEsModuleExportsNotRewritten() {
 	// declaration.
 	code := "export var foo = 1, bar = 2;"
 	c.TestModules("test.js", code, code)
+}
+
+// Java: ProcessCommonJSModulesTest.testRequireDot()
+func (c *ProcessCommonJSModulesTest) TestRequireDot() {
+	c.Test(
+		c.Srcs(
+			SourceFile_FromCode(Compiler_JoinPathParts("mod", "index.js"), "module.exports = {};"),
+			SourceFile_FromCode(
+				Compiler_JoinPathParts("mod", "sub.js"),
+				"var name = require('.');\n"+
+					"(function() { let foo = name; foo(); })();\n")),
+		c.Expected(
+			SourceFile_FromCode(
+				Compiler_JoinPathParts("mod", "index.js"),
+				"/** @const */ var module$mod$index = {/** @const */ default: {}};"),
+			SourceFile_FromCode(
+				Compiler_JoinPathParts("mod", "sub.js"),
+				"var name = module$mod$index.default;\n"+
+					"(function() { let foo = module$mod$index.default; foo(); })();\n")))
+}
+
+// Java: ProcessCommonJSModulesTest.testRequireDotDot()
+func (c *ProcessCommonJSModulesTest) TestRequireDotDot() {
+	c.Test(
+		c.Srcs(
+			SourceFile_FromCode(Compiler_JoinPathParts("mod", "index.js"), "module.exports = {};"),
+			SourceFile_FromCode(
+				Compiler_JoinPathParts("mod", "sub", "sub.js"),
+				"var name = require('..');\n"+
+					"(function() { let foo = name; foo(); })();\n")),
+		c.Expected(
+			SourceFile_FromCode(
+				Compiler_JoinPathParts("mod", "index.js"),
+				"/** @const */ var module$mod$index = {/** @const */ default: {}};"),
+			SourceFile_FromCode(
+				Compiler_JoinPathParts("mod", "sub", "sub.js"),
+				"var name = module$mod$index.default;\n"+
+					"(function() { let foo = module$mod$index.default; foo(); })();\n")))
+}
+
+// Java: ProcessCommonJSModulesTest.testFindModuleDependencies()
+func (c *ProcessCommonJSModulesTest) TestFindModuleDependencies() {
+	compiler := NewCompiler()
+	options := NewCompilerOptions()
+	options.SetProcessCommonJSModules(true)
+	options.SetModuleResolutionMode(ModuleLoader_ResolutionMode_NODE)
+	compiler.Init(
+		[]*SourceFile{SourceFile_FromCode("externs.js", "")},
+		[]*SourceFile{SourceFile_FromCode("mod.js", "var x = 1;")},
+		options)
+	root := compiler.ParseInputs()
+	script := root.GetSecondChild().GetFirstChild()
+	pass :=
+		NewFindModuleDependencies(compiler, true, true, jutil.NewLinkedHashMap[string, string]())
+	pass.Process(script)
+	input := compiler.GetInput(script.GetInputId())
+	AssertThat(input).IsNotNull()
+	AssertThat(input.GetKnownProvides()).IsNotNull()
 }

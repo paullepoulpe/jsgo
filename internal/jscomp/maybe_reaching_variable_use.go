@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/MaybeReachingVariableUse.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/MaybeReachingVariableUse.java @ closure-compiler v20261015
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -310,9 +310,7 @@ func (u *MaybeReachingVariableUse) ComputeMayUse(n *rhino.Node, cfgNode *rhino.N
 				lhs = lhs.GetFirstChild() // for (let [x] of obj) {...}
 			}
 		}
-		if lhs.IsName() && !conditional {
-			u.RemoveFromUseIfLocal(lhs.GetString(), output)
-		} else if lhs.IsDestructuringPattern() {
+		if lhs.IsDestructuringPattern() {
 			u.ComputeMayUse(lhs, cfgNode, output, true)
 		}
 		u.ComputeMayUse(rhs, cfgNode, output, conditional)

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CommandLineRunnerVersion.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/CommandLineRunnerVersion.java @ closure-compiler v20261015
 
 /*
  * Copyright 2022 The Closure Compiler Authors.
@@ -25,4 +25,4 @@ package jscomp
 //
 // Java: CommandLineRunnerVersion.COMPILER_VERSION (the value in the pinned
 // jar's sources)
-const CommandLineRunnerVersion_COMPILER_VERSION = "v20260415"
+const CommandLineRunnerVersion_COMPILER_VERSION = "v20261015"

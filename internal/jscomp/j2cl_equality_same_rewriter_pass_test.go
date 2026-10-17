@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/J2clEqualitySameRewriterPassTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/J2clEqualitySameRewriterPassTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/J2clEqualitySameRewriterPassTest.java)
 
 /*
@@ -26,14 +26,14 @@ import (
 const j2clEqualitySameRewriterPassTest_EXTERN = `Equality.$same = function(opt_a, opt_b) {};
 String.m_equals__java_lang_String__java_lang_Object__boolean =
   function(opt_a, opt_b) {};
+/** @interface */ function gbigint() {}
 `
-
-// j2clEqualitySameRewriterPassTest_useTypes is the private static field useTypes.
-var j2clEqualitySameRewriterPassTest_useTypes bool
 
 // J2clEqualitySameRewriterPassTest is the tests for J2clEqualitySameRewriterPass.
 type J2clEqualitySameRewriterPassTest struct {
 	CompilerTestCaseBase
+
+	useTypes bool
 }
 
 // Java: J2clEqualitySameRewriterPassTest()
@@ -50,14 +50,16 @@ func TestJ2clEqualitySameRewriterPassTest(t *testing.T) {
 // Java: J2clEqualitySameRewriterPassTest.setUp()
 func (c *J2clEqualitySameRewriterPassTest) SetUp() {
 	c.CompilerTestCaseBase.SetUp()
-	j2clEqualitySameRewriterPassTest_useTypes = false
+	c.useTypes = false
 	c.EnableTypeCheck()
+	c.ReplaceTypesWithColors()
+	c.DisableCompareJsDoc()
 }
 
 // Java: J2clEqualitySameRewriterPassTest.getProcessor(Compiler)
 func (c *J2clEqualitySameRewriterPassTest) GetProcessor(compiler *Compiler) CompilerPass {
 	return NewPeepholeOptimizationsPass(
-		compiler, c.GetName(), NewJ2clEqualitySameRewriterPass(j2clEqualitySameRewriterPassTest_useTypes))
+		compiler, c.GetName(), NewJ2clEqualitySameRewriterPass(c.useTypes))
 }
 
 // Java: J2clEqualitySameRewriterPassTest.createCompiler()
@@ -112,7 +114,7 @@ b == /** @type {null} */ (null);
 
 // Java: J2clEqualitySameRewriterPassTest.testRewriteEqualitySame_useColors()
 func (c *J2clEqualitySameRewriterPassTest) TestRewriteEqualitySame_useColors() {
-	j2clEqualitySameRewriterPassTest_useTypes = true
+	c.useTypes = true
 	c.ReplaceTypesWithColors()
 	c.Test(
 		`var b = {};
@@ -177,7 +179,7 @@ Equality.$same(void hasSideEffects(), hasSideEffects());
 
 // Java: J2clEqualitySameRewriterPassTest.testNotRewriteEqualitySame_useColors()
 func (c *J2clEqualitySameRewriterPassTest) TestNotRewriteEqualitySame_useColors() {
-	j2clEqualitySameRewriterPassTest_useTypes = true
+	c.useTypes = true
 	c.ReplaceTypesWithColors()
 	c.DisableCompareJsDoc() // type -> color replacement also removes JSDoc
 	c.TestSame(
@@ -247,5 +249,80 @@ var b = null;
 String.m_equals__java_lang_String__java_lang_Object__boolean(b, null);
 String.m_equals__java_lang_String__java_lang_Object__boolean(null, b);
 String.m_equals__java_lang_String__java_lang_Object__boolean(c, d);
+`)
+}
+
+// Java: J2clEqualitySameRewriterPassTest.testRewriteFunction()
+func (c *J2clEqualitySameRewriterPassTest) TestRewriteFunction() {
+	c.useTypes = true
+	c.ReplaceTypesWithColors()
+	c.Test(
+		`function f() {}
+/** @type {!Function} */
+let g;
+Equality.$same(f, null);
+Equality.$same(g, null);
+`,
+		`function f() {}
+let g;
+!f;
+!g;
+`)
+}
+
+// Java: J2clEqualitySameRewriterPassTest.testRewriteTopObject_skippedToAvoidRewritingGBigint()
+func (c *J2clEqualitySameRewriterPassTest) TestRewriteTopObject_skippedToAvoidRewritingGBigint() {
+	c.useTypes = true
+	c.ReplaceTypesWithColors()
+	c.Test(
+		`/** @type {!Object} */
+var x;
+/** @type {!gbigint} */
+var someGBigint;
+/** @type {!Object} */
+var y = someGBigint;
+Equality.$same(x, null);
+Equality.$same(y, null);
+`,
+		`/** @type {!Object} */
+var x;
+/** @type {!gbigint} */
+var someGBigint;
+/** @type {!Object} */
+var y = someGBigint;
+x == null;
+y == null;
+`)
+}
+
+// Java: J2clEqualitySameRewriterPassTest.testRewriteGBigInt_skipped()
+func (c *J2clEqualitySameRewriterPassTest) TestRewriteGBigInt_skipped() {
+	c.useTypes = true
+	c.ReplaceTypesWithColors()
+	c.Test(
+		`/** @type {!gbigint} */
+var x;
+Equality.$same(x, null);
+`,
+		`/** @type {!gbigint} */
+var x;
+x == null;
+`)
+}
+
+// Java: J2clEqualitySameRewriterPassTest.testRewriteInterface_optimized()
+func (c *J2clEqualitySameRewriterPassTest) TestRewriteInterface_optimized() {
+	c.useTypes = true
+	c.ReplaceTypesWithColors()
+	c.Test(
+		`/** @interface */ function Foo() {}
+/** @type {!Foo} */
+var x;
+Equality.$same(x, null);
+`,
+		`/** @interface */ function Foo() {}
+/** @type {!Foo} */
+var x;
+!x;
 `)
 }

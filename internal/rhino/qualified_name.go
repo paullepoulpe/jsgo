@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/QualifiedName.java @ closure-compiler v20260415
+// Port of com/google/javascript/rhino/QualifiedName.java @ closure-compiler v20261015
 
 /*
  *
@@ -63,7 +63,7 @@ type QualifiedName interface {
 	IsSimple() bool
 
 	// AppendTo appends the joined qualified name to the given StringBuilder.
-	AppendTo(sb *strings.Builder)
+	AppendTo(sb *strings.Builder, separator uint16)
 
 	// Matches checks whether the given node matches this name.
 	Matches(n *Node) bool
@@ -72,6 +72,7 @@ type QualifiedName interface {
 	Components() []string
 	BuildComponents(builder *[]string)
 	Join() string
+	JoinWithSeparator(separator uint16) string
 	GetComponentCount() int
 	Getprop(propertyName string) QualifiedName
 
@@ -151,9 +152,29 @@ func (q *QualifiedNameBase) BuildComponents(builder *[]string) {
 //
 // Java: QualifiedName.join()
 func (q *QualifiedNameBase) Join() string {
+	return q.self.JoinWithSeparator('.')
+}
+
+// JoinWithSeparator returns the qualified name as a string, with the given
+// separator between components.
+//
+// Java: QualifiedName.join(Character)
+func (q *QualifiedNameBase) JoinWithSeparator(separator uint16) string {
 	var sb strings.Builder
-	q.self.AppendTo(&sb)
+	q.self.AppendTo(&sb, separator)
 	return sb.String()
+}
+
+// qualifiedName_appendSeparator is sb.append(separator) for a Character.
+//
+// Go-only: language-adapter — StringBuilder.append(Object) of a char, in
+// WTF-8.
+func qualifiedName_appendSeparator(sb *strings.Builder, separator uint16) {
+	if separator < 0x80 {
+		sb.WriteByte(byte(separator))
+	} else {
+		sb.WriteString(jutil.StringFromChar(separator))
+	}
 }
 
 // Getprop returns a new qualified name object with `this` name as the owner
@@ -199,11 +220,11 @@ func (q *QualifiedName_StringListQname) IsSimple() bool {
 	return q.size == 1
 }
 
-// Java: QualifiedName.StringListQname.appendTo(StringBuilder)
-func (q *QualifiedName_StringListQname) AppendTo(sb *strings.Builder) {
+// Java: QualifiedName.StringListQname.appendTo(StringBuilder, Character)
+func (q *QualifiedName_StringListQname) AppendTo(sb *strings.Builder, separator uint16) {
 	for i := 0; i < q.size; i++ {
 		if i > 0 {
-			sb.WriteByte('.')
+			qualifiedName_appendSeparator(sb, separator)
 		}
 		sb.WriteString(q.terms[i])
 	}
@@ -286,10 +307,10 @@ func (q *QualifiedName_GetpropQname) IsSimple() bool {
 	return false
 }
 
-// Java: QualifiedName.GetpropQname.appendTo(StringBuilder)
-func (q *QualifiedName_GetpropQname) AppendTo(sb *strings.Builder) {
-	q.owner.AppendTo(sb)
-	sb.WriteByte('.')
+// Java: QualifiedName.GetpropQname.appendTo(StringBuilder, Character)
+func (q *QualifiedName_GetpropQname) AppendTo(sb *strings.Builder, separator uint16) {
+	q.owner.AppendTo(sb, separator)
+	qualifiedName_appendSeparator(sb, separator)
 	sb.WriteString(q.prop)
 }
 
@@ -356,9 +377,14 @@ func (q *QualifiedName_NodeQname) IsSimple() bool {
 	return !q.node.IsGetProp()
 }
 
-// Java: QualifiedName.NodeQname.appendTo(StringBuilder)
-func (q *QualifiedName_NodeQname) AppendTo(sb *strings.Builder) {
-	sb.WriteString(q.Join())
+// Java: QualifiedName.NodeQname.appendTo(StringBuilder, Character)
+func (q *QualifiedName_NodeQname) AppendTo(sb *strings.Builder, separator uint16) {
+	components := q.self.Components()
+	sb.WriteString(components[0])
+	for _, c := range components[1:] {
+		qualifiedName_appendSeparator(sb, separator)
+		sb.WriteString(c)
+	}
 }
 
 // Join is the node's qualified name.

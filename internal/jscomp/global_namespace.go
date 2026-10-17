@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/GlobalNamespace.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/GlobalNamespace.java @ closure-compiler v20261015
 
 /*
  * Copyright 2006 The Closure Compiler Authors.
@@ -603,10 +603,10 @@ func (b *GlobalNamespace_BuildGlobalNamespace) Collect(scope *Scope, chunk *JSCh
 			// not a set
 		}
 		// else not a reference we should record
-	case rhino.Token_NAME, rhino.Token_GETPROP:
-		// OPTCHAIN_GETPROP is intentionally not included in this case.
+	case rhino.Token_NAME, rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP:
 		// "a.b?.c" is not a reference to the global name "a.b.c" for the
-		// purposes of GlobalNamespace.
+		// purposes of GlobalNamespace, but we include OPTCHAIN_GETPROP to
+		// detect optional chain hasOwnProperty guards.
 		// TODO(b/127505242): CAST parents may indicate a set.
 		// This may be a variable get or set.
 		switch parent.GetToken() {
@@ -637,6 +637,11 @@ func (b *GlobalNamespace_BuildGlobalNamespace) Collect(scope *Scope, chunk *JSCh
 		case rhino.Token_CATCH, rhino.Token_INC, rhino.Token_DEC:
 			isSet = true
 			type_ = GlobalNamespace_NameProp_OTHER_OBJECT
+		case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
+			if parent.GetFirstChild() == n {
+				isSet = true
+				type_ = GlobalNamespace_NameProp_OTHER_OBJECT
+			}
 		case rhino.Token_CLASS:
 			// The first child is the class name, and the second child is the superclass name.
 			if parent.GetFirstChild() == n {
@@ -658,7 +663,7 @@ func (b *GlobalNamespace_BuildGlobalNamespace) Collect(scope *Scope, chunk *JSCh
 			}
 		case rhino.Token_ITER_SPREAD, rhino.Token_OBJECT_SPREAD:
 			// isSet = false, type = OTHER.
-		case rhino.Token_CALL:
+		case rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL:
 			if n.IsFirstChildOf(parent) && b.IsObjectHasOwnPropertyCall(parent) {
 				qname := n.GetFirstChild().GetQualifiedName()
 				globalName := b.GetOrCreateName(*qname, b.curMetadata)
@@ -1153,16 +1158,18 @@ func (b *GlobalNamespace_BuildGlobalNamespace) IsClassDefiningCall(callNode *rhi
 //
 // Java: GlobalNamespace.BuildGlobalNamespace.isObjectHasOwnPropertyCall(Node)
 func (b *GlobalNamespace_BuildGlobalNamespace) IsObjectHasOwnPropertyCall(callNode *rhino.Node) bool {
-	jutil.CheckArgumentMsg1(callNode.IsCall(), "%s", callNode)
+	jutil.CheckArgumentMsg1(callNode.IsCall() || callNode.IsOptChainCall(), "%s", callNode)
 	if !callNode.HasTwoChildren() {
 		return false
 	}
 	callee := callNode.GetFirstChild()
-	if !callee.IsGetProp() {
+	if !callee.IsGetProp() && !callee.IsOptChainGetProp() {
 		return false
 	}
 	receiver := callee.GetFirstChild()
-	return "hasOwnProperty" == callee.GetString() && receiver.IsQualifiedName()
+	propName := callee.GetString()
+	return ("hasOwnProperty" == propName || "propertyIsEnumerable" == propName) &&
+		receiver.IsQualifiedName()
 }
 
 // MaybeHandlePrototypePrefix updates our representation of the global
@@ -2086,12 +2093,18 @@ func (n *GlobalNamespace_Name) CanCollapseOrInline() GlobalNamespace_Inlinabilit
 				return GlobalNamespace_Inlinability_DO_NOT_INLINE
 			}
 			// We may be in a deeply nested object literal like, `{a: {b: {c: 1}}}`, so find the
-			// outermost object literal node in order to determine whether it is used conditionally.
-			objectLitParent := n.outer.GetOutermostObjectLit(declaration).GetParent()
-			if objectLitParent.IsOr() || objectLitParent.IsHook() {
-				// Case: `var x = y || {a: b}` or `var x = cond ? y : {a: b}`.
-				n.LogDecision(GlobalNamespace_Inlinability_DO_NOT_INLINE, "conditional definition")
-				return GlobalNamespace_Inlinability_DO_NOT_INLINE
+			// outermost object literal node and check its ancestor expressions to determine
+			// whether it is used conditionally.
+			child := n.outer.GetOutermostObjectLit(declaration)
+			for p := child.GetParent(); p != nil && p.GetParent() != nil && !NodeUtil_IsStatement(p); child, p = p, p.GetParent() {
+				if (p.IsOr() && p.GetFirstChild() != child) ||
+					(p.IsHook() && p.GetFirstChild() != child) ||
+					(p.IsAnd() && p.GetFirstChild() != child) {
+					// Case: `var x = y || {a: b}` or `var x = cond ? y : {a: b}` or `var x = cond && {a:
+					// b}`.
+					n.LogDecision(GlobalNamespace_Inlinability_DO_NOT_INLINE, "conditional definition")
+					return GlobalNamespace_Inlinability_DO_NOT_INLINE
+				}
 			}
 		}
 	}

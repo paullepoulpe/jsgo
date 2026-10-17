@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PeepholeMinimizeConditionsTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/PeepholeMinimizeConditionsTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/PeepholeMinimizeConditionsTest.java)
 
 /*
@@ -227,6 +227,11 @@ func (c *PeepholeMinimizeConditionsTest) TestDontRemoveDuplicateStatementsWithou
 	c.TestSame("if (Math.random() < 0.5) { const x = 3; alert(x); } else { const x = 5; alert(x); }")
 }
 
+// Java: PeepholeMinimizeConditionsTest.testDontFoldDirectAndIndirectEval()
+func (c *PeepholeMinimizeConditionsTest) TestDontFoldDirectAndIndirectEval() {
+	c.Fold("if (a) { eval(x); } else { (0, eval)(x); }", "a ? eval(x) : (0, eval)(x);")
+}
+
 // Java: PeepholeMinimizeConditionsTest.testNotCond()
 func (c *PeepholeMinimizeConditionsTest) TestNotCond() {
 	c.Fold("function f(){if(!x)foo()}", "function f(){x||foo()}")
@@ -263,10 +268,13 @@ func (c *PeepholeMinimizeConditionsTest) TestFoldNot() {
 	c.FoldSame("while(!(x<y)){a=b;}")
 	c.FoldSame("while(!(x<=y)){a=b;}")
 	c.FoldSame("while(!(x<=NaN)){a=b;}")
+
 	// NOT forces a boolean context
 	c.Fold("x = !(y() && true)", "x = !y()")
 	// This will be further optimized by PeepholeFoldConstants.
 	c.Fold("x = !true", "x = !1")
+	c.FoldSame("x = !!(a < b)")
+	c.FoldSame("x = !!a")
 }
 
 // Java: PeepholeMinimizeConditionsTest.testMinimizeExprCondition()
@@ -374,12 +382,38 @@ func (c *PeepholeMinimizeConditionsTest) TestMinimizeHook() {
 	c.Fold("x.y ? x.y : x.z", "x.y || x.z")
 	c.Fold("x?.y ? x?.y : x.z", "x?.y || x.z")
 	c.Fold("x?.y ? x?.y : x?.z", "x?.y || x?.z")
+
 	// This can be folded if x() does not have side effects.
 	c.FoldSame("x() ? x() : y()")
 	c.FoldSame("x?.() ? x?.() : y()")
+
 	c.Fold("!x ? foo() : bar()", "x ? bar() : foo()")
 	c.Fold("while(!(x ? y : z)) foo();", "while(x ? !y : !z) foo();")
 	c.Fold("(x ? !y : !z) ? foo() : bar()", "(x ? y : z) ? bar() : foo()")
+
+	c.FoldSame("y = x ? true : false")
+	c.FoldSame("y = x ? !0 : !1")
+	c.FoldSame("y = x ? false : true")
+	c.FoldSame("y = x ? !1 : !0")
+	c.Fold("y = !x ? true : false", "y = x ? false : true")
+	c.Fold("y = !x ? false : true", "y = x ? true : false")
+	c.FoldSame("y = (a === b) ? true : false")
+	c.FoldSame("y = (a === b) ? false : true")
+	c.Fold("y = !(a === b) ? true : false", "y = a !== b ? true : false")
+	c.FoldSame("y = (a < b) ? true : false")
+	c.FoldSame("y = (a < b) ? false : true")
+	c.Fold("y = !(a < b) ? true : false", "y = a < b ? false : true")
+	c.Fold("y = !(a < b) ? false : true", "y = a < b ? true : false")
+	c.Fold("y = !!(a < b) ? true : false", "y = a < b ? true : false")
+	c.Fold("y = (!a || !b) ? true : false", "y = a && b ? false : true")
+	c.Fold("y = !(a && !b) ? true : false", "y = !a || b ? true : false")
+	c.Fold("y = !(a && !b) ? false : true", "y = !a || b ? false : true")
+	c.Fold("y = !(a === 1 && !b) ? false : true", "y = a !== 1 || b ? false : true")
+	c.Fold("y = (inc(), !test()) ? true : false", "y = (inc(), test()) ? false : true")
+	c.FoldSame("y = x ? (function(){}, true) : false")
+	c.FoldSame("y = (a === b) ? (function(){}, true) : false")
+	c.FoldSame("y = x ? 1 : 0")
+	c.FoldSame("y = x ? 'a' : ''")
 }
 
 // Java: PeepholeMinimizeConditionsTest.testMinimizeComma()
@@ -487,62 +521,105 @@ func (c *PeepholeMinimizeConditionsTest) TestSubsituteReturn() {
 	c.EnableNormalize()
 	// TODO(bradfordcsmith): Stop normalizing the expected output or document why it is necessary.
 	c.EnableNormalizeExpectedOutput()
+
 	c.Fold("function f() { while(x) { return }}", "function f() { while(x) { break }}")
+
 	c.FoldSame("function f() { while(x) { return 5 } }")
+
 	c.FoldSame("function f() { a: { return 5 } }")
+
 	c.Fold(
 		"function f() { while(x) { return 5}  return 5}",
 		"function f() { while(x) { break }    return 5}")
+
 	c.Fold(
 		"function f() { while(x) { return x}  return x}",
 		"function f() { while(x) { break }    return x}")
+
 	c.Fold(
 		"function f() { while(x) { if (y) { return }}}",
 		"function f() { while(x) { if (y) { break  }}}")
+
 	c.Fold(
 		"function f() { while(x) { if (y) { return }} return}",
 		"function f() { while(x) { if (y) { break  }}}")
+
 	c.Fold(
 		"function f() { while(x) { if (y) { return 5 }} return 5}",
 		"function f() { while(x) { if (y) { break    }} return 5}")
+
 	// It doesn't matter if x is changed between them. We are still returning
 	// x at whatever x value current holds. The whole x = 1 is skipped.
 	c.Fold(
 		"function f() { while(x) { if (y) { return x } x = 1} return x}",
 		"function f() { while(x) { if (y) { break    } x = 1} return x}")
+
 	c.Fold(
 		"function f() { while(x) { if (y) { return x } return x} return x}",
 		"function f() { while(x) { if (y) {} break }return x}")
+
 	// A break here only breaks out of the inner loop.
 	c.FoldSame("function f() { while(x) { while (y) { return } } }")
+
 	c.FoldSame("function f() { while(1) { return 7}  return 5}")
+
 	c.FoldSame(
 		"function f() {\n" +
 			"  try { while(x) {return f()}} catch (e) { } return f()}\n")
+
 	c.FoldSame(
 		"function f() {\n" +
 			"  try { while(x) {return f()}} finally {alert(1)} return f()}\n")
+
 	// Both returns has the same handler
 	c.Fold(
 		"function f() {\n"+
 			"  try { while(x) { return f() } return f() } catch (e) { } }\n",
 		"function f() {\n"+
 			"  try { while(x) { break } return f() } catch (e) { } }\n")
+
 	// We can't fold this because it'll change the order of when foo is called.
 	c.FoldSame(
 		"function f() {\n" +
 			"  try { while(x) { return foo() } } finally { alert(1) }\n" +
 			"  return foo()}\n")
+
 	// This is fine, we have no side effect in the return value.
 	c.Fold(
 		"function f() {\n"+
 			"  try { while(x) { return 1 } } finally { alert(1) } return 1}\n",
 		"function f() {\n"+
 			"  try { while(x) { break    } } finally { alert(1) } return 1}\n")
+
 	c.FoldSame("function f() { try{ return a } finally { a = 2 } return a; }")
+
 	c.Fold(
 		"function f() { switch(a){ case 1: return a; default: g();} return a;}",
 		"function f() { switch(a){ case 1: break; default: g();} return a; }")
+	c.FoldSame(
+		"function f(flag) {\n" +
+			"  var ok = false;\n" +
+			"  while (flag) {\n" +
+			"    try { return ok; } finally { ok = true; }\n" +
+			"  }\n" +
+			"  return ok;\n" +
+			"}\n")
+
+	c.Fold(
+		"function f(flag) {\n"+
+			"  var ok = false;\n"+
+			"  while (flag) {\n"+
+			"    try { return 1; } finally { ok = true; }\n"+
+			"  }\n"+
+			"  return 1;\n"+
+			"}\n",
+		"function f(flag) {\n"+
+			"  var ok = false;\n"+
+			"  while (flag) {\n"+
+			"    try { break; } finally { ok = true; }\n"+
+			"  }\n"+
+			"  return 1;\n"+
+			"}\n")
 }
 
 // Java: PeepholeMinimizeConditionsTest.testSubsituteBreakForThrow()
@@ -551,65 +628,92 @@ func (c *PeepholeMinimizeConditionsTest) TestSubsituteBreakForThrow() {
 	c.EnableNormalize()
 	// TODO(bradfordcsmith): Stop normalizing the expected output or document why it is necessary.
 	c.EnableNormalizeExpectedOutput()
+
 	c.FoldSame("function f() { while(x) { throw Error }}")
+
 	c.Fold(
 		"function f() { while(x) { throw Error } throw Error }",
 		"function f() { while(x) { break } throw Error}")
 	c.FoldSame("function f() { while(x) { throw Error(1) } throw Error(2)}")
 	c.FoldSame("function f() { while(x) { throw Error(1) } return Error(2)}")
+
 	c.FoldSame("function f() { while(x) { throw 5 } }")
+
 	c.FoldSame("function f() { a: { throw 5 } }")
+
 	c.Fold(
 		"function f() { while(x) { throw 5}  throw 5}",
 		"function f() { while(x) { break }   throw 5}")
+
 	c.Fold(
 		"function f() { while(x) { throw x}  throw x}",
 		"function f() { while(x) { break }   throw x}")
+
 	c.FoldSame("function f() { while(x) { if (y) { throw Error }}}")
+
 	c.Fold(
 		"function f() { while(x) { if (y) { throw Error }} throw Error}",
 		"function f() { while(x) { if (y) { break }} throw Error}")
+
 	c.Fold(
 		"function f() { while(x) { if (y) { throw 5 }} throw 5}",
 		"function f() { while(x) { if (y) { break    }} throw 5}")
+
 	// It doesn't matter if x is changed between them. We are still throwing
 	// x at whatever x value current holds. The whole x = 1 is skipped.
 	c.Fold(
 		"function f() { while(x) { if (y) { throw x } x = 1} throw x}",
 		"function f() { while(x) { if (y) { break    } x = 1} throw x}")
+
 	c.Fold(
 		"function f() { while(x) { if (y) { throw x } throw x} throw x}",
 		"function f() { while(x) { if (y) {} break }throw x}")
+
 	// A break here only breaks out of the inner loop.
 	c.FoldSame("function f() { while(x) { while (y) { throw Error } } }")
+
 	c.FoldSame("function f() { while(1) { throw 7}  throw 5}")
+
 	c.FoldSame(
 		"function f() {\n" +
 			"  try { while(x) {throw f()}} catch (e) { } throw f()}\n")
+
 	c.FoldSame(
 		"function f() {\n" +
 			"  try { while(x) {throw f()}} finally {alert(1)} throw f()}\n")
+
 	// Both throws has the same handler
 	c.Fold(
 		"function f() {\n"+
 			"  try { while(x) { throw f() } throw f() } catch (e) { } }\n",
 		"function f() {\n"+
 			"  try { while(x) { break } throw f() } catch (e) { } }\n")
+
 	// We can't fold this because it'll change the order of when foo is called.
 	c.FoldSame(
 		"function f() {\n" +
 			"  try { while(x) { throw foo() } } finally { alert(1) }\n" +
 			"  throw foo()}\n")
+
 	// This is fine, we have no side effect in the throw value.
 	c.Fold(
 		"function f() {\n"+
 			"  try { while(x) { throw 1 } } finally { alert(1) } throw 1}\n",
 		"function f() {\n"+
 			"  try { while(x) { break    } } finally { alert(1) } throw 1}\n")
+
 	c.FoldSame("function f() { try{ throw a } finally { a = 2 } throw a; }")
+
 	c.Fold(
 		"function f() { switch(a){ case 1: throw a; default: g();} throw a;}",
 		"function f() { switch(a){ case 1: break; default: g();} throw a; }")
+	c.FoldSame(
+		"function f(flag, e) {\n" +
+			"  while (flag) {\n" +
+			"    try { throw e; } finally { e = null; }\n" +
+			"  }\n" +
+			"  throw e;\n" +
+			"}\n")
 }
 
 // Java: PeepholeMinimizeConditionsTest.testRemoveDuplicateReturn()
@@ -918,4 +1022,23 @@ func (c *PeepholeMinimizeConditionsTest) TestMinimizeIfWithNewTargetCondition() 
 		"function x() {\n"+
 			"  return new.target ? 1 : 2;\n"+
 			"}\n")
+}
+
+// Java: PeepholeMinimizeConditionsTest.testBatchE_booleanAbsorptionAndContextSimplifications()
+func (c *PeepholeMinimizeConditionsTest) TestBatchE_booleanAbsorptionAndContextSimplifications() {
+	// OPP-022: Boolean Absorption & Context Simplifications
+	// Hook inversion on negated condition
+	c.Test("var res = !x ? a : b;", "var res = x ? b : a;")
+
+	// if-statement minimization preserves Boolean(x) wrapper in current pass
+	c.Test("if (Boolean(x)) { foo(); }", "Boolean(x) && foo();")
+
+	// Guard cases: non-constant / side-effectful / shadowed expressions
+	c.TestSame("while (Boolean(x)) foo();")
+	c.TestSame("var res = Boolean(x) ? a : b;")
+	c.TestSame("var res = !Boolean(x);")
+	c.TestSame("x = a || (a && b);")
+	c.TestSame("x = a && (a || b);")
+	c.TestSame("x = foo() || (foo() && b);")
+	c.TestSame("function f(Boolean) { Boolean(x) ? a : b; }")
 }

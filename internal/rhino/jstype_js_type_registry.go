@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/jstype/JSTypeRegistry.java @ closure-compiler v20260415
+// Port of com/google/javascript/rhino/jstype/JSTypeRegistry.java @ closure-compiler v20261015
 
 /*
  *
@@ -66,6 +66,14 @@ type JSTypeRegistry struct {
 	// The template variable corresponding to the TReturn type in
 	// IteratorIterable<T, TReturn, TNext>
 	iteratorIterableReturnTemplate *TemplateType
+
+	// The template variable corresponding to the T type in IteratorLike<T,
+	// TReturn, TNext>.
+	iteratorLikeValueTemplate *TemplateType
+
+	// The template variable corresponding to the TReturn type in
+	// IteratorLike<T, TReturn, TNext>.
+	iteratorLikeReturnTemplate *TemplateType
 
 	// The template variable corresponding to the T type in Iterator<T,
 	// TReturn, TNext>.
@@ -363,6 +371,22 @@ func (r *JSTypeRegistry) GetIIterableResultValueTemplate() *TemplateType {
 	return jutil.CheckNotNull(r.iiterableResultValueTemplate)
 }
 
+// GetIteratorLikeValueTemplate returns the value template variable for the
+// IteratorLike interface.
+//
+// Java: JSTypeRegistry.getIteratorLikeValueTemplate()
+func (r *JSTypeRegistry) GetIteratorLikeValueTemplate() *TemplateType {
+	return jutil.CheckNotNull(r.iteratorLikeValueTemplate)
+}
+
+// GetIteratorLikeReturnTemplate returns the return template variable for the
+// IteratorLike interface.
+//
+// Java: JSTypeRegistry.getIteratorLikeReturnTemplate()
+func (r *JSTypeRegistry) GetIteratorLikeReturnTemplate() *TemplateType {
+	return jutil.CheckNotNull(r.iteratorLikeReturnTemplate)
+}
+
 // GetIteratorValueTemplate returns the value template variable for the
 // Iterator interface.
 //
@@ -615,14 +639,21 @@ func (r *JSTypeRegistry) InitializeBuiltInTypes() {
 	iterableType := iterableFunctionType.GetInstanceType()
 	r.RegisterNativeType(JSTypeNative_ITERABLE_TYPE, iterableType)
 
+	r.iteratorLikeValueTemplate = NewTemplateType(r, "T")
+	r.iteratorLikeReturnTemplate = NewTemplateType(r, "TReturn")
+	iteratorLikeNextTemplate := NewTemplateType(r, "TNext")
+	iteratorLikeFunctionType := r.NativeInterface(
+		"IteratorLike",
+		r.iteratorLikeValueTemplate,
+		r.iteratorLikeReturnTemplate,
+		iteratorLikeNextTemplate)
+	r.RegisterNativeType(JSTypeNative_ITERATOR_LIKE_FUNCTION_TYPE, iteratorLikeFunctionType)
+	iteratorLikeType := iteratorLikeFunctionType.GetInstanceType()
+	r.RegisterNativeType(JSTypeNative_ITERATOR_LIKE_TYPE, iteratorLikeType)
+
 	r.iteratorValueTemplate = NewTemplateType(r, "T")
 	r.iteratorReturnTemplate = NewTemplateType(r, "TReturn")
 	iteratorNextTemplate := NewTemplateType(r, "TNext")
-	iteratorFunctionType := r.NativeInterface(
-		"Iterator", r.iteratorValueTemplate, r.iteratorReturnTemplate, iteratorNextTemplate)
-	r.RegisterNativeType(JSTypeNative_ITERATOR_FUNCTION_TYPE, iteratorFunctionType)
-	iteratorType := iteratorFunctionType.GetInstanceType()
-	r.RegisterNativeType(JSTypeNative_ITERATOR_TYPE, iteratorType)
 
 	r.iteratorIterableValueTemplate = NewTemplateType(r, "T")
 	r.iteratorIterableReturnTemplate = NewTemplateType(r, "TReturn")
@@ -641,13 +672,30 @@ func (r *JSTypeRegistry) InitializeBuiltInTypes() {
 				r.iteratorIterableReturnTemplate,
 				iteratorIterableNextTemplate),
 			r.CreateTemplatizedType(
-				iteratorType,
+				iteratorLikeType,
 				r.iteratorIterableValueTemplate,
 				r.iteratorIterableReturnTemplate,
 				iteratorIterableNextTemplate),
 		})
 	iteratorIterableType := iteratorIterableFunctionType.GetInstanceType()
 	r.RegisterNativeType(JSTypeNative_ITERATOR_ITERABLE_TYPE, iteratorIterableType)
+	iteratorFunctionType := r.NativeConstructorBuilder("Iterator").
+		WithParameters().
+		WithTemplateKeys(
+			r.iteratorValueTemplate, r.iteratorReturnTemplate, iteratorNextTemplate).
+		Build()
+	r.RegisterNativeType(JSTypeNative_ITERATOR_FUNCTION_TYPE, iteratorFunctionType)
+	iteratorFunctionType.GetPrototype() // Force initialization
+	iteratorFunctionType.SetImplementedInterfaces(
+		[]ObjectType{
+			r.CreateTemplatizedType(
+				iteratorIterableType,
+				r.iteratorValueTemplate,
+				r.iteratorReturnTemplate,
+				iteratorNextTemplate),
+		})
+	iteratorType := iteratorFunctionType.GetInstanceType()
+	r.RegisterNativeType(JSTypeNative_ITERATOR_TYPE, iteratorType)
 
 	r.iiterableResultValueTemplate = NewTemplateType(r, "TYield")
 	iiterableResultFunctionType := r.NativeRecord("IIterableResult", r.iiterableResultValueTemplate)
@@ -689,7 +737,15 @@ func (r *JSTypeRegistry) InitializeBuiltInTypes() {
 	r.RegisterNativeType(JSTypeNative_ARRAY_TYPE, arrayType)
 
 	// ITemplateArray extends !Array<string>
+	arrayOfString := r.CreateTemplatizedType(arrayType, stringType)
 	iTemplateArrayFunctionType := r.NativeConstructorBuilder("ITemplateArray").WithParameters().Build()
+	iTemplateArrayPrototype := PrototypeObjectType_Builder_(r).
+		SetName(jutil.StringPtr("ITemplateArray.prototype")).
+		SetNative(true).
+		SetImplicitPrototype(arrayOfString).
+		Build()
+	iTemplateArrayFunctionType.SetPrototype(iTemplateArrayPrototype, nil)
+	iTemplateArrayFunctionType.GetInstanceType().MergeSupertypeTemplateTypes(arrayOfString)
 	r.RegisterNativeType(
 		JSTypeNative_I_TEMPLATE_ARRAY_TYPE, iTemplateArrayFunctionType.GetInstanceType())
 
@@ -921,6 +977,10 @@ func (r *JSTypeRegistry) InitializeBuiltInTypes() {
 	symbolObjectType := symbolObjectFunctionType.GetInstanceType()
 	r.RegisterNativeType(JSTypeNative_SYMBOL_OBJECT_TYPE, symbolObjectType)
 
+	gbigintFunctionType := r.NativeInterface("gbigint")
+	gbigintFunctionType.GetPrototype() // Force initialization
+	r.RegisterNativeType(JSTypeNative_GBIGINT_TYPE, gbigintFunctionType.GetInstanceType())
+
 	// (null|void)
 	nullVoid := r.CreateUnionType(nullType, voidType)
 	r.RegisterNativeType(JSTypeNative_NULL_VOID, nullVoid)
@@ -1048,10 +1108,12 @@ func (r *JSTypeRegistry) InitializeRegistry() {
 	r.RegisterGlobalType(r.GetNativeType(JSTypeNative_ASYNC_GENERATOR_TYPE))
 	r.RegisterGlobalType(r.GetNativeType(JSTypeNative_BIGINT_OBJECT_TYPE))
 	r.RegisterGlobalType(r.GetNativeType(JSTypeNative_BIGINT_TYPE))
+	r.RegisterGlobalType(r.GetNativeType(JSTypeNative_GBIGINT_TYPE))
 	r.RegisterGlobalType(r.GetNativeType(JSTypeNative_BOOLEAN_OBJECT_TYPE))
 	r.RegisterGlobalType(r.GetNativeType(JSTypeNative_BOOLEAN_TYPE))
 	r.RegisterGlobalType(r.GetNativeType(JSTypeNative_I_ARRAY_LIKE_TYPE))
 	r.RegisterGlobalType(r.GetNativeType(JSTypeNative_ITERABLE_TYPE))
+	r.RegisterGlobalType(r.GetNativeType(JSTypeNative_ITERATOR_LIKE_TYPE))
 	r.RegisterGlobalType(r.GetNativeType(JSTypeNative_ITERATOR_TYPE))
 	r.RegisterGlobalType(r.GetNativeType(JSTypeNative_ITERATOR_ITERABLE_TYPE))
 	r.RegisterGlobalType(r.GetNativeType(JSTypeNative_GENERATOR_TYPE))
@@ -2315,7 +2377,7 @@ func (r *JSTypeRegistry) CreateTypeFromCommentNodeWithScope(n *Node, sourceName 
 		}
 
 		objectType, ok := nominalType.(ObjectType)
-		if !ok || r.IsNonNullableName(jsTypeStaticScopeOrNil(scope), n.GetString()) {
+		if !ok {
 			return nominalType
 		}
 

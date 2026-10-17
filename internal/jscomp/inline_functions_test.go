@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/InlineFunctionsTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/InlineFunctionsTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/InlineFunctionsTest.java)
 
 /*
@@ -397,6 +397,32 @@ func (c *InlineFunctionsTest) TestInlineFunctions1_arrowFnArg() {
 bar(() => 4);
 `,
 		"4")
+}
+
+// Java: InlineFunctionsTest.testInlineArrowFunction_call()
+func (c *InlineFunctionsTest) TestInlineArrowFunction_call() {
+	c.Test(
+		`const fn = () => this.x;
+fn.call(obj);
+`,
+		"this.x;")
+}
+
+// Java: InlineFunctionsTest.testInlineArrowFunction_callWithArgs()
+func (c *InlineFunctionsTest) TestInlineArrowFunction_callWithArgs() {
+	c.Test(
+		`const fn = (a) => this.x + a;
+fn.call(obj, 1);
+`,
+		"this.x + 1;")
+}
+
+// Java: InlineFunctionsTest.testInlineArrowFunction_apply()
+func (c *InlineFunctionsTest) TestInlineArrowFunction_apply() {
+	c.TestSame(
+		`const fn = () => this.x;
+fn.apply(obj);
+`)
 }
 
 // Java: InlineFunctionsTest.testInlineFunctions2()
@@ -1327,6 +1353,28 @@ func (c *InlineFunctionsTest) TestInlineIfParametersModified8() {
 func (c *InlineFunctionsTest) TestInlineIfParametersModified9() {
 	// OK, array parameter modified.
 	c.Test("function f(a){return a[2]=2}f(o)", "o[2]=2")
+}
+
+// Java: InlineFunctionsTest.testInlineIfParametersModified10()
+func (c *InlineFunctionsTest) TestInlineIfParametersModified10() {
+	c.Test(
+		`function f(p) {
+  const stash = (p = 42);
+  return p + stash;
+}
+var x = 7;
+var y = f(x);
+use(x);
+`,
+		`var x = 7;
+var y;
+{
+  var p$jscomp$inline_0 = x;
+  const stash$jscomp$inline_1 = (p$jscomp$inline_0 = 42);
+  y = p$jscomp$inline_0 + stash$jscomp$inline_1;
+}
+use(x);
+`)
 }
 
 // Java: InlineFunctionsTest.testInlineNeverPartialSubtitution1()
@@ -4579,6 +4627,24 @@ class B extends A {
 `)
 }
 
+// Java: InlineFunctionsTest.testNotInliningFunctionWithNewTarget()
+func (c *InlineFunctionsTest) TestNotInliningFunctionWithNewTarget() {
+	c.TestSame(
+		`function isCalled() { return new.target === undefined; }
+class Widget {
+  constructor(data) {
+    if (isCalled()) { this.data = sanitize(data); } else { this.data = data; }
+  }
+}
+new Widget(externalInput);
+`)
+
+	c.TestSame(
+		`function f() { return new.target; }
+var x = f();
+`)
+}
+
 // Java: InlineFunctionsTest.testClassField()
 func (c *InlineFunctionsTest) TestClassField() {
 	c.Test(
@@ -4645,6 +4711,111 @@ f(new Foo());
 `)
 }
 
+// Java: InlineFunctionsTest.testClassField_inlinedFunctionCalledWithReceiver_instanceField()
+func (c *InlineFunctionsTest) TestClassField_inlinedFunctionCalledWithReceiver_instanceField() {
+	c.assumeStrictThis = true
+	c.Test(
+		`function f() {
+  return class {
+    owner = this;
+  };
+}
+const x = {};
+const C = f.call(x);
+`,
+		`const x = {};
+var JSCompiler_inline_result$jscomp$v0;
+{
+  JSCompiler_inline_result$jscomp$v0 = class {
+    owner = this;
+  };
+}
+const C = JSCompiler_inline_result$jscomp$v0;
+`)
+}
+
+// Java: InlineFunctionsTest.testClassField_inlinedFunctionCalledWithReceiver_computedField()
+func (c *InlineFunctionsTest) TestClassField_inlinedFunctionCalledWithReceiver_computedField() {
+	c.assumeStrictThis = true
+	c.Test(
+		`function f() {
+  return class {
+    [this.key] = this;
+  };
+}
+const x = {key: 'k'};
+const C = f.call(x);
+`,
+		`const x = {key: 'k'};
+var JSCompiler_inline_result$jscomp$v0;
+{
+  JSCompiler_inline_result$jscomp$v0 = class {
+    [x.key] = this;
+  };
+}
+const C = JSCompiler_inline_result$jscomp$v0;
+`)
+}
+
+// Java: InlineFunctionsTest.testClassField_inlinedFunctionCalledWithReceiver_staticFieldAndBlock()
+func (c *InlineFunctionsTest) TestClassField_inlinedFunctionCalledWithReceiver_staticFieldAndBlock() {
+	c.assumeStrictThis = true
+	c.Test(
+		`function f() {
+  return class {
+    static field = this;
+    static {
+      alert(this);
+    }
+  };
+}
+const x = {};
+const C = f.call(x);
+`,
+		`const x = {};
+var JSCompiler_inline_result$jscomp$v0;
+{
+  JSCompiler_inline_result$jscomp$v0 = class {
+    static field = this;
+    static {
+      alert(this);
+    }
+  };
+}
+const C = JSCompiler_inline_result$jscomp$v0;
+`)
+}
+
+// Java: InlineFunctionsTest.testClassField_functionCalledWithReceiver_notInlined()
+func (c *InlineFunctionsTest) TestClassField_functionCalledWithReceiver_notInlined() {
+	c.assumeStrictThis = true
+	c.TestSame(
+		`function f(val) {
+  return class {
+    prop = val;
+    owner = this;
+  };
+}
+const x = {};
+const C = f.call(x, 42);
+`)
+}
+
+// Java: InlineFunctionsTest.testClassField_functionCalledWithThis_notInlined()
+func (c *InlineFunctionsTest) TestClassField_functionCalledWithThis_notInlined() {
+	c.assumeStrictThis = true
+	c.TestSame(
+		`function f() {
+  return class {
+    owner = this;
+  };
+}
+function _g() {
+  return f.call(this);
+}
+`)
+}
+
 // Java: InlineFunctionsTest.testClassField_doesNotInlineValueThatChanges()
 func (c *InlineFunctionsTest) TestClassField_doesNotInlineValueThatChanges() {
 	c.TestSame(
@@ -4671,6 +4842,89 @@ func (c *InlineFunctionsTest) TestClassField_doesNotInlineValueThatChanges() {
 			"  // Should not inline `nextVal` because it changes.\n" +
 			"  val = getNextVal();\n" +
 			"}\n")
+}
+
+// Java: InlineFunctionsTest.testClassField_paramCapturedByInstanceFieldInitializer_notInlined()
+func (c *InlineFunctionsTest) TestClassField_paramCapturedByInstanceFieldInitializer_notInlined() {
+	c.TestSame(
+		`function f(a) {
+  return class { x = a; };
+}
+let y = 1;
+const C = f(y);
+y = 2;
+alert(new C().x);
+`)
+}
+
+// Java: InlineFunctionsTest.testClassField_paramCapturedByInstanceFieldInitializer_assumeMinimumCapture()
+func (c *InlineFunctionsTest) TestClassField_paramCapturedByInstanceFieldInitializer_assumeMinimumCapture() {
+	c.assumeMinimumCapture = true
+	c.Test(
+		`function f(a) {
+  return class { x = a; };
+}
+let y = 1;
+const C = f(y);
+y = 2;
+alert(new C().x);
+`,
+		`let y = 1;
+var JSCompiler_inline_result$jscomp$v0;
+{
+  var a$jscomp$inline_0 = y;
+  JSCompiler_inline_result$jscomp$v0 = class {
+    x = a$jscomp$inline_0;
+  };
+}
+const C = JSCompiler_inline_result$jscomp$v0;
+y = 2;
+alert(new C().x);
+`)
+}
+
+// Java: InlineFunctionsTest.testClassField_paramCapturedByComputedInstanceFieldInitializer_assumeMinimumCapture()
+func (c *InlineFunctionsTest) TestClassField_paramCapturedByComputedInstanceFieldInitializer_assumeMinimumCapture() {
+	c.assumeMinimumCapture = true
+	c.Test(
+		`function f(a) {
+  return class { ['x'] = a; };
+}
+let y = 1;
+const C = f(y);
+y = 2;
+alert(new C()['x']);
+`,
+		`let y = 1;
+var JSCompiler_inline_result$jscomp$v0;
+{
+  var a$jscomp$inline_0 = y;
+  JSCompiler_inline_result$jscomp$v0 = class {
+    ["x"] = a$jscomp$inline_0;
+  };
+}
+const C = JSCompiler_inline_result$jscomp$v0;
+y = 2;
+alert(new C()['x']);
+`)
+}
+
+// Java: InlineFunctionsTest.testClassField_paramUsedByStaticFieldInitializer_isSubstitutedDirectly()
+func (c *InlineFunctionsTest) TestClassField_paramUsedByStaticFieldInitializer_isSubstitutedDirectly() {
+	c.Test(
+		`function f(a) {
+  return class { static x = a; };
+}
+let y = 1;
+const C = f(y);
+y = 2;
+alert(C.x);
+`,
+		`let y = 1;
+const C = class { static x = y; };
+y = 2;
+alert(C.x);
+`)
 }
 
 // Java: InlineFunctionsTest.testVariableUsedAsArgumentAndReassignedInFollowingArgument()
@@ -4938,6 +5192,96 @@ window.g = function() {
   }
   return JSCompiler_inline_result$jscomp$v0;
 };
+`)
+}
+
+// Java: InlineFunctionsTest.testInlineInLoopUninitializedVarInLoop()
+func (c *InlineFunctionsTest) TestInlineInLoopUninitializedVarInLoop() {
+	c.Test(
+		`function f() {
+  for (var i = 0; i < 10; i++) {
+    var ok;
+    if (ok) {
+      chg();
+    }
+    ok = true;
+  }
+}
+while (true) {
+  f();
+}
+`,
+		`while (true) {
+  {
+    var ok$jscomp$inline_1 = void 0;
+    var i$jscomp$inline_0 = 0;
+    for (; i$jscomp$inline_0 < 10; i$jscomp$inline_0++) {
+      if (ok$jscomp$inline_1) {
+        chg();
+      }
+      ok$jscomp$inline_1 = true;
+    }
+  }
+}
+`)
+}
+
+// Java: InlineFunctionsTest.testInlineInLoopUninitializedLetInLoop()
+func (c *InlineFunctionsTest) TestInlineInLoopUninitializedLetInLoop() {
+	c.Test(
+		`function f() {
+  for (var i = 0; i < 10; i++) {
+    let ok;
+    if (ok) {
+      chg();
+    }
+    ok = true;
+  }
+}
+while (true) {
+  f();
+}
+`,
+		`while (true) {
+  {
+    var i$jscomp$inline_0 = 0;
+    for (; i$jscomp$inline_0 < 10; i$jscomp$inline_0++) {
+      let ok$jscomp$inline_1;
+      if (ok$jscomp$inline_1) {
+        chg();
+      }
+      ok$jscomp$inline_1 = true;
+    }
+  }
+}
+`)
+}
+
+// Java: InlineFunctionsTest.testNoInlineArrayDestructuringReassignment()
+func (c *InlineFunctionsTest) TestNoInlineArrayDestructuringReassignment() {
+	c.TestSame(
+		`function sanitize(x) { return x; }
+[sanitize] = getStrictSanitizers();
+el.innerHTML = sanitize(untrusted);
+`)
+}
+
+// Java: InlineFunctionsTest.testNoInlineObjectDestructuringReassignment()
+func (c *InlineFunctionsTest) TestNoInlineObjectDestructuringReassignment() {
+	c.TestSame(
+		`function sanitize(x) { return x; }
+({sanitize} = getStrictSanitizers());
+el.innerHTML = sanitize(untrusted);
+`)
+}
+
+// Java: InlineFunctionsTest.testNoInlineForOfLoopReassignment()
+func (c *InlineFunctionsTest) TestNoInlineForOfLoopReassignment() {
+	c.TestSame(
+		`function sanitize(x) { return x; }
+for (sanitize of getStrictSanitizers()) {
+  el.innerHTML = sanitize(untrusted);
+}
 `)
 }
 

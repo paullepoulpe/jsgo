@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PolymerPassStaticUtils.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/PolymerPassStaticUtils.java @ closure-compiler v20261015
 
 /*
  * Copyright 2016 The Closure Compiler Authors.
@@ -74,13 +74,15 @@ func PolymerPassStaticUtils_IsPolymerClass(cls *rhino.Node) bool {
 	// imported from an ES module, the rewriting should set the original name to `PolymerElement`.
 	// When imported from an goog module (TS), we'll have a GETPROP like
 	// `module$polymer$polymer_element.PolymerElement`.
-	// YT Polymer components may also extend the `PolymerElementWithoutHtml` or
-	// `PolymerLiteControllerBase` base classes.
+	// YT Polymer components may also extend the `PolymerElementWithoutHtml`,
+	// `PolymerLiteControllerBase`, `PolymerBehavior`, or `PolymerBehaviorWithoutHtml` base classes.
 	return !heritage.IsEmpty() &&
 		(polymerPassStaticUtils_POLYMER_DOT_ELEMENT.Matches(heritage) ||
 			polymerPassStaticUtils_matches(heritage, "PolymerElement") ||
 			polymerPassStaticUtils_matches(heritage, "PolymerElementWithoutHtml") ||
-			polymerPassStaticUtils_matches(heritage, "PolymerLiteControllerBase"))
+			polymerPassStaticUtils_matches(heritage, "PolymerLiteControllerBase") ||
+			polymerPassStaticUtils_matches(heritage, "PolymerBehavior") ||
+			polymerPassStaticUtils_matches(heritage, "PolymerBehaviorWithoutHtml"))
 }
 
 // Java: PolymerPassStaticUtils.matches(Node, String)

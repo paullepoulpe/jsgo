@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/J2clEqualitySameRewriterPass.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/J2clEqualitySameRewriterPass.java @ closure-compiler v20261015
 
 /*
  * Copyright 2016 The Closure Compiler Authors.
@@ -148,7 +148,13 @@ func (p *J2clEqualitySameRewriterPass) canOnlyBeObject(n *rhino.Node) bool {
 	}
 
 	// In theory we could allow unions of multiple objects here
-	return !color.IsUnion() && !color.IsPrimitive() && !color.Equals(colors.StandardColors_UNKNOWN)
+	return !color.IsUnion() &&
+		!color.IsPrimitive() &&
+		!color.Equals(colors.StandardColors_UNKNOWN) &&
+		// Avoid TOP_OBJECT because the `gbigint` interface type is assignable to it, so might end
+		// up here. In practice `gbigint` is actually a primitive (bigint or string) and its
+		// interface definition is a (useful) lie to the typechecker.
+		!color.Equals(colors.StandardColors_TOP_OBJECT)
 }
 
 // Java: J2clEqualitySameRewriterPass.rewriteAsStrictEq(Node, Node)

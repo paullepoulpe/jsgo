@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/parsing/JsDocInfoParser.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/parsing/JsDocInfoParser.java @ closure-compiler v20261015
 
 /*
  * Copyright 2007 The Closure Compiler Authors.
@@ -901,14 +901,16 @@ func (p *JsDocInfoParser) ParseAnnotation(token JsDocToken, extendedTypes *jutil
 		case Annotation_THROWS:
 			lineno = p.stream.GetLineno()
 			charno = p.stream.GetCharno()
+			throwsAnnotation := ""
 			if !p.LookAheadForAnnotation() {
 				throwsInfo := p.ExtractMultilineTextualBlock(token)
-				throwsAnnotation := throwsInfo.string_
-				throwsAnnotation = jutil.StringTrim(throwsAnnotation)
-				if len(throwsAnnotation) > 0 {
-					p.jsdocBuilder.RecordThrowsAnnotation(throwsAnnotation)
-				}
+				throwsAnnotation = jutil.StringTrim(throwsInfo.string_)
 				token = throwsInfo.token
+			}
+			if p.jsdocBuilder.IsNoSideEffectsRecorded() {
+				p.AddParserWarningAt(rhino.Msg_JSDOC_NOSIDEEFFECTS_WITH_THROWS, lineno, charno)
+			} else if !p.jsdocBuilder.RecordThrowsAnnotation(throwsAnnotation) {
+				p.AddParserWarningAt(rhino.Msg_JSDOC_THROWS, lineno, charno)
 			}
 			return token
 		case Annotation_PARAM:
@@ -1012,7 +1014,11 @@ func (p *JsDocInfoParser) ParseAnnotation(token JsDocToken, extendedTypes *jutil
 			}
 			return token
 		case Annotation_NO_SIDE_EFFECTS:
-			if !p.jsdocBuilder.RecordNoSideEffects() {
+			if p.jsdocBuilder.IsModifiesRecorded() {
+				p.AddParserWarning(rhino.Msg_JSDOC_NOSIDEEFFECTS_WITH_MODIFIES)
+			} else if p.jsdocBuilder.IsThrowsRecorded() {
+				p.AddParserWarning(rhino.Msg_JSDOC_NOSIDEEFFECTS_WITH_THROWS)
+			} else if !p.jsdocBuilder.RecordNoSideEffects() {
 				p.AddParserWarning(rhino.Msg_JSDOC_NOSIDEEFFECTS)
 			}
 			return p.EatUntilEOLIfNotAnnotation()
@@ -1457,21 +1463,22 @@ func (p *JsDocInfoParser) ParseSuppressTag(token JsDocToken) JsDocToken {
 			}
 		}
 
-		if !p.Match(JsDocToken_RIGHT_CURLY) {
+		token = p.Next()
+		if token != JsDocToken_RIGHT_CURLY {
 			p.AddParserWarning(rhino.Msg_JSDOC_SUPPRESS)
+			return token
+		}
+
+		// Find the suppressions' description (if applicable).
+		if p.jsdocBuilder.ShouldParseDocumentation() && !p.LookAheadForAnnotation() {
+			suppressDescriptionInfo := p.ExtractMultilineTextualBlock(token)
+			suppressDescription := suppressDescriptionInfo.string_
+			p.jsdocBuilder.RecordSuppressionsWithDescription(
+				jutil.NewLinkedHashSet(suppressions.ToSlice()...), suppressDescription)
+			token = suppressDescriptionInfo.token
 		} else {
-			token = p.Next()
-			// Find the suppressions' description (if applicable).
-			if p.jsdocBuilder.ShouldParseDocumentation() && token != JsDocToken_ANNOTATION {
-				suppressDescriptionInfo := p.ExtractMultilineTextualBlock(token)
-				suppressDescription := suppressDescriptionInfo.string_
-				p.jsdocBuilder.RecordSuppressionsWithDescription(
-					jutil.NewLinkedHashSet(suppressions.ToSlice()...), suppressDescription)
-				token = suppressDescriptionInfo.token
-			} else if token != JsDocToken_EOC && token != JsDocToken_EOF {
-				token = p.EatUntilEOLIfNotAnnotation()
-				p.jsdocBuilder.RecordSuppressions(suppressions)
-			}
+			token = p.EatUntilEOLIfNotAnnotationFrom(p.Next())
+			p.jsdocBuilder.RecordSuppressions(suppressions)
 		}
 		return token
 	}
@@ -1566,7 +1573,9 @@ func (p *JsDocInfoParser) ParseModifiesTag(token JsDocToken) JsDocToken {
 			p.AddParserWarning(rhino.Msg_JSDOC_MODIFIES)
 		} else {
 			token = p.Next()
-			if !p.jsdocBuilder.RecordModifies(modifies) {
+			if p.jsdocBuilder.IsNoSideEffectsRecorded() {
+				p.AddParserWarning(rhino.Msg_JSDOC_NOSIDEEFFECTS_WITH_MODIFIES)
+			} else if !p.jsdocBuilder.RecordModifies(modifies) {
 				p.AddParserWarning(rhino.Msg_JSDOC_MODIFIES_DUPLICATE)
 			}
 		}

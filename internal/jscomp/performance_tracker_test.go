@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PerformanceTrackerTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/PerformanceTrackerTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/PerformanceTrackerTest.java)
 
 /*
@@ -21,6 +21,7 @@ package jscomp
 
 import (
 	"bytes"
+	"slices"
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -183,10 +184,16 @@ DisambiguateProperties: not executed
 AmbiguateProperties: not executed
 
 Inputs:
-JS lines:   [0-9]+
-JS sources: [0-9]+
-Extern lines:   [0-9]+
-Extern sources: [0-9]+
+JS lines:\s*[0-9]+
+JS sources:\s*[0-9]+
+Extern lines:\s*[0-9]+
+Extern sources:\s*[0-9]+
+Type summary lines \(raw input\):\s*[0-9]+
+Type summary lines \(post-pruning\):\s*[0-9]+
+Type summary sources \(raw input\):\s*[0-9]+
+Type summary sources \(post-pruning\):\s*[0-9]+
+
+Dependency pruning analysis: not executed
 
 Summary:
 pass,runtime,allocMem,runs,changingRuns,astReduction,reduction,gzReduction
@@ -197,6 +204,93 @@ pass,runtime,allocMem,codeChanged,astReduction,reduction,gzReduction,astSize,siz
 `
 
 	AssertThat(report).Matches(p)
+}
+
+// Java: PerformanceTrackerTest.testDistinguishBetweenSrcExternAndIjs()
+func (c *PerformanceTrackerTest) TestDistinguishBetweenSrcExternAndIjs() {
+	// Add extern .i.js and .js nodes
+	c.emptyExternRoot.AddChildToFront(PerformanceTrackerTest_CreateExtern("externs1.js"))
+	c.emptyExternRoot.AddChildToFront(PerformanceTrackerTest_CreateExtern("externs2.js"))
+	c.emptyExternRoot.AddChildToFront(PerformanceTrackerTest_CreateExtern("externs3.js"))
+	c.emptyExternRoot.AddChildToFront(PerformanceTrackerTest_CreateTypeSummary("type_dep.js.i.js"))
+	c.emptyJsRoot.AddChildToFront(PerformanceTrackerTest_CreateScript("input1.js"))
+	c.emptyJsRoot.AddChildToFront(PerformanceTrackerTest_CreateScript("input2.js"))
+	tracker :=
+		NewPerformanceTracker(c.emptyExternRoot, c.emptyJsRoot, CompilerOptions_TracerMode_ALL)
+
+	tracker.RecordPassStart(PassNames_PARSE_INPUTS, true)
+	tracker.RecordPassStop(PassNames_PARSE_INPUTS, 0)
+	report := PerformanceTrackerTest_ExtractReport(tracker)
+
+	p := `JS lines:\s* 0
+JS sources:\s* 2
+Extern lines:\s* 0
+Extern sources:\s* 3
+Type summary lines \(raw input\):\s* 0
+Type summary lines \(post-pruning\):\s* 0
+Type summary sources \(raw input\):\s* 1
+Type summary sources \(post-pruning\):\s* 1
+`
+
+	AssertThat(report).ContainsMatch(p)
+}
+
+// Java: PerformanceTrackerTest.testRecordPrePruningInputCount_distinguishesPrunedAndNonPrunedIjs()
+func (c *PerformanceTrackerTest) TestRecordPrePruningInputCount_distinguishesPrunedAndNonPrunedIjs() {
+	// Create three type summary nodes and inputs, one of which will be pruned.
+	typeSummary1SourceFile := SourceFile_FromCode("type1.js.i.js", "")
+	typeSummary2SourceFile := SourceFile_FromCode("type2.js.i.js", "")
+	typeSummaryPrunedSourceFile :=
+		SourceFile_FromCode("type_depPruned.js.i.js", "a \n b \n c")
+	typeSummary1Input := NewCompilerInputWithInputId(typeSummary1SourceFile, rhino.NewInputId("type1.js.i.js"))
+	typeSummary2Input := NewCompilerInputWithInputId(typeSummary2SourceFile, rhino.NewInputId("type2.js.i.js"))
+	typeSummaryPrunedInput :=
+		NewCompilerInputWithInputId(typeSummaryPrunedSourceFile, rhino.NewInputId("pruned.js.i.js"))
+	c.emptyExternRoot.AddChildToFront(PerformanceTrackerTest_CreateTypeSummary("type1.js.i.js"))
+	c.emptyExternRoot.AddChildToFront(PerformanceTrackerTest_CreateTypeSummary("type2.js.i.js"))
+	tracker :=
+		NewPerformanceTracker(c.emptyExternRoot, c.emptyJsRoot, CompilerOptions_TracerMode_ALL)
+
+	tracker.RecordPassStart(PassNames_PARSE_INPUTS, true)
+	tracker.RecordPrePruningInputCount(
+		slices.Values([]*CompilerInput{typeSummary1Input, typeSummaryPrunedInput}),
+		slices.Values([]*CompilerInput{typeSummary2Input}))
+	tracker.RecordPassStop(PassNames_PARSE_INPUTS, 0)
+	report := PerformanceTrackerTest_ExtractReport(tracker)
+
+	p := `Type summary lines \(raw input\):\s* 5
+Type summary lines \(post-pruning\):\s* 0
+Type summary sources \(raw input\):\s* 3
+Type summary sources \(post-pruning\):\s* 2
+`
+
+	AssertThat(report).ContainsMatch(p)
+}
+
+// Java: PerformanceTrackerTest.createScript(String)
+func PerformanceTrackerTest_CreateScript(sourceFileName string) *rhino.Node {
+	sourceFile := SourceFile_FromCode(sourceFileName, "")
+	script := rhino.IR_Script()
+	script.SetStaticSourceFile(sourceFile)
+	return script
+}
+
+// Java: PerformanceTrackerTest.createTypeSummary(String)
+func PerformanceTrackerTest_CreateTypeSummary(sourceFileName string) *rhino.Node {
+	script := PerformanceTrackerTest_CreateScript(sourceFileName)
+	scriptInfo := rhino.JSDocInfo_Builder_()
+	scriptInfo.RecordTypeSummary()
+	script.SetJSDocInfo(scriptInfo.Build())
+	return script
+}
+
+// Java: PerformanceTrackerTest.createExtern(String)
+func PerformanceTrackerTest_CreateExtern(sourceFileName string) *rhino.Node {
+	script := PerformanceTrackerTest_CreateScript(sourceFileName)
+	scriptInfo := rhino.JSDocInfo_Builder_()
+	scriptInfo.RecordExterns()
+	script.SetJSDocInfo(scriptInfo.Build())
+	return script
 }
 
 // Java: PerformanceTrackerTest.extractReport(PerformanceTracker)

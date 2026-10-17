@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Es6RewriteModulesTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/Es6RewriteModulesTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/Es6RewriteModulesTest.java)
 
 /*
@@ -1324,4 +1324,87 @@ assert(1 < 2);
 /** @const */
 var module$testcode2 = {};
 `))
+}
+
+// Java: Es6RewriteModulesTest.testImportDot()
+func (c *Es6RewriteModulesTest) TestImportDot() {
+	c.SetModuleResolutionMode(ModuleLoader_ResolutionMode_NODE)
+	c.Test(
+		c.Srcs(
+			SourceFile_FromCode("mod/index.js", "export const foo = 1;"),
+			SourceFile_FromCode("mod/sub.js", "import {foo} from '.'; use(foo);")),
+		c.Expected(
+			SourceFile_FromCode(
+				"mod/index.js",
+				`const foo$$module$mod$index = 1;
+/** @const */ var module$mod$index = {};
+/** @const */ module$mod$index.foo = foo$$module$mod$index;
+`),
+			SourceFile_FromCode(
+				"mod/sub.js",
+				`use(foo$$module$mod$index);
+/** @const */ var module$mod$sub = {};
+`)))
+}
+
+// Java: Es6RewriteModulesTest.testImportDotDot()
+func (c *Es6RewriteModulesTest) TestImportDotDot() {
+	c.SetModuleResolutionMode(ModuleLoader_ResolutionMode_NODE)
+	c.Test(
+		c.Srcs(
+			SourceFile_FromCode("mod/index.js", "export const foo = 1;"),
+			SourceFile_FromCode("mod/sub/sub.js", "import {foo} from '..'; use(foo);")),
+		c.Expected(
+			SourceFile_FromCode(
+				"mod/index.js",
+				`const foo$$module$mod$index = 1;
+/** @const */ var module$mod$index = {};
+/** @const */ module$mod$index.foo = foo$$module$mod$index;
+`),
+			SourceFile_FromCode(
+				"mod/sub/sub.js",
+				`use(foo$$module$mod$index);
+/** @const */ var module$mod$sub$sub = {};
+`)))
+}
+
+// Java: Es6RewriteModulesTest.testEs6RenameTypeReferences()
+func (c *Es6RewriteModulesTest) TestEs6RenameTypeReferences() {
+	c.Test(
+		c.Srcs(
+			SourceFile_FromCode("mod/other.js", "export class Foo {}"),
+			SourceFile_FromCode("mod/app.js", "import {Foo} from './other.js'; /** @type {Foo} */ var x;")),
+		c.Expected(
+			SourceFile_FromCode(
+				"mod/other.js",
+				`class Foo$$module$mod$other {}
+/** @const */ var module$mod$other = {};
+/** @const */ module$mod$other.Foo = Foo$$module$mod$other;
+`),
+			SourceFile_FromCode(
+				"mod/app.js",
+				`/** @type {Foo$$module$mod$other} */
+var x$$module$mod$app;
+/** @const */ var module$mod$app = {};
+`)))
+}
+
+// Java: Es6RewriteModulesTest.testModuleRenaming()
+func (c *Es6RewriteModulesTest) TestModuleRenaming() {
+	c.Test(
+		c.Srcs(
+			SourceFile_FromCode("mod/other.js", "export class Foo {}"),
+			SourceFile_FromCode("mod/app.js", "import {Foo} from './other.js'; use(Foo);")),
+		c.Expected(
+			SourceFile_FromCode(
+				"mod/other.js",
+				`class Foo$$module$mod$other {}
+/** @const */ var module$mod$other = {};
+/** @const */ module$mod$other.Foo = Foo$$module$mod$other;
+`),
+			SourceFile_FromCode(
+				"mod/app.js",
+				`use(Foo$$module$mod$other);
+/** @const */ var module$mod$app = {};
+`)))
 }

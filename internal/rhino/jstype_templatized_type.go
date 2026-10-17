@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/jstype/TemplatizedType.java @ closure-compiler v20260415
+// Port of com/google/javascript/rhino/jstype/TemplatizedType.java @ closure-compiler v20261015
 
 /*
  *
@@ -175,12 +175,10 @@ func (t *TemplatizedType) GetGreatestSubtypeHelper(rawThat JSType) JSType {
 	jutil.CheckNotNull(rawThat)
 
 	if !t.WrapsSameRawType(rawThat) {
-		if !rawThat.IsTemplatizedType() {
-			if t.IsSubtype(rawThat) {
-				return t
-			} else if rawThat.IsSubtypeOf(t) {
-				return rawThat
-			}
+		if t.IsSubtype(rawThat) {
+			return t
+		} else if rawThat.IsSubtypeOf(t) {
+			return rawThat
 		}
 		if t.IsObject() && rawThat.IsObject() {
 			return t.GetNativeType(JSTypeNative_NO_OBJECT_TYPE)

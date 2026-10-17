@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PolymerPassTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/PolymerPassTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/PolymerPassTest.java)
 
 /*
@@ -5768,5 +5768,32 @@ if (false) {
   /** @public @type {number} */
   D.prototype.explicitProp;
 }
+`)
+}
+
+// Java: PolymerPassTest.testExportsMethodsFromClassBasedBehavior()
+func (c *PolymerPassTest) TestExportsMethodsFromClassBasedBehavior() {
+	c.Test(
+		`class PolymerBehavior {}
+class TestBehavior extends PolymerBehavior {
+  method1() {}
+}
+class PolymerBehaviorWithoutHtml {}
+class TestBehaviorWithoutHtml extends PolymerBehaviorWithoutHtml {
+  method2() {}
+}
+`,
+		`class PolymerBehavior {}
+/** @implements {PolymerTestBehaviorInterface$UID$0} */
+class TestBehavior extends PolymerBehavior {
+  method1() {}
+}
+/** @export */ TestBehavior.prototype.method1;
+class PolymerBehaviorWithoutHtml {}
+/** @implements {PolymerTestBehaviorWithoutHtmlInterface$UID$1} */
+class TestBehaviorWithoutHtml extends PolymerBehaviorWithoutHtml {
+  method2() {}
+}
+/** @export */ TestBehaviorWithoutHtml.prototype.method2;
 `)
 }
