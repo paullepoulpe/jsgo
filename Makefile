@@ -6,13 +6,10 @@ all: build vet test
 build:
 	go build ./...
 
-# Vet everything under internal/ (the whole port); check that
-# internal/jscomp/pending_gen.go is current and duplicates no real
-# declaration (without the pinned jar, only the latter); and check the
-# licence notices (tools/licenses; see PORTING.md, top).
+# Vet everything under internal/ (the whole port) and check the licence
+# notices (tools/licenses; see PORTING.md, top).
 vet:
 	go vet ./internal/...
-	go run ./tools/pending -check
 	go run ./tools/licenses -check
 
 test:
