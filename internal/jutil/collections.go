@@ -752,20 +752,21 @@ func NewObjectLinkedHashMap[K any, V any]() *ObjectLinkedHashMap[K, V] {
 }
 
 func (h *ObjectLinkedHashMap[K, V]) find(k K) (*olhmEntry[K, V], int32) {
-	hash := ObjectHashCode(k)
+	// Go-only: performance — the ...Of forms do not box String keys.
+	hash := ObjectHashCodeOf(k)
 	if h == nil {
 		return nil, hash
 	}
 	if h.buckets != nil {
 		for e := h.buckets[hash]; e != nil; e = e.hnext {
-			if ObjectsEquals(e.key, k) {
+			if ObjectsEqualsOf(e.key, k) {
 				return e, hash
 			}
 		}
 		return nil, hash
 	}
 	for e := h.head; e != nil; e = e.next {
-		if e.hash == hash && ObjectsEquals(e.key, k) {
+		if e.hash == hash && ObjectsEqualsOf(e.key, k) {
 			return e, hash
 		}
 	}

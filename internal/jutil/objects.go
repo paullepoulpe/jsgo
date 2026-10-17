@@ -68,6 +68,43 @@ func ObjectsEquals(a, b any) bool {
 	return a == b
 }
 
+// ObjectsEqualsOf is ObjectsEquals for two values of a type parameter.
+//
+// Go-only: performance — in generic code, passing a string (or an int) as
+// an interface boxes it on the heap, and ObjectsEquals then compares strings
+// through reflection. Strings and ints are compared here directly, with the
+// same result; every other type goes through ObjectsEquals. Generic
+// collections keyed by String (HamtPMap, ObjectLinkedHashMap) use it.
+func ObjectsEqualsOf[T any](a, b T) bool {
+	switch x := any(a).(type) {
+	case string:
+		y, ok := any(b).(string)
+		return ok && x == y
+	case int32:
+		y, ok := any(b).(int32)
+		return ok && x == y
+	case int:
+		y, ok := any(b).(int)
+		return ok && x == y
+	}
+	return ObjectsEquals(a, b)
+}
+
+// ObjectHashCodeOf is ObjectHashCode for a value of a type parameter.
+//
+// Go-only: performance — see ObjectsEqualsOf.
+func ObjectHashCodeOf[T any](v T) int32 {
+	switch x := any(v).(type) {
+	case string:
+		return StringHashCode(x)
+	case int32:
+		return x
+	case int:
+		return int32(x)
+	}
+	return ObjectHashCode(v)
+}
+
 // doubleBits is Double.doubleToLongBits (all NaNs collapse to one pattern).
 func doubleBits(d float64) uint64 {
 	if math.IsNaN(d) {
