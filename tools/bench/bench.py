@@ -48,6 +48,7 @@ PHASES = ["startup", "parse", "checks", "type checking", "transpilation", "optim
           "renaming", "other passes", "untraced (inside tracker)", "code printing and source maps"]
 PENDING_RE = re.compile(r"pending port: (.*?)(?: \[recovered\])*$", re.M)
 # A Go runtime crash (as opposed to Java-style diagnostics or an uncaught Java exception).
+JAVA_FRAME_RE = re.compile(r"^\t(?:at .*|\.\.\. \d+ more)$")
 CRASH_RE = re.compile(r"^(?:panic: |fatal error: )(.*?)(?: \[recovered\])*$", re.M)
 # Variables that would change the JVM's or the Go runtime's defaults.
 JAVA_ENV_DROP = ("JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS", "JDK_JAVA_OPTIONS")
@@ -340,44 +341,7 @@ class Runner:
         return total
 
     def gate(self, task, jobs, tdir, jsgo_run):
-        """Compares jsgo's first run with Java cold run 1; writes gate.json and diffs."""
-        single = len(jobs) == 1
-        ref_dir = os.path.join(tdir, "java-cold", "run-1")
-        got_dir = os.path.join(tdir, "jsgo", "run-1")
-        if not os.path.isdir(ref_dir):
-            info = {"status": "NO-REFERENCE"}
-            save(os.path.join(tdir, "gate.json"), info)
-            return None
-        counts = {"MATCH": 0, "DIFF": 0, "PENDING": 0}
-        pending_sigs, diffs, crashes = {}, [], {}
-        for j in range(len(jobs)):
-            ref = artifacts(task, ref_dir, j, single)
-            got = artifacts(task, got_dir, j, single)
-            err = read_text(got["stderr"])
-            m = PENDING_RE.search(err)
-            if m and "panic" in err:
-                counts["PENDING"] += 1
-                pending_sigs[m.group(1)] = pending_sigs.get(m.group(1), 0) + 1
-                continue
-            bad = [k for k in ref if not same_file(ref[k], got[k])]
-            if bad:
-                counts["DIFF"] += 1
-                c = CRASH_RE.search(err)
-                if c:
-                    crashes[c.group(1)] = crashes.get(c.group(1), 0) + 1
-                if len(diffs) < 20:
-                    diffs.append({"job": j, "artifacts": bad, "detail": {k: describe_diff(ref[k], got[k]) for k in bad}})
-            else:
-                counts["MATCH"] += 1
-        status = "MATCH" if counts["MATCH"] == len(jobs) else ("PENDING" if counts["PENDING"] else "DIFF")
-        info = {"status": status, "counts": counts, "pending": pending_sigs, "crashes": crashes, "diffs": diffs}
-        save(os.path.join(tdir, "gate.json"), info)
-        print(f"   gate: {status} {counts}" + (f" {next(iter(pending_sigs))}" if pending_sigs else "")
-              + (f" crashes: {crashes}" if crashes else ""), flush=True)
-        # A jsgo that crashes (or is pending) on every invocation is not timed further.
-        if status == "DIFF" and sum(crashes.values()) == len(jobs):
-            return "CRASH"
-        return status
+        return gate(task, jobs, tdir)
 
     def check_java_runs(self, task, jobs, tdir, cold):
         """Java must agree with itself: every cold run with run 1 (by digest)."""
@@ -499,6 +463,70 @@ class Runner:
             m["wall_ms"] = it["wall_ms"]
             out.append(m)
         return out
+
+
+def without_java_frames(text):
+    """stderr without the stack frames of a Java exception trace ("\tat ...", "\t... N more")."""
+    return "\n".join(l for l in text.split("\n") if not JAVA_FRAME_RE.match(l))
+
+
+def gate(task, jobs, tdir):
+    """Compares jsgo's first run with Java cold run 1, invocation by invocation, byte for byte.
+
+    Writes gate.json: the status (MATCH, DIFF or PENDING), counts, the pending signatures, Go
+    crashes, and for DIFF invocations their kind and first differences:
+      crash        jsgo died with a Go panic or fatal error;
+      java-frames  Java threw an internal exception and only its stack frames differ (jsgo prints
+                   the same exception and message, exit status and output, but not Java's frames);
+      output       anything else.
+    Returns the status, or CRASH when jsgo crashes on every invocation (it is then not timed)."""
+    single = len(jobs) == 1
+    ref_dir = os.path.join(tdir, "java-cold", "run-1")
+    got_dir = os.path.join(tdir, "jsgo", "run-1")
+    if not os.path.isdir(ref_dir):
+        save(os.path.join(tdir, "gate.json"), {"status": "NO-REFERENCE"})
+        return None
+    counts = {"MATCH": 0, "DIFF": 0, "PENDING": 0}
+    kinds = {"crash": 0, "java-frames": 0, "output": 0}
+    pending_sigs, diffs, crashes, matched = {}, [], {}, []
+    per_kind_kept = {}
+    for j in range(len(jobs)):
+        ref = artifacts(task, ref_dir, j, single)
+        got = artifacts(task, got_dir, j, single)
+        err = read_text(got["stderr"])
+        m = PENDING_RE.search(err)
+        if m and "panic" in err:
+            counts["PENDING"] += 1
+            pending_sigs[m.group(1)] = pending_sigs.get(m.group(1), 0) + 1
+            continue
+        bad = [k for k in ref if not same_file(ref[k], got[k])]
+        if not bad:
+            counts["MATCH"] += 1
+            matched.append(j)
+            continue
+        counts["DIFF"] += 1
+        c = CRASH_RE.search(err)
+        if c:
+            kind = "crash"
+            crashes[c.group(1)] = crashes.get(c.group(1), 0) + 1
+        elif bad == ["stderr"] and without_java_frames(read_text(ref["stderr"])) == without_java_frames(err):
+            kind = "java-frames"
+        else:
+            kind = "output"
+        kinds[kind] += 1
+        if per_kind_kept.get(kind, 0) < 5:
+            per_kind_kept[kind] = per_kind_kept.get(kind, 0) + 1
+            diffs.append({"job": j, "input": jobs[j][-1] if not single else None, "kind": kind, "artifacts": bad,
+                          "detail": {k: describe_diff(ref[k], got[k]) for k in bad}})
+    status = "MATCH" if counts["MATCH"] == len(jobs) else ("PENDING" if counts["PENDING"] else "DIFF")
+    info = {"status": status, "counts": counts, "diff_kinds": kinds, "pending": pending_sigs,
+            "crashes": crashes, "diffs": diffs, "matched": matched if not single else None}
+    save(os.path.join(tdir, "gate.json"), info)
+    print(f"   gate: {status} {counts}" + (f" {next(iter(pending_sigs))}" if pending_sigs else "")
+          + (f" diff kinds: {kinds}" if counts["DIFF"] else ""), flush=True)
+    if status == "DIFF" and kinds["crash"] == len(jobs):
+        return "CRASH"
+    return status
 
 
 def parse_batch_report(path):
@@ -759,6 +787,9 @@ def report(out_dir, md_path, preliminary=True):
             status_cell += f" ({c['MATCH']}/{c['DIFF']}/{c['PENDING']} match/diff/pending)"
         speed_cold = ratio(c_wall, g_wall) if status == "MATCH" else "–"
         speed_warm = ratio(w_wall, g_wall) if status == "MATCH" else "–"
+        subset = matching_subset(gate, cold, jsgo) if len(jobs) > 1 and status != "MATCH" else None
+        if subset:
+            speed_cold = f"{subset['java'] / subset['jsgo']:.2f}× (on the {subset['n']} matching)"
         rows.append(
             f"| {t['title']} | {fmt_stat(c_wall, ' s')} | {fmt_stat(c_cpu, ' s')} | {fmt_s(c_rss and c_rss['median'])} MB "
             f"| {fmt_stat(w_wall, ' s')} | {fmt_stat(w_cpu, ' s')} | {fmt_s(w_rss)} MB "
@@ -807,12 +838,26 @@ def report(out_dir, md_path, preliminary=True):
                     if frames:
                         s.append("  Its stacks also hold a pending port being unwound: "
                                  + ", ".join(f"`{f}`" for f in frames) + " (pending_gen.go).")
+            if subset:
+                s.append(f"- On the {subset['n']} invocations that match byte for byte: Java cold {subset['java']:.0f} s, "
+                         f"jsgo {subset['jsgo']:.0f} s in total (per invocation, median over runs), a "
+                         f"{subset['java'] / subset['jsgo']:.2f}× speed-up; median per invocation Java "
+                         f"{subset['java_med']:.2f} s, jsgo {subset['jsgo_med']:.2f} s.")
+            if gate.get("diff_kinds") and len(jobs) > 1:
+                s.append("- DIFF kinds: " + ", ".join(f"{v} {KIND_LABEL[k]}" for k, v in gate["diff_kinds"].items() if v)
+                         + ". Reproducers: one invocation each, the task's flags plus `--js <input>` (paths relative "
+                         "to the run directory, `corpus/` = `.cache/corpus/`).")
             if gate.get("diffs"):
-                s.append("- jsgo differs from Java" + (" (first invocations)" if len(jobs) > 1 else "") + ":")
-                for d in gate["diffs"][:5]:
-                    where = f"`{jobs[d['job']][-1]}`, " if len(jobs) > 1 else ""
+                s.append("- jsgo differs from Java" + (" (up to 5 invocations per kind)" if len(jobs) > 1 else "") + ":")
+                for d in gate["diffs"][:15]:
+                    where = f"`{jobs[d['job']][-1]}` ({d.get('kind', '?')}), " if len(jobs) > 1 else ""
                     for k, v in d["detail"].items():
+                        if len(jobs) > 1 and d.get("kind") == "java-frames":
+                            s.append(f"  - {where}{k}: only Java's stack frames differ")
+                            break
                         s.append(f"  - {where}{k}: {v}")
+                        if len(jobs) > 1 and d.get("kind") == "crash":
+                            break
             if gate.get("status") == "MATCH":
                 s.append("- jsgo: MATCH (stdout, stderr, exit status and output files byte-identical).")
         s.append("")
@@ -875,6 +920,26 @@ def pending_frames(text):
             if fn not in out:
                 out.append(fn)
     return out
+
+
+def matching_subset(gate, cold, jsgo):
+    """Java cold and jsgo wall time summed over the invocations that match (multi-invocation tasks)."""
+    m = (gate or {}).get("matched")
+    if not m or not cold or not jsgo or not jsgo.get("runs"):
+        return None
+    def per_job(runs, j):
+        return statistics.median(r["per_job"][j]["wall_s"] for r in runs if "per_job" in r)
+    try:
+        java = [per_job(cold["runs"], j) for j in m]
+        go = [per_job(jsgo["runs"], j) for j in m]
+    except (KeyError, IndexError, statistics.StatisticsError):
+        return None
+    return {"n": len(m), "java": sum(java), "jsgo": sum(go), "java_med": statistics.median(java),
+            "jsgo_med": statistics.median(go)}
+
+
+KIND_LABEL = {"crash": "Go crashes", "java-frames": "Java internal exceptions whose stack frames jsgo does not print",
+              "output": "output/diagnostic differences"}
 
 
 def gate_crashes(gate, tdir, njobs):
@@ -1016,6 +1081,9 @@ def main():
     p.add_argument("--out", required=True)
     p.add_argument("--md", help="output file (default: stdout)")
     p.add_argument("--final", action="store_true", help="omit the 'preliminary' banner")
+    g = sub.add_parser("regate", help="recompute gate.json from the stored first runs (no compiling)")
+    g.add_argument("--out", required=True)
+    g.add_argument("--tasks", help="comma-separated task names (default: all present)")
     s = sub.add_parser("sample", help="(re)generate tasks/single-files.txt")
     s.add_argument("--check", action="store_true")
     s.add_argument("--cache", default=None)
@@ -1025,6 +1093,13 @@ def main():
         text = report(a.out, a.md, preliminary=not a.final)
         if not a.md:
             print(text)
+        return
+    if a.cmd == "regate":
+        for t in load_tasks(a.tasks.split(",") if a.tasks else None):
+            tdir = os.path.join(a.out, t["name"])
+            if os.path.isdir(os.path.join(tdir, "jsgo", "run-1")):
+                print(f"== {t['name']}")
+                gate(t, load(os.path.join(tdir, "jobs.json")), tdir)
         return
     a.cache = a.cache or default_cache()
     if a.cmd == "sample":
