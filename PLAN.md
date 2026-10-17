@@ -512,3 +512,12 @@ Decided by the repository owner:
   `internal/jutil` and every other place that reproduces JDK behaviour is
   under way. Anything found to derive from JDK sources will be rewritten
   from the public specification.
+- **Order of work after the translation:**
+  1. Byte-identical parity with the Java compiler, single-threaded.
+  2. Then match and beat Java's speed (§6), still in the 1:1 structure.
+  3. Only once parity holds and test coverage is good: make the Go more
+     idiomatic and less Java-like, incrementally, for more performance,
+     each step guarded by the oracles and the benchmark correctness gate.
+
+  No goroutine parallelism for now, not even Java's opt-in
+  `--num_parallel_threads` parsing.
