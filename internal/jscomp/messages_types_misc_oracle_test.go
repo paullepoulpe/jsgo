@@ -31,6 +31,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parsing"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/tools/oracle/corpus"
 )
 
 func l11msgEscape(s string) string {
@@ -191,11 +192,16 @@ func l11msgDumpXtb(sb *strings.Builder, xtb []byte) {
 	}
 }
 
-// l11msgJavaClassName is the Java class name of an exception (the text
-// before ": " in Throwable.toString()).
+// l11msgJavaClassName is the Java class name of an exception: the start of
+// Throwable.toString(), up to ": " (or "; " for SAXParseException, whose
+// toString() goes on with "; lineNumber: ..."). Java class names contain
+// neither ':' nor ';'.
 func l11msgJavaClassName(e jutil.Throwable) string {
-	name, _, _ := strings.Cut(e.Error(), ": ")
-	return name
+	s := e.Error()
+	if i := strings.IndexAny(s, ":;"); i >= 0 {
+		return s[:i]
+	}
+	return s
 }
 
 // l11msgThrowableMessage is escape(e.getMessage()).
@@ -463,7 +469,6 @@ func l11msgSkipOnPending(t *testing.T) {
 // TestXtbMessageBundleOracle compares XtbMessageBundle on testdata/xtb with
 // the pinned Java class (testdata/xtb/expected.txt).
 func TestXtbMessageBundleOracle(t *testing.T) {
-	t.Skip("XtbMessageBundle needs jutil's SAX parser, which is not implemented (see internal/jutil/sax_parser.go)")
 	files, _ := filepath.Glob("testdata/xtb/*.xtb")
 	sort.Strings(files)
 	got := map[string]string{}
@@ -524,17 +529,13 @@ func l11msgRunCorpusMode(t *testing.T, mode string, root string, files []string,
 	l11msgCompareSections(t, mode, want, got, maxDiffs)
 }
 
+// l11msgReadList reads a file list, without the files of
+// tools/oracle/gpl-excluded-corpus.txt.
 func l11msgReadList(t *testing.T, path string) []string {
 	t.Helper()
-	data, err := os.ReadFile(path)
+	files, err := corpus.ReadList(path)
 	if err != nil {
 		t.Fatal(err)
-	}
-	var files []string
-	for _, l := range strings.Split(string(data), "\n") {
-		if l != "" {
-			files = append(files, l)
-		}
 	}
 	return files
 }

@@ -89,6 +89,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.zip.GZIPOutputStream;
+import jsgo.oracle.CorpusExclusions;
 
 public final class ScopeDump {
   public static void main(String[] args) throws Exception {
@@ -107,6 +108,7 @@ public final class ScopeDump {
         files.add(f);
       }
     }
+    CorpusExclusions.removeFrom(files); // tools/oracle/gpl-excluded-corpus.txt
     try (OutputStream os = new GZIPOutputStream(Files.newOutputStream(out))) {
       for (String rel : files) {
         StringBuilder sb = new StringBuilder();

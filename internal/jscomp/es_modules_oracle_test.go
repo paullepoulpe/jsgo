@@ -30,7 +30,6 @@ package jscomp
 // ES_MODULES_SECTIONS, only those sections of the Java output are compared.
 
 import (
-	"bufio"
 	"compress/gzip"
 	"crypto/sha256"
 	"fmt"
@@ -44,6 +43,7 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/tools/oracle/corpus"
 )
 
 var esModulesAllSections = []string{
@@ -406,21 +406,15 @@ func esModulesReadGz(t *testing.T, path string) string {
 	return string(b)
 }
 
+// esModulesReadList reads a file list, without the files of
+// tools/oracle/gpl-excluded-corpus.txt.
 func esModulesReadList(t *testing.T, path string) []string {
 	t.Helper()
-	f, err := os.Open(path)
+	files, err := corpus.ReadList(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
-	var out []string
-	s := bufio.NewScanner(f)
-	for s.Scan() {
-		if l := s.Text(); l != "" {
-			out = append(out, l)
-		}
-	}
-	return out
+	return files
 }
 
 // esModulesCompare dumps every file and compares it with its Java section.

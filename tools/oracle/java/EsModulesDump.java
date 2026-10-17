@@ -88,6 +88,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.zip.GZIPOutputStream;
+import jsgo.oracle.CorpusExclusions;
 
 public final class EsModulesDump {
 
@@ -135,6 +136,7 @@ public final class EsModulesDump {
     Path out = Paths.get(rest.get(0));
     Path root = Paths.get(rest.get(1));
     files.addAll(rest.subList(2, rest.size()));
+    CorpusExclusions.removeFrom(files); // tools/oracle/gpl-excluded-corpus.txt
     try (OutputStream os = new GZIPOutputStream(Files.newOutputStream(out), true)) {
       int index = 0;
       for (String rel : files) {

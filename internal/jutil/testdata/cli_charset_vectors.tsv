@@ -1,0 +1,61 @@
+US-ASCII	61c3a962	613f62613f62
+US-ASCII	78f09d92b379	783f79783f79
+US-ASCII	703f71	703f71703f71
+US-ASCII	3f7a	3f7a3f7a
+US-ASCII	e282ac	3f3f
+US-ASCII		
+ISO-8859-1	61c3a962	61e96261e962
+ISO-8859-1	78f09d92b379	783f79783f79
+ISO-8859-1	703f71	703f71703f71
+ISO-8859-1	3f7a	3f7a3f7a
+ISO-8859-1	e282ac	3f3f
+ISO-8859-1		
+UTF-8	61c3a962	61c3a96261c3a962
+UTF-8	78f09d92b379	78f09d92b37978f09d92b379
+UTF-8	703f71	703f71703f71
+UTF-8	3f7a	3f7a3f7a
+UTF-8	e282ac	e282ace282ac
+UTF-8		
+UTF-16	61c3a962	feff006100e90062006100e90062
+UTF-16	78f09d92b379	feff0078d835dcb300790078d835dcb30079
+UTF-16	703f71	feff0070fffd00710070fffd0071
+UTF-16	3f7a	fefffffd007afffd007a
+UTF-16	e282ac	feff20ac20ac
+UTF-16		
+UTF-16BE	61c3a962	006100e90062006100e90062
+UTF-16BE	78f09d92b379	0078d835dcb300790078d835dcb30079
+UTF-16BE	703f71	0070fffd00710070fffd0071
+UTF-16BE	3f7a	fffd007afffd007a
+UTF-16BE	e282ac	20ac20ac
+UTF-16BE		
+UTF-16LE	61c3a962	6100e90062006100e9006200
+UTF-16LE	78f09d92b379	780035d8b3dc7900780035d8b3dc7900
+UTF-16LE	703f71	7000fdff71007000fdff7100
+UTF-16LE	3f7a	fdff7a00fdff7a00
+UTF-16LE	e282ac	ac20ac20
+UTF-16LE		
+isSupported		java.nio.charset.IllegalCharsetNameException: 
+isSupported	a b	java.nio.charset.IllegalCharsetNameException: a b
+isSupported	-x	java.nio.charset.IllegalCharsetNameException: -x
+isSupported	x-	false
+isSupported	utf8	true
+isSupported	UTF8	true
+isSupported	latin1	true
+isSupported	windows-1252	true
+isSupported	foo	false
+isSupported	1a	false
+isSupported	a:b	false
+isSupported	a_b	false
+isSupported	?	java.nio.charset.IllegalCharsetNameException: ?
+level	WARNING	WARNING/900
+level	warning	java.lang.IllegalArgumentException: Bad level "warning"
+level	OFF	OFF/2147483647
+level	ALL	ALL/-2147483648
+level	FINEST	FINEST/300
+level	1000	SEVERE/1000
+level	900	WARNING/900
+level	123	123/123
+level	-5	-5/-5
+level	x	java.lang.IllegalArgumentException: Bad level "x"
+level		java.lang.IllegalArgumentException: Bad level ""
+level	 INFO	java.lang.IllegalArgumentException: Bad level " INFO"

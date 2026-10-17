@@ -13,11 +13,16 @@ import (
 // resourceLoader_classpath holds the classpath resources that
 // ResourceLoader's callers read: com/google/javascript/jscomp/js/** of the
 // pinned closure-compiler jar (polyfills.txt, transpilation_libs.txt and the
-// runtime library .js files), extracted with their original paths.
+// runtime library .js files), extracted with their original paths, and the
+// jar's root-level externs.zip (the builtin externs that
+// AbstractCommandLineRunner.getBuiltinExterns reads) and
+// /runtime_libs.typedast (the precompiled runtime libraries that
+// Compiler.initRuntimeLibraryTypedAsts reads through
+// Class.getResourceAsStream).
 //
 // Go-only: language-adapter — classpath resources via go:embed.
 //
-//go:embed com
+//go:embed com externs.zip runtime_libs.typedast
 var resourceLoader_classpath embed.FS
 
 // ResourceLoader loads text resources from the classpath.

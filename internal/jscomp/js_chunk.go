@@ -30,8 +30,9 @@ import (
 //
 // Go-only: language-adapter — readObject(ObjectInputStream), the
 // java.io.Serializable hook that re-creates the transient input map after
-// deserialization, has no Go counterpart: Go has no Java object
-// serialization.
+// deserialization, is ReadObject(), which Compiler's ObjectInputStream
+// adapter (compiler_readObject) calls on every chunk of a restored
+// CompilerState.
 type JSChunk struct {
 	// Chunk name
 	name string
@@ -372,4 +373,16 @@ func (c *JSChunk) SetIndex(index int) {
 // Java: JSChunk.getIndex()
 func (c *JSChunk) GetIndex() int {
 	return c.index
+}
+
+// ReadObject is the deserialization hook: after defaultReadObject, the
+// transient input map is a new empty one (CompilerInputs must be explicitly
+// added to the JSChunk again after deserialization).
+//
+// Go-only: language-adapter — there is no ObjectInputStream; see the type
+// comment.
+//
+// Java: JSChunk.readObject(ObjectInputStream)
+func (c *JSChunk) ReadObject() {
+	c.inputs = jutil.NewLinkedHashMap[string, *CompilerInput]()
 }

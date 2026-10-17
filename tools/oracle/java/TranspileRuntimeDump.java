@@ -123,6 +123,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.zip.CRC32;
 import java.util.zip.GZIPOutputStream;
+import jsgo.oracle.CorpusExclusions;
 
 public final class TranspileRuntimeDump {
   static final String[] ALL_SECTIONS = {
@@ -161,6 +162,7 @@ public final class TranspileRuntimeDump {
         files.add(f);
       }
     }
+    CorpusExclusions.removeFrom(files); // tools/oracle/gpl-excluded-corpus.txt
     try (OutputStream os = new GZIPOutputStream(Files.newOutputStream(outPath))) {
       out = new OutputStreamWriter(os, StandardCharsets.UTF_8);
       for (String rel : files) {

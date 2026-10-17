@@ -99,11 +99,7 @@ func (w *WritingLogFile) LogJsonProducer(producer LogFile_StreamedJsonProducer) 
 		// Java: try (JsonWriter writer = new JsonWriter(this.writer)) { producer.writeJson(writer); }
 		writer := jutil.NewJsonWriter(w.writer)
 		closeWriter := func() {
-			// Go-only: language-adapter — Java's JsonWriter.close() first
-			// closes its Writer; jutil.JsonWriter writes to an
-			// io.StringWriter, so the BufferedWriter is closed here.
-			w.writer.Close()
-			writer.Close()
+			writer.Close() // also closes this.writer, as Java's JsonWriter.close() does
 		}
 		completed := false
 		defer func() {

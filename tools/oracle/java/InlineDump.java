@@ -84,6 +84,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.zip.GZIPOutputStream;
+import jsgo.oracle.CorpusExclusions;
 
 public final class InlineDump {
 
@@ -126,6 +127,7 @@ public final class InlineDump {
     Path out = Paths.get(rest.get(0));
     Path root = Paths.get(rest.get(1));
     files.addAll(rest.subList(2, rest.size()));
+    CorpusExclusions.removeFrom(files); // tools/oracle/gpl-excluded-corpus.txt
     try (OutputStream os = new GZIPOutputStream(Files.newOutputStream(out))) {
       int index = 0;
       for (String rel : files) {

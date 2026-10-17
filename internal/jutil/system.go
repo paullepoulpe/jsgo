@@ -1,6 +1,7 @@
 package jutil
 
 import (
+	"io"
 	"os"
 	"sync"
 )
@@ -41,4 +42,15 @@ func System_SetErr(err *PrintStream) {
 	system_mu.Lock()
 	defer system_mu.Unlock()
 	system_err = err
+}
+
+// System_Exit is System.exit(int): terminates the process with the given
+// status (the shell sees its low 8 bits).
+func System_Exit(status int) {
+	os.Exit(status)
+}
+
+// System_In is System.in: the process's standard input.
+func System_In() io.Reader {
+	return os.Stdin
 }

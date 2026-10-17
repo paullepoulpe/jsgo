@@ -37,6 +37,7 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/tools/oracle/corpus"
 )
 
 const infraCorpusRoot = "/home/user/jsgo/.cache/corpus"
@@ -775,11 +776,9 @@ func TestInfraDumpGolden(t *testing.T) {
 	defer SkipIfPendingPort(t) // new Compiler() needs ClosureCodingConvention
 	jsDir := filepath.Join("testdata", "infra", "js")
 	golden := map[string]bool{}
-	if data, err := os.ReadFile(filepath.Join("testdata", "infra", "golden-files.txt")); err == nil {
-		for _, l := range strings.Split(string(data), "\n") {
-			if l != "" {
-				golden[l] = true
-			}
+	if files, err := corpus.ReadList(filepath.Join("testdata", "infra", "golden-files.txt")); err == nil {
+		for _, l := range files {
+			golden[l] = true
 		}
 	}
 	_, corpusErr := os.Stat(infraCorpusRoot)

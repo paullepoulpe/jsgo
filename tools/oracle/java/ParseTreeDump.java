@@ -54,6 +54,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.GZIPOutputStream;
+import jsgo.oracle.CorpusExclusions;
 
 public final class ParseTreeDump {
   private static Parser.Config parserConfig;
@@ -79,6 +80,7 @@ public final class ParseTreeDump {
     }
     // Run in a thread with a large stack: Java reports "Too deep recursion while parsing" on
     // StackOverflowError, which the Go port cannot reproduce (Go stack exhaustion is fatal).
+    CorpusExclusions.removeFrom(rest.subList(2, rest.size())); // tools/oracle/gpl-excluded-corpus.txt
     final boolean gz = gzip;
     Thread t =
         new Thread(

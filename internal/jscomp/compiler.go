@@ -1414,7 +1414,7 @@ func (c *Compiler) InstrumentForCoverage() {
 func (c *Compiler) instrumentForCoverageInternal(instrumentForCoverageOption CompilerOptions_InstrumentOption) {
 	tracer := c.NewTracer("instrumentationPass")
 	c.Process(
-		NewCoverageInstrumentationPass(
+		NewCoverageInstrumentationPassWithInstrumentOption(
 			c,
 			CoverageInstrumentationPass_CoverageReach_ALL,
 			instrumentForCoverageOption,
@@ -2182,23 +2182,23 @@ func (c *Compiler) BuildKnownSymbolTable() *SymbolTable {
 	symbolTable := NewSymbolTable(c, c.GetTypeRegistry())
 
 	if c.typedScopeCreator != nil {
-		symbolTable.AddScopes(c.typedScopeCreator.GetAllMemoizedScopes())
-		symbolTable.AddSymbolsFrom(c.typedScopeCreator)
+		SymbolTable_AddScopes(symbolTable, c.typedScopeCreator.GetAllMemoizedScopes())
+		SymbolTable_AddSymbolsFrom[*TypedVar, *TypedVar](symbolTable, c.typedScopeCreator)
 	} else {
 		symbolTable.FindScopes(c.externsRoot, c.jsRoot)
 	}
 
 	globalNamespace := NewGlobalNamespaceWithRoots(c, c.externsRoot, c.jsRoot)
-	symbolTable.AddSymbolsFrom(globalNamespace)
+	SymbolTable_AddSymbolsFrom[*GlobalNamespace_Name, *GlobalNamespace_Ref](symbolTable, globalNamespace)
 
 	refCollector := NewReferenceCollector(
 		c, ReferenceCollector_DO_NOTHING_BEHAVIOR, NewSyntacticScopeCreator(c))
 	refCollector.ProcessRoot(c.GetRoot())
-	symbolTable.AddSymbolsFrom(refCollector)
+	SymbolTable_AddSymbolsFrom(symbolTable, refCollector.AsStaticSymbolTable())
 
 	preprocessorSymbolTable := c.EnsureDefaultPassConfig().GetPreprocessorSymbolTable()
 	if preprocessorSymbolTable != nil {
-		symbolTable.AddSymbolsFrom(preprocessorSymbolTable)
+		SymbolTable_AddSymbolsFrom[rhino.SimpleSlot, *PreprocessorSymbolTable_Reference](symbolTable, preprocessorSymbolTable)
 	}
 
 	symbolTable.FlattenGoogModuleExports()
@@ -4662,7 +4662,14 @@ func compiler_mapJsChunksToInputIds(jsChunks []*JSChunk) *jutil.LinkedHashMap[*J
 // to the stream with ObjectOutputStream (Java serialization, which Go
 // lacks). The port writes a key that RestoreState reads back; the object
 // graph is shared, not copied, which the multistage callers (that restore
-// into a fresh Compiler and drop the old one) cannot observe.
+// into a fresh Compiler and drop the old one) cannot observe, except
+// through the deserialization hooks (JSChunk.readObject resets the
+// chunks' inputs), which compiler_readObject runs. Because those hooks and
+// restoreState then mutate the shared graph, a state can be read back only
+// once, and compiler_readObject removes it from the table: a second read of
+// the same bytes fails with an IOException rather than returning the
+// mutated graph, and the table does not keep every restored compilation
+// (its chunks' new inputs, and through them the Compiler) reachable.
 var (
 	compiler_savedStatesMu sync.Mutex
 	compiler_savedStates   = map[int64]*Compiler_CompilerState{}
@@ -4728,6 +4735,15 @@ func compiler_readObject(in io.Reader) *Compiler_CompilerState {
 	state, ok := compiler_savedStates[key]
 	if !ok {
 		panic(jutil.NewIOException(fmt.Sprintf("no saved CompilerState %d", key)))
+	}
+	delete(compiler_savedStates, key)
+	// The readObject hooks of the classes in the state: JSChunk's re-creates
+	// its transient input map (restoreState adds the new inputs to the
+	// deserialized chunks).
+	if state.chunkGraph != nil {
+		for _, chunk := range state.chunkGraph.GetAllChunks() {
+			chunk.ReadObject()
+		}
 	}
 	return state
 }

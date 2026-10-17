@@ -50,6 +50,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/tools/oracle/corpus"
 )
 
 // silentParserReporter drops the parser's own diagnostics (JsDocDump does).
@@ -624,6 +625,7 @@ func TestJsDocDumpOracle(t *testing.T) {
 		})
 		sort.Strings(rels)
 	}
+	rels = corpus.Filter(rels) // tools/oracle/gpl-excluded-corpus.txt
 	diffDir := os.Getenv("JSDOC_DIFF_DIR")
 	type result struct {
 		rel, diff, got string

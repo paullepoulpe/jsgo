@@ -288,10 +288,10 @@ func TestUTF16TextVectors(t *testing.T) {
 		if got := escVector(cs.Decode(b)); got != r[2] {
 			t.Errorf("new String(%s, %s) = %q, want %q", r[1], r[0], got, r[2])
 		}
-		s, malformed := cs.decode(b, true)
+		s, bad := cs.impl().decode(b, true)
 		strict := escVector(s)
-		if malformed > 0 {
-			strict = "MALFORMED:" + strconv.Itoa(malformed)
+		if bad.length > 0 {
+			strict = "MALFORMED:" + strconv.Itoa(bad.length)
 		}
 		if strict != r[3] {
 			t.Errorf("strict decode of %s as %s = %q, want %q", r[1], r[0], strict, r[3])

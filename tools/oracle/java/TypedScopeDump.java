@@ -65,6 +65,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.zip.GZIPOutputStream;
+import jsgo.oracle.CorpusExclusions;
 
 public final class TypedScopeDump {
   static final String BASELINE = "<baseline>";
@@ -86,6 +87,7 @@ public final class TypedScopeDump {
         files.add(f);
       }
     }
+    CorpusExclusions.removeFrom(files); // tools/oracle/gpl-excluded-corpus.txt
     try (OutputStream os = new GZIPOutputStream(Files.newOutputStream(out))) {
       Set<String> baseline = new HashSet<>();
       List<String> lines =

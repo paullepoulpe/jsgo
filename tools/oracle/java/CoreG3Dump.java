@@ -81,6 +81,7 @@ import java.util.Random;
 import java.util.function.BiConsumer;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPOutputStream;
+import jsgo.oracle.CorpusExclusions;
 
 public final class CoreG3Dump {
   private static PrintStream out;
@@ -675,6 +676,7 @@ public final class CoreG3Dump {
         files.add(args[i]);
       }
     }
+    CorpusExclusions.removeFrom(files); // tools/oracle/gpl-excluded-corpus.txt
     for (String rel : files) {
       if (rel.isEmpty()) {
         continue;

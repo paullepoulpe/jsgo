@@ -1,0 +1,1555 @@
+=== J2clPassTest-000.input.js 193
+class Arrays {
+  static $create() { return 1; }
+  static $init() { return 2; }
+  static $instanceIsOfType() { return 3; }
+  static $castTo() { return 4; }
+  static $stampType() { return 5; }
+}
+
+=== J2clPassTest-001.input.js 136
+alert(Arrays.$create());
+alert(Arrays.$init());
+alert(Arrays.$instanceIsOfType());
+alert(Arrays.$castTo());
+alert(Arrays.$stampType());
+
+=== J2clPassTest-002.input.js 50
+alert(1);
+alert(2);
+alert(3);
+alert(4);
+alert(5);
+
+=== J2clPassTest-003.input.js 45
+class Casts {
+  static $to() { return 1; }
+}
+
+=== J2clPassTest-004.input.js 20
+alert(Casts.$to());
+
+=== J2clPassTest-005.input.js 112
+class FooInterface {
+  static $markImplementor(classDef) {
+    classDef.$implements__FooInterface = true;
+  }
+}
+
+=== J2clPassTest-006.input.js 81
+/** @constructor */
+var Foo = function() {};
+FooInterface.$markImplementor(Foo);
+
+=== J2clPassTest-007.input.js 85
+/** @constructor */
+var Foo = function() {};
+{Foo.$implements__FooInterface = true;}
+
+=== J2clPassTest-008.input.js 212
+var $jscomp = {};
+$jscomp.scope = {};
+$jscomp.scope.Arrays = class {;
+  static $create() { return 1; }
+  static $init() { return 2; }
+  static $instanceIsOfType() { return 3; }
+  static $castTo() { return 4; }
+}
+
+=== J2clPassTest-009.input.js 164
+alert($jscomp.scope.Arrays.$create());
+alert($jscomp.scope.Arrays.$init());
+alert($jscomp.scope.Arrays.$instanceIsOfType());
+alert($jscomp.scope.Arrays.$castTo());
+
+=== J2clPassTest-010.input.js 40
+alert(1);
+alert(2);
+alert(3);
+alert(4);
+
+=== J2clPassTest-011.input.js 99
+var $jscomp = {};
+$jscomp.scope = {};
+$jscomp.scope.Casts = class {
+  static $to() { return 1; }
+}
+
+=== J2clPassTest-012.input.js 34
+alert($jscomp.scope.Casts.$to());
+
+=== J2clPassTest-013.input.js 166
+var $jscomp = {};
+$jscomp.scope = {};
+$jscomp.scope.FooInterface = class {
+  static $markImplementor(classDef) {
+    classDef.$implements__FooInterface = true;
+  }
+}
+
+=== J2clPassTest-014.input.js 99
+$jscomp.scope.Foo = function() {};
+$jscomp.scope.FooInterface.$markImplementor($jscomp.scope.Foo);
+
+=== J2clPassTest-015.input.js 89
+$jscomp.scope.Foo = function() {};
+{$jscomp.scope.Foo.$implements__FooInterface = true;}
+
+=== J2clPassTest-016.Arrays.impl.java.js 80
+var Arrays = class {
+  static fooBar() { return 4; }
+}
+
+alert(Arrays.fooBar());
+
+=== J2clPassTest-017.Casts.impl.java.js 78
+var Casts = class {
+  static fooBar() { return 4; }
+}
+
+alert(Casts.fooBar());
+
+=== J2clPassTest-018.Arrays.impl.java.js 245
+var $create = function() { return 1; }
+var $init = function() { return 2; }
+var $instanceIsOfType = function() { return 3; }
+var $castTo = function() { return 4; }
+
+alert($create());
+alert($init());
+alert($instanceIsOfType());
+alert($castTo());
+
+=== J2clPassTest-019.Casts.impl.java.js 48
+var to = function() { return 1; }
+
+alert(to());
+
+=== J2clPassTest-020.Foo.impl.java.js 140
+var $markImplementor = function(classDef) {
+  classDef.$implements__FooInterface = true;
+}
+
+var Foo = function() {};
+$markImplementor(Foo);
+
+=== J2clPassTest-021.Arrays2.impl.java.js 313
+var Arrays = function() {};
+Arrays.$create = function() { return 1; }
+Arrays.$init = function() { return 2; }
+Arrays.$instanceIsOfType = function() { return 3; }
+Arrays.$castTo = function() { return 4; }
+
+alert(Arrays.$create());
+alert(Arrays.$init());
+alert(Arrays.$instanceIsOfType());
+alert(Arrays.$castTo());
+
+=== J2clPassTest-022.Casts2.impl.java.js 83
+var Casts = function() {};
+Casts.to = function() { return 1; }
+
+alert(Casts.to());
+
+=== J2clPassTest-023.Casts.impl.java.js 125
+var Casts = function() {};
+Casts.$to = function(instance) { return instance; }
+
+alert(Casts.$to(function(a) { return a; }));
+
+=== J2clPassTest-024.Casts.impl.java.js 114
+var Casts = function() {};
+Casts.$to = function(instance) { return instance; }
+
+alert(function(a) { return a; });
+
+=== J2clClinitPrunerPassTest-000.input.js 146
+var someClass = {};
+someClass.$clinit = function() {}
+someClass.someOtherFunction = function() {
+  someClass.$clinit();
+  someClass.$clinit();
+};
+
+=== J2clClinitPrunerPassTest-001.input.js 123
+var someClass = {};
+someClass.$clinit = function() {}
+someClass.someOtherFunction = function() {
+  someClass.$clinit();
+};
+
+=== J2clClinitPrunerPassTest-002.input.js 162
+var someClass = {};
+someClass.$clinit = function() {}
+someClass.someOtherFunction = function() {
+  (someClass.$clinit(), true);
+  (someClass.$clinit(), true);
+};
+
+=== J2clClinitPrunerPassTest-003.input.js 149
+var someClass = {};
+someClass.$clinit = function() {}
+someClass.someOtherFunction = function() {
+  (someClass.$clinit(), true);
+  (void 0, true);
+};
+
+=== J2clClinitPrunerPassTest-004.input.js 646
+var someClass = {};
+someClass.$clinit = function() {}
+someClass.someOtherFunction = function() {
+  someClass.$clinit();
+  if (true) {
+    someClass.$clinit();
+    while(true) {
+      someClass.$clinit();
+    }
+  } else {
+    someClass.$clinit();
+  }
+  var a = (someClass.$clinit(), true) ? (someClass.$clinit(), void 0) : void 0;
+  var b = function() { someClass.$clinit(); };
+  var c = function c() { someClass.$clinit(); };
+  var d = function*() { someClass.$clinit(); };
+  var e = async function() { someClass.$clinit(); };
+  var f = () => { someClass.$clinit(); };
+  [].forEach(function() { someClass.$clinit(); });
+  someClass.$clinit();
+};
+
+=== J2clClinitPrunerPassTest-005.input.js 388
+var someClass = {};
+someClass.$clinit = function() {}
+someClass.someOtherFunction = function() {
+  someClass.$clinit();
+  if (true) {
+    while(true) {
+    }
+  } else {
+  }
+  var a = (void 0, true) ? (void 0, void 0) : void 0;
+  var b = function() {};
+  var c = function c() {};
+  var d = function*() {};
+  var e = async function() {};
+  var f = () => {};
+  [].forEach(function() {});
+};
+
+=== J2clClinitPrunerPassTest-006.input.js 79
+var someClass = {};
+someClass.$clinit = function() {
+  someClass.$clinit();
+};
+
+=== J2clClinitPrunerPassTest-007.input.js 54
+var someClass = {};
+someClass.$clinit = function() {}
+
+=== J2clClinitPrunerPassTest-008.input.js 58
+function someClass$$0clinit() {
+  someClass$$0clinit();
+}
+
+=== J2clClinitPrunerPassTest-009.input.js 32
+function someClass$$0clinit() {}
+=== J2clClinitPrunerPassTest-010.input.js 211
+var someClass = {};
+someClass.$clinit = function() {}
+someClass.someOtherFunction = function() {
+  myFunc();
+  someClass.$clinit();
+  function myFunc() {
+    someClass.$clinit();
+    someClass.$clinit();
+  }
+};
+
+=== J2clClinitPrunerPassTest-011.input.js 272
+var someClass = {};
+someClass.$clinit = function() {}
+someClass.someOtherFunction = function() {
+  myFunc();
+// Control flow analysis doesn't understand that this was already called in `myFunc`.
+  someClass.$clinit();
+  function myFunc() {
+    someClass.$clinit();
+  }
+};
+
+=== J2clClinitPrunerPassTest-012.input.js 201
+var someClass = {};
+someClass.$clinit = function() {}
+someClass.someOtherFunction = function(p=someClass.$clinit()) {
+  var { x = someClass.$clinit() } = someClass.$clinit();
+  someClass.$clinit();
+};
+
+=== J2clClinitPrunerPassTest-013.input.js 178
+var someClass = {};
+someClass.$clinit = function() {}
+someClass.someOtherFunction = function(p=someClass.$clinit()) {
+  var { x = someClass.$clinit() } = someClass.$clinit();
+};
+
+=== J2clClinitPrunerPassTest-014.input.js 788
+var someClass = {};
+someClass.$clinit = function() {}
+someClass.anotherMethod = function() {
+  (false && someClass.$clinit());
+  (true || someClass.$clinit());
+  if (true) {
+    someClass.$clinit();
+  } else {
+    someClass.$clinit();
+  }
+  while(false) {
+    someClass.$clinit();
+  }
+  for(;false;) {
+    someClass.$clinit();
+  }
+  try {
+    someClass.$clinit();
+  } catch(e) {
+    someClass.$clinit();
+  }
+  switch(2) {
+    case 1: someClass.$clinit(); break;
+    case 2: break;
+    default: someClass.$clinit();
+  }
+  var a = true ? (someClass.$clinit(), void 0) : void 0;
+  var b = function() { someClass.$clinit(); }
+  var c = function*() { someClass.$clinit(); }
+  var d = async function() { someClass.$clinit(); }
+  var e = () => { someClass.$clinit(); }
+  someClass.$clinit();
+};
+
+=== J2clClinitPrunerPassTest-015.file1 75
+var someClass = {};
+someClass.$clinit = function() {}
+someClass.$clinit();
+
+=== J2clClinitPrunerPassTest-016.file2 20
+someClass.$clinit();
+=== J2clClinitPrunerPassTest-017.input.js 107
+var Foo = function() {
+  Foo.$clinit();
+};
+Foo.ctor = function() {
+  Foo.$clinit();
+  return new Foo();
+};
+
+=== J2clClinitPrunerPassTest-018.input.js 90
+var Foo = function() {
+  Foo.$clinit();
+};
+Foo.ctor = function() {
+  return new Foo();
+};
+
+=== J2clClinitPrunerPassTest-019.input.js 118
+class Foo {
+  constructor(){
+    Foo.$clinit();
+  }
+  static ctor() {
+    Foo.$clinit();
+    return new Foo();
+  }
+};
+
+=== J2clClinitPrunerPassTest-020.input.js 99
+class Foo {
+  constructor(){
+    Foo.$clinit();
+  }
+  static ctor() {
+    return new Foo();
+  }
+};
+
+=== J2clClinitPrunerPassTest-021.input.js 103
+var foo = function() {
+  Foo.$clinit();
+};
+Foo.ctor = function() {
+  Foo.$clinit();
+  return foo();
+};
+
+=== J2clClinitPrunerPassTest-022.input.js 86
+var foo = function() {
+  Foo.$clinit();
+};
+Foo.ctor = function() {
+  return foo();
+};
+
+=== J2clClinitPrunerPassTest-023.input.js 116
+class Foo {
+  static bar(){
+    Foo.$clinit();
+  }
+  static zoo() {
+    Foo.$clinit();
+    return Foo.bar();
+  }
+};
+
+=== J2clClinitPrunerPassTest-024.input.js 93
+class Foo {
+  static bar(){
+    Foo.$clinit();
+  }
+  static zoo() {
+    return bar();
+  }
+};
+
+=== J2clClinitPrunerPassTest-025.input.js 96
+var foo = function() {
+  Foo.$clinit();
+};
+Foo.ctor = function() {
+  Foo.$clinit();
+  foo();
+};
+
+=== J2clClinitPrunerPassTest-026.input.js 79
+var foo = function() {
+  Foo.$clinit();
+};
+Foo.ctor = function() {
+  foo();
+};
+
+=== J2clClinitPrunerPassTest-027.input.js 104
+var foo = function() {
+  Foo.$clinit();
+};
+Foo.ctor = function() {
+  Foo.$clinit();
+  var x = foo();
+};
+
+=== J2clClinitPrunerPassTest-028.input.js 87
+var foo = function() {
+  Foo.$clinit();
+};
+Foo.ctor = function() {
+  var x = foo();
+};
+
+=== J2clClinitPrunerPassTest-029.input.js 104
+var foo = function() {
+  Foo.$clinit();
+};
+Foo.ctor = function() {
+  Foo.$clinit();
+  let x = foo();
+};
+
+=== J2clClinitPrunerPassTest-030.input.js 87
+var foo = function() {
+  Foo.$clinit();
+};
+Foo.ctor = function() {
+  let x = foo();
+};
+
+=== J2clClinitPrunerPassTest-031.input.js 106
+var foo = function() {
+  Foo.$clinit();
+};
+Foo.ctor = function() {
+  Foo.$clinit();
+  const x = foo();
+};
+
+=== J2clClinitPrunerPassTest-032.input.js 89
+var foo = function() {
+  Foo.$clinit();
+};
+Foo.ctor = function() {
+  const x = foo();
+};
+
+=== J2clClinitPrunerPassTest-033.input.js 109
+var Foo = function(a) {
+  Foo.$clinit();
+};
+Foo.ctor = function() {
+  Foo.$clinit();
+  return new Foo(1);
+};
+
+=== J2clClinitPrunerPassTest-034.input.js 92
+var Foo = function(a) {
+  Foo.$clinit();
+};
+Foo.ctor = function() {
+  return new Foo(1);
+};
+
+=== J2clClinitPrunerPassTest-035.input.js 116
+var Foo = function(a, b) {
+  Foo.$clinit();
+};
+Foo.ctor = function(a) {
+  Foo.$clinit();
+  return new Foo(a, 1);
+};
+
+=== J2clClinitPrunerPassTest-036.input.js 99
+var Foo = function(a, b) {
+  Foo.$clinit();
+};
+Foo.ctor = function(a) {
+  return new Foo(a, 1);
+};
+
+=== J2clClinitPrunerPassTest-037.input.js 145
+var Foo = function(a) {
+  Foo.$clinit();
+};
+Foo.STATIC_VAR = null;
+Foo.ctor = function() {
+  Foo.$clinit();
+  return new Foo(Foo.STATIC_VAR);
+};
+
+=== J2clClinitPrunerPassTest-038.input.js 108
+var Foo = function() {
+  Foo1.$clinit();
+};
+Foo.ctor = function() {
+  Foo.$clinit();
+  return new Foo();
+};
+
+=== J2clClinitPrunerPassTest-039.input.js 120
+var Foo = function() {
+  var x = 1;
+  Foo.$clinit();
+};
+Foo.ctor = function() {
+  Foo.$clinit();
+  return new Foo();
+};
+
+=== J2clClinitPrunerPassTest-040.input.js 53
+var foo = function() {
+  Foo1.$clinit();
+  foo();
+};
+
+=== J2clClinitPrunerPassTest-041.input.js 93
+var someClass = {};
+someClass.$clinit = function() {
+  someClass.$clinit = function() {};
+};
+
+=== J2clClinitPrunerPassTest-042.input.js 55
+var someClass = {};
+someClass.$clinit = function() {};
+
+=== J2clClinitPrunerPassTest-043.input.js 84
+class someClass {
+  static $clinit() {
+    someClass.$clinit = function() {};
+  }
+}
+
+=== J2clClinitPrunerPassTest-044.input.js 42
+class someClass {
+  static $clinit() {}
+}
+
+=== J2clClinitPrunerPassTest-045.input.js 321
+var someClass = {};
+someClass.$clinit = function() {
+  someClass.$clinit = function() {};
+};
+var someChildClass = {};
+someChildClass.$clinit = function() {
+  someChildClass.$clinit = function() {};
+  someClass.$clinit();
+};
+someChildClass.someFunction = function() {
+  someChildClass.$clinit();
+  someClass.$clinit();
+};
+
+=== J2clClinitPrunerPassTest-046.input.js 165
+var someClass = {};
+someClass.$clinit = function() {};
+var someChildClass = {};
+someChildClass.$clinit = function() {};
+someChildClass.someFunction = function() {};
+
+=== J2clClinitPrunerPassTest-047.input.js 289
+class someClass {
+  static $clinit() {
+    someClass.$clinit = function() {};
+  }
+}
+class someChildClass {
+  static $clinit() {
+    someChildClass.$clinit = function() {};
+    someClass.$clinit();
+  }
+
+  static someFunction() {
+    someChildClass.$clinit();
+    someClass.$clinit();
+  }
+}
+
+=== J2clClinitPrunerPassTest-048.input.js 117
+class someClass {
+  static $clinit() {}
+}
+class someChildClass {
+  static $clinit() {}
+
+  static someFunction() {}
+}
+
+=== J2clClinitPrunerPassTest-049.input.js 310
+var someClass = {};
+someClass.$clinit = function() {
+  someClass.$clinit = function() {};
+  somefn();
+};
+var someChildClass = {};
+someChildClass.$clinit = function() {
+  someChildClass.$clinit = function() {};
+  someClass.$clinit();
+};
+someChildClass.someFunction = function() {
+  someChildClass.$clinit();
+};
+
+=== J2clClinitPrunerPassTest-050.input.js 263
+var someClass = {};
+someClass.$clinit = function() {
+  someClass.$clinit = function() {};
+  somefn();
+};
+var someChildClass = {};
+someChildClass.$clinit = function() {
+  someClass.$clinit();
+};
+someChildClass.someFunction = function() {
+  someClass.$clinit();
+};
+
+=== J2clClinitPrunerPassTest-051.input.js 278
+class someClass {
+  static $clinit() {
+    someClass.$clinit = function() {};
+    somefn();
+  }
+}
+class someChildClass {
+  static $clinit() {
+    someChildClass.$clinit = function() {};
+    someClass.$clinit();
+  }
+
+  static someFunction() {
+    someChildClass.$clinit();
+  }
+}
+
+=== J2clClinitPrunerPassTest-052.input.js 229
+class someClass {
+  static $clinit() {
+    someClass.$clinit = function() {};
+    somefn();
+  }
+}
+class someChildClass {
+  static $clinit() {
+    someClass.$clinit();
+  }
+
+  static someFunction() {
+    someClass.$clinit();
+  }
+}
+
+=== J2clClinitPrunerPassTest-053.input.js 174
+var someClass = /** @constructor */ function() {};
+someClass.foo = function() {};
+someClass.$clinit = function() {
+  someClass.$clinit = function() {};
+  someClass.foo();
+};
+
+=== J2clClinitPrunerPassTest-054.input.js 111
+var someClass = {}, otherClass = {};
+someClass.$clinit = function() {
+  otherClass.$clinit = function() {};
+};
+
+=== J2clClinitPrunerPassTest-055.input.js 99
+var someClass = {};
+someClass.$notClinit = function() {
+  someClass.$notClinit = function() {};
+};
+
+=== J2clClinitPrunerPassTest-056.input.js 123
+class someClass {
+  static foo() {}
+  static $clinit() {
+    someClass.$clinit = function() {};
+    someClass.foo();
+  }
+}
+
+=== J2clClinitPrunerPassTest-057.input.js 105
+class someClass {
+  static $clinit() {
+    otherClass.$clinit = function() {};
+  }
+}
+class otherClass {}
+
+=== J2clClinitPrunerPassTest-058.input.js 90
+class someClass {
+  static $notClinit() {
+    someClass.$notClinit = function() {};
+  }
+}
+
+=== J2clConstantHoisterPassTest-000.input.js 310
+var someClass = /** @constructor */ function() {};
+someClass.$clinit = function() {
+  someClass.$clinit = function() {};
+  someClass$foo = true;
+  someClass$bar = 'hey';
+  someClass$buzz = function() { return someClass$bar; };
+};
+var someClass$foo = false;
+var someClass$bar = null;
+var someClass$buzz = null;
+
+=== J2clConstantHoisterPassTest-001.input.js 235
+var someClass = /** @constructor */ function() {};
+someClass.$clinit = function() {
+  someClass.$clinit = function() {};
+};
+var someClass$foo = true;
+var someClass$bar = 'hey';
+var someClass$buzz = function(){ return someClass$bar; };
+
+=== J2clConstantHoisterPassTest-002.input.js 310
+var someClass = /** @constructor */ function() {};
+var someClass$foo = false;
+var someClass$bar = null;
+var someClass$buzz = null;
+someClass.$clinit = function() {
+  someClass.$clinit = function() {};
+  someClass$foo = true;
+  someClass$bar = 'hey';
+  someClass$buzz = function() { return someClass$bar; };
+};
+
+=== J2clConstantHoisterPassTest-003.input.js 235
+var someClass = /** @constructor */ function() {};
+var someClass$foo = true;
+var someClass$bar = 'hey';
+var someClass$buzz = function(){ return someClass$bar; };
+someClass.$clinit = function() {
+  someClass.$clinit = function() {};
+};
+
+=== J2clConstantHoisterPassTest-004.input.js 296
+var someClass = /** @constructor */ function() {};
+someClass.$clinit = function() {
+  someClass.$clinit = function() {};
+  someClass$foo = true;
+  someClass$bar = 'hey';
+  someClass$buzz = function() { return someClass$bar; };
+};
+var someClass$foo = false;
+var someClass$bar;
+var someClass$buzz;
+
+=== J2clConstantHoisterPassTest-005.input.js 727
+var someClass = /** @constructor */ function() {};
+someClass.$clinit = function() {
+  someClass.$clinit = function() {};
+  someClass$foo1 = true; // More than two assignments.
+  someClass$foo2 = true; // More than two assignments.
+  someClass$bar = true; // Also initialized by another method.
+  someClass$zoo = true; // Not initialized in declaration phase.
+  someClass$hoo = someClass$zoo; // Not literal value.
+};
+someClass.$otherMethod = function() {
+  someClass$foo1 |= true; // Compound assignment to make it less trivial to detect.
+  someClass$foo2++; // Compound assignment to make it less trivial to detect.
+  someClass$bar = true;
+};
+var someClass$foo1 = false;
+var someClass$foo2 = false;
+var someClass$hoo = false;
+
+=== J2clConstantHoisterPassTest-006.input.js 277
+var someClass = /** @constructor */ function() {};
+var someClass$$0clinit = function() {
+  someClass$$0clinit = function() {};
+  someClass$shouldHoist = true;
+  someClass$shouldNotHoist = new Object();
+};
+var someClass$shouldHoist = false;
+var someClass$shouldNotHoist = null;
+
+=== J2clConstantHoisterPassTest-007.input.js 244
+var someClass = /** @constructor */ function() {};
+var someClass$$0clinit = function() {
+  someClass$$0clinit = function() {};
+  someClass$shouldNotHoist = new Object();
+};
+var someClass$shouldHoist = true;
+var someClass$shouldNotHoist = null;
+
+=== J2clConstantHoisterPassTest-008.input.js 247
+var someClass = /** @constructor */ function() {};
+someClass.$clinit = function() {
+  someClass.$clinit = function() {};
+  var x = 10;
+  someClass$foo = function() { return x; }; // Depends on the scope of the clinit.
+};
+var someClass$foo = null;
+
+=== J2clConstantHoisterPassTest-009.input.js 235
+var someClass = /** @constructor */ function() {};
+someClass.$clinit = function() {
+  someClass.$clinit = function() {};
+  var x = 10;
+  someClass$foo = function() { return 1; }; // x is assumed to be used
+};
+var someClass$foo = null;
+
+=== J2clPropertyInlinerPassTest-000.someFile.js 233
+var A = function() {};
+var A$$0clinit = function() {
+  A$$0x = 2;
+};
+Object.defineProperties(A, {x :{
+  configurable:true,
+  enumerable:true,
+  get:function() {
+    return A$$0clinit(), A$$0x;
+  }
+}});
+var A$$0x = null;
+var x = A.x;
+
+=== J2clPropertyInlinerPassTest-001.someFile.js 118
+var A = function() {};
+var A$$0clinit = function() {
+  A$$0x = 2;
+};
+var A$$0x = null;
+var x = (A$$0clinit(), A$$0x);
+
+=== J2clPropertyInlinerPassTest-002.someFile.js 259
+var A = function() {};
+var globalValue = null;
+var initGlobalValue = function() {
+  globalValue = 2;
+};
+Object.defineProperties(A, {x :{
+  configurable:true,
+  enumerable:true,
+  get:function() {
+    return initGlobalValue, globalValue;
+  }
+}});
+var x = A.x;
+
+=== J2clPropertyInlinerPassTest-003.someFile.js 189
+var A = function() {};
+var A$$0clinit = function() {
+  A$$0x = 2;
+};
+Object.defineProperties(A, {x :{
+  configurable:true,
+  enumerable:true,
+  value: 2
+}});
+var A$$0x = null;
+var x = A.x;
+
+=== J2clPropertyInlinerPassTest-004.someFile.js 480
+var A = function() {};
+A.$clinit = function() {
+  A.$j2cl_prop = 2;
+};
+Object.defineProperties(A, {
+  j2cl_prop: {
+    configurable: true,
+    enumerable: true,
+    get: function() {
+      return A.$clinit(), A.$j2cl_prop;
+    },
+    set: function(value) {
+      A.$clinit(), A.$j2cl_prop = value;
+    }
+  },
+  non_j2cl_prop: {
+    configurable: true,
+    enumerable: true,
+    get: function() {
+      return 55;
+    },
+    set: function(v) {
+      console.log(v);
+    }
+  },
+});
+
+=== J2clPropertyInlinerPassTest-005.someFile.js 271
+var A = function() {};
+A.$clinit = function() {
+  A.$j2cl_prop = 2;
+};
+Object.defineProperties(A, {
+  non_j2cl_prop: {
+    configurable: true,
+    enumerable: true,
+    get: function() {
+      return 55;
+    },
+    set: function(v) {
+      console.log(v);
+    }
+  },
+});
+
+=== J2clPropertyInlinerPassTest-006.someFile.js 279
+var A = function() {};
+A.$clinit = function() {
+  A.$x = 2;
+};
+Object.defineProperties(A, {x: {
+  configurable:true,
+  enumerable:true,
+  get:function() {
+    return A.$clinit(), A.$x;
+  },
+  set: function(value) {
+    A.$clinit(), A.$x = value;
+  }
+}});
+A.$x = 3;
+var xx = A.x;
+
+=== J2clPropertyInlinerPassTest-007.someFile.js 103
+var A = function() {};
+A.$clinit = function() {
+  A.$x = 2;
+};
+A.$x = 3;
+var xx = (A.$clinit(), A.$x);
+
+=== J2clPropertyInlinerPassTest-008.someFile.js 275
+var A = function() {};
+A.$clinit = function() {
+  A.$x = 2;
+};
+Object.defineProperties(A, {x: {
+  configurable:true,
+  enumerable:true,
+  get:function() {
+    return A.$clinit(), A.$x;
+  },
+  set: function(value) {
+    A.$clinit(), A.$x = value;
+  }
+}});
+A.$x = 3;
+A.x = 10;
+
+=== J2clPropertyInlinerPassTest-009.someFile.js 101
+var A = function() {};
+A.$clinit = function() {
+  A.$x = 2;
+};
+A.$x = 3;
+{(A.$clinit(), A.$x = 10);}
+
+=== J2clPropertyInlinerPassTest-010.someFile.js 289
+var A = function() {};
+A.$clinit = function() {
+  A.$x = {y: 2};
+};
+Object.defineProperties(A, {x: {
+  configurable:true,
+  enumerable:true,
+  get:function() {
+    return A.$clinit(), A.$x;
+  },
+  set: function(value) {
+    A.$clinit(), A.$x = value;
+  }
+}});
+A.$x = null;
+var xy = A.x.y;
+
+=== J2clPropertyInlinerPassTest-011.someFile.js 113
+var A = function() {};
+A.$clinit = function() {
+  A.$x = {y: 2};
+};
+A.$x = null;
+var xy = (A.$clinit(), A.$x).y;
+
+=== J2clPropertyInlinerPassTest-012.someFile.js 229
+var A = function() {};
+A.$clinit = function() {
+  A.$x = {y: 2};
+};
+Object.defineProperties(A, {x: {
+  configurable:true,
+  enumerable:true,
+  get:function() {
+    return A.$clinit(), A.$x;
+  },
+}});
+A.$x = null;
+var xy = A.x.y;
+
+=== J2clPropertyInlinerPassTest-013.someFile.js 275
+var A = function() {};
+A.$clinit = function() {
+  A.$x = 2;
+};
+Object.defineProperties(A, {x: {
+  configurable:true,
+  enumerable:true,
+  get:function() {
+    return A.$clinit(), A.$x;
+  },
+  set: function(value) {
+    A.$clinit(), A.$x = value;
+  }
+}});
+A.$x = 3;
+A.x += 5;
+
+=== J2clPropertyInlinerPassTest-014.someFile.js 272
+var A = function() {};
+A.$clinit = function() {
+  A.$x = 2;
+};
+Object.defineProperties(A, {x: {
+  configurable:true,
+  enumerable:true,
+  get:function() {
+    return A.$clinit(), A.$x;
+  },
+  set: function(value) {
+    A.$clinit(), A.$x = value;
+  }
+}});
+A.$x = 3;
+A.x--;
+
+=== J2clPropertyInlinerPassTest-015.someFile.js 272
+var A = function() {};
+A.$clinit = function() {
+  A.$x = 2;
+};
+Object.defineProperties(A, {x: {
+  configurable:true,
+  enumerable:true,
+  get:function() {
+    return A.$clinit(), A.$x;
+  },
+  set: function(value) {
+    A.$clinit(), A.$x = value;
+  }
+}});
+A.$x = 3;
+A.x++;
+
+=== J2clPropertyInlinerPassTest-016.someFile.js 225
+var A = function() {};
+A.$clinit = function() {
+  A.$x = {y: 2};
+};
+Object.defineProperties(A, {x: {
+  configurable:true,
+  enumerable:true,
+  get:function() {
+    return A.$clinit(), A.$x;
+  },
+}});
+A.$x = null;
+A.x = null;
+
+=== J2clPropertyInlinerPassTest-017.someFile.js 93
+var A = function() {};
+A.$clinit = function() {
+  A.$x = {y: 2};
+};
+A.$x = null;
+A.x = null;
+
+=== J2clPropertyInlinerPassTest-018.input.js 216
+class A {
+  static $clinit() {
+    A.$clinit = function() {};
+    A.$x = 2;
+  }
+  static get x() {
+    return A.$clinit(), A.$x
+  }
+  static set x(value) {
+    A.$clinit(), A.$x = value;
+  }
+}
+A.$x = 3;
+var xx = A.x
+
+=== J2clPropertyInlinerPassTest-019.input.js 122
+class A {
+  static $clinit() {
+    A.$clinit = function() {};
+    A.$x = 2;
+  }
+}
+A.$x = 3;
+var xx = (A.$clinit(), A.$x);
+
+=== J2clPropertyInlinerPassTest-020.input.js 157
+class A {
+  static $clinit() {
+    A.$clinit = function() {};
+    A.$x = 2;
+  }
+  static get x() {
+    return A.$clinit(), A.$x
+  }
+}
+A.$x = 3;
+var xx = A.x
+
+=== J2clPropertyInlinerPassTest-021.input.js 212
+class A {
+  static $clinit() {
+    A.$clinit = function() {};
+    A.$x = 2;
+  }
+  static get x() {
+    return A.$clinit(), A.$x
+  }
+  static set x(value) {
+    A.$clinit(), A.$x = value;
+  }
+}
+A.$x = 3;
+A.x = 5;
+
+=== J2clPropertyInlinerPassTest-022.input.js 118
+class A {
+  static $clinit() {
+    A.$clinit = function() {};
+    A.$x = 2;
+  }
+}
+A.$x = 3;
+{(A.$clinit(), A.$x = 5)}
+
+=== J2clPropertyInlinerPassTest-023.input.js 363
+class A {
+  static $clinit() {
+    A.$clinit = function() {};
+    A.$x = 2;
+    A.$y = 3;
+  }
+  static get x() {
+    return A.$clinit(), A.$x
+  }
+  static set y(value) {
+    A.$clinit(), A.$y = value;
+  }
+  static get y() {
+    return A.$clinit(), A.$y
+  }
+  static set x(value) {
+    A.$clinit(), A.$x = value;
+  }
+}
+var xx = A.x;
+var yy = A.y
+A.x = 5;
+A.y = 5;
+
+=== J2clPropertyInlinerPassTest-024.input.js 207
+class A {
+  static $clinit() {
+    A.$clinit = function() {};
+    A.$x = 2;
+    A.$y = 3;
+  }
+}
+var xx = (A.$clinit(), A.$x);
+var yy = (A.$clinit(), A.$y)
+{(A.$clinit(), A.$x = 5)}
+{(A.$clinit(), A.$y = 5)}
+
+=== J2clUtilGetDefineRewriterPassTest-000.input.js 184
+var a = {};
+a.b = {}
+/** @define {boolean} */ a.b.c = goog.define('a.b.c', true);
+jre.addSystemPropertyFromGoogDefine('a.b.c', a.b.c);
+nativebootstrap.Util.$getDefine('a.b.c', 'def');
+
+=== J2clUtilGetDefineRewriterPassTest-001.input.js 186
+var a = {};
+a.b = {}
+/** @define {boolean} */ a.b.c = true;
+var jscomp$defines$a$b$c = a.b.c;
+jre.addSystemPropertyFromGoogDefine('a.b.c', a.b.c);
+('def', String(jscomp$defines$a$b$c));
+
+=== J2clUtilGetDefineRewriterPassTest-002.input.js 177
+var a = {};
+a.b = {}
+/** @define {boolean} */ a.b.c = goog.define('a.b.c', true);
+jre.addSystemPropertyFromGoogDefine('a.b.c', a.b.c);
+nativebootstrap.Util.$getDefine('a.b.c');
+
+=== J2clUtilGetDefineRewriterPassTest-003.input.js 185
+var a = {};
+a.b = {}
+/** @define {boolean} */ a.b.c = true;
+var jscomp$defines$a$b$c = a.b.c;
+jre.addSystemPropertyFromGoogDefine('a.b.c', a.b.c);
+(null, String(jscomp$defines$a$b$c));
+
+=== J2clUtilGetDefineRewriterPassTest-004.input.js 274
+/** @define {boolean} */ var x = goog.define('x', 1);
+jre.addSystemPropertyFromGoogDefine('x', x);
+/** @define {boolean} */ var y = goog.define('y', x);
+jre.addSystemPropertyFromGoogDefine('y', y);
+nativebootstrap.Util.$getDefine('x');
+nativebootstrap.Util.$getDefine('y');
+
+=== J2clUtilGetDefineRewriterPassTest-005.input.js 282
+/** @define {boolean} */ var x = 1;
+var jscomp$defines$x = x;
+jre.addSystemPropertyFromGoogDefine('x', x);
+/** @define {boolean} */ var y = x;
+var jscomp$defines$y = y;
+jre.addSystemPropertyFromGoogDefine('y', y);
+(null, String(jscomp$defines$x));
+(null, String(jscomp$defines$y));
+
+=== J2clUtilGetDefineRewriterPassTest-006.input.js 104
+jre.addSystemPropertyFromGoogDefine('COMPILED', COMPILED);
+nativebootstrap.Util.$getDefine('COMPILED');
+
+=== J2clUtilGetDefineRewriterPassTest-007.input.js 85
+jre.addSystemPropertyFromGoogDefine('COMPILED', COMPILED);
+(null, String(COMPILED));
+
+=== J2clUtilGetDefineRewriterPassTest-008.input.js 47
+nativebootstrap.Util.$getDefine('not.defined');
+=== J2clUtilGetDefineRewriterPassTest-009.input.js 54
+nativebootstrap.Util.$getDefine('not.defined', 'def');
+=== J2clUtilGetDefineRewriterPassTest-010.input.js 95
+/** @define {boolean} */ var a = goog.define('a', true);
+nativebootstrap.Util.$getDefine('a');
+
+=== J2clUtilGetDefineRewriterPassTest-011.input.js 124
+var defineName = 'a';
+/** @define {boolean} */ var a = goog.define('a', true);
+nativebootstrap.Util.$getDefine(defineName);
+
+=== J2clUtilGetDefineRewriterPassTest-012.input.js 88
+var notADefine = true;
+jre.addSystemPropertyFromGoogDefine('not_a_define', notADefine);
+
+=== J2clUtilGetDefineRewriterPassTest-013.input.js 167
+var defineName = 'someDefine';
+/** @define {boolean} */ var someDefine = goog.define('someDefine', true);
+jre.addSystemPropertyFromGoogDefine(defineName, someDefine);
+
+=== J2clAssertRemovalPassTest-000.input.js 47
+Asserts.$assert(true);
+Asserts.$assert(goo());
+
+=== J2clAssertRemovalPassTest-001.input.js 40
+Asserts.$assertWithMessage(true, goo());
+=== J2clAssertRemovalPassTest-002.input.js 38
+Asserts.assert(true);
+$assert(goo());
+
+=== J2clEqualitySameRewriterPassTest-000.input.js 136
+Equality.$same = function(opt_a, opt_b) {};
+String.m_equals__java_lang_String__java_lang_Object__boolean =
+  function(opt_a, opt_b) {};
+
+=== J2clEqualitySameRewriterPassTest-001.input.js 455
+Equality.$same(0, 0);
+Equality.$same(-0, -0);
+Equality.$same(0, -0);
+Equality.$same(NaN, NaN);
+Equality.$same(Infinity, Infinity);
+Equality.$same(Infinity, -Infinity);
+Equality.$same(0, null);
+Equality.$same(0, '');
+var a = 'ABC';
+Equality.$same(a, 'ABC');
+var b = {}
+Equality.$same(b, 5);
+Equality.$same(b, 5n)
+Equality.$same(b, []);
+Equality.$same(b, !a);
+Equality.$same(b, null);
+Equality.$same(null, b);
+Equality.$same(b, /** @type {null} */ (null));
+
+=== J2clEqualitySameRewriterPassTest-002.input.js 187
+true
+true
+false
+true
+true
+false
+0 == null;
+0 === '';
+var a = 'ABC';
+a === 'ABC';
+var b = {};
+b === 5;
+b === 5n;
+b === [];
+b === !a;
+b == null;
+b == null;
+b == /** @type {null} */ (null);
+
+=== J2clEqualitySameRewriterPassTest-003.input.js 373
+var b = {};
+Equality.$same(b, null);
+Equality.$same(null, b);
+Equality.$same(b, undefined);
+Equality.$same(b, 0);
+Equality.$same(b, -0);
+Equality.$same(b, NaN);
+Equality.$same(b, Infinity);
+var c = 5;
+Equality.$same(c, null);
+Equality.$same(null, c);
+Equality.$same(c, undefined);
+var d = 5n;
+Equality.$same(d, null);
+Equality.$same(null, d);
+Equality.$same(d, undefined);
+
+=== J2clEqualitySameRewriterPassTest-004.input.js 221
+var b = {};
+!b
+!b;
+!b;
+b === 0;
+b === -0;
+b === NaN;
+b === Infinity;
+var c = 5;
+c == null; // Note that the semantics are preserved for number.
+c == null;
+c == undefined;
+var d = 5n;
+d == null;
+d == null;
+d == undefined;
+
+=== J2clEqualitySameRewriterPassTest-005.input.js 513
+Equality.$same(c, d);
+/** @type {number} */
+var num = 5
+/** @type {bigint} */
+var bigint = 5n
+/** @type {string} */
+var str = 'ABC';
+/** @type {*} */
+var allType = null;
+Equality.$same(num, str);
+Equality.$same(num, bigint);
+Equality.$same(num, allType);
+Equality.$same(bigint, str);
+Equality.$same(bigint, allType);
+Equality.$same(str, allType);
+function hasSideEffects(){};
+// Note that the first parameter has value 'undefined' but it has side effects.
+Equality.$same(void hasSideEffects(), hasSideEffects());
+
+=== J2clEqualitySameRewriterPassTest-006.input.js 790
+/** @type {number|undefined} */
+var num1 = 5;
+/** @type {?number} */
+var num2 = 5;
+Equality.$same(num1, num2);
+/** @type {string} */
+var str1 = '';
+/** @type {string|undefined} */
+var str2 = 'abc';
+Equality.$same(str1, str2);
+/** @type {bigint} */
+var bigint1 = 0n;
+/** @type {bigint|undefined} */
+var bigint2 = 5n;
+Equality.$same(bigint1, bigint2);
+/** @type {!Object} */
+var obj1 = {};
+/** @type {Object} */
+var obj2 = null;
+Equality.$same(obj1, obj2);
+Equality.$same(obj1, str2);
+Equality.$same(obj1, num2);
+Equality.$same(obj1, bigint2);
+/** @type {number} */
+var num3 = 5;
+Equality.$same(num3, 0);
+Equality.$same(num3, -0);
+Equality.$same(num3, NaN);
+Equality.$same(0/0, NaN);
+/** @type {*} */
+var allType1 = 1;
+/** @type {*} */
+var allType2 = '1';
+Equality.$same(allType1, allType2);
+
+=== J2clEqualitySameRewriterPassTest-007.input.js 40
+Equality.$same(null);
+Equality.$same();
+
+=== J2clEqualitySameRewriterPassTest-008.input.js 156
+String.m_equals__java_lang_String__java_lang_Object__boolean('', 0);
+var a = 'ABC';
+String.m_equals__java_lang_String__java_lang_Object__boolean('ABC', a);
+
+=== J2clEqualitySameRewriterPassTest-009.input.js 38
+'' === 0;
+var a = 'ABC';
+'ABC' === a;
+
+=== J2clEqualitySameRewriterPassTest-010.input.js 247
+/** @type {?string} */
+var b = null;
+String.m_equals__java_lang_String__java_lang_Object__boolean(b, null);
+String.m_equals__java_lang_String__java_lang_Object__boolean(null, b);
+String.m_equals__java_lang_String__java_lang_Object__boolean(c, d);
+
+=== J2clStringValueOfRewriterPassTest-000.input.js 86
+module$exports$java$lang$String$impl.m_valueOf__java_lang_Object__java_lang_String('')
+=== J2clStringValueOfRewriterPassTest-001.input.js 88
+module$exports$java$lang$String$impl.m_valueOf__java_lang_Object__java_lang_String(null)
+=== J2clStringValueOfRewriterPassTest-002.input.js 12
+String(null)
+=== J2clStringValueOfRewriterPassTest-003.input.js 99
+module$exports$java$lang$String$impl
+    .m_valueOf__java_lang_Object__java_lang_String(undefined)
+
+=== J2clStringValueOfRewriterPassTest-004.input.js 96
+module$exports$java$lang$String$impl
+    .m_valueOf__java_lang_Object__java_lang_String(void 0)
+
+=== J2clStringValueOfRewriterPassTest-005.input.js 203
+module$exports$java$lang$String$impl
+   .m_valueOf__java_lang_Object__java_lang_String('foo' +
+       module$exports$java$lang$String$impl
+           .m_valueOf__java_lang_Object__java_lang_String(bar))
+
+=== J2clStringValueOfRewriterPassTest-006.input.js 108
+String('foo' + module$exports$java$lang$String$impl
+   .m_valueOf__java_lang_Object__java_lang_String(bar))
+
+=== J2clStringValueOfRewriterPassTest-007.input.js 106
+module$exports$java$lang$String$impl
+   .m_valueOf__java_lang_Object__java_lang_String(foo + 'bar' + baz)
+
+=== J2clStringValueOfRewriterPassTest-008.input.js 25
+String(foo + 'bar' + baz)
+=== J2clStringValueOfRewriterPassTest-009.input.js 106
+foo + module$exports$java$lang$String$impl
+   .m_valueOf__java_lang_Object__java_lang_String('bar' + baz)
+
+=== J2clStringValueOfRewriterPassTest-010.input.js 25
+foo + String('bar' + baz)
+=== J2clStringValueOfRewriterPassTest-011.input.js 85
+module$exports$java$lang$String$impl.m_valueOf__java_lang_Object__java_lang_String(1)
+=== J2clStringValueOfRewriterPassTest-012.input.js 100
+module$exports$java$lang$String$impl
+    .m_valueOf__java_lang_Object__java_lang_String(null + foo)
+
+=== J2clStringValueOfRewriterPassTest-013.input.js 18
+String(null + foo)
+=== J2clStringValueOfRewriterPassTest-014.input.js 95
+module$exports$java$lang$String$impl
+   .m_valueOf__java_lang_Object__java_lang_String(window)
+
+=== J2clStringValueOfRewriterPassTest-015.input.js 92
+module$exports$java$lang$String$impl
+    .m_valueOf__java_lang_Object__java_lang_String([])
+
+=== J2clUndefinedChecksRewriterPassTest-000.input.js 48
+nativebootstrap$Util$impl$isUndefined(undefined)
+=== J2clUndefinedChecksRewriterPassTest-001.input.js 45
+nativebootstrap$Util$impl$isUndefined(void 0)
+=== J2clUndefinedChecksRewriterPassTest-002.input.js 43
+nativebootstrap$Util$impl$isUndefined(null)
+=== J2clUndefinedChecksRewriterPassTest-003.input.js 40
+nativebootstrap$Util$impl$isUndefined(1)
+=== J2clUndefinedChecksRewriterPassTest-004.input.js 44
+nativebootstrap$Util$impl$isUndefined('foo')
+=== J2clUndefinedChecksRewriterPassTest-005.input.js 41
+nativebootstrap$Util$impl$isUndefined([])
+=== J2clUndefinedChecksRewriterPassTest-006.input.js 41
+nativebootstrap$Util$impl$isUndefined({})
+=== J2clUndefinedChecksRewriterPassTest-007.input.js 50
+nativebootstrap$Util$impl$isUndefined(new Error())
+=== J2clUndefinedChecksRewriterPassTest-008.input.js 18
+new Error(), false
+=== J2clUndefinedChecksRewriterPassTest-009.input.js 35
+var x = undefined;
+isUndefined(x);
+
+=== J2clUndefinedChecksRewriterPassTest-010.input.js 43
+nativebootstrap$Util$impl$isUndefined(this)
+=== J2clUndefinedChecksRewriterPassTest-011.input.js 49
+nativebootstrap$Util$impl$coerceToNull(undefined)
+=== J2clUndefinedChecksRewriterPassTest-012.input.js 44
+nativebootstrap$Util$impl$coerceToNull(null)
+=== J2clUndefinedChecksRewriterPassTest-013.input.js 41
+nativebootstrap$Util$impl$coerceToNull(1)
+=== J2clUndefinedChecksRewriterPassTest-014.input.js 45
+nativebootstrap$Util$impl$coerceToNull('foo')
+=== J2clUndefinedChecksRewriterPassTest-015.input.js 42
+nativebootstrap$Util$impl$coerceToNull([])
+=== J2clUndefinedChecksRewriterPassTest-016.input.js 42
+nativebootstrap$Util$impl$coerceToNull({})
+=== J2clUndefinedChecksRewriterPassTest-017.input.js 51
+nativebootstrap$Util$impl$coerceToNull(new Error())
+=== J2clUndefinedChecksRewriterPassTest-018.input.js 13
+(new Error())
+=== J2clUndefinedChecksRewriterPassTest-019.input.js 54
+var x = 1;
+nativebootstrap$Util$impl$coerceToNull(x);
+
+=== J2clUndefinedChecksRewriterPassTest-020.input.js 44
+nativebootstrap$Util$impl$coerceToNull(this)
+=== J2clSourceFileCheckerTest-000.bar.impl.java.js 58
+goog.provide('bar'); /** @constructor */ function bar(){};

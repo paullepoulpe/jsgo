@@ -59,6 +59,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.GZIPOutputStream;
+import jsgo.oracle.CorpusExclusions;
 
 public final class ChecksDump {
   static final String EXTERNS = "var window; function alert() {}";
@@ -90,6 +91,7 @@ public final class ChecksDump {
         files.add(f);
       }
     }
+    CorpusExclusions.removeFrom(files); // tools/oracle/gpl-excluded-corpus.txt
     if (outFile.getParent() != null) {
       Files.createDirectories(outFile.getParent());
     }

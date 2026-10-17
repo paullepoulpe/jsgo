@@ -120,6 +120,15 @@ func (c *InstrumentAsyncContextTest) GetProcessor(compiler *Compiler) CompilerPa
 
 // Java: InstrumentAsyncContextTest.setUp()
 func (c *InstrumentAsyncContextTest) SetUp() {
+	// Go-only: test-helper — the pass and InjectTranspilationRuntimeLibraries
+	// look up $jscomp.asyncContextStart in js/transpilation_libs.txt. The
+	// pinned jar's copy (embedded in internal/resources) has no such field, so
+	// on the jar Java throws the same NullPointerException ("Cannot find
+	// definition of $jscomp.asyncContextStart"); Closure's own test classpath
+	// builds the file from the source tree. Skip until the resource has it.
+	if _, ok := runtimeJsLibManager_FieldsTable().Lookup("asyncContextStart"); !ok {
+		c.t.Skip("the pinned jar's transpilation_libs.txt has no $jscomp.asyncContextStart (Java on the jar throws the same NullPointerException)")
+	}
 	c.CompilerTestCaseBase.SetUp()
 	c.instrumentAwait = true
 	c.EnableNormalize()

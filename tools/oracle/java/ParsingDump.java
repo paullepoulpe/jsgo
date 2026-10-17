@@ -51,6 +51,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.GZIPOutputStream;
+import jsgo.oracle.CorpusExclusions;
 
 public final class ParsingDump {
   private static CompilerOptions.LanguageMode languageIn =
@@ -90,6 +91,7 @@ public final class ParsingDump {
         files.add(f);
       }
     }
+    CorpusExclusions.removeFrom(files); // tools/oracle/gpl-excluded-corpus.txt
     Config config = compilerParserConfig();
     for (String rel : files) {
       StringBuilder sb = new StringBuilder();

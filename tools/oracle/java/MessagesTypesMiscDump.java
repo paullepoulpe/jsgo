@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import java.util.zip.GZIPOutputStream;
+import jsgo.oracle.CorpusExclusions;
 
 public final class MessagesTypesMiscDump {
   static String escape(String s) {
@@ -131,6 +132,7 @@ public final class MessagesTypesMiscDump {
         files.add(f);
       }
     }
+    CorpusExclusions.removeFrom(files); // tools/oracle/gpl-excluded-corpus.txt
     return files;
   }
 

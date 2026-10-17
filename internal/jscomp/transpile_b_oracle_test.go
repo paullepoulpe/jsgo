@@ -41,6 +41,7 @@ import (
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/tools/oracle/corpus"
 )
 
 // transpileBOracleFirst is TranspileBDump.FIRST.
@@ -388,6 +389,9 @@ func transpileBOracleCompare(t *testing.T, path string, root string, onlyNames f
 		if onlyNames != nil && !onlyNames(rel) {
 			continue
 		}
+		if corpus.IsExcluded(rel) { // tools/oracle/gpl-excluded-corpus.txt
+			continue
+		}
 		src, err := os.ReadFile(filepath.Join(root, rel))
 		if err != nil {
 			t.Logf("skipping %s: %v", rel, err)
@@ -452,12 +456,12 @@ func TestTranspileBGolden(t *testing.T) {
 	if n := transpileBOracleCompare(t, golden, jsDir, func(rel string) bool { return hand[rel] }); n != len(hand) {
 		t.Errorf("compared %d hand-written files, want %d", n, len(hand))
 	}
-	corpus := "/home/user/jsgo/.cache/corpus"
-	if _, err := os.Stat(corpus); err != nil {
+	corpusRoot := "/home/user/jsgo/.cache/corpus"
+	if _, err := os.Stat(corpusRoot); err != nil {
 		t.Logf("corpus not present; golden corpus files skipped")
 		return
 	}
-	transpileBOracleCompare(t, golden, corpus, func(rel string) bool { return !hand[rel] })
+	transpileBOracleCompare(t, golden, corpusRoot, func(rel string) bool { return !hand[rel] })
 }
 
 func TestTranspileBOracle(t *testing.T) {

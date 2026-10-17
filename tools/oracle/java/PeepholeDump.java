@@ -73,6 +73,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.function.Function;
 import java.util.zip.GZIPOutputStream;
+import jsgo.oracle.CorpusExclusions;
 
 public final class PeepholeDump {
 
@@ -174,6 +175,7 @@ public final class PeepholeDump {
         files.add(f);
       }
     }
+    CorpusExclusions.removeFrom(files); // tools/oracle/gpl-excluded-corpus.txt
     OutputStream os = Files.newOutputStream(outFile);
     if (outFile.toString().endsWith(".gz")) {
       os = new GZIPOutputStream(os, 1 << 16);

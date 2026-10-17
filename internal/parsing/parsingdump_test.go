@@ -49,6 +49,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/tools/oracle/corpus"
 )
 
 // recordingReporter is ParsingDump's anonymous ErrorReporter.
@@ -342,6 +343,7 @@ func TestParsingDumpOracle(t *testing.T) {
 		})
 		sort.Strings(rels)
 	}
+	rels = corpus.Filter(rels) // tools/oracle/gpl-excluded-corpus.txt
 	diffDir := os.Getenv("PARSE_DIFF_DIR")
 	type result struct {
 		rel, diff, got string

@@ -55,6 +55,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.zip.GZIPOutputStream;
+import jsgo.oracle.CorpusExclusions;
 
 public final class PrintDump {
   private static int dotLimit = 4096;
@@ -99,6 +100,7 @@ public final class PrintDump {
         files.add(f);
       }
     }
+    CorpusExclusions.removeFrom(files); // tools/oracle/gpl-excluded-corpus.txt
     Config typesConfig = compilerParserConfig(null);
     Config allConfig = compilerParserConfig(Config.JsDocParsing.INCLUDE_ALL_COMMENTS);
     for (int i = 0; i < files.size(); i += every) {

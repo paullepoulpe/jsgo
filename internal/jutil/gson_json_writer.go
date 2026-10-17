@@ -402,8 +402,20 @@ func (w *JsonWriter) ValueNumber(value JavaNumber) *JsonWriter {
 
 // Close flushes and closes this writer and the underlying Writer.
 //
+// Go-only: language-adapter — the Writer is an io.StringWriter: it is
+// closed through its Close method when it has one (a strings.Builder, like
+// Java's StringWriter, has nothing to close).
+//
 // Java: JsonWriter.close()
 func (w *JsonWriter) Close() {
+	switch out := w.out.(type) {
+	case interface{ Close() }:
+		out.Close()
+	case io.Closer:
+		if err := out.Close(); err != nil {
+			panic(NewIOException(err.Error()))
+		}
+	}
 	size := w.stackSize
 	if size > 1 || size == 1 && w.stack[size-1] != jsonScope_NONEMPTY_DOCUMENT {
 		panic(NewIOException("Incomplete document"))

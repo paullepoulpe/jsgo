@@ -35,7 +35,6 @@ package jscomp
 // with -Xss1g); a Go stack overflow is fatal, so such an input stops the run.
 
 import (
-	"bufio"
 	"compress/gzip"
 	"fmt"
 	"io"
@@ -47,6 +46,7 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/tools/oracle/corpus"
 )
 
 // typeCheckDump_options is TypeCheckDump.options():
@@ -238,22 +238,12 @@ func typeCheckDump_readGz(path string) (string, error) {
 }
 
 // typeCheckDump_readList reads a list of relative paths (one per line, as
-// TypeCheckDump's @<listfile>).
+// TypeCheckDump's @<listfile>), without the files of
+// tools/oracle/gpl-excluded-corpus.txt.
 func typeCheckDump_readList(t *testing.T, path string) []string {
 	t.Helper()
-	f, err := os.Open(path)
+	files, err := corpus.ReadList(path)
 	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Close()
-	var files []string
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		if l := sc.Text(); l != "" {
-			files = append(files, l)
-		}
-	}
-	if err := sc.Err(); err != nil {
 		t.Fatal(err)
 	}
 	return files

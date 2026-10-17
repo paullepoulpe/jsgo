@@ -1,7 +1,7 @@
-testdata/fixtures/tier2/012_record_missing_property.js:8:11: WARNING - [JSC_STRICT_INEXISTENT_PROPERTY] Property perimeter never defined on Shape
+testdata/fixtures/tier2/012_record_missing_property.js:8:11: ERROR - [JSC_INEXISTENT_PROPERTY] Property perimeter never defined on Shape
   8|   return s.perimeter;
                 ^^^^^^^^^
 
-0 error(s), 1 warning(s), 85.7% typed
+1 error(s), 0 warning(s), 85.7% typed
 ---EXIT---
-0
+1

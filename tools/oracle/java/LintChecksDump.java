@@ -84,6 +84,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.zip.GZIPOutputStream;
+import jsgo.oracle.CorpusExclusions;
 
 public final class LintChecksDump {
   private static String convention = "google";
@@ -163,6 +164,7 @@ public final class LintChecksDump {
         files.add(f);
       }
     }
+    CorpusExclusions.removeFrom(files); // tools/oracle/gpl-excluded-corpus.txt
     if (out.getParent() != null) {
       Files.createDirectories(out.getParent());
     }

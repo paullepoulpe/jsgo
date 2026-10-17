@@ -1840,25 +1840,22 @@ func (c *Es6RewriteBlockScopedDeclarationTest) TestTypeAnnotationsOnLetConst() {
 
 // Java: Es6RewriteBlockScopedDeclarationTest.testDoWhileForOfCapturedLetAnnotated()
 func (c *Es6RewriteBlockScopedDeclarationTest) TestDoWhileForOfCapturedLetAnnotated() {
-	// Go-only: test-helper — test(String, String) with a null expected is
-	// test(srcs(js), expected(expected)), which the harness's Test(...any)
-	// does not dispatch for a nil *string.
 	c.Test(
-		c.Srcs(`while (true) {
+		`while (true) {
   /** @type {number} */ let x = 5;
   (function() { x++; })();
   x = 7;
 }
-`),
-		c.Expected((*string)(nil)))
+`,
+		(*string)(nil))
 
 	c.Test(
-		c.Srcs(`for (/** @type {number} */ let x = 5;;) {
+		`for (/** @type {number} */ let x = 5;;) {
   (function() { x++; })();
   x = 7;
 }
-`),
-		c.Expected((*string)(nil)))
+`,
+		(*string)(nil))
 
 	// TODO(sdh): NTI does not detect the type mismatch in the transpiled code,
 	// since the LOOP$0 object does not have its type inferred until after

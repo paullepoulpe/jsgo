@@ -42,6 +42,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parsing"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/tools/oracle/corpus"
 )
 
 // checksDumpExterns is ChecksDump.EXTERNS (VarCheckTest's externs).
@@ -401,17 +402,13 @@ func checksDumpFirstDiff(want, got string) string {
 	return "(no line difference)"
 }
 
+// checksDumpReadList reads a file list, without the files of
+// tools/oracle/gpl-excluded-corpus.txt.
 func checksDumpReadList(t *testing.T, path string) []string {
 	t.Helper()
-	b, err := os.ReadFile(path)
+	files, err := corpus.ReadList(path)
 	if err != nil {
 		t.Fatal(err)
-	}
-	var files []string
-	for _, l := range strings.Split(string(b), "\n") {
-		if l != "" {
-			files = append(files, l)
-		}
 	}
 	return files
 }

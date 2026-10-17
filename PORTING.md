@@ -142,6 +142,9 @@ at integration.
 Go keywords and predeclared names that collide with Java identifiers get a
 trailing underscore (`type_`, `func_`, `range_`, `len_`).
 
+**`Iterable` parameters.** A parameter declared `Iterable<T>` is an
+`iter.Seq[T]`. Callers pass `slices.Values(list)` or a collection's `All()`.
+
 ## 4. Classes, interfaces and inheritance
 
 - **Concrete class without subclasses** → `struct` with pointer-receiver

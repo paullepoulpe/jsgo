@@ -86,9 +86,9 @@ func (c *ExtractPrototypeMemberDeclarationsTest) TestClassDefinedInBlock() {
 		jutil.StringReplace("{\n"+
 			"PROTYPE_DECLARATIONS\n"+
 			"}\n", "PROTYPE_DECLARATIONS", c.GeneratePrototypeDeclarations("x", 7)),
-		jutil.StringReplace(jutil.StringReplace("var ExtractPrototypeMemberDeclarationsTest_TMP;\n"+
+		jutil.StringReplace(jutil.StringReplace("var TMP;\n"+
 			"{\n"+
-			"ExtractPrototypeMemberDeclarationsTest_TMP = x.prototype;\n"+
+			"TMP = x.prototype;\n"+
 			"EXTRACTED_DECLARATIONS\n"+
 			"}\n", "TMP", ExtractPrototypeMemberDeclarationsTest_TMP), "EXTRACTED_DECLARATIONS", c.GenerateExtractedDeclarations(7)))
 }

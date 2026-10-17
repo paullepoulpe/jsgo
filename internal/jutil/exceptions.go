@@ -138,6 +138,14 @@ func NewIllegalArgumentExceptionMsg(message string) *IllegalArgumentException {
 	return e
 }
 
+// NewIllegalArgumentExceptionWithMessageAndCause is new
+// IllegalArgumentException(String message, Throwable cause).
+func NewIllegalArgumentExceptionWithMessageAndCause(message string, cause Throwable) *IllegalArgumentException {
+	e := &IllegalArgumentException{}
+	InitThrowable(e, "java.lang.IllegalArgumentException", &message, cause)
+	return e
+}
+
 // NumberFormatException is java.lang.NumberFormatException.
 type NumberFormatException struct{ IllegalArgumentException }
 

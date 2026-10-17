@@ -1,0 +1,533 @@
+# file w5/access.js
+## parse
+## modules
+## CheckJSDoc
+## CheckJSDocStyle
+WARNING JSC_MISSING_RETURN_JSDOC w5/access/base.js:29:36 @1043+13 Function that returns a value must have JSDoc indicating the return type.
+WARNING JSC_MISSING_JSDOC w5/access/fileoverview.js:3:32 @109+13 Function must have JSDoc.
+## VariableReferenceCheck
+## CheckSideEffects
+WARNING JSC_USELESS_CODE w5/access/base.js:35:3 @1165+5 Suspicious code. The result of the 'getprop' operator is not being used.
+WARNING JSC_USELESS_CODE w5/access/user.js:2:2 @22+5 Suspicious code. The result of the 'getprop' operator is not being used.
+WARNING JSC_USELESS_CODE w5/access/user.js:3:2 @31+4 Suspicious code. The result of the 'getprop' operator is not being used.
+WARNING JSC_USELESS_CODE w5/access/user.js:4:2 @39+3 Suspicious code. The result of the 'getprop' operator is not being used.
+WARNING JSC_USELESS_CODE w5/access/user.js:11:2 @124+7 Suspicious code. The result of the 'getprop' operator is not being used.
+WARNING JSC_USELESS_CODE w5/access/user.js:14:0 @157+11 Suspicious code. This code lacks side-effects. Is there a bug?
+WARNING JSC_USELESS_CODE w5/access/user.js:22:7 @301+4 Suspicious code. The result of the 'getprop' operator is not being used.
+WARNING JSC_USELESS_CODE w5/access/user.js:35:9 @671+2 Suspicious code. The result of the 'getprop' operator is not being used.
+WARNING JSC_USELESS_CODE w5/access/user.js:44:12 @873+3 Suspicious code. The result of the 'getprop' operator is not being used.
+WARNING JSC_USELESS_CODE w5/access/other/pkg_user.js:1:11 @11+3 Suspicious code. The result of the 'getprop' operator is not being used.
+WARNING JSC_USELESS_CODE w5/access/other/pkg_user.js:6:13 @125+5 Suspicious code. The result of the 'getprop' operator is not being used.
+WARNING JSC_USELESS_CODE w5/access/other/pkg_user.js:7:13 @145+3 Suspicious code. The result of the 'getprop' operator is not being used.
+WARNING JSC_USELESS_CODE w5/access/other/fileoverview_user.js:3:0 @55+9 Suspicious code. This code lacks side-effects. Is there a bug?
+= protector w5/access/base.js:35:3
+= protector w5/access/user.js:2:2
+= protector w5/access/user.js:3:2
+= protector w5/access/user.js:4:2
+= protector w5/access/user.js:11:2
+= protector w5/access/user.js:14:0
+= protector w5/access/user.js:22:7
+= protector w5/access/user.js:35:9
+= protector w5/access/user.js:44:12
+= protector w5/access/other/pkg_user.js:1:11
+= protector w5/access/other/pkg_user.js:6:13
+= protector w5/access/other/pkg_user.js:7:13
+= protector w5/access/other/fileoverview_user.js:3:0
+= extern SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 1] [feature_set: []]
+= extern     VAR [source_file:  [synthetic:externs] ]
+= extern         NAME JSCOMPILER_PRESERVE [is_constant_name: 1] [source_file:  [synthetic:externs] ]
+## TypeCheck
+WARNING JSC_UNKNOWN_OVERRIDE w5/access/other/fileoverview_user.js:4:17 @83+45 property method not defined on any superclass of PkgByDefault
+## CheckAccessControls
+WARNING JSC_CONSTANT_PROPERTY_REASSIGNED_VALUE w5/access/base.js:36:3 @1175+1 constant property k assigned a value more than once\u000aInitialized at w5/access/base.js:6:30
+WARNING JSC_BAD_PRIVATE_PROPERTY_ACCESS w5/access/user.js:2:2 @22+5 Access to private property priv_ of Base not allowed here.
+WARNING JSC_BAD_PROTECTED_PROPERTY_ACCESS w5/access/user.js:3:2 @31+4 Access to protected property prot of Base not allowed here.
+WARNING JSC_CONSTANT_PROPERTY_REASSIGNED_VALUE w5/access/user.js:5:2 @46+1 constant property k assigned a value more than once\u000aInitialized at w5/access/base.js:6:30
+WARNING JSC_FINAL_PROPERTY_OVERRIDDEN w5/access/user.js:6:2 @56+3 @final method or property fin overridden\u000aInitialized at w5/access/base.js:7:30
+WARNING JSC_BAD_PRIVATE_PROPERTY_ACCESS w5/access/user.js:7:2 @67+11 Access to private property privMethod_ of Base not allowed here.
+WARNING JSC_BAD_PROTECTED_PROPERTY_ACCESS w5/access/user.js:8:2 @84+10 Access to protected property protMethod of Base not allowed here.
+WARNING JSC_DEPRECATED_PROP_REASON w5/access/user.js:10:2 @115+3 Property old of type Base has been deprecated: Use something else.
+WARNING JSC_DEPRECATED_VAR w5/access/user.js:12:0 @133+5 Variable oldFn has been deprecated.
+WARNING JSC_DEPRECATED_CLASS_REASON w5/access/user.js:13:4 @146+7 Class OldCtor has been deprecated: Gone.
+WARNING JSC_BAD_PRIVATE_GLOBAL_ACCESS w5/access/user.js:14:0 @157+11 Access to private variable privGlobal_ not allowed outside file w5/access/base.js.
+WARNING JSC_CONSTANT_PROPERTY_REASSIGNED_VALUE w5/access/user.js:15:13 @183+1 constant property x assigned a value more than once\u000aInitialized at w5/access/base.js:18:27
+WARNING JSC_CONSTANT_PROPERTY_DELETED w5/access/user.js:16:9 @199+1 constant property k cannot be deleted
+WARNING JSC_BAD_PROTECTED_PROPERTY_ACCESS w5/access/user.js:17:5 @207+10 Access to protected property staticProt of Base not allowed here.
+WARNING JSC_BAD_PRIVATE_PROPERTY_ACCESS w5/access/user.js:23:7 @314+5 Access to private property priv_ of Base not allowed here.
+WARNING JSC_FINAL_PROPERTY_OVERRIDDEN w5/access/user.js:24:7 @332+3 @final method or property fin overridden\u000aInitialized at w5/access/base.js:7:30
+WARNING JSC_PRIVATE_OVERRIDE w5/access/user.js:27:31 @433+11 Overriding private property of Base.prototype.
+WARNING JSC_CONSTANT_PROPERTY_REASSIGNED_VALUE w5/access/user.js:34:9 @655+1 constant property c assigned a value more than once\u000aInitialized at w5/access/base.js:24:32
+WARNING JSC_BAD_PRIVATE_PROPERTY_ACCESS w5/access/user.js:35:9 @671+2 Access to private property p_ of Klass not allowed here.
+WARNING JSC_EXTEND_FINAL_CLASS w5/access/user.js:39:0 @725+26 F2 is not allowed to extend final class FinalK.
+WARNING JSC_EXTEND_FINAL_CLASS w5/access/user.js:40:41 @793+16 F3 is not allowed to extend final class FinalCtor.
+WARNING JSC_BAD_PROTECTED_PROPERTY_ACCESS w5/access/user.js:41:12 @822+4 Access to protected property prot of Klass not allowed here.
+WARNING JSC_BAD_PRIVATE_PROPERTY_ACCESS w5/access/user.js:42:6 @836+3 Access to private property sp_ of Klass not allowed here.
+WARNING JSC_BAD_PACKAGE_PROPERTY_ACCESS w5/access/other/pkg_user.js:1:11 @11+3 Access to package-private property pkg of Base not allowed here.
+WARNING JSC_BAD_PACKAGE_PROPERTY_ACCESS w5/access/other/pkg_user.js:2:11 @27+9 Access to package-private property pkgMethod of Base not allowed here.
+WARNING JSC_BAD_PACKAGE_PROPERTY_ACCESS w5/access/other/pkg_user.js:3:12 @52+2 Access to package-private property pk of Klass not allowed here.
+WARNING JSC_BAD_PACKAGE_PROPERTY_ACCESS w5/access/other/fileoverview_user.js:1:4 @4+12 Access to package-private property PkgByDefault of w5/access/fileoverview.js not allowed here.
+WARNING JSC_BAD_PACKAGE_PROPERTY_ACCESS w5/access/other/fileoverview_user.js:1:19 @19+6 Access to package-private property method of PkgByDefault not allowed here.
+WARNING JSC_BAD_PACKAGE_PROPERTY_ACCESS w5/access/other/fileoverview_user.js:2:4 @33+12 Access to package-private property PkgByDefault of w5/access/fileoverview.js not allowed here.
+WARNING JSC_BAD_PACKAGE_PROPERTY_ACCESS w5/access/other/fileoverview_user.js:3:0 @55+9 Access to package-private property pkgGlobal of w5/access/fileoverview.js not allowed here.
+WARNING JSC_BAD_PACKAGE_PROPERTY_ACCESS w5/access/other/fileoverview_user.js:4:30 @96+9 Access to package-private property prototype of PkgByDefault not allowed here.
+ERROR JSC_BAD_PROPERTY_OVERRIDE_IN_FILE_WITH_FILEOVERVIEW_VISIBILITY w5/access/other/fileoverview_user.js:4:40 @106+6 Overridden property method in file with fileoverview visibility PACKAGE must explicitly redeclare superclass visibility
+## CheckConformance example
+## CheckConformance all
+ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: JavaClass not found.\u000aRequirement spec:\u000aerror_message: "missing class"\u000atype: CUSTOM\u000ajava_class: "com.google.javascript.jscomp.ConformanceRules$NoSuchRule"\u000a
+ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: bad prop value\u000aRequirement spec:\u000aerror_message: "bad property"\u000atype: BANNED_PROPERTY\u000avalue: "NoDotsHere"\u000a
+ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: missing value\u000aRequirement spec:\u000aerror_message: "no value"\u000atype: BANNED_NAME\u000a
+WARNING JSC_CONFORMANCE_VIOLATION w5/access/base.js:14:19 @560+19 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/access/base.js:15:38 @618+21 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/access/base.js:16:16 @656+20 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/access/base.js:17:14 @691+22 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/access/base.js:1:0 @0+1184 Violation: RequireUseStrict
+WARNING JSC_CONFORMANCE_VIOLATION w5/access/base.js:21:0 @800+258 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/access/base.js:2:0 @20+223 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/access/base.js:31:14 @1073+15 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/access/base.js:32:27 @1116+23 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/access/base.js:34:0 @1141+20 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/access/fileoverview.js:1:0 @0+203 Violation: RequireUseStrict
+WARNING JSC_CONFORMANCE_VIOLATION w5/access/fileoverview.js:2:20 @50+26 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/access/fileoverview.js:5:0 @183+18 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/access/other/fileoverview_user.js:1:0 @0+131 Violation: RequireUseStrict
+WARNING JSC_CONFORMANCE_VIOLATION w5/access/other/pkg_user.js:1:0 @0+153 Violation: RequireUseStrict
+WARNING JSC_CONFORMANCE_VIOLATION w5/access/other/pkg_user.js:5:0 @88+63 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/access/user.js:11:2 @124+7 Violation: BanUnknownTypedClassPropsReferences\u000aThe property "oldProp" on type "Base"
+WARNING JSC_CONFORMANCE_VIOLATION w5/access/user.js:1:0 @0+19 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/access/user.js:1:0 @0+965 Violation: RequireUseStrict
+WARNING JSC_CONFORMANCE_VIOLATION w5/access/user.js:20:0 @258+84 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/access/user.js:31:0 @590+134 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/access/user.js:39:0 @725+26 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/access/user.js:40:41 @793+16 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/access/user.js:44:12 @873+3 Violation: BanUnknownTypedClassPropsReferences\u000aThe property "dep" on type "Klass"
+WARNING JSC_CONFORMANCE_VIOLATION w5/access/user.js:47:0 @910+53 Violation: BanGlobalVars
+## StripProtection
+= protectors 0
+# file w5/conformance.js
+## parse
+## modules
+## CheckJSDoc
+## CheckJSDocStyle
+WARNING JSC_MISSING_RETURN_JSDOC w5/conformance/a.js:3:22 @82+29 Function that returns a value must have JSDoc indicating the return type.
+WARNING JSC_WRONG_NUMBER_OF_PARAMS w5/conformance/a.js:5:29 @212+12 Wrong number of @param annotations
+WARNING JSC_MISSING_RETURN_JSDOC w5/conformance/a.js:5:21 @204+60 Function that returns a value must have JSDoc indicating the return type.
+WARNING JSC_MISSING_RETURN_JSDOC w5/conformance/a.js:9:25 @418+47 Function that returns a value must have JSDoc indicating the return type.
+WARNING JSC_MISSING_JSDOC w5/conformance/a.js:17:0 @572+50 Function must have JSDoc.
+WARNING JSC_MISSING_JSDOC w5/conformance/a.js:50:0 @1510+41 Function must have JSDoc.
+WARNING JSC_MISSING_JSDOC w5/conformance/a.js:52:16 @1604+39 Function must have JSDoc.
+WARNING JSC_MISSING_JSDOC w5/conformance/a.js:56:10 @1749+29 Function must have JSDoc.
+WARNING JSC_MISSING_JSDOC w5/conformance/a.js:57:0 @1781+23 Function must have JSDoc.
+WARNING JSC_MISSING_JSDOC w5/conformance/a.js:64:0 @1962+35 Function must have JSDoc.
+WARNING JSC_MISSING_JSDOC w5/conformance/a.js:65:0 @1998+45 Function must have JSDoc.
+WARNING JSC_MISSING_JSDOC w5/conformance/a.js:68:0 @2114+186 Function must have JSDoc.
+## VariableReferenceCheck
+## CheckSideEffects
+WARNING JSC_USELESS_CODE w5/conformance/a.js:13:5 @510+6 Suspicious code. The result of the 'getprop' operator is not being used.
+WARNING JSC_USELESS_CODE w5/conformance/a.js:14:5 @523+5 Suspicious code. The result of the 'getprop' operator is not being used.
+WARNING JSC_USELESS_CODE w5/conformance/a.js:18:16 @639+4 Suspicious code. The result of the 'getprop' operator is not being used.
+WARNING JSC_USELESS_CODE w5/conformance/a.js:49:6 @1507+1 Suspicious code. The result of the 'getprop' operator is not being used.
+WARNING JSC_USELESS_CODE w5/conformance/a.js:62:4 @1930+5 Suspicious code. The result of the 'getprop' operator is not being used.
+WARNING JSC_USELESS_CODE w5/conformance/a.js:63:0 @1937+23 Suspicious code. The result of the 'eq' operator is not being used.
+WARNING JSC_USELESS_CODE w5/conformance/legacy/d.js:2:5 @16+5 Suspicious code. The result of the 'getprop' operator is not being used.
+= protector w5/conformance/a.js:13:5
+= protector w5/conformance/a.js:14:5
+= protector w5/conformance/a.js:18:16
+= protector w5/conformance/a.js:49:6
+= protector w5/conformance/a.js:62:4
+= protector w5/conformance/a.js:63:0
+= protector w5/conformance/legacy/d.js:2:5
+= extern SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 1] [feature_set: []]
+= extern     VAR [source_file:  [synthetic:externs] ]
+= extern         NAME JSCOMPILER_PRESERVE [is_constant_name: 1] [source_file:  [synthetic:externs] ]
+## TypeCheck
+WARNING JSC_UNRECOGNIZED_TYPE_ERROR w5/conformance/a.js:53:12 @-1+0 Bad type annotation. Unknown type Unresolved
+WARNING JSC_UNRECOGNIZED_TYPE_ERROR w5/conformance/a.js:53:12 @-1+0 Bad type annotation. Unknown type Unresolved
+WARNING JSC_UNRECOGNIZED_TYPE_ERROR w5/conformance/a.js:54:12 @-1+0 Bad type annotation. Unknown type Unresolved.Inner
+WARNING JSC_INEXISTENT_PROPERTY w5/conformance/a.js:13:5 @510+6 Property global never defined on goog
+WARNING JSC_INEXISTENT_PROPERTY w5/conformance/a.js:14:5 @523+5 Property isDef never defined on goog
+WARNING JSC_STRICT_INEXISTENT_PROPERTY w5/conformance/a.js:17:41 @613+6 Property callee never defined on Arguments
+WARNING JSC_WRONG_ARGUMENT_COUNT w5/conformance/a.js:27:0 @853+13 Function parseInt: called with 1 argument(s). Function requires at least 2 argument(s) and no more than 2 argument(s).
+WARNING JSC_TYPE_MISMATCH w5/conformance/a.js:49:6 @1507+1 No properties on this expression\u000afound   : null\u000arequired: Object
+WARNING JSC_POSSIBLE_INEXISTENT_PROPERTY w5/conformance/a.js:50:37 @1547+1 Property x never defined on this\u000a\u000aThis property is accessed on a "loose" type, but is not defined anywhere in the program, so it must not exist.
+WARNING JSC_INEXISTENT_PROPERTY w5/conformance/a.js:52:41 @1629+11 Property unknownProp never defined on C
+WARNING JSC_INEXISTENT_PROPERTY w5/conformance/a.js:56:35 @1774+1 Property x never defined on this
+WARNING JSC_INEXISTENT_PROPERTY w5/conformance/a.js:62:4 @1930+5 Property blink never defined on String
+WARNING JSC_POSSIBLE_INEXISTENT_PROPERTY w5/conformance/a.js:69:18 @2161+6 Property __html never defined on h\u000a\u000aThis property is accessed on a "loose" type, but is not defined anywhere in the program, so it must not exist.
+WARNING JSC_POSSIBLE_INEXISTENT_PROPERTY w5/conformance/a.js:71:18 @2207+1 Property x never defined on h\u000a\u000aThis property is accessed on a "loose" type, but is not defined anywhere in the program, so it must not exist.
+WARNING JSC_POSSIBLE_INEXISTENT_PROPERTY w5/conformance/a.js:72:13 @2223+1 Property y never defined on h\u000a\u000aThis property is accessed on a "loose" type, but is not defined anywhere in the program, so it must not exist.
+WARNING JSC_POSSIBLE_INEXISTENT_PROPERTY w5/conformance/a.js:73:26 @2252+1 Property z never defined on h\u000a\u000aThis property is accessed on a "loose" type, but is not defined anywhere in the program, so it must not exist.
+WARNING JSC_INEXISTENT_PROPERTY w5/conformance/legacy/d.js:2:5 @16+5 Property isDef never defined on goog
+## CheckAccessControls
+## CheckConformance example
+WARNING JSC_CONFORMANCE_POSSIBLE_VIOLATION w5/conformance/a.js:21:3 @721+9 Possible violation: Assignment to Element.prototype.innerHTML is not allowed since passing unsafe content can cause XSS vulnerabilities.Use goog.dom.safe.setInnerHtml instead.\u000aThe type information available for this expression is too loose to ensure conformance.
+WARNING JSC_CONFORMANCE_POSSIBLE_VIOLATION w5/conformance/a.js:22:3 @741+9 Possible violation: Assignment to Element.prototype.innerHTML is not allowed since passing unsafe content can cause XSS vulnerabilities.Use goog.dom.safe.setInnerHtml instead.\u000aThe type information available for this expression is too loose to ensure conformance.
+WARNING JSC_CONFORMANCE_POSSIBLE_VIOLATION w5/conformance/a.js:23:3 @768+9 Possible violation: Assignment to Element.prototype.outerHTML is not allowed since passing unsafe content can cause XSS vulnerabilities.Use goog.dom.safe.setOuterHtml instead.\u000aThe type information available for this expression is too loose to ensure conformance.
+WARNING JSC_CONFORMANCE_POSSIBLE_VIOLATION w5/conformance/a.js:24:3 @788+9 Possible violation: Assignment to Element.prototype.outerHTML is not allowed since passing unsafe content can cause XSS vulnerabilities.Use goog.dom.safe.setOuterHtml instead.\u000aThe type information available for this expression is too loose to ensure conformance.
+WARNING JSC_CONFORMANCE_POSSIBLE_VIOLATION w5/conformance/a.js:69:4 @2147+9 Possible violation: Assignment to Element.prototype.innerHTML is not allowed since passing unsafe content can cause XSS vulnerabilities.Use goog.dom.safe.setInnerHtml instead.\u000aThe type information available for this expression is too loose to ensure conformance.
+WARNING JSC_CONFORMANCE_POSSIBLE_VIOLATION w5/conformance/a.js:70:4 @2173+9 Possible violation: Assignment to Element.prototype.innerHTML is not allowed since passing unsafe content can cause XSS vulnerabilities.Use goog.dom.safe.setInnerHtml instead.\u000aThe type information available for this expression is too loose to ensure conformance.
+WARNING JSC_CONFORMANCE_POSSIBLE_VIOLATION w5/conformance/a.js:71:4 @2193+9 Possible violation: Assignment to Element.prototype.outerHTML is not allowed since passing unsafe content can cause XSS vulnerabilities.Use goog.dom.safe.setOuterHtml instead.\u000aThe type information available for this expression is too loose to ensure conformance.
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:11:0 @468+4 Violation: eval is not allowed since it can be used to execute arbitrary JavaScript code. It is not typically necessary in ordinary programming.
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:17:41 @613+6 Violation: Arguments.prototype.callee is not allowed in ES5 Strict mode.The JavaScript compiler will also check this when CHECK_ES5_STRICT is enabled, but this conformance check also warns for possible violations.
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:66:9 @2053+6 Violation: Use of document.domain is not allowed since it relaxes the the same origin protections of JavaScript and opens up the attack surface for the domain.
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/fail/c.js:1:0 @0+4 Violation: eval is not allowed since it can be used to execute arbitrary JavaScript code. It is not typically necessary in ordinary programming.
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/legacy/d.js:1:0 @0+4 Violation: eval is not allowed since it can be used to execute arbitrary JavaScript code. It is not typically necessary in ordinary programming.
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/x.min.js:1:0 @0+4 Violation: eval is not allowed since it can be used to execute arbitrary JavaScript code. It is not typically necessary in ordinary programming.
+## CheckConformance all
+ERROR JSC_CONFORMANCE_ERROR w5/conformance/a.js:15:0 @530+10 Violation: BANNED_NAME_CALL
+ERROR JSC_CONFORMANCE_ERROR w5/conformance/a.js:16:0 @560+5 Violation: BANNED_NAME_CALL
+ERROR JSC_CONFORMANCE_ERROR w5/conformance/a.js:64:21 @1983+12 Violation: BanThrowOfNonErrorTypes
+ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: JavaClass not found.\u000aRequirement spec:\u000aerror_message: "missing class"\u000atype: CUSTOM\u000ajava_class: "com.google.javascript.jscomp.ConformanceRules$NoSuchRule"\u000a
+ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: bad prop value\u000aRequirement spec:\u000aerror_message: "bad property"\u000atype: BANNED_PROPERTY\u000avalue: "NoDotsHere"\u000a
+ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: missing value\u000aRequirement spec:\u000aerror_message: "no value"\u000atype: BANNED_NAME\u000a
+WARNING JSC_CONFORMANCE_POSSIBLE_VIOLATION w5/conformance/a.js:21:3 @721+9 Possible violation: BANNED_PROPERTY_WRITE\u000aThe type information available for this expression is too loose to ensure conformance.
+WARNING JSC_CONFORMANCE_POSSIBLE_VIOLATION w5/conformance/a.js:22:3 @741+9 Possible violation: BANNED_PROPERTY_WRITE\u000aThe type information available for this expression is too loose to ensure conformance.
+WARNING JSC_CONFORMANCE_POSSIBLE_VIOLATION w5/conformance/a.js:24:3 @788+9 Possible violation: BANNED_PROPERTY_NON_CONSTANT_WRITE\u000aThe type information available for this expression is too loose to ensure conformance.
+WARNING JSC_CONFORMANCE_POSSIBLE_VIOLATION w5/conformance/a.js:63:0 @1937+23 Possible violation: BANNED_CODE_PATTERN\u000aThe type information available for this expression is too loose to ensure conformance.
+WARNING JSC_CONFORMANCE_POSSIBLE_VIOLATION w5/conformance/a.js:69:4 @2147+9 Possible violation: BANNED_PROPERTY_WRITE\u000aThe type information available for this expression is too loose to ensure conformance.
+WARNING JSC_CONFORMANCE_POSSIBLE_VIOLATION w5/conformance/a.js:70:4 @2173+9 Possible violation: BANNED_PROPERTY_WRITE\u000aThe type information available for this expression is too loose to ensure conformance.
+WARNING JSC_CONFORMANCE_POSSIBLE_VIOLATION w5/conformance/a.js:71:4 @2193+9 Possible violation: BANNED_PROPERTY_NON_CONSTANT_WRITE\u000aThe type information available for this expression is too loose to ensure conformance.
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:11:0 @468+4 Violation: BANNED_NAME
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:12:9 @488+10 Violation: BANNED_NAME
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:13:5 @510+6 Violation: BANNED_NAME
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:14:5 @523+5 Violation: BANNED_NAME
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:17:0 @572+50 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:17:41 @613+6 Violation: BANNED_PROPERTY
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:17:41 @613+6 Violation: BanNullDeref
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:18:16 @639+4 Violation: BANNED_PROPERTY_READ
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:19:0 @645+32 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:19:27 @672+4 Violation: BANNED_PROPERTY_READ
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:1:0 @0+2583 Violation: RequireUseStrict
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:20:0 @678+39 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:25:9 @815+5 Violation: BANNED_PROPERTY_CALL
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:26:5 @832+14 Violation: BANNED_PROPERTY_CALL
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:27:0 @853+8 Violation: RESTRICTED_NAME_CALL
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:29:0 @887+8 Violation: RESTRICTED_NAME_CALL
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:31:4 @921+7 Violation: BANNED_PROPERTY forEach
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:32:0 @946+32 Violation: BanCreateElement
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:33:0 @980+32 Violation: BanCreateElement
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:35:0 @1045+42 Violation: BanCreateElement
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:37:0 @1132+43 Violation: BanCreateElement
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:38:0 @1177+27 Violation: BanElementSetAttribute
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:39:0 @1206+28 Violation: BanElementSetAttribute
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:3:9 @69+10 Violation: BANNED_NAME
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:42:0 @1282+46 Violation: BanExecCommand
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:44:0 @1360+29 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:44:8 @1368+20 Violation: BANNED_STRING_REGEX
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:45:0 @1390+21 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:45:8 @1398+12 Violation: BANNED_STRING_REGEX
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:46:0 @1412+26 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:46:9 @1421+13 Violation: BANNED_STRING_REGEX
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:47:0 @1439+20 Violation: BanForOf
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:48:23 @1483+17 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:50:0 @1510+41 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:50:32 @1542+4 Violation: BanUnknownThis
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:51:20 @1572+15 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:52:41 @1629+11 Violation: BanUnknownDirectThisPropsReferences
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:52:41 @1629+11 Violation: BanUnknownTypedClassPropsReferences\u000aThe property "unknownProp" on type "C"
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:53:27 @1672+6 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:54:33 @1712+14 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:55:0 @1727+11 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:56:0 @1739+41 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:56:30 @1769+4 Violation: BanStaticThis
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:56:35 @1774+1 Violation: BanUnknownDirectThisPropsReferences
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:57:0 @1781+23 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:58:14 @1819+27 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:59:0 @1847+25 Violation: BanNonLiteralArgsToGoogStringConstFrom
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:61:0 @1909+16 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:62:4 @1930+5 Violation: BANNED_CODE_PATTERN
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:64:0 @1962+35 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:65:0 @1998+45 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:68:0 @2114+186 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:73:2 @2228+26 Violation: BanElementSetAttribute
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:77:32 @2333+43 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:79:23 @2437+17 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:80:0 @2455+26 Violation: BanElementSetAttribute
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:81:14 @2497+12 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/a.js:83:0 @2551+29 Violation: BanElementSetAttribute
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/banned/b.js:1:0 @0+18 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/banned/b.js:1:0 @0+20 Violation: BANNED_DEPENDENCY
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/banned/b.js:1:0 @0+20 Violation: RequireUseStrict
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/enhance.js:1:0 @0+89 Violation: BANNED_ENHANCE\u000aThe enhanced namespace "{goog.foo}"
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/enhance.js:1:0 @0+89 Violation: BANNED_MODS_REGEX
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/enhance.js:1:0 @0+89 Violation: BannedModsRegex class
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/enhance.js:1:0 @0+89 Violation: RequireUseStrict
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/enhance.js:6:0 @70+17 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/enhance2.js:1:0 @0+87 Violation: BannedEnhance class\u000aThe enhanced namespace "{goog.bar}"
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/enhance2.js:1:0 @0+87 Violation: BannedModsRegex class
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/enhance2.js:1:0 @0+87 Violation: RequireUseStrict
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/enhance2.js:6:0 @67+18 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/fail/c.js:1:0 @0+12 Violation: BANNED_DEPENDENCY_REGEX
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/fail/c.js:1:0 @0+12 Violation: RequireUseStrict
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/fail/c.js:1:0 @0+4 Violation: BANNED_NAME
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/legacy/d.js:1:0 @0+24 Violation: RequireUseStrict
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/strict.js:2:0 @14+18 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/conformance/x.min.js:1:0 @0+12 Violation: RequireUseStrict
+## StripProtection
+= protectors 0
+# file w5/jsdoc.js
+## parse
+WARNING JSC_BAD_JSDOC_ANNOTATION w5/jsdoc.js:35:4 @-1+0 Parse error. illegal use of unknown JSDoc tag "expose"; ignoring it. Place another character before the @ to stop JSCompiler from parsing it as an annotation.
+## modules
+## CheckJSDoc
+WARNING JSC_ARROW_FUNCTION_AS_CONSTRUCTOR w5/jsdoc.js:10:32 @342+8 Arrow functions cannot be used as constructors
+WARNING JSC_INVALID_MODIFIES_ANNOTATION w5/jsdoc.js:14:24 @515+17 @modifies may only appear in externs files.
+ERROR JSC_INVALID_DEFINE_ON_LET w5/jsdoc.js:15:25 @558+15 variables annotated with @define may only be declared with VARs, ASSIGNs, or CONSTs
+WARNING JSC_MISPLACED_ANNOTATION w5/jsdoc.js:16:39 @613+9 Misplaced type annotation. Type annotations are not allowed here. Are you missing parentheses?
+WARNING JSC_MISPLACED_MSG_ANNOTATION w5/jsdoc.js:17:27 @652+15 Misplaced message annotation. @desc, @meaning, and @alternateMessageId annotations should be only on message nodes.\u000aMessage constants must be prefixed with MSG_.
+WARNING JSC_BAD_REST_PARAMETER_ANNOTATION w5/jsdoc.js:18:39 @707+4 Missing "..." in type annotation for rest parameter.
+WARNING JSC_MISPLACED_ANNOTATION w5/jsdoc.js:28:20 @1237+26 Misplaced function annotation. This JSDoc is not attached to a function node. Are you missing parentheses?
+WARNING JSC_MISPLACED_ANNOTATION w5/jsdoc.js:29:17 @1281+24 Misplaced @abstract annotation. only functions or non-static methods can be abstract
+WARNING JSC_MISPLACED_ANNOTATION w5/jsdoc.js:41:24 @1681+6 Misplaced type annotation. Type annotations are not allowed here. Are you missing parentheses?
+WARNING JSC_MISPLACED_ANNOTATION w5/jsdoc.js:62:36 @2131+3 Misplaced type annotation. Type annotations are not allowed here. Are you missing parentheses?
+## CheckJSDocStyle
+WARNING JSC_OPTIONAL_PARAM_NOT_MARKED_OPTIONAL w5/jsdoc.js:11:12 @364+6 Parameter a is optional so it must have a JSDoc type ending with '='
+WARNING JSC_MISSING_JSDOC w5/jsdoc.js:16:0 @574+50 Function must have JSDoc.
+WARNING JSC_INCORRECT_PARAM_NAME w5/jsdoc.js:21:44 @880+1 Incorrect param name. Are your @param annotations in the wrong order?
+WARNING JSC_MISSING_JSDOC w5/jsdoc.js:22:0 @886+38 Function must have JSDoc.
+WARNING JSC_INCORRECT_PARAM_NAME w5/jsdoc.js:23:47 @972+5 Incorrect param name. Are your @param annotations in the wrong order?
+WARNING JSC_PREFER_BACKTICKS_TO_AT_SIGN_CODE w5/jsdoc.js:24:26 @1008+23 Use `some_code` instead of {@code some_code}.
+WARNING JSC_WRONG_NUMBER_OF_PARAMS w5/jsdoc.js:25:39 @1071+20 Wrong number of @param annotations
+WARNING JSC_MISSING_RETURN_JSDOC w5/jsdoc.js:27:25 @1172+44 Function that returns a value must have JSDoc indicating the return type.
+WARNING JSC_CLASS_DISALLOWED_JSDOC w5/jsdoc.js:28:20 @1237+26 @constructor annotations are redundant on classes.
+WARNING JSC_WRONG_NUMBER_OF_PARAMS w5/jsdoc.js:39:35 @1605+13 Wrong number of @param annotations
+WARNING JSC_MISSING_RETURN_JSDOC w5/jsdoc.js:39:35 @1605+13 Function that returns a value must have JSDoc indicating the return type.
+WARNING JSC_MISSING_PARAMETER_JSDOC w5/jsdoc.js:40:32 @1651+1 Parameter must have JSDoc.
+## VariableReferenceCheck
+## CheckSideEffects
+= extern SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [feature_set: []]
+## TypeCheck
+WARNING JSC_INEXISTENT_PARAM w5/jsdoc.js:21:25 @861+24 parameter b does not appear in wrongName's parameter list
+WARNING JSC_INEXISTENT_PARAM w5/jsdoc.js:23:25 @950+31 parameter x does not appear in optNotMarked's parameter list
+WARNING JSC_INEXISTENT_PARAM w5/jsdoc.js:39:35 @1605+13 parameter x does not appear in C.prototype.g's parameter list
+WARNING JSC_INVALID_CAST w5/jsdoc.js:71:22 @2312+15 invalid cast - must be a subtype or supertype\u000afrom: function(): undefined\u000ato  : number
+WARNING JSC_NOT_FUNCTION_TYPE w5/jsdoc.js:71:22 @2312+17 number expressions are not callable
+## CheckAccessControls
+## CheckConformance example
+## CheckConformance all
+ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: JavaClass not found.\u000aRequirement spec:\u000aerror_message: "missing class"\u000atype: CUSTOM\u000ajava_class: "com.google.javascript.jscomp.ConformanceRules$NoSuchRule"\u000a
+ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: bad prop value\u000aRequirement spec:\u000aerror_message: "bad property"\u000atype: BANNED_PROPERTY\u000avalue: "NoDotsHere"\u000a
+ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: missing value\u000aRequirement spec:\u000aerror_message: "no value"\u000atype: BANNED_NAME\u000a
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:10:20 @330+21 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:11:25 @377+22 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:12:26 @426+24 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:13:22 @473+17 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:14:24 @515+17 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:15:25 @558+15 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:16:0 @574+50 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:17:27 @652+15 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:18:25 @693+22 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:19:28 @744+24 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:1:0 @0+2331 Violation: RequireUseStrict
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:20:43 @812+23 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:21:25 @861+24 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:22:0 @886+38 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:23:25 @950+31 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:24:26 @1008+23 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:25:25 @1057+37 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:26:24 @1119+27 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:27:25 @1172+44 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:28:20 @1237+26 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:29:17 @1281+24 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:30:22 @1328+17 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:31:0 @1346+60 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:32:0 @1407+12 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:34:19 @1469+12 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:36:24 @1537+21 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:38:0 @1560+229 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:53:0 @1868+44 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:57:18 @1932+15 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:60:14 @2020+34 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:61:0 @2055+39 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:62:0 @2095+40 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:65:0 @2162+23 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:66:22 @2208+25 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:6:22 @139+27 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:7:21 @188+19 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/jsdoc.js:8:30 @238+22 Violation: BanGlobalVars
+## StripProtection
+= protectors 0
+# file w5/sideeffects.js
+## parse
+## modules
+## CheckJSDoc
+## CheckJSDocStyle
+WARNING JSC_MISSING_JSDOC w5/sideeffects.js:10:0 @96+24 Function must have JSDoc.
+WARNING JSC_MISSING_JSDOC w5/sideeffects.js:30:0 @355+70 Function must have JSDoc.
+## VariableReferenceCheck
+## CheckSideEffects
+WARNING JSC_USELESS_CODE w5/sideeffects.js:1:0 @0+1 Suspicious code. This code lacks side-effects. Is there a bug?
+WARNING JSC_USELESS_CODE w5/sideeffects.js:2:0 @3+5 Suspicious code. Is there a missing '+' on the previous line?
+WARNING JSC_USELESS_CODE w5/sideeffects.js:4:2 @45+1 Suspicious code. The result of the 'getprop' operator is not being used.
+WARNING JSC_USELESS_CODE w5/sideeffects.js:5:0 @48+5 Suspicious code. The result of the 'add' operator is not being used.
+WARNING JSC_USELESS_CODE w5/sideeffects.js:6:0 @55+6 Suspicious code. The result of the 'eq' operator is not being used.
+WARNING JSC_USELESS_CODE w5/sideeffects.js:9:0 @90+1 Suspicious code. This code lacks side-effects. Is there a bug?
+WARNING JSC_USELESS_CODE w5/sideeffects.js:9:3 @93+1 Suspicious code. This code lacks side-effects. Is there a bug?
+WARNING JSC_USELESS_CODE w5/sideeffects.js:10:20 @116+1 Suspicious code. The result of the 'getprop' operator is not being used.
+WARNING JSC_USELESS_CODE w5/sideeffects.js:12:3 @151+1 Suspicious code. The result of the 'getprop' operator is not being used.
+WARNING JSC_USELESS_CODE w5/sideeffects.js:14:9 @191+1 Suspicious code. This code lacks side-effects. Is there a bug?
+WARNING JSC_USELESS_CODE w5/sideeffects.js:15:11 @207+1 Suspicious code. This code lacks side-effects. Is there a bug?
+WARNING JSC_USELESS_CODE w5/sideeffects.js:16:1 @220+9 Suspicious code. Is there a missing '+' on the previous line?
+WARNING JSC_USELESS_CODE w5/sideeffects.js:17:0 @231+2 Suspicious code. The result of the 'neg' operator is not being used.
+WARNING JSC_USELESS_CODE w5/sideeffects.js:18:0 @235+2 Suspicious code. The result of the 'not' operator is not being used.
+WARNING JSC_USELESS_CODE w5/sideeffects.js:19:0 @239+6 Suspicious code. This code lacks side-effects. Is there a bug?
+WARNING JSC_USELESS_CODE w5/sideeffects.js:20:1 @248+6 Suspicious code. This code lacks side-effects. Is there a bug?
+WARNING JSC_USELESS_CODE w5/sideeffects.js:21:0 @257+10 Suspicious code. This code lacks side-effects. Is there a bug?
+WARNING JSC_USELESS_CODE w5/sideeffects.js:22:4 @273+1 Suspicious code. The result of the 'getprop' operator is not being used.
+WARNING JSC_USELESS_CODE w5/sideeffects.js:23:4 @280+1 Suspicious code. This code lacks side-effects. Is there a bug?
+WARNING JSC_USELESS_CODE w5/sideeffects.js:23:8 @284+1 Suspicious code. This code lacks side-effects. Is there a bug?
+WARNING JSC_USELESS_CODE w5/sideeffects.js:23:0 @276+9 Suspicious code. This code lacks side-effects. Is there a bug?
+WARNING JSC_USELESS_CODE w5/sideeffects.js:24:5 @292+1 Suspicious code. This code lacks side-effects. Is there a bug?
+WARNING JSC_USELESS_CODE w5/sideeffects.js:24:0 @287+6 Suspicious code. This code lacks side-effects. Is there a bug?
+WARNING JSC_USELESS_CODE w5/sideeffects.js:27:0 @315+4 Suspicious code. The result of the 'getelem' operator is not being used.
+WARNING JSC_USELESS_CODE w5/sideeffects.js:28:0 @321+8 Suspicious code. The result of the 'typeof' operator is not being used.
+WARNING JSC_USELESS_CODE w5/sideeffects.js:32:2 @388+19 Suspicious code. Is there a missing '+' on the previous line?
+WARNING JSC_USELESS_CODE w5/sideeffects.js:33:2 @411+1 Suspicious code. This code lacks side-effects. Is there a bug?
+WARNING JSC_USELESS_CODE w5/sideeffects.js:37:23 @459+1 Suspicious code. The result of the 'getprop' operator is not being used.
+WARNING JSC_USELESS_CODE w5/sideeffects.js:39:16 @482+1 Suspicious code. This code lacks side-effects. Is there a bug?
+= protector w5/sideeffects.js:1:0
+= protector w5/sideeffects.js:2:0
+= protector w5/sideeffects.js:4:2
+= protector w5/sideeffects.js:5:0
+= protector w5/sideeffects.js:6:0
+= protector w5/sideeffects.js:9:0
+= protector w5/sideeffects.js:9:3
+= protector w5/sideeffects.js:10:20
+= protector w5/sideeffects.js:12:3
+= protector w5/sideeffects.js:14:9
+= protector w5/sideeffects.js:15:11
+= protector w5/sideeffects.js:16:1
+= protector w5/sideeffects.js:17:0
+= protector w5/sideeffects.js:18:0
+= protector w5/sideeffects.js:19:0
+= protector w5/sideeffects.js:20:1
+= protector w5/sideeffects.js:21:0
+= protector w5/sideeffects.js:22:4
+= protector w5/sideeffects.js:23:0
+= protector w5/sideeffects.js:23:4
+= protector w5/sideeffects.js:23:8
+= protector w5/sideeffects.js:24:0
+= protector w5/sideeffects.js:24:5
+= protector w5/sideeffects.js:27:0
+= protector w5/sideeffects.js:28:0
+= protector w5/sideeffects.js:29:0
+= protector w5/sideeffects.js:32:2
+= protector w5/sideeffects.js:33:2
+= protector w5/sideeffects.js:37:23
+= protector w5/sideeffects.js:39:16
+= protector w5/sideeffects.js:40:55
+= extern SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 1] [feature_set: []]
+= extern     VAR [source_file:  [synthetic:externs] ]
+= extern         NAME JSCOMPILER_PRESERVE [is_constant_name: 1] [source_file:  [synthetic:externs] ]
+## TypeCheck
+WARNING JSC_INEXISTENT_PROPERTY w5/sideeffects.js:4:2 @45+1 Property b never defined on a
+WARNING JSC_INEXISTENT_PROPERTY w5/sideeffects.js:12:3 @151+1 Property y never defined on ns
+WARNING JSC_INEXISTENT_PROPERTY w5/sideeffects.js:22:2 @271+1 Property b never defined on a
+WARNING JSC_POSSIBLE_INEXISTENT_PROPERTY w5/sideeffects.js:22:4 @273+1 Property c never defined on a.b\u000a\u000aThis property is accessed on a "loose" type, but is not defined anywhere in the program, so it must not exist.
+WARNING JSC_INEXISTENT_PROPERTY w5/sideeffects.js:37:23 @459+1 Property p never defined on C
+## CheckAccessControls
+## CheckConformance example
+## CheckConformance all
+ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: JavaClass not found.\u000aRequirement spec:\u000aerror_message: "missing class"\u000atype: CUSTOM\u000ajava_class: "com.google.javascript.jscomp.ConformanceRules$NoSuchRule"\u000a
+ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: bad prop value\u000aRequirement spec:\u000aerror_message: "bad property"\u000atype: BANNED_PROPERTY\u000avalue: "NoDotsHere"\u000a
+ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: missing value\u000aRequirement spec:\u000aerror_message: "no value"\u000atype: BANNED_NAME\u000a
+WARNING JSC_CONFORMANCE_VIOLATION w5/sideeffects.js:10:0 @96+24 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/sideeffects.js:10:15 @111+4 Violation: BanUnknownThis
+WARNING JSC_CONFORMANCE_VIOLATION w5/sideeffects.js:11:14 @135+12 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/sideeffects.js:1:0 @0+545 Violation: RequireUseStrict
+WARNING JSC_CONFORMANCE_VIOLATION w5/sideeffects.js:30:0 @355+70 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/sideeffects.js:36:0 @426+39 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/sideeffects.js:37:23 @459+1 Violation: BanUnknownDirectThisPropsReferences
+WARNING JSC_CONFORMANCE_VIOLATION w5/sideeffects.js:37:23 @459+1 Violation: BanUnknownTypedClassPropsReferences\u000aThe property "p" on type "C"
+WARNING JSC_CONFORMANCE_VIOLATION w5/sideeffects.js:3:0 @10+32 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/sideeffects.js:40:31 @516+28 Violation: BanGlobalVars
+## StripProtection
+= protectors 0
+# file w5/varref.js
+## parse
+## modules
+## CheckJSDoc
+## CheckJSDocStyle
+WARNING JSC_MISSING_JSDOC w5/varref/script.js:1:0 @0+37 Function must have JSDoc.
+WARNING JSC_MISSING_JSDOC w5/varref/script.js:2:0 @38+39 Function must have JSDoc.
+WARNING JSC_MISSING_JSDOC w5/varref/script.js:3:0 @78+34 Function must have JSDoc.
+WARNING JSC_MISSING_JSDOC w5/varref/script.js:4:0 @113+48 Function must have JSDoc.
+WARNING JSC_MISSING_JSDOC w5/varref/script.js:5:0 @162+45 Function must have JSDoc.
+WARNING JSC_MISSING_JSDOC w5/varref/script.js:6:0 @208+35 Function must have JSDoc.
+WARNING JSC_MISSING_JSDOC w5/varref/script.js:7:0 @244+48 Function must have JSDoc.
+WARNING JSC_MISSING_JSDOC w5/varref/script.js:8:0 @293+34 Function must have JSDoc.
+WARNING JSC_MISSING_JSDOC w5/varref/script.js:9:0 @328+89 Function must have JSDoc.
+WARNING JSC_MISSING_JSDOC w5/varref/script.js:18:0 @517+69 Function must have JSDoc.
+WARNING JSC_MISSING_JSDOC w5/varref/script.js:24:0 @587+34 Function must have JSDoc.
+WARNING JSC_MISSING_JSDOC w5/varref/script.js:25:0 @622+63 Function must have JSDoc.
+WARNING JSC_MISSING_JSDOC w5/varref/script.js:26:0 @686+54 Function must have JSDoc.
+WARNING JSC_MISSING_JSDOC w5/varref/script.js:29:0 @769+41 Function must have JSDoc.
+WARNING JSC_MISSING_JSDOC w5/varref/script.js:30:14 @825+20 Function must have JSDoc.
+WARNING JSC_MISSING_JSDOC w5/varref/redecl_error.js:1:0 @0+43 Function must have JSDoc.
+WARNING JSC_MISSING_JSDOC w5/varref/redecl_error.js:2:0 @44+50 Function must have JSDoc.
+## VariableReferenceCheck
+ERROR JSC_REFERENCE_BEFORE_DECLARE_ERROR w5/varref/script.js:3:17 @95+2 Illegal variable reference before declaration: x2
+ERROR JSC_REASSIGNED_CONSTANT w5/varref/script.js:4:40 @153+1 Constant reassigned: c
+WARNING JSC_UNUSED_LOCAL_ASSIGNMENT w5/varref/script.js:4:40 @153+1 Value assigned to local variable c is never read
+WARNING JSC_UNUSED_LOCAL_ASSIGNMENT w5/varref/script.js:5:37 @199+1 Value assigned to local variable u is never read
+WARNING JSC_UNUSED_LOCAL_ASSIGNMENT w5/varref/script.js:6:27 @235+5 Value assigned to local variable w is never read
+ERROR JSC_REFERENCE_BEFORE_DECLARE_ERROR w5/varref/script.js:8:22 @315+1 Illegal variable reference before declaration: q
+ERROR JSC_REDECLARED_VARIABLE_ERROR w5/varref/script.js:26:48 @734+1 Illegal redeclared variable: e
+ERROR JSC_REFERENCE_BEFORE_DECLARE_ERROR w5/varref/script.js:29:30 @799+1 Illegal variable reference before declaration: t
+ERROR JSC_REDECLARED_VARIABLE_ERROR w5/varref/redecl_error.js:1:37 @37+3 Illegal redeclared variable: dup
+ERROR JSC_REDECLARED_VARIABLE_ERROR w5/varref/redecl_error.js:2:42 @86+5 Illegal redeclared variable: k
+ERROR JSC_EXPORTS_REFERENCE_BEFORE_ASSIGN w5/varref/mod.js:2:0 @23+7 Illegal reference to `exports` before assignment `exports = ...`
+ERROR JSC_REFERENCE_BEFORE_DECLARE_ERROR w5/varref/script.js:32:4 @866+6 Illegal variable reference before declaration: Before
+## CheckSideEffects
+WARNING JSC_USELESS_CODE w5/varref/script.js:1:22 @22+1 Suspicious code. This code lacks side-effects. Is there a bug?
+WARNING JSC_USELESS_CODE w5/varref/script.js:16:4 @512+1 Suspicious code. This code lacks side-effects. Is there a bug?
+WARNING JSC_USELESS_CODE w5/varref/script.js:25:47 @669+1 Suspicious code. This code lacks side-effects. Is there a bug?
+WARNING JSC_USELESS_CODE w5/varref/script.js:29:23 @792+8 Suspicious code. The result of the 'typeof' operator is not being used.
+WARNING JSC_USELESS_CODE w5/varref/script.js:36:2 @942+5 Suspicious code. This code lacks side-effects. Is there a bug?
+WARNING JSC_USELESS_CODE w5/varref/mod.js:2:8 @31+1 Suspicious code. The result of the 'getprop' operator is not being used.
+WARNING JSC_USELESS_CODE w5/varref/es.js:2:0 @30+3 Suspicious code. This code lacks side-effects. Is there a bug?
+= protector w5/varref/script.js:1:22
+= protector w5/varref/script.js:16:4
+= protector w5/varref/script.js:25:47
+= protector w5/varref/script.js:29:23
+= protector w5/varref/script.js:36:2
+= protector w5/varref/mod.js:2:8
+= protector w5/varref/es.js:2:0
+= extern SCRIPT 1:0  [source_file:  [synthetic:externs] ] [input_id: InputId:  [synthetic:externs] ] [change_time: 1] [feature_set: []]
+= extern     VAR [source_file:  [synthetic:externs] ]
+= extern         NAME JSCOMPILER_PRESERVE [is_constant_name: 1] [source_file:  [synthetic:externs] ]
+## TypeCheck
+WARNING JSC_INEXISTENT_PROPERTY w5/varref/script.js:35:19 @935+3 Property foo never defined on goog
+WARNING JSC_INEXISTENT_PROPERTY w5/varref/mod.js:2:8 @31+1 Property x never defined on exports
+## CheckAccessControls
+## CheckConformance example
+## CheckConformance all
+ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: JavaClass not found.\u000aRequirement spec:\u000aerror_message: "missing class"\u000atype: CUSTOM\u000ajava_class: "com.google.javascript.jscomp.ConformanceRules$NoSuchRule"\u000a
+ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: bad prop value\u000aRequirement spec:\u000aerror_message: "bad property"\u000atype: BANNED_PROPERTY\u000avalue: "NoDotsHere"\u000a
+ERROR JSC_INVALID_REQUIREMENT_SPEC null:-1:-1 @-1+0 Invalid requirement. Reason: missing value\u000aRequirement spec:\u000aerror_message: "no value"\u000atype: BANNED_NAME\u000a
+WARNING JSC_CONFORMANCE_VIOLATION w5/varref/es.js:1:0 @0+103 Violation: RequireUseStrict
+WARNING JSC_CONFORMANCE_VIOLATION w5/varref/mod.js:1:0 @0+49 Violation: RequireUseStrict
+WARNING JSC_CONFORMANCE_VIOLATION w5/varref/redecl_error.js:1:0 @0+43 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/varref/redecl_error.js:1:0 @0+96 Violation: RequireUseStrict
+WARNING JSC_CONFORMANCE_VIOLATION w5/varref/redecl_error.js:2:0 @44+50 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/varref/script.js:18:0 @517+69 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/varref/script.js:1:0 @0+37 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/varref/script.js:1:0 @0+987 Violation: RequireUseStrict
+WARNING JSC_CONFORMANCE_VIOLATION w5/varref/script.js:24:0 @587+34 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/varref/script.js:25:0 @622+63 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/varref/script.js:26:0 @686+54 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/varref/script.js:27:0 @741+13 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/varref/script.js:28:0 @755+13 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/varref/script.js:29:0 @769+41 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/varref/script.js:2:0 @38+39 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/varref/script.js:30:0 @811+36 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/varref/script.js:31:0 @848+13 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/varref/script.js:33:0 @876+15 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/varref/script.js:3:0 @78+34 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/varref/script.js:4:0 @113+48 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/varref/script.js:5:0 @162+45 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/varref/script.js:6:0 @208+35 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/varref/script.js:7:0 @244+48 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/varref/script.js:8:0 @293+34 Violation: BanGlobalVars
+WARNING JSC_CONFORMANCE_VIOLATION w5/varref/script.js:9:0 @328+89 Violation: BanGlobalVars
+## StripProtection
+= protectors 0

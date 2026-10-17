@@ -139,7 +139,13 @@ type callSite struct {
 	ellipsis bool
 	argTypes []types.Type // nil entries for untyped/invalid arguments
 	typePos  bool         // used where a type is expected
-	pos      token.Position
+	// resultSelected: a field or method is selected on the call's result,
+	// directly or through the variable the call initializes (x := f();
+	// x.M()). A Go slice has neither, so a Java List result used this way
+	// is a *jutil.ArrayList in the port (PORTING.md §6: a list mutated
+	// after it is shared).
+	resultSelected bool
+	pos            token.Position
 }
 
 // need is an unresolved reference from a root file.
@@ -186,11 +192,13 @@ func collectNeeds(res *checkResult, roots map[string]bool, pendingTypes map[stri
 			stack = append(stack, n)
 			return true
 		})
+		selected := selectedResults(f, info)
 		siteOf := func(e ast.Expr) callSite {
 			s := callSite{pos: fset.Position(e.Pos())}
 			p := parents[e]
 			if call, ok := p.(*ast.CallExpr); ok && call.Fun == e {
 				s.called = true
+				s.resultSelected = selected[call]
 				s.arity = len(call.Args)
 				s.ellipsis = call.Ellipsis.IsValid()
 				for _, a := range call.Args {
@@ -298,6 +306,61 @@ func collectNeeds(res *checkResult, roots map[string]bool, pendingTypes map[stri
 		out = append(out, n)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].key() < out[j].key() })
+	return out
+}
+
+// selectedResults returns the calls of f on whose result a field or method
+// is selected, directly (f().M) or through a variable that the call alone
+// initializes (x := f(); x.M, or var x = f()).
+func selectedResults(f *ast.File, info *types.Info) map[*ast.CallExpr]bool {
+	initializer := map[types.Object]*ast.CallExpr{}
+	define := func(lhs []ast.Expr, rhs []ast.Expr) {
+		if len(lhs) != len(rhs) {
+			return
+		}
+		for i, l := range lhs {
+			id, ok := l.(*ast.Ident)
+			if !ok {
+				continue
+			}
+			if call, ok := ast.Unparen(rhs[i]).(*ast.CallExpr); ok {
+				if obj := info.Defs[id]; obj != nil {
+					initializer[obj] = call
+				}
+			}
+		}
+	}
+	ast.Inspect(f, func(n ast.Node) bool {
+		switch n := n.(type) {
+		case *ast.AssignStmt:
+			if n.Tok == token.DEFINE {
+				define(n.Lhs, n.Rhs)
+			}
+		case *ast.ValueSpec:
+			var lhs []ast.Expr
+			for _, id := range n.Names {
+				lhs = append(lhs, id)
+			}
+			define(lhs, n.Values)
+		}
+		return true
+	})
+	out := map[*ast.CallExpr]bool{}
+	ast.Inspect(f, func(n ast.Node) bool {
+		sel, ok := n.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		switch x := ast.Unparen(sel.X).(type) {
+		case *ast.CallExpr:
+			out[x] = true
+		case *ast.Ident:
+			if call, ok := initializer[info.Uses[x]]; ok {
+				out[call] = true
+			}
+		}
+		return true
+	})
 	return out
 }
 

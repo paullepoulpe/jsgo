@@ -78,3 +78,18 @@ func TestFileCharSourceReadLines(t *testing.T) {
 	}
 	r.Close()
 }
+
+// Go-only: CharSource.wrap and CharSource.read as Guava documents them.
+func TestCharSourceWrapRead(t *testing.T) {
+	if got := CharSource_Wrap("a\nbé").Read(); got != "a\nbé" {
+		t.Errorf("CharSource.wrap(...).read() = %q", got)
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "f.txt")
+	if err := os.WriteFile(path, []byte("xé\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := Files_AsCharSource(NewFile(path), StandardCharsets_UTF_8).Read(); got != "xé\n" {
+		t.Errorf("Files.asCharSource(...).read() = %q", got)
+	}
+}

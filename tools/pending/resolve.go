@@ -165,7 +165,7 @@ func (g *Gen) abstractMethods(c *ClassInfo) []methodRef {
 				continue
 			}
 			seen[mi.Name+mi.Desc] = true
-			out = append(out, methodRef{cls, mi, i})
+			out = append(out, methodRef{owner: cls, m: mi, index: i})
 		}
 	}
 	add(c)
@@ -233,7 +233,7 @@ func (g *Gen) resolveTop(n *need) bool {
 		var ctors []methodRef
 		for i, mi := range c.Methods {
 			if mi.Name == "<init>" && mi.Access&accSynthetic == 0 {
-				ctors = append(ctors, methodRef{c, mi, i})
+				ctors = append(ctors, methodRef{owner: c, m: mi, index: i})
 			}
 		}
 		if len(ctors) == 0 {
@@ -324,6 +324,7 @@ func (g *Gen) resolveTop(n *need) bool {
 			return false
 		}
 		ref := g.chooseOverload(cands, suffix, n.sites)
+		ref.listResultArrayList = resultSelected(n.sites)
 		p.statics[name] = &PMember{kind: MStaticFunc, goName: name, method: &ref}
 		return true
 	}
@@ -419,8 +420,20 @@ func (g *Gen) resolveMember(n *need) bool {
 		return false
 	}
 	ref := g.chooseOverload(cands, n.name[len(mname):], n.sites)
+	ref.listResultArrayList = resultSelected(n.sites)
 	p.members[n.name] = &PMember{kind: MMethod, goName: n.name, method: &ref}
 	return true
+}
+
+// resultSelected reports whether a call site selects a field or method on
+// the call's result.
+func resultSelected(sites []callSite) bool {
+	for _, s := range sites {
+		if s.called && s.resultSelected {
+			return true
+		}
+	}
+	return false
 }
 
 func specialDesc(name string) string {
@@ -741,7 +754,7 @@ func (g *Gen) javaMethodForGo(c *ClassInfo, goName string, arity int) *methodRef
 				continue
 			}
 			if len(base) > bestLen || best == nil {
-				best = &methodRef{cls, mi, i}
+				best = &methodRef{owner: cls, m: mi, index: i}
 				bestLen = len(base)
 			}
 		}

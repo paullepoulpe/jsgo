@@ -11,7 +11,6 @@ package parsing
 //	TYPES_FILES=<file list> [TYPES_DIFF_DIR=<dir>] go test -run TestCorpusTypesOracle
 
 import (
-	"bufio"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -21,6 +20,7 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/tools/oracle/corpus"
 )
 
 type typeLineReporter struct{ line func(string) }
@@ -97,19 +97,13 @@ func TestCorpusTypesOracle(t *testing.T) {
 	if root == "" || oracle == "" || list == "" {
 		t.Skip("set TYPES_ROOT, TYPES_ORACLE_DIR and TYPES_FILES to run the corpus type oracle")
 	}
-	f, err := os.Open(list)
+	rels, err := corpus.ReadList(list)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
 	diffDir := os.Getenv("TYPES_DIFF_DIR")
 	files, same, exprs, differ := 0, 0, 0, 0
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		rel := sc.Text()
-		if rel == "" {
-			continue
-		}
+	for _, rel := range rels {
 		want, err := readDump(filepath.Join(oracle, rel+".types"))
 		if err != nil {
 			t.Fatalf("%s: %v", rel, err)

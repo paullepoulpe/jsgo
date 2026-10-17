@@ -79,6 +79,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 import java.util.zip.GZIPOutputStream;
+import jsgo.oracle.CorpusExclusions;
 
 public final class CoreG2Dump {
 
@@ -106,6 +107,7 @@ public final class CoreG2Dump {
             files.add(f);
           }
         }
+        CorpusExclusions.removeFrom(files); // tools/oracle/gpl-excluded-corpus.txt
         Config config = compilerParserConfig();
         line(
             "# config languageMode="

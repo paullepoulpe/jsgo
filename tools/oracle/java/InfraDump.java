@@ -54,6 +54,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.zip.GZIPOutputStream;
+import jsgo.oracle.CorpusExclusions;
 
 public final class InfraDump {
 
@@ -77,6 +78,7 @@ public final class InfraDump {
         files.add(a);
       }
     }
+    CorpusExclusions.removeFrom(files); // tools/oracle/gpl-excluded-corpus.txt
     try (OutputStream os = new GZIPOutputStream(Files.newOutputStream(out))) {
       for (int i = 0; i < files.size(); i += every) {
         String rel = files.get(i);

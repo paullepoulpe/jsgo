@@ -33,6 +33,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/parsing"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/tools/oracle/corpus"
 )
 
 var (
@@ -1126,15 +1127,9 @@ func TestNodeUtilSweepOracle(t *testing.T) {
 	if v := os.Getenv("NODEUTIL_SWEEP_MAX_DIFFS"); v != "" {
 		maxDiffs, _ = strconv.Atoi(v)
 	}
-	b, err := os.ReadFile(list)
+	files, err := corpus.ReadList(list) // without tools/oracle/gpl-excluded-corpus.txt
 	if err != nil {
 		t.Fatal(err)
-	}
-	var files []string
-	for _, l := range strings.Split(string(b), "\n") {
-		if l != "" {
-			files = append(files, l)
-		}
 	}
 	rc, err := nodeUtilSweepOpen(oracle)
 	if err != nil {

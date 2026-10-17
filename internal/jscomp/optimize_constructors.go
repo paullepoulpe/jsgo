@@ -26,7 +26,7 @@ import (
 // OptimizeConstructors optimizes class declarations by removing explicit
 // constructor declarations if the implicit constructor is sufficient.
 //
-// The constructor can be removed, if
+// # The constructor can be removed, if
 //
 // (0) the class in question defined using ES class syntax
 //

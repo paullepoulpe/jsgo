@@ -20,12 +20,23 @@
 // With -check, it only verifies, without network or cache (so CI can run
 // it), that:
 //   - no tracked file mentions the GPL, other than the documents that
-//     state this rule;
+//     state this rule. A gzip file is checked decompressed, a zip or jar
+//     archive member by member, a file in another compressed format is an
+//     error, and other binary files are skipped (content.go);
 //   - every tracked Go file that names a Guava, Gson, protobuf-java or
 //     args4j source in a "// Port of <path>" or "// Derived from <path>"
 //     line carries that project's copyright and licence notice before its
 //     package clause (thirdparty.go), and every such line before a
 //     package clause names a Closure source or one of those projects;
+//   - no tracked file (decompressed, as above) mentions a corpus file of
+//     tools/oracle/gpl-excluded-corpus.txt (tools/oracle/corpus): it
+//     contains the file's path inside its npm package;
+//   - every npm package copied into test data, a tracked
+//     ".../testdata/.../src/<name>@<version>/" directory, holds the
+//     package's licence file (LICENSE, LICENSE.txt, licenses.md, ...)
+//     directly (packages.go);
+//   - every module that go.mod requires is listed in modules.go, and NOTICE
+//     names it at the required version (modules.go);
 //   - NOTICE and the licence texts under LICENSES/ exist.
 //
 // Usage:
@@ -45,6 +56,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/paullepoulpe/jsgo/tools/oracle/corpus"
 )
 
 const tag = "v20260415"
@@ -54,9 +67,11 @@ var gplPattern = regexp.MustCompile(`(?i)(general` + ` public licen[cs]e|\b(?:l)
 
 // exempt are the tracked files allowed to mention the GPL: they state the rule.
 var exempt = map[string]bool{
-	"PORTING.md":             true,
-	"PLAN.md":                true,
-	"tools/licenses/main.go": true,
+	"PORTING.md":                true,
+	"PLAN.md":                   true,
+	"tools/licenses/main.go":    true,
+	"tools/licenses/content.go": true,
+	corpus.ListPath:             true,
 }
 
 var portOf = regexp.MustCompile(`^// Port of (com/google/[^ ]+\.java)`)
@@ -84,15 +99,34 @@ func main() {
 		}
 		fmt.Printf("licenses: %d files updated\n", n)
 	}
-	var bad, problems []string
+	excluded, err := corpus.Excluded()
+	if err != nil {
+		fatal(err)
+	}
+	index := newExcludedIndex(excluded)
+	var bad, mentions, problems []string
 	ported := map[string]int{}
+	skipped := 0
 	for _, f := range files {
 		b, err := os.ReadFile(f)
 		if err != nil {
 			continue // deleted in the working tree
 		}
-		if !exempt[f] && gplPattern.Match(b) {
-			bad = append(bad, f)
+		text, skip, err := fileText(f, b)
+		switch {
+		case err != nil:
+			problems = append(problems, err.Error())
+		case skip:
+			skipped++
+		default:
+			if !exempt[f] && mentionsGPL(text) {
+				bad = append(bad, f)
+			}
+			if f != corpus.ListPath {
+				for _, e := range index.mentioned(text) {
+					mentions = append(mentions, f+": "+e)
+				}
+			}
 		}
 		if strings.HasSuffix(f, ".go") {
 			p, us := checkNotices(f, b)
@@ -102,11 +136,19 @@ func main() {
 			}
 		}
 	}
+	problems = append(problems, checkPackageLicences(files)...)
+	problems = append(problems, checkModuleNotices()...)
 	problems = append(problems, checkRequiredFiles()...)
 	if len(bad) > 0 {
 		fmt.Fprintf(os.Stderr, "licenses: %d tracked files mention the GPL (PORTING.md: no GPL code, anywhere):\n", len(bad))
 		for _, f := range bad {
 			fmt.Fprintln(os.Stderr, "  "+f)
+		}
+	}
+	if len(mentions) > 0 {
+		fmt.Fprintf(os.Stderr, "licenses: %d mentions of corpus files that %s excludes (tools/oracle/README.md):\n", len(mentions), corpus.ListPath)
+		for _, m := range mentions {
+			fmt.Fprintln(os.Stderr, "  "+m)
 		}
 	}
 	if len(problems) > 0 {
@@ -115,7 +157,7 @@ func main() {
 			fmt.Fprintln(os.Stderr, "  "+p)
 		}
 	}
-	if len(bad) > 0 || len(problems) > 0 {
+	if len(bad) > 0 || len(mentions) > 0 || len(problems) > 0 {
 		os.Exit(1)
 	}
 	var counts []string
@@ -124,7 +166,7 @@ func main() {
 			counts = append(counts, fmt.Sprintf("%s %d", u.project, n))
 		}
 	}
-	fmt.Printf("licenses: no tracked file mentions the GPL; third-party notices present (%s); NOTICE and LICENSES/ present\n", strings.Join(counts, ", "))
+	fmt.Printf("licenses: no tracked file mentions the GPL or one of the %d excluded corpus files (gzip and zip files decompressed, %d other binary files skipped); third-party notices present (%s); test-data packages licensed; %d module dependencies in NOTICE; NOTICE and LICENSES/ present\n", len(excluded), skipped, strings.Join(counts, ", "), len(modules))
 }
 
 func trackedFiles() ([]string, error) {

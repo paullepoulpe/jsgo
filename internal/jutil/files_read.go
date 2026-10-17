@@ -27,3 +27,9 @@ func Files_NewBufferedReader(path *Path, cs *Charset) JavaReader {
 	r.strict = true
 	return r
 }
+
+// Files_ReadStringUTF8 is java.nio.file.Files.readString(Path), which
+// decodes with UTF-8.
+func Files_ReadStringUTF8(path *Path) string {
+	return Files_ReadString(path, StandardCharsets_UTF_8)
+}

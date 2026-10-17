@@ -25,6 +25,7 @@ import java.util.Deque;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import jsgo.oracle.CorpusExclusions;
 
 /**
  * Oracle for jscomp.regex (internal/regex).
@@ -77,6 +78,7 @@ public final class RegExpDump {
     } else {
       files.add(arg);
     }
+    CorpusExclusions.removeFrom(files); // tools/oracle/gpl-excluded-corpus.txt
     return files;
   }
 
