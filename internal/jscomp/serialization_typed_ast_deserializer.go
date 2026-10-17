@@ -20,6 +20,7 @@
 package jscomp
 
 import (
+	"bytes"
 	"io"
 	"math"
 	"strconv"
@@ -433,7 +434,18 @@ func typedAstDeserializer_deserializeTypedAsts(
 		// Go-only: language-adapter — CodedInputStream.newInstance(InputStream) over the whole
 		// stream: the bytes are read up front and decoded with the shared protoReader (the size
 		// limit that resetSizeCounter() resets is Integer.MAX_VALUE, as in protobuf's default).
-		data, err := io.ReadAll(typedAstsStream)
+		//
+		// Go-only: performance — a bytes.Reader (the embedded runtime
+		// libraries, read for every compilation) is copied once, at its
+		// size, instead of through io.ReadAll's growing buffer.
+		var data []byte
+		var err error
+		if br, ok := typedAstsStream.(*bytes.Reader); ok {
+			data = make([]byte, br.Len())
+			_, err = io.ReadFull(br, data)
+		} else {
+			data, err = io.ReadAll(typedAstsStream)
+		}
 		if err != nil {
 			panic(jutil.NewIOException(err.Error()))
 		}
