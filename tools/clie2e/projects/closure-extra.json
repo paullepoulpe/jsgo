@@ -1,0 +1,67 @@
+{
+  "description": "More Closure Library project builds: renaming maps written by one build and read back by the next (--variable_map_input_file, --property_map_input_file), --create_renaming_reports, --rename_variable_prefix, coverage instrumentation (BRANCH, and PRODUCTION with its mapping report and an externs file declaring its array), --summary_detail_level, and the whole library with its tests (goog.testing, 1,600+ files) type-checked at VERBOSE.",
+  "links": {
+    "inputs": "cache:bench-inputs",
+    "src": "repo:tools/clie2e/projects/src/closure-app"
+  },
+  "files": {
+    "cov-externs.js": "/** @externs */\n/** @type {!Array<number>} */\nvar __cov;\n"
+  },
+  "inputs": [
+    {"glob": "inputs/closure-library@v20230802/closure/goog/**/*.js", "exclude": ["*_test.js"]},
+    {"glob": "src/*.js"}
+  ],
+  "jobs": [
+    {
+      "name": "renaming-maps-reused",
+      "steps": [
+        ["--dependency_mode=PRUNE", "--entry_point=goog:clie2e.exported", "--entry_point=goog:clie2e.messages",
+         "--compilation_level=ADVANCED", "--js_output_file=out/first.js",
+         "--variable_renaming_report=out/vars.txt", "--property_renaming_report=out/props.txt"],
+        ["--dependency_mode=PRUNE", "--entry_point=goog:clie2e.exported", "--entry_point=goog:clie2e.messages",
+         "--compilation_level=ADVANCED", "--js_output_file=out/second.js",
+         "--variable_map_input_file=out/vars.txt", "--property_map_input_file=out/props.txt",
+         "--variable_renaming_report=out/vars2.txt", "--property_renaming_report=out/props2.txt"]
+      ]
+    },
+    {
+      "name": "create-renaming-reports",
+      "args": ["--dependency_mode=PRUNE", "--entry_point=goog:clie2e.exported", "--entry_point=goog:clie2e.messages",
+               "--compilation_level=ADVANCED", "--create_renaming_reports", "--js_output_file=out/app.js"]
+    },
+    {
+      "name": "rename-variable-prefix",
+      "args": ["--dependency_mode=PRUNE", "--entry_point=goog:clie2e.exported", "--entry_point=goog:clie2e.messages",
+               "--compilation_level=ADVANCED", "--rename_variable_prefix=cl_", "--formatting=PRETTY_PRINT",
+               "--js_output_file=out/app.js"]
+    },
+    {
+      "name": "instrument-coverage",
+      "args": ["--dependency_mode=PRUNE", "--entry_point=goog:clie2e.exported", "--entry_point=goog:clie2e.messages",
+               "--compilation_level=SIMPLE", "--instrument_for_coverage_option=BRANCH",
+               "--js_output_file=out/app.js"]
+    },
+    {
+      "name": "instrument-production",
+      "args": ["--dependency_mode=PRUNE", "--entry_point=goog:clie2e.exported", "--entry_point=goog:clie2e.messages",
+               "--compilation_level=ADVANCED", "--instrument_for_coverage_option=PRODUCTION",
+               "--production_instrumentation_array_name=__cov", "--externs=cov-externs.js",
+               "--instrument_mapping_report=out/instrument.txt",
+               "--js_output_file=out/app.js"]
+    },
+    {
+      "name": "summary-detail",
+      "args": ["--dependency_mode=PRUNE", "--entry_point=goog:clie2e.exported", "--entry_point=goog:clie2e.messages",
+               "--checks_only", "--warning_level=VERBOSE", "--summary_detail_level=3"]
+    },
+    {
+      "name": "library-and-tests-checks",
+      "inputs": [
+        {"glob": "inputs/closure-library@v20230802/closure/goog/**/*.js"},
+        {"glob": "inputs/closure-library@v20230802/third_party/closure/goog/**/*.js"}
+      ],
+      "args": ["--dependency_mode=SORT_ONLY", "--checks_only", "--warning_level=VERBOSE",
+               "--jscomp_warning=checkTypes", "--hide_warnings_for=closure/goog/demos"]
+    }
+  ]
+}

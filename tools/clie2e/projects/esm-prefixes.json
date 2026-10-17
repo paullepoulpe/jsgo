@@ -1,10 +1,13 @@
 {
-  "description": "A small ES module tree (src/prefixes) under BROWSER_WITH_TRANSFORMED_PREFIXES: bare prefixes that --browser_resolver_prefix_replacements maps to a directory, and one that it does not map.",
+  "description": "A small ES module tree (src/prefixes) under BROWSER_WITH_TRANSFORMED_PREFIXES: bare prefixes that --browser_resolver_prefix_replacements maps to a directory, and one that it does not map; also with --env=CUSTOM and a generated externs file, and with a dynamic import (--allow_dynamic_import, --dynamic_import_alias, ES_MODULES chunks).",
   "links": {
     "src": "repo:tools/clie2e/projects/src/prefixes"
   },
+  "files": {
+    "externs.js": "/** @externs */\n/** @const */ var console = {};\n/** @param {...*} args */ console.log = function(args) {};\n"
+  },
   "inputs": [
-    {"glob": "src/**/*.js", "exclude": ["unmapped.js"]}
+    {"glob": "src/**/*.js", "exclude": ["unmapped.js", "lazy.js"]}
   ],
   "flags": ["--module_resolution=BROWSER_WITH_TRANSFORMED_PREFIXES", "--browser_resolver_prefix_replacements=util/=/src/util/",
             "--dependency_mode=PRUNE", "--entry_point=src/main.js"],
@@ -13,6 +16,26 @@
       "name": "advanced",
       "args": ["--browser_resolver_prefix_replacements=~text/=/src/util/", "--compilation_level=ADVANCED",
                "--js_output_file=out/main.js", "--create_source_map=out/main.js.map"]
+    },
+    {
+      "name": "custom-env-externs",
+      "args": ["--browser_resolver_prefix_replacements=~text/=/src/util/", "--env=CUSTOM", "--externs=externs.js",
+               "--compilation_level=ADVANCED", "--warning_level=VERBOSE", "--js_output_file=out/main.js"]
+    },
+    {
+      "name": "dynamic-import",
+      "inputs": [{"glob": "src/**/*.js", "exclude": ["unmapped.js"]}],
+      "args": ["--browser_resolver_prefix_replacements=~text/=/src/util/", "--entry_point=src/lazy.js",
+               "--allow_dynamic_import", "--dynamic_import_alias=importModule", "--compilation_level=ADVANCED",
+               "--js_output_file=out/main.js", "--create_source_map=out/main.js.map"]
+    },
+    {
+      "name": "dynamic-import-es-module-chunks",
+      "inputs": [{"glob": "src/util/*.js", "group": "util"}, {"file": "src/main.js", "group": "main"}, {"file": "src/lazy.js", "group": "main"}],
+      "args": ["--browser_resolver_prefix_replacements=~text/=/src/util/", "--entry_point=src/lazy.js",
+               "{inputs:util}", "--chunk=util:{count:util}", "{inputs:main}", "--chunk=main:{count:main}:util",
+               "--allow_dynamic_import", "--chunk_output_type=ES_MODULES", "--compilation_level=SIMPLE",
+               "--chunk_output_path_prefix=out/"]
     },
     {
       "name": "unmapped",

@@ -1,12 +1,13 @@
 {
-  "description": "Output options on a small multi-file build (src/interop on lodash's CommonJS modules, PRUNE from src/main.js): --output_wrapper (%output% and %output|jsstring%), --output_wrapper_file, --isolation_mode=IIFE, --assume_function_wrapper, source map content and location mappings, --json_streams IN, OUT and BOTH, manifests, and the --dependency_mode variants.",
+  "description": "Output options on a small multi-file build (src/interop on lodash's CommonJS modules, PRUNE from src/main.js): --output_wrapper (%output% and %output|jsstring%), --output_wrapper_file, --isolation_mode=IIFE, --assume_function_wrapper, source map content and location mappings, --json_streams IN, OUT and BOTH (with input source maps in the JSON), manifests, and the --dependency_mode variants.",
   "links": {
     "node_modules/lodash": "cache:corpus/lodash@4.17.21/package",
     "src": "repo:tools/clie2e/projects/src/interop"
   },
   "files": {
     "wrapper.txt": "/** @license clie2e wrapper */\n(function(global) {\n%output%\n}).call(this, this);\n//# sourceURL=main.js\n",
-    "streams.json": "[{\"path\":\"in/a.js\",\"src\":\"/** @const */ var A = {x: 1};\\nfunction show(v) { console.log(v); }\\n\"},{\"path\":\"in/b.js\",\"src\":\"show(A.x + 2);\\n// a comment\\nshow('b');\\n\"}]\n"
+    "streams.json": "[{\"path\":\"in/a.js\",\"src\":\"/** @const */ var A = {x: 1};\\nfunction show(v) { console.log(v); }\\n\"},{\"path\":\"in/b.js\",\"src\":\"show(A.x + 2);\\n// a comment\\nshow('b');\\n\"}]\n",
+    "streams-maps.json": "[{\"path\": \"prebuilt/bundle.js\", \"src\": \"function Box(a, b) {\\n  this.w = a;\\n  this.h = b;\\n}\\nBox.prototype.area = function() {\\n  return this.w * this.h;\\n};\\nfunction totalArea(a) {\\n  for (var b = 0, c = 0; c < a.length; c++) {\\n    b += a[c].area();\\n  }\\n  return b;\\n}\\n;var shapes = [new Box(2, 3), new Box(4, 5)];\\nfunction report() {\\n  var a = totalArea(shapes);\\n  a > LIMIT && console.log(\\\"too large: \\\" + a);\\n  return a;\\n}\\nwindow.report = report;\\n\\n\", \"source_map\": \"{\\n\\\"version\\\":3,\\n\\\"file\\\":\\\"bundle.js\\\",\\n\\\"lineCount\\\":21,\\n\\\"mappings\\\":\\\"AAUAA,QAASA,IAAG,CAACC,CAAD,EAAIC,CAAJ,CAAO;AACjB,MAAKD,CAAAA,CAAL,GAASA,CAAT;AACA,MAAKC,CAAAA,CAAL,GAASA,CAAT;AAFiB;AAMnBF,GAAIG,CAAAA,SAAUC,CAAAA,IAAd,GAAqBC,QAAQ,EAAG;AAC9B,SAAO,IAAKJ,CAAAA,CAAZ,GAAgB,IAAKC,CAAAA,CAArB;AAD8B,CAAhC;AAQAI,QAASA,UAAS,CAACC,CAAD,CAAQ;AAExB,OADA,IAAIC,IAAM,CAAV,EACSC,IAAI,CAAb,EAAgBA,CAAhB,GAAoBF,CAAMG,CAAAA,MAA1B,EAAkCD,CAAA,EAAlC;AACED,KAAA,IAAOD,CAAA,CAAME,CAAN,CAASL,CAAAA,IAAT,EAAP;AADF;AAGA,SAAOI,CAAP;AALwB;A,CClB1B,IAAIG,SAAS,CAAC,IAAIX,GAAJ,CAAQ,CAAR,EAAW,CAAX,CAAD,EAAgB,IAAIA,GAAJ,CAAQ,CAAR,EAAW,CAAX,CAAhB,CAAb;AAEAY,QAASA,OAAM,EAAG;AAChB,MAAIR,IAAOE,SAAA,CAAUK,MAAV,CAAX;AACIP,GAAJ,GAAWS,KAAX,IACEC,OAAQC,CAAAA,GAAR,CAAY,aAAZ,GAA4BX,CAA5B,CADF;AAGA,SAAOA,CAAP;AALgB;AAQlBY,MAAA,CAAA,MAAA,GAAmBJ,MAAnB;;\\\",\\n\\\"sources\\\":[\\\"../orig/shapes.js\\\",\\\"../orig/main.js\\\"],\\n\\\"names\\\":[\\\"Box\\\",\\\"w\\\",\\\"h\\\",\\\"prototype\\\",\\\"area\\\",\\\"Box.prototype.area\\\",\\\"totalArea\\\",\\\"rects\\\",\\\"sum\\\",\\\"i\\\",\\\"length\\\",\\\"shapes\\\",\\\"report\\\",\\\"LIMIT\\\",\\\"console\\\",\\\"log\\\",\\\"window\\\"]\\n}\\n\"}, {\"path\": \"app.js\", \"src\": \"window['report']();\\nconsole.log(totalArea([new Box(1, 1)]) + LIMIT);\\n\"}]\n"
   },
   "inputs": [
     {"glob": "node_modules/lodash/*.js", "exclude": ["fp.js"]},
@@ -66,6 +67,13 @@
       "inputs": [],
       "stdin": "streams.json",
       "args": ["--json_streams=IN", "--compilation_level=ADVANCED", "--formatting=PRETTY_PRINT"]
+    },
+    {
+      "name": "json-streams-both-input-maps",
+      "inputs": [],
+      "stdin": "streams-maps.json",
+      "args": ["--json_streams=BOTH", "--compilation_level=SIMPLE", "--jscomp_warning=undefinedVars",
+               "--apply_input_source_maps", "--create_source_map=out.map", "--js_output_file=compiled.js"]
     },
     {
       "name": "manifest-prune-legacy",

@@ -1,5 +1,5 @@
 {
-  "description": "Chunked builds of module code: underscore's ES modules split into a core chunk and an index chunk (GLOBAL_NAMESPACE and ES_MODULES chunk output), and lodash's CommonJS modules with the src/interop ES module entry in a chunk of its own; a source map per chunk; --chunk=auto (a chunk per CommonJS module) and a first chunk of size auto.",
+  "description": "Chunked builds of module code: underscore's ES modules split into a core chunk and an index chunk (GLOBAL_NAMESPACE and ES_MODULES chunk output), and lodash's CommonJS modules with the src/interop ES module entry in a chunk of its own; a source map per chunk, also as --json_streams=OUT; --chunk=auto (a chunk per CommonJS module) and a first chunk of size auto.",
   "links": {
     "lib/underscore": "cache:corpus/underscore@1.13.8/package/modules",
     "node_modules/lodash": "cache:corpus/lodash@4.17.21/package",
@@ -31,6 +31,14 @@
                "{inputs:lodash}", "--chunk=lodash:{count:lodash}", "{inputs:app}", "--chunk=app:{count:app}:lodash",
                "--compilation_level=SIMPLE", "--chunk_output_path_prefix=out/", "--create_source_map=%outname%.map",
                "--chunk_wrapper=lodash:var LODASH=1;%s"]
+    },
+    {
+      "name": "lodash-interop-json-streams-out",
+      "args": ["--module_resolution=NODE", "--process_common_js_modules", "--dependency_mode=PRUNE",
+               "--entry_point=src/main.js",
+               "{inputs:lodash}", "--chunk=lodash:{count:lodash}", "{inputs:app}", "--chunk=app:{count:app}:lodash",
+               "--compilation_level=SIMPLE", "--json_streams=OUT", "--chunk_output_path_prefix=out/",
+               "--create_source_map=%outname%.map"]
     },
     {
       "name": "lodash-chunk-auto-commonjs",

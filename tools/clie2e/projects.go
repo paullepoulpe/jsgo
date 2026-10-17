@@ -19,7 +19,8 @@ package main
 // (every regular file that is not part of the layout) are moved to
 // <work>/{java,go}/res/<project>/<job>/files/, next to stdout, stderr,
 // exit and millis. Compared byte for byte: stdout, stderr (without Java
-// stack frames), the exit status and every output file.
+// stack frames, and with the identity hashes of Object.toString() masked:
+// see maskIdentityHashes), the exit status and every output file.
 //
 // Summary on stdout and in <work>/projects.tsv: project, job, class, Java
 // ms, jsgo ms, and what differs.
@@ -176,11 +177,13 @@ func runProjects() int {
 		if set == "" {
 			set = "dev"
 		}
-		if *projectSet != "all" && set != *projectSet && !selected[p.Name] {
-			continue
-		}
 		for _, pj := range p.Jobs {
-			if len(selected) > 0 && !selected[p.Name] && !selected[p.Name+"/"+pj.Name] {
+			named := selected[p.Name] || selected[p.Name+"/"+pj.Name]
+			if len(selected) > 0 && !named {
+				continue
+			}
+			// A project of another set runs only when named.
+			if *projectSet != "all" && set != *projectSet && !named {
 				continue
 			}
 			j, err := expandJob(repo, p, pj)
@@ -880,6 +883,19 @@ func lastLines(b []byte, n int) string {
 	return strings.Join(lines, " | ")
 }
 
+// identityHashRe matches java.lang.Object.toString() of a Java class:
+// its binary name, '@' and its identity hash.
+var identityHashRe = regexp.MustCompile(`(^|[^A-Za-z0-9_.$])((?:com|java|javax|jdk|sun)\.[A-Za-z0-9_.$]+)@[0-9a-f]{1,8}\b`)
+
+// maskIdentityHashes replaces the identity hashes of Object.toString() in a
+// diagnostic (an internal compiler error that embeds an object without its
+// own toString). Java's identity hashes change from run to run of the same
+// compile, and jsgo's are derived from addresses (jutil.ObjectToString), so
+// only the class names are compared.
+func maskIdentityHashes(b []byte) []byte {
+	return identityHashRe.ReplaceAll(b, []byte("${1}${2}@<hash>"))
+}
+
 // classifyProject returns the job's class and a detail: what differs, or
 // the crash signature.
 func classifyProject(javaDir, goDir string, j *projJob) (string, string) {
@@ -907,7 +923,7 @@ func classifyProject(javaDir, goDir string, j *projJob) (string, string) {
 			a, b := read(js, f), read(gs, f)
 			if f == "stderr" {
 				javaStderr, goStderr = append(javaStderr, a...), append(goStderr, b...)
-				a, b = stripFrames(a), stripFrames(b)
+				a, b = maskIdentityHashes(stripFrames(a)), maskIdentityHashes(stripFrames(b))
 			}
 			if !bytes.Equal(a, b) {
 				why = append(why, prefix+f+firstDiff(a, b))
