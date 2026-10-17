@@ -92,8 +92,11 @@ func (c *SyntacticScopeCreator) CreateScopeOfScope(n *rhino.Node, parent *Scope)
 	} else {
 		scope = Scope_CreateChildScope(parent, n)
 	}
-	newSyntacticScopeCreator_ScopeScanner(c.compiler, c.redeclarationHandler, scope, nil, c.treatProvidesAsRedeclarations).
-		Populate()
+	// Go-only: performance — the scanner, which nothing keeps, is a local
+	// variable rather than a heap object (one per scope created).
+	var scanner SyntacticScopeCreator_ScopeScanner
+	initSyntacticScopeCreator_ScopeScanner(&scanner, c.compiler, c.redeclarationHandler, scope, nil, c.treatProvidesAsRedeclarations)
+	scanner.Populate()
 	return scope
 }
 
@@ -118,13 +121,25 @@ func newSyntacticScopeCreator_ScopeScanner(
 	changeRootSet *jutil.LinkedHashSet[*rhino.Node],
 	treatProvidesAsRedeclarations bool) *SyntacticScopeCreator_ScopeScanner {
 	s := &SyntacticScopeCreator_ScopeScanner{}
+	initSyntacticScopeCreator_ScopeScanner(s, compiler, redeclarationHandler, scope, changeRootSet, treatProvidesAsRedeclarations)
+	return s
+}
+
+// initSyntacticScopeCreator_ScopeScanner is the body of the ScopeScanner
+// constructor.
+func initSyntacticScopeCreator_ScopeScanner(
+	s *SyntacticScopeCreator_ScopeScanner,
+	compiler AbstractCompiler,
+	redeclarationHandler SyntacticScopeCreator_RedeclarationHandler,
+	scope *Scope,
+	changeRootSet *jutil.LinkedHashSet[*rhino.Node],
+	treatProvidesAsRedeclarations bool) {
 	s.compiler = compiler
 	s.redeclarationHandler = redeclarationHandler
 	s.scope = scope
 	s.changeRootSet = changeRootSet
 	jutil.CheckState(changeRootSet == nil || scope.IsGlobal())
 	s.treatProvidesAsRedeclarations = treatProvidesAsRedeclarations
-	return s
 }
 
 // Java: SyntacticScopeCreator.ScopeScanner.populate()

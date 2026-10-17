@@ -29,6 +29,17 @@ func NewArrayListWithCapacity[T any](capacity int) *ArrayList[T] {
 	return &ArrayList[T]{elems: make([]T, 0, capacity)}
 }
 
+// InitWithBuffer makes l an empty list (new ArrayList<>(len(buf))) that
+// stores its first len(buf) elements in buf; it grows into a new array, as
+// any list does, past that.
+//
+// Go-only: performance — for a list held by value in another object with a
+// small array next to it: the object, the list and its initial storage are
+// then one allocation instead of three.
+func (l *ArrayList[T]) InitWithBuffer(buf []T) {
+	l.elems = buf[:0:len(buf)]
+}
+
 // NewArrayListFrom is new ArrayList<>(collection) / Lists.newArrayList(...).
 func NewArrayListFrom[T any](elems []T) *ArrayList[T] {
 	return &ArrayList[T]{elems: slices.Clone(elems)}

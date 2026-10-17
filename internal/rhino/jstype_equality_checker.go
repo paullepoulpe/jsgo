@@ -106,11 +106,14 @@ func (c *EqualityChecker) SetEqMethod(x EqualityChecker_EqMethod) *EqualityCheck
 	c.CheckHasNotRun()
 	jutil.CheckState(c.eqMethod == nil)
 	// Go-only: performance — the nullable enum points into a shared table
-	// rather than at a fresh copy of x (it is only ever read through).
+	// rather than at a fresh copy of x (it is only ever read through). The
+	// copy is a variable of the else branch: taking &x would move x to the
+	// heap on every call.
 	if x >= 0 && int(x) < len(equalityChecker_eqMethods) {
 		c.eqMethod = &equalityChecker_eqMethods[x]
 	} else {
-		c.eqMethod = &x
+		other := x
+		c.eqMethod = &other
 	}
 	return c
 }

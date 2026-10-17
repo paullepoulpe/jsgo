@@ -45,6 +45,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/colors"
@@ -486,12 +487,12 @@ func newNode_TemplateLiteralSubstringNode(cooked *string, raw string) *Node {
 	n.kind = node_kindTemplateLiteralSubstring
 	// RhinoStringPool is null-hostile.
 	if cooked == nil {
-		n.cooked = nil
+		// n.cooked = nil: it is.
 	} else {
 		c := RhinoStringPool_AddOrGet(*cooked)
-		n.cooked = &c
+		n.node_getExt().cooked = &c
 	}
-	n.raw = RhinoStringPool_AddOrGet(raw)
+	n.str = RhinoStringPool_AddOrGet(raw) // raw
 	return n
 }
 
@@ -504,12 +505,12 @@ func newNode_TemplateLiteralSubstringNodeFromStringPool(
 	n := NewNode(Token_TEMPLATELIT_STRING)
 	n.kind = node_kindTemplateLiteralSubstring
 	if cookedOffsetOrNegativeOne == -1 {
-		n.cooked = nil
+		// n.cooked = nil: it is.
 	} else {
 		c := stringPool.Get(cookedOffsetOrNegativeOne)
-		n.cooked = &c
+		n.node_getExt().cooked = &c
 	}
-	n.raw = stringPool.Get(rawOffset)
+	n.str = stringPool.Get(rawOffset) // raw
 	return n
 }
 
@@ -1552,7 +1553,7 @@ func (n *Node) GetSortedPropTypes() []int8 {
 // Java: Node.getDouble()
 func (n *Node) GetDouble() float64 {
 	n.node_castKind(node_kindNumber)
-	return n.number
+	return n.node_number()
 }
 
 // Java: Node.setDouble(double)
@@ -1560,13 +1561,16 @@ func (n *Node) SetDouble(x float64) {
 	jutil.CheckStateMsg1(!math.IsNaN(x), "%s", x)
 	jutil.CheckStateMsg1(base.JSCompDoubles_IsPositive(x), "%s", x)
 	n.node_castKind(node_kindNumber)
-	n.number = x
+	n.node_getExt().number = x
 }
 
 // Java: Node.getBigInt()
 func (n *Node) GetBigInt() *big.Int {
 	n.node_castKind(node_kindBigInt)
-	return n.bigint
+	if n.ext == nil {
+		return nil
+	}
+	return n.ext.bigint
 }
 
 // Java: Node.setBigInt(BigInteger)
@@ -1574,7 +1578,7 @@ func (n *Node) SetBigInt(number *big.Int) {
 	jutil.CheckNotNull(number)
 	jutil.CheckStateMsg1(number.Sign() >= 0, "%s", number)
 	n.node_castKind(node_kindBigInt)
-	n.bigint = number
+	n.node_getExt().bigint = number
 }
 
 // Java: Node.getString()
@@ -1602,13 +1606,13 @@ func (n *Node) SetStringFromStringPool(stringPool *RhinoStringPool_LazyInternedS
 // Java: Node.getRawString()
 func (n *Node) GetRawString() string {
 	n.node_castKind(node_kindTemplateLiteralSubstring)
-	return n.raw
+	return n.str // raw
 }
 
 // Java: Node.getCookedString()
 func (n *Node) GetCookedString() *string {
 	n.node_castKind(node_kindTemplateLiteralSubstring)
-	return n.cooked
+	return n.node_cooked()
 }
 
 // Java: Node.toString()
@@ -1654,7 +1658,7 @@ func (n *Node) ToStringInto(sb *strings.Builder, printSource bool, printAnnotati
 		}
 		if n.length != 0 {
 			sb.WriteString(" [length: ")
-			sb.WriteString(strconv.Itoa(n.length))
+			sb.WriteString(strconv.Itoa(int(n.length)))
 			sb.WriteByte(']')
 		}
 	}
@@ -1674,9 +1678,9 @@ func (n *Node) ToStringInto(sb *strings.Builder, printSource bool, printAnnotati
 			sb.WriteString(jutil.ToJavaString(x))
 			sb.WriteByte(']')
 		}
-		if n.originalName != nil {
+		if originalName := n.node_originalName(); originalName != nil {
 			sb.WriteString(" [original_name: ")
-			sb.WriteString(*n.originalName)
+			sb.WriteString(*originalName)
 			sb.WriteByte(']')
 		}
 	}
@@ -1741,14 +1745,14 @@ func (n *Node) ToJson(appendable io.StringWriter) {
 		sb.append(Node_CreateJsonPairRawValue("col", strconv.Itoa(n.GetCharno())))
 		if n.length != 0 {
 			sb.append(",")
-			sb.append(Node_CreateJsonPairRawValue("length", strconv.Itoa(n.length)))
+			sb.append(Node_CreateJsonPairRawValue("length", strconv.Itoa(int(n.length))))
 		}
 		sb.append("}")
 	}
 
-	if n.originalName != nil {
+	if originalName := n.node_originalName(); originalName != nil {
 		sb.append(",")
-		sb.append(Node_CreateJsonPair("original_name", *n.originalName))
+		sb.append(Node_CreateJsonPair("original_name", *originalName))
 	}
 
 	keys := n.GetSortedPropTypes()
@@ -1843,10 +1847,13 @@ func Node_ToJsonTreeHelper(n *Node, appendable io.StringWriter) {
 // subclass payloads).
 //
 // Go-only: performance — the fields that traversals read first (token, the
-// position, next, first and parent) lead, packed into 32 bytes, and the
-// two int32 fields share a word: a Node takes 144 bytes instead of 160,
-// and the 32 hot bytes stay within one cache line for 3 nodes out of 4
-// (with 160-byte nodes, half of them straddled two lines).
+// position, next, first and parent) lead, packed into 32 bytes. The int32
+// fields share words, the string payload of StringNode and
+// TemplateLiteralSubstringNode share one field (a node is only ever one of
+// them), and the fields most nodes never set (originalName and the number,
+// bigint and cooked payloads) live in a node_ext allocated on first use: a
+// Node takes 96 bytes instead of 144, so that a traversal touches a third
+// fewer cache lines, and the 32 hot bytes of every node lie in one line.
 type Node struct {
 	token Token // Type of the token of the node; NAME for example
 
@@ -1864,32 +1871,86 @@ type Node struct {
 	// We get the last child as first.previous. But last.next is null, not
 	// first.
 
-	// The length of the code represented by the node.
-	length int
+	// The length of the code represented by the node (a Java int).
+	length int32
+
+	// Go-only: language-adapter — the folded subclass (see the Node doc
+	// comment); its payload is str and ext.
+	kind node_kind
 
 	jstypeOrColor any
-
-	originalName *string
 
 	// Linked list of properties. Since vast majority of nodes would have no
 	// more than 2 properties, linked list saves memory and provides fast
 	// lookup. If this does not holds, propListHead can be replaced by UintMap.
 	propListHead *Node_PropListItem
 
-	// Go-only: language-adapter — the folded subclass (see the Node doc
-	// comment) and its payload.
-	kind   node_kind
+	// StringNode.str, or TemplateLiteralSubstringNode.raw: the raw version of
+	// the template literal substring, is not null.
+	str string
+
+	// originalName and the NumberNode, BigIntNode and
+	// TemplateLiteralSubstringNode payloads; nil until one is set.
+	ext *node_ext
+}
+
+// node_ext holds the fields of a Node that most nodes never set.
+//
+// Go-only: performance — see the Node doc comment. Each Node has its own
+// (never shared), so writes through it affect only that node.
+type node_ext struct {
+	originalName *string
+
 	number float64  // NumberNode.number
 	bigint *big.Int // BigIntNode.bigint
-	str    string   // StringNode.str
 	// TemplateLiteralSubstringNode.cooked: the cooked version of the template
 	// literal substring. Null iff the raw string contains an uncookable
 	// escape sequence.
 	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Template_literals#es2018_revision_of_illegal_escape_sequences
 	cooked *string
-	// TemplateLiteralSubstringNode.raw: the raw version of the template
-	// literal substring, is not null.
-	raw string
+}
+
+// node_getExt returns n.ext, allocating it on first use.
+func (n *Node) node_getExt() *node_ext {
+	if n.ext == nil {
+		n.ext = &node_ext{}
+	}
+	return n.ext
+}
+
+// node_originalName is the originalName field.
+func (n *Node) node_originalName() *string {
+	if n.ext == nil {
+		return nil
+	}
+	return n.ext.originalName
+}
+
+// node_setOriginalName assigns the originalName field.
+func (n *Node) node_setOriginalName(s *string) {
+	if s == nil {
+		if n.ext != nil {
+			n.ext.originalName = nil
+		}
+		return
+	}
+	n.node_getExt().originalName = s
+}
+
+// node_number is the NumberNode.number field.
+func (n *Node) node_number() float64 {
+	if n.ext == nil {
+		return 0
+	}
+	return n.ext.number
+}
+
+// node_cooked is the TemplateLiteralSubstringNode.cooked field.
+func (n *Node) node_cooked() *string {
+	if n.ext == nil {
+		return nil
+	}
+	return n.ext.cooked
 }
 
 // ==========================================================================
@@ -1978,16 +2039,16 @@ func (n *Node) GetInputId() *InputId {
 //
 // Java: Node.getOriginalName()
 func (n *Node) GetOriginalName() *string {
-	return n.originalName
+	return n.node_originalName()
 }
 
 // Java: Node.setOriginalName(String)
 func (n *Node) SetOriginalName(s *string) {
 	if s == nil {
-		n.originalName = nil
+		n.node_setOriginalName(nil)
 	} else {
 		interned := RhinoStringPool_AddOrGet(*s)
-		n.originalName = &interned
+		n.node_setOriginalName(&interned)
 	}
 }
 
@@ -1996,7 +2057,7 @@ func (n *Node) SetOriginalNameFromStringPool(stringPool *RhinoStringPool_LazyInt
 	// RhinoStringPool.LazyInternedStringList guarantees that the result of
 	// calling get(offset) is interned, and sometimes caches results.
 	s := stringPool.Get(offset)
-	n.originalName = &s
+	n.node_setOriginalName(&s)
 }
 
 // SetOriginalNameFromName copies the original name.
@@ -2004,7 +2065,7 @@ func (n *Node) SetOriginalNameFromStringPool(stringPool *RhinoStringPool_LazyInt
 // Java: Node.setOriginalNameFromName(Node)
 func (n *Node) SetOriginalNameFromName(name *Node) {
 	s := name.GetString()
-	n.originalName = &s
+	n.node_setOriginalName(&s)
 }
 
 // IsIndexable reports whether this node should be indexed by static
@@ -2053,12 +2114,12 @@ func (n *Node) IsClosureUnawareCode() bool {
 
 // Java: Node.getLength()
 func (n *Node) GetLength() int {
-	return n.length
+	return int(n.length)
 }
 
 // Java: Node.setLength(int)
 func (n *Node) SetLength(length int) {
-	n.length = length
+	n.length = int32(length)
 }
 
 // Java: Node.getLineno()
@@ -2673,7 +2734,7 @@ func (n *Node) IsEquivalentToWithModes(
 	case node_kindNumber:
 		// Java: NumberNode.isEquivalentTo
 		return n.isEquivalentToBase(node, recursion, typeConfig, jsDocConfig, sideEffectConfig) &&
-			(n.number == node.number) // -0.0 and NaN are forbidden.
+			(n.node_number() == node.node_number()) // -0.0 and NaN are forbidden.
 	case node_kindBigInt:
 		// Java: BigIntNode.isEquivalentTo
 		return n.isEquivalentToBase(node, recursion, typeConfig, jsDocConfig, sideEffectConfig) &&
@@ -2689,8 +2750,8 @@ func (n *Node) IsEquivalentToWithModes(
 		}
 
 		castNode := node
-		return RhinoStringPool_UncheckedEquals(n.raw, castNode.raw) &&
-			RhinoStringPool_UncheckedEqualsNullable(n.cooked, castNode.cooked)
+		return RhinoStringPool_UncheckedEquals(n.str, castNode.str) && // raw
+			RhinoStringPool_UncheckedEqualsNullable(n.node_cooked(), castNode.node_cooked())
 	}
 	return n.isEquivalentToBase(node, recursion, typeConfig, jsDocConfig, sideEffectConfig)
 }
@@ -2831,29 +2892,43 @@ var Node_propMapForEqualityKeys = jutil.NewEnumSet(Node_PROP_MAP_FOR_EQUALITY.Ke
 // the name and properties.
 //
 // Java: Node.getQualifiedName()
+//
+// Go-only: performance — the body is in getQualifiedNameString, so that this
+// wrapper inlines: a caller that only reads the result keeps the string
+// header on its stack instead of the heap (these headers were 6% of
+// checks-only's allocations).
 func (n *Node) GetQualifiedName() *string {
+	s, ok := n.getQualifiedNameString()
+	if !ok {
+		return nil
+	}
+	return &s
+}
+
+// getQualifiedNameString is the body of getQualifiedName; ok is false
+// where Java returns null.
+func (n *Node) getQualifiedNameString() (string, bool) {
 	switch n.token {
 	case Token_NAME:
 		name := n.GetString()
 		if name == "" {
-			return nil
+			return "", false
 		}
-		return &name
+		return name, true
 	case Token_GETPROP:
 		builder := n.GetQualifiedNameForGetProp(0)
 		if builder != nil {
-			s := builder.String()
-			return &s
+			// Go-only: performance — builder.toString() without a copy, as
+			// strings.Builder.String does: nothing writes to builder after.
+			return unsafe.String(unsafe.SliceData(builder), len(builder)), true
 		}
-		return nil
+		return "", false
 	case Token_THIS:
-		s := "this"
-		return &s
+		return "this", true
 	case Token_SUPER:
-		s := "super"
-		return &s
+		return "super", true
 	default:
-		return nil
+		return "", false
 	}
 }
 
@@ -2872,27 +2947,31 @@ func (n *Node) GetQualifiedNameObject() QualifiedName {
 // StringBuilder. Returns null if this is not a qualified name or a
 // StringBuilder if it is a complex qualified name.
 //
+// Go-only: performance — the StringBuilder is a byte slice (nil for null),
+// filled with append: one allocation, made at the full size, instead of a
+// heap strings.Builder and its buffer; the left name is read without
+// boxing it (getQualifiedNameString).
+//
 // Java: Node.getQualifiedNameForGetProp(int)
-func (n *Node) GetQualifiedNameForGetProp(reserve int) *strings.Builder {
+func (n *Node) GetQualifiedNameForGetProp(reserve int) []byte {
 	propName := n.GetString()
 	reserve += 1 + len(propName) // +1 for the '.'
-	var builder *strings.Builder
+	var builder []byte
 	if n.first.IsGetProp() {
 		builder = n.first.GetQualifiedNameForGetProp(reserve)
 		if builder == nil {
 			return nil
 		}
 	} else {
-		left := n.first.GetQualifiedName()
-		if left == nil {
+		left, ok := n.first.getQualifiedNameString()
+		if !ok {
 			return nil
 		}
-		builder = &strings.Builder{}
-		builder.Grow(len(*left) + reserve)
-		builder.WriteString(*left)
+		builder = make([]byte, 0, len(left)+reserve)
+		builder = append(builder, left...)
 	}
-	builder.WriteByte('.')
-	builder.WriteString(propName)
+	builder = append(builder, '.')
+	builder = append(builder, propName...)
 	return builder
 }
 
@@ -3109,12 +3188,12 @@ func (n *Node) CloneNodeWithTypeExprs(cloneTypeExprs bool) *Node {
 	switch n.kind {
 	case node_kindNumber:
 		// Java: NumberNode.cloneNode(boolean)
-		clone := newNode_NumberNode(n.number)
+		clone := newNode_NumberNode(n.node_number())
 		Node_CopyBaseNodeFields(n, clone, cloneTypeExprs)
 		return clone
 	case node_kindBigInt:
 		// Java: BigIntNode.cloneNode(boolean)
-		clone := newNode_BigIntNode(n.bigint)
+		clone := newNode_BigIntNode(n.GetBigInt())
 		Node_CopyBaseNodeFields(n, clone, cloneTypeExprs)
 		return clone
 	case node_kindString:
@@ -3125,7 +3204,7 @@ func (n *Node) CloneNodeWithTypeExprs(cloneTypeExprs bool) *Node {
 		return clone
 	case node_kindTemplateLiteralSubstring:
 		// Java: TemplateLiteralSubstringNode.cloneNode(boolean)
-		clone := newNode_TemplateLiteralSubstringNode(n.cooked, n.raw)
+		clone := newNode_TemplateLiteralSubstringNode(n.node_cooked(), n.str)
 		Node_CopyBaseNodeFields(n, clone, cloneTypeExprs)
 		return clone
 	}
@@ -3139,7 +3218,7 @@ func Node_CopyBaseNodeFields(source *Node, dest *Node, cloneTypeExprs bool) {
 	dest.linenoCharno = source.linenoCharno
 	dest.length = source.length
 	dest.jstypeOrColor = source.jstypeOrColor
-	dest.originalName = source.originalName
+	dest.node_setOriginalName(source.node_originalName())
 	dest.propListHead = source.propListHead
 
 	// TODO(johnlenz): Remove this once JSTypeExpression are immutable
@@ -3194,7 +3273,7 @@ func (n *Node) CloneTreeWithTypeExprs(cloneTypeExprs bool) *Node {
 // Java: Node.srcref(Node)
 func (n *Node) Srcref(other *Node) *Node {
 	n.SetStaticSourceFileFrom(other)
-	n.originalName = other.originalName
+	n.node_setOriginalName(other.node_originalName())
 	n.linenoCharno = other.linenoCharno
 	n.length = other.length
 	return n
@@ -3226,8 +3305,8 @@ func (n *Node) SrcrefIfMissing(other *Node) *Node {
 	// TODO(lharker): should this be inside the above if condition?
 	// If the node already has a source file, it seems strange to
 	// go ahead and set the original name anyway.
-	if n.originalName == nil {
-		n.originalName = other.originalName
+	if n.node_originalName() == nil {
+		n.node_setOriginalName(other.node_originalName())
 	}
 
 	return n

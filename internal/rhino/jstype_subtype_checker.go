@@ -119,11 +119,13 @@ var (
 func (c *SubtypeChecker) SetSubtypingMode(value JSType_SubtypingMode) *SubtypeChecker {
 	c.CheckHasNotRun()
 	jutil.CheckState(c.subtypingMode == nil)
-	// Go-only: performance — see SetUsingStructuralSubtyping.
+	// Go-only: performance — see SetUsingStructuralSubtyping (and
+	// EqualityChecker.SetEqMethod for the copy in the else branch).
 	if value >= 0 && int(value) < len(subtypeChecker_subtypingModes) {
 		c.subtypingMode = &subtypeChecker_subtypingModes[value]
 	} else {
-		c.subtypingMode = &value
+		other := value
+		c.subtypingMode = &other
 	}
 	return c
 }

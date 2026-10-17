@@ -5540,15 +5540,29 @@ func NodeUtil_GetBestLValueOwner(lValue *rhino.Node) *rhino.Node {
 
 // NodeUtil_GetBestLValueName gets the name of the given l-value node.
 //
+// Go-only: performance — the body is in nodeUtil_getBestLValueNameString, so
+// that this wrapper inlines and a caller that only reads the result keeps
+// the string header on its stack.
+//
 // Java: NodeUtil.getBestLValueName(Node)
 func NodeUtil_GetBestLValueName(lValue *rhino.Node) *string {
-	if lValue == nil || lValue.GetParent() == nil {
+	s, ok := nodeUtil_getBestLValueNameString(lValue)
+	if !ok {
 		return nil
+	}
+	return &s
+}
+
+// nodeUtil_getBestLValueNameString is the body of getBestLValueName; ok is
+// false where Java returns null.
+func nodeUtil_getBestLValueNameString(lValue *rhino.Node) (string, bool) {
+	if lValue == nil || lValue.GetParent() == nil {
+		return "", false
 	}
 	if lValue.GetParent().IsClassMembers() && !lValue.IsComputedProp() {
 		className := NodeUtil_GetName(lValue.GetGrandparent())
 		if className == nil { // Anonymous class
-			return nil
+			return "", false
 		}
 		methodName := lValue.GetString()
 		var maybePrototype string
@@ -5557,25 +5571,29 @@ func NodeUtil_GetBestLValueName(lValue *rhino.Node) *string {
 		} else {
 			maybePrototype = ".prototype."
 		}
-		return jutil.StringPtr(*className + maybePrototype + methodName)
+		return *className + maybePrototype + methodName, true
 	}
 	// TODO(sdh): Tighten this to simply require !lValue.isQuotedString()
 	// Could get rid of the isJSIdentifier check, but may need to fix depot.
 	if NodeUtil_MayBeObjectLitKey(lValue) {
 		owner := NodeUtil_GetBestLValue(lValue.GetParent())
 		if owner != nil {
-			ownerName := NodeUtil_GetBestLValueName(owner)
-			if ownerName != nil {
+			ownerName, ok := nodeUtil_getBestLValueNameString(owner)
+			if ok {
 				key := NodeUtil_GetObjectOrClassLitKeyName(lValue)
 				if rhino.TokenStream_IsJSIdentifier(key) {
-					return jutil.StringPtr(*ownerName + "." + key)
+					return ownerName + "." + key, true
 				}
-				return nil
+				return "", false
 			}
 		}
-		return nil
+		return "", false
 	}
-	return lValue.GetQualifiedName()
+	qname := lValue.GetQualifiedName()
+	if qname == nil {
+		return "", false
+	}
+	return *qname, true
 }
 
 // NodeUtil_GetBestLValueRoot gets the root of a qualified name l-value.

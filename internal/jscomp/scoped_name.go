@@ -130,6 +130,6 @@ func (b *ScopedNameBase) HashCode() int32 {
 	}
 	var result int32 = 1
 	result = 31*result + jutil.StringHashCode(name)
-	result = 31*result + jutil.IdentityHashCode(root)
+	result = 31*result + jutil.IdentityHashCodeOfPointer(root) // Go-only: performance — IdentityHashCode(root), unboxed
 	return result
 }
