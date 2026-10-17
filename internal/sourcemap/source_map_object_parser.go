@@ -185,7 +185,7 @@ func SourceMapObjectParser_BuildSection(section *jutil.JsonObject) *SourceMapSec
 // SourceMapParseException, so it is reproduced here.
 func sourceMapObjectParser_nonNull(e jutil.JsonElement, method string) jutil.JsonElement {
 	if e == nil {
-		panic(jutil.NewNullPointerExceptionMsg("Cannot invoke \"" + jutil.GsonPackage + ".JsonElement." + method +
+		panic(jutil.NewHelpfulNullPointerException("Cannot invoke \"" + jutil.GsonPackage + ".JsonElement." + method +
 			"\" because the return value of \"" + jutil.GsonPackage + ".JsonObject.get(String)\" is null"))
 	}
 	return e

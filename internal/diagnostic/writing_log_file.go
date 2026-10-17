@@ -75,7 +75,7 @@ func NewWritingLogFile(writer *jutil.BufferedWriter) *WritingLogFile {
 func (w *WritingLogFile) Log(value any) LogFile {
 	if jutil.IsNil(value) {
 		// The JVM's message for value.toString() on null.
-		panic(jutil.NewNullPointerExceptionMsg(`Cannot invoke "Object.toString()" because "value" is null`))
+		panic(jutil.NewHelpfulNullPointerException(`Cannot invoke "Object.toString()" because "value" is null`))
 	}
 	return w.LogInternal(jutil.ToJavaString(value))
 }
