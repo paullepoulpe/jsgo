@@ -7,7 +7,8 @@
 // relative to it. If <resultdir>/stdin exists it is the job's System.in
 // (otherwise System.in is empty). Each job writes <resultdir>/stdout,
 // <resultdir>/stderr (encoded like System.err: with stderr.encoding) and
-// <resultdir>/exit (the status the shell would see).
+// <resultdir>/exit (the status the shell would see), and <resultdir>/millis,
+// the job's wall time.
 // A job that names a file of tools/oracle/gpl-excluded-corpus.txt is skipped
 // (CorpusExclusions; run from the repository or pass -Djsgo.excludedCorpus).
 import com.google.javascript.jscomp.CommandLineRunner;
@@ -89,6 +90,7 @@ public final class CliE2E extends CommandLineRunner {
       PrintStream out = new PrintStream(outBuf, true, StandardCharsets.UTF_8);
       PrintStream err = new PrintStream(errBuf, true, errCharset);
       int status;
+      long start = System.nanoTime();
       try {
         // CommandLineRunner.main:
         Logger.getLogger("com.google.javascript.jscomp.PhaseOptimizer").setLevel(Level.OFF);
@@ -119,6 +121,8 @@ public final class CliE2E extends CommandLineRunner {
       Files.write(dir.resolve("stdout"), outBuf.toByteArray());
       Files.write(dir.resolve("stderr"), errBuf.toByteArray());
       Files.writeString(dir.resolve("exit"), status + "\n");
+      Files.writeString(
+          dir.resolve("millis"), (System.nanoTime() - start) / 1_000_000 + "\n");
     }
   }
 }

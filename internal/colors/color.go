@@ -56,6 +56,10 @@ type Color struct {
 	// value never changes.
 	hashCode         int32
 	hashCodeComputed bool
+
+	// Go-only: language-adapter — the object's monitor, which the
+	// synchronized block of AutoValue_Color.subtractNullOrVoid holds.
+	monitor jutil.Monitor
 }
 
 // Java: Color.getId()
@@ -238,10 +242,16 @@ func (c *Color) IsUnion() bool {
 // Java: Color.subtractNullOrVoid()
 func (c *Color) SubtractNullOrVoid() *Color {
 	if c.subtractNullOrVoid == nil {
-		c.subtractNullOrVoid = c.subtractNullOrVoidImpl()
-		if c.subtractNullOrVoid == nil {
-			panic(jutil.NewNullPointerExceptionMsg("subtractNullOrVoid() cannot return null"))
-		}
+		func() {
+			c.monitor.Lock()
+			defer c.monitor.Unlock()
+			if c.subtractNullOrVoid == nil {
+				c.subtractNullOrVoid = c.subtractNullOrVoidImpl()
+				if c.subtractNullOrVoid == nil {
+					panic(jutil.NewNullPointerExceptionMsg("subtractNullOrVoid() cannot return null"))
+				}
+			}
+		}()
 	}
 	return c.subtractNullOrVoid
 }

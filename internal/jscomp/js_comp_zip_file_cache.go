@@ -73,6 +73,10 @@ type JSCompZipFileCache_CachedZipFile struct {
 	path         *jutil.Path
 	zipFile      *zip.ReadCloser
 	lastModified *time.Time
+
+	// Go-only: language-adapter — the object's monitor, which the
+	// synchronized block of refreshIfNeeded holds.
+	monitor jutil.Monitor
 }
 
 func newJSCompZipFileCache_CachedZipFile(zipName string) *JSCompZipFileCache_CachedZipFile {
@@ -137,6 +141,8 @@ func (z *JSCompZipFileCache_CachedZipFile) RefreshIfNeeded() {
 		return
 	}
 
+	z.monitor.Lock()
+	defer z.monitor.Unlock()
 	// Since we do double checked locking (newLastModified is checked out of
 	// synchronized), we should test the stamp again.
 	if z.lastModified != nil && newLastModified.Equal(*z.lastModified) {

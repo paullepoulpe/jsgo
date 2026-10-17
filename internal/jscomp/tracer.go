@@ -563,6 +563,10 @@ var tracer_typeToSilentMap *Tracer_AtomicTracerStatMap
 // This map tracks time (ms) for each type over all time.
 var tracer_typeToTimeMap *Tracer_AtomicTracerStatMap
 
+// Go-only: language-adapter — the monitor of Tracer.class, which its static
+// synchronized methods hold.
+var tracer_classMonitor jutil.Monitor
+
 // Tracer_EnableTypeMaps MUST be called before getTypeToCountMap (and
 // friends) will return a valid map. This is because computing this
 // information imposes a synchronization penalty on every Tracer that is
@@ -570,6 +574,8 @@ var tracer_typeToTimeMap *Tracer_AtomicTracerStatMap
 //
 // Java: Tracer.enableTypeMaps()
 func Tracer_EnableTypeMaps() {
+	tracer_classMonitor.Lock()
+	defer tracer_classMonitor.Unlock()
 	if tracer_typeToCountMap == nil {
 		tracer_typeToCountMap = NewTracer_AtomicTracerStatMap()
 		tracer_typeToSilentMap = NewTracer_AtomicTracerStatMap()

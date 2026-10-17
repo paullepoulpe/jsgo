@@ -19,8 +19,6 @@
 package jscomp
 
 import (
-	"sync"
-
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -85,18 +83,19 @@ func NewDiagnosticGroupWithNameFromGroups(name *string, groups ...*DiagnosticGro
 }
 
 // DiagnosticGroups with only a single DiagnosticType.
-var (
-	diagnosticGroup_singletons   = jutil.NewObjectLinkedHashMap[*DiagnosticType, *DiagnosticGroup]()
-	diagnosticGroup_singletonsMu sync.Mutex
-)
+var diagnosticGroup_singletons = jutil.NewObjectLinkedHashMap[*DiagnosticType, *DiagnosticGroup]()
+
+// Go-only: language-adapter — the monitor of DiagnosticGroup.class, which
+// its static synchronized methods hold.
+var diagnosticGroup_classMonitor jutil.Monitor
 
 // DiagnosticGroup_ForType creates a diagnostic group that matches only the
 // given type.
 //
 // Java: DiagnosticGroup.forType(DiagnosticType)
 func DiagnosticGroup_ForType(type_ *DiagnosticType) *DiagnosticGroup {
-	diagnosticGroup_singletonsMu.Lock()
-	defer diagnosticGroup_singletonsMu.Unlock()
+	diagnosticGroup_classMonitor.Lock()
+	defer diagnosticGroup_classMonitor.Unlock()
 	if g, ok := diagnosticGroup_singletons.Lookup(type_); !ok || g == nil {
 		diagnosticGroup_singletons.Put(type_, newDiagnosticGroupForSingleType(type_))
 	}
