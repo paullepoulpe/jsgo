@@ -996,6 +996,19 @@ func (u *UsingCorrespondence) DoesNotContain(excluded any) {
 	}
 }
 
+// ContainsNoneIn is UsingCorrespondence.containsNoneIn(excluded): no
+// actual element corresponds to any excluded element.
+func (u *UsingCorrespondence) ContainsNoneIn(excluded any) {
+	for _, e := range u.s.listOf(excluded) {
+		for _, a := range u.s.list() {
+			if u.c.compare(a, e) {
+				u.s.failf("expected not to contain any element that %s any of %s\nbut contained %s (corresponding to %s)",
+					u.c.description, show(excluded), show(a), show(e))
+			}
+		}
+	}
+}
+
 // Fact is com.google.common.truth.Fact: a key and an optional value of a
 // failure message.
 type Fact struct {
