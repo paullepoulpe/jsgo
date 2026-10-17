@@ -1,4 +1,4 @@
-testdata/fixtures/extracted/testgoodimplements1.js:1:26: ERROR - [JSC_VAR_MULTIPLY_DECLARED_ERROR] Variable Disposable declared more than once. First occurrence: externs.zip//es6.js:2866:9
+testdata/fixtures/extracted/testgoodimplements1.js:1:26: ERROR - [JSC_VAR_MULTIPLY_DECLARED_ERROR] Variable Disposable declared more than once. First occurrence: externs.zip//es6.js:2067:9
   1| /** @interface */function Disposable() {}
                                ^^^^^^^^^^
 

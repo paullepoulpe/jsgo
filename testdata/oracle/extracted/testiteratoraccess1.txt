@@ -1,9 +1,9 @@
-testdata/fixtures/extracted/testiteratoraccess1.js:8:22: ERROR - [JSC_TYPE_MISMATCH] initializing variable
-found   : string
-required: null
+testdata/fixtures/extracted/testiteratoraccess1.js:8:24: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of f does not match formal parameter
+found   : Generator<string,?,?>
+required: Iterator<?,?,?>
   8|   var /** null */ y = f(x);
-                           ^^^^
+                             ^
 
-1 error(s), 0 warning(s), 100.0% typed
+1 error(s), 0 warning(s), 85.7% typed
 ---EXIT---
 1
