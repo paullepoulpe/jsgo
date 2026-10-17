@@ -1,0 +1,36 @@
+{
+  "description": "Closure Library v20230802 with the bench app and src/closure-app split into three chunks (base, app and ext on base): JSChunkGraph's dependency management moves the PRUNEd inputs between chunks; ADVANCED with cross-chunk code and method motion, a source map per chunk (%outname%), chunk wrappers with %basename%, --rename_prefix_namespace, per-chunk manifests and the chunk dependency graph.",
+  "links": {
+    "inputs": "cache:bench-inputs",
+    "app": "repo:tools/bench/app",
+    "src": "repo:tools/clie2e/projects/src/closure-app"
+  },
+  "inputs": [
+    {"glob": "inputs/closure-library@v20230802/closure/goog/**/*.js", "exclude": ["*_test.js"], "group": "lib"},
+    {"glob": "inputs/closure-library@v20230802/third_party/closure/goog/**/*.js", "exclude": ["*_test.js"], "group": "lib"},
+    {"glob": "app/*.js", "group": "app"},
+    {"glob": "src/*.js", "group": "ext"}
+  ],
+  "flags": ["--dependency_mode=PRUNE", "--entry_point=goog:benchapp.main", "--entry_point=goog:clie2e.exported",
+            "{inputs:lib}", "--chunk=base:{count:lib}", "{inputs:app}", "--chunk=app:{count:app}:base",
+            "{inputs:ext}", "--chunk=ext:{count:ext}:base"],
+  "jobs": [
+    {
+      "name": "advanced",
+      "args": ["--compilation_level=ADVANCED", "--chunk_output_path_prefix=out/chunks/",
+               "--create_source_map=%outname%.map",
+               "--chunk_wrapper=app:(function(){%s})();", "--chunk_wrapper=ext:/* %basename% */%s",
+               "--rename_prefix_namespace=$ns", "--output_chunk_dependencies=out/deps.json",
+               "--output_manifest=out/%outname%.MF", "--output_manifest=out/all.MF"]
+    },
+    {
+      "name": "simple-pretty",
+      "args": ["--compilation_level=SIMPLE", "--formatting=PRETTY_PRINT", "--chunk_output_path_prefix=out/simple-",
+               "--create_source_map=%outname%.map", "--source_map_include_content"]
+    },
+    {
+      "name": "whitespace",
+      "args": ["--compilation_level=WHITESPACE_ONLY", "--chunk_output_path_prefix=out/ws/"]
+    }
+  ]
+}

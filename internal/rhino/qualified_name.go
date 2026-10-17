@@ -246,6 +246,14 @@ func (q *QualifiedName_StringListQname) Matches(n *Node) bool {
 	}
 }
 
+// String is java.lang.Object.toString() (StringListQname does not override it).
+//
+// Go-only: language-adapter — Java prints an identity hash code, which
+// differs from run to run; this one is derived from the object's address.
+func (q *QualifiedName_StringListQname) String() string {
+	return jutil.ObjectToString("com.google.javascript.rhino.QualifiedName$StringListQname", q)
+}
+
 // QualifiedName_GetpropQname is a qualified name built with an extra
 // property access on an existing qualified name.
 type QualifiedName_GetpropQname struct {
@@ -295,6 +303,14 @@ func (q *QualifiedName_GetpropQname) Matches(n *Node) bool {
 // Java: QualifiedName.GetpropQname.getComponentCount()
 func (q *QualifiedName_GetpropQname) GetComponentCount() int {
 	return q.owner.GetComponentCount() + 1
+}
+
+// String is java.lang.Object.toString() (GetpropQname does not override it).
+//
+// Go-only: language-adapter — Java prints an identity hash code, which
+// differs from run to run; this one is derived from the object's address.
+func (q *QualifiedName_GetpropQname) String() string {
+	return jutil.ObjectToString("com.google.javascript.rhino.QualifiedName$GetpropQname", q)
 }
 
 // QualifiedName_NodeQname is a qualified name from a node. The precondition
@@ -369,6 +385,14 @@ func (q *QualifiedName_NodeQname) GetComponentCount() int {
 		current = current.GetFirstChild()
 	}
 	return count
+}
+
+// String is java.lang.Object.toString() (NodeQname does not override it).
+//
+// Go-only: language-adapter — Java prints an identity hash code, which
+// differs from run to run; this one is derived from the object's address.
+func (q *QualifiedName_NodeQname) String() string {
+	return jutil.ObjectToString("com.google.javascript.rhino.QualifiedName$NodeQname", q)
 }
 
 // Java: QualifiedName.THIS

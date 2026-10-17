@@ -1,0 +1,21 @@
+{
+  "description": "handlebars 4.7.10's Babel-compiled CommonJS build (dist/cjs, 33 files, extensionless requires) with --process_common_js_modules, NODE resolution and PRUNE from handlebars.js.",
+  "links": {
+    "node_modules/handlebars/dist/cjs": "cache:corpus/handlebars@4.7.10/package/dist/cjs"
+  },
+  "inputs": [
+    {"glob": "node_modules/handlebars/dist/cjs/**/*.js"}
+  ],
+  "flags": ["--module_resolution=NODE", "--process_common_js_modules", "--dependency_mode=PRUNE",
+            "--entry_point=node_modules/handlebars/dist/cjs/handlebars.js"],
+  "jobs": [
+    {
+      "name": "simple",
+      "args": ["--compilation_level=SIMPLE", "--js_output_file=out/handlebars.js", "--create_source_map=out/handlebars.js.map"]
+    },
+    {
+      "name": "advanced",
+      "args": ["--compilation_level=ADVANCED", "--jscomp_warning=undefinedVars", "--js_output_file=out/handlebars.js"]
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "set": "holdout",
+  "description": "Held-out corpus: date-fns 4.4.0, as ES modules (.js) and as CommonJS (.cjs) with explicit extensions: NODE resolution, PRUNE from a few functions, ADVANCED with a source map, SIMPLE CommonJS, and a chunked ADVANCED build (helpers and locale in one chunk, the functions in another).",
+  "links": {
+    "node_modules/date-fns": "cache:corpus-holdout/date-fns@4.4.0/package"
+  },
+  "inputs": [
+    {"glob": "node_modules/date-fns/_lib/**/*.js", "group": "lib"},
+    {"glob": "node_modules/date-fns/locale/_lib/**/*.js", "group": "lib"},
+    {"glob": "node_modules/date-fns/locale/en-US.js", "group": "lib"},
+    {"glob": "node_modules/date-fns/locale/en-US/**/*.js", "group": "lib"},
+    {"glob": "node_modules/date-fns/*.js", "group": "fns"},
+    {"glob": "node_modules/date-fns/parse/**/*.js", "group": "fns"}
+  ],
+  "flags": ["--module_resolution=NODE", "--dependency_mode=PRUNE",
+            "--entry_point=node_modules/date-fns/format.js", "--entry_point=node_modules/date-fns/parseISO.js",
+            "--entry_point=node_modules/date-fns/addDays.js"],
+  "jobs": [
+    {
+      "name": "esm-advanced",
+      "args": ["--compilation_level=ADVANCED", "--js_output_file=out/date-fns.js", "--create_source_map=out/date-fns.js.map"]
+    },
+    {
+      "name": "esm-simple-es5",
+      "args": ["--compilation_level=SIMPLE", "--language_out=ECMASCRIPT5", "--js_output_file=out/date-fns.js"]
+    },
+    {
+      "name": "esm-chunks",
+      "args": ["{inputs:lib}", "--chunk=lib:{count:lib}", "{inputs:fns}", "--chunk=fns:{count:fns}:lib",
+               "--compilation_level=ADVANCED", "--chunk_output_path_prefix=out/", "--create_source_map=%outname%.map",
+               "--output_chunk_dependencies=out/deps.json"]
+    },
+    {
+      "name": "cjs-simple",
+      "inputs": [
+        {"glob": "node_modules/date-fns/_lib/**/*.cjs"},
+        {"glob": "node_modules/date-fns/locale/_lib/**/*.cjs"},
+        {"glob": "node_modules/date-fns/locale/en-US.cjs"},
+        {"glob": "node_modules/date-fns/locale/en-US/**/*.cjs"},
+        {"glob": "node_modules/date-fns/*.cjs"}
+      ],
+      "args": ["--process_common_js_modules", "--entry_point=node_modules/date-fns/format.cjs",
+               "--compilation_level=SIMPLE", "--js_output_file=out/date-fns.js"]
+    }
+  ]
+}

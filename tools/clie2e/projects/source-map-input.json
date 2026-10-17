@@ -1,0 +1,50 @@
+{
+  "description": "Input source maps: src/srcmap/prebuilt/bundle.js was compiled by the pinned Java compiler from src/srcmap/orig/*.js (SIMPLE, PRETTY_PRINT, run in prebuilt/ so that the map names ../orig/*.js); inline.js carries the same map as a base64 data URL, and missing-map.js names a map that does not exist. Built on top of them, with --source_map_input, --apply_input_source_maps, --parse_inline_source_maps and location mappings; the undeclared LIMIT warning is reported at its original position.",
+  "links": {
+    "src": "repo:tools/clie2e/projects/src/srcmap"
+  },
+  "files": {
+    "app.js": "/** @fileoverview A consumer of the prebuilt bundle. */\nwindow['report']();\nconsole.log(totalArea([new Box(1, 1)]));\n"
+  },
+  "inputs": [
+    {"file": "src/prebuilt/bundle.js"},
+    {"file": "app.js"}
+  ],
+  "flags": ["--jscomp_warning=undefinedVars"],
+  "jobs": [
+    {
+      "name": "source-map-input-advanced",
+      "args": ["--compilation_level=ADVANCED", "--source_map_input=src/prebuilt/bundle.js|src/prebuilt/bundle.js.map",
+               "--apply_input_source_maps", "--js_output_file=out/app.js", "--create_source_map=out/app.js.map"]
+    },
+    {
+      "name": "source-map-input-content",
+      "args": ["--compilation_level=SIMPLE", "--source_map_input=src/prebuilt/bundle.js|src/prebuilt/bundle.js.map",
+               "--apply_input_source_maps", "--source_map_include_content",
+               "--source_map_location_mapping=src/orig/|/static/orig/", "--source_map_location_mapping=src/|/static/",
+               "--js_output_file=out/app.js", "--create_source_map=out/app.js.map"]
+    },
+    {
+      "name": "source-map-input-not-applied",
+      "args": ["--compilation_level=SIMPLE", "--source_map_input=src/prebuilt/bundle.js|src/prebuilt/bundle.js.map",
+               "--js_output_file=out/app.js", "--create_source_map=out/app.js.map"]
+    },
+    {
+      "name": "annotation-only",
+      "args": ["--compilation_level=SIMPLE", "--apply_input_source_maps",
+               "--js_output_file=out/app.js", "--create_source_map=out/app.js.map"]
+    },
+    {
+      "name": "parse-inline",
+      "inputs": [{"file": "src/prebuilt/inline.js"}, {"file": "app.js"}],
+      "args": ["--compilation_level=SIMPLE", "--parse_inline_source_maps", "--apply_input_source_maps",
+               "--js_output_file=out/app.js", "--create_source_map=out/app.js.map"]
+    },
+    {
+      "name": "missing-map",
+      "inputs": [{"file": "src/prebuilt/missing-map.js"}, {"file": "app.js"}],
+      "args": ["--compilation_level=SIMPLE", "--apply_input_source_maps",
+               "--js_output_file=out/app.js", "--create_source_map=out/app.js.map"]
+    }
+  ]
+}

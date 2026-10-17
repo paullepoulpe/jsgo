@@ -1,0 +1,28 @@
+{
+  "description": "three.js 0.186.1's ES module sources (src/, 1,000+ files, imports with .js extensions) under the default BROWSER resolution, PRUNE from src/Three.Core.js. Also down-levelled to ES5 (polyfills injected) and type-checked at VERBOSE.",
+  "links": {
+    "three/src": "cache:corpus/three@0.186.1/package/src"
+  },
+  "inputs": [
+    {"glob": "three/src/**/*.js"}
+  ],
+  "flags": ["--dependency_mode=PRUNE", "--entry_point=three/src/Three.Core.js"],
+  "jobs": [
+    {
+      "name": "simple",
+      "args": ["--compilation_level=SIMPLE", "--js_output_file=out/three.js", "--create_source_map=out/three.js.map"]
+    },
+    {
+      "name": "advanced",
+      "args": ["--compilation_level=ADVANCED", "--jscomp_warning=visibility", "--js_output_file=out/three.js"]
+    },
+    {
+      "name": "simple-es5",
+      "args": ["--compilation_level=SIMPLE", "--language_out=ECMASCRIPT5", "--js_output_file=out/three.js"]
+    },
+    {
+      "name": "checks-types",
+      "args": ["--checks_only", "--jscomp_warning=checkTypes", "--warning_level=VERBOSE"]
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "description": "underscore 1.13.8's ES module sources (modules/, 300+ files with .js imports) under BROWSER resolution, PRUNE from index-all.js, with and without --js_module_root.",
+  "links": {
+    "lib/underscore": "cache:corpus/underscore@1.13.8/package/modules"
+  },
+  "inputs": [
+    {"glob": "lib/underscore/*.js"}
+  ],
+  "flags": ["--module_resolution=BROWSER", "--dependency_mode=PRUNE"],
+  "jobs": [
+    {
+      "name": "advanced",
+      "args": ["--entry_point=lib/underscore/index-all.js", "--compilation_level=ADVANCED", "--js_output_file=out/underscore.js", "--create_source_map=out/underscore.js.map"]
+    },
+    {
+      "name": "simple-module-root",
+      "args": ["--js_module_root=lib", "--entry_point=underscore/index-all.js", "--compilation_level=SIMPLE", "--js_output_file=out/underscore.js"]
+    }
+  ]
+}

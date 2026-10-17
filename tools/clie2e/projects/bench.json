@@ -1,0 +1,13 @@
+{
+  "description": "The end-to-end benchmark's tasks (tools/bench/tasks, PLAN.md §6) except the per-file one, in bench.py's workspace layout: inputs/ (.cache/bench-inputs), corpus/, app/ and a node_modules/ of symlinks for NODE module resolution.",
+  "links": {
+    "inputs": "cache:bench-inputs",
+    "corpus": "cache:corpus",
+    "app": "repo:tools/bench/app",
+    "node_modules/rxjs": "cache:bench-inputs/rxjs@7.8.2",
+    "node_modules/tslib": "cache:bench-inputs/tslib@2.8.1",
+    "node_modules/core-js": "cache:bench-inputs/core-js@3.50.0",
+    "node_modules/@angular/core": "cache:bench-inputs/@angular/core@16.2.12"
+  },
+  "bench_tasks": ["typed-app", "bundle", "downlevel-whitespace", "downlevel-simple", "checks-only"]
+}

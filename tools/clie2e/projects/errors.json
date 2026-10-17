@@ -1,0 +1,90 @@
+{
+  "description": "Project-level error paths on small generated inputs and Closure Library's base.js: output files in a directory that does not exist, unknown entry points, bad --chunk specifications, unprovided and duplicate goog.provide namespaces, a goog.module require cycle, a missing ES module import, a duplicate input, and an ES module re-exporting the default import of a CommonJS module (an internal compiler error in both).",
+  "links": {
+    "inputs": "cache:bench-inputs"
+  },
+  "files": {
+    "g/a.js": "goog.module('err.a');\nconst b = goog.require('err.b');\nexports.f = () => b.g() + 1;\n",
+    "g/b.js": "goog.module('err.b');\nconst a = goog.require('err.a');\nexports.g = () => 2;\nexports.h = () => a.f();\n",
+    "g/c.js": "goog.provide('err.c');\ngoog.require('err.missing');\nerr.c.x = 1;\n",
+    "g/d.js": "goog.provide('err.c');\nerr.c.y = 2;\n",
+    "g/e.js": "goog.module('err.e');\nexports.e = 5;\n",
+    "m/main.js": "import {x} from './nope.js';\nimport {y} from './y.js';\nexport const z = x + y;\n",
+    "m/y.js": "export const y = 1;\n",
+    "cjs/lib.js": "module.exports = {x: 1};\n",
+    "cjs/es.js": "import Lib from './lib.js';\nexport { Lib };\n"
+  },
+  "inputs": [
+    {"file": "inputs/closure-library@v20230802/closure/goog/base.js"}
+  ],
+  "jobs": [
+    {
+      "name": "missing-output-dir",
+      "inputs": [{"file": "g/e.js"}],
+      "args": ["--js_output_file=missing/dir/out.js"]
+    },
+    {
+      "name": "missing-manifest-dir",
+      "inputs": [{"file": "g/e.js"}],
+      "args": ["--js_output_file=out/e.js", "--output_manifest=missing/manifest.MF"]
+    },
+    {
+      "name": "missing-source-map-dir",
+      "inputs": [{"file": "g/e.js"}],
+      "args": ["--js_output_file=out/e.js", "--create_source_map=missing/e.js.map"]
+    },
+    {
+      "name": "unknown-goog-entry-point",
+      "args": ["{inputs}", "--js=g/e.js", "--dependency_mode=PRUNE", "--entry_point=goog:does.not.exist"]
+    },
+    {
+      "name": "unknown-file-entry-point",
+      "inputs": [{"file": "m/y.js"}],
+      "args": ["--dependency_mode=PRUNE", "--entry_point=m/nope.js"]
+    },
+    {
+      "name": "chunk-count-too-large",
+      "args": ["{inputs}", "--js=g/e.js", "--chunk=a:5"]
+    },
+    {
+      "name": "chunk-unknown-dep",
+      "args": ["{inputs}", "--chunk=a:1", "--js=g/e.js", "--chunk=b:1:zzz"]
+    },
+    {
+      "name": "chunk-auto-not-first",
+      "args": ["{inputs}", "--chunk=a:1", "--js=g/e.js", "--chunk=b:auto"]
+    },
+    {
+      "name": "chunk-duplicate-name",
+      "args": ["{inputs}", "--chunk=a:1", "--js=g/e.js", "--chunk=a:1:a"]
+    },
+    {
+      "name": "chunk-bad-count",
+      "args": ["{inputs}", "--chunk=a:x"]
+    },
+    {
+      "name": "unprovided-and-duplicate-provide",
+      "args": ["{inputs}", "--js=g/c.js", "--js=g/d.js", "--dependency_mode=SORT_ONLY", "--compilation_level=ADVANCED"]
+    },
+    {
+      "name": "require-cycle",
+      "args": ["{inputs}", "--js=g/a.js", "--js=g/b.js", "--dependency_mode=PRUNE", "--entry_point=goog:err.a"]
+    },
+    {
+      "name": "missing-es-import",
+      "inputs": [{"file": "m/main.js"}, {"file": "m/y.js"}],
+      "args": ["--dependency_mode=PRUNE", "--entry_point=m/main.js"]
+    },
+    {
+      "name": "reexported-commonjs-default",
+      "inputs": [{"file": "cjs/lib.js"}, {"file": "cjs/es.js"}],
+      "args": ["--process_common_js_modules", "--module_resolution=NODE", "--dependency_mode=PRUNE",
+               "--entry_point=cjs/es.js", "--compilation_level=SIMPLE"]
+    },
+    {
+      "name": "duplicate-input",
+      "inputs": [{"file": "m/y.js"}, {"file": "m/y.js"}],
+      "args": ["--compilation_level=SIMPLE"]
+    }
+  ]
+}

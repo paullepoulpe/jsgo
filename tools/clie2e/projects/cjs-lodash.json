@@ -1,0 +1,33 @@
+{
+  "description": "lodash 4.17.21's CommonJS modules (the 600+ files at the package root) with --process_common_js_modules and NODE resolution: PRUNE from lodash's own modules, and from an ES module entry point (src/interop) that imports them by bare specifier next to a local CommonJS module.",
+  "links": {
+    "node_modules/lodash": "cache:corpus/lodash@4.17.21/package",
+    "src": "repo:tools/clie2e/projects/src/interop"
+  },
+  "inputs": [
+    {"glob": "node_modules/lodash/*.js"},
+    {"glob": "src/*.js"}
+  ],
+  "flags": ["--module_resolution=NODE", "--process_common_js_modules", "--dependency_mode=PRUNE"],
+  "jobs": [
+    {
+      "name": "simple-lodash-entries",
+      "args": ["--entry_point=node_modules/lodash/debounce.js", "--entry_point=node_modules/lodash/merge.js",
+               "--compilation_level=SIMPLE", "--js_output_file=out/lodash.js"]
+    },
+    {
+      "name": "advanced-interop",
+      "args": ["--entry_point=src/main.js", "--compilation_level=ADVANCED",
+               "--js_output_file=out/main.js", "--create_source_map=out/main.js.map"]
+    },
+    {
+      "name": "simple-interop-es5",
+      "args": ["--entry_point=src/main.js", "--compilation_level=SIMPLE", "--language_out=ECMASCRIPT5",
+               "--js_output_file=out/main.js"]
+    },
+    {
+      "name": "whitespace-interop",
+      "args": ["--entry_point=src/main.js", "--compilation_level=WHITESPACE_ONLY", "--js_output_file=out/main.js"]
+    }
+  ]
+}
