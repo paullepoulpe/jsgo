@@ -1,4 +1,4 @@
-// Port of test/com/google/javascript/jscomp/deps/ModuleLoaderTest.java @ closure-compiler v20260415
+// Port of test/com/google/javascript/jscomp/deps/ModuleLoaderTest.java @ closure-compiler v20261015
 
 /*
  * Copyright 2016 The Closure Compiler Authors.
@@ -481,4 +481,23 @@ func TestModuleLoader_BrowserWithPrefixesSilentResolvesTransformedPrefixes(t *te
 	jsaTrue(t, result != nil)
 	jsaEq(t, result.String(), "/p0/p1/p2/file.js")
 	jsaEq(t, len(errors), 0)
+}
+
+func TestModuleLoader_RelativeIdentifierDotAndDotDot(t *testing.T) {
+	jsaTrue(t, ModuleLoader_IsRelativeIdentifier("."))
+	jsaTrue(t, ModuleLoader_IsRelativeIdentifier(".."))
+	jsaFalse(t, ModuleLoader_IsAmbiguousIdentifier("."))
+	jsaFalse(t, ModuleLoader_IsAmbiguousIdentifier(".."))
+}
+
+func TestModuleLoader_LocateDotAndDotDotNode(t *testing.T) {
+	compilerInputs := jsaMlInputs("/app/index.js", "/app/sub/sub.js", "/app/sub/index.js", "/app/sub/sub2/sub2.js", "/B/package.json", "/B/lib/b.js", "/B/lib/index.js")
+
+	loader := ModuleLoader_Builder_().SetModuleRoots([]string{}).SetInputs(compilerInputs).SetFactory(NewNodeModuleResolver_FactoryWithEntries(jsaMlPACKAGE_JSON_MAIN_ENTRIES())).SetPathResolver(ModuleLoader_PathResolver_RELATIVE).Build()
+
+	jsaMlAssertUri(t, "/app/sub/index.js", jsaMlResolveJsModule(loader.Resolve("/app/sub/sub.js"), "."))
+	jsaMlAssertUri(t, "/app/sub/index.js", jsaMlResolveJsModule(loader.Resolve("/app/sub/sub2/sub2.js"), ".."))
+	jsaMlAssertUri(t, "/app/index.js", jsaMlResolveJsModule(loader.Resolve("/app/sub/sub.js"), ".."))
+	jsaMlAssertUri(t, "/B/lib/b.js", jsaMlResolveJsModule(loader.Resolve("/B/lib/sub.js"), ".."))
+	jsaMlAssertUri(t, "/B/lib/index.js", jsaMlResolveJsModule(loader.Resolve("/B/lib/sub.js"), "."))
 }

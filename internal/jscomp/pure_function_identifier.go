@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PureFunctionIdentifier.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/PureFunctionIdentifier.java @ closure-compiler v20261015
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -277,10 +277,11 @@ func PureFunctionIdentifier_FormatSourceLocation(node *rhino.Node) string {
 // See collectCallableLeavesInternal. Returns the disovered callables, or
 // null if an unexpected possible value was found.
 //
-// Java: PureFunctionIdentifier.collectCallableLeaves(Node)
-func PureFunctionIdentifier_CollectCallableLeaves(expr *rhino.Node) []*rhino.Node {
+// Java: PureFunctionIdentifier.collectCallableLeaves(Node, AstAnalyzer)
+func PureFunctionIdentifier_CollectCallableLeaves(
+	expr *rhino.Node, astAnalyzer *AstAnalyzer) []*rhino.Node {
 	callables := jutil.NewArrayList[*rhino.Node]()
-	allLegal := PureFunctionIdentifier_CollectCallableLeavesInternal(expr, callables)
+	allLegal := PureFunctionIdentifier_CollectCallableLeavesInternal(expr, callables, astAnalyzer)
 	if allLegal {
 		return callables.ToSlice()
 	}
@@ -311,8 +312,9 @@ func PureFunctionIdentifier_CollectCallableLeaves(expr *rhino.Node) []*rhino.Nod
 // results the collection of qualified names and functions. Returns true iff
 // only understood results were discovered.
 //
-// Java: PureFunctionIdentifier.collectCallableLeavesInternal(Node, ArrayList<Node>)
-func PureFunctionIdentifier_CollectCallableLeavesInternal(expr *rhino.Node, results *jutil.ArrayList[*rhino.Node]) bool {
+// Java: PureFunctionIdentifier.collectCallableLeavesInternal(Node, ArrayList<Node>, AstAnalyzer)
+func PureFunctionIdentifier_CollectCallableLeavesInternal(
+	expr *rhino.Node, results *jutil.ArrayList[*rhino.Node], astAnalyzer *AstAnalyzer) bool {
 	switch expr.GetToken() {
 	case rhino.Token_FUNCTION, rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_NAME:
 		results.Add(expr)
@@ -322,33 +324,49 @@ func PureFunctionIdentifier_CollectCallableLeavesInternal(expr *rhino.Node, resu
 		{
 			// Pretend that `super` is an alias for the superclass reference.
 			clazz := jutil.CheckNotNull(NodeUtil_GetEnclosingClass(expr))
-			return PureFunctionIdentifier_CollectCallableLeavesInternal(clazz.GetSecondChild(), results)
+			return PureFunctionIdentifier_CollectCallableLeavesInternal(clazz.GetSecondChild(), results, astAnalyzer)
 		}
 
 	case rhino.Token_CLASS:
 		{
+			// Instance field initializers run when the constructor is invoked (during class
+			// instantiation), so any side-effectful instance field initializers make the constructor
+			// invocation impure. Static field initializers run when the class definition itself is
+			// evaluated, not upon constructor invocation.
+			members := expr.GetLastChild()
+			if members != nil && members.IsClassMembers() {
+				for member := members.GetFirstChild(); member != nil; member = member.GetNext() {
+					initializer := member.GetLastChild()
+					if initializer != nil &&
+						NodeUtil_IsNonStaticClassFieldInitializer(initializer) &&
+						astAnalyzer.MayHaveSideEffects(initializer) {
+						return false
+					}
+				}
+			}
+
 			// Collect the constructor function, or failing that, the superclass reference.
 			ctorDef := NodeUtil_GetEs6ClassConstructorMemberFunctionDef(expr)
 			if ctorDef != nil {
-				return PureFunctionIdentifier_CollectCallableLeavesInternal(ctorDef.GetOnlyChild(), results)
+				return PureFunctionIdentifier_CollectCallableLeavesInternal(ctorDef.GetOnlyChild(), results, astAnalyzer)
 			} else if expr.GetSecondChild().IsEmpty() {
 				results.Add(PureFunctionIdentifier_IMPLICIT_PURE_FN)
 				return true // A class an implicit ctor is pure when there is no superclass.
 			} else {
-				return PureFunctionIdentifier_CollectCallableLeavesInternal(expr.GetSecondChild(), results)
+				return PureFunctionIdentifier_CollectCallableLeavesInternal(expr.GetSecondChild(), results, astAnalyzer)
 			}
 		}
 
 	case rhino.Token_AND, rhino.Token_OR, rhino.Token_COALESCE:
-		return PureFunctionIdentifier_CollectCallableLeavesInternal(expr.GetFirstChild(), results) &&
-			PureFunctionIdentifier_CollectCallableLeavesInternal(expr.GetSecondChild(), results)
+		return PureFunctionIdentifier_CollectCallableLeavesInternal(expr.GetFirstChild(), results, astAnalyzer) &&
+			PureFunctionIdentifier_CollectCallableLeavesInternal(expr.GetSecondChild(), results, astAnalyzer)
 
 	case rhino.Token_COMMA, rhino.Token_ASSIGN:
-		return PureFunctionIdentifier_CollectCallableLeavesInternal(expr.GetSecondChild(), results)
+		return PureFunctionIdentifier_CollectCallableLeavesInternal(expr.GetSecondChild(), results, astAnalyzer)
 
 	case rhino.Token_HOOK:
-		return PureFunctionIdentifier_CollectCallableLeavesInternal(expr.GetSecondChild(), results) &&
-			PureFunctionIdentifier_CollectCallableLeavesInternal(expr.GetChildAtIndex(2), results)
+		return PureFunctionIdentifier_CollectCallableLeavesInternal(expr.GetSecondChild(), results, astAnalyzer) &&
+			PureFunctionIdentifier_CollectCallableLeavesInternal(expr.GetChildAtIndex(2), results, astAnalyzer)
 
 	case rhino.Token_NEW_TARGET, rhino.Token_THIS:
 		// These could be an alias to any function. Treat them as an unknown callable.
@@ -424,14 +442,14 @@ func PureFunctionIdentifier_IsDefinitelyRValue(rvalue *rhino.Node) bool {
 func (p *PureFunctionIdentifier) GetGoogCacheCallableExpression(cacheCall *CodingConvention_Cache) []*rhino.Node {
 	jutil.CheckNotNull(cacheCall)
 
-	valueFnCallables := PureFunctionIdentifier_CollectCallableLeaves(cacheCall.valueFn)
+	valueFnCallables := PureFunctionIdentifier_CollectCallableLeaves(cacheCall.valueFn, p.astAnalyzer)
 	if valueFnCallables == nil {
 		// ImmutableList.Builder.addAll(null)
 		panic(jutil.NewNullPointerException())
 	}
 	builder := append([]*rhino.Node(nil), valueFnCallables...)
 	if cacheCall.keyFn != nil {
-		keyFnCallables := PureFunctionIdentifier_CollectCallableLeaves(cacheCall.keyFn)
+		keyFnCallables := PureFunctionIdentifier_CollectCallableLeaves(cacheCall.keyFn, p.astAnalyzer)
 		if keyFnCallables == nil {
 			// ImmutableList.Builder.addAll(null)
 			panic(jutil.NewNullPointerException())
@@ -453,7 +471,7 @@ func (p *PureFunctionIdentifier) GetSummariesForCallee(invocation *rhino.Node) [
 	} else if PureFunctionIdentifier_IsInvocationViaCallOrApply(invocation) {
 		callees = []*rhino.Node{invocation.GetFirstFirstChild()}
 	} else {
-		callees = PureFunctionIdentifier_CollectCallableLeaves(invocation.GetFirstChild())
+		callees = PureFunctionIdentifier_CollectCallableLeaves(invocation.GetFirstChild(), p.astAnalyzer)
 	}
 
 	if callees == nil {
@@ -562,7 +580,7 @@ func (p *PureFunctionIdentifier) PopulateFunctionDefinitions(name string, refere
 				// If the assigned R-value is an analyzable expression, collect all the possible
 				// FUNCTIONs that could result from that expression. If the expression isn't analyzable,
 				// represent that with `null` so we can skiplist `name`.
-				callables := PureFunctionIdentifier_CollectCallableLeaves(rvalue)
+				callables := PureFunctionIdentifier_CollectCallableLeaves(rvalue, p.astAnalyzer)
 				if callables == nil {
 					invalid = true
 					break
@@ -838,6 +856,19 @@ func NewPureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry(root *rhi
 		root:               root,
 		isArtificiallyPure: isArtificiallyPure,
 	}
+}
+
+// IsLocalVar reports whether v, as seen from scope, is a variable of this
+// function that only holds values local to the current invocation, so that
+// mutating them is invisible to the callers.
+//
+// Java: PureFunctionIdentifier.FunctionBodyAnalyzer.FunctionStackEntry.isLocalVar(Var, Scope)
+func (e *PureFunctionIdentifier_FunctionBodyAnalyzer_FunctionStackEntry) IsLocalVar(v *Var, scope *Scope) bool {
+	return PureFunctionIdentifier_FunctionBodyAnalyzer_IsVarDeclaredInSameContainerScope(v, scope) &&
+		!e.skiplistedVars.Contains(v) &&
+		// Parameters and catch values can come from other scopes.
+		!v.IsParam() &&
+		!v.IsCatch()
 }
 
 // Java: PureFunctionIdentifier.FunctionBodyAnalyzer.shouldTraverse(NodeTraversal, Node, Node)
@@ -1137,16 +1168,8 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) ExitScope(t *NodeTraversal
 				continue
 			}
 
-			localVar := false
-			// Parameters and catch values can come from other scopes.
-			if !v.IsParam() && !v.IsCatch() {
-				// TODO(johnlenz): create a useful parameter list
-				// sideEffectInfo.addKnownLocal(v.getName());
-				localVar = true
-			}
-
 			// Take care of locals that might have been tainted.
-			if !localVar || functionEntry.skiplistedVars.Contains(v) {
+			if !functionEntry.IsLocalVar(v, t.GetScope()) {
 				if functionEntry.taintedVars.Contains(v) {
 					// If the function has global side-effects
 					// don't bother with the local side-effects.
@@ -1159,7 +1182,7 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) ExitScope(t *NodeTraversal
 }
 
 // Java: PureFunctionIdentifier.FunctionBodyAnalyzer.isVarDeclaredInSameContainerScope(Var, Scope)
-func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) IsVarDeclaredInSameContainerScope(v *Var, scope *Scope) bool {
+func PureFunctionIdentifier_FunctionBodyAnalyzer_IsVarDeclaredInSameContainerScope(v *Var, scope *Scope) bool {
 	if v == nil {
 		return false
 	}
@@ -1189,12 +1212,18 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) VisitLhsNode(
 		// e.g. `delete obj?.prop` <==> `obj == null ?  true : delete obj.prop;`
 		// Hence the enclosing function's side effects must be recorded.
 		if lhs.GetFirstChild().IsThis() {
-			encloserSummary.SetMutatesThis(lhs)
+			if b.functionScopeStackGetLast().root.IsArrowFunction() {
+				// `this` in an arrow function is the `this` of the enclosing function, which is not
+				// the receiver the arrow function is called with.
+				encloserSummary.SetMutatesGlobalStateAndAllOtherFlags(lhs)
+			} else {
+				encloserSummary.SetMutatesThis(lhs)
+			}
 		} else {
 			objectNode := lhs.GetFirstChild()
 			if objectNode.IsName() {
 				var_ := scope.GetVar(objectNode.GetString())
-				if b.IsVarDeclaredInSameContainerScope(var_, scope) {
+				if PureFunctionIdentifier_FunctionBodyAnalyzer_IsVarDeclaredInSameContainerScope(var_, scope) {
 					// Maybe a local object modification.  We won't know for sure until
 					// we exit the scope and can validate the value of the local.
 					b.functionScopeStackGetLast().taintedVars.Add(var_)
@@ -1209,7 +1238,7 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) VisitLhsNode(
 	} else {
 		jutil.CheckStateMsg1(lhs.IsName(), "%s", lhs)
 		var_ := scope.GetVar(lhs.GetString())
-		if b.IsVarDeclaredInSameContainerScope(var_, scope) {
+		if PureFunctionIdentifier_FunctionBodyAnalyzer_IsVarDeclaredInSameContainerScope(var_, scope) {
 			if !hasLocalRhs(lhs) {
 				// Assigned value is not guaranteed to be a local value,
 				// so if we see any property assignments on this variable,
@@ -1243,10 +1272,12 @@ func (b *PureFunctionIdentifier_FunctionBodyAnalyzer) VisitCall(callerInfo *Pure
 		return
 	}
 
-	propatesThrows := b.functionScopeStackGetLast().catchDepth == 0
+	enclosingFunction := b.functionScopeStackGetLast()
+	propatesThrows := enclosingFunction.catchDepth == 0
+	callerIsArrowFunction := enclosingFunction.root.IsArrowFunction()
 	for _, calleeInfo := range calleeSummaries {
 		edge :=
-			PureFunctionIdentifier_SideEffectPropagation_ForInvocation(invocation, propatesThrows)
+			PureFunctionIdentifier_SideEffectPropagation_ForInvocation(invocation, callerIsArrowFunction, propatesThrows)
 		b.outer.reverseCallGraph.ConnectNodes(calleeInfo.graphNode, edge, callerInfo.graphNode)
 	}
 }
@@ -1360,13 +1391,16 @@ func PureFunctionIdentifier_SideEffectPropagation_ForAlias() *PureFunctionIdenti
 }
 
 // Java: PureFunctionIdentifier.SideEffectPropagation.forInvocation(Node, boolean)
-func PureFunctionIdentifier_SideEffectPropagation_ForInvocation(invocation *rhino.Node, propagateThrows bool) *PureFunctionIdentifier_SideEffectPropagation {
+func PureFunctionIdentifier_SideEffectPropagation_ForInvocation(
+	invocation *rhino.Node, callerIsArrowFunction bool, propagateThrows bool) *PureFunctionIdentifier_SideEffectPropagation {
 	jutil.CheckArgumentMsg1(NodeUtil_IsInvocation(invocation), "%s", invocation)
 
 	return NewPureFunctionIdentifier_SideEffectPropagation(
 		false,
 		NodeUtil_AllArgsUnescapedLocal(invocation),
-		PureFunctionIdentifier_SideEffectPropagation_CalleeAndCallerShareThis(invocation),
+		// `this` in an arrow function is the `this` of the enclosing function, which is not
+		// tracked.
+		PureFunctionIdentifier_SideEffectPropagation_CalleeAndCallerShareThis(invocation) && !callerIsArrowFunction,
 		propagateThrows,
 		invocation)
 }
@@ -1416,29 +1450,27 @@ func (e *PureFunctionIdentifier_SideEffectPropagation) Propagate(callee *PureFun
 
 	if e.callerIsAlias {
 		caller.SetMask(callee.bitmask)
-		return caller.bitmask != initialCallerFlags
-	}
-
-	if callee.MutatesGlobalState() {
+	} else if callee.MutatesGlobalState() {
 		// If the callee modifies global state then so does that caller.
 		caller.SetMutatesGlobalStateAndAllOtherFlags(e.invocation)
-	}
-	if e.propagateThrows && callee.FunctionThrows() {
-		// If the callee throws an exception then so does the caller.
-		caller.SetThrows(e.invocation)
-	}
-	if callee.MutatesArguments() && !e.allArgsUnescapedLocal {
-		// If the callee mutates its input arguments and the arguments escape the caller then it has
-		// unbounded side effects.
-		caller.SetMutatesGlobalStateAndAllOtherFlags(e.invocation)
-	}
-	if callee.MutatesThis() {
-		if e.invocation.IsNew() {
-			// NEWing a constructor provide a unescaped "this" making side-effects impossible.
-		} else if e.calleeThisEqualsCallerThis {
-			caller.SetMutatesThis(e.invocation)
-		} else {
+	} else {
+		if e.propagateThrows && callee.FunctionThrows() {
+			// If the callee throws an exception then so does the caller.
+			caller.SetThrows(e.invocation)
+		}
+		if callee.MutatesArguments() && !e.allArgsUnescapedLocal {
+			// If the callee mutates its input arguments and the arguments escape the caller then it
+			// has unbounded side effects.
 			caller.SetMutatesGlobalStateAndAllOtherFlags(e.invocation)
+		}
+		if callee.MutatesThis() {
+			if e.invocation.IsNew() {
+				// NEWing a constructor provide a unescaped "this" making side-effects impossible.
+			} else if e.calleeThisEqualsCallerThis {
+				caller.SetMutatesThis(e.invocation)
+			} else {
+				caller.SetMutatesGlobalStateAndAllOtherFlags(e.invocation)
+			}
 		}
 	}
 

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PeepholeRemoveDeadCodeTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/PeepholeRemoveDeadCodeTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/PeepholeRemoveDeadCodeTest.java)
 
 /*
@@ -440,15 +440,20 @@ func (c *PeepholeRemoveDeadCodeTest) TestRemoveUselessOps1() {
 	c.FoldSame("(function () { f(); })();")
 }
 
+// TODO(b/538125186): Do not remove optional chain side effects in PeepholeRemoveDeadCode
 // Java: PeepholeRemoveDeadCodeTest.testCallSideEffectsPreserved()
 func (c *PeepholeRemoveDeadCodeTest) TestCallSideEffectsPreserved() {
 	// Functions calls known to be free of side effects are removed.
 	c.Fold("Math.random()", "")
 	c.Fold("Math?.random()", "")
 	c.Fold("Math.random(f() + g())", "f(),g();")
-	c.Fold("Math?.random(f() + g())", "f(),g();")
+	c.FoldSame("Math?.random(f() + g());")
 	c.Fold("Math.random(f(),g(),h())", "f(),g(),h();")
-	c.Fold("Math?.random(f(),g(),h())", "f(),g(),h();")
+	c.FoldSame("Math?.random(f(),g(),h());")
+	c.Fold("Symbol()", "")
+	c.Fold("Symbol('desc')", "")
+	c.Fold("Symbol(f())", "f();")
+
 	// Calls to functions with unknown side-effects are preserved.
 	c.FoldSame("f();")
 	c.FoldSame("f?.();")
@@ -503,10 +508,15 @@ func (c *PeepholeRemoveDeadCodeTest) TestRemoveUselessOps2() {
 	c.FoldSame("var x;")
 }
 
+// TODO(b/538166699): Do not remove switch condition with side effects in PeepholeRemoveDeadCode
 // Java: PeepholeRemoveDeadCodeTest.testOptimizeSwitch()
 func (c *PeepholeRemoveDeadCodeTest) TestOptimizeSwitch() {
 	c.Fold("switch(a){}", "")
 	c.Fold("switch(foo()){}", "foo()")
+	c.Fold("switch(x++){}", "x++")
+	c.Fold("switch(a=b){}", "a=b")
+	c.Fold("switch(x++){default:foo();}", "x++; foo()")
+	c.Fold("switch(a=b){default:foo();}", "a=b; foo()")
 	c.Fold("switch(a){default:}", "")
 	c.Fold("switch(a){default:break;}", "")
 	c.Fold("switch(a){default:var b;break;}", "var b")
@@ -515,17 +525,20 @@ func (c *PeepholeRemoveDeadCodeTest) TestOptimizeSwitch() {
 	c.Fold("switch(a){default: break; case 1:break;}", "")
 	c.Fold("switch(a){default: var b; break; case 1: var c; break;}", "var c; var b;")
 	c.Fold("var x=1; switch(x) { case 1: var y; }", "var y; var x=1;")
+
 	// Can't remove cases if a default exists and is not the last case.
 	c.FoldSame("function f() {switch(a){default: return; case 1: break;}}")
-	c.FoldSame("function f() {switch(1){default: return; case 1: break;}}")
-	// foldable
+	c.FoldSame("function f() {switch(1){default: return; case 1: break;}}") // foldable
 	c.FoldSame("function f() {switch(a){case 1: foo();}}")
 	c.FoldSame("function f() {switch(a){case 3: case 2: case 1: foo();}}")
+
 	c.Fold("function f() {switch(a){case 2: case 1: default: foo();}}", "function f() { foo(); }")
 	c.Fold("switch(a){case 1: default:break; case 2: foo()}", "switch(a){case 2: foo()}")
 	c.FoldSame("switch(a){case 1: goo(); default:break; case 2: foo()}")
+
 	// TODO(johnlenz): merge the useless "case 2"
 	c.FoldSame("switch(a){case 1: goo(); case 2:break; case 3: foo()}")
+
 	// Can't remove unused code with a "var" in it.
 	c.Fold("switch(1){case 2: var x=0;}", "var x;")
 	c.Fold(
@@ -538,10 +551,12 @@ func (c *PeepholeRemoveDeadCodeTest) TestOptimizeSwitch() {
 			"  break;\n"+
 			"}\n",
 		"var x; foo();")
+
 	// Can't remove cases if something useful is done.
 	c.FoldSame("switch(a){case 1: var c =2; break;}")
 	c.FoldSame("function f() {switch(a){case 1: return;}}")
 	c.FoldSame("x:switch(a){case 1: break x;}")
+
 	c.Fold(
 		"switch ('foo') {\n"+
 			"case 'foo':\n"+
@@ -668,6 +683,7 @@ func (c *PeepholeRemoveDeadCodeTest) TestOptimizeSwitch() {
 			"  foo();\n"+
 			"}\n",
 		"foo()")
+
 	c.Fold(
 		"let x;\n"+
 			"switch (use(x)) {\n"+
@@ -676,6 +692,7 @@ func (c *PeepholeRemoveDeadCodeTest) TestOptimizeSwitch() {
 		"let x;\n"+
 			"use(x);\n"+
 			"let y;\n")
+
 	c.Fold(
 		"let x;\n"+
 			"switch (use?.(x)) {\n"+
@@ -684,6 +701,7 @@ func (c *PeepholeRemoveDeadCodeTest) TestOptimizeSwitch() {
 		"let x;\n"+
 			"use?.(x);\n"+
 			"let y;\n")
+
 	c.Fold(
 		"let x;\n"+
 			"switch (use(x)) {\n"+
@@ -1255,6 +1273,15 @@ func (c *PeepholeRemoveDeadCodeTest) TestNoRemoveOptChainCall5NullishCoalesce() 
 	c.Fold("a?.() ?? 1", "a?.()")
 }
 
+// Java: PeepholeRemoveDeadCodeTest.testNoRemoveOptionalChainSideEffects()
+func (c *PeepholeRemoveDeadCodeTest) TestNoRemoveOptionalChainSideEffects() {
+	c.FoldSame("a?.[f()];")
+	c.FoldSame("a?.[x++];")
+	c.FoldSame("a?.[delete cache[k]];")
+	c.FoldSame("a?.b[f()];")
+	c.FoldSame("Math?.sin(mutate());")
+}
+
 // Java: PeepholeRemoveDeadCodeTest.testNoRemoveCall6NullishCoalesce()
 func (c *PeepholeRemoveDeadCodeTest) TestNoRemoveCall6NullishCoalesce() {
 	c.FoldSame("1 ?? a()")
@@ -1476,6 +1503,16 @@ func (c *PeepholeRemoveDeadCodeTest) TestCall() {
 	c.Fold("1 + Math.sin(0);", "")
 }
 
+// Java: PeepholeRemoveDeadCodeTest.testCall_toString()
+func (c *PeepholeRemoveDeadCodeTest) TestCall_toString() {
+	c.Fold("(10).toString();", "")
+	c.Fold("(10).toString(16);", "")
+	c.Fold("x.toString(2);", "")
+	c.Fold("foo().toString(16);", "foo();")
+	c.Fold("(10)?.toString(16);", "")
+	c.FoldSame("(10).toString(16, 2);")
+}
+
 // Java: PeepholeRemoveDeadCodeTest.testCall_containingSpread()
 func (c *PeepholeRemoveDeadCodeTest) TestCall_containingSpread() {
 	// We use a function with no side-effects, otherwise the entire invocation would be preserved.
@@ -1486,14 +1523,15 @@ func (c *PeepholeRemoveDeadCodeTest) TestCall_containingSpread() {
 	c.Fold("Math.sin(...b, ...c)", "([...b], [...c])")
 }
 
+// TODO(b/538125186): Do not remove optional chain side effects in PeepholeRemoveDeadCode
 // Java: PeepholeRemoveDeadCodeTest.testOptChainCall_containingSpread()
 func (c *PeepholeRemoveDeadCodeTest) TestOptChainCall_containingSpread() {
 	// We use a function with no side-effects, otherwise the entire invocation would be preserved.
-	c.Fold("Math?.sin(...c)", "([...c])")
-	c.Fold("Math?.sin(4, ...c, a)", "([...c])")
-	c.Fold("Math?.sin(foo(), ...c, bar())", "(foo(), [...c], bar())")
-	c.Fold("Math?.sin(...a, b, ...c)", "([...a], [...c])")
-	c.Fold("Math?.sin(...b, ...c)", "([...b], [...c])")
+	c.FoldSame("Math?.sin(...c);")
+	c.FoldSame("Math?.sin(4, ...c, a);")
+	c.FoldSame("Math?.sin(foo(), ...c, bar());")
+	c.FoldSame("Math?.sin(...a, b, ...c);")
+	c.FoldSame("Math?.sin(...b, ...c);")
 }
 
 // Java: PeepholeRemoveDeadCodeTest.testNew()
@@ -1502,6 +1540,8 @@ func (c *PeepholeRemoveDeadCodeTest) TestNew() {
 	// We use a function with no side-effects, otherwise the entire invocation would be preserved.
 	c.Fold("new Date;", "")
 	c.Fold("1 + new Date;", "")
+	c.FoldSame("new (class { x = foo(); })()")
+	c.Fold("new (class { x = 1; })()", "")
 }
 
 // Java: PeepholeRemoveDeadCodeTest.testNew_containingSpread()
@@ -1732,6 +1772,31 @@ func (c *PeepholeRemoveDeadCodeTest) TestUndefinedDefaultObjectPatterns() {
 	c.Fold(
 		"const {a = void 0} = obj;", //
 		"const {a} = obj;")
+}
+
+// Java: PeepholeRemoveDeadCodeTest.testBatchC_destructuringOptimization()
+func (c *PeepholeRemoveDeadCodeTest) TestBatchC_destructuringOptimization() {
+	// OPP-015: Pure undefined / void default values
+	c.Fold("const {a = void 0, b = undefined} = obj;", "const {a, b} = obj;")
+	c.Fold("const [a = void 0, b = undefined] = arr;", "const [a, b] = arr;")
+
+	// Empty nested patterns in object patterns
+	c.Fold("const {a: {}, b: {}} = obj;", "")
+	c.Fold("const {a: {}, b} = obj;", "const {b} = obj;")
+	c.Fold("const {a: [], b} = obj;", "const {b} = obj;")
+
+	// Trailing empty slots and empty nested patterns in array patterns
+	c.Fold("const [a, , ,] = arr;", "const [a] = arr;")
+	c.Fold("const [a, [], {}] = arr;", "const [a] = arr;")
+	c.Fold("let [a, [] = 0] = arr;", "let [a] = arr;")
+
+	// Guard cases: Object rest property exclusion, effectful defaults, computed keys
+	c.FoldSame("const {a: {}, ...rest} = obj;")
+	c.FoldSame("const {a: [] = foo()} = obj;")
+	c.FoldSame("const {[foo()]: {}} = obj;")
+	c.FoldSame("function f({}, x) {}")
+	c.FoldSame("for (const {} of iter) {}")
+	c.FoldSame("const [, a] = arr;")
 }
 
 // Java: PeepholeRemoveDeadCodeTest.testDoNotRemoveGetterOnlyAccess()
@@ -2037,4 +2102,61 @@ func (c *PeepholeRemoveDeadCodeTest) TestSwitchCase() {
 	c.Test(
 		"function f() { switch(x) { default: return; case 1: return 5;bar()}}",
 		"function f() { switch(x) { default: return; case 1: return 5;}}")
+}
+
+// Java: PeepholeRemoveDeadCodeTest.testBatchE_switchConstantDiscriminantFolding()
+func (c *PeepholeRemoveDeadCodeTest) TestBatchE_switchConstantDiscriminantFolding() {
+	// OPP-023: Switch Constant Discriminant Folding & Dead Case Pruning
+	c.Fold(
+		"switch ('foo') {\n"+
+			"  case 'foo':\n"+
+			"    foo();\n"+
+			"    break;\n"+
+			"  case 'bar':\n"+
+			"    bar();\n"+
+			"    break;\n"+
+			"}\n",
+		"foo();")
+
+	c.Fold(
+		"switch ('noMatch') {\n"+
+			"  case 'foo':\n"+
+			"    foo();\n"+
+			"    break;\n"+
+			"  case 'bar':\n"+
+			"    bar();\n"+
+			"    break;\n"+
+			"}\n",
+		"")
+
+	c.Fold("switch(1){case 2: var x=0;}", "var x;")
+
+	// Guard cases
+	c.FoldSame("switch (x) { case 1: foo(); break; }")
+	c.FoldSame("function f() { switch(a) { case 1: foo(); } }")
+	c.FoldSame("function f() { switch(a) { default: return; case 1: break; } }")
+}
+
+// Java: PeepholeRemoveDeadCodeTest.testBatchE_pureExpressionStatementAndBlockElimination()
+func (c *PeepholeRemoveDeadCodeTest) TestBatchE_pureExpressionStatementAndBlockElimination() {
+	// OPP-024: Pure Expression Statement & Block Elimination
+	c.Fold("{ 'hi' }", "")
+	c.Fold("{ x == 3 }", "")
+	c.Fold("{ `hello ${foo}` }", "")
+	c.Fold("{ (function(){ x++; }) }", "")
+	c.Fold("{{ foo() }}", "foo()")
+	c.Fold("{ foo(); {} }", "foo()")
+	c.Fold("{{ foo() } { bar() }}", "foo(); bar()")
+
+	// Guard cases: side-effectful statements and declarations
+	c.FoldSame("foo();")
+	c.FoldSame("function f() { return 3; }")
+	c.FoldSame("for (let x = 1; x < 10; x++) {}")
+}
+
+// Java: PeepholeRemoveDeadCodeTest.testUnusedClassWithInstanceFieldSideEffects()
+func (c *PeepholeRemoveDeadCodeTest) TestUnusedClassWithInstanceFieldSideEffects() {
+	// TODO(b/573195636): Hoists side effects out of non-static class field initializers on unused
+	// class expressions.
+	c.Test("(class { x = alert(1); });", "alert(1);")
 }

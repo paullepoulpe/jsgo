@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ValidityCheckTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/ValidityCheckTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/ValidityCheckTest.java)
 
 /*
@@ -116,4 +116,31 @@ func (c *ValidityCheckTest) TestConstantAnnotationMismatch() {
 		AssertThat(e.GetMessage()).
 			Contains("The name x is not consistently annotated as constant.")
 	})
+}
+
+// Java: ValidityCheckTest.testSourceInfoCheck()
+func (c *ValidityCheckTest) TestSourceInfoCheck() {
+	compiler := NewCompiler()
+	script := compiler.ParseTestCode("var x = 3;")
+	n := rhino.NewNodeWithChild(rhino.Token_EXPR_RESULT, rhino.Node_NewString("foo")) // Child missing source info
+	n.Srcref(script.GetFirstChild())
+	script.AddChildToBack(n)
+
+	check := NewSourceInfoCheck(compiler)
+	check.Process(nil, rhino.NewNodeWithChild(rhino.Token_ROOT, script))
+
+	AssertThat(compiler.GetErrors()).HasSize(1)
+	AssertThat(compiler.GetErrors()[0].Description()).
+		Contains("No source location information associated with")
+}
+
+// Java: ValidityCheckTest.testErrorPass()
+func (c *ValidityCheckTest) TestErrorPass() {
+	compiler := NewCompiler()
+	testError := DiagnosticType_Error("TEST_ERROR", "Test error description")
+	pass := NewErrorPass(compiler, testError)
+	script := compiler.ParseTestCode("var x = 1;")
+	pass.Process(nil, script)
+	AssertThat(compiler.GetErrors()).HasSize(1)
+	AssertThat(compiler.GetErrors()[0].Type()).IsEqualTo(testError)
 }

@@ -1,4 +1,4 @@
-// Port of test/com/google/javascript/jscomp/ReferenceCollectorTest.java @ closure-compiler v20260415
+// Port of test/com/google/javascript/jscomp/ReferenceCollectorTest.java @ closure-compiler v20261015
 
 /*
  * Copyright 2017 The Closure Compiler Authors.
@@ -119,34 +119,52 @@ func (c *ReferenceCollectorTest) TestClass() {
 		}))
 }
 
-func (c *ReferenceCollectorTest) TestClass_withPrototype() {
+func (c *ReferenceCollectorTest) TestClass_withInstantiation() {
 	t := c.T()
 	c.testBehavior(
 		`class Foo {}
-Foo.prototype.bar = 1;
+new Foo();
 `,
 		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
 			if nt.GetScope().IsGlobal() {
 				x := rm.GetReferences(nt.GetScope().GetVar("Foo"))
 
 				assertEqual(t, "isAssignedOnceInLifetime", x.IsAssignedOnceInLifetime(), true)
-				assertEqual(t, "isWellDefined", x.IsWellDefined(), false) // TODO(b/435019132): Should be true.
+				// TODO(lharker): we should consider this well-defined.
+				assertEqual(t, "isWellDefined", x.IsWellDefined(), false)
+				assertSliceEqual(t, "isDeclaration", referenceCollectorTest_isDeclarations(x), []bool{true, false})
 			}
 		}))
 }
 
-func (c *ReferenceCollectorTest) TestClass_referencedAfterDeclaration() {
+func (c *ReferenceCollectorTest) TestClassExpression_assignedToConst_andInstantiated() {
 	t := c.T()
 	c.testBehavior(
-		`class Foo {}
-const x = Foo;
+		`const Foo = class {};
+new Foo();
 `,
 		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
 			if nt.GetScope().IsGlobal() {
 				x := rm.GetReferences(nt.GetScope().GetVar("Foo"))
 
 				assertEqual(t, "isAssignedOnceInLifetime", x.IsAssignedOnceInLifetime(), true)
-				assertEqual(t, "isWellDefined", x.IsWellDefined(), false) // TODO(b/435019132): Should be true.
+				assertEqual(t, "isWellDefined", x.IsWellDefined(), true)
+			}
+		}))
+}
+
+func (c *ReferenceCollectorTest) TestNamedClassExpression_assignedToConst_andInstantiated() {
+	t := c.T()
+	c.testBehavior(
+		`const Foo = class Bar {};
+new Foo();
+`,
+		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
+			if nt.GetScope().IsGlobal() {
+				x := rm.GetReferences(nt.GetScope().GetVar("Foo"))
+
+				assertEqual(t, "isAssignedOnceInLifetime", x.IsAssignedOnceInLifetime(), true)
+				assertEqual(t, "isWellDefined", x.IsWellDefined(), true)
 			}
 		}))
 }

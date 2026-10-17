@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/OptionalChainRewriter.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/OptionalChainRewriter.java @ closure-compiler v20261015
 
 /*
  * Copyright 2020 The Closure Compiler Authors.
@@ -188,6 +188,9 @@ func (o *OptionalChainRewriter) Rewrite() {
 	// function. However, if it isn't undefined, we have to preserve the correct `this` value
 	// for the call.
 	if o.chainParent.IsCall() &&
+		// If the call is explicitly a free call (e.g. `(0, a?.b)()`), we should not preserve
+		// `this`.
+		!o.chainParent.GetBooleanProp(rhino.Node_FREE_CALL) &&
 		// The chain will have been replaced by optChainReplacement during the rewriting above.
 		optChainReplacement.IsFirstChildOf(o.chainParent) &&
 		// The wholeChain variable will still point to the rewritten final Node of the
@@ -312,7 +315,11 @@ func (o *OptionalChainRewriter) RewriteInitialSegment(fullChainStart *rhino.Node
 	// NOTE: convertToNonOptionalChain() above will have made the chain start
 	// and all the other nodes in the first segment of the chain non-optional,
 	// so fullChainStart.isCall() is the right test here.
-	if NodeUtil_IsNormalGet(receiverNode) && fullChainStart.IsCall() {
+	if NodeUtil_IsNormalGet(receiverNode) &&
+		fullChainStart.IsCall() &&
+		// Check !FREE_CALL to ensure we don't treat free calls on property
+		// access (e.g. `(0, expr.prop)?.()`) as method calls.
+		!fullChainStart.GetBooleanProp(rhino.Node_FREE_CALL) {
 		// `expr.prop?.(x).y`
 		// Needs to become
 		// `(t1 = (t0 = expr).prop) == null ? void 0 : t1.call(t0, x).y`
@@ -376,6 +383,7 @@ func (o *OptionalChainRewriter) GetSubExprNameNode(subExpr *rhino.Node) *rhino.N
 	tempVarName := o.DeclareTempVarName(subExpr)
 	placeholder := rhino.IR_Empty()
 	subExpr.ReplaceWith(placeholder)
+	subExpr.RemoveProp(rhino.Node_DIRECT_EVAL)
 	replacement := o.astFactory.CreateAssignToName(tempVarName, subExpr).SrcrefTreeIfMissing(subExpr)
 	placeholder.ReplaceWith(replacement)
 	return replacement.GetFirstChild().CloneNode()

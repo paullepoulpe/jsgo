@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PeepholeCollectPropertyAssignmentsTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/PeepholeCollectPropertyAssignmentsTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/PeepholeCollectPropertyAssignmentsTest.java)
 
 /*
@@ -422,4 +422,11 @@ func (c *PeepholeCollectPropertyAssignmentsTest) TestObjectSetter() {
 	c.TestSame(
 		"var a = { set x(value) {} };\n" +
 			"a.x = 20;\n")
+}
+
+// Java: PeepholeCollectPropertyAssignmentsTest.testArraySpread()
+func (c *PeepholeCollectPropertyAssignmentsTest) TestArraySpread() {
+	c.TestSame("var a = [1, ...spread]; a[2] = 3;")
+	c.TestSame("var a = [...spread]; a[0] = 1;")
+	c.TestSame("var a = [1, ...spread]; a[0] = 2;")
 }

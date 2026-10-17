@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/RemoveUnusedCode.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/RemoveUnusedCode.java @ closure-compiler v20261015
 
 /*
  * Copyright 2008 The Closure Compiler Authors.
@@ -969,6 +969,8 @@ func (r *RemoveUnusedCode) TraverseCatch(catchNode *rhino.Node, scope *Scope) {
 		// exceptionNameNode can be an empty node if not using a binding in 2019.
 		exceptionVarInfo := r.TraverseNameNode(exceptionNameNode, scope)
 		exceptionVarInfo.SetIsExplicitlyNotRemovable(func() string { return "catch variable" })
+	} else {
+		r.TraverseNode(exceptionNameNode, scope)
 	}
 	r.TraverseNode(block, scope)
 }

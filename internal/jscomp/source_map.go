@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/SourceMap.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/SourceMap.java @ closure-compiler v20261015
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -274,6 +274,19 @@ func (s *SourceMap) AddSourceFile(name string, code *string) {
 func sourceMap_getOriginalName(node *rhino.Node) *string {
 	if node.GetOriginalName() != nil {
 		return node.GetOriginalName()
+	}
+	// If this is the name identifier of a function declaration/expression and the name node itself
+	// has no originalName, fall back to the enclosing FUNCTION node's originalName.
+	// This covers functions that were originally anonymous (class methods compiled to prototype
+	// assignments, `var f = function(){}` patterns): SourceInformationAnnotator skips empty-string
+	// NAME nodes but always annotates the FUNCTION node. When the renaming pass later fills in the
+	// NAME, the node's originalName remains null. The FUNCTION node's originalName is the correct
+	// original name to use.
+	if node.IsName() {
+		parent := node.GetParent()
+		if parent != nil && parent.IsFunction() && parent.GetFirstChild() == node {
+			return parent.GetOriginalName()
+		}
 	}
 	if node.IsMemberFunctionDef() {
 		return node.GetFirstChild().GetOriginalName()

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/OptimizeCallsTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/OptimizeCallsTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/OptimizeCallsTest.java)
 
 /*
@@ -349,4 +349,28 @@ func (c *OptimizeCallsTest) TestReferenceCollection_reflectedProps() {
 		ComparingElementsUsing(OptimizeCallsTest_HAS_TOKEN).
 		ContainsExactly(rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_CALL).
 		InOrder()
+}
+
+// Java: OptimizeCallsTest.testIsAllowedReference_taggedTemplateLiteral()
+func (c *OptimizeCallsTest) TestIsAllowedReference_taggedTemplateLiteral() {
+	c.setConsiderExterns(false)
+
+	c.Test(
+		c.Srcs(
+			"var obj = {\n" +
+				"  tag() {}\n" +
+				"};\n" +
+				"obj.tag`template`;\n"))
+
+	nameToRefs :=
+		optimizeCallsTest_copyOf(c.references.GetNameReferences())
+	objRefs := nameToRefs.Get("obj")
+	AssertThat(objRefs).IsNotNull()
+	hasDisallowedRef := false
+	for ref := range objRefs.All() {
+		if !OptimizeCalls_IsAllowedReference(ref) {
+			hasDisallowedRef = true
+		}
+	}
+	AssertThat(hasDisallowedRef).IsTrue()
 }

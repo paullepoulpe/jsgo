@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/deps/JsFileFullParser.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/deps/JsFileFullParser.java @ closure-compiler v20261015
 
 /*
  * Copyright 2015 The Closure Compiler Authors.
@@ -227,11 +227,7 @@ func JsFileFullParser_Parse(code string, filename string, reporter JsFileFullPar
 		info.loadFlags.Put("lang", version)
 	}
 
-	for _, comment := range parsed.Comments {
-		if comment.Type == parser.Comment_Type_JSDOC {
-			jsFileFullParser_parseComment(comment, info)
-		}
-	}
+	jsFileFullParser_parseTopLevelJsDocComments(parsed.TopLevelStatementRanges, parsed.Comments, info)
 	gatherModuleMetadata :=
 		NewGatherModuleMetadata(
 			compiler /* processCommonJsModules= */, false, ModuleLoader_ResolutionMode_BROWSER)
@@ -328,6 +324,38 @@ func jsFileFullParser_recordModuleMetadata(info *JsFileFullParser_FileInfo, modu
 	// Traverse any nested modules (goog.loadModule calls).
 	for _, nested := range module.NestedModules() {
 		jsFileFullParser_recordModuleMetadata(info, nested)
+	}
+}
+
+// jsFileFullParser_parseTopLevelJsDocComments parses all top-level JSDoc
+// comments (comments before or after top-level statements, or all comments
+// if there are no statements), ignoring comments nested inside top-level
+// statement bodies (functions, classes, methods, blocks).
+//
+// Uses the parser's statement ranges rather than Node.getSourceOffset, which
+// is lossy: Node wraps line numbers past 2^20, clamps columns past
+// Node.MAX_COLUMN_NUMBER, and resolves lines via SourceFile, which disagrees
+// with the parser on line terminators other than \n.
+//
+// Java: JsFileFullParser.parseTopLevelJsDocComments(List<SourceRange>, List<Comment>, FileInfo)
+func jsFileFullParser_parseTopLevelJsDocComments(
+	statementRanges []*parser.SourceRange, comments []*parser.Comment, info *JsFileFullParser_FileInfo) {
+	i := 0
+	for _, comment := range comments {
+		if comment.Type != parser.Comment_Type_JSDOC {
+			continue
+		}
+		commentStart := comment.Location.Start.Offset
+		commentEnd := comment.Location.End.Offset
+		for i < len(statementRanges) && statementRanges[i].End.Offset <= commentStart {
+			i++
+		}
+		if i < len(statementRanges) &&
+			commentStart >= statementRanges[i].Start.Offset &&
+			commentEnd <= statementRanges[i].End.Offset {
+			continue
+		}
+		jsFileFullParser_parseComment(comment, info)
 	}
 }
 

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/OptimizeParameters.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/OptimizeParameters.java @ closure-compiler v20261015
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -264,6 +264,11 @@ func (u *OptimizeParameters_UnusedParameterOptimizer) TryEliminateUnusedArgs(ref
 	lowestSpread := math.MaxInt32
 	for _, n := range refs.Slice() {
 		if OptimizeCalls_ReferenceMap_IsNormalOrOptChainCallOrNewTarget(n) {
+			if OptimizeParameters_HasSpreadInFirstCallParam(n) {
+				// Bail: with spread in the first argument of .call, we know nothing about any of the
+				// parameters, so bail out now.
+				return
+			}
 			param := OptimizeCalls_ReferenceMap_GetFirstArgumentForCallOrNewOrDotCall(n)
 			paramIndex := 0
 			for param != nil {
@@ -691,11 +696,11 @@ func (o *OptimizeParameters) IsClassMemberDefinition(n *rhino.Node) bool {
 // Java: OptimizeParameters.classContainsClassFieldWithRHSSideEffects(Node)
 func (o *OptimizeParameters) ClassContainsClassFieldWithRHSSideEffects(classNode *rhino.Node) bool {
 	classMembersNode := NodeUtil_GetClassMembers(classNode)
-	for child := classMembersNode.GetFirstChild(); child != nil; child = child.GetNext() {
-		if child.IsMemberFieldDef() &&
-			!child.IsStaticMember() &&
-			child.HasChildren() &&
-			o.astAnalyzer.MayHaveSideEffects(child.GetFirstChild()) {
+	for member := classMembersNode.GetFirstChild(); member != nil; member = member.GetNext() {
+		initializer := member.GetLastChild()
+		if initializer != nil &&
+			NodeUtil_IsNonStaticClassFieldInitializer(initializer) &&
+			o.astAnalyzer.MayHaveSideEffects(initializer) {
 			return true
 		}
 	}
@@ -820,6 +825,11 @@ func (o *OptimizeParameters) TryEliminateOptionalArgs(refs *jutil.ArrayList[*rhi
 
 	for _, n := range refs.Slice() {
 		if OptimizeCalls_ReferenceMap_IsNormalOrOptChainCallOrNewTarget(n) {
+			if OptimizeParameters_HasSpreadInFirstCallParam(n) {
+				// Bail: with spread we must assume all parameters are used, don't waste
+				// any more time.
+				return
+			}
 			numArgs := 0
 			firstArg := OptimizeCalls_ReferenceMap_GetFirstArgumentForCallOrNewOrDotCall(n)
 			for c := firstArg; c != nil; c = c.GetNext() {
@@ -904,11 +914,9 @@ func (o *OptimizeParameters) FindFixedArguments(refs *jutil.ArrayList[*rhino.Nod
 	continueLooking := false
 	for _, n := range refs.Slice() {
 		if OptimizeCalls_ReferenceMap_IsNormalOrOptChainCallOrNewTarget(n) {
-			call := n.GetParent()
-			firstDotCallParam := call.GetFirstChild()
 			// Normally, we ignore the first parameter to a .call expression (the 'this' value)
 			// but if it is a spread, we know nothing about any of the parameters, so bail out now.
-			if firstDotCallParam.IsSpread() {
+			if OptimizeParameters_HasSpreadInFirstCallParam(n) {
 				continueLooking = false
 				break
 			}
@@ -932,6 +940,29 @@ func (o *OptimizeParameters) FindFixedArguments(refs *jutil.ArrayList[*rhino.Nod
 		return parameters
 	}
 	return nil
+}
+
+// OptimizeParameters_HasSpreadInFirstCallParam returns whether the target
+// call is a .call expression whose first argument (the this argument) is a
+// spread element (e.g., foo.call(...arr)).
+//
+// ReferenceMap#getFirstArgumentForCallOrNewOrDotCall skips the first
+// argument to .call (treating it as the this value) and callers inspect all
+// subsequent arguments, which correctly handles spread arguments in normal
+// calls like foo(p1, ...args) and .call invocations with an explicit this
+// argument like foo.call(thisArg, p1, ...args). However, if the first
+// argument to .call itself is a spread (e.g., foo.call(...arr)), it spreads
+// across both the this value and subsequent formal parameter positions, so
+// we cannot safely optimize any parameters.
+//
+// Java: OptimizeParameters.hasSpreadInFirstCallParam(Node)
+func OptimizeParameters_HasSpreadInFirstCallParam(n *rhino.Node) bool {
+	call := OptimizeCalls_ReferenceMap_GetCallOrNewNodeForTarget(n)
+	if NodeUtil_IsFunctionObjectCall(call) {
+		firstDotCallParam := call.GetSecondChild()
+		return firstDotCallParam != nil && firstDotCallParam.IsSpread()
+	}
+	return false
 }
 
 // OptimizeParameters_AdjustForConstraints adjusts the provided Parameter
@@ -1004,7 +1035,7 @@ func OptimizeParameters_AdjustForConstraints(fn *rhino.Node, parameters []*Optim
 					allRestValueRemovable = false
 					// revisit the trailing params and remark them now that we know they are unremovable.
 					for j := i + 1; j < len(parameters); j++ {
-						p := parameters[0]
+						p := parameters[j]
 						p.shouldRemove = false
 						if p.canBeSideEffected {
 							seenUnmoveableSideEffected = true
@@ -1058,6 +1089,8 @@ func (o *OptimizeParameters) FindFixedParameters(parameters *jutil.ArrayList[*Op
 					anyMovable = true
 				}
 			}
+			p.SetHasSideEffects(p.HasSideEffects() || o.astAnalyzer.MayHaveSideEffects(cur))
+			p.SetCanBeSideEffected(p.CanBeSideEffected() || NodeUtil_CanBeSideEffected(cur))
 		}
 		// Back off optimizing arguments following spread
 		if cur.IsSpread() {
@@ -1114,7 +1147,7 @@ func OptimizeParameters_IsMovableValue(n *rhino.Node, globalScope *Scope) bool {
 	// are "this", "arguments", local names, and functions that capture local
 	// values.
 	switch n.GetToken() {
-	case rhino.Token_AWAIT, rhino.Token_YIELD, rhino.Token_THIS, rhino.Token_SUPER, rhino.Token_ITER_SPREAD, rhino.Token_OBJECT_SPREAD:
+	case rhino.Token_AWAIT, rhino.Token_YIELD, rhino.Token_THIS, rhino.Token_SUPER, rhino.Token_ITER_SPREAD, rhino.Token_OBJECT_SPREAD, rhino.Token_NEW_TARGET, rhino.Token_IMPORT_META:
 		return false
 	case rhino.Token_FUNCTION:
 		// Don't move function closures.

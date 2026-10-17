@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PeepholeMinimizeConditions.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/PeepholeMinimizeConditions.java @ closure-compiler v20261015
 
 /*
  * Copyright 2010 The Closure Compiler Authors.
@@ -271,7 +271,8 @@ func (p *PeepholeMinimizeConditions) TryReplaceExitWithBreak(n *rhino.Node) *rhi
 	prefinallyFollows := follow
 	follow = PeepholeMinimizeConditions_SkipFinallyNodes(follow)
 
-	if prefinallyFollows != follow {
+	innerFollow := ControlFlowAnalysis_ComputeFollowNode(n)
+	if prefinallyFollows != follow || innerFollow != PeepholeMinimizeConditions_SkipFinallyNodes(innerFollow) {
 		// There were finally clauses
 		if !p.IsPure(result) {
 			// Can't defer the exit

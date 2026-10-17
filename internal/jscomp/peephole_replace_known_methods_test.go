@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PeepholeReplaceKnownMethodsTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/PeepholeReplaceKnownMethodsTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/PeepholeReplaceKnownMethodsTest.java)
 
 /*
@@ -108,6 +108,384 @@ func (c *PeepholeReplaceKnownMethodsTest) TestStringIndexOf() {
 	c.FoldSame("x = tag `Hello ${name}`.indexOf('a')")
 }
 
+// Java: PeepholeReplaceKnownMethodsTest.testFoldStringIncludes()
+func (c *PeepholeReplaceKnownMethodsTest) TestFoldStringIncludes() {
+	// Fold String.prototype.includes with Constant Arguments
+	// Under ECMA-262 § 22.1.3.8, String.prototype.includes evaluates substring search with position
+	// clamping.
+	c.Fold("x = 'hello world'.includes('world')", "x = true")
+	c.Fold("x = 'foo'.includes('bar')", "x = false")
+	c.Fold("x = 'abcdef'.includes('bc')", "x = true")
+	c.Fold("x = 'abcdef'.includes('xyz')", "x = false")
+	c.Fold("x = 'abc'.includes('')", "x = true")
+	c.Fold("x = ''.includes('')", "x = true")
+
+	// Positional search & clamping
+	c.Fold("x = 'abc'.includes('a', 1)", "x = false")
+	c.Fold("x = 'abc'.includes('b', 1)", "x = true")
+	c.Fold("x = 'abc'.includes('c', 2)", "x = true")
+	c.Fold("x = 'abcdef'.includes('bc', 1)", "x = true")
+	c.Fold("x = 'abcdef'.includes('bc', 2)", "x = false")
+	c.Fold("x = 'abc'.includes('a', -5)", "x = true")
+	c.Fold("x = 'abc'.includes('a', 10)", "x = false")
+	c.Fold("x = 'abcdef'.includes('bc', -5)", "x = true")
+	c.Fold("x = 'abcdef'.includes('bc', 100)", "x = false")
+	c.Fold("x = 'abc'.includes('', 100)", "x = true")
+	c.FoldSame("x = 'abc'.includes('a', NaN)")
+	c.FoldSame("x = 'abc'.includes('a', Infinity)")
+	c.FoldSame("x = 'abc'.includes('a', -Infinity)")
+	c.Fold("x = 'abc'.includes('a', 0.9)", "x = true")
+	c.Fold("x = 'abc'.includes('a', 1.1)", "x = false")
+	c.Fold("x = 'abc'.includes('a', null)", "x = true")
+	c.Fold("x = 'abc'.includes('a', undefined)", "x = true")
+	c.Fold("x = 'abc'.includes('a', void 0)", "x = true")
+	c.Fold("x = 'abc'.includes('a', -0)", "x = true")
+	c.Fold("x = 'abc'.includes('a', +0)", "x = true")
+	c.Fold("x = 'abc'.includes('a', +1)", "x = false")
+
+	// Coercions
+	c.Fold("x = '123'.includes(2)", "x = true")
+	c.Fold("x = 'true'.includes(true)", "x = true")
+	c.Fold("x = 'abc1def'.includes(1)", "x = true")
+	c.Fold("x = 'abctruedef'.includes(true)", "x = true")
+	c.Fold("x = 'abcnulldef'.includes(null)", "x = true")
+	c.Fold("x = 'abcundefineddef'.includes(undefined)", "x = true")
+	c.Fold("x = 'abcNaNdef'.includes(NaN)", "x = true")
+
+	// Negative / Guard cases (Must NOT fold)
+	c.FoldSame("x = 'abc'.includes()")             // zero arguments
+	c.FoldSame("x = str.includes('a')")            // non-literal receiver
+	c.FoldSame("x = 'abc'.includes(y)")            // non-constant argument
+	c.FoldSame("x = 'abc'.includes((foo(), 'a'))") // side-effecting argument
+	c.FoldSame("x = 'abc'.includes(/a/)")          // regex argument throws TypeError at runtime (ECMA-262 §
+	// 22.1.3.8)
+	c.FoldSame("x = 'abcdef'.includes(/bc/)")
+	c.FoldSame("x = 'abcdef'.includes('bc', pos)")  // non-constant position
+	c.FoldSame("x = 'abcdef'.includes('bc', 1, 2)") // unexpected extra arguments
+	c.FoldSame("x = 'abcdef'.includes({a: 2})")
+	c.FoldSame("x = 'abcdef'.includes([1, 2])")
+	c.FoldSame("x = 'abc'.includes('a', {valueOf() { return 1; }})")
+	c.FoldSame("x = 'abc'.includes('a', '0b1')")
+	c.FoldSame("x = 'abc'.includes('a', '1d')")
+	c.FoldSame("x = 'abc'.includes('a', {})")
+	c.FoldSame("x = tag `Hello ${name}`.includes('a')")
+}
+
+// Java: PeepholeReplaceKnownMethodsTest.testFoldStringStartsWith()
+func (c *PeepholeReplaceKnownMethodsTest) TestFoldStringStartsWith() {
+	// Fold String.prototype.startsWith with Constant Arguments
+	// Under ECMA-262 § 22.1.3.24, String.prototype.startsWith evaluates substring prefix matching
+	// with position clamping.
+	c.Fold("x = 'abcdef'.startsWith('abc')", "x = true")
+	c.Fold("x = 'abcdef'.startsWith('def')", "x = false")
+	c.Fold("x = 'abcdef'.startsWith('bc')", "x = false")
+	c.Fold("x = 'abcdef'.startsWith('')", "x = true")
+	c.Fold("x = ''.startsWith('')", "x = true")
+
+	// Positional search & clamping
+	c.Fold("x = 'abcdef'.startsWith('bc', 1)", "x = true")
+	c.Fold("x = 'abcdef'.startsWith('bc', 2)", "x = false")
+	c.Fold("x = 'abcdef'.startsWith('abc', -5)", "x = true")
+	c.Fold("x = 'abcdef'.startsWith('', 2)", "x = true")
+	c.Fold("x = 'abcdef'.startsWith('bc', 100)", "x = false")
+	c.Fold("x = 'abcdef'.startsWith('bc', null)", "x = false")
+	c.Fold("x = 'abcdef'.startsWith('abc', null)", "x = true")
+	c.Fold("x = 'abcdef'.startsWith('bc', undefined)", "x = false")
+	c.Fold("x = 'abcdef'.startsWith('abc', undefined)", "x = true")
+	c.Fold("x = 'abcdef'.startsWith('abc', void 0)", "x = true")
+	c.Fold("x = 'abcdef'.startsWith('bc', -0)", "x = false")
+	c.Fold("x = 'abcdef'.startsWith('abc', -0)", "x = true")
+	c.Fold("x = 'abcdef'.startsWith('abc', +0)", "x = true")
+	c.Fold("x = 'abcdef'.startsWith('bc', +1)", "x = true")
+
+	// Coercions
+	c.Fold("x = '12345'.startsWith(1)", "x = true")
+	c.Fold("x = 'true'.startsWith(true)", "x = true")
+	c.Fold("x = '1abcdef'.startsWith(1)", "x = true")
+	c.Fold("x = 'abc1def'.startsWith(1)", "x = false")
+	c.Fold("x = 'trueabcdef'.startsWith(true)", "x = true")
+	c.Fold("x = 'abctruedef'.startsWith(true)", "x = false")
+	c.Fold("x = 'nullabcdef'.startsWith(null)", "x = true")
+	c.Fold("x = 'undefinedabcdef'.startsWith(undefined)", "x = true")
+	c.Fold("x = 'NaNabcdef'.startsWith(NaN)", "x = true")
+
+	// Negative / Guard cases (Must NOT fold)
+	c.FoldSame("x = str.startsWith('a')")            // non-literal receiver
+	c.FoldSame("x = 'abc'.startsWith(y)")            // non-constant argument
+	c.FoldSame("x = 'abc'.startsWith((foo(), 'a'))") // side-effecting argument
+	c.FoldSame("x = 'abc'.startsWith(/a/)")          // regex argument throws TypeError at runtime (ECMA-262 §
+	// 22.1.3.24)
+	c.FoldSame("x = 'abcdef'.startsWith(/abc/)")
+	c.FoldSame("x = 'abcdef'.startsWith(foo)")
+	c.FoldSame("x = 'abcdef'.startsWith('bc', pos)")  // non-constant position
+	c.FoldSame("x = 'abcdef'.startsWith('bc', 1, 2)") // unexpected extra arguments
+	c.FoldSame("x = 'abcdef'.startsWith({a: 2})")
+	c.FoldSame("x = 'abcdef'.startsWith([1, 2])")
+	c.FoldSame("x = 'abcdef'.startsWith('bc', {valueOf() { return 1; }})")
+	c.FoldSame("x = 'abcdef'.startsWith('bc', '0b1')")
+	c.FoldSame("x = 'abcdef'.startsWith('bc', '1d')")
+	c.FoldSame("x = 'abcdef'.startsWith('bc', {})")
+	c.FoldSame("x = 'abcdef'.startsWith('abc', NaN)")
+	c.FoldSame("x = 'abcdef'.startsWith('abc', Infinity)")
+	c.FoldSame("x = 'abcdef'.startsWith('abc', -Infinity)")
+	c.FoldSame("x = tag `Hello ${name}`.startsWith('a')")
+}
+
+// Java: PeepholeReplaceKnownMethodsTest.testFoldStringEndsWith()
+func (c *PeepholeReplaceKnownMethodsTest) TestFoldStringEndsWith() {
+	// Fold String.prototype.endsWith with Constant Arguments
+	// Under ECMA-262 § 22.1.3.7, String.prototype.endsWith evaluates substring suffix matching with
+	// endPosition clamping.
+	c.Fold("x = 'abcdef'.endsWith('def')", "x = true")
+	c.Fold("x = 'abcdef'.endsWith('abc')", "x = false")
+	c.Fold("x = 'abcdef'.endsWith('de')", "x = false")
+	c.Fold("x = 'abcdef'.endsWith('')", "x = true")
+	c.Fold("x = ''.endsWith('')", "x = true")
+
+	// Positional search & clamping
+	c.Fold("x = 'abcdef'.endsWith('abc', 3)", "x = true")
+	c.Fold("x = 'abcdef'.endsWith('bcd', 4)", "x = true")
+	c.Fold("x = 'abcdef'.endsWith('de', 5)", "x = true")
+	c.Fold("x = 'abcdef'.endsWith('def', 100)", "x = true")
+	c.Fold("x = 'abcdef'.endsWith('', -5)", "x = true")
+	c.Fold("x = 'abcdef'.endsWith('a', -5)", "x = false")
+	c.Fold("x = 'abcdef'.endsWith('def', undefined)", "x = true")
+	c.Fold("x = 'abcdef'.endsWith('def', void 0)", "x = true")
+	c.Fold("x = 'abcdef'.endsWith('def', null)", "x = false")
+	c.Fold("x = 'abcdef'.endsWith('', null)", "x = true")
+	c.Fold("x = 'abcdef'.endsWith('def', -0)", "x = false")
+	c.Fold("x = 'abcdef'.endsWith('', -0)", "x = true")
+	c.Fold("x = 'abcdef'.endsWith('def', +0)", "x = false")
+	c.Fold("x = 'abcdef'.endsWith('de', +5)", "x = true")
+
+	// Coercions
+	c.Fold("x = '12345'.endsWith(5)", "x = true")
+	c.Fold("x = 'true'.endsWith(true)", "x = true")
+	c.Fold("x = 'abcdef1'.endsWith(1)", "x = true")
+	c.Fold("x = '1abcdef'.endsWith(1)", "x = false")
+	c.Fold("x = 'abcdeftrue'.endsWith(true)", "x = true")
+	c.Fold("x = 'trueabcdef'.endsWith(true)", "x = false")
+	c.Fold("x = 'abcdefnull'.endsWith(null)", "x = true")
+	c.Fold("x = 'abcdefundefined'.endsWith(undefined)", "x = true")
+	c.Fold("x = 'abcdefNaN'.endsWith(NaN)", "x = true")
+
+	// Negative / Guard cases (Must NOT fold)
+	c.FoldSame("x = str.endsWith('a')")            // non-literal receiver
+	c.FoldSame("x = 'abc'.endsWith(y)")            // non-constant argument
+	c.FoldSame("x = 'abc'.endsWith((foo(), 'a'))") // side-effecting argument
+	c.FoldSame("x = 'abc'.endsWith(/def/)")        // regex argument throws TypeError at runtime (ECMA-262 §
+	// 22.1.3.7)
+	c.FoldSame("x = 'abcdef'.endsWith(/def/)")
+	c.FoldSame("x = 'abcdef'.endsWith(foo)")
+	c.FoldSame("x = 'abcdef'.endsWith('de', pos)")  // non-constant endPosition
+	c.FoldSame("x = 'abcdef'.endsWith('de', 5, 2)") // unexpected extra arguments
+	c.FoldSame("x = 'abcdef'.endsWith({a: 2})")
+	c.FoldSame("x = 'abcdef'.endsWith([1, 2])")
+	c.FoldSame("x = 'abcdef'.endsWith('de', {valueOf() { return 5; }})")
+	c.FoldSame("x = 'abcdef'.endsWith('de', '0b101')")
+	c.FoldSame("x = 'abcdef'.endsWith('de', '5d')")
+	c.FoldSame("x = 'abcdef'.endsWith('de', {})")
+	c.FoldSame("x = 'abcdef'.endsWith('def', NaN)")
+	c.FoldSame("x = 'abcdef'.endsWith('def', Infinity)")
+	c.FoldSame("x = 'abcdef'.endsWith('def', -Infinity)")
+	c.FoldSame("x = tag `Hello ${name}`.endsWith('a')")
+}
+
+// Java: PeepholeReplaceKnownMethodsTest.testFoldStringTrimStart()
+func (c *PeepholeReplaceKnownMethodsTest) TestFoldStringTrimStart() {
+	// Fold String.prototype.trimStart / trimLeft with Constant Arguments
+	// Under ECMA-262 § 22.1.3.34 (trimStart) and Annex § B.2.2.15 (trimLeft), leading WhiteSpace
+	// and LineTerminator characters are removed.
+	c.Fold("x = '   foo   '.trimStart()", "x = 'foo   '")
+	c.Fold("x = '   foo   '.trimLeft()", "x = 'foo   '")
+	c.Fold("x = 'foo   '.trimStart()", "x = 'foo   '")
+	c.Fold("x = 'foo   '.trimLeft()", "x = 'foo   '")
+	c.Fold("x = ''.trimStart()", "x = ''")
+	c.Fold("x = ''.trimLeft()", "x = ''")
+	c.Fold("x = '   '.trimStart()", "x = ''")
+	c.Fold("x = '   '.trimLeft()", "x = ''")
+	c.Fold("x = '\\uFEFF\\u00A0\\t\\n foo \\t\\n'.trimStart()", "x = 'foo \\t\\n'")
+	c.Fold("x = '\\uFEFF\\u00A0\\t\\n foo \\t\\n'.trimLeft()", "x = 'foo \\t\\n'")
+	c.Fold(
+		"x = '\\u1680\\u2000\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000foo \\t'.trimStart()",
+		"x = 'foo \\t'")
+	c.Fold(
+		"x = '\\u1680\\u2000\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000foo \\t'.trimLeft()",
+		"x = 'foo \\t'")
+	c.Fold("x = '\\u0085x'.trimStart()", "x = '\\u0085x'")
+	c.Fold("x = '\\u0085x'.trimLeft()", "x = '\\u0085x'")
+
+	// Negative / Guard cases (Must NOT fold)
+	c.FoldSame("x = str.trimStart()") // non-literal receiver
+	c.FoldSame("x = str.trimLeft()")
+	c.FoldSame("x = '   foo   '.trimStart(1)") // unexpected extra arguments
+	c.FoldSame("x = '   foo   '.trimLeft(1)")
+	c.FoldSame("x = '   foo   '.trimStart(foo())") // side-effecting argument
+	c.FoldSame("x = '   foo   '.trimLeft(foo())")
+	c.FoldSame("x = tag `   foo   `.trimStart()")
+	c.FoldSame("x = tag `   foo   `.trimLeft()")
+}
+
+// Java: PeepholeReplaceKnownMethodsTest.testFoldStringTrimEnd()
+func (c *PeepholeReplaceKnownMethodsTest) TestFoldStringTrimEnd() {
+	// Fold String.prototype.trimEnd / trimRight with Constant Arguments
+	// Under ECMA-262 § 22.1.3.33 (trimEnd) and Annex § B.2.2.16 (trimRight), trailing WhiteSpace
+	// and LineTerminator characters are removed.
+	c.Fold("x = '   foo   '.trimEnd()", "x = '   foo'")
+	c.Fold("x = '   foo   '.trimRight()", "x = '   foo'")
+	c.Fold("x = '   foo'.trimEnd()", "x = '   foo'")
+	c.Fold("x = '   foo'.trimRight()", "x = '   foo'")
+	c.Fold("x = ''.trimEnd()", "x = ''")
+	c.Fold("x = ''.trimRight()", "x = ''")
+	c.Fold("x = '   '.trimEnd()", "x = ''")
+	c.Fold("x = '   '.trimRight()", "x = ''")
+	c.Fold("x = '\\t\\n foo \\uFEFF\\u00A0\\t\\n'.trimEnd()", "x = '\\t\\n foo'")
+	c.Fold("x = '\\t\\n foo \\uFEFF\\u00A0\\t\\n'.trimRight()", "x = '\\t\\n foo'")
+	c.Fold(
+		"x = '\\t foo\\u1680\\u2000\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000'.trimEnd()",
+		"x = '\\t foo'")
+	c.Fold(
+		"x = '\\t foo\\u1680\\u2000\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000'.trimRight()",
+		"x = '\\t foo'")
+	c.Fold("x = 'x\\u0085'.trimEnd()", "x = 'x\\u0085'")
+	c.Fold("x = 'x\\u0085'.trimRight()", "x = 'x\\u0085'")
+	c.Fold("x = 'abc \\u0085'.trimEnd()", "x = 'abc \\u0085'")
+	c.Fold("x = 'abc \\u0085'.trimRight()", "x = 'abc \\u0085'")
+
+	// Negative / Guard cases (Must NOT fold)
+	c.FoldSame("x = str.trimEnd()") // non-literal receiver
+	c.FoldSame("x = str.trimRight()")
+	c.FoldSame("x = '   foo   '.trimEnd(1)") // unexpected extra arguments
+	c.FoldSame("x = '   foo   '.trimRight(1)")
+	c.FoldSame("x = '   foo   '.trimEnd(foo())") // side-effecting argument
+	c.FoldSame("x = '   foo   '.trimRight(foo())")
+	c.FoldSame("x = tag `   foo   `.trimEnd()")
+	c.FoldSame("x = tag `   foo   `.trimRight()")
+}
+
+// Java: PeepholeReplaceKnownMethodsTest.testFoldStringTrim()
+func (c *PeepholeReplaceKnownMethodsTest) TestFoldStringTrim() {
+	c.Fold("x = '   foo   '.trim()", "x = 'foo'")
+	c.Fold("x = 'foo   '.trim()", "x = 'foo'")
+	c.Fold("x = '   foo'.trim()", "x = 'foo'")
+	c.Fold("x = ''.trim()", "x = ''")
+	c.Fold("x = '   '.trim()", "x = ''")
+	c.Fold("x = '\\uFEFF\\u00A0\\t\\n foo \\t\\n\\uFEFF\\u00A0'.trim()", "x = 'foo'")
+	c.Fold(
+		"x = '\\u1680\\u2000\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000foo\\u1680\\u2000\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000'.trim()",
+		"x = 'foo'")
+	c.Fold("x = '\\u0085x\\u0085'.trim()", "x = '\\u0085x\\u0085'")
+	c.Fold("x = '\\u0085'.trim()", "x = '\\u0085'")
+
+	// Negative / Guard cases (Must NOT fold)
+	c.FoldSame("x = str.trim()")
+	c.FoldSame("x = '   foo   '.trim(1)")
+	c.FoldSame("x = '   foo   '.trim(foo())")
+	c.FoldSame("x = tag `   foo   `.trim()")
+}
+
+// Java: PeepholeReplaceKnownMethodsTest.testFoldStringAt()
+func (c *PeepholeReplaceKnownMethodsTest) TestFoldStringAt() {
+	// Fold String.prototype.at with Constant Index
+	// Baseline current behavior and guards:
+	// Under ECMA-262 § 22.1.3.1, String.prototype.at evaluates relative indexing with negative
+	// index normalization and out-of-bounds undefined (void 0) return.
+	// Future optimization fold targets:
+	// - 'hello'.at() -> 'h'
+	// - 'hello'.at(undefined) -> 'h'
+	// - 'hello'.at(0) -> 'h'
+	// - 'hello'.at(1) -> 'e'
+	// - 'hello'.at(4) -> 'o'
+	// - 'hello'.at(-1) -> 'o'
+	// - 'hello'.at(-2) -> 'l'
+	// - 'hello'.at(-5) -> 'h'
+	// - 'hello'.at(5) -> void 0
+	// - 'hello'.at(10) -> void 0
+	// - 'hello'.at(-6) -> void 0
+	// - 'hello'.at(-10) -> void 0
+	// - ''.at(0) -> void 0
+	// - ''.at(-1) -> void 0
+	// - 'hello'.at(Infinity) -> void 0
+	// - 'hello'.at(-Infinity) -> void 0
+	// - 'hello'.at(1.9) -> 'e'
+	// - 'hello'.at(-1.9) -> 'o'
+	// - 'hello'.at(0.5) -> 'h'
+	// - 'hello'.at(-0.5) -> 'h'
+	// - 'hello'.at(4.1) -> 'o'
+	// - 'hello'.at(4.9) -> 'o'
+	// - '123'.at(0) -> '1'
+	// - 'hello'.at(null) -> 'h'
+	// - 'hello'.at(false) -> 'h'
+	// - 'hello'.at(true) -> 'e'
+	// - 'hello'.at(NaN) -> 'h'
+	// - 'hello'.at('1') -> 'e'
+	// - '\\ud834\udd1e'.at(0) -> '\\ud834'
+	// - '\\ud834\udd1e'.at(1) -> '\\udd1e'
+	// - '\\ud834\udd1e'.at(-1) -> '\\udd1e'
+	// - '\\ud834\udd1e'.at(-2) -> '\\ud834'
+	c.Fold("x = 'hello'.at()", "x = 'h'")
+	c.Fold("x = 'hello'.at(undefined)", "x = 'h'")
+	c.Fold("x = 'hello'.at(0)", "x = 'h'")
+	c.Fold("x = 'hello'.at(1)", "x = 'e'")
+	c.Fold("x = 'hello'.at(4)", "x = 'o'")
+
+	// Negative relative indices
+	c.Fold("x = 'hello'.at(-1)", "x = 'o'")
+	c.Fold("x = 'hello'.at(-2)", "x = 'l'")
+	c.Fold("x = 'hello'.at(-5)", "x = 'h'")
+
+	// Out-of-bounds (evaluates to void 0)
+	c.Fold("x = 'hello'.at(5)", "x = void 0")
+	c.Fold("x = 'hello'.at(10)", "x = void 0")
+	c.Fold("x = 'hello'.at(-6)", "x = void 0")
+	c.Fold("x = 'hello'.at(-10)", "x = void 0")
+	c.Fold("x = ''.at(0)", "x = void 0")
+	c.Fold("x = ''.at(-1)", "x = void 0")
+	c.Fold("x = ''.at(-0.5)", "x = void 0")
+	c.Fold("x = 'hello'.at(Infinity)", "x = void 0")
+	c.Fold("x = 'hello'.at(-Infinity)", "x = void 0")
+
+	// Floating-point truncation
+	c.Fold("x = 'hello'.at(1.9)", "x = 'e'")
+	c.Fold("x = 'hello'.at(-1.9)", "x = 'o'")
+	c.Fold("x = 'hello'.at(0.5)", "x = 'h'")
+	c.Fold("x = 'hello'.at(-0.5)", "x = 'h'")
+	c.Fold("x = 'hello'.at(4.1)", "x = 'o'")
+	c.Fold("x = 'hello'.at(4.9)", "x = 'o'")
+	c.Fold("x = 'hello'.at(-5.1)", "x = 'h'")
+	c.Fold("x = 'hello'.at(-5.9)", "x = 'h'")
+	c.Fold("x = 'a'.at(-1.5)", "x = 'a'")
+	c.Fold("x = 'hello'.at(-6.0)", "x = void 0")
+	c.Fold("x = 'hello'.at(-6.1)", "x = void 0")
+
+	// Coercions
+	c.Fold("x = '123'.at(0)", "x = '1'")
+	c.Fold("x = 'hello'.at(null)", "x = 'h'")
+	c.Fold("x = 'hello'.at(false)", "x = 'h'")
+	c.Fold("x = 'hello'.at(true)", "x = 'e'")
+	c.Fold("x = 'hello'.at(NaN)", "x = 'h'")
+	c.Fold("x = 'hello'.at('1')", "x = 'e'")
+
+	// Surrogate pairs & code units
+	c.Fold("x = '\\ud834\xed\xb4\x9e'.at(0)", "x = '\\ud834'")
+	c.Fold("x = '\\ud834\xed\xb4\x9e'.at(1)", "x = '\\udd1e'")
+	c.Fold("x = '\\ud834\xed\xb4\x9e'.at(-1)", "x = '\\udd1e'")
+	c.Fold("x = '\\ud834\xed\xb4\x9e'.at(-2)", "x = '\\ud834'")
+
+	// Negative / Guard cases (Must NOT fold)
+	c.FoldSame("x = str.at(0)")              // non-literal receiver
+	c.FoldSame("x = 'hello'.at(y)")          // non-constant argument
+	c.FoldSame("x = 'hello'.at((foo(), 1))") // side-effecting argument
+	c.FoldSame("x = 'hello'.at(foo())")
+	c.FoldSame("x = 'hello'.at(0, 1)") // unexpected extra arguments
+	c.FoldSame("x = 'hello'.at(0, foo())")
+	c.FoldSame("x = 'hello'.at({a: 1})")
+	c.FoldSame("x = 'hello'.at([1])")
+	c.FoldSame("x = `hello`.at(0)")
+	c.FoldSame("x = `hello ${name}`.at(0)")
+	c.FoldSame("x = tag `hello`.at(0)")
+}
+
 // Java: PeepholeReplaceKnownMethodsTest.testStringJoinAddSparse()
 func (c *PeepholeReplaceKnownMethodsTest) TestStringJoinAddSparse() {
 	c.Fold("x = [,,'a'].join(',')", "x = ',,a'")
@@ -128,41 +506,51 @@ func (c *PeepholeReplaceKnownMethodsTest) TestStringJoinAdd() {
 	c.Fold("x = ['a', foo, 'b', 'c'].join(',')", "x = [\"a\",foo,\"b,c\"].join()")
 	c.Fold("x = [foo, 'a', 'b', 'c'].join(',')", "x = [foo,\"a,b,c\"].join()")
 	c.Fold("x = ['a', 'b', 'c', foo].join(',')", "x = [\"a,b,c\",foo].join()")
+
 	// Works with numbers
 	c.Fold("x = ['a=', 5].join('')", "x = \"a=5\"")
 	c.Fold("x = ['a', '5'].join(7)", "x = \"a75\"")
+
 	// Works on boolean
 	c.Fold("x = ['a=', false].join('')", "x = \"a=false\"")
 	c.Fold("x = ['a', '5'].join(true)", "x = \"atrue5\"")
 	c.Fold("x = ['a', '5'].join(false)", "x = \"afalse5\"")
+
 	// Only optimize if it's a size win.
 	c.Fold(
 		"x = ['a', '5', 'c'].join('a very very very long chain')",
 		"x = [\"a\",\"5\",\"c\"].join(\"a very very very long chain\")")
+
 	// Template strings
 	c.Fold("x = [`a`, `b`, `c`].join(``)", "x = 'abc'")
 	c.Fold("x = [`a`, `b`, `c`].join('')", "x = 'abc'")
+
 	// TODO(user): Its possible to fold this better.
 	c.FoldSame("x = ['', foo].join('-')")
 	c.FoldSame("x = ['', foo, ''].join()")
+
 	c.Fold(
 		"x = ['', '', foo, ''].join(',')", //
 		"x = [ ','  , foo, ''].join()")
 	c.Fold(
 		"x = ['', '', foo, '', ''].join(',')", //
 		"x = [ ',',   foo,  ','].join()")
+
 	c.Fold(
 		"x = ['', '', foo, '', '', bar].join(',')", //
 		"x = [ ',',   foo,  ',',   bar].join()")
+
 	c.Fold(
 		"x = [1,2,3].join('abcdef')", //
 		"x = '1abcdef2abcdef3'")
+
 	c.Fold("x = [1,2].join()", "x = '1,2'")
+	c.Fold("x = [1, 2].join(undefined)", "x = '1,2'")
+	c.Fold("x = [1, 2].join(void 0)", "x = '1,2'")
 	c.Fold("x = [null,undefined,''].join(',')", "x = ',,'")
 	c.Fold("x = [null,undefined,0].join(',')", "x = ',,0'")
 	// This can be folded but we don't currently.
-	c.FoldSame("x = [[1,2],[3,4]].join()")
-	// would like: "x = '1,2,3,4'"
+	c.FoldSame("x = [[1,2],[3,4]].join()") // would like: "x = '1,2,3,4'"
 }
 
 // Java: PeepholeReplaceKnownMethodsTest.testStringJoinAdd_b1992789()
@@ -605,6 +993,8 @@ func (c *PeepholeReplaceKnownMethodsTest) TestFoldNumberFunctions_isSafeInteger(
 	c.Fold("Number.isSafeInteger(9007199254740992)", "false")
 	c.Fold("Number.isSafeInteger(-9007199254740991)", "true")
 	c.Fold("Number.isSafeInteger(-9007199254740992)", "false")
+	c.Fold("Number.isSafeInteger(undefined)", "false")
+	c.Fold("Number.isSafeInteger('str')", "false")
 }
 
 // Java: PeepholeReplaceKnownMethodsTest.testFoldNumberFunctions_isFinite()
@@ -614,7 +1004,9 @@ func (c *PeepholeReplaceKnownMethodsTest) TestFoldNumberFunctions_isFinite() {
 	c.Fold("Number.isFinite(NaN)", "false")
 	c.Fold("Number.isFinite(Infinity)", "false")
 	c.Fold("Number.isFinite(-Infinity)", "false")
-	c.FoldSame("Number.isFinite('a')")
+	c.Fold("Number.isFinite(undefined)", "false")
+	c.Fold("Number.isFinite(null)", "false")
+	c.Fold("Number.isFinite('str')", "false")
 }
 
 // Java: PeepholeReplaceKnownMethodsTest.testFoldNumberFunctions_isNaN()
@@ -622,7 +1014,11 @@ func (c *PeepholeReplaceKnownMethodsTest) TestFoldNumberFunctions_isNaN() {
 	c.Fold("Number.isNaN(1)", "false")
 	c.Fold("Number.isNaN(1.5)", "false")
 	c.Fold("Number.isNaN(NaN)", "true")
-	c.FoldSame("Number.isNaN('a')")
+	c.Fold("Number.isNaN(undefined)", "false")
+	c.Fold("Number.isNaN(void 0)", "false")
+	c.Fold("Number.isNaN(null)", "false")
+	c.Fold("Number.isNaN('str')", "false")
+	c.Fold("Number.isNaN(0)", "false")
 	// unknown function may have side effects
 	c.FoldSame("Number.isNaN(+(void unknown()))")
 }
@@ -634,7 +1030,9 @@ func (c *PeepholeReplaceKnownMethodsTest) TestFoldParseNumbers() {
 	c.FoldSame("x = parseInt(` 123`)")
 	c.FoldSame("x = parseInt(`12 ${a}`)")
 	c.FoldSame("x = parseFloat(`1.23`)")
+
 	c.SetAcceptedLanguage(CompilerOptions_LanguageMode_ECMASCRIPT5)
+
 	c.Fold("x = parseInt('123')", "x = 123")
 	c.Fold("x = parseInt(' 123')", "x = 123")
 	c.Fold("x = parseInt('123', 10)", "x = 123")
@@ -651,6 +1049,7 @@ func (c *PeepholeReplaceKnownMethodsTest) TestFoldParseNumbers() {
 	c.Fold("x = parseFloat(' 0.3333')", "x = 0.3333")
 	c.Fold("x = parseFloat('0100')", "x = 100")
 	c.Fold("x = parseFloat('0100.000')", "x = 100")
+
 	// Mozilla Dev Center test cases
 	c.Fold("x = parseInt(' 0xF', 16)", "x = 15")
 	c.Fold("x = parseInt(' F', 16)", "x = 15")
@@ -660,27 +1059,41 @@ func (c *PeepholeReplaceKnownMethodsTest) TestFoldParseNumbers() {
 	c.Fold("x = parseInt('12', 13)", "x = 15")
 	c.Fold("x = parseInt(15.99, 10)", "x = 15")
 	c.Fold("x = parseInt(-15.99, 10)", "x = -15")
-	// Java's Integer.parseInt("-15.99", 10) throws an exception, because of the decimal point.
-	c.FoldSame("x = parseInt('-15.99', 10)")
+	c.Fold("x = parseInt('-15.99', 10)", "x = -15")
 	c.Fold("x = parseFloat('3.14')", "x = 3.14")
 	c.Fold("x = parseFloat(3.14)", "x = 3.14")
 	c.Fold("x = parseFloat(-3.14)", "x = -3.14")
 	c.Fold("x = parseFloat('-3.14')", "x = -3.14")
 	c.Fold("x = parseFloat('-0')", "x = -0")
-	// Valid calls - unable to fold
-	c.FoldSame("x = parseInt('FXX123', 16)")
-	c.FoldSame("x = parseInt('15*3', 10)")
-	c.FoldSame("x = parseInt('15e2', 10)")
-	c.FoldSame("x = parseInt('15px', 10)")
-	c.FoldSame("x = parseInt('-0x08')")
+
+	// Valid calls - trailing non-digits or hex prefixes
+	c.Fold("x = parseInt('FXX123', 16)", "x = 15")
+	c.Fold("x = parseInt('15*3', 10)", "x = 15")
+	c.Fold("x = parseInt('15e2', 10)", "x = 15")
+	c.Fold("x = parseInt('15px', 10)", "x = 15")
+	c.Fold("x = parseInt('-0x08')", "x = -8")
+	c.Fold("x = parseInt('0xa', 10)", "x = 0")
+	c.Fold("x = parseInt('+123')", "x = 123")
+	c.Fold("x = parseInt('+0xA')", "x = 10")
 	c.FoldSame("x = parseInt('1', -1)")
 	c.FoldSame("x = parseFloat('3.14more non-digit characters')")
 	c.FoldSame("x = parseFloat('314e-2')")
 	c.FoldSame("x = parseFloat('0.0314E+2')")
 	c.FoldSame("x = parseFloat('3.333333333333333333333333')")
-	// Invalid calls
-	c.FoldSame("x = parseInt('0xa', 10)")
+
+	// Invalid calls / un-foldable
 	c.FoldSame("x = parseInt('')")
+
+	// Large numbers and precision tests (beyond 32-bit int)
+	c.Fold("x = parseInt('2147483648')", "x = 2147483648")
+	c.Fold("x = parseInt(2147483648)", "x = 2147483648")
+	c.Fold("x = parseInt('9007199254740991')", "x = 9007199254740991")
+	c.Fold("x = parseInt(9007199254740991)", "x = 9007199254740991")
+	c.Fold("x = parseInt('0x80000000')", "x = 2147483648")
+	c.Fold("x = parseInt('0x80000000', 16)", "x = 2147483648")
+	c.Fold("x = parseInt(1234567890123.45)", "x = 1234567890123")
+	c.Fold("x = parseInt(1e21)", "x = 1")
+	c.Fold("x = parseInt(0.0000001)", "x = 1")
 	c.SetAcceptedLanguage(CompilerOptions_LanguageMode_ECMASCRIPT3)
 	c.FoldSame("x = parseInt('08')")
 }
@@ -816,6 +1229,120 @@ func (c *PeepholeReplaceKnownMethodsTest) TestArrayOfNoChange() {
 // Java: PeepholeReplaceKnownMethodsTest.testFoldArrayBug()
 func (c *PeepholeReplaceKnownMethodsTest) TestFoldArrayBug() {
 	c.FoldSame("Array[123]()")
+}
+
+// Java: PeepholeReplaceKnownMethodsTest.testFoldArrayIsArray()
+func (c *PeepholeReplaceKnownMethodsTest) TestFoldArrayIsArray() {
+	// Under ECMA-262 § 23.1.2.2 and § 7.2.2 (IsArray), Array.isArray determines whether the
+	// argument is an Array exotic object.
+
+	// Positive fold cases (Array literals)
+	c.Fold("x = Array.isArray([])", "x = true")
+	c.Fold("x = Array.isArray([,])", "x = true")
+	c.Fold("x = Array.isArray([1, 2, 3])", "x = true")
+	c.Fold("x = Array.isArray(['a', 'b'])", "x = true")
+
+	// Positive fold cases (Non-array primitives)
+	c.Fold("x = Array.isArray(123)", "x = false")
+	c.Fold("x = Array.isArray(1n)", "x = false")
+	c.Fold("x = Array.isArray(0)", "x = false")
+	c.Fold("x = Array.isArray('hello')", "x = false")
+	c.Fold("x = Array.isArray('')", "x = false")
+	c.Fold("x = Array.isArray(`abc`)", "x = false")
+	c.Fold("x = Array.isArray(true)", "x = false")
+	c.Fold("x = Array.isArray(false)", "x = false")
+	c.Fold("x = Array.isArray(null)", "x = false")
+	c.Fold("x = Array.isArray(undefined)", "x = false")
+	c.Fold("x = Array.isArray(void 0)", "x = false")
+	c.Fold("x = Array.isArray(NaN)", "x = false")
+	c.Fold("x = Array.isArray(Infinity)", "x = false")
+	c.Fold("x = Array.isArray(-Infinity)", "x = false")
+
+	// Positive fold cases (Object literals & other reference types)
+	c.Fold("x = Array.isArray({})", "x = false")
+	c.Fold("x = Array.isArray({0: 'a', length: 1})", "x = false")
+	c.Fold("x = Array.isArray(/abc/)", "x = false")
+	c.Fold("x = Array.isArray(function() {})", "x = false")
+	c.Fold("x = Array.isArray(() => {})", "x = false")
+	c.Fold("x = Array.isArray(class {})", "x = false")
+
+	// Positive fold cases (Omitted argument -> evaluates as undefined)
+	c.Fold("x = Array.isArray()", "x = false")
+
+	// Negative / Guard cases (MUST NOT fold)
+	c.FoldSame("x = Array.isArray(x)")           // unknown variable
+	c.FoldSame("x = Array.isArray(foo())")       // side-effecting function call
+	c.FoldSame("x = Array.isArray((foo(), []))") // side-effecting sequence expression
+	c.FoldSame("x = Array.isArray([foo()])")     // array literal containing side-effecting element
+	c.FoldSame("x = Array.isArray([...x])")      // array literal with spread element
+	c.FoldSame("x = Array.isArray(class extends foo() {})")
+	c.FoldSame("x = Array.isArray(class { static { foo(); } })")
+	c.FoldSame("x = Array.isArray(class { [foo()]() {} })")
+	c.FoldSame("x = Array.isArray([], 1)")     // unexpected extra arguments
+	c.FoldSame("x = window.Array.isArray([])") // non-standard qualified receiver
+	c.Fold(
+		"function f(Array) { return Array.isArray([]); }",
+		"function f(Array$jscomp$1) { return Array$jscomp$1.isArray([]); }") // shadowed Array
+	// identifier
+}
+
+// Java: PeepholeReplaceKnownMethodsTest.testBatchD_objectStaticMethods()
+func (c *PeepholeReplaceKnownMethodsTest) TestBatchD_objectStaticMethods() {
+	// OPP-016: Object.keys, Object.values, Object.entries guards and current behavior
+	c.FoldSame("x = Object.keys({a: 1, b: 2})")
+	c.FoldSame("x = Object.keys({})")
+	c.FoldSame("x = Object.values({a: 1, b: 2})")
+	c.FoldSame("x = Object.entries({a: 1, b: 2})")
+	c.FoldSame("x = Object.keys(obj)")
+	c.FoldSame("x = Object.keys({a: foo(), b: 2})")
+	c.FoldSame("x = Object.values({get a() { return 1; }})")
+
+	// OPP-017: Object.assign guards and current behavior
+	c.FoldSame("x = Object.assign({}, {a: 1}, {b: 2})")
+	c.FoldSame("x = Object.assign({a: 1}, {b: 2})")
+	c.FoldSame("x = Object.assign(target, {})")
+	c.FoldSame("x = Object.assign({}, obj)")
+	c.FoldSame("x = Object.assign({}, {a: foo()})")
+	c.FoldSame("x = Object.assign({}, {get a() { return 1; }})")
+
+	// OPP-018: Object.is guards and current behavior
+	c.FoldSame("x = Object.is('a', 'a')")
+	c.FoldSame("x = Object.is(1, 1)")
+	c.FoldSame("x = Object.is(NaN, NaN)")
+	c.FoldSame("x = Object.is(0, -0)")
+	c.FoldSame("x = Object.is(a, 'hello')")
+	c.FoldSame("x = Object.is(a, b)")
+}
+
+// Java: PeepholeReplaceKnownMethodsTest.testBatchD_mathAndNumberStaticMethods()
+func (c *PeepholeReplaceKnownMethodsTest) TestBatchD_mathAndNumberStaticMethods() {
+	// OPP-019: Number.isInteger, Number.isFinite, Number.isNaN, Math methods
+	c.FoldSame("x = Number.isInteger(1)")
+	c.FoldSame("x = Number.isInteger(1.5)")
+	c.FoldSame("x = Number.isInteger('1')")
+	c.FoldSame("x = Number.isInteger(NaN)")
+	c.FoldSame("x = Number.isInteger(Infinity)")
+	c.FoldSame("x = Number.isInteger(x)")
+
+	// Existing Math/Number fold checks and edge guards
+	c.Fold("Math.abs(-5)", "5")
+	c.Fold("Math.abs(5)", "5")
+	c.Fold("Math.sign(5)", "1")
+	c.Fold("Math.sign(-5)", "-1")
+	c.Fold("Math.trunc(5.7)", "5")
+	c.Fold("Math.trunc(-5.7)", "-5")
+	c.Fold("Math.clz32(1)", "31")
+
+	c.Fold("Number.isFinite(100)", "true")
+	c.Fold("Number.isFinite(Infinity)", "false")
+	c.Fold("Number.isNaN(NaN)", "true")
+	c.Fold("Number.isNaN(100)", "false")
+	c.Fold("Number.isNaN('hello')", "false")
+	c.Fold("Number.isFinite('100')", "false")
+	c.FoldSame("Number.isFinite(x)")
+	c.FoldSame("Math.abs(x)")
+	c.FoldSame("Math.sign(x)")
+	c.FoldSame("Math.trunc(x)")
 }
 
 // Java: PeepholeReplaceKnownMethodsTest.foldSame(String)

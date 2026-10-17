@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/RemoveUnusedCodeClassPropertiesTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/RemoveUnusedCodeClassPropertiesTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/RemoveUnusedCodeClassPropertiesTest.java)
 
 /*
@@ -21,6 +21,8 @@ package jscomp
 
 import (
 	"testing"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 type RemoveUnusedCodeClassPropertiesTest struct {
@@ -956,4 +958,29 @@ func (c *RemoveUnusedCodeClassPropertiesTest) TestClassReferencedInFieldInitiali
 			"alert(two);\n" +
 			"alert(two.field);\n" +
 			"alert(two.field.field);\n")
+}
+
+// Java: RemoveUnusedCodeClassPropertiesTest.testClosureInFieldInitializerDoubleTraversalCrash()
+func (c *RemoveUnusedCodeClassPropertiesTest) TestClosureInFieldInitializerDoubleTraversalCrash() {
+	// TODO(b/571953140): traverses field initializers twice, crashing on removal
+	c.keepLocals = false
+
+	e := AssertThrows[jutil.IRuntimeException](func() {
+		c.TestSame(
+			"class C {\n" +
+				"  fn = () => {\n" +
+				"    function unused() {}\n" +
+				"    return 1;\n" +
+				"  };\n" +
+				"}\n" +
+				"alert(new C().fn());\n")
+	})
+	// Throwables.getRootCause(e)
+	var root jutil.Throwable = e
+	for root.GetCause() != nil && root.GetCause() != root {
+		root = root.GetCause()
+	}
+	_, isIllegalState := root.(jutil.IIllegalStateException)
+	AssertThat(isIllegalState).IsTrue()
+	AssertThat(root.GetMessage()).Contains("Has no parent")
 }

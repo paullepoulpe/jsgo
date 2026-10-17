@@ -10,7 +10,6 @@
 //        bits and the tree that applyTo builds;
 //   I    NodeIterators.LocalVarMotion.forVar for every declared NAME and forAssign for every
 //        `x = ...;` statement: the tokens of every node the iterator yields;
-//   N    NodeNameExtractor('$').getName on every 3rd node whose subtree has at most 24 nodes;
 //   T    TemplateAstMatcher with seven seeded templates (LOOSE strategy; one also EXACT) on every
 //        node: each match, its loose bit and getTemplateNodeToMatchMap();
 //   D    DataFlowAnalysis on the CFG of the SCRIPT and of every function (ControlFlowAnalysis with
@@ -196,7 +195,6 @@ public final class InfraDump {
     corrupt(script, nodes.size());
     minimize(nodes);
     iterators(nodes);
-    names(nodes);
     templates(nodes);
     dataflow(script, nodes);
     escaped(script);
@@ -406,26 +404,6 @@ public final class InfraDump {
           line(header + ": X " + exc(e));
         }
       }
-    }
-  }
-
-  // ---------------------------------------------------------------------------------------------
-  // NodeNameExtractor
-
-  private void names(List<Node> nodes) {
-    NodeNameExtractor extractor = new NodeNameExtractor('$');
-    for (int i = 1; i < nodes.size(); i += 3) {
-      Node n = nodes.get(i);
-      if (size(n, 25) > 24) {
-        continue;
-      }
-      String result;
-      try {
-        result = String.valueOf(extractor.getName(n));
-      } catch (RuntimeException e) {
-        result = "X " + exc(e);
-      }
-      line("N " + i + " " + n.getToken() + ": " + result);
     }
   }
 

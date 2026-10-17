@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/deps/ModuleLoader.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/deps/ModuleLoader.java @ closure-compiler v20261015
 
 /*
  * Copyright 2016 The Closure Compiler Authors.
@@ -269,7 +269,10 @@ func (l *ModuleLoader) Resolve(path string) *ModuleLoader_ModulePath {
 //
 // Java: ModuleLoader.isRelativeIdentifier(String)
 func ModuleLoader_IsRelativeIdentifier(name string) bool {
-	return strings.HasPrefix(name, "."+ModuleLoader_MODULE_SLASH) || strings.HasPrefix(name, ".."+ModuleLoader_MODULE_SLASH)
+	return strings.HasPrefix(name, "."+ModuleLoader_MODULE_SLASH) ||
+		strings.HasPrefix(name, ".."+ModuleLoader_MODULE_SLASH) ||
+		name == "." ||
+		name == ".."
 }
 
 // ModuleLoader_IsAbsoluteIdentifier: whether this is absolute to the

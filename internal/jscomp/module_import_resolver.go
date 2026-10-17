@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ModuleImportResolver.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/ModuleImportResolver.java @ closure-compiler v20261015
 
 /*
  * Copyright 2019 The Closure Compiler Authors.
@@ -355,7 +355,9 @@ func (r *ModuleImportResolver) GetScopedNameFromEsBinding(binding *Binding) Scop
 	case ModuleMetadataMap_ModuleType_COMMON_JS:
 		panic(jutil.NewIllegalStateExceptionMsg("Typechecking CommonJS modules is not supported"))
 	}
-	panic(jutil.NewAssertionErrorNoMessage())
+	// Go-only: language-adapter — an exhaustive Java switch expression
+	// throws MatchException for an enum constant it does not know.
+	panic(jutil.NewIllegalStateException())
 }
 
 // moduleImportResolver_scopedNameOf is ScopedName.of(name, scopeRoot) for

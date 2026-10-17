@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PureFunctionIdentifierTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/PureFunctionIdentifierTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/PureFunctionIdentifierTest.java)
 
 /*
@@ -693,6 +693,48 @@ func (c *PureFunctionIdentifierTest) TestNoSideEffectsJsDoc_errorIfCannotBeAppli
 			WithMessageContaining(
 				"Side-effectful definitions:\n"+
 					"  testcode:5:2"))
+}
+
+// Java: PureFunctionIdentifierTest.testClassFieldSideEffects()
+func (c *PureFunctionIdentifierTest) TestClassFieldSideEffects() {
+	c.AssertNoPureCalls(
+		"class C {\n" +
+			"  x = externSef1();\n" +
+			"}\n" +
+			"new C();\n")
+}
+
+// Java: PureFunctionIdentifierTest.testClassComputedFieldInitializerSideEffects()
+func (c *PureFunctionIdentifierTest) TestClassComputedFieldInitializerSideEffects() {
+	c.DisableTypeCheck()
+	c.AssertNoPureCalls(
+		"class C {\n" +
+			"  ['x'] = externSef1();\n" +
+			"}\n" +
+			"new C();\n")
+}
+
+// Java: PureFunctionIdentifierTest.testClassFieldPureInitializers()
+func (c *PureFunctionIdentifierTest) TestClassFieldPureInitializers() {
+	c.DisableTypeCheck()
+	c.AssertPureCallsMarked(
+		"class C {\n"+
+			"  x = 1;\n"+
+			"  ['y'] = 2;\n"+
+			"}\n"+
+			"new C();\n",
+		[]string{"C"})
+}
+
+// Java: PureFunctionIdentifierTest.testClassStaticFieldSideEffectsDoNotAffectInstantiation()
+func (c *PureFunctionIdentifierTest) TestClassStaticFieldSideEffectsDoNotAffectInstantiation() {
+	c.DisableTypeCheck()
+	c.AssertPureCallsMarked(
+		"class C {\n"+
+			"  static x = externSef1();\n"+
+			"}\n"+
+			"new C();\n",
+		[]string{"C"})
 }
 
 // Java: PureFunctionIdentifierTest.testNoSideEffectsJsDoc_errorIfCannotBeApplied_ambiguousDefWithThrow()
@@ -2620,6 +2662,29 @@ func (c *PureFunctionIdentifierTest) TestMutatesThis_expandsToMutatesGlobalScope
 			"x.mutateThis()\n")
 }
 
+// Java: PureFunctionIdentifierTest.testMutatesThis_inArrowFunction_newReceiver()
+func (c *PureFunctionIdentifierTest) TestMutatesThis_inArrowFunction_newReceiver() {
+	c.DisableTypeCheck()
+	// An arrow function's `this` is not its receiver, here it is the global `this`.
+	c.AssertPureCallsMarked(
+		"/** @constructor */ function Foo() {}\n"+
+			"Foo.prototype.f = () => { this.x = 1; };\n"+
+			"new Foo().f();\n",
+		[]string{"Foo"})
+	c.AssertPureCallsMarked(
+		"function setX() { this.x = 1; }\n"+
+			"/** @constructor */ function Foo() {}\n"+
+			"Foo.prototype.f = () => { setX.call(this); };\n"+
+			"new Foo().f();\n",
+		[]string{"Foo"})
+	c.AssertPureCallsMarked(
+		"/** @constructor */ function Foo() {}\n"+
+			"Foo.prototype.f = () => { this.x = 1; };\n"+
+			"Foo.prototype.run = function() { this.f(); };\n"+
+			"new Foo().run();\n",
+		[]string{"Foo"})
+}
+
 // Java: PureFunctionIdentifierTest.testGlobalScopeTaintedByWayOfThisPropertyAndForOfLoop()
 func (c *PureFunctionIdentifierTest) TestGlobalScopeTaintedByWayOfThisPropertyAndForOfLoop() {
 	source :=
@@ -3221,6 +3286,16 @@ func (c *PureFunctionIdentifierTest) TestCallCache_propagatesSideEffects() {
 			AssertThat(helperCall.IsNoSideEffectsCall()).IsTrue()
 			AssertThat(helperCall.MayMutateGlobalStateOrThrow()).IsFalse()
 		}))
+}
+
+// Java: PureFunctionIdentifierTest.testToStringWithRadixIsPure()
+func (c *PureFunctionIdentifierTest) TestToStringWithRadixIsPure() {
+	c.AssertPureCallsMarked("var x = {}; x.toString(16);", []string{"x.toString"})
+}
+
+// Java: PureFunctionIdentifierTest.testOptionalChainToStringWithRadixIsPure()
+func (c *PureFunctionIdentifierTest) TestOptionalChainToStringWithRadixIsPure() {
+	c.AssertPureCallsMarked("var x = {}; x?.toString(16);", []string{"x?.toString"})
 }
 
 // Java: PureFunctionIdentifierTest.testDynamicImport()

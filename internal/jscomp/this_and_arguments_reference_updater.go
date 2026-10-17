@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ThisAndArgumentsReferenceUpdater.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/ThisAndArgumentsReferenceUpdater.java @ closure-compiler v20261015
 
 /*
  * Copyright 2024 The Closure Compiler Authors.
@@ -91,6 +91,12 @@ func (u *ThisAndArgumentsReferenceUpdater) Visit(t *NodeTraversal, n *rhino.Node
 
 // Java: ThisAndArgumentsReferenceUpdater.shouldTraverse(NodeTraversal, Node, Node)
 func (u *ThisAndArgumentsReferenceUpdater) ShouldTraverse(t *NodeTraversal, n *rhino.Node, parent *rhino.Node) bool {
+	if n.IsMemberFieldDef() {
+		return false
+	}
+	if parent != nil && parent.IsComputedFieldDef() && n != parent.GetFirstChild() {
+		return false
+	}
 	return !n.IsFunction() || n.IsArrowFunction()
 }
 

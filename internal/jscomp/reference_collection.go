@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ReferenceCollection.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/ReferenceCollection.java @ closure-compiler v20261015
 
 /*
  * Copyright 2017 The Closure Compiler Authors.
@@ -90,6 +90,28 @@ func (c *ReferenceCollection) IsEscaped() bool {
 			hoistScope = ref.GetScope().GetClosestHoistScope()
 		} else if hoistScope != ref.GetScope().GetClosestHoistScope() {
 			return true
+		}
+	}
+	return false
+}
+
+// IsThisRebound reports whether `this` is rebound in any reference's scope
+// before reaching the declaration's hoist scope.
+//
+// Java: ReferenceCollection.isThisRebound()
+func (c *ReferenceCollection) IsThisRebound() bool {
+	var hoistScope *Scope
+	for ref := range c.references.All() {
+		refHoistScope := ref.GetScope().GetClosestHoistScope()
+		if hoistScope == nil {
+			hoistScope = refHoistScope
+		} else if hoistScope != refHoistScope {
+			return true
+		}
+		for s := ref.GetScope(); s != hoistScope && s != nil; s = s.GetParent() {
+			if AbstractScope_ImplicitVar_THIS.IsMadeByScope(s) {
+				return true
+			}
 		}
 	}
 	return false

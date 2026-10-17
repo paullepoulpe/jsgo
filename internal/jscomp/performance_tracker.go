@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PerformanceTracker.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/PerformanceTracker.java @ closure-compiler v20261015
 
 /*
  * Copyright 2008 The Closure Compiler Authors.
@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"iter"
 	"slices"
 	"sort"
 	"time"
@@ -60,6 +61,13 @@ type PerformanceTracker struct {
 	externLines   int
 	externSources int
 
+	transitiveSummaryLines         int
+	transitiveSummarySources       int
+	transitiveSummaryLinesParsed   int
+	transitiveSummarySourcesParsed int
+
+	prePruningRecorded bool
+
 	// The following fields for tracking size changes are just estimates.
 	// They do not take into account preserved license blocks, newline padding,
 	// or pretty printing (if enabled), since they don't use CodePrinter.
@@ -81,6 +89,8 @@ type PerformanceTracker struct {
 
 	// Stats a single run of a compiler pass.
 	log []*PerformanceTracker_Stats
+
+	pruningAnalysisSummary string
 
 	disambiguatePropertiesSummary string
 
@@ -106,12 +116,18 @@ func NewPerformanceTracker(externsRoot *rhino.Node, jsRoot *rhino.Node, mode Com
 	p.jsSources = 0
 	p.externLines = 0
 	p.externSources = 0
+	p.transitiveSummaryLines = 0
+	p.transitiveSummarySources = 0
+	p.transitiveSummaryLinesParsed = 0
+	p.transitiveSummarySourcesParsed = 0
+	p.prePruningRecorded = false
 	p.astSize = PerformanceTracker_DEFAULT_WHEN_SIZE_UNTRACKED
 	p.codeSize = PerformanceTracker_DEFAULT_WHEN_SIZE_UNTRACKED
 	p.gzCodeSize = PerformanceTracker_DEFAULT_WHEN_SIZE_UNTRACKED
 	p.astDiff = 0
 	p.diff = 0
 	p.gzDiff = 0
+	p.pruningAnalysisSummary = "not executed"
 	p.disambiguatePropertiesSummary = "not executed"
 	p.ambiguatePropertiesSummary = "not executed"
 
@@ -245,8 +261,13 @@ func (p *PerformanceTracker) RecordOtherPassStop(logStats *PerformanceTracker_St
 // Java: PerformanceTracker.recordInputCount()
 func (p *PerformanceTracker) RecordInputCount() {
 	for n := p.externsRoot.GetFirstChild(); n != nil; n = n.GetNext() {
-		p.externSources += 1
-		p.externLines += NodeUtil_EstimateNumLines(n)
+		if NodeUtil_IsFromTypeSummary(n) {
+			p.transitiveSummarySources += 1
+			p.transitiveSummaryLines += NodeUtil_EstimateNumLines(n)
+		} else {
+			p.externSources += 1
+			p.externLines += NodeUtil_EstimateNumLines(n)
+		}
 	}
 
 	for n := p.jsRoot.GetFirstChild(); n != nil; n = n.GetNext() {
@@ -403,6 +424,31 @@ func (p *PerformanceTracker) PopulateAstManifest() {
 	p.astManifest = builder.Build()
 }
 
+// Java: PerformanceTracker.setPruningAnalysisSummary(String)
+func (p *PerformanceTracker) SetPruningAnalysisSummary(summary string) {
+	p.pruningAnalysisSummary = summary
+}
+
+// Java: PerformanceTracker.recordPrePruningInputCount(Iterable<CompilerInput>, Iterable<CompilerInput>)
+func (p *PerformanceTracker) RecordPrePruningInputCount(
+	originalInputs iter.Seq[*CompilerInput], originalExterns iter.Seq[*CompilerInput]) {
+	for input := range originalExterns {
+		name := input.GetSourceFile().GetName()
+		if jutil.StringEndsWith(name, ".i.js") {
+			p.transitiveSummarySourcesParsed += 1
+			p.transitiveSummaryLinesParsed += input.GetSourceFile().GetNumLines()
+		}
+	}
+	for input := range originalInputs {
+		name := input.GetSourceFile().GetName()
+		if jutil.StringEndsWith(name, ".i.js") {
+			p.transitiveSummarySourcesParsed += 1
+			p.transitiveSummaryLinesParsed += input.GetSourceFile().GetNumLines()
+		}
+	}
+	p.prePruningRecorded = true
+}
+
 // Java: PerformanceTracker.setDisambiguatePropertiesSummary(String)
 func (p *PerformanceTracker) SetDisambiguatePropertiesSummary(summary string) {
 	p.disambiguatePropertiesSummary = summary
@@ -446,6 +492,12 @@ func (p *PerformanceTracker) OutputTracerReport(output *jutil.PrintStream) {
 			"DisambiguateProperties: "+p.disambiguatePropertiesSummary,
 			"AmbiguateProperties: "+p.ambiguatePropertiesSummary))
 
+	summaryLinesRaw := p.transitiveSummaryLines
+	summarySourcesRaw := p.transitiveSummarySources
+	if p.prePruningRecorded {
+		summaryLinesRaw = p.transitiveSummaryLinesParsed
+		summarySourcesRaw = p.transitiveSummarySourcesParsed
+	}
 	output.Println(
 		base.JSCompStrings_Lines(
 			"",
@@ -453,7 +505,15 @@ func (p *PerformanceTracker) OutputTracerReport(output *jutil.PrintStream) {
 			"JS lines:   "+jutil.ToJavaString(p.jsLines),
 			"JS sources: "+jutil.ToJavaString(p.jsSources),
 			"Extern lines:   "+jutil.ToJavaString(p.externLines),
-			"Extern sources: "+jutil.ToJavaString(p.externSources)))
+			"Extern sources: "+jutil.ToJavaString(p.externSources),
+			"Type summary lines (raw input):   "+
+				jutil.ToJavaString(summaryLinesRaw),
+			"Type summary lines (post-pruning):   "+jutil.ToJavaString(p.transitiveSummaryLines),
+			"Type summary sources (raw input):   "+
+				jutil.ToJavaString(summarySourcesRaw),
+			"Type summary sources (post-pruning):   "+jutil.ToJavaString(p.transitiveSummarySources),
+			"",
+			"Dependency pruning analysis: "+p.pruningAnalysisSummary))
 
 	output.Println(
 		base.JSCompStrings_Lines(

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/colors/StandardColors.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/colors/StandardColors.java @ closure-compiler v20261015
 
 /*
  * Copyright 2020 The Closure Compiler Authors.
@@ -99,11 +99,25 @@ var StandardColors_TOP_OBJECT = Color_SingleBuilder().
 	SetInvalidating(true).
 	BuildAxiomatic()
 
+// StandardColors_TOP_FUNCTION is the supertype of all functions.
+var StandardColors_TOP_FUNCTION = Color_SingleBuilder().
+	SetId(ColorId_FromUnsignedInt(0x283b5838)).
+	SetBoxId(nil).
+	SetInvalidating(true).
+	BuildAxiomatic()
+
 // StandardColors_UNKNOWN is analagous to Closure '*'/'?' and TS unknown/any.
 var StandardColors_UNKNOWN = Color_SingleBuilder().
 	SetBoxId(nil).
 	SetId(ColorId_FromUnsignedInt(0)). // Make UNKNOWN the "default" numerical value.
 	SetInvalidating(true).
+	BuildAxiomatic()
+
+// Java: StandardColors.GBIGINT
+var StandardColors_GBIGINT = Color_SingleBuilder().
+	SetId(ColorId_FromUnsignedInt(int32(-0x5551c988))). // 0xaaae3678
+	SetBoxId(nil).
+	SetInvalidating(false).
 	BuildAxiomatic()
 
 // StandardColors_AXIOMATIC_COLORS is the set of Colors whose definitions are
@@ -134,6 +148,8 @@ func init() {
 		StandardColors_SYMBOL,
 		StandardColors_TOP_OBJECT,
 		StandardColors_UNKNOWN,
+		StandardColors_GBIGINT,
+		StandardColors_TOP_FUNCTION,
 	} {
 		immutableMapBuilderPut(m, c.GetId(), c)
 	}
@@ -162,6 +178,7 @@ var StandardColors_PRIMITIVE_COLORS = func() *jutil.LinkedHashMap[ColorId, *Colo
 		StandardColors_NUMBER,
 		StandardColors_STRING,
 		StandardColors_SYMBOL,
+		StandardColors_GBIGINT,
 	} {
 		immutableMapBuilderPut(m, c.GetId(), c)
 	}

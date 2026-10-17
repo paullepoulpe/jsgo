@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/OptimizeConstructors.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/OptimizeConstructors.java @ closure-compiler v20261015
 
 /*
  * Copyright 2021 The Closure Compiler Authors.
@@ -132,6 +132,7 @@ func (o *OptimizeConstructors) AddConstructorsToBeRemoved(name string, refs *jut
 	}
 
 	var candidateClassDefinition *rhino.Node
+	var candidateConstructor *rhino.Node
 
 	// Lazily init as most symbols aren't class, and most classes don't have subclasses
 	var subclassConstructors []*rhino.Node
@@ -164,7 +165,7 @@ func (o *OptimizeConstructors) AddConstructorsToBeRemoved(name string, refs *jut
 						fn := constructor.GetLastChild()
 						body := fn.GetLastChild()
 						if !body.HasChildren() && o.HasRemovableParameterList(constructor) {
-							o.removableConstructors = append(o.removableConstructors, constructor)
+							candidateConstructor = constructor
 						}
 					}
 				} else {
@@ -198,6 +199,10 @@ func (o *OptimizeConstructors) AddConstructorsToBeRemoved(name string, refs *jut
 	// There is no known class definition
 	if candidateClassDefinition == nil {
 		return
+	}
+
+	if candidateConstructor != nil {
+		o.removableConstructors = append(o.removableConstructors, candidateConstructor)
 	}
 
 	// Nothing that invalidated the superclass definition was found, so now check if the
@@ -250,7 +255,9 @@ func OptimizeConstructors_IsAssigningReference(n *rhino.Node) bool {
 		rhino.Token_ASSIGN_DIV,
 		rhino.Token_ASSIGN_MOD,
 		rhino.Token_ASSIGN_EXPONENT:
-		return parent.GetFirstChild() != n
+		// If n is the target of the assignment (the first child/LHS of the assignment node),
+		// then it is an assigning reference.
+		return parent.GetFirstChild() == n
 	default:
 		return false
 	}
@@ -300,7 +307,8 @@ func OptimizeConstructors_IsDefinitionClassLiteralOrFunction(n *rhino.Node) bool
 	switch n.GetToken() {
 	case rhino.Token_FUNCTION:
 		// TODO(b/176208718): ideally this is only return true for normal functions, but it is
-		// harmless to include other function types and checking for "normal" function is currently
+		// harmless to include other function types and checking for "normal" function is
+		// currently
 		// non-trivial.
 		return true
 	case rhino.Token_CLASS:

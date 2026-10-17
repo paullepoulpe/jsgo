@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/lint/CheckExtraRequires.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/lint/CheckExtraRequires.java @ closure-compiler v20261015
 
 /*
  * Copyright 2008 The Closure Compiler Authors.
@@ -49,7 +49,7 @@ var CheckExtraRequires_EXTRA_REQUIRE_WARNING = DiagnosticType_Disabled(
 
 // TODO(b/130215517): This should eventually be removed and exceptions suppressed
 var checkExtraRequires_DEFAULT_EXTRA_NAMESPACES = jutil.NewLinkedHashSet(
-	"goog.testing.asserts", "goog.testing.jsunit", "goog.testing.JsTdTestCaseAdapter")
+	"goog.testing.asserts", "goog.testing.jsunit")
 
 // NewCheckExtraRequires is new CheckExtraRequires(compiler, requiresToRemove).
 //

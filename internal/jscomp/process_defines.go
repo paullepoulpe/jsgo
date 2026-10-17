@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ProcessDefines.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/ProcessDefines.java @ closure-compiler v20261015
 
 /*
  * Copyright 2007 The Closure Compiler Authors.
@@ -92,7 +92,7 @@ var ProcessDefines_INVALID_DEFINE_VALUE = DiagnosticType_Error(
 // Java: ProcessDefines.INVALID_DEFINE_LOCATION
 var ProcessDefines_INVALID_DEFINE_LOCATION = DiagnosticType_Error(
 	"JSC_INVALID_DEFINE_LOCATION",
-	"@define must be initalized on a static qualified name in global or module scope")
+	"@define must be initialized on a static qualified name in global or module scope")
 
 // Java: ProcessDefines.NON_CONST_DEFINE
 var ProcessDefines_NON_CONST_DEFINE = DiagnosticType_Error("JSC_NON_CONST_DEFINE", "@define {0} has already been set at {1}.")
@@ -120,6 +120,12 @@ var ProcessDefines_ZONE_NOT_SUPPORTED_WITH_NATIVE_ASYNC_AWAIT = DiagnosticType_E
 	"JSC_ZONE_NOT_SUPPORTED_WITH_NATIVE_ASYNC_AWAIT",
 	"ZoneJS is incompatible with language level ES2017 or higher (See go/ngissue/31730)\n"+
 		"Please set `--language_out=ECMASCRIPT_2016` (or older) in your flags.")
+
+// Java: ProcessDefines.DEFINE_WITHOUT_GOOG_DEFINE
+var ProcessDefines_DEFINE_WITHOUT_GOOG_DEFINE = DiagnosticType_Disabled(
+	"JSC_DEFINE_WITHOUT_GOOG_DEFINE",
+	"The const declaration for @define ''{0}'' must be initialized with a call to"+
+		" goog.define().")
 
 // newProcessDefines creates a pass that overrides define constants.
 //
@@ -594,6 +600,24 @@ func (p *ProcessDefines) ValidateDefineDeclarations() {
 
 	for define := range p.defineByDefineName.Values() {
 		declarationNode := define.declaration.GetNode()
+
+		if !p.IsGoogDefineCall(define.value) &&
+			!processDefines_KNOWN_DEFINES.Contains(define.defineName) &&
+			!strings.HasPrefix(define.defineName, "$jscomp.") {
+			errorNode := define.value
+			if errorNode == nil {
+				errorNode = define.valueParent
+				if errorNode == nil {
+					errorNode = jutil.CheckNotNull(declarationNode)
+				}
+			}
+			p.compiler.Report(
+				JSError_MakeWithNode(
+					errorNode,
+					ProcessDefines_DEFINE_WITHOUT_GOOG_DEFINE,
+					define.defineName,
+					"go/js-practices/locals#defines")) // Example help link
+		}
 
 		if !p.HasValidValue(define) {
 			errorNode := define.value

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ScopedAliasesTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/ScopedAliasesTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/ScopedAliasesTest.java)
 
 /*
@@ -56,6 +56,7 @@ func (c *ScopedAliasesTest) SetUp() {
 	c.EnableRunTypeCheckAfterProcessing()
 	c.EnableCreateModuleMap()
 	c.invalidModuleGetHandling = ScopedAliases_InvalidModuleGetHandling_GIVE_UNIQUE_NAME
+	c.SetGenericNameReplacements(jutil.NewImmutableMapBuilder[string, string]().Put("SCOPED_ALIASES", "jscomp$scopedAliases$").BuildOrThrow())
 }
 
 // Java: ScopedAliasesTest.testScoped(String, String, Postcondition...)
@@ -1180,66 +1181,57 @@ var $jscomp$scope$m1146332801$0$x = null;
 }
 
 // https://github.com/google/closure-compiler/issues/2211
-//
 // Java: ScopedAliasesTest.testIssue2211()
 func (c *ScopedAliasesTest) TestIssue2211() {
 	c.Test(
-		`var ns = {};
-var y = 1;
-goog.scope(function () {
-  ns.fact = function y(n) {
-    return n == 1 ? 1 : n * y(n - 1);
-  };
-});
-`,
-		`var ns = {};
-var y = 1;
-ns.fact = function y$jscomp$scopedAliases$0(n) {
-  return n == 1 ? 1 : n * y$jscomp$scopedAliases$0(n - 1);
-};
-`)
+		"var ns = {};\n"+
+			"var y = 1;\n"+
+			"goog.scope(function () {\n"+
+			"  ns.fact = function y(n) {\n"+
+			"    return n == 1 ? 1 : n * y(n - 1);\n"+
+			"  };\n"+
+			"});\n",
+		"var ns = {};\n"+
+			"var y = 1;\n"+
+			"ns.fact = function y$SCOPED_ALIASES$0(n) {\n"+
+			"  return n == 1 ? 1 : n * y$SCOPED_ALIASES$0(n - 1);\n"+
+			"};\n")
 }
 
 // https://github.com/google/closure-compiler/issues/2211
-//
 // Java: ScopedAliasesTest.testIssue2211b()
 func (c *ScopedAliasesTest) TestIssue2211b() {
 	c.Test(
-		`var ns = {};
-var y = 1;
-goog.scope(function () {
-  function x(y) {}
-  ns.fact = function y(n) {
-    return n == 1 ? 1 : n * y(n - 1);
-  };
-});
-`,
-		`var ns = {};
-var y = 1;
-var $jscomp$scope$m1146332801$0$x = function (y) {};
-ns.fact = function y$jscomp$scopedAliases$0(n) {
-  return n == 1 ? 1 : n * y$jscomp$scopedAliases$0(n - 1);
-};
-`)
+		"var ns = {};\n"+
+			"var y = 1;\n"+
+			"goog.scope(function () {\n"+
+			"  function x(y) {}\n"+
+			"  ns.fact = function y(n) {\n"+
+			"    return n == 1 ? 1 : n * y(n - 1);\n"+
+			"  };\n"+
+			"});\n",
+		"var ns = {};\n"+
+			"var y = 1;\n"+
+			"var $jscomp$scope$m1146332801$0$x = function (y) {};\n"+
+			"ns.fact = function y$SCOPED_ALIASES$1(n) {\n"+
+			"  return n == 1 ? 1 : n * y$SCOPED_ALIASES$1(n - 1);\n"+
+			"};\n")
 }
 
 // https://github.com/google/closure-compiler/issues/2211
-//
 // Java: ScopedAliasesTest.testIssue2211c()
 func (c *ScopedAliasesTest) TestIssue2211c() {
 	c.testScoped(
-		`foo(() => {
-  const y = function y() {
-    use(y);
-  };
-});
-`,
-		`foo(() => {
-  const y = function y$jscomp$scopedAliases$0() {
-    use(y$jscomp$scopedAliases$0);
-  };
-});
-`)
+		"foo(() => {\n"+
+			"  const y = function y() {\n"+
+			"    use(y);\n"+
+			"  };\n"+
+			"});\n",
+		"foo(() => {\n"+
+			"  const y = function y$SCOPED_ALIASES$0() {\n"+
+			"    use(y$SCOPED_ALIASES$0);\n"+
+			"  };\n"+
+			"});\n")
 }
 
 // Java: ScopedAliasesTest.testGoogModuleGet1()

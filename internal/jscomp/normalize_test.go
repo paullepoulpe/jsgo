@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/NormalizeTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/NormalizeTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/NormalizeTest.java)
 
 /*
@@ -717,6 +717,31 @@ let $jscomp$logical$assign$tmpm1146332801$2;
  = ($jscomp$logical$assign$tmpm1146332801$0 = bar).z
    ?? ($jscomp$logical$assign$tmpm1146332801$0.z = 'something')));
 `)
+}
+
+// Java: NormalizeTest.testLogicalAssignmentInConciseArrowFunction()
+func (c *NormalizeTest) TestLogicalAssignmentInConciseArrowFunction() {
+	c.Test(
+		c.Srcs("const f = (a, b) => a.x ||= b;"),
+		c.Expected(
+			"const f = (a, b) => {\n"+
+				"  let $jscomp$logical$assign$tmpm1146332801$0;\n"+
+				"  return ($jscomp$logical$assign$tmpm1146332801$0 = a).x\n"+
+				"      || ($jscomp$logical$assign$tmpm1146332801$0.x = b);\n"+
+				"};\n"))
+
+	c.Test(
+		c.Srcs("const f = (map, k, v) => (map[k] ??= v);"),
+		c.Expected(
+			"const f = (map, k, v) => {\n"+
+				"  let $jscomp$logical$assign$tmpm1146332801$0;\n"+
+				"  let $jscomp$logical$assign$tmpindexm1146332801$0;\n"+
+				"  return ($jscomp$logical$assign$tmpm1146332801$0 = map)\n"+
+				"      [$jscomp$logical$assign$tmpindexm1146332801$0 = k]\n"+
+				"      ??\n"+
+				"      ($jscomp$logical$assign$tmpm1146332801$0\n"+
+				"      [$jscomp$logical$assign$tmpindexm1146332801$0] = v);\n"+
+				"};\n"))
 }
 
 // Java: NormalizeTest.testDuplicateVarInExterns()
@@ -1710,4 +1735,18 @@ export {Foo as Foo};
 `)
 	c.TestSame("export default class Bar {}")
 	c.TestSame("export default class {}")
+}
+
+// Java: NormalizeTest.testLogicalAssignInLabeledLoop()
+func (c *NormalizeTest) TestLogicalAssignInLabeledLoop() {
+	// TODO(b/571641723): Property logical assignment in labeled loop crashes AstValidator.
+	e := AssertThrows[jutil.IRuntimeException](func() { c.TestSame("label: while (o.p ??= 1) {}") })
+	// Throwables.getRootCause(e)
+	var root jutil.Throwable = e
+	for root.GetCause() != nil && root.GetCause() != root {
+		root = root.GetCause()
+	}
+	_, isIllegalState := root.(jutil.IIllegalStateException)
+	AssertThat(isIllegalState).IsTrue()
+	AssertThat(root.GetMessage()).Contains("Expected 2 children, but was 3")
 }
