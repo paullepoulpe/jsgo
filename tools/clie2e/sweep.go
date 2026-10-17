@@ -50,6 +50,10 @@ var sweepConfigs = []config{
 	{name: "checks", args: []string{"--checks_only", "--jscomp_warning=checkTypes"}},
 	{name: "simple-lax", args: []string{"--compilation_level", "SIMPLE", "--jscomp_off=moduleLoad"}, optIn: true},
 	{name: "advanced-lax", args: []string{"--compilation_level", "ADVANCED", "--jscomp_off=moduleLoad", "--jscomp_off=undefinedVars"}, optIn: true},
+	// With srcMap, the code and its source map go to out.js and out.js.map
+	// in the job's result directory, and are compared too.
+	{name: "simple-lax-srcmap", args: []string{"--compilation_level", "SIMPLE", "--jscomp_off=moduleLoad", "--formatting", "PRETTY_PRINT"}, srcMap: true, optIn: true},
+	{name: "advanced-lax-srcmap", args: []string{"--compilation_level", "ADVANCED", "--jscomp_off=moduleLoad", "--jscomp_off=undefinedVars"}, srcMap: true, optIn: true},
 }
 
 // Result classes, in report order.
@@ -109,7 +113,12 @@ func runSweep() int {
 	for _, f := range files {
 		for _, c := range confs {
 			args := append(append([]string{}, c.args...), "--js", "in/"+f)
-			jobs = append(jobs, sweepJob{c.name, f, args})
+			j := sweepJob{c.name, f, args}
+			if c.srcMap {
+				j.args = append(j.args, "--js_output_file", filepath.Join(j.res(), "out.js"),
+					"--create_source_map", filepath.Join(j.res(), "out.js.map"))
+			}
+			jobs = append(jobs, j)
 		}
 	}
 
@@ -271,6 +280,8 @@ func summarize(wd, javaDir, goDir string, jobs []sweepJob, order []string) int {
 // runSweepJsgo runs one job in dir with the time limit, writing
 // <res>/stdout, stderr, exit, millis (and timeout when it hit the limit).
 func runSweepJsgo(bin, dir string, j sweepJob) {
+	res := filepath.Join(dir, j.res())
+	os.MkdirAll(res, 0o777) // as CliE2E does
 	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, bin, j.args...)
@@ -291,8 +302,6 @@ func runSweepJsgo(bin, dir string, j sweepJob) {
 	} else if err != nil {
 		status = -1
 	}
-	res := filepath.Join(dir, j.res())
-	os.MkdirAll(res, 0o777)
 	os.WriteFile(filepath.Join(res, "stdout"), stdout.Bytes(), 0o666)
 	os.WriteFile(filepath.Join(res, "stderr"), stderr.Bytes(), 0o666)
 	os.WriteFile(filepath.Join(res, "exit"), []byte(strconv.Itoa(status)+"\n"), 0o666)
@@ -333,7 +342,9 @@ func classify(javaDir, goDir string, j sweepJob) (string, string) {
 	javaErr, goErr := stripFrames(read(javaDir, "stderr")), stripFrames(read(goDir, "stderr"))
 	if bytes.Equal(javaExit, read(goDir, "exit")) &&
 		bytes.Equal(read(javaDir, "stdout"), read(goDir, "stdout")) &&
-		bytes.Equal(javaErr, goErr) {
+		bytes.Equal(javaErr, goErr) &&
+		bytes.Equal(read(javaDir, "out.js"), read(goDir, "out.js")) &&
+		bytes.Equal(read(javaDir, "out.js.map"), read(goDir, "out.js.map")) {
 		return clIdentical, ""
 	}
 	if javaExceptionRe.Match(read(javaDir, "stderr")) {
