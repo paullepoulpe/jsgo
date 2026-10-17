@@ -472,6 +472,27 @@ Done:
   iteration order (tree bins included) and the shaded Guava factories, for
   Closure sites that iterate hash collections with value-hashed keys.
   Verified on fresh-seed vectors.
+- **Upgraded from v20260415 to v20261015** (the first "track upstream"
+  step below). The pin is `tools/oracle/pin.env`: Maven Central's
+  `closure-compiler-v20261015.jar` and its sources jar, both
+  sha256-checked by `fetch.sh`.
+  - The 160 changed Java files (+6,875/−2,725 lines; 5 added, 2 removed,
+    1 renamed) were ported file by file in five groups (core, transpile,
+    renaming, optimize-a, optimize-b), each with the changes of its Java
+    tests, then merged; the Java test changes no group owned were ported
+    at the merge. Every `// Port of` header names v20261015: the Java
+    files the upgrade did not touch are identical in v20261015.
+  - Every oracle golden comes from the v20261015 jar: the ones whose Java
+    output changed were regenerated, and every other one was regenerated
+    and found identical. The Go mirrors match all of them, and
+    `jsgo --version` prints what the jar prints.
+  - `go test` passes in every package: 1,497 top-level tests in
+    internal/jscomp (27,112 with their subtests) and 2,292 in the other
+    packages; the only skips are the corpus oracles that need their
+    environment variables and the tests the Java skips too. The CLI
+    fixtures suite (`tools/clie2e -suite fixtures`) matches 2,974 of
+    2,976 recorded Java outputs; the other two are one fixture on which
+    Java throws StackOverflowError, a fatal error in Go.
 
 In progress, in parallel (waves 4 and 5; each cluster translates against
 the predicted Go names of what it calls, and compiles once its
@@ -534,6 +555,13 @@ Decided by the repository owner:
 - **Track upstream:** keep the port current with Closure releases while the
   structure is still 1:1, porting each release's diff file by file, before
   larger performance or idiomatic rewrites make that harder. First step:
-  v20260415 → v20261015.
+  v20260415 → v20261015 (done; see above).
 - **Out of scope:** the instrumentation report tool
   (`ReportDecoder`/`ProfilingReport`), a separate binary.
+- **Compressed output:** jsgo writes gzip (`--typed_ast_output_file`, a
+  saved compiler state) with Go's `compress/flate`, not a translation of
+  zlib, so the compressed bytes may differ from those of
+  `java.util.zip`. The gzip framing and the decompressed content are
+  Java's. Tests compare the gzip header and the decompressed content byte
+  for byte (`tools/clie2e/gzipcmp.go`; PORTING.md §7,
+  `tools/oracle/README.md` "Compressed output").
