@@ -1,5 +1,21 @@
 // Port of test/com/google/javascript/jscomp/ReferenceCollectorTest.java @ closure-compiler v20260415
 
+/*
+ * Copyright 2017 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package jscomp
 
 import (
@@ -9,33 +25,50 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// referenceCollectorTest_testBehavior is ReferenceCollectorTest.testBehavior:
-// testSame(js) with getProcessor(compiler) = new ReferenceCollector(compiler,
-// behavior, new SyntacticScopeCreator(compiler)).
+// The behaviors assert with the package's Go test helpers on the running
+// test method's *testing.T (c.T()).
 //
-// Go-only: test-helper — CompilerTestCase is not ported, so this runs the
-// part of testSame the behaviors observe: the externs ("") and the js are
-// parsed as CompilerTestCase's inputs (CompilerInputs of a Compiler without
-// options, i.e. language UNSUPPORTED), put under ROOT(ROOT(externs),
-// ROOT(js)), and the processor runs on (externsRoot, mainRoot). It does not
-// check that the code is unchanged or that no warnings were reported.
-func referenceCollectorTest_testBehavior(t *testing.T, js string, behavior ReferenceCollector_Behavior) {
-	t.Helper()
-	compiler := newTestCompilerUninitialized()
-	compiler.initCompilerOptionsIfTesting()
-	externsInput := NewCompilerInputWithIsExtern(SourceFile_FromCode("externs", ""), true)
-	compiler.putCompilerInput(externsInput)
-	mainInput := NewCompilerInput(SourceFile_FromCode("testcode", js))
-	compiler.putCompilerInput(mainInput)
-	externsRoot := rhino.IR_Root(externsInput.GetAstRoot(compiler))
-	mainRoot := rhino.IR_Root(mainInput.GetAstRoot(compiler))
-	rhino.IR_Root(externsRoot, mainRoot)
-	if errors := compiler.GetErrors(); len(errors) != 0 {
-		t.Fatalf("parse errors: %v", errors)
-	}
+// Java: public final class ReferenceCollectorTest extends CompilerTestCase
+type ReferenceCollectorTest struct {
+	CompilerTestCaseBase
 
-	var processor CompilerPass = NewReferenceCollector(compiler, behavior, NewSyntacticScopeCreator(compiler))
-	processor.Process(externsRoot, mainRoot)
+	behavior ReferenceCollector_Behavior // @Nullable
+}
+
+// Java: ReferenceCollectorTest()
+func NewReferenceCollectorTest() *ReferenceCollectorTest {
+	c := &ReferenceCollectorTest{}
+	c.InitCompilerTestCaseBase(c)
+	return c
+}
+
+func TestReferenceCollectorTest(t *testing.T) {
+	RunJUnit4(t, func() JUnitTestCase { return NewReferenceCollectorTest() })
+}
+
+// Java: ReferenceCollectorTest.setUp()
+func (c *ReferenceCollectorTest) SetUp() {
+	c.CompilerTestCaseBase.SetUp()
+	c.behavior = nil
+}
+
+// Java: ReferenceCollectorTest.getProcessor(Compiler)
+func (c *ReferenceCollectorTest) GetProcessor(compiler *Compiler) CompilerPass {
+	var scopeCreator ScopeCreator = NewSyntacticScopeCreator(compiler)
+	return NewReferenceCollector(compiler, c.behavior, scopeCreator)
+}
+
+// Java: ReferenceCollectorTest.getOptions()
+func (c *ReferenceCollectorTest) GetOptions() *CompilerOptions {
+	options := c.CompilerTestCaseBase.GetOptions()
+	options.SetWarningLevel(DiagnosticGroups_MODULE_LOAD, CheckLevel_OFF)
+	return options
+}
+
+// Java: ReferenceCollectorTest.testBehavior(String, Behavior)
+func (c *ReferenceCollectorTest) testBehavior(js string, behavior ReferenceCollector_Behavior) {
+	c.behavior = behavior
+	c.TestSame(js)
 }
 
 // referenceCollectorTest_isDeclarations is the IS_DECLARATION correspondence:
@@ -48,8 +81,9 @@ func referenceCollectorTest_isDeclarations(refs *ReferenceCollection) []bool {
 	return out
 }
 
-func TestReferenceCollector_IterableRest_declaration(t *testing.T) {
-	referenceCollectorTest_testBehavior(t,
+func (c *ReferenceCollectorTest) TestIterableRest_declaration() {
+	t := c.T()
+	c.testBehavior(
 		"let [x, ...arr] = [1, 2, 3]; [x, ...arr] = [4, 5, 6];",
 		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
 			arrReferenceCollection := rm.GetReferences(nt.GetScope().GetVar("arr"))
@@ -58,8 +92,9 @@ func TestReferenceCollector_IterableRest_declaration(t *testing.T) {
 		}))
 }
 
-func TestReferenceCollector_ObjectRest_declaration(t *testing.T) {
-	referenceCollectorTest_testBehavior(t,
+func (c *ReferenceCollectorTest) TestObjectRest_declaration() {
+	t := c.T()
+	c.testBehavior(
 		"let {x, ...obj} = {x: 1, y: 2, z: 3}; ({x, ...obj} = {x: 4, q: 5, u: 6});",
 		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
 			objReferenceCollection := rm.GetReferences(nt.GetScope().GetVar("obj"))
@@ -68,8 +103,9 @@ func TestReferenceCollector_ObjectRest_declaration(t *testing.T) {
 		}))
 }
 
-func TestReferenceCollector_Class(t *testing.T) {
-	referenceCollectorTest_testBehavior(t,
+func (c *ReferenceCollectorTest) TestClass() {
+	t := c.T()
+	c.testBehavior(
 		`class Foo {}
 `,
 		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
@@ -83,8 +119,9 @@ func TestReferenceCollector_Class(t *testing.T) {
 		}))
 }
 
-func TestReferenceCollector_Class_withPrototype(t *testing.T) {
-	referenceCollectorTest_testBehavior(t,
+func (c *ReferenceCollectorTest) TestClass_withPrototype() {
+	t := c.T()
+	c.testBehavior(
 		`class Foo {}
 Foo.prototype.bar = 1;
 `,
@@ -98,8 +135,9 @@ Foo.prototype.bar = 1;
 		}))
 }
 
-func TestReferenceCollector_Class_referencedAfterDeclaration(t *testing.T) {
-	referenceCollectorTest_testBehavior(t,
+func (c *ReferenceCollectorTest) TestClass_referencedAfterDeclaration() {
+	t := c.T()
+	c.testBehavior(
 		`class Foo {}
 const x = Foo;
 `,
@@ -127,20 +165,24 @@ func referenceCollectorTest_importBehavior(t *testing.T) ReferenceCollector_Beha
 	})
 }
 
-func TestReferenceCollector_Import1(t *testing.T) {
-	referenceCollectorTest_testBehavior(t, "import x from '/m';", referenceCollectorTest_importBehavior(t))
+func (c *ReferenceCollectorTest) TestImport1() {
+	t := c.T()
+	c.testBehavior("import x from '/m';", referenceCollectorTest_importBehavior(t))
 }
 
-func TestReferenceCollector_Import2(t *testing.T) {
-	referenceCollectorTest_testBehavior(t, "import {x} from '/m';", referenceCollectorTest_importBehavior(t))
+func (c *ReferenceCollectorTest) TestImport2() {
+	t := c.T()
+	c.testBehavior("import {x} from '/m';", referenceCollectorTest_importBehavior(t))
 }
 
-func TestReferenceCollector_Import2_alternate(t *testing.T) {
-	referenceCollectorTest_testBehavior(t, "import {x as x} from '/m';", referenceCollectorTest_importBehavior(t))
+func (c *ReferenceCollectorTest) TestImport2_alternate() {
+	t := c.T()
+	c.testBehavior("import {x as x} from '/m';", referenceCollectorTest_importBehavior(t))
 }
 
-func TestReferenceCollector_Import3(t *testing.T) {
-	referenceCollectorTest_testBehavior(t,
+func (c *ReferenceCollectorTest) TestImport3() {
+	t := c.T()
+	c.testBehavior(
 		"import {y as x} from '/m';",
 		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
 			if nt.GetScope().IsModuleScope() {
@@ -156,8 +198,9 @@ func TestReferenceCollector_Import3(t *testing.T) {
 		}))
 }
 
-func TestReferenceCollector_Import4(t *testing.T) {
-	referenceCollectorTest_testBehavior(t,
+func (c *ReferenceCollectorTest) TestImport4() {
+	t := c.T()
+	c.testBehavior(
 		"import * as x from '/m';",
 		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
 			if nt.GetScope().IsModuleScope() {
@@ -173,8 +216,9 @@ func TestReferenceCollector_Import4(t *testing.T) {
 		}))
 }
 
-func TestReferenceCollector_VarInBlock(t *testing.T) {
-	referenceCollectorTest_testBehavior(t,
+func (c *ReferenceCollectorTest) TestVarInBlock() {
+	t := c.T()
+	c.testBehavior(
 		`function f(x) {
   if (true) {
     var y = x;
@@ -192,17 +236,19 @@ func TestReferenceCollector_VarInBlock(t *testing.T) {
 		}))
 }
 
-func TestReferenceCollector_VarInLoopNotAssignedOnlyOnceInLifetime(t *testing.T) {
+func (c *ReferenceCollectorTest) TestVarInLoopNotAssignedOnlyOnceInLifetime() {
+	t := c.T()
 	behavior := ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
 		if nt.GetScope().IsBlockScope() {
 			x := rm.GetReferences(nt.GetScope().GetVar("x"))
 			assertEqual(t, "isAssignedOnceInLifetime", x.IsAssignedOnceInLifetime(), false)
 		}
 	})
-	referenceCollectorTest_testBehavior(t, "while (true) { var x = 0; }", behavior)
+	c.testBehavior("while (true) { var x = 0; }", behavior)
 }
 
-func TestReferenceCollector_LetInLoopAssignedOnceInLifetime(t *testing.T) {
+func (c *ReferenceCollectorTest) TestLetInLoopAssignedOnceInLifetime() {
+	t := c.T()
 	behavior := ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
 		if nt.GetScope().IsBlockScope() {
 			xVar := nt.GetScope().GetVar("x")
@@ -214,26 +260,28 @@ func TestReferenceCollector_LetInLoopAssignedOnceInLifetime(t *testing.T) {
 			assertEqual(t, "isAssignedOnceInLifetime", x.IsAssignedOnceInLifetime(), true)
 		}
 	})
-	referenceCollectorTest_testBehavior(t, "while (true) { let x = 0; }", behavior)
+	c.testBehavior("while (true) { let x = 0; }", behavior)
 }
 
 // TestReferenceCollector_VarInFunctionNotAssignedOnlyOnceInLifetime:
 // although there is only one assignment to x in the code, it's in a function
 // which could be called multiple times, so isAssignedOnceInLifetime() returns
 // false.
-func TestReferenceCollector_VarInFunctionNotAssignedOnlyOnceInLifetime(t *testing.T) {
+func (c *ReferenceCollectorTest) TestVarInFunctionNotAssignedOnlyOnceInLifetime() {
+	t := c.T()
 	behavior := ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
 		if nt.GetScope().IsGlobal() {
 			x := rm.GetReferences(nt.GetScope().GetVar("x"))
 			assertEqual(t, "isAssignedOnceInLifetime", x.IsAssignedOnceInLifetime(), false)
 		}
 	})
-	referenceCollectorTest_testBehavior(t, "var x; function f() { x = 0; }", behavior)
-	referenceCollectorTest_testBehavior(t, "let x; function f() { x = 0; }", behavior)
+	c.testBehavior("var x; function f() { x = 0; }", behavior)
+	c.testBehavior("let x; function f() { x = 0; }", behavior)
 }
 
-func TestReferenceCollector_ParameterAssignedOnlyOnceInLifetime(t *testing.T) {
-	referenceCollectorTest_testBehavior(t,
+func (c *ReferenceCollectorTest) TestParameterAssignedOnlyOnceInLifetime() {
+	t := c.T()
+	c.testBehavior(
 		"function f(x) { x; }",
 		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
 			if nt.GetScope().IsFunctionScope() {
@@ -243,8 +291,9 @@ func TestReferenceCollector_ParameterAssignedOnlyOnceInLifetime(t *testing.T) {
 		}))
 }
 
-func TestReferenceCollector_ModifiedParameterNotAssignedOnlyOnceInLifetime(t *testing.T) {
-	referenceCollectorTest_testBehavior(t,
+func (c *ReferenceCollectorTest) TestModifiedParameterNotAssignedOnlyOnceInLifetime() {
+	t := c.T()
+	c.testBehavior(
 		"function f(x) { x = 3; }",
 		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
 			if nt.GetScope().IsFunctionScope() {
@@ -254,19 +303,21 @@ func TestReferenceCollector_ModifiedParameterNotAssignedOnlyOnceInLifetime(t *te
 		}))
 }
 
-func TestReferenceCollector_VarAssignedOnceInLifetime1(t *testing.T) {
+func (c *ReferenceCollectorTest) TestVarAssignedOnceInLifetime1() {
+	t := c.T()
 	behavior := ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
 		if nt.GetScope().IsFunctionBlockScope() {
 			x := rm.GetReferences(nt.GetScope().GetVar("x"))
 			assertEqual(t, "isAssignedOnceInLifetime", x.IsAssignedOnceInLifetime(), true)
 		}
 	})
-	referenceCollectorTest_testBehavior(t, "function f() { var x = 0; }", behavior)
-	referenceCollectorTest_testBehavior(t, "function f() { let x = 0; }", behavior)
+	c.testBehavior("function f() { var x = 0; }", behavior)
+	c.testBehavior("function f() { let x = 0; }", behavior)
 }
 
-func TestReferenceCollector_VarAssignedOnceInLifetime2(t *testing.T) {
-	referenceCollectorTest_testBehavior(t,
+func (c *ReferenceCollectorTest) TestVarAssignedOnceInLifetime2() {
+	t := c.T()
+	c.testBehavior(
 		"function f() { { let x = 0; } }",
 		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
 			if nt.GetScope().IsBlockScope() && !nt.GetScope().IsFunctionBlockScope() {
@@ -290,9 +341,10 @@ func referenceCollectorTest_catchBehavior(t *testing.T) ReferenceCollector_Behav
 	})
 }
 
-func TestReferenceCollector_VarAssignedOnceInLifetime3(t *testing.T) {
+func (c *ReferenceCollectorTest) TestVarAssignedOnceInLifetime3() {
+	t := c.T()
 	behavior := referenceCollectorTest_catchBehavior(t)
-	referenceCollectorTest_testBehavior(t,
+	c.testBehavior(
 		`try {
 } catch (e) {
   var y = e;
@@ -301,7 +353,7 @@ func TestReferenceCollector_VarAssignedOnceInLifetime3(t *testing.T) {
 }
 `,
 		behavior)
-	referenceCollectorTest_testBehavior(t,
+	c.testBehavior(
 		`try {
 } catch (e) {
   var y; y = e;
@@ -312,8 +364,9 @@ func TestReferenceCollector_VarAssignedOnceInLifetime3(t *testing.T) {
 		behavior)
 }
 
-func TestReferenceCollector_LetAssignedOnceInLifetime1(t *testing.T) {
-	referenceCollectorTest_testBehavior(t,
+func (c *ReferenceCollectorTest) TestLetAssignedOnceInLifetime1() {
+	t := c.T()
+	c.testBehavior(
 		`try {
 } catch (e) {
   let y = e;
@@ -324,8 +377,9 @@ func TestReferenceCollector_LetAssignedOnceInLifetime1(t *testing.T) {
 		referenceCollectorTest_catchBehavior(t))
 }
 
-func TestReferenceCollector_LetAssignedOnceInLifetime2(t *testing.T) {
-	referenceCollectorTest_testBehavior(t,
+func (c *ReferenceCollectorTest) TestLetAssignedOnceInLifetime2() {
+	t := c.T()
+	c.testBehavior(
 		`try {
 } catch (e) {
   let y; y = e;
@@ -348,8 +402,9 @@ func referenceCollectorTest_assertBlockRoots(t *testing.T, x *ReferenceCollectio
 	}
 }
 
-func TestReferenceCollector_BasicBlocks(t *testing.T) {
-	referenceCollectorTest_testBehavior(t,
+func (c *ReferenceCollectorTest) TestBasicBlocks() {
+	t := c.T()
+	c.testBehavior(
 		`var x = 0;
 switch (x) {
   case 0:
@@ -364,8 +419,9 @@ switch (x) {
 		}))
 }
 
-func TestReferenceCollector_BasicBlocksInConditionals(t *testing.T) {
-	referenceCollectorTest_testBehavior(t,
+func (c *ReferenceCollectorTest) TestBasicBlocksInConditionals() {
+	t := c.T()
+	c.testBehavior(
 		`var x = 0;
 x || 3;
 3 || x;
@@ -382,8 +438,9 @@ const [y = (x = 1)] = [];
 		}))
 }
 
-func TestReferenceCollector_NullishCoalesce(t *testing.T) {
-	referenceCollectorTest_testBehavior(t,
+func (c *ReferenceCollectorTest) TestNullishCoalesce() {
+	t := c.T()
+	c.testBehavior(
 		"var x = 0; var y = x ?? (x = 1)",
 		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
 			if nt.GetScope().IsGlobal() {
@@ -394,8 +451,9 @@ func TestReferenceCollector_NullishCoalesce(t *testing.T) {
 		}))
 }
 
-func TestReferenceCollector_OptChain(t *testing.T) {
-	referenceCollectorTest_testBehavior(t,
+func (c *ReferenceCollectorTest) TestOptChain() {
+	t := c.T()
+	c.testBehavior(
 		"var x = 0; var y = x?.(x = 1)",
 		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
 			if nt.GetScope().IsGlobal() {
@@ -406,8 +464,9 @@ func TestReferenceCollector_OptChain(t *testing.T) {
 		}))
 }
 
-func TestReferenceCollector_This(t *testing.T) {
-	referenceCollectorTest_testBehavior(t,
+func (c *ReferenceCollectorTest) TestThis() {
+	t := c.T()
+	c.testBehavior(
 		`/** @constructor */
 function C() {}
 
@@ -427,11 +486,11 @@ C.prototype.m = function m() {
 		}))
 }
 
-func TestReferenceCollector_ProcessScopeThatsNotABasicBlock(t *testing.T) {
+func (c *ReferenceCollectorTest) TestProcessScopeThatsNotABasicBlock() {
+	t := c.T()
 	// Tests the case where the scope we pass in is not really a basic block, but we create a new
 	// basic block anyway because ReferenceCollector expects all nodes to be in a block.
-	// Java: createCompiler() of CompilerTestCase; the test only parses with it.
-	compiler := newTestCompilerUninitialized()
+	compiler := c.CreateCompiler()
 	syntacticScopeCreator := NewSyntacticScopeCreator(compiler)
 	referenceCollectingCallback := NewReferenceCollector(
 		compiler,
