@@ -33,11 +33,15 @@ while writing such code. If exact behaviour cannot be specified that way,
 stop and raise it; never fall back to the JDK's code.
 
 **Licence notices.** Every ported file keeps the licence comment of the
-Java file it ports, right after its `// Port of` line. Closure ships the
-Rhino-derived files under `com/google/javascript/rhino` under a dual
-licence: MPL 1.1, or alternatively GPL 2.0. This repository uses them under
-the MPL 1.1 only. Their ports carry the MPL 1.1 notice with the GPL
-alternative removed. `go run ./tools/licenses` writes those notices.
+Java file it ports, right after its `// Port of` line; a file that ports
+several keeps each one's. Closure ships the Rhino-derived files under
+`com/google/javascript/rhino` under a dual licence: MPL 1.1, or
+alternatively GPL 2.0. This repository uses them under the MPL 1.1 only.
+Their ports carry the MPL 1.1 notice with the GPL alternative removed.
+`go run ./tools/licenses` writes those notices, for main and test sources
+alike. The few Java files that have no licence comment (the AutoValue and
+AutoBuilder output) are listed, with the reason, in `noNotice` in
+`tools/licenses/closure.go`.
 
 The same rule applies to ports of Guava, Gson, protobuf-java or args4j
 code, at the versions the pinned jar ships (Guava 33.4.6-jre, Gson 2.9.1,
@@ -51,8 +55,10 @@ protobuf-java 4.30.2, args4j 2.33):
 - Code written from the documentation needs neither.
 
 List each such file in `NOTICE`. `go run ./tools/licenses -check`, run by
-`make vet`, fails in three cases:
+`make vet`, fails in four cases:
 - a tracked file mentions the GPL;
+- a file names a Closure source without a Closure licence comment, unless
+  `noNotice` lists the source;
 - a file names a third-party source without that project's notice;
 - `NOTICE` or a licence text under `LICENSES/` is missing.
 

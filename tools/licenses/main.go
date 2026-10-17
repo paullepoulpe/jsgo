@@ -7,11 +7,14 @@
 // alternatively GPL 2.0 or later. A recipient may use such a file under
 // either one. This repository uses them under the MPL 1.1 only.
 //
-// Without flags, every tracked Go file whose header names a dual-licensed
-// Java file ("// Port of <path>.java ...") gets that file's MPL 1.1 notice,
-// with the GPL alternative removed and a line saying the translation is
-// distributed under the MPL 1.1 only. The notice replaces any licence
-// block already in place, or is inserted after the "// Port of" line.
+// Without flags, every tracked Go file whose header names Closure Java
+// files ("// Port of <path>.java ...", main or test sources) gets the
+// licence comment of each right after its "// Port of" lines (closure.go):
+// the file's own Apache 2.0 notice, or for a dual-licensed one its MPL 1.1
+// notice, with the GPL alternative removed and a line saying the
+// translation is distributed under the MPL 1.1 only. Licence comments
+// already there that are not those are replaced. A Java file with no
+// licence comment must be listed in noNotice (closure.go), with the reason.
 //
 // Java sources are read from .cache/closure-src (the pinned sources jar).
 // Test sources are fetched once from the pinned tag on GitHub into
@@ -28,6 +31,11 @@
 //     line carries that project's copyright and licence notice before its
 //     package clause (thirdparty.go), and every such line before a
 //     package clause names a Closure source or one of those projects;
+//   - every tracked Go file whose header names a Closure source that
+//     noNotice does not list carries a Closure licence comment before its
+//     package clause, and every source noNotice lists is ported
+//     (closure.go). Without the Java sources it cannot tell one Closure
+//     notice from another; the fixer puts in each source's own;
 //   - no tracked file (decompressed, as above) mentions a corpus file of
 //     tools/oracle/gpl-excluded-corpus.txt (tools/oracle/corpus): it
 //     contains the file's path inside its npm package;
@@ -53,6 +61,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -74,10 +83,8 @@ var exempt = map[string]bool{
 	corpus.ListPath:             true,
 }
 
-var portOf = regexp.MustCompile(`^// Port of (com/google/[^ ]+\.java)`)
-
 func main() {
-	check := flag.Bool("check", false, "only check: no GPL mention, third-party notices, NOTICE and LICENSES/")
+	check := flag.Bool("check", false, "only check: no GPL mention, Closure and third-party notices, NOTICE and LICENSES/")
 	flag.Parse()
 	files, err := trackedFiles()
 	if err != nil {
@@ -106,6 +113,8 @@ func main() {
 	index := newExcludedIndex(excluded)
 	var bad, mentions, problems []string
 	ported := map[string]int{}
+	named := map[string]bool{}
+	closurePorts := 0
 	skipped := 0
 	for _, f := range files {
 		b, err := os.ReadFile(f)
@@ -134,8 +143,14 @@ func main() {
 			for _, u := range us {
 				ported[u.project]++
 			}
+			p, port := checkClosureNotices(f, b, named)
+			problems = append(problems, p...)
+			if port {
+				closurePorts++
+			}
 		}
 	}
+	problems = append(problems, checkNoNotice(named)...)
 	problems = append(problems, checkPackageLicences(files)...)
 	problems = append(problems, checkModuleNotices()...)
 	problems = append(problems, checkRequiredFiles()...)
@@ -166,7 +181,7 @@ func main() {
 			counts = append(counts, fmt.Sprintf("%s %d", u.project, n))
 		}
 	}
-	fmt.Printf("licenses: no tracked file mentions the GPL or one of the %d excluded corpus files (gzip and zip files decompressed, %d other binary files skipped); third-party notices present (%s); test-data packages licensed; %d module dependencies in NOTICE; NOTICE and LICENSES/ present\n", len(excluded), skipped, strings.Join(counts, ", "), len(modules))
+	fmt.Printf("licenses: no tracked file mentions the GPL or one of the %d excluded corpus files (gzip and zip files decompressed, %d other binary files skipped); %d Closure ports carry their sources' licence comments (%d sources have none); third-party notices present (%s); test-data packages licensed; %d module dependencies in NOTICE; NOTICE and LICENSES/ present\n", len(excluded), skipped, closurePorts, len(noNotice), strings.Join(counts, ", "), len(modules))
 }
 
 func trackedFiles() ([]string, error) {
@@ -183,55 +198,42 @@ func trackedFiles() ([]string, error) {
 	return files, nil
 }
 
-// fixFile gives a Go port of a dual-licensed Java file the MPL-only notice.
+// fixFile gives a Go port of Closure Java sources the licence comment of
+// each (portNotices, withNotices), and turns any dual-licence comment left
+// in the file into its MPL-only form. A source it cannot read is a warning.
 func fixFile(path string) (bool, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return false, err
 	}
-	lines := strings.SplitAfter(string(b), "\n")
-	portLine := -1
-	var javaPath string
-	for i := 0; i < len(lines) && i < 5; i++ {
-		if m := portOf.FindStringSubmatch(lines[i]); m != nil {
-			portLine, javaPath = i, m[1]
-			break
+	lines := strings.Split(string(b), "\n")
+	paths := closureSources(lines[:packageClause(lines)])
+	if len(paths) == 0 {
+		return false, nil
+	}
+	var readErr error
+	notices, err := portNotices(paths, func(p string) ([]byte, error) {
+		src, err := javaSource(p)
+		readErr = err
+		return src, err
+	})
+	switch {
+	case readErr != nil:
+		fmt.Fprintf(os.Stderr, "licenses: warning: %s: %v\n", path, readErr)
+		return false, nil
+	case err != nil:
+		return false, err
+	}
+	out := string(b)
+	if len(notices) > 0 {
+		var replaced []string
+		out, replaced = withNotices(out, notices)
+		for _, r := range replaced {
+			fmt.Fprintf(os.Stderr, "licenses: %s: replaced a licence comment that is not its source's:\n%s\n", path, r)
 		}
 	}
-	// Only the Rhino-derived files are dual-licensed; everything else
-	// Closure ships is Apache 2.0.
-	if portLine < 0 || !strings.HasPrefix(javaPath, "com/google/javascript/rhino/") {
-		return false, nil
-	}
-	src, err := javaSource(javaPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "licenses: warning: %s: %v\n", path, err)
-		return false, nil
-	}
-	notice, dual, err := mplOnlyNotice(src)
-	if err != nil {
-		return false, fmt.Errorf("%s: %v", javaPath, err)
-	}
-	if !dual {
-		return false, nil
-	}
-	// The licence block already in the Go file, if any: a /* ... */ comment
-	// right after the "// Port of" line (blank lines allowed) that mentions a
-	// licence.
-	head := strings.Join(lines[:portLine+1], "")
-	rest := strings.Join(lines[portLine+1:], "")
-	trimmed := strings.TrimLeft(rest, "\n")
-	if strings.HasPrefix(trimmed, "/*") {
-		if end := strings.Index(trimmed, "*/"); end >= 0 {
-			block := trimmed[:end+2]
-			if strings.Contains(block, "LICENSE BLOCK") || strings.Contains(block, "Mozilla Public License") {
-				trimmed = strings.TrimLeft(trimmed[end+2:], "\n")
-			}
-		}
-	}
-	out := head + "\n" + notice + "\n\n" + trimmed
 	// A file that ports several Java files carries a notice for each; give
-	// the later ones the same treatment.
+	// any dual-licence one the MPL-only treatment.
 	out, err = mplOnlyBlocks(out)
 	if err != nil {
 		return false, err
@@ -324,10 +326,26 @@ func mplOnlyNotice(src []byte) (string, bool, error) {
 
 // javaSource reads a Java file of the pinned Closure release: main sources
 // from .cache/closure-src, test sources from .cache/closure-test-src
-// (fetched from GitHub on first use).
+// (fetched from GitHub on first use). A "test/" or "src/" prefix of p says
+// which directory of the repository holds it.
 func javaSource(p string) ([]byte, error) {
+	dirs := []string{"test", "src"}
+	switch {
+	case strings.HasPrefix(p, "test/"):
+		dirs = dirs[:1]
+	case strings.HasPrefix(p, "src/"):
+		dirs = dirs[1:]
+	}
+	p = canonical(p)
 	if b, err := os.ReadFile(filepath.Join(".cache", "closure-src", p)); err == nil {
 		return b, nil
+	}
+	// The sources jar holds CommandLineRunnerVersion.java, which the build
+	// generates, at its root.
+	if b, err := os.ReadFile(filepath.Join(".cache", "closure-src", path.Base(p))); err == nil {
+		if pkg := strings.ReplaceAll(path.Dir(p), "/", "."); bytes.Contains(b, []byte("package "+pkg+";")) {
+			return b, nil
+		}
 	}
 	cached := filepath.Join(".cache", "closure-test-src", p)
 	if b, err := os.ReadFile(cached); err == nil {
@@ -336,7 +354,7 @@ func javaSource(p string) ([]byte, error) {
 	// Test sources live under test/; test-only helpers such as
 	// rhino/testing live under src/ but are left out of the sources jar.
 	var errs []string
-	for _, dir := range []string{"test", "src"} {
+	for _, dir := range dirs {
 		url := "https://raw.githubusercontent.com/google/closure-compiler/" + tag + "/" + dir + "/" + p
 		b, err := fetch(url)
 		if err != nil {
