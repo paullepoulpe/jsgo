@@ -45,6 +45,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/colors"
@@ -2831,29 +2832,43 @@ var Node_propMapForEqualityKeys = jutil.NewEnumSet(Node_PROP_MAP_FOR_EQUALITY.Ke
 // the name and properties.
 //
 // Java: Node.getQualifiedName()
+//
+// Go-only: performance — the body is in getQualifiedNameString, so that this
+// wrapper inlines: a caller that only reads the result keeps the string
+// header on its stack instead of the heap (these headers were 6% of
+// checks-only's allocations).
 func (n *Node) GetQualifiedName() *string {
+	s, ok := n.getQualifiedNameString()
+	if !ok {
+		return nil
+	}
+	return &s
+}
+
+// getQualifiedNameString is the body of getQualifiedName; ok is false
+// where Java returns null.
+func (n *Node) getQualifiedNameString() (string, bool) {
 	switch n.token {
 	case Token_NAME:
 		name := n.GetString()
 		if name == "" {
-			return nil
+			return "", false
 		}
-		return &name
+		return name, true
 	case Token_GETPROP:
 		builder := n.GetQualifiedNameForGetProp(0)
 		if builder != nil {
-			s := builder.String()
-			return &s
+			// Go-only: performance — builder.toString() without a copy, as
+			// strings.Builder.String does: nothing writes to builder after.
+			return unsafe.String(unsafe.SliceData(builder), len(builder)), true
 		}
-		return nil
+		return "", false
 	case Token_THIS:
-		s := "this"
-		return &s
+		return "this", true
 	case Token_SUPER:
-		s := "super"
-		return &s
+		return "super", true
 	default:
-		return nil
+		return "", false
 	}
 }
 
@@ -2872,27 +2887,31 @@ func (n *Node) GetQualifiedNameObject() QualifiedName {
 // StringBuilder. Returns null if this is not a qualified name or a
 // StringBuilder if it is a complex qualified name.
 //
+// Go-only: performance — the StringBuilder is a byte slice (nil for null),
+// filled with append: one allocation, made at the full size, instead of a
+// heap strings.Builder and its buffer; the left name is read without
+// boxing it (getQualifiedNameString).
+//
 // Java: Node.getQualifiedNameForGetProp(int)
-func (n *Node) GetQualifiedNameForGetProp(reserve int) *strings.Builder {
+func (n *Node) GetQualifiedNameForGetProp(reserve int) []byte {
 	propName := n.GetString()
 	reserve += 1 + len(propName) // +1 for the '.'
-	var builder *strings.Builder
+	var builder []byte
 	if n.first.IsGetProp() {
 		builder = n.first.GetQualifiedNameForGetProp(reserve)
 		if builder == nil {
 			return nil
 		}
 	} else {
-		left := n.first.GetQualifiedName()
-		if left == nil {
+		left, ok := n.first.getQualifiedNameString()
+		if !ok {
 			return nil
 		}
-		builder = &strings.Builder{}
-		builder.Grow(len(*left) + reserve)
-		builder.WriteString(*left)
+		builder = make([]byte, 0, len(left)+reserve)
+		builder = append(builder, left...)
 	}
-	builder.WriteByte('.')
-	builder.WriteString(propName)
+	builder = append(builder, '.')
+	builder = append(builder, propName...)
 	return builder
 }
 
