@@ -565,3 +565,16 @@ Decided by the repository owner:
   Java's. Tests compare the gzip header and the decompressed content byte
   for byte (`tools/clie2e/gzipcmp.go`; PORTING.md §7,
   `tools/oracle/README.md` "Compressed output").
+- **Non-deterministic Java behaviour is not matched.** Where the Java
+  compiler's output depends on something that can change from one JVM run
+  to the next (identity hash codes, such as the iteration order of a
+  `HashMap`/`HashMultimap` keyed by `Node`, or timing and thread
+  scheduling), there is no Java output to match, and the port does not try
+  to reproduce one: it uses the translated structure's deterministic
+  order (insertion order for identity-keyed hash maps). An oracle that
+  hits such a spot pins the JVM to one deterministic order instead
+  (`-XX:hashCode=2`, which makes identity-hashed maps iterate in
+  insertion order, as the polymer_j2cl goldens do) or compares
+  order-insensitively. A parity difference counts as this case only when
+  Java itself gives different outputs across runs or `-XX:hashCode`
+  settings; deterministic Java behaviour is still matched exactly.
