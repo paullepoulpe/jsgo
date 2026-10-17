@@ -361,6 +361,17 @@ func StringRegionMatches(s string, toffset int, other string, ooffset int, lengt
 // StringLastIndexOfCharFrom is String.lastIndexOf(int ch, int fromIndex)
 // for a BMP character, with UTF-16 indices.
 func StringLastIndexOfCharFrom(s string, ch uint16, fromIndex int) int {
+	// Go-only: performance — on an ASCII string, UTF-16 indices are byte
+	// offsets.
+	if ch < 0x80 && isASCII(s) {
+		if fromIndex >= len(s) {
+			fromIndex = len(s) - 1
+		}
+		if fromIndex < 0 {
+			return -1
+		}
+		return strings.LastIndexByte(s[:fromIndex+1], byte(ch))
+	}
 	u := StringToUTF16(s)
 	if fromIndex >= len(u) {
 		fromIndex = len(u) - 1
@@ -393,6 +404,39 @@ func StringIndexOfChar(s string, ch uint16) int {
 // StringIndexOfCharFrom is String.indexOf(int ch, int fromIndex) for a BMP
 // character.
 func StringIndexOfCharFrom(s string, ch uint16, fromIndex int) int {
+	// Go-only: performance — for an ASCII char, search the bytes instead of
+	// converting all of s to UTF-16 on every call (callers loop over the
+	// occurrences, which made them quadratic). An ASCII byte is always a
+	// code point of its own, so its UTF-16 index is that of the code point
+	// where the search starts plus the length of what lies in between.
+	if ch < 0x80 {
+		if fromIndex < 0 {
+			fromIndex = 0
+		}
+		// Skip the code points before fromIndex. A code point straddling
+		// fromIndex (a surrogate pair) is skipped too: its low surrogate is
+		// not ch.
+		i, u := 0, 0
+		for i < len(s) && u < fromIndex {
+			if s[i] < 0x80 {
+				i++
+				u++
+				continue
+			}
+			r, size := decodeWTF8(s[i:])
+			i += size
+			if r >= 0x10000 {
+				u += 2
+			} else {
+				u++
+			}
+		}
+		j := strings.IndexByte(s[i:], byte(ch))
+		if j < 0 {
+			return -1
+		}
+		return u + StringLength(s[i:i+j])
+	}
 	u := StringToUTF16(s)
 	if fromIndex < 0 {
 		fromIndex = 0
