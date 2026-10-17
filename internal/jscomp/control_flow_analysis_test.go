@@ -36,7 +36,7 @@ import (
 // Java: ControlFlowAnalysisTest.testCfg(String, String, boolean)
 func cfaTestCfg(t *testing.T, input string, expected string, shouldTraverseFunctions bool) {
 	t.Helper()
-	compiler := newTestCompiler(NewCompilerOptions())
+	compiler := NewCompiler()
 	root := compiler.ParseSyntheticCode("cfgtest", input)
 
 	cfg := ControlFlowAnalysis_Builder_().
@@ -46,9 +46,9 @@ func cfaTestCfg(t *testing.T, input string, expected string, shouldTraverseFunct
 		SetIncludeEdgeAnnotations(true).
 		ComputeCfg()
 
-	// assertThat(DotFormatter.toDot(root, cfg)).isEqualTo(expected);
-	_, _ = cfg, expected
-	t.Skip("needs DotFormatter")
+	if got := DotFormatter_ToDotWithCfg(root, cfg); got != expected {
+		t.Errorf("DotFormatter.toDot(root, cfg):\n%s\nwant:\n%s", got, expected)
+	}
 }
 
 // cfaGetAllEdges gets all the edges of the graph.
@@ -239,12 +239,11 @@ func cfaAssertNoReturnEdge(t *testing.T, cfg ControlFlowGraph[*rhino.Node], star
 // Java: ControlFlowAnalysisTest.createCfg(String, boolean), createCfg(String)
 func cfaTestCreateCfg(t *testing.T, input string, runSynBlockPass bool) ControlFlowGraph[*rhino.Node] {
 	t.Helper()
-	compiler := newTestCompiler(NewCompilerOptions())
+	compiler := NewCompiler()
 	root := compiler.ParseSyntheticCode("cfgtest", input)
 	if runSynBlockPass {
-		// CreateSyntheticBlocks pass = new CreateSyntheticBlocks(compiler, "START", "END");
-		// pass.process(null, root);
-		t.Skip("needs CreateSyntheticBlocks")
+		pass := NewCreateSyntheticBlocks(compiler, "START", "END")
+		pass.Process(nil, root)
 	}
 	return ControlFlowAnalysis_Builder_().
 		SetCompiler(compiler).
@@ -1404,7 +1403,7 @@ func TestControlFlowAnalysis_SynBlock(t *testing.T) {
 }
 
 func TestControlFlowAnalysis_PartialTraversalOfScope(t *testing.T) {
-	compiler := newTestCompiler(NewCompilerOptions())
+	compiler := NewCompiler()
 
 	script1 := compiler.ParseSyntheticCode("cfgtest", "var foo;")
 	script2 := compiler.ParseSyntheticCode("cfgtest2", "var bar;")
@@ -1708,7 +1707,7 @@ alert(action)
 
 func TestControlFlowAnalysis_CfgRootedAtEmptyFunctionDeclaration(t *testing.T) {
 	src := "function fn() {}"
-	compiler := newTestCompiler(NewCompilerOptions())
+	compiler := NewCompiler()
 	globalRoot := compiler.ParseSyntheticCode("cfgtest", src)
 	fnRoot := cfaFindNodes(t, globalRoot, (*rhino.Node).IsFunction)[0]
 
@@ -1720,7 +1719,7 @@ func TestControlFlowAnalysis_CfgRootedAtEmptyFunctionDeclaration(t *testing.T) {
 
 func TestControlFlowAnalysis_CfgRootedAtFunctionDeclarationWithSingleStatement(t *testing.T) {
 	src := "function fn() {  alert(3); }"
-	compiler := newTestCompiler(NewCompilerOptions())
+	compiler := NewCompiler()
 	globalRoot := compiler.ParseSyntheticCode("cfgtest", src)
 	fnRoot := cfaFindNodes(t, globalRoot, (*rhino.Node).IsFunction)[0]
 
@@ -1733,7 +1732,7 @@ func TestControlFlowAnalysis_CfgRootedAtFunctionDeclarationWithSingleStatement(t
 
 func TestControlFlowAnalysis_CfgRootedAtEmptyClassStaticBlock(t *testing.T) {
 	src := "class C { static {} }"
-	compiler := newTestCompiler(NewCompilerOptions())
+	compiler := NewCompiler()
 	globalRoot := compiler.ParseSyntheticCode("cfgtest", src)
 	staticBlock := cfaFindNodes(t, globalRoot, (*rhino.Node).IsBlock)[0]
 
@@ -1744,7 +1743,7 @@ func TestControlFlowAnalysis_CfgRootedAtEmptyClassStaticBlock(t *testing.T) {
 
 func TestControlFlowAnalysis_CfgRootedAtClassStaticBlockSingleStatementAndSubsequentMembers(t *testing.T) {
 	src := "class C { static { alert(0); } x = 0; fn() {} }"
-	compiler := newTestCompiler(NewCompilerOptions())
+	compiler := NewCompiler()
 	globalRoot := compiler.ParseSyntheticCode("cfgtest", src)
 	staticBlock := cfaFindNodes(t, globalRoot, (*rhino.Node).IsBlock)[0]
 
@@ -1765,7 +1764,7 @@ func TestControlFlowAnalysis_CfgRootedAtClassStaticBlockMultipleStatementAndSubs
   fn(){}
 }
 `
-	compiler := newTestCompiler(NewCompilerOptions())
+	compiler := NewCompiler()
 	globalRoot := compiler.ParseSyntheticCode("cfgtest", src)
 	staticBlocks := cfaFindNodes(t, globalRoot, NodeUtil_IsClassStaticBlock)
 	if len(staticBlocks) != 2 {
