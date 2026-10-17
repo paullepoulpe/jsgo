@@ -45,3 +45,23 @@ func TestObjectsEqualsOfDoesNotBoxStrings(t *testing.T) {
 		t.Errorf("%v allocations per call", n)
 	}
 }
+
+// IdentityHashCodeOfPointer gives IdentityHashCode's value without
+// allocating.
+func TestIdentityHashCodeOfPointer(t *testing.T) {
+	type node struct{ a, b int }
+	ns := make([]*node, 64)
+	for i := range ns {
+		ns[i] = &node{a: i}
+		if got, want := IdentityHashCodeOfPointer(ns[i]), IdentityHashCode(ns[i]); got != want {
+			t.Fatalf("IdentityHashCodeOfPointer = %d, IdentityHashCode = %d", got, want)
+		}
+	}
+	var none *node
+	if got, want := IdentityHashCodeOfPointer(none), IdentityHashCode(none); got != want || got != 0 {
+		t.Fatalf("nil: IdentityHashCodeOfPointer = %d, IdentityHashCode = %d", got, want)
+	}
+	if n := testing.AllocsPerRun(100, func() { _ = IdentityHashCodeOfPointer(ns[3]) }); n != 0 {
+		t.Fatalf("allocated %v times", n)
+	}
+}
