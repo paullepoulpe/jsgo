@@ -2,7 +2,7 @@ package jutil
 
 // Clear is Set.clear() for ObjectLinkedHashSet.
 func (s *ObjectLinkedHashSet[T]) Clear() {
-	s.m = NewObjectLinkedHashMap[T, struct{}]()
+	s.m = ObjectLinkedHashMap[T, struct{}]{}
 }
 
 // Clear is Map.clear() for ObjectLinkedHashMap.
