@@ -327,10 +327,102 @@ func init() {
 			"--charset=US-ASCII --formatting=PRETTY_PRINT",
 			"--json_streams=OUT",
 			"--json_streams=OUT --create_source_map=%res%/out.js.map")},
+
+		// A pairwise covering array of the important flags: every pair of
+		// values of two of them is in some variant.
+		{name: "f-pairwise", args: lax, variants: pairwise([][]string{
+			{"-O WHITESPACE_ONLY", "-O SIMPLE", "-O ADVANCED --jscomp_off=undefinedVars"},
+			{"", "--language_out=ECMASCRIPT3", "--language_out=ECMASCRIPT5", "--language_out=ECMASCRIPT_2015", "--language_out=ECMASCRIPT_2017", "--language_out=ECMASCRIPT_2019", "--language_out=ECMASCRIPT_2021", "--language_out=NO_TRANSPILE"},
+			{"", "--formatting=PRETTY_PRINT", "--formatting=SINGLE_QUOTES", "--formatting=PRINT_INPUT_DELIMITER"},
+			{"-W QUIET", "", "-W VERBOSE"},
+			{"", "--rewrite_polyfills=false"},
+			{"", "--inject_libraries=false"},
+			{"", "--debug"},
+			{"", "--strict_mode_input=false"},
+			{"", "--emit_use_strict"},
+			{"", "--use_types_for_optimization=false"},
+			{"", "--assume_static_inheritance_is_not_used=false"},
+			{"", "--process_closure_primitives=false"},
+			{"", "-D goog.DEBUG=false", "--define=ns.N=3", "--define=ns.S='s'"},
+		})},
 	}
 	for i := range flagConfigs {
 		flagConfigs[i].group = "flags"
 		flagConfigs[i].optIn = true
 	}
 	sweepConfigs = append(sweepConfigs, flagConfigs...)
+}
+
+// pairwise returns rows (variants) that cover every pair of values of two
+// factors, greedily: each row starts from the first pair not covered yet
+// and takes, for every other factor in turn, the value that covers the most
+// pairs not covered yet with the values already chosen. Deterministic.
+func pairwise(factors [][]string) [][]string {
+	type pair struct{ f1, v1, f2, v2 int }
+	covered := map[pair]bool{}
+	left := 0
+	for f1 := range factors {
+		for f2 := f1 + 1; f2 < len(factors); f2++ {
+			left += len(factors[f1]) * len(factors[f2])
+		}
+	}
+	var rows [][]string
+	for left > 0 {
+		row := make([]int, len(factors))
+		for i := range row {
+			row[i] = -1
+		}
+		// The first pair not covered.
+	first:
+		for f1 := range factors {
+			for f2 := f1 + 1; f2 < len(factors); f2++ {
+				for v1 := range factors[f1] {
+					for v2 := range factors[f2] {
+						if !covered[pair{f1, v1, f2, v2}] {
+							row[f1], row[f2] = v1, v2
+							break first
+						}
+					}
+				}
+			}
+		}
+		for f := range factors {
+			if row[f] >= 0 {
+				continue
+			}
+			best, bestGain := 0, -1
+			for v := range factors[f] {
+				gain := 0
+				for g := range factors {
+					if g == f || row[g] < 0 {
+						continue
+					}
+					p := pair{g, row[g], f, v}
+					if f < g {
+						p = pair{f, v, g, row[g]}
+					}
+					if !covered[p] {
+						gain++
+					}
+				}
+				if gain > bestGain {
+					best, bestGain = v, gain
+				}
+			}
+			row[f] = best
+		}
+		var args []string
+		for f1 := range factors {
+			args = append(args, split(factors[f1][row[f1]])...)
+			for f2 := f1 + 1; f2 < len(factors); f2++ {
+				p := pair{f1, row[f1], f2, row[f2]}
+				if !covered[p] {
+					covered[p] = true
+					left--
+				}
+			}
+		}
+		rows = append(rows, args)
+	}
+	return rows
 }
