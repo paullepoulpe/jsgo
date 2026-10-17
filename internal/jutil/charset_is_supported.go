@@ -48,24 +48,9 @@ func requireLegalCharsetName(name string) {
 }
 
 // Charset_IsSupported is Charset.isSupported(String): whether the named
-// charset is supported, throwing IllegalCharsetNameException for an illegal
-// name.
-//
-// Go-only: language-adapter — only the standard charsets (charset.go) are
-// supported; a JDK also supports many others (windows-1252, Shift_JIS, ...),
-// for which this returns false.
+// charset is supported (charset_registry.go), throwing
+// IllegalCharsetNameException for an illegal name.
 func Charset_IsSupported(charsetName string) bool {
 	requireLegalCharsetName(charsetName)
-	lower := StringToLowerCaseASCII(charsetName)
-	for _, c := range standardCharsets {
-		if lower == StringToLowerCaseASCII(c.name) {
-			return true
-		}
-		for _, a := range c.aliases {
-			if lower == StringToLowerCaseASCII(a) {
-				return true
-			}
-		}
-	}
-	return false
+	return charsetLookup(charsetName) != nil
 }

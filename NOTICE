@@ -88,6 +88,16 @@ args4j 2.33 -- MIT License (LICENSES/MIT-args4j.txt)
   command-line tools use.
 
 
+Go module dependencies (go.mod), linked into the programs that use them
+  golang.org/x/text v0.34.0 -- BSD 3-Clause License
+  (LICENSES/BSD-3-Clause-golang-x-text.txt)
+    Copyright 2009 The Go Authors.
+    Used, not copied: internal/jutil reads the character-set tables of
+    its golang.org/x/text/encoding packages (charmap, japanese, korean,
+    simplifiedchinese, traditionalchinese) to build the charsets of
+    java.nio.charset.Charset (internal/jutil/charset_*.go).
+
+
 Test data
   internal/resources/testdata/properties_parser.txt contains a copy of
   org/apache/tools/ant/taskdefs/defaults.properties from Apache Ant 1.10.11

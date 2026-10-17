@@ -72,6 +72,11 @@ func requiredFiles() []string {
 			files = append(files, u.text)
 		}
 	}
+	for _, m := range modules {
+		if !slices.Contains(files, m.text) {
+			files = append(files, m.text)
+		}
+	}
 	return files
 }
 

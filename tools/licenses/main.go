@@ -35,6 +35,8 @@
 //     ".../testdata/.../src/<name>@<version>/" directory, holds the
 //     package's licence file (LICENSE, LICENSE.txt, licenses.md, ...)
 //     directly (packages.go);
+//   - every module that go.mod requires is listed in modules.go, and NOTICE
+//     names it at the required version (modules.go);
 //   - NOTICE and the licence texts under LICENSES/ exist.
 //
 // Usage:
@@ -135,6 +137,7 @@ func main() {
 		}
 	}
 	problems = append(problems, checkPackageLicences(files)...)
+	problems = append(problems, checkModuleNotices()...)
 	problems = append(problems, checkRequiredFiles()...)
 	if len(bad) > 0 {
 		fmt.Fprintf(os.Stderr, "licenses: %d tracked files mention the GPL (PORTING.md: no GPL code, anywhere):\n", len(bad))
@@ -163,7 +166,7 @@ func main() {
 			counts = append(counts, fmt.Sprintf("%s %d", u.project, n))
 		}
 	}
-	fmt.Printf("licenses: no tracked file mentions the GPL or one of the %d excluded corpus files (gzip and zip files decompressed, %d other binary files skipped); third-party notices present (%s); test-data packages licensed; NOTICE and LICENSES/ present\n", len(excluded), skipped, strings.Join(counts, ", "))
+	fmt.Printf("licenses: no tracked file mentions the GPL or one of the %d excluded corpus files (gzip and zip files decompressed, %d other binary files skipped); third-party notices present (%s); test-data packages licensed; %d module dependencies in NOTICE; NOTICE and LICENSES/ present\n", len(excluded), skipped, strings.Join(counts, ", "), len(modules))
 }
 
 func trackedFiles() ([]string, error) {

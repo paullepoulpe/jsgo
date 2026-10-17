@@ -34,9 +34,6 @@ func TestCliVectors(t *testing.T) {
 			var got string
 			Try(func() { got = strconv.FormatBool(Charset_IsSupported(parts[1])) }, func(e Throwable) { got = e.Error() })
 			want := parts[2]
-			if parts[1] == "windows-1252" {
-				want = "false" // Go-only: only the standard charsets are supported.
-			}
 			if got != want && !(strings.HasPrefix(want, "java.nio.charset.IllegalCharsetNameException") && strings.HasPrefix(got, "java.nio.charset.IllegalCharsetNameException")) {
 				t.Errorf("isSupported(%q) = %s, want %s", parts[1], got, want)
 			}
