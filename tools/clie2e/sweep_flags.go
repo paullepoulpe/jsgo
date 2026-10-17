@@ -51,22 +51,23 @@ func variants(ss ...string) [][]string {
 // diagnosticGroups are DiagnosticGroups.getRegisteredGroups() of the
 // pinned compiler, in registration order: what --jscomp_error,
 // --jscomp_warning and --jscomp_off accept besides "*".
-var diagnosticGroups = split(`untranspilableFeatures moduleLoad moduleImport globalThis deprecated
-underscore visibility accessControls nonStandardJsDocs invalidCasts strictModuleDepCheck
-violatedModuleDep externsValidation unknownDefines tweakValidation missingOverride
+var diagnosticGroups = split(`untranspilableFeatures moduleLoad moduleImport globalThis deprecated underscore visibility
+accessControls nonStandardJsDocs invalidCasts strictModuleDepCheck violatedModuleDep
+externsValidation unknownDefines defineWithoutGoogDefine tweakValidation missingOverride
 missingProperties globallyMissingProperties j2clChecks missingReturn undefinedVars
 checkDebuggerStatement checkRegExp checkTypes checkEs5InheritanceCorrectnessConditions
 checkPrototypalTypes tooManyTypeParams strictMissingProperties strictPrimitiveOperators
 strictCheckTypes reportUnknownTypes checkVars uselessCode const constantProperty
-accessControlsConst typeInvalidation duplicate es5Strict missingProvide unrecognizedTypeError
-dangerousUnrecognizedTypeError missingRequire missingSourcesWarnings extraRequire
-duplicateMessage msgDescriptions messageConventions misplacedTypeAnnotation
-misplacedMsgAnnotation misplacedSuppress suspiciousCode functionParams deprecatedAnnotations
-unusedLocalVariables jsdocMissingType typeImportCodeReferences partialAlias useOfGoogProvide
-lintVarDeclarations lintChecks strictModuleChecks analyzerChecks closureDepMethodUsageChecks
-closureClassChecks transitionalSuspiciousCodeWarnings conformanceViolations lateProvide
-missingPolyfill polymer boundedGenerics closureUnawareCodeAnnotationPresent polymerBehavior
-invalidProvide conflictingIjsFile implicitWeakEntryPoint artificialFunctionPurityValidation`)
+accessControlsConst typeInvalidation duplicate es5Strict weakModuleGet missingProvide
+unrecognizedTypeError dangerousUnrecognizedTypeError missingRequire missingSourcesWarnings
+extraRequire duplicateMessage msgDescriptions messageConventions misplacedTypeAnnotation
+misplacedMsgAnnotation misplacedSuppress suspiciousCode functionParams
+deprecatedAnnotations unusedLocalVariables jsdocMissingType typeImportCodeReferences
+partialAlias useOfGoogProvide lintVarDeclarations lintChecks strictModuleChecks
+analyzerChecks closureDepMethodUsageChecks closureClassChecks
+transitionalSuspiciousCodeWarnings conformanceViolations lateProvide missingPolyfill
+polymer boundedGenerics closureUnawareCodeAnnotationPresent polymerBehavior invalidProvide
+conflictingIjsFile implicitWeakEntryPoint artificialFunctionPurityValidation`)
 
 // jscompVariants deals the diagnostic groups into 7 blocks; variant i makes
 // block i errors, block i+2 warnings and block i+4 off, the flags
@@ -345,6 +346,33 @@ func init() {
 			{"", "--process_closure_primitives=false"},
 			{"", "-D goog.DEBUG=false", "--define=ns.N=3", "--define=ns.S='s'"},
 		})},
+
+		// Added with v20261015. Appended, so the configurations above keep
+		// their files.
+		//
+		// A global scope assumed isolated (CompilerOptions
+		// .assumeGlobalScopeIsIsolated, which OptimizeLetAndConstPeephole
+		// reads): set by --assume_function_wrapper, --isolation_mode=IIFE
+		// and --chunk_output_type=ES_MODULES, implied by
+		// --rename_prefix_namespace.
+		{name: "f-isolated", args: lax, variants: variants(
+			"-O SIMPLE --isolation_mode=IIFE",
+			"-O SIMPLE --assume_function_wrapper",
+			"-O SIMPLE --chunk_output_type=ES_MODULES",
+			"-O SIMPLE --rename_prefix_namespace=NS",
+			"-O ADVANCED --jscomp_off=undefinedVars --isolation_mode=IIFE",
+			"-O ADVANCED --jscomp_off=undefinedVars --chunk_output_type=ES_MODULES",
+			"-O SIMPLE --isolation_mode=IIFE --language_out=ECMASCRIPT_2015 --formatting=PRETTY_PRINT")},
+		// --typed_ast_output_file (--typed_ast_output_file__INTENRNAL_USE_ONLY
+		// before v20261015, now not a flag): the TypedAST, a gzip file,
+		// compared decompressed.
+		{name: "f-typed-ast", files: 160, args: lax, variants: variants(
+			"--checks_only --typed_ast_output_file=%res%/out.typedast",
+			"--checks_only --env=CUSTOM -W VERBOSE --jscomp_warning=checkTypes --typed_ast_output_file=%res%/out.typedast",
+			"--checks_only --language_out=ECMASCRIPT5 --typed_ast_output_file=%res%/out.typedast",
+			"-O SIMPLE --env=CUSTOM --typed_ast_output_file=%res%/out.typedast",
+			"--checks_only --env=CUSTOM --jscomp_off=missingSourcesWarnings --js "+closureBase+" --typed_ast_output_file=%res%/out.typedast",
+			"--checks_only --typed_ast_output_file__INTENRNAL_USE_ONLY=%res%/out.typedast")},
 	}
 	for i := range flagConfigs {
 		flagConfigs[i].group = "flags"
