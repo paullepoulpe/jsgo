@@ -105,9 +105,21 @@ const EqualityChecker_POTENTIALLY_CYCLIC_RECURSION_DEPTH = 20
 func (c *EqualityChecker) SetEqMethod(x EqualityChecker_EqMethod) *EqualityChecker {
 	c.CheckHasNotRun()
 	jutil.CheckState(c.eqMethod == nil)
-	c.eqMethod = &x
+	// Go-only: performance — the nullable enum points into a shared table
+	// rather than at a fresh copy of x (it is only ever read through).
+	if x >= 0 && int(x) < len(equalityChecker_eqMethods) {
+		c.eqMethod = &equalityChecker_eqMethods[x]
+	} else {
+		c.eqMethod = &x
+	}
 	return c
 }
+
+// equalityChecker_eqMethods holds each EqMethod, for SetEqMethod.
+//
+// Go-only: performance — see SetEqMethod.
+var equalityChecker_eqMethods = [...]EqualityChecker_EqMethod{
+	EqualityChecker_EqMethod_IDENTITY, EqualityChecker_EqMethod_DATA_FLOW}
 
 // Java: EqualityChecker.checkHasNotRun()
 func (c *EqualityChecker) CheckHasNotRun() {
