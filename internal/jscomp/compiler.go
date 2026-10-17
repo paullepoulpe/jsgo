@@ -3479,8 +3479,18 @@ func (b *Compiler_CodeBuilder) GetColumnIndex() int {
 //
 // Java: Compiler.CodeBuilder.endsWith(String)
 func (b *Compiler_CodeBuilder) EndsWith(suffix string) bool {
-	return (b.sb.Length() > jutil.StringLength(suffix)) &&
-		suffix == jutil.StringSubstringFrom(b.sb.String(), b.sb.Length()-jutil.StringLength(suffix))
+	if !(b.sb.Length() > jutil.StringLength(suffix)) {
+		return false
+	}
+	// Go-only: performance — sb.substring(start) copies only the tail;
+	// going through sb.toString() would convert the whole buffer, once per
+	// input when printing input delimiters (quadratic in the output size).
+	start := b.sb.Length() - jutil.StringLength(suffix)
+	tail := make([]uint16, b.sb.Length()-start)
+	for i := range tail {
+		tail[i] = b.sb.CharAt(start + i)
+	}
+	return suffix == jutil.StringFromUTF16(tail)
 }
 
 // ------------------------------------------------------------------------
