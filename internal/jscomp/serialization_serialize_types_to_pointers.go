@@ -1,7 +1,7 @@
 // Port of com/google/javascript/jscomp/serialization/SerializeTypesToPointers.java @ closure-compiler v20260415
 
 /*
- * Copyright 2021 The Closure Compiler Authors.
+ * Copyright 2020 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.

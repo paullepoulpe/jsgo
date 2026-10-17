@@ -2,7 +2,7 @@
 // (test/com/google/javascript/jscomp/UnitTestUtils.java)
 
 /*
- * Copyright 2023 The Closure Compiler Authors.
+ * Copyright 2022 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.

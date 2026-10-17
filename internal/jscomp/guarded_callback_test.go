@@ -2,7 +2,7 @@
 // (test/com/google/javascript/jscomp/GuardedCallbackTest.java)
 
 /*
- * Copyright 2016 The Closure Compiler Authors.
+ * Copyright 2020 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
