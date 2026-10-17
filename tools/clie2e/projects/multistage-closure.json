@@ -1,5 +1,5 @@
 {
-  "description": "Multistage builds across processes (--filename_to_save_to / --filename_to_restore_from with --segment_of_compilation_to_run): Closure Library v20230802 with src/closure-app, ADVANCED, PRUNE from goog:clie2e.exported, in three stages (checks, optimizations, finalizations), in four (the optimizations in halves, which the command line rejects), and chunked in three; the last stage of a chunked build that writes --output_chunk_dependencies throws a NullPointerException in Java (JSChunkGraph.dependencyMap is a final transient field, null after deserialization) and in jsgo, where only the JVM's helpful NullPointerException message differs (Closure Library's @externs file cspviolationobserver_externs.js is left out: a restored compilation must get externs as --externs). Each stage's output is compared; the saved compiler states are intermediate files (Java serialization in Java, the port's own encoding in jsgo), not compared.",
+  "description": "Multistage builds across processes (--filename_to_save_to / --filename_to_restore_from with --segment_of_compilation_to_run): Closure Library v20230802 with src/closure-app, ADVANCED, PRUNE from goog:clie2e.exported, in three stages (checks, optimizations, finalizations), in four (the optimizations in halves, which the command line rejects), and chunked in three, the last stage of one writing --output_chunk_dependencies. Until v20260415 that stage threw a NullPointerException (the chunk graph was Java-serialized, and its transient dependencyMap was null after the restore); since v20261015 the saved state is a JSCompilerStateProto, and the restored compilation keeps the chunk graph that its flags build. Closure Library's @externs file cspviolationobserver_externs.js is left out: a restored compilation must get externs as --externs. Each stage's output is compared, and so are the saved compiler states, decompressed.",
   "links": {
     "inputs": "cache:bench-inputs",
     "src": "repo:tools/clie2e/projects/src/closure-app"
@@ -13,7 +13,6 @@
   "jobs": [
     {
       "name": "three-stages",
-      "intermediate": ["out/checks.state", "out/optimizations.state"],
       "steps": [
         ["--segment_of_compilation_to_run=CHECKS", "--filename_to_save_to=out/checks.state"],
         ["--segment_of_compilation_to_run=OPTIMIZATIONS", "--filename_to_restore_from=out/checks.state",
@@ -24,7 +23,6 @@
     },
     {
       "name": "optimization-halves-rejected",
-      "intermediate": ["out/1.state", "out/2.state", "out/3.state"],
       "steps": [
         ["--segment_of_compilation_to_run=CHECKS", "--filename_to_save_to=out/1.state"],
         ["--segment_of_compilation_to_run=OPTIMIZATIONS_FIRST_HALF", "--filename_to_restore_from=out/1.state",
@@ -37,7 +35,6 @@
     },
     {
       "name": "chunks-three-stages",
-      "intermediate": ["out/checks.state", "out/optimizations.state"],
       "steps": [
         ["{inputs:lib}", "--chunk=base:{count:lib}", "{inputs:app}", "--chunk=app:{count:app}:base",
          "--segment_of_compilation_to_run=CHECKS", "--filename_to_save_to=out/checks.state"],
@@ -52,7 +49,6 @@
     },
     {
       "name": "chunk-dependencies-after-restore",
-      "intermediate": ["out/checks.state", "out/optimizations.state"],
       "steps": [
         ["{inputs:lib}", "--chunk=base:{count:lib}", "{inputs:app}", "--chunk=app:{count:app}:base",
          "--segment_of_compilation_to_run=CHECKS", "--filename_to_save_to=out/checks.state"],

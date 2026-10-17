@@ -114,19 +114,16 @@ type inputSpec struct {
 // Steps, instead of Args, makes a job of several invocations run one after
 // the other in the same workspace (a multistage build: each step's args
 // are expanded like Args). Each step's stdout, stderr and exit status are
-// compared; the output files are compared once all steps have run, except
-// the Intermediate ones, which both sides must write but whose content is
-// not compared: the compiler state that --filename_to_save_to writes is
-// Java serialization in Java and the port's own encoding in jsgo
-// (Compiler.saveState). Any other gzip output file is compared
-// decompressed (gzipcmp.go).
+// compared; the output files are compared once all steps have run. That
+// includes the compiler states that --filename_to_save_to writes
+// (Compiler.saveState: a gzip stream of a JSCompilerStateProto and the
+// TypedAST), compared decompressed like any gzip output file (gzipcmp.go).
 type projectJob struct {
-	Name         string      `json:"name"`
-	Args         []string    `json:"args"`
-	Steps        [][]string  `json:"steps"`
-	Intermediate []string    `json:"intermediate"`
-	Inputs       []inputSpec `json:"inputs"`
-	Stdin        string      `json:"stdin"`
+	Name   string      `json:"name"`
+	Args   []string    `json:"args"`
+	Steps  [][]string  `json:"steps"`
+	Inputs []inputSpec `json:"inputs"`
+	Stdin  string      `json:"stdin"`
 }
 
 // benchTask is the part of a tools/bench/tasks file the suite reads.
@@ -140,11 +137,10 @@ type benchTask struct {
 
 // projJob is a job ready to run.
 type projJob struct {
-	project      *projectFile
-	name         string
-	steps        [][]string // argument vectors
-	intermediate map[string]bool
-	stdin        string
+	project *projectFile
+	name    string
+	steps   [][]string // argument vectors
+	stdin   string
 }
 
 func (j *projJob) id() string { return j.project.Name + "/" + j.name }
@@ -306,10 +302,7 @@ func expandJob(repo string, p *projectFile, pj projectJob) (*projJob, error) {
 	} else if pj.Args != nil {
 		return nil, fmt.Errorf("both args and steps")
 	}
-	j := &projJob{project: p, name: pj.Name, stdin: pj.Stdin, intermediate: map[string]bool{}}
-	for _, f := range pj.Intermediate {
-		j.intermediate[filepath.FromSlash(f)] = true
-	}
+	j := &projJob{project: p, name: pj.Name, stdin: pj.Stdin}
 	for _, sa := range stepArgs {
 		args, err := expandArgs(p, sa, groups, all)
 		if err != nil {
@@ -955,8 +948,6 @@ func classifyProject(javaDir, goDir string, j *projJob) (string, string) {
 			why = append(why, f+" (only jsgo)")
 		case errB != nil:
 			why = append(why, f+" (only Java)")
-		case j.intermediate[f]:
-			// Both wrote it; its content is not compared (see projectJob).
 		case !sameOutput(a, b):
 			why = append(why, f+firstDiff(comparableOutput(a), comparableOutput(b)))
 		}
