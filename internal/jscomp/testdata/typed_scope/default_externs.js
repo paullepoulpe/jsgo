@@ -25,15 +25,23 @@ IIterableResult.prototype.done;
 IIterableResult.prototype.value;
 
 /**
- * @interface
+ * @record
  * @template T, TReturn, TNext
  */
-function Iterator() {}
+function IteratorLike() {}
 /**
  * @param {T=} value
  * @return {!IIterableResult<T>}
  */
-Iterator.prototype.next;
+IteratorLike.prototype.next;
+/**
+ * @type {((function(T=): !IIterableResult<T>)|undefined)}
+ */
+IteratorLike.prototype.return;
+/**
+ * @type {((function(?=): !IIterableResult<T>)|undefined)}
+ */
+IteratorLike.prototype.throw;
 
 /**
  * @interface
@@ -42,22 +50,115 @@ Iterator.prototype.next;
 function Iterable() {}
 
 /**
- * @return {!Iterator<T, ?, *>}}
+ * @return {!IteratorLike<T, ?, *>}
  * @suppress {externsValidation}
  */
 Iterable.prototype[Symbol.iterator] = function() {};
 
 /**
  * @interface
- * @extends {Iterator<T, ?, *>}}
- * @extends {Iterable<T, ?, *>}}
+ * @extends {IteratorLike<T, ?, *>}
+ * @extends {Iterable<T, ?, *>}
  * @template T, TReturn, TNext
  */
 function IteratorIterable() {}
 
 /**
+ * @constructor
+ * @abstract
+ * @implements {IteratorIterable<T, TReturn, TNext>}
+ * @template T, TReturn, TNext
+ * @return {?}
+ */
+function Iterator() {}
+/**
+ * @param {string|!Iterable<T>|!IteratorLike<T>} iterable
+ * @return {!Iterator<T>}
+ * @template T
+ */
+Iterator.from = function(iterable) {};
+/**
+ * @override
+ * @param {?=} value
+ * @return {!IIterableResult<T>}
+ */
+Iterator.prototype.next;
+/**
+ * @type {((function(T=): !IIterableResult<T>)|undefined)}
+ */
+Iterator.prototype.return;
+/**
+ * @type {((function(?=): !IIterableResult<T>)|undefined)}
+ */
+Iterator.prototype.throw;
+/**
+ * @override
+ * @return {!Iterator<T, TReturn, TNext>}
+ * @suppress {externsValidation}
+ */
+Iterator.prototype[Symbol.iterator] = function() {};
+/**
+ * @template U
+ * @param {function(T, number): U} mapperFn
+ * @return {!Iterator<U>}
+ */
+Iterator.prototype.map;
+/**
+ * @param {function(T, number): *} filtererFn
+ * @return {!Iterator<T>}
+ */
+Iterator.prototype.filter;
+/**
+ * @param {number} limit
+ * @return {!Iterator<T>}
+ */
+Iterator.prototype.take;
+/**
+ * @param {number} limit
+ * @return {!Iterator<T>}
+ */
+Iterator.prototype.drop;
+/**
+ * @template U
+ * @param {function(T, number): (!Iterable<U>|!IteratorLike<U>|!Iterator<U>)} mapperFn
+ * @return {!Iterator<U>}
+ */
+Iterator.prototype.flatMap;
+/**
+ * @template U
+ * @param {function(U, T, number): U} reducerFn
+ * @param {U=} initialValue
+ * @return {U}
+ */
+Iterator.prototype.reduce;
+/**
+ * @return {!Array<T>}
+ */
+Iterator.prototype.toArray;
+/**
+ * @param {function(T, number): *} callbackFn
+ * @return {void}
+ */
+Iterator.prototype.forEach;
+/**
+ * @param {function(T, number): *} predicate
+ * @return {boolean}
+ */
+Iterator.prototype.some;
+/**
+ * @param {function(T, number): *} predicate
+ * @return {boolean}
+ */
+Iterator.prototype.every;
+/**
+ * @param {function(T, number): *} predicate
+ * @return {T|undefined}
+ */
+Iterator.prototype.find;
+
+/**
  * @interface
- * @extends {IteratorIterable<T, ?, *>}}
+ * @extends {IteratorIterable<T, ?, *>}
  * @template T, TReturn, TNext
  */
 function Generator() {}
@@ -68,12 +169,12 @@ function Generator() {}
  */
 Generator.prototype.next = function(opt_value) {};
 /**
- * @param {T} value
+ * @param {T=} value
  * @return {!IIterableResult<T>}
  */
 Generator.prototype.return = function(value) {};
 /**
- * @param {?} exception
+ * @param {?=} exception
  * @return {!IIterableResult<T>}
  */
 Generator.prototype.throw = function(exception) {};
