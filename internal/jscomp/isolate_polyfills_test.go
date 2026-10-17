@@ -532,3 +532,34 @@ $jscomp.polyfill('String.prototype.endsWith', 'es6', 'es5');
       .call($jscomp$polyfillTmp, y);
 `))
 }
+
+// Java: IsolatePolyfillsTest.testOptChainMethodCallOnPlainGetProp()
+func (c *IsolatePolyfillsTest) TestOptChainMethodCallOnPlainGetProp() {
+	// TODO(b/571890155): silent miscompile for x.includes?.(y)
+	c.AddLibrary("String.prototype.includes", "es6", "es5", jutil.StringPtr("es6/string/includes"))
+	c.TestWithPolyfills(
+		"x.includes?.(y);", "$jscomp$lookupPolyfilledValue(x, 'includes').call?.(x, y);")
+}
+
+// Java: IsolatePolyfillsTest.testOptChainNonCallContinuation()
+func (c *IsolatePolyfillsTest) TestOptChainNonCallContinuation() {
+	// TODO(b/571890155): semantic bug caught by AstValidator.validateFirstNodeOfOptChain
+	c.AddLibrary("String.prototype.includes", "es6", "es5", jutil.StringPtr("es6/string/includes"))
+	e :=
+		AssertThrows[jutil.IRuntimeException](func() { c.TestSameWithPolyfills("x?.includes.bind(x);") })
+	// Throwables.getRootCause(e)
+	var root jutil.Throwable = e
+	for root.GetCause() != nil {
+		root = root.GetCause()
+	}
+	IsInstanceOf[jutil.IIllegalStateException](AssertThat(root))
+	AssertThat(root.GetMessage()).
+		Contains("Start of optional chain node OPTCHAIN_GETPROP is not marked as the start")
+}
+
+// Java: IsolatePolyfillsTest.testOptChainOnGlobalPolyfill()
+func (c *IsolatePolyfillsTest) TestOptChainOnGlobalPolyfill() {
+	// TODO(b/571890155): replaces window?.Map with $jscomp.polyfills['Map'] instead of preserving ?.
+	c.AddLibrary("Map", "es6", "es5", jutil.StringPtr("es6/map"))
+	c.TestWithPolyfills("alert(window?.Map);", "alert($jscomp.polyfills['Map']);")
+}

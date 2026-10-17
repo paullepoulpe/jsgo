@@ -714,3 +714,12 @@ func (c *GenerateExportsTest) TestDoesNotRequireExportSymbolConvention_ifNoExpor
 
 	c.TestSame(c.Srcs("function Foo() {}"))
 }
+
+// Java: GenerateExportsTest.testFindExportableNodes()
+func (c *GenerateExportsTest) TestFindExportableNodes() {
+	compiler := NewCompiler()
+	root := compiler.ParseTestCode("/** @export */ function Foo() {}")
+	pass := NewFindExportableNodes(compiler, true)
+	NodeTraversal_Traverse(compiler, root, pass)
+	AssertThat(pass.GetExports()).IsNotEmpty()
+}

@@ -1098,14 +1098,14 @@ func (c *ExternExportsPassTest) Test_exportGeneratorFunction() {
 
 /**
  * @param {number} a
- * @return {!Iterator<number>}
+ * @return {!IteratorLike<number>}
  */
 internalName = function *(a) { yield a; };
 goog.exportSymbol('externalName', internalName)
 `,
 		`/**
  * @param {number} a
- * @return {!Iterator<number,?,?>}
+ * @return {!IteratorLike<number,?,?>}
  */
 var externalName = function(a) {
 };

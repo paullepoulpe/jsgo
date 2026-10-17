@@ -406,3 +406,13 @@ func (c *CheckSideEffectsTest) TestIgnoresRuntimeLibRequireStatementsOnly() {
 		c.Srcs(SourceFile_FromCode("other/file.js", "'require base'")),
 		c.Warning(CheckSideEffects_USELESS_CODE_ERROR))
 }
+
+// Java: CheckSideEffectsTest.testToStringWithRadixIsUselessCode()
+func (c *CheckSideEffectsTest) TestToStringWithRadixIsUselessCode() {
+	c.TestWarning("({}).toString(16);", c.e)
+}
+
+// Java: CheckSideEffectsTest.testOptionalChainToStringWithRadixIsUselessCode()
+func (c *CheckSideEffectsTest) TestOptionalChainToStringWithRadixIsUselessCode() {
+	c.TestWarning("({})?.toString(16);", c.e)
+}

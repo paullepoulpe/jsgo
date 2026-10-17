@@ -69,6 +69,14 @@ func (c *CheckAccessControlsTest) GetOptions() *CompilerOptions {
 	return options
 }
 
+// Java: CheckAccessControlsTest.testPrivateConstructor_propertyAccess()
+func (c *CheckAccessControlsTest) TestPrivateConstructor_propertyAccess() {
+	// AccessControlUtils handles visibility modifiers.
+	c.TestError(
+		c.Srcs("class Foo { /** @private */ constructor() { this.x = 5; } }", "(new Foo()).x;"),
+		CheckAccessControls_BAD_PRIVATE_PROPERTY_ACCESS)
+}
+
 // Java: CheckAccessControlsTest.testOverrideAllowed()
 func (c *CheckAccessControlsTest) TestOverrideAllowed() {
 	c.TestSame(

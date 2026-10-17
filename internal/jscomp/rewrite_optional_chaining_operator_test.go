@@ -338,6 +338,40 @@ label: for (const val of (tmp0 = a) == null ? void 0 : tmp0.b) {
 }
 `,
 		},
+		{
+			`const myObj = {
+  getFun() {
+    return { x: 3 };
+  }
+};
+(0, myObj.getFun)?.().x;
+`,
+			`const myObj = {
+  getFun() {
+    return { x: 3 };
+  }
+};
+let tmp0;
+(tmp0 = myObj.getFun) == null ? void 0 : tmp0().x;
+`,
+		},
+		{
+			`const myObj = {
+  getObj() {
+    return this;
+  }
+};
+(0, myObj?.getObj)();
+`,
+			`const myObj = {
+  getObj() {
+    return this;
+  }
+};
+let tmp0;
+((tmp0 = myObj) == null ? void 0 : tmp0.getObj)();
+`,
+		},
 	}
 }
 

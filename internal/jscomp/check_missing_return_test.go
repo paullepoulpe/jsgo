@@ -404,6 +404,17 @@ function *gen() {
 		CheckMissingReturn_MISSING_RETURN_STATEMENT)
 }
 
+// Java: CheckMissingReturnTest.testGeneratorFunctionWithIteratorLikeSpecifiedReturnType()
+func (c *CheckMissingReturnTest) TestGeneratorFunctionWithIteratorLikeSpecifiedReturnType() {
+	c.TestWarning(
+		`/** @return {!IteratorLike<number, number>} */
+function *gen() {
+ yield 1;
+}
+`,
+		CheckMissingReturn_MISSING_RETURN_STATEMENT)
+}
+
 // Java: CheckMissingReturnTest.testAsyncFunction_noJSDoc()
 func (c *CheckMissingReturnTest) TestAsyncFunction_noJSDoc() {
 	// Note: we add the alert because CheckMissingReturn never warns on functions with empty bodies.

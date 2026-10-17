@@ -103,7 +103,7 @@ func (c *GatherModuleMetadataTest) MetadataMap() *ModuleMetadataMap {
 func (c *GatherModuleMetadataTest) TestGoogProvide() {
 	c.TestSame("goog.provide('my.provide');")
 	AssertThat(gatherModuleMetadataTest_keys(c.MetadataMap().GetModulesByGoogNamespace())).ContainsExactly("my.provide")
-	AssertThat(gatherModuleMetadataTest_keys(c.MetadataMap().GetModulesByPath())).Contains("testcode")
+	AssertThat(c.MetadataMap().GetModulesByPath()).ContainsKey("testcode")
 	m := c.MetadataMap().GetModulesByGoogNamespace().Get("my.provide")
 	AssertThat(gatherModuleMetadataTest_list(m.GoogNamespaces())).ContainsExactly("my.provide")
 	AssertThat(m.IsGoogProvide()).IsTrue()
@@ -132,7 +132,7 @@ func (c *GatherModuleMetadataTest) TestMultipleGoogProvide() {
 	c.TestSame("goog.provide('my.first.provide'); goog.provide('my.second.provide');")
 	AssertThat(gatherModuleMetadataTest_keys(c.MetadataMap().GetModulesByGoogNamespace())).
 		ContainsExactly("my.first.provide", "my.second.provide")
-	AssertThat(gatherModuleMetadataTest_keys(c.MetadataMap().GetModulesByPath())).Contains("testcode")
+	AssertThat(c.MetadataMap().GetModulesByPath()).ContainsKey("testcode")
 	m := c.MetadataMap().GetModulesByGoogNamespace().Get("my.first.provide")
 	AssertThat(gatherModuleMetadataTest_list(m.GoogNamespaces())).ContainsExactly("my.first.provide", "my.second.provide")
 	AssertThat(m.IsGoogProvide()).IsTrue()
@@ -426,7 +426,7 @@ goog.loadModule(function(exports) {
 func (c *GatherModuleMetadataTest) TestEs6Module() {
 	c.TestSame("export var x;")
 	AssertThat(gatherModuleMetadataTest_keys(c.MetadataMap().GetModulesByGoogNamespace())).IsEmpty()
-	AssertThat(gatherModuleMetadataTest_keys(c.MetadataMap().GetModulesByPath())).Contains("testcode")
+	AssertThat(c.MetadataMap().GetModulesByPath()).ContainsKey("testcode")
 	m := c.MetadataMap().GetModulesByPath().Get("testcode")
 	AssertThat(gatherModuleMetadataTest_list(m.GoogNamespaces())).IsEmpty()
 	AssertThat(m.IsEs6Module()).IsTrue()
@@ -745,7 +745,7 @@ func (c *GatherModuleMetadataTest) TestImportedScriptWithEntryPoint() {
 	AssertThat(c.MetadataMap().GetModulesByPath().Get("imported.js").ModuleType()).
 		IsEqualTo(ModuleMetadataMap_ModuleType_ES6_MODULE)
 	// Pruned
-	AssertThat(gatherModuleMetadataTest_keys(c.MetadataMap().GetModulesByPath())).DoesNotContain("notimported.js")
+	AssertThat(c.MetadataMap().GetModulesByPath()).DoesNotContainKey("notimported.js")
 }
 
 // Java: GatherModuleMetadataTest.testImportedScriptWithSortOnly()

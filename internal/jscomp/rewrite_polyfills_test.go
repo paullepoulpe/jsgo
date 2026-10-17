@@ -636,3 +636,15 @@ func (c *RewritePolyfillsTest) TestForceInject_es2015_skipsEs2015Polyfills() {
 
 	c.TestDoesNotInject("")
 }
+
+// Java: RewritePolyfillsTest.testIteratorPolyfill()
+func (c *RewritePolyfillsTest) TestIteratorPolyfill() {
+	c.AddLibrary("Iterator", "es_next", "es3", jutil.StringPtr("es6/iterator"))
+	c.AddLibrary("Iterator.from", "es_next", "es3", jutil.StringPtr("es6/iterator/from"))
+
+	c.SetLanguage(rewritePolyfillsTest_ES_2020, rewritePolyfillsTest_ES3)
+	c.TestInjects("Iterator;", "es6/iterator")
+	c.TestInjects("class MyIter extends Iterator {}", "es6/iterator")
+	c.TestInjects("Iterator.from(x);", "es6/iterator", "es6/iterator/from")
+	c.TestDoesNotInject("")
+}

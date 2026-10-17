@@ -1271,6 +1271,166 @@ func (c *DevirtualizeMethodsTest) TestRewrite_nestedArrow_hasThisBoundCorrectly(
 				"JSCompiler_StaticMethods_bar(x);\n"))
 }
 
+// Java: DevirtualizeMethodsTest.testRewrite_nestedClass_instanceFieldInitializer()
+func (c *DevirtualizeMethodsTest) TestRewrite_nestedClass_instanceFieldInitializer() {
+	c.Test(
+		c.Srcs(
+			`class Foo {
+  bar() {
+    class Nested {
+      val = this;
+    }
+    return new Nested();
+  }
+}
+new Foo().bar();
+`),
+		c.Expected(
+			`var JSCompiler_StaticMethods_bar = function(JSCompiler_StaticMethods_bar$self) {
+  class Nested {
+    val = this;
+  }
+  return new Nested();
+};
+class Foo { }
+JSCompiler_StaticMethods_bar(new Foo());
+`))
+}
+
+// Java: DevirtualizeMethodsTest.testRewrite_nestedClass_computedFieldInitializer()
+func (c *DevirtualizeMethodsTest) TestRewrite_nestedClass_computedFieldInitializer() {
+	c.Test(
+		c.Srcs(
+			`class Foo {
+  bar() {
+    class Nested {
+      ['c'] = this;
+    }
+    return new Nested();
+  }
+}
+new Foo().bar();
+`),
+		c.Expected(
+			`var JSCompiler_StaticMethods_bar = function(JSCompiler_StaticMethods_bar$self) {
+  class Nested {
+    ['c'] = this;
+  }
+  return new Nested();
+};
+class Foo { }
+JSCompiler_StaticMethods_bar(new Foo());
+`))
+}
+
+// Java: DevirtualizeMethodsTest.testRewrite_nestedClass_computedFieldKey()
+func (c *DevirtualizeMethodsTest) TestRewrite_nestedClass_computedFieldKey() {
+	c.Test(
+		c.Srcs(
+			`class Foo {
+  bar() {
+    class Nested {
+      [this.key] = 1;
+    }
+    return new Nested();
+  }
+}
+new Foo().bar();
+`),
+		c.Expected(
+			`var JSCompiler_StaticMethods_bar = function(JSCompiler_StaticMethods_bar$self) {
+  class Nested {
+    [JSCompiler_StaticMethods_bar$self.key] = 1;
+  }
+  return new Nested();
+};
+class Foo { }
+JSCompiler_StaticMethods_bar(new Foo());
+`))
+}
+
+// Java: DevirtualizeMethodsTest.testRewrite_nestedClass_computedFieldKeyAndValue()
+func (c *DevirtualizeMethodsTest) TestRewrite_nestedClass_computedFieldKeyAndValue() {
+	c.Test(
+		c.Srcs(
+			`class Foo {
+  bar() {
+    class Nested {
+      [this.key] = this;
+    }
+    return new Nested();
+  }
+}
+new Foo().bar();
+`),
+		c.Expected(
+			`var JSCompiler_StaticMethods_bar = function(JSCompiler_StaticMethods_bar$self) {
+  class Nested {
+    [JSCompiler_StaticMethods_bar$self.key] = this;
+  }
+  return new Nested();
+};
+class Foo { }
+JSCompiler_StaticMethods_bar(new Foo());
+`))
+}
+
+// Java: DevirtualizeMethodsTest.testRewrite_nestedClass_staticFieldInitializer()
+func (c *DevirtualizeMethodsTest) TestRewrite_nestedClass_staticFieldInitializer() {
+	c.Test(
+		c.Srcs(
+			`class Foo {
+  bar() {
+    class Nested {
+      static val = this;
+    }
+    return Nested;
+  }
+}
+new Foo().bar();
+`),
+		c.Expected(
+			`var JSCompiler_StaticMethods_bar = function(JSCompiler_StaticMethods_bar$self) {
+  class Nested {
+    static val = this;
+  }
+  return Nested;
+};
+class Foo { }
+JSCompiler_StaticMethods_bar(new Foo());
+`))
+}
+
+// Java: DevirtualizeMethodsTest.testRewrite_nestedClass_staticBlock()
+func (c *DevirtualizeMethodsTest) TestRewrite_nestedClass_staticBlock() {
+	c.Test(
+		c.Srcs(
+			`class Foo {
+  bar() {
+    class Nested {
+      static {
+        this.val = 1;
+      }
+    }
+    return Nested;
+  }
+}
+new Foo().bar();
+`),
+		c.Expected(
+			`var JSCompiler_StaticMethods_bar = function(JSCompiler_StaticMethods_bar$self) {
+  class Nested {
+    static {
+      this.val = 1;
+    }
+  }
+  return Nested;
+};
+class Foo { }
+JSCompiler_StaticMethods_bar(new Foo());
+`))
+}
+
 // Java: DevirtualizeMethodsTest.testExistenceOfAGetter_preventsDevirtualization()
 func (c *DevirtualizeMethodsTest) TestExistenceOfAGetter_preventsDevirtualization() {
 	c.DeclareAccessor("foo", AccessorSummary_PropertyAccessKind_GETTER_ONLY)

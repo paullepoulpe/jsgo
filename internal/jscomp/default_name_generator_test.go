@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -183,4 +184,33 @@ func TestDefaultNameGenerator_GenerateWithPriority3(t *testing.T) {
 	ng.Reset(defaultNameGeneratorTest_RESERVED_NAMES, "", noChars())
 	result := generateNames(t, ng, "", 106)
 	assertEqual(t, "0", result[0], "a")
+}
+
+// Java: DefaultNameGeneratorTest.testDeterministicNameGeneration()
+func TestDefaultNameGenerator_DeterministicNameGeneration(t *testing.T) {
+	reservedChars1 := jutil.NewLinkedHashSet[uint16]('a', 'b', 'c')
+	reservedChars2 := jutil.NewLinkedHashSet[uint16]('c', 'b', 'a')
+
+	ng1 := NewDefaultNameGeneratorWithReserved(jutil.NewLinkedHashSet[string](), "", reservedChars1)
+	ng2 := NewDefaultNameGeneratorWithReserved(jutil.NewLinkedHashSet[string](), "", reservedChars2)
+
+	result1 := generateNames(t, ng1, "", 10)
+	result2 := generateNames(t, ng2, "", 10)
+
+	if !slices.Equal(result1, result2) {
+		t.Errorf("reserved characters: %v != %v", result1, result2)
+	}
+
+	reservedNames1 := jutil.NewLinkedHashSet("a", "b", "c")
+	reservedNames2 := jutil.NewLinkedHashSet("c", "b", "a")
+
+	ng1 = NewDefaultNameGeneratorWithReserved(reservedNames1, "", jutil.NewLinkedHashSet[uint16]())
+	ng2 = NewDefaultNameGeneratorWithReserved(reservedNames2, "", jutil.NewLinkedHashSet[uint16]())
+
+	result1 = generateNames(t, ng1, "", 10)
+	result2 = generateNames(t, ng2, "", 10)
+
+	if !slices.Equal(result1, result2) {
+		t.Errorf("reserved names: %v != %v", result1, result2)
+	}
 }

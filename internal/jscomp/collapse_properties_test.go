@@ -493,6 +493,16 @@ func (c *CollapsePropertiesTest) TestGlobalObjectDeclaredToPreserveItsPreviousVa
 	c.TestSame("var a = a || {get b() {}}; /** @nocollapse */ a.c = 1;")
 }
 
+// Java: CollapsePropertiesTest.testConditionalPropertyDefinitionAnd()
+func (c *CollapsePropertiesTest) TestConditionalPropertyDefinitionAnd() {
+	c.TestSame("window.ns = window.ns || {}; cond && (ns.foo = 123); use(ns.foo);")
+}
+
+// Java: CollapsePropertiesTest.testConditionalObjectLiteralPropertyAnd()
+func (c *CollapsePropertiesTest) TestConditionalObjectLiteralPropertyAnd() {
+	c.TestSame("var ns = cond && { foo: 123 }; use(ns.foo);")
+}
+
 // Java: CollapsePropertiesTest.testGlobalObjectNameInBooleanExpressionDepth1_1()
 func (c *CollapsePropertiesTest) TestGlobalObjectNameInBooleanExpressionDepth1_1() {
 	c.Test(
@@ -753,6 +763,64 @@ func (c *CollapsePropertiesTest) TestAliasCreatedForObjectDepth2_2() {
 		c.Srcs("var a = {}; a.b = {c: 0}; for (var p in a.b) { e(a.b[p]); }"),
 		c.Expected("var a$b = {c: 0}; for (var p in a$b) { e(a$b[p]); }"))
 	c.TestSame("var a = {}; a.b = {c: 0}; for (var p in a?.b) { e?.(a.b?.[p]); }")
+}
+
+// Java: CollapsePropertiesTest.testForInLoopAliasNoCollapse()
+func (c *CollapsePropertiesTest) TestForInLoopAliasNoCollapse() {
+	c.Test(
+		c.Srcs(
+			`var ns = {};
+ns.global = {x: 1};
+var alias = ns.global;
+for (alias in {a: 1}) {}
+use(ns.global.x);
+`),
+		c.Expected(
+			`var ns$global = {x: 1};
+var alias = ns$global;
+for (alias in {a: 1}) {}
+use(ns$global.x);
+`))
+}
+
+// Java: CollapsePropertiesTest.testForOfLoopAliasNoCollapse()
+func (c *CollapsePropertiesTest) TestForOfLoopAliasNoCollapse() {
+	c.Test(
+		c.Srcs(
+			`var ns = {};
+ns.global = {x: 1};
+var alias = ns.global;
+for (alias of [1, 2]) {}
+use(ns.global.x);
+`),
+		c.Expected(
+			`var ns$global = {x: 1};
+var alias = ns$global;
+for (alias of [1, 2]) {}
+use(ns$global.x);
+`))
+}
+
+// Java: CollapsePropertiesTest.testForAwaitOfLoopAliasNoCollapse()
+func (c *CollapsePropertiesTest) TestForAwaitOfLoopAliasNoCollapse() {
+	c.Test(
+		c.Srcs(
+			`var ns = {};
+ns.global = {x: 1};
+var alias = ns.global;
+async function f() {
+  for await (alias of [1, 2]) {}
+}
+use(ns.global.x);
+`),
+		c.Expected(
+			`var ns$global = {x: 1};
+var alias = ns$global;
+async function f() {
+  for await (alias of [1, 2]) {}
+}
+use(ns$global.x);
+`))
 }
 
 // Java: CollapsePropertiesTest.testEnumDepth1()
@@ -2177,6 +2245,14 @@ for (var key in Foo) {}
 func (c *CollapsePropertiesTest) TestHasOwnProperty() {
 	c.TestSame("var a = {b: 3}; if (a.hasOwnProperty(foo)) { alert('ok'); }")
 	c.TestSame("var a = {b: 3}; if (a.hasOwnProperty(foo)) { alert('ok'); } a?.b;")
+	// propertyIsEnumerable and optional chain variations preventing collapsing
+	c.TestSame("var a = {b: 3}; if (a.propertyIsEnumerable('b')) { alert('ok'); }")
+	c.TestSame("var a = {b: 3}; if (a.hasOwnProperty?.('b')) { alert('ok'); }")
+	c.TestSame("var a = {b: 3}; if (a?.hasOwnProperty('b')) { alert('ok'); }")
+	c.TestSame("var a = {b: 3}; if (a?.hasOwnProperty?.('b')) { alert('ok'); }")
+	c.TestSame("var a = {b: 3}; if (a.propertyIsEnumerable?.('b')) { alert('ok'); }")
+	c.TestSame("var a = {b: 3}; if (a?.propertyIsEnumerable('b')) { alert('ok'); }")
+	c.TestSame("var a = {b: 3}; if (a?.propertyIsEnumerable?.('b')) { alert('ok'); }")
 }
 
 // Java: CollapsePropertiesTest.testHasOwnPropertyOnNonGlobalName()
