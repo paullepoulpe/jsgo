@@ -518,13 +518,15 @@ func newNode_TemplateLiteralSubstringNodeFromStringPool(
 // Go-only: language-adapter — the abstract PropListItem and its two
 // subclasses ObjectPropListItem and IntPropListItem (which only differ in
 // the payload and accessors) are one struct; isObject records the class.
+//
+// Go-only: performance — the small fields share the last word: 32 bytes
+// instead of 40 (a 48-byte allocation).
 type Node_PropListItem struct {
-	next     *Node_PropListItem
-	propType int8
-
-	isObject    bool
+	next        *Node_PropListItem
 	objectValue any
 	intValue    int32
+	propType    int8
+	isObject    bool
 }
 
 // Java: Node.ObjectPropListItem(byte, Object, PropListItem)
@@ -1839,21 +1841,28 @@ func Node_ToJsonTreeHelper(n *Node, appendable io.StringWriter) {
 
 // Node is the AST node (fields as declared in Java, plus the folded
 // subclass payloads).
+//
+// Go-only: performance — the fields that traversals read first (token, the
+// position, next, first and parent) lead, packed into 32 bytes, and the
+// two int32 fields share a word: a Node takes 144 bytes instead of 160,
+// and the 32 hot bytes stay within one cache line for 3 nodes out of 4
+// (with 160-byte nodes, half of them straddled two lines).
 type Node struct {
-	token    Token // Type of the token of the node; NAME for example
-	next     *Node // next sibling, a linked list
-	previous *Node // previous sibling, a circular linked list
-	first    *Node // first element of a linked list of children
-	parent   *Node
-
-	// We get the last child as first.previous. But last.next is null, not
-	// first.
+	token Token // Type of the token of the node; NAME for example
 
 	// Source position of this node. The position is encoded with the column
 	// number in the low 12 bits of the integer, and the line number in the
 	// rest. Create some handy constants so we can change this size if we
 	// want.
 	linenoCharno int32
+
+	next     *Node // next sibling, a linked list
+	first    *Node // first element of a linked list of children
+	parent   *Node
+	previous *Node // previous sibling, a circular linked list
+
+	// We get the last child as first.previous. But last.next is null, not
+	// first.
 
 	// The length of the code represented by the node.
 	length int

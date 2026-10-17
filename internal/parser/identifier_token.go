@@ -37,10 +37,18 @@ type IdentifierToken struct {
 // Java: IdentifierToken(SourceRange, String)
 func NewIdentifierToken(location *SourceRange, value string) *IdentifierToken {
 	t := &IdentifierToken{}
+	t.InitIdentifierToken(location, value)
+	return t
+}
+
+// InitIdentifierToken runs the IdentifierToken constructor on an allocated
+// token (the Scanner allocates its identifiers in a slab).
+//
+// Java: IdentifierToken(SourceRange, String)
+func (t *IdentifierToken) InitIdentifierToken(location *SourceRange, value string) {
 	t.InitTokenBase(t, TokenType_IDENTIFIER, location)
 	t.value = value
 	t.privateIdentifier = strings.HasPrefix(value, "#")
-	return t
 }
 
 // String returns the identifier's value.

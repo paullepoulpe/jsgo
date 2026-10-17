@@ -170,39 +170,72 @@ func CollectionToString[T any](elems []T) string {
 // ---------------------------------------------------------------------------
 // LinkedHashMap
 
+// lhmEntry is an entry of a LinkedHashMap. A removed entry keeps its next
+// pointer, for the iterators that stand on it, and points prev at itself.
+//
+// Go-only: performance — prev == self marks removal instead of a bool
+// field: with it, the entries of sets and of pointer-keyed maps took 48
+// bytes instead of 32.
 type lhmEntry[K comparable, V any] struct {
 	key        K
 	value      V
 	prev, next *lhmEntry[K, V]
-	removed    bool
 }
+
+// removed reports whether e was removed from its map.
+func (e *lhmEntry[K, V]) removed() bool { return e.prev == e }
 
 // LinkedHashMap is java.util.LinkedHashMap (insertion order). It also models
 // Guava ImmutableMap and any Java map whose iteration order is insertion
 // order. Keys use Go equality, which matches Java equals() for strings,
 // boxed numbers, enums and identity-compared objects (pointers).
+//
+// Go-only: performance — most maps of a compilation stay small (in the
+// typed-app benchmark, half of them never get an entry and 98% never hold
+// more than 8), and a Go map costs a header when it is made and a 200-byte
+// group at its first insertion. So the Go map that indexes the entries is
+// only built once the map holds more than lhmSmallSize entries; until then
+// lookups walk the entry list, comparing keys with == as the Go map does.
 type LinkedHashMap[K comparable, V any] struct {
-	m          map[K]*lhmEntry[K, V]
+	m          map[K]*lhmEntry[K, V] // nil until size exceeds lhmSmallSize
 	head, tail *lhmEntry[K, V]
+	size       int
 }
+
+// lhmSmallSize is the most entries a LinkedHashMap or ObjectLinkedHashMap
+// holds without a Go map.
+const lhmSmallSize = 8
 
 // NewLinkedHashMap returns an empty map.
 func NewLinkedHashMap[K comparable, V any]() *LinkedHashMap[K, V] {
-	return &LinkedHashMap[K, V]{m: make(map[K]*lhmEntry[K, V])}
+	return &LinkedHashMap[K, V]{}
+}
+
+// find returns k's entry, or nil.
+func (h *LinkedHashMap[K, V]) find(k K) *lhmEntry[K, V] {
+	if h.m != nil {
+		return h.m[k]
+	}
+	for e := h.head; e != nil; e = e.next {
+		if e.key == k {
+			return e
+		}
+	}
+	return nil
 }
 
 func (h *LinkedHashMap[K, V]) Size() int {
 	if h == nil {
 		return 0
 	}
-	return len(h.m)
+	return h.size
 }
 func (h *LinkedHashMap[K, V]) IsEmpty() bool { return h.Size() == 0 }
 
 // Get is Map.get: the zero value (Java null) when absent.
 func (h *LinkedHashMap[K, V]) Get(k K) V {
 	if h != nil {
-		if e, ok := h.m[k]; ok {
+		if e := h.find(k); e != nil {
 			return e.value
 		}
 	}
@@ -213,7 +246,7 @@ func (h *LinkedHashMap[K, V]) Get(k K) V {
 // Lookup returns the value and whether the key is present.
 func (h *LinkedHashMap[K, V]) Lookup(k K) (V, bool) {
 	if h != nil {
-		if e, ok := h.m[k]; ok {
+		if e := h.find(k); e != nil {
 			return e.value, true
 		}
 	}
@@ -234,18 +267,24 @@ func (h *LinkedHashMap[K, V]) ContainsKey(k K) bool {
 	if h == nil {
 		return false
 	}
-	_, ok := h.m[k]
-	return ok
+	return h.find(k) != nil
 }
 
 // Put is Map.put; re-putting an existing key keeps its position. Returns the
 // previous value (zero if none).
 func (h *LinkedHashMap[K, V]) Put(k K, v V) V {
-	if e, ok := h.m[k]; ok {
+	if e := h.find(k); e != nil {
 		old := e.value
 		e.value = v
 		return old
 	}
+	h.add(k, v)
+	var zero V
+	return zero
+}
+
+// add appends an entry for k, which must be absent.
+func (h *LinkedHashMap[K, V]) add(k K, v V) {
 	e := &lhmEntry[K, V]{key: k, value: v, prev: h.tail}
 	if h.tail != nil {
 		h.tail.next = e
@@ -253,16 +292,22 @@ func (h *LinkedHashMap[K, V]) Put(k K, v V) V {
 		h.head = e
 	}
 	h.tail = e
-	h.m[k] = e
-	var zero V
-	return zero
+	h.size++
+	if h.m != nil {
+		h.m[k] = e
+	} else if h.size > lhmSmallSize {
+		h.m = make(map[K]*lhmEntry[K, V], 2*h.size)
+		for x := h.head; x != nil; x = x.next {
+			h.m[x.key] = x
+		}
+	}
 }
 
 // PutIfAbsent is Map.putIfAbsent: if the key is absent or mapped to null
 // (jutil.IsNil) it is (re)mapped to v and null is returned; otherwise the
 // current value is returned.
 func (h *LinkedHashMap[K, V]) PutIfAbsent(k K, v V) V {
-	if e, ok := h.m[k]; ok && !IsNil(e.value) {
+	if e := h.find(k); e != nil && !IsNil(e.value) {
 		return e.value
 	}
 	h.Put(k, v)
@@ -273,7 +318,7 @@ func (h *LinkedHashMap[K, V]) PutIfAbsent(k K, v V) V {
 // ComputeIfAbsent is Map.computeIfAbsent (the mapping function must not
 // return Java null; Go has no way to express that distinction generically).
 func (h *LinkedHashMap[K, V]) ComputeIfAbsent(k K, f func(K) V) V {
-	if e, ok := h.m[k]; ok {
+	if e := h.find(k); e != nil {
 		return e.value
 	}
 	v := f(k)
@@ -283,18 +328,25 @@ func (h *LinkedHashMap[K, V]) ComputeIfAbsent(k K, f func(K) V) V {
 
 // Remove is Map.remove; returns the removed value (zero if absent).
 func (h *LinkedHashMap[K, V]) Remove(k K) V {
-	e, ok := h.m[k]
-	if !ok {
+	e := h.find(k)
+	if e == nil {
 		var zero V
 		return zero
 	}
-	delete(h.m, k)
-	h.unlink(e)
+	h.removeEntry(e)
 	return e.value
 }
 
+// removeEntry removes e, an entry of the map.
+func (h *LinkedHashMap[K, V]) removeEntry(e *lhmEntry[K, V]) {
+	if h.m != nil {
+		delete(h.m, e.key)
+	}
+	h.size--
+	h.unlink(e)
+}
+
 func (h *LinkedHashMap[K, V]) unlink(e *lhmEntry[K, V]) {
-	e.removed = true
 	if e.prev != nil {
 		e.prev.next = e.next
 	} else {
@@ -305,15 +357,17 @@ func (h *LinkedHashMap[K, V]) unlink(e *lhmEntry[K, V]) {
 	} else {
 		h.tail = e.prev
 	}
+	e.prev = e // removed
 }
 
 // Clear is Map.clear.
 func (h *LinkedHashMap[K, V]) Clear() {
 	for e := h.head; e != nil; e = e.next {
-		e.removed = true
+		e.prev = e // removed
 	}
 	clear(h.m)
 	h.head, h.tail = nil, nil
+	h.size = 0
 }
 
 // All iterates entries in insertion order. Entries removed during iteration
@@ -324,7 +378,7 @@ func (h *LinkedHashMap[K, V]) All() iter.Seq2[K, V] {
 			return
 		}
 		for e := h.head; e != nil; e = e.next {
-			if e.removed {
+			if e.removed() {
 				continue
 			}
 			if !yield(e.key, e.value) {
@@ -346,7 +400,7 @@ func (h *LinkedHashMap[K, V]) Keys() iter.Seq[K] {
 			return
 		}
 		for e := h.head; e != nil; e = e.next {
-			if e.removed {
+			if e.removed() {
 				continue
 			}
 			if !yield(e.key) {
@@ -363,7 +417,7 @@ func (h *LinkedHashMap[K, V]) Values() iter.Seq[V] {
 			return
 		}
 		for e := h.head; e != nil; e = e.next {
-			if e.removed {
+			if e.removed() {
 				continue
 			}
 			if !yield(e.value) {
@@ -416,12 +470,13 @@ func (h *LinkedHashMap[K, V]) String() string {
 // LinkedHashSet is java.util.LinkedHashSet (insertion order); it also models
 // Guava ImmutableSet.
 type LinkedHashSet[T comparable] struct {
-	m *LinkedHashMap[T, struct{}]
+	// Go-only: performance — held by value: one allocation per set.
+	m LinkedHashMap[T, struct{}]
 }
 
 // NewLinkedHashSet returns a set containing elems in order.
 func NewLinkedHashSet[T comparable](elems ...T) *LinkedHashSet[T] {
-	s := &LinkedHashSet[T]{m: NewLinkedHashMap[T, struct{}]()}
+	s := &LinkedHashSet[T]{}
 	for _, e := range elems {
 		s.Add(e)
 	}
@@ -432,16 +487,16 @@ func (s *LinkedHashSet[T]) Size() int {
 	if s == nil {
 		return 0
 	}
-	return s.m.Size()
+	return s.m.size
 }
 func (s *LinkedHashSet[T]) IsEmpty() bool { return s.Size() == 0 }
 
 // Add is Set.add; reports whether the set changed.
 func (s *LinkedHashSet[T]) Add(e T) bool {
-	if s.m.ContainsKey(e) {
+	if s.m.find(e) != nil {
 		return false
 	}
-	s.m.Put(e, struct{}{})
+	s.m.add(e, struct{}{})
 	return true
 }
 
@@ -457,14 +512,15 @@ func (s *LinkedHashSet[T]) AddAll(es ...T) bool {
 }
 
 // Contains is Set.contains.
-func (s *LinkedHashSet[T]) Contains(e T) bool { return s != nil && s.m.ContainsKey(e) }
+func (s *LinkedHashSet[T]) Contains(e T) bool { return s != nil && s.m.find(e) != nil }
 
 // Remove is Set.remove; reports whether the element was present.
 func (s *LinkedHashSet[T]) Remove(e T) bool {
-	if !s.m.ContainsKey(e) {
+	x := s.m.find(e)
+	if x == nil {
 		return false
 	}
-	s.m.Remove(e)
+	s.m.removeEntry(x)
 	return true
 }
 
@@ -475,14 +531,14 @@ func (s *LinkedHashSet[T]) Clear() { s.m.Clear() }
 func (s *LinkedHashSet[T]) All() iter.Seq[T] {
 	var h *LinkedHashMap[T, struct{}]
 	if s != nil {
-		h = s.m
+		h = &s.m
 	}
 	return func(yield func(T) bool) {
 		if h == nil {
 			return
 		}
 		for e := h.head; e != nil; e = e.next {
-			if e.removed {
+			if e.removed() {
 				continue
 			}
 			if !yield(e.key) {
@@ -672,38 +728,70 @@ func NewLinkedHashMapFrom[K comparable, V any](src *LinkedHashMap[K, V]) *Linked
 
 type olhmEntry[K any, V any] struct {
 	key        K
-	hash       int32
 	value      V
 	prev, next *olhmEntry[K, V]
-	removed    bool
+	// hnext is the next entry with the same hash, in insertion order, once
+	// the map has its buckets.
+	hnext   *olhmEntry[K, V]
+	hash    int32
+	removed bool
 }
 
 // ObjectLinkedHashMap is java.util.LinkedHashMap (and Guava ImmutableMap)
 // for keys whose classes override equals()/hashCode(): keys are compared
 // with ObjectsEquals and hashed with ObjectHashCode instead of Go ==.
 // Iteration is in insertion order.
+//
+// Go-only: performance — as for LinkedHashMap, the buckets are only built
+// once the map holds more than lhmSmallSize entries (in the typed-app
+// benchmark, 65% of these maps stay empty); until then lookups walk the
+// entry list and call ObjectsEquals on the entries whose hash matches, the
+// same entries in the same order as the bucket. A bucket chains its
+// entries through hnext instead of a slice per hash.
 type ObjectLinkedHashMap[K any, V any] struct {
-	buckets    map[int32][]*olhmEntry[K, V]
+	buckets    map[int32]*olhmEntry[K, V] // nil until size exceeds lhmSmallSize
 	size       int
 	head, tail *olhmEntry[K, V]
 }
 
 // NewObjectLinkedHashMap returns an empty map.
 func NewObjectLinkedHashMap[K any, V any]() *ObjectLinkedHashMap[K, V] {
-	return &ObjectLinkedHashMap[K, V]{buckets: make(map[int32][]*olhmEntry[K, V])}
+	return &ObjectLinkedHashMap[K, V]{}
 }
 
 func (h *ObjectLinkedHashMap[K, V]) find(k K) (*olhmEntry[K, V], int32) {
-	hash := ObjectHashCode(k)
+	// Go-only: performance — the ...Of forms do not box String keys.
+	hash := ObjectHashCodeOf(k)
 	if h == nil {
 		return nil, hash
 	}
-	for _, e := range h.buckets[hash] {
-		if ObjectsEquals(e.key, k) {
+	if h.buckets != nil {
+		for e := h.buckets[hash]; e != nil; e = e.hnext {
+			if ObjectsEqualsOf(e.key, k) {
+				return e, hash
+			}
+		}
+		return nil, hash
+	}
+	for e := h.head; e != nil; e = e.next {
+		if e.hash == hash && ObjectsEqualsOf(e.key, k) {
 			return e, hash
 		}
 	}
 	return nil, hash
+}
+
+// chain appends e to the bucket of its hash.
+func (h *ObjectLinkedHashMap[K, V]) chain(e *olhmEntry[K, V]) {
+	last := h.buckets[e.hash]
+	if last == nil {
+		h.buckets[e.hash] = e
+		return
+	}
+	for last.hnext != nil {
+		last = last.hnext
+	}
+	last.hnext = e
 }
 
 func (h *ObjectLinkedHashMap[K, V]) Size() int {
@@ -751,8 +839,15 @@ func (h *ObjectLinkedHashMap[K, V]) Put(k K, v V) V {
 		h.head = e
 	}
 	h.tail = e
-	h.buckets[hash] = append(h.buckets[hash], e)
 	h.size++
+	if h.buckets != nil {
+		h.chain(e)
+	} else if h.size > lhmSmallSize {
+		h.buckets = make(map[int32]*olhmEntry[K, V], 2*h.size)
+		for x := h.head; x != nil; x = x.next {
+			h.chain(x)
+		}
+	}
 	var zero V
 	return zero
 }
@@ -764,15 +859,21 @@ func (h *ObjectLinkedHashMap[K, V]) Remove(k K) V {
 		var zero V
 		return zero
 	}
-	b := h.buckets[hash]
-	for i, x := range b {
-		if x == e {
-			h.buckets[hash] = append(b[:i:i], b[i+1:]...)
-			break
+	if h.buckets != nil {
+		if first := h.buckets[hash]; first == e {
+			if e.hnext != nil {
+				h.buckets[hash] = e.hnext
+			} else {
+				delete(h.buckets, hash)
+			}
+		} else {
+			p := first
+			for p.hnext != e {
+				p = p.hnext
+			}
+			p.hnext = e.hnext
 		}
-	}
-	if len(h.buckets[hash]) == 0 {
-		delete(h.buckets, hash)
+		e.hnext = nil
 	}
 	h.size--
 	e.removed = true
@@ -909,12 +1010,13 @@ func (h *ObjectLinkedHashMap[K, V]) String() string {
 // ObjectLinkedHashSet is java.util.LinkedHashSet (and Guava ImmutableSet)
 // for elements whose classes override equals()/hashCode().
 type ObjectLinkedHashSet[T any] struct {
-	m *ObjectLinkedHashMap[T, struct{}]
+	// Go-only: performance — held by value: one allocation per set.
+	m ObjectLinkedHashMap[T, struct{}]
 }
 
 // NewObjectLinkedHashSet returns a set containing elems in order.
 func NewObjectLinkedHashSet[T any](elems ...T) *ObjectLinkedHashSet[T] {
-	s := &ObjectLinkedHashSet[T]{m: NewObjectLinkedHashMap[T, struct{}]()}
+	s := &ObjectLinkedHashSet[T]{}
 	for _, e := range elems {
 		s.Add(e)
 	}
@@ -965,7 +1067,7 @@ func (s *ObjectLinkedHashSet[T]) Remove(e T) bool {
 func (s *ObjectLinkedHashSet[T]) All() iter.Seq[T] {
 	var h *ObjectLinkedHashMap[T, struct{}]
 	if s != nil {
-		h = s.m
+		h = &s.m
 	}
 	return func(yield func(T) bool) {
 		if h == nil {

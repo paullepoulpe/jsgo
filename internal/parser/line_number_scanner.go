@@ -33,6 +33,11 @@ type LineNumberScanner struct {
 	lastLine      int
 	lastLineStart int
 	nextLineStart int
+
+	// Go-only: performance — the positions and ranges of the scanner's
+	// tokens (see getTokenSourcePosition).
+	tokenPositions jutil.Slab[SourcePosition]
+	tokenRanges    jutil.Slab[SourceRange]
 }
 
 // NewLineNumberScanner constructs a LineNumberScanner.
@@ -53,6 +58,14 @@ func NewLineNumberScanner(sourceFile *SourceFile) *LineNumberScanner {
 //
 // Java: LineNumberScanner.getSourcePosition(int)
 func (l *LineNumberScanner) GetSourcePosition(offset int) *SourcePosition {
+	return l.getSourcePosition(offset, false)
+}
+
+// getSourcePosition is getSourcePosition(int); the position comes from the
+// tokenPositions slab if forToken is set.
+//
+// Go-only: performance — see getTokenSourcePosition.
+func (l *LineNumberScanner) getSourcePosition(offset int, forToken bool) *SourcePosition {
 	jutil.CheckArgumentMsg2(
 		offset >= l.lastLineStart,
 		"Must call rewindTo before calling getSourcePosition for an earlier line (%s < %s)",
@@ -60,6 +73,11 @@ func (l *LineNumberScanner) GetSourcePosition(offset int) *SourcePosition {
 		l.lastLineStart)
 	for offset >= l.nextLineStart {
 		l.AdvanceLine()
+	}
+	if forToken {
+		p := l.tokenPositions.New()
+		p.Source, p.Offset, p.Line, p.Column = l.sourceFile, offset, l.lastLine, offset-l.lastLineStart
+		return p
 	}
 	return NewSourcePosition(l.sourceFile, offset, l.lastLine, offset-l.lastLineStart)
 }
@@ -69,6 +87,30 @@ func (l *LineNumberScanner) GetSourcePosition(offset int) *SourcePosition {
 // Java: LineNumberScanner.getSourceRange(int, int)
 func (l *LineNumberScanner) GetSourceRange(startOffset, endOffset int) *SourceRange {
 	return NewSourceRange(l.GetSourcePosition(startOffset), l.GetSourcePosition(endOffset))
+}
+
+// getTokenSourcePosition is GetSourcePosition for the Scanner's tokens and
+// for the positions it hands the Parser.
+//
+// Go-only: performance — a parse creates two positions and a range per
+// token, which were ~half of the front end's allocations. These come from
+// slabs instead (jutil.Slab): they become garbage with the tokens and parse
+// trees, after IRFactory has read them. Comments keep using
+// GetSourcePosition and GetSourceRange: IDE mode and NonJSDocComment keep
+// their positions for the whole compilation, which would pin whole chunks.
+func (l *LineNumberScanner) getTokenSourcePosition(offset int) *SourcePosition {
+	return l.getSourcePosition(offset, true)
+}
+
+// getTokenSourceRange is GetSourceRange for the Scanner's tokens.
+//
+// Go-only: performance — see getTokenSourcePosition.
+func (l *LineNumberScanner) getTokenSourceRange(startOffset, endOffset int) *SourceRange {
+	start := l.getTokenSourcePosition(startOffset)
+	end := l.getTokenSourcePosition(endOffset)
+	r := l.tokenRanges.New()
+	r.Start, r.End = start, end
+	return r
 }
 
 // RewindTo rewinds the scanner to an earlier position in the source file.

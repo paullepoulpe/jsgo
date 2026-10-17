@@ -922,9 +922,9 @@ type codePrinter_Builder_defaultCodeGeneratorFactory struct {
 // Java: CodePrinter.Builder.<anonymous CodeGeneratorFactory>.getCodeGenerator(Format, CodeConsumer)
 func (f *codePrinter_Builder_defaultCodeGeneratorFactory) GetCodeGenerator(outputFormat CodePrinter_Format, cc CodeConsumer) CodeGenerator {
 	if outputFormat == CodePrinter_Format_TYPED {
-		return NewTypedCodeGenerator(cc, f.builder.options, f.builder.registry)
+		return NewTypedCodeGenerator(cc, f.builder.getOptions(), f.builder.registry)
 	}
-	return NewCodeGeneratorWithOptions(cc, f.builder.options)
+	return NewCodeGeneratorWithOptions(cc, f.builder.getOptions())
 }
 
 // NewCodePrinter_Builder sets the root node from which to generate the
@@ -933,11 +933,28 @@ func (f *codePrinter_Builder_defaultCodeGeneratorFactory) GetCodeGenerator(outpu
 // Java: CodePrinter.Builder(Node)
 func NewCodePrinter_Builder(node *rhino.Node) *CodePrinter_Builder {
 	b := &CodePrinter_Builder{}
-	b.options = NewCompilerOptions()
+	// Go-only: performance — Java initializes options to a new
+	// CompilerOptions(), which almost every caller (Compiler.toSource, once
+	// per printed node in checks such as CheckDuplicateCase) replaces at
+	// once with setCompilerOptions. Building one costs ~100 allocations
+	// (its DefaultNameGenerator alone builds a 64-entry map), so it is
+	// created by getOptions only if it is used before being replaced.
+	b.options = nil
 	b.outputTypes = false
 	b.codeGeneratorFactory = &codePrinter_Builder_defaultCodeGeneratorFactory{builder: b}
 	b.root = node
 	return b
+}
+
+// getOptions returns options, made on first use if setCompilerOptions has
+// not set them (see NewCodePrinter_Builder).
+//
+// Go-only: performance — Java reads the field.
+func (b *CodePrinter_Builder) getOptions() *CompilerOptions {
+	if b.options == nil {
+		b.options = NewCompilerOptions()
+	}
+	return b.options
 }
 
 // SetCompilerOptions sets the output options from compiler options.
@@ -1038,8 +1055,8 @@ func (b *CodePrinter_Builder) BuildWithSourceMappings() *CodePrinter_SourceAndMa
 
 	return CodePrinter_ToSource(
 		b.root,
-		CodePrinter_Format_FromOptions(b.options, b.outputTypes, b.prettyPrint),
-		b.options,
+		CodePrinter_Format_FromOptions(b.getOptions(), b.outputTypes, b.prettyPrint),
+		b.getOptions(),
 		b.licenseTracker,
 		b.tagAsTypeSummary,
 		b.tagAsStrict,

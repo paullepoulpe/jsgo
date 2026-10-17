@@ -52,7 +52,25 @@ type JSIdentifier struct{}
 
 // Java: JSIdentifier.isJSIdentifier(String)
 func JSIdentifier_IsJSIdentifier(s string) bool {
-	chars := jutil.StringToUTF16(s) // s.charAt(i) is chars[i]
+	// Go-only: performance — an ASCII string of up to 64 bytes (whose bytes
+	// are its UTF-16 chars) is copied into a stack buffer; any other string
+	// is converted on the heap as before. TypedScopeCreator checks every
+	// object-literal key this way.
+	var buf [64]uint16
+	var chars []uint16 // s.charAt(i) is chars[i]
+	if len(s) <= len(buf) {
+		chars = buf[:len(s)]
+		for i := 0; i < len(s); i++ {
+			if s[i] >= 0x80 {
+				chars = nil
+				break
+			}
+			chars[i] = uint16(s[i])
+		}
+	}
+	if chars == nil {
+		chars = jutil.StringToUTF16(s)
+	}
 	length := len(chars)
 
 	if length == 0 ||

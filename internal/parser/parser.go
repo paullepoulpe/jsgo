@@ -71,6 +71,9 @@ type Parser struct {
 	lastSourcePosition   *SourcePosition
 	// Go-only: language-adapter — nil is Java null.
 	sourceMapURL *string
+
+	// Go-only: performance — the parse trees' ranges (see GetTreeLocation).
+	treeLocations jutil.Slab[SourceRange]
 }
 
 // Parser_FunctionFlavor is Parser.FunctionFlavor: indicates the type of
@@ -3897,7 +3900,11 @@ func (p *Parser) GetTreeEndLocation() *SourcePosition {
 //
 // Java: Parser.getTreeLocation(SourcePosition)
 func (p *Parser) GetTreeLocation(start *SourcePosition) *SourceRange {
-	return NewSourceRange(start, p.GetTreeEndLocation())
+	// Go-only: performance — one range per parse tree, from a slab like the
+	// tokens' (see LineNumberScanner.getTokenSourcePosition).
+	r := p.treeLocations.New()
+	r.Start, r.End = start, p.GetTreeEndLocation()
+	return r
 }
 
 // NextToken consumes the next token and returns it. Will return a never

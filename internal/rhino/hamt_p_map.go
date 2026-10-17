@@ -243,7 +243,9 @@ func (m *HamtPMap[K, V]) Get(key K) V {
 
 // keyEquals is Java's `key.equals(this.key)`.
 func (m *HamtPMap[K, V]) keyEquals(key K) bool {
-	return !m.keyIsNull && jutil.ObjectsEquals(key, m.key)
+	// Go-only: performance — ObjectsEqualsOf compares String keys without
+	// boxing them.
+	return !m.keyIsNull && jutil.ObjectsEqualsOf(key, m.key)
 }
 
 // GetWithHash is the internal recursive implementation of get(K).
@@ -589,8 +591,13 @@ func (m *HamtPMap[K, V]) GetChild(bit int32) *HamtPMap[K, V] {
 // hash is always at the root of the tree.
 //
 // Java: HamtPMap.hash(Object)
-func HamtPMap_Hash(key any) int32 {
-	return int32(bits.Reverse32(uint32(jutil.ObjectHashCode(jutil.CheckNotNull(key)))))
+func HamtPMap_Hash[K any](key K) int32 {
+	// Go-only: performance — a String key (never null) is hashed without
+	// being boxed; other keys as before.
+	if s, ok := any(key).(string); ok {
+		return int32(bits.Reverse32(uint32(jutil.StringHashCode(s))))
+	}
+	return int32(bits.Reverse32(uint32(jutil.ObjectHashCode(jutil.CheckNotNull(any(key))))))
 }
 
 // HamtPMap_Bucket returns the current bucket index from the hash.

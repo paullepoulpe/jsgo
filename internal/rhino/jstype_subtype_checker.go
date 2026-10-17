@@ -96,15 +96,35 @@ func (c *SubtypeChecker) SetSubtype(value JSType) *SubtypeChecker {
 func (c *SubtypeChecker) SetUsingStructuralSubtyping(value bool) *SubtypeChecker {
 	c.CheckHasNotRun()
 	jutil.CheckState(c.isUsingStructuralTyping == nil)
-	c.isUsingStructuralTyping = &value
+	// Go-only: performance — the nullable Boolean points at a shared value
+	// rather than a fresh copy (it is only ever read through).
+	c.isUsingStructuralTyping = &subtypeChecker_booleans[0]
+	if value {
+		c.isUsingStructuralTyping = &subtypeChecker_booleans[1]
+	}
 	return c
 }
+
+// subtypeChecker_booleans and subtypeChecker_subtypingModes hold the values
+// the setters point at.
+//
+// Go-only: performance — see SetUsingStructuralSubtyping.
+var (
+	subtypeChecker_booleans       = [...]bool{false, true}
+	subtypeChecker_subtypingModes = [...]JSType_SubtypingMode{
+		JSType_SubtypingMode_NORMAL, JSType_SubtypingMode_IGNORE_NULL_UNDEFINED}
+)
 
 // Java: SubtypeChecker.setSubtypingMode(SubtypingMode)
 func (c *SubtypeChecker) SetSubtypingMode(value JSType_SubtypingMode) *SubtypeChecker {
 	c.CheckHasNotRun()
 	jutil.CheckState(c.subtypingMode == nil)
-	c.subtypingMode = &value
+	// Go-only: performance — see SetUsingStructuralSubtyping.
+	if value >= 0 && int(value) < len(subtypeChecker_subtypingModes) {
+		c.subtypingMode = &subtypeChecker_subtypingModes[value]
+	} else {
+		c.subtypingMode = &value
+	}
 	return c
 }
 
