@@ -16,7 +16,7 @@ python3 -I tools/bench/bench.py run --out /tmp/bench --report /tmp/bench/report.
 ```
 
 That runs every task on Java cold, Java warm and jsgo, with N=5 runs each.
-It takes about 3 hours on 4 cores, most of it in the 1,000-invocation task
+It takes several hours on 4 cores, most of it in the 1,000-invocation task
 (see [Cost](#cost)). `--tasks a,b` selects tasks, and `bench.py report --out
 /tmp/bench --md report.md` re-renders the report from stored results.
 
@@ -227,18 +227,21 @@ re-run everything on a quiet machine and render with `bench.py report
 
 ## Cost
 
-Approximate wall time on the shared 4-CPU development machine (load 5–12):
+Wall time per run on the shared 4-CPU development machine (load 5–17),
+from the first baseline:
 
 | Task | Java cold, per run | Java warm, per iteration |
 |---|---|---|
-| typed-app | 30–45 s | 13–25 s |
-| bundle | ~100 s (12.6 MB in, 2 GB RSS) | ~60 s |
-| downlevel-* | 15–20 s | ~10 s |
-| checks-only | 20–40 s | ~10 s |
-| single-files | 1,000 JVM launches, about 1–1.5 h | ~5 min |
+| typed-app | 17–37 s | 7–15 s |
+| bundle | 42–82 s (12.6 MB in, 1.6 GB RSS) | 20–29 s (3 GB RSS) |
+| downlevel-whitespace | 7–11 s | 1.2–2.4 s |
+| downlevel-simple | 14–20 s | ~4 s |
+| checks-only | 18–40 s | 8–9 s |
+| single-files | 1,000 JVM launches, 2.5–4.5 s each: 40–75 min | see the report |
 
-A full cold run of the single-file task is about 1,000 JVM startups, so 5
-runs take hours. `--runs 1 --tasks single-files` gives one run, and the
-report then shows per-invocation median, p10 and p90 from its 1,000
-samples. Its cold per-phase runs are off (`"trace_cold": false` in the task
-file).
+All tasks except single-files take about 35 minutes together (N=5, three
+trace runs). A full cold run of the single-file task is 1,000 JVM
+startups, so 5 runs take several hours. `--runs 1 --tasks single-files`
+gives one run, and the report then shows per-invocation median, p10 and p90
+from its 1,000 samples. Its cold per-phase runs are off (`"trace_cold":
+false` in the task file).
