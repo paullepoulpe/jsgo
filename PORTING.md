@@ -237,8 +237,26 @@ trailing underscore (`type_`, `func_`, `range_`, `len_`).
 - Labeled `break`/`continue` map directly.
 - Streams → explicit loops, preserving encounter order and short-circuiting.
 - `assert` → drop (Java runs without `-ea` in production).
-- `synchronized`, threads → sequential code. Concurrency is out of scope until
-  parity; Closure is deterministic regardless of threads.
+- Threads → sequential code. Concurrency is out of scope until parity;
+  Closure is deterministic regardless of threads.
+- `synchronized` methods and blocks, and `ReentrantLock` → `jutil.Monitor`,
+  never `sync.Mutex`. Java's monitors are re-entrant and Go's mutexes are
+  not, so a translated call chain that comes back to a monitor it holds
+  deadlocks on a mutex. This is easy to miss: the synchronized
+  `ThreadSafeDelegatingErrorManager.generateReport` formats a diagnostic,
+  which loads an input source map, which reports a warning through the same
+  manager.
+  - An instance `synchronized` method or `synchronized (this)` locks a
+    `monitor jutil.Monitor` field of the object. A subclass uses the field
+    of the superclass struct it embeds: it is the same Java object.
+  - A `static synchronized` method locks a package-level
+    `<class>_classMonitor` (the `Foo.class` monitor).
+  - A method locks with `m.Lock()` then `defer m.Unlock()`; a block becomes
+    a closure that does the same.
+  - The owner is the goroutine (`jutil.GoroutineID`). Taking a monitor costs
+    a stack walk, so keep Java's double-checked fast paths outside it.
+  - `sync.Mutex` is only for Go-only state whose critical section runs no
+    translated code, such as an emulated JDK cache.
 
 ## 6. Java semantics that Go does not share
 

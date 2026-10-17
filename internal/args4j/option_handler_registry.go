@@ -25,8 +25,6 @@
 package args4j
 
 import (
-	"sync"
-
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -44,25 +42,28 @@ type OptionHandlerRegistry struct {
 	//
 	// Go-only: Collections.synchronizedMap(new HashMap<Class, ...>()); the
 	// map is only looked up, and its keys are identity-hashed classes.
-	handlers   *jutil.LinkedHashMap[*Class, OptionHandlerRegistry_OptionHandlerFactory]
-	handlersMu sync.Mutex
+	// handlersMonitor is the wrapper's monitor, which each of its methods
+	// holds.
+	handlers        *jutil.LinkedHashMap[*Class, OptionHandlerRegistry_OptionHandlerFactory]
+	handlersMonitor jutil.Monitor
 }
 
 // The shared reference.
 //
 // See getRegistry().
-var (
-	optionHandlerRegistry_instance   *OptionHandlerRegistry
-	optionHandlerRegistry_instanceMu sync.Mutex
-)
+var optionHandlerRegistry_instance *OptionHandlerRegistry
+
+// Go-only: language-adapter — the monitor of OptionHandlerRegistry.class,
+// which its static synchronized methods hold.
+var optionHandlerRegistry_classMonitor jutil.Monitor
 
 // OptionHandlerRegistry_GetRegistry gets the option handler registry
 // singleton instance.
 //
 // Java: OptionHandlerRegistry.getRegistry()
 func OptionHandlerRegistry_GetRegistry() *OptionHandlerRegistry {
-	optionHandlerRegistry_instanceMu.Lock()
-	defer optionHandlerRegistry_instanceMu.Unlock()
+	optionHandlerRegistry_classMonitor.Lock()
+	defer optionHandlerRegistry_classMonitor.Unlock()
 	if optionHandlerRegistry_instance == nil {
 		optionHandlerRegistry_instance = newOptionHandlerRegistry()
 	}
@@ -153,8 +154,8 @@ func (r *OptionHandlerRegistry) RegisterHandlerWithFactory(valueType *Class, fac
 }
 
 func (r *OptionHandlerRegistry) putHandler(valueType *Class, factory OptionHandlerRegistry_OptionHandlerFactory) {
-	r.handlersMu.Lock()
-	defer r.handlersMu.Unlock()
+	r.handlersMonitor.Lock()
+	defer r.handlersMonitor.Unlock()
 	r.handlers.Put(valueType, factory)
 }
 
@@ -177,9 +178,9 @@ func (r *OptionHandlerRegistry) CreateOptionHandler(parser *CmdLineParser, o Opt
 			return NewEnumOptionHandler(parser, o, setter, t)
 		}
 
-		r.handlersMu.Lock()
+		r.handlersMonitor.Lock()
 		factory := r.handlers.Get(t)
-		r.handlersMu.Unlock()
+		r.handlersMonitor.Unlock()
 		if factory == nil {
 			panic(NewIllegalAnnotationError(Messages_UNKNOWN_HANDLER.Format(t)))
 		}

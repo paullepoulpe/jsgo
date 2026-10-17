@@ -51,6 +51,10 @@ type SourceFile struct {
 	numBytes int
 
 	isClosureUnawareCode bool
+
+	// Go-only: language-adapter — the object's monitor, which the
+	// synchronized blocks of getCode and getCodeReader hold.
+	monitor jutil.Monitor
 }
 
 var _ rhino.StaticSourceFile = (*SourceFile)(nil)
@@ -218,10 +222,14 @@ func (f *SourceFile) FindLineOffsets() {
 func (f *SourceFile) GetCode() string {
 	if f.code == nil {
 		// Only synchronize if we need to
-		// Make sure another thread hasn't loaded the code while we waited.
-		if f.code == nil {
-			f.SetCodeAndDoBookkeeping(jutil.StringPtr(f.loader.LoadUncachedCode()))
-		}
+		func() {
+			f.monitor.Lock()
+			defer f.monitor.Unlock()
+			// Make sure another thread hasn't loaded the code while we waited.
+			if f.code == nil {
+				f.SetCodeAndDoBookkeeping(jutil.StringPtr(f.loader.LoadUncachedCode()))
+			}
+		}()
 	}
 	return *f.code
 }
@@ -240,12 +248,17 @@ func (f *SourceFile) SetCodeDeprecated(code string) {
 func (f *SourceFile) GetCodeReader() jutil.JavaReader {
 	// Only synchronize if we need to
 	if f.code == nil {
-		// Make sure another thread hasn't loaded the code while we waited.
-		if f.code == nil {
-			uncachedReader := f.loader.OpenUncachedReader()
-			if uncachedReader != nil {
-				return uncachedReader
+		var uncachedReader jutil.JavaReader
+		func() {
+			f.monitor.Lock()
+			defer f.monitor.Unlock()
+			// Make sure another thread hasn't loaded the code while we waited.
+			if f.code == nil {
+				uncachedReader = f.loader.OpenUncachedReader()
 			}
+		}()
+		if uncachedReader != nil {
+			return uncachedReader
 		}
 	}
 	return jutil.NewStringReader(f.GetCode())

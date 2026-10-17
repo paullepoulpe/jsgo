@@ -100,7 +100,8 @@ func ConformanceAllowlister_GetConformanceErrors(
 
 // conformanceAllowlister_ErrorManager is the anonymous
 // ThreadSafeDelegatingErrorManager of getConformanceErrors: it collects the
-// conformance violations instead of reporting them.
+// conformance violations instead of reporting them. Its synchronized
+// method holds the object's monitor, the embedded manager's.
 type conformanceAllowlister_ErrorManager struct {
 	*ThreadSafeDelegatingErrorManager
 	errors *[]*JSError
@@ -113,6 +114,8 @@ func (m *conformanceAllowlister_ErrorManager) ShouldReportConformanceViolation(
 	diagnostic *JSError,
 	behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior,
 	isAllowlisted bool) bool {
+	m.monitor.Lock()
+	defer m.monitor.Unlock()
 	*m.errors = append(*m.errors, diagnostic)
 	return false
 }

@@ -3,8 +3,6 @@
 package parsing
 
 import (
-	"sync"
-
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -21,9 +19,9 @@ var (
 	parserRunner_reservedVars          *jutil.LinkedHashSet[string]
 	parserRunner_closurePrimitiveNames *jutil.LinkedHashSet[string]
 
-	// Go-only: language-adapter — the monitor of the static synchronized
-	// initResourceConfig().
-	parserRunner_initResourceConfigMu sync.Mutex
+	// Go-only: language-adapter — the monitor of ParserRunner.class, which
+	// its static synchronized methods (initResourceConfig) hold.
+	parserRunner_classMonitor jutil.Monitor
 )
 
 // Should never need to instantiate class of static methods.
@@ -86,8 +84,8 @@ func ParserRunner_GetSuppressionNames() *jutil.LinkedHashSet[string] {
 
 // Java: ParserRunner.initResourceConfig()
 func ParserRunner_InitResourceConfig() {
-	parserRunner_initResourceConfigMu.Lock()
-	defer parserRunner_initResourceConfigMu.Unlock()
+	parserRunner_classMonitor.Lock()
+	defer parserRunner_classMonitor.Unlock()
 	if parserRunner_annotationNames != nil {
 		return
 	}

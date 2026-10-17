@@ -32,10 +32,8 @@ import (
 // delegate. At the end of compilation (when generateReport is called), any
 // unmatched expectations are reported as errors to the delegate.
 //
-// Go-only: language-adapter — the Java methods are synchronized on the same
-// monitor as ThreadSafeDelegatingErrorManager's; PORTING.md §5 makes
-// synchronized code sequential, and the embedded manager keeps its own lock
-// (Go's sync.Mutex is not reentrant, so this type takes no lock itself).
+// Its synchronized methods hold the object's monitor, which is the embedded
+// ThreadSafeDelegatingErrorManager's.
 type VerifyingErrorManager struct {
 	*ThreadSafeDelegatingErrorManager
 	unmatchedExpectations []*jutil.Pattern
@@ -59,6 +57,8 @@ func NewVerifyingErrorManager(delegate ErrorManager, expectedDiagnostics []strin
 
 // Java: VerifyingErrorManager.report(CheckLevel, JSError)
 func (m *VerifyingErrorManager) Report(level *CheckLevel, error *JSError) {
+	m.monitor.Lock()
+	defer m.monitor.Unlock()
 	formattedError := m.FormatErrorForMatching(level, error)
 
 	var matchedPattern *jutil.Pattern
@@ -99,12 +99,16 @@ func (m *VerifyingErrorManager) Report(level *CheckLevel, error *JSError) {
 
 // Java: VerifyingErrorManager.generateReport()
 func (m *VerifyingErrorManager) GenerateReport() {
+	m.monitor.Lock()
+	defer m.monitor.Unlock()
 	m.ReportMissingExpectations()
 	m.ThreadSafeDelegatingErrorManager.GenerateReport()
 }
 
 // Java: VerifyingErrorManager.reportMissingExpectations()
 func (m *VerifyingErrorManager) ReportMissingExpectations() {
+	m.monitor.Lock()
+	defer m.monitor.Unlock()
 	for _, p := range m.unmatchedExpectations {
 		m.ThreadSafeDelegatingErrorManager.Report(
 			CheckLevel_ERROR.Ptr(),

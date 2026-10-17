@@ -257,8 +257,9 @@ type Compiler struct {
 	asErrorHandler      *compiler_errorHandler
 	asSourceFileMapping *compiler_sourceFileMapping
 
-	// Go-only: language-adapter — Java's synchronized methods and blocks.
-	mu sync.Mutex
+	// Go-only: language-adapter — the object's monitor, which its
+	// synchronized methods and blocks hold.
+	monitor jutil.Monitor
 }
 
 // Java: Compiler.CHUNK_DEPENDENCY_ERROR
@@ -3724,8 +3725,8 @@ func (c *Compiler) getParserConfigLanguageMode(languageMode CompilerOptions_Lang
 func (c *Compiler) GetParserConfig(context AbstractCompiler_ConfigContext) *parsing.Config {
 	if c.parserConfig == nil || c.externsParserConfig == nil {
 		func() {
-			c.mu.Lock()
-			defer c.mu.Unlock()
+			c.monitor.Lock()
+			defer c.monitor.Unlock()
 			if c.parserConfig == nil {
 				configLanguageMode := c.getParserConfigLanguageMode(c.options.GetLanguageIn())
 				strictMode := parsing.Config_StrictMode_SLOPPY
@@ -3929,8 +3930,8 @@ func (c *Compiler) GetBase64SourceMapContents(sourceFileName string) *string {
 // Java: Compiler.addSourceMapSourceFiles(SourceMapInput)
 func (c *Compiler) addSourceMapSourceFiles(inputSourceMap *SourceMapInput) {
 	// synchronized annotation guards concurrent access to sourceMap during parsing.
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.monitor.Lock()
+	defer c.monitor.Unlock()
 	consumer := inputSourceMap.GetSourceMap(c.errorManager)
 	if consumer == nil {
 		return
@@ -4483,8 +4484,8 @@ func (c *Compiler) GetModuleLoader() *ModuleLoader {
 // Java: Compiler.addFilesToSourceMap(Iterable<SourceFile>)
 func (c *Compiler) addFilesToSourceMap(files []*SourceFile) {
 	// synchronized annotation guards concurrent access to sourceMap during parsing.
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.monitor.Lock()
+	defer c.monitor.Unlock()
 	if c.GetOptions().GetSourceMapIncludeSourcesContent() && c.GetSourceMap() != nil {
 		for _, file := range files {
 			jutil.Try(func() {
@@ -4730,13 +4731,14 @@ func compiler_readObject(in io.Reader) *Compiler_CompilerState {
 	for i := 0; i < 8; i++ {
 		key = key<<8 | int64(buf[i])
 	}
+	// The mutex guards only the table: the hooks below run translated code.
 	compiler_savedStatesMu.Lock()
-	defer compiler_savedStatesMu.Unlock()
 	state, ok := compiler_savedStates[key]
+	delete(compiler_savedStates, key)
+	compiler_savedStatesMu.Unlock()
 	if !ok {
 		panic(jutil.NewIOException(fmt.Sprintf("no saved CompilerState %d", key)))
 	}
-	delete(compiler_savedStates, key)
 	// The readObject hooks of the classes in the state: JSChunk's re-creates
 	// its transient input map (restoreState adds the new inputs to the
 	// deserialized chunks).

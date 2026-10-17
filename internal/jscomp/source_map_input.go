@@ -3,15 +3,15 @@
 package jscomp
 
 import (
-	"sync"
-
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/sourcemap"
 )
 
 // SourceMapInput is a lazy-loaded SourceMapConsumerV3 instance.
 type SourceMapInput struct {
-	mu              sync.Mutex
+	// Go-only: language-adapter — the object's monitor, which the
+	// synchronized getSourceMap holds.
+	monitor         jutil.Monitor
 	sourceFile      *SourceFile
 	parsedSourceMap *sourcemap.SourceMapConsumerV3
 	cached          bool
@@ -33,8 +33,8 @@ func NewSourceMapInput(sourceFile *SourceFile) *SourceMapInput {
 //
 // Java: SourceMapInput.getSourceMap(ErrorManager)
 func (i *SourceMapInput) GetSourceMap(errorManager ErrorManager) *sourcemap.SourceMapConsumerV3 {
-	i.mu.Lock()
-	defer i.mu.Unlock()
+	i.monitor.Lock()
+	defer i.monitor.Unlock()
 	if !i.cached {
 		// Avoid re-reading or reparsing files.
 		i.cached = true
