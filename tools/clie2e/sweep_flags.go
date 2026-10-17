@@ -281,6 +281,52 @@ func init() {
 			"--use_types_for_optimization=maybe",
 			"--emit_use_strict --chunk_output_type=ES_MODULES",
 		)},
+
+		// Beyond the list: the other flags that neither the project-build
+		// sweep (inputs, modules, chunks, output wrappers) nor the ones
+		// above cover. Fewer files each.
+		{name: "f-levels", files: 160, args: lax, variants: variants(
+			"-O TRANSPILE_ONLY",
+			"-O TRANSPILE_ONLY --language_out=ECMASCRIPT5",
+			"-O BUNDLE",
+			"-O BUNDLE --language_out=ECMASCRIPT5 --formatting=PRETTY_PRINT")},
+		{name: "f-env-custom", files: 160, variants: variants(
+			"--env=CUSTOM",
+			"--env=CUSTOM -O ADVANCED",
+			"--env=CUSTOM --checks_only -W VERBOSE",
+			"--env=BROWSER -O ADVANCED --jscomp_off=undefinedVars")},
+		{name: "f-error-format", files: 160, variants: variants(
+			"--error_format=JSON",
+			"--error_format=JSON -W VERBOSE",
+			"--error_format=JSON -O ADVANCED",
+			"--error_format=STANDARD --checks_only -W VERBOSE")},
+		{name: "f-check-flags", files: 160, args: split("-W VERBOSE"), variants: variants(
+			"--extra_annotation_name=foo --extra_annotation_name=nocollapse2",
+			"--hide_warnings_for=in/",
+			"--hide_warnings_for=/package/src/ --checks_only",
+			"--third_party",
+			"--third_party --checks_only")},
+		{name: "f-exports", files: 160, args: cat(advanced, laxAdv), variants: variants(
+			"--generate_exports",
+			"--generate_exports=false",
+			"--generate_exports --export_local_property_definitions=false",
+			"--assume_function_wrapper",
+			"--assume_function_wrapper --generate_exports --language_out=ECMASCRIPT5")},
+		{name: "f-rename-prefix", files: 160, args: cat(advanced, laxAdv), variants: variants(
+			"--rename_variable_prefix=pfx_",
+			"--rename_prefix_namespace=NS",
+			"--rename_variable_prefix=$x --variable_renaming_report=%res%/vars.map")},
+		{name: "f-polyfill-misc", files: 160, args: cat(simple, lax), variants: variants(
+			"--isolate_polyfills --language_out=ECMASCRIPT5",
+			"--isolate_polyfills --language_out=ECMASCRIPT_2015 -O ADVANCED --jscomp_off=undefinedVars",
+			"--dynamic_import_alias=imp",
+			"--dynamic_import_alias=import --language_out=ECMASCRIPT_2015")},
+		{name: "f-charset-json", files: 160, args: cat(simple, lax), variants: variants(
+			"--charset=UTF-8",
+			"--charset=ISO-8859-1",
+			"--charset=US-ASCII --formatting=PRETTY_PRINT",
+			"--json_streams=OUT",
+			"--json_streams=OUT --create_source_map=%res%/out.js.map")},
 	}
 	for i := range flagConfigs {
 		flagConfigs[i].group = "flags"

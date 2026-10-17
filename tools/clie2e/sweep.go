@@ -35,6 +35,7 @@ var (
 	classifyOnly = flag.Bool("classify-only", false, "sweep: run nothing, classify the results in the work directory")
 	skipJava     = flag.Bool("skip-java", false, "sweep: run only jsgo (keeping the Java results in the work directory)")
 	skipGo       = flag.Bool("skip-go", false, "sweep: run only Java (keeping the jsgo results in the work directory)")
+	reuseGo      = flag.Bool("reuse-go", false, "sweep: keep the jsgo results already in the work directory (with -reuse-java: run only the jobs that are new)")
 	javaHeap     = flag.String("xmx", "2500m", "sweep: maximum heap of each JVM")
 	locale       = flag.String("lang", "C.UTF-8", "sweep: LANG for both compilers")
 	sampleN      = flag.Int("sample", 0, "sweep: compile a stratified random sample of this many files of -list (see sample.go)")
@@ -177,7 +178,7 @@ func runSweepJobs(wd, javaDir, goDir string, jobs []sweepJob) {
 	if !*reuseJava && !*skipJava {
 		os.RemoveAll(javaDir)
 	}
-	if !*skipGo {
+	if !*skipGo && !*reuseGo {
 		os.RemoveAll(goDir)
 	}
 	for d, skip := range map[string]bool{javaDir: *skipJava, goDir: *skipGo} {
@@ -244,6 +245,9 @@ func runSweepJobs(wd, javaDir, goDir string, jobs []sweepJob) {
 	for _, j := range jobs {
 		if *skipGo {
 			break
+		}
+		if _, err := os.Stat(filepath.Join(goDir, j.res(), "exit")); err == nil && *reuseGo {
+			continue
 		}
 		wg.Add(1)
 		sem <- true
