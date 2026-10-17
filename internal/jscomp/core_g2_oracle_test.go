@@ -414,26 +414,6 @@ func (o *coreG2Out) mutate(script *rhino.Node) {
 // ---------------------------------------------------------------------------
 // mdnu
 
-// coreG2DefaultCodingConvention stands in for CodingConventions.getDefault()
-// (DefaultCodingConvention), which is not ported yet: the renamers only call
-// isExported(String), which there is isExported(name, true) ||
-// isExported(name, false) with isExported(name, local) = local &&
-// name.startsWith("$super").
-//
-// Go-only: test-helper — every other CodingConvention method is the nil
-// embedded interface's and panics.
-type coreG2DefaultCodingConvention struct {
-	CodingConvention
-}
-
-func (coreG2DefaultCodingConvention) IsExportedWithLocal(name string, local bool) bool {
-	return local && strings.HasPrefix(name, "$super")
-}
-
-func (c coreG2DefaultCodingConvention) IsExported(name string) bool {
-	return c.IsExportedWithLocal(name, true) || c.IsExportedWithLocal(name, false)
-}
-
 // printRenames is CoreG2Dump.printRenames.
 func (o *coreG2Out) printRenames(orig []*rhino.Node, tree *rhino.Node) {
 	now := coreG2Preorder(tree)
@@ -450,7 +430,7 @@ func (o *coreG2Out) printRenames(orig []*rhino.Node, tree *rhino.Node) {
 
 func (o *coreG2Out) mdnu(script *rhino.Node) {
 	orig := coreG2Preorder(script)
-	var convention CodingConvention = coreG2DefaultCodingConvention{}
+	var convention CodingConvention = CodingConventions_GetDefault()
 	// ContextualRenamer, then the inverter, then the assertOnChange check.
 	{
 		compiler := coreG2NewCompiler()
