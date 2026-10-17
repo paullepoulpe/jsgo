@@ -773,7 +773,6 @@ func infraCompare(t *testing.T, oracle string, rootFor func(name string) string,
 }
 
 func TestInfraDumpGolden(t *testing.T) {
-	defer SkipIfPendingPort(t) // new Compiler() needs ClosureCodingConvention
 	jsDir := filepath.Join("testdata", "infra", "js")
 	golden := map[string]bool{}
 	if files, err := corpus.ReadList(filepath.Join("testdata", "infra", "golden-files.txt")); err == nil {
@@ -794,7 +793,6 @@ func TestInfraDumpGolden(t *testing.T) {
 }
 
 func TestInfraDumpOracle(t *testing.T) {
-	defer SkipIfPendingPort(t) // new Compiler() needs ClosureCodingConvention
 	oracle := os.Getenv("INFRA_ORACLE")
 	if oracle == "" {
 		t.Skip("set INFRA_ORACLE=<dump.gz> (tools/oracle/java/InfraDump.java)")

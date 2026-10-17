@@ -38,7 +38,6 @@ func TestCoverageInstrumenter_CoverageInstrumenter_noInstrumentation(t *testing.
 // Tests for CompilerSupplier
 
 func TestCoverageInstrumenter_CompilerSupplier_instruments(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	compiler := CoverageInstrumenter_CompilerSupplier_()
 	result := compiler.Compile(transpilerTest_SOURCE_JS, "var x = 42;")
 	expected := []string{

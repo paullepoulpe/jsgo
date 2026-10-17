@@ -45,7 +45,6 @@ func NewSymbolTableTest() *SymbolTableTest {
 }
 
 func TestSymbolTableTest(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	RunJUnit4(t, func() JUnitTestCase { return NewSymbolTableTest() })
 }
 

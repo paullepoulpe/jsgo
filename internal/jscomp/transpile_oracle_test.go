@@ -194,9 +194,6 @@ func (d *transpileOracleDumper) dumpFile(rel string, src string) {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					if _, ok := r.(*PendingPort); ok {
-						panic(r)
-					}
 					exception = "exception " + transpileOracleException(r)
 				}
 			}()
@@ -354,11 +351,6 @@ func transpileOracleCompare(t *testing.T, path string, root string, onlyNames fu
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					if _, ok := r.(*PendingPort); ok {
-						// Not every class this oracle runs is ported yet: the
-						// caller skips the test (SkipIfPendingPort).
-						panic(r)
-					}
 					d.line("go panic " + transpileOracleException(r))
 				}
 			}()
@@ -402,7 +394,6 @@ func transpileOracleFirstDiff(got, want string) string {
 }
 
 func TestTranspileGolden(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	golden := "testdata/transpile/golden.txt.gz"
 	jsDir := "testdata/transpile/js"
 	hand := map[string]bool{}
@@ -429,7 +420,6 @@ func TestTranspileOracle(t *testing.T) {
 	if dump == "" {
 		t.Skip("set TRANSPILE_ORACLE=<TranspileDump output .gz> (and TRANSPILE_ROOT) to run")
 	}
-	defer SkipIfPendingPort(t)
 	root := os.Getenv("TRANSPILE_ROOT")
 	if root == "" {
 		root = "/home/user/jsgo/.cache/corpus"

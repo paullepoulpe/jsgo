@@ -437,7 +437,6 @@ func closureModulesReadList(t *testing.T, path string) []string {
 // closureModulesCompare dumps every file and compares it with its Java section.
 func closureModulesCompare(t *testing.T, root string, files []string, javaDump string, full bool, sample int, diffDir string) {
 	t.Helper()
-	defer SkipIfPendingPort(t)
 	java := closureModulesSplitFiles(javaDump)
 	mismatches := 0
 	for i, rel := range files {
@@ -450,9 +449,6 @@ func closureModulesCompare(t *testing.T, root string, files []string, javaDump s
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					if _, ok := r.(*PendingPort); ok {
-						panic(r) // a pass this dump runs is not ported yet: the test skips
-					}
 					d.sb.WriteString(fmt.Sprintf("GO PANIC: %v\n", r))
 				}
 			}()

@@ -229,9 +229,6 @@ func peepholeOracleDumpOne(rel string, src string, config string) string {
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
-				if _, ok := r.(*PendingPort); ok {
-					panic(r) // not the pass's exception: SkipIfPendingPort
-				}
 				exception = r
 			}
 		}()
@@ -412,7 +409,6 @@ func peepholeOracleFirstDiff(want, got string) string {
 }
 
 func TestPeepholeGolden(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	entries := peepholeOracleRead(t, "testdata/peephole/golden.txt.gz")
 	if len(entries) < 1000 {
 		t.Fatalf("only %d golden blocks", len(entries))
@@ -430,7 +426,6 @@ func TestPeepholeOracle(t *testing.T) {
 	if path == "" {
 		t.Skip("set PEEPHOLE_ORACLE=<PeepholeDump output> to run")
 	}
-	defer SkipIfPendingPort(t)
 	root := os.Getenv("PEEPHOLE_ROOT")
 	if root == "" {
 		root = "/home/user/jsgo/.cache/corpus"

@@ -23,10 +23,6 @@ package jscomp
 //   - TestRemoveUnusedOracle compares any other dump (hashes, or --full):
 //     REMOVE_UNUSED_ORACLE=<dump.gz> [REMOVE_UNUSED_ROOT=<root>] (default
 //     root: the corpus under /home/user/jsgo/.cache/corpus).
-//
-// A pass whose Go run reaches a declaration of pending_gen.go (a class another
-// port owns) prints "pending port: ..." and is counted as pending, not
-// compared.
 
 import (
 	"io"
@@ -397,10 +393,6 @@ func (d *removeUnusedOracleDumper) runPass(pass removeUnusedOraclePass, c *Compi
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
-				if pp, ok := r.(*PendingPort); ok {
-					exception = pp.Error()
-					return
-				}
 				exception = "exception " + normalizeOracleException(r)
 			}
 		}()
@@ -521,7 +513,7 @@ func removeUnusedOracleSections(dump string) []string {
 func removeUnusedOracleCompare(t *testing.T, path string, rootFor func(rel string) string, only func(rel string) bool) int {
 	t.Helper()
 	names, sections, full := normalizeOracleSplit(t, path)
-	n, failures, pending := 0, 0, 0
+	n, failures := 0, 0
 	for _, name := range names {
 		rel := normalizeOracleUnescapeName(name)
 		if only != nil && !only(rel) {
@@ -548,10 +540,6 @@ func removeUnusedOracleCompare(t *testing.T, path string, rootFor func(rel strin
 			if got[i] == want[i] {
 				continue
 			}
-			if strings.Contains(got[i], "\npending port: ") {
-				pending++
-				continue
-			}
 			differs = true
 			if failures < 10 {
 				t.Errorf("%s: dump differs in %s:\n%s", rel, strings.SplitN(want[i], "\n", 2)[0],
@@ -564,9 +552,6 @@ func removeUnusedOracleCompare(t *testing.T, path string, rootFor func(rel strin
 			}
 			failures++
 		}
-	}
-	if pending > 0 {
-		t.Logf("%d pass runs reached a pending port and were not compared", pending)
 	}
 	if failures > 0 {
 		t.Errorf("%d of %d files differ", failures, n)

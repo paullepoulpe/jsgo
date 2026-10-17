@@ -44,7 +44,6 @@ func conformanceAllowlisterTest_containsExactly(t *testing.T, got []conformanceA
 }
 
 func TestConformanceAllowlister_ConformanceAllowlistAddNew(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	sources := conformanceAllowlisterTest_source("/entry.js")
 
 	requirement := Requirement_NewBuilder().
@@ -58,7 +57,6 @@ func TestConformanceAllowlister_ConformanceAllowlistAddNew(t *testing.T) {
 }
 
 func TestConformanceAllowlister_ConformanceAllowlistRemove(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	sources := conformanceAllowlisterTest_source("/entry.js")
 
 	whitelistRequirement := Requirement_NewBuilder().
@@ -81,7 +79,6 @@ func TestConformanceAllowlister_ConformanceAllowlistRemove(t *testing.T) {
 }
 
 func TestConformanceAllowlister_ConformanceAllowlistPreserve(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	sources := conformanceAllowlisterTest_source("/entry.js")
 
 	whitelistRequirement := Requirement_NewBuilder().
@@ -109,7 +106,6 @@ func TestConformanceAllowlister_ConformanceAllowlistPreserve(t *testing.T) {
 // The current behaviour pushes the behaviour of how to cluster the allowlist
 // to the program driving ConformanceAllowlister.
 func TestConformanceAllowlister_ConformanceAllowlistBreaksDownFolder(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	sources := conformanceAllowlisterTest_source("/test/entry.js")
 
 	whitelistRequirement := Requirement_NewBuilder().

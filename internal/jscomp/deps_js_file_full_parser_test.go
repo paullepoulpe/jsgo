@@ -47,31 +47,26 @@ func jsFileFullParserTest_containsExactly(t *testing.T, name string, got []strin
 }
 
 func TestJsFileFullParser_ModuleType_script(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	info := jsFileFullParserTest_parse("alert(42);")
 	jsFileFullParserTest_assertModuleType(t, info, JsFileFullParser_FileInfo_ModuleType_UNKNOWN)
 }
 
 func TestJsFileFullParser_ModuleType_cjs(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	info := jsFileFullParserTest_parse("const fs = require('fs');")
 	jsFileFullParserTest_assertModuleType(t, info, JsFileFullParser_FileInfo_ModuleType_UNKNOWN)
 }
 
 func TestJsFileFullParser_ModuleType_googProvide(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	info := jsFileFullParserTest_parse("goog.provide('foo');")
 	jsFileFullParserTest_assertModuleType(t, info, JsFileFullParser_FileInfo_ModuleType_GOOG_PROVIDE)
 }
 
 func TestJsFileFullParser_ModuleType_googModule(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	info := jsFileFullParserTest_parse("goog.module('foo');")
 	jsFileFullParserTest_assertModuleType(t, info, JsFileFullParser_FileInfo_ModuleType_GOOG_MODULE)
 }
 
 func TestJsFileFullParser_ModuleType_legacyGoogModule(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	info := jsFileFullParserTest_parse(
 		"goog.module('foo');\n" +
 			"goog.module.declareLegacyNamespace();\n")
@@ -79,19 +74,16 @@ func TestJsFileFullParser_ModuleType_legacyGoogModule(t *testing.T) {
 }
 
 func TestJsFileFullParser_ModuleType_esModule_export(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	info := jsFileFullParserTest_parse("export function f() {};")
 	jsFileFullParserTest_assertModuleType(t, info, JsFileFullParser_FileInfo_ModuleType_ES_MODULE)
 }
 
 func TestJsFileFullParser_ModuleType_esModule_import(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	info := jsFileFullParserTest_parse("import * as x from './bar';")
 	jsFileFullParserTest_assertModuleType(t, info, JsFileFullParser_FileInfo_ModuleType_ES_MODULE)
 }
 
 func TestJsFileFullParser_ProvidesRequires(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	info := jsFileFullParserTest_parse(
 		"goog.provide('providedSymbol');\n" +
 			"goog.require('stronglyRequiredSymbol');\n" +
@@ -115,7 +107,6 @@ func (c *jsFileFullParserTest_ErrorCollector) Report(fatal bool, message string,
 }
 
 func TestJsFileFullParser_ProvidesRequires_syntaxError(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	src := "goog.provide('providedSymbol');\n" +
 		"goog.require('stronglyRequiredSymbol');\n" +
 		"goog.requireType('weaklyRequiredSymbol');\n" +
@@ -134,7 +125,6 @@ func TestJsFileFullParser_ProvidesRequires_syntaxError(t *testing.T) {
 }
 
 func TestJsFileFullParser_GoogLoadModule(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	info := jsFileFullParserTest_parse(
 		"goog.loadModule((exports) => {\n" +
 			"  goog.module('inner');\n" +
@@ -155,7 +145,6 @@ func TestJsFileFullParser_GoogLoadModule(t *testing.T) {
 }
 
 func TestJsFileFullParser_GoogLoadModule_inModule(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	info := jsFileFullParserTest_parse(
 		"goog.module('outer');\n" +
 			"const i = goog.require('outer_require');\n" +
@@ -181,7 +170,6 @@ func TestJsFileFullParser_GoogLoadModule_inModule(t *testing.T) {
 }
 
 func TestJsFileFullParser_GoogLoadModule_doubleNested(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	// NB: we cannot use assertThrows: the bazel CI setup doe not have JUnit 5.
 	caught := false
 	jutil.Try(func() {
@@ -215,7 +203,6 @@ func TestJsFileFullParser_GoogLoadModule_doubleNested(t *testing.T) {
 }
 
 func TestJsFileFullParser_SoyDeltemplate(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	info := jsFileFullParserTest_parse(
 		"/**\n" +
 			" * @deltemplate {a}\n" +
@@ -225,7 +212,6 @@ func TestJsFileFullParser_SoyDeltemplate(t *testing.T) {
 }
 
 func TestJsFileFullParser_SoyDeltemplate_legacy(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	info := jsFileFullParserTest_parse(
 		"/**\n" +
 			" * @hassoydeltemplate {a}\n" +
@@ -235,7 +221,6 @@ func TestJsFileFullParser_SoyDeltemplate_legacy(t *testing.T) {
 }
 
 func TestJsFileFullParser_SoyDelcall(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	info := jsFileFullParserTest_parse(
 		"/**\n" +
 			" * @delcall {a}\n" +
@@ -244,7 +229,6 @@ func TestJsFileFullParser_SoyDelcall(t *testing.T) {
 }
 
 func TestJsFileFullParser_SoyDelcall_legacy(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	info := jsFileFullParserTest_parse(
 		"/**\n" +
 			" * @hassoydelcall {a}\n" +
@@ -253,7 +237,6 @@ func TestJsFileFullParser_SoyDelcall_legacy(t *testing.T) {
 }
 
 func TestJsFileFullParser_ReadToggle(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	info := jsFileFullParserTest_parse("const {TOGGLE_foo_bar} = goog.require('foo$2etoggles');")
 	jsFileFullParserTest_containsExactly(t, "readToggles", info.readToggles.ToSlice(), "foo_bar")
 }

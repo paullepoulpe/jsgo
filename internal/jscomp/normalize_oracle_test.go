@@ -176,9 +176,6 @@ func (d *normalizeOracleDumper) dumpFile(rel string, src string) {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					if _, ok := r.(*PendingPort); ok {
-						panic(r) // a class that is not ported yet: the test skips
-					}
 					exception = "exception " + normalizeOracleException(r)
 				}
 			}()
@@ -230,9 +227,6 @@ func (d *normalizeOracleDumper) dumpFile(rel string, src string) {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					if _, ok := r.(*PendingPort); ok {
-						panic(r) // a class that is not ported yet: the test skips
-					}
 					recheck = "recheck exception " + normalizeOracleException(r)
 				}
 			}()
@@ -327,9 +321,6 @@ func normalizeOracleCompare(t *testing.T, path string, root string, onlyNames fu
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					if _, ok := r.(*PendingPort); ok {
-						panic(r) // a class that is not ported yet: the test skips
-					}
 					d.line("go panic " + normalizeOracleException(r))
 				}
 			}()
@@ -368,7 +359,6 @@ func normalizeOracleFirstDiff(got, want string) string {
 }
 
 func TestNormalizeGolden(t *testing.T) {
-	defer SkipIfPendingPort(t) // the Compiler reaches passes not ported yet
 	golden := "testdata/normalize/golden.txt.gz"
 	jsDir := "testdata/normalize/js"
 	hand := map[string]bool{}
@@ -391,7 +381,6 @@ func TestNormalizeGolden(t *testing.T) {
 }
 
 func TestNormalizeOracle(t *testing.T) {
-	defer SkipIfPendingPort(t) // the Compiler reaches passes not ported yet
 	dump := os.Getenv("NORMALIZE_ORACLE")
 	if dump == "" {
 		t.Skip("set NORMALIZE_ORACLE=<NormalizeDump output .gz> (and NORMALIZE_ROOT) to run")

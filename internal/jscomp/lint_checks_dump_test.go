@@ -318,7 +318,6 @@ func lintChecksDumpReadList(t testing.TB, path string) []string {
 }
 
 func TestLintChecksDumpGolden(t *testing.T) {
-	defer SkipIfPendingPort(t) // the Compiler reaches passes not ported yet
 	srcFiles := lintChecksDumpReadList(t, "testdata/lint_checks/inputs.txt")
 	const fixturesRoot = "../../testdata/fixtures"
 	var fixtures []string
@@ -341,7 +340,6 @@ func TestLintChecksDumpGolden(t *testing.T) {
 	sort.Strings(fixtures) // LC_ALL=C sort: byte order
 	for _, convention := range []string{"default", "google"} {
 		t.Run(convention, func(t *testing.T) {
-			defer SkipIfPendingPort(t) // the Compiler reaches passes not ported yet
 			lintChecksDumpCompare(t, "testdata/lint_checks/src-"+convention+".txt", "testdata/lint_checks/src", srcFiles, convention, "")
 			lintChecksDumpCompare(t, "testdata/lint_checks/fixtures-"+convention+".txt.gz", fixturesRoot, fixtures, convention, "")
 		})
@@ -349,7 +347,6 @@ func TestLintChecksDumpGolden(t *testing.T) {
 }
 
 func TestLintChecksDumpCorpus(t *testing.T) {
-	defer SkipIfPendingPort(t) // the Compiler reaches passes not ported yet
 	oracle := os.Getenv("LINT_ORACLE")
 	if oracle == "" {
 		t.Skip("set LINT_ORACLE, LINT_ROOT and LINT_FILES to compare with a LintChecksDump output")

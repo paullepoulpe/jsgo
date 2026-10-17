@@ -67,7 +67,6 @@ func jsMessageExtractorTest_assertContains(t *testing.T, s string, sub string) {
 }
 
 func TestJsMessageExtractor_SyntaxError1(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	e := jsMessageExtractorTest_assertThrows(t, func() { jsMessageExtractorTest_extractMessage(t, nil, "if (true) {}}") })
 
 	jsMessageExtractorTest_assertContains(t, e.GetMessage(), "JSCompiler errors\n")
@@ -76,7 +75,6 @@ func TestJsMessageExtractor_SyntaxError1(t *testing.T) {
 }
 
 func TestJsMessageExtractor_SyntaxError2(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	e := jsMessageExtractorTest_assertThrows(t, func() { jsMessageExtractorTest_extractMessage(t, nil, "\nif (true) {}}") })
 
 	jsMessageExtractorTest_assertContains(t, e.GetMessage(), "JSCompiler errors\n")
@@ -85,7 +83,6 @@ func TestJsMessageExtractor_SyntaxError2(t *testing.T) {
 }
 
 func TestJsMessageExtractor_ExtractNewStyleMessage1(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	// A simple message with no description.
 	jsMessageExtractorTest_assertEquals(t,
 		NewJsMessage_Builder().
@@ -105,7 +102,6 @@ func jsMessageExtractorTest_map(kv ...string) *jutil.LinkedHashMap[string, strin
 }
 
 func TestJsMessageExtractor_OriginalCodeAndExampleMaps(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	// A message with placeholders and original code annotations.
 	jsMessageExtractorTest_assertEquals(t,
 		NewJsMessage_Builder().
@@ -148,7 +144,6 @@ func TestJsMessageExtractor_OriginalCodeAndExampleMaps(t *testing.T) {
 }
 
 func TestJsMessageExtractor_OriginalCodeAndExampleMapsForDeclareIcuTemplate(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	// A message with placeholders and original code annotations.
 	jsMessageExtractorTest_assertEquals(t,
 		NewJsMessage_Builder().
@@ -184,7 +179,6 @@ func TestJsMessageExtractor_OriginalCodeAndExampleMapsForDeclareIcuTemplate(t *t
 }
 
 func TestJsMessageExtractor_ExtractNewStyleMessage2(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	// A message with placeholders and meta data.
 	jsMessageExtractorTest_assertEquals(t,
 		NewJsMessage_Builder().
@@ -208,7 +202,6 @@ func TestJsMessageExtractor_ExtractNewStyleMessage2(t *testing.T) {
 }
 
 func TestJsMessageExtractor_DuplicateUnnamedVariables(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	// Make sure that duplicate unnamed variables don't get swallowed when
 	// using a Google-specific ID generator.
 	msgs := jsMessageExtractorTest_extractMessages(nil,
@@ -228,7 +221,6 @@ func TestJsMessageExtractor_DuplicateUnnamedVariables(t *testing.T) {
 }
 
 func TestJsMessageExtractor_MeaningAnnotation(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	msgs := jsMessageExtractorTest_extractMessages(nil,
 		"var MSG_UNNAMED_1 = goog.getMsg('foo');\n"+
 			"var MSG_UNNAMED_2 = goog.getMsg('foo');\n")

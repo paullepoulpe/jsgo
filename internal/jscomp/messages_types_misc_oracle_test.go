@@ -455,17 +455,6 @@ func l11msgCompareSections(t *testing.T, what string, want map[string]string, go
 	}
 }
 
-// l11msgSkipOnPending, deferred by a test, skips it when it reached a
-// declaration of pending_gen.go (as RunJUnit4 does for ported JUnit tests).
-func l11msgSkipOnPending(t *testing.T) {
-	if r := recover(); r != nil {
-		if pp, ok := r.(*PendingPort); ok {
-			t.Skip(pp.Error())
-		}
-		panic(r)
-	}
-}
-
 // TestXtbMessageBundleOracle compares XtbMessageBundle on testdata/xtb with
 // the pinned Java class (testdata/xtb/expected.txt).
 func TestXtbMessageBundleOracle(t *testing.T) {
@@ -487,7 +476,6 @@ func TestXtbMessageBundleOracle(t *testing.T) {
 // TestTypeTransformationOracle compares TypeTransformation on the TTL
 // expressions of testdata/messages_types_misc/ttl_expressions.txt.
 func TestTypeTransformationOracle(t *testing.T) {
-	defer l11msgSkipOnPending(t)
 	data, err := os.ReadFile("testdata/messages_types_misc/ttl_expressions.txt")
 	if err != nil {
 		t.Fatal(err)
@@ -545,10 +533,8 @@ func l11msgReadList(t *testing.T, path string) []string {
 // (testdata/messages_types_misc/seeds/<mode>_*.js) against the Java dumps
 // testdata/messages_types_misc/seeds_<mode>.txt.gz.
 func TestMessagesTypesMiscSeedsGolden(t *testing.T) {
-	defer l11msgSkipOnPending(t)
 	for _, mode := range []string{"msgs", "angular", "chrome"} {
 		t.Run(mode, func(t *testing.T) {
-			defer l11msgSkipOnPending(t)
 			paths, _ := filepath.Glob("testdata/messages_types_misc/seeds/" + mode + "_*.js")
 			sort.Strings(paths)
 			var files []string
@@ -568,7 +554,6 @@ func TestMessagesTypesMiscSeedsGolden(t *testing.T) {
 // <mode>.txt.gz holds their Java sections. No corpus file reports anything in
 // the angular mode (the seeds cover AngularPass).
 func TestMessagesTypesMiscCorpusGolden(t *testing.T) {
-	defer l11msgSkipOnPending(t)
 	root := os.Getenv("L11MSG_CORPUS_ROOT")
 	if root == "" {
 		root = "../../.cache/corpus"
@@ -578,7 +563,6 @@ func TestMessagesTypesMiscCorpusGolden(t *testing.T) {
 	}
 	for _, mode := range []string{"msgs", "chrome"} {
 		t.Run(mode, func(t *testing.T) {
-			defer l11msgSkipOnPending(t)
 			want := l11msgSplitDump(l11msgReadMaybeGzip(t, "testdata/messages_types_misc/"+mode+".txt.gz"))
 			l11msgRunCorpusMode(t, mode, root, l11msgReadList(t, "testdata/messages_types_misc/"+mode+".files"), want, 10)
 		})
@@ -588,7 +572,6 @@ func TestMessagesTypesMiscCorpusGolden(t *testing.T) {
 // TestMessagesTypesMiscCorpusOracle runs the corpus modes on a whole corpus
 // list against full Java dumps (env-gated).
 func TestMessagesTypesMiscCorpusOracle(t *testing.T) {
-	defer l11msgSkipOnPending(t)
 	root, list, oracleDir := os.Getenv("L11MSG_CORPUS_ROOT"), os.Getenv("L11MSG_CORPUS_FILES"), os.Getenv("L11MSG_ORACLE_DIR")
 	if root == "" || list == "" || oracleDir == "" {
 		t.Skip("set L11MSG_CORPUS_ROOT, L11MSG_CORPUS_FILES and L11MSG_ORACLE_DIR")
@@ -596,7 +579,6 @@ func TestMessagesTypesMiscCorpusOracle(t *testing.T) {
 	files := l11msgReadList(t, list)
 	for _, mode := range []string{"msgs", "angular", "chrome"} {
 		t.Run(mode, func(t *testing.T) {
-			defer l11msgSkipOnPending(t)
 			want := l11msgSplitDump(l11msgReadMaybeGzip(t, filepath.Join(oracleDir, mode+".txt.gz")))
 			l11msgRunCorpusMode(t, mode, root, files, want, 20)
 		})

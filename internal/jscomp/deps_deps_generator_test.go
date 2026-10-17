@@ -60,7 +60,6 @@ func depsGeneratorTest_str(s *string) string {
 // relying on this behavior for interop / ordering. Until we have official
 // channels for these allow this behavior, but don't encourage it.
 func TestDepsGenerator_Es6ModuleWithGoogProvide(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	x := newDepsGeneratorTest(t)
 	srcs := []*SourceFile{
 		SourceFile_FromCode(
@@ -92,7 +91,6 @@ func TestDepsGenerator_Es6ModuleWithGoogProvide(t *testing.T) {
 }
 
 func TestDepsGenerator_Es6Modules(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	x := newDepsGeneratorTest(t)
 	srcs := []*SourceFile{
 		SourceFile_FromCode("/base/javascript/foo/foo.js", "import '../closure/goog/es6';"),
@@ -120,7 +118,6 @@ func TestDepsGenerator_Es6Modules(t *testing.T) {
 }
 
 func TestDepsGenerator_Es6ModuleDeclareModuleId(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	x := newDepsGeneratorTest(t)
 	srcs := []*SourceFile{
 		SourceFile_FromCode(
@@ -154,7 +151,6 @@ func TestDepsGenerator_Es6ModuleDeclareModuleId(t *testing.T) {
 // Unit test for an issue run into by
 // https://github.com/google/closure-compiler/pull/3026
 func TestDepsGenerator_Es6ModuleScanDeps(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	x := newDepsGeneratorTest(t)
 	// Simple ES6 modules
 	srcs := []*SourceFile{
@@ -186,7 +182,6 @@ func TestDepsGenerator_Es6ModuleScanDeps(t *testing.T) {
 // Ensures that deps files are handled correctly both when listed as deps and
 // when listed as sources.
 func TestDepsGenerator_WithDepsAndSources(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	x := newDepsGeneratorTest(t)
 	depsFile1 := SourceFile_FromCode(
 		"/base/my-project/deps1.js",
@@ -267,7 +262,6 @@ func TestDepsGenerator_WithDepsAndSources(t *testing.T) {
 // Ensures that everything still works when both a deps.js and a
 // deps-runfiles.js file are included. Also uses real files.
 func TestDepsGenerator_DepsAsSrcs(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	x := newDepsGeneratorTest(t)
 	depsFile1 := SourceFile_FromCode(
 		"/base/deps1.js",
@@ -301,7 +295,6 @@ func TestDepsGenerator_DepsAsSrcs(t *testing.T) {
 }
 
 func TestDepsGenerator_Externs(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	x := newDepsGeneratorTest(t)
 	srcs := []*SourceFile{
 		SourceFile_FromCode("/base/javascript/foo/externs.js", "/** @externs */"),
@@ -333,7 +326,6 @@ func depsGeneratorTest_assertContains(t *testing.T, result string, want string, 
 }
 
 func TestDepsGenerator_MergeStrategyAlways(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	x := newDepsGeneratorTest(t)
 	result := x.testMergeStrategyHelper(DepsGenerator_InclusionStrategy_ALWAYS)
 	depsGeneratorTest_assertContains(t, result, "['a']", true)
@@ -343,7 +335,6 @@ func TestDepsGenerator_MergeStrategyAlways(t *testing.T) {
 }
 
 func TestDepsGenerator_MergeStrategyWhenInSrcs(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	x := newDepsGeneratorTest(t)
 	result := x.testMergeStrategyHelper(DepsGenerator_InclusionStrategy_WHEN_IN_SRCS)
 	depsGeneratorTest_assertContains(t, result, "['a']", false)
@@ -353,7 +344,6 @@ func TestDepsGenerator_MergeStrategyWhenInSrcs(t *testing.T) {
 }
 
 func TestDepsGenerator_MergeStrategyDoNotDuplicate(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	x := newDepsGeneratorTest(t)
 	result := x.testMergeStrategyHelper(DepsGenerator_InclusionStrategy_DO_NOT_DUPLICATE)
 	depsGeneratorTest_assertContains(t, result, "['a']", false)
@@ -421,7 +411,6 @@ func (x *depsGeneratorTest) doErrorMessagesRun(
 }
 
 func TestDepsGenerator_DuplicateProvides(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	x := newDepsGeneratorTest(t)
 	dep1 := SourceFile_FromCode("dep1.js", "goog.addDependency('a.js', ['a'], []);\n")
 	src1 := SourceFile_FromCode("src1.js", "goog.provide('a');\n")
@@ -436,7 +425,6 @@ func TestDepsGenerator_DuplicateProvides(t *testing.T) {
 // Ensures that an error is thrown when the closure_path flag is set
 // incorrectly.
 func TestDepsGenerator_DuplicateProvidesErrorThrownIfBadClosurePathSpecified(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	x := newDepsGeneratorTest(t)
 	// Create a stub Closure Library.
 	fauxClosureDeps := SourceFile_FromCode("dep1.js", "goog.addDependency('foo/a.js', ['a'], []);\n")
@@ -460,7 +448,6 @@ func TestDepsGenerator_DuplicateProvidesErrorThrownIfBadClosurePathSpecified(t *
 // Ensures that DepsGenerator deduplicates dependencies from custom Closure
 // Library branches.
 func TestDepsGenerator_DuplicateProvidesIgnoredIfInClosureDirectory(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	x := newDepsGeneratorTest(t)
 	// Create a stub Closure Library.
 	fauxClosureDeps := SourceFile_FromCode("dep1.js", "goog.addDependency('foo/a.js', ['a'], []);\n")
@@ -485,7 +472,6 @@ func TestDepsGenerator_DuplicateProvidesIgnoredIfInClosureDirectory(t *testing.T
 }
 
 func TestDepsGenerator_DuplicateProvidesSameFile(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	x := newDepsGeneratorTest(t)
 	dep1 := SourceFile_FromCode("dep1.js", "goog.addDependency('a.js', ['a'], []);\n")
 	src1 := SourceFile_FromCode(
@@ -501,7 +487,6 @@ func TestDepsGenerator_DuplicateProvidesSameFile(t *testing.T) {
 }
 
 func TestDepsGenerator_SameFileProvideRequire(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	x := newDepsGeneratorTest(t)
 	dep1 := SourceFile_FromCode("dep1.js", "goog.addDependency('a.js', ['a'], []);\n")
 	src1 := SourceFile_FromCode(
@@ -517,7 +502,6 @@ func TestDepsGenerator_SameFileProvideRequire(t *testing.T) {
 }
 
 func TestDepsGenerator_UnknownNamespace(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	x := newDepsGeneratorTest(t)
 	dep1 := SourceFile_FromCode("dep1.js", "goog.addDependency('a.js', ['a'], []);\n")
 	src1 := SourceFile_FromCode("src1.js", "goog.require('b');\n")
@@ -531,7 +515,6 @@ func TestDepsGenerator_UnknownNamespace(t *testing.T) {
 }
 
 func TestDepsGenerator_NoDepsInDepsFile(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	x := newDepsGeneratorTest(t)
 	dep1 := SourceFile_FromCode("dep1.js", "")
 
@@ -543,7 +526,6 @@ func TestDepsGenerator_NoDepsInDepsFile(t *testing.T) {
 }
 
 func TestDepsGenerator_UnknownEs6Module(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	x := newDepsGeneratorTest(t)
 	src1 := SourceFile_FromCode("src1.js", "import './missing.js';\n")
 

@@ -185,7 +185,6 @@ func refactoringFixesDump_compare(t *testing.T, oraclePath string, root string, 
 }
 
 func TestRefactoringFixesDumpGolden(t *testing.T) {
-	defer SkipIfPendingPort(t)
 	td := filepath.Join("testdata", "typecheck")
 	files := checksDumpReadList(t, filepath.Join(td, "files.txt"))
 	n := refactoringFixesDump_compare(t,

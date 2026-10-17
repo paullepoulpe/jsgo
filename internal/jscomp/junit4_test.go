@@ -19,9 +19,8 @@ package jscomp
 //
 // Assertions (AssertThat, AssertWithMessage, Fail, the Truth subjects) panic
 // with *jutil.AssertionError, as Java's throw AssertionError; the runner reports
-// that panic (and any other panic, e.g. a Java exception or a
-// "pending port" panic from pending_gen.go) as a failure of that test
-// method only.
+// that panic (and any other panic, e.g. a Java exception) as a failure of
+// that test method only.
 
 import (
 	"fmt"
@@ -84,8 +83,7 @@ func runJUnit4Method(t *testing.T, inst JUnitTestCase, name string) {
 	})
 }
 
-// junit4Guard runs body, reporting a panic as a test failure (a
-// *PendingPort panic as a skip). A test that
+// junit4Guard runs body, reporting a panic as a test failure. A test that
 // already failed through t.Fatal (runtime.Goexit) is not reported again.
 func junit4Guard(t *testing.T, phase string, body func()) {
 	t.Helper()
@@ -101,11 +99,6 @@ func junit4Guard(t *testing.T, phase string, body func()) {
 		if ae, ok := r.(*jutil.AssertionError); ok {
 			t.Errorf("%s%s\n%s", prefix, ae.GetMessage(), junit4ShortStack())
 			return
-		}
-		if pp, ok := r.(*PendingPort); ok {
-			// The test reached a declaration of pending_gen.go: it can only
-			// run once that class is ported.
-			t.Skipf("%s%s", prefix, pp.Error())
 		}
 		t.Errorf("%s%s\n%s", prefix, junit4Describe(r), debug.Stack())
 	}()
@@ -139,20 +132,4 @@ func junit4ShortStack() string {
 		out = append(out, fn, loc)
 	}
 	return strings.Join(out, "\n")
-}
-
-// SkipIfPendingPort reports a plain Go test that reaches a declaration of
-// pending_gen.go as skipped, as RunJUnit4 does: `defer SkipIfPendingPort(t)`
-// at the top of the test. Any other panic goes on.
-//
-// Go-only: test-helper — see PendingPort.
-func SkipIfPendingPort(t testing.TB) {
-	r := recover()
-	if r == nil {
-		return
-	}
-	if pp, ok := r.(*PendingPort); ok {
-		t.Skip(pp.Error())
-	}
-	panic(r)
 }

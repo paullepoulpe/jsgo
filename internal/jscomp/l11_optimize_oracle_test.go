@@ -604,7 +604,6 @@ func l11optCompare(t *testing.T, dumpPath string, full bool, rootFor func(name s
 }
 
 func TestL11OptimizeGolden(t *testing.T) {
-	defer SkipIfPendingPort(t) // Compiler.initOptions reaches passes not ported yet
 	l11optCompare(t, "testdata/l11opt/golden.txt.gz", true, func(name string) string {
 		if strings.HasPrefix(name, "l11opt-") {
 			return "testdata/l11opt/js"
@@ -621,7 +620,6 @@ func TestL11OptimizeGolden(t *testing.T) {
 }
 
 func TestL11OptimizeOracle(t *testing.T) {
-	defer SkipIfPendingPort(t) // Compiler.initOptions reaches passes not ported yet
 	dump := os.Getenv("L11OPT_ORACLE")
 	if dump == "" {
 		t.Skip("set L11OPT_ORACLE=<L11OptimizeDump output .gz> (and L11OPT_ROOT)")
