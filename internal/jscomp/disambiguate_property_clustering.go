@@ -39,7 +39,7 @@ type PropertyClustering struct {
 
 	originalNameClusterRep *ColorGraphNode
 
-	lastInvalidation *Invalidation
+	lastInvalidation Invalidation
 }
 
 // Java: PropertyClustering(String)
@@ -111,12 +111,12 @@ func (p *PropertyClustering) IsInvalidated() bool {
 }
 
 // Java: PropertyClustering.invalidate(Invalidation)
-func (p *PropertyClustering) Invalidate(invalidation *Invalidation) {
+func (p *PropertyClustering) Invalidate(invalidation Invalidation) {
 	p.lastInvalidation = jutil.CheckNotNull(invalidation)
 }
 
 // Java: PropertyClustering.getLastInvalidation()
-func (p *PropertyClustering) GetLastInvalidation() *Invalidation {
+func (p *PropertyClustering) GetLastInvalidation() Invalidation {
 	jutil.CheckState(p.IsInvalidated())
 	return p.lastInvalidation
 }

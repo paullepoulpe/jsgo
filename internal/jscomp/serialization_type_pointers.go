@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/serialization/TypePointers.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/serialization/TypePointers.java @ closure-compiler v20261015
 
 /*
  * Copyright 2021 The Closure Compiler Authors.
@@ -40,6 +40,8 @@ var TypePointers_OFFSET_TO_AXIOMATIC_COLOR = []*colors.Color{
 	colors.StandardColors_SYMBOL,
 	colors.StandardColors_BIGINT,
 	colors.StandardColors_TOP_OBJECT,
+	colors.StandardColors_TOP_FUNCTION,
+	colors.StandardColors_GBIGINT,
 }
 
 // Java: TypePointers.AXIOMATIC_COLOR_COUNT

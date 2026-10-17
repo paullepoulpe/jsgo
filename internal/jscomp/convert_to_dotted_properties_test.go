@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ConvertToDottedPropertiesTest.java @ closure-compiler v20260415
+// Port of com/google/javascript/jscomp/ConvertToDottedPropertiesTest.java @ closure-compiler v20261015
 // (test/com/google/javascript/jscomp/ConvertToDottedPropertiesTest.java)
 
 /*
@@ -190,6 +190,9 @@ func (c *ConvertToDottedPropertiesTest) TestComputedPropertyOrField() {
 	c.TestSame("const test1 = {['default']:87};")
 	c.TestSame("class C { ['constructor']() {} }")
 	c.TestSame("class C { ['constructor'] = 0 }")
+	c.TestSame("const o = {['__proto__']: v};")
+	c.Test("class C { ['__proto__']() {} }", "class C { __proto__() {} }")
+	c.Test("class C { ['__proto__'] = 0; }", "class C { __proto__ = 0; }")
 }
 
 // Java: ConvertToDottedPropertiesTest.testComputedPropertyWithDefaultValue()
@@ -244,4 +247,31 @@ func (c *ConvertToDottedPropertiesTest) TestClassPrivateProp_notPrivateProp_optc
 // Java: ConvertToDottedPropertiesTest.testClassPrivateProp_notPrivateProp_getelem()
 func (c *ConvertToDottedPropertiesTest) TestClassPrivateProp_notPrivateProp_getelem() {
 	c.TestSame("x['#notAPrivateProp']")
+}
+
+// Java: ConvertToDottedPropertiesTest.testUninitializedComputedField()
+func (c *ConvertToDottedPropertiesTest) TestUninitializedComputedField() {
+	c.Test("class C { ['x']; }", "class C { x; }")
+}
+
+// Java: ConvertToDottedPropertiesTest.testUninitializedQuotedField()
+func (c *ConvertToDottedPropertiesTest) TestUninitializedQuotedField() {
+	c.Test("class C { 'x'; }", "class C { x; }")
+}
+
+// Java: ConvertToDottedPropertiesTest.testUninitializedStaticComputedField()
+func (c *ConvertToDottedPropertiesTest) TestUninitializedStaticComputedField() {
+	c.Test("class C { static ['x']; }", "class C { static x; }")
+}
+
+// Java: ConvertToDottedPropertiesTest.testUninitializedStaticQuotedField()
+func (c *ConvertToDottedPropertiesTest) TestUninitializedStaticQuotedField() {
+	c.Test("class C { static 'x'; }", "class C { static x; }")
+}
+
+// Java: ConvertToDottedPropertiesTest.testUninitializedComputedField_notConverted()
+func (c *ConvertToDottedPropertiesTest) TestUninitializedComputedField_notConverted() {
+	c.TestSame("class C { ['constructor']; }")
+	c.TestSame("class C { ['default']; }")
+	c.TestSame("class C { ['#notAPrivateProp']; }")
 }

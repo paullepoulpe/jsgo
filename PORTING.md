@@ -390,6 +390,12 @@ shortcut is never acceptable, however good the motivation. If the port does
 not match Java's behaviour, the port has a bug: find the Java logic that
 produces the behaviour and translate it.
 
+One deliberate exception, decided by the repository owner: jutil's
+`java.util.zip` compression (Deflater, GZIPOutputStream) uses Go's
+`compress/flate`, not a translation of zlib, so compressed bytes may differ
+from Java's while the decompressed content is identical; oracles and
+tools/clie2e compare gzip output decompressed.
+
 ## 8. How a port is verified
 
 Correctness is checked against the pinned Java compiler, layer by layer

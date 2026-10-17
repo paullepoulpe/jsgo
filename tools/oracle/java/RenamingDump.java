@@ -1,6 +1,7 @@
 // Differential oracle for the property renaming passes of the w5-renaming-misc cluster
 // (internal/jscomp/rename_properties.go, disambiguate_ambiguate_properties.go,
-// disambiguate_disambiguate_properties.go, rescope_global_symbols.go), each set up as
+// disambiguate_disambiguate_properties.go, rescope_global_symbols.go and
+// rescope_global_symbols_rewrite_callback.go), each set up as
 // DefaultPassConfig creates it for ADVANCED_OPTIMIZATIONS.
 //
 // For every file, each variant starts from a fresh Compiler with TypeCheckDump.options()
@@ -20,8 +21,12 @@
 //   rename         new RenameProperties(compiler, false, null, reserved first/non-first chars of the
 //                  options, options.getNameGenerator()) and getPropertyMap()
 //   rename-pseudo  the same with generatePseudoNames = true
-//   rescope        new RescopeGlobalSymbols(compiler, "_", false, true)
-//   rescope-extern new RescopeGlobalSymbols(compiler, "_", true, false)
+//   rescope        new RescopeGlobalSymbols(compiler, "_", false, true, OptimizeLocalAccess.DISABLED)
+//   rescope-extern new RescopeGlobalSymbols(compiler, "_", true, false, OptimizeLocalAccess.DISABLED)
+//   rescope-local  new RescopeGlobalSymbols(compiler, "_", false, true, DEFINING_CHUNK_ONLY)
+//   rescope-all    new RescopeGlobalSymbols(compiler, "_", false, true, ALL_CHUNKS)
+//   rescope-wrapped new RescopeGlobalSymbols(compiler, "_", true, true,
+//                  ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS)
 //
 // Output (gzipped; every line escaped like ParsingDump: backslash, and every char outside printable
 // ASCII as \\uXXXX):
@@ -76,7 +81,8 @@ public final class RenamingDump {
   private static int fullEvery = 0;
 
   static final String[] VARIANTS = {
-    "disambiguate", "ambiguate", "rename", "rename-pseudo", "rescope", "rescope-extern"
+    "disambiguate", "ambiguate", "rename", "rename-pseudo", "rescope", "rescope-extern",
+    "rescope-local", "rescope-all", "rescope-wrapped"
   };
 
   public static void main(String[] args) throws Exception {
@@ -231,9 +237,33 @@ public final class RenamingDump {
           }
         }
         case "rescope" ->
-            new RescopeGlobalSymbols(s.compiler, "_", false, true).process(externsRoot, jsRoot);
+            new RescopeGlobalSymbols(
+                    s.compiler, "_", false, true, CompilerOptions.OptimizeLocalAccess.DISABLED)
+                .process(externsRoot, jsRoot);
         case "rescope-extern" ->
-            new RescopeGlobalSymbols(s.compiler, "_", true, false).process(externsRoot, jsRoot);
+            new RescopeGlobalSymbols(
+                    s.compiler, "_", true, false, CompilerOptions.OptimizeLocalAccess.DISABLED)
+                .process(externsRoot, jsRoot);
+        case "rescope-local" ->
+            new RescopeGlobalSymbols(
+                    s.compiler,
+                    "_",
+                    false,
+                    true,
+                    CompilerOptions.OptimizeLocalAccess.DEFINING_CHUNK_ONLY)
+                .process(externsRoot, jsRoot);
+        case "rescope-all" ->
+            new RescopeGlobalSymbols(
+                    s.compiler, "_", false, true, CompilerOptions.OptimizeLocalAccess.ALL_CHUNKS)
+                .process(externsRoot, jsRoot);
+        case "rescope-wrapped" ->
+            new RescopeGlobalSymbols(
+                    s.compiler,
+                    "_",
+                    true,
+                    true,
+                    CompilerOptions.OptimizeLocalAccess.ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS)
+                .process(externsRoot, jsRoot);
         default -> throw new IllegalArgumentException(variant);
       }
       List<String> diags = prefixed(s.errors.lines.subList(before, s.errors.lines.size()));

@@ -204,7 +204,14 @@ func (m *RuntimeJsLibManager) HasInjectedLibrary(resourceName string) bool {
 //
 // Java: RuntimeJsLibManager.getInjectedLibraries()
 func (m *RuntimeJsLibManager) GetInjectedLibraries() []string {
-	return m.injectedLibs.ToSlice()
+	// Go-only: language-adapter — ImmutableList.copyOf is never null, and a
+	// nil slice reads as null to SerializationOptions.Builder (the
+	// typed-AST output of a compilation that injects no library threw
+	// NullPointerException("Null runtimeLibraries")).
+	if libs := m.injectedLibs.ToSlice(); libs != nil {
+		return libs
+	}
+	return []string{}
 }
 
 // GetExternedFields returns a list of all fields previously injected, via

@@ -435,7 +435,7 @@ func sameOutputFiles(a, b string) bool {
 	for name := range names {
 		x, errX := os.ReadFile(filepath.Join(a, name))
 		y, errY := os.ReadFile(filepath.Join(b, name))
-		if (errX == nil) != (errY == nil) || !bytes.Equal(x, y) {
+		if (errX == nil) != (errY == nil) || !sameOutput(x, y) {
 			return false
 		}
 	}

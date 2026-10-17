@@ -2,7 +2,9 @@
 // `java -jar closure-compiler.jar` (in one JVM, tools/oracle/java/CliE2E;
 // the jar is CLOSURE_JAR of tools/oracle/pin.env)
 // and the jsgo binary with identical argument vectors and compares stdout,
-// stderr, the exit status and every output file byte for byte.
+// stderr, the exit status and every output file byte for byte, except that
+// gzip output files are compared decompressed (gzipcmp.go): jsgo's
+// compressor is Go's, so the same content may compress differently.
 //
 // Four suites:
 //
@@ -493,8 +495,8 @@ func compareJob(javaDir, goDir string, j job) string {
 	for _, f := range names {
 		a, errA := os.ReadFile(filepath.Join(javaDir, "out", j.id, f))
 		b, errB := os.ReadFile(filepath.Join(goDir, "out", j.id, f))
-		if (errA == nil) != (errB == nil) || !bytes.Equal(a, b) {
-			why = append(why, "out/"+f+firstDiff(a, b))
+		if (errA == nil) != (errB == nil) || !sameOutput(a, b) {
+			why = append(why, "out/"+f+firstDiff(comparableOutput(a), comparableOutput(b)))
 		}
 	}
 	return strings.Join(why, "; ")
