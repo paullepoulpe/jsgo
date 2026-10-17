@@ -17,7 +17,7 @@ func Files_CreateDirectories(dir *Path) *Path {
 	if dir == nil {
 		// The JVM's message for the NullPointerException that
 		// Files.createDirectories(null) throws.
-		panic(NewNullPointerExceptionMsg(`Cannot invoke "java.nio.file.Path.getFileSystem()" because "path" is null`))
+		panic(NewHelpfulNullPointerException(`Cannot invoke "java.nio.file.Path.getFileSystem()" because "path" is null`))
 	}
 	if err := os.MkdirAll(dir.String(), 0o777); err != nil {
 		panic(NewIOException(err.Error()))

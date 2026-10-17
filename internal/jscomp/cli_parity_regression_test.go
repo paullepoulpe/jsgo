@@ -45,11 +45,24 @@ func (c cliParityCase) runHere(t *testing.T) {
 	var out, errOut bytes.Buffer
 	exit := make(chan int, 1)
 	go func() {
+		// CommandLineRunner.main, with the exit status that the
+		// SystemExitCodeReceiver would pass to System.exit, as the shell
+		// sees it (tools/oracle/java/CliE2E).
 		runner := NewCommandLineRunnerWithOutAndErr(
 			c.args, jutil.NewPrintStream(&out), jutil.NewPrintStream(&errOut))
+		exitStatus := func(code int) int {
+			b := int8(int32(code))
+			if b == 0 && code != 0 {
+				b = -1
+			}
+			return int(uint8(b))
+		}
 		status := 0
 		if runner.ShouldRunCompiler() {
-			status = runner.DoRun()
+			runner.SetExitCodeReceiver(func(code int) { status = exitStatus(code) })
+			runner.Run()
+		} else if runner.HasErrors() {
+			status = exitStatus(-1)
 		}
 		exit <- status
 	}()
@@ -160,4 +173,32 @@ func TestCliParity_UnexpectedQualifiedNameMessage(t *testing.T) {
 	if status != -2 || out.Len() != 0 {
 		t.Errorf("exit status %d, stdout %q; want -2 and nothing", status, out.String())
 	}
+}
+
+// A super in an object literal's method, transpiled to ES5: Es6ConvertSuper
+// finds no enclosing class and dereferences null. The INTERNAL COMPILER
+// ERROR report prints the NullPointerException's message, which is the
+// JVM's "helpful" one; a Go nil dereference has none.
+func TestCliParity_SuperInObjectLiteralTranspiled(t *testing.T) {
+	const npe = `Cannot invoke "com.google.javascript.rhino.Node.getSecondChild()" because "clazz" is null`
+	cliParityCase{
+		files: map[string]string{"in.js": "({ a() { super.b(); } });\n"},
+		args:  []string{"--language_out=ECMASCRIPT5", "--js", "in.js"},
+		wantErr: "in.js:1:1: WARNING - [JSC_USELESS_CODE] Suspicious code. This code lacks side-effects. Is there a bug?\n" +
+			"  1| ({ a() { super.b(); } });\n" +
+			"      ^^^^^^^^^^^^^^^^^^^^^^\n" +
+			"\n" +
+			"0 error(s), 1 warning(s)\n" +
+			"java.lang.RuntimeException: INTERNAL COMPILER ERROR.\n" +
+			"Please report this problem.\n" +
+			"\n" +
+			npe + "\n" +
+			"  Node(SUPER): in.js:1:9\n" +
+			"({ a() { super.b(); } });\n" +
+			"  Parent(GETPROP b): in.js:1:15\n" +
+			"({ a() { super.b(); } });\n" +
+			"\n" +
+			"Caused by: java.lang.NullPointerException: " + npe + "\n",
+		wantExit: 254,
+	}.run(t)
 }

@@ -35,8 +35,12 @@ var (
 	classifyOnly = flag.Bool("classify-only", false, "sweep: run nothing, classify the results in the work directory")
 	skipJava     = flag.Bool("skip-java", false, "sweep: run only jsgo (keeping the Java results in the work directory)")
 	skipGo       = flag.Bool("skip-go", false, "sweep: run only Java (keeping the jsgo results in the work directory)")
+	reuseGo      = flag.Bool("reuse-go", false, "sweep: keep the jsgo results already in the work directory (with -reuse-java: run only the jobs that are new)")
 	javaHeap     = flag.String("xmx", "2500m", "sweep: maximum heap of each JVM")
 	locale       = flag.String("lang", "C.UTF-8", "sweep: LANG for both compilers")
+	sampleN      = flag.Int("sample", 0, "sweep: compile a stratified random sample of this many files of -list (see sample.go)")
+	perConfig    = flag.Int("per-config", 0, "sweep: give each configuration this many files of the list or sample instead of all of them (see sample.go)")
+	maxSize      = flag.Int64("max-size", 0, "sweep: with -sample, leave out files larger than this many bytes")
 )
 
 // sweepConfigs are the sweep's columns: flags added before --js. The
@@ -64,12 +68,14 @@ const (
 	clHang      = "jsgo-hang"
 	clJavaError = "java-error"
 	clMissing   = "java-missing"
+	clGoMissing = "jsgo-missing"
 )
 
-var classes = []string{clIdentical, clDiff, clPanic, clHang, clJavaError, clMissing}
+var classes = []string{clIdentical, clDiff, clPanic, clHang, clJavaError, clMissing, clGoMissing}
 
 type sweepJob struct {
 	conf, file string
+	variant    int // index in the config's variants, or -1
 	args       []string
 }
 
@@ -93,6 +99,11 @@ func runSweep() int {
 	if *n > 0 && *n < len(files) {
 		files = files[:*n]
 	}
+	if *sampleN > 0 {
+		files = stratifiedSample(files, *sampleN, *seed, *corpus, *maxSize)
+		os.MkdirAll(wd, 0o777)
+		os.WriteFile(filepath.Join(wd, "sample.txt"), []byte(strings.Join(files, "\n")+"\n"), 0o666)
+	}
 	selected := map[string]bool{}
 	for _, c := range strings.Split(*onlyConf, ",") {
 		if c != "" {
@@ -102,25 +113,60 @@ func runSweep() int {
 	var order []string
 	var confs []config
 	for _, c := range sweepConfigs {
-		if (len(selected) == 0 && !c.optIn) || selected[c.name] {
+		if (len(selected) == 0 && !c.optIn) || selected[c.name] || (c.group != "" && selected["@"+c.group]) {
 			confs = append(confs, c)
 			order = append(order, c.name)
 		}
 	}
-	// File-major order, so that both sides reach the same jobs at about
-	// the same time.
-	var jobs []sweepJob
-	for _, f := range files {
+	// Each configuration's files: all of them, or -per-config of them.
+	confFiles := map[string][]string{}
+	if *perConfig > 0 {
+		confFiles = assignFiles(files, confs, *perConfig, *seed)
+	} else {
 		for _, c := range confs {
-			args := append(append([]string{}, c.args...), "--js", "in/"+f)
-			j := sweepJob{c.name, f, args}
-			if c.srcMap {
-				j.args = append(j.args, "--js_output_file", filepath.Join(j.res(), "out.js"),
-					"--create_source_map", filepath.Join(j.res(), "out.js.map"))
-			}
-			jobs = append(jobs, j)
+			confFiles[c.name] = files
 		}
 	}
+	// File-major order, so that both sides reach the same jobs at about
+	// the same time.
+	index := map[string]map[string]int{} // config, file -> index in the config's files
+	for _, c := range confs {
+		index[c.name] = map[string]int{}
+		for i, f := range confFiles[c.name] {
+			index[c.name][f] = i
+		}
+	}
+	var jobs []sweepJob
+	var plan []string
+	for _, f := range files {
+		for _, c := range confs {
+			i, ok := index[c.name][f]
+			if !ok {
+				continue
+			}
+			j := sweepJob{conf: c.name, file: f, variant: -1}
+			args := append([]string{}, c.args...)
+			if len(c.variants) > 0 {
+				j.variant = i % len(c.variants)
+				args = append(args, c.variants[j.variant]...)
+			}
+			args = append(args, "--js", "in/"+f)
+			if c.srcMap {
+				args = append(args, "--js_output_file", filepath.Join(j.res(), "out.js"),
+					"--create_source_map", filepath.Join(j.res(), "out.js.map"))
+			}
+			// %res% names the job's result directory, where output files
+			// go to be compared.
+			for k, a := range args {
+				args[k] = strings.ReplaceAll(a, "%res%", j.res())
+			}
+			j.args = args
+			jobs = append(jobs, j)
+			plan = append(plan, c.name+"\t"+f+"\t"+strconv.Itoa(j.variant)+"\t"+strings.Join(args, " "))
+		}
+	}
+	os.MkdirAll(wd, 0o777)
+	os.WriteFile(filepath.Join(wd, "plan.tsv"), []byte(strings.Join(plan, "\n")+"\n"), 0o666)
 
 	if !*classifyOnly {
 		runSweepJobs(wd, javaDir, goDir, jobs)
@@ -133,7 +179,7 @@ func runSweepJobs(wd, javaDir, goDir string, jobs []sweepJob) {
 	if !*reuseJava && !*skipJava {
 		os.RemoveAll(javaDir)
 	}
-	if !*skipGo {
+	if !*skipGo && !*reuseGo {
 		os.RemoveAll(goDir)
 	}
 	for d, skip := range map[string]bool{javaDir: *skipJava, goDir: *skipGo} {
@@ -201,6 +247,9 @@ func runSweepJobs(wd, javaDir, goDir string, jobs []sweepJob) {
 		if *skipGo {
 			break
 		}
+		if _, err := os.Stat(filepath.Join(goDir, j.res(), "exit")); err == nil && *reuseGo {
+			continue
+		}
 		wg.Add(1)
 		sem <- true
 		go func(j sweepJob) {
@@ -232,17 +281,17 @@ func summarize(wd, javaDir, goDir string, jobs []sweepJob, order []string) int {
 			j.conf, j.file, class,
 			readTrim(filepath.Join(javaDir, j.res(), "millis")),
 			readTrim(filepath.Join(goDir, j.res(), "millis")),
-			sig}, "\t"))
+			sig, strconv.Itoa(j.variant)}, "\t"))
 	}
 	os.WriteFile(filepath.Join(wd, "sweep.tsv"), []byte(strings.Join(lines, "\n")+"\n"), 0o666)
 
-	fmt.Printf("%-10s", "config")
+	fmt.Printf("%-22s", "config")
 	for _, c := range classes {
 		fmt.Printf(" %12s", c)
 	}
 	fmt.Println()
 	for _, name := range order {
-		fmt.Printf("%-10s", name)
+		fmt.Printf("%-22s", name)
 		for _, c := range classes {
 			fmt.Printf(" %12d", counts[name][c])
 		}
@@ -336,6 +385,9 @@ func classify(javaDir, goDir string, j sweepJob) (string, string) {
 	if err != nil {
 		return clMissing, ""
 	}
+	if _, err := os.Stat(filepath.Join(goDir, j.res(), "exit")); err != nil {
+		return clGoMissing, ""
+	}
 	if _, err := os.Stat(filepath.Join(goDir, j.res(), "timeout")); err == nil {
 		return clHang, hangSignature(read(goDir, "stderr"))
 	}
@@ -343,8 +395,7 @@ func classify(javaDir, goDir string, j sweepJob) (string, string) {
 	if bytes.Equal(javaExit, read(goDir, "exit")) &&
 		bytes.Equal(read(javaDir, "stdout"), read(goDir, "stdout")) &&
 		bytes.Equal(javaErr, goErr) &&
-		bytes.Equal(read(javaDir, "out.js"), read(goDir, "out.js")) &&
-		bytes.Equal(read(javaDir, "out.js.map"), read(goDir, "out.js.map")) {
+		sameOutputFiles(filepath.Join(javaDir, j.res()), filepath.Join(goDir, j.res())) {
 		return clIdentical, ""
 	}
 	if javaExceptionRe.Match(read(javaDir, "stderr")) {
@@ -362,6 +413,33 @@ func classify(javaDir, goDir string, j sweepJob) (string, string) {
 		return clPanic, sig
 	}
 	return clDiff, ""
+}
+
+// resultFiles are the files a job's result directory holds besides its
+// output files.
+var resultFiles = map[string]bool{"stdout": true, "stderr": true, "exit": true, "millis": true, "timeout": true, "stdin": true}
+
+// sameOutputFiles reports whether two result directories hold the same
+// output files (code, source maps, renaming reports, ...) with the same
+// bytes.
+func sameOutputFiles(a, b string) bool {
+	names := map[string]bool{}
+	for _, dir := range []string{a, b} {
+		entries, _ := os.ReadDir(dir)
+		for _, e := range entries {
+			if !e.IsDir() && !resultFiles[e.Name()] {
+				names[e.Name()] = true
+			}
+		}
+	}
+	for name := range names {
+		x, errX := os.ReadFile(filepath.Join(a, name))
+		y, errY := os.ReadFile(filepath.Join(b, name))
+		if (errX == nil) != (errY == nil) || !bytes.Equal(x, y) {
+			return false
+		}
+	}
+	return true
 }
 
 func firstMatchLine(re *regexp.Regexp, b []byte) string {

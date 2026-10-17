@@ -211,6 +211,15 @@ trailing underscore (`type_`, `func_`, `range_`, `len_`).
   captured result variable plus a flag. Exception classes embed their Java
   superclass struct (ultimately `jutil.ThrowableBase`) and declare their own
   marker interface.
+- A null dereference in Java is a `NullPointerException` whose message the
+  JVM derives from the bytecode (JEP 358: `Cannot invoke "…Node.getSecondChild()"
+  because "clazz" is null`). A Go nil dereference becomes one without a
+  message. Where the message reaches Java's output (an INTERNAL COMPILER
+  ERROR report prints it), check for nil and throw
+  `jutil.NewHelpfulNullPointerException` with the JVM's text, marked as a
+  language adapter. Oracle dumps made with
+  `-XX:-ShowCodeDetailsInExceptionMessages` compare with
+  `jutil.SetShowCodeDetailsInExceptionMessages(false)`.
 - Guava `Preconditions.checkState/checkArgument/checkNotNull` →
   `jutil.CheckState`, `jutil.CheckArgument`, `jutil.CheckNotNull`. These are
   behaviour, not decoration: keep every one.

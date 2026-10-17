@@ -38,7 +38,7 @@ func NewBufferedWriter(out Writer) *BufferedWriter {
 	if IsNil(out) {
 		// Observed behaviour (black-box): the JDK 21 constructor fails with
 		// this helpful NullPointerException message.
-		panic(NewNullPointerExceptionMsg(`Cannot invoke "Object.getClass()" because "writer" is null`))
+		panic(NewHelpfulNullPointerException(`Cannot invoke "Object.getClass()" because "writer" is null`))
 	}
 	return &BufferedWriter{out: out, buf: make([]uint16, 0, bufferedWriterSize)}
 }

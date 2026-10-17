@@ -334,6 +334,9 @@ func transpileOracleUnescapeName(s string) string {
 // root) and compares; it returns the number of files compared.
 func transpileOracleCompare(t *testing.T, path string, root string, onlyNames func(string) bool) int {
 	t.Helper()
+	// The dump was made with -XX:-ShowCodeDetailsInExceptionMessages: a
+	// NullPointerException that the JVM throws has no message.
+	defer jutil.SetShowCodeDetailsInExceptionMessages(jutil.SetShowCodeDetailsInExceptionMessages(false))
 	names, sections, full, variants := transpileOracleSplit(t, path)
 	diffDir := os.Getenv("TRANSPILE_DIFF_DIR")
 	n, failures := 0, 0

@@ -16,6 +16,9 @@
 //	          ADVANCED and --checks_only --jscomp_warning=checkTypes
 //	          (output on stdout), each job classified as identical, diff,
 //	          jsgo panic, jsgo hang (-timeout) or Java error; see sweep.go.
+//	          -configs @flags runs the flag configurations instead
+//	          (sweep_flags.go), usually on a stratified -sample with
+//	          -per-config files each (sample.go).
 //	projects  multi-file, project-level builds defined as data in
 //	          tools/clie2e/projects/*.json (the tools/bench tasks, Closure
 //	          Library apps, ES modules and CommonJS packages of the corpora,
@@ -31,7 +34,7 @@
 //
 //	go run ./tools/clie2e -suite fixtures [-jsgo BIN] [-n N]
 //	go run ./tools/clie2e -suite matrix -work DIR [-n N] [-seed S] [-shards K] [-jobs J]
-//	go run ./tools/clie2e -suite sweep -work DIR -corpus ROOT -list LIST [-configs C,...] [-timeout D] [-reuse-java] [-shards K] [-jobs J]
+//	go run ./tools/clie2e -suite sweep -work DIR -corpus ROOT -list LIST [-configs C,...|@flags] [-sample N] [-per-config K] [-max-size B] [-timeout D] [-reuse-java] [-shards K] [-jobs J]
 //	go run ./tools/clie2e -suite projects -work DIR -javabuild DIR [-set dev|holdout|all] [-projects P[/JOB],...] [-timeout D] [-reuse-java|-skip-java|-skip-go|-classify-only] [-jobs J] [-v]
 //
 // A job whose jsgo run reached a not-yet-ported class (stderr contains
@@ -78,7 +81,15 @@ type config struct {
 	args    []string
 	srcMap  bool
 	perFile bool // false: the job does not take corpus inputs
-	optIn   bool // sweep: only when -configs names it
+	optIn   bool // sweep: only when -configs names it (or its group)
+	// sweep only:
+	group string // -configs @group selects every config of the group
+	// variants, when set, are rotated over the config's files: the i-th
+	// file of the config gets args, then variants[i%len(variants)].
+	variants [][]string
+	// files, when smaller, overrides -per-config for this config (a config
+	// whose flags fail before any input is read needs few files).
+	files int
 }
 
 var configs = []config{
