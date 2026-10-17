@@ -1,5 +1,5 @@
 {
-  "description": "Multistage builds across processes on module code: moment's ES modules (NODE resolution, PRUNE) and lodash's CommonJS modules under the src/interop ES module entry, each in three stages (checks, optimizations, finalizations); the saved compiler states are intermediate files, not compared.",
+  "description": "Multistage builds across processes on module code: moment's ES modules (NODE resolution, PRUNE) and lodash's CommonJS modules under the src/interop ES module entry, each in three stages (checks, optimizations, finalizations); each stage's output is compared, and so are the saved compiler states, decompressed.",
   "links": {
     "node_modules/moment/src": "cache:corpus/moment@2.31.0/package/src",
     "node_modules/lodash": "cache:corpus/lodash@4.17.21/package",
@@ -10,7 +10,6 @@
     {
       "name": "moment-simple",
       "inputs": [{"glob": "node_modules/moment/src/**/*.js"}],
-      "intermediate": ["out/checks.state", "out/optimizations.state"],
       "steps": [
         ["--compilation_level=SIMPLE", "--entry_point=node_modules/moment/src/moment.js",
          "--segment_of_compilation_to_run=CHECKS", "--filename_to_save_to=out/checks.state"],
@@ -25,7 +24,6 @@
     {
       "name": "lodash-interop-advanced",
       "inputs": [{"glob": "node_modules/lodash/*.js", "exclude": ["fp.js"]}, {"glob": "src/*.js"}],
-      "intermediate": ["out/checks.state", "out/optimizations.state"],
       "steps": [
         ["--compilation_level=ADVANCED", "--process_common_js_modules", "--entry_point=src/main.js",
          "--segment_of_compilation_to_run=CHECKS", "--filename_to_save_to=out/checks.state"],
